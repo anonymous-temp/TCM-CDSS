@@ -117,22 +117,25 @@ const classicalFormulaPool: ReadonlyArray<ClassicalFormulaCandidate> = (() => {
 
 // 治法关键词 → 药味功能分类关键词（分类词表见 src/data/tcm-herb-function-categories.json）。
 // 只覆盖 M03 治法中的高频方向；未命中任何方向的病例不注入候选，避免用不相关名方污染组方决策。
+// 本词表与契约侧 TCM_THERAPY_CONCEPTS（diagnosis-stage-contract.ts）必须覆盖同一治法同义族：
+// 生成侧按它注入短名单，契约侧按它核验君药知识库方向；两侧词表不一致会让按短名单选药的
+// 模型被确定性驳回（实测：调畅气机/下气/除满/疏散风热/消痰/醒脾/消积）。
 const THERAPY_HERB_CATEGORY_RULES: ReadonlyArray<readonly [RegExp, readonly string[]]> = [
   [/活血|化瘀|行瘀|通脉|破血|通络/, ["活血"]],
   [/补气|益气|健脾|补中|升阳|举陷|补益心脾/, ["补气"]],
   [/养血|补血/, ["补血"]],
-  [/滋阴|养阴|育阴|生津|增液/, ["补阴"]],
+  [/滋阴|养阴|育阴|生津|增液|补阴/, ["补阴"]],
   [/温阳|扶阳|补阳|温肾|回阳|温脾/, ["补阳", "温里"]],
   [/温中|散寒|温里/, ["温里"]],
   [/清热|泻火|凉血|解毒|清营/, ["清热"]],
-  [/化痰|祛痰|涤痰/, ["化痰"]],
+  [/化痰|祛痰|涤痰|消痰/, ["化痰"]],
   [/止咳|平喘|宣肺|降肺|肃肺/, ["止咳平喘"]],
   [/利水|渗湿|利湿|祛湿/, ["利水渗湿"]],
   [/化湿|燥湿|醒脾/, ["化湿"]],
-  [/解表|疏风|祛风|发散风寒|发散风热/, ["解表", "发散风寒", "发散风热"]],
+  [/解表|疏风|祛风|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风/, ["解表", "发散风寒", "发散风热"]],
   [/安神|宁心|养心|镇惊|定志/, ["安神"]],
-  [/理气|行气|疏肝|解郁|开郁/, ["理气"]],
-  [/消食|导滞|健胃/, ["消食"]],
+  [/理气|行气|疏肝|解郁|开郁|调畅气机|下气|降气|宽中|除满|消胀|除痞|行滞|破气|顺气/, ["理气"]],
+  [/消食|导滞|健胃|消积/, ["消食"]],
   [/平肝|潜阳|息风|止痉/, ["平肝", "息风"]],
   [/止血/, ["止血"]],
   [/通便|泻下|攻下|润下/, ["泻下", "润下", "攻下"]],
@@ -189,7 +192,21 @@ function caseTherapyDirectionTexts(diagnoseReasoning: NonNullable<ReturnType<typ
     ...(diagnoseReasoning.therapy?.subTherapies || []).map((item) => item.therapy),
     ...chain.slice(1).map((node) => node.therapyDirection),
   ]);
-  return { primaryText, secondaryText };
+  // The bounded neutral shape (症状层病名+功能失调候) keeps its therapy language in functional
+  // fields outside the primary texts. When the primary texts carry no recognizable direction,
+  // fall back to the payload's remaining therapy-bearing fields — but never to uncertainties,
+  // which hold unconfirmed differential directions and must not steer herb selection.
+  const pathogenesis = diagnoseReasoning.pathogenesis;
+  const fallbackText = joinText([
+    diagnoseReasoning.overview?.overallPathogenesis,
+    pathogenesis?.summary,
+    ...chain.map((node) => node.pathogenesis),
+    pathogenesis?.locationDifferentiation?.resolutionReason,
+    pathogenesis?.natureDifferentiation?.resolutionReason,
+    diagnoseReasoning.overview?.primarySyndromeResolutionReason,
+    diagnoseReasoning.overview?.recommendedFormulaDirection,
+  ]);
+  return { primaryText, secondaryText, fallbackText };
 }
 
 function classicalFormulaCandidateContext(diagnoseReasoning: ReturnType<typeof diagnoseReasoningFromState>): string {
@@ -223,7 +240,7 @@ function classicalFormulaCandidateContext(diagnoseReasoning: ReturnType<typeof d
 // 短名单过滤（选择引导，不是安全裁决）；契约注释要求两侧保持同词表，改动必须同步审计。
 const KB_THERAPY_KNOWLEDGE_PATTERN = new RegExp([
   "补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|大补元气|扶正|升阳|举陷|固表",
-  "养(?:心|肝)?血|补(?:心|肝)?血|益血|生血",
+  "养(?:心|肝)?血|补(?:心|肝)?血|益血|生血|补血",
   "安神|宁心|宁神|养心|定志|镇惊|安魂|定魄",
   "健脾|补脾|益脾|补益心脾|健运|运化",
   "理气|行气|疏肝|解郁|开郁|调畅气机|下气|降气|宽中|除满|消胀|除痞|行滞|破气|顺气",
@@ -231,7 +248,7 @@ const KB_THERAPY_KNOWLEDGE_PATTERN = new RegExp([
   "化痰|祛痰|涤痰|豁痰|消痰",
   "利湿|渗湿|利水|祛湿|燥湿|化湿|醒脾",
   "温阳|扶阳|回阳|散寒|辛温|温(?:中|肾|里|肺|经|化|补|通|养)|补阳",
-  "滋阴|养阴|育阴|生津|增液",
+  "滋阴|养阴|育阴|生津|增液|补阴",
   "解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风",
   "活血|化瘀|行瘀|破血|通经",
   "通便|泻下|攻下|逐水",
@@ -281,11 +298,15 @@ const KB_COVERED_SHORTLIST_PER_DIRECTION = 10;
 
 function kbCoveredHerbShortlistContext(diagnoseReasoning: ReturnType<typeof diagnoseReasoningFromState>): string {
   if (!diagnoseReasoning) return "";
-  const { primaryText, secondaryText } = caseTherapyDirectionTexts(diagnoseReasoning);
-  if (!primaryText) return "";
+  const { primaryText, secondaryText, fallbackText } = caseTherapyDirectionTexts(diagnoseReasoning);
+  if (!primaryText && !fallbackText) return "";
+  // Primary therapy fields win; the payload-wide fallback only fires when they carry no
+  // recognizable direction (bounded neutral shape), so a KB-covered shortlist exists whenever
+  // any therapy-bearing text in the M03 payload maps to a known direction.
   const primaryKeys = therapyCategoryKeys(primaryText);
-  if (primaryKeys.length === 0) return "";
-  const directionKeys = [...primaryKeys, ...therapyCategoryKeys(secondaryText).filter((key) => !primaryKeys.includes(key))];
+  const directionSeedKeys = primaryKeys.length > 0 ? primaryKeys : therapyCategoryKeys(fallbackText);
+  if (directionSeedKeys.length === 0) return "";
+  const directionKeys = [...directionSeedKeys, ...therapyCategoryKeys(secondaryText).filter((key) => !directionSeedKeys.includes(key))];
   const lines: string[] = [];
   let budget = KB_COVERED_SHORTLIST_BUDGET;
   for (const key of directionKeys) {
@@ -356,6 +377,7 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
 - 君臣佐使必须通过引用体现差异化方义，不得把每味药都绑到同一句核心病机上：臣药必须引用与君药不同的次级病机节点（如 P2/P3），仅当确为增强君药主治时才与君药同节点；佐/使药选用 formula_structure 时应按实际结构功能选择不同枚举，同一 structureRole 不得无差别套用于多味无关药。服务端按 targetRef/structureRole 确定性生成每味药的角色理由，重复引用会产生重复方义。
 - 君药去偏：君药必须直接针对主证核心病机（P1）承担中心治疗作用，不得以“通用补益”充任。山药、党参、黄芪、甘草等通用补益/调和药，仅当 P1 病机本身就是该药主治的虚损证型（本例已有对应虚损患者事实）时才可为君；不得把“健脾扶正”之类的同一模板理由跨病种、跨候选复用于君药，不同 P1 病机的君药功能必须随之改变（如 P1 为瘀血阻络时君药应为活血化瘀药而非补气药）。
 - 君药知识库覆盖：自拟方或未承接命名方身份候选的君药，必须出自服务端药味知识库有功能收载（功能分类或功用文本）的药味，且其收载治疗方向与 P1 治法方向一致；完全无功能收载的药味不得为君，服务端会确定性核验并驳回。优先从上方【本例治法方向的知识库覆盖药味短名单】对应方向中选择君药；若本例理想君药无知识库覆盖，必须改用同一治法方向上最近的有覆盖药味，不得坚持无覆盖药味。臣佐使药同样优先选择知识库有功能收载的药味。
+- 高影响方向禁则：凡主要方向为清热、温阳、活血、泻下、开窍、软坚类的药味，仅当该方向已在 M03 治法（overallPrinciple、subTherapies 或病机节点 therapyDirection）或患者阳性事实中明确成立时才可使用；未成立时一律不得选用，也不得靠改写 prescriptionRole、降低剂量或改换角色把该药保留在方中。服务端对每味药确定性核对该方向是否成立，未成立即驳回。
 - 治法→药味映射：每味药必须经 targetRef/structureRole 绑定到它实际落实的治法方向，候选药味集合必须覆盖 M03 therapy.subTherapies 中每个“主要”治法方向（至少一味药的功能与之对应）；不得出现治法要求活血化瘀而方中无活血药、治法要求解表而方中无解表药这类治法与药味漂移。
 - 不得在提案中重写 M03 证候、病机、治法、流派信息、方剂出处、药味功用、方义、适用边界或证据字段；这些全部由服务端生成。唯一例外：形成自拟方时，可在 candidate.applicable 中用一句话说明已注入的经典名方候选未覆盖本例哪个病机/治法维度（不得罗列被排除方名、不得写《》出处），作为自拟方的组方依据。
 - patentAndWestern 仅在证据上下文中存在可核验说明书、指南或证据检索依据时输出具体西药/中成药；没有可靠依据时输出空数组。每项必须说明定位、对应问题、用法用量边界、疗程、联用/替代关系和风险，不得写成正式医嘱。

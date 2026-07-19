@@ -953,6 +953,50 @@ async function retryCompletePrimaryResponse(
         // 被拒 JSON 可能本身不合法；原因代码仍会指引重试。
       }
     }
+    // 保守剂量越界：原因代码只带药味序号，模型不知道该味的本地保守边界，实测会反复取同一
+    // 临床惯用高量（如矿物贝壳类 30g）。从被拒 JSON 取出药名并附确定性的 KB 剂量边界。
+    let doseBoundaryHint = "";
+    const doseOutOfRangeMatch = structuredStage === "prescribe" && rejectedJson
+      ? (rejectionReason || "").match(/^m04_candidate_\d+_herb_(\d+)_dose_outside_conservative_range$/)
+      : null;
+    if (doseOutOfRangeMatch) {
+      try {
+        const rejectedReasoning = JSON.parse(rejectedJson) as {
+          formula?: { candidates?: Array<{ herbs?: Array<{ name?: unknown }> }> };
+        };
+        const herbName = rejectedReasoning?.formula?.candidates?.[0]?.herbs?.[Number(doseOutOfRangeMatch[1])]?.name;
+        const limit = typeof herbName === "string" && herbName.trim() ? getTcmHerbDoseLimit(herbName.trim()) : null;
+        if (herbName && limit?.min != null && limit.max != null) {
+          doseBoundaryHint = `⚠️ 剂量边界：${String(herbName).trim()} 的服务端保守常用量区间为 ${limit.min}–${limit.max}g。只把该味剂量调整到该区间内（优先中低段），其余已通过校验的药味、剂量与组成保持不变。`;
+        }
+      } catch {
+        // 被拒 JSON 可能本身不合法；通用剂量修复提示仍会指引重试。
+      }
+    }
+    // 未成立高影响方向：原因代码同样只带药味序号与方向键。直接点明是哪味药的哪个方向未成立，
+    // 否则修复轮只会改写理由把同一味药再保留一次（实测同一 清热 药连续三轮未被删除）。
+    let unsupportedHighImpactHint = "";
+    const unsupportedHighImpactMatch = structuredStage === "prescribe" && rejectedJson
+      ? (rejectionReason || "").match(/^m04_candidate_\d+_herb_(\d+)_unsupported_high_impact_([a-z0-9_]+)$/)
+      : null;
+    if (unsupportedHighImpactMatch) {
+      try {
+        const rejectedReasoning = JSON.parse(rejectedJson) as {
+          formula?: { candidates?: Array<{ herbs?: Array<{ name?: unknown }> }> };
+        };
+        const herbName = rejectedReasoning?.formula?.candidates?.[0]?.herbs?.[Number(unsupportedHighImpactMatch[1])]?.name;
+        const conceptLabels: Record<string, string> = {
+          heat_clear: "清热", yang_warm: "温阳", blood_move: "活血",
+          purge: "泻下", orifice_open: "开窍", mass_soften: "软坚",
+        };
+        const conceptLabel = conceptLabels[unsupportedHighImpactMatch[2]] || unsupportedHighImpactMatch[2];
+        if (typeof herbName === "string" && herbName.trim()) {
+          unsupportedHighImpactHint = `⚠️ 高影响方向：${herbName.trim()} 带有本例签名 M03 治法与患者事实均未成立的「${conceptLabel}」方向。直接删除该药或换用已成立治法方向上的药味，不得仅改剂量、改角色或改写理由保留。`;
+        }
+      } catch {
+        // 被拒 JSON 可能本身不合法；通用高影响修复提示仍会指引重试。
+      }
+    }
     const clinicalRepairHint = structuredClinicalRepairHint(structuredStage, rejectionReason);
     const boundedReviewGuidance = structuredStage === "diagnose" && clinicalReviewGuidance.trim()
       ? [
@@ -980,6 +1024,8 @@ async function retryCompletePrimaryResponse(
             : `请定向修复以下 ${structuredStage || "structured"} 结构化 JSON。只输出一个合法 JSON 对象，不要输出 sentinel、正文、代码围栏或额外说明。`,
           `未通过原因代码：${rejectionReason || "structured_contract_rejected"}。`,
           groundingHint,
+          doseBoundaryHint,
+          unsupportedHighImpactHint,
           boundedReviewGuidance,
           clinicalRepairHint,
           proposalRepairHint,

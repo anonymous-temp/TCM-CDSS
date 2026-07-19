@@ -814,7 +814,17 @@ windHeatM04.formula.candidates[0].herbs = [
 ];
 const windHeatIssue = m04SemanticIssue(windHeatM04, "", windHeatPrior) || "";
 assert.doesNotMatch(windHeatIssue, /emperor_therapy_mismatch/, "KB 凉散风热 must map onto exterior_release at the emperor layer");
-assert.match(windHeatIssue, /unsupported_high_impact_heat_clear/, "the heat direction stays governed by the separate high-impact layer, not the emperor check");
+assert.equal(
+  windHeatIssue,
+  "",
+  "with 咽痛 documented in the chain anchor, the classic wind-heat emperor's heat_clear direction is supported by the record",
+);
+const windHeatNoHeatPrior = {
+  ...windHeatPrior,
+  pathogenesis: { chain: [{ ...windHeatPrior.pathogenesis.chain[0], patientFact: "流涕", syndromeEvidence: "流涕" }] },
+};
+const windHeatNoHeatIssue = m04SemanticIssue(windHeatM04, "", windHeatNoHeatPrior) || "";
+assert.match(windHeatNoHeatIssue, /unsupported_high_impact_heat_clear/, "without any documented heat fact the heat direction stays governed by the separate high-impact layer");
 const windHeatClearPrior = {
   ...windHeatPrior,
   pathogenesis: { chain: [{ ...windHeatPrior.pathogenesis.chain[0], therapyDirection: "疏风解表，清热解毒" }] },
@@ -849,6 +859,112 @@ assert.match(
   m04SemanticIssue(stasisM04, "", stasisPrior) || "",
   /emperor_therapy_mismatch/,
   "a qi tonic with no blood-moving action still fails the emperor alignment (fail-closed kept)",
+);
+
+// === KB category-only records map onto concepts (补阴/补血), and documented heat facts support
+// heat_clear high-impact usage (舌红苔薄黄 in the signed payload) without weakening other gates ===
+const qiYinPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "气阴两虚证", overallPathogenesis: "气阴两虚，津液不布", primarySyndromeBasis: ["口干乏力", "舌红少津少苔"], recommendedFormulaDirection: "益气养阴", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "口干乏力", syndromeEvidence: "口干乏力", pathogenesis: "气阴两虚", therapyDirection: "益气养阴" }] },
+  therapy: { overallPrinciple: "益气养阴，生津止渴" },
+};
+const qiYinM04 = structuredClone(m04);
+qiYinM04.overview = { primarySyndrome: "气阴两虚证", overallPathogenesis: "气阴两虚，津液不布" };
+qiYinM04.therapy = { overallPrinciple: "益气养阴，生津止渴" };
+qiYinM04.formula.candidates[0].name = "辨证组方";
+qiYinM04.formula.candidates[0].formulaNames = [];
+qiYinM04.formula.candidates[0].constructionType = "self_devised";
+qiYinM04.formula.candidates[0].therapyMatch = "益气养阴，生津止渴";
+qiYinM04.formula.candidates[0].herbs = [
+  { name: "麦冬", dose: "10g", role: "君", prescriptionRole: "养阴生津", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "气阴两虚", function: "补虚药；补阴药", decoctionRequirement: "" },
+  { name: "太子参", dose: "10g", role: "臣", prescriptionRole: "益气生津", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "气阴两虚", function: "益气健脾，益气生津，大补元气，补气，补肺；补气药；补虚药", decoctionRequirement: "" },
+];
+assert.equal(
+  m04SemanticIssue(qiYinM04, "", qiYinPrior),
+  undefined,
+  "KB category-only 养阴 records (麦冬: 补虚药/补阴药) must map onto yin_nourish so the canonical emperor the shortlist recommends is not rejected as knowledge_missing",
+);
+const liverYangPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "肝阳上亢证", overallPathogenesis: "肝阳上亢，扰动清窍", primarySyndromeBasis: ["头晕头胀", "项背强", "舌红苔薄黄"], recommendedFormulaDirection: "平肝潜阳", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "头晕头胀", syndromeEvidence: "头晕头胀", pathogenesis: "肝阳上亢，扰动清窍", therapyDirection: "平肝潜阳" }] },
+  therapy: { overallPrinciple: "平肝潜阳" },
+};
+const liverYangM04 = structuredClone(m04);
+liverYangM04.overview = { primarySyndrome: "肝阳上亢证", overallPathogenesis: "肝阳上亢，扰动清窍" };
+liverYangM04.therapy = { overallPrinciple: "平肝潜阳" };
+liverYangM04.formula.candidates[0].name = "辨证组方";
+liverYangM04.formula.candidates[0].formulaNames = [];
+liverYangM04.formula.candidates[0].constructionType = "self_devised";
+liverYangM04.formula.candidates[0].therapyMatch = "平肝潜阳";
+liverYangM04.formula.candidates[0].herbs = [
+  { name: "天麻", dose: "10g", role: "君", prescriptionRole: "平肝息风", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "肝阳上亢，扰动清窍", function: "平肝息风药；息风止痉药", decoctionRequirement: "" },
+  { name: "黄芩", dose: "6g", role: "佐", prescriptionRole: "清肝泻火", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "肝阳上亢，扰动清窍", function: "清热燥湿，泻火解毒，止血，安胎，利小肠；清热燥湿药；清热药", decoctionRequirement: "" },
+];
+assert.equal(
+  m04SemanticIssue(liverYangM04, "", liverYangPrior),
+  undefined,
+  "documented heat facts in the signed payload (舌红苔薄黄) support a heat_clear high-impact herb tied to them even when the therapy text says only 平肝潜阳",
+);
+const liverYangNoHeatPrior = {
+  ...liverYangPrior,
+  overview: { ...liverYangPrior.overview, primarySyndromeBasis: ["头晕头胀", "项背强"] },
+};
+assert.match(
+  m04SemanticIssue(liverYangM04, "", liverYangNoHeatPrior) || "",
+  /herb_1_unsupported_high_impact_heat_clear/,
+  "without documented heat facts the same 黄芩 row still rejects (heat_clear stays high-impact)",
+);
+const liverYangBloodM04 = structuredClone(liverYangM04);
+liverYangBloodM04.formula.candidates[0].herbs[1] = {
+  name: "川芎", dose: "6g", role: "佐", prescriptionRole: "活血行气", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "肝阳上亢，扰动清窍", function: "祛风止痛，活血止痛，活血行气，补肝，补血；活血化瘀药；活血止痛药", decoctionRequirement: "",
+};
+assert.match(
+  m04SemanticIssue(liverYangBloodM04, "", liverYangPrior) || "",
+  /herb_1_unsupported_high_impact_blood_move/,
+  "the documented-facts support channel is heat_clear-only; other high-impact directions still require therapy-text support",
+);
+
+// === Concept-free declared intents (harmonizer 使药) must not expose secondary function-text
+// high-impact actions for category-covered herbs; category-empty herbs keep the full expansion ===
+const spleenQiPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "脾胃虚弱证", overallPathogenesis: "脾胃虚弱，中焦气机不畅", primarySyndromeBasis: ["慢性胃炎5年", "轻度上腹隐痛"], recommendedFormulaDirection: "健脾益气", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [
+    { nodeId: "P1", patientFact: "慢性胃炎5年", syndromeEvidence: "慢性胃炎5年", pathogenesis: "脾胃虚弱", therapyDirection: "健脾益气" },
+    { nodeId: "P2", patientFact: "轻度上腹隐痛", syndromeEvidence: "轻度上腹隐痛", pathogenesis: "中焦气机不畅", therapyDirection: "理气和胃" },
+  ] },
+  therapy: { overallPrinciple: "健脾益气，和胃止痛" },
+};
+const spleenQiM04 = structuredClone(m04);
+spleenQiM04.overview = { primarySyndrome: "脾胃虚弱证", overallPathogenesis: "脾胃虚弱，中焦气机不畅" };
+spleenQiM04.therapy = { overallPrinciple: "健脾益气，和胃止痛" };
+spleenQiM04.formula.candidates[0].name = "辨证组方";
+spleenQiM04.formula.candidates[0].formulaNames = [];
+spleenQiM04.formula.candidates[0].constructionType = "self_devised";
+spleenQiM04.formula.candidates[0].therapyMatch = "健脾益气，和胃止痛";
+spleenQiM04.formula.candidates[0].herbs = [
+  { name: "党参", dose: "12g", role: "君", prescriptionRole: "健脾益气", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "脾胃虚弱", function: "补中益气，生津，补血，清肺，健脾；补气药；补虚药", decoctionRequirement: "" },
+  { name: "白术", dose: "10g", role: "君", prescriptionRole: "健脾益气", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "脾胃虚弱", function: "健脾益气，燥湿利水，止汗，安胎；补气药；补虚药", decoctionRequirement: "" },
+  { name: "茯苓", dose: "15g", role: "臣", prescriptionRole: "利水渗湿，健脾", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "脾胃虚弱", function: "利水渗湿，健脾，宁心安神；利水消肿药；利水渗湿药", decoctionRequirement: "" },
+  { name: "陈皮", dose: "6g", role: "臣", prescriptionRole: "理气健脾", targetKind: "pathogenesis_node", targetRef: "P2", structureRole: null, targetPathogenesis: "中焦气机不畅", function: "理气健脾，燥湿化痰，解鱼腥毒，调中，消痰；理气药", decoctionRequirement: "" },
+  { name: "木香", dose: "6g", role: "佐", prescriptionRole: "行气止痛", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", targetPathogenesis: "调和诸药，协调药性", function: "行气止痛，健脾消食；理气药", decoctionRequirement: "后下" },
+  { name: "炙甘草", dose: "3g", role: "使", prescriptionRole: "调和诸药", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", targetPathogenesis: "调和诸药，协调药性", function: "补脾益气，清热解毒，祛痰止咳，缓急止痛，调和诸药；补气药；补虚药", decoctionRequirement: "" },
+];
+assert.equal(
+  m04SemanticIssue(spleenQiM04, "", spleenQiPrior),
+  undefined,
+  "a concept-free harmonizer intent (调和诸药) must not expose 甘草's secondary 清热解毒 function-text action as unsupported high-impact",
+);
+const freeTextIntentEscapeM04 = structuredClone(spleenQiM04);
+freeTextIntentEscapeM04.formula.candidates[0].herbs[5] = {
+  name: "翻白草", dose: "6g", role: "使", prescriptionRole: "调和诸药", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", targetPathogenesis: "调和诸药，协调药性", function: "清热解毒，凉血止血，凉血止痢，消肿，祛风湿", decoctionRequirement: "",
+};
+assert.match(
+  m04SemanticIssue(freeTextIntentEscapeM04, "", spleenQiPrior) || "",
+  /herb_5_unsupported_high_impact_heat_clear/,
+  "a category-empty herb with concept-free intent keeps the full conservative expansion (no harmonizer escape hatch)",
 );
 const highImpactModification = {
   ...m04,

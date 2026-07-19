@@ -23,6 +23,20 @@ export function buildM04ClinicalRepairHint(reason = ""): string {
       "替换后的君药仍须 targetKind=pathogenesis_node、targetRef=P1，且其知识库收载方向必须与 P1 治法方向一致。",
     ].join("\n");
   }
+  if (/^m04_candidate_\d+_herb_\d+_dose_outside_conservative_range$/.test(reason)) {
+    return [
+      "本次失败是某味药的剂量超出服务端保守常用量边界，不是组方方向问题。",
+      "只把该味药的剂量下调到本提示给出的保守区间内，其余已通过校验的药味、剂量、君臣佐使、方名与组成保持原样，不得借机改动其他字段。",
+      "不得用区间、约量、酌量或待确认写法；除君药确有强度需要外，优先选区间中低段剂量，不得再次超出上限。",
+    ].join("\n");
+  }
+  if (/^m04_candidate_\d+_herb_\d+_unsupported_high_impact_[a-z0-9_]+$/.test(reason)) {
+    return [
+      "本次失败是某味药带有本例未成立的高影响治疗方向（清热、温阳、活血、泻下、开窍、软坚类），不是剂量或结构问题。",
+      "该方向在当前签名 M03 的治法与患者阳性事实中都没有依据：直接删除这味药，或替换为已成立治法方向上的药味；不得仅改剂量、改君臣佐使角色或改写理由把它保留下来。",
+      "其余已通过校验的药味、剂量、方名与组成保持原样；删除后候选仍须恰有 1–2 味君药且结构完整。",
+    ].join("\n");
+  }
   if (/^m04_(?:clinical|formula_composition|herb_plan|dose_rationale|patient_context)_semantic_review$/.test(reason)) {
     const focus = reason === "m04_formula_composition_semantic_review"
       ? "本次只修复命名方组成：按 M03 锁定的 governedFormulaBaselines 保留必需锚点和最低组成数，逐味给出保守剂量；不得只改方名，也不得用自拟方绕过命名方合同。"

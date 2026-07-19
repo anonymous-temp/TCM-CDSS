@@ -634,7 +634,22 @@ for (const herb of ["知母", "天花粉"]) {
 }
 assert.ok(/- 补阴方向：[^\n]*(?:石斛|玉竹|百合|黄精|天冬|女贞子)/.test(shortlistSection), "at least one covered 补阴 herb must appear in the 补阴 group");
 assert.ok(!shortlistSection.includes("生地黄"), "生地黄 has no KB function coverage and must never be presented as an eligible emperor");
-assert.ok(!shortlistSection.includes("麦冬"), "a categories-only herb without concept-matching function knowledge must not be offered as an eligible emperor");
+assert.ok(shortlistSection.includes("麦冬"), "麦冬's 补阴 category now maps to yin_nourish on both sides, so the canonical 养阴 emperor must be offered");
+
+// ─── 中性功能失调候形态的短名单覆盖：功能性治法文本也必须能导出 KB 覆盖短名单 ───
+const neutralXiaokePrompt = prescribePromptFor(promptM03Reasoning({
+  syndrome: "消渴功能失调候",
+  therapy: "调畅气机，助津液输布",
+  method: "调畅气机，助津液输布",
+  chain: [["P1", "津液输布与气化功能失调", "调畅气机"]],
+}));
+const neutralShortlistStart = neutralXiaokePrompt.indexOf("【本例治法方向的知识库覆盖药味短名单");
+assert.ok(neutralShortlistStart >= 0, "the neutral 功能失调候 shape must still get a KB-covered shortlist via the functional therapy vocabulary");
+const neutralShortlistEnd = neutralXiaokePrompt.indexOf("【M04药味可引用病机节点】");
+assert.ok(neutralShortlistEnd > neutralShortlistStart, "the shortlist block must be well-formed for the neutral shape");
+const neutralShortlistSection = neutralXiaokePrompt.slice(neutralShortlistStart, neutralShortlistEnd);
+assert.ok(neutralShortlistSection.includes("- 理气方向："), "调畅气机 must map to the 理气 direction group on the prompt side as it does on the contract side");
+assert.ok(/- 理气方向：[^\n]*(?:陈皮|厚朴|木香|香附|枳壳)/.test(neutralShortlistSection), "the 理气 group must list KB-covered regulating herbs");
 
 const { buildM04ClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
 const emperorKnowledgeHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_1_emperor_knowledge_missing");
@@ -644,5 +659,13 @@ assert.ok(emperorKnowledgeHint.includes("短名单"), "the repair hint must poin
 assert.ok(emperorKnowledgeHint.includes("同一治法方向"), "the repair hint must require a same-direction replacement");
 assert.ok(buildM04ClinicalRepairHint("m04_candidate_0_herb_1_emperor_not_primary").includes("君药数量或 P1 归属不合法"), "adjacent emperor branches must remain unchanged");
 assert.ok(buildM04ClinicalRepairHint("m04_candidate_0_emperor_missing").includes("君药数量或 P1 归属不合法"), "adjacent emperor branches must remain unchanged");
+const doseRangeHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_2_dose_outside_conservative_range");
+assert.ok(doseRangeHint.includes("保守常用量边界"), "the dose-range repair hint must name the conservative boundary cause");
+assert.ok(doseRangeHint.includes("其余已通过校验的药味"), "the dose-range repair hint must scope the edit to the offending herb only");
+assert.ok(doseRangeHint.includes("中低段"), "the dose-range repair hint must steer toward the conservative part of the interval");
+const highImpactHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_5_unsupported_high_impact_heat_clear");
+assert.ok(highImpactHint.includes("高影响治疗方向"), "the high-impact repair hint must name the unsupported-direction cause");
+assert.ok(highImpactHint.includes("直接删除这味药"), "the high-impact repair hint must require dropping the flagged herb");
+assert.ok(highImpactHint.includes("恰有 1–2 味君药"), "the high-impact repair hint must keep the emperor cardinality invariant");
 
-console.log(JSON.stringify({ cases: 306, failures: 0 }));
+console.log(JSON.stringify({ cases: 318, failures: 0 }));

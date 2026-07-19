@@ -939,12 +939,16 @@ type TcmTherapyConcept =
 // texts must map onto the SAME concepts or a clinically correct emperor fails the deterministic
 // emperor-therapy alignment check. Keep the two sides aligned at class level: cover the standard
 // synonym families the KB function texts actually use (凉散风热/疏散风热, 下气/宽中/除满, 消痰,
-// 醒脾, 消积). Do NOT widen the HIGH_IMPACT concepts below (heat_clear, yang_warm, blood_move,
-// purge, orifice_open, mass_soften) without auditing every herb whose function text would newly
-// match — a wider high-impact regex turns into new fail-closed false positives.
+// 醒脾, 消积) and the KB CATEGORY labels that appear in category-only records (补阴药/补血药 —
+// e.g. 麦冬/枸杞子 carry only ["补虚药","补阴药"], so without 补阴 the emperor-knowledge gate
+// rejects the canonical 养阴 emperors the prompt shortlist itself recommends). 补虚药 stays
+// unmapped: it spans 气血阴阳 and cannot be assigned one concept conservatively. Do NOT widen
+// the HIGH_IMPACT concepts below (heat_clear, yang_warm, blood_move, purge, orifice_open,
+// mass_soften) without auditing every herb whose function text would newly match — a wider
+// high-impact regex turns into new fail-closed false positives.
 const TCM_THERAPY_CONCEPTS: ReadonlyArray<[TcmTherapyConcept, RegExp]> = [
   ["qi_tonify", /补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|大补元气|扶正|升阳|举陷|固表/],
-  ["blood_nourish", /养(?:心|肝)?血|补(?:心|肝)?血|益血|生血/],
+  ["blood_nourish", /养(?:心|肝)?血|补(?:心|肝)?血|益血|生血|补血/],
   ["calm_spirit", /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄/],
   ["spleen_support", /健脾|补脾|益脾|补益心脾|健运|运化/],
   ["qi_regulate", /理气|行气|疏肝|解郁|开郁|调畅气机|下气|降气|宽中|除满|消胀|除痞|行滞|破气|顺气/],
@@ -952,7 +956,7 @@ const TCM_THERAPY_CONCEPTS: ReadonlyArray<[TcmTherapyConcept, RegExp]> = [
   ["phlegm_resolve", /化痰|祛痰|涤痰|豁痰|消痰/],
   ["damp_resolve", /利湿|渗湿|利水|祛湿|燥湿|化湿|醒脾/],
   ["yang_warm", /温阳|扶阳|回阳|散寒|辛温|温(?:中|肾|里|肺|经|化|补|通|养)|补阳/],
-  ["yin_nourish", /滋阴|养阴|育阴|生津|增液/],
+  ["yin_nourish", /滋阴|养阴|育阴|生津|增液|补阴/],
   ["exterior_release", /解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风/],
   ["blood_move", /活血|化瘀|行瘀|破血|通经/],
   ["purge", /通便|泻下|攻下|逐水/],
@@ -1009,15 +1013,23 @@ function herbHighImpactConcepts(name: string, declaredFunction?: string): Set<Tc
     : null;
   // A multi-action herb is governed by the action actually declared for this prescription. This
   // keeps secondary catalog effects from becoming false positives while still catching an
-  // explicitly selected direction such as 乌药“温肾散寒”. If the intended action is absent, retain
-  // the conservative server-owned specialist mapping until the row is fully structured.
+  // explicitly selected direction such as 乌药“温肾散寒”. A declared intent that carries no
+  // therapy-direction vocabulary at all (e.g. 调和诸药/协调药性 for a 使药) claims no high-impact
+  // action either: for category-covered herbs the primary actions stay governed through their
+  // categories/risk/governed mapping, and only the unrelated secondary function-text actions are
+  // dropped (this is what wrongly flagged 甘草“清热解毒” and 党参“清肺” on harmonizer rows).
+  // Herbs with NO categories keep the full conservative expansion — their function text is the
+  // only knowledge source. If the intended action is absent, retain the conservative
+  // server-owned specialist mapping until the row is fully structured.
   const knowledgeConcepts = new Set([...categoryConcepts, ...fullFunctionConcepts, ...riskConcepts]);
   const intendedMatchesKnowledge = Boolean(intendedConcepts && [...intendedConcepts].some((concept) => knowledgeConcepts.has(concept)));
   const intendedKnowledgeConcepts = intendedConcepts && intendedMatchesKnowledge
     ? [...fullFunctionConcepts, ...riskConcepts].filter((concept) => intendedConcepts.has(concept))
-    : intendedConcepts
+    : intendedConcepts && intendedConcepts.size > 0
       ? [...fullFunctionConcepts, ...riskConcepts]
-    : [...fullFunctionConcepts].filter((concept) => concept === "orifice_open" || concept === "mass_soften");
+      : intendedConcepts
+        ? (categoryConcepts.size > 0 ? [...riskConcepts] : [...fullFunctionConcepts, ...riskConcepts])
+        : [...fullFunctionConcepts].filter((concept) => concept === "orifice_open" || concept === "mass_soften");
   const governedConcepts = getTcmHerbGovernedHighImpactConcepts(name)
     .filter((concept) => !intendedConcepts || !intendedMatchesKnowledge || intendedConcepts.has(concept));
   const opposingKnowledgeConcepts = intendedConcepts
@@ -1046,6 +1058,49 @@ function primaryPathogenesisTherapyConcepts(prior: M03ReasoningLike | null | und
   ].map((value) => String(value || "").trim()).filter(Boolean).join("；"));
 }
 
+// Current-heat facts documented in the signed M03 payload's own grounded fields: verbatim chain
+// anchors, syndrome basis, western supporting facts, resolution reasons and uncertainty notes all
+// carry record fragments. When any affirmed (non-negated) clause documents heat polarity, a
+// heat_clear high-impact herb counts as supported even when the M03 therapy vocabulary does not
+// literally contain 清热 verbs (e.g. 平肝潜阳 for 肝阳上亢 with 舌红苔薄黄 in the record).
+// Conservative scope: only heat_clear gets this documented-facts channel — it stays high-impact,
+// undocumented usage still rejects, and the opposing-direction invariant below is unchanged.
+const GROUNDED_HEAT_FACT_PATTERN = /舌红|舌绛|苔黄|苔燥|少津|口干|口苦|口渴|潮热|盗汗|心烦|烦躁|尿黄|小便黄|大便秘结|便秘|发热|面红|目赤|咽痛|牙龈肿痛|脉数/;
+
+function priorDocumentedHeatFacts(prior: M03ReasoningLike | null | undefined): boolean {
+  if (!prior) return false;
+  const overview = prior.overview as { primarySyndromeBasis?: unknown } | undefined;
+  const pathogenesis = prior.pathogenesis as {
+    chain?: Array<{ patientFact?: unknown; syndromeEvidence?: unknown }>;
+    uncertainties?: unknown;
+    locationDifferentiation?: { resolutionReason?: unknown; basis?: unknown };
+    natureDifferentiation?: { resolutionReason?: unknown; basis?: unknown };
+  } | undefined;
+  const westernPrimary = prior.westernDiagnosis?.primary as { supportingFacts?: unknown } | undefined;
+  const uncertaintyTexts = (Array.isArray(pathogenesis?.uncertainties) ? pathogenesis!.uncertainties! : [])
+    .flatMap((item) => {
+      if (typeof item === "string") return [item];
+      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+      const row = item as { item?: unknown; reason?: unknown; affects?: unknown };
+      return [row.item, row.reason, row.affects].filter((value): value is string => typeof value === "string");
+    });
+  const texts = [
+    ...(pathogenesis?.chain || []).flatMap((node) => [node.patientFact, node.syndromeEvidence]),
+    ...(Array.isArray(overview?.primarySyndromeBasis) ? overview!.primarySyndromeBasis! : [overview?.primarySyndromeBasis]),
+    ...(Array.isArray(westernPrimary?.supportingFacts) ? westernPrimary!.supportingFacts! : []),
+    pathogenesis?.locationDifferentiation?.resolutionReason,
+    pathogenesis?.locationDifferentiation?.basis,
+    pathogenesis?.natureDifferentiation?.resolutionReason,
+    pathogenesis?.natureDifferentiation?.basis,
+    ...uncertaintyTexts,
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
+  for (const clause of clinicalClauses(texts)) {
+    if (isNegatedClinicalClause(clause)) continue;
+    if (GROUNDED_HEAT_FACT_PATTERN.test(clause)) return true;
+  }
+  return false;
+}
+
 function unsupportedHighImpactHerbIssue(
   herbs: ReadonlyArray<{ name?: unknown; function?: unknown; prescriptionRole?: unknown; targetPathogenesis?: unknown }>,
   prior: M03ReasoningLike | null | undefined,
@@ -1053,6 +1108,7 @@ function unsupportedHighImpactHerbIssue(
   selectedFormulaNames: readonly string[] = [],
 ): string | undefined {
   const required = requiredTherapyConcepts(prior);
+  const documentedHeatSupport = priorDocumentedHeatFacts(prior);
   const governedFormulaIngredients = allowGovernedFormulaBaseline
     ? new Set(executableFormulaCompilationReferences(
         selectedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim())),
@@ -1077,7 +1133,8 @@ function unsupportedHighImpactHerbIssue(
         (knowledgeConcept === right && required.has(left))))
     ;
     const unsupported = [...new Set([
-      ...[...highImpact].filter((concept) => !required.has(concept)),
+      ...[...highImpact].filter((concept) =>
+        !required.has(concept) && !(concept === "heat_clear" && documentedHeatSupport)),
       ...opposingLocked,
     ])];
     if (unsupported.length > 0) return `herb_${index}_unsupported_high_impact_${unsupported.join("_")}`;
