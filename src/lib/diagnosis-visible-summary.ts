@@ -1028,3 +1028,66 @@ export function synchronizeVisibleClinicalSummary(
     return content;
   }
 }
+
+
+// ─── Streaming-draft internal-vocabulary scrubber (P2-2) ─────────────────────
+// The final structured UI renders from the signed sentinel JSON and never shows pipeline
+// vocabulary. Raw model drafts in the streamed preview / truncated-draft path can still leak
+// internal enum values and reason codes (把握度：bounded, lineageCode: unrestricted, the dose
+// placeholder "用法与疗程待候选方药阶段核验"). This scrubber rewrites ONLY the human-visible
+// markdown head; the DIAGNOSIS_JSON sentinel block the client parses stays byte-exact.
+
+/** Internal confidence/resolution enums → doctor-facing Chinese after an explicit Chinese label. */
+const VISIBLE_CONFIDENCE_ENUM: Record<string, string> = {
+  resolved: "较高",
+  bounded: "有限",
+  unresolved: "不足",
+};
+
+/**
+ * A whole line that is just an internal field dump: a camelCase / snake_case code identifier (or a
+ * known plain internal field) followed by an enum or snake_case code value. Clinical lines survive:
+ * the value set never matches Chinese text, numbers, units or words like "normal", and clinical
+ * abbreviations (BP, HbA1c) fail the code-identifier shape. eGFR is camel-shaped, but its value is
+ * numeric/clinical prose, never an internal enum, so those lines stay.
+ */
+const INTERNAL_FIELD_DUMP_LINE = /^[ \t]*(?:[-*>][ \t]*)?(?:\*\*)?(?:[a-z][A-Za-z0-9]*[A-Z][A-Za-z0-9]*|[a-z][a-z0-9]*_[a-z0-9_]+|reason|status|outcome|resolution|confidence)(?:\*\*)?[ \t]*[:：][ \t]*(?:\*\*)?(?:resolved|bounded|unresolved|unrestricted|accepted|repair|unavailable|not_run|success|preferred|cross_model_fallback|[a-z][a-z0-9]*_[a-z0-9_]+)(?:\*\*)?[ \t]*[。.]?[ \t]*$/gm;
+
+/** Internal repair/review reason codes that must never reach a doctor-facing draft, even mid-sentence. */
+const INTERNAL_EMBEDDED_CODE = /\b(?:m0[1-5]_[a-z0-9_]+|signed_limited_fallback(?:_[a-z0-9_]+)*|criteria_not_met|diagnostic_label_overstated|formula_indication_mismatch|formula_composition_mismatch|herb_plan_mismatch|dose_rationale_concern|patient_context_mismatch|tcm_reasoning_unsupported|review_unavailable|quarantine_loop|identical_guidance_fixpoint|contract_rejected|provider_error|stream_truncated)\b/g;
+
+function scrubVisibleMarkdownHead(head: string): string {
+  let text = head;
+  // 1. Server sanitizer placeholders → doctor-facing phrasing (longest form first).
+  text = text
+    .replaceAll("用法与疗程待候选方药阶段核验", "用法与疗程以审定处方为准")
+    .replaceAll("（剂量信息待候选方药阶段核验）", "（剂量以审定处方为准）")
+    .replaceAll("剂量信息待候选方药阶段核验", "剂量以审定处方为准")
+    .replaceAll("疗程待候选方药阶段核验", "疗程以审定处方为准");
+  // 2. Internal enum values behind Chinese labels → doctor-facing wording (markdown-bold tolerant).
+  text = text.replace(
+    /((?:判断)?把握度|置信度)(\*{0,2}[ \t]*[:：][ \t]*\*{0,2})(resolved|bounded|unresolved)(?![A-Za-z])/g,
+    (_match, label: string, separator: string, value: string) => `${label}${separator}${VISIBLE_CONFIDENCE_ENUM[value]}`,
+  );
+  text = text.replace(
+    /(诊疗思路偏好|流派偏好)(\*{0,2}[ \t]*[:：][ \t]*\*{0,2})unrestricted(?![A-Za-z])/g,
+    "$1$2未限定",
+  );
+  // 3. Whole-line internal field dumps are dropped outright; blank gaps are collapsed.
+  text = text.replace(INTERNAL_FIELD_DUMP_LINE, "").replace(/\n{3,}/g, "\n\n");
+  // 4. Remaining embedded internal reason codes degrade to a generic doctor-facing marker.
+  text = text.replace(INTERNAL_EMBEDDED_CODE, (token) =>
+    token.startsWith("m03_") || token.startsWith("m04_") ? "独立临床复核" : "系统内部校验");
+  return text;
+}
+
+/**
+ * Deterministically scrub internal pipeline vocabulary from streamed/draft visible text.
+ * Idempotent and sentinel-aware: content from DIAGNOSIS_JSON_START onward is returned byte-exact,
+ * so contract signatures and the client-side structured parser are unaffected.
+ */
+export function scrubInternalVocabularyFromVisibleText(content: string): string {
+  const start = content.indexOf(START_MARKER);
+  if (start < 0) return scrubVisibleMarkdownHead(content);
+  return `${scrubVisibleMarkdownHead(content.slice(0, start))}${content.slice(start)}`;
+}

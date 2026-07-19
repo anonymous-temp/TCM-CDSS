@@ -523,4 +523,94 @@ const sanitizedUnknown = enrichPrescriptionProvenance(unverifiedHeadingVariant);
 assert.match(sanitizedUnknown, /#### 候选方药一：本例辨证组方/);
 assert.doesNotMatch(sanitizedUnknown, /升栀逍遥散|《伤寒论》/);
 
-console.log(JSON.stringify({ cases: 263, failures: 0 }));
+// ─── P0-5 prompt 层断言：经典方优先、出处纪律、君药去偏、角色差异化方义、非空随证加减、治法→药味映射 ───
+const { buildDiagnosePrompt, buildPrescribePrompt } = await import("../src/lib/diagnosis-prompts.ts");
+
+function promptM03Reasoning({ syndrome, therapy, method, chain, formulaNames = [] }) {
+  return {
+    schemaVersion: "tcm-cdss-reasoning-v2",
+    stage: "diagnose",
+    overview: {
+      primarySyndrome: syndrome,
+      overallPathogenesis: "测试总病机",
+      overallTherapy: therapy,
+      recommendedFormulaDirection: formulaNames.length ? `${formulaNames[0]}加减` : "按已锁定病机与治法辨证组方",
+      recommendedFormulaNames: formulaNames,
+      formulaSelectionMode: formulaNames.length ? "single" : "self_devised",
+    },
+    pathogenesis: {
+      chain: chain.map(([nodeId, pathogenesis, therapyDirection]) => ({
+        nodeId, patientFact: "测试患者事实", syndromeEvidence: "测试证候证据", pathogenesis, therapyDirection,
+      })),
+    },
+    therapy: { overallPrinciple: therapy, overallMethod: method, subTherapies: [] },
+  };
+}
+
+function prescribePromptFor(m03) {
+  return buildPrescribePrompt({ patient: {}, chiefComplaint: "测试主诉", conversation: [], reasoningDiagnose: m03 });
+}
+
+const xinmaiPrompt = prescribePromptFor(promptM03Reasoning({
+  syndrome: "心脉瘀阻证",
+  therapy: "活血化瘀、通脉止痛",
+  method: "活血化瘀、通脉止痛",
+  chain: [["P1", "瘀血阻滞心脉", "活血化瘀、通脉止痛"], ["P2", "气机郁滞", "理气行滞"]],
+}));
+assert.ok(xinmaiPrompt.includes("【按治法匹配的经典名方候选"), "M04 prompt must inject syndrome-matched classical formula candidates");
+assert.ok(xinmaiPrompt.includes("- 身痛逐瘀汤｜出处：《医林改错》"), "心脉瘀阻 injection must surface 逐瘀汤类 with governed provenance");
+assert.ok(!xinmaiPrompt.includes("六磨汤｜出处"), "secondary 理气 direction must not outrank the core 活血 therapy in candidate ranking");
+
+const piweiPrompt = prescribePromptFor(promptM03Reasoning({
+  syndrome: "脾胃虚弱证",
+  therapy: "健脾益气、和胃助运",
+  method: "健脾益气、和胃助运",
+  chain: [["P1", "脾胃虚弱、运化无力", "健脾益气"], ["P2", "湿浊内生", "化湿和中"]],
+}));
+assert.ok(piweiPrompt.includes("- 举元煎｜出处：《景岳全书》"), "脾胃虚弱 injection must surface 补气 classic candidates with provenance");
+
+const fenghanPrompt = prescribePromptFor(promptM03Reasoning({
+  syndrome: "风寒表证",
+  therapy: "辛温解表",
+  method: "辛温解表、宣肺散寒",
+  chain: [["P1", "风寒束表、卫阳被遏", "辛温解表、发散风寒"], ["P2", "肺气失宣", "宣肺散寒"]],
+}));
+assert.ok(fenghanPrompt.includes("- 麻黄细辛附子汤｜出处：《伤寒论》"), "风寒表证 injection must surface 辛温解表 classics with provenance");
+
+const lockedGuipiPrompt = prescribePromptFor(promptM03Reasoning({
+  syndrome: "心脾两虚证",
+  therapy: "补益心脾、养血安神",
+  method: "补益心脾、养血安神",
+  chain: [["P1", "心脾两虚、心神失养", "补益心脾、养血安神"]],
+  formulaNames: ["归脾汤"],
+}));
+assert.ok(lockedGuipiPrompt.includes("- 方名：归脾汤"), "a locked M03 formula must keep its deterministic compilation baseline in M04");
+assert.ok(!lockedGuipiPrompt.includes("- 归脾汤｜出处"), "the candidate block must not duplicate the already locked formula");
+
+for (const [label, needle] of [
+  ["classical-first discipline", "经典方优先与出处纪律"],
+  ["server-owned provenance citation", "方剂出处一律由服务端按目录"],
+  ["self-devised justification channel", "candidate.applicable 中用一句话说明候选经典方未覆盖"],
+  ["jun-herb de-bias rule", "山药、党参、黄芪、甘草等通用补益或调和药只有在 P1 病机本身就是其主治的虚损证型"],
+  ["jun-herb rationale template ban", "不得把同一条君药理由模板复用到不同病例"],
+  ["role-differentiated fangyi rule", "臣药必须引用与君药不同的次级病机节点"],
+  ["repetitive rationale mechanism", "重复引用会产生重复方义"],
+  ["therapy-to-herb mapping rule", "治法→药味映射"],
+  ["therapy coverage rule", "必须覆盖 M03 therapy.subTherapies 中每个“主要”治法方向"],
+  ["modification non-empty default", "默认必须输出1–3条"],
+  ["modification trigger field", "触发条件（trigger=复诊时出现的具体症状或事实变化）"],
+  ["modification action field", "动作（actionType=add/remove/adjust 加 herbName=哪味药）"],
+  ["modification reason field", "理由（reason=该加减对应的病机依据）"],
+  ["modification risk note field", "风险说明（由服务端统一附加"],
+  ["explicit no-modification reason", "本例无需预设随证加减"],
+]) {
+  assert.ok(xinmaiPrompt.includes(needle), `M04 prompt must contain ${label}: ${needle}`);
+}
+assert.ok(xinmaiPrompt.length < 60_000, `M04 prompt must stay within the PRIMARY_TEXT_MAX_PROMPT_CHARS discipline, got ${xinmaiPrompt.length}`);
+
+const diagnosePrompt = buildDiagnosePrompt({ patient: {}, chiefComplaint: "胸痛反复3月", conversation: [], symptoms: {} });
+assert.ok(diagnosePrompt.includes("推荐主方方向坚持经典方优先"), "M03 must require classical-formula-first direction");
+assert.ok(diagnosePrompt.includes("确无方证匹配的经典方时才按已锁定病机与治法自拟"), "M03 must constrain self-devised directions to a catalog-free label");
+assert.ok(diagnosePrompt.includes("therapyDirection 必须逐节点具体且互不重复"), "M03 must forbid duplicated therapyDirection sentences that flatten downstream fangyi");
+
+console.log(JSON.stringify({ cases: 289, failures: 0 }));

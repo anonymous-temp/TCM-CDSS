@@ -27,7 +27,7 @@ const { isKnownTcmHerbName } = await import("../src/lib/tcm-knowledge.ts");
 const { prescriptionRegimenFromDecoction } = await import("../src/lib/prescription-regimen-contract.ts");
 const { buildRxAuditStatusMarker, parseRxAuditStatusMarker, stripRxAuditStatusMarker } = await import("../src/lib/rxaudit-status.ts");
 const { buildSeasonalCare, currentSolarTerm } = await import("../src/lib/tcm-seasonal-care.ts");
-const { computeTongueRoiCrop } = await import("../src/lib/tongue-image-roi.ts");
+const { computeTongueRoiCrop, detectTongueRoi } = await import("../src/lib/tongue-image-roi.ts");
 const {
   filterModificationsForEditedHerbs,
   hasIncompleteEditedHerb,
@@ -48,6 +48,63 @@ for (const [width, height] of [[3024, 4032], [4032, 3024], [320, 480]]) {
   assert.ok(crop.width < width && crop.height < height);
   assert.ok(crop.x + crop.width <= width && crop.y + crop.height <= height, "ROI remains within source pixels");
   assert.ok(crop.width / width >= 0.75 && crop.height / height >= 0.78, "ROI keeps conservative margins to avoid cutting the tongue");
+}
+
+// Content-aware tongue ROI detection (classic-CV heuristic; synthetic ImageData fixtures, no canvas).
+function makeSyntheticImageData(width, height, paint) {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const [r, g, b] = paint(x, y);
+      const i = (y * width + x) * 4;
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = 255;
+    }
+  }
+  return { data, width, height };
+}
+const ROI_TONGUE_RED = [186, 78, 92];
+const ROI_NEUTRAL_BG = [203, 201, 198];
+
+// (a) Off-center reddish blob on neutral background → detected, and the crop tracks the blob.
+{
+  const W = 220, H = 180;
+  const cx = 140, cy = 105, rx = 44, ry = 38;
+  const img = makeSyntheticImageData(W, H, (x, y) =>
+    ((x - cx) ** 2) / rx ** 2 + ((y - cy) ** 2) / ry ** 2 <= 1 ? ROI_TONGUE_RED : ROI_NEUTRAL_BG);
+  const roi = detectTongueRoi(img);
+  assert.equal(roi.method, "detected", "reddish blob on neutral background must be detected");
+  assert.ok(roi.confidence > 0);
+  const roiCx = roi.x + roi.w / 2;
+  const roiCy = roi.y + roi.h / 2;
+  assert.ok(Math.abs(roiCx - cx) <= 12 && Math.abs(roiCy - cy) <= 12, `detected ROI center must track the blob (got ${roiCx},${roiCy}, expected near ${cx},${cy})`);
+  assert.ok(roi.w >= rx * 2 && roi.h >= ry * 2, "detected ROI keeps the whole blob plus margin");
+  assert.ok(roi.x >= 0 && roi.y >= 0 && roi.x + roi.w <= W && roi.y + roi.h <= H, "detected ROI stays within source pixels");
+}
+
+// (b) Uniform solid-color frames → fallback-center, exactly the computeTongueRoiCrop result.
+//     Solid red trips the ">90% of guided region" gate; solid neutral yields no tissue pixels at all.
+for (const solid of [[200, 60, 70], ROI_NEUTRAL_BG]) {
+  const img = makeSyntheticImageData(200, 160, () => solid);
+  const roi = detectTongueRoi(img);
+  assert.equal(roi.method, "fallback-center", `uniform ${solid} frame must fall back to the center crop`);
+  assert.equal(roi.confidence, 0);
+  const crop = computeTongueRoiCrop(200, 160);
+  assert.deepEqual(
+    { x: roi.x, y: roi.y, w: roi.w, h: roi.h },
+    { x: crop.x, y: crop.y, w: crop.width, h: crop.height },
+    "fallback-center must equal computeTongueRoiCrop",
+  );
+}
+
+// (c) Tiny/degenerate blob → fallback (must not steer the crop).
+{
+  const img = makeSyntheticImageData(220, 180, (x, y) =>
+    x >= 100 && x < 112 && y >= 90 && y < 100 ? ROI_TONGUE_RED : ROI_NEUTRAL_BG);
+  const roi = detectTongueRoi(img);
+  assert.equal(roi.method, "fallback-center", "a tiny blob must not steer the crop");
 }
 
 assert.equal(scrubPersistentPhiText("张三昨夜失眠"), "[姓名已脱敏]昨夜失眠");

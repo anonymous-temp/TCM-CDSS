@@ -26,4 +26,18 @@ const unsafe = parseEvidenceDisplayReferences("javascript:alert(1)", "不执行"
 assert.equal(unsafe.url, undefined);
 assert.equal(unsafe.title, "javascript:alert(1)");
 
-console.log("evidence display tests passed: 14 assertions");
+// P2-7 契约锁定：DOI/PMID 等文献标识必须原样保留在 raw 中，供展示层提取；解析层不得伪造 url 或检索时间。
+const withIdentifiers = parseEvidenceDisplayReferences(
+  "[EVID-LIT-1] 失眠障碍诊疗共识 DOI:10.3760/cma.j.cn112137-20240101-00001 2024；[EVID-LIT-2] Insomnia consensus PMID 38063870 2023",
+  "支持当前西医诊断倾向或鉴别边界",
+);
+assert.equal(withIdentifiers.length, 2);
+assert.match(withIdentifiers[0].raw, /DOI:10\.3760\/cma\.j\.cn112137-20240101-00001/, "DOI must survive verbatim in raw for display-layer extraction");
+assert.equal(withIdentifiers[0].url, undefined, "a DOI string without an http(s) link must not be turned into a link");
+assert.match(withIdentifiers[1].raw, /PMID 38063870/);
+assert.equal(withIdentifiers[0].retrievedAt, undefined, "检索时间只能来自传入的证据元数据；未提供时保持为空，绝不伪造");
+assert.equal(withIdentifiers[1].retrievedAt, undefined);
+const withRetrievalMetadata = parseEvidenceDisplayReferences("[EVID-INST-1] 国家药监局说明书", "支持用药边界", "2026-07-19");
+assert.equal(withRetrievalMetadata[0].retrievedAt, "2026-07-19", "检索时间仅来自证据块元数据（显式传入）");
+
+console.log("evidence display tests passed: 24 assertions");

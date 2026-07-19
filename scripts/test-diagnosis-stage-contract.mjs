@@ -770,6 +770,86 @@ assert.match(
 const missingEmperor = structuredClone(m04);
 missingEmperor.formula.candidates[0].herbs[0].role = "臣";
 assert.match(m04SemanticIssue(missingEmperor, "", stable) || "", /emperor_missing/);
+
+// === Emperor/therapy vocabulary alignment: KB function-text synonym families must map onto the
+// same therapy concepts as the M03 therapy language (one therapy-herb mapping, fail-closed kept) ===
+const qiStagnationPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "脾胃气滞证", overallPathogenesis: "脾胃气滞，脘腹胀满", recommendedFormulaDirection: "行气除满", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "胃脘胀满", syndromeEvidence: "胃脘胀满", pathogenesis: "脾胃气滞", therapyDirection: "行气除满" }] },
+  therapy: { overallPrinciple: "行气除满" },
+};
+const qiStagnationM04 = structuredClone(m04);
+qiStagnationM04.overview = { primarySyndrome: "脾胃气滞证", overallPathogenesis: "脾胃气滞，脘腹胀满" };
+qiStagnationM04.therapy = { overallPrinciple: "行气除满" };
+qiStagnationM04.formula.candidates[0].name = "辨证组方";
+qiStagnationM04.formula.candidates[0].formulaNames = [];
+qiStagnationM04.formula.candidates[0].constructionType = "self_devised";
+qiStagnationM04.formula.candidates[0].therapyMatch = "行气除满";
+qiStagnationM04.formula.candidates[0].herbs = [
+  { name: "厚朴", dose: "9g", role: "君", prescriptionRole: "下气除满", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "脾胃气滞", function: "下气，温中", decoctionRequirement: "" },
+  { name: "陈皮", dose: "6g", role: "臣", prescriptionRole: "理气健脾", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "脾胃气滞", function: "理气健脾", decoctionRequirement: "" },
+];
+assert.equal(
+  m04SemanticIssue(qiStagnationM04, "", qiStagnationPrior),
+  undefined,
+  "KB 下气/除满 synonyms map onto the same qi_regulate concept as the M03 行气除满 therapy",
+);
+const windHeatPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "风热犯表证", overallPathogenesis: "风热犯表，肺卫失和", recommendedFormulaDirection: "疏风解表", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "流涕咽痛", syndromeEvidence: "流涕咽痛", pathogenesis: "风热犯表", therapyDirection: "疏风解表" }] },
+  therapy: { overallPrinciple: "疏风解表" },
+};
+const windHeatM04 = structuredClone(m04);
+windHeatM04.overview = { primarySyndrome: "风热犯表证", overallPathogenesis: "风热犯表，肺卫失和" };
+windHeatM04.therapy = { overallPrinciple: "疏风解表" };
+windHeatM04.formula.candidates[0].name = "辨证组方";
+windHeatM04.formula.candidates[0].formulaNames = [];
+windHeatM04.formula.candidates[0].constructionType = "self_devised";
+windHeatM04.formula.candidates[0].therapyMatch = "疏风解表";
+windHeatM04.formula.candidates[0].herbs = [
+  { name: "金银花", dose: "10g", role: "君", prescriptionRole: "清热解毒，凉散风热", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "风热犯表", function: "清热解毒", decoctionRequirement: "" },
+  { name: "薄荷", dose: "6g", role: "臣", prescriptionRole: "发散风热", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "风热犯表", function: "解表，发散风热", decoctionRequirement: "后下" },
+];
+const windHeatIssue = m04SemanticIssue(windHeatM04, "", windHeatPrior) || "";
+assert.doesNotMatch(windHeatIssue, /emperor_therapy_mismatch/, "KB 凉散风热 must map onto exterior_release at the emperor layer");
+assert.match(windHeatIssue, /unsupported_high_impact_heat_clear/, "the heat direction stays governed by the separate high-impact layer, not the emperor check");
+const windHeatClearPrior = {
+  ...windHeatPrior,
+  pathogenesis: { chain: [{ ...windHeatPrior.pathogenesis.chain[0], therapyDirection: "疏风解表，清热解毒" }] },
+  therapy: { overallPrinciple: "疏风解表，清热解毒" },
+};
+const windHeatClearM04 = structuredClone(windHeatM04);
+windHeatClearM04.therapy = { overallPrinciple: "疏风解表，清热解毒" };
+windHeatClearM04.formula.candidates[0].therapyMatch = "疏风解表，清热解毒";
+assert.equal(
+  m04SemanticIssue(windHeatClearM04, "", windHeatClearPrior),
+  undefined,
+  "with the heat direction present in the M03 therapy, the classic wind-heat emperor passes the full contract",
+);
+const stasisPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "瘀血阻络证", overallPathogenesis: "瘀血阻络", recommendedFormulaDirection: "活血化瘀", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "刺痛固定", syndromeEvidence: "刺痛固定", pathogenesis: "瘀血阻络", therapyDirection: "活血化瘀" }] },
+  therapy: { overallPrinciple: "活血化瘀" },
+};
+const stasisM04 = structuredClone(m04);
+stasisM04.overview = { primarySyndrome: "瘀血阻络证", overallPathogenesis: "瘀血阻络" };
+stasisM04.therapy = { overallPrinciple: "活血化瘀" };
+stasisM04.formula.candidates[0].name = "辨证组方";
+stasisM04.formula.candidates[0].formulaNames = [];
+stasisM04.formula.candidates[0].constructionType = "self_devised";
+stasisM04.formula.candidates[0].therapyMatch = "活血化瘀";
+stasisM04.formula.candidates[0].herbs = [
+  { name: "黄芪", dose: "15g", role: "君", prescriptionRole: "补气升阳", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "瘀血阻络", function: "补气升阳", decoctionRequirement: "" },
+  { name: "陈皮", dose: "6g", role: "臣", prescriptionRole: "理气健脾", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "瘀血阻络", function: "理气健脾", decoctionRequirement: "" },
+];
+assert.match(
+  m04SemanticIssue(stasisM04, "", stasisPrior) || "",
+  /emperor_therapy_mismatch/,
+  "a qi tonic with no blood-moving action still fails the emperor alignment (fail-closed kept)",
+);
 const highImpactModification = {
   ...m04,
   formula: {

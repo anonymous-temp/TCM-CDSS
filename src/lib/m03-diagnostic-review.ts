@@ -163,21 +163,43 @@ export function buildM03DiagnosticReviewPrompt(
  * unresolved/empty location and nature, and no named formulas. Reviewer and repair policy must
  * stay aligned on this single shape so the same candidate cannot flip accepted/rejected across
  * runs; matchesM03QuarantineShape is the code-level mirror used by the orchestrator.
+ *
+ * When the case DOES have current positive findings beyond the chief complaint
+ * (hasCurrentPositiveFacts), the reviewer (情形二) must reject the neutral quarantine shape, so
+ * injecting quarantine guidance would guarantee another rejection. The policy therefore switches
+ * to a fact-anchored minimal-syndrome mode: the same overreach bans stay in force for unsupported
+ * concepts, but the generator is told to anchor the syndrome to the available positive facts
+ * instead of degrading to the neutral shape.
  */
-export function boundedM03DiagnosticRepairGuidance(review: M03DiagnosticReview): string {
+export function boundedM03DiagnosticRepairGuidance(
+  review: M03DiagnosticReview,
+  opts: { hasCurrentPositiveFacts?: boolean } = {},
+): string {
   if (review.status !== "repair") return "";
   if (review.issueCode !== "tcm_reasoning_unsupported") return review.repairInstruction || "";
 
   const codes = m03DiagnosticRepairGuidanceCodes(review);
-  // Once the independent reviewer rejects the TCM reasoning, replacing one unsupported named
-  // pattern with another is not a valid repair. Enter a symptom-grounded quarantine mode with a
-  // closed semantic vocabulary; later M03/M04 review can only add specificity from a fresh case,
-  // never from this failed candidate.
   const prohibitedConcepts = [
     "阴虚、阳虚、气虚、血虚、津亏、阴阳两虚及对应补益治法",
     "寒、热、火、痰、湿、瘀、食积、水饮及对应祛邪治法",
     "未经患者事实直接支持的脏腑、经络、气血津液、营卫、卫气、心神归属",
   ];
+  if (opts.hasCurrentPositiveFacts) {
+    return [
+      `独立复核的受控定位标签：${codes.length > 0 ? codes.join(",") : "generic_tcm_overreach"}。这些标签不是患者事实。`,
+      `硬性删减：仅从主证候、病位病性、总体病机、病机链、总治法和方义方向中删除未获本例阳性事实直接支持的以下概念及同义改写：${prohibitedConcepts.join("；")}。有直接原文依据（舌脉、伴随症状、体征、检验）的结论可以保留，但保持低置信度并逐字标注依据；不得删除患者事实本身。`,
+      "本例主诉之外仍有当前阳性事实，禁止退回到症状层‘病名+功能失调候’的中性隔离形态：overview.primarySyndrome 必须由这些阳性事实锚定，primarySyndromeBasis 逐字引用患者原文，形成最小、低置信度的非空闭环；只使用原文直接支持的最浅结论层级，拿不准的证型归属写入 uncertainties，不得补造未出现的事实、舌脉或阴性史。",
+      "locationDifferentiation 与 natureDifferentiation 只填写有直接原文依据的分类；无依据的维度保持分类数组为空、resolution=unresolved 并填写 resolutionReason，不得为凑分类新增脏腑、经络或寒热虚实。",
+      "pathogenesis.chain 至少一条并逐字锚定患者阳性原文；每个节点的 pathogenesis 与 therapyDirection 不得超出该原文直接支持的机制层级，不得把总体病机和治法原句机械复制到节点。",
+      "recommendedFormulaNames 只保留方证定义性症状在阳性事实中成立的命名方；不成立则清空并保持 formulaSelectionMode=self_devised，recommendedFormulaDirection 只写本例症状功能调护的辨证组方方向。",
+    ].join("\n");
+  }
+
+  // Once the independent reviewer rejects the TCM reasoning, replacing one unsupported named
+  // pattern with another is not a valid repair. Enter a symptom-grounded quarantine mode with a
+  // closed semantic vocabulary; later M03/M04 review can only add specificity from a fresh case,
+  // never from this failed candidate. This neutral quarantine shape is only legitimate for
+  // genuinely sparse cases (情形一); active cases take the fact-anchored branch above.
   const lines = [
     `独立复核的受控定位标签：${codes.length > 0 ? codes.join(",") : "generic_tcm_overreach"}。这些标签不是患者事实。`,
     `进入语义隔离模式。硬性删减：从主证候、病位病性、总体病机、病机链、总治法和方义方向中删除以下概念及同义改写：${prohibitedConcepts.join("；")}。不得删掉一种后换成另一种，待鉴别方向只能放入 uncertainties。`,
@@ -263,6 +285,36 @@ export function matchesM03QuarantineShape(reasoning: unknown): boolean {
     const item = record(node);
     if (!item) return false;
     return !quarantineOverreachText(item.pathogenesis) && !quarantineOverreachText(item.therapyDirection);
+  });
+}
+
+const M03_HISTORY_LINE_PREFIX = /^(?:既往史|个人史|家族史|婚育史|月经史|孕产史|用药史|过敏史|药物过敏史|食物过敏史|手术史|外伤史|输血史|预防接种史|流行病学史)\s*[：:]/;
+const M03_UNKNOWN_PLACEHOLDER_LINE = /^(?:[^：:]{0,16}[：:])?\s*(?:未提供|未记录|未询问|未采集|未提及|未诉|不详|未知|暂无|无)\s*[。．.]?$/;
+
+function normalizeGroundingLine(value: string): string {
+  return value.normalize("NFKC").replace(/[\s，,。；;：:、→\-—_（）()[\]【】.]+/g, "");
+}
+
+/**
+ * Deterministic sparse/active signal for the reviewer 情形一/情形二 split, computed on the same
+ * deidentified grounding text the reviewer sees. "Current positive facts beyond the chief
+ * complaint" means at least one substantive line that is not a history-only entry, not an
+ * unknown/placeholder entry, and not a restatement of the chief-complaint line. Both error
+ * directions degrade safely: a false "sparse" sends quarantine guidance into one bounded
+ * rejection plus the identical-guidance early exit; a false "active" only asks the generator to
+ * anchor to whatever positive facts exist (possibly just the chief complaint).
+ */
+export function m03GroundingHasCurrentPositiveFacts(clinicalContext: string): boolean {
+  const lines = clinicalContext.split("\n").map((line) => line.trim()).filter(Boolean);
+  if (lines.length <= 1) return false;
+  const chief = normalizeGroundingLine(lines[0]);
+  return lines.slice(1).some((line) => {
+    if (M03_HISTORY_LINE_PREFIX.test(line)) return false;
+    if (M03_UNKNOWN_PLACEHOLDER_LINE.test(line)) return false;
+    const normalized = normalizeGroundingLine(line);
+    if (normalized.length < 4) return false;
+    if (!chief) return true;
+    return !normalized.includes(chief) && !chief.includes(normalized);
   });
 }
 

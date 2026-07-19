@@ -9,7 +9,13 @@ const CONCURRENCY = Number(process.env.CONCURRENCY || 4);
 const cat = id => id.slice(0, 2);
 
 function buildCase(c) {
-  const state = { patient: { ...(c.sex ? { sex: c.sex } : {}), ...(c.age ? { age: c.age } : {}) }, chiefComplaint: c.chief, historyPresentIllness: c.hist };
+  // 现病史的真实承载字段是 hisRecord.fields.xianbingshi（另镜像 symptoms.presentHistory）；
+  // 顶层 historyPresentIllness 不在 CaseStateInputSchema 中，会被请求归一化静默丢弃。
+  const state = { patient: { ...(c.sex ? { sex: c.sex } : {}), ...(c.age ? { age: c.age } : {}) }, chiefComplaint: c.chief };
+  if (c.hist) {
+    state.hisRecord = { schemaVersion: "tcm-cdss-his-v1", source: "tcm-cdss-his", caseId: c.id, fields: { xianbingshi: c.hist }, rawText: c.hist };
+    state.symptoms = { presentHistory: c.hist };
+  }
   if (c.vitals && Object.keys(c.vitals).length) {
     state.vitals = {};
     if (c.vitals.bp) state.vitals.bp = c.vitals.bp;

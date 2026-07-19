@@ -934,24 +934,32 @@ type TcmTherapyConcept =
   | "purge" | "astringe" | "hemostasis" | "cough_relieve"
   | "food_resolve" | "wind_extinguish" | "orifice_open" | "mass_soften";
 
+// The concept regexes below are the contract-side therapy vocabulary; the generator-side prompt
+// mapping (THERAPY_HERB_CATEGORY_RULES in diagnosis-prompts.ts) and the knowledge-base function
+// texts must map onto the SAME concepts or a clinically correct emperor fails the deterministic
+// emperor-therapy alignment check. Keep the two sides aligned at class level: cover the standard
+// synonym families the KB function texts actually use (凉散风热/疏散风热, 下气/宽中/除满, 消痰,
+// 醒脾, 消积). Do NOT widen the HIGH_IMPACT concepts below (heat_clear, yang_warm, blood_move,
+// purge, orifice_open, mass_soften) without auditing every herb whose function text would newly
+// match — a wider high-impact regex turns into new fail-closed false positives.
 const TCM_THERAPY_CONCEPTS: ReadonlyArray<[TcmTherapyConcept, RegExp]> = [
   ["qi_tonify", /补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|大补元气|扶正|升阳|举陷|固表/],
   ["blood_nourish", /养(?:心|肝)?血|补(?:心|肝)?血|益血|生血/],
   ["calm_spirit", /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄/],
   ["spleen_support", /健脾|补脾|益脾|补益心脾|健运|运化/],
-  ["qi_regulate", /理气|行气|疏肝|解郁|开郁|调畅气机/],
+  ["qi_regulate", /理气|行气|疏肝|解郁|开郁|调畅气机|下气|降气|宽中|除满|消胀|除痞|行滞|破气|顺气/],
   ["heat_clear", /清热|泻火|凉血|解毒|辛凉|清(?:肺|肝|心|胃|营|暑)/],
-  ["phlegm_resolve", /化痰|祛痰|涤痰|豁痰/],
-  ["damp_resolve", /利湿|渗湿|利水|祛湿|燥湿|化湿/],
+  ["phlegm_resolve", /化痰|祛痰|涤痰|豁痰|消痰/],
+  ["damp_resolve", /利湿|渗湿|利水|祛湿|燥湿|化湿|醒脾/],
   ["yang_warm", /温阳|扶阳|回阳|散寒|辛温|温(?:中|肾|里|肺|经|化|补|通|养)|补阳/],
   ["yin_nourish", /滋阴|养阴|育阴|生津|增液/],
-  ["exterior_release", /解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热/],
+  ["exterior_release", /解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风/],
   ["blood_move", /活血|化瘀|行瘀|破血|通经/],
   ["purge", /通便|泻下|攻下|逐水/],
   ["astringe", /收涩|敛汗|固涩|固精|止带/],
   ["hemostasis", /止血|凉血止血|化瘀止血/],
   ["cough_relieve", /止咳|平喘|宣肺|肃肺|降肺|开宣肺气|宣(?:通|畅|降)肺气/],
-  ["food_resolve", /消食|导滞|健胃/],
+  ["food_resolve", /消食|导滞|健胃|消积/],
   ["wind_extinguish", /息风|止痉|平肝|潜阳/],
   ["orifice_open", /开窍|醒神/],
   ["mass_soften", /软坚|散结/],

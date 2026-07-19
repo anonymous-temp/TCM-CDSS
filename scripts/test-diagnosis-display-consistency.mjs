@@ -14,6 +14,7 @@ const {
   buildCompleteReport,
   buildDecisionSummary,
   differentiationScoreCaption,
+  enrichEvidenceReferenceForDisplay,
   errorRequiresM03Refresh,
   maxQuestionRoundNotice,
   parseQuestionItems,
@@ -25,6 +26,7 @@ const {
   resolveSufficiencyDisplay,
   runningStageElapsedSeconds,
   scrubReportPhi,
+  stageErrorDisplay,
   WORKBENCH_REFRESH_WARNING,
 } = await jiti.import("../src/app/diagnosis/DiagnosisClient.tsx");
 
@@ -377,8 +379,25 @@ const phaseSteps = [
 for (const failedPhase of ["question", "diagnose", "prescribe", "assess"]) {
   const failedIndex = phaseSteps.findIndex((step) => step.phase === failedPhase);
   const state = { phase: "error", lastError: { phase: failedPhase, message: "test" } };
-  assert.deepEqual(phaseSteps.map((step) => getStepStatus(state, step)), phaseSteps.map((_, index) => index < failedIndex ? "done" : index === failedIndex ? "error" : "todo"));
+  assert.deepEqual(
+    phaseSteps.map((step) => getStepStatus(state, step)),
+    phaseSteps.map((_, index) => index < failedIndex ? "done" : index === failedIndex ? "error" : "blocked"),
+    "a failed/cancelled stage must stop downstream steps as blocked(未执行), never as pending/spinning",
+  );
 }
+const prescribeFailureDisplay = stageErrorDisplay({ phase: "prescribe", message: "候选方药生成失败 (422)" });
+assert.equal(prescribeFailureDisplay.stepLabel, "候选方药");
+assert.equal(prescribeFailureDisplay.retryText, "重新生成候选方药");
+assert.deepEqual(prescribeFailureDisplay.downstreamLabels, ["审方随访"], "the failed M04 panel must name M05 as not executed");
+const diagnoseFailureDisplay = stageErrorDisplay({ phase: "diagnose", message: "辨病辨证本次未完整生成" });
+assert.equal(diagnoseFailureDisplay.retryText, "重新生成辨病辨证");
+assert.deepEqual(diagnoseFailureDisplay.downstreamLabels, ["候选方药", "审方随访"]);
+const assessFailureDisplay = stageErrorDisplay({ phase: "assess", message: "推理已取消" });
+assert.equal(assessFailureDisplay.retryText, "重新生成审方与随访");
+assert.deepEqual(assessFailureDisplay.downstreamLabels, [], "M05 is terminal: no downstream stages to mark as not executed");
+const questionFailureDisplay = stageErrorDisplay({ phase: "question", message: "推理已取消" });
+assert.equal(questionFailureDisplay.retryText, "重试本阶段");
+assert.deepEqual(questionFailureDisplay.downstreamLabels, ["辨病辨证", "候选方药", "审方随访"]);
 const redFlagAssessFailure = {
   phase: "error",
   lastError: { phase: "assess", message: "M05暂未完成" },
@@ -611,4 +630,54 @@ assert.match(m05Summary.followupSection, /5日复诊/);
 assert.match(m05Summary.followupTimelineSection, /触发处置/);
 assert.match(m05Summary.redFlagPatientSection, /胸痛立即就医/);
 
-console.log(JSON.stringify({ cases: 83, failures: 0 }));
+// P2-7 证据展示契约：URL/DOI/文献ID/检索时间只来自证据载荷本身；缺失时 UI 明示“来源未提供链接”，
+// 检索时间留空，绝不在渲染层伪造。
+const evidenceRefWithDoi = enrichEvidenceReferenceForDisplay({
+  raw: "[EVID-LIT-1] 失眠障碍诊疗共识 DOI:10.3760/cma.j.cn112137-20240101-00001 2024",
+  title: "[EVID-LIT-1] 失眠障碍诊疗共识 DOI:10.3760/cma.j.cn112137-20240101-00001 2024",
+  sourceType: "研究文献",
+  publicationDate: "2024",
+  relevance: "支持当前西医诊断倾向或鉴别边界",
+});
+assert.equal(evidenceRefWithDoi.doi, "10.3760/cma.j.cn112137-20240101-00001");
+assert.equal(evidenceRefWithDoi.literatureId, undefined, "DOI present ⇒ no duplicate literature id line");
+const evidenceRefWithPmid = enrichEvidenceReferenceForDisplay({
+  raw: "[EVID-LIT-2] Insomnia consensus PMID 38063870 2023",
+  title: "[EVID-LIT-2] Insomnia consensus PMID 38063870 2023",
+  sourceType: "研究文献",
+  publicationDate: "2023",
+  relevance: "支持用药边界",
+});
+assert.equal(evidenceRefWithPmid.doi, undefined);
+assert.equal(evidenceRefWithPmid.literatureId, "PMID 38063870");
+const evidenceRefSparse = enrichEvidenceReferenceForDisplay({
+  raw: "[EVID-GUIDE-1] 指南；《金匮要略》",
+  title: "[EVID-GUIDE-1] 指南；《金匮要略》",
+  sourceType: "指南/共识",
+  relevance: "支持候选方身份、组方依据或药味来源",
+});
+assert.deepEqual(evidenceRefSparse, {}, "upstream payload without url/DOI/检索时间 must stay sparse — the UI renders 来源未提供链接 instead of fabricating");
+const evidenceRefRetrieved = enrichEvidenceReferenceForDisplay({
+  raw: "[EVID-INST-1] 国家药监局说明书 检索：2026-07-19",
+  title: "[EVID-INST-1] 国家药监局说明书 检索：2026-07-19",
+  sourceType: "药品说明书/监管资料",
+  relevance: "支持该药品的适应证、用法边界或风险提示",
+  retrievedAt: "2026-07-19",
+});
+assert.equal(evidenceRefRetrieved.retrievedAt, "2026-07-19", "检索时间来自证据载荷/元数据，不是渲染当天日期");
+const evidenceRefRetrievedFromRaw = enrichEvidenceReferenceForDisplay({
+  raw: "[EVID-INST-2] 某说明书 检索时间：2026-07-18",
+  title: "[EVID-INST-2] 某说明书 检索时间：2026-07-18",
+  sourceType: "药品说明书/监管资料",
+  relevance: "支持用药边界",
+});
+assert.equal(evidenceRefRetrievedFromRaw.retrievedAt, "2026-07-18");
+const evidenceRefTrailingPunct = enrichEvidenceReferenceForDisplay({
+  raw: "指南 https://example.org/a DOI:10.1000/xyz123。",
+  title: "指南",
+  sourceType: "指南/共识",
+  relevance: "支持当前西医诊断倾向或鉴别边界",
+});
+assert.equal(evidenceRefTrailingPunct.doi, "10.1000/xyz123", "DOI extraction trims trailing CJK punctuation");
+
+console.log(JSON.stringify({ cases: 101, failures: 0 }));

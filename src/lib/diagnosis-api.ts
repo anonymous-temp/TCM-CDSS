@@ -14,7 +14,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceStructuredStageOwnership, isM03WesternSupportContractReason, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
 import { describeM03GroundingConflict, describeM03WesternSupportConflict, isStableM03Reasoning, m03ChainNodeDiagnostics, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
-import { applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { parseOpenAICompatCompletionPayload } from "@/lib/openai-compatible-response";
 import { applyDeterministicFormulaReferences, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue } from "@/lib/tcm-formula-provenance";
@@ -24,10 +24,11 @@ import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
 import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } from "@/lib/m04-repair-policy";
-import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
+import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03GroundingHasCurrentPositiveFacts, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, m04ClinicalReviewDiffPaths, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
 import type { ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
-import { recordCdssStageTelemetry, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
+import { recordCdssClinicalReviewTelemetry, recordCdssStageTelemetry, type CdssClinicalReviewOutcome, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
+import { createHash } from "node:crypto";
 import { requiredDecoctionRequirement } from "@/lib/herb-decoction-rules";
 import { buildM04ClinicalRepairHint } from "@/lib/structured-clinical-repair";
 
@@ -52,6 +53,73 @@ const STRUCTURED_RUN_TOTAL_TIMEOUT_MS = (() => {
   const value = Number(process.env.STRUCTURED_RUN_TOTAL_TIMEOUT_MS || 180_000);
   return Number.isFinite(value) && value >= 120_000 && value <= 180_000 ? Math.round(value) : 180_000;
 })();
+// Wall-clock bound for EXTRA M03 generation rounds (repairs). The first pass is bounded by the
+// stream timeouts; this deadline is checked before launching each additional repair round so a
+// semantic-review loop can never outrun the client. Default 120s = the 180s structured-run cap
+// minus one worst-case idle-bound round tail (60s); with one in-flight repair (≤90s) plus a few
+// seconds of review, worst-case M03 stays ≈ ≤220s, well under the 300s client abort.
+export const M03_ORCHESTRATION_DEADLINE_MS = (() => {
+  const value = Number(process.env.M03_ORCHESTRATION_DEADLINE_MS || 120_000);
+  return Number.isFinite(value) && value >= 60_000 && value <= 180_000 ? Math.round(value) : 120_000;
+})();
+
+/** Pure predicate, exported for unit tests. */
+export function m03OrchestrationDeadlineExpired(requestStartedAt: number, now: number): boolean {
+  return now - requestStartedAt >= M03_ORCHESTRATION_DEADLINE_MS;
+}
+
+/** Pure reason-code selection for the shared signed-limited fallback path, exported for unit tests. */
+export function m03SignedLimitedFallbackReasonCode(state: {
+  deadlineExceeded: boolean;
+  quarantineLoopEarlyExit: boolean;
+}): "signed_limited_fallback_deadline" | "signed_limited_fallback_quarantine_loop" | "signed_limited_fallback" {
+  if (state.deadlineExceeded) return "signed_limited_fallback_deadline";
+  if (state.quarantineLoopEarlyExit) return "signed_limited_fallback_quarantine_loop";
+  return "signed_limited_fallback";
+}
+
+/**
+ * Pure decision, exported for unit tests: re-injecting byte-identical server repair guidance is a
+ * pure re-draw of the same stochastic lottery ONLY when the immediately preceding repair round was
+ * actually reviewed and rejected on that basis. A repair round that died in the deterministic
+ * resolver never had its clinical strategy judged, so the same guidance deserves one more draw.
+ */
+export function shouldSkipM03RepairForIdenticalGuidance(state: {
+  reviewBasedRejection: boolean;
+  guidanceToInject: string;
+  lastInjectedGuidance: string;
+}): boolean {
+  return state.reviewBasedRejection &&
+    Boolean(state.guidanceToInject) &&
+    state.guidanceToInject === state.lastInjectedGuidance;
+}
+
+// Same bounding for M04: the first pass is bounded by the stream timeouts; this deadline gates
+// every additional M04 repair round. Default 120s with the same derivation as M03 (180s run cap
+// minus one 60s idle-bound tail); worst-case M04 ≈ deadline + one in-flight repair (≤90s) plus
+// review/audit seconds ≈ ≤220s, well under the 300s client abort.
+export const M04_ORCHESTRATION_DEADLINE_MS = (() => {
+  const value = Number(process.env.M04_ORCHESTRATION_DEADLINE_MS || 120_000);
+  return Number.isFinite(value) && value >= 60_000 && value <= 180_000 ? Math.round(value) : 120_000;
+})();
+
+/** Pure predicate, exported for unit tests. */
+export function m04OrchestrationDeadlineExpired(requestStartedAt: number, now: number): boolean {
+  return now - requestStartedAt >= M04_ORCHESTRATION_DEADLINE_MS;
+}
+
+/**
+ * Pure reason-code selection for the existing M04 non-dose truncated contract, exported for unit
+ * tests. The fallback type is unchanged; the marker only distinguishes why repair stopped.
+ */
+export function m04TruncatedFallbackReasonCode(state: {
+  deadlineExceeded: boolean;
+  repairLoopEarlyExit: boolean;
+}): "final_contract_rejected_deadline" | "final_contract_rejected_repair_loop" | "final_contract_rejected" {
+  if (state.deadlineExceeded) return "final_contract_rejected_deadline";
+  if (state.repairLoopEarlyExit) return "final_contract_rejected_repair_loop";
+  return "final_contract_rejected";
+}
 const PRIMARY_TEXT_MAX_PROMPT_CHARS = (() => {
   const value = Number(process.env.PRIMARY_TEXT_MAX_PROMPT_CHARS || 60_000);
   return Number.isFinite(value) && value >= 10_000 && value <= 120_000 ? Math.round(value) : 60_000;
@@ -1060,23 +1128,54 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
   const startedAt = Date.now();
   let attemptCount = 0;
   let lastReason: ClinicalReviewExecutionMeta["reason"] = "not_configured";
+  // P1-4 review observability: remember which candidate-chain entry and which raw response produced
+  // the terminal outcome, so invalid/unavailable/repair-demand ratios stay attributable per request.
+  let lastCandidateIdentity: ClinicalReviewerIdentity | undefined;
+  let lastResponseContent = "";
   const complete = (
     review: T,
     reason: ClinicalReviewExecutionMeta["reason"],
     reviewer?: ClinicalReviewerIdentity,
   ): ClinicalReviewExecution<T> => {
     const execution = { durationMs: Date.now() - startedAt, attemptCount, reason };
+    const outcome: CdssClinicalReviewOutcome = review.status === "accepted"
+      ? "accepted"
+      : review.status === "repair"
+        ? "repair_demanded"
+        : reason === "invalid_contract"
+          ? "invalid"
+          : "unavailable";
+    const identity = reviewer || lastCandidateIdentity;
+    // Truncated sha256 over request+response: correlation-only fingerprint, never logs PHI itself.
+    const payloadHash = `sha256:${createHash("sha256")
+      .update(`${opts.systemPrompt}\n${opts.userPrompt}\n---\n${lastResponseContent}`)
+      .digest("hex")
+      .slice(0, 16)}`;
     console.info("[tcm-cdss:timing] clinical_review", {
       stage: opts.stage,
       status: review.status,
+      outcome,
       issueCode: "issueCode" in review ? review.issueCode : "none",
       repairGuidanceCodes: opts.stage === "diagnose"
         ? m03DiagnosticRepairGuidanceCodes(review as M03DiagnosticReview)
         : [],
       ...execution,
-      provider: reviewer?.provider || "none",
-      model: reviewer?.model || "none",
-      source: reviewer?.source || "none",
+      provider: identity?.provider || "none",
+      model: identity?.model || "none",
+      source: identity?.source || "none",
+      payloadHash,
+    });
+    recordCdssClinicalReviewTelemetry({
+      stage: opts.stage,
+      outcome,
+      provider: identity?.provider || "none",
+      model: identity?.model || "none",
+      source: identity?.source || "none",
+      durationMs: execution.durationMs,
+      attemptCount: execution.attemptCount,
+      reasonCode: reason,
+      issueCode: "issueCode" in review ? review.issueCode : undefined,
+      payloadHash,
     });
     return {
       ...review,
@@ -1093,6 +1192,8 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
     const remaining = chainDeadline - Date.now();
     if (remaining <= 0 || opts.parentSignal?.aborted) return complete(opts.unavailable, "deadline");
     attemptCount += 1;
+    lastCandidateIdentity = { provider: config.provider, model: config.model, source: config.source };
+    lastResponseContent = "";
     const controller = new AbortController();
     const abortFromParent = () => controller.abort();
     opts.parentSignal?.addEventListener("abort", abortFromParent, { once: true });
@@ -1142,6 +1243,7 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
         const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, 20_000));
         const choice = result?.choices?.[0];
         const content = choice?.message?.content || "";
+        lastResponseContent = content;
         const review = content ? opts.parse(content) : opts.unavailable;
         if (review.status !== "unavailable") {
           return complete(
@@ -1333,6 +1435,108 @@ async function callPrimaryTextModelStream(
           reason: rejectionReason,
         });
       };
+      // Sparse/active signal for the reviewer 情形一/情形二 split, computed once per request on the
+      // same grounding text the reviewer sees. It selects which server repair policy (neutral
+      // quarantine vs fact-anchored minimal syndrome) a tcm_reasoning_unsupported rejection gets.
+      const m03HasCurrentPositiveFacts = opts.structuredStage === "diagnose" &&
+        m03GroundingHasCurrentPositiveFacts(opts.structuredClinicalContext || "");
+      const m03RepairGuidanceFor = (review: M03DiagnosticReview): string =>
+        boundedM03DiagnosticRepairGuidance(review, { hasCurrentPositiveFacts: m03HasCurrentPositiveFacts });
+      // Identical-guidance fixpoint: re-injecting the exact same server repair guidance string is a
+      // pure re-draw of the same stochastic lottery, but ONLY when the preceding repair round was
+      // actually reviewed. A resolver-rejected (malformed) repair never had its strategy judged.
+      let m03LastInjectedGuidance = "";
+      const m03SameGuidanceFixpoint = (guidanceToInject: string, reviewBasedRejection: boolean): boolean => (
+        opts.structuredStage === "diagnose" &&
+        shouldSkipM03RepairForIdenticalGuidance({
+          reviewBasedRejection,
+          guidanceToInject,
+          lastInjectedGuidance: m03LastInjectedGuidance,
+        })
+      );
+      // Wall-clock bound for extra M03 generation rounds. On expiry the flow falls through to the
+      // existing signed limited fallback instead of launching another full model round.
+      let m03DeadlineExceeded = false;
+      const m03OrchestrationDeadlineGate = (): boolean => {
+        if (opts.structuredStage !== "diagnose") return false;
+        if (!m03OrchestrationDeadlineExpired(requestStartedAt, Date.now())) return false;
+        if (!m03DeadlineExceeded) {
+          m03DeadlineExceeded = true;
+          console.warn("[tcm-cdss:model] M03 orchestration deadline reached; routing to signed limited fallback", {
+            elapsedMs: Date.now() - requestStartedAt,
+            deadlineMs: M03_ORCHESTRATION_DEADLINE_MS,
+          });
+        }
+        return true;
+      };
+      // Review the exact bytes the signature will cover. The deterministic finalization transforms
+      // (including the route's output transform, e.g. the ungrounded-negation sanitizer that
+      // rewrites JSON string fields) are idempotent, so applying them BEFORE the review makes the
+      // post-review finalization a no-op: an accepted review is no longer followed by silent
+      // clinical mutation and a second stochastic re-review.
+      const finalizeM03CandidateForReview = (
+        content: string,
+      ): { content: string; reasoning: ClinicalReasoningResultV2 } | undefined => {
+        if (opts.structuredStage !== "diagnose" || !opts.outputTransform) return undefined;
+        try {
+          const transformed = opts.outputTransform(content);
+          const reasoning = validatedStructuredReasoning(
+            transformed,
+            "diagnose",
+            opts.structuredClinicalContext,
+            undefined,
+            true,
+          );
+          return reasoning ? { content: transformed, reasoning } : undefined;
+        } catch {
+          return undefined;
+        }
+      };
+      // M04 mirror of the same invariant: the server-owned decoction/follow-up rendering and the
+      // route's output transform (evidence governance rewrites modification/patent rows inside the
+      // sentinel JSON) must run BEFORE the independent review, so an accepted M04 review rebinds
+      // instead of drifting into a second stochastic re-review. If the route transform rejects the
+      // candidate, the pre-transform content stands and the same fallback fires downstream.
+      const finalizeM04CandidateContent = (content: string): string => {
+        if (opts.structuredStage !== "prescribe") return content;
+        let finalized = applyDeterministicDecoctionMethod(
+          content,
+          opts.structuredClinicalContext || "",
+          opts.structuredPatientAge,
+        );
+        finalized = applyDeterministicFollowUpNode(finalized);
+        if (!opts.outputTransform) return finalized;
+        try {
+          return opts.outputTransform(finalized);
+        } catch {
+          return finalized;
+        }
+      };
+      // M04 orchestration bounding. Repair hints are derived deterministically from the rejection
+      // reason, so a reason that repeats the immediately preceding repair-triggering reason is a
+      // byte-identical re-draw of the same failed lottery; the deadline caps the total extra
+      // generation budget. Both route to the existing non-dose truncated contract.
+      let m04DeadlineExceeded = false;
+      const m04OrchestrationDeadlineGate = (): boolean => {
+        if (opts.structuredStage !== "prescribe") return false;
+        if (!m04OrchestrationDeadlineExpired(requestStartedAt, Date.now())) return false;
+        if (!m04DeadlineExceeded) {
+          m04DeadlineExceeded = true;
+          console.warn("[tcm-cdss:model] M04 orchestration deadline reached; routing to non-dose contract", {
+            elapsedMs: Date.now() - requestStartedAt,
+            deadlineMs: M04_ORCHESTRATION_DEADLINE_MS,
+          });
+        }
+        return true;
+      };
+      let m04LastRepairTriggerReason: string | undefined;
+      let m04RepairLoopEarlyExit = false;
+      const noteM04RepairLoopFixpoint = (rejectionReason: string) => {
+        m04RepairLoopEarlyExit = true;
+        console.warn("[tcm-cdss:model] M04 repair reached identical-reason fixpoint; exiting repair loop early", {
+          reason: rejectionReason,
+        });
+      };
       const reviewM03Candidate = async (
         content: string,
         reasoning: ClinicalReasoningResultV2,
@@ -1343,6 +1547,11 @@ async function callPrimaryTextModelStream(
       }> => {
         let candidateContent = content;
         let candidateReasoning = reasoning;
+        const finalizedCandidate = finalizeM03CandidateForReview(candidateContent);
+        if (finalizedCandidate) {
+          candidateContent = finalizedCandidate.content;
+          candidateReasoning = finalizedCandidate.reasoning;
+        }
         let review = observeClinicalReview(await reviewM03DiagnosticCriteria(
           candidateReasoning,
           opts.structuredClinicalContext || "",
@@ -1367,6 +1576,11 @@ async function callPrimaryTextModelStream(
           if (declassifiedReasoning) {
             candidateContent = declassifiedContent;
             candidateReasoning = declassifiedReasoning;
+            const refinalizedCandidate = finalizeM03CandidateForReview(candidateContent);
+            if (refinalizedCandidate) {
+              candidateContent = refinalizedCandidate.content;
+              candidateReasoning = refinalizedCandidate.reasoning;
+            }
             review = observeClinicalReview(await reviewM03DiagnosticCriteria(
               candidateReasoning,
               opts.structuredClinicalContext || "",
@@ -1435,7 +1649,10 @@ async function callPrimaryTextModelStream(
       stopClientHeartbeat = stopHeartbeat;
       const enqueueClient = (content: string) => {
         if (clientStreamClosed) return;
-        enq(ctrl, opts.structuredStage === "diagnose" ? sanitizeDiagnoseStreamingDraft(content) : content);
+        // Every client-visible chunk passes the internal-vocabulary scrubber (P2-2); the sentinel
+        // JSON tail stays byte-exact, so the NDJSON contract and structured parsing are unaffected.
+        const visible = opts.structuredStage === "diagnose" ? sanitizeDiagnoseStreamingDraft(content) : content;
+        enq(ctrl, scrubInternalVocabularyFromVisibleText(visible));
       };
       const enqueueHeartbeat = (status: string, processedChars: number) => {
         if (clientStreamClosed) return;
@@ -1454,6 +1671,7 @@ async function callPrimaryTextModelStream(
           reviewAttemptCount: clinicalReviewAttemptCount,
           reviewDurationMs: clinicalReviewDurationMs,
           reviewRebindCount: clinicalReviewRebindCount,
+          modelResponded: providerDone || contentChars > 0,
           reasonCode: stageReasonCode,
         });
         console.info("[tcm-cdss:timing] model_stage", {
@@ -1469,6 +1687,9 @@ async function callPrimaryTextModelStream(
           m03ClinicalReviewer,
           m04ClinicalReviewer,
           m03QuarantineLoopEarlyExit,
+          m03DeadlineExceeded,
+          m04RepairLoopEarlyExit,
+          m04DeadlineExceeded,
           clinicalReviewAttemptCount,
           clinicalReviewDurationMs,
           clinicalReviewRebindCount,
@@ -1677,6 +1898,7 @@ async function callPrimaryTextModelStream(
             authoritativeContent = applyDeterministicHerbFunctions(authoritativeContent);
             authoritativeContent = applyDeterministicHerbPrescriptionRoles(authoritativeContent);
             authoritativeContent = applyDeterministicFormulaAnalysis(authoritativeContent);
+            authoritativeContent = finalizeM04CandidateContent(authoritativeContent);
           }
         }
         const sentinelStarted = authoritativeContent.includes(startMarker);
@@ -1692,7 +1914,7 @@ async function callPrimaryTextModelStream(
           const review = reviewed.review;
           m03DiagnosticReviewStatus = review.status;
           m03DiagnosticReviewReason = m03SemanticReviewReason(review);
-          m03DiagnosticRepairGuidance = boundedM03DiagnosticRepairGuidance(review);
+          m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
           m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
           m03ClinicalReviewAttestation = review.status === "repair" ? undefined : clinicalReviewAttestation(review, structuredReasoning);
           m03ReviewedReasoning = review.status === "repair" ? undefined : structuredReasoning;
@@ -1763,7 +1985,7 @@ async function callPrimaryTextModelStream(
           (opts.structuredStage != null && structuredReasoning.stage !== opts.structuredStage)
         );
         let transparentFormulaDeclassificationAccepted = false;
-        if (structuredSentinelIncomplete && finishReason === "stop" && opts.structuredStage) {
+        if (structuredSentinelIncomplete && finishReason === "stop" && opts.structuredStage && !m03OrchestrationDeadlineGate() && !m04OrchestrationDeadlineGate()) {
           const rejectionReason = opts.structuredStage === "diagnose" && m03DiagnosticReviewStatus === "repair"
             ? m03DiagnosticReviewReason || "m03_primary_diagnosis_semantic_review"
             : opts.structuredStage === "prescribe" && initialM04ClinicalReviewRejected
@@ -1814,7 +2036,12 @@ async function callPrimaryTextModelStream(
               })()
             : undefined;
           structuredRetryCount += 1;
-          if (opts.structuredStage === "diagnose") m03LastRepairTriggerReason = rejectionReason;
+          if (opts.structuredStage === "diagnose") {
+            m03LastRepairTriggerReason = rejectionReason;
+            m03LastInjectedGuidance = m03DiagnosticRepairGuidance;
+          } else if (opts.structuredStage === "prescribe") {
+            m04LastRepairTriggerReason = rejectionReason;
+          }
           const retry = await retryCompletePrimaryResponse(
             prompt,
             kind,
@@ -1849,6 +2076,9 @@ async function callPrimaryTextModelStream(
             : referencedRetryContent && opts.structuredStage === "diagnose"
               ? prepareDiagnoseStructuredContent(referencedRetryContent, opts.structuredClinicalContext || "")
               : referencedRetryContent;
+          if (resolvedRetryContent && opts.structuredStage === "prescribe") {
+            resolvedRetryContent = finalizeM04CandidateContent(resolvedRetryContent);
+          }
           let retriedReasoning = resolvedRetryContent
             ? validatedStructuredReasoning(resolvedRetryContent, opts.structuredStage, opts.structuredClinicalContext, opts.structuredPriorReasoning, true)
             : undefined;
@@ -1861,7 +2091,7 @@ async function callPrimaryTextModelStream(
             const review = reviewed.review;
             m03DiagnosticReviewStatus = review.status;
             m03DiagnosticReviewReason = m03SemanticReviewReason(review);
-            m03DiagnosticRepairGuidance = boundedM03DiagnosticRepairGuidance(review);
+            m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
             m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
             m03ClinicalReviewAttestation = review.status === "repair" ? undefined : clinicalReviewAttestation(review, retriedReasoning);
             m03ReviewedReasoning = review.status === "repair" ? undefined : retriedReasoning;
@@ -1966,18 +2196,31 @@ async function callPrimaryTextModelStream(
               }
             }
             if (!reviewedAdvisoryM04Accepted) {
-              const targetedM04Retry = opts.structuredStage === "prescribe" && shouldRunTargetedStructuredRetry("prescribe", retryRejectionReason);
+              let targetedM04Retry = opts.structuredStage === "prescribe" && shouldRunTargetedStructuredRetry("prescribe", retryRejectionReason);
+              if (targetedM04Retry && m04LastRepairTriggerReason === retryRejectionReason) {
+                targetedM04Retry = false;
+                noteM04RepairLoopFixpoint(retryRejectionReason);
+              }
+              if (targetedM04Retry && m04OrchestrationDeadlineGate()) targetedM04Retry = false;
               let targetedM03Retry = opts.structuredStage === "diagnose" && shouldRunTargetedStructuredRetry("diagnose", retryRejectionReason);
-              if (targetedM03Retry && m03IdenticalGuidanceFixpoint(retryRejectionReason)) {
+              if (targetedM03Retry && (
+                m03IdenticalGuidanceFixpoint(retryRejectionReason) ||
+                m03SameGuidanceFixpoint(m03DiagnosticRepairGuidance, retriedDiagnosticReviewRejected)
+              )) {
                 targetedM03Retry = false;
                 noteM03QuarantineFixpoint(retryRejectionReason);
               }
+              if (targetedM03Retry && m03OrchestrationDeadlineGate()) targetedM03Retry = false;
               if (targetedM04Retry || targetedM03Retry) {
               enqueueClient(targetedM04Retry
                 ? "\n\n正在复核候选方药、治法与方剂组成的一致性，请稍候…"
                 : "\n\n正在复核辨病辨证与已录入病历的一致性，请稍候…");
               structuredRetryCount += 1;
-              if (targetedM03Retry) m03LastRepairTriggerReason = retryRejectionReason;
+              if (targetedM03Retry) {
+                m03LastRepairTriggerReason = retryRejectionReason;
+                m03LastInjectedGuidance = m03DiagnosticRepairGuidance;
+              }
+              if (targetedM04Retry) m04LastRepairTriggerReason = retryRejectionReason;
               const secondRetry = await retryCompletePrimaryResponse(
                 prompt,
                 kind,
@@ -2012,6 +2255,9 @@ async function callPrimaryTextModelStream(
                 : secondReferenced && opts.structuredStage === "diagnose"
                   ? prepareDiagnoseStructuredContent(secondReferenced, opts.structuredClinicalContext || "")
                   : secondReferenced;
+              if (secondResolved && opts.structuredStage === "prescribe") {
+                secondResolved = finalizeM04CandidateContent(secondResolved);
+              }
               let secondReasoning = secondResolved
                 ? validatedStructuredReasoning(secondResolved, opts.structuredStage, opts.structuredClinicalContext, opts.structuredPriorReasoning, true)
                 : undefined;
@@ -2024,7 +2270,7 @@ async function callPrimaryTextModelStream(
                 const review = reviewed.review;
                 m03DiagnosticReviewStatus = review.status;
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
-                m03DiagnosticRepairGuidance = boundedM03DiagnosticRepairGuidance(review);
+                m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
                 m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
                 m03ClinicalReviewAttestation = review.status === "repair" ? undefined : clinicalReviewAttestation(review, secondReasoning);
                 m03ReviewedReasoning = review.status === "repair" ? undefined : secondReasoning;
@@ -2106,20 +2352,23 @@ async function callPrimaryTextModelStream(
                   }
                 }
                 let thirdM03Recovered = false;
+                const thirdM03Guidance = /semantic_review/.test(secondRejectionReason) ? m03DiagnosticRepairGuidance : "";
                 const thirdM03Fixpoint = opts.structuredStage === "diagnose" &&
                   shouldRunTargetedStructuredRetry("diagnose", secondRejectionReason) &&
-                  m03IdenticalGuidanceFixpoint(secondRejectionReason);
+                  (m03IdenticalGuidanceFixpoint(secondRejectionReason) || m03SameGuidanceFixpoint(thirdM03Guidance, secondDiagnosticReviewRejected));
                 if (thirdM03Fixpoint) noteM03QuarantineFixpoint(secondRejectionReason);
                 if (
                   !thirdM03Fixpoint &&
                   opts.structuredStage === "diagnose" &&
                   shouldRunTargetedStructuredRetry("diagnose", secondRejectionReason) &&
                   !upstreamController.signal.aborted &&
-                  Date.now() < absoluteRunDeadline
+                  Date.now() < absoluteRunDeadline &&
+                  !m03OrchestrationDeadlineGate()
                 ) {
                   enqueueClient("\n\n正在按最新校验结果收束最小病机链，请稍候…");
                   structuredRetryCount += 1;
                   m03LastRepairTriggerReason = secondRejectionReason;
+                  m03LastInjectedGuidance = thirdM03Guidance;
                   const thirdRetry = await retryCompletePrimaryResponse(
                     prompt,
                     kind,
@@ -2130,7 +2379,7 @@ async function callPrimaryTextModelStream(
                     priorLock,
                     opts.structuredClinicalContext,
                     secondRetry.ok ? secondRetry.content : secondResolved || "",
-                    /semantic_review/.test(secondRejectionReason) ? m03DiagnosticRepairGuidance : "",
+                    thirdM03Guidance,
                   );
                   if (clientStreamClosed) return;
                   const thirdWrapped = thirdRetry.ok
@@ -2158,7 +2407,7 @@ async function callPrimaryTextModelStream(
                     const review = reviewed.review;
                     m03DiagnosticReviewStatus = review.status;
                     m03DiagnosticReviewReason = m03SemanticReviewReason(review);
-                    m03DiagnosticRepairGuidance = boundedM03DiagnosticRepairGuidance(review);
+                    m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
                     m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
                     m03ClinicalReviewAttestation = review.status === "repair" ? undefined : clinicalReviewAttestation(review, thirdReasoning);
                     m03ReviewedReasoning = review.status === "repair" ? undefined : thirdReasoning;
@@ -2299,6 +2548,7 @@ async function callPrimaryTextModelStream(
             stage: opts.structuredStage,
             reason: structuredRejectionReason(authoritativeContent, opts.structuredStage, finishReason, opts.structuredClinicalContext, opts.structuredPriorReasoning),
             m03QuarantineLoopEarlyExit,
+            m03DeadlineExceeded,
           });
         }
         let truncated = finishReason !== "stop" || structuredSentinelIncomplete;
@@ -2559,8 +2809,18 @@ async function callPrimaryTextModelStream(
               ? "contract_rejected"
               : structuredRetryCount > 0 ? "repaired" : "success";
           stageReasonCode = authoritativeFallbackAccepted
-            ? (m03QuarantineLoopEarlyExit ? "signed_limited_fallback_quarantine_loop" : "signed_limited_fallback")
-            : truncated || !transformed.ok ? "final_contract_rejected" : "accepted";
+            ? m03SignedLimitedFallbackReasonCode({
+                deadlineExceeded: m03DeadlineExceeded,
+                quarantineLoopEarlyExit: m03QuarantineLoopEarlyExit,
+              })
+            : truncated || !transformed.ok
+              ? (opts.structuredStage === "prescribe"
+                  ? m04TruncatedFallbackReasonCode({
+                      deadlineExceeded: m04DeadlineExceeded,
+                      repairLoopEarlyExit: m04RepairLoopEarlyExit,
+                    })
+                  : "final_contract_rejected")
+              : "accepted";
         } else if (!truncated && opts.outputTransform) {
           const transformed = transformOutput(authoritativeContent);
           if (!transformed.ok) throw new Error("Final output transform rejected the model response");

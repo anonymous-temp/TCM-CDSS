@@ -74,13 +74,18 @@ function toCaseState(c) {
   const state = {
     id: c.id, phase: "collect",
     patient: { sex: c.sex || "男", age: typeof c.age === "number" ? c.age : 45 },
-    chiefComplaint: c.chief, historyPresentIllness: c.hist,
+    chiefComplaint: c.chief,
     tongue: c.tongue || "舌淡红苔薄白", pulse: c.pulse || "细平",
     faceNote: c.face || "面色如常",
     pastHistory: c.past || "否认", allergyHistory: c.allergy || "否认",
     medicationHistory: c.medication || "否认",
     completeness: COMPLETE, conversation: [], diagnosis: "", prescription: "", riskAssessment: "",
   };
+  // 现病史走 hisRecord.fields.xianbingshi + symptoms.presentHistory；顶层 historyPresentIllness 会被归一化丢弃。
+  if (c.hist) {
+    state.hisRecord = { schemaVersion: "tcm-cdss-his-v1", source: "tcm-cdss-his", caseId: c.id, fields: { xianbingshi: c.hist }, rawText: c.hist };
+    state.symptoms = { presentHistory: c.hist };
+  }
   if (c.vitals && Object.keys(c.vitals).length) {
     state.vitals = {};
     if (c.vitals.bp) state.vitals.bp = c.vitals.bp;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 
 const { enforceStructuredStageOwnership, isM03WesternSupportContractReason, repairCompletedStructuredSentinel, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } = await import("../src/lib/diagnosis-structured-repair.ts");
-const { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
+const { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
 const { parseOpenAICompatCompletionPayload } = await import("../src/lib/openai-compatible-response.ts");
 const { buildM03DiagnosticReviewPrompt, parseM03DiagnosticReview } = await import("../src/lib/m03-diagnostic-review.ts");
 const { buildM04ClinicalReviewPrompt, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
@@ -412,5 +412,59 @@ assert.equal(
 );
 assert.equal(resolveCompletedStructuredResponse(`[${JSON.stringify(valid)}]\n${endMarker}`, "diagnose", "stop"), undefined);
 assert.equal(resolveCompletedStructuredResponse(`${JSON.stringify(valid)}\nnot-adjacent\n${endMarker}`, "diagnose", "stop"), undefined);
+
+// ─── P2-2 streaming-draft internal-vocabulary scrubber ──────────────────────
+const leakyDraft = [
+  "## 辨病辨证草稿",
+  "**把握度**：bounded",
+  "lineageCode: unrestricted",
+  "拟予黄芪（剂量信息待候选方药阶段核验），用法与疗程待候选方药阶段核验。",
+  "本轮触发 m03_quarantine_loop_early_exit，按 signed_limited_fallback_quarantine_loop 处理。",
+  "置信度: unresolved",
+  "resolution: bounded",
+].join("\n");
+const scrubbedDraft = scrubInternalVocabularyFromVisibleText(leakyDraft);
+assert.match(scrubbedDraft, /\*\*把握度\*\*：有限/);
+assert.match(scrubbedDraft, /置信度: 不足/);
+assert.doesNotMatch(scrubbedDraft, /lineageCode|unrestricted|resolution: bounded/);
+assert.doesNotMatch(scrubbedDraft, /待候选方药阶段核验/);
+assert.match(scrubbedDraft, /（剂量以审定处方为准）/);
+assert.match(scrubbedDraft, /用法与疗程以审定处方为准/);
+assert.doesNotMatch(scrubbedDraft, /m03_[a-z0-9_]+|signed_limited_fallback/);
+assert.match(scrubbedDraft, /独立临床复核/);
+assert.match(scrubbedDraft, /系统内部校验/);
+assert.match(scrubbedDraft, /## 辨病辨证草稿/, "clinical headings survive the scrubber");
+const scrubberStructuredTail = `<!-- DIAGNOSIS_JSON_START -->\n{"overview":{"primarySyndromeResolution":"bounded","lineageCode":"unrestricted"}}\n<!-- DIAGNOSIS_JSON_END -->`;
+const scrubbedWithSentinel = scrubInternalVocabularyFromVisibleText(`**把握度**：bounded\n${scrubberStructuredTail}`);
+assert.equal(
+  scrubbedWithSentinel.slice(scrubbedWithSentinel.indexOf("<!-- DIAGNOSIS_JSON_START -->")),
+  scrubberStructuredTail,
+  "the sentinel JSON the client parses stays byte-exact",
+);
+assert.match(scrubbedWithSentinel.split("<!-- DIAGNOSIS_JSON_START -->")[0], /\*\*把握度\*\*：有限/);
+const cleanClinicalDraft = [
+  "## 西医诊断",
+  "**诊断倾向**：功能性腹泻",
+  "**判断状态**：疑似；置信度：中",
+  "建议检查：eGFR 68 mL/min；参考文献见 https://example.com/guide_line_v2。",
+  "资料充分，把握度：较高。",
+  "诊疗思路偏好：未限定",
+].join("\n");
+assert.equal(
+  scrubInternalVocabularyFromVisibleText(cleanClinicalDraft),
+  cleanClinicalDraft,
+  "clean clinical markdown passes through byte-exact (URLs, eGFR, Chinese confidence survive)",
+);
+assert.equal(scrubInternalVocabularyFromVisibleText("[END]"), "[END]");
+assert.equal(
+  scrubInternalVocabularyFromVisibleText("<<<CDSS_STREAM_FINAL>>># 候选方药"),
+  "<<<CDSS_STREAM_FINAL>>># 候选方药",
+  "stream protocol markers pass through byte-exact",
+);
+assert.equal(
+  scrubInternalVocabularyFromVisibleText(scrubInternalVocabularyFromVisibleText(leakyDraft)),
+  scrubInternalVocabularyFromVisibleText(leakyDraft),
+  "the scrubber is idempotent",
+);
 
 console.log(JSON.stringify({ cases: 58, failures: 0 }));

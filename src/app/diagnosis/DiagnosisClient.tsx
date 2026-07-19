@@ -47,7 +47,7 @@ import {
 import { hasExecutableSignedM03, isDisplayableClinicalText } from "@/lib/diagnosis-client-guards";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { containsUnknownClinicalCue, isUnknownClinicalText } from "@/lib/clinical-state";
-import { computeTongueRoiCrop } from "@/lib/tongue-image-roi";
+import { computeTongueRoiCrop, detectTongueRoi } from "@/lib/tongue-image-roi";
 import { LINEAGE_OPTIONS, getLineageCard, getLineageQuestionStrategy, lineageLabel } from "@/lib/tcm-lineages";
 import { customerEvidenceDisplayStatus, sanitizeCustomerEvidenceNarrative, sanitizeLabeledEvidenceLines } from "@/lib/customer-evidence";
 import {
@@ -65,7 +65,7 @@ import {
   withSafetyGate,
 } from "@/lib/diagnosis-safety";
 import { markdownUrlTransform as urlTransform } from "@/lib/safe-url";
-import { parseEvidenceDisplayReferences, splitEvidenceReferenceItems } from "@/lib/evidence-display";
+import { parseEvidenceDisplayReferences, splitEvidenceReferenceItems, type EvidenceDisplayReference } from "@/lib/evidence-display";
 import { isEncryptedSnapshotEnvelope } from "@/lib/encrypted-snapshot";
 import { FORMULA_STRUCTURE_TARGETS, type FormulaStructureRole } from "@/lib/herb-target-contract";
 import { parseRxAuditStatusMarker, stripRxAuditStatusMarker } from "@/lib/rxaudit-status";
@@ -333,15 +333,50 @@ const markdownComponents = {
 
 // ─── Image compression ──────────────────────────────────────────────────────
 
-async function fileToCompressedBase64(file: File, maxSizeBytes = 4 * 1024 * 1024): Promise<string> {
+async function fileToCompressedBase64(
+  file: File,
+  maxSizeBytes = 4 * 1024 * 1024,
+): Promise<{ base64: string; roiMethod: "detected" | "fallback-center" }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
         try {
+          const sourceWidth = img.naturalWidth || img.width;
+          const sourceHeight = img.naturalHeight || img.height;
+          // Content-aware ROI: classic-CV tongue/lip tissue detection on a small analysis
+          // canvas, mapped back to full resolution. Advisory only — any failure keeps the
+          // conservative center crop; the doctor always confirms the preview before upload.
+          let crop = computeTongueRoiCrop(sourceWidth, sourceHeight);
+          let roiMethod: "detected" | "fallback-center" = "fallback-center";
+          try {
+            const ANALYSIS_MAX_DIM = 256;
+            const analysisRatio = Math.min(1, ANALYSIS_MAX_DIM / Math.max(sourceWidth, sourceHeight));
+            const analysisWidth = Math.max(1, Math.round(sourceWidth * analysisRatio));
+            const analysisHeight = Math.max(1, Math.round(sourceHeight * analysisRatio));
+            const analysisCanvas = document.createElement("canvas");
+            analysisCanvas.width = analysisWidth;
+            analysisCanvas.height = analysisHeight;
+            const analysisCtx = analysisCanvas.getContext("2d", { willReadFrequently: true });
+            if (analysisCtx) {
+              analysisCtx.drawImage(img, 0, 0, analysisWidth, analysisHeight);
+              const detected = detectTongueRoi(analysisCtx.getImageData(0, 0, analysisWidth, analysisHeight));
+              if (detected.method === "detected") {
+                const scaleX = sourceWidth / analysisWidth;
+                const scaleY = sourceHeight / analysisHeight;
+                const dx = Math.min(Math.max(0, Math.round(detected.x * scaleX)), sourceWidth - 1);
+                const dy = Math.min(Math.max(0, Math.round(detected.y * scaleY)), sourceHeight - 1);
+                const dw = Math.min(Math.max(1, Math.round(detected.w * scaleX)), sourceWidth - dx);
+                const dh = Math.min(Math.max(1, Math.round(detected.h * scaleY)), sourceHeight - dy);
+                crop = { x: dx, y: dy, width: dw, height: dh };
+                roiMethod = "detected";
+              }
+            }
+          } catch {
+            // ROI detection is advisory only — never block the upload on it.
+          }
           const canvas = document.createElement("canvas");
-          const crop = computeTongueRoiCrop(img.naturalWidth || img.width, img.naturalHeight || img.height);
           let width = crop.width;
           let height = crop.height;
           const MAX_DIM = 2048;
@@ -364,7 +399,7 @@ async function fileToCompressedBase64(file: File, maxSizeBytes = 4 * 1024 * 1024
           if (dataUrl.length * 0.75 > maxSizeBytes) {
             throw new Error("compressed image too large");
           }
-          resolve(dataUrl);
+          resolve({ base64: dataUrl, roiMethod });
         } catch (error) {
           reject(error);
         }
@@ -413,7 +448,9 @@ export function getStepStatus(caseState: CaseState, step: typeof PHASE_STEPS[0])
     const failedStepIdx = phaseIndex(caseState.lastError.phase);
     if (stepIdx < failedStepIdx) return "done";
     if (stepIdx === failedStepIdx) return "error";
-    return "todo";
+    // A failed/cancelled stage stops the chain: downstream stages never ran, so they must read as
+    // "not executed" instead of looking like a pending or in-progress step.
+    return "blocked";
   }
   const currentPhaseIdx = phaseIndex(caseState.phase);
   if (caseState.phase === "done") {
@@ -1286,7 +1323,7 @@ function TopProgress({ caseState }: { caseState: CaseState }) {
                 {status === "blocked" && <Lock className="h-3.5 w-3.5" />}
                 {status === "skipped" && <Circle className="h-3.5 w-3.5" />}
                 {status === "todo" && <Circle className="h-3.5 w-3.5" />}
-                <span className="font-medium">{step.label}{status === "blocked" ? " 已停止" : status === "skipped" ? " 已跳过" : ""}</span>
+                <span className="font-medium">{step.label}{status === "blocked" ? " 未执行" : status === "skipped" ? " 已跳过" : ""}</span>
               </div>
               {idx < PHASE_STEPS.length - 1 && <div className="h-px w-5 bg-gray-200" />}
             </div>
@@ -1449,19 +1486,31 @@ export function errorRequiresM03Refresh(lastError: CaseState["lastError"] | unde
   return /M03.*(?:签名|合同)|重新生成\s*M03|reasoning.*signature|contract.*signature/i.test(message);
 }
 
-function StageErrorCard({ caseState, onRetry }: { caseState: CaseState; onRetry: () => void }) {
-  if (caseState.phase !== "error" || !caseState.lastError) return null;
-  const failedPhase = caseState.lastError.phase;
-  const failedStep = PHASE_STEPS.find((step) => step.phase === failedPhase);
+export function stageErrorDisplay(lastError: NonNullable<CaseState["lastError"]>): {
+  stepLabel: string;
+  message: string;
+  retryText: string;
+  downstreamLabels: string[];
+} {
+  const failedStep = PHASE_STEPS.find((step) => step.phase === lastError.phase);
   const stepLabel = failedStep?.label || "当前阶段";
-  const message = normalizeRequestError(caseState.lastError.message, `${stepLabel} 未完成，请补充信息或重试。`);
-  const requiresM03Refresh = errorRequiresM03Refresh(caseState.lastError);
+  const message = normalizeRequestError(lastError.message, `${stepLabel} 未完成，请补充信息或重试。`);
+  const requiresM03Refresh = errorRequiresM03Refresh(lastError);
   const retryText =
     requiresM03Refresh ? "重新生成辨病辨证并继续" :
-    failedPhase === "diagnose" ? "重新生成辨病辨证" :
-    failedPhase === "prescribe" ? "重新生成候选方药" :
-    failedPhase === "assess" ? "重新生成审方与随访" :
+    lastError.phase === "diagnose" ? "重新生成辨病辨证" :
+    lastError.phase === "prescribe" ? "重新生成候选方药" :
+    lastError.phase === "assess" ? "重新生成审方与随访" :
     "重试本阶段";
+  // PHASE_ORDER 比 PHASE_STEPS 多一个头部 "idle"，索引差 1：下游切片直接用 PHASE_ORDER 下标即可，
+  // 不能再 +1，否则失败阶段的下一个阶段会被漏掉（例如 M04 失败时漏掉“审方随访未执行”）。
+  const downstreamLabels = PHASE_STEPS.slice(phaseIndex(lastError.phase)).map((step) => step.label);
+  return { stepLabel, message, retryText, downstreamLabels };
+}
+
+function StageErrorCard({ caseState, onRetry }: { caseState: CaseState; onRetry: () => void }) {
+  if (caseState.phase !== "error" || !caseState.lastError) return null;
+  const { stepLabel, message, retryText, downstreamLabels } = stageErrorDisplay(caseState.lastError);
 
   return (
     <div data-testid="stage-error-card" className="mb-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
@@ -1470,6 +1519,11 @@ function StageErrorCard({ caseState, onRetry }: { caseState: CaseState; onRetry:
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-bold">{stepLabel} 未完成</p>
           <p className="mt-1 text-[12px] leading-relaxed">{message}</p>
+          {downstreamLabels.length > 0 && (
+            <p className="mt-1 text-[12px] leading-relaxed text-red-700">
+              上一阶段未成功，{downstreamLabels.join("、")} 阶段未执行。
+            </p>
+          )}
           <button
             type="button"
             onClick={onRetry}
@@ -2943,16 +2997,26 @@ function buildReasoningWithEditedHerbs(
   };
 }
 
+function formatWorkbenchUnsavedAt(unsavedAt: string): string {
+  const parsed = Date.parse(unsavedAt);
+  if (!Number.isFinite(parsed)) return "时间未知";
+  return new Date(parsed).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
 function HerbModificationWorkbench({
   caseState,
   candidate,
   candidateIndex,
   onAccept,
+  restoredUnsavedDraft,
+  onUnsavedDraftChange,
 }: {
   caseState: CaseState;
   candidate: StructuredCandidate;
   candidateIndex: number;
   onAccept: (accepted: AcceptedEditedPrescription) => Promise<void>;
+  restoredUnsavedDraft?: WorkbenchUnsavedDraftFlag | null;
+  onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
 }) {
   const initialHerbs = useMemo(() => candidate.herbs.map(cloneStructuredHerb), [candidate]);
   const pathogenesisOptions = useMemo(() => {
@@ -3070,6 +3134,21 @@ function HerbModificationWorkbench({
     currentSignatureRef.current = currentSignature;
   }, [currentSignature]);
   const changed = currentSignature !== initialSignature;
+  // 上报未采纳草稿脏状态（只上报标记，不上报草稿本体）：父级把它随加密工作区快照持久化，
+  // 刷新后即使草稿本体丢失，也能提示“上次有未保存编辑”，避免界面静默恢复为已采纳版本造成分叉。
+  // 注意：本次挂载从未变脏时不上报清除，否则会抹掉刚从快照恢复的脏标记，提示会在挂载瞬间闪没。
+  const reportedDirtyRef = useRef(false);
+  useEffect(() => {
+    if (!onUnsavedDraftChange) return;
+    const dirty = changed && !finalReady;
+    if (dirty) reportedDirtyRef.current = true;
+    if (!dirty && !reportedDirtyRef.current) return;
+    onUnsavedDraftChange(
+      dirty
+        ? { caseId: caseState.id, candidateIndex, unsavedAt: new Date().toISOString() }
+        : null,
+    );
+  }, [changed, finalReady, candidateIndex, caseState.id, onUnsavedDraftChange]);
   const originalHerbCount = initialHerbs.filter((herb) => herb.name.trim()).length;
   const currentHerbCount = herbs.filter((herb) => herb.name.trim()).length;
   const hasInvalidHerb = herbs.some(hasIncompleteEditedHerb);
@@ -3085,6 +3164,13 @@ function HerbModificationWorkbench({
   const herbFunctionLookupProblemNames = Array.from(new Set(activeHerbNames.filter((name) =>
     herbFunctionLookupStatus[name] === "not_found" || herbFunctionLookupStatus[name] === "error"
   )));
+  const restoredUnsavedNotice =
+    restoredUnsavedDraft &&
+    restoredUnsavedDraft.caseId === caseState.id &&
+    restoredUnsavedDraft.candidateIndex === candidateIndex &&
+    !changed
+      ? restoredUnsavedDraft
+      : null;
   const auditTone =
     auditStatus === "reviewed" ? "border-emerald-200 bg-emerald-50 text-emerald-800" :
     auditStatus === "warning" ? "border-amber-200 bg-amber-50 text-amber-900" :
@@ -3307,12 +3393,31 @@ function HerbModificationWorkbench({
     <div data-testid="herb-modification-workbench" className="rounded-xl border bg-white p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-gray-950">药味加减工作台</p>
+          <p className="text-sm font-semibold text-gray-950">
+            药味加减工作台
+            {changed && !finalReady && (
+              <span
+                data-testid="workbench-unsaved-badge"
+                className="ml-2 inline-flex rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 align-middle text-[11px] font-bold text-amber-800"
+              >
+                未保存编辑
+              </span>
+            )}
+          </p>
           <p className="mt-1 text-xs leading-relaxed text-gray-500">
             原方 {originalHerbCount} 味，当前 {currentHerbCount} 味；增删改后请更新风险提示，具体问题统一在下方“合理用药审方”中查看。
           </p>
         </div>
       </div>
+
+      {restoredUnsavedNotice && (
+        <p
+          data-testid="workbench-unsaved-restored-notice"
+          className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800"
+        >
+          上次会话有未保存的药味编辑（{formatWorkbenchUnsavedAt(restoredUnsavedNotice.unsavedAt)}）；刷新后已恢复为最近已审方/采纳版本。未采纳的编辑不会进入审方、报告或 HIS。
+        </p>
+      )}
 
       {changed && !finalReady && (
         <p
@@ -4074,29 +4179,65 @@ function shouldRenderEvidenceStatus(evidence?: { evidenceLevel?: string; source?
   return customerEvidenceDisplayStatus(evidence) === "traceable";
 }
 
+const EVIDENCE_DOI_IN_TEXT = /\b10\.\d{4,9}\/[^\s，。；、）》】"')\]]+/i;
+const EVIDENCE_LITERATURE_ID_IN_TEXT = /\b(?:PMID|PMCID|CNKI|批准文号|注册证号)\s*[:：]?\s*[A-Za-z0-9._/-]+/i;
+const EVIDENCE_RETRIEVED_DATE_IN_TEXT = /(?:检索日期|检索时间|检索于|检索|accessed|retrieved(?:\s+at)?)\s*[:：]?\s*((?:19|20)\d{2}(?:[-/.年](?:1[0-2]|0?[1-9])(?:[-/.月](?:3[01]|[12]\d|0?[1-9])日?)?)?)/i;
+
+// 上游证据契约（EviMed ExternalEvidenceItem / 结构化 EvidenceRef）只携带题名、机构、年份，
+// URL 与 DOI/PMID/批准文号有时随 source 字符串给出；契约没有检索时间字段，也没有决策绑定字段。
+// 展示层因此只呈现载荷中字面存在的信息：URL 缺失就明示“来源未提供链接”，检索时间缺失就不展示，
+// 绝不在渲染时用当前日期或其他值伪造。
+export function enrichEvidenceReferenceForDisplay(reference: EvidenceDisplayReference): {
+  doi?: string;
+  literatureId?: string;
+  retrievedAt?: string;
+} {
+  const doiCandidate = reference.raw.match(EVIDENCE_DOI_IN_TEXT)?.[0]?.replace(/[.,;，；。、]+$/, "");
+  const doi = doiCandidate && /^10\.\d{4,9}\/\S+$/i.test(doiCandidate) ? doiCandidate : undefined;
+  const literatureId = doi ? undefined : reference.raw.match(EVIDENCE_LITERATURE_ID_IN_TEXT)?.[0];
+  const retrievedAt = reference.retrievedAt || reference.raw.match(EVIDENCE_RETRIEVED_DATE_IN_TEXT)?.[1];
+  return {
+    ...(doi ? { doi } : {}),
+    ...(literatureId ? { literatureId } : {}),
+    ...(retrievedAt ? { retrievedAt } : {}),
+  };
+}
+
 function EvidenceReferenceList({ source, relevance }: { source?: string; relevance: string }) {
-  const retrievedAt = new Date().toISOString().slice(0, 10);
-  const references = parseEvidenceDisplayReferences(source, relevance, retrievedAt)
+  const references = parseEvidenceDisplayReferences(source, relevance)
     .filter((reference) => !isCustomerEvidencePlaceholder(reference.raw));
   if (references.length === 0) return null;
   return (
-    <ol className="mt-1 list-decimal space-y-2 pl-4">
-      {references.map((reference) => (
-        <li key={reference.raw}>
-          {reference.url ? (
-            <a className="font-semibold underline decoration-blue-300 underline-offset-2 hover:text-blue-950" href={reference.url} target="_blank" rel="noopener noreferrer">
-              {reference.title}
-            </a>
-          ) : reference.title}
-          <span className="mt-0.5 block text-[10px] font-normal opacity-75">
-            来源类型：{reference.sourceType}
-            {reference.publicationDate ? ` · 发布/修订：${reference.publicationDate}` : ""}
-            {reference.retrievedAt ? ` · 本次检索：${reference.retrievedAt}` : ""}
-            {` · 相关性：${reference.relevance}`}
-          </span>
-        </li>
-      ))}
-    </ol>
+    <div className="mt-1">
+      <ol className="list-decimal space-y-2 pl-4">
+        {references.map((reference) => {
+          const display = enrichEvidenceReferenceForDisplay(reference);
+          return (
+            <li key={reference.raw}>
+              {reference.url ? (
+                <a className="font-semibold underline decoration-blue-300 underline-offset-2 hover:text-blue-950" href={reference.url} target="_blank" rel="noopener noreferrer">
+                  {reference.title}
+                </a>
+              ) : (
+                <span className="font-semibold">
+                  {reference.title}
+                  <span className="ml-1 font-normal opacity-75">（来源未提供链接）</span>
+                </span>
+              )}
+              <span className="mt-0.5 block text-[10px] font-normal opacity-75">
+                来源类型：{reference.sourceType}
+                {reference.publicationDate ? ` · 发布/修订：${reference.publicationDate}` : ""}
+                {display.doi ? ` · DOI：${display.doi}` : ""}
+                {!display.doi && display.literatureId ? ` · 文献ID：${display.literatureId}` : ""}
+                {display.retrievedAt ? ` · 检索时间：${display.retrievedAt}` : ""}
+                {` · 对应决策：${reference.relevance}`}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-1.5 text-[10px] opacity-70">以上证据仅供参考，不替代医生对本例患者的独立判断。</p>
+    </div>
   );
 }
 
@@ -4115,13 +4256,19 @@ function evidenceReferenceItems(source: string | undefined): string[] {
 function ResultTabsV2({
   caseState,
   summary,
+  onRetry,
   onAcceptEditedPrescription,
   onConfirmEncounterScope,
+  restoredUnsavedDraft,
+  onUnsavedDraftChange,
 }: {
   caseState: CaseState;
   summary: DecisionSummary;
+  onRetry?: () => void;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
   onConfirmEncounterScope: () => Promise<void>;
+  restoredUnsavedDraft?: WorkbenchUnsavedDraftFlag | null;
+  onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
 }) {
   const reasoning = mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2;
   if (!reasoning) return null;
@@ -4137,6 +4284,11 @@ function ResultTabsV2({
     caseState.encounterScopeConfirmation?.sourceFingerprint !== caseState.clinicalFacts.sourceFingerprint;
   const medicineCandidates = formula?.patentAndWestern?.filter(isCompleteStructuredMedicineCandidate) || [];
   const hasMedicineCandidates = medicineCandidates.length > 0;
+  // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
+  // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
+  const failedStage = caseState.phase === "error" && caseState.lastError ? caseState.lastError.phase : undefined;
+  const prescribeStageFailed = failedStage === "prescribe";
+  const assessStageFailed = failedStage === "assess";
   const seasonalCare = buildSeasonalCare([
     reasoning.overview.primarySyndrome,
     ...(reasoning.overview.secondarySyndromes || []),
@@ -4379,6 +4531,12 @@ function ResultTabsV2({
         </div>
       </SchemeSection>
 
+      {prescribeStageFailed && onRetry && (
+        <SchemeSection id="cdss-section-prescription" title="候选方药" subtitle="本阶段未完成">
+          <StageErrorCard caseState={caseState} onRetry={onRetry} />
+        </SchemeSection>
+      )}
+
       {firstCandidate && <SchemeSection id="cdss-section-prescription" title="候选方药" subtitle="方名、出处、药味、方义与煎服">
         <div className="space-y-3">
           {firstCandidate ? (
@@ -4470,6 +4628,8 @@ function ResultTabsV2({
                 candidate={firstCandidate}
                 candidateIndex={0}
                 onAccept={onAcceptEditedPrescription}
+                restoredUnsavedDraft={restoredUnsavedDraft}
+                onUnsavedDraftChange={onUnsavedDraftChange}
               />
               <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-950">
                 <p className="font-bold text-blue-800">方义解析</p>
@@ -4482,7 +4642,7 @@ function ResultTabsV2({
         </div>
       </SchemeSection>}
 
-      {hasExplicitNonDoseResult && (
+      {hasExplicitNonDoseResult && !prescribeStageFailed && (
         <SchemeSection id="cdss-section-prescription" title="候选方药" subtitle="本轮非剂量安全结论">
           <div data-testid="non-dose-prescription-result" className="space-y-3">
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">
@@ -4527,6 +4687,12 @@ function ResultTabsV2({
       )}
 
       {firstCandidate && <AuditReviewSection caseState={caseState} content={summary.medicineRiskSection} />}
+
+      {assessStageFailed && onRetry && (
+        <SchemeSection id="cdss-section-assess" title="审方随访" subtitle="本阶段未完成">
+          <StageErrorCard caseState={caseState} onRetry={onRetry} />
+        </SchemeSection>
+      )}
 
       <SchemeSection id="cdss-section-generation-basis" title="本次生成依据" subtitle="仅列实际参与本次结果的资料与校验环节" defaultOpen={false}>
         <div className="space-y-2 text-xs leading-relaxed text-gray-700">
@@ -4593,12 +4759,18 @@ function ResultTabsV2({
 
 function CompactAiSchemeCardFlow({
   caseState,
+  onRetry,
   onAcceptEditedPrescription,
   onConfirmEncounterScope,
+  restoredUnsavedDraft,
+  onUnsavedDraftChange,
 }: {
   caseState: CaseState;
+  onRetry: () => void;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
   onConfirmEncounterScope: () => Promise<void>;
+  restoredUnsavedDraft?: WorkbenchUnsavedDraftFlag | null;
+  onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
 }) {
   const summary = useMemo(
     () => buildDecisionSummary(caseState),
@@ -4631,7 +4803,7 @@ function CompactAiSchemeCardFlow({
   }
 
   if (activeReasoning) {
-    return <ResultTabsV2 caseState={caseState} summary={summary} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} />;
+    return <ResultTabsV2 caseState={caseState} summary={summary} onRetry={onRetry} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} restoredUnsavedDraft={restoredUnsavedDraft} onUnsavedDraftChange={onUnsavedDraftChange} />;
   }
 
   // A failed structured stage is already explained by StageErrorCard. Do not render the legacy
@@ -4719,6 +4891,14 @@ type HisRecordDraft = {
   fuzhuJiancha: string;
 };
 
+// 工作台未采纳药味编辑的最小脏标记（不含草稿本体）：只记录“哪个病例、哪个候选、何时有未保存编辑”。
+// 草稿本体按产品决定不持久化；刷新后界面恢复为最近已审方/采纳版本，并用该标记提示分叉。
+type WorkbenchUnsavedDraftFlag = {
+  caseId: string;
+  candidateIndex: number;
+  unsavedAt: string;
+};
+
 type WorkspaceSnapshot = {
   schemaVersion: "tcm-cdss-workspace-v1";
   updatedAt: string;
@@ -4727,6 +4907,7 @@ type WorkspaceSnapshot = {
   recordDraft: HisRecordDraft;
   input: string;
   selectedQuestionOptions: Record<string, QuestionOptionSelection>;
+  workbenchDraft?: WorkbenchUnsavedDraftFlag | null;
 };
 
 const WORKSPACE_STORAGE_KEY = "tcm_cdss_workspace_v1";
@@ -4796,6 +4977,7 @@ async function saveWorkspaceSnapshot(snapshot: Omit<WorkspaceSnapshot, "schemaVe
       recordDraft: sanitizeRecordDraftForBrowserPersistence(snapshot.recordDraft, snapshot.caseState),
       input: scrubPersistentPhiText(snapshot.input, explicitNames),
       selectedQuestionOptions: sanitizeQuestionSelectionsForBrowserPersistence(snapshot.selectedQuestionOptions, explicitNames),
+      workbenchDraft: snapshot.workbenchDraft ?? null,
     };
     const sequence = ++workspaceSaveSequence;
     const { response, body } = await fetchJsonWithTimeout<{ ok?: boolean; envelope?: unknown }>(apiUrl("/api/diagnosis/snapshot"), {
@@ -4860,6 +5042,18 @@ async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot | null> {
     const caseState = reconcileRestoredCaseState(recomputedCaseState);
     const rawRecordDraft = { ...createEmptyHisRecordDraft(), ...(parsed.recordDraft || {}) };
     const legacyNames = [rawRecordDraft.patientName, normalizedCaseState.patient.name, normalizedCaseState.hisRecord?.fields.patientName].filter((item): item is string => Boolean(item?.trim()));
+    const rawWorkbenchDraft = parsed.workbenchDraft;
+    const workbenchDraft: WorkbenchUnsavedDraftFlag | null =
+      rawWorkbenchDraft &&
+      typeof rawWorkbenchDraft === "object" &&
+      typeof rawWorkbenchDraft.caseId === "string" &&
+      rawWorkbenchDraft.caseId === caseState.id &&
+      typeof rawWorkbenchDraft.candidateIndex === "number" &&
+      Number.isInteger(rawWorkbenchDraft.candidateIndex) &&
+      typeof rawWorkbenchDraft.unsavedAt === "string" &&
+      Number.isFinite(Date.parse(rawWorkbenchDraft.unsavedAt))
+        ? { caseId: rawWorkbenchDraft.caseId, candidateIndex: rawWorkbenchDraft.candidateIndex, unsavedAt: rawWorkbenchDraft.unsavedAt }
+        : null;
     const sanitizedSnapshot: WorkspaceSnapshot = {
       schemaVersion: "tcm-cdss-workspace-v1",
       updatedAt: parsed.updatedAt || new Date(updatedAtMs).toISOString(),
@@ -4870,6 +5064,7 @@ async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot | null> {
       recordDraft: sanitizeRecordDraftForBrowserPersistence(rawRecordDraft, caseState),
       input: typeof parsed.input === "string" ? scrubPersistentPhiText(parsed.input, legacyNames).slice(0, MAX_CASE_SUPPLEMENT_CHARS) : "",
       selectedQuestionOptions: sanitizeQuestionSelectionsForBrowserPersistence(parsed.selectedQuestionOptions || {}, legacyNames),
+      workbenchDraft,
     };
     return sanitizedSnapshot;
   } catch {
@@ -6220,6 +6415,8 @@ function AiSupportPanel({
   onRunReasoning,
   canRunReasoning,
   submitHint,
+  restoredUnsavedDraft,
+  onUnsavedDraftChange,
 }: {
   caseState: CaseState;
   isRunning: boolean;
@@ -6245,6 +6442,8 @@ function AiSupportPanel({
   onRunReasoning: () => void;
   canRunReasoning: boolean;
   submitHint?: string;
+  restoredUnsavedDraft?: WorkbenchUnsavedDraftFlag | null;
+  onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
 }) {
   const hasDecisionResults = Boolean(caseState.diagnosis || caseState.prescription || caseState.riskAssessment);
   const isFollowupOnlyState =
@@ -6258,6 +6457,16 @@ function AiSupportPanel({
     hasDecisionResults ||
     ["question", "diagnose", "prescribe", "assess", "done", "error"].includes(caseState.phase);
   const hasStaleClinicalOutput = hasAnalyzedClinicalState && hasUnsubmittedRecordChange && !isRunning;
+  // A failed prescribe/assess stage renders its own failed panel (reason + retry) inside the
+  // results flow below; suppress the panel-top card there so the retry is not rendered twice.
+  // The condition must mirror exactly the path that renders ResultTabsV2, otherwise neither
+  // surface would appear (red-flag view, stale output, follow-up-only state, or no reasoning).
+  const stageErrorCoveredInFlow =
+    caseState.phase === "error" &&
+    Boolean(caseState.lastError && ["prescribe", "assess"].includes(caseState.lastError.phase)) &&
+    hasDecisionResults && !hasStaleClinicalOutput && !isFollowupOnlyState &&
+    (caseState.safetyGate || evaluateSafetyGate(caseState)).status !== "red_flag" &&
+    Boolean(mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2);
   const shouldShowStreamingPreview =
     isRunning &&
     ["diagnose", "prescribe", "assess"].includes(caseState.phase) &&
@@ -6325,7 +6534,7 @@ function AiSupportPanel({
       <TopProgress caseState={caseState} />
 
       <div className="flex flex-col bg-[#F7F9FB] p-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
-        {caseState.phase === "error" && !isRunning && (
+        {caseState.phase === "error" && !isRunning && !stageErrorCoveredInFlow && (
           <StageErrorCard caseState={caseState} onRetry={onRetry} />
         )}
 
@@ -6430,7 +6639,7 @@ function AiSupportPanel({
         )}
 
         {hasDecisionResults && !hasStaleClinicalOutput && !isFollowupOnlyState && (
-          <CompactAiSchemeCardFlow caseState={caseState} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} />
+          <CompactAiSchemeCardFlow caseState={caseState} onRetry={onRetry} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} restoredUnsavedDraft={restoredUnsavedDraft} onUnsavedDraftChange={onUnsavedDraftChange} />
         )}
       </div>
     </aside>
@@ -6533,6 +6742,7 @@ export default function DiagnosisPage() {
   const [uploadNotice, setUploadNotice] = useState("");
   const [captureModal, setCaptureModal] = useState<"tongue" | null>(null);
   const [pendingNewCaseConfirm, setPendingNewCaseConfirm] = useState(false);
+  const [workbenchUnsavedDraft, setWorkbenchUnsavedDraft] = useState<WorkbenchUnsavedDraftFlag | null>(null);
   const tongueInputRef = useRef<HTMLInputElement>(null);
   const activeCaseIdRef = useRef(caseState.id);
   const hasInProgressWorkRef = useRef(false);
@@ -6583,6 +6793,7 @@ export default function DiagnosisPage() {
           setRecordDraft(workspace.recordDraft);
           setInput(workspace.input);
           commitSelectedQuestionOptions(workspace.selectedQuestionOptions);
+          setWorkbenchUnsavedDraft(workspace.workbenchDraft ?? null);
           setLastSavedAt(workspace.updatedAt);
         } else {
           loadLatestCase();
@@ -6604,6 +6815,17 @@ export default function DiagnosisPage() {
     if (state.id !== activeCaseIdRef.current) return;
     setCaseState(state);
     saveCase(state);
+  }, []);
+
+  const handleWorkbenchUnsavedDraftChange = useCallback((flag: WorkbenchUnsavedDraftFlag | null) => {
+    setWorkbenchUnsavedDraft((current) => {
+      if (current === flag) return current;
+      if (!current || !flag) return flag;
+      if (current.caseId === flag.caseId &&
+        current.candidateIndex === flag.candidateIndex &&
+        current.unsavedAt === flag.unsavedAt) return current;
+      return flag;
+    });
   }, []);
 
   const hasInProgressWork = useMemo(
@@ -6628,13 +6850,14 @@ export default function DiagnosisPage() {
         input,
         selectedQuestionOptions,
         runningPhase: isRunning ? caseState.phase : undefined,
+        workbenchDraft: workbenchUnsavedDraft,
       }).then((savedAt) => {
         if (savedAt) setLastSavedAt(savedAt);
       });
       saveCase(caseState);
     }, 150);
     return () => window.clearTimeout(timer);
-  }, [caseState, hasInProgressWork, input, isRunning, recordDraft, selectedQuestionOptions, workspaceRestored]);
+  }, [caseState, hasInProgressWork, input, isRunning, recordDraft, selectedQuestionOptions, workbenchUnsavedDraft, workspaceRestored]);
 
   useEffect(() => {
     hasInProgressWorkRef.current = hasInProgressWork;
@@ -6685,9 +6908,13 @@ export default function DiagnosisPage() {
         setUploadNotice("当前未启用舌照识别服务，请在舌象栏手动录入舌质、舌形和舌苔后提交。");
         return;
       }
-      const base64 = await fileToCompressedBase64(file);
+      const { base64, roiMethod } = await fileToCompressedBase64(file);
       setter(base64);
-      setUploadNotice("舌照已完成中心舌体 ROI 裁切与压缩；请确认预览中舌尖、舌边和舌根区域完整可见。");
+      setUploadNotice(
+        roiMethod === "detected"
+          ? "舌照已按检测到的舌体/口唇区域裁切与压缩；请确认预览中舌尖、舌边和舌根区域完整可见。"
+          : "舌照已按中心区域保守裁切与压缩，请确认舌体完整：预览中舌尖、舌边和舌根区域需完整可见。",
+      );
     } catch {
       setUploadNotice("舌照读取或压缩失败，请更换图片后重试。");
     } finally {
@@ -6833,6 +7060,27 @@ export default function DiagnosisPage() {
     }
 
     // M05
+    // The assess route fail-closes (409) unless the current chain carries a signed M04 reasoning
+    // contract. A non-dose M04 result (safety-limited, encounter-scope gated, or otherwise degraded)
+    // has no such contract, so calling M05 would produce a guaranteed 409 and a misleading
+    // "正在生成风险随访提示" spinner. Skip the doomed call and land directly on the same
+    // deterministic follow-up terminal state the M05 error path below already produces.
+    if (!prescribeReasoningFromState(current)) {
+      const nonDoseRiskAssessment = replaceRiskAssessmentFollowup(
+        current.riskAssessment,
+        buildDeterministicRiskFollowup(current),
+      );
+      persistState(withSafetyGate({
+        ...current,
+        riskAssessment: nonDoseRiskAssessment,
+        auditAdvisory: { available: false, reason: "no_prescription_items" },
+        skipDifferentiationGate: undefined,
+        phase: "done",
+        previousResult: undefined,
+        lastError: undefined,
+      }));
+      return;
+    }
     try {
       setStreamingForPhase("assess", "");
       const res5 = await fetchWithTimeout(apiUrl("/api/diagnosis/assess"), {
@@ -6861,8 +7109,14 @@ export default function DiagnosisPage() {
         previousResult: undefined,
       });
       persistState(current);
-    } catch {
-      if (activeRunAbortController?.signal.aborted) return;
+    } catch (e) {
+      if (activeRunAbortController?.signal.aborted) {
+        // A cancelled M05 must land in the same failed-stage state as M03/M04: the failed panel
+        // shows the actual reason with an in-panel retry, instead of leaving the 审方随访 step
+        // spinning in a "running" state that no action can recover from.
+        persistState(setError(current, normalizeRequestError(e, "合理用药审方与随访生成失败")));
+        return;
+      }
       // M05 contains an advisory external audit plus deterministic follow-up. An unavailable audit
       // must be disclosed, but it cannot strand a completed M03/M04 chain in a global error state.
       const riskAssessment = replaceRiskAssessmentFollowup(
@@ -6905,6 +7159,12 @@ export default function DiagnosisPage() {
       }
       persistState(updated);
     } catch {
+      if (activeRunAbortController?.signal.aborted) {
+        // 医生主动取消的口径与 M03/M04/M05 一致：落为失败阶段，面板显示“推理已取消”并给出
+        // 本阶段重试入口，而不是静默回到追问中状态（那会让取消看起来像仍在等待回答）。
+        persistState(setError({ ...state, phase: "question" }, "推理已取消"));
+        return;
+      }
       // M02 improves information gain but is not a workflow dependency. Keep the free-text and skip
       // surface available so a transient question-model failure cannot become an error dead end.
       persistState({ ...state, phase: "question", lastError: undefined });
@@ -7310,6 +7570,7 @@ export default function DiagnosisPage() {
     setUploadNotice("");
     setCaptureModal(null);
     setPendingNewCaseConfirm(false);
+    setWorkbenchUnsavedDraft(null);
   }
 
   function handleNewCase() {
@@ -7394,10 +7655,13 @@ export default function DiagnosisPage() {
           input,
           selectedQuestionOptions,
           runningPhase: undefined,
+          // 采纳后未保存草稿分叉消除：清除脏标记，快照只保留已审方/采纳版本。
+          workbenchDraft: null,
         })
       : null;
     if (BROWSER_CASE_PERSISTENCE_ENABLED && !savedAt) throw new Error("编辑后方案未能安全保存，请检查浏览器存储或网络后重试；当前版本尚未写回。");
     persistState(committed);
+    setWorkbenchUnsavedDraft(null);
     if (savedAt) setLastSavedAt(savedAt);
     setStreamingForPhase("assess", "");
     } finally {
@@ -7637,6 +7901,8 @@ export default function DiagnosisPage() {
             onDownloadReport={handleDownloadReport}
             onAcceptEditedPrescription={handleAcceptEditedPrescription}
             onConfirmEncounterScope={handleConfirmEncounterScope}
+            restoredUnsavedDraft={workbenchUnsavedDraft}
+            onUnsavedDraftChange={handleWorkbenchUnsavedDraftChange}
             onRunReasoning={() => {
               void handleSubmit({ preventDefault: () => undefined } as React.FormEvent);
             }}

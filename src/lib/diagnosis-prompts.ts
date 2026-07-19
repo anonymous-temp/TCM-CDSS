@@ -1,10 +1,12 @@
 // src/lib/diagnosis-prompts.ts
+import formulaSourcesJson from "../data/tcm-formula-sources.json" with { type: "json" };
+import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
 import type { CaseState } from "./diagnosis-types";
 import { EVIDENCE_LEVELS, SAFETY_DEFERENCE_TEXT } from "./cdss-vocab";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import { getLineageCard, getLineageQuestionStrategy } from "./tcm-lineages";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
-import { getTcmHerbDoseLimit } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories } from "./tcm-knowledge";
 import { buildTcmTreatmentProjectPromptContext } from "./tcm-treatment-capabilities.server";
 import { requiredDecoctionRequirement } from "./herb-decoction-rules";
 
@@ -85,6 +87,127 @@ function tcmLineageQuestionInstruction(caseState: CaseState): string {
   ].join("\n");
 }
 
+// ─── 按治法匹配的经典名方候选注入（M04 组方决策支持）──────────────────────────
+// 候选池只取两级有出处治理的目录：古代经典名方目录与核验补充目录。宽泛的地方工作簿同名方
+// 组成歧义大，只能经由服务端确定性编译契约承接，绝不作为提示侧候选推荐给模型。
+type ClassicalFormulaCandidate = { name: string; source: string; ingredients: string[] };
+
+const classicalFormulaPool: ReadonlyArray<ClassicalFormulaCandidate> = (() => {
+  const official = (formulaSourcesJson as {
+    officialClassicFormulas?: Record<string, { source?: unknown; ingredients?: unknown }>;
+  }).officialClassicFormulas || {};
+  const verified = (verifiedSupplementJson as {
+    entries?: Record<string, { source?: unknown; ingredients?: unknown }>;
+  }).entries || {};
+  const pool: ClassicalFormulaCandidate[] = [];
+  const seen = new Set<string>();
+  for (const [rawName, entry] of [...Object.entries(official), ...Object.entries(verified)]) {
+    const name = rawName.replace(/[\s·•，,。；;：:（）()【】\[\]“”"']/g, "").trim();
+    if (!name || seen.has(name)) continue;
+    const ingredients = Array.isArray(entry.ingredients)
+      ? entry.ingredients.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      : [];
+    if (typeof entry.source !== "string" || !entry.source.trim() || ingredients.length < 2) continue;
+    seen.add(name);
+    pool.push({ name, source: entry.source.trim(), ingredients });
+  }
+  return pool;
+})();
+
+// 治法关键词 → 药味功能分类关键词（分类词表见 src/data/tcm-herb-function-categories.json）。
+// 只覆盖 M03 治法中的高频方向；未命中任何方向的病例不注入候选，避免用不相关名方污染组方决策。
+const THERAPY_HERB_CATEGORY_RULES: ReadonlyArray<readonly [RegExp, readonly string[]]> = [
+  [/活血|化瘀|行瘀|通脉|破血|通络/, ["活血"]],
+  [/补气|益气|健脾|补中|升阳|举陷|补益心脾/, ["补气"]],
+  [/养血|补血/, ["补血"]],
+  [/滋阴|养阴|育阴|生津|增液/, ["补阴"]],
+  [/温阳|扶阳|补阳|温肾|回阳|温脾/, ["补阳", "温里"]],
+  [/温中|散寒|温里/, ["温里"]],
+  [/清热|泻火|凉血|解毒|清营/, ["清热"]],
+  [/化痰|祛痰|涤痰/, ["化痰"]],
+  [/止咳|平喘|宣肺|降肺|肃肺/, ["止咳平喘"]],
+  [/利水|渗湿|利湿|祛湿/, ["利水渗湿"]],
+  [/化湿|燥湿|醒脾/, ["化湿"]],
+  [/解表|疏风|祛风|发散风寒|发散风热/, ["解表", "发散风寒", "发散风热"]],
+  [/安神|宁心|养心|镇惊|定志/, ["安神"]],
+  [/理气|行气|疏肝|解郁|开郁/, ["理气"]],
+  [/消食|导滞|健胃/, ["消食"]],
+  [/平肝|潜阳|息风|止痉/, ["平肝", "息风"]],
+  [/止血/, ["止血"]],
+  [/通便|泻下|攻下|润下/, ["泻下", "润下", "攻下"]],
+  [/收涩|敛汗|固涩|固精/, ["收涩", "固精"]],
+];
+
+function classicalFormulaCandidatesForTherapy(primaryText: string, secondaryText = "", limit = 5) {
+  const collectKeys = (text: string) => {
+    const keys = new Set<string>();
+    for (const [pattern, categories] of THERAPY_HERB_CATEGORY_RULES) {
+      if (pattern.test(text)) categories.forEach((category) => keys.add(category));
+    }
+    return [...keys];
+  };
+  const primaryKeys = collectKeys(primaryText);
+  if (primaryKeys.length === 0) return [] as Array<ClassicalFormulaCandidate & { matchedCount: number; score: number }>;
+  const secondaryKeys = collectKeys(secondaryText).filter((key) => !primaryKeys.includes(key));
+  const matches = (herb: string, keys: string[]) =>
+    getTcmHerbFunctionCategories(herb).some((category) => keys.some((key) => category.includes(key)));
+  return classicalFormulaPool
+    .map((entry) => {
+      // 主治法（总治法 + P1 节点）决定候选资格与排序；次级病机方向只作同分时的并列信号，
+      // 防止兼夹方向（如次要理气）把偏离核心治法的方剂顶到前列。
+      const matchedCount = entry.ingredients.filter((herb) => matches(herb, primaryKeys)).length;
+      const secondaryCount = secondaryKeys.length
+        ? entry.ingredients.filter((herb) => matches(herb, secondaryKeys)).length
+        : 0;
+      return { ...entry, matchedCount, secondaryCount, score: matchedCount / entry.ingredients.length };
+    })
+    .filter((entry) => entry.matchedCount >= 2 && entry.score >= 0.3)
+    .sort((left, right) =>
+      right.score - left.score || right.matchedCount - left.matchedCount ||
+      right.secondaryCount - left.secondaryCount || left.name.localeCompare(right.name))
+    .slice(0, limit);
+}
+
+// 与既有 maxPromptChars 纪律一致：候选块整体硬性封顶，超出即截断后续候选行。
+const CLASSICAL_CANDIDATE_PROMPT_BUDGET = 1400;
+
+function classicalFormulaCandidateContext(diagnoseReasoning: ReturnType<typeof diagnoseReasoningFromState>): string {
+  if (!diagnoseReasoning) return "";
+  const chain = diagnoseReasoning.pathogenesis?.chain || [];
+  const joinText = (values: Array<string | undefined>) =>
+    values.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
+  const primaryText = joinText([
+    diagnoseReasoning.overview?.primarySyndrome,
+    diagnoseReasoning.overview?.overallTherapy,
+    diagnoseReasoning.therapy?.overallPrinciple,
+    diagnoseReasoning.therapy?.overallMethod,
+    chain.find((node) => (node.nodeId || "") === "P1")?.therapyDirection || chain[0]?.therapyDirection,
+  ]);
+  if (!primaryText) return "";
+  const secondaryText = joinText([
+    ...(diagnoseReasoning.therapy?.subTherapies || []).map((item) => item.therapy),
+    ...chain.slice(1).map((node) => node.therapyDirection),
+  ]);
+  const lockedNames = new Set(
+    (diagnoseReasoning.overview?.recommendedFormulaNames || []).map((name) => name.replace(/\s/g, "")),
+  );
+  const lines: string[] = [];
+  let budget = CLASSICAL_CANDIDATE_PROMPT_BUDGET;
+  for (const candidate of classicalFormulaCandidatesForTherapy(primaryText, secondaryText)) {
+    if (lockedNames.has(candidate.name)) continue;
+    const line = `- ${candidate.name}｜出处：${candidate.source}｜组成：${candidate.ingredients.join("、")}｜治法匹配 ${candidate.matchedCount}/${candidate.ingredients.length} 味`;
+    if (lines.length > 0 && budget - line.length < 0) break;
+    lines.push(line);
+    budget -= line.length;
+  }
+  if (lines.length === 0) return "";
+  return [
+    "【按治法匹配的经典名方候选（本地方剂目录中的古代经典名方/核验补充方，出处可考；仅供优先考量，不是强制选用）】",
+    ...lines,
+    "使用规则：M03 已锁定命名方时，唯一 candidate 仍承接锁定方，本表仅用于组方思路与加减参考；M03 未锁定命名方时，必须先把本表候选逐一与本例病机、治法对照，仅当候选均不能覆盖本例核心病机或主要治法时才形成自拟方，并在 candidate.applicable 中用一句话说明候选经典方未覆盖本例哪个病机/治法维度（不得罗列被排除方名）。候选方能否最终承接由服务端按组成身份下限、锚点药味与剂量边界确定性复核；方剂出处一律由服务端按目录附加，禁止在 JSON 任何字段中自写《》书名、文献或出处。",
+  ].join("\n");
+}
+
 function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: CaseState): string {
   if (stage === "prescribe") {
     return `
@@ -123,10 +246,13 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
 - candidate.decoction 必须是单个对象，且必须包含 doseCount 字符串；格式只能是1–30的整数加“剂”（如"5剂"），不得省略、输出数字、null、数组或包装对象。疗程和复诊节点由服务端按 doseCount 统一生成。
 - role 只能是君/臣/佐/使中的一个值，processing 和 decoctionRequirement 只能是字符串或 null。
 - 君臣药只能引用 targetKind=pathogenesis_node 与有效 P1/P2...；佐使药若只承担方内结构作用，可引用 targetKind=formula_structure、targetRef=FORMULA_STRUCTURE，并将 structureRole 限于 middle_jiao_support/harmonize/guide/temper。
-- 不得在提案中重写 M03 证候、病机、治法、流派信息、方剂出处、药味功用、方义、适用边界或证据字段；这些全部由服务端生成。
+- 君臣佐使必须通过引用体现差异化方义，不得把每味药都绑到同一句核心病机上：臣药必须引用与君药不同的次级病机节点（如 P2/P3），仅当确为增强君药主治时才与君药同节点；佐/使药选用 formula_structure 时应按实际结构功能选择不同枚举，同一 structureRole 不得无差别套用于多味无关药。服务端按 targetRef/structureRole 确定性生成每味药的角色理由，重复引用会产生重复方义。
+- 君药去偏：君药必须直接针对主证核心病机（P1）承担中心治疗作用，不得以“通用补益”充任。山药、党参、黄芪、甘草等通用补益/调和药，仅当 P1 病机本身就是该药主治的虚损证型（本例已有对应虚损患者事实）时才可为君；不得把“健脾扶正”之类的同一模板理由跨病种、跨候选复用于君药，不同 P1 病机的君药功能必须随之改变（如 P1 为瘀血阻络时君药应为活血化瘀药而非补气药）。
+- 治法→药味映射：每味药必须经 targetRef/structureRole 绑定到它实际落实的治法方向，候选药味集合必须覆盖 M03 therapy.subTherapies 中每个“主要”治法方向（至少一味药的功能与之对应）；不得出现治法要求活血化瘀而方中无活血药、治法要求解表而方中无解表药这类治法与药味漂移。
+- 不得在提案中重写 M03 证候、病机、治法、流派信息、方剂出处、药味功用、方义、适用边界或证据字段；这些全部由服务端生成。唯一例外：形成自拟方时，可在 candidate.applicable 中用一句话说明已注入的经典名方候选未覆盖本例哪个病机/治法维度（不得罗列被排除方名、不得写《》出处），作为自拟方的组方依据。
 - patentAndWestern 仅在证据上下文中存在可核验说明书、指南或证据检索依据时输出具体西药/中成药；没有可靠依据时输出空数组。每项必须说明定位、对应问题、用法用量边界、疗程、联用/替代关系和风险，不得写成正式医嘱。
 - patentAndWestern 每项必须具备具体剂型规格、单次剂量、频次、给药途径、疗程和逐药证据；任一缺失时不要输出该项，不得使用“按说明书/医生复核/结合病情确定”等套话占位。
-- modifications 是复诊时的条件性随症加减，不属于当前处方。通常输出1–3条真正会改变既有 P 节点治疗方向的高价值 IF-THEN 建议；只有本例不存在安全、可解释且有知识库支持的复诊分支时才输出空数组，不得机械留空。targetRef 必须引用现有 P 节点。add 只能加入知识库已收载且当前处方没有的药味，remove/adjust 只能针对当前处方药味；不得填写剂量，实际采用时必须进入药味工作台确定剂量并重新审方。
+- modifications 是复诊时的条件性随症加减，不属于当前处方。给出候选方时默认必须输出1–3条真正会改变既有 P 节点治疗方向的高价值 IF-THEN 建议，不得机械留空；每条必须四要素齐全：触发条件（trigger=复诊时出现的具体症状或事实变化）、动作（actionType=add/remove/adjust 加 herbName=哪味药）、理由（reason=该加减对应的病机依据）、风险说明（由服务端统一附加“重新确定剂量并重新审方”的标准提示，模型不得自写剂量）。targetRef 必须引用现有 P 节点。add 只能加入知识库已收载且当前处方没有的药味，remove/adjust 只能针对当前处方药味；实际采用时必须进入药味工作台确定剂量并重新审方。仅当本例确实不存在安全、可解释且有知识库支持的复诊分支时才输出空数组，且此时必须在 nonPharma.monitoring 中给出一条“本例无需预设随证加减”的说明，写清理由以及出现何种变化时应重新评估加减，不得静默留空。
 - nonPharma 必须输出，以患者现有信息给出简洁的饮食、起居、情志、中医非药物治疗项目和监测建议；不要求其他病历字段齐全。acupointCare 固定输出 null，避免绕过受控项目目录。tcmTreatments 只能填写后附候选中的 projectCode 与现有病机 targetRef，最多3项，优先本机构可开展项目；没有适合项目时输出空数组。
 `;
   }
@@ -144,6 +270,8 @@ JSON要求：
 - 必须是合法 JSON，不要代码块，不要注释，不要尾逗号。
 - M03 stage=diagnose 时 ${formulaRule}。
 - overview.recommendedFormulaNames 与 formulaSelectionMode 是服务端依据本地方剂目录归一化的机器引用字段；模型可以按语义填写推荐方向，但不得把未收载方伪装成经典方。
+- overview.recommendedFormulaDirection 必须经典方优先：方证匹配时优先选用有出处可考的经典名方（本地方剂目录收载的古代经典名方、核验补充方或组成一致的地方目录方），并直接写出方名（如“血府逐瘀汤加减”）；确无方证匹配的经典方时才按已锁定病机与治法自拟，自拟时只写“按已锁定病机与治法辨证组方”，不得罗列被排除的方名、书名或文献。
+- M03 pathogenesis.chain[].therapyDirection 必须逐节点具体且互不重复，不得给所有节点复写同一句治法；M04 将按各节点治法方向确定性生成君臣佐使方义，重复句式会直接造成方义重复。
 - M03 pathogenesis.chain[].patientFact 必须从患者临床资料或医生最新补充中逐字摘录一个短句；不得总结、改写、拼接或补出病历没有的事实。不确定内容只写入 uncertainties。每个保留节点必须完整填写 patientFact、syndromeEvidence、pathogenesis 和 therapyDirection；空节点不得输出。
 - M03 必须利用与本病相关的病程轨迹和安全状态，包括起病时程、稳定/加重/缓解、复发或无新发等已记录事实；它们可进入 westernDiagnosis.supportingFacts 或相应病机节点，不得因只关注证型而遗漏。未记录的轨迹不得补写。
 - 必须逐条区分 current/recent、historical、negated 和 unknown。既往稳定疾病、后遗症、已缓解事件以及“当前稳定/无新发”只能作为背景、限制或鉴别边界；没有本次活动性变化时，不得升级为 westernDiagnosis.primary、主证候、P1 核心病机或主要治疗目标。
@@ -395,6 +523,7 @@ export function buildDiagnosePrompt(caseState: CaseState): string {
 4. 安全规则、说明书、药典和国家/行业规范优先于流派倾向和模型推断。
 5. 不得伪造指南、文献题名、年份、链接或DOI；无明确来源时省略客户正文的来源字段，并仅在结构化 evidence 中标记内部证据缺口。
 6. 若医生选择了诊疗思路偏好，只能用于辨证视角、方证/方源选择和加减解释；不得为迎合偏好而忽略反证、禁忌、红旗或更匹配的证候。
+7. 推荐主方方向坚持经典方优先：方证匹配时优先选用有出处可考的经典名方并写出方名；只有确无方证匹配的经典方时才按病机与治法自拟，自拟方向只写“按已锁定病机与治法辨证组方”，不罗列被排除方名。不得默认所有病例都自拟组方，也不得跨病种套用同一套药味与角色。
 
 ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
@@ -432,6 +561,7 @@ export function buildPrescribePrompt(caseState: CaseState): string {
       `  历史常用量参考（仅用于模型优先落在保守区间，不代表现行药典核验）：${doseBoundaries}`,
     ].join("\n");
   }).join("\n");
+  const classicalCandidateContext = classicalFormulaCandidateContext(diagnoseReasoning);
   const structuredDiagnosis = diagnoseReasoning
     ? promptDataText(JSON.stringify({
         stage: "diagnose",
@@ -486,8 +616,9 @@ export function buildPrescribePrompt(caseState: CaseState): string {
 9. 西药/中成药只在注入的说明书、指南或证据检索上下文能够支持时给出具体候选；必须标注证据来源、用法用量边界、疗程和风险，并明确该部分需独立审方，不能借用饮片审方结论。
 10. 剂量级候选处方的每味药必须来自后附“候选处方剂量限定名单”或后附命中规则中已给出明确最小/最大剂量的药味，且单味剂量必须同时不低于最小值、不高于最大值；特殊煎服要求必须原样进入 decoctionRequirement。不要选用名单外药味，也不要凭经验猜测名单外剂量。若 M03 已锁定命名方，剂量名单缺失不得成为换方、删掉大部分基准药味或拼成另一张自拟方的理由；应停止剂量级输出并明确需要药师补齐该味剂量边界，不得输出半张处方。
 11. 生成剂量时要前置考虑真实审方的常用量边界：除非君药治疗强度确有必要，非君药不要默认取本地历史范围的精确上限，优先在有效区间内保留至少 1g 余量。不得因此低于最小剂量、改变君臣佐使关系，或用降低剂量掩盖配伍禁忌、特殊人群和相互作用风险。
-12. 君臣佐使必须由本例 P1/P2 病机和总治法决定，不按跨病例固定模板分配。每个候选必须恰有 1–2 味君药，至少 1 味且不得超过 2 味；每味君药都必须使用 targetKind=pathogenesis_node、targetRef=P1，直接承担 P1 核心病机的中心治疗作用。命名方也必须由本例 P1 确定其核心药，不能按药名或药味顺序套用固定角色模板；山药、甘草等通用补益或调和药只有在本例核心病机确由其主治、且能解释其中心作用时才可为君，不能跨病种机械设为君药。臣药承接次级病机或增强主治，佐使只承担明确的兼证、制约、调和或引经作用。
+12. 君臣佐使必须由本例 P1/P2 病机和总治法决定，不按跨病例固定模板分配。每个候选必须恰有 1–2 味君药，至少 1 味且不得超过 2 味；每味君药都必须使用 targetKind=pathogenesis_node、targetRef=P1，直接承担 P1 核心病机的中心治疗作用，且君药功能必须与 P1 的治法方向一致（P1 为瘀血阻络时君药应为活血化瘀药，不得以补气药充任）。命名方也必须由本例 P1 确定其核心药，不能按药名或药味顺序套用固定角色模板；山药、党参、黄芪、甘草等通用补益或调和药只有在 P1 病机本身就是其主治的虚损证型、本例已有对应虚损患者事实、且能解释其中心作用时才可为君，不能跨病种机械设为君药，也不得把同一条君药理由模板复用到不同病例。臣药承接次级病机或增强主治，应引用与君药不同的病机节点以形成差异化方义；佐使只承担明确的兼证、制约、调和或引经作用。
 13. 优先选择方证匹配且在服务端受控目录中可编译的命名方。只有没有匹配命名方、或本例病机确需超出命名方核心结构时才形成自拟方；不得为躲避组成核验而随意改称自拟方，也不得把不同病例都套成同一套药味和角色。
+14. 经典方优先与出处纪律：M03 未锁定命名方时，必须先对照后附“按治法匹配的经典名方候选”，仅当候选均不能覆盖本例核心病机或主要治法时才形成自拟方，且自拟方的药味选择必须体现候选方未覆盖的病机/治法维度。方剂出处一律由服务端按目录确定性附加，禁止在输出中自写《》书名或文献；只有保持组成承接完整，出处才能被核验并附加到医生可见报告。
 
 ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
@@ -504,7 +635,7 @@ ${structuredDiagnosis || "（无结构化M03结果；请仅把下方M03文本作
 ${formulaCompilationContext || "（M03 未锁定命名方；只能按本例病机与治法形成自拟候选，并明确写组方依据）"}
 命名方候选必须满足上述可计算的“组成身份下限”和锚点药味要求，只允许针对 M03 已确认病机作有理由的加减；不得用“同治法”替换成另一组药后仍沿用原方名。最终服务端会按实际 herbs[] 反向核验方名和出处。
 
-【M04药味可引用病机节点】
+${classicalCandidateContext ? `${classicalCandidateContext}\n\n` : ""}【M04药味可引用病机节点】
 ${pathogenesisNodeOptions || "（无可引用节点；不得生成剂量级候选处方）"}
 
 【方内结构作用枚举】
@@ -516,7 +647,7 @@ ${pathogenesisNodeOptions || "（无可引用节点；不得生成剂量级候�
 ${buildTcmTreatmentProjectPromptContext(caseState)}
 
 M04 提案不允许重写 overview、pathogenesis、therapy 或 lineageAdaptation；服务端将从已签名 M03 原样复制这些字段。若 M03 推荐方向含明确命名方，唯一 candidate.name 和实际 herbs[] 必须承接该方。M03 只给一个命名方时不得扩成合方；给出“或/酌选”等备选时只能选择其中一个，不得夹带未列方。所有实际药味都必须进入唯一候选的 herbs[]。
-每味药必须引用上方病机节点或方内结构作用枚举。每个候选必须恰有 1–2 味君药，且这些君药全部直接引用 P1；君/臣药只能使用 pathogenesis_node；佐/使药使用 formula_structure 时必须选择一个结构枚举。不得把肝郁、痰湿、血瘀等 M03 未确认病机塞进自由文本；服务端会忽略模型自写 targetPathogenesis，并根据 targetRef/structureRole 生成最终可见内容。
+每味药必须引用上方病机节点或方内结构作用枚举。每个候选必须恰有 1–2 味君药，且这些君药全部直接引用 P1；君/臣药只能使用 pathogenesis_node；佐/使药使用 formula_structure 时必须选择一个结构枚举。臣药的引用节点必须不同于君药，整方药味必须覆盖 M03 各主要治法方向，服务端按 targetRef/structureRole 逐味生成“角色＋治法方向”的治法→药味映射，重复引用会产生重复方义。不得把肝郁、痰湿、血瘀等 M03 未确认病机塞进自由文本；服务端会忽略模型自写 targetPathogenesis，并根据 targetRef/structureRole 生成最终可见内容。
 
 只输出一个 JSON 对象，不要生成哨兵、Markdown 正文、表格或 JSON 之外的任何内容。服务端会把最小提案编译为完整 V2 契约，并在药味剂量校验、方剂出处复核和证据净化后确定性生成医生可见报告。这样可以确保页面、报告、审方与 HIS 使用同一份方名、药味和剂量。
 ${reasoningV2Instruction("prescribe", caseState)}`;

@@ -550,30 +550,84 @@ function parseTemperature(text: string): number | null {
 
 function parsePulse(text: string): number | null {
   const match = normalizeClinicalText(text).match(/(?:^|[^A-Za-z])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d{2,3})\s*(?:次\/分|次每分|bpm)?/i);
-  return match ? Number(match[1]) : null;
+  if (!match) return null;
+  const value = Number(match[1]);
+  // 生理可达边界之外的录入值（如 0、300 次/分）不是有效测量，交给非法值复核流程而不是危急值。
+  return Number.isFinite(value) && value >= 20 && value <= 250 ? value : null;
 }
 
 function parseRespiration(text: string): number | null {
   const match = normalizeClinicalText(text).match(/(?:^|[^A-Za-z])(?:R|RR|呼吸)["']?\s*[:：]?\s*["']?\s*(\d{1,2})\s*(?:次\/分|次每分)?/i);
-  return match ? Number(match[1]) : null;
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value >= 5 && value <= 60 ? value : null;
 }
 
 function parseSpo2(text: string): number | null {
   const match = normalizeClinicalText(text).match(/(?:SpO2|指脉氧|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?/i);
   if (!match) return null;
   const value = Number(match[1]);
-  return Number.isFinite(value) && value > 0 && value <= 100 ? value : null;
+  return Number.isFinite(value) && value >= 50 && value <= 100 ? value : null;
 }
 
-function hasInvalidSpo2(text: string): boolean {
+// 生理可达边界（与解析器一致）：超出边界或无法解析的录入值既不是“正常”，也不是有效危急值，
+// 必须显式进入 missingItems 要求按范围/格式重录；真正的异常有效值仍按原阈值产生危急红旗。
+function invalidSpo2Values(text: string): string[] {
   const normalized = normalizeClinicalText(text);
-  for (const match of normalized.matchAll(/(?:SpO2|指脉氧|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?/gi)) {
+  const out: string[] = [];
+  const pattern = /(?:(?:SpO2|指脉氧|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?|(?:本次|当前|现在|今日|今天)?\s*(?:复测|复查|再测)[^。；;\n\d]{0,8}(\d+(?:\.\d+)?)\s*%)/gi;
+  for (const match of normalized.matchAll(pattern)) {
+    const raw = match[1] || match[2];
+    const value = Number(raw);
+    const valueIndex = (match.index ?? 0) + Math.max(0, match[0].lastIndexOf(raw));
+    if (isExcludedClinicalAssertionAt(normalized, valueIndex)) continue;
+    if (!Number.isFinite(value) || value < 50 || value > 100) out.push(`${raw}%`);
+  }
+  return out;
+}
+
+function invalidPulseValues(text: string): string[] {
+  const normalized = normalizeClinicalText(text);
+  const out: string[] = [];
+  for (const match of normalized.matchAll(/(?:^|[^A-Za-z])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*(?:次\/分|次每分|bpm)?/gi)) {
     const value = Number(match[1]);
     const valueIndex = (match.index ?? 0) + Math.max(0, match[0].lastIndexOf(match[1]));
     if (isExcludedClinicalAssertionAt(normalized, valueIndex)) continue;
-    if (!Number.isFinite(value) || value <= 0 || value > 100) return true;
+    if (!Number.isFinite(value) || value < 20 || value > 250) out.push(match[1]);
   }
-  return false;
+  return out;
+}
+
+function invalidRespirationValues(text: string): string[] {
+  const normalized = normalizeClinicalText(text);
+  const out: string[] = [];
+  for (const match of normalized.matchAll(/(?:^|[^A-Za-z])(?:R|RR|呼吸)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*(?:次\/分|次每分)?/gi)) {
+    const value = Number(match[1]);
+    const valueIndex = (match.index ?? 0) + Math.max(0, match[0].lastIndexOf(match[1]));
+    if (isExcludedClinicalAssertionAt(normalized, valueIndex)) continue;
+    if (!Number.isFinite(value) || value < 5 || value > 60) out.push(match[1]);
+  }
+  return out;
+}
+
+function invalidTemperatureValues(text: string): string[] {
+  const normalized = normalizeClinicalText(text);
+  const out: string[] = [];
+  // 仅带 T/体温 标签的候选：无标签的 ℃ 数值（水温等）不按体温非法值处理。
+  for (const match of normalized.matchAll(/(?:^|[^A-Za-z])(?:T|体温)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*(?:℃|°C|度)?/gi)) {
+    const value = Number(match[1]);
+    const valueIndex = (match.index ?? 0) + Math.max(0, match[0].lastIndexOf(match[1]));
+    if (isExcludedClinicalAssertionAt(normalized, valueIndex)) continue;
+    if (!Number.isFinite(value) || value < 30 || value > 45) out.push(match[1]);
+  }
+  // 中文小数写法“45度9”=45.9：先按整数位通过上一条扫描，这里按真实小数值复核。
+  for (const match of normalized.matchAll(/(?:^|[^A-Za-z])(?:T|体温)["']?\s*[:：]?\s*["']?\s*(\d{2})度(\d)/g)) {
+    const value = Number(`${match[1]}.${match[2]}`);
+    const valueIndex = (match.index ?? 0) + Math.max(0, match[0].lastIndexOf(match[1]));
+    if (isExcludedClinicalAssertionAt(normalized, valueIndex)) continue;
+    if (value < 30 || value > 45) out.push(String(value));
+  }
+  return out;
 }
 
 function preferAbnormalNumber(
@@ -625,11 +679,27 @@ function parseContextualTemperature(text: string): number | null {
 }
 
 function parseContextualPulse(text: string): number | null {
-  return parseContextualNumber(text, /(?:^|[^A-Za-z])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d{2,3})\s*(?:次\/分|次每分|bpm)?/gi, (match) => Number(match[1]), (value) => value >= 120 || value < 50);
+  return parseContextualNumber(
+    text,
+    /(?:^|[^A-Za-z])(?:P|HR|心率|脉搏)["']?\s*[:：]?\s*["']?\s*(\d{2,3})\s*(?:次\/分|次每分|bpm)?/gi,
+    (match) => {
+      const value = Number(match[1]);
+      return Number.isFinite(value) && value >= 20 && value <= 250 ? value : null;
+    },
+    (value) => value >= 120 || value < 50,
+  );
 }
 
 function parseContextualRespiration(text: string): number | null {
-  return parseContextualNumber(text, /(?:^|[^A-Za-z])(?:R|RR|呼吸)["']?\s*[:：]?\s*["']?\s*(\d{1,2})\s*(?:次\/分|次每分)?/gi, (match) => Number(match[1]), (value) => value >= 25 || value < 8);
+  return parseContextualNumber(
+    text,
+    /(?:^|[^A-Za-z])(?:R|RR|呼吸)["']?\s*[:：]?\s*["']?\s*(\d{1,2})\s*(?:次\/分|次每分)?/gi,
+    (match) => {
+      const value = Number(match[1]);
+      return Number.isFinite(value) && value >= 5 && value <= 60 ? value : null;
+    },
+    (value) => value >= 25 || value < 8,
+  );
 }
 
 function parseContextualSpo2(text: string): number | null {
@@ -638,7 +708,7 @@ function parseContextualSpo2(text: string): number | null {
     /(?:(?:SpO2|指脉氧|血氧(?:饱和度)?|氧饱和度)["']?\s*[:：]?\s*["']?\s*(\d+(?:\.\d+)?)\s*%?|(?:本次|当前|现在|今日|今天)?\s*(?:复测|复查|再测)[^。；;\n\d]{0,8}(\d+(?:\.\d+)?)\s*%)/gi,
     (match) => {
       const value = Number(match[1] || match[2]);
-      return Number.isFinite(value) && value > 0 && value <= 100 ? value : null;
+      return Number.isFinite(value) && value >= 50 && value <= 100 ? value : null;
     },
     (value) => value <= 91,
   );
@@ -727,10 +797,54 @@ const VITAL_FIELD_CHECKS: Array<{ key: keyof HisRecordSnapshot["fields"]; vitalK
     { key: "vitalsR", vitalKeys: ["respiration", "R", "respiratoryRate", "RR"], label: "R", parse: parseRespiration, name: "呼吸" },
 ];
 
-function unparseableVitalNames(state: CaseState): string[] {
-  const out: string[] = [];
+type InvalidVitalFinding = {
+  name: "血压" | "体温" | "脉搏/心率" | "呼吸" | "血氧";
+  label: string;
+  value: string;
+  kind: "range" | "format";
+  expected: string;
+};
+
+const INVALID_VITAL_LABELS = {
+  血压: "血压",
+  体温: "体温",
+  "脉搏/心率": "脉搏/心率",
+  呼吸: "呼吸",
+  血氧: "血氧饱和度（SpO2）",
+} as const;
+
+const INVALID_VITAL_EXPECTED = {
+  血压: "收缩压/舒张压mmHg（收缩压40-300、舒张压20-200，如120/80）",
+  体温: "30-45℃",
+  "脉搏/心率": "20-250次/分",
+  呼吸: "5-60次/分",
+  血氧: "50-100%",
+} as const;
+
+// 已录入但非法（无法解析或超出生理可达边界）的生命体征：逐项给出原始值与所需格式/范围，
+// 让医生明确重录要求。只报第一个 offending 值，避免同一项重复告警。
+function invalidEnteredVitalFindings(state: CaseState): InvalidVitalFinding[] {
+  const findings: InvalidVitalFinding[] = [];
+  const push = (name: InvalidVitalFinding["name"], value: string, kind: InvalidVitalFinding["kind"]) => {
+    if (findings.some((finding) => finding.name === name)) return;
+    findings.push({
+      name,
+      label: INVALID_VITAL_LABELS[name],
+      value: value.slice(0, 24),
+      kind,
+      expected: INVALID_VITAL_EXPECTED[name],
+    });
+  };
   const structuredBloodPressure = structuredBloodPressureAssessment(state);
-  if (structuredBloodPressure.status === "invalid") out.push("血压");
+  if (structuredBloodPressure.status === "invalid") {
+    const rawSystolic = stringifyClinicalValue(firstStructuredVitalValue(state.vitals, STRUCTURED_SYSTOLIC_BP_KEYS).value) || "（缺）";
+    const rawDiastolic = stringifyClinicalValue(firstStructuredVitalValue(state.vitals, STRUCTURED_DIASTOLIC_BP_KEYS).value) || "（缺）";
+    push(
+      "血压",
+      `收缩压${rawSystolic}/舒张压${rawDiastolic}`,
+      structuredBloodPressure.reason === "range" || structuredBloodPressure.reason === "order" ? "range" : "format",
+    );
+  }
   for (const check of VITAL_FIELD_CHECKS) {
     // A top-level value may have been entered through an API client even when an HIS snapshot is
     // also present. It is not trusted as an affirmative red-flag fact, but a malformed entered value
@@ -741,13 +855,38 @@ function unparseableVitalNames(state: CaseState): string[] {
     ].filter((value) => isKnownClinicalText(value));
     for (const value of enteredValues) {
       if (check.parse(`${check.label}:${value}`) == null) {
-        out.push(check.name);
+        push(check.name as InvalidVitalFinding["name"], value, /\d/.test(value) ? "range" : "format");
         break;
       }
     }
   }
-  if (hasInvalidSpo2(`${vitalsText(state)}\n${trustedInputText(state)}`)) out.push("血氧");
-  return Array.from(new Set(out));
+  const corpus = `${vitalsText(state)}\n${trustedInputText(state)}`;
+  // 结构化录入的 SpO2（topLevel.SpO2/spo2/oxygenSaturation）不带标签地散落在 vitals 对象里，
+  // 显式补上标签再扫，避免非法血氧经结构化通道静默消失。
+  const structuredSpo2 = [state.vitals?.SpO2, state.vitals?.spo2, state.vitals?.oxygenSaturation]
+    .map((value) => stringifyClinicalValue(value))
+    .filter((value) => isKnownClinicalText(value))
+    .map((value) => `SpO2:${value}`)
+    .join("\n");
+  const invalidSpo2 = invalidSpo2Values(`${corpus}\n${structuredSpo2}`);
+  if (invalidSpo2.length > 0) push("血氧", invalidSpo2[0], "range");
+  const invalidPulse = invalidPulseValues(corpus);
+  if (invalidPulse.length > 0) push("脉搏/心率", invalidPulse[0], "range");
+  const invalidRespiration = invalidRespirationValues(corpus);
+  if (invalidRespiration.length > 0) push("呼吸", invalidRespiration[0], "range");
+  const invalidTemperature = invalidTemperatureValues(corpus);
+  if (invalidTemperature.length > 0) push("体温", invalidTemperature[0], "range");
+  return findings;
+}
+
+function formatInvalidVitalFinding(finding: InvalidVitalFinding): string {
+  return finding.kind === "range"
+    ? `${finding.label}数值异常(${finding.value})，请按 ${finding.expected} 范围重新录入`
+    : `${finding.label}无法识别为有效数值(${finding.value})，请按 ${finding.expected} 格式重新录入`;
+}
+
+function unparseableVitalNames(state: CaseState): string[] {
+  return Array.from(new Set(invalidEnteredVitalFindings(state).map((finding) => finding.name)));
 }
 
 // Missing vital signs remain optional for an ordinary, non-high-risk presentation. Once a value is
@@ -1290,6 +1429,100 @@ function hasStablePostAcuteNeurologicContext(text: string): boolean {
   return hasEstablishedNeurologicEvent && hasNonAcuteCourse && (hasCurrentStability || (explicitResidualBaseline && !acuteChange));
 }
 
+// 神经事件锚点与残留/急性线索（类别级，不含个案关键词）：用于区分「陈旧卒中残留/后遗症期」与
+// 「旧卒中基础上的新发急性加重」。残留框架本身不是否定词，只是把时间轴限定为慢性基线；
+// 一旦同一小句出现急性变化线索（突发/新发/再发/加重…），必须重新视为当前急症（fail-closed）。
+const NEURO_EVENT_ANCHOR_SOURCE = String.raw`(?:脑梗(?:死|塞)?|脑卒中|卒中|中风|脑出血|脑溢血|脑血栓|脑栓塞|TIA|短暂性脑缺血发作|颅脑损伤|脑外伤|脑部手术|偏瘫)`;
+const NEURO_RESIDUAL_MARKER_SOURCE = String.raw`(?:后遗(?:症)?(?:期)?|后遗症|遗留|残留|残存|陈旧(?:性)?|恢复期|康复期)`;
+const NEURO_RESIDUAL_MARKER_PATTERN = new RegExp(NEURO_RESIDUAL_MARKER_SOURCE);
+const NEURO_ACUTE_ONSET_CUE_SOURCE = String.raw`(?:刚刚|刚才|方才|今(?:日|天|晨|早|晚)|昨日|昨晚|昨夜|现在|目前|当前|本次|近日|近期|近(?:\d+|[一二两三四五六七八九十]+)\s*(?:小时|天|日|周)|新发|突发|突然|急性)`;
+const NEURO_ACUTE_CHANGE_CUE_SOURCE = String.raw`(?:再发|复发|又发|加重|恶化|进展)`;
+const NEURO_ACUTE_ANY_CUE_PATTERN = new RegExp(`${NEURO_ACUTE_ONSET_CUE_SOURCE}|${NEURO_ACUTE_CHANGE_CUE_SOURCE}`, "g");
+const NEURO_ACUTE_CHANGE_ONLY_PATTERN = new RegExp(`^(?:${NEURO_ACUTE_CHANGE_CUE_SOURCE})$`);
+const NEURO_HISTORICAL_ANCHOR_PATTERN = /(?:既往|曾经|曾|当时|陈旧|多年前|数年前|(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:年|个月|月|周|天|日)前)/;
+
+// 逗号/顿号级小句边界（硬句边界之内）：急性线索只在其所修饰的小句内有效，
+// 避免“今天突发胸痛，既往脑梗遗留肢体无力”里胸痛的急性词跨过逗号点燃陈旧神经缺损。
+function clinicalSubClauseBoundsAt(text: string, index: number, length: number): { start: number; end: number } {
+  const start = Math.max(
+    text.lastIndexOf("。", index - 1),
+    text.lastIndexOf("；", index - 1),
+    text.lastIndexOf(";", index - 1),
+    text.lastIndexOf("\n", index - 1),
+    text.lastIndexOf("，", index - 1),
+    text.lastIndexOf(",", index - 1),
+  ) + 1;
+  const endCandidates = ["。", "；", ";", "\n", "，", ","]
+    .map((mark) => text.indexOf(mark, index + Math.max(0, length)))
+    .filter((position) => position >= 0);
+  const end = endCandidates.length > 0 ? Math.min(...endCandidates) : text.length;
+  return { start, end };
+}
+
+// 急性线索本身必须未被否定、未被既往/陈旧时间锚点限定；纯时间/起病词若与缺损之间隔着
+// 残留标记（“目前遗留右侧肢体无力”），描述的是慢性基线而非急性事件，不能算急性。
+// 变化类动词（加重/再发/复发/恶化/进展）不受残留标记阻断：残留基础上加重本身就是卒中警示。
+function neuroAcuteCueUsableAt(text: string, cueIndex: number, cueText: string, deficitIndex: number, isChangeVerb: boolean): boolean {
+  // “肢体无力”的“无”是症状名词的一部分，不是否定词；掩码后再做否定判定（与输出清洗层同一手法），
+  // 否则“中风后遗留左侧肢体无力，今日突然加重”里的加重会被误判为受否定。
+  const masked = text.replace(/肢体无力/g, "肢体乏力");
+  if (isNegatedAt(masked, cueIndex)) return false;
+  const cueBounds = clinicalSubClauseBoundsAt(masked, cueIndex, cueText.length);
+  if (NEURO_HISTORICAL_ANCHOR_PATTERN.test(masked.slice(cueBounds.start, cueIndex))) return false;
+  if (!isChangeVerb && cueIndex + cueText.length <= deficitIndex &&
+      NEURO_RESIDUAL_MARKER_PATTERN.test(masked.slice(cueIndex + cueText.length, deficitIndex))) return false;
+  return true;
+}
+
+// 判断局灶神经缺损是否附着急性变化线索：同小句内的起病/变化词、前一小句句尾的起病短语
+// （“今晨突发，右侧肢体无力”），或紧随其后小句句首的变化动词（“遗留右侧肢体无力，近2日加重”）。
+function neuroAcuteChangeAttachedAt(text: string, index: number, matchText: string): boolean {
+  const { start, end } = clinicalSubClauseBoundsAt(text, index, matchText.length);
+  NEURO_ACUTE_ANY_CUE_PATTERN.lastIndex = 0;
+  for (const match of text.slice(start, end).matchAll(NEURO_ACUTE_ANY_CUE_PATTERN)) {
+    const cueIndex = start + (match.index ?? 0);
+    if (cueIndex >= index && cueIndex < index + matchText.length) continue;
+    const isChangeVerb = NEURO_ACUTE_CHANGE_ONLY_PATTERN.test(match[0]);
+    if (neuroAcuteCueUsableAt(text, cueIndex, match[0], index, isChangeVerb)) return true;
+  }
+  if (start > 0) {
+    const prevEnd = start - 1;
+    const prevStart = prevEnd > 0 ? clinicalSubClauseBoundsAt(text, prevEnd - 1, 0).start : 0;
+    const prevSegment = text.slice(prevStart, prevEnd);
+    const onsetAtTail = prevSegment.match(new RegExp(`(${NEURO_ACUTE_ONSET_CUE_SOURCE})(?:出现|发生)?\\s*$`));
+    if (onsetAtTail?.index != null &&
+        neuroAcuteCueUsableAt(text, prevStart + onsetAtTail.index, onsetAtTail[1], index, false)) return true;
+  }
+  if (end < text.length) {
+    const nextStart = end + 1;
+    const nextEnd = clinicalSubClauseBoundsAt(text, nextStart, 0).end;
+    const nextSegment = text.slice(nextStart, nextEnd);
+    const changeAtHead = nextSegment.match(new RegExp(`^\\s*(?:(?:${NEURO_ACUTE_ONSET_CUE_SOURCE}|且|并|又)\\s*){0,3}(${NEURO_ACUTE_CHANGE_CUE_SOURCE})`));
+    if (changeAtHead?.index != null &&
+        neuroAcuteCueUsableAt(text, nextStart + changeAtHead[0].length - changeAtHead[1].length, changeAtHead[1], index, true)) return true;
+  }
+  return false;
+}
+
+// 判断局灶神经缺损是否被明确框定为陈旧/残留/后遗症期基线：脑血管事件锚点 + 残留标记
+// （“脑梗后遗症期”“中风后遗”“陈旧性脑梗…遗留”），或缺损小句内直接带残留标记。
+// 不含急性线索的含混表述不进入此分支，保持 fail-closed（未知起病按当前处理）。
+function neuroResidualFramingAt(text: string, index: number, matchText: string): boolean {
+  const hardStart = Math.max(
+    text.lastIndexOf("。", index - 1),
+    text.lastIndexOf("；", index - 1),
+    text.lastIndexOf(";", index - 1),
+    text.lastIndexOf("\n", index - 1),
+  ) + 1;
+  const before = text.slice(hardStart, index);
+  const anchoredResidual = new RegExp(
+    `${NEURO_EVENT_ANCHOR_SOURCE}[^。；;\\n]{0,24}${NEURO_RESIDUAL_MARKER_SOURCE}`,
+  ).test(before);
+  if (anchoredResidual) return true;
+  const { start } = clinicalSubClauseBoundsAt(text, index, matchText.length);
+  return NEURO_RESIDUAL_MARKER_PATTERN.test(text.slice(start, index));
+}
+
 function hasCurrentFocalNeurologicDeficit(text: string): boolean {
   const normalized = normalizeClinicalText(text);
   for (const term of FOCAL_NEUROLOGIC_TERMS) {
@@ -1297,10 +1530,14 @@ function hasCurrentFocalNeurologicDeficit(text: string): boolean {
     while (index >= 0) {
       const context = clinicalAssertionContextAt(normalized, index);
       const commaSeparatedPositive = hasCommaSeparatedPositiveEvidence(normalized, index, term);
+      // 急性变化线索可覆盖“既往/半年前”级的历史时间框定（旧卒中 + 今突发必须仍然报警）；
+      // 残留/后遗症框架则在无急性线索时压下慢性基线缺损（陈旧脑梗遗留无力不再误报急症）。
+      const acuteChangeAttached = neuroAcuteChangeAttachedAt(normalized, index, term);
+      const residualFraming = !acuteChangeAttached && neuroResidualFramingAt(normalized, index, term);
       if (
         context.subject === "patient" &&
         context.mood === "actual" &&
-        context.temporality === "current" &&
+        (acuteChangeAttached || (context.temporality === "current" && !residualFraming)) &&
         (!isNegatedAt(normalized, index) || commaSeparatedPositive)
       ) {
         return true;
@@ -1311,13 +1548,32 @@ function hasCurrentFocalNeurologicDeficit(text: string): boolean {
   return false;
 }
 
+function firstPatternMatchWithoutNegation(text: string, pattern: RegExp): { index: number; text: string } | undefined {
+  const source = pattern.source;
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const regex = new RegExp(source, flags);
+  for (const match of text.matchAll(regex)) {
+    const index = match.index ?? -1;
+    if (index < 0) continue;
+    if (isExcludedClinicalAssertionAt(text, index)) continue;
+    if ((!isNegatedAt(text, index) || hasCommaSeparatedPositiveEvidence(text, index, match[0])) &&
+        !isHistoricalOrResolvedAt(text, index, match[0].length)) return { index, text: match[0] };
+  }
+  return undefined;
+}
+
 function hasNeurologicEmergencySignal(text: string): boolean {
-  const stablePostAcuteCourse = hasStablePostAcuteNeurologicContext(text);
-  const extendedStrokeWarning = hasAcuteExtendedStrokeWarning(text);
-  const activeUnilateralSensoryDeficit = hasPatternWithoutNegation(
-    text,
+  const normalized = normalizeClinicalText(text);
+  const stablePostAcuteCourse = hasStablePostAcuteNeurologicContext(normalized);
+  const extendedStrokeWarning = hasAcuteExtendedStrokeWarning(normalized);
+  const unilateralSensoryMatch = firstPatternMatchWithoutNegation(
+    normalized,
     /(?:(?:左|右|单|一|偏)侧|半身|偏身)[^。；;\n]{0,12}(?:麻木|感觉减退|感觉丧失|偏盲)/,
   );
+  // 与局灶缺损同一判别口径：陈旧/残留框架下的慢性感觉缺损不报急症；附着急性变化线索时仍报。
+  const activeUnilateralSensoryDeficit = unilateralSensoryMatch != null &&
+    (neuroAcuteChangeAttachedAt(normalized, unilateralSensoryMatch.index, unilateralSensoryMatch.text) ||
+      !neuroResidualFramingAt(normalized, unilateralSensoryMatch.index, unilateralSensoryMatch.text));
   if (stablePostAcuteCourse) {
     const acuteCueBeforeDeficit = new RegExp(`(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\\s*(?:\\d+|[一二两三四五六七八九十几两]+)\\s*(?:小时|天|日)|本次|当前|目前|新发|突发|突然|再发|复发|快速加重|明显加重).{0,20}(?:出现|发生|再发|复发|加重)?[^。；;\\n]{0,8}${FOCAL_NEUROLOGIC_PATTERN.source}`);
     const acuteCueAfterDeficit = new RegExp(`${FOCAL_NEUROLOGIC_PATTERN.source}[^。；;\\n]{0,20}(?:(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|本次|当前|目前)(?:突然)?(?:出现|发生|再发|复发|加重|恶化)|(?<!无)(?<!未)(?:新发|突发|突然|再发|复发|快速加重|明显加重|恶化))`);
@@ -2148,8 +2404,10 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   if (!isKnownClinicalText(medicationText)) addMissing("medication_unknown", "当前用药（明确有/无及药物清单）");
   else if (medicationHistoryNeedsClarification(medicationText)) addMissing("medication_details", "已提及当前用药但缺少药名/剂量/频次");
   if (hasInvalidBp) addMissing("blood_pressure_invalid", "血压数值需复核（收缩压应高于舒张压）");
-  const invalidVitalNames = unparseableVitalNames(state).filter((name) => !(name === "血压" && hasInvalidBp));
-  if (invalidVitalNames.length > 0) addMissing("vitals_invalid", `生命体征数值需复核（${invalidVitalNames.join("、")}）`);
+  const invalidVitalFindings = invalidEnteredVitalFindings(state).filter((finding) => !(finding.name === "血压" && hasInvalidBp));
+  if (invalidVitalFindings.length > 0) {
+    addMissing("vitals_invalid", `生命体征数值需复核（${invalidVitalFindings.map(formatInvalidVitalFinding).join("；")}）`);
+  }
   const vitalSourceConflicts = Array.isArray(state.vitals?.sourceConflicts)
     ? state.vitals.sourceConflicts.map((item) => stringifyClinicalValue(item)).filter(Boolean)
     : [];

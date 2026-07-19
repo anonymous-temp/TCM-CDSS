@@ -549,4 +549,125 @@ assert.match(restrictedStructuredDoseRisk, /处方可作为候选方案审阅/);
 assert.doesNotMatch(restrictedStructuredDoseRisk, /不得采纳、执行或转写|受限状态/);
 cases += 1;
 
+// ===== 类别矩阵：陈旧脑梗/后遗症 vs 旧卒中基础上的新发急性事件 =====
+// 纯残留/后遗症基线（含“遗留…可…”功能基线）：不得报急性神经红旗。
+const postStrokeResidualScenarios = [
+  "中风后遗左侧肢体无力",
+  "半年前脑梗，遗留左肢力弱，可扶行。",
+  "半年前脑梗，遗留左侧肢体无力，可扶行。",
+  "陈旧性脑梗，遗留右侧肢体无力，可独立行走。",
+  "脑梗后遗症期，右侧肢体无力，扶持下可行走。",
+  "既往脑梗，遗留右侧肢体无力。",
+  "数年前脑出血，遗留言语不清，目前交流可。",
+  "脑卒中后遗留左侧肢体麻木，可扶行。",
+];
+for (const scenario of postStrokeResidualScenarios) {
+  for (const variant of variants(scenario)) {
+    for (const placement of ["chief", "history", "conversation"]) {
+      const gate = evaluateSafetyGate(stateWith(variant, placement));
+      assert.notEqual(gate.status, "red_flag", `${placement}: ${variant}`);
+      assert.equal(gate.redFlags.length, 0, `${placement}: ${variant}`);
+      cases += 1;
+    }
+  }
+}
+
+// 旧卒中 + 新发/突发/加重：急性线索必须仍然触发红旗（不被既往/陈旧框架压住）。
+const oldStrokeNewAcuteScenarios = [
+  "半年前脑梗，今突发右侧肢体无力。",
+  "陈旧性脑梗，今晨再发言语不清。",
+  "脑梗后遗症期，近2日右侧肢体无力明显加重。",
+  "中风后遗留左侧肢体无力，今日突然加重。",
+  "数年前脑出血，刚刚出现口角歪斜。",
+  "脑卒中后遗留左侧肢体麻木，昨日加重。",
+];
+for (const scenario of oldStrokeNewAcuteScenarios) {
+  for (const variant of variants(scenario)) {
+    for (const placement of ["chief", "history", "conversation"]) {
+      const gate = evaluateSafetyGate(stateWith(variant, placement));
+      assert.equal(gate.status, "red_flag", `${placement}: ${variant}`);
+      assert.match(gate.redFlags.join("、"), /神经系统急症/, `${placement}: ${variant}`);
+      cases += 1;
+    }
+  }
+}
+
+// 含混表述（有卒中锚点但无残留标记、也无急性线索）：按 fail-closed 保守报警。
+const ambiguousPostStrokeScenarios = [
+  "陈旧性脑梗，右侧肢体无力。",
+  "脑梗后右侧肢体无力。",
+  "半年前脑梗，目前右侧肢体无力。",
+];
+for (const scenario of ambiguousPostStrokeScenarios) {
+  for (const variant of variants(scenario)) {
+    for (const placement of ["chief", "history", "conversation"]) {
+      assert.equal(evaluateSafetyGate(stateWith(variant, placement)).status, "red_flag", `${placement}: ${variant}`);
+      cases += 1;
+    }
+  }
+}
+
+// ===== 类别矩阵：非法生命体征必须进入 missingItems 并给出重录范围/格式 =====
+for (const { vitals, expected } of [
+  { vitals: { SpO2: "999%" }, expected: /血氧.*数值异常\(999%\).*50-100%/ },
+  { vitals: { SpO2: "999" }, expected: /血氧.*数值异常\(999%\).*50-100%/ },
+  { vitals: { spo2: "45%" }, expected: /血氧.*数值异常\(45%\).*50-100%/ },
+  { vitals: { BP: "abc" }, expected: /血压.*无法识别为有效数值\(abc\).*重新录入/ },
+  { vitals: { T: "60℃" }, expected: /体温数值异常\(60℃\).*30-45℃/ },
+  { vitals: { HR: "0" }, expected: /脉搏\/心率数值异常\(0\).*20-250次\/分/ },
+  { vitals: { HR: 0 }, expected: /脉搏\/心率数值异常\(0\).*20-250次\/分/ },
+  { vitals: { P: "300次/分" }, expected: /脉搏\/心率数值异常\(300次\/分\).*20-250次\/分/ },
+  { vitals: { R: "0次/分" }, expected: /呼吸数值异常\(0次\/分\).*5-60次\/分/ },
+  { vitals: { R: "70次/分" }, expected: /呼吸数值异常\(70次\/分\).*5-60次\/分/ },
+]) {
+  const gate = evaluateSafetyGate({
+    ...semanticReadyBase,
+    vitals,
+    clinicalFacts: checkedEmptyFacts,
+  });
+  assert.equal(gate.status, "needs_information", `${JSON.stringify(vitals)}: invalid vital must request re-entry, not silently pass or fake a critical value`);
+  assert.equal(gate.redFlags.length, 0, `${JSON.stringify(vitals)}: invalid vital must not become a clinical red flag`);
+  assert.equal(gate.allowDosePrescription, false, `${JSON.stringify(vitals)}: invalid vital must lock dose-level output`);
+  assert.match(gate.missingItems.join("、"), expected, `${JSON.stringify(vitals)}: missingItems must name the vital, the offending value and the required range/format`);
+  cases += 1;
+}
+
+// 有效但异常的生命体征仍按原阈值产生危急红旗，而不是格式错误。
+for (const { vitals, expected } of [
+  { vitals: { SpO2: "88%" }, expected: /血氧饱和度 88%/ },
+  { vitals: { T: "40.1℃" }, expected: /体温 40\.1℃/ },
+  { vitals: { P: "150次\/分" }, expected: /心率\/脉搏 150次\/分/ },
+  { vitals: { R: "35次\/分" }, expected: /呼吸 35次\/分/ },
+]) {
+  const gate = evaluateSafetyGate({
+    ...semanticReadyBase,
+    vitals,
+    clinicalFacts: checkedEmptyFacts,
+  });
+  assert.equal(gate.status, "red_flag", `${JSON.stringify(vitals)}: valid abnormal vital remains a deterministic emergency floor`);
+  assert.match(gate.redFlags.join("、"), expected, JSON.stringify(vitals));
+  assert.doesNotMatch(gate.missingItems.join("、"), /数值异常|无法识别为有效数值/, `${JSON.stringify(vitals)}: valid abnormal vital must not be mislabeled as a format error`);
+  cases += 1;
+}
+
+// fail-closed：非法值不得清除同病历中真实存在的危急值；二者需同时呈现。
+const invalidPlusCriticalGate = evaluateSafetyGate({
+  ...semanticReadyBase,
+  vitals: { SpO2: "999%", P: "150次/分" },
+  clinicalFacts: checkedEmptyFacts,
+});
+assert.equal(invalidPlusCriticalGate.status, "red_flag", "an invalid SpO2 must not clear a coexisting critical pulse");
+assert.match(invalidPlusCriticalGate.redFlags.join("、"), /心率\/脉搏 150次\/分/);
+assert.match(invalidPlusCriticalGate.missingItems.join("、"), /血氧.*50-100%/);
+cases += 1;
+
+// 叙述文本中的非法血氧（<50% 生理不可达）同样进入 missingItems 而非危急红旗。
+for (const placement of ["chief", "history", "conversation"]) {
+  const gate = evaluateSafetyGate(stateWith("SpO2 45%", placement));
+  assert.notEqual(gate.status, "red_flag", `${placement}: SpO2 45%`);
+  assert.equal(gate.redFlags.length, 0, `${placement}: SpO2 45%`);
+  assert.match(gate.missingItems.join("、"), /血氧.*数值异常\(45%\).*50-100%/, `${placement}: SpO2 45%`);
+  cases += 1;
+}
+
 console.log(JSON.stringify({ cases, failures: 0 }));
