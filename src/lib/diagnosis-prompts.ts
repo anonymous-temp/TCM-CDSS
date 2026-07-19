@@ -1,12 +1,13 @@
 // src/lib/diagnosis-prompts.ts
 import formulaSourcesJson from "../data/tcm-formula-sources.json" with { type: "json" };
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
+import herbFunctionCategoriesJson from "../data/tcm-herb-function-categories.json" with { type: "json" };
 import type { CaseState } from "./diagnosis-types";
 import { EVIDENCE_LEVELS, SAFETY_DEFERENCE_TEXT } from "./cdss-vocab";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import { getLineageCard, getLineageQuestionStrategy } from "./tcm-lineages";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
-import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionText } from "./tcm-knowledge";
 import { buildTcmTreatmentProjectPromptContext } from "./tcm-treatment-capabilities.server";
 import { requiredDecoctionRequirement } from "./herb-decoction-rules";
 
@@ -138,17 +139,18 @@ const THERAPY_HERB_CATEGORY_RULES: ReadonlyArray<readonly [RegExp, readonly stri
   [/收涩|敛汗|固涩|固精/, ["收涩", "固精"]],
 ];
 
+function therapyCategoryKeys(text: string): string[] {
+  const keys = new Set<string>();
+  for (const [pattern, categories] of THERAPY_HERB_CATEGORY_RULES) {
+    if (pattern.test(text)) categories.forEach((category) => keys.add(category));
+  }
+  return [...keys];
+}
+
 function classicalFormulaCandidatesForTherapy(primaryText: string, secondaryText = "", limit = 5) {
-  const collectKeys = (text: string) => {
-    const keys = new Set<string>();
-    for (const [pattern, categories] of THERAPY_HERB_CATEGORY_RULES) {
-      if (pattern.test(text)) categories.forEach((category) => keys.add(category));
-    }
-    return [...keys];
-  };
-  const primaryKeys = collectKeys(primaryText);
+  const primaryKeys = therapyCategoryKeys(primaryText);
   if (primaryKeys.length === 0) return [] as Array<ClassicalFormulaCandidate & { matchedCount: number; score: number }>;
-  const secondaryKeys = collectKeys(secondaryText).filter((key) => !primaryKeys.includes(key));
+  const secondaryKeys = therapyCategoryKeys(secondaryText).filter((key) => !primaryKeys.includes(key));
   const matches = (herb: string, keys: string[]) =>
     getTcmHerbFunctionCategories(herb).some((category) => keys.some((key) => category.includes(key)));
   return classicalFormulaPool
@@ -171,8 +173,8 @@ function classicalFormulaCandidatesForTherapy(primaryText: string, secondaryText
 // 与既有 maxPromptChars 纪律一致：候选块整体硬性封顶，超出即截断后续候选行。
 const CLASSICAL_CANDIDATE_PROMPT_BUDGET = 1400;
 
-function classicalFormulaCandidateContext(diagnoseReasoning: ReturnType<typeof diagnoseReasoningFromState>): string {
-  if (!diagnoseReasoning) return "";
+// M03 主治法（总治法 + P1 节点）与次级病机方向是经典方候选与知识库短名单共用的匹配输入。
+function caseTherapyDirectionTexts(diagnoseReasoning: NonNullable<ReturnType<typeof diagnoseReasoningFromState>>) {
   const chain = diagnoseReasoning.pathogenesis?.chain || [];
   const joinText = (values: Array<string | undefined>) =>
     values.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
@@ -183,11 +185,17 @@ function classicalFormulaCandidateContext(diagnoseReasoning: ReturnType<typeof d
     diagnoseReasoning.therapy?.overallMethod,
     chain.find((node) => (node.nodeId || "") === "P1")?.therapyDirection || chain[0]?.therapyDirection,
   ]);
-  if (!primaryText) return "";
   const secondaryText = joinText([
     ...(diagnoseReasoning.therapy?.subTherapies || []).map((item) => item.therapy),
     ...chain.slice(1).map((node) => node.therapyDirection),
   ]);
+  return { primaryText, secondaryText };
+}
+
+function classicalFormulaCandidateContext(diagnoseReasoning: ReturnType<typeof diagnoseReasoningFromState>): string {
+  if (!diagnoseReasoning) return "";
+  const { primaryText, secondaryText } = caseTherapyDirectionTexts(diagnoseReasoning);
+  if (!primaryText) return "";
   const lockedNames = new Set(
     (diagnoseReasoning.overview?.recommendedFormulaNames || []).map((name) => name.replace(/\s/g, "")),
   );
@@ -205,6 +213,105 @@ function classicalFormulaCandidateContext(diagnoseReasoning: ReturnType<typeof d
     "【按治法匹配的经典名方候选（本地方剂目录中的古代经典名方/核验补充方，出处可考；仅供优先考量，不是强制选用）】",
     ...lines,
     "使用规则：M03 已锁定命名方时，唯一 candidate 仍承接锁定方，本表仅用于组方思路与加减参考；M03 未锁定命名方时，必须先把本表候选逐一与本例病机、治法对照，仅当候选均不能覆盖本例核心病机或主要治法时才形成自拟方，并在 candidate.applicable 中用一句话说明候选经典方未覆盖本例哪个病机/治法维度（不得罗列被排除方名）。候选方能否最终承接由服务端按组成身份下限、锚点药味与剂量边界确定性复核；方剂出处一律由服务端按目录附加，禁止在 JSON 任何字段中自写《》书名、文献或出处。",
+  ].join("\n");
+}
+
+// ─── 按治法方向分组的知识库覆盖药味短名单（M04 君药选择引导）──────────────────
+// 与 diagnosis-stage-contract.ts 的 TCM_THERAPY_CONCEPTS 同词表：契约侧对自拟/非命名方候选的
+// 君药确定性核验 herbTherapyConcepts（功能文本 + 功能分类）非空，无收载即驳回
+// （candidate_*_herb_*_emperor_knowledge_missing）。这里是同一概念词表的 prompt 侧并集，只用于
+// 短名单过滤（选择引导，不是安全裁决）；契约注释要求两侧保持同词表，改动必须同步审计。
+const KB_THERAPY_KNOWLEDGE_PATTERN = new RegExp([
+  "补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|大补元气|扶正|升阳|举陷|固表",
+  "养(?:心|肝)?血|补(?:心|肝)?血|益血|生血",
+  "安神|宁心|宁神|养心|定志|镇惊|安魂|定魄",
+  "健脾|补脾|益脾|补益心脾|健运|运化",
+  "理气|行气|疏肝|解郁|开郁|调畅气机|下气|降气|宽中|除满|消胀|除痞|行滞|破气|顺气",
+  "清热|泻火|凉血|解毒|辛凉|清(?:肺|肝|心|胃|营|暑)",
+  "化痰|祛痰|涤痰|豁痰|消痰",
+  "利湿|渗湿|利水|祛湿|燥湿|化湿|醒脾",
+  "温阳|扶阳|回阳|散寒|辛温|温(?:中|肾|里|肺|经|化|补|通|养)|补阳",
+  "滋阴|养阴|育阴|生津|增液",
+  "解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风",
+  "活血|化瘀|行瘀|破血|通经",
+  "通便|泻下|攻下|逐水",
+  "收涩|敛汗|固涩|固精|止带",
+  "止血|凉血止血|化瘀止血",
+  "止咳|平喘|宣肺|肃肺|降肺|开宣肺气|宣(?:通|畅|降)肺气",
+  "消食|导滞|健胃|消积",
+  "息风|止痉|平肝|潜阳",
+  "开窍|醒神",
+  "软坚|散结",
+].join("|"));
+
+type KbCoveredHerb = { name: string; categories: string[]; functionText: string };
+
+// 反向索引只收“治疗方向可核验”的药味：生地黄这类只有药名/剂量收载、既无功能分类也无可用
+// 功用文本的药味会被确定性君药核验驳回，绝不能作为候选君药推荐给模型。
+const kbCoveredHerbIndex: ReadonlyArray<KbCoveredHerb> = (() => {
+  const categoryIndex = (herbFunctionCategoriesJson as { categories?: Record<string, unknown> }).categories || {};
+  const index: KbCoveredHerb[] = [];
+  for (const [rawName, rawCategories] of Object.entries(categoryIndex)) {
+    const name = rawName.trim();
+    const categories = Array.isArray(rawCategories)
+      ? rawCategories.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      : [];
+    if (!name || categories.length === 0) continue;
+    const functionText = getTcmHerbFunctionText(name);
+    if (!KB_THERAPY_KNOWLEDGE_PATTERN.test([functionText, ...categories].join("；"))) continue;
+    index.push({ name, categories, functionText });
+  }
+  return index;
+})();
+
+// 治法分类词 → 触发该分类的治法正则，用于短名单排序：药味的功用文本覆盖本例方向越全越靠前。
+const CATEGORY_KEY_THERAPY_PATTERNS: ReadonlyMap<string, ReadonlyArray<RegExp>> = (() => {
+  const map = new Map<string, RegExp[]>();
+  for (const [pattern, categories] of THERAPY_HERB_CATEGORY_RULES) {
+    for (const category of categories) {
+      map.set(category, [...(map.get(category) || []), pattern]);
+    }
+  }
+  return map;
+})();
+
+// 与 CLASSICAL_CANDIDATE_PROMPT_BUDGET 同一纪律：短名单药味行整体硬性封顶。
+const KB_COVERED_SHORTLIST_BUDGET = 900;
+const KB_COVERED_SHORTLIST_PER_DIRECTION = 10;
+
+function kbCoveredHerbShortlistContext(diagnoseReasoning: ReturnType<typeof diagnoseReasoningFromState>): string {
+  if (!diagnoseReasoning) return "";
+  const { primaryText, secondaryText } = caseTherapyDirectionTexts(diagnoseReasoning);
+  if (!primaryText) return "";
+  const primaryKeys = therapyCategoryKeys(primaryText);
+  if (primaryKeys.length === 0) return "";
+  const directionKeys = [...primaryKeys, ...therapyCategoryKeys(secondaryText).filter((key) => !primaryKeys.includes(key))];
+  const lines: string[] = [];
+  let budget = KB_COVERED_SHORTLIST_BUDGET;
+  for (const key of directionKeys) {
+    const herbs = kbCoveredHerbIndex
+      .filter((herb) => herb.categories.some((category) => category.includes(key)))
+      .map((herb) => {
+        const categoryHits = directionKeys.filter((direction) =>
+          herb.categories.some((category) => category.includes(direction))).length;
+        const functionHits = directionKeys.filter((direction) =>
+          (CATEGORY_KEY_THERAPY_PATTERNS.get(direction) || []).some((pattern) => pattern.test(herb.functionText))).length;
+        return { name: herb.name, score: categoryHits * 2 + functionHits };
+      })
+      .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+      .slice(0, KB_COVERED_SHORTLIST_PER_DIRECTION)
+      .map((herb) => herb.name);
+    if (herbs.length === 0) continue;
+    const line = `- ${key}方向：${herbs.join("、")}`;
+    if (lines.length > 0 && budget - line.length < 0) break;
+    lines.push(line);
+    budget -= line.length;
+  }
+  if (lines.length === 0) return "";
+  return [
+    "【本例治法方向的知识库覆盖药味短名单（均有服务端功能分类或功用收载，治疗方向可核验）】",
+    ...lines,
+    "使用规则：自拟方或未承接命名方身份候选的君药必须从本短名单对应方向中选取；仅当短名单未覆盖本例方向时，才可选择知识库另有功能收载且方向一致的药味。完全无功能收载的药味不得担任君药，服务端将确定性驳回。若理想君药无知识库覆盖，改用同一治法方向上最近的覆盖药味，不得坚持无覆盖药味。命名方基准药味的角色由方证身份承接；外加或替换药味同样优先从本短名单选择。",
   ].join("\n");
 }
 
@@ -248,6 +355,7 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
 - 君臣药只能引用 targetKind=pathogenesis_node 与有效 P1/P2...；佐使药若只承担方内结构作用，可引用 targetKind=formula_structure、targetRef=FORMULA_STRUCTURE，并将 structureRole 限于 middle_jiao_support/harmonize/guide/temper。
 - 君臣佐使必须通过引用体现差异化方义，不得把每味药都绑到同一句核心病机上：臣药必须引用与君药不同的次级病机节点（如 P2/P3），仅当确为增强君药主治时才与君药同节点；佐/使药选用 formula_structure 时应按实际结构功能选择不同枚举，同一 structureRole 不得无差别套用于多味无关药。服务端按 targetRef/structureRole 确定性生成每味药的角色理由，重复引用会产生重复方义。
 - 君药去偏：君药必须直接针对主证核心病机（P1）承担中心治疗作用，不得以“通用补益”充任。山药、党参、黄芪、甘草等通用补益/调和药，仅当 P1 病机本身就是该药主治的虚损证型（本例已有对应虚损患者事实）时才可为君；不得把“健脾扶正”之类的同一模板理由跨病种、跨候选复用于君药，不同 P1 病机的君药功能必须随之改变（如 P1 为瘀血阻络时君药应为活血化瘀药而非补气药）。
+- 君药知识库覆盖：自拟方或未承接命名方身份候选的君药，必须出自服务端药味知识库有功能收载（功能分类或功用文本）的药味，且其收载治疗方向与 P1 治法方向一致；完全无功能收载的药味不得为君，服务端会确定性核验并驳回。优先从上方【本例治法方向的知识库覆盖药味短名单】对应方向中选择君药；若本例理想君药无知识库覆盖，必须改用同一治法方向上最近的有覆盖药味，不得坚持无覆盖药味。臣佐使药同样优先选择知识库有功能收载的药味。
 - 治法→药味映射：每味药必须经 targetRef/structureRole 绑定到它实际落实的治法方向，候选药味集合必须覆盖 M03 therapy.subTherapies 中每个“主要”治法方向（至少一味药的功能与之对应）；不得出现治法要求活血化瘀而方中无活血药、治法要求解表而方中无解表药这类治法与药味漂移。
 - 不得在提案中重写 M03 证候、病机、治法、流派信息、方剂出处、药味功用、方义、适用边界或证据字段；这些全部由服务端生成。唯一例外：形成自拟方时，可在 candidate.applicable 中用一句话说明已注入的经典名方候选未覆盖本例哪个病机/治法维度（不得罗列被排除方名、不得写《》出处），作为自拟方的组方依据。
 - patentAndWestern 仅在证据上下文中存在可核验说明书、指南或证据检索依据时输出具体西药/中成药；没有可靠依据时输出空数组。每项必须说明定位、对应问题、用法用量边界、疗程、联用/替代关系和风险，不得写成正式医嘱。
@@ -562,6 +670,7 @@ export function buildPrescribePrompt(caseState: CaseState): string {
     ].join("\n");
   }).join("\n");
   const classicalCandidateContext = classicalFormulaCandidateContext(diagnoseReasoning);
+  const kbShortlistContext = kbCoveredHerbShortlistContext(diagnoseReasoning);
   const structuredDiagnosis = diagnoseReasoning
     ? promptDataText(JSON.stringify({
         stage: "diagnose",
@@ -635,7 +744,7 @@ ${structuredDiagnosis || "（无结构化M03结果；请仅把下方M03文本作
 ${formulaCompilationContext || "（M03 未锁定命名方；只能按本例病机与治法形成自拟候选，并明确写组方依据）"}
 命名方候选必须满足上述可计算的“组成身份下限”和锚点药味要求，只允许针对 M03 已确认病机作有理由的加减；不得用“同治法”替换成另一组药后仍沿用原方名。最终服务端会按实际 herbs[] 反向核验方名和出处。
 
-${classicalCandidateContext ? `${classicalCandidateContext}\n\n` : ""}【M04药味可引用病机节点】
+${classicalCandidateContext ? `${classicalCandidateContext}\n\n` : ""}${kbShortlistContext ? `${kbShortlistContext}\n\n` : ""}【M04药味可引用病机节点】
 ${pathogenesisNodeOptions || "（无可引用节点；不得生成剂量级候选处方）"}
 
 【方内结构作用枚举】

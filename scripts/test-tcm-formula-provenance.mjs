@@ -613,4 +613,36 @@ assert.ok(diagnosePrompt.includes("推荐主方方向坚持经典方优先"), "M
 assert.ok(diagnosePrompt.includes("确无方证匹配的经典方时才按已锁定病机与治法自拟"), "M03 must constrain self-devised directions to a catalog-free label");
 assert.ok(diagnosePrompt.includes("therapyDirection 必须逐节点具体且互不重复"), "M03 must forbid duplicated therapyDirection sentences that flatten downstream fangyi");
 
-console.log(JSON.stringify({ cases: 289, failures: 0 }));
+// ─── P0-5 跟进（ES04 类失败）：君药知识库覆盖硬规则、覆盖药味短名单、专属修复提示 ───
+const xiaokePrompt = prescribePromptFor(promptM03Reasoning({
+  syndrome: "阴虚内热证",
+  therapy: "滋阴清热、生津止渴",
+  method: "滋阴清热、生津止渴",
+  chain: [["P1", "阴虚内热、津液亏耗", "滋阴清热、生津止渴"], ["P2", "燥热伤津", "清热生津"]],
+}));
+assert.ok(xiaokePrompt.includes("君药知识库覆盖"), "M04 prompt must state the emperor KB-coverage hard rule");
+assert.ok(xiaokePrompt.includes("完全无功能收载的药味不得为君"), "the hard rule must forbid emperors without any KB function coverage");
+assert.ok(xiaokePrompt.includes("改用同一治法方向上最近的有覆盖药味"), "the prompt must steer an uncovered ideal emperor to the closest covered herb in the same direction");
+const shortlistStart = xiaokePrompt.indexOf("【本例治法方向的知识库覆盖药味短名单");
+const shortlistEnd = xiaokePrompt.indexOf("【M04药味可引用病机节点】");
+assert.ok(shortlistStart >= 0 && shortlistEnd > shortlistStart, "M04 prompt must inject the KB-covered herb shortlist for a 消渴/阴虚内热-type case");
+const shortlistSection = xiaokePrompt.slice(shortlistStart, shortlistEnd);
+assert.ok(shortlistSection.includes("- 补阴方向："), "the shortlist must group covered herbs by the 补阴 direction");
+assert.ok(shortlistSection.includes("- 清热方向："), "the shortlist must group covered herbs by the 清热 direction");
+for (const herb of ["知母", "天花粉"]) {
+  assert.ok(shortlistSection.includes(herb), `KB-covered 消渴-direction herb ${herb} must appear in the shortlist`);
+}
+assert.ok(/- 补阴方向：[^\n]*(?:石斛|玉竹|百合|黄精|天冬|女贞子)/.test(shortlistSection), "at least one covered 补阴 herb must appear in the 补阴 group");
+assert.ok(!shortlistSection.includes("生地黄"), "生地黄 has no KB function coverage and must never be presented as an eligible emperor");
+assert.ok(!shortlistSection.includes("麦冬"), "a categories-only herb without concept-matching function knowledge must not be offered as an eligible emperor");
+
+const { buildM04ClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
+const emperorKnowledgeHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_1_emperor_knowledge_missing");
+assert.ok(emperorKnowledgeHint.includes("知识库"), "the repair hint must explain the KB-coverage cause");
+assert.ok(emperorKnowledgeHint.includes("不得再次使用"), "the repair hint must explicitly forbid reusing the rejected emperor herb");
+assert.ok(emperorKnowledgeHint.includes("短名单"), "the repair hint must point at the injected KB-covered shortlist");
+assert.ok(emperorKnowledgeHint.includes("同一治法方向"), "the repair hint must require a same-direction replacement");
+assert.ok(buildM04ClinicalRepairHint("m04_candidate_0_herb_1_emperor_not_primary").includes("君药数量或 P1 归属不合法"), "adjacent emperor branches must remain unchanged");
+assert.ok(buildM04ClinicalRepairHint("m04_candidate_0_emperor_missing").includes("君药数量或 P1 归属不合法"), "adjacent emperor branches must remain unchanged");
+
+console.log(JSON.stringify({ cases: 306, failures: 0 }));

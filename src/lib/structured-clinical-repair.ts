@@ -15,6 +15,14 @@ export function buildM04ClinicalRepairHint(reason = ""): string {
       "其余药味只能按已成立的 P 节点或受控方内结构作用分配为臣、佐、使；不得新增患者事实、药味或病机节点。",
     ].join("\n");
   }
+  if (/^m04_candidate_\d+_herb_\d+_emperor_knowledge_missing$/.test(reason)) {
+    return [
+      "本次失败是所选君药不在服务端药味功能知识库中：该药没有功能分类或功用文本收载，系统无法核验其治疗方向，已被确定性驳回。",
+      "上一稿被驳回的那味君药不得再次使用，也不得换用其他同样无功能收载的药味（仅有药名或剂量收载不等于功能收载）。",
+      "必须从提示已注入的“本例治法方向的知识库覆盖药味短名单”中，选择与原君药同一治法方向的一味有覆盖药味担任君药；其余已通过校验的药味、剂量、方名和组成保持不变。",
+      "替换后的君药仍须 targetKind=pathogenesis_node、targetRef=P1，且其知识库收载方向必须与 P1 治法方向一致。",
+    ].join("\n");
+  }
   if (/^m04_(?:clinical|formula_composition|herb_plan|dose_rationale|patient_context)_semantic_review$/.test(reason)) {
     const focus = reason === "m04_formula_composition_semantic_review"
       ? "本次只修复命名方组成：按 M03 锁定的 governedFormulaBaselines 保留必需锚点和最低组成数，逐味给出保守剂量；不得只改方名，也不得用自拟方绕过命名方合同。"
