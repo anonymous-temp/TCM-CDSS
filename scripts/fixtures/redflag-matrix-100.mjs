@@ -1,4 +1,4 @@
-// 100 条覆盖矩阵测试用例 - 用于 /api/diagnosis/red-flags 批量回归
+// 100+10 条覆盖矩阵测试用例 - 用于 /api/diagnosis/red-flags 批量回归与 real-100 M03/M04 评测
 // 全部为虚构测试数据,不含真实 PHI
 // 设计原则:
 //   - RF01-RF10: 红旗急症(应触发 allowDosePrescription=false)
@@ -11,6 +11,7 @@
 //   - MIX01-MIX10: 多病共存/复杂场景
 //   - OK01-OK10: 全阴性健康体检
 //   - TR01-TR10: 极性陷阱("无X史"等表述)
+//   - ES01-ES10: 就诊范围与时态(恢复期残余症状/稳定慢性病明确求治/复诊续药体检咨询/时态矛盾)
 
 export const REDFLAG_MATRIX_100 = [
   // ============ RF: 红旗急症(10 条)============
@@ -130,4 +131,53 @@ export const REDFLAG_MATRIX_100 = [
   { id: "TR08", chief: "腹泻", hist: "无血便、无发热、无脱水。", vitals: {}, expect: { redFlag: false, notes: "腹泻但无红旗征" } },
   { id: "TR09", chief: "便秘", hist: "无便血、无体重下降、无呕吐。", vitals: {}, expect: { redFlag: false, notes: "便秘无红旗" } },
   { id: "TR10", chief: "乏力", hist: "无消瘦、无黄疸、无水肿。", vitals: {}, expect: { redFlag: false, notes: "乏力无红旗" } },
+
+  // ============ ES: 就诊范围与时态(10 条 - encounter scope)============
+  // ES01-ES02 恢复期仍有残余症状 → 当前存在活动性治疗目标,期望完整 M03 + 剂量链
+  // ES03-ES04 慢性稳定疾病但本次明确要求治疗 → historical/stable 拦截块的假阳性守卫
+  // ES05/ES06/ES07/ES10 常规复诊/续药/体检/咨询 → scope 驱动,保守定义 any(见文件末尾说明)
+  // ES08-ES09 前后时态互相矛盾 → 保守:存在当前主诉,绝不得按 historical/stable 拦截
+  { id: "ES01", cat: "es_recovery", chief: "肺炎恢复期,咳嗽少痰乏力1周", hist: "2周前肺炎住院治疗,已退热5天,复查胸片炎症吸收好转;现仍晨起咳嗽、少量白黏痰、乏力纳差,要求中药调理。舌淡红苔薄白,脉细弱。", vitals: { t: "36.8", hr: "78" }, expect: { redFlag: false, m03: "full", m04: "dose", notes: "恢复期残余症状=当前活动性治疗目标,不得按既往/稳定拦截" } },
+  { id: "ES02", cat: "es_recovery", chief: "脑梗死恢复期3月,右侧肢体仍麻木", hist: "3月前患脑梗死,经治病情稳定;现遗留右侧肢体麻木、握力稍差,近1月无新发症状,本次要求中药康复治疗。舌暗苔薄白,脉细涩。", vitals: { bp: "135/85" }, expect: { redFlag: false, m03: "full", m04: "dose", notes: "恢复期残余症状,期望完整+剂量" } },
+  { id: "ES03", cat: "es_stable_active", chief: "高血压控制稳定,仍头晕,要求中药治疗", hist: "高血压8年,规律服氨氯地平,血压控制在130/80mmHg左右;近2月晨起头晕头胀、项背强,本次明确要求加用中药。舌红苔薄黄,脉弦。", vitals: { bp: "132/82" }, expect: { redFlag: false, m03: "full", m04: "dose", notes: "假阳性守卫:稳定慢性病+明确治疗请求,historical_or_stable_only 不得拦截" } },
+  { id: "ES04", cat: "es_stable_active", chief: "糖尿病血糖稳定,仍口干乏力,要求中药干预", hist: "2型糖尿病6年,二甲双胍治疗,空腹血糖6-7mmol/L;近半年口干多饮、疲乏,本次明确要求中药治疗。舌红少津少苔,脉细数。", vitals: {}, expect: { redFlag: false, m03: "full", m04: "dose", notes: "假阳性守卫:稳定+明确求治" } },
+  { id: "ES05", cat: "es_followup", chief: "慢性胃炎复诊,要求继服上方", hist: "慢性非萎缩性胃炎3年;2周前就诊服香砂六君子汤14剂,胃胀减轻,今复诊要求续方。舌淡红苔薄白,脉细。", vitals: {}, expect: { redFlag: false, m03: "any", m04: "any", notes: "复诊续药:续方(完整+剂量)与要求补充评估(限定+非剂量)均属可接受 scope 判定,保守观察" } },
+  { id: "ES06", cat: "es_followup", chief: "健康体检,无不适", hist: "单位年度体检,自测血压120/76mmHg,既往体健,无不适主诉,咨询中医体质调理。", vitals: { bp: "120/76", hr: "72" }, expect: { redFlag: false, m03: "any", m04: "any", notes: "体检咨询:scope 驱动,保守观察" } },
+  { id: "ES07", cat: "es_followup", chief: "偶尔入睡困难,仅咨询是否需要治疗", hist: "近1月偶入睡慢,每周1-2次,白天精神可;明确表示暂不想服药,仅咨询。舌淡红苔薄白。", vitals: {}, expect: { redFlag: false, m03: "any", m04: "any", notes: "明确仅咨询不服药:非剂量合理;若按轻度不寐给出剂量级建议也记录观察" } },
+  { id: "ES08", cat: "es_tense_conflict", chief: "头痛1周", hist: "患者诉头痛1周;家属补充其3年前头痛“已治愈”,本人又称头痛2年来反复发作从未完全缓解,前后时态矛盾;以本次1周新发加重为准。舌红苔薄黄,脉弦。", vitals: { bp: "125/80" }, expect: { redFlag: false, m03: "full", m04: "dose", notes: "时态矛盾→保守:存在当前主诉,绝不得按 historical/stable 拦截;矛盾只可影响置信度" } },
+  { id: "ES09", cat: "es_tense_conflict", chief: "咳嗽5天", hist: "现病史一处记录“咳嗽5天”,另一处旧病程写“慢性咳嗽3年已愈半年”;本次确有5天新起咳嗽咳痰,时态记载互相矛盾。舌淡红苔薄白。", vitals: {}, expect: { redFlag: false, m03: "full", m04: "dose", notes: "时态矛盾→保守:不得 historical 拦截" } },
+  { id: "ES10", cat: "es_followup", chief: "糖尿病常规复诊,无不适", hist: "2型糖尿病10年,规律用药,血糖稳定;本次常规复诊开化验单,无不适,暂未要求调整用药。", vitals: { bp: "128/80" }, expect: { redFlag: false, m03: "any", m04: "any", notes: "无明确治疗请求的常规复诊:非剂量合理,给出调理剂量亦属 scope 判定,保守观察" } },
 ];
+
+// ============ M03/M04 期望结局标注(regress-real-100-evaluate 消费)============
+// expect.m03: "full"     期望完整签名 M03(签名 reasoning-v2 且非签名有限结果)
+//             "limited"  期望签名有限结果(primarySyndromeResolution=unresolved 且病机链为空)
+//             "any"      scope/边界探针,两种结局均可接受,只记录观察、不计异常
+// expect.m04: "dose"     期望真实剂量级候选方药
+//             "non_dose" 期望确定性非剂量占位(<!-- CDSS_NON_DOSE_PRESCRIPTION -->)
+//             "any"      两种结局均可接受
+// 缺省(ordinary active 病例)按 full+dose;以下仅标注非缺省情形,既有用例的临床内容不改动。
+// ES 用例已在行内字面标注,不在此重复。
+const LIMITED_NON_DOSE_IDS = [
+  // RF01-RF10 红旗急症:确定性安全门 fail-closed → 签名有限结果 + 非剂量
+  "RF01", "RF02", "RF03", "RF04", "RF05", "RF06", "RF07", "RF08", "RF09", "RF10",
+  // NG01/NG02/NG04 仅既往、已缓解或稳定背景就诊:独立语义预检一致后 → 限定 + 非剂量
+  "NG01", "NG02", "NG04",
+];
+const ANY_OUTCOME_IDS = [
+  // 无当前治疗目标的阴性对照(未接触无症状/常规产检/恢复期已无症状):scope 驱动,保守 any
+  "NG03", "NG08", "NG09",
+  // BO 全组为鲁棒性探针(空/超长/注入/特殊字符),设计意图是"不崩溃",不约定临床结局
+  "BO01", "BO02", "BO03", "BO04", "BO05", "BO06", "BO07", "BO08", "BO09", "BO10",
+  // 体检调理类咨询:scope 驱动;OK02(疲劳乏力1周)有当前症状,保持缺省 full+dose
+  "OK01", "OK03", "OK04", "OK05", "OK06", "OK07", "OK08", "OK09", "OK10",
+];
+for (const testCase of REDFLAG_MATRIX_100) {
+  const stamped = LIMITED_NON_DOSE_IDS.includes(testCase.id)
+    ? { m03: "limited", m04: "non_dose" }
+    : ANY_OUTCOME_IDS.includes(testCase.id)
+      ? { m03: "any", m04: "any" }
+      : { m03: "full", m04: "dose" };
+  // 行内已字面标注的(ES 类)优先,缺省/类别标注只补空缺字段
+  testCase.expect = { ...stamped, ...(testCase.expect || {}) };
+}

@@ -60,6 +60,20 @@ export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPr
     };
   }
 
+  // Mirror the M04-route predicate: a signed M03 with no syndrome resolution and no pathogenesis
+  // chain is a server-owned limited contract. It can never authorize dose generation, so a
+  // client-claimed herb_workbench revision must not turn it into a dose-level HIS payload.
+  if (diagnoseReasoning &&
+    diagnoseReasoning.overview.primarySyndromeResolution === "unresolved" &&
+    diagnoseReasoning.pathogenesis.chain.length === 0) {
+    return {
+      ok: false,
+      status: 409,
+      code: "limited_m03_not_prescribable",
+      message: "当前辨病辨证为服务端有限结果（未形成可采纳的证候与病机链），不能生成剂量级 HIS 方案；请补充信息后重新生成辨病辨证。",
+    };
+  }
+
   const candidateIndex = caseState.prescriptionRevision?.candidateIndex ?? 0;
   const candidate = Number.isSafeInteger(candidateIndex) && candidateIndex >= 0
     ? prescribed.formula.candidates[candidateIndex]

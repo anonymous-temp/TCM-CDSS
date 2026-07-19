@@ -2523,6 +2523,11 @@ export function buildSafetyLimitedPrescription(gate: SafetyGate): string {
     "## 用药风险提示",
     `- **提示强度**：${gate.status === "red_flag" ? "强提示" : "信息不足提示"}`,
     `- **风险点**：${gate.redFlags.join("；") || gate.reasons.join("；")}`,
+    // Reasons carry the gate rationale (e.g. 急诊指引/门禁原因). When concrete red flags already
+    // occupy the risk line above, they must still be rendered instead of being silently dropped.
+    ...(gate.redFlags.length > 0 && gate.reasons.length > 0
+      ? [`- **急诊指引/门禁原因**：${gate.reasons.join("；")}`]
+      : []),
     "- **医生动作**：补齐信息、完成红旗排查和院内审方复核后再考虑处方。",
   ].join("\n");
 }

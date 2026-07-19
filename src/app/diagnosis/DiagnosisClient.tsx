@@ -4116,10 +4116,12 @@ function ResultTabsV2({
   caseState,
   summary,
   onAcceptEditedPrescription,
+  onConfirmEncounterScope,
 }: {
   caseState: CaseState;
   summary: DecisionSummary;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
+  onConfirmEncounterScope: () => Promise<void>;
 }) {
   const reasoning = mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2;
   if (!reasoning) return null;
@@ -4127,6 +4129,12 @@ function ResultTabsV2({
   const formula = reasoning.formula;
   const firstCandidate = formula?.candidates?.[0];
   const hasExplicitNonDoseResult = hasExplicitNonDosePrescriptionResult(caseState, Boolean(firstCandidate));
+  // The server remains the enforcement point (attestation + fingerprint); this only mirrors the
+  // visible state so the doctor gets an explicit confirmation action instead of a dead end.
+  const unclearScopeAwaitingConfirmation = hasExplicitNonDoseResult &&
+    caseState.clinicalFacts?.encounterScope?.status === "unclear" &&
+    Boolean(caseState.clinicalFacts.sourceFingerprint) &&
+    caseState.encounterScopeConfirmation?.sourceFingerprint !== caseState.clinicalFacts.sourceFingerprint;
   const medicineCandidates = formula?.patentAndWestern?.filter(isCompleteStructuredMedicineCandidate) || [];
   const hasMedicineCandidates = medicineCandidates.length > 0;
   const seasonalCare = buildSeasonalCare([
@@ -4481,6 +4489,20 @@ function ResultTabsV2({
               <p className="font-bold text-amber-800">本轮未生成剂量级候选方药</p>
               <p className="mt-1">当前资料可用于辨病辨证和调护建议，但尚不具备安全生成具体药味剂量、剂数及煎服法的条件。</p>
             </div>
+            {unclearScopeAwaitingConfirmation && (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs leading-relaxed text-sky-950">
+                <p className="font-bold text-sky-800">本次就诊目标待医生确认</p>
+                <p className="mt-1">语义预检无法判断本次就诊是否存在当前活动性治疗目标，因此未生成具体剂量。如确认本次确有需要治疗的目标，可确认后重新生成候选方药；如病情有变化，请先补充病历后再重新分析。</p>
+                <button
+                  type="button"
+                  data-testid="confirm-encounter-scope"
+                  onClick={() => { void onConfirmEncounterScope(); }}
+                  className="mt-2 inline-flex items-center gap-1 rounded-md border border-sky-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-sky-700 transition-colors hover:bg-sky-100"
+                >
+                  确认本次有治疗目标并重新生成候选方药
+                </button>
+              </div>
+            )}
             <div className="rounded-lg border bg-white p-3">
               <MarkdownBlock
                 content={compactMarkdown([
@@ -4572,9 +4594,11 @@ function ResultTabsV2({
 function CompactAiSchemeCardFlow({
   caseState,
   onAcceptEditedPrescription,
+  onConfirmEncounterScope,
 }: {
   caseState: CaseState;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
+  onConfirmEncounterScope: () => Promise<void>;
 }) {
   const summary = useMemo(
     () => buildDecisionSummary(caseState),
@@ -4607,7 +4631,7 @@ function CompactAiSchemeCardFlow({
   }
 
   if (activeReasoning) {
-    return <ResultTabsV2 caseState={caseState} summary={summary} onAcceptEditedPrescription={onAcceptEditedPrescription} />;
+    return <ResultTabsV2 caseState={caseState} summary={summary} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} />;
   }
 
   // A failed structured stage is already explained by StageErrorCard. Do not render the legacy
@@ -6192,6 +6216,7 @@ function AiSupportPanel({
   onCancelRun,
   onDownloadReport,
   onAcceptEditedPrescription,
+  onConfirmEncounterScope,
   onRunReasoning,
   canRunReasoning,
   submitHint,
@@ -6216,6 +6241,7 @@ function AiSupportPanel({
   onCancelRun: () => void;
   onDownloadReport: () => void;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
+  onConfirmEncounterScope: () => Promise<void>;
   onRunReasoning: () => void;
   canRunReasoning: boolean;
   submitHint?: string;
@@ -6404,7 +6430,7 @@ function AiSupportPanel({
         )}
 
         {hasDecisionResults && !hasStaleClinicalOutput && !isFollowupOnlyState && (
-          <CompactAiSchemeCardFlow caseState={caseState} onAcceptEditedPrescription={onAcceptEditedPrescription} />
+          <CompactAiSchemeCardFlow caseState={caseState} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} />
         )}
       </div>
     </aside>
@@ -7379,6 +7405,34 @@ export default function DiagnosisPage() {
     }
   }
 
+  // 医生显式确认“本次就诊存在治疗目标”：确认只通过 sourceFingerprint 绑定当前病历版本，
+  // 病历任何变化都会改变指纹并使确认失效。确认后清除上一轮非剂量结果并重试 M04；
+  // 服务端仍以 attested 语义预检结论为准，客户端按钮不构成分叉的放行权限。
+  async function handleConfirmEncounterScope(): Promise<void> {
+    if (runningRef.current || isRunning) return;
+    const sourceFingerprint = caseState.clinicalFacts?.sourceFingerprint;
+    if (!sourceFingerprint) return;
+    setRunning(true);
+    beginRunScope();
+    try {
+      const confirmed = withSafetyGate({
+        ...caseState,
+        encounterScopeConfirmation: { sourceFingerprint, confirmedAt: new Date().toISOString() },
+        prescription: undefined,
+        riskAssessment: undefined,
+        reasoningPrescribe: undefined,
+        reasoningV2: diagnoseReasoningFromState(caseState),
+        auditAdvisory: undefined,
+        lastError: undefined,
+        phase: "prescribe",
+      });
+      persistState(confirmed);
+      await runDiagnoseChain(confirmed);
+    } finally {
+      setRunning(false);
+    }
+  }
+
   function handleQuestionOption(selection: QuestionOptionSelection) {
     const questionId = selection.questionId || "__fallback";
     const currentSelections = selectedQuestionOptionsRef.current;
@@ -7582,6 +7636,7 @@ export default function DiagnosisPage() {
             onCancelRun={handleCancelRun}
             onDownloadReport={handleDownloadReport}
             onAcceptEditedPrescription={handleAcceptEditedPrescription}
+            onConfirmEncounterScope={handleConfirmEncounterScope}
             onRunReasoning={() => {
               void handleSubmit({ preventDefault: () => undefined } as React.FormEvent);
             }}

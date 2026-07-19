@@ -341,6 +341,25 @@ export function isClinicalFactsBackstopEnabled(): boolean {
   return process.env.CDSS_CLINICAL_FACTS_BACKSTOP !== "false";
 }
 
+/**
+ * An attested "unclear" encounter scope means the reviewed semantic pre-check could not prove
+ * whether this visit has an active treatment target. Dose-level output must not proceed silently
+ * in that state; only an explicit doctor confirmation bound to the current record fingerprint
+ * (CaseState.encounterScopeConfirmation) releases it. Any record edit changes the fingerprint and
+ * forces re-extraction, which naturally invalidates a stale confirmation.
+ *
+ * This helper lives here (not in diagnosis-safety.ts) because diagnosis-safety.ts is imported by
+ * this module — importing back would create a cycle. Routes call it after the backstop re-attach.
+ */
+export function hasUnconfirmedUnclearEncounterScope(state: CaseState): boolean {
+  const facts = state.clinicalFacts;
+  if (!hasValidClinicalFactsAttestation(facts)) return false;
+  if (facts?.encounterScope?.status !== "unclear") return false;
+  const sourceFingerprint = facts.sourceFingerprint;
+  if (!sourceFingerprint) return false;
+  return state.encounterScopeConfirmation?.sourceFingerprint !== sourceFingerprint;
+}
+
 export async function maybeAttachClinicalFactsBackstop(
   state: CaseState,
   llmCall: FactsLlmCall = REAL_FACTS_LLM_CALL,

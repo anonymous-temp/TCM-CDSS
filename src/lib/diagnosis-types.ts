@@ -128,6 +128,9 @@ export interface CaseState {
   // 结构化事实(加法兜底)。semanticStatus/resultSource 明确区分已检查、新抽取、缓存命中与不可用；
   // 安全门可据此允许 M03 继续，但不得把 semantic unavailable 静默视为可生成剂量处方。
   clinicalFacts?: ClinicalFacts;
+  // 医生对“本次就诊目标不明确”语义预检结论的显式确认。通过 sourceFingerprint 绑定当前病历版本：
+  // 病历文本变化后指纹改变，确认自动失效，需对最新语义预检结论重新确认。
+  encounterScopeConfirmation?: { sourceFingerprint: string; confirmedAt: string };
 
   // M02 充分度
   completeness: Completeness;
@@ -1222,6 +1225,14 @@ function normalizeLastError(value: unknown): CaseState["lastError"] {
   return phase.success && message ? { phase: phase.data, message } : undefined;
 }
 
+function normalizeEncounterScopeConfirmation(value: unknown): CaseState["encounterScopeConfirmation"] {
+  const raw = recordValue(value);
+  const sourceFingerprint = stringValue(raw.sourceFingerprint, 128);
+  const confirmedAt = stringValue(raw.confirmedAt, 64);
+  if (!sourceFingerprint || !confirmedAt || !Number.isFinite(Date.parse(confirmedAt))) return undefined;
+  return { sourceFingerprint, confirmedAt };
+}
+
 function likelyHisRecordText(value: string | undefined): boolean {
   if (!value) return false;
   return value.includes("\n") && /(患者信息|主诉|现病史|既往史|过敏史|用药史|生命体征|舌象|脉象)/.test(value);
@@ -1347,6 +1358,7 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
     hisRecord,
     safetyGate: normalizeSafetyGate(input.safetyGate),
     clinicalFacts: parseClinicalFacts(input.clinicalFacts) || undefined,
+    encounterScopeConfirmation: normalizeEncounterScopeConfirmation(input.encounterScopeConfirmation),
     completeness: normalizeCompleteness(input.completeness),
     questionRounds: Math.min(Math.max(numberValue(input.questionRounds) ?? 0, 0), maxQuestionRounds),
     maxQuestionRounds,

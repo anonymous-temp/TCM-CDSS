@@ -36,11 +36,16 @@ const scripts = [
 ];
 
 const startedAt = Date.now();
+// Defense-in-depth: suites must pin their own audit config. Scrub inherited RXAI_AUDIT_* shell
+// overrides (e.g. a small RXAI_AUDIT_TOTAL_TIMEOUT_MS) so they cannot leak into child processes.
+const childEnv = Object.fromEntries(
+  Object.entries(process.env).filter(([key]) => !key.startsWith("RXAI_AUDIT_")),
+);
 for (const [index, script] of scripts.entries()) {
   console.error(`[deterministic] ${index + 1}/${scripts.length} ${script}`);
   const result = spawnSync("npm", ["run", script], {
     cwd: process.cwd(),
-    env: process.env,
+    env: childEnv,
     stdio: "inherit",
   });
   if (result.error) throw result.error;

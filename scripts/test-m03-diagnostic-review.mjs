@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
+import { createJiti } from "jiti";
 
 import {
   boundedM03DiagnosticRepairGuidance,
   buildM03DiagnosticReviewPayload,
+  buildM03DiagnosticReviewPrompt,
   canRebindM03DiagnosticReview,
   m03DiagnosticReviewDiffPaths,
   m03DiagnosticRepairGuidanceCodes,
   m03DiagnosticReviewSemanticHash,
+  matchesM03QuarantineShape,
   parseM03DiagnosticReview,
   preflightM03DiagnosticReview,
 } from "../src/lib/m03-diagnostic-review.ts";
@@ -123,4 +126,93 @@ assert.deepEqual(m03DiagnosticRepairGuidanceCodes({
 }), ["empty_or_unresolved", "symptom_restatement", "chain_not_closed", "yin_deficiency_overreach", "ying_wei_overreach"]);
 assert.equal(parseM03DiagnosticReview('{"status":"accepted","issueCode":"invented"}').status, "unavailable");
 
-console.log(JSON.stringify({ cases: 15, failures: 0 }));
+// ─── Reviewer prompt ↔ repair policy consistency (single sparse-case shape) ───
+// The reviewer prompt must document exactly one bounded neutral shape and accept it ONLY for
+// genuinely sparse cases; when current positive findings beyond the chief complaint exist it must
+// reject neutral-degraded output. The previously unconditional wording let the reviewer both
+// accept and reject the only shape the server repair policy can produce, flipping across runs.
+const reviewPrompt = buildM03DiagnosticReviewPrompt("主诉：入睡困难、多梦易醒3个月。", reviewed, "");
+const sparseAcceptIdx = reviewPrompt.indexOf("除主诉外没有其他当前阳性发现");
+const factsRejectIdx = reviewPrompt.indexOf("除主诉外还存在其他当前阳性发现");
+const mechanicalRewriteIdx = reviewPrompt.indexOf("主证候不得只是主诉");
+assert.ok(sparseAcceptIdx !== -1, "prompt must document the sparse-case acceptance branch");
+assert.ok(reviewPrompt.includes("症状层中医病名+功能失调候"), "prompt must name the bounded neutral primary-syndrome shape");
+assert.ok(factsRejectIdx !== -1, "prompt must document the facts-present rejection branch");
+assert.ok(mechanicalRewriteIdx > factsRejectIdx, "the mechanical-restatement rejection must be conditioned on existing positive findings");
+assert.match(reviewPrompt, /一律返回 tcm_reasoning_unsupported/);
+
+// ─── matchesM03QuarantineShape: code-level mirror of the quarantine shape ───
+const quarantineCandidate = structuredClone(reviewed);
+quarantineCandidate.overview.primarySyndrome = "不寐功能失调候";
+quarantineCandidate.overview.primarySyndromeResolution = "bounded";
+quarantineCandidate.overview.overallPathogenesis = "睡眠功能受扰";
+quarantineCandidate.overview.overallTherapy = "调护睡眠功能";
+quarantineCandidate.overview.recommendedFormulaDirection = "调护睡眠功能的辨证组方方向";
+quarantineCandidate.overview.recommendedFormulaNames = [];
+quarantineCandidate.overview.formulaSelectionMode = "self_devised";
+quarantineCandidate.pathogenesis.locationDifferentiation = { items: [], resolution: "unresolved", resolutionReason: "无阳性事实支持具体脏腑归属" };
+quarantineCandidate.pathogenesis.natureDifferentiation = { items: [], resolution: "unresolved", resolutionReason: "寒热虚实证据不足" };
+quarantineCandidate.pathogenesis.chain = [{
+  nodeId: "P1",
+  patientFact: "入睡困难、多梦易醒3个月",
+  syndromeEvidence: "入睡困难、多梦易醒3个月",
+  pathogenesis: "睡眠功能受扰",
+  therapyDirection: "调护睡眠功能",
+  evidence,
+}];
+assert.equal(matchesM03QuarantineShape(quarantineCandidate), true);
+const emptyItemsBounded = structuredClone(quarantineCandidate);
+emptyItemsBounded.pathogenesis.locationDifferentiation = { items: [], resolution: "bounded" };
+assert.equal(matchesM03QuarantineShape(emptyItemsBounded), true);
+// The fact-anchored fixture is not a quarantine candidate.
+assert.equal(matchesM03QuarantineShape(reviewed), false);
+for (const mutate of [
+  (value) => { value.overview.recommendedFormulaNames = ["归脾汤"]; },
+  (value) => { value.pathogenesis.chain[0].pathogenesis = "阴虚火旺，扰动心神"; },
+  (value) => { value.pathogenesis.chain[0].therapyDirection = "清热化痰"; },
+  (value) => { value.pathogenesis.locationDifferentiation = { items: ["心", "脾"], evidence }; },
+  (value) => { value.pathogenesis.chain = []; },
+  (value) => { value.overview.primarySyndrome = "阴虚火旺证"; },
+]) {
+  const changed = structuredClone(quarantineCandidate);
+  mutate(changed);
+  assert.equal(matchesM03QuarantineShape(changed), false);
+}
+assert.equal(matchesM03QuarantineShape(null), false);
+assert.equal(matchesM03QuarantineShape({}), false);
+
+// ─── authoritativeTruncateFallback stage guard (programmer-error hard fail) ───
+// Force a deterministic unconfigured provider so the legitimate diagnose path returns its normal
+// config error instead of touching the network; the guard itself throws before any config check.
+process.env.OPENAI_API_KEY = "";
+const jiti = createJiti(import.meta.url, {
+  alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  },
+});
+const { callDiagnosisStream } = await jiti.import("../src/lib/diagnosis-api.ts");
+await assert.rejects(
+  callDiagnosisStream("p", "deepseek", undefined, "markdown", {
+    truncateFallback: "x",
+    authoritativeTruncateFallback: true,
+    structuredStage: "prescribe",
+  }),
+  /authoritativeTruncateFallback requires structuredStage/,
+);
+await assert.rejects(
+  callDiagnosisStream("p", "deepseek", undefined, "markdown", {
+    truncateFallback: "x",
+    authoritativeTruncateFallback: true,
+  }),
+  /authoritativeTruncateFallback requires structuredStage/,
+);
+const diagnoseGuardPassThrough = await callDiagnosisStream("p", "deepseek", undefined, "markdown", {
+  truncateFallback: "x",
+  authoritativeTruncateFallback: true,
+  structuredStage: "diagnose",
+});
+assert.ok(diagnoseGuardPassThrough instanceof Response);
+assert.equal(diagnoseGuardPassThrough.status, 500);
+
+console.log(JSON.stringify({ cases: 32, failures: 0 }));

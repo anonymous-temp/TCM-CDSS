@@ -19,7 +19,7 @@ import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { buildCdssEvidenceContext } from "@/lib/cdss-evidence-context";
 import { buildEvidenceScope } from "@/lib/evidence-source-validation";
 import { createHash } from "node:crypto";
-import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 
 const EVIDENCE_SCOPE_TTL_MS = 60_000;
 const evidenceScopeCache = new Map<string, { expiresAt: number; scope: ReturnType<typeof buildEvidenceScope> }>();
@@ -46,7 +46,9 @@ export async function POST(req: Request) {
   const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal));
   const prescribed = prescribeReasoningFromState(caseState);
   const permission = derivePrescriptionPermission(caseState);
-  if (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked") {
+  // An attested "unclear" encounter scope without a doctor confirmation bound to the current
+  // record fingerprint must never emit a dose-carrying HIS payload; keep the diagnose-only scheme.
+  if (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked" || hasUnconfirmedUnclearEncounterScope(caseState)) {
     const diagnoseOnlyReasoning = caseState.reasoningDiagnose || (caseState.reasoningV2?.stage === "diagnose" ? caseState.reasoningV2 : undefined);
     const doseSuppressedState = {
       ...caseState,

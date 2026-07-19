@@ -60,6 +60,11 @@ export async function POST(req: Request) {
   if (limitedInformation) {
     prompt += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
   }
+  // Attested "unclear" scope does not short-circuit M03; the model keeps reasoning but must make
+  // the unconfirmed visit target explicit so the downstream dose gate stays evidence-bound.
+  if (encounterScope?.status === "unclear" && hasValidClinicalFactsAttestation(gated.clinicalFacts)) {
+    prompt += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请在 uncertainties 与 management.mustCollect 中显式记录“本次就诊目标需医生确认”，不得据此臆造当前治疗目标或直接给出剂量级结论。";
+  }
   const truncatedGate = {
     status: "needs_information" as const,
     allowDiagnosis: false,

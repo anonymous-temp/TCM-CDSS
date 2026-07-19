@@ -138,7 +138,7 @@ export function buildM03DiagnosticReviewPrompt(
     "supportingFacts 只保留与当前主诊断直接相关的现代医学患者事实：不得混入舌苔脉象、证候病机等中医推理，不得用年龄性别或一组正常生命体征充当诊断支持，也不得堆入与本次主诉无关的既往病名。",
     "严格区分当前问题与历史背景。既往稳定疾病、后遗症、已缓解事件或当前明确无新发症状，只能作为背景或鉴别边界；除非病例有当前活动性变化，不得把它们升级成本次 primary、主证候锚点或主要病机治疗目标。",
     "核对中医主证、病位病性、病机链和治法是否由阳性患者事实支撑。不能把未询问、未知、条件句或待鉴别方向当作已经存在的证候锚点。",
-    "同时核对辨证是否形成了足以指导后续组方的临床闭环：主证候不得只是主诉、中医病名或‘某部位功能失调’的机械改写；总体病机和至少一个患者事实锚定的病机节点不得留空。资料确实不足时，应接受由原文阳性事实锚定、明确 bounded/低置信度、把未知寒热虚实列入 uncertainties、且不推荐命名方的中性功能性病机；病位病性可按上一条明确 unresolved。诸如‘汗出调节失常、睡眠功能受扰’这类不额外引入脏腑、寒热虚实或气血津液结论的最小机制，在稀疏病例中是允许的安全降级，不应要求升级为更具体证型。不能反过来要求模型补出没有依据的阴虚、阳虚、寒热、痰湿或血瘀。空链必须返回 tcm_reasoning_unsupported，并要求按上述边界重做非空闭环，不得补造舌脉或阴性史。",
+    "同时核对辨证是否形成了足以指导后续组方的临床闭环，判定尺度必须与患者事实边界中当前阳性事实的规模一致，按两种情形分别处理，不得混用。情形一（稀疏病例）：患者事实边界中除主诉外没有其他当前阳性发现时，有界的中性功能性病机形态是可以接受的安全降级——主证候为‘症状层中医病名+功能失调候’式的低置信度工作表述，病机链节点逐字锚定患者原文、节点机制只写该原文直接对应的功能异常（如某项调节失常、某项功能受扰），不额外引入脏腑、寒热虚实或气血津液结论，病位病性 items 为空且 resolution=unresolved 并附原因，不推荐命名方；此时不得要求升级为更具体证型，也不能反过来要求补出没有依据的阴虚、阳虚、寒热、痰湿或血瘀。情形二（主诉之外仍有当前阳性事实）：患者事实边界中除主诉外还存在其他当前阳性发现（如舌脉、伴随症状、异常体征或检验结果）时，主证候不得只是主诉、中医病名或‘某部位功能失调’的机械改写，必须形成由这些阳性事实锚定的证候结论；此时对中性降级形态一律返回 tcm_reasoning_unsupported，并要求围绕既有阳性事实重做低置信度、最小且中性的非空闭环，但不得要求补造未出现的事实。无论哪种情形：总体病机和至少一个患者事实锚定的病机节点不得留空，空链必须返回 tcm_reasoning_unsupported，并要求按上述边界重做非空闭环，不得补造舌脉或阴性史；任何超出当前阳性患者事实的结论都必须拒绝。",
     "核对 recommendedFormulaNames 中每个命名方的核心适应证是否在阳性患者事实中成立。某命名方只在 uncertainties、假设句、‘若有则’或建议补问中出现，或者其定义性症状明确缺失时，必须返回 formula_indication_mismatch；此时应让生成模型改选有方证依据的命名方，或退回本例辨证组方，不能勉强套用经方名。",
     "只输出一个 JSON 对象，不要代码块或解释。格式：accepted 时 {\"status\":\"accepted\",\"issueCode\":\"none\"}；需修复时 status=repair，issueCode 只能是 criteria_not_met、diagnostic_label_overstated、supporting_fact_mismatch、tcm_reasoning_unsupported、formula_indication_mismatch 之一，并增加 repairInstruction。一次只返回最关键的问题。",
     "repairInstruction 限 300 字：必须明确指出需改的结构路径、当前结论为什么超出阳性患者事实、应删除或降级的推理方向；不得给药味剂量，不得新增患者事实，不得要求绕过结构/事实/证据合同。它只是给生成模型的定向复核意见，最终结果仍会重新校验和复核。",
@@ -156,6 +156,13 @@ export function buildM03DiagnosticReviewPrompt(
  * reasoning contract (for example, asking the generator to clear the chain or invent a specific
  * deficiency pattern). The issue code still selects the server-owned repair policy; only the
  * narrower western/formula guidance is forwarded verbatim.
+ *
+ * The quarantine shape below is the same bounded neutral shape the reviewer prompt documents as
+ * acceptable for genuinely sparse cases (no current positive findings beyond the chief complaint):
+ * symptom-level "病名+功能失调候" primary syndrome, verbatim-anchored neutral chain nodes,
+ * unresolved/empty location and nature, and no named formulas. Reviewer and repair policy must
+ * stay aligned on this single shape so the same candidate cannot flip accepted/rejected across
+ * runs; matchesM03QuarantineShape is the code-level mirror used by the orchestrator.
  */
 export function boundedM03DiagnosticRepairGuidance(review: M03DiagnosticReview): string {
   if (review.status !== "repair") return "";
@@ -204,6 +211,59 @@ export function m03DiagnosticRepairGuidanceCodes(review: M03DiagnosticReview): s
   if (review.status !== "repair" || !review.repairInstruction) return [];
   return M03_REPAIR_GUIDANCE_CODE_RULES
     .flatMap(([code, pattern]) => pattern.test(review.repairInstruction || "") ? [code] : []);
+}
+
+const M03_QUARANTINE_OVERREACH_CODES = new Set([
+  "yin_deficiency_overreach",
+  "yang_cold_overreach",
+  "heat_overreach",
+  "phlegm_damp_overreach",
+  "blood_stasis_overreach",
+  "qi_blood_deficiency_overreach",
+  "ying_wei_overreach",
+  "heart_spirit_overreach",
+]);
+
+function quarantineOverreachText(value: unknown): boolean {
+  if (typeof value !== "string" || !value.trim()) return false;
+  return M03_REPAIR_GUIDANCE_CODE_RULES.some(([code, pattern]) =>
+    M03_QUARANTINE_OVERREACH_CODES.has(code) && pattern.test(value));
+}
+
+/**
+ * The quarantine repair policy (boundedM03DiagnosticRepairGuidance) can only produce one bounded
+ * neutral shape: location/nature unresolved-or-empty, no named formulas, a non-empty chain whose
+ * mechanisms stay within neutral functional language, and a symptom-level primary syndrome. When
+ * the independent reviewer keeps rejecting that exact shape with the same issue code, re-injecting
+ * the identical guidance redraws the same stochastic accept/reject lottery. The M03 orchestrator
+ * uses this predicate to detect that fixpoint and exit early to the signed limited fallback
+ * instead of burning another full model round. This is an orchestration-efficiency signal only;
+ * it never weakens any deterministic contract check.
+ */
+export function matchesM03QuarantineShape(reasoning: unknown): boolean {
+  const source = record(reasoning);
+  const overview = record(source?.overview);
+  const pathogenesis = record(source?.pathogenesis);
+  if (!source || !overview || !pathogenesis) return false;
+  const unresolvedOrEmpty = (value: unknown): boolean => {
+    const differentiation = record(value);
+    if (!differentiation) return false;
+    if (differentiation.resolution === "unresolved") return true;
+    const items = Array.isArray(differentiation.items) ? differentiation.items : [];
+    return items.every((item) => typeof item !== "string" || !item.trim());
+  };
+  if (!unresolvedOrEmpty(pathogenesis.locationDifferentiation)) return false;
+  if (!unresolvedOrEmpty(pathogenesis.natureDifferentiation)) return false;
+  const formulaNames = Array.isArray(overview.recommendedFormulaNames) ? overview.recommendedFormulaNames : [];
+  if (formulaNames.some((name) => typeof name === "string" && name.trim())) return false;
+  const chain = Array.isArray(pathogenesis.chain) ? pathogenesis.chain : [];
+  if (chain.length === 0) return false;
+  if (quarantineOverreachText(overview.primarySyndrome)) return false;
+  return chain.every((node) => {
+    const item = record(node);
+    if (!item) return false;
+    return !quarantineOverreachText(item.pathogenesis) && !quarantineOverreachText(item.therapyDirection);
+  });
 }
 
 export function parseM03DiagnosticReview(content: string): M03DiagnosticReview {

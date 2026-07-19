@@ -12,7 +12,7 @@ import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-safety";
 import type { SafetyGate } from "@/lib/diagnosis-types";
 import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
-import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
@@ -27,14 +27,22 @@ export async function POST(req: Request) {
       signedPriorReasoning.pathogenesis.chain.length === 0) {
     const emergencyLimited = /急危重|急症/.test(signedPriorReasoning.westernDiagnosis.primary.name) ||
       /呼叫120|转急诊/.test(signedPriorReasoning.management?.redFlagLoop || "");
+    // The signed limited M03 keeps the concrete red-flag findings in supportingFacts; the primary
+    // name is only the generic "急危重症风险待排除" placeholder and must not replace them.
+    const emergencyRedFlags = signedPriorReasoning.westernDiagnosis.primary.supportingFacts.length > 0
+      ? signedPriorReasoning.westernDiagnosis.primary.supportingFacts
+      : [signedPriorReasoning.westernDiagnosis.primary.name];
     return markdownNdjsonResponse(buildSafetyLimitedPrescription({
       status: emergencyLimited ? "red_flag" : "needs_information",
       allowDiagnosis: true,
       allowDosePrescription: false,
       action: emergencyLimited ? "refer_or_emergency" : "complete_before_prescription",
       missingItems: signedPriorReasoning.management?.mustCollect || [],
-      redFlags: emergencyLimited ? [signedPriorReasoning.westernDiagnosis.primary.name] : [],
-      reasons: [signedPriorReasoning.overview.primarySyndromeResolutionReason || "M03未形成可采纳的当前证候与病机链。"],
+      redFlags: emergencyLimited ? emergencyRedFlags : [],
+      reasons: [
+        signedPriorReasoning.overview.primarySyndromeResolutionReason || "M03未形成可采纳的当前证候与病机链。",
+        ...(signedPriorReasoning.management?.redFlagLoop ? [signedPriorReasoning.management.redFlagLoop] : []),
+      ],
     }));
   }
   // A deterministic hard red flag already imposes the strongest prescription boundary. Avoid an
@@ -57,6 +65,22 @@ export async function POST(req: Request) {
       missingItems: Array.from(new Set([...(gated.safetyGate?.missingItems || []), ...permission.reasons])),
       redFlags: gated.safetyGate?.redFlags || [],
       reasons: ["当前病例可继续完成辨病辨证、调护和非药物治疗建议，但不生成具体剂量。"],
+    };
+    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
+  }
+  // An attested "unclear" encounter scope means the reviewed semantic pre-check could not prove
+  // whether this visit has an active treatment target. Dose generation must not proceed silently;
+  // it requires a follow-up answer (which changes the record and forces re-extraction) or an
+  // explicit doctor confirmation bound to the current clinical-facts fingerprint.
+  if (hasUnconfirmedUnclearEncounterScope(gated)) {
+    const gate: SafetyGate = {
+      status: "needs_information",
+      allowDiagnosis: true,
+      allowDosePrescription: false,
+      action: "complete_before_prescription",
+      missingItems: ["本次当前活动性治疗目标确认"],
+      redFlags: [],
+      reasons: ["语义预检无法判断本次就诊是否存在当前活动性治疗目标；需医生通过追问回答补充病情，或显式确认本次就诊的治疗目标后，才能生成具体剂量。"],
     };
     return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
   }

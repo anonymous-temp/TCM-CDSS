@@ -16,6 +16,15 @@ process.env.RXAI_AUDIT_BASE_URL = "http://127.0.0.1:18092";
 process.env.RXAI_AUDIT_TOKEN = "route-contract-token";
 process.env.RXAI_AUDIT_ALLOW_INSECURE_HTTP = "true";
 process.env.RXAI_AUDIT_RETRY_ATTEMPTS = "0";
+// Pin the unified/attempt timeouts for the PASS and degraded phases so an inherited shell
+// override cannot turn expected-PASS requests into rxaudit_total_timeout; the timeout phase
+// below overrides these in-process and restores them to these pinned values.
+const preExistingRxAuditTotalTimeout = process.env.RXAI_AUDIT_TOTAL_TIMEOUT_MS;
+const preExistingRxAuditAttemptTimeout = process.env.RXAI_AUDIT_ATTEMPT_TIMEOUT_MS;
+const preExistingRxAuditLegacyTimeout = process.env.RXAI_AUDIT_TIMEOUT_MS;
+process.env.RXAI_AUDIT_TOTAL_TIMEOUT_MS = "15000";
+process.env.RXAI_AUDIT_ATTEMPT_TIMEOUT_MS = "12000";
+delete process.env.RXAI_AUDIT_TIMEOUT_MS;
 process.env.REASONING_CONTRACT_SIGNING_KEY = "route-contract-signing-key-2026-at-least-32-bytes";
 
 const capturedAuditBodies = [];
@@ -186,4 +195,10 @@ try {
   console.log(JSON.stringify({ cases: 14, failures: 0 }));
 } finally {
   globalThis.fetch = originalFetch;
+  if (preExistingRxAuditTotalTimeout == null) delete process.env.RXAI_AUDIT_TOTAL_TIMEOUT_MS;
+  else process.env.RXAI_AUDIT_TOTAL_TIMEOUT_MS = preExistingRxAuditTotalTimeout;
+  if (preExistingRxAuditAttemptTimeout == null) delete process.env.RXAI_AUDIT_ATTEMPT_TIMEOUT_MS;
+  else process.env.RXAI_AUDIT_ATTEMPT_TIMEOUT_MS = preExistingRxAuditAttemptTimeout;
+  if (preExistingRxAuditLegacyTimeout == null) delete process.env.RXAI_AUDIT_TIMEOUT_MS;
+  else process.env.RXAI_AUDIT_TIMEOUT_MS = preExistingRxAuditLegacyTimeout;
 }

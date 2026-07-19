@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": "/dev/null" } });
 const {
   buildSafetyLimitedDiagnosisReasoning,
   derivePrescriptionPermission,
@@ -186,4 +186,164 @@ assert.match(exhaustedLimited.overview.primarySyndromeResolutionReason, /未形�
 const noChief = { ...base, chiefComplaint: "" };
 assert.equal(permission(noChief).candidateMode, "blocked");
 
-console.log(JSON.stringify({ cases: 40, failures: 0 }));
+// —— encounterScope 门禁与签名有限 M03（服务端路由级，mock 语义层，确定性无外部模型调用）——
+process.env.REASONING_CONTRACT_SIGNING_KEY = "permission-test-m03-signing-key-0123456789abcdef";
+process.env.CLINICAL_FACTS_ATTESTATION_KEY = "permission-test-clinical-facts-key-2026";
+const { buildDiagnoseContractSignatureContext, signDiagnoseReasoning, verifyDiagnoseReasoningSignature } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
+const { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } = await jiti.import("../src/lib/clinical-facts-runtime.ts");
+const { sanitizeCaseStateForModel, trustedInputText } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
+const { POST: prescribePost } = await jiti.import("../src/app/api/diagnosis/prescribe/route.ts");
+const { POST: hisSchemePost } = await jiti.import("../src/app/api/diagnosis/his-scheme/route.ts");
+const { buildAuditPositiveControlState } = await import("./lib/primary-care-audit-positive-controls.mjs");
+const { createHash } = await import("node:crypto");
+
+const scopeControl = {
+  id: "encounter-scope-gate",
+  mutation: "encounter-scope",
+  patient: { sex: "男", age: 46 },
+  chiefComplaint: "叙述含糊，本次就诊目标不明确",
+  diagnosis: "症状待查",
+  syndrome: "心脾两虚证",
+  pastHistory: "否认重要慢病",
+  medicationHistory: "否认当前用药",
+  allergyHistory: "否认药物过敏",
+  herbs: [{ name: "黄芪", dose: "15g" }, { name: "酸枣仁", dose: "15g" }],
+};
+const unsignedScopeState = buildAuditPositiveControlState(scopeControl);
+const unsignedScopeDiagnose = {
+  ...unsignedScopeState.reasoningPrescribe,
+  stage: "diagnose",
+  overview: {
+    ...unsignedScopeState.reasoningPrescribe.overview,
+    primarySyndromeResolution: "resolved",
+    recommendedFormulaNames: [],
+    formulaSelectionMode: "self_devised",
+  },
+  formula: null,
+  nonPharma: null,
+  clinicalReview: undefined,
+};
+const signedScopeDiagnose = signDiagnoseReasoning(unsignedScopeDiagnose, buildDiagnoseContractSignatureContext(unsignedScopeState));
+const builtScopeState = buildAuditPositiveControlState(scopeControl, signedScopeDiagnose);
+// 路由会再次 normalizeCaseStateInput；先做一次 JSON 归一化再挂载语义事实，保证指纹命中缓存、
+// 路由内的语义回填不再发起任何模型调用。
+const roundTrippedScopeState = normalizeCaseStateInput(JSON.parse(JSON.stringify(builtScopeState)));
+assert.equal(verifyDiagnoseReasoningSignature(signedScopeDiagnose, roundTrippedScopeState), true, "签名 M03 必须绑定归一化后的病例输入");
+
+const unclearFactsMock = async () => JSON.stringify({
+  redFlags: [],
+  encounterScope: { status: "unclear", quote: "叙述含糊，本次就诊目标不明确" },
+});
+const unclearScopeState = await maybeAttachClinicalFactsBackstop(roundTrippedScopeState, unclearFactsMock);
+assert.equal(unclearScopeState.clinicalFacts?.encounterScope?.status, "unclear", "语义预检结论应为 unclear");
+const reparsedUnclearState = normalizeCaseStateInput(JSON.parse(JSON.stringify(unclearScopeState)));
+const fingerprintOf = (state) => createHash("sha256").update(trustedInputText(sanitizeCaseStateForModel(state))).digest("hex").slice(0, 32);
+assert.equal(fingerprintOf(reparsedUnclearState), unclearScopeState.clinicalFacts.sourceFingerprint, "归一化往返后指纹必须稳定，路由才能命中语义缓存");
+
+const routeRequest = (path, state) => new Request(`http://localhost${path}`, {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ caseState: state }),
+});
+
+// 1.2c: attested-unclear 且无确认 ⇒ M04 返回非剂量合同，不得静默进入剂量链
+assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(unclearScopeState)), true, "未确认的 attested-unclear 必须被门禁识别");
+const unconfirmedPrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", unclearScopeState))).text();
+assert.match(unconfirmedPrescribeText, /CDSS_NON_DOSE_PRESCRIPTION/, "未确认 unclear 必须返回非剂量合同");
+assert.match(unconfirmedPrescribeText, /本次当前活动性治疗目标确认/, "非剂量合同必须显式列出待确认项");
+
+// 1.2c: 指纹匹配的医生确认 ⇒ 门禁放行（本夹具随后停在确定性 M04 签名/复核门，而非 unclear 门）
+const confirmedScopeState = {
+  ...unclearScopeState,
+  encounterScopeConfirmation: {
+    sourceFingerprint: unclearScopeState.clinicalFacts.sourceFingerprint,
+    confirmedAt: new Date().toISOString(),
+  },
+};
+assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(confirmedScopeState)), false, "指纹匹配的确认必须解除 unclear 门禁");
+const confirmedPrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", confirmedScopeState))).text();
+assert.doesNotMatch(confirmedPrescribeText, /本次当前活动性治疗目标确认/, "确认后不得再因 unclear 门禁拦截");
+assert.match(confirmedPrescribeText, /缺少有效的西医诊断|辨证语义复核未完成/, "确认后流程应推进到后续确定性门禁");
+
+// 1.2c: 过期指纹（病历已变化）的确认 ⇒ 仍阻断
+const staleConfirmedState = {
+  ...unclearScopeState,
+  encounterScopeConfirmation: { sourceFingerprint: "0".repeat(32), confirmedAt: new Date().toISOString() },
+};
+assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(staleConfirmedState)), true, "过期指纹确认不得解除门禁");
+const stalePrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", staleConfirmedState))).text();
+assert.match(stalePrescribeText, /本次当前活动性治疗目标确认/, "过期指纹确认下仍必须返回待确认非剂量合同");
+
+// 1.2d: HIS 方案同样不得为未确认 unclear 输出剂量级药味
+const unconfirmedHisResponse = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", unclearScopeState));
+assert.equal(unconfirmedHisResponse.status, 200);
+const unconfirmedHisPayload = await unconfirmedHisResponse.json();
+assert.equal(unconfirmedHisPayload.prescriptions.structuredHerbs.length, 0, "未确认 unclear 不得输出 HIS 结构化药味");
+assert.ok(unconfirmedHisPayload.prescriptions.herbal.every((section) => !section.content && !section.adoptable),
+  "未确认 unclear 的 HIS 药味卡必须为空且不可采纳");
+const confirmedHisResponse = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", confirmedScopeState));
+const confirmedHisPayload = await confirmedHisResponse.json();
+assert.equal(confirmedHisResponse.status, 409, "确认后 unclear 门放行，本夹具停在 M04 签名门");
+assert.equal(confirmedHisPayload.code, "invalid_m04_signature");
+
+// 回归: agreed-historical 不触发 unclear 确认门；其剂量阻断仍由签名有限 M03 承担
+const agreedHistoricalState = await maybeAttachClinicalFactsBackstop(
+  { ...roundTrippedScopeState, pastHistory: "胃溃疡3年前已治愈，目前无不适" },
+  async () => JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "historical_or_stable_only", quote: "胃溃疡3年前已治愈，目前无不适" },
+  }),
+);
+assert.equal(agreedHistoricalState.clinicalFacts?.encounterScope?.reviewAgreement, "agreed");
+assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(agreedHistoricalState)), false, "agreed-historical 不属于 unclear 确认门");
+
+const historicalLimitedM03 = signDiagnoseReasoning(
+  buildSafetyLimitedDiagnosisReasoning(roundTrippedScopeState, {
+    status: "needs_information",
+    allowDiagnosis: true,
+    allowDosePrescription: false,
+    action: "complete_before_prescription",
+    missingItems: ["本次当前活动性治疗目标"],
+    redFlags: [],
+    reasons: ["独立语义预检一致判断当前记录仅含既往、已缓解或稳定背景"],
+  }),
+  buildDiagnoseContractSignatureContext(roundTrippedScopeState),
+);
+const historicalLimitedState = { ...roundTrippedScopeState, reasoningDiagnose: historicalLimitedM03, reasoningV2: historicalLimitedM03 };
+const historicalPrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", historicalLimitedState))).text();
+assert.match(historicalPrescribeText, /CDSS_NON_DOSE_PRESCRIPTION/, "签名有限 M03（agreed-historical）必须仍然返回非剂量合同");
+assert.match(historicalPrescribeText, /本次当前活动性治疗目标/, "agreed-historical 非剂量合同必须保留待补录项");
+
+// G5: 签名急症有限 M03 的 M04 快速返回必须携带真实红旗内容与急诊指引，而不是泛化占位诊断名
+const emergencyLimitedM03 = signDiagnoseReasoning(
+  buildSafetyLimitedDiagnosisReasoning(roundTrippedScopeState, {
+    status: "red_flag",
+    allowDiagnosis: true,
+    allowDosePrescription: false,
+    action: "refer_or_emergency",
+    missingItems: ["急诊评估"],
+    redFlags: ["突发胸痛伴大汗30分钟未缓解"],
+    reasons: ["命中急危重门禁"],
+  }),
+  buildDiagnoseContractSignatureContext(roundTrippedScopeState),
+);
+const emergencyLimitedState = { ...roundTrippedScopeState, reasoningDiagnose: emergencyLimitedM03, reasoningV2: emergencyLimitedM03 };
+const emergencyPrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", emergencyLimitedState))).text();
+assert.match(emergencyPrescribeText, /CDSS_NON_DOSE_PRESCRIPTION/);
+assert.match(emergencyPrescribeText, /突发胸痛伴大汗30分钟未缓解/, "急诊快速返回必须保留 supportingFacts 中的真实红旗");
+assert.match(emergencyPrescribeText, /立即停止常规诊疗并转急诊；危及生命时呼叫120/, "急诊快速返回必须保留 redFlagLoop 指引");
+assert.doesNotMatch(emergencyPrescribeText, /急危重症风险待排除/, "泛化占位诊断名不得再掩盖具体红旗");
+
+// G1: 签名有限 M03 + 客户端声称的工作台修订 ⇒ HIS 写回剂量路径必须 409
+const clearFactsMock = async () => JSON.stringify({ redFlags: [] });
+const g1AttackState = await maybeAttachClinicalFactsBackstop(
+  { ...roundTrippedScopeState, reasoningDiagnose: historicalLimitedM03 },
+  clearFactsMock,
+);
+const g1HisResponse = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", g1AttackState));
+const g1HisPayload = await g1HisResponse.json();
+assert.equal(g1HisResponse.status, 409, "签名有限 M03 不得进入 HIS 剂量写回");
+assert.equal(g1HisPayload.code, "limited_m03_not_prescribable");
+
+console.log(JSON.stringify({ cases: 62, failures: 0 }));

@@ -298,9 +298,100 @@ export function m03ChainNodeDiagnostics(reasoning: M03ReasoningLike | null | und
   }));
 }
 
+// === Objective vital measurements ===
+// Shared by the grounding concept canonicalization below and the western-support classifier further
+// down. Only labeled measurements or ℃/°C-marked values count, so free text cannot fabricate a
+// reading; implausible values are discarded.
+const FEVER_TEMPERATURE_CELSIUS = 37.2;
+const TEMPERATURE_MEASUREMENT = /(?:体温|temperature)\s*"?\s*[:：]?\s*"?(3\d(?:\.\d+)?|4[0-2](?:\.\d+)?)"?(?!\d)\s*(?:℃|°C|度)?|\bT\s*"?\s*[:：]?\s*"?(3\d(?:\.\d+)?|4[0-2](?:\.\d+)?)"?(?!\d)\s*(?:℃|°C)?|(?<![\d.])(3\d(?:\.\d+)?|4[0-2](?:\.\d+)?)(?!\d)\s*(?:℃|°C)/gi;
+const BLOOD_PRESSURE_MEASUREMENT = /(?:血压|BP)\s*"?\s*[:：]?\s*"?(\d{2,3})\s*[\/／]\s*(\d{2,3})"?(?!\d)\s*(?:mm\s*Hg|毫米汞柱)?|(?:生命体征|一般情况)\s*"?\s*[:：]\s*"?(?:BP\s*[:：]?\s*)?(\d{2,3})\s*[\/／]\s*(\d{2,3})"?(?!\d)(?:\s*(?:mm\s*Hg|毫米汞柱))?/gi;
+const HEART_RATE_MEASUREMENT = /(?:心率|脉搏|HR)\s*"?\s*[:：]?\s*"?(\d{2,3})"?(?!\d)\s*(?:次\s*[\/／]?\s*分|次|bpm)?|\bP\s*"?\s*[:：]?\s*"?(\d{2,3})"?(?!\d)\s*(?:次\s*[\/／]?\s*分|次|bpm)/gi;
+const RESPIRATORY_RATE_MEASUREMENT = /(?:呼吸|RR)\s*"?\s*[:：]?\s*"?(\d{1,2})"?(?!\d)\s*(?:次\s*[\/／]?\s*分|次)?|\bR\s*"?\s*[:：]?\s*"?(\d{1,2})"?(?!\d)\s*(?:次\s*[\/／]?\s*分|次)/gi;
+const SPO2_MEASUREMENT = /(?:血氧(?:饱和度)?|氧饱和度|SpO2|SaO2)\s*"?\s*[:：]?\s*"?(\d{2,3})"?(?!\d)\s*%?/gi;
+
+function measuredTemperatures(value: string): number[] {
+  const temperatures: number[] = [];
+  for (const match of value.normalize("NFKC").matchAll(TEMPERATURE_MEASUREMENT)) {
+    const parsed = Number.parseFloat(match[1] || match[2] || match[3] || "");
+    if (Number.isFinite(parsed) && parsed >= 34 && parsed <= 43) temperatures.push(parsed);
+  }
+  return temperatures;
+}
+
+function recordAffirmsFeverByTemperature(record: string): boolean {
+  return measuredTemperatures(record).some((temperature) => temperature >= FEVER_TEMPERATURE_CELSIUS);
+}
+
+// === Grounding concept canonicalization ===
+// A small, clinically unambiguous set of GROUNDED_FACT_GROUPS entries additionally carries a
+// canonical concept key: equivalent surface forms inside one group (上腹隐痛/胃脘痛/腹痛) and one
+// deterministic objective measurement (体温 ≥37.2℃ ⇒ 发热) ground the same concept, so a clinically
+// correct abstraction is not spuriously rejected for lacking a literal regex hit. Concepts outside
+// this table keep the literal surface requirement (fail-closed), and polarity mismatch still
+// rejects. The normal-temperature negation yields to any affirmed literal clause: a charted fever
+// history with a normal current reading is still an affirmed fever.
+const FEVER_FACT_PATTERN = /发热|高热/;
+const CHILLS_FACT_PATTERN = /寒战/;
+const ABDOMINAL_PAIN_FACT_PATTERN = /腹痛/;
+const FEVER_CONCEPT_SURFACE = /发热|高热|发烧/;
+const CHILLS_CONCEPT_SURFACE = /寒战|寒颤|战栗/;
+const ABDOMINAL_PAIN_CONCEPT_SURFACE = /腹痛|腹隐痛|胃脘痛|胃脘部隐痛|胃痛/;
+
+type GroundedFactConcept = {
+  key: "fever" | "chills" | "abdominal_pain";
+  // The GROUNDED_FACT_GROUPS entry this concept canonicalizes (identity reference).
+  group: RegExp;
+  // All surface forms treated as the same clinical concept (anatomical/synonym equivalents).
+  surface: RegExp;
+  // Objective record evidence affirming the concept (measured temperature ≥37.2℃ affirms 发热).
+  objectiveAffirm?: (record: string) => boolean;
+  // Objective record evidence negating the concept; must yield to any affirmed literal clause.
+  objectiveNegate?: (record: string) => boolean;
+};
+
+const GROUNDED_FACT_CONCEPTS: ReadonlyArray<GroundedFactConcept> = [
+  {
+    key: "fever",
+    group: FEVER_FACT_PATTERN,
+    surface: FEVER_CONCEPT_SURFACE,
+    objectiveAffirm: recordAffirmsFeverByTemperature,
+    objectiveNegate: (record) =>
+      !contextAffirmsTerm(record, FEVER_CONCEPT_SURFACE) &&
+      !recordAffirmsFeverByTemperature(record) &&
+      measuredTemperatures(record).length > 0 &&
+      measuredTemperatures(record).every((temperature) => temperature < FEVER_TEMPERATURE_CELSIUS),
+  },
+  { key: "chills", group: CHILLS_FACT_PATTERN, surface: CHILLS_CONCEPT_SURFACE },
+  { key: "abdominal_pain", group: ABDOMINAL_PAIN_FACT_PATTERN, surface: ABDOMINAL_PAIN_CONCEPT_SURFACE },
+];
+
+function groundedFactConceptForGroup(pattern: RegExp): GroundedFactConcept | undefined {
+  return GROUNDED_FACT_CONCEPTS.find((concept) => concept.group === pattern);
+}
+
+function groundedFactConceptsForText(value: string): GroundedFactConcept[] {
+  return GROUNDED_FACT_CONCEPTS.filter((concept) => concept.surface.test(value));
+}
+
+function contextAffirmsGroundedConcept(context: string, concept: GroundedFactConcept): boolean {
+  return contextAffirmsTerm(context, concept.surface) || Boolean(concept.objectiveAffirm?.(context));
+}
+
+function contextNegatesGroundedConcept(context: string, concept: GroundedFactConcept): boolean {
+  return contextNegatesTerm(context, concept.surface) || Boolean(concept.objectiveNegate?.(context));
+}
+
+function sentenceAffirmsGroundedConcept(sentence: string, concept: GroundedFactConcept): boolean {
+  return hasAffirmedClinicalTerm(sentence, concept.surface) || Boolean(concept.objectiveAffirm?.(sentence));
+}
+
+function sentenceNegatesGroundedConcept(sentence: string, concept: GroundedFactConcept): boolean {
+  return hasNegatedClinicalTerm(sentence, concept.surface) || Boolean(concept.objectiveNegate?.(sentence));
+}
+
 const GROUNDED_FACT_GROUPS = [
-  /胸痛|心前区痛|胸(?:骨后|前|部)[^。；，,]{0,12}(?:疼痛|痛)/, /胸闷/, /心悸|心慌|心跳不适/, /晕厥/, /意识丧失/, /头痛/, /头晕|眩晕/, /视物模糊/, /发热|高热/, /咳嗽/, /气促/, /呼吸困难/,
-  /腹痛/, /恶心/, /呕吐/, /失眠|不寐|寐差|难以入睡|不易入睡|入睡(?:困难|时间延长|慢)|睡眠(?:逐渐|明显)?(?:不佳|欠佳|较差|变差|差)|睡不好|醒后(?:难以|不易|无法)?再(?:入)?睡|再入睡困难/, /早醒/, /多梦/, /乏力|疲乏|疲倦|疲惫|疲劳|困倦|倦怠|神疲|(?:白天|日间|身体|人)?(?:有点|很|较|明显|总觉得)累|(?:总|容易)累/, /健忘|记忆力(?:下降|减退)/, /食欲不振|食欲欠佳|食欲较差|胃口差|纳差|食少|纳少/, /盗汗|夜(?:里|间)(?:总|反复|经常)?(?:出汗|汗出)|睡(?:着|眠)(?:后|时)(?:总|反复|经常)?(?:出汗|汗出)/, /自汗/, /潮热/, /口苦/, /口渴|口干|咽干/, /便秘/, /腹泻/, /便溏|溏便|大便(?:溏薄|稀溏)|大便较稀/,
+  /胸痛|心前区痛|胸(?:骨后|前|部)[^。；，,]{0,12}(?:疼痛|痛)/, /胸闷/, /心悸|心慌|心跳不适/, /晕厥/, /意识丧失/, /头痛/, /头晕|眩晕/, /视物模糊/, FEVER_FACT_PATTERN, CHILLS_FACT_PATTERN, /咳嗽/, /气促/, /呼吸困难/,
+  ABDOMINAL_PAIN_FACT_PATTERN, /恶心/, /呕吐/, /失眠|不寐|寐差|难以入睡|不易入睡|入睡(?:困难|时间延长|慢)|睡眠(?:逐渐|明显)?(?:不佳|欠佳|较差|变差|差)|睡不好|醒后(?:难以|不易|无法)?再(?:入)?睡|再入睡困难/, /早醒/, /多梦/, /乏力|疲乏|疲倦|疲惫|疲劳|困倦|倦怠|神疲|(?:白天|日间|身体|人)?(?:有点|很|较|明显|总觉得)累|(?:总|容易)累/, /健忘|记忆力(?:下降|减退)/, /食欲不振|食欲欠佳|食欲较差|胃口差|纳差|食少|纳少/, /盗汗|夜(?:里|间)(?:总|反复|经常)?(?:出汗|汗出)|睡(?:着|眠)(?:后|时)(?:总|反复|经常)?(?:出汗|汗出)/, /自汗/, /潮热/, /口苦/, /口渴|口干|咽干/, /便秘/, /腹泻/, /便溏|溏便|大便(?:溏薄|稀溏)|大便较稀/,
   /打鼾|鼾声/, /呼吸暂停/, /日间嗜睡/, /焦虑/, /烦躁/, /情绪低落|抑郁/, /耳鸣/, /耳聋/, /腰膝酸软|腰酸|膝软/, /畏寒|怕冷/, /肢冷|手足冷/, /夜尿|小便频数/,
   /舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/,
   /脉(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促){1,4}/,
@@ -341,17 +432,30 @@ function ungroundedPatientFactReason(reasoning: M03ReasoningLike, clinicalContex
     for (const [factIndex, fact] of [item.patientFact, item.syndromeEvidence].entries()) {
       if (typeof fact !== "string") continue;
       const matchedGroups = GROUNDED_FACT_GROUPS.filter((pattern) => pattern.test(fact));
-      const atomicMismatch = matchedGroups.some((pattern) => {
-        const factAffirmed = hasAffirmedClinicalTerm(fact, pattern);
-        const factNegated = hasNegatedClinicalTerm(fact, pattern);
-        return (factAffirmed && !contextAffirmsTerm(clinicalContext, pattern)) ||
-          (factNegated && !contextNegatesTerm(clinicalContext, pattern));
+      const matchedConcepts = groundedFactConceptsForText(fact);
+      const groupMismatch = matchedGroups.some((pattern) => {
+        const concept = groundedFactConceptForGroup(pattern);
+        const factPattern = concept ? concept.surface : pattern;
+        const factAffirmed = hasAffirmedClinicalTerm(fact, factPattern);
+        const factNegated = hasNegatedClinicalTerm(fact, factPattern);
+        const contextAffirms = concept ? contextAffirmsGroundedConcept(clinicalContext, concept) : contextAffirmsTerm(clinicalContext, pattern);
+        const contextNegates = concept ? contextNegatesGroundedConcept(clinicalContext, concept) : contextNegatesTerm(clinicalContext, pattern);
+        return (factAffirmed && !contextAffirms) || (factNegated && !contextNegates);
       });
-      if (atomicMismatch) return `patient_fact_ungrounded_${chainIndex}_${factIndex}_polarity`;
+      // Concepts matched only through their canonical surface (发烧/胃脘痛/上腹隐痛) take the same
+      // polarity path as their base group instead of falling through to the literal check.
+      const conceptMismatch = matchedConcepts.some((concept) => {
+        if (matchedGroups.includes(concept.group)) return false;
+        const factAffirmed = hasAffirmedClinicalTerm(fact, concept.surface);
+        const factNegated = hasNegatedClinicalTerm(fact, concept.surface);
+        return (factAffirmed && !contextAffirmsGroundedConcept(clinicalContext, concept)) ||
+          (factNegated && !contextNegatesGroundedConcept(clinicalContext, concept));
+      });
+      if (groupMismatch || conceptMismatch) return `patient_fact_ungrounded_${chainIndex}_${factIndex}_polarity`;
       // Known concepts must preserve polarity and are deterministically replaced with chart source
       // clauses after validation. Unknown concepts still require literal source support here.
       if (factIndex === 1) continue;
-      if (matchedGroups.length > 0) continue;
+      if (matchedGroups.length > 0 || matchedConcepts.length > 0) continue;
       if (!hasLiteralFactSupport(fact, clinicalContext, false)) {
         return `patient_fact_ungrounded_${chainIndex}_${factIndex}_literal`;
       }
@@ -371,11 +475,27 @@ export function describeM03GroundingConflict(reasoning: M03ReasoningLike, clinic
       if (typeof fact !== "string") continue;
       const field = factIndex === 0 ? "patientFact" : "syndromeEvidence";
       for (const pattern of GROUNDED_FACT_GROUPS.filter((p) => p.test(fact))) {
-        const term = fact.match(pattern)?.[0] || "该症状";
-        if (hasAffirmedClinicalTerm(fact, pattern) && !contextAffirmsTerm(clinicalContext, pattern)) {
+        const concept = groundedFactConceptForGroup(pattern);
+        const factPattern = concept ? concept.surface : pattern;
+        const term = fact.match(factPattern)?.[0] || "该症状";
+        const contextAffirms = concept ? contextAffirmsGroundedConcept(clinicalContext, concept) : contextAffirmsTerm(clinicalContext, pattern);
+        const contextNegates = concept ? contextNegatesGroundedConcept(clinicalContext, concept) : contextNegatesTerm(clinicalContext, pattern);
+        if (hasAffirmedClinicalTerm(fact, factPattern) && !contextAffirms) {
           return `病机链 ${nodeId} 的 ${field} 写入了病历并未阳性记录、甚至已明确否认的“${term}”。请删除该词，或改为病历中实际记录且极性一致的表现；证型典型但本例未记录的表现只能移入 pathogenesis.uncertainties。`;
         }
-        if (hasNegatedClinicalTerm(fact, pattern) && !contextNegatesTerm(clinicalContext, pattern)) {
+        if (hasNegatedClinicalTerm(fact, factPattern) && !contextNegates) {
+          return `病机链 ${nodeId} 的 ${field} 把“${term}”写成阴性/否认，但病历并未这样记录。请只保留与病历原文极性一致的表述。`;
+        }
+      }
+      // Surface-only concept matches (发烧/胃脘痛/上腹隐痛) get the same conflict description as
+      // their canonical group so a rejection never arrives without an actionable correction.
+      for (const concept of groundedFactConceptsForText(fact)) {
+        if (concept.group.test(fact)) continue;
+        const term = fact.match(concept.surface)?.[0] || "该症状";
+        if (hasAffirmedClinicalTerm(fact, concept.surface) && !contextAffirmsGroundedConcept(clinicalContext, concept)) {
+          return `病机链 ${nodeId} 的 ${field} 写入了病历并未阳性记录、甚至已明确否认的“${term}”。请删除该词，或改为病历中实际记录且极性一致的表现；证型典型但本例未记录的表现只能移入 pathogenesis.uncertainties。`;
+        }
+        if (hasNegatedClinicalTerm(fact, concept.surface) && !contextNegatesGroundedConcept(clinicalContext, concept)) {
           return `病机链 ${nodeId} 的 ${field} 把“${term}”写成阴性/否认，但病历并未这样记录。请只保留与病历原文极性一致的表述。`;
         }
       }
@@ -406,7 +526,8 @@ export function patientFactSourceQuote(value: string, clinicalContext: string): 
     return best?.quote;
   };
   const matchedGroups = GROUNDED_FACT_GROUPS.filter((pattern) => pattern.test(value));
-  if (matchedGroups.length === 0) {
+  const surfaceOnlyConcepts = groundedFactConceptsForText(value).filter((concept) => !matchedGroups.includes(concept.group));
+  if (matchedGroups.length === 0 && surfaceOnlyConcepts.length === 0) {
     if (hasLiteralFactSupport(value, clinicalContext, false)) return value.trim();
     return approximateSourceQuote();
   }
@@ -416,11 +537,25 @@ export function patientFactSourceQuote(value: string, clinicalContext: string): 
     // One chart sentence can legitimately mix polarities, for example "无发热、心悸，盗汗以
     // 入睡后为主". Resolve polarity per clinical concept rather than letting one negated concept
     // turn every other affirmed symptom in the same sentence into a negation.
-    const factIsNegated = hasNegatedClinicalTerm(value, pattern);
+    const concept = groundedFactConceptForGroup(pattern);
+    const factPattern = concept ? concept.surface : pattern;
+    const factIsNegated = hasNegatedClinicalTerm(value, factPattern);
     const source = sourceSentences.find((sentence) => {
+      if (concept) {
+        return factIsNegated ? sentenceNegatesGroundedConcept(sentence, concept) : sentenceAffirmsGroundedConcept(sentence, concept);
+      }
       if (!pattern.test(sentence)) return false;
       return factIsNegated ? hasNegatedClinicalTerm(sentence, pattern) : hasAffirmedClinicalTerm(sentence, pattern);
     });
+    if (!source) return approximateSourceQuote();
+    if (!selected.includes(source)) selected.push(source);
+  }
+  // Canonical surface matches without a literal group hit (发烧/胃脘痛/上腹隐痛) quote the same
+  // concept's chart sentence so the node is not silently dropped when a canonical match exists.
+  for (const concept of surfaceOnlyConcepts) {
+    const factIsNegated = hasNegatedClinicalTerm(value, concept.surface);
+    const source = sourceSentences.find((sentence) =>
+      factIsNegated ? sentenceNegatesGroundedConcept(sentence, concept) : sentenceAffirmsGroundedConcept(sentence, concept));
     if (!source) return approximateSourceQuote();
     if (!selected.includes(source)) selected.push(source);
   }
@@ -489,15 +624,108 @@ function hasResolutionReason(value: unknown): boolean {
 }
 
 const TCM_ONLY_WESTERN_SUPPORT = /(?:舌(?:象|质|体|红|淡|紫|暗)|苔(?:薄|厚|白|黄|腻|燥|润)|脉象|脉(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促)|证候|证型|病机|治则|治法)/;
-const GENERIC_DEMOGRAPHIC_SUPPORT = /^(?:患者)?(?:男|女|男性|女性|\d{1,3}岁|年龄\d{1,3}岁|职业[^。；]{1,30})$/;
-const GENERIC_NORMAL_VITAL_SUPPORT = /^(?:(?:生命体征|一般情况)(?:平稳|正常|无异常)|(?:体温|T)\s*3[5-7](?:\.\d+)?\s*℃?|(?:心率|脉搏|HR|P)\s*(?:[6-9]\d|1[01]\d)\s*次?\/?分?|(?:呼吸|RR|R)\s*(?:1[2-9]|2[0-4])\s*次?\/?分?|(?:血压|BP)\s*(?:9\d|1[0-3]\d)\s*[\/／]\s*(?:[6-8]\d)\s*(?:mmHg)?|(?:血氧|SpO2)\s*(?:9[5-9]|100)\s*%)$/i;
 const HISTORICAL_SUPPORT = /(?:既往|曾经|多年病史|[^。；]{1,16}病史(?:$|[，,；;])|病史\d|术后|后遗症|恢复期|已缓解|已治愈|无新发|未再发|目前稳定|当前稳定)/;
+
+// A multi-year duration without any current-episode cue is background history (2型糖尿病10年、
+// 高血压5年余), not evidence of the current episode. A current cue (本次/加重/持续/仍…) keeps the
+// entry discriminating.
+const YEARS_DURATION_HISTORY = /(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半数几]+)\s*年(?:余|多)?(?:的)?(?:病史)?$/;
+const CURRENT_EPISODE_CUE = /(?:本次|本轮|当前|目前|现在|今日|今天|今晨|今早|昨夜|昨晚|昨日|昨天|新发|再发|复发|又发|又有|加重|加剧|持续|仍|还在|以来)/;
+
+function isHistoricalWesternSupportFact(value: string): boolean {
+  const fact = value.trim();
+  if (!fact) return false;
+  if (HISTORICAL_SUPPORT.test(fact)) return true;
+  return YEARS_DURATION_HISTORY.test(fact) && !CURRENT_EPISODE_CUE.test(fact);
+}
+
+const DEMOGRAPHIC_STATUS_WORD = /(?:汉族|回族|已婚|未婚|离异|丧偶|退休(?:人员|职工)?|职员|工人|农民|教师|学生|干部|个体户|无业(?:人员)?)/;
+const DEMOGRAPHIC_CUE = /\d{1,3}\s*岁|年龄|男性?|女性?|职业|民族|婚姻|汉族|已婚|未婚|退休/;
+
+// Pure demographics (age/sex/occupation/marital status), alone or combined, never discriminate a
+// western diagnosis. The anchored legacy single-item forms are kept as a fast path.
+function isDemographicWesternSupportFact(value: string): boolean {
+  const fact = value.trim();
+  if (!fact) return false;
+  if (/^(?:患者)?(?:男|女|男性|女性|\d{1,3}岁|年龄\d{1,3}岁|职业[^。；]{1,30})$/.test(fact)) return true;
+  if (!DEMOGRAPHIC_CUE.test(fact)) return false;
+  const residual = fact
+    .replace(/(?:患者|病人|一般情况|基本信息|人口学(?:资料|信息)?)\s*[:：]?/g, "")
+    .replace(/年龄\s*[:：]?\s*\d{1,3}\s*岁?/g, "")
+    .replace(/\d{1,3}\s*岁/g, "")
+    .replace(/(?:职业|民族|婚姻(?:状况)?)\s*[:：]?\s*[一-龥]{1,8}/g, "")
+    .replace(new RegExp(DEMOGRAPHIC_STATUS_WORD.source, "g"), "")
+    .replace(/(?<![一-龥])(?:男|女)性?(?![一-龥])/g, "")
+    .replace(/[\s，,、；;。.:："'（）()【】\[\]{}]+/g, "");
+  return residual.length === 0;
+}
+
+type VitalMeasurement = { kind: "temperature" | "blood_pressure" | "heart_rate" | "respiratory_rate" | "spo2"; abnormal: boolean };
+
+function vitalMeasurements(value: string): VitalMeasurement[] {
+  const normalized = value.normalize("NFKC");
+  const measurements: VitalMeasurement[] = [];
+  for (const match of normalized.matchAll(BLOOD_PRESSURE_MEASUREMENT)) {
+    const systolic = Number.parseInt(match[1] || match[3] || "", 10);
+    const diastolic = Number.parseInt(match[2] || match[4] || "", 10);
+    if (!Number.isFinite(systolic) || !Number.isFinite(diastolic) || systolic <= diastolic) continue;
+    measurements.push({ kind: "blood_pressure", abnormal: !(systolic >= 90 && systolic <= 139 && diastolic >= 60 && diastolic <= 89) });
+  }
+  for (const match of normalized.matchAll(TEMPERATURE_MEASUREMENT)) {
+    const temperature = Number.parseFloat(match[1] || match[2] || match[3] || "");
+    if (!Number.isFinite(temperature) || temperature < 34 || temperature > 43) continue;
+    // A temperature at or above the fever threshold is discriminating evidence, never padding.
+    measurements.push({ kind: "temperature", abnormal: !(temperature >= 35 && temperature < FEVER_TEMPERATURE_CELSIUS) });
+  }
+  for (const match of normalized.matchAll(HEART_RATE_MEASUREMENT)) {
+    const rate = Number.parseInt(match[1] || match[2] || "", 10);
+    if (!Number.isFinite(rate) || rate < 30 || rate > 220) continue;
+    measurements.push({ kind: "heart_rate", abnormal: !(rate >= 60 && rate <= 119) });
+  }
+  for (const match of normalized.matchAll(RESPIRATORY_RATE_MEASUREMENT)) {
+    const rate = Number.parseInt(match[1] || match[2] || "", 10);
+    if (!Number.isFinite(rate) || rate < 5 || rate > 40) continue;
+    measurements.push({ kind: "respiratory_rate", abnormal: !(rate >= 12 && rate <= 24) });
+  }
+  for (const match of normalized.matchAll(SPO2_MEASUREMENT)) {
+    const saturation = Number.parseInt(match[1] || "", 10);
+    if (!Number.isFinite(saturation) || saturation < 50 || saturation > 100) continue;
+    measurements.push({ kind: "spo2", abnormal: saturation < 95 });
+  }
+  return measurements;
+}
+
+function vitalMeasurementResidual(value: string): string {
+  return value.normalize("NFKC")
+    .replace(BLOOD_PRESSURE_MEASUREMENT, " ")
+    .replace(TEMPERATURE_MEASUREMENT, " ")
+    .replace(HEART_RATE_MEASUREMENT, " ")
+    .replace(RESPIRATORY_RATE_MEASUREMENT, " ")
+    .replace(SPO2_MEASUREMENT, " ")
+    .replace(/(?:生命体征|一般情况|体温|血压|心率|脉搏|呼吸|血氧饱和度|血氧|氧饱和度)/g, "")
+    .replace(/\b(?:HR|RR|BP|SpO2|SaO2|T|P|R)\b/gi, "")
+    .replace(/(?:mm\s*Hg|毫米汞柱|℃|°C|度|次\s*[\/／]?\s*分|次|bpm|%)/gi, "")
+    .replace(/[\s，,、；;。.:："'（）()【】\[\]{}]+/g, "");
+}
+
+// A fact made only of in-range vital-sign measurements (labeled or serialized, single or combined)
+// is padding, not diagnostic support. Any abnormal measurement (BP 200/120, SpO2 90%, T ≥37.2℃) or
+// any residual clinical content keeps the fact discriminating.
+function isNormalVitalWesternSupportFact(value: string): boolean {
+  const fact = value.trim();
+  if (!fact) return false;
+  if (/^(?:患者)?(?:生命体征|一般情况)(?:平稳|正常|无异常)$/.test(fact)) return true;
+  const measurements = vitalMeasurements(fact);
+  if (measurements.length === 0) return false;
+  if (vitalMeasurementResidual(fact).length > 0) return false;
+  return measurements.every((measurement) => !measurement.abnormal);
+}
 
 export function isNondiscriminatingWesternSupportingFact(value: string): boolean {
   const fact = value.trim();
   return TCM_ONLY_WESTERN_SUPPORT.test(fact) ||
-    GENERIC_DEMOGRAPHIC_SUPPORT.test(fact) ||
-    GENERIC_NORMAL_VITAL_SUPPORT.test(fact);
+    isDemographicWesternSupportFact(fact) ||
+    isNormalVitalWesternSupportFact(fact);
 }
 
 /**
@@ -508,8 +736,19 @@ export function isNondiscriminatingWesternSupportingFact(value: string): boolean
 export function isWesternSupportingFactPolarityAligned(value: string, clinicalContext: string): boolean {
   const fact = value.trim();
   if (!fact) return false;
-  return !clinicalContext || !GROUNDED_FACT_GROUPS.some((pattern) =>
-    pattern.test(fact) && hasAffirmedClinicalTerm(fact, pattern) && contextNegatesTerm(clinicalContext, pattern));
+  if (!clinicalContext) return true;
+  const groupConflict = GROUNDED_FACT_GROUPS.some((pattern) => {
+    const concept = groundedFactConceptForGroup(pattern);
+    const factPattern = concept ? concept.surface : pattern;
+    if (!factPattern.test(fact)) return false;
+    if (!hasAffirmedClinicalTerm(fact, factPattern)) return false;
+    return concept ? contextNegatesGroundedConcept(clinicalContext, concept) : contextNegatesTerm(clinicalContext, pattern);
+  });
+  if (groupConflict) return false;
+  return !groundedFactConceptsForText(fact).some((concept) =>
+    !concept.group.test(fact) &&
+    hasAffirmedClinicalTerm(fact, concept.surface) &&
+    contextNegatesGroundedConcept(clinicalContext, concept));
 }
 
 function m03WesternSupportIssue(reasoning: M03ReasoningLike, clinicalContext: string): string | undefined {
@@ -519,11 +758,14 @@ function m03WesternSupportIssue(reasoning: M03ReasoningLike, clinicalContext: st
     : [];
   if (facts.length === 0) return "western_support_empty";
   if (facts.some((fact) => TCM_ONLY_WESTERN_SUPPORT.test(fact))) return "western_support_tcm_pollution";
-  if (facts.some((fact) => GENERIC_DEMOGRAPHIC_SUPPORT.test(fact))) return "western_support_demographic_padding";
-  if (facts.some((fact) => GENERIC_NORMAL_VITAL_SUPPORT.test(fact))) return "western_support_normal_vital_padding";
-  const discriminating = facts.filter((fact) => !GENERIC_DEMOGRAPHIC_SUPPORT.test(fact) && !GENERIC_NORMAL_VITAL_SUPPORT.test(fact));
+  if (facts.some((fact) => isDemographicWesternSupportFact(fact))) return "western_support_demographic_padding";
+  if (facts.some((fact) => isNormalVitalWesternSupportFact(fact))) return "western_support_normal_vital_padding";
+  // Excluded categories (TCM findings, demographics, normal-range vitals) never count as
+  // discriminating evidence, so they cannot dilute a background-only fact list past the
+  // historical_only gate.
+  const discriminating = facts.filter((fact) => !isNondiscriminatingWesternSupportingFact(fact));
   if (discriminating.length === 0) return "western_support_nondiscriminating";
-  if (discriminating.every((fact) => HISTORICAL_SUPPORT.test(fact) || isNegatedClinicalClause(fact))) {
+  if (discriminating.every((fact) => isHistoricalWesternSupportFact(fact) || isNegatedClinicalClause(fact))) {
     return "western_support_historical_only";
   }
   if (clinicalContext && facts.some((fact) => !isWesternSupportingFactPolarityAligned(fact, clinicalContext))) {
@@ -543,8 +785,18 @@ export function describeM03WesternSupportConflict(reasoning: M03ReasoningLike, c
     : [];
   for (const fact of facts) {
     for (const pattern of GROUNDED_FACT_GROUPS.filter((candidate) => candidate.test(fact))) {
-      if (!hasAffirmedClinicalTerm(fact, pattern) || !contextNegatesTerm(clinicalContext, pattern)) continue;
-      const term = fact.match(pattern)?.[0] || "该表现";
+      const concept = groundedFactConceptForGroup(pattern);
+      const factPattern = concept ? concept.surface : pattern;
+      if (!hasAffirmedClinicalTerm(fact, factPattern)) continue;
+      const conflict = concept ? contextNegatesGroundedConcept(clinicalContext, concept) : contextNegatesTerm(clinicalContext, pattern);
+      if (!conflict) continue;
+      const term = fact.match(factPattern)?.[0] || "该表现";
+      return `westernDiagnosis.primary.supportingFacts 中的“${fact}”把病历已明确否认的“${term}”写成了阳性依据。请删除这条依据，或替换为病历当前语境中确有阳性记录、且能支持本次工作诊断的事实；不得把阴性事实反写成阳性。`;
+    }
+    for (const concept of groundedFactConceptsForText(fact)) {
+      if (concept.group.test(fact)) continue;
+      if (!hasAffirmedClinicalTerm(fact, concept.surface) || !contextNegatesGroundedConcept(clinicalContext, concept)) continue;
+      const term = fact.match(concept.surface)?.[0] || "该表现";
       return `westernDiagnosis.primary.supportingFacts 中的“${fact}”把病历已明确否认的“${term}”写成了阳性依据。请删除这条依据，或替换为病历当前语境中确有阳性记录、且能支持本次工作诊断的事实；不得把阴性事实反写成阳性。`;
     }
   }

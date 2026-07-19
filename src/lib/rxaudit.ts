@@ -119,13 +119,29 @@ const RXAUDIT_MAX_RESPONSE_BYTES = 2_000_000;
 
 let requestSeq = 0;
 
-// Plain HTTP is restricted to the same machine. Remote audit traffic must use HTTPS because the
-// request contains a bearer credential and a clinically meaningful case summary.
+// Plain HTTP is restricted to the same machine by default. Remote audit traffic must use HTTPS
+// because the request contains a bearer credential and a clinically meaningful case summary.
+const LOCAL_INSECURE_HTTP_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]", "host.docker.internal"];
+
+// Remote plain-HTTP is never allowed unless the operator explicitly allowlists that exact host via
+// RXAI_AUDIT_ALLOW_INSECURE_HTTP_HOSTS (comma-separated; entries may be "host" or "host:port").
+// Deployments that set this accept the interception risk of sending the token and the sanitized
+// clinical summary over plaintext HTTP; prefer HTTPS whenever the vendor offers it.
+function explicitInsecureHttpHosts(): string[] {
+  return (process.env.RXAI_AUDIT_ALLOW_INSECURE_HTTP_HOSTS || "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function insecureHttpHostAllowed(value: string): boolean {
   try {
     const url = new URL(value);
     if (url.protocol !== "http:") return false;
-    return ["localhost", "127.0.0.1", "::1", "[::1]", "host.docker.internal"].includes(url.hostname);
+    const hostname = url.hostname.toLowerCase();
+    if (LOCAL_INSECURE_HTTP_HOSTS.includes(hostname)) return true;
+    const hostWithPort = url.host.toLowerCase();
+    return explicitInsecureHttpHosts().some((entry) => entry === hostname || entry === hostWithPort);
   } catch {
     return false;
   }
@@ -138,8 +154,8 @@ export function getRxAuditConfig() {
   const systemCode = (process.env.RXAI_AUDIT_SYSTEM_CODE || tenantId).trim();
   const configured = Boolean(token && baseUrl);
   const allowInsecureHttp = process.env.RXAI_AUDIT_ALLOW_INSECURE_HTTP === "true";
-  // The production exception is intentionally limited to a same-host sidecar. Never send the
-  // audit token or sanitized clinical summary over plain HTTP to a remote host.
+  // Plain-HTTP exceptions: same-host sidecar, or an operator-allowlisted remote host (see
+  // insecureHttpHostAllowed). Everything else is refused before any request is sent.
   const transportAllowed = !baseUrl || baseUrl.startsWith("https://") || (allowInsecureHttp && insecureHttpHostAllowed(baseUrl));
   const enabled = process.env.RXAI_AUDIT_ENABLED === "true" && configured && transportAllowed;
   const disabledReason = !configured
@@ -1211,9 +1227,16 @@ export async function auditPrescriptionWithLingxi(
       }
     }
     const remainingMs = absoluteDeadline - Date.now();
-    if (remainingMs < MIN_RETRY_ATTEMPT_BUDGET_MS) {
+    // This budget guard gates RETRIES only. Attempt 0 always runs: its per-attempt timer is
+    // clamped to the remaining total budget below, so the unified absolute deadline still bounds
+    // the whole run and the total timeout genuinely fires instead of a pre-fetch Date.now() race.
+    if (attempt > 0 && remainingMs < MIN_RETRY_ATTEMPT_BUDGET_MS) {
       return { ok: false, source: "unavailable", reason: "rxaudit_total_timeout", itemCount: built.itemCount };
     }
+    // When the per-attempt timeout had to be clamped to the remaining total budget (or the
+    // deadline already passed), the unified total deadline — not the attempt timeout — is the
+    // binding constraint, so an abort of this attempt is classified as the total timeout.
+    const totalBudgetBinding = remainingMs < requestTimeoutMs;
     const controller = new AbortController();
     const abortFromRequest = () => controller.abort();
     requestSignal?.addEventListener("abort", abortFromRequest, { once: true });
@@ -1241,7 +1264,12 @@ export async function auditPrescriptionWithLingxi(
       }
       if (attempt < MAX_RETRIES && retryFitsDeadline(attempt + 1)) continue;
       const aborted = error instanceof DOMException && error.name === "AbortError";
-      return { ok: false, source: "unavailable", reason: aborted ? "rxaudit_timeout" : "rxaudit_network_error", itemCount: built.itemCount };
+      const reason = aborted
+        ? totalBudgetBinding || Date.now() >= absoluteDeadline
+          ? "rxaudit_total_timeout"
+          : "rxaudit_timeout"
+        : "rxaudit_network_error";
+      return { ok: false, source: "unavailable", reason, itemCount: built.itemCount };
     }
     if (res.status === 429 || res.status >= 500) {
       await res.body?.cancel().catch(() => undefined);
@@ -1269,7 +1297,9 @@ export async function auditPrescriptionWithLingxi(
       const reason = error instanceof UpstreamResponseTooLargeError
         ? "rxaudit_response_too_large"
         : aborted
-          ? "rxaudit_timeout"
+          ? totalBudgetBinding || Date.now() >= absoluteDeadline
+            ? "rxaudit_total_timeout"
+            : "rxaudit_timeout"
           : "rxaudit_invalid_json";
       return { ok: false, source: "unavailable", reason, itemCount: built.itemCount };
     }

@@ -62,15 +62,26 @@ async function callStage(pathname, caseState) {
 const COMPLETE = { level: "C", redFlag: 0.85, infoGain: 0.9, managementImpact: 0.9, answerability: 0.9 };
 function toCaseState(c) {
   const state = {
-    id: c.id, phase: "collect", patient: { sex: "男", age: 45 },
+    id: c.id, phase: "collect", patient: { sex: c.sex || "男", age: c.age ?? 45 },
     chiefComplaint: c.chief || "未提供主诉",
-    historyPresentIllness: c.hist || "",
     pastHistory: "无特殊可记录。",
     allergyHistory: "否认药物食物过敏。",
     medicationHistory: "否认当前用药。",
     tongue: "舌淡红,苔薄白", pulse: "细平", faceNote: "面色如常",
     completeness: COMPLETE, conversation: [], diagnosis: "", prescription: "", riskAssessment: "",
   };
+  // 现病史的真实承载字段是 hisRecord.fields.xianbingshi（另镜像到 symptoms.presentHistory）；
+  // 不存在 historyPresentIllness 字段，写入它会被请求归一化静默丢弃。
+  if (c.hist) {
+    state.hisRecord = {
+      schemaVersion: "tcm-cdss-his-v1",
+      source: "tcm-cdss-his",
+      caseId: c.id,
+      fields: { xianbingshi: c.hist },
+      rawText: c.hist,
+    };
+    state.symptoms = { presentHistory: c.hist };
+  }
   if (c.vitals && Object.keys(c.vitals).length) {
     state.vitals = {};
     if (c.vitals.bp) state.vitals.bp = c.vitals.bp;

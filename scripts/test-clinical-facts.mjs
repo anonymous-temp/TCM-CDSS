@@ -79,6 +79,104 @@ const disagreedScope = await extractClinicalFacts(
 ok("就诊范围: 两模型分歧时当前阳性目标优先且不得短路处方推理",
   disagreedScope?.encounterScope?.status === "active_current_target" &&
   disagreedScope.encounterScope.reviewAgreement === "disagreed");
+
+// —— 就诊范围类别矩阵: 当前目标 vs 既往稳定/他人/矛盾时态（沿用上文 mock-LLM 双轮模式）——
+const recoveryActiveScope = await extractClinicalFacts(
+  "骨折术后恢复期3周，仍有切口隐痛和患肢肿胀，希望继续调理。",
+  async () => JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "active_current_target", quote: "仍有切口隐痛和患肢肿胀" },
+  }),
+  undefined,
+  { independentReview: true },
+);
+ok("就诊范围: 恢复期仍有残余症状必须判为当前治疗目标而非既往背景",
+  recoveryActiveScope?.encounterScope?.status === "active_current_target" &&
+  recoveryActiveScope.encounterScope.reviewAgreement === "agreed");
+
+const stableChronicActiveAskScope = await extractClinicalFacts(
+  "高血压5年服药控制稳定，近1周头晕加重，希望本次调整治疗。",
+  async () => JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "active_current_target", quote: "近1周头晕加重" },
+  }),
+  undefined,
+  { independentReview: true },
+);
+ok("就诊范围: 慢性疾病稳定但本次明确要求治疗必须判为当前治疗目标",
+  stableChronicActiveAskScope?.encounterScope?.status === "active_current_target" &&
+  stableChronicActiveAskScope.encounterScope.reviewAgreement === "agreed");
+
+let negationScopeCall = 0;
+const negationWithOtherPositiveScope = await extractClinicalFacts(
+  "高血压病史10年目前稳定；否认胸痛，但近3天持续咳嗽咳痰。",
+  async () => {
+    negationScopeCall += 1;
+    return JSON.stringify({
+      redFlags: [],
+      encounterScope: negationScopeCall === 1
+        ? { status: "historical_or_stable_only", quote: "高血压病史10年目前稳定" }
+        : { status: "active_current_target", quote: "近3天持续咳嗽咳痰" },
+    });
+  },
+  undefined,
+  { independentReview: true },
+);
+ok("就诊范围: 否认一个红旗但存在其他当前阳性症状时绝不得判为纯既往",
+  negationWithOtherPositiveScope?.encounterScope?.status === "active_current_target" &&
+  negationWithOtherPositiveScope.encounterScope.reviewAgreement === "disagreed");
+
+const bystanderScope = await extractClinicalFacts(
+  "陪父亲就诊，父亲目前胸痛。本人既往胃溃疡已治愈，目前无不适。",
+  async () => JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "historical_or_stable_only", quote: "本人既往胃溃疡已治愈，目前无不适" },
+  }),
+  undefined,
+  { independentReview: true },
+);
+ok("就诊范围: 家族史/陪诊者/引用病例不形成患者本人的当前治疗目标",
+  bystanderScope?.encounterScope?.status === "historical_or_stable_only" &&
+  bystanderScope.encounterScope.reviewAgreement === "agreed");
+
+let tenseConflictCall = 0;
+const tenseConflictScope = await extractClinicalFacts(
+  "一处记录目前无胸痛，另一处又写仍有胸痛未止。",
+  async () => {
+    tenseConflictCall += 1;
+    return JSON.stringify({
+      redFlags: [],
+      encounterScope: tenseConflictCall === 1
+        ? { status: "historical_or_stable_only", quote: "目前无胸痛" }
+        : { status: "active_current_target", quote: "仍有胸痛未止" },
+    });
+  },
+  undefined,
+  { independentReview: true },
+);
+ok("就诊范围: 前后时态互相矛盾时按保守当前目标处理，绝不得判为纯既往",
+  tenseConflictScope?.encounterScope?.status === "active_current_target" &&
+  tenseConflictScope.encounterScope.reviewAgreement === "disagreed");
+
+let unclearHistoricalCall = 0;
+const unclearVsHistoricalScope = await extractClinicalFacts(
+  "患者叙述含糊，既提到旧疾已治愈，又似乎提到近日常有不适。",
+  async () => {
+    unclearHistoricalCall += 1;
+    return JSON.stringify({
+      redFlags: [],
+      encounterScope: unclearHistoricalCall === 1
+        ? { status: "unclear", quote: "又似乎提到近日常有不适" }
+        : { status: "historical_or_stable_only", quote: "旧疾已治愈" },
+    });
+  },
+  undefined,
+  { independentReview: true },
+);
+ok("就诊范围: unclear 与 historical 分歧时保留 unclear 且显式标记分歧",
+  unclearVsHistoricalScope?.encounterScope?.status === "unclear" &&
+  unclearVsHistoricalScope.encounterScope.reviewAgreement === "disagreed");
+
 ok("schema: emergency 缺少结构化急诊依据时整份拒绝，不默认降级后签名", (() => {
   const r = parseClinicalFacts(JSON.stringify({ redFlags: [{
     category: "vital_instability",

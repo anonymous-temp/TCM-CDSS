@@ -633,6 +633,84 @@ assert.equal(isStableM03Reasoning({
   pathogenesis: { chain: [{ patientFact: "配偶去世后持续悲伤", syndromeEvidence: "情志不遂支持肝郁", pathogenesis: "肝郁气滞", therapyDirection: "疏肝解郁" }] },
 }, "患者仅诉入睡困难"), false);
 
+// === Grounding concept canonicalization (objective values + anatomical/synonym equivalence) ===
+const chainWithFact = (patientFact, syndromeEvidence = "舌淡脉细") => ({
+  ...stable,
+  pathogenesis: { chain: [{ patientFact, syndromeEvidence, pathogenesis: "心血不足", therapyDirection: "养血安神" }] },
+});
+// (a) a measured temperature ≥37.2℃ affirms the 发热 concept even without a literal 发热 clause
+for (const temperature of ["体温37.2℃", "体温37.5℃", "T 38.1℃"]) {
+  assert.equal(m03SemanticIssue(chainWithFact("发热"), `入睡困难；舌淡脉细；${temperature}`), undefined, `a measured fever-range temperature affirms the 发热 concept (${temperature})`);
+}
+assert.equal(m03SemanticIssue(chainWithFact("发烧"), "入睡困难；舌淡脉细；体温38.2℃"), undefined, "colloquial 发烧 canonicalizes to the same fever concept as the measured temperature");
+// an in-range temperature with no fever statement still rejects an affirmed 发热 (fail-closed)
+assert.equal(m03SemanticIssue(chainWithFact("发热"), "入睡困难；舌淡脉细；体温36.5℃"), "patient_fact_ungrounded_0_0_polarity", "an in-range temperature without any fever statement still rejects an affirmed 发热");
+assert.equal(m03SemanticIssue(chainWithFact("无发热"), "入睡困难；舌淡脉细；体温36.5℃"), undefined, "an in-range measured temperature grounds a negated 发热 fact");
+assert.equal(m03SemanticIssue(chainWithFact("无发热"), "入睡困难；舌淡脉细；体温38.2℃"), "patient_fact_ungrounded_0_0_polarity", "a negated 发热 fact conflicts with a fever-range measured temperature");
+assert.equal(m03SemanticIssue(chainWithFact("无发热"), "发热3天；舌淡脉细；体温36.5℃"), "patient_fact_ungrounded_0_0_polarity", "a normal current reading does not erase a charted fever history");
+// (b) anatomical/synonym equivalence inside the abdominal-pain group
+assert.equal(m03SemanticIssue(chainWithFact("腹痛"), "上腹隐痛3天；舌淡脉细；入睡困难"), undefined, "腹痛 canonicalizes to the chart's 上腹隐痛");
+assert.equal(m03SemanticIssue(chainWithFact("上腹隐痛"), "腹痛3天；舌淡脉细；入睡困难"), undefined, "上腹隐痛 canonicalizes to the chart's 腹痛");
+assert.equal(m03SemanticIssue(chainWithFact("胃脘痛"), "腹痛3天；舌淡脉细；入睡困难"), undefined, "胃脘痛 canonicalizes to the chart's 腹痛");
+// (c) unknown concepts keep the literal fail-closed requirement
+assert.equal(m03SemanticIssue(chainWithFact("皮疹瘙痒"), "入睡困难；舌淡脉细"), "patient_fact_ungrounded_0_0_literal", "unknown concepts still literal-reject without record support");
+assert.equal(m03SemanticIssue(chainWithFact("皮疹瘙痒3天"), "皮疹瘙痒3天；舌淡脉细"), undefined, "unknown concepts still ground on literal record support");
+// (d) polarity mismatch still rejects, including concepts matched only via the canonical surface
+assert.equal(m03SemanticIssue(chainWithFact("发热"), "入睡困难；舌淡脉细；否认发热"), "patient_fact_ungrounded_0_0_polarity", "an explicit denial still rejects an affirmed 发热");
+assert.equal(m03SemanticIssue(chainWithFact("腹痛"), "入睡困难；舌淡脉细；否认腹痛"), "patient_fact_ungrounded_0_0_polarity", "an explicit denial still rejects an affirmed 腹痛");
+assert.equal(m03SemanticIssue(chainWithFact("寒战"), "入睡困难；舌淡脉细；无寒战，体温36.5℃"), "patient_fact_ungrounded_0_0_polarity", "an affirmed 寒战 cannot be grounded by a record that denies it");
+assert.equal(m03SemanticIssue(chainWithFact("无寒战"), "入睡困难；舌淡脉细；无寒战，体温36.5℃"), undefined, "a negated 寒战 matches the record's explicit denial");
+// canonical grounding rebinds chain nodes to the chart source clause instead of silently dropping them
+const abdominalCanonicalContext = "上腹隐痛3天，舌淡红苔薄白；入睡困难";
+const abdominalCanonical = JSON.parse(
+  groundStructuredPatientFacts(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(chainWithFact("腹痛", "舌淡红苔薄白"))}\n<!-- DIAGNOSIS_JSON_END -->`,
+    abdominalCanonicalContext,
+  ).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+assert.equal(abdominalCanonical.pathogenesis.chain.length, 1, "a canonical abdominal-pain match keeps the chain node instead of dropping it");
+assert.match(abdominalCanonical.pathogenesis.chain[0].patientFact, /上腹隐痛/, "the chain node rebinds to the chart's source clause");
+assert.equal(m03SemanticIssue(abdominalCanonical, abdominalCanonicalContext), undefined, "the canonically grounded chain passes the full M03 contract");
+const feverObjectiveContext = "体温38.2℃；舌淡红苔薄白；入睡困难";
+const feverObjective = JSON.parse(
+  groundStructuredPatientFacts(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(chainWithFact("发热", "舌淡红苔薄白"))}\n<!-- DIAGNOSIS_JSON_END -->`,
+    feverObjectiveContext,
+  ).split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+assert.equal(feverObjective.pathogenesis.chain.length, 1, "objective temperature affirmation keeps the fever chain node");
+assert.match(feverObjective.pathogenesis.chain[0].patientFact, /38\.2/, "the fever node rebinds to the measured-temperature source clause");
+assert.equal(m03SemanticIssue(feverObjective, feverObjectiveContext), undefined, "the objectively grounded fever chain passes the full M03 contract");
+
+// === Western-support de-pollution ===
+const westernSupportOf = (supportingFacts) => ({
+  ...stable,
+  westernDiagnosis: { ...stable.westernDiagnosis, primary: { ...stable.westernDiagnosis.primary, supportingFacts } },
+});
+const stableSupportContext = "入睡困难；舌淡脉细";
+// (e) normal-range vitals in labeled/serialized/combined forms are padding, not diagnostic support
+for (const padding of ["生命体征：120/80", "生命体征：BP 120/80mmHg，T 36.6℃，P 76次/分，R 16次/分，SpO2 98%", "血压120/80", "血压 118/76mmHg", "体温36.6℃", "T 36.6℃", "心率76次/分", "呼吸16次/分", "SpO2 98%", "血氧 99%"]) {
+  assert.equal(m03SemanticIssue(westernSupportOf([padding]), stableSupportContext), "western_support_normal_vital_padding", `${padding} is normal-range vital padding, not diagnostic support`);
+}
+assert.equal(m03SemanticIssue(westernSupportOf(["舌淡红，苔薄白"]), stableSupportContext), "western_support_tcm_pollution", "tongue-only descriptions stay TCM pollution");
+assert.equal(m03SemanticIssue(westernSupportOf(["脉沉细"]), stableSupportContext), "western_support_tcm_pollution", "pulse-only descriptions stay TCM pollution");
+for (const demographic of ["男性，45岁，职员", "45岁男性", "职业：教师", "女性", "退休职工"]) {
+  assert.equal(m03SemanticIssue(westernSupportOf([demographic]), stableSupportContext), "western_support_demographic_padding", `${demographic} is demographic padding, not diagnostic support`);
+}
+for (const history of ["2型糖尿病10年", "高血压5年余", "高血压病史"]) {
+  assert.equal(m03SemanticIssue(westernSupportOf([history]), stableSupportContext), "western_support_historical_only", `${history} is background history without a current episode`);
+}
+// abnormal vitals and current positive findings remain valid support
+for (const finding of ["BP 200/120mmHg", "血压 200/120mmHg", "SpO2 90%", "体温39.1℃", "心率130次/分", "呼吸26次/分"]) {
+  assert.equal(m03SemanticIssue(westernSupportOf([finding]), stableSupportContext), undefined, `${finding} is abnormal and remains valid diagnostic support`);
+}
+assert.equal(m03SemanticIssue(westernSupportOf(["高血压病史", "入睡困难"]), stableSupportContext), undefined, "a current positive finding beside background history remains valid support");
+// (f) excluded items cannot bypass the historical_only gate
+assert.equal(m03SemanticIssue(westernSupportOf(["生命体征：120/80", "高血压病史"]), stableSupportContext), "western_support_normal_vital_padding", "normal vitals cannot masquerade as current evidence beside historical facts");
+assert.equal(m03SemanticIssue(westernSupportOf(["2型糖尿病10年", "男性，45岁"]), stableSupportContext), "western_support_demographic_padding", "demographics cannot masquerade as current evidence beside historical facts");
+assert.equal(m03SemanticIssue(westernSupportOf(["舌淡红", "高血压病史"]), stableSupportContext), "western_support_tcm_pollution", "tongue findings cannot masquerade as current evidence beside historical facts");
+assert.equal(m03SemanticIssue(westernSupportOf(["2型糖尿病10年", "高血压病史"]), stableSupportContext), "western_support_historical_only", "a multi-year background entry cannot bypass the historical_only gate");
+
 const m04 = {
   stage: "prescribe",
   overview: { primarySyndrome: stable.overview.primarySyndrome, overallPathogenesis: stable.overview.overallPathogenesis },
