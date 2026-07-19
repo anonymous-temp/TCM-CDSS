@@ -1,0 +1,337 @@
+正在生成本阶段临床推理，请稍候…
+
+正在组织证候、病机与治法…
+
+正在校验结构化结果与证据来源…
+
+正在完成安全检查…<<<CDSS_STREAM_FINAL>>># 中医辅助诊疗报告
+
+## 西医诊断
+**诊断倾向**：慢性阻塞性肺疾病急性加重
+**判断状态**：考虑；置信度：中
+**支持依据**：反复咳痰喘10年，加重伴痰多1周；反复咳痰喘10年；加重伴痰多1周；活动后气促；吸烟40年；既往史：慢性阻塞性肺疾病
+**限制与反证**：未提供肺部听诊、胸部X线/CT、肺功能检查结果，无法客观评估气流受限程度及排除其他病因。；未提供血常规、CRP等感染指标，难以判断感染诱因。
+**建议检查**：肺功能检查（FEV1/FVC）；胸部影像学（X线或CT）；血常规、CRP、降钙素原；动脉血气分析
+
+### 鉴别方向
+- **支气管哮喘**：当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。；建议：支气管舒张试验、PEF变异率
+- **心力衰竭**：当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。；建议：BNP/NT-proBNP、心脏超声
+
+## 中医诊断
+**中医病名**：肺胀
+**证型**：寒饮伏肺证
+
+## 病机分析
+**总体病机**：久病肺虚，痰饮内伏，复感外寒，引动内饮，肺失宣降。
+**病位辨证**：肺
+**病性辨证**：寒饮
+**本证**：寒饮伏肺
+**主要表现**：肺胀
+**病机联系**：寒饮伏肺，肺气胀满，宣降失常，故见咳、痰、喘等肺胀表现。
+
+### 子病机与治法
+| 患者事实 | 证候依据 | 子病机 | 对应治法 |
+|---|---|---|---|
+| 反复咳痰喘10年 | 反复咳痰喘10年 | 久病肺气亏虚，宣降无力，津液不布，聚而为饮，成为发病基础。 | 补肺益气以固本；但当前急则治标，以温化寒饮为主。 |
+| 加重伴痰多1周 | 加重伴痰多1周 | 外寒引动内伏之寒饮，痰饮壅盛，肺气上逆，病情急性加重。 | 温肺散寒，化饮降逆。 |
+| 白痰量多、清稀 | 白痰量多、清稀 | 寒饮内停，肺失通调，水津不布，聚而成痰，随气上逆而咳出。 | 温化寒痰，蠲饮止咳。 |
+| 活动后气促 | 活动后气促 | 病历已记录气促阳性。 | 降气平喘，化痰利肺。 |
+
+## 治则治法
+**治则**：急则治其标，温化寒饮，降气平喘。
+**总治法**：温肺化饮，降气平喘。
+
+| 分治治法 | 对应病机 | 优先级 |
+|---|---|---|
+| 温肺散寒，化饮降逆 | 外寒引动内饮，肺气上逆 | 主要 |
+| 温化寒痰，蠲饮止咳 | 寒饮停肺，痰多清稀 | 主要 |
+| 降气平喘，化痰利肺 | 痰饮阻肺，气道不利 | 主要 |
+| 温阳散寒，助阳化饮 | 寒饮内盛，阳气不展 | 辅助 |
+
+## 需复核的不确定项
+- **本次主诉及伴随症状变化**：决定是否需加强解表散寒之力；影响：方药中麻黄、桂枝等解表药的取舍与剂量
+- **有无口干、心烦、痰黄等化热迹象**：寒饮郁久可化热，影响寒热药配伍；影响：是否需佐以清热药
+- **饮食、二便、睡眠情况**：判断脾胃功能及整体正气盛衰；影响：扶正药物的选择与剂量
+
+<!-- DIAGNOSIS_JSON_START -->
+{
+  "schemaVersion": "tcm-cdss-reasoning-v2",
+  "stage": "diagnose",
+  "clinicalReview": {
+    "status": "accepted",
+    "provider": "openai-compatible",
+    "model": "deepseek-v4-flash",
+    "source": "preferred",
+    "reviewedPayloadHash": "sha256:14937c934269b53d84452ad51c9ee95110f7bc64b64c0a92df468012dfa15206"
+  },
+  "overview": {
+    "tcmDiseaseName": "肺胀",
+    "primarySyndrome": "寒饮伏肺证",
+    "primarySyndromeResolution": "bounded",
+    "primarySyndromeBasis": [
+      "反复咳痰喘10年",
+      "加重伴痰多1周",
+      "白痰量多、清稀",
+      "活动后气促",
+      "舌象：舌淡胖，苔白滑"
+    ],
+    "primarySyndromeResolutionReason": "缺少听诊、胸部影像学、肺功能等客观检查，无法完全排除其他心肺疾病；舌脉信息已提供；但缺乏更详细的寒热、汗出、饮食、二便等兼症，影响对兼夹证候的精确判断。",
+    "secondarySyndromes": [],
+    "overallPathogenesis": "久病肺虚，痰饮内伏，复感外寒，引动内饮，肺失宣降。",
+    "overallTherapy": "温肺化饮，降气平喘。",
+    "recommendedFormulaDirection": "按已锁定病机与治法辨证组方",
+    "recommendedFormulaNames": [],
+    "formulaSelectionMode": "self_devised",
+    "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "低"
+    }
+  },
+  "westernDiagnosis": {
+    "primary": {
+      "name": "慢性阻塞性肺疾病急性加重",
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+        "反复咳痰喘10年，加重伴痰多1周",
+        "反复咳痰喘10年",
+        "加重伴痰多1周",
+        "活动后气促",
+        "吸烟40年",
+        "既往史：慢性阻塞性肺疾病"
+      ],
+      "limitations": [
+        "未提供肺部听诊、胸部X线/CT、肺功能检查结果，无法客观评估气流受限程度及排除其他病因。",
+        "未提供血常规、CRP等感染指标，难以判断感染诱因。"
+      ],
+      "suggestedChecks": [
+        "肺功能检查（FEV1/FVC）",
+        "胸部影像学（X线或CT）",
+        "血常规、CRP、降钙素原",
+        "动脉血气分析"
+      ],
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "病例内推理",
+        "confidence": "中"
+      }
+    },
+    "differentials": [
+      {
+        "name": "支气管哮喘",
+        "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
+        "nextCheck": "支气管舒张试验、PEF变异率"
+      },
+      {
+        "name": "心力衰竭",
+        "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
+        "nextCheck": "BNP/NT-proBNP、心脏超声"
+      }
+    ]
+  },
+  "pathogenesis": {
+    "summary": "患者年高，久患肺胀，肺气亏虚，宣降失司，津液不布，聚而为饮。此次因外感寒邪，引动内伏之寒饮，痰饮壅肺，气道不利，故见咳嗽、咳痰量多清稀、喘息气促。寒饮内盛，阳气不展，故畏寒背冷。舌淡胖、苔白滑、脉象待核实均为寒饮内停之征。病位在肺，病性属寒、属饮，本虚标实，以标实为主。",
+    "locationDifferentiation": {
+      "items": [
+        "肺"
+      ],
+      "details": [],
+      "resolution": "bounded",
+      "resolutionReason": "仅凭症状推断，未结合听诊等客观检查；但肺系症状典型，工作判断可靠。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "natureDifferentiation": {
+      "items": [
+        "寒饮"
+      ],
+      "rootDeficiency": [
+        "肺气虚"
+      ],
+      "branchExcess": [
+        "寒饮内停"
+      ],
+      "basis": "",
+      "resolution": "bounded",
+      "resolutionReason": "缺乏气虚的典型兼症如神疲乏力、自汗等；但久病可推断本虚。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "symptomClusters": [
+      {
+        "symptoms": [
+          "白痰量多、清稀",
+          "活动后气促"
+        ],
+        "mechanism": "寒饮壅肺，肺失宣降，气逆于上。"
+      },
+      {
+        "symptoms": [
+          "舌象：舌淡胖，苔白滑"
+        ],
+        "mechanism": "寒饮内盛，阳气不展。"
+      }
+    ],
+    "caseRelationship": {
+      "rootPattern": "寒饮伏肺",
+      "mainManifestation": "肺胀",
+      "relationship": "寒饮伏肺，肺气胀满，宣降失常，故见咳、痰、喘等肺胀表现。"
+    },
+    "chain": [
+      {
+        "nodeId": "P1",
+        "patientFact": "反复咳痰喘10年",
+        "syndromeEvidence": "反复咳痰喘10年",
+        "pathogenesis": "久病肺气亏虚，宣降无力，津液不布，聚而为饮，成为发病基础。",
+        "therapyDirection": "补肺益气以固本；但当前急则治标，以温化寒饮为主。",
+        "pathogenesisType": "始动",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P2",
+        "patientFact": "加重伴痰多1周",
+        "syndromeEvidence": "加重伴痰多1周",
+        "pathogenesis": "外寒引动内伏之寒饮，痰饮壅盛，肺气上逆，病情急性加重。",
+        "therapyDirection": "温肺散寒，化饮降逆。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P3",
+        "patientFact": "白痰量多、清稀",
+        "syndromeEvidence": "白痰量多、清稀",
+        "pathogenesis": "寒饮内停，肺失通调，水津不布，聚而成痰，随气上逆而咳出。",
+        "therapyDirection": "温化寒痰，蠲饮止咳。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P4",
+        "patientFact": "活动后气促",
+        "syndromeEvidence": "活动后气促",
+        "pathogenesis": "病历已记录气促阳性。",
+        "therapyDirection": "降气平喘，化痰利肺。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ],
+    "uncertainties": [
+      {
+        "item": "本次主诉及伴随症状变化",
+        "reason": "决定是否需加强解表散寒之力",
+        "affects": "方药中麻黄、桂枝等解表药的取舍与剂量"
+      },
+      {
+        "item": "有无口干、心烦、痰黄等化热迹象",
+        "reason": "寒饮郁久可化热，影响寒热药配伍",
+        "affects": "是否需佐以清热药"
+      },
+      {
+        "item": "饮食、二便、睡眠情况",
+        "reason": "判断脾胃功能及整体正气盛衰",
+        "affects": "扶正药物的选择与剂量"
+      }
+    ]
+  },
+  "therapy": {
+    "overallPrinciple": "急则治其标，温化寒饮，降气平喘。",
+    "overallMethod": "温肺化饮，降气平喘。",
+    "subTherapies": [
+      {
+        "therapy": "温肺散寒，化饮降逆",
+        "targetPathogenesis": "外寒引动内饮，肺气上逆",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "therapy": "温化寒痰，蠲饮止咳",
+        "targetPathogenesis": "寒饮停肺，痰多清稀",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "therapy": "降气平喘，化痰利肺",
+        "targetPathogenesis": "痰饮阻肺，气道不利",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "therapy": "温阳散寒，助阳化饮",
+        "targetPathogenesis": "寒饮内盛，阳气不展",
+        "priority": "次要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ]
+  },
+  "formula": null,
+  "nonPharma": null,
+  "lineageAdaptation": {
+    "schemaVersion": "tcm-cdss-reasoning-v2",
+    "lineageCode": "unrestricted",
+    "label": "不限定：循证安全优先",
+    "applicable": "partial",
+    "applicabilityReason": "本例寒饮伏肺证型明确，小青龙汤为经典方剂，与流派偏好无关，可直接选用。",
+    "influencedDecisions": [
+      {
+        "aspect": "辨证视角",
+        "detail": "从饮邪论治，注重温化，符合经方思路。"
+      }
+    ],
+    "unaffectedBySafety": [
+      "红旗排查",
+      "剂量安全",
+      "配伍禁忌",
+      "特殊人群",
+      "相互作用"
+    ],
+    "safetyDeference": "安全门控和审方规则优先于流派偏好"
+  },
+  "management": {
+    "mustCollect": [
+      "肺部听诊、胸部影像学、肺功能检查",
+      "血常规、CRP等感染指标",
+      "详细问诊有无表证、化热迹象及饮食二便情况"
+    ],
+    "followupSafetyNet": "接诊时核实相关症状是否存在；治疗3-5天后评估疗效，调整方案。"
+  },
+  "contractSignatureVersion": "tcm-cdss-m03-signature-v4",
+  "contractSignature": "hmac-sha256:6063f24bc72caf11e905a4b93d09c7fbe9ea7bbe907d471ddbb7d0c1d073487c"
+}
+<!-- DIAGNOSIS_JSON_END -->
+

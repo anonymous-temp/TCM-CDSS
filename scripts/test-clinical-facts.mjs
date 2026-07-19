@@ -1001,4 +1001,78 @@ const changedAfterFailure = await maybeAttachClinicalFactsBackstop(
 ok("运行时: 病历变化且模型失败时不沿用陈旧红旗事实且显式不可用",
   changedAfterFailure.clinicalFacts?.redFlags.length === 0 && changedAfterFailure.clinicalFacts?.semanticStatus === "unavailable");
 
+// —— 慢性基线 vs 急性升级（已知心衰/COPD/CKD 背景下的劳力性基线症状）——
+const baselineEmergency = (category, triageBasis, quote) => JSON.stringify({
+  redFlags: [{ category, subject: "patient", status: "positive", urgency: "emergency", triageBasis, quote }],
+});
+
+ok("底线: 劳力性基线 quote 达不到 emergency 证据底线，降级 urgent", (() => {
+  const r = parseClinicalFacts(baselineEmergency("cardiac", "time_sensitive_cardiovascular_event", "平路气短"));
+  return r?.redFlags.length === 1 && r.redFlags[0].urgency === "urgent" && r.redFlags[0].triageBasis === "urgent_review";
+})());
+ok("底线: 劳力限定+急性线索同在 quote 内仍可达 emergency", (() => {
+  const r = parseClinicalFacts(baselineEmergency("cardiac", "time_sensitive_cardiovascular_event", "劳力性胸痛2年，今晨突发持续胸痛不缓解"));
+  return r?.redFlags.length === 1 && r.redFlags[0].urgency === "emergency";
+})());
+ok("底线: 无劳力限定的急性 quote 不受基线规则影响", (() => {
+  const r = parseClinicalFacts(baselineEmergency("respiratory", "airway_breathing_failure", "端坐呼吸"));
+  return r?.redFlags.length === 1 && r.redFlags[0].urgency === "emergency";
+})());
+
+const baselineFacts = (category, triageBasis, quote) => ({
+  redFlags: [{ category, subject: "patient", status: "positive", urgency: "emergency", triageBasis, quote }],
+});
+ok("消费层: 已知心衰背景的平路气短不升级为急性红旗，但保留优先复核提示", (() => {
+  const text = "CKD 4期+HF EF35%，双下肢水肿，平路气短";
+  const facts = baselineFacts("cardiac", "time_sensitive_cardiovascular_event", "平路气短");
+  const adds = additiveRedFlagsFromFacts(facts, text, []);
+  const advisories = semanticTriageAdvisoriesFromFacts(facts, text);
+  return adds.length === 0 && advisories.length === 1 && /建议优先评估/.test(advisories[0]) && /平路气短/.test(advisories[0]);
+})());
+ok("消费层: 劳力性胸闷在稳定心绞痛背景下同样不升级", (() => {
+  const text = "冠心病稳定型心绞痛，劳力性胸闷2年，规律服药";
+  const facts = baselineFacts("cardiac", "time_sensitive_cardiovascular_event", "劳力性胸闷");
+  return additiveRedFlagsFromFacts(facts, text, []).length === 0 &&
+    semanticTriageAdvisoriesFromFacts(facts, text).length === 1;
+})());
+ok("消费层: 心衰+端坐呼吸必须升级为急性红旗", (() => {
+  const text = "心衰EF35%，夜间端坐呼吸，不能平卧";
+  const facts = baselineFacts("respiratory", "airway_breathing_failure", "端坐呼吸");
+  return additiveRedFlagsFromFacts(facts, text, []).length === 1;
+})());
+ok("消费层: 基线 quote 所在句含急性线索时不得降级", (() => {
+  const text = "HF EF35%，平路气短，昨夜突发不能平卧";
+  const facts = baselineFacts("respiratory", "airway_breathing_failure", "平路气短");
+  return additiveRedFlagsFromFacts(facts, text, []).length === 1;
+})());
+ok("消费层: 无劳力限定或无疾病背景的含混表述保守升级", (() => {
+  const noDisease = baselineFacts("respiratory", "airway_breathing_failure", "平路气短");
+  const noExertional = baselineFacts("respiratory", "airway_breathing_failure", "气短");
+  return additiveRedFlagsFromFacts(noDisease, "平路气短", []).length === 1 &&
+    additiveRedFlagsFromFacts(noExertional, "心衰EF35%，气短", []).length === 1;
+})());
+ok("消费层: 非心肺类目不受基线规则限制", (() => {
+  const text = "慢阻肺，活动后腹痛3年";
+  const facts = baselineFacts("acute_abdomen", "other_immediate_threat", "活动后腹痛");
+  return additiveRedFlagsFromFacts(facts, text, []).length === 1;
+})());
+
+ok("grounding: 昨夜突发的急性事件按当前事件落地", (() => {
+  const text = "心衰病史，昨夜突发夜间阵发性呼吸困难";
+  const facts = baselineFacts("respiratory", "airway_breathing_failure", "夜间阵发性呼吸困难");
+  return additiveRedFlagsFromFacts(facts, text, []).length === 1;
+})());
+ok("grounding: 远 past 锚点限定的突发仍是历史，不得复活", (() => {
+  const text = "半年前曾突发右侧肢体无力，现已完全恢复，目前无不适";
+  const facts = baselineFacts("neuro", "acute_neurologic_deficit", "右侧肢体无力");
+  return additiveRedFlagsFromFacts(facts, text, []).length === 0;
+})());
+ok("grounding: 局部否定的变化线索（无加重）不构成急性覆盖", (() => {
+  const text = "3年前确诊慢性胃炎，症状稳定无加重，目前复诊";
+  const facts = baselineFacts("acute_abdomen", "other_immediate_threat", "症状稳定");
+  return additiveRedFlagsFromFacts(facts, text, []).length === 0;
+})());
+
 console.log(`\n${pass} passed`);
+
+

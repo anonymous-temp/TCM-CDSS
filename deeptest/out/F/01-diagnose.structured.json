@@ -1,1 +1,107 @@
-null
+{
+  "schemaVersion": "tcm-cdss-reasoning-v2",
+  "stage": "diagnose",
+  "completeness": {
+    "level": "B",
+    "redFlag": 0.75,
+    "infoGain": 0.5,
+    "managementImpact": 1,
+    "answerability": 0.5
+  },
+  "overview": {
+    "primarySyndrome": "急症处置优先，中医证候暂缓",
+    "primarySyndromeResolution": "unresolved",
+    "primarySyndromeBasis": [],
+    "primarySyndromeResolutionReason": "已命中急危重安全门禁，不应因追求中医证候闭环而延误急诊处置",
+    "secondarySyndromes": [],
+    "overallPathogenesis": "当前不形成可采纳的中医病机链",
+    "overallTherapy": "立即急诊或专科评估，不进入中药处方",
+    "recommendedFormulaDirection": "暂不进入候选方药",
+    "recommendedFormulaNames": [],
+    "formulaSelectionMode": "none",
+    "evidence": {
+      "evidenceLevel": "deterministic_rule",
+      "source": "服务端急危重安全门禁",
+      "confidence": "高"
+    }
+  },
+  "westernDiagnosis": {
+    "primary": {
+      "name": "急危重症风险待排除",
+      "status": "需排除",
+      "confidence": "高",
+      "supportingFacts": [
+        "当前呕血、咖啡样呕吐物、黑便或便血提示活动性消化道出血风险，需立即评估循环状态并急诊处置"
+      ],
+      "limitations": [
+        "本路径只确认急诊处置优先级，不替代现场诊断"
+      ],
+      "suggestedChecks": [
+        "立即按急诊或对应专科流程评估"
+      ],
+      "evidence": {
+        "evidenceLevel": "deterministic_rule",
+        "source": "服务端急危重安全门禁",
+        "confidence": "高"
+      }
+    },
+    "differentials": []
+  },
+  "pathogenesis": {
+    "summary": "中医病机尚未稳定，本次不做推断。",
+    "locationDifferentiation": {
+      "items": [],
+      "details": [],
+      "resolution": "unresolved",
+      "resolutionReason": "未形成可复核的病位证据",
+      "evidence": {
+        "evidenceLevel": "deterministic_rule",
+        "source": "服务端急危重安全门禁",
+        "confidence": "高"
+      }
+    },
+    "natureDifferentiation": {
+      "items": [],
+      "rootDeficiency": [],
+      "branchExcess": [],
+      "basis": "",
+      "resolution": "unresolved",
+      "resolutionReason": "未形成可复核的病性证据",
+      "evidence": {
+        "evidenceLevel": "deterministic_rule",
+        "source": "服务端急危重安全门禁",
+        "confidence": "高"
+      }
+    },
+    "symptomClusters": [],
+    "chain": [],
+    "uncertainties": [
+      {
+        "item": "高风险主诉需补充生命体征（体温、呼吸）",
+        "reason": "当前应优先完成急诊或专科评估",
+        "affects": "中医证候、病机与剂量级候选方药"
+      }
+    ]
+  },
+  "therapy": {
+    "overallPrinciple": "急诊处置优先，不锁定中医治法",
+    "subTherapies": [],
+    "overallMethod": "立即急诊或专科评估，不进入中药处方"
+  },
+  "formula": null,
+  "nonPharma": null,
+  "lineageAdaptation": null,
+  "management": {
+    "redFlagLoop": "立即停止常规诊疗并转急诊；危及生命时呼叫120",
+    "mustCollect": [
+      "高风险主诉需补充生命体征（体温、呼吸）"
+    ],
+    "followupSafetyNet": "完成现场评估或补录后再重新运行M03"
+  },
+  "contractSignatureVersion": "tcm-cdss-m03-signature-v4",
+  "contractSignature": "hmac-sha256:b7fddaebed36f9d28dd969b440c0dcea8093ea746df437941e2356f243f1b996",
+  "clinicalReview": {
+    "status": "unavailable",
+    "reviewedPayloadHash": "sha256:e892348361b61ec3da0e946fb94de45b2285620d3784f08900de8b4e0e5fb9b2"
+  }
+}

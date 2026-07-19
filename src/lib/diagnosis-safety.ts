@@ -1497,7 +1497,7 @@ function neuroAcuteChangeAttachedAt(text: string, index: number, matchText: stri
     const nextStart = end + 1;
     const nextEnd = clinicalSubClauseBoundsAt(text, nextStart, 0).end;
     const nextSegment = text.slice(nextStart, nextEnd);
-    const changeAtHead = nextSegment.match(new RegExp(`^\\s*(?:(?:${NEURO_ACUTE_ONSET_CUE_SOURCE}|且|并|又)\\s*){0,3}(${NEURO_ACUTE_CHANGE_CUE_SOURCE})`));
+    const changeAtHead = nextSegment.match(new RegExp(`^\\s*(?:(?:${NEURO_ACUTE_ONSET_CUE_SOURCE}|且|并|又)\\s*){0,3}(?:明显|显著|逐渐|渐进)?(${NEURO_ACUTE_CHANGE_CUE_SOURCE})`));
     if (changeAtHead?.index != null &&
         neuroAcuteCueUsableAt(text, nextStart + changeAtHead[0].length - changeAtHead[1].length, changeAtHead[1], index, true)) return true;
   }
@@ -1548,8 +1548,87 @@ function hasCurrentFocalNeurologicDeficit(text: string): boolean {
   return false;
 }
 
-function firstPatternMatchWithoutNegation(text: string, pattern: RegExp): { index: number; text: string } | undefined {
-  const source = pattern.source;
+// 劳力性慢性稳定型胸痛/胸闷 vs 慢性背景上的急性冠脉事件（类别级，不含个案关键词）。
+// 与神经残留判别同一设计：劳力诱发 + 慢性病程/稳定性锚点 = 慢性稳定基线，不报急性红旗；
+// 一旦出现急性变化线索（静息/夜间发作、新发/突发、进行性加重、不缓解），即使在慢性背景上也必须报警。
+const CARDIAC_EXERTIONAL_TRIGGER_PATTERN = /(?:劳力性|劳力|活动后|运动后|劳累后|快走|快步|爬坡|爬楼|上楼|登高|提重物|体力活动)/;
+const CARDIAC_CHRONIC_COURSE_PATTERN = /(?:(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:年|个月|月)|多年|数年|长期)/;
+const CARDIAC_STABILITY_PATTERN = /(?:稳定型心绞痛|稳定性心绞痛|规律服药|规律用药|控制稳定|病情稳定|同前|无变化|无明显变化|平素)/;
+const CARDIAC_ACUTE_ONSET_CUE_SOURCE = String.raw`(?:刚刚|刚才|方才|今(?:日|天|晨|早|晚)|昨日|昨晚|昨夜|近日|近期|近(?:\d+|[一二两三四五六七八九十]+)\s*(?:小时|天|日|周)|新发|突发|突然|急性|静息|夜间|痛醒|憋醒)`;
+const CARDIAC_ACUTE_CHANGE_CUE_SOURCE = String.raw`(?:再发|复发|加重|恶化|进展|不缓解|难以缓解|频发|频繁|频作|进行性)`;
+const CARDIAC_ACUTE_ANY_CUE_PATTERN = new RegExp(`${CARDIAC_ACUTE_ONSET_CUE_SOURCE}|${CARDIAC_ACUTE_CHANGE_CUE_SOURCE}`, "g");
+const CARDIAC_ACUTE_CHANGE_ONLY_PATTERN = new RegExp(`^(?:${CARDIAC_ACUTE_CHANGE_CUE_SOURCE})$`);
+
+// 胸痛/胸闷/心前区痛某一具体出现位置是否附着急性变化线索：同小句、前一小句句尾起病短语、
+// 或紧随其后小句句首的变化动词。线索可用性（否定/历史锚点/残留阻断）复用神经层的通用判定。
+function cardiacAcuteChangeAttachedAt(text: string, index: number, matchText: string): boolean {
+  const { start, end } = clinicalSubClauseBoundsAt(text, index, matchText.length);
+  CARDIAC_ACUTE_ANY_CUE_PATTERN.lastIndex = 0;
+  for (const match of text.slice(start, end).matchAll(CARDIAC_ACUTE_ANY_CUE_PATTERN)) {
+    const cueIndex = start + (match.index ?? 0);
+    if (cueIndex >= index && cueIndex < index + matchText.length) continue;
+    const isChangeVerb = CARDIAC_ACUTE_CHANGE_ONLY_PATTERN.test(match[0]);
+    if (neuroAcuteCueUsableAt(text, cueIndex, match[0], index, isChangeVerb)) return true;
+  }
+  if (start > 0) {
+    const prevEnd = start - 1;
+    const prevStart = prevEnd > 0 ? clinicalSubClauseBoundsAt(text, prevEnd - 1, 0).start : 0;
+    const prevSegment = text.slice(prevStart, prevEnd);
+    const onsetAtTail = prevSegment.match(new RegExp(`(${CARDIAC_ACUTE_ONSET_CUE_SOURCE})(?:出现|发生|发作)?\\s*$`));
+    if (onsetAtTail?.index != null &&
+        neuroAcuteCueUsableAt(text, prevStart + onsetAtTail.index, onsetAtTail[1], index, false)) return true;
+  }
+  if (end < text.length) {
+    const nextStart = end + 1;
+    const nextEnd = clinicalSubClauseBoundsAt(text, nextStart, 0).end;
+    const nextSegment = text.slice(nextStart, nextEnd);
+    const changeAtHead = nextSegment.match(new RegExp(`^\\s*(?:(?:${CARDIAC_ACUTE_ONSET_CUE_SOURCE}|且|并|又)\\s*){0,3}(?:明显|显著|逐渐|渐进)?(${CARDIAC_ACUTE_CHANGE_CUE_SOURCE})`));
+    if (changeAtHead?.index != null &&
+        neuroAcuteCueUsableAt(text, nextStart + changeAtHead[0].length - changeAtHead[1].length, changeAtHead[1], index, true)) return true;
+  }
+  return false;
+}
+
+// 单个胸痛/胸闷出现位置是否被框定为劳力性慢性稳定基线：本小句带劳力诱发词，
+// 且同一硬句内有慢性病程（2年/数月/多年）或稳定性/管理锚点（稳定型心绞痛/规律服药/控制同前）。
+function cardiacMentionIsChronicStableAt(text: string, index: number, matchText: string): boolean {
+  const { start, end } = clinicalSubClauseBoundsAt(text, index, matchText.length);
+  if (!CARDIAC_EXERTIONAL_TRIGGER_PATTERN.test(text.slice(start, end))) return false;
+  const hardStart = Math.max(
+    text.lastIndexOf("。", index - 1),
+    text.lastIndexOf("；", index - 1),
+    text.lastIndexOf(";", index - 1),
+    text.lastIndexOf("\n", index - 1),
+  ) + 1;
+  const hardEndCandidates = ["。", "；", ";", "\n"]
+    .map((mark) => text.indexOf(mark, index + matchText.length))
+    .filter((position) => position >= 0);
+  const hardEnd = hardEndCandidates.length > 0 ? Math.min(...hardEndCandidates) : text.length;
+  const hardClause = text.slice(hardStart, hardEnd);
+  return CARDIAC_CHRONIC_COURSE_PATTERN.test(hardClause) || CARDIAC_STABILITY_PATTERN.test(hardClause);
+}
+
+// 整段文本是否只有「劳力性慢性稳定」一种胸痛/胸闷叙事：每个未被排除/否定的提及都必须是
+// 慢性稳定框架，且没有任何提及附着急性变化线索。任一提及是急性或含混（无劳力框架）→ false，
+// 维持原有急性信号判定（fail-closed 保守报警）。
+function hasChronicStableExertionalCardiacOnly(text: string): boolean {
+  const normalized = normalizeClinicalText(text);
+  let sawMention = false;
+  for (const term of ["胸痛", "心前区痛", "胸闷"]) {
+    let index = normalized.indexOf(term);
+    while (index >= 0) {
+      if (!isExcludedClinicalAssertionAt(normalized, index) && !isNegatedAt(normalized, index)) {
+        sawMention = true;
+        if (!cardiacMentionIsChronicStableAt(normalized, index, term)) return false;
+        if (cardiacAcuteChangeAttachedAt(normalized, index, term)) return false;
+      }
+      index = normalized.indexOf(term, index + term.length);
+    }
+  }
+  return sawMention;
+}
+
+function firstPatternMatchWithoutNegation(text: string, pattern: RegExp): { index: number; text: string } | undefined {  const source = pattern.source;
   const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
   const regex = new RegExp(source, flags);
   for (const match of text.matchAll(regex)) {
@@ -1815,14 +1894,17 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   );
   const chestPainSignal = hasAnyTerm(text, ["胸痛", "心前区痛"]) || colloquialChestPressureSignal;
   const chestTightnessSignal = hasAnyTerm(text, ["胸闷"]);
-  const acuteChestPainSignal =
+  // 劳力性慢性稳定型（劳力诱发 + 慢性病程/规律服药/控制稳定，无急性变化线索）不是急性冠脉
+  // 待排情形，降级急性信号；静息/夜间/新发/突发/加重/不缓解等急性线索附着时不受影响。
+  const chronicStableExertionalCardiacOnly = hasChronicStableExertionalCardiacOnly(text);
+  const acuteChestPainSignal = !chronicStableExertionalCardiacOnly && (
     hasAcutePositiveTerm(text, ["胸痛", "心前区痛"]) ||
     hasRecentPositiveTerm(text, ["胸痛", "心前区痛"]) ||
     hasCurrentOrRecurrentPositiveTerm(text, ["胸痛", "心前区痛"]) ||
-    (colloquialChestPressureSignal && /(?:突然|突发|刚才|刚刚|新发|开始|持续|不缓解|无缓解|冷汗|大汗|气促|呼吸困难|\d+(?:\.\d+)?\s*(?:分钟|分|小时))/.test(text));
-  const acuteChestTightnessSignal =
+    (colloquialChestPressureSignal && /(?:突然|突发|刚才|刚刚|新发|开始|持续|不缓解|无缓解|冷汗|大汗|气促|呼吸困难|\d+(?:\.\d+)?\s*(?:分钟|分|小时))/.test(text)));
+  const acuteChestTightnessSignal = !chronicStableExertionalCardiacOnly && (
     hasAcutePositiveTerm(text, ["胸闷"]) ||
-    hasCurrentOrRecurrentPositiveTerm(text, ["胸闷"]);
+    hasCurrentOrRecurrentPositiveTerm(text, ["胸闷"]));
   const cardiacCompanion = hasAnyTerm(text, ["大汗", "冷汗", "一身汗", "放射痛", "压榨", "濒死", "气促", "呼吸困难"]);
   const cardiacClearanceBoundary = acuteCardiacClearanceBoundary(text);
   const cardiacCleared = cardiacClearanceBoundary >= 0;

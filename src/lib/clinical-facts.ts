@@ -141,7 +141,21 @@ export type RedFlagFinding = {
 };
 
 export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v15";
-export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v17";
+export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v18";
+
+// 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
+// 疾病或慢性病程框架下，这类限定描述的是基线功能状态而非急性事件；静息/夜间/端坐/新发/突发/
+// 进行性加重/伴胸痛大汗等急性线索出现时不在此列。
+const BASELINE_EXERTIONAL_MARKER = /(?:平路|平地|步行|走路|上楼|爬楼|爬坡|活动后|运动后|劳累后|劳力性|劳力|快步|快走|干活|体力活动)/;
+const CARDIOPULMONARY_BASELINE_CONTEXT = /(?:心衰|心力衰竭|HF|EF\s*\d{1,2}\s*%?|射血分数|冠心病|心绞痛|心肌梗死|陈旧性心梗|COPD|慢阻肺|哮喘|肺心病|CKD|慢性肾|肾功能不全|尿毒症|支气管扩张|间质性肺|肺纤维化)/i;
+const CHRONIC_COURSE_MARKER = /(?:(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:年|个月|月)|多年|数年|长期|平素|一直)/;
+const ACUTE_ESCALATION_MARKER = /(?:夜间阵发|端坐呼吸|不能平卧|无法平卧|平卧困难|憋醒|痛醒|新发|突发|突然|急性|明显加重|进行性|加重|恶化|不缓解|难以缓解|大汗|冷汗|濒死|胸痛|晕厥|意识(?:模糊|障碍|改变)|咳粉红|粉红色泡沫|发绀|口唇发紫|嘴唇发紫|咯血)/;
+
+// quote 级底线：劳力诱发限定 + 无急性线索的 quote 达不到 emergency 的证据底线（与 syncope 等
+// 既有 quote 底线同一机制），降级为 urgent 走优先复核而非急性红旗。
+function exertionalBaselineQuoteWithoutAcuteCue(quote: string): boolean {
+  return BASELINE_EXERTIONAL_MARKER.test(quote) && !ACUTE_ESCALATION_MARKER.test(quote);
+}
 
 export type ClinicalFactsSemanticStatus = "checked" | "unavailable";
 export type ClinicalFactsResultSource = "fresh" | "cache" | "failure";
@@ -223,6 +237,9 @@ function emergencyEvidenceFloorSatisfied(
   }
   if (category === "syncope") {
     return /意识.{0,8}(?:未恢复|不清|模糊|异常)|严重外伤|进行性|呼吸困难|气促|胸痛|大汗|低血压|休克|反复晕厥/.test(quote);
+  }
+  if ((category === "cardiac" || category === "respiratory") && exertionalBaselineQuoteWithoutAcuteCue(quote)) {
+    return false;
   }
   return true;
 }
@@ -438,6 +455,32 @@ function hasCurrentQuoteOccurrence(sourceText: string, quote: string, allowUncer
   return false;
 }
 
+// 同句急性线索覆盖：极性模块把“昨夜/昨晚”一律视为历史，但“昨夜突发夜间阵发性呼吸困难”是
+// 本次急性事件。quote 所在硬句内若有未被远 past 锚点（半年前/N年前/既往/曾）限定、未被局部否定
+// （无/未/否认）的急性起病或加重线索，则该 quote 仍按当前事件 grounding。缓解/否认等后续检查
+// 在此之后照常执行，不会复活已缓解事件。
+const SENTENCE_ACUTE_ONSET_MARKER = /(?:突发|突然|新发|再发|复发|又发|刚刚|刚才|方才|明显加重|进行性加重|快速加重|加重|端坐呼吸|不能平卧|无法平卧|夜间阵发)/;
+const DISTANT_PAST_ANCHOR = /(?:既往|曾经|曾|当时|多年前|数年前|(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:年|个月|月|周)前)/;
+const CUE_LOCAL_NEGATION = /(?:无|未|没有|否认|并未|也无|也没有)$/;
+
+function hasSameSentenceAcuteCue(sourceText: string, quoteStart: number): boolean {
+  let sentenceStart = quoteStart;
+  while (sentenceStart > 0 && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceStart - 1])) sentenceStart -= 1;
+  let sentenceEnd = quoteStart;
+  while (sentenceEnd < sourceText.length && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceEnd])) sentenceEnd += 1;
+  const sentence = sourceText.slice(sentenceStart, sentenceEnd);
+  for (const match of sentence.matchAll(new RegExp(SENTENCE_ACUTE_ONSET_MARKER.source, "g"))) {
+    const cueIndex = match.index ?? 0;
+    let clauseStart = cueIndex;
+    while (clauseStart > 0 && !/[，,、]/.test(sentence[clauseStart - 1])) clauseStart -= 1;
+    const beforeCue = sentence.slice(clauseStart, cueIndex);
+    if (DISTANT_PAST_ANCHOR.test(beforeCue)) continue;
+    if (CUE_LOCAL_NEGATION.test(beforeCue.replace(/\s+/g, ""))) continue;
+    return true;
+  }
+  return false;
+}
+
 function isCurrentQuoteOccurrence(sourceText: string, quote: string, quoteStart: number, allowUncertain: boolean): boolean {
   const quoteEnd = quoteStart + quote.length;
   let sentenceStart = quoteStart;
@@ -464,7 +507,8 @@ function isCurrentQuoteOccurrence(sourceText: string, quote: string, quoteStart:
   const polarity = clinicalClausePolarity(quote);
   if (polarity !== "affirmed" && !(allowUncertain && polarity === "uncertain")) return false;
   if (DIRECT_NEGATION_BEFORE_QUOTE.test(beforeQuote) && !NON_NEGATING_MODIFIER_BEFORE_QUOTE.test(beforeQuote)) return false;
-  if (clinicalEventTemporalScopeAt(sourceText, quoteStart, quote.length) !== "current") return false;
+  if (clinicalEventTemporalScopeAt(sourceText, quoteStart, quote.length) !== "current" &&
+      !hasSameSentenceAcuteCue(sourceText, quoteStart)) return false;
   if (/^\s*(?:病史|史)/.test(afterQuote)) return false;
   if (DIRECT_NEGATION_AFTER_QUOTE.test(afterQuote)) return false;
   if (RESOLVED_WITHIN_QUOTE.test(quote)) return false;
@@ -474,6 +518,44 @@ function isCurrentQuoteOccurrence(sourceText: string, quote: string, quoteStart:
     `${escapedQuote}[，,\\s]{0,4}(?:(?:现已|目前已|已经|已)(?:消失|缓解|好转|痊愈)|(?:未再|不再)(?:出现|发作|发生)|(?:现已|目前已)(?:无|没有))`,
   );
   return !directlyResolved.test(localSentence);
+}
+
+/**
+ * 消费层慢性基线判别（与提取层 quote 底线同一类别规则，但能看到完整原文）：
+ * cardiac/respiratory 类 emergency finding 的 quote 若只是劳力/活动诱发的基线症状
+ * （“平路气短”“活动后气促”），且原文存在已知慢性心肺肾疾病背景或慢性病程，并且 quote 所在
+ * 硬句没有任何急性变化线索（夜间阵发/端坐/不能平卧/新发/突发/加重/不缓解/胸痛大汗），
+ * 则不升级为急性红旗——只保留为可见的优先复核提示（additive-only，不删除任何确定性结论）。
+ * 含混情形（无劳力限定、无疾病背景）一律返回 false，维持保守升级（fail-closed）。
+ */
+function chronicBaselineFramedFinding(finding: RedFlagFinding, sourceText: string): boolean {
+  if (finding.category !== "cardiac" && finding.category !== "respiratory") return false;
+  if (finding.status !== "positive" || finding.urgency !== "emergency") return false;
+  if (ACUTE_ESCALATION_MARKER.test(finding.quote)) return false;
+  const quoteExertional = BASELINE_EXERTIONAL_MARKER.test(finding.quote);
+  let offset = sourceText.indexOf(finding.quote);
+  let sawOccurrence = false;
+  let sawCourseInSentence = false;
+  while (offset >= 0) {
+    sawOccurrence = true;
+    let sentenceStart = offset;
+    while (sentenceStart > 0 && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceStart - 1])) sentenceStart -= 1;
+    let sentenceEnd = offset + finding.quote.length;
+    while (sentenceEnd < sourceText.length && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceEnd])) sentenceEnd += 1;
+    const sentence = sourceText.slice(sentenceStart, sentenceEnd);
+    if (ACUTE_ESCALATION_MARKER.test(sentence)) return false;
+    if (!quoteExertional) {
+      let clauseStart = offset;
+      while (clauseStart > sentenceStart && !/[，,、]/.test(sourceText[clauseStart - 1])) clauseStart -= 1;
+      let clauseEnd = offset + finding.quote.length;
+      while (clauseEnd < sentenceEnd && !/[，,、]/.test(sourceText[clauseEnd])) clauseEnd += 1;
+      if (!BASELINE_EXERTIONAL_MARKER.test(sourceText.slice(clauseStart, clauseEnd))) return false;
+    }
+    if (CHRONIC_COURSE_MARKER.test(sentence)) sawCourseInSentence = true;
+    offset = sourceText.indexOf(finding.quote, offset + finding.quote.length);
+  }
+  if (!sawOccurrence) return false;
+  return CARDIOPULMONARY_BASELINE_CONTEXT.test(sourceText) || sawCourseInSentence;
 }
 
 function escapeRegExp(value: string): string {
@@ -505,6 +587,9 @@ export function additiveRedFlagsFromFacts(
   for (const finding of grounded) {
     if (finding.subject !== "patient") continue;
     if (finding.status !== "positive" || finding.urgency !== "emergency") continue;
+    // 已知慢性心肺疾病背景下的劳力性基线症状（无急性线索）不升级为急性红旗；
+    // 该事实仍经 semanticTriageAdvisoriesFromFacts 以优先复核形式保持可见。
+    if (chronicBaselineFramedFinding(finding, sourceText)) continue;
     if (coveredCategories.has(finding.category)) continue;
     const message = `${RED_FLAG_MESSAGE[finding.category]}（原文依据：“${finding.quote}”）`;
     // 若确定性层已就该类目给出红旗(消息包含类目关键词),不重复追加。
@@ -538,10 +623,13 @@ export function semanticTriageAdvisoriesFromFacts(
       continue;
     }
     if (finding.status !== "positive" && finding.status !== "possible") continue;
-    if (finding.urgency !== "urgent" && finding.urgency !== "clarify") continue;
+    // 被消费层判别为劳力性慢性基线的 emergency finding 降级为可见的优先复核提示：
+    // 保持 additive-only 的可追溯性，但不形成急性红旗。
+    const demotedBaselineEmergency = finding.urgency === "emergency" && chronicBaselineFramedFinding(finding, sourceText);
+    if (finding.urgency !== "urgent" && finding.urgency !== "clarify" && !demotedBaselineEmergency) continue;
     if (coveredCategories.has(finding.category)) continue;
     coveredCategories.add(finding.category);
-    const action = finding.urgency === "urgent" ? "建议优先评估" : "建议在本轮问诊中澄清";
+    const action = finding.urgency === "urgent" || demotedBaselineEmergency ? "建议优先评估" : "建议在本轮问诊中澄清";
     advisories.push(`${TRIAGE_ADVISORY_MESSAGE[finding.category]}，${action}（原文依据：“${finding.quote}”）`);
   }
   return advisories;
@@ -654,6 +742,7 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     "- negative/historical/unknown 的 urgency 必须为 routine；possible 必须为 clarify。positive 可根据完整上下文取 emergency、urgent、clarify 或 routine；positive+clarify 表示症状存在已确认，但严重度或当前处置分级尚待澄清。",
     "- 没有合适专类但原文确实提示可能立即改变处置路径时，使用 other_critical；不得把普通慢性症状、常规检查缺失或一般鉴别诊断放入该类。",
     "- 不做任何超出文本的事实补全；不得把‘晚上偶尔憋醒’改写成‘端坐呼吸’，不得把‘跑快时胸口呼呼响’改写成‘静息呼吸困难’。",
+    "- 已知心衰/冠心病/心绞痛/COPD/慢阻肺/哮喘/CKD 等慢性心肺肾疾病患者的劳力或活动诱发的基线症状（如平路气短、活动后气促、上楼喘、劳力性胸闷），是基线功能状态而非急性事件：只要没有夜间阵发性呼吸困难、端坐呼吸、不能平卧、新发/突发、进行性加重、不缓解或伴胸痛大汗等急性变化线索，一律不得标 emergency，按 urgent/clarify 保持优先复核即可；出现上述任一急性线索时必须按急性事件正常升级。不含劳力限定或疾病背景的含混表述按未知处理，不得据此降级。",
     "",
     "【临床文本】",
     text.slice(0, 12_000),
@@ -668,7 +757,7 @@ export function buildClinicalFactsReviewPrompt(text: string, initialFacts: Clini
   return [
     buildClinicalFactsExtractionPrompt(text),
     "",
-    "【独立复核】下面是首轮结构化初判，只能作为待质疑材料，不能直接照抄。请重新阅读【临床文本】，重点复核：当前/既往、否定范围、症状组合、严重度、进展轨迹、是否真正达到即时急诊或优先评估条件。主动拒绝“只因出现症状名就纳入红旗”的过度分诊；同时，缺少伴随症状、生命体征或检查结果只是未知，不能作为降低急症等级的阴性证据。当前时间敏感事件不能被既往、昨日、上周或其他发作的正常检查清除。",
+    "【独立复核】下面是首轮结构化初判，只能作为待质疑材料，不能直接照抄。请重新阅读【临床文本】，重点复核：当前/既往、否定范围、症状组合、严重度、进展轨迹、是否真正达到即时急诊或优先评估条件。主动拒绝“只因出现症状名就纳入红旗”的过度分诊；同时，缺少伴随症状、生命体征或检查结果只是未知，不能作为降低急症等级的阴性证据。当前时间敏感事件不能被既往、昨日、上周或其他发作的正常检查清除。已知慢性心肺疾病背景下、由劳力或活动诱发的基线症状（平路气短、活动后气促等），在没有夜间阵发性呼吸困难、端坐呼吸、不能平卧、新发/突发、进行性加重或伴胸痛大汗等急性线索时，应把首轮 emergency 纠正为 urgent/clarify；出现急性线索时不得降级。",
     "输出 JSON 格式：{\"redFlags\":[最终完整事实],\"encounterScope\":{\"status\":\"active_current_target|historical_or_stable_only|unclear\",\"quote\":\"原文逐字片段\"},\"reviews\":[{\"findingId\":\"rf-1\",\"decision\":\"confirm|modify|reject\",\"dispositionChangeEvidence\":{\"basis\":\"current_same_episode_clearance|polarity_correction|subject_correction\",\"quote\":\"支持降低等级的原文逐字片段\"}}]}。独立重判 encounterScope，不能照抄首轮；如果有任何新的当前阳性问题，不得判 historical_or_stable_only。当前治疗/处置请求（要求开药、加用中药、调理、治疗、续药等）或当前不适主诉同样意味着 active_current_target；‘控制稳定、血压达标、病情平稳’只描述疾病状态，不能单独支撑 historical_or_stable_only。",
     "首轮每个 positive/possible finding 都必须被逐项处理：在 reviews 中显式写 findingId 和 decision，不能靠省略删除。",
     "confirm/modify 时，在对应的最终 redFlags 条目内额外写入同一 findingId；可以依原文修正 category/subject/status/urgency/triageBasis/quote。reject 时不保留该条。首轮遗漏的新事实不写 findingId。",

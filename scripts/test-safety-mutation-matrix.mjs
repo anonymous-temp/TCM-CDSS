@@ -670,4 +670,56 @@ for (const placement of ["chief", "history", "conversation"]) {
   cases += 1;
 }
 
+// ===== 类别矩阵：劳力性慢性稳定型胸痛 vs 慢性背景上的急性冠脉事件 =====
+// 纯劳力性慢性稳定（劳力诱发 + 慢性病程/规律服药/控制稳定，无急性线索）：不报急性红旗。
+const chronicStableExertionalChestScenarios = [
+  "冠心病稳定型心绞痛;劳力性胸痛2年,规律服药,本次就诊开药",
+  "活动后胸闷3年，规律服药，控制稳定。",
+  "劳力性胸痛5年，平素规律服药，病情同前。",
+  "爬楼后胸闷2年，控制稳定，无变化。",
+];
+for (const scenario of chronicStableExertionalChestScenarios) {
+  for (const variant of variants(scenario)) {
+    for (const placement of ["chief", "history", "conversation"]) {
+      const gate = evaluateSafetyGate(stateWith(variant, placement));
+      assert.notEqual(gate.status, "red_flag", `${placement}: ${variant}`);
+      assert.equal(gate.redFlags.length, 0, `${placement}: ${variant}`);
+      cases += 1;
+    }
+  }
+}
+
+// 慢性心绞痛背景 + 急性变化线索（静息/夜间发作、突发、进行性加重、不缓解）：必须报警。
+const chronicAnginaWithAcuteCueScenarios = [
+  "劳力性胸痛2年，今晨静息下突发持续胸痛不缓解。",
+  "活动后胸闷3年，近1周明显加重。",
+  "冠心病稳定型心绞痛，劳力性胸痛2年，昨夜静息时胸痛频发不缓解。",
+  "劳力性胸痛5年，规律服药，今日突发胸痛伴大汗。",
+];
+for (const scenario of chronicAnginaWithAcuteCueScenarios) {
+  for (const variant of variants(scenario)) {
+    for (const placement of ["chief", "history", "conversation"]) {
+      const gate = evaluateSafetyGate(stateWith(variant, placement));
+      assert.equal(gate.status, "red_flag", `${placement}: ${variant}`);
+      assert.match(gate.redFlags.join("、"), /心血管/, `${placement}: ${variant}`);
+      cases += 1;
+    }
+  }
+}
+
+// 含混表述（无劳力框架、或劳力限定但无病程/稳定性锚点）：按 fail-closed 保守报警。
+const ambiguousExertionalChestScenarios = [
+  "胸痛持续2周。",
+  "活动后胸痛。",
+  "胸闷2年，近日再发。",
+];
+for (const scenario of ambiguousExertionalChestScenarios) {
+  for (const variant of variants(scenario)) {
+    for (const placement of ["chief", "history", "conversation"]) {
+      assert.equal(evaluateSafetyGate(stateWith(variant, placement)).status, "red_flag", `${placement}: ${variant}`);
+      cases += 1;
+    }
+  }
+}
+
 console.log(JSON.stringify({ cases, failures: 0 }));
