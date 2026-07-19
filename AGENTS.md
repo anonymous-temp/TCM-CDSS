@@ -87,7 +87,8 @@ npm run build:tcm-formula-sources    # python3 脚本
 - **NDJSON 流式契约**（所有后端与确定性响应共享）：每块 `{"content":"…"}\n`，以 `{"content":"[END]"}\n` 结束；错误为 `{"error":"…"}\n`。任何新增流水线环节都必须说这套契约；`markdownNdjsonResponse()` 把确定性 Markdown 包装进去。
 - **关键陷阱**：流只返回 `reasoning_content` 而无 `content` 视为错误（"模型仅返回推理过程"），`model-health?check=1` 校验的是最终内容。
 - 超时按流强制：连接 90s / 空闲 60s / 总计 180s，带上游 `AbortController` 取消与 5s 客户端心跳。
-- Provider 配置在 `src/lib/text-model.ts`（`AI_TEXT_PROVIDER`）；`src/lib/openai.ts` 是遗留最小客户端 —— 优先用 `getPrimaryTextModelConfig()`。
+- Provider 配置在 `src/lib/text-model.ts`（`AI_TEXT_PROVIDER`）—— 用 `getPrimaryTextModelConfig()` 读取。
+- M03/M04 编排各有一道总时限门禁（`M03_ORCHESTRATION_DEADLINE_MS` / `M04_ORCHESTRATION_DEADLINE_MS`，默认各 120s，钳制 60–180s）：超时或同一修复提示重复注入（fixpoint）会提前走向既有的签名有限/非剂量合同，而不是无限烧模型轮次。
 
 ### 确定性安全层是承重墙 —— `src/lib/diagnosis-safety.ts`
 
