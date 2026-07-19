@@ -126,6 +126,85 @@ assert.doesNotMatch(
   /2026-07-19T14:23:51/,
   "exact encounter timestamps are quasi-identifiers",
 );
+
+// ─── PHI quasi-identifier audit probes (2026-07-19) ─────────────────────────
+// Gaps (a) unlabeled address tails / compound residences, (b) anchored free-text occupations and
+// (c) precise timestamps / bare dates must be scrubbed on BOTH the model egress path and the browser
+// snapshot path — the shared scrubber in src/lib/phi-sanitizer.ts backs both.
+const phiAuditPaths = [
+  ["model", sanitizeFreeTextForModel],
+  ["snapshot", scrubPersistentPhiText],
+];
+for (const [phiPathName, phiScrub] of phiAuditPaths) {
+  const phiTag = (probe) => `${phiPathName} path: ${probe}`;
+  // (a) 号院 / 号楼 tails and trailing room numbers must not survive.
+  const yardAddress = phiScrub("患者住在幸福路12号院3栋502，咳嗽3日");
+  assert.doesNotMatch(yardAddress, /幸福路|12号院|3栋|502/, phiTag("号院 address tail must be fully scrubbed"));
+  assert.match(yardAddress, /\[地址已脱敏\]/, phiTag("a scrubbed address must leave its marker"));
+  assert.match(yardAddress, /咳嗽3日/, phiTag("the clinical duration after an address must survive"));
+  const buildingAddress = phiScrub("长期居于建设路7号楼2单元301室，近一周失眠");
+  assert.doesNotMatch(buildingAddress, /建设路|7号楼|2单元|301/, phiTag("号楼 address tail must be fully scrubbed"));
+  assert.match(buildingAddress, /近一周失眠/, phiTag("clinical text after a 号楼 address must survive"));
+  // (a) compound residence: fires only with BOTH a residence anchor and an administrative token.
+  const compoundResidence = phiScrub("患者家住朝阳区望京西园四区，近一周失眠");
+  assert.doesNotMatch(compoundResidence, /望京西园/, phiTag("an anchored compound residence must be scrubbed"));
+  assert.match(compoundResidence, /\[地址已脱敏\]/);
+  assert.match(compoundResidence, /近一周失眠/, phiTag("clinical text after a compound residence must survive"));
+  assert.equal(phiScrub("查体：腹部四区均可及压痛"), "查体：腹部四区均可及压痛", phiTag("腹部四区 is clinical text, not an address"));
+  assert.equal(phiScrub("双方就产业园区合作达成协议"), "双方就产业园区合作达成协议", phiTag("产业园区 without a residence anchor is not an address"));
+  // (b) anchored free-text occupation routed through the shared generalizeOccupation.
+  const anchoredOccupation = phiScrub("从事航天器研制工作20年，近3日失眠");
+  assert.doesNotMatch(anchoredOccupation, /航天器研制/, phiTag("从事… must generalize a rare occupation"));
+  assert.match(anchoredOccupation, /20年/, phiTag("the duration after an occupation must survive"));
+  assert.match(anchoredOccupation, /近3日失眠/);
+  assert.doesNotMatch(phiScrub("工作于市博物馆，近3日失眠"), /市博物馆/, phiTag("工作于… must generalize the employer"));
+  assert.doesNotMatch(phiScrub("职业为航天员大队教员，近3日失眠"), /航天员/, phiTag("职业为… must generalize a rare title"));
+  assert.match(phiScrub("从事教师工作，近3日失眠"), /从事教育工作/, phiTag("known titles map to their exposure category"));
+  // (c) precise timestamps and bare dates.
+  const chineseTimestamp = phiScrub("2026年7月18日14:35就诊，主诉失眠");
+  assert.doesNotMatch(chineseTimestamp, /2026年7月18日|14:35/, phiTag("a Chinese precise timestamp must be scrubbed"));
+  assert.match(chineseTimestamp, /主诉失眠/);
+  const spacedIsoTimestamp = phiScrub("2026-07-18 14:35 突发胸痛");
+  assert.doesNotMatch(spacedIsoTimestamp, /2026-07-18|14:35/, phiTag("a space-separated ISO datetime must scrub date AND time"));
+  assert.match(spacedIsoTimestamp, /突发胸痛/);
+  const labeledChineseVisit = phiScrub("就诊时间：2026年7月18日14:35；主诉失眠");
+  assert.doesNotMatch(labeledChineseVisit, /2026年7月18日|14:35/, phiTag("a labeled Chinese visit time must not leak the clock time"));
+  assert.match(labeledChineseVisit, /就诊时间：\[已泛化\]/);
+  const bareDateProbe = phiScrub("2026-07-18 突发胸痛");
+  assert.doesNotMatch(bareDateProbe, /2026-07-18/, phiTag("a bare date is a quasi-identifier on both paths"));
+  assert.match(bareDateProbe, /\[日期已泛化\]/);
+  assert.match(phiScrub("2026年3月发病，反复咳嗽"), /2026年3月/, phiTag("year-month onset text is clinically needed and must stay intact"));
+  // (d) identifiers buried mid-record: scrub runs before any truncation on both paths.
+  const phiFiller = "患者诉反复失眠多梦，伴心烦心悸，纳食尚可，二便调，夜寐不安。";
+  const longRecord = `${phiFiller.repeat(9)}患者家住朝阳区望京西园四区，2026-07-18 14:35 突发胸痛，${phiFiller.repeat(9)}`;
+  assert.ok(longRecord.length > 500, phiTag("the long-record probe must exceed 500 chars"));
+  const scrubbedLongRecord = phiScrub(longRecord);
+  assert.doesNotMatch(scrubbedLongRecord, /望京西园|2026-07-18|14:35/, phiTag("identifiers buried mid-record must be scrubbed"));
+  assert.match(scrubbedLongRecord, /纳食尚可/, phiTag("long-record clinical content must survive"));
+  // Idempotence: scrubbed markers must never be re-consumed by a second pass. The snapshot path
+  // protects every marker, so its probe includes the address marker. On the model path the upstream
+  // labeled-address recognizer (src/lib/diagnosis-safety.ts, frozen for this change) re-consumes
+  // [地址已脱敏] on a second pass — a pre-existing limitation — so the model-path probe covers the
+  // markers the shared layer fully owns (timestamps, bare dates, occupations).
+  const idempotenceProbe = phiPathName === "model"
+    ? "就诊时间：2026年7月18日14:35，从事教师工作，2026-07-18 复诊"
+    : "患者家住朝阳区望京西园四区，就诊时间：2026年7月18日14:35，从事教师工作，2026-07-18 复诊";
+  const scrubbedOnce = phiScrub(idempotenceProbe);
+  assert.equal(phiScrub(scrubbedOnce), scrubbedOnce, phiTag("scrubbing must be idempotent"));
+}
+// 任职于… reaches the shared scrubber intact on the snapshot path; on the model path the upstream
+// surname recognizer consumes 任职 first (src/lib/diagnosis-safety.ts is out of scope here), so the
+// employer string 市博物馆 currently survives there — a documented residual of this change.
+assert.match(scrubPersistentPhiText("任职于市博物馆，近3日失眠"), /任职于\[职业已泛化\]/, "snapshot path: 任职于… must generalize the employer");
+assert.doesNotMatch(sanitizeFreeTextForModel("任职于市博物馆，近3日失眠"), /任职于市博物馆/, "model path: the anchored employer phrase must at least be broken up");
+// (b) residual by design: 他是航天员大队教员 carries no anchor and is NOT regexed from prose
+// (clinical false-positive risk). The field-level occupation is the authoritative mitigation.
+assert.equal(
+  sanitizeCaseStateForModel({ ...createInitialCaseState(), patient: { occupation: "航天员大队教员" } }).patient.occupation,
+  "[职业已泛化]",
+  "field-level rare occupation titles must be generalized before model egress",
+);
+
 for (const identifier of ["病历号：ABCD1234", "病例号 CASE-5678", "MRN: MRN998877", "患者编号：PT-20260714"]) {
   assert.doesNotMatch(sanitizeFreeTextForExternalClinicalService(`咳嗽3日；${identifier}`), /ABCD1234|CASE-5678|MRN998877|PT-20260714/i, identifier);
 }
@@ -1022,4 +1101,4 @@ await assert.rejects(
   /长时间无数据/,
 );
 
-console.log(JSON.stringify({ cases: 107, failures: 0 }));
+console.log(JSON.stringify({ cases: 168, failures: 0 }));

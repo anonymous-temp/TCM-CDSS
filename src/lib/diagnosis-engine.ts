@@ -53,7 +53,7 @@ export function scrubPersistentPhiText(text: string, explicitNames: string[] = [
   // Redaction markers are terminal values. Protect them from the broad name/address recognizers so
   // saving, normalizing and saving the same case cannot consume a marker or change a signed hash.
   const protectedMarkers: string[] = [];
-  next = next.replace(/\[(?:姓名|手机号|电话|邮箱|证件号|地址|出生日期|精确时间|职业)[^\]]*(?:脱敏|泛化)[^\]]*\]/g, (marker) => {
+  next = next.replace(/\[(?:姓名|手机号|电话|邮箱|证件号|地址|出生日期|日期|精确时间|职业)[^\]]*(?:脱敏|泛化)[^\]]*\]/g, (marker) => {
     const token = `__CDSS_REDACTION_${protectedMarkers.length}__`;
     protectedMarkers.push(marker);
     return token;
@@ -61,7 +61,6 @@ export function scrubPersistentPhiText(text: string, explicitNames: string[] = [
 
   const scrubbed = scrubQuasiIdentifierText(next
     .replace(/(?:出生日期|出生年月日|出生年月|出生时间)\s*[:：]?\s*(?:19|20)\d{2}(?:[-/.年]\d{1,2})?(?:[-/.月]\d{1,2}日?)?/gi, "出生日期：[已脱敏]")
-    .replace(/\b(?:19|20)\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b/g, "[出生日期已脱敏]")
     .replace(/(?:姓名|患者|家属|联系人|陪同者|监护人)\s*[:：]?\s*[A-Z][A-Za-z'-]{1,30}(?:\s+[A-Z][A-Za-z'-]{1,30}){1,3}/g, (match) => {
       const label = match.match(/^(姓名|患者|家属|联系人|陪同者|监护人)/)?.[1] || "人员";
       return `${label}：[姓名已脱敏]`;

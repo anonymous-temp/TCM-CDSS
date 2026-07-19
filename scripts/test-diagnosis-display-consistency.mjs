@@ -680,4 +680,49 @@ const evidenceRefTrailingPunct = enrichEvidenceReferenceForDisplay({
 });
 assert.equal(evidenceRefTrailingPunct.doi, "10.1000/xyz123", "DOI extraction trims trailing CJK punctuation");
 
-console.log(JSON.stringify({ cases: 101, failures: 0 }));
+// ─── PHI quasi-identifier audit probes (2026-07-19), browser snapshot path ───
+// The snapshot scrubber (scrubPersistentPhiText) shares src/lib/phi-sanitizer.ts with model egress;
+// these lock the snapshot-side behavior, including idempotence across re-saves.
+for (const [phiProbe, phiForbidden, phiKept] of [
+  ["患者住在幸福路12号院3栋502，咳嗽3日", /幸福路|12号院|3栋|502/, /咳嗽3日/],
+  ["长期居于建设路7号楼2单元301室，近一周失眠", /建设路|7号楼|2单元|301/, /近一周失眠/],
+  ["患者家住朝阳区望京西园四区，近一周失眠", /望京西园|四区/, /近一周失眠/],
+  ["任职于市博物馆，近3日失眠", /市博物馆/, /近3日失眠/],
+  ["就诊时间：2026年7月18日14:35；主诉失眠", /2026年7月18日|14:35/, /主诉失眠/],
+  ["2026-07-18 14:35 突发胸痛", /2026-07-18|14:35/, /突发胸痛/],
+  ["2026-07-18 突发胸痛", /2026-07-18/, /突发胸痛/],
+]) {
+  const phiScrubbed = scrubPersistentPhiText(phiProbe);
+  assert.doesNotMatch(phiScrubbed, phiForbidden, `snapshot path must scrub quasi-identifiers: ${phiProbe}`);
+  assert.match(phiScrubbed, phiKept, `snapshot path must keep clinical text: ${phiProbe}`);
+  assert.equal(scrubPersistentPhiText(phiScrubbed), phiScrubbed, `snapshot scrubbing must be idempotent: ${phiProbe}`);
+}
+assert.equal(scrubPersistentPhiText("查体：腹部四区均可及压痛"), "查体：腹部四区均可及压痛", "腹部四区 is clinical text, not an address");
+assert.equal(scrubPersistentPhiText("双方就产业园区合作达成协议"), "双方就产业园区合作达成协议", "产业园区 without a residence anchor is not an address");
+assert.match(scrubPersistentPhiText("2026年3月发病，反复咳嗽"), /2026年3月/, "year-month onset text must stay intact on the snapshot path");
+const phiSnapshotFixture = {
+  id: "phi-snapshot-fixture",
+  phase: "done",
+  patient: { name: "张三", sex: "男", age: 42 },
+  chiefComplaint: "反复失眠三个月",
+  hisRecord: {
+    source: "manual",
+    encounterId: "phi",
+    rawText: "患者家住朝阳区望京西园四区，2026-07-18 14:35 突发胸痛后缓解。",
+    fields: { zhushu: "反复失眠三个月" },
+    collectedAt: new Date(0).toISOString(),
+    tongueImageUploaded: false,
+  },
+  conversation: [{ role: "user", content: "任职于市博物馆，近3日失眠" }],
+  completeness: { level: "C", redFlag: 0, infoGain: 1, managementImpact: 1, answerability: 1 },
+  questionRounds: 1,
+  maxQuestionRounds: 1,
+};
+const phiPersistedOnce = sanitizeCaseStateForBrowserPersistence(phiSnapshotFixture);
+const phiPersistedTwice = sanitizeCaseStateForBrowserPersistence(structuredClone(phiPersistedOnce));
+assert.doesNotMatch(phiPersistedOnce.hisRecord.rawText, /望京西园|2026-07-18|14:35/, "snapshot rawText must scrub the buried address and timestamp");
+assert.match(phiPersistedOnce.hisRecord.rawText, /突发胸痛/, "snapshot rawText must keep the clinical event");
+assert.doesNotMatch(phiPersistedOnce.conversation[0].content, /市博物馆/, "snapshot conversation must generalize the anchored employer");
+assert.deepEqual(phiPersistedTwice, phiPersistedOnce, "snapshot persistence must be hash-stable across re-saves");
+
+console.log(JSON.stringify({ cases: 129, failures: 0 }));

@@ -131,6 +131,7 @@ function runFrontendContractChecks() {
   const dockerignore = readFileSync(new URL("../.dockerignore", import.meta.url), "utf8");
   const composeFile = readFileSync(new URL("../docker-compose.yml", import.meta.url), "utf8");
   const riskPanel = sourceBetween(source, "function RiskSummaryPanel(", "function StageErrorCard(");
+  const stageErrorDisplayFn = sourceBetween(source, "export function stageErrorDisplay(", "function StageErrorCard(");
   const stageErrorCard = sourceBetween(source, "function StageErrorCard(", "function MarkdownBlock(");
   const aiPanel = sourceBetween(source, "function AiSupportPanel(", "// ─── Main page");
   const questionCard = sourceBetween(source, "function QuestionPromptCard(", "function QuestionAnswerComposer(");
@@ -209,7 +210,7 @@ function runFrontendContractChecks() {
   assert(aiPanel.includes("<TopProgress caseState={caseState} />"), "frontend: M01-M05 progress bar lives inside the TCM report panel", aiPanel.slice(0, 2200));
   assert(!sourceBetween(source, "</header>", "<div className=\"flex flex-1").includes("<TopProgress"), "frontend: M01-M05 progress bar is not globally mounted under the page header", sourceBetween(source, "</header>", "<div className=\"flex flex-1"));
   assert(!riskPanel.includes("prescription-status-card") && !riskPanel.includes("处方状态") && !riskPanel.includes("error-retry-card") && !riskPanel.includes("重试当前阶段"), "frontend: right summary panel does not own prescription status or retry controls", riskPanel.slice(0, 3600));
-  assert(stageErrorCard.includes('data-testid="stage-error-card"') && stageErrorCard.includes("重新生成候选方药") && aiPanel.includes("<StageErrorCard"), "frontend: stage errors render a clinical, contextual retry card in the report flow", `${stageErrorCard}\n${aiPanel.slice(0, 2600)}`);
+  assert(stageErrorCard.includes('data-testid="stage-error-card"') && stageErrorDisplayFn.includes('lastError.phase === "prescribe" ? "重新生成候选方药"') && stageErrorDisplayFn.includes("重新生成辨病辨证") && aiPanel.includes("<StageErrorCard"), "frontend: stage errors render a clinical, contextual retry card in the report flow", `${stageErrorDisplayFn}\n${stageErrorCard}\n${aiPanel.slice(0, 2600)}`);
   assert(source.includes("shouldShowDifferentiationProfile") && source.includes("Boolean(caseState.diagnosis)") && source.includes("bg-gray-300"), "frontend: differentiation sufficiency stays neutral/hidden before real M03 output", riskPanel.slice(0, 2600));
   assert(riskPanel.includes('data-testid="sufficiency-followup-card"') && riskPanel.includes("followupQuestionCard"), "frontend: follow-up questions render directly under differentiation sufficiency", riskPanel.slice(0, 4600));
   assert(aiPanel.includes("isFollowupOnlyState") && aiPanel.includes("caseState.phase === \"question\"") && aiPanel.includes("isDifferentiationLimitedTerminalCase") && aiPanel.includes("<QuestionPromptCard"), "frontend: question card stays visible in both M02 and information-insufficient terminal flow", aiPanel.slice(0, 3800));
