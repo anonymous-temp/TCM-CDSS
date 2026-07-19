@@ -100,8 +100,9 @@ function toCaseState(c) {
     pastHistory: "无特殊可记录。",
     allergyHistory: "否认药物食物过敏。",
     medicationHistory: "否认当前用药。",
-    tongue: "舌淡红,苔薄白",
-    pulse: "细平",
+    // hist 自带舌/脉描述时不再注入相反的默认舌脉,避免同一观察在结构化字段与现病史中互相矛盾
+    // ( reviewer 会把矛盾双侧都判为不可信证据,污染对该病例真实能力的评估)。
+    ...(/舌|苔|脉/.test(hist) ? {} : { tongue: "舌淡红,苔薄白", pulse: "细平" }),
     faceNote: "面色如常",
     completeness: COMPLETE,
     conversation: [],

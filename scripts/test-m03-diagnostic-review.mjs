@@ -10,6 +10,7 @@ import {
   m03DiagnosticRepairGuidanceCodes,
   m03DiagnosticReviewSemanticHash,
   m03GroundingHasCurrentPositiveFacts,
+  m03TcmRepairMode,
   matchesM03QuarantineShape,
   parseM03DiagnosticReview,
   preflightM03DiagnosticReview,
@@ -218,13 +219,14 @@ assert.ok(diagnoseGuardPassThrough instanceof Response);
 assert.equal(diagnoseGuardPassThrough.status, 500);
 
 // ─── (a) Active-case repair guidance: fact-anchored, non-quarantine ───
-// For cases WITH current positive findings beyond the chief complaint, the reviewer (情形二) must
-// reject the neutral quarantine shape, so the server repair policy must NOT inject quarantine
-// guidance there; it must demand a minimal fact-anchored syndrome while keeping the overreach bans.
+// For under-depth rejections on cases WITH current positive findings beyond the chief complaint,
+// the reviewer demands a fact-anchored syndrome, so the server repair policy must NOT inject
+// quarantine guidance there; it must demand a minimal fact-anchored syndrome while keeping the
+// overreach bans. Overreach rejections keep the quarantine policy even on active cases.
 const tcmReview = {
   status: "repair",
   issueCode: "tcm_reasoning_unsupported",
-  repairInstruction: "pathogenesis.chain[0] 使用了病历未支持的阴虚方向，请删除并按现有阳性事实降级。",
+  repairInstruction: "主证候只是主诉的机械改写，病机链未形成闭环，请围绕现有阳性事实重建。",
 };
 const activeGuidance = boundedM03DiagnosticRepairGuidance(tcmReview, { hasCurrentPositiveFacts: true });
 assert.doesNotMatch(activeGuidance, /语义隔离模式/);
@@ -237,6 +239,54 @@ const sparseGuidance = boundedM03DiagnosticRepairGuidance(tcmReview, { hasCurren
 assert.match(sparseGuidance, /语义隔离模式/);
 assert.match(sparseGuidance, /功能失调候/);
 assert.equal(boundedM03DiagnosticRepairGuidance(tcmReview), sparseGuidance);
+
+// ─── Depth-calibrated repair-mode selection (m03TcmRepairMode) ───
+// Overreach rejections take the quarantine policy even on active cases: unsupported attribution
+// must be deleted, not re-attempted. Under-depth rejections take fact-anchored only with facts.
+const overreachReview = {
+  status: "repair",
+  issueCode: "tcm_reasoning_unsupported",
+  repairInstruction: "病机链引入肝气郁结超出阳性事实，舌脉不支持气滞，不推荐命名方。",
+};
+assert.equal(m03TcmRepairMode(overreachReview, true), "quarantine");
+assert.match(boundedM03DiagnosticRepairGuidance(overreachReview, { hasCurrentPositiveFacts: true }), /语义隔离模式/);
+assert.equal(m03TcmRepairMode(tcmReview, true), "fact_anchored");
+assert.equal(m03TcmRepairMode(tcmReview, false), "quarantine");
+assert.equal(m03TcmRepairMode({ status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: "请删除没有依据的内容。" }, true), "fact_anchored");
+assert.equal(m03TcmRepairMode({ status: "repair", issueCode: "tcm_reasoning_unsupported" }, false), "quarantine");
+assert.equal(m03TcmRepairMode({ status: "repair", issueCode: "supporting_fact_mismatch", repairInstruction: "x" }, true), "quarantine");
+// The reviewer prompt must calibrate depth to what the facts support (情形二 depth rule).
+assert.match(reviewPrompt, /要求的深度以事实实际支持的层级为限/);
+assert.match(reviewPrompt, /不足以支持任何具体病位病性归属/);
+assert.match(reviewPrompt, /绝不能要求超出事实支持的脏腑、寒热虚实或气血津液归属/);
+// Contradictory records of the same observation are unreliable in BOTH directions: they support
+// no attribution and are not fabrication grounds; depth is judged from the consistent remainder.
+assert.match(reviewPrompt, /直接矛盾的多条记录/);
+assert.match(reviewPrompt, /按不可靠证据处理/);
+assert.match(reviewPrompt, /不能据此认定候选‘编造事实’/);
+assert.match(reviewPrompt, /辨证深度只由其余一致的阳性事实判定/);
+assert.match(reviewPrompt, /绝不能由你或候选挑选某一条作为事实采信/);
+// Verdict discipline: an acceptable candidate must be accepted, never repair-with-accept-prose.
+assert.match(reviewPrompt, /绝不允许用 repair 表达‘应接受、请重新检查’/);
+// supportingFacts complaints must use supporting_fact_mismatch, not tcm_reasoning_unsupported.
+assert.match(reviewPrompt, /只能使用 supporting_fact_mismatch，不得并入 tcm_reasoning_unsupported/);
+// Guidance-code hygiene: "病机链非空" must not produce a chain_not_closed code.
+assert.deepEqual(
+  m03DiagnosticRepairGuidanceCodes({
+    status: "repair",
+    issueCode: "tcm_reasoning_unsupported",
+    repairInstruction: "病机链非空，故不触发硬性完整性拒绝；supportingFacts 中引用了矛盾舌脉，需删除。",
+  }),
+  [],
+);
+assert.deepEqual(
+  m03DiagnosticRepairGuidanceCodes({
+    status: "repair",
+    issueCode: "tcm_reasoning_unsupported",
+    repairInstruction: "病机链只是重复主诉，未形成闭环。",
+  }),
+  ["symptom_restatement", "chain_not_closed"],
+);
 
 // ─── 情形一-only quarantine injection: deterministic sparse/active signal ───
 assert.equal(m03GroundingHasCurrentPositiveFacts(""), false);
@@ -398,4 +448,4 @@ assert.deepEqual(
   [],
 );
 
-console.log(JSON.stringify({ cases: 85, failures: 0 }));
+console.log(JSON.stringify({ cases: 105, failures: 0 }));

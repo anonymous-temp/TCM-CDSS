@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.BASE_URL || "http://localhost:3000";
+const TOKEN = process.env.CDSS_API_TOKEN || process.env.TCM_CDSS_API_TOKEN || "";
 const OUT = resolve(__dirname, "out");
 mkdirSync(OUT, { recursive: true });
 
@@ -23,7 +24,7 @@ async function streamStage(path, caseState, { timeoutMs = 240_000 } = {}) {
   try {
     const res = await fetch(`${BASE}${path}`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}) },
       body: JSON.stringify({ caseState }),
       signal: ctrl.signal,
     });

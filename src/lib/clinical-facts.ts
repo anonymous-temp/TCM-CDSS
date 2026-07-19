@@ -399,11 +399,22 @@ const DIRECT_NEGATION_BEFORE_QUOTE = /(?:否认|不是(?!很|太|特别|十分|�
 const NON_NEGATING_MODIFIER_BEFORE_QUOTE = /(?:无(?:明显|明确)?(?:诱因|原因|诱发因素)|无(?:痛性|菌性|创性|症状性|脉性|意识性))\s*$/;
 const DIRECT_NEGATION_AFTER_QUOTE = /^\s*(?:已排除|已除外|未见(?:明显)?异常|未发现(?:明显)?异常|不支持|不考虑|不存在|阴性)/;
 
+// Temporal/resolution markers that can ground a historical_or_stable_only quote on their own.
+const ENCOUNTER_TEMPORAL_HISTORICAL_MARKER = /(?:既往|曾经|此前|过去|\d+\s*(?:天|周|月|年)前|已(?:治愈|痊愈|缓解|消失|恢复)|目前(?:已)?无|当前(?:已)?无|现(?:已)?无|无新发|未再发|恢复期|后遗)/;
+// Stability markers （目前稳定/当前稳定/稳定期） also match DISEASE-CONTROL phrasing ("血压控制
+// 稳定", "规律服药，病情平稳"), which describes the state of an underlying disease, not the
+// resolution of the visit target. They can ground historical_or_stable_only only when the quote
+// is not framed as disease control/medication management.
+const ENCOUNTER_STABILITY_MARKER = /目前稳定|当前稳定|稳定期/;
+const ENCOUNTER_DISEASE_CONTROL_FRAME = /控制|达标|平稳|规律服药|规律用药|服药|用药|治疗方案|血压|血糖|血脂/;
+
 /** 护栏 2:原文 grounding + positive 本地极性复核。 */
 export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): ClinicalFacts {
-  const encounterScope = facts.encounterScope && sourceText.includes(facts.encounterScope.quote) && (
+  const scopeQuote = facts.encounterScope?.quote || "";
+  const encounterScope = facts.encounterScope && sourceText.includes(scopeQuote) && (
     facts.encounterScope.status !== "historical_or_stable_only" ||
-    /(?:既往|曾经|此前|过去|\d+\s*(?:天|周|月|年)前|已(?:治愈|痊愈|缓解|消失|恢复)|目前(?:已)?无|当前(?:已)?无|现(?:已)?无|无新发|未再发|目前稳定|当前稳定|稳定期|恢复期|后遗)/.test(facts.encounterScope.quote)
+    ENCOUNTER_TEMPORAL_HISTORICAL_MARKER.test(scopeQuote) ||
+    (ENCOUNTER_STABILITY_MARKER.test(scopeQuote) && !ENCOUNTER_DISEASE_CONTROL_FRAME.test(scopeQuote))
   )
     ? facts.encounterScope
     : undefined;
@@ -616,6 +627,7 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     Object.entries(TRIAGE_BASIS).map(([key, label]) => `  \"${key}\"（${label}）`).join("\n"),
     "硬规则：",
     "- encounterScope 判断本次就诊是否有可作为辨证/治疗目标的当前阳性症状、功能问题或异常指标。active_current_target=有明确当前目标；historical_or_stable_only=只有既往已治愈/已缓解事件、当前无症状，或无新发变化的稳定背景/后遗状态且没有本次活动性目标；unclear=原文不足以判断。既往疾病名称本身、正常舌脉和正常生命体征不能单独成为当前目标。",
+    "- 当前治疗/医疗处置请求或当前不适症状一律判 active_current_target：要求开药、加用中药、调理、治疗、续药、调整方案、咨询用药等当前请求，以及头晕、疼痛、乏力、胀满、口干等任何当前不适主诉，即使其背后的原发病被描述为控制稳定、达标或规律服药，也必须选 active_current_target。‘控制稳定、血压达标、病情平稳’描述的是疾病状态而不是本次就诊目标，绝不能单独作为 historical_or_stable_only 的 grounding quote；historical_or_stable_only 的 quote 中不得包含当前症状或当前治疗请求。",
     "- encounterScope.quote 必须是能单独证明该状态的最短连续原文逐字片段。若同一病历同时存在新的当前阳性问题，即使另一个既往问题已稳定，也必须选 active_current_target 并引用当前阳性问题；不得被‘无某一红旗’误导为全局无症状。",
     "- subject 必须说明该事实属于谁：患者本人用 patient；明确是家属、朋友、同事、室友、其他患者或被引用/教学病例用 other；文本无法判断主体时用 uncertain。只有 patient 能改变当前患者分诊，不能把陪诊者、其他患者、引用病例或宣教文本的急症算到患者身上。subject=uncertain 必须使用 urgency=clarify 与 triageBasis=clarification_needed，留待确认主体。",
     "- quote 必须是【临床文本】中**逐字出现**的片段(用于核验),不得改写、不得翻译、不得凭空生成。",
@@ -657,7 +669,7 @@ export function buildClinicalFactsReviewPrompt(text: string, initialFacts: Clini
     buildClinicalFactsExtractionPrompt(text),
     "",
     "【独立复核】下面是首轮结构化初判，只能作为待质疑材料，不能直接照抄。请重新阅读【临床文本】，重点复核：当前/既往、否定范围、症状组合、严重度、进展轨迹、是否真正达到即时急诊或优先评估条件。主动拒绝“只因出现症状名就纳入红旗”的过度分诊；同时，缺少伴随症状、生命体征或检查结果只是未知，不能作为降低急症等级的阴性证据。当前时间敏感事件不能被既往、昨日、上周或其他发作的正常检查清除。",
-    "输出 JSON 格式：{\"redFlags\":[最终完整事实],\"encounterScope\":{\"status\":\"active_current_target|historical_or_stable_only|unclear\",\"quote\":\"原文逐字片段\"},\"reviews\":[{\"findingId\":\"rf-1\",\"decision\":\"confirm|modify|reject\",\"dispositionChangeEvidence\":{\"basis\":\"current_same_episode_clearance|polarity_correction|subject_correction\",\"quote\":\"支持降低等级的原文逐字片段\"}}]}。独立重判 encounterScope，不能照抄首轮；如果有任何新的当前阳性问题，不得判 historical_or_stable_only。",
+    "输出 JSON 格式：{\"redFlags\":[最终完整事实],\"encounterScope\":{\"status\":\"active_current_target|historical_or_stable_only|unclear\",\"quote\":\"原文逐字片段\"},\"reviews\":[{\"findingId\":\"rf-1\",\"decision\":\"confirm|modify|reject\",\"dispositionChangeEvidence\":{\"basis\":\"current_same_episode_clearance|polarity_correction|subject_correction\",\"quote\":\"支持降低等级的原文逐字片段\"}}]}。独立重判 encounterScope，不能照抄首轮；如果有任何新的当前阳性问题，不得判 historical_or_stable_only。当前治疗/处置请求（要求开药、加用中药、调理、治疗、续药等）或当前不适主诉同样意味着 active_current_target；‘控制稳定、血压达标、病情平稳’只描述疾病状态，不能单独支撑 historical_or_stable_only。",
     "首轮每个 positive/possible finding 都必须被逐项处理：在 reviews 中显式写 findingId 和 decision，不能靠省略删除。",
     "confirm/modify 时，在对应的最终 redFlags 条目内额外写入同一 findingId；可以依原文修正 category/subject/status/urgency/triageBasis/quote。reject 时不保留该条。首轮遗漏的新事实不写 findingId。",
     "如果 reject，或把 emergency/urgent 降到更低等级，必须填写 dispositionChangeEvidence：只能引用本次当前同一事件已缓解/已由当次临床评估排除的事实，或能证明首轮极性/主体理解错误的逐字原文。陈旧检查、既往评估、未记录伴随症状、一般性的‘情况尚可’都不能作为降级证据。confirm 或升级时不要填写该字段。",

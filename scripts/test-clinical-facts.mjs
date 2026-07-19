@@ -107,6 +107,58 @@ ok("就诊范围: 慢性疾病稳定但本次明确要求治疗必须判为当�
   stableChronicActiveAskScope?.encounterScope?.status === "active_current_target" &&
   stableChronicActiveAskScope.encounterScope.reviewAgreement === "agreed");
 
+// —— 疾病控制措辞不能单独支撑 historical_or_stable_only 落地（R3 活体假阳性类别）——
+ok("就诊范围: 疾病控制+规律服药的引用不能落地为纯既往范围", (() => {
+  const parsed = parseClinicalFacts(JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "historical_or_stable_only", quote: "高血压8年，规律服氨氯地平，血压控制稳定" },
+  }));
+  return parsed != null && groundClinicalFacts(
+    parsed,
+    "高血压8年，规律服氨氯地平，血压控制稳定；近2月晨起头晕头胀、项背强，本次明确要求加用中药。",
+  ).encounterScope == null;
+})());
+ok("就诊范围: ‘血压目前稳定’只描述疾病状态，不能作为纯既往范围的落地引用", (() => {
+  const parsed = parseClinicalFacts(JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "historical_or_stable_only", quote: "血压目前稳定" },
+  }));
+  return parsed != null && groundClinicalFacts(
+    parsed,
+    "高血压8年，血压目前稳定；近2月头晕头胀，要求中药调理。",
+  ).encounterScope == null;
+})());
+ok("就诊范围: 不含疾病控制框架的稳定性引用仍可落地为纯既往范围", (() => {
+  const parsed = parseClinicalFacts(JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "historical_or_stable_only", quote: "目前稳定" },
+  }));
+  const grounded = parsed && groundClinicalFacts(parsed, "慢性胃炎5年，目前稳定，无新发不适。");
+  return grounded?.encounterScope?.status === "historical_or_stable_only";
+})());
+const stableChronicTreatmentRequestScope = await extractClinicalFacts(
+  "高血压8年，规律服氨氯地平，血压控制稳定；近2月晨起头晕头胀、项背强，本次明确要求加用中药。舌红苔薄黄，脉弦。",
+  async () => JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "historical_or_stable_only", quote: "高血压8年，规律服氨氯地平，血压控制稳定" },
+  }),
+  undefined,
+  { independentReview: true },
+);
+ok("就诊范围: 抽取与复核同时误判时，确定性落地仍拒绝疾病控制引用并放行当前治疗目标",
+  stableChronicTreatmentRequestScope != null && stableChronicTreatmentRequestScope.encounterScope == null);
+const stableMetabolicTreatmentRequestScope = await extractClinicalFacts(
+  "2型糖尿病6年，血糖控制可；近1月口干明显、乏力，要求干预调理。舌红少津。",
+  async () => JSON.stringify({
+    redFlags: [],
+    encounterScope: { status: "historical_or_stable_only", quote: "2型糖尿病6年，血糖控制可" },
+  }),
+  undefined,
+  { independentReview: true },
+);
+ok("就诊范围: 血糖控制可+当前症状与干预请求同样不得落地为纯既往范围",
+  stableMetabolicTreatmentRequestScope != null && stableMetabolicTreatmentRequestScope.encounterScope == null);
+
 let negationScopeCall = 0;
 const negationWithOtherPositiveScope = await extractClinicalFacts(
   "高血压病史10年目前稳定；否认胸痛，但近3天持续咳嗽咳痰。",
@@ -115,7 +167,9 @@ const negationWithOtherPositiveScope = await extractClinicalFacts(
     return JSON.stringify({
       redFlags: [],
       encounterScope: negationScopeCall === 1
-        ? { status: "historical_or_stable_only", quote: "高血压病史10年目前稳定" }
+        // 落地契约收紧后，带疾病控制框架的稳定性引用（如“高血压…目前稳定”）不再单独落地；
+        // 这里用无控制框架的“目前稳定”继续覆盖“分歧时当前阳性优先”的合并保护路径。
+        ? { status: "historical_or_stable_only", quote: "目前稳定" }
         : { status: "active_current_target", quote: "近3天持续咳嗽咳痰" },
     });
   },

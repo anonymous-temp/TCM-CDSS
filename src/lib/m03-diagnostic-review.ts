@@ -138,9 +138,10 @@ export function buildM03DiagnosticReviewPrompt(
     "supportingFacts 只保留与当前主诊断直接相关的现代医学患者事实：不得混入舌苔脉象、证候病机等中医推理，不得用年龄性别或一组正常生命体征充当诊断支持，也不得堆入与本次主诉无关的既往病名。",
     "严格区分当前问题与历史背景。既往稳定疾病、后遗症、已缓解事件或当前明确无新发症状，只能作为背景或鉴别边界；除非病例有当前活动性变化，不得把它们升级成本次 primary、主证候锚点或主要病机治疗目标。",
     "核对中医主证、病位病性、病机链和治法是否由阳性患者事实支撑。不能把未询问、未知、条件句或待鉴别方向当作已经存在的证候锚点。",
-    "同时核对辨证是否形成了足以指导后续组方的临床闭环，判定尺度必须与患者事实边界中当前阳性事实的规模一致，按两种情形分别处理，不得混用。情形一（稀疏病例）：患者事实边界中除主诉外没有其他当前阳性发现时，有界的中性功能性病机形态是可以接受的安全降级——主证候为‘症状层中医病名+功能失调候’式的低置信度工作表述，病机链节点逐字锚定患者原文、节点机制只写该原文直接对应的功能异常（如某项调节失常、某项功能受扰），不额外引入脏腑、寒热虚实或气血津液结论，病位病性 items 为空且 resolution=unresolved 并附原因，不推荐命名方；此时不得要求升级为更具体证型，也不能反过来要求补出没有依据的阴虚、阳虚、寒热、痰湿或血瘀。情形二（主诉之外仍有当前阳性事实）：患者事实边界中除主诉外还存在其他当前阳性发现（如舌脉、伴随症状、异常体征或检验结果）时，主证候不得只是主诉、中医病名或‘某部位功能失调’的机械改写，必须形成由这些阳性事实锚定的证候结论；此时对中性降级形态一律返回 tcm_reasoning_unsupported，并要求围绕既有阳性事实重做低置信度、最小且中性的非空闭环，但不得要求补造未出现的事实。无论哪种情形：总体病机和至少一个患者事实锚定的病机节点不得留空，空链必须返回 tcm_reasoning_unsupported，并要求按上述边界重做非空闭环，不得补造舌脉或阴性史；任何超出当前阳性患者事实的结论都必须拒绝。",
+    "事实边界中同一观察项（舌象、脉象、面色、体征或检验）出现直接矛盾的多条记录时（如不同段落分别记录舌红与舌淡红、脉弦与脉细平），该观察项一律按不可靠证据处理：它既不能支持任何具体病位、病性或证型归属，也不能据此认定候选‘编造事实’。病机链、supportingFacts 与病位病性依据均不得引用矛盾观察项的任一条作为锚点；候选引用了其中一条时，应要求删除该引用并按其余一致事实降级，按无依据归属处理而不按编造处理。辨证深度只由其余一致的阳性事实判定：去掉矛盾观察项后若事实不再支持具体归属，情形一的有界中性形态可以接受，不得再以‘仍存在阳性舌脉’为由要求具体证型。矛盾本身必须要求候选写入 uncertainties 或 resolutionReason，绝不能由你或候选挑选某一条作为事实采信。",
+    "同时核对辨证是否形成了足以指导后续组方的临床闭环，判定深度只能与患者事实支持的层级一致，按两种情形分别处理，不得混用。情形一（稀疏病例）：患者事实边界中除主诉外没有其他当前阳性发现时，有界的中性功能性病机形态是可以接受的安全降级——主证候为‘症状层中医病名+功能失调候’式的低置信度工作表述，病机链节点逐字锚定患者原文、节点机制只写该原文直接对应的功能异常（如某项调节失常、某项功能受扰），不额外引入脏腑、寒热虚实或气血津液结论，病位病性 items 为空且 resolution=unresolved 并附原因，不推荐命名方；此时不得要求升级为更具体证型，也不能反过来要求补出没有依据的阴虚、阳虚、寒热、痰湿或血瘀。情形二（主诉之外仍有当前阳性事实）：患者事实边界中除主诉外还存在其他当前阳性发现（如舌脉、伴随症状、异常体征或检验结果）时，主证候不得只是主诉、中医病名或‘某部位功能失调’的机械改写，必须形成由这些阳性事实锚定的证候结论；但要求的深度以事实实际支持的层级为限——现有事实能够支持具体病位、病性或证型归属时，不得退回中性降级形态，此时对中性降级形态一律返回 tcm_reasoning_unsupported，并要求围绕既有阳性事实重做低置信度、最小且中性的非空闭环；现有事实虽超出主诉、但不足以支持任何具体病位病性归属（如舌脉大致正常、仅提示功能层面异常）时，情形一的有界中性形态同样可以接受，绝不能要求超出事实支持的脏腑、寒热虚实或气血津液归属来显得具体。无论哪种情形：任何超出当前阳性患者事实具体支持的归属、典型证型或命名方都必须拒绝；总体病机和至少一个患者事实锚定的病机节点不得留空，空链必须返回 tcm_reasoning_unsupported，并要求按上述边界重做非空闭环，不得补造舌脉或阴性史。",
     "核对 recommendedFormulaNames 中每个命名方的核心适应证是否在阳性患者事实中成立。某命名方只在 uncertainties、假设句、‘若有则’或建议补问中出现，或者其定义性症状明确缺失时，必须返回 formula_indication_mismatch；此时应让生成模型改选有方证依据的命名方，或退回本例辨证组方，不能勉强套用经方名。",
-    "只输出一个 JSON 对象，不要代码块或解释。格式：accepted 时 {\"status\":\"accepted\",\"issueCode\":\"none\"}；需修复时 status=repair，issueCode 只能是 criteria_not_met、diagnostic_label_overstated、supporting_fact_mismatch、tcm_reasoning_unsupported、formula_indication_mismatch 之一，并增加 repairInstruction。一次只返回最关键的问题。",
+    "只输出一个 JSON 对象，不要代码块或解释。格式：accepted 时 {\"status\":\"accepted\",\"issueCode\":\"none\"}；需修复时 status=repair，issueCode 只能是 criteria_not_met、diagnostic_label_overstated、supporting_fact_mismatch、tcm_reasoning_unsupported、formula_indication_mismatch 之一，并增加 repairInstruction。一次只返回最关键的问题。按上述规则可以接受的候选必须输出 accepted，绝不允许用 repair 表达‘应接受、请重新检查’；repair 只用于确实需要生成模型修改的候选。supportingFacts 的内容问题（混入舌苔脉象等中医推理、非患者事实、与主诊断无关）只能使用 supporting_fact_mismatch，不得并入 tcm_reasoning_unsupported；westernDiagnosis 的标签或依据问题也不得使用 tcm_reasoning_unsupported。",
     "repairInstruction 限 300 字：必须明确指出需改的结构路径、当前结论为什么超出阳性患者事实、应删除或降级的推理方向；不得给药味剂量，不得新增患者事实，不得要求绕过结构/事实/证据合同。它只是给生成模型的定向复核意见，最终结果仍会重新校验和复核。",
     `患者事实边界：${clinicalContext.slice(0, 12_000)}`,
     evidenceContext.trim()
@@ -158,18 +159,19 @@ export function buildM03DiagnosticReviewPrompt(
  * narrower western/formula guidance is forwarded verbatim.
  *
  * The quarantine shape below is the same bounded neutral shape the reviewer prompt documents as
- * acceptable for genuinely sparse cases (no current positive findings beyond the chief complaint):
+ * acceptable whenever the available facts cannot support deeper attribution (genuinely sparse
+ * cases, and active cases whose positive findings are too shallow for any 病位/病性 归属):
  * symptom-level "病名+功能失调候" primary syndrome, verbatim-anchored neutral chain nodes,
  * unresolved/empty location and nature, and no named formulas. Reviewer and repair policy must
  * stay aligned on this single shape so the same candidate cannot flip accepted/rejected across
  * runs; matchesM03QuarantineShape is the code-level mirror used by the orchestrator.
  *
- * When the case DOES have current positive findings beyond the chief complaint
- * (hasCurrentPositiveFacts), the reviewer (情形二) must reject the neutral quarantine shape, so
- * injecting quarantine guidance would guarantee another rejection. The policy therefore switches
- * to a fact-anchored minimal-syndrome mode: the same overreach bans stay in force for unsupported
- * concepts, but the generator is told to anchor the syndrome to the available positive facts
- * instead of degrading to the neutral shape.
+ * The policy mode is chosen by m03TcmRepairMode from the review's PHI-safe guidance codes:
+ * overreach rejections take this quarantine mode even on active cases (unsupported attribution
+ * must be deleted, not re-attempted); under-depth rejections on cases with current positive
+ * facts take the fact-anchored minimal-syndrome mode (the same overreach bans stay in force for
+ * unsupported concepts, but the generator is told to anchor the syndrome to the available
+ * positive facts to the depth they support).
  */
 export function boundedM03DiagnosticRepairGuidance(
   review: M03DiagnosticReview,
@@ -184,7 +186,12 @@ export function boundedM03DiagnosticRepairGuidance(
     "寒、热、火、痰、湿、瘀、食积、水饮及对应祛邪治法",
     "未经患者事实直接支持的脏腑、经络、气血津液、营卫、卫气、心神归属",
   ];
-  if (opts.hasCurrentPositiveFacts) {
+  // The mode is selected from the review's PHI-safe guidance codes (overreach vs under-depth),
+  // not from the context detector alone — see m03TcmRepairMode. An overreach rejection on an
+  // active case still gets the quarantine policy: the unsupported attribution must be deleted,
+  // not re-attempted. An under-depth rejection on a case with current positive facts gets the
+  // fact-anchored policy instead of the neutral quarantine it would otherwise loop on.
+  if (m03TcmRepairMode(review, Boolean(opts.hasCurrentPositiveFacts)) === "fact_anchored") {
     return [
       `独立复核的受控定位标签：${codes.length > 0 ? codes.join(",") : "generic_tcm_overreach"}。这些标签不是患者事实。`,
       `硬性删减：仅从主证候、病位病性、总体病机、病机链、总治法和方义方向中删除未获本例阳性事实直接支持的以下概念及同义改写：${prohibitedConcepts.join("；")}。有直接原文依据（舌脉、伴随症状、体征、检验）的结论可以保留，但保持低置信度并逐字标注依据；不得删除患者事实本身。`,
@@ -216,7 +223,7 @@ const M03_REPAIR_GUIDANCE_CODE_RULES: Array<[string, RegExp]> = [
   ["symptom_restatement", /(?:重复|复述|改写)[^。；]{0,16}(?:主诉|症状|患者事实)|只是[^。；]{0,16}(?:主诉|症状)/],
   ["location_unsupported", /病位[^。；]{0,24}(?:无|缺乏|不足|超出|不能|不得)/],
   ["nature_unsupported", /病性[^。；]{0,24}(?:无|缺乏|不足|超出|不能|不得)/],
-  ["chain_not_closed", /(?:病机链|pathogenesis\.chain|chain)[^。；]{0,28}(?:空|未|无|不足|缺乏|重复|不完整|未形成)/],
+  ["chain_not_closed", /(?:病机链|pathogenesis\.chain|chain)[^。；]{0,28}(?:(?<!非)空|未|无|不足|缺乏|重复|不完整|未形成)/],
   ["yin_deficiency_overreach", /阴虚|津亏|滋阴|虚火/],
   ["yang_cold_overreach", /阳虚|温阳|寒证|散寒|畏寒|肢冷/],
   ["heat_overreach", /热证|实热|清热|泻火|火热/],
@@ -316,6 +323,44 @@ export function m03GroundingHasCurrentPositiveFacts(clinicalContext: string): bo
     if (!chief) return true;
     return !normalized.includes(chief) && !chief.includes(normalized);
   });
+}
+
+const M03_REPAIR_UNDER_DEPTH_CODES = new Set([
+  "symptom_restatement",
+  "chain_not_closed",
+  "empty_or_unresolved",
+]);
+const M03_REPAIR_OVERREACH_CODES = new Set([
+  "location_unsupported",
+  "nature_unsupported",
+  "named_formula_overreach",
+  ...M03_QUARANTINE_OVERREACH_CODES,
+]);
+
+/**
+ * Selects which server-owned repair policy a tcm_reasoning_unsupported rejection gets. The
+ * reviewer's free-text instruction is untrusted, but its PHI-safe guidance codes classify the
+ * rejection direction: an overreach rejection (unsupported location/nature/concept/formula
+ * attribution) always takes the quarantine policy — the unsupported attribution must be deleted,
+ * not re-attempted, even on an active case. An under-depth rejection (the syndrome merely
+ * restates symptoms or the chain is not closed) takes the fact-anchored policy only when the
+ * case actually has current positive facts to anchor to. The grounding-context detector breaks
+ * ties. This mirrors the depth-calibrated reviewer rule: depth is demanded only to the level the
+ * facts support, so reviewer and repair policy stop pulling the candidate in opposite directions.
+ */
+export function m03TcmRepairMode(
+  review: M03DiagnosticReview,
+  hasCurrentPositiveFacts: boolean,
+): "quarantine" | "fact_anchored" {
+  if (review.status !== "repair" || review.issueCode !== "tcm_reasoning_unsupported") return "quarantine";
+  const codes = new Set(m03DiagnosticRepairGuidanceCodes(review));
+  for (const code of codes) {
+    if (M03_REPAIR_OVERREACH_CODES.has(code)) return "quarantine";
+  }
+  for (const code of codes) {
+    if (M03_REPAIR_UNDER_DEPTH_CODES.has(code)) return hasCurrentPositiveFacts ? "fact_anchored" : "quarantine";
+  }
+  return hasCurrentPositiveFacts ? "fact_anchored" : "quarantine";
 }
 
 export function parseM03DiagnosticReview(content: string): M03DiagnosticReview {
