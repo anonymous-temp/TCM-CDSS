@@ -1,0 +1,227 @@
+import { createHash } from "node:crypto";
+
+import { parseClinicalReviewJson } from "./clinical-review-contract";
+import { m03SemanticIssue } from "./diagnosis-stage-contract";
+
+export type M03DiagnosticReview =
+  | { status: "accepted"; issueCode: "none" }
+  | { status: "repair"; issueCode: M03DiagnosticRepairIssue; repairInstruction?: string }
+  | { status: "unavailable"; issueCode: "review_unavailable" };
+
+export type M03DiagnosticRepairIssue =
+  | "criteria_not_met"
+  | "diagnostic_label_overstated"
+  | "supporting_fact_mismatch"
+  | "tcm_reasoning_unsupported"
+  | "formula_indication_mismatch";
+
+const REPAIR_ISSUES = new Set([
+  "criteria_not_met",
+  "diagnostic_label_overstated",
+  "supporting_fact_mismatch",
+  "tcm_reasoning_unsupported",
+  "formula_indication_mismatch",
+]);
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function withoutEvidence(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(withoutEvidence);
+  const source = record(value);
+  if (!source) return value;
+  return Object.fromEntries(Object.entries(source)
+    .filter(([key, item]) => key !== "evidence" && item !== undefined)
+    .map(([key, item]) => [key, withoutEvidence(item)]));
+}
+
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  const source = record(value);
+  if (!source) return value;
+  return Object.fromEntries(Object.entries(source)
+    .filter(([, item]) => item !== undefined)
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+    .map(([key, item]) => [key, canonicalize(item)]));
+}
+
+/**
+ * Project only the diagnostic decisions owned by the independent M03 reviewer. Evidence
+ * provenance, signatures, display synchronization, treatment projects and workflow metadata are
+ * governed elsewhere and must not turn one accepted diagnosis into a second stochastic review.
+ */
+export function buildM03DiagnosticReviewPayload(reasoning: unknown): Record<string, unknown> {
+  const source = record(reasoning) || {};
+  return withoutEvidence({
+    overview: source.overview,
+    westernDiagnosis: source.westernDiagnosis,
+    pathogenesis: source.pathogenesis,
+    therapy: source.therapy,
+  }) as Record<string, unknown>;
+}
+
+export function m03DiagnosticReviewSemanticHash(reasoning: unknown): `sha256:${string}` {
+  return `sha256:${createHash("sha256")
+    .update(JSON.stringify(canonicalize(buildM03DiagnosticReviewPayload(reasoning))))
+    .digest("hex")}`;
+}
+
+export function canRebindM03DiagnosticReview(reviewedReasoning: unknown, finalReasoning: unknown): boolean {
+  return m03DiagnosticReviewSemanticHash(reviewedReasoning) === m03DiagnosticReviewSemanticHash(finalReasoning);
+}
+
+export function m03DiagnosticReviewDiffPaths(reviewedReasoning: unknown, finalReasoning: unknown): string[] {
+  const before = canonicalize(buildM03DiagnosticReviewPayload(reviewedReasoning));
+  const after = canonicalize(buildM03DiagnosticReviewPayload(finalReasoning));
+  const paths: string[] = [];
+  const visit = (left: unknown, right: unknown, path: string) => {
+    if (paths.length >= 40 || Object.is(left, right)) return;
+    if (Array.isArray(left) && Array.isArray(right)) {
+      if (left.length !== right.length) paths.push(`${path}.length`);
+      for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+        visit(left[index], right[index], `${path}[${index}]`);
+      }
+      return;
+    }
+    if (record(left) && record(right)) {
+      const leftRecord = left as Record<string, unknown>;
+      const rightRecord = right as Record<string, unknown>;
+      for (const key of [...new Set([...Object.keys(leftRecord), ...Object.keys(rightRecord)])].sort()) {
+        if (!(key in leftRecord) || !(key in rightRecord)) paths.push(`${path}.${key}`);
+        else visit(leftRecord[key], rightRecord[key], `${path}.${key}`);
+      }
+      return;
+    }
+    paths.push(path);
+  };
+  visit(before, after, "m03Review");
+  return [...new Set(paths)];
+}
+
+/**
+ * Structural/fact invariants are deterministic reviewer preconditions, not stochastic clinical
+ * judgements. Keeping this check in the review module lets health probes and live calibrations test
+ * the same composite reviewer boundary used before an M03 result can be signed.
+ */
+export function preflightM03DiagnosticReview(
+  reasoning: unknown,
+  clinicalContext = "",
+): M03DiagnosticReview | undefined {
+  const issue = m03SemanticIssue(reasoning as Parameters<typeof m03SemanticIssue>[0], clinicalContext);
+  if (!issue) return undefined;
+  const issueCode: M03DiagnosticRepairIssue = issue.startsWith("western_")
+    ? "supporting_fact_mismatch"
+    : "tcm_reasoning_unsupported";
+  return {
+    status: "repair",
+    issueCode,
+    repairInstruction: `deterministic_contract:${issue}`,
+  };
+}
+
+export function buildM03DiagnosticReviewPrompt(
+  clinicalContext: string,
+  reasoning: unknown,
+  evidenceContext = "",
+): string {
+  const payload = buildM03DiagnosticReviewPayload(reasoning);
+  return [
+    "你是独立的中西医临床推理复核器，不负责重新生成整份报告。核对 westernDiagnosis.primary、中医证候与病机治法、以及候选经方方向是否被当前病例事实充分支持。",
+    "先执行硬性完整性检查：pathogenesis.chain 为空，或主证候、总体病机、总治法以‘待辨、待定、资料不足、无法判断’等占位内容代替临床结论时，一律返回 tcm_reasoning_unsupported，绝不能 accepted。修复方向必须是基于已有阳性事实形成低置信度、最小且中性的非空闭环；不得要求清空病机链，也不得为了补全而推断阴虚、阳虚、寒热、痰湿、血瘀等未获事实支持的证型。病位或病性确实无法由现有事实归属时，允许 items 为空，但必须使用 resolution=unresolved 并说明原因；绝不能标记 bounded/resolved 后又留空。",
+    "对于有正式诊断标准的疾病，逐项核对病程阈值、必备核心症状、必要排除条件和已有客观依据。缺少任何必备条件时必须返回 repair；不能因为疾病‘看起来像’就接受。",
+    "症状性工作诊断只要准确反映主诉和病程即可接受；证据不足的疾病应放入 differentials，不能占用 primary。",
+    "不得把尚未满足标准的病因或疾病藏进症状性诊断的括号、后缀或‘可能’限定中（例如‘某症状（某疾病可能）’）；这种写法仍属于过度诊断，必须返回 diagnostic_label_overstated，并把该疾病移入 differentials。",
+    "检查 supportingFacts 是否来自病例且确实支持该主诊断。不要因为缺少非必需检查而否定合理的症状性工作诊断。",
+    "supportingFacts 只保留与当前主诊断直接相关的现代医学患者事实：不得混入舌苔脉象、证候病机等中医推理，不得用年龄性别或一组正常生命体征充当诊断支持，也不得堆入与本次主诉无关的既往病名。",
+    "严格区分当前问题与历史背景。既往稳定疾病、后遗症、已缓解事件或当前明确无新发症状，只能作为背景或鉴别边界；除非病例有当前活动性变化，不得把它们升级成本次 primary、主证候锚点或主要病机治疗目标。",
+    "核对中医主证、病位病性、病机链和治法是否由阳性患者事实支撑。不能把未询问、未知、条件句或待鉴别方向当作已经存在的证候锚点。",
+    "同时核对辨证是否形成了足以指导后续组方的临床闭环：主证候不得只是主诉、中医病名或‘某部位功能失调’的机械改写；总体病机和至少一个患者事实锚定的病机节点不得留空。资料确实不足时，应接受由原文阳性事实锚定、明确 bounded/低置信度、把未知寒热虚实列入 uncertainties、且不推荐命名方的中性功能性病机；病位病性可按上一条明确 unresolved。诸如‘汗出调节失常、睡眠功能受扰’这类不额外引入脏腑、寒热虚实或气血津液结论的最小机制，在稀疏病例中是允许的安全降级，不应要求升级为更具体证型。不能反过来要求模型补出没有依据的阴虚、阳虚、寒热、痰湿或血瘀。空链必须返回 tcm_reasoning_unsupported，并要求按上述边界重做非空闭环，不得补造舌脉或阴性史。",
+    "核对 recommendedFormulaNames 中每个命名方的核心适应证是否在阳性患者事实中成立。某命名方只在 uncertainties、假设句、‘若有则’或建议补问中出现，或者其定义性症状明确缺失时，必须返回 formula_indication_mismatch；此时应让生成模型改选有方证依据的命名方，或退回本例辨证组方，不能勉强套用经方名。",
+    "只输出一个 JSON 对象，不要代码块或解释。格式：accepted 时 {\"status\":\"accepted\",\"issueCode\":\"none\"}；需修复时 status=repair，issueCode 只能是 criteria_not_met、diagnostic_label_overstated、supporting_fact_mismatch、tcm_reasoning_unsupported、formula_indication_mismatch 之一，并增加 repairInstruction。一次只返回最关键的问题。",
+    "repairInstruction 限 300 字：必须明确指出需改的结构路径、当前结论为什么超出阳性患者事实、应删除或降级的推理方向；不得给药味剂量，不得新增患者事实，不得要求绕过结构/事实/证据合同。它只是给生成模型的定向复核意见，最终结果仍会重新校验和复核。",
+    `患者事实边界：${clinicalContext.slice(0, 12_000)}`,
+    evidenceContext.trim()
+      ? `本轮可用证据（仅用于核对诊断标准、方证和医学依据，绝不能当作患者事实）：${evidenceContext.slice(0, 12_000)}`
+      : "本轮未提供额外外部证据；不得因此编造指南、文献或方剂出处。",
+    `待复核M03临床投影：${JSON.stringify(payload).slice(0, 24_000)}`,
+  ].join("\n\n");
+}
+
+/**
+ * Reviewer prose is untrusted repair advice, not part of the signed clinical contract. For a TCM
+ * semantic rejection the free-text instruction can contradict the mandatory non-empty bounded
+ * reasoning contract (for example, asking the generator to clear the chain or invent a specific
+ * deficiency pattern). The issue code still selects the server-owned repair policy; only the
+ * narrower western/formula guidance is forwarded verbatim.
+ */
+export function boundedM03DiagnosticRepairGuidance(review: M03DiagnosticReview): string {
+  if (review.status !== "repair") return "";
+  if (review.issueCode !== "tcm_reasoning_unsupported") return review.repairInstruction || "";
+
+  const codes = m03DiagnosticRepairGuidanceCodes(review);
+  // Once the independent reviewer rejects the TCM reasoning, replacing one unsupported named
+  // pattern with another is not a valid repair. Enter a symptom-grounded quarantine mode with a
+  // closed semantic vocabulary; later M03/M04 review can only add specificity from a fresh case,
+  // never from this failed candidate.
+  const prohibitedConcepts = [
+    "阴虚、阳虚、气虚、血虚、津亏、阴阳两虚及对应补益治法",
+    "寒、热、火、痰、湿、瘀、食积、水饮及对应祛邪治法",
+    "未经患者事实直接支持的脏腑、经络、气血津液、营卫、卫气、心神归属",
+  ];
+  const lines = [
+    `独立复核的受控定位标签：${codes.length > 0 ? codes.join(",") : "generic_tcm_overreach"}。这些标签不是患者事实。`,
+    `进入语义隔离模式。硬性删减：从主证候、病位病性、总体病机、病机链、总治法和方义方向中删除以下概念及同义改写：${prohibitedConcepts.join("；")}。不得删掉一种后换成另一种，待鉴别方向只能放入 uncertainties。`,
+    "清空 recommendedFormulaNames，formulaSelectionMode 改为 self_devised，recommendedFormulaDirection 只写本例症状功能调护的辨证组方方向，不得推荐任何命名方。",
+    "locationDifferentiation 与 natureDifferentiation 的分类数组全部置空，resolution 明确设为 unresolved，并分别填写 resolutionReason；不要用 bounded 配空数组，也不要为凑分类新增脏腑、经络或寒热虚实。",
+    "pathogenesis.chain 仍须至少一条并逐字锚定患者阳性原文。每个节点的 pathogenesis 只能写该原文直接对应的症状功能异常（例如某项调节失常、某项功能受扰），therapyDirection 只能写对应的功能调护方向；不得引入上述禁用概念，不得把总体病机和治法原句机械复制到节点。",
+    "overview.primarySyndrome 使用症状层中医病名加‘功能失调候’的低置信度工作表述，primarySyndromeResolution 设为 bounded；overview.overallPathogenesis、overallTherapy 与 therapy.overallPrinciple 同步为中性功能表述，不得出现待辨、资料不足等占位词。",
+  ];
+  return lines.join("\n");
+}
+
+const M03_REPAIR_GUIDANCE_CODE_RULES: Array<[string, RegExp]> = [
+  ["empty_or_unresolved", /(?:清空|留空|删除)[^。；]{0,16}(?:病机链|chain|病位|病性)|待辨|待定|无法(?:完成|形成|判断)|资料不足/],
+  ["symptom_restatement", /(?:重复|复述|改写)[^。；]{0,16}(?:主诉|症状|患者事实)|只是[^。；]{0,16}(?:主诉|症状)/],
+  ["location_unsupported", /病位[^。；]{0,24}(?:无|缺乏|不足|超出|不能|不得)/],
+  ["nature_unsupported", /病性[^。；]{0,24}(?:无|缺乏|不足|超出|不能|不得)/],
+  ["chain_not_closed", /(?:病机链|pathogenesis\.chain|chain)[^。；]{0,28}(?:空|未|无|不足|缺乏|重复|不完整|未形成)/],
+  ["yin_deficiency_overreach", /阴虚|津亏|滋阴|虚火/],
+  ["yang_cold_overreach", /阳虚|温阳|寒证|散寒|畏寒|肢冷/],
+  ["heat_overreach", /热证|实热|清热|泻火|火热/],
+  ["phlegm_damp_overreach", /痰湿|痰浊|湿阻|化痰|祛湿/],
+  ["blood_stasis_overreach", /血瘀|瘀阻|活血|化瘀/],
+  ["qi_blood_deficiency_overreach", /气虚|血虚|气血(?:两)?虚|益气|养血/],
+  ["ying_wei_overreach", /营卫|卫气/],
+  ["heart_spirit_overreach", /心神|安神|宁心/],
+  ["named_formula_overreach", /命名方|经方|方剂|方名/],
+];
+
+/** PHI-safe diagnostic labels for telemetry; never returns reviewer prose or patient facts. */
+export function m03DiagnosticRepairGuidanceCodes(review: M03DiagnosticReview): string[] {
+  if (review.status !== "repair" || !review.repairInstruction) return [];
+  return M03_REPAIR_GUIDANCE_CODE_RULES
+    .flatMap(([code, pattern]) => pattern.test(review.repairInstruction || "") ? [code] : []);
+}
+
+export function parseM03DiagnosticReview(content: string): M03DiagnosticReview {
+  const parsed = parseClinicalReviewJson(content);
+  if (parsed) {
+    if (parsed.status === "accepted" && parsed.issueCode === "none") {
+      return { status: "accepted", issueCode: "none" };
+    }
+    if (parsed.status === "repair" && typeof parsed.issueCode === "string" && REPAIR_ISSUES.has(parsed.issueCode)) {
+      const repairInstruction = typeof parsed.repairInstruction === "string"
+        ? parsed.repairInstruction.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 800)
+        : "";
+      return {
+        status: "repair",
+        issueCode: parsed.issueCode as M03DiagnosticRepairIssue,
+        ...(repairInstruction ? { repairInstruction } : {}),
+      };
+    }
+  }
+  return { status: "unavailable", issueCode: "review_unavailable" };
+}

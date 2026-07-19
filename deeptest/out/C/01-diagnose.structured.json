@@ -1,0 +1,220 @@
+{
+  "schemaVersion": "tcm-cdss-reasoning-v2",
+  "stage": "diagnose",
+  "clinicalReview": {
+    "status": "unavailable",
+    "reviewedPayloadHash": "sha256:dda0bd8424dd5512bd53caaca2bc4085d9ba7ab9e2bd9cf3744f5119a3ef1a66"
+  },
+  "overview": {
+    "tcmDiseaseName": "肺胀",
+    "primarySyndrome": "寒饮伏肺证",
+    "primarySyndromeResolution": "bounded",
+    "primarySyndromeBasis": [
+      "反复咳痰喘10年，加重伴痰多1周",
+      "背冷",
+      "白痰量多、清稀",
+      "舌象：舌淡胖，苔白滑"
+    ],
+    "primarySyndromeResolutionReason": "诊断基于病史、症状与舌脉，寒饮病机明确；但缺乏腹诊、痰涎性状变化（如化热迹象）等关键鉴别信息，故把握度为有边界的工作判断。",
+    "secondarySyndromes": [],
+    "overallPathogenesis": "本虚标实。肺脾气虚为本，外感寒邪，引动内饮，寒饮伏肺为标。饮邪壅塞气道，肺气宣降失司。",
+    "overallTherapy": "温肺化饮，止咳平喘，佐以健脾益气",
+    "recommendedFormulaDirection": "按已锁定病机与治法辨证组方",
+    "recommendedFormulaNames": [],
+    "formulaSelectionMode": "self_devised",
+    "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病历资料综合推理",
+      "confidence": "低"
+    }
+  },
+  "westernDiagnosis": {
+    "primary": {
+      "name": "慢性阻塞性肺疾病急性加重",
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+        "反复咳痰喘10年，加重伴痰多1周",
+        "阵咳",
+        "白痰量多、清稀",
+        "活动后气促",
+        "背冷",
+        "舌象：舌淡胖，苔白滑",
+        "既往史：慢性阻塞性肺疾病"
+      ],
+      "limitations": [
+        "缺少肺功能、血气分析、胸部影像学等客观证据确立诊断及分期分级；无法排除合并感染或心衰。"
+      ],
+      "suggestedChecks": [
+        "动脉血气分析（评估缺氧/CO2潴留）",
+        "胸部X线/CT（排查肺炎、气胸、肺水肿）",
+        "血常规、C反应蛋白（排查感染）",
+        "脑钠肽（BNP/NT-proBNP）、心电图（排查心源性因素）"
+      ],
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "基于病史、症状及SpO2的综合性工作诊断",
+        "confidence": "中"
+      }
+    },
+    "differentials": [
+      {
+        "name": "社区获得性肺炎",
+        "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
+        "nextCheck": "胸部影像学、血常规"
+      },
+      {
+        "name": "左心功能不全",
+        "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
+        "nextCheck": "脑钠肽（BNP/NT-proBNP）、心脏超声"
+      }
+    ]
+  },
+  "pathogenesis": {
+    "summary": "患者以反复咳痰喘为主，本次因外感或别因诱发；出现畏寒、背冷、咳吐大量清稀白痰、舌淡胖苔白滑、脉象待核实，皆为一派寒饮之象。饮邪伏肺，气道不利，故见咳喘。病久肺气本虚，子病及母，脾失健运，生痰之源不断，上贮于肺。其本在肺脾气虚，其标在寒饮伏肺，属本虚标实之证。",
+    "locationDifferentiation": {
+      "items": [
+        "肺",
+        "脾",
+        "肾"
+      ],
+      "details": [
+        {
+          "location": "脾",
+          "basis": "舌象：舌淡胖，苔白滑"
+        },
+        {
+          "location": "肾",
+          "basis": "活动后气促"
+        }
+      ],
+      "resolution": "bounded",
+      "resolutionReason": "肺的定位依据充分。累及脾的证据来自病程、舌象和痰饮病机推导，缺乏纳差、便溏等直接脾虚症状。累及肾的判定基于年龄和久病，为合理推断，需腰膝酸软、呼多吸少等直接证据确认。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "natureDifferentiation": {
+      "items": [
+        "气虚",
+        "阳虚",
+        "寒饮"
+      ],
+      "rootDeficiency": [
+        "气虚",
+        "阳虚"
+      ],
+      "branchExcess": [
+        "寒饮"
+      ],
+      "basis": "",
+      "resolution": "bounded",
+      "resolutionReason": "本虚与标实的病性判断有明确依据；但具体气虚、阳虚侧重的程度以及有无化热、血瘀等兼夹因素，需更全面的四诊信息支持。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "symptomClusters": [
+      {
+        "symptoms": [
+          "白痰量多、清稀",
+          "活动后气促"
+        ],
+        "mechanism": "寒饮之邪，其性清冷。饮停于肺，气道壅塞，肺气上逆，故咳喘痰多清稀。饮为阴邪，损伤阳气，阳气不达于外，故见畏寒背冷。"
+      }
+    ],
+    "caseRelationship": {
+      "rootPattern": "肺脾气虚，寒饮内停",
+      "mainManifestation": "肺胀（咳嗽、咳痰、喘息）",
+      "relationship": "肺脾气虚为本，导致津液运化失常，滋生饮邪。复感外邪，引动内饮，饮犯于肺，导致肺气胀满，宣降失司，从而出现肺胀的一系列表现。"
+    },
+    "chain": [
+      {
+        "nodeId": "P1",
+        "patientFact": "反复咳痰喘10年",
+        "syndromeEvidence": "反复咳痰喘10年",
+        "pathogenesis": "肺脾两脏，母子相生，久咳肺虚，必然累及于脾，导致肺脾气虚。此为发病的内在基础。",
+        "therapyDirection": "健脾益肺，培土生金",
+        "pathogenesisType": "始动",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "经典理论与病程逻辑",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P2",
+        "patientFact": "白痰量多、清稀",
+        "syndromeEvidence": "白痰量多、清稀",
+        "pathogenesis": "脾为生痰之源，肺为贮痰之器。气虚失运，水湿内停，聚而成饮，成寒。饮邪阻肺，肺失宣降，咳而吐涎沫。",
+        "therapyDirection": "温肺散寒，化饮除痰",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例症状与病机推导",
+          "confidence": "中"
+        }
+      }
+    ],
+    "uncertainties": [
+      {
+        "item": "脉象弦滑的确切指向",
+        "reason": "弦主饮、主痛，滑主痰。但需结合腹诊排除胸腹水等留饮重症，确保仅按常规饮证论治是安全的。",
+        "affects": "影响病势判断及用药峻猛程度的把握。"
+      },
+      {
+        "item": "有无化热迹象（如口干、痰转黄稠、舌转红等）",
+        "reason": "痰饮久郁可以化热，若已化热，则属寒热错杂证，单纯温化会加重病情。",
+        "affects": "直接影响治法和方药的寒温配伍。"
+      },
+      {
+        "item": "感染性指标及心脏功能评估结果",
+        "reason": "本次急加是否由细菌感染诱发，或并存心衰，将直接决定西医治疗核心方案是否需抗感染、强心利尿。",
+        "affects": "影响整体治疗策略和预后的判断。"
+      }
+    ]
+  },
+  "therapy": {
+    "overallPrinciple": "急则治其标，缓则治其本，标本兼顾",
+    "overallMethod": "温肺化饮，止咳平喘，健脾益气",
+    "subTherapies": [
+      {
+        "therapy": "温肺散寒，化饮平喘",
+        "targetPathogenesis": "针对‘寒饮伏肺’之标，宣通肺气，蠲除饮邪。",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "与主要病机‘寒饮伏肺’直接对应",
+          "confidence": "中"
+        }
+      },
+      {
+        "therapy": "健脾益气，培土生金",
+        "targetPathogenesis": "针对‘肺脾气虚’之本，助运化以杜生痰之源。",
+        "priority": "次要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "与始动病机‘肺脾气虚’对应，体现标本兼治",
+          "confidence": "中"
+        }
+      }
+    ]
+  },
+  "formula": null,
+  "nonPharma": null,
+  "lineageAdaptation": null,
+  "management": {
+    "mustCollect": [
+      "本次主诉及伴随症状变化",
+      "补充腹诊、下肢有无水肿等体征",
+      "明确本次加重有无明确诱因（如外感、冷空气暴露）",
+      "获取近期血常规、CRP、胸部影像学、心电图、BNP结果"
+    ],
+    "followupSafetyNet": "病历已记录气促阳性；本次主诉及伴随症状变化。"
+  },
+  "contractSignatureVersion": "tcm-cdss-m03-signature-v4",
+  "contractSignature": "hmac-sha256:550731770a01d56f84a873ae6d4c1e079c0e379673177d95572bf62615e1f85c"
+}

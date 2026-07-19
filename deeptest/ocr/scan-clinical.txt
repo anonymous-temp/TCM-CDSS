@@ -1,0 +1,363 @@
+[ocr] Skipping src/lib/diagnosis-safety.ts (~56037 tokens exceeds 80% of max_tokens(58888))
+[ocr] Pre-filtered 1 file(s) exceeding 80% of max_tokens
+[ocr] full-scan: 3 file(s) discovered, reviewing 2 in /Users/wangzeyuan/Desktop/中医CDSS
+[ocr] estimated cost: ~2 file(s), est. 352K input + 13K output ≈ 364K total tokens (rough; actual reported after run)
+[ocr] scan dispatch: 1 batch(es) by by-language strategy
+[ocr]   ▶ file_read file_path=src/lib/m03-therapy-lock.ts start_line=1 end_line=30
+[ocr]   ✔ file_read (0s)
+[ocr]   ▶ file_read end_line=63 file_path=src/lib/m03-therapy-lock.ts start_line=30
+[ocr]   ✔ file_read (0s)
+[ocr]   ▶ file_read end_line=30 file_path=src/lib/herb-target-contract.ts start_line=1
+[ocr]   ✔ file_read (0s)
+[ocr]   ▶ code_search search_text=highImpactHerbDirectionIssue file_patterns=[src/lib/diagnosis-stage-contract.ts]
+[ocr]   ✔ code_search (42ms)
+[ocr]   ▶ file_read end_line=790 file_path=src/lib/diagnosis-stage-contract.ts start_line=757
+[ocr]   ✔ file_read (1ms)
+[ocr]   ▶ code_comment "src/lib/m04-proposal-compiler.ts"
+[ocr]   ✔ code_comment (0s)
+[ocr]   ▶ code_comment "src/lib/diagnosis-api.ts"
+[ocr]   ✔ code_comment (1ms)
+[ocr]   ▶ code_comment "src/lib/diagnosis-api.ts"
+[ocr]   ✔ code_comment (1ms)
+[ocr]   ▶ code_comment "src/lib/diagnosis-api.ts"
+[ocr]   ✔ code_comment (0s)
+[ocr] scan dedup batch #0: 19 → 16 comments
+[ocr] Summary: 2 file(s) reviewed, 16 comment(s), ~403900 token(s) used (input: ~360452, output: ~43448), cache(read: ~248320, write: ~0), 6m35s elapsed
+
+[2m─── src/lib/m04-proposal-compiler.ts:649-655 ───[0m
+[1;91m[security · critical][0m Multiple unbounded JSON.parse calls in m04-proposal-compiler.ts: both
+`compileM04JsonObjectContent` and `normalizeM04ProposalInput` parse untrusted input without size or
+depth limits, risking memory exhaustion DoS. Add size guards and/or depth-limited parsing.
+
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m   const MAX_M04_JSON_BYTES = 512 * 1024; // 512KB limit[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m   try {[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m     const parsed = JSON.parse(content.trim()) as { schemaVersion?: unknown };[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     if (content.length > MAX_M04_JSON_BYTES) return undefined;[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     const parsed = JSON.parse(content.trim()) as Record<string, unknown>;[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m     // M04 is intentionally an untrusted, minimal proposal. Accepting a complete V2 object here[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m     // would let the provider replace M03-owned overview/pathogenesis/therapy fields and bypass the[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m     // server compiler. Legacy full-V2 responses must be regenerated through the proposal contract.[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m     return compileM04Proposal(parsed, prior);[0m[0m
+
+
+[2m─── src/lib/m04-proposal-compiler.ts:278-282 ───[0m
+[91m[maintainability · high][0m **Nested ternary expression**: This nested ternary makes the branching
+logic hard to follow and error-prone. Per the project review rules, nested ternary expressions are
+not allowed. Extract into a series of if/else or a lookup table for clarity.
+
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m     const base = prior.overview.formulaSelectionMode === "combined" && names.length > 1[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m       ? names.join("合")[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m       : prior.overview.formulaSelectionMode === "alternatives"[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m         ? names.find((name) => proposedName?.includes(name)) || names[0][0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m         : names[0];[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     let base: string;[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     if (prior.overview.formulaSelectionMode === "combined" && names.length > 1) {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       base = names.join("合");[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     } else if (prior.overview.formulaSelectionMode === "alternatives") {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       base = names.find((name) => proposedName?.includes(name)) || names[0];[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     } else {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       base = names[0];[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     }[0m[0m
+
+
+[2m─── src/lib/m04-proposal-compiler.ts:113-113 ───[0m
+[93m[maintainability · medium][0m **Loose equality `!= null`**: The project code-quality rules prohibit
+`==` and `!=` in favor of strict equality. Use `firstIndex !== null && firstIndex !== undefined` or
+`firstIndex !== undefined` (since index values are numbers, never null). Same pattern repeats at
+lines 276, 278, 280, 281 with `== null` checks.
+
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m     if (firstIndex != null) {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     if (firstIndex !== undefined) {[0m[0m
+
+
+[2m─── src/lib/m04-proposal-compiler.ts:547-550 ───[0m
+[93m[maintainability · medium][0m **Silent failure with no logging**: When `safeParse` fails in either
+`compileM04Proposal` or `m04ProposalIssueCode`, the error is silently swallowed (returns
+`undefined`). In production, this makes debugging impossible — no signal to distinguish "invalid
+input" from "server bug". Consider logging parse errors at debug/trace level with a truncated
+payload for observability without leaking PHI.
+
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m   if (!parsed.success) return undefined;[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m   // Preserve the exact model proposal through compilation. Dose normalization may canonicalize[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m   // representation, but must never change the clinical value before the independent audit sees it.[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m   const proposal = parsed.data;[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m   if (!parsed.success) {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     // Log at debug level for observability; truncate to avoid logging PII/PHI[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     if (process.env.NODE_ENV !== "production") {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       console.debug("[M04] schema validation failed", parsed.error.issues.slice(0, 3));[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     }[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     return undefined;[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m   }[0m[0m
+
+
+[2m─── src/lib/m04-proposal-compiler.ts:650-650 ───[0m
+[93m[bug · medium][0m **Unsafe type assertion**: `JSON.parse` could return any JSON value (number, string,
+null, array). Asserting it as `{ schemaVersion?: unknown }` is false — the subsequent `typeof parsed
+!== "object" || Array.isArray(parsed)` check catches some but not all cases (e.g. `null` passes
+`typeof === "object"`). Use `isRecord(parsed)` helper already defined in this file for consistency.
+
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m     const parsed = JSON.parse(content.trim()) as { schemaVersion?: unknown };[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     const parsed = JSON.parse(content.trim());[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     if (!isRecord(parsed)) return undefined;[0m[0m
+
+
+[2m─── src/lib/m04-proposal-compiler.ts:97-97 ───[0m
+[94m[bug · low][0m **`acupointCare` always set to null**: Both `normalizeM04ProposalInput` and
+`compileM04Proposal` explicitly set `acupointCare: null`, discarding any provider-submitted value.
+While the schema declares it as `nullable`, the compile step always nullifies it. If this is
+intentional (server-owned field), the normalization step should also respect this. If not
+intentional, the server is silently dropping provider data.
+
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m       acupointCare: z.string().max(1600).nullable(),[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       // Note: acupointCare is server-generated; provider-submitted values are discarded at compile time.[0m[0m
+
+
+[2m─── src/lib/diagnosis-api.ts:2185-2185 ───[0m
+[93m[bug · medium][0m Dead code: `useVision` is declared as `const useVision = true;` but never read or
+referenced anywhere in the function body. This variable serves no purpose and should be removed.
+
+
+
+[2m─── src/lib/diagnosis-api.ts:1295-1295 ───[0m
+[93m[bug · medium][0m Missing `reader.releaseLock()` in the primary text model stream. The GLM stream
+(`callGlmStream`) correctly releases the reader lock in a finally block (line ~1175), but
+`callPrimaryTextModelStream` never calls `reader.releaseLock()`. While the ReadableStream cancel
+path may clean this up implicitly, it is inconsistent and risks keeping the underlying response body
+locked if error paths bail out early without cancelling the stream.
+
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m         reader = res.body.getReader();[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m         try {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m           // ... existing reader usage ...[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m         } finally {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m           reader?.releaseLock();[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m         }[0m[0m
+
+
+[2m─── src/lib/diagnosis-api.ts:856-861 ───[0m
+[91m[bug · high][0m `retryCompletePrimaryResponse` constructs a repair prompt by concatenating
+`rejectedJson` (up to `PRIMARY_TEXT_MAX_PROMPT_CHARS`), `clinicalContext` (up to 12,000 chars),
+`groundingHint`, `clinicalRepairHint`, `proposalRepairHint`, `m04ExecutionRepairRule`,
+`m04FormulaRepairRule`, and `priorLock` (JSON-serialized, can be large with pathogenesis chains).
+There is no total-prompt-length guard before sending to the API. If the combined prompt exceeds the
+model's context window, the API will reject the request with a 4xx error, and the retry loop will
+exhaust without a successful repair. Add a truncation guard on the total repair prompt body before
+sending.
+
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m     const repairPrompt = rejectedJson[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m       ? [[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     const repairPromptBody = [[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           structuredStage === "prescribe"[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m             ? "请定向修复以下 prescribe 结构化 JSON。只输出一个合法 JSON 对象，不要输出 sentinel、正文、代码围栏或额外说明。"[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m             : `请定向修复以下 ${structuredStage || "structured"} 结构化 JSON。只输出一个合法 JSON 对象，不要输出 sentinel、正文、代码围栏或额外说明。`,[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           `未通过原因代码：${rejectionReason || "structured_contract_rejected"}。`,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       groundingHint,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       clinicalRepairHint,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       proposalRepairHint,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       repairFieldRule,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       m04ExecutionRepairRule,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       m04FormulaRepairRule,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       `M03锁定上下文：${JSON.stringify(priorLock || null)}`,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       `患者事实边界：${clinicalContext.slice(0, 12_000)}`,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       `待修复JSON：${rejectedJson}`,[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     ].filter(Boolean).join("\n\n");[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     if (repairPromptBody.length > PRIMARY_TEXT_MAX_PROMPT_CHARS) {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       // Truncate the largest fields proportionally to stay within budget[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       const availableForRejectedJson = Math.max(2_000, PRIMARY_TEXT_MAX_PROMPT_CHARS - (repairPromptBody.length - rejectedJson.length));[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       rejectedJson = rejectedJson.slice(0, availableForRejectedJson);[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     }[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m     const repairPrompt = rejectedJson[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       ? [ /* same array using truncated rejectedJson */ ].filter(Boolean).join("\n\n")[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m       : `${prompt}\n\n【结构化结果重生成】上一份响应未通过结构语义校验（原因代码：${rejectionReason || "structured_contract_rejected"}）。请从头生成完整结果。`;[0m[0m
+
+
+[2m─── src/lib/diagnosis-api.ts:2084-2095 ───[0m
+[93m[bug · medium][0m In the error handler of `callPrimaryTextModelStream`, both the `streamErrorFallback`
+and `truncateFallback` branches risk failing to call `closeClientStream()` if `enqueueClient` throws
+(e.g., due to `sanitizeDiagnoseStreamingDraft` error or stream already closed). Wrap the entire
+error-recovery body, including enqueue calls, in a try/finally to guarantee `closeClientStream()`
+runs.
+
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m         try {[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m         if (opts.streamErrorFallback) {[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           let fallback = opts.streamErrorFallback;[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           try {[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m             fallback = opts.outputTransform ? opts.outputTransform(fallback) : fallback;[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           } catch {[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m             // The caller-provided deterministic M02 fallback is already safe and answerable.[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           }[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           enqueueClient(`${STREAM_REPLACE_MARKER}${fallback}`);[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           enqueueClient("[END]");[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m           closeClientStream();[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           return;[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m           }[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m           // ... other fallback paths ...[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m           if (!clientStreamClosed) enqError(ctrl, error);[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m         } finally {[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m           closeClientStream();[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m         }[0m[0m
+
+
+[2m─── src/lib/diagnosis-api.ts:2052-2054 ───[0m
+[94m[performance · low][0m `sanitizeDiagnoseStreamingDraft` is applied twice for diagnose-stage content:
+once inside `enqueueClient` (line ~700) and again explicitly on `signedContent` before the final
+enqueue (line ~985). If the sanitizer is idempotent this is harmless overhead, but if it has any
+side effects or mutations, double application could produce unexpected results. Consider applying it
+once at the final output stage only, or removing the redundant call in `enqueueClient`.
+
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m   if (opts.structuredStage === "diagnose") {[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m     signedContent = sanitizeDiagnoseStreamingDraft(signedContent);[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m   }[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m   // sanitizeDiagnoseStreamingDraft is already applied inside enqueueClient for diagnose stage;[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m   // avoid redundant double sanitization unless signedContent differs from what enqueueClient receives.[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m   // If signedContent is newly constructed here (not passed through enqueueClient), keep the sanitization;[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m   // otherwise consider consolidating to a single application point.[0m[0m
+
+
+[2m─── src/lib/diagnosis-api.ts:1272-1276 ───[0m
+[2m[performance][0m In `callGlmStream`, the connection retry loop uses `await cancelResponseBody(res)`
+which is correct and consistent with the clinical review probe. However, in
+`callPrimaryTextModelStream`, the connection retry uses raw `await candidate.body?.cancel().catch(()
+=> undefined)` instead of the imported `cancelResponseBody`. This is inconsistent and may miss
+additional cleanup that `cancelResponseBody` provides.
+
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m             if (attempt === 0 && (candidate.status === 408 || candidate.status === 429 || candidate.status >= 500)) {[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m               await candidate.body?.cancel().catch(() => undefined);[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m               await cancelResponseBody(candidate);[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m               await new Promise((resolve) => setTimeout(resolve, 500));[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m               continue;[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m             }[0m[0m
+
+
+[2m─── src/lib/diagnosis-api.ts:1196-1215 ───[0m
+[2m[maintainability][0m The `closeClientStream` function calls `stopHeartbeat()` directly, while the
+`ReadableStream.cancel()` callback calls `stopClientHeartbeat()` (which is reassigned to the same
+`stopHeartbeat` function). This dual reference pattern is confusing — both ultimately call the same
+function, but using two different variable names obscures the intent. Consider using a single
+consistent reference.
+
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m       const closeClientStream = () => {[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m         if (clientStreamClosed) return;[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m         console.info("[tcm-cdss:timing] model_stage", {[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           stage: opts.structuredStage || "unstructured",[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           durationMs: Date.now() - requestStartedAt,[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           contentChars,[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           reasoningChars,[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           structuredRetryCount,[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           m03DiagnosticReviewStatus,[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           m03DiagnosticReviewReason: m03DiagnosticReviewReason || "none",[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           m04ClinicalReviewStatus,[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           m03ClinicalReviewer,[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           m04ClinicalReviewer,[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m           finishReason: finishReason || "unknown",[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m         });[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m         clientStreamClosed = true;[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m         stopHeartbeat();[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m         stopClientHeartbeat();[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m         opts.requestSignal?.removeEventListener("abort", abortFromRequest);[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m         ctrl.close();[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m       };[0m[0m
+
+
+[2m─── src/lib/diagnosis-api.ts:527-529 ───[0m
+[93m[bug · medium][0m The `isM04AuditAdvisoryReason` regex is too permissive for the herb-related pattern:
+`herb_\d+_unsupported_high_impact_[a-z0-9_]+` accepts any suffix after `unsupported_high_impact_`.
+If a future non-advisory reason code like `herb_1_unsupported_high_impact_critical_blocker` is
+introduced, it would incorrectly match this regex and be treated as advisory, bypassing strict
+validation. Tighten the regex to only match known advisory suffixes (e.g., use an explicit
+alternation of known suffixes rather than a wildcard `[a-z0-9_]+`).
+
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m function isM04AuditAdvisoryReason(reason: string): boolean {[0m[0m
+[91m[48;2;70;0;0m-[0m[48;2;70;0;0m   return /^m04_candidate_\d+_(?:high_risk_pair_incompatibility|herb_\d+_unsupported_high_impact_[a-z0-9_]+)$/i.test(reason);[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m   // Only match known advisory suffixes; new non-advisory reason codes must not silently bypass validation.[0m[0m
+[92m[48;2;0;60;0m+[0m[48;2;0;60;0m   return /^m04_candidate_\d+_(?:high_risk_pair_incompatibility|herb_\d+_unsupported_high_impact_(?:formula_provenance|herb_identity_unverified|dose_evidence_gap|composition_evidence_gap))$/i.test(reason);[0m[0m
+[2m[48;2;38;38;38m [0m[48;2;38;38;38m }[0m[0m
+
+
+[2m─── src/lib/diagnosis-api.ts:1216-1220 ───[0m
+[93m[maintainability · medium][0m The `callPrimaryTextModelStream` function is approximately 370 lines long
+with deeply nested conditional logic (up to 7 levels in the retry/fallback branches). This makes it
+extremely difficult to reason about correctness, especially the interplay between
+`structuredSentinelIncomplete`, `advisoryM04RiskAccepted`,
+`transparentFormulaDeclassificationAccepted`, and the multiple retry paths. Strongly consider
+extracting the retry logic, the clinical review orchestration, and the finalization/fallback
+assembly into separate, well-named functions with clear contracts.
+
+
+
+[2m─── src/lib/diagnosis-api.ts:1536-1542 ───[0m
+[94m[maintainability · low][0m The `m04RepairState` variable is mutated inside async blocks (after `await
+retryCompletePrimaryResponse`) and then read later in `canAcceptTransparentFormulaFallback`. While
+JavaScript's single-threaded event loop prevents a true race condition, the control flow is complex
+enough that a maintainer could easily introduce a bug by adding a new code path that reads
+`m04RepairState` before it's updated. Consider making `m04RepairState` an explicit return value from
+the retry functions rather than a mutable closure variable.
+
+
+
+
+──────── Project Summary ────────
+
+### Top Issues
+
+1. **Unbounded input parsing leading to DoS risk**  
+   - `src/lib/m04-proposal-compiler.ts`: `JSON.parse` in `compileM04JsonObjectContent` and `normalizeM04ProposalInput` processes untrusted input without size or depth limits → memory exhaustion.  
+   - `src/lib/diagnosis-api.ts`: `retryCompletePrimaryResponse` concatenates raw JSON, clinical context, and multiple hints without an overall length guard, risking exceeding model max prompt size and causing silent truncation or API failures.  
+   *These enable attackers or malformed inputs to exhaust memory or corrupt downstream LLM calls.*
+
+2. **Stream resource leaks and unreliability**  
+   - `src/lib/diagnosis-api.ts`: `callPrimaryTextModelStream` never calls `reader.releaseLock()` (unlike `callGlmStream` which releases in a finally block), risking locked streams.  
+   - Error handler branches (`streamErrorFallback`, `truncateFallback`) call `enqueueClient` without protection; if `enqueueClient` throws, `closeClientStream()` is skipped, leaving the stream dangling.  
+   - Inconsistent retry cleanup: `callPrimaryTextModelStream` uses raw `candidate.body?.cancel()` while `callGlmStream` uses a proper `cancelResponseBody` helper.  
+
+3. **Silent failures and missing observability**  
+   - `src/lib/m04-proposal-compiler.ts`: both `compileM04Proposal` and `m04ProposalIssueCode` swallow `safeParse` errors with no logging — impossible to distinguish “invalid input” from “internal bug” in production.  
+   - Dead code (`useVision = true` never used in `diagnosis-api.ts`) and confusing patterns (double sanitization of `sanitizeDiagnoseStreamingDraft`, dual heartbeat-stop references) obscure debugging and maintenance.  
+
+4. **Code quality and maintainability hazards**  
+   - `src/lib/m04-proposal-compiler.ts`: nested ternary (prohibited by project rules), loose equality (`!= null`) in index checks, unsafe type assertion that `JSON.parse` result is an object.  
+   - `src/lib/diagnosis-api.ts`: `callPrimaryTextModelStream` is ~370 lines, up to 7 levels of nesting, and mutates `m04RepairState` inside async blocks after await, making the control flow error-prone and nearly unreviewable.  
+
+5. **Unexpected or brittle behavior**  
+   - `src/lib/m04-proposal-compiler.ts`: `acupointCare` is always forced to `null`, discarding any provider input. If intentional, it’s undocumented; if unintentional, it silently breaks client data.  
+   - `src/lib/diagnosis-api.ts`: `isM04AuditAdvisoryReason` regex for `herb_…_unsupported_high_impact_` is too permissive, potentially matching future non‑advisory suffixes. Double sanitization could cause side effects if the sanitizer is ever made non‑idempotent.  
+
+### Module Hotspots
+
+| Module | Comment Count | Severity Snapshot |
+|--------|---------------|-------------------|
+| `src/lib/diagnosis-api.ts` | 10 | Resource leaks, stream reliability, oversized function, prompt length risk, brittle regex |
+| `src/lib/m04-proposal-compiler.ts` | 6 | DoS via unbounded JSON parsing, silent errors, code‑style violations, hidden data loss (`acupointCare`) |
+
+### Cross-Cutting Concerns
+
+- **Inconsistent input validation**  
+  Both files parse untrusted data without guardrails: unbounded `JSON.parse` in the compiler; no total‑length check for the repair prompt in the diagnosis API.  
+  *Representative paths:* `compileM04JsonObjectContent`, `retryCompletePrimaryResponse`.
+
+- **Incomplete resource cleanup patterns**  
+  Stream handling diverges: missing `reader.releaseLock()` in the primary model stream, missing `closeClientStream()` when enqueueing fails, and mismatched retry cancels. The codebase lacks a uniform stream‑teardown wrapper.  
+  *Paths:* `callPrimaryTextModelStream`, `callGlmStream`.
+
+- **Missing error diagnostics**  
+  Silent failures (compiler’s `safeParse` wraps) and no logging in fallback paths make root‑causing impossible in production.  
+  *Paths:* `compileM04Proposal`, `m04ProposalIssueCode`.
+
+### Quick Wins
+
+*Low-effort, high-impact fixes based on the scan:*
+
+1. **Add input size guard before JSON.parse**  
+   In `m04-proposal-compiler.ts`, impose a reasonable max string length (e.g., 1 MB) before parsing; reject or truncate early.  
+2. **Insert `reader.releaseLock()` in primary model stream**  
+   In `callPrimaryTextModelStream`’s finally or cancel path, mirror `callGlmStream`’s pattern.  
+3. **Replace loose equality with strict**  
+   `firstIndex !== null && firstIndex !== undefined` → just `firstIndex !== undefined` (since index is a number).  
+4. **Remove dead code**  
+   Delete `const useVision = true;` from `diagnosis-api.ts`.  
+5. **Refactor nested ternary**  
+   Transform the nested ternary in `m04-proposal-compiler.ts` into a clear if/else or lookup table.  
+6. **Add trivial logging on safeParse failure**  
+   Log at `warn` level with the raw input snippet so operations can detect malformed payloads immediately.  
+7. **Eliminate double sanitization**  
+   If `sanitizeDiagnoseStreamingDraft` is idempotent, remove one of the duplicate calls (the second explicit one on `signedContent`). If not, fix the side‑effect risk.

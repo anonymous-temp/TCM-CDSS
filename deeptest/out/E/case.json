@@ -1,0 +1,32 @@
+{
+  "id": "deeptest_fixed_x",
+  "patient": {
+    "sex": "女",
+    "age": 29
+  },
+  "chiefComplaint": "妊娠8周，恶心呕吐、纳差1周",
+  "symptoms": {
+    "恶心呕吐": "进食后加重，呕吐胃内容物",
+    "纳差": "不思饮食",
+    "乏力": "轻度",
+    "嗜睡": "明显"
+  },
+  "tongue": "舌淡，苔薄白",
+  "pulse": "滑",
+  "faceNote": null,
+  "vitals": {},
+  "pastHistory": "G1P0；无慢性病",
+  "medicationHistory": null,
+  "allergyHistory": "否认",
+  "tcmLineagePreference": "unrestricted",
+  "completeness": {
+    "level": "C",
+    "redFlag": 0.8,
+    "infoGain": 0.7,
+    "managementImpact": 0.7,
+    "answerability": 0.7
+  },
+  "questionRounds": 0,
+  "maxQuestionRounds": 1,
+  "conversation": []
+}

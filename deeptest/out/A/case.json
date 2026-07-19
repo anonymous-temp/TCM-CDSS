@@ -1,0 +1,37 @@
+{
+  "id": "deeptest_fixed_x",
+  "patient": {
+    "sex": "女",
+    "age": 52,
+    "occupation": "教师"
+  },
+  "chiefComplaint": "入睡困难、多梦易醒3个月，加重半个月",
+  "symptoms": {
+    "失眠": "入睡需1-2小时，夜醒2-3次，多梦",
+    "乏力": "白天疲倦，活动后加重",
+    "食欲不振": "饭量减少，饭后脘腹胀",
+    "心悸": "劳累后偶发",
+    "健忘": "近期记忆力下降"
+  },
+  "tongue": "舌淡，苔薄白",
+  "pulse": "细弱",
+  "faceNote": "面色萎黄，神疲",
+  "vitals": {
+    "BP": "118/72mmHg",
+    "HR": "74次/分"
+  },
+  "pastHistory": "无慢性病史",
+  "medicationHistory": "曾间断服用褪黑素，效果不佳",
+  "allergyHistory": "否认药物食物过敏",
+  "tcmLineagePreference": "unrestricted",
+  "completeness": {
+    "level": "C",
+    "redFlag": 0.8,
+    "infoGain": 0.7,
+    "managementImpact": 0.7,
+    "answerability": 0.7
+  },
+  "questionRounds": 0,
+  "maxQuestionRounds": 1,
+  "conversation": []
+}

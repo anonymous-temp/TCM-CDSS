@@ -1,0 +1,182 @@
+{
+  "C": {
+    "case": "C",
+    "stages": {
+      "diagnose": {
+        "ok": true,
+        "ms": 95797,
+        "error": null
+      },
+      "prescribe": {
+        "ok": true,
+        "ms": 3576,
+        "error": null
+      },
+      "assess": {
+        "ok": false,
+        "ms": 3717,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "postRisk": {
+        "ok": false,
+        "ms": 3842,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "question": {
+        "ok": true,
+        "ms": 31315,
+        "error": null
+      }
+    }
+  },
+  "A": {
+    "case": "A",
+    "stages": {
+      "diagnose": {
+        "ok": true,
+        "ms": 71020,
+        "error": null
+      },
+      "prescribe": {
+        "ok": true,
+        "ms": 102464,
+        "error": null
+      },
+      "assess": {
+        "ok": false,
+        "ms": 1572,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "postRisk": {
+        "ok": false,
+        "ms": 1901,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "question": {
+        "ok": true,
+        "ms": 20776,
+        "error": null
+      }
+    }
+  },
+  "B": {
+    "case": "B",
+    "stages": {
+      "diagnose": {
+        "ok": true,
+        "ms": 96702,
+        "error": null
+      },
+      "prescribe": {
+        "ok": true,
+        "ms": 66491,
+        "error": null
+      },
+      "assess": {
+        "ok": false,
+        "ms": 2732,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "postRisk": {
+        "ok": false,
+        "ms": 2810,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "question": {
+        "ok": true,
+        "ms": 38426,
+        "error": null
+      }
+    }
+  },
+  "E": {
+    "case": "E",
+    "stages": {
+      "diagnose": {
+        "ok": true,
+        "ms": 82427,
+        "error": null
+      },
+      "prescribe": {
+        "ok": true,
+        "ms": 3406,
+        "error": null
+      },
+      "assess": {
+        "ok": false,
+        "ms": 2987,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "postRisk": {
+        "ok": false,
+        "ms": 2920,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "question": {
+        "ok": true,
+        "ms": 21832,
+        "error": null
+      }
+    }
+  },
+  "D": {
+    "case": "D",
+    "stages": {
+      "diagnose": {
+        "ok": true,
+        "ms": 78870,
+        "error": null
+      },
+      "prescribe": {
+        "ok": true,
+        "ms": 62423,
+        "error": null
+      },
+      "assess": {
+        "ok": false,
+        "ms": 1538,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "postRisk": {
+        "ok": false,
+        "ms": 1962,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "question": {
+        "ok": true,
+        "ms": 34733,
+        "error": null
+      }
+    }
+  },
+  "F": {
+    "case": "F",
+    "stages": {
+      "diagnose": {
+        "ok": true,
+        "ms": 91634,
+        "error": null
+      },
+      "prescribe": {
+        "ok": true,
+        "ms": 2742,
+        "error": null
+      },
+      "assess": {
+        "ok": false,
+        "ms": 2835,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "postRisk": {
+        "ok": false,
+        "ms": 3034,
+        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+      },
+      "question": {
+        "ok": true,
+        "ms": 24683,
+        "error": null
+      }
+    }
+  }
+}

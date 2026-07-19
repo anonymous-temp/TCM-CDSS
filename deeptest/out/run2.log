@@ -1,0 +1,6 @@
+[C] dx=ok(69957ms) rx=ok(78372ms) assess=ok(3249ms) risk=ok(2846ms) q=ok(31778ms)
+[A] dx=ok(66831ms) rx=ok(90919ms) assess=ok(1563ms) risk=ok(1774ms) q=ok(29682ms)
+[E] dx=ok(72393ms) rx=ok(4508ms) assess=ok(4264ms) risk=ok(2917ms) q=ok(31079ms)
+[D] dx=ok(98553ms) rx=FAIL(2146ms) assess=ok(1786ms) risk=ok(1900ms) q=ok(31858ms) rx.err=HTTP 409: {"error":"辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。"}
+
+写入 /Users/wangzeyuan/Desktop/中医CDSS/deeptest/out

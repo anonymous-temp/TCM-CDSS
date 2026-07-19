@@ -1,0 +1,306 @@
+{
+  "schemaVersion": "tcm-cdss-reasoning-v2",
+  "stage": "diagnose",
+  "clinicalReview": {
+    "status": "accepted",
+    "provider": "openai-compatible",
+    "model": "deepseek-v4-flash",
+    "source": "preferred",
+    "reviewedPayloadHash": "sha256:f8b18fefb0b2286bc74a68ea24aa93a53ed59737a4cfbefba84b3968de8c7777"
+  },
+  "overview": {
+    "tcmDiseaseName": "泄泻",
+    "primarySyndrome": "脾虚肝郁、湿热内蕴证",
+    "primarySyndromeResolution": "bounded",
+    "primarySyndromeBasis": [
+      "脘腹胀满、大便不调半年",
+      "压力大时明显",
+      "晨起口苦",
+      "量偏多色黄",
+      "舌象：舌淡红，苔黄腻"
+    ],
+    "primarySyndromeResolutionReason": "患者主诉与四诊信息可形成稳定的病位病性判断；但完整的饮食、睡眠、寒热偏好、腹部切诊等四诊信息缺失，限制了脾虚与湿热所占比重的精准量化，以及对兼夹食滞等可能性的明确排除。",
+    "secondarySyndromes": [
+      "湿热下注证"
+    ],
+    "overallPathogenesis": "脾虚运化失健，肝郁气机不畅，日久化热，与内停之湿互结，形成湿热内蕴，阻滞中焦气机，下注大肠与胞宫。",
+    "overallTherapy": "健脾和中，疏肝理气，清热化湿",
+    "recommendedFormulaDirection": "按已锁定病机与治法辨证组方",
+    "recommendedFormulaNames": [],
+    "formulaSelectionMode": "self_devised",
+    "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "低"
+    }
+  },
+  "westernDiagnosis": {
+    "primary": {
+      "name": "功能性消化不良伴肠易激综合征",
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+        "脘腹胀满、大便不调半年",
+        "饭后加重",
+        "时干时稀",
+        "压力大时明显",
+        "晨起口苦",
+        "量偏多色黄"
+      ],
+      "limitations": [
+        "缺乏结肠镜、腹部超声等客观检查结果以排除器质性病变",
+        "缺乏完整的社会心理因素与严重程度评估"
+      ],
+      "suggestedChecks": [
+        "腹部超声（胆囊、胆道）",
+        "血常规、肝功能",
+        "大便常规+潜血",
+        "必要时结肠镜"
+      ],
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "病例内推理",
+        "confidence": "中"
+      }
+    },
+    "differentials": [
+      {
+        "name": "慢性胆囊炎",
+        "reason": "晨起口苦；该方向需结合临床表现及相关检查继续鉴别。",
+        "nextCheck": "腹部超声"
+      },
+      {
+        "name": "炎症性肠病",
+        "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
+        "nextCheck": "大便常规+潜血、结肠镜"
+      }
+    ]
+  },
+  "pathogenesis": {
+    "summary": "患者以脾虚为本，肝郁、湿热为标。脾虚运化无权，升降失常，故见脘腹胀满、大便不调。肝气郁结，情志不畅，横逆犯脾，致症状随情绪波动加重。气郁化热，与内湿相合，酿生湿热，上泛于口则口苦，下注则带下黄稠，舌苔黄腻、脉象待核实均为湿热明证。脉象待核实为肝郁之象。病程半年，虚实互见，迁延不愈。",
+    "locationDifferentiation": {
+      "items": [
+        "脾",
+        "胃",
+        "肝",
+        "胆",
+        "大肠",
+        "胞宫"
+      ],
+      "details": [
+        {
+          "location": "胆",
+          "basis": "晨起口苦"
+        }
+      ],
+      "resolution": "bounded",
+      "resolutionReason": "病位依据清晰；但缺乏腹部切诊等直接定位佐证，属于有边界的工作判断。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "natureDifferentiation": {
+      "items": [
+        "脾虚",
+        "气滞",
+        "湿热",
+        "肝郁"
+      ],
+      "rootDeficiency": [
+        "脾虚"
+      ],
+      "branchExcess": [
+        "肝郁",
+        "气滞",
+        "湿热"
+      ],
+      "basis": "晨起口苦；舌象：舌淡红，苔黄腻",
+      "resolution": "bounded",
+      "resolutionReason": "虚实定性明确；但缺乏饮食、寒热等补充信息，影响对虚、湿、热程度的精确分层。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "symptomClusters": [
+      {
+        "symptoms": [
+          "脘腹胀满、大便不调半年",
+          "脘腹胀满、大便不调半年"
+        ],
+        "mechanism": "脾虚失运，气机壅滞，清浊不分"
+      },
+      {
+        "symptoms": [
+          "压力大时明显"
+        ],
+        "mechanism": "肝气郁结，经气不利"
+      },
+      {
+        "symptoms": [
+          "晨起口苦",
+          "量偏多色黄",
+          "舌象：舌淡红，苔黄腻"
+        ],
+        "mechanism": "肝郁化热，与湿互结，湿热内蕴"
+      }
+    ],
+    "caseRelationship": {
+      "rootPattern": "脾虚肝郁、湿热内蕴证",
+      "mainManifestation": "痞满；泄泻",
+      "relationship": "脾虚肝郁、湿热内蕴是核心病机，导致中焦气机不利而生痞满，大肠传导失常而生泄泻。"
+    },
+    "chain": [
+      {
+        "nodeId": "P1",
+        "patientFact": "脘腹胀满、大便不调半年",
+        "syndromeEvidence": "脘腹胀满、大便不调半年",
+        "pathogenesis": "脾虚为始动因素，纳化无权，食后脾气更虚，气滞于中，故胀满加重。",
+        "therapyDirection": "健脾益气、理气消胀",
+        "pathogenesisType": "始动",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P2",
+        "patientFact": "压力大时明显",
+        "syndromeEvidence": "压力大时明显",
+        "pathogenesis": "情志不遂致肝失条达，气机郁滞，横逆犯脾，加重中焦壅塞，是症状反复发作的关键诱因。",
+        "therapyDirection": "疏肝解郁",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P3",
+        "patientFact": "晨起口苦",
+        "syndromeEvidence": "晨起口苦",
+        "pathogenesis": "肝气久郁化火，胆附于肝，热随胆气上逆，故见晨起口苦。与胆囊息肉病史相互印证。",
+        "therapyDirection": "清解肝胆郁热",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P4",
+        "patientFact": "脘腹胀满、大便不调半年",
+        "syndromeEvidence": "脘腹胀满、大便不调半年",
+        "pathogenesis": "脾虚湿盛则溏泻；肝气犯脾，气机不畅则干结。肝脾失调，肠道传导功能紊乱，故干稀不调。",
+        "therapyDirection": "健脾化湿，调和肝脾",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P5",
+        "patientFact": "量偏多色黄",
+        "syndromeEvidence": "量偏多色黄",
+        "pathogenesis": "内生湿热，下注前阴，伤及任脉、带脉，致带下量多、色黄。",
+        "therapyDirection": "清热利湿止带",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ],
+    "uncertainties": [
+      {
+        "item": "腹部切诊情况",
+        "reason": "可判断胀满虚实，辨别有无癥瘕积聚",
+        "affects": "影响对病性虚实、气滞与食积、癥瘕的判断，以及理气药的力度选择"
+      },
+      {
+        "item": "饮食、寒热、睡眠等生活史",
+        "reason": "饮食偏好影响脾胃功能，寒热偏好可佐证病性",
+        "affects": "影响脾虚、湿热、肝郁的权重判定与用药的温清比例"
+      },
+      {
+        "item": "月经史",
+        "reason": "38岁女性，需了解月经情况以全面评估肝与冲任功能",
+        "affects": "影响对肝郁化热程度及冲任失调的判断，以及柴胡、丹皮等药的用量"
+      }
+    ]
+  },
+  "therapy": {
+    "overallPrinciple": "攻补兼施，标本兼顾",
+    "overallMethod": "健脾和中，疏肝理气，清热化湿",
+    "subTherapies": [
+      {
+        "therapy": "健脾和中",
+        "targetPathogenesis": "P1 脾虚运化失健",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "therapy": "疏肝理气",
+        "targetPathogenesis": "P2 肝气郁结，横逆犯脾",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "therapy": "清热化湿",
+        "targetPathogenesis": "P3 肝胆郁热  P4 脾虚湿盛  P5 湿热下注",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ]
+  },
+  "formula": null,
+  "nonPharma": null,
+  "lineageAdaptation": {
+    "schemaVersion": "tcm-cdss-reasoning-v2",
+    "lineageCode": "unrestricted",
+    "label": "不限定：循证安全优先",
+    "applicable": "partial",
+    "applicabilityReason": "本例辨证为脾虚肝郁湿热，治疗需兼顾多面，不限定流派可灵活选用最匹配的方药组合，不拘泥于特定流派偏好。",
+    "influencedDecisions": [
+      {
+        "aspect": "辨证视角",
+        "detail": "综合脏腑辨证与八纲辨证，侧重于脾、肝、胆、大肠等多脏腑功能失调及虚实、寒热并见的复合病机；而非单一脏腑或病理产物切入。"
+      }
+    ],
+    "unaffectedBySafety": [
+      "红旗排查",
+      "剂量安全",
+      "配伍禁忌",
+      "特殊人群",
+      "相互作用"
+    ],
+    "safetyDeference": "安全门控和审方规则优先于流派偏好"
+  },
+  "management": {
+    "mustCollect": [
+      "本次主诉及伴随症状变化",
+      "完整饮食、二便、睡眠、寒热偏好",
+      "近期腹部超声及大便常规检查报告"
+    ],
+    "followupSafetyNet": "建议2-4周后复诊评估疗效。接诊时核实相关症状是否存在。"
+  },
+  "contractSignatureVersion": "tcm-cdss-m03-signature-v4",
+  "contractSignature": "hmac-sha256:82e52c3b57e0e35160a0f0a80e109f7a6583a79c884bb168f2eba1d27ebf00af"
+}

@@ -1,0 +1,33 @@
+{
+  "id": "deeptest_fixed_x",
+  "patient": {
+    "sex": "女",
+    "age": 38
+  },
+  "chiefComplaint": "脘腹胀满、大便不调半年",
+  "symptoms": {
+    "脘腹胀": "饭后加重",
+    "大便不调": "时干时稀",
+    "情绪低落": "压力大时明显",
+    "口苦": "晨起口苦",
+    "带下": "量偏多色黄"
+  },
+  "tongue": "舌淡红，苔黄腻",
+  "pulse": "弦滑",
+  "faceNote": null,
+  "vitals": {},
+  "pastHistory": "胆囊息肉",
+  "medicationHistory": null,
+  "allergyHistory": "否认",
+  "tcmLineagePreference": "unrestricted",
+  "completeness": {
+    "level": "C",
+    "redFlag": 0.8,
+    "infoGain": 0.7,
+    "managementImpact": 0.7,
+    "answerability": 0.7
+  },
+  "questionRounds": 0,
+  "maxQuestionRounds": 1,
+  "conversation": []
+}

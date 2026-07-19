@@ -1,0 +1,141 @@
+import "server-only";
+
+import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { diagnoseReasoningFromState, prescribeReasoningFromState } from "./diagnosis-parse";
+import { m04SemanticIssue } from "./diagnosis-stage-contract";
+import {
+  editedPrescriptionIssueMessage,
+  editedPrescriptionSemanticIssue,
+  hasIncompleteEditedHerb,
+} from "./prescription-revision";
+import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "./reasoning-contract-signature";
+import { formulaCompilationContractIssue } from "./tcm-formula-provenance";
+import { isKnownTcmHerbName } from "./tcm-knowledge";
+import { prescriptionRegimenContractIssue } from "./prescription-regimen-contract";
+
+type ValidationFailure = {
+  ok: false;
+  status: 409 | 422;
+  code: string;
+  message: string;
+  issue?: string;
+};
+
+type ValidationSuccess = {
+  ok: true;
+  prescribed: ClinicalReasoningResultV2;
+  candidateIndex: number;
+};
+
+export type HisPrescriptionValidationResult = ValidationFailure | ValidationSuccess;
+
+function invalidPrescription(issue: string): ValidationFailure {
+  return {
+    ok: false,
+    status: 422,
+    code: `invalid_his_prescription_${issue}`,
+    issue,
+    message: editedPrescriptionIssueMessage(issue),
+  };
+}
+
+export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPrescriptionValidationResult {
+  const prescribed = prescribeReasoningFromState(caseState);
+  if (!prescribed || prescribed.stage !== "prescribe" || !prescribed.formula) {
+    return {
+      ok: false,
+      status: 422,
+      code: "missing_structured_prescription",
+      message: "缺少有效的候选处方，已拒绝生成可写回 HIS 的方案。",
+    };
+  }
+
+  const diagnoseReasoning = diagnoseReasoningFromState(caseState);
+  if (!verifyDiagnoseReasoningSignature(diagnoseReasoning, caseState)) {
+    return {
+      ok: false,
+      status: 409,
+      code: "invalid_m03_signature",
+      message: "当前辨病辨证结果已失效，请重新生成后再生成 HIS 方案。",
+    };
+  }
+
+  const candidateIndex = caseState.prescriptionRevision?.candidateIndex ?? 0;
+  const candidate = Number.isSafeInteger(candidateIndex) && candidateIndex >= 0
+    ? prescribed.formula.candidates[candidateIndex]
+    : undefined;
+  if (!candidate || candidate.herbs.length === 0) {
+    return {
+      ok: false,
+      status: 422,
+      code: "invalid_candidate_index",
+      message: "所选候选方不存在或没有结构化药味，已拒绝生成 HIS 方案。",
+    };
+  }
+
+  const trustedWorkbenchEdit = caseState.prescriptionRevision?.source === "herb_workbench" &&
+    candidate.constructionType === "self_devised" &&
+    candidate.modificationStatus === "modified" &&
+    /医生编辑版/.test(candidate.name);
+  if (!trustedWorkbenchEdit && !verifyPrescribeReasoningSignature(prescribed, caseState)) {
+    return {
+      ok: false,
+      status: 409,
+      code: "invalid_m04_signature",
+      message: "当前候选处方缺少与本病例及辨证结果绑定的有效签名，请重新生成候选方药。",
+    };
+  }
+
+  if (candidate.herbs.some(hasIncompleteEditedHerb)) {
+    return {
+      ok: false,
+      status: 422,
+      code: "invalid_structured_herb",
+      issue: "invalid_structured_herb",
+      message: "结构化药味的药名、剂量、角色、病机靶点或功用不完整，已拒绝生成 HIS 方案。",
+    };
+  }
+
+  const regimenIssue = prescriptionRegimenContractIssue(candidate.decoction);
+  if (regimenIssue) return invalidPrescription(regimenIssue);
+
+  // This shared workbench validator covers duplicate names plus the deterministic herb-level
+  // knowledge checks (known herb, dose, function, target reference, processing/decoction route).
+  const editedIssue = editedPrescriptionSemanticIssue(prescribed, candidateIndex, diagnoseReasoning);
+  if (editedIssue) return invalidPrescription(editedIssue);
+
+  const selectedReasoning: ClinicalReasoningResultV2 = {
+    ...prescribed,
+    formula: {
+      ...prescribed.formula,
+      candidates: [candidate],
+    },
+  };
+
+  if (!trustedWorkbenchEdit) {
+    // Model-originated M04 must not inherit the doctor-edit exemption. Re-run the strict M04
+    // contract against the signed M03 contract.
+    const strictIssue = m04SemanticIssue(
+      selectedReasoning,
+      "",
+      diagnoseReasoning,
+      isKnownTcmHerbName,
+      true,
+      true,
+      false,
+      true,
+    );
+    if (strictIssue) return invalidPrescription(strictIssue);
+  }
+
+  // Every HIS candidate reaches the same server compilation contract. That contract applies its
+  // narrow self-devised/modified doctor-edit exception only when this trusted path passes true.
+  const formulaIssue = formulaCompilationContractIssue(
+    selectedReasoning,
+    diagnoseReasoning,
+    trustedWorkbenchEdit,
+  );
+  if (formulaIssue) return invalidPrescription(formulaIssue);
+
+  return { ok: true, prescribed, candidateIndex };
+}

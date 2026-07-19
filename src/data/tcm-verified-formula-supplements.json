@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "tcm-verified-formula-supplements-v1",
+  "entries": {
+    "归脾汤": {
+      "source": "《济生》卷四。",
+      "ingredients": ["白术", "茯苓", "黄耆", "龙眼肉", "酸枣仁", "人参", "木香", "甘草"],
+      "requiredIngredients": ["白术", "黄耆", "龙眼肉", "酸枣仁"],
+      "verification": [
+        {
+          "title": "本地方剂库《济生》卷四归脾汤组成记录",
+          "url": "urn:tcm-cdss:formula-catalog:归脾汤:济生卷四"
+        }
+      ]
+    },
+    "酸枣仁汤": {
+      "source": "《金匮要略》",
+      "ingredients": ["酸枣仁", "知母", "茯苓", "川芎", "甘草"],
+      "requiredIngredients": ["酸枣仁"],
+      "verification": [
+        {
+          "title": "江西中医药大学教学资料：酸枣仁汤",
+          "url": "https://qhsy.jxutcm.edu.cn/info/1022/1053.htm"
+        },
+        {
+          "title": "中国药科大学学报：酸枣仁汤研究资料",
+          "url": "https://jcpu.cpu.edu.cn/article/id/20020108"
+        }
+      ]
+    },
+    "逍遥散": {
+      "source": "《局方》卷九。",
+      "ingredients": ["甘草", "当归", "茯苓", "白芍", "白术", "柴胡"],
+      "requiredIngredients": ["柴胡", "白芍", "当归", "白术"],
+      "verification": [
+        {
+          "title": "本地方剂库《局方》卷九逍遥散组成记录",
+          "url": "urn:tcm-cdss:formula-catalog:逍遥散:局方卷九"
+        }
+      ]
+    }
+  }
+}
