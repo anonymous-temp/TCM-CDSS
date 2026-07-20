@@ -1,14 +1,17 @@
 <!-- TCM_CDSS_RXAUDIT_STATUS:AVAILABLE -->
 
-<!-- TCM_CDSS_RXAUDIT_CORRELATION:%7B%22provider%22%3A%22lingxi-rxaudit%22%2C%22providerAvailable%22%3Atrue%2C%22providerDegraded%22%3Afalse%2C%22providerAuditResult%22%3A%22PASS%22%2C%22providerHighestRiskLevel%22%3A%22INFO%22%2C%22auditId%22%3A%22064b37e5-540a-432e-b006-24309ebf4c8f%22%2C%22traceId%22%3A%22tr-18d66dd7aaa3%22%2C%22candidateIndex%22%3A0%2C%22prescriptionHash%22%3A%22sha256-728af5567f8c3b03c41156e62e543245ef251f77ea7b57145308d3828354e784%22%2C%22auditedAt%22%3A%222026-07-20T03%3A23%3A47.225Z%22%2C%22effectiveAuditResult%22%3A%22MANUAL_REVIEW%22%2C%22effectiveHighestRiskLevel%22%3A%22INFO%22%2C%22needManualReview%22%3Atrue%7D -->
+<!-- TCM_CDSS_RXAUDIT_CORRELATION:%7B%22provider%22%3A%22lingxi-rxaudit%22%2C%22providerAvailable%22%3Atrue%2C%22providerDegraded%22%3Afalse%2C%22providerAuditResult%22%3A%22MANUAL_REVIEW%22%2C%22providerHighestRiskLevel%22%3A%22MEDIUM%22%2C%22auditId%22%3A%22845b22bf-a087-4cbe-b693-98e35ec87fcb%22%2C%22traceId%22%3A%22tr-29ef0a562435%22%2C%22candidateIndex%22%3A0%2C%22prescriptionHash%22%3A%22sha256-02ebbfc910d368278a11e082d1aaee5b19fb3fdf926f8327a3caf50cef9b35dc%22%2C%22auditedAt%22%3A%222026-07-20T05%3A42%3A09.736Z%22%2C%22effectiveAuditResult%22%3A%22MANUAL_REVIEW%22%2C%22effectiveHighestRiskLevel%22%3A%22MEDIUM%22%2C%22needManualReview%22%3Atrue%7D -->
 
 ## 处方信息待核对
 - 语义抽取未覆盖原文中的全部用药候选，联用风险必须结合原文人工核对。请补齐后重新审方；当前结果不等同于剂量审核通过。
 
 ## 合理用药审方
-**审方结论**：需人工复核 ｜ **最高风险等级**：信息提示
+**审方结论**：需人工复核 ｜ **最高风险等级**：中风险
 **处置建议**：存在需重点复核的用药问题；该结果仅作提示，不阻断流程，采纳前须由医生/药师复核。
-**问题列表**：供应商返回了风险或人工复核结论；但未提供可展示的问题明细；请医生或药师人工复核。
+
+| 问题ID | 提示强度 | 风险类型 | 涉及药味(行号) | 风险说明 | 证据/依据 | 医生动作 |
+|---|---|---|---|---|---|---|
+| 1a98c607-4daf-45cf-91e5-e00f98cf18f4 | 一般提示 | TCM\_TOXIC | 4 | 苦杏仁 在中药专论/药材资料中标注为毒性药材或有毒性记载,需严格复核。 | 有小毒;苦,微温;有小毒。归肺、大肠经。;内服不宜过量,以免中毒。 | 请复核毒性中药材的必要性、剂量、炮制和煎煮要求;如无充分依据,建议停用或替换。 |
 
 ## 处方安全总评
 **最高提示强度**：一般提示

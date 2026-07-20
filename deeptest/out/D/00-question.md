@@ -1,21 +1,21 @@
 正在比较本轮候选追问的信息增益…
 
-正在排除重复问题和病历中已有答案…<<<CDSS_STREAM_FINAL>>>**问题1：** 患者是否有怕冷或怕热的感觉？是否容易出汗？
-（追问理由：该信息有助于缩小证候范围；未确认前不预设具体证型或治法。）
-补录字段：xianbingshi
+正在排除重复问题和病历中已有答案…<<<CDSS_STREAM_FINAL>>>**问题1：** 胆囊息肉的诊断时间？是否已行手术或药物治疗？
+（追问理由：明确胆囊息肉的处置状态，判断当前消化道症状是否与胆囊疾病相关，影响治疗方向（如是否需转外科或加用利胆药）。）
+补录字段：jiwangshi
 可选项：
-A. 患者怕冷，不易出汗
-B. 患者怕热，活动后或夜间易出汗
+A. 胆囊息肉已行胆囊切除术
+B. 胆囊息肉未手术，曾用药物（请补充具体药物）
 C. 本次未取得该信息
 
-**问题2：** 患者饮食情况如何？是否有食欲不振、喜冷饮或喜热饮？
-（追问理由：该信息有助于缩小证候范围；未确认前不预设具体证型或治法。）
+**问题2：** 大便不调时，是否伴有黏液、脓血或里急后重？
+（追问理由：该信息有助于区分不同可能原因并确定下一步检查方向；未确认前保持未知。）
 补录字段：xianbingshi
 可选项：
-A. 患者食欲不振，喜热饮
-B. 患者食欲正常或亢进，喜冷饮
+A. 大便不调伴有黏液脓血
+B. 大便不调无黏液脓血
 C. 本次未取得该信息
 
 <!-- DIAGNOSIS_JSON_START -->
-{"completeness":{"level":"B","redFlag":0.7,"infoGain":0.5,"managementImpact":0.5,"answerability":0.6},"m02Plan":{"schemaVersion":"tcm-cdss-m02-plan-v1","decision":"ask","rationale":"主诉脘腹胀满、大便不调半年，舌苔黄腻、脉弦滑，提示湿热或肝郁化热可能。但缺乏寒热、汗出、饮食等关键信息，影响证候判断和方药选择。","questions":[{"id":"q1","question":"患者是否有怕冷或怕热的感觉？是否容易出汗？","reason":"该信息有助于缩小证候范围；未确认前不预设具体证型或治法。","targetField":"xianbingshi","decisionBranch":"syndrome","expectedDecisionImpact":"根据回答缩小证候范围；未确认前不确立证型、治法或方药。","informationGain":0.85,"sourceEvidence":[],"options":[{"id":"a","label":"怕冷，无汗或汗少","answer":"患者怕冷，不易出汗","kind":"clinical_fact","recordValue":"怕冷，无汗或汗少","requiresDetail":false},{"id":"b","label":"怕热，易出汗","answer":"患者怕热，活动后或夜间易出汗","kind":"clinical_fact","requiresDetail":true},{"id":"unknown","label":"本次未取得","answer":"本次未取得该信息","kind":"unknown","requiresDetail":false}]},{"id":"q2","question":"患者饮食情况如何？是否有食欲不振、喜冷饮或喜热饮？","reason":"该信息有助于缩小证候范围；未确认前不预设具体证型或治法。","targetField":"xianbingshi","decisionBranch":"syndrome","expectedDecisionImpact":"根据回答缩小证候范围；未确认前不确立证型、治法或方药。","informationGain":0.8,"sourceEvidence":[],"options":[{"id":"a","label":"食欲不振，喜热饮","answer":"患者食欲不振，喜热饮","kind":"clinical_fact","recordValue":"食欲不振，喜热饮","requiresDetail":false},{"id":"b","label":"食欲正常或亢进，喜冷饮","answer":"患者食欲正常或亢进，喜冷饮","kind":"clinical_fact","requiresDetail":true},{"id":"unknown","label":"本次未取得","answer":"本次未取得该信息","kind":"unknown","requiresDetail":false}]}]}}
+{"completeness":{"level":"B","redFlag":0.7,"infoGain":0.5,"managementImpact":0.5,"answerability":0.6},"m02Plan":{"schemaVersion":"tcm-cdss-m02-plan-v1","decision":"ask","rationale":"患者脘腹胀满、大便不调半年，舌苔黄腻，脉弦滑，提示湿热内蕴。但胆囊息肉病史需明确是否已手术或药物治疗，以评估当前症状是否与胆囊相关；同时需澄清大便不调的具体表现（如是否伴有黏液脓血），以鉴别肠易激综合征与器质性肠病。","questions":[{"id":"q1","question":"胆囊息肉的诊断时间？是否已行手术或药物治疗？","reason":"明确胆囊息肉的处置状态，判断当前消化道症状是否与胆囊疾病相关，影响治疗方向（如是否需转外科或加用利胆药）。","targetField":"jiwangshi","decisionBranch":"differential","expectedDecisionImpact":"若已手术，则排除胆囊因素；若未手术且息肉较大，需考虑胆囊炎可能，治疗需兼顾肝胆湿热。","informationGain":0.85,"sourceEvidence":["胆囊息肉"],"options":[{"id":"a","label":"已手术","answer":"胆囊息肉已行胆囊切除术","kind":"clinical_fact","recordValue":"胆囊息肉已行胆囊切除术","requiresDetail":false},{"id":"b","label":"未手术，有用药","answer":"胆囊息肉未手术，曾用药物（请补充具体药物）","kind":"clinical_fact","requiresDetail":true},{"id":"unknown","label":"本次未取得","answer":"本次未取得该信息","kind":"unknown","requiresDetail":false}]},{"id":"q2","question":"大便不调时，是否伴有黏液、脓血或里急后重？","reason":"该信息有助于区分不同可能原因并确定下一步检查方向；未确认前保持未知。","targetField":"xianbingshi","decisionBranch":"differential","expectedDecisionImpact":"根据回答调整鉴别方向和检查顺序；未确认前不排除或确立具体诊断。","informationGain":0.8,"sourceEvidence":["大便不调","时干时稀"],"options":[{"id":"a","label":"有黏液脓血","answer":"大便不调伴有黏液脓血","kind":"clinical_fact","recordValue":"大便不调伴有黏液脓血","requiresDetail":false},{"id":"b","label":"无黏液脓血","answer":"大便不调无黏液脓血","kind":"clinical_fact","recordValue":"大便不调无黏液脓血","requiresDetail":false},{"id":"unknown","label":"本次未取得","answer":"本次未取得该信息","kind":"unknown","requiresDetail":false}]}]}}
 <!-- DIAGNOSIS_JSON_END -->

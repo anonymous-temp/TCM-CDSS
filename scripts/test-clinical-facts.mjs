@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   BACKSTOP_RED_FLAG_CATEGORIES,
   buildClinicalFactsExtractionPrompt,
+  buildClinicalFactsReviewPrompt,
   parseClinicalFacts,
   groundClinicalFacts,
   additiveRedFlagsFromFacts,
@@ -1154,6 +1155,38 @@ ok("prompt: 提取提示含腹膜刺激征口语等价（松手更疼）必报 e
 ok("prompt: 提取提示保留劳力性基线不得标 emergency 规则", (() => {
   const prompt = buildClinicalFactsExtractionPrompt("气短");
   return /平路气短/.test(prompt) && /不得标 emergency/.test(prompt);
+})());
+
+ok("整类上限: 38.8℃发热伴寒战且稳定同样不得升为 emergency（消除39界限抖动）", (() => {
+  const text = "体温38.8℃，寒战，神志清楚、呼吸平稳";
+  const facts = {
+    redFlags: [{ category: "sepsis", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "other_immediate_threat", quote: "体温38.8℃，寒战" }],
+  };
+  const grounded = groundClinicalFacts(facts, text);
+  return grounded.redFlags[0]?.urgency === "urgent" && grounded.redFlags[0]?.triageBasis === "urgent_review";
+})());
+
+ok("整类上限: ≥40℃ 极高热不得降级", (() => {
+  const text = "体温40.2℃，寒战，神志清楚、呼吸平稳";
+  const facts = {
+    redFlags: [{ category: "sepsis", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "other_immediate_threat", quote: "体温40.2℃，寒战" }],
+  };
+  return groundClinicalFacts(facts, text).redFlags[0]?.urgency === "emergency";
+})());
+
+ok("整类上限: 39.0℃伴意识模糊或低血压等受损表现不得降级", (() => {
+  const text = "体温39.0℃，寒战，意识模糊，低血压";
+  const facts = {
+    redFlags: [{ category: "sepsis", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "other_immediate_threat", quote: "体温39.0℃，寒战" }],
+  };
+  return groundClinicalFacts(facts, text).redFlags[0]?.urgency === "emergency";
+})());
+
+ok("prompt: 提取与复核提示含发热分诊 ≥40℃/受损 原则线", (() => {
+  const extract = buildClinicalFactsExtractionPrompt("发热");
+  const review = buildClinicalFactsReviewPrompt("发热", { redFlags: [] });
+  return /体温≥40℃/.test(extract) && /38–40℃/.test(extract) && /不得仅凭高热度数或寒战标 emergency/.test(extract) &&
+    /未达40℃/.test(review) && /纠正为 urgent/.test(review);
 })());
 
 console.log(`\n${pass} passed`);

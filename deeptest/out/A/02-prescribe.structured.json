@@ -6,7 +6,7 @@
     "provider": "openai-compatible",
     "model": "deepseek-v4-flash",
     "source": "preferred",
-    "reviewedPayloadHash": "sha256:379e3c150c7179c3a302677a5876a7fc86cd4f73581ebab9f76829c3d593998d"
+    "reviewedPayloadHash": "sha256:35e5cedea0081c1bfd6290bbbcc103d14943fa708b707d319aa13aff86090126"
   },
   "overview": {
     "tcmDiseaseName": "不寐",
@@ -21,7 +21,7 @@
       "舌象：舌淡，苔薄白",
       "白天疲倦，活动后加重；面象：面色萎黄，神疲"
     ],
-    "primarySyndromeResolutionReason": "缺少大便、睡眠环境、情绪状态等兼症信息，无法完全排除肝郁、痰热等兼夹证候；但当前四诊资料已能形成心脾两虚的工作判断。",
+    "primarySyndromeResolutionReason": "缺少大便、睡眠环境、情绪状态等兼症信息，可能影响兼证判断；但核心症状、舌脉已支持心脾两虚证。",
     "secondarySyndromes": [],
     "overallPathogenesis": "思虑劳倦，损伤心脾，气血生化不足，心神失养，神不守舍。",
     "overallTherapy": "补益心脾，养血安神。",
@@ -44,20 +44,18 @@
       "supportingFacts": [
         "入睡困难、多梦易醒3个月，加重半个月",
         "入睡需1-2小时，夜醒2-3次",
-        "白天疲倦，活动后加重",
-        "近期记忆力下降",
-        "曾间断服用褪黑素，效果不佳"
+        "白天疲倦，活动后加重；近期记忆力下降",
+        "曾间断服用褪黑素效果不佳"
       ],
       "limitations": [
-        "未提供睡眠日记或多导睡眠图等客观评估",
-        "未排除其他睡眠障碍（如睡眠呼吸暂停）",
-        "本次主诉及伴随症状变化"
+        "未提供睡眠日记、睡眠量表评估",
+        "未排除睡眠呼吸暂停、不宁腿综合征等其他睡眠障碍",
+        "未提供情绪状态、咖啡因/酒精摄入等影响因素"
       ],
       "suggestedChecks": [
         "匹兹堡睡眠质量指数（PSQI）评估",
-        "睡眠日记记录1-2周",
-        "必要时多导睡眠图排除其他睡眠障碍",
-        "焦虑抑郁量表筛查"
+        "多导睡眠监测（PSG）排除其他睡眠障碍",
+        "甲状腺功能、血常规等排除器质性疾病"
       ],
       "evidence": {
         "evidenceLevel": "insufficient",
@@ -67,19 +65,19 @@
     },
     "differentials": [
       {
-        "name": "焦虑障碍",
+        "name": "失眠障碍",
         "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
         "nextCheck": "GAD-7量表筛查"
       },
       {
-        "name": "抑郁障碍",
-        "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
-        "nextCheck": "PHQ-9量表筛查"
+        "name": "失眠障碍",
+        "reason": "入睡困难、多梦易醒3个月，加重半个月；该方向需结合临床表现及相关检查继续鉴别。",
+        "nextCheck": "性激素六项、妇科超声"
       }
     ]
   },
   "pathogenesis": {
-    "summary": "患者以入睡困难、多梦易醒为主诉，病程3个月，加重半月。结合乏力、食欲不振、心悸、健忘及舌淡苔薄白、脉象待核实、面色萎黄等表现，病位在心、脾，病性属气血两虚。总由思虑劳倦，损伤心脾，气血生化不足，心神失养所致。",
+    "summary": "患者以入睡困难、多梦易醒为主诉，病程3个月，加重半月。伴乏力、食欲不振、饭后脘腹胀、心悸、健忘，舌淡苔薄白，脉象待核实，面色萎黄，神疲。病位在心、脾，病性属气血两虚。总由思虑劳倦，损伤心脾，气血生化不足，心神失养，神不守舍所致。",
     "locationDifferentiation": {
       "items": [
         "心",
@@ -87,7 +85,7 @@
       ],
       "details": [],
       "resolution": "bounded",
-      "resolutionReason": "病位判断基于现有症状和舌脉；但缺少大便情况等脾虚佐证，边界尚可。",
+      "resolutionReason": "病位判断基于现有症状、舌脉；但缺少大便情况等脾虚佐证，边界尚可。",
       "evidence": {
         "evidenceLevel": "model_inference",
         "source": "本例四诊与病史推断",
@@ -106,7 +104,7 @@
       "branchExcess": [],
       "basis": "",
       "resolution": "bounded",
-      "resolutionReason": "病性判断有明确依据；但未提供血常规等客观指标，血虚程度待核实。",
+      "resolutionReason": "病性判断基于现有症状、舌脉；但缺少血虚的典型表现如头晕、爪甲色淡等，边界尚可。",
       "evidence": {
         "evidenceLevel": "model_inference",
         "source": "本例四诊与病史推断",
@@ -116,86 +114,33 @@
     "symptomClusters": [
       {
         "symptoms": [
-          "入睡困难、多梦易醒3个月，加重半个月"
+          "入睡困难、多梦易醒3个月，加重半个月",
+          "近期记忆力下降"
         ],
-        "mechanism": "心神失养，神不守舍，故入睡困难、多梦易醒。"
+        "mechanism": "心血不足，心神失养，神不守舍"
       },
       {
         "symptoms": [
           "白天疲倦，活动后加重",
-          "饭量减少，饭后脘腹胀"
+          "饭量减少，饭后脘腹胀",
+          "白天疲倦，活动后加重；面象：面色萎黄，神疲"
         ],
-        "mechanism": "脾气虚弱，运化无力，气血生化不足，肢体失养。"
-      },
-      {
-        "symptoms": [
-          "劳累后偶发",
-          "近期记忆力下降"
-        ],
-        "mechanism": "心血不足，心神失养，故心悸、健忘。"
+        "mechanism": "脾气虚弱，运化失职，气血生化不足"
       }
     ],
     "caseRelationship": {
       "rootPattern": "心脾两虚，气血不足",
       "mainManifestation": "不寐",
-      "relationship": "心脾两虚，气血生化不足，心神失养，神不守舍，故发为不寐。"
+      "relationship": "心脾两虚，气血生化不足，心神失养，故见不寐。"
     },
     "chain": [
       {
         "nodeId": "P1",
         "patientFact": "入睡困难、多梦易醒3个月，加重半个月",
         "syndromeEvidence": "入睡困难、多梦易醒3个月，加重半个月",
-        "pathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，故失眠多梦。",
-        "therapyDirection": "补益心脾，养血安神。",
+        "pathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
+        "therapyDirection": "补益心脾，养血安神",
         "pathogenesisType": "始动",
-        "evidence": {
-          "evidenceLevel": "model_inference",
-          "source": "本例资料",
-          "confidence": "中"
-        }
-      },
-      {
-        "nodeId": "P2",
-        "patientFact": "白天疲倦，活动后加重",
-        "syndromeEvidence": "白天疲倦，活动后加重",
-        "pathogenesis": "脾虚运化无力，气血生成减少，肌肉四肢失养，故乏力。",
-        "therapyDirection": "健脾益气。",
-        "evidence": {
-          "evidenceLevel": "model_inference",
-          "source": "本例资料",
-          "confidence": "中"
-        }
-      },
-      {
-        "nodeId": "P3",
-        "patientFact": "饭量减少，饭后脘腹胀",
-        "syndromeEvidence": "饭量减少，饭后脘腹胀",
-        "pathogenesis": "脾虚运化失职，食入不化，气机不畅，故食欲不振、脘腹胀。",
-        "therapyDirection": "健脾助运，理气和胃。",
-        "evidence": {
-          "evidenceLevel": "model_inference",
-          "source": "本例资料",
-          "confidence": "中"
-        }
-      },
-      {
-        "nodeId": "P4",
-        "patientFact": "劳累后偶发",
-        "syndromeEvidence": "劳累后偶发",
-        "pathogenesis": "血虚不能养心，心神不宁，故心悸。",
-        "therapyDirection": "养血安神。",
-        "evidence": {
-          "evidenceLevel": "model_inference",
-          "source": "本例资料",
-          "confidence": "中"
-        }
-      },
-      {
-        "nodeId": "P5",
-        "patientFact": "近期记忆力下降",
-        "syndromeEvidence": "近期记忆力下降",
-        "pathogenesis": "气血亏虚，不能上荣于脑，髓海失养，故健忘。",
-        "therapyDirection": "补益心脾，益智安神。",
         "evidence": {
           "evidenceLevel": "model_inference",
           "source": "本例资料",
@@ -206,24 +151,24 @@
     "uncertainties": [
       {
         "item": "大便情况",
-        "reason": "脾虚常伴便溏或便秘，未提供大便信息，影响脾虚程度判断。",
-        "affects": "辨证准确性及健脾药物选择"
+        "reason": "脾虚常伴便溏，未提供大便信息，影响脾虚程度判断",
+        "affects": "辨证准确性、方药加减"
       },
       {
         "item": "情绪状态",
-        "reason": "教育工作可能伴情绪压力，未提供情绪信息，无法排除肝郁。",
-        "affects": "是否需兼以疏肝解郁"
+        "reason": "教育工作压力可能诱发焦虑，未提供情绪信息，影响肝郁兼证判断",
+        "affects": "辨证准确性、方药加减"
       },
       {
-        "item": "睡眠环境与习惯",
-        "reason": "未提供睡眠卫生相关信息，可能影响失眠评估。",
-        "affects": "非药物治疗建议"
+        "item": "饮食、咖啡因、酒精摄入",
+        "reason": "可能影响睡眠，未提供相关信息",
+        "affects": "西医诊断、治疗建议"
       }
     ]
   },
   "therapy": {
-    "overallPrinciple": "补益心脾，养血安神。",
-    "overallMethod": "补益心脾，养血安神。",
+    "overallPrinciple": "补益心脾，养血安神",
+    "overallMethod": "补益心脾，养血安神",
     "subTherapies": [
       {
         "therapy": "补益心脾，养血安神",
@@ -260,7 +205,7 @@
           "source": "归脾汤：《济生》卷四。",
           "confidence": "中"
         },
-        "therapyMatch": "补益心脾，养血安神。",
+        "therapyMatch": "补益心脾，养血安神",
         "applicable": "适用于与本例锁定证候“心脾两虚证”及病机链一致的情况。",
         "notApplicable": "证候、病机、舌脉或安全边界变化时暂停采用，并重新辨证。",
         "herbs": [
@@ -269,11 +214,11 @@
             "processing": null,
             "dose": "10g",
             "role": "臣",
-            "prescriptionRole": "臣药：健脾益气。",
+            "prescriptionRole": "臣药：补益心脾，养血安神",
             "targetKind": "pathogenesis_node",
-            "targetRef": "P2",
+            "targetRef": "P1",
             "structureRole": null,
-            "targetPathogenesis": "脾虚运化无力，气血生成减少，肌肉四肢失养，故乏力。",
+            "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
             "function": "健脾益气，燥湿利水，止汗，安胎；补气药；补虚药",
             "evidence": {
               "evidenceLevel": "model_inference",
@@ -286,11 +231,11 @@
             "processing": null,
             "dose": "12g",
             "role": "臣",
-            "prescriptionRole": "臣药：健脾助运，理气和胃。",
+            "prescriptionRole": "臣药：补益心脾，养血安神",
             "targetKind": "pathogenesis_node",
-            "targetRef": "P3",
+            "targetRef": "P1",
             "structureRole": null,
-            "targetPathogenesis": "脾虚运化失职，食入不化，气机不畅，故食欲不振、脘腹胀。",
+            "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
             "function": "利水渗湿，健脾，宁心安神；利水消肿药；利水渗湿药",
             "evidence": {
               "evidenceLevel": "model_inference",
@@ -303,11 +248,11 @@
             "processing": null,
             "dose": "20g",
             "role": "君",
-            "prescriptionRole": "君药：补益心脾，养血安神。",
+            "prescriptionRole": "君药：补益心脾，养血安神",
             "targetKind": "pathogenesis_node",
             "targetRef": "P1",
             "structureRole": null,
-            "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，故失眠多梦。",
+            "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
             "function": "补气升阳，固表止汗，利水消肿，生津养血，托毒排脓，敛疮生肌；补气药；补虚药",
             "evidence": {
               "evidenceLevel": "model_inference",
@@ -318,13 +263,13 @@
           {
             "name": "龙眼肉",
             "processing": null,
-            "dose": "12g",
+            "dose": "10g",
             "role": "君",
-            "prescriptionRole": "君药：补益心脾，养血安神。",
+            "prescriptionRole": "君药：补益心脾，养血安神",
             "targetKind": "pathogenesis_node",
             "targetRef": "P1",
             "structureRole": null,
-            "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，故失眠多梦。",
+            "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
             "function": "补益心脾，养血安神；补虚药；补血药",
             "evidence": {
               "evidenceLevel": "model_inference",
@@ -337,11 +282,11 @@
             "processing": null,
             "dose": "15g",
             "role": "臣",
-            "prescriptionRole": "臣药：补益心脾，养血安神。",
+            "prescriptionRole": "臣药：补益心脾，养血安神",
             "targetKind": "pathogenesis_node",
             "targetRef": "P1",
             "structureRole": null,
-            "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，故失眠多梦。",
+            "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
             "function": "养心补肝，宁心安神，敛汗生津；养心安神药；安神药",
             "decoctionRequirement": "捣碎后同煎",
             "evidence": {
@@ -355,11 +300,11 @@
             "processing": null,
             "dose": "6g",
             "role": "臣",
-            "prescriptionRole": "臣药：健脾益气。",
+            "prescriptionRole": "臣药：补益心脾，养血安神",
             "targetKind": "pathogenesis_node",
-            "targetRef": "P2",
+            "targetRef": "P1",
             "structureRole": null,
-            "targetPathogenesis": "脾虚运化无力，气血生成减少，肌肉四肢失养，故乏力。",
+            "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
             "function": "大补元气，复脉固脱，补脾益肺，生津养血，安神益智；补气药；补虚药",
             "decoctionRequirement": "另煎或另炖",
             "evidence": {
@@ -371,7 +316,7 @@
           {
             "name": "木香",
             "processing": null,
-            "dose": "4g",
+            "dose": "6g",
             "role": "佐",
             "prescriptionRole": "佐药：顾护中焦，防补药滋腻",
             "targetKind": "formula_structure",
@@ -404,7 +349,7 @@
             }
           }
         ],
-        "formulaAnalysis": "本候选方共8味，围绕“补益心脾，养血安神。”展开组方。君药以黄芪、龙眼肉为组，针对思虑劳倦，损伤心脾，气血不足，心神失养，故失眠多梦。，直治核心病机，构成本方主要治疗支点。臣药以白术、茯苓、酸枣仁、人参为组，针对脾虚运化无力，气血生成减少，肌肉四肢失养，故乏力。；脾虚运化失职，食入不化，气机不畅，故食欲不振、脘腹胀。；思虑劳倦，损伤心脾，气血不足，心神失养，故失眠多梦。，协同君药并加强相关病机的处理。佐药以木香为组，针对顾护中焦，防补药滋腻，兼顾次要病机、配伍制约或中焦耐受。使药以甘草为组，针对调和诸药，协调药性，协调方中药性并使各治疗方向相互衔接。各药组共同形成从核心病机到兼夹与配伍调和的治疗层次；药味增删改后，方义将按当前完整处方重新计算。",
+        "formulaAnalysis": "本候选方共8味，围绕“补益心脾，养血安神”展开组方。君药以黄芪、龙眼肉为组，针对思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。，直治核心病机，构成本方主要治疗支点。臣药以白术、茯苓、酸枣仁、人参为组，针对思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。，协同君药并加强相关病机的处理。佐药以木香为组，针对顾护中焦，防补药滋腻，兼顾次要病机、配伍制约或中焦耐受。使药以甘草为组，针对调和诸药，协调药性，协调方中药性并使各治疗方向相互衔接。各药组共同形成从核心病机到兼夹与配伍调和的治疗层次；药味增删改后，方义将按当前完整处方重新计算。",
         "decoction": {
           "doseCount": "5剂",
           "method": "每日1剂；加冷水浸泡30分钟，武火煮沸后转文火；一煎30分钟、二煎20分钟；两煎合并药液约500mL；早晚分服；服药与进餐间隔按患者胃肠耐受、方剂性质及院内规范执行；特殊药味按药味表执行",
@@ -423,12 +368,52 @@
       }
     ],
     "patentAndWestern": [],
-    "modifications": []
+    "modifications": [
+      {
+        "trigger": "复诊时出现大便溏薄或次数增多",
+        "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
+        "action": "加山药",
+        "doseOrHandling": null,
+        "reason": "脾虚湿盛，加山药健脾止泻",
+        "riskNote": "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+        }
+      },
+      {
+        "trigger": "接诊时核实相关症状是否存在",
+        "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
+        "action": "加柴胡",
+        "doseOrHandling": null,
+        "reason": "肝郁化热，加柴胡疏肝清热",
+        "riskNote": "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+        }
+      },
+      {
+        "trigger": "复诊时出现头晕、面色苍白加重",
+        "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
+        "action": "加熟地黄",
+        "doseOrHandling": null,
+        "reason": "血虚明显，加熟地黄养血滋阴",
+        "riskNote": "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+          "confidence": "中"
+        }
+      }
+    ]
   },
   "nonPharma": {
-    "diet": "饮食宜清淡易消化，多食山药、莲子、大枣等健脾养血之品；忌生冷、油腻、辛辣刺激食物；晚餐不宜过饱，睡前避免咖啡、浓茶。",
-    "lifestyle": "保持规律作息，固定就寝和起床时间；白天适当活动（如散步、太极拳），避免睡前剧烈运动；卧室环境安静、黑暗、凉爽；睡前1小时停止使用电子设备。",
-    "emotion": "保持心情舒畅，避免过度思虑和情绪波动；可练习深呼吸、正念冥想放松身心；必要时寻求心理咨询。",
+    "diet": "饮食宜清淡易消化，多食小米、红枣、桂圆等健脾养血之品，忌生冷、油腻、辛辣刺激食物。",
+    "lifestyle": "保持规律作息，睡前避免使用电子产品，可温水泡脚。适当进行散步、太极拳等轻度运动，避免劳累。",
+    "emotion": "调畅情志，避免思虑过度，可练习深呼吸或冥想放松。",
     "acupointCare": null,
     "tcmTreatments": [
       {
@@ -438,7 +423,7 @@
         "riskLevel": "moderate",
         "recommendationMode": "clinician_assessment",
         "targetRef": "P1",
-        "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，故失眠多梦。",
+        "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
         "assessmentPositioning": "可由本机构医生结合现场查体和禁忌复核后决定是否开展。",
         "operatorRequirement": "由具备相应资质的中医执业人员操作",
         "requiredChecks": [
@@ -456,7 +441,7 @@
         "riskLevel": "moderate",
         "recommendationMode": "clinician_assessment",
         "targetRef": "P1",
-        "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，故失眠多梦。",
+        "targetPathogenesis": "思虑劳倦，损伤心脾，气血不足，心神失养，神不守舍，故见失眠。",
         "assessmentPositioning": "可由本机构医生结合现场查体和禁忌复核后决定是否开展。",
         "operatorRequirement": "由受训人员辨穴并指导按压",
         "requiredChecks": [
@@ -470,19 +455,14 @@
     ],
     "monitoring": [
       {
-        "metric": "睡眠日记（入睡时间、觉醒次数、总睡眠时间、日间功能）",
+        "metric": "睡眠改善情况（入睡时间、夜醒次数、总睡眠时间）",
         "timing": "每日记录",
-        "trigger": "复诊时评估疗效"
+        "trigger": "2周后复诊评估"
       },
       {
         "metric": "OSA风险筛查（打鼾、呼吸暂停、日间嗜睡、高血压）",
-        "timing": "首次就诊",
+        "timing": "初诊时补充",
         "trigger": "若存在上述症状需进一步评估"
-      },
-      {
-        "metric": "情绪状态（焦虑、抑郁自评量表）",
-        "timing": "基线及2周后",
-        "trigger": "若情绪问题持续或加重需精神科会诊"
       }
     ]
   },
@@ -491,11 +471,11 @@
     "lineageCode": "unrestricted",
     "label": "不限定：循证安全优先",
     "applicable": "partial",
-    "applicabilityReason": "本例心脾两虚证候典型，归脾汤为经典方，流派偏好不影响核心辨证。",
+    "applicabilityReason": "本例辨证为心脾两虚，归脾汤为经典方，流派偏好不影响核心选方。",
     "influencedDecisions": [
       {
         "aspect": "辨证视角",
-        "detail": "从脏腑辨证入手，重点在心脾两脏，未引入其他流派特殊辨证体系。"
+        "detail": "从脏腑辨证入手，心脾两虚证明确，方选归脾汤加减。"
       }
     ],
     "unaffectedBySafety": [
@@ -509,12 +489,12 @@
   },
   "management": {
     "mustCollect": [
-      "大便情况（性状、频率）",
-      "情绪状态（焦虑、抑郁量表）",
-      "睡眠卫生习惯（睡前活动、环境等）"
+      "大便情况（次数、性状）",
+      "情绪状态（焦虑、抑郁筛查）",
+      "睡眠卫生习惯（咖啡因、酒精、睡前活动）"
     ],
-    "followupSafetyNet": "建议2周后复诊评估睡眠改善情况；若出现情绪低落、兴趣减退或自杀观念，需立即精神科就诊；接诊时核实相关症状是否存在。"
+    "followupSafetyNet": "2周后复诊评估睡眠改善情况；若出现情绪低落、兴趣减退或自杀观念，需立即精神科就诊；若治疗4周无效，需重新评估诊断。"
   },
   "contractSignatureVersion": "tcm-cdss-m04-signature-v1",
-  "contractSignature": "hmac-sha256:487e6fc33921c11359e85a2002c224c343abd2e7d1732555fb11719f65dc3fad"
+  "contractSignature": "hmac-sha256:6d41ab8002dc97fe8fde4932c61fafd7573b7028baf2770bfcc1aa32a5ad4761"
 }
