@@ -234,6 +234,8 @@ const CONTROLLED_HERB_ALIASES: Record<string, string> = {
   炙甘草: "甘草",
   夜交藤: "首乌藤",
   丹皮: "牡丹皮",
+  生地: "生地黄",
+  生地黄: "生地黄",
 };
 const CONTROLLED_HERB_DOSE_EQUIVALENTS: Record<string, { target: string; basis: string }> = {
   茯神: {
@@ -241,7 +243,12 @@ const CONTROLLED_HERB_DOSE_EQUIVALENTS: Record<string, { target: string; basis: 
     basis: "茯神为带松根的茯苓部位，用量按茯苓现有知识边界复核",
   },
 };
-const CONTROLLED_STANDALONE_HERBS = new Set(["茯神"]);
+const CONTROLLED_EXACT_HERB_DOSE_LIMITS: Record<string, TcmHerbDoseLimit> = {
+  // The shared 地黄 source row contains both 鲜地黄 12-30g and 生地黄 10-15g. Preserve the
+  // explicit pharmacopoeia preparation boundary instead of inheriting the first range in that row.
+  生地黄: { min: 10, max: 15, basis: "中华人民共和国药典：2020年版．一部（地黄条目：生地黄）", sourceType: "routeDose" },
+};
+const CONTROLLED_STANDALONE_HERBS = new Set(["茯神", "生地黄"]);
 const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   人参: "大补元气，复脉固脱，补脾益肺，生津养血，安神益智",
   黄芪: "补气升阳，固表止汗，利水消肿，生津养血，托毒排脓，敛疮生肌",
@@ -254,6 +261,14 @@ const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   远志: "安神益智，交通心肾，祛痰开窍",
   生姜: "解表散寒，温中止呕，温肺止咳，解毒，调和诸药",
   茯神: "宁心安神，利水渗湿",
+  麦冬: "养阴生津，润肺清心",
+  生地黄: "清热凉血，养阴生津",
+};
+const CONTROLLED_HERB_FUNCTION_CATEGORIES: Record<string, string[]> = {
+  麦冬: ["补虚药", "补阴药"],
+  // The source workbook records only the heat-clearing chapter for 生地黄. Its governed function
+  // text also carries the standard 养阴生津 direction, so both directions must be queryable.
+  生地黄: ["清热凉血药", "清热药", "补虚药", "补阴药"],
 };
 
 export function isKnownTcmHerbName(value: string): boolean {
@@ -951,6 +966,8 @@ function resolvedDoseEntry(
 
 export function getTcmHerbDoseLimit(herb: string): TcmHerbDoseLimit | null {
   const canonical = canonicalKnowledgeHerbName(herb);
+  const exact = CONTROLLED_EXACT_HERB_DOSE_LIMITS[canonical];
+  if (exact) return { ...exact };
   const equivalent = CONTROLLED_HERB_DOSE_EQUIVALENTS[canonical];
   const doseName = equivalent?.target || canonical;
   const herbData = data.herbs.find((item) => item.name === doseName || item.aliases.includes(doseName));
@@ -1023,7 +1040,7 @@ export function getTcmHerbFunctionText(herb: string): string {
 export function getTcmHerbFunctionCategories(herb: string): string[] {
   const canonical = canonicalKnowledgeHerbName(herb);
   const categoryIndex = herbFunctionCategories.categories as Record<string, string[]>;
-  return [...(categoryIndex[canonical] || [])];
+  return [...new Set([...(categoryIndex[canonical] || []), ...(CONTROLLED_HERB_FUNCTION_CATEGORIES[canonical] || [])])];
 }
 
 /**

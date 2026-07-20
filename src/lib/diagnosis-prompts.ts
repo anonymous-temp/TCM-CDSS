@@ -268,15 +268,15 @@ const KB_THERAPY_KNOWLEDGE_PATTERN = new RegExp([
 
 type KbCoveredHerb = { name: string; categories: string[]; functionText: string };
 
-// 反向索引只收“治疗方向可核验”的药味：生地黄这类只有药名/剂量收载、既无功能分类也无可用
-// 功用文本的药味会被确定性君药核验驳回，绝不能作为候选君药推荐给模型。
+// 反向索引只收“治疗方向可核验”的药味。源表章节分类不完整的少量药味（例如生地黄）
+// 由 tcm-knowledge 的受控补充同时提供规范功用与分类，生成侧与确定性校验侧共用同一入口。
 const kbCoveredHerbIndex: ReadonlyArray<KbCoveredHerb> = (() => {
   const categoryIndex = (herbFunctionCategoriesJson as { categories?: Record<string, unknown> }).categories || {};
   const index: KbCoveredHerb[] = [];
   for (const [rawName, rawCategories] of Object.entries(categoryIndex)) {
     const name = rawName.trim();
     const categories = Array.isArray(rawCategories)
-      ? rawCategories.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      ? getTcmHerbFunctionCategories(name)
       : [];
     if (!name || categories.length === 0) continue;
     const functionText = getTcmHerbFunctionText(name);

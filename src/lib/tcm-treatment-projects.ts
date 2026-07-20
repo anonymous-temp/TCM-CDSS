@@ -283,3 +283,12 @@ export function parseTcmTreatmentCapabilities(value: unknown): TcmTreatmentProje
 export function getTcmTreatmentProjectDefinition(code: TcmTreatmentProjectCode): TcmTreatmentProjectDefinition | undefined {
   return PROJECT_BY_CODE.get(code);
 }
+
+const GENERIC_CLINIC_ASSESSMENT_POSITIONING = "可由本机构医生结合现场查体和禁忌复核后决定是否开展。";
+
+/** Keep clinically material boundaries, but hide the identical card boilerplate from the UI/report. */
+export function tcmTreatmentAssessmentPositioningForDisplay(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized && normalized !== GENERIC_CLINIC_ASSESSMENT_POSITIONING ? normalized : undefined;
+}

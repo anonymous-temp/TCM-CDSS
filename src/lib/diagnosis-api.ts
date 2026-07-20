@@ -12,7 +12,7 @@
 import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isDeepseekModel } from "@/lib/text-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceStructuredStageOwnership, isM03WesternSupportContractReason, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
-import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, isStableM03Reasoning, m03ChainNodeDiagnostics, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isStableM03Reasoning, m03ChainNodeDiagnostics, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -976,6 +976,7 @@ async function retryCompletePrimaryResponse(
     // 未成立高影响方向：原因代码同样只带药味序号与方向键。直接点明是哪味药的哪个方向未成立，
     // 否则修复轮只会改写理由把同一味药再保留一次（实测同一 清热 药连续三轮未被删除）。
     let unsupportedHighImpactHint = "";
+    let candidateWideRepairHint = "";
     // 君药方向不匹配：原因代码只带药味序号。点明是哪味君药以及 P1 治法的原文，模型才能从短名单
     // 对应方向重选，而不是凭临床习惯再抽一次（实测同一 疏肝泄热 病例 黄连 连续三轮原样保留）。
     let emperorDirectionHint = "";
@@ -1034,19 +1035,79 @@ async function retryCompletePrimaryResponse(
     if (unsupportedHighImpactMatch) {
       try {
         const rejectedReasoning = JSON.parse(rejectedJson) as {
-          formula?: { candidates?: Array<{ herbs?: Array<{ name?: unknown }> }> };
+          formula?: { candidates?: Array<{ herbs?: Array<{ name?: unknown; dose?: unknown }> }> };
         };
-        const herbName = rejectedReasoning?.formula?.candidates?.[0]?.herbs?.[Number(unsupportedHighImpactMatch[1])]?.name;
+        const rejectedHerbs = rejectedReasoning?.formula?.candidates?.[0]?.herbs || [];
+        const herbName = rejectedHerbs[Number(unsupportedHighImpactMatch[1])]?.name;
         const conceptLabels: Record<string, string> = {
           heat_clear: "清热", yang_warm: "温阳", blood_move: "活血",
           purge: "泻下", orifice_open: "开窍", mass_soften: "软坚",
         };
         const conceptLabel = conceptLabels[unsupportedHighImpactMatch[2]] || unsupportedHighImpactMatch[2];
         if (typeof herbName === "string" && herbName.trim()) {
-          unsupportedHighImpactHint = `⚠️ 高影响方向：${herbName.trim()} 带有本例签名 M03 治法与患者事实均未成立的「${conceptLabel}」方向。直接删除该药或换用已成立治法方向上的药味，不得仅改剂量、改角色或改写理由保留。`;
+          const priorLockText = JSON.stringify(priorReasoning || null);
+          const controlledLeftGoldRepair = canonicalTcmHerbIdentity(herbName) === "吴茱萸" &&
+            unsupportedHighImpactMatch[2] === "yang_warm" &&
+            rejectedHerbs.some((item) => canonicalTcmHerbIdentity(item.name) === "黄连") &&
+            /肝胃郁热|肝火(?:犯胃|横逆)|胃(?:热|火)[^；。]{0,16}(?:气逆|上逆|失降)/.test(priorLockText);
+          unsupportedHighImpactHint = controlledLeftGoldRepair
+            ? "⚠️ 受控温清反佐结构：本例若保留黄连-吴茱萸配伍，必须把黄连设为君药、dose=4g或5g、targetKind=pathogenesis_node、targetRef=P1；把吴茱萸设为佐药、dose=2g、targetKind=formula_structure、targetRef=FORMULA_STRUCTURE、structureRole=temper。吴茱萸不得作为君药或直接绑定病机节点。若不采用这一完整结构，则删除吴茱萸；不得只改写‘反佐’理由。"
+            : `⚠️ 高影响方向：${herbName.trim()} 带有本例签名 M03 治法与患者事实均未成立的「${conceptLabel}」方向。直接删除该药或换用已成立治法方向上的药味，不得仅改剂量、改角色或改写理由保留。`;
         }
       } catch {
         // 被拒 JSON 可能本身不合法；通用高影响修复提示仍会指引重试。
+      }
+    }
+    if (structuredStage === "prescribe" && rejectedJson) {
+      try {
+        const rejectedReasoning = JSON.parse(rejectedJson) as {
+          formula?: { candidates?: Array<{ herbs?: Array<{ name?: unknown; dose?: unknown; prescriptionRole?: unknown; targetPathogenesis?: unknown; function?: unknown }> }> };
+        };
+        const rejectedHerbs = rejectedReasoning?.formula?.candidates?.[0]?.herbs || [];
+        const lock = priorReasoning && typeof priorReasoning === "object" && !Array.isArray(priorReasoning)
+          ? priorReasoning as {
+              primarySyndrome?: unknown;
+              overallPathogenesis?: unknown;
+              overallPrinciple?: unknown;
+              pathogenesisChain?: Array<{ nodeId?: unknown; patientFact?: unknown; syndromeEvidence?: unknown; pathogenesis?: unknown; therapyDirection?: unknown }>;
+            }
+          : undefined;
+        const compactPrior = lock ? {
+          overview: {
+            primarySyndrome: lock.primarySyndrome,
+            overallPathogenesis: lock.overallPathogenesis,
+          },
+          therapy: { overallPrinciple: lock.overallPrinciple },
+          pathogenesis: { chain: Array.isArray(lock.pathogenesisChain) ? lock.pathogenesisChain : [] },
+        } : undefined;
+        const doseIssues = rejectedHerbs.flatMap((herb) => {
+          const name = typeof herb.name === "string" ? herb.name.trim() : "";
+          const dose = typeof herb.dose === "string" ? herb.dose.trim() : "";
+          const match = dose.match(/^\s*(\d+(?:\.\d+)?)\s*(g|克|mg|毫克)\s*$/i);
+          const amount = match ? Number(match[1]) : Number.NaN;
+          const grams = match && /^(?:mg|毫克)$/i.test(match[2]) ? amount / 1000 : amount;
+          const limit = name ? getTcmHerbDoseLimit(name) : null;
+          return name && Number.isFinite(grams) && limit?.min != null && limit.max != null && (grams < limit.min || grams > limit.max)
+            ? [`${name} ${dose}→${limit.min}–${limit.max}g`]
+            : [];
+        });
+        const directionIssues = compactPrior ? rejectedHerbs.flatMap((herb) => {
+          const name = typeof herb.name === "string" ? herb.name.trim() : "";
+          const declared = [herb.prescriptionRole, herb.targetPathogenesis, herb.function]
+            .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+            .join("；");
+          const issue = name ? highImpactHerbDirectionIssue(name, declared, compactPrior) : undefined;
+          return issue ? [`${name}（${issue.replace(/^herb_\d+_unsupported_high_impact_/, "")}）`] : [];
+        }) : [];
+        if (doseIssues.length > 0 || directionIssues.length > 0) {
+          candidateWideRepairHint = [
+            "⚠️ 一次性收口：不要只修当前第一条错误；本轮必须同时处理整张候选方中的下列已知问题，避免下一轮才暴露同类错误。",
+            doseIssues.length > 0 ? `- 全部剂量越界：${doseIssues.join("；")}。` : "",
+            directionIssues.length > 0 ? `- 全部未成立高影响方向：${directionIssues.join("；")}。除上方明确给出的受控反佐结构外，删除或换用已成立治法方向药味。` : "",
+          ].filter(Boolean).join("\n");
+        }
+      } catch {
+        // Candidate-wide guidance is an optimization only; the primary reason-specific repair stays authoritative.
       }
     }
     const clinicalRepairHint = structuredClinicalRepairHint(structuredStage, rejectionReason);
@@ -1078,6 +1139,7 @@ async function retryCompletePrimaryResponse(
           groundingHint,
           doseBoundaryHint,
           unsupportedHighImpactHint,
+          candidateWideRepairHint,
           emperorDirectionHint,
           unknownHerbHint,
           boundedReviewGuidance,

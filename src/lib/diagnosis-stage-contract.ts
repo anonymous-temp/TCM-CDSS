@@ -121,6 +121,8 @@ const GOVERNED_TCM_HERB_IDENTITY_ALIASES: Readonly<Record<string, string>> = {
   枸杞: "枸杞子",
   浙贝: "浙贝母",
   川贝: "川贝母",
+  生地: "生地黄",
+  生地黄: "生地黄",
 };
 
 /** One prescription identity for spelling aliases and non-independent processed variants. */
@@ -1139,8 +1141,83 @@ function priorDocumentedHeatFacts(prior: M03ReasoningLike | null | undefined): b
   return false;
 }
 
+type HighImpactHerbLike = {
+  name?: unknown;
+  dose?: unknown;
+  role?: unknown;
+  prescriptionRole?: unknown;
+  targetKind?: unknown;
+  targetRef?: unknown;
+  structureRole?: unknown;
+  targetPathogenesis?: unknown;
+  function?: unknown;
+};
+
+type ControlledCounterAssistanceStructure = {
+  secondaryHerb: string;
+  primaryHerb: string;
+  requiredPrimaryConcept: TcmTherapyConcept;
+  signedContext: RegExp;
+  primaryDose: readonly [number, number];
+  secondaryDose: readonly [number, number];
+  minimumPrimaryToSecondaryRatio: number;
+};
+
+// Product-level counter-assistance governance. A prose label such as “反佐” grants no authority:
+// the signed M03 context, paired ingredients, principal/secondary roles, structure target, and
+// bounded dose relationship must all match. Add future verified pairs here instead of weakening the
+// global cold/heat polarity invariant or accumulating case-text exceptions.
+const CONTROLLED_COUNTER_ASSISTANCE_STRUCTURES: readonly ControlledCounterAssistanceStructure[] = [{
+  secondaryHerb: "吴茱萸",
+  primaryHerb: "黄连",
+  requiredPrimaryConcept: "heat_clear",
+  signedContext: /肝胃郁热|肝火(?:犯胃|横逆)|胃(?:热|火)[^；。]{0,16}(?:气逆|上逆|失降)/,
+  primaryDose: [4, 5],
+  secondaryDose: [2, 2],
+  minimumPrimaryToSecondaryRatio: 2,
+}];
+
+function isControlledCounterAssistanceHerb(
+  herbs: ReadonlyArray<HighImpactHerbLike>,
+  herbIndex: number,
+  prior: M03ReasoningLike | null | undefined,
+  requiredConcepts: ReadonlySet<TcmTherapyConcept>,
+): boolean {
+  const secondary = herbs[herbIndex];
+  const rule = CONTROLLED_COUNTER_ASSISTANCE_STRUCTURES.find((item) =>
+    canonicalTcmHerbIdentity(secondary?.name) === item.secondaryHerb
+  );
+  if (!rule || !prior || !requiredConcepts.has(rule.requiredPrimaryConcept)) return false;
+  const signedContext = [
+    prior.overview?.primarySyndrome,
+    prior.overview?.overallPathogenesis,
+    prior.therapy?.overallPrinciple,
+    ...(prior.pathogenesis?.chain || []).flatMap((node) => [node.pathogenesis, node.therapyDirection]),
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
+  if (!rule.signedContext.test(signedContext)) return false;
+  if (
+    secondary.role !== "佐" ||
+    secondary.targetKind !== "formula_structure" ||
+    secondary.targetRef !== "FORMULA_STRUCTURE" ||
+    secondary.structureRole !== "temper"
+  ) return false;
+  const secondaryDose = typeof secondary.dose === "string" ? doseInGrams(secondary.dose) : undefined;
+  if (secondaryDose == null || secondaryDose < rule.secondaryDose[0] || secondaryDose > rule.secondaryDose[1]) return false;
+  const primary = herbs.find((item) =>
+    canonicalTcmHerbIdentity(item.name) === rule.primaryHerb &&
+    item.role === "君" &&
+    item.targetKind === "pathogenesis_node" &&
+    item.targetRef === "P1"
+  );
+  const primaryDose = typeof primary?.dose === "string" ? doseInGrams(primary.dose) : undefined;
+  return primaryDose != null &&
+    primaryDose >= rule.primaryDose[0] &&
+    primaryDose <= rule.primaryDose[1] &&
+    primaryDose / secondaryDose >= rule.minimumPrimaryToSecondaryRatio;
+}
+
 function unsupportedHighImpactHerbIssue(
-  herbs: ReadonlyArray<{ name?: unknown; function?: unknown; prescriptionRole?: unknown; targetPathogenesis?: unknown }>,
+  herbs: ReadonlyArray<HighImpactHerbLike>,
   prior: M03ReasoningLike | null | undefined,
   allowGovernedFormulaBaseline = false,
   selectedFormulaNames: readonly string[] = [],
@@ -1155,6 +1232,7 @@ function unsupportedHighImpactHerbIssue(
   for (const [index, herb] of herbs.entries()) {
     const herbName = String(herb.name || "").trim();
     if (governedFormulaIngredients.has(herbName)) continue;
+    if (isControlledCounterAssistanceHerb(herbs, index, prior, required)) continue;
     const intendedUse = [herb.prescriptionRole, herb.targetPathogenesis]
       .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
       .map((value) => value.replace(/(?:^|；)\s*知识库功用[：:][\s\S]*$/, "").trim())

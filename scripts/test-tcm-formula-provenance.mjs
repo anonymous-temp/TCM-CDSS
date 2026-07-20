@@ -635,7 +635,7 @@ for (const herb of ["知母", "天花粉"]) {
   assert.ok(shortlistSection.includes(herb), `KB-covered 消渴-direction herb ${herb} must appear in the shortlist`);
 }
 assert.ok(/- 补阴方向：[^\n]*(?:石斛|玉竹|百合|黄精|天冬|女贞子)/.test(shortlistSection), "at least one covered 补阴 herb must appear in the 补阴 group");
-assert.ok(!shortlistSection.includes("生地黄"), "生地黄 has no KB function coverage and must never be presented as an eligible emperor");
+assert.ok(shortlistSection.includes("生地黄"), "生地黄's governed 清热凉血/养阴生津 coverage must make it eligible for the matching direction");
 assert.ok(shortlistSection.includes("麦冬"), "麦冬's 补阴 category now maps to yin_nourish on both sides, so the canonical 养阴 emperor must be offered");
 const commonYinHerbs = tcmKnowledgeCatalog.commonHerbs
   .map((item) => item.name)

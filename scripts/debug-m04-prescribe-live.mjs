@@ -251,6 +251,7 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
       } catch { /* keep generic hint */ }
     }
     let unsupportedHighImpactHint = "";
+    let candidateWideRepairHint = "";
     const highImpactMatch = isRepair ? lastReason.match(/^m04_candidate_\d+_herb_(\d+)_unsupported_high_impact_([a-z0-9_]+)$/) : null;
     if (highImpactMatch && rejectedJson) {
       try {
@@ -259,9 +260,46 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
         const conceptLabels = { heat_clear: "清热", yang_warm: "温阳", blood_move: "活血", purge: "泻下", orifice_open: "开窍", mass_soften: "软坚" };
         const conceptLabel = conceptLabels[highImpactMatch[2]] || highImpactMatch[2];
         if (typeof herbName === "string" && herbName.trim()) {
-          unsupportedHighImpactHint = `⚠️ 高影响方向：${herbName.trim()} 带有本例签名 M03 治法与患者事实均未成立的「${conceptLabel}」方向。直接删除该药或换用已成立治法方向上的药味，不得仅改剂量、改角色或改写理由保留。`;
+          const rejectedHerbs = rejectedReasoning?.formula?.candidates?.[0]?.herbs || [];
+          const controlledLeftGoldRepair = canonicalTcmHerbIdentity(herbName) === "吴茱萸" &&
+            highImpactMatch[2] === "yang_warm" &&
+            rejectedHerbs.some((item) => canonicalTcmHerbIdentity(item?.name) === "黄连") &&
+            /肝胃郁热|肝火(?:犯胃|横逆)|胃(?:热|火)[^；。]{0,16}(?:气逆|上逆|失降)/.test(JSON.stringify(prior));
+          unsupportedHighImpactHint = controlledLeftGoldRepair
+            ? "⚠️ 受控温清反佐结构：本例若保留黄连-吴茱萸配伍，必须把黄连设为君药、dose=4g或5g、targetKind=pathogenesis_node、targetRef=P1；把吴茱萸设为佐药、dose=2g、targetKind=formula_structure、targetRef=FORMULA_STRUCTURE、structureRole=temper。吴茱萸不得作为君药或直接绑定病机节点。若不采用这一完整结构，则删除吴茱萸；不得只改写‘反佐’理由。"
+            : `⚠️ 高影响方向：${herbName.trim()} 带有本例签名 M03 治法与患者事实均未成立的「${conceptLabel}」方向。直接删除该药或换用已成立治法方向上的药味，不得仅改剂量、改角色或改写理由保留。`;
         }
       } catch { /* keep generic hint */ }
+    }
+    if (isRepair && rejectedJson) {
+      try {
+        const rejectedReasoning = JSON.parse(rejectedJson);
+        const rejectedHerbs = rejectedReasoning?.formula?.candidates?.[0]?.herbs || [];
+        const doseIssues = rejectedHerbs.flatMap((herb) => {
+          const name = typeof herb?.name === "string" ? herb.name.trim() : "";
+          const dose = typeof herb?.dose === "string" ? herb.dose.trim() : "";
+          const match = dose.match(/^\s*(\d+(?:\.\d+)?)\s*(g|克|mg|毫克)\s*$/i);
+          const amount = match ? Number(match[1]) : Number.NaN;
+          const grams = match && /^(?:mg|毫克)$/i.test(match[2]) ? amount / 1000 : amount;
+          const limit = name ? getTcmHerbDoseLimit(name) : null;
+          return name && Number.isFinite(grams) && limit?.min != null && limit.max != null && (grams < limit.min || grams > limit.max)
+            ? [`${name} ${dose}→${limit.min}–${limit.max}g`]
+            : [];
+        });
+        const directionIssues = rejectedHerbs.flatMap((herb) => {
+          const name = typeof herb?.name === "string" ? herb.name.trim() : "";
+          const declared = [herb?.prescriptionRole, herb?.targetPathogenesis, herb?.function].filter(Boolean).join("；");
+          const issue = name ? highImpactHerbDirectionIssue(name, declared, prior) : undefined;
+          return issue ? [`${name}（${issue.replace(/^herb_\d+_unsupported_high_impact_/, "")}）`] : [];
+        });
+        if (doseIssues.length > 0 || directionIssues.length > 0) {
+          candidateWideRepairHint = [
+            "⚠️ 一次性收口：不要只修当前第一条错误；本轮必须同时处理整张候选方中的下列已知问题。",
+            doseIssues.length > 0 ? `- 全部剂量越界：${doseIssues.join("；")}。` : "",
+            directionIssues.length > 0 ? `- 全部未成立高影响方向：${directionIssues.join("；")}。除上方明确给出的受控反佐结构外，删除或换用已成立治法方向药味。` : "",
+          ].filter(Boolean).join("\n");
+        }
+      } catch { /* keep reason-specific hint */ }
     }
     let emperorDirectionHint = "";
     const emperorMismatchMatch = isRepair ? lastReason.match(/^m04_candidate_\d+_herb_(\d+)_emperor_therapy_mismatch$/) : null;
@@ -302,6 +340,7 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
           `未通过原因代码：${lastReason}。`,
           doseBoundaryHint,
           unsupportedHighImpactHint,
+          candidateWideRepairHint,
           emperorDirectionHint,
           unknownHerbHint,
           buildM04ClinicalRepairHint(lastReason),

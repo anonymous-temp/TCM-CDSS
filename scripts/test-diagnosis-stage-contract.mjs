@@ -43,7 +43,13 @@ for (const [herb, method] of [
 }
 assert.match(requiredDecoctionRequirement("龙骨") || "", /先煎/);
 assert.match(getTcmHerbFunctionText("煅龙骨"), /重镇安神药/);
-assert.match(getTcmHerbFunctionText("麦冬"), /补阴药/);
+assert.match(getTcmHerbFunctionText("麦冬"), /养阴生津.*润肺清心/);
+assert.match(getTcmHerbFunctionText("生地黄"), /清热凉血.*养阴生津/);
+assert.deepEqual(
+  { min: getTcmHerbDoseLimit("生地黄")?.min, max: getTcmHerbDoseLimit("生地黄")?.max },
+  { min: 10, max: 15 },
+  "生地黄 must use its own pharmacopoeia decoction range, not the fresh-rehmannia 12-30g range in the shared 地黄 row",
+);
 assert.match(getTcmHerbFunctionText("人参"), /大补元气.*补脾益肺/);
 assert.doesNotMatch(getTcmHerbFunctionText("人参"), /痛经|痈肿|驻颜/);
 assert.ok(getTcmHerbFunctionText("人参").length <= 100, "doctor-facing herb functions must stay concise");
@@ -53,6 +59,7 @@ assert.equal(canonicalTcmHerbIdentity("黄耆"), canonicalTcmHerbIdentity("黄�
 assert.equal(canonicalTcmHerbIdentity("元胡"), canonicalTcmHerbIdentity("延胡索"), "knowledge-source parenthetical aliases share one prescription identity");
 assert.equal(canonicalTcmHerbIdentity("炙甘草"), canonicalTcmHerbIdentity("甘草"), "a processed name without an independent knowledge row remains the same prescription source identity");
 assert.notEqual(canonicalTcmHerbIdentity("生地黄"), canonicalTcmHerbIdentity("熟地黄"), "independent knowledge rows must not be over-collapsed as processing aliases");
+assert.equal(canonicalTcmHerbIdentity("生地黄"), "生地黄", "生地黄 is a governed independent prescription identity, not generic 地黄 processing text");
 assert.equal(isKnownTcmHerbName("延胡索"), true, "parenthetical aliases in the knowledge source must resolve to the canonical herb row");
 assert.deepEqual({ min: getTcmHerbDoseLimit("延胡索")?.min, max: getTcmHerbDoseLimit("延胡索")?.max }, { min: 3, max: 10 });
 assert.equal(isKnownTcmHerbName("元胡"), true);
@@ -906,7 +913,7 @@ qiYinM04.formula.candidates[0].formulaNames = [];
 qiYinM04.formula.candidates[0].constructionType = "self_devised";
 qiYinM04.formula.candidates[0].therapyMatch = "益气养阴，生津止渴";
 qiYinM04.formula.candidates[0].herbs = [
-  { name: "麦冬", dose: "10g", role: "君", prescriptionRole: "养阴生津", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "气阴两虚", function: "补虚药；补阴药", decoctionRequirement: "" },
+  { name: "麦冬", dose: "10g", role: "君", prescriptionRole: "养阴生津", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "气阴两虚", function: getTcmHerbFunctionText("麦冬"), decoctionRequirement: "" },
   { name: "太子参", dose: "10g", role: "臣", prescriptionRole: "益气生津", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "气阴两虚", function: "益气健脾，益气生津，大补元气，补气，补肺；补气药；补虚药", decoctionRequirement: "" },
 ];
 assert.equal(
@@ -1092,6 +1099,57 @@ assert.match(
   m04SemanticIssue(launderingM04, "", liverStomachHeatPrior) || "",
   /herb_2_unsupported_high_impact_yang_warm/,
   "a concept-bearing secondary declaration still cannot hide an opposing high-impact action (乌药 温肾散寒 vs 泄热)",
+);
+const leftGoldPrior = structuredClone(liverStomachHeatPrior);
+leftGoldPrior.overview.recommendedFormulaNames = ["左金丸"];
+leftGoldPrior.overview.formulaSelectionMode = "single";
+leftGoldPrior.overview.recommendedFormulaDirection = "左金丸";
+const leftGoldM04 = structuredClone(liverStomachHeatM04);
+leftGoldM04.formula.candidates[0].name = "左金丸加减";
+leftGoldM04.formula.candidates[0].formulaNames = ["左金丸"];
+leftGoldM04.formula.candidates[0].constructionType = "classic";
+leftGoldM04.formula.candidates[0].herbs = [
+  { name: "黄连", dose: "5g", role: "君", prescriptionRole: "清泻肝火", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "肝胃郁热", function: getTcmHerbFunctionText("黄连"), decoctionRequirement: "" },
+  { name: "吴茱萸", dose: "2g", role: "佐", prescriptionRole: "反佐制约苦寒并和胃降逆", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "temper", targetPathogenesis: "制约峻烈，缓和药性", function: getTcmHerbFunctionText("吴茱萸"), decoctionRequirement: "" },
+];
+assert.equal(
+  m04SemanticIssue(leftGoldM04, "", leftGoldPrior),
+  undefined,
+  "the governed 左金丸 baseline must admit its verified 黄连-吴茱萸 counter-assistance structure",
+);
+const ungovernedCounterAssistance = structuredClone(leftGoldM04);
+ungovernedCounterAssistance.formula.candidates[0].name = "本例辨证组方";
+ungovernedCounterAssistance.formula.candidates[0].formulaNames = [];
+ungovernedCounterAssistance.formula.candidates[0].constructionType = "self_devised";
+assert.equal(
+  m04SemanticIssue(ungovernedCounterAssistance, "", liverStomachHeatPrior),
+  undefined,
+  "a self-devised prescription may use the controlled 黄连-吴茱萸 counter-assistance structure when context, roles, targets, and doses all match",
+);
+const freeTextCounterAssistanceBypass = structuredClone(ungovernedCounterAssistance);
+freeTextCounterAssistanceBypass.formula.candidates[0].herbs[1] = {
+  ...freeTextCounterAssistanceBypass.formula.candidates[0].herbs[1],
+  dose: "3g",
+  role: "君",
+  targetKind: "pathogenesis_node",
+  targetRef: "P1",
+  structureRole: null,
+  targetPathogenesis: "肝胃郁热",
+};
+assert.match(
+  m04SemanticIssue(freeTextCounterAssistanceBypass, "", liverStomachHeatPrior) || "",
+  /unsupported_high_impact_yang_warm/,
+  "free-text 反佐 cannot bypass polarity governance without the controlled secondary role, structure target, and dose boundary",
+);
+const wrongContextCounterAssistance = structuredClone(m04);
+wrongContextCounterAssistance.formula.candidates[0].name = "本例辨证组方";
+wrongContextCounterAssistance.formula.candidates[0].formulaNames = [];
+wrongContextCounterAssistance.formula.candidates[0].constructionType = "self_devised";
+wrongContextCounterAssistance.formula.candidates[0].herbs = structuredClone(ungovernedCounterAssistance.formula.candidates[0].herbs);
+assert.notEqual(
+  m04SemanticIssue(wrongContextCounterAssistance, "", stable),
+  undefined,
+  "the same pair cannot activate counter-assistance governance outside the signed liver-stomach heat context",
 );
 
 // === Colloquial herb names resolve through the governed alias registry to KB-known canonicals ===
@@ -1918,6 +1976,18 @@ const independentlyCataloguedHerbsProposal = {
   },
 };
 assert.equal(m04ProposalIssueCode(independentlyCataloguedHerbsProposal, stable), undefined, "distinct governed knowledge rows are not mistaken for one processed source identity");
+for (const [alias, canonical] of [["杏仁", "苦杏仁"], ["双花", "金银花"], ["薏米", "薏苡仁"], ["枣仁", "酸枣仁"]]) {
+  const aliasProposal = {
+    schemaVersion: "tcm-cdss-m04-proposal-v1",
+    candidate: {
+      name: "本例辨证组方",
+      herbs: [{ name: alias, processing: null, dose: "6g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }],
+      decoction: { doseCount: "5剂", course: "5日" },
+    },
+    nonPharma: m04.nonPharma,
+  };
+  assert.equal(compileM04Proposal(aliasProposal, stable)?.formula?.candidates[0].herbs[0].name, canonical, `${alias} must be canonicalized once at the proposal boundary`);
+}
 const wrappedRegimenProposal = compileM04Proposal({
   schemaVersion: "tcm-cdss-m04-proposal-v1",
   candidate: {

@@ -85,6 +85,11 @@ import {
   type M02Plan,
   type M02TargetField,
 } from "@/lib/m02-question-contract";
+import {
+  parseTcmTreatmentCapabilities,
+  tcmTreatmentAssessmentPositioningForDisplay,
+  type TcmTreatmentProjectCode,
+} from "@/lib/tcm-treatment-projects";
 
 const APP_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const BROWSER_CASE_PERSISTENCE_ENABLED = isBrowserCasePersistenceEnabled();
@@ -4691,7 +4696,9 @@ function ResultTabsV2({
                           </span>
                         </div>
                         <p className="mt-2"><span className="font-medium text-gray-900">对应病机：</span>{item.targetPathogenesis}</p>
-                        <p className="mt-1"><span className="font-medium text-gray-900">评估定位：</span>{item.assessmentPositioning}</p>
+                        {tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning) && (
+                          <p className="mt-1"><span className="font-medium text-gray-900">项目边界：</span>{tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning)}</p>
+                        )}
                         <p className="mt-1 text-amber-800"><span className="font-medium">安全边界：</span>{item.operatorRequirement}；{item.requiredChecks.join("；")}</p>
                       </div>
                     ))}
@@ -4854,6 +4861,7 @@ type HisRecordDraft = {
   tcmTongue: string;
   tcmDetail: string;
   tcmLineagePreference: string;
+  clinicTreatmentCapabilities: string;
   fuzhuJiancha: string;
 };
 
@@ -5114,6 +5122,7 @@ function createEmptyHisRecordDraft(): HisRecordDraft {
     tcmTongue: "",
     tcmDetail: "",
     tcmLineagePreference: "unrestricted",
+    clinicTreatmentCapabilities: "",
     fuzhuJiancha: "",
   };
 }
@@ -5434,6 +5443,9 @@ function buildHisRecordSnapshot(
       tcmTongue: draft.tcmTongue,
       tcmDetail: draft.tcmDetail,
       tcmLineagePreference: draft.tcmLineagePreference,
+      ...(draft.clinicTreatmentCapabilities.trim()
+        ? { clinicTreatmentCapabilities: draft.clinicTreatmentCapabilities.trim() }
+        : {}),
       fuzhuJiancha: draft.fuzhuJiancha,
       extraText,
     }),
@@ -5531,6 +5543,10 @@ function applyDraftToCaseState(
     medicationHistory: draft.medicationHistory.trim() || undefined,
     allergyHistory: draft.allergyHistory.trim() || undefined,
     tcmLineagePreference: draft.tcmLineagePreference.trim() || undefined,
+    clinicTreatmentCapabilities: draft.clinicTreatmentCapabilities.trim()
+      ? parseTcmTreatmentCapabilities(draft.clinicTreatmentCapabilities)
+      : undefined,
+    clinicTreatmentCapabilitiesRestricted: Boolean(draft.clinicTreatmentCapabilities.trim()),
     vitals: Object.keys(vitals).length > 0 ? vitals : undefined,
   };
 }
@@ -6162,6 +6178,17 @@ function HisMedicalRecordWorkspace({
   onClearTongueImage: () => void;
   onOpenTongueCapture: () => void;
 }) {
+  type CapabilityItem = {
+    projectCode: TcmTreatmentProjectCode;
+    name: string;
+    deliveryMode: "onsite" | "referral";
+    riskLevel: "low" | "moderate" | "specialist";
+    containsMedication: boolean;
+    requiresMedicationAudit: boolean;
+  };
+  const [treatmentSettingsOpen, setTreatmentSettingsOpen] = useState(false);
+  const [configuredTreatmentProjects, setConfiguredTreatmentProjects] = useState<CapabilityItem[]>([]);
+  const [treatmentSettingsStatus, setTreatmentSettingsStatus] = useState<"loading" | "ready" | "unavailable">("loading");
   const update = <K extends keyof HisRecordDraft>(key: K, value: HisRecordDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
@@ -6169,6 +6196,42 @@ function HisMedicalRecordWorkspace({
     setDraft((prev) => ({ ...prev, [key]: appendClinicalPresetValue(key, prev[key], value) }));
   };
   const tonguePulseConflict = detectTonguePulseFieldConflict(draft.tcmTongue, draft.tcmPulse);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(apiUrl("/api/diagnosis/health"), { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("health_unavailable");
+        return response.json() as Promise<{ tcmTreatmentProjects?: { configurationValid?: boolean; items?: CapabilityItem[] } }>;
+      })
+      .then((body) => {
+        const items = body.tcmTreatmentProjects?.configurationValid === true && Array.isArray(body.tcmTreatmentProjects.items)
+          ? body.tcmTreatmentProjects.items
+          : [];
+        setConfiguredTreatmentProjects(items);
+        setTreatmentSettingsStatus(items.length > 0 ? "ready" : "unavailable");
+      })
+      .catch((error: unknown) => {
+        if ((error as { name?: string })?.name !== "AbortError") setTreatmentSettingsStatus("unavailable");
+      });
+    return () => controller.abort();
+  }, []);
+  const customTreatmentScope = draft.clinicTreatmentCapabilities.trim();
+  const selectedTreatmentCodes = new Set<TcmTreatmentProjectCode>(
+    customTreatmentScope
+      ? parseTcmTreatmentCapabilities(customTreatmentScope)
+      : configuredTreatmentProjects.map((item) => item.projectCode),
+  );
+  const toggleTreatmentProject = (projectCode: TcmTreatmentProjectCode) => {
+    const next = new Set(selectedTreatmentCodes);
+    if (next.has(projectCode)) next.delete(projectCode);
+    else next.add(projectCode);
+    const deploymentOrder = configuredTreatmentProjects.map((item) => item.projectCode);
+    const ordered = deploymentOrder.filter((code) => next.has(code));
+    update(
+      "clinicTreatmentCapabilities",
+      ordered.length === deploymentOrder.length ? "" : ordered.length === 0 ? "__none__" : ordered.join(","),
+    );
+  };
 
   return (
     <section id="cdss-section-record" className="flex scroll-mt-3 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white xl:min-h-0 xl:flex-1" data-rx-card="1">
@@ -6209,6 +6272,63 @@ function HisMedicalRecordWorkspace({
               const provenance = card.provenance.representativeWorks.length ? `依据：${card.provenance.representativeWorks.slice(0, 3).join("、")}。` : "";
               return `${card.coreTheory}${formulas}${focus}${provenance} 诊疗思路用于辅助辨证，急危重风险仍需优先处置。`;
             })()}
+          </div>
+
+          <div className="border-b border-gray-200 px-3 py-2 sm:px-[96px]" data-testid="tcm-treatment-capability-settings">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-[12px] font-semibold text-gray-800">中医治疗项目</p>
+                <p className="mt-0.5 text-[11px] text-gray-500">
+                  {treatmentSettingsStatus === "loading"
+                    ? "正在读取机构项目…"
+                    : treatmentSettingsStatus === "unavailable"
+                      ? "机构项目配置暂不可读取，本例不会扩展项目范围。"
+                      : customTreatmentScope === "__none__"
+                        ? "本病例已明确不生成项目推荐"
+                        : customTreatmentScope
+                          ? `本病例已选 ${selectedTreatmentCodes.size}/${configuredTreatmentProjects.length} 项`
+                          : `按机构默认启用 ${configuredTreatmentProjects.length} 项`}
+                </p>
+              </div>
+              <button
+                type="button"
+                data-testid="tcm-treatment-settings-toggle"
+                onClick={() => setTreatmentSettingsOpen((current) => !current)}
+                disabled={treatmentSettingsStatus !== "ready" || isRunning}
+                className="inline-flex h-8 items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2.5 text-[12px] font-bold text-gray-700 transition-colors hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700 disabled:cursor-not-allowed disabled:text-gray-300"
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+                项目设置
+              </button>
+            </div>
+            {treatmentSettingsOpen && treatmentSettingsStatus === "ready" && (
+              <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5" data-testid="tcm-treatment-settings-panel">
+                <p className="mb-2 text-[11px] leading-relaxed text-gray-500">这里只能缩小本机构已部署的项目范围；最终仍按本例已签名诊断、病机节点与项目适配规则个性化筛选。</p>
+                <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {configuredTreatmentProjects.map((item) => (
+                    <label key={item.projectCode} className="flex cursor-pointer items-start gap-2 rounded border border-gray-200 bg-white px-2.5 py-2 text-[12px] text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedTreatmentCodes.has(item.projectCode)}
+                        onChange={() => toggleTreatmentProject(item.projectCode)}
+                        className="mt-0.5 accent-teal-600"
+                      />
+                      <span>
+                        <span className="font-semibold text-gray-900">{item.name}</span>
+                        <span className="ml-1 text-[10px] text-gray-400">{item.deliveryMode === "onsite" ? "本机构" : "转介"}{item.containsMedication ? " · 含药审方" : ""}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => update("clinicTreatmentCapabilities", "")}
+                  className="mt-2 text-[11px] font-semibold text-teal-700 hover:text-teal-800"
+                >
+                  恢复机构默认
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="border-b border-gray-200">

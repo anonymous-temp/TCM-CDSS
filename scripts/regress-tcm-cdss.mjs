@@ -464,11 +464,20 @@ function runFrontendContractChecks() {
   assert(prescribeRoute.includes("applyTcmTreatmentCapabilityPriority(evidenceOutputTransform(content)") && prescribeRoute.includes("enrichPrescriptionProvenance(sanitized)"), "M04: evidence is sanitized and treatment capabilities are canonicalized before verified local formula provenance is added", prescribeRoute.slice(-2200));
   assert(
     diagnosisVisibleSummarySource.includes("Array.isArray(item.requiredChecks)") &&
+      diagnosisVisibleSummarySource.includes("tcmTreatmentAssessmentPositioningForDisplay") &&
       hisSchemeSource.includes("operatorRequirement: project.operatorRequirement") &&
       hisSchemeSource.includes("requiredChecks: project.requiredChecks") &&
       hisSchemeSource.includes("requiresMedicationAudit: project.requiresMedicationAudit"),
-    "treatment projects: operator requirements, checks, risk mode, and medication-audit boundary survive report and HIS export",
+    "treatment projects: generic positioning is omitted while operator requirements, checks, risk mode, and medication-audit boundary survive report and HIS export",
     `${diagnosisVisibleSummarySource.slice(23800, 26000)}\n${hisSchemeSource.slice(-5200)}`,
+  );
+  assert(
+    source.includes('data-testid="tcm-treatment-settings-toggle"') &&
+      source.includes('data-testid="tcm-treatment-settings-panel"') &&
+      source.includes("parseTcmTreatmentCapabilities(draft.clinicTreatmentCapabilities)") &&
+      source.includes("这里只能缩小本机构已部署的项目范围"),
+    "frontend: the record workspace exposes a fail-closed per-case treatment-project scope control",
+    source.slice(source.indexOf('data-testid="tcm-treatment-capability-settings"') - 500, source.indexOf('data-testid="tcm-treatment-settings-panel"') + 1800),
   );
   assert(
     diagnosisApiSource.includes("return { groundingConflict: 1 }") && !diagnosisApiSource.includes("return { conflict }") &&

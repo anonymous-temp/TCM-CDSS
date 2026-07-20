@@ -4,6 +4,7 @@ const {
   TCM_TREATMENT_PROJECTS,
   TCM_TREATMENT_PROJECT_CODES,
   parseTcmTreatmentCapabilities,
+  tcmTreatmentAssessmentPositioningForDisplay,
 } = await import("../src/lib/tcm-treatment-projects.ts");
 const {
   applyTcmTreatmentCapabilityPriority,
@@ -231,6 +232,13 @@ try {
     assert.deepEqual(compileTcmTreatmentRecommendations([{ projectCode: "diet_therapy", targetRef: "P1" }], priors.digestive), []);
   });
 
+  check("configured project status exposes only non-secret UI capability metadata", () => {
+    configureSimple(["acupuncture", "auricular", "diet_therapy"]);
+    const status = getTcmTreatmentProjectStatus();
+    assert.deepEqual(status.items.map((item) => item.projectCode), ["acupuncture", "auricular", "diet_therapy"]);
+    assert.deepEqual(Object.keys(status.items[0]).sort(), ["containsMedication", "deliveryMode", "name", "priority", "projectCode", "requiresMedicationAudit", "riskLevel"].sort());
+  });
+
   check("invalid deployment configuration fails closed", () => {
     process.env.TCM_CLINIC_TREATMENT_CAPABILITIES_JSON = "{not-json";
     process.env.TCM_CLINIC_TREATMENT_CAPABILITIES = "acupuncture";
@@ -246,7 +254,7 @@ try {
     assert.deepEqual(compileTcmTreatmentRecommendations([{ projectCode: "diet_therapy", targetRef: "P1" }], unsigned), []);
   });
 
-  check("model proposals are not reclassified by a server keyword domain", () => {
+  check("negated differentials cannot fabricate a treatment indication", () => {
     const sleepWithNegatedNeckDifferential = signedM03({
       tcmDiseaseName: "不寐",
       primarySyndrome: "心神不宁证",
@@ -264,7 +272,7 @@ try {
     assert.deepEqual(compileTcmTreatmentRecommendations(
       [{ projectCode: "needle_knife", targetRef: "P1" }],
       sleepWithNegatedNeckDifferential,
-    ).map((item) => item.projectCode), ["needle_knife"]);
+    ), []);
   });
 
   check("complete signed target nodes can receive explicit model proposals", () => {
@@ -317,55 +325,56 @@ try {
     }
   });
 
-  check("empty model output remains empty even when the clinic has suitable projects", () => {
-    configureSimple(["acupuncture", "auricular", "tuina"]);
-    assert.deepEqual(compileTcmTreatmentRecommendations([], priors.headache), []);
-  });
-
-  check("clinic priority never fabricates omitted model proposals", () => {
-    configureSimple(["diet_therapy", "acupuncture"]);
+  check("a high-confidence signed diagnosis gets a bounded deterministic backstop when the model omits projects", () => {
+    configureSimple(["diet_therapy", "auricular", "acupuncture", "tuina"]);
     const recommendations = compileTcmTreatmentRecommendations([], priors.digestive);
-    assert.deepEqual(recommendations, []);
+    assert.deepEqual(recommendations.map((item) => item.projectCode), ["diet_therapy", "auricular"]);
+    assert.ok(recommendations.every((item) => item.executable === false && item.clinicianReviewRequired === true));
   });
 
-  check("an invalid model project is rejected without deterministic supplementation", () => {
+  check("an invalid model project is rejected and cannot suppress safe personalized backstops", () => {
     configureSimple(["diet_therapy", "acupuncture"]);
     const recommendations = compileTcmTreatmentRecommendations(
       [{ projectCode: "needle_knife", targetRef: "P9" }],
       priors.digestive,
     );
-    assert.deepEqual(recommendations, []);
+    assert.deepEqual(recommendations.map((item) => item.projectCode), ["diet_therapy", "acupuncture"]);
   });
 
-  check("metabolic rehabilitation is not auto-filled after model omission", () => {
-    configureSimple(["qigong_daoyin", "acupuncture"]);
-    assert.equal(
-      compileTcmTreatmentRecommendations([], priors.metabolicRehabilitation).length,
-      0,
-    );
+  check("personalized domain matrix does not collapse every case to acupuncture and tuina", () => {
+    configureSimple(["acupuncture", "moxibustion", "tuina", "cupping", "guasha", "auricular", "diet_therapy", "qigong_daoyin"]);
+    const matrix = [
+      [priors.digestive, ["diet_therapy", "auricular"]],
+      [priors.respiratory, ["qigong_daoyin", "moxibustion"]],
+      [priors.pain, ["tuina", "acupuncture"]],
+      [priors.gynecology, ["moxibustion", "auricular"]],
+      [priors.headache, ["auricular", "acupuncture"]],
+      [priors.sleepEmotion, ["auricular", "qigong_daoyin"]],
+      [priors.metabolicRehabilitation, ["diet_therapy", "qigong_daoyin"]],
+      [priors.neurologicRehabilitation, ["acupuncture", "qigong_daoyin"]],
+    ];
+    const signatures = [];
+    for (const [prior, expected] of matrix) {
+      const codes = compileTcmTreatmentRecommendations([], prior).map((item) => item.projectCode);
+      assert.deepEqual(codes, expected);
+      signatures.push(codes.join("+"));
+    }
+    assert.ok(new Set(signatures).size >= 6, "different clinical domains must produce materially different project sets");
   });
 
-  check("post-stroke rehabilitation also requires an explicit model proposal", () => {
-    configureSimple(["acupuncture", "tuina", "qigong_daoyin"]);
-    assert.deepEqual(
-      compileTcmTreatmentRecommendations([], priors.neurologicRehabilitation).map((item) => item.projectCode),
-      [],
-    );
-  });
-
-  check("one valid model proposal remains one proposal without server additions", () => {
+  check("one valid model proposal is retained and complemented only by matched safe projects", () => {
     configureSimple(["acupuncture", "moxibustion", "diet_therapy", "needle_knife"]);
     const recommendations = compileTcmTreatmentRecommendations(
       [{ projectCode: "diet_therapy", targetRef: "P1" }],
       priors.digestive,
     );
-    assert.deepEqual(recommendations.map((item) => item.projectCode), ["diet_therapy"]);
+    assert.deepEqual(recommendations.map((item) => item.projectCode), ["diet_therapy", "moxibustion", "acupuncture"]);
     assert.ok(recommendations.length <= 3);
     assert.equal(new Set(recommendations.map((item) => item.projectCode)).size, recommendations.length);
     assert.equal(recommendations.some((item) => item.projectCode === "needle_knife"), false);
   });
 
-  check("clinic priority only orders accepted model proposals", () => {
+  check("clinical fit ranks ahead of clinic display priority", () => {
     configureSimple(["acupuncture", "moxibustion", "tuina", "cupping"]);
     const recommendations = compileTcmTreatmentRecommendations(
       [{ projectCode: "cupping", targetRef: "P1" }],
@@ -373,8 +382,8 @@ try {
     );
     assert.deepEqual(
       recommendations.map((item) => item.projectCode),
-      ["cupping"],
-      "unproposed clinic capabilities must not enter the result",
+      ["tuina", "acupuncture", "cupping"],
+      "the accepted proposal remains visible but domain affinity controls ordering",
     );
   });
 
@@ -388,13 +397,13 @@ try {
     assert.match(buildTcmTreatmentProjectPromptContext({ reasoningDiagnose: priors.sleepEmotion }), /必须输出空数组/);
   });
 
-  check("the compiler validates contracts but does not second-guess model clinical semantics", () => {
+  check("the compiler rejects projects that do not match the signed diagnosis", () => {
     configureSimple(["needle_knife", "diet_therapy"]);
     const recommendations = compileTcmTreatmentRecommendations([
       { projectCode: "needle_knife", targetRef: "P1" },
       { projectCode: "diet_therapy", targetRef: "P1" },
     ], priors.digestive);
-    assert.deepEqual(recommendations.map((item) => item.projectCode), ["needle_knife", "diet_therapy"]);
+    assert.deepEqual(recommendations.map((item) => item.projectCode), ["diet_therapy"]);
   });
 
   check("each treatment project preserves the exact real pathogenesis node selected by the model", () => {
@@ -403,8 +412,8 @@ try {
       [{ projectCode: "tuina", targetRef: "P1" }],
       priors.mixedSleepAndNeckPain,
     );
-    assert.equal(firstNode[0]?.targetRef, "P1");
-    assert.match(firstNode[0]?.targetPathogenesis || "", /心神失养/);
+    assert.equal(firstNode.some((item) => item.projectCode === "tuina" && item.targetRef === "P1"), false, "tuina cannot be bound to the sleep-only node");
+    assert.equal(firstNode.some((item) => item.projectCode === "tuina"), false, "a mismatched provider target cannot be silently rebound to another node");
     const matched = compileTcmTreatmentRecommendations(
       [{ projectCode: "tuina", targetRef: "P2" }],
       priors.mixedSleepAndNeckPain,
@@ -533,12 +542,22 @@ try {
     }
   });
 
+  check("generic assessment positioning is omitted from display while material boundaries remain", () => {
+    configureSimple(["acupuncture", "needle_knife", "acupoint_application"]);
+    const ordinary = compileTcmTreatmentRecommendations([{ projectCode: "acupuncture", targetRef: "P1" }], priors.headache)[0];
+    const specialist = compileTcmTreatmentRecommendations([{ projectCode: "needle_knife", targetRef: "P1" }], priors.pain).find((item) => item.projectCode === "needle_knife");
+    const medicated = compileTcmTreatmentRecommendations([{ projectCode: "acupoint_application", targetRef: "P1" }], priors.respiratory).find((item) => item.projectCode === "acupoint_application");
+    assert.equal(tcmTreatmentAssessmentPositioningForDisplay(ordinary.assessmentPositioning), undefined);
+    assert.match(tcmTreatmentAssessmentPositioningForDisplay(specialist.assessmentPositioning) || "", /专项资质/);
+    assert.match(tcmTreatmentAssessmentPositioningForDisplay(medicated.assessmentPositioning) || "", /独立用药审方/);
+  });
+
   check("prompt exposes the configured catalog and asks the LLM to judge semantics", () => {
     configureSimple(["acupoint_application", "needle_knife", "diet_therapy"]);
     const context = buildTcmTreatmentProjectPromptContext({ reasoningDiagnose: priors.respiratory });
     assert.match(context, /acupoint_application=敷贴/);
     assert.match(context, /含药外治，仅作审方评估/);
-    assert.match(context, /needle_knife=针刀/);
+    assert.doesNotMatch(context, /needle_knife=针刀/, "an unrelated specialist procedure must not be offered for a respiratory case");
     assert.match(context, /diet_therapy=食疗法/, "respiratory dietary care remains a reasonable low-risk clinic option");
     assert.match(context, /模型只输出确有临床理由的 projectCode/);
   });
@@ -579,13 +598,13 @@ try {
     assert.equal(recommendation.executable, false);
   });
 
-  check("provider omission is preserved instead of being filled by server rules", () => {
+  check("provider omission receives the same signed-diagnosis backstop used by direct compilation", () => {
     configureSimple(["acupuncture", "tuina"]);
     const rawReasoning = { ...priors.pain, stage: "prescribe", nonPharma: null };
     const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(rawReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
     const sanitized = applyTcmTreatmentCapabilityPriority(content, undefined, priors.pain);
     const sanitizedJson = JSON.parse(sanitized.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
-    assert.equal(sanitizedJson.nonPharma, null);
+    assert.deepEqual(sanitizedJson.nonPharma.tcmTreatments.map((item) => item.projectCode), ["tuina", "acupuncture"]);
   });
 
   check("a fabricated target is discarded without silently retargeting the same project", () => {

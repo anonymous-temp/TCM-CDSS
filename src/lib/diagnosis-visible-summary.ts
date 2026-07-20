@@ -5,6 +5,7 @@ import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-ta
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalText, clinicalClausePolarity } from "./clinical-polarity";
 import { getM03TherapyLock } from "./m03-therapy-lock";
+import { tcmTreatmentAssessmentPositioningForDisplay } from "./tcm-treatment-projects";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -997,14 +998,15 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       lines.push(
         "",
         "### 中医治疗项目",
-        "| 项目 | 机构适配 | 对应目标 | 推荐依据 | 实施与安全边界 |",
-        "|---|---|---|---|---|",
+        "| 项目 | 机构适配 | 对应病机 | 实施与安全边界 |",
+        "|---|---|---|---|",
         ...treatmentProjects.map((item) => {
           const availability = item.availability === "clinic_available" ? "本机构可开展" : "转介评估";
           const requiredChecks = Array.isArray(item.requiredChecks)
             ? item.requiredChecks.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map(markdownCell)
             : [];
-          return `| ${markdownCell(item.projectName)} | ${availability} | ${markdownCell(item.targetPathogenesis)} | ${markdownCell(item.assessmentPositioning)} | ${[markdownCell(item.operatorRequirement), ...requiredChecks].filter(Boolean).join("；")} |`;
+          const materialPositioning = tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning);
+          return `| ${markdownCell(item.projectName)} | ${availability} | ${markdownCell(item.targetPathogenesis)} | ${[markdownCell(materialPositioning), markdownCell(item.operatorRequirement), ...requiredChecks].filter(Boolean).join("；")} |`;
         }),
       );
     }

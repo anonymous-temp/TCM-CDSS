@@ -283,7 +283,7 @@ function normalizeModifications(
     // invalidate an otherwise complete core prescription, but no missing field may be invented.
     const doseBearingText = [trigger, herbName, reason].filter(Boolean).join("；");
     if (!actionType || !trigger || !targetRef || !herbName || !reason || /(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)\s*(?:mg|g|毫克|克)(?!\s*\/\s*(?:L|升))/i.test(doseBearingText)) return [];
-    const normalizedHerbName = herbName.trim();
+    const normalizedHerbName = canonicalTcmHerbIdentity(herbName.trim());
     // 随症加减是可选决策支持，不能让一条模型臆造的药味、病机引用或动作拖垮
     // 已通过核心契约的候选处方。服务端只保留知识库可识别且与当前上下文一致的行。
     if (!isKnownTcmHerbName(normalizedHerbName)) return [];
@@ -357,6 +357,18 @@ function normalizeHerb(
         const existing = unwrapSingleText(herb.processing ?? herb["炮制"] ?? herb["规格"]);
         herb.processing = [...new Set([existing, processingName].filter((item): item is string => Boolean(item)))].join("、");
       }
+    }
+    const normalizedCurrentName = typeof herb.name === "string" ? herb.name.trim() : "";
+    const canonicalName = canonicalTcmHerbIdentity(normalizedCurrentName);
+    if (canonicalName && isKnownTcmHerbName(canonicalName)) {
+      if (canonicalName !== normalizedCurrentName) {
+        const processingPrefix = normalizedCurrentName.match(/^(蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|制|煅|炮|焦)(.+)$/)?.[1];
+        if (processingPrefix) {
+          const existing = unwrapSingleText(herb.processing ?? herb["炮制"] ?? herb["规格"]);
+          herb.processing = [...new Set([existing, processingPrefix].filter((item): item is string => Boolean(item)))].join("、");
+        }
+      }
+      herb.name = canonicalName;
     }
   }
   herb.dose = normalizeDose(herb.dose ?? herb["剂量"]);
