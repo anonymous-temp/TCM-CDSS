@@ -66,7 +66,7 @@ export const REDFLAG_MATRIX_100 = [
   { id: "TC01", chief: "胃脘胀满饭后加重3月", hist: "饭后胃胀,嗳气,大便偏稀。舌淡胖有齿痕苔白腻。", vitals: {}, expect: { redFlag: false, tcm: "痞满/脾胃虚弱" } },
   { id: "TC02", chief: "腹泻腹痛2天", hist: "进食生冷后腹泻日4次,稀水样,轻度腹痛。舌淡苔白腻。", vitals: {}, expect: { redFlag: false, tcm: "泄泻/寒湿" } },
   { id: "TC03", chief: "便秘3月", hist: "大便干结,4-5日一行,排便费力。舌红少津。", vitals: {}, expect: { redFlag: false, tcm: "便秘/肠燥津亏" } },
-  { id: "TC04", chief: "反酸烧心1月", hist: "夜间反酸烧心,平卧加重。舌红苔薄黄。", vitals: {}, expect: { redFlag: false, tcm: "吐酸/肝胃不和" } },
+  { id: "TC04", chief: "反酸烧心1月", hist: "夜间反酸烧心,平卧加重。舌红苔薄黄。", vitals: {}, expect: { redFlag: false, tcm: "吐酸/肝胃不和", m03: "full", m04: "any", notes: "温清反佐(左金丸式黄连+吴茱萸)未建模:模型坚持该结构时被确定性极性门保守拒收=当前设计行为;走合规结构时剂量合理" } },
   { id: "TC05", chief: "感冒后咳嗽2周", hist: "干咳少痰,咽痒,夜间加重。舌偏红苔薄白。", vitals: {}, expect: { redFlag: false, tcm: "咳嗽/风邪恋肺" } },
   { id: "TC06", chief: "晨起喷嚏清涕3年", hist: "尘螨过敏史,晨起喷嚏连连,清涕。舌淡苔薄白。", vitals: {}, expect: { redFlag: false, tcm: "鼻鼽/肺气虚寒" } },
   { id: "TC07", chief: "运动后喘鸣1月", hist: "跑步后喘鸣,夜间憋醒1次。舌淡苔白。", vitals: { rr: "18", spo2: "97" }, expect: { redFlag: false, tcm: "哮病/痰饮伏肺" } },
