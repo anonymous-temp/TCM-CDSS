@@ -140,7 +140,7 @@ export type RedFlagFinding = {
   quote: string;
 };
 
-export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v17";
+export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v18";
 export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v19";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
@@ -215,6 +215,10 @@ const BLEEDING_HYPOPERFUSION_LANGUAGE = /(?:(?:站起|站立|起身|坐起|体�
 const REPEATED_OR_MULTI_DAY_BLEEDING_LANGUAGE = /(?:大量|反复|多次|不止|持续出血|喷射|[2-9]\s*次|两次|三次|(?:这|近)?(?:两|三|[2-9])\s*(?:天|日))/;
 const EXPLICIT_MILD_ABDOMINAL_PAIN_LANGUAGE = /(?:(?:腹|肚子|上腹|下腹|左下腹|右下腹)[^，,。；;\n]{0,6}(?:痛|疼)[^，,。；;\n]{0,8}(?:不是很重|不太重|不重|较轻|轻微|轻度|隐痛)|(?:轻微|轻度|较轻)[^，,。；;\n]{0,4}(?:腹痛|肚子痛|肚子疼))/;
 const ACUTE_ABDOMEN_DANGER_LANGUAGE = /(?:突发|突然|剧烈|疼得厉害|明显加重|越来越|进行性|反跳痛|松手更疼|腹肌紧张|板状腹|休克|晕厥|意识改变|反复呕吐|持续呕吐|高热|停止排气排便|不排气|不排便|呕血|黑便|便血)/;
+const NON_EXTREME_HIGH_FEVER_LANGUAGE = /(?:体温|T)\s*[:：]?\s*39(?:\.\d+|度\d+)?\s*(?:℃|\u00b0C|度)?/i;
+const STABLE_MENTATION_LANGUAGE = /(?:神志|意识)(?:清楚|清醒|正常)/;
+const STABLE_BREATHING_LANGUAGE = /呼吸(?:平稳|正常)|无(?:呼吸困难|气促|喘憋)/;
+const FEVER_EMERGENCY_LANGUAGE = /(?:神志|意识)(?:模糊|不清|障碍|改变)|呼吸困难|气促|喘憋|休克|低血压|少尿|无尿|发绀|口唇发紫|抽搐/;
 
 function hasCurrentAffirmedPattern(text: string, pattern: RegExp): boolean {
   for (const match of text.matchAll(new RegExp(pattern.source, "g"))) {
@@ -245,6 +249,14 @@ function isExplicitlyLowRiskAbdominalPainFinding(finding: RedFlagFinding, source
     offset = sourceText.indexOf(finding.quote, offset + finding.quote.length);
   }
   return false;
+}
+
+function isExplicitlyStableNonExtremeFeverFinding(finding: RedFlagFinding, sourceText: string): boolean {
+  if ((finding.category !== "sepsis" && finding.category !== "vital_instability") ||
+    finding.subject !== "patient" || finding.status !== "positive" || finding.urgency !== "emergency") return false;
+  return hasCurrentAffirmedPattern(sourceText, NON_EXTREME_HIGH_FEVER_LANGUAGE) &&
+    STABLE_MENTATION_LANGUAGE.test(sourceText) && STABLE_BREATHING_LANGUAGE.test(sourceText) &&
+    !hasCurrentAffirmedPattern(sourceText, FEVER_EMERGENCY_LANGUAGE);
 }
 
 function emergencyEvidenceFloorSatisfied(
@@ -486,6 +498,11 @@ export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): C
     // 保留 clarify 以便门诊继续追问，而不把该类普通当前症状并入红旗处置。
     if (isExplicitlyLowRiskAbdominalPainFinding(finding, sourceText)) {
       return { ...finding, urgency: "clarify" as const, triageBasis: "clarification_needed" as const };
+    }
+    // 39.x℃伴寒战需要优先评估，但在原文同时明确神志和呼吸稳定、且无循环/意识/呼吸危象时，
+    // 不能由语义模型单独升级为脓毒症 emergency。极高热(>=40℃)仍由确定性生命体征门禁处理。
+    if (isExplicitlyStableNonExtremeFeverFinding(finding, sourceText)) {
+      return { ...finding, urgency: "urgent" as const, triageBasis: "urgent_review" as const };
     }
     if (finding.category !== "gi_bleed" || finding.subject !== "patient" || finding.status !== "positive") {
       return finding;

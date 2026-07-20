@@ -772,11 +772,19 @@ for (const scenario of acuteAbdomenPeritonitisScenarios) {
 for (const scenario of [
   "右下腹痛，按下去松手不疼。",
   "腹痛3天，无反跳痛，按压后松手也不疼。",
+  "否认呕吐，腹痛持续加重。",
+  "否认恶心，腹胀持续加重。",
 ]) {
   for (const placement of ["chief", "history", "conversation"]) {
     const gate = evaluateSafetyGate(stateWith(scenario, placement));
     assert.notEqual(gate.status, "red_flag", `${placement}: ${scenario}`);
     assert.doesNotMatch(gate.redFlags.join("、"), /急腹症/, `${placement}: ${scenario}`);
+    cases += 1;
+  }
+}
+for (const scenario of ["否认呕吐，腹痛持续加重。", "否认恶心，腹胀持续加重。"]) {
+  for (const placement of ["chief", "history", "conversation"]) {
+    assert.match(narrativeFallbackAdvisories(stateWith(scenario, placement)).join("、"), /腹痛|腹胀|腹部/, `${placement}: ${scenario}`);
     cases += 1;
   }
 }

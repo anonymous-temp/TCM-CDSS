@@ -1130,6 +1130,23 @@ for (const [label, text] of [
   })());
 }
 
+ok("整类上限: 39.x℃高热伴寒战但神志呼吸稳定不得升为 emergency", (() => {
+  const text = "体温39.5℃，寒战，但神志清楚、呼吸平稳";
+  const facts = {
+    redFlags: [{ category: "sepsis", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "other_immediate_threat", quote: "体温39.5℃，寒战" }],
+  };
+  const grounded = groundClinicalFacts(facts, text);
+  return grounded.redFlags[0]?.urgency === "urgent" && grounded.redFlags[0]?.triageBasis === "urgent_review";
+})());
+
+ok("整类上限: 39.x℃同时意识或呼吸异常时不得降级", (() => {
+  const text = "体温39.5℃，寒战，意识模糊且呼吸困难";
+  const facts = {
+    redFlags: [{ category: "sepsis", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "other_immediate_threat", quote: "体温39.5℃，寒战" }],
+  };
+  return groundClinicalFacts(facts, text).redFlags[0]?.urgency === "emergency";
+})());
+
 ok("prompt: 提取提示含腹膜刺激征口语等价（松手更疼）必报 emergency 规则", (() => {
   const prompt = buildClinicalFactsExtractionPrompt("腹痛");
   return /松手更疼/.test(prompt) && /腹膜刺激征/.test(prompt) && /acute_abdomen \+ emergency/.test(prompt);

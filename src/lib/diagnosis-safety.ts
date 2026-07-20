@@ -1294,17 +1294,7 @@ function hasPatternWithoutNegation(text: string, pattern: RegExp): boolean {
   return false;
 }
 
-function hasAcuteAbdominalTimeline(value: string): boolean {
-  if (/(刚刚|刚才|方才|今日|今天|今晨|今早|昨日|昨日起|昨夜开始|昨晚开始)/.test(value)) return true;
-  if (/(?:半|一|二|两|三|四|五|六|七|数|几)\s*(?:分钟|分|小时|天|日)/.test(value)) return true;
-  for (const match of value.matchAll(/(\d+(?:\.\d+)?)\s*(分钟|分|小时|天|日)/g)) {
-    const duration = Number(match[1]);
-    if (match[2] === "分钟" || match[2] === "分" || match[2] === "小时" || duration <= 7) return true;
-  }
-  return false;
-}
-
-function hasAcuteAbdominalPersistence(text: string): boolean {
+function hasAbdominalPrioritySignal(text: string): boolean {
   const normalized = normalizeClinicalText(text);
   for (const term of ["腹痛", "腹胀"]) {
     let index = normalized.indexOf(term);
@@ -1326,8 +1316,8 @@ function hasAcuteAbdominalPersistence(text: string): boolean {
           .filter((position) => position >= 0);
         const clauseEnd = clauseEndCandidates.length > 0 ? Math.min(...clauseEndCandidates) : normalized.length;
         const localClause = normalized.slice(Math.max(clauseStart, index - 24), Math.min(clauseEnd, index + term.length + 48));
-        const persists = /(?:仍|一直|反复)?持续(?:存在|不缓解)?|(?:未|无|没有|尚未)(?:见)?(?:缓解|好转|改善)/.test(localClause);
-        if (persists && hasAcuteAbdominalTimeline(localClause)) return true;
+        const priority = /(?:快速|明显|很快|迅速|持续|进行性|越来越)[^，,。；;\n]{0,4}加重|(?:仍|一直|反复)?持续(?:存在|不缓解)?|(?:未|无|没有|尚未)(?:见)?(?:缓解|好转|改善)/.test(localClause);
+        if (priority) return true;
       }
       index = normalized.indexOf(term, index + term.length);
     }
@@ -1340,8 +1330,7 @@ function hasAcuteAbdominalSignal(text: string): boolean {
   // 松手后“不疼”的否定式描述不命中（间隔字符排除不/无/未）。
   return hasAnyTerm(text, ["急腹痛", "板状腹", "反跳痛", "腹膜刺激征", "腹肌紧张"]) ||
     hasPatternWithoutNegation(text, /(?:松手|放手|抬手|松开)(?:时|后)?[^，,。；;\n不无未]{0,4}(?:更|最|特别)?(?:疼|痛)/) ||
-    hasPatternWithoutNegation(text, /(?:急性|突发|突然|剧烈|快速加重|明显加重|很快|迅速|持续加重).{0,12}(?:腹痛|腹胀|肚子疼|肚子痛|肚子胀|全腹[^。；;\n]{0,4}痛)|(?:腹痛|腹胀|肚子疼|肚子痛|肚子胀|全腹[^。；;\n]{0,4}痛).{0,10}(?:急性|突发|突然|剧烈|快速加重|明显加重|很快加重|迅速加重|持续加重)/) ||
-    hasAcuteAbdominalPersistence(text);
+    hasPatternWithoutNegation(text, /(?:急性|突发|突然|剧烈).{0,12}(?:腹痛|腹胀|肚子疼|肚子痛|肚子胀|全腹[^。；;\n]{0,4}痛)|(?:腹痛|腹胀|肚子疼|肚子痛|肚子胀|全腹[^。；;\n]{0,4}痛).{0,10}(?:急性|突发|突然|剧烈)/);
 }
 
 function clinicalClauseBounds(text: string, index: number): { start: number; end: number } {
@@ -2019,6 +2008,9 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
   }
   if (hasAnyTerm(text, ["寒战"]) && (hasAnyTerm(text, ["高热", "发热"]) || (parseContextualTemperature(text) ?? 0) >= 38.5)) {
     advisories.push("发热伴寒战需优先复核意识、循环、感染灶及脓毒症风险");
+  }
+  if (hasAbdominalPrioritySignal(text)) {
+    advisories.push("持续或进行性腹痛/腹胀需优先复核严重度、腹膜刺激征、呕吐、排气排便及循环状态");
   }
   if (hasAnyTerm(text, ["呼吸困难", "气促", "喘憋"])) {
     advisories.push("呼吸困难或气促相关表现需优先复核静息严重度、说话能力、血氧及循环状态");
