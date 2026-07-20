@@ -6,7 +6,7 @@
     "provider": "openai-compatible",
     "model": "deepseek-v4-flash",
     "source": "preferred",
-    "reviewedPayloadHash": "sha256:8347f1377eb247f6e37b45cbede709722c482e8bfcf5f69ba6d8193e9adcc35e"
+    "reviewedPayloadHash": "sha256:36d8c446f00ee05234b97077157902bad352f1522b0dd463c516bb0629e340f3"
   },
   "overview": {
     "tcmDiseaseName": "痞满",
@@ -19,9 +19,9 @@
       "量偏多色黄",
       "舌象：舌淡红，苔黄腻"
     ],
-    "primarySyndromeResolutionReason": "缺少腹诊、饮食二便细节、带下具体性状及妇科检查，无法完全排除其他兼夹证候；但现有四诊已可形成有边界的工作判断。",
+    "primarySyndromeResolutionReason": "缺少腹诊、饮食情况、睡眠、小便等四诊信息，可能影响对脾虚程度和湿热偏重的精确判断；胆囊息肉病史与当前症状的关联需进一步影像学评估。",
     "secondarySyndromes": [],
-    "overallPathogenesis": "肝郁气滞，横逆犯脾，脾失健运，湿浊内生，郁而化热，湿热下注。",
+    "overallPathogenesis": "肝气郁结，横逆犯脾，脾失健运，湿浊内生，郁而化热，湿热蕴结中焦，下注带脉。",
     "overallTherapy": "疏肝健脾，清热化湿。",
     "recommendedFormulaDirection": "逍遥散合易黄汤加减",
     "recommendedFormulaNames": [
@@ -43,17 +43,17 @@
       "supportingFacts": [
         "脘腹胀满、大便不调半年",
         "压力大时明显",
-        "晨起口苦",
-        "既往史：胆囊息肉"
+        "晨起口苦"
       ],
       "limitations": [
         "未行胃镜、腹部超声等检查排除器质性疾病",
-        "未提供罗马IV标准中其他关键症状如早饱、上腹痛等"
+        "胆囊息肉可能参与症状，需进一步评估"
       ],
       "suggestedChecks": [
-        "胃镜及幽门螺杆菌检测",
+        "胃镜",
         "腹部超声（肝胆胰脾）",
-        "血常规、肝肾功能、血糖、甲状腺功能"
+        "幽门螺杆菌检测",
+        "血常规、肝功能、血糖"
       ],
       "evidence": {
         "evidenceLevel": "model_inference",
@@ -65,31 +65,32 @@
       {
         "name": "肠易激综合征",
         "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
-        "nextCheck": "详细询问腹痛特点及排便相关性，必要时行结肠镜"
+        "nextCheck": "罗马IV标准评估，必要时结肠镜"
       },
       {
         "name": "胆囊息肉相关消化不良",
         "reason": "晨起口苦；该方向需结合临床表现及相关检查继续鉴别。",
-        "nextCheck": "复查腹部超声，评估息肉大小及胆囊功能"
+        "nextCheck": "腹部超声随访，必要时肝胆外科评估"
       }
     ]
   },
   "pathogenesis": {
-    "summary": "患者以脘腹胀满、大便不调为主诉，病位在脾胃，与肝胆密切相关。情绪低落、脉象待核实为肝郁之象；饭后胀甚、大便时干时稀为脾虚不运；口苦、苔黄腻、带下色黄量多、脉象待核实为湿热内蕴之征。总属肝郁脾虚，湿热内蕴之证。",
+    "summary": "患者以脘腹胀满、大便不调为主诉，病程半年，饭后加重，提示脾胃运化失职。情绪低落、压力大时明显，脉象待核实，为肝气郁结之象。口苦、苔黄腻、脉象待核实、带下量多色黄，为湿热内蕴之征。舌淡红提示脾虚尚不严重。综合病位在肝、脾、胃、带脉，病性为气滞、湿、热，属本虚标实，脾虚为本，肝郁、湿热为标。",
     "locationDifferentiation": {
       "items": [
-        "脾胃",
-        "肝胆",
-        "下焦"
+        "肝",
+        "脾",
+        "胃",
+        "带脉"
       ],
       "details": [
         {
-          "location": "下焦",
-          "basis": "量偏多色黄"
+          "location": "脾",
+          "basis": "脘腹胀满、大便不调半年"
         }
       ],
       "resolution": "bounded",
-      "resolutionReason": "病位推断基于现有症状；但缺乏腹诊、妇科检查等直接定位依据。",
+      "resolutionReason": "病位推断基于现有四诊信息；但缺少腹诊、饮食、小便等支持，带脉病位依据带下症状，尚需妇科检查排除局部病变。",
       "evidence": {
         "evidenceLevel": "model_inference",
         "source": "本例四诊与病史推断",
@@ -99,19 +100,19 @@
     "natureDifferentiation": {
       "items": [
         "气滞",
-        "脾虚",
-        "湿热"
+        "湿",
+        "热"
       ],
       "rootDeficiency": [
         "脾虚"
       ],
       "branchExcess": [
-        "气滞",
+        "肝郁",
         "湿热"
       ],
-      "basis": "",
+      "basis": "脘腹胀满、大便不调半年",
       "resolution": "bounded",
-      "resolutionReason": "病性判断基于四诊；但缺少更多虚证表现（如乏力、纳差）的直接描述。",
+      "resolutionReason": "脾虚程度需结合饮食、乏力、舌体等进一步判断；湿热偏重需结合小便、口渴等评估。",
       "evidence": {
         "evidenceLevel": "model_inference",
         "source": "本例四诊与病史推断",
@@ -123,34 +124,34 @@
         "symptoms": [
           "脘腹胀满、大便不调半年"
         ],
-        "mechanism": "脾虚失运，气机壅滞"
+        "mechanism": "脾虚失运，气机壅滞，湿浊内生"
       },
       {
         "symptoms": [
-          "压力大时明显",
-          "晨起口苦"
+          "压力大时明显"
         ],
-        "mechanism": "肝郁化热，胆气上逆"
+        "mechanism": "肝气郁结，疏泄失常"
       },
       {
         "symptoms": [
+          "晨起口苦",
           "量偏多色黄",
           "舌象：舌淡红，苔黄腻"
         ],
-        "mechanism": "湿热下注"
+        "mechanism": "湿热内蕴，上蒸于口，下注带脉"
       }
     ],
     "caseRelationship": {
       "rootPattern": "肝郁脾虚，湿热内蕴",
       "mainManifestation": "痞满",
-      "relationship": "肝郁克脾，脾虚生湿，湿郁化热，湿热中阻则脘腹胀满，下注则带下色黄，肠道传导失司则大便不调。"
+      "relationship": "肝郁克脾，脾虚生湿，湿郁化热，湿热中阻，气机不利，发为痞满；湿热下注则带下异常。"
     },
     "chain": [
       {
         "nodeId": "P1",
         "patientFact": "压力大时明显",
         "syndromeEvidence": "压力大时明显",
-        "pathogenesis": "肝气郁结，疏泄失常",
+        "pathogenesis": "肝气郁结，疏泄失常，横逆犯脾",
         "therapyDirection": "疏肝解郁",
         "pathogenesisType": "始动",
         "evidence": {
@@ -163,8 +164,8 @@
         "nodeId": "P2",
         "patientFact": "脘腹胀满、大便不调半年",
         "syndromeEvidence": "脘腹胀满、大便不调半年",
-        "pathogenesis": "肝郁犯脾，脾失健运，气机壅滞",
-        "therapyDirection": "健脾行气",
+        "pathogenesis": "脾虚失运，气机壅滞，湿浊内生",
+        "therapyDirection": "健脾助运，行气化湿",
         "evidence": {
           "evidenceLevel": "model_inference",
           "source": "本例资料",
@@ -175,7 +176,7 @@
         "nodeId": "P3",
         "patientFact": "晨起口苦",
         "syndromeEvidence": "晨起口苦",
-        "pathogenesis": "肝郁化热，湿热内生",
+        "pathogenesis": "湿郁化热，湿热内蕴，上蒸于口",
         "therapyDirection": "清热化湿",
         "evidence": {
           "evidenceLevel": "model_inference",
@@ -187,7 +188,7 @@
         "nodeId": "P4",
         "patientFact": "量偏多色黄",
         "syndromeEvidence": "量偏多色黄",
-        "pathogenesis": "湿热下注，带脉失约",
+        "pathogenesis": "湿热下注带脉，任带失约",
         "therapyDirection": "清利湿热，止带",
         "evidence": {
           "evidenceLevel": "model_inference",
@@ -198,29 +199,29 @@
     ],
     "uncertainties": [
       {
-        "item": "饮食、二便细节",
-        "reason": "未描述食欲、食量、大便性状频率等，影响脾虚程度判断",
-        "affects": "健脾药物选择与剂量"
+        "item": "饮食、睡眠、小便情况",
+        "reason": "影响脾虚程度和湿热偏重的判断",
+        "affects": "辨证精确性及用药侧重"
       },
       {
-        "item": "带下具体性状及妇科检查",
-        "reason": "未描述气味、质地、有无阴痒等，无法排除阴道炎等局部病变",
-        "affects": "清热利湿药的侧重及是否需要局部治疗"
+        "item": "胆囊息肉性质及与症状关系",
+        "reason": "可能为器质性病因，需影像学明确",
+        "affects": "西医诊断及治疗策略"
       },
       {
-        "item": "胆囊息肉现状",
-        "reason": "未提供息肉大小、数量、有无症状等，影响肝胆病位权重",
-        "affects": "疏肝利胆药物的选择"
+        "item": "腹诊、胃镜等检查结果",
+        "reason": "排除器质性消化不良",
+        "affects": "诊断确定性"
       }
     ]
   },
   "therapy": {
     "overallPrinciple": "疏肝健脾，清热化湿。",
-    "overallMethod": "疏肝解郁以调畅气机，健脾助运以杜生湿之源，清热利湿以除内蕴之邪，兼以止带。",
+    "overallMethod": "疏肝解郁以调气机，健脾助运以杜生湿之源，清热化湿以除内蕴之邪，兼以止带。",
     "subTherapies": [
       {
         "therapy": "疏肝解郁",
-        "targetPathogenesis": "肝气郁结",
+        "targetPathogenesis": "肝气郁结，横逆犯脾",
         "priority": "主要",
         "evidence": {
           "evidenceLevel": "model_inference",
@@ -229,8 +230,8 @@
         }
       },
       {
-        "therapy": "健脾行气",
-        "targetPathogenesis": "脾虚气滞",
+        "therapy": "健脾助运，行气化湿",
+        "targetPathogenesis": "脾虚失运，气机壅滞，湿浊内生",
         "priority": "主要",
         "evidence": {
           "evidenceLevel": "model_inference",
@@ -240,7 +241,7 @@
       },
       {
         "therapy": "清热化湿",
-        "targetPathogenesis": "湿热内蕴",
+        "targetPathogenesis": "湿热内蕴，上蒸下注",
         "priority": "主要",
         "evidence": {
           "evidenceLevel": "model_inference",
@@ -250,7 +251,7 @@
       },
       {
         "therapy": "清利湿热，止带",
-        "targetPathogenesis": "湿热下注",
+        "targetPathogenesis": "湿热下注带脉",
         "priority": "次要",
         "evidence": {
           "evidenceLevel": "model_inference",
@@ -267,11 +268,11 @@
     "lineageCode": "unrestricted",
     "label": "不限定：循证安全优先",
     "applicable": "partial",
-    "applicabilityReason": "本例肝郁脾虚、湿热内蕴证候明确，不限定流派可灵活选用经典方剂；但需注意安全边界。",
+    "applicabilityReason": "本例肝郁脾虚、湿热内蕴证候明确，不限定流派可灵活选用经典方剂，逍遥散合易黄汤加减符合病机。",
     "influencedDecisions": [
       {
         "aspect": "辨证视角",
-        "detail": "从脏腑辨证入手，以肝脾为核心，兼顾湿热，符合本例病机特点。"
+        "detail": "从脏腑辨证入手，肝脾同调，兼顾湿热，方选逍遥散疏肝健脾，易黄汤清热利湿止带，两方合用切中病机。"
       }
     ],
     "unaffectedBySafety": [
@@ -285,12 +286,12 @@
   },
   "management": {
     "mustCollect": [
-      "本次主诉及伴随症状变化",
-      "带下具体性状（气味、质地、有无阴痒等）及妇科检查",
-      "胆囊息肉复查结果（大小、数量、有无症状）"
+      "饮食、睡眠、小便情况",
+      "腹部超声（肝胆胰脾）复查",
+      "胃镜及幽门螺杆菌检测"
     ],
-    "followupSafetyNet": "接诊时核实相关症状是否存在；治疗2-4周后评估疗效，调整方案。"
+    "followupSafetyNet": "接诊时核实相关症状是否存在；治疗2-4周后复诊评估疗效，调整方药；定期随访胆囊息肉变化。"
   },
   "contractSignatureVersion": "tcm-cdss-m03-signature-v4",
-  "contractSignature": "hmac-sha256:3615fd18fb9252e73734933bfa1a7ff383f14535e31466d6c76704667ff1d33f"
+  "contractSignature": "hmac-sha256:69a1f201f612f95df8504fd25b7afa6b93b21b325e5ff87452a7d273b75d9073"
 }

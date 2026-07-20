@@ -1,6 +1,6 @@
 <!-- TCM_CDSS_RXAUDIT_STATUS:AVAILABLE -->
 
-<!-- TCM_CDSS_RXAUDIT_CORRELATION:%7B%22provider%22%3A%22lingxi-rxaudit%22%2C%22providerAvailable%22%3Atrue%2C%22providerDegraded%22%3Afalse%2C%22providerAuditResult%22%3A%22PASS%22%2C%22providerHighestRiskLevel%22%3A%22INFO%22%2C%22auditId%22%3A%22da522628-8ef7-40c2-83d3-4f5f7f253744%22%2C%22traceId%22%3A%22tr-5ea4a4ad6623%22%2C%22candidateIndex%22%3A0%2C%22prescriptionHash%22%3A%22sha256-dde7ea446e92057d742f3da6b6a233e40ef64fa38fb744b716612046e2880a54%22%2C%22auditedAt%22%3A%222026-07-20T00%3A22%3A49.595Z%22%2C%22effectiveAuditResult%22%3A%22MANUAL_REVIEW%22%2C%22effectiveHighestRiskLevel%22%3A%22INFO%22%2C%22needManualReview%22%3Atrue%7D -->
+<!-- TCM_CDSS_RXAUDIT_CORRELATION:%7B%22provider%22%3A%22lingxi-rxaudit%22%2C%22providerAvailable%22%3Atrue%2C%22providerDegraded%22%3Afalse%2C%22providerAuditResult%22%3A%22PASS%22%2C%22providerHighestRiskLevel%22%3A%22INFO%22%2C%22auditId%22%3A%22d7e07945-38de-4a8b-99c7-e865491504ec%22%2C%22traceId%22%3A%22tr-6aa51df1da2d%22%2C%22candidateIndex%22%3A0%2C%22prescriptionHash%22%3A%22sha256-2f3d88d9fabc61450f9fa70d696096df245c01a7716eb5c9a390e615511142b1%22%2C%22auditedAt%22%3A%222026-07-20T03%3A23%3A42.866Z%22%2C%22effectiveAuditResult%22%3A%22MANUAL_REVIEW%22%2C%22effectiveHighestRiskLevel%22%3A%22INFO%22%2C%22needManualReview%22%3Atrue%7D -->
 
 ## 处方信息待核对
 - 语义抽取未覆盖原文中的全部用药候选，联用风险必须结合原文人工核对。请补齐后重新审方；当前结果不等同于剂量审核通过。

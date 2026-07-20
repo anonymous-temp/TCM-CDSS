@@ -855,6 +855,16 @@ function canonicalKnowledgeHerbName(value: string): string {
   return canonicalHerbNameByToken.get(withoutProcessing) || withoutProcessing;
 }
 
+const commonTcmHerbNames = new Set(data.commonHerbs.map((item) => item.name));
+
+/**
+ * Whether a herb belongs to the governed common-clinic subset. Consumers use this as a stable
+ * ranking signal only; it does not grant dose, efficacy, or safety authority by itself.
+ */
+export function isCommonTcmHerbName(herb: string): boolean {
+  return commonTcmHerbNames.has(canonicalKnowledgeHerbName(herb));
+}
+
 export type TcmGovernedHighImpactConcept = "orifice_open" | "mass_soften";
 
 const TCM_GOVERNED_HIGH_IMPACT_HERBS: Readonly<Record<TcmGovernedHighImpactConcept, ReadonlySet<string>>> = {

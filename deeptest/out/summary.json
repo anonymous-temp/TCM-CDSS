@@ -4,27 +4,27 @@
     "stages": {
       "diagnose": {
         "ok": true,
-        "ms": 30576,
+        "ms": 34556,
         "error": null
       },
       "prescribe": {
         "ok": true,
-        "ms": 17977,
+        "ms": 22559,
         "error": null
       },
       "assess": {
-        "ok": false,
-        "ms": 1792,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "ms": 5580,
+        "error": null
       },
       "postRisk": {
-        "ok": false,
-        "ms": 2046,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "ms": 5930,
+        "error": null
       },
       "question": {
         "ok": true,
-        "ms": 8644,
+        "ms": 12726,
         "error": null
       }
     }
@@ -34,27 +34,27 @@
     "stages": {
       "diagnose": {
         "ok": true,
-        "ms": 35600,
+        "ms": 37776,
         "error": null
       },
       "prescribe": {
         "ok": true,
-        "ms": 21653,
+        "ms": 22508,
         "error": null
       },
       "assess": {
-        "ok": false,
-        "ms": 2650,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "ms": 6754,
+        "error": null
       },
       "postRisk": {
-        "ok": false,
-        "ms": 2971,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "ms": 9216,
+        "error": null
       },
       "question": {
         "ok": true,
-        "ms": 7718,
+        "ms": 10360,
         "error": null
       }
     }
@@ -64,27 +64,25 @@
     "stages": {
       "diagnose": {
         "ok": true,
-        "ms": 53911,
+        "ms": 65741,
         "error": null
       },
       "prescribe": {
         "ok": true,
-        "ms": 22003,
+        "ms": 27702,
         "error": null
       },
       "assess": {
-        "ok": false,
-        "ms": 3673,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "skipped": "non-dose M04: client-side deterministic risk followup, M05 not invoked"
       },
       "postRisk": {
-        "ok": false,
-        "ms": 3642,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "skipped": "non-dose M04: post-prescription-risk not invoked"
       },
       "question": {
         "ok": true,
-        "ms": 10793,
+        "ms": 10896,
         "error": null
       }
     }
@@ -94,27 +92,25 @@
     "stages": {
       "diagnose": {
         "ok": true,
-        "ms": 5,
+        "ms": 16,
         "error": null
       },
       "prescribe": {
         "ok": true,
-        "ms": 2,
+        "ms": 6,
         "error": null
       },
       "assess": {
-        "ok": false,
-        "ms": 3483,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "skipped": "non-dose M04: client-side deterministic risk followup, M05 not invoked"
       },
       "postRisk": {
-        "ok": false,
-        "ms": 3461,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "skipped": "non-dose M04: post-prescription-risk not invoked"
       },
       "question": {
         "ok": true,
-        "ms": 18314,
+        "ms": 11172,
         "error": null
       }
     }
@@ -124,27 +120,25 @@
     "stages": {
       "diagnose": {
         "ok": true,
-        "ms": 51804,
+        "ms": 34844,
         "error": null
       },
       "prescribe": {
         "ok": true,
-        "ms": 3047,
+        "ms": 3091,
         "error": null
       },
       "assess": {
-        "ok": false,
-        "ms": 3324,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "skipped": "non-dose M04: client-side deterministic risk followup, M05 not invoked"
       },
       "postRisk": {
-        "ok": false,
-        "ms": 3176,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "skipped": "non-dose M04: post-prescription-risk not invoked"
       },
       "question": {
         "ok": true,
-        "ms": 10744,
+        "ms": 9223,
         "error": null
       }
     }
@@ -154,27 +148,25 @@
     "stages": {
       "diagnose": {
         "ok": true,
-        "ms": 30040,
+        "ms": 36891,
         "error": null
       },
       "prescribe": {
         "ok": true,
-        "ms": 39026,
+        "ms": 31374,
         "error": null
       },
       "assess": {
-        "ok": false,
-        "ms": 2979,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "skipped": "non-dose M04: client-side deterministic risk followup, M05 not invoked"
       },
       "postRisk": {
-        "ok": false,
-        "ms": 3409,
-        "error": "HTTP 409: {\"error\":\"当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。\",\"code\":\"invalid_m04_signature\"}"
+        "ok": true,
+        "skipped": "non-dose M04: post-prescription-risk not invoked"
       },
       "question": {
         "ok": true,
-        "ms": 10620,
+        "ms": 9408,
         "error": null
       }
     }

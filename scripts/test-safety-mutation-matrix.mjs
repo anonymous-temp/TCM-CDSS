@@ -6,6 +6,7 @@ const jiti = createJiti(import.meta.url, {
 });
 const {
   buildDeterministicRiskFollowup,
+  buildSafetyLimitedDiagnosisReasoning,
   canForceProceedPastSafetyGate,
   currentVitalsSummary,
   evaluateSafetyGate,
@@ -13,6 +14,7 @@ const {
   hasDeterministicCriticalVitalRedFlag,
   measuredVitalAdvisories,
   narrativeFallbackAdvisories,
+  renderSafetyLimitedDiagnosisContract,
 } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
 
@@ -719,6 +721,82 @@ for (const scenario of ambiguousExertionalChestScenarios) {
       assert.equal(evaluateSafetyGate(stateWith(variant, placement)).status, "red_flag", `${placement}: ${variant}`);
       cases += 1;
     }
+  }
+}
+
+// ===== 类别矩阵：口语裸“没”否定不得被误读为阳性（S01 类） =====
+// “没胸痛晕倒”是否定；裸“没”不是“没有”以外的修饰。固定搭配（没精神/没胃口）不算否定。
+const bareMeiNegatedScenarios = [
+  "每周大概五晚，容易心慌但没胸痛晕倒；未孕，没吃安眠药。",
+  "入睡困难两个月，没胸痛没晕倒，第二天没精神。",
+  "心慌但没胸闷胸痛，也没晕过去，胃口一般。",
+];
+for (const scenario of bareMeiNegatedScenarios) {
+  for (const variant of variants(scenario)) {
+    for (const placement of ["chief", "history", "conversation"]) {
+      const gate = evaluateSafetyGate(stateWith(variant, placement));
+      assert.notEqual(gate.status, "red_flag", `${placement}: ${variant}`);
+      assert.equal(gate.redFlags.length, 0, `${placement}: ${variant}`);
+      cases += 1;
+    }
+  }
+}
+// 对照：非否定语境下“没”不影响真实阳性判定；“没缓解”类动词搭配不吞掉后续阳性事实。
+for (const scenario of [
+  "每周大概五晚，容易心慌，今晨突发胸痛。",
+  "胸痛没缓解，黑便2次。",
+]) {
+  for (const placement of ["chief", "history", "conversation"]) {
+    assert.equal(evaluateSafetyGate(stateWith(scenario, placement)).status, "red_flag", `${placement}: ${scenario}`);
+    cases += 1;
+  }
+}
+
+// ===== 类别矩阵：腹膜刺激征口语表达与“肚子疼”类主诉必须命中急腹症（RF05 类） =====
+const acuteAbdomenPeritonitisScenarios = [
+  "右下肚子有点疼，走路不太舒服。疼痛很快加重，已经吐了两次；现在发热38.6℃，按下去松手更疼。",
+  "腹痛3小时，按压后松手更疼。",
+  "肚子疼，突然加重，挺不住了。",
+  "左下腹痛半天，一按就疼，松手时更疼。",
+];
+for (const scenario of acuteAbdomenPeritonitisScenarios) {
+  for (const variant of variants(scenario)) {
+    for (const placement of ["chief", "history", "conversation"]) {
+      const gate = evaluateSafetyGate(stateWith(variant, placement));
+      assert.equal(gate.status, "red_flag", `${placement}: ${variant}`);
+      assert.match(gate.redFlags.join("、"), /急腹症/, `${placement}: ${variant}`);
+      cases += 1;
+    }
+  }
+}
+for (const scenario of [
+  "右下腹痛，按下去松手不疼。",
+  "腹痛3天，无反跳痛，按压后松手也不疼。",
+]) {
+  for (const placement of ["chief", "history", "conversation"]) {
+    const gate = evaluateSafetyGate(stateWith(scenario, placement));
+    assert.notEqual(gate.status, "red_flag", `${placement}: ${scenario}`);
+    assert.doesNotMatch(gate.redFlags.join("、"), /急腹症/, `${placement}: ${scenario}`);
+    cases += 1;
+  }
+}
+
+// ===== 类别矩阵：红旗限定 M03 首屏必须含显性紧急行动（RF04 类） =====
+const { evaluateRedFlagContract } = await import("./lib/primary-care-sparse-50-contracts.mjs");
+for (const scenario of [
+  "突然喘不上气，嘴唇有点发紫，血氧88%。",
+  "2小时前突发压榨性胸痛，伴大汗。",
+]) {
+  for (const placement of ["chief", "history"]) {
+    const state = stateWith(scenario, placement);
+    const gate = evaluateSafetyGate(state);
+    assert.equal(gate.status, "red_flag", `${placement}: ${scenario}`);
+    const content = renderSafetyLimitedDiagnosisContract(state, gate, buildSafetyLimitedDiagnosisReasoning(state, gate));
+    const contract = evaluateRedFlagContract(content, { diagnosisMayContinue: true });
+    assert.ok(contract.ok, `${placement}: ${scenario} => ${contract.errors.join("、")}`);
+    assert.ok(contract.hasImmediateWarning && contract.hasUrgentAction, `${placement}: ${scenario}`);
+    assert.match(contract.firstScreen, /立即[^。；\n]{0,40}(?:急诊|120)/, `${placement}: ${scenario}`);
+    cases += 1;
   }
 }
 

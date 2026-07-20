@@ -222,7 +222,11 @@ async function runOne(id) {
   result.stages.question = { ok: q.ok, ms: q.ms, error: q.error };
   writeFileSync(resolve(dir, "00-question.md"), q.content || "");
 
-  console.log(`[${id}] dx=${dx.ok?"ok":"FAIL"}(${dx.ms}ms) rx=${rx.ok?"ok":"FAIL"}(${rx.ms}ms) assess=${as.ok?"ok":"FAIL"}(${as.ms}ms) risk=${rxr.ok?"ok":"FAIL"}(${rxr.ms}ms) q=${q.ok?"ok":"FAIL"}(${q.ms}ms)${dx.error?` dx.err=${String(dx.error).slice(0,80)}`:""}${rx.error?` rx.err=${String(rx.error).slice(0,80)}`:""}`);
+  const asS = result.stages.assess || {};
+  const rxrS = result.stages.postRisk || {};
+  const asLabel = asS.skipped ? "skip" : asS.ok ? "ok" : "FAIL";
+  const rxrLabel = rxrS.skipped ? "skip" : rxrS.ok ? "ok" : "FAIL";
+  console.log(`[${id}] dx=${dx.ok?"ok":"FAIL"}(${dx.ms}ms) rx=${rx.ok?"ok":"FAIL"}(${rx.ms}ms) assess=${asLabel}(${asS.ms ?? 0}ms) risk=${rxrLabel}(${rxrS.ms ?? 0}ms) q=${q.ok?"ok":"FAIL"}(${q.ms}ms)${dx.error?` dx.err=${String(dx.error).slice(0,80)}`:""}${rx.error?` rx.err=${String(rx.error).slice(0,80)}`:""}`);
   return result;
 }
 

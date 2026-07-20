@@ -957,8 +957,10 @@ export function canProceedToM03AfterFollowup(state: CaseState): boolean {
   return isKnownClinicalText(state.chiefComplaint || fieldText(state, "zhushu"));
 }
 
-const NEGATION_PATTERN = new RegExp(`(否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|没有|未诉|无诉|未主诉|未出现|未发生|未有|未曾|未再发|无再发|从未|从无|没有过|不伴|已缓解|已消失|排除)`, "g");
-const NON_NEGATING_PHRASES = /(无明显诱因|无诱因|无缓解|无好转|无改善|无规律|无特殊处理|未予处理|未治疗)/g;
+// 裸“没”是口语标准否定词（“没胸痛晕倒”），但大量固定搭配里它不是对后续症状词的否定
+// （没胃口=纳差、没精神=乏力、没什么/没关系/没问题…），用负向前瞻排除这些搭配，避免制造漏报。
+const NEGATION_PATTERN = new RegExp(`(否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|没有|没(?!有什么|关系|问题|事|错|完|意思|办法|时间|空|钱|人|影|底|数|辙|门|胃口|精神|力气|劲儿|劲|趣)|未诉|无诉|未主诉|未出现|未发生|未有|未曾|未再发|无再发|从未|从无|没有过|不伴|已缓解|已消失|排除)`, "g");
+const NON_NEGATING_PHRASES = /(无明显诱因|无诱因|无缓解|无好转|无改善|没缓解|没好转|没改善|没消失|无规律|无特殊处理|未予处理|未治疗)/g;
 
 function containsNegation(value: string): boolean {
   NEGATION_PATTERN.lastIndex = 0;
@@ -1334,8 +1336,11 @@ function hasAcuteAbdominalPersistence(text: string): boolean {
 }
 
 function hasAcuteAbdominalSignal(text: string): boolean {
+  // 腹膜刺激征的口语表达（“按下去松手更疼”=反跳痛）与“肚子疼”类口语主诉必须覆盖；
+  // 松手后“不疼”的否定式描述不命中（间隔字符排除不/无/未）。
   return hasAnyTerm(text, ["急腹痛", "板状腹", "反跳痛", "腹膜刺激征", "腹肌紧张"]) ||
-    hasPatternWithoutNegation(text, /(?:急性|突发|突然|剧烈|快速加重|明显加重).{0,12}(?:腹痛|腹胀|全腹[^。；;\n]{0,4}痛)|(?:腹痛|腹胀|全腹[^。；;\n]{0,4}痛).{0,10}(?:急性|突发|突然|剧烈|快速加重|明显加重)/) ||
+    hasPatternWithoutNegation(text, /(?:松手|放手|抬手|松开)(?:时|后)?[^，,。；;\n不无未]{0,4}(?:更|最|特别)?(?:疼|痛)/) ||
+    hasPatternWithoutNegation(text, /(?:急性|突发|突然|剧烈|快速加重|明显加重|很快|迅速|持续加重).{0,12}(?:腹痛|腹胀|肚子疼|肚子痛|肚子胀|全腹[^。；;\n]{0,4}痛)|(?:腹痛|腹胀|肚子疼|肚子痛|肚子胀|全腹[^。；;\n]{0,4}痛).{0,10}(?:急性|突发|突然|剧烈|快速加重|明显加重|很快加重|迅速加重|持续加重)/) ||
     hasAcuteAbdominalPersistence(text);
 }
 
@@ -2692,7 +2697,7 @@ export function buildSafetyLimitedDiagnosis(state: CaseState, gate: SafetyGate):
     `**结论**：${status}`,
     `**理由**：${gate.reasons.join("；")}`,
     `**缺失信息**：${gate.missingItems.length > 0 ? gate.missingItems.join("、") : "无"}`,
-    `**处理建议**：${gate.status === "red_flag" ? "先进行急诊/转诊评估或补充检查；若医生已排除急症，可在左侧补充排查结果后重新推理。" : "请完善关键病历与安全槽位后再进行辨证和处方建议。"}`,
+    `**处理建议**：${gate.status === "red_flag" ? "立即停止常规诊疗并转急诊；危及生命时呼叫120。先完成急诊/转诊评估或补充检查；若医生已排除急症，可在左侧补充排查结果后重新推理。" : "请完善关键病历与安全槽位后再进行辨证和处方建议。"}`,
     "",
     "## 红旗排查",
     "| 风险类别 | 风险评估 | 患者依据 | 下一步 |",

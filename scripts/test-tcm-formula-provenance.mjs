@@ -13,6 +13,8 @@ const {
 
 const herbs = (...names) => names.map((name) => ({ name }));
 const formulaCatalog = JSON.parse(readFileSync(new URL("../src/data/tcm-formula-sources.json", import.meta.url), "utf8"));
+const herbFunctionCatalog = JSON.parse(readFileSync(new URL("../src/data/tcm-herb-function-categories.json", import.meta.url), "utf8"));
+const tcmKnowledgeCatalog = JSON.parse(readFileSync(new URL("../src/data/tcm-knowledge.json", import.meta.url), "utf8"));
 
 for (const [name, entry] of Object.entries(formulaCatalog.officialClassicFormulas)) {
   const resolved = resolveFormulaSources(name, herbs(...entry.ingredients));
@@ -635,6 +637,13 @@ for (const herb of ["知母", "天花粉"]) {
 assert.ok(/- 补阴方向：[^\n]*(?:石斛|玉竹|百合|黄精|天冬|女贞子)/.test(shortlistSection), "at least one covered 补阴 herb must appear in the 补阴 group");
 assert.ok(!shortlistSection.includes("生地黄"), "生地黄 has no KB function coverage and must never be presented as an eligible emperor");
 assert.ok(shortlistSection.includes("麦冬"), "麦冬's 补阴 category now maps to yin_nourish on both sides, so the canonical 养阴 emperor must be offered");
+const commonYinHerbs = tcmKnowledgeCatalog.commonHerbs
+  .map((item) => item.name)
+  .filter((name) => (herbFunctionCatalog.categories[name] || []).some((category) => category.includes("补阴")));
+assert.ok(commonYinHerbs.length <= 16, "the governed common 补阴 subset must fit the per-direction shortlist cap");
+for (const herb of commonYinHerbs) {
+  assert.ok(shortlistSection.includes(herb), `the capped 补阴 shortlist must retain governed common herb ${herb}`);
+}
 
 // ─── 中性功能失调候形态的短名单覆盖：功能性治法文本也必须能导出 KB 覆盖短名单 ───
 const neutralXiaokePrompt = prescribePromptFor(promptM03Reasoning({

@@ -140,8 +140,8 @@ export type RedFlagFinding = {
   quote: string;
 };
 
-export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v15";
-export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v18";
+export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v16";
+export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v19";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
 // 疾病或慢性病程框架下，这类限定描述的是基线功能状态而非急性事件；静息/夜间/端坐/新发/突发/
@@ -207,6 +207,27 @@ const VALID_URGENCIES: ReadonlySet<string> = new Set([
 ]);
 const VALID_SUBJECTS: ReadonlySet<string> = new Set(["patient", "other", "uncertain"]);
 
+// 口语化显性消化道出血 + 循环灌注不足组合是急诊处置的确定性严重度下限。LLM 仍负责
+// 主体、极性和事件识别；一旦它已落地为患者当前阳性 gi_bleed，不能再因“像柏油一样”或
+// “站起来眼前发黑”不是标准术语而把这一整类组合降成普通追问。
+const OVERT_GI_BLEED_LANGUAGE = /(?:呕血|吐血|咖啡样(?:呕吐物|物)|黑便|黑色便|柏油样便|便血|(?:拉|排|解|大便|粪便)[^，,。；;\n]{0,12}(?:像|如同|跟)?[^，,。；;\n]{0,4}柏油|(?:又黑又亮|黑得发亮|黑亮便))/;
+const BLEEDING_HYPOPERFUSION_LANGUAGE = /(?:(?:站起|站立|起身|坐起|体位改变)[^，,。；;\n]{0,12})?(?:眼前发黑|黑矇|差点晕|要晕倒|晕厥|意识(?:不清|模糊|异常)|冷汗|心悸|面色苍白|头晕乏力|头晕|乏力)/;
+const REPEATED_OR_MULTI_DAY_BLEEDING_LANGUAGE = /(?:大量|反复|多次|不止|持续出血|喷射|[2-9]\s*次|两次|三次|(?:这|近)?(?:两|三|[2-9])\s*(?:天|日))/;
+
+function hasCurrentAffirmedPattern(text: string, pattern: RegExp): boolean {
+  for (const match of text.matchAll(new RegExp(pattern.source, "g"))) {
+    if (match[0] && hasCurrentQuoteOccurrence(text, match[0], false)) return true;
+  }
+  return false;
+}
+
+function hasMajorActiveGiBleedingLanguage(text: string): boolean {
+  return hasCurrentAffirmedPattern(text, OVERT_GI_BLEED_LANGUAGE) && (
+    hasCurrentAffirmedPattern(text, BLEEDING_HYPOPERFUSION_LANGUAGE) ||
+    hasCurrentAffirmedPattern(text, REPEATED_OR_MULTI_DAY_BLEEDING_LANGUAGE)
+  );
+}
+
 function emergencyEvidenceFloorSatisfied(
   category: BackstopRedFlagCategory,
   triageBasis: TriageBasis,
@@ -227,7 +248,8 @@ function emergencyEvidenceFloorSatisfied(
     );
   }
   if (triageBasis === "major_active_bleeding") {
-    return /大量|反复|多次|不止|持续出血|咖啡样|鲜血|喷射|(?:这|近)?(?:两|三|[2-9])天.{0,12}(?:黑便|黑色便|柏油|便血|咯血|呕血)|(?:呕血|黑便|黑色便|柏油样便|便血|咯血).{0,12}(?:[2-9]\s*次|两次|三次|[2-9]\s*(?:日|天)|两日|两天|三日|三天|头晕|乏力|晕厥|黑矇|意识|冷汗|心悸|面色苍白)/.test(quote);
+    return hasMajorActiveGiBleedingLanguage(quote) ||
+      /大量|反复|多次|不止|持续出血|咖啡样|鲜血|喷射|(?:这|近)?(?:两|三|[2-9])天.{0,12}(?:黑便|黑色便|柏油|便血|咯血|呕血)|(?:呕血|黑便|黑色便|柏油样便|便血|咯血).{0,12}(?:[2-9]\s*次|两次|三次|[2-9]\s*(?:日|天)|两日|两天|三日|三天|头晕|乏力|晕厥|黑矇|意识|冷汗|心悸|面色苍白)/.test(quote);
   }
   if (category === "acute_abdomen" && triageBasis === "other_immediate_threat") {
     return /突发|剧烈|疼得厉害|板状腹|反跳痛|腹膜刺激|休克|持续呕吐|晕厥|意识改变/.test(quote);
@@ -435,14 +457,31 @@ export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): C
   )
     ? facts.encounterScope
     : undefined;
+  const groundedRedFlags = facts.redFlags.filter((f) => {
+    if (f.quote.length < 2 || !sourceText.includes(f.quote)) return false;
+    if (f.status !== "positive" && f.status !== "possible") return true;
+    return hasCurrentQuoteOccurrence(sourceText, f.quote, f.status === "possible");
+  }).map((finding) => {
+    if (finding.category !== "gi_bleed" || finding.subject !== "patient" || finding.status !== "positive") {
+      return finding;
+    }
+    let offset = sourceText.indexOf(finding.quote);
+    while (offset >= 0) {
+      let sentenceStart = offset;
+      while (sentenceStart > 0 && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceStart - 1])) sentenceStart -= 1;
+      let sentenceEnd = offset + finding.quote.length;
+      while (sentenceEnd < sourceText.length && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceEnd])) sentenceEnd += 1;
+      if (hasMajorActiveGiBleedingLanguage(sourceText.slice(sentenceStart, sentenceEnd))) {
+        return { ...finding, urgency: "emergency" as const, triageBasis: "major_active_bleeding" as const };
+      }
+      offset = sourceText.indexOf(finding.quote, offset + finding.quote.length);
+    }
+    return finding;
+  });
   return {
     ...facts,
     encounterScope,
-    redFlags: facts.redFlags.filter((f) => {
-      if (f.quote.length < 2 || !sourceText.includes(f.quote)) return false;
-      if (f.status !== "positive" && f.status !== "possible") return true;
-      return hasCurrentQuoteOccurrence(sourceText, f.quote, f.status === "possible");
-    }),
+    redFlags: groundedRedFlags,
   };
 }
 
@@ -735,7 +774,7 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     "- 单次少量黑便、便血、呕血或外伤后渗血，且当前稳定、没有灌注不足表现时通常标 urgent/clarify；反复显性出血，或出血同时伴头晕乏力、晕厥、意识/循环异常等灌注不足线索，现有资料已足以按活动性大出血或其他即时威胁标 emergency。不能因为缺少血红蛋白或生命体征记录就把这种组合降级。",
     "- 同一危险事件的伴随表现用于提高主事件严重度时，优先合并为一个最能代表处置路径的 finding，避免重复拆成多个类目。例如柏油样黑便伴站立眼前发黑应由 gi_bleed + major_active_bleeding 表达；不要再输出一个使用 major_active_bleeding 的 syncope finding。每条 triageBasis 都必须属于该 category 允许的急诊依据。",
     "- 单次晕厥后已清醒且当前稳定通常标 urgent；伴持续意识异常、严重外伤、进行性心肺症状或循环不稳时才标 emergency。",
-    "- 突发雷击样剧烈头痛、当前新发或较稳定基线明显加重的局灶神经功能缺损标 emergency；只有‘剧烈头痛’但起病方式和神经体征不明时标 urgent/clarify。突发剧烈、短病程腹痛本身已构成急腹症待排，应标 emergency；仅持续加重但未见突发剧烈、腹膜刺激征、休克或持续呕吐时先 urgent/clarify。",
+    "- 突发雷击样剧烈头痛、当前新发或较稳定基线明显加重的局灶神经功能缺损标 emergency；只有‘剧烈头痛’但起病方式和神经体征不明时标 urgent/clarify。突发剧烈、短病程腹痛本身已构成急腹症待排，应标 emergency；仅持续加重但未见突发剧烈、腹膜刺激征、休克或持续呕吐时先 urgent/clarify。腹膜刺激征的口语表达同样构成急腹症：‘按下去松手更疼/松手更疼’（反跳痛）、腹肌紧张、板状腹，或腹痛伴反复呕吐（≥2次）、高热、停止排气排便，均按 acute_abdomen + emergency，不得因主诉口语化（肚子疼/右下肚子疼）而降级。",
     "- emergency 既可由当前持续严重症状、意识/循环/呼吸受损、显著进行性恶化构成，也可由‘突发严重短病程’、‘稳定基线上新近局灶缺损’、‘反复显性出血伴灌注不足’等时间敏感组合构成。未记录某个伴随症状不等于明确否认，不能以资料缺项作为降级依据。单独的慢性、间歇、运动诱发、夜间偶发症状，以及没有当前严重度信息的表达，不得仅因症状名称标 emergency。",
     "- 孤立的重度但非极端生命体征（如血压180-219/120-129、心率120-149或40-49、呼吸25-34、SpO2 90-91%、体温39.0-39.9或35.0-35.9）一般标为 vital_instability + urgent；只有达到极端值，或与急性靶器官损害、意识/呼吸/循环不稳定等表现组成明确急症时才可标 emergency。",
     "- 血压>180/120但明确没有胸痛、呼吸困难、急性神经异常、意识改变等急性靶器官症状时，不得仅凭血压值标 emergency，应标 vital_instability + urgent_review。",

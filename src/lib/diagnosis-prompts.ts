@@ -7,7 +7,12 @@ import { EVIDENCE_LEVELS, SAFETY_DEFERENCE_TEXT } from "./cdss-vocab";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import { getLineageCard, getLineageQuestionStrategy } from "./tcm-lineages";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
-import { getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionText } from "./tcm-knowledge";
+import {
+  getTcmHerbDoseLimit,
+  getTcmHerbFunctionCategories,
+  getTcmHerbFunctionText,
+  isCommonTcmHerbName,
+} from "./tcm-knowledge";
 import { buildTcmTreatmentProjectPromptContext } from "./tcm-treatment-capabilities.server";
 import { requiredDecoctionRequirement } from "./herb-decoction-rules";
 
@@ -294,7 +299,10 @@ const CATEGORY_KEY_THERAPY_PATTERNS: ReadonlyMap<string, ReadonlyArray<RegExp>> 
 
 // 与 CLASSICAL_CANDIDATE_PROMPT_BUDGET 同一纪律：短名单药味行整体硬性封顶。
 const KB_COVERED_SHORTLIST_BUDGET = 900;
-const KB_COVERED_SHORTLIST_PER_DIRECTION = 10;
+// The governed common subset currently reaches 13 herbs in some broad directions (for example
+// 清热). Keep the cap above that class-level floor so a clinically central but non-common herb can
+// still enter by case-direction score without arbitrary displacement by the name tie-breaker.
+const KB_COVERED_SHORTLIST_PER_DIRECTION = 16;
 
 function kbCoveredHerbShortlistContext(diagnoseReasoning: ReturnType<typeof diagnoseReasoningFromState>): string {
   if (!diagnoseReasoning) return "";
@@ -317,9 +325,16 @@ function kbCoveredHerbShortlistContext(diagnoseReasoning: ReturnType<typeof diag
           herb.categories.some((category) => category.includes(direction))).length;
         const functionHits = directionKeys.filter((direction) =>
           (CATEGORY_KEY_THERAPY_PATTERNS.get(direction) || []).some((pattern) => pattern.test(herb.functionText))).length;
-        return { name: herb.name, score: categoryHits * 2 + functionHits };
+        return {
+          name: herb.name,
+          common: isCommonTcmHerbName(herb.name),
+          score: categoryHits * 2 + functionHits,
+        };
       })
-      .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
+      // The cap must not turn lexicographic order into clinical selection. Surface the governed
+      // common-clinic subset first, then use case-direction coverage and name only as tie-breakers.
+      .sort((left, right) => Number(right.common) - Number(left.common) ||
+        right.score - left.score || left.name.localeCompare(right.name))
       .slice(0, KB_COVERED_SHORTLIST_PER_DIRECTION)
       .map((herb) => herb.name);
     if (herbs.length === 0) continue;

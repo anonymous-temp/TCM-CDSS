@@ -4,52 +4,50 @@
 
 正在校验结构化结果与证据来源…
 
-正在完成安全检查…
-
-正在校对辨病辨证与已录入病历的一致性，请稍候…<<<CDSS_STREAM_FINAL>>># 中医辅助诊疗报告
+正在完成安全检查…<<<CDSS_STREAM_FINAL>>># 中医辅助诊疗报告
 
 ## 西医诊断
-**诊断倾向**：妊娠剧吐（倾向）
+**诊断倾向**：妊娠剧吐
 **判断状态**：考虑；置信度：中
 **支持依据**：妊娠8周，恶心呕吐、纳差1周；妊娠8周
-**限制与反证**：未提供体重变化、尿酮体、电解质等客观指标，无法评估严重程度及排除其他病因；需排除消化系统其他疾病
-**建议检查**：尿常规（尿酮体）；电解质、肝肾功能；甲状腺功能；产科超声评估胎儿情况
+**限制与反证**：未提供体重变化、尿酮体、电解质等客观指标，无法评估严重程度及排除其他病因。
+**建议检查**：尿常规（尿酮体）；电解质、肝肾功能；甲状腺功能（排除甲亢）；产科超声评估胎儿情况
 
 ### 鉴别方向
-- **妊娠合并胃肠炎**：妊娠8周，恶心呕吐、纳差1周；该方向需结合临床表现及相关检查继续鉴别。；建议：大便常规、血常规、CRP
-- **妊娠合并甲状腺功能亢进**：当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。；建议：甲状腺功能检测
+- **妊娠合并胃炎或消化性溃疡**：妊娠8周，恶心呕吐、纳差1周；该方向需结合临床表现及相关检查继续鉴别。；建议：胃镜检查（妊娠期相对禁忌，需权衡利弊）或粪便隐血试验。
+- **妊娠合并甲状腺功能亢进**：当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。；建议：甲状腺功能检测（TSH、FT3、FT4）。
 
 ## 中医诊断
 **中医病名**：恶阻
-**证型**：恶阻功能失调候
+**证型**：脾胃虚弱证
 
 ## 病机分析
-**总体病机**：妊娠后冲脉之气上逆，胃腑和降功能受扰。
-**本证**：冲气上逆，胃腑和降功能受扰
+**总体病机**：脾胃虚弱，冲气上逆，胃失和降。
+**病位辨证**：胃、脾、冲脉
+**病性辨证**：气虚、气逆
+**本证**：脾胃虚弱
 **主要表现**：恶阻
-**病机联系**：妊娠后冲脉之气上逆，扰动胃腑，导致恶心呕吐、纳差等恶阻表现。
+**病机联系**：脾胃虚弱为本，冲气上逆为标，胃失和降则发为恶心呕吐。
 
 ### 子病机与治法
 | 患者事实 | 证候依据 | 子病机 | 对应治法 |
 |---|---|---|---|
-| 妊娠8周 | 妊娠8周 | 冲脉之气上逆，扰动胃腑。 | 调冲降逆。 |
-| 妊娠8周，恶心呕吐、纳差1周 | 妊娠8周，恶心呕吐、纳差1周 | 胃腑和降功能受扰，受纳腐熟功能失调。 | 安胃止呕，恢复和降。 |
-| 妊娠8周，恶心呕吐、纳差1周 | 妊娠8周，恶心呕吐、纳差1周 | 胃腑受纳功能失调，食入不化，随冲气上逆而吐出。 | 消食和胃，助其通降。 |
-| 不思饮食 | 不思饮食 | 胃腑受纳功能减退，食欲不振。 | 醒脾开胃，促进受纳。 |
+| 妊娠8周 | 妊娠8周 | 冲气上逆，犯胃动膈。 | 平冲降逆。 |
+| 妊娠8周，恶心呕吐、纳差1周 | 妊娠8周，恶心呕吐、纳差1周 | 胃失和降，气逆于上。 | 和胃降逆止呕。 |
 
 ## 治则治法
-**治则**：调冲降逆，安胃止呕。
-**总治法**：调冲降逆，安胃止呕。
+**治则**：治病与安胎并举，健脾和胃，降逆止呕。
+**总治法**：健脾益气，和胃降逆。
 
 | 分治治法 | 对应病机 | 优先级 |
 |---|---|---|
-| 调冲降逆 | 冲气上逆，扰动胃腑 | 主要 |
-| 安胃止呕 | 胃腑和降功能受扰 | 主要 |
+| 健脾益气 | 脾胃虚弱，纳运失职 | 主要 |
+| 和胃降逆止呕 | 胃气上逆，和降失司 | 主要 |
 
 ## 需复核的不确定项
-- **呕吐物性状、二便情况**：有助于判断寒热、痰湿等兼夹病性；影响：辨证精确性及方药加减
-- **寒热喜恶、口干渴饮**：区分脾胃虚寒或胃热等不同证型；影响：方药寒热配伍
-- **体重变化、尿酮体、电解质**：评估妊娠剧吐严重程度及是否需要补液支持；影响：西医管理决策
+- **大便情况**：判断脾虚湿盛或有无便秘加重气逆。；影响：辨证及化湿、通腑等药物的选用。
+- **寒热、汗出、口干等兼症**：排除寒热错杂或阴虚等兼证。；影响：方药寒热配伍。
+- **体重变化、尿酮体、电解质**：评估妊娠剧吐严重程度及是否需要补液支持。；影响：西医治疗决策及安全边界。
 
 <!-- DIAGNOSIS_JSON_START -->
 {
@@ -60,23 +58,23 @@
     "provider": "openai-compatible",
     "model": "deepseek-v4-flash",
     "source": "preferred",
-    "reviewedPayloadHash": "sha256:7b5e67a7681dc0fa10540763d026ff6cd4bb6b207cc94493c83aa34d5cad19c3"
+    "reviewedPayloadHash": "sha256:c6ccdf5a497a3aef619950e68cef33e24254683ccd2a7bb17bb84d667b8d141a"
   },
   "overview": {
     "tcmDiseaseName": "恶阻",
-    "primarySyndrome": "恶阻功能失调候",
+    "primarySyndrome": "脾胃虚弱证",
     "primarySyndromeResolution": "bounded",
     "primarySyndromeBasis": [
       "妊娠8周，恶心呕吐、纳差1周",
-      "不思饮食"
+      "舌象：舌淡，苔薄白"
     ],
-    "primarySyndromeResolutionReason": "基于现有阳性症状可初步判断为恶阻功能失调候；但缺乏寒热、痰湿、脏腑虚损等进一步辨证依据，故以功能失调候作为低置信度工作表述。",
+    "primarySyndromeResolutionReason": "当前缺少大便、小便、寒热、汗出等兼症信息，无法完全排除痰湿或肝热等兼夹因素；但核心证候已可形成工作判断。",
     "secondarySyndromes": [],
-    "overallPathogenesis": "妊娠后冲脉之气上逆，胃腑和降功能受扰。",
-    "overallTherapy": "调冲降逆，安胃止呕。",
-    "recommendedFormulaDirection": "以调冲降逆、安胃止呕为方向，选用平和降逆之品，避免攻伐伤胎。",
+    "overallPathogenesis": "脾胃虚弱，冲气上逆，胃失和降。",
+    "overallTherapy": "健脾和胃，降逆止呕。",
+    "recommendedFormulaDirection": "按已锁定病机与治法辨证组方",
     "recommendedFormulaNames": [],
-    "formulaSelectionMode": "none",
+    "formulaSelectionMode": "self_devised",
     "evidence": {
       "evidenceLevel": "model_inference",
       "source": "病例内推理",
@@ -85,7 +83,7 @@
   },
   "westernDiagnosis": {
     "primary": {
-      "name": "妊娠剧吐（倾向）",
+      "name": "妊娠剧吐",
       "status": "考虑",
       "confidence": "中",
       "supportingFacts": [
@@ -93,13 +91,12 @@
         "妊娠8周"
       ],
       "limitations": [
-        "未提供体重变化、尿酮体、电解质等客观指标，无法评估严重程度及排除其他病因",
-        "需排除消化系统其他疾病"
+        "未提供体重变化、尿酮体、电解质等客观指标，无法评估严重程度及排除其他病因。"
       ],
       "suggestedChecks": [
         "尿常规（尿酮体）",
         "电解质、肝肾功能",
-        "甲状腺功能",
+        "甲状腺功能（排除甲亢）",
         "产科超声评估胎儿情况"
       ],
       "evidence": {
@@ -110,24 +107,28 @@
     },
     "differentials": [
       {
-        "name": "妊娠合并胃肠炎",
+        "name": "妊娠合并胃炎或消化性溃疡",
         "reason": "妊娠8周，恶心呕吐、纳差1周；该方向需结合临床表现及相关检查继续鉴别。",
-        "nextCheck": "大便常规、血常规、CRP"
+        "nextCheck": "胃镜检查（妊娠期相对禁忌，需权衡利弊）或粪便隐血试验。"
       },
       {
         "name": "妊娠合并甲状腺功能亢进",
         "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
-        "nextCheck": "甲状腺功能检测"
+        "nextCheck": "甲状腺功能检测（TSH、FT3、FT4）。"
       }
     ]
   },
   "pathogenesis": {
-    "summary": "患者妊娠8周，冲脉之气上逆，胃腑和降功能受扰，故见恶心呕吐、纳差，进食后加重。舌淡苔薄白、脉象待核实为妊娠常见之象，当前资料不足以支持具体脏腑虚损或邪气定性。",
+    "summary": "患者妊娠后，冲脉之气较盛，若脾胃素虚，则冲气上逆犯胃，胃失和降，发为恶心呕吐。脾胃虚弱，运化失职，故纳差、不思饮食；气血生化不足，肢体失养，故乏力；清阳不升，则嗜睡。舌淡苔薄白为气血不足之象，脉象待核实为妊娠之征。",
     "locationDifferentiation": {
-      "items": [],
+      "items": [
+        "胃",
+        "脾",
+        "冲脉"
+      ],
       "details": [],
-      "resolution": "unresolved",
-      "resolutionReason": "现有症状仅提示胃腑受扰；但缺乏腹部症状、二便等进一步定位依据，无法明确病位在何脏腑经络。",
+      "resolution": "bounded",
+      "resolutionReason": "病位判断基于现有症状和妊娠生理；但缺少大便、腹部体征等进一步支持。",
       "evidence": {
         "evidenceLevel": "model_inference",
         "source": "本例四诊与病史推断",
@@ -135,12 +136,19 @@
       }
     },
     "natureDifferentiation": {
-      "items": [],
-      "rootDeficiency": [],
-      "branchExcess": [],
+      "items": [
+        "气虚",
+        "气逆"
+      ],
+      "rootDeficiency": [
+        "气虚"
+      ],
+      "branchExcess": [
+        "气逆"
+      ],
       "basis": "",
-      "resolution": "unresolved",
-      "resolutionReason": "病历已记录纳差阳性。",
+      "resolution": "bounded",
+      "resolutionReason": "病性判断基于现有四诊；但缺少寒热、汗出等进一步定性信息。",
       "evidence": {
         "evidenceLevel": "model_inference",
         "source": "本例四诊与病史推断",
@@ -150,24 +158,23 @@
     "symptomClusters": [
       {
         "symptoms": [
-          "妊娠8周，恶心呕吐、纳差1周",
-          "不思饮食"
+          "妊娠8周，恶心呕吐、纳差1周"
         ],
-        "mechanism": "冲气上逆，胃腑和降功能受扰，受纳腐熟功能失调。"
+        "mechanism": "脾胃虚弱，运化失职，胃气上逆。"
       }
     ],
     "caseRelationship": {
-      "rootPattern": "冲气上逆，胃腑和降功能受扰",
+      "rootPattern": "脾胃虚弱",
       "mainManifestation": "恶阻",
-      "relationship": "妊娠后冲脉之气上逆，扰动胃腑，导致恶心呕吐、纳差等恶阻表现。"
+      "relationship": "脾胃虚弱为本，冲气上逆为标，胃失和降则发为恶心呕吐。"
     },
     "chain": [
       {
         "nodeId": "P1",
         "patientFact": "妊娠8周",
         "syndromeEvidence": "妊娠8周",
-        "pathogenesis": "冲脉之气上逆，扰动胃腑。",
-        "therapyDirection": "调冲降逆。",
+        "pathogenesis": "冲气上逆，犯胃动膈。",
+        "therapyDirection": "平冲降逆。",
         "pathogenesisType": "始动",
         "evidence": {
           "evidenceLevel": "model_inference",
@@ -179,32 +186,8 @@
         "nodeId": "P2",
         "patientFact": "妊娠8周，恶心呕吐、纳差1周",
         "syndromeEvidence": "妊娠8周，恶心呕吐、纳差1周",
-        "pathogenesis": "胃腑和降功能受扰，受纳腐熟功能失调。",
-        "therapyDirection": "安胃止呕，恢复和降。",
-        "evidence": {
-          "evidenceLevel": "model_inference",
-          "source": "本例资料",
-          "confidence": "中"
-        }
-      },
-      {
-        "nodeId": "P3",
-        "patientFact": "妊娠8周，恶心呕吐、纳差1周",
-        "syndromeEvidence": "妊娠8周，恶心呕吐、纳差1周",
-        "pathogenesis": "胃腑受纳功能失调，食入不化，随冲气上逆而吐出。",
-        "therapyDirection": "消食和胃，助其通降。",
-        "evidence": {
-          "evidenceLevel": "model_inference",
-          "source": "本例资料",
-          "confidence": "中"
-        }
-      },
-      {
-        "nodeId": "P4",
-        "patientFact": "不思饮食",
-        "syndromeEvidence": "不思饮食",
-        "pathogenesis": "胃腑受纳功能减退，食欲不振。",
-        "therapyDirection": "醒脾开胃，促进受纳。",
+        "pathogenesis": "胃失和降，气逆于上。",
+        "therapyDirection": "和胃降逆止呕。",
         "evidence": {
           "evidenceLevel": "model_inference",
           "source": "本例资料",
@@ -214,29 +197,29 @@
     ],
     "uncertainties": [
       {
-        "item": "呕吐物性状、二便情况",
-        "reason": "有助于判断寒热、痰湿等兼夹病性",
-        "affects": "辨证精确性及方药加减"
+        "item": "大便情况",
+        "reason": "判断脾虚湿盛或有无便秘加重气逆。",
+        "affects": "辨证及化湿、通腑等药物的选用。"
       },
       {
-        "item": "寒热喜恶、口干渴饮",
-        "reason": "区分脾胃虚寒或胃热等不同证型",
-        "affects": "方药寒热配伍"
+        "item": "寒热、汗出、口干等兼症",
+        "reason": "排除寒热错杂或阴虚等兼证。",
+        "affects": "方药寒热配伍。"
       },
       {
         "item": "体重变化、尿酮体、电解质",
-        "reason": "评估妊娠剧吐严重程度及是否需要补液支持",
-        "affects": "西医管理决策"
+        "reason": "评估妊娠剧吐严重程度及是否需要补液支持。",
+        "affects": "西医治疗决策及安全边界。"
       }
     ]
   },
   "therapy": {
-    "overallPrinciple": "调冲降逆，安胃止呕。",
-    "overallMethod": "调冲降逆，安胃止呕。",
+    "overallPrinciple": "治病与安胎并举，健脾和胃，降逆止呕。",
+    "overallMethod": "健脾益气，和胃降逆。",
     "subTherapies": [
       {
-        "therapy": "调冲降逆",
-        "targetPathogenesis": "冲气上逆，扰动胃腑",
+        "therapy": "健脾益气",
+        "targetPathogenesis": "脾胃虚弱，纳运失职",
         "priority": "主要",
         "evidence": {
           "evidenceLevel": "model_inference",
@@ -245,8 +228,8 @@
         }
       },
       {
-        "therapy": "安胃止呕",
-        "targetPathogenesis": "胃腑和降功能受扰",
+        "therapy": "和胃降逆止呕",
+        "targetPathogenesis": "胃气上逆，和降失司",
         "priority": "主要",
         "evidence": {
           "evidenceLevel": "model_inference",
@@ -263,11 +246,11 @@
     "lineageCode": "unrestricted",
     "label": "不限定：循证安全优先",
     "applicable": "partial",
-    "applicabilityReason": "本例为妊娠恶阻，功能失调候，以调冲降逆、安胃止呕为方向，流派偏好不影响核心辨证。",
+    "applicabilityReason": "本例为妊娠恶阻脾胃虚弱证，经典方香砂六君子汤加减符合病证，无需特定流派干预。",
     "influencedDecisions": [
       {
         "aspect": "辨证视角",
-        "detail": "从冲气上逆、胃腑和降功能受扰立论，侧重调冲降逆、安胃止呕。"
+        "detail": "从脾胃虚弱、冲气上逆立论，选用香砂六君子汤健脾和胃、降逆止呕。"
       }
     ],
     "unaffectedBySafety": [
@@ -281,15 +264,14 @@
   },
   "management": {
     "mustCollect": [
-      "呕吐物性状、频率、与进食关系",
-      "二便情况",
-      "寒热喜恶、口干渴饮",
-      "体重变化、尿酮体、电解质"
+      "体重变化及尿酮体、电解质结果",
+      "大便性状及频率",
+      "有无口干、口苦、寒热、汗出等兼症"
     ],
-    "followupSafetyNet": "若呕吐加重、不能进食、体重下降明显、出现脱水征（如尿少、皮肤干燥）或尿酮体阳性，需及时复诊或住院补液支持；治疗期间监测胎儿情况。"
+    "followupSafetyNet": "若呕吐加重、不能进食、体重下降明显、尿酮体持续阳性或出现脱水征象，需及时复诊并考虑补液支持；治疗1周症状无缓解应重新评估诊断与治疗方案。"
   },
   "contractSignatureVersion": "tcm-cdss-m03-signature-v4",
-  "contractSignature": "hmac-sha256:3ee35aa39a1ff62103250decd13d2e20be8d36505163c6683792fc89396b4ed6"
+  "contractSignature": "hmac-sha256:fe6bb204bd229d0674dc616e8a716b1450db08ba056a4122809bcfe87df90274"
 }
 <!-- DIAGNOSIS_JSON_END -->
 

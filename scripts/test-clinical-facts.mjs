@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   BACKSTOP_RED_FLAG_CATEGORIES,
+  buildClinicalFactsExtractionPrompt,
   parseClinicalFacts,
   groundClinicalFacts,
   additiveRedFlagsFromFacts,
@@ -278,6 +279,38 @@ ok("schema: true acute category evidence retains emergency authority", (() => {
   return cases.every(([category, triageBasis, quote]) => parseClinicalFacts(JSON.stringify({ redFlags: [{
     category, subject: "patient", status: "positive", urgency: "emergency", triageBasis, quote,
   }] }))?.redFlags[0]?.urgency === "emergency");
+})());
+ok("grounding: 口语柏油样便合并体位性灌注不足时建立 emergency 严重度下限", (() => {
+  const texts = [
+    "这两天拉出来像柏油一样又黑又亮，今天站起来眼前发黑",
+    "排出的便像柏油一样黑亮，起身时头晕差点晕倒",
+    "站起来黑矇心慌，随后又解了黑得发亮的大便",
+  ];
+  return texts.every((text) => {
+    const quote = text.includes("，") ? text.split("，")[0] : text;
+    const grounded = groundClinicalFacts({ redFlags: [{
+      category: "gi_bleed", subject: "patient", status: "positive", urgency: "urgent",
+      triageBasis: "urgent_review", quote,
+    }] }, text);
+    return grounded.redFlags[0]?.urgency === "emergency" &&
+      grounded.redFlags[0]?.triageBasis === "major_active_bleeding";
+  });
+})());
+ok("grounding: 单次口语黑便且明确无灌注不足不越级为 emergency", (() => {
+  const text = "今天一次大便像柏油一样黑亮，目前没有头晕、乏力、心悸或冷汗";
+  const grounded = groundClinicalFacts({ redFlags: [{
+    category: "gi_bleed", subject: "patient", status: "positive", urgency: "urgent",
+    triageBasis: "urgent_review", quote: "大便像柏油一样黑亮",
+  }] }, text);
+  return grounded.redFlags[0]?.urgency === "urgent" && grounded.redFlags[0]?.triageBasis === "urgent_review";
+})());
+ok("grounding: 非患者主体的同类出血语言不得获得患者 emergency 权限", (() => {
+  const text = "父亲这两天大便像柏油一样黑亮，站起来眼前发黑；我本人没有黑便或头晕";
+  const grounded = groundClinicalFacts({ redFlags: [{
+    category: "gi_bleed", subject: "other", status: "positive", urgency: "urgent",
+    triageBasis: "urgent_review", quote: "父亲这两天大便像柏油一样黑亮，站起来眼前发黑",
+  }] }, text);
+  return grounded.redFlags[0]?.urgency === "urgent";
 })());
 ok("schema: possible 的非法过度分级使整份输出无效", (() => {
   const positive = parseClinicalFacts(JSON.stringify({ redFlags: [{ category: "acute_abdomen", subject: "patient", status: "positive", urgency: "clarify", triageBasis: "clarification_needed", quote: "腹痛持续加重" }] }));
@@ -1073,6 +1106,14 @@ ok("grounding: 局部否定的变化线索（无加重）不构成急性覆盖",
   return additiveRedFlagsFromFacts(facts, text, []).length === 0;
 })());
 
-console.log(`\n${pass} passed`);
+ok("prompt: 提取提示含腹膜刺激征口语等价（松手更疼）必报 emergency 规则", (() => {
+  const prompt = buildClinicalFactsExtractionPrompt("腹痛");
+  return /松手更疼/.test(prompt) && /腹膜刺激征/.test(prompt) && /acute_abdomen \+ emergency/.test(prompt);
+})());
+ok("prompt: 提取提示保留劳力性基线不得标 emergency 规则", (() => {
+  const prompt = buildClinicalFactsExtractionPrompt("气短");
+  return /平路气短/.test(prompt) && /不得标 emergency/.test(prompt);
+})());
 
+console.log(`\n${pass} passed`);
 
