@@ -199,7 +199,16 @@ async function runOne(id) {
   writeFileSync(resolve(dir, "02-prescribe.md"), rx.content || "");
   writeFileSync(resolve(dir, "02-prescribe.structured.json"), JSON.stringify(rx.structured, null, 2));
   caseState.prescription = (rx.content || "").slice(0, 12000);
+  if (rx.structured && rx.structured.contractSignature) caseState.reasoningPrescribe = rx.structured;
 
+  // 与客户端 P2-1 行为一致：无签名 M04（急症/非剂量合同）时跳过 M05 请求，
+  // 客户端走确定性风险随访，不再调用 assess/post-prescription-risk 触发 409。
+  if (!caseState.reasoningPrescribe) {
+    result.stages.assess = { ok: true, skipped: "non-dose M04: client-side deterministic risk followup, M05 not invoked" };
+    result.stages.postRisk = { ok: true, skipped: "non-dose M04: post-prescription-risk not invoked" };
+    writeFileSync(resolve(dir, "03-assess.md"), "[SKIPPED] 非剂量 M04：客户端确定性风险随访，不进入 M05 请求。\n");
+    writeFileSync(resolve(dir, "04-postprescriberisk.txt"), "[SKIPPED] 非剂量 M04：不进入处方后审方请求。\n");
+  } else {
   const as = await streamStage("/api/diagnosis/assess", caseState);
   result.stages.assess = { ok: as.ok, ms: as.ms, error: as.error };
   writeFileSync(resolve(dir, "03-assess.md"), as.content || "");
@@ -207,6 +216,7 @@ async function runOne(id) {
   const rxr = await streamStage("/api/diagnosis/post-prescription-risk", caseState, { timeoutMs: 120_000 });
   result.stages.postRisk = { ok: rxr.ok, ms: rxr.ms, error: rxr.error };
   writeFileSync(resolve(dir, "04-postprescriberisk.txt"), rxr.content || "");
+  }
 
   const q = await streamStage("/api/diagnosis/question", { ...caseState, diagnosis: undefined, prescription: undefined, reasoningDiagnose: undefined, phase: "question", completeness: { level: "B", redFlag: 0.7, infoGain: 0.5, managementImpact: 0.5, answerability: 0.6 } });
   result.stages.question = { ok: q.ok, ms: q.ms, error: q.error };

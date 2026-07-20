@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, m03SemanticIssue, m04SemanticIssue, patientFactSourceQuote, stableM03SyndromeLabel, transparentFormulaTherapyIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m04SemanticIssue, patientFactSourceQuote, stableM03SyndromeLabel, transparentFormulaTherapyIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
 const { getM03TherapyLock } = await import("../src/lib/m03-therapy-lock.ts");
 const { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } = await import("../src/lib/m04-repair-policy.ts");
 const { editedPrescriptionSemanticIssue } = await import("../src/lib/prescription-revision.ts");
@@ -710,6 +710,35 @@ assert.equal(m03SemanticIssue(westernSupportOf(["生命体征：120/80", "高血
 assert.equal(m03SemanticIssue(westernSupportOf(["2型糖尿病10年", "男性，45岁"]), stableSupportContext), "western_support_demographic_padding", "demographics cannot masquerade as current evidence beside historical facts");
 assert.equal(m03SemanticIssue(westernSupportOf(["舌淡红", "高血压病史"]), stableSupportContext), "western_support_tcm_pollution", "tongue findings cannot masquerade as current evidence beside historical facts");
 assert.equal(m03SemanticIssue(westernSupportOf(["2型糖尿病10年", "高血压病史"]), stableSupportContext), "western_support_historical_only", "a multi-year background entry cannot bypass the historical_only gate");
+
+// === Denial-transport rewrite keeps negation scope (release-e2e DZ01 residual) ===
+const dizzinessDenialContext = "头晕反复3天；起身或转头时明显，每次持续数分钟，休息后缓解，无晕厥、胸痛或呼吸困难；舌淡白；脉细；面色少华；近期有黑便、月经量过多或外伤出血史";
+const dizzinessChain = {
+  ...stable,
+  pathogenesis: { chain: [{ patientFact: "头晕反复3天", syndromeEvidence: "舌淡白脉细", pathogenesis: "气血亏虚，清窍失养", therapyDirection: "益气养血" }] },
+};
+const dizzinessWesternSupport = (supportingFacts) => ({
+  ...dizzinessChain,
+  westernDiagnosis: { ...stable.westernDiagnosis, primary: { ...stable.westernDiagnosis.primary, supportingFacts } },
+});
+// Verbatim finalized payload from the e2e run: the customer-output sanitizer rewrites the charted
+// denial into "病历已记录否认胸痛、呼吸困难；…" — the negation scope must survive the 、 boundary,
+// otherwise every later enumerated term reads affirmed and finalization burns the whole diagnosis.
+assert.equal(m03SemanticIssue(dizzinessWesternSupport([
+  "头晕反复3天",
+  "起身或转头时明显，每次持续数分钟，休息后缓解",
+  "近期有黑便、月经量过多或外伤出血史",
+  "面象：面色少华",
+  "病历已记录否认胸痛、呼吸困难；本次主诉及伴随症状变化",
+]), dizzinessDenialContext), undefined, "the deterministic denial-transport rewrite keeps negation scope over the whole enumeration");
+assert.equal(isWesternSupportingFactPolarityAligned("病历已记录否认胸痛、呼吸困难；本次主诉及伴随症状变化", dizzinessDenialContext), true, "every enumerated term inside 病历已记录否认… stays negated");
+assert.equal(isWesternSupportingFactPolarityAligned("无晕厥、胸痛或呼吸困难", dizzinessDenialContext), true, "a charted rule-out enumeration stays negated without the transport prefix");
+// negated rule-out facts are routed as rule-out context, never as a polarity violation
+assert.equal(m03SemanticIssue(dizzinessWesternSupport(["头晕反复3天", "无晕厥、胸痛或呼吸困难"]), dizzinessDenialContext), undefined, "a negated rule-out fact rides along as rule-out context");
+assert.equal(m03SemanticIssue(dizzinessWesternSupport(["无晕厥、胸痛或呼吸困难"]), dizzinessDenialContext), "western_support_historical_only", "negated rule-out facts alone cannot satisfy the current-fact gate");
+// an affirmed term the chart denies — synthetic or model-written — still rejects
+assert.equal(m03SemanticIssue(dizzinessWesternSupport(["头晕反复3天", "呼吸困难"]), dizzinessDenialContext), "western_support_polarity_mismatch", "an affirmed term the chart explicitly denies still rejects");
+assert.equal(m03SemanticIssue(dizzinessWesternSupport(["头晕反复3天", "病历已记录胸痛阳性"]), dizzinessDenialContext), "western_support_polarity_mismatch", "a synthetic affirmed statement about a chart-denied term still rejects");
 
 const m04 = {
   stage: "prescribe",
@@ -2453,4 +2482,4 @@ const invalidPositioningMedicineProposal = compileM04Proposal({
 assert.ok(invalidPositioningMedicineProposal, "one invalid optional medicine must not discard the validated herbal candidate");
 assert.deepEqual(invalidPositioningMedicineProposal?.formula?.patentAndWestern, [], "contract-invalid optional medicine items are dropped individually");
 
-console.log(JSON.stringify({ cases: 307, failures: 0 }));
+console.log(JSON.stringify({ cases: 315, failures: 0 }));

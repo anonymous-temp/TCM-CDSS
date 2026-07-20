@@ -30,7 +30,7 @@ const {
   parseM03DiagnosticReview,
   preflightM03DiagnosticReview,
 } = await jiti.import("../src/lib/m03-diagnostic-review.ts");
-const { isStableM03Reasoning, m03SemanticIssue } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+const { isStableM03Reasoning, m03SemanticIssue, describeM03WesternSupportConflict } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { normalizeReasoningV2 } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { resolveCompletedStructuredResponse, enforceStructuredStageOwnership } = await jiti.import("../src/lib/diagnosis-structured-repair.ts");
 const { applyDeterministicFormulaReferences } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
@@ -120,14 +120,14 @@ function toCaseState(c) {
     patient: { sex: c.sex || "男", age: Number.isFinite(c.age) ? c.age : 45 },
     chiefComplaint: c.chief || "未提供主诉",
     symptoms: hist ? { presentHistory: hist } : {},
-    pastHistory: "无特殊可记录。",
+    pastHistory: c.past || "无特殊可记录。",
     allergyHistory: "否认药物食物过敏。",
     medicationHistory: "否认当前用药。",
-    tongue: "舌淡红,苔薄白",
-    pulse: "细平",
-    faceNote: "面色如常",
+    tongue: c.tongue || "舌淡红,苔薄白",
+    pulse: c.pulse || "细平",
+    faceNote: c.face || "面色如常",
     completeness: COMPLETE,
-    conversation: [],
+    conversation: (c.answers || []).map((content) => ({ role: "user", content })),
     diagnosis: "",
     prescription: "",
     riskAssessment: "",
@@ -179,6 +179,21 @@ const CASES = [
     hist: "慢性胃炎5年,轻度上腹隐痛,无板状腹、无拒按。",
     vitals: { bp: "120/80" },
   },
+  {
+    // Release-e2e residual: reviewer accepted, finalized M03 rejected with
+    // m03_western_support_polarity_mismatch and no repair round ran.
+    id: "DZ01",
+    sex: "女",
+    age: 38,
+    chief: "头晕反复3天",
+    hist: "起身或转头时明显,每次持续数分钟,休息后缓解,无晕厥、胸痛或呼吸困难。",
+    tongue: "舌淡白",
+    pulse: "细",
+    face: "面色少华",
+    past: "近期有黑便、月经量过多或外伤出血史。",
+    answers: ["无耳鸣、听力下降;发作与体位改变相关;近三日睡眠尚可。"],
+    vitals: {},
+  },
 ];
 
 function extractSentinelJson(content) {
@@ -210,6 +225,7 @@ function compactCandidate(reasoning) {
     overallTherapy: reasoning.overview?.overallTherapy,
     formulas: reasoning.overview?.recommendedFormulaNames,
     westernPrimary: reasoning.westernDiagnosis?.primary?.name,
+    supportingFacts: reasoning.westernDiagnosis?.primary?.supportingFacts,
     location: reasoning.pathogenesis?.locationDifferentiation && {
       items: reasoning.pathogenesis.locationDifferentiation.items,
       resolution: reasoning.pathogenesis.locationDifferentiation.resolution,
@@ -309,6 +325,16 @@ async function runM03Pipeline(fixture, prepared, runIndex) {
       const transformedReasoning = transformedJson ? normalizeReasoningV2(JSON.parse(transformedJson)) : undefined;
       if (transformedReasoning && isStableM03Reasoning(transformedReasoning, grounding)) {
         candidateContent = transformed;
+      }
+      // Diagnostic: what does the deterministic contract say about the TRANSFORMED (finalized)
+      // bytes — this is the post-review finalization check that fired in the e2e incident.
+      if (transformedReasoning) {
+        const transformedIssue = m03SemanticIssue(transformedReasoning, grounding) || "none";
+        console.log("transformed contract:", JSON.stringify({
+          semanticIssue: transformedIssue,
+          supportingFacts: transformedReasoning?.westernDiagnosis?.primary?.supportingFacts,
+          conflict: describeM03WesternSupportConflict(transformedReasoning, grounding) || null,
+        }));
       }
     } catch {
       // Keep the un-finalized candidate; the same fallback fires downstream in production.

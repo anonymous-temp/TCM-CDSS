@@ -156,7 +156,10 @@ function splitIntoClinicalClauses(normalized: string): string[] {
           inheritedNegation = "";
           clause = clause.replace(/^(?:但|而|仍|却|同时|另有|随后|继而)/, "");
         }
-        const explicitNegation = clause.match(/^(?:(?:当前|目前|现阶段|现有|本例|患者|临床)?)(绝无|全无|尚无|暂无|没有|否认|未见|未出现|不伴|并无|无)/)?.[1];
+        // “病历已记录否认A、B” is the deterministic transport rewrite of a charted denial (the
+        // customer-output negation sanitizer). Without the transport prefix in this starter the
+        // negation scope is lost at the 、 boundary and every later enumerated term reads affirmed.
+        const explicitNegation = clause.match(/^(?:(?:当前|目前|现阶段|现有|本例|患者|临床|病历已记录)?)(绝无|全无|尚无|暂无|没有|否认|未见|未出现|不伴|并无|无)/)?.[1];
         if (explicitNegation) inheritedNegation = explicitNegation;
         else if (/^(?:有|见|伴|出现|主诉|自诉|症见|表现为|宜|应|可)/.test(clause) || /(?:为主|主导|为核心|明确为|证实为)/.test(clause)) inheritedNegation = "";
         else if (inheritedNegation) clause = `${inheritedNegation}${clause}`;

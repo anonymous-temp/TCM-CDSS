@@ -57,7 +57,7 @@ async function clickPresetAndCheckAnchor(page, triggerName, optionText, fieldTes
 async function waitForFullResult(page) {
   await page.getByTestId("ai-report-v2").waitFor({ state: "visible", timeout: 180_000 });
   await screenshot(page, "m03-visible");
-  await page.getByText("候选方药", { exact: true }).waitFor({ state: "visible", timeout: 240_000 });
+  await page.getByTestId("ai-report-v2").getByText("候选方药", { exact: true }).waitFor({ state: "visible", timeout: 240_000 });
   await screenshot(page, "m04-visible");
   // The streamed M04 body appears immediately, but an upstream model repair can make the
   // authoritative replacement a long-tail request. Keep the release journey strict about

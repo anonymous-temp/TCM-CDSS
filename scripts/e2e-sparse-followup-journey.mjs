@@ -121,7 +121,7 @@ try {
   await screenshot(page, "m03-progress");
 
   await page.getByTestId("ai-report-v2").waitFor({ state: "visible", timeout: 180_000 });
-  await page.getByText("候选方药", { exact: true }).waitFor({ state: "visible", timeout: 240_000 });
+  await page.getByTestId("ai-report-v2").getByText("候选方药", { exact: true }).waitFor({ state: "visible", timeout: 240_000 });
   await page.getByText(/^合理用药审方/).first().waitFor({ state: "visible", timeout: 120_000 });
   await page.getByText("健康调护与随访", { exact: true }).waitFor({ state: "visible", timeout: 120_000 });
   await screenshot(page, "completed");

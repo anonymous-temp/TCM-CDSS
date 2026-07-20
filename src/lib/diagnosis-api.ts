@@ -2703,27 +2703,108 @@ async function callPrimaryTextModelStream(
             }
           }
           if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && !transformedM03) {
+            const finalizedM03RejectionReason = structuredRejectionReason(
+              transformed.content,
+              "diagnose",
+              finishReason,
+              opts.structuredClinicalContext,
+            );
             console.warn("[tcm-cdss:model] finalized M03 rejected", {
               stage: "diagnose",
-              reason: structuredRejectionReason(
-                transformed.content,
-                "diagnose",
-                finishReason,
-                opts.structuredClinicalContext,
-              ),
+              reason: finalizedM03RejectionReason,
               diagnostic: structuredRejectionDiagnostic(
                 transformed.content,
-                structuredRejectionReason(
-                  transformed.content,
-                  "diagnose",
-                  finishReason,
-                  opts.structuredClinicalContext,
-                ),
+                finalizedM03RejectionReason,
                 opts.structuredClinicalContext,
               ),
             });
-            truncated = true;
-            transformed = transformTruncateFallback();
+            // The customer-output transform runs after the last orchestration repair round, so a
+            // retry-eligible contract reason here would otherwise burn the whole accepted diagnosis.
+            // Give the model one bounded, hint-guided chance to repair the transformed bytes; the
+            // eligibility decision, fixpoint guard, deadline gate and abort handling mirror the
+            // orchestration retry path above, and the result must re-pass prepare, independent
+            // review and the same finalization transform before it can replace the fallback.
+            if (
+              shouldRunTargetedStructuredRetry("diagnose", finalizedM03RejectionReason) &&
+              m03LastRepairTriggerReason !== finalizedM03RejectionReason &&
+              !clientStreamClosed &&
+              !upstreamController.signal.aborted &&
+              Date.now() < absoluteRunDeadline &&
+              !m03OrchestrationDeadlineGate()
+            ) {
+              enqueueClient("\n\n正在按最新校验结果收束辨病辨证依据，请稍候…");
+              structuredRetryCount += 1;
+              m03LastRepairTriggerReason = finalizedM03RejectionReason;
+              const finalizedRetry = await retryCompletePrimaryResponse(
+                prompt,
+                kind,
+                "diagnose",
+                absoluteRunDeadline,
+                upstreamController.signal,
+                finalizedM03RejectionReason,
+                opts.structuredPriorReasoning,
+                opts.structuredClinicalContext,
+                transformed.content,
+                m03DiagnosticRepairGuidance,
+              );
+              if (clientStreamClosed) return;
+              const finalizedRetryWrapped = finalizedRetry.ok
+                ? wrapStructuredJsonObject(finalizedRetry.content, "diagnose", opts.structuredPriorReasoning)
+                : "";
+              const finalizedRetryResolved = finalizedRetry.ok
+                ? resolveCompletedStructuredResponse(finalizedRetryWrapped, "diagnose", finalizedRetry.finishReason)
+                : undefined;
+              const finalizedRetryReferenced = finalizedRetryResolved
+                ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(finalizedRetryResolved, "diagnose"))
+                : undefined;
+              let finalizedRetryCandidate = finalizedRetryReferenced
+                ? prepareDiagnoseStructuredContent(finalizedRetryReferenced, opts.structuredClinicalContext || "")
+                : undefined;
+              let finalizedRetryReasoning = finalizedRetryCandidate
+                ? validatedStructuredReasoning(finalizedRetryCandidate, "diagnose", opts.structuredClinicalContext, undefined, true)
+                : undefined;
+              if (finalizedRetryCandidate && finalizedRetryReasoning) {
+                const reviewed = await reviewM03Candidate(finalizedRetryCandidate, finalizedRetryReasoning);
+                finalizedRetryCandidate = reviewed.content;
+                finalizedRetryReasoning = reviewed.reasoning;
+                const review = reviewed.review;
+                m03DiagnosticReviewStatus = review.status;
+                m03DiagnosticReviewReason = m03SemanticReviewReason(review);
+                m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
+                m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
+                m03ClinicalReviewAttestation = review.status === "repair" ? undefined : clinicalReviewAttestation(review, finalizedRetryReasoning);
+                m03ReviewedReasoning = review.status === "repair" ? undefined : finalizedRetryReasoning;
+                noteM03ReviewRejection(review, finalizedRetryReasoning);
+                if (review.status === "repair") {
+                  finalizedRetryReasoning = undefined;
+                } else if (review.status === "unavailable") {
+                  console.warn("[tcm-cdss:model] M03 clinical review unavailable after finalization repair; marking output for doctor review");
+                }
+              }
+              if (finalizedRetryCandidate && finalizedRetryReasoning) {
+                authoritativeContent = finalizedRetryCandidate;
+                finishReason = finalizedRetry.ok ? finalizedRetry.finishReason : null;
+                structuredSentinelIncomplete = false;
+                const finalizedRetransform = transformOutput(authoritativeContent);
+                const finalizedRetransformReasoning = finalizedRetransform.ok
+                  ? validatedStructuredReasoning(finalizedRetransform.content, "diagnose", opts.structuredClinicalContext, undefined, true)
+                  : undefined;
+                if (finalizedRetransformReasoning) {
+                  transformed = finalizedRetransform;
+                  transformedM03 = finalizedRetransformReasoning;
+                }
+              }
+              if (!transformedM03) {
+                console.warn("[tcm-cdss:model] finalization structured retry rejected", {
+                  stage: "diagnose",
+                  reason: finalizedM03RejectionReason,
+                });
+              }
+            }
+            if (!transformedM03) {
+              truncated = true;
+              transformed = transformTruncateFallback();
+            }
           }
           if (!truncated && transformed.ok && opts.structuredStage) {
             const finalReasoning = structuredReasoningFromContent(transformed.content);
