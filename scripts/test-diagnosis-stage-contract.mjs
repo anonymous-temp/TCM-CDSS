@@ -995,6 +995,111 @@ assert.match(
   /herb_5_unsupported_high_impact_heat_clear/,
   "a category-empty herb with concept-free intent keeps the full conservative expansion (no harmonizer escape hatch)",
 );
+
+// === Digestive/cardiac therapy-direction vocabulary: 化寒湿 tokenization, 泄热, 气血运行 ===
+const coldDampPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "寒湿困脾证", overallPathogenesis: "寒湿困脾", primarySyndromeBasis: ["腹泻腹痛2天", "舌淡苔白腻"], recommendedFormulaDirection: "温化寒湿", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "腹泻腹痛2天", syndromeEvidence: "腹泻腹痛2天", pathogenesis: "寒湿困脾", therapyDirection: "温化寒湿，健脾止泻" }] },
+  therapy: { overallPrinciple: "温化寒湿，健脾止泻" },
+};
+const coldDampM04 = structuredClone(m04);
+coldDampM04.overview = { primarySyndrome: "寒湿困脾证", overallPathogenesis: "寒湿困脾" };
+coldDampM04.therapy = { overallPrinciple: "温化寒湿，健脾止泻" };
+coldDampM04.formula.candidates[0].name = "辨证组方";
+coldDampM04.formula.candidates[0].formulaNames = [];
+coldDampM04.formula.candidates[0].constructionType = "self_devised";
+coldDampM04.formula.candidates[0].therapyMatch = "温化寒湿，健脾止泻";
+coldDampM04.formula.candidates[0].herbs = [
+  { name: "苍术", dose: "9g", role: "君", prescriptionRole: "温化寒湿", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "寒湿困脾", function: "化湿药", decoctionRequirement: "" },
+  { name: "厚朴", dose: "6g", role: "臣", prescriptionRole: "下气除满", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "寒湿困脾", function: "消痰下气，温中，止痛，温胃，益气；化湿药", decoctionRequirement: "" },
+];
+assert.equal(
+  m04SemanticIssue(coldDampM04, "", coldDampPrior),
+  undefined,
+  "温化寒湿 must tokenize to damp_resolve for the canonical 苍术 emperor (化 and 湿 are separated by 寒)",
+);
+// Opposing-polarity invariant: concept-free harmonizer declarations (甘草 调和诸药) must not
+// expose secondary function-text actions; concept-bearing secondary declarations (乌药 理气止痛
+// hiding 温肾散寒) still reject against the locked therapy polarity.
+const coldDampGanCaoM04 = structuredClone(coldDampM04);
+coldDampGanCaoM04.formula.candidates[0].herbs.push(
+  { name: "甘草", dose: "3g", role: "使", prescriptionRole: "调和诸药", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", targetPathogenesis: "调和诸药，协调药性", function: "补脾益气，清热解毒，祛痰止咳，缓急止痛，调和诸药；补气药；补虚药", decoctionRequirement: "" },
+);
+assert.equal(
+  m04SemanticIssue(coldDampGanCaoM04, "", coldDampPrior),
+  undefined,
+  "a concept-free harmonizer 甘草 in a warm-direction formula must not be opposed for its secondary 清热解毒 catalog action",
+);
+const liverStomachHeatPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "肝胃郁热证", overallPathogenesis: "肝胃郁热", primarySyndromeBasis: ["反酸烧心1月", "舌红苔薄黄"], recommendedFormulaDirection: "疏肝泄热", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "反酸烧心1月", syndromeEvidence: "反酸烧心1月", pathogenesis: "肝胃郁热", therapyDirection: "疏肝泄热，和胃降逆" }] },
+  therapy: { overallPrinciple: "疏肝泄热，和胃降逆" },
+};
+const liverStomachHeatM04 = structuredClone(m04);
+liverStomachHeatM04.overview = { primarySyndrome: "肝胃郁热证", overallPathogenesis: "肝胃郁热" };
+liverStomachHeatM04.therapy = { overallPrinciple: "疏肝泄热，和胃降逆" };
+liverStomachHeatM04.formula.candidates[0].name = "辨证组方";
+liverStomachHeatM04.formula.candidates[0].formulaNames = [];
+liverStomachHeatM04.formula.candidates[0].constructionType = "self_devised";
+liverStomachHeatM04.formula.candidates[0].therapyMatch = "疏肝泄热，和胃降逆";
+liverStomachHeatM04.formula.candidates[0].herbs = [
+  { name: "黄连", dose: "5g", role: "君", prescriptionRole: "清热燥湿", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "肝胃郁热", function: "清热燥湿，泻火解毒，舒肝和胃，止呕；清热燥湿药；清热药", decoctionRequirement: "" },
+  { name: "柴胡", dose: "6g", role: "臣", prescriptionRole: "疏肝解郁", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "肝胃郁热", function: "发散风热药；解表药", decoctionRequirement: "" },
+];
+assert.equal(
+  m04SemanticIssue(liverStomachHeatM04, "", liverStomachHeatPrior),
+  undefined,
+  "泄热 must map to heat_clear so a 黄连 emperor for 肝胃郁热 intersects the primary therapy concepts",
+);
+const chestBiPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "胸痹·功能失调候", overallPathogenesis: "胸膺脉气失调", primarySyndromeBasis: ["劳力性胸痛2年"], recommendedFormulaDirection: "调畅胸膺脉气", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "劳力性胸痛2年", syndromeEvidence: "劳力性胸痛2年", pathogenesis: "胸膺脉气失调", therapyDirection: "调畅胸膺脉气，助益气血运行" }] },
+  therapy: { overallPrinciple: "调畅胸膺脉气，助益气血运行" },
+};
+const chestBiM04 = structuredClone(m04);
+chestBiM04.overview = { primarySyndrome: "胸痹·功能失调候", overallPathogenesis: "胸膺脉气失调" };
+chestBiM04.therapy = { overallPrinciple: "调畅胸膺脉气，助益气血运行" };
+chestBiM04.formula.candidates[0].name = "辨证组方";
+chestBiM04.formula.candidates[0].formulaNames = [];
+chestBiM04.formula.candidates[0].constructionType = "self_devised";
+chestBiM04.formula.candidates[0].therapyMatch = "调畅胸膺脉气，助益气血运行";
+chestBiM04.formula.candidates[0].herbs = [
+  { name: "丹参", dose: "12g", role: "君", prescriptionRole: "活血通经", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "胸膺脉气失调", function: "活血调经，化瘀止痛，活血散瘀，活血通经，祛瘀止痛；活血化瘀药；活血止痛药", decoctionRequirement: "" },
+  { name: "川芎", dose: "6g", role: "臣", prescriptionRole: "活血行气", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "胸膺脉气失调", function: "祛风止痛，活血止痛，活血行气，补肝，补血；活血化瘀药；活血止痛药", decoctionRequirement: "" },
+];
+assert.equal(
+  m04SemanticIssue(chestBiM04, "", chestBiPrior),
+  undefined,
+  "助益气血运行 must map to blood_move so the canonical 丹参 emperor for 胸痹 intersects",
+);
+const chestBiWrongEmperorM04 = structuredClone(chestBiM04);
+chestBiWrongEmperorM04.formula.candidates[0].herbs[0] = {
+  name: "葛根", dose: "12g", role: "君", prescriptionRole: "解肌", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "胸膺脉气失调", function: "发散风热药；解表药", decoctionRequirement: "",
+};
+assert.match(
+  m04SemanticIssue(chestBiWrongEmperorM04, "", chestBiPrior) || "",
+  /emperor_therapy_mismatch/,
+  "an exterior-release emperor with no qi/blood-moving action still fails the 胸痹 emperor alignment (fail-closed kept)",
+);
+const launderingM04 = structuredClone(liverStomachHeatM04);
+launderingM04.formula.candidates[0].herbs.push(
+  { name: "乌药", dose: "6g", role: "佐", prescriptionRole: "理气止痛", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "肝胃郁热", function: "行气止痛，祛风止痛，理气止痛，温肾散寒，温中散寒；理气药", decoctionRequirement: "" },
+);
+assert.match(
+  m04SemanticIssue(launderingM04, "", liverStomachHeatPrior) || "",
+  /herb_2_unsupported_high_impact_yang_warm/,
+  "a concept-bearing secondary declaration still cannot hide an opposing high-impact action (乌药 温肾散寒 vs 泄热)",
+);
+
+// === Colloquial herb names resolve through the governed alias registry to KB-known canonicals ===
+for (const [alias, canonical] of [["杏仁", "苦杏仁"], ["元胡", "延胡索（元胡）"], ["双花", "金银花"], ["山栀", "栀子"], ["薏米", "薏苡仁"], ["枣仁", "酸枣仁"], ["枸杞", "枸杞子"]]) {
+  assert.equal(canonicalTcmHerbIdentity(alias), canonical, `colloquial name ${alias} must resolve to ${canonical}`);
+  assert.ok(isKnownTcmHerbName(canonicalTcmHerbIdentity(alias)), `the canonical for ${alias} must be KB-known so the repair hint can name it`);
+}
+assert.equal(canonicalTcmHerbIdentity("不存在药"), "不存在药", "an unregistered name must pass through unchanged (no invented canonical)");
 const highImpactModification = {
   ...m04,
   formula: {

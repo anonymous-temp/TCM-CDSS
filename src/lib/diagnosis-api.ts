@@ -12,7 +12,7 @@
 import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isDeepseekModel } from "@/lib/text-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceStructuredStageOwnership, isM03WesternSupportContractReason, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
-import { describeM03GroundingConflict, describeM03WesternSupportConflict, isStableM03Reasoning, m03ChainNodeDiagnostics, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, isStableM03Reasoning, m03ChainNodeDiagnostics, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -976,6 +976,58 @@ async function retryCompletePrimaryResponse(
     // 未成立高影响方向：原因代码同样只带药味序号与方向键。直接点明是哪味药的哪个方向未成立，
     // 否则修复轮只会改写理由把同一味药再保留一次（实测同一 清热 药连续三轮未被删除）。
     let unsupportedHighImpactHint = "";
+    // 君药方向不匹配：原因代码只带药味序号。点明是哪味君药以及 P1 治法的原文，模型才能从短名单
+    // 对应方向重选，而不是凭临床习惯再抽一次（实测同一 疏肝泄热 病例 黄连 连续三轮原样保留）。
+    let emperorDirectionHint = "";
+    // 未收载药名：原因代码只带药味序号。高频口语/俗名按 GOVERNED_TCM_HERB_IDENTITY_ALIASES
+    // 解析出知识库规范名并直接点名（如 杏仁→苦杏仁），模型下一轮即可写出可通过的名称；
+    // 无法解析时退回通用“换用知识库已收载药味”提示。
+    let unknownHerbHint = "";
+    const unknownHerbMatch = structuredStage === "prescribe" && rejectedJson
+      ? (rejectionReason || "").match(/^m04_candidate_\d+_herb_(\d+)_unknown$/)
+      : null;
+    if (unknownHerbMatch) {
+      try {
+        const rejectedReasoning = JSON.parse(rejectedJson) as {
+          formula?: { candidates?: Array<{ herbs?: Array<{ name?: unknown }> }> };
+        };
+        const herbName = rejectedReasoning?.formula?.candidates?.[0]?.herbs?.[Number(unknownHerbMatch[1])]?.name;
+        if (typeof herbName === "string" && herbName.trim()) {
+          const canonical = canonicalTcmHerbIdentity(herbName.trim());
+          if (canonical && canonical !== herbName.trim() && isKnownTcmHerbName(canonical)) {
+            unknownHerbHint = `⚠️ 药名规范：「${herbName.trim()}」不在服务端药味知识库中，其规范名称为「${canonical}」。请直接改用「${canonical}」，其余已通过校验的药味、剂量与组成保持不变。`;
+          } else {
+            unknownHerbHint = `⚠️ 药名规范：「${herbName.trim()}」不在服务端药味知识库中（可能为生造、错别字或不规范缩写）。不得再次使用该名称，请从短名单或知识库已收载药味中选择同一治法方向的替代药味，其余字段保持不变。`;
+          }
+        }
+      } catch {
+        // 被拒 JSON 可能本身不合法；通用未收载药名修复提示仍会指引重试。
+      }
+    }
+    const emperorMismatchMatch = structuredStage === "prescribe" && rejectedJson
+      ? (rejectionReason || "").match(/^m04_candidate_\d+_herb_(\d+)_emperor_therapy_mismatch$/)
+      : null;
+    if (emperorMismatchMatch) {
+      try {
+        const rejectedReasoning = JSON.parse(rejectedJson) as {
+          formula?: { candidates?: Array<{ herbs?: Array<{ name?: unknown }> }> };
+        };
+        const herbName = rejectedReasoning?.formula?.candidates?.[0]?.herbs?.[Number(emperorMismatchMatch[1])]?.name;
+        const lock = priorReasoning && typeof priorReasoning === "object" && !Array.isArray(priorReasoning)
+          ? priorReasoning as { overallPrinciple?: unknown; pathogenesisChain?: Array<{ nodeId?: unknown; therapyDirection?: unknown }> }
+          : undefined;
+        const chain = Array.isArray(lock?.pathogenesisChain) ? lock!.pathogenesisChain! : [];
+        const primaryNode = chain.find((node, index) => String(node.nodeId || `P${index + 1}`) === "P1") || chain[0];
+        const direction = [primaryNode?.therapyDirection, lock?.overallPrinciple]
+          .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+          .join("；");
+        if (typeof herbName === "string" && herbName.trim() && direction) {
+          emperorDirectionHint = `⚠️ 君药方向：${herbName.trim()} 的知识库收载方向不覆盖本例 P1 治法「${direction.slice(0, 80)}」。请只从短名单对应方向中重选能直接承担该治法的君药，其余已通过校验的药味、剂量与组成保持不变。`;
+        }
+      } catch {
+        // 被拒 JSON 可能本身不合法；通用君药方向修复提示仍会指引重试。
+      }
+    }
     const unsupportedHighImpactMatch = structuredStage === "prescribe" && rejectedJson
       ? (rejectionReason || "").match(/^m04_candidate_\d+_herb_(\d+)_unsupported_high_impact_([a-z0-9_]+)$/)
       : null;
@@ -1026,6 +1078,8 @@ async function retryCompletePrimaryResponse(
           groundingHint,
           doseBoundaryHint,
           unsupportedHighImpactHint,
+          emperorDirectionHint,
+          unknownHerbHint,
           boundedReviewGuidance,
           clinicalRepairHint,
           proposalRepairHint,

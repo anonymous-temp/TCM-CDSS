@@ -109,6 +109,18 @@ const GOVERNED_TCM_HERB_IDENTITY_ALIASES: Readonly<Record<string, string>> = {
   炙甘草: "甘草",
   夜交藤: "首乌藤",
   丹皮: "牡丹皮",
+  // 高频口语/俗名 → 药典规范名（目标名均已核验为知识库收载且有功能/剂量覆盖）：
+  杏仁: "苦杏仁",
+  元胡: "延胡索",
+  双花: "金银花",
+  山栀: "栀子",
+  薏米: "薏苡仁",
+  枣仁: "酸枣仁",
+  仙灵脾: "淫羊藿",
+  熟地: "熟地黄",
+  枸杞: "枸杞子",
+  浙贝: "浙贝母",
+  川贝: "川贝母",
 };
 
 /** One prescription identity for spelling aliases and non-independent processed variants. */
@@ -954,14 +966,14 @@ const TCM_THERAPY_CONCEPTS: ReadonlyArray<[TcmTherapyConcept, RegExp]> = [
   ["blood_nourish", /养(?:心|肝)?血|补(?:心|肝)?血|益血|生血|补血/],
   ["calm_spirit", /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄/],
   ["spleen_support", /健脾|补脾|益脾|补益心脾|健运|运化/],
-  ["qi_regulate", /理气|行气|疏肝|解郁|开郁|调畅气机|下气|降气|宽中|除满|消胀|除痞|行滞|破气|顺气/],
-  ["heat_clear", /清热|泻火|凉血|解毒|辛凉|清(?:肺|肝|心|胃|营|暑)/],
+  ["qi_regulate", /理气|行气|疏肝|解郁|开郁|调畅气机|下气|降气|宽中|除满|消胀|除痞|行滞|破气|顺气|和胃|降逆|宽胸/],
+  ["heat_clear", /清热|泻火|凉血|解毒|辛凉|清(?:肺|肝|心|胃|营|暑)|泄热/],
   ["phlegm_resolve", /化痰|祛痰|涤痰|豁痰|消痰/],
-  ["damp_resolve", /利湿|渗湿|利水|祛湿|燥湿|化湿|醒脾/],
+  ["damp_resolve", /利湿|渗湿|利水|祛湿|燥湿|化湿|醒脾|化寒湿|散寒湿|除湿/],
   ["yang_warm", /温阳|扶阳|回阳|散寒|辛温|温(?:中|肾|里|肺|经|化|补|通|养)|补阳/],
   ["yin_nourish", /滋阴|养阴|育阴|生津|增液|补阴/],
   ["exterior_release", /解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风/],
-  ["blood_move", /活血|化瘀|行瘀|破血|通经/],
+  ["blood_move", /活血|化瘀|行瘀|破血|通经|(?:气血|血行|血脉)(?:运行|畅行|周行|流通)/],
   ["purge", /通便|泻下|攻下|逐水/],
   ["astringe", /收涩|敛汗|固涩|固精|止带/],
   ["hemostasis", /止血|凉血止血|化瘀止血/],
@@ -1128,8 +1140,18 @@ function unsupportedHighImpactHerbIssue(
     const highImpact = herbHighImpactConcepts(herbName, intendedUse);
     // A declared secondary action (for example 乌药“理气止痛”) must not hide a server-known
     // high-impact action that directly opposes the M03-locked treatment direction. Compare the
-    // full herb knowledge against the locked therapy as a separate invariant from declared intent.
-    const opposingLocked = [...herbTherapyConcepts(herbName)].filter((knowledgeConcept) =>
+    // full herb knowledge against the locked therapy as a separate invariant from declared
+    // intent — EXCEPT when the declared intent carries no therapy-direction vocabulary at all
+    // (the server-owned 调和诸药/协调药性 harmonizer role). A concept-free harmonizer declaration
+    // claims nothing and cannot launder an opposing action; for category-covered herbs the
+    // primary actions stay governed through categories/risk and only unrelated secondary
+    // function-text actions (甘草“清热解毒”、党参“清肺”) are ignored. Concept-bearing
+    // declarations keep the full-knowledge comparison, so 乌药-style laundering still rejects.
+    const declaredConcepts = intendedUse ? tcmTherapyConcepts(intendedUse) : undefined;
+    const opposingPool = declaredConcepts && declaredConcepts.size === 0 && tcmTherapyConcepts(getTcmHerbFunctionCategories(herbName).join("；")).size > 0
+      ? new Set([...tcmTherapyConcepts(getTcmHerbFunctionCategories(herbName).join("；")), ...tcmTherapyConcepts(getTcmHerbRiskProfile(herbName))])
+      : herbTherapyConcepts(herbName);
+    const opposingLocked = [...opposingPool].filter((knowledgeConcept) =>
       HIGH_IMPACT_THERAPY_CONCEPTS.has(knowledgeConcept) &&
       OPPOSING_THERAPY_CONCEPTS.some(([left, right]) =>
         (knowledgeConcept === left && required.has(right)) ||

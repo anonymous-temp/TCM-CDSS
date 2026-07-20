@@ -667,5 +667,13 @@ const highImpactHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_5_unsupp
 assert.ok(highImpactHint.includes("高影响治疗方向"), "the high-impact repair hint must name the unsupported-direction cause");
 assert.ok(highImpactHint.includes("直接删除这味药"), "the high-impact repair hint must require dropping the flagged herb");
 assert.ok(highImpactHint.includes("恰有 1–2 味君药"), "the high-impact repair hint must keep the emperor cardinality invariant");
+const emperorMismatchHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_0_emperor_therapy_mismatch");
+assert.ok(emperorMismatchHint.includes("治疗方向与 P1 治法方向不一致"), "the emperor-mismatch hint must name the direction-inconsistency cause");
+assert.ok(emperorMismatchHint.includes("只重选君药"), "the emperor-mismatch hint must scope the edit to emperor reselection");
+assert.ok(emperorMismatchHint.includes("短名单"), "the emperor-mismatch hint must point at the injected KB-covered shortlist");
+const unknownHerbHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_5_unknown");
+assert.ok(unknownHerbHint.includes("不在服务端药味知识库中"), "the unknown-herb hint must state the herb is not in the server KB");
+assert.ok(unknownHerbHint.includes("不得再次使用"), "the unknown-herb hint must forbid reusing the rejected name");
+assert.ok(unknownHerbHint.includes("替代药味"), "the unknown-herb hint must require a KB-known same-direction replacement");
 
-console.log(JSON.stringify({ cases: 318, failures: 0 }));
+console.log(JSON.stringify({ cases: 324, failures: 0 }));

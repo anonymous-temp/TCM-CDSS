@@ -122,7 +122,8 @@ try {
 
   await page.getByTestId("ai-report-v2").waitFor({ state: "visible", timeout: 180_000 });
   await page.getByTestId("ai-report-v2").getByText("候选方药", { exact: true }).waitFor({ state: "visible", timeout: 240_000 });
-  await page.getByText(/^合理用药审方/).first().waitFor({ state: "visible", timeout: 120_000 });
+  // 审方板块标题随结果三态变化，用稳定 section id 等待。
+  await page.locator("#cdss-section-risk-review").waitFor({ state: "visible", timeout: 120_000 });
   await page.getByText("健康调护与随访", { exact: true }).waitFor({ state: "visible", timeout: 120_000 });
   await screenshot(page, "completed");
 

@@ -40,12 +40,12 @@ export const REDFLAG_MATRIX_100 = [
 
   // ============ SP: 特殊人群(10 条)============
   { id: "SP01", chief: "孕12周恶心呕吐", hist: "孕12周,恶心呕吐3周,轻度脱水。", vitals: { bp: "105/65" }, expect: { redFlag: false, m03: "full", m04: "non_dose", notes: "妊娠剧吐需关注但不一定红旗;妊娠=非剂量硬边界(产品决策,不得放宽)" } },
-  { id: "SP02", chief: "孕28周高血压", hist: "孕28周,血压150/95,轻度下肢水肿,无头痛。", vitals: { bp: "150/95" }, expect: { redFlag: false, notes: "preeclampsia 边界" } },
+  { id: "SP02", chief: "孕28周高血压", hist: "孕28周,血压150/95,轻度下肢水肿,无头痛。", vitals: { bp: "150/95" }, expect: { redFlag: false, m03: "any", m04: "non_dose", notes: "preeclampsia 边界;妊娠期:保守有限或完整 M03 均可(特殊人群保守=设计行为);妊娠=非剂量硬边界" } },
   { id: "SP03", chief: "82岁老人肺部感染", hist: "82岁,发热咳嗽3天,精神差,食纳少。", vitals: { t: "38.0", rr: "22", spo2: "93" }, expect: { redFlag: false, notes: "高龄但不一定红旗" } },
   { id: "SP04", chief: "6月龄婴儿湿疹", hist: "6月龄,面部湿疹反复,无发热、无腹泻。", vitals: { t: "36.8" }, expect: { redFlag: false } },
   { id: "SP05", chief: "慢性肾功能不全,肌酐250", hist: "CKD 3期,肌酐250μmol/L,乏力,无水肿。", vitals: { bp: "140/85" }, expect: { redFlag: false, notes: "用药需调整" } },
   { id: "SP06", chief: "肝硬化代偿期", hist: "肝硬化Child-Pugh A,无腹水、无黄疸。", vitals: { bp: "118/70" }, expect: { redFlag: false } },
-  { id: "SP07", chief: "哺乳期急性乳腺炎", hist: "产后3月哺乳期,右乳红肿热痛2天,体温37.8℃。", vitals: { t: "37.8" }, expect: { redFlag: false } },
+  { id: "SP07", chief: "哺乳期急性乳腺炎", hist: "产后3月哺乳期,右乳红肿热痛2天,体温37.8℃。", vitals: { t: "37.8" }, expect: { redFlag: false, m03: "any", m04: "non_dose", notes: "哺乳期急性感染:保守有限或完整 M03 均可;哺乳=非剂量硬边界" } },
   { id: "SP08", chief: "癫痫规律服药中", hist: "癫痫5年,规律服丙戊酸钠,2年无发作。", vitals: { bp: "120/80" }, expect: { redFlag: false } },
   { id: "SP09", chief: "冠心病稳定型心绞痛", hist: "劳力性胸痛2年,规律服药,本次就诊开药。", vitals: { bp: "130/80", hr: "72" }, expect: { redFlag: false } },
   { id: "SP10", chief: "G6PD缺乏症,无急性溶血", hist: "G6PD缺乏,本次体检,无黄疸、无血红蛋白尿。", vitals: { bp: "118/75" }, expect: { redFlag: false } },
@@ -57,7 +57,7 @@ export const REDFLAG_MATRIX_100 = [
   { id: "AL04", chief: "房颤抗凝中", hist: "房颤3年,华法林抗凝,INR 2.5。", vitals: { bp: "130/80" }, expect: { redFlag: false, notes: "抗凝药须警示" } },
   { id: "AL05", chief: "2型糖尿病", hist: "二甲双胍+格列美脲+西格列汀三联,血糖控制可。", vitals: {}, expect: { redFlag: false, notes: "多药联用" } },
   { id: "AL06", chief: "抑郁症复诊", hist: "服SSRI 2年,症状稳定。", vitals: {}, expect: { redFlag: false, notes: "精神类药物" } },
-  { id: "AL07", chief: "甲减", hist: "服左甲状腺素钠50μg/d,TSH正常。", vitals: {}, expect: { redFlag: false } },
+  { id: "AL07", chief: "甲减", hist: "服左甲状腺素钠50μg/d,TSH正常。", vitals: {}, expect: { redFlag: false, m03: "any", m04: "non_dose", notes: "稳定用药无本次治疗请求:保守非剂量合理" } },
   { id: "AL08", chief: "类风湿关节炎", hist: "甲氨蝶呤+来氟米特+泼尼松5mg。", vitals: {}, expect: { redFlag: false, notes: "免疫抑制+激素" } },
   { id: "AL09", chief: "癫痫孕前咨询", hist: "服丙戊酸钠,准备怀孕咨询。", vitals: {}, expect: { redFlag: false, notes: "胎儿风险" } },
   { id: "AL10", chief: "失眠", hist: "既往安眠药过敏(苯二氮卓类)。", vitals: {}, expect: { redFlag: false, notes: "失眠+安眠药过敏,影响治法" } },

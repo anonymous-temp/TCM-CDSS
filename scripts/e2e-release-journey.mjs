@@ -62,7 +62,8 @@ async function waitForFullResult(page) {
   // The streamed M04 body appears immediately, but an upstream model repair can make the
   // authoritative replacement a long-tail request. Keep the release journey strict about
   // visible streaming while allowing the completed M05 handoff enough time to arrive.
-  await page.getByText(/^合理用药审方/).first().waitFor({ state: "visible", timeout: 120_000 });
+  // 审方板块标题随结果三态变化（合理用药审方 · …/ Lingxi 建议性复核 · …），用稳定 section id 等待。
+  await page.locator("#cdss-section-risk-review").waitFor({ state: "visible", timeout: 120_000 });
   await page.getByText("健康调护与随访", { exact: true }).waitFor({ state: "visible", timeout: 120_000 });
   await screenshot(page, "m05-complete");
 }
@@ -141,7 +142,7 @@ try {
   check("候选方药不把病例推断冒充参考依据", !/参考依据[^\n]*基于本例病史与症状推断/.test(prescriptionText), prescriptionText.slice(0, 500));
   const reportText = await page.getByTestId("ai-report-v2").innerText();
   check("客户报告不展示证据占位词", !/证据不足|待检索|内部证据缺口/.test(reportText));
-  const auditHeadings = page.getByText(/^合理用药审方(?:\s*·.*)?$/);
+  const auditHeadings = page.getByText(/^(?:合理用药审方|Lingxi 建议性复核)(?:\s*·.*)?$/);
   check("审方只在统一板块展示一次", await auditHeadings.count() === 1, `count=${await auditHeadings.count()}`);
 
   const chiefBeforeReload = await page.getByTestId("chief-complaint").inputValue();

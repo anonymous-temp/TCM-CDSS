@@ -23,7 +23,7 @@ const { maybeAttachClinicalFactsBackstop } = await jiti.import("../src/lib/clini
 const { buildCdssEvidenceContext, appendEvidenceContext, buildEvidenceOutputTransform } = await jiti.import("../src/lib/cdss-evidence-context.ts");
 const { buildPrescribePrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
 const { diagnoseReasoningFromState, parseReasoningV2 } = await jiti.import("../src/lib/diagnosis-parse.ts");
-const { m04SemanticIssue, highImpactHerbDirectionIssue } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+const { m04SemanticIssue, highImpactHerbDirectionIssue, canonicalTcmHerbIdentity } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { buildM04ClinicalReviewPrompt, parseM04ClinicalReview } = await jiti.import("../src/lib/m04-clinical-review.ts");
 const { compileM04JsonObjectContent } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const { resolveCompletedStructuredResponse, enforceStructuredStageOwnership } = await jiti.import("../src/lib/diagnosis-structured-repair.ts");
@@ -137,16 +137,29 @@ const FIXTURES = {
   NG05: { id: "NG05", sex: "男", age: 45, chief: "上呼吸道感染,体温37.2℃无寒战", hist: "感冒2天,流涕咽痛,体温最高37.2℃,无寒战、无意识改变。", vitals: { t: "37.2", hr: "80" } },
   NG06: { id: "NG06", sex: "女", age: 42, chief: "慢性胃炎,轻度上腹隐痛", hist: "慢性胃炎5年,轻度上腹隐痛,无板状腹、无拒按。", vitals: { bp: "120/80" } },
   TC01: { id: "TC01", sex: "男", age: 45, chief: "胃脘胀满饭后加重3月", hist: "饭后胃胀,嗳气,大便偏稀。舌淡胖有齿痕苔白腻。", vitals: {} },
+  TC02: { id: "TC02", sex: "男", age: 45, chief: "腹泻腹痛2天", hist: "进食生冷后腹泻日4次,稀水样,轻度腹痛。舌淡苔白腻。", vitals: {} },
+  TC04: { id: "TC04", sex: "男", age: 45, chief: "反酸烧心1月", hist: "夜间反酸烧心,平卧加重。舌红苔薄黄。", vitals: {} },
+  SP09: { id: "SP09", sex: "男", age: 45, chief: "冠心病稳定型心绞痛", hist: "劳力性胸痛2年,规律服药,本次就诊开药。", vitals: { bp: "130/80", hr: "72" } },
+  ES09: { id: "ES09", sex: "男", age: 45, chief: "咳嗽5天", hist: "现病史一处记录“咳嗽5天”,另一处旧病程写“慢性咳嗽3年已愈半年”;本次确有5天新起咳嗽咳痰,时态记载互相矛盾。舌淡红苔薄白。", vitals: {} },
 };
 
+const PRIOR_ARTIFACT_DIRS = ["artifacts/real-100-residual-r1-20260719", "artifacts/real-100-smoke-r6-20260719"];
+
 function loadSignedPrior(caseId) {
-  const raw = readFileSync(`artifacts/real-100-smoke-r6-20260719/${caseId}-full.txt`, "utf8");
-  const blocks = [...raw.matchAll(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/g)];
-  for (const block of blocks.reverse()) {
+  for (const dir of PRIOR_ARTIFACT_DIRS) {
+    let raw;
     try {
-      const parsed = JSON.parse(block[1]);
-      if (parsed?.stage === "diagnose") return parseReasoningV2(parsed);
-    } catch { /* try next */ }
+      raw = readFileSync(`${dir}/${caseId}-full.txt`, "utf8");
+    } catch {
+      continue;
+    }
+    const blocks = [...raw.matchAll(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/g)];
+    for (const block of blocks.reverse()) {
+      try {
+        const parsed = JSON.parse(block[1]);
+        if (parsed?.stage === "diagnose") return parseReasoningV2(parsed);
+      } catch { /* try next */ }
+    }
   }
   return undefined;
 }
@@ -233,6 +246,38 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
         }
       } catch { /* keep generic hint */ }
     }
+    let emperorDirectionHint = "";
+    const emperorMismatchMatch = isRepair ? lastReason.match(/^m04_candidate_\d+_herb_(\d+)_emperor_therapy_mismatch$/) : null;
+    if (emperorMismatchMatch && rejectedJson) {
+      try {
+        const rejectedReasoning = JSON.parse(rejectedJson);
+        const herbName = rejectedReasoning?.formula?.candidates?.[0]?.herbs?.[Number(emperorMismatchMatch[1])]?.name;
+        const chain = prior.pathogenesis?.chain || [];
+        const primaryNode = chain.find((node, index) => String(node.nodeId || `P${index + 1}`) === "P1") || chain[0];
+        const direction = [primaryNode?.therapyDirection, prior.therapy?.overallPrinciple]
+          .filter((value) => typeof value === "string" && value.trim())
+          .join("；");
+        if (typeof herbName === "string" && herbName.trim() && direction) {
+          emperorDirectionHint = `⚠️ 君药方向：${herbName.trim()} 的知识库收载方向不覆盖本例 P1 治法「${direction.slice(0, 80)}」。请只从短名单对应方向中重选能直接承担该治法的君药，其余已通过校验的药味、剂量与组成保持不变。`;
+        }
+      } catch { /* keep generic hint */ }
+    }
+    let unknownHerbHint = "";
+    const unknownHerbMatch = isRepair ? lastReason.match(/^m04_candidate_\d+_herb_(\d+)_unknown$/) : null;
+    if (unknownHerbMatch && rejectedJson) {
+      try {
+        const rejectedReasoning = JSON.parse(rejectedJson);
+        const herbName = rejectedReasoning?.formula?.candidates?.[0]?.herbs?.[Number(unknownHerbMatch[1])]?.name;
+        if (typeof herbName === "string" && herbName.trim()) {
+          const canonical = canonicalTcmHerbIdentity(herbName.trim());
+          if (canonical && canonical !== herbName.trim() && isKnownTcmHerbName(canonical)) {
+            unknownHerbHint = `⚠️ 药名规范：「${herbName.trim()}」不在服务端药味知识库中，其规范名称为「${canonical}」。请直接改用「${canonical}」，其余已通过校验的药味、剂量与组成保持不变。`;
+          } else {
+            unknownHerbHint = `⚠️ 药名规范：「${herbName.trim()}」不在服务端药味知识库中（可能为生造、错别字或不规范缩写）。不得再次使用该名称，请从短名单或知识库已收载药味中选择同一治法方向的替代药味，其余字段保持不变。`;
+          }
+        }
+      } catch { /* keep generic hint */ }
+    }
     const userPrompt = !isRepair
       ? prompt
       : [
@@ -240,6 +285,8 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
           `未通过原因代码：${lastReason}。`,
           doseBoundaryHint,
           unsupportedHighImpactHint,
+          emperorDirectionHint,
+          unknownHerbHint,
           buildM04ClinicalRepairHint(lastReason),
           "M04 修复结果始终必须是 schemaVersion=tcm-cdss-m04-proposal-v1 的最小提案对象；candidate.herbs 必须是数组且只含本次实际采用药味；candidate.decoction 必须是单个对象，且必须包含格式严格为1–30整数加‘剂’的 doseCount 纯字符串；整个 candidate.herbs 必须恰有 1–2 味君药，且每味君药都必须 targetKind=pathogenesis_node、targetRef=P1；targetKind=pathogenesis_node 时 structureRole 必须为 null。顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；无逐药可靠证据时 patentAndWestern 输出空数组。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/actionType/herbName/reason。nonPharma 的 diet、lifestyle、emotion 必须是非空字符串，acupointCare 固定为 null，monitoring 至少一项且包含 metric、timing、trigger。",
           `M03锁定上下文：${JSON.stringify({ overview: { primarySyndrome: prior.overview?.primarySyndrome, overallPathogenesis: prior.overview?.overallPathogenesis, recommendedFormulaDirection: prior.overview?.recommendedFormulaDirection, recommendedFormulaNames: prior.overview?.recommendedFormulaNames, formulaSelectionMode: prior.overview?.formulaSelectionMode }, therapy: prior.therapy, pathogenesisChain: prior.pathogenesis?.chain })}`,

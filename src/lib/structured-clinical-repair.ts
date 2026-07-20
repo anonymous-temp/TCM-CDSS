@@ -23,6 +23,20 @@ export function buildM04ClinicalRepairHint(reason = ""): string {
       "替换后的君药仍须 targetKind=pathogenesis_node、targetRef=P1，且其知识库收载方向必须与 P1 治法方向一致。",
     ].join("\n");
   }
+  if (/^m04_candidate_\d+_herb_\d+_emperor_therapy_mismatch$/.test(reason)) {
+    return [
+      "本次失败是君药的知识库收载治疗方向与 P1 治法方向不一致，不是药味数量或剂量问题。",
+      "保持已通过校验的药味、剂量、方名与组成不变，只重选君药：君药的知识库功能分类或功用必须直接覆盖 P1 的治法方向（以 M03锁定上下文中的 therapyDirection 与 overallPrinciple 为准），不得仅凭临床习惯、药名相似或方剂名选药。",
+      "优先从“本例治法方向的知识库覆盖药味短名单”的对应方向中选择 1–2 味新君药；替换后的君药仍须 targetKind=pathogenesis_node、targetRef=P1。",
+    ].join("\n");
+  }
+  if (/^m04_candidate_\d+_herb_\d+_unknown$/.test(reason)) {
+    return [
+      "本次失败是某味药不在服务端药味知识库中：没有该药名收载，系统无法核验其性味归经、剂量边界与安全规则，已被确定性驳回。",
+      "该药名可能是生造、错别字、别名或不规范缩写：上一稿被驳回的药名不得再次使用，也不得换用其他知识库未收载的名称。",
+      "必须从“本例治法方向的知识库覆盖药味短名单”或知识库已收载药味中，选择同一治法方向的替代药味；其余已通过校验的药味、剂量、方名与组成保持不变。",
+    ].join("\n");
+  }
   if (/^m04_candidate_\d+_herb_\d+_dose_outside_conservative_range$/.test(reason)) {
     return [
       "本次失败是某味药的剂量超出服务端保守常用量边界，不是组方方向问题。",
