@@ -73,6 +73,13 @@ import { buildSeasonalCare } from "@/lib/tcm-seasonal-care";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { parseClinicalFacts, type ClinicalFacts } from "@/lib/clinical-facts";
 import {
+  buildMedicineCandidateEmptyState,
+  buildTieredSuggestedChecks,
+  herbCaseMeaning,
+  resolveAuditReviewPresentation,
+  safeDietAdviceForDisplay,
+} from "@/lib/result-display-policy";
+import {
   isCompoundAffirmativeQuestionOption,
   parseM02PlanFromContent,
   type M02Plan,
@@ -2570,16 +2577,6 @@ export function hasExplicitNonDosePrescriptionResult(caseState: Pick<CaseState, 
   );
 }
 
-function hasMeaningfulMedicationRisk(section?: string): boolean {
-  const text = cleanInlineMarkdown(section || "").replace(/\s+/g, "");
-  if (!text || text === "暂无" || text === "待生成") return false;
-  const onlyNoRisk =
-    /未见明显|未发现|暂无|无明确|无特殊/.test(text) &&
-    !/慎用|禁忌|相互作用|ADR|不良反应|过敏|肝肾|出血|妊娠|哺乳|儿童|老年|毒性|当前用药未知|无法评估|需确认|需复核|强提示|一般提示|信息不足提示/.test(text);
-  if (onlyNoRisk) return false;
-  return /强提示|一般提示|信息不足提示|慎用|禁忌|相互作用|ADR|不良反应|过敏|肝肾|出血|妊娠|哺乳|儿童|老年|毒性|当前用药未知|无法评估|需确认|需复核|减量|替换|停药|转诊/.test(text);
-}
-
 function DecoctionInstructionsPanel({ decoction }: {
   decoction?: {
     doseCount: string | null;
@@ -3494,7 +3491,7 @@ function HerbModificationWorkbench({
               </select>
               <input
                 aria-label={`存在意义${index + 1}`}
-                value={herb.prescriptionRole}
+                value={herbCaseMeaning(herb)}
                 readOnly
                 disabled={controlsLocked}
                 className="rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-700 outline-none"
@@ -3911,31 +3908,18 @@ function StructuredMedicinePlanCards({ candidates }: {
 }
 
 function AuditReviewSection({ caseState, content }: { caseState: CaseState; content?: string }) {
-  if (!content?.trim() && caseState.auditAdvisory == null) return null;
-  const unavailable = caseState.auditAdvisory?.available === false;
-  const hasIssues = hasMeaningfulMedicationRisk(content) || /\|\s*(?:强提示|一般提示|信息不足提示)\s*\|/.test(content || "");
-  const pass = caseState.auditAdvisory?.available === true && !hasIssues;
-  const title = unavailable
-    ? "合理用药审方 · 本次未完成"
-    : hasIssues
-      ? "合理用药审方 · 发现风险提示"
-      : "Lingxi 建议性复核 · 未见明确风险提示";
-  const subtitle = unavailable
-    ? "当前结果不能视为已完成审方"
-    : hasIssues
-      ? "按审方问题 ID 逐条复核"
-      : "结果仅供参考，最终由医生或药师决定";
+  const presentation = resolveAuditReviewPresentation(caseState.auditAdvisory, content);
+  if (!presentation) return null;
+  const unavailable = presentation.kind === "unavailable";
   const toneClass = unavailable
     ? "border-amber-200 bg-amber-50/60 text-amber-900"
-    : hasIssues
-      ? "border-red-200 bg-red-50/60 text-red-900"
-      : "border-emerald-200 bg-emerald-50/60 text-emerald-900";
+    : "border-red-200 bg-red-50/60 text-red-900";
   return (
-    <details id="cdss-section-risk-review" open={unavailable || hasIssues} className={`group scroll-mt-3 rounded-xl border ${toneClass}`}>
+    <details id="cdss-section-risk-review" open className={`group scroll-mt-3 rounded-xl border ${toneClass}`}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-3">
         <div className="min-w-0">
-          <p className="text-[13px] font-bold">{title}</p>
-          <p className="mt-0.5 truncate text-[11px] opacity-70">{subtitle}</p>
+          <p className="text-[13px] font-bold">{presentation.title}</p>
+          <p className="mt-0.5 truncate text-[11px] opacity-70">{presentation.subtitle}</p>
         </div>
         <ChevronDown className="h-4 w-4 shrink-0 opacity-60 transition-transform group-open:rotate-180" />
       </summary>
@@ -3943,8 +3927,8 @@ function AuditReviewSection({ caseState, content }: { caseState: CaseState; cont
         {content?.trim() ? (
           <MarkdownBlock content={compactMarkdown(content, 3600)} compact />
         ) : (
-          <p className={`text-xs leading-relaxed ${pass ? "text-emerald-700" : "text-amber-800"}`}>
-            {pass ? "本次自动审方未返回明确风险问题。" : "自动审方本次未完成，请由医生或药师复核。"}
+          <p className="text-xs leading-relaxed text-amber-800">
+            合理用药审查本次未完成，请由医生或药师复核。
           </p>
         )}
       </div>
@@ -4284,6 +4268,8 @@ function ResultTabsV2({
     caseState.encounterScopeConfirmation?.sourceFingerprint !== caseState.clinicalFacts.sourceFingerprint;
   const medicineCandidates = formula?.patentAndWestern?.filter(isCompleteStructuredMedicineCandidate) || [];
   const hasMedicineCandidates = medicineCandidates.length > 0;
+  const medicineCandidateEmptyState = buildMedicineCandidateEmptyState(caseState);
+  const suggestedChecks = buildTieredSuggestedChecks(caseState, reasoning.westernDiagnosis.primary.suggestedChecks);
   // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
   // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
   const failedStage = caseState.phase === "error" && caseState.lastError ? caseState.lastError.phase : undefined;
@@ -4294,20 +4280,6 @@ function ResultTabsV2({
     ...(reasoning.overview.secondarySyndromes || []),
     reasoning.overview.overallPathogenesis,
   ].filter(Boolean).join("；"), new Date());
-  const retrievedEvidence = [...new Set([
-    ...evidenceReferenceItems(reasoning.westernDiagnosis.primary.evidence?.source),
-    ...evidenceReferenceItems(firstCandidate?.formulaSource?.source),
-    ...medicineCandidates.flatMap((item) => evidenceReferenceItems(item.evidence?.source)),
-  ].filter(Boolean))];
-  const generationBasis = [
-    { label: "病例资料", value: "医生本次录入的主诉、病史、四诊、检查及已完成的追问回答。" },
-    { label: "临床推理", value: "模型在已知资料边界内完成西医鉴别、中医辨病辨证、病机与治法推理；未知信息保留为不确定项。" },
-    ...(firstCandidate ? [{ label: "中医药知识", value: "候选方剂身份、出处、药味、剂量边界、配伍及特殊煎法由本地结构化知识校验。" }] : []),
-    ...(retrievedEvidence.length > 0 ? [{ label: "已命中资料", value: retrievedEvidence.join("；") }] : []),
-    { label: "安全校验", value: "红旗、特殊人群、剂量与结构完整性由确定性规则复核；风险提示不代替医生判断。" },
-    ...(caseState.auditAdvisory?.available === true ? [{ label: "合理用药审方", value: "本候选处方已调用合理用药审方，具体问题与结论见审方板块。" }] : []),
-  ];
-
   return (
     <div id="cdss-section-ai" data-testid="ai-report-v2" className="space-y-3 scroll-mt-3">
       <SchemeSection id="cdss-section-diagnosis" title="诊断结论" subtitle="西医诊断倾向与中医诊断">
@@ -4317,7 +4289,7 @@ function ResultTabsV2({
             <p className="mt-1 text-sm font-semibold">{reasoning.westernDiagnosis.primary.name}</p>
             {reasoning.westernDiagnosis.primary.supportingFacts.length > 0 && <p className="mt-2">依据：{reasoning.westernDiagnosis.primary.supportingFacts.join("；")}</p>}
             {reasoning.westernDiagnosis.primary.limitations.length > 0 && <p className="mt-1 text-blue-800">限制：{reasoning.westernDiagnosis.primary.limitations.join("；")}</p>}
-            {reasoning.westernDiagnosis.primary.suggestedChecks.length > 0 && <p className="mt-1">建议检查：{reasoning.westernDiagnosis.primary.suggestedChecks.join("；")}</p>}
+            {suggestedChecks.length > 0 && <p className="mt-1">建议检查：{suggestedChecks.join("；")}</p>}
             {shouldRenderEvidenceStatus(reasoning.westernDiagnosis.primary.evidence) && (
               <div className="mt-3 border-t border-blue-100 pt-2 text-blue-800">
                 <p className="font-semibold">参考文献</p>
@@ -4681,8 +4653,12 @@ function ResultTabsV2({
         <StructuredMedicinePlanCards candidates={medicineCandidates} />
       </SchemeSection>}
       {!hasMedicineCandidates && caseState.phase !== "diagnose" && caseState.phase !== "prescribe" && (
-        <SchemeSection id="cdss-section-medicine" title="西药/中成药候选" subtitle="逐药证据核验结果">
-          <p className="text-xs leading-relaxed text-gray-500">本次未形成具备可核验说明书或指南依据的西药/中成药候选。</p>
+        <SchemeSection id="cdss-section-medicine" title="西药/中成药候选" subtitle="证据与病例条件核验结果">
+          <div className="space-y-1.5 text-xs leading-relaxed text-gray-600">
+            <p className="font-semibold text-gray-900">{medicineCandidateEmptyState.headline}</p>
+            <p>{medicineCandidateEmptyState.explanation}</p>
+            <p className="text-blue-700">{medicineCandidateEmptyState.action}</p>
+          </div>
         </SchemeSection>
       )}
 
@@ -4694,21 +4670,11 @@ function ResultTabsV2({
         </SchemeSection>
       )}
 
-      <SchemeSection id="cdss-section-generation-basis" title="本次生成依据" subtitle="仅列实际参与本次结果的资料与校验环节" defaultOpen={false}>
-        <div className="space-y-2 text-xs leading-relaxed text-gray-700">
-          {generationBasis.map((item) => (
-            <div key={item.label} className="rounded-lg bg-gray-50 px-3 py-2">
-              <span className="font-semibold text-gray-950">{item.label}：</span>{item.value}
-            </div>
-          ))}
-        </div>
-      </SchemeSection>
-
       <SchemeSection id="cdss-section-followup" title="健康调护与随访" subtitle="饮食起居、情志外治、复诊节奏和触发处置">
         <div className="space-y-3">
           {reasoning.nonPharma ? (
             <div className="grid gap-2">
-              <SummaryLine label="饮食调养" value={reasoning.nonPharma.diet} tone="green" />
+              <SummaryLine label="饮食调养" value={safeDietAdviceForDisplay(reasoning.nonPharma.diet, caseState)} tone="green" />
               <SummaryLine label="生活方式" value={reasoning.nonPharma.lifestyle} tone="blue" />
               <SummaryLine label="情志调护" value={reasoning.nonPharma.emotion} tone="amber" />
               {reasoning.nonPharma.acupointCare && <SummaryLine label="穴位/外治" value={reasoning.nonPharma.acupointCare} tone="blue" />}

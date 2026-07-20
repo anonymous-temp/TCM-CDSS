@@ -1733,6 +1733,9 @@ assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.followUpNod
 assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.method, /约500mL/, "disease duration must not be misread as pediatric age");
 assert.match(finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis, /围绕.+展开组方/);
 assert.match(finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis, /主要治疗支点/);
+assert.match(finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis, /人参（[^）]+）/, "formula analysis must include the individual herb function instead of only a role template");
+assert.match(finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis, /川芎（[^）]+）/, "each role group must preserve herb-specific clinical meaning");
+assert.doesNotMatch(finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis, /。，/, "formula analysis must not join terminal punctuation into malformed prose");
 const pediatricDecoctionContent = applyDeterministicDecoctionMethod(serverOwnedContent, "病程3个月；年龄：8岁");
 const pediatricDecoction = JSON.parse(pediatricDecoctionContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
 assert.match(pediatricDecoction.formula.candidates[0].decoction.method, /约200mL/);

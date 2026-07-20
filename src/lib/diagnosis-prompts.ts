@@ -399,6 +399,7 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
 - patentAndWestern 每项必须具备具体剂型规格、单次剂量、频次、给药途径、疗程和逐药证据；任一缺失时不要输出该项，不得使用“按说明书/医生复核/结合病情确定”等套话占位。
 - modifications 是复诊时的条件性随症加减，不属于当前处方。给出候选方时默认必须输出1–3条真正会改变既有 P 节点治疗方向的高价值 IF-THEN 建议，不得机械留空；每条必须四要素齐全：触发条件（trigger=复诊时出现的具体症状或事实变化）、动作（actionType=add/remove/adjust 加 herbName=哪味药）、理由（reason=该加减对应的病机依据）、风险说明（由服务端统一附加“重新确定剂量并重新审方”的标准提示，模型不得自写剂量）。targetRef 必须引用现有 P 节点。add 只能加入知识库已收载且当前处方没有的药味，remove/adjust 只能针对当前处方药味；实际采用时必须进入药味工作台确定剂量并重新审方。仅当本例确实不存在安全、可解释且有知识库支持的复诊分支时才输出空数组，且此时必须在 nonPharma.monitoring 中给出一条“本例无需预设随证加减”的说明，写清理由以及出现何种变化时应重新评估加减，不得静默留空。
 - nonPharma 必须输出，以患者现有信息给出简洁的饮食、起居、情志、中医非药物治疗项目和监测建议；不要求其他病历字段齐全。acupointCare 固定输出 null，避免绕过受控项目目录。tcmTreatments 只能填写后附候选中的 projectCode 与现有病机 targetRef，最多3项，优先本机构可开展项目；没有适合项目时输出空数组。
+- nonPharma.diet 只能给出普通、低风险的规律饮食和生活方式建议；不得把山楂、黑木耳、药膳等具体食物写成“活血化瘀、安神、补气、滋阴”等治疗手段，不得暗示食疗可替代诊疗或药物。患者过敏史、当前用药或基础病未知时，不得推荐可能影响凝血、血糖、血压或药物作用的功能性食物。
 `;
   }
   const card = getLineageCard(caseState.tcmLineagePreference);
@@ -429,6 +430,7 @@ JSON要求：
 - M03 symptomClusters 用 0–6 组“患者症状组合 → 共同机制”归纳病机，每组 symptoms 只能取自病历同极性的已知表现；单个孤立症状或无法形成共同机制时可输出空数组。
 - M03 pathogenesis.chain[].patientFact 与 syndromeEvidence 只能引用病历实际记录、且**极性一致**的患者表现：**严禁写入病历已明确否认或根本未提及的症状/体征**。例如病历写“无自汗/否认盗汗/无明显寒热”，则 patientFact 和 syndromeEvidence 中都不得出现“自汗/盗汗/寒热”等被否认词，也不得因某证型的典型表现（如气虚多自汗、阴虚多盗汗）而把本例并未记录的表现当作患者事实或证候证据。证型典型表现若本例缺失，只能写入 pathogenesis.uncertainties。逐条自检：每个 patientFact/syndromeEvidence 是否都能在病历中找到相同极性的原文。
 - evidenceLevel 只能使用 ${EVIDENCE_LEVELS.join("/")}。model_inference 仅表示病例内推理，不是“参考依据”；只有实际命中的指南、说明书、药品标签、文献、经典出处或知识库记录才可作为医生可见参考文献。
+- westernDiagnosis.primary.suggestedChecks 必须分层：先列与主诉直接相关的补充问诊、生命体征和查体；只有病例已有红旗、神经系统异常或明确鉴别指征时，才列具体 CT/MRI/增强扫描、经颅多普勒或成套实验室检查。资料稀疏且未见红旗时不得输出无差别的高级检查清单，只能写明出现何种阳性事实后再评估相应检查。
 - 无明确来源时 evidenceLevel 写 insufficient、source 写“内部证据缺口”；该状态只供后台审计，不得出现在客户正文。不得编造文献、DOI或指南。
 - lineageAdaptation.influencedDecisions.aspect 不得出现剂量、配伍禁忌、特殊人群、红旗或相互作用。
 - management 只写临床管理闭环，不写系统按钮、接口、阶段名或工程化状态。

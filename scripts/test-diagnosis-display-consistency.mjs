@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, {
@@ -29,6 +30,90 @@ const {
   stageErrorDisplay,
   WORKBENCH_REFRESH_WARNING,
 } = await jiti.import("../src/app/diagnosis/DiagnosisClient.tsx");
+const {
+  buildMedicineCandidateEmptyState,
+  buildTieredSuggestedChecks,
+  herbCaseMeaning,
+  resolveAuditReviewPresentation,
+  safeDietAdviceForDisplay,
+} = await jiti.import("../src/lib/result-display-policy.ts");
+
+assert.equal(
+  resolveAuditReviewPresentation({ available: true }, "未见明确风险提示"),
+  null,
+  "a successful audit without a concrete risk must not occupy a report section",
+);
+assert.equal(
+  resolveAuditReviewPresentation({ available: true }, "未见明确风险提示。结果仅供参考，仍需医生或药师复核。"),
+  null,
+  "a generic clinician-review disclaimer must not turn a no-risk audit into a visible warning",
+);
+assert.deepEqual(
+  resolveAuditReviewPresentation({ available: true }, "| 问题ID | 提示强度 | 风险说明 |\n|---|---|---|\n| R1 | 强提示 | 甘草与甘遂配伍禁忌 |"),
+  {
+    kind: "risk",
+    title: "合理用药审查 · 发现风险提示",
+    subtitle: "按审查问题 ID 逐条复核",
+  },
+  "a concrete medication risk must remain visible under the customer-facing audit name",
+);
+assert.deepEqual(
+  resolveAuditReviewPresentation({ available: false }, ""),
+  {
+    kind: "unavailable",
+    title: "合理用药审查 · 本次未完成",
+    subtitle: "当前结果不能视为已完成合理用药审查",
+  },
+  "an unavailable audit must remain visible and fail closed",
+);
+
+const sparseMedicineEmptyState = buildMedicineCandidateEmptyState({
+  patient: {},
+  symptoms: {},
+  chiefComplaint: "头疼睡不着觉",
+});
+assert.match(sparseMedicineEmptyState.explanation, /不会为了填满栏目生成具体药名/);
+assert.match(sparseMedicineEmptyState.action, /年龄\/生理状态/);
+assert.match(sparseMedicineEmptyState.action, /生命体征/);
+assert.match(sparseMedicineEmptyState.action, /过敏史/);
+assert.match(sparseMedicineEmptyState.action, /当前用药/);
+assert.match(
+  herbCaseMeaning({
+    function: "活血祛瘀，润肠通便",
+    prescriptionRole: "君药：活血化瘀，通络止痛",
+  }),
+  /活血祛瘀，润肠通便；君药：活血化瘀，通络止痛/,
+  "the workbench must show herb-specific knowledge together with its case-specific role",
+);
+
+const sparseHeadacheChecks = buildTieredSuggestedChecks({
+  patient: {},
+  chiefComplaint: "头疼睡不着觉",
+  symptoms: {},
+  safetyGate: { status: "ready" },
+}, ["头颅CT或MRI平扫+增强", "经颅多普勒", "血常规、肝肾功能"]);
+assert.match(sparseHeadacheChecks.join("；"), /先补充病程.*生命体征.*神经系统查体/);
+assert.match(sparseHeadacheChecks.join("；"), /出现红旗表现或神经系统查体异常/);
+assert.doesNotMatch(sparseHeadacheChecks.join("；"), /CT|MRI|经颅多普勒/, "sparse non-red-flag cases must not present a routine advanced-imaging shopping list");
+assert.deepEqual(
+  buildTieredSuggestedChecks({ safetyGate: { status: "red_flag" } }, ["立即急诊头颅CT"]),
+  ["立即急诊头颅CT"],
+  "red-flag pathways must preserve urgent clinician-directed testing",
+);
+assert.equal(
+  safeDietAdviceForDisplay("多食活血化瘀之品如山楂、黑木耳", { allergyHistory: "", medicationHistory: "" }),
+  "保持规律、均衡饮食和充足饮水；不要把食疗替代诊疗或药物。存在基础病、过敏或正在用药时，具体饮食调整请由接诊医生结合实际情况确认。",
+  "food must not be presented as a disease-modifying treatment when patient facts are incomplete",
+);
+assert.equal(
+  safeDietAdviceForDisplay("三餐规律，避免空腹和过量饮酒", {}),
+  "三餐规律，避免空腹和过量饮酒",
+  "ordinary low-risk lifestyle advice should remain intact",
+);
+
+const diagnosisClientSource = fs.readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+assert.doesNotMatch(diagnosisClientSource, /cdss-section-generation-basis|本次生成依据/, "generic generation-basis boilerplate must be removed from the report");
+assert.doesNotMatch(diagnosisClientSource, /Lingxi 建议性复核/, "the report must use the customer-facing reasonable-medication-review name");
 
 const offsetViewportPosition = resolveToggleChipPanelPosition(
   { top: 720, bottom: 752, right: 600 },

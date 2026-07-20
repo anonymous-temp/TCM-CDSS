@@ -339,9 +339,15 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
       const roleLines = roleOrder.flatMap((role) => {
         const members = herbs.filter((herb) => markdownCell(herb.role) === role);
         if (!members.length) return [];
-        const names = members.map((herb) => markdownCell(herb.name)).filter(Boolean).join("、");
-        const targets = [...new Set(members.map((herb) => markdownCell(herb.targetPathogenesis)).filter(Boolean))].join("；");
-        return [`${role}药以${names}为组，${targets ? `针对${targets}，` : ""}${roleLogic[role]}。`];
+        const names = members.map((herb) => {
+          const name = markdownCell(herb.name);
+          const herbFunction = markdownCell(herb.function).replace(/[；;。]+$/g, "");
+          return name && herbFunction ? `${name}（${herbFunction}）` : name;
+        }).filter(Boolean).join("、");
+        const targets = [...new Set(members
+          .map((herb) => markdownCell(herb.targetPathogenesis).replace(/[；;。]+$/g, ""))
+          .filter(Boolean))].join("；");
+        return [`${role}药以${names}为组，${targets ? `对应${targets}，` : ""}${roleLogic[role]}。`];
       });
       const therapyMatch = markdownCell(candidate.therapyMatch);
       candidate.formulaAnalysis = [
