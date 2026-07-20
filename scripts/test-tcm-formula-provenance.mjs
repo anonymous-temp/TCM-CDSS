@@ -684,5 +684,10 @@ const unknownHerbHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_5_unkno
 assert.ok(unknownHerbHint.includes("不在服务端药味知识库中"), "the unknown-herb hint must state the herb is not in the server KB");
 assert.ok(unknownHerbHint.includes("不得再次使用"), "the unknown-herb hint must forbid reusing the rejected name");
 assert.ok(unknownHerbHint.includes("替代药味"), "the unknown-herb hint must require a KB-known same-direction replacement");
+const declassifiedHint = buildM04ClinicalRepairHint("m04_formula_reference_declassified");
+assert.ok(declassifiedHint.includes("未通过核验的方名"), "the declassified hint must forbid keeping the unverified formula identity");
+assert.ok(declassifiedHint.includes("governedFormulaBaselines"), "the declassified hint must reference the injected KB baselines");
+assert.ok(declassifiedHint.includes("本例辨证组方"), "the declassified hint must offer the explicit self-devised path");
+assert.ok(declassifiedHint.includes("formulaNames 置空"), "the declassified hint must require empty formulaNames on the self-devised path");
 
-console.log(JSON.stringify({ cases: 324, failures: 0 }));
+console.log(JSON.stringify({ cases: 328, failures: 0 }));

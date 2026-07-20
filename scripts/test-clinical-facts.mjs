@@ -1106,6 +1106,30 @@ ok("grounding: 局部否定的变化线索（无加重）不构成急性覆盖",
   return additiveRedFlagsFromFacts(facts, text, []).length === 0;
 })());
 
+ok("整类上限: 明确轻度腹痛且否认危险组合不得升为 urgent", (() => {
+  const text = "腹痛不是很重，仍持续存在，没有反跳痛，也没发热呕吐";
+  const facts = {
+    redFlags: [{ category: "acute_abdomen", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "腹痛不是很重，仍持续存在" }],
+  };
+  const grounded = groundClinicalFacts(facts, text);
+  return grounded.redFlags.length === 1 && grounded.redFlags[0].urgency === "clarify" &&
+    grounded.redFlags[0].triageBasis === "clarification_needed";
+})());
+
+for (const [label, text] of [
+  ["进行性加重", "腹痛虽然不是很重，但这两天越来越明显"],
+  ["腹膜刺激征", "腹痛轻微，但按下去松手更疼"],
+  ["显性出血", "轻度腹痛，同时排出黑便"],
+]) {
+  ok(`整类上限: 轻度描述同时存在${label}时不得降级`, (() => {
+    const quote = text.slice(0, text.indexOf("，"));
+    const facts = {
+      redFlags: [{ category: "acute_abdomen", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote }],
+    };
+    return groundClinicalFacts(facts, text).redFlags[0]?.urgency === "urgent";
+  })());
+}
+
 ok("prompt: 提取提示含腹膜刺激征口语等价（松手更疼）必报 emergency 规则", (() => {
   const prompt = buildClinicalFactsExtractionPrompt("腹痛");
   return /松手更疼/.test(prompt) && /腹膜刺激征/.test(prompt) && /acute_abdomen \+ emergency/.test(prompt);
@@ -1116,4 +1140,3 @@ ok("prompt: 提取提示保留劳力性基线不得标 emergency 规则", (() =>
 })());
 
 console.log(`\n${pass} passed`);
-

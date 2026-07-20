@@ -973,7 +973,7 @@ const TCM_THERAPY_CONCEPTS: ReadonlyArray<[TcmTherapyConcept, RegExp]> = [
   ["yang_warm", /温阳|扶阳|回阳|散寒|辛温|温(?:中|肾|里|肺|经|化|补|通|养)|补阳/],
   ["yin_nourish", /滋阴|养阴|育阴|生津|增液|补阴/],
   ["exterior_release", /解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风/],
-  ["blood_move", /活血|化瘀|行瘀|破血|通经|(?:气血|血行|血脉)(?:运行|畅行|周行|流通)/],
+  ["blood_move", /活血|化瘀|行瘀|破血|通经|(?:气血|血行|血脉)(?:运行|畅行|周行|流通)|调[和畅][^，。；;]{0,6}气血/],
   ["purge", /通便|泻下|攻下|逐水/],
   ["astringe", /收涩|敛汗|固涩|固精|止带/],
   ["hemostasis", /止血|凉血止血|化瘀止血/],
@@ -1012,16 +1012,39 @@ const HIGH_IMPACT_THERAPY_CONCEPTS = new Set<TcmTherapyConcept>([
   "mass_soften",
 ]);
 
+// Governed supplement for KB category-only records whose function text omits the herb's
+// canonical pharmacopoeia direction (e.g. 柴胡's KB record is only "发散风热药；解表药", which
+// would invert its primary clinical direction 疏肝解郁 for 逍遥散-type use). Same discipline as
+// CONTROLLED_HERB_FUNCTION_TEXT in tcm-knowledge.ts: minimal, evidence-bound （药典2020), and
+// applied ONLY when the KB record is empty or nothing but category labels.
+const GOVERNED_HERB_FUNCTION_SUPPLEMENT: Readonly<Record<string, string>> = {
+  柴胡: "疏散退热，疏肝解郁，升举阳气",
+};
+
+function isCategoryOnlyHerbKnowledge(name: string): boolean {
+  const text = getTcmHerbFunctionText(name).trim();
+  if (!text) return true;
+  const categories = getTcmHerbFunctionCategories(name).join("；").trim();
+  return Boolean(categories) && text === categories;
+}
+
+function herbKnowledgeFunctionText(name: string): string {
+  const text = getTcmHerbFunctionText(name);
+  if (!isCategoryOnlyHerbKnowledge(name)) return text;
+  const supplement = GOVERNED_HERB_FUNCTION_SUPPLEMENT[name];
+  return supplement ? [supplement, text].filter(Boolean).join("，") : text;
+}
+
 function herbTherapyConcepts(name: string): Set<TcmTherapyConcept> {
   return tcmTherapyConcepts([
-    getTcmHerbFunctionText(name),
+    herbKnowledgeFunctionText(name),
     ...getTcmHerbFunctionCategories(name),
   ].join("；"));
 }
 
 function herbHighImpactConcepts(name: string, declaredFunction?: string): Set<TcmTherapyConcept> {
   const categoryConcepts = tcmTherapyConcepts(getTcmHerbFunctionCategories(name).join("；"));
-  const fullFunctionConcepts = tcmTherapyConcepts(getTcmHerbFunctionText(name));
+  const fullFunctionConcepts = tcmTherapyConcepts(herbKnowledgeFunctionText(name));
   const riskConcepts = tcmTherapyConcepts(getTcmHerbRiskProfile(name));
   const intendedConcepts = declaredFunction?.trim()
     ? tcmTherapyConcepts(declaredFunction)
@@ -1433,7 +1456,7 @@ function doseWithinConservativeModelLimit(name: string, dose: string, decoctionM
 }
 
 function herbFunctionMatchesKnowledge(name: string, claimedFunction: string, role = "", target = ""): boolean {
-  const knowledgeText = getTcmHerbFunctionText(name);
+  const knowledgeText = herbKnowledgeFunctionText(name);
   if (/(?:美容|养颜|改善视力|减肥|抗癌|延年益寿|包治|根治)/.test(claimedFunction)) return false;
   const canonicalDisplay = getTcmHerbFunctionDisplayText(name, role, target);
   if (claimedFunction.trim() === canonicalDisplay.trim()) return true;

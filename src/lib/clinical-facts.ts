@@ -140,7 +140,7 @@ export type RedFlagFinding = {
   quote: string;
 };
 
-export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v16";
+export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v17";
 export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v19";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
@@ -213,6 +213,8 @@ const VALID_SUBJECTS: ReadonlySet<string> = new Set(["patient", "other", "uncert
 const OVERT_GI_BLEED_LANGUAGE = /(?:呕血|吐血|咖啡样(?:呕吐物|物)|黑便|黑色便|柏油样便|便血|(?:拉|排|解|大便|粪便)[^，,。；;\n]{0,12}(?:像|如同|跟)?[^，,。；;\n]{0,4}柏油|(?:又黑又亮|黑得发亮|黑亮便))/;
 const BLEEDING_HYPOPERFUSION_LANGUAGE = /(?:(?:站起|站立|起身|坐起|体位改变)[^，,。；;\n]{0,12})?(?:眼前发黑|黑矇|差点晕|要晕倒|晕厥|意识(?:不清|模糊|异常)|冷汗|心悸|面色苍白|头晕乏力|头晕|乏力)/;
 const REPEATED_OR_MULTI_DAY_BLEEDING_LANGUAGE = /(?:大量|反复|多次|不止|持续出血|喷射|[2-9]\s*次|两次|三次|(?:这|近)?(?:两|三|[2-9])\s*(?:天|日))/;
+const EXPLICIT_MILD_ABDOMINAL_PAIN_LANGUAGE = /(?:(?:腹|肚子|上腹|下腹|左下腹|右下腹)[^，,。；;\n]{0,6}(?:痛|疼)[^，,。；;\n]{0,8}(?:不是很重|不太重|不重|较轻|轻微|轻度|隐痛)|(?:轻微|轻度|较轻)[^，,。；;\n]{0,4}(?:腹痛|肚子痛|肚子疼))/;
+const ACUTE_ABDOMEN_DANGER_LANGUAGE = /(?:突发|突然|剧烈|疼得厉害|明显加重|越来越|进行性|反跳痛|松手更疼|腹肌紧张|板状腹|休克|晕厥|意识改变|反复呕吐|持续呕吐|高热|停止排气排便|不排气|不排便|呕血|黑便|便血)/;
 
 function hasCurrentAffirmedPattern(text: string, pattern: RegExp): boolean {
   for (const match of text.matchAll(new RegExp(pattern.source, "g"))) {
@@ -226,6 +228,23 @@ function hasMajorActiveGiBleedingLanguage(text: string): boolean {
     hasCurrentAffirmedPattern(text, BLEEDING_HYPOPERFUSION_LANGUAGE) ||
     hasCurrentAffirmedPattern(text, REPEATED_OR_MULTI_DAY_BLEEDING_LANGUAGE)
   );
+}
+
+function isExplicitlyLowRiskAbdominalPainFinding(finding: RedFlagFinding, sourceText: string): boolean {
+  if (finding.category !== "acute_abdomen" || finding.subject !== "patient" ||
+    finding.status !== "positive" || (finding.urgency !== "emergency" && finding.urgency !== "urgent")) return false;
+  let offset = sourceText.indexOf(finding.quote);
+  while (offset >= 0) {
+    let sentenceStart = offset;
+    while (sentenceStart > 0 && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceStart - 1])) sentenceStart -= 1;
+    let sentenceEnd = offset + finding.quote.length;
+    while (sentenceEnd < sourceText.length && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceEnd])) sentenceEnd += 1;
+    const sentence = sourceText.slice(sentenceStart, sentenceEnd);
+    if (hasCurrentAffirmedPattern(sentence, EXPLICIT_MILD_ABDOMINAL_PAIN_LANGUAGE) &&
+      !hasCurrentAffirmedPattern(sentence, ACUTE_ABDOMEN_DANGER_LANGUAGE)) return true;
+    offset = sourceText.indexOf(finding.quote, offset + finding.quote.length);
+  }
+  return false;
 }
 
 function emergencyEvidenceFloorSatisfied(
@@ -462,6 +481,12 @@ export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): C
     if (f.status !== "positive" && f.status !== "possible") return true;
     return hasCurrentQuoteOccurrence(sourceText, f.quote, f.status === "possible");
   }).map((finding) => {
+    // 明确轻度腹痛且同一事件无突发剧烈、进行性加重、腹膜刺激征、反复呕吐、
+    // 高热或出血等危险组合时，不能只因“腹痛”症状名被模型升为 urgent/emergency。
+    // 保留 clarify 以便门诊继续追问，而不把该类普通当前症状并入红旗处置。
+    if (isExplicitlyLowRiskAbdominalPainFinding(finding, sourceText)) {
+      return { ...finding, urgency: "clarify" as const, triageBasis: "clarification_needed" as const };
+    }
     if (finding.category !== "gi_bleed" || finding.subject !== "patient" || finding.status !== "positive") {
       return finding;
     }

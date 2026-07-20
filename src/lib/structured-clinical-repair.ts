@@ -1,10 +1,11 @@
 export function buildM04ClinicalRepairHint(reason = ""): string {
   if (/^m04_formula_(?:reference_declassified|compilation_composition_drift)$/.test(reason)) {
     return [
-      "本次失败是命名方的实际组成不足，不是方名字符串格式问题。",
-      "从 M03锁定上下文选择对应 governedFormulaBaselines，candidate.name 必须显式沿用所选方名；candidate.herbs 先逐项、不重不漏地纳入该基准 ingredients 的全部药味，再考虑本例加味。",
-      "每个基准药味都要独立输出一行合法的 dose、role、targetKind/targetRef和 structureRole；其中必须恰有 1–2 味君药，且每味君药都用 targetKind=pathogenesis_node、targetRef=P1 直接承担中心治法。不得用同义功效药代替，不得因“加减”省略任一基准药味，也不得按药味顺序机械指定君药。",
-      "这是组成恢复阶段：不允许改称本例辨证组方、自拟方或退回低于身份下限的组成。",
+      "本次失败是候选声称的经典方身份与实际药味组成不符：服务端按知识库基准方核验组成，未通过（组成不符，或该方名根本不在服务端基准方目录中、无法核验）。",
+      "两条合法路径只能二选一，不得继续沿用未通过核验的方名：",
+      "路径一（采用基准组成）：若 M03锁定上下文的 governedFormulaBaselines 中存在该方基准，candidate.name 显式沿用所选方名，candidate.herbs 先逐项、不重不漏地纳入该基准 ingredients 的全部药味，再按本例病机做有依据的加减；每个基准药味都要独立输出一行合法的 dose、role、targetKind/targetRef 和 structureRole，其中必须恰有 1–2 味君药且每味君药都用 targetKind=pathogenesis_node、targetRef=P1 直接承担中心治法。不得用同义功效药代替，不得因“加减”省略任一基准药味，也不得按药味顺序机械指定君药。",
+      "路径二（放弃方名身份）：若 governedFormulaBaselines 中没有该方基准（方名无法核验），必须把候选显式改为自拟方：candidate.name 使用“本例辨证组方”或“辨证组方”，formulaNames 置空，constructionType 为 self_devised，并在 applicable 中用一句话说明所选基准目录未覆盖本例哪个维度；保留已通过校验的实际药味、剂量与病机引用，按本例 P1/P2 病机重新指定 1–2 味君药。",
+      "这是组成身份阶段：不允许改称另一个同样无法核验的方名，不允许只改方名不改组成，不允许保留方名却删到低于身份下限的组成。",
     ].join("\n");
   }
   if (/^m04_candidate_\d+_(?:emperor_missing|emperor_excess|herb_\d+_emperor_not_primary)$/.test(reason)) {

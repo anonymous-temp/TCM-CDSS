@@ -1100,6 +1100,65 @@ for (const [alias, canonical] of [["杏仁", "苦杏仁"], ["元胡", "延胡索
   assert.ok(isKnownTcmHerbName(canonicalTcmHerbIdentity(alias)), `the canonical for ${alias} must be KB-known so the repair hint can name it`);
 }
 assert.equal(canonicalTcmHerbIdentity("不存在药"), "不存在药", "an unregistered name must pass through unchanged (no invented canonical)");
+
+// === Category-only KB records get their canonical pharmacopoeia direction via the governed
+// supplement (柴胡: 疏肝解郁), and 调畅/调和…气血 maps to blood_move ===
+const liverSpleenPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "肝郁脾虚证", overallPathogenesis: "肝郁脾虚", primarySyndromeBasis: ["脘腹胀满半年", "压力大时明显"], recommendedFormulaDirection: "疏肝健脾", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [
+    { nodeId: "P1", patientFact: "压力大时明显", syndromeEvidence: "压力大时明显", pathogenesis: "肝气郁结", therapyDirection: "疏肝解郁" },
+    { nodeId: "P2", patientFact: "脘腹胀满半年", syndromeEvidence: "脘腹胀满半年", pathogenesis: "脾虚失运", therapyDirection: "健脾助运" },
+  ] },
+  therapy: { overallPrinciple: "疏肝健脾" },
+};
+const liverSpleenM04 = structuredClone(m04);
+liverSpleenM04.overview = { primarySyndrome: "肝郁脾虚证", overallPathogenesis: "肝郁脾虚" };
+liverSpleenM04.therapy = { overallPrinciple: "疏肝健脾" };
+liverSpleenM04.formula.candidates[0].name = "辨证组方";
+liverSpleenM04.formula.candidates[0].formulaNames = [];
+liverSpleenM04.formula.candidates[0].constructionType = "self_devised";
+liverSpleenM04.formula.candidates[0].therapyMatch = "疏肝健脾";
+liverSpleenM04.formula.candidates[0].herbs = [
+  { name: "柴胡", dose: "6g", role: "君", prescriptionRole: "疏肝解郁", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "肝气郁结", function: "疏肝解郁", decoctionRequirement: "" },
+  { name: "白术", dose: "10g", role: "臣", prescriptionRole: "健脾益气", targetKind: "pathogenesis_node", targetRef: "P2", structureRole: null, targetPathogenesis: "脾虚失运", function: "健脾益气，燥湿利水，止汗，安胎；补气药；补虚药", decoctionRequirement: "" },
+];
+assert.equal(
+  m04SemanticIssue(liverSpleenM04, "", liverSpleenPrior),
+  undefined,
+  "柴胡's category-only KB record (发散风热药；解表药) must not invert its canonical 疏肝解郁 direction (governed supplement)",
+);
+const headQiBloodPrior = {
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "眩晕功能失调候", overallPathogenesis: "头部气血失调", primarySyndromeBasis: ["头晕头胀"], recommendedFormulaDirection: "调畅头部气血", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "头晕头胀", syndromeEvidence: "头晕头胀", pathogenesis: "头部气血失调", therapyDirection: "调畅头部气血，清利头目" }] },
+  therapy: { overallPrinciple: "调畅头部气血，安神定志" },
+};
+const headQiBloodM04 = structuredClone(m04);
+headQiBloodM04.overview = { primarySyndrome: "眩晕功能失调候", overallPathogenesis: "头部气血失调" };
+headQiBloodM04.therapy = { overallPrinciple: "调畅头部气血，安神定志" };
+headQiBloodM04.formula.candidates[0].name = "辨证组方";
+headQiBloodM04.formula.candidates[0].formulaNames = [];
+headQiBloodM04.formula.candidates[0].constructionType = "self_devised";
+headQiBloodM04.formula.candidates[0].therapyMatch = "调畅头部气血，安神定志";
+headQiBloodM04.formula.candidates[0].herbs = [
+  { name: "川芎", dose: "10g", role: "君", prescriptionRole: "活血行气", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "头部气血失调", function: "祛风止痛，活血止痛，活血行气，补肝，补血；活血化瘀药；活血止痛药", decoctionRequirement: "" },
+  { name: "酸枣仁", dose: "15g", role: "臣", prescriptionRole: "养心安神", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "头部气血失调", function: "养心补肝，宁心安神，敛汗生津；养心安神药；安神药", decoctionRequirement: "捣碎后同煎" },
+];
+assert.equal(
+  m04SemanticIssue(headQiBloodM04, "", headQiBloodPrior),
+  undefined,
+  "调畅头部气血 must map to blood_move so a 川芎 emperor for the neutral 眩晕 shape intersects",
+);
+const headQiBloodWrongM04 = structuredClone(headQiBloodM04);
+headQiBloodWrongM04.formula.candidates[0].herbs[0] = {
+  name: "葛根", dose: "12g", role: "君", prescriptionRole: "解肌", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "头部气血失调", function: "发散风热药；解表药", decoctionRequirement: "",
+};
+assert.match(
+  m04SemanticIssue(headQiBloodWrongM04, "", headQiBloodPrior) || "",
+  /emperor_therapy_mismatch/,
+  "an exterior-release emperor still fails the head qi-blood alignment (fail-closed kept)",
+);
 const highImpactModification = {
   ...m04,
   formula: {
