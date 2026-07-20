@@ -141,9 +141,18 @@ const FIXTURES = {
   TC04: { id: "TC04", sex: "男", age: 45, chief: "反酸烧心1月", hist: "夜间反酸烧心,平卧加重。舌红苔薄黄。", vitals: {} },
   SP09: { id: "SP09", sex: "男", age: 45, chief: "冠心病稳定型心绞痛", hist: "劳力性胸痛2年,规律服药,本次就诊开药。", vitals: { bp: "130/80", hr: "72" } },
   ES09: { id: "ES09", sex: "男", age: 45, chief: "咳嗽5天", hist: "现病史一处记录“咳嗽5天”,另一处旧病程写“慢性咳嗽3年已愈半年”;本次确有5天新起咳嗽咳痰,时态记载互相矛盾。舌淡红苔薄白。", vitals: {} },
+  B: { id: "B", deep: true },
+  D: { id: "D", deep: true },
+  E: { id: "E", deep: true },
 };
 
 const PRIOR_ARTIFACT_DIRS = ["artifacts/real-100-residual-r1-20260719", "artifacts/real-100-smoke-r6-20260719"];
+
+function loadDeepCase(caseId) {
+  const caseState = JSON.parse(readFileSync(`deeptest/out/${caseId}/case.json`, "utf8"));
+  const prior = parseReasoningV2(JSON.parse(readFileSync(`deeptest/out/${caseId}/01-diagnose.structured.json`, "utf8")));
+  return { caseState, prior };
+}
 
 function loadSignedPrior(caseId) {
   for (const dir of PRIOR_ARTIFACT_DIRS) {
@@ -187,10 +196,18 @@ function herbRows(reasoning) {
 let PRIOR;
 
 async function prepareCase(fixture) {
-  const prior = loadSignedPrior(fixture.id);
-  if (!prior) throw new Error(`no signed M03 artifact for ${fixture.id}`);
+  let prior;
+  let base;
+  if (fixture.deep) {
+    const deep = loadDeepCase(fixture.id);
+    prior = deep.prior;
+    base = { ...deep.caseState, reasoningDiagnose: prior };
+  } else {
+    prior = loadSignedPrior(fixture.id);
+    base = { ...toCaseState(fixture), reasoningDiagnose: prior };
+  }
+  if (!prior) throw new Error(`no signed M03 for ${fixture.id}`);
   PRIOR = prior;
-  const base = { ...toCaseState(fixture), reasoningDiagnose: prior };
   const deterministicGate = withSafetyGate(base);
   const caseState = deterministicGate.safetyGate?.status === "red_flag"
     ? base
