@@ -6892,6 +6892,21 @@ function AiSupportPanel({
     questionContentForDisplay !== undefined;
   const followupQuestionCard = shouldShowFollowupQuestionCard ? (
     <div className="space-y-2">
+      {/* 跳过入口必须排在追问表单之前：一轮 1-2 题、每题含选项行与两行文本域，排在表单之后时
+          在 410px 侧栏里要滚动一屏以上才出现，医生因此不知道可以不作答直接继续。放在普通文档流
+          的表单之前，而不是吸底浮层，选项按钮永远不会被遮挡。 */}
+      {onSkipFollowup && (
+        <button
+          type="button"
+          onClick={onSkipFollowup}
+          disabled={isRunning || !canSkipFollowup}
+          className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs text-gray-500 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {canSkipFollowup
+            ? "暂不补充，按现有信息继续推理"
+            : "请先填写主诉后继续"}
+        </button>
+      )}
       <QuestionPromptCard
         content={questionContentForDisplay}
         onOption={onOption}
@@ -6905,18 +6920,6 @@ function AiSupportPanel({
         isRunning={isRunning}
         requiredItems={requiredQuestionItems}
       />
-      {onSkipFollowup && (
-        <button
-          type="button"
-          onClick={onSkipFollowup}
-          disabled={isRunning || !canSkipFollowup}
-          className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-xs text-gray-500 transition-colors hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {canSkipFollowup
-            ? "暂不补充，按现有信息继续推理"
-            : "请先填写主诉后继续"}
-        </button>
-      )}
     </div>
   ) : null;
 

@@ -77,6 +77,18 @@ try {
   const questionCount = await reasonLines.count();
   check("稀疏病历触发一轮1至2个高信息追问", questionCount >= 1 && questionCount <= 2, `count=${questionCount}`);
   check("追问可由医生跳过", await page.getByRole("button", { name: /跳过.*继续|按现有信息继续/ }).isVisible());
+  // isVisible() 对折叠线以下的元素同样返回 true，因此单靠上一条断言无法守住“医生一眼能看到可以跳过”。
+  // 这里断言 DOM 顺序：跳过入口必须排在追问表单（question-plan-card）之前。
+  check(
+    "跳过入口排在追问表单之前",
+    await page.evaluate(() => {
+      const skip = Array.from(document.querySelectorAll("button"))
+        .find((node) => /按现有信息继续/.test(node.textContent || ""));
+      const plan = document.querySelector('[data-clinical-renderer="question-plan-card"]');
+      if (!skip || !plan) return false;
+      return Boolean(skip.compareDocumentPosition(plan) & Node.DOCUMENT_POSITION_FOLLOWING);
+    }),
+  );
   await screenshot(page, "followup-round");
 
   for (let index = 0; index < questionCount; index += 1) {
