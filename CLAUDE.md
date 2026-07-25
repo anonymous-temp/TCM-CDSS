@@ -15,11 +15,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev                 # next dev (Turbopack); root → /diagnosis; login at /login
 npm run build && npm start  # standalone production build + serve
-npm run lint                # eslint (eslint-config-next)
-npx tsc --noEmit            # typecheck — run this after edits to src/lib
+npm run lint                # eslint --max-warnings=0 — warnings fail, treat them as errors
+npm run typecheck           # tsc --noEmit — run this after edits to src/lib
+npm run verify:release      # THE release gate: typecheck + lint + test:deterministic + build
 npm run build:tcm-knowledge # regenerate src/data/tcm-knowledge.json (needs external CSVs, see below)
 # Pure unit tests — no server needed; they exercise the deterministic safety/facts/contract layer.
 # All live under scripts/test-*.mjs via jiti (TS imports) or node --test / --experimental-strip-types.
+npm run test:deterministic        # runs all 37 deterministic suites in sequence; the default pre-change gate
 npm run test:safety-mutations     # diagnosis-safety.ts red-flag / pediatric-gate mutation matrix
 npm run test:clinical-facts       # clinical-facts.ts additive backstop + schema rejects
 npm run test:stage-contract       # M03/M04 structured-stream contracts + sentinel boundaries
@@ -29,7 +31,7 @@ npm run test:stream-safety        # diagnosis-structured-repair (sentinel-aware 
 npm run regress:tcm-cdss    # golden-case regression harness (100+ requests, see below)
 ```
 
-There is **no jest/vitest/playwright config**, but the deterministic layer has a real unit-test suite: ~40 scripts in `scripts/test-*.mjs` that import `src/lib/*.ts` directly (via `jiti`, or `node --test` / `--experimental-strip-types`) and assert with `node:assert`. Run the relevant one after touching safety / facts / contracts / parsing — they need no server. Examples: `test:safety-mutations`, `test:clinical-facts`, `test:stage-contract`, `test:rxaudit-contract`, `test:m02-contract`, `test:clinical-polarity`, `test:prescription-permission`. The **live** HTTP safety net is `scripts/regress-tcm-cdss.mjs` — start `npm run dev` (or a prod server) first, then:
+There is **no jest/vitest/playwright config**, but the deterministic layer has a real unit-test suite: 43 scripts in `scripts/test-*.mjs` that import `src/lib/*.ts` directly (via `jiti`, or `node --test` / `--experimental-strip-types`) and assert with `node:assert`. They need no server. Run the relevant one after touching safety / facts / contracts / parsing — e.g. `test:safety-mutations`, `test:clinical-facts`, `test:stage-contract`, `test:rxaudit-contract`, `test:m02-contract`, `test:clinical-polarity`, `test:prescription-permission`. `npm run test:deterministic` (`scripts/run-deterministic-regression.mjs`) chains 37 of them and is the cheapest way to prove you broke nothing; it scrubs inherited `RXAI_AUDIT_*` env vars so a stray shell override can't leak into a child suite. The **live** HTTP safety net is `scripts/regress-tcm-cdss.mjs` — start `npm run dev` (or a prod server) first, then:
 
 ```bash
 BASE_URL=http://localhost:3000 CDSS_API_TOKEN=<token> npm run regress:tcm-cdss
@@ -45,7 +47,7 @@ It fires 100+ requests, asserts on red-flag handling, negated history, safety-ne
 
 ### Request flow
 
-`src/app/diagnosis/DiagnosisClient.tsx` (a ~4000-line client component) drives the whole clinical flow and calls the stage routes under `src/app/api/diagnosis/`. Routes are thin — validate → deterministic safety gate → build prompt → stream — with all logic in `src/lib/`.
+`src/app/diagnosis/DiagnosisClient.tsx` (a ~8.1k-line client component) drives the whole clinical flow and calls the stage routes under `src/app/api/diagnosis/`. Routes are thin — validate → deterministic safety gate → build prompt → stream — with all logic in `src/lib/`.
 
 | Route | Stage | Notes |
 |---|---|---|
@@ -59,19 +61,20 @@ It fires 100+ requests, asserts on red-flag handling, negated history, safety-ne
 | `post-prescription-risk` | — | Lingxi unified rx-audit JSON; fail-closed with manual-review lock when unavailable or missing structured herbs |
 | `snapshot` | — | Encrypted case-state snapshot (AES-256-GCM, `CASE_SNAPSHOT_ENCRYPTION_KEY`); binds auth to snapshot owner |
 | `his-scheme` | — | Builds HIS "AI 诊疗支持方案" JSON (`src/lib/his-scheme.ts`) |
-| `health`, `model-health`, `tcm-knowledge/search`, `tcm-knowledge/herb-function` | — | Status/health + local KB search. `health?strict=1` returns `strictReady` (model + clinical reviewer + evidence + tongue-vision-if-required + encryption + reasoning signing + clinical-facts all configured); `model-health?check=1` does a live model call |
+| `health`, `model-health`, `tcm-knowledge/search`, `tcm-knowledge/herb-function` | — | Status/health + local KB search. Note `health` is under `/api/diagnosis/`, `model-health` is top-level `/api/model-health`. `health?strict=1` returns `strictReady` and **503s when false** — it ANDs model + clinical reviewer + evidence + tongue-vision-if-required + rx-audit + snapshot encryption + reasoning signing + clinical-facts + TCM-treatment config + **rate-limit identity** (that last one is why prod must set `CDSS_TRUST_PROXY_HEADERS` behind a header-scrubbing proxy). Docker's healthcheck hits this, so a new unconfigured dependency here blocks deploys. `model-health?check=1` does a live model call |
 | `auth/access` | — | Token → UI cookie login; timing-safe compare, rate-limited (8 fails / 10-min lock) |
 
 ### Model / streaming layer — `src/lib/diagnosis-api.ts`
 
 `callDiagnosisStream(prompt, backend, images, kind)` is the single entry point. Backends: `deepseek`/`openai` → primary OpenAI-compatible model; `glm` → GLM vision (tongue-image extraction only). EviMed is not a model backend; it is injected separately as multi-source evidence context in M03/M04 prompts.
 
-- **Per-stage models (see `.env.example`):** the default primary is **DeepSeek V4 Flash** (`OPENAI_MODEL=deepseek-v4-flash`); M03 is upgraded to **V4 Pro** via `PRIMARY_DIAGNOSE_MODEL`. M01/M02/M04, the independent clinical reviewer (`PRIMARY_CLINICAL_REVIEW_MODEL`, defaulting to the opposite-stage model for cross-review), and the clinical-facts extractor (`CLINICAL_FACTS_MODEL`) are each separately configurable. `reasoning_effort` / `thinking_enabled` are **per-stage env knobs** (low/medium; thinking off by default) — not one global setting.
+- **Per-stage models (see `.env.example`):** all text generation, repair, review, and clinical-facts phases are pinned to **DeepSeek V4 Pro** (`deepseek-v4-pro`). Review phases remain separate requests with review-only prompts and no generator conversation state; same-model safety phases may add risk but cannot erase or downgrade grounded risk. `reasoning_effort` / `thinking_enabled` remain per-stage controls.
 - **GLM tongue vision is opt-in:** it runs only when `GLM_VISION_ENABLED=true` **and** `GLM_API_KEY` is set. When disabled (the default), an uploaded tongue photo is **rejected with a friendly prompt** — there is *no* silent fallback to the text model.
 - **NDJSON contract (shared by every backend and the deterministic responses):** `{"content":"…"}\n` per chunk, terminated by `{"content":"[END]"}\n`; errors as `{"error":"…"}\n`. Anything you add to the pipeline must speak this exact contract — `markdownNdjsonResponse()` wraps deterministic Markdown into it.
 - **Critical reasoning-only-stream gotcha:** if a stream returns only `reasoning_content` and no `content`, that's treated as an error ("模型仅返回推理过程"). This is why `model-health?check=1` verifies *final content*, not just reasoning — a provider that only streams reasoning will fail health and every stage.
 - Timeouts are enforced per-stream: connect 90s / idle 60s / total 180s, with upstream `AbortController` cancellation and a 5s client heartbeat that keeps the UI alive during provider reasoning.
-- Provider config lives in `src/lib/text-model.ts` via `AI_TEXT_PROVIDER` (`openai-compatible` per `.env.example`; or `bailian-qwen`). `src/lib/openai.ts` is a minimal legacy client — prefer `getPrimaryTextModelConfig()`.
+- Provider config lives in `src/lib/text-model.ts` via `AI_TEXT_PROVIDER` (`openai-compatible` per `.env.example`; or `bailian-qwen`) — read it with `getPrimaryTextModelConfig()`.
+- **M03/M04 have a whole-orchestration deadline on top of the per-stream timeouts** (`M03_ORCHESTRATION_DEADLINE_MS` / `M04_ORCHESTRATION_DEADLINE_MS` in `diagnosis-api.ts`, default 120s each, clamped 60–180s). Blowing the deadline — or re-injecting the same repair prompt twice (fixpoint) — finalizes into the existing signature-limited / non-dose contract instead of burning unbounded repair rounds. If you add a repair round, it must respect the deadline and be fixpoint-detectable.
 
 ### Deterministic safety is the load-bearing layer — `src/lib/diagnosis-safety.ts`
 
@@ -81,7 +84,7 @@ The model never decides safety. Stage routes call `withSafetyGate(caseState)` fi
 - Clinical facts use a status vocabulary (`positive/possible/negative/historical/unknown`) in `src/lib/clinical-state.ts`. **Do not treat "未提及/unknown" as negative** — generic "过敏史/用药史未提及" pollution is an explicitly tested false-positive class in the regression suite. When you fix one such false positive, extend coverage to the whole class, not just the one case.
 - **Completeness** (`src/lib/diagnosis-parse.ts`): the model embeds structured JSON in the stream between `<!-- DIAGNOSIS_JSON_START -->` / `<!-- DIAGNOSIS_JSON_END -->` sentinels (injected via `SENTINEL_INSTRUCTION` in `diagnosis-prompts.ts`). `determineCompletenessLevel` **recomputes the level in code and overrides the model's** — C requires `redFlag≥0.7` and other dims `≥0.6` (redFlag has the higher bar); any dim `<0.3` ⇒ A; else B. Only level C proceeds to full diagnosis/prescription.
 - **Semantic clinical-facts backstop (`src/lib/clinical-facts.ts` + `clinical-facts-runtime.ts`):** an **additive-only** model-derived layer that supplements spoken-language red flags / follow-up clues; **on by default** (disable with `CDSS_CLINICAL_FACTS_BACKSTOP=false`). It may only *add* urgent advisories — never cancel a deterministic positive red flag or a critical vital. `additiveRedFlagsFromFacts` / `priorityEvaluationItemsFromFacts` feed the gate; schema-invalid entries are isolated so a fabricated item cannot erase a valid one in the same output.
-- **Client orchestration** lives in `src/lib/diagnosis-engine.ts` (browser localStorage case persistence keyed `diagnosis_case_*`, stream consume with its own idle/total timeouts + `AbortController`) consumed by the ~7.7k-line `DiagnosisClient.tsx`. It is client-side flow glue, not a server pipeline — the server routes stay thin.
+- **Client orchestration** lives in `src/lib/diagnosis-engine.ts` (browser localStorage case persistence keyed `diagnosis_case_*`, stream consume with its own idle/total timeouts + `AbortController`) consumed by `DiagnosisClient.tsx`. It is client-side flow glue, not a server pipeline — the server routes stay thin.
 
 ### Knowledge base — `src/lib/tcm-knowledge.ts` + `src/data/tcm-knowledge.json`
 
@@ -89,7 +92,7 @@ The 48k-line JSON is a **generated build artifact** — do not hand-edit it. `sc
 
 ### Auth — `src/proxy.ts` + `src/lib/cdss-auth.ts`
 
-`proxy()` gates `/`, `/diagnosis`, `/api/:path*`. Auth is on when `CDSS_REQUIRE_API_AUTH=true`, in production, or whenever `CDSS_API_TOKEN` is set. API callers send `x-cdss-api-token` or `Authorization: Bearer <token>`; browsers get an httpOnly cookie `tcm_cdss_ui_access` = `SHA-256("tcm-cdss-ui:"+token)` from `/api/auth/access`. If you add API routes, keep them under the matcher and never introduce an unauthenticated bypass.
+`proxy()` gates `/`, `/diagnosis`, `/api/:path*`. Auth is on when `CDSS_REQUIRE_API_AUTH=true`, in production, or whenever `CDSS_API_TOKEN` is set. API callers send `x-cdss-api-token` or `Authorization: Bearer <token>`; browsers get an httpOnly cookie `tcm_cdss_ui_access` = `SHA-256("tcm-cdss-ui:"+token)` from `/api/auth/access`. `proxy()` also rate-limits model-calling routes (`CDSS_MODEL_RATE_LIMIT_PER_10_MIN`, default 60 per 10 min) — the bucket is **in-memory and assumes a single instance**, so horizontal scaling would silently multiply the real limit. If you add API routes, keep them under the matcher and never introduce an unauthenticated bypass.
 
 ## Conventions & gotchas
 
@@ -98,7 +101,15 @@ The 48k-line JSON is a **generated build artifact** — do not hand-edit it. `sc
 - **`NEXT_PUBLIC_BASE_PATH`** lets the app mount under a sub-path; it's threaded through `next.config.ts`, `cdss-auth.ts` and `proxy.ts` — respect it when building URLs/redirects.
 - **Build/deploy:** `output:"standalone"` (`next.config.ts`); `Dockerfile` + `docker-compose.yml` build the standalone image and pass the env below. `.env*` is gitignored.
 - New request bodies go through `readJsonBodyWithLimit` / `readCaseStateRequest` (`src/lib/http-guard.ts`, `diagnosis-request.ts`) for size caps and 413/400 handling — reuse them.
+- **Not application source** (all four are in tsconfig `exclude`): `artifacts/`, `deeptest/`, `test-results/` are test/eval output that churns constantly in `git status`, and `open-code-review-main/` is a vendored third-party tool. Don't read them for architecture, don't "fix" them, and don't let their diffs into a change you're describing as source-only.
+- **`src/data/*.json` are generated**, not hand-maintained — `tcm-knowledge.json`, `tcm-formula-sources.json` and friends come from the `build:tcm-*` scripts. Fix the generator, not the artifact.
 
 ## Environment variables
 
-Set in `.env.local` (see `.env.example`). Primary model: `AI_TEXT_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` (default target = DeepSeek V4 Pro). Optional adapters: `GLM_API_KEY` (tongue vision), `EVIMED_API_KEY` / `EVIMED_EVIDENCE_API_KEY` / `EVIMED_GUIDE_API_KEY` (evidence). Auth: `CDSS_API_TOKEN`, `CDSS_REQUIRE_API_AUTH` (default `true`), `CDSS_TRUST_PROXY_HEADERS` (only when behind a trusted proxy, for login rate-limit IP keying).
+Set in `.env.local` (see `.env.example`, which annotates every key). **Never read or commit the real `.env.local` / `.env.development.local`.**
+
+- **Primary model:** `AI_TEXT_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL` (default target = DeepSeek V4 Pro), plus the per-stage `PRIMARY_*_MODEL` / `*_REASONING_EFFORT` / `*_THINKING_ENABLED` overrides.
+- **Optional adapters:** `GLM_API_KEY` + `GLM_VISION_ENABLED` (tongue vision — the key alone does *not* enable it), `EVIMED_API_KEY` / `EVIMED_EVIDENCE_API_KEY` / `EVIMED_GUIDE_API_KEY` (evidence).
+- **Auth:** `CDSS_API_TOKEN`, `CDSS_REQUIRE_API_AUTH` (default `true`), `CDSS_TRUST_PROXY_HEADERS` (only behind a trusted header-scrubbing proxy — it keys the rate limiters).
+- **Crypto (required, and gated by `health?strict=1`):** `CASE_SNAPSHOT_ENCRYPTION_KEY` must be its own random secret, never reused from the access token or a model key; `REASONING_CONTRACT_SIGNING_KEY` signs the reasoning contract.
+- **Rx audit:** `RXAI_AUDIT_*` (Lingxi). Audit results are advisory, but an unavailable audit falls back to human pharmacist review rather than hard-stopping the flow — *except* that missing structured herbs is fail-closed.

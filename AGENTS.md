@@ -16,7 +16,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - **框架**：Next.js 16（App Router，Turbopack，`output: "standalone"`）+ React 19 + TypeScript 5（strict）
 - **样式/UI**：Tailwind CSS 4 + shadcn（`src/components/ui`）、lucide-react、react-markdown
-- **模型接入**：`openai` SDK，OpenAI 兼容协议；默认主模型 DeepSeek V4 Flash（`deepseek-v4-flash`），M03 升级为 V4 Pro；GLM 视觉仅用于舌象图片（opt-in）
+- **模型接入**：`openai` SDK，OpenAI 兼容协议；全部文本生成、修复和复核阶段统一使用 DeepSeek V4 Pro（`deepseek-v4-pro`）；GLM 视觉仅用于舌象图片（opt-in）
 - **校验**：zod 4
 - **数据库**：无 —— 病例状态在浏览器 localStorage（加密快照经服务端 AES-256-GCM）+ 本地 JSON 知识库
 - **重要**：本项目没有 `middleware.ts`。请求门控在 `src/proxy.ts`（导出 `proxy()` + `config.matcher`）。写框架代码前先读 `node_modules/next/dist/docs/` 中的官方文档，不要凭训练数据中的 Next.js 经验行事

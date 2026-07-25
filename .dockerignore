@@ -9,6 +9,10 @@ test-results
 .screenshots
 screenshots
 artifacts
+deeptest
+open-code-review-main
+参考
+药学基础数据
 /*.md
 !README.md
 !AGENTS.md
@@ -23,6 +27,7 @@ artifacts
 /*.jpg
 /*.jpeg
 /*.webp
+/*.docx
 .git
 .DS_Store
 .env*

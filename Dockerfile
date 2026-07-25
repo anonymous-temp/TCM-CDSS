@@ -29,7 +29,9 @@ RUN printf "%s" "$NEXT_PUBLIC_BASE_PATH" > /app/.next-build-base-path
 RUN printf "%s" "$NEXT_PUBLIC_ENABLE_BROWSER_CASE_PERSISTENCE" > /app/.next-build-persistence-flag
 
 RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+  && adduser --system --uid 1001 nextjs \
+  && mkdir -p /app/runtime-data \
+  && chown nextjs:nodejs /app/runtime-data
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

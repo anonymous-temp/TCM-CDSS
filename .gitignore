@@ -18,6 +18,7 @@
 /.screenshots
 /screenshots
 /artifacts
+/药学基础数据/
 /*.trace.zip
 /*.har
 /*.log
@@ -55,3 +56,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch/debug reproductions
+.repro-*.mjs
+scripts/.repro-*.mjs
+scripts/tmp-verify/
