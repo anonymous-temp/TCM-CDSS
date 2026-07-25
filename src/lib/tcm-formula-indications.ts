@@ -30,7 +30,10 @@ type FormulaIndicationEntry = {
 export type FormulaIndicationCandidate = FormulaIndicationEntry & {
   matchedConcepts: string[];
   matchedPatientFacts: string[];
+  /** 排序分：检索证据 + 治理加权。仅用于排序与展示。 */
   score: number;
+  /** 准入分：只含检索证据本身，不含治理加权。候选准入只看这个，治理裁定不得充当入场券。 */
+  evidenceScore: number;
   directPrimarySyndromeMatch?: boolean;
   positiveSufficiency?: boolean;
   positiveSufficiencyBasis?: string;
@@ -272,9 +275,9 @@ export function retrieveTcmFormulaIndicationCandidates(
     // Lockable candidates are therefore promoted rather than unlockable ones being hidden: an
     // unlockable formula is still a legitimate comparison reference, it just must not head a list
     // the model is asked to choose from. This adds no formula the retrieval did not already return.
-    // Lock eligibility is a RANKING key only, never part of `score`: `score` alone still gates
+    // Lock eligibility is a RANKING key only, never part of the score: `evidenceScore` alone gates
     // admission (>=2), so no formula whose symptom evidence was too weak to qualify is admitted,
-    // and no formula is hidden.
+    // and no formula is hidden. Every governance signal below obeys the same split.
     const lockEligible = entry.syndromeTags.length > 0;
     const termHit = termHits.get(entry.id);
     // Governance-adjudicated syndrome alignment (curated relations/tags) is a stronger signal than
@@ -294,10 +297,17 @@ export function retrieveTcmFormulaIndicationCandidates(
       !uniqueTerms.some((other) => other !== term && other.includes(term)));
     const distinctEvidence = matched.length + maximalTerms.length;
     const coordinationFactor = 1 + Math.min(0.75, 0.25 * Math.max(0, distinctEvidence - 1));
-    const score = (rawConceptScore * focusMultiplier + (termHit?.score || 0)) * coordinationFactor +
-      (entry.catalog === "verified_reference_catalog" ? 0.25 : 0) + curatedBoost;
+    // 检索证据分与治理加权必须分开：证据分决定**能不能进候选**，治理加权只决定**排多前**。
+    // 合成一个数会让治理裁定变成入场券——curatedBoost 恰好等于准入线 2，于是任何带裁定标签的方
+    // 都能零证据入场。首批 241 条证型标签入库后立刻实测到：神应养真丹在「周身不适」下自身证据分
+    // 1.31（低于准入线），加权后 3.31 进入候选。这与上方「score alone still gates admission」
+    // 的既有不变式直接冲突，且量级会随治理进度增长——治理做得越多，噪声越多。
+    const evidenceScore = (rawConceptScore * focusMultiplier + (termHit?.score || 0)) * coordinationFactor +
+      (entry.catalog === "verified_reference_catalog" ? 0.25 : 0);
+    const score = evidenceScore + curatedBoost;
     return {
       ...entry,
+      evidenceScore,
       matchedConcepts: matched.map((concept) => concept.key),
       matchedIndicationTerms: [...new Set(termHit?.terms || [])]
         .sort((left, right) => right.length - left.length)
@@ -307,7 +317,7 @@ export function retrieveTcmFormulaIndicationCandidates(
       lockEligible,
     };
   })
-    .filter((entry) => entry.score >= 2)
+    .filter((entry) => entry.evidenceScore >= 2)
     // Lock-eligible formulas sort ahead of the rest, then by score within each group. A formula
     // with no syndromeTags can never satisfy the identity lock's direct primary-syndrome
     // requirement, so if the model picks one it is stripped and the result degrades to 自拟方 —
@@ -454,6 +464,9 @@ export function retrieveTcmFormulaCandidatesForReasoning(
       ],
       matchedPatientFacts: [],
       score,
+      // 此处治理加权与准入分同源：curatedRelationBonus 只在**已签名主证候与该方存在受控关系**时产生，
+      // 本身就是一条检索证据；不像症状召回那一路的 curatedBoost 是与本例无关的常数加权。
+      evidenceScore: score,
       directPrimarySyndromeMatch,
       positiveSufficiency,
       positiveSufficiencyBasis: positiveSufficiency

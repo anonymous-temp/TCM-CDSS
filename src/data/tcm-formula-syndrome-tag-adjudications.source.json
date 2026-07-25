@@ -1,0 +1,2948 @@
+{
+  "schemaVersion": "tcm-formula-syndrome-tag-adjudications-v1",
+  "note": "方剂证型标签的人工裁定表（治理输入，非生成物）。一条记录 = 一次\"该方主治原文直接支持该证\"的临床裁定。构建期把它并入 curatedSyndromeTags，对全部 sourceClass 生效——这是它与 tcm-verified-formula-supplements.json 的区别：后者只覆盖 verified_reference_catalog。标签决定方剂能否被身份锁锁定进而开成处方，因此本表只接受已裁定条目，不接受模型直出。",
+  "sourceRefs": [
+    "SRC-PROJECT-CLINICAL-ADJUDICATION-20260725"
+  ],
+  "batches": [
+    {
+      "id": "ADJ-20260725-SYNDROME-TAG-B1",
+      "date": "2026-07-25",
+      "scope": "artifacts/证型标签待裁定清单.md 391 首（仅差证型标签、已可检索且可编译剂量）",
+      "method": "deepseek-v4-pro(reasoning_effort=high, thinking) 初审，铁律=只勾主治原文直接支持的主证、最多2个、拿不准留空；确定性校验要求每个标签归一到 T1 词表 id（拦截 37 个模型自造名）；抽样人工复核 10 例",
+      "reviewed": 391,
+      "adopted": 241,
+      "abstained": 150
+    }
+  ],
+  "entries": [
+    {
+      "name": "阿胶枳壳丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-556A428AA407"
+      ],
+      "syndromeNames": [
+        "血虚肠燥"
+      ],
+      "basis": "主治“产后虚羸，大便秘涩”，阿胶养血润燥，针对血虚肠燥便秘。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "八珍益母汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "qi_blood_deficiency"
+      ],
+      "syndromeNames": [
+        "气血两虚"
+      ],
+      "basis": "月经量少色淡错后，直接反映气血不足。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "白金丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-44C678C38398"
+      ],
+      "syndromeNames": [
+        "痰瘀互结"
+      ],
+      "basis": "痰血塞于心窍，痰涎包络心窍，痰血去则愈",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "白术除湿汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B2E08C04E2E2"
+      ],
+      "syndromeNames": [
+        "湿热内蕴"
+      ],
+      "basis": "湿胜化热，清热与除湿并施",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "白术汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-5B3663E357E2"
+      ],
+      "syndromeNames": [
+        "痰湿蕴肺"
+      ],
+      "basis": "主治咳嗽痰涎、上气喘急，因五脏伤湿，属痰湿蕴肺",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "百点膏",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B7706177CE9B"
+      ],
+      "syndromeNames": [
+        "心肺风热犯目"
+      ],
+      "basis": "主治翳遮瞳人如云气障隔，方中散风清热，对应风热犯目",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "百花膏",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "lung_yin_deficiency"
+      ],
+      "syndromeNames": [
+        "肺阴虚"
+      ],
+      "basis": "喘咳痰血，虚人尤宜，手太阴虚热",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "柏子仁散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-ADBEED135BF6"
+      ],
+      "syndromeNames": [
+        "血虚风燥"
+      ],
+      "basis": "治筋急，用润燥养血散风，尺脉数示阴虚血燥生风。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "柏子仁丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C09D2E1B0661"
+      ],
+      "syndromeNames": [
+        "血虚挟瘀"
+      ],
+      "basis": "主治经行复止（血瘀）、血小神衰（血虚），方中补血活血并行。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "半桃丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-A882856779F6"
+      ],
+      "syndromeNames": [
+        "寒凝阳虚"
+      ],
+      "basis": "治冷秘，心腹冷气，暖元脏，直接对应寒凝阳虚证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "半夏白术天麻汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2A28CE5914DC"
+      ],
+      "syndromeNames": [
+        "风痰上攻"
+      ],
+      "basis": "“痰厥头痛，胸膈多痰，动则眩晕”为风痰上扰典型表现。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "保真汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-E55C29D52D42"
+      ],
+      "syndromeNames": [
+        "阴虚热盛"
+      ],
+      "basis": "主治虚劳骨蒸，潮热盗汗，为阴虚内热之象。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "鳖甲汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AFEB156FFEAC"
+      ],
+      "syndromeNames": [
+        "气机郁滞"
+      ],
+      "basis": "主治直言“郁气阻于腹中”，气机郁滞确切，未提血瘀，不取气滞血瘀。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "补肺汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "lung_qi_deficiency"
+      ],
+      "syndromeNames": [
+        "肺气虚"
+      ],
+      "basis": "主治“短气，喘咳，少气不足以息”体现肺气虚失于宣降",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "补脾胃泻阴火升阳汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-0F4FF7849863"
+      ],
+      "syndromeNames": [
+        "脾胃气虚"
+      ],
+      "basis": "主治“饮食伤胃，劳倦伤脾”致脾胃气虚，“火邪乘之而生大热”为阴火上炎，治以补脾胃泻阴火。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "补气运脾汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F103C243D6B3"
+      ],
+      "syndromeNames": [
+        "中气不足"
+      ],
+      "basis": "中气不运噎塞，是中气亏虚之象",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "补肾丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "kidney_yin_deficiency"
+      ],
+      "syndromeNames": [
+        "肾阴虚"
+      ],
+      "basis": "主治“滋肾阴”，直接针对肾阴虚。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "补阳还五汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C3FAB62E2CDB",
+        "TCM-SYNDROME-8FA8421FC54C"
+      ],
+      "syndromeNames": [
+        "气虚血瘀",
+        "气虚络瘀"
+      ],
+      "basis": "正气亏虚，脉络瘀阻，即气虚血瘀证",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "参归鹿茸汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-275494A78C7F"
+      ],
+      "syndromeNames": [
+        "气血两虚毒滞"
+      ],
+      "basis": "痘浆不成、色白无晕为气血虚，毒重冰伏示毒滞",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "参苓饮",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-A503C0F9A3B1"
+      ],
+      "syndromeNames": [
+        "气虚痰结"
+      ],
+      "basis": "胸中停痰吐出后心胸虚、气满不能食，属气虚痰结。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "仓卒散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-BBEC651B5E26"
+      ],
+      "syndromeNames": [
+        "寒热错杂"
+      ],
+      "basis": "主治寒疝腹痛，腹中冷，用附子散寒，又用山栀子清郁热，寒热并用。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "柴胡地骨皮汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2885FC6A15B0"
+      ],
+      "syndromeNames": [
+        "小肠实热"
+      ],
+      "basis": "主治明示膀胱移热于小肠，上为口糜，属实热证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "柴胡桂姜汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-32E952B84760"
+      ],
+      "syndromeNames": [
+        "外寒里热"
+      ],
+      "basis": "秋感凉风为外寒，暑邪内伏为里热，疟寒多微热",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "柴胡枳桔汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AE67852A5438"
+      ],
+      "syndromeNames": [
+        "邪入少阳"
+      ],
+      "basis": "外感初传少阳，寒热往来，胸胁痞满。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "柴平汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-064EF6858A5E"
+      ],
+      "syndromeNames": [
+        "湿困脾胃"
+      ],
+      "basis": "治湿疟，一身尽痛手足沉重脉濡，合平胃散健脾制湿。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "柴芩煎",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B2E08C04E2E2"
+      ],
+      "syndromeNames": [
+        "湿热内蕴"
+      ],
+      "basis": "主治泻痢烦渴、喜冷、脉滑数，及发黄，皆为湿热内蕴主证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "赤石脂丸",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-064C46403192"
+      ],
+      "syndromeNames": [
+        "大肠湿热"
+      ],
+      "basis": "主治“伤寒热痢”，热迫大肠。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "抽薪饮",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-83DDAFC3F5FC"
+      ],
+      "syndromeNames": [
+        "实火"
+      ],
+      "basis": "主治“火盛而不宜补者”，纯实无虚，明确为实火证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "喘促",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2FC8CB11E271"
+      ],
+      "syndromeNames": [
+        "热邪壅肺"
+      ],
+      "basis": "脉浮大，喘而目如脱，宣肺泄热",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "崔氏八味丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C5192FE0A72D"
+      ],
+      "syndromeNames": [
+        "肾阴阳两虚"
+      ],
+      "basis": "肾间水火俱虚者主之。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "大补黄汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "qi_blood_deficiency"
+      ],
+      "syndromeNames": [
+        "气血两虚"
+      ],
+      "basis": "主治明示“气血俱虚，自汗”。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "大黄茯苓丸",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-844A822B2244"
+      ],
+      "syndromeNames": [
+        "冲任瘀阻"
+      ],
+      "basis": "癥痼蓄瘀害妊娠，瘀阻冲任胞宫",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "大朴散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-07307861C48E"
+      ],
+      "syndromeNames": [
+        "热与血结"
+      ],
+      "basis": "鼻赤如榴，热也血也，酒热致结。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "当归白术汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-5228F862E268"
+      ],
+      "syndromeNames": [
+        "脾虚湿热"
+      ],
+      "basis": "治酒疸发黄，云“此由本虚……脾胃痰结”，方以健脾利湿清热，主脾虚湿热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "当归拈痛方",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-CBCC2089E2E9"
+      ],
+      "syndromeNames": [
+        "三焦湿热"
+      ],
+      "basis": "主治直言“上下中三焦之湿尽去，热亦解散”，针对三焦湿热内盛。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "当归芍药汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-D2724F4203A1"
+      ],
+      "syndromeNames": [
+        "中气亏虚"
+      ],
+      "basis": "产后虚损，不思饮食，脾胃气虚",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "倒换散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-62BAF46EC3EE"
+      ],
+      "syndromeNames": [
+        "气滞热壅"
+      ],
+      "basis": "内热小便不通，气不化，升降相因",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "地榆汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B662B99FBCF2"
+      ],
+      "syndromeNames": [
+        "气结血瘀"
+      ],
+      "basis": "阴气自结不和于阳，下瘀血，行气止血。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "调肝汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B7B9EF78361F"
+      ],
+      "syndromeNames": [
+        "肾气虚"
+      ],
+      "basis": "主治言“肾气涸”，即肾气虚衰",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "调胃承气汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-50B50D4BCFB5"
+      ],
+      "syndromeNames": [
+        "阳明腑实"
+      ],
+      "basis": "心烦因燥热内结，属阳明腑实。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "调中益气汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-0F4FF7849863",
+        "TCM-SYNDROME-12E0E3661D3D"
+      ],
+      "syndromeNames": [
+        "脾胃气虚",
+        "气虚湿困"
+      ],
+      "basis": "主治“脾胃不调而气弱”兼肠鸣飧泄，治补中益气、升阳除湿，为气虚湿困。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "丁香柿蒂散",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-72F348E2691D",
+        "TCM-SYNDROME-AF5FAB699578"
+      ],
+      "syndromeNames": [
+        "胃气上逆",
+        "下焦虚冷"
+      ],
+      "basis": "久病呃逆，因下寒者。呃逆为胃气上逆，下寒指下焦虚寒。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "都气丸",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-83D8F6C6B5B9"
+      ],
+      "syndromeNames": [
+        "肾不纳气"
+      ],
+      "basis": "“咳嗽滑精”是肾不纳气的主症，结合“肾水不固”可归为肾不纳气证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "豆蔻散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-4B9F89FBA037"
+      ],
+      "syndromeNames": [
+        "寒湿困脾"
+      ],
+      "basis": "主治湿盛濡泄，肉豆蔻温中，厚朴燥湿，寒湿并除。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "独参汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-254781E767D4"
+      ],
+      "syndromeNames": [
+        "元气亏虚"
+      ],
+      "basis": "主治“诸虚气弱危急”即元气欲脱",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "二陈加黄连栀子汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2D3F52BCB102"
+      ],
+      "syndromeNames": [
+        "痰热蕴脾"
+      ],
+      "basis": "主治“食郁有热之嘈杂”，二陈化痰加黄连栀子清热，病机为痰热互结于脾。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "二黄汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-83DDAFC3F5FC"
+      ],
+      "syndromeNames": [
+        "实火"
+      ],
+      "basis": "主治“天行大头疫病”“芩连苦寒泻火”，显属实火上炎证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "法半夏厚朴汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-311EA6F87944"
+      ],
+      "syndromeNames": [
+        "痰气互结"
+      ],
+      "basis": "主治梅核气，即咽中如有炙脔，为痰气互结咽喉之象。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "矾石兑丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-23785D75A520",
+        "TCM-SYNDROME-C94E52ED40D3"
+      ],
+      "syndromeNames": [
+        "瘀血内结",
+        "湿热下注"
+      ],
+      "basis": "脏坚癖干血，下白物，矾石燥湿",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "矾石滑石散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-7E3406FDC9A5"
+      ],
+      "syndromeNames": [
+        "湿热动血"
+      ],
+      "basis": "主治“壮热，热在里，有血下如肝状”，湿疸内热动血明确。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "防风黄汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-D721CD68E4A1",
+        "TCM-SYNDROME-509D0D70D649"
+      ],
+      "syndromeNames": [
+        "外风",
+        "元气不足"
+      ],
+      "basis": "主治“中风不能言”示外风，“脉沉而弱”示元气不足。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "封髓丹",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B6E084322B88"
+      ],
+      "syndromeNames": [
+        "相火妄动"
+      ],
+      "basis": "梦遗失精、与鬼交，黄柏清火、砂仁纳精，专注相火扰动精室。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "伏梁丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-0FFB798300BF"
+      ],
+      "syndromeNames": [
+        "心气滞血瘀"
+      ],
+      "basis": "心之积大如臂，烦心，脉沉芤，方行气活血消积。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "扶阳助胃汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2A363D51ACD4"
+      ],
+      "syndromeNames": [
+        "寒邪犯胃"
+      ],
+      "basis": "主治直言“客寒犯胃”，脉沉迟，病位在胃，属寒邪犯胃证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "茯苓桂枝甘草大枣汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B6A032E841BD",
+        "TCM-SYNDROME-7764936F0E23"
+      ],
+      "syndromeNames": [
+        "心阳不足",
+        "水饮内停"
+      ],
+      "basis": "脐下悸欲作奔豚，心阳虚不制下，水饮欲动。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "茯苓四逆汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-7C3437FB99DA"
+      ],
+      "syndromeNames": [
+        "阳虚水泛"
+      ],
+      "basis": "真武汤变方，治“汗出烦躁”，阳虚水泛，虚阳上扰。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "附子泻心汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-FD9812B9BA81"
+      ],
+      "syndromeNames": [
+        "上热下寒"
+      ],
+      "basis": "“心下痞”为热痞，“恶寒汗出”为阳虚下寒，典型上热下寒。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "甘草干姜汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-6E77771850B5"
+      ],
+      "syndromeNames": [
+        "肺气虚寒"
+      ],
+      "basis": "主治肺中冷、多涎唾、小便数，上虚不能制下，属肺气虚寒",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "甘姜苓术汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C60C643F498C"
+      ],
+      "syndromeNames": [
+        "寒湿犯腰"
+      ],
+      "basis": "腰中冷如坐水，腰以下冷痛，腹重，显寒湿犯腰。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "干姜散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-1C1F04B77233"
+      ],
+      "syndromeNames": [
+        "痰热上壅"
+      ],
+      "basis": "主治“悬痈壅热，卒暴肿大”，直言壅热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "葛根黄芩黄连汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-5ACFFFAAFA07"
+      ],
+      "syndromeNames": [
+        "下焦热盛"
+      ],
+      "basis": "主治“热邪入里，下利臭秽，肛门灼热”，热迫大肠，病位在下焦。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "葛根橘皮汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-3897CA8E7BC2"
+      ],
+      "syndromeNames": [
+        "心肺郁热"
+      ],
+      "basis": "冬月腠密，郁而生热，斑烂咳闷，用黄芩知母清泄，主心肺郁热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "膈下逐瘀汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-DD4FA175C420"
+      ],
+      "syndromeNames": [
+        "血瘀"
+      ],
+      "basis": "痛不移处，明言瘀血所致",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "龟鹿二仙膏",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-9D656D61A13C"
+      ],
+      "syndromeNames": [
+        "精血亏虚"
+      ],
+      "basis": "主治“精极之证”“瘦弱少气，梦遗泄精，目视不明”，直指精血亏虚。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "龟鹿二仙胶",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-254781E767D4"
+      ],
+      "syndromeNames": [
+        "元气亏虚"
+      ],
+      "basis": "主治直指真元虚损，精极梦泄等，元气亏虚是其本。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "桂苓甘露散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-A2C5576EFDA6"
+      ],
+      "syndromeNames": [
+        "暑湿热蕴"
+      ],
+      "basis": "主治明示“中暑受湿”，烦渴引饮为热，小便不利用湿。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "桂枝茯苓丸",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-4E5E68678BDC"
+      ],
+      "syndromeNames": [
+        "胞宫瘀阻"
+      ],
+      "basis": "妇人宿有症病，漏下不止，腹痛拒按。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "桂枝栝蒌根汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "qi_stagnation_blood_stasis"
+      ],
+      "syndromeNames": [
+        "气滞血瘀"
+      ],
+      "basis": "伤风不解，郁于经络，气机涌泄致衄吐血",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "桂枝羌活汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-0667E76ADFB4"
+      ],
+      "syndromeNames": [
+        "太阳中风"
+      ],
+      "basis": "头项痛，脉浮，有汗，恶风",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "桂枝去芍药加附子汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-DB54D8EE41BA"
+      ],
+      "syndromeNames": [
+        "阳气虚衰"
+      ],
+      "basis": "下后阳气涣散，微恶寒，急救其阳，主阳气虚衰",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "桂枝人参汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AEF5893DC408"
+      ],
+      "syndromeNames": [
+        "脾胃阳虚"
+      ],
+      "basis": "数下之后利下不止、心下痞硬，为中焦虚寒下利。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "海桐皮汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "blood_stasis_obstructing_collaterals"
+      ],
+      "syndromeNames": [
+        "瘀血阻络"
+      ],
+      "basis": "主治跌打损伤、筋翻骨错、疼痛不止，为瘀血阻滞经络之痛证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "侯氏黑散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AB4D5D32D1DD"
+      ],
+      "syndromeNames": [
+        "心中寒"
+      ],
+      "basis": "主治明言“心中恶寒不足”，为寒邪干心之征。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "厚朴七物汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-0667E76ADFB4",
+        "TCM-SYNDROME-50B50D4BCFB5"
+      ],
+      "syndromeNames": [
+        "太阳中风",
+        "阳明腑实"
+      ],
+      "basis": "“脉浮而数，发热”为太阳表证，“腹满”为阳明里实，饮食如故示胃气未伤。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "厚朴三物汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-50B50D4BCFB5"
+      ],
+      "syndromeNames": [
+        "阳明腑实"
+      ],
+      "basis": "“痛而闭”即腹痛便秘，属里实气滞之阳明腑实。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "槐花散",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-89201F528C76"
+      ],
+      "syndromeNames": [
+        "肠风伤络"
+      ],
+      "basis": "主治“肠风脏毒”，核心为风热伤及肠络致血。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "黄连阿胶丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-49B341E0C1A1"
+      ],
+      "syndromeNames": [
+        "湿热伤阴"
+      ],
+      "basis": "主治“下痢赤白，口燥烦渴”，黄连燥湿合阿胶补阴，湿热并伤阴。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "黄连汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-FD9812B9BA81"
+      ],
+      "syndromeNames": [
+        "上热下寒"
+      ],
+      "basis": "主治‘胸中有热而欲呕，胃中有寒而腹痛’显系上热下寒",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "黄芪鳖甲散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "qi_blood_deficiency",
+        "TCM-SYNDROME-E55C29D52D42"
+      ],
+      "syndromeNames": [
+        "气血两虚",
+        "阴虚热盛"
+      ],
+      "basis": "原文“气血阴阳皆虚”，见五心烦热等阴虚内热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "黄芩人参汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-00DC1C832C18"
+      ],
+      "syndromeNames": [
+        "少阳证类"
+      ],
+      "basis": "主治明示‘太阳才入少阳，仿小柴胡汤和解’，为少阳病机",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "黄芩芍药汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "yin_deficiency_fire"
+      ],
+      "syndromeNames": [
+        "阴虚火旺"
+      ],
+      "basis": "主治直指‘阴火载血上行’致衄，阴火即阴虚火旺",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "回令丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-BF780C4D57F3"
+      ],
+      "syndromeNames": [
+        "火热"
+      ],
+      "basis": "主治直言“火噎膈”，火热为直接核心证候。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "回生散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B8466C62F6EF"
+      ],
+      "syndromeNames": [
+        "脾胃不和"
+      ],
+      "basis": "主治“中气不和，吐泻霍乱”，芳香疏利以行气滞。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "济川煎",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C58D3CFEDE42"
+      ],
+      "syndromeNames": [
+        "肾精亏虚"
+      ],
+      "basis": "虚损便秘，肾虚失润，肠燥不通。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "加减茱萸汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-8B858AEF9BE6"
+      ],
+      "syndromeNames": [
+        "肝胃虚寒"
+      ],
+      "basis": "脏气虚挟风冷，腹胁刺、呕恶、恶寒，属肝胃虚寒",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "加味败毒散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-32E952B84760"
+      ],
+      "syndromeNames": [
+        "外寒里热"
+      ],
+      "basis": "脚踝上热赤肿示里热，寒热如疟自汗恶风或恶寒示表寒，合为外寒里热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "加味肾气丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B66EA06D40D4"
+      ],
+      "syndromeNames": [
+        "肾气虚水泛"
+      ],
+      "basis": "“肾气大虚”致浮肿、小便不利，属肾气虚水泛",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "加味乌药汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-237E1633339B"
+      ],
+      "syndromeNames": [
+        "肝郁气滞"
+      ],
+      "basis": "胀甚于痛，胸胁乳房胀痛，脉弦，为肝郁气滞主证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "解肌透痧汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-32E952B84760"
+      ],
+      "syndromeNames": [
+        "外寒里热"
+      ],
+      "basis": "恶寒发热为外寒，咽喉肿痛为里热",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "金银花酒",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-848FEFF3CCA7"
+      ],
+      "syndromeNames": [
+        "火热邪毒壅盛"
+      ],
+      "basis": "主治痈疽恶疮初起，肺痈肠痈，明示热毒壅结。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "津调散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C94E52ED40D3"
+      ],
+      "syndromeNames": [
+        "湿热下注"
+      ],
+      "basis": "妒精疮脓汁臭烂，黄连燥湿清热，主湿热下注",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "进退黄连汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-FD9812B9BA81"
+      ],
+      "syndromeNames": [
+        "上热下寒"
+      ],
+      "basis": "主治胸有热、腹有寒之关格，调寒热升降。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "荆防四物汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F898822FF2CD"
+      ],
+      "syndromeNames": [
+        "外伤血瘀"
+      ],
+      "basis": "真睛破损，流血剧痛，外伤血瘀明显",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "橘皮生姜汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-904656BCD2AC"
+      ],
+      "syndromeNames": [
+        "气滞痰凝"
+      ],
+      "basis": "“胸痞，胸中噫塞…咳唾燥沫”为气滞痰凝，肺胃气机不畅。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "冷香饮子",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-EA67C0A56D7A"
+      ],
+      "syndromeNames": [
+        "寒凝气滞"
+      ],
+      "basis": "主治食寒冰之物致胸腹大痛霍乱，附子散沉寒，橘红调中气，属寒凝气滞。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "理气丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F0DAF48543ED"
+      ],
+      "syndromeNames": [
+        "肺肾气虚"
+      ],
+      "basis": "主治动则喘咳、远行久立不任，治以补肺肾纳气，属肺肾气虚",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "理中加丁香汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-022BCCDE4274"
+      ],
+      "syndromeNames": [
+        "胃寒"
+      ],
+      "basis": "主治呕吐腹痛，方解治寒以热，为胃寒证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "凉膈散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-0D01E542FBB6",
+        "TCM-SYNDROME-D16EF0BFC08D"
+      ],
+      "syndromeNames": [
+        "肺胃燥热",
+        "热结肠燥"
+      ],
+      "basis": "主治上中二焦积热，见肺胃燥热诸象大便秘结。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "凉血地黄汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-29291DD0E45D"
+      ],
+      "syndromeNames": [
+        "血热"
+      ],
+      "basis": "“痔肿痛，出血”直指血热妄行，方名凉血亦佐证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "凉血清肠散（汤）",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-9E82B890541F"
+      ],
+      "syndromeNames": [
+        "热盛动血"
+      ],
+      "basis": "“大肠热甚，肠风下血”为热迫血行，是热盛动血证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "凉血四物汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-6EED271652CB"
+      ],
+      "syndromeNames": [
+        "热盛血瘀"
+      ],
+      "basis": "主治“皶鼻红”示血热，“散瘀化滞”示血瘀，乃热盛血瘀。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "凉营清气汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-424B4FADD787"
+      ],
+      "syndromeNames": [
+        "气营两燔"
+      ],
+      "basis": "壮热渴饮舌红绛、谵语，显气营两燔热毒。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "两仪膏",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-64D396EDCE1F",
+        "TCM-SYNDROME-6D5DF6D536AE"
+      ],
+      "syndromeNames": [
+        "气阴两虚",
+        "肺肾阴虚"
+      ],
+      "basis": "主治“精气内亏”“耗损真阴”，补气养阴，归经肺肾，故气阴两虚、肺肾阴虚同见。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "岭南诸病",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F7B5F1CE424D"
+      ],
+      "syndromeNames": [
+        "气分湿热"
+      ],
+      "basis": "感山岚瘴雾毒气，发寒热，胁膈饱闷，不思饮食，方以清热燥湿行气降痰，主因湿热蕴阻气分。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "六味回阳饮",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-19B9BF4DAF7E"
+      ],
+      "syndromeNames": [
+        "阴竭阳脱"
+      ],
+      "basis": "主治“阴阳将脱”，提示阴阳俱亡脱。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "麻黄附子甘草汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-12438DF761B8"
+      ],
+      "syndromeNames": [
+        "少阴寒化"
+      ],
+      "basis": "少阴病，恶寒脉沉微，符合少阴寒化",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "麻黄甘草汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F9E999E61EEC"
+      ],
+      "syndromeNames": [
+        "水气射肺"
+      ],
+      "basis": "主治“气急…水肿从腰以上肿”，显系水气上迫于肺，证合水气射肺。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "麻黄葛根汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-177267F04D02"
+      ],
+      "syndromeNames": [
+        "肺实"
+      ],
+      "basis": "主治“金郁者，喘满”，金郁即肺气壅实，喘满为肺实证候。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "麻黄加术汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-393A730329DE"
+      ],
+      "syndromeNames": [
+        "湿郁化热"
+      ],
+      "basis": "原文“身疼为湿，身烦为热”，湿郁化热可定，非寒湿化热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "麻黄连翘赤小豆汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-50FB85CD4BBF"
+      ],
+      "syndromeNames": [
+        "表寒里热"
+      ],
+      "basis": "发热恶寒无汗为表寒，黄染脉浮滑为里湿热，即表寒里热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "秘方茶酒调散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AB8D68CB2D20"
+      ],
+      "syndromeNames": [
+        "风邪上扰"
+      ],
+      "basis": "主治“新沐中风…头面多汗恶风，头痛”，风邪上犯清阳。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "妙香散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-BC4439E60A0D"
+      ],
+      "syndromeNames": [
+        "心气不足"
+      ],
+      "basis": "梦中遗矢，安神正气，淫梦邪火不起。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "牡丹散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C155285CAB7E"
+      ],
+      "syndromeNames": [
+        "少腹血瘀"
+      ],
+      "basis": "偏大，胀不能动，病在少腹。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "牡蛎散",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-FB85F82C3861",
+        "TCM-SYNDROME-DEAC871DC9DD"
+      ],
+      "syndromeNames": [
+        "心气虚",
+        "卫气虚"
+      ],
+      "basis": "自汗夜甚、心忪惊惕短气，显心气虚，卫外不固。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "木香汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-A5ED4EB1425B"
+      ],
+      "syndromeNames": [
+        "膀胱气滞"
+      ],
+      "basis": "主治“里气凝滞，小便淋沥”为气淋，病在膀胱。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "木香丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-064C46403192"
+      ],
+      "syndromeNames": [
+        "大肠湿热"
+      ],
+      "basis": "主治“赤白痢”直接对应大肠湿热证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "牛蒡甘桔汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-4BAC470BBE59"
+      ],
+      "syndromeNames": [
+        "余热未清"
+      ],
+      "basis": "主治“表邪已尽…微热”，提示余邪未尽、余热未清。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "浓朴生姜半夏甘草人参汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-97E7306D996D"
+      ],
+      "syndromeNames": [
+        "脾虚气滞"
+      ],
+      "basis": "太阴腹满，伤中，行气补中",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "浓朴汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AEF5893DC408",
+        "TCM-SYNDROME-7F85B83ECF9F"
+      ],
+      "syndromeNames": [
+        "脾胃阳虚",
+        "气滞"
+      ],
+      "basis": "“热少冷多，唾白沫清涎”为阳虚；干呕噫气为上焦气滞。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "疟痢用常山、罂粟壳",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-4BA0A19DC153"
+      ],
+      "syndromeNames": [
+        "痰浊内蕴"
+      ],
+      "basis": "疟疾痰水作恙，下痢日久无痛需涩肠",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "七福饮",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-6E2A619818FE"
+      ],
+      "syndromeNames": [
+        "心脾气血两虚"
+      ],
+      "basis": "主治原文直接指明'气血俱虚而心脾为甚'。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "七厘散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F898822FF2CD"
+      ],
+      "syndromeNames": [
+        "外伤血瘀"
+      ],
+      "basis": "主治跌打损伤之瘀血肿痛。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "前胡化斑汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "qi_stagnation_blood_stasis"
+      ],
+      "syndromeNames": [
+        "气滞血瘀"
+      ],
+      "basis": "斑淡红，用活血及利表里气药",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "羌活胜风汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-8F6819CF761F"
+      ],
+      "syndromeNames": [
+        "风热上犯"
+      ],
+      "basis": "“暴风客热风胜目痛”，风热外感上攻于目，即风热上犯证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "羌活透肌汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2358589AD014"
+      ],
+      "syndromeNames": [
+        "邪袭卫表"
+      ],
+      "basis": "主治“痘出见点未尽”，疏表透痘，邪郁卫表。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "秦艽鳖甲散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-E55C29D52D42"
+      ],
+      "syndromeNames": [
+        "阴虚热盛"
+      ],
+      "basis": "骨蒸劳热盗汗脉细数，阴虚内热",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "清肝引经汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "liver_depression_transforming_fire"
+      ],
+      "syndromeNames": [
+        "肝郁化火"
+      ],
+      "basis": "“经行吐衄”核心为肝郁化火，热迫血上溢",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "清脾饮",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-5291FB5320B6"
+      ],
+      "syndromeNames": [
+        "肝脾湿热"
+      ],
+      "basis": "热多寒少，口苦咽干，小便赤涩，脉弦数，为足少阳太阴药。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "清热地黄汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-ED72C4180A8C"
+      ],
+      "syndromeNames": [
+        "血热妄行"
+      ],
+      "basis": "“血崩烦热”乃血热迫血妄行之典型表现。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "清热泻脾散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-64426D2B8572"
+      ],
+      "syndromeNames": [
+        "心脾实热"
+      ],
+      "basis": "主治明言“心脾蕴热”",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "清神散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-8F6819CF761F"
+      ],
+      "syndromeNames": [
+        "风热上犯"
+      ],
+      "basis": "头目不清，耳聋作痛，脉浮数，体现风热上扰清窍",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "清胃汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2D3F52BCB102"
+      ],
+      "syndromeNames": [
+        "痰热蕴脾"
+      ],
+      "basis": "“脾生痰核，眼胞红硬”，红为热，硬核为痰，显系痰热结聚于脾。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "清震汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F843D020981D"
+      ],
+      "syndromeNames": [
+        "风热疫毒"
+      ],
+      "basis": "主治“雷头风，头面疙瘩肿痛，憎寒壮热”，属风热疫毒上攻。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "驱风散热饮子加减",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B7706177CE9B"
+      ],
+      "syndromeNames": [
+        "心肺风热犯目"
+      ],
+      "basis": "天行赤热，目赤疼痛，泪涕交流，方名驱风散热，紧扣风热犯目。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "人参白虎汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-64D396EDCE1F"
+      ],
+      "syndromeNames": [
+        "气阴两虚"
+      ],
+      "basis": "主治“暑月中热，汗出恶寒，身热而渴，脉虚”，为暑热伤津耗气之象。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "如金解毒散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2FC8CB11E271"
+      ],
+      "syndromeNames": [
+        "热邪壅肺"
+      ],
+      "basis": "“发热烦渴，脉洪大”直指热邪壅盛于肺。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "如圣汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-478AB1A0C12B"
+      ],
+      "syndromeNames": [
+        "痰热壅肺"
+      ],
+      "basis": "脉数滑，浊唾腥臭，吐脓如粥，清热化痰",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "三痹汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-0C402BE25213"
+      ],
+      "syndromeNames": [
+        "气血凝滞"
+      ],
+      "basis": "主治“治血气凝滞”，与候选一致。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "三才封髓丹",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C590B2C00B3B"
+      ],
+      "syndromeNames": [
+        "肾阴虚火旺"
+      ],
+      "basis": "主治‘降心火，益肾水’‘龙雷之火不安，梦遗’，紧扣肾阴虚火旺。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "三黄石膏汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-50FB85CD4BBF"
+      ],
+      "syndromeNames": [
+        "表寒里热"
+      ],
+      "basis": "壮热无汗属表寒外束，烦躁昏愦脉滑数属里热炽盛。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "三黄汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-32E952B84760"
+      ],
+      "syndromeNames": [
+        "外寒里热"
+      ],
+      "basis": "恶寒为表寒，烦热心乱为内热，方用麻黄黄芩等表里兼顾。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "三因散聚汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-EA67C0A56D7A"
+      ],
+      "syndromeNames": [
+        "寒凝气滞"
+      ],
+      "basis": "主治‘聚气…心腹痛…攻刺’兼‘辛热散寒’，为寒凝气滞之聚证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "散聚汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-A882856779F6"
+      ],
+      "syndromeNames": [
+        "寒凝阳虚"
+      ],
+      "basis": "久气积聚，绞痛，方用桂附温阳散寒",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "散瘀和伤汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F898822FF2CD"
+      ],
+      "syndromeNames": [
+        "外伤血瘀"
+      ],
+      "basis": "主治“蹦撞损伤，瘀血积聚”，属外伤血瘀证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "上丹",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-9ACA010C2BD2"
+      ],
+      "syndromeNames": [
+        "心肾阴阳两虚"
+      ],
+      "basis": "上热下冷，男子绝阳女子绝阴，交通心肾，调和阴阳。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "上下相资汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-30B0F6D16B8B"
+      ],
+      "syndromeNames": [
+        "阴虚血燥"
+      ],
+      "basis": "血崩后口舌燥裂，阴血亏虚化燥。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "芍药汤加芒硝方",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-064C46403192"
+      ],
+      "syndromeNames": [
+        "大肠湿热"
+      ],
+      "basis": "“痢疾便脓血，里急后重”为大肠湿热、气血壅滞典型证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "麝香鹿茸丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "kidney_yang_deficiency"
+      ],
+      "syndromeNames": [
+        "肾阳虚"
+      ],
+      "basis": "主治“阳道不兴”，功用温补肾阳，填精益髓，核心为肾阳虚衰。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "身痛逐瘀汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "blood_stasis_obstructing_collaterals"
+      ],
+      "syndromeNames": [
+        "瘀血阻络"
+      ],
+      "basis": "主治“痹症有瘀血者”，直接指向瘀血阻络证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "神应养真丹",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B13F601B50A4"
+      ],
+      "syndromeNames": [
+        "风邪中经"
+      ],
+      "basis": "“四气侵袭肝脏”致半身不遂、顽麻、言謇，属外风入中经络",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "渗湿汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-4B9F89FBA037"
+      ],
+      "syndromeNames": [
+        "寒湿困脾"
+      ],
+      "basis": "主治大便飧泄、身重脚弱，方以温阳健脾燥湿，属寒湿困脾",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "升降散",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-11394BF7307F"
+      ],
+      "syndromeNames": [
+        "三焦实热"
+      ],
+      "basis": "主治“表里三焦大热”，体现三焦实热证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "生姜甘草汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F1AF751BF711"
+      ],
+      "syndromeNames": [
+        "肺燥津伤"
+      ],
+      "basis": "治肺痿咳唾涎沫，咽燥而渴，为肺燥津伤。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "生姜生附汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-1C231721539B"
+      ],
+      "syndromeNames": [
+        "阳虚寒痰"
+      ],
+      "basis": "主治卒中风涎潮昏塞，瘀冷癖气，祛风化痰温阳散寒",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "圣术煎",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-A3E468A17E1E"
+      ],
+      "syndromeNames": [
+        "脾胃阳虚气滞"
+      ],
+      "basis": "饮食伤脏气，吐泻痞闷胁痛，温中理气。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "十补丸",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-29B031201D1A"
+      ],
+      "syndromeNames": [
+        "肾虚水泛"
+      ],
+      "basis": "“足冷足肿，小便不利”为肾阳虚水泛，符合肾虚水泛证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "十全大补汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "qi_blood_deficiency"
+      ],
+      "syndromeNames": [
+        "气血两虚"
+      ],
+      "basis": "“诸虚不足”“面色萎黄”“妇女崩漏”直指气血两虚证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "十味锉散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-CF70F7F53666"
+      ],
+      "syndromeNames": [
+        "寒凝血虚"
+      ],
+      "basis": "主治明示“血弱臂痛”，配合温阳散寒，直指寒凝血虚。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "十枣汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B2238D6BD6F1"
+      ],
+      "syndromeNames": [
+        "饮停胸胁"
+      ],
+      "basis": "原文悬饮支饮停于胸胁，属实证",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "熟大黄汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2BC37C503AAF"
+      ],
+      "syndromeNames": [
+        "瘀血犯腰"
+      ],
+      "basis": "坠堕闪肭，腰痛不能屈伸。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "术附汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-4B9F89FBA037"
+      ],
+      "syndromeNames": [
+        "寒湿困脾"
+      ],
+      "basis": "主治“冒雨湿…与胃气相并”，外湿内侵，困遏脾胃，属寒湿困脾。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "水陆二仙丹",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-8A2B81FE85B4"
+      ],
+      "syndromeNames": [
+        "肾虚不固"
+      ],
+      "basis": "主治“遗精白浊”，强调“精气滑出”，病机为肾气不固。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "四苓散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-064EF6858A5E"
+      ],
+      "syndromeNames": [
+        "湿困脾胃"
+      ],
+      "basis": "湿生于内，水泻，小便不利，乃湿困脾胃。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "四磨汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-56EC45FC55F4"
+      ],
+      "syndromeNames": [
+        "忧思气郁"
+      ],
+      "basis": "“七情伤感……胸膈满闷”为情志郁结、气机不畅，乃忧思气郁证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "四顺理中丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "qi_blood_deficiency"
+      ],
+      "syndromeNames": [
+        "气血两虚"
+      ],
+      "basis": "治新产血气俱伤，少气多汗，呕吐，主证为气血两虚。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "四物五子汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C3FA5AEFA03C"
+      ],
+      "syndromeNames": [
+        "心肾两虚"
+      ],
+      "basis": "主治直言“心肾不足”，直接对应心肾两虚证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "四物消风饮",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-ADBEED135BF6"
+      ],
+      "syndromeNames": [
+        "血虚风燥"
+      ],
+      "basis": "歌诀“调荣、血滋风减”直指养血祛风，治风邪所致红色皮损，属血虚风燥。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "蒜丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-55A8743511FB"
+      ],
+      "syndromeNames": [
+        "寒滞胃肠"
+      ],
+      "basis": "主治冷证腹痛，寒邪凝滞胃肠所致。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "胎元饮",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-8097C6663D16"
+      ],
+      "syndromeNames": [
+        "冲任不固"
+      ],
+      "basis": "主治明示“冲任不足，胎元不安不固”，直接对应冲任不固",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "桃仁承气汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C67351AB0BA4"
+      ],
+      "syndromeNames": [
+        "血热瘀滞"
+      ],
+      "basis": "“至夜独热，由于瘀血未行”揭示瘀热互结、血热瘀滞。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "天门冬散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-74DA5CE46CE9"
+      ],
+      "syndromeNames": [
+        "肺热气壅"
+      ],
+      "basis": "肺壅脑热，鼻干便秘，散上焦壅热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "天王补心丹",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-D4A4DC1999B8"
+      ],
+      "syndromeNames": [
+        "心肾阴虚"
+      ],
+      "basis": "主治“心肾不足，阴亏血少”明确指向心肾阴虚。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "通幽汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-23785D75A520",
+        "TCM-SYNDROME-6148273123BF"
+      ],
+      "syndromeNames": [
+        "瘀血内结",
+        "大肠津亏"
+      ],
+      "basis": "“幽门不通，饮食不下，大便燥结”，主瘀阻津亏。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "透肌散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-6C733A6875EB"
+      ],
+      "syndromeNames": [
+        "气虚"
+      ],
+      "basis": "主治气弱痘出不尽，核心病机为气虚。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "托里黄汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "qi_blood_deficiency"
+      ],
+      "syndromeNames": [
+        "气血两虚"
+      ],
+      "basis": "主治诸疮溃后脓多内虚，明示“宜大补气血”，直接对应气血两虚证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "万病丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C67351AB0BA4"
+      ],
+      "syndromeNames": [
+        "血热瘀滞"
+      ],
+      "basis": "脐下坚结血瘕，发热往来，为瘀热内结。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "万金汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-6EED271652CB"
+      ],
+      "syndromeNames": [
+        "热盛血瘀"
+      ],
+      "basis": "痈疽等阳证疮疡，定痛去毒，属热毒壅盛血瘀。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "痿症",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-BBA3843C00EB"
+      ],
+      "syndromeNames": [
+        "肝肾不足"
+      ],
+      "basis": "两足痿弱，治以虎潜丸补肝肾强筋骨，属肝肾不足",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "温脾汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AEF5893DC408"
+      ],
+      "syndromeNames": [
+        "脾胃阳虚"
+      ],
+      "basis": "“脾胃冷，实不消”直指脾胃虚寒、冷积内停。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "乌梅丸",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2F4BE6A894A5"
+      ],
+      "syndromeNames": [
+        "中虚脏寒"
+      ],
+      "basis": "主治“脏寒蛔厥”，脏寒即中焦虚寒。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "乌头桂枝汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-A882856779F6",
+        "TCM-SYNDROME-7EF24F4C5780"
+      ],
+      "syndromeNames": [
+        "寒凝阳虚",
+        "寒凝经络"
+      ],
+      "basis": "主治腹中痛、逆冷、手足不仁、身疼痛，寒盛阳微，经络痹阻。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "乌药汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-4904EA17369F"
+      ],
+      "syndromeNames": [
+        "血瘀气逆"
+      ],
+      "basis": "主治“瘀血挟逆气内阻”，直接点明血瘀气逆证机。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "无忧散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-848FEFF3CCA7",
+        "TCM-SYNDROME-50B50D4BCFB5"
+      ],
+      "syndromeNames": [
+        "火热邪毒壅盛",
+        "阳明腑实"
+      ],
+      "basis": "“毒瓦斯内结”提示热毒壅盛，“胸腹胀满、大小便不通”符合阳明腑实。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "吴茱萸加附子汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-EE74CF51D6BA"
+      ],
+      "syndromeNames": [
+        "气虚寒凝"
+      ],
+      "basis": "主治寒疝、沉迟脉，方用人参补虚、附子温寒，证属气虚寒凝。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "五味消毒饮",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-848FEFF3CCA7"
+      ],
+      "syndromeNames": [
+        "火热邪毒壅盛"
+      ],
+      "basis": "疔疮属火证，毒势不尽而憎寒壮热，显火热毒邪壅盛。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "戊己丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B97E517E9EE8"
+      ],
+      "syndromeNames": [
+        "脾胃湿热"
+      ],
+      "basis": "治脾胃受湿，泄利不止，方用黄连清热燥湿，核心为脾胃湿热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "香棱丸",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-480E87A5BC6B"
+      ],
+      "syndromeNames": [
+        "气滞痰瘀"
+      ],
+      "basis": "“积聚，癥块，痰癖”属气滞痰瘀互结之象，故裁定为气滞痰瘀证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "香薷散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-7969447240D9"
+      ],
+      "syndromeNames": [
+        "风寒束表"
+      ],
+      "basis": "原文“外感于寒，内伤于湿”直接体现表寒里湿证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "香薷饮",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-4B9F89FBA037"
+      ],
+      "syndromeNames": [
+        "寒湿困脾"
+      ],
+      "basis": "主治“阳气为阴邪所遏，腹痛吐泻”，乘凉饮冷致寒湿困阻脾胃。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "消毒饮",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B18E3B3DC350"
+      ],
+      "syndromeNames": [
+        "风热痰凝"
+      ],
+      "basis": "主治痘疹咽喉肿痛、膈上热盛，直指风热痰凝于上",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "消风百解散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-576572D7C8F5"
+      ],
+      "syndromeNames": [
+        "风寒袭肺"
+      ],
+      "basis": "主治“伤风咳嗽，头疼发热，鼻寒声重”，为风寒袭肺。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "小半夏加茯苓汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-7764936F0E23"
+      ],
+      "syndromeNames": [
+        "水饮内停"
+      ],
+      "basis": "卒呕吐，心下痞，膈间有水，眩悸。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "小地黄丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AEF5893DC408"
+      ],
+      "syndromeNames": [
+        "脾胃阳虚"
+      ],
+      "basis": "酸心吐清水、腹痛不能食，温中降逆，为脾胃阳虚寒饮上逆。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "泻肺饮加减",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B72DBD4C14F1"
+      ],
+      "syndromeNames": [
+        "肺热炽盛"
+      ],
+      "basis": "白睛属肺，赤肿为肺热上灼白睛，方名泻肺饮佐证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "泻肝散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-D458E1730BE6"
+      ],
+      "syndromeNames": [
+        "肝火上炎"
+      ],
+      "basis": "主治目赤红肿、赤脉穿睛、生翳，属肝火上攻于目所致。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "形证并治法",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-848FEFF3CCA7"
+      ],
+      "syndromeNames": [
+        "火热邪毒壅盛"
+      ],
+      "basis": "主治“咽喉肿痛痰涎涌盛”兼“清热解毒”，指向热毒壅盛证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "芎归泻心汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-91C968230D63"
+      ],
+      "syndromeNames": [
+        "心血瘀阻"
+      ],
+      "basis": "主治“败血停积，上干于心”，烦躁昏乱，直指瘀血阻心。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "芎苏散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-7969447240D9",
+        "phlegm_damp_obstructing_lung"
+      ],
+      "syndromeNames": [
+        "风寒束表",
+        "痰湿阻肺"
+      ],
+      "basis": "外头痛发热恶寒为表寒，内咳嗽吐痰气汹为痰湿阻肺。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "雄槟丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-FDD151EC4FB5"
+      ],
+      "syndromeNames": [
+        "虫积"
+      ],
+      "basis": "主治明确指“此为虫也”，腹痛干痛有时，属虫积。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "休疟饮",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "qi_blood_deficiency"
+      ],
+      "syndromeNames": [
+        "气血两虚"
+      ],
+      "basis": "主治“汗散既多，元气不复”“衰老弱质”“补气养血”，直指气血两虚。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "许胤宗黄防风汤熏蒸法",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-BBC9BA50301D"
+      ],
+      "syndromeNames": [
+        "气虚感冒"
+      ],
+      "basis": "主治感风，用黄芪补虚、防风驱风，补虚驱风并用，属气虚外感。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "宣明黄汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F1289E16DF1E"
+      ],
+      "syndromeNames": [
+        "心肺阳虚"
+      ],
+      "basis": "心移寒于肺，饮少溲多，当补肺平心，属心肺阳气亏虚。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "宣明麦门冬饮子",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AC63C994C881"
+      ],
+      "syndromeNames": [
+        "心热阴虚"
+      ],
+      "basis": "主治明示心移热于肺，胸满心烦、精神短少，乃心热伤阴。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "宣郁通经汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B2116A181660"
+      ],
+      "syndromeNames": [
+        "肝郁血瘀"
+      ],
+      "basis": "经前腹痛、经多紫黑块，方名“宣郁”示肝郁，紫黑块示血瘀，合为肝郁血瘀。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "血痹汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-1F2BB045ACBF"
+      ],
+      "syndromeNames": [
+        "心肝气虚血瘀"
+      ],
+      "basis": "主治血痹多惊（心），筋脉挛急（肝），用人参、黄芪补气，代赭石通肝血。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "养金汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-6D5DF6D536AE"
+      ],
+      "syndromeNames": [
+        "肺肾阴虚"
+      ],
+      "basis": "水涸火炎，肺金受克，咽喉燥痛，提示肺肾阴虚、虚火上炎。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "养胃增液汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-30200B7B4BBA"
+      ],
+      "syndromeNames": [
+        "内燥"
+      ],
+      "basis": "口干皮肤干大便干舌红少津，内燥证典型",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "一贯煎",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "liver_blood_deficiency"
+      ],
+      "syndromeNames": [
+        "肝血虚"
+      ],
+      "basis": "主治“肝血衰少”，即肝血虚证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "易黄汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C94E52ED40D3"
+      ],
+      "syndromeNames": [
+        "湿热下注"
+      ],
+      "basis": "带下色黄如浓茶、气腥秽，属湿热下注。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "易老门冬饮子",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-64D396EDCE1F"
+      ],
+      "syndromeNames": [
+        "气阴两虚"
+      ],
+      "basis": "老弱虚人大渴，方益气养阴",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "益脾镇惊散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "heart_gallbladder_qi_deficiency"
+      ],
+      "syndromeNames": [
+        "心胆气虚"
+      ],
+      "basis": "主治“气弱受惊，泄泻，昼惊惕，夜卧不安”，符合心虚胆怯，神不守舍。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "薏苡仁附子散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C71322BF011D"
+      ],
+      "syndromeNames": [
+        "阳虚寒湿阻络"
+      ],
+      "basis": "治胸痹缓急，附子温阳散寒，薏苡仁除湿，符合阳虚寒湿痹阻。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "茵陈茯苓汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-CC983EFF9F01"
+      ],
+      "syndromeNames": [
+        "肝胆湿热"
+      ],
+      "basis": "主治发黄、小便涩、烦躁而渴，为湿热黄疸，证属肝胆湿热。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "茵陈理中汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-B7E530399DD5"
+      ],
+      "syndromeNames": [
+        "太阴寒湿"
+      ],
+      "basis": "阴黄身冷脉沉细，属太阴虚寒湿发黄",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "茵陈术附汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2966ADF49134"
+      ],
+      "syndromeNames": [
+        "太阴发黄"
+      ],
+      "basis": "阴黄，身冷脉沉细，小便自利，正是太阴发黄。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "玉女煎",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-E03E7FC0CFF6"
+      ],
+      "syndromeNames": [
+        "胃热阴虚"
+      ],
+      "basis": "“少阴不足，阳明有余”即胃热阴虚。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "玉泉散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AB90372F519A"
+      ],
+      "syndromeNames": [
+        "痰热"
+      ],
+      "basis": "阳明内热，烦渴头痛；热痰喘嗽。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "玉真散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-D721CD68E4A1"
+      ],
+      "syndromeNames": [
+        "外风"
+      ],
+      "basis": "主治破伤风，角弓反张等症，直指外风侵袭经络。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "远志丸",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "heart_gallbladder_qi_deficiency"
+      ],
+      "syndromeNames": [
+        "心胆气虚"
+      ],
+      "basis": "“因事大惊，惊悸恐怯”，主心胆气虚，神不守舍。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "越婢加半夏汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-125BA7C8548C"
+      ],
+      "syndromeNames": [
+        "肺气上逆"
+      ],
+      "basis": "主治'咳嗽上气，胸满气喘'直接体现肺气上逆病机。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "越婢加术汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F13F43EBEEA2",
+        "TCM-SYNDROME-9A44678BFE8B"
+      ],
+      "syndromeNames": [
+        "风水相搏",
+        "水湿内停"
+      ],
+      "basis": "主治皮水水肿伴表证，“一身悉肿，发热恶风，小便不利”。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "越桃散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-BBEC651B5E26"
+      ],
+      "syndromeNames": [
+        "寒热错杂"
+      ],
+      "basis": "主治“下焦有寒”，方用栀子清郁热，寒热并调。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "匀气散",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-EA67C0A56D7A"
+      ],
+      "syndromeNames": [
+        "寒凝气滞"
+      ],
+      "basis": "“胎受寒凉而腹痛多啼”，寒凝气滞则腹痛，属寒凝气滞证。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "泽泻汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-7764936F0E23"
+      ],
+      "syndromeNames": [
+        "水饮内停"
+      ],
+      "basis": "心下支饮、苦冒眩，水饮上泛清阳。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "知柏八味丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-C590B2C00B3B"
+      ],
+      "syndromeNames": [
+        "肾阴虚火旺"
+      ],
+      "basis": "主治明言“肾有邪火，强阳不萎”，属肾阴虚火旺",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "栀子柏皮汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-7E3406FDC9A5"
+      ],
+      "syndromeNames": [
+        "湿热动血"
+      ],
+      "basis": "身黄发热兼衄血暴出色鲜，湿热内蕴、热伤血络而动血。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "栀子大黄汤",
+      "sourceClass": "official_classic_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-E1E796C992DE"
+      ],
+      "syndromeNames": [
+        "心热"
+      ],
+      "basis": "心中懊憹，或热痛，为心热",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "栀子浓朴汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-4BAC470BBE59",
+        "TCM-SYNDROME-699A9738AD18"
+      ],
+      "syndromeNames": [
+        "余热未清",
+        "热扰心神"
+      ],
+      "basis": "“下后遗热心烦，起卧不安”直指余热扰心，心神不宁。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "栀子生姜豉汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-0E0C0C809E68"
+      ],
+      "syndromeNames": [
+        "胃热气逆"
+      ],
+      "basis": "“胸中热，呕，热在脾，窒于胃”，主胃热气逆而呕。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "枳实理中丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-A3E468A17E1E"
+      ],
+      "syndromeNames": [
+        "脾胃阳虚气滞"
+      ],
+      "basis": "吐利后胸痞急痛，用理中丸温中加枳实行气消痞。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "枳实栀子豉汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-04125177931F"
+      ],
+      "syndromeNames": [
+        "虚实夹杂"
+      ],
+      "basis": "原文直指“瘥复虚实相兼”，微汗微下并用。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "枳实栀子豆豉大黄汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-8BCBA33FB3C4"
+      ],
+      "syndromeNames": [
+        "胃肠实热"
+      ],
+      "basis": "主治食复，枳实大黄夺胃中食，栀子香豉祛胸中热，胃家食积与热结。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "治方",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-D98C827F0AC5"
+      ],
+      "syndromeNames": [
+        "肝风痰浊"
+      ],
+      "basis": "中风中气，理气化痰祛风",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "中湿论",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-D6202BBFCCD8"
+      ],
+      "syndromeNames": [
+        "脾虚寒湿"
+      ],
+      "basis": "主治“湿伤脾”，用苍术、白术、官桂、干姜等健脾温中燥湿，符合脾虚寒湿。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "朱砂酸枣仁乳香散",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-FD63E5B6A305"
+      ],
+      "syndromeNames": [
+        "心神不宁"
+      ],
+      "basis": "主治“癫疾失心”，心神失宁。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "茱萸人参汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-8F3CD2D22D9D"
+      ],
+      "syndromeNames": [
+        "胃寒气逆"
+      ],
+      "basis": "主治气呕吐涎沫、头痛，以吴茱萸温中降逆，病机为胃寒气逆。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "逐瘀止血汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-F898822FF2CD"
+      ],
+      "syndromeNames": [
+        "外伤血瘀"
+      ],
+      "basis": "“升高坠落，闪挫受伤”直接提示外伤病因，“恶血”即瘀血，故为外伤血瘀。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "资生丸",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-0F4FF7849863"
+      ],
+      "syndromeNames": [
+        "脾胃气虚"
+      ],
+      "basis": "主治健脾开胃，消食止泻，重脾胃，九补九消，为脾胃气虚不运。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "滋血汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-29D24D3C47EA"
+      ],
+      "syndromeNames": [
+        "心肺两虚"
+      ],
+      "basis": "主治直言“心肺俱损，血脉虚弱”",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "子痫",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AC0AE7741CCC"
+      ],
+      "syndromeNames": [
+        "痰蒙心窍"
+      ],
+      "basis": "主治有“痰涎壅盛”“不省人事”。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    },
+    {
+      "name": "紫草化毒汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-2C6EB88AF187"
+      ],
+      "syndromeNames": [
+        "热毒壅结"
+      ],
+      "basis": "主治“痘已出未出，热壅不快”，热毒内壅，痘出不畅。",
+      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
+    }
+  ]
+}

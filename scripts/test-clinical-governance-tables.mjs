@@ -130,6 +130,35 @@ for (const summary of [formulas.summary, formulaRetrievalIndex.summary]) {
   assert.equal(summary.highFrequencySyndromeCoveredCount, summary.highFrequencySyndromeRuntimeReachableCount);
 }
 assert.ok(formulas.summary.curatedSyndromeFormulaRelationCount >= HIGH_FREQUENCY_SYNDROME_FLOOR);
+
+// ─── 证型标签裁定表必须逐条落地，且对全部 sourceClass 生效 ───
+// 这道断言存在的原因：tcm-verified-formula-supplements.json 的 curatedSyndromeTags 只喂
+// verified_reference_catalog 一类。若把裁定结果走那条通道，经典名方与地方标准方会被**静默丢弃**
+// （首批 241 条里有 101 条属于这两类）。丢标签不会报错，只会让这些方永远锁不住——正是最难发现的那种失效。
+const syndromeTagAdjudications = readJson("tcm-formula-syndrome-tag-adjudications.source.json");
+assert.equal(syndromeTagAdjudications.schemaVersion, "tcm-formula-syndrome-tag-adjudications-v1");
+const governedFormulaByName = new Map(formulas.entries.map((entry) => [entry.name, entry]));
+const syndromeCanonicalById = new Map(
+  [...syndrome.entries, ...(syndrome.clinicalExtensions || [])].map((entry) => [entry.id, entry.canonical]),
+);
+const adjudicatedSourceClasses = new Set();
+for (const row of syndromeTagAdjudications.entries) {
+  const entry = governedFormulaByName.get(row.name);
+  assert.ok(entry, `裁定的方剂必须存在于受控目录：${row.name}`);
+  adjudicatedSourceClasses.add(entry.sourceClass);
+  for (const tagId of row.syndromeTagIds) {
+    assert.ok(syndromeCanonicalById.has(tagId), `裁定标签必须是受控证候 id：${row.name}->${tagId}`);
+    assert.ok(entry.curatedSyndromeTags.includes(tagId), `裁定标签未落地到目录：${row.name}->${tagId}`);
+    assert.ok(entry.syndromeTags.includes(tagId), `裁定标签未进入运行时 syndromeTags：${row.name}->${tagId}`);
+  }
+  // 有标签 ⇒ 可被身份锁锁定，这是裁定的全部意义所在。
+  assert.ok(entry.identityLockEligible, `裁定过的方剂必须可被身份锁锁定：${row.name}`);
+}
+assert.deepEqual(
+  [...adjudicatedSourceClasses].sort(),
+  ["official_classic_catalog", "official_local_formula_standard", "verified_reference_catalog"],
+  "裁定通道必须对三类来源都生效，缺任何一类都说明通道退化回了 verified-only",
+);
 assert.equal(
   formulaRetrievalIndex.curatedRelationSource.sha256,
   sha256(formulaRetrievalIndex.curatedRelationSource.file),
@@ -438,4 +467,4 @@ assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplate("acupuncture", "
 assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplate("acupuncture", "普通腰痛")?.indicationTag, "musculoskeletal_pain");
 assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplate("acupuncture", "普通湿疹"), undefined);
 
-console.log(JSON.stringify({ tables: 12, syndromeTerms: 2060, treatmentTerms: 1276, governedFormulas: 500, herbNames: herbs.summary.standardNameCount, failures: 0 }));
+console.log(JSON.stringify({ tables: 12, syndromeTerms: 2060, treatmentTerms: 1276, governedFormulas: formulas.entries.length, syndromeTagAdjudications: syndromeTagAdjudications.entries.length, herbNames: herbs.summary.standardNameCount, failures: 0 }));

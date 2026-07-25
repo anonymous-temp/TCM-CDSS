@@ -32,6 +32,13 @@ HIGH_FREQUENCY_SYNDROME_FORMULA_RELATIONS = DATA_ROOT / "tcm-high-frequency-synd
 # coverage commitment; the build fails if the source drops below it or if any row stops being
 # reachable through the same syndrome resolution the runtime retrieval uses.
 HIGH_FREQUENCY_RELATION_FLOOR = 77
+# Human-adjudicated formula->syndrome tags. Kept separate from the verified-formula supplement
+# because that file only feeds verified_reference_catalog entries: routing adjudications through it
+# would silently drop every classic-catalog and local-standard formula (101 of the first 241).
+SYNDROME_TAG_ADJUDICATIONS = DATA_ROOT / "tcm-formula-syndrome-tag-adjudications.source.json"
+# Same ratchet as the relation table: a tag decides whether a formula can be identity-locked and
+# prescribed, so losing rows silently would remove formulas from the doctor's reach.
+SYNDROME_TAG_ADJUDICATION_FLOOR = 241
 FORMULA_RETRIEVAL_INDEX_OUTPUT = DATA_ROOT / "tcm-formula-retrieval-index.json"
 HERB_OUTPUT = DATA_ROOT / "tcm-herb-identity-catalog.json"
 MANIFEST_OUTPUT = DATA_ROOT / "clinical-governance-table-manifest.json"
@@ -477,6 +484,66 @@ def numeric_decoction_dose_names() -> set[str]:
     return {name for name in names if name}
 
 
+def load_syndrome_tag_adjudications(governed_formula_names: set[str]) -> dict[str, list[str]]:
+    """Load human-adjudicated formula->syndrome tags, rejecting anything that cannot be proven.
+
+    Every check below is fail-closed on purpose. A wrong tag does not degrade retrieval, it makes a
+    formula lockable for the wrong syndrome — the model can then hand the doctor a named prescription
+    justified by a syndrome the source text never supported. Cheap to reject at build time,
+    expensive to find in the clinic.
+    """
+    payload = read_json(SYNDROME_TAG_ADJUDICATIONS)
+    entries = payload.get("entries", [])
+    if len(entries) < SYNDROME_TAG_ADJUDICATION_FLOOR:
+        raise SystemExit(
+            "T8 syndrome tag adjudication table must contain at least "
+            f"{SYNDROME_TAG_ADJUDICATION_FLOOR} rows; found {len(entries)}"
+        )
+
+    lexicon = read_json(DATA_ROOT / "tcm-syndrome-lexicon.json")
+    canonical_by_id = {
+        entry["id"]: compact(entry.get("canonical"))
+        for entry in [*lexicon.get("entries", []), *lexicon.get("clinicalExtensions", [])]
+        if entry.get("id")
+    }
+    canonical_by_token, alias_candidates_by_token = syndrome_resolution_maps()
+
+    tags_by_formula: dict[str, list[str]] = {}
+    for entry in entries:
+        name = compact(entry.get("name"))
+        if name in tags_by_formula:
+            raise SystemExit(f"T8 syndrome tag adjudication has duplicate formula row: {name}")
+        if name not in governed_formula_names:
+            raise SystemExit(
+                f"T8 syndrome tag adjudication references formula outside governed source universe: {name}"
+            )
+        tag_ids = [compact(value) for value in entry.get("syndromeTagIds") or []]
+        tag_names = [compact(value) for value in entry.get("syndromeNames") or []]
+        if not tag_ids:
+            raise SystemExit(f"T8 syndrome tag adjudication row has no syndrome tag: {name}")
+        if len(tag_ids) != len(tag_names):
+            raise SystemExit(
+                f"T8 syndrome tag adjudication row must carry one syndrome name per id: {name}"
+            )
+        for tag_id, tag_name in zip(tag_ids, tag_names):
+            if tag_id not in canonical_by_id:
+                raise SystemExit(f"T8 syndrome tag adjudication has unknown governed syndrome id: {name}->{tag_id}")
+            # The human-readable name must resolve back to the same id through the runtime resolver.
+            # This is what catches a transposed or copy-pasted row, where the id is individually
+            # valid but belongs to a different syndrome than the adjudicator actually decided.
+            resolved = resolve_syndrome_id(tag_name, canonical_by_token, alias_candidates_by_token)
+            if resolved != tag_id:
+                raise SystemExit(
+                    "T8 syndrome tag adjudication name/id disagree: "
+                    f"{name}->{tag_name} resolves to {resolved or 'nothing'}, row claims {tag_id} "
+                    f"({canonical_by_id[tag_id]})"
+                )
+        if not compact(entry.get("basis")):
+            raise SystemExit(f"T8 syndrome tag adjudication row lacks an adjudication basis: {name}")
+        tags_by_formula[name] = list(dict.fromkeys(tag_ids))
+    return tags_by_formula
+
+
 def build_formula_catalog(
     resolution_index: dict[str, dict[str, Any]],
     numeric_dose_names: set[str],
@@ -513,6 +580,8 @@ def build_formula_catalog(
         ]
         if compact(name)
     }
+    adjudicated_tags_by_formula = load_syndrome_tag_adjudications(governed_formula_names)
+
     resolved_high_frequency_syndrome_ids: set[str] = set()
     resolved_high_frequency_relations: list[dict[str, Any]] = []
     for relation in high_frequency_relations:
@@ -697,6 +766,7 @@ def build_formula_catalog(
         curated_syndrome_relations = curated_relations_by_formula.get(name, [])
         curated_syndrome_tags = list(dict.fromkeys([
             *(item.get("curatedSyndromeTags") or []),
+            *adjudicated_tags_by_formula.get(name, []),
             *(relation["syndromeId"] for relation in curated_syndrome_relations),
         ]))
         symptom_tags = sorted({
