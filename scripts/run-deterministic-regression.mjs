@@ -17,6 +17,8 @@ const scripts = [
   "test:syndrome-hypothesis",
   "test:lineage-governance",
   "test:tcm-treatments",
+  "test:acupoint-evidence",
+  "test:modern-case-corpus",
   "test:customer-evidence",
   "test:stage-contract",
   "test:repair-guidance",

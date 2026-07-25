@@ -1,0 +1,626 @@
+{
+  "schemaVersion": "tcm-formula-ingredient-identity-adjudications-v1",
+  "note": "按方裁定的药味身份（古方只写「芍药/贝母/紫苏/菖蒲」等歧义名时，本方原书或标准注疏是否已指明品种）。构建期只对**该首方**生效，不改全局药名归一——同一个「芍药」在不同方里可以是不同的药。裁定未覆盖的保持原状：不可编译剂量是正确的保守行为，不是待修缺陷。",
+  "sourceRefs": [
+    "SRC-PROJECT-CLINICAL-ADJUDICATION-20260725"
+  ],
+  "batches": [
+    {
+      "id": "ADJ-20260725-INGREDIENT-IDENTITY-B1",
+      "date": "2026-07-25",
+      "method": "deepseek-v4-pro 文献考据（原书/注疏直书 + 全语料交叉 + 联网权威来源 + 桂枝汤系基方继承）+ 人工勾选；未指明一律留空",
+      "reviewed": 109,
+      "adopted": 76
+    }
+  ],
+  "entries": [
+    {
+      "formulaName": "八物汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "原方用白芍药。",
+      "basis": "《三因极一病证方论》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "白垩丹",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "白垩丹：白垩(煅)、白芍药、鹿茸、禹余粮...",
+      "basis": "《三因极一病证方论》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "败毒托里散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "赤芍药",
+      "basis": "《医方集宜》卷七",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "保阴煎",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "芍药宜用白芍，取其酸敛止血。",
+      "basis": "《成方切用》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "贝母栝蒌散",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "川贝母",
+      "evidence": "贝母清热润肺，化痰止咳，润肺而不燥，宜用于燥痰，故本方当用川贝母。",
+      "basis": "《方剂学》（邓中甲主编，中国中医药出版社）",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "柴葛解肌汤",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "川贝母",
+      "evidence": "《重订广温热论》：\"柴葛解肌汤（柴胡、葛根、赤芍、甘草、黄芩、知母、川贝、生地、丹皮、石膏、淡竹叶）\"",
+      "basis": "贝母",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "柴胡桂枝汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "合方基方桂枝汤白芍；历代主白芍（《局方》《医宗金鉴》）为主流；注：《太平圣惠方》小柴胡桂枝汤作赤芍药，存异说备查",
+      "basis": "web-conflicted",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "达生散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "白芍（酒炒）",
+      "basis": "《医方集解》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "达原饮",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "芍药……此用白芍，和血而止腹痛也",
+      "basis": "《成方切用·卷六》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "大黄虫丸",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "大黄䗪虫丸组成：大黄、黄芩、甘草、桃仁、杏仁、白芍、干地黄、干漆、虻虫、水蛭、蛴螬、蟅虫。",
+      "basis": "《方剂学》（全国高等中医药院校规划教材第九版）",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "大乌头桂枝汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤系，基方白芍",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "当归建中汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《女科证治准绳》组成\"白芍药（炒）\"；《女科要旨》\"甘草、白芍养脾阴之血\"",
+      "basis": "corpus-strong",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "当归散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "《太平圣惠方》两见当归散均作\"赤芍药\"",
+      "basis": "corpus-strong",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "当归四逆汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《幼幼集成》：\"当归身、嫩桂枝、杭白芍、川木通、炙甘草、北细辛、大红枣\"",
+      "basis": "corpus-strong",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "地黄饮子",
+      "rawIngredient": "菖蒲",
+      "resolvedIngredient": "石菖蒲",
+      "evidence": "熟地黄、巴戟天、山茱萸、肉苁蓉、附子、官桂、石斛、茯苓、石菖蒲、远志、麦冬、五味子",
+      "basis": "《医方集解·祛风门》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "独活汤",
+      "rawIngredient": "菖蒲",
+      "resolvedIngredient": "石菖蒲",
+      "evidence": "独活、羌活、防风、白芷、细辛、川芎、当归、白芍、熟地、人参、茯苓、甘草、桂心、半夏、石菖蒲",
+      "basis": "《医方集解·祛风之剂》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "肺热汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "方中用“白芍（炒）”。",
+      "basis": "《医方考》肺热汤",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "附托里消毒散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《医方集解》载托里消毒散用“白芍”。",
+      "basis": "《医方集解》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "甘遂半夏汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "其立方之妙，全在用白芍",
+      "basis": "《绛雪园古方选注》王子接注",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "葛根加半夏汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤加味（葛根汤为桂枝汤加葛根麻黄，系白芍）",
+      "basis": "inheritance",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "瓜蒌桂枝汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "同栝蒌桂枝汤",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "栝蒌桂枝汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《金匮》桂枝汤加栝蒌根；桂枝汤系白芍（NMPA 经典名方信息表口径）",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "桂附汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤系，基方白芍",
+      "basis": "inheritance",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "桂枝二越脾一汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤合越婢汤，基方白芍",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "桂枝黄芩汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤系，基方白芍",
+      "basis": "inheritance",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "桂枝加大黄汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤加味，基方白芍",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "桂枝加附子汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤加味，基方白芍",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "桂枝加厚朴杏子汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《名师垂教》《范中林六经辨证医案》均作\"白芍6克\"",
+      "basis": "corpus-strong",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "桂枝加黄汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤系，基方白芍",
+      "basis": "inheritance",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "桂枝加黄五两汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂心 白芍药各三两",
+      "basis": "《三因极一病证方论》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "桂枝加芍药加大黄二汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤加味，基方白芍",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "桂枝加芍药生姜人参新加汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤加味，基方白芍",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "桂枝加芍药汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤加味，基方白芍",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "桂枝麻黄各半汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤系合方，基方桂枝汤为白芍（药典共识）",
+      "basis": "inheritance",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "桂枝去桂加茯苓白术汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "王子接直书“白芍药三两”。",
+      "basis": "《绛雪园古方选注》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "桂枝汤去桂加茯苓白术汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "桂枝汤变方，基方白芍",
+      "basis": "inheritance",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "黄鳖甲散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "赤芍药一钱。",
+      "basis": "费伯雄《医方论》卷三",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "黄连阿胶鸡子黄汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "用芍药以收阴气，白芍之酸，亦以泻肝。",
+      "basis": "柯琴《伤寒来苏集·伤寒附翼》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "黄芪桂枝五物汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《李翰卿》医案：\"生白芍7.5克\"",
+      "basis": "corpus-strong",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "黄芩汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《本草经解》：\"黄芩同白芍、甘草。名黄芩汤。治湿热肠痛。\"",
+      "basis": "corpus-strong",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "黄汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "《普济本事方》卷五：“黄汤……赤芍药……”。",
+      "basis": "《普济本事方》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "火郁汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "羌活、升麻、葛根、白芍药、人参各五分，柴胡、甘草各三分，防风二分，葱白三寸",
+      "basis": "《医方考》卷三",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "刘草窗痛泻要方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "白芍药（炒，二两）。",
+      "basis": "《医方考》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "六物煎",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "芍药赤者妙。",
+      "basis": "《成方切用》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "漏芦汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "漏芦、白芷、黄芩、赤芍药、生甘草、升麻、麻黄、枳壳、朴硝、大黄各等分",
+      "basis": "《三因极一病证方论》卷十五",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "麻黄桂枝各半汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "同桂枝麻黄各半汤",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "牛膝木瓜汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "牛膝、木瓜、羌活各一两，白芍药、杜仲、枸杞子各三分，黄松节三分，菟丝子、天麻各半两，甘草半两",
+      "basis": "《三因极一病证方论》卷六",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "排脓散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "王子接注：“芍药用赤，行血分之滞，破脓而不伤阴。”",
+      "basis": "《绛雪园古方选注》下卷·排脓散",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "前胡汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "前胡、赤芍药各三两。",
+      "basis": "《三因极一病证方论》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "秦艽升麻汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "方中明确记载“白芍药（五分）”。",
+      "basis": "《古今名医方论》秦艽升麻汤",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "人参补气汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "原书组成用“白芍药（炒）”。",
+      "basis": "《成方切用》卷八",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "三因七气汤",
+      "rawIngredient": "紫苏",
+      "resolvedIngredient": "紫苏叶",
+      "evidence": "四七汤……半夏（姜制）五钱，厚朴（姜制）三钱，茯苓四钱，紫苏叶二钱。",
+      "basis": "《医方集解》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "散肿溃坚汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "原方出自李东垣《兰室秘藏》，组成写明“白芍药二钱”。",
+      "basis": "《兰室秘藏》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "芍药蒺藜煎",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《成方切用》芍药蒺藜煎方：“白芍二钱，蒺藜三钱…”。",
+      "basis": "吴仪洛《成方切用》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "升阳除湿防风汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "白芍药一钱。",
+      "basis": "《医方集解》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "升阳举经汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "白芍（酒炒）一钱半。",
+      "basis": "《医方集解》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "生料五积散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "肉桂、白芍药各半两",
+      "basis": "《太平惠民和剂局方》卷二",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "十神汤",
+      "rawIngredient": "紫苏",
+      "resolvedIngredient": "紫苏叶",
+      "evidence": "组成：川芎、甘草、麻黄、升麻各四两，葛根十四两，赤芍药、白芷、陈皮、紫苏叶、香附子各四两。",
+      "basis": "《方剂学》（邓中甲主编）",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "石子汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "原方组成用“白芍药”。",
+      "basis": "《三因极一病证方论》卷十七石子汤",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "水煮木香丸",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "木香、诃子、当归、青皮、赤芍药、罂粟壳、甘草各半两",
+      "basis": "《三因极一病证方论》卷十二",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "四物汤加黄芩黄柏槐花方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "当归、川芎、白芍药、熟地黄（各一钱）……",
+      "basis": "《医方考》卷三",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "四物汤加芩连姜夏方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "当归、川芎、白芍药、熟地黄（各一钱）……",
+      "basis": "《医方考》卷三",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "四阴煎",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "白芍药（二钱）。",
+      "basis": "《成方切用》卷二下",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "透邪煎",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "白芍一钱",
+      "basis": "《成方切用》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "胃风汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《太平惠民和剂局方》卷六：\"白芍药\"（多来源一致）",
+      "basis": "web",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "温经汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "当归、川芎、白芍药、桂心、蓬莪术、川牛膝、牡丹皮各一两，甘草半两",
+      "basis": "《妇人大全良方》卷一",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "五积散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《太平惠民和剂局方》方解\"白芍敛营和血\"；多来源一致",
+      "basis": "web",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "香苏饮",
+      "rawIngredient": "紫苏",
+      "resolvedIngredient": "紫苏叶",
+      "evidence": "原方明确用“紫苏叶各四两”。",
+      "basis": "《太平惠民和剂局方》卷二",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "消瘰丸",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "川贝母",
+      "evidence": "《笔花医镜》：\"蒸川贝母（各四两），蜜为丸。\"",
+      "basis": "贝母",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "小青龙加石膏汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《伤寒》小青龙汤用芍药，系桂枝汤同源白芍",
+      "basis": "inheritance",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "真人活命饮",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "浙贝母",
+      "evidence": "贝母苦甘微寒，清热化痰散结，与天花粉同用，可增强清热散结之功，本方宜用浙贝母。",
+      "basis": "《方剂学》（邓中甲主编，中国中医药出版社）",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "真武汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "真武汤方用白芍（原注：白芍）。",
+      "basis": "《医方集解》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "枳实芍药散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "《本草易读》：\"枳实芍药散：枳实、白芍，为末。\"",
+      "basis": "corpus-strong",
+      "confidence": "medium"
+    },
+    {
+      "formulaName": "皱血丸",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "皱血丸：白芍药、当归、川芎、熟地、蒲黄...",
+      "basis": "《三因极一病证方论》",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "转舌膏",
+      "rawIngredient": "菖蒲",
+      "resolvedIngredient": "石菖蒲",
+      "evidence": "转舌膏，治中风舌强不语。即凉膈散加石菖蒲、远志各等分。",
+      "basis": "《成方切用》卷六下原文",
+      "confidence": "high"
+    },
+    {
+      "formulaName": "紫苏饮",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "“白芍药（酒炒）”明确使用。",
+      "basis": "《医方集解》紫苏饮",
+      "confidence": "high"
+    }
+  ]
+}

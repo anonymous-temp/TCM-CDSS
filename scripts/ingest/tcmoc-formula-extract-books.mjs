@@ -8,7 +8,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
 const BOOKS_DIR = resolve(ROOT, "中医补充数据/tcmoc-master/books");
 // 产出按批次分目录，否则温病批会覆盖方书批已有的复核队列与抽取结果。
-const OUTDIR = resolve(ROOT, `artifacts/tcmoc-formula-extract-${process.env.BOOK_BATCH === "温病批" ? "wenbing" : "books"}`);
+const OUTDIR_SLUG = { 方书批: "books", 温病批: "wenbing", 方书二批: "books2" };
+const OUTDIR = resolve(ROOT, `artifacts/tcmoc-formula-extract-${OUTDIR_SLUG[process.env.BOOK_BATCH || "方书批"] || "books"}`);
 mkdirSync(OUTDIR, { recursive: true });
 // 密钥只从环境变量读，不写入任何文件。项目 .env.local 里配的是 OPENAI_API_KEY（base_url 指向 deepseek），
 // 因此两个都接受，用 `node --env-file-if-exists=.env.local` 注入即可，无需在命令行里明文粘贴。
@@ -35,6 +36,19 @@ const BOOK_BATCHES = {
     "541-温病正宗.txt", "546-广瘟疫论.txt", "524-温热暑疫全书.txt", "433-六因条辨.txt",
     "509-湿热病篇.txt", "551-随息居重订霍乱论.txt", "652-三时伏气外感篇.txt",
     "139-痧疹辑要.txt", "591-痧胀玉衡.txt", "179-专治麻痧初编.txt", "544-温热论.txt",
+  ],
+  // 方书二批：切片器 FORMULA_BOOK_PREFIXES 39 部中剩余的散文体方书（28 部剩余 = 15 散文 +
+  // 10 歌诀 + 499 金匮要略方论 + 651 引经药歌 + 689 百家针灸歌赋）。
+  //   歌诀 10 部走 verse-book-indication-extract.mjs（确定性，组成助记型不该按方证条目抽）；
+  //   499 金匮要略方论的篇名是「病脉证治」章节而非方名，按条目抽必然重蹈温病批篇名污染，
+  //       其方证已由 T8 经方基线 + T15 条文证据 + 金匮方歌括主治三重覆盖，不抽；
+  //   651 引经药歌是药性歌诀、689 是针灸歌赋，均非方剂语料，不进本管线。
+  // 499/651/689 的处置依据记录在 docs/中医补充数据-盘点与接入方案-20260725.md。
+  方书二批: [
+    "062-洪氏集验方.txt", "068-瑞竹堂经验方.txt", "097-验方新编.txt", "104-集验方.txt",
+    "105-大小诸证方论.txt", "110-惠直堂经验方.txt", "113-古方汇精.txt", "115-文堂集验方.txt",
+    "122-医方简义.txt", "152-小儿痘疹方论.txt", "184-麻疹备要方论.txt", "190-毓麟验方.txt",
+    "220-外科集验方.txt", "284-仙传外科集验方.txt", "619-验方家秘.txt",
   ],
 };
 const BATCH = process.env.BOOK_BATCH || "方书批";

@@ -131,6 +131,39 @@ for (const summary of [formulas.summary, formulaRetrievalIndex.summary]) {
 }
 assert.ok(formulas.summary.curatedSyndromeFormulaRelationCount >= HIGH_FREQUENCY_SYNDROME_FLOOR);
 
+// ─── 按方裁定的药味身份必须逐条落地，且只影响被裁定的那一首方 ───
+// 赤芍与白芍功效方向相反（清热凉血 vs 养血敛阴）。古方只写「芍药」时品种由该方原书决定，
+// 不能全局归一——同一个「芍药」在桂枝汤系里是白芍、在排脓散里是赤芍（王子接注「芍药用赤」）。
+// 因此这张表是 (方名, 原文药名) → 品种；这里断言它确实按方生效，而不是被当成全局别名。
+const ingredientAdjudications = readJson("tcm-formula-ingredient-identity-adjudications.source.json");
+assert.equal(ingredientAdjudications.schemaVersion, "tcm-formula-ingredient-identity-adjudications-v1");
+const catalogByName = new Map(formulas.entries.map((entry) => [entry.name, entry]));
+const adjudicatedPairs = new Set();
+for (const row of ingredientAdjudications.entries) {
+  const entry = catalogByName.get(row.formulaName);
+  assert.ok(entry, `被裁定的方必须在受控目录里：${row.formulaName}`);
+  const link = (entry.ingredientLinks || []).find((item) => item.rawName === row.rawIngredient);
+  assert.ok(link, `裁定的原文药名必须真的出现在该方组成里：${row.formulaName}->${row.rawIngredient}`);
+  assert.equal(link.adjudicatedIngredient, row.resolvedIngredient,
+    `裁定未落地：${row.formulaName}->${row.rawIngredient} 应解析为 ${row.resolvedIngredient}`);
+  assert.ok(link.autoResolvable, `裁定后的药味必须能被 T9 自动解析，否则解不出剂量边界：${row.formulaName}->${row.rawIngredient}`);
+  adjudicatedPairs.add(`${row.formulaName}\u0000${row.rawIngredient}`);
+}
+// 反向：没有被裁定的方，其同名药味不得被裁定结果污染。
+for (const entry of formulas.entries) {
+  for (const link of entry.ingredientLinks || []) {
+    if (!link.adjudicatedIngredient) continue;
+    assert.ok(adjudicatedPairs.has(`${entry.name}\u0000${link.rawName}`),
+      `未被裁定的方出现了裁定结果，说明按方裁定退化成了全局归一：${entry.name}->${link.rawName}`);
+  }
+}
+// 同一味原文药名在不同方里可以判成不同品种——这正是「按方」的意义所在。
+const shaoyaoTargets = new Set(ingredientAdjudications.entries
+  .filter((row) => row.rawIngredient === "芍药")
+  .map((row) => row.resolvedIngredient));
+assert.ok(shaoyaoTargets.has("白芍") && shaoyaoTargets.has("赤芍"),
+  "芍药裁定必须同时存在白芍与赤芍两种结论，否则说明退化成了一刀切默认");
+
 // ─── 自动抽取的补充方剂必须是「方」，不能是篇名 ───
 // tcmoc 抽取器按 <篇名> 切条目，而方书里大量篇名是论述/证治/条辨而非方剂
 // （「中暑论」「伏暑条辨第十三」「痿症」「喘促」，甚至「侦探」）。这类条目一旦入库就以方剂身份

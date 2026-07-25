@@ -1,0 +1,6092 @@
+{
+  "schemaVersion": "tcm-acupoint-evidence-v1",
+  "evidenceTier": "official_standard_linked",
+  "governance": {
+    "source": "《经络腧穴学》（全国中医药行业高等教育“十三五”规划教材,中国中医药出版社）",
+    "extractedBy": "scripts/ingest/acupoint-evidence-extract.mjs（确定性解析,零模型调用）",
+    "executable": false,
+    "note": "穴位定位/操作仅作医师参考证据,不构成可执行指令;针刺操作须由具备资质的执业人员按机构规程实施。"
+  },
+  "meridianCoverage": [
+    "手太阴肺经",
+    "手阳明大肠经",
+    "足阳明胃经",
+    "足太阴脾经",
+    "手少阴心经",
+    "手太阳小肠经",
+    "足太阳膀胱经",
+    "足少阴肾经",
+    "手厥阴心包经",
+    "手少阳三焦经",
+    "足少阳胆经",
+    "足厥阴肝经",
+    "督脉",
+    "任脉",
+    "经外奇穴"
+  ],
+  "entries": [
+    {
+      "code": "LU1",
+      "name": "中府",
+      "pinyin": "Zhōngfǔ",
+      "meridian": "手太阴肺经",
+      "specialClass": "肺募穴，手太阴经、足太阴经交会穴",
+      "location": "横平第1肋间隙，锁骨下窝外侧，前正中线旁开6寸（图3-2-2）。 取法：先确定云门，中府即在云门下1寸。",
+      "indications": [
+        "咳嗽，气喘，胸痛，胸满，胸中热",
+        "肩背痛"
+      ],
+      "operation": "向外斜刺或平刺0.5～0.8寸，不可向内深刺，以免伤及脏器。",
+      "classicalExcerpts": [
+        "《甲乙经》：“手足太阴之会。” 《千金要方》：“中府、阳交，主喉痹，胸满塞，寒热。” 《素问·刺禁论》：“刺膺中陷中肺，为喘逆仰息。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU2",
+      "name": "云门",
+      "pinyin": "Yúnmén",
+      "meridian": "手太阴肺经",
+      "location": "锁骨下窝凹陷中，肩胛骨喙突内缘，前正中线旁开6寸（图3-2-2）。",
+      "indications": [
+        "咳嗽，气喘，心痛，胸满",
+        "肩背痛"
+      ],
+      "operation": "向外斜刺0.5～0.8寸，不可向内侧深刺，以免伤及肺脏。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU3",
+      "name": "天府",
+      "pinyin": "Tiānfǔ",
+      "meridian": "手太阴肺经",
+      "location": "腋前纹头下3寸，肱二头肌桡侧缘处（图3-2-2）。",
+      "indications": [
+        "鼻衄，咳嗽，气喘",
+        "瘿气",
+        "臂痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU4",
+      "name": "侠白",
+      "pinyin": "Xiábái",
+      "meridian": "手太阴肺经",
+      "location": "腋前纹头下4寸，肱二头肌桡侧缘处（图3-2-2）。",
+      "indications": [
+        "心痛，咳嗽，气喘，烦满",
+        "干呕",
+        "臂痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU5",
+      "name": "尺泽",
+      "pinyin": "Chǐzé",
+      "meridian": "手太阴肺经",
+      "specialClass": "合穴",
+      "location": "肘横纹上，肱二头肌腱桡侧缘凹陷中（图3-2-2、图3-2-3）。",
+      "indications": [
+        "咳嗽，气喘，咯血，咽喉肿痛，胸满",
+        "干呕，泄泻",
+        "小儿惊风",
+        "肘臂痛"
+      ],
+      "operation": "直刺0.8～1.2寸，或点刺出血。",
+      "classicalExcerpts": [
+        "《肘后歌》：“鹤膝肿劳难移步，尺泽能舒筋骨疼。” 《玉龙歌》：“筋急不开手难伸，尺泽从来要认真。” 《灵光赋》：“吐血定喘补尺泽。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU6",
+      "name": "孔最",
+      "pinyin": "Kǒngzuì",
+      "meridian": "手太阴肺经",
+      "specialClass": "郄穴",
+      "location": "腕掌侧远端横纹上7寸，尺泽与太渊连线上（图3-2-3）。",
+      "indications": [
+        "咳嗽，气喘，咯血，咽喉肿痛",
+        "热病无汗",
+        "肘臂疼痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“（臂）厥头痛。” 《千金要方》：“孔最，主臂厥热痛汗不出，皆灸刺之，此穴可以出汗。” 图3-2-3"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU7",
+      "name": "列缺",
+      "pinyin": "Lièquē",
+      "meridian": "手太阴肺经",
+      "specialClass": "络穴，八脉交会穴（通任脉）",
+      "location": "腕掌侧远端横纹上1.5寸，拇短伸肌腱与拇长展肌腱之间，拇长展肌腱沟的凹陷中（图3-2-3）。",
+      "indications": [
+        "咳嗽，气喘",
+        "齿痛，咽喉肿痛，口眼㖞斜",
+        "头痛，颈项强痛",
+        "半身不遂，手腕疼痛无力"
+      ],
+      "operation": "向上斜刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“主汗出，四肢暴肿。” 《千金要方》：“男子阴中疼痛，溺血精出，灸列缺五十壮。” 《四总穴歌》：“头项寻列缺。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU8",
+      "name": "经渠",
+      "pinyin": "Jīngqú",
+      "meridian": "手太阴肺经",
+      "specialClass": "经穴",
+      "location": "腕掌侧远端横纹上1寸，桡骨茎突与桡动脉之间（图3-2-3）。",
+      "indications": [
+        "咳嗽，气喘，胸痛，咽喉肿痛",
+        "手腕疼痛无力"
+      ],
+      "operation": "避开桡动脉，直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU9",
+      "name": "太渊",
+      "pinyin": "Tàiyuān",
+      "meridian": "手太阴肺经",
+      "specialClass": "输穴，原穴，八会穴（脉会）",
+      "location": "桡骨茎突与舟状骨之间，拇长展肌腱尺侧凹陷中（图3-2-3）。 取法：在腕掌侧远端横纹桡侧，桡动脉搏动处。",
+      "indications": [
+        "咳嗽，气喘，咯血，咽喉肿痛",
+        "无脉症",
+        "手腕疼痛无力"
+      ],
+      "operation": "避开桡动脉，直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“唾血振寒嗌干，太渊主之。” 《玉龙赋》：“咳嗽风痰，太渊、列缺宜刺。” 《医宗金鉴》：“主治牙齿疼痛，手腕无力疼痛及咳嗽风痰，偏正头疼等症。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU10",
+      "name": "鱼际",
+      "pinyin": "Yújì",
+      "meridian": "手太阴肺经",
+      "specialClass": "荥穴",
+      "location": "第1掌骨桡侧中点赤白肉际处（图3-2-3）。",
+      "indications": [
+        "咳嗽，咯血，咽干，咽喉肿痛",
+        "身热，掌中热，头痛",
+        "小儿疳积"
+      ],
+      "operation": "直刺0.5～0.8寸，治疗小儿疳积可用割治法。",
+      "classicalExcerpts": [
+        "《甲乙经》：“唾血，时寒时热，泻鱼际，补尺泽。” 《医宗金鉴》：“主治牙齿痛，疟疾初起先觉发寒，伤寒汗不出等证。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LU11",
+      "name": "少商",
+      "pinyin": "Shàoshāng",
+      "meridian": "手太阴肺经",
+      "specialClass": "井穴",
+      "location": "拇指末节桡侧，指甲根角侧上方0.1寸（指寸）（图3-2-4）。",
+      "indications": [
+        "咽喉肿痛，鼻衄，咳嗽，气喘",
+        "小儿惊狂",
+        "手指挛痛"
+      ],
+      "operation": "浅刺0.1寸，或点刺出血。",
+      "classicalExcerpts": [
+        "《千金要方》：“少商、大陵主咳逆喘。” 《针灸大成》：“咽喉肿痛，少商、天突、合谷。” 《类经图翼》：“泄诸脏之热”；“项肿”；“雀目不明”；“中风”。"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI1",
+      "name": "商阳",
+      "pinyin": "Shāngyáng",
+      "meridian": "手阳明大肠经",
+      "specialClass": "井穴",
+      "location": "食指末节桡侧，指甲根角侧上方0.1寸（指寸）（图4-2-2）。",
+      "indications": [
+        "咽喉肿痛，齿痛，颊肿，耳鸣，耳聋，青盲",
+        "热病无汗，神昏",
+        "手指麻木、肿痛"
+      ],
+      "operation": "浅刺0.1寸，或点刺出血。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“喘咳支肿。” 《杂病穴法歌》：“两井两商二三间，手上诸风得其所。” 《医宗金鉴》：“商阳主刺卒中风，暴仆昏沉痰塞壅。” 《素问·缪刺论》：“邪客于手阳明之络，令人耳聋，时不闻音，刺手大指次指爪甲上，去端如韭叶各一痏，立闻……左刺右，右刺左。” 图4-2-1 手阳明大肠经穴 Points of Large Intestine Meridian of Hand-Yangming 图4-2-2"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI2",
+      "name": "二间",
+      "pinyin": "Erjiān",
+      "meridian": "手阳明大肠经",
+      "specialClass": "荥穴",
+      "location": "第2掌指关节桡侧远端赤白肉际处（图4-2-2）。",
+      "indications": [
+        "咽喉肿痛，齿痛，视物不明，鼻衄，口眼㖞斜",
+        "热病"
+      ],
+      "operation": "直刺0.2～0.3寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI3",
+      "name": "三间",
+      "pinyin": "Sānjiān",
+      "meridian": "手阳明大肠经",
+      "specialClass": "输穴",
+      "location": "第2掌指关节桡侧近端凹陷中（图4-2-2）。",
+      "indications": [
+        "目痛，齿痛，咽喉肿痛",
+        "胸满，身热而喘",
+        "肠鸣",
+        "手背、手指肿痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“多卧善唾，胸满肠鸣，三间主之。” 《医宗金鉴》：“三里、三间、二间三穴主治牙齿疼痛，食物艰难，及偏风眼目诸疾。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI4",
+      "name": "合谷",
+      "pinyin": "Hégǔ",
+      "meridian": "手阳明大肠经",
+      "specialClass": "原穴",
+      "location": "第2掌骨桡侧的中点处（图4-2-2）。",
+      "indications": [
+        "头痛，齿痛，目赤肿痛，咽喉肿痛，鼻衄，耳聋，口眼㖞斜，口噤",
+        "恶寒发热，无汗，多汗",
+        "滞产，经闭，痛经",
+        "中风失语，上肢不遂"
+      ],
+      "operation": "直刺0.5～1寸。孕妇慎用。",
+      "classicalExcerpts": [
+        "《千金翼方》：“产后脉绝不还，针合谷入三分，急补之。” 《太平圣惠方》：“目不明，生白翳，皮肤痂疥，遍身风疹。” 《铜人腧穴针灸图经》：“妇人妊娠不可刺之，损胎气。” 《标幽赋》：“寒热痹痛，开四关而已之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI5",
+      "name": "阳溪",
+      "pinyin": "Yángxī",
+      "meridian": "手阳明大肠经",
+      "specialClass": "经穴",
+      "location": "腕背侧远端横纹桡侧，桡骨茎突远端，解剖学“鼻咽窝”凹陷中（图4-2-2、图4-2-3）。 取法：手拇指充分外展和后伸时，手背外侧部拇指长伸肌腱与拇指短伸肌腱之间形成一明显的凹陷——解剖学“鼻咽窝”，其最凹陷处即本穴。",
+      "indications": [
+        "目赤肿痛，齿痛，咽喉肿痛，头痛",
+        "手腕肿痛、无力"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《千金要方》：“主臂腕外侧痛不举。” 《百症赋》：“肩髃、阳溪，消瘾风之热极。” 《医宗金鉴》：“主治热病烦心，瘾疹痂疥，厥逆头痛，牙疼，咽喉肿痛及狂妄，惊恐见鬼等证。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI6",
+      "name": "偏历",
+      "pinyin": "Piānlì",
+      "meridian": "手阳明大肠经",
+      "specialClass": "络穴",
+      "location": "腕背侧远端横纹上3寸，阳溪与曲池连线上（图4-2-3）。",
+      "indications": [
+        "齿痛，鼻衄，咽喉肿痛，目鸣，耳聋",
+        "水肿，小便不利",
+        "手臂酸痛无力"
+      ],
+      "operation": "直刺或斜刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“风疟汗不出，偏历主之。”“口僻，偏历主之。” 《针灸大成》：“刺偏历利小便。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI7",
+      "name": "温溜",
+      "pinyin": "Wēnliū",
+      "meridian": "手阳明大肠经",
+      "specialClass": "郄穴",
+      "location": "腕背侧远端横纹上5寸，阳溪与曲池连线上（图4-2-3）。",
+      "indications": [
+        "头痛，面肿，咽喉肿痛",
+        "腹痛，肠鸣",
+        "热病",
+        "肩背酸痛，疔疮"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI8",
+      "name": "下廉",
+      "pinyin": "Xiàlián",
+      "meridian": "手阳明大肠经",
+      "location": "肘横纹下4寸，阳溪与曲池连线上（图4-2-3）。",
+      "indications": [
+        "眩晕，目痛",
+        "肘臂肿痛、挛急"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI9",
+      "name": "上廉",
+      "pinyin": "Shànglián",
+      "meridian": "手阳明大肠经",
+      "location": "肘横纹下3寸，阳溪与曲池连线上（图4-2-3）。",
+      "indications": [
+        "头痛",
+        "腹痛，肠鸣",
+        "肩臂酸痛、麻木"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI10",
+      "name": "手三里",
+      "pinyin": "Shǒusānlǐ",
+      "meridian": "手阳明大肠经",
+      "location": "肘横纹下2寸，阳溪与曲池连线上（图4-2-3）。",
+      "indications": [
+        "齿痛，颊肿",
+        "肘臂疼痛、不遂，肩背痛，腰痛"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“肠腹时寒，腰痛不得卧，手三里主之。” 《铜人腧穴针灸图经》：“治手臂不仁，肘挛不伸。” 《通玄指要赋》：“肩背患，责肘前之三里。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI11",
+      "name": "曲池",
+      "pinyin": "Qūchí",
+      "meridian": "手阳明大肠经",
+      "specialClass": "合穴",
+      "location": "尺泽与肱骨外上髁连线的中点处（图4-2-3、图4-2-4）。",
+      "indications": [
+        "咽喉肿痛，齿痛，目疾",
+        "瘾疹，湿疹，瘰疬",
+        "热病，惊痫",
+        "手臂肿痛，上肢不遂"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI12",
+      "name": "肘髎",
+      "pinyin": "Zhǒuliáo",
+      "meridian": "手阳明大肠经",
+      "location": "肱骨外上髁上缘，髁上嵴的前缘（图4-2-4）。",
+      "indications": [
+        "肘臂酸痛、麻木、挛急"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI13",
+      "name": "手五里",
+      "pinyin": "Shǒuwǔlǐ",
+      "meridian": "手阳明大肠经",
+      "location": "肘横纹上3寸，曲池与肩髃连线上（图4-2-4）。",
+      "indications": [
+        "瘰疬",
+        "肘臂挛急"
+      ],
+      "operation": "避开动脉，直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI14",
+      "name": "臂臑",
+      "pinyin": "Bì′nào",
+      "meridian": "手阳明大肠经",
+      "location": "曲池上7寸，三角肌前缘处（图4-2-4）。",
+      "indications": [
+        "瘰疬",
+        "目疾",
+        "肩臂疼痛、不举"
+      ],
+      "operation": "直刺或向上斜刺0.8～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI15",
+      "name": "肩髃",
+      "pinyin": "Jiānyú",
+      "meridian": "手阳明大肠经",
+      "specialClass": "手阳明经、阳脉交会穴",
+      "location": "肩峰外侧缘前端与肱骨大结节两骨间凹陷中（图4-2-4）。 取法：屈臂外展，肩峰外侧缘前后端呈现两个凹陷，前一较深凹陷即本穴，后一凹陷为肩髎。",
+      "indications": [
+        "风疹",
+        "上肢不遂，肩臂疼痛"
+      ],
+      "operation": "直刺或向下斜刺，0.8～1.5寸。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“若灸偏风不遂，七七壮止，不宜多灸，恐手臂细，若风病筋骨无力久不差，当灸不畏细也。” 《铜人腧穴针灸图经》：“唐库狄嵚，若患风痹，手臂不得伸引，诸医莫能愈，甄权针肩髃二穴，令将弓箭向垛射之如故。” 《胜玉歌》：“两手酸痛难执物，曲池、合谷共肩髃。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI16",
+      "name": "巨骨",
+      "pinyin": "Jùgǔ",
+      "meridian": "手阳明大肠经",
+      "specialClass": "手阳明经、阳脉交会穴",
+      "location": "锁骨肩峰端与肩胛冈之间凹陷中（图4-2-5）。",
+      "indications": [
+        "肩痛不举"
+      ],
+      "operation": "直刺，微斜向外下方，进针0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI17",
+      "name": "天鼎",
+      "pinyin": "Tiāndǐng",
+      "meridian": "手阳明大肠经",
+      "location": "横平环状软骨，胸锁乳突肌后缘（图4-2-6）。取法：扶突直下，横平水突。",
+      "indications": [
+        "咽喉肿痛，暴喑，呃逆",
+        "瘰疬，瘿气"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI18",
+      "name": "扶突",
+      "pinyin": "Fútū",
+      "meridian": "手阳明大肠经",
+      "location": "横平喉结，胸锁乳突肌前、后缘中间（图4-2-6）。",
+      "indications": [
+        "咽喉肿痛，暴喑，呃逆",
+        "咳嗽，气喘",
+        "瘿气"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI19",
+      "name": "口禾髎",
+      "pinyin": "Kǒuhéliáo",
+      "meridian": "手阳明大肠经",
+      "location": "横平人中沟上1/3与下2/3交点，鼻孔外缘直下（图4-2-7）。",
+      "indications": [
+        "鼻塞，鼽衄",
+        "口眼㖞斜，口噤"
+      ],
+      "operation": "平刺或斜刺0.3～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LI20",
+      "name": "迎香",
+      "pinyin": "Yíngxiāng",
+      "meridian": "手阳明大肠经",
+      "specialClass": "手阳明经、足阳明经交会穴",
+      "location": "鼻翼外缘中点旁，鼻唇沟中（图4-2-7）。",
+      "indications": [
+        "鼻渊，鼻衄，口眼㖞斜，面痒，面肿"
+      ],
+      "operation": "斜刺或平刺，0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“鼻鼽不利，窒洞气塞，㖞僻多洟，鼽衄有痈，迎香主之。” 《百症赋》：“面上虫行有验，迎香可取。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST1",
+      "name": "承泣",
+      "pinyin": "Chéngqì",
+      "meridian": "足阳明胃经",
+      "specialClass": "足阳明经、阳脉、任脉交会穴",
+      "location": "眼球与眶下缘之间，瞳孔直下（图5-2-2）。",
+      "indications": [
+        "目赤肿痛，迎风流泪，夜盲，近视，眼睑动",
+        "口眼㖞斜"
+      ],
+      "operation": "嘱患者闭目，医者押手轻轻固定眼球，刺手持针，于眶下缘和眼球之间缓慢直刺0.5～1寸，不宜提插捻转，以防刺破血管引起血肿；出针后以棉签按压针孔片刻。禁灸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“目不明，泪出，目眩瞢，瞳子痒，远视，昏夜无见，目动，与项口参相引，㖞僻口不能言，刺承泣。” 《外台秘要》：“禁不宜灸，无问多少，三日以后眼下大如拳，息肉长桃许大，至三十日即定，百日都不见物，或如升大。” 《铜人腧穴针灸图经》：“禁不宜针，针之令人目乌色，可灸三壮，炷如大麦，忌如常法。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST2",
+      "name": "四白",
+      "pinyin": "Sìbái",
+      "meridian": "足阳明胃经",
+      "location": "眶下孔处（图5-2-2）。",
+      "indications": [
+        "目赤肿痛，目翳，迎风流泪，眼睑动，面痛，面肌抽搐，口眼㖞斜",
+        "头痛，眩晕"
+      ],
+      "operation": "直刺0.3～0.5寸；或沿皮透刺睛明；或向外上方斜刺0.5寸入眶下孔。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“凡用针稳审方得下针，若针深即令人目乌色。” 《甲乙经》：“目痛，口僻，戾（一作‘’）目不明，四白主之。” 《针灸大成》：“主头痛，目眩，目赤痛，僻泪不明，目痒，目肤翳，口㖞僻不能言。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST3",
+      "name": "巨髎",
+      "pinyin": "Jùliáo",
+      "meridian": "足阳明胃经",
+      "specialClass": "足阳明经、阳脉交会穴",
+      "location": "横平鼻翼下缘，瞳孔直下（图5-2-2）。",
+      "indications": [
+        "青盲，目视不明，目翳，眼睑动，口眼㖞斜，唇颊肿"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST4",
+      "name": "地仓",
+      "pinyin": "Dìcāng",
+      "meridian": "足阳明胃经",
+      "specialClass": "足阳明经、阳脉交会穴",
+      "location": "口角旁开0.4寸（指寸）（图5-2-2）。 取法：口角旁，在鼻唇沟或鼻唇沟延长线上。",
+      "indications": [
+        "口眼㖞斜，语言謇涩，流涎"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸，或向迎香、颊车方向透刺1～2寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“口缓不收，不能言语，手足痿躄不能引，地仓主之。” 图5-2-1 足阳明胃经穴 Points of Stomach Meridian of Foot-Yangming"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST5",
+      "name": "大迎",
+      "pinyin": "Dàyíng",
+      "meridian": "足阳明胃经",
+      "location": "下颌角前方，咬肌附着部的前缘凹陷中，面动脉搏动处（图5-2-3）。",
+      "indications": [
+        "口眼㖞斜，面肌抽搐，口噤，颊肿，齿痛"
+      ],
+      "operation": "避开动脉直刺0.3～0.5寸，或斜向地仓方向刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST6",
+      "name": "颊车",
+      "pinyin": "Jiáchē",
+      "meridian": "足阳明胃经",
+      "location": "下颌角前上方一横指（中指）（图5-2-3）。 取法：沿下颌角角平分线上一横指，闭口咬紧牙时咬肌隆起，放松时按之有凹陷处。",
+      "indications": [
+        "口眼㖞斜，齿痛，颊肿，口噤"
+      ],
+      "operation": "直刺0.3～0.5寸，或向地仓方向透刺1.5～2寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“颊肿，口急，颊车骨痛，齿不可以嚼，颊车主之。” 《针灸大成》：“中风口噤不开：颊车、人中、百会、承浆、合谷。” 《类经图翼》：“主口眼㖞斜：颊车、地仓、水沟、承浆、听会、合谷。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST7",
+      "name": "下关",
+      "pinyin": "Xiàguān",
+      "meridian": "足阳明胃经",
+      "specialClass": "足阳明经、足少阳经交会穴",
+      "location": "颧弓下缘中央与下颌切迹之间凹陷中（图5-2-3）。取法：闭口，上关直下，颧弓下缘凹陷中。",
+      "indications": [
+        "齿痛，颊肿，口眼㖞斜，下颌关节脱位",
+        "耳聋，耳鸣"
+      ],
+      "operation": "直刺或斜刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“失欠，下齿龋，下牙痛，肿，下关主之。” 《铜人腧穴针灸图经》：“偏风，口目㖞，牙车脱臼。” 《类经图翼》：“耳鸣耳聋，痛痒出脓。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST8",
+      "name": "头维",
+      "pinyin": "Tóuwéi",
+      "meridian": "足阳明胃经",
+      "specialClass": "足阳明经、足少阳经、阳维脉交会穴",
+      "location": "额角发际直上0.5寸，头正中线旁开4.5寸（图5-2-3）",
+      "indications": [
+        "头痛，目痛，流泪，目视不明，眼睑动"
+      ],
+      "operation": "向后平刺0.5～0.8寸，或横刺透率谷。",
+      "classicalExcerpts": [
+        "《甲乙经》：“寒热，头痛如破，目痛如脱，喘逆烦满，呕吐，流汗难言，头维主之。” 《玉龙歌》：“眉间疼痛苦难当，攒竹沿皮刺不妨，若是眼昏皆可治，更针头维即安康。” 《医宗金鉴》：“头维、攒竹二穴，主治头风疼痛如破，目痛如脱，泪出不明。” 图5-2-4"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST9",
+      "name": "人迎",
+      "pinyin": "Rényíng",
+      "meridian": "足阳明胃经",
+      "specialClass": "足阳明经、足少阳经交会穴",
+      "location": "横平喉结，胸锁乳突肌前缘，颈总动脉搏动处（图5-2-4）。",
+      "indications": [
+        "头痛，眩晕",
+        "气喘",
+        "咽喉肿痛，瘰疬，瘿气"
+      ],
+      "operation": "避开动脉直刺0.3～0.8寸。慎灸。",
+      "classicalExcerpts": [
+        "《灵枢·寒热病》：“阳迎头痛，胸满不得息，取之人迎。” 《千金要方》：“凡霍乱，头痛，胸满呼吸喘鸣，穷窘不得息，人迎主之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST10",
+      "name": "水突",
+      "pinyin": "Shuǐtū",
+      "meridian": "足阳明胃经",
+      "location": "横平环状软骨，胸锁乳突肌前缘（图5-2-4）。",
+      "indications": [
+        "咳嗽，气喘",
+        "咽喉肿痛，瘰疬，瘿气"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST11",
+      "name": "气舍",
+      "pinyin": "Qìshě",
+      "meridian": "足阳明胃经",
+      "location": "锁骨上小窝，锁骨胸骨端上缘，胸锁乳突肌胸骨头与锁骨头中间的凹陷中（图5-2-4）。",
+      "indications": [
+        "咳嗽，气喘",
+        "咽喉肿痛，瘰疬，瘿气，颈项强痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST12",
+      "name": "缺盆",
+      "pinyin": "Quēpén",
+      "meridian": "足阳明胃经",
+      "location": "锁骨上大窝，锁骨上缘凹陷中，前正中线旁开4寸（图5-2-4、图5-2-5）。",
+      "indications": [
+        "咳嗽，气喘",
+        "咽喉肿痛，瘰疬，缺盆中痛"
+      ],
+      "operation": "直刺或向后背横刺0.3～0.5寸，不可深刺以防刺伤胸膜引起气胸。 图5-2-5",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST13",
+      "name": "气户",
+      "pinyin": "Qìhù",
+      "meridian": "足阳明胃经",
+      "location": "锁骨下缘，前正中线旁开4寸（图5-2-5）。",
+      "indications": [
+        "咳嗽，气喘",
+        "胸痛，胸胁胀满"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST14",
+      "name": "库房",
+      "pinyin": "Kùfáng",
+      "meridian": "足阳明胃经",
+      "location": "第1肋间隙，前正中线旁开4寸（图5-2-5）。",
+      "indications": [
+        "咳嗽，气喘，咳唾脓血",
+        "胸胁胀痛"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST15",
+      "name": "屋翳",
+      "pinyin": "Wūyì",
+      "meridian": "足阳明胃经",
+      "location": "第2肋间隙，前正中线旁开4寸（图5-2-5）。",
+      "indications": [
+        "咳嗽，气喘",
+        "胸满，乳痈"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST16",
+      "name": "膺窗",
+      "pinyin": "Yīngchuāng",
+      "meridian": "足阳明胃经",
+      "location": "第3肋间隙，前正中线旁开4寸（图5-2-5）。",
+      "indications": [
+        "胸满，气喘，乳痈"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST17",
+      "name": "乳中",
+      "pinyin": "Rǔzhōng",
+      "meridian": "足阳明胃经",
+      "location": "乳头中央（图5-2-5）。",
+      "indications": [
+        "癫狂痫",
+        "滞产",
+        "乳痈"
+      ],
+      "operation": "多用作胸腹部穴位的定位标志，一般不作刺灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST18",
+      "name": "乳根",
+      "pinyin": "Rǔgēn",
+      "meridian": "足阳明胃经",
+      "location": "第5肋间隙，前正中线旁开4寸（图5-2-5）。",
+      "indications": [
+        "咳嗽，气喘，胸满，胸痛",
+        "乳痈，乳癖，乳汁少"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST19",
+      "name": "不容",
+      "pinyin": "Bùróng",
+      "meridian": "足阳明胃经",
+      "location": "脐中上6寸，前正中线旁开2寸（图5-2-6）。 说明：对于某些肋弓角较狭小的人，此穴下可能正当肋骨，可采用斜刺的方法。",
+      "indications": [
+        "腹满，呕吐，食欲不振",
+        "腹痛引背"
+      ],
+      "operation": "直刺0.5～1寸。 图5-2-6",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST20",
+      "name": "承满",
+      "pinyin": "Chéngmǎn",
+      "meridian": "足阳明胃经",
+      "location": "脐中上5寸，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "肠鸣，腹痛，腹胀，噎膈，吐血"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST21",
+      "name": "梁门",
+      "pinyin": "Liángmén",
+      "meridian": "足阳明胃经",
+      "location": "脐中上4寸，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "脘腹痞胀，腹痛，泄泻，食欲不振"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“胁下积气结痛，梁门主之。” 《针灸大成》：“主胁下积气，食饮不思，大肠滑泄，完谷不化。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST22",
+      "name": "关门",
+      "pinyin": "Guānmén",
+      "meridian": "足阳明胃经",
+      "location": "脐中上3寸，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "腹痛，腹胀，肠鸣，泄泻",
+        "水肿，遗尿"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST23",
+      "name": "太乙",
+      "pinyin": "Tàiyǐ",
+      "meridian": "足阳明胃经",
+      "location": "脐中上2寸，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "癫痫，吐舌",
+        "腹痛，腹胀，呕吐"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST24",
+      "name": "滑肉门",
+      "pinyin": "Huáròumén",
+      "meridian": "足阳明胃经",
+      "location": "脐中上1寸，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "癫痫，吐舌",
+        "腹痛，腹胀，呕吐"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST25",
+      "name": "天枢",
+      "pinyin": "Tiānshū",
+      "meridian": "足阳明胃经",
+      "specialClass": "大肠募穴",
+      "location": "横平脐中，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "腹痛，腹胀，肠鸣，泄泻，便秘",
+        "月经不调，痛经"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“腹胀肠鸣，气上冲胸，不能久立，腹中（切）痛（而鸣）濯濯。冬月重感于寒则泄，当脐而痛，肠胃间游气切痛，食不化，不嗜食，身肿，侠脐急，天枢主之。” 《针灸大成》：“妇人女子癥瘕，血结成块，漏下赤白，月事不时。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST26",
+      "name": "外陵",
+      "pinyin": "Wàilíng",
+      "meridian": "足阳明胃经",
+      "location": "脐中下1寸，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "腹痛，腹胀"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST27",
+      "name": "大巨",
+      "pinyin": "Dàjù",
+      "meridian": "足阳明胃经",
+      "location": "脐中下2寸，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "腹胀，腹痛",
+        "小便不利，疝气，遗精"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST28",
+      "name": "水道",
+      "pinyin": "Shuǐdào",
+      "meridian": "足阳明胃经",
+      "location": "脐中下3寸，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "小便不利，小腹胀满，阴中痛，疝气",
+        "痛经，不孕"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST29",
+      "name": "归来",
+      "pinyin": "Guīlái",
+      "meridian": "足阳明胃经",
+      "location": "脐中下4寸，前正中线旁开2寸（图5-2-6）。",
+      "indications": [
+        "少腹疼痛，疝气",
+        "妇人阴冷、肿痛，月经不调"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“奔豚，卵上入，痛引茎，归来主之。” 《针灸大成》：“主小腹奔豚，卵上入腹，引茎中痛，七疝，妇人血脏积冷。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST30",
+      "name": "气冲",
+      "pinyin": "Qìchōng",
+      "meridian": "足阳明胃经",
+      "specialClass": "足阳明经、冲脉交会穴",
+      "location": "耻骨联合上缘，前正中线旁开2寸，动脉搏动处（图5-2-6）。",
+      "indications": [
+        "疝气，月经不调，不孕"
+      ],
+      "operation": "直刺0.5～1寸。不宜灸。",
+      "classicalExcerpts": [
+        "《针灸资生经》：“（铜）气冲、（见上气）章门，治不得卧。” 《百症赋》：“带下产崩，冲门、气冲宜审。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST31",
+      "name": "髀关",
+      "pinyin": "Bìguān",
+      "meridian": "足阳明胃经",
+      "location": "股直肌近端、缝匠肌与阔筋膜张肌3条肌肉之间凹陷中（图5-2-7）。 取法：约相当于髂前上棘、髌底外侧端连线与耻骨联合下缘水平线的交点处。",
+      "indications": [
+        "下肢痿痹、屈伸不利"
+      ],
+      "operation": "直刺1～2寸，局部酸胀，或酸胀感向膝部传导。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST32",
+      "name": "伏兔",
+      "pinyin": "Fútù",
+      "meridian": "足阳明胃经",
+      "location": "髌底上6寸，髂前上棘与髌底外侧端的连线上（图5-2-7）。",
+      "indications": [
+        "下肢痿痹，膝冷，脚气"
+      ],
+      "operation": "直刺1～2寸。",
+      "classicalExcerpts": [
+        "《千金要方》：“狂邪鬼语，灸伏兔百壮。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST33",
+      "name": "阴市",
+      "pinyin": "Yīnshì",
+      "meridian": "足阳明胃经",
+      "location": "髌底上3寸，股直肌肌腱外侧缘（图5-2-7）。",
+      "indications": [
+        "寒疝痛引膝，下肢痿痹、屈伸不利"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST34",
+      "name": "梁丘",
+      "pinyin": "Liángqiū",
+      "meridian": "足阳明胃经",
+      "specialClass": "郄穴",
+      "location": "髌底上2寸，股外侧肌与股直肌肌腱之间（图5-2-7）。",
+      "indications": [
+        "胃痛",
+        "乳痈，乳痛",
+        "膝肿痛，下肢不遂"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“大惊乳痛，梁丘主之。” 《针灸大成》：“主膝脚腰痛，冷痹不仁，跪难屈伸，足寒，大惊，乳肿痛。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST35",
+      "name": "犊鼻",
+      "pinyin": "Dúbí",
+      "meridian": "足阳明胃经",
+      "location": "髌韧带外侧凹陷中（图5-2-8）。 取法：屈膝，髌骨外下方的凹陷中。",
+      "indications": [
+        "膝肿痛、屈伸不利，脚气"
+      ],
+      "operation": "屈膝，向后内斜刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《灵光赋》：“犊鼻治疗风邪疼。” 《针灸大成》：“主膝中痛不仁，难跪起，脚气，膝膑肿，溃者不可治，不溃者可治。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST36",
+      "name": "足三里",
+      "pinyin": "Zúsānlǐ",
+      "meridian": "足阳明胃经",
+      "specialClass": "合穴，胃下合穴",
+      "location": "犊鼻下3寸，犊鼻与解溪连线上（图5-2-8） 说明：在胫骨前肌上取穴。",
+      "indications": [
+        "胃痛，呕吐，呃逆，腹胀，腹痛，肠鸣，泄泻，便秘",
+        "热病，癫狂",
+        "乳痈",
+        "虚劳羸瘦",
+        "膝足肿痛"
+      ],
+      "operation": "直刺1～2寸。",
+      "classicalExcerpts": [
+        "《灵枢·五邪》：“邪在脾胃，则病肌肉痛，阳气有余，阴气不足，则热中善饥；阳气不足，阴气有余，则寒中肠鸣腹痛；阴阳俱有余，若俱不足，则有寒有热，皆调于三里。” 《外台秘要》：“凡人年三十以上，若不灸三里，令气上眼暗，所以三里下气也。” 《四总穴歌》：“肚腹三里留。” 《通玄指要赋》：“三里却五劳之羸瘦。”“冷痹肾败，取足阳明之上。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST37",
+      "name": "上巨虚",
+      "pinyin": "Shàngjùxū",
+      "meridian": "足阳明胃经",
+      "specialClass": "大肠下合穴",
+      "location": "犊鼻下6寸，犊鼻与解溪连线上（图5-2-8）。 说明：在胫骨前肌上取穴。",
+      "indications": [
+        "腹痛，泄泻，便秘，肠鸣，肠痈",
+        "半身不遂，下肢痿痹，脚气"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“大肠有热，肠鸣腹满，侠脐痛，食不化，喘，不能久立，巨虚上廉主之。” 《千金要方》：“骨髓冷疼痛，灸上廉七十壮。” 《针灸大成》：“主脏气不足，偏风脚气，腰腿手足不仁，脚胫酸痛屈伸难，不久立，风水膝肿，骨髓冷疼，大肠冷，食不化，飧泄，劳瘵，夹脐腹两胁痛，肠中切痛雷鸣，气上冲胸，喘息不能行，不能久立，伤寒胃中热。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST38",
+      "name": "条口",
+      "pinyin": "Tiáokǒu",
+      "meridian": "足阳明胃经",
+      "location": "犊鼻下8寸，犊鼻与解溪连线上（图5-2-8）。 说明：在胫骨前肌上取穴。",
+      "indications": [
+        "下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“胫痛，足缓失履，湿痹，足下热不能久立，条口主之。” 《天星秘诀歌》：“足缓难行先绝骨，次寻条口及冲阳。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST39",
+      "name": "下巨虚",
+      "pinyin": "Xiàjùxū",
+      "meridian": "足阳明胃经",
+      "specialClass": "小肠下合穴",
+      "location": "犊鼻下9寸，犊鼻与解溪连线上（图5-2-8）。 说明：在胫骨前肌上取穴。",
+      "indications": [
+        "小腹疼痛，泄泻，腰脊痛引睾丸",
+        "乳痈",
+        "半身不遂，下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《灵枢·邪气藏府病形》：“小肠病者，小腹痛，腰脊控睾而痛，时窘之后，当耳前热，若寒甚，若独肩上热甚，及手小指次指之间热，若脉陷者，此其候也，手太阳病也，取之巨虚下廉。” 《甲乙经》：“乳痈惊痹，胫重，足跗不收，跟痛，巨虚下廉主之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST40",
+      "name": "丰隆",
+      "pinyin": "Fēnglóng",
+      "meridian": "足阳明胃经",
+      "specialClass": "络穴",
+      "location": "外踝尖上8寸，胫骨前肌的外缘（图5-2-8）。 取法：犊鼻与解溪连线的中点，条口外侧一横指处。",
+      "indications": [
+        "腹痛，腹胀，便秘",
+        "咳嗽，哮喘，痰多，咽喉肿痛，胸痛",
+        "头痛，眩晕，癫狂",
+        "下肢不遂、痿痹"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“厥头痛，面浮肿，烦心，狂见鬼，善笑不休，发于外有所大喜，喉痹不能言，丰隆主之。” 《千金要方》：“丰隆、丘墟主胸痛如刺。” 《玉龙歌》：“痰多宜向丰隆泻。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST41",
+      "name": "解溪",
+      "pinyin": "Jiěxī",
+      "meridian": "足阳明胃经",
+      "specialClass": "经穴",
+      "location": "踝关节前面中央凹陷中，长伸肌腱与趾长伸肌腱之间（图5-2-8）。 取法：令足趾上跷，显现足背部两肌腱，穴在两腱之间，相当于内、外踝尖连线的中点处。",
+      "indications": [
+        "头痛，眩晕，癫狂",
+        "腹胀，便秘",
+        "下肢痿痹，足踝无力"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“热病汗不出，善噫，腹胀满，胃热谵语，解溪主之。” 《千金要方》：“解溪、阳主癫疾。” 《百症赋》：“惊悸怔忡，取阳交、解溪勿误。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST42",
+      "name": "冲阳",
+      "pinyin": "Chōngyáng",
+      "meridian": "足阳明胃经",
+      "specialClass": "原穴",
+      "location": "第2跖骨基底部与中间楔状骨关节处，可触及足背动脉（图5-2-9）。",
+      "indications": [
+        "胃痛，腹胀",
+        "口眼㖞斜，齿痛，面肿",
+        "癫狂",
+        "足痿无力、肿痛"
+      ],
+      "operation": "避开动脉，直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《针灸大成》：“主偏风口眼㖞，跗肿，齿龋，发寒热，腹坚大，不嗜食，伤寒病振寒而欠，久狂，登高而歌，弃衣而走，足缓履不收，身前痛。” 《千金要方》：“冲阳、三里、仆参、飞扬、复溜、完骨主足痿失履不收。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST43",
+      "name": "陷谷",
+      "pinyin": "Xiàngǔ",
+      "meridian": "足阳明胃经",
+      "specialClass": "输穴",
+      "location": "第2、3跖骨间，第2跖趾关节近端凹陷中（图5-2-9）。",
+      "indications": [
+        "腹痛，肠鸣",
+        "面肿，水肿",
+        "足背肿痛"
+      ],
+      "operation": "直刺0.3～0.5寸。 图5-2-9",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST44",
+      "name": "内庭",
+      "pinyin": "Nèitíng",
+      "meridian": "足阳明胃经",
+      "specialClass": "荥穴",
+      "location": "第2、3趾间，趾蹼缘后方赤白肉际处（图5-2-9）。",
+      "indications": [
+        "齿痛，咽喉肿痛，鼻衄，口眼㖞斜",
+        "腹胀，泄泻，食欲不振",
+        "热病",
+        "足背肿痛"
+      ],
+      "operation": "直刺或向上斜刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“四厥，手足闷者，使人久持之，逆冷胫痛，腹胀皮痛，善伸数欠，恶人与木音，振寒，嗌中引外痛，热病汗不出，下齿痛，恶寒目急，喘满寒栗，龈口噤僻，不嗜食，内庭主之。” 《玉龙歌》：“小腹胀满气攻心，内庭二穴要先针。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "ST45",
+      "name": "厉兑",
+      "pinyin": "Lìduì",
+      "meridian": "足阳明胃经",
+      "specialClass": "井穴",
+      "location": "第2趾末节外侧，趾甲根角侧后方0.1寸（指寸）（图5-2-9）。",
+      "indications": [
+        "鼻衄，齿痛，面肿，口眼㖞斜，咽喉肿痛",
+        "热病，癫狂，多梦，善惊，神昏"
+      ],
+      "operation": "浅刺0.1寸，或用三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《千金要方》：“厉兑、条口、三阴交，主胫寒不得卧。” 《百症赋》：“梦魇不宁，厉兑相谐于隐白。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP1",
+      "name": "隐白",
+      "pinyin": "Yǐnbái",
+      "meridian": "足太阴脾经",
+      "specialClass": "井穴",
+      "location": "大趾末节内侧，趾甲根角侧后方0.1寸（指寸）（图6-2-2）。",
+      "indications": [
+        "腹胀，泄泻，呕吐",
+        "月经过多",
+        "便血，尿血，鼻衄",
+        "昏厥"
+      ],
+      "operation": "浅刺0.1寸。",
+      "classicalExcerpts": [
+        "《灵枢·热病》：“气满胸中喘息，取足太阴大趾之端，去爪甲如韭叶，寒则留之，热则疾之，气下乃止。” 《甲乙经》：“气喘，热病，衄不止，烦心善悲，腹胀，逆息热气，足胫中寒，不得卧，气满胸中热，暴泄，仰息，足下寒，膈中闷，呕吐，不欲食饮，隐白主之。腹中有寒气，隐白主之。饮渴，身伏多唾，隐白主之。” 《杂病穴法歌》：“尸厥百会一穴美，更针隐白效昭昭。” 《医宗金鉴》：“隐白主治心脾疼痛。” 图6-2-1 足太阴脾经穴 Points of Spleen Meridian of Foot-Taiyin"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP2",
+      "name": "大都",
+      "pinyin": "Dàdū",
+      "meridian": "足太阴脾经",
+      "specialClass": "荥穴",
+      "location": "第1跖趾关节远端赤白肉际凹陷中（图6-2-2）。",
+      "indications": [
+        "腹胀，胃痛，呕吐，泄泻，便秘",
+        "发热"
+      ],
+      "operation": "直刺0.3～0.5寸。 图6-2-2",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP3",
+      "name": "太白",
+      "pinyin": "Tàibái",
+      "meridian": "足太阴脾经",
+      "specialClass": "输穴，原穴",
+      "location": "第1跖趾关节近端赤白肉际凹陷中（图6-2-2）。",
+      "indications": [
+        "胃痛，腹胀，肠鸣，泄泻，便秘",
+        "身重节痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《针灸大成》：“主身热烦满，腹胀食不化，呕吐，泄泻脓血，腰痛，大便难，气逆霍乱，腹中切痛，肠鸣，膝股胻酸转筋，身重骨痛，胃心痛，腹胀胸满，心痛脉缓。” 《甲乙经》：“身重骨痿不相知，太白主之。” 《医宗金鉴》：太白、丰隆“二穴应刺之症，即身重，倦怠，面黄，舌强而疼，腹满时时作痛，或吐或泻，善饥而不欲食，皆脾胃经病也。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP4",
+      "name": "公孙",
+      "pinyin": "Gōngsūn",
+      "meridian": "足太阴脾经",
+      "specialClass": "络穴，八脉交会穴（通冲脉）",
+      "location": "第1跖骨底的前下缘赤白肉际处（图6-2-2）。",
+      "indications": [
+        "胃痛，呕吐，腹痛，腹胀，泄泻",
+        "心烦"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“凡好太息，不嗜食，多寒热，汗出，病至则善呕，呕已乃衰，即取公孙及井俞。” 《医宗金鉴》：“公孙穴，主治痰壅胸膈，肠风下血，积块及妇人气蛊等证。” 《席弘赋》：“肚疼须是公孙妙，内关相应必然瘳”。 《标幽赋》：“脾冷（一作‘痛’）胃疼，泻公孙而立愈。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP5",
+      "name": "商丘",
+      "pinyin": "Shāngqiū",
+      "meridian": "足太阴脾经",
+      "specialClass": "经穴",
+      "location": "内踝前下方，舟骨粗隆与内踝尖连线中点凹陷中（图6-2-2）。 取法：内踝前缘直线与内踝下缘横线的交点处。",
+      "indications": [
+        "腹胀，泄泻，便秘，痔疾",
+        "足踝痛，疝气痛引膝股"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP6",
+      "name": "三阴交",
+      "pinyin": "Sānyīnjiāo",
+      "meridian": "足太阴脾经",
+      "specialClass": "足太阴经、足少阴经、足厥阴经交会穴",
+      "location": "内踝尖上3寸，胫骨内侧缘后际（图6-2-3）。",
+      "indications": [
+        "月经不调，崩漏，带下，阴挺，不孕，滞产",
+        "遗精，阳痿，遗尿，小便不利，疝气",
+        "腹胀，肠鸣，泄泻",
+        "下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸。孕妇慎用。",
+      "classicalExcerpts": [
+        "《甲乙经》：“足下热，胫痛不能久立，湿痹不能行，三阴交主之。” 《千金要方》：“女人漏下赤白及血，灸足太阴五十壮，穴在内踝上三寸，足太阴经内踝上三寸名三阴交。”“劳淋，灸足太阴百壮，在内踝上三寸，三报之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP7",
+      "name": "漏谷",
+      "pinyin": "Lòugǔ",
+      "meridian": "足太阴脾经",
+      "location": "内踝尖上6寸，胫骨内侧缘后际（图6-2-3）。",
+      "indications": [
+        "腹胀，肠鸣",
+        "小便不利，遗精，疝气",
+        "下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP8",
+      "name": "地机",
+      "pinyin": "Dìjī",
+      "meridian": "足太阴脾经",
+      "specialClass": "郄穴",
+      "location": "阴陵泉下3寸，胫骨内侧缘后际（图6-2-3）。",
+      "indications": [
+        "腹痛，泄泻",
+        "月经不调，疝气"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“溏瘕，腹中痛，脏痹，地机主之。” 《铜人腧穴针灸图经》：“治女子血瘕，按之如汤沃股内至膝，丈夫溏泄，腹胁气胀，水肿，腹坚，不嗜食，小便不利。” 《针灸大成》：“主腰痛不可俯仰，溏泄，腹胁胀，水肿腹坚，不嗜食，小便不利，精不足，女子癥瘕，按之如汤沃股内至膝。” 《百症赋》：“妇人经事改常，自有地机、血海。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP9",
+      "name": "阴陵泉",
+      "pinyin": "Yīnlíngquán",
+      "meridian": "足太阴脾经",
+      "specialClass": "合穴",
+      "location": "胫骨内侧髁下缘与胫骨内侧缘之间的凹陷中（图6-2-3）。 取法：用手指沿胫骨内缘由下往上推，至手指抵膝关节下方时，胫骨向内上弯曲的凹陷中即是本穴。",
+      "indications": [
+        "腹痛，腹胀，泄泻",
+        "妇人阴中痛，痛经，小便不利，遗尿，遗精",
+        "水肿",
+        "腰膝肿痛"
+      ],
+      "operation": "直刺1～2寸。",
+      "classicalExcerpts": [
+        "《灵枢·热病》：“热病挟脐急痛，胸胁满，取之涌泉与阴陵泉。” 《甲乙经》：“腹中气盛，腹胀逆，不得卧，阴陵泉主之。”“肾腰痛不可俯仰，阴陵泉主之。”“溏，不化食，寒热不节，阴陵泉主之。”“妇人阴中痛，少腹坚急痛，阴陵泉主之。” 《千金翼方》：“水肿不得卧，灸阴陵泉百壮。” 《百症赋》：“阴陵水分去水肿之脐盈。” 《杂病穴法歌》：“心胸痞满阴陵泉。”“小便不通阴陵泉。” 图6-2-4"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP10",
+      "name": "血海",
+      "pinyin": "Xuèhǎi",
+      "meridian": "足太阴脾经",
+      "location": "髌底内侧端上2寸，股内侧肌隆起处（图6-2-4）。",
+      "indications": [
+        "月经不调，经闭，崩漏",
+        "湿疹，风疹"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“妇人漏下，若血闭不通，逆气胀，血海主之。” 《医学入门》：“此穴极治妇人血崩，血闭不通。” 《类经图翼》：“主治女子崩中漏下，月事不调，带下，逆气腹胀，先补后泻，又主肾藏风，两腿疮痒湿不可当。” 《医宗金鉴》：“血海穴，主治女子崩中漏下，月信不调，带下，及男子肾藏风，两腿疮痒湿痛等证。” 《胜玉歌》：“热疮臁内年年发，血海寻来可治之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP11",
+      "name": "箕门",
+      "pinyin": "Jīmén",
+      "meridian": "足太阴脾经",
+      "location": "髌底内侧端与冲门的连线上1/3与下2/3交点，长收肌和缝匠肌交角的动脉搏动处（图6-2-4）。",
+      "indications": [
+        "小便不通，遗尿",
+        "鼠鼷肿痛"
+      ],
+      "operation": "避开动脉，直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP12",
+      "name": "冲门",
+      "pinyin": "Chōngmén",
+      "meridian": "足太阴脾经",
+      "specialClass": "足太阴经、足厥阴经、阴维脉交会穴",
+      "location": "腹股沟斜纹中，髂外动脉搏动处的外侧（图6-2-4、图6-2-5）。 取法：横平曲骨，府舍稍内下方取穴。",
+      "indications": [
+        "腹满，积聚疼痛",
+        "疝气，癃闭",
+        "滞产"
+      ],
+      "operation": "避开动脉，直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP13",
+      "name": "府舍",
+      "pinyin": "Fǔshè",
+      "meridian": "足太阴脾经",
+      "specialClass": "足太阴经、足厥阴经、阴维脉交会穴",
+      "location": "脐中下4.3寸，前正中线旁开4寸（图6-2-5）。",
+      "indications": [
+        "妇人疝气",
+        "腹痛，腹满，积聚，呕吐，泄泻"
+      ],
+      "operation": "直刺1～1.5寸。 图6-2-5",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP14",
+      "name": "腹结",
+      "pinyin": "Fùjié",
+      "meridian": "足太阴脾经",
+      "location": "脐中下1.3寸，前正中线旁开4寸（图6-2-5）。",
+      "indications": [
+        "绕脐腹痛，泄泻"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP15",
+      "name": "大横",
+      "pinyin": "Dàhéng",
+      "meridian": "足太阴脾经",
+      "specialClass": "足太阴经、阴维脉交会穴",
+      "location": "脐中旁开4寸（图6-2-5）。",
+      "indications": [
+        "腹痛，泄泻，便秘"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“足太阴、阴维之会。”“大风逆气，多寒善悲，大横主之。” 《千金要方》：“治四肢不可举动，多汗洞痢方，右灸大横随年壮，穴在侠脐两边各二寸五分。” 《针灸资生经》：“惊怖，心忪，少力，灸大横五十壮。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP16",
+      "name": "腹哀",
+      "pinyin": "Fùāi",
+      "meridian": "足太阴脾经",
+      "specialClass": "足太阴经、阴维脉交会穴",
+      "location": "脐中上3寸，前正中线旁开4寸（图6-2-5）。",
+      "indications": [
+        "下痢脓血，腹痛，便秘，食不化"
+      ],
+      "operation": "直刺1～1.5寸。 图6-2-6",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP17",
+      "name": "食窦",
+      "pinyin": "Shídòu",
+      "meridian": "足太阴脾经",
+      "location": "第5肋间隙，前正中线旁开6寸（图6-2-6）。",
+      "indications": [
+        "胸满，胁痛"
+      ],
+      "operation": "斜刺或向外平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP18",
+      "name": "天溪",
+      "pinyin": "Tiānxī",
+      "meridian": "足太阴脾经",
+      "location": "第4肋间隙，前正中线旁开6寸（图6-2-6）。",
+      "indications": [
+        "胸痛，咳嗽，气喘",
+        "乳痈"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP19",
+      "name": "胸乡",
+      "pinyin": "Xiōngxiāng",
+      "meridian": "足太阴脾经",
+      "location": "第3肋间隙，前正中线旁开6寸（图6-2-6）。",
+      "indications": [
+        "胸胁胀痛引背"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP20",
+      "name": "周荣",
+      "pinyin": "Zhōuróng",
+      "meridian": "足太阴脾经",
+      "location": "第2肋间隙，前正中线旁开6寸（图6-2-6）。",
+      "indications": [
+        "胸胁胀满，气喘，咳唾脓血"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SP21",
+      "name": "大包",
+      "pinyin": "Dàbāo",
+      "meridian": "足太阴脾经",
+      "specialClass": "脾之大络",
+      "location": "第6肋间隙，当腋中线上（图6-2-6）。",
+      "indications": [
+        "胁痛，全身疼痛，四肢倦怠"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《灵枢·经脉》：“实则身尽痛，虚则百节尽皆纵。” 《甲乙经》：“大气不得息，息即胸胁中痛，实则其身尽寒，虚则百节尽纵，大包主之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "HT1",
+      "name": "极泉",
+      "pinyin": "Jíquán",
+      "meridian": "手少阴心经",
+      "location": "腋窝中央，腋动脉搏动处（图7-2-2）。",
+      "indications": [
+        "心痛",
+        "干呕，咽干",
+        "瘰疬",
+        "胁痛，肩臂痛"
+      ],
+      "operation": "上臂外展，避开腋动脉，直刺或斜刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“治心痛干呕，四肢不收。” 《针灸大成》：“主臂肘厥寒，四肢不收，心痛干呕，烦渴目黄，胁满痛，悲愁不乐。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "HT2",
+      "name": "青灵",
+      "pinyin": "Qīnglíng",
+      "meridian": "手少阴心经",
+      "location": "肘横纹上3寸，肱二头肌的内侧沟中（图7-2-2）。 取法：屈肘举臂，在极泉与少海连线的上2/3与下1/3交点处。",
+      "indications": [
+        "瘿气",
+        "腋痛，肩臂疼痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "HT3",
+      "name": "少海",
+      "pinyin": "Shàohǎi",
+      "meridian": "手少阴心经",
+      "specialClass": "合穴",
+      "location": "横平肘横纹，肱骨内上髁前缘（图7-2-2、图7-2-3）。 取法：屈肘成直角，在肘横纹内侧端与肱骨内上髁连线的中点处。",
+      "indications": [
+        "心痛，呕吐",
+        "瘰疬",
+        "胁痛，腋痛，肘臂挛痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“风眩头痛、少海主之。” 《百症赋》：“且如两臂顽麻，少海就傍于三里。” 《针灸大成》：“肘挛腋胁下痛，四肢不得举。” 《外台秘要》：“瘰疬少海、天井边。” 图7-2-1 手少阴心经穴 Points of Heart Meridian of Hand-Shaoyin 图7-2-2"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "HT4",
+      "name": "灵道",
+      "pinyin": "Língdào",
+      "meridian": "手少阴心经",
+      "specialClass": "经穴",
+      "location": "腕掌侧远端横纹上1.5寸，尺侧腕屈肌腱的桡侧缘（图7-2-3）。",
+      "indications": [
+        "心痛，悲恐善笑",
+        "暴喑",
+        "肘臂挛急"
+      ],
+      "operation": "直刺0.3～0.5寸。不宜深刺，以免伤及血管和神经。 图7-2-3",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "HT5",
+      "name": "通里",
+      "pinyin": "Tōnglǐ",
+      "meridian": "手少阴心经",
+      "specialClass": "络穴",
+      "location": "腕掌侧远端横纹上1寸，尺侧腕屈肌腱的桡侧缘（图7-2-3）。",
+      "indications": [
+        "心悸，心痛",
+        "咽喉肿痛，暴喑",
+        "肘臂挛痛"
+      ],
+      "operation": "直刺0.3～0.5寸。不宜深刺，以免伤及血管和神经。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“治悲恐，目眩，头痛。” 《针灸大成》：“暴喑不言，目痛心悸。” 《医宗金鉴》：“主治温病，面热无汗，懊，心悸惊恐。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "HT6",
+      "name": "阴郄",
+      "pinyin": "Yīnxì",
+      "meridian": "手少阴心经",
+      "specialClass": "郄穴",
+      "location": "腕掌侧远端横纹上0.5寸，尺侧腕屈肌腱的桡侧缘（图7-2-3）。",
+      "indications": [
+        "心痛，心悸",
+        "咯血，骨蒸盗汗",
+        "鼻衄"
+      ],
+      "operation": "避开尺动、静脉，直刺0.3～0.5寸。不宜深刺，以免伤及血管和神经。",
+      "classicalExcerpts": [
+        "《甲乙经》：“惊，心痛，手（少）阴郄主之。” 《铜人腧穴针灸图经》：“治失喑不能言，洒淅振寒，厥逆心痛，霍乱胸中满，衄血，惊恐。” 《针灸大成》：“主鼻衄吐血。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "HT7",
+      "name": "神门",
+      "pinyin": "Shénmén",
+      "meridian": "手少阴心经",
+      "specialClass": "输穴，原穴",
+      "location": "掌侧远端横纹尺侧端，尺侧腕屈肌腱的桡侧缘（图7-2-3）。 取法：于豌豆骨上缘桡侧凹陷中，在腕掌侧远端横纹上取穴。",
+      "indications": [
+        "心痛，心烦，惊悸，痴呆，健忘，失眠，癫狂，惊痫"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“遗溺，关门及神门、委中主之。” 《铜人腧穴针灸图经》：“疟，心烦。” 《针灸大成》：“心性痴呆，健忘。” 《玉龙歌》：“痴呆之症不堪亲，不识尊卑枉骂人，神门独治痴呆病，转手骨开得穴真。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "HT8",
+      "name": "少府",
+      "pinyin": "Shàofǔ",
+      "meridian": "手少阴心经",
+      "specialClass": "荥穴",
+      "location": "横平第5掌指关节近端，第4、5掌骨之间（图7-2-3）。 取法：握拳，小指尖所指处取穴，横平劳宫。",
+      "indications": [
+        "心悸，烦满，胸痛",
+        "肘臂痛，掌中热，手指拘挛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "HT9",
+      "name": "少冲",
+      "pinyin": "Shàochōng",
+      "meridian": "手少阴心经",
+      "specialClass": "井穴",
+      "location": "小指末节桡侧，指甲根角侧上方0.1寸（图7-2-4）。",
+      "indications": [
+        "心痛，心悸，心烦，神昏",
+        "胁痛"
+      ],
+      "operation": "浅刺0.1寸；或三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《百症赋》：“发热仗少冲、曲池之津。” 《针灸大成》：“主热病烦满，上气嗌干渴，目黄。” 《类经图翼》：“主心火炎上，眼赤。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI1",
+      "name": "少泽",
+      "pinyin": "Shàozé",
+      "meridian": "手太阳小肠经",
+      "specialClass": "井穴",
+      "location": "小指末节尺侧，指甲根角侧上方0.1寸（图8-2-2）。",
+      "indications": [
+        "乳痈，乳汁少",
+        "目翳，咽喉肿痛",
+        "热病，昏迷",
+        "头痛，颈项强痛"
+      ],
+      "operation": "浅刺0.1寸；或三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《百症赋》：“攀睛攻少泽、肝俞之所。” 《医宗金鉴》：“鼻衄不止，妇人乳肿。” 《玉龙赋》：“妇人吹乳痈难消，吐血风痰稠似胶，少泽穴内明补泻，应时神效气能调。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI2",
+      "name": "前谷",
+      "pinyin": "Qiángǔ",
+      "meridian": "手太阳小肠经",
+      "specialClass": "荥穴",
+      "location": "第5掌指关节尺侧远端赤白肉际凹陷中（图8-2-2）。",
+      "indications": [
+        "目痛，耳鸣，咽喉肿痛",
+        "乳痈，乳少",
+        "热病，癫狂",
+        "头痛，颈项强痛",
+        "手指肿痛"
+      ],
+      "operation": "直刺0.2～0.3寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI3",
+      "name": "后溪",
+      "pinyin": "Hòuxī",
+      "meridian": "手太阳小肠经",
+      "specialClass": "输穴，八脉交会穴（通督脉）",
+      "location": "第5掌指关节尺侧近端赤白肉际凹陷中（图8-2-2）。 取法：半握拳，掌远侧横纹头（尺侧）赤白肉际处。",
+      "indications": [
+        "耳聋，目赤，鼻衄",
+        "癫狂痫，疟疾",
+        "头痛，颈项强痛，肘臂痛"
+      ],
+      "operation": "直刺0.5～1寸，或向合谷方向透刺。",
+      "classicalExcerpts": [
+        "《甲乙经》：“寒热颈颔肿，后溪主之。”“狂互引癫疾数发，后溪主之。” 《肘后歌》：“胁肋腿痛后溪妙。” 《玉龙歌》：“时行疟疾最难禁，穴法由来未审明，若把后溪穴寻得，多加艾火即时轻。” 图8-2-1 手太阳小肠经穴 Points of Small Intestine Meridian of Hand-Taiyang"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI4",
+      "name": "腕骨",
+      "pinyin": "Wàngǔ",
+      "meridian": "手太阳小肠经",
+      "specialClass": "原穴",
+      "location": "第5掌骨底与三角骨之间的赤白肉际凹陷中（图8-2-2）。 取法：由后溪向上沿掌骨直推至一突起骨，于两骨之间凹陷中取穴。",
+      "indications": [
+        "耳鸣，目翳",
+        "黄疸，热病，惊风，抽搐，疟疾",
+        "头痛，颈项强痛，肩臂腕指痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“痓，互引，腕骨主之。”“消渴，腕骨主之。” 《铜人腧穴针灸图经》：“目冷泪，生翳。”“头痛烦闷，惊风，瘈疭。” 《玉龙歌》：“腕中无力痛艰难，握物难移体不安，腕骨一针虽见效，莫将补泻等闲看。” 图8-2-3"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI5",
+      "name": "阳谷",
+      "pinyin": "Yánggǔ",
+      "meridian": "手太阳小肠经",
+      "specialClass": "经穴",
+      "location": "尺骨茎突与三角骨之间的凹陷中（图8-2-2、图8-2-3）。",
+      "indications": [
+        "头痛，眩晕，耳鸣，耳聋",
+        "热病，癫狂痫",
+        "颈肿，颊肿，腕臂疼痛"
+      ],
+      "operation": "直刺0.3～0.4寸。 图8-2-4",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI6",
+      "name": "养老",
+      "pinyin": "Yǎnglǎo",
+      "meridian": "手太阳小肠经",
+      "specialClass": "郄穴",
+      "location": "腕背横纹上1寸，尺骨头桡侧凹陷中（图8-2-4）。 取法：掌心向下，用一手指按在尺骨头的最高点上，然后手掌旋后，当手指滑入的骨缝中。",
+      "indications": [
+        "目视不明",
+        "肩臂疼痛不举"
+      ],
+      "operation": "以掌心向胸姿势，直刺或斜刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“肩痛欲折，臑如拔，手不能自上下，养老主之。” 《铜人腧穴针灸图经》：“目视不明。” 《玉龙经》：“肩背强急，眼痛。” 《类经图翼》：“张仲文传灸治仙法，疗腰重痛，不可转侧，起坐艰难，及筋挛，脚痹不可屈伸，养老穴也。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI7",
+      "name": "支正",
+      "pinyin": "Zhīzhèng",
+      "meridian": "手太阳小肠经",
+      "specialClass": "络穴",
+      "location": "腕背侧远端横纹上5寸，尺骨尺侧与尺侧腕屈肌之间（图8-2-3）。",
+      "indications": [
+        "热病，癫狂",
+        "疣",
+        "头痛，颈项强痛，肘臂酸痛"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“振寒（寒）热，颈项肿，实则肘挛，头项痛，狂易，虚则生疣，小者痂疥，支正主之。” 《千金要方》：“支正、少海主热病先腰胫酸，喜渴数饮食，身热项痛而强，振寒寒热。” 《医宗金鉴》：“七情郁结不舒，肘臂十指筋挛疼痛，及消渴饮水不止。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI8",
+      "name": "小海",
+      "pinyin": "Xiǎohǎi",
+      "meridian": "手太阳小肠经",
+      "specialClass": "合穴",
+      "location": "尺骨鹰嘴与肱骨内上髁之间凹陷中（图8-2-3）。 取法：微屈肘，在尺骨鹰嘴与肱骨内上髁之间的尺神经沟中取穴，用手指弹敲此处时有触电麻感直达小指。",
+      "indications": [
+        "癫痫",
+        "头痛，颈项强痛，肘臂疼痛"
+      ],
+      "operation": "直刺0.3～0.5寸 图8-2-5",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI9",
+      "name": "肩贞",
+      "pinyin": "Jiānzhēn",
+      "meridian": "手太阳小肠经",
+      "location": "肩关节后下方，腋后纹头直上1寸（图8-2-5）。",
+      "indications": [
+        "瘰疬",
+        "肩痛，上肢不遂"
+      ],
+      "operation": "直刺或向外斜刺1～1.5寸，或向前腋缝方向透刺，不宜向胸侧深刺。",
+      "classicalExcerpts": [
+        "《甲乙经》：“寒热，项疬适，耳（鸣）无闻，引缺盆肩中热痛，（手臂）麻痹不举，肩贞主之。” 《针灸大成》：“主伤寒寒热，耳鸣耳聋，缺盆肩中热痛，风痹，手足麻木不举。” 《类经图翼》：“颔肿。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI10",
+      "name": "臑俞",
+      "pinyin": "Nàoshū",
+      "meridian": "手太阳小肠经",
+      "specialClass": "手太阳经、足太阳经、阳维脉、阳脉交会穴",
+      "location": "腋后纹头直上，肩胛冈下缘凹陷中（图8-2-5）。",
+      "indications": [
+        "肩臂疼痛"
+      ],
+      "operation": "直刺或向外斜刺0.5～1.5寸，不宜向胸侧深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI11",
+      "name": "天宗",
+      "pinyin": "Tiānzōng",
+      "meridian": "手太阳小肠经",
+      "location": "肩胛冈中点与肩胛骨下角连线上1/3与下2/3交点凹陷中（图8-2-5）。",
+      "indications": [
+        "肩臂疼痛不举"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“肩重，肘臂痛不可举，天宗主之。” 《铜人腧穴针灸图经》：“肩胛痛，臂肘外后廉痛，颊颔肿。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI12",
+      "name": "秉风",
+      "pinyin": "Bǐngfēng",
+      "meridian": "手太阳小肠经",
+      "specialClass": "手少阳经、手太阳经、手阳明经、足少阳经交",
+      "location": "肩胛冈中点上方冈上窝中（图8-2-5）。",
+      "indications": [
+        "肩痛不举"
+      ],
+      "operation": "直刺或斜刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI13",
+      "name": "曲垣",
+      "pinyin": "Qūyuán",
+      "meridian": "手太阳小肠经",
+      "location": "肩胛冈内侧端上缘凹陷中（图8-2-5）。 取法：臑俞与第2胸椎棘突连线的中点处取穴。",
+      "indications": [
+        "肩痛不举"
+      ],
+      "operation": "直刺或向外斜刺0.5～1寸，不宜向胸部深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI14",
+      "name": "肩外俞",
+      "pinyin": "Jiānwàishū",
+      "meridian": "手太阳小肠经",
+      "location": "第1胸椎棘突下，后正中线旁开3寸（图8-2-5）。",
+      "indications": [
+        "肩背痛引项臂"
+      ],
+      "operation": "向外斜刺0.5～0.8寸，不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI15",
+      "name": "肩中俞",
+      "pinyin": "Jiānzhōngshū",
+      "meridian": "手太阳小肠经",
+      "location": "第7颈椎棘突下，后正中线旁开2寸（图8-2-5）。",
+      "indications": [
+        "恶寒发热，咳嗽，气喘",
+        "目视不明",
+        "肩背疼痛"
+      ],
+      "operation": "直刺或向外斜刺0.5～0.8寸，不宜深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI16",
+      "name": "天窗",
+      "pinyin": "Tiānchuāng",
+      "meridian": "手太阳小肠经",
+      "location": "横平喉结，胸锁乳突肌的后缘（图8-2-6）。",
+      "indications": [
+        "耳鸣，耳聋，咽喉肿痛，暴喑",
+        "颈项强痛"
+      ],
+      "operation": "直刺或向下斜刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI17",
+      "name": "天容",
+      "pinyin": "Tiānróng",
+      "meridian": "手太阳小肠经",
+      "location": "下颌角后方，胸锁乳突肌的前缘凹陷中（图8-2-6）。",
+      "indications": [
+        "胸痛，气喘",
+        "耳聋",
+        "咽喉肿痛，瘿气，颈项肿痛"
+      ],
+      "operation": "直刺0.5～1寸，不宜深刺。 图8-2-6",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI18",
+      "name": "颧髎",
+      "pinyin": "Quánliáo",
+      "meridian": "手太阳小肠经",
+      "specialClass": "手少阳经、手太阳经交会穴",
+      "location": "颧骨下缘，目外眦直下凹陷中（图8-2-6）。",
+      "indications": [
+        "口眼㖞斜，眼睑动，目赤，目黄，齿痛，颊肿"
+      ],
+      "operation": "直刺0.3～0.5寸，斜刺或平刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“口㖞，面赤目黄，眼动不止。”《循经考穴编》：“天吊风，口眼㖞斜动。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "SI19",
+      "name": "听宫",
+      "pinyin": "Tīnggōng",
+      "meridian": "手太阳小肠经",
+      "specialClass": "手少阳经、手太阳经、足少阳经交会穴",
+      "location": "耳屏正中与下颌骨髁突之间的凹陷中（图8-2-6）。",
+      "indications": [
+        "耳鸣，耳聋，聤耳",
+        "癫狂痫"
+      ],
+      "operation": "微张口，直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《针灸大成》：“主失音，癫疾，心腹满，聤耳，耳聋如物填塞无闻。” 《循经考穴编》：“耳虚鸣痒，或闭塞无闻，或耳出清汁。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL1",
+      "name": "睛明",
+      "pinyin": "Jīngmíng",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "手太阳经、足太阳经、足阳明经、阴脉、阳脉",
+      "location": "目内眦内上方眶内侧壁凹陷中（闭目，在目内眦内上方0.1寸的凹陷中）（图9-2-2）。",
+      "indications": [
+        "目赤肿痛，迎风流泪，目视不明，夜盲，目翳",
+        "眩晕"
+      ],
+      "operation": "嘱患者闭目，医者押手轻轻固定眼球，刺手持针，于眶内侧缘和眼球之间，靠近眶内缘缓慢直刺0.3～0.8寸，不宜提插捻转，出针时按压针孔片刻，以防出血引起血肿；不宜灸。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“治攀睛翳膜覆瞳子，恶风泪出，目内眦痒痛。” 《针灸大成》：“主目远视不明，恶风泪出……小儿疳眼，大人气眼冷泪。” 图9-2-1 足太阳膀胱经穴 Points of Bladder Meridian of Foot-Taiyang 图9-2-2"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL2",
+      "name": "攒竹",
+      "pinyin": "Cuánzhú",
+      "meridian": "足太阳膀胱经",
+      "location": "眉头凹陷中，额切迹处（图9-2-2）。",
+      "indications": [
+        "头痛，眉头痛",
+        "目赤肿痛，目视不明，流泪，眼睑动，眼睑下垂，口眼㖞斜"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“头风痛，鼻鼽衄，眉头痛，泣出，善嚏。” 《铜人腧穴针灸图经》：“治眼中赤痛及睑动。” 《针灸大成》：“主目䀮䀮，视物不明，泪出目眩，瞳子痒，目瞢，眼中赤痛及睑动不得卧。 图9-2-3"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL3",
+      "name": "眉冲",
+      "pinyin": "Méichōng",
+      "meridian": "足太阳膀胱经",
+      "location": "额切迹直上入发际0.5寸（图9-2-3）。",
+      "indications": [
+        "头痛，眩晕",
+        "鼻塞",
+        "癫痫"
+      ],
+      "operation": "向后平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL4",
+      "name": "曲差",
+      "pinyin": "QūChā",
+      "meridian": "足太阳膀胱经",
+      "location": "前发际正中直上0.5寸，旁开1.5寸（图9-2-3）。",
+      "indications": [
+        "头痛，眩晕",
+        "目视不明，鼻塞"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL5",
+      "name": "五处",
+      "pinyin": "Wǔchù",
+      "meridian": "足太阳膀胱经",
+      "location": "前发际正中直上1寸，旁开1.5寸（图9-2-3）。",
+      "indications": [
+        "头痛，头重，眩晕",
+        "癫痫，抽搐，热病"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL6",
+      "name": "承光",
+      "pinyin": "Chéngguāng",
+      "meridian": "足太阳膀胱经",
+      "location": "前发际正中直上2.5寸，旁开1.5寸（图9-2-3）。",
+      "indications": [
+        "头痛，眩晕",
+        "鼻塞"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL7",
+      "name": "通天",
+      "pinyin": "Tōngtiān",
+      "meridian": "足太阳膀胱经",
+      "location": "前发际正中直上4寸，旁开1.5寸（图9-2-3）。",
+      "indications": [
+        "头痛，眩晕",
+        "鼻塞，鼻渊，鼻衄"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL8",
+      "name": "络却",
+      "pinyin": "Luòquè",
+      "meridian": "足太阳膀胱经",
+      "location": "前发际正中直上5.5寸，旁开1.5寸（图9-2-3）。",
+      "indications": [
+        "头痛，眩晕",
+        "耳鸣",
+        "癫狂"
+      ],
+      "operation": "平刺0.3～0.5寸。 图9-2-4",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL9",
+      "name": "玉枕",
+      "pinyin": "Yùzhěn",
+      "meridian": "足太阳膀胱经",
+      "location": "横平枕外隆凸上缘，后发际正中旁开1.3寸（图9-2-4）。",
+      "indications": [
+        "头痛，颈项强痛",
+        "目痛，鼻塞"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL10",
+      "name": "天柱",
+      "pinyin": "Tiānzhù",
+      "meridian": "足太阳膀胱经",
+      "location": "横平第2颈椎棘突上际，斜方肌外缘凹陷中（后发际正中直上0.5寸，斜方肌外缘凹陷中）（图9-2-4）。",
+      "indications": [
+        "头痛，眩晕",
+        "目痛",
+        "癫狂痫，热病",
+        "颈项强痛，肩背痛"
+      ],
+      "operation": "直刺或斜刺0.5～0.8寸，不可向内上方深刺。",
+      "classicalExcerpts": [
+        "《甲乙经》：“咽肿难言，天柱主之。” 《千金要方》：“天柱，主不知香臭。” 《针灸大成》：“项强不可回顾。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL11",
+      "name": "大杼",
+      "pinyin": "Dàzhù",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "八会穴（骨会），手、足太阳经交会穴",
+      "location": "第1胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "咳嗽，气喘",
+        "发热",
+        "颈项强痛，肩背痛"
+      ],
+      "operation": "斜刺0.5～0.8寸。不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL12",
+      "name": "风门",
+      "pinyin": "Fēngmén",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "足太阳经、督脉交会穴",
+      "location": "第2胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "咳嗽，发热，头痛，鼻塞，鼻流清涕",
+        "颈项强痛，胸背痛"
+      ],
+      "operation": "斜刺0.5～0.8寸。不宜直刺深刺。",
+      "classicalExcerpts": [
+        "《甲乙经》：“风眩头痛。” 《铜人腧穴针灸图经》：“治伤寒颈项强。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL13",
+      "name": "肺俞",
+      "pinyin": "Fèishū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "肺之背俞穴",
+      "location": "第3胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "咳嗽，气喘，肺痨，咳血，潮热，盗汗",
+        "小儿龟背"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“传尸骨蒸劳，肺痿咳嗽。” 《针灸资生经》：“凡有喘与哮者，为按肺俞，无不酸疼，皆为缪刺肺俞，令灸而愈。” 《类经图翼》：“主泻五脏之热也。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL14",
+      "name": "厥阴俞",
+      "pinyin": "Juéyīnshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "心包之背俞穴",
+      "location": "第4胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "心痛，胸闷",
+        "咳嗽",
+        "呕吐"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "classicalExcerpts": [
+        "《针灸大成》：“主咳逆牙痛，心痛，胸满呕吐，留结烦闷。” 《针灸资生经》：“灸厥阴俞随年壮。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL15",
+      "name": "心俞",
+      "pinyin": "Xīnshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "心之背俞穴",
+      "location": "第5胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "心痛，惊悸，失眠，健忘，梦遗",
+        "咳嗽，咳血，盗汗",
+        "癫痫"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "classicalExcerpts": [
+        "《甲乙经》：“寒热心痛，循循然，与背相引而痛。” 《针灸大成》：“主呕吐不下食，健忘。” 《类经图翼》：“主泻五脏之热。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL16",
+      "name": "督俞",
+      "pinyin": "Dūshū",
+      "meridian": "足太阳膀胱经",
+      "location": "第6胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "心痛",
+        "腹痛，腹胀，肠鸣，气逆"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL17",
+      "name": "膈俞",
+      "pinyin": "Géshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "八会穴（血会）",
+      "location": "第7胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "呕吐，呃逆，吐血",
+        "气喘"
+      ],
+      "operation": "斜刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“背痛恶寒，脊强俯仰难，食不下，呕吐多涎，膈俞主之。” 《针灸大成》：“主心痛，周痹，吐食翻胃，骨蒸，四肢怠惰。” 《类经图翼》：“此血会也，诸血病者皆宜灸之，如吐血衄血不已，虚损昏晕，血热妄行，心肺二经呕血，脏毒便血不止。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL18",
+      "name": "肝俞",
+      "pinyin": "Gānshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "肝之背俞穴",
+      "location": "第9胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "胁痛，黄疸",
+        "目赤，目视不明，夜盲，流泪",
+        "吐血",
+        "癫狂痫"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "classicalExcerpts": [
+        "《甲乙经》：“肝胀者，肝俞主之，亦取太冲。” 《千金要方》：“肝俞、脾俞、志室，主两胁急痛。” 《铜人腧穴针灸图经》：“目生白翳。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL19",
+      "name": "胆俞",
+      "pinyin": "Dǎnshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "胆之背俞穴",
+      "location": "第10胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "呕吐，口苦，黄疸，胁痛"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "classicalExcerpts": [
+        "《甲乙经》：“胸满呕无所出，口苦舌干，饮食不下，胆俞主之。” 《铜人腧穴针灸图经》：“治食不下，目黄。” 《针灸大成》：“主头痛，振寒汗不出，腋下肿胀。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL20",
+      "name": "脾俞",
+      "pinyin": "Píshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "脾之背俞穴",
+      "location": "第11胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "腹胀，呕吐，泄泻",
+        "水肿，黄疸",
+        "多食善饥，身瘦"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《百症赋》：“听宫、脾俞，祛残心下之悲凄。” 《针灸大成》：“主腹胀，引胸背痛，多食身瘦……黄疸，善欠，不嗜食。” 《医宗金鉴》：“小儿慢脾风证。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL21",
+      "name": "胃俞",
+      "pinyin": "Wèishū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "胃之背俞穴",
+      "location": "第12胸椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "胃痛，呕吐，腹胀，肠鸣",
+        "多食善饥，身瘦"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“胃中寒胀，食多身体羸瘦，腹中满而鸣。” 《针灸大成》：“主霍乱，胃寒，腹胀而鸣，翻胃呕吐，不嗜食，多食羸瘦，目不明，腹痛，胸胁支满。” 《类经图翼》：“小儿羸瘦食少。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL22",
+      "name": "三焦俞",
+      "pinyin": "Sānjiāoshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "三焦之背俞穴",
+      "location": "第1腰椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "腹胀，呕吐，肠鸣，泄泻",
+        "小便不利，水肿",
+        "腰背痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL23",
+      "name": "肾俞",
+      "pinyin": "Shènshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "肾之背俞穴",
+      "location": "第2腰椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "耳鸣，耳聋",
+        "遗尿，遗精，阳痿，早泄，月经不调，带下，不孕",
+        "多食善饥，身瘦",
+        "腰痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《针灸大成》：“主虚劳羸瘦，耳聋肾虚，水脏久冷，心腹满胀急，两胁满引少腹急痛。” 《针灸资生经》：“肾俞，治肾虚水脏久冷。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL24",
+      "name": "气海俞",
+      "pinyin": "Qìhǎishū",
+      "meridian": "足太阳膀胱经",
+      "location": "第3腰椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "腰痛，痛经",
+        "痔疾"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL25",
+      "name": "大肠俞",
+      "pinyin": "Dàchángshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "大肠之背俞穴",
+      "location": "第4腰椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "腹胀，腹痛，肠鸣，泄泻，便秘",
+        "腰痛"
+      ],
+      "operation": "直刺0.5～1.2寸。",
+      "classicalExcerpts": [
+        "《千金要方》：“治风，腹中雷鸣，肠，注澼泄利。” 《铜人腧穴针灸图经》：“治腰痛，肠鸣，腹胀。” 《针灸大成》：“主脊强不得俯仰，腰痛，腹中气胀，绕脐切痛，多食身瘦，肠鸣，大小便不利，洞泄食不化，小腹绞痛。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL26",
+      "name": "关元俞",
+      "pinyin": "Guānyuánshū",
+      "meridian": "足太阳膀胱经",
+      "location": "第5腰椎棘突下，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "腹胀，泄泻",
+        "尿频，遗尿，小便不利",
+        "腰骶痛"
+      ],
+      "operation": "直刺0.5～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL27",
+      "name": "小肠俞",
+      "pinyin": "Xiǎochángshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "小肠之背俞穴",
+      "location": "横平第1骶后孔，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "遗精，遗尿，尿血，小便涩痛，疝气，带下",
+        "泄泻",
+        "腰骶痛"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL28",
+      "name": "膀胱俞",
+      "pinyin": "Pángguāngshū",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "膀胱之背俞穴",
+      "location": "横平第2骶后孔，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "小便不利，遗尿",
+        "泄泻，便秘",
+        "腰骶痛"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "classicalExcerpts": [
+        "《千金要方》：“治坚结积聚。” 《铜人腧穴针灸图经》：“治风劳腰脊痛。” 《针灸大成》：“主小便赤黄，遗尿。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL29",
+      "name": "中膂俞",
+      "pinyin": "Zhōnglǚshū",
+      "meridian": "足太阳膀胱经",
+      "location": "横平第3骶后孔，后正中线旁开1.5寸（图9-2-5）。",
+      "indications": [
+        "腹胀，泄泻，痢疾",
+        "腰骶痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL30",
+      "name": "白环俞",
+      "pinyin": "Báihuánshū",
+      "meridian": "足太阳膀胱经",
+      "location": "横平第4骶后孔，后正中线旁开1.5寸（骶管裂孔旁开1.5寸）（图9-2-5）。",
+      "indications": [
+        "遗尿，遗精白浊，赤白带下，月经不调",
+        "腰骶痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL31",
+      "name": "上髎",
+      "pinyin": "Shàngliáo",
+      "meridian": "足太阳膀胱经",
+      "location": "正对第1骶后孔中（图9-2-5）。",
+      "indications": [
+        "月经不调，带下，阴挺，阴疝",
+        "腰骶痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL32",
+      "name": "次髎",
+      "pinyin": "Cìliáo",
+      "meridian": "足太阳膀胱经",
+      "location": "正对第2骶后孔中（图9-2-5）。 取穴：髂后上棘与第2骶椎棘突连线的中点凹陷处，即第2骶后孔。",
+      "indications": [
+        "月经不调，痛经，带下，遗精，小便不利，疝气",
+        "腰痛，下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“女子赤白沥，心下积胀。” 《铜人腧穴针灸图经》：“治疝气下坠，腰脊痛不得转摇，急引阴器，痛不可忍，腰已下至足不仁，背腠寒，小便赤淋，心下坚胀。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL33",
+      "name": "中髎",
+      "pinyin": "Zhōngliáo",
+      "meridian": "足太阳膀胱经",
+      "location": "正对第3骶后孔中（图9-2-5）。",
+      "indications": [
+        "月经不调，带下，小便不利",
+        "便秘，泄泻",
+        "腰骶痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL34",
+      "name": "下髎",
+      "pinyin": "Xiàliáo",
+      "meridian": "足太阳膀胱经",
+      "location": "正对第4骶后孔中（图9-2-5）。 说明：横平骶管裂孔。",
+      "indications": [
+        "带下，便秘，便血，小便不利",
+        "疝痛引小腹，腰痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL35",
+      "name": "会阳",
+      "pinyin": "Huìyáng",
+      "meridian": "足太阳膀胱经",
+      "location": "尾骨端旁开0.5寸（图9-2-5）。",
+      "indications": [
+        "痔疾，痢疾",
+        "阳痿，带下"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL36",
+      "name": "承扶",
+      "pinyin": "Chéngfú",
+      "meridian": "足太阳膀胱经",
+      "location": "臀沟的中点（图9-2-6）。",
+      "indications": [
+        "痔疾，脱肛，便秘，小便不利",
+        "腰、骶、臀、股痛"
+      ],
+      "operation": "直刺1～2寸。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“小便不利。” 《针灸大成》：“久痔尻臀肿。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL37",
+      "name": "殷门",
+      "pinyin": "Yīnmén",
+      "meridian": "足太阳膀胱经",
+      "location": "臀沟下6寸，股二头肌与半腱肌之间（图9-2-6）。",
+      "indications": [
+        "腰痛，下肢痿痹"
+      ],
+      "operation": "直刺1～2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL38",
+      "name": "浮郄",
+      "pinyin": "Fúxì",
+      "meridian": "足太阳膀胱经",
+      "location": "腘横纹上1寸，股二头肌腱的内侧缘（图9-2-6）。",
+      "indications": [
+        "便秘",
+        "股腘疼痛，麻木"
+      ],
+      "operation": "直刺1～1.5寸。 图9-2-6",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL39",
+      "name": "委阳",
+      "pinyin": "Wěiyáng",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "三焦下合穴",
+      "location": "腘横纹上，股二头肌腱的内侧缘（图9-2-6）。",
+      "indications": [
+        "腹满，小便不利",
+        "腰背痛，腿足痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《灵枢·邪气藏府病形》：“三焦病者，腹气满，小腹尤坚不得小便，窘急，溢则水留，即为胀，候在足太阳之外大络，大络在太阳少阳之间，亦见于脉，取委阳。” 《甲乙经》：“腰痛引腹，不得俯仰。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL40",
+      "name": "委中",
+      "pinyin": "Wěizhōng",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "合穴，膀胱下合穴",
+      "location": "腘横纹中点（图9-2-6、图9-2-8）。",
+      "indications": [
+        "小腹痛，小便不利，遗尿",
+        "腰背痛，下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸，或用三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《灵枢·邪气藏府病形》：“膀胱病者，小腹偏肿而痛，以手按之，即欲小便而不得，肩上热，若脉陷，及足小趾外廉及胫踝后皆热，若脉陷，取委中。” 《类经图翼》：“大风眉发脱落，太阳疟从背起，先寒后热，熇熇然，汗出难已，头重转筋，腰脊背痛，半身不遂，遗溺，小腹坚，风痹髀枢痛，膝痛，足软无力。凡肾与膀胱实而腰痛者，刺出血妙，虚者不宜刺，慎之。此穴主泻四肢之热。委中者，血郄也，凡热病汗不出，小便难，衄血不止，脊强反折，瘈疭癫疾，足热厥逆不得屈伸，取其经血立愈。” 图9-2-7"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL41",
+      "name": "附分",
+      "pinyin": "Fùfēn",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "手、足太阳经交会穴",
+      "location": "第2胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "肩背拘急，颈项强痛，肘臂麻木"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL42",
+      "name": "魄户",
+      "pinyin": "Pòhù",
+      "meridian": "足太阳膀胱经",
+      "location": "第3胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "咳嗽，气喘，肺痨",
+        "肩背痛，颈项强痛"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL43",
+      "name": "膏肓",
+      "pinyin": "Gāohuāng",
+      "meridian": "足太阳膀胱经",
+      "location": "第4胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "咳嗽，气喘，盗汗，肺痨",
+        "遗精",
+        "羸瘦虚损"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "classicalExcerpts": [
+        "《千金要方》：“膏肓俞，无所不治，主羸瘦虚损，梦中失精，上气咳逆，狂惑忘误。” 《铜人腧穴针灸图经》：“发狂健忘。” 《百症赋》：“痨瘵传尸，趋魄户、膏肓之路。” 《针灸聚英》：“发狂，健忘，痰病。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL44",
+      "name": "神堂",
+      "pinyin": "Shéntáng",
+      "meridian": "足太阳膀胱经",
+      "location": "第5胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "咳嗽，气喘，胸闷",
+        "腰背痛"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL45",
+      "name": "譩譆",
+      "pinyin": "Yìxǐ",
+      "meridian": "足太阳膀胱经",
+      "location": "第6胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "咳嗽，气喘",
+        "疟疾，热病",
+        "肩背拘急引胁"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL46",
+      "name": "膈关",
+      "pinyin": "Géguān",
+      "meridian": "足太阳膀胱经",
+      "location": "第7胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "呕吐，呕逆，嗳气",
+        "胸闷",
+        "腰背痛"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL47",
+      "name": "魂门",
+      "pinyin": "Húnmén",
+      "meridian": "足太阳膀胱经",
+      "location": "第9胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "呕吐，泄泻",
+        "胁痛，背痛"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL48",
+      "name": "阳纲",
+      "pinyin": "Yánggāng",
+      "meridian": "足太阳膀胱经",
+      "location": "第l0胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "肠鸣，泄泻，食饮不下",
+        "小便黄赤"
+      ],
+      "operation": "斜刺0.5～0.8寸；不宜直刺深刺。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL49",
+      "name": "意舍",
+      "pinyin": "Yìshè",
+      "meridian": "足太阳膀胱经",
+      "location": "第11胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "腹胀，泄泻，消渴",
+        "发热",
+        "目黄"
+      ],
+      "operation": "斜刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL50",
+      "name": "胃仓",
+      "pinyin": "Wèicāng",
+      "meridian": "足太阳膀胱经",
+      "location": "第12胸椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "胃痛，腹胀，水肿，小儿食积",
+        "腰背痛"
+      ],
+      "operation": "斜刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL51",
+      "name": "肓门",
+      "pinyin": "Huāngmén",
+      "meridian": "足太阳膀胱经",
+      "location": "第1腰椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "腹痛，痞块",
+        "产后诸症"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL52",
+      "name": "志室",
+      "pinyin": "Zhìshì",
+      "meridian": "足太阳膀胱经",
+      "location": "第2腰椎棘突下，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "遗精，阳痿，小便不利",
+        "腰背痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“腰痛脊急，胁中满，小腹坚急，志室主之。” 《铜人腧穴针灸图经》：“小便淋漓。” 《针灸大成》：“梦遗失精，淋沥。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL53",
+      "name": "胞肓",
+      "pinyin": "Bāohuāng",
+      "meridian": "足太阳膀胱经",
+      "location": "横平第2骶后孔，后正中线旁开3寸（图9-2-7）。",
+      "indications": [
+        "癃闭",
+        "肠鸣，腹胀，便秘",
+        "腰脊痛"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL54",
+      "name": "秩边",
+      "pinyin": "Zhìbiān",
+      "meridian": "足太阳膀胱经",
+      "location": "横平第4骶后孔，后正中线旁开3寸（骶管裂孔旁开3寸）（图9-2-7）。",
+      "indications": [
+        "痔疾，便秘，小便不利，阴痛",
+        "腰骶痛，下肢痿痹"
+      ],
+      "operation": "直刺1.5～2寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“腰痛骶寒，俯仰急难，阴痛下重，不得小便。” 《千金要方》：“秩边、包肓主癃闭下重，大小便难。” 《铜人腧穴针灸图经》：“五痔发肿。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL55",
+      "name": "合阳",
+      "pinyin": "Héyáng",
+      "meridian": "足太阳膀胱经",
+      "location": "腘横纹下2寸，腓肠肌内、外侧头之间（图9-2-8）。",
+      "indications": [
+        "疝气，崩漏",
+        "腰背痛，下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸。 图9-2-8",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL56",
+      "name": "承筋",
+      "pinyin": "Chéngjīn",
+      "meridian": "足太阳膀胱经",
+      "location": "腘横纹下5寸，腓肠肌两肌腹之间（图9-2-8）。",
+      "indications": [
+        "痔疾",
+        "腰背痛，小腿拘急疼痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL57",
+      "name": "承山",
+      "pinyin": "Chéngshān",
+      "meridian": "足太阳膀胱经",
+      "location": "腓肠肌两肌腹与肌腱交角处。当伸直小腿或足跟上提时，腓肠肌肌腹下出现尖角凹陷中（图9-2-8）。",
+      "indications": [
+        "痔疾，便秘",
+        "腰背痛，小腿拘急疼痛"
+      ],
+      "operation": "直刺1～2寸。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“霍乱转筋，大便难。” 《针灸大成》：“脚气膝肿，胫酸脚跟痛。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL58",
+      "name": "飞扬",
+      "pinyin": "Fēiyáng",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "络穴",
+      "location": "昆仑直上7寸，腓肠肌外下缘与跟腱移行处（图9-2-8）。",
+      "indications": [
+        "头痛，眩晕",
+        "鼻衄",
+        "痔疾",
+        "腰腿疼痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“腰痛，颈项痛，历节汗出，而步失履，寒腹不仁，腨中痛。” 《千金要方》：“飞扬、太乙、滑肉门，主癫疾狂吐舌。” 《铜人腧穴针灸图经》：“主目眩，逆气鼽衄。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL59",
+      "name": "跗阳",
+      "pinyin": "Fūyáng",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "阳郄穴",
+      "location": "昆仑直上3寸，腓骨与跟腱之间（图9-2-8）。",
+      "indications": [
+        "头痛",
+        "腰骶痛，下肢痿痹，足踝肿痛"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL60",
+      "name": "昆仑",
+      "pinyin": "Kūnlún",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "经穴",
+      "location": "外踝尖与跟腱之间的凹陷中（图9-2-9）。",
+      "indications": [
+        "头痛，目痛，鼻衄",
+        "滞产",
+        "癫痫",
+        "颈项强痛，腰痛，足 踝肿痛"
+      ],
+      "operation": "直刺0.5～0.8寸。孕妇禁用。",
+      "classicalExcerpts": [
+        "《甲乙经》：“癫疾，目䀮䀮，鼽衄。” 《针灸大成》：“主腰尻脚气，足腨肿不得履地，鼽衄，腘如结，踝如裂，头痛，肩背拘急，咳喘满，腰脊内引痛……妇人孕难，胞衣不出。” 《针灸大成》：“妊妇刺之落胎。” 图9-2-9"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL61",
+      "name": "仆参",
+      "pinyin": "Púcān",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "足太阳经、阳脉交会穴",
+      "location": "昆仑直下，跟骨外侧，赤白肉际处（图9-2-9）。",
+      "indications": [
+        "癫痫",
+        "腰痛，下肢痿软，腿痛转筋，足跟肿痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL62",
+      "name": "申脉",
+      "pinyin": "Shēnmài",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "八脉交会穴（通阳脉）",
+      "location": "外踝尖直下，外踝下缘与跟骨之间凹陷中（图9-2-9）。",
+      "indications": [
+        "失眠，头痛，眩晕，癫狂痫",
+        "腰腿痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“腰痛不能举足，少坐若下车踬地，胫中矫矫（一作‘燆燆’）然。” 《针灸聚英》：“洁古曰：痫病昼发，灸阳。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL63",
+      "name": "金门",
+      "pinyin": "Jīnmén",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "郄穴",
+      "location": "外踝前缘直下，第5跖骨粗隆后方，骰骨下缘凹陷中（图9-2-9）。",
+      "indications": [
+        "头痛",
+        "小儿惊风",
+        "腰痛，下肢痿痹，足踝肿痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL64",
+      "name": "京骨",
+      "pinyin": "Jīnggǔ",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "原穴",
+      "location": "第5跖骨粗隆前下方，赤白肉际处（图9-2-9）。",
+      "indications": [
+        "头痛",
+        "癫痫",
+        "颈项强痛，腰腿痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《太平圣惠方》：“善惊悸，不欲食，腿膝胫痿。” 《循经考穴编》：“寒湿脚气，两足燥裂，或湿痒生疮。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL65",
+      "name": "束骨",
+      "pinyin": "Shùgǔ",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "输穴",
+      "location": "第5跖趾关节的近端，赤白肉际处（图9-2-9）。",
+      "indications": [
+        "头痛，眩晕",
+        "癫狂痫",
+        "颈项强痛，腰腿痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL66",
+      "name": "足通谷",
+      "pinyin": "Zútōnggǔ",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "荥穴",
+      "location": "第5跖趾关节的远端，赤白肉际处（图9-2-9）。",
+      "indications": [
+        "头痛，颈项强痛",
+        "鼻衄",
+        "癫狂"
+      ],
+      "operation": "直刺0.2～0.3寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "BL67",
+      "name": "至阴",
+      "pinyin": "Zhìyīn",
+      "meridian": "足太阳膀胱经",
+      "specialClass": "井穴",
+      "location": "小趾末节外侧，趾甲根角侧后方0.1寸（图9-2-9）。",
+      "indications": [
+        "胎位不正，滞产",
+        "头痛，目痛，鼻塞，鼻衄",
+        "足膝肿痛"
+      ],
+      "operation": "浅刺0.1寸；或点刺出血。胎位不正用灸法。",
+      "classicalExcerpts": [
+        "《针灸聚英》：“目痛，大眦痛。” 《肘后歌》：“头面之疾针至阴。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI1",
+      "name": "涌泉",
+      "pinyin": "Yǒngquán",
+      "meridian": "足少阴肾经",
+      "specialClass": "井穴",
+      "location": "屈足卷趾时足心最凹陷中（图10-2-2）。 取法：当足底第2、3趾蹼缘与足跟连线的前1/3与后2/3的交点处。",
+      "indications": [
+        "发热，心烦，惊风",
+        "咽喉肿痛，咳嗽，气喘",
+        "便秘，小便不利",
+        "足心热，腰脊痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《肘后歌》：“顶心头痛眼不开，涌泉下针定安泰。”“伤寒痞气结胸中，两目昏黄汗不通，涌泉妙穴三分许，速使周身汗自通。” 《通玄指要赋》：“胸结身黄，取涌泉而即可。” 《百症赋》：“厥寒、厥热涌泉清。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI2",
+      "name": "然谷",
+      "pinyin": "Rángǔ",
+      "meridian": "足少阴肾经",
+      "specialClass": "荥穴",
+      "location": "足舟骨粗隆下方，赤白肉际处（图10-2-3）。",
+      "indications": [
+        "咳血，咽喉肿痛",
+        "消渴，黄疸，泄泻",
+        "月经不调，阴挺，阴痒，遗精，阳痿",
+        "小儿脐风",
+        "足跗肿痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《千金要方》：“妇人绝子，灸然谷各五十壮。” 《甲乙经》：“女子不字，阴暴出，经水漏，然谷主之。” 《百症赋》：“脐风须然谷而易醒。” 图10-2-1足少阴肾经穴 Points of Kidney Meridianof Foot-shaoyin"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI3",
+      "name": "太溪",
+      "pinyin": "Tàixī",
+      "meridian": "足少阴肾经",
+      "specialClass": "输穴，原穴",
+      "location": "内踝尖与跟腱之间的凹陷中（图10-2-3）。",
+      "indications": [
+        "遗精，阳痿，月经不调",
+        "咳嗽，气喘，咳血，胸痛。咽喉肿痛，齿痛",
+        "消渴，便秘",
+        "腰背痛，下肢冷痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“消瘅，善喘（一作‘噫’），气走喉咽而不能言，手足清，溺黄，大便难，嗌中肿痛，唾血，口中热，唾如胶，太溪主之。” 《通玄指要赋》：“牙齿痛，吕细堪治。” 《百症赋》：“寒疟兮，商阳太溪验。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI4",
+      "name": "大钟",
+      "pinyin": "Dàzhōng",
+      "meridian": "足少阴肾经",
+      "specialClass": "络穴",
+      "location": "内踝后下方，跟骨上缘，跟腱附着部前缘凹陷中（图10-2-3）。",
+      "indications": [
+        "癃闭，便秘",
+        "咳血，气喘",
+        "痴呆，嗜卧",
+        "腰背痛，足跟痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《灵枢·经脉》：“足少阴之别……其病，气逆则烦闷，实则闭癃，虚则腰痛。取之所别也。” 《甲乙经》：“疟多寒少热，大钟主之。” 《标幽赋》：“用大钟治心内之呆痴。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI5",
+      "name": "水泉",
+      "pinyin": "Shuǐquán",
+      "meridian": "足少阴肾经",
+      "specialClass": "郄穴",
+      "location": "太溪直下1寸，跟骨结节内侧凹陷中（图10-2-3）。",
+      "indications": [
+        "月经不调，痛经，阴挺，小便不利",
+        "目视不明"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI6",
+      "name": "照海",
+      "pinyin": "Zhàohǎi",
+      "meridian": "足少阴肾经",
+      "specialClass": "八脉交会穴（通阴脉）",
+      "location": "内踝尖下1寸，内踝下缘边际凹陷中（图10-2-3）。",
+      "indications": [
+        "失眠，目赤肿痛，咽干，咽痛",
+        "月经不调，赤白带下，阴挺，癃闭，疝气",
+        "癫痫"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“卒疝，少腹痛，照海主之，病在左，取右，右取左。” 《针灸聚英》：“洁古曰：痫病夜发，灸阴，照海穴也。” 《八法八穴歌》：“喉塞小便淋涩，膀胱气痛肠鸣，食黄酒积腹脐并，呕泻胃翻便紧，难产昏迷积块，肠风下血常频，膈中决气气痃侵，照海有功必定。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI7",
+      "name": "复溜",
+      "pinyin": "Fùliū",
+      "meridian": "足少阴肾经",
+      "specialClass": "经穴",
+      "location": "内踝尖上2寸，跟腱的前缘（图10-2-4）。",
+      "indications": [
+        "腹胀，泄泻",
+        "多汗，无汗，水肿",
+        "腰背痛，下肢痿痹"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“血痔泄（利）后重，腹痛如癃状，狂仆必有所扶持，及大气涎出，鼻孔中痛，腹中常（一作‘雷’）鸣，骨寒热无所安，汗出不休，复溜主之。” 《针灸大成》：“足内踝上二寸，筋骨陷中，前傍骨是复溜，后傍筋是交信，二穴止隔一条筋。” 《天元太乙歌》：“闪挫脊膂腰难转，举步多难行重蹇，遍体游气生虚浮，复溜一刺人健羡。” 图10-2-4"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI8",
+      "name": "交信",
+      "pinyin": "Jiāoxìn",
+      "meridian": "足少阴肾经",
+      "specialClass": "阴脉郄穴",
+      "location": "内踝尖上2寸，胫骨内侧缘后际凹陷中（图10-2-4）。",
+      "indications": [
+        "癃闭，疝气痛引股膝，月经不调",
+        "泄泻，便秘"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI9",
+      "name": "筑宾",
+      "pinyin": "Zhùbīn",
+      "meridian": "足少阴肾经",
+      "specialClass": "阴维脉郄穴",
+      "location": "太溪直上5寸，比目鱼肌与跟腱之间（图10-2-4）。",
+      "indications": [
+        "癫痫，吐舌",
+        "呕吐",
+        "疝气",
+        "小腿疼痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI10",
+      "name": "阴谷",
+      "pinyin": "Yīngǔ",
+      "meridian": "足少阴肾经",
+      "specialClass": "合穴",
+      "location": "在腘窝内侧，屈膝时，当半腱肌肌腱与半膜肌肌腱之间（图10-2-5）。",
+      "indications": [
+        "阳痿，小便不利，月经 不调，崩漏",
+        "癫狂",
+        "腰脊痛，少腹、前阴、 膝股引痛"
+      ],
+      "operation": "直刺1～1.5寸。 图10-2-5",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI11",
+      "name": "横骨",
+      "pinyin": "Hénggǔ",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中下5寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "少腹胀痛，小便不利，遗尿，遗精，阳痿，疝气"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI12",
+      "name": "大赫",
+      "pinyin": "Dàhè",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中下4寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "遗精，阳痿，阴挺，带下，阴囊挛缩"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“女子赤淫，大赫主之。”“男子精溢，阴上缩，大赫主之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI13",
+      "name": "气穴",
+      "pinyin": "Qìxué",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中下3寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "月经不调，带下",
+        "不孕",
+        "腹痛引腰脊"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI14",
+      "name": "四满",
+      "pinyin": "Sìmǎn",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中下2寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "月经不调，带下，遗精，遗尿",
+        "泄泻，腹痛，积聚，水肿"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI15",
+      "name": "中注",
+      "pinyin": "Zhōngzhù",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中下1寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "腹痛，便秘"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI16",
+      "name": "肓俞",
+      "pinyin": "Huāngshū",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "腹痛，便秘"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI17",
+      "name": "商曲",
+      "pinyin": "Shāngqū",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中上2寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "腹痛，泄泻，便秘，积聚"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI18",
+      "name": "石关",
+      "pinyin": "Shíguān",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中上3寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "腹痛，便秘，多唾，嗳气"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI19",
+      "name": "阴都",
+      "pinyin": "Yīndū",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中上4寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "腹痛，腹胀，肠鸣"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI20",
+      "name": "腹通谷",
+      "pinyin": "Fùtōnggǔ",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中上5寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "腹痛，腹胀，腹中积聚，呕吐"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI21",
+      "name": "幽门",
+      "pinyin": "Yōumén",
+      "meridian": "足少阴肾经",
+      "specialClass": "足少阴经、冲脉交会穴",
+      "location": "脐中上6寸，前正中线旁开0.5寸（图10-2-6）。",
+      "indications": [
+        "腹痛，腹胀，呃逆，呕吐，泄泻"
+      ],
+      "operation": "直刺0.5～1寸。 图10-2-7",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI22",
+      "name": "步廊",
+      "pinyin": "Bùláng",
+      "meridian": "足少阴肾经",
+      "location": "第5肋间隙，前正中线旁开2寸（图10-2-7）。",
+      "indications": [
+        "咳嗽，气喘，胸胁胀满",
+        "呕吐"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI23",
+      "name": "神封",
+      "pinyin": "Shénfēng",
+      "meridian": "足少阴肾经",
+      "location": "第4肋间隙，前正中线旁开2寸（图10-2-7）。",
+      "indications": [
+        "咳嗽，气喘，胸胁胀满",
+        "呕吐，食欲不振",
+        "乳痈"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI24",
+      "name": "灵墟",
+      "pinyin": "Língxū",
+      "meridian": "足少阴肾经",
+      "location": "第3肋间隙，前正中线旁开2寸（图10-2-7）。",
+      "indications": [
+        "咳嗽，气喘，胸胁胀满",
+        "呕吐",
+        "乳痈"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI25",
+      "name": "神藏",
+      "pinyin": "Shéncáng",
+      "meridian": "足少阴肾经",
+      "location": "第2肋间隙，前正中线旁开2寸（图10-2-7）。",
+      "indications": [
+        "咳嗽，气喘，胸胁胀满",
+        "呕吐，食欲不振"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI26",
+      "name": "彧中",
+      "pinyin": "Yùzhōng",
+      "meridian": "足少阴肾经",
+      "location": "第1肋间隙，前正中线旁开2寸（图10-2-7）。",
+      "indications": [
+        "咳嗽，气喘，痰多，胸胁胀满"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "KI27",
+      "name": "俞府",
+      "pinyin": "Shūfǔ",
+      "meridian": "足少阴肾经",
+      "location": "锁骨下缘，前正中线旁开2寸（图10-2-7）。",
+      "indications": [
+        "咳嗽，气喘，胸痛",
+        "呕吐"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "PC1",
+      "name": "天池",
+      "pinyin": "Tiānchí",
+      "meridian": "手厥阴心包经",
+      "location": "第4肋间隙，前正中线旁开5寸（图11-2-2）。",
+      "indications": [
+        "咳嗽、痰多、气喘、胸闷、胸痛，腋下肿",
+        "瘰疬"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“寒热胸满头痛，四肢不举，腋下肿，上气胸中有声，喉中鸣，天池主之。” 《铜人腧穴针灸图经》：“治寒热胸膈烦满，头痛，四肢不举，腋下肿，上气胸中有声，喉中鸣。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "PC2",
+      "name": "天泉",
+      "pinyin": "Tiānquán",
+      "meridian": "手厥阴心包经",
+      "location": "腋前纹头下2寸，肱二头肌的长、短头之间（图11-2-2）。",
+      "indications": [
+        "心痛，咳嗽，胸胁胀痛",
+        "臂痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "PC3",
+      "name": "曲泽",
+      "pinyin": "Qūzé",
+      "meridian": "手厥阴心包经",
+      "specialClass": "合穴",
+      "location": "肘横纹上，肱二头肌腱的尺侧缘凹陷中（图11-2-2）。",
+      "indications": [
+        "心痛，心悸，善惊",
+        "热病，口干",
+        "胃痛，吐血，呕吐",
+        "肘臂挛痛"
+      ],
+      "operation": "直刺1～l.5寸，或用三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《甲乙经》：“心痛卒咳逆，曲泽主之，出血则已。” 《千金要方》：“曲泽、大陵，主心下澹澹，喜惊。” 《铜人腧穴针灸图经》：“治心痛，善惊身热，烦渴口干，逆气呕血，风胗，臂肘手腕善动摇。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "PC4",
+      "name": "郄门",
+      "pinyin": "Xìmén",
+      "meridian": "手厥阴心包经",
+      "specialClass": "郄穴",
+      "location": "腕掌侧远端横纹上5寸，掌长肌腱与桡侧腕屈肌腱之间（图11-2-3）。",
+      "indications": [
+        "心痛，心悸，心烦，胸痛",
+        "咯血，吐血，衄血"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“心痛，衄，哕，呕血，惊恐畏人，神气不足。” 《循经考穴编》：“久疟不瘥，心胸疼痛，五心烦热。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "PC5",
+      "name": "间使",
+      "pinyin": "Jiānshǐ",
+      "meridian": "手厥阴心包经",
+      "specialClass": "经穴",
+      "location": "腕掌侧远端横纹上3寸，掌长肌腱与桡侧腕屈肌腱之间（图11-2-3）。",
+      "indications": [
+        "心痛，心悸，心烦",
+        "热病，疟疾，癫狂痫",
+        "胃痛，呕吐"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“热病烦心，善呕，胸中澹澹，善动而热。”“心悬如饥状，善悲而惊狂，面赤目黄，喑不能言，头大浸淫。” 《千金要方》：“胸痹背相引，寒中少气，头痛。” 《千金翼方》：“烦躁恍惚，狂邪发无常，披头大唤欲杀人，不避水火，干呕不止，所食即吐不停。” 《针灸大成》：“腋肿肘挛，卒心痛，中风气塞，涎上昏危，咽中如梗，妇人月水不调，血结成块，小儿客忤。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "PC6",
+      "name": "内关",
+      "pinyin": "Nèiguān",
+      "meridian": "手厥阴心包经",
+      "specialClass": "络穴，八脉交会穴（通阴维脉）",
+      "location": "腕掌侧远端横纹上2寸，掌长肌腱与桡侧腕屈肌腱之间（图11-2-3）。",
+      "indications": [
+        "心悸，心痛，胸闷",
+        "胃痛，呕吐，呃逆",
+        "癫狂痫",
+        "肘臂挛痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“心澹澹而善惊恐，心悲，内关主之。”“实则心暴痛，虚则心烦，心惕惕不能动，失智，内关主之。” 《针灸大成》：“主手中风热，失志，心痛，目赤，支满肘挛。实则心暴痛泻之，虚则头强补之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "PC7",
+      "name": "大陵",
+      "pinyin": "Dàlíng",
+      "meridian": "手厥阴心包经",
+      "specialClass": "输穴，原穴",
+      "location": "腕掌侧远端横纹中，掌长肌腱与桡侧腕屈肌腱之间（图11-2-3）。",
+      "indications": [
+        "心痛，心悸",
+        "胃痛，呕吐，吐血",
+        "悲恐善笑，癫狂痫",
+        "疮肿",
+        "胸胁痛，手臂痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“热病烦心而汗不止，肘挛腋肿，善笑不休，心中痛，目赤黄，小便如血，欲呕，胸中热，苦不乐，太息，喉痹嗌干，喘逆，身热如火，头痛如破，短气胸痛，大陵主之。”“狂言，大陵主之。” 《铜人腧穴针灸图经》：“治热病汗不出，臂挛腋肿，善笑不休，心悬善饥，喜悲泣惊恐。” 《玉龙歌》：“心胸有病大陵泻，气攻胸腹一般针。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "PC8",
+      "name": "劳宫",
+      "pinyin": "Láogōng",
+      "meridian": "手厥阴心包经",
+      "specialClass": "荥穴",
+      "location": "横平第3掌指关节近端，第2、3掌骨之间偏于第3掌骨。握拳屈指时，中指尖下是穴（图11-2-3）。",
+      "indications": [
+        "口疮，口臭，口渴",
+        "心痛，烦满",
+        "热病，癫狂痫",
+        "呕吐，吐血",
+        "鹅掌风"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“风热善怒，中心喜悲，思慕嘘唏，善笑不休，劳宫主之。”“衄不止，呕吐血，气逆，噫不止，嗌中痛，食不下，善渴，舌中烂，掌中热，欲呕，劳宫主之。”“口中肿腥臭，劳宫主之。” 《太平圣惠方》：“小儿口有疮蚀龈烂，臭秽气冲人，灸劳宫二穴，各一壮。” 《医宗金鉴》：“主治痰火胸痛，小儿口疮及鹅掌风等证。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "PC9",
+      "name": "中冲",
+      "pinyin": "Zhōngchōng",
+      "meridian": "手厥阴心包经",
+      "specialClass": "井穴",
+      "location": "中指末端最高点（图11-2-3）。",
+      "indications": [
+        "中风昏迷，舌强不语",
+        "心痛，心烦",
+        "热病，中暑，晕厥，小儿惊风"
+      ],
+      "operation": "浅刺0.1寸；或用三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《甲乙经》：“热病烦心，心闷而汗不出，掌中热，心痛，身热如火，浸淫烦满，舌本痛，中冲主之。” 《铜人腧穴针灸图经》：“治热病烦闷，汗不出，掌中热，身如火痛，烦满舌强。” 《玉龙歌》：“中风之症症非轻，中冲二穴可安宁。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE1",
+      "name": "关冲",
+      "pinyin": "Guānchōng",
+      "meridian": "手少阳三焦经",
+      "specialClass": "井穴",
+      "location": "第4指末节尺侧，指甲根角侧上方0.1寸（指寸）（图12-2-2）。",
+      "indications": [
+        "耳鸣，耳聋，目翳，舌强，咽喉肿痛，口渴，唇干",
+        "热病，头痛，中暑"
+      ],
+      "operation": "浅刺0.1寸，或用三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《甲乙经》：“肘痛不能自带衣，起头眩，颔痛，面黑，（渴），肩背痛不可顾，关冲主之。”“耳聋鸣，下关及阳溪、关冲、液门、阳谷主之。”“热病汗不出，天柱及风池、商阳、关冲、液门主之。” 《千金要方》：“关冲、窍阴、少泽，主喉痹，舌卷口干。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE2",
+      "name": "液门",
+      "pinyin": "Yèmén",
+      "meridian": "手少阳三焦经",
+      "specialClass": "荥穴",
+      "location": "第4、5指间，指蹼缘上方赤白肉际凹陷中（图12-2-2）。",
+      "indications": [
+        "头痛，目赤，耳鸣，耳聋，咽喉肿痛",
+        "热病，疟疾",
+        "手臂肿痛"
+      ],
+      "operation": "直刺0.3～0.5寸。 图12-2-1 手少阳三焦经穴 Points of Sanjiao Meridianof Hand-Shaoyang",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE3",
+      "name": "中渚",
+      "pinyin": "Zhōngzhǔ",
+      "meridian": "手少阳三焦经",
+      "specialClass": "输穴",
+      "location": "第4、5掌骨间，第4掌指关节近端凹陷中（图12-2-2）。",
+      "indications": [
+        "头痛，耳鸣，耳聋，目痛，咽喉肿痛",
+        "热病",
+        "肩背、肘臂酸痛，手指屈伸不利"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“狂，互引头痛，耳鸣，目痛，中渚主之；嗌外肿，肘臂痛，手上类类也，五指瘈不可屈伸，头眩，颔、额颅痛，中渚主之。” 《外台秘要》：“主热病汗不出，头痛，耳鸣，目痛寒热，嗌外肿。” 图12-2-2"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE4",
+      "name": "阳池",
+      "pinyin": "Yángchí",
+      "meridian": "手少阳三焦经",
+      "specialClass": "原穴",
+      "location": "腕背侧远端横纹上，指伸肌腱的尺侧缘凹陷中（图12-2-2）。",
+      "indications": [
+        "疟疾，口干",
+        "手腕痛，肩臂痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“肩痛不能自举，汗不出，颈痛，阳池主之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE5",
+      "name": "外关",
+      "pinyin": "Wàiguān",
+      "meridian": "手少阳三焦经",
+      "specialClass": "络穴，八脉交会穴（通阳维脉）",
+      "location": "腕背侧远端横纹上2寸，尺骨与桡骨间隙中点（图12-2-2）。",
+      "indications": [
+        "耳鸣，耳聋；热病，瘰疬",
+        "胸胁痛，上肢痿痹"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“耳焞焞浑浑，（聋）无所闻，外关主之。” 《铜人腧穴针灸图经》：“治肘臂不得屈伸，手五指尽痛不能握物，耳聋无所闻。” 《八法八穴歌》：“伤寒自汗表烘烘，独会外关为重。” 《针灸大成》：“主耳聋，焞焞浑浑无闻，五指尽痛，不能握物。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE6",
+      "name": "支沟",
+      "pinyin": "Zhīgōu",
+      "meridian": "手少阳三焦经",
+      "specialClass": "经穴",
+      "location": "腕背侧远端横纹上3寸，尺骨与桡骨间隙中点（图12-2-2）。",
+      "indications": [
+        "耳鸣，耳聋，暴喑",
+        "便秘，呕吐",
+        "热病",
+        "瘰疬",
+        "胸胁痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“热病汗不出，互引颈嗌外肿，肩臂酸重，胁腋急痛，四肢不举，痂疥，项不可顾，支沟主之。”“暴喑不能言，支沟主之。” 《铜人腧穴针灸图经》：“治热病汗不出，肩臂酸重，胁腋痛，四肢不举，霍乱呕吐，口噤不开。” 《类经图翼》：“凡三焦相火炽盛，及大便不通，胁肋疼痛者，俱得泻之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE7",
+      "name": "会宗",
+      "pinyin": "Huìzōng",
+      "meridian": "手少阳三焦经",
+      "specialClass": "郄穴",
+      "location": "腕背侧远端横纹上3寸，尺骨的桡侧缘（图12-2-2）。",
+      "indications": [
+        "耳聋",
+        "癫痫",
+        "上肢肌肤疼痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE8",
+      "name": "三阳络",
+      "pinyin": "Sānyángluò",
+      "meridian": "手少阳三焦经",
+      "location": "腕背侧远端横纹上4寸，尺骨与桡骨间隙中点（图12-2-2）。",
+      "indications": [
+        "耳聋，暴喑，齿痛",
+        "腰胁痛，上肢痹痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE9",
+      "name": "四渎",
+      "pinyin": "Sìdú",
+      "meridian": "手少阳三焦经",
+      "location": "肘尖下5寸，尺骨与桡骨间隙中点（图12-2-2）。",
+      "indications": [
+        "耳聋，齿痛",
+        "手臂疼痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE10",
+      "name": "天井",
+      "pinyin": "Tiānjǐng",
+      "meridian": "手少阳三焦经",
+      "specialClass": "合穴",
+      "location": "肘尖上1寸凹陷中（图12-2-2、图12-2-3）。",
+      "indications": [
+        "胸痹，心痛；耳聋，偏头痛",
+        "癫痫",
+        "瘰疬，瘿气",
+        "胸胁痛，肩臂痛"
+      ],
+      "operation": "直刺0.5～1寸。 图12-2-3",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE11",
+      "name": "清泠渊",
+      "pinyin": "Qīnglíngyuān",
+      "meridian": "手少阳三焦经",
+      "location": "肘尖与肩峰角连线上，肘尖上2寸（图12-2-3）。",
+      "indications": [
+        "头痛，目痛，胁痛",
+        "上肢痹痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE12",
+      "name": "消泺",
+      "pinyin": "Xiāoluò",
+      "meridian": "手少阳三焦经",
+      "location": "肘尖与肩峰角连线上，肘尖上5寸（图12-2-3）。",
+      "indications": [
+        "齿痛",
+        "头痛，颈项强痛"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE13",
+      "name": "臑会",
+      "pinyin": "Nàohuì",
+      "meridian": "手少阳三焦经",
+      "location": "肩峰角下3寸，三角肌的后下缘（图12-2-3）。",
+      "indications": [
+        "瘿气，瘰疬",
+        "上肢痿痹"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE14",
+      "name": "肩髎",
+      "pinyin": "Jiānliáo",
+      "meridian": "手少阳三焦经",
+      "location": "肩峰角与肱骨大结节两骨间凹陷中（图12-2-3）。 取法：当臂外展时，肩峰外侧缘前后端呈现两个凹陷，前一较深凹陷为肩髃，后一凹陷即本穴。垂肩时，肩髃后约1寸。",
+      "indications": [
+        "肩痛不举"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“肩重不举，臂痛，肩髎主之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE15",
+      "name": "天髎",
+      "pinyin": "Tiānliáo",
+      "meridian": "手少阳三焦经",
+      "specialClass": "手少阳经、阳维脉交会穴",
+      "location": "肩胛骨上角骨际凹陷中（图12-2-4）。 取法：正坐垂肩，肩井与曲垣连线的中点。",
+      "indications": [
+        "肩臂痛，颈项强痛"
+      ],
+      "operation": "直刺0.5～0.8寸。 图12-2-4",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE16",
+      "name": "天牖",
+      "pinyin": "Tiānyǒu",
+      "meridian": "手少阳三焦经",
+      "location": "横平下颌角，胸锁乳突肌的后缘凹陷中（图12-2-5）。",
+      "indications": [
+        "目视不明，耳聋，咽喉肿痛",
+        "头痛，眩晕",
+        "瘰疬",
+        "颈项强痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE17",
+      "name": "翳风",
+      "pinyin": "Yìfēng",
+      "meridian": "手少阳三焦经",
+      "specialClass": "手、足少阳经交会穴",
+      "location": "乳突下端前方凹陷中（图12-2-5）。",
+      "indications": [
+        "耳鸣，耳聋",
+        "口眼㖞斜，颊肿，口噤",
+        "瘰疬"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“痓，不能言，翳风主之。” 《针灸大成》：“主耳鸣耳聋，口眼㖞斜，脱颔颊肿，口噤不开，不能言。” 图12-2-5"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE18",
+      "name": "瘈脉",
+      "pinyin": "Chìmài",
+      "meridian": "手少阳三焦经",
+      "location": "乳突中央，角孙与翳风沿耳轮弧形连线的上2/3与下1/3的交点处（图12-2-5）。",
+      "indications": [
+        "小儿惊痫，瘛疭，头痛，耳鸣，耳聋"
+      ],
+      "operation": "平刺0.3～0.5寸，或点刺出血。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE19",
+      "name": "颅息",
+      "pinyin": "Lúxī",
+      "meridian": "手少阳三焦经",
+      "location": "角孙与翳风沿耳轮弧形连线的上1/3与下2/3的交点处（图12-2-5）。",
+      "indications": [
+        "耳鸣，头痛",
+        "小儿惊风"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE20",
+      "name": "角孙",
+      "pinyin": "Jiǎosūn",
+      "meridian": "手少阳三焦经",
+      "specialClass": "手少阳经、足少阳经、手阳明经交会穴",
+      "location": "耳尖正对发际处（图12-2-5）。",
+      "indications": [
+        "目翳，齿痛，颊肿，头痛，项强"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“齿牙不可嚼，龈肿。” 《铜人腧穴针灸图经》：“目生肤翳。” 《针灸大成》：“齿龈肿，唇吻强……头项强。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE21",
+      "name": "耳门",
+      "pinyin": "Ermén",
+      "meridian": "手少阳三焦经",
+      "location": "耳屏上切迹与下颌骨髁状突之间的凹陷中（图12-2-5）。",
+      "indications": [
+        "耳鸣，耳聋，齿痛，颊肿痛"
+      ],
+      "operation": "微张口，直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“耳聋鸣，头颔痛，耳门主之。” 《针灸大成》：“主耳鸣如蝉声，聤耳脓汁出，耳生疮，重听无所闻。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE22",
+      "name": "耳和髎",
+      "pinyin": "Erhéliáo",
+      "meridian": "手少阳三焦经",
+      "specialClass": "手少阳经、足少阳经、手太阳经交会穴",
+      "location": "鬓发后缘，耳郭根的前方，颞浅动脉的后缘（图12-2-5）。",
+      "indications": [
+        "头痛，耳鸣，牙关紧闭"
+      ],
+      "operation": "避开动脉，斜刺或平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "TE23",
+      "name": "丝竹空",
+      "pinyin": "Sīzhúkōng",
+      "meridian": "手少阳三焦经",
+      "location": "眉梢凹陷中。（图12-2-5）。",
+      "indications": [
+        "目赤肿痛，眼睑动，目上视",
+        "头痛，眩晕，癫痫"
+      ],
+      "operation": "平刺0.5～1寸。不灸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“眩，头痛，刺丝竹空主之。” 《千金要方》：“丝竹空、通谷，主风痫癫疾，涎沫狂烦满。” 《医宗金鉴》：“主治头痛，颈项肿，口僻瘛疭。” 《类经图翼》：“主治头痛，目赤目眩。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB1",
+      "name": "瞳子髎",
+      "pinyin": "Tóngzǐliáo",
+      "meridian": "足少阳胆经",
+      "specialClass": "手太阳经、手少阳经、足少阳经交会穴",
+      "location": "目外眦外侧0.5寸凹陷中（图13-2-2）。",
+      "indications": [
+        "目赤肿痛，青盲，目翳，白内障",
+        "头痛"
+      ],
+      "operation": "直刺或平刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“手太阳，手、足少阳之会。” 《铜人腧穴针灸图经》：“治青盲目无所见，远视䀮䀮，目中肤翳，白膜，头痛，目外眦赤痛。” 《类经图翼》：“一云兼少泽，能治妇人乳肿。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB2",
+      "name": "听会",
+      "pinyin": "Tīnghuì",
+      "meridian": "足少阳胆经",
+      "location": "耳屏间切迹与下颌骨髁突之间的凹陷中（图13-2-2）。 取法：张口，耳屏间切迹前方的凹陷中，听宫直下。",
+      "indications": [
+        "耳鸣，耳聋，齿痛，口眼㖞斜，下颌关节脱位"
+      ],
+      "operation": "张口，直刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“聋，耳中颠飕风，听会主之。” 《卫生宝鉴》：“风中脉，口眼㖞斜：听会、颊车、地仓。” 《医宗金鉴》：“主治耳聋耳鸣，牙车脱臼，齿痛，中风瘈疭㖞邪等证。” 图13-2-1 足少阳胆经穴 Points of Gallbladder Meridian of Foot-Shaoyang"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB3",
+      "name": "上关",
+      "pinyin": "Shàngguān",
+      "meridian": "足少阳胆经",
+      "specialClass": "手少阳经、足少阳经、足阳明经交会穴",
+      "location": "颧弓上缘中央凹陷中（图13-2-2）。取法：下关直上，颧弓上缘凹陷中。",
+      "indications": [
+        "耳鸣，耳聋，聤耳，齿痛，口眼㖞斜",
+        "下颌关节脱位、功能紊乱",
+        "癫狂痫"
+      ],
+      "operation": "直刺0.5～1寸。 图13-2-2",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB4",
+      "name": "颔厌",
+      "pinyin": "Hànyàn",
+      "meridian": "足少阳胆经",
+      "specialClass": "手少阳经、足少阳经、足阳明经交会穴",
+      "location": "从头维至曲鬓的弧形连线（其弧度与鬓发弧度相应）的上1/4与下3/4的交点处（图13-2-2）。 取法：先定头维和曲鬓。从头维沿鬓角凸至曲鬓做一弧线，于弧线之中点定悬颅，在头维与悬颅之间定颔厌。在悬颅与曲鬓之间定悬厘。",
+      "indications": [
+        "目外眦痛，耳鸣",
+        "偏头痛，眩晕"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB5",
+      "name": "悬颅",
+      "pinyin": "Xuánlú",
+      "meridian": "足少阳胆经",
+      "location": "从头维至曲鬓的弧形连线（其弧度与鬓发弧度相应）的中点处（图13-2-2）。",
+      "indications": [
+        "偏头痛引目、颔、齿痛",
+        "热病"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB6",
+      "name": "悬厘",
+      "pinyin": "Xuánlí",
+      "meridian": "足少阳胆经",
+      "specialClass": "手少阳经、足少阳经、足阳明经交会穴",
+      "location": "从头维至曲鬓的弧形连线（其弧度与鬓发弧度相应）的上3/4与下1/4的交点处（图13-2-2）。",
+      "indications": [
+        "偏头痛，目痛",
+        "热病"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB7",
+      "name": "曲鬓",
+      "pinyin": "Qūbìn",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、足太阳经交会穴",
+      "location": "耳前鬓角发际后缘与耳尖水平线的交点处（图13-2-2）。",
+      "indications": [
+        "齿痛，颊肿，口噤",
+        "头痛"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“足太阳、少阳之会。” 《千金要方》：“曲鬓、冲阳主齿龋。” 《针灸大成》：“主颔颊肿，引牙车不得开，急痛，口噤不能言，颈项不得回顾，脑两角痛为巅风，引目眇。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB8",
+      "name": "率谷",
+      "pinyin": "Shuàigǔ",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、足太阳经交会穴",
+      "location": "耳尖直上入发际1.5寸（图13-2-2）。 说明：角孙直上，入发际1.5寸。咀嚼时，以手按之有肌肉鼓动。",
+      "indications": [
+        "偏正头痛，眩晕，耳鸣，耳聋",
+        "呕吐",
+        "小儿惊风"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“醉酒风热，发两目（一作‘角’）眩痛，不能饮食，烦满呕吐，率谷主之。” 《类经图翼》：“主治脑病，两头角痛，胃膈寒痰，烦闷呕吐，酒后皮风肤肿。” 《医宗金鉴》：“伤酒呕吐，痰眩。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB9",
+      "name": "天冲",
+      "pinyin": "Tiānchōng",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、足太阳经交会穴",
+      "location": "耳根后缘直上，入发际2寸（图13-2-2）。 说明：率谷之后0.5寸。",
+      "indications": [
+        "头痛，牙龈肿痛",
+        "癫痫"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB10",
+      "name": "浮白",
+      "pinyin": "Fúbái",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、足太阳经交会穴",
+      "location": "耳后乳突的后上方，从天冲至完骨的弧形连线（其弧度与耳郭弧度相应）的上1/3与下2/3交点处（图13-2-2）。 说明：侧头部，耳尖后方，入发际1寸。",
+      "indications": [
+        "头痛，目痛，齿痛",
+        "下肢痿痹"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB11",
+      "name": "头窍阴",
+      "pinyin": "Tóuqiàoyīn",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、足太阳经交会穴",
+      "location": "耳后乳突的后上方，从天冲到完骨的弧形连线（其弧度与耳郭弧度相应）的上2/3与下1/3交点处（图13-2-2）。",
+      "indications": [
+        "头痛，颈项强痛"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB12",
+      "name": "完骨",
+      "pinyin": "Wángǔ",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、足太阳经交会穴",
+      "location": "耳后乳突的后下方凹陷中（图13-2-2）。",
+      "indications": [
+        "咽喉肿痛，齿痛，颊肿",
+        "癫狂",
+        "中风，口眼㖞斜，下肢痿痹",
+        "头痛，颈项强痛"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“项肿不可俯仰，颊肿引耳，完骨主之。”“癫疾，僵仆，狂易，面有气，完骨及风池主之。” 《铜人腧穴针灸图经》：“治头痛，烦心，癫疾，头面虚肿，齿龋，偏风，口眼㖞斜，颈项痛，不得回顾，小便赤黄，喉痹颊肿。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB13",
+      "name": "本神",
+      "pinyin": "Běnshén",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、阳维脉交会穴",
+      "location": "前发际上0.5寸，头正中线旁开3寸（图13-2-3）。 取法：神庭与头维弧形连线（其弧度与前发际弧度相应）的内2/3与外1/3的交点处。",
+      "indications": [
+        "头痛，眩晕",
+        "癫痫，小儿惊风",
+        "颈项强痛"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“足少阳、阳维之会。”“头痛目眩，颈项强急，胸胁相引，不得倾侧，本神主之。” 《针灸大成》：“主惊痫吐涎沫，颈项强急痛，目眩，胸相引不得转侧。” 图13-2-3"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB14",
+      "name": "阳白",
+      "pinyin": "Yángbái",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、阳维脉交会穴",
+      "location": "眉上1寸，瞳孔直上（图13-2-3）。",
+      "indications": [
+        "头痛，目痛，目痒，目翳"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“足少阳、阳维之会。”“头目瞳子痛，不可以视，挟项强急不可以顾，阳白主之。” 《类经图翼》：“头痛，目昏多眵，背寒栗，重衣不得温。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB15",
+      "name": "头临泣",
+      "pinyin": "Tóulínqì",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、足太阳经、阳维脉交会穴",
+      "location": "前发际上0.5寸，瞳孔直上（图13-2-3）。 取法：两目平视，瞳孔直上，正当神庭与头维弧形连线（其弧度与前发际弧度相应）的中点处。",
+      "indications": [
+        "目痛，流泪，目翳，鼻塞，鼻渊",
+        "头痛，眩晕",
+        "小儿惊风"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“足太阳、少阳、阳维之会。” 《铜人腧穴针灸图经》：“治卒中风不识人，目眩鼻塞，目生白翳，多泪。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB16",
+      "name": "目窗",
+      "pinyin": "Mùchuāng",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、阳维脉交会穴",
+      "location": "前发际上1.5寸，瞳孔直上（图13-2-3）。",
+      "indications": [
+        "头痛，眩晕",
+        "目痛，近视"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB17",
+      "name": "正营",
+      "pinyin": "Zhèngyíng",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、阳维脉交会穴",
+      "location": "前发际上2.5寸，瞳孔直上（图13-2-3）。",
+      "indications": [
+        "头痛，眩晕",
+        "齿痛"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB18",
+      "name": "承灵",
+      "pinyin": "Chénglíng",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、阳维脉交会穴",
+      "location": "前发际上4寸，瞳孔直上（图13-2-3）。",
+      "indications": [
+        "头痛，恶寒，鼻塞，鼻衄"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB19",
+      "name": "脑空",
+      "pinyin": "Nǎokōng",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、阳维脉交会穴",
+      "location": "横平枕外隆凸的上缘，风池直上（图13-2-3）。",
+      "indications": [
+        "目痛，耳聋，鼻衄，鼻部疮疡",
+        "头痛，眩晕，癫狂痫",
+        "发热",
+        "颈项强痛"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB20",
+      "name": "风池",
+      "pinyin": "Fēngchí",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、阳维脉交会穴",
+      "location": "枕骨之下，胸锁乳突肌上端与斜方肌上端之间的凹陷中（图13-2-3）。 说明：项部枕骨下两侧，横平风府，胸锁乳突肌与斜方肌两肌之间凹陷中。",
+      "indications": [
+        "耳鸣，耳聋，目赤肿痛，鼻衄，鼻塞",
+        "头痛，眩晕，中风，癫狂痫",
+        "发热",
+        "颈项强痛"
+      ],
+      "operation": "向鼻尖方向斜刺0.8～1.2寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“足少阳、阳维之会。” 《针灸大成》：“主洒淅寒热，伤寒温病汗不出，目眩苦，偏正头痛，痎疟，颈项如拔，痛不得回顾。” 《医宗金鉴》：“肺受风寒，及偏正头风。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB21",
+      "name": "肩井",
+      "pinyin": "Jiānjǐng",
+      "meridian": "足少阳胆经",
+      "specialClass": "手少阳经、足少阳经、足阳明经、阳维脉交会",
+      "location": "第7颈椎棘突与肩峰最外侧点连线的中点（图13-2-4）。",
+      "indications": [
+        "头痛，眩晕",
+        "乳痈，乳汁少，滞产",
+        "瘰疬，颈项强痛，肩背疼 痛，上肢不遂"
+      ],
+      "operation": "直刺0.3～0.5寸，切忌深刺，捣刺。孕妇禁用。",
+      "classicalExcerpts": [
+        "《甲乙经》：“手（足）少阳、阳维之会。” 《千金要方》：“难产，针两肩井，入一寸泻之，须臾即分娩。” 《儒门事亲》：“乳汁不下……针肩井两穴。” 《针灸大成》：“主中风，气塞涎上不语，气逆，妇人难产。” 《类经图翼》：“孕妇禁针。” 图13-2-4"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB22",
+      "name": "渊腋",
+      "pinyin": "Yuānyè",
+      "meridian": "足少阳胆经",
+      "location": "第4肋间隙中，在腋中线上（图13-2-5）。",
+      "indications": [
+        "胸胁胀痛，腋下肿",
+        "上肢痹痛"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB23",
+      "name": "辄筋",
+      "pinyin": "Zhéjīn",
+      "meridian": "足少阳胆经",
+      "location": "第4肋间隙中，在腋中线前1寸（图13-2-5）。",
+      "indications": [
+        "胸中暴满不得卧，气喘"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB24",
+      "name": "日月",
+      "pinyin": "Rìyuè",
+      "meridian": "足少阳胆经",
+      "specialClass": "胆募穴，足少阳经、足太阴经交会穴",
+      "location": "第7肋间隙中，前正中线旁开4寸（图13-2-5）。说明：乳头直下，期门下1肋。取法：女性在锁骨中线与第7肋间隙交点处。",
+      "indications": [
+        "呕吐，吞酸，呃逆，黄疸",
+        "胁痛"
+      ],
+      "operation": "斜刺或平刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“足太阴、少阳之会。”“太息善悲，少腹有热，欲走，日月主之。” 《铜人腧穴针灸图经》：“治太息善悲，小腹热，欲走，多唾，言语不正，四肢不收。” 《医宗金鉴》：“呕吐吞酸。” 图13-2-5"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB25",
+      "name": "京门",
+      "pinyin": "Jīngmén",
+      "meridian": "足少阳胆经",
+      "specialClass": "肾募穴",
+      "location": "第12肋骨游离端的下际（图13-2-5）。 取法：侧卧举臂，从腋后线的肋弓软骨缘下方向后触及第12肋骨游离端，在下方取穴。",
+      "indications": [
+        "小便不利，水肿",
+        "腹胀，泄泻，肠鸣",
+        "胁痛，腰痛，胯痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“腰痛不可以久立俯仰，京门及行间主之。”“溢饮，水道不通，溺黄，小腹痛，里急肿，洞泄，髀痛引背，京门主之。” 《千金要方》：“京门、昆仑，主洞泄体痛。” 《针灸大成》：“主肠鸣，小肠痛，肩背寒，痉，肩胛内廉痛，腰痛不得俯仰久立。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB26",
+      "name": "带脉",
+      "pinyin": "Dàimài",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、带脉交会穴",
+      "location": "第11肋骨游离端垂线与脐水平线的交点上（图13-2-5）。 说明：尽量收腹，显露肋弓软骨缘，沿此缘向外下方至其底部稍下方可触及第11肋骨游离端。 取法：章门直下，横平神阙。",
+      "indications": [
+        "赤白带下，月经不调，疝气",
+        "小腹疼痛，腰胁痛"
+      ],
+      "operation": "直刺0.8～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“妇人少腹坚痛，月水不通，带脉主之。” 《玉龙赋》：“带脉、关元多灸，肾败堪攻。” 《医宗金鉴》：“主治疝气，偏堕木肾，及妇人赤白带下等证。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB27",
+      "name": "五枢",
+      "pinyin": "Wǔshū",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、带脉交会穴",
+      "location": "横平脐下3寸，髂前上棘内侧（图13-2-6）。",
+      "indications": [
+        "赤白带下，月经不调，疝气",
+        "少腹痛，腰痛，胯痛"
+      ],
+      "operation": "直刺1～1.5寸。 图13-2-6",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB28",
+      "name": "维道",
+      "pinyin": "Wéidào",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、带脉交会穴",
+      "location": "髂前上棘内下0.5寸（图13-2-6）。说明：五枢（GB27）内下0.5寸。",
+      "indications": [
+        "呕吐，食欲不振",
+        "水肿",
+        "腰腿痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB29",
+      "name": "居髎",
+      "pinyin": "Jūliáo",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、阳脉交会穴",
+      "location": "髂前上棘与股骨大转子最凸点连线的中点处（图13-2-6）。",
+      "indications": [
+        "疝气、腰痛引小腹",
+        "腰腿痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB30",
+      "name": "环跳",
+      "pinyin": "Huántiào",
+      "meridian": "足少阳胆经",
+      "specialClass": "足少阳经、足太阳经交会穴",
+      "location": "股骨大转子最凸点与骶管裂孔连线的外1/3与内2/3交点处（图13-2-7）。 取法：侧卧，伸下腿，上腿屈髋屈膝取穴。",
+      "indications": [
+        "腰痛，胯痛，下肢痿痹，半身不遂"
+      ],
+      "operation": "直刺2～3寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“腰胁相引痛急，髀筋瘈，胫痛不可屈伸，痹不仁，环跳主之。” 《铜人腧穴针灸图经》：“治冷风湿痹，风胗，偏风半身不遂，腰胯痛不得转侧。” 《席弘赋》：“冷风冷痹疾难愈，环跳腰间针与烧。” 图13-2-7"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB31",
+      "name": "风市",
+      "pinyin": "Fēngshì",
+      "meridian": "足少阳胆经",
+      "location": "髌底上7寸，髂胫束后缘（图13-2-8）。 取法：直立垂手，掌心贴于大腿时，中指尖所指凹陷中；稍屈膝，大腿稍内收提起，可显露髂胫束。",
+      "indications": [
+        "遍身瘙痒",
+        "腰腿痛，半身不遂，下肢痿痹"
+      ],
+      "operation": "直刺1～2寸。",
+      "classicalExcerpts": [
+        "《针灸大成》：“主中风腿膝无力，脚气，浑身瘙痒，麻痹，厉风疮。” 《医宗金鉴》：“主治腿中风湿，疼痛无力，脚气，浑身瘙痒，麻痹等证。” 图13-2-8"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB32",
+      "name": "中渎",
+      "pinyin": "Zhōngdú",
+      "meridian": "足少阳胆经",
+      "location": "髌底上5寸，髂胫束后缘（图13-2-8）。",
+      "indications": [
+        "下肢痿痹，半身不遂"
+      ],
+      "operation": "直刺1～2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB33",
+      "name": "膝阳关",
+      "pinyin": "Xīyángguān",
+      "meridian": "足少阳胆经",
+      "location": "股骨外上髁后上缘，股二头肌腱与髂胫束之间的凹陷中（图13-2-8）。",
+      "indications": [
+        "膝腘肿痛、挛急，小腿麻木"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB34",
+      "name": "阳陵泉",
+      "pinyin": "Yánglíngquán",
+      "meridian": "足少阳胆经",
+      "specialClass": "合穴，胆下合穴，八会穴（筋会）",
+      "location": "腓骨头前下方凹陷处（图13-2-9）。",
+      "indications": [
+        "口苦，呕吐，吞酸，胁痛",
+        "膝肿痛，下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“胁下支满，呕吐逆，阳陵泉主之。” 《铜人腧穴针灸图经》：“治膝伸不得屈，冷痹脚不仁，偏风半身不遂，脚冷无血色。” 《针灸大成》：“主膝股内外廉不仁，偏风半身不遂，脚冷无血色，苦嗌中介然，头面肿。” 图13-2-9"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB35",
+      "name": "阳交",
+      "pinyin": "Yángjiāo",
+      "meridian": "足少阳胆经",
+      "specialClass": "阳维脉郄穴",
+      "location": "外踝尖上7寸，腓骨后缘（图13-2-9）。",
+      "indications": [
+        "咽喉肿痛",
+        "胸满",
+        "癫狂，抽搐",
+        "下肢痿痹，转筋"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB36",
+      "name": "外丘",
+      "pinyin": "Wàiqiū",
+      "meridian": "足少阳胆经",
+      "specialClass": "郄穴",
+      "location": "外踝尖上7寸，腓骨前缘（图13-2-9）。",
+      "indications": [
+        "胸胁胀满",
+        "癫狂痫",
+        "下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB37",
+      "name": "光明",
+      "pinyin": "Guāngmíng",
+      "meridian": "足少阳胆经",
+      "specialClass": "络穴",
+      "location": "外踝尖上5寸，腓骨前缘（图13-2-9）。",
+      "indications": [
+        "目痛，夜盲，目翳，近视",
+        "下肢痿痹",
+        "乳胀，乳少"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“实则厥，胫热时痛，身体不仁，手足偏小，善啮颊，光明主之。” 《席弘赋》：“睛明治眼未效时，合谷、光明安可缺。” 《医宗金鉴》：“妇人少腹胞中疼痛，大便难，小便淋，好怒色青。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB38",
+      "name": "阳辅",
+      "pinyin": "Yángfǔ",
+      "meridian": "足少阳胆经",
+      "specialClass": "经穴",
+      "location": "外踝尖上4寸，腓骨前缘（图13-2-9）。",
+      "indications": [
+        "咽喉肿痛",
+        "胸胁胀痛，腋下肿痛，瘰疬",
+        "下肢痿痹"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB39",
+      "name": "悬钟",
+      "pinyin": "Xuánzhōng",
+      "meridian": "足少阳胆经",
+      "specialClass": "八会穴（髓会）",
+      "location": "外踝尖上3寸，腓骨前缘（图13-2-9）。",
+      "indications": [
+        "腹满，食欲不振",
+        "半身不遂，下肢痿痹，足胫挛痛"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《千金要方》：“治风，身重心烦，足胫疼。” 《铜人腧穴针灸图经》：“治心腹胀满，胃中热不嗜食，膝胻痛，筋挛足不收履，坐不能起。” 《医宗金鉴》：“主治胃热腹胀，胁痛脚气，脚胫湿痹，浑身瘙痒，趾疼等证。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB40",
+      "name": "丘墟",
+      "pinyin": "Qiūxū",
+      "meridian": "足少阳胆经",
+      "specialClass": "原穴",
+      "location": "外踝的前下方，趾长伸肌腱的外侧凹陷中（图13-2-9、图13-2-10）。 说明：第2～5趾抗阻力伸展，可显现趾长伸肌腱。",
+      "indications": [
+        "目视不明，目翳",
+        "胸胁痛，善太息",
+        "疟疾",
+        "颈肿、腋下肿",
+        "小腿酸痛，外踝肿痛，足下垂"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“目视不明，振寒，目翳，瞳子不见，腰两胁痛，脚酸转筋，丘墟主之。” 《千金要方》：“主脚急肿痛，战掉不能久立，附筋脚挛。” 《类经图翼》：“主治胸胁满痛不得息，寒热，目生翳膜，颈肿，久疟振寒，痿厥，腰腿酸痛，髀枢中痛，转筋足胫偏细，小腹坚卒疝。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB41",
+      "name": "足临泣",
+      "pinyin": "Zúlínqì",
+      "meridian": "足少阳胆经",
+      "specialClass": "输穴，八脉交会穴（通带脉）",
+      "location": "第4、5跖骨底结合部的前方，第5趾长伸肌腱外侧凹陷中（图13-2-10）。",
+      "indications": [
+        "偏头痛，眩晕",
+        "乳痈，月经不调",
+        "疟疾",
+        "瘰疬",
+        "胁痛，膝痛，足痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“胸痹心痛，不得息，痛无常处，临泣主之。” 《类经图翼》：“主治胸满气喘，目眩心痛，缺盆中及腋下马刀疡，痹痛无常。” 《医宗金鉴》：“中风手足举动难，麻痛发热筋拘挛，头风肿痛连腮项，眼赤而疼合头眩。” 图13-2-10"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB42",
+      "name": "地五会",
+      "pinyin": "Dìwǔhuì",
+      "meridian": "足少阳胆经",
+      "location": "第4、5跖骨间，第4跖趾关节近端凹陷中（图13-2-10）。",
+      "indications": [
+        "目赤肿痛",
+        "腋下肿",
+        "乳痈",
+        "足背红肿"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB43",
+      "name": "侠溪",
+      "pinyin": "Xiáxī",
+      "meridian": "足少阳胆经",
+      "specialClass": "荥穴",
+      "location": "第4、5趾间，趾蹼缘后方赤白肉际处（图13-2-10）。",
+      "indications": [
+        "目赤肿痛，颊肿，耳鸣，耳聋",
+        "发热，头痛，眩晕",
+        "乳痈",
+        "胸胁疼痛，膝股痛，足痛"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《针灸大成》：“寒热伤寒。” 《百症赋》：“兼阳谷，治颔肿口噤。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "GB44",
+      "name": "足窍阴",
+      "pinyin": "Zúqiàoyīn",
+      "meridian": "足少阳胆经",
+      "specialClass": "井穴",
+      "location": "第4趾末节外侧，趾甲根角侧后方0.1寸（指寸）（图13-2-10）。",
+      "indications": [
+        "头痛，目赤肿痛，耳鸣，耳聋",
+        "胸胁痛",
+        "足痛"
+      ],
+      "operation": "浅刺0.1寸，或点刺出血。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR1",
+      "name": "大敦",
+      "pinyin": "Dàdūn",
+      "meridian": "足厥阴肝经",
+      "specialClass": "井穴",
+      "location": "大趾末节外侧，趾甲根角侧后方0.1寸（指寸）（图14-2-2）。",
+      "indications": [
+        "疝气，睾丸肿痛，前阴痛，少腹疼痛，遗尿，癃闭，月经不调，阴挺",
+        "小儿惊风，癫痫，神昏"
+      ],
+      "operation": "浅刺0.1寸，或点刺出血。",
+      "classicalExcerpts": [
+        "《甲乙经》：“卒心痛，汗出。” 《千金要方》：“主目不欲视，太息。” 《铜人腧穴针灸图经》：“治卒疝，小便数，遗溺，阴头中痛……妇人血崩不止。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR2",
+      "name": "行间",
+      "pinyin": "Xíngjiān",
+      "meridian": "足厥阴肝经",
+      "specialClass": "荥穴",
+      "location": "第1、2趾之间，趾蹼缘后方赤白肉际处（图14-2-2）。",
+      "indications": [
+        "疝气，少腹疼痛，前阴痛，遗尿，癃闭，月经不 调，带下",
+        "目赤肿痛，口干，胁痛，急躁易怒，善太息",
+        "癫痫，中风",
+        "脚膝肿痛"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《灵枢·厥病》：“厥心痛，色苍苍，如死状，终日不得太息，肝心痛也，取之行间、太冲。” 《甲乙经》：“癫疾短气，呕血，胸背痛，行间主之。” 《针灸大成》：“主妇人小腹肿，面尘脱色，经血过多不止，崩中，小儿急惊风。” 图14-2-1 足厥阴肝经穴 Points of Liver Meridianof Foot-Jueyin"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR3",
+      "name": "太冲",
+      "pinyin": "Tàichōng",
+      "meridian": "足厥阴肝经",
+      "specialClass": "输穴，原穴",
+      "location": "第1、2跖骨间，跖骨底结合部前方凹陷中，或触及动脉搏动（图14-2-2）。",
+      "indications": [
+        "目赤肿痛，咽干，咽痛",
+        "阴疝，前阴痛，少腹肿，遗尿，癃闭，月经不调",
+        "黄疸，胁痛，腹胀，呕逆",
+        "小儿惊风",
+        "下肢痿痹，足跗肿痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《千金要方》：“黄瘅，热中善渴。” 《铜人腧穴针灸图经》：“胸胁支满，足寒大便难，呕血，女子漏血不止，小儿卒疝呕逆。” 《天星十二穴歌》：“动脉知生死，能医惊痫风，咽喉并心胀，两足不能行，七疝偏坠肿，眼目似云蒙，亦能疗腰痛，针下有神功。” 图14-2-2"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR4",
+      "name": "中封",
+      "pinyin": "Zhōngfēng",
+      "meridian": "足厥阴肝经",
+      "specialClass": "经穴",
+      "location": "内踝前，胫骨前肌肌腱的内侧缘凹陷中（图14-2-2）。 取法：商丘与解溪中间。",
+      "indications": [
+        "疝气引腰痛、少腹痛，遗精，小便不利"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR5",
+      "name": "蠡沟",
+      "pinyin": "Lígōu",
+      "meridian": "足厥阴肝经",
+      "specialClass": "络穴",
+      "location": "内踝尖上5寸，胫骨内侧面的中央（图14-2-3）。 取法：髌尖与内踝尖连线的上2/3与下1/3交点，胫骨内侧面的中央，横平筑宾。",
+      "indications": [
+        "阴疝，睾丸肿痛，小便不利，遗尿，月经不调，赤白带下，阴痒"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《灵枢·经脉》：“气逆则睾肿卒疝，实则挺长，虚则暴痒。” 《铜人腧穴针灸图经》：“治卒疝少腹肿，时少腹暴痛，小便不利如癃闭，数噫恐悸，少气不足，腹中痛悒悒不乐，咽中闷如有息肉状。背拘急不可俛仰。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR6",
+      "name": "中都",
+      "pinyin": "Zhōngdū",
+      "meridian": "足厥阴肝经",
+      "specialClass": "郄穴",
+      "location": "内踝尖上7寸，胫骨内侧面的中央（图14-2-3）。取法：髌尖与内踝尖连线中点下0.5寸，胫骨内侧面的中央。",
+      "indications": [
+        "疝气，少腹痛，崩漏，恶露不尽",
+        "泄泻"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR7",
+      "name": "膝关",
+      "pinyin": "Xīguān",
+      "meridian": "足厥阴肝经",
+      "location": "胫骨内侧髁的下方，阴陵泉后1寸（图14-2-3）。",
+      "indications": [
+        "疝气，少腹痛，膝股痛，下肢痿痹"
+      ],
+      "operation": "直刺1～1.5寸。 图14-2-3",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR8",
+      "name": "曲泉",
+      "pinyin": "Qūquán",
+      "meridian": "足厥阴肝经",
+      "specialClass": "合穴",
+      "location": "屈膝，当膝关节内侧面横纹内侧端，股骨内侧髁的后缘，半腱肌、半膜肌止端的前缘凹陷处（图14-2-4）。",
+      "indications": [
+        "疝气，少腹痛，前阴痛，小便不利，遗精，阳痿，月经不调，带下，阴挺，阴痒",
+        "惊狂",
+        "膝肿痛，下肢痿痹"
+      ],
+      "operation": "直刺0.8～1寸。",
+      "classicalExcerpts": [
+        "《千金要方》：“主膝不可屈伸。”“男子失精，膝胫疼痛冷，灸曲泉百壮。” 《针灸大成》：“女子血瘕，按之如汤浸股内，小腹肿，阴挺出，阴痒。” 图14-2-4"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR9",
+      "name": "阴包",
+      "pinyin": "Yīnbāo",
+      "meridian": "足厥阴肝经",
+      "location": "髌底上4寸，股内侧肌与缝匠肌之间（图14-2-5）。",
+      "indications": [
+        "月经不调，遗尿，小便不利",
+        "腰骶痛引小腹"
+      ],
+      "operation": "直刺1～2寸。 图14-2-5",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR10",
+      "name": "足五里",
+      "pinyin": "ZúwǔLǐ",
+      "meridian": "足厥阴肝经",
+      "location": "在股前区，气冲直下3寸，动脉搏动处（图14-2-5）。",
+      "indications": [
+        "小腹痛，小便不利，阴挺，睾丸肿痛"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR11",
+      "name": "阴廉",
+      "pinyin": "Yīnlián",
+      "meridian": "足厥阴肝经",
+      "location": "气冲（ST30）直下2寸（图14-2-5）。 取法：稍屈髋，屈膝，外展，大腿抗阻力内收时显露出长收肌，在其外缘取穴。",
+      "indications": [
+        "月经不调，不孕，少腹痛"
+      ],
+      "operation": "直刺1～2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR12",
+      "name": "急脉",
+      "pinyin": "Jímài",
+      "meridian": "足厥阴肝经",
+      "location": "横平耻骨联合上缘，前正中线旁开2.5寸（图14-2-5）。",
+      "indications": [
+        "疝气，前阴痛，少腹痛"
+      ],
+      "operation": "避开动脉，直刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR13",
+      "name": "章门",
+      "pinyin": "Zhāngmén",
+      "meridian": "足厥阴肝经",
+      "specialClass": "脾募穴，八会穴（脏会），足厥阴经、足少阳",
+      "location": "在第11肋游离端的下际（图14-2-6）。",
+      "indications": [
+        "腹痛，腹胀，肠鸣，呕吐",
+        "胁痛，痞块，黄疸"
+      ],
+      "operation": "直刺0.8～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“腰痛不得转侧，章门主之。”“足厥阴、少阳之会。” 《类经图翼》：“主治两胁积气如卵石，臌胀肠鸣，食不化，胸胁痛。” 图14-2-6"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "LR14",
+      "name": "期门",
+      "pinyin": "Qīmén",
+      "meridian": "足厥阴肝经",
+      "specialClass": "肝募穴，足厥阴经、足太阴经、阴维脉交会穴",
+      "location": "第6肋间隙，前正中线旁开4寸（图14-2-6）。 取法：女性在锁骨中线与第6肋间隙交点处。",
+      "indications": [
+        "胁下积聚，气喘，呃逆，胸胁胀痛",
+        "呕吐，腹胀，泄泻",
+        "乳痈"
+      ],
+      "operation": "斜刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“足太阴、厥阴、阴维之会。”“主咳，胁下积聚，喘逆，卧不安席，时寒热。” 《铜人腧穴针灸图经》：“治胸中烦热，贲豚上下，目青而呕，霍乱泄痢，腹坚硬，大喘不得安卧，胁下积气。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU1",
+      "name": "长强",
+      "pinyin": "Chángqiáng",
+      "meridian": "督脉",
+      "specialClass": "络穴，督脉、足少阳经、足少阴经交会穴",
+      "location": "尾骨下方，尾骨端与肛门连线的中点处（图15-1-4）。 取法：胸膝位或侧卧位取之。",
+      "indications": [
+        "泄泻，便秘，便血，痔疾，脱肛",
+        "癫狂，小儿惊风",
+        "腰痛，尾骶骨痛"
+      ],
+      "operation": "斜刺，针尖向上与骶骨平行刺入0.5～1寸。不得刺穿直肠，以防感染。",
+      "classicalExcerpts": [
+        "《千金要方》：“长强、小肠俞，主大小便 图15-1-3 督脉穴 Points of Governor Vessel难，淋癃。” 《玉龙赋》：“长强、承山，灸痔最妙。” 《百症赋》：“刺长强于承山，善主肠风新下血。” 《针灸资生经》：“长强、身柱，疗小儿惊痫。” 图15-1-4"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU2",
+      "name": "腰俞",
+      "pinyin": "Yāoshū",
+      "meridian": "督脉",
+      "location": "正对骶管裂孔，后正中线上（图15-1-4）。 说明：臀裂正上方的小凹陷即骶管裂孔。",
+      "indications": [
+        "月经不调",
+        "痔疾",
+        "腰背痛，下肢痿痹"
+      ],
+      "operation": "向上斜刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU3",
+      "name": "腰阳关",
+      "pinyin": "Yāoyángguān",
+      "meridian": "督脉",
+      "location": "第4腰椎棘突下凹陷中，后正中线上（图15-1-4）。 取法：两髂嵴最高点连线的中点下方凹陷处。",
+      "indications": [
+        "月经不调，遗精，阳痿",
+        "腰骶痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《素问·骨空论》：“灸脊中。”王冰注：“是曰阳关。” 《针灸聚英》：“十六椎节下间，坐取之。” 《循经考穴编》：“主劳损腰胯痛，遗精白浊，妇人月病带下。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU4",
+      "name": "命门",
+      "pinyin": "Mìngmén",
+      "meridian": "督脉",
+      "location": "第2腰椎棘突下凹陷中，后正中线上（图15-1-4）。",
+      "indications": [
+        "腰痛，少腹痛，脊强",
+        "赤白带下，阳痿",
+        "下肢痿痹"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“头痛如破，身热如火，汗不出，瘈疭，寒热，汗出恶寒，里急，腰腹相引痛，命门主之。” 《类经图翼》：“一云平脐，用线牵而取之……若年二十以上者，灸恐绝子。” 《玉龙赋》：“老者多便，命门兼肾俞而着艾。” 《医宗金鉴》：“治老人肾虚腰疼及久痔脱肛，肠风下血等症。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU5",
+      "name": "悬枢",
+      "pinyin": "Xuánshū",
+      "meridian": "督脉",
+      "location": "第1腰椎棘突下凹陷中，后正中线上（图15-1-4）。",
+      "indications": [
+        "腹痛，泄泻",
+        "腰脊痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU6",
+      "name": "脊中",
+      "pinyin": "Jǐzhōng",
+      "meridian": "督脉",
+      "location": "第11胸椎棘突下凹陷中，后正中线上（图15-1-4）。",
+      "indications": [
+        "泄泻，黄疸",
+        "癫痫",
+        "腰背痛"
+      ],
+      "operation": "斜刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU7",
+      "name": "中枢",
+      "pinyin": "Zhōngshū",
+      "meridian": "督脉",
+      "location": "第10胸椎棘突下凹陷中，后正中线上（图15-1-4）。",
+      "indications": [
+        "腰背痛"
+      ],
+      "operation": "斜刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU8",
+      "name": "筋缩",
+      "pinyin": "Jīnsuō",
+      "meridian": "督脉",
+      "location": "第9胸椎棘突下凹陷中，后正中线上（图15-1-4）。",
+      "indications": [
+        "小儿惊风，抽搐，癫狂痫，目上视",
+        "脊强"
+      ],
+      "operation": "斜刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《百症赋》：“脊强兮，水道、筋缩。” 《胜玉歌》：“更有天突与筋缩，小儿吼闭自然疏。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU9",
+      "name": "至阳",
+      "pinyin": "Zhìyáng",
+      "meridian": "督脉",
+      "location": "第7胸椎棘突下凹陷中，后正中线上（图15-1-4）。 取法：两肩胛骨下角连线的中点处。",
+      "indications": [
+        "黄疸",
+        "身重",
+        "腰背痛"
+      ],
+      "operation": "斜刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《素问·刺热》：“七椎下间主肾热。” 《甲乙经》：“寒热懈懒，淫泺胫酸，四肢重痛，少气难言，至阳主之。” 《玉龙赋》：“至阳却疸，善治神疲。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU10",
+      "name": "灵台",
+      "pinyin": "Língtái",
+      "meridian": "督脉",
+      "location": "第6胸椎棘突下凹陷中，后正中线上（图15-1-4）。",
+      "indications": [
+        "咳嗽，气喘",
+        "脊痛，颈项强痛"
+      ],
+      "operation": "斜刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU11",
+      "name": "神道",
+      "pinyin": "Shéndào",
+      "meridian": "督脉",
+      "location": "第5胸椎棘突下凹陷中，后正中线上（图15-1-4）。",
+      "indications": [
+        "悲愁，惊悸，健忘",
+        "寒热，头痛，疟疾",
+        "小儿惊风",
+        "脊痛，脊强"
+      ],
+      "operation": "斜刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU12",
+      "name": "身柱",
+      "pinyin": "Shēnzhù",
+      "meridian": "督脉",
+      "location": "第3胸椎棘突下凹陷中，后正中线上（图15-1-4）。",
+      "indications": [
+        "咳嗽，气喘",
+        "身热，癫狂，惊风，瘛疭",
+        "腰背痛"
+      ],
+      "operation": "斜刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《素问·刺热》：“热病气穴，三椎下间主胸中热。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU13",
+      "name": "陶道",
+      "pinyin": "Táodào",
+      "meridian": "督脉",
+      "specialClass": "督脉、足太阳经交会穴",
+      "location": "第1胸椎棘突下凹陷中，后正中线上（图15-1-4）。 注：从第7颈椎向下1个棘突，在棘突下凹陷中。",
+      "indications": [
+        "寒热，疟疾，骨蒸",
+        "脊强"
+      ],
+      "operation": "斜刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU14",
+      "name": "大椎",
+      "pinyin": "Dàzhuī",
+      "meridian": "督脉",
+      "specialClass": "督脉、手足三阳经交会穴",
+      "location": "第7颈椎棘突下凹陷中，后正中线上（图15-1-4）。",
+      "indications": [
+        "热病，疟疾，寒热",
+        "咳嗽，气喘，骨蒸",
+        "脊痛，颈项强痛"
+      ],
+      "operation": "斜刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《素问·骨空论》：“灸寒热之法，先灸项大椎，以年为壮数。” 《千金要方》：“凡灸疟者，必先问其病之所先发者先灸之。从头项发者，于未发前预灸大椎尖头，渐灸过时止；从腰脊发者，灸肾俞百壮；从手臂发者，灸三间。” 《类经图翼》：“又治颈瘿，灸百壮，及大椎两边相去各一寸半少垂下，各三十壮。” 《肘后歌》：“疟疾寒热真可畏，须知虚实可用意；间使宜透支沟中，大椎七壮合圣治。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU15",
+      "name": "哑门",
+      "pinyin": "Yǎmén",
+      "meridian": "督脉",
+      "specialClass": "督脉、阳维脉交会穴",
+      "location": "第2颈椎棘突上际凹陷中，后正中线上（图15-1-5）。 说明：后发际正中直上0.5寸。",
+      "indications": [
+        "暴喑，舌缓，舌强不语，鼻衄",
+        "头痛，脊痛，颈项强痛"
+      ],
+      "operation": "伏案正坐位，使头微前倾，项肌放松，向下颌方向缓慢刺入0.5～1寸。针尖切不可向前上方深刺，以免伤及延髓。",
+      "classicalExcerpts": [
+        "《甲乙经》：“督脉、阳维之会。”“不可灸，灸之令人喑。” 《太平圣惠方》：“头风脑痛，舌急，针入八分，不宜灸。” 《玉龙歌》：“偶尔失音言语难，哑门一穴两筋间，若知浅针莫深刺，言语音和照旧安。” 《百症赋》：哑门、关冲，舌缓不语而要紧。"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU16",
+      "name": "风府",
+      "pinyin": "Fēngfǔ",
+      "meridian": "督脉",
+      "specialClass": "督脉、阳维脉交会穴",
+      "location": "枕外隆凸直下，两侧斜方肌之间凹陷中（图15-1-5）。 说明：后发际正中直上1寸。",
+      "indications": [
+        "咽喉肿痛，鼻衄，暴喑",
+        "头痛，眩晕，癫狂",
+        "中风，舌强不语，半身不遂",
+        "脊痛，颈项强痛"
+      ],
+      "operation": "伏案正坐，使头微前倾，项肌放松，向下颌方向缓慢刺入0.5～1寸。针尖不可向",
+      "classicalExcerpts": [
+        "《素问·骨空论》：“大风颈项痛，刺风府。” 《针灸资生经》：“风府者，固伤寒所自起也，北人皆以毛裹之，南人怯弱者，亦以帛护其项。” 《行针指要歌》：“或针风，先向风府、百会中。” 《席弘赋》：“风府风池寻得到，伤寒百病一时消。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU17",
+      "name": "脑户",
+      "pinyin": "Nǎohù",
+      "meridian": "督脉",
+      "specialClass": "督脉、足太阳经交会穴",
+      "location": "枕外隆凸的上缘凹陷处（图15-1-5）。 取法：后正中线与枕外隆凸的上缘交点处的凹陷中。",
+      "indications": [
+        "癫痫狂",
+        "眩晕",
+        "脊痛，颈项强痛"
+      ],
+      "operation": "平刺0.5～l.0寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU18",
+      "name": "强间",
+      "pinyin": "Qiángjiān",
+      "meridian": "督脉",
+      "location": "后发际正中直上4寸（图15-1-5）。",
+      "indications": [
+        "头痛，癫狂痫，瘛疭",
+        "颈项强痛"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU19",
+      "name": "后顶",
+      "pinyin": "Hòudǐng",
+      "meridian": "督脉",
+      "location": "当后发际正中直上5.5寸（脑户上3寸）（图15-1-5）。 取法：百会向后1.5寸处。",
+      "indications": [
+        "头痛，眩晕，癫狂痫",
+        "颈项强痛"
+      ],
+      "operation": "平刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU20",
+      "name": "百会",
+      "pinyin": "Bǎihuì",
+      "meridian": "督脉",
+      "specialClass": "督脉、足太阳经交会穴",
+      "location": "前发际正中直上5寸（图15-1-5、图15-1-6）。 取法1：在前、后发际正中连线的中点向前1寸凹陷中。 取法2：折耳，两耳尖连线向上连线的中点。",
+      "indications": [
+        "头痛，目痛，眩晕，耳鸣，鼻塞",
+        "中风，神昏，癫狂痫，惊风，痴呆",
+        "脱肛，阴挺"
+      ],
+      "operation": "平刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“督脉、足太阳之会。”“热病汗不出，而呕苦，百会主之。” 《圣济总录》：“凡灸头顶，不得过七七壮，缘头顶皮肤浅薄，灸不宜多。” 《太平圣惠方》：“若频灸，恐拔气上，令人眼暗。” 《针灸资生经》：“北人始生子，则灸此穴，盖防他日惊风也。” 《类经图翼》：“若灸至百壮，停三五日后绕四畔，用三棱针出血，以井花水淋之，令气宣通，否则恐火气上雍，令人目暗。” 图15-1-6"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU21",
+      "name": "前顶",
+      "pinyin": "Qiándǐng",
+      "meridian": "督脉",
+      "location": "前发际正中直上3.5寸（图15-1-6）。",
+      "indications": [
+        "头痛，眩晕",
+        "面肿，鼻渊",
+        "小儿惊风"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU22",
+      "name": "囟会",
+      "pinyin": "Xìnhuì",
+      "meridian": "督脉",
+      "location": "前发际正中直上2寸（图15-1-6）。",
+      "indications": [
+        "头痛，眩晕，癫狂痫",
+        "鼻塞，鼻衄",
+        "小儿惊风"
+      ],
+      "operation": "平刺0.3～0.5寸，小儿禁刺。",
+      "classicalExcerpts": [
+        "《甲乙经》：“癫痴呕沫，暂起僵仆，恶见风寒，面赤肿，囟会主之。” 《铜人腧穴针灸图经》：“治目眩面肿，鼻塞不闻香臭，惊痫戴目上视，不识人，可灸二七壮，至七七壮，初灸即不痛，病去即痛，痛即罢灸。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU23",
+      "name": "上星",
+      "pinyin": "Shàngxīng",
+      "meridian": "督脉",
+      "location": "发际正中直上1寸（图15-1-6）。",
+      "indications": [
+        "鼻渊，鼻衄，目痛",
+        "头痛，眩晕，癫狂",
+        "热病，疟疾"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“以细三棱针刺之，即宣泄诸阳热气，无令上冲头目。可灸七壮，不宜多灸，若频灸，即拔气上，令人目不明。” 《玉龙歌》：“鼻流清涕名鼻渊，先泻后补即可痊，若是头风并眼痛，上星穴内刺无偏。” 《类经图翼》：“又十三鬼穴，此名鬼堂，主百邪癫狂，当在第十次下针。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU24",
+      "name": "神庭",
+      "pinyin": "Shéntíng",
+      "meridian": "督脉",
+      "specialClass": "督脉、足太阳经、足阳明经交会穴",
+      "location": "前发际正中直上0.5寸（图15-1-6）。 取法：发际不明或变异者，从眉心直上3.5寸处取穴。",
+      "indications": [
+        "鼻渊，鼻衄",
+        "头痛，眩晕，癫狂痫",
+        "呕吐"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“督脉、足太阳、阳明之会；风眩善呕、烦满，神庭主之。” 《铜人腧穴针灸图经》：“岐伯曰：凡欲疗风，勿令灸多，缘风性轻，多即伤，惟宜灸七壮至二七壮止；禁不可针，针即发狂。” 《类经图翼》：“灸三壮，禁刺，刺之令人癫狂目失明。” 《玉龙歌》：“头风呕吐眼昏花，穴取神庭始不差。” 图15-1-7"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU25",
+      "name": "素髎",
+      "pinyin": "Sùliáo",
+      "meridian": "督脉",
+      "location": "鼻尖的正中央（图15-1-7）。",
+      "indications": [
+        "鼻塞，鼻渊，鼻衄，鼻息肉，酒糟鼻"
+      ],
+      "operation": "向上斜刺0.3～0.5寸，或点刺出血。一般不灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU26",
+      "name": "水沟",
+      "pinyin": "Shuǐgōu",
+      "meridian": "督脉",
+      "specialClass": "督脉、手阳明经、足阳明经交会穴",
+      "location": "人中沟的上1/3与中1/3交点处（图15-1-7）。",
+      "indications": [
+        "昏迷，晕厥，中风，癫痫",
+        "口眼㖞斜，流涎，口噤，鼻塞，鼻衄",
+        "消渴，水肿",
+        "腰脊强痛"
+      ],
+      "operation": "向上斜刺0.3～0.5寸（或用指甲按掐）。一般不灸。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“风水面肿，针此一穴，出水尽即顿愈。” 《类经图翼》：“千金云：此穴为鬼市，治百邪癫狂，此当在第一次下针。凡人中恶，先掐鼻下是也。鬼击卒死者，须即灸之。” 《百症赋》：“原夫面肿虚浮，须仗水沟、前顶。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU27",
+      "name": "兑端",
+      "pinyin": "Duìduān",
+      "meridian": "督脉",
+      "location": "上唇结节的中点（图15-1-7）。",
+      "indications": [
+        "齿痛，口臭",
+        "癫痫，呕沫，口噤"
+      ],
+      "operation": "斜刺0.2～0.3寸。一般不灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU28",
+      "name": "龈交",
+      "pinyin": "Yínjiāo",
+      "meridian": "督脉",
+      "location": "上唇系带与上齿龈的交点（图15-1-8）。 取法：正坐仰头，提起上唇，于上唇系带与齿龈的移行处取穴。",
+      "indications": [
+        "牙龈肿痛、出血，鼻塞，鼻息肉",
+        "小儿面部疮癣",
+        "癫狂"
+      ],
+      "operation": "向上斜刺0.2～0.3寸。不灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "DU29",
+      "name": "印堂",
+      "pinyin": "Yìntáng",
+      "meridian": "督脉",
+      "location": "两眉毛内侧端中间的凹陷中（图15-1-7）。",
+      "indications": [
+        "头痛，眩晕",
+        "失眠",
+        "鼻渊，鼻衄",
+        "小儿惊风"
+      ],
+      "operation": "提捏进针，从上向下平刺，或向左、右透刺攒竹、睛明等，深0.5～1寸。",
+      "classicalExcerpts": [
+        "《灵枢·五音五味》：“冲脉、任脉皆起于胞中，上循脊里，为经络之海；其浮而外者，循腹右上行，会于咽喉，别而络唇口。” 《素问·骨空论》：“任脉者，起于中极之下，以上毛际，循腹里，上关元，至咽喉，上颐循面入目。” 《难经·二十八难》：“任脉者，起于中极之下，以上毛际，循腹里，上关元，至咽喉。” 《灵枢·经脉》：“任脉之别，名曰尾翳，下鸠尾，散于腹。” 《奇经八脉考》：“起于中极之下，少腹之内，会阴之分，上行而外出，循曲骨、上毛际、至中极，同足厥阴、太阴、少阴并行腹里，循关元，历石门、气海，会足少阳（阴）、冲脉于阴交，循神阙、水分，会足太阴于下脘，历建里，会手太阳、少阳、足阳明于中脘，上上脘、巨阙、"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN1",
+      "name": "会阴",
+      "pinyin": "Huìyīn",
+      "meridian": "任脉",
+      "location": "男性在阴囊根部与肛门连线的中点，女性在大阴唇后联合与肛门连线的中点（图15-2-4）。 说明：胸膝位或侧卧位取之，在前后二阴中间。",
+      "indications": [
+        "阴中诸病，前后相引痛不得大小便；阴痛，阴痒，阴肿，遗精，月经不调",
+        "痔疾"
+      ],
+      "operation": "直刺0.5～1寸，孕妇慎用。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN2",
+      "name": "曲骨",
+      "pinyin": "Qǔgǔ",
+      "meridian": "任脉",
+      "location": "耻骨联合上缘，前正中线上（图15-2-5）。",
+      "indications": [
+        "小便不利，遗尿，阴疝，遗精，阳痿，月经不调，带下"
+      ],
+      "operation": "直刺0.5～1寸，需在排尿后进行针刺。孕妇禁针。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN3",
+      "name": "中极",
+      "pinyin": "Zhōngjí",
+      "meridian": "任脉",
+      "specialClass": "膀胱募穴，任脉、足三阴经交会穴",
+      "location": "脐中下4寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "月经不调，崩漏，阴挺，阴痒，不孕，恶露不尽，带下，遗尿，小便不利，疝气，遗精，阳痿"
+      ],
+      "operation": "直刺1～1.5寸，需在排尿后进行针刺。孕妇禁针。",
+      "classicalExcerpts": [
+        "《类经图翼》：“孕妇不可灸。” 《甲乙经》：“脐下疝绕脐痛，冲胸不得息，中极主之。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN4",
+      "name": "关元",
+      "pinyin": "Guānyuán",
+      "meridian": "任脉",
+      "specialClass": "小肠募穴，任脉、足三阴经交会穴",
+      "location": "脐中下3寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "癃闭，尿频，遗精，阳痿，月经不调，痛经，经闭，崩漏，带下，阴挺，恶露不尽，不孕",
+        "疝气，小腹疼痛",
+        "腹泻",
+        "虚劳羸瘦"
+      ],
+      "operation": "直刺1～2寸，需排尿后进行针刺。孕妇慎用。",
+      "classicalExcerpts": [
+        "《扁鹊心书》：“每夏秋之交，即灼关元千壮，久久不畏寒暑。人至三十，可三年一灸脐下三百壮；五十，可二年一灸脐下三百壮；六十，可三年一灸脐下三百壮；令人长生不老。” 《类经图翼》：“此穴当人身上下四旁之中，故又名大中极，乃男子藏精，女子畜血之处。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN5",
+      "name": "石门",
+      "pinyin": "ShíMén",
+      "meridian": "任脉",
+      "specialClass": "三焦募穴",
+      "location": "脐中下2寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "疝气，小便不利，遗精，阳痿，月经不调，不孕，恶露不尽，妇人胞中积聚",
+        "腹痛，泄泻，水肿"
+      ],
+      "operation": "直刺1～2寸，孕妇慎用。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN6",
+      "name": "气海",
+      "pinyin": "Qìhǎi",
+      "meridian": "任脉",
+      "location": "脐中下1.5寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "疝气，小便不利，遗尿，遗精，阳痿；月经不调，带下，阴挺，恶露不尽",
+        "泄泻，腹中绞痛",
+        "虚脱，虚劳羸瘦"
+      ],
+      "operation": "直刺1～2寸。",
+      "classicalExcerpts": [
+        "《普济方》：“针八分，得气即泻，泻后宜补之。可灸百壮。今附气海者，是男子生气之海也。治脏气虚惫，真气不足，一切气疾，久不瘥，悉皆灸之。” 《类经图翼》：“昔柳公度曰：吾养生无他术，但不使元气佐喜怒，使气海常温尔。今人既不能不以元气佐喜怒，若能时灸气海使温，亦其次也。” 《针灸大成》：“气海专能治五淋，更针三里随呼吸。” 《医宗金鉴·刺灸心法要诀》：“气海主治脐下气。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN7",
+      "name": "阴交",
+      "pinyin": "Yīnjiāo",
+      "meridian": "任脉",
+      "specialClass": "任脉、冲脉、足少阴经交会穴",
+      "location": "脐中下1寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "月经不调，带下，不孕，产后诸症，小便不利，疝气",
+        "腹痛",
+        "水肿"
+      ],
+      "operation": "直刺1～2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN8",
+      "name": "神阙",
+      "pinyin": "Shénquè",
+      "meridian": "任脉",
+      "location": "在脐区，脐中央（图15-2-5）。",
+      "indications": [
+        "脐周痛，腹胀，肠鸣，泄泻",
+        "水肿，小便不利",
+        "中风脱证"
+      ],
+      "operation": "禁刺。可灸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“禁不可刺，刺之令人恶疡遗夭（一作“矢”）者，死不治。” 《类经图翼》：“故神阙之灸，须填细盐，然后灸之，以多为良，若灸之三五百壮。不惟愈疾，亦且延年，若灸少，则时或暂愈，后恐复发，必难救矣。但夏月人神在脐，乃不宜灸。”《类经图翼》：“凡卒中风者，神阙最佳。” 《医宗金鉴·刺灸心法要诀》：“神阙百病老虚泻，产胀溲难儿脱肛。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN9",
+      "name": "水分",
+      "pinyin": "Shuǐfēn",
+      "meridian": "任脉",
+      "location": "脐中上1寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "腹痛，腹满坚硬，腹胀不得食",
+        "水肿，小便不利"
+      ],
+      "operation": "直刺1～2寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN10",
+      "name": "下脘",
+      "pinyin": "Xiàwǎn",
+      "meridian": "任脉",
+      "specialClass": "任脉、足太阴经交会穴",
+      "location": "脐中上2寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "呕吐，食入即出，腹满，腹硬，腹中包块，食欲不振，消瘦"
+      ],
+      "operation": "直刺1～2寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“食饮不化，入腹还出，下脘主之。” 《百症赋》：“腹内肠鸣，下脘、陷谷能平。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN11",
+      "name": "建里",
+      "pinyin": "Jiànlǐ",
+      "meridian": "任脉",
+      "location": "脐中上3寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "胃痛，呕吐，食欲不振，腹痛，肠鸣，腹胀，腹肿"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN12",
+      "name": "中脘",
+      "pinyin": "Zhōngwǎn",
+      "meridian": "任脉",
+      "specialClass": "胃募穴；八会穴（腑会）；任脉、手太阳经、",
+      "location": "脐中上4寸，前正中线上（图15-2-5）。 取法：剑胸结合与脐中连线的中点处。",
+      "indications": [
+        "胃痛，腹胀，腹中积聚，泄泻，便秘，呕吐，食欲不振，呕吐，黄疸"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“中脘，一名太仓，胃募也，在上脘下一寸，居心蔽骨与脐之中，手太阳少阳、足阳明所生，任脉之会，刺入三分，灸七壮。” 《行针指要歌》：“或针痰，先针中脘、三里间。或针吐，中脘、气海、膻中补。” 《医宗金鉴·刺灸心法要诀》：“上脘奔豚与伏梁，中脘主治脾胃伤，兼治脾痛疟痰晕，痞满翻胃尽安康。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN13",
+      "name": "上脘",
+      "pinyin": "Shàngwǎn",
+      "meridian": "任脉",
+      "specialClass": "任脉、手太阳经、足阳明经交会穴",
+      "location": "脐中上5寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "胃痛，呕吐，呕血，呃逆，食欲不振，腹胀，腹中积聚",
+        "癫痫"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN14",
+      "name": "巨阙",
+      "pinyin": "Jùquè",
+      "meridian": "任脉",
+      "specialClass": "心募穴",
+      "location": "脐中上6寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "心悸，心烦，心痛，胸痛，气喘",
+        "癫狂痫"
+      ],
+      "operation": "直刺0.3～0.6寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN15",
+      "name": "鸠尾",
+      "pinyin": "Jiūwěi",
+      "meridian": "任脉",
+      "specialClass": "络穴；膏之原",
+      "location": "剑胸结合下1寸，前正中线上（图15-2-5）。",
+      "indications": [
+        "胸痛引背，气喘",
+        "腹胀，呃逆",
+        "癫狂痫"
+      ],
+      "operation": "直刺0.3～0.6寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN16",
+      "name": "中庭",
+      "pinyin": "Zhōngtíng",
+      "meridian": "任脉",
+      "location": "剑胸结合中点处，前正中线上（图15-2-5、图15-2-6）。",
+      "indications": [
+        "胸胁胀满",
+        "噎膈，呕吐"
+      ],
+      "operation": "斜刺0.3～0.6寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN17",
+      "name": "膻中",
+      "pinyin": "Dànzhōng",
+      "meridian": "任脉",
+      "specialClass": "心包募穴；八会穴（气会）；任脉、足太阴经",
+      "location": "横平第4肋间隙，前正中线上（图15-2-6）。",
+      "indications": [
+        "胸闷，心痛，咳嗽，气喘",
+        "产后乳少",
+        "噎膈"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“其穴禁不可针，不幸令人夭折。” 《甲乙经》：“膻中，一名元儿，在玉堂下一寸六分陷者中，任脉气所发，仰而取之，刺入三分，灸五壮。” 《行针指要歌》：“或针气，膻中一穴分明记。或针吐，中脘、气海、膻中补；翻胃吐食一般医，针中有妙少人知。” 图15-2-6"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN18",
+      "name": "玉堂",
+      "pinyin": "Yùtáng",
+      "meridian": "任脉",
+      "location": "横平第3肋间隙，前正中线上（图15-2-6）。",
+      "indications": [
+        "咳嗽，气喘，胸闷，胸痛",
+        "乳房胀痛",
+        "呕吐"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN19",
+      "name": "紫宫",
+      "pinyin": "Zǐgōng",
+      "meridian": "任脉",
+      "location": "横平第2肋间隙，前正中线上（图15-2-6）。",
+      "indications": [
+        "胸痛",
+        "咳嗽，气喘"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN20",
+      "name": "华盖",
+      "pinyin": "Huágài",
+      "meridian": "任脉",
+      "location": "横平第1肋间隙，前正中线上（图15-2-6）。",
+      "indications": [
+        "胸痛，咳嗽，气喘"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN21",
+      "name": "璇玑",
+      "pinyin": "Xuánjī",
+      "meridian": "任脉",
+      "location": "胸骨上窝下1寸，前正中线上（图15-2-6）。 取法：在前正中线，天突下1寸。",
+      "indications": [
+        "胸痛，咳嗽，气喘",
+        "咽喉肿痛"
+      ],
+      "operation": "平刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN22",
+      "name": "天突",
+      "pinyin": "Tiāntū",
+      "meridian": "任脉",
+      "location": "在颈前区，胸骨上窝中央，前正中线上（图15-2-6）。",
+      "indications": [
+        "咳嗽，气喘，胸痛，咳血",
+        "咽喉肿痛，暴喑",
+        "噎膈",
+        "瘿气"
+      ],
+      "operation": "先直刺0.2寸，当针尖超过胸骨柄内缘后，即向下沿胸骨柄后缘、气管前缘缓慢向下刺入0.5～1寸。 该穴针刺要注意角度、方向和深度。不能向左右深刺，以防刺伤锁骨下动脉和肺尖。如刺中气管壁，针下有硬而轻度弹性感，病人出现喉痒欲咳等现象；若刺破气管壁，可引起剧烈的咳嗽和血糖现象；如刺中无名静脉或主动脉弓时，针下有柔软而有弹力的阻力或病人有疼痛感，应立即退针。",
+      "classicalExcerpts": [
+        "《铜人腧穴针灸图经》：“针入五分，留三呼，得气即泻。……灸亦得。即不及针，其下针直（宜）横下，不得低手，即损五脏之气，伤人。” 《类经图翼》：“治一切瘿瘤初起者，灸之妙。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN23",
+      "name": "廉泉",
+      "pinyin": "Liánquán",
+      "meridian": "任脉",
+      "specialClass": "任脉、阴维脉交会穴",
+      "location": "在颈前区，喉结上方，舌骨上缘凹陷中，前正中线上（图15-2-7）。",
+      "indications": [
+        "中风失语，吞咽困难，舌缓，流涎，舌下肿痛，咽喉肿痛"
+      ],
+      "operation": "斜刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“阴维、任脉之会。” 《百症赋》：“廉泉、中冲，舌下肿痛堪取。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "RN24",
+      "name": "承浆",
+      "pinyin": "Chéngjiāng",
+      "meridian": "任脉",
+      "specialClass": "任脉、足阳明经交会穴",
+      "location": "在面部，颏唇沟的正中凹陷处（图15-2-7）。",
+      "indications": [
+        "口眼㖞斜，口噤，齿龈肿痛；暴喑",
+        "癫狂痫"
+      ],
+      "operation": "斜刺0.3～0.5寸。",
+      "classicalExcerpts": [
+        "《甲乙经》：“承浆主治男七疝，女子瘕聚儿紧唇，偏风不遂刺之效，消渴牙疳灸功深。” 《铜人腧穴针灸图经》：“灸即血脉通宣，其风应时立愈，其艾炷不用大，一依小筯头作炷；针入三分，得气即泻。” 《类经图翼》：“又十三鬼穴云，此名鬼市，治百邪癫狂，当在第八次下针。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN1",
+      "name": "四神聪",
+      "pinyin": "Sìshéncōng",
+      "meridian": "经外奇穴",
+      "location": "百会前后左右各旁开1寸，共4穴（图16-1-1）。 说明：后神聪在前后发际正中连线的中点处，前顶后0.5寸为前神聪。",
+      "indications": [
+        "头痛，眩晕",
+        "失眠，健忘",
+        "癫痫"
+      ],
+      "operation": "平刺0.5～0.8寸。",
+      "classicalExcerpts": [
+        "《太平圣惠方》：“头风目眩，狂乱风痫。” 《类经图翼》：“前神聪主治中风、风痫，灸三壮。后神聪同。” 图16-1-1"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN4",
+      "name": "鱼腰",
+      "pinyin": "Yúyāo",
+      "meridian": "经外奇穴",
+      "location": "瞳孔直上，眉毛中（图16-1-2）。",
+      "indications": [
+        "目赤肿痛，目翳，眼睑下垂，眼睑动，眉棱骨痛"
+      ],
+      "operation": "平刺0.3～0.5寸。 图16-1-2",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN5",
+      "name": "太阳",
+      "pinyin": "Tàiyáng",
+      "meridian": "经外奇穴",
+      "location": "眉梢与目外眦之间，向后约一横指的凹陷处（图16-1-3）。",
+      "indications": [
+        "头痛，齿痛，目疾，面痛"
+      ],
+      "operation": "直刺或斜刺0.3～0.5寸，或用三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《太平圣惠方》：“理风，赤眼头痛，目眩涩。” 《针灸集成》：“头风及偏头痛。” 图16-1-3"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN6",
+      "name": "耳尖",
+      "pinyin": "Erjiān",
+      "meridian": "经外奇穴",
+      "location": "在外耳轮的最高点（图16-1-3）。 取法：折耳向前时，耳郭上方的尖端处。",
+      "indications": [
+        "目赤肿痛，目翳，麦粒肿",
+        "咽喉肿痛"
+      ],
+      "operation": "直刺0.1～0.2寸；或用三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《针灸大成》：“在耳尖上，卷耳取之，尖上是穴。”“灸耳尖……治眼生翳膜，用小艾炷五壮。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN7",
+      "name": "球后",
+      "pinyin": "Qiúhòu",
+      "meridian": "经外奇穴",
+      "location": "眶下缘外1/4与内3/4交界处（图16-1-2）。 说明：承泣的稍外上方。",
+      "indications": [
+        "目疾"
+      ],
+      "operation": "选30号以上毫针，用押手将眼球推向上方，针尖沿眶下缘从外下向内上方，针身成弧形沿眼球刺向视神经方向0.5～1寸，刺入后不宜捻转，可轻度提插。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN8",
+      "name": "上迎香",
+      "pinyin": "Shàngyíngxiāng",
+      "meridian": "经外奇穴",
+      "location": "鼻翼软骨与鼻甲的交界处，近鼻唇沟上端处（图16-1-2）。",
+      "indications": [
+        "鼻塞，鼻渊，目赤肿痛，迎风流泪",
+        "头痛"
+      ],
+      "operation": "向内上方斜刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN9",
+      "name": "内迎香",
+      "pinyin": "Nèiyíngxiāng",
+      "meridian": "经外奇穴",
+      "location": "鼻翼软骨与鼻甲交界的黏膜处（图16-1-4）。 说明：与上迎香相对处的鼻黏膜上。",
+      "indications": [
+        "鼻疾，目赤肿痛"
+      ],
+      "operation": "用三棱针点刺出血。有出血体质者忌用。",
+      "classicalExcerpts": [
+        "《外台秘要》：“卒死……奄忽而绝，皆是中恶之类疗方：取葱刺鼻，令入数寸，需使目中血出乃佳。” 《玉龙经》：“心血炎上两眼红，好将芦叶搐鼻中，若还血出真为美，目内清凉显妙功。（内迎香在鼻孔内，用芦或箸叶作卷，搐之出血为好，应合谷穴）” 图16-1-4"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN10",
+      "name": "聚泉",
+      "pinyin": "Jùquán",
+      "meridian": "经外奇穴",
+      "location": "舌背正中缝的中点处（图16-1-5）。",
+      "indications": [
+        "舌强，舌缓，食不知味",
+        "气喘",
+        "消渴"
+      ],
+      "operation": "直刺0.1～0.2寸；或用三棱针点刺出血。 图16-1-5",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN11",
+      "name": "海泉",
+      "pinyin": "Hǎiquán",
+      "meridian": "经外奇穴",
+      "location": "舌下系带中点处（图16-1-6）。",
+      "indications": [
+        "舌体肿胀，舌缓不收",
+        "消渴"
+      ],
+      "operation": "用圆利针或细三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《奇效良方》：“治消渴，用三棱针出血。” 《针方六集》：“治舌上诸病，针不宜深。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN14",
+      "name": "翳明",
+      "pinyin": "Yìmíng",
+      "meridian": "经外奇穴",
+      "location": "翳风后1寸（图16-1-2）。",
+      "indications": [
+        "目疾，耳鸣",
+        "头痛",
+        "失眠"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN15",
+      "name": "颈百劳",
+      "pinyin": "Jǐngbǎiláo",
+      "meridian": "经外奇穴",
+      "location": "第7颈椎棘突直上2寸，后正中线旁开1寸（图16-3-1）。",
+      "indications": [
+        "颈项强痛",
+        "咳嗽，气喘，骨蒸潮热，盗汗"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《针灸资生经》：“妇人产后浑身疼，针百劳穴，遇痛处即针，避筋骨及禁穴。明下云，产后未满百日，不宜灸。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-B1",
+      "name": "定喘",
+      "pinyin": "Dìngchuǎn",
+      "meridian": "经外奇穴",
+      "location": "横平第7颈椎棘突下，后正中线旁开0.5寸（图16-3-1）。 说明：大椎旁开0.5寸。",
+      "indications": [
+        "哮喘，咳嗽",
+        "落枕，肩背痛，上肢疼痛不举"
+      ],
+      "operation": "直刺，或偏向内侧，0.5～1寸。 图16-3-1",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-B2",
+      "name": "夹脊",
+      "pinyin": "Jiájǐ",
+      "meridian": "经外奇穴",
+      "location": "第1胸椎至第5腰椎棘突下两侧，后正中线旁开0.5寸，一侧17穴（图16-3-1）。",
+      "indications": [
+        "胸1～5夹脊：心肺、胸部及上肢疾病",
+        "胸6～12夹脊：胃肠、脾、肝、胆疾病",
+        "腰1～5夹脊：下肢疼痛，腰、骶、小腹部疾病"
+      ],
+      "operation": "稍向内斜刺0.5～1寸，待有麻胀感即停止进针，严格掌握进针的角度及深度，防止损伤内脏或引起气胸。",
+      "classicalExcerpts": [
+        "《素问·缪刺论》：“邪客于足太阳络，令人拘挛背急，引胁而痛，刺之从项始数脊椎侠脊，疾按之应手如痛，刺之傍三痏，立已。” 《素问·刺疟》：“十二疟者……又刺项以下侠脊者必已。” 《太素》第二十三卷《量缪刺》中也有“刺之从项始数脊椎，挟脊，疾按之，应手而痛，刺之旁三痏立已”。 杨上善注：“脊有廿一椎，以两手挟脊当椎按之，痛处即是足太阳络，其输两旁，各刺三痏也。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-B3",
+      "name": "胃脘下俞",
+      "pinyin": "Wèiwǎnxiàshū",
+      "meridian": "经外奇穴",
+      "location": "横平第8胸椎棘突下，后正中线旁开1.5寸（图16-3-1）。",
+      "indications": [
+        "消渴，胰腺炎",
+        "胃痛，腹痛",
+        "胸胁痛"
+      ],
+      "operation": "向内斜刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-B4",
+      "name": "痞根",
+      "pinyin": "Pǐgēn",
+      "meridian": "经外奇穴",
+      "location": "横平第1腰椎棘突下，后正中线旁开3.5寸（图16-3-1）。",
+      "indications": [
+        "腰痛",
+        "痞块，癥瘕"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-B7",
+      "name": "腰眼",
+      "pinyin": "Yāoyǎn",
+      "meridian": "经外奇穴",
+      "location": "横平第4腰椎棘突下，后正中线旁开约3.5寸凹陷中（图16-3-1）。 说明：直立时，约横平腰阳关两侧呈现的圆形凹陷中。",
+      "indications": [
+        "腰痛",
+        "尿频，月经不调，带下"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-B8",
+      "name": "十七椎",
+      "pinyin": "Shíqīzhuī",
+      "meridian": "经外奇穴",
+      "location": "第5腰椎棘突下凹陷中（图16-3-1）。",
+      "indications": [
+        "痛经，崩漏，月经不调，遗尿",
+        "腰骶痛"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-B9",
+      "name": "腰奇",
+      "pinyin": "Yāoqí",
+      "meridian": "经外奇穴",
+      "location": "尾骨端直上2寸，骶角之间凹陷中（图16-3-1）。",
+      "indications": [
+        "癫痫",
+        "失眠",
+        "头痛",
+        "便秘"
+      ],
+      "operation": "向上平刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE1",
+      "name": "肘尖",
+      "pinyin": "Zhǒujiān",
+      "meridian": "经外奇穴",
+      "location": "尺骨鹰嘴的尖端（图16-4-1）。",
+      "indications": [
+        "痈疽，疔疮，瘰疬"
+      ],
+      "operation": "灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE2",
+      "name": "二白",
+      "pinyin": "Erbái",
+      "meridian": "经外奇穴",
+      "location": "腕掌侧远端横纹上4寸，桡侧腕屈肌腱的两侧，一肢2穴（图16-4-2）。",
+      "indications": [
+        "痔疮，脱肛",
+        "前臂痛，胸肋痛"
+      ],
+      "operation": "直刺0.5～0.8寸。 图16-4-1",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE4",
+      "name": "中魁",
+      "pinyin": "Zhōngkuí",
+      "meridian": "经外奇穴",
+      "location": "中指背面，近侧指间关节的中点处（图16-4-3）。",
+      "indications": [
+        "噎膈，翻胃，呕吐",
+        "牙痛，鼻出血"
+      ],
+      "operation": "灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE5",
+      "name": "大骨空",
+      "pinyin": "Dàgǔkōng",
+      "meridian": "经外奇穴",
+      "location": "拇指背面，指间关节的中点处（图16-4-3）。",
+      "indications": [
+        "目痛，目翳，白内障",
+        "吐泻",
+        "衄血"
+      ],
+      "operation": "灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE6",
+      "name": "小骨空",
+      "pinyin": "Xiǎogǔkōng",
+      "meridian": "经外奇穴",
+      "location": "小指背面，近端指间关节中点处（图16-4-3）。",
+      "indications": [
+        "目赤肿痛，目翳，咽喉肿痛"
+      ],
+      "operation": "灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE7",
+      "name": "腰痛点",
+      "pinyin": "Yāotòngdiǎn",
+      "meridian": "经外奇穴",
+      "location": "第2、3掌骨间及第4、5掌骨之间，腕背侧远端横纹与掌指关节中点处，一手2穴（图16-4-3）。",
+      "indications": [
+        "急性腰扭伤"
+      ],
+      "operation": "直刺0.3～0.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE8",
+      "name": "外劳宫",
+      "pinyin": "Wàiláogōng",
+      "meridian": "经外奇穴",
+      "location": "第2、3掌骨间，掌指关节后0.5寸（指寸）凹陷中（图16-4-3）。 说明：与劳宫前后相对。",
+      "indications": [
+        "落枕",
+        "手指麻木，手指屈伸不利"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE9",
+      "name": "八邪",
+      "pinyin": "Bāxié",
+      "meridian": "经外奇穴",
+      "location": "第1～5指间，指蹼缘后方赤白肉际处，左右共8穴（图16-4-3）。 取法：微握拳，第1～5指间缝纹端凹陷中。其中4、5指间穴即液门。",
+      "indications": [
+        "烦热，目痛",
+        "毒蛇咬伤，手背肿痛，手指麻木"
+      ],
+      "operation": "向下斜刺0.5～0.8寸；或点刺出血。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE10",
+      "name": "四缝",
+      "pinyin": "Sìfèng",
+      "meridian": "经外奇穴",
+      "location": "第2～5指掌面的近侧指间关节横纹的中央，一手4穴（图16-4-4）。",
+      "indications": [
+        "小儿疳积",
+        "百日咳"
+      ],
+      "operation": "直刺0.1～0.2寸，挤出少量黄白色透明黏液或出血。 图16-4-4",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-UE11",
+      "name": "十宣",
+      "pinyin": "Shíxuān",
+      "meridian": "经外奇穴",
+      "location": "十指尖端，距指甲游离缘0.1寸（指寸），左右共10穴（图16-4-4）。 说明：其中中指尖端穴点即中冲。",
+      "indications": [
+        "昏迷，晕厥，中暑，癫痫",
+        "高热",
+        "咽喉肿痛"
+      ],
+      "operation": "直刺0.1～0.2寸；或用三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《千金要方》：“十宣穴，别名鬼城。”“卒忤死，灸手十指爪下各三壮。”“邪病大唤骂詈走，灸十指端，去爪一分。”“气短不得语……灸手十指头合十壮。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-LE2",
+      "name": "鹤顶",
+      "pinyin": "Hèdǐng",
+      "meridian": "经外奇穴",
+      "location": "髌底中点的上方凹陷中（图16-5-1）。",
+      "indications": [
+        "膝关节酸痛，鹤膝风，腿足无力"
+      ],
+      "operation": "直刺0.5～0.8寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-LE3",
+      "name": "百虫窝",
+      "pinyin": "Bǎichóngwō",
+      "meridian": "经外奇穴",
+      "location": "髌底内侧端上3寸（图16-5-1）。 说明：屈膝，血海上1寸。",
+      "indications": [
+        "皮肤瘙痒，风疹，湿疹，疮疡",
+        "蛔虫病"
+      ],
+      "operation": "直刺0.5～1寸。",
+      "classicalExcerpts": [
+        "《针灸大成》：“治下部生疮。” 图16-5-1"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-LE4",
+      "name": "内膝眼",
+      "pinyin": "Nèixīyǎn",
+      "meridian": "经外奇穴",
+      "location": "髌韧带内侧凹陷处的中央（图16-5-1）。",
+      "indications": [
+        "膝肿痛"
+      ],
+      "operation": "从前内向后外与额状面成45°斜刺0.5～1寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-LE6",
+      "name": "胆囊",
+      "pinyin": "Dǎnnáng",
+      "meridian": "经外奇穴",
+      "location": "腓骨小头直下2寸（图16-5-2）。",
+      "indications": [
+        "急、慢性胆囊炎，胆石症，胆绞痛，胆道蛔虫症"
+      ],
+      "operation": "直刺1～1.5寸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-LE7",
+      "name": "阑尾",
+      "pinyin": "Lánwěi",
+      "meridian": "经外奇穴",
+      "location": "髌韧带外侧凹陷下5寸，胫骨前嵴外一横指（中指）（图16-5-1）。 取法：上巨虚上1寸。",
+      "indications": [
+        "急、慢性阑尾炎"
+      ],
+      "operation": "直刺1～1.5寸。 图16-5-2",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-LE8",
+      "name": "内踝尖",
+      "pinyin": "Nèihuáijiān",
+      "meridian": "经外奇穴",
+      "location": "内踝的最凸起处（图16-5-3）。",
+      "indications": [
+        "乳蛾，齿痛，小儿不语",
+        "霍乱转筋"
+      ],
+      "operation": "禁刺，可灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-LE9",
+      "name": "外踝尖",
+      "pinyin": "Wàihuáijiān",
+      "meridian": "经外奇穴",
+      "location": "外踝的最凸起处（图16-5-2）。",
+      "indications": [
+        "十趾拘急，脚外廉转筋，脚气",
+        "齿痛，重舌"
+      ],
+      "operation": "禁刺，可灸。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-LE10",
+      "name": "八风",
+      "pinyin": "Bāfēng",
+      "meridian": "经外奇穴",
+      "location": "第1～5趾间，趾蹼缘后方赤白肉际处，左右共8穴（图16-5-4）。 说明：其中1、2趾，2、3趾，4、5趾间穴点即行间、内庭、侠溪。",
+      "indications": [
+        "趾痛，毒蛇咬伤，足跗肿痛，脚气"
+      ],
+      "operation": "斜刺0.5～0.8寸；或用三棱针点刺出血。",
+      "classicalExcerpts": [
+        "《针灸集成》：“阴独八穴，主妇人月经不调，须持经定为度。” 《针灸孔穴及其疗法便览》：“八冲，奇穴。主治脚背红肿、脚气；亦治头痛、尺神经痛、间歇热、肺出血。” 《千金要方》：“凡脚气初得脚弱，使速灸之……其足十趾去趾奇一分，两足凡八穴，曹氏名曰八冲，极下气有效。”"
+      ],
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-LE11",
+      "name": "独阴",
+      "pinyin": "Dúyīn",
+      "meridian": "经外奇穴",
+      "location": "在足底，第2趾的跖侧远端趾间关节的中点（图16-5-5）。",
+      "indications": [
+        "胞衣不下，月经不调，疝气",
+        "胸胁痛，卒心痛"
+      ],
+      "operation": "直刺0.1～0.2寸。孕妇禁用。",
+      "sourceRef": "SRC-TEXTBOOK-JINGLUO-SHUXUE"
+    },
+    {
+      "code": "EX-HN22",
+      "name": "安眠",
+      "pinyin": "Ānmián",
+      "meridian": "经外奇穴",
+      "location": "项部，翳风穴与风池穴连线的中点处。",
+      "indications": [
+        "失眠，头痛，眩晕",
+        "心悸，癫狂"
+      ],
+      "operation": "直刺0.8～1.2寸。",
+      "sourceRef": "SRC-ACUPOINT-CURATED-SUPPLEMENT"
+    }
+  ]
+}

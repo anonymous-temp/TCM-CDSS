@@ -194,7 +194,13 @@ export function clinicalReviewRetryPlan(
     chainBudgetMs: Math.min(60_000, Math.max(configuredChainTimeoutMs, attemptTimeoutMs + 20_000)),
   };
 }
-const PRIMARY_TEXT_THINKING_ENABLED = process.env.PRIMARY_TEXT_THINKING_ENABLED !== "false";
+// 默认值与 .env.example 对齐为 false，并与同族的分阶段开关（PRIMARY_DIAGNOSE_THINKING_ENABLED /
+// PRIMARY_PRESCRIBE_THINKING_ENABLED / GLM_VISION_THINKING_ENABLED）统一成 `=== "true"` 的口径。
+// 原来写的是 `!== "false"`，即**变量未设置时为 true**：照抄 .env.example 得到 false，漏配却静默开启
+// 思考模式。而本项目的已知故障模式正是「流只返回 reasoning_content 而无 content 视为错误」，
+// 开思考模式会放大它——M02 尤其，它没有独立的分阶段覆盖项，只能吃这个默认值。
+// 一个可选开关的缺省行为必须等于它文档里的缺省值，否则「按文档配置」和「不配置」会走向相反结果。
+const PRIMARY_TEXT_THINKING_ENABLED = process.env.PRIMARY_TEXT_THINKING_ENABLED === "true";
 const PRIMARY_TEXT_TEMPERATURE = (() => {
   const value = Number(process.env.PRIMARY_TEXT_TEMPERATURE ?? 0);
   return Number.isFinite(value) && value >= 0 && value <= 2 ? value : 0;

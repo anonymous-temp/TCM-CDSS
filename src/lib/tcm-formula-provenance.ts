@@ -71,6 +71,8 @@ type GovernedFormulaCompilationRow = {
   name: string;
   source: string;
   ingredients: string[];
+  /** 构建期已解析的药味链接；adjudicatedIngredient 是「按方裁定」后的品种（见下方 compilationIngredients）。 */
+  ingredientLinks?: Array<{ rawName: string; adjudicatedIngredient?: string }>;
   sourceClass: "official_classic_catalog" | "verified_reference_catalog" | "official_local_formula_standard";
   identityLockEligible: boolean;
   prescriptionLockEligible: boolean;
@@ -119,6 +121,25 @@ function exactFormulaIdentityName(value: string): string {
     .replace(/[（(]?\s*《[^》]{2,80}》\s*[）)]?/g, "")
     .replace(/[\s·•，,。；;：:（）()【】\[\]“”"']/g, "")
     .trim();
+}
+
+/**
+ * 编译用组成 = 原文组成，但把**按方裁定过的歧义药味**换成裁定品种。
+ *
+ * 古方只写「芍药/贝母/紫苏/菖蒲」时，品种由该方原书或标准注疏决定（tcm-formula-ingredient-identity-
+ * adjudications.source.json）。裁定既决定 T8 的 doseCompilationEligible，就必须同样决定 M04 实际编译
+ * 哪一味——否则 T8 宣称「可编译剂量」而运行时门禁仍拿原文歧义名去查剂量边界、查不到、拒绝编译，
+ * 医生拿到方名却拿不到处方。这类「标志与门禁分叉」由 test-tcm-formula-provenance 的
+ * 「T8 dose-compilation flag must equal the M04 runtime gate」逐方钉死。
+ */
+function compilationIngredients(row: GovernedFormulaCompilationRow): string[] {
+  const adjudicated = new Map(
+    (row.ingredientLinks || [])
+      .filter((link) => link.adjudicatedIngredient)
+      .map((link) => [link.rawName, link.adjudicatedIngredient as string]),
+  );
+  if (adjudicated.size === 0) return row.ingredients;
+  return row.ingredients.map((name) => adjudicated.get(name) || name);
 }
 
 function governedFormulaCompilationRow(value: string): GovernedFormulaCompilationRow | undefined {
@@ -434,7 +455,7 @@ export function formulaCompilationReferences(names: string[]): FormulaCompilatio
         : "verified_reference_catalog";
     return [compilationReference(governed.name, {
       source: governed.source,
-      ingredients: governed.ingredients,
+      ingredients: compilationIngredients(governed),
     }, origin)];
   });
 }

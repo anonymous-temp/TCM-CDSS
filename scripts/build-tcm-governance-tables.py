@@ -43,6 +43,11 @@ SYNDROME_TAG_ADJUDICATIONS = DATA_ROOT / "tcm-formula-syndrome-tag-adjudications
 # 清除假方名后这 8 条成了孤儿，触发本校验——这正是它该拦下的东西。下调闸门是对**已核实的
 # 数据缺陷**做的一次性修正，不是放松标准：真方剂的裁定一条没少。
 SYNDROME_TAG_ADJUDICATION_FLOOR = 233
+# 按方裁定的药味身份。古方只写「芍药/贝母/紫苏/菖蒲」时，品种由**这一首方**的原书或标准注疏决定，
+# 不能全局归一：同一个「芍药」在桂枝汤里是白芍、在排脓散里是赤芍，猜错等于开错方向相反的药。
+# 因此这张表是 (方名, 原文药名) → 品种，而不是药名→药名。
+INGREDIENT_IDENTITY_ADJUDICATIONS = DATA_ROOT / "tcm-formula-ingredient-identity-adjudications.source.json"
+INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 76
 FORMULA_RETRIEVAL_INDEX_OUTPUT = DATA_ROOT / "tcm-formula-retrieval-index.json"
 HERB_OUTPUT = DATA_ROOT / "tcm-herb-identity-catalog.json"
 MANIFEST_OUTPUT = DATA_ROOT / "clinical-governance-table-manifest.json"
@@ -119,10 +124,12 @@ HIGH_FREQUENCY_FORMULA_PRIORITY = (
     "乌梅丸", "黄连阿胶汤", "五苓散", "金匮肾气丸", "黄土汤", "桂枝茯苓丸",
     "安宫牛黄丸", "至宝丹", *HIGH_FREQUENCY_REVIEW_QUEUE,
 )
-# 受控源域（经典名方 + 项目补充 + SZJG 标准，去重后）实测 2103 首。上限低于源域时，
-# 排在后面的标准方会被静默截断——温病批入库（+174 首）后正好把真武汤等挤出目录。
-# 上限的作用是给构建规模一个显式天花板，不是替代治理；正确性由 fail-closed 校验守住。
-FORMULA_CATALOG_TARGET = 2300
+# 受控源域（经典名方 ~173 + SZJG 703 + 项目补充，去重后）方书二批入库（+826 首）后实测 ~2850 首。
+# 上限低于源域时，排在后面的标准方会被静默截断——温病批入库（+174 首）后把真武汤等挤出目录；
+# 方书二批后再次实撞：406/703 首 SZJG 标准方（右归丸、三仁汤、七味白术散、三妙丸…）被挤出，
+# 因为项目补充先于标准方占位。上限的作用是给构建规模一个显式天花板，不是替代治理；
+# 正确性由 fail-closed 校验守住（下方新增：标准方/经典名方必须全量在册，缺一即构建失败）。
+FORMULA_CATALOG_TARGET = 3200
 
 TABLE_FILES = {
     "T1": "tcm-syndrome-lexicon.json",
@@ -434,16 +441,72 @@ def derived_tag_ids(text: str, lexicon: list[tuple[str, list[str]]]) -> list[str
     return sorted({item_id for item_id, terms in lexicon if any(term in text for term in terms)})
 
 
-def linked_ingredients(ingredients: list[object], resolution_index: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+def load_ingredient_identity_adjudications(
+    resolution_index: dict[str, dict[str, Any]],
+) -> dict[tuple[str, str], dict[str, str]]:
+    """(方名, 原文药名) → 裁定品种。每一条都 fail-closed 校验。
+
+    赤芍与白芍功效方向相反（清热凉血 vs 养血敛阴），猜错不是少给剂量而是给反了药。
+    所以这里宁可拒绝入库也不接受任何无法逐条证成的行。
+    """
+    payload = read_json(INGREDIENT_IDENTITY_ADJUDICATIONS)
+    entries = payload.get("entries", [])
+    if len(entries) < INGREDIENT_IDENTITY_ADJUDICATION_FLOOR:
+        raise SystemExit(
+            "T8 ingredient identity adjudication table must contain at least "
+            f"{INGREDIENT_IDENTITY_ADJUDICATION_FLOOR} rows; found {len(entries)}"
+        )
+    resolved: dict[tuple[str, str], dict[str, str]] = {}
+    for entry in entries:
+        formula_name = compact(entry.get("formulaName"))
+        raw_ingredient = compact(entry.get("rawIngredient"))
+        resolved_ingredient = compact(entry.get("resolvedIngredient"))
+        if not (formula_name and raw_ingredient and resolved_ingredient):
+            raise SystemExit(f"T8 ingredient identity adjudication row is incomplete: {entry}")
+        if (formula_name, raw_ingredient) in resolved:
+            raise SystemExit(
+                f"T8 ingredient identity adjudication has duplicate row: {formula_name}->{raw_ingredient}"
+            )
+        # 裁定必须落到 T9 里真实存在且可自动解析的标准名，否则它解不出剂量边界，写了也没用。
+        target = resolution_index.get(resolved_ingredient)
+        if not target or not target.get("autoResolvable"):
+            raise SystemExit(
+                "T8 ingredient identity adjudication resolves to a name that T9 cannot auto-resolve: "
+                f"{formula_name}->{raw_ingredient}->{resolved_ingredient}"
+            )
+        if not compact(entry.get("evidence")):
+            raise SystemExit(
+                f"T8 ingredient identity adjudication row lacks evidence: {formula_name}->{raw_ingredient}"
+            )
+        resolved[(formula_name, raw_ingredient)] = {
+            "resolvedIngredient": resolved_ingredient,
+            "evidence": compact(entry.get("evidence")),
+            "basis": compact(entry.get("basis")),
+        }
+    return resolved
+
+
+def linked_ingredients(
+    ingredients: list[object],
+    resolution_index: dict[str, dict[str, Any]],
+    formula_name: str = "",
+    identity_adjudications: dict[tuple[str, str], dict[str, str]] | None = None,
+) -> list[dict[str, Any]]:
     result = []
     for value in ingredients:
         raw_name = compact(value)
-        resolution = resolution_index.get(raw_name)
+        # 按方裁定优先：只替换**本方**的这一味，全局归一不动。
+        adjudication = (identity_adjudications or {}).get((formula_name, raw_name))
+        lookup_name = adjudication["resolvedIngredient"] if adjudication else raw_name
+        resolution = resolution_index.get(lookup_name)
         if not resolution:
             result.append({"rawName": raw_name, "canonicalName": None, "linkageStatus": "unmapped"})
         else:
             result.append({
                 "rawName": raw_name,
+                **({"adjudicatedIngredient": adjudication["resolvedIngredient"],
+                    "adjudicationEvidence": adjudication["evidence"],
+                    "adjudicationBasis": adjudication["basis"]} if adjudication else {}),
                 "canonicalName": resolution.get("canonicalName"),
                 **({"doseCanonicalName": resolution["doseCanonicalName"]} if resolution.get("doseCanonicalName") else {}),
                 "linkageStatus": resolution["status"],
@@ -588,6 +651,7 @@ def build_formula_catalog(
         if compact(name)
     }
     adjudicated_tags_by_formula = load_syndrome_tag_adjudications(governed_formula_names)
+    identity_adjudications = load_ingredient_identity_adjudications(resolution_index)
 
     resolved_high_frequency_syndrome_ids: set[str] = set()
     resolved_high_frequency_relations: list[dict[str, Any]] = []
@@ -738,6 +802,25 @@ def build_formula_catalog(
         }
         governed_identity_keys.add(identity_key)
 
+    # fail-closed 覆盖断言：SZJG 标准方与经典名方**必须全量在册**。
+    # 项目补充先于标准方占位 + 上限截断 = 标准方被静默挤出（方书二批后实测 406/703 缺失，
+    # 右归丸/三仁汤都在其中，检索回归立刻变红）。上限再充裕也只是缓冲，这里才是门禁：
+    # 源域继续增长撞上 FORMULA_CATALOG_TARGET 时，构建直接失败，而不是悄悄少几首标准方。
+    # 等价口径与构建自身去重一致（formula_identity_key）：济生肾气丸加减 由 济生肾气丸 覆盖、
+    # 苇茎汤 由经典层同名条目覆盖,均视为在册——否则断言会把去重语义误报成截断。
+    governed_keys = {formula_identity_key(name) for name in governed}
+    missing_standard = sorted(
+        {formula_identity_key(item["name"]) for item in standard_rows}
+        - governed_keys
+        # 加味逍遥散按治理裁定以具名变体「加味逍遥散（《审视瑶函》暴盲方）」入库,本名不出现属预期
+        - ({formula_identity_key("加味逍遥散")} if any("审视瑶函" in name and "加味逍遥散" in name for name in governed) else set())
+    )
+    if missing_standard:
+        raise SystemExit(
+            f"T8 catalog silently truncated {len(missing_standard)} SZJG standard formulas "
+            f"(e.g. {missing_standard[:5]}); raise FORMULA_CATALOG_TARGET or reprioritise — never ship a truncated standard layer."
+        )
+
     entries = []
     for name, item in sorted(governed.items()):
         indication_entry = indications_by_name.get(name, {})
@@ -747,7 +830,7 @@ def build_formula_catalog(
             if source_indication:
                 indications = [source_indication]
         searchable_text = "；".join([name, *item.get("aliases", []), *indications])
-        ingredient_links = linked_ingredients(item["ingredients"], resolution_index)
+        ingredient_links = linked_ingredients(item["ingredients"], resolution_index, name, identity_adjudications)
         identity_blocking_reasons = []
         if not item["source"]:
             identity_blocking_reasons.append("missing_standard_source")
@@ -838,7 +921,7 @@ def build_formula_catalog(
             disposed_variants.append({
                 "source": compact(item.get("source")),
                 "ingredients": item.get("ingredients") or [],
-                "ingredientLinks": linked_ingredients(item.get("ingredients") or [], resolution_index),
+                "ingredientLinks": linked_ingredients(item.get("ingredients") or [], resolution_index, compact(item.get("name")), identity_adjudications),
                 "disposition": "source_aligned_supporting_variant" if source_aligned else "historical_same_name_variant_not_baseline",
                 "runtimeEligible": False,
                 "reason": "与治理基线来源相符但仍以标准组成优先" if source_aligned else "同名不等于同方；保留供考证但不参与运行时锁方",

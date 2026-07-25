@@ -1,0 +1,344 @@
+{
+  "贝母": [
+    {
+      "name": "三物白散",
+      "source": "《医方考》",
+      "determination": "undetermined",
+      "evidence": "原文仅写“贝母”，未标注川贝母或浙贝母。",
+      "basis": "《医方考》卷二·伤寒门",
+      "confidence": "high"
+    },
+    {
+      "name": "二母散",
+      "source": "《医方集解》",
+      "determination": "undetermined",
+      "evidence": "原文“贝母（炒）”，未区分品种。",
+      "basis": "《医方集解·润燥之剂》",
+      "confidence": "high"
+    },
+    {
+      "name": "二母汤",
+      "source": "《医方集宜》",
+      "determination": "undetermined",
+      "evidence": "原文用“贝母（去心）”，未指明川贝或浙贝。",
+      "basis": "《医方集宜》卷四",
+      "confidence": "high"
+    },
+    {
+      "name": "人参蛤蚧散",
+      "source": "《医方考》",
+      "determination": "undetermined",
+      "evidence": "原文作“贝母二两”，无品种标注。",
+      "basis": "《医方考》卷二·咳嗽门",
+      "confidence": "high"
+    },
+    {
+      "name": "哮症",
+      "source": "圣济总录",
+      "determination": "undetermined",
+      "evidence": "原书治哮症诸方如贝母丸、贝母汤等，贝母均未分川浙。",
+      "basis": "《圣济总录》卷六十五",
+      "confidence": "high"
+    },
+    {
+      "name": "常山饮",
+      "source": "《局方》",
+      "determination": "undetermined",
+      "evidence": "原文“贝母（去心）”，无川贝或浙贝说明。",
+      "basis": "《太平惠民和剂局方》卷八",
+      "confidence": "high"
+    },
+    {
+      "name": "当归贝母苦参丸",
+      "source": "金匮",
+      "determination": "undetermined",
+      "evidence": "《金匮》原文及历代注疏（如尤怡、吴谦）均未指明贝母品种。",
+      "basis": "《金匮要略·妇人妊娠病脉证并治》",
+      "confidence": "high"
+    },
+    {
+      "name": "杏仁煎",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "原文“贝母一两”，未区分川贝或浙贝。",
+      "basis": "《三因极一病证方论》卷十三",
+      "confidence": "high"
+    },
+    {
+      "name": "柴葛解肌汤",
+      "source": "《医学心悟》",
+      "determination": "川贝母",
+      "evidence": "《重订广温热论》：\"柴葛解肌汤（柴胡、葛根、赤芍、甘草、黄芩、知母、川贝、生地、丹皮、石膏、淡竹叶）\"",
+      "basis": "贝母",
+      "confidence": "high"
+    },
+    {
+      "name": "桑白皮汤",
+      "source": "《景岳全书》",
+      "determination": "undetermined",
+      "evidence": "原文作“贝母各八分”，未分川浙。",
+      "basis": "《景岳全书》卷五十六",
+      "confidence": "high"
+    },
+    {
+      "name": "海藻玉壶汤",
+      "source": "《外科正宗》",
+      "determination": "undetermined",
+      "evidence": "原文作“贝母”，未分川浙。",
+      "basis": "《外科正宗》卷二",
+      "confidence": "high"
+    },
+    {
+      "name": "消瘰丸",
+      "source": "《医学心悟》",
+      "determination": "川贝母",
+      "evidence": "《笔花医镜》：\"蒸川贝母（各四两），蜜为丸。\"",
+      "basis": "贝母",
+      "confidence": "high"
+    },
+    {
+      "name": "清膈煎",
+      "source": "《成方切用》",
+      "determination": "undetermined",
+      "evidence": "原文作“贝母（二三钱微敲破）”，未分川浙。",
+      "basis": "《成方切用》卷三上",
+      "confidence": "high"
+    },
+    {
+      "name": "清金化痰汤",
+      "source": "《医学统旨》",
+      "determination": "undetermined",
+      "evidence": "原文作“贝母”，未分川浙。",
+      "basis": "《医学统旨》原方",
+      "confidence": "high"
+    },
+    {
+      "name": "疏肝清胃丸",
+      "source": "《绛雪园古方选注》",
+      "determination": "undetermined",
+      "evidence": "原文作“贝母（四两，去心）”，未分川浙。",
+      "basis": "《绛雪园古方选注》卷三",
+      "confidence": "high"
+    },
+    {
+      "name": "白散",
+      "source": "《绛雪园古方选注》",
+      "determination": "undetermined",
+      "evidence": "《伤寒论》原文及王注均作“贝母三分”，未分川浙。",
+      "basis": "《绛雪园古方选注》注三物白散",
+      "confidence": "high"
+    },
+    {
+      "name": "皱肺丸",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": ""
+    },
+    {
+      "name": "真人活命饮",
+      "source": "《成方切用》",
+      "determination": "浙贝母",
+      "evidence": "贝母苦甘微寒，清热化痰散结，与天花粉同用，可增强清热散结之功，本方宜用浙贝母。",
+      "basis": "《方剂学》（邓中甲主编，中国中医药出版社）",
+      "confidence": "high"
+    },
+    {
+      "name": "苦参丸",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": ""
+    },
+    {
+      "name": "蛇虫犬咬伤",
+      "source": "《成方切用》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": ""
+    },
+    {
+      "name": "贝母栝蒌散",
+      "source": "《成方切用》",
+      "determination": "川贝母",
+      "evidence": "贝母清热润肺，化痰止咳，润肺而不燥，宜用于燥痰，故本方当用川贝母。",
+      "basis": "《方剂学》（邓中甲主编，中国中医药出版社）",
+      "confidence": "high"
+    }
+  ],
+  "紫苏": [
+    {
+      "name": "丁香乌梅丸",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": "medium"
+    },
+    {
+      "name": "三因七气汤",
+      "source": "《三因》",
+      "determination": "紫苏叶",
+      "evidence": "四七汤……半夏（姜制）五钱，厚朴（姜制）三钱，茯苓四钱，紫苏叶二钱。",
+      "basis": "《医方集解》",
+      "confidence": "high"
+    },
+    {
+      "name": "十神汤",
+      "source": "《局方》",
+      "determination": "紫苏叶",
+      "evidence": "组成：川芎、甘草、麻黄、升麻各四两，葛根十四两，赤芍药、白芷、陈皮、紫苏叶、香附子各四两。",
+      "basis": "《方剂学》（邓中甲主编）",
+      "confidence": "high"
+    },
+    {
+      "name": "吐、汗、下治疟",
+      "source": "《仁斋直指方论（附补遗）》",
+      "determination": "紫苏叶",
+      "evidence": "常山（酒浸）二钱，甘草半钱，麻黄（去节）一钱，紫苏叶一钱，乌梅肉一钱。",
+      "basis": "《仁斋直指方论（附补遗）》原书",
+      "confidence": "high"
+    },
+    {
+      "name": "大七气汤",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": "medium"
+    },
+    {
+      "name": "子悬（即胎上逼心胀痛）",
+      "source": "《医方集宜》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": "medium"
+    },
+    {
+      "name": "子淋",
+      "source": "《医方集宜》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": "medium"
+    },
+    {
+      "name": "引气汤",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": "medium"
+    },
+    {
+      "name": "治黄肉随二方",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "该书今通行本中未见此方名，无相关条文可考。",
+      "basis": "《三因极一病证方论》",
+      "confidence": "low"
+    },
+    {
+      "name": "白皮小豆散",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "原方载“紫苏一握”，未指明用叶、梗或子。",
+      "basis": "《三因极一病证方论》卷十七",
+      "confidence": "high"
+    },
+    {
+      "name": "达生散",
+      "source": "《医方集解》",
+      "determination": "undetermined",
+      "evidence": "方中仅书“紫苏”，未注明药用部位。",
+      "basis": "《医方集解》",
+      "confidence": "high"
+    },
+    {
+      "name": "香苏饮",
+      "source": "《太平惠民和剂局方》",
+      "determination": "紫苏叶",
+      "evidence": "原方明确用“紫苏叶各四两”。",
+      "basis": "《太平惠民和剂局方》卷二",
+      "confidence": "high"
+    }
+  ],
+  "菖蒲": [
+    {
+      "name": "二丹丸",
+      "source": "《成方切用》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": ""
+    },
+    {
+      "name": "人参养血丸",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": ""
+    },
+    {
+      "name": "地黄饮子",
+      "source": "《黄帝素问宣明论方》",
+      "determination": "石菖蒲",
+      "evidence": "熟地黄、巴戟天、山茱萸、肉苁蓉、附子、官桂、石斛、茯苓、石菖蒲、远志、麦冬、五味子",
+      "basis": "《医方集解·祛风门》",
+      "confidence": "high"
+    },
+    {
+      "name": "小丹",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": ""
+    },
+    {
+      "name": "开心散",
+      "source": "《备急千金要方》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": ""
+    },
+    {
+      "name": "清源汤",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": ""
+    },
+    {
+      "name": "独活汤",
+      "source": "医方集解",
+      "determination": "石菖蒲",
+      "evidence": "独活、羌活、防风、白芷、细辛、川芎、当归、白芍、熟地、人参、茯苓、甘草、桂心、半夏、石菖蒲",
+      "basis": "《医方集解·祛风之剂》",
+      "confidence": "high"
+    },
+    {
+      "name": "菖蒲益智丸",
+      "source": "《三因极一病证方论》",
+      "determination": "undetermined",
+      "evidence": "",
+      "basis": "",
+      "confidence": ""
+    },
+    {
+      "name": "转舌膏",
+      "source": "《成方切用》",
+      "determination": "石菖蒲",
+      "evidence": "转舌膏，治中风舌强不语。即凉膈散加石菖蒲、远志各等分。",
+      "basis": "《成方切用》卷六下原文",
+      "confidence": "high"
+    }
+  ]
+}

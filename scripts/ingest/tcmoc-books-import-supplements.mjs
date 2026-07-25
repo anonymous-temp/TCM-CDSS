@@ -8,7 +8,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
 // 与抽取脚本同批次口径：BOOK_BATCH=温病批 时读 wenbing 目录，复核队列也各自成表，
 // 否则温病批会覆盖方书批已有的 1343 条待复核。
-const BATCH_DIR = process.env.BOOK_BATCH === "温病批" ? "tcmoc-formula-extract-wenbing" : "tcmoc-formula-extract-books";
+const BATCH_DIR_SLUG = { 温病批: "tcmoc-formula-extract-wenbing", 方书二批: "tcmoc-formula-extract-books2" };
+const BATCH_DIR = BATCH_DIR_SLUG[process.env.BOOK_BATCH] || "tcmoc-formula-extract-books";
 const SRCDIR = resolve(ROOT, `artifacts/${BATCH_DIR}`);
 const SUPP = resolve(ROOT, "src/data/tcm-verified-formula-supplements.json");
 const REVIEW = resolve(ROOT, `artifacts/${BATCH_DIR}/governance-review-queue.json`);
@@ -25,6 +26,19 @@ const ADJUVANT = new Set(["甘草", "炙甘草", "生姜", "大枣", "姜", "枣
 // 这里只做**形状**判断，不做语义判断：不以受控剂型后缀结尾的一律不入库，改进复核队列。
 // 宁可漏掉少数不以常见后缀命名的真方（它们会在复核队列里被人看到），也不能让篇名冒充方名。
 const FORMULA_NAME_SHAPE = /(?:汤|丸|散|丹|膏|饮|煎|饮子|汁|粥|茶|酒|露|霜|锭|片|栓|方|子)$/;
+
+// 身份归一（与 scripts/test-clinical-governance-tables.mjs 的 T8 normalized identity 同口径）:
+// 剥《书名》级前缀/标点后,《千金》内补散 与 内补散 会归一成同一身份——实测方书二批
+// 就把这对**组成完全不同**的同名异方同时放进补充表,运行身份唯一性测试当场变红。
+// 文本名不同但归一身份相同的,一律改进复核队列走同名异方裁定(加味逍遥散模式),不许共存。
+const identityKey = (value) => String(value || "").normalize("NFKC")
+  .replace(/[（(]?\s*《[^》]{2,80}》\s*[）)]?/g, "")
+  .replace(/[\s·•，,。；;：:（）()【】\[\]“”"']/g, "")
+  .replace(/(?:加减方?|化裁方?|加味方?)$/g, "")
+  .trim();
+const existingIdentities = new Map();
+for (const n of Object.keys(supp.entries)) existingIdentities.set(identityKey(n), n);
+for (const n of szjgNames) existingIdentities.set(identityKey(n), n);
 
 const files = readdirSync(SRCDIR).filter((f) => f.endsWith(".jsonl") && !f.startsWith("_"));
 const stats = { books: {}, clean: 0, flagged: 0, imported: 0, merged: 0, skippedSzjg: 0, skippedDup: 0, failed: 0 };
@@ -59,7 +73,16 @@ for (const file of files) {
     bookClean++; stats.clean++;
     if (szjgNames.has(name)) { stats.skippedSzjg++; continue; } // SZJG 基线优先
     if (seen.has(name)) { stats.skippedDup++; continue; } // 本批内重名（多部书同方，取先到者）
+    // 归一身份碰撞:文本名不同但归一身份与既有条目相同 → 同名异方候选,进复核队列裁定,
+    // 不允许两版同身份方共存(参见仙传内补散 vs 《千金》内补散,组成完全不同的实例)。
+    const collided = existingIdentities.get(identityKey(name));
+    if (collided && collided !== name) {
+      bookFlagged++; stats.flagged++;
+      review.push({ book: r.book, chapter: r.chapter, reason: `identity-collision:${name}↔${collided}` });
+      continue;
+    }
     seen.set(name, true);
+    existingIdentities.set(identityKey(name), name);
     const required = herbs.filter((h) => !ADJUVANT.has(h)).slice(0, 3);
     const indications = [j.indications, j.analysis].filter((s) => typeof s === "string" && s.trim()).slice(0, 3);
     const verification = [{ title: `《${r.book}》·${r.chapter}（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）`, url: `urn:tcm-cdss:tcmoc-books:${file.replace(/\.jsonl$/, "")}:${r.chapter}` }];

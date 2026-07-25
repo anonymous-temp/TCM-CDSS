@@ -1012,7 +1012,9 @@ export function getTcmHerbDoseLimit(herb: string): TcmHerbDoseLimit | null {
   const canonical = canonicalKnowledgeHerbName(herb);
   const exact = CONTROLLED_EXACT_HERB_DOSE_LIMITS[canonical];
   if (exact) return { ...exact };
-  const equivalent = CONTROLLED_HERB_DOSE_EQUIVALENTS[canonical];
+  // 受控等价条目（茯神→茯苓）按原始名称优先：T9 归一会把茯神直接解析为茯苓，若只按归一名
+  // 查表，会丢掉"茯神为带松根的茯苓部位，用量按茯苓复核"的审计口径（该口径有套件锁定）。
+  const equivalent = CONTROLLED_HERB_DOSE_EQUIVALENTS[herb.trim()] ?? CONTROLLED_HERB_DOSE_EQUIVALENTS[canonical];
   const doseName = equivalent?.target || canonical;
   const herbData = data.herbs.find((item) => item.name === doseName || item.aliases.includes(doseName));
   // 主药典剂量条目是本地历史规则包的首要边界。分途径条目仅在主条目缺失时接管；若两类

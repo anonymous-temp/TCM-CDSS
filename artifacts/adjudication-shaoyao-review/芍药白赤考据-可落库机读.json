@@ -1,0 +1,565 @@
+[
+  {
+    "name": "六物煎",
+    "source": "《成方切用》",
+    "determination": "chishao",
+    "evidence": "芍药赤者妙。",
+    "basis": "《成方切用》",
+    "confidence": "high"
+  },
+  {
+    "name": "前胡汤",
+    "source": "《三因极一病证方论》",
+    "determination": "chishao",
+    "evidence": "前胡、赤芍药各三两。",
+    "basis": "《三因极一病证方论》",
+    "confidence": "high"
+  },
+  {
+    "name": "当归散",
+    "source": "《金匮》",
+    "determination": "chishao",
+    "evidence": "《太平圣惠方》两见当归散均作\"赤芍药\"",
+    "basis": "corpus-strong",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "排脓散",
+    "source": "《绛雪园古方选注》",
+    "determination": "chishao",
+    "evidence": "王子接注：“芍药用赤，行血分之滞，破脓而不伤阴。”",
+    "basis": "《绛雪园古方选注》下卷·排脓散",
+    "confidence": "high"
+  },
+  {
+    "name": "水煮木香丸",
+    "source": "《三因极一病证方论》",
+    "determination": "chishao",
+    "evidence": "木香、诃子、当归、青皮、赤芍药、罂粟壳、甘草各半两",
+    "basis": "《三因极一病证方论》卷十二",
+    "confidence": "high"
+  },
+  {
+    "name": "漏芦汤",
+    "source": "《三因极一病证方论》",
+    "determination": "chishao",
+    "evidence": "漏芦、白芷、黄芩、赤芍药、生甘草、升麻、麻黄、枳壳、朴硝、大黄各等分",
+    "basis": "《三因极一病证方论》卷十五",
+    "confidence": "high"
+  },
+  {
+    "name": "败毒托里散",
+    "source": "《医方集宜》",
+    "determination": "chishao",
+    "evidence": "赤芍药",
+    "basis": "《医方集宜》卷七",
+    "confidence": "high"
+  },
+  {
+    "name": "黄汤",
+    "source": "《本事》",
+    "determination": "chishao",
+    "evidence": "《普济本事方》卷五：“黄汤……赤芍药……”。",
+    "basis": "《普济本事方》",
+    "confidence": "high"
+  },
+  {
+    "name": "黄鳖甲散",
+    "source": "《医方论》",
+    "determination": "chishao",
+    "evidence": "赤芍药一钱。",
+    "basis": "费伯雄《医方论》卷三",
+    "confidence": "high"
+  },
+  {
+    "name": "五积散",
+    "source": "《局方》",
+    "determination": "baishao",
+    "evidence": "《太平惠民和剂局方》方解\"白芍敛营和血\"；多来源一致",
+    "basis": "web",
+    "confidence": "high",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "人参补气汤",
+    "source": "《成方切用》",
+    "determination": "baishao",
+    "evidence": "原书组成用“白芍药（炒）”。",
+    "basis": "《成方切用》卷八",
+    "confidence": "high"
+  },
+  {
+    "name": "保阴煎",
+    "source": "《景岳全书》",
+    "determination": "baishao",
+    "evidence": "芍药宜用白芍，取其酸敛止血。",
+    "basis": "《成方切用》",
+    "confidence": "high"
+  },
+  {
+    "name": "八物汤",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "原方用白芍药。",
+    "basis": "《三因极一病证方论》",
+    "confidence": "high"
+  },
+  {
+    "name": "刘草窗痛泻要方",
+    "source": "《医方考》",
+    "determination": "baishao",
+    "evidence": "白芍药（炒，二两）。",
+    "basis": "《医方考》",
+    "confidence": "high"
+  },
+  {
+    "name": "升阳举经汤",
+    "source": "《医方集解》",
+    "determination": "baishao",
+    "evidence": "白芍（酒炒）一钱半。",
+    "basis": "《医方集解》",
+    "confidence": "high"
+  },
+  {
+    "name": "升阳除湿防风汤",
+    "source": "《医方集解》",
+    "determination": "baishao",
+    "evidence": "白芍药一钱。",
+    "basis": "《医方集解》",
+    "confidence": "high"
+  },
+  {
+    "name": "四物汤加芩连姜夏方",
+    "source": "《医方考》",
+    "determination": "baishao",
+    "evidence": "当归、川芎、白芍药、熟地黄（各一钱）……",
+    "basis": "《医方考》卷三",
+    "confidence": "high"
+  },
+  {
+    "name": "四物汤加黄芩黄柏槐花方",
+    "source": "《医方考》",
+    "determination": "baishao",
+    "evidence": "当归、川芎、白芍药、熟地黄（各一钱）……",
+    "basis": "《医方考》卷三",
+    "confidence": "high"
+  },
+  {
+    "name": "四阴煎",
+    "source": "《成方切用》",
+    "determination": "baishao",
+    "evidence": "白芍药（二钱）。",
+    "basis": "《成方切用》卷二下",
+    "confidence": "high"
+  },
+  {
+    "name": "大乌头桂枝汤",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "桂枝汤系，基方白芍",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "大黄虫丸",
+    "source": "《医方考》",
+    "determination": "baishao",
+    "evidence": "大黄䗪虫丸组成：大黄、黄芩、甘草、桃仁、杏仁、白芍、干地黄、干漆、虻虫、水蛭、蛴螬、蟅虫。",
+    "basis": "《方剂学》（全国高等中医药院校规划教材第九版）",
+    "confidence": "high"
+  },
+  {
+    "name": "小青龙加石膏汤",
+    "source": "《古今名医方论》",
+    "determination": "baishao",
+    "evidence": "《伤寒》小青龙汤用芍药，系桂枝汤同源白芍",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "当归四逆汤",
+    "source": "《伤寒论》",
+    "determination": "baishao",
+    "evidence": "《幼幼集成》：\"当归身、嫩桂枝、杭白芍、川木通、炙甘草、北细辛、大红枣\"",
+    "basis": "corpus-strong",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "当归建中汤",
+    "source": "《千金翼方》",
+    "determination": "baishao",
+    "evidence": "《女科证治准绳》组成\"白芍药（炒）\"；《女科要旨》\"甘草、白芍养脾阴之血\"",
+    "basis": "corpus-strong",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "散肿溃坚汤",
+    "source": "医方集解",
+    "determination": "baishao",
+    "evidence": "原方出自李东垣《兰室秘藏》，组成写明“白芍药二钱”。",
+    "basis": "《兰室秘藏》",
+    "confidence": "high"
+  },
+  {
+    "name": "枳实芍药散",
+    "source": "《金匮要略》",
+    "determination": "baishao",
+    "evidence": "《本草易读》：\"枳实芍药散：枳实、白芍，为末。\"",
+    "basis": "corpus-strong",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "柴胡桂枝汤",
+    "source": "《古今名医方论》",
+    "determination": "baishao",
+    "evidence": "合方基方桂枝汤白芍；历代主白芍（《局方》《医宗金鉴》）为主流；注：《太平圣惠方》小柴胡桂枝汤作赤芍药，存异说备查",
+    "basis": "web-conflicted",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "栝蒌桂枝汤",
+    "source": "《古今名医方论》",
+    "determination": "baishao",
+    "evidence": "《金匮》桂枝汤加栝蒌根；桂枝汤系白芍（NMPA 经典名方信息表口径）",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝二越脾一汤",
+    "source": "《绛雪园古方选注》",
+    "determination": "baishao",
+    "evidence": "桂枝汤合越婢汤，基方白芍",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝加厚朴杏子汤",
+    "source": "《伤寒论》",
+    "determination": "baishao",
+    "evidence": "《名师垂教》《范中林六经辨证医案》均作\"白芍6克\"",
+    "basis": "corpus-strong",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝加大黄汤",
+    "source": "仲景",
+    "determination": "baishao",
+    "evidence": "桂枝汤加味，基方白芍",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝加芍药加大黄二汤",
+    "source": "《古今名医方论》",
+    "determination": "baishao",
+    "evidence": "桂枝汤加味，基方白芍",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝加芍药汤",
+    "source": "《医方考》",
+    "determination": "baishao",
+    "evidence": "桂枝汤加味，基方白芍",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝加芍药生姜人参新加汤",
+    "source": "《绛雪园古方选注》",
+    "determination": "baishao",
+    "evidence": "桂枝汤加味，基方白芍",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝加附子汤",
+    "source": "《医方考》",
+    "determination": "baishao",
+    "evidence": "桂枝汤加味，基方白芍",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝加黄五两汤",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "桂心 白芍药各三两",
+    "basis": "《三因极一病证方论》",
+    "confidence": "high"
+  },
+  {
+    "name": "桂枝加黄汤",
+    "source": "《医方考》",
+    "determination": "baishao",
+    "evidence": "桂枝汤系，基方白芍",
+    "basis": "inheritance",
+    "confidence": "high",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝去桂加茯苓白术汤",
+    "source": "《绛雪园古方选注》",
+    "determination": "baishao",
+    "evidence": "王子接直书“白芍药三两”。",
+    "basis": "《绛雪园古方选注》",
+    "confidence": "high"
+  },
+  {
+    "name": "桂枝汤去桂加茯苓白术汤",
+    "source": "《古今名医方论》",
+    "determination": "baishao",
+    "evidence": "桂枝汤变方，基方白芍",
+    "basis": "inheritance",
+    "confidence": "high",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝麻黄各半汤",
+    "source": "《伤寒论》",
+    "determination": "baishao",
+    "evidence": "桂枝汤系合方，基方桂枝汤为白芍（药典共识）",
+    "basis": "inheritance",
+    "confidence": "high",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂枝黄芩汤",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "桂枝汤系，基方白芍",
+    "basis": "inheritance",
+    "confidence": "high",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "桂附汤",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "桂枝汤系，基方白芍",
+    "basis": "inheritance",
+    "confidence": "high",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "温经汤",
+    "source": "《妇人大全良方》",
+    "determination": "baishao",
+    "evidence": "当归、川芎、白芍药、桂心、蓬莪术、川牛膝、牡丹皮各一两，甘草半两",
+    "basis": "《妇人大全良方》卷一",
+    "confidence": "high"
+  },
+  {
+    "name": "火郁汤",
+    "source": "《医方考》",
+    "determination": "baishao",
+    "evidence": "羌活、升麻、葛根、白芍药、人参各五分，柴胡、甘草各三分，防风二分，葱白三寸",
+    "basis": "《医方考》卷三",
+    "confidence": "high"
+  },
+  {
+    "name": "牛膝木瓜汤",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "牛膝、木瓜、羌活各一两，白芍药、杜仲、枸杞子各三分，黄松节三分，菟丝子、天麻各半两，甘草半两",
+    "basis": "《三因极一病证方论》卷六",
+    "confidence": "high"
+  },
+  {
+    "name": "瓜蒌桂枝汤",
+    "source": "《金匮要略》",
+    "determination": "baishao",
+    "evidence": "同栝蒌桂枝汤",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "甘遂半夏汤",
+    "source": "《绛雪园古方选注》",
+    "determination": "baishao",
+    "evidence": "其立方之妙，全在用白芍",
+    "basis": "《绛雪园古方选注》王子接注",
+    "confidence": "high"
+  },
+  {
+    "name": "生料五积散",
+    "source": "《和剂方》",
+    "determination": "baishao",
+    "evidence": "肉桂、白芍药各半两",
+    "basis": "《太平惠民和剂局方》卷二",
+    "confidence": "high"
+  },
+  {
+    "name": "白垩丹",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "白垩丹：白垩(煅)、白芍药、鹿茸、禹余粮...",
+    "basis": "《三因极一病证方论》",
+    "confidence": "high"
+  },
+  {
+    "name": "皱血丸",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "皱血丸：白芍药、当归、川芎、熟地、蒲黄...",
+    "basis": "《三因极一病证方论》",
+    "confidence": "high"
+  },
+  {
+    "name": "真武汤",
+    "source": "《伤寒论》",
+    "determination": "baishao",
+    "evidence": "真武汤方用白芍（原注：白芍）。",
+    "basis": "《医方集解》",
+    "confidence": "high"
+  },
+  {
+    "name": "石子汤",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "原方组成用“白芍药”。",
+    "basis": "《三因极一病证方论》卷十七石子汤",
+    "confidence": "high"
+  },
+  {
+    "name": "秦艽升麻汤",
+    "source": "《古今名医方论》",
+    "determination": "baishao",
+    "evidence": "方中明确记载“白芍药（五分）”。",
+    "basis": "《古今名医方论》秦艽升麻汤",
+    "confidence": "high"
+  },
+  {
+    "name": "紫苏饮",
+    "source": "医方集解",
+    "determination": "baishao",
+    "evidence": "“白芍药（酒炒）”明确使用。",
+    "basis": "《医方集解》紫苏饮",
+    "confidence": "high"
+  },
+  {
+    "name": "肺热汤",
+    "source": "《医方考》",
+    "determination": "baishao",
+    "evidence": "方中用“白芍（炒）”。",
+    "basis": "《医方考》肺热汤",
+    "confidence": "high"
+  },
+  {
+    "name": "胃风汤",
+    "source": "《医方集解》",
+    "determination": "baishao",
+    "evidence": "《太平惠民和剂局方》卷六：\"白芍药\"（多来源一致）",
+    "basis": "web",
+    "confidence": "high",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "芍药蒺藜煎",
+    "source": "《成方切用》",
+    "determination": "baishao",
+    "evidence": "《成方切用》芍药蒺藜煎方：“白芍二钱，蒺藜三钱…”。",
+    "basis": "吴仪洛《成方切用》",
+    "confidence": "high"
+  },
+  {
+    "name": "葛根加半夏汤",
+    "source": "《绛雪园古方选注》",
+    "determination": "baishao",
+    "evidence": "桂枝汤加味（葛根汤为桂枝汤加葛根麻黄，系白芍）",
+    "basis": "inheritance",
+    "confidence": "high",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "达原饮",
+    "source": "《瘟疫论》",
+    "determination": "baishao",
+    "evidence": "芍药……此用白芍，和血而止腹痛也",
+    "basis": "《成方切用·卷六》",
+    "confidence": "high"
+  },
+  {
+    "name": "达生散",
+    "source": "《医方集解》",
+    "determination": "baishao",
+    "evidence": "白芍（酒炒）",
+    "basis": "《医方集解》",
+    "confidence": "high"
+  },
+  {
+    "name": "透邪煎",
+    "source": "《成方切用》",
+    "determination": "baishao",
+    "evidence": "白芍一钱",
+    "basis": "《成方切用》",
+    "confidence": "high"
+  },
+  {
+    "name": "附∶预防中风",
+    "source": "《干坤生意》",
+    "determination": "baishao",
+    "evidence": "白芍二两",
+    "basis": "《医方集解》引《乾坤生意》",
+    "confidence": "high"
+  },
+  {
+    "name": "附托里消毒散",
+    "source": "《古今名医方论》",
+    "determination": "baishao",
+    "evidence": "《医方集解》载托里消毒散用“白芍”。",
+    "basis": "《医方集解》",
+    "confidence": "high"
+  },
+  {
+    "name": "麻黄桂枝各半汤",
+    "source": "《三因极一病证方论》",
+    "determination": "baishao",
+    "evidence": "同桂枝麻黄各半汤",
+    "basis": "inheritance",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "黄芩汤",
+    "source": "《伤寒论》",
+    "determination": "baishao",
+    "evidence": "《本草经解》：\"黄芩同白芍、甘草。名黄芩汤。治湿热肠痛。\"",
+    "basis": "corpus-strong",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "黄芪桂枝五物汤",
+    "source": "《金匮要略》",
+    "determination": "baishao",
+    "evidence": "《李翰卿》医案：\"生白芍7.5克\"",
+    "basis": "corpus-strong",
+    "confidence": "medium",
+    "promotedBy": "corpus/web/inheritance"
+  },
+  {
+    "name": "黄连阿胶鸡子黄汤",
+    "source": "《时方妙用》",
+    "determination": "baishao",
+    "evidence": "用芍药以收阴气，白芍之酸，亦以泻肝。",
+    "basis": "柯琴《伤寒来苏集·伤寒附翼》",
+    "confidence": "high"
+  }
+]
