@@ -49,6 +49,21 @@ assert.ok(banxiaCandidates.every((item) => item.governanceStatus && typeof item.
 const heartSpleenCase = formulaCase("入睡困难、多梦易醒3个月，伴心悸健忘、食欲欠佳、便溏，舌淡有齿痕，脉细弱");
 const heartSpleenCandidates = retrieveTcmFormulaIndicationCandidates(heartSpleenCase);
 assert.ok(heartSpleenCandidates.some((item) => item.name === "归脾汤"), "T8's data-owned memory/cognition concept must retrieve 归脾汤 inside the default model-visible shortlist");
+// 供给/锁定对齐：这份 pre-generation 短名单只按症状重叠打分，而身份锁要求主证候直接关联，
+// 因此无 syndromeTags 的方剂永远锁不上。此前 天王补心丹（阴虚火旺、不可锁）仅凭症状重叠压过
+// 归脾汤，模型选中后被剥离并降级为自拟方。可锁定候选必须排在不可锁定候选之前；不可锁定的方剂
+// 仍应保留在名单内作为鉴别参照，不得直接隐藏。
+const firstUnlockable = heartSpleenCandidates.findIndex((item) => (item.syndromeTags || []).length === 0);
+const lastLockable = heartSpleenCandidates.map((item) => (item.syndromeTags || []).length > 0).lastIndexOf(true);
+assert.ok(
+  firstUnlockable === -1 || firstUnlockable > lastLockable,
+  `不可锁定的方剂排在了可锁定方剂之前：${heartSpleenCandidates.map((item) => `${item.name}(${(item.syndromeTags || []).length > 0 ? "锁" : "不可锁"})`).join("、")}`,
+);
+assert.equal(
+  heartSpleenCandidates[0]?.name,
+  "归脾汤",
+  "心脾两虚 典型病例的首选候选必须是可锁定的归脾汤，而不是仅症状重叠的不可锁方剂",
+);
 assert.ok(heartSpleenCandidates.find((item) => item.name === "归脾汤")?.matchedConcepts.includes("记忆认知"), "the retrieval trace must expose the governed concept responsible for recall");
 assert.match(buildTcmFormulaIndicationContext(heartSpleenCase), /归脾汤[\s\S]*T1\/T3\/T4关联索引：经核验证候:心脾两虚/);
 assert.doesNotMatch(buildTcmFormulaIndicationContext(heartSpleenCase), /关联索引：[^\n]*自动推荐/, "standard-term relations remain retrieval evidence rather than an automatic formula verdict");

@@ -174,6 +174,19 @@ export function retrieveTcmFormulaIndicationCandidates(
     // to mention many common symptoms. This corpus-level density normalization prevents long-text
     // cards from winning merely by surface area without hard-coding any formula name.
     const focusMultiplier = Math.max(1, Math.min(3, 40 / Math.max(12, indicationText.length)));
+    // Offer/lock alignment. This pre-generation shortlist is ranked purely on symptom overlap, but
+    // the identity lock later requires a direct primary-syndrome relation (see positiveSufficiency
+    // below) — a formula with no syndromeTags can never be locked under any input. Measured on the
+    // shipped catalog: 264 formulas are offerable here and 86 of them are permanently unlockable, so
+    // the model's top pick was regularly stripped and the result degraded to 自拟方 (the reported
+    // 心脾两虚 case: 天王补心丹 outranked 归脾汤 on raw symptom overlap alone).
+    // Lockable candidates are therefore promoted rather than unlockable ones being hidden: an
+    // unlockable formula is still a legitimate comparison reference, it just must not head a list
+    // the model is asked to choose from. This adds no formula the retrieval did not already return.
+    // Lock eligibility is a RANKING key only, never part of `score`: `score` alone still gates
+    // admission (>=2), so no formula whose symptom evidence was too weak to qualify is admitted,
+    // and no formula is hidden.
+    const lockEligible = entry.syndromeTags.length > 0;
     const score = rawConceptScore * focusMultiplier +
       (entry.catalog === "verified_reference_catalog" ? 0.25 : 0);
     return {
@@ -181,10 +194,20 @@ export function retrieveTcmFormulaIndicationCandidates(
       matchedConcepts: matched.map((concept) => concept.key),
       matchedPatientFacts: [...new Set(matchedPatientFacts)].slice(0, 3),
       score,
+      lockEligible,
     };
   })
     .filter((entry) => entry.score >= 2)
+    // Lock-eligible formulas sort ahead of the rest, then by score within each group. A formula
+    // with no syndromeTags can never satisfy the identity lock's direct primary-syndrome
+    // requirement, so if the model picks one it is stripped and the result degrades to 自拟方 —
+    // strictly worse for the doctor than a lower-scoring formula the system can actually stand
+    // behind. Measured: 86 of the 264 offerable formulas are permanently unlockable, and on the
+    // reported 心脾两虚 case 天王补心丹 (阴虚火旺, unlockable, and clinically wrong for 便溏/齿痕/脉细弱)
+    // outranked 归脾汤 on raw symptom overlap. Ordering is the whole remedy: unlockable formulas stay
+    // in the list as differential references, they just no longer head it.
     .sort((left, right) =>
+      Number(right.lockEligible) - Number(left.lockEligible) ||
       right.score - left.score ||
       right.matchedConcepts.length - left.matchedConcepts.length ||
       left.name.localeCompare(right.name))
