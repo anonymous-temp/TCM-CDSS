@@ -1,5 +1,5 @@
 import localMedicineIndex from "../data/local-patent-medicine-index.json" with { type: "json" };
-import { affirmedClinicalText } from "./clinical-polarity";
+import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
 import { matchingMedicineClinicalConcepts } from "./medicine-clinical-concepts";
 
@@ -35,11 +35,11 @@ export type LocalPatentMedicineCandidate = LocalPatentMedicineEntry & {
 // alone when the patient explicitly denies the corresponding symptom.
 const ENTRIES = (localMedicineIndex as { entries?: LocalPatentMedicineEntry[] }).entries || [];
 
-function positiveCaseFacts(caseState: CaseState): string[] {
+function positiveCaseFacts(caseState: CaseState, assistedNegations?: AssistedNegationClauses): string[] {
   const reasoning = caseState.reasoningDiagnose;
   const positiveSymptoms = Object.entries(caseState.symptoms || {})
     .map(([key, value]) => {
-      const positive = affirmedClinicalText(typeof value === "string" ? value : String(value ?? ""));
+      const positive = affirmedClinicalText(typeof value === "string" ? value : String(value ?? ""), "affirmed", assistedNegations);
       return positive ? `${key}：${positive}` : undefined;
     })
     .filter((value): value is string => Boolean(value));
@@ -56,15 +56,16 @@ function positiveCaseFacts(caseState: CaseState): string[] {
     ...(reasoning?.overview?.primarySyndromeBasis || []),
   ];
   return [...new Set(sources
-    .map((value) => affirmedClinicalText(value))
+    .map((value) => affirmedClinicalText(value, "affirmed", assistedNegations))
     .filter((value): value is string => Boolean(value)))];
 }
 
 export function retrieveLocalPatentMedicineCandidates(
   caseState: CaseState,
   limit = 10,
+  assistedNegations?: AssistedNegationClauses,
 ): LocalPatentMedicineCandidate[] {
-  const facts = positiveCaseFacts(caseState);
+  const facts = positiveCaseFacts(caseState, assistedNegations);
   if (facts.length === 0) return [];
   const semanticConceptIds = (caseState.reasoningDiagnose?.terminologyMappings || [])
     .filter((item) =>

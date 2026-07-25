@@ -4,7 +4,7 @@ import formulaCompositionRulesJson from "../data/tcm-formula-composition-rules.j
 import formulaDiscriminationGraphJson from "../data/tcm-formula-discrimination-graph.json" with { type: "json" };
 import textualModificationRulesJson from "../data/tcm-textual-modification-rules.json" with { type: "json" };
 import type { CaseState } from "./diagnosis-types";
-import { affirmedClinicalText } from "./clinical-polarity";
+import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 export { firstFormulaContraindicationIssue, formulaContraindicationIssues } from "./tcm-formula-contraindications";
 export { SIX_HEALTH_FOLLOWUP_DIMENSIONS, sixHealthFollowupTable } from "./tcm-followup-dimensions";
 
@@ -128,7 +128,7 @@ const TCM_AFFIRMED_STATE_TERMS = [
   "不渴",
 ] as const;
 
-function tcmAffirmedText(value: string | null | undefined): string {
+function tcmAffirmedText(value: string | null | undefined, assistedNegations?: AssistedNegationClauses): string {
   let protectedText = value || "";
   const replacements = new Map<string, string>();
   TCM_AFFIRMED_STATE_TERMS.forEach((term, index) => {
@@ -141,7 +141,7 @@ function tcmAffirmedText(value: string | null | undefined): string {
   const noSweatToken = "TCMSTATE99";
   protectedText = protectedText.replace(/无汗(?!出)/g, noSweatToken);
   replacements.set(noSweatToken, "无汗");
-  let affirmed = affirmedClinicalText(protectedText) || "";
+  let affirmed = affirmedClinicalText(protectedText, "affirmed", assistedNegations) || "";
   for (const [token, term] of replacements) affirmed = affirmed.replaceAll(token, term);
   return affirmed;
 }
@@ -163,8 +163,8 @@ function selectedClinicalFields(state: CaseState): unknown {
   };
 }
 
-export function tcmFusionClinicalText(state: CaseState): string {
-  return tcmAffirmedText(JSON.stringify(selectedClinicalFields(state)));
+export function tcmFusionClinicalText(state: CaseState, assistedNegations?: AssistedNegationClauses): string {
+  return tcmAffirmedText(JSON.stringify(selectedClinicalFields(state)), assistedNegations);
 }
 
 export function rankedDifferentiationRules(
