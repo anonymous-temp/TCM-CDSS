@@ -102,10 +102,21 @@ for (const term of ["太阳", "阳明", "少阳", "太阴", "少阴", "厥阴", 
   assert.equal(location.entries.some((item) => item.canonical === term), true, `T3 missing ${term}`);
 }
 
-assert.equal(formulas.summary.governedFormulaCount, 500);
-assert.equal(formulas.summary.identityLockEligibleCount, 500);
-assert.equal(formulas.summary.prescriptionLockEligibleCount, 500);
-assert.equal(formulas.summary.doseCompilationEligibleCount, 319);
+// 与 curated 关系表同样的「只增不减」约定：目录与各项资格数会随治理推进增长，
+// 用下限而非等值断言——等值字面量每次补一条主治/标签都要手改，改的人往往只改一处
+// （本文件与 manifest 曾出现 319/320 不一致，测试红了两天）。下限才守得住真正的不变量：
+// 覆盖面不得倒退。
+const FORMULA_CATALOG_FLOOR = 1800;
+const FORMULA_ELIGIBLE_FLOOR = 1795;
+const FORMULA_DOSE_ELIGIBLE_FLOOR = 899;
+assert.ok(formulas.summary.governedFormulaCount >= FORMULA_CATALOG_FLOOR,
+  `受控方剂数不得低于 ${FORMULA_CATALOG_FLOOR}，实际 ${formulas.summary.governedFormulaCount}`);
+assert.ok(formulas.summary.identityLockEligibleCount >= FORMULA_ELIGIBLE_FLOOR,
+  `身份锁可用方剂数不得低于 ${FORMULA_ELIGIBLE_FLOOR}，实际 ${formulas.summary.identityLockEligibleCount}`);
+assert.ok(formulas.summary.prescriptionLockEligibleCount >= FORMULA_ELIGIBLE_FLOOR,
+  `处方锁可用方剂数不得低于 ${FORMULA_ELIGIBLE_FLOOR}，实际 ${formulas.summary.prescriptionLockEligibleCount}`);
+assert.ok(formulas.summary.doseCompilationEligibleCount >= FORMULA_DOSE_ELIGIBLE_FLOOR,
+  `剂量可编译方剂数不得低于 ${FORMULA_DOSE_ELIGIBLE_FLOOR}，实际 ${formulas.summary.doseCompilationEligibleCount}`);
 // The curated T8 relation table is expected to grow. Assert the invariants that actually protect
 // recall — every curated row resolves AND stays reachable through the runtime resolver, and the
 // table never shrinks below the committed floor — instead of a literal that has to be edited on
@@ -124,7 +135,10 @@ assert.equal(
   sha256(formulaRetrievalIndex.curatedRelationSource.file),
   "T8 high-frequency relation source drift",
 );
-assert.equal(manifest.buildSummary.formulaDoseCompilationEligible, 319);
+assert.ok(manifest.buildSummary.formulaDoseCompilationEligible >= FORMULA_DOSE_ELIGIBLE_FLOOR,
+  `manifest 与目录必须同源同口径，且不得低于 ${FORMULA_DOSE_ELIGIBLE_FLOOR}`);
+assert.equal(manifest.buildSummary.formulaDoseCompilationEligible, formulas.summary.doseCompilationEligibleCount,
+  "manifest 与目录的剂量可编译数必须一致——两处各持一份字面量正是此前 319/320 长期不一致的原因");
 assert.ok(formulas.summary.symptomTaggedFormulaCount >= 250);
 assert.ok(formulas.summary.diseaseTaggedFormulaCount >= 80);
 assert.ok(formulas.summary.syndromeTaggedFormulaCount >= 250);

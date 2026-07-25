@@ -268,7 +268,7 @@
       "sourceType": "project_runtime_rule",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-safety.ts",
-      "sha256": "68e48ca86449541528e5201a31c7ae5c874c9ed7dca495ba2b4b03ab8b820096",
+      "sha256": "3550d9e23c678a69e7565de0a5abdaf9f46ba47bdd71ae2d29276b577a570c8d",
       "scope": "红旗、生命体征和特殊人群的实际运行门禁；外部来源只做类别和阈值复核",
       "accessedAt": "2026-07-22"
     },
@@ -279,7 +279,7 @@
       "sourceType": "project_runtime_contract",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-types.ts",
-      "sha256": "be3abdaa1cd56c8d8d15b22c4ec5f51c3be79a0f9941652183242fc28c6bb588",
+      "sha256": "38bbf037b58c85765acce8e055b77a73c737c3dc34338ae221e2561eb62f35a2",
       "scope": "M01-M05 当前实际字段与输出结构",
       "accessedAt": "2026-07-22"
     },
@@ -290,7 +290,7 @@
       "sourceType": "project_runtime_catalog",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/tcm-treatment-projects.ts",
-      "sha256": "29aa92e9a0f70917a9878dba11715561593d0530af40b3a48e02c57b371b5115",
+      "sha256": "06cf1c0e14773bce7917e42ce624e23c1f72497589797a1e8a5532607ce26089",
       "scope": "22类非药物/外治项目的风险、资质、药物审方与适用标签",
       "accessedAt": "2026-07-22"
     },
