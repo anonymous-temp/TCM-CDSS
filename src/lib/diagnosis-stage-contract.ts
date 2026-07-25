@@ -1416,6 +1416,84 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
   return undefined;
 }
 
+/**
+ * m03SemanticIssue 的 T1 子集，为“带批注受理”提供硬门禁。
+ *
+ * 为什么不能只看 m03SemanticIssue 的返回值：它命中第一个问题就短路返回。返回一个 T3 原因码，
+ * 只证明排在它前面的检查通过了；排在它后面的 T1 检查根本没有执行。所以受理前必须把 T1 子集
+ * 完整跑一遍。
+ *
+ * ★ 本函数的核心不变量（改动前必读）★
+ * 分级过滤（isSafetyReason）只允许用于两类位置：
+ *   1) 本函数体内直接判定的单点检查 —— 跳过它等于“继续往下执行”，不会遗漏任何后续检查；
+ *   2) 已证明其全部产出码都不是 T1 的辅助函数 —— 目前仅 m03WesternClinicalRationaleIssue
+ *      （返回类型在源码中收敛为 missing / restatement 两个非 T1 码）。
+ * 其余多码辅助函数一律按“绝对否决”处理：只要返回非空就阻断受理，不看分级。
+ * 原因：这些函数内部同样短路。例如 m03WesternSupportIssue 的顺序是
+ *   empty(T1) → tcm_pollution → demographic_padding → normal_vital_padding → nondiscriminating
+ *   → historical_only(T1) → polarity_mismatch(T1)；
+ * 若按分级丢弃 demographic_padding，polarity_mismatch（把病历已否认的事实反写成阳性依据）
+ * 就永远不会被执行到。m03ResolutionContractIssue（*_basis_ungrounded）与
+ * m03SevenStageInferenceIssue（nature_dimension_insufficient）有同样的结构。
+ *
+ * 实现约束：本函数只调用 m03SemanticIssue 已经在用的同一批判定函数，不重写任何谓词——
+ * 安全规则在本仓库只存在一份。isSafetyReason 由调用方注入（diagnosis-rejection-tiers 的
+ * rejectionTier），使分级表保持唯一事实来源，且本文件不反向依赖它、不产生循环引用。
+ * 默认谓词为 () => true（全部视为安全承重），漏注入时退化为完全等价于绝对否决，fail-closed。
+ *
+ * 维护要求：往 m03SemanticIssue 里新增任何安全承重检查时，必须同步加到这里。
+ */
+export function m03SafetyContractIssue(
+  reasoning: M03ReasoningLike | null | undefined,
+  clinicalContext = "",
+  isSafetyReason: (reason: string) => boolean = () => true,
+): string | undefined {
+  if (!reasoning || reasoning.stage !== "diagnose") return "stage";
+  const chain = reasoning.pathogenesis?.chain || [];
+  if (reasoning.formula != null) return "formula_not_null";
+  if (m03ContainsDoseLevelInstruction(reasoning)) return "dose_level_content";
+  if (!chain.length) return "chain_empty";
+  const westernPrimaryName = reasoning.westernDiagnosis?.primary?.name;
+  if (
+    typeof westernPrimaryName !== "string" ||
+    westernPrimaryName.trim().length < 2 ||
+    /(?:基于主诉的)?现代医学诊断倾向|待生成|待明确|未知/.test(westernPrimaryName)
+  ) return "western_diagnosis_unstable";
+  if (isAmbiguousM03WesternPrimaryLabel(westernPrimaryName)) return "western_primary_ambiguous";
+  const durationIssue = m03WesternDurationIssue(reasoning, clinicalContext);
+  if (durationIssue) return durationIssue;
+  const supportIssue = m03WesternSupportIssue(reasoning, clinicalContext);
+  if (supportIssue) return supportIssue;
+  // 唯一允许分级过滤的辅助函数：其返回类型已收敛为两个非 T1 码，过滤不可能跳过 T1 检查。
+  const rationaleIssue = m03WesternClinicalRationaleIssue(reasoning);
+  if (rationaleIssue && isSafetyReason(rationaleIssue)) return rationaleIssue;
+  const tcmDiseaseName = reasoning.overview?.tcmDiseaseName;
+  if (
+    !isDisplayableClinicalText(tcmDiseaseName) ||
+    /^(?:中医病名|中医诊断|病名待定|待辨|待定|未知|不详)$/.test(tcmDiseaseName.trim())
+  ) return "tcm_disease_missing";
+  const resolutionIssue = m03ResolutionContractIssue(reasoning, clinicalContext);
+  if (resolutionIssue) return resolutionIssue;
+  const sevenStageIssue = m03SevenStageInferenceIssue(reasoning);
+  if (sevenStageIssue) return sevenStageIssue;
+  const structureIssue = m03PathogenesisAndTherapyStructureIssue(reasoning, clinicalContext);
+  if (structureIssue) return structureIssue;
+  if (chain.every((item) => isNeutralTongueOnlyFact(item.patientFact))) return "neutral_tongue_only";
+  const summaryIssue = m03PathogenesisSummaryConsistencyIssue(reasoning);
+  if (summaryIssue) return summaryIssue;
+  const uncertaintyIssue = m03UncertaintyStateIssue(reasoning, clinicalContext);
+  if (uncertaintyIssue) return uncertaintyIssue;
+  if (clinicalContext && !hasCurrentPositiveTcmAnchor(reasoning)) return "tcm_syndrome_current_fact_missing";
+  if (clinicalContext) {
+    const groundingIssue = ungroundedPatientFactReason(reasoning, clinicalContext);
+    if (groundingIssue) return groundingIssue;
+  }
+  if (!isActionableFollowupSafetyNet(reasoning.management?.followupSafetyNet)) {
+    return "followup_safety_net_not_actionable";
+  }
+  return undefined;
+}
+
 export function isStableM03Reasoning(reasoning: M03ReasoningLike | null | undefined, clinicalContext = "", visibleContent = ""): boolean {
   return m03SemanticIssue(reasoning, clinicalContext, visibleContent) == null;
 }

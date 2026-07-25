@@ -36,6 +36,7 @@
     "test:stage-contract": "jiti scripts/test-diagnosis-stage-contract.mjs",
     "test:repair-guidance": "jiti scripts/test-repair-guidance-coverage.mjs",
     "test:m04-dose-index": "jiti scripts/test-m04-dose-index-coverage.mjs",
+    "test:rejection-tiers": "jiti scripts/test-rejection-tiers.mjs",
     "test:stream-safety": "jiti scripts/test-diagnosis-structured-repair.mjs",
     "test:clinical-grounding": "jiti scripts/test-clinical-grounding.mjs",
     "test:clinical-entry": "node --experimental-strip-types scripts/test-clinical-entry.mjs",
