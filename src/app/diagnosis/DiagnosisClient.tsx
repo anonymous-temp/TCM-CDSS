@@ -109,6 +109,12 @@ const DIAGNOSIS_STREAM_TOTAL_TIMEOUT_MS = 210_000;
 const WORKSPACE_RESTORE_TIMEOUT_MS = 8_000;
 const HERB_FUNCTION_LOOKUP_TIMEOUT_MS = 8_000;
 const RED_FLAG_SEMANTIC_TIMEOUT_MS = 12_000;
+// The clinic treatment-project scope is one small status read: no streamed chunks and no
+// server-declared deadline, so elapsed wall time is the only continuous signal that honestly
+// exists. Bounding the read gives that signal an endpoint, so the panel always resolves to a
+// definite state instead of an open-ended wait.
+const TREATMENT_SCOPE_STATUS_TIMEOUT_MS = 8_000;
+const TREATMENT_SCOPE_STATUS_TIMEOUT_SECONDS = Math.round(TREATMENT_SCOPE_STATUS_TIMEOUT_MS / 1000);
 const HERB_FUNCTION_LOOKUP_DEBOUNCE_MS = 250;
 const MAX_TONGUE_IMAGE_INPUT_BYTES = 8 * 1024 * 1024;
 const ALLOWED_TONGUE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -2572,7 +2578,7 @@ function capturePreviousResult(state: CaseState): CaseState["previousResult"] {
   };
 }
 
-function PreviousResultCard({ result }: { result: NonNullable<CaseState["previousResult"]> }) {
+function PreviousResultCard({ result, note }: { result: NonNullable<CaseState["previousResult"]>; note?: string }) {
   const sections = [
     { title: "上一版辨病辨证", content: result.diagnosis },
     { title: "上一版候选方药", content: result.prescription },
@@ -2586,7 +2592,7 @@ function PreviousResultCard({ result }: { result: NonNullable<CaseState["previou
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-bold text-gray-900">上一版结果（只读对照）</p>
           <p className="mt-1 text-[12px] leading-relaxed text-gray-600">
-            新一轮推理尚未完成。以下内容对应修改前病历，不参与本轮辅助分析、自动审方、报告导出或医嘱写回。
+            {note ?? "新一轮推理尚未完成。以下内容对应修改前病历，不参与本轮辅助分析、自动审方、报告导出或医嘱写回。"}
           </p>
         </div>
       </div>
@@ -6473,6 +6479,7 @@ function HisMedicalRecordWorkspace({
   draft,
   setDraft,
   isRunning,
+  lockReason,
   tongueImage,
   uploadNotice,
   tongueInputRef,
@@ -6483,6 +6490,7 @@ function HisMedicalRecordWorkspace({
   draft: HisRecordDraft;
   setDraft: React.Dispatch<React.SetStateAction<HisRecordDraft>>;
   isRunning: boolean;
+  lockReason?: string;
   tongueImage: string | null;
   uploadNotice?: string;
   tongueInputRef: React.RefObject<HTMLInputElement | null>;
@@ -6500,7 +6508,15 @@ function HisMedicalRecordWorkspace({
   };
   const [treatmentSettingsOpen, setTreatmentSettingsOpen] = useState(false);
   const [configuredTreatmentProjects, setConfiguredTreatmentProjects] = useState<CapabilityItem[]>([]);
-  const [treatmentSettingsStatus, setTreatmentSettingsStatus] = useState<"loading" | "ready" | "unavailable">("loading");
+  // "none_deployed" (this clinic runs no in-house projects) and "misconfigured" (the project
+  // registration is broken and only an administrator can repair it) are settled answers that
+  // looking again cannot change. "unreachable" is the only state where another attempt can
+  // succeed, so it is the only one that may offer to look again.
+  const [treatmentSettingsStatus, setTreatmentSettingsStatus] = useState<
+    "loading" | "ready" | "none_deployed" | "misconfigured" | "unreachable"
+  >("loading");
+  const [treatmentScopeWaitedSeconds, setTreatmentScopeWaitedSeconds] = useState(0);
+  const [treatmentScopeReadAttempt, setTreatmentScopeReadAttempt] = useState(0);
   const update = <K extends keyof HisRecordDraft>(key: K, value: HisRecordDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }));
   };
@@ -6510,23 +6526,60 @@ function HisMedicalRecordWorkspace({
   const tonguePulseConflict = detectTonguePulseFieldConflict(draft.tcmTongue, draft.tcmPulse);
   useEffect(() => {
     const controller = new AbortController();
+    const startedAt = Date.now();
+    let timedOut = false;
+    const deadline = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, TREATMENT_SCOPE_STATUS_TIMEOUT_MS);
+    const ticker = window.setInterval(() => {
+      setTreatmentScopeWaitedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    }, 1000);
     void fetch(apiUrl("/api/diagnosis/health"), { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("health_unavailable");
-        return response.json() as Promise<{ tcmTreatmentProjects?: { configurationValid?: boolean; items?: CapabilityItem[] } }>;
+        return response.json() as Promise<{
+          tcmTreatmentProjects?: { configurationValid?: boolean; reason?: string; items?: CapabilityItem[] };
+        }>;
       })
       .then((body) => {
-        const items = body.tcmTreatmentProjects?.configurationValid === true && Array.isArray(body.tcmTreatmentProjects.items)
-          ? body.tcmTreatmentProjects.items
-          : [];
+        const scope = body.tcmTreatmentProjects;
+        const items = scope?.configurationValid === true && Array.isArray(scope.items) ? scope.items : [];
         setConfiguredTreatmentProjects(items);
-        setTreatmentSettingsStatus(items.length > 0 ? "ready" : "unavailable");
+        if (items.length > 0) {
+          setTreatmentSettingsStatus("ready");
+          return;
+        }
+        // A valid scope with no projects and an explicit "not_configured" deployment are both
+        // successful answers: this clinic simply runs no in-house projects. A stated reason means
+        // the registration itself is broken, which only an administrator can repair. A reply that
+        // carries no scope at all has not answered, so it stays transient instead of blaming an
+        // administrator for a fault that may not exist.
+        setTreatmentSettingsStatus(
+          scope?.configurationValid === true || scope?.reason === "not_configured"
+            ? "none_deployed"
+            : typeof scope?.reason === "string"
+              ? "misconfigured"
+              : "unreachable",
+        );
       })
       .catch((error: unknown) => {
-        if ((error as { name?: string })?.name !== "AbortError") setTreatmentSettingsStatus("unavailable");
+        // An abort raised by this effect's cleanup means the panel went away; an abort raised by the
+        // deadline, and every other failure, means the read genuinely did not land.
+        if (timedOut || (error as { name?: string })?.name !== "AbortError") {
+          setTreatmentSettingsStatus("unreachable");
+        }
+      })
+      .finally(() => {
+        window.clearInterval(ticker);
+        window.clearTimeout(deadline);
       });
-    return () => controller.abort();
-  }, []);
+    return () => {
+      window.clearInterval(ticker);
+      window.clearTimeout(deadline);
+      controller.abort();
+    };
+  }, [treatmentScopeReadAttempt]);
   const customTreatmentScope = draft.clinicTreatmentCapabilities.trim();
   const selectedTreatmentCodes = new Set<TcmTreatmentProjectCode>(
     customTreatmentScope
@@ -6563,6 +6616,11 @@ function HisMedicalRecordWorkspace({
       </div>
 
       <div className="bg-[#F7F9FB] p-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+        {isRunning && lockReason && (
+          <p data-testid="record-readonly-reason" className="mb-2 rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-[11px] leading-relaxed text-teal-900">
+            {lockReason}
+          </p>
+        )}
         <fieldset disabled={isRunning} aria-busy={isRunning} className="min-w-0 rounded-xl border border-gray-200 bg-white disabled:cursor-wait">
           <div className="grid border-b border-gray-200 md:grid-cols-3">
             <InputCell label="姓名" value={draft.patientName} onChange={(value) => update("patientName", value)} placeholder="可不填" testId="patient-name" />
@@ -6595,18 +6653,46 @@ function HisMedicalRecordWorkspace({
           <div className="border-b border-gray-200 px-3 py-2 sm:px-[96px]" data-testid="tcm-treatment-capability-settings">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <p className="text-[12px] font-semibold text-gray-800">中医治疗项目</p>
-                <p className="mt-0.5 text-[11px] text-gray-500">
-                  {treatmentSettingsStatus === "loading"
-                    ? "正在读取机构项目…"
-                    : treatmentSettingsStatus === "unavailable"
-                      ? "机构项目配置暂不可读取，本例不会扩展项目范围。"
-                      : customTreatmentScope === "__none__"
-                        ? "本病例已明确不生成项目推荐"
-                        : customTreatmentScope
-                          ? `本病例已选 ${selectedTreatmentCodes.size}/${configuredTreatmentProjects.length} 项`
-                          : `按机构默认启用 ${configuredTreatmentProjects.length} 项`}
+                <p className="flex items-center gap-1.5 text-[12px] font-semibold text-gray-800">
+                  中医治疗项目
+                  {treatmentSettingsStatus === "loading" && <Loader2 className="h-3 w-3 animate-spin text-teal-600" />}
                 </p>
+                <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500" role="status">
+                  {treatmentSettingsStatus === "loading"
+                    ? "正在查询本机构已开展的中医治疗项目…"
+                    : treatmentSettingsStatus === "none_deployed"
+                      ? "本机构未开展可推荐的中医治疗项目，本例只给出方药与调护建议。"
+                      : treatmentSettingsStatus === "misconfigured"
+                        ? "本机构项目目录登记有误，已暂停项目推荐；请联系管理员核对后重新登记。"
+                        : treatmentSettingsStatus === "unreachable"
+                          ? "暂时查不到本机构已开展的项目，本例不会推荐院内项目。"
+                          : customTreatmentScope === "__none__"
+                            ? "本病例已明确不生成项目推荐"
+                            : customTreatmentScope
+                              ? `本病例已选 ${selectedTreatmentCodes.size}/${configuredTreatmentProjects.length} 项`
+                              : `按机构默认启用 ${configuredTreatmentProjects.length} 项`}
+                </p>
+                {treatmentSettingsStatus === "loading" && treatmentScopeWaitedSeconds >= 2 && (
+                  <p className="mt-0.5 text-[11px] text-gray-400" aria-hidden="true">
+                    已等待 {treatmentScopeWaitedSeconds} 秒，最长等待 {TREATMENT_SCOPE_STATUS_TIMEOUT_SECONDS} 秒。
+                  </p>
+                )}
+                {treatmentSettingsStatus === "unreachable" && (
+                  <button
+                    type="button"
+                    data-testid="tcm-treatment-settings-reload"
+                    onClick={() => {
+                      setTreatmentScopeWaitedSeconds(0);
+                      setTreatmentSettingsStatus("loading");
+                      setTreatmentScopeReadAttempt((current) => current + 1);
+                    }}
+                    disabled={isRunning}
+                    className="mt-1 inline-flex h-7 items-center gap-1 rounded border border-gray-200 bg-white px-2 text-[11px] font-bold text-gray-700 transition-colors hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700 disabled:cursor-not-allowed disabled:text-gray-300"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    重新查询
+                  </button>
+                )}
               </div>
               <button
                 type="button"
@@ -6923,6 +7009,25 @@ function AiSupportPanel({
     </div>
   ) : null;
 
+  // 长阶段结束后把结论滚到视野内：本面板是独立滚动容器，医生在等待期间往往已经滚到别处，
+  // 结果落在屏幕外会被读成“没生成”。每轮只滚一次，不打断医生自己的滚动。
+  // 只有 canCancelRun 才代表确实有一轮在跑（isRunning 还包含工作区恢复中），
+  // 否则刷新页面恢复既往病例时会无故自动滚动。
+  const runScrollArmedRef = useRef(false);
+  useEffect(() => {
+    if (canCancelRun) {
+      runScrollArmedRef.current = true;
+      return;
+    }
+    if (!runScrollArmedRef.current || isRunning) return;
+    if (caseState.phase !== "done" && caseState.phase !== "error") return;
+    runScrollArmedRef.current = false;
+    const target = caseState.phase === "error"
+      ? document.querySelector<HTMLElement>('[data-testid="stage-error-card"]')
+      : document.querySelector<HTMLElement>('[data-testid="run-complete-banner"]') ?? document.getElementById("cdss-section-ai");
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [canCancelRun, caseState.phase, isRunning]);
+
   return (
     <aside id="cdss-section-ai-panel" className="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white xl:min-h-0 xl:w-[410px] 2xl:w-[460px]">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-gray-200 px-4">
@@ -6969,6 +7074,20 @@ function AiSupportPanel({
             </button>
             {submitHint && <p className="mt-2 text-center text-[11px] font-medium text-amber-700">{submitHint}</p>}
           </div>
+        )}
+
+        {hasStaleClinicalOutput && hasDecisionResults && !shouldShowPreviousResult && (
+          // 病历一改动，上一版结论此前会整段消失。医生常在读完报告后回填病历，结论凭空不见会被当成系统丢了结果。
+          // 这里降级为已有的只读对照卡：只改显示，报告导出、审方与医嘱写回所用的数据不变。
+          <PreviousResultCard
+            result={{
+              diagnosis: caseState.diagnosis,
+              prescription: caseState.prescription,
+              riskAssessment: caseState.riskAssessment,
+              capturedAt: caseState.hisRecord?.updatedAt ?? "",
+            }}
+            note="以下是病历修改前生成的结论，仅供对照阅读；它不会随本次修改自动更新，请先重新分析，再据此写回医嘱。"
+          />
         )}
 
         {hasAnalyzedClinicalState && !hasStaleClinicalOutput && (
@@ -7047,6 +7166,26 @@ function AiSupportPanel({
           </div>
         )}
 
+        {caseState.phase === "done" && !isRunning && hasDecisionResults && !hasStaleClinicalOutput && !isFollowupOnlyState &&
+          (caseState.safetyGate || evaluateSafetyGate(caseState)).status !== "red_flag" && (
+          <div data-testid="run-complete-banner" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5">
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-gray-900">本轮辅助推理已完成</p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
+                下方结论仅供参考，请结合患者情况判断后再开具医嘱；需要补充病历可直接编辑左侧后重新分析。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onDownloadReport}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-teal-700"
+            >
+              <Download className="h-3.5 w-3.5" />
+              下载脱敏报告
+            </button>
+          </div>
+        )}
+
         {hasDecisionResults && !hasStaleClinicalOutput && !isFollowupOnlyState && (
           <CompactAiSchemeCardFlow caseState={caseState} onRetry={onRetry} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} onConfirmTerminologyMapping={onConfirmTerminologyMapping} restoredUnsavedDraft={restoredUnsavedDraft} onUnsavedDraftChange={onUnsavedDraftChange} />
         )}
@@ -7097,6 +7236,13 @@ function StreamingPreviewCard({
 }) {
   const status = generationStatus(phase);
   const safePreview = sanitizeStreamingPreview(content, phase);
+  // M05 是确定性 Markdown，会真的逐段下发正文，保持文档式渲染。
+  // M03/M04 在完成前只有进度行；但流末尾会用最终正文整体替换一次，此时必须立刻切回文档式渲染，
+  // 否则临床结论会被排成进度条目。用是否出现 Markdown 结构判定，判错时退回既有渲染。
+  const progressLines = safePreview.split("\n").map((line) => line.trim()).filter(Boolean);
+  const showProgressLog = phase !== "assess" &&
+    progressLines.length > 0 &&
+    !/^\s{0,3}(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|>|\||```)/m.test(safePreview);
   return (
     <div data-testid="streaming-preview-card" className="rounded-xl border border-teal-100 bg-white p-4">
       <div className="mb-3 flex items-start gap-3">
@@ -7123,9 +7269,30 @@ function StreamingPreviewCard({
           {isCancelling ? "正在取消" : "取消运行"}
         </button>
       </div>
-      <div className="max-h-[360px] overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-        <MarkdownBlock content={compactMarkdown(safePreview, 2600)} compact />
-      </div>
+      {showProgressLog ? (
+        // M03/M04 在结构与临床复核通过前不会下发任何临床正文，这一段能拿到的只有阶段进度和保活状态。
+        // 排成进度行而不是正文段落：医生不会把“正在生成…”误读成已经生成的结论。
+        <ol data-testid="streaming-progress-log" className="max-h-[220px] space-y-1 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+          {progressLines.map((line, index) => {
+            const isLatest = index === progressLines.length - 1;
+            return (
+              <li
+                key={`${index}-${line}`}
+                className={`flex items-start gap-2 text-[11px] leading-relaxed ${isLatest ? "font-semibold text-teal-800" : "text-gray-400"}`}
+              >
+                {isLatest
+                  ? <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin" />
+                  : <Circle className="mt-0.5 h-3 w-3 shrink-0" />}
+                <span className="min-w-0 flex-1">{line}</span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <div className="max-h-[360px] overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+          <MarkdownBlock content={compactMarkdown(safePreview, 2600)} compact />
+        </div>
+      )}
     </div>
   );
 }
@@ -7314,7 +7481,7 @@ export default function DiagnosisPage() {
       }
       if (!await isTongueVisionAvailable()) {
         setter(null);
-        setUploadNotice("当前未启用舌照识别服务，请在舌象栏手动录入舌质、舌形和舌苔后提交。");
+        setUploadNotice("当前无法使用舌照识别服务，请在舌象栏手动录入舌质、舌形和舌苔后提交。");
         return;
       }
       const { base64, roiMethod } = await fileToCompressedBase64(file);
@@ -8340,6 +8507,9 @@ export default function DiagnosisPage() {
             draft={recordDraft}
             setDraft={setRecordDraft}
             isRunning={interactionLocked}
+            lockReason={isRunning
+              ? "本轮分析进行中，病历各栏暂时只读，以免读到改了一半的病历。需要现在修改，可在右侧点击“取消运行”。"
+              : undefined}
             tongueImage={tongueImage}
             uploadNotice={uploadNotice}
             tongueInputRef={tongueInputRef}
