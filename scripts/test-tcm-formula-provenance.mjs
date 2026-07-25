@@ -90,6 +90,29 @@ assert.deepEqual(
   "negated findings must not be recalled through the indication-term index either",
 );
 
+// 口语召回提示（formula-recall-normalization.server 的输出）只参与候选召回：
+// 口语主诉在受控主治语料里匹配不到术语，靠提示补齐；但提示绝不能变成患者事实。
+const colloquial = formulaCase("睡不着觉，老忘事，心里发慌");
+assert.deepEqual(
+  retrieveTcmFormulaIndicationCandidates(colloquial, 4),
+  [],
+  "口语主诉在无召回提示时命中不到受控主治语料（这正是该层存在的原因）",
+);
+const hinted = retrieveTcmFormulaIndicationCandidates(colloquial, 4, "失眠、健忘、心悸");
+assert.ok(hinted.length > 0, "召回提示必须能把口语主诉带回受控候选");
+assert.ok(hinted.some((item) => item.name === "归脾汤"), `失眠健忘心悸应召回归脾汤，实际：${hinted.map((item) => item.name).join("、")}`);
+for (const item of hinted) {
+  for (const fact of item.matchedPatientFacts || []) {
+    assert.doesNotMatch(fact, /失眠|健忘|心悸/, "召回提示不得进入 matchedPatientFacts——它不是病历事实");
+  }
+}
+// 提示不得凭空造出候选：受控主治语料里不存在的术语一个方也召不回。
+assert.deepEqual(
+  retrieveTcmFormulaIndicationCandidates(formulaCase("周身不适"), 4, "赛博朋克证、量子虚劳"),
+  [],
+  "受控语料外的术语不得召回任何方剂",
+);
+
 const postM03Reasoning = {
   overview: {
     primarySyndrome: "思虑伤脾证",

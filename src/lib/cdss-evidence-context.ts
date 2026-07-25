@@ -20,12 +20,17 @@ const BASELINE_OFFICIAL_EVIDENCE = [
 export async function buildCdssEvidenceContext(
   caseState: CaseState,
   stage: EvidenceStage,
+  /**
+   * 口语→标准中医术语的检索查询，由服务端路由计算后传入（见 formula-recall-normalization.server）。
+   * 只参与候选召回，不进入病历事实、不呈现给医生。本模块被广泛引用，因此不直接依赖 server-only 模块。
+   */
+  formulaRecallHint = "",
 ): Promise<string> {
   const localContext = buildTcmKnowledgeContext(caseState, stage);
   const externalEvidenceContext = await buildExternalEvidenceContext(caseState, stage);
   const formulaProvenanceContext = stage === "prescribe" ? buildFormulaProvenanceContext(caseState) : "";
   const formulaIndicationContext = stage === "diagnose"
-    ? buildTcmFormulaIndicationContext(caseState)
+    ? buildTcmFormulaIndicationContext(caseState, 5, formulaRecallHint)
     : stage === "prescribe"
       ? buildTcmFormulaReasoningContext(diagnoseReasoningFromState(caseState))
       : "";

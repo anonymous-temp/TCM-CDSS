@@ -235,14 +235,18 @@ function positiveCaseFacts(caseState: CaseState): string[] {
 export function retrieveTcmFormulaIndicationCandidates(
   caseState: CaseState,
   limit = 5,
+  recallHint = "",
 ): FormulaIndicationCandidate[] {
   const facts = positiveCaseFacts(caseState);
   if (facts.length === 0) return [];
+  // recallHint 是口语→标准术语的检索查询（见 formula-recall-normalization.server.ts），
+  // 只参与候选召回：它不进入 matchedPatientFacts，不作为患者事实，也不呈现给医生。
+  const recallFacts = recallHint.trim() ? [...facts, recallHint.trim()] : facts;
   const caseConcepts = CLINICAL_CONCEPTS.filter((concept) => facts.some((fact) => concept.patient.test(fact)));
   // 概念索引与主治原文倒排索引取并集：概念表覆盖不到的临床用语（腰痛、耳鸣、水肿、消渴…）
   // 由方剂自带的主治文本直接召回。这是纯召回扩展——身份锁仍在下游独立校验主证候关联，
   // 多召回一个候选不会让任何方剂绕过锁。
-  const termHits = indicationTermMatches(facts);
+  const termHits = indicationTermMatches(recallFacts);
   const candidates = indexedEntries([
     ...caseConcepts.flatMap((concept) => RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []),
     ...termHits.keys(),
@@ -480,8 +484,8 @@ function renderFormulaCandidates(
   });
 }
 
-export function buildTcmFormulaIndicationContext(caseState: CaseState, limit = 5): string {
-  const candidates = retrieveTcmFormulaIndicationCandidates(caseState, limit);
+export function buildTcmFormulaIndicationContext(caseState: CaseState, limit = 5, recallHint = ""): string {
+  const candidates = retrieveTcmFormulaIndicationCandidates(caseState, limit, recallHint);
   if (candidates.length === 0) {
     return "【M03经典方检索】本例当前阳性事实未命中受控经典方主治索引；可按已锁定病机与治法形成自拟方向，但必须说明未采用经典方是因受控目录无匹配结果。";
   }
