@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { parseEnv } from "node:util";
 
 const {
   TCM_TREATMENT_PROJECTS,
@@ -103,6 +105,14 @@ const priors = {
     westernPrimary: "支气管炎",
     differentials: ["支气管哮喘"],
   }),
+  upperAirway: signedM03({
+    tcmDiseaseName: "鼻鼽",
+    primarySyndrome: "鼻窍功能失调证",
+    overallPathogenesis: "鼻窍对环境变化反应过度，喷嚏清涕频作",
+    chainPathogenesis: "鼻窍反应失调，喷嚏清涕频作",
+    therapyDirection: "调护鼻窍，缓解喷嚏流涕",
+    westernPrimary: "变应性鼻炎",
+  }),
   pain: signedM03({
     tcmDiseaseName: "项痹",
     primarySyndrome: "经筋痹阻证",
@@ -159,6 +169,14 @@ const priors = {
     therapyDirection: "益气活血，通络康复",
     westernPrimary: "脑梗死恢复期",
   }),
+  dizzinessBalance: signedM03({
+    tcmDiseaseName: "眩晕",
+    primarySyndrome: "体位变动诱发眩晕，清窍受扰，平衡失司",
+    overallPathogenesis: "体位变动时清窍受扰，平衡功能失司",
+    chainPathogenesis: "体位变动时清窍受扰，平衡功能失司",
+    therapyDirection: "调护清窍，助其恢复平衡",
+    westernPrimary: "良性阵发性位置性眩晕（BPPV）",
+  }),
   kneeOsteoarthritis: signedM03({
     tcmDiseaseName: "膝痹",
     primarySyndrome: "肝肾亏虚证",
@@ -190,6 +208,14 @@ priors.mixedSleepAndNeckPain.pathogenesis.chain = [
   { ...priors.mixedSleepAndNeckPain.pathogenesis.chain[0], nodeId: "P2", patientFact: "颈肩疼痛、活动受限", syndromeEvidence: "经筋痹阻", pathogenesis: "颈肩经筋痹阻", therapyDirection: "舒筋通络止痛" },
 ];
 priors.respiratoryWithoutNodeDomainTerms.pathogenesis.chain[0].patientFact = "恶寒发热，头身困重";
+priors.influenza = signedM03({
+  tcmDiseaseName: "时行感冒",
+  primarySyndrome: "风热犯卫证",
+  overallPathogenesis: "时邪犯卫，肺气失宣",
+  chainPathogenesis: "时邪犯卫，肺气失宣",
+  therapyDirection: "疏风解表，宣肺清热",
+  westernPrimary: "流行性感冒",
+});
 
 const configureSimple = (codes) => {
   delete process.env.TCM_CLINIC_TREATMENT_CAPABILITIES_JSON;
@@ -207,6 +233,17 @@ const check = (_name, assertion) => {
 };
 
 try {
+  check("example capability JSON survives dotenv parsing", () => {
+    const line = readFileSync(new URL("../.env.example", import.meta.url), "utf8")
+      .split(/\r?\n/)
+      .find((item) => item.startsWith("TCM_CLINIC_TREATMENT_CAPABILITIES_JSON="));
+    assert.ok(line);
+    const value = parseEnv(line).TCM_CLINIC_TREATMENT_CAPABILITIES_JSON;
+    const parsed = JSON.parse(value);
+    assert.equal(parsed.schemaVersion, "tcm-cdss-clinic-treatment-capabilities-v1");
+    assert.equal(parsed.items.length, 8);
+  });
+
   check("catalog is complete", () => {
     assert.equal(TCM_TREATMENT_PROJECTS.length, 22);
     assert.equal(new Set(TCM_TREATMENT_PROJECT_CODES).size, 22);
@@ -311,6 +348,7 @@ try {
     const matrix = [
       [priors.digestive, "diet_therapy"],
       [priors.respiratory, "qigong_daoyin"],
+      [priors.upperAirway, "acupuncture"],
       [priors.pain, "tuina"],
       [priors.gynecology, "moxibustion"],
       [priors.dermatology, "medicated_bath"],
@@ -325,11 +363,171 @@ try {
     }
   });
 
+  check("nasal and allergic upper-airway phrasing maps to personalized projects as one class", () => {
+    configureSimple(["acupuncture", "moxibustion", "auricular", "qigong_daoyin"]);
+    for (const phrase of ["鼻鼽", "鼻渊", "变应性鼻炎", "过敏性鼻炎", "晨起喷嚏清涕", "鼻痒流涕", "鼻鼽，肺气失宣"]) {
+      const prior = signedM03({
+        tcmDiseaseName: phrase,
+        primarySyndrome: "鼻窍功能失调证",
+        overallPathogenesis: `${phrase}，鼻窍反应失调`,
+        chainPathogenesis: `${phrase}，鼻窍反应失调`,
+        therapyDirection: "调护鼻窍",
+        westernPrimary: phrase,
+      });
+      const codes = compileTcmTreatmentRecommendations([], prior).map((item) => item.projectCode);
+      assert.deepEqual(codes, ["acupuncture", "moxibustion"]);
+      assert.equal(codes.includes("qigong_daoyin"), false, "upper-airway cases must not inherit lower-airway exercise ranking");
+    }
+  });
+
   check("a high-confidence signed diagnosis gets a bounded deterministic backstop when the model omits projects", () => {
     configureSimple(["diet_therapy", "auricular", "acupuncture", "tuina"]);
     const recommendations = compileTcmTreatmentRecommendations([], priors.digestive);
     assert.deepEqual(recommendations.map((item) => item.projectCode), ["diet_therapy", "auricular"]);
     assert.ok(recommendations.every((item) => item.executable === false && item.clinicianReviewRequired === true));
+  });
+
+  check("digestive symptom and pathogenesis synonyms cannot make the deterministic backstop disappear", () => {
+    configureSimple(["acupuncture", "moxibustion", "tuina", "auricular", "diet_therapy"]);
+    for (const [tcmDiseaseName, westernPrimary, overallPathogenesis, patientFact] of [
+      ["嗳气", "餐后不适综合征", "胃失和降，气机不畅，上逆为嗳气，中滞为脘胀", "吃完饭肚子上边胀，老打嗝"],
+      ["胃脘痛", "功能性消化不良", "胃失通降，餐后饱胀", "饭后半小时上腹部胀"],
+    ]) {
+      const prior = signedM03({
+        tcmDiseaseName,
+        primarySyndrome: "胃气上逆证",
+        overallPathogenesis,
+        chainPathogenesis: overallPathogenesis,
+        therapyDirection: "理气和胃，降逆消胀",
+        westernPrimary,
+      });
+      prior.pathogenesis.chain[0].patientFact = patientFact;
+      assert.deepEqual(
+        compileTcmTreatmentRecommendations([], prior, { patient: { age: 43, sex: "男" }, chiefComplaint: patientFact, symptoms: {}, conversation: [] })
+          .map((item) => item.projectCode),
+        ["diet_therapy", "auricular"],
+      );
+    }
+  });
+
+  check("neutral signed wording falls back to current affirmed respiratory facts", () => {
+    configureSimple(["qigong_daoyin", "moxibustion", "cupping"]);
+    const neutralPrior = signedM03({
+      tcmDiseaseName: "胸中不适待辨",
+      primarySyndrome: "胸中气机不畅证",
+      overallPathogenesis: "胸中气机运行失调",
+      chainPathogenesis: "胸中气机运行失调",
+      therapyDirection: "调畅胸中气机",
+      westernPrimary: "活动相关症状",
+    });
+    neutralPrior.pathogenesis.chain[0].patientFact = "一跑快了就胸口呼呼响，晚上有时憋醒";
+    const caseState = {
+      patient: { age: 41 },
+      chiefComplaint: "跑快后胸口呼呼响半年",
+      symptoms: { presentHistory: "近来晚上有时憋醒" },
+      conversation: [],
+    };
+    assert.deepEqual(
+      compileTcmTreatmentRecommendations([], neutralPrior, caseState).map((item) => item.projectCode),
+      ["qigong_daoyin", "moxibustion"],
+    );
+  });
+
+  check("neck stiffness location variants receive musculoskeletal projects when pain wording is absent", () => {
+    configureSimple(["tuina", "acupuncture", "cupping", "diet_therapy"]);
+    const neckStiffnessPrior = signedM03({
+      tcmDiseaseName: "项痹",
+      primarySyndrome: "气滞血瘀，经络不利",
+      overallPathogenesis: "长期低头劳损，颈部经脉气血运行不畅",
+      chainPathogenesis: "颈部经脉劳损，气滞血瘀，经络不利",
+      therapyDirection: "行气活血，舒筋通络",
+      westernPrimary: "颈肌劳损",
+    });
+    neckStiffnessPrior.pathogenesis.chain[0].patientFact = "低头看手机多，脖子僵，后脑勺也紧";
+    const recommendations = compileTcmTreatmentRecommendations([], neckStiffnessPrior, {
+      patient: { age: 39, sex: "男" },
+      chiefComplaint: "低头看手机多，脖子僵，后脑勺也紧",
+      symptoms: { presentHistory: "反复两个月" },
+      conversation: [],
+    });
+    assert.deepEqual(recommendations.map((item) => item.projectCode), ["tuina", "acupuncture"]);
+    assert.ok(recommendations.every((item) => item.targetRef === "P1" && item.executable === false));
+  });
+
+  check("historical or negated respiratory text cannot activate the current-fact fallback", () => {
+    configureSimple(["qigong_daoyin", "moxibustion", "cupping"]);
+    const neutralPrior = signedM03({
+      tcmDiseaseName: "疲劳待辨",
+      primarySyndrome: "气机失调证",
+      overallPathogenesis: "气机运行失调",
+      chainPathogenesis: "气机运行失调",
+      therapyDirection: "调畅气机",
+      westernPrimary: "疲劳症状",
+    });
+    neutralPrior.pathogenesis.chain[0].patientFact = "近期容易疲劳";
+    const historyOnly = {
+      patient: { age: 41 },
+      chiefComplaint: "近期容易疲劳",
+      symptoms: { presentHistory: "否认咳嗽、气喘及夜间憋醒" },
+      pastHistory: "既往支气管哮喘，曾有喘鸣",
+      hisRecord: { fields: { jiwangshi: "既往哮喘" } },
+      conversation: [{ role: "user", content: "小时候活动后喘" }],
+    };
+    assert.deepEqual(compileTcmTreatmentRecommendations([], neutralPrior, historyOnly), []);
+  });
+
+  check("positional vertigo receives a bounded balance-domain backstop instead of an empty project list", () => {
+    configureSimple(["acupuncture", "auricular", "qigong_daoyin", "tuina"]);
+    priors.dizzinessBalance.pathogenesis.chain[0].patientFact = "一翻身屋子就转，躺着不动又好点";
+    const recommendations = compileTcmTreatmentRecommendations([], priors.dizzinessBalance, {
+      patient: { age: 61, sex: "女" },
+      chiefComplaint: "一翻身屋子就转，躺着不动又好点",
+      symptoms: { presentHistory: "每次几十秒，三天了" },
+      conversation: [],
+    });
+    assert.deepEqual(recommendations.map((item) => item.projectCode), ["acupuncture", "auricular"]);
+    assert.ok(recommendations.every((item) => item.targetRef === "P1" && item.executable === false));
+  });
+
+  check("a reviewed movement-disorder presentation receives bounded non-executable adjunct projects", () => {
+    configureSimple(["qigong_daoyin", "acupuncture", "tuina", "auricular"]);
+    const movementPrior = signedM03({
+      tcmDiseaseName: "颤证",
+      primarySyndrome: "右手静止性震颤伴小写症",
+      overallPathogenesis: "肢体运动调节功能受扰",
+      chainPathogenesis: "右手静止时运动调节功能失常，出现不自主震颤",
+      therapyDirection: "改善肢体运动调节与精细动作能力",
+      westernPrimary: "帕金森病待排除",
+    });
+    movementPrior.pathogenesis.chain[0].patientFact = "右手闲着时会抖，写字越来越小";
+    const recommendations = compileTcmTreatmentRecommendations([], movementPrior, {
+      patient: { age: 65, sex: "男" },
+      chiefComplaint: "右手闲着时会抖，写字越来越小",
+      symptoms: { presentHistory: "快一年了" },
+      conversation: [],
+    });
+    assert.deepEqual(recommendations.map((item) => item.projectCode), ["qigong_daoyin", "acupuncture"]);
+    assert.ok(recommendations.every((item) => item.targetRef === "P1" && item.executable === false));
+  });
+
+  check("historical movement-disorder text cannot activate an unrelated current presentation", () => {
+    configureSimple(["qigong_daoyin", "acupuncture"]);
+    const neutralPrior = signedM03({
+      tcmDiseaseName: "疲劳待辨",
+      primarySyndrome: "功能状态待评估",
+      overallPathogenesis: "当前功能状态有待评估",
+      chainPathogenesis: "当前功能状态有待评估",
+      therapyDirection: "结合现状进一步评估",
+      westernPrimary: "疲劳症状",
+    });
+    neutralPrior.pathogenesis.chain[0].patientFact = "近期容易疲劳";
+    assert.deepEqual(compileTcmTreatmentRecommendations([], neutralPrior, {
+      patient: { age: 65, sex: "男" },
+      chiefComplaint: "近期容易疲劳",
+      symptoms: { presentHistory: "近两周工作忙后明显" },
+      pastHistory: "既往帕金森病，有静止性震颤",
+      conversation: [],
+    }), []);
   });
 
   check("an invalid model project is rejected and cannot suppress safe personalized backstops", () => {
@@ -346,12 +544,14 @@ try {
     const matrix = [
       [priors.digestive, ["diet_therapy", "auricular"]],
       [priors.respiratory, ["qigong_daoyin", "moxibustion"]],
+      [priors.upperAirway, ["acupuncture", "moxibustion"]],
       [priors.pain, ["tuina", "acupuncture"]],
       [priors.gynecology, ["moxibustion", "auricular"]],
       [priors.headache, ["auricular", "acupuncture"]],
       [priors.sleepEmotion, ["auricular", "qigong_daoyin"]],
       [priors.metabolicRehabilitation, ["diet_therapy", "qigong_daoyin"]],
       [priors.neurologicRehabilitation, ["acupuncture", "qigong_daoyin"]],
+      [priors.dizzinessBalance, ["acupuncture", "auricular"]],
     ];
     const signatures = [];
     for (const [prior, expected] of matrix) {
@@ -360,6 +560,85 @@ try {
       signatures.push(codes.join("+"));
     }
     assert.ok(new Set(signatures).size >= 6, "different clinical domains must produce materially different project sets");
+  });
+
+  check("infant eczema removes routine needling and scraping before prompt and compilation", () => {
+    configureSimple(["acupuncture", "guasha", "medicated_bath", "diet_therapy"]);
+    const infantCase = {
+      patient: { age: 0.5 },
+      chiefComplaint: "婴儿湿疹反复2个月",
+      symptoms: { presentHistory: "面颊和躯干湿疹伴瘙痒" },
+      conversation: [],
+      reasoningDiagnose: priors.dermatology,
+    };
+    const prompt = buildTcmTreatmentProjectPromptContext(infantCase);
+    assert.doesNotMatch(prompt, /acupuncture=针刺疗法|guasha=刮痧疗法/);
+    const recommendations = compileTcmTreatmentRecommendations([
+      { projectCode: "acupuncture", targetRef: "P1" },
+      { projectCode: "guasha", targetRef: "P1" },
+      { projectCode: "medicated_bath", targetRef: "P1" },
+      { projectCode: "diet_therapy", targetRef: "P1" },
+    ], priors.dermatology, infantCase);
+    assert.equal(recommendations.some((item) => item.projectCode === "acupuncture" || item.projectCode === "guasha"), false);
+  });
+
+  check("diabetic foot removes heat skin-trauma and invasive projects but preserves unrelated low-risk care", () => {
+    configureSimple(["moxibustion", "medicated_bath", "acupuncture", "qigong_daoyin", "diet_therapy"]);
+    const diabeticFootCase = {
+      patient: { age: 63 },
+      chiefComplaint: "糖尿病足溃疡伴足部感染",
+      symptoms: {},
+      conversation: [],
+    };
+    const recommendations = compileTcmTreatmentRecommendations([
+      { projectCode: "moxibustion", targetRef: "P1" },
+      { projectCode: "medicated_bath", targetRef: "P1" },
+      { projectCode: "acupuncture", targetRef: "P1" },
+      { projectCode: "qigong_daoyin", targetRef: "P1" },
+      { projectCode: "diet_therapy", targetRef: "P1" },
+    ], priors.metabolicRehabilitation, diabeticFootCase);
+    assert.deepEqual(recommendations.map((item) => item.projectCode), ["diet_therapy", "qigong_daoyin"]);
+  });
+
+  check("heart failure renal impairment and acute inflammation apply project-specific exclusions", () => {
+    configureSimple(["medicated_bath"]);
+    assert.deepEqual(compileTcmTreatmentRecommendations(
+      [{ projectCode: "medicated_bath", targetRef: "P1" }],
+      priors.dermatology,
+      { patient: {}, chiefComplaint: "湿疹", symptoms: {}, pastHistory: "慢性肾病4期，心力衰竭", conversation: [] },
+    ), []);
+    configureSimple(["tuina", "acupuncture"]);
+    const inflamed = compileTcmTreatmentRecommendations(
+      [{ projectCode: "tuina", targetRef: "P1" }, { projectCode: "acupuncture", targetRef: "P1" }],
+      priors.pain,
+      { patient: {}, chiefComplaint: "颈肩疼痛", symptoms: { presentHistory: "局部急性炎症，红肿热痛" }, conversation: [] },
+    );
+    assert.equal(inflamed.some((item) => item.projectCode === "tuina"), false);
+  });
+
+  check("heat-pattern polarity excludes moxibustion without suppressing unrelated care", () => {
+    configureSimple(["moxibustion", "acupuncture", "diet_therapy"]);
+    const heatPattern = structuredClone(priors.digestive);
+    heatPattern.overview.primarySyndrome = "胃热炽盛证";
+    heatPattern.overview.overallPathogenesis = "胃腑实热上扰";
+    heatPattern.pathogenesis.chain[0].pathogenesis = "胃腑实热";
+    const recommendations = compileTcmTreatmentRecommendations([
+      { projectCode: "moxibustion", targetRef: "P1" },
+      { projectCode: "acupuncture", targetRef: "P1" },
+      { projectCode: "diet_therapy", targetRef: "P1" },
+    ], heatPattern);
+    assert.equal(recommendations.some((item) => item.projectCode === "moxibustion"), false);
+    assert.ok(recommendations.some((item) => item.projectCode !== "moxibustion"));
+  });
+
+  check("negated high-risk history does not create a false treatment exclusion", () => {
+    configureSimple(["medicated_bath"]);
+    const recommendations = compileTcmTreatmentRecommendations(
+      [{ projectCode: "medicated_bath", targetRef: "P1" }],
+      priors.dermatology,
+      { patient: {}, chiefComplaint: "湿疹", symptoms: {}, pastHistory: "否认心衰及肾功能不全", conversation: [] },
+    );
+    assert.deepEqual(recommendations.map((item) => item.projectCode), ["medicated_bath"]);
   });
 
   check("one valid model proposal is retained and complemented only by matched safe projects", () => {
@@ -547,9 +826,53 @@ try {
     const ordinary = compileTcmTreatmentRecommendations([{ projectCode: "acupuncture", targetRef: "P1" }], priors.headache)[0];
     const specialist = compileTcmTreatmentRecommendations([{ projectCode: "needle_knife", targetRef: "P1" }], priors.pain).find((item) => item.projectCode === "needle_knife");
     const medicated = compileTcmTreatmentRecommendations([{ projectCode: "acupoint_application", targetRef: "P1" }], priors.respiratory).find((item) => item.projectCode === "acupoint_application");
+    assert.equal(ordinary.assessmentPositioning, undefined, "ordinary onsite projects must not retain identical positioning boilerplate in structured data");
     assert.equal(tcmTreatmentAssessmentPositioningForDisplay(ordinary.assessmentPositioning), undefined);
     assert.match(tcmTreatmentAssessmentPositioningForDisplay(specialist.assessmentPositioning) || "", /专项资质/);
     assert.match(tcmTreatmentAssessmentPositioningForDisplay(medicated.assessmentPositioning) || "", /独立用药审方/);
+  });
+
+  check("only indication-matched governed templates expose points and schedules", () => {
+    configureSimple(["acupuncture"]);
+    const digestive = compileTcmTreatmentRecommendations(
+      [{ projectCode: "acupuncture", targetRef: "P1" }],
+      priors.digestive,
+    )[0];
+    const sleep = compileTcmTreatmentRecommendations(
+      [{ projectCode: "acupuncture", targetRef: "P1" }],
+      priors.sleepEmotion,
+    )[0];
+    const influenza = compileTcmTreatmentRecommendations(
+      [{ projectCode: "acupuncture", targetRef: "P1" }],
+      priors.influenza,
+    )[0];
+    const dermatology = compileTcmTreatmentRecommendations(
+      [{ projectCode: "acupuncture", targetRef: "P1" }],
+      priors.dermatology,
+    )[0];
+    for (const recommendation of [digestive, sleep, influenza, dermatology]) {
+      assert.ok(recommendation.treatmentContent.length > 20);
+      assert.ok(recommendation.techniqueBoundary.length > 10);
+    }
+    assert.match(digestive.suggestedSitesOrPoints.join("；"), /中脘.*天枢.*足三里/);
+    assert.match(digestive.scheduleSuggestion, /每日1次/);
+    assert.equal(digestive.protocolStatus, "governed_patient_specific_plan");
+    assert.equal(digestive.executable, false);
+    assert.deepEqual(dermatology.suggestedSitesOrPoints, []);
+    assert.equal(dermatology.scheduleSuggestion, "");
+    assert.equal(dermatology.protocolStatus, "assessment_only_no_patient_specific_protocol");
+    assert.match(dermatology.protocolGap, /不得跨适应证套用|缺少.*标准操作方案/);
+    assert.match(sleep.suggestedSitesOrPoints.join("；"), /安眠.*神门.*内关.*心俞/);
+    assert.equal(sleep.protocolStatus, "governed_patient_specific_plan");
+    assert.match(sleep.scheduleSuggestion, /每日1次/);
+    assert.equal(sleep.executable, false, "governed parameters remain advisory until clinician review");
+    assert.match(sleep.protocolSource, /SRC-BEIJING-TCM-DOUBLE-HEART/);
+    assert.match(sleep.protocolSource, /SRC-ZIBO-TCM-DAY-FREQUENCY-2022/);
+    assert.match(influenza.suggestedSitesOrPoints.join("；"), /列缺.*合谷.*风池.*太阳.*外关/);
+    assert.equal(influenza.protocolStatus, "governed_patient_specific_plan");
+    assert.equal(influenza.scheduleSuggestion, "每日1次，每次30分钟。");
+    assert.equal(influenza.executable, false, "governed parameters remain advisory until clinician review");
+    assert.match(influenza.protocolSource, /SRC-HUNAN-INFLUENZA-TCM-2025/);
   });
 
   check("prompt exposes the configured catalog and asks the LLM to judge semantics", () => {

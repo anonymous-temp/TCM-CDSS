@@ -1,14 +1,35 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 const { enforceStructuredStageOwnership, isM03WesternSupportContractReason, repairCompletedStructuredSentinel, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } = await import("../src/lib/diagnosis-structured-repair.ts");
 const { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
 const { parseOpenAICompatCompletionPayload } = await import("../src/lib/openai-compatible-response.ts");
 const { buildM03DiagnosticReviewPrompt, parseM03DiagnosticReview } = await import("../src/lib/m03-diagnostic-review.ts");
-const { buildM04ClinicalReviewPrompt, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
+const { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, m04ClinicalRepairGuidance, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
 const { enforceReviewedPrescriptionOutput } = await import("../src/lib/prescription-output-safety.ts");
 const { normalizeClinicalConfidence, normalizePrescriptionRole, normalizeReasoningV2, normalizeWesternDiagnosisStatus } = await import("../src/lib/diagnosis-types.ts");
 const { getTcmHerbFunctionDisplayText } = await import("../src/lib/tcm-knowledge.ts");
-const { buildM04ClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
+const { buildM04ClinicalRepairHint, m04CandidateHerbsFromRepairPayload, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
+const { dropUnsupportedM04ModificationDirections } = await import("../src/lib/m04-modification-safety.ts");
+const diagnosisApiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+assert.match(
+  diagnosisApiSource,
+  /lastRejectionReason:\s*opts\.structuredStage === "diagnose"/,
+  "every completed M03 orchestration logs its final rejection code without patient content",
+);
+// Behavioural rather than source-text: the guidance now lives beside its M04 sibling in
+// structured-clinical-repair.ts, and what matters is that the reason code still reaches actionable
+// instructions — not which file the string sits in.
+assert.match(
+  structuredClinicalRepairHint("diagnose", "m03_western_clinical_rationale_restatement"),
+  /不得逐项串联、换标点复制 supportingFacts/,
+  "the bounded M03 repair tells the live model how to escape Western-rationale restatement",
+);
+assert.match(
+  diagnosisApiSource,
+  /const retryableStructuredTerminal = finishReason === "stop" \|\| finishReason === "length";[\s\S]*structuredSentinelIncomplete && retryableStructuredTerminal/,
+  "a max-token length terminal must enter the same bounded structured retry as a normal stop",
+);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "sentinel_count_0_0"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "json_invalid"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_primary_syndrome_unstable"), true);
@@ -16,6 +37,25 @@ assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_therapy_method_un
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_location_classification_empty"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_nature_classification_empty"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_western_primary_ambiguous"), true);
+assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_western_primary_background_comorbidity"), true);
+assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_western_primary_duration_mismatch"), true);
+assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_generic_tcm_template"), true);
+assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_explanation_placeholder"), true);
+assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_uncertainty_state_mismatch"), true);
+assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_followup_safety_net_not_actionable"), true);
+assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_tcm_syndrome_current_fact_missing"), true);
+assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_pathogenesis_summary_qi_deficiency_drift"), true);
+for (const reason of [
+  "m03_western_clinical_rationale_missing",
+  "m03_western_clinical_rationale_restatement",
+  "m03_western_differential_analysis_missing",
+  "m03_tcm_diagnostic_rationale_missing",
+  "m03_tcm_diagnostic_rationale_restatement",
+  "m03_discrimination_missing",
+  "m03_tcm_differential_analysis_missing",
+  "m03_single_evidence_location",
+  "m03_nature_dimension_insufficient",
+]) assert.equal(shouldRunTargetedStructuredRetry("diagnose", reason), true, `${reason} must reach the bounded analysis-field repair`);
 for (const reason of [
   "m03_western_support_empty",
   "m03_western_support_tcm_pollution",
@@ -33,16 +73,121 @@ assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_primary_diagnosis
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_tcm_reasoning_semantic_review"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "m03_formula_indication_semantic_review"), true);
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "m04_clinical_semantic_review"), true);
+assert.equal(
+  shouldRunTargetedStructuredRetry("prescribe", "m04_formula_component_1_unverified"),
+  true,
+  "an independently failed combined-formula component must reach bounded composition repair",
+);
 for (const reason of [
   "m04_formula_composition_semantic_review",
   "m04_herb_plan_semantic_review",
   "m04_dose_rationale_semantic_review",
   "m04_patient_context_semantic_review",
 ]) assert.equal(shouldRunTargetedStructuredRetry("prescribe", reason), true, `${reason} must reach bounded prescription repair`);
+for (const reason of [
+  "m04_candidate_0_emperor_missing",
+  "m04_candidate_0_emperor_excess",
+  "m04_candidate_0_herb_2_emperor_not_primary",
+  "m04_candidate_0_herb_2_emperor_knowledge_missing",
+  "m04_candidate_0_herb_2_emperor_therapy_mismatch",
+  "m04_candidate_0_herb_2_unknown",
+  "m04_candidate_0_herb_2_dose_outside_conservative_range",
+  "m04_candidate_0_herb_2_unsupported_high_impact_yang_warm",
+  "m04_modification_1_herb_0_unsupported_high_impact_yang_warm",
+]) assert.equal(shouldRunTargetedStructuredRetry("prescribe", reason), true, `${reason} has bounded deterministic repair guidance and must reach the second repair`);
+assert.equal(shouldRunTargetedStructuredRetry("prescribe", "m04_candidate_0_high_risk_pair_incompatibility"), false, "high-risk pair conflicts remain fail-closed instead of entering automatic repair");
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "json_invalid"), true);
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "sentinel_count_0_1"), true);
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "structured_resolver_rejected"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "provider_timeout"), false);
+const repairHerbs = [
+  { name: "香附", dose: "10g" },
+  { name: "吴茱萸", dose: "9g" },
+];
+assert.deepEqual(
+  m04CandidateHerbsFromRepairPayload({ formula: { candidates: [{ herbs: repairHerbs }] } }),
+  repairHerbs,
+  "first-round reasoning-v2 repair diagnostics must retain the candidate herbs",
+);
+assert.deepEqual(
+  m04CandidateHerbsFromRepairPayload({ schemaVersion: "tcm-cdss-m04-proposal-v1", candidate: { herbs: repairHerbs } }),
+  repairHerbs,
+  "targeted proposal-v1 repair diagnostics must retain herb names and dose boundaries",
+);
+assert.deepEqual(
+  m04CandidateHerbsFromRepairPayload({ schemaVersion: "tcm-cdss-m04-proposal-v1", candidate: JSON.stringify({ herbs: repairHerbs }) }),
+  repairHerbs,
+  "a normalized string-wrapped proposal candidate must retain its herbs for repair diagnostics",
+);
+const rejectedDoseProposal = {
+  schemaVersion: "tcm-cdss-m04-proposal-v1",
+  candidate: {
+    name: "本例辨证组方",
+    herbs: [
+      { name: "黄连", dose: "12g", role: "君" },
+      { name: "吴茱萸", dose: "2g", role: "佐" },
+      { name: "甘草", dose: "3g", role: "使" },
+    ],
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2 },
+  },
+  patentAndWestern: [],
+  modifications: [],
+  nonPharma: { diet: "清淡饮食", lifestyle: "规律作息", emotion: "调畅情志", acupointCare: null, tcmTreatments: [], monitoring: [] },
+};
+const driftingDoseRepair = structuredClone(rejectedDoseProposal);
+driftingDoseRepair.candidate.herbs[0].dose = "5g";
+driftingDoseRepair.candidate.herbs[1].dose = "9g";
+driftingDoseRepair.candidate.herbs[2].role = "臣";
+driftingDoseRepair.candidate.decoction.doseCount = "7剂";
+const stabilizedDoseRepair = JSON.parse(stabilizeM04DoseOnlyRepair(
+  JSON.stringify(rejectedDoseProposal),
+  JSON.stringify(driftingDoseRepair),
+  "m04_candidate_0_herb_0_dose_outside_conservative_range",
+));
+assert.equal(stabilizedDoseRepair.candidate.herbs[0].dose, "5g", "the model-selected target dose is retained");
+assert.equal(stabilizedDoseRepair.candidate.herbs[1].dose, "2g", "another herb dose cannot drift during a dose-only repair");
+assert.equal(stabilizedDoseRepair.candidate.herbs[2].role, "使", "roles cannot drift during a dose-only repair");
+assert.equal(stabilizedDoseRepair.candidate.decoction.doseCount, "5剂", "regimen fields cannot drift during a dose-only repair");
+assert.equal(stabilizeM04DoseOnlyRepair(
+  JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", formula: { candidates: [{ herbs: repairHerbs }] } }),
+  JSON.stringify(driftingDoseRepair),
+  "m04_candidate_0_herb_0_dose_outside_conservative_range",
+), undefined, "compiled reasoning must return through the proposal compiler rather than being rewritten in place");
+const modificationPrior = {
+  schemaVersion: "tcm-cdss-reasoning-v2",
+  stage: "diagnose",
+  overview: { overallTherapy: "行气活血，舒筋通络" },
+  therapy: { overallPrinciple: "行气活血，舒筋通络" },
+  pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "气滞血瘀，经络痹阻", therapyDirection: "行气活血，舒筋通络" }] },
+};
+const fullM04WithMixedModifications = {
+  schemaVersion: "tcm-cdss-reasoning-v2",
+  stage: "prescribe",
+  formula: {
+    candidates: [{ name: "本例辨证组方", herbs: [{ name: "川芎", dose: "6g" }] }],
+    modifications: [
+      { trigger: "复诊时疼痛加重", targetPathogenesis: "气滞血瘀", action: "加桃仁", reason: "加强活血" },
+      { trigger: "复诊时仍僵硬", targetPathogenesis: "经络痹阻", action: "建议加附子", reason: "温阳散寒" },
+      { trigger: "复诊时疼痛减轻", targetPathogenesis: "气滞血瘀", action: "减川芎", reason: "随证调整" },
+    ],
+  },
+};
+const mixedContent = `可见正文\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(fullM04WithMixedModifications)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const sanitizedModifications = JSON.parse(
+  dropUnsupportedM04ModificationDirections(mixedContent, modificationPrior)
+    .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+    .split("<!-- DIAGNOSIS_JSON_END -->")[0],
+).formula.modifications;
+assert.deepEqual(
+  sanitizedModifications.map((item) => item.action),
+  ["加桃仁", "减川芎"],
+  "every unsupported high-impact optional addition is removed while aligned additions and non-add actions remain",
+);
+assert.equal(
+  dropUnsupportedM04ModificationDirections("no structured content", modificationPrior),
+  "no structured content",
+  "non-structured fallbacks remain byte-exact",
+);
 for (const reason of [
   "m04_candidate_0_emperor_missing",
   "m04_candidate_0_emperor_excess",
@@ -57,6 +202,12 @@ const formulaCompositionRepairHint = buildM04ClinicalRepairHint("m04_formula_ref
 assert.match(formulaCompositionRepairHint, /不重不漏地纳入.*ingredients/s);
 assert.match(formulaCompositionRepairHint, /恰有 1–2 味君药/);
 assert.match(formulaCompositionRepairHint, /不得按药味顺序机械指定君药/);
+const combinedFormulaRepairHint = buildM04ClinicalRepairHint("m04_formula_component_1_unverified");
+assert.match(combinedFormulaRepairHint, /每个基础方都必须分别满足自己的基准/);
+assert.match(combinedFormulaRepairHint, /另一个基础方即使已经命中，也不能替它提供方名或出处/);
+const modificationRepairHint = buildM04ClinicalRepairHint("m04_modification_1_herb_0_unsupported_high_impact_yang_warm");
+assert.match(modificationRepairHint, /删除整条不受支持的条件性加减/);
+assert.match(modificationRepairHint, /modifications 允许为空/);
 assert.deepEqual(parseM03DiagnosticReview('{"status":"accepted","issueCode":"none"}'), { status: "accepted", issueCode: "none" });
 assert.deepEqual(parseM03DiagnosticReview('{"status":"repair","issueCode":"criteria_not_met"}'), { status: "repair", issueCode: "criteria_not_met" });
 assert.deepEqual(parseM03DiagnosticReview('{"status":"repair","issueCode":"formula_indication_mismatch"}'), { status: "repair", issueCode: "formula_indication_mismatch" });
@@ -67,12 +218,44 @@ const m03ReviewPrompt = buildM03DiagnosticReviewPrompt(
   { westernDiagnosis: { primary: { name: "IBS-D" } } },
   "[EVID-GUIDE-001] 慢性腹泻诊断标准摘要",
 );
-assert.match(m03ReviewPrompt, /病程阈值[\s\S]*必备核心症状[\s\S]*症状性工作诊断[\s\S]*不得把尚未满足标准的病因[\s\S]*临床闭环[\s\S]*中性功能性病机[\s\S]*空链必须返回[\s\S]*命名方的核心适应证/);
+assert.match(m03ReviewPrompt, /病程阈值[\s\S]*必备核心症状[\s\S]*症状性工作诊断[\s\S]*不得把尚未满足标准的病因[\s\S]*临床闭环[\s\S]*不得使用.*功能失调候[\s\S]*病机节点不得留空[\s\S]*命名方.*核心适应证/);
 assert.match(m03ReviewPrompt, /患者事实边界：稀便半个月，无腹痛[\s\S]*本轮可用证据[\s\S]*绝不能当作患者事实[\s\S]*EVID-GUIDE-001/);
 assert.deepEqual(parseM04ClinicalReview('{"status":"accepted","issueCode":"none"}'), { status: "accepted", issueCode: "none" });
 assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"herb_plan_mismatch"}'), { status: "repair", issueCode: "herb_plan_mismatch" });
+const focusedM04Repair = parseM04ClinicalReview('{"status":"repair","issueCode":"herb_plan_mismatch","repairFocus":"emperor_role","candidateIndex":0,"implicatedHerbs":["山药","山药","不存在药"]}');
+assert.deepEqual(focusedM04Repair, {
+  status: "repair",
+  issueCode: "herb_plan_mismatch",
+  repairFocus: "emperor_role",
+  candidateIndex: 0,
+  implicatedHerbs: ["山药", "不存在药"],
+});
+assert.match(m04ClinicalRepairGuidance(focusedM04Repair, {
+  formula: { candidates: [{ herbs: [{ name: "山药" }, { name: "茯苓" }] }] },
+}), /候选 1[\s\S]*emperor_role[\s\S]*山药/);
+assert.match(m04ClinicalRepairGuidance(focusedM04Repair, {
+  formula: { candidates: [{ herbs: [{ name: "山药" }, { name: "茯苓" }] }] },
+}), /山药[^\n]*不得继续标为君药[\s\S]*直接覆盖 P1[\s\S]*知识库已覆盖/);
+assert.doesNotMatch(m04ClinicalRepairGuidance(focusedM04Repair, {
+  formula: { candidates: [{ herbs: [{ name: "山药" }, { name: "茯苓" }] }] },
+}), /不存在药/);
+assert.deepEqual(
+  parseM04ClinicalReview('{"status":"repair","issueCode":"dose_rationale_concern","repairFocus":"emperor_role","candidateIndex":9,"implicatedHerbs":[42]}'),
+  { status: "repair", issueCode: "dose_rationale_concern", implicatedHerbs: [] },
+  "issue-incompatible focus, out-of-range candidate and non-string herb coordinates are discarded",
+);
 assert.deepEqual(parseM04ClinicalReview('复核结果：{"status":"repair","issueCode":"dose_rationale_concern"}'), { status: "repair", issueCode: "dose_rationale_concern" }, "bounded transport prose is tolerated while enum values stay strict");
 assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"unknown"}'), { status: "unavailable", issueCode: "review_unavailable" });
+assert.equal(m04ClinicalReviewRequiresNonDoseFallback({ status: "unavailable", issueCode: "review_unavailable" }), true, "M04 reviewer unavailable must select the server-owned non-dose fallback");
+assert.equal(m04ClinicalReviewRequiresNonDoseFallback({ status: "repair", issueCode: "patient_context_mismatch" }), false, "repair_demanded remains on the existing repair and re-review path");
+assert.equal(m04ClinicalReviewRequiresNonDoseFallback({ status: "accepted", issueCode: "none" }), false);
+const emperorDispute = { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "emperor_role", candidateIndex: 0, implicatedHerbs: ["枳壳"] };
+assert.equal(m04ClinicalReviewNeedsAdjudication(emperorDispute), true);
+assert.equal(m04ClinicalReviewNeedsAdjudication({ status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "herb_direction" }), false);
+assert.match(
+  buildM04ClinicalReviewAdjudicationPrompt("反酸", { pathogenesis: { chain: [{ nodeId: "P1", therapyDirection: "和胃降逆" }] } }, { formula: { candidates: [{ herbs: [{ name: "枳壳", role: "君", targetRef: "P1", function: "理气宽中" }] }] } }, "", emperorDispute),
+  /不得盲从[\s\S]*不得仅因自己偏好[\s\S]*知识库功用确实直接覆盖 P1[\s\S]*必须 accepted/,
+);
 const m04ReviewPrompt = buildM04ClinicalReviewPrompt(
   "稀便半个月，无腹痛",
   { overview: { primarySyndrome: "脾虚湿困" } },
@@ -84,6 +267,11 @@ assert.match(m04ReviewPrompt, /实际药味组成[\s\S]*不得用患者未提供
 assert.match(m04ReviewPrompt, /本轮可用证据[\s\S]*绝不能当作患者事实[\s\S]*EVID-LITERATURE-001/);
 assert.match(m04ReviewPrompt, /对重要未知状态保持保守鲁棒/);
 assert.match(m04ReviewPrompt, /不得用一句.*采纳前复核.*掩盖/);
+assert.match(m04ReviewPrompt, /慢性肾病3-5期[\s\S]*抗凝\/抗血小板[\s\S]*概念示例而非封闭关键词表/);
+assert.match(m04ReviewPrompt, /1–2 味并列君药均为合法结构[\s\S]*一味或两味君药已直接覆盖 P1 中心治法[\s\S]*偏好单君药/);
+assert.match(m04ReviewPrompt, /targetPathogenesis、function 与 prescriptionRole[\s\S]*不能因投影缺少自由文本解释而推定角色不成立/);
+assert.match(m04ReviewPrompt, /modifications 空数组是合法的保守方案[\s\S]*不得仅因没有加减而要求 repair/);
+assert.match(m04ReviewPrompt, /repairFocus[\s\S]*candidateIndex[\s\S]*implicatedHerbs[\s\S]*不得输出自由文本修复指令/);
 
 assert.equal(parseOpenAICompatCompletionPayload('{"choices":[{"message":{"content":"完整结果"},"finish_reason":"stop"}]}')?.choices?.[0]?.message?.content, "完整结果");
 assert.equal(parseOpenAICompatCompletionPayload([
@@ -266,7 +454,14 @@ const prescribeReasoning = {
       { name: "炙甘草", processing: null, decoctionRequirement: null, dose: "6g", role: "使", prescriptionRole: "调和诸药", targetPathogenesis: "调和诸药", function: "益气和中" },
       { name: "大枣", processing: null, decoctionRequirement: null, dose: "3枚", role: "佐", prescriptionRole: "补益脾胃", targetPathogenesis: "脾气虚弱", function: "益气养血" },
     ],
-    decoction: { doseCount: "5剂", method: "每日1剂，冷水浸泡30分钟，煎煮2次，合并药液约400mL，早晚分服", course: "5日", followUpNode: "5日复诊" },
+    decoction: {
+      doseCount: "5剂",
+      dosesPerDay: 1,
+      administrationTimesPerDay: 2,
+      method: "每日1剂，冷水浸泡30分钟，煎煮2次，合并药液约400mL，每日分2次服",
+      course: "5日",
+      followUpNode: "5日复诊",
+    },
   }], modifications: [{ action: "加黄芩9g", doseOrHandling: "9g" }] },
 };
 const driftedPrescription = [
@@ -283,7 +478,7 @@ const driftedPrescription = [
   endMarker,
 ].join("\n");
 const synchronizedPrescription = synchronizeVisibleClinicalSummary(driftedPrescription, "prescribe");
-assert.match(synchronizedPrescription, /\*\*煎服法\*\*：每日1剂，冷水浸泡30分钟，煎煮2次，合并药液约400mL，早晚分服/);
+assert.match(synchronizedPrescription, /\*\*煎服法\*\*：每日1剂，冷水浸泡30分钟，煎煮2次，合并药液约400mL，每日分2次服/);
 assert.match(synchronizedPrescription, /\*\*疗程建议\*\*：5日；首次复诊：5日复诊/);
 assert.match(synchronizedPrescription, /\| 1 \| 酸枣仁 \| 炒；捣碎后同煎 \| 15g \|/);
 assert.match(synchronizedPrescription, /\| 2 \| 炙甘草 \| 饮片 \| 6g \|/);
@@ -346,7 +541,7 @@ const sparseSanitized = normalizeDiagnoseConfidenceAndLabels(
 const sparseSanitizedJson = JSON.parse(sparseSanitized.split(startMarker)[1].split(endMarker)[0].trim());
 assert.equal(sparseSanitizedJson.pathogenesis.chain.length, 0, "a sparse model conclusion must remain incomplete until model repair or independent review supplies a grounded chain");
 assert.equal(sparseSanitizedJson.overview.primarySyndromeResolution, "bounded", "an uncorroborated syndrome must remain an explicitly bounded working conclusion");
-assert.match(sparseSanitizedJson.overview.primarySyndromeResolutionReason, /有限资料|复核/, "bounded conclusions must explain their uncertainty");
+assert.match(sparseSanitizedJson.overview.primarySyndromeResolutionReason, /0条.*可逐字回溯.*依据/, "bounded conclusions must explain the concrete source-level evidence gap");
 assert.deepEqual(sparseSanitizedJson.overview.primarySyndromeBasis, [], "the contract must not invent supporting patient quotes");
 assert.equal(sparseSanitizedJson.overview.evidence.confidence, "低", "bounded conclusions must not retain inflated evidence confidence");
 
@@ -424,8 +619,7 @@ const leakyDraft = [
   "resolution: bounded",
 ].join("\n");
 const scrubbedDraft = scrubInternalVocabularyFromVisibleText(leakyDraft);
-assert.match(scrubbedDraft, /\*\*把握度\*\*：有限/);
-assert.match(scrubbedDraft, /置信度: 不足/);
+assert.doesNotMatch(scrubbedDraft, /把握度|置信度/);
 assert.doesNotMatch(scrubbedDraft, /lineageCode|unrestricted|resolution: bounded/);
 assert.doesNotMatch(scrubbedDraft, /待候选方药阶段核验/);
 assert.match(scrubbedDraft, /（剂量以审定处方为准）/);
@@ -441,7 +635,7 @@ assert.equal(
   scrubberStructuredTail,
   "the sentinel JSON the client parses stays byte-exact",
 );
-assert.match(scrubbedWithSentinel.split("<!-- DIAGNOSIS_JSON_START -->")[0], /\*\*把握度\*\*：有限/);
+assert.doesNotMatch(scrubbedWithSentinel.split("<!-- DIAGNOSIS_JSON_START -->")[0], /把握度|置信度/);
 const cleanClinicalDraft = [
   "## 西医诊断",
   "**诊断倾向**：功能性腹泻",
@@ -452,8 +646,20 @@ const cleanClinicalDraft = [
 ].join("\n");
 assert.equal(
   scrubInternalVocabularyFromVisibleText(cleanClinicalDraft),
-  cleanClinicalDraft,
-  "clean clinical markdown passes through byte-exact (URLs, eGFR, Chinese confidence survive)",
+  [
+    "## 西医诊断",
+    "**诊断倾向**：功能性腹泻",
+    "**判断状态**：疑似",
+    "建议检查：eGFR 68 mL/min；参考文献见 https://example.com/guide_line_v2。",
+    "资料充分",
+    "诊疗思路偏好：未限定",
+  ].join("\n"),
+  "confidence metadata is removed without deleting clinical content on the same line",
+);
+assert.equal(
+  scrubInternalVocabularyFromVisibleText("现有病程支持继续鉴别；置信度：低。"),
+  "现有病程支持继续鉴别",
+  "an inline confidence suffix must not erase the clinical sentence",
 );
 assert.equal(scrubInternalVocabularyFromVisibleText("[END]"), "[END]");
 assert.equal(
@@ -467,4 +673,4 @@ assert.equal(
   "the scrubber is idempotent",
 );
 
-console.log(JSON.stringify({ cases: 58, failures: 0 }));
+console.log(JSON.stringify({ cases: 59, failures: 0 }));

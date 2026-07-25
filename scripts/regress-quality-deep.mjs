@@ -28,7 +28,7 @@ function extractSignedReasoning(m03Content) {
 const BASE_URL = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || "";
 const STREAM_REPLACE_MARKER = "<<<CDSS_STREAM_FINAL>>>";
-const JUDGE_MODEL = process.env.OPENAI_MODEL || "deepseek-v4-flash";
+const JUDGE_MODEL = process.env.OPENAI_MODEL || "deepseek-v4-pro";
 const JUDGE_BASE = (process.env.OPENAI_BASE_URL || "https://api.deepseek.com").replace(/\/$/, "");
 const JUDGE_KEY = process.env.OPENAI_API_KEY || "";
 const JUDGE_MIN_AVG = Number(process.env.JUDGE_MIN_AVG || 3.5);   // 平均分阈值(0-5)

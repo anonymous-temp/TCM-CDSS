@@ -22,7 +22,10 @@ export const RED_FLAG_CATEGORY_VOCABULARY = Object.freeze([
 ]);
 const RED_FLAG_CATEGORY_SET = new Set(RED_FLAG_CATEGORY_VOCABULARY);
 const NUMBER_TOKEN = String.raw`(?:[0-9０-９]+(?:[.．][0-9０-９]+)?|[零〇一二两三四五六七八九十百半]+)`;
-const DOSE_UNIT = String.raw`(?:g|mg|克|毫克|钱|mL|毫升|剂|片|粒|丸|袋|汤匙|茶匙|滴|支|喷|揿|两(?!个?(?:月|年|周|天|日|小时|分钟)))`;
+// Latin dose units require a token boundary. Without it, punctuation-insensitive comparison can
+// turn clinical scale names such as "PHQ-9、GAD-7" into "9 gad" and misclassify the leading g of
+// GAD as a gram dose. Chinese units intentionally keep their ordinary adjacent-text behaviour.
+const DOSE_UNIT = String.raw`(?:(?:mg|g|mL)(?![A-Za-z])|克|毫克|钱|毫升|剂|片|粒|丸|袋|汤匙|茶匙|滴|支|喷|揿|两(?!个?(?:月|年|周|天|日|小时|分钟)))`;
 const FREQUENCY_TOKEN = String.raw`(?:每日|每天|一日|日服|每次|每服|每晚|每晨|早晚|早中晚|睡前|餐前|餐后|顿服|分\s*[一二两三四五六七八九十0-9０-９]+\s*(?:次|服)|[一二两三四五六七八九十0-9０-９]+\s*次\s*(?:\/\s*日|每日)?)`;
 export const DOSE_EXPRESSION = new RegExp(`${NUMBER_TOKEN}\\s*${DOSE_UNIT}`, "i");
 export const DOSE_FREQUENCY_EXPRESSION = new RegExp(FREQUENCY_TOKEN, "i");
@@ -31,6 +34,42 @@ const HERB_QUANTITY_FREQUENCY_EXPRESSION = new RegExp(
   "i",
 );
 const HERB_FREQUENCY_EXPRESSION = new RegExp(String.raw`[\u4e00-\u9fff]{2,12}[^。；;\n]{0,12}${FREQUENCY_TOKEN}`, "i");
+
+function normalizeDoseComparisonText(value) {
+  return String(value || "")
+    .normalize("NFKC")
+    .replace(/[\s，。；、：:,.!?！？()（）【】\[\]"'“”‘’*_`]/g, "")
+    .toLowerCase();
+}
+
+/**
+ * M03 may quote a patient's existing medication exactly (for example “二甲双胍早晚各一片”).
+ * That is a required clinical fact, not a newly generated prescription. Remove only complete,
+ * dose-bearing source clauses quoted from the post-M02 chart, then fail on every remaining dose
+ * expression or prescription-stage marker. A newly recommended dose cannot pass merely because it
+ * shares a unit or quantity with the chart; the full documented clause has to be present verbatim.
+ */
+export function evaluateM03ScopeContract(visibleContent, clinicalRecord = "") {
+  const visible = String(visibleContent || "");
+  let unmatched = normalizeDoseComparisonText(visible);
+  const documentedDoseClauses = String(clinicalRecord || "")
+    .split(/[。；;\n]+/)
+    .map((clause) => clause.trim())
+    .filter((clause) => clause && regexTest(DOSE_EXPRESSION, clause))
+    .map(normalizeDoseComparisonText)
+    .filter((clause) => clause.length >= 4)
+    .sort((left, right) => right.length - left.length);
+  for (const clause of documentedDoseClauses) unmatched = unmatched.split(clause).join("");
+
+  const doseExpressionPresent = regexTest(DOSE_EXPRESSION, unmatched);
+  const prescribeStageContentPresent = /"stage"\s*:\s*"prescribe"|候选处方|中药饮片处方/.test(visible);
+  return {
+    ok: !doseExpressionPresent && !prescribeStageContentPresent,
+    doseExpressionPresent,
+    prescribeStageContentPresent,
+    documentedDoseClauseCount: documentedDoseClauses.length,
+  };
+}
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -432,7 +471,8 @@ function optionsMutuallyExclusive(options) {
     const salient = /黑便|呕血|便血|咯血|血尿|胸痛|晕厥|发热|气短|呼吸困难|无力|言语不清|呕吐|剧痛|妊娠|哺乳|自伤|他伤/g;
     const leftTerms = new Set(left.text.match(salient) || []);
     const rightTerms = new Set(right.text.match(salient) || []);
-    const bothPositive = !/无|没有|否认|均未|未见|不伴|不存在/.test(left.text) && !/无|没有|否认|均未|未见|不伴|不存在/.test(right.text);
+    const negativeAnswer = /无|没有|否认|均未|未见|不伴|不存在|未出现|未发生|从未/;
+    const bothPositive = !negativeAnswer.test(left.text) && !negativeAnswer.test(right.text);
     return bothPositive && [...leftTerms].some((term) => rightTerms.has(term));
   }));
 }
@@ -449,7 +489,7 @@ export function evaluateM02QuestionContract(content, testCase) {
   if (axisHits.length < requiredAxisCount) errors.push(`information_gain:${axisHits.length}/${requiredAxisCount}`);
   for (const block of blocks) {
     if (!block.title || !/[？?]$/.test(block.title)) errors.push(`question_${block.id}_title_invalid`);
-    if (!block.reason || block.reason.length < 8 || !/改变|影响|区分|判别|鉴别|判断|排除|排查|决定|提示|有助|风险|安全|诊断|检查|用药|处置|治疗|优先|转诊/.test(block.reason)) errors.push(`question_${block.id}_reason_missing`);
+    if (!block.reason || block.reason.length < 8 || !/改变|影响|区分|辨别|判别|鉴别|判断|排除|排查|决定|提示|有助|风险|安全|诊断|检查|用药|处置|治疗|优先|转诊/.test(block.reason)) errors.push(`question_${block.id}_reason_missing`);
     if (!optionsMutuallyExclusive(block.options)) errors.push(`question_${block.id}_options_not_exclusive`);
     const blockText = `${block.title} ${block.reason} ${block.options.map((item) => item.text).join(" ")}`;
     if (axes.length > 0 && !axes.some((axis) => regexTest(axis, blockText))) errors.push(`question_${block.id}_no_case_axis`);
@@ -485,6 +525,7 @@ export function evaluateSemanticM02AnswerCoverage(testCase, blocks, answer) {
   const axes = Array.isArray(testCase?.questionAxes) ? testCase.questionAxes : [];
   const factsByAxis = Array.isArray(testCase?.m02AnswerFacts) ? testCase.m02AnswerFacts : [];
   const answerText = String(answer || "").trim();
+  const explicitlyUnknown = /^(?:本次未取得该信息|本次未能确认|不知道|不清楚)$/.test(answerText);
   const questionText = (blocks || []).map((block) => `${block.title || ""} ${block.reason || ""} ${(block.options || []).map((item) => item.text).join(" ")}`).join("\n");
   const askedAxisIndexes = axes.flatMap((axis, index) => regexTest(axis, questionText) ? [index] : []);
   const matchedFacts = factsByAxis.flatMap((item) => (item.facts || [])
@@ -494,7 +535,11 @@ export function evaluateSemanticM02AnswerCoverage(testCase, blocks, answer) {
     const facts = factsByAxis.find((item) => item.axisIndex === axisIndex)?.facts || [];
     return facts.length === 0 || !facts.some((fact) => answerText.includes(String(fact)));
   });
-  const unaskedMatchedFacts = matchedFacts.filter((item) => !askedAxisIndexes.includes(item.axisIndex));
+  const factsMatchedOnAskedAxes = new Set(matchedFacts
+    .filter((item) => askedAxisIndexes.includes(item.axisIndex))
+    .map((item) => item.fact));
+  const unaskedMatchedFacts = matchedFacts.filter((item) =>
+    !askedAxisIndexes.includes(item.axisIndex) && !factsMatchedOnAskedAxes.has(item.fact));
   const permittedFacts = new Set(factsByAxis
     .filter((item) => askedAxisIndexes.includes(item.axisIndex))
     .flatMap((item) => item.facts || [])
@@ -504,6 +549,22 @@ export function evaluateSemanticM02AnswerCoverage(testCase, blocks, answer) {
   const empty = answerText.length === 0;
   const irrelevant = !empty && matchedFacts.length === 0;
   const errors = [];
+  if (explicitlyUnknown) {
+    if (!Array.isArray(blocks) || blocks.length === 0) errors.push("question_missing");
+    return {
+      ok: errors.length === 0,
+      errors,
+      empty: false,
+      irrelevant: false,
+      explicitlyUnknown: true,
+      matchedFacts: [],
+      askedAxisIndexes,
+      unansweredAxisIndexes: [],
+      unaskedMatchedFacts: [],
+      ungroundedAnswerClauses: [],
+      answeredAxisCount: 0,
+    };
+  }
   if (empty) errors.push("answer_empty");
   if (irrelevant) errors.push("answer_irrelevant");
   if (askedAxisIndexes.length === 0) errors.push("asked_axis_missing");
@@ -579,7 +640,8 @@ export function evaluatePathogenesisContract(diagnose, testCase) {
   const chain = Array.isArray(diagnose?.pathogenesis?.chain) ? diagnose.pathogenesis.chain : [];
   const locationText = joinedValues(locations);
   const natureText = joinedValues(natures);
-  const mechanismText = [diagnose?.overview?.overallPathogenesis, diagnose?.pathogenesis?.summary, ...chain.map((node) => node.pathogenesis)].filter(Boolean).join("；");
+  const mechanismCoreText = [diagnose?.overview?.overallPathogenesis, ...chain.map((node) => node.pathogenesis)].filter(Boolean).join("；");
+  const mechanismText = [mechanismCoreText, diagnose?.pathogenesis?.summary].filter(Boolean).join("；");
   const therapyText = [diagnose?.therapy?.overallPrinciple, diagnose?.therapy?.overallMethod, diagnose?.overview?.overallTherapy, ...chain.map((node) => node.therapyDirection)].filter(Boolean).join("；");
   const errors = [];
   const syndromeAndMechanism = [diagnose?.overview?.primarySyndrome, mechanismText].filter(Boolean).join("；");
@@ -592,7 +654,10 @@ export function evaluatePathogenesisContract(diagnose, testCase) {
   if (!natures.length || !matchesEvery(expected.naturesAllowed, natureText)) errors.push("natures_allowed_missing");
   if (matchesAny(expected.naturesForbidden, natureText)) errors.push("natures_forbidden_present");
   if (Array.isArray(expected.mechanismsAllowed) && !expected.mechanismsAllowed.every((pattern) => tcmRegexTest(pattern, mechanismText))) errors.push("mechanisms_allowed_missing");
-  if (matchesAny(expected.mechanismsForbidden, mechanismText)) errors.push("mechanisms_forbidden_present");
+  // Narrative summaries may explicitly say an alternative remains unknown or pending. Forbidden
+  // mechanism conclusions are evaluated only on the actual conclusion fields, never on an
+  // uncertainty sentence that mentions the same word in a negated/pending context.
+  if (matchesAny(expected.mechanismsForbidden, mechanismCoreText)) errors.push("mechanisms_forbidden_present");
   if (!matchesEvery(expected.therapiesAllowed, therapyText)) errors.push("therapies_allowed_missing");
   if (matchesAny(expected.therapiesForbidden, therapyText)) errors.push("therapies_forbidden_present");
   if (!chain.length || chain.some((node) => !node?.patientFact || !node?.syndromeEvidence || !node?.pathogenesis || !node?.therapyDirection)) errors.push("chain_structure_invalid");
@@ -656,7 +721,10 @@ export function evaluateM04CandidateContract(prescribe, testCase, options = {}) 
       single_herb: { min: 1, max: 1 },
       single_base: { min: 1, max: Infinity },
       combined: { min: 2, max: Infinity },
-      self_devised: { min: 4, max: Infinity },
+      // A two- or three-herb self-devised formula can be a clinically coherent prescription.
+      // The product contract requires every selected herb to be grounded and reviewed; it must not
+      // force the model to add an otherwise unnecessary fourth herb just to satisfy the harness.
+      self_devised: { min: 2, max: Infinity },
     };
     const herbCountRule = herbCountRules[candidate?.constructionType];
     if (!herbCountRule) errors.push(`construction_type_invalid:${candidate?.constructionType || "missing"}`);

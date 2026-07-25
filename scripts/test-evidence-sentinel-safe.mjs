@@ -10,7 +10,7 @@ const { synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diag
 const evidenceContext = [
   "## 官方基础依据",
   "- [OFFICIAL-RX-REVIEW] 《医疗机构处方审核规范》 https://allowed.example.gov/ok",
-  "- [EVID-INST-001] 已核验候选说明书：已核验候选用于本例对应适应证，具体用法按说明书。 https://allowed.example.gov/medicine",
+  `- [EVID-INST-001] 药名：已核验候选｜适应证：失眠｜条目指纹：sha256:${"1".repeat(64)}｜URL:https://allowed.example.gov/medicine`,
 ].join("\n");
 const transform = buildEvidenceOutputTransform(evidenceContext);
 
@@ -50,7 +50,7 @@ const medicineContent = [
       patentAndWestern: [
         { name: "伪来源药物", evidence: { evidenceLevel: "guideline", source: "https://evil.com/fabricated" } },
         { name: "借用通用政策的药物", evidence: { evidenceLevel: "guideline", source: "[OFFICIAL-RX-REVIEW]" } },
-        { name: "已核验候选", evidence: { evidenceLevel: "instruction", source: "[EVID-INST-001]" } },
+        { name: "已核验候选", correspondingProblem: "失眠", evidenceId: "EVID-INST-001", evidenceFingerprint: `sha256:${"1".repeat(64)}`, recommendationMode: "candidate_review", evidence: { evidenceLevel: "instruction", source: "[EVID-INST-001]" } },
       ],
     },
   }),

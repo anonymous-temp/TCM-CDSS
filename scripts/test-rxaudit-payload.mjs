@@ -4,13 +4,17 @@ import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
 const {
   applyRxAuditInputAdvisories,
+  auditPrescriptionWithLingxi,
   buildAuditData,
   buildAuditInputAdvisories,
   buildAuditInputAdvisorySection,
   buildAuditItemsFromHerbs,
+  buildRxAuditScopeSection,
   buildMedicationExtractionContext,
   extractMedicationSemanticsForAudit,
   isMechanicallyPreventableAuditIssue,
+  rxAuditSubmissionIssue,
+  runBoundedRxAudit,
   structuredCurrentMedications,
   verifyMedicationSemanticCoverage,
 } = await jiti.import("../src/lib/rxaudit.ts");
@@ -157,6 +161,28 @@ const incompleteMedicationExtraction = verifyMedicationSemanticCoverage(
 );
 assert.equal(incompleteMedicationExtraction.needsManualReview, true);
 assert.match(incompleteMedicationExtraction.reason || "", /medication_candidate_coverage_incomplete/);
+for (const explicitNoMedication of [
+  "否认当前其他用药",
+  "没有长期药物",
+  "从未服用其他药物",
+  "现用药不详",
+]) {
+  const covered = verifyMedicationSemanticCoverage(explicitNoMedication, {
+    source: "model",
+    events: [],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  });
+  assert.equal(covered.needsManualReview, false, `${explicitNoMedication} must not create a fictitious missing medication candidate`);
+  assert.doesNotMatch(covered.reason || "", /medication_candidate_coverage_incomplete/);
+}
+const affirmedNegatedStopMedication = verifyMedicationSemanticCoverage("未停用阿司匹林100mg每日一次", {
+  source: "model",
+  events: [],
+  unresolvedReferences: [],
+  needsManualReview: false,
+});
+assert.match(affirmedNegatedStopMedication.reason || "", /medication_candidate_coverage_incomplete/, "a negated stop still affirms current medication and must remain a coverage candidate");
 const truncatedMedicationExtraction = verifyMedicationSemanticCoverage(
   "目前服用阿司匹林100mg每日一次",
   {
@@ -716,10 +742,127 @@ assert.doesNotMatch(sanitizeFreeTextForModel("本例张三既往高血压"), /�
 const doseConflictAuditItems = buildAuditItemsFromHerbs({
   reasoningPrescribe: {
     stage: "prescribe",
-    formula: { candidates: [{ herbs: [{ name: "槟榔", dose: "6g", processing: null, decoctionRequirement: null }] }] },
+    formula: { candidates: [{
+      herbs: [{ name: "槟榔", dose: "6g", processing: null, decoctionRequirement: null }],
+      decoction: {
+        doseCount: "5剂",
+        dosesPerDay: 1,
+        administrationTimesPerDay: 2,
+        course: "5日",
+        method: "每日1剂，水煎服，每日分2次服",
+        followUpNode: "完成5剂后复诊",
+      },
+    }] },
   },
 });
 assert.match(String(doseConflictAuditItems[0]?.decoction_requirement || ""), /分用途剂量范围.*实际用途.*给药途径/, "LingXi receives the dose-source conflict as a concrete review requirement");
+assert.equal(doseConflictAuditItems[0]?.frequency_code, "QD");
+assert.equal(doseConflictAuditItems[0]?.frequency_name, "每日1剂，每日分2次服");
+assert.equal(doseConflictAuditItems[0]?.route_name, "口服");
+assert.equal(doseConflictAuditItems[0]?.course_days, 5);
+const multidimensionalRegimenState = {
+  reasoningPrescribe: {
+    stage: "prescribe",
+    formula: {
+      candidates: [{
+        herbs: [{ name: "黄连", dose: "3g", processing: null, decoctionRequirement: null }],
+        decoction: {
+          doseCount: "6剂",
+          dosesPerDay: 2,
+          administrationTimesPerDay: 3,
+          course: "3日",
+          method: "每日2剂，水煎服，每日分3次服",
+          followUpNode: "完成6剂后复诊",
+        },
+      }],
+      patentAndWestern: [{
+        type: "中成药",
+        name: "示例中成药",
+        specification: "每袋6g",
+        usageBoundary: "仅作候选复核",
+        course: "3日",
+        positioning: "替代方案",
+        correspondingProblem: "口苦",
+        evidence: { evidenceLevel: "instruction", source: "示例说明书" },
+        relationship: "不默认与饮片联用",
+        riskNote: "复核过敏史与现用药",
+      }, {
+        type: "西药",
+        name: "示例西药",
+        specification: "10mg",
+        usageBoundary: "仅供讨论",
+        course: "3日",
+        positioning: "需医生评估",
+        correspondingProblem: "伴随症状",
+        evidence: { evidenceLevel: "instruction", source: "示例说明书" },
+        relationship: "由医生评估联用",
+        riskNote: "复核相互作用",
+      }],
+      modifications: [],
+    },
+  },
+};
+const multidimensionalItems = buildAuditItemsFromHerbs(multidimensionalRegimenState);
+assert.equal(multidimensionalItems[0]?.frequency_code, "BID");
+assert.equal(multidimensionalItems[0]?.frequency_name, "每日2剂，每日分3次服");
+assert.equal(multidimensionalItems[0]?.course_days, 3);
+assert.equal(multidimensionalItems[1]?.drug_type, "中成药");
+assert.equal(multidimensionalItems[2]?.drug_type, "西药");
+assert.equal("single_dose" in multidimensionalItems[1], false, "medicine candidates are submitted without fabricated single-dose values");
+assert.match(buildRxAuditScopeSection(multidimensionalRegimenState), /中药饮片 1 味；中成药 1 项；西药 1 项/);
+assert.match(buildRxAuditScopeSection(multidimensionalRegimenState), /未伪造单次剂量/);
+assert.equal(rxAuditSubmissionIssue({
+  reasoningPrescribe: {
+    stage: "prescribe",
+    formula: { candidates: [{
+      herbs: [{ name: "黄连", dose: "3g" }],
+      decoction: {
+        doseCount: "5剂",
+        dosesPerDay: 1,
+        course: "5日",
+        method: "每日1剂，水煎服",
+        followUpNode: "完成5剂后复诊",
+      },
+    }] },
+  },
+}), "regimen_incomplete", "missing administrationTimesPerDay must fail closed before provider submission");
+const incompleteRegimenState = {
+  reasoningPrescribe: {
+    stage: "prescribe",
+    formula: { candidates: [{
+      herbs: [{ name: "槟榔", dose: "6g", processing: null, decoctionRequirement: null }],
+      decoction: { doseCount: "5剂", course: "", method: "水煎服", followUpNode: "" },
+    }] },
+  },
+};
+assert.equal(rxAuditSubmissionIssue(incompleteRegimenState), "regimen_incomplete");
+assert.deepEqual(buildAuditItemsFromHerbs(incompleteRegimenState), [], "a dose-only prescription must never be sent to LingXi");
+const fetchBeforeSubmissionGateTest = globalThis.fetch;
+let blockedSubmissionFetches = 0;
+globalThis.fetch = async () => {
+  blockedSubmissionFetches += 1;
+  throw new Error("external audit must not be reached for an incomplete regimen");
+};
+try {
+  const boundedBlocked = await runBoundedRxAudit(incompleteRegimenState);
+  assert.equal(boundedBlocked.providerAudit.ok, false);
+  assert.equal(boundedBlocked.providerAudit.reason, "regimen_incomplete");
+  const directBlocked = await auditPrescriptionWithLingxi(incompleteRegimenState);
+  assert.equal(directBlocked.ok, false);
+  assert.equal(directBlocked.reason, "regimen_incomplete");
+  assert.equal(blockedSubmissionFetches, 0, "every audit entry point must reject the incomplete regimen before network I/O");
+} finally {
+  globalThis.fetch = fetchBeforeSubmissionGateTest;
+}
+assert.equal(rxAuditSubmissionIssue({
+  reasoningPrescribe: {
+    stage: "prescribe",
+    formula: { candidates: [{
+      herbs: [{ name: "槟榔", dose: "剂量待定", processing: null, decoctionRequirement: null }],
+      decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日", method: "每日1剂，水煎服，每日分2次服", followUpNode: "完成5剂后复诊" },
+    }] },
+  },
+}), "herb_dose_incomplete");
 const traceableAudit = buildAuditData({
   patient: {},
   conversation: [],
@@ -727,7 +870,7 @@ const traceableAudit = buildAuditData({
     stage: "prescribe",
     formula: { candidates: [{
       herbs: [{ name: "酸枣仁", dose: "15g", processing: "炒", role: "君", prescriptionRole: "养心安神", targetKind: "pathogenesis_node", targetRef: "P1", targetPathogenesis: "心血不足，心神失养", function: "养心安神" }],
-      decoction: { doseCount: "5剂", course: "5日", method: "每日1剂，水煎服", followUpNode: "完成5剂后复诊" },
+      decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日", method: "每日1剂，水煎服，每日分2次服", followUpNode: "完成5剂后复诊" },
     }] },
   },
 });

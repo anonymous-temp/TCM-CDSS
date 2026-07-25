@@ -8,12 +8,15 @@ const {
   buildDeterministicRiskFollowup,
   buildSafetyLimitedDiagnosisReasoning,
   canForceProceedPastSafetyGate,
+  currentVitalMeasurements,
   currentVitalsSummary,
+  deriveOperationalCompleteness,
   evaluateSafetyGate,
   hardDoseSafetyBoundaryReasons,
   hasDeterministicCriticalVitalRedFlag,
   measuredVitalAdvisories,
   narrativeFallbackAdvisories,
+  parseStructuredFollowupTimeline,
   renderSafetyLimitedDiagnosisContract,
 } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
@@ -72,6 +75,7 @@ const positiveScenarios = [
   "如果以后胸痛要立即就诊，胸痛已经持续20分钟并大汗。",
   "如果以后胸痛要急诊，我现在胸痛持续20分钟，计划马上去医院。",
   "健康宣教：若出现胸痛应急诊，现胸痛持续20分钟并大汗。",
+  "健康宣教：如胸痛加重应急诊，现胸痛持续20分钟并大汗。",
   "脑梗死恢复期3个月，病情原本稳定，今天突然右侧肢体无力明显加重并言语不清。",
   "脑卒中后半年康复稳定，今晨再发口角歪斜和左侧肢体无力。",
   "脑梗死恢复期半年，康复稳定。刚刚出现口角歪斜。",
@@ -93,6 +97,9 @@ const positiveScenarios = [
   "注射药物后突发咽喉水肿并出现呼吸困难。",
   "突然喉头水肿，声音嘶哑。",
   "突发剧烈腹痛，伴反跳痛。",
+  "今天急性胃部疼痛，呈刀割样且持续不缓解。",
+  "刚才心口窝痛突然加重，呈撕裂样。",
+  "今天突发胸口疼，持续20分钟并伴冷汗。",
   "如果以后胸痛就急诊，现在胸痛持续20分钟。",
   "既往胸痛一直未缓解，目前仍胸痛。",
   "家属代诉：今晨突发胸痛持续20分钟并大汗。",
@@ -101,6 +108,20 @@ const positiveScenarios = [
   "否认胸痛、气促，黑便、呕血各1次。",
   "否认腹痛，黑便伴头晕。",
   "否认腹痛，柏油样便伴乏力。",
+  "患者突然抽搐、呼之不应。",
+  "今晨突发意识障碍。",
+  "突然神志不清。",
+  "患者目前昏迷。",
+  "患者突然昏睡。",
+  "患者今晨突发嗜睡、唤醒困难。",
+  "患者突然谵妄。",
+  "反复说想死，已有具体计划。",
+  "患者表示活不下去并准备服药。",
+  "患者说要寻短见。",
+  "患者称一了百了，已安排身后事。",
+  "患者说不想醒来，已准备大量安眠药。",
+  "女儿说：患者今晨突发胸痛持续20分钟并大汗。",
+  "妻子称患者突然抽搐、呼之不应。",
 ];
 
 const advisoryScenarios = [
@@ -147,6 +168,7 @@ const negativeScenarios = [
   "健康宣教：若吃虾后出现喉头肿胀、声音嘶哑或吞咽困难，应立即急诊。",
   "其母亲吃虾后曾有喉头水肿和声音嘶哑，患者本人无上述症状。",
   "患者否认吃虾后喉头肿胀、声音嘶哑和吞咽困难。",
+  "否认急性胃部疼痛、心口窝痛或胸口疼。",
   "既往吃虾后曾有喉头肿胀和声音嘶哑，治疗后已消退，目前无再发。",
   "上周胸痛去急诊查过，之后已经完全缓解；今天只是复诊，目前无胸痛气促。",
   "今天只是复诊，目前无胸痛气促；上周曾因胸痛去急诊，之后已经完全缓解。",
@@ -166,6 +188,12 @@ const negativeScenarios = [
   "当患者血压190/120mmHg时应立即急诊；本次复测120/80mmHg。",
   "家属有自杀计划，患者仅失眠并否认自杀、自伤。",
   "健康宣教：若出现自杀想法应立即急诊；患者目前否认自杀意念。",
+  "否认意识障碍、意识不清、抽搐、惊厥或谵妄。",
+  "三年前曾有一次抽搐，治疗后一直未再发。",
+  "近一个月白天轻度嗜睡，容易唤醒，无意识障碍或抽搐。",
+  "儿子本人有胸痛。患者目前无任何不适。",
+  "妻子自己出现抽搐。患者本人无抽搐或意识异常。",
+  "患者明确否认想死、寻短见、一了百了或不想醒来的念头。",
 ];
 
 let cases = 0;
@@ -256,6 +284,84 @@ const checkedGate = evaluateSafetyGate({
 });
 assert.equal(checkedGate.status, "ready", "completed semantic screening may reach ready when all other dose slots are complete");
 cases += 1;
+
+const preFollowupUserText = [
+  "性别：男。",
+  "主诉：反复胃脘胀痛2周。",
+  "现病史：进食后胃脘胀痛加重，嗳气后稍缓解，否认胸痛、气促、晕厥、黑便、呕血。",
+  "舌象：舌淡红，苔薄白。",
+  "脉象：脉弦。",
+  "既往史：否认重大慢性病。",
+  "过敏史：否认药物及食物过敏。",
+  "用药史：否认当前用药。",
+].join("\n");
+const noHisRecordAfterFollowup = {
+  ...semanticReadyBase,
+  chiefComplaint: "反复胃脘胀痛2周",
+  symptoms: {
+    presentHistory: "进食后胃脘胀痛加重，嗳气后稍缓解，否认胸痛、气促、晕厥、黑便、呕血",
+  },
+  tongue: "舌淡红，苔薄白",
+  pulse: "脉弦",
+  pastHistory: "否认重大慢性病",
+  allergyHistory: "否认药物及食物过敏",
+  medicationHistory: "否认当前用药",
+  vitals: { T: "36.6℃", P: "76次/分", R: "18次/分", BP: "122/78mmHg" },
+  conversation: [
+    { role: "user", content: preFollowupUserText },
+    { role: "assistant", content: "疼痛与进食的关系如何？" },
+    { role: "user", content: "进食后约半小时加重，嗳气后会缓解。" },
+  ],
+  clinicalFacts: checkedEmptyFacts,
+};
+assert.equal(
+  deriveOperationalCompleteness(noHisRecordAfterFollowup).level,
+  "C",
+  "a new M02 answer must not erase clinician-entered M01 fields when no HIS snapshot exists",
+);
+assert.equal(
+  evaluateSafetyGate(noHisRecordAfterFollowup).status,
+  "ready",
+  "the M02 append-only conversation must retain the original authoritative clinical fields",
+);
+cases += 2;
+
+const narrativeVitalState = {
+  ...semanticReadyBase,
+  chiefComplaint: "发热伴乏力1天，门诊实测体温39.2℃，心率122次/分，呼吸26次/分，SpO2 91%，血压188/122mmHg。",
+  clinicalFacts: checkedEmptyFacts,
+};
+const narrativeMeasurements = currentVitalMeasurements(narrativeVitalState);
+assert.equal(narrativeMeasurements.temperature, 39.2);
+assert.equal(narrativeMeasurements.pulse, 122);
+assert.equal(narrativeMeasurements.respiration, 26);
+assert.equal(narrativeMeasurements.spo2, 91);
+assert.deepEqual(narrativeMeasurements.bloodPressure, { systolic: 188, diastolic: 122 });
+assert.match(measuredVitalAdvisories(narrativeVitalState).join("、"), /39\.2℃.*122次\/分.*26次\/分.*91%/s);
+cases += 6;
+
+const categoryScopedSemanticState = {
+  ...stateWith("今晨晕厥一次，随后发现黑便；患者本人疑似误服药物。", "chief"),
+  clinicalFacts: {
+    redFlags: [{
+      category: "syncope",
+      subject: "patient",
+      status: "positive",
+      urgency: "urgent",
+      triageBasis: "urgent_review",
+      quote: "今晨晕厥一次",
+    }],
+    semanticStatus: "checked",
+    resultSource: "fresh",
+    reviewStatus: "checked",
+    sourceCoverage: "full",
+  },
+};
+const categoryScopedAdvisories = narrativeFallbackAdvisories(categoryScopedSemanticState).join("、");
+assert.doesNotMatch(categoryScopedAdvisories, /晕厥、黑矇或意识丧失/, "same-category semantic finding should suppress only the duplicate fallback");
+assert.match(categoryScopedAdvisories, /消化道出血/, "a syncope finding must not suppress GI-bleed fallback");
+assert.match(categoryScopedAdvisories, /中毒或药物过量/, "a syncope finding must not suppress poisoning fallback");
+cases += 3;
 
 const crossClauseChestCue = evaluateSafetyGate({
   ...semanticReadyBase,
@@ -523,6 +629,9 @@ const structuredDoseRisk = buildDeterministicRiskFollowup({
   ...semanticReadyBase,
   clinicalFacts: checkedEmptyFacts,
   reasoningPrescribe: {
+    nonPharma: {
+      monitoring: [{ metric: "入睡耗时与夜间觉醒次数", timing: "服药后第1-3天", trigger: "连续3晚入睡耗时无改善或白天嗜睡加重" }],
+    },
     formula: {
       candidates: [{
         herbs: [{ name: "茯苓", dose: "10g" }],
@@ -532,7 +641,36 @@ const structuredDoseRisk = buildDeterministicRiskFollowup({
   },
 });
 assert.doesNotMatch(structuredDoseRisk, /本轮未生成剂量级处方/);
-assert.match(structuredDoseRisk, /处方剂量|5天后复诊/);
+assert.match(structuredDoseRisk, /入睡耗时与夜间觉醒次数|5天后复诊/);
+assert.match(structuredDoseRisk, /连续3晚入睡耗时无改善或白天嗜睡加重/);
+assert.doesNotMatch(structuredDoseRisk, /睡眠\/疼痛\/消化|出血倾向|7-14天|中医康复管理/);
+assert.deepEqual(parseStructuredFollowupTimeline(structuredDoseRisk), [{
+  time: "服药后第1-3天",
+  action: "记录并复核本例指标",
+  indicators: ["入睡耗时与夜间觉醒次数"],
+  triggers: ["连续3晚入睡耗时无改善或白天嗜睡加重"],
+}]);
+cases += 1;
+
+const painFollowup = buildDeterministicRiskFollowup({
+  ...semanticReadyBase,
+  chiefComplaint: "右膝活动后疼痛2周",
+  clinicalFacts: checkedEmptyFacts,
+  reasoningPrescribe: {
+    nonPharma: {
+      monitoring: [{ metric: "右膝疼痛0-10分与步行距离", timing: "每日晚间记录", trigger: "疼痛增加2分或出现红肿发热" }],
+    },
+    formula: {
+      candidates: [{
+        herbs: [{ name: "茯苓", dose: "10g" }],
+        decoction: { followUpNode: "完成5剂后复诊" },
+      }],
+    },
+  },
+});
+assert.match(painFollowup, /右膝疼痛0-10分与步行距离/);
+assert.doesNotMatch(painFollowup, /入睡耗时与夜间觉醒次数/);
+assert.notEqual(painFollowup, structuredDoseRisk, "follow-up content must vary with the structured monitoring plan and current problem");
 cases += 1;
 
 const restrictedStructuredDoseRisk = buildDeterministicRiskFollowup({
@@ -569,6 +707,11 @@ for (const scenario of postStrokeResidualScenarios) {
       const gate = evaluateSafetyGate(stateWith(variant, placement));
       assert.notEqual(gate.status, "red_flag", `${placement}: ${variant}`);
       assert.equal(gate.redFlags.length, 0, `${placement}: ${variant}`);
+      assert.doesNotMatch(
+        narrativeFallbackAdvisories(stateWith(variant, placement)).join("、"),
+        /局灶神经功能异常/,
+        `${placement}: stable residual deficits must not re-enter through the model-outage advisory fallback: ${variant}`,
+      );
       cases += 1;
     }
   }
@@ -758,6 +901,8 @@ const acuteAbdomenPeritonitisScenarios = [
   "腹痛3小时，按压后松手更疼。",
   "肚子疼，突然加重，挺不住了。",
   "左下腹痛半天，一按就疼，松手时更疼。",
+  "突发胃痛3个小时，疼痛持续不缓解。",
+  "胃脘痛3小时，突然明显加重。",
 ];
 for (const scenario of acuteAbdomenPeritonitisScenarios) {
   for (const variant of variants(scenario)) {
@@ -765,15 +910,19 @@ for (const scenario of acuteAbdomenPeritonitisScenarios) {
       const gate = evaluateSafetyGate(stateWith(variant, placement));
       assert.equal(gate.status, "red_flag", `${placement}: ${variant}`);
       assert.match(gate.redFlags.join("、"), /急腹症/, `${placement}: ${variant}`);
+      assert.equal(gate.redFlagFindings?.[0]?.ruleId, "acute-abdomen-emergency", `${placement}: ${variant}`);
+      assert.equal(gate.redFlagFindings?.[0]?.severity, "emergency", `${placement}: ${variant}`);
+      assert.ok(gate.redFlagFindings?.[0]?.sourceQuote, `${placement}: ${variant}`);
+      assert.ok(gate.redFlagFindings?.[0]?.ruleExplanation, `${placement}: ${variant}`);
       cases += 1;
     }
   }
 }
 for (const scenario of [
+  "胃痛3小时。",
   "右下腹痛，按下去松手不疼。",
   "腹痛3天，无反跳痛，按压后松手也不疼。",
-  "否认呕吐，腹痛持续加重。",
-  "否认恶心，腹胀持续加重。",
+  "胃痛3个小时，没有突然加重、剧烈疼痛或反跳痛。",
 ]) {
   for (const placement of ["chief", "history", "conversation"]) {
     const gate = evaluateSafetyGate(stateWith(scenario, placement));
@@ -782,9 +931,19 @@ for (const scenario of [
     cases += 1;
   }
 }
+for (const placement of ["chief", "history", "conversation"]) {
+  const scenario = "突发胃痛3小时，无剧烈疼痛、反跳痛、呕吐或循环异常。";
+  const gate = evaluateSafetyGate(stateWith(scenario, placement));
+  assert.notEqual(gate.status, "red_flag", `${placement}: ${scenario}`);
+  assert.ok(gate.missingItemCodes?.includes("priority_evaluation_required"), `${placement}: ${scenario}`);
+  assert.match((gate.advisories || []).join("、"), /胃痛|腹痛|腹胀/, `${placement}: ${scenario}`);
+  cases += 1;
+}
 for (const scenario of ["否认呕吐，腹痛持续加重。", "否认恶心，腹胀持续加重。"]) {
   for (const placement of ["chief", "history", "conversation"]) {
-    assert.match(narrativeFallbackAdvisories(stateWith(scenario, placement)).join("、"), /腹痛|腹胀|腹部/, `${placement}: ${scenario}`);
+    const gate = evaluateSafetyGate(stateWith(scenario, placement));
+    assert.equal(gate.status, "red_flag", `${placement}: ${scenario}`);
+    assert.match(gate.redFlags.join("、"), /急腹症/, `${placement}: ${scenario}`);
     cases += 1;
   }
 }

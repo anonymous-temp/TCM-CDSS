@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { createJiti } from "jiti";
 import {
@@ -17,6 +18,7 @@ import {
   evaluateM02QuestionContract,
   evaluateM03CanonicalContract,
   evaluateM03CriticalClinicalAssertions,
+  evaluateM03ScopeContract,
   evaluateM04CandidateContract,
   evaluatePathogenesisContract,
   evaluateRedFlagContract,
@@ -35,6 +37,17 @@ const jiti = createJiti(import.meta.url);
 const { normalizeCaseStateInput } = jiti("../src/lib/diagnosis-types.ts");
 const { buildAuditData } = jiti("../src/lib/rxaudit.ts");
 const { enforceM02UnansweredAxes, parseM02PlanFromContent } = jiti("../src/lib/m02-question-contract.ts");
+
+describe("live regression harness required-field contract", () => {
+  it("always sends physiological sex to M01 for primary-care and clinical-matrix cases", () => {
+    const primaryCareSource = readFileSync(new URL("./regress-primary-care-sparse-50.mjs", import.meta.url), "utf8");
+    const clinicalMatrixSource = readFileSync(new URL("./regress-live-clinical-matrix.mjs", import.meta.url), "utf8");
+    const browserJourneySource = readFileSync(new URL("./e2e-release-journey.mjs", import.meta.url), "utf8");
+    assert.match(primaryCareSource, /patientSex:\s*testCase\.sex/);
+    assert.match(clinicalMatrixSource, /patientSex:\s*testCase\.state\.patient\.sex/);
+    assert.match(browserJourneySource, /getByTestId\("patient-sex"\)\.selectOption\("男"\)/);
+  });
+});
 
 function result(overrides = {}) {
   return {
@@ -113,6 +126,36 @@ describe("HTTP and stream parsing", () => {
     assert.equal(heartbeatOnly.endCount, 1);
     assert.equal(heartbeatOnly.nonHeartbeatAfterEnd, false);
     assert.equal(responseComplete(heartbeatOnly), true);
+  });
+});
+
+describe("M03 stage scope", () => {
+  it("allows exact current-medication facts while rejecting newly generated doses", () => {
+    const chart = "上次糖化8点多，具体单子没带；吃二甲双胍早晚各一片，剂量不清。";
+    const quotedFact = [
+      "## 西医诊断",
+      "**支持依据**：吃二甲双胍早晚各一片，剂量不清",
+      '<!-- DIAGNOSIS_JSON_START -->',
+      JSON.stringify({ stage: "diagnose", westernDiagnosis: { primary: { supportingFacts: ["吃二甲双胍早晚各一片，剂量不清"] } } }),
+      '<!-- DIAGNOSIS_JSON_END -->',
+    ].join("\n");
+    assert.deepEqual(evaluateM03ScopeContract(quotedFact, chart), {
+      ok: true,
+      doseExpressionPresent: false,
+      prescribeStageContentPresent: false,
+      documentedDoseClauseCount: 1,
+    });
+
+    const newWesternDose = `${quotedFact}\n建议改为二甲双胍每次一片。`;
+    assert.equal(evaluateM03ScopeContract(newWesternDose, chart).doseExpressionPresent, true);
+    assert.equal(evaluateM03ScopeContract("治法：养阴清热；黄芪15g、麦冬10g。", chart).doseExpressionPresent, true);
+    assert.equal(
+      evaluateM03ScopeContract("建议使用PHQ-9、GAD-7和PSG量表复核。", chart).doseExpressionPresent,
+      false,
+      "clinical scale abbreviations must not be joined into a false gram dose",
+    );
+    assert.equal(evaluateM03ScopeContract("建议黄芪9 g复核。", chart).doseExpressionPresent, true);
+    assert.equal(evaluateM03ScopeContract("## 候选处方\n仅供参考", chart).prescribeStageContentPresent, true);
   });
 });
 
@@ -281,6 +324,23 @@ describe("M02 semantic question and answer contract", () => {
     assert.equal(evaluateM02QuestionContract(content.replace("追问理由：时间关系有助于区分常见病因。\n", ""), testCase).ok, false);
   });
 
+  it("accepts common explicit negative phrasings as the opposite of a positive symptom answer", () => {
+    for (const negativeAnswer of ["近半年未出现发热", "近半年未发生发热", "近半年从未发热"]) {
+      const feverQuestion = [
+        "问题1：近半年咳嗽加重以来，您是否出现过发热（体温超过37.3℃）？",
+        "追问理由：发热会改变感染性病因的判断与处置。",
+        "A. 近半年出现过发热",
+        `B. ${negativeAnswer}`,
+        "C. 本次未取得该信息",
+      ].join("\n");
+      assert.equal(
+        evaluateM02QuestionContract(feverQuestion, { questionAxes: [/发热/] }).ok,
+        true,
+        negativeAnswer,
+      );
+    }
+  });
+
   it("builds the simulated reply only from the axes actually asked", () => {
     const blocks = parseQuestionBlocks(content);
     const reply = buildSemanticM02Answer(testCase, blocks);
@@ -295,6 +355,16 @@ describe("M02 semantic question and answer contract", () => {
     assert.doesNotMatch(oneAxisReply, /饭后半小时|早饱|舌淡胖/);
     assert.equal(evaluateSemanticM02AnswerCoverage(testCase, blocks, oneAxisReply).ok, false);
     assert.equal(evaluateSemanticM02AnswerCoverage(testCase, blocks.slice(0, 1), testCase.answer).ok, false, "facts from unasked axes must not leak into the simulated reply");
+    const unrelatedButUsefulQuestion = parseQuestionBlocks([
+      "问题1：上腹胀时是否伴疼痛或向背部放射？",
+      "追问理由：疼痛性质和放射会改变上腹不适的鉴别方向。",
+      "A. 存在上述任一疼痛，请补充具体表现",
+      "B. 上腹胀时无疼痛",
+      "C. 本次未取得该信息",
+    ].join("\n"));
+    const unknownCoverage = evaluateSemanticM02AnswerCoverage(testCase, unrelatedButUsefulQuestion, "本次未取得该信息");
+    assert.equal(unknownCoverage.ok, true, "an explicit unknown answer completes M02 and permits finite-information reasoning");
+    assert.equal(unknownCoverage.answeredAxisCount, 0);
   });
 
   it("removes a structured question whose concrete answer is already documented", () => {
@@ -424,6 +494,14 @@ describe("M03 canonical and pathogenesis contracts", () => {
     equivalentCase.pathogenesisExpectations.therapiesAllowed = [/健脾|止泻/];
     equivalentCase.pathogenesisExpectations.nodePairs = [{ mechanism: /脾虚|湿盛/, therapy: /健脾|止泻/ }];
     assert.equal(evaluatePathogenesisContract(terminologyEquivalent, equivalentCase).ok, true, "canonical TCM terminology equivalents must not produce a false regression failure");
+
+    const narrativeUncertainty = structuredClone(diagnose);
+    narrativeUncertainty.pathogenesis.summary = "核心病机为脾虚、胃失和降；其他兼夹病机仍待定。";
+    const uncertaintyCase = structuredClone(testCase);
+    uncertaintyCase.pathogenesisExpectations.mechanismsForbidden = [/待定/];
+    assert.equal(evaluatePathogenesisContract(narrativeUncertainty, uncertaintyCase).ok, true, "a narrative uncertainty must not be misread as a forbidden mechanism conclusion");
+    narrativeUncertainty.overview.overallPathogenesis = "核心病机待定";
+    assert.equal(evaluatePathogenesisContract(narrativeUncertainty, uncertaintyCase).ok, false, "a forbidden placeholder in the actual mechanism conclusion remains a hard failure");
   });
 
   it("rejects cold-heat polarity conflicts independently of case-specific phrase allowlists", () => {

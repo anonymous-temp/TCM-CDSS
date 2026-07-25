@@ -15,6 +15,8 @@ const cases = [
   ["无药物过敏", "negative", undefined],
   ["无特殊用药", "negative", undefined],
   ["没吃其他药", "negative", undefined],
+  ["没吐过血", "negative", undefined],
+  ["没有咳过血", "negative", undefined],
   ["未服用阿司匹林", "negative", undefined],
   ["既往无高血压病史", "negative", undefined],
   ["既往未患高血压", "negative", undefined],
@@ -27,6 +29,8 @@ const cases = [
   ["肾功能异常待排除", "uncertain", undefined],
   ["既往病史不详", "uncertain", undefined],
   ["无菌性脑膜炎病史", "affirmed", "无菌性脑膜炎病史"],
+  ["第二天没精神", "affirmed", "第二天没精神"],
+  ["最近没力气", "affirmed", "最近没力气"],
   ["高血压10年", "affirmed", "高血压10年"],
 ];
 
@@ -159,4 +163,48 @@ for (const temporalCase of temporalCases) {
   );
 }
 
-console.log(JSON.stringify({ cases: cases.length + 20 + temporalCases.length, failures: 0 }));
+// Polarity scope is a per-consumer decision, not one global policy. Recall callers take affirmed
+// only; contraindication/audit callers must also receive `uncertain`, because dropping an
+// unresolved comorbidity removes the very fact that would have raised a warning. Explicit denials
+// must never surface under either scope — that direction would invert into a false positive.
+// Hedge phrasings are covered as a class: whether a given cue currently lands in UNCERTAIN_CUE or
+// falls through to `affirmed` must not change what a safety-side caller ends up seeing.
+const hedgedFindings = [
+  "可能有心衰",
+  "疑似心功能不全",
+  "既往可能有房颤",
+  "不排除肾功能不全",
+  "不能除外消化道出血",
+  "考虑存在肝功能异常",
+  "怀疑有胆囊炎",
+  "似有肝功能异常",
+];
+for (const text of hedgedFindings) {
+  assert.equal(
+    affirmedClinicalText(text, "affirmed_or_uncertain"),
+    text,
+    `安全侧必须保留未定所见：${text}`,
+  );
+}
+
+const explicitDenials = ["否认心衰", "未发现肾功能不全", "已排除消化道出血"];
+for (const text of explicitDenials) {
+  for (const scope of ["affirmed", "affirmed_or_uncertain"]) {
+    assert.equal(affirmedClinicalText(text, scope), undefined, `明确否定不得进入任何 scope：${text}/${scope}`);
+  }
+}
+
+// Default scope stays affirmed-only so recall callers are unchanged by the opt-in.
+assert.equal(affirmedClinicalText("可能有心衰"), undefined);
+assert.equal(affirmedClinicalText("突发胸痛3小时"), "突发胸痛3小时");
+assert.equal(affirmedClinicalText("突发胸痛3小时", "affirmed_or_uncertain"), "突发胸痛3小时");
+// A denial adjacent to an unresolved finding must not drag the finding out of the safety scope.
+assert.equal(
+  affirmedClinicalText("否认心衰。可能有肾功能不全", "affirmed_or_uncertain"),
+  "可能有肾功能不全",
+);
+
+console.log(JSON.stringify({
+  cases: cases.length + 20 + temporalCases.length + hedgedFindings.length + explicitDenials.length * 2 + 4,
+  failures: 0,
+}));

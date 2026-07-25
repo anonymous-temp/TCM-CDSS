@@ -7,26 +7,27 @@ const baseUrl = (process.env.OPENAI_BASE_URL || "https://api.deepseek.com").repl
 const runtimeReviewerModel = (
   process.env.PRIMARY_CLINICAL_REVIEW_MODEL ||
   process.env.OPENAI_MODEL ||
-  "deepseek-v4-flash"
+  "deepseek-v4-pro"
 ).trim();
 const comparisonModel = (process.env.PRIMARY_DIAGNOSE_MODEL || "deepseek-v4-pro").trim();
 const timeoutMs = Number(process.env.LIVE_CLINICAL_REVIEW_TIMEOUT_MS || 35_000);
 assert.ok(apiKey, "OPENAI_API_KEY is required for the live M03 reviewer calibration");
 
 const clinicalContext = [
-  "夜间出汗伴入睡困难1个月",
-  "问诊补充：无发热、咳嗽、消瘦或心悸，盗汗以入睡后为主，醒后可缓解",
-  "患者回答：患者躺下后长时间无法入睡，无多梦、心慌",
+  "入睡困难、多梦易醒3个月",
+  "问诊补充：心悸健忘，纳差便溏，神疲乏力；无发热、胸痛、呼吸困难",
+  "四诊：舌淡，脉细弱",
 ].join("\n");
 
 const westernDiagnosis = {
   primary: {
-    name: "夜间出汗伴入睡困难症状",
-    status: "证据有限",
-    confidence: "低",
-    supportingFacts: ["夜间出汗伴入睡困难1个月", "盗汗以入睡后为主，醒后可缓解"],
-    limitations: ["现有资料不足以满足具体疾病的完整诊断标准"],
-    suggestedChecks: ["结合病程、查体及必要检查鉴别继发性原因"],
+    name: "失眠症状",
+    status: "考虑",
+    confidence: "中",
+    supportingFacts: ["入睡困难、多梦易醒3个月"],
+    clinicalRationale: "持续入睡困难并多梦易醒支持失眠症状方向；当前未提供日间功能损害和睡眠量表结果，因此不升级为更具体的睡眠障碍诊断。",
+    limitations: ["未提供日间功能损害和睡眠量表结果"],
+    suggestedChecks: ["评估日间功能和睡眠量表，必要时鉴别继发性原因"],
   },
   differentials: [],
 };
@@ -35,48 +36,51 @@ const boundedReasoning = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
   overview: {
-    primarySyndrome: "营卫失和、心神受扰证",
+    tcmDiseaseName: "不寐",
+    primarySyndrome: "心脾两虚证",
     primarySyndromeResolution: "bounded",
-    primarySyndromeBasis: ["夜间出汗伴入睡困难1个月"],
-    primarySyndromeResolutionReason: "当前仅有汗出与睡眠事实，寒热虚实及舌脉仍待四诊复核",
+    primarySyndromeBasis: ["心悸健忘", "纳差便溏", "神疲乏力", "舌淡", "脉细弱"],
+    primarySyndromeResolutionReason: "心悸健忘与纳差便溏并见，结合神疲、舌淡和脉细弱，支持心脾两虚。",
+    tcmDiagnosticRationale: "心悸健忘提示心血失养，纳差便溏和神疲提示脾气亏虚；舌淡、脉细弱与气血亏虚方向一致，故辨为不寐之心脾两虚证。",
     secondarySyndromes: [],
-    overallPathogenesis: "营卫失和，心神受扰",
-    overallTherapy: "调和营卫，宁心安神",
-    recommendedFormulaDirection: "围绕调和营卫、宁心安神进行本例辨证组方",
-    recommendedFormulaNames: [],
-    formulaSelectionMode: "self_devised",
+    overallPathogenesis: "脾气亏虚，心血失养",
+    overallTherapy: "健脾益气，养血安神",
+    recommendedFormulaDirection: "归脾汤加减",
+    recommendedFormulaNames: ["归脾汤"],
+    formulaSelectionMode: "single",
   },
   westernDiagnosis,
   pathogenesis: {
-    summary: "营卫失和，汗出不调；睡眠受扰，心神不宁",
+    summary: "脾气亏虚，心血失养",
     locationDifferentiation: {
-      items: ["心"],
+      items: ["心", "脾"],
       details: [],
       resolution: "bounded",
-      resolutionReason: "病位仅为有限资料下的功能性归纳",
+      resolutionReason: "心悸健忘与纳差便溏分别支持心、脾病位",
     },
     natureDifferentiation: {
-      items: ["功能失和"],
-      rootDeficiency: [],
+      items: ["气虚", "血虚"],
+      rootDeficiency: ["气虚", "血虚"],
       branchExcess: [],
-      basis: "",
+      basis: "神疲乏力、舌淡、脉细弱",
       resolution: "bounded",
-      resolutionReason: "现有事实不足以锁定寒热虚实",
+      resolutionReason: "神疲乏力支持气虚，舌淡脉细弱结合心悸健忘支持血虚",
     },
     chain: [{
       nodeId: "P1",
-      patientFact: "夜间出汗伴入睡困难1个月",
-      syndromeEvidence: "夜间出汗伴入睡困难1个月",
-      pathogenesis: "营卫失和，心神受扰",
-      therapyDirection: "调和营卫，宁心安神",
+      patientFact: "心悸健忘、纳差便溏、神疲乏力",
+      syndromeEvidence: "舌淡，脉细弱",
+      pathogenesis: "脾气亏虚，心血失养",
+      therapyDirection: "健脾益气，养血安神",
     }],
-    uncertainties: [{
-      item: "寒热虚实与舌脉",
-      reason: "本轮未提供舌脉及足够寒热虚实证据",
-      affects: "影响进一步证型与命名方选择",
-    }],
+    uncertainties: [],
   },
-  therapy: { overallPrinciple: "调和营卫，宁心安神", subTherapies: [] },
+  therapy: {
+    overallPrinciple: "虚则补之，心脾同治",
+    overallMethod: "健脾益气，养血安神",
+    subTherapies: [{ therapy: "健脾益气", targetPathogenesis: "脾气亏虚", priority: "主要" }],
+  },
+  management: { followupSafetyNet: "若失眠持续2周未改善或出现胸痛、呼吸困难、意识异常，及时复诊或急诊评估。" },
   formula: null,
 };
 

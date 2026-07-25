@@ -93,12 +93,21 @@ const sparseHeadacheChecks = buildTieredSuggestedChecks({
   safetyGate: { status: "ready" },
 }, ["头颅CT或MRI平扫+增强", "经颅多普勒", "血常规、肝肾功能"]);
 assert.match(sparseHeadacheChecks.join("；"), /先补充病程.*生命体征.*神经系统查体/);
-assert.match(sparseHeadacheChecks.join("；"), /出现红旗表现或神经系统查体异常/);
+assert.match(sparseHeadacheChecks.join("；"), /补充问诊或神经系统查体出现相应指征/);
 assert.doesNotMatch(sparseHeadacheChecks.join("；"), /CT|MRI|经颅多普勒/, "sparse non-red-flag cases must not present a routine advanced-imaging shopping list");
+assert.match(sparseHeadacheChecks.join("；"), /血常规、肝肾功能/, "grounded non-advanced checks survive sparse-case tiering");
 assert.deepEqual(
   buildTieredSuggestedChecks({ safetyGate: { status: "red_flag" } }, ["立即急诊头颅CT"]),
   ["立即急诊头颅CT"],
   "red-flag pathways must preserve urgent clinician-directed testing",
+);
+assert.deepEqual(
+  buildTieredSuggestedChecks(
+    { patient: { age: 45 }, symptoms: { presentHistory: "头痛3天" }, vitals: { bloodPressure: "126/78" }, safetyGate: { status: "ready" } },
+    ["复测血压并记录头痛变化；判断把握度低"],
+  ),
+  ["复测血压并记录头痛变化"],
+  "boilerplate removal must preserve the clinically useful part of the same line",
 );
 assert.equal(
   safeDietAdviceForDisplay("多食活血化瘀之品如山楂、黑木耳", { allergyHistory: "", medicationHistory: "" }),
@@ -112,8 +121,35 @@ assert.equal(
 );
 
 const diagnosisClientSource = fs.readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+const lineageSource = fs.readFileSync(new URL("../src/lib/tcm-lineages.ts", import.meta.url), "utf8");
 assert.doesNotMatch(diagnosisClientSource, /cdss-section-generation-basis|本次生成依据/, "generic generation-basis boilerplate must be removed from the report");
 assert.doesNotMatch(diagnosisClientSource, /Lingxi 建议性复核/, "the report must use the customer-facing reasonable-medication-review name");
+assert.doesNotMatch(diagnosisClientSource, /判断把握度/, "the clinician UI must show rationale and limitations instead of a low-confidence badge");
+assert.doesNotMatch(
+  diagnosisClientSource,
+  /证候锚点[：:]|从服务端中药知识库|和服务端中药知识库|闭集|受控|锚点|title="[^"]*(?:安全门控|红旗门控|服务端)/,
+  "the clinician UI must use clinical wording instead of exposing pipeline vocabulary",
+);
+assert.doesNotMatch(
+  lineageSource,
+  /证候锚点|安全门控|红旗门控|服务端/,
+  "lineage cards are rendered directly and therefore must remain clinician-facing at the data source",
+);
+assert.match(
+  diagnosisClientSource,
+  /data-testid="non-dose-prescription-result"[\s\S]{0,1400}summary\.currentConclusionSection/,
+  "the non-dose panel must render the server-owned current conclusion instead of a generic shell",
+);
+assert.match(
+  diagnosisClientSource,
+  /data-testid="tcm-differential-boundary"[\s\S]{0,240}tcmDifferentialBoundary/,
+  "a bounded TCM differential explanation must be visible when no differential row can be formed",
+);
+assert.match(
+  diagnosisClientSource,
+  /rendererId="lineage-section"[\s\S]{0,1800}lineageAdaptation\.safetyDeference/,
+  "structured lineage adaptation must have a visible, safety-bounded renderer",
+);
 
 const offsetViewportPosition = resolveToggleChipPanelPosition(
   { top: 720, bottom: 752, right: 600 },
@@ -156,7 +192,54 @@ const {
   applyDeterministicCandidateTherapyMatch,
   groundStructuredPatientFacts,
   normalizeDiagnoseConfidenceAndLabels,
+  sanitizeOptionalPathogenesisClassifications,
+  scrubInternalVocabularyFromVisibleText,
 } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+
+assert.equal(
+  scrubInternalVocabularyFromVisibleText("## 西医诊断\n**判断把握度**：低\n临床分析：现有病程尚需结合查体鉴别。"),
+  "## 西医诊断\n\n临床分析：现有病程尚需结合查体鉴别。",
+  "streaming drafts must omit confidence labels while preserving the clinically useful rationale",
+);
+assert.equal(
+  scrubInternalVocabularyFromVisibleText("流派偏好：经方思路；证候锚点：恶寒；红旗门控优先；药味由服务端中药知识库生成。"),
+  "流派偏好：经方思路；证候依据：恶寒；风险筛查规则优先；药味由中药知识库生成。",
+  "all streamed clinician-facing surfaces must scrub the whole internal-vocabulary class",
+);
+
+const sourceLevelResolutionBoundary = sanitizeOptionalPathogenesisClassifications([
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({
+    stage: "diagnose",
+    overview: {
+      primarySyndrome: "心脾两虚证",
+      primarySyndromeResolution: "resolved",
+      primarySyndromeBasis: ["模型改写的非逐字依据"],
+    },
+    pathogenesis: {
+      locationDifferentiation: {
+        items: ["心"],
+        details: [{ location: "心", basis: "模型改写的非逐字依据" }],
+        resolution: "resolved",
+      },
+      natureDifferentiation: {
+        items: ["虚"],
+        rootDeficiency: [],
+        branchExcess: [],
+        basis: "模型改写的非逐字依据",
+        resolution: "resolved",
+      },
+    },
+  }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n"), "患者入睡困难3个月，多梦易醒，舌淡，脉细。");
+const sourceLevelResolutionJson = JSON.parse(
+  sourceLevelResolutionBoundary.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim(),
+);
+assert.doesNotMatch(sourceLevelResolutionBoundary, /有限资料下的工作判断|有限资料下的工作归纳/);
+assert.match(sourceLevelResolutionJson.overview.primarySyndromeResolutionReason, /心脾两虚证.*0条.*可逐字回溯/);
+assert.match(sourceLevelResolutionJson.pathogenesis.locationDifferentiation.resolutionReason, /病位“心”.*0条.*可逐字回溯/);
+assert.match(sourceLevelResolutionJson.pathogenesis.natureDifferentiation.resolutionReason, /病性“虚”.*缺少.*可逐字回溯/);
 
 const sparseM03WithoutChain = [
   "<!-- DIAGNOSIS_JSON_START -->",
@@ -206,6 +289,32 @@ const jsonArtifactGroundingContent = groundStructuredPatientFacts([
 const jsonArtifactGroundingJson = JSON.parse(jsonArtifactGroundingContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
 assert.doesNotMatch(JSON.stringify(jsonArtifactGroundingJson.westernDiagnosis.primary.supportingFacts), /\\?"presentHistory\\?"/, "serialized CaseState keys must never leak into clinician-facing supporting facts");
 
+const deduplicatedDifferentialsContent = groundStructuredPatientFacts([
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({
+    stage: "diagnose",
+    westernDiagnosis: {
+      primary: { name: "活动后喘鸣症状", supportingFacts: ["活动后喘鸣"] },
+      differentials: [
+        { name: "劳力性呼吸困难待查：考虑心源性可能，需排除阻塞性睡眠呼吸暂停", reason: "夜间憋醒", nextCheck: "睡眠呼吸监测" },
+        { name: " 阻塞性睡眠呼吸暂停 ", reason: "需结合打鼾史", nextCheck: "Epworth嗜睡量表" },
+        { name: "支气管哮喘", reason: "活动后喘鸣", nextCheck: "肺功能检查" },
+      ],
+    },
+    pathogenesis: { chain: [] },
+  }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n"), "主诉：活动后喘鸣，晚上有时憋醒");
+const deduplicatedDifferentials = JSON.parse(deduplicatedDifferentialsContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).westernDiagnosis.differentials;
+assert.deepEqual(deduplicatedDifferentials.map((item) => item.name), ["阻塞性睡眠呼吸暂停", "支气管哮喘"], "M03 must remove duplicate differential labels as a class");
+assert.match(deduplicatedDifferentials[0].nextCheck, /睡眠呼吸监测.*Epworth嗜睡量表/, "deduplication must preserve distinct follow-up checks");
+const twiceGroundedDifferentialsContent = groundStructuredPatientFacts(
+  deduplicatedDifferentialsContent,
+  "主诉：活动后喘鸣，晚上有时憋醒",
+);
+const twiceGroundedDifferentials = JSON.parse(twiceGroundedDifferentialsContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).westernDiagnosis.differentials;
+assert.deepEqual(twiceGroundedDifferentials, deduplicatedDifferentials, "M03 differential grounding must be idempotent so finalization cannot trigger a second stochastic clinical review");
+
 const therapyLockedM04 = applyDeterministicCandidateTherapyMatch(
   '<!-- DIAGNOSIS_JSON_START -->\n{"stage":"prescribe","formula":{"candidates":[{"therapyMatch":"补益心脾"}]}}\n<!-- DIAGNOSIS_JSON_END -->',
   {
@@ -236,7 +345,10 @@ const sparseQuestionState = { chiefComplaint: "夜间盗汗、睡不好一个月
 const repairedSingleQuestion = ensureSingleRoundQuestionContract("**问题1：** 这次不适持续多久？\n（追问理由：病程影响鉴别。）\n补录字段：现病史\n可选项：\nA. 一周内\nB. 一月以上\nC. 本次未取得该信息", sparseFallback, sparseQuestionState);
 assert.equal(parseQuestionItems(repairedSingleQuestion).length, 1, "one valid model question remains one; the contract must not invent filler");
 assert.match(repairedSingleQuestion, /这次不适持续多久/);
-assert.match(sparseFallback, /加重、缓解还是反复波动/, "provider failure uses one generic clinical fallback rather than a disease keyword template");
+assert.match(sparseFallback, /每周大约几晚|白天功能/,
+  "provider failure uses a complaint-family decision axis instead of one cross-disease trajectory template");
+assert.match(sparseFallback, /打鼾|呼吸暂停|安眠药/);
+assert.doesNotMatch(sparseFallback, /阴虚|心火|心脾两虚|酸枣仁汤/, "the complaint-family fallback must not pre-commit diagnosis, syndrome, or formula");
 
 const tonguePulseCollection = parseQuestionItems([
   "**问题1：** 本次是否已经取得舌象和脉象实况？",
@@ -263,8 +375,8 @@ const fiveQuestions = Array.from({ length: 5 }, (_, index) => `**问题${index +
 assert.equal(parseQuestionItems(ensureSingleRoundQuestionContract(fiveQuestions)).length, 2, "the one-round contract must cap provider output to two branch-changing questions");
 const repairedEmptyQuestion = ensureSingleRoundQuestionContract("本次未输出可解析问题。", sparseFallback);
 const fallbackItems = parseQuestionItems(repairedEmptyQuestion);
-assert.equal(fallbackItems.length, 1, "provider formatting failure yields one safe generic question and does not recreate a keyword expert system");
-assert.match(fallbackItems[0].question, /加重、缓解还是反复波动/);
+assert.equal(fallbackItems.length, 1, "the low-level compatibility helper retains one bounded fallback block");
+assert.match(fallbackItems[0].question, /每周大约几晚|白天/);
 assert.doesNotMatch(repairedEmptyQuestion, /证候归纳|病机关联|安全边界|确定性安全门控/);
 const missingQuestionEnvelope = ensureQuestionStructuredEnvelope(repairedEmptyQuestion);
 assert.match(missingQuestionEnvelope, /DIAGNOSIS_JSON_START/);
@@ -278,7 +390,7 @@ const lowValueQuestions = [
 const repairedLowValue = ensureSingleRoundQuestionContract(lowValueQuestions, sparseFallback, sparseQuestionState);
 assert.equal(parseQuestionItems(repairedLowValue).length, 1);
 assert.doesNotMatch(repairedLowValue, /喜欢什么颜色|从事什么职业/);
-assert.match(repairedLowValue, /加重、缓解还是反复波动/);
+assert.match(repairedLowValue, /每周大约几晚|白天/);
 
 const duplicateCourseQuestions = [
   "**问题1：** 这次不适持续多久？\n（追问理由：病程影响判断。）\n补录字段：现病史\n可选项：\nA. 一周内\nB. 一月以上\nC. 本次未取得该信息",
@@ -344,6 +456,15 @@ for (const prompt of [buildDiagnosePrompt(promptConversationFixture), buildPresc
   assert.ok(prompt.includes("问题1：暂不清楚/无明显感觉"), "the submitted patient answer must remain in downstream model context");
   assert.ok(!prompt.includes("患者诉怕冷，手脚发凉，喜温喜热饮"), "unanswered AI options must never enter downstream clinical facts");
 }
+const sparseDiagnosePrompt = buildDiagnosePrompt(promptConversationFixture);
+assert.match(sparseDiagnosePrompt, /items=\[\].*resolution=unresolved/, "M03 generation resolves unsupported location and nature explicitly instead of inventing fields");
+assert.match(sparseDiagnosePrompt, /overview\.tcmDiseaseName 不得留空/, "M03 generation always returns a patient-facing TCM working disease name");
+assert.match(sparseDiagnosePrompt, /阳性事实→核心推理/, "M03 generation performs the same evidence projection required by its independent reviewer");
+assert.match(sparseDiagnosePrompt, /不得自动补出痰湿、寒热、血瘀、阴虚、阳虚、气虚、血虚/, "sparse M03 generation blocks the recurring unsupported nature classes before review");
+assert.match(sparseDiagnosePrompt, /pathogenesis\.summary 只能归纳/, "M03 summary is constrained to a projection of already-supported core reasoning");
+assert.match(sparseDiagnosePrompt, /不得逐项串联或复制 supportingFacts/, "M03 prompt forbids the live failure mode where Western rationale merely re-punctuates the fact list");
+assert.match(sparseDiagnosePrompt, /病程\/表现模式 → 当前工作诊断 → 尚缺哪类病因判别信息/, "M03 prompt gives a concrete non-restatement reasoning sequence");
+assert.match(sparseDiagnosePrompt, /没有具体病因候选时写“具体病因”而不得臆造疾病/, "M03 prompt keeps the rationale repair from inventing an etiologic diagnosis");
 
 const stableM03 = {
   schemaVersion: "tcm-cdss-reasoning-v2",
@@ -383,6 +504,17 @@ const rareOccupationCase = normalizeCaseStateInput({
 });
 const completeScrubbedExport = scrubReportPhi(buildCompleteReport(rareOccupationCase), rareOccupationCase);
 assert.doesNotMatch(completeScrubbedExport, /occupation|大学教授/, "the real report builder never exports a rare occupation quasi-identifier");
+const governedCustomerReport = buildCompleteReport({
+  ...rareOccupationCase,
+  diagnosis: "## 西医诊断\n程序化安全门控已通过；stage-contract 与 sentinel 正常。",
+  prescription: "## 候选方药\n剂量级候选方药已形成。",
+});
+assert.doesNotMatch(
+  governedCustomerReport,
+  /程序化安全门控|stage-contract|sentinel|剂量级/,
+  "page and exported-report surfaces must consume T7's governed doctor-facing vocabulary",
+);
+assert.match(governedCustomerReport, /风险筛查规则|输出结构校验|包含具体用量的处方建议/);
 
 const stableM04 = {
   schemaVersion: "tcm-cdss-reasoning-v2",
@@ -451,6 +583,11 @@ assert.equal(unavailableAudit.tone, "yellow");
 assert.match(unavailableAudit.label, /未完成.*仅提示/);
 assert.doesNotMatch(unavailableAudit.label, /未见强提示/);
 assert.equal(prescriptionRiskLabel("strong", false).tone, "red", "known strong risk must remain authoritative when automatic audit is unavailable");
+assert.equal(
+  prescriptionRiskLabel("info").label,
+  "待补充信息后再评估",
+  "doctor-facing risk copy must state the next action instead of using the generic '信息不足' label",
+);
 assert.match(WORKBENCH_REFRESH_WARNING, /刷新或关闭页面会丢失/);
 const managementNarrative = "## 中医辨证结论\n完整候选方案\n## 下一步管理\n建议完善甲功后再评估。";
 assert.equal(hasExecutableM03Diagnosis({ diagnosis: managementNarrative, reasoningDiagnose: stableM03 }), true, "governed M03 must not be overturned by management prose");
@@ -532,7 +669,7 @@ assert.equal(missingVitals.score, 99);
 assert.equal(missingVitals.label, "需现场复核");
 assert.equal(missingVitals.tone, "yellow");
 assert.match(missingVitals.desc, /未录入实测生命体征，开方前需现场复核/);
-assert.match(missingVitals.desc, /非高风险病例不因此阻断剂量级候选生成/);
+assert.match(missingVitals.desc, /非高风险病例不因此阻断候选处方生成/);
 
 assert.deepEqual(resolveSufficiencyDisplay(complete, {
   hasMeasuredVitals: true,
@@ -598,10 +735,11 @@ const lowConfidenceM03 = [
   "<!-- DIAGNOSIS_JSON_START -->",
   JSON.stringify({
     stage: "diagnose",
-    overview: { primarySyndrome: "肺阴虚证", overallPathogenesis: "肺阴不足", overallTherapy: "养阴润肺", recommendedFormulaDirection: "养阴润肺", evidence: { evidenceLevel: "model_inference", source: "病例内推理", confidence: "中" } },
-    westernDiagnosis: { primary: { name: "病历记录头痛阳性；病历记录否认头痛", status: "考虑", confidence: "中", supportingFacts: [], limitations: [], suggestedChecks: [], evidence: { evidenceLevel: "model_inference", source: "病例内推理", confidence: "中" } }, differentials: [] },
-    pathogenesis: { chain: [{ nodeId: "P8", patientFact: "脑梗死后右侧肢体乏力3个月", syndromeEvidence: "肢体无力", pathogenesis: "肺阴不足", therapyDirection: "养阴润肺" }], uncertainties: [] },
-    therapy: { overallPrinciple: "虚则补之", subTherapies: [] },
+    overview: { tcmDiseaseName: "中风", primarySyndrome: "肺阴虚证", tcmDiagnosticRationale: "肢体乏力结合病程支持当前中医工作判断，具体证候仍需独立复核。", tcmDifferentials: [], overallPathogenesis: "肺阴不足", overallTherapy: "养阴润肺", recommendedFormulaDirection: "养阴润肺", evidence: { evidenceLevel: "model_inference", source: "病例内推理", confidence: "中" } },
+    westernDiagnosis: { primary: { name: "病历记录头痛阳性；病历记录否认头痛", status: "考虑", confidence: "中", supportingFacts: [], clinicalRationale: "现有病程支持症状级工作判断，但具体诊断标签仍需独立复核。", limitations: [], suggestedChecks: [], evidence: { evidenceLevel: "model_inference", source: "病例内推理", confidence: "中" } }, differentials: [] },
+    pathogenesis: { locationDifferentiation: { items: ["肺"], resolution: "bounded", resolutionReason: "病位由当前病机归纳" }, chain: [{ nodeId: "P8", patientFact: "脑梗死后右侧肢体乏力3个月", syndromeEvidence: "肢体无力", pathogenesis: "肺阴不足", therapyDirection: "养阴润肺" }], uncertainties: [] },
+    therapy: { overallPrinciple: "虚则补之", overallMethod: "益气养阴，兼顾通络", subTherapies: [{ therapy: "养阴润肺", targetPathogenesis: "肺阴不足", priority: "主要" }] },
+    management: { followupSafetyNet: "若肢体乏力明显加重或出现新发言语不清、口角歪斜，立即急诊评估。" },
     formula: null,
   }),
   "<!-- DIAGNOSIS_JSON_END -->",
@@ -617,8 +755,8 @@ assert.equal(normalizedM03Json.overview.evidence.confidence, "中", "the groundi
 assert.deepEqual(normalizedM03Json.pathogenesis.uncertainties, [], "the grounding pass must not synthesize clinical uncertainties that the model did not return");
 assert.equal(normalizedM03Json.pathogenesis.chain.length, 1, "a fuzzy provider wording may survive only after being replaced by the exact chart quote");
 assert.equal(normalizedM03Json.pathogenesis.chain[0].patientFact, "主诉：脑梗死后右侧肢体无力3个月，要求康复调理");
-assert.equal(normalizedM03Json.pathogenesis.chain[0].syndromeEvidence, "主诉：脑梗死后右侧肢体无力3个月，要求康复调理");
-assert.equal(isStableM03Reasoning(normalizedM03Json, lowConfidenceContext), true, "the deterministic boundary validates structure and source grounding; semantic support is owned by the independent clinical model review before signing");
+assert.equal(normalizedM03Json.pathogenesis.chain[0].syndromeEvidence, "肢体无力", "evidence remains a distinct grounded observation instead of being overwritten by patientFact");
+assert.equal(isStableM03Reasoning(normalizedM03Json, lowConfidenceContext), false, "grounded observations alone cannot sign an unsupported mechanism and treatment chain");
 
 const allUngroundedChain = lowConfidenceM03
   .replace("脑梗死后右侧肢体乏力3个月", "纳差便溏、神疲乏力")

@@ -62,8 +62,7 @@ async function waitForFullResult(page) {
   // The streamed M04 body appears immediately, but an upstream model repair can make the
   // authoritative replacement a long-tail request. Keep the release journey strict about
   // visible streaming while allowing the completed M05 handoff enough time to arrive.
-  // 合理用药审查只在存在风险或审查未完成时展示，用稳定 section id 等待。
-  await page.locator("#cdss-section-risk-review").waitFor({ state: "visible", timeout: 120_000 });
+  // 合理用药审查在无具体风险时应完全隐藏，不能把该可选区域当作完成信号。
   await page.getByText("健康调护与随访", { exact: true }).waitFor({ state: "visible", timeout: 120_000 });
   await screenshot(page, "m05-complete");
 }
@@ -87,6 +86,7 @@ try {
   await screenshot(page, "initial-workspace");
   check("首屏是可用诊疗工作台", await page.getByText("门诊病历", { exact: true }).isVisible());
 
+  await page.getByTestId("patient-sex").selectOption("男");
   await page.getByTestId("chief-complaint").fill("头晕反复3天");
   await page.getByTestId("present-history").fill("起身或转头时明显，每次持续数分钟，休息后缓解，无晕厥、胸痛或呼吸困难。");
   await screenshot(page, "history-entered");
@@ -142,6 +142,8 @@ try {
   check("候选方药不把病例推断冒充参考依据", !/参考依据[^\n]*基于本例病史与症状推断/.test(prescriptionText), prescriptionText.slice(0, 500));
   const reportText = await page.getByTestId("ai-report-v2").innerText();
   check("客户报告不展示证据占位词", !/证据不足|待检索|内部证据缺口/.test(reportText));
+  check("客户报告不展示低把握度与有限资料免责套话", !/判断把握度低|当前为有限资料下的工作判断|接诊时核实相关症状是否存在|本次生成依据/.test(reportText));
+  check("完整饮片候选展示频次与服法", !/候选方药/.test(reportText) || /频次与服法|每日1剂/.test(reportText));
   const auditHeadings = page.getByText(/^合理用药审查(?:\s*·.*)?$/);
   const auditHeadingCount = await auditHeadings.count();
   check("合理用药审查无风险时隐藏、有风险时至多展示一次", auditHeadingCount <= 1, `count=${auditHeadingCount}`);

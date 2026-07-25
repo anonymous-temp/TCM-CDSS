@@ -19,7 +19,7 @@ const {
 } = await import("../src/lib/diagnosis-safety.ts");
 const { createInitialCaseState } = await import("../src/lib/diagnosis-types.ts");
 const { isUnknownClinicalFieldText, isUnknownClinicalText } = await import("../src/lib/clinical-state.ts");
-const { consumeCollectStream, consumeMarkdownStream, sanitizeCaseStateForBrowserPersistence, scrubPersistentPhiText } = await import("../src/lib/diagnosis-engine.ts");
+const { consumeCollectStream, consumeMarkdownStream, consumeMarkdownStreamWithMetadata, sanitizeCaseStateForBrowserPersistence, scrubPersistentPhiText } = await import("../src/lib/diagnosis-engine.ts");
 const { computePrescriptionVersionHash } = await import("../src/lib/prescription-version.ts");
 const { buildAuditData, buildAuditItemsFromHerbs, buildLingxiRiskSection } = await import("../src/lib/rxaudit.ts");
 const { normalizeExternalEvidenceResponse } = await import("../src/lib/evimed-guide.ts");
@@ -388,6 +388,15 @@ const duplicatedNarrative = {
 };
 const duplicatedCompleteness = deriveOperationalCompleteness(duplicatedNarrative);
 assert.ok(duplicatedCompleteness.infoGain < 0.7 && duplicatedCompleteness.answerability < 0.7, "copying the chief complaint into present history must not suppress the one-round follow-up");
+assert.equal(duplicatedCompleteness.level, "B", "主诉复制到现病史且只有默认四诊时必须优先追问，不能伪装成C级");
+for (const chiefComplaint of ["感冒", "头痛", "失眠", "乏力"]) {
+  const singleLine = {
+    ...createInitialCaseState(),
+    chiefComplaint,
+    symptoms: {},
+  };
+  assert.equal(deriveOperationalCompleteness(singleLine).level, "B", `${chiefComplaint}单行主诉应是可追问的B级，而不是A或C级`);
+}
 const distinctNarrative = {
   ...duplicatedNarrative,
   symptoms: { presentHistory: "头晕半年，翻身时天旋地转，每次约半分钟，无肢体无力和言语不清" },
@@ -691,10 +700,41 @@ const preservedDiagnosisIdentity = sanitizeUngroundedRedFlagNegations([
 const preservedDiagnosisIdentityJson = JSON.parse(preservedDiagnosisIdentity.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim());
 assert.equal(preservedDiagnosisIdentityJson.westernDiagnosis.primary.name, "偏头痛");
 assert.doesNotMatch(preservedDiagnosisIdentityJson.westernDiagnosis.primary.supportingFacts.join("；"), /患者无胸痛/);
+const mixedHeadacheSource = stateFromRecord(
+  "头疼头晕、入睡困难2个月，多梦易醒；否认突发最剧烈头痛、复视、言语不清、肢体无力、喷射性呕吐。",
+  { zhushu: "头疼头晕，睡不着觉" },
+);
+const exactGroundedRuleOut = "否认突发最剧烈头痛、复视、言语不清、肢体无力、喷射性呕吐";
+const preservedGroundedSupport = sanitizeUngroundedRedFlagNegations([
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({
+    stage: "diagnose",
+    westernDiagnosis: {
+      primary: {
+        name: "头痛症状",
+        supportingFacts: ["头疼头晕，睡不着觉", exactGroundedRuleOut],
+      },
+    },
+  }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n"), mixedHeadacheSource);
+const preservedGroundedSupportJson = JSON.parse(
+  preservedGroundedSupport.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim(),
+);
+assert.deepEqual(
+  preservedGroundedSupportJson.westernDiagnosis.primary.supportingFacts,
+  ["头疼头晕，睡不着觉", exactGroundedRuleOut],
+  "exact provenance-bearing support facts must remain byte-stable after output sanitization",
+);
+assert.doesNotMatch(
+  preservedGroundedSupportJson.westernDiagnosis.primary.supportingFacts.join("；"),
+  /病历已记录头痛阳性/,
+  "a qualified headache rule-out must not be expanded into a contradictory positive assertion",
+);
 const partialGrounded = sanitizeUngroundedRedFlagNegations("患者无胸痛、头痛。", stateFromRecord("患者否认胸痛。", { zhushu: "睡眠差" }));
 assert.match(partialGrounded, /否认胸痛/);
 assert.doesNotMatch(partialGrounded, /头痛.*待核实|阴性史待核实/);
-assert.match(partialGrounded, /本次主诉及伴随症状变化/);
+assert.match(partialGrounded, /病历尚未确认头痛是否存在/);
 const contradictedAcutePositive = sanitizeUngroundedRedFlagNegations(
   "未记录气促、大汗。",
   stateFromRecord("突发胸痛，伴气促、大汗。", { zhushu: "突发胸痛，伴气促、大汗" }),
@@ -707,20 +747,322 @@ const differentialNegations = sanitizeUngroundedRedFlagNegations(
 );
 assert.doesNotMatch(differentialNegations, /患者无怕冷|无打鼾|无面色苍白|无胸胁满/);
 for (const term of ["怕冷", "怕热", "消瘦", "突眼", "打鼾", "呼吸暂停", "面色苍白", "头晕", "胸胁满", "善太息"]) {
-  assert.doesNotMatch(differentialNegations, new RegExp(term), term);
+  assert.match(differentialNegations, new RegExp(term), `${term} must remain visible only as a specific unconfirmed boundary`);
 }
 assert.doesNotMatch(differentialNegations, /阴性史待核实|未记录|待核实/);
-assert.match(differentialNegations, /本次主诉及伴随症状变化/);
+assert.match(differentialNegations, /病历尚未确认.*是否存在/);
 
 const documentedNormal = stateFromRecord("本次肌酐与eGFR检查后，肾功能正常。", { zhushu: "复查" });
 const insomniaSynonyms = stateFromRecord("入睡困难，多梦易醒，醒后再睡困难。", { zhushu: "入睡困难、多梦易醒3个月" });
 const preservedInsomniaSynonyms = sanitizeUngroundedRedFlagNegations("患者失眠、早醒，病程3个月。", insomniaSynonyms);
 assert.match(preservedInsomniaSynonyms, /患者失眠、早醒/);
 assert.doesNotMatch(preservedInsomniaSynonyms, /阳性表现未在本次病历中明确记录/);
+const colloquialSleepLatency = stateFromRecord(
+  "躺床上脑子停不下来，得一两个小时才睡着。",
+  { zhushu: "躺床上脑子停不下来，得一两个小时才睡着" },
+);
+const sanitizedSleepResolution = sanitizeUngroundedRedFlagNegations([
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({
+    stage: "diagnose",
+    overview: {
+      primarySyndromeResolution: "bounded",
+      primarySyndromeResolutionReason: "病历尚未确认入睡困难是否存在。",
+    },
+    pathogenesis: {
+      locationDifferentiation: {
+        items: [],
+        resolution: "unresolved",
+        resolutionReason: "病历尚未确认入睡困难是否存在。",
+      },
+    },
+  }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n"), colloquialSleepLatency);
+const sanitizedSleepResolutionJson = JSON.parse(
+  sanitizedSleepResolution.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim(),
+);
+for (const reason of [
+  sanitizedSleepResolutionJson.overview.primarySyndromeResolutionReason,
+  sanitizedSleepResolutionJson.pathogenesis.locationDifferentiation.resolutionReason,
+]) {
+  assert.doesNotMatch(reason, /尚未确认入睡困难是否存在/);
+  assert.match(reason, /已在病历中明确记录|有限判断/);
+}
+const twiceSanitizedSleepResolution = sanitizeUngroundedRedFlagNegations(sanitizedSleepResolution, colloquialSleepLatency);
+assert.equal(
+  twiceSanitizedSleepResolution,
+  sanitizedSleepResolution,
+  "bounded M03 resolution reasons must remain byte-idempotent across pre-review and pre-signature grounding",
+);
 const colloquialNightSweat = stateFromRecord("夜里总出汗，睡醒后才发现汗湿，睡不好一个月。", { zhushu: "夜里总出汗，睡不好一个月" });
 const preservedNightSweatConcept = sanitizeUngroundedRedFlagNegations("患者盗汗，伴睡眠不佳。", colloquialNightSweat);
 assert.match(preservedNightSweatConcept, /患者盗汗/);
 assert.doesNotMatch(preservedNightSweatConcept, /盗汗阳性表现未在本次病历中明确记录/);
+const colloquialDiarrhea = stateFromRecord("最近吃点东西就想跑厕所，稀稀的有半个月。", { zhushu: "吃东西后跑厕所，大便稀" });
+const preservedDiarrheaConcept = sanitizeUngroundedRedFlagNegations("患者无发热、腹痛或腹泻。", colloquialDiarrhea);
+assert.match(preservedDiarrheaConcept, /病历已记录腹泻阳性/, "colloquial loose-stool phrases must ground the canonical diarrhoea concept");
+for (const documentedAbdominalPain of [
+  "来月经第一天肚子疼得蜷着，热水袋捂着好点。",
+  "小肚子一阵一阵地痛。",
+  "肚脐周围隐隐疼。",
+  "上腹持续疼了两天。",
+]) {
+  const abdominalState = stateFromRecord(documentedAbdominalPain, { zhushu: documentedAbdominalPain });
+  const preservedAbdominalPain = sanitizeUngroundedRedFlagNegations("患者腹痛，局部喜温喜按。", abdominalState);
+  assert.match(preservedAbdominalPain, /患者腹痛/, `${documentedAbdominalPain} must ground the canonical abdominal-pain concept`);
+  assert.doesNotMatch(preservedAbdominalPain, /尚未确认腹痛/);
+  assert.match(
+    sanitizeUngroundedRedFlagNegations("病历尚未确认腹痛是否存在。", abdominalState),
+    /病历已记录腹痛阳性/,
+    "a documented colloquial abdominal-pain complaint cannot be weakened into an unknown canonical symptom",
+  );
+}
+for (const deniedAbdominalPain of ["肚子一点也不疼。", "没有小腹痛。"]) {
+  assert.doesNotMatch(
+    sanitizeUngroundedRedFlagNegations("病历尚未确认腹痛是否存在。", stateFromRecord(deniedAbdominalPain, { zhushu: deniedAbdominalPain })),
+    /病历已记录腹痛阳性/,
+    `${deniedAbdominalPain} must not be promoted to positive abdominal pain`,
+  );
+}
+for (const documentedConstipation of [
+  "大便老解不出来，四五天一次。",
+  "排便很费劲，每3天1次。",
+  "隔三天才解一次大便。",
+  "一周只有两次排便。",
+]) {
+  const preservedConstipationConcept = sanitizeUngroundedRedFlagNegations(
+    "病历尚未确认便秘是否存在。",
+    stateFromRecord(documentedConstipation, { zhushu: documentedConstipation }),
+  );
+  assert.match(preservedConstipationConcept, /病历已记录便秘阳性/, `${documentedConstipation} must ground the canonical constipation concept`);
+  assert.doesNotMatch(preservedConstipationConcept, /尚未确认便秘/);
+}
+assert.doesNotMatch(preservedDiarrheaConcept, /尚未确认腹泻/, "an affirmed colloquial symptom must never be rewritten as unknown");
+const localizedItching = stateFromRecord("鼻子眼睛都痒，没有发热、脸痛和黄脓鼻涕。", { zhushu: "喷嚏、清鼻涕，鼻子眼睛都痒" });
+const preservedItchingConcept = sanitizeUngroundedRedFlagNegations("病历尚未确认瘙痒是否存在。", localizedItching);
+assert.match(preservedItchingConcept, /病历已记录瘙痒阳性/, "localized nose/eye itching must ground the broader itching concept");
+assert.doesNotMatch(preservedItchingConcept, /尚未确认瘙痒/, "a documented localized symptom cannot be rewritten as an unknown broader symptom");
+for (const [canonical, colloquial] of [
+  ["咳嗽", "感冒好了还一直干咳"],
+  ["呼吸困难", "活动后喘不上气"],
+  ["心悸", "这两天总是心慌、心跳快"],
+  ["胸闷", "胸口发闷像堵着"],
+  ["恶心", "饭后反胃想吐"],
+  ["呕吐", "昨晚吐了两次"],
+  ["便秘", "四五天一次，大便难解"],
+]) {
+  const groundedConcept = sanitizeUngroundedRedFlagNegations(
+    `病历尚未确认${canonical}是否存在。`,
+    stateFromRecord(colloquial, { zhushu: colloquial }),
+  );
+  assert.match(groundedConcept, new RegExp(`病历已记录${canonical}阳性`), `${colloquial} must ground ${canonical}`);
+  assert.doesNotMatch(groundedConcept, new RegExp(`尚未确认${canonical}`));
+}
+const colloquialProductiveCough = stateFromRecord("早上老咳一口白痰，吸烟多年。", { zhushu: "早上老咳一口白痰" });
+assert.match(
+  sanitizeUngroundedRedFlagNegations("病历尚未确认咳嗽是否存在。", colloquialProductiveCough),
+  /病历已记录咳嗽阳性/,
+  "a verb-style productive-cough record must ground the canonical cough concept",
+);
+const coughCheckContent = [
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({
+    westernDiagnosis: {
+      primary: {
+        limitations: ["病历尚未确认咳嗽是否存在。", "吸烟年限仍需核实"],
+        suggestedChecks: ["病历尚未确认咳嗽是否存在。", "必要时行肺功能检查"],
+      },
+    },
+  }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n");
+const sanitizedCoughCheck = JSON.parse(
+  sanitizeUngroundedRedFlagNegations(coughCheckContent, colloquialProductiveCough)
+    .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+    .split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+assert.deepEqual(sanitizedCoughCheck.westernDiagnosis.primary.limitations, ["吸烟年限仍需核实"]);
+assert.deepEqual(sanitizedCoughCheck.westernDiagnosis.primary.suggestedChecks, ["必要时行肺功能检查"]);
+const duplicatedClinicalLists = JSON.parse(
+  sanitizeUngroundedRedFlagNegations([
+    "<!-- DIAGNOSIS_JSON_START -->",
+    JSON.stringify({
+      westernDiagnosis: {
+        primary: {
+          limitations: ["病历尚未确认头痛是否存在。", " 病历尚未确认头痛是否存在 ", "需补充颈部查体"],
+          suggestedChecks: ["颈部查体；", "颈部查体", "必要时影像学评估"],
+        },
+      },
+      management: { mustCollect: ["舌象、脉象", "舌象、脉象。", "疼痛加重缓解因素"] },
+    }),
+    "<!-- DIAGNOSIS_JSON_END -->",
+  ].join("\n"), stateFromRecord("低头看手机多，脖子僵。", { zhushu: "脖子僵" }))
+    .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+    .split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+assert.deepEqual(duplicatedClinicalLists.westernDiagnosis.primary.limitations, ["病历尚未确认头痛是否存在。", "需补充颈部查体"]);
+assert.deepEqual(duplicatedClinicalLists.westernDiagnosis.primary.suggestedChecks, ["颈部查体；", "必要时影像学评估"]);
+assert.deepEqual(duplicatedClinicalLists.management.mustCollect, ["舌象、脉象", "疼痛加重缓解因素"]);
+const exertionalWheeze = stateFromRecord("跑快了胸口呼呼响，晚上有时会憋醒。", { zhushu: "跑快了胸口呼呼响" });
+assert.match(
+  sanitizeUngroundedRedFlagNegations("病历尚未确认呼吸困难是否存在。", exertionalWheeze),
+  /病历已记录呼吸困难阳性/,
+  "colloquial exertional wheeze must prevent the respiratory manifestation from being relabelled unknown",
+);
+const wheezeDifferentialContent = [
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({
+    westernDiagnosis: {
+      differentials: [{
+        name: "心功能不全",
+        reason: "当前仅列为鉴别方向",
+        nextCheck: "病历尚未确认呼吸困难是否存在。",
+      }],
+    },
+  }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n");
+const sanitizedWheezeDifferential = JSON.parse(
+  sanitizeUngroundedRedFlagNegations(wheezeDifferentialContent, exertionalWheeze)
+    .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+    .split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+assert.equal(
+  sanitizedWheezeDifferential.westernDiagnosis.differentials[0].nextCheck,
+  "结合已记录的呼吸困难，进一步评估严重度、诱发因素及必要检查",
+);
+const colloquialHeadache = stateFromRecord("右边脑袋一跳一跳地疼，见光就烦。", { zhushu: "右边脑袋一跳一跳地疼" });
+assert.match(
+  sanitizeUngroundedRedFlagNegations("病历尚未确认头痛是否存在。", colloquialHeadache),
+  /病历已记录头痛阳性/,
+  "a colloquial location-and-quality headache description must ground the canonical headache concept",
+);
+const tightBandHeadache = stateFromRecord("最近天天头上像戴了个紧箍，脖子也酸。", { zhushu: "头上像戴了个紧箍" });
+assert.match(
+  sanitizeUngroundedRedFlagNegations("病历尚未确认头痛是否存在。", tightBandHeadache),
+  /病历已记录头痛阳性/,
+  "a tight-band head complaint must not be weakened into an unknown headache",
+);
+const headacheUncertaintyContent = [
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({
+    pathogenesis: {
+      uncertainties: [{ item: "头痛", reason: "病历尚未确认头痛是否存在。", affects: "影响病情评估" }],
+    },
+    management: { mustCollect: ["病历尚未确认头痛是否存在。", "进一步询问头痛伴随表现"] },
+  }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n");
+const sanitizedHeadacheUncertainty = JSON.parse(
+  sanitizeUngroundedRedFlagNegations(headacheUncertaintyContent, colloquialHeadache)
+    .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+    .split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+assert.deepEqual(sanitizedHeadacheUncertainty.pathogenesis.uncertainties, [], "an uncertainty row contradicted by a documented positive fact is removed instead of rewritten into a false known-state explanation");
+assert.deepEqual(sanitizedHeadacheUncertainty.management.mustCollect, ["进一步询问头痛伴随表现"]);
+const sanitizedFollowupSafetyNet = JSON.parse(
+  sanitizeUngroundedRedFlagNegations([
+    "<!-- DIAGNOSIS_JSON_START -->",
+    JSON.stringify({ management: { followupSafetyNet: "病历尚未确认头痛是否存在。" } }),
+    "<!-- DIAGNOSIS_JSON_END -->",
+  ].join("\n"), colloquialHeadache)
+    .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+    .split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+assert.match(sanitizedFollowupSafetyNet.management.followupSafetyNet, /病历已记录头痛阳性/);
+assert.match(sanitizedFollowupSafetyNet.management.followupSafetyNet, /持续不缓解.*及时复诊/);
+assert.match(sanitizedFollowupSafetyNet.management.followupSafetyNet, /立即急诊评估/);
+const twiceSanitizedFollowupSafetyNet = JSON.parse(
+  sanitizeUngroundedRedFlagNegations([
+    "<!-- DIAGNOSIS_JSON_START -->",
+    JSON.stringify(sanitizedFollowupSafetyNet),
+    "<!-- DIAGNOSIS_JSON_END -->",
+  ].join("\n"), colloquialHeadache)
+    .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+    .split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+assert.equal(
+  twiceSanitizedFollowupSafetyNet.management.followupSafetyNet,
+  sanitizedFollowupSafetyNet.management.followupSafetyNet,
+  "conditional follow-up triggers must remain idempotent across M03 and M04 output grounding",
+);
+assert.match(twiceSanitizedFollowupSafetyNet.management.followupSafetyNet, /立即急诊评估/);
+const colloquialNeurologicNegations = stateFromRecord(
+  "右边脑袋一跳一跳地疼；不是突然最痛，没有发热、手脚无力和说话不清。",
+  { zhushu: "右边脑袋一跳一跳地疼" },
+);
+const reconciledNeurologicNegations = sanitizeUngroundedRedFlagNegations(
+  "病历尚未确认言语不清、肢体无力是否存在。",
+  colloquialNeurologicNegations,
+);
+assert.match(reconciledNeurologicNegations, /病历已记录否认言语不清、肢体无力/);
+assert.doesNotMatch(reconciledNeurologicNegations, /尚未确认(?:言语不清|肢体无力)/);
+for (const [canonical, documentedDenials] of [
+  ["呕血", ["没吐过血。", "否认吐血。", "没有呕出鲜血。", "没吐咖啡色液体。"]],
+  ["黑便", ["没有大便发黑。", "否认排黑色便。", "没解过柏油样便。"]],
+  ["便血", ["没有大便带血。", "否认血便。", "没解过血便。"]],
+  ["咯血", ["没有咳血。", "否认咳出血。"]],
+]) {
+  for (const documentedDenial of documentedDenials) {
+    const reconciledBleedingNegation = sanitizeUngroundedRedFlagNegations(
+      `病历尚未确认${canonical}是否存在。`,
+      stateFromRecord(documentedDenial, { zhushu: "复诊评估" }),
+    );
+    assert.match(
+      reconciledBleedingNegation,
+      new RegExp(`病历已记录否认${canonical}`),
+      `${documentedDenial} must ground the denied ${canonical} concept`,
+    );
+    assert.doesNotMatch(
+      reconciledBleedingNegation,
+      new RegExp(`尚未确认${canonical}`),
+      `${documentedDenial} must not be weakened from negative to unknown`,
+    );
+  }
+}
+assert.match(
+  sanitizeUngroundedRedFlagNegations("患者无呕血。", stateFromRecord("没吐过血。", { zhushu: "餐后上腹胀" })),
+  /患者无呕血/,
+  "a canonical model denial supported by a colloquial chart denial must survive output grounding",
+);
+for (const deniedRadiation of [
+  "疼痛不往腿上窜。",
+  "腰痛未向下肢放射。",
+  "疼只在腰上，没有串到腿上。",
+]) {
+  const reconciledRadiationNegation = sanitizeUngroundedRedFlagNegations(
+    "病历尚未确认放射痛是否存在。",
+    stateFromRecord(deniedRadiation, { zhushu: "搬东西后腰酸痛" }),
+  );
+  assert.match(reconciledRadiationNegation, /病历已记录否认放射痛/, `${deniedRadiation} must ground the denied radiation-pain concept`);
+  assert.doesNotMatch(reconciledRadiationNegation, /尚未确认放射痛/);
+}
+const documentedRadiationPain = stateFromRecord("腰痛向下肢放射，一直窜到小腿。", { zhushu: "腰痛向下肢放射" });
+assert.match(
+  sanitizeUngroundedRedFlagNegations("病历尚未确认放射痛是否存在。", documentedRadiationPain),
+  /病历已记录放射痛阳性/,
+  "documented radiation pain must be reconciled as positive rather than negative or unknown",
+);
+const conditionalRadiationPain = stateFromRecord("如果疼痛向下肢放射，请及时就诊。", { zhushu: "腰酸痛" });
+assert.match(
+  sanitizeUngroundedRedFlagNegations("病历尚未确认放射痛是否存在。", conditionalRadiationPain),
+  /病历尚未确认放射痛是否存在/,
+  "a conditional safety-net phrase must not become a patient assertion",
+);
+const knownConstipationWithUnknownAttributes = stateFromRecord(
+  "大便老解不出来，四五天一次，肚子还胀。",
+  { zhushu: "大便老解不出来，四五天一次" },
+);
+for (const unknownAttribute of [
+  "便秘相关的粪便性状、排便费力程度未记录。",
+  "病历未记录便秘相关细节。",
+  "既往史、用药史与便秘相关诱因未记录。",
+]) {
+  const preservedAttributeGap = sanitizeUngroundedRedFlagNegations(unknownAttribute, knownConstipationWithUnknownAttributes);
+  assert.equal(preservedAttributeGap, unknownAttribute, `a known constipation diagnosis must not erase its unknown attribute: ${unknownAttribute}`);
+  assert.doesNotMatch(preservedAttributeGap, /该症状已在病历中明确记录|病历已记录便秘阳性/);
+}
 assert.match(sanitizeUngroundedRedFlagNegations("本次肾功能正常。", documentedNormal), /肾功能正常/);
 const documentedThyroid = stateFromRecord(`${todayText}甲状腺功能未见明显异常。`, { zhushu: "失眠", age: "48岁" });
 assert.match(sanitizeUngroundedRedFlagNegations("具体年龄未提供；甲状腺功能待核实。", documentedThyroid), /年龄已记录为48岁/);
@@ -807,15 +1149,26 @@ assert.deepEqual(normalizeExternalEvidenceResponse("literature", {
   data: [{ title: "伪造文献", url: "http://127.0.0.1/fake", summary: "无可追溯元数据" }],
 }), [], "untraceable upstream metadata must not receive a customer-visible evidence ID");
 assert.deepEqual(normalizeExternalEvidenceResponse("instruction", "只有一段无来源说明书文本"), [], "unattributed full text is not a traceable instruction source");
-assert.deepEqual(normalizeExternalEvidenceResponse("instruction", {
+const traceableInstruction = normalizeExternalEvidenceResponse("instruction", {
   data: [{ drugName: "某药说明书", approvalNumber: "国药准字Z12345678", manufacturer: "某药企", summary: "适应证文本" }],
-}), [{
+});
+assert.equal(traceableInstruction.length, 1, "an instruction with product identity and approval number remains traceable");
+assert.deepEqual({
+  sourceKind: traceableInstruction[0].sourceKind,
+  title: traceableInstruction[0].title,
+  publisher: traceableInstruction[0].publisher,
+  identifier: traceableInstruction[0].identifier,
+  medicineName: traceableInstruction[0].medicineName,
+  indication: traceableInstruction[0].indication,
+}, {
   sourceKind: "instruction",
   title: "某药说明书",
   publisher: "某药企",
   identifier: "国药准字Z12345678",
-  summary: "适应证文本",
-}], "an instruction with product identity and approval number remains traceable");
+  medicineName: "某药说明书",
+  indication: "适应证文本",
+});
+assert.match(traceableInstruction[0].fingerprint || "", /^sha256:[a-f0-9]{64}$/);
 
 const contradictoryPregnancy = stateFromRecord("已妊娠12周。", {
   zhushu: "入睡困难",
@@ -856,7 +1209,7 @@ const originalCandidate = {
     herb("夜交藤", "15g", "佐", "心神不宁", "养心安神"),
   ],
   formulaAnalysis: "酸枣仁为君，加夜交藤助君安神。",
-  decoction: { doseCount: "5剂", method: "每日1剂；冷水浸泡30分钟；煎煮2次；合并约400mL；早晚分服；夜交藤同煎", course: "5日", followUpNode: "5日复诊" },
+  decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日1剂；冷水浸泡30分钟；煎煮2次；合并约400mL；早晚分服；夜交藤同煎", course: "5日", followUpNode: "5日复诊" },
 };
 const editedHerbs = [
   originalCandidate.herbs[0],
@@ -946,14 +1299,15 @@ const structuredRegimen = {
   ...processedSynchronized.decoction,
   method: "水煎后早晚分服",
   followUpNode: "疗程结束复诊",
-  dailyDoseCount: 1,
+  dosesPerDay: 1,
+  administrationTimesPerDay: 2,
   followUpAfterDoses: 5,
   followUpAfterDays: 5,
 };
 assert.equal(prescriptionRegimenFromDecoction(structuredRegimen)?.dosesPerDay, 1, "structured regimen values are authoritative when display prose omits repeated numbers");
 assert.equal(prescriptionRegimenFromDecoction({ ...structuredRegimen, method: "" }), null, "structured dose count must not hide an empty administration method");
 assert.equal(prescriptionRegimenFromDecoction({ ...structuredRegimen, followUpNode: "" }), null, "structured follow-up numbers must not hide an empty follow-up instruction");
-assert.equal(prescriptionRegimenFromDecoction({ ...structuredRegimen, dailyDoseCount: 2 }), null);
+assert.equal(prescriptionRegimenFromDecoction({ ...structuredRegimen, dosesPerDay: 2 }), null);
 assert.equal(prescriptionRegimenFromDecoction({ ...structuredRegimen, followUpAfterDoses: 4 }), null);
 assert.equal(prescriptionRegimenFromDecoction({ ...structuredRegimen, followUpAfterDays: 7 }), null);
 assert.equal(prescriptionRegimenFromDecoction({ ...processedSynchronized.decoction, followUpNode: "30日后复诊" }), null);
@@ -1042,6 +1396,20 @@ const heartbeatPreviews = [];
 assert.equal(await consumeMarkdownStream(new Response(heartbeatFrames), (value) => heartbeatPreviews.push(value)), "最终临床内容");
 assert.ok(heartbeatPreviews.some((value) => /服务保持响应/.test(value)));
 
+const typedFollowupFrames = [
+  { type: "followup_timeline", timelineItems: [{ time: "3日后", action: "复诊", indicators: ["睡眠时长"], triggers: ["失眠加重时提前复诊"] }] },
+  { content: "## 随访管理方案\n请按计划复诊。" },
+  { content: "[END]" },
+].map((frame) => `${JSON.stringify(frame)}\n`).join("");
+const typedFollowupResult = await consumeMarkdownStreamWithMetadata(new Response(typedFollowupFrames), () => undefined);
+assert.equal(typedFollowupResult.content, "## 随访管理方案\n请按计划复诊。");
+assert.deepEqual(typedFollowupResult.followupTimeline, [{
+  time: "3日后",
+  action: "复诊",
+  indicators: ["睡眠时长"],
+  triggers: ["失眠加重时提前复诊"],
+}], "typed follow-up frames must reach the client as structured data instead of a dead channel");
+
 const trailingAfterEnd = [
   { content: "权威正文" },
   { content: "[END]" },
@@ -1101,4 +1469,4 @@ await assert.rejects(
   /长时间无数据/,
 );
 
-console.log(JSON.stringify({ cases: 168, failures: 0 }));
+console.log(JSON.stringify({ cases: 169, failures: 0 }));

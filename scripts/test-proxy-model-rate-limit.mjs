@@ -30,8 +30,19 @@ assert.ok(Number(limited.headers.get("retry-after")) > 0);
 assert.equal(limited.headers.get("x-ratelimit-limit"), "10");
 assert.equal(limited.headers.get("x-ratelimit-remaining"), "0");
 
-const cheapRoute = await proxy(request("/api/diagnosis/his-scheme"));
-assert.notEqual(cheapRoute.status, 429, "non-model API calls are not consumed by the model budget");
+for (const path of [
+  "/api/diagnosis/his-scheme",
+  "/api/diagnosis/assess",
+  "/api/diagnosis/red-flags",
+  "/api/diagnosis/post-prescription-risk",
+]) {
+  const deterministicRoute = await proxy(request(path));
+  assert.notEqual(
+    deterministicRoute.status,
+    429,
+    `${path} does not consume the text-model invocation budget`,
+  );
+}
 
 const unauthorized = await proxy(request("/api/diagnosis/diagnose", "wrong-token-that-is-long-enough"));
 assert.equal(unauthorized.status, 401, "rate limiting never substitutes for authentication");
@@ -56,4 +67,4 @@ assert.equal(cdssRequestOrigin(new Request(internalUrl, {
   headers: { "x-forwarded-proto": "https", "x-forwarded-host": "cdss.example" },
 })), "https://cdss.example", "valid proxy authority is accepted");
 
-console.log(JSON.stringify({ cases: 20, failures: 0 }));
+console.log(JSON.stringify({ cases: 23, failures: 0 }));

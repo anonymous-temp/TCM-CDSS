@@ -1,17 +1,20 @@
 import assert from "node:assert/strict";
 
-const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m04SemanticIssue, patientFactSourceQuote, stableM03SyndromeLabel, transparentFormulaTherapyIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, stableM03SyndromeLabel, transparentFormulaTherapyIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
 const { getM03TherapyLock } = await import("../src/lib/m03-therapy-lock.ts");
 const { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } = await import("../src/lib/m04-repair-policy.ts");
 const { editedPrescriptionSemanticIssue } = await import("../src/lib/prescription-revision.ts");
 const { decoctionRuleSatisfied, requiredDecoctionRequirement } = await import("../src/lib/herb-decoction-rules.ts");
-const { applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, sanitizeOptionalPathogenesisClassifications, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
-const { buildTcmHerbPairAdvisory, buildTcmKnowledgeContext, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionText, isKnownTcmHerbName } = await import("../src/lib/tcm-knowledge.ts");
+const { alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, sanitizeOptionalPathogenesisClassifications, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
+const { buildTcmHerbPairAdvisory, buildTcmKnowledgeContext, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } = await import("../src/lib/tcm-knowledge.ts");
+const { enrichReasoning } = await import("../src/lib/tcm-formula-provenance.ts");
 const { buildPrescribePrompt } = await import("../src/lib/diagnosis-prompts.ts");
 const { normalizeModelNullableText, normalizePrescriptionRole } = await import("../src/lib/diagnosis-types.ts");
 const { compileM04JsonObjectContent, compileM04Proposal, m04ProposalIssueCode } = await import("../src/lib/m04-proposal-compiler.ts");
 const { sanitizeDiagnoseStreamingDraft } = await import("../src/lib/diagnosis-stream-safety.ts");
 const { buildM04ClinicalReviewPayload, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, m04ClinicalReviewSemanticHash, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
+const { applyActionableFollowupSafetyNetContract, isActionableFollowupSafetyNet } = await import("../src/lib/followup-safety-net.ts");
+const { sanitizeUngroundedRedFlagNegations } = await import("../src/lib/diagnosis-safety.ts");
 
 assert.equal(requiredDecoctionRequirement("大黄"), "禁止久煎");
 assert.equal(decoctionRuleSatisfied("大黄", "久煎"), false);
@@ -36,7 +39,7 @@ assert.match(requiredDecoctionRequirement("菟丝子") || "", /包煎/);
 for (const [herb, method] of [
   ["砂仁", /后下/], ["荆芥", /后下/], ["紫苏叶", /后下/], ["薄荷", /后下/],
   ["石膏", /先煎/], ["鱼腥草", /后下/], ["苦杏仁", /后下/], ["木香", /后下/],
-  ["莱菔子", /包煎/], ["车前子", /包煎/], ["滑石", /包煎/], ["龙骨", /先煎/],
+  ["莱菔子", /包煎/], ["紫苏子", /包煎/], ["车前子", /包煎/], ["滑石", /包煎/], ["龙骨", /先煎/],
   ["牡蛎", /先煎/], ["龟甲", /先煎/], ["鳖甲", /先煎/], ["鹿茸", /另煎|冲服/],
 ]) {
   assert.match(requiredDecoctionRequirement(herb) || "", method, `${herb} must keep the method required by the live Lingxi common-herb calibration`);
@@ -45,6 +48,7 @@ assert.match(requiredDecoctionRequirement("龙骨") || "", /先煎/);
 assert.match(getTcmHerbFunctionText("煅龙骨"), /重镇安神药/);
 assert.match(getTcmHerbFunctionText("麦冬"), /养阴生津.*润肺清心/);
 assert.match(getTcmHerbFunctionText("生地黄"), /清热凉血.*养阴生津/);
+assert.match(getTcmHerbFunctionText("柴胡"), /疏肝解郁/, "柴胡's governed pharmacopoeia direction is shared by validation and clinical review");
 assert.deepEqual(
   { min: getTcmHerbDoseLimit("生地黄")?.min, max: getTcmHerbDoseLimit("生地黄")?.max },
   { min: 10, max: 15 },
@@ -57,14 +61,21 @@ assert.deepEqual(getTcmHerbDoseLimit("茯神"), { min: 10, max: 15, basis: "茯�
 assert.deepEqual(getTcmHerbDoseLimit("黄耆"), getTcmHerbDoseLimit("黄芪"), "formula-catalog and modern 黄芪 spellings must share one dose boundary");
 assert.equal(canonicalTcmHerbIdentity("黄耆"), canonicalTcmHerbIdentity("黄芪"), "historical spellings share one prescription identity");
 assert.equal(canonicalTcmHerbIdentity("元胡"), canonicalTcmHerbIdentity("延胡索"), "knowledge-source parenthetical aliases share one prescription identity");
-assert.equal(canonicalTcmHerbIdentity("炙甘草"), canonicalTcmHerbIdentity("甘草"), "a processed name without an independent knowledge row remains the same prescription source identity");
+assert.equal(canonicalTcmHerbIdentity("炙甘草"), "炙甘草", "T9 exact standard names retain their own governed prescription identity");
+assert.notEqual(canonicalTcmHerbIdentity("炙甘草"), canonicalTcmHerbIdentity("甘草"), "an independently governed processed drug must not be silently collapsed to its raw-drug identity");
+assert.equal(
+  patientFactSourceQuote("夜间干咳、咽痒", "感冒好了还一直干咳，嗓子痒\n差不多三周，晚上明显"),
+  "感冒好了还一直干咳，嗓子痒",
+  "verb-style cough wording must rebind a reordered model fact to the exact chart sentence instead of emptying M03",
+);
 assert.notEqual(canonicalTcmHerbIdentity("生地黄"), canonicalTcmHerbIdentity("熟地黄"), "independent knowledge rows must not be over-collapsed as processing aliases");
 assert.equal(canonicalTcmHerbIdentity("生地黄"), "生地黄", "生地黄 is a governed independent prescription identity, not generic 地黄 processing text");
 assert.equal(isKnownTcmHerbName("延胡索"), true, "parenthetical aliases in the knowledge source must resolve to the canonical herb row");
 assert.deepEqual({ min: getTcmHerbDoseLimit("延胡索")?.min, max: getTcmHerbDoseLimit("延胡索")?.max }, { min: 3, max: 10 });
 assert.equal(isKnownTcmHerbName("元胡"), true);
 assert.equal(isKnownTcmHerbName("丹皮"), true);
-assert.deepEqual({ min: getTcmHerbDoseLimit("板蓝根")?.min, max: getTcmHerbDoseLimit("板蓝根")?.max }, { min: 9, max: 15 }, "per-herb decoction records take precedence over a wider convenience table");
+assert.deepEqual({ min: getTcmHerbDoseLimit("板蓝根")?.min, max: getTcmHerbDoseLimit("板蓝根")?.max }, { min: 15, max: 15 }, "overlapping pharmacopoeia and clinic ranges use their conservative intersection");
+assert.deepEqual({ min: getTcmHerbDoseLimit("莱菔子")?.min, max: getTcmHerbDoseLimit("莱菔子")?.max }, { min: 6, max: 10 }, "M04 prevents a predictable downstream institutional-dose warning by intersecting overlapping governed ranges");
 assert.deepEqual({ min: getTcmHerbDoseLimit("何首乌")?.min, max: getTcmHerbDoseLimit("何首乌")?.max }, { min: 3, max: 6 }, "dose-source conflicts resolve to the governed per-herb decoction record");
 for (const [herb, min, max] of [
   ["石斛", 6, 12],
@@ -89,19 +100,34 @@ assert.equal(findTcmHerbPairIncompatibilities(["乌头", "半夏"]).length, 1, "
 assert.equal(findTcmHerbPairIncompatibilities(["酸枣仁", "川芎"]).length, 0);
 assert.match(buildTcmHerbPairAdvisory(["半夏", "乌头"]), /乌头—半夏.*重点复核.*不阻断诊疗流程/s);
 assert.equal(buildTcmHerbPairAdvisory(["酸枣仁", "川芎"]), "");
+assert.equal(getTcmHerbGenerationSafetyProfile("朱砂").isToxic, true);
+assert.ok(getTcmHerbGenerationSafetyProfile("朱砂").populationRules.some((rule) =>
+  rule.population === "肝功能不全" && rule.severity === "HIGH"));
+assert.equal(
+  m04GenerationSpecialPopulationIssue([{ name: "朱砂" }], "既往史：肝功能不全"),
+  "herb_0_special_population_high_risk_hepatic_impairment",
+);
+assert.equal(m04GenerationSpecialPopulationIssue([{ name: "朱砂" }], "既往史：否认肝功能不全"), undefined);
 const prescribePrompt = buildPrescribePrompt({ patient: {}, chiefComplaint: "失眠", conversation: [] });
 assert.match(prescribePrompt, /"modifications"/, "M04 proposal must expose the bounded IF-THEN modification channel");
 assert.match(prescribePrompt, /targetRef.*P1/, "every modification must reference an M03 pathogenesis node");
 assert.doesNotMatch(prescribePrompt, /## 加减方案/);
 assert.match(prescribePrompt, /tcm-cdss-m04-proposal-v1/);
 assert.match(prescribePrompt, /模型只提交需要临床生成的最小提案/);
-assert.match(prescribePrompt, /decoction 必须是单个对象.*doseCount 字符串.*不得省略/s, "M04 generator receives the exact executable regimen contract before any repair");
+assert.match(
+  prescribePrompt,
+  /decoction 必须是单个对象.*doseCount.*dosesPerDay.*administrationTimesPerDay.*不得省略/s,
+  "M04 generator receives all three controlled regimen dimensions before any repair",
+);
 assert.match(prescribePrompt, /恰有 1–2 味君药[\s\S]*targetRef=P1/, "M04 generation defines emperor cardinality and binds every emperor to P1 before any repair");
 const stable = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
   overview: {
+    tcmDiseaseName: "不寐",
     primarySyndrome: "心肝血虚证",
+    tcmDiagnosticRationale: "入睡困难结合舌淡脉细，支持心肝血虚、心神失养的工作判断。",
+    tcmDifferentials: [],
     overallPathogenesis: "血不养心，心神失舍",
     recommendedFormulaDirection: "酸枣仁汤加减",
     recommendedFormulaNames: ["酸枣仁汤"],
@@ -113,18 +139,161 @@ const stable = {
       status: "考虑",
       confidence: "中",
       supportingFacts: ["入睡困难"],
+      clinicalRationale: "持续入睡困难支持失眠症状方向，但日间功能受损尚未核实，暂不升级为确定诊断。",
       limitations: ["尚需结合日间功能受损情况"],
       suggestedChecks: [],
       evidence: { evidenceLevel: "model_inference", source: "基于本例已提供病史", confidence: "中" },
     },
     differentials: [],
   },
-  pathogenesis: { chain: [{ nodeId: "P1", patientFact: "入睡困难", syndromeEvidence: "舌淡脉细", pathogenesis: "心血不足", therapyDirection: "养血安神", pathogenesisType: "主因", biaoBen: "本虚" }] },
-  therapy: { overallPrinciple: "养血安神，疏肝解郁" },
+  pathogenesis: {
+    locationDifferentiation: { items: ["心", "肝"], resolution: "bounded", resolutionReason: "病位由当前证候和病机链归纳" },
+    chain: [{ nodeId: "P1", patientFact: "入睡困难", syndromeEvidence: "舌淡脉细", pathogenesis: "心血不足", therapyDirection: "养血安神", pathogenesisType: "主因", biaoBen: "本虚" }],
+  },
+  therapy: {
+    overallPrinciple: "扶正祛邪",
+    overallMethod: "养血安神，疏肝解郁",
+    subTherapies: [{ therapy: "养血安神", targetPathogenesis: "心血不足", priority: "主要" }],
+  },
+  management: { followupSafetyNet: "若失眠持续两周无改善或明显加重，请及时复诊" },
 };
 
 assert.equal(isStableM03Reasoning(stable), true);
-for (const name of ["功能性/感染性肠炎恢复期", "功能性腹泻或感染性腹泻", "胃炎、胃食管反流病待鉴别"]) {
+assert.equal(m03SemanticIssue({
+  ...stable,
+  management: { followupSafetyNet: "病历已记录头痛阳性。" },
+}), "followup_safety_net_not_actionable", "a symptom restatement is not an actionable follow-up safety net");
+assert.equal(m03SemanticIssue({
+  ...stable,
+  management: { followupSafetyNet: "若症状持续不缓解或明显加重，请及时复诊；突发意识改变时立即急诊评估。" },
+}), undefined, "a trigger plus a concrete care action satisfies the follow-up safety-net contract");
+const westernTcmPollution = structuredClone(stable);
+westernTcmPollution.westernDiagnosis.primary.name = "慢性咳嗽（痰湿型）";
+assert.equal(m03SemanticIssue(westernTcmPollution), "western_primary_tcm_pollution", "Western labels must never carry a TCM pattern suffix");
+const missingWesternRationale = structuredClone(stable);
+missingWesternRationale.westernDiagnosis.primary.clinicalRationale = "入睡困难";
+assert.equal(m03SemanticIssue(missingWesternRationale), "western_clinical_rationale_missing", "a fact restatement is not diagnostic reasoning");
+const weakWesternDifferential = structuredClone(stable);
+weakWesternDifferential.westernDiagnosis.differentials = [{ name: "焦虑相关睡眠障碍", reason: "压力大", nextCheck: "核实情绪" }];
+assert.equal(m03SemanticIssue(weakWesternDifferential), "western_differential_analysis_missing", "a Western differential needs an actual distinguishing point");
+const missingTcmDifferential = structuredClone(stable);
+missingTcmDifferential.overview.primarySyndromeResolution = "resolved";
+missingTcmDifferential.overview.primarySyndromeBasis = ["入睡困难", "舌淡脉细"];
+assert.equal(m03SemanticIssue(missingTcmDifferential), "discrimination_missing", "a resolved multi-fact TCM pattern must expose a TCM differential");
+const testDependentTcmRationale = structuredClone(stable);
+testDependentTcmRationale.overview.tcmDiagnosticRationale = "结合当前症状考虑心肝血虚，但缺乏MRI检查因此无法辨证。";
+assert.equal(m03SemanticIssue(testDependentTcmRationale), "tcm_reasoning_diagnostic_dependency", "missing modern tests cannot be used as the reason TCM differentiation fails");
+// TCM-native reasoning connectors (辨为/合参/病机/归纳/综合) must satisfy the rationale pre-filter —
+// a textbook derivation like "四诊合参…病机为…辨为…证" is real reasoning, not a missing rationale.
+// Anti-restatement stays enforced downstream, so widening the connector cannot pass a bare name.
+const tcmNativeConnectorRationale = structuredClone(stable);
+tcmNativeConnectorRationale.overview.tcmDiagnosticRationale = "四诊合参，入睡困难、心悸健忘、纳差便溏、面色少华、脉细弱，病机为脾虚失运、心血不足，辨为心脾两虚证。";
+assert.notEqual(m03SemanticIssue(tcmNativeConnectorRationale), "tcm_diagnostic_rationale_missing", "TCM-native reasoning verbs must satisfy the rationale connector pre-filter");
+const bareSyndromeNameRationale = structuredClone(stable);
+bareSyndromeNameRationale.overview.tcmDiagnosticRationale = "辨为心脾两虚证。";
+assert.equal(m03SemanticIssue(bareSyndromeNameRationale), "tcm_diagnostic_rationale_restatement", "a bare syndrome-name rationale with a connector is still caught as restatement downstream");
+const mechanismAsNature = structuredClone(stable);
+mechanismAsNature.pathogenesis.natureDifferentiation = { items: ["胃失和降"], evidence: { evidenceLevel: "model_inference", source: "本例四诊资料", confidence: "中" } };
+assert.equal(m03SemanticIssue(mechanismAsNature), "nature_item_is_mechanism", "disease nature and mechanism must not be conflated");
+const concreteMethodAsPrinciple = structuredClone(stable);
+concreteMethodAsPrinciple.therapy = { overallPrinciple: "疏肝清热，安神和胃", overallMethod: "疏肝清热，安神和胃", subTherapies: [] };
+assert.equal(m03SemanticIssue(concreteMethodAsPrinciple), "therapy_principle_invalid", "a concrete method cannot occupy the treatment-principle field");
+const validPrincipleAndMethod = structuredClone(stable);
+validPrincipleAndMethod.therapy = {
+  overallPrinciple: "因人制宜，扶正祛邪",
+  overallMethod: "养血安神，疏肝解郁",
+  subTherapies: [{ therapy: "养血安神", targetPathogenesis: "心血不足", priority: "主要" }],
+};
+assert.equal(m03SemanticIssue(validPrincipleAndMethod), undefined, "a treatment principle and its concrete method remain distinct");
+const singleNodeSingleMethod = structuredClone(stable);
+singleNodeSingleMethod.therapy = {
+  overallPrinciple: "扶正祛邪",
+  overallMethod: "养血安神",
+  subTherapies: [{ therapy: "养血安神", targetPathogenesis: "心血不足", priority: "主要" }],
+};
+assert.equal(m03SemanticIssue(singleNodeSingleMethod), undefined, "a single-node plan may use its sole therapy as the complete overall method");
+const mismatchedRootManifestationPrinciple = structuredClone(singleNodeSingleMethod);
+mismatchedRootManifestationPrinciple.therapy.overallPrinciple = "标本兼治";
+assert.equal(
+  m03SemanticIssue(mismatchedRootManifestationPrinciple),
+  "treatment_principle_target_mismatch",
+  "标本兼治 must be rejected unless sub-therapies cover distinct root and manifestation targets",
+);
+const restatedOverallPathogenesis = structuredClone(stable);
+restatedOverallPathogenesis.overview.overallPathogenesis = "入睡困难";
+assert.equal(
+  m03SemanticIssue(restatedOverallPathogenesis),
+  "overall_pathogenesis_restates_facts",
+  "overall pathogenesis must add a mechanism instead of copying a chart fact",
+);
+const duplicatedPathogenesisNodes = structuredClone(stable);
+duplicatedPathogenesisNodes.pathogenesis.chain.push({
+  nodeId: "P2",
+  patientFact: "舌淡脉细",
+  syndromeEvidence: "舌淡脉细",
+  pathogenesis: "心血不足",
+  therapyDirection: "疏肝解郁",
+  pathogenesisType: "兼夹",
+});
+duplicatedPathogenesisNodes.therapy.subTherapies.push({
+  therapy: "疏肝解郁",
+  targetPathogenesis: "肝血不足",
+  priority: "兼顾",
+});
+assert.equal(
+  m03SemanticIssue(duplicatedPathogenesisNodes),
+  "pathogenesis_nodes_duplicated",
+  "different M03 nodes must not repeat one pathogenesis sentence",
+);
+const duplicatedTherapyDirections = structuredClone(duplicatedPathogenesisNodes);
+duplicatedTherapyDirections.pathogenesis.chain[1].pathogenesis = "肝血不足";
+duplicatedTherapyDirections.pathogenesis.chain[1].therapyDirection = "养血安神";
+assert.equal(
+  m03SemanticIssue(duplicatedTherapyDirections),
+  "pathogenesis_therapy_directions_duplicated",
+  "different M03 nodes must not repeat one therapy direction",
+);
+const validTermsBeyondComponentTaxonomy = structuredClone(stable);
+validTermsBeyondComponentTaxonomy.pathogenesis.locationDifferentiation = {
+  items: ["咽喉"],
+  details: [],
+  resolution: "bounded",
+  resolutionReason: "咽部不适提示咽喉病位",
+};
+validTermsBeyondComponentTaxonomy.pathogenesis.natureDifferentiation = {
+  items: ["寒湿"],
+  rootDeficiency: [],
+  branchExcess: ["寒湿"],
+  basis: "遇冷加重，苔白腻",
+  resolution: "bounded",
+  resolutionReason: "寒湿为当前工作归纳",
+};
+assert.equal(m03SemanticIssue(validTermsBeyondComponentTaxonomy), undefined, "T2/T3 component-table misses remain reviewable instead of collapsing the full M03 result");
+const multiNodeUndecomposedMethod = structuredClone(stable);
+multiNodeUndecomposedMethod.pathogenesis.chain.push({
+  nodeId: "P2",
+  patientFact: "情志不畅",
+  syndromeEvidence: "脉弦",
+  pathogenesis: "肝气郁结",
+  therapyDirection: "疏肝解郁",
+  pathogenesisType: "兼夹",
+  biaoBen: "标实",
+});
+multiNodeUndecomposedMethod.therapy = {
+  overallPrinciple: "扶正祛邪",
+  overallMethod: "养血安神，疏肝解郁",
+  subTherapies: [
+    { therapy: "养血安神，疏肝解郁", targetPathogenesis: "心血不足", priority: "主要" },
+    { therapy: "疏肝解郁", targetPathogenesis: "肝气郁结", priority: "兼顾" },
+  ],
+};
+assert.equal(m03SemanticIssue(multiNodeUndecomposedMethod), "sub_therapy_repeats_overall_method", "a multi-node plan must decompose its combined overall method into distinct sub-therapies");
+const missingFollowupContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ ...stable, management: null })}\n<!-- DIAGNOSIS_JSON_END -->`;
+const completedFollowupContent = applyActionableFollowupSafetyNetContract(missingFollowupContent);
+const completedFollowupReasoning = JSON.parse(completedFollowupContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(isActionableFollowupSafetyNet(completedFollowupReasoning.management.followupSafetyNet), true, "the server supplies a bounded actionable safety net before review");
+assert.equal(applyActionableFollowupSafetyNetContract(completedFollowupContent), completedFollowupContent, "the server-owned safety-net normalization is byte-idempotent");
+for (const name of ["功能性/感染性肠炎恢复期", "功能性腹泻或感染性腹泻", "胃炎、胃食管反流病待鉴别", "劳力性呼吸困难待查：睡眠呼吸障碍？心功能不全？", "劳力性呼吸困难待查：睡眠呼吸障碍可能", "喘息症状（支气管哮喘可能）"]) {
   const ambiguousWesternPrimary = {
     ...stable,
     westernDiagnosis: {
@@ -142,6 +311,281 @@ for (const name of ["功能性/感染性肠炎恢复期", "功能性腹泻或感
   assert.equal(normalizedReasoning.westernDiagnosis.primary.name, name, `${name} must remain intact for model repair instead of being split by punctuation`);
   assert.equal(m03SemanticIssue(normalizedReasoning, "稀便半个月"), "western_primary_ambiguous");
 }
+const ambiguousRespiratoryReasoning = structuredClone(stable);
+ambiguousRespiratoryReasoning.westernDiagnosis.primary.name = "劳力性呼吸困难待查：睡眠呼吸障碍？心功能不全？";
+ambiguousRespiratoryReasoning.westernDiagnosis.primary.supportingFacts = ["一跑快了就胸口呼呼响，晚上有时憋醒"];
+const ambiguousRespiratoryContext = "主诉：一跑快了就胸口呼呼响，晚上有时憋醒\n现病史：近一个月发作3次";
+const declassifiedAmbiguousRespiratoryContent = declassifyAmbiguousM03WesternPrimary(
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(ambiguousRespiratoryReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  ambiguousRespiratoryContext,
+);
+const declassifiedAmbiguousRespiratory = JSON.parse(declassifiedAmbiguousRespiratoryContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(declassifiedAmbiguousRespiratory.westernDiagnosis.primary.name, "喘息症状", "a multi-diagnosis respiratory primary is deterministically collapsed to the chart-grounded symptom level");
+assert.equal(declassifiedAmbiguousRespiratory.westernDiagnosis.primary.status, "证据有限");
+assert.ok(declassifiedAmbiguousRespiratory.westernDiagnosis.differentials.some((item) => item.name.includes("睡眠呼吸障碍")), "the original alternatives remain visible for independent review");
+assert.equal(declassifyAmbiguousM03WesternPrimary(declassifiedAmbiguousRespiratoryContent, ambiguousRespiratoryContext), declassifiedAmbiguousRespiratoryContent, "ambiguous-primary declassification is byte-idempotent");
+const impreciseRespiratorySymptom = structuredClone(declassifiedAmbiguousRespiratory);
+impreciseRespiratorySymptom.westernDiagnosis.primary.name = "劳力性呼吸困难待查";
+const normalizedWheezeContent = normalizeDiagnoseConfidenceAndLabels(
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(impreciseRespiratorySymptom)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  ambiguousRespiratoryContext,
+);
+const normalizedWheeze = JSON.parse(normalizedWheezeContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(normalizedWheeze.westernDiagnosis.primary.name, "喘息症状", "charted wheeze cannot be relabelled as dyspnea merely because both share a respiratory differential");
+assert.equal(normalizeDiagnoseConfidenceAndLabels(normalizedWheezeContent, ambiguousRespiratoryContext), normalizedWheezeContent, "dominant-symptom normalization is byte-idempotent");
+const documentedDyspnea = structuredClone(impreciseRespiratorySymptom);
+const documentedDyspneaContent = normalizeDiagnoseConfidenceAndLabels(
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(documentedDyspnea)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  "主诉：快走后气短，感觉气不够用",
+);
+assert.match(documentedDyspneaContent, /"name": "气短症状"/, "documented dyspnea retains the governed dyspnea symptom category");
+for (const constipationComplaint of [
+  "大便老解不出来，四五天一次，肚子还胀",
+  "排便很费劲，三四天才解一次，伴有腹胀",
+  "好几天不上厕所，便干成颗粒，肚子胀",
+  "大便排不出来已经五天，腹部发胀",
+]) {
+  const misplacedSecondarySymptom = structuredClone(impreciseRespiratorySymptom);
+  misplacedSecondarySymptom.westernDiagnosis.primary.name = "腹胀症状";
+  const normalizedConstipationContent = normalizeDiagnoseConfidenceAndLabels(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(misplacedSecondarySymptom)}\n<!-- DIAGNOSIS_JSON_END -->`,
+    `主诉：${constipationComplaint}`,
+  );
+  assert.match(normalizedConstipationContent, /"name": "便秘症状"/, `${constipationComplaint} keeps constipation, not secondary bloating, as the symptom-level primary`);
+  assert.equal(normalizeDiagnoseConfidenceAndLabels(normalizedConstipationContent, `主诉：${constipationComplaint}`), normalizedConstipationContent);
+}
+const respiratoryDiseaseLabel = structuredClone(impreciseRespiratorySymptom);
+respiratoryDiseaseLabel.westernDiagnosis.primary.name = "支气管哮喘待查";
+const respiratoryDiseaseContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(respiratoryDiseaseLabel)}\n<!-- DIAGNOSIS_JSON_END -->`;
+assert.equal(normalizeDiagnoseConfidenceAndLabels(respiratoryDiseaseContent, ambiguousRespiratoryContext), respiratoryDiseaseContent, "symptom terminology normalization never rewrites a disease label before formal-criteria review");
+const cardiopulmonaryReasoning = structuredClone(declassifiedAmbiguousRespiratory);
+cardiopulmonaryReasoning.westernDiagnosis.differentials = [
+  { name: "劳力性呼吸困难待查：考虑心源性可能，需排除阻塞性睡眠呼吸暂停", reason: "夜间憋醒需鉴别", nextCheck: "评估心血管危险因素" },
+  { name: "阻塞性睡眠呼吸暂停", reason: "睡眠呼吸障碍需鉴别", nextCheck: "完善睡眠监测" },
+  { name: "支气管哮喘", reason: "活动后喘鸣需鉴别", nextCheck: "完善肺功能检查" },
+];
+cardiopulmonaryReasoning.management = { followupSafetyNet: "若静息呼吸困难或胸痛，应立即急诊评估。" };
+const missingTcmDisease = structuredClone(cardiopulmonaryReasoning);
+delete missingTcmDisease.overview.tcmDiseaseName;
+assert.equal(m03SemanticIssue(missingTcmDisease, ambiguousRespiratoryContext), "tcm_disease_missing", "a signed M03 result must keep a non-empty patient-facing TCM working disease name");
+const cardiopulmonaryContent = normalizeM03WesternDifferentials(
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(cardiopulmonaryReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  ambiguousRespiratoryContext,
+);
+const cardiopulmonaryProjection = JSON.parse(cardiopulmonaryContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(cardiopulmonaryProjection.westernDiagnosis.differentials.filter((item) => item.name === "阻塞性睡眠呼吸暂停").length, 1, "final M03 normalization merges duplicate differential diagnoses");
+assert.match(cardiopulmonaryProjection.westernDiagnosis.differentials.find((item) => item.name === "阻塞性睡眠呼吸暂停").nextCheck, /评估心血管危险因素.*完善睡眠监测/, "semantic de-duplication preserves distinct checks from wrapped and standalone rows");
+assert.ok(cardiopulmonaryProjection.westernDiagnosis.differentials.some((item) => item.name === "心功能不全"), "exertional plus nocturnal breathlessness keeps heart failure in the differential");
+assert.ok(cardiopulmonaryProjection.westernDiagnosis.differentials.some((item) => item.name === "冠心病"), "exertional plus nocturnal breathlessness keeps coronary disease in the differential");
+assert.match(cardiopulmonaryProjection.management.followupSafetyNet, /劳力性呼吸不适或夜间憋醒持续、加重时，应尽快复诊排除心功能不全等心源性原因/);
+assert.match(cardiopulmonaryProjection.management.followupSafetyNet, /不能平卧.*立即急诊评估/);
+assert.equal(normalizeM03WesternDifferentials(cardiopulmonaryContent, ambiguousRespiratoryContext), cardiopulmonaryContent, "cardiopulmonary differential and safety-net normalization is byte-idempotent");
+const projectionOnlyCandidate = structuredClone(cardiopulmonaryProjection);
+projectionOnlyCandidate.pathogenesis.summary = "肺气不利，痰湿阻肺";
+projectionOnlyCandidate.pathogenesis.locationDifferentiation = {
+  items: ["肺"],
+  details: [{ location: "肺", basis: "一跑快了就胸口呼呼响" }],
+  resolution: "bounded",
+  resolutionReason: "有限资料下的病位归纳",
+  evidence: { evidenceLevel: "model_inference", source: "本例资料", confidence: "中" },
+};
+const projectionOnlyContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(projectionOnlyCandidate)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const unlabeledRespiratoryHistoryCandidate = structuredClone(projectionOnlyCandidate);
+unlabeledRespiratoryHistoryCandidate.westernDiagnosis.primary.supportingFacts = ["抽烟好多年，早上老咳一口白痰"];
+const unlabeledRespiratoryHistoryContent = groundStructuredPatientFacts(
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(unlabeledRespiratoryHistoryCandidate)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  "抽烟好多年，早上老咳一口白痰\n这半年比以前多一点，走两层楼会喘。",
+);
+const unlabeledRespiratoryHistory = JSON.parse(unlabeledRespiratoryHistoryContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.ok(unlabeledRespiratoryHistory.westernDiagnosis.primary.supportingFacts.some((fact) => /走两层楼会喘/.test(fact)), "an unlabeled current-history sentence remains available to western diagnosis and risk review");
+assert.ok(unlabeledRespiratoryHistory.westernDiagnosis.primary.supportingFacts.every((fact) => !/舌|脉/.test(fact)), "unlabeled TCM observations never become western supporting facts");
+for (const driftedSummary of [
+  "肺气不利，兼见气血不足",
+  "肺气不利，痰湿与瘀血互结",
+  "肺气不利，阴虚内热",
+]) {
+  const drifted = structuredClone(projectionOnlyCandidate);
+  drifted.pathogenesis.summary = driftedSummary;
+  const driftedContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(drifted)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const normalizedContent = normalizeM03PathogenesisSummaryProjection(driftedContent);
+  const normalizedReasoning = JSON.parse(normalizedContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+  assert.equal(normalizedReasoning.pathogenesis.summary, normalizedReasoning.pathogenesis.chain.map((node) => node.pathogenesis).join("；"), "all duplicate-summary disease-nature drift is projected from the grounded chain before validation");
+  assert.equal(normalizeM03PathogenesisSummaryProjection(normalizedContent), normalizedContent, "summary projection is byte-idempotent");
+}
+const projectionWithoutCore = structuredClone(projectionOnlyCandidate);
+projectionWithoutCore.overview.overallPathogenesis = "";
+const projectionWithoutCoreContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(projectionWithoutCore)}\n<!-- DIAGNOSIS_JSON_END -->`;
+assert.equal(normalizeM03PathogenesisSummaryProjection(projectionWithoutCoreContent), projectionWithoutCoreContent, "a missing authoritative core is never synthesized from the duplicate summary");
+const repairedProjectionContent = applyM03ProjectionOnlyReviewRepair(projectionOnlyContent, ["pathogenesis_summary_drift", "location_unsupported"]);
+const repairedProjection = JSON.parse(repairedProjectionContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(repairedProjection.pathogenesis.summary, repairedProjection.pathogenesis.chain.map((node) => node.pathogenesis).join("；"), "summary-only drift is reduced to already-established grounded chain conclusions");
+assert.deepEqual(repairedProjection.pathogenesis.locationDifferentiation.items, [], "unsupported optional location is declassified instead of regenerating the whole diagnosis");
+assert.equal(repairedProjection.pathogenesis.locationDifferentiation.resolution, "unresolved");
+assert.equal(applyM03ProjectionOnlyReviewRepair(repairedProjectionContent, ["pathogenesis_summary_drift", "location_unsupported"]), repairedProjectionContent, "projection-only repair is byte-idempotent");
+assert.equal(applyM03ProjectionOnlyReviewRepair(projectionOnlyContent, ["pathogenesis_summary_drift", "chain_not_closed"]), projectionOnlyContent, "any non-projection issue stays on the model repair or fail-closed path");
+const genericExamGapCandidate = structuredClone(projectionOnlyCandidate);
+genericExamGapCandidate.overview.tcmDiagnosticRationale = "尚无腹部触诊，因此中医辨证依据不足。";
+genericExamGapCandidate.overview.primarySyndromeResolution = "bounded";
+genericExamGapCandidate.overview.primarySyndromeResolutionReason = "缺少腹诊，需进一步确认。";
+genericExamGapCandidate.pathogenesis.locationDifferentiation.resolutionReason = "未做腹部触诊，病位待定。";
+genericExamGapCandidate.pathogenesis.natureDifferentiation ||= { items: [], rootDeficiency: [], branchExcess: [], resolution: "unresolved" };
+genericExamGapCandidate.pathogenesis.natureDifferentiation.resolutionReason = "缺乏实验室检查，病性待定。";
+const genericExamGapContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(genericExamGapCandidate)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const boundedExamGapContent = normalizeM03TcmRationaleEvidenceBoundary(genericExamGapContent);
+const boundedExamGapReasoning = JSON.parse(boundedExamGapContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.doesNotMatch(JSON.stringify({
+  rationale: boundedExamGapReasoning.overview.tcmDiagnosticRationale,
+  syndromeReason: boundedExamGapReasoning.overview.primarySyndromeResolutionReason,
+  locationReason: boundedExamGapReasoning.pathogenesis.locationDifferentiation.resolutionReason,
+  natureReason: boundedExamGapReasoning.pathogenesis.natureDifferentiation.resolutionReason,
+}), /腹诊|腹部触诊|实验室检查/, "generic exam and modern-test gaps never become the stated basis of TCM reasoning");
+assert.match(boundedExamGapReasoning.overview.tcmDiagnosticRationale, /结合.*中医工作病名考虑.*主证候倾向/);
+assert.equal(normalizeM03TcmRationaleEvidenceBoundary(boundedExamGapContent), boundedExamGapContent, "TCM rationale evidence-boundary normalization is byte-idempotent");
+const duplicateDifferentialContract = structuredClone(cardiopulmonaryReasoning);
+assert.equal(m03SemanticIssue(duplicateDifferentialContract, ambiguousRespiratoryContext), "western_differential_duplicate", "the final M03 contract rejects semantic duplicate differentials even if a future transform bypasses normalization");
+for (const nonTriggerContext of [
+  "主诉：晚上偶尔憋醒，活动耐量正常",
+  "主诉：活动后气短；否认夜间憋醒、不能平卧及端坐呼吸",
+  "主诉：否认活动后气短、胸闷；否认夜间憋醒",
+]) {
+  const nonTriggerContent = normalizeM03WesternDifferentials(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(cardiopulmonaryReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
+    nonTriggerContext,
+  );
+  const nonTriggerProjection = JSON.parse(nonTriggerContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+  assert.equal(nonTriggerProjection.westernDiagnosis.differentials.some((item) => item.name === "心功能不全"), false, "one-sided or negated cardiopulmonary clues do not create a heart-failure differential");
+  assert.equal(nonTriggerProjection.westernDiagnosis.differentials.some((item) => item.name === "冠心病"), false, "one-sided or negated cardiopulmonary clues do not create a coronary differential");
+}
+const olderNewConstipation = structuredClone(stable);
+olderNewConstipation.westernDiagnosis.primary.name = "功能性便秘";
+olderNewConstipation.westernDiagnosis.primary.supportingFacts = ["大便老解不出来，四五天一次，肚子还胀", "最近三个月越来越明显"];
+olderNewConstipation.westernDiagnosis.primary.suggestedChecks = ["若年龄>50岁新发便秘，建议结肠镜检查"];
+olderNewConstipation.westernDiagnosis.differentials = [];
+olderNewConstipation.management = { followupSafetyNet: "若便秘明显加重或出现便血，请及时复诊。" };
+const olderNewConstipationContext = "主诉：大便老解不出来，四五天一次，肚子还胀\n现病史：最近三个月越来越明显";
+const olderNewConstipationContent = normalizeM03WesternDifferentials(
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(olderNewConstipation)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  olderNewConstipationContext,
+  56,
+);
+const olderNewConstipationProjection = JSON.parse(olderNewConstipationContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.ok(olderNewConstipationProjection.westernDiagnosis.primary.suggestedChecks.some((item) => /患者年龄为56岁.*消化专科评估.*结肠镜检查/.test(item)), "documented older age plus recent progressive constipation becomes a patient-specific colonoscopy assessment, not a hypothetical age condition");
+assert.ok(olderNewConstipationProjection.westernDiagnosis.differentials.some((item) => item.name === "结直肠器质性病变"), "older recent-onset constipation keeps colorectal organic disease in the differential");
+assert.match(olderNewConstipationProjection.management.followupSafetyNet, /本例为56岁且近期出现或进行性加重排便习惯改变/);
+assert.match(olderNewConstipationProjection.management.followupSafetyNet, /该年龄与病程组合本身即需尽快完成消化专科评估/);
+assert.match(olderNewConstipationProjection.management.followupSafetyNet, /便血、消瘦等其他报警征象应另行核实/);
+assert.doesNotMatch(olderNewConstipationProjection.management.followupSafetyNet, /暂无便血|暂无消瘦/);
+assert.equal(normalizeM03WesternDifferentials(olderNewConstipationContent, olderNewConstipationContext, 56), olderNewConstipationContent, "older new-constipation management normalization is byte-idempotent");
+const sanitizedOlderNewConstipationContent = sanitizeUngroundedRedFlagNegations(olderNewConstipationContent, {
+  id: "older-new-constipation",
+  phase: "diagnose",
+  patient: { age: 56, sex: "女" },
+  chiefComplaint: "大便老解不出来，四五天一次，肚子还胀",
+  symptoms: { presentHistory: "最近三个月越来越明显" },
+  completeness: { level: "B", redFlag: 0.8, infoGain: 0.5, managementImpact: 0.5, answerability: 0.6 },
+  questionRounds: 1,
+  maxQuestionRounds: 1,
+  conversation: [],
+});
+assert.match(sanitizedOlderNewConstipationContent, /该年龄与病程组合本身即需尽快完成消化专科评估/);
+assert.equal((sanitizedOlderNewConstipationContent.match(/便血、消瘦等其他报警征象应另行核实/g) || []).length, 1, "the negated-history sanitizer preserves the patient-specific age safety net without duplicating unknown alarm features");
+for (const [age, context] of [
+  [35, olderNewConstipationContext],
+  [56, "主诉：便秘十余年，病情稳定，无近期变化"],
+]) {
+  const nonTriggerContent = normalizeM03WesternDifferentials(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(olderNewConstipation)}\n<!-- DIAGNOSIS_JSON_END -->`,
+    context,
+    age,
+  );
+  const nonTriggerProjection = JSON.parse(nonTriggerContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+  assert.equal(nonTriggerProjection.westernDiagnosis.primary.suggestedChecks.some((item) => /患者年龄为/.test(item)), false, "younger or long-stable constipation does not receive the older new-onset management augmentation");
+  assert.equal(nonTriggerProjection.westernDiagnosis.differentials.some((item) => item.name === "结直肠器质性病变"), false);
+}
+for (const [chief, expectedName] of [
+  ["这两个月一吃完饭肚子上边就胀，老打嗝", "餐后上腹胀症状"],
+  ["最近吃点东西就想跑厕所，大便稀", "腹泻症状"],
+]) {
+  const digestiveAmbiguous = structuredClone(stable);
+  digestiveAmbiguous.westernDiagnosis.primary.name = "功能性消化不良或其他胃肠疾病";
+  digestiveAmbiguous.westernDiagnosis.primary.supportingFacts = [chief];
+  const content = declassifyAmbiguousM03WesternPrimary(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(digestiveAmbiguous)}\n<!-- DIAGNOSIS_JSON_END -->`,
+    `主诉：${chief}`,
+  );
+  const parsed = JSON.parse(content.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+  assert.equal(parsed.westernDiagnosis.primary.name, expectedName, `colloquial digestive complaints normalize to ${expectedName} instead of a sentence plus “症状”`);
+}
+const diarrheaReasoning = (name, patientFact) => ({
+  ...stable,
+  overview: {
+    ...stable.overview,
+    primarySyndromeBasis: [patientFact],
+    tcmDiagnosticRationale: `${patientFact}结合脾失健运病机，支持湿邪下注的证候判断。`,
+  },
+  westernDiagnosis: {
+    ...stable.westernDiagnosis,
+    primary: {
+      ...stable.westernDiagnosis.primary,
+      name,
+      supportingFacts: [patientFact],
+      clinicalRationale: `${patientFact}支持腹泻症状方向，但感染性或药物性病因尚未核实。`,
+    },
+  },
+  pathogenesis: {
+    locationDifferentiation: { items: ["脾"], resolution: "bounded", resolutionReason: "病位由当前病机链归纳" },
+    chain: [{
+      nodeId: "P1",
+      patientFact,
+      syndromeEvidence: patientFact,
+      pathogenesis: "脾失健运，水湿下注",
+      therapyDirection: "健脾化湿止泻",
+    }],
+  },
+});
+assert.equal(
+  m03SemanticIssue(diarrheaReasoning("慢性腹泻（功能性腹泻可能）", "稀便半个月"), "稀便半个月"),
+  "western_primary_ambiguous",
+  "a disease possibility cannot be hidden inside a symptom-level primary label",
+);
+assert.equal(
+  m03SemanticIssue(diarrheaReasoning("功能性腹泻", "拉肚子两周"), "拉肚子两周"),
+  "western_primary_duration_mismatch",
+  "Chinese-number duration variants share the same temporal boundary",
+);
+assert.equal(
+  m03SemanticIssue(diarrheaReasoning("腹泻（病因待查）", "稀便半个月"), "稀便半个月"),
+  undefined,
+  "a symptom-level working diagnosis remains available for the same short course",
+);
+const shortCourseDiarrheaContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(diarrheaReasoning("功能性腹泻", "最近吃点东西就想跑厕所，稀稀的有半个月"))}\n<!-- DIAGNOSIS_JSON_END -->`;
+const shortCourseDiarrheaDeclassified = declassifyUnmetFormalM03WesternPrimary(
+  shortCourseDiarrheaContent,
+  "主诉：最近吃点东西就想跑厕所，稀稀的有半个月\n现病史：一天大概三四次。",
+);
+const shortCourseDiarrheaParsed = JSON.parse(shortCourseDiarrheaDeclassified.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(shortCourseDiarrheaParsed.westernDiagnosis.primary.name, "腹泻症状", "short-course diarrhoea is deterministically declassified before repair/review");
+assert.equal(shortCourseDiarrheaParsed.westernDiagnosis.primary.confidence, "低");
+assert.ok(shortCourseDiarrheaParsed.westernDiagnosis.differentials.some((item) => item.name === "功能性腹泻"), "the over-specific label remains visible as a differential instead of being silently erased");
+assert.equal(
+  declassifyUnmetFormalM03WesternPrimary(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(diarrheaReasoning("慢性腹泻", "稀便两个月"))}\n<!-- DIAGNOSIS_JSON_END -->`,
+    "主诉：稀便两个月",
+  ).includes('"name":"慢性腹泻"'),
+  true,
+  "a qualifying explicit duration is not declassified",
+);
+const nonstandardWorkingLabelContent = normalizeDiagnoseConfidenceAndLabels(
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(diarrheaReasoning("腹泻待因", "稀便半个月"))}\n<!-- DIAGNOSIS_JSON_END -->`,
+  "稀便半个月",
+);
+const normalizedWorkingLabel = JSON.parse(nonstandardWorkingLabelContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(normalizedWorkingLabel.westernDiagnosis.primary.name, "腹泻（病因待查）", "nonstandard terminal 待因 is canonicalized at the Western-label boundary");
+assert.equal(
+  m03SemanticIssue(diarrheaReasoning("慢性腹泻", "稀便两个月"), "稀便两个月"),
+  undefined,
+  "the duration guard does not reject a chronic label when a qualifying current course is explicit",
+);
 const backgroundHypertensionPrimary = {
   ...stable,
   westernDiagnosis: {
@@ -178,7 +622,14 @@ assert.match(
 );
 const mixedPolarityWesternSupport = {
   ...stable,
-  westernDiagnosis: { ...stable.westernDiagnosis, primary: { ...stable.westernDiagnosis.primary, supportingFacts: ["夜间出汗伴入睡困难1个月"] } },
+  westernDiagnosis: {
+    ...stable.westernDiagnosis,
+    primary: {
+      ...stable.westernDiagnosis.primary,
+      supportingFacts: ["夜间出汗伴入睡困难1个月"],
+      clinicalRationale: "夜间出汗伴入睡困难1个月支持失眠症状方向，但日间功能受损尚未核实。",
+    },
+  },
 };
 const mixedPolarityWesternContext = [
   "夜间出汗伴入睡困难1个月",
@@ -205,6 +656,64 @@ assert.equal(
   undefined,
   "deterministic western-fact grounding must not reintroduce a polarity conflict after a model repair",
 );
+const joinedChartFactsContext = "主诉：晚上躺下老反酸，嗓子也有点烧\n现病史：断断续续一个多月。";
+const joinedChartFactsReasoning = {
+  ...stable,
+  westernDiagnosis: {
+    ...stable.westernDiagnosis,
+    primary: {
+      ...stable.westernDiagnosis.primary,
+      supportingFacts: ["晚上躺下老反酸，嗓子也有点烧，断断续续一个多月"],
+    },
+  },
+  pathogenesis: {
+    ...stable.pathogenesis,
+    chain: [{
+      ...stable.pathogenesis.chain[0],
+      patientFact: "晚上躺下老反酸，嗓子也有点烧，断断续续一个多月",
+      syndromeEvidence: "晚上躺下老反酸，嗓子也有点烧，断断续续一个多月",
+    }],
+  },
+};
+const groundedJoinedChartFactsContent = groundStructuredPatientFacts(
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(joinedChartFactsReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  joinedChartFactsContext,
+);
+const groundedJoinedChartFacts = JSON.parse(groundedJoinedChartFactsContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.doesNotMatch(
+  groundedJoinedChartFacts.westernDiagnosis.primary.supportingFacts.join("\n"),
+  /嗓子也有点烧，断断续续一个多月/,
+  "provider-joined chart clauses cannot survive as a fabricated verbatim source quote",
+);
+assert.ok(
+  groundedJoinedChartFacts.westernDiagnosis.primary.supportingFacts.every((fact) => joinedChartFactsContext.includes(patientFactSourceQuote(fact, joinedChartFactsContext) || "__ungrounded__")),
+  "every projected Western supporting fact resolves to an exact source substring after clause splitting",
+);
+assert.ok(joinedChartFactsContext.includes(groundedJoinedChartFacts.pathogenesis.chain[0].patientFact), "a joined pathogenesis fact is rebound to one exact chart sentence");
+const colloquialNegativeTransportContext = [
+  "这两个月一吃完饭肚子上边就胀，老打嗝",
+  "基层接诊初始记录：这两个月一吃完饭肚子上边就胀，老打嗝；没吐过血，别的说不清。",
+  "本轮追问补充：本次未取得该信息",
+].join("\n");
+const colloquialNegativeTransportReasoning = structuredClone(stable);
+colloquialNegativeTransportReasoning.westernDiagnosis.primary.supportingFacts = [
+  "这两个月一吃完饭肚子上边就胀,老打嗝；没吐过血",
+];
+colloquialNegativeTransportReasoning.pathogenesis.chain[0].patientFact = "这两个月一吃完饭肚子上边就胀,老打嗝";
+colloquialNegativeTransportReasoning.pathogenesis.chain[0].syndromeEvidence = "这两个月一吃完饭肚子上边就胀,老打嗝";
+const groundedColloquialNegativeContent = groundStructuredPatientFacts(
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(colloquialNegativeTransportReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  colloquialNegativeTransportContext,
+);
+const groundedColloquialNegative = JSON.parse(
+  groundedColloquialNegativeContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+const colloquialNegativeFacts = groundedColloquialNegative.westernDiagnosis.primary.supportingFacts;
+assert.ok(colloquialNegativeFacts.includes("这两个月一吃完饭肚子上边就胀，老打嗝"), "the exact positive source sentence survives transport-prefix and punctuation normalization");
+assert.ok(colloquialNegativeFacts.every((fact) => colloquialNegativeTransportContext.includes(fact)), "every projected fact remains an exact raw chart substring");
+assert.ok(colloquialNegativeFacts.every((fact) => !/没吐过血|别的说不清/.test(fact)), "colloquial denials and unknown follow-up text never enter positive evidence");
+assert.ok(colloquialNegativeFacts.every((fact) => !fact.includes(",")), "NFKC punctuation must not be presented as a verbatim source quote");
+assert.equal(colloquialNegativeFacts.filter((fact) => /肚子上边就胀|老打嗝/.test(fact)).length, 1, "a complete exact chart sentence subsumes redundant provider-split fragments");
 const overstatedWesternContent = groundedMixedPolarityWesternSupportContent.replace(
   '"name": "慢性失眠障碍倾向"',
   '"name": "慢性失眠障碍"',
@@ -213,15 +722,91 @@ const declassifiedWesternContent = declassifyUnsupportedM03WesternPrimary(overst
 const declassifiedWestern = JSON.parse(
   declassifiedWesternContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0],
 );
-assert.equal(declassifiedWestern.westernDiagnosis.primary.name, "夜间出汗伴入睡困难症状", "a reviewer-rejected disease label is demoted to the chart's symptom-level chief complaint");
+assert.equal(declassifiedWestern.westernDiagnosis.primary.name, "睡眠障碍症状", "a reviewer-rejected disease label is demoted to a governed symptom-level label derived from the chart");
 assert.equal(declassifiedWestern.westernDiagnosis.primary.status, "证据有限");
 assert.equal(declassifiedWestern.westernDiagnosis.primary.confidence, "低");
 assert.ok(declassifiedWestern.westernDiagnosis.differentials.some((item) => item.name === "慢性失眠障碍"), "the rejected concrete disease remains visible as a differential instead of being silently discarded");
 assert.equal(m03SemanticIssue(declassifiedWestern, mixedPolarityWesternContext), undefined, "safe diagnostic declassification must still pass every deterministic M03 contract before re-review");
+const respiratoryFormalReasoning = structuredClone(stable);
+respiratoryFormalReasoning.westernDiagnosis.primary.name = "慢性支气管炎";
+respiratoryFormalReasoning.westernDiagnosis.primary.supportingFacts = ["抽烟好多年，早上老咳一口白痰", "走两层楼会喘"];
+respiratoryFormalReasoning.westernDiagnosis.primary.suggestedChecks = ["肺功能检查"];
+const respiratorySparseContext = "主诉：抽烟好多年，早上老咳一口白痰\n现病史：这半年比以前多一点，走两层楼会喘";
+const respiratoryFormalContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(respiratoryFormalReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const respiratoryDeclassifiedContent = declassifyUnmetFormalM03WesternPrimary(respiratoryFormalContent, respiratorySparseContext);
+const respiratoryDeclassified = JSON.parse(respiratoryDeclassifiedContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(respiratoryDeclassified.westernDiagnosis.primary.name, "咳嗽咳痰症状", "chronic bronchitis cannot remain primary when the record lacks its minimum documented course criteria");
+assert.ok(respiratoryDeclassified.westernDiagnosis.differentials.some((item) => item.name === "慢性支气管炎"));
+assert.equal(
+  declassifyUnmetFormalM03WesternPrimary(respiratoryFormalContent, `${respiratorySparseContext}\n既往史：已确诊慢性支气管炎5年`),
+  respiratoryFormalContent,
+  "an established diagnosis is not declassified",
+);
+assert.equal(
+  declassifyUnmetFormalM03WesternPrimary(respiratoryFormalContent, `${respiratorySparseContext}\n咳嗽咳痰连续2年，每年持续3个月以上`),
+  respiratoryFormalContent,
+  "explicitly documented chronic-bronchitis course criteria preserve the formal label",
+);
+const copdFormalReasoning = structuredClone(respiratoryFormalReasoning);
+copdFormalReasoning.westernDiagnosis.primary.name = "慢性阻塞性肺疾病";
+const copdFormalContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(copdFormalReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+assert.match(declassifyUnmetFormalM03WesternPrimary(copdFormalContent, respiratorySparseContext), /咳嗽咳痰症状/);
+assert.equal(
+  declassifyUnmetFormalM03WesternPrimary(copdFormalContent, `${respiratorySparseContext}\n肺功能：FEV1/FVC 低于 0.7，提示持续气流受限`),
+  copdFormalContent,
+  "documented obstructive spirometry preserves the COPD label",
+);
+const sleepBreathingReasoning = structuredClone(respiratoryFormalReasoning);
+sleepBreathingReasoning.westernDiagnosis.primary.name = "阻塞性睡眠呼吸暂停";
+sleepBreathingReasoning.westernDiagnosis.primary.supportingFacts = ["一跑快了就胸口呼呼响，晚上有时憋醒"];
+sleepBreathingReasoning.westernDiagnosis.primary.suggestedChecks = ["多导睡眠监测"];
+const sleepBreathingContext = "主诉：一跑快了就胸口呼呼响，晚上有时憋醒\n现病史：近一个月发作3次";
+const sleepBreathingContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(sleepBreathingReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const sleepBreathingDeclassifiedContent = declassifyUnmetFormalM03WesternPrimary(sleepBreathingContent, sleepBreathingContext);
+const sleepBreathingDeclassified = JSON.parse(sleepBreathingDeclassifiedContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(sleepBreathingDeclassified.westernDiagnosis.primary.name, "喘息症状", "night awakening plus exertional wheeze cannot become a formal OSA diagnosis without established or objective evidence");
+assert.ok(sleepBreathingDeclassified.westernDiagnosis.differentials.some((item) => item.name === "阻塞性睡眠呼吸暂停"));
+assert.doesNotMatch(sleepBreathingDeclassified.westernDiagnosis.primary.name, /(?:或|待鉴别|[?？/／、])/, "the symptom-level respiratory primary remains a single usable diagnosis label");
+assert.equal(
+  declassifyUnmetFormalM03WesternPrimary(sleepBreathingContent, `${sleepBreathingContext}\n既往史：已确诊阻塞性睡眠呼吸暂停`),
+  sleepBreathingContent,
+  "an established OSA diagnosis is preserved",
+);
+assert.equal(
+  declassifyUnmetFormalM03WesternPrimary(sleepBreathingContent, `${sleepBreathingContext}\n多导睡眠监测提示阻塞性睡眠呼吸暂停，AHI 18次/小时`),
+  sleepBreathingContent,
+  "objective sleep-study evidence preserves the OSA label",
+);
+const negatedOsaHistoryContent = declassifyUnmetFormalM03WesternPrimary(
+  sleepBreathingContent,
+  `${sleepBreathingContext}\n否认既往确诊阻塞性睡眠呼吸暂停`,
+);
+const negatedOsaHistory = JSON.parse(negatedOsaHistoryContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(negatedOsaHistory.westernDiagnosis.primary.name, "喘息症状", "a negated prior OSA diagnosis never satisfies the formal-label guard");
+assert.match(
+  declassifyUnmetFormalM03WesternPrimary(sleepBreathingContent, `${sleepBreathingContext}\n睡眠呼吸监测：AHI 2次/小时`),
+  /\"喘息症状\"/,
+  "a sub-threshold AHI does not preserve an OSA label",
+);
+const asthmaReasoning = structuredClone(sleepBreathingReasoning);
+asthmaReasoning.westernDiagnosis.primary.name = "支气管哮喘";
+const asthmaContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(asthmaReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+assert.match(declassifyUnmetFormalM03WesternPrimary(asthmaContent, sleepBreathingContext), /\"喘息症状\"/);
+assert.equal(
+  declassifyUnmetFormalM03WesternPrimary(asthmaContent, `${sleepBreathingContext}\n肺功能支气管舒张试验阳性，提示可逆性气流受限`),
+  asthmaContent,
+  "objective reversible airflow evidence preserves an asthma label",
+);
+assert.equal(
+  declassifyUnmetFormalM03WesternPrimary(asthmaContent, `${sleepBreathingContext}\n吸入沙丁胺醇后喘鸣明显缓解`),
+  asthmaContent,
+  "a documented bronchodilator response preserves an asthma label",
+);
 const paraphrasedSparseChainContent = groundStructuredPatientFacts(
   `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
     ...mixedPolarityWesternSupport,
     pathogenesis: {
+      locationDifferentiation: { items: ["心"], resolution: "bounded", resolutionReason: "病位由当前不寐证候归纳" },
       chain: [{
         nodeId: "P1",
         patientFact: "睡中汗出并影响睡眠",
@@ -230,17 +815,22 @@ const paraphrasedSparseChainContent = groundStructuredPatientFacts(
         therapyDirection: "调护睡眠功能，改善汗液调节",
       }],
     },
-    therapy: { overallPrinciple: "调护睡眠功能，改善汗液调节" },
+    therapy: {
+      overallPrinciple: "治病求本，标本兼顾",
+      overallMethod: "改善汗液调节，调护睡眠功能",
+      subTherapies: [{ therapy: "改善汗液调节", targetPathogenesis: "汗液调节与睡眠功能受扰", priority: "主要" }],
+    },
   })}\n<!-- DIAGNOSIS_JSON_END -->`,
   mixedPolarityWesternContext,
 );
 const paraphrasedSparseChain = JSON.parse(
   paraphrasedSparseChainContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0],
 );
-assert.equal(paraphrasedSparseChain.pathogenesis.chain.length, 1, "a neutral functional sparse-case mechanism is rebound instead of erased when only its patient-fact paraphrase is ungrounded");
-assert.equal(paraphrasedSparseChain.pathogenesis.chain[0].patientFact, "夜间出汗伴入睡困难1个月");
-assert.equal(paraphrasedSparseChain.pathogenesis.chain[0].syndromeEvidence, "夜间出汗伴入睡困难1个月");
-assert.equal(m03SemanticIssue(paraphrasedSparseChain, mixedPolarityWesternContext), undefined, "the rebound chain still has to satisfy the complete deterministic M03 contract before independent review");
+assert.equal(
+  paraphrasedSparseChain.pathogenesis.chain.length,
+  0,
+  "an ungrounded paraphrase must enter repair instead of copying one chart quote into both patientFact and syndromeEvidence",
+);
 assert.equal(isStableM03Reasoning({ ...stable, formula: { candidates: [] } }), false, "M03 must keep formula null");
 assert.equal(isStableM03Reasoning({ ...stable, therapy: { overallPrinciple: "养血安神；酸枣仁15g、丹参10g，每日1剂，水煎服" } }), false, "M03 must reject dose-level treatment instructions before signing");
 for (const instruction of ["养血安神，酸枣仁十五克", "养血安神，酸枣仁（炒）15g", "养血安神，酸枣仁15～20g"]) {
@@ -276,14 +866,22 @@ assert.equal(isStableM03Reasoning({
   ...stable,
   pathogenesis: { chain: [{ patientFact: "入睡困难", syndromeEvidence: "耳鸣支持心脾两虚", pathogenesis: "心血不足", therapyDirection: "养血安神" }] },
 }, "患者入睡困难；伴心悸健忘"), false);
-assert.equal(isStableM03Reasoning({
+assert.equal(m03SemanticIssue({
   ...stable,
-  pathogenesis: { chain: [{ patientFact: "晨起神疲、纳差便溏", syndromeEvidence: "神疲纳差支持气血不足", pathogenesis: "心血不足", therapyDirection: "养血安神" }] },
-}, "晨起疲乏；食欲欠佳；大便溏薄"), true);
-assert.equal(isStableM03Reasoning({
+  overview: {
+    ...stable.overview,
+    tcmDiagnosticRationale: "晨起神疲结合纳差、便溏，提示气血濡养不足并影响心神。",
+  },
+  pathogenesis: { chain: [{ patientFact: "晨起疲乏、食欲欠佳、大便溏薄", syndromeEvidence: "疲乏、食欲欠佳、大便溏薄", pathogenesis: "心血不足", therapyDirection: "养血安神" }] },
+}, "晨起疲乏；食欲欠佳；大便溏薄"), undefined);
+assert.equal(m03SemanticIssue({
   ...stable,
-  pathogenesis: { chain: [{ patientFact: "夜间易醒，白天疲乏", syndromeEvidence: "睡眠不佳、疲乏支持心神失养", pathogenesis: "心血不足", therapyDirection: "养血安神" }] },
-}, "最近老睡不好，夜里容易醒，白天有点累，大概两个月"), true, "colloquial tiredness grounds the same positive fatigue concept");
+  overview: {
+    ...stable.overview,
+    tcmDiagnosticRationale: "夜间易醒结合白天疲乏，提示睡眠失养并影响日间功能。",
+  },
+  pathogenesis: { chain: [{ patientFact: "夜间易醒，白天疲乏", syndromeEvidence: "夜间易醒、白天疲乏", pathogenesis: "心血不足", therapyDirection: "养血安神" }] },
+}, "最近睡眠不佳，夜间易醒，白天疲乏，大概两个月"), undefined, "each structured evidence phrase must remain directly grounded in the chart");
 assert.equal(isStableM03Reasoning({
   ...stable,
   pathogenesis: { chain: [{ patientFact: "心悸伴耳鸣", syndromeEvidence: "心悸耳鸣支持血虚", pathogenesis: "心血不足", therapyDirection: "养血安神" }] },
@@ -291,7 +889,7 @@ assert.equal(isStableM03Reasoning({
 assert.equal(isStableM03Reasoning({
   ...stable,
   pathogenesis: { chain: [{ patientFact: "否认打鼾、呼吸暂停及日间嗜睡", syndromeEvidence: "睡眠呼吸暂停线索阴性", pathogenesis: "心血不足", therapyDirection: "养血安神" }] },
-}, "患者否认明显打鼾、目击呼吸暂停及日间嗜睡"), true);
+}, "患者否认明显打鼾、目击呼吸暂停及日间嗜睡"), false, "阴性排除项可以限定鉴别，但不能单独推出中医证候");
 assert.equal(isStableM03Reasoning(stable, "", "**证候诊断**：痰热扰心证\n**核心病机**：血不养心，心神失舍\n**总治法**：养血安神，疏肝解郁"), true);
 assert.equal(isStableM03Reasoning(stable, "", "**证候诊断**：心肝血虚证\n**核心病机**：血不养心，心神失舍\n**总治法**：养血安神，疏肝解郁"), true);
 const boundedResolution = {
@@ -300,7 +898,7 @@ const boundedResolution = {
     ...stable.overview,
     primarySyndromeResolution: "bounded",
     primarySyndromeBasis: [],
-    primarySyndromeResolutionReason: "舌脉未提供，当前为有限资料下的工作判断",
+    primarySyndromeResolutionReason: "舌脉未提供，当前无法形成有区分度的相邻证候鉴别",
   },
   pathogenesis: {
     ...stable.pathogenesis,
@@ -320,7 +918,42 @@ const boundedResolution = {
     },
   },
 };
-assert.equal(isStableM03Reasoning(boundedResolution), true, "bounded clinical reasoning must continue without a keyword gate");
+assert.equal(isStableM03Reasoning(boundedResolution), true, "bounded clinical reasoning may continue when the missing differential has an explicit structured reason");
+const summaryNatureDrift = structuredClone(boundedResolution);
+summaryNatureDrift.pathogenesis.summary = "病性为风邪，虚实夹杂（余邪未净，正气略虚）";
+summaryNatureDrift.pathogenesis.natureDifferentiation = {
+  items: ["风邪"],
+  rootDeficiency: [],
+  branchExcess: ["风邪"],
+  basis: "",
+  resolution: "bounded",
+  resolutionReason: "病性为有限资料下的工作归纳",
+};
+assert.equal(
+  m03SemanticIssue(summaryNatureDrift),
+  "pathogenesis_summary_qi_deficiency_drift",
+  "pathogenesis.summary must not silently introduce qi deficiency absent from every authoritative core field",
+);
+const summaryNatureAligned = structuredClone(summaryNatureDrift);
+summaryNatureAligned.overview.overallPathogenesis = "余邪未净，正气略虚";
+summaryNatureAligned.pathogenesis.natureDifferentiation.items = ["风邪", "气虚"];
+summaryNatureAligned.pathogenesis.natureDifferentiation.rootDeficiency = ["气虚"];
+assert.equal(m03SemanticIssue(summaryNatureAligned), undefined, "a summary may retain a disease-nature conclusion already established by the core reasoning");
+const summaryNatureUncertain = structuredClone(summaryNatureDrift);
+summaryNatureUncertain.pathogenesis.summary = "当前资料不足以判断是否气虚";
+assert.equal(m03SemanticIssue(summaryNatureUncertain), undefined, "an explicitly uncertain summary clause is not converted into an asserted disease nature");
+assert.equal(m03SemanticIssue({
+  ...boundedResolution,
+  overview: { ...boundedResolution.overview, primarySyndrome: "头部跳痛伴畏光（证候待定）" },
+}), "primary_syndrome_unstable", "a bounded primary syndrome must not sign a pending placeholder as its clinical identity");
+assert.equal(m03SemanticIssue({
+  ...boundedResolution,
+  overview: { ...boundedResolution.overview, primarySyndrome: "头痛（病位在头，病性待定）" },
+}), "primary_syndrome_unstable", "a disease-name prefix must not hide a pending primary-syndrome placeholder");
+assert.equal(m03SemanticIssue({
+  ...boundedResolution,
+  overview: { ...boundedResolution.overview, primarySyndrome: "头部搏动性疼痛伴畏光（证候待辨）" },
+}), "primary_syndrome_unstable", "short-form pending words such as 待辨 must not bypass the primary-syndrome contract");
 assert.equal(m03SemanticIssue({
   ...boundedResolution,
   overview: { ...boundedResolution.overview, primarySyndromeResolutionReason: "" },
@@ -346,12 +979,18 @@ const resolvedResolution = {
     primarySyndromeResolution: "resolved",
     primarySyndromeBasis: ["入睡困难"],
     primarySyndromeResolutionReason: undefined,
+    tcmDifferentials: [{
+      syndrome: "心肾不交证",
+      reason: "同可见入睡困难，需与当前心血不足方向鉴别",
+      distinguishingPoints: "本例舌淡脉细而未见心肾不交的虚火表现",
+      nextCheck: "复核潮热盗汗与腰膝酸软",
+    }],
   },
   pathogenesis: {
     ...boundedResolution.pathogenesis,
     locationDifferentiation: {
       items: ["心"],
-      details: [{ location: "心", basis: "入睡困难" }],
+      details: [{ location: "心", basis: "入睡困难；舌淡脉细" }],
       resolution: "resolved",
     },
     natureDifferentiation: {
@@ -364,6 +1003,26 @@ const resolvedResolution = {
   },
 };
 assert.equal(isStableM03Reasoning(resolvedResolution, "入睡困难；舌淡脉细"), true);
+const singleEvidenceLocation = structuredClone(resolvedResolution);
+singleEvidenceLocation.pathogenesis.locationDifferentiation.details = [{ location: "心", basis: "入睡困难" }];
+assert.equal(
+  m03SemanticIssue(singleEvidenceLocation, "入睡困难；舌淡脉细"),
+  "single_evidence_location",
+  "resolved disease location requires at least two independent four-diagnostic dimensions",
+);
+const singleDimensionNature = structuredClone(resolvedResolution);
+singleDimensionNature.pathogenesis.natureDifferentiation = {
+  items: ["热"],
+  rootDeficiency: [],
+  branchExcess: ["热"],
+  basis: "舌红",
+  resolution: "resolved",
+};
+assert.equal(
+  m03SemanticIssue(singleDimensionNature),
+  "nature_dimension_insufficient",
+  "a resolved cold/heat conclusion requires at least two independent observation dimensions",
+);
 assert.equal(m03SemanticIssue({
   ...resolvedResolution,
   overview: { ...resolvedResolution.overview, primarySyndromeBasis: ["患者从未说过的症状"] },
@@ -375,6 +1034,66 @@ assert.equal(m03SemanticIssue({
     natureDifferentiation: { ...resolvedResolution.pathogenesis.natureDifferentiation, basis: "患者从未说过的症状" },
   },
 }, "入睡困难；舌淡脉细"), "nature_resolved_basis_ungrounded");
+
+assert.equal(m03SemanticIssue({
+  ...boundedResolution,
+  pathogenesis: {
+    ...boundedResolution.pathogenesis,
+    uncertainties: [{
+      item: "既往史、用药史",
+      reason: "该症状已在病历中明确记录；后续仅需评估严重度",
+      affects: "影响诊断与治疗安全性",
+    }],
+  },
+}, "主诉：大便难解；最近三个月加重"), "uncertainty_state_mismatch", "a vague recorded-state claim must not convert absent histories into known facts");
+assert.equal(m03SemanticIssue({
+  ...boundedResolution,
+  pathogenesis: {
+    ...boundedResolution.pathogenesis,
+    uncertainties: [{
+      item: "当前用药与具体剂量",
+      reason: "当前用药已明确记录，但具体剂量未提供",
+      affects: "影响相互作用与剂量安全复核",
+    }],
+  },
+}, "主诉：入睡困难；舌脉未提供"), "uncertainty_state_mismatch", "an absent governed field cannot be described as documented");
+assert.equal(m03SemanticIssue({
+  ...boundedResolution,
+  pathogenesis: {
+    ...boundedResolution.pathogenesis,
+    uncertainties: [{
+      item: "过敏反应详情",
+      reason: "青霉素过敏已在病历中明确记录，但具体反应类型未提供",
+      affects: "影响用药风险复核",
+    }],
+  },
+}, "主诉：入睡困难；舌淡脉细；过敏史：青霉素过敏，反应类型不详"), undefined, "a documented fact may retain a narrower explicitly unknown attribute");
+
+assert.equal(m03SemanticIssue({
+  ...stable,
+  overview: { ...stable.overview, primarySyndrome: "不寐功能失调候", overallPathogenesis: "睡眠功能受扰" },
+  pathogenesis: { chain: [{ patientFact: "入睡困难", syndromeEvidence: "入睡困难", pathogenesis: "睡眠功能受扰", therapyDirection: "调护功能" }] },
+}), "generic_tcm_template", "跨病例的功能失调候/调护功能套话必须在结构合同层拒绝");
+assert.equal(m03SemanticIssue({
+  ...stable,
+  overview: { ...stable.overview, primarySyndromeResolutionReason: "本次主诉及伴随症状变化。" },
+}), "explanation_placeholder", "无信息量的解释占位句必须在独立复核和签名前被拒绝");
+
+for (const [label, context, westernName, westernFact, diseaseFact, inferredSyndrome] of [
+  ["高血压不能自动推出眩晕", "高血压10年；本次血压160/100mmHg；否认头晕", "高血压控制欠佳", "本次血压160/100mmHg", "高血压10年", "眩晕·肝阳上亢证"],
+  ["房颤不能自动推出心气虚", "心电图提示心房颤动；否认心悸、乏力、气短", "心房颤动", "心电图提示心房颤动", "心房颤动", "心气虚证"],
+  ["湿疹标签不能自动推出湿热", "湿疹复诊；未记录当前瘙痒、渗出或舌脉", "湿疹", "湿疹复诊", "湿疹", "湿热蕴肤证"],
+  ["类风湿标签不能自动推出痹证", "类风湿关节炎复诊；未记录当前关节肿痛或舌脉", "类风湿关节炎", "类风湿关节炎复诊", "类风湿关节炎", "风湿痹阻证"],
+  ["SLE标签不能自动推出阴虚", "系统性红斑狼疮复诊；未记录当前阳性症状或舌脉", "系统性红斑狼疮", "系统性红斑狼疮复诊", "系统性红斑狼疮", "阴虚内热证"],
+]) {
+  const issue = m03SemanticIssue({
+    ...stable,
+    overview: { ...stable.overview, primarySyndrome: inferredSyndrome, primarySyndromeBasis: [diseaseFact] },
+    westernDiagnosis: { ...stable.westernDiagnosis, primary: { ...stable.westernDiagnosis.primary, name: westernName, supportingFacts: [westernFact] } },
+    pathogenesis: { chain: [{ patientFact: diseaseFact, syndromeEvidence: diseaseFact, pathogenesis: inferredSyndrome, therapyDirection: "辨证调治" }] },
+  }, context);
+  assert.notEqual(issue, undefined, label);
+}
 assert.equal(isUnstableM03CoreText("本例信息仍不足，暂不能形成稳定证候"), true);
 assert.equal(isUnstableM03CoreText("气滞血瘀，心脉痹阻；信息有限需结合检查复核"), false);
 assert.equal(isStableM03Reasoning({ ...stable, pathogenesis: { chain: [] } }), false);
@@ -382,8 +1101,12 @@ assert.equal(isStableM03Reasoning({ ...stable, stage: "prescribe" }), false);
 assert.equal(isStableM03Reasoning(undefined), false);
 const heatReasoning = {
   ...stable,
-  overview: { primarySyndrome: "肝郁化火证", overallPathogenesis: "肝郁化火，上扰心神" },
-  therapy: { overallPrinciple: "疏肝清热，宁心安神" },
+  overview: { ...stable.overview, primarySyndrome: "肝郁化火证", overallPathogenesis: "肝郁化火，上扰心神" },
+  therapy: {
+    overallPrinciple: "正治",
+    overallMethod: "疏肝清热，宁心安神",
+    subTherapies: [{ therapy: "清肝泻火", targetPathogenesis: "肝郁化火", priority: "主要" }],
+  },
   pathogenesis: { chain: [{ patientFact: "烦躁失眠", syndromeEvidence: "烦躁失眠、口苦、舌红苔黄、脉数支持热象", pathogenesis: "肝郁化火", therapyDirection: "清肝泻火" }] },
 };
 assert.equal(isStableM03Reasoning(heatReasoning, "舌淡苔白，脉缓，口不渴，无明显热象"), false);
@@ -399,8 +1122,8 @@ const groundedPathogenesisClassification = {
       details: [{ location: "心", basis: "入睡困难" }],
     },
     natureDifferentiation: {
-      items: ["心血不足"],
-      rootDeficiency: ["心血不足"],
+      items: ["血虚"],
+      rootDeficiency: ["血虚"],
       branchExcess: [],
       basis: "舌淡，脉细",
     },
@@ -415,8 +1138,8 @@ assert.equal(
       locationDifferentiation: { items: [], details: [] },
     },
   }, "入睡困难；舌淡；脉细"),
-  undefined,
-  "an empty optional disease-location classification must not invalidate a complete core M03",
+  "location_classification_missing",
+  "an explicitly named governed disease location must not disappear from the location classification",
 );
 assert.equal(
   m03SemanticIssue({
@@ -439,9 +1162,13 @@ const semanticallyGroundedNatureClassification = {
   overview: { ...stable.overview, primarySyndrome: "心脾两虚证", overallPathogenesis: "脾气虚弱，心血不足" },
   pathogenesis: {
     chain: [{ ...stable.pathogenesis.chain[0], syndromeEvidence: "纳差、神疲、心悸支持心脾两虚", pathogenesis: "脾气虚弱，心血不足" }],
-    natureDifferentiation: { items: ["气血两虚"], rootDeficiency: ["气血两虚"], branchExcess: [], basis: "纳差、神疲、心悸" },
+    natureDifferentiation: { items: ["气虚", "血虚"], rootDeficiency: ["气虚", "血虚"], branchExcess: [], basis: "纳差、神疲、心悸" },
   },
-  therapy: { overallPrinciple: "健脾益气，养血安神" },
+  therapy: {
+    overallPrinciple: "扶正祛邪",
+    overallMethod: "健脾益气，养血安神",
+    subTherapies: [{ therapy: "健脾益气", targetPathogenesis: "脾气虚弱", priority: "主要" }],
+  },
 };
 assert.equal(
   isStableM03Reasoning(semanticallyGroundedNatureClassification, "纳差；神疲；心悸；入睡困难"),
@@ -464,7 +1191,7 @@ const ungroundedNatureClassification = {
   ...groundedPathogenesisClassification,
   pathogenesis: {
     ...groundedPathogenesisClassification.pathogenesis,
-    natureDifferentiation: { items: ["痰热"], rootDeficiency: [], branchExcess: ["痰热"], basis: "入睡困难" },
+    natureDifferentiation: { items: ["痰", "热"], rootDeficiency: [], branchExcess: ["痰", "热"], basis: "入睡困难" },
   },
 };
 assert.equal(
@@ -486,6 +1213,15 @@ assert.equal(
 );
 const optionalClassificationContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
   ...groundedPathogenesisClassification,
+  overview: {
+    ...groundedPathogenesisClassification.overview,
+    tcmDifferentials: [{
+      syndrome: "心肾不交证",
+      reason: "同可见睡眠异常，需与当前心血不足方向鉴别",
+      distinguishingPoints: "本例舌淡脉细而未见虚火上扰表现",
+      nextCheck: "复核潮热盗汗与腰膝酸软",
+    }],
+  },
   pathogenesis: {
     ...groundedPathogenesisClassification.pathogenesis,
     locationDifferentiation: {
@@ -496,9 +1232,9 @@ const optionalClassificationContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.str
       ],
     },
     natureDifferentiation: {
-      items: ["心血不足", "痰热"],
-      rootDeficiency: ["心血不足"],
-      branchExcess: ["痰热"],
+      items: ["血虚", "痰", "热"],
+      rootDeficiency: ["血虚"],
+      branchExcess: ["痰", "热"],
       basis: "舌淡、脉细 → 支持心血不足，病性属血虚",
     },
     symptomClusters: [
@@ -512,8 +1248,8 @@ const sanitizedOptionalClassification = JSON.parse(sanitizedOptionalClassificati
 assert.deepEqual(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.items, ["心", "肾"]);
 assert.deepEqual(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.details, []);
 assert.equal(sanitizedOptionalClassification.pathogenesis.locationDifferentiation.resolution, "bounded");
-assert.deepEqual(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.items, ["心血不足", "痰热"]);
-assert.deepEqual(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.branchExcess, ["痰热"]);
+assert.deepEqual(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.items, ["血虚", "痰", "热"]);
+assert.deepEqual(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.branchExcess, ["痰", "热"]);
 assert.equal(sanitizedOptionalClassification.pathogenesis.natureDifferentiation.resolution, "bounded");
 assert.equal(sanitizedOptionalClassification.pathogenesis.symptomClusters.length, 1);
 assert.deepEqual(
@@ -524,7 +1260,7 @@ assert.deepEqual(
 assert.equal(
   isStableM03Reasoning(sanitizedOptionalClassification, "入睡困难；舌淡；脉细"),
   true,
-  "semantic classifications remain visible with an explicit bounded state while ungrounded patient quotes are removed",
+  `semantic classifications remain visible with an explicit bounded state while ungrounded patient quotes are removed: ${m03SemanticIssue(sanitizedOptionalClassification, "入睡困难；舌淡；脉细")}`,
 );
 const middleJiaoClassificationContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
   ...groundedPathogenesisClassification,
@@ -567,7 +1303,26 @@ assert.deepEqual(duplicatedLocationBasis.pathogenesis.locationDifferentiation.de
 const unsafeM03Draft = "## 辨病辨证\n拟予黄芪15g，每日1剂，水煎服。\n<!-- DIAGNOSIS_JSON_START -->\n{\"patientFact\":\"既往服用阿司匹林100mg\"}\n<!-- DIAGNOSIS_JSON_END -->";
 const safeM03Draft = sanitizeDiagnoseStreamingDraft(unsafeM03Draft);
 assert.doesNotMatch(safeM03Draft.split("<!-- DIAGNOSIS_JSON_START -->")[0], /15g|每日1剂|水煎服/);
-assert.match(safeM03Draft, /剂量信息待候选方药阶段核验/);
+assert.match(safeM03Draft, /（剂量以审定处方为准）/);
+assert.doesNotMatch(safeM03Draft, /待候选方药阶段核验/, "掩码必须在替换处直接产出医生可读措辞：客户端与确定性路由都不经过 scrubInternalVocabularyFromVisibleText");
+
+// 掩码只针对“数量+剂量单位”的可执行用法；频次词、给药途径词本身是普通临床用语，
+// 命中它们并吞掉后续 40 字会删掉临床发现，在 markdown 表格里还会吃掉 | 分隔符导致列塌陷。
+for (const clinicalProse of [
+  "患者每日腹泻3次，睡前焦虑明显。",
+  "饭量减少，饭后脘腹胀。",
+  "建议完善口服葡萄糖耐量试验（OGTT）以明确诊断。",
+  "既往口服二甲双胍史。",
+  "夜间盗汗，睡前多梦易醒。",
+  "大便每日2次，质稀。",
+  "外用药膏后皮疹减轻。",
+  "| 心脾两虚 | 每日乏力 | 健脾养心 | 气血生化乏源 |",
+]) {
+  assert.equal(sanitizeDiagnoseStreamingDraft(clinicalProse), clinicalProse, `临床叙述不得被剂量掩码改写：${clinicalProse}`);
+}
+for (const regimen of ["黄芪15g", "每日1剂", "每日一剂", "水煎服", "冲服", "口服3片", "连服3剂", "共5剂", "疗程为14天", "每晚2粒"]) {
+  assert.notEqual(sanitizeDiagnoseStreamingDraft(regimen), regimen, `可执行用法必须被掩码：${regimen}`);
+}
 assert.match(safeM03Draft, /既往服用阿司匹林100mg/, "structured M03 contract must remain byte-stable for signature validation");
 const safeCourseDraft = sanitizeDiagnoseStreamingDraft("建议连服3剂后复诊；拟服用7天；共5剂。症状已持续3天。");
 assert.doesNotMatch(safeCourseDraft, /连服3剂|服用7天|共5剂/);
@@ -576,15 +1331,25 @@ const mixedPolarityContext = "问诊补充：无发热、咳嗽、消瘦或心�
 const mixedPolarityQuote = patientFactSourceQuote("盗汗、入睡困难", mixedPolarityContext);
 assert.ok(mixedPolarityQuote, "affirmed symptoms remain groundable when the same source sentence also contains negated symptoms");
 assert.ok(patientFactSourceQuote(mixedPolarityQuote, mixedPolarityContext), "a mixed-polarity source quote remains idempotently groundable");
+assert.match(
+  patientFactSourceQuote("入睡困难", "躺床上脑子停不下来，得一两个小时才睡着") || "",
+  /一两个小时才睡着/,
+  "quantified colloquial sleep latency must ground the canonical sleep-onset concept",
+);
 
 const acuteChestStasisReasoning = {
   ...stable,
-  overview: { ...stable.overview, primarySyndrome: "胸痹心脉痹阻证", overallPathogenesis: "气虚无力推动血脉，瘀阻心脉" },
+  overview: {
+    ...stable.overview,
+    primarySyndrome: "胸痹心脉痹阻证",
+    tcmDiagnosticRationale: "胸骨后压榨样疼痛并向左肩放射，提示心脉痹阻、不通则痛。",
+    overallPathogenesis: "气虚无力推动血脉，瘀阻心脉",
+  },
   pathogenesis: {
     ...stable.pathogenesis,
-    chain: [{ patientFact: "胸骨后压榨样疼痛，向左肩放射", syndromeEvidence: "剧烈胸痛支持心脉痹阻", pathogenesis: "心脉瘀阻，不通则痛", therapyDirection: "益气活血，通脉止痛" }],
+    chain: [{ patientFact: "胸骨后压榨样疼痛，向左肩放射", syndromeEvidence: "胸骨后压榨样疼痛，向左肩放射", pathogenesis: "心脉瘀阻，不通则痛", therapyDirection: "益气活血，通脉止痛" }],
   },
-  therapy: { ...stable.therapy, overallPrinciple: "益气活血，通脉止痛" },
+  therapy: { ...stable.therapy, overallPrinciple: "急则治标", overallMethod: "益气活血，通脉止痛" },
 };
 assert.equal(
   isStableM03Reasoning(acuteChestStasisReasoning, "突发胸骨后压榨样疼痛1小时，向左肩放射，伴大汗、气促"),
@@ -594,22 +1359,31 @@ assert.equal(
 
 const colloquialNightSweatReasoning = {
   ...stable,
-  overview: { ...stable.overview, primarySyndrome: "阴虚内热证", overallPathogenesis: "阴液不足，虚热内扰" },
+  overview: {
+    ...stable.overview,
+    primarySyndrome: "阴虚内热证",
+    tcmDiagnosticRationale: "夜间反复汗出且睡中加重，提示阴液不足、虚热内扰。",
+    overallPathogenesis: "阴液不足，虚热内扰",
+  },
   pathogenesis: {
     ...stable.pathogenesis,
-    chain: [{ patientFact: "夜里总出汗", syndromeEvidence: "盗汗支持阴虚", pathogenesis: "阴液不足，虚热内扰", therapyDirection: "滋阴清热" }],
+    chain: [{ patientFact: "夜里总出汗", syndromeEvidence: "夜里总出汗", pathogenesis: "阴液不足，虚热内扰", therapyDirection: "滋阴清热" }],
   },
-  therapy: { ...stable.therapy, overallPrinciple: "滋阴清热" },
+  therapy: { ...stable.therapy, overallPrinciple: "因人制宜", overallMethod: "滋阴清热" },
 };
 assert.equal(
   isStableM03Reasoning(colloquialNightSweatReasoning, "患者夜里总出汗，睡着后出汗，醒来就停；睡不好约一个月"),
   true,
-  "colloquial nocturnal sweating must ground the canonical 盗汗 concept without forcing a model retry",
+  `colloquial nocturnal sweating must ground the canonical 盗汗 concept without forcing a model retry: ${m03SemanticIssue(colloquialNightSweatReasoning, "患者夜里总出汗，睡着后出汗，醒来就停；睡不好约一个月")}`,
 );
 const nightSweatYinReasoning = {
   ...stable,
-  overview: { primarySyndrome: "阴虚神扰证", overallPathogenesis: "阴虚失养，心神不宁" },
-  therapy: { overallPrinciple: "滋阴养心，宁心安神" },
+  overview: { ...stable.overview, primarySyndrome: "阴虚神扰证", overallPathogenesis: "阴虚失养，心神不宁" },
+  therapy: {
+    overallPrinciple: "因人制宜，扶正祛邪",
+    overallMethod: "滋阴养心，宁心安神",
+    subTherapies: [{ therapy: "滋阴养心", targetPathogenesis: "阴虚失养", priority: "主要" }],
+  },
   pathogenesis: { chain: [{ patientFact: "夜里总出汗", syndromeEvidence: "夜间汗出伴睡眠不佳支持阴液不足倾向", pathogenesis: "阴虚失养", therapyDirection: "滋阴养心" }] },
 };
 assert.equal(isStableM03Reasoning(nightSweatYinReasoning, "夜里总出汗，睡不好，大概一个月"), true);
@@ -659,6 +1433,10 @@ assert.equal(m03SemanticIssue(chainWithFact("无发热"), "发热3天；舌淡�
 assert.equal(m03SemanticIssue(chainWithFact("腹痛"), "上腹隐痛3天；舌淡脉细；入睡困难"), undefined, "腹痛 canonicalizes to the chart's 上腹隐痛");
 assert.equal(m03SemanticIssue(chainWithFact("上腹隐痛"), "腹痛3天；舌淡脉细；入睡困难"), undefined, "上腹隐痛 canonicalizes to the chart's 腹痛");
 assert.equal(m03SemanticIssue(chainWithFact("胃脘痛"), "腹痛3天；舌淡脉细；入睡困难"), undefined, "胃脘痛 canonicalizes to the chart's 腹痛");
+for (const colloquialAbdominalPain of ["来月经第一天肚子疼得蜷着", "小肚子一阵一阵地痛", "肚脐周围隐隐疼"]) {
+  assert.equal(m03SemanticIssue(chainWithFact("腹痛"), `${colloquialAbdominalPain}；舌淡脉细`), undefined, `${colloquialAbdominalPain} canonicalizes to 腹痛`);
+}
+assert.equal(m03SemanticIssue(chainWithFact("腹痛"), "肚子一点也不疼；舌淡脉细"), "patient_fact_ungrounded_0_0_polarity", "a colloquial abdominal-pain denial cannot ground an affirmed 腹痛");
 // (c) unknown concepts keep the literal fail-closed requirement
 assert.equal(m03SemanticIssue(chainWithFact("皮疹瘙痒"), "入睡困难；舌淡脉细"), "patient_fact_ungrounded_0_0_literal", "unknown concepts still literal-reject without record support");
 assert.equal(m03SemanticIssue(chainWithFact("皮疹瘙痒3天"), "皮疹瘙痒3天；舌淡脉细"), undefined, "unknown concepts still ground on literal record support");
@@ -709,7 +1487,10 @@ for (const history of ["2型糖尿病10年", "高血压5年余", "高血压病�
 }
 // abnormal vitals and current positive findings remain valid support
 for (const finding of ["BP 200/120mmHg", "血压 200/120mmHg", "SpO2 90%", "体温39.1℃", "心率130次/分", "呼吸26次/分"]) {
-  assert.equal(m03SemanticIssue(westernSupportOf([finding]), stableSupportContext), undefined, `${finding} is abnormal and remains valid diagnostic support`);
+  const abnormalVitalSupport = westernSupportOf([finding]);
+  abnormalVitalSupport.westernDiagnosis.primary.name = "生命体征异常待评估";
+  abnormalVitalSupport.westernDiagnosis.primary.clinicalRationale = `${finding}提示当前生命体征异常，但具体病因仍需结合现场复测核实。`;
+  assert.equal(m03SemanticIssue(abnormalVitalSupport, `${finding}；${stableSupportContext}`), undefined, `${finding} is abnormal and remains valid diagnostic support`);
 }
 assert.equal(m03SemanticIssue(westernSupportOf(["高血压病史", "入睡困难"]), stableSupportContext), undefined, "a current positive finding beside background history remains valid support");
 // (f) excluded items cannot bypass the historical_only gate
@@ -718,28 +1499,91 @@ assert.equal(m03SemanticIssue(westernSupportOf(["2型糖尿病10年", "男性，
 assert.equal(m03SemanticIssue(westernSupportOf(["舌淡红", "高血压病史"]), stableSupportContext), "western_support_tcm_pollution", "tongue findings cannot masquerade as current evidence beside historical facts");
 assert.equal(m03SemanticIssue(westernSupportOf(["2型糖尿病10年", "高血压病史"]), stableSupportContext), "western_support_historical_only", "a multi-year background entry cannot bypass the historical_only gate");
 
+// Post-grounding rationale alignment repairs the whole transform-induced mismatch class without
+// restoring filtered padding or inventing a more specific diagnosis.
+const rationaleMismatch = structuredClone(stable);
+rationaleMismatch.westernDiagnosis.primary.name = "失眠症状";
+rationaleMismatch.westernDiagnosis.primary.supportingFacts = ["入睡困难"];
+rationaleMismatch.westernDiagnosis.primary.clinicalRationale =
+  "生命体征平稳支持当前工作诊断，但具体病因仍需鉴别。";
+assert.equal(
+  m03WesternClinicalRationaleIssue(rationaleMismatch),
+  "western_clinical_rationale_restatement",
+  "a rationale tied to a filtered fact is rejected against the surviving support",
+);
+const rationaleMismatchContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(rationaleMismatch)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const alignedRationaleContent = alignNormalizedM03WesternClinicalRationale(rationaleMismatchContent);
+const alignedRationale = JSON.parse(
+  alignedRationaleContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0],
+);
+assert.match(alignedRationale.westernDiagnosis.primary.clinicalRationale, /入睡困难.*失眠症状.*具体病因/, "the replacement uses only the retained fact, selected label, and bounded uncertainty");
+assert.doesNotMatch(alignedRationale.westernDiagnosis.primary.clinicalRationale, /生命体征/, "filtered normal-vital padding cannot re-enter through the rationale");
+assert.equal(m03WesternClinicalRationaleIssue(alignedRationale), undefined, "the bounded rationale passes the same focused validator used by finalization");
+assert.equal(m03SemanticIssue(alignedRationale, stableSupportContext), undefined, "the aligned candidate passes the complete M03 contract");
+
+const validRationaleContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(stable)}\n<!-- DIAGNOSIS_JSON_END -->`;
+assert.equal(alignNormalizedM03WesternClinicalRationale(validRationaleContent), validRationaleContent, "a valid provider rationale is byte-preserved");
+
+const noGroundedFactRationale = structuredClone(rationaleMismatch);
+noGroundedFactRationale.westernDiagnosis.primary.supportingFacts = [];
+const noGroundedFactContent = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(noGroundedFactRationale)}\n<!-- DIAGNOSIS_JSON_END -->`;
+assert.equal(alignNormalizedM03WesternClinicalRationale(noGroundedFactContent), noGroundedFactContent, "missing support remains fail-closed instead of synthesizing evidence");
+
 // === Denial-transport rewrite keeps negation scope (release-e2e DZ01 residual) ===
 const dizzinessDenialContext = "头晕反复3天；起身或转头时明显，每次持续数分钟，休息后缓解，无晕厥、胸痛或呼吸困难；舌淡白；脉细；面色少华；近期有黑便、月经量过多或外伤出血史";
 const dizzinessChain = {
   ...stable,
+  overview: {
+    ...stable.overview,
+    tcmDiagnosticRationale: "头晕结合舌淡白、脉细，提示气血亏虚、清窍失养。",
+  },
   pathogenesis: { chain: [{ patientFact: "头晕反复3天", syndromeEvidence: "舌淡白脉细", pathogenesis: "气血亏虚，清窍失养", therapyDirection: "益气养血" }] },
 };
 const dizzinessWesternSupport = (supportingFacts) => ({
   ...dizzinessChain,
-  westernDiagnosis: { ...stable.westernDiagnosis, primary: { ...stable.westernDiagnosis.primary, supportingFacts } },
+  westernDiagnosis: {
+    ...stable.westernDiagnosis,
+    primary: {
+      ...stable.westernDiagnosis.primary,
+      name: "头晕症状",
+      supportingFacts,
+      clinicalRationale: "头晕反复3天支持当前头晕症状方向，但晕厥、胸痛及呼吸困难已否认，具体病因仍需鉴别。",
+    },
+  },
 });
-// Verbatim finalized payload from the e2e run: the customer-output sanitizer rewrites the charted
-// denial into "病历已记录否认胸痛、呼吸困难；…" — the negation scope must survive the 、 boundary,
-// otherwise every later enumerated term reads affirmed and finalization burns the whole diagnosis.
+// The customer-output sanitizer transports the charted denial into a normalized sentence. Its
+// negation scope must survive the 、 boundary, otherwise every later enumerated term reads affirmed
+// and finalization burns the whole diagnosis. Generic filler is intentionally no longer appended.
 assert.equal(m03SemanticIssue(dizzinessWesternSupport([
   "头晕反复3天",
   "起身或转头时明显，每次持续数分钟，休息后缓解",
   "近期有黑便、月经量过多或外伤出血史",
   "面象：面色少华",
-  "病历已记录否认胸痛、呼吸困难；本次主诉及伴随症状变化",
+  "病历已记录否认胸痛、呼吸困难",
 ]), dizzinessDenialContext), undefined, "the deterministic denial-transport rewrite keeps negation scope over the whole enumeration");
-assert.equal(isWesternSupportingFactPolarityAligned("病历已记录否认胸痛、呼吸困难；本次主诉及伴随症状变化", dizzinessDenialContext), true, "every enumerated term inside 病历已记录否认… stays negated");
+assert.equal(isWesternSupportingFactPolarityAligned("病历已记录否认胸痛、呼吸困难", dizzinessDenialContext), true, "every enumerated term inside 病历已记录否认… stays negated");
 assert.equal(isWesternSupportingFactPolarityAligned("无晕厥、胸痛或呼吸困难", dizzinessDenialContext), true, "a charted rule-out enumeration stays negated without the transport prefix");
+const headacheWithQualifiedRuleOutContext = "主诉：头疼头晕，睡不着觉\n现病史：头疼头晕、入睡困难2个月，多梦易醒，晨起疲乏；否认突发最剧烈头痛、复视、言语不清、肢体无力、喷射性呕吐。\n舌淡，脉细";
+assert.equal(
+  isWesternSupportingFactPolarityAligned("头疼头晕，睡不着觉", headacheWithQualifiedRuleOutContext),
+  true,
+  "an affirmed general symptom remains valid support when the chart separately denies only its dangerous subtype",
+);
+assert.equal(
+  isWesternSupportingFactPolarityAligned("头痛", "否认头痛、头晕及复视"),
+  false,
+  "a denied-only symptom still cannot become affirmative Western support",
+);
+const headacheWithQualifiedRuleOut = structuredClone(stable);
+headacheWithQualifiedRuleOut.westernDiagnosis.primary.name = "头痛症状";
+headacheWithQualifiedRuleOut.westernDiagnosis.primary.supportingFacts = ["头疼头晕，睡不着觉"];
+headacheWithQualifiedRuleOut.westernDiagnosis.primary.clinicalRationale =
+  "头疼头晕，睡不着觉支持将“头痛症状”作为当前工作诊断；但现有资料尚不足以确定具体病因，因此暂不采用更具体的病因标签。";
+assert.equal(
+  m03SemanticIssue(headacheWithQualifiedRuleOut, headacheWithQualifiedRuleOutContext),
+  undefined,
+  "the full M03 contract separates affirmative symptom support from qualified red-flag rule-out context",
+);
 // negated rule-out facts are routed as rule-out context, never as a polarity violation
 assert.equal(m03SemanticIssue(dizzinessWesternSupport(["头晕反复3天", "无晕厥、胸痛或呼吸困难"]), dizzinessDenialContext), undefined, "a negated rule-out fact rides along as rule-out context");
 assert.equal(m03SemanticIssue(dizzinessWesternSupport(["无晕厥、胸痛或呼吸困难"]), dizzinessDenialContext), "western_support_historical_only", "negated rule-out facts alone cannot satisfy the current-fact gate");
@@ -760,7 +1604,14 @@ const m04 = {
         { name: "酸枣仁", dose: "15g", role: "君", prescriptionRole: "养心安神", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "心血不足", function: "养心安神", decoctionRequirement: "捣碎后同煎" },
         { name: "川芎", dose: "6g", role: "臣", prescriptionRole: "调畅血脉", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "心血不足", function: "活血行气" },
       ],
-      decoction: { doseCount: "5剂", method: "每日1剂，冷水浸泡30分钟，煎煮2次，合并药液约400mL，早晚分服", course: "5日", followUpNode: "5日复诊" },
+      decoction: {
+        doseCount: "5剂",
+        dosesPerDay: 1,
+        administrationTimesPerDay: 2,
+        method: "每日1剂，冷水浸泡30分钟，煎煮2次，合并药液约400mL，每日分2次服",
+        course: "5日",
+        followUpNode: "5日复诊",
+      },
     }],
     modifications: [],
   },
@@ -772,6 +1623,114 @@ const m04 = {
     monitoring: [{ metric: "入睡时间与夜醒次数", timing: "每日记录", trigger: "连续加重或出现明显日间功能受损时复诊" }],
   },
 };
+const liverImpairmentRiskM04 = structuredClone(m04);
+liverImpairmentRiskM04.formula.candidates[0].herbs[0] = {
+  ...liverImpairmentRiskM04.formula.candidates[0].herbs[0],
+  name: "朱砂",
+  dose: "1g",
+  function: getTcmHerbFunctionText("朱砂"),
+  isToxic: true,
+  decoctionRequirement: "不入煎剂，研末冲服",
+};
+assert.match(
+  m04SemanticIssue(liverImpairmentRiskM04, "", stable, isKnownTcmHerbName, false, false, false, false, "患者肝功能不全") || "",
+  /special_population_high_risk_hepatic_impairment/,
+  "M04 must reject an active HIGH special-population rule before signing or post-prescription audit",
+);
+assert.doesNotMatch(
+  m04SemanticIssue(liverImpairmentRiskM04, "", stable, isKnownTcmHerbName, false, false, false, false, "患者否认肝功能不全") || "",
+  /special_population_high_risk/,
+  "a negated special-population history must not become a generation-time contraindication",
+);
+const toxicMetadataM04 = structuredClone(m04);
+Object.assign(toxicMetadataM04.formula.candidates[0], {
+  formulaAnalysis: "围绕已锁定病机配伍。",
+  applicable: "适用于本例证候病机。",
+  notApplicable: "证候变化时不适用。",
+});
+toxicMetadataM04.formula.candidates[0].herbs[0] = {
+  ...toxicMetadataM04.formula.candidates[0].herbs[0],
+  name: "半夏",
+  dose: "6g",
+  function: getTcmHerbFunctionText("半夏"),
+  decoctionRequirement: undefined,
+};
+const enrichedToxicMetadata = enrichReasoning(toxicMetadataM04).reasoning.formula.candidates[0];
+assert.equal(enrichedToxicMetadata.herbs[0].isToxic, true);
+assert.match(enrichedToxicMetadata.notApplicable, /逐味生成前安全边界.*半夏.*毒性/);
+const generationSafetyPrompt = buildPrescribePrompt({
+  patient: { sex: "女", age: 46 },
+  chiefComplaint: "入睡困难",
+  conversation: [],
+  reasoningDiagnose: stable,
+  reasoningV2: stable,
+});
+assert.match(generationSafetyPrompt, /生成前逐味安全边界/);
+assert.match(generationSafetyPrompt, /毒性=/);
+assert.match(generationSafetyPrompt, /孕期\/妊娠=(?:LOW|MEDIUM|HIGH)/);
+const ordinaryTreatmentWithoutPositioning = structuredClone(m04);
+ordinaryTreatmentWithoutPositioning.nonPharma.tcmTreatments = [{
+  projectCode: "acupuncture",
+  targetRef: "P1",
+  targetPathogenesis: "心血不足",
+  protocolStatus: "governed_patient_specific_plan",
+  treatmentContent: "围绕睡眠与情志症状进行辨证选穴，作为改善睡眠的辅助项目。",
+  suggestedSitesOrPoints: ["印堂(EX-HN3)", "神门(HT7)", "内关(PC6)"],
+  scheduleSuggestion: "可先按每周2次、连续2周评估症状变化。",
+  techniqueBoundary: "具体选穴和操作参数须由现场医师查体后确定。",
+  protocolSource: "项目级受控临床路径；穴位采用WHO标准命名。",
+  operatorRequirement: "由具备相应资质的中医执业人员操作",
+  requiredChecks: ["出血倾向与局部感染"],
+  availability: "clinic_available",
+  riskLevel: "moderate",
+  recommendationMode: "clinician_assessment",
+  executable: false,
+  clinicianReviewRequired: true,
+}];
+assert.equal(
+  m04SemanticIssue(ordinaryTreatmentWithoutPositioning, "", stable),
+  undefined,
+  "an ordinary onsite project remains valid after the non-distinguishing assessment-positioning field is omitted",
+);
+const assessmentOnlyTreatment = structuredClone(ordinaryTreatmentWithoutPositioning);
+assessmentOnlyTreatment.nonPharma.tcmTreatments[0] = {
+  ...assessmentOnlyTreatment.nonPharma.tcmTreatments[0],
+  protocolStatus: "assessment_only_no_patient_specific_protocol",
+  protocolGap: "当前目录缺少与该项目及本例适应证对应的受控操作方案。",
+  suggestedSitesOrPoints: [],
+  scheduleSuggestion: "",
+};
+assert.equal(
+  m04SemanticIssue(assessmentOnlyTreatment, "", stable),
+  undefined,
+  "an assessment-only project remains valid only when patient-specific parameters are absent and the gap is explicit",
+);
+const shellTreatment = structuredClone(assessmentOnlyTreatment);
+shellTreatment.nonPharma.tcmTreatments[0].suggestedSitesOrPoints = ["按经验选穴"];
+assert.match(
+  m04SemanticIssue(shellTreatment, "", stable) || "",
+  /assessment_parameters/,
+  "an assessment-only project must reject placeholder points or sites",
+);
+const conditionalMetricMonitoring = structuredClone(ordinaryTreatmentWithoutPositioning);
+conditionalMetricMonitoring.nonPharma.monitoring[0].metric = "若入睡困难加重则复诊";
+assert.equal(m04SemanticIssue(conditionalMetricMonitoring, "", stable), "monitoring_0_metric_semantics");
+const actionlessTriggerMonitoring = structuredClone(ordinaryTreatmentWithoutPositioning);
+actionlessTriggerMonitoring.nonPharma.monitoring[0].trigger = "入睡时间与夜醒次数";
+assert.equal(m04SemanticIssue(actionlessTriggerMonitoring, "", stable), "monitoring_0_trigger_semantics");
+const duplicatedMonitoring = structuredClone(ordinaryTreatmentWithoutPositioning);
+duplicatedMonitoring.nonPharma.monitoring[0] = { metric: "入睡困难", timing: "入睡困难", trigger: "若加重则复诊" };
+assert.equal(m04SemanticIssue(duplicatedMonitoring, "", stable), "monitoring_0_duplicate");
+const ungroundedMonitoring = structuredClone(ordinaryTreatmentWithoutPositioning);
+ungroundedMonitoring.nonPharma.monitoring[0].metric = "耳鸣严重程度";
+assert.equal(m04SemanticIssue(ungroundedMonitoring, "", stable), "monitoring_0_metric_ungrounded");
+const blankTreatmentPositioning = structuredClone(ordinaryTreatmentWithoutPositioning);
+blankTreatmentPositioning.nonPharma.tcmTreatments[0].assessmentPositioning = "   ";
+assert.match(
+  m04SemanticIssue(blankTreatmentPositioning, "", stable) || "",
+  /non_pharma_treatment_0_positioning/,
+  "a supplied positioning boundary must be meaningful rather than blank",
+);
 const genericTonicAsEmperor = structuredClone(m04);
 genericTonicAsEmperor.formula.candidates[0].constructionType = "self_devised";
 genericTonicAsEmperor.formula.candidates[0].formulaNames = [];
@@ -781,8 +1740,23 @@ genericTonicAsEmperor.formula.candidates[0].herbs[0] = {
   function: "补脾养胃，生津益肺，补肾涩精",
   prescriptionRole: "补脾益气",
 };
+genericTonicAsEmperor.formula.candidates[0].herbs[1] = {
+  ...genericTonicAsEmperor.formula.candidates[0].herbs[1],
+  name: "茯神",
+  dose: "12g",
+  function: "宁心安神",
+  prescriptionRole: "宁心安神",
+};
 assert.match(
-  m04SemanticIssue(genericTonicAsEmperor, "", stable) || "",
+  m04SemanticIssue(genericTonicAsEmperor, "", {
+    ...stable,
+    overview: {
+      ...stable.overview,
+      recommendedFormulaDirection: "按已锁定病机与治法辨证组方",
+      recommendedFormulaNames: [],
+      formulaSelectionMode: "self_devised",
+    },
+  }) || "",
   /emperor_therapy_mismatch/,
   "a generic tonic cannot become emperor when its governed actions do not directly cover the P1 therapy",
 );
@@ -1168,11 +2142,11 @@ const liverSpleenPrior = {
     { nodeId: "P1", patientFact: "压力大时明显", syndromeEvidence: "压力大时明显", pathogenesis: "肝气郁结", therapyDirection: "疏肝解郁" },
     { nodeId: "P2", patientFact: "脘腹胀满半年", syndromeEvidence: "脘腹胀满半年", pathogenesis: "脾虚失运", therapyDirection: "健脾助运" },
   ] },
-  therapy: { overallPrinciple: "疏肝健脾" },
+  therapy: { overallPrinciple: "因人制宜", overallMethod: "疏肝健脾" },
 };
 const liverSpleenM04 = structuredClone(m04);
 liverSpleenM04.overview = { primarySyndrome: "肝郁脾虚证", overallPathogenesis: "肝郁脾虚" };
-liverSpleenM04.therapy = { overallPrinciple: "疏肝健脾" };
+liverSpleenM04.therapy = { overallPrinciple: "因人制宜" };
 liverSpleenM04.formula.candidates[0].name = "辨证组方";
 liverSpleenM04.formula.candidates[0].formulaNames = [];
 liverSpleenM04.formula.candidates[0].constructionType = "self_devised";
@@ -1184,17 +2158,17 @@ liverSpleenM04.formula.candidates[0].herbs = [
 assert.equal(
   m04SemanticIssue(liverSpleenM04, "", liverSpleenPrior),
   undefined,
-  "柴胡's category-only KB record (发散风热药；解表药) must not invert its canonical 疏肝解郁 direction (governed supplement)",
+  "柴胡's generated category-only record must not invert its centrally governed 疏肝解郁 direction",
 );
 const headQiBloodPrior = {
   ...stable,
   overview: { ...stable.overview, primarySyndrome: "眩晕功能失调候", overallPathogenesis: "头部气血失调", primarySyndromeBasis: ["头晕头胀"], recommendedFormulaDirection: "调畅头部气血", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
   pathogenesis: { chain: [{ nodeId: "P1", patientFact: "头晕头胀", syndromeEvidence: "头晕头胀", pathogenesis: "头部气血失调", therapyDirection: "调畅头部气血，清利头目" }] },
-  therapy: { overallPrinciple: "调畅头部气血，安神定志" },
+  therapy: { overallPrinciple: "因人制宜", overallMethod: "调畅头部气血，安神定志" },
 };
 const headQiBloodM04 = structuredClone(m04);
 headQiBloodM04.overview = { primarySyndrome: "眩晕功能失调候", overallPathogenesis: "头部气血失调" };
-headQiBloodM04.therapy = { overallPrinciple: "调畅头部气血，安神定志" };
+headQiBloodM04.therapy = { overallPrinciple: "因人制宜" };
 headQiBloodM04.formula.candidates[0].name = "辨证组方";
 headQiBloodM04.formula.candidates[0].formulaNames = [];
 headQiBloodM04.formula.candidates[0].constructionType = "self_devised";
@@ -1222,7 +2196,7 @@ const highImpactModification = {
   formula: {
     ...m04.formula,
     modifications: [{
-      trigger: "复诊时仍畏寒",
+      trigger: "入睡困难",
       targetPathogenesis: "心血不足",
       action: "加附子",
       reason: "温阳散寒",
@@ -1246,19 +2220,36 @@ const visiblePrescription = (acidDose = "15g", chuanxiongDose = "6g", method = d
 assert.equal(isCompleteM04Reasoning(m04, visiblePrescription()), true);
 const windLungPrior = {
   ...stable,
-  overview: { ...stable.overview, primarySyndrome: "风邪恋肺证" },
-  pathogenesis: { chain: [{ ...stable.pathogenesis.chain[0], therapyDirection: "疏散风邪，宣通肺气" }] },
+  overview: { ...stable.overview, primarySyndrome: "风邪恋肺证", recommendedFormulaDirection: "辨证组方", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [{ ...stable.pathogenesis.chain[0], pathogenesis: "风邪恋肺", therapyDirection: "疏散风邪，宣通肺气" }] },
   therapy: { overallPrinciple: "疏风宣肺" },
 };
+const windLungCandidate = {
+  ...m04.formula.candidates[0],
+  name: "辨证组方",
+  formulaNames: [],
+  constructionType: "self_devised",
+  herbs: [
+    { name: "荆芥", dose: "6g", role: "君", prescriptionRole: "疏散风邪", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "风邪恋肺", function: getTcmHerbFunctionText("荆芥"), decoctionRequirement: "后下" },
+    { name: "桔梗", dose: "6g", role: "臣", prescriptionRole: "宣通肺气", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "风邪恋肺", function: getTcmHerbFunctionText("桔梗"), decoctionRequirement: "" },
+  ],
+};
+const windLungVisiblePrescription = [
+  `**煎服法**：${defaultMethod}`,
+  "| 序号 | 药名 | 炮制/规格 | 剂量 | 君臣佐使 |",
+  "|---|---|---|---|---|",
+  "| 1 | 荆芥 | 后下 | 6g | 君 |",
+  "| 2 | 桔梗 | 饮片 | 6g | 臣 |",
+].join("\n");
 for (const therapyMatch of ["疏散风邪，宣通肺气", "祛风解表，宣畅肺气"]) {
   const synonymousWindLungM04 = {
     ...m04,
     overview: { ...m04.overview, primarySyndrome: windLungPrior.overview.primarySyndrome },
     therapy: { ...windLungPrior.therapy },
-    formula: { ...m04.formula, candidates: [{ ...m04.formula.candidates[0], therapyMatch }] },
+    formula: { ...m04.formula, candidates: [{ ...windLungCandidate, therapyMatch }] },
   };
   assert.equal(
-    m04SemanticIssue(synonymousWindLungM04, visiblePrescription(), windLungPrior),
+    m04SemanticIssue(synonymousWindLungM04, windLungVisiblePrescription, windLungPrior),
     undefined,
     `wind-lung synonymous therapy must align with the locked M03 direction: ${therapyMatch}`,
   );
@@ -1267,10 +2258,10 @@ const unrelatedWindLungM04 = {
   ...m04,
   overview: { ...m04.overview, primarySyndrome: windLungPrior.overview.primarySyndrome },
   therapy: { ...windLungPrior.therapy },
-  formula: { ...m04.formula, candidates: [{ ...m04.formula.candidates[0], therapyMatch: "健脾益气" }] },
+  formula: { ...m04.formula, candidates: [{ ...windLungCandidate, therapyMatch: "健脾益气" }] },
 };
 assert.equal(
-  m04SemanticIssue(unrelatedWindLungM04, visiblePrescription(), windLungPrior),
+  m04SemanticIssue(unrelatedWindLungM04, windLungVisiblePrescription, windLungPrior),
   "candidate_0_therapy_unaligned",
   "an unrelated therapy must not align merely because both values are valid TCM treatment text",
 );
@@ -1335,7 +2326,7 @@ assert.match(m04SemanticIssue(advisoryRangeM04, visiblePrescription("30g", "6g")
 assert.equal(m04SemanticIssue(advisoryRangeM04, visiblePrescription("30g", "6g"), stable, isKnownTcmHerbName, false, false, true), undefined, "a doctor workbench edit above the historical range remains advisory and reaches the real audit");
 const yinDeficiencyPrior = {
   ...stable,
-  overview: { ...stable.overview, primarySyndrome: "胃阴不足证", overallPathogenesis: "胃阴亏虚，虚热内生" },
+  overview: { ...stable.overview, primarySyndrome: "胃阴不足证", overallPathogenesis: "胃阴亏虚，虚热内生", recommendedFormulaDirection: "辨证组方", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
   pathogenesis: { chain: [{ nodeId: "P1", patientFact: "口干", syndromeEvidence: "口干", pathogenesis: "胃阴亏虚，虚热内生", therapyDirection: "滋阴清热，益胃生津" }] },
   therapy: { overallPrinciple: "滋阴清热，益胃生津" },
 };
@@ -1344,7 +2335,7 @@ const alternateGovernedDoseM04 = {
   overview: { ...m04.overview, primarySyndrome: "胃阴不足证", overallPathogenesis: "胃阴亏虚，虚热内生" },
   pathogenesis: yinDeficiencyPrior.pathogenesis,
   therapy: yinDeficiencyPrior.therapy,
-  formula: { ...m04.formula, candidates: [{ ...m04.formula.candidates[0], therapyMatch: "滋阴清热，益胃生津", herbs: [
+  formula: { ...m04.formula, candidates: [{ ...m04.formula.candidates[0], name: "辨证组方", formulaNames: [], constructionType: "self_devised", therapyMatch: "滋阴清热，益胃生津", herbs: [
     { ...m04.formula.candidates[0].herbs[0], name: "石斛", dose: "15g", targetPathogenesis: "胃阴亏虚，虚热内生", function: getTcmHerbFunctionText("石斛"), prescriptionRole: "滋阴益胃" },
   ] }] },
 };
@@ -1433,18 +2424,22 @@ assert.equal(isCompleteM04Reasoning({ ...m04, formula: { candidates: [{ ...m04.f
 assert.equal(isCompleteM04Reasoning(m04, visiblePrescription(), stable), true);
 const namedDirectionPrior = {
   ...stable,
-  overview: { ...stable.overview, recommendedFormulaDirection: "归脾汤加减方向", recommendedFormulaNames: ["归脾汤"], formulaSelectionMode: "single" },
+  overview: { ...stable.overview, primarySyndrome: "心脾两虚证", overallPathogenesis: "脾气不足，心血失养", recommendedFormulaDirection: "归脾汤加减方向", recommendedFormulaNames: ["归脾汤"], formulaSelectionMode: "single" },
+  pathogenesis: { chain: [{ ...stable.pathogenesis.chain[0], pathogenesis: "脾气不足，心血失养", therapyDirection: "益气养血，健脾安神" }] },
+  therapy: { overallPrinciple: "益气养血，健脾安神" },
 };
 const namedDirectionM04 = {
   ...m04,
-  overview: { ...m04.overview, recommendedFormulaDirection: "归脾汤加减方向" },
+  overview: { ...m04.overview, primarySyndrome: "心脾两虚证", overallPathogenesis: "脾气不足，心血失养", recommendedFormulaDirection: "归脾汤加减方向" },
+  therapy: { overallPrinciple: "益气养血，健脾安神" },
   formula: { ...m04.formula, candidates: [{
     ...m04.formula.candidates[0],
     name: "归脾汤加减",
     formulaNames: ["归脾汤"],
+    therapyMatch: "益气养血，健脾安神",
     herbs: [
-      m04.formula.candidates[0].herbs[0],
-      { ...m04.formula.candidates[0].herbs[1], name: "当归", dose: "10g", prescriptionRole: "养血和营", function: getTcmHerbFunctionText("当归"), decoctionRequirement: undefined },
+      { ...m04.formula.candidates[0].herbs[0], targetPathogenesis: "脾气不足，心血失养" },
+      { ...m04.formula.candidates[0].herbs[1], name: "当归", dose: "10g", prescriptionRole: "养血和营", targetPathogenesis: "脾气不足，心血失养", function: getTcmHerbFunctionText("当归"), decoctionRequirement: undefined },
     ],
   }] },
 };
@@ -1469,7 +2464,7 @@ const governedDirectionM04 = {
   },
 };
 assert.equal(isCompleteM04Reasoning(governedDirectionM04, "", governedDirectionPrior), true, m04SemanticIssue(governedDirectionM04, "", governedDirectionPrior));
-const noFormulaLockedPrior = { ...stable, overview: { ...stable.overview, recommendedFormulaDirection: "按病机组方", recommendedFormulaNames: [], formulaSelectionMode: "none" } };
+const noFormulaLockedPrior = { ...namedDirectionPrior, overview: { ...namedDirectionPrior.overview, recommendedFormulaDirection: "按病机组方", recommendedFormulaNames: [], formulaSelectionMode: "none" } };
 assert.equal(isCompleteM04Reasoning(namedDirectionM04, "", noFormulaLockedPrior), false, "formulaSelectionMode=none must not silently authorize a named classic formula");
 const selfDevisedM04 = { ...namedDirectionM04, formula: { ...namedDirectionM04.formula, candidates: [{ ...namedDirectionM04.formula.candidates[0], name: "本例辨证组方", formulaNames: [] }] } };
 assert.equal(isCompleteM04Reasoning(selfDevisedM04, "", noFormulaLockedPrior), true, m04SemanticIssue(selfDevisedM04, "", noFormulaLockedPrior));
@@ -1491,7 +2486,7 @@ const unselectedAlternativeHerbM04 = {
     formulaNames: ["归脾汤"],
     herbs: [
       ...namedDirectionM04.formula.candidates[0].herbs,
-      { ...m04.formula.candidates[0].herbs[1], targetPathogenesis: stable.pathogenesis.chain[0].pathogenesis },
+      { ...m04.formula.candidates[0].herbs[1], targetPathogenesis: namedDirectionPrior.pathogenesis.chain[0].pathogenesis },
     ],
   }] },
 };
@@ -1601,7 +2596,7 @@ const groundedNodeM04 = JSON.parse(groundedNodeContent.split("<!-- DIAGNOSIS_JSO
 assert.equal(groundedNodeM04.formula.candidates[0].herbs[0].targetPathogenesis, tonicStructuralPrior.pathogenesis.chain[0].pathogenesis);
 assert.equal(isCompleteM04Reasoning(groundedNodeM04, "", tonicStructuralPrior), true, m04SemanticIssue(groundedNodeM04, "", tonicStructuralPrior));
 assert.match(m04SemanticIssue({ ...groundedNodeM04, formula: { ...groundedNodeM04.formula, candidates: [{ ...groundedNodeM04.formula.candidates[0], herbs: [{ ...groundedNodeM04.formula.candidates[0].herbs[0], targetRef: "P9" }, groundedNodeM04.formula.candidates[0].herbs[1]] }] } }, "", tonicStructuralPrior) || "", /target_ref_invalid/);
-const groundedM03IdContent = groundStructuredPatientFacts(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(stable)}\n<!-- DIAGNOSIS_JSON_END -->`, "患者入睡困难");
+const groundedM03IdContent = groundStructuredPatientFacts(`<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(stable)}\n<!-- DIAGNOSIS_JSON_END -->`, "患者入睡困难；舌淡；脉细");
 assert.match(groundedM03IdContent, /"nodeId":\s*"P1"/);
 const tonicStructuralMonarch = {
   ...tonicStructuralM04,
@@ -1647,7 +2642,7 @@ const duplicateWorkbenchM04 = {
   ] }] },
 };
 assert.equal(editedPrescriptionSemanticIssue(duplicateWorkbenchM04, 0, spleenDeficiencyPrior), "duplicate_herb");
-for (const [leftName, rightName] of [["黄芪", "黄耆"], ["甘草", "炙甘草"], ["延胡索", "元胡"]]) {
+for (const [leftName, rightName] of [["黄芪", "黄耆"], ["延胡索", "元胡"]]) {
   const identityDuplicateWorkbench = {
     ...spleenDeficiencyM04,
     formula: { ...spleenDeficiencyM04.formula, candidates: [{ ...spleenDeficiencyM04.formula.candidates[0], herbs: [
@@ -1787,7 +2782,7 @@ const finalizedServerOwnedContent = synchronizeVisibleClinicalSummary(
 const finalizedServerOwnedM04 = JSON.parse(finalizedServerOwnedContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim());
 const finalizedServerOwnedVisible = finalizedServerOwnedContent.split("<!-- DIAGNOSIS_JSON_START -->")[0];
 assert.equal(finalizedServerOwnedM04.formula.candidates[0].herbs[0].decoctionRequirement, "另煎或另炖");
-assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.followUpNode, /完成5剂后复诊/);
+assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.followUpNode, /完成5剂（5日）后复诊/);
 assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.method, /约500mL/, "disease duration must not be misread as pediatric age");
 assert.match(finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis, /围绕.+展开组方/);
 assert.match(finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis, /主要治疗支点/);
@@ -1803,7 +2798,7 @@ const validConditionalModification = {
   formula: {
     ...finalizedServerOwnedM04.formula,
     modifications: [{
-      trigger: "夜醒增多时",
+      trigger: "心悸健忘、纳差便溏",
       targetPathogenesis: "心脾两虚，神失所养",
       action: "加茯神",
       doseOrHandling: null,
@@ -1854,7 +2849,14 @@ const compiledProposal = compileM04Proposal({
     notApplicable: "证候变化时复核",
     herbs: [{ name: "酸枣仁", processing: ["炒"], dose: "15g", role: "君药", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, isToxic: false, decoctionRequirement: ["捣碎", "同煎"] }],
     formulaAnalysis: "酸枣仁养血安神",
-    decoction: { doseCount: "5剂", method: "每日1剂，浸泡30分钟，煎煮2次，合并药液400mL，早晚分服", course: "5日", followUpNode: "完成5剂后复诊" },
+    decoction: {
+      doseCount: "5剂",
+      dosesPerDay: 1,
+      administrationTimesPerDay: 2,
+      method: "每日1剂，浸泡30分钟，煎煮2次，合并药液400mL，每日分2次服",
+      course: "5日",
+      followUpNode: "完成5剂后复诊",
+    },
   },
   patentAndWestern: [{
     type: "中成药",
@@ -1867,12 +2869,14 @@ const compiledProposal = compileM04Proposal({
     course: "5日",
     positioning: "替代方案",
     correspondingProblem: "入睡困难",
+    evidenceId: "EVID-INST-001",
+    evidenceFingerprint: `sha256:${"1".repeat(64)}`,
     evidenceSource: "[EVID-INST-001] 药品说明书",
     relationship: "不与同成分制剂重复使用",
     riskNote: "复核过敏史和现用药",
   }],
   modifications: [{
-    trigger: "夜醒明显增多时",
+    trigger: "入睡困难",
     targetRef: "P1",
     actionType: "add",
     herbName: "茯神",
@@ -1888,8 +2892,12 @@ assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].role, "君");
 assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].decoctionRequirement, "捣碎、同煎");
 assert.equal(compiledProposal?.formula?.modifications[0].targetPathogenesis, "心血不足");
 assert.equal(compiledProposal?.formula?.modifications[0].action, "加茯神");
+assert.equal(compiledProposal?.formula?.modifications[0].triggerSource?.sourceQuote, "入睡困难");
+assert.match(compiledProposal?.formula?.modifications[0].evidence.source || "", /患者事实.*入睡困难.*P1/);
 assert.match(compiledProposal?.formula?.modifications[0].riskNote || "", /药味工作台.+重新审方/, "conditional modifications must explain how to operationalize and re-audit an actual change");
-assert.equal(compiledProposal?.formula?.patentAndWestern[0].route, "口服");
+assert.equal(compiledProposal?.formula?.patentAndWestern[0].route, undefined, "instruction-bound medicine candidates remain non-dose when a complete regimen was not server-bound");
+assert.equal(compiledProposal?.formula?.patentAndWestern[0].recommendationMode, "candidate_review");
+assert.equal(compiledProposal?.formula?.patentAndWestern[0].evidenceId, "EVID-INST-001");
 const clinicalReviewPayload = buildM04ClinicalReviewPayload(
   { ...stable, contractSignature: "secret-signature", clinicalReview: { status: "accepted" }, irrelevantWorkflowBlob: "x".repeat(50_000) },
   { ...compiledProposal, contractSignature: "secret-signature", clinicalReview: { status: "accepted" }, irrelevantWorkflowBlob: "y".repeat(50_000) },
@@ -1897,6 +2905,16 @@ const clinicalReviewPayload = buildM04ClinicalReviewPayload(
 assert.equal(clinicalReviewPayload.prior.contractSignature, undefined, "review projection excludes signature and workflow metadata");
 assert.equal(clinicalReviewPayload.candidate.contractSignature, undefined, "candidate review projection excludes final envelope metadata");
 assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].herbs[0].name, "酸枣仁", "review projection retains the clinically material herb plan");
+assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].herbs[0].targetPathogenesis, compiledProposal.formula.candidates[0].herbs[0].targetPathogenesis, "review projection retains the server-grounded pathogenesis target used to judge the herb role");
+assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].herbs[0].function, compiledProposal.formula.candidates[0].herbs[0].function, "review projection retains the governed herb function used to judge the emperor role");
+assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].herbs[0].prescriptionRole, compiledProposal.formula.candidates[0].herbs[0].prescriptionRole, "review projection retains the deterministic role explanation required by the reviewer");
+assert.equal(clinicalReviewPayload.candidate.formula.candidates[0].applicable, compiledProposal.formula.candidates[0].applicable, "review projection retains the self-devised formula rationale required by the reviewer");
+const selfDevisedReviewReasoning = structuredClone(compiledProposal);
+selfDevisedReviewReasoning.formula.candidates[0].constructionType = "self_devised";
+selfDevisedReviewReasoning.formula.candidates[0].applicable = "受控目录中的命名方未完整覆盖当前主证与病机链，故辨证组方。";
+const selfDevisedReviewPayload = buildM04ClinicalReviewPayload(stable, selfDevisedReviewReasoning);
+assert.equal(selfDevisedReviewPayload.candidate.formula.candidates[0].constructionType, "self_devised", "reviewer can distinguish a transparent self-devised plan from a falsely renamed classic formula");
+assert.match(selfDevisedReviewPayload.candidate.formula.candidates[0].applicable, /命名方未完整覆盖/, "reviewer receives the rationale it is required to assess");
 assert.ok(buildM04ClinicalReviewPrompt("入睡困难", stable, compiledProposal).length < 20_000, "bounded clinical review prompt cannot be inflated by unrelated envelope fields");
 assert.deepEqual(parseM04ClinicalReview("```json\n{\"status\":\"accepted\",\"issueCode\":\"none\"}\n```"), { status: "accepted", issueCode: "none" });
 assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"dose_rationale_concern"}'), { status: "repair", issueCode: "dose_rationale_concern" });
@@ -1929,7 +2947,7 @@ const auditInputFidelityProposal = compileM04Proposal({
       { name: "郁金", processing: null, dose: "10g", role: "佐", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize" },
       { name: "香附", processing: null, dose: "8g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null },
     ],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 }, stable);
@@ -1943,13 +2961,13 @@ const duplicateHerbProposal = {
       { name: "酸枣仁", processing: null, dose: "10g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null },
       { name: " 酸枣仁 ", processing: "炒", dose: "5g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null },
     ],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 };
 assert.match(m04ProposalIssueCode(duplicateHerbProposal, stable) || "", /candidate_herbs_1_name/, "duplicate herb rows are rejected before compilation and audit");
 assert.equal(compileM04Proposal(duplicateHerbProposal, stable), undefined, "duplicate herb rows can never become a signed prescription");
-for (const [leftName, rightName] of [["黄芪", "黄耆"], ["甘草", "炙甘草"], ["延胡索", "元胡"]]) {
+for (const [leftName, rightName] of [["黄芪", "黄耆"], ["延胡索", "元胡"]]) {
   const identityDuplicateProposal = {
     ...duplicateHerbProposal,
     candidate: {
@@ -1982,7 +3000,7 @@ for (const [alias, canonical] of [["杏仁", "苦杏仁"], ["双花", "金银花
     candidate: {
       name: "本例辨证组方",
       herbs: [{ name: alias, processing: null, dose: "6g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }],
-      decoction: { doseCount: "5剂", course: "5日" },
+      decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
     },
     nonPharma: m04.nonPharma,
   };
@@ -1995,6 +3013,8 @@ const wrappedRegimenProposal = compileM04Proposal({
     herbs: [{ name: "酸枣仁", processing: null, dose: "15g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }],
     decoction: {
       doseCount: { value: 5, unit: "剂" },
+      dosesPerDay: 1,
+      administrationTimesPerDay: 2,
       method: ["每日1剂，冷水浸泡30分钟，煎煮2次，合并药液约400mL，早晚分服"],
       course: { value: 5, unit: "日" },
       followUpNode: { value: "完成5剂后复诊" },
@@ -2024,7 +3044,14 @@ const omittedOptionalRegimenProposal = compileM04Proposal({
   candidate: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "酸枣仁", processing: null, dose: "15g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }],
-    decoction: { doseCount: "5剂", method: [], course: "5日", followUpNode: { value: "" } },
+    decoction: {
+      doseCount: "5剂",
+      dosesPerDay: 1,
+      administrationTimesPerDay: 2,
+      method: [],
+      course: "5日",
+      followUpNode: { value: "" },
+    },
   },
   nonPharma: m04.nonPharma,
 }, stable);
@@ -2166,7 +3193,7 @@ const compiledOpposingHerb = compileM04Proposal({
   candidate: {
     name: "本例辨证组方",
     herbs: [{ name: "乌药", processing: null, dose: "6g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 }, heatQiPrior);
@@ -2185,7 +3212,7 @@ const hiddenOpposingModification = {
       herbs: [{ name: "黄连", dose: "3g", role: "君", prescriptionRole: "清热泻火", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: heatQiPrior.pathogenesis.chain[0].pathogenesis, function: "清热泻火" }],
     }],
     modifications: [{
-      trigger: "胀痛加重时",
+      trigger: "纳差便溏",
       targetPathogenesis: heatQiPrior.pathogenesis.chain[0].pathogenesis,
       action: "加乌药",
       doseOrHandling: null,
@@ -2204,10 +3231,10 @@ const compiledConditionalProposal = compileM04Proposal({
   candidate: {
     name: "本例辨证组方",
     herbs: [{ name: "黄连", processing: null, dose: "3g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   patentAndWestern: [],
-  modifications: [{ trigger: "胀痛加重时", targetRef: "P1", actionType: "add", herbName: "乌药", reason: "加强理气止痛" }],
+  modifications: [{ trigger: "纳差便溏", targetRef: "P1", actionType: "add", herbName: "乌药", reason: "加强理气止痛" }],
   nonPharma: m04.nonPharma,
 }, heatQiPrior);
 assert.deepEqual(compiledConditionalProposal?.formula?.modifications, [], "an opposing optional modification is omitted without discarding the current prescription");
@@ -2217,7 +3244,12 @@ const wrappedScalarRegimenProposal = {
     name: "本例辨证组方",
     therapyMatch: "与锁定治法无关的模型自由文本",
     herbs: [{ name: "黄连", processing: null, dose: "3g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }],
-    decoction: { doseCount: { value: "5剂" }, course: { text: "5日" } },
+    decoction: {
+      doseCount: { value: "5剂" },
+      dosesPerDay: 1,
+      administrationTimesPerDay: 2,
+      course: { text: "5日" },
+    },
   },
   patentAndWestern: [],
   modifications: [],
@@ -2245,9 +3277,9 @@ assert.deepEqual(
   }),
   {
     candidateMatch: "健脾益气，渗湿止泻",
-    validationContext: "健脾益气，渗湿止泻；虚则补之；健脾助运，渗湿止泻",
+    validationContext: "健脾益气，渗湿止泻；健脾助运，渗湿止泻",
   },
-  "compiler, canonicalizer and validator must share one concrete M03 therapy lock",
+  "compiler, canonicalizer and validator must share one concrete M03 therapy lock without treating a broad principle as herb-level evidence",
 );
 assert.deepEqual(
   getM03TherapyLock({
@@ -2256,7 +3288,7 @@ assert.deepEqual(
   }),
   {
     candidateMatch: "养血宁心",
-    validationContext: "养血安神；养血宁心",
+    validationContext: "养血宁心",
   },
   "an unresolved placeholder can never become the cross-stage M04 therapy lock",
 );
@@ -2300,6 +3332,17 @@ assert.equal(
   "a short substring is not mistaken for an exact compiler-owned therapy clause",
 );
 assert.equal(compiledWrappedRegimen?.nonPharma?.acupointCare, null);
+const misplacedProposalSiblings = structuredClone(wrappedScalarRegimenProposal);
+misplacedProposalSiblings.candidate.patentAndWestern = misplacedProposalSiblings.patentAndWestern;
+misplacedProposalSiblings.candidate.modifications = misplacedProposalSiblings.modifications;
+misplacedProposalSiblings.candidate.nonPharma = misplacedProposalSiblings.nonPharma;
+delete misplacedProposalSiblings.patentAndWestern;
+delete misplacedProposalSiblings.modifications;
+delete misplacedProposalSiblings.nonPharma;
+assert.equal(m04ProposalIssueCode(misplacedProposalSiblings, heatQiPrior), undefined, "unambiguous proposal-level siblings nested under candidate are lifted before full validation");
+const compiledMisplacedProposalSiblings = compileM04Proposal(misplacedProposalSiblings, heatQiPrior);
+assert.equal(compiledMisplacedProposalSiblings?.nonPharma?.acupointCare, null, "lifting misplaced siblings preserves server ownership of non-pharmacological fields");
+assert.equal(compiledMisplacedProposalSiblings?.formula?.candidates?.[0]?.herbs?.[0]?.name, "黄连", "lifting misplaced siblings never changes the clinical herb plan");
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, strictFormulaIssue: "formula_reference_declassified", requestAborted: false }), false);
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 1, strictFormulaIssue: "formula_reference_declassified", requestAborted: false }), true);
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, strictFormulaIssue: "formula_reference_declassified", therapyIssue: "transparent_therapy_coverage", requestAborted: false }), false);
@@ -2319,11 +3362,30 @@ const proposalJson = JSON.stringify({
   candidate: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "酸枣仁", processing: null, dose: "15g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 });
 assert.equal(compileM04JsonObjectContent(proposalJson, stable)?.stage, "prescribe");
+const trustedMedicine = {
+  type: "西药",
+  name: "右佐匹克隆",
+  specification: "3mg",
+  singleDose: null,
+  frequency: null,
+  route: null,
+  usageBoundary: "仅供与接诊医生讨论，不构成处方、剂量或疗程医嘱。",
+  course: null,
+  positioning: "需医生评估",
+  correspondingProblem: "失眠",
+  evidenceId: "EVID-INST-101",
+  evidenceFingerprint: `sha256:${"a".repeat(64)}`,
+  relationship: "是否采用由医生决定。",
+  riskNote: "核对说明书禁忌。",
+};
+const compiledWithTrustedMedicine = compileM04JsonObjectContent(proposalJson, stable, undefined, [trustedMedicine]);
+assert.equal(compiledWithTrustedMedicine?.formula?.patentAndWestern[0]?.name, "右佐匹克隆", "the server-owned evidence plan survives a model proposal that omitted medicine candidates");
+assert.equal(compiledWithTrustedMedicine?.formula?.patentAndWestern[0]?.recommendationMode, "discussion_only");
 const excessEmperorProposal = JSON.parse(proposalJson);
 excessEmperorProposal.candidate.herbs = [
   { name: "酸枣仁", processing: null, dose: "15g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null },
@@ -2435,7 +3497,12 @@ const wrappedProposal = {
       targetRef: "P1",
       structureRole: null,
     }],
-    decoction: { doseCount: { value: 5, unit: "剂" }, course: { value: 5, unit: "日" } },
+    decoction: {
+      doseCount: { value: 5, unit: "剂" },
+      dosesPerDay: 1,
+      administrationTimesPerDay: 2,
+      course: { value: 5, unit: "日" },
+    },
   }],
   nonPharma: m04.nonPharma,
 };
@@ -2455,16 +3522,16 @@ for (const [doseCount, course] of [
     ...wrappedProposal,
     candidate: {
       ...wrappedProposal.candidate[0],
-      decoction: { doseCount, course },
+      decoction: { doseCount, dosesPerDay: 1, administrationTimesPerDay: 2, course },
     },
   }, stable);
   assert.equal(normalizedRegimen?.formula?.candidates[0].decoction.doseCount, "5剂", JSON.stringify({ doseCount, course }));
   assert.equal(normalizedRegimen?.formula?.candidates[0].decoction.course, "5日", JSON.stringify({ doseCount, course }));
 }
 for (const decoction of [
-  [{ doseCount: 5, course: 5 }],
-  { value: { doseCount: { value: { number: 5 }, unitLabel: "剂" }, course: { value: 5, unit: "日" } } },
-  JSON.stringify({ doseCount: "五剂", course: "五日" }),
+  [{ doseCount: 5, dosesPerDay: 1, administrationTimesPerDay: 2, course: 5 }],
+  { value: { doseCount: { value: { number: 5 }, unitLabel: "剂" }, dosesPerDay: 1, administrationTimesPerDay: 2, course: { value: 5, unit: "日" } } },
+  JSON.stringify({ doseCount: "五剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "五日" }),
 ]) {
   const normalizedRegimen = compileM04Proposal({
     ...wrappedProposal,
@@ -2478,7 +3545,7 @@ for (const course of ["五剂为一疗程", "疗程共五天", "服完后复诊"
     ...wrappedProposal,
     candidate: {
       ...wrappedProposal.candidate[0],
-      decoction: { doseCount: "5剂", ...(course == null ? {} : { course }) },
+      decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, ...(course == null ? {} : { course }) },
     },
   }, stable);
   assert.equal(normalizedRegimen?.formula?.candidates[0].decoction.course, "5日", JSON.stringify({ course }));
@@ -2486,7 +3553,7 @@ for (const course of ["五剂为一疗程", "疗程共五天", "服完后复诊"
 const normalizedModificationProposal = compileM04Proposal({
   ...wrappedProposal,
   modifications: [
-    { trigger: "夜醒增多时", targetRef: { value: "P1" }, actionType: "添加", herbName: { value: "茯神" }, reason: "加强宁心安神" },
+    { trigger: "入睡困难", targetRef: { value: "P1" }, actionType: "添加", herbName: { value: "茯神" }, reason: "加强宁心安神" },
     { trigger: "无效可选行", targetRef: "P1", actionType: "自由发挥", herbName: "茯神", reason: "不得拖垮核心处方" },
     { trigger: "夜醒增多时", targetRef: "P1", actionType: "调整剂量", herbName: "酸枣仁", reason: "调整为20g后观察" },
     { trigger: "夜醒增多时", targetRef: "P1", actionType: "添加", herbName: "模型臆造草", reason: "未知药味必须丢弃" },
@@ -2496,13 +3563,28 @@ const normalizedModificationProposal = compileM04Proposal({
 }, stable);
 assert.equal(normalizedModificationProposal?.formula?.modifications.length, 1, "controlled aliases normalize while malformed optional modifications are dropped");
 assert.equal(normalizedModificationProposal?.formula?.modifications[0].action, "加茯神");
+assert.ok((normalizedModificationProposal?.formula?.modificationReview?.droppedCount || 0) >= 1, "dropped optional modifications must be disclosed");
+assert.match(normalizedModificationProposal?.formula?.modificationReview?.droppedReason || "", /未展示|缺少|不能回溯|未命中|冲突|剂量/);
+const boundedModificationProposal = compileM04Proposal({
+  ...wrappedProposal,
+  modifications: ["茯神", "远志", "夜交藤", "合欢皮", "柏子仁"].map((herbName) => ({
+    trigger: "入睡困难",
+    targetRef: "P1",
+    actionType: "add",
+    herbName,
+    reason: "加强宁心安神",
+  })),
+}, stable);
+assert.equal(boundedModificationProposal?.formula?.modifications.length, 4, "conditional modifications remain bounded to four visible rows");
+assert.equal(boundedModificationProposal?.formula?.modificationReview?.droppedCount, 1);
+assert.match(boundedModificationProposal?.formula?.modificationReview?.droppedReason || "", /最多展示 4 条/);
 const nestedCandidateProposal = compileM04Proposal({
   schemaVersion: "tcm-cdss-m04-proposal-v1",
   candidate: {
     proposal: {
       name: "酸枣仁汤加减",
       herbs: [{ name: "酸枣仁", dose: "15g", role: "monarch", targetKind: "pathogenesis_node", targetRef: "P1" }],
-      decoction: { doseCount: "5剂", course: "5日" },
+      decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
     },
   },
   nonPharma: m04.nonPharma,
@@ -2513,7 +3595,7 @@ const stringWrappedCandidate = compileM04Proposal({
   candidate: JSON.stringify({
     name: "酸枣仁汤加减",
     herbs: [{ name: "酸枣仁", dose: "15g", role: "辅药", targetKind: "pathogenesis_node", targetRef: "P1" }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   }),
   nonPharma: m04.nonPharma,
 }, stable);
@@ -2523,7 +3605,7 @@ const pathogenesisStructureNoise = compileM04Proposal({
   candidates: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "酸枣仁", dose: "15g", role: "君药（养心安神）", targetKind: "病机节点", targetRef: "P1", structureRole: "不适用" }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 }, stable);
@@ -2534,7 +3616,7 @@ const explanatoryStructureRole = compileM04Proposal({
   candidate: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "调和诸药（缓和药性）" }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 }, stable);
@@ -2544,7 +3626,7 @@ const providerStructureRoleAlias = compileM04Proposal({
   candidate: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "协调药势" }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 }, stable);
@@ -2554,7 +3636,7 @@ const missingProviderStructureRole = compileM04Proposal({
   candidate: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "承担方内结构作用" }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 }, stable);
@@ -2567,7 +3649,12 @@ const controlledWrapperProposal = compileM04Proposal({
       { name: "酸枣仁", dose: "15g", role: "君", targetKind: "pathogenesis_node", targetRef: { nodeId: "P1" } },
       { name: "甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: { value: "FORMULA_STRUCTURE" }, structureRole: "调和" },
     ],
-    decoction: { doseCount: { value: 5, unit: "剂" }, course: { value: 5, unit: "日" } },
+    decoction: {
+      doseCount: { value: 5, unit: "剂" },
+      dosesPerDay: 1,
+      administrationTimesPerDay: 2,
+      course: { value: 5, unit: "日" },
+    },
   },
   nonPharma: m04.nonPharma,
 }, stable);
@@ -2578,7 +3665,7 @@ const invalidStructureReference = compileM04Proposal({
   candidate: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "P9", structureRole: "harmonize" }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 }, stable);
@@ -2603,7 +3690,7 @@ const missingStructureReference = compileM04Proposal({
   candidate: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "甘草", dose: "6g", role: "使", targetKind: "formula_structure", structureRole: "harmonize" }],
-    decoction: { doseCount: "5剂", course: "5日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   },
   nonPharma: m04.nonPharma,
 }, stable);
@@ -2615,7 +3702,12 @@ assert.equal(compileM04Proposal({
   candidate: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "酸枣仁", dose: "15g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1" }],
-    decoction: { doseCount: "5剂", course: { value: 5, unit: "g" } },
+    decoction: {
+      doseCount: "5剂",
+      dosesPerDay: 1,
+      administrationTimesPerDay: 2,
+      course: { value: 5, unit: "g" },
+    },
   },
   nonPharma: m04.nonPharma,
 }, stable)?.formula?.candidates[0].decoction.course, "5日", "a redundant mass-like course value is discarded rather than becoming executable");
@@ -2624,10 +3716,10 @@ assert.equal(compileM04Proposal({
   candidate: {
     name: "酸枣仁汤加减",
     herbs: [{ name: "酸枣仁", dose: "15g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1" }],
-    decoction: { doseCount: "5剂", course: "7日" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "7日" },
   },
   nonPharma: m04.nonPharma,
-}, stable)?.formula?.candidates[0].decoction.course, "5日", "the server derives the once-daily course from the executable dose count");
+}, stable)?.formula?.candidates[0].decoction.course, "5日", "the server derives the course from total doses and the submitted daily dose count");
 assert.equal(compileM04Proposal({
   schemaVersion: "tcm-cdss-m04-proposal-v1",
   candidate: {
@@ -2639,7 +3731,7 @@ const topLevelCandidate = compileM04Proposal({
   schemaVersion: "tcm-cdss-m04-proposal-v1",
   name: "酸枣仁汤加减",
   herbs: [{ name: "酸枣仁", dose: "15g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1" }],
-  decoction: { doseCount: "5剂", course: "5日" },
+  decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, course: "5日" },
   nonPharma: m04.nonPharma,
 }, stable);
 assert.equal(topLevelCandidate?.formula?.candidates[0].name, "酸枣仁汤加减", "one unambiguous top-level candidate shape is canonicalized");
@@ -2702,7 +3794,7 @@ const incompleteMedicineProposal = compileM04Proposal({
   patentAndWestern: [{
     type: "西药", name: "某药", specification: "10mg", singleDose: "10mg", frequency: "每日1次",
     route: "", usageBoundary: "符合适应证时", course: "5日", positioning: "短期对症",
-    correspondingProblem: "失眠", evidenceSource: "[EVID-INST-001] 药品说明书", relationship: "替代",
+    correspondingProblem: "失眠", evidenceId: "EVID-INST-001", evidenceSource: "[EVID-INST-001] 药品说明书", relationship: "替代",
     riskNote: "复核禁忌",
   }],
 }, stable);
@@ -2712,11 +3804,11 @@ const invalidPositioningMedicineProposal = compileM04Proposal({
   patentAndWestern: [{
     type: "中成药", name: "某中成药", specification: "每袋6g", singleDose: "6g", frequency: "每日2次",
     route: "口服", usageBoundary: "符合适应证时", course: "5日", positioning: "辅助治疗",
-    correspondingProblem: "疼痛", evidenceSource: "[EVID-INST-001] 药品说明书", relationship: "替代",
+    correspondingProblem: "疼痛", evidenceId: "EVID-INST-001", evidenceFingerprint: `sha256:${"1".repeat(64)}`, evidenceSource: "[EVID-INST-001] 药品说明书", relationship: "替代",
     riskNote: "复核禁忌",
   }],
 }, stable);
 assert.ok(invalidPositioningMedicineProposal, "one invalid optional medicine must not discard the validated herbal candidate");
 assert.deepEqual(invalidPositioningMedicineProposal?.formula?.patentAndWestern, [], "contract-invalid optional medicine items are dropped individually");
 
-console.log(JSON.stringify({ cases: 315, failures: 0 }));
+console.log(JSON.stringify({ cases: 316, failures: 0 }));

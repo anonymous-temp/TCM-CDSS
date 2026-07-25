@@ -71,6 +71,19 @@ assert.match(scheme.aiMedicalRecord.vitals, /118\/72/);
 
 const schemeWithStructuredHerb = buildHisAiSchemePayload({
   ...normalized,
+  // This assertion verifies structured-herb identity, so use a complete low-risk adoption context.
+  // The authoritative fixture above intentionally contains active warfarin and must now remain on
+  // the non-dose path under the high-risk gate.
+  hisRecord: undefined,
+  patient: { sex: "男", age: 45 },
+  chiefComplaint: "入睡困难伴多梦3个月",
+  symptoms: { presentHistory: "近3个月每周5晚入睡超过1小时，多梦易醒，白天疲乏" },
+  pastHistory: "否认心肾功能异常及出血性疾病",
+  allergyHistory: "否认药物过敏",
+  medicationHistory: "否认当前用药",
+  tongue: "舌淡苔薄白",
+  pulse: "脉细弱",
+  questionRounds: 1,
   reasoningPrescribe: {
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "prescribe",

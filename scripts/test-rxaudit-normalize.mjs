@@ -37,8 +37,8 @@ for (const [name, input, expected] of cases) {
 }
 
 for (const invalidTimeout of [NaN, Infinity, -1, 0, 999, 30001, 6500.5, "NaN", "Infinity", "not-a-number"]) {
-  assert.equal(getRxAuditTimeoutMs(invalidTimeout), 15000, `invalid total audit timeout must use the bounded default: ${invalidTimeout}`);
-  assert.equal(getRxAuditAttemptTimeoutMs(invalidTimeout), 12000, `invalid attempt audit timeout must use the bounded default: ${invalidTimeout}`);
+  assert.equal(getRxAuditTimeoutMs(invalidTimeout), 30000, `invalid total audit timeout must use the bounded default: ${invalidTimeout}`);
+  assert.equal(getRxAuditAttemptTimeoutMs(invalidTimeout), 30000, `invalid attempt audit timeout must use the bounded default: ${invalidTimeout}`);
 }
 assert.equal(getRxAuditTimeoutMs("1000"), 1000);
 assert.equal(getRxAuditTimeoutMs("30000"), 30000);
@@ -247,6 +247,32 @@ const malformedFields = normalizeIssues([{
 }]);
 assert.equal(malformedFields[0].riskLevel, "HIGH");
 assert.equal(malformedFields[0].title, "用药风险提示");
+for (const [issueType, rawTitle, expectedTitle] of [
+  ["TCM_DECOCTION_METHOD", "TCM_DECOCTION_METHOD", "煎服方法需复核"],
+  ["TCM_SPECIAL_POP", "TCM_SPECIAL_POP", "特殊人群用药需复核"],
+  ["CONTRAINDICATION", "CONTRAINDICATION", "用药禁忌需复核"],
+  ["DRUG_INTERACTION", "DRUG_INTERACTION", "存在药物相互作用风险"],
+  ["DUPLICATE", "DUPLICATE", "存在重复用药风险"],
+]) {
+  const normalized = normalizeIssues([{
+    issue_id: `enum-${issueType}`,
+    risk_level: "MEDIUM",
+    issue_type: issueType,
+    issue_title: rawTitle,
+    description: "结构化规则已命中",
+    related_item_nos: [1],
+  }]);
+  assert.equal(normalized[0]?.title, expectedTitle, `${issueType} must never leak as a clinician-facing title`);
+}
+const authoredClinicalTitle = normalizeIssues([{
+  issue_id: "authored-title",
+  risk_level: "HIGH",
+  issue_type: "DRUG_INTERACTION",
+  issue_title: "华法林联用出血风险",
+  description: "需结合凝血指标复核",
+  related_item_nos: [1],
+}]);
+assert.equal(authoredClinicalTitle[0]?.title, "华法林联用出血风险", "a meaningful provider clinical title remains authoritative");
 assert.deepEqual(malformedFields[0].relatedItemNos, []);
 assert.deepEqual(malformedFields[0].suggestions, []);
 
@@ -342,6 +368,22 @@ try {
     patient: {},
     chiefComplaint: "测试",
     prescription: "## 中药饮片处方\n\n| 药名 | 剂量 |\n|---|---|\n| 酸枣仁 | 15g |",
+    reasoningPrescribe: {
+      stage: "prescribe",
+      formula: {
+        candidates: [{
+          herbs: [{ name: "酸枣仁", dose: "15g", processing: null, decoctionRequirement: null }],
+          decoction: {
+            doseCount: "5剂",
+            dosesPerDay: 1,
+            administrationTimesPerDay: 2,
+            course: "5日",
+            method: "每日1剂，水煎2次，早晚分服",
+            followUpNode: "完成5剂后复诊",
+          },
+        }],
+      },
+    },
     diagnosis: "",
     conversation: [],
   });

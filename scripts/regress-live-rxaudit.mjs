@@ -26,6 +26,27 @@ function prescriptionState({ sex = "男", pastHistory = "否认肝肾功能不�
       "|---|---|",
       ...rows.map(([name, dose]) => `| ${name} | ${dose} |`),
     ].join("\n"),
+    reasoningPrescribe: {
+      stage: "prescribe",
+      formula: {
+        candidates: [{
+          herbs: rows.map(([name, dose]) => ({
+            name,
+            dose,
+            processing: null,
+            decoctionRequirement: null,
+          })),
+          decoction: {
+            doseCount: "5剂",
+            dosesPerDay: 1,
+            administrationTimesPerDay: 2,
+            course: "5日",
+            method: "每日1剂，水煎2次，早晚分服",
+            followUpNode: "完成5剂后复诊",
+          },
+        }],
+      },
+    },
     conversation: [],
   };
 }

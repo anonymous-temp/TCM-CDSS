@@ -3,6 +3,7 @@ import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url);
 const { getTcmHerbFunctionText } = jiti("../../src/lib/tcm-knowledge.ts");
 const { requiredDecoctionRequirement } = jiti("../../src/lib/herb-decoction-rules.ts");
+const { getM03TherapyLock } = jiti("../../src/lib/m03-therapy-lock.ts");
 
 function auditControlReasoning(control, signedDiagnoseReasoning) {
   const evidence = { evidenceLevel: "model_inference", source: "虚构审方正控" };
@@ -51,7 +52,7 @@ function auditControlReasoning(control, signedDiagnoseReasoning) {
       chain: [{ nodeId: "P1", patientFact: control.chiefComplaint, syndromeEvidence: control.syndrome, pathogenesis: control.syndrome, therapyDirection: "仅作审方测试", evidence }],
       uncertainties: [],
     },
-    therapy: signedDiagnoseReasoning?.therapy || { overallPrinciple: "仅用于虚构审方变异测试", subTherapies: [] },
+    therapy: signedDiagnoseReasoning?.therapy || { overallPrinciple: "因人制宜", overallMethod: "仅用于虚构审方变异测试", subTherapies: [] },
     formula: {
       candidates: [{
         name: signedDiagnoseReasoning ? "本例辨证组方（医生编辑版）" : `虚构正控-${control.mutation}`,
@@ -59,12 +60,19 @@ function auditControlReasoning(control, signedDiagnoseReasoning) {
         constructionType: "self_devised",
         positioning: "仅学术思路",
         formulaSource: evidence,
-        therapyMatch: signedDiagnoseReasoning?.therapy?.overallPrinciple || "故意变异，预期触发审方问题",
+        therapyMatch: signedDiagnoseReasoning ? getM03TherapyLock(signedDiagnoseReasoning).candidateMatch : "故意变异，预期触发审方问题",
         applicable: "不适用于真实患者",
         notApplicable: "禁止临床使用",
         herbs,
         formulaAnalysis: "处方由回归框架故意变异，仅验证审方告警。",
-        decoction: { doseCount: "3剂", method: "每日1剂，水煎两次，早晚分服", course: "3日", followUpNode: "3日后复核" },
+        decoction: {
+          doseCount: "3剂",
+          dosesPerDay: 1,
+          administrationTimesPerDay: 2,
+          method: "每日1剂，水煎两次，每日分2次服",
+          course: "3日",
+          followUpNode: "3日后复核",
+        },
       }],
       patentAndWestern: [],
       modifications: [],
@@ -74,7 +82,7 @@ function auditControlReasoning(control, signedDiagnoseReasoning) {
       lifestyle: "不适用",
       emotion: "不适用",
       acupointCare: null,
-      monitoring: [{ metric: "审方结果", timing: "本次", trigger: "必须命中预期问题" }],
+      monitoring: [{ metric: control.chiefComplaint, timing: "本次", trigger: "若审方命中预期问题则必须人工复核" }],
     },
     lineageAdaptation: null,
   };

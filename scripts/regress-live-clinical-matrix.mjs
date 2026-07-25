@@ -226,7 +226,10 @@ for (const testCase of fullCases.filter((item) => selected(item.id))) {
     `舌象：${testCase.state.tongue || ""}`,
     `脉象：${testCase.state.pulse || ""}`,
   ].join("\n");
-  const collect = await request("/api/diagnosis/collect", testCase.state, { userInput: collectInput });
+  const collect = await request("/api/diagnosis/collect", testCase.state, {
+    userInput: collectInput,
+    patientSex: testCase.state.patient.sex,
+  });
   record(testCase.id, "M01", collect.status === 200 && /病历信息已采集/.test(collect.content), `${collect.elapsedMs}ms`);
 
   const m03State = { ...testCase.state, phase: "diagnose" };

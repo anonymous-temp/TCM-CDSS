@@ -3,13 +3,16 @@ import { createJiti } from "jiti";
 
 import {
   boundedM03DiagnosticRepairGuidance,
+  buildM03DiagnosticReviewAdjudicationPrompt,
   buildM03DiagnosticReviewPayload,
   buildM03DiagnosticReviewPrompt,
   canRebindM03DiagnosticReview,
   m03DiagnosticReviewDiffPaths,
   m03DiagnosticRepairGuidanceCodes,
   m03DiagnosticReviewSemanticHash,
+  m03DiagnosticReviewNeedsAdjudication,
   m03GroundingHasCurrentPositiveFacts,
+  m03PathogenesisSummaryIsExactProjection,
   m03TcmRepairMode,
   matchesM03QuarantineShape,
   parseM03DiagnosticReview,
@@ -22,8 +25,11 @@ const reviewed = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
   overview: {
+    tcmDiseaseName: "不寐",
     primarySyndrome: "心脾两虚证",
     primarySyndromeBasis: ["心悸健忘", "纳差便溏"],
+    tcmDiagnosticRationale: "心悸健忘与纳差便溏并见，结合舌淡脉细弱，支持心脾两虚、心神失养。",
+    tcmDifferentials: [],
     secondarySyndromes: [],
     overallPathogenesis: "脾气亏虚，心血失养",
     overallTherapy: "健脾益气，养血安神",
@@ -38,6 +44,7 @@ const reviewed = {
       status: "考虑",
       confidence: "中",
       supportingFacts: ["入睡困难、多梦易醒3个月"],
+      clinicalRationale: "入睡困难、多梦易醒3个月支持失眠症状方向，但尚未取得日间功能受损情况，暂不升级为正式失眠障碍诊断。",
       limitations: ["未完成睡眠量表"],
       suggestedChecks: [],
       evidence,
@@ -47,7 +54,7 @@ const reviewed = {
   pathogenesis: {
     summary: "心脾两虚，心神失养",
     locationDifferentiation: { items: ["心", "脾"], evidence },
-    natureDifferentiation: { items: ["气血两虚"], evidence },
+    natureDifferentiation: { items: ["气虚", "血虚"], evidence },
     chain: [{
       nodeId: "P1",
       patientFact: "心悸健忘、纳差便溏",
@@ -58,7 +65,15 @@ const reviewed = {
     }],
     uncertainties: [],
   },
-  therapy: { overallPrinciple: "健脾益气，养血安神", subTherapies: [] },
+  therapy: {
+    overallPrinciple: "虚则补之，标本兼顾",
+    overallMethod: "健脾益气，养血安神",
+    subTherapies: [
+      { therapy: "健脾益气", targetPathogenesis: "脾气亏虚", priority: "主要" },
+      { therapy: "养血安神", targetPathogenesis: "心血失养", priority: "兼顾" },
+    ],
+  },
+  management: { followupSafetyNet: "若入睡困难持续2周不缓解或明显加重，及时复诊评估。" },
 };
 
 const provenanceOnly = structuredClone(reviewed);
@@ -85,6 +100,19 @@ for (const mutate of [
   assert.equal(canRebindM03DiagnosticReview(reviewed, changed), false);
   assert.ok(m03DiagnosticReviewDiffPaths(reviewed, changed).length > 0);
 }
+const groundedDifferentialReduction = structuredClone(reviewed);
+groundedDifferentialReduction.westernDiagnosis.differentials = [{
+  name: "焦虑相关睡眠障碍",
+  reason: "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
+  nextCheck: "评估情绪与睡眠关系",
+}];
+const reviewedBeforeGrounding = structuredClone(groundedDifferentialReduction);
+reviewedBeforeGrounding.westernDiagnosis.differentials[0].reason = "近期压力增加，需鉴别焦虑相关睡眠障碍";
+assert.equal(canRebindM03DiagnosticReview(reviewedBeforeGrounding, groundedDifferentialReduction), true, "a server-owned conservative differential-reason reduction does not redraw an unchanged M03 review");
+assert.deepEqual(m03DiagnosticReviewDiffPaths(reviewedBeforeGrounding, groundedDifferentialReduction), ["m03Review.westernDiagnosis.differentials[0].reason"]);
+const unsafeDifferentialRewrite = structuredClone(groundedDifferentialReduction);
+unsafeDifferentialRewrite.westernDiagnosis.differentials[0].reason = "已确诊焦虑障碍导致本次失眠";
+assert.equal(canRebindM03DiagnosticReview(reviewedBeforeGrounding, unsafeDifferentialRewrite), false, "an arbitrary differential rationale change still requires a new review");
 
 assert.deepEqual(parseM03DiagnosticReview('{"status":"accepted","issueCode":"none"}'), {
   status: "accepted",
@@ -136,33 +164,113 @@ assert.equal(parseM03DiagnosticReview('{"status":"accepted","issueCode":"invente
 // accept and reject the only shape the server repair policy can produce, flipping across runs.
 const reviewPrompt = buildM03DiagnosticReviewPrompt("主诉：入睡困难、多梦易醒3个月。", reviewed, "");
 const sparseAcceptIdx = reviewPrompt.indexOf("除主诉外没有其他当前阳性发现");
-const factsRejectIdx = reviewPrompt.indexOf("除主诉外还存在其他当前阳性发现");
-const mechanicalRewriteIdx = reviewPrompt.indexOf("主证候不得只是主诉");
+const factsRejectIdx = reviewPrompt.indexOf("主诉之外仍有当前阳性事实");
+const boundedDiseaseMechanismIdx = reviewPrompt.indexOf("当额外事实只是主症的次数");
 assert.ok(sparseAcceptIdx !== -1, "prompt must document the sparse-case acceptance branch");
-assert.ok(reviewPrompt.includes("症状层中医病名+功能失调候"), "prompt must name the bounded neutral primary-syndrome shape");
+assert.match(reviewPrompt, /服务端事实极性分类：情形一/);
+assert.match(reviewPrompt, /就必须 accepted/);
+assert.match(reviewPrompt, /不得再以“只有主诉”/);
+assert.match(reviewPrompt, /胃失和降、气机不畅/);
+assert.ok(reviewPrompt.includes("症状层的工作证候"), "prompt must name the bounded symptom-specific primary-syndrome shape");
+assert.match(reviewPrompt, /不得使用‘功能失调候’‘调护功能’这类跨病例套话/);
+assert.match(reviewPrompt, /病位与病性按治理表正交编码/);
+assert.match(reviewPrompt, /M03统一临床推理权威合同/);
+assert.match(reviewPrompt, /L2 证候归纳层/);
+assert.match(reviewPrompt, /病机词和治法词是临床解释，不要求逐字出现在患者原话中/);
+assert.match(reviewPrompt, /两个及以上相互独立的阳性事实维度/);
+assert.match(reviewPrompt, /不得要求改成非标准复合项‘脾气虚’‘心血虚’/);
+assert.match(reviewPrompt, /当前阳性事实覆盖审计/);
+assert.match(reviewPrompt, /病机总结投影一致性审计/);
+assert.match(reviewPrompt, /pathogenesis_summary_drift/);
+assert.match(reviewPrompt, /按顺序用分号连接的文本完全一致.*不得返回 pathogenesis_summary_drift/, "the reviewer must not reject the server-owned chain projection as a second reasoning surface");
+assert.match(reviewPrompt, /活动后气喘、夜间症状、体重变化、出血、神经功能改变/);
+assert.match(reviewPrompt, /单有夜间憋醒不能诊断阻塞性睡眠呼吸暂停/);
+assert.match(reviewPrompt, /支气管哮喘作为 primary/);
+assert.match(reviewPrompt, /应使用与主导症状精确一致的症状级工作诊断/);
+assert.match(reviewPrompt, /只记录喘鸣、胸口呼呼响而未明确气不够用时应写喘息症状/);
+assert.match(reviewPrompt, /不得改写成劳力性呼吸困难或气短/);
+assert.match(reviewPrompt, /不得让次要伴随症状抢占 primary/);
+assert.match(reviewPrompt, /大便解不出来、排便费劲或数日一次为核心时，应使用便秘症状/);
+assert.match(reviewPrompt, /呼吸—心源性交叉鉴别审计/);
+assert.match(reviewPrompt, /differentials 必须覆盖呼吸系统、心功能不全和冠心病\/心肌缺血等心源性方向/);
+assert.match(reviewPrompt, /不得重复同一诊断/);
+assert.match(reviewPrompt, /缺少客观依据时绝不能把心衰或冠心病写成 primary 或确诊/);
+assert.match(reviewPrompt, /中老年新发或进行性排便习惯改变做患者特异的报警征象审计/);
+assert.match(reviewPrompt, /不能再用‘若年龄>40岁\/50岁’这种未实例化的假设句/);
+assert.match(reviewPrompt, /本例已满足的年龄与病程条件/);
+assert.match(reviewPrompt, /positive_fact_omission/);
+assert.match(reviewPrompt, /不能归入主证的事实放入 uncertainties/);
+assert.match(reviewPrompt, /uncertainty_state_mismatch/);
+assert.match(reviewPrompt, /该症状已在病历中明确记录/);
 assert.ok(factsRejectIdx !== -1, "prompt must document the facts-present rejection branch");
-assert.ok(mechanicalRewriteIdx > factsRejectIdx, "the mechanical-restatement rejection must be conditioned on existing positive findings");
+assert.ok(boundedDiseaseMechanismIdx > factsRejectIdx, "active-case depth must distinguish syndrome evidence from same-complaint frequency and course facts");
+assert.match(reviewPrompt, /最浅层基础功能病机不属于‘症状复述’/);
 assert.match(reviewPrompt, /一律返回 tcm_reasoning_unsupported/);
+assert.match(reviewPrompt, /没有情绪相关加重.*肝气郁结.*必须返回 tcm_reasoning_unsupported/, "the reviewer must reject unsupported causal TCM attribution instead of accepting it as low-confidence prose");
+assert.deepEqual(m03DiagnosticRepairGuidanceCodes({
+  status: "repair",
+  issueCode: "tcm_reasoning_unsupported",
+  repairInstruction: "pathogenesis.chain 写入肝气郁结，但病历未提供情志诱因或其他直接依据，请删除。",
+}), ["chain_not_closed", "etiology_overreach"]);
+const positiveFactOmissionReview = {
+  status: "repair",
+  issueCode: "tcm_reasoning_unsupported",
+  repairInstruction: "positive_fact_omission：活动后气喘这一当前阳性事实未纳入 primarySyndromeBasis、pathogenesis.chain 或 uncertainties。",
+};
+assert.deepEqual(m03DiagnosticRepairGuidanceCodes(positiveFactOmissionReview), ["positive_fact_omission"]);
+assert.equal(m03TcmRepairMode(positiveFactOmissionReview, true), "fact_anchored");
+assert.match(boundedM03DiagnosticRepairGuidance(positiveFactOmissionReview, { hasCurrentPositiveFacts: true }), /覆盖修复/);
+assert.match(boundedM03DiagnosticRepairGuidance(positiveFactOmissionReview, { hasCurrentPositiveFacts: true }), /每项至少进入 westernDiagnosis 依据\/鉴别、primarySyndromeBasis、pathogenesis\.chain\.patientFact 或 uncertainties 之一/);
+assert.doesNotMatch(boundedM03DiagnosticRepairGuidance(positiveFactOmissionReview, { hasCurrentPositiveFacts: true }), /活动后气喘/, "reviewer prose and patient facts stay outside server-owned repair guidance");
+const summaryDriftReview = {
+  status: "repair",
+  issueCode: "tcm_reasoning_unsupported",
+  repairInstruction: "pathogenesis_summary_drift：总结额外引入正气略虚，只修正 pathogenesis.summary。",
+};
+assert.deepEqual(m03DiagnosticRepairGuidanceCodes(summaryDriftReview), ["pathogenesis_summary_drift"]);
+const summaryDriftGuidance = boundedM03DiagnosticRepairGuidance(summaryDriftReview, { hasCurrentPositiveFacts: true });
+assert.match(summaryDriftGuidance, /只修正 pathogenesis\.summary/);
+assert.match(summaryDriftGuidance, /保持已通过校验的西医诊断、中医主证/);
+assert.doesNotMatch(summaryDriftGuidance, /正气略虚/, "reviewer prose and unsupported conclusions stay outside server-owned repair guidance");
+const summaryAndCoreDriftReview = {
+  ...summaryDriftReview,
+  repairInstruction: "pathogenesis_summary_drift：总结额外引入新病性；blood_stasis_overreach：血瘀结论超出阳性事实，请删除。",
+};
+assert.deepEqual(
+  m03DiagnosticRepairGuidanceCodes(summaryAndCoreDriftReview),
+  ["pathogenesis_summary_drift", "blood_stasis_overreach"],
+);
+const summaryAndCoreDriftGuidance = boundedM03DiagnosticRepairGuidance(summaryAndCoreDriftReview, { hasCurrentPositiveFacts: true });
+assert.match(summaryAndCoreDriftGuidance, /硬性删减/);
+assert.match(summaryAndCoreDriftGuidance, /主诉之外仍有当前阳性事实/);
+assert.doesNotMatch(summaryAndCoreDriftGuidance, /只修正 pathogenesis\.summary/, "summary drift must not hide simultaneous authoritative-core overreach");
+assert.match(boundedM03DiagnosticRepairGuidance({
+  status: "repair",
+  issueCode: "tcm_reasoning_unsupported",
+  repairInstruction: "肝气郁结缺少情志诱因支持",
+}), /未经患者事实直接支持的病因、诱因和传变路径/);
 
 // ─── matchesM03QuarantineShape: code-level mirror of the quarantine shape ───
 const quarantineCandidate = structuredClone(reviewed);
-quarantineCandidate.overview.primarySyndrome = "不寐功能失调候";
+quarantineCandidate.overview.primarySyndrome = "不寐低置信度工作证候";
 quarantineCandidate.overview.primarySyndromeResolution = "bounded";
-quarantineCandidate.overview.overallPathogenesis = "睡眠功能受扰";
-quarantineCandidate.overview.overallTherapy = "调护睡眠功能";
-quarantineCandidate.overview.recommendedFormulaDirection = "调护睡眠功能的辨证组方方向";
+quarantineCandidate.overview.overallPathogenesis = "睡眠节律受扰";
+quarantineCandidate.overview.overallTherapy = "改善睡眠节律";
+quarantineCandidate.overview.recommendedFormulaDirection = "围绕睡眠节律的辨证组方方向";
 quarantineCandidate.overview.recommendedFormulaNames = [];
 quarantineCandidate.overview.formulaSelectionMode = "self_devised";
 quarantineCandidate.pathogenesis.locationDifferentiation = { items: [], resolution: "unresolved", resolutionReason: "无阳性事实支持具体脏腑归属" };
 quarantineCandidate.pathogenesis.natureDifferentiation = { items: [], resolution: "unresolved", resolutionReason: "寒热虚实证据不足" };
+quarantineCandidate.pathogenesis.summary = "入睡过程受扰，睡眠节律不稳";
 quarantineCandidate.pathogenesis.chain = [{
   nodeId: "P1",
   patientFact: "入睡困难、多梦易醒3个月",
   syndromeEvidence: "入睡困难、多梦易醒3个月",
-  pathogenesis: "睡眠功能受扰",
-  therapyDirection: "调护睡眠功能",
+  pathogenesis: "睡眠节律受扰",
+  therapyDirection: "改善睡眠节律",
   evidence,
 }];
+quarantineCandidate.therapy = { overallPrinciple: "改善入睡过程", overallMethod: "调护睡眠节律", subTherapies: [] };
 assert.equal(matchesM03QuarantineShape(quarantineCandidate), true);
 const emptyItemsBounded = structuredClone(quarantineCandidate);
 emptyItemsBounded.pathogenesis.locationDifferentiation = { items: [], resolution: "bounded" };
@@ -176,6 +284,11 @@ for (const mutate of [
   (value) => { value.pathogenesis.locationDifferentiation = { items: ["心", "脾"], evidence }; },
   (value) => { value.pathogenesis.chain = []; },
   (value) => { value.overview.primarySyndrome = "阴虚火旺证"; },
+  (value) => { value.overview.overallPathogenesis = "阴虚火旺，扰动心神"; },
+  (value) => { value.pathogenesis.summary = "阴虚导致失眠"; },
+  (value) => { value.pathogenesis.natureDifferentiation = { items: [], rootDeficiency: ["阴虚"], resolution: "unresolved" }; },
+  (value) => { value.therapy.overallPrinciple = "滋阴清热"; },
+  (value) => { value.therapy.subTherapies = [{ therapy: "养血安神", targetPathogenesis: "血虚" }]; },
 ]) {
   const changed = structuredClone(quarantineCandidate);
   mutate(changed);
@@ -194,7 +307,77 @@ const jiti = createJiti(import.meta.url, {
     "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
   },
 });
-const { callDiagnosisStream } = await jiti.import("../src/lib/diagnosis-api.ts");
+const { callDiagnosisStream, clinicalReviewModelCandidates, clinicalReviewRetryPlan, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
+assert.deepEqual(clinicalReviewRetryPlan(0, 30_000, 35_000), { attemptCount: 0, chainBudgetMs: 35_000 });
+assert.deepEqual(clinicalReviewRetryPlan(2, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 35_000 });
+assert.deepEqual(clinicalReviewRetryPlan(1, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 50_000 }, "one independent reviewer gets one bounded transient retry");
+assert.deepEqual(clinicalReviewRetryPlan(1, 45_000, 35_000), { attemptCount: 2, chainBudgetMs: 60_000 }, "retry budget remains bounded even with the maximum per-attempt timeout");
+assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签：phlegm_damp_overreach"), true, "TCM semantic overreach is regenerated from patient facts instead of editing the biased candidate");
+assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_primary_diagnosis_semantic_review", "独立复核的受控定位标签"), false, "western label repair retains its field-targeted path");
+assert.equal(shouldRegenerateM03ClinicalRepair("prescribe", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签"), false, "M04 repair behavior is unchanged");
+
+const reviewModelEnv = {
+  diagnose: process.env.PRIMARY_DIAGNOSE_MODEL,
+  prescribe: process.env.PRIMARY_PRESCRIBE_MODEL,
+  preferred: process.env.PRIMARY_CLINICAL_REVIEW_MODEL,
+  diagnoseRepair: process.env.PRIMARY_DIAGNOSE_REPAIR_MODEL,
+  diagnoseFallback: process.env.PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL,
+  prescribeFallback: process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL,
+};
+try {
+  process.env.PRIMARY_DIAGNOSE_MODEL = "deepseek-v4-pro";
+  process.env.PRIMARY_PRESCRIBE_MODEL = "deepseek-v4-pro";
+  process.env.PRIMARY_CLINICAL_REVIEW_MODEL = "deepseek-v4-pro";
+  process.env.PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL = "deepseek-v4-pro";
+  delete process.env.PRIMARY_DIAGNOSE_REPAIR_MODEL;
+  assert.equal(modelForStructuredRepair("deepseek-v4-pro", "diagnose"), "deepseek-v4-pro", "M03 fact-regeneration repair defaults to the diagnostic reasoning model");
+  process.env.PRIMARY_DIAGNOSE_REPAIR_MODEL = "deepseek-v4-pro";
+  assert.equal(modelForStructuredRepair("deepseek-v4-pro", "diagnose"), "deepseek-v4-pro", "an explicit M03 repair model override remains authoritative");
+  delete process.env.PRIMARY_DIAGNOSE_REPAIR_MODEL;
+  // Reproduce the production topology: every textual phase is pinned to V4 Pro. Review remains
+  // a fresh review-only request, while metadata honestly records that it is not cross-model.
+  process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL = "deepseek-v4-pro";
+  const primary = {
+    provider: "openai-compatible",
+    model: "deepseek-v4-pro",
+    apiKey: "test-key",
+    baseUrl: "https://model.example.test/v1",
+    configured: true,
+  };
+  assert.deepEqual(
+    clinicalReviewModelCandidates("diagnose", primary, "deepseek-v4-pro").map((candidate) => ({
+      model: candidate.model,
+      independentInvocation: candidate.independentInvocation,
+      independentFromGenerator: candidate.independentFromGenerator,
+    })),
+    [{ model: "deepseek-v4-pro", independentInvocation: true, independentFromGenerator: false }],
+    "an all-Pro deployment keeps a separate auditable review invocation without claiming cross-model independence",
+  );
+  assert.deepEqual(
+    clinicalReviewModelCandidates("prescribe", primary, "deepseek-v4-pro").map((candidate) => candidate.model),
+    ["deepseek-v4-pro"],
+    "M04 generation, repair and independent review all stay pinned to V4 Pro",
+  );
+} finally {
+  for (const [key, value] of [
+    ["PRIMARY_DIAGNOSE_MODEL", reviewModelEnv.diagnose],
+    ["PRIMARY_PRESCRIBE_MODEL", reviewModelEnv.prescribe],
+    ["PRIMARY_CLINICAL_REVIEW_MODEL", reviewModelEnv.preferred],
+    ["PRIMARY_DIAGNOSE_REPAIR_MODEL", reviewModelEnv.diagnoseRepair],
+    ["PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL", reviewModelEnv.diagnoseFallback],
+    ["PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL", reviewModelEnv.prescribeFallback],
+  ]) {
+    if (value == null) delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_network_error" }, 40_000, undefined, 10_000), true);
+assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_http_error", status: 503 }, 40_000, undefined, 10_000), true);
+assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_http_error", status: 401 }, 40_000, undefined, 10_000), false);
+assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_network_error" }, 19_999, undefined, 10_000), false, "less than ten seconds cannot start a second repair draw");
+const abortedRepair = new AbortController();
+abortedRepair.abort();
+assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_network_error" }, 40_000, abortedRepair.signal, 10_000), false);
 await assert.rejects(
   callDiagnosisStream("p", "deepseek", undefined, "markdown", {
     truncateFallback: "x",
@@ -230,26 +413,30 @@ const tcmReview = {
 };
 const activeGuidance = boundedM03DiagnosticRepairGuidance(tcmReview, { hasCurrentPositiveFacts: true });
 assert.doesNotMatch(activeGuidance, /语义隔离模式/);
-assert.match(activeGuidance, /禁止退回到症状层‘病名\+功能失调候’的中性隔离形态/);
+assert.match(activeGuidance, /禁止退回到症状复述或疾病标签改写/);
+assert.match(activeGuidance, /额外事实只是主症的次数、时程、性状或诱发规律/);
+assert.match(activeGuidance, /tcmDiseaseName 所定义的最浅层基础功能病机/);
 assert.match(activeGuidance, /primarySyndromeBasis 逐字引用患者原文/);
 assert.match(activeGuidance, /阴虚、阳虚、气虚、血虚/);
 assert.match(activeGuidance, /不得补造未出现的事实/);
 assert.match(activeGuidance, /self_devised/);
 const sparseGuidance = boundedM03DiagnosticRepairGuidance(tcmReview, { hasCurrentPositiveFacts: false });
 assert.match(sparseGuidance, /语义隔离模式/);
-assert.match(sparseGuidance, /功能失调候/);
+assert.match(sparseGuidance, /症状层、低置信度的临床工作表述/);
+assert.match(sparseGuidance, /不得出现‘功能失调候’‘调护功能’/);
 assert.equal(boundedM03DiagnosticRepairGuidance(tcmReview), sparseGuidance);
 
 // ─── Depth-calibrated repair-mode selection (m03TcmRepairMode) ───
-// Overreach rejections take the quarantine policy even on active cases: unsupported attribution
-// must be deleted, not re-attempted. Under-depth rejections take fact-anchored only with facts.
+// Sparse overreach takes quarantine. Active cases retain the same hard deletion list but must use
+// their additional positive facts to avoid a symptom-only rewrite that the reviewer will reject.
 const overreachReview = {
   status: "repair",
   issueCode: "tcm_reasoning_unsupported",
   repairInstruction: "病机链引入肝气郁结超出阳性事实，舌脉不支持气滞，不推荐命名方。",
 };
-assert.equal(m03TcmRepairMode(overreachReview, true), "quarantine");
-assert.match(boundedM03DiagnosticRepairGuidance(overreachReview, { hasCurrentPositiveFacts: true }), /语义隔离模式/);
+assert.equal(m03TcmRepairMode(overreachReview, true), "fact_anchored");
+assert.match(boundedM03DiagnosticRepairGuidance(overreachReview, { hasCurrentPositiveFacts: true }), /主诉之外仍有当前阳性事实/);
+assert.equal(m03TcmRepairMode(overreachReview, false), "quarantine");
 assert.equal(m03TcmRepairMode(tcmReview, true), "fact_anchored");
 assert.equal(m03TcmRepairMode(tcmReview, false), "quarantine");
 assert.equal(m03TcmRepairMode({ status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: "请删除没有依据的内容。" }, true), "fact_anchored");
@@ -257,8 +444,8 @@ assert.equal(m03TcmRepairMode({ status: "repair", issueCode: "tcm_reasoning_unsu
 assert.equal(m03TcmRepairMode({ status: "repair", issueCode: "supporting_fact_mismatch", repairInstruction: "x" }, true), "quarantine");
 // The reviewer prompt must calibrate depth to what the facts support (情形二 depth rule).
 assert.match(reviewPrompt, /要求的深度以事实实际支持的层级为限/);
-assert.match(reviewPrompt, /不足以支持任何具体病位病性归属/);
-assert.match(reviewPrompt, /绝不能要求超出事实支持的脏腑、寒热虚实或气血津液归属/);
+assert.match(reviewPrompt, /现有事实不足以支持具体病性时允许保持 unresolved/);
+assert.match(reviewPrompt, /超出当前阳性患者事实支持的寒热虚实、气血津液、痰湿瘀/);
 // Contradictory records of the same observation are unreliable in BOTH directions: they support
 // no attribution and are not fabrication grounds; depth is judged from the consistent remainder.
 assert.match(reviewPrompt, /直接矛盾的多条记录/);
@@ -287,6 +474,32 @@ assert.deepEqual(
   }),
   ["symptom_restatement", "chain_not_closed"],
 );
+const underDepthReview = {
+  status: "repair",
+  issueCode: "tcm_reasoning_unsupported",
+  repairInstruction: "病位病性未决，病机链未形成闭环。",
+};
+assert.equal(m03DiagnosticReviewNeedsAdjudication(underDepthReview), true);
+assert.equal(m03DiagnosticReviewNeedsAdjudication({
+  ...underDepthReview,
+  repairInstruction: "病机链引入气血两虚，且未形成闭环。",
+}), true, "an overreach verdict receives one independent adjudication instead of being accepted or repaired from one stochastic judgement");
+assert.equal(m03DiagnosticReviewNeedsAdjudication({
+  status: "repair",
+  issueCode: "supporting_fact_mismatch",
+  repairInstruction: "依据与原文不符。",
+}), false);
+const adjudicationPrompt = buildM03DiagnosticReviewAdjudicationPrompt(
+  "最近吃点东西就想跑厕所，稀稀的有半个月",
+  reviewed,
+  "",
+  underDepthReview,
+);
+assert.match(adjudicationPrompt, /不得再把上述必填字段误判为空/);
+assert.match(adjudicationPrompt, /items=\[\] 且 resolution=unresolved/);
+assert.match(adjudicationPrompt, /仍含无患者事实组合支持的具体病位、病性、证型/);
+assert.match(adjudicationPrompt, /不得把 L0 的逐字要求错误施加到 L2-L3/);
+assert.match(adjudicationPrompt, /不能仅做字符串比对/);
 
 // ─── 情形一-only quarantine injection: deterministic sparse/active signal ───
 assert.equal(m03GroundingHasCurrentPositiveFacts(""), false);
@@ -295,17 +508,80 @@ assert.equal(m03GroundingHasCurrentPositiveFacts("汗出较多3天。\n汗出较
 assert.equal(m03GroundingHasCurrentPositiveFacts("汗出较多3天。\n既往史：高血压10年，规律服药"), false);
 assert.equal(m03GroundingHasCurrentPositiveFacts("汗出较多3天。\n舌象：未记录\n脉象：未记录"), false);
 assert.equal(m03GroundingHasCurrentPositiveFacts("汗出较多3天。\n过敏史：无"), false);
+for (const unknownFollowup of [
+  "本轮追问补充：本次未取得该信息",
+  "问诊补充：本次未能确认，请继续现场评估",
+  "患者回答：说不清",
+]) {
+  assert.equal(
+    m03GroundingHasCurrentPositiveFacts(`来月经第一天肚子疼得蜷着，热水袋捂着好点\n基层接诊初始记录：来月经第一天肚子疼得蜷着，热水袋捂着好点；这样有一年多。\n${unknownFollowup}`),
+    false,
+    `${unknownFollowup} is an unanswered M02 boundary, not a new positive TCM anchor`,
+  );
+}
+assert.equal(
+  m03GroundingHasCurrentPositiveFacts([
+    "这两个月一吃完饭肚子上边就胀，老打嗝",
+    "症状.presentHistory：没吐过血，别的说不清。",
+    "患者/医生已确认补充：基层接诊初始记录：这两个月一吃完饭肚子上边就胀，老打嗝；没吐过血，别的说不清。",
+    "患者/医生已确认补充：本轮追问补充：我不清楚，你按现在这些先分析吧",
+  ].join("\n")),
+  false,
+  "negated GI bleeding plus an unknown answer and a workflow request must stay in sparse mode",
+);
+assert.equal(
+  m03GroundingHasCurrentPositiveFacts("咳嗽3天。\n现病史：没咳过血，其他不知道"),
+  false,
+  "colloquial negated events must not become positive TCM anchors",
+);
+assert.equal(
+  m03GroundingHasCurrentPositiveFacts("入睡困难2个月。\n现病史：第二天没精神"),
+  true,
+  "negative-form symptom idioms remain clinically positive findings",
+);
+assert.equal(
+  m03GroundingHasCurrentPositiveFacts("上腹胀2个月。\n本轮追问补充：饭后半小时最明显"),
+  true,
+  "an answered timing characteristic remains an additional current positive fact",
+);
 assert.equal(m03GroundingHasCurrentPositiveFacts("上呼吸道感染，体温37.2℃无寒战\n现病史：感冒2天，流涕咽痛，体温最高37.2℃"), true);
+assert.match(
+  buildM03DiagnosticReviewPrompt("咳嗽3天。\n现病史：夜间咳嗽加重", reviewed, ""),
+  /服务端事实极性分类：情形二/,
+  "the reviewer receives the same deterministic sparse/active classification as repair orchestration",
+);
 assert.equal(m03GroundingHasCurrentPositiveFacts("咳嗽3天。\n舌象：舌淡红，苔薄白"), true);
 assert.equal(m03GroundingHasCurrentPositiveFacts("咳嗽3天。\n生命体征：体温 37.2℃"), true);
+assert.equal(
+  m03GroundingHasCurrentPositiveFacts("躺床上脑子停不下来，得一两个小时才睡着。\n现病史：有两个多月，第二天没精神。"),
+  true,
+  "sleep difficulty plus documented next-day impairment is an active case, not a chief-only sparse case",
+);
 
 // ─── (b) M03 orchestration deadline: config, predicate, reason-code selection ───
 const {
   M03_ORCHESTRATION_DEADLINE_MS,
   m03OrchestrationDeadlineExpired,
+  m03ReviewerProjectionContradiction,
   m03SignedLimitedFallbackReasonCode,
+  reasoningEffortForStructuredRepair,
 } = await jiti.import("../src/lib/diagnosis-api.ts");
 assert.equal(M03_ORCHESTRATION_DEADLINE_MS, 120_000);
+const exactProjectionReasoning = structuredClone(reviewed);
+exactProjectionReasoning.pathogenesis.summary = exactProjectionReasoning.pathogenesis.chain.map((node) => node.pathogenesis).join("；");
+const falseSummaryReview = {
+  status: "repair",
+  issueCode: "tcm_reasoning_unsupported",
+  repairInstruction: "pathogenesis_summary_drift：总结与病机链不一致。",
+};
+assert.equal(m03PathogenesisSummaryIsExactProjection(exactProjectionReasoning), true);
+assert.equal(m03ReviewerProjectionContradiction(falseSummaryReview, exactProjectionReasoning), true, "an exact server projection cannot consume a full diagnosis regeneration round");
+assert.match(buildM03DiagnosticReviewPrompt("入睡困难3个月", exactProjectionReasoning, ""), /本轮禁止返回 pathogenesis_summary_drift/);
+const realSummaryDrift = structuredClone(exactProjectionReasoning);
+realSummaryDrift.pathogenesis.summary = "额外引入未支持的病性";
+assert.equal(m03PathogenesisSummaryIsExactProjection(realSummaryDrift), false);
+assert.equal(m03ReviewerProjectionContradiction(falseSummaryReview, realSummaryDrift), false, "real summary drift remains repairable and is never suppressed");
+assert.equal(m03ReviewerProjectionContradiction({ ...falseSummaryReview, repairInstruction: "病机链引入气虚，需删除。" }, exactProjectionReasoning), false, "a core clinical overreach is never mistaken for a projection-only contradiction");
 const deadlineStart = 1_000_000;
 assert.equal(m03OrchestrationDeadlineExpired(deadlineStart, deadlineStart + M03_ORCHESTRATION_DEADLINE_MS - 1), false);
 assert.equal(m03OrchestrationDeadlineExpired(deadlineStart, deadlineStart + M03_ORCHESTRATION_DEADLINE_MS), true);
@@ -315,6 +591,8 @@ assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: true, quaran
 assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: true, quarantineLoopEarlyExit: true }), "signed_limited_fallback_deadline");
 assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: false, quarantineLoopEarlyExit: true }), "signed_limited_fallback_quarantine_loop");
 assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: false, quarantineLoopEarlyExit: false }), "signed_limited_fallback");
+assert.equal(reasoningEffortForStructuredRepair("diagnose"), "low", "bounded M03 repair avoids a second full diagnostic reasoning budget");
+assert.equal(reasoningEffortForStructuredRepair("prescribe"), "medium", "M04 multi-invariant reconstruction keeps medium repair effort");
 
 // ─── (c) Finalization idempotence w.r.t. already-reviewed decisions ───
 // The diagnose output transform (ungrounded-negation sanitizer + evidence scrubber) rewrites JSON

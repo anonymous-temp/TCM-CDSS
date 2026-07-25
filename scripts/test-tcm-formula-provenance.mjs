@@ -7,14 +7,147 @@ const {
   executableFormulaCompilationReferences,
   formulaCompilationContractIssue,
   formulaCompilationReferences,
+  formulaNamesWithoutExecutableDoseCompilation,
   identifyKnownFormulaNames,
   resolveFormulaSources,
+  verifyFormulaCompilationComponents,
 } = await import("../src/lib/tcm-formula-provenance.ts");
+const {
+  buildTcmFormulaIndicationContext,
+  buildTcmFormulaReasoningContext,
+  enforceRetrievedM03FormulaSelection,
+  namedFormulaPositiveSufficiencyIssue,
+  retrieveTcmFormulaCandidatesForReasoning,
+  retrieveTcmFormulaIndicationCandidates,
+} = await import("../src/lib/tcm-formula-indications.ts");
+const { highImpactHerbDirectionIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+const { getTcmHerbFunctionText } = await import("../src/lib/tcm-knowledge.ts");
 
 const herbs = (...names) => names.map((name) => ({ name }));
 const formulaCatalog = JSON.parse(readFileSync(new URL("../src/data/tcm-formula-sources.json", import.meta.url), "utf8"));
+const governedFormulaCatalog = JSON.parse(readFileSync(new URL("../src/data/tcm-formula-governed-catalog.json", import.meta.url), "utf8"));
 const herbFunctionCatalog = JSON.parse(readFileSync(new URL("../src/data/tcm-herb-function-categories.json", import.meta.url), "utf8"));
 const tcmKnowledgeCatalog = JSON.parse(readFileSync(new URL("../src/data/tcm-knowledge.json", import.meta.url), "utf8"));
+
+const formulaCase = (chiefComplaint) => ({ chiefComplaint, symptoms: {}, conversation: [] });
+const insomniaCandidates = retrieveTcmFormulaIndicationCandidates(
+  formulaCase("反复失眠，入睡困难，伴心悸、神疲食少"),
+);
+assert.ok(insomniaCandidates.some((item) => item.name === "酸枣仁汤"), "a current insomnia fact must retrieve the governed 酸枣仁汤 indication card");
+assert.ok(insomniaCandidates.every((item) => item.id.startsWith("TCM-FORMULA-")), "every M03 formula candidate must carry a stable evidence ID");
+assert.deepEqual(
+  retrieveTcmFormulaIndicationCandidates(formulaCase("否认失眠、心悸，食欲正常")),
+  [],
+  "negated findings must never retrieve a classic formula candidate",
+);
+const banxiaCandidates = retrieveTcmFormulaIndicationCandidates(
+  formulaCase("心下痞满，呕吐，肠鸣下利，舌苔黄腻"),
+);
+assert.equal(banxiaCandidates[0]?.name, "半夏泻心汤", "dense defining facts must rank the source-matched classic formula first");
+assert.match(buildTcmFormulaIndicationContext(formulaCase("心下痞满，呕吐，肠鸣下利，舌苔黄腻")), /半夏泻心汤[\s\S]*《伤寒论》/);
+assert.ok(banxiaCandidates.every((item) => item.governanceStatus && typeof item.prescriptionLockEligible === "boolean"), "T8 governance metadata must accompany every runtime retrieval candidate");
+const heartSpleenCase = formulaCase("入睡困难、多梦易醒3个月，伴心悸健忘、食欲欠佳、便溏，舌淡有齿痕，脉细弱");
+const heartSpleenCandidates = retrieveTcmFormulaIndicationCandidates(heartSpleenCase);
+assert.ok(heartSpleenCandidates.some((item) => item.name === "归脾汤"), "T8's data-owned memory/cognition concept must retrieve 归脾汤 inside the default model-visible shortlist");
+assert.ok(heartSpleenCandidates.find((item) => item.name === "归脾汤")?.matchedConcepts.includes("记忆认知"), "the retrieval trace must expose the governed concept responsible for recall");
+assert.match(buildTcmFormulaIndicationContext(heartSpleenCase), /归脾汤[\s\S]*T1\/T3\/T4关联索引：经核验证候:心脾两虚/);
+assert.doesNotMatch(buildTcmFormulaIndicationContext(heartSpleenCase), /关联索引：[^\n]*自动推荐/, "standard-term relations remain retrieval evidence rather than an automatic formula verdict");
+
+const postM03Reasoning = {
+  overview: {
+    primarySyndrome: "思虑伤脾证",
+    overallPathogenesis: "思虑伤脾",
+    tcmDifferentials: [],
+  },
+  pathogenesis: {
+    summary: "思虑伤脾，心神失养",
+    locationDifferentiation: { items: ["心", "脾"], details: [] },
+    natureDifferentiation: { items: ["气虚", "血虚"], rootDeficiency: "气虚", branchExcess: "无" },
+    chain: [{ pathogenesis: "思虑伤脾", therapyDirection: "健脾养心" }],
+  },
+};
+const postM03Candidates = retrieveTcmFormulaCandidatesForReasoning(postM03Reasoning, 8);
+assert.ok(postM03Candidates.some((item) => item.name === "归脾汤"), "signed M03 syndrome/pathogenesis may drive the separate post-generation T8 retrieval phase");
+assert.match(buildTcmFormulaReasoningContext(postM03Reasoning), /M03后方剂精确检索[\s\S]*归脾汤[\s\S]*经核验证候:思虑伤脾/);
+
+const unrelatedFormula = [
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({ stage: "diagnose", overview: { recommendedFormulaDirection: "归脾汤加减", recommendedFormulaNames: ["归脾汤"], formulaSelectionMode: "single" } }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n");
+const declassifiedFormula = enforceRetrievedM03FormulaSelection(unrelatedFormula, ["半夏泻心汤"]);
+assert.match(declassifiedFormula, /按已锁定病机与治法辨证组方/);
+assert.match(declassifiedFormula, /"recommendedFormulaNames": \[\]/);
+const allowedFormula = enforceRetrievedM03FormulaSelection(unrelatedFormula, ["归脾汤"]);
+assert.match(allowedFormula, /"recommendedFormulaNames": \[\]/, "pre-M03 symptom recall alone must never lock a named formula");
+const postM03Formula = [
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({ stage: "diagnose", ...postM03Reasoning, overview: { ...postM03Reasoning.overview, recommendedFormulaDirection: "归脾汤加减", recommendedFormulaNames: ["归脾汤"], formulaSelectionMode: "single" } }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n");
+assert.match(enforceRetrievedM03FormulaSelection(postM03Formula, []), /"recommendedFormulaNames":\s*\[\s*"归脾汤"/, "post-M03 governed retrieval can authorize a lock even when pre-M03 literal symptoms did not retrieve the classical wording");
+const officialIdentity = unrelatedFormula.replaceAll("归脾汤", "龙胆泻肝汤");
+const liverFireReasoning = {
+  overview: {
+    primarySyndrome: "肝火扰心",
+    overallPathogenesis: "肝火上扰心神",
+    tcmDifferentials: [],
+    recommendedFormulaDirection: "龙胆泻肝汤加减",
+    recommendedFormulaNames: ["龙胆泻肝汤"],
+    formulaSelectionMode: "single",
+  },
+  pathogenesis: {
+    summary: "肝火上扰心神",
+    locationDifferentiation: { items: ["肝", "心"], details: [] },
+    natureDifferentiation: { items: ["火热"], rootDeficiency: "", branchExcess: "肝火" },
+    chain: [{ nodeId: "P1", pathogenesis: "肝火上扰心神", therapyDirection: "清肝泻火，安神" }],
+  },
+  therapy: { overallPrinciple: "清肝泻火，安神", overallMethod: "清肝泻火，安神", subTherapies: [] },
+};
+const officialIdentityLocked = enforceRetrievedM03FormulaSelection([
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify({ stage: "diagnose", ...liverFireReasoning }),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n"), ["龙胆泻肝汤"]);
+assert.match(officialIdentityLocked, /"recommendedFormulaNames":\s*\[\s*"龙胆泻肝汤"/, "official formula identity may lock independently of patient-level dose compilation and audit");
+const liverFireCandidates = retrieveTcmFormulaCandidatesForReasoning(liverFireReasoning, 8);
+assert.equal(liverFireCandidates[0]?.name, "龙胆泻肝汤");
+assert.equal(liverFireCandidates[0]?.positiveSufficiency, true);
+assert.equal(liverFireCandidates.find((item) => item.name === "玉女煎")?.positiveSufficiency, false);
+assert.match(namedFormulaPositiveSufficiencyIssue(liverFireReasoning, ["玉女煎"]) || "", /玉女煎/);
+const weakLiverFireLock = enforceRetrievedM03FormulaSelection(
+  officialIdentity.replaceAll("龙胆泻肝汤", "玉女煎"),
+  ["玉女煎"],
+);
+assert.match(weakLiverFireLock, /"recommendedFormulaNames": \[\]/, "nature-only score=2 retrieval must not lock 玉女煎 for 肝火扰心");
+const phlegmDampLungReasoning = {
+  overview: { primarySyndrome: "痰湿蕴肺", overallPathogenesis: "痰湿蕴肺，肺失宣降", tcmDifferentials: [] },
+  pathogenesis: {
+    summary: "痰湿蕴肺，肺失宣降",
+    locationDifferentiation: { items: ["肺"], details: [] },
+    natureDifferentiation: { items: ["痰湿"], rootDeficiency: "", branchExcess: "痰湿" },
+    chain: [{ nodeId: "P1", pathogenesis: "痰湿蕴肺", therapyDirection: "燥湿化痰，宣肺止咳" }],
+  },
+  therapy: { overallPrinciple: "燥湿化痰，宣肺止咳", overallMethod: "燥湿化痰，宣肺止咳", subTherapies: [] },
+};
+const phlegmDampLungCandidates = retrieveTcmFormulaCandidatesForReasoning(phlegmDampLungReasoning, 8);
+assert.equal(phlegmDampLungCandidates[0]?.name, "二陈汤");
+assert.equal(phlegmDampLungCandidates[0]?.positiveSufficiency, true);
+assert.ok(phlegmDampLungCandidates[0]?.score >= 10);
+assert.equal(formulaCompilationReferences(["龙胆泻肝汤"]).length, 1);
+assert.deepEqual(retrieveTcmFormulaCandidatesForReasoning({
+  overview: { primarySyndrome: "无可映射证候", overallPathogenesis: "无可映射病机", tcmDifferentials: [] },
+  pathogenesis: { summary: "无可映射", locationDifferentiation: { items: [], details: [] }, natureDifferentiation: { items: [], rootDeficiency: "", branchExcess: "" }, chain: [] },
+}), [], "T8 retrieval must safely abstain when governed tags and clinical concepts do not match");
+for (const formula of governedFormulaCatalog.entries) {
+  assert.equal(
+    executableFormulaCompilationReferences([formula.name]).length === 1,
+    formula.doseCompilationEligible,
+    `T8 dose-compilation flag must equal the M04 runtime gate: ${formula.name}`,
+  );
+}
+assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["白虎汤"]), ["白虎汤"]);
+assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["归脾汤"]), []);
 
 for (const [name, entry] of Object.entries(formulaCatalog.officialClassicFormulas)) {
   const resolved = resolveFormulaSources(name, herbs(...entry.ingredients));
@@ -63,7 +196,10 @@ assert.equal(xiaoyaoCompilation.length, 1, "a governed 逍遥散 must resolve to
 assert.match(xiaoyaoCompilation[0].source, /局方.*卷九/);
 assert.ok(["柴胡", "白芍", "当归", "白术"].every((name) => xiaoyaoCompilation[0].ingredients.includes(name)));
 assert.deepEqual(formulaCompilationReferences(["不存在方"]), [], "unknown names must never acquire a fabricated compilation anchor");
-assert.deepEqual(formulaCompilationReferences(["四物汤"]), [], "a multi-composition local name without official or verified governance must not choose the first workbook row as a compilation anchor");
+const siwuCompilation = formulaCompilationReferences(["四物汤"]);
+assert.equal(siwuCompilation.length, 1, "SZJG/T 38.2-2011 must replace first-row workbook guessing with one governed 四物汤 baseline");
+assert.equal(siwuCompilation[0].origin, "local_formula_catalog");
+assert.ok(["熟地黄", "酒当归", "白芍", "川芎"].every((name) => siwuCompilation[0].ingredients.includes(name)));
 const dangguiLiuhuangCompilation = executableFormulaCompilationReferences(["当归六黄汤"]);
 assert.equal(dangguiLiuhuangCompilation.length, 1, "当归六黄汤 must be executable after historical relative-dose text is removed from the herb identity");
 assert.ok(dangguiLiuhuangCompilation[0].ingredients.includes("黄芪"));
@@ -85,15 +221,15 @@ const referencedDiagnoseJson = JSON.parse(referencedDiagnose.split("<!-- DIAGNOS
 assert.deepEqual(referencedDiagnoseJson.overview.recommendedFormulaNames, ["归脾汤", "酸枣仁汤"]);
 assert.equal(referencedDiagnoseJson.overview.formulaSelectionMode, "alternatives");
 
-const ambiguousNamedDirection = applyDeterministicFormulaReferences([
+const governedStandardDirection = applyDeterministicFormulaReferences([
   "<!-- DIAGNOSIS_JSON_START -->",
   JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaDirection: "四物汤加减" } }),
   "<!-- DIAGNOSIS_JSON_END -->",
 ].join("\n"));
-const ambiguousNamedDirectionJson = JSON.parse(ambiguousNamedDirection.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
-assert.deepEqual(ambiguousNamedDirectionJson.overview.recommendedFormulaNames, []);
-assert.equal(ambiguousNamedDirectionJson.overview.formulaSelectionMode, "self_devised");
-assert.equal(ambiguousNamedDirectionJson.overview.recommendedFormulaDirection, "按已锁定病机与治法辨证组方");
+const governedStandardDirectionJson = JSON.parse(governedStandardDirection.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.deepEqual(governedStandardDirectionJson.overview.recommendedFormulaNames, ["四物汤"]);
+assert.equal(governedStandardDirectionJson.overview.formulaSelectionMode, "single");
+assert.equal(governedStandardDirectionJson.overview.recommendedFormulaDirection, "四物汤加减");
 
 const combinedWithUnrelatedOr = applyDeterministicFormulaReferences([
   "<!-- DIAGNOSIS_JSON_START -->",
@@ -220,6 +356,32 @@ const combined = resolveFormulaSources(
 );
 assert.equal(combined.length, 2, "a combined formula must verify every named base formula");
 assert.deepEqual(combined.map((item) => item.source), ["《伤寒论》", "《三因》卷九。"], "combined-formula provenance follows the closest composition, not catalog prestige alone");
+assert.ok(
+  combined.every((item) =>
+    item.verificationStatus === "verified_individually" &&
+    item.matchedIngredientCount >= item.minimumPreservedIngredientCount &&
+    item.matchedRequiredIngredientCount === item.requiredIngredientCount),
+  "every combined-formula source row must expose its own passed composition floor and required anchors",
+);
+const fullyVerifiedComponents = verifyFormulaCompilationComponents(
+  ["旋覆代赭汤", "温胆汤"],
+  herbs("旋覆花", "人参", "代赭石", "甘草", "半夏", "生姜", "大枣", "竹茹", "枳实", "陈皮", "茯苓"),
+  true,
+  true,
+);
+assert.deepEqual(
+  fullyVerifiedComponents.map((item) => item.verified),
+  [true, true],
+  "combined-formula verification must produce one independent verdict for each governed base",
+);
+const xuanfuOnlyComponents = verifyFormulaCompilationComponents(
+  ["旋覆代赭汤", "温胆汤"],
+  herbs(...formulaCompilationReferences(["旋覆代赭汤"])[0].ingredients),
+  true,
+  true,
+);
+assert.equal(xuanfuOnlyComponents[0]?.verified, true, "the first base may pass its own governed identity");
+assert.equal(xuanfuOnlyComponents[1]?.verified, false, "the second base must still fail independently when its own composition is absent");
 assert.deepEqual(
   resolveFormulaSources(
     "旋覆代赭汤合温胆汤",
@@ -375,10 +537,11 @@ assert.equal(
 const falselyNamedDeclassifiedGuipi = structuredClone(declassifiedGuipi);
 falselyNamedDeclassifiedGuipi.formula.candidates[0].name = "归脾汤加减";
 assert.match(formulaCompilationContractIssue(falselyNamedDeclassifiedGuipi, guipiPrior) || "", /formula_reference_selection_drift/, "a declassified composition must never retain a classic name or source");
-const longchiReference = formulaCompilationReferences(["龙齿安神丹"])[0];
-assert.ok(longchiReference && longchiReference.ingredients.length === 8 && longchiReference.minimumPreservedIngredientCount === 7, "local formula regression fixture must expose an 8-herb governed baseline with a 7-herb identity floor");
-const longchiPrior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaNames: ["龙齿安神丹"], formulaSelectionMode: "single" } };
-const compiledLongchi = (names) => parsedReasoning(enrichPrescriptionProvenance(render(reasoning(candidate("龙齿安神丹加减", names)))));
+assert.deepEqual(formulaCompilationReferences(["龙齿安神丹"]), [], "a historical-workbook-only formula cannot bypass the T8 lock-eligibility authority");
+const qingguReference = formulaCompilationReferences(["清骨散"])[0];
+assert.ok(qingguReference && qingguReference.ingredients.length === 8 && qingguReference.minimumPreservedIngredientCount === 7, "T8 governed formula fixture must expose an 8-herb baseline with a 7-herb identity floor");
+const qingguPrior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaNames: ["清骨散"], formulaSelectionMode: "single" } };
+const compiledQinggu = (names) => parsedReasoning(enrichPrescriptionProvenance(render(reasoning(candidate("清骨散加减", names)))));
 const assertSafelyDeclassified = (result, prior, message) => {
   const declassified = result.formula.candidates[0];
   assert.equal(declassified.name, "本例辨证组方", `${message}: display name`);
@@ -386,50 +549,47 @@ const assertSafelyDeclassified = (result, prior, message) => {
   assert.equal(declassified.formulaSource.evidenceLevel, "model_inference", `${message}: source level`);
   assert.equal(formulaCompilationContractIssue(result, prior), undefined, `${message}: usable candidate`);
 };
-const removableLongchiIngredient = longchiReference.ingredients.find((name) => !longchiReference.requiredIngredients.includes(name));
-assert.ok(removableLongchiIngredient, "local formula fixture must have a non-anchor ingredient for the 80% acceptance boundary");
-const longchiAt80 = compiledLongchi(longchiReference.ingredients.filter((name) => name !== removableLongchiIngredient));
-assert.equal(formulaCompilationContractIssue(longchiAt80, longchiPrior), undefined, "a modified local formula at or above the 80% floor with every anchor must retain its governed identity");
-const longchiWithReasonableAdditions = compiledLongchi([
-  ...longchiReference.ingredients.filter((name) => name !== removableLongchiIngredient),
+const removableQingguIngredient = qingguReference.ingredients.find((name) => !qingguReference.requiredIngredients.includes(name));
+assert.ok(removableQingguIngredient, "T8 formula fixture must have a non-anchor ingredient for the 80% acceptance boundary");
+const qingguAt80 = compiledQinggu(qingguReference.ingredients.filter((name) => name !== removableQingguIngredient));
+assert.equal(formulaCompilationContractIssue(qingguAt80, qingguPrior), undefined, "a modified T8 formula at or above the 80% floor with every anchor must retain its governed identity");
+const qingguWithReasonableAdditions = compiledQinggu([
+  ...qingguReference.ingredients.filter((name) => name !== removableQingguIngredient),
   "当归", "白术", "茯苓",
 ]);
-assert.equal(formulaCompilationContractIssue(longchiWithReasonableAdditions, longchiPrior), undefined, "F1 may rank sources but must not reject a single modified formula that satisfies the authoritative 80% floor, anchors, and addition precision boundary");
-const longchiBelow80 = compiledLongchi(longchiReference.ingredients.slice(0, 6));
-assertSafelyDeclassified(longchiBelow80, longchiPrior, "a 75% local-formula match must not inherit the governed name or source");
-const longchiWithoutAnchor = compiledLongchi(longchiReference.ingredients.filter((name) => !longchiReference.requiredIngredients.includes(name)));
-assertSafelyDeclassified(longchiWithoutAnchor, longchiPrior, "a formula missing an identity anchor must be declassified even when its overall overlap is otherwise high");
+assert.equal(formulaCompilationContractIssue(qingguWithReasonableAdditions, qingguPrior), undefined, "retrieval ranking must not reject a single governed formula that satisfies the authoritative 80% floor, anchors, and addition precision boundary");
+const qingguBelow80 = compiledQinggu(qingguReference.ingredients.slice(0, 6));
+assertSafelyDeclassified(qingguBelow80, qingguPrior, "a 75% T8-formula match must not inherit the governed name or source");
+const qingguWithoutAnchor = compiledQinggu(qingguReference.ingredients.filter((name) => !qingguReference.requiredIngredients.includes(name)));
+assertSafelyDeclassified(qingguWithoutAnchor, qingguPrior, "a formula missing a T8 identity anchor must be declassified even when its overall overlap is otherwise high");
 const xuanfuReference = formulaCompilationReferences(["旋覆代赭汤"])[0];
 assert.ok(xuanfuReference.requiredIngredients.includes("代赭石"), "raw-name anchor detection must preserve 代赭 as canonical 代赭石 in 旋覆代赭汤");
 const xuanfuPrior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaNames: ["旋覆代赭汤"], formulaSelectionMode: "single" } };
+const partialCombinedCandidate = candidate("旋覆代赭汤合温胆汤加减", xuanfuReference.ingredients);
+partialCombinedCandidate.formulaNames = ["旋覆代赭汤", "温胆汤"];
+partialCombinedCandidate.constructionType = "combined";
+const partialCombinedReasoning = reasoning(partialCombinedCandidate);
+const combinedPrior = {
+  schemaVersion: "tcm-cdss-reasoning-v2",
+  stage: "diagnose",
+  overview: { recommendedFormulaNames: ["旋覆代赭汤", "温胆汤"], formulaSelectionMode: "combined" },
+};
+assert.equal(
+  formulaCompilationContractIssue(partialCombinedReasoning, combinedPrior),
+  "formula_component_1_unverified",
+  "a passing first base must not cause the second missing base to inherit verified status",
+);
 const xuanfuWithoutAnchor = parsedReasoning(enrichPrescriptionProvenance(render(reasoning(candidate(
   "旋覆代赭汤加减",
   xuanfuReference.ingredients.filter((name) => name !== "代赭石"),
 )))));
 assertSafelyDeclassified(xuanfuWithoutAnchor, xuanfuPrior, "deleting canonical 代赭石 must remove the classic identity");
 for (const formulaName of ["代赭扶脾汤", "加减代赭旋覆花汤", "增减旋覆代赭汤"]) {
-  const reference = formulaCompilationReferences([formulaName])[0];
-  assert.ok(reference?.requiredIngredients.includes("代赭石"), `${formulaName} must map the historical name token 代赭 to canonical anchor 代赭石 even when the source ingredient is already canonical`);
-  const prior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaNames: [formulaName], formulaSelectionMode: "single" } };
-  const withoutCanonicalAnchor = parsedReasoning(enrichPrescriptionProvenance(render(reasoning(candidate(
-    `${formulaName}加减`,
-    reference.ingredients.filter((name) => name !== "代赭石"),
-  )))));
-  assertSafelyDeclassified(withoutCanonicalAnchor, prior, `${formulaName} without 代赭石 must not inherit its governed identity or source`);
+  assert.deepEqual(formulaCompilationReferences([formulaName]), [], `${formulaName} is historical-workbook-only and cannot acquire a compilation baseline outside T8`);
 }
 for (const [formulaName, expectedCanonicalAnchor] of [["三味黄耆丸", "黄芪"], ["加味茯神散", "茯神"]]) {
-  const reference = formulaCompilationReferences([formulaName])[0];
-  assert.ok(reference?.requiredIngredients.includes(expectedCanonicalAnchor), `${formulaName} must retain its alias-equivalent canonical name anchor ${expectedCanonicalAnchor}`);
+  assert.deepEqual(formulaCompilationReferences([formulaName]), [], `${formulaName}/${expectedCanonicalAnchor} cannot use an alias-correct historical row without T8 governance`);
 }
-const fushenReference = formulaCompilationReferences(["加味茯神散"])[0];
-assert.ok(fushenReference.ingredients.includes("茯神") && !fushenReference.ingredients.includes("茯苓"), "茯神 and 茯苓 must remain distinct governed ingredients");
-const fushenPrior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaNames: ["加味茯神散"], formulaSelectionMode: "single" } };
-const fushenSubstitutedWithFuling = parsedReasoning(enrichPrescriptionProvenance(render(reasoning(candidate(
-  "加味茯神散",
-  fushenReference.ingredients.map((name) => name === "茯神" ? "茯苓" : name),
-)))));
-assertSafelyDeclassified(fushenSubstitutedWithFuling, fushenPrior, "茯苓 substitution must remove the 加味茯神散 identity");
-assert.deepEqual(resolveFormulaSources("加味茯神散", herbs(...fushenReference.ingredients.map((name) => name === "茯神" ? "茯苓" : name))), [], "a formula missing 茯神 must not inherit 加味茯神散 provenance as an exact source composition");
 const qingweiReference = formulaCompilationReferences(["清胃散"])[0];
 assert.ok(qingweiReference.ingredients.includes("当归身") && !qingweiReference.ingredients.includes("当归"), "formula provenance must preserve medicinal-part identity for 当归身");
 const qingweiPrior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaNames: ["清胃散"], formulaSelectionMode: "single" } };
@@ -447,11 +607,8 @@ assert.equal(resolveFormulaSources("三甲复脉汤", structuredSanjiaHerbs)[0]?
 const wuhuReference = formulaCompilationReferences(["五虎汤"])[0];
 const wuhuWithProcessedGancao = wuhuReference.ingredients.map((name) => name === "甘草" ? { name: "甘草", processing: "炙" } : { name });
 assert.equal(resolveFormulaSources("五虎汤加减", wuhuWithProcessedGancao)[0]?.exactComposition, false, "adding 炙 processing must not remain an exact 五虎汤 composition");
-const qimiReference = formulaCompilationReferences(["七味活命饮"])[0];
-assert.ok(qimiReference.ingredients.includes("生黄芪"), "token-wise historical alias normalization must preserve 生 processing while canonicalizing 黄耆 to 黄芪");
-assert.equal(resolveFormulaSources("七味活命饮", herbs(...qimiReference.ingredients))[0]?.exactComposition, true, "canonical 生黄芪 must match a historical 生黄耆 source token exactly");
-const renshenShuyuReference = formulaCompilationReferences(["人参薯蓣丸"])[0];
-assert.equal(renshenShuyuReference.minimumPreservedIngredientCount, Math.ceil(renshenShuyuReference.ingredients.length * 0.8), "the public formula floor and post-generation validator must use the same canonical de-duplicated baseline");
+assert.deepEqual(formulaCompilationReferences(["七味活命饮"]), [], "a historical alias-normalized row still cannot become executable outside T8");
+assert.deepEqual(formulaCompilationReferences(["人参薯蓣丸"]), [], "a historical workbook row cannot acquire a public formula floor outside T8");
 const suanzaorenNamedGuipiComposition = parsedReasoning(enrichPrescriptionProvenance(render(reasoning(candidate(
   "酸枣仁汤加减",
   ["白术", "茯苓", "黄芪", "龙眼肉", "酸枣仁", "人参", "木香", "甘草"],
@@ -500,6 +657,22 @@ assert.equal(selfJson.formula.candidates[0].constructionType, "self_devised");
 assert.equal(selfJson.formula.candidates[0].formulaSource.evidenceLevel, "model_inference");
 assert.doesNotMatch(JSON.stringify(selfJson.formula.candidates[0]), /归脾汤|香砂六君子汤|原方|待核实|未在本次病历/);
 assert.match(selfJson.formula.candidates[0].notApplicable, /重新辨证/);
+
+const lexicalTherapyCandidate = candidate(
+  "自拟鼻鼽方",
+  ["桂枝", "白芍", "生姜", "大枣"],
+);
+lexicalTherapyCandidate.therapyMatch = "疏风散寒，调和营卫，宣通鼻窍";
+lexicalTherapyCandidate.formulaAnalysis = "以疏风散寒与调和营卫为组方方向";
+const lexicalTherapyContent = enrichPrescriptionProvenance(render(reasoning(lexicalTherapyCandidate)).replace(
+  "<!-- DIAGNOSIS_JSON_START -->",
+  "**治法**：疏风散寒，调和营卫，宣通鼻窍。\n\n<!-- DIAGNOSIS_JSON_START -->",
+));
+const lexicalTherapyJson = parsedReasoning(lexicalTherapyContent);
+assert.equal(lexicalTherapyJson.formula.candidates[0].therapyMatch, "疏风散寒，调和营卫，宣通鼻窍", "formula governance must not split a treatment phrase at the 散 character");
+assert.equal(lexicalTherapyJson.formula.candidates[0].formulaAnalysis, "以疏风散寒与调和营卫为组方方向", "formula governance must preserve lexical treatment text in structured fields");
+assert.match(lexicalTherapyContent, /治法\*\*[：:]疏风散寒，调和营卫，宣通鼻窍/, "formula governance must preserve lexical treatment text in visible narrative");
+assert.match(lexicalTherapyContent, /^### 候选处方1：本例辨证组方/m, "the visible heading must retain the existing self-devised declassification");
 
 const enrichedSingleClassic = enrichPrescriptionProvenance(render(reasoning(candidate("甘草汤", ["甘草"]))));
 assert.match(enrichedSingleClassic, /\*\*方剂资料收载来源\*\*/);
@@ -559,9 +732,8 @@ const xinmaiPrompt = prescribePromptFor(promptM03Reasoning({
   method: "活血化瘀、通脉止痛",
   chain: [["P1", "瘀血阻滞心脉", "活血化瘀、通脉止痛"], ["P2", "气机郁滞", "理气行滞"]],
 }));
-assert.ok(xinmaiPrompt.includes("【按治法匹配的经典名方候选"), "M04 prompt must inject syndrome-matched classical formula candidates");
-assert.ok(xinmaiPrompt.includes("- 身痛逐瘀汤｜出处：《医林改错》"), "心脉瘀阻 injection must surface 逐瘀汤类 with governed provenance");
-assert.ok(!xinmaiPrompt.includes("六磨汤｜出处"), "secondary 理气 direction must not outrank the core 活血 therapy in candidate ranking");
+assert.ok(xinmaiPrompt.includes("【M03后方剂精确检索记录（只用于核对既有选择；M04 不得据此改方名）】"), "M04 must preserve the M03 formula-selection boundary");
+assert.ok(xinmaiPrompt.includes("M04 不得临时附会方名"), "an M03 self-devised direction must not acquire a classic identity in M04");
 
 const piweiPrompt = prescribePromptFor(promptM03Reasoning({
   syndrome: "脾胃虚弱证",
@@ -569,7 +741,18 @@ const piweiPrompt = prescribePromptFor(promptM03Reasoning({
   method: "健脾益气、和胃助运",
   chain: [["P1", "脾胃虚弱、运化无力", "健脾益气"], ["P2", "湿浊内生", "化湿和中"]],
 }));
-assert.ok(piweiPrompt.includes("- 举元煎｜出处：《景岳全书》"), "脾胃虚弱 injection must surface 补气 classic candidates with provenance");
+assert.ok(piweiPrompt.includes("M03 未锁定命名方"), "M04 must retain self-devised identity when M03 did not lock a governed formula");
+
+const descendingPrompt = prescribePromptFor(promptM03Reasoning({
+  syndrome: "胃气上逆",
+  therapy: "和胃降逆",
+  method: "和胃降逆",
+  chain: [["P1", "胃气上逆", "和胃降逆"]],
+}));
+const descendingLine = descendingPrompt.match(/- 理气方向：([^\n]+)/)?.[1] || "";
+assert.ok(descendingLine.includes("佛手"), "the descending shortlist must retain a KB-covered gentle 和胃 herb");
+assert.ok(descendingLine.indexOf("佛手") < descendingLine.indexOf("枳壳"), "a direct 和胃 function hit must rank ahead of a generic common 理气 herb");
+assert.doesNotMatch(descendingLine, /乌药|九香虫|刀豆|土木香/, "M03-unsupported warming herbs must be filtered before emperor selection");
 
 const fenghanPrompt = prescribePromptFor(promptM03Reasoning({
   syndrome: "风寒表证",
@@ -577,7 +760,7 @@ const fenghanPrompt = prescribePromptFor(promptM03Reasoning({
   method: "辛温解表、宣肺散寒",
   chain: [["P1", "风寒束表、卫阳被遏", "辛温解表、发散风寒"], ["P2", "肺气失宣", "宣肺散寒"]],
 }));
-assert.ok(fenghanPrompt.includes("- 麻黄细辛附子汤｜出处：《伤寒论》"), "风寒表证 injection must surface 辛温解表 classics with provenance");
+assert.ok(fenghanPrompt.includes("M04 不得临时附会方名"), "M04 must never infer a formula name from therapy alone");
 
 const lockedGuipiPrompt = prescribePromptFor(promptM03Reasoning({
   syndrome: "心脾两虚证",
@@ -587,41 +770,45 @@ const lockedGuipiPrompt = prescribePromptFor(promptM03Reasoning({
   formulaNames: ["归脾汤"],
 }));
 assert.ok(lockedGuipiPrompt.includes("- 方名：归脾汤"), "a locked M03 formula must keep its deterministic compilation baseline in M04");
-assert.ok(!lockedGuipiPrompt.includes("- 归脾汤｜出处"), "the candidate block must not duplicate the already locked formula");
+assert.ok(lockedGuipiPrompt.includes("M04 只能承接 M03 已锁定"), "the candidate stage must explicitly preserve the M03 formula identity");
 
 for (const [label, needle] of [
-  ["classical-first discipline", "经典方优先与出处纪律"],
+  ["M03 formula identity boundary", "经典方身份在 M03 完成"],
   ["server-owned provenance citation", "方剂出处一律由服务端按目录"],
-  ["self-devised justification channel", "candidate.applicable 中用一句话说明候选经典方未覆盖"],
+  ["self-devised justification channel", "candidate.applicable 必须用一句话说明受控目录候选未覆盖"],
   ["jun-herb de-bias rule", "山药、党参、黄芪、甘草等通用补益或调和药只有在 P1 病机本身就是其主治的虚损证型"],
   ["jun-herb rationale template ban", "不得把同一条君药理由模板复用到不同病例"],
   ["role-differentiated fangyi rule", "臣药必须引用与君药不同的次级病机节点"],
   ["repetitive rationale mechanism", "重复引用会产生重复方义"],
   ["therapy-to-herb mapping rule", "治法→药味映射"],
   ["therapy coverage rule", "必须覆盖 M03 therapy.subTherapies 中每个“主要”治法方向"],
-  ["modification non-empty default", "默认必须输出1–3条"],
-  ["modification trigger field", "触发条件（trigger=复诊时出现的具体症状或事实变化）"],
-  ["modification action field", "动作（actionType=add/remove/adjust 加 herbName=哪味药）"],
+  ["modification bounded count", "可给出0–3条"],
+  ["modification current-fact trigger", "trigger 必须逐字引用 primarySyndromeBasis"],
+  ["modification action field", "动作（actionType=add/remove/adjust 加 herbName）"],
   ["modification reason field", "理由（reason=该加减对应的病机依据）"],
-  ["modification risk note field", "风险说明（由服务端统一附加"],
-  ["explicit no-modification reason", "本例无需预设随证加减"],
+  ["modification risk note field", "风险说明由服务端统一附加，模型不得自行输出"],
+  ["empty modification is valid", "没有合格当前伴随症状时输出空数组即可"],
 ]) {
   assert.ok(xinmaiPrompt.includes(needle), `M04 prompt must contain ${label}: ${needle}`);
 }
 assert.ok(xinmaiPrompt.length < 60_000, `M04 prompt must stay within the PRIMARY_TEXT_MAX_PROMPT_CHARS discipline, got ${xinmaiPrompt.length}`);
 
-const diagnosePrompt = buildDiagnosePrompt({ patient: {}, chiefComplaint: "胸痛反复3月", conversation: [], symptoms: {} });
+const diagnosePrompt = buildDiagnosePrompt({ patient: {}, chiefComplaint: "心下痞满，呕吐，肠鸣下利，舌苔黄腻", conversation: [], symptoms: {} });
 assert.ok(diagnosePrompt.includes("推荐主方方向坚持经典方优先"), "M03 must require classical-formula-first direction");
 assert.ok(diagnosePrompt.includes("确无方证匹配的经典方时才按已锁定病机与治法自拟"), "M03 must constrain self-devised directions to a catalog-free label");
 assert.ok(diagnosePrompt.includes("therapyDirection 必须逐节点具体且互不重复"), "M03 must forbid duplicated therapyDirection sentences that flatten downstream fangyi");
+assert.ok(diagnosePrompt.includes("【M03统一临床推理权威合同】"), "M03 generation must use the same inference authority as independent review");
+assert.ok(diagnosePrompt.includes("逐字接地要求只适用于 L0 患者事实"), "M03 generation must distinguish chart facts from supported clinical inference");
+assert.match(diagnosePrompt, /\[TCM-FORMULA-[A-F0-9]+\] 半夏泻心汤[\s\S]*《伤寒论》/, "M03 must receive the case-bound governed classic formula card");
 
 // ─── P0-5 跟进（ES04 类失败）：君药知识库覆盖硬规则、覆盖药味短名单、专属修复提示 ───
-const xiaokePrompt = prescribePromptFor(promptM03Reasoning({
+const xiaokeReasoning = promptM03Reasoning({
   syndrome: "阴虚内热证",
   therapy: "滋阴清热、生津止渴",
   method: "滋阴清热、生津止渴",
   chain: [["P1", "阴虚内热、津液亏耗", "滋阴清热、生津止渴"], ["P2", "燥热伤津", "清热生津"]],
-}));
+});
+const xiaokePrompt = prescribePromptFor(xiaokeReasoning);
 assert.ok(xiaokePrompt.includes("君药知识库覆盖"), "M04 prompt must state the emperor KB-coverage hard rule");
 assert.ok(xiaokePrompt.includes("完全无功能收载的药味不得为君"), "the hard rule must forbid emperors without any KB function coverage");
 assert.ok(xiaokePrompt.includes("改用同一治法方向上最近的有覆盖药味"), "the prompt must steer an uncovered ideal emperor to the closest covered herb in the same direction");
@@ -641,26 +828,36 @@ const commonYinHerbs = tcmKnowledgeCatalog.commonHerbs
   .map((item) => item.name)
   .filter((name) => (herbFunctionCatalog.categories[name] || []).some((category) => category.includes("补阴")));
 assert.ok(commonYinHerbs.length <= 16, "the governed common 补阴 subset must fit the per-direction shortlist cap");
-for (const herb of commonYinHerbs) {
+const eligibleCommonYinHerbs = commonYinHerbs.filter((herb) =>
+  !highImpactHerbDirectionIssue(herb, getTcmHerbFunctionText(herb), xiaokeReasoning),
+);
+for (const herb of eligibleCommonYinHerbs) {
   assert.ok(shortlistSection.includes(herb), `the capped 补阴 shortlist must retain governed common herb ${herb}`);
 }
+assert.ok(shortlistSection.includes("玉竹"), "玉竹 must remain eligible through its governed 养阴润燥 identity");
+assert.ok(!shortlistSection.includes("鳖甲"), "a 软坚散结 herb must not be shortlisted when signed M03 lacks that high-impact direction");
 
-// ─── 中性功能失调候形态的短名单覆盖：功能性治法文本也必须能导出 KB 覆盖短名单 ───
+// ─── 有边界的功能性工作证候短名单覆盖：功能性治法文本也必须能导出 KB 覆盖短名单 ───
 const neutralXiaokePrompt = prescribePromptFor(promptM03Reasoning({
-  syndrome: "消渴功能失调候",
+  syndrome: "津液输布失常候",
   therapy: "调畅气机，助津液输布",
   method: "调畅气机，助津液输布",
   chain: [["P1", "津液输布与气化功能失调", "调畅气机"]],
 }));
 const neutralShortlistStart = neutralXiaokePrompt.indexOf("【本例治法方向的知识库覆盖药味短名单");
-assert.ok(neutralShortlistStart >= 0, "the neutral 功能失调候 shape must still get a KB-covered shortlist via the functional therapy vocabulary");
+assert.ok(neutralShortlistStart >= 0, "the bounded functional syndrome shape must still get a KB-covered shortlist via the functional therapy vocabulary");
 const neutralShortlistEnd = neutralXiaokePrompt.indexOf("【M04药味可引用病机节点】");
 assert.ok(neutralShortlistEnd > neutralShortlistStart, "the shortlist block must be well-formed for the neutral shape");
 const neutralShortlistSection = neutralXiaokePrompt.slice(neutralShortlistStart, neutralShortlistEnd);
 assert.ok(neutralShortlistSection.includes("- 理气方向："), "调畅气机 must map to the 理气 direction group on the prompt side as it does on the contract side");
 assert.ok(/- 理气方向：[^\n]*(?:陈皮|厚朴|木香|香附|枳壳)/.test(neutralShortlistSection), "the 理气 group must list KB-covered regulating herbs");
 
-const { buildM04ClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
+const { buildM04ClinicalRepairHint, m04KnowledgeShortlistFromPrompt } = await import("../src/lib/structured-clinical-repair.ts");
+const repairedPromptShortlist = m04KnowledgeShortlistFromPrompt(piweiPrompt);
+assert.match(repairedPromptShortlist, /^【本例治法方向的知识库覆盖药味短名单/);
+assert.match(repairedPromptShortlist, /补气方向/);
+assert.doesNotMatch(repairedPromptShortlist, /【M04药味可引用病机节点】/);
+assert.equal(m04KnowledgeShortlistFromPrompt("无短名单的提示"), "");
 const emperorKnowledgeHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_1_emperor_knowledge_missing");
 assert.ok(emperorKnowledgeHint.includes("知识库"), "the repair hint must explain the KB-coverage cause");
 assert.ok(emperorKnowledgeHint.includes("不得再次使用"), "the repair hint must explicitly forbid reusing the rejected emperor herb");

@@ -28,6 +28,64 @@ assert.equal(authoritativePatientAgeYears({ ...base, chiefComplaint: "患者1岁
 assert.equal(authoritativePatientAgeYears({ ...base, chiefComplaint: "患者1.5岁，纳差" }), 1.5, "decimal year age remains precise");
 assert.equal(authoritativePatientAgeYears({ ...base, chiefComplaint: "12岁反复咳嗽3天，舌淡苔薄白" }), 12, "a concise primary-care age-first complaint remains a patient demographic");
 assert.equal(authoritativePatientAgeYears({ ...base, chiefComplaint: "患者为成年人，近期照顾5岁患儿，自己入睡困难" }), undefined, "a related child's age is not the patient's age");
+assert.equal(authoritativePatientAgeYears({
+  ...base,
+  chiefComplaint: "便秘三个月",
+  patient: { age: 56 },
+  conversation: [
+    { role: "user", content: "初始记录：便秘三个月" },
+    { role: "assistant", content: "已完成一轮追问" },
+    { role: "user", content: "本次未取得该信息" },
+  ],
+}), 56, "structured compatibility age remains authoritative when a later follow-up answer does not repeat it");
+assert.equal(authoritativePatientAgeYears({
+  ...base,
+  chiefComplaint: "失眠",
+  patient: { age: 42 },
+  conversation: [{ role: "user", content: "近期照顾5岁患儿，自己睡不好" }],
+}), 42, "a related person's age cannot replace the structured patient age");
+assert.equal(authoritativePatientAgeYears({
+  ...base,
+  chiefComplaint: "咳嗽",
+  patient: { age: 56 },
+  hisRecord: {
+    schemaVersion: "tcm-cdss-his-v1",
+    source: "tcm-cdss-his",
+    caseId: "age-source-test",
+    updatedAt: "2026-07-22T00:00:00.000Z",
+    tongueImageUploaded: false,
+    fields: {},
+    rawText: "主诉咳嗽",
+  },
+}), undefined, "an HIS snapshot with no age never falls back to a compatibility DTO age");
+assert.equal(authoritativePatientAgeYears({
+  ...base,
+  patient: { age: 56 },
+  chiefComplaint: "咳嗽",
+  hisRecord: {
+    schemaVersion: "tcm-cdss-his-v1",
+    source: "tcm-cdss-his",
+    caseId: "raw-age-source-test",
+    updatedAt: "2026-07-22T00:00:00.000Z",
+    tongueImageUploaded: false,
+    fields: {},
+    rawText: "8岁男童咳嗽3天，舌淡苔薄白。",
+  },
+}), 8, "a patient-bound age in the current HIS raw record is authoritative");
+assert.equal(authoritativePatientAgeYears({
+  ...base,
+  patient: { age: 56 },
+  chiefComplaint: "失眠",
+  hisRecord: {
+    schemaVersion: "tcm-cdss-his-v1",
+    source: "tcm-cdss-his",
+    caseId: "relative-age-source-test",
+    updatedAt: "2026-07-22T00:00:00.000Z",
+    tongueImageUploaded: false,
+    fields: {},
+    rawText: "患者为成年人，近期照顾5岁患儿，自己入睡困难。",
+  },
+}), undefined, "a related child's age in HIS raw text never becomes the patient's age");
 
 let pass = 0;
 for (const [name, cs, expected] of cases) {

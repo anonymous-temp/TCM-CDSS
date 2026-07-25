@@ -3,8 +3,13 @@ import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": "/dev/null" } });
 const {
+  buildSafetyLimitedDiagnosis,
   buildSafetyLimitedDiagnosisReasoning,
+  buildSafetyLimitedPrescription,
+  buildSafetyLimitedRisk,
+  deriveOperationalCompleteness,
   derivePrescriptionPermission,
+  deriveSafetyLocked,
   withSafetyGate,
 } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
@@ -14,7 +19,7 @@ const base = {
   phase: "done",
   patient: { sex: "男", age: 42 },
   chiefComplaint: "入睡困难伴多梦2个月",
-  symptoms: {},
+  symptoms: { presentHistory: "近2个月每晚入睡需1小时以上，多梦易醒，每周至少5晚，白天疲乏" },
   tongue: "舌淡，苔薄白",
   pulse: "脉细",
   allergyHistory: "否认药物及食物过敏",
@@ -40,15 +45,38 @@ assert.deepEqual(permission(base), {
   reasons: [],
 });
 
-const sparse = { ...base, patient: {}, tongue: undefined, pulse: undefined, allergyHistory: undefined, medicationHistory: undefined, vitals: {} };
+const sparse = { ...base, patient: {}, symptoms: {}, tongue: undefined, pulse: undefined, allergyHistory: undefined, medicationHistory: undefined, vitals: {} };
 const sparsePermission = permission(sparse);
-assert.equal(sparsePermission.candidateMode, "limited_dose", "稀疏病历应继续生成有限剂量候选");
-assert.equal(sparsePermission.formalAdoption, "eligible_after_doctor_confirmation", "普通缺项应提示医生确认而不是硬拦截");
+assert.equal(sparsePermission.candidateMode, "limited_dose", "完成一轮追问后，患者仍无法补充时应继续生成有限信息候选");
+assert.equal(sparsePermission.formalAdoption, "eligible_after_doctor_confirmation", "普通信息不足不得阻断医生流程，但必须要求医生确认未知边界");
 
 const sparseScheme = buildHisAiSchemePayload(withSafetyGate(sparse));
-assert.ok(sparseScheme.prescriptions.herbal.length > 0, "有限候选仍应在 HIS 方案中可见");
+assert.ok(sparseScheme.prescriptions.herbal.length > 0, "追问后有限候选仍应在 HIS 方案中可见");
 assert.equal(sparseScheme.writeBackPolicy.allowSingleItemAdoption, true);
 assert.equal(sparseScheme.candidateStatus, "valid");
+
+const sparseBeforeFollowup = { ...sparse, questionRounds: 0 };
+assert.equal(permission(sparseBeforeFollowup).candidateMode, "non_dose_only", "初始A/B级病例必须优先进入M02，不能直接跳过追问");
+assert.equal(permission(sparseBeforeFollowup).formalAdoption, "blocked");
+
+for (const [id, chiefComplaint, presentHistory] of [
+  ["BO02", "感冒", ""],
+  ["BO04", "头痛<script>alert(1)</script>", ""],
+  ["BO06", "失眠", "患者\n含\r\n各种\t制表符\b退格"],
+  ["BO10", "乏力", "null undefined NaN"],
+]) {
+  const state = {
+    ...base,
+    chiefComplaint,
+    symptoms: presentHistory ? { presentHistory } : {},
+    tongue: "舌淡，苔薄白",
+    pulse: "脉细",
+    completeness: { level: "C", redFlag: 1, infoGain: 1, managementImpact: 1, answerability: 1 },
+    questionRounds: 0,
+  };
+  assert.equal(deriveOperationalCompleteness(state).level, "B", `${id}客户端伪造C级和默认舌脉不能绕过服务端信息量重算`);
+  assert.equal(permission(state).candidateMode, "non_dose_only", `${id}首轮必须先追问`);
+}
 
 const advisoryOnly = {
   ...base,
@@ -108,6 +136,29 @@ for (const pastHistory of [
 
 const pediatric = { ...base, patient: { sex: "男", age: 8 } };
 assert.equal(permission(pediatric).candidateMode, "non_dose_only");
+
+for (const [label, patch] of [
+  ["CKD4期", { pastHistory: "慢性肾脏病4期，近期eGFR 24mL/min" }],
+  ["心衰", { pastHistory: "慢性心力衰竭，EF35%" }],
+  ["抗凝", { medicationHistory: "当前口服华法林3mg，每日一次" }],
+  ["免疫抑制", { medicationHistory: "当前服用他克莫司1mg，每日2次" }],
+  ["糖尿病足", { pastHistory: "2型糖尿病，当前右足溃疡，诊断糖尿病足" }],
+  ["活动期自身免疫病", { pastHistory: "系统性红斑狼疮活动期，近期皮疹及关节痛加重" }],
+]) {
+  const governedState = withSafetyGate({ ...base, ...patch });
+  const result = derivePrescriptionPermission(governedState);
+  assert.equal(result.candidateMode, "non_dose_only", `${label}必须进入高风险非剂量路径`);
+  assert.equal(result.formalAdoption, "blocked", `${label}未经专科/药师复核不得正式采纳`);
+  assert.equal(deriveSafetyLocked(governedState), true, `${label}的独立确定性剂量门必须在审方前建立安全锁`);
+}
+
+for (const [label, patch] of [
+  ["已排除肾功能不全", { pastHistory: "本次检查未发现肾功能不全，eGFR 92mL/min" }],
+  ["既往已停抗凝", { medicationHistory: "两年前服用华法林，现已停用；当前否认其他用药" }],
+  ["稳定自身免疫病", { pastHistory: "系统性红斑狼疮目前稳定，无近期复发或加重" }],
+]) {
+  assert.notEqual(permission({ ...base, ...patch }).candidateMode, "non_dose_only", `${label}不得被当前高风险规则误伤`);
+}
 
 const semanticUnavailable = {
   ...base,
@@ -182,6 +233,25 @@ assert.equal(exhaustedLimited.overview.primarySyndromeResolution, "unresolved");
 assert.equal(exhaustedLimited.pathogenesis.chain.length, 0);
 assert.equal(exhaustedLimited.formula, null);
 assert.match(exhaustedLimited.overview.primarySyndromeResolutionReason, /未形成/);
+
+const analysisIncompleteGate = {
+  ...exhaustedGate,
+  missingItems: ["本次辨病辨证结果完整性"],
+  reasons: ["本次辨病辨证结果未通过完整性与临床一致性复核，本轮不生成剂量级候选。"],
+};
+const analysisIncompleteDisplay = buildSafetyLimitedDiagnosis(base, analysisIncompleteGate);
+assert.match(analysisIncompleteDisplay, /当前已确认：[\s\S]*当前尚不能形成：[\s\S]*下一步：/);
+assert.doesNotMatch(analysisIncompleteDisplay, /暂不生成|剂量级|当前未满足形成该项建议的条件西医/);
+assert.match(analysisIncompleteDisplay, /本次未形成可复核的完整辨病辨证结果/);
+assert.match(analysisIncompleteDisplay, /保留已录入病历并由医生人工判断/);
+assert.doesNotMatch(analysisIncompleteDisplay, /(?:M03|模型输出|签名有限结果|左侧病历|底部补充框)/, "limited clinician output must not expose orchestration or layout jargon");
+for (const limitedOutput of [
+  buildSafetyLimitedPrescription(analysisIncompleteGate),
+  buildSafetyLimitedRisk(analysisIncompleteGate),
+]) {
+  assert.match(limitedOutput, /当前已确认：[\s\S]*当前尚不能形成：[\s\S]*下一步：/);
+  assert.doesNotMatch(limitedOutput, /暂不生成|剂量级|当前未满足形成该项建议的条件|处方建议候选处方/);
+}
 
 const noChief = { ...base, chiefComplaint: "" };
 assert.equal(permission(noChief).candidateMode, "blocked");

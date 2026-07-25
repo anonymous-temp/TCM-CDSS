@@ -7,6 +7,7 @@ import {
   parseClinicalFacts,
   groundClinicalFacts,
   additiveRedFlagsFromFacts,
+  priorityEvaluationItemsFromFacts,
   semanticTriageAdvisoriesFromFacts,
   extractClinicalFacts,
 } from "../src/lib/clinical-facts.ts";
@@ -27,6 +28,50 @@ ok("schema: 非法附加项被隔离，不能抹掉同一输出中的合法红�
   ] }));
   return r?.redFlags.length === 1 && r.redFlags[0].category === "gi_bleed";
 })());
+ok("组合升级: 多条逐字证据可形成 additive-only 的可解释语义升级", (() => {
+  const source = "50岁男性，1小时前突发胸痛，同时大汗，伴濒死感。";
+  const parsed = parseClinicalFacts({
+    redFlags: [{
+      category: "cardiac",
+      subject: "patient",
+      status: "positive",
+      urgency: "emergency",
+      triageBasis: "time_sensitive_cardiovascular_event",
+      quote: "突发胸痛",
+      escalationRationale: "突发胸痛合并自主神经症状和濒死感，构成时间敏感性心血管高危组合",
+      escalationEvidenceQuotes: ["突发胸痛", "大汗", "濒死感"],
+    }],
+  });
+  const grounded = parsed && groundClinicalFacts(parsed, source);
+  const message = parsed ? additiveRedFlagsFromFacts(parsed, source, [])[0] || "" : "";
+  return grounded?.redFlags[0]?.urgency === "emergency" &&
+    grounded.redFlags[0].escalationEvidenceQuotes?.length === 3 &&
+    /组合升级依据/.test(message) &&
+    /突发胸痛/.test(message) && /大汗/.test(message) && /濒死感/.test(message);
+})());
+ok("组合升级: 任一组合证据未逐字落地时不得保留模型的 emergency 升级权限", (() => {
+  const source = "1小时前突发胸痛，同时大汗。";
+  const parsed = parseClinicalFacts({
+    redFlags: [{
+      category: "cardiac",
+      subject: "patient",
+      status: "positive",
+      urgency: "emergency",
+      triageBasis: "time_sensitive_cardiovascular_event",
+      quote: "突发胸痛",
+      escalationRationale: "胸痛、大汗并合并模型臆测的低血压",
+      escalationEvidenceQuotes: ["突发胸痛", "大汗", "血压下降"],
+    }],
+  });
+  const grounded = parsed && groundClinicalFacts(parsed, source);
+  return grounded?.redFlags[0]?.urgency === "urgent" &&
+    grounded.redFlags[0].triageBasis === "urgent_review" &&
+    grounded.redFlags[0].escalationRationale == null;
+})());
+ok("prompt: 明确允许同一当前事件的多线索深层合成，同时禁止跨主体时态拼接和降低确定性结论",
+  /escalationRationale/.test(buildClinicalFactsExtractionPrompt("突发胸痛伴大汗")) &&
+  /不得跨患者主体、跨既往与当前事件拼接/.test(buildClinicalFactsExtractionPrompt("突发胸痛伴大汗")) &&
+  /绝不能降低任何确定性结论/.test(buildClinicalFactsExtractionPrompt("突发胸痛伴大汗")));
 ok("就诊范围: 仅既往稳定结论必须逐字落地且不能由单次模型获得同意状态", (() => {
   const parsed = parseClinicalFacts(JSON.stringify({
     redFlags: [],
@@ -530,6 +575,19 @@ const independentlyReviewed = await extractClinicalFacts("胸痛没有缓解，�
 }, undefined, { independentReview: true });
 ok("extractor: 独立LLM复核可纠正首轮处置层级且仍受逐字引用契约约束",
   independentReviewCalls === 2 && independentlyReviewed?.reviewStatus === "checked" && independentlyReviewed.redFlags[0]?.urgency === "emergency");
+let invalidReviewContractAttempts = 0;
+const recoveredInvalidReviewContract = await extractClinicalFacts("右边脑袋一跳一跳地疼。", async (_system, _user, _signal, phase) => {
+  if (phase !== "review") return JSON.stringify({ redFlags: [{ category: "neuro", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "右边脑袋一跳一跳地疼" }] });
+  invalidReviewContractAttempts += 1;
+  return invalidReviewContractAttempts === 1
+    ? JSON.stringify({ redFlags: [] })
+    : JSON.stringify({
+        redFlags: [{ findingId: "rf-1", category: "neuro", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "右边脑袋一跳一跳地疼" }],
+        reviews: [{ findingId: "rf-1", decision: "confirm" }],
+      });
+}, undefined, { independentReview: true, allowDispositionReductions: true });
+ok("extractor: 非空但违反findingId合同的独立复核可在相同首轮事实上一轮受限重试恢复",
+  invalidReviewContractAttempts === 2 && recoveredInvalidReviewContract?.reviewStatus === "checked" && recoveredInvalidReviewContract.redFlags.length === 1);
 const omittedByReviewer = await extractClinicalFacts("胸痛没有缓解，已持续30分钟。", async (_system, _user, _signal, phase) => phase === "review"
   ? JSON.stringify({ redFlags: [] })
   : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
@@ -610,10 +668,28 @@ const withBackstop = detectProgrammaticRedFlags({
   conversation: [],
   clinicalFacts: { redFlags: [{ category: "gi_bleed", subject: "patient", status: "positive", urgency: "emergency", quote: "大便发黑好几天" }] },
 });
-ok("集成: 结构化事实兜底补上消化道出血红旗(additive 生效)",
-  withBackstop.some((f) => f.includes("消化道出血")));
-ok("集成: 兜底不重复已由确定性层命中的同类红旗",
-  withBackstop.filter((f) => f.includes("消化道出血")).length === 1);
+ok("集成: T6 规定语义发现不单独取得硬红旗门权",
+  withBackstop.length === 0);
+ok("集成: 语义 emergency 保留为有原文依据的立即复核提醒",
+  semanticTriageAdvisoriesFromFacts({ redFlags: [{ category: "gi_bleed", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "major_active_bleeding", quote: "大便发黑好几天" }] }, colloquial)
+    .some((item) => item.includes("立即由接诊医生现场复核") && item.includes("大便发黑好几天")));
+ok("集成: 语义 emergency 不取得确定性硬门权但必须阻止未经复核的正式处方采纳", (() => {
+  const facts = { redFlags: [{ category: "gi_bleed", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "major_active_bleeding", quote: "大便发黑好几天" }] };
+  return priorityEvaluationItemsFromFacts(facts, colloquial)
+    .some((item) => item.includes("立即现场复核") && item.includes("大便发黑好几天"));
+})());
+ok("稳定性: T6 将孤立非急性胸闷约束为常规背景，避免批量推理时随机升级", (() => {
+  const text = "痰多胸闷2周";
+  return [
+    { status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event" },
+    { status: "possible", urgency: "clarify", triageBasis: "clarification_needed" },
+  ].every((classification) => {
+    const facts = { redFlags: [{ category: "cardiac", subject: "patient", ...classification, quote: "胸闷2周" }] };
+    const grounded = groundClinicalFacts(facts, text).redFlags[0];
+    return grounded?.urgency === "routine" && grounded.triageBasis === "routine_care" &&
+      priorityEvaluationItemsFromFacts(facts, text).length === 0;
+  });
+})());
 
 // —— 隐私边界: 即使生产开启 LLM 事实回填，外发文本也必须先经过统一 PHI 清洗 ——
 delete process.env.CDSS_CLINICAL_FACTS_BACKSTOP;
@@ -624,6 +700,7 @@ const {
   CLINICAL_FACTS_EMPTY_CACHE_TTL_MS,
   CLINICAL_FACTS_EXTRACTOR_VERSION,
   CLINICAL_FACTS_PROMPT_VERSION,
+  callClinicalFactsPhaseWithRetry,
   clinicalFactsAttestationSigningConfigured,
   hasValidClinicalFactsAttestation,
   isClinicalFactsBackstopEnabled,
@@ -631,12 +708,37 @@ const {
 } = await import("../src/lib/clinical-facts-runtime.ts");
 ok("运行时: LLM语义红旗层默认启用", isClinicalFactsBackstopEnabled());
 ok("运行时: 导出 clinical facts 签名配置 readiness", clinicalFactsAttestationSigningConfigured());
+let transientPhaseCalls = 0;
+const recoveredPhase = await callClinicalFactsPhaseWithRetry(async () => {
+  transientPhaseCalls += 1;
+  if (transientPhaseCalls === 1) throw new Error("temporary transport failure");
+  return '{"redFlags":[]}';
+}, undefined, 2);
+ok("运行时: 安全语义阶段的首次瞬时传输失败由一次受限重试恢复",
+  transientPhaseCalls === 2 && recoveredPhase === '{"redFlags":[]}');
+let emptyPhaseCalls = 0;
+const recoveredEmptyPhase = await callClinicalFactsPhaseWithRetry(async () => {
+  emptyPhaseCalls += 1;
+  return emptyPhaseCalls === 1 ? "" : '{"redFlags":[]}';
+}, undefined, 2);
+ok("运行时: 安全语义阶段的空响应由一次受限重试恢复",
+  emptyPhaseCalls === 2 && recoveredEmptyPhase === '{"redFlags":[]}');
+const preAbortedPhase = new AbortController();
+preAbortedPhase.abort(new Error("request_cancelled"));
+let abortedPhaseCalls = 0;
+await callClinicalFactsPhaseWithRetry(async () => {
+  abortedPhaseCalls += 1;
+  return '{"redFlags":[]}';
+}, preAbortedPhase.signal, 2).catch(() => undefined);
+ok("运行时: 客户端取消后不得继续安全语义重试", abortedPhaseCalls === 0);
 const healthRouteSource = readFileSync(new URL("../src/app/api/diagnosis/health/route.ts", import.meta.url), "utf8");
 ok("health: strict readiness 纳入 clinical facts 启用与签名配置状态",
   healthRouteSource.includes("clinicalFactsAttestationSigningConfigured") &&
   healthRouteSource.includes("getClinicalFactsModelPlan") &&
   healthRouteSource.includes("clinicalFactsModelPlanReady") &&
-  healthRouteSource.includes("clinical_facts_reviewer_not_independent") &&
+  healthRouteSource.includes("clinical_facts_reviewer_not_separate_invocation") &&
+  healthRouteSource.includes("separateInvocationReview") &&
+  healthRouteSource.includes("separateInvocationAdjudication") &&
   healthRouteSource.includes("probeClinicalFactsModels") &&
   healthRouteSource.includes("clinical_facts_model_chain_unavailable") &&
   healthRouteSource.includes("clinicalFactsReady") &&
@@ -686,7 +788,14 @@ for (const [chiefComplaint, category, quote, expectedMessage, triageBasis] of co
     redFlags: [{ ...(phase === "review" ? { findingId: "rf-1" } : {}), category, subject: "patient", status: "positive", urgency: "emergency", triageBasis, quote }],
     ...(phase === "review" ? { reviews: [{ findingId: "rf-1", decision: "confirm" }] } : {}),
   }));
-  ok(`语义覆盖: ${chiefComplaint}`, detectProgrammaticRedFlags(enriched).some((item) => item.includes(expectedMessage)));
+  const deterministicHits = detectProgrammaticRedFlags(enriched);
+  const semanticAdvisories = semanticTriageAdvisoriesFromFacts(enriched.clinicalFacts, chiefComplaint);
+  ok(`语义覆盖: ${chiefComplaint}`,
+    deterministicHits.some((item) => item.includes(expectedMessage)) ||
+    semanticAdvisories.some((item) => item.includes(quote)));
+  if (!deterministicHits.some((item) => item.includes(expectedMessage))) {
+    ok(`语义权限边界: ${chiefComplaint}`, semanticAdvisories.some((item) => item.includes("不单独形成硬门")));
+  }
 }
 
 const possibleState = await maybeAttachClinicalFactsBackstop({
@@ -1188,5 +1297,37 @@ ok("prompt: 提取与复核提示含发热分诊 ≥40℃/受损 原则线", (()
   return /体温≥40℃/.test(extract) && /38–40℃/.test(extract) && /不得仅凭高热度数或寒战标 emergency/.test(extract) &&
     /未达40℃/.test(review) && /纠正为 urgent/.test(review);
 })());
+
+// —— T6 neuro benign-head-symptom cap（普通头痛头晕 clarify 收敛，但急症/后循环/急性起病一律保留）——
+// 类级覆盖：整类普通头部症状同义词降级，且危险边界（治理 dangerExclusions + 急症 symptom + 急性起病）
+// 任一命中即阻止降级。方向单调：只作用于 clarify，emergency/urgent 永不触碰。
+{
+  const neuroFinding = (quote, urgency) => ({
+    semanticStatus: "checked",
+    redFlags: [{ category: "neuro", subject: "patient", status: "positive", urgency,
+      triageBasis: urgency === "emergency" ? "acute_neurologic_deficit" : "clarification_needed", quote }],
+    encounterScope: { status: "active_current_target", quote },
+    attestation: {},
+  });
+  const shown = (quote, urgency) => {
+    const f = neuroFinding(quote, urgency);
+    return semanticTriageAdvisoriesFromFacts(f, quote).length > 0 ||
+      additiveRedFlagsFromFacts(f, quote, []).length > 0 ||
+      priorityEvaluationItemsFromFacts(f, quote).length > 0;
+  };
+  // 整类普通头部症状（clarify）均应被抑制
+  for (const q of ["头疼头晕，睡不着觉", "头晕", "眩晕，纳差便溏", "头痛头胀", "头昏沉", "头重脚轻，头晕"]) {
+    ok(`neuro cap: 普通头部症状 clarify 抑制「${q}」`, shown(q, "clarify") === false);
+  }
+  // 危险边界任一命中：一律保留（漏放急症=0）
+  ok("neuro cap: 雷击样剧烈头痛 emergency 保留", shown("突发雷击样剧烈头痛，伴意识改变", "emergency") === true);
+  ok("neuro cap: 头晕伴复视（后循环）保留", shown("头晕伴复视、行走不稳", "clarify") === true);
+  ok("neuro cap: 头痛伴言语不清（T6症状）保留", shown("头痛，言语不清", "clarify") === true);
+  ok("neuro cap: 突发头晕（急性起病）保留", shown("突发头晕", "clarify") === true);
+  ok("neuro cap: 头晕伴构音不清/吞咽困难 保留", shown("头晕，构音不清，饮水呛咳", "clarify") === true);
+  ok("neuro cap: 头痛伴喷射性呕吐 保留", shown("头痛，喷射性呕吐", "clarify") === true);
+  // 单调性：cap 绝不作用于 emergency/urgent（即便普通头晕词也不得因 cap 被抹除）
+  ok("neuro cap: 普通头晕若被模型判 urgent 不被 cap 抹除", shown("头晕", "urgent") === true);
+}
 
 console.log(`\n${pass} passed`);

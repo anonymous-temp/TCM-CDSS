@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const require = createRequire(import.meta.url);
 const Module = require("node:module");
@@ -29,7 +29,11 @@ Module._resolveFilename = function resolveWorkspaceAlias(request, parent, isMain
   return previousResolveFilename.call(this, target, parent, isMain, options);
 };
 Module._extensions[".ts"] = (module, filename) => {
-  const source = readFileSync(filename, "utf8");
+  // This harness compiles application ESM TypeScript to CommonJS so route
+  // contracts can be exercised without a running Next server. Preserve the
+  // module-relative meaning of import.meta.url before that conversion.
+  const source = readFileSync(filename, "utf8")
+    .replace(/\bimport\.meta\.url\b/g, JSON.stringify(pathToFileURL(filename).href));
   const compiled = ts.transpileModule(source, {
     compilerOptions: {
       target: ts.ScriptTarget.ES2022,
@@ -85,6 +89,7 @@ try {
   const { maybeAttachClinicalFactsBackstop } = require("../src/lib/clinical-facts-runtime.ts");
   const { hasExecutableSignedM03 } = require("../src/lib/diagnosis-client-guards.ts");
   const { editedPrescriptionSemanticIssue, synchronizeEditedCandidate } = require("../src/lib/prescription-revision.ts");
+  const { confirmControlledTerminologyMapping } = require("../src/lib/controlled-terminology-confirmation.server.ts");
 
   const caseState = normalizeCaseStateInput({
     id: "case_signature_001",
@@ -286,6 +291,76 @@ try {
     assert.equal(verifyDiagnoseReasoningSignature(tampered, caseState), false);
   });
 
+  const semanticSuggestedReasoning = clone(reasoning);
+  semanticSuggestedReasoning.overview.primarySyndrome = "心脾劳虚";
+  semanticSuggestedReasoning.overview.recommendedFormulaDirection = "归脾汤加减";
+  semanticSuggestedReasoning.overview.recommendedFormulaNames = [];
+  semanticSuggestedReasoning.overview.formulaSelectionMode = "self_devised";
+  semanticSuggestedReasoning.overview.deferredFormulaSelection = {
+    direction: "归脾汤加减",
+    names: ["归脾汤"],
+    mode: "single",
+    reason: "semantic_mapping_pending_clinician_confirmation",
+  };
+  semanticSuggestedReasoning.terminologyMappings = [{
+    namespace: "tcm_syndrome",
+    fieldPath: "overview.primarySyndrome",
+    originalText: "心脾劳虚",
+    candidateId: "heart_spleen_deficiency",
+    canonical: "心脾两虚",
+    resolvedBy: "deepseek_closed_set",
+    status: "suggested",
+    confidence: 0.91,
+    model: "deepseek-v4-flash",
+    consensus: true,
+    cache: "miss",
+  }];
+  const semanticSuggestedSigned = signDiagnoseReasoning(semanticSuggestedReasoning, context);
+
+  check("semantic mapping trace is covered by the M03 signature", () => {
+    const tampered = clone(semanticSuggestedSigned);
+    tampered.terminologyMappings[0].candidateId = "tampered_candidate";
+    assert.equal(verifyDiagnoseReasoningSignature(tampered, caseState), false);
+  });
+
+  check("clinician confirmation replaces the primary syndrome and restores only the signed deferred formula", () => {
+    const result = confirmControlledTerminologyMapping(
+      { ...caseState, reasoningDiagnose: semanticSuggestedSigned, reasoningV2: semanticSuggestedSigned },
+      {
+        namespace: "tcm_syndrome",
+        fieldPath: "overview.primarySyndrome",
+        candidateId: "heart_spleen_deficiency",
+      },
+    );
+    assert.equal(result.ok, true);
+    assert.equal(result.reasoning.overview.primarySyndrome, "心脾两虚");
+    assert.equal(result.reasoning.terminologyMappings[0].status, "clinician_confirmed");
+    assert.deepEqual(result.restoredFormulaNames, ["归脾汤"]);
+    assert.deepEqual(result.reasoning.overview.recommendedFormulaNames, ["归脾汤"]);
+    assert.equal(result.reasoning.overview.deferredFormulaSelection, undefined);
+    assert.equal(result.reasoning.clinicalReview.status, "unavailable");
+    assert.equal(
+      verifyDiagnoseReasoningSignature(
+        result.reasoning,
+        { ...caseState, reasoningDiagnose: semanticSuggestedSigned, reasoningV2: semanticSuggestedSigned },
+      ),
+      true,
+    );
+  });
+
+  check("confirmation rejects a selector absent from the signed suggestion set", () => {
+    const result = confirmControlledTerminologyMapping(
+      { ...caseState, reasoningDiagnose: semanticSuggestedSigned, reasoningV2: semanticSuggestedSigned },
+      {
+        namespace: "tcm_syndrome",
+        fieldPath: "overview.primarySyndrome",
+        candidateId: "invented_candidate",
+      },
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "terminology_suggestion_not_current");
+  });
+
   check("cross-case replay rejects", () => {
     assert.equal(verifyDiagnoseReasoningSignature(signed, { ...caseState, id: "case_signature_002" }), false);
   });
@@ -416,6 +491,8 @@ try {
           method: "每日1剂，煎煮2次，合并药液后早晚分服",
           course: "5日",
           followUpNode: "完成5剂后复诊",
+          dosesPerDay: 1,
+          administrationTimesPerDay: 2,
         },
       }],
       patentAndWestern: [],
@@ -547,7 +624,7 @@ try {
     routeCase.reasoningDiagnose = signDiagnoseReasoning(ungrounded, context);
     const response = await prescribePost(routeRequest("/api/diagnosis/prescribe", routeCase));
     assert.equal(response.status, 200);
-    assert.match(await response.text(), /缺少有效的西医诊断、中医证候与病机关联结果/);
+    assert.match(await response.text(), /缺少有效的西医诊断、中医证候与病例依据结果/);
   });
 
   await checkAsync("prescribe route keeps a current emergency non-dose even with a valid M03 signature", async () => {

@@ -28,10 +28,12 @@ delete process.env.RXAI_AUDIT_TIMEOUT_MS;
 process.env.REASONING_CONTRACT_SIGNING_KEY = "route-contract-signing-key-2026-at-least-32-bytes";
 
 const capturedAuditBodies = [];
+const capturedAuditHeaders = [];
 const originalFetch = globalThis.fetch;
 let providerMode = "pass";
 globalThis.fetch = async (_url, init) => {
   capturedAuditBodies.push(JSON.parse(String(init?.body || "{}")));
+  capturedAuditHeaders.push(new Headers(init?.headers));
   if (providerMode === "timeout") {
     return new Promise((_resolve, reject) => {
       const signal = init?.signal;
@@ -77,7 +79,13 @@ try {
   const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": "/dev/null" } });
   const { POST: assessPost } = await jiti.import("../src/app/api/diagnosis/assess/route.ts");
   const { POST: postRiskPost } = await jiti.import("../src/app/api/diagnosis/post-prescription-risk/route.ts");
-  const { buildDiagnoseContractSignatureContext, signDiagnoseReasoning, verifyDiagnoseReasoningSignature } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
+  const {
+    buildDiagnoseContractSignatureContext,
+    buildPrescribeContractSignatureContext,
+    signDiagnoseReasoning,
+    signPrescribeReasoning,
+    verifyDiagnoseReasoningSignature,
+  } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
   const control = {
     id: "route-audit-contract",
     mutation: "route-contract",
@@ -107,10 +115,10 @@ try {
   const signedDiagnose = signDiagnoseReasoning(unsignedDiagnose, buildDiagnoseContractSignatureContext(unsignedState));
   const caseState = buildAuditPositiveControlState(control, signedDiagnose);
   assert.equal(verifyDiagnoseReasoningSignature(signedDiagnose, caseState), true, "signed route fixture must bind to the exact final clinical input");
-  const request = (path) => new Request(`http://localhost${path}`, {
+  const request = (path, requestCaseState = caseState) => new Request(`http://localhost${path}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ caseState }),
+    body: JSON.stringify({ caseState: requestCaseState }),
   });
 
   const assessResponse = await assessPost(request("/api/diagnosis/assess"));
@@ -119,6 +127,8 @@ try {
   assert.match(assessText, /现用药时间线或指代未能可靠结构化/);
   assert.match(assessText, /TCM_CDSS_RXAUDIT_CORRELATION/);
   assert.match(assessText, /AUDIT-ROUTE-1/);
+  assert.match(assessText, /"type":"followup_timeline"/);
+  assert.match(assessText, /"indicators":\[/);
 
   const postRiskResponse = await postRiskPost(request("/api/diagnosis/post-prescription-risk"));
   assert.equal(postRiskResponse.status, 200);
@@ -129,8 +139,20 @@ try {
   assert.equal(postRisk.audit.candidateIndex, 0);
   assert.equal(postRisk.audit.correlation.providerAuditResult, "PASS");
   assert.equal(postRisk.audit.correlation.effectiveAuditResult, "MANUAL_REVIEW");
+  assert.ok(Array.isArray(postRisk.followupTimeline) && postRisk.followupTimeline.length > 0);
+  assert.ok(postRisk.followupTimeline.every((item) =>
+    typeof item.time === "string" &&
+    typeof item.action === "string" &&
+    Array.isArray(item.indicators) &&
+    Array.isArray(item.triggers)));
+  assert.doesNotMatch(postRisk.followup, /FOLLOWUP_TIMELINE_JSON/, "JSON route must return timeline as a typed field, not a Markdown sentinel");
 
   assert.equal(capturedAuditBodies.length, 2);
+  for (const headers of capturedAuditHeaders) {
+    assert.equal(headers.get("x-api-key"), "route-contract-token", "LingXi requests authenticate with the live X-API-Key contract");
+    assert.equal(headers.get("authorization"), null, "the retired Bearer contract must not be sent in place of X-API-Key");
+    assert.equal(headers.get("x-tenant-id"), "EH_INTERNET_HOSPITAL");
+  }
   for (const body of capturedAuditBodies) {
     assert.deepEqual(body.data.prescription.patient.current_medications, [
       { drug_name: "华法林", dose_daily: "现服华法林3mg每日一次" },
@@ -139,6 +161,26 @@ try {
     assert.equal(body.data.options.enable_llm_audit, false, "synchronous M05 must not wait for optional audit-LLM enrichment");
     assert.doesNotMatch(JSON.stringify(body), /route-audit-contract/);
   }
+
+  const missingFrequencyReasoning = structuredClone(caseState.reasoningPrescribe);
+  delete missingFrequencyReasoning.formula.candidates[0].decoction.dosesPerDay;
+  delete missingFrequencyReasoning.contractSignature;
+  const unsignedMissingFrequencyState = {
+    ...structuredClone(caseState),
+    prescriptionRevision: undefined,
+    reasoningPrescribe: missingFrequencyReasoning,
+    reasoningV2: missingFrequencyReasoning,
+  };
+  const fetchesBeforeMissingFrequency = capturedAuditBodies.length;
+  assert.throws(
+    () => signPrescribeReasoning(
+      missingFrequencyReasoning,
+      buildPrescribeContractSignatureContext(unsignedMissingFrequencyState),
+    ),
+    /invalid M04 reasoning contract/,
+    "an incomplete frequency dimension cannot obtain the M04 signature required by any audit route",
+  );
+  assert.equal(capturedAuditBodies.length, fetchesBeforeMissingFrequency, "an unsigned incomplete regimen cannot reach the external audit interface");
 
   const parseCorrelationMarker = (text) => {
     const encoded = text.match(/TCM_CDSS_RXAUDIT_CORRELATION:([^\s]+)\s*-->/)?.[1];
@@ -167,6 +209,7 @@ try {
   assert.equal(degradedPost.audit.needManualReview, true);
   assert.equal(degradedPost.audit.correlation.providerDegraded, true);
   assert.equal(degradedPost.audit.correlation.effectiveAuditResult, "MANUAL_REVIEW");
+  assert.ok(Array.isArray(degradedPost.followupTimeline) && degradedPost.followupTimeline.length > 0);
   assert.match(degradedPost.section, /审方降级.*不得视为完整 PASS/);
 
   const previousTotalTimeout = process.env.RXAI_AUDIT_TOTAL_TIMEOUT_MS;
@@ -192,7 +235,7 @@ try {
   if (previousAttemptTimeout == null) delete process.env.RXAI_AUDIT_ATTEMPT_TIMEOUT_MS;
   else process.env.RXAI_AUDIT_ATTEMPT_TIMEOUT_MS = previousAttemptTimeout;
 
-  console.log(JSON.stringify({ cases: 14, failures: 0 }));
+  console.log(JSON.stringify({ cases: 19, failures: 0 }));
 } finally {
   globalThis.fetch = originalFetch;
   if (preExistingRxAuditTotalTimeout == null) delete process.env.RXAI_AUDIT_TOTAL_TIMEOUT_MS;

@@ -1,55 +1,65 @@
+import { createJiti } from "jiti";
 import { M05_PRESCRIPTION_MUTATION_CONTROLS } from "./fixtures/primary-care-sparse-50.mjs";
 import { buildAuditPositiveControlState } from "./lib/primary-care-audit-positive-controls.mjs";
 import { evaluateAuditInputQualityControl, evaluateAuditPositiveControl } from "./lib/primary-care-sparse-50-contracts.mjs";
 
 const BASE_URL = (process.env.BASE_URL || process.env.TCM_CDSS_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || process.env.TCM_CDSS_API_TOKEN || "";
-const REPLACE_MARKER = "<<<CDSS_STREAM_FINAL>>>";
-
-function extractSignedDiagnoseReasoning(raw) {
-  let content = "";
-  for (const line of raw.split("\n").filter(Boolean)) {
-    try {
-      const frame = JSON.parse(line);
-      if (typeof frame.content === "string" && frame.content !== "[END]") content += frame.content;
-    } catch {}
-  }
-  const marker = content.lastIndexOf(REPLACE_MARKER);
-  if (marker >= 0) content = content.slice(marker + REPLACE_MARKER.length);
-  const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
-  const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
-  const start = content.lastIndexOf(startMarker);
-  const end = start >= 0 ? content.indexOf(endMarker, start + startMarker.length) : -1;
-  if (start < 0 || end < 0) return null;
-  try {
-    const reasoning = JSON.parse(content.slice(start + startMarker.length, end).trim());
-    return reasoning?.stage === "diagnose" && reasoning?.contractSignature ? reasoning : null;
-  } catch {
-    return null;
-  }
+const CONTROL_FILTER = new Set((process.env.M05_CONTROL_IDS || "").split(",").map((item) => item.trim()).filter(Boolean));
+const selectedControls = M05_PRESCRIPTION_MUTATION_CONTROLS.filter((control) => CONTROL_FILTER.size === 0 || CONTROL_FILTER.has(control.id));
+const unknownControlIds = [...CONTROL_FILTER].filter((id) => !M05_PRESCRIPTION_MUTATION_CONTROLS.some((control) => control.id === id));
+if (selectedControls.length === 0 || unknownControlIds.length > 0) {
+  throw new Error(`M05_CONTROL_IDS must select known controls; unknown=${unknownControlIds.join(",") || "none"}`);
 }
 
-async function signedControlState(control) {
-  const unsigned = buildAuditPositiveControlState(control);
-  const diagnoseState = { ...unsigned, phase: "diagnose" };
-  delete diagnoseState.reasoningPrescribe;
-  delete diagnoseState.reasoningV2;
-  delete diagnoseState.prescriptionRevision;
-  delete diagnoseState.prescription;
-  const response = await fetch(`${BASE_URL}/api/diagnosis/diagnose`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}) },
-    body: JSON.stringify({ caseState: diagnoseState }),
+const jiti = createJiti(import.meta.url);
+const signingJiti = createJiti(import.meta.url, {
+  alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  },
+});
+const { normalizeReasoningV2 } = jiti("../src/lib/diagnosis-types.ts");
+const {
+  buildDiagnoseContractSignatureContext,
+  buildPrescribeContractSignatureContext,
+  signDiagnoseReasoning,
+  signPrescribeReasoning,
+} = await signingJiti.import("../src/lib/reasoning-contract-signature.ts");
+
+function signedControlState(control) {
+  // This is a privileged fictional provider-control fixture, not a simulated clinician edit.
+  // Sign the deliberately mutated M04 contract locally so each provider rule can be exercised in
+  // isolation. The normal workbench correctly rejects duplicate rows before audit and is covered by
+  // its own route regression; routing this fixture through that path would test the wrong boundary.
+  const unsignedState = buildAuditPositiveControlState(control);
+  const unsignedPrescribe = normalizeReasoningV2(unsignedState.reasoningPrescribe);
+  const unsignedDiagnose = normalizeReasoningV2({
+    ...unsignedPrescribe,
+    stage: "diagnose",
+    formula: null,
+    nonPharma: null,
+    clinicalReview: { status: "unavailable" },
+    contractSignatureVersion: undefined,
+    contractSignature: undefined,
   });
-  const raw = await response.text();
-  const signed = response.ok ? extractSignedDiagnoseReasoning(raw) : null;
-  if (!signed) throw new Error(`${control.id}: unable to obtain a current signed M03 contract (HTTP ${response.status})`);
-  return buildAuditPositiveControlState(control, signed);
+  if (!unsignedPrescribe || !unsignedDiagnose) throw new Error(`${control.id}: unable to construct signed audit control`);
+  const signedDiagnose = signDiagnoseReasoning(unsignedDiagnose, buildDiagnoseContractSignatureContext(unsignedState));
+  const diagnoseBoundState = { ...unsignedState, reasoningDiagnose: signedDiagnose };
+  const signedPrescribe = signPrescribeReasoning(
+    unsignedPrescribe,
+    buildPrescribeContractSignatureContext(diagnoseBoundState),
+  );
+  return {
+    ...diagnoseBoundState,
+    reasoningPrescribe: signedPrescribe,
+    reasoningV2: signedPrescribe,
+  };
 }
 
 const reports = [];
-for (const control of M05_PRESCRIPTION_MUTATION_CONTROLS) {
-  const controlState = await signedControlState(control);
+for (const control of selectedControls) {
+  const controlState = signedControlState(control);
   const response = await fetch(`${BASE_URL}/api/diagnosis/post-prescription-risk`, {
     method: "POST",
     headers: {

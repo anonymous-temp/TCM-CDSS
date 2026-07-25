@@ -22,9 +22,9 @@ const { withSafetyGate, sanitizeCaseStateForModel, clinicalGroundingText, saniti
 const { maybeAttachClinicalFactsBackstop } = await jiti.import("../src/lib/clinical-facts-runtime.ts");
 const { buildCdssEvidenceContext, appendEvidenceContext, buildEvidenceOutputTransform } = await jiti.import("../src/lib/cdss-evidence-context.ts");
 const { buildPrescribePrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
-const { diagnoseReasoningFromState, parseReasoningV2 } = await jiti.import("../src/lib/diagnosis-parse.ts");
+const { parseReasoningV2 } = await jiti.import("../src/lib/diagnosis-parse.ts");
 const { m04SemanticIssue, highImpactHerbDirectionIssue, canonicalTcmHerbIdentity } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
-const { buildM04ClinicalReviewPrompt, parseM04ClinicalReview } = await jiti.import("../src/lib/m04-clinical-review.ts");
+const { buildM04ClinicalReviewPrompt, m04ClinicalRepairGuidance, parseM04ClinicalReview } = await jiti.import("../src/lib/m04-clinical-review.ts");
 const { compileM04JsonObjectContent } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const { resolveCompletedStructuredResponse, enforceStructuredStageOwnership } = await jiti.import("../src/lib/diagnosis-structured-repair.ts");
 const { applyDeterministicFormulaReferences, enrichReasoning, formulaCompilationContractIssue } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
@@ -144,6 +144,7 @@ const FIXTURES = {
   B: { id: "B", deep: true },
   D: { id: "D", deep: true },
   E: { id: "E", deep: true },
+  P50D04: { id: "P50D04", primary50Artifact: "artifacts/release-primary50-round1-clean10/cases/D04.json" },
 };
 
 const PRIOR_ARTIFACT_DIRS = ["artifacts/real-100-residual-r1-20260719", "artifacts/real-100-smoke-r6-20260719"];
@@ -173,11 +174,62 @@ function loadSignedPrior(caseId) {
   return undefined;
 }
 
+function loadPrimary50Case(artifactPath) {
+  const report = JSON.parse(readFileSync(artifactPath, "utf8"));
+  const content = String(report.rawOutputs?.M03 || "")
+    .split(/\r?\n/)
+    .flatMap((line) => {
+      try {
+        const item = JSON.parse(line);
+        return typeof item?.content === "string" && item.content !== "[END]" ? [item.content] : [];
+      } catch {
+        return [];
+      }
+    })
+    .join("")
+    .replace("<<<CDSS_STREAM_FINAL>>>", "");
+  const prior = parseReasoningV2(JSON.parse(extractSentinelJson(content)));
+  const answer = String(report.simulatedAnswer || "本次未取得该信息");
+  const initial = report.initial || {};
+  const initialHistory = String(initial.history || "");
+  const base = {
+    id: `debug_${report.id}`,
+    phase: "prescribe",
+    patient: initial.patient || {},
+    chiefComplaint: String(initial.chief || ""),
+    symptoms: {
+      presentHistory: [initialHistory, answer].filter(Boolean).join("；"),
+      tcmDetail: answer,
+    },
+    tongue: extractObservation(answer, /舌[^。；]{1,35}/),
+    pulse: extractObservation(answer, /脉(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促){1,4}/),
+    faceNote: "",
+    vitals: {},
+    pastHistory: "",
+    medicationHistory: "",
+    allergyHistory: "",
+    completeness: { level: "B", redFlag: 0.8, infoGain: 0.55, managementImpact: 0.55, answerability: 0.65 },
+    questionRounds: 1,
+    maxQuestionRounds: 1,
+    questionOutcome: "answered",
+    conversation: [
+      { role: "user", content: `基层接诊初始记录：${String(initial.chief || "")}；${initialHistory}` },
+      { role: "assistant", content: "已完成一轮重点追问。" },
+      { role: "user", content: `本轮追问补充：${answer}` },
+    ],
+  };
+  return { caseState: base, prior };
+}
+
 function extractSentinelJson(content) {
   const start = content.lastIndexOf(START);
   const end = start >= 0 ? content.indexOf(END, start + START.length) : -1;
   if (start < 0 || end < 0) return "";
   return content.slice(start + START.length, end).trim();
+}
+
+function extractObservation(text, pattern) {
+  return String(text || "").match(pattern)?.[0]?.replace(/[。；]$/, "").trim() || "";
 }
 
 function herbRows(reasoning) {
@@ -198,7 +250,11 @@ let PRIOR;
 async function prepareCase(fixture) {
   let prior;
   let base;
-  if (fixture.deep) {
+  if (fixture.primary50Artifact) {
+    const loaded = loadPrimary50Case(fixture.primary50Artifact);
+    prior = loaded.prior;
+    base = { ...loaded.caseState, reasoningDiagnose: prior };
+  } else if (fixture.deep) {
     const deep = loadDeepCase(fixture.id);
     prior = deep.prior;
     base = { ...deep.caseState, reasoningDiagnose: prior };
@@ -235,6 +291,7 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
   console.log("kbShortlist:", shortlistMatch ? JSON.stringify(shortlistMatch[0].slice(0, 500)) : "ABSENT");
   let rejectedJson = "";
   let lastReason = "";
+  let clinicalReviewGuidance = "";
   for (let round = 1; round <= 3; round += 1) {
     const isRepair = round > 1;
     // Replica of the server's deterministic dose-boundary hint (doseOutsideConservativeRange).
@@ -343,6 +400,8 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
           candidateWideRepairHint,
           emperorDirectionHint,
           unknownHerbHint,
+          clinicalReviewGuidance,
+          prompt.match(/【本例治法方向的知识库覆盖药味短名单[^]*?(?=【M04药味可引用病机节点】)/)?.[0]?.trim() || "",
           buildM04ClinicalRepairHint(lastReason),
           "M04 修复结果始终必须是 schemaVersion=tcm-cdss-m04-proposal-v1 的最小提案对象；candidate.herbs 必须是数组且只含本次实际采用药味；candidate.decoction 必须是单个对象，且必须包含格式严格为1–30整数加‘剂’的 doseCount 纯字符串；整个 candidate.herbs 必须恰有 1–2 味君药，且每味君药都必须 targetKind=pathogenesis_node、targetRef=P1；targetKind=pathogenesis_node 时 structureRole 必须为 null。顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；无逐药可靠证据时 patentAndWestern 输出空数组。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/actionType/herbName/reason。nonPharma 的 diet、lifestyle、emotion 必须是非空字符串，acupointCare 固定为 null，monitoring 至少一项且包含 metric、timing、trigger。",
           `M03锁定上下文：${JSON.stringify({ overview: { primarySyndrome: prior.overview?.primarySyndrome, overallPathogenesis: prior.overview?.overallPathogenesis, recommendedFormulaDirection: prior.overview?.recommendedFormulaDirection, recommendedFormulaNames: prior.overview?.recommendedFormulaNames, formulaSelectionMode: prior.overview?.formulaSelectionMode }, therapy: prior.therapy, pathogenesisChain: prior.pathogenesis?.chain })}`,
@@ -412,7 +471,9 @@ async function runM04Pipeline(fixture, prepared, runIndex) {
         return "accepted";
       }
       lastReason = verdict.status === "repair" ? `m04_${verdict.issueCode}_semantic_review` : "m04_clinical_semantic_review";
+      clinicalReviewGuidance = m04ClinicalRepairGuidance(verdict, enriched);
       console.log("reviewRaw:", JSON.stringify(reviewOutput.slice(0, 400)));
+      console.log("reviewGuidance:", JSON.stringify(clinicalReviewGuidance.slice(0, 800)));
       rejectedJson = extractSentinelJson(content).slice(0, 8_000);
       continue;
     }
