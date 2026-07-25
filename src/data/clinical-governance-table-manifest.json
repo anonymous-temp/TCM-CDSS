@@ -54,14 +54,14 @@
       "id": "T8",
       "file": "tcm-formula-governed-catalog.json",
       "schemaVersion": "tcm-formula-governed-catalog-v2",
-      "sha256": "c896183be4355637b3f51b1b70adc2fa69e2b4d775a18324ac82bfa547f7fc98",
+      "sha256": "9c1a3eece426e4f76c0a4612bd147bb2648afcafdef33bcedede173cc3a32d6f",
       "recordCount": 1800
     },
     {
       "id": "T9",
       "file": "tcm-herb-identity-catalog.json",
       "schemaVersion": "tcm-herb-identity-catalog-v2",
-      "sha256": "0194f520f0c6b0077e1ea16fd9312b22410c49e6c0844b2ec5fe582301925cd6",
+      "sha256": "dda96d1bb861079bf85db455a807530764e57ae5d60e285fb9c595b0269561c6",
       "recordCount": 625
     },
     {
@@ -96,14 +96,14 @@
       "governanceTable": "T8",
       "file": "tcm-formula-retrieval-index.json",
       "schemaVersion": "tcm-formula-retrieval-index-v2",
-      "sha256": "65b026453d04f3816fd5557be2e4ff1e4ed6c65c921bfb8e0635a5387c8ebfe9",
+      "sha256": "05a6dd5425cc5e1f0937f897b1b0ef648452beae1a0cf9779b9507c5309bd9ac",
       "recordCount": 1796
     }
   ],
   "buildSummary": {
     "formulaGoverned": 1800,
     "formulaEligible": 1796,
-    "formulaDoseCompilationEligible": 900,
+    "formulaDoseCompilationEligible": 934,
     "formulaCandidatesAwaitingReview": 0,
     "formulaEvidenceAdjudicated": 8,
     "herbStandardNames": 625,

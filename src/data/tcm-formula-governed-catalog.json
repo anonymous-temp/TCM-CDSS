@@ -23,7 +23,7 @@
     },
     {
       "file": "tcm-herb-identity-catalog.json",
-      "sha256": "0194f520f0c6b0077e1ea16fd9312b22410c49e6c0844b2ec5fe582301925cd6"
+      "sha256": "dda96d1bb861079bf85db455a807530764e57ae5d60e285fb9c595b0269561c6"
     },
     {
       "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
@@ -40,7 +40,7 @@
     "governedFormulaCount": 1800,
     "prescriptionLockEligibleCount": 1796,
     "identityLockEligibleCount": 1796,
-    "doseCompilationEligibleCount": 900,
+    "doseCompilationEligibleCount": 934,
     "symptomTaggedFormulaCount": 698,
     "diseaseTaggedFormulaCount": 257,
     "syndromeTaggedFormulaCount": 986,
@@ -1377,8 +1377,11 @@
       "ingredientLinks": [
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
           "rawName": "紫苏",
@@ -1454,7 +1457,6 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "乌梅肉",
         "紫苏"
       ],
       "missingDoseBoundaryIngredientNames": [],
@@ -1916,8 +1918,11 @@
       "ingredientLinks": [
         {
           "rawName": "朱砂粉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "朱砂",
+          "doseCanonicalName": "朱砂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "研粉规格，同药材"
         },
         {
           "rawName": "麝香",
@@ -1979,16 +1984,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "朱砂粉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -2943,8 +2944,11 @@
         },
         {
           "rawName": "朱砂粉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "朱砂",
+          "doseCanonicalName": "朱砂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "研粉规格，同药材"
         },
         {
           "rawName": "黄连片",
@@ -3001,16 +3005,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "朱砂粉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -3187,8 +3187,11 @@
         },
         {
           "rawName": "栝蒌",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "瓜蒌",
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         }
       ],
       "indications": [
@@ -3206,16 +3209,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -9592,8 +9591,11 @@
         },
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
           "rawName": "川贝母",
@@ -9626,16 +9628,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "乌梅肉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -10798,8 +10796,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "桂心",
@@ -10847,8 +10848,7 @@
       ],
       "unresolvedDoseIngredientNames": [
         "凝水石",
-        "白石脂",
-        "栝蒌根"
+        "白石脂"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -14404,8 +14404,11 @@
         },
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         }
       ],
       "indications": [
@@ -14443,8 +14446,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "菖蒲",
-        "乌梅肉"
+        "菖蒲"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -15215,8 +15217,11 @@
         },
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         }
       ],
       "indications": [
@@ -15256,8 +15261,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "半夏曲",
-        "干葛"
+        "半夏曲"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -16166,8 +16170,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "枳壳",
@@ -16218,16 +16225,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌根"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -19814,8 +19817,11 @@
       "ingredientLinks": [
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         },
         {
           "rawName": "赤芍药",
@@ -19851,16 +19857,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "当归尾"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -23028,8 +23030,11 @@
         },
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
           "rawName": "白芍",
@@ -23066,16 +23071,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "乌梅肉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -38850,8 +38851,11 @@
         },
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
           "rawName": "白术",
@@ -38891,16 +38895,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "乌梅肉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -45830,8 +45830,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "穿山甲",
@@ -45889,7 +45892,6 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "栝蒌根",
         "穿山甲"
       ],
       "missingDoseBoundaryIngredientNames": [],
@@ -49383,8 +49385,11 @@
         },
         {
           "rawName": "栝蒌",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "瓜蒌",
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         },
         {
           "rawName": "黄芪",
@@ -49446,16 +49451,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -52588,8 +52589,11 @@
       "ingredientLinks": [
         {
           "rawName": "朱砂粉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "朱砂",
+          "doseCanonicalName": "朱砂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "研粉规格，同药材"
         },
         {
           "rawName": "人参",
@@ -52695,16 +52699,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "朱砂粉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -56031,8 +56031,11 @@
         },
         {
           "rawName": "朱砂粉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "朱砂",
+          "doseCanonicalName": "朱砂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "研粉规格，同药材"
         },
         {
           "rawName": "冰片",
@@ -56107,7 +56110,6 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "朱砂粉",
         "珍珠粉",
         "雄黄粉"
       ],
@@ -58124,8 +58126,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         }
       ],
       "indications": [
@@ -58145,16 +58150,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌根"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -62656,8 +62657,11 @@
         },
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
           "rawName": "当归",
@@ -62704,16 +62708,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "乌梅肉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -69380,8 +69380,11 @@
         },
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "麝香",
@@ -69444,7 +69447,6 @@
       ],
       "unresolvedDoseIngredientNames": [
         "白花蛇",
-        "干葛",
         "脑子"
       ],
       "missingDoseBoundaryIngredientNames": [],
@@ -77888,8 +77890,11 @@
       "ingredientLinks": [
         {
           "rawName": "朱砂粉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "朱砂",
+          "doseCanonicalName": "朱砂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "研粉规格，同药材"
         },
         {
           "rawName": "黄连片",
@@ -77938,16 +77943,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "朱砂粉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -80940,8 +80941,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "生姜",
@@ -80973,16 +80977,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌根"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -81039,8 +81039,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "生姜",
@@ -81072,16 +81075,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌根"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -81447,8 +81446,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "牡蛎",
@@ -81480,16 +81482,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌根"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -83951,8 +83949,11 @@
       "ingredientLinks": [
         {
           "rawName": "栝蒌",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "瓜蒌",
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         },
         {
           "rawName": "枳壳",
@@ -83981,16 +83982,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -84098,8 +84095,11 @@
       "ingredientLinks": [
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "桂枝",
@@ -84163,7 +84163,6 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "栝蒌根",
         "芍药"
       ],
       "missingDoseBoundaryIngredientNames": [],
@@ -84194,8 +84193,11 @@
       "ingredientLinks": [
         {
           "rawName": "栝蒌",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "瓜蒌",
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         },
         {
           "rawName": "薤白",
@@ -84237,7 +84239,6 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "栝蒌",
         "白酒"
       ],
       "missingDoseBoundaryIngredientNames": [],
@@ -84296,8 +84297,11 @@
         },
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "杏仁",
@@ -84339,8 +84343,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "京豉",
-        "干葛"
+        "京豉"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -85999,8 +86002,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "甘草",
@@ -86034,16 +86040,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌根"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -87118,8 +87120,11 @@
         },
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
           "rawName": "干生姜",
@@ -87152,16 +87157,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "乌梅肉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -90605,8 +90606,11 @@
         },
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "桂心",
@@ -90680,7 +90684,6 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "干葛",
         "乌头",
         "红豆"
       ],
@@ -91925,8 +91928,11 @@
         },
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
           "rawName": "白梅肉",
@@ -91935,8 +91941,11 @@
         },
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "甘草",
@@ -91970,9 +91979,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "乌梅肉",
-        "白梅肉",
-        "干葛"
+        "白梅肉"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -93240,8 +93247,11 @@
         },
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "麻黄",
@@ -93268,16 +93278,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "干葛"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -94820,8 +94826,11 @@
       "ingredientLinks": [
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         },
         {
           "rawName": "大黄",
@@ -94912,16 +94921,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "当归尾"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -96529,8 +96534,11 @@
         },
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         },
         {
           "rawName": "赤芍",
@@ -96583,16 +96591,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "当归尾"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -96637,8 +96641,11 @@
       "ingredientLinks": [
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         },
         {
           "rawName": "赤芍",
@@ -96714,16 +96721,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "当归尾"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -96932,8 +96935,11 @@
         },
         {
           "rawName": "栝蒌",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "瓜蒌",
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         },
         {
           "rawName": "桃仁",
@@ -96969,16 +96975,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -108135,8 +108137,11 @@
         },
         {
           "rawName": "栝蒌",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "瓜蒌",
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         }
       ],
       "indications": [
@@ -108156,16 +108161,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -108355,8 +108356,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "黄丹",
@@ -108389,7 +108393,6 @@
       "unresolvedDoseIngredientNames": [
         "蜜陀僧",
         "水银",
-        "栝蒌根",
         "黄丹"
       ],
       "missingDoseBoundaryIngredientNames": [],
@@ -108635,8 +108638,11 @@
       "ingredientLinks": [
         {
           "rawName": "栝蒌",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "瓜蒌",
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         },
         {
           "rawName": "乳香",
@@ -108678,7 +108684,6 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "栝蒌",
         "胡桃",
         "白蜜"
       ],
@@ -109385,8 +109390,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "甘草",
@@ -109412,16 +109420,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌根"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -111222,8 +111226,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "独活",
@@ -111260,16 +111267,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "栝蒌根"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -112392,8 +112395,11 @@
         },
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         }
       ],
       "indications": [
@@ -112417,16 +112423,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "当归尾"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -125867,8 +125869,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "磁石",
@@ -125884,8 +125889,11 @@
         },
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "黄芩",
@@ -125928,9 +125936,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "荠",
-        "栝蒌根",
-        "干葛"
+        "荠"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -126375,8 +126381,11 @@
         },
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         },
         {
           "rawName": "马鞭草",
@@ -126392,8 +126401,11 @@
         },
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
           "rawName": "蓬术",
@@ -126457,8 +126469,6 @@
       ],
       "unresolvedDoseIngredientNames": [
         "石茎",
-        "当归尾",
-        "乌梅肉",
         "蓬术",
         "苏木节",
         "琥珀"
@@ -127070,8 +127080,11 @@
         },
         {
           "rawName": "乌梅肉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "乌梅",
+          "doseCanonicalName": "乌梅",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "去核取肉，同药材"
         },
         {
           "rawName": "青皮",
@@ -127126,7 +127139,6 @@
         "ingredient_numeric_dose_boundary_missing"
       ],
       "unresolvedDoseIngredientNames": [
-        "乌梅肉",
         "蝎梢"
       ],
       "missingDoseBoundaryIngredientNames": [
@@ -128581,8 +128593,11 @@
         },
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "桔梗",
@@ -128617,8 +128632,7 @@
       "unresolvedDoseIngredientNames": [
         "旋复花",
         "莲肉",
-        "御米",
-        "干葛"
+        "御米"
       ],
       "missingDoseBoundaryIngredientNames": [
         "神曲"
@@ -130538,8 +130552,11 @@
       "ingredientLinks": [
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "甘草",
@@ -130573,16 +130590,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "干葛"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -131558,8 +131571,11 @@
         },
         {
           "rawName": "朱砂粉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "朱砂",
+          "doseCanonicalName": "朱砂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "研粉规格，同药材"
         }
       ],
       "indications": [
@@ -131585,8 +131601,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "雄黄粉",
-        "朱砂粉"
+        "雄黄粉"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -131709,8 +131724,11 @@
         },
         {
           "rawName": "朱砂粉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "朱砂",
+          "doseCanonicalName": "朱砂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "研粉规格，同药材"
         }
       ],
       "indications": [
@@ -131737,16 +131755,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "朱砂粉"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -133403,8 +133417,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "生地黄",
@@ -133449,7 +133466,6 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "栝蒌根",
         "羊乳"
       ],
       "missingDoseBoundaryIngredientNames": [],
@@ -137182,8 +137198,11 @@
         },
         {
           "rawName": "朱砂粉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "朱砂",
+          "doseCanonicalName": "朱砂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "研粉规格，同药材"
         },
         {
           "rawName": "雄黄粉",
@@ -137246,7 +137265,6 @@
       "unresolvedDoseIngredientNames": [
         "玳瑁",
         "琥珀",
-        "朱砂粉",
         "雄黄粉"
       ],
       "missingDoseBoundaryIngredientNames": [],
@@ -138120,8 +138138,11 @@
         },
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         },
         {
           "rawName": "黄连",
@@ -138188,16 +138209,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "当归尾"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -138613,8 +138630,11 @@
       "ingredientLinks": [
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         },
         {
           "rawName": "川芎",
@@ -138652,16 +138672,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "当归尾"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -138903,8 +138919,11 @@
         },
         {
           "rawName": "干葛",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "葛根",
+          "doseCanonicalName": "葛根",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "陈皮",
@@ -138950,16 +138969,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "干葛"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -140295,8 +140310,11 @@
         },
         {
           "rawName": "朱砂粉",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "朱砂",
+          "doseCanonicalName": "朱砂",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "研粉规格，同药材"
         },
         {
           "rawName": "麝香",
@@ -140404,7 +140422,6 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "朱砂粉",
         "煨诃子肉"
       ],
       "missingDoseBoundaryIngredientNames": [],
@@ -144892,8 +144909,11 @@
         },
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         },
         {
           "rawName": "牡丹皮",
@@ -144957,8 +144977,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "萆薢",
-        "当归尾"
+        "萆薢"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -156512,8 +156531,11 @@
         },
         {
           "rawName": "栝蒌",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "瓜蒌",
+          "doseCanonicalName": "瓜蒌",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "异体字"
         },
         {
           "rawName": "南星",
@@ -156603,8 +156625,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "贝母",
-        "栝蒌"
+        "贝母"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -180447,8 +180468,11 @@
         },
         {
           "rawName": "栝蒌根",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "天花粉",
+          "doseCanonicalName": "天花粉",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "古名"
         },
         {
           "rawName": "茯神",
@@ -180493,8 +180517,7 @@
         "ingredient_identity_requires_resolution"
       ],
       "unresolvedDoseIngredientNames": [
-        "粱米",
-        "栝蒌根"
+        "粱米"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
@@ -180531,8 +180554,11 @@
         },
         {
           "rawName": "当归尾",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "当归",
+          "doseCanonicalName": "当归",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "preparation": "药用部位，剂量同当归；部位差异保留在药名中"
         },
         {
           "rawName": "生地",
@@ -180572,16 +180598,12 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
-      "unresolvedDoseIngredientNames": [
-        "当归尾"
-      ],
+      "doseBlockingReasons": [],
+      "unresolvedDoseIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "blockingReasons": []
     },
@@ -185369,8 +185391,11 @@
             },
             {
               "rawName": "干葛",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "葛根",
+              "doseCanonicalName": "葛根",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true,
+              "preparation": "古名"
             },
             {
               "rawName": "生地黄",
@@ -187043,8 +187068,11 @@
             },
             {
               "rawName": "干葛",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "葛根",
+              "doseCanonicalName": "葛根",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true,
+              "preparation": "古名"
             }
           ],
           "disposition": "historical_same_name_variant_not_baseline",
@@ -190694,8 +190722,11 @@
             },
             {
               "rawName": "干葛",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "葛根",
+              "doseCanonicalName": "葛根",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true,
+              "preparation": "古名"
             },
             {
               "rawName": "甘草",

@@ -7,8 +7,8 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "5fc7ef9b64e23b8f7b5284c59907e7c254c37d42ab06917edcd1721cc4eb3df7",
-    "rowCount": 83
+    "sha256": "79df6ffc9517a0702a09843d482d9946199452b8a1ed4679e02209b1366af0ea",
+    "rowCount": 90
   },
   "governance": {
     "status": "generated_mapping_plus_source_backed_clinical_extensions",
@@ -22,9 +22,9 @@
     "resolutionStatusCounts": {
       "ambiguous": 510,
       "exact_standard_name": 616,
-      "source_backed_clinical_extension": 82,
+      "source_backed_clinical_extension": 89,
       "source_backed_preparation_form": 125,
-      "unique_high_confidence": 75,
+      "unique_high_confidence": 74,
       "unique_source_backed": 4704
     }
   },
@@ -76980,8 +76980,14 @@
     },
     "栝楼根": {
       "canonicalName": "天花粉",
-      "status": "unique_high_confidence",
-      "autoResolvable": true
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "古名",
+      "doseCanonicalName": "天花粉"
     },
     "栝楼皮": {
       "canonicalName": "瓜蒌皮",
@@ -97794,6 +97800,72 @@
         "赤芍"
       ],
       "ambiguityGroup": "芍药组"
+    },
+    "栝蒌根": {
+      "canonicalName": "天花粉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "古名",
+      "doseCanonicalName": "天花粉"
+    },
+    "栝蒌": {
+      "canonicalName": "瓜蒌",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "异体字",
+      "doseCanonicalName": "瓜蒌"
+    },
+    "干葛": {
+      "canonicalName": "葛根",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "古名",
+      "doseCanonicalName": "葛根"
+    },
+    "乌梅肉": {
+      "canonicalName": "乌梅",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "去核取肉，同药材",
+      "doseCanonicalName": "乌梅"
+    },
+    "当归尾": {
+      "canonicalName": "当归",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "药用部位，剂量同当归；部位差异保留在药名中",
+      "doseCanonicalName": "当归"
+    },
+    "朱砂粉": {
+      "canonicalName": "朱砂",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "研粉规格，同药材",
+      "doseCanonicalName": "朱砂"
     },
     "制南星": {
       "canonicalName": "天南星",
