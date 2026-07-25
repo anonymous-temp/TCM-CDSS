@@ -1104,6 +1104,24 @@ function differentiationSufficiencyProfile(caseState: CaseState, summary: Decisi
       signals,
     };
   }
+  // 主证候没有成立时不得显示「辨证充分」。这个评分取自 M02 的**信息采集完整度**（completeness 四维
+  // 加权），与 M03 是否真的辨出证候不同源：服务端在安全降级、合同复核未过、仅既往史等分支下会把
+  // primarySyndromeResolution 置为非 resolved，但 completeness 原样透传、客户端也从不回写，
+  // 所以 level 仍可能是 C、四维仍可能满分。实测后果就是「综合支撑度 100% 辨证充分」与
+  // 「当前证候依据不足以形成稳定结论」同屏——采集量与判断量被并排当成同一件事。
+  // 采集充分不等于辨证成立；结论未成立时以结论为准。
+  const signedDiagnoseReasoning = diagnoseReasoningFromState(caseState);
+  const primarySyndromeUnresolved = Boolean(signedDiagnoseReasoning) &&
+    signedDiagnoseReasoning?.overview.primarySyndromeResolution !== "resolved";
+  if (primarySyndromeUnresolved) {
+    return {
+      score: Math.max(0, Math.min(69, score)),
+      label: "辨证未成立",
+      tone: "yellow" as const,
+      desc: "信息采集已达标，但本次未能形成稳定的主证候结论；结论区已说明原因与需补充项。",
+      signals,
+    };
+  }
   const label = caseState.completeness.level === "C" && missingSignals.length === 0
     ? "辨证充分"
     : "有限信息可辨证";
@@ -4401,7 +4419,15 @@ function ResultTabsV2({
         contractIds={["M03-overview", "M03-western"]}
         rendererId="diagnosis-conclusion-section"
       >
-        <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)]">
+        {/*
+          xl 以上必须退回单栏：lg: 是**视口**媒体查询（≥1024px），而这张卡真正的容器是右侧 aside，
+          它在 xl 以下是整幅宽度、在 xl 及以上被固定成 410/460px（见 :7049 与 :8533）。
+          两者在 1280px 处分道扬镳——1440×900 下 lg: 仍然生效，但可用宽度只剩约 354px：
+          右轨 minmax(18rem,…) 有 288px 硬地板、左轨下限是 0，于是西医栏被压到约 54px，
+          中文逐字竖排不可读。这不是缺 min-w-0（左轨的 min 已经是 0），恰恰是因为它能塌缩到 0
+          而兄弟轨有地板。断点判断的宽度和布局发生的宽度是两回事。
+        */}
+        <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.85fr)] xl:grid-cols-1">
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-950">
             <p className="font-bold text-blue-800">西医诊断倾向</p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -4539,6 +4565,10 @@ function ResultTabsV2({
           const locDetails = (p.locationDifferentiation.details || []).filter((item) =>
             isDisplayableClinicalText(item.location) && isDisplayableClinicalText(item.basis)
           );
+          // details 是 items 的子集（见下方渲染处注释）；把没有 detail 的病位单列出来，
+          // 避免 details 非空时它们被整条吃掉。
+          const locDetailLocations = new Set(locDetails.map((item) => item.location.trim()));
+          const locItemsWithoutDetail = locItems.filter((item) => !locDetailLocations.has(item));
           const locationResolutionReason = (p.locationDifferentiation.resolutionReason || "").trim();
           const hasLocationConclusion = locItems.length > 0 || locDetails.length > 0 ||
             p.locationDifferentiation.resolution === "unresolved" || isDisplayableClinicalText(locationResolutionReason);
@@ -4584,6 +4614,21 @@ function ResultTabsV2({
                           {locDetails.map((item, index) => (
                             <p key={`${item.location}-${index}`}><span className="font-semibold">{item.location}：</span>{item.basis}</p>
                           ))}
+                          {/*
+                            details 只是 items 的「逐字可回溯」子集：服务端会丢弃无法精确回溯或引用重复的
+                            detail（diagnosis-visible-summary.ts），而 items 一条不删。原先这里是
+                            details ? … : items ? … 的三元，details 非空时把无 detail 的病位整条吃掉——
+                            心脾两虚证只显示「脾」，「心」在界面上凭空消失，医生会以为系统没辨出来。
+                            这里补回来，但措辞只陈述「无独立依据」，不指向任何依据所在：契约只保证
+                            「reasoning 里出现的病位必须进 items」，从不保证反过来每条 items 都有可引用出处，
+                            写成「依据见病机链」会把医生指向一段可能不存在的文字。
+                            版式也刻意与上方有依据的条目区分（font-normal + 浅一号），不把推断项伪装成有据项。
+                          */}
+                          {locItemsWithoutDetail.length > 0 && (
+                            <p className="text-amber-800">
+                              <span className="font-normal">{joinClinicalClauses(locItemsWithoutDetail, "、")}：本例暂无可逐字回溯的独立依据</span>
+                            </p>
+                          )}
                         </div>
                       ) : locItems.length > 0 ? (
                         <p className="mt-1 text-xs leading-relaxed text-amber-950">{joinClinicalClauses(locItems, "、")}</p>
@@ -4723,6 +4768,10 @@ function ResultTabsV2({
           subtitle="仅说明流派偏好如何影响本例辨证，不改变确定性安全边界"
           contractIds="M03-M04-lineage"
           rendererId="lineage-section"
+          // 右栏只有 410/460px 宽，结论类与分析类此前以完全相同的视觉权重铺开十张卡。
+          // 这一张是纯背景说明（其中「安全规则优先」子块恒为同一句话），默认收起，
+          // 让首屏留给结论类。内容一条不减，点开即在。
+          defaultOpen={false}
         >
           <div className="space-y-3 text-xs leading-relaxed text-gray-700">
             <div className="grid gap-2 md:grid-cols-2">
@@ -7576,10 +7625,22 @@ export default function DiagnosisPage() {
         });
         if (!res4.ok) throw new Error(await readErrorMessage(res4, `候选方药生成失败 (${res4.status})`));
         const rawPrescription = await consumeMarkdownStream(res4, (t) => setStreamingForPhase("prescribe", t), streamConsumeOptions());
+        // 剂量词否决只能扫**处方正文**两节。"当前结论 / 处方前必要信息核查 / 用药风险提示"
+        // 由服务端把 gate.redFlags、gate.missingItems 原样插值进去，而红旗本身就常常逐字引用
+        // 病历里的数值（"血红蛋白 58 g/L""呕血约300mL""二甲双胍 500mg bid"）。
+        // 全文扫描会把这些引文误判成"合同泄露剂量"，进而被下面的 prescriptionContractInvalid
+        // 复用成"传输失败"——因为 buildSafetyLimitedPrescription 天生不带 DIAGNOSIS_JSON sentinel，
+        // transportIncomplete 恒为 true。结果是医生看到红色"未完成 + 重新生成"，而不是
+        // 服务端已经备好的三段式转诊说明；那个按钮打的是同一条确定性路由，必然再败。
+        // 越危急的病例（红旗带化验值）越容易命中，正好是最不该显示成系统故障的场景。
+        const nonDosePrescriptionBody = rawPrescription
+          .split(/^##\s+/m)
+          .filter((section) => /^(?:中药饮片处方|西药\/中成药方案)/.test(section))
+          .join("\n");
         const expectedNonDoseLimitedPrescription =
           rawPrescription.includes("<!-- CDSS_NON_DOSE_PRESCRIPTION -->") &&
           isNonDosePrescriptionText(rawPrescription) &&
-          !/\d+(?:\.\d+)?\s*(?:g|mg|克|毫克|毫升|mL)\b/i.test(rawPrescription);
+          !/\d+(?:\.\d+)?\s*(?:g|mg|克|毫克|毫升|mL)\b/i.test(nonDosePrescriptionBody);
         const prescriptionTransportIncomplete =
           rawPrescription.includes("[TRUNCATED]") ||
           !rawPrescription.includes("<!-- DIAGNOSIS_JSON_START -->") ||

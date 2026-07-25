@@ -6,6 +6,7 @@ const {
   buildSafetyLimitedDiagnosis,
   buildSafetyLimitedDiagnosisReasoning,
   buildSafetyLimitedPrescription,
+  isNonDosePrescriptionText,
   buildSafetyLimitedRisk,
   deriveOperationalCompleteness,
   derivePrescriptionPermission,
@@ -416,4 +417,44 @@ const g1HisPayload = await g1HisResponse.json();
 assert.equal(g1HisResponse.status, 409, "签名有限 M03 不得进入 HIS 剂量写回");
 assert.equal(g1HisPayload.code, "limited_m03_not_prescribable");
 
-console.log(JSON.stringify({ cases: 62, failures: 0 }));
+// ─── 非剂量合同的剂量词否决只能扫处方正文，不能扫红旗引文 ───
+// 前端（DiagnosisClient 的 expectedNonDoseLimitedPrescription）用「marker + isNonDosePrescriptionText
+// + 无剂量词」三条判定服务端的确定性非剂量合同。剂量词若按全文扫，会命中服务端插值进
+// 「## 处方前必要信息核查 / ## 用药风险提示」的 gate.redFlags —— 而红旗本身就常逐字引用病历数值
+// （"血红蛋白 58 g/L""呕血约300mL""二甲双胍 500mg bid"）。判定一旦失败，这份合同会被当成
+// 「传输/结构失败」渲染成红色错误卡 + 必然再败的「重新生成」按钮：越危急的病例越容易命中。
+// 这里把前端同款判定按类别钉住，防止扫描范围再被放宽回全文。
+const nonDoseGate = (redFlags) => ({
+  status: redFlags.length ? "red_flag" : "needs_information",
+  allowDiagnosis: true,
+  allowDosePrescription: false,
+  action: "complete_before_prescription",
+  missingItems: ["与本次主诉相关的四诊信息"],
+  redFlags,
+  reasons: ["需先完成急诊评估"],
+});
+const nonDoseBodySections = (text) => text
+  .split(/^##\s+/m)
+  .filter((section) => /^(?:中药饮片处方|西药\/中成药方案)/.test(section))
+  .join("\n");
+const frontendNonDoseVerdict = (text) =>
+  text.includes("<!-- CDSS_NON_DOSE_PRESCRIPTION -->") &&
+  isNonDosePrescriptionText(text) &&
+  !/\d+(?:\.\d+)?\s*(?:g|mg|克|毫克|毫升|mL)\b/i.test(nonDoseBodySections(text));
+for (const [label, redFlags] of [
+  ["无引文", []],
+  ["化验值", ['呕血伴血红蛋白 58 g/L（原文依据："查血红蛋白 58 g/L"）']],
+  ["西药用量", ['低血糖风险（原文依据："每天二甲双胍 500mg bid"）']],
+  ["出血量", ['活动性上消化道出血（原文依据："呕血约300mL"）']],
+  ["中文剂量单位", ['误服（原文依据："一次吃了 20 克"）']],
+]) {
+  const rendered = buildSafetyLimitedPrescription(nonDoseGate(redFlags));
+  assert.ok(frontendNonDoseVerdict(rendered),
+    `红旗引文含剂量词不得让非剂量合同被判成生成失败：${label}`);
+  // 反向：处方正文本身若真的出现剂量，必须仍被否决。
+  const leaked = rendered.replace("## 中药饮片处方\n", "## 中药饮片处方\n黄芪 30g\n");
+  assert.equal(frontendNonDoseVerdict(leaked), false,
+    `处方正文若真的泄露剂量必须被否决：${label}`);
+}
+
+console.log(JSON.stringify({ cases: 72, failures: 0 }));

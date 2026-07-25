@@ -310,10 +310,37 @@ const renderedMaleFemaleOnly = buildLingxiRiskSection({
   itemCount: 1,
 }, "男");
 assert.match(renderedMaleFemaleOnly, /审方结论.*需人工复核/);
-assert.match(renderedMaleFemaleOnly, /\| FEMALE-ONLY \| 强提示 \|/);
-assert.match(renderedMaleFemaleOnly, /FEMALE-ONLY/);
+// 表格首列是给医生看的「审查规则」，不再是机器标识。evidence 无 ruleName、issue 无 issueType 时
+// 兜底到「规则审查」——**绝不回落到 issueId**，否则 UUID 又回到最显眼的位置。
+assert.match(renderedMaleFemaleOnly, /\| 规则审查 \| 强提示 \|/);
+assert.doesNotMatch(renderedMaleFemaleOnly, /^\| FEMALE-ONLY \|/m);
+// 机器标识仍保留在末列，供后台对账与工单引用。
+assert.match(renderedMaleFemaleOnly, /FEMALE-ONLY \|$/m);
 assert.match(renderedMaleFemaleOnly, /孕妇禁用/);
 assert.doesNotMatch(renderedMaleFemaleOnly, /当前资料判定不适用|未见需提示问题/);
+
+// evidence 带 ruleName 时首列必须用它——这才是医生真正需要的「哪条规则命中了」。
+const renderedWithRuleName = buildLingxiRiskSection({
+  ok: true,
+  source: "lingxi",
+  degraded: false,
+  auditResult: "MANUAL_REVIEW",
+  highestRiskLevel: "HIGH",
+  needManualReview: true,
+  issues: [{
+    issueId: "e0c4256e-27f5-49a6-a442-73ee86d75029",
+    riskLevel: "HIGH",
+    title: "给药途径需调整",
+    description: "该药味不宜与当前给药途径同用",
+    relatedItemNos: [2],
+    evidence: [{ sourceName: "规则库", ruleName: "剂量审查", quote: "超出常用量上限" }],
+    suggestions: ["复核给药途径"],
+  }],
+  itemCount: 1,
+}, "女");
+assert.match(renderedWithRuleName, /\| 剂量审查 \| 强提示 \|/);
+assert.doesNotMatch(renderedWithRuleName, /^\| e0c4256e-27f5-49a6-a442-73ee86d75029 \|/m);
+assert.match(renderedWithRuleName, /e0c4256e-27f5-49a6-a442-73ee86d75029 \|$/m);
 
 const renderedMaleMixedRisk = buildLingxiRiskSection({
   ok: true,

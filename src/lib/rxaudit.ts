@@ -1585,19 +1585,26 @@ export function buildLingxiRiskSection(outcome: Extract<RxAuditOutcome, { ok: tr
     return lines.join("\n");
   }
   lines.push("");
-  lines.push("| 问题ID | 提示强度 | 风险类型 | 涉及药味(行号) | 风险说明 | 证据/依据 | 医生动作 |");
-  lines.push("|---|---|---|---|---|---|---|");
+  // 首列给医生看的是**审查规则**，不是机器标识。原先第一列直接输出灵犀返回的 issueId（UUID），
+  // 一串 e0c4256e-27f5-49a6-… 占据整张临床表格最显眼的位置，而真正有信息量的风险类型被挤到后面。
+  // UUID 仍然保留在末列供后台对账与工单引用，只是不再抢占阅读入口。
+  lines.push("| 审查规则 | 提示强度 | 风险类型 | 涉及药味(行号) | 风险说明 | 证据/依据 | 医生动作 | 问题ID |");
+  lines.push("|---|---|---|---|---|---|---|---|");
   for (const issue of issues) {
     const tag = severityTag(String(issue.riskLevel));
     const rows = issue.relatedItemNos.length ? issue.relatedItemNos.join("、") : "-";
     const evidence = issue.evidence.map((ev) => ev.quote || ev.sourceName || ev.ruleName).filter(Boolean).slice(0, 2).join("；") || "规则审查";
+    // ruleName 是可选字段，逐级兜底到问题类型，绝不回落到 UUID——那正是本次要修掉的东西。
+    const ruleLabel = issue.evidence.map((ev) => ev.ruleName).find((name) => Boolean(name && name.trim())) ||
+      issue.issueType || "规则审查";
     const action = issue.suggestions[0] || (issue.action === "BLOCK" ? "建议调整该药味后复核" : "请医生复核");
     const cell = (value: string) => value
       .replace(/[\r\n]+/g, " ")
       .replace(/\|/g, "／")
       .replace(/[\[\]()<>*_`]/g, (char) => `\\${char}`)
       .trim();
-    lines.push(`| ${cell(issue.issueId || stableAuditIssueId([issue.issueType, issue.title, issue.description]))} | ${tag} | ${cell(issue.title)} | ${rows} | ${cell(issue.description)} | ${cell(evidence)} | ${cell(action)} |`);
+    const issueId = issue.issueId || stableAuditIssueId([issue.issueType, issue.title, issue.description]);
+    lines.push(`| ${cell(ruleLabel)} | ${tag} | ${cell(issue.title)} | ${rows} | ${cell(issue.description)} | ${cell(evidence)} | ${cell(action)} | ${cell(issueId)} |`);
   }
   return lines.join("\n");
 }
