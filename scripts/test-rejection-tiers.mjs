@@ -14,6 +14,7 @@
  * behind the first hit inside them.
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, {
@@ -102,3 +103,24 @@ console.log(JSON.stringify({
   annotatableSampled: annotatable.length,
   failures: 0,
 }, null, 2));
+
+// 6. 随访监测词表必须是单一事实来源：编译层丢弃畸形行、合同层校验幸存行，两者若各持一份
+//    字面量，改一处不会同步另一处——编译层放行的行会被合同层拒掉，表现为无从解释的拒绝。
+const contractSource = readFileSync(new URL("../src/lib/diagnosis-stage-contract.ts", import.meta.url), "utf8");
+const compilerSource = readFileSync(new URL("../src/lib/m04-proposal-compiler.ts", import.meta.url), "utf8");
+const monitoringLiteral = /\/\(\?:若\|如\|一旦\|当\|出现/g;
+assert.equal(
+  (contractSource.match(monitoringLiteral) || []).length,
+  1,
+  "随访监测词表字面量只应在合同层定义一次",
+);
+assert.equal(
+  (compilerSource.match(monitoringLiteral) || []).length,
+  0,
+  "m04-proposal-compiler 不得再复制随访监测词表字面量，必须从合同层导入",
+);
+assert.match(
+  compilerSource,
+  /import \{[^}]*MONITORING_ACTION_OR_CONDITION[^}]*\} from "\.\/diagnosis-stage-contract"/,
+  "编译层必须从合同层导入同一常量",
+);

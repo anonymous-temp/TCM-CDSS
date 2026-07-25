@@ -10,7 +10,7 @@ import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } f
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
-import { canonicalTcmHerbIdentity, highImpactHerbDirectionIssue } from "./diagnosis-stage-contract";
+import { MONITORING_ACTION_OR_CONDITION, canonicalTcmHerbIdentity, highImpactHerbDirectionIssue } from "./diagnosis-stage-contract";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import type { CaseState } from "./diagnosis-types";
 
@@ -38,9 +38,9 @@ function medicineEvidenceFromSource(source: string) {
   };
 }
 
-// Shared with the stage contract: a monitoring trigger must carry a condition or an action;
-// a metric must not carry either. Used to drop malformed rows instead of rejecting the batch.
-const MONITORING_ACTION_OR_CONDITION_PATTERN = /(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/;
+// 与合同层共用同一常量（此前是各自一份字面量，改一处不会同步另一处）。
+// 这里用它丢弃畸形监测行，合同层用它校验幸存的行。
+const MONITORING_ACTION_OR_CONDITION_PATTERN = MONITORING_ACTION_OR_CONDITION;
 
 /** Coerce an unambiguous positive-integer regimen value (1, "1", "每日1剂", "一日2次", "2次/日")
  *  to a number; anything unclear returns undefined so the contract can fail closed. */
@@ -155,12 +155,12 @@ const M04ProposalSchema = z.object({
     })).max(3).default([]),
     monitoring: z.array(z.object({
       metric: z.string().min(2).max(300).refine(
-        (value) => !/(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/.test(value),
+        (value) => !MONITORING_ACTION_OR_CONDITION_PATTERN.test(value),
         "metric 只能填写要观察的病例指标，不得混入条件或处置动作",
       ),
       timing: z.string().min(2).max(300),
       trigger: z.string().min(2).max(600).refine(
-        (value) => /(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/.test(value),
+        (value) => MONITORING_ACTION_OR_CONDITION_PATTERN.test(value),
         "trigger 必须包含可识别的条件或处置动作",
       ),
     })).min(1).max(20),

@@ -2345,7 +2345,16 @@ function followUpConsistent(course: string, followUpNode: string): boolean {
   return courseDays == null || followUpDays == null || followUpDays <= courseDays + 2;
 }
 
-const MONITORING_ACTION_OR_CONDITION = /(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/;
+/**
+ * 随访监测语义边界：trigger 必须带条件或动作，metric 不得带。
+ *
+ * 单一事实来源：m04-proposal-compiler 原先复制了一份字面量并注释「Shared with the stage contract」，
+ * 但两份是各自独立的常量——改一处不会同步另一处，编译层放行的行会被合同层拒掉。改为导出共用。
+ *
+ * 分层职责：编译层用它**丢弃**畸形监测行（Tier-3 确定性归一），合同层用它**校验**幸存的行。
+ * 词表本身穷举不完随访表述，因此它只应停留在这个形式层，不承担安全判断。
+ */
+export const MONITORING_ACTION_OR_CONDITION = /(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/;
 
 function normalizedMonitoringText(value: string): string {
   return value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]]+/g, "");
