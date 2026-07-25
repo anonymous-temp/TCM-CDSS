@@ -708,8 +708,13 @@ function bestFormulaSourceCandidate(
     .sort((a, b) =>
       Number(Boolean(sourceHint && b.candidate.variant.source.includes(sourceHint))) - Number(Boolean(sourceHint && a.candidate.variant.source.includes(sourceHint))) ||
       b.f1 - a.f1 || b.overlap - a.overlap ||
-      (a.candidate.origin === "official_classic_catalog" ? -1 : a.candidate.origin === "verified_reference_catalog" ? 0 : 1) -
-      (b.candidate.origin === "official_classic_catalog" ? -1 : b.candidate.origin === "verified_reference_catalog" ? 0 : 1));
+      // Compilation baseline precedence: official sources (classic catalog, then the SZJG local
+      // standard) outrank project-curated verified references. Dual-sourced formulas (a name that
+      // exists both in the SZJG standard and in project supplements) anchor composition to the
+      // officially audited baseline; supplements only lead when they are the sole source (归脾汤、
+      // 酸枣仁汤 and the 医方集解-only imports).
+      (a.candidate.origin === "official_classic_catalog" ? -2 : a.candidate.origin === "local_formula_catalog" ? -1 : 0) -
+      (b.candidate.origin === "official_classic_catalog" ? -2 : b.candidate.origin === "local_formula_catalog" ? -1 : 0));
   const best = ranked[0];
   if (!best) return undefined;
   // 同组成同名方由可信目录优先；不同组成近分则拒绝归典，避免任选一个看似权威的出处。
@@ -891,6 +896,9 @@ type ClassicEvidenceResolver = (
   formulaNames: string[],
 ) => NonNullable<NonNullable<ClinicalReasoningResultV2["formula"]>["candidates"][number]["classicEvidence"]>;
 
+/** 与 diagnosis-types.ts 里 candidates[].classicEvidence 的 z.array(...).max(6) 同源，超限即整段清空。 */
+const CANDIDATE_CLASSIC_EVIDENCE_LIMIT = 6;
+
 export function enrichReasoning(
   reasoning: ClinicalReasoningResultV2,
   clinicalContext = "",
@@ -962,9 +970,13 @@ export function enrichReasoning(
         verificationStatus: item.verificationStatus,
       })),
       discriminationPath: formulaDiscriminationPaths(resolvedFormulaNames, clinicalContext),
-      classicEvidence: classicEvidenceResolver
+      // 必须在这里截到 schema 上限：contract 里该字段是 .max(6).catch([])，
+      // 而 classicEvidenceForFormulaNames 返回最多 12 条（M04 提示词那一路要用满 12）。
+      // 超限时 catch 的语义是**整段清空**而非截断——7~12 条会让这一味候选的经典证据
+      // 一条不剩，且不报错。tcmoc 语料接上后 12 条正是常态，这个静默清空会成为默认行为。
+      classicEvidence: (classicEvidenceResolver
         ? classicEvidenceResolver(resolvedFormulaNames)
-        : candidate.classicEvidence || [],
+        : candidate.classicEvidence || []).slice(0, CANDIDATE_CLASSIC_EVIDENCE_LIMIT),
       compositionLogic: compositionLogicForFormulaNames(resolvedFormulaNames),
       textualModifications: textualModificationsForFormulaNames(resolvedFormulaNames, clinicalContext),
       formulaSource: sourceLabel

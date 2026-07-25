@@ -47,7 +47,8 @@ for (const item of status) {
 }
 
 // ④ 本机语料齐备时，必须两个语料都真的贡献了记录。
-//    tcmoc 语料未纳入 git（292MB），干净克隆里不存在，因此缺失时跳过而不是失败。
+//    两个语料现已入库；仍按"存在才断言"处理，因为加载器把语料视为可选（缺文件静默 catch），
+//    测试不应比运行时更严，否则精简部署会红在测试而不是红在真正的问题上。
 const present = status.filter((item) =>
   existsSync(new URL(`../src/data/${item.name}`, import.meta.url)));
 for (const item of present) {
@@ -78,8 +79,25 @@ if (existsSync(chunkDir)) {
   }
 }
 
+// ─── 结构化候选里的经典证据条数必须在 contract 上限之内 ───
+// contract 是 z.array(...).max(6).optional().catch([])：catch 的语义是**整段清空**而不是截断。
+// 解析器返回最多 12 条（M04 提示词那一路要用满 12），若原样塞进结构化字段，
+// 7~12 条会让该候选的经典证据一条不剩且不报错——tcmoc 语料接上后 12 条正是常态。
+const contractSource = readFileSync(new URL("../src/lib/diagnosis-types.ts", import.meta.url), "utf8");
+const contractLimit = /classicEvidence: z\.array\(z\.object\(\{[\s\S]*?\}\)\)\.max\((\d+)\)/.exec(contractSource);
+assert.ok(contractLimit, "必须能从 contract 里读出 classicEvidence 的 max 上限");
+const provenanceSource = readFileSync(new URL("../src/lib/tcm-formula-provenance.ts", import.meta.url), "utf8");
+const appliedLimit = /const CANDIDATE_CLASSIC_EVIDENCE_LIMIT = (\d+);/.exec(provenanceSource);
+assert.ok(appliedLimit, "provenance 侧必须显式声明截断上限，而不是把解析器结果原样塞进 contract");
+assert.equal(appliedLimit[1], contractLimit[1],
+  `provenance 截断上限(${appliedLimit?.[1]}) 必须等于 contract 上限(${contractLimit?.[1]})——` +
+  "两者漂移时 catch([]) 会静默清空整段经典证据");
+assert.match(provenanceSource, /classicEvidence:[\s\S]{0,400}?\.slice\(0, CANDIDATE_CLASSIC_EVIDENCE_LIMIT\)/,
+  "classicEvidence 赋值处必须实际应用该上限");
+
 console.log(JSON.stringify({
   corpora: status,
   checkedBuildOutput: existsSync(chunkDir),
   failures: 0,
 }));
+
