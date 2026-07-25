@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server.js";
 import { createJiti } from "jiti";
 
@@ -69,5 +70,15 @@ assert.equal(cdssRequestOrigin(new Request(internalUrl, {
 assert.equal(cdssRequestOrigin(new Request(internalUrl, {
   headers: { "x-forwarded-proto": "https", "x-forwarded-host": "cdss.example" },
 })), "https://cdss.example", "valid proxy authority is accepted");
+
+// ─── 限流配置：超范围钳到边界，不得静默回落默认值 ───
+// 原实现对任何超范围值都回落 60。本仓 .env.local 写的 100000 因此一直静默变成 60——
+// 配置方明确要一个高限值却拿到全局最低值，与意图完全相反且无任何提示；
+// 实测把黄金基线 386 次调用打出 237 个 429，看上去像产品回归，根因只是这个静默回落。
+const proxySource = readFileSync(new URL("../src/proxy.ts", import.meta.url), "utf8");
+assert.match(proxySource, /Math\.min\(MODEL_RATE_LIMIT_MAX, Math\.max\(MODEL_RATE_LIMIT_MIN, value\)\)/,
+  "超范围的限流配置必须钳到边界，而不是回落默认值");
+assert.doesNotMatch(proxySource, /value >= 10 && value <= 2_000 \? Math\.round\(value\) : 60/,
+  "不得恢复「超范围即回落 60」的旧写法");
 
 console.log(JSON.stringify({ cases: 23, failures: 0 }));

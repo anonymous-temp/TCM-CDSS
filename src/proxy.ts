@@ -23,9 +23,17 @@ const API_AUTH_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const API_AUTH_RATE_LIMIT_LOCK_MS = 10 * 60 * 1000;
 const MAX_API_AUTH_FAILURES = 20;
 const MODEL_RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const MODEL_RATE_LIMIT_MIN = 10;
+const MODEL_RATE_LIMIT_MAX = 2_000;
 const MODEL_RATE_LIMIT_REQUESTS = (() => {
-  const value = Number(process.env.CDSS_MODEL_RATE_LIMIT_PER_10_MIN || 60);
-  return Number.isFinite(value) && value >= 10 && value <= 2_000 ? Math.round(value) : 60;
+  const raw = process.env.CDSS_MODEL_RATE_LIMIT_PER_10_MIN;
+  const value = Number(raw ?? 60);
+  // 无法解析（未设置、空串、非数字）才用默认值 60；能解析但超范围的**钳到边界**，不回落默认。
+  // 原实现对超范围值也回落 60：本仓 .env.local 写的 100000 因此一直静默变成 60——
+  // 配置方明确要一个高限值，却拿到全局最低值，与意图完全相反，而且没有任何提示。
+  // 实测后果：黄金基线 386 次调用被打出 237 个 429，看上去像产品回归，根因只是这个静默回落。
+  if (!Number.isFinite(value)) return 60;
+  return Math.round(Math.min(MODEL_RATE_LIMIT_MAX, Math.max(MODEL_RATE_LIMIT_MIN, value)));
 })();
 // 判据是「这条路由会不会发起外部模型调用」，不是「它的主输出是否由模型生成」。
 // assess / red-flags / post-prescription-risk 的主输出确实是确定性的，但三者都先走
