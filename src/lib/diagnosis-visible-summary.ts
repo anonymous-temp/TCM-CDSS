@@ -1,4 +1,4 @@
-import { isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
@@ -181,6 +181,70 @@ function resolutionValue(value: unknown): ClinicalResolutionValue | undefined {
   return value === "resolved" || value === "bounded" || value === "unresolved" ? value : undefined;
 }
 
+/**
+ * 逐字重复的结构行是形状缺陷,不是临床缺陷:保留下来的那一行已经承载了同样的内容,
+ * 不需要为此消耗一轮模型修复并冒着触发 M03 总时限降级的风险。
+ *
+ * 本函数只做删除与去重:不合并文本、不改写任何字段、不新增任何临床断言。只要化简会丢失
+ * 任何一条医生可见的患者证据或病机靶点,就保持原样并由合同继续驳回。
+ */
+export function normalizeM03StructuralDuplicates(content: string): string {
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  try {
+    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    if (reasoning.stage !== "diagnose") return content;
+    let changed = false;
+
+    const pathogenesis = recordValue(reasoning.pathogenesis);
+    const chain = recordList(pathogenesis?.chain);
+    if (pathogenesis && chain.length > 1) {
+      // patientFact 与 syndromeEvidence 是分别独立回溯到病历原文的两列证据(见 groundStructuredPatientFacts),
+      // 只要它们仍有区别,删除节点就是删除医生可见的患者证据。因此必须四个字段同时退化成同一个非空
+      // 指纹,后续节点才是首节点的逐字副本;否则保持原样,由合同驳回并让模型重新拆解病机链。
+      const degenerate = (["patientFact", "syndromeEvidence", "pathogenesis", "therapyDirection"] as const)
+        .every((key) => {
+          const fingerprints = chain.map((node) => narrativeFingerprint(node[key]));
+          return Boolean(fingerprints[0]) && new Set(fingerprints).size === 1;
+        });
+      if (degenerate) {
+        pathogenesis.chain = [{ ...chain[0], nodeId: "P1" }];
+        changed = true;
+      }
+    }
+
+    const therapy = recordValue(reasoning.therapy);
+    const subTherapies = recordList(therapy?.subTherapies);
+    if (therapy && subTherapies.length > 1) {
+      const seen = new Set<string>();
+      const deduplicated = subTherapies.filter((item) => {
+        const therapyPrint = narrativeFingerprint(item.therapy);
+        const targetPrint = narrativeFingerprint(item.targetPathogenesis);
+        // 只删除治法与所针对病机同时逐字重复的行。治法相同但病机靶点不同的行各自承载不同临床内容,
+        // 删除会丢一个靶点并可能把一个驳回码换成另一个,故保持原样交给合同。空指纹行同样保留。
+        if (!therapyPrint || !targetPrint) return true;
+        const key = `${therapyPrint} ${targetPrint}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      // 去重不得把分治法压到多节点病机链要求的下限之下,否则只是把一个驳回码换成另一个。
+      const chainLength = recordList(recordValue(reasoning.pathogenesis)?.chain).length;
+      const minimum = chainLength > 1 ? Math.min(2, chainLength) : 1;
+      if (deduplicated.length !== subTherapies.length && deduplicated.length >= minimum) {
+        therapy.subTherapies = deduplicated;
+        changed = true;
+      }
+    }
+
+    if (!changed) return content;
+    return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+  } catch {
+    return content;
+  }
+}
+
 function lowerEvidenceConfidence(value: unknown): void {
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
   (value as Record<string, unknown>).confidence = "低";
@@ -285,6 +349,10 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       for (const key of ["items", "rootDeficiency", "branchExcess"] as const) {
         nature[key] = semanticItems(nature[key]);
       }
+      // 病性栏放的是属性词(气虚/血瘀/寒/热)。写成机理句(胃失和降、气机郁滞)的条目是填错栏位:
+      // 同一临床内容已经完整保留在 overallPathogenesis 与 pathogenesis.chain 中。这里只删除
+      // 错栏条目,不改写、不新增任何病性;删空后由下面的 resolution 归一化自动降级为 unresolved。
+      nature.items = (nature.items as string[]).filter((item) => !NATURE_MECHANISM_PHRASE.test(item));
       const groundedBasis = groundedQuote(nature.basis);
       nature.basis = groundedBasis || "";
       const hasClassification = ["items", "rootDeficiency", "branchExcess"].some((key) => (nature[key] as unknown[]).length > 0);
@@ -745,6 +813,18 @@ export function applyDeterministicHerbTargets(content: string, priorReasoning: u
           herb.targetRef = "FORMULA_STRUCTURE";
           herb.structureRole = structureRole;
           herb.targetPathogenesis = target;
+        } else if (targetKind !== "pathogenesis_node" && targetKind !== "formula_structure") {
+          // targetKind 缺失或不是受控取值(schema 会把非法值 catch 成 undefined,最终仍报
+          // target_ref_missing)时,只补 targetKind/targetRef 两个接线字段。仅当本药的
+          // targetPathogenesis 已经逐字等于且只等于一个 M03 病机节点文本时才回填该节点号:
+          // 指向是病例自身已确定的,服务端没有做任何临床判断。指向不明(无匹配或多个匹配)时
+          // 保持原样继续由合同驳回。本分支不写入任何治法或病机文本。
+          const targetText = markdownCell(herb.targetPathogenesis);
+          const matched = targetText ? nodes.filter((item) => item.text === targetText) : [];
+          if (matched.length !== 1) continue;
+          herb.targetKind = "pathogenesis_node";
+          herb.targetRef = matched[0].id;
+          herb.structureRole = null;
         }
       }
     }

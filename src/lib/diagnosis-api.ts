@@ -15,7 +15,7 @@ import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, sh
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
 import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isStableM03Reasoning, m03ChainNodeDiagnostics, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
-import { alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { parseOpenAICompatCompletionPayload } from "@/lib/openai-compatible-response";
 import { applyDeterministicFormulaReferences, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue } from "@/lib/tcm-formula-provenance";
@@ -346,7 +346,10 @@ async function prepareDiagnoseStructuredContent(
   // The pathogenesis chain is a clinical conclusion and must come from the model plus semantic
   // review. Never synthesize it from a chief complaint and another model-generated conclusion.
   const grounded = groundStructuredPatientFacts(content, clinicalContext);
-  const classified = sanitizeOptionalPathogenesisClassifications(grounded, clinicalContext);
+  // 必须排在 grounding 之后:grounding 才会丢掉未回溯节点并把 nodeId 重排为 P1..Pn,
+  // 在此之前判断“逐字重复”用的是尚未落地的文本。
+  const deduplicated = normalizeM03StructuralDuplicates(grounded);
+  const classified = sanitizeOptionalPathogenesisClassifications(deduplicated, clinicalContext);
   const rationaleBound = normalizeM03TcmRationaleEvidenceBoundary(classified);
   const projected = normalizeM03PathogenesisSummaryProjection(rationaleBound);
   const normalized = normalizeDiagnoseConfidenceAndLabels(projected, clinicalContext);

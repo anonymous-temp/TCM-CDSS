@@ -90,7 +90,7 @@ const DIAGNOSTIC_INFERENCE_CONCEPTS = [
   "失养", "失司", "失和", "阻滞", "痹阻", "不通", "郁结", "亏虚", "阴液", "虚热", "痰湿", "湿热", "血瘀", "气滞",
 ] as const;
 const WESTERN_EXCLUSION_REASONING = /(?:但|尚不支持|不足以|不支持|排除|鉴别|未见|否认|缺乏|尚未|有待|仍需|需[^。；;\n]{0,12}(?:核实|检查|确认))/;
-const NATURE_MECHANISM_PHRASE = /(?:失和|失降|失运|失司|不利|不畅|不通|受阻|上逆|不降|不纳|失宣|失肃)/;
+export const NATURE_MECHANISM_PHRASE = /(?:失和|失降|失运|失司|不利|不畅|不通|受阻|上逆|不降|不纳|失宣|失肃)/;
 const CLINICAL_NEGATION = /(?:绝非|绝无|毫无|全无|断非|尚无|暂无|没有|阴性|排除|已除外|需除外|未排除|待排除|否认|否定|并非|并无|不认为是|不属|不属于|不存在|不能证实|未能证实|未获证实|未查见|未呈现|未见|未发现|未提示|未观察到|未显示|未证实|尚未证实|未检出|未检测到|未表明|未达到|未成立|未采用|未使用|未选择|未予|未考虑|未支持|未获支持|未得到支持|(?:尚|仍|现有)?不足以(?:支持|证实|形成|判断)|(?:依据|证据)(?:不足|薄弱)[^，,。；;]{0,12}(?:支持|证实)|缺乏[^，,。；;]{0,12}(?:依据|证据|支持)|缺少[^，,。；;]{0,12}(?:依据|证据|支持)|难以|难于|不支持|不符合|不考虑|不宜|不应|不建议|不推荐|不适用|不作为|不选择|不选用|不采取|不施用|不赞成|不认同|反对|非首选|拒用|禁用|禁止|禁忌|忌用|勿用|暂缓(?:治疗|处置|用药)|暂停(?:治疗|处置|用药)|避免|慎用|不可|不予|无需|不需|不主张|暂不|不成立|不采用|不使用|不用|停止(?:治疗|处置|用药)|停用|停服|撤除)/;
 
 export function isAmbiguousM03WesternPrimaryLabel(value: unknown): boolean {
@@ -1154,7 +1154,7 @@ export function m03WesternDurationIssue(reasoning: M03ReasoningLike, clinicalCon
   return "western_primary_duration_mismatch";
 }
 
-function narrativeFingerprint(value: unknown): string {
+export function narrativeFingerprint(value: unknown): string {
   return typeof value === "string"
     ? value.normalize("NFKC").replace(GENERIC_CORE_LABELS, "").replace(/[\s，,。；;：:、（）()【】\[\]“”"'‘’]/g, "")
     : "";
