@@ -16,6 +16,7 @@ type ClassicEvidenceRecord = {
   module?: string;
   anchorLevel: "tiaowen" | "chapter_paragraph" | "page_paragraph";
   clauseNumber?: number;
+  chapter?: string;
   text: string;
   formulas: string[];
   citation: string;
@@ -53,14 +54,55 @@ function sanitizeClassicRuntimeExcerpt(value: string): string {
 
 let fullClassicEvidenceRecords: ClassicEvidenceRecord[] | undefined;
 
+// 每个语料必须写成**独立的字面量** `new URL("字面路径", import.meta.url)`。
+// 不要改回「路径数组 + 循环里 new URL(变量)」的写法：Turbopack 只能静态求值字面量实参，
+// 循环变量它追不到，于是整个循环体被编译成**同一个**资源常量 `e.R(85552)`。
+// 实测后果（next build standalone，dev 下完全正常所以极难发现）：
+//   · 292MB 的 tcmoc 语料被打包进镜像却从未被读取——146,407 条古籍证据线上全部失效；
+//   · 44MB 旧语料被读两遍，55,127 条记录在内存里翻倍，医生看到的引用成对重复，
+//     top-12 排序实际只剩 6 条不同证据。
+// 这类失效不会报错、不会降级，只会安静地少一半证据，因此这里的写法本身就是防线，
+// 由 scripts/test-classic-evidence-bundling.mjs 钉死。
+const CLASSIC_EVIDENCE_SOURCES = [
+  { name: "tcm-classic-text-evidence.jsonl", url: new URL("../data/tcm-classic-text-evidence.jsonl", import.meta.url) },
+  { name: "tcm-classic-text-evidence-tcmoc.jsonl", url: new URL("../data/tcm-classic-text-evidence-tcmoc.jsonl", import.meta.url) },
+] as const;
+
+/** 每个语料实际加载到的条数；语料缺失是允许的（可选语料），但必须可观测。 */
+const classicEvidenceLoadCounts = new Map<string, number>();
+
 function loadFullClassicEvidenceRecords(): ClassicEvidenceRecord[] {
   if (fullClassicEvidenceRecords) return fullClassicEvidenceRecords;
-  const raw = readFileSync(new URL("../data/tcm-classic-text-evidence.jsonl", import.meta.url), "utf8");
-  fullClassicEvidenceRecords = raw
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as ClassicEvidenceRecord);
+  const records: ClassicEvidenceRecord[] = [];
+  for (const source of CLASSIC_EVIDENCE_SOURCES) {
+    let loaded = 0;
+    try {
+      const raw = readFileSync(source.url, "utf8");
+      for (const line of raw.split("\n")) {
+        if (line.trim()) {
+          records.push(JSON.parse(line) as ClassicEvidenceRecord);
+          loaded += 1;
+        }
+      }
+    } catch {
+      // Optional corpus file missing in this deployment: continue with whatever is present.
+    }
+    classicEvidenceLoadCounts.set(source.name, loaded);
+  }
+  fullClassicEvidenceRecords = records;
   return fullClassicEvidenceRecords;
+}
+
+/**
+ * 逐语料加载条数，供健康检查与部署核对。
+ * 任一语料为 0 都意味着该部署缺证据——不阻断流程（语料可选），但必须看得见。
+ */
+export function classicEvidenceCorpusStatus(): { name: string; records: number }[] {
+  loadFullClassicEvidenceRecords();
+  return CLASSIC_EVIDENCE_SOURCES.map((source) => ({
+    name: source.name,
+    records: classicEvidenceLoadCounts.get(source.name) || 0,
+  }));
 }
 
 /** T15 runtime lookup scans every safe/restricted source record; no compact sample index is used. */
@@ -76,6 +118,10 @@ export function classicEvidenceForFormulaNames(formulaNames: string[]): ClassicF
       record.formulas.some((formula) => names.has(normalizedFormulaName(formula))) &&
       !CLASSIC_RUNTIME_DANGEROUS_CONTENT.test(record.text))
     .sort((left, right) =>
+      // A chapter/section titled after the formula itself (《医方集解》·归脾汤) is the formula's
+      // own entry and outranks tangential mentions elsewhere in the corpus.
+      Number(right.chapter != null && [...names].some((name) => String(right.chapter).includes(name))) -
+        Number(left.chapter != null && [...names].some((name) => String(left.chapter).includes(name)) || 0) ||
       tierRank[left.tier] - tierRank[right.tier] ||
       anchorRank[left.anchorLevel] - anchorRank[right.anchorLevel] ||
       left.evidenceId.localeCompare(right.evidenceId))

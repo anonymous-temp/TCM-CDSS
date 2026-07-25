@@ -30,6 +30,7 @@
     "test:upstream-guards": "jiti scripts/test-upstream-guards.mjs",
     "test:authoritative-his": "jiti scripts/test-authoritative-his.mjs",
     "test:formula-provenance": "jiti scripts/test-tcm-formula-provenance.mjs",
+    "test:classic-evidence-bundling": "jiti scripts/test-classic-evidence-bundling.mjs",
     "test:lineage-governance": "node --experimental-strip-types scripts/test-tcm-lineages.mjs",
     "test:tcm-treatments": "jiti scripts/test-tcm-treatment-projects.mjs",
     "test:customer-evidence": "node --experimental-strip-types scripts/test-customer-evidence.mjs",

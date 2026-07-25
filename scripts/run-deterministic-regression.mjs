@@ -13,6 +13,7 @@ const scripts = [
   "test:upstream-guards",
   "test:authoritative-his",
   "test:formula-provenance",
+  "test:classic-evidence-bundling",
   "test:lineage-governance",
   "test:tcm-treatments",
   "test:customer-evidence",
