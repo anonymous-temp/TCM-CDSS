@@ -7,20 +7,39 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
 const BOOKS_DIR = resolve(ROOT, "中医补充数据/tcmoc-master/books");
-const OUTDIR = resolve(ROOT, "artifacts/tcmoc-formula-extract-books");
+// 产出按批次分目录，否则温病批会覆盖方书批已有的复核队列与抽取结果。
+const OUTDIR = resolve(ROOT, `artifacts/tcmoc-formula-extract-${process.env.BOOK_BATCH === "温病批" ? "wenbing" : "books"}`);
 mkdirSync(OUTDIR, { recursive: true });
-const KEY = process.env.DEEPSEEK_API_KEY;
-if (!KEY) throw new Error("DEEPSEEK_API_KEY required");
+// 密钥只从环境变量读，不写入任何文件。项目 .env.local 里配的是 OPENAI_API_KEY（base_url 指向 deepseek），
+// 因此两个都接受，用 `node --env-file-if-exists=.env.local` 注入即可，无需在命令行里明文粘贴。
+const KEY = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
+if (!KEY) throw new Error("DEEPSEEK_API_KEY or OPENAI_API_KEY required");
 const CONC = Number(process.argv[2] || 4);
 const BOOK_START = Number(process.argv[3] || 0);
 const BOOK_END = Number(process.argv[4] || 999);
 
-// 本批：散文体方书（条文式条目结构，与医方集解同构）
-const BOOKS = [
-  "091-成方切用.txt", "072-医方考.txt", "082-古今名医方论.txt", "639-删补名医方论.txt",
-  "089-医方论.txt", "092-时方妙用.txt", "088-绛雪园古方选注.txt", "071-医方集宜.txt",
-  "067-仁斋直指方论（附补遗）.txt", "558-三因极一病证方论.txt",
-].slice(BOOK_START, BOOK_END);
+// 批次可切换：默认是散文体方书批（条文式条目结构，与医方集解同构）。
+// 温病批走同一套抽取+对拍+治理流程——它们的条目结构同构，没有理由复制一份脚本；
+// 复制出来的第二份迟早会和主线漂移，而漂移的是**方证抽取**这种直接影响处方的东西。
+const BOOK_BATCHES = {
+  方书批: [
+    "091-成方切用.txt", "072-医方考.txt", "082-古今名医方论.txt", "639-删补名医方论.txt",
+    "089-医方论.txt", "092-时方妙用.txt", "088-绛雪园古方选注.txt", "071-医方集宜.txt",
+    "067-仁斋直指方论（附补遗）.txt", "558-三因极一病证方论.txt",
+  ],
+  // 温病批：T8 目录此前完全没有温病维度——三仁汤/甘露消毒丹/增液汤/神犀丹/薏苡竹叶散
+  // 一首都不在 1800 首里，而原文就在库中且高度结构化（温病条辨实测 87 个篇名、195 个方名标记）。
+  温病批: [
+    "526-温病条辨.txt", "543-温热经纬.txt", "528-时病论.txt", "522-温疫论.txt",
+    "525-疫疹一得.txt", "549-重订广温热论.txt", "527-温热逢源.txt", "529-温病指南.txt",
+    "541-温病正宗.txt", "546-广瘟疫论.txt", "524-温热暑疫全书.txt", "433-六因条辨.txt",
+    "509-湿热病篇.txt", "551-随息居重订霍乱论.txt", "652-三时伏气外感篇.txt",
+    "139-痧疹辑要.txt", "591-痧胀玉衡.txt", "179-专治麻痧初编.txt", "544-温热论.txt",
+  ],
+};
+const BATCH = process.env.BOOK_BATCH || "方书批";
+if (!BOOK_BATCHES[BATCH]) throw new Error(`unknown BOOK_BATCH: ${BATCH}（可选：${Object.keys(BOOK_BATCHES).join("/")}）`);
+const BOOKS = BOOK_BATCHES[BATCH].slice(BOOK_START, BOOK_END);
 
 const FORMULA_CHAPTER = /(?:汤|丸|散|丹|膏|饮|方|煎|饮子|汁|粥|茶|酒|露|霜|锭|片|栓)$/;
 

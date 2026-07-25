@@ -56,7 +56,7 @@ It fires 100+ requests, asserts on red-flag handling, negated history, safety-ne
 | `question/interpret` | M02 | Deterministically interpret a doctor's free-text answers into structured status updates |
 | `diagnose` | M03 | Western dx + TCM syndrome + pathogenesis; gated by safety + completeness=C; attaches the clinical-facts backstop first |
 | `prescribe` | M04 | Herbal prescription; also requires an actionable M03 diagnosis |
-| `assess` | M05 | **Fully deterministic** — follow-up/risk summary that consumes the Lingxi post-prescription review, no LLM |
+| `assess` | M05 | The follow-up/risk summary itself is **fully deterministic** (consumes the Lingxi post-prescription review, nothing model-generated). But the route still runs `maybeAttachClinicalFactsBackstop`, which calls the model (extract+review, sometimes adjudicate) whenever the case fingerprint misses its cache — so "M05 makes no LLM calls" is not accurate |
 | `red-flags` | — | Deterministic red-flag / safety summary for the current case state |
 | `post-prescription-risk` | — | Lingxi unified rx-audit JSON; fail-closed with manual-review lock when unavailable or missing structured herbs |
 | `snapshot` | — | Encrypted case-state snapshot (AES-256-GCM, `CASE_SNAPSHOT_ENCRYPTION_KEY`); binds auth to snapshot owner |

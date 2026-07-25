@@ -1,5 +1,4 @@
 import OpenAI from "openai";
-import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 
 export type TextModelProvider = "bailian-qwen" | "openai-compatible";
 
@@ -162,74 +161,6 @@ export function getPublicTextModelStatus(config = getPrimaryTextModelConfig()) {
 
 export function isDeepseekModel(model: string): boolean {
   return model.toLowerCase().startsWith("deepseek");
-}
-
-export type RefineSearchQueryResult =
-  | { ok: true; query: string; provider: ReturnType<typeof getPublicTextModelStatus> }
-  | { ok: false; response: Response };
-
-export async function refineEvidenceSearchQueryWithModel(opts: {
-  agentId: string;
-  userInput: string;
-  templatedQuery: string;
-}): Promise<RefineSearchQueryResult> {
-  const config = getPrimaryTextModelConfig();
-  if (!config.configured) {
-    return {
-      ok: false,
-      response: Response.json({ error: getTextModelMissingMessage(config) }, { status: 500 }),
-    };
-  }
-
-  const client = createTextModelClient(config);
-  const messages: ChatCompletionMessageParam[] = [
-    {
-      role: "system",
-      content: [
-        "你是中医临床证据检索式改写助手。",
-        "请把用户问题改写为适合医学证据检索的中文查询词。",
-        "只输出一行检索 query，不要解释，不要编号，不要 Markdown。",
-        "保留疾病、症状、中医治疗、方药、穴位/经络、研究对象和结局指标。",
-        "不得生成不存在的文献、指南或数据库结果。",
-      ].join("\n"),
-    },
-    {
-      role: "user",
-      content: [
-        `功能模块：${opts.agentId}`,
-        `用户原始问题：${opts.userInput}`,
-        `已有模板检索式：${opts.templatedQuery}`,
-        "请输出最终检索 query。",
-      ].join("\n"),
-    },
-  ];
-
-  try {
-    const completion = await client.chat.completions.create({
-      model: config.model,
-      messages,
-      temperature: 0.2,
-      max_tokens: 180,
-      stream: false,
-    });
-    const query = completion.choices[0]?.message?.content?.trim().replace(/^["'“”]+|["'“”]+$/g, "");
-    if (!query) {
-      return {
-        ok: false,
-        response: Response.json({ error: "DeepSeek returned empty search query" }, { status: 502 }),
-      };
-    }
-    return {
-      ok: true,
-      query: query.slice(0, 1800),
-      provider: getPublicTextModelStatus(config),
-    };
-  } catch {
-    return {
-      ok: false,
-      response: Response.json({ error: "DeepSeek search query refinement failed" }, { status: 502 }),
-    };
-  }
 }
 
 export async function runTextModelHealthCheck() {

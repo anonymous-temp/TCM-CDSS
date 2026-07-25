@@ -71,7 +71,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 | `question` / `question/interpret` | M02 | 生成追问；确定性解析医生自由文本回答为结构化状态更新 |
 | `diagnose` | M03 | 西医诊断 + 中医证候 + 病机；由安全门 + 完整度=C 门控；先挂临床事实回补层 |
 | `prescribe` | M04 | 中药处方；要求存在可执行的 M03 诊断 |
-| `assess` | M05 | **完全确定性** —— 消费灵犀处方后审的随访/风险汇总，不调用 LLM |
+| `assess` | M05 | 随访/风险汇总本身**完全确定性**（消费灵犀处方后审，不经模型生成）。注意：该路由仍会经 `maybeAttachClinicalFactsBackstop` 触发临床事实回补，指纹未命中缓存时会发生 extract+review(+adjudicate) 模型调用——"M05 不调用 LLM"的旧表述不准确 |
 | `red-flags` | — | 当前病例状态的确定性红旗/安全汇总 |
 | `post-prescription-risk` | — | 灵犀统一审方 JSON；不可用或缺结构化药味时 fail-closed 并锁定人工复核 |
 | `snapshot` | — | 加密病例快照（AES-256-GCM，`CASE_SNAPSHOT_ENCRYPTION_KEY`），鉴权绑定快照所有者 |
@@ -83,7 +83,10 @@ npm run build:tcm-formula-sources    # python3 脚本
 
 `callDiagnosisStream(prompt, backend, images, kind)` 是唯一入口。backend：`deepseek`/`openai` → 主 OpenAI 兼容模型；`glm` → GLM 视觉（仅舌象提取）。EviMed 不是模型后端，而是作为多源证据上下文注入 M03/M04 prompt。
 
-- **分阶段模型配置**（见 `.env.example`）：M01/M02/M04、独立临床复核（`PRIMARY_CLINICAL_REVIEW_MODEL`，默认取对侧阶段模型做交叉复核）、临床事实抽取（`CLINICAL_FACTS_MODEL`）均可独立配置；`reasoning_effort` / `thinking_enabled` 也是分阶段环境变量。
+- **分阶段模型配置**（见 `.env.example`）：M03/M04、独立临床复核（`PRIMARY_CLINICAL_REVIEW_MODEL`）、临床事实抽取（`CLINICAL_FACTS_MODEL`）可独立配置；`reasoning_effort` / `thinking_enabled` 也是分阶段环境变量。
+  - **实际不存在 `PRIMARY_COLLECT_MODEL` / `PRIMARY_QUESTION_MODEL`**：M01 文本路径根本不调模型（无舌象图时 collect 路由直接返回确定性 NDJSON），M02 只能跟随 `OPENAI_MODEL`。
+  - **"独立复核"在默认全 V4-Pro 配置下不是跨模型**：候选链去重后只剩一个模型身份，`independentFromGenerator=false`，实际是对同一模型的第二次无对话状态请求。跨模型拓扑（`PRIMARY_CLINICAL_REVIEW_PROVIDER` ≠ primary）在 `src/` 里是直接判 unconfigured 的死路径。
+  - **M04 修复轮的 `reasoning_effort` 硬编码 `"medium"`**，没有环境变量可改；`PRIMARY_PRESCRIBE_REASONING_EFFORT` 只作用于首轮。
 - **NDJSON 流式契约**（所有后端与确定性响应共享）：每块 `{"content":"…"}\n`，以 `{"content":"[END]"}\n` 结束；错误为 `{"error":"…"}\n`。任何新增流水线环节都必须说这套契约；`markdownNdjsonResponse()` 把确定性 Markdown 包装进去。
 - **关键陷阱**：流只返回 `reasoning_content` 而无 `content` 视为错误（"模型仅返回推理过程"），`model-health?check=1` 校验的是最终内容。
 - 超时按流强制：连接 90s / 空闲 60s / 总计 180s，带上游 `AbortController` 取消与 5s 客户端心跳。
