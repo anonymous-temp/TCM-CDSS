@@ -2,7 +2,7 @@ import governedFormulaJson from "../data/tcm-formula-governed-catalog.json" with
 import retrievalConceptJson from "../data/tcm-formula-retrieval-concepts.json" with { type: "json" };
 import retrievalIndexJson from "../data/tcm-formula-retrieval-index.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
-import { affirmedClinicalText } from "./clinical-polarity";
+import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, governedTcmTermLabelById } from "./clinical-governance-tables";
 
 type FormulaIndicationEntry = {
@@ -212,10 +212,10 @@ function indicationTermMatches(facts: readonly string[]): Map<string, { score: n
   return hits;
 }
 
-function positiveCaseFacts(caseState: CaseState): string[] {
+function positiveCaseFacts(caseState: CaseState, assistedNegations?: AssistedNegationClauses): string[] {
   const symptomText = Object.entries(caseState.symptoms || {})
     .map(([key, value]) => {
-      const positive = affirmedClinicalText(typeof value === "string" ? value : String(value ?? ""));
+      const positive = affirmedClinicalText(typeof value === "string" ? value : String(value ?? ""), "affirmed", assistedNegations);
       return positive ? `${key}：${positive}` : undefined;
     })
     .filter((value): value is string => Boolean(value));
@@ -228,7 +228,7 @@ function positiveCaseFacts(caseState: CaseState): string[] {
     ...caseState.conversation.filter((item) => item.role === "user").map((item) => item.content),
   ];
   return sources
-    .map((value) => affirmedClinicalText(value))
+    .map((value) => affirmedClinicalText(value, "affirmed", assistedNegations))
     .filter((value): value is string => Boolean(value));
 }
 
@@ -236,8 +236,10 @@ export function retrieveTcmFormulaIndicationCandidates(
   caseState: CaseState,
   limit = 5,
   recallHint = "",
+  assistedNegations?: AssistedNegationClauses,
 ): FormulaIndicationCandidate[] {
-  const facts = positiveCaseFacts(caseState);
+  // 口语否定增补只作用于证据类 scope（见 clinical-polarity 的 AssistedNegationClauses 注释）。
+  const facts = positiveCaseFacts(caseState, assistedNegations);
   if (facts.length === 0) return [];
   // recallHint 是口语→标准术语的检索查询（见 formula-recall-normalization.server.ts），
   // 只参与候选召回：它不进入 matchedPatientFacts，不作为患者事实，也不呈现给医生。
@@ -484,8 +486,13 @@ function renderFormulaCandidates(
   });
 }
 
-export function buildTcmFormulaIndicationContext(caseState: CaseState, limit = 5, recallHint = ""): string {
-  const candidates = retrieveTcmFormulaIndicationCandidates(caseState, limit, recallHint);
+export function buildTcmFormulaIndicationContext(
+  caseState: CaseState,
+  limit = 5,
+  recallHint = "",
+  assistedNegations?: AssistedNegationClauses,
+): string {
+  const candidates = retrieveTcmFormulaIndicationCandidates(caseState, limit, recallHint, assistedNegations);
   if (candidates.length === 0) {
     return "【M03经典方检索】本例当前阳性事实未命中受控经典方主治索引；可按已锁定病机与治法形成自拟方向，但必须说明未采用经典方是因受控目录无匹配结果。";
   }

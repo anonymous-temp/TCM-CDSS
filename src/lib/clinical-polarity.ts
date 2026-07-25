@@ -160,9 +160,26 @@ function polarityInScope(polarity: ClinicalClausePolarity, scope: ClinicalPolari
   return polarity === "affirmed" || (scope === "affirmed_or_uncertain" && polarity === "uncertain");
 }
 
+/**
+ * 由语义否定增补层（polarity-negation-assist.server）判定为否定的分句原文集合。
+ *
+ * 确定性正则覆盖不到口语否定——实测「胸口不疼」「早就不疼了」「哪有什么胸痛」「胸痛这个倒是没有」
+ * 全部被判为阳性。口语否定与口语症状一样穷举不完，因此这一步交给模型，但只允许它把阳性降为否定，
+ * 不允许反向。
+ *
+ * ★ 只作用于 scope === "affirmed" ★
+ * 这不是实现细节，是安全边界。两类消费者的失败方向相反：
+ *   - affirmed（检索/依据/grounding）：把否定当阳性会伪造依据，补上否定更严格。
+ *   - affirmed_or_uncertain（审方 rxaudit / 方剂禁忌）：这些调用点故意保留未消解的表述，
+ *     以免漏掉本该触发的警告；在这里补否定 = 少一条警告，方向恰好相反。
+ * 因此增补集在 affirmed_or_uncertain 下被完全忽略。
+ */
+export type AssistedNegationClauses = ReadonlySet<string>;
+
 export function affirmedClinicalText(
   value: string | null | undefined,
   scope: ClinicalPolarityScope = "affirmed",
+  assistedNegations?: AssistedNegationClauses,
 ): string | undefined {
   const normalized = value ? normalizedClinicalText(value) : "";
   if (!normalized) return undefined;
@@ -191,6 +208,10 @@ export function affirmedClinicalText(
     if (!hardBoundary && explicitPolarity === "affirmed" && inheritedPolarity &&
         !hasIndependentAffirmedAssertion(clause, Boolean(discourseMatch))) {
       polarity = inheritedPolarity;
+    }
+    // 语义否定增补：只在证据类 scope 下、确定性层未判为否定时生效，且只能朝否定方向改写。
+    if (scope === "affirmed" && explicitPolarity !== "negative" && assistedNegations?.has(clause)) {
+      polarity = "negative";
     }
 
     if (polarityInScope(polarity, scope)) {

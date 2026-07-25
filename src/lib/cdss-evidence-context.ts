@@ -1,4 +1,5 @@
 import type { CaseState } from "./diagnosis-types";
+import type { AssistedNegationClauses } from "./clinical-polarity";
 import { EVIDENCE_LEVELS } from "./cdss-vocab";
 import { buildExternalEvidenceContext } from "./evimed-guide";
 import { buildFormulaProvenanceContext } from "./tcm-formula-provenance";
@@ -25,12 +26,14 @@ export async function buildCdssEvidenceContext(
    * 只参与候选召回，不进入病历事实、不呈现给医生。本模块被广泛引用，因此不直接依赖 server-only 模块。
    */
   formulaRecallHint = "",
+  /** 口语否定增补集（polarity-negation-assist.server），只作用于证据类 scope。 */
+  assistedNegations?: AssistedNegationClauses,
 ): Promise<string> {
   const localContext = buildTcmKnowledgeContext(caseState, stage);
   const externalEvidenceContext = await buildExternalEvidenceContext(caseState, stage);
   const formulaProvenanceContext = stage === "prescribe" ? buildFormulaProvenanceContext(caseState) : "";
   const formulaIndicationContext = stage === "diagnose"
-    ? buildTcmFormulaIndicationContext(caseState, 5, formulaRecallHint)
+    ? buildTcmFormulaIndicationContext(caseState, 5, formulaRecallHint, assistedNegations)
     : stage === "prescribe"
       ? buildTcmFormulaReasoningContext(diagnoseReasoningFromState(caseState))
       : "";

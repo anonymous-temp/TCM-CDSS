@@ -1,6 +1,7 @@
 import { callDiagnosisStream } from "@/lib/diagnosis-api";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normalization.server";
+import { assistedNegationClauses } from "@/lib/polarity-negation-assist.server";
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
@@ -72,8 +73,12 @@ export async function POST(req: Request) {
   const safeState = sanitizeCaseStateForModel(gated);
   // 口语主诉在受控主治语料里匹配不到术语时（"睡不着觉""腰杆子疼"），先用轻量模型改写成标准中医
   // 术语作为检索查询。只影响候选召回，不进入病历事实、不呈现给医生；不可用时静默降级为纯确定性召回。
-  const formulaRecallHint = await normalizeCaseTextForFormulaRecall(safeState);
-  const evidenceContext = await buildCdssEvidenceContext(safeState, "diagnose", formulaRecallHint);
+  // 两个增补层互不依赖，并发跑；任一不可用都静默退回确定性行为。
+  const [formulaRecallHint, assistedNegations] = await Promise.all([
+    normalizeCaseTextForFormulaRecall(safeState),
+    assistedNegationClauses(safeState),
+  ]);
+  const evidenceContext = await buildCdssEvidenceContext(safeState, "diagnose", formulaRecallHint, assistedNegations);
   let prompt = appendEvidenceContext(buildDiagnosePrompt(safeState), evidenceContext);
   if (limitedInformation) {
     prompt += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";

@@ -204,7 +204,49 @@ assert.equal(
   "可能有肾功能不全",
 );
 
+// 口语否定增补层（polarity-negation-assist.server）的三条安全边界。
+// 确定性正则漏判的口语否定实测：胸口不疼 / 早就不疼了 / 哪有什么胸痛 / 胸痛这个倒是没有。
+const assistOverlay = new Set(["胸口不疼", "早就不疼了", "哪有什么胸痛", "胸痛这个倒是没有"]);
+
+// 1. 证据类 scope：增补生效，口语否定不再被当作阳性事实。
+for (const clause of assistOverlay) {
+  assert.ok(affirmedClinicalText(clause), `${clause} 在确定性层仍被判为阳性（这正是增补层存在的原因）`);
+  assert.equal(
+    affirmedClinicalText(clause, "affirmed", assistOverlay),
+    undefined,
+    `${clause} 经增补后必须不再作为阳性事实进入检索与依据`,
+  );
+}
+
+// 2. ★ 风险类 scope 必须完全忽略增补集 ★
+// rxaudit 与方剂禁忌用 affirmed_or_uncertain，故意保留未消解表述以免漏警告；
+// 在那里补否定 = 少一条警告，方向与证据类恰好相反。
+for (const clause of assistOverlay) {
+  assert.equal(
+    affirmedClinicalText(clause, "affirmed_or_uncertain", assistOverlay),
+    affirmedClinicalText(clause, "affirmed_or_uncertain"),
+    `${clause} 在风险类 scope 下不得因增补层而被抹掉——那会删掉本该触发的警告`,
+  );
+}
+
+// 3. 单向性：增补层只能把阳性降为否定，永远不能把否定改成阳性。
+assert.equal(
+  affirmedClinicalText("否认胸痛", "affirmed", new Set(["否认胸痛"])),
+  undefined,
+  "增补集不得把确定性层判定的否定改写成阳性",
+);
+
+// 4. 阳性对照与「否定形态的症状词」不受影响。
+assert.equal(affirmedClinicalText("胸痛", "affirmed", assistOverlay), "胸痛");
+for (const symptom of ["没精神", "没力气", "没胃口"]) {
+  assert.equal(
+    affirmedClinicalText(symptom, "affirmed", assistOverlay),
+    symptom,
+    `${symptom} 是症状本身而非否认，不得被增补层误删`,
+  );
+}
+
 console.log(JSON.stringify({
-  cases: cases.length + 20 + temporalCases.length + hedgedFindings.length + explicitDenials.length * 2 + 4,
+  cases: cases.length + 20 + 16 + temporalCases.length + hedgedFindings.length + explicitDenials.length * 2 + 4,
   failures: 0,
 }));
