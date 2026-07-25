@@ -176,8 +176,11 @@ describe("production permission and construction-specific herb counts", () => {
     assert.equal(evaluates("single_base", 1).ok, true);
     assert.equal(evaluates("combined", 1).ok, false);
     assert.equal(evaluates("combined", 2).ok, true);
-    assert.equal(evaluates("self_devised", 3).ok, false);
-    assert.equal(evaluates("self_devised", 4).ok, true);
+    // 自拟方下限 4→2 是 scripts/lib/primary-care-sparse-50-contracts.mjs 里的有意放宽
+    // （两三味的自拟方可以是完整合理的处方，harness 不该逼模型为凑数多加一味）。
+    // 这个文件当时没被 runner 收录，于是漏改成了红的——现已接入 runner，与 lib 同源。
+    assert.equal(evaluates("self_devised", 1).ok, false);
+    assert.equal(evaluates("self_devised", 2).ok, true);
     assert.equal(evaluates("unknown", 4).ok, false);
   });
 
