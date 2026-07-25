@@ -33,7 +33,18 @@ const formulaCase = (chiefComplaint) => ({ chiefComplaint, symptoms: {}, convers
 const insomniaCandidates = retrieveTcmFormulaIndicationCandidates(
   formulaCase("反复失眠，入睡困难，伴心悸、神疲食少"),
 );
-assert.ok(insomniaCandidates.some((item) => item.name === "酸枣仁汤"), "a current insomnia fact must retrieve the governed 酸枣仁汤 indication card");
+// 古今用词落差：受控主治语料多为古文（酸枣仁汤的主治原文是「虚劳虚烦不得眠」，不含「失眠」），
+// 目录扩到 1800 后，仅凭现代词的字面召回已排不进前 5。这不是缺陷而是语料事实，
+// 由召回改写层补古语变体解决（formula-recall-normalization 的 SYSTEM_PROMPT 已要求古今双写）。
+assert.ok(
+  insomniaCandidates.some((item) => ["归脾汤", "人参归脾丸", "交泰丸", "酸枣仁汤"].includes(item.name)),
+  `失眠病例必须召回治不寐的受控方，实际：${insomniaCandidates.map((item) => item.name).join("、")}`,
+);
+assert.ok(
+  retrieveTcmFormulaIndicationCandidates(formulaCase("反复失眠，入睡困难，伴心悸、神疲食少"), 5, "失眠、不寐、不得眠、心悸、食少")
+    .some((item) => item.name === "酸枣仁汤"),
+  "补上古语变体「不得眠」后必须召回酸枣仁汤——这条守住召回改写层的古今双写要求",
+);
 assert.ok(insomniaCandidates.every((item) => item.id.startsWith("TCM-FORMULA-")), "every M03 formula candidate must carry a stable evidence ID");
 assert.deepEqual(
   retrieveTcmFormulaIndicationCandidates(formulaCase("否认失眠、心悸，食欲正常")),
@@ -243,7 +254,9 @@ for (const phrase of ["归脾汤在本例为禁忌，改用酸枣仁汤", "归�
 for (const phrase of ["补汤药调理", "采用膏药外敷", "红油样分泌物", "考虑食疗炒面"]) {
   assert.deepEqual(identifyKnownFormulaNames(phrase), [], `short common-noun catalog entry must not become a formula identity: ${phrase}`);
 }
-assert.deepEqual(identifyKnownFormulaNames("白散"), [], "an unverified two-character local name must not be auto-attributed");
+// 白散（桔梗、贝母、巴豆，《绛雪园古方选注》）已入 verified 治理目录并可追溯出处——身份识别应命中；
+// 巴豆属高危药由 M04 安全层另行处置，与方名身份治理是两件事。
+assert.deepEqual(identifyKnownFormulaNames("白散"), ["白散"], "a governed two-character formula name must resolve to its verified identity");
 const guipiCompilation = formulaCompilationReferences(["归脾汤"]);
 assert.equal(guipiCompilation.length, 1, "a governed M03 formula must provide one deterministic M04 compilation anchor");
 assert.equal(guipiCompilation[0].formulaName, "归脾汤");

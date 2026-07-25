@@ -277,8 +277,25 @@ export function retrieveTcmFormulaIndicationCandidates(
     // and no formula is hidden.
     const lockEligible = entry.syndromeTags.length > 0;
     const termHit = termHits.get(entry.id);
-    const score = rawConceptScore * focusMultiplier + (termHit?.score || 0) +
-      (entry.catalog === "verified_reference_catalog" ? 0.25 : 0);
+    // Governance-adjudicated syndrome alignment (curated relations/tags) is a stronger signal than
+    // machine-derived tags: it is what makes the canonical 心脾两虚→归脾汤 mapping outrank a merely
+    // symptom-overlapping short-text formula (交泰丸) that happens to be lock-eligible by machine tags.
+    const curatedBoost = entry.curatedSyndromeRelations.length > 0 || entry.curatedSyndromeTags.length > 0 ? 2 : 0;
+    // 证据协同度：多个互相独立的临床词同时命中，比单个高权重词可信得多。
+    // 目录 500→1800 后暴露的实例：消渴病例里只命中「口渴」一个泛词的银翘散，压过了同时命中
+    // 「消渴+多饮」的消渴方——泛词权重高是因为它在概念层也命中，而真正对证的方靠的是特异主治词。
+    // 实测四个首位正确的病例命中词数均 ≥2，唯一首位错误的只命中 1 词，因此协同度纳入打分有数据支撑。
+    // 只放大检索证据本身，不放大 curatedBoost（治理裁定不该被词数稀释或放大）。
+    // 只数「极大词」：主治词是 2–4 字滑窗切出来的，一句「神疲食少」会同时产出
+    // 神疲食少/神疲食/疲食少/食少 四条，若按四条独立证据计，一个短语就能顶四个不同症状。
+    // 被其他命中词包含的子串一律不计入协同度。
+    const uniqueTerms = [...new Set(termHit?.terms || [])];
+    const maximalTerms = uniqueTerms.filter((term) =>
+      !uniqueTerms.some((other) => other !== term && other.includes(term)));
+    const distinctEvidence = matched.length + maximalTerms.length;
+    const coordinationFactor = 1 + Math.min(0.75, 0.25 * Math.max(0, distinctEvidence - 1));
+    const score = (rawConceptScore * focusMultiplier + (termHit?.score || 0)) * coordinationFactor +
+      (entry.catalog === "verified_reference_catalog" ? 0.25 : 0) + curatedBoost;
     return {
       ...entry,
       matchedConcepts: matched.map((concept) => concept.key),
