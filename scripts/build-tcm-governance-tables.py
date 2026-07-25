@@ -108,7 +108,7 @@ HIGH_FREQUENCY_FORMULA_PRIORITY = (
     "乌梅丸", "黄连阿胶汤", "五苓散", "金匮肾气丸", "黄土汤", "桂枝茯苓丸",
     "安宫牛黄丸", "至宝丹", *HIGH_FREQUENCY_REVIEW_QUEUE,
 )
-FORMULA_CATALOG_TARGET = 500
+FORMULA_CATALOG_TARGET = 1800
 
 TABLE_FILES = {
     "T1": "tcm-syndrome-lexicon.json",
