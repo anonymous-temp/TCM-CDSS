@@ -85,9 +85,28 @@ const fullyCovered = catalog.entries.filter((entry) => {
   });
 }).length;
 assert.ok(
-  fullyCovered >= 150,
-  `仅 ${fullyCovered} 个受控方剂的全部药味可解析剂量（修复前为 7）；低于 150 说明剂量覆盖面又退化了`,
+  fullyCovered >= 300,
+  `仅 ${fullyCovered} 个受控方剂的全部药味可解析剂量（修复前为 7，接入 T9 饮片名解析后为 327）；低于 300 说明剂量覆盖面又退化了`,
 );
+
+
+
+// 5. T9 受控饮片名解析必须接进剂量层：经典方组成用的是饮片规格与古名。
+for (const [input, canonical] of [["黄芩片", "黄芩"], ["附片", "附子"], ["山萸肉", "山茱萸"], ["麦门冬", "麦冬"], ["盐菟丝子", "菟丝子"], ["燀桃仁", "桃仁"], ["熟地", "熟地黄"]]) {
+  const resolved = getTcmHerbDoseLimit(input);
+  const target = getTcmHerbDoseLimit(canonical);
+  assert.ok(resolved, `受控饮片名 ${input} 必须能解析剂量（T9 已将其映射到 ${canonical}）`);
+  assert.equal(resolved.min, target?.min, `${input} 的剂量下限必须等于 ${canonical}`);
+  assert.equal(resolved.max, target?.max, `${input} 的剂量上限必须等于 ${canonical}`);
+}
+
+// 6. Fail-closed：歧义名与毒性药生品不得因上述解析而获得剂量。
+for (const ambiguousName of ["芍药", "贝母", "沙参"]) {
+  assert.equal(getTcmHerbDoseLimit(ambiguousName), null, `${ambiguousName} 是歧义名（需医生指定具体品种），不得自动解析出剂量`);
+}
+for (const rawToxic of ["生川乌", "生草乌", "生半夏", "生附子"]) {
+  assert.equal(getTcmHerbDoseLimit(rawToxic), null, `${rawToxic} 是毒性药生品，不得通过炮制前缀剥离获得内服剂量`);
+}
 
 console.log(JSON.stringify({
   doseResolvableHerbs: doseResolvable.length,

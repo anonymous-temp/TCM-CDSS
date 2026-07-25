@@ -1,6 +1,7 @@
 import knowledge from "../data/tcm-knowledge.json";
 import herbFunctionCategories from "../data/tcm-herb-function-categories.json";
 import type { CaseState } from "./diagnosis-types";
+import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 
 type KnowledgeEntry = {
   type: string;
@@ -895,6 +896,20 @@ function canonicalKnowledgeHerbName(value: string): string {
   if (controlled) return canonicalHerbNameByToken.get(normalizedHerbLookupToken(controlled)) || controlled;
   const direct = canonicalHerbNameByToken.get(normalized);
   if (direct) return direct;
+  // T9 受控饮片名解析。经典方与地方标准方的组成用的是饮片规格与古名——黄芩片、附片、山萸肉、
+  // 麦门冬、盐菟丝子、燀桃仁——T9 已经把它们逐条映射到标准名，但剂量层此前从不查这张表，于是
+  // 一味药典里明明有剂量的饮片被判为"无剂量"，整张方子随之不可开具（实测 500 个受控方剂中
+  // 只有 158 个全部药味可解析剂量）。
+  //
+  // 这条链路是 fail-closed 的：resolveGovernedTcmHerbIdentity 只有在 autoResolvable 且非歧义时
+  // 才给出 canonicalName；芍药（白芍/赤芍）、白茯苓、贝母 等歧义名返回 ambiguous 而没有
+  // canonicalName，因此仍然解析不出剂量，仍然交人工判定，不会被本改动放行。
+  // doseCanonicalName 优先于 canonicalName：生地黄的标准名是生地黄，但剂量条目挂在地黄下。
+  const governed = resolveGovernedTcmHerbIdentity(value);
+  const governedName = governed.doseCanonicalName || governed.canonicalName;
+  if (governedName) {
+    return canonicalHerbNameByToken.get(normalizedHerbLookupToken(governedName)) || governedName;
+  }
   const withoutProcessing = normalized.replace(/^(?:蜜炙|麸炒|土炒|炒|炙|醋制|酒制|盐制|姜制|煅|制|生)/, "");
   return canonicalHerbNameByToken.get(withoutProcessing) || withoutProcessing;
 }
