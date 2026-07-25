@@ -60,6 +60,7 @@ import {
   evaluateSafetyGate,
   hasActionableM03Diagnosis,
   isLimitedDiagnosisText,
+  isNonDosePrescriptionText,
   isRiskLineNegatedOrEnumerative,
   reconcileRestoredCaseState,
   sanitizeFreeTextForExternalClinicalService,
@@ -2641,10 +2642,8 @@ function hasGeneratedDosePrescription(summary: DecisionSummary, reasoning?: Clin
 }
 
 export function hasExplicitNonDosePrescriptionResult(caseState: Pick<CaseState, "prescription">, hasCandidate = false): boolean {
-  return !hasCandidate && Boolean(
-    caseState.prescription &&
-    /(?:不展示剂量级候选方药|不生成中药饮片剂量|当前未满足剂量级候选处方)/.test(caseState.prescription),
-  );
+  // 判定短语与降级正文同源维护在 diagnosis-safety.ts；展示层不再自带正文副本。
+  return !hasCandidate && isNonDosePrescriptionText(caseState.prescription);
 }
 
 function DecoctionInstructionsPanel({ decoction }: {
@@ -7579,7 +7578,7 @@ export default function DiagnosisPage() {
         const rawPrescription = await consumeMarkdownStream(res4, (t) => setStreamingForPhase("prescribe", t), streamConsumeOptions());
         const expectedNonDoseLimitedPrescription =
           rawPrescription.includes("<!-- CDSS_NON_DOSE_PRESCRIPTION -->") &&
-          /不展示剂量级候选方药|不生成中药饮片剂量/.test(rawPrescription) &&
+          isNonDosePrescriptionText(rawPrescription) &&
           !/\d+(?:\.\d+)?\s*(?:g|mg|克|毫克|毫升|mL)\b/i.test(rawPrescription);
         const prescriptionTransportIncomplete =
           rawPrescription.includes("[TRUNCATED]") ||

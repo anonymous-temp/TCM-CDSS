@@ -177,6 +177,23 @@ assert.equal(abortDiagnosisRun(cancellableRun), false, "cancelling an already ab
 assert.equal(hasExplicitNonDosePrescriptionResult({ prescription: "当前不展示剂量级候选方药。" }), true);
 assert.equal(hasExplicitNonDosePrescriptionResult({ prescription: "当前不展示剂量级候选方药。" }, true), false);
 assert.equal(hasExplicitNonDosePrescriptionResult({ prescription: "归脾汤加减，酸枣仁15g。" }), false);
+// 上面三条断言用的是手写短语，服务端改写降级正文后它们仍然通过，生产上却把每一次安全降级
+// 都误判成“候选方药生成失败”。判定必须对着真实生成物断言，否则同类漂移会再次静默复发。
+const { buildSafetyLimitedPrescription: buildNonDoseForDisplayCheck } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const generatedNonDosePrescription = buildNonDoseForDisplayCheck({
+  status: "needs_information",
+  allowDiagnosis: true,
+  allowDosePrescription: false,
+  action: "complete_before_prescription",
+  missingItems: ["本次当前活动性治疗目标确认"],
+  redFlags: [],
+  reasons: ["语义预检无法判断本次就诊是否存在当前活动性治疗目标。"],
+});
+assert.equal(
+  hasExplicitNonDosePrescriptionResult({ prescription: generatedNonDosePrescription }),
+  true,
+  "服务端安全降级处方必须被展示层识别为非剂量结果，而不是生成失败",
+);
 const { buildCaseAwareQuestionFallback, ensureQuestionStructuredEnvelope, ensureSingleRoundQuestionContract } = await jiti.import("../src/lib/m02-question-contract.ts");
 const { isStableM03Reasoning } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");

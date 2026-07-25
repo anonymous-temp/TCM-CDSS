@@ -122,4 +122,32 @@ assert.deepEqual(schemeWithStructuredHerb.prescriptions.structuredHerbs[0], {
   decoctionRequirement: "捣碎后同煎",
 });
 
-console.log(JSON.stringify({ cases: 24, failures: 0 }));
+// GOV-01 同类守卫：服务端安全降级的非剂量正文绝不能被 HIS 当成可采纳的中药饮片处方。
+// 未加此断言前，该正文会得到 status='ready' / candidateStatus='valid' / herbal[0].adoptable=true。
+const { buildSafetyLimitedPrescription: buildNonDoseForHisCheck } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const nonDoseHisPrescription = buildNonDoseForHisCheck({
+  status: "needs_information",
+  allowDiagnosis: true,
+  allowDosePrescription: false,
+  action: "complete_before_prescription",
+  missingItems: ["辨证语义复核"],
+  redFlags: [],
+  reasons: ["本轮辨证语义复核未完成；辨证内容可供医生继续审阅，具体剂量待复核服务恢复后重新生成。"],
+}).replace("<!-- CDSS_NON_DOSE_PRESCRIPTION -->", "").trim();
+const nonDoseHisScheme = buildHisAiSchemePayload(normalizeCaseStateInput({
+  chiefComplaint: "失眠3月",
+  questionRounds: 2,
+  phase: "done",
+  patient: { sex: "女", age: 42 },
+  fields: { zhushu: "失眠3月", xianbingshi: "入睡困难，多梦易醒", shexiang: "舌淡苔白", maixiang: "脉细弱" },
+  vitals: { bp: "118/76", temperature: "36.6", pulse: "78", respiration: "18", spo2: "98" },
+  diagnosis: "## 西医诊断\n**主要诊断**：非器质性失眠\n\n## 中医证候\n**主证**：心脾两虚证",
+  riskAssessment: "## 处方安全总评\n**最高提示强度**：待补充信息后再评估",
+  prescription: nonDoseHisPrescription,
+}));
+for (const candidate of [...nonDoseHisScheme.prescriptions.herbal, ...nonDoseHisScheme.prescriptions.westernOrPatent]) {
+  assert.equal(candidate.adoptable, false, `安全降级的非剂量正文不得成为可采纳处方项：${candidate.id}`);
+}
+assert.notEqual(nonDoseHisScheme.status, "ready", "M04 安全降级的病例不得被 HIS 判为 ready");
+
+console.log(JSON.stringify({ cases: 25, failures: 0 }));

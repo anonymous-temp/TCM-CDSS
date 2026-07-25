@@ -1,4 +1,4 @@
-import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, withSafetyGate } from "./diagnosis-safety";
+import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, isNonDosePrescriptionText, withSafetyGate } from "./diagnosis-safety";
 import { sectionTitleGroup } from "./cdss-vocab";
 import type { CaseState, SafetyGate } from "./diagnosis-types";
 import { lineageLabel } from "./tcm-lineages";
@@ -171,7 +171,10 @@ function extractField(text: string | undefined, labels: string[]): string {
 }
 
 function isPlaceholderContent(content: string): boolean {
-  return !clean(content) || /(待生成|暂不生成|信息不足|高风险安全建议模式|信息不足建议模式|不生成候选|未满足剂量级候选处方安全门控)/.test(content);
+  // 安全降级的非剂量正文不是可采纳内容。判定短语与正文同源维护在 diagnosis-safety.ts，
+  // 否则一次措辞改写就会让 HIS 把“当前不展示包含具体用量的候选方药”当成可写回的中药饮片处方。
+  return !clean(content) || isNonDosePrescriptionText(content) ||
+    /(待生成|暂不生成|信息不足|高风险安全建议模式|信息不足建议模式|不生成候选|未满足剂量级候选处方安全门控)/.test(content);
 }
 
 function item(

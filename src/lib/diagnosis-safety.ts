@@ -3422,6 +3422,23 @@ export function renderSafetyLimitedDiagnosisContract(
   ].join("\n");
 }
 
+// 展示层与 HIS 层判定“本轮是安全降级的非剂量结果”的唯一依据，必须与本文件实际输出的正文同源。
+// 历史故障 b04fe65 只改了正文措辞（“不展示剂量级候选方药”→“不展示包含具体用量的候选方药”），
+// 三处判定仍在匹配旧措辞，于是每一次安全降级都被误判为“候选方药本次未完整生成”的生成失败，
+// 服务端写好的降级原因与下一步动作被整段丢弃。新增或改写降级正文时必须同步本列表。
+const NON_DOSE_PRESCRIPTION_DECLARATIONS = [
+  "当前不展示包含具体用量的候选方药",
+  // 历史措辞：已保存/已恢复的旧病例仍可能携带，判定必须继续认得。
+  "不展示剂量级候选方药",
+  "不生成中药饮片剂量",
+  "当前未满足剂量级候选处方",
+] as const;
+
+export function isNonDosePrescriptionText(text: string | undefined): boolean {
+  if (!text) return false;
+  return NON_DOSE_PRESCRIPTION_DECLARATIONS.some((declaration) => text.includes(declaration));
+}
+
 export function buildSafetyLimitedPrescription(gate: SafetyGate): string {
   const limitedStateCopy = buildThreePartLimitedStateCopyForSurface("non_dose_treatment_direction", {
     knownFacts: gate.redFlags.length > 0
@@ -3443,7 +3460,7 @@ export function buildSafetyLimitedPrescription(gate: SafetyGate): string {
     "**处方安全边界**：当前尚不具备形成包含具体用量候选处方的必要条件，因此不提供中药饮片剂量、剂数、煎服法或西药/中成药用法用量。",
     "",
     "## 中药饮片处方",
-    "当前不展示包含具体用量的候选方药。请先完成急诊/转诊评估，或补充会直接影响用药安全的信息后重新分析。",
+    `${NON_DOSE_PRESCRIPTION_DECLARATIONS[0]}。请先完成急诊/转诊评估，或补充会直接影响用药安全的信息后重新分析。`,
     "",
     "## 西药/中成药方案",
     "现有资料尚不足以支持联用、替代或对症用药方案。",

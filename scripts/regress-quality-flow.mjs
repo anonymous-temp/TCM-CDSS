@@ -83,7 +83,8 @@ console.log("=== 场景1 红旗:急性胸痛 ===");
       reasoningDiagnose: redflagReasoning,
     });
     check("红旗 M04 继续流程但不调用剂量模型", p.status === 200 && p.ms < 5000, `status=${p.status} ${p.ms}ms`);
-    check("红旗 M04 不返回具体药味剂量", /不展示剂量级候选方药|不生成中药饮片剂量/.test(p.content) && !/\d+\s*g\b/.test(p.content), p.content.slice(0, 500));
+    // 短语来源：src/lib/diagnosis-safety.ts 的 NON_DOSE_PRESCRIPTION_DECLARATIONS（本脚本不走 jiti，无法直接 import）。
+    check("红旗 M04 不返回具体药味剂量", /不展示包含具体用量的候选方药|不展示剂量级候选方药|不生成中药饮片剂量/.test(p.content) && !/\d+\s*g\b/.test(p.content), p.content.slice(0, 500));
   }
   console.log(`  ↳ ${r.ms}ms, ${r.content.length} chars\n`);
 }
