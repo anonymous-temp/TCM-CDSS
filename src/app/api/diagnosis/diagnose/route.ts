@@ -7,7 +7,6 @@ import { readCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { authoritativePatientAgeYears, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
-import { retrieveTcmFormulaIndicationCandidates } from "@/lib/tcm-formula-indications";
 
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
@@ -78,8 +77,9 @@ export async function POST(req: Request) {
     normalizeCaseTextForFormulaRecall(safeState),
     assistedNegationClauses(safeState),
   ]);
-  const evidenceContext = await buildCdssEvidenceContext(safeState, "diagnose", formulaRecallHint, assistedNegations);
-  let prompt = appendEvidenceContext(buildDiagnosePrompt(safeState), evidenceContext);
+  const evidenceContext = await buildCdssEvidenceContext(safeState, "diagnose");
+  let prompt = appendEvidenceContext(
+    buildDiagnosePrompt(safeState, { formulaRecallHint, assistedNegations }), evidenceContext);
   if (limitedInformation) {
     prompt += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
   }
@@ -106,9 +106,10 @@ export async function POST(req: Request) {
     // context on the same deidentified DTO as the primary generation request.
     structuredClinicalContext: clinicalGroundingText(safeState),
     structuredPatientAge: authoritativePatientAgeYears(gated),
-    structuredAllowedM03FormulaNames: retrieveTcmFormulaIndicationCandidates(safeState)
-      .filter((item) => item.prescriptionLockEligible)
-      .map((item) => item.name),
+    // 这里不再预算「生成前短名单」：enforceRetrievedM03FormulaSelection 明确 `void` 掉了它
+    // （方名锁定只认签名证候的 positiveSufficiency，症状召回证明不了充分性）。原先这一行是一次
+    // 完整的 1796 方目录扫描 + 滑窗索引匹配，结果全程未被使用，且入参与真正喂给模型的短名单
+    // 不同口径（不带 recallHint），读代码时会误以为「模型只能从检索短名单里选」。
     // Evidence is isolated from the patient-fact grounding channel so literature text can never
     // satisfy a missing patient fact during contract validation.
     structuredReviewEvidenceContext: evidenceContext,

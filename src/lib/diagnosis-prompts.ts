@@ -1,6 +1,7 @@
 // src/lib/diagnosis-prompts.ts
 import herbFunctionCategoriesJson from "../data/tcm-herb-function-categories.json" with { type: "json" };
 import type { CaseState } from "./diagnosis-types";
+import type { AssistedNegationClauses } from "./clinical-polarity";
 import { EVIDENCE_LEVELS, SAFETY_DEFERENCE_TEXT } from "./cdss-vocab";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import { getLineageCard, getLineageQuestionStrategy } from "./tcm-lineages";
@@ -611,7 +612,17 @@ ${compactJsonContract}`;
 
 // ─── M03：循证辨证分型（DeepSeek）────────────────────────────────────────────
 
-export function buildDiagnosePrompt(caseState: CaseState): string {
+/**
+ * M03 检索改写入参。口语主诉在受控主治语料里匹配不到术语，靠 recallHint 补齐（见
+ * formula-recall-normalization.server）；不传时提示词里的方剂检索段会退化成「未命中受控经典方主治
+ * 索引」，把召回改写层的效果整段抵消。路由必须把它算出来传进来。
+ */
+export type M03FormulaRetrievalOptions = {
+  formulaRecallHint?: string;
+  assistedNegations?: AssistedNegationClauses;
+};
+
+export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaRetrievalOptions = {}): string {
   const conversationText = caseState.conversation
     .filter((message) => message.role === "user")
     .map((m) => `${m.role === "user" ? "医生/患者" : "AI系统"}：${m.content}`)
@@ -636,7 +647,8 @@ export function buildDiagnosePrompt(caseState: CaseState): string {
   ].filter(Boolean).join("\n");
   const safePatientDesc = promptDataText(patientDesc);
   const safeConversationText = promptDataText(conversationText);
-  const formulaIndicationContext = buildTcmFormulaIndicationContext(caseState);
+  const formulaIndicationContext = buildTcmFormulaIndicationContext(
+    caseState, 5, retrieval.formulaRecallHint || "", retrieval.assistedNegations);
   const sevenStageContext = buildM03SevenStageContext(caseState);
 
   return `请基于中医辨证论治和循证医学，为以下患者提供“西医诊断 + 中医病名与证型 + 病机治则治法 + 证据支持”。

@@ -1,14 +1,11 @@
 import type { CaseState } from "./diagnosis-types";
-import type { AssistedNegationClauses } from "./clinical-polarity";
 import { EVIDENCE_LEVELS } from "./cdss-vocab";
 import { buildExternalEvidenceContext } from "./evimed-guide";
 import { buildFormulaProvenanceContext } from "./tcm-formula-provenance";
 import { buildTcmKnowledgeContext } from "./tcm-knowledge";
 import { sanitizeCustomerEvidenceDocument, sanitizeInlineEvidenceClaims, sanitizeLabeledEvidenceLines } from "./customer-evidence";
 import { buildEvidenceScope, medicineEvidenceBindingValid, medicineProblemMatchesCase, sanitizeEvidenceObject, sourceAllowed, sourceSupportsMedicine, type EvidenceScope } from "./evidence-source-validation";
-import { buildTcmFormulaIndicationContext, buildTcmFormulaReasoningContext } from "./tcm-formula-indications";
 import { buildLocalPatentMedicineContext } from "./local-patent-medicine-candidates";
-import { diagnoseReasoningFromState } from "./diagnosis-parse";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
 
@@ -21,22 +18,15 @@ const BASELINE_OFFICIAL_EVIDENCE = [
 export async function buildCdssEvidenceContext(
   caseState: CaseState,
   stage: EvidenceStage,
-  /**
-   * 口语→标准中医术语的检索查询，由服务端路由计算后传入（见 formula-recall-normalization.server）。
-   * 只参与候选召回，不进入病历事实、不呈现给医生。本模块被广泛引用，因此不直接依赖 server-only 模块。
-   */
-  formulaRecallHint = "",
-  /** 口语否定增补集（polarity-negation-assist.server），只作用于证据类 scope。 */
-  assistedNegations?: AssistedNegationClauses,
 ): Promise<string> {
   const localContext = buildTcmKnowledgeContext(caseState, stage);
   const externalEvidenceContext = await buildExternalEvidenceContext(caseState, stage);
   const formulaProvenanceContext = stage === "prescribe" ? buildFormulaProvenanceContext(caseState) : "";
-  const formulaIndicationContext = stage === "diagnose"
-    ? buildTcmFormulaIndicationContext(caseState, 5, formulaRecallHint, assistedNegations)
-    : stage === "prescribe"
-      ? buildTcmFormulaReasoningContext(diagnoseReasoningFromState(caseState))
-      : "";
+  // 方剂检索段由阶段提示词自己拼（buildDiagnosePrompt / buildPrescribePrompt），这里不再重复。
+  // 曾经两处各拼一份，而提示词那份**不带 recallHint**：口语主诉下它返回「未命中受控经典方主治索引，
+  // 必须说明未采用经典方」，随后证据段又附上 5 个候选——模型先读到前者，口语召回改写层被自己的
+  // 提示词抵消，结论降级为自拟方。同一段内容出现两次且指令相反，是这条链路上最难查的一类缺陷。
+  const formulaIndicationContext = "";
   const localPatentMedicineContext = stage === "prescribe"
     ? buildLocalPatentMedicineContext(caseState)
     : "";
