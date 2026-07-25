@@ -68,6 +68,28 @@ assert.ok(heartSpleenCandidates.find((item) => item.name === "归脾汤")?.match
 assert.match(buildTcmFormulaIndicationContext(heartSpleenCase), /归脾汤[\s\S]*T1\/T3\/T4关联索引：经核验证候:心脾两虚/);
 assert.doesNotMatch(buildTcmFormulaIndicationContext(heartSpleenCase), /关联索引：[^\n]*自动推荐/, "standard-term relations remain retrieval evidence rather than an automatic formula verdict");
 
+// 主治原文倒排索引：概念表（39 条正则）覆盖不到的常见主诉必须仍能召回受控方剂。
+// 这些病例在接入索引前全部返回「未命中受控经典方主治索引」＝零候选，医生一个方也拿不到。
+for (const [complaint, expected] of [
+  ["腰痛3个月，遇冷加重，腰膝酸软", "右归丸"],
+  ["耳鸣2个月，夜间明显，头晕", "耳聋左慈丸"],
+  ["双膝关节疼痛，遇寒加重，屈伸不利", "桂枝芍药知母汤"],
+  ["双下肢水肿1个月，小便不利", "五苓散"],
+]) {
+  const recalled = retrieveTcmFormulaIndicationCandidates(formulaCase(complaint), 6);
+  assert.ok(recalled.length > 0, `主治原文索引必须为「${complaint}」召回受控方剂，而不是零候选`);
+  assert.ok(
+    recalled.some((item) => item.name === expected),
+    `「${complaint}」应召回 ${expected}，实际：${recalled.map((item) => item.name).join("、")}`,
+  );
+}
+// 扩召回不得破坏极性：否定式主诉仍然一个方都不给。
+assert.deepEqual(
+  retrieveTcmFormulaIndicationCandidates(formulaCase("否认腰痛、耳鸣、水肿，二便调")),
+  [],
+  "negated findings must not be recalled through the indication-term index either",
+);
+
 const postM03Reasoning = {
   overview: {
     primarySyndrome: "思虑伤脾证",

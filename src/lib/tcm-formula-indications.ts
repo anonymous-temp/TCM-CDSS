@@ -136,6 +136,82 @@ function indexedEntries(ids: Iterable<string>): FormulaIndicationEntry[] {
   });
 }
 
+/**
+ * 主治原文倒排索引：让检索直接使用受控目录自带的主治文本，而不是只走 39 条手写概念正则。
+ *
+ * 此前 pre-generation 短名单的全部临床词汇就是 tcm-formula-retrieval-concepts 的 39 条正则，
+ * 命中不到就返回「未命中受控经典方主治索引」，模型一个方也拿不到。实测腰痛、耳鸣、水肿、消渴、
+ * 关节痛这些门诊常见主诉全部为零候选——但这 500 个方剂**每一条都带主治原文**，其中
+ * 腰痛命中五子衍宗丸/青娥丸、水肿命中五苓散/济生肾气丸、消渴命中金匮肾气丸。数据一直都在，
+ * 只是被概念层挡掉了。概念表永远穷举不完临床用语，所以召回不能只挂在它上面。
+ *
+ * 词条来自主治原文本身（已是受控临床用语），不是从病历自由文本里切词，避免切出无意义片段。
+ * 文档频率加权：出现在大量方剂里的词（如"不足""无力"）几乎没有鉴别力，权重随 df 衰减；
+ * 覆盖面超过 COMMON_TERM_DF_RATIO 的词直接不进索引。
+ */
+const INDICATION_TERM_MIN_LENGTH = 2;
+const INDICATION_TERM_MAX_LENGTH = 4;
+/** 出现在超过这一比例方剂主治里的词没有鉴别力，不建索引。 */
+const COMMON_TERM_DF_RATIO = 0.08;
+const CJK_RUN = /[一-龥]{2,}/g;
+
+function indicationTerms(text: string): string[] {
+  const terms: string[] = [];
+  for (const run of text.match(CJK_RUN) || []) {
+    for (let size = INDICATION_TERM_MIN_LENGTH; size <= INDICATION_TERM_MAX_LENGTH; size += 1) {
+      for (let start = 0; start + size <= run.length; start += 1) {
+        terms.push(run.slice(start, start + size));
+      }
+    }
+  }
+  return terms;
+}
+
+const INDICATION_TERM_INDEX: ReadonlyMap<string, { ids: ReadonlySet<string>; weight: number }> = (() => {
+  const byTerm = new Map<string, Set<string>>();
+  for (const entry of ENTRIES) {
+    const text = (entry.indications || []).join("；");
+    if (!text) continue;
+    for (const term of new Set(indicationTerms(text))) {
+      const bucket = byTerm.get(term);
+      if (bucket) bucket.add(entry.id);
+      else byTerm.set(term, new Set([entry.id]));
+    }
+  }
+  const total = Math.max(1, ENTRIES.length);
+  const index = new Map<string, { ids: ReadonlySet<string>; weight: number }>();
+  for (const [term, ids] of byTerm) {
+    const df = ids.size / total;
+    if (df > COMMON_TERM_DF_RATIO) continue;
+    // 越少见、越长的主治词鉴别力越强；权重压在 0.4–2.0，使其与概念权重（1–2）同量级，
+    // 既能独立把零候选病例拉起来，又不会淹没已命中的受控概念。
+    const rarity = Math.log(total / Math.max(1, ids.size)) / Math.log(total);
+    const lengthBoost = Math.min(1, (term.length - 1) / 3);
+    index.set(term, { ids, weight: Math.min(2, 0.4 + rarity * 1.2 + lengthBoost * 0.4) });
+  }
+  return index;
+})();
+
+/** 病历阳性事实命中的主治词 → 方剂加权得分。词条来自受控主治原文，模型与自由文本都不参与。 */
+function indicationTermMatches(facts: readonly string[]): Map<string, { score: number; terms: string[] }> {
+  const merged = facts.join("；");
+  const hits = new Map<string, { score: number; terms: string[] }>();
+  if (!merged) return hits;
+  for (const [term, { ids, weight }] of INDICATION_TERM_INDEX) {
+    if (!merged.includes(term)) continue;
+    for (const id of ids) {
+      const current = hits.get(id);
+      if (current) {
+        current.score += weight;
+        current.terms.push(term);
+      } else {
+        hits.set(id, { score: weight, terms: [term] });
+      }
+    }
+  }
+  return hits;
+}
+
 function positiveCaseFacts(caseState: CaseState): string[] {
   const symptomText = Object.entries(caseState.symptoms || {})
     .map(([key, value]) => {
@@ -163,7 +239,14 @@ export function retrieveTcmFormulaIndicationCandidates(
   const facts = positiveCaseFacts(caseState);
   if (facts.length === 0) return [];
   const caseConcepts = CLINICAL_CONCEPTS.filter((concept) => facts.some((fact) => concept.patient.test(fact)));
-  const candidates = indexedEntries(caseConcepts.flatMap((concept) => RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []));
+  // 概念索引与主治原文倒排索引取并集：概念表覆盖不到的临床用语（腰痛、耳鸣、水肿、消渴…）
+  // 由方剂自带的主治文本直接召回。这是纯召回扩展——身份锁仍在下游独立校验主证候关联，
+  // 多召回一个候选不会让任何方剂绕过锁。
+  const termHits = indicationTermMatches(facts);
+  const candidates = indexedEntries([
+    ...caseConcepts.flatMap((concept) => RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []),
+    ...termHits.keys(),
+  ]);
   return candidates.map((entry) => {
     const indicationText = entry.indications.join("；");
     const matched = caseConcepts.filter((concept) =>
@@ -187,11 +270,15 @@ export function retrieveTcmFormulaIndicationCandidates(
     // admission (>=2), so no formula whose symptom evidence was too weak to qualify is admitted,
     // and no formula is hidden.
     const lockEligible = entry.syndromeTags.length > 0;
-    const score = rawConceptScore * focusMultiplier +
+    const termHit = termHits.get(entry.id);
+    const score = rawConceptScore * focusMultiplier + (termHit?.score || 0) +
       (entry.catalog === "verified_reference_catalog" ? 0.25 : 0);
     return {
       ...entry,
       matchedConcepts: matched.map((concept) => concept.key),
+      matchedIndicationTerms: [...new Set(termHit?.terms || [])]
+        .sort((left, right) => right.length - left.length)
+        .slice(0, 4),
       matchedPatientFacts: [...new Set(matchedPatientFacts)].slice(0, 3),
       score,
       lockEligible,
