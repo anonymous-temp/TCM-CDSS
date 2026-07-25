@@ -1,4 +1,5 @@
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { resolveAcupoint } from "./tcm-acupoints";
 import {
   TCM_TREATMENT_PROJECTS,
   getTcmTreatmentProjectDefinition,
@@ -101,6 +102,24 @@ const INDICATION_LABEL: Record<TcmTreatmentIndicationTag, string> = {
   anorectal: "肛肠局部症状",
 };
 
+/**
+ * 用 T12 穴位目录（《经络腧穴学》399 穴：361 经穴 + 印堂 + 37 奇穴）标注模板穴位。
+ *
+ * 目录建好后一直只被测试脚本 import——医生看到的仍是模板里的裸穴名字符串，
+ * 400 穴的定位/归经/国标代码一条都没到达界面。这里内联标注经络与代码：
+ *   「神门」→「神门（HT7·手少阴心经）」
+ * 用现有 string[] 契约，不改类型、不改 UI；**核验不到的穴名保持原样**，
+ * 于是「哪些是受控穴位、哪些只是模板里的自由文本」在界面上一眼可分——
+ * 这比统一加个好看的标签更有用，也不会把未核验项伪装成已核验。
+ * executable=false 的项目边界不变：这里只补证据标注，不产生可执行指令。
+ */
+function annotateGovernedAcupoint(site: string): string {
+  const entry = resolveAcupoint(site);
+  if (!entry) return site;
+  const meridian = entry.meridian && entry.meridian !== entry.name ? `·${entry.meridian}` : "";
+  return `${site}（${entry.code}${meridian}）`;
+}
+
 function dominantIndicationTag(
   projectCode: TcmTreatmentProjectCode,
   tags: ReadonlySet<TcmTreatmentIndicationTag>,
@@ -126,7 +145,7 @@ function controlledTreatmentPlan(
   if (governedTemplate) {
     return {
       treatmentContent: `本例适用标准项目方案，围绕${indication}与“${targetPathogenesis}”由现场医师复核后实施。`,
-      suggestedSitesOrPoints: [...governedTemplate.sitesOrPoints],
+      suggestedSitesOrPoints: governedTemplate.sitesOrPoints.map(annotateGovernedAcupoint),
       scheduleSuggestion: governedTemplate.scheduleSuggestion,
       techniqueBoundary: governedTemplate.techniqueBoundary,
       protocolSource: governedTemplate.sourceRefs.join("、"),

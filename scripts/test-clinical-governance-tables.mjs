@@ -131,6 +131,31 @@ for (const summary of [formulas.summary, formulaRetrievalIndex.summary]) {
 }
 assert.ok(formulas.summary.curatedSyndromeFormulaRelationCount >= HIGH_FREQUENCY_SYNDROME_FLOOR);
 
+// ─── 项目补充方压过 SZJG 官方标准的已知清单（不得扩大） ───
+// 文档写明出处优先级 official_classic > SZJG 官方标准 > 项目补充，但 governed 目录按插入顺序占名，
+// 项目补充先写入，SZJG 循环的 `if name in governed: continue` 会把官方标准整条丢掉。
+// 实测被遮蔽的有 4 首，其中 2 首组成有实质差异、有临床后果：
+//   归脾汤——目录用《济生》8 味原版，缺当归、远志；SZJG 是薛己 10 味版；
+//   逍遥散——目录用 6 味版，缺煨姜、薄荷。
+// 另 2 首（酸枣仁汤、附子汤）两版组成基本一致，只是出处标签不同，暂无临床影响。
+// **暂不修**：修governed 目录这一侧会让 resolveFormulaSources（读的是另一套
+// tcm-formula-sources.json，其候选池根本不含 SZJG 标准方）继续返回旧版本，
+// 造成「M04 按 10 味编译、界面标 8 味出处」的分裂；而把 SZJG 变体加进那个候选池，
+// 又会与本地工作簿的历史变体近分竞争，触发 bestFormulaSourceCandidate 的
+// 「不同组成近分则拒绝归典」守卫，把几百首原本能归典的方变成零出处。
+// 真正的修法是统一这两套出处目录，属于独立改造。这条断言的作用是**冻结现状**：
+// 名单不得扩大，新增任何一首都说明优先级又被绕过了。
+const KNOWN_SUPPLEMENT_OVER_STANDARD = ["归脾汤", "逍遥散", "酸枣仁汤", "附子汤"];
+const szjgStandard = readJson("szjg-tcm-formula-standard.json");
+const szjgNames = new Set(szjgStandard.entries.map((entry) => entry.name.replace(/\s/g, "")));
+const shadowedStandards = formulas.entries
+  .filter((entry) => entry.sourceClass === "verified_reference_catalog")
+  .filter((entry) => szjgNames.has(entry.name.replace(/\s/g, "")))
+  .map((entry) => entry.name)
+  .sort();
+assert.deepEqual(shadowedStandards, [...KNOWN_SUPPLEMENT_OVER_STANDARD].sort(),
+  `项目补充方压过同名 SZJG 官方标准的清单不得扩大，实际：${shadowedStandards.join("、")}`);
+
 // ─── 按方裁定的药味身份必须逐条落地，且只影响被裁定的那一首方 ───
 // 赤芍与白芍功效方向相反（清热凉血 vs 养血敛阴）。古方只写「芍药」时品种由该方原书决定，
 // 不能全局归一——同一个「芍药」在桂枝汤系里是白芍、在排脓散里是赤芍（王子接注「芍药用赤」）。

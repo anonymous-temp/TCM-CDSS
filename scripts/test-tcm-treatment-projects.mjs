@@ -854,7 +854,15 @@ try {
       assert.ok(recommendation.treatmentContent.length > 20);
       assert.ok(recommendation.techniqueBoundary.length > 10);
     }
+    // 穴名后内联标注 T12 目录的国标代码与归经（神门→神门（HT7·手少阴心经）），
+    // 让 399 穴目录真正到达医生界面；核验不到的穴名保持裸名，二者一眼可分。
     assert.match(digestive.suggestedSitesOrPoints.join("；"), /中脘.*天枢.*足三里/);
+    assert.match(digestive.suggestedSitesOrPoints.join("；"), /中脘（(?:RN|CV)12/,
+      "受控穴位必须带国标代码标注，否则 399 穴目录仍未到达医生");
+    assert.ok(
+      digestive.suggestedSitesOrPoints.some((site) => /（[A-Z]{2}\d+/.test(site)),
+      `至少一个穴位应被 T12 目录核验并标注：${digestive.suggestedSitesOrPoints.join("、")}`,
+    );
     assert.match(digestive.scheduleSuggestion, /每日1次/);
     assert.equal(digestive.protocolStatus, "governed_patient_specific_plan");
     assert.equal(digestive.executable, false);
