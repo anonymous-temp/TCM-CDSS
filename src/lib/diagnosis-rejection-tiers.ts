@@ -79,3 +79,41 @@ export function qualityAnnotationTier(reason: string): "T2" | "T3" | undefined {
   const tier = rejectionTier(reason);
   return tier === "T1" ? undefined : tier;
 }
+
+/**
+ * 医生可见的质量批注（M03-06：临床语言，不得出现原因代码或工程术语）。
+ *
+ * 受理的含义是「结论本身成立、可用，但某一处说明不够完整」，因此批注必须让医生知道
+ * 该复核哪一层，而不是把内部原因码翻译一遍。
+ */
+export function qualityAnnotationCopy(reason: string): string | undefined {
+  const tier = qualityAnnotationTier(reason);
+  if (!tier) return undefined;
+  return tier === "T2"
+    ? "本次辨证结论已形成并通过安全核验；其中部分支撑说明或鉴别分析仍不够完整，请医生结合病历复核后使用。"
+    : "本次辨证结论已形成并通过安全核验；个别表述存在重复或不够精炼，不影响结论本身，请医生按需调整。";
+}
+
+/**
+ * 「带批注受理」的最终判定。
+ *
+ * 三个条件必须同时成立，缺一即维持今天的 fail-closed 行为：
+ *  1. 拒绝原因是 T2/T3——T1 永远不受理（default-deny，未知码一律 T1）。
+ *  2. safetyIssue 为 undefined——调用方必须传入 m03SafetyContractIssue 的完整结果。
+ *     这一条不能省：m03SemanticIssue 命中第一个问题就短路返回，拿到一个 T3 码只证明
+ *     排在它前面的检查通过了，后面的 T1 检查根本没执行，必须完整重跑 T1 子集。
+ *  3. 草稿足够完整——受理一份空壳对医生毫无价值，只会把「无结论」包装成「有结论」。
+ *
+ * safetyIssue 缺省为 "safety_gate_not_evaluated"：漏传即判定为不可受理，fail-closed。
+ */
+export function shouldAcceptWithQualityAnnotation(input: {
+  rejectionReason: string;
+  safetyIssue?: string;
+  visibleDraftLength: number;
+  minimumDraftLength?: number;
+}): boolean {
+  const safetyIssue = input.safetyIssue === undefined ? "safety_gate_not_evaluated" : input.safetyIssue;
+  if (safetyIssue) return false;
+  if (!qualityAnnotationTier(input.rejectionReason)) return false;
+  return input.visibleDraftLength >= (input.minimumDraftLength ?? 80);
+}

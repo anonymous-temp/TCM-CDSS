@@ -108,9 +108,9 @@ for (const item of hinted) {
 }
 // 提示不得凭空造出候选：受控主治语料里不存在的术语一个方也召不回。
 assert.deepEqual(
-  retrieveTcmFormulaIndicationCandidates(formulaCase("周身不适"), 4, "赛博朋克证、量子虚劳"),
+  retrieveTcmFormulaIndicationCandidates(formulaCase("周身不适"), 4, "泽维尔、克罗诺斯"),
   [],
-  "受控语料外的术语不得召回任何方剂",
+  "受控语料外的术语不得召回任何方剂（注意：测试用词不得含任何真实中医术语子串，如「虚劳」「综合征」）",
 );
 
 const postM03Reasoning = {
