@@ -12,8 +12,9 @@
 import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isDeepseekModel } from "@/lib/text-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
+import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isStableM03Reasoning, m03ChainNodeDiagnostics, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isStableM03Reasoning, m03ChainNodeDiagnostics, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -772,6 +773,27 @@ function wrapStructuredJsonObject(
   return stage === "diagnose"
     ? wrapDiagnoseJsonObject(content, stage)
     : wrapPrescribeJsonObject(content, stage, prior, caseState, trustedMedicineCandidates);
+}
+
+/**
+ * 从已累积内容里取出 M03 结构化对象（不做完整合同校验）。
+ *
+ * Tier-2 带批注受理需要在「合同已否决」的前提下仍拿到对象，交给 m03SafetyContractIssue 重跑 T1 子集；
+ * validatedStructuredReasoning 在这种场景下必然返回 undefined，因此不能复用它。
+ * 解析失败一律返回 undefined —— 拿不到对象就无法证明 T1 通过，只能维持 fail-closed。
+ */
+function m03ReasoningFromStructuredContent(content: string): ReturnType<typeof normalizeReasoningV2> | undefined {
+  const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
+  const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
+  const start = content.lastIndexOf(startMarker);
+  const end = start >= 0 ? content.indexOf(endMarker, start + startMarker.length) : -1;
+  if (start < 0 || end < 0) return undefined;
+  try {
+    const reasoning = normalizeReasoningV2(JSON.parse(content.slice(start + startMarker.length, end).trim()));
+    return reasoning && reasoning.stage === "diagnose" ? reasoning : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function structuredRejectionReason(
@@ -3365,8 +3387,45 @@ async function callPrimaryTextModelStream(
             /semantic_review/.test(m03DiagnosticReviewReason) &&
             m03SalvageContractPassed &&
             incompleteM03VisibleDraft(accumulatedContent).length >= 80;
+          // Tier-2/3 带批注受理。与上面的 semantic-review salvage 平行、且互斥：
+          // 那一条处理「独立复核否决但确定性合同整体通过」；这一条处理「确定性合同因非安全项否决」。
+          //
+          // 为什么必须重跑 m03SafetyContractIssue 而不能只看拒绝码：m03SemanticIssue 命中第一个问题
+          // 就短路返回，拿到一个 T3 码只证明排在它前面的检查通过了，后面的 T1 检查根本没执行。
+          // shouldAcceptWithQualityAnnotation 在 safetyIssue 未传入时缺省判为不可受理，双重 fail-closed。
+          const m03TierAcceptance = ((): { reason: string; annotation: string } | undefined => {
+            if (opts.structuredStage !== "diagnose") return undefined;
+            // 只在「确定性合同否决」这一条路径上受理；其余终态分支各自的语义保持不变。
+            if (clinicalReviewUnavailableFallback || m03SemanticReviewSalvage || authoritativeFallbackAccepted) return undefined;
+            if (!(truncated || !transformed.ok)) return undefined;
+            // 独立复核明确否决过的结果不走本路径——那属于 semantic-review salvage 的判断范围。
+            if (m03DiagnosticReviewStatus !== "accepted") return undefined;
+            const reasoning = m03ReasoningFromStructuredContent(accumulatedContent);
+            if (!reasoning) return undefined;
+            const rejectionReason = structuredRejectionReason(
+              accumulatedContent,
+              "diagnose",
+              finishReason,
+              opts.structuredClinicalContext,
+              opts.structuredPriorReasoning,
+            );
+            const safetyIssue = m03SafetyContractIssue(
+              reasoning,
+              opts.structuredClinicalContext,
+              isSafetyRejection,
+            ) || "";
+            if (!shouldAcceptWithQualityAnnotation({
+              rejectionReason,
+              safetyIssue,
+              visibleDraftLength: incompleteM03VisibleDraft(accumulatedContent).length,
+            })) return undefined;
+            const annotation = qualityAnnotationCopy(rejectionReason);
+            return annotation ? { reason: rejectionReason, annotation } : undefined;
+          })();
           enqueueClient(clinicalReviewUnavailableFallback
             ? `${STREAM_REPLACE_MARKER}${transformed.content}`
+            : m03TierAcceptance
+            ? `${STREAM_REPLACE_MARKER}${m03TierAcceptance.annotation}\n\n${incompleteM03VisibleDraft(accumulatedContent)}\n`
             : m03SemanticReviewSalvage
             ? `${STREAM_REPLACE_MARKER}${visibleIncompleteContent(transformed.content, "semantic_review")}\n\n[TRUNCATED]\n`
             : authoritativeFallbackAccepted
@@ -3376,6 +3435,8 @@ async function callPrimaryTextModelStream(
               : `${STREAM_REPLACE_MARKER}${signedContent}`);
           stageOutcome = clinicalReviewUnavailableFallback
             ? "fallback"
+            : m03TierAcceptance
+            ? "repaired"
             : m03SemanticReviewSalvage
             ? "fallback"
             : authoritativeFallbackAccepted
@@ -3385,6 +3446,8 @@ async function callPrimaryTextModelStream(
               : structuredRetryCount > 0 ? "repaired" : "success";
           stageReasonCode = clinicalReviewUnavailableFallback
             ? "clinical_review_unavailable"
+            : m03TierAcceptance
+            ? `quality_annotated_${m03TierAcceptance.reason}`
             : authoritativeFallbackAccepted
             ? m03SignedLimitedFallbackReasonCode({
                 deadlineExceeded: m03DeadlineExceeded,

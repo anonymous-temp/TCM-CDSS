@@ -25,6 +25,34 @@ assert.match(
   /不得逐项串联、换标点复制 supportingFacts/,
   "the bounded M03 repair tells the live model how to escape Western-rationale restatement",
 );
+// Tier-2 带批注受理的接线不变量。判定逻辑本身在 test:rejection-tiers 里以纯函数验证；
+// 这里守住「接线」——即它在终态分支中的位置与门控，改错任何一条都会让受理路径变得不安全。
+assert.match(
+  diagnosisApiSource,
+  /m03TierAcceptance[\s\S]{0,1200}?m03SafetyContractIssue\([\s\S]{0,300}?isSafetyRejection/,
+  "受理判定必须重跑 m03SafetyContractIssue 并注入 isSafetyRejection——只看拒绝码会漏掉短路后未执行的 T1 检查",
+);
+assert.match(
+  diagnosisApiSource,
+  /m03TierAcceptance = \(\(\)[\s\S]{0,400}?if \(clinicalReviewUnavailableFallback \|\| m03SemanticReviewSalvage \|\| authoritativeFallbackAccepted\) return undefined;/,
+  "受理必须与其余终态分支互斥，不得截断 clinical_review_unavailable / semantic-review salvage / 授权兜底",
+);
+assert.match(
+  diagnosisApiSource,
+  /m03TierAcceptance[\s\S]{0,900}?if \(m03DiagnosticReviewStatus !== "accepted"\) return undefined;/,
+  "独立复核未接受的结果不得走带批注受理——那属于 semantic-review salvage 的判断范围",
+);
+assert.match(
+  diagnosisApiSource,
+  /: m03TierAcceptance\s*\n\s*\? `\$\{STREAM_REPLACE_MARKER\}\$\{m03TierAcceptance\.annotation\}/,
+  "受理时必须把医生可读批注前置到可见正文",
+);
+assert.match(
+  diagnosisApiSource,
+  /function m03ReasoningFromStructuredContent[\s\S]{0,900}?catch \{\s*\n\s*return undefined;/,
+  "结构化对象解析失败必须返回 undefined —— 拿不到对象就无法证明 T1 通过，只能 fail-closed",
+);
+
 assert.match(
   diagnosisApiSource,
   /const retryableStructuredTerminal = finishReason === "stop" \|\| finishReason === "length";[\s\S]*structuredSentinelIncomplete && retryableStructuredTerminal/,
