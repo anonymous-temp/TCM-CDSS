@@ -106,4 +106,30 @@ for (const hypothesis of singleAxis) {
   assert.ok(hypothesis.matchedAxes >= 2, `单轴命中不得成为假设：${hypothesis.canonical}`);
 }
 
+
+// ─── 零字面证据的候选不得领衔，也不得靠泛证候蒙进来 ───
+// 证候假设分计入准入分是对的（轴一致本就是检索证据），但粗粒度证候会击穿它：
+// 「肾虚」只有 kidney+deficiency 两条轴、挂 33 首方，任何「夜尿多」类输入都能以覆盖度 1.0
+// 拿到 2 分、加权后 6 分，在一个主治词都没命中的情况下把方送上首位。
+// 实测反例：「遇热加重，夜尿多」曾让崔氏八味丸（含肉桂附子的温阳方）零字面命中居首——
+// 热象输入拿到温阳方，正是本层声称要防的那类方向错误。
+const litmus = retrieveTcmFormulaIndicationCandidates(
+  formulaCase("腰痛3个月，遇冷加重，腰膝酸软"), 8);
+const firstWithoutLiteral = litmus.findIndex((item) => !item.hasLiteralEvidence);
+const lastWithLiteral = litmus.map((item) => Boolean(item.hasLiteralEvidence)).lastIndexOf(true);
+if (firstWithoutLiteral >= 0 && lastWithLiteral >= 0) {
+  assert.ok(firstWithoutLiteral > lastWithLiteral,
+    `有字面证据的候选必须全部排在纯证候假设候选之前，实际顺序：${litmus.map((i) => `${i.name}${i.hasLiteralEvidence ? "(词)" : "(假设)"}`).join("、")}`);
+}
+assert.ok(litmus[0]?.hasLiteralEvidence,
+  `存在字面证据候选时，首位不得是纯证候假设：${litmus[0]?.name}`);
+
+// 纯假设候选必须来自足够特异的证候（命中轴 ≥3），不能靠 2 轴泛证候入场。
+const { syndromeHypothesesFromAffirmedText: hyp } = await import("../src/lib/tcm-syndrome-hypothesis.ts");
+for (const candidate of litmus.filter((item) => !item.hasLiteralEvidence)) {
+  assert.ok(candidate.evidenceScore >= 2, `准入分必须真的过线：${candidate.name}`);
+}
+assert.ok(hyp(["腰膝酸软", "遇冷加重"]).some((h) => h.matchedAxes >= 3),
+  "该病例应存在命中轴 ≥3 的特异假设，否则纯假设候选不该出现");
+
 console.log(JSON.stringify({ directionCases: DIRECTION_CASES.length, failures: 0 }));

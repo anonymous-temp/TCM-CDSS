@@ -35,6 +35,8 @@ export type FormulaIndicationCandidate = FormulaIndicationEntry & {
   score: number;
   /** 准入分：只含检索证据本身，不含治理加权。候选准入只看这个，治理裁定不得充当入场券。 */
   evidenceScore: number;
+  /** 是否有字面证据（概念或主治词命中）。为 false 表示该候选完全由证候假设带入。 */
+  hasLiteralEvidence?: boolean;
   directPrimarySyndromeMatch?: boolean;
   positiveSufficiency?: boolean;
   positiveSufficiencyBasis?: string;
@@ -174,6 +176,21 @@ const COMMON_TERM_DF_RATIO = 0.08;
  */
 const SYNDROME_PATH_WEIGHT = 3.0;
 const SYNDROME_PATH_FORMULAS_PER_HYPOTHESIS = 6;
+/**
+ * 「零字面证据准入」的特异性门槛。
+ *
+ * 证候假设分计入准入分（evidenceScore ≥ 2）本身是对的——轴一致本来就是检索证据。
+ * 但粗粒度证候会击穿它：「肾虚」只有 kidney+deficiency 两条轴、挂 33 首方，任何「夜尿多」类
+ * 输入都能以覆盖度 1.0 拿到 2 分、加权后 6 分，于是在**一个主治词都没命中**的情况下把方送上首位。
+ * 实测反例：「遇热加重，夜尿多」→ 首位崔氏八味丸（肾气丸，含肉桂附子），词面与概念命中均为空——
+ * 热象输入拿到温阳方居首，正是本层声称要防的那类方向错误。
+ *
+ * 因此：候选**若完全没有字面证据**（概念与主治词都没命中），其证候假设必须足够特异
+ * （命中轴数 ≥ 3）才准入。有字面证据的候选不受此限，假设照常加权排序。
+ * 这不是把假设路关掉——它仍能把「睡不着觉、老忘事、心里发慌」这类口语病例带回归脾汤
+ * （心脾气虚命中 4 轴）；被挡掉的只有靠一个泛证候蒙进来的。
+ */
+const SYNDROME_PATH_SOLE_ADMISSION_MIN_AXES = 3;
 /** 只有挂得上方的证候才值得当检索假设——受控词表 2050 条里仅 497 条有方。 */
 const FORMULA_REACHABLE_SYNDROME_IDS: ReadonlySet<string> = new Set(Object.keys(RETRIEVAL_INDEX.syndromeToFormulaIds || {}));
 
@@ -295,10 +312,13 @@ export function retrieveTcmFormulaIndicationCandidates(
   const syndromeHypotheses = syndromeHypothesesFromAffirmedText(
     recallFacts, undefined, FORMULA_REACHABLE_SYNDROME_IDS);
   const hypothesisScoreByFormulaId = new Map<string, number>();
+  /** 每首方所命中假设里最特异的那条的轴数，用于「零字面证据准入」门槛。 */
+  const hypothesisAxesByFormulaId = new Map<string, number>();
   for (const hypothesis of syndromeHypotheses) {
     // 每个假设只取前若干首，防止「风寒」这类挂了 58 首的粗粒度证候一次灌满候选池。
     for (const id of (RETRIEVAL_INDEX.syndromeToFormulaIds[hypothesis.syndromeId] || []).slice(0, SYNDROME_PATH_FORMULAS_PER_HYPOTHESIS)) {
       hypothesisScoreByFormulaId.set(id, Math.max(hypothesisScoreByFormulaId.get(id) || 0, hypothesis.score));
+      hypothesisAxesByFormulaId.set(id, Math.max(hypothesisAxesByFormulaId.get(id) || 0, hypothesis.matchedAxes));
     }
   }
   const candidates = indexedEntries([
@@ -355,13 +375,18 @@ export function retrieveTcmFormulaIndicationCandidates(
     // 证候假设路的贡献计入**准入分**：它是真实的检索证据（本例的病位病性轴与该证候一致，
     // 且该证候与该方存在受控关系），不是与本例无关的常数加权——这一点与 curatedBoost 不同。
     const hypothesisScore = (hypothesisScoreByFormulaId.get(entry.id) || 0) * SYNDROME_PATH_WEIGHT;
+    // 字面证据 = 概念命中 + 主治词命中。两者皆无时，该候选完全由证候假设带进来。
+    const hasLiteralEvidence = rawConceptScore > 0 || (termHit?.score || 0) > 0;
+    const hypothesisSoleAdmissionAllowed = hasLiteralEvidence ||
+      (hypothesisAxesByFormulaId.get(entry.id) || 0) >= SYNDROME_PATH_SOLE_ADMISSION_MIN_AXES;
     const evidenceScore = (rawConceptScore * focusMultiplier + (termHit?.score || 0)) * coordinationFactor +
       hypothesisScore +
       (entry.catalog === "verified_reference_catalog" ? 0.25 : 0);
     const score = evidenceScore + curatedBoost;
     return {
       ...entry,
-      evidenceScore,
+      evidenceScore: hypothesisSoleAdmissionAllowed ? evidenceScore : 0,
+      hasLiteralEvidence,
       matchedConcepts: matched.map((concept) => concept.key),
       matchedIndicationTerms: [...new Set(termHit?.terms || [])]
         .sort((left, right) => right.length - left.length)
@@ -382,6 +407,12 @@ export function retrieveTcmFormulaIndicationCandidates(
     // in the list as differential references, they just no longer head it.
     .sort((left, right) =>
       Number(right.lockEligible) - Number(left.lockEligible) ||
+      // 有字面证据的排在纯证候假设之前。假设路是有价值的召回来源，但它比对的是「本例的轴与某证候
+      // 一致」，不是「本例的症状出现在该方主治里」——在存在真正命中主治的候选时，让一个
+      // 一个主治词都没命中的方去领衔模型的选择列表，是把推断摆到了证据前面。
+      // 实测：「遇热加重，夜尿多」下崔氏八味丸（温阳）零字面命中却居首。
+      // 纯假设候选仍然保留在列表里作鉴别参考，只是不再打头。
+      Number(right.hasLiteralEvidence) - Number(left.hasLiteralEvidence) ||
       right.score - left.score ||
       right.matchedConcepts.length - left.matchedConcepts.length ||
       left.name.localeCompare(right.name))

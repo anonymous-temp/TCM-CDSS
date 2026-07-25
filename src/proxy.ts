@@ -27,12 +27,22 @@ const MODEL_RATE_LIMIT_REQUESTS = (() => {
   const value = Number(process.env.CDSS_MODEL_RATE_LIMIT_PER_10_MIN || 60);
   return Number.isFinite(value) && value >= 10 && value <= 2_000 ? Math.round(value) : 60;
 })();
+// 判据是「这条路由会不会发起外部模型调用」，不是「它的主输出是否由模型生成」。
+// assess / red-flags / post-prescription-risk 的主输出确实是确定性的，但三者都先走
+// maybeAttachClinicalFactsBackstop（临床事实回补层），指纹未命中缓存时会发生 extract+review
+// (+adjudicate) 多次模型调用；post-prescription-risk 还会外呼灵犀审方。
+// 把它们移出白名单等于对这部分模型开销完全不限流——限流的目的是护住上游配额与成本，
+// 与「输出是否确定性」无关。
 const MODEL_API_PATHS = new Set([
   "/api/diagnosis/collect",
   "/api/diagnosis/question",
   "/api/diagnosis/question/interpret",
   "/api/diagnosis/diagnose",
   "/api/diagnosis/prescribe",
+  "/api/diagnosis/assess",
+  "/api/diagnosis/red-flags",
+  "/api/diagnosis/post-prescription-risk",
+  "/api/diagnosis/his-scheme",
 ]);
 
 type ApiAuthAttemptBucket = {

@@ -30,17 +30,20 @@ assert.ok(Number(limited.headers.get("retry-after")) > 0);
 assert.equal(limited.headers.get("x-ratelimit-limit"), "10");
 assert.equal(limited.headers.get("x-ratelimit-remaining"), "0");
 
+// 判据是**调用链会不会发起模型调用**，不是「主输出是否确定性」。这四条路由的主输出都确定性，
+// 但都先走 maybeAttachClinicalFactsBackstop（assess:31 / red-flags:21 /
+// post-prescription-risk:27 / his-scheme:52），指纹未命中缓存即产生模型调用，必须计入预算。
 for (const path of [
-  "/api/diagnosis/his-scheme",
   "/api/diagnosis/assess",
   "/api/diagnosis/red-flags",
   "/api/diagnosis/post-prescription-risk",
+  "/api/diagnosis/his-scheme",
 ]) {
-  const deterministicRoute = await proxy(request(path));
-  assert.notEqual(
-    deterministicRoute.status,
+  const modelInvokingRoute = await proxy(request(path));
+  assert.equal(
+    modelInvokingRoute.status,
     429,
-    `${path} does not consume the text-model invocation budget`,
+    `${path} 会经临床事实回补层发起模型调用，必须计入限流预算`,
   );
 }
 
