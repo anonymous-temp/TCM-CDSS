@@ -47,13 +47,14 @@ function formulasInText(text) {
 }
 
 const sha = (s) => createHash("sha256").update(s).digest("hex");
-// MIN_CHARS 是段落**合并的目标下限**，不是记录的准入门槛。原实现在收尾处写成
-// `if (buf.length >= MIN_CHARS) yield`，于是任何总长不足 200 字的 <篇名> 条目被整段丢弃：
+// 原来还有一个 MIN_CHARS=200：它本是段落**合并的目标下限**，却被当成记录准入门槛写在收尾处
+// （`if (buf.length >= MIN_CHARS) yield`），于是任何总长不足 200 字的 <篇名> 条目被整段丢弃：
 // 实测 144,161 个条目里丢了 72,747 个（50.5%，791 万字），其中 13,920 个条目的篇名本身就是方名，
 // 10,946 个条内含剂量原文。丢得最狠的恰恰是结构最规整、临床最可用的部分——
 // 名医别录 804 条丢 777 条(97%)、药性切用 737 丢 733(99%)、惠直堂经验方 971 丢 924(95%)。
 // 一条 80 字的本草药性条或单验方是**完整条目**，不是碎片，必须独立成记录。
-const MIN_CHARS = 200, MAX_CHARS = 600, OVERLAP = 60;
+// 合并上限由 MAX_CHARS 单独控制，不再需要下限常量。
+const MAX_CHARS = 600, OVERLAP = 60;
 const MIN_RECORD_CHARS = 24;
 const MIN_PARAGRAPH_CHARS = 16;
 

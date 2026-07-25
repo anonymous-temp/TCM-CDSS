@@ -104,10 +104,15 @@ assert.deepEqual(
 // 口语召回提示（formula-recall-normalization.server 的输出）只参与候选召回：
 // 口语主诉在受控主治语料里匹配不到术语，靠提示补齐；但提示绝不能变成患者事实。
 const colloquial = formulaCase("睡不着觉，老忘事，心里发慌");
-assert.deepEqual(
-  retrieveTcmFormulaIndicationCandidates(colloquial, 4),
-  [],
-  "口语主诉在无召回提示时命中不到受控主治语料（这正是该层存在的原因）",
+// 接入确定性证候假设层（L1a）之后，口语主诉**不再依赖模型**也能召回：症状词族先映射到
+// 病位/病性轴，再按轴一致性走「证候→方」索引。这条断言从「口语必然零候选」改成
+// 「口语必须能召回且方向正确」——前者曾是 recall 改写层存在的唯一理由，现在那层降级为增补：
+// flash 调用失败（fail-open）时口语病例不再掉到零候选。
+const colloquialWithoutHint = retrieveTcmFormulaIndicationCandidates(colloquial, 4);
+assert.ok(colloquialWithoutHint.length > 0, "口语主诉必须能被确定性证候假设层召回，不得依赖模型改写");
+assert.ok(
+  colloquialWithoutHint.some((item) => item.name === "归脾汤"),
+  `口语「睡不着觉、老忘事、心里发慌」应确定性召回归脾汤，实际：${colloquialWithoutHint.map((item) => item.name).join("、")}`,
 );
 const hinted = retrieveTcmFormulaIndicationCandidates(colloquial, 4, "失眠、健忘、心悸");
 assert.ok(hinted.length > 0, "召回提示必须能把口语主诉带回受控候选");

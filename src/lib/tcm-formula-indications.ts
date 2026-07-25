@@ -4,6 +4,7 @@ import retrievalIndexJson from "../data/tcm-formula-retrieval-index.json" with {
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, governedTcmTermLabelById } from "./clinical-governance-tables";
+import { syndromeHypothesesFromAffirmedText } from "./tcm-syndrome-hypothesis";
 
 type FormulaIndicationEntry = {
   id: string;
@@ -156,6 +157,26 @@ const INDICATION_TERM_MIN_LENGTH = 2;
 const INDICATION_TERM_MAX_LENGTH = 4;
 /** 出现在超过这一比例方剂主治里的词没有鉴别力，不建索引。 */
 const COMMON_TERM_DF_RATIO = 0.08;
+
+/**
+ * 证候假设路的权重与每假设取方上限。
+ * 权重定得与词面证据同量级：这一路本来就比字面重合更有鉴别力（它比对的是证候而非词），
+ * 压得太低等于白接；但也不能压过词面证据，否则一个宽泛证候假设就能盖过方证精确对应。
+ * 上限存在的理由：证候→方分布长尾且被粗词占据，「风寒」一个证候挂了 58 首，
+ * 不设限一次命中就灌满候选池。
+ *
+ * 权重 3.0 是在三个黄金病例上实测扫出来的拐点（1.6/3.0/4.5/6.0）：
+ *   1.6 太低——肝火病例完全不动，二至丸（肝肾阴虚，治疗方向相反）仍居首；
+ *   3.0 三例方向全对——归脾汤 #1、泻青丸+当归龙荟丸（清肝泻火）居前、桂枝汤 #1；
+ *   6.0 开始过冲——证候路压过词面证据，风寒例灌入消风百解散这类冷僻方。
+ * ★ 这是在三个病例上调出来的常数，样本很小，有过拟合风险。验收口径是**治疗方向是否正确**，
+ *   不是某一首方是否精确命中——这只是给模型推理用的短名单，不是最终答案。
+ */
+const SYNDROME_PATH_WEIGHT = 3.0;
+const SYNDROME_PATH_FORMULAS_PER_HYPOTHESIS = 6;
+/** 只有挂得上方的证候才值得当检索假设——受控词表 2050 条里仅 497 条有方。 */
+const FORMULA_REACHABLE_SYNDROME_IDS: ReadonlySet<string> = new Set(Object.keys(RETRIEVAL_INDEX.syndromeToFormulaIds || {}));
+
 const CJK_RUN = /[一-龥]{2,}/g;
 
 function indicationTerms(text: string): string[] {
@@ -200,17 +221,29 @@ function indicationTermMatches(facts: readonly string[]): Map<string, { score: n
   const merged = facts.join("；");
   const hits = new Map<string, { score: number; terms: string[] }>();
   if (!merged) return hits;
+  const termsById = new Map<string, { term: string; weight: number }[]>();
   for (const [term, { ids, weight }] of INDICATION_TERM_INDEX) {
     if (!merged.includes(term)) continue;
     for (const id of ids) {
-      const current = hits.get(id);
-      if (current) {
-        current.score += weight;
-        current.terms.push(term);
-      } else {
-        hits.set(id, { score: weight, terms: [term] });
-      }
+      const bucket = termsById.get(id);
+      if (bucket) bucket.push({ term, weight });
+      else termsById.set(id, [{ term, weight }]);
     }
+  }
+  // 只给**极大词**计分。索引词是主治原文的 2–4 字滑窗，一句「恶寒发热」会同时产出
+  // 恶寒/发热/恶寒发/寒发热/恶寒发热 五条，原实现对每条各加一次权重——一个短语按五条独立证据计。
+  // 实测后果：泛症状词多的方（二至丸命中口苦/失眠/多梦）拿到 18.6 分，而方证精确对应的
+  // 龙胆泻肝汤只有 4.8 分，词面分把证候路整个压死。
+  // 「被其他命中词包含的子串不计」这条规则本来就写在下面的协同度里，只是没用在基础分上——
+  // 同一个口径必须两处一致，否则协同度在纠正一件基础分正在制造的事。
+  for (const [id, matched] of termsById) {
+    const unique = [...new Map(matched.map((item) => [item.term, item])).values()];
+    const maximal = unique.filter((item) =>
+      !unique.some((other) => other.term !== item.term && other.term.includes(item.term)));
+    hits.set(id, {
+      score: maximal.reduce((total, item) => total + item.weight, 0),
+      terms: maximal.map((item) => item.term),
+    });
   }
   return hits;
 }
@@ -252,9 +285,26 @@ export function retrieveTcmFormulaIndicationCandidates(
   // 由方剂自带的主治文本直接召回。这是纯召回扩展——身份锁仍在下游独立校验主证候关联，
   // 多召回一个候选不会让任何方剂绕过锁。
   const termHits = indicationTermMatches(recallFacts);
+  // 第三路召回：证候假设（L1a，确定性，零模型）。
+  // 前两路都在比对**字面**——症状串对概念正则、症状串对主治原文。字面重合永远分不清
+  // 「失眠属心脾两虚」还是「失眠属肝火扰心」，因为区分它们的信息（便溏 vs 口苦目赤）是一个
+  // 证候判断而不是一个词。实测：肝火病例首位召回二至丸（肝肾阴虚，治疗方向相反），
+  // 只因二至丸主治里恰好同时出现口苦/失眠/多梦。
+  // 这一路把阳性事实映射到病位/病性轴，再按轴一致性取受控证候假设，走既有的
+  // syndromeToFormulaIds 索引。**纯并集**：本层无命中时结果与之前完全一致。
+  const syndromeHypotheses = syndromeHypothesesFromAffirmedText(
+    recallFacts, undefined, FORMULA_REACHABLE_SYNDROME_IDS);
+  const hypothesisScoreByFormulaId = new Map<string, number>();
+  for (const hypothesis of syndromeHypotheses) {
+    // 每个假设只取前若干首，防止「风寒」这类挂了 58 首的粗粒度证候一次灌满候选池。
+    for (const id of (RETRIEVAL_INDEX.syndromeToFormulaIds[hypothesis.syndromeId] || []).slice(0, SYNDROME_PATH_FORMULAS_PER_HYPOTHESIS)) {
+      hypothesisScoreByFormulaId.set(id, Math.max(hypothesisScoreByFormulaId.get(id) || 0, hypothesis.score));
+    }
+  }
   const candidates = indexedEntries([
     ...caseConcepts.flatMap((concept) => RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []),
     ...termHits.keys(),
+    ...hypothesisScoreByFormulaId.keys(),
   ]);
   return candidates.map((entry) => {
     const indicationText = entry.indications.join("；");
@@ -302,7 +352,11 @@ export function retrieveTcmFormulaIndicationCandidates(
     // 都能零证据入场。首批 241 条证型标签入库后立刻实测到：神应养真丹在「周身不适」下自身证据分
     // 1.31（低于准入线），加权后 3.31 进入候选。这与上方「score alone still gates admission」
     // 的既有不变式直接冲突，且量级会随治理进度增长——治理做得越多，噪声越多。
+    // 证候假设路的贡献计入**准入分**：它是真实的检索证据（本例的病位病性轴与该证候一致，
+    // 且该证候与该方存在受控关系），不是与本例无关的常数加权——这一点与 curatedBoost 不同。
+    const hypothesisScore = (hypothesisScoreByFormulaId.get(entry.id) || 0) * SYNDROME_PATH_WEIGHT;
     const evidenceScore = (rawConceptScore * focusMultiplier + (termHit?.score || 0)) * coordinationFactor +
+      hypothesisScore +
       (entry.catalog === "verified_reference_catalog" ? 0.25 : 0);
     const score = evidenceScore + curatedBoost;
     return {
