@@ -1103,7 +1103,9 @@ export function buildFormulaProvenanceContext(caseState: CaseState): string {
   const diagnose = caseState.reasoningDiagnose || (caseState.reasoningV2?.stage === "diagnose" ? caseState.reasoningV2 : undefined);
   const references = formulaCompilationReferences(diagnose?.overview?.recommendedFormulaNames || []);
   if (references.length === 0) {
-    return "## 本地方剂出处库\n已加载84,294条方剂资料；模型提出候选方名后由服务端二次匹配经典出处。若为自拟方，不得伪造原典，只能说明本例组方依据。";
+    // 不要在这里宣传方剂资料总量。出处库只负责给「已选定的方名」补出处，可被推荐的方剂仅限受控
+    // 检索目录；报出目录外的方名会在锁定阶段被剥离并降级为自拟方，宣传一个更大的库只会诱发该失败。
+    return "## 本地方剂出处库\n候选方名确定后，由服务端匹配经典出处；可选方剂以上文受控经典方候选为准。若为自拟方，不得伪造原典，只能说明本例组方依据。";
   }
   return [
     "## 本地方剂出处库",

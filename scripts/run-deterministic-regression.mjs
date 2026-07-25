@@ -18,6 +18,7 @@ const scripts = [
   "test:customer-evidence",
   "test:stage-contract",
   "test:repair-guidance",
+  "test:m04-dose-index",
   "test:stream-safety",
   "test:clinical-grounding",
   "test:clinical-entry",

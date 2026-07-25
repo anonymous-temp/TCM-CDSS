@@ -612,29 +612,36 @@ function formatCommonDoseIndex(): string {
     ];
     return flags.length > 0 ? `，生成前安全:${flags.join("/")}` : "";
   };
-  const common = data.commonHerbs.flatMap((item) => {
+  // 这份名单是以禁止性措辞下发给 M04 的，因此它必须等于代码实际执行的范围
+  // （doseWithinConservativeModelLimit 校验的是全部可解析剂量的饮片），不能是其中一个子集。
+  //
+  // 此前这里只遍历 data.commonHerbs——上游 tcm_curated_llm_candidates 的 99 行「待人工复核」
+  // 工作队列。后果实测：名单里同时出现马钱子/巴豆霜/斑蝥/朱砂/雄黄/蟾酥/轻粉/罂粟壳，却没有
+  // 黄芪/白术/茯苓/当归/龙眼肉；500 个受控方剂中只有 7 个全部药味在名单内，归脾汤 8 味缺 4 味。
+  // 模型若照此禁令执行，等于被要求用一份毒性药清单组方。
+  //
+  // 改为遍历全部饮片并保留 commonHerbs 的煎法/风险标注，名单与代码门禁一致；毒性与特殊人群提示
+  // 仍逐条附带，安全信息不减反增。
+  const curatedAnnotations = new Map(data.commonHerbs.map((item) => [item.name, item]));
+  const doseGoverned = data.herbs.flatMap((item) => {
     const limit = getTcmHerbDoseLimit(item.name);
     if (limit?.min == null || limit.max == null) return [];
+    const curated = curatedAnnotations.get(item.name);
     const dose = `${limit.min}-${limit.max}g`;
-    const method = item.methods?.length ? `，${item.methods.join("、")}` : "";
-    const risk = item.riskTags?.length ? `，${item.riskTags.join("、")}` : "";
+    const method = curated?.methods?.length ? `，${curated.methods.join("、")}` : "";
+    const risk = curated?.riskTags?.length ? `，${curated.riskTags.join("、")}` : "";
     const sourceConflict = limit.sourceConflict
       ? "，存在分用途剂量差异，模型采用保守主范围并交由审方按实际用途复核"
       : "";
     return [`${item.name}${dose}${method}${risk}${sourceConflict}${safetySuffix(item.name)}`];
   });
+  const governedNames = new Set(data.herbs.map((item) => item.name));
   const controlled = ["茯神", "夜交藤"].flatMap((name) => {
+    if (governedNames.has(name)) return [];
     const limit = getTcmHerbDoseLimit(name);
     return limit?.min != null && limit.max != null ? [`${name}${limit.min}-${limit.max}g${safetySuffix(name)}`] : [];
   });
-  const commonNames = new Set(data.commonHerbs.map((item) => item.name));
-  const conflictGoverned = data.herbs.flatMap((item) => {
-    if (commonNames.has(item.name)) return [];
-    const limit = getTcmHerbDoseLimit(item.name);
-    if (limit?.min == null || limit.max == null || !limit.sourceConflict) return [];
-    return [`${item.name}${limit.min}-${limit.max}g，存在分用途剂量差异，模型采用保守主范围并交由审方按实际用途复核${safetySuffix(item.name)}`];
-  });
-  return [...common, ...controlled, ...conflictGoverned].join("；");
+  return [...doseGoverned, ...controlled].join("；");
 }
 
 export function buildTcmKnowledgeContext(caseState: CaseState, stage: "diagnose" | "prescribe" | "assess"): string {
