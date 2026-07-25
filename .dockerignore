@@ -13,6 +13,9 @@ deeptest
 open-code-review-main
 参考
 药学基础数据
+# 2.3GB 古籍原始语料，只在构建期由 scripts/ingest/* 消费，产物已在 src/data/。
+# 不排除的话 docker build 会把这 2.3GB 整个塞进 build context。
+中医补充数据
 /*.md
 !README.md
 !AGENTS.md
