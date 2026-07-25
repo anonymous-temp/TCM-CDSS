@@ -965,4 +965,20 @@ assert.match(phiPersistedOnce.hisRecord.rawText, /突发胸痛/, "snapshot rawTe
 assert.doesNotMatch(phiPersistedOnce.conversation[0].content, /市博物馆/, "snapshot conversation must generalize the anchored employer");
 assert.deepEqual(phiPersistedTwice, phiPersistedOnce, "snapshot persistence must be hash-stable across re-saves");
 
+// ─── 经典条文出处必须真的渲染，且不得越界断言 ───
+// 222,338 条古籍证据此前只在服务端被填进 candidate.classicEvidence 随流下发，
+// 前端与 HIS 零渲染——医生只看到一行「经典方出处：《XX》」，拿不到任何可核验原文。
+// 证据绑定系统里，看不到原文的「证据」等于没有证据。
+assert.ok(diagnosisClientSource.includes("ClassicEvidencePanel"), "候选方卡必须渲染经典条文出处面板");
+assert.match(diagnosisClientSource, /<ClassicEvidencePanel evidence=\{firstCandidate\.classicEvidence\}/,
+  "面板必须消费 candidate.classicEvidence，而不是另造一份数据");
+const panelStart = diagnosisClientSource.indexOf("function ClassicEvidencePanel(");
+const panel = diagnosisClientSource.slice(panelStart, diagnosisClientSource.indexOf("function DecoctionInstructionsPanel"));
+assert.ok(panel.includes("item.excerpt"), "必须渲染条文摘录——只给出处不给原文，医生无从核验");
+assert.ok(panel.includes("不代表适用于本例"),
+  "必须声明这些条文是按方名检索所得、不代表适用于本例，否则等于用出处冒充适应证依据");
+assert.ok(panel.includes("以上方药味表与处方后审方为准"),
+  "必须声明古代剂量不可直接换算，本例用量以药味表与审方为准");
+assert.match(panel, /<details/, "默认折叠：右栏宽度有限，条文是核验材料不是首屏结论");
+
 console.log(JSON.stringify({ cases: 129, failures: 0 }));

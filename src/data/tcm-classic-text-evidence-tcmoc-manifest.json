@@ -12,7 +12,12 @@
     "common": 487,
     "experience": 33466
   },
-  "outputSha256": "e25010f936229809435af3f92e19f49a32e11bb6ce1e88d7b0a8ea01342a0f4f",
+  "safetyCounts": {
+    "standard": 206435,
+    "restricted": 14457,
+    "quarantine": 1446
+  },
+  "outputSha256": "5af19f25a309f093d9254d74a4ecb5e70218ee4a45129e9ddd83758cc89e8507",
   "outputFile": "tcm-classic-text-evidence-tcmoc.jsonl",
   "bookStats": {
     "普济方": 9355,

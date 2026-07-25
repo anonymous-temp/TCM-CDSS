@@ -978,4 +978,34 @@ assert.ok(declassifiedHint.includes("governedFormulaBaselines"), "the declassifi
 assert.ok(declassifiedHint.includes("本例辨证组方"), "the declassified hint must offer the explicit self-devised path");
 assert.ok(declassifiedHint.includes("formulaNames 置空"), "the declassified hint must require empty formulaNames on the self-devised path");
 
-console.log(JSON.stringify({ cases: 328, failures: 0 }));
+// ─── 经典条文必须真的到达结构化载荷（前端面板的入参） ───
+// 222,338 条古籍证据长期只在服务端解析、随流下发，前端零渲染。现在前端有了
+// ClassicEvidencePanel，这里补上服务端这一端的行为断言：条文要真的进 candidate.classicEvidence，
+// 条数不得超过 contract 上限（超限时 .catch([]) 会**整段清空**而不是截断），
+// 且每条都要带前端渲染必需的字段。只断言源码里有那行赋值是不够的——
+// 本次就因为夹具不全（缺 notApplicable）触发 enrichPrescriptionProvenance 的 try/catch
+// 静默返回原文，表现为「0 条」，而源码断言完全看不出来。
+// 直接调核心函数并注入同一个 resolver：tcm-formula-provenance.server.ts 只是把
+// classicEvidenceForFormulaNames 作为第三个参数转发进来的薄壳，它 import "server-only"，
+// jiti CLI 下加载不了。测核心 + 同一 resolver = 测同一条路径。
+const { classicEvidenceForFormulaNames } = await import("../src/lib/tcm-classic-evidence.server.ts");
+const enrichWithClassicEvidence = (content, context) =>
+  enrichPrescriptionProvenance(content, context, classicEvidenceForFormulaNames);
+const guipiIngredients = governedFormulaCatalog.entries.find((entry) => entry.name === "归脾汤")?.ingredients || [];
+assert.ok(guipiIngredients.length > 0, "归脾汤必须在受控目录内，否则本条断言失去意义");
+const classicEvidenceEnriched = enrichWithClassicEvidence(
+  render(reasoning(candidate("归脾汤", guipiIngredients))), "心脾两虚，思虑伤脾");
+const classicEvidencePayload = JSON.parse(
+  classicEvidenceEnriched.match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/)[1],
+);
+const classicEvidenceItems = classicEvidencePayload.formula.candidates[0].classicEvidence || [];
+assert.ok(classicEvidenceItems.length > 0,
+  "归脾汤候选必须携带经典条文，否则前端面板永远拿不到数据（古籍语料等于没接）");
+assert.ok(classicEvidenceItems.length <= 6,
+  `条数不得超过 contract 上限 6（实际 ${classicEvidenceItems.length}），超限会被 .catch([]) 整段清空`);
+for (const item of classicEvidenceItems) {
+  assert.ok(item.citation && item.excerpt && item.tier,
+    `每条条文都要带前端渲染必需字段（citation/excerpt/tier）：${JSON.stringify(item).slice(0, 120)}`);
+}
+
+console.log(JSON.stringify({ cases: 328, classicEvidencePerCandidate: classicEvidenceItems.length, failures: 0 }));

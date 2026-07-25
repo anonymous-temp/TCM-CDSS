@@ -2664,6 +2664,54 @@ export function hasExplicitNonDosePrescriptionResult(caseState: Pick<CaseState, 
   return !hasCandidate && isNonDosePrescriptionText(caseState.prescription);
 }
 
+/**
+ * 经典条文出处面板。
+ *
+ * 这批数据（222,338 条 tcmoc 古籍证据）此前只在服务端被填进 candidate.classicEvidence 并随
+ * 结构化流下发，前端与 HIS 都没有任何渲染代码——医生只能看到一行「经典方出处：《XX》」，
+ * 拿不到任何可核验的原文。证据绑定系统里，看不到原文的「证据」等于没有证据。
+ *
+ * 三条呈现纪律：
+ * 1. **默认折叠**：右栏只有 410/460px，条文是核验材料不是首屏结论；点开即在，一条不删。
+ * 2. **摘录给全**：这是医生自证的唯一材料。剂量与操作已在服务端按规则打码
+ *    （显示为「[具体剂量或操作已隔离]」），这是刻意的——条文里的古代剂量不能被当成可执行用量。
+ * 3. **不越界断言**：这些条文是按**方名**检索出来的，只能证明"历代如此论述该方"，
+ *    不能证明"适用于本例患者"。标题与脚注都必须把这条说清楚，否则等于用出处冒充适应证依据。
+ */
+function ClassicEvidencePanel({ evidence }: {
+  evidence?: Array<{ evidenceId: string; citation: string; anchorLevel: string; clauseNumber?: number; excerpt: string; tier: string }>;
+}) {
+  const items = (evidence || []).filter((item) => item?.citation && item?.excerpt);
+  if (items.length === 0) return null;
+  const tierLabel = (tier: string) => tier === "canon" ? "经典" : tier === "common" ? "通行" : "经验";
+  const anchorLabel = (level: string) => level === "tiaowen" ? "条文" : level === "chapter_paragraph" ? "篇章段" : "页段";
+  return (
+    <details className="rounded-xl border border-slate-200 bg-slate-50">
+      <summary className="cursor-pointer list-none px-3 py-2 text-xs font-bold text-slate-700">
+        经典条文出处（{items.length} 条）
+        <span className="ml-2 font-normal text-slate-500">按方名检索所得，说明历代如何论述该方，不代表适用于本例</span>
+      </summary>
+      <div className="space-y-2 px-3 pb-3">
+        {items.map((item) => (
+          <div key={item.evidenceId} className="rounded-lg border border-slate-200 bg-white p-2.5">
+            <p className="text-[11px] font-semibold text-slate-700">
+              {item.citation}
+              <span className="ml-2 font-normal text-slate-500">
+                {tierLabel(item.tier)}·{anchorLabel(item.anchorLevel)}{item.clauseNumber != null ? `·第${item.clauseNumber}条` : ""}
+              </span>
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{item.excerpt}</p>
+            <p className="mt-1 text-[10px] text-slate-400">证据ID {item.evidenceId}</p>
+          </div>
+        ))}
+        <p className="text-[10px] leading-relaxed text-slate-500">
+          条文中的具体剂量与操作已隔离显示：古代剂量与现代用量不可直接换算，本例用量以上方药味表与处方后审方为准。
+        </p>
+      </div>
+    </details>
+  );
+}
+
 function DecoctionInstructionsPanel({ decoction }: {
   decoction?: {
     doseCount: string | null;
@@ -4850,6 +4898,7 @@ function ResultTabsV2({
                   )}
                 </div>
               )}
+              <ClassicEvidencePanel evidence={firstCandidate.classicEvidence} />
               <DecoctionInstructionsPanel decoction={firstCandidate.decoction} />
               <div className="overflow-x-auto rounded-xl border">
                 <div className="min-w-[760px]">

@@ -95,6 +95,39 @@ assert.equal(appliedLimit[1], contractLimit[1],
 assert.match(provenanceSource, /classicEvidence:[\s\S]{0,400}?\.slice\(0, CANDIDATE_CLASSIC_EVIDENCE_LIMIT\)/,
   "classicEvidence 赋值处必须实际应用该上限");
 
+
+// ─── 证据安全分级必须真的生效，且不得误伤受控方 ───
+// 曾经对全部 222,338 条硬编码 safetyClass:"standard"，整批绕过隔离机制——运行时只放行 standard，
+// 而唯一防线 CLASSIC_RUNTIME_DANGEROUS_CONTENT 只拦下 683 条，含毒剧/禁用物质的却有两万条量级。
+// 分级按**物质危险性**而非「提没提剂量」：照搬旧语料的 restrictedPattern 会把 52.7% 判成 restricted
+// （古籍方书剂量煎服本来就是正文主体），把语料砍掉一半且理由是错的。
+const tcmocManifest = JSON.parse(readFileSync(
+  new URL("../src/data/tcm-classic-text-evidence-tcmoc-manifest.json", import.meta.url), "utf8"));
+assert.ok(tcmocManifest.safetyCounts, "切片器必须逐级上报 safetyClass 分布");
+assert.ok(tcmocManifest.safetyCounts.restricted > 0 && tcmocManifest.safetyCounts.quarantine > 0,
+  `安全分级不得退回全量 standard（实际 ${JSON.stringify(tcmocManifest.safetyCounts)}）`);
+// 分级不能过度：restricted 占比过高说明又把「提到剂量」当成了危险信号。
+const gradedTotal = Object.values(tcmocManifest.safetyCounts).reduce((sum, value) => sum + value, 0);
+assert.ok(tcmocManifest.safetyCounts.restricted / gradedTotal < 0.2,
+  `restricted 占比过高（${(tcmocManifest.safetyCounts.restricted / gradedTotal * 100).toFixed(1)}%），` +
+  "说明分级判据又把古籍正文里的剂量煎服文本当成了危险内容");
+
+// 受控方剂的经典出处不得因分级消失——十枣汤(甘遂大戟芫花)、真武汤(附子)都含药典有制品的毒性药，
+// 它们的用药安全由确定性剂量门禁与处方后审方承担，分级不该替代也不该重复那两层。
+if (present.length === CORPUS_FILES.length) {
+  for (const name of ["十枣汤", "真武汤", "四逆汤", "归脾汤", "桂枝汤"]) {
+    assert.ok(classicEvidenceForFormulaNames([name]).length > 0,
+      `受控方剂的经典证据不得因安全分级被清空：${name}`);
+  }
+  // 反向：禁用/重金属/剧毒物质不得出现在可检索摘录里。
+  const banned = /(砒霜|砒石|水银|轻粉|铅丹|黄丹|密陀僧|斑蝥|蟾酥|马钱子|生川乌|生草乌|藜芦)/;
+  const sampled = ["朱砂安神丸", "至宝丹", "苏合香丸", "安宫牛黄丸", "十枣汤", "真武汤"]
+    .flatMap((name) => classicEvidenceForFormulaNames([name]));
+  const leaked = sampled.filter((hit) => banned.test(String(hit.excerpt || "")));
+  assert.deepEqual(leaked.map((hit) => hit.citation), [],
+    "禁用/剧毒物质不得出现在可检索的证据摘录中");
+}
+
 console.log(JSON.stringify({
   corpora: status,
   checkedBuildOutput: existsSync(chunkDir),

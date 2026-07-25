@@ -90,6 +90,32 @@ function evidenceTier(meta) {
   return "canon";
 }
 
+/**
+ * 证据安全分级。原来对全部 222,338 条硬编码 safetyClass:"standard"，等于整批绕过了旧语料那套
+ * 隔离机制——运行时过滤器只放行 standard，而唯一防线 CLASSIC_RUNTIME_DANGEROUS_CONTENT 正则
+ * 实测只拦下 683 条，语料里含毒剧/禁用物质的却有两万条量级。
+ *
+ * 但**不能照搬旧语料的 restrictedPattern**：那套判据把「剂量/用量/煎服/先煎/数字+两钱克」也算
+ * restricted，因为旧语料是现代视频文稿，提剂量确实是可疑信号。tcmoc 是古籍方书，剂量与煎服法
+ * 本来就是正文主体——实测照搬会把 117,282 条（52.7%）判成 restricted，把刚找回的语料砍掉一半，
+ * 而且理由是错的。
+ *
+ * 因此按**物质危险性**分级，不按「提没提剂量」：
+ *   quarantine —— 沿用旧语料同一套（自行施治、童子尿、放血、反疫苗反西医等），根本不加载；
+ *   restricted —— 禁用/重金属/剧毒且**现代受控方剂根本不用**的物质，排除它们的证据零临床成本；
+ *   standard   —— 其余。
+ * 刻意**不**把附子/乌头/甘遂/大戟/芫花/巴豆/半夏/天南星列入 restricted：它们药典有制品、
+ * 受控方剂在用（十枣汤=甘遂大戟芫花、真武汤=附子），屏蔽等于抹掉这些方的经典出处，
+ * 而它们的用药安全已由确定性剂量门禁与处方后审方两层承担——分级不该替代那两层，也不该重复它们。
+ */
+const QUARANTINE_PATTERN = /(疫苗.{0,20}(?:不要|不能|有害|致病|后遗症|毒|导致|造成)|西医.{0,20}(?:无用|害人|杀人)|拒绝.{0,12}(?:急诊|手术|化疗|放疗)|童子尿|人尿|生硫磺|服硫磺|刺血|放血|三棱针|生附子.{0,30}(?:使用|用到|剂量|钱|克|煎|服)|(?:使用|用|加|服).{0,16}生附子|自行.{0,8}(?:服|用|煎|灸|针))/i;
+const BANNED_OR_SEVERELY_TOXIC = /(砒霜|砒石|信石|红砒|白砒|水银|轻粉|粉霜|银朱|铅丹|黄丹|密陀僧|胆矾|硇砂|礞石|马钱子|番木鳖|斑蝥|蟾酥|闹羊花|洋金花|生狼毒|生川乌|生草乌|生附子|生半夏|生南星|藜芦)/;
+function evidenceSafetyClass(text) {
+  if (QUARANTINE_PATTERN.test(text)) return "quarantine";
+  if (BANNED_OR_SEVERELY_TOXIC.test(text)) return "restricted";
+  return "standard";
+}
+
 function parseCatalogFromFilename(name) {
   // (12.3-13344.12).综合性补给-中医丛书.《本草思辨录》.周岩.md / 087-医方集解.txt
   const m = name.match(/^\(([^)]+)\)\.([^.]+)\.(.+)$/);
@@ -152,6 +178,7 @@ const files = readdirSync(SRC).filter((f) => /\.(txt|md)$/.test(f)).filter((f) =
 
 let records = 0, books = 0, badBooks = [];
 const tierCounts = { canon: 0, common: 0, experience: 0 };
+const safetyCounts = { standard: 0, restricted: 0, quarantine: 0 };
 const lines = [];
 const bookStats = {};
 for (const f of files.sort()) {
@@ -177,10 +204,11 @@ for (const f of files.sort()) {
       text: rec.text,
       formulas: formulasInText(rec.text),
       tier: evidenceTier(rec.meta),
-      safetyClass: "standard",
+      safetyClass: evidenceSafetyClass(rec.text),
       sourceRef: `tcmoc-books/${f}`,
     }));
     tierCounts[evidenceTier(rec.meta)] += 1;
+    safetyCounts[evidenceSafetyClass(rec.text)] += 1;
     count++; records++;
   }
   bookStats[bookName || f] = count;
@@ -199,9 +227,10 @@ writeFileSync(MANIFEST, JSON.stringify({
   emptyBooks: badBooks,
   emptyBookCount: badBooks.length,
   tierCounts,
+  safetyCounts,
   outputSha256: sha(lines.join("\n")),
   outputFile: OUT.split("/").pop(),
   // 全量书目条数，不再截断到前 60：截断后无法据此发现零产出的书。
   bookStats: Object.fromEntries(Object.entries(bookStats).sort((a, b) => b[1] - a[1])),
 }, null, 2) + "\n");
-console.log(JSON.stringify({ mode, files: files.length, books, records, emptyBooks: badBooks.length, tierCounts, outMB: (statSync(OUT).size / 1048576).toFixed(1) }));
+console.log(JSON.stringify({ mode, files: files.length, books, records, emptyBooks: badBooks.length, tierCounts, safetyCounts, outMB: (statSync(OUT).size / 1048576).toFixed(1) }));
