@@ -3,6 +3,7 @@ import { diagnoseReasoningFromState, prescribeReasoningFromState } from "./diagn
 import { sanitizeFreeTextForExternalClinicalService } from "./diagnosis-safety";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "./http-response-limit";
 import { cancelResponseBody } from "./http-response-lifecycle";
+import { createHash } from "node:crypto";
 
 const EVIMED_BASE_URL = (process.env.EVIMED_EVIDENCE_BASE_URL || "https://www.evimed.com/api-evimed").trim().replace(/\/$/, "");
 const GUIDE_API_URL = process.env.EVIMED_GUIDE_API_URL ||
@@ -49,6 +50,14 @@ export type ExternalEvidenceItem = {
   url?: string;
   identifier?: string;
   summary?: string;
+  medicineName?: string;
+  specification?: string;
+  indication?: string;
+  contraindication?: string;
+  specialPopulation?: string;
+  interaction?: string;
+  usage?: string;
+  fingerprint?: string;
 };
 
 export type GuideEvidenceResult = {
@@ -245,6 +254,43 @@ function normalizeEvidenceItem(kind: EvidenceSourceKind, raw: Record<string, unk
   )?.replace(/\s+/g, " ").slice(0, 320);
   const url = traceableHttpsUrl(firstUrl(raw.url, raw.pdfUrl, raw.sourceUrl, raw.link, raw.links));
   const identifier = traceableIdentifier(raw);
+  const medicineName = kind === "instruction"
+    ? firstString(raw.genericNames, raw.genericName, raw.drugName, raw.productName, raw.title, raw.name)
+    : undefined;
+  const specification = kind === "instruction"
+    ? firstString(raw.specifications, raw.specification, raw.spec, raw.dosageForm)
+    : undefined;
+  const indication = kind === "instruction"
+    ? firstString(raw.indication, raw.indications, raw.pharmacologyAndIndication, raw.summary)
+    : undefined;
+  const contraindication = kind === "instruction"
+    ? firstString(raw.contraindications, raw.contraindication, raw.warningsMarks, raw.boxedWarning, raw.precautions)
+    : undefined;
+  const specialPopulation = kind === "instruction"
+    ? [
+        firstString(raw.useInPregLact, raw.pregnancyAndLactation),
+        firstString(raw.useInChildren, raw.pediatricUse),
+        firstString(raw.useInElderly, raw.geriatricUse),
+      ].filter(Boolean).join("；") || undefined
+    : undefined;
+  const interaction = kind === "instruction" ? firstString(raw.drugInteractions, raw.interactions) : undefined;
+  const usage = kind === "instruction"
+    ? firstString(raw.dosageAndAdministration, raw.usageAndDosage, raw.usage, raw.dosage)
+    : undefined;
+  const fingerprint = kind === "instruction" && medicineName
+    ? `sha256:${createHash("sha256").update(JSON.stringify({
+        medicineName,
+        publisher,
+        url,
+        identifier,
+        specification,
+        indication,
+        contraindication,
+        specialPopulation,
+        interaction,
+        usage,
+      })).digest("hex")}`
+    : undefined;
   return {
     sourceKind: kind,
     title,
@@ -253,6 +299,14 @@ function normalizeEvidenceItem(kind: EvidenceSourceKind, raw: Record<string, unk
     ...(url ? { url } : {}),
     ...(identifier ? { identifier } : {}),
     ...(summary ? { summary } : {}),
+    ...(medicineName ? { medicineName } : {}),
+    ...(specification ? { specification } : {}),
+    ...(indication ? { indication } : {}),
+    ...(contraindication ? { contraindication } : {}),
+    ...(specialPopulation ? { specialPopulation } : {}),
+    ...(interaction ? { interaction } : {}),
+    ...(usage ? { usage } : {}),
+    ...(fingerprint ? { fingerprint } : {}),
   };
 }
 
@@ -282,6 +336,28 @@ export function normalizeExternalEvidenceResponse(kind: EvidenceSourceKind, json
   return records
     .map((item) => normalizeEvidenceItem(kind, item))
     .filter(isTraceableExternalEvidence);
+}
+
+export function constrainExternalEvidenceResults(
+  kind: EvidenceSourceKind,
+  items: readonly ExternalEvidenceItem[],
+  opts?: { count?: number; startYear?: number },
+): ExternalEvidenceItem[] {
+  const currentYear = new Date().getFullYear();
+  const requestedStartYear = Number(opts?.startYear);
+  const startYear = Number.isInteger(requestedStartYear) && requestedStartYear >= 1900 && requestedStartYear <= currentYear + 1
+    ? requestedStartYear
+    : undefined;
+  const requestedCount = Number(opts?.count);
+  const count = Number.isInteger(requestedCount) && requestedCount >= 1 && requestedCount <= 20
+    ? requestedCount
+    : 3;
+  const dateConstrained = startYear != null && (kind === "guide" || kind === "literature")
+    ? items.filter((item) => item.year != null && Number(item.year) >= startYear)
+    : [...items];
+  // The literature adapter only accepts {query}; enforce every caller-owned retrieval constraint
+  // after normalization so an upstream that ignores count/year cannot silently widen model context.
+  return dateConstrained.slice(0, count);
 }
 
 function extractPrescriptionTerms(caseState: CaseState): string {
@@ -339,12 +415,15 @@ export function buildGuideQuery(caseState: CaseState, stage: "diagnose" | "presc
 }
 
 function requestPayload(kind: EvidenceSourceKind, safeQuery: string, opts?: { count?: number; startYear?: number }) {
-  const count = opts?.count ?? (kind === "literature" ? 5 : 3);
+  // The verified EviMed evidence-search contract accepts only {query}; sending the guide-style
+  // count/startYear fields makes the production endpoint return HTTP 500.
+  if (kind === "literature") return { query: safeQuery };
+  const count = opts?.count ?? 3;
   const payload: Record<string, unknown> = {
     query: safeQuery,
     count,
   };
-  if (opts?.startYear && (kind === "guide" || kind === "literature")) payload.startYear = opts.startYear;
+  if (opts?.startYear && kind === "guide") payload.startYear = opts.startYear;
   return payload;
 }
 
@@ -414,8 +493,9 @@ export async function fetchExternalEvidence(kind: EvidenceSourceKind, query: str
         }
         return { ok: false, reason: "business_error", query: safeQuery, list: [], message: json.msg, upstreamStatus: Number.isFinite(businessCode) ? businessCode : undefined };
       }
-      const list = normalizeExternalEvidenceResponse(kind, json);
-      if (list.length === 0 && json && typeof json === "object" && !Array.isArray(json) && !("data" in json)) {
+      const normalizedList = normalizeExternalEvidenceResponse(kind, json);
+      const list = constrainExternalEvidenceResults(kind, normalizedList, opts);
+      if (normalizedList.length === 0 && json && typeof json === "object" && !Array.isArray(json) && !("data" in json)) {
         return { ok: false, reason: "invalid_response", query: safeQuery, list: [] };
       }
       return list.length === 0
@@ -442,6 +522,28 @@ export function fetchGuideEvidence(query: string, opts?: { count?: number; start
   return fetchExternalEvidence("guide", query, opts);
 }
 
+/** One instruction result must stay on one line so ID, medicine, indication and fingerprint remain atomic. */
+export function formatInstructionEvidenceRecord(item: ExternalEvidenceItem, evidenceId: string): string {
+  const atom = (value: string | undefined) => (value || "")
+    .normalize("NFKC")
+    .replace(/[\r\n\u2028\u2029]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const instructionFields = [
+    `药名：${atom(item.medicineName || item.title)}`,
+    item.publisher ? `生产企业：${atom(item.publisher)}` : "",
+    item.specification ? `规格：${atom(item.specification)}` : "",
+    item.indication || item.summary ? `适应证：${atom(item.indication || item.summary)}` : "",
+    item.usage ? `用法用量：${atom(item.usage)}` : "用法用量：本次检索摘要未返回完整字段，不得生成剂量医嘱",
+    item.contraindication ? `禁忌/注意：${atom(item.contraindication)}` : "",
+    item.specialPopulation ? `特殊人群：${atom(item.specialPopulation)}` : "",
+    item.interaction ? `相互作用：${atom(item.interaction)}` : "",
+    item.fingerprint ? `条目指纹：${atom(item.fingerprint)}` : "",
+    item.url ? `URL:${atom(item.url)}` : "",
+  ].filter(Boolean);
+  return `[${atom(evidenceId)}] ${instructionFields.join("｜")}`;
+}
+
 export async function buildGuideEvidenceContext(
   caseState: CaseState,
   stage: "diagnose" | "prescribe" | "assess",
@@ -456,7 +558,7 @@ async function buildSingleEvidenceSection(
 ): Promise<string> {
   const query = buildEvidenceQuery(caseState, stage, kind);
   const result = await fetchExternalEvidence(kind, query, {
-    count: kind === "guide" || kind === "literature" ? 5 : 3,
+    count: kind === "guide" || kind === "literature" ? 5 : 6,
     startYear: kind === "guide" || kind === "literature" ? 2018 : undefined,
   });
   const items = result.list;
@@ -472,8 +574,12 @@ async function buildSingleEvidenceSection(
   }
 
   lines.push("命中证据摘要（仅引用下列真实题名、机构、年份和URL；不得编造未列出的资料；引用时使用方括号ID）：");
-  items.slice(0, kind === "literature" ? 5 : 3).forEach((item, index) => {
+  items.slice(0, kind === "literature" ? 5 : kind === "instruction" ? 6 : 3).forEach((item, index) => {
     const evidenceId = `${config.idPrefix}-${String(index + 1).padStart(3, "0")}`;
+    if (kind === "instruction") {
+      lines.push(formatInstructionEvidenceRecord(item, evidenceId));
+      return;
+    }
     const metadata = [item.publisher, item.year, item.identifier].filter(Boolean).join("，");
     const url = item.url ? ` URL:${item.url}` : "";
     const detail = item.summary ? `：${item.summary}` : "";

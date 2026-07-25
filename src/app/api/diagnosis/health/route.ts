@@ -13,20 +13,25 @@ import {
 } from "@/lib/clinical-facts-runtime";
 import { getCdssStageTelemetrySnapshot } from "@/lib/cdss-stage-telemetry";
 import { cdssRateLimitIdentityConfigured } from "@/lib/cdss-auth";
+import {
+  getControlledTerminologyNormalizationStatus,
+  probeControlledTerminologyModel,
+} from "@/lib/controlled-semantic-normalization.server";
 
 export async function GET(req: Request) {
   const strictProbe = new URL(req.url).searchParams.get("strict") === "1";
   const providers = getDiagnosisProviderStatus();
   const externalEvidence = getEvimedEvidenceStatus();
-  const [externalEvidenceProbe, clinicalReviewProbe, clinicalFactsModelProbe, tongueVisionProbe, rxAuditProbe] = strictProbe
+  const [externalEvidenceProbe, clinicalReviewProbe, clinicalFactsModelProbe, tongueVisionProbe, rxAuditProbe, controlledTerminologyProbe] = strictProbe
     ? await Promise.all([
       probeExternalEvidenceSources(),
       probeClinicalReviewModels(),
       probeClinicalFactsModels(),
       probeTongueVisionModel(),
       probeRxAuditTransport(),
+      probeControlledTerminologyModel(),
     ])
-    : [undefined, undefined, undefined, undefined, undefined];
+    : [undefined, undefined, undefined, undefined, undefined, undefined];
   const rxAudit = getRxAuditStatus();
   const rxAuditReady = rxAudit.enabled && (!strictProbe || rxAuditProbe?.ok === true);
   const tcmTreatmentProjects = getTcmTreatmentProjectStatus();
@@ -40,18 +45,25 @@ export async function GET(req: Request) {
   const clinicalFactsModelPlan = getClinicalFactsModelPlan();
   const clinicalFactsModelPlanReady = clinicalFactsModelPlan.extractor.configured &&
     clinicalFactsModelPlan.reviewer.configured && clinicalFactsModelPlan.adjudicator.configured &&
-    clinicalFactsModelPlan.independentReview && clinicalFactsModelPlan.independentAdjudication;
+    clinicalFactsModelPlan.separateInvocationReview && clinicalFactsModelPlan.separateInvocationAdjudication;
   const clinicalFactsModelsAvailable = !strictProbe || clinicalFactsModelProbe?.ok === true;
   const clinicalFactsReady = clinicalFactsEnabled && clinicalFactsSigningConfigured &&
     clinicalFactsModelPlanReady && clinicalFactsModelsAvailable;
   const rateLimitIdentityReady = cdssRateLimitIdentityConfigured();
+  const controlledTerminology = getControlledTerminologyNormalizationStatus();
+  const controlledTerminologyReady = controlledTerminology.enabled &&
+    controlledTerminology.model.configured &&
+    (!strictProbe || controlledTerminologyProbe?.ok === true);
   const evidenceMissing = externalEvidence.sources
     .filter((source) => source.requiredForRelease && !source.configured)
     .map((source) => `evidence_${source.kind}_not_configured`);
   const evidenceUnavailable = externalEvidenceProbe?.sources
     .filter((source) => source.requiredForRelease && !source.ok)
     .map((source) => `evidence_${source.kind}_${source.reason}${source.upstreamStatus ? `_http_${source.upstreamStatus}` : ""}`) || [];
-  const clinicalReviewConfigured = providers.clinicalReviewModel.configured && providers.clinicalReviewModel.independentFromPrimary;
+  // A deployment may intentionally pin generation and review to the same approved model. Readiness
+  // requires a separate review-only invocation; cross-model identity remains reported as a stronger
+  // optional property instead of being misrepresented as the only form of independent review.
+  const clinicalReviewConfigured = providers.clinicalReviewModel.configured && providers.clinicalReviewModel.independentInvocation;
   const clinicalReviewAvailable = !strictProbe || clinicalReviewProbe?.ok === true;
   const tongueVisionRequired = providers.tongueVision.configured;
   const tongueVisionAvailable = !strictProbe || !tongueVisionRequired || tongueVisionProbe?.ok === true;
@@ -73,15 +85,20 @@ export async function GET(req: Request) {
     ...(!clinicalFactsModelPlan.extractor.configured ? ["clinical_facts_extractor_not_configured"] : []),
     ...(!clinicalFactsModelPlan.reviewer.configured ? ["clinical_facts_reviewer_not_configured"] : []),
     ...(!clinicalFactsModelPlan.adjudicator.configured ? ["clinical_facts_adjudicator_not_configured"] : []),
-    ...(!clinicalFactsModelPlan.independentReview ? ["clinical_facts_reviewer_not_independent"] : []),
-    ...(!clinicalFactsModelPlan.independentAdjudication ? ["clinical_facts_adjudicator_not_independent"] : []),
+    ...(!clinicalFactsModelPlan.separateInvocationReview ? ["clinical_facts_reviewer_not_separate_invocation"] : []),
+    ...(!clinicalFactsModelPlan.separateInvocationAdjudication ? ["clinical_facts_adjudicator_not_separate_invocation"] : []),
     ...(strictProbe && !clinicalFactsModelsAvailable ? ["clinical_facts_model_chain_unavailable"] : []),
     ...(!tcmTreatmentProjects.configurationValid ? [`tcm_treatment_capabilities_${tcmTreatmentProjects.reason || "invalid"}`] : []),
     ...(!rateLimitIdentityReady ? ["trusted_proxy_rate_limit_identity_not_configured"] : []),
+    ...(!controlledTerminology.enabled ? ["controlled_terminology_normalization_disabled"] : []),
+    ...(!controlledTerminology.model.configured ? ["controlled_terminology_model_not_configured"] : []),
+    ...(strictProbe && controlledTerminology.enabled && !controlledTerminologyProbe?.ok
+      ? [`controlled_terminology_${controlledTerminologyProbe?.reason || "unavailable"}`]
+      : []),
   ];
   // RxAudit remains advisory for an individual clinical decision, but a release advertised as the
   // complete M01-M05 product is not healthy when its configured audit sidecar is unreachable.
-  const strictReady = providers.primaryModel.configured && clinicalReviewConfigured && clinicalReviewAvailable && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady;
+  const strictReady = providers.primaryModel.configured && clinicalReviewConfigured && clinicalReviewAvailable && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && controlledTerminologyReady;
 
   const body = {
     module: "tcm-cdss",
@@ -131,6 +148,8 @@ export async function GET(req: Request) {
         },
         independentReview: clinicalFactsModelPlan.independentReview,
         independentAdjudication: clinicalFactsModelPlan.independentAdjudication,
+        separateInvocationReview: clinicalFactsModelPlan.separateInvocationReview,
+        separateInvocationAdjudication: clinicalFactsModelPlan.separateInvocationAdjudication,
         reductionsAllowed: clinicalFactsModelPlan.reductionsAllowed,
         ready: clinicalFactsModelPlanReady,
       },
@@ -142,6 +161,11 @@ export async function GET(req: Request) {
       trustedProxyConfigured: rateLimitIdentityReady,
       modelBudgetScope: "authenticated_session_or_api_tenant",
       ready: rateLimitIdentityReady,
+    },
+    controlledTerminology: {
+      ...controlledTerminology,
+      ...(controlledTerminologyProbe ? { probe: controlledTerminologyProbe } : {}),
+      ready: controlledTerminologyReady,
     },
   };
   return Response.json(body, { status: strictProbe && !strictReady ? 503 : 200 });

@@ -6,9 +6,11 @@ import {
   buildAuditInputAdvisorySection,
   buildLingxiRiskSection,
   buildLocalHighRiskHerbPairSection,
+  buildRxAuditScopeSection,
   buildRxAuditCorrelationMarker,
   buildRxAuditCorrelationMetadata,
   buildUnavailableRxAuditSection,
+  isRxAuditSubmissionIssueReason,
   mergeLocalHighRiskHerbPairIssues,
   normalizeAuditOutcomeForPatient,
   resolveRxAuditCandidateIndex,
@@ -87,12 +89,17 @@ export async function POST(req: Request) {
     ? buildLingxiRiskSection(effectiveAudit, patientSex)
     : buildUnavailableRxAuditSection(providerAudit.ok ? "rxaudit_incomplete" : providerAudit.reason);
   const localUnavailableRisk = providerAudit.ok ? "" : buildLocalHighRiskHerbPairSection(gated, candidateIndex);
-  const postPrescriptionRisk = [localUnavailableRisk, inputAdvisorySection, providerRisk].filter(Boolean).join("\n\n");
+  const postPrescriptionRisk = [
+    buildRxAuditScopeSection(gated, candidateIndex),
+    localUnavailableRisk,
+    inputAdvisorySection,
+    providerRisk,
+  ].filter(Boolean).join("\n\n");
   const auditStatusMarker = buildRxAuditStatusMarker(providerAudit.ok && !providerAudit.degraded
     ? { available: true }
     : {
         available: false,
-        reason: !providerAudit.ok && providerAudit.reason === "no_prescription_items"
+        reason: !providerAudit.ok && (providerAudit.reason === "no_prescription_items" || isRxAuditSubmissionIssueReason(providerAudit.reason))
           ? "no_prescription_items"
           : "service_unavailable",
       });
@@ -116,7 +123,7 @@ export async function POST(req: Request) {
     stage: "assess",
     outcome: "success",
     durationMs: Date.now() - startedAt,
-    auditReached: true,
+    auditReached: providerAudit.ok || !isRxAuditSubmissionIssueReason(providerAudit.reason),
     reasonCode: providerAudit.ok ? "audit_available" : `audit_${providerAudit.reason}`,
   });
   return markdownNdjsonResponse([

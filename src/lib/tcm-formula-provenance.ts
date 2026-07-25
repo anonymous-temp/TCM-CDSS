@@ -1,7 +1,14 @@
 import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "json" };
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
+import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
-import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
+import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
+import {
+  compositionLogicForFormulaNames,
+  formulaDiscriminationPaths,
+  textualModificationsForFormulaNames,
+} from "./tcm-classic-inference";
 
 type FormulaVariant = {
   source: string;
@@ -40,6 +47,10 @@ export type ResolvedFormulaSource = {
   source: string;
   matchedIngredientCount: number;
   totalIngredientCount: number;
+  minimumPreservedIngredientCount: number;
+  matchedRequiredIngredientCount: number;
+  requiredIngredientCount: number;
+  verificationStatus: "verified_individually";
   exactComposition: boolean;
   origin: "official_classic_catalog" | "verified_reference_catalog" | "local_formula_catalog";
 };
@@ -53,12 +64,45 @@ export type FormulaCompilationReference = {
   origin: ResolvedFormulaSource["origin"];
 };
 
-function normalizedIngredientSignature(ingredients: string[]): string {
-  return [...new Set(ingredients.map(normalizeHerbName).filter(Boolean))].sort().join("|");
-}
-
 const catalog = formulaCatalogJson as FormulaCatalog;
 const verifiedSupplements = verifiedSupplementJson as VerifiedFormulaSupplements;
+
+type GovernedFormulaCompilationRow = {
+  name: string;
+  source: string;
+  ingredients: string[];
+  sourceClass: "official_classic_catalog" | "verified_reference_catalog" | "official_local_formula_standard";
+  identityLockEligible: boolean;
+  prescriptionLockEligible: boolean;
+  doseCompilationEligible: boolean;
+};
+
+const governedFormulaCompilationRows = (governedFormulaCatalogJson.entries as readonly GovernedFormulaCompilationRow[])
+  .filter((entry) => entry.identityLockEligible);
+const governedFormulaCompilationByExactName = new Map(governedFormulaCompilationRows.map((entry) => [
+  exactFormulaIdentityName(entry.name), entry,
+]));
+const governedFormulaCompilationCandidatesByNormalizedName = new Map<string, GovernedFormulaCompilationRow[]>();
+for (const entry of governedFormulaCompilationRows) {
+  const key = normalizeFormulaName(entry.name);
+  const candidates = governedFormulaCompilationCandidatesByNormalizedName.get(key) || [];
+  candidates.push(entry);
+  governedFormulaCompilationCandidatesByNormalizedName.set(key, candidates);
+}
+
+const GOVERNED_FORMULA_NAMES = new Set([
+  ...Object.keys(catalog.officialClassicFormulas),
+  ...Object.keys(catalog.formulas),
+  ...Object.keys(verifiedSupplements.entries),
+].flatMap((name) => {
+  const displayName = cleanFormulaDisplayName(name);
+  const normalizedName = normalizeFormulaName(displayName);
+  return [displayName, normalizedName].filter((item) => item.length >= 3);
+}));
+
+const FORMULA_DOSAGE_FORM_CHARACTERS = new Set(["汤", "散", "丸", "饮", "膏", "丹"]);
+const FORMULA_CLAIM_MODIFIER = /^(?:加减|化裁|加味|类方)/;
+const FORMULA_CLAIM_LEFT_CONTEXT = /(?:按|参考|基于|仿|合|取|采用|源于|沿用|原方)$/;
 
 function normalizeFormulaName(value: string): string {
   return value
@@ -69,11 +113,81 @@ function normalizeFormulaName(value: string): string {
     .trim();
 }
 
+function exactFormulaIdentityName(value: string): string {
+  return value
+    .replace(/^.*?(?:候选处方|候选方案)\s*\d*[：:]\s*/, "")
+    .replace(/[（(]?\s*《[^》]{2,80}》\s*[）)]?/g, "")
+    .replace(/[\s·•，,。；;：:（）()【】\[\]“”"']/g, "")
+    .trim();
+}
+
+function governedFormulaCompilationRow(value: string): GovernedFormulaCompilationRow | undefined {
+  const exact = governedFormulaCompilationByExactName.get(exactFormulaIdentityName(value));
+  if (exact) return exact;
+  const candidates = governedFormulaCompilationCandidatesByNormalizedName.get(normalizeFormulaName(value)) || [];
+  return candidates.length === 1 ? candidates[0] : undefined;
+}
+
 function cleanFormulaDisplayName(value: string): string {
   return value
     .replace(/[（(]?\s*《[^》]{2,80}》\s*[）)]?/g, "")
     .replace(/[：:；;，,。\s]+$/g, "")
     .trim();
+}
+
+function explicitFormulaIdentityNames(values: Array<string | undefined>): string[] {
+  return [...new Set(values.flatMap((value) => {
+    if (!value) return [];
+    const displayName = cleanFormulaDisplayName(value);
+    const normalizedName = normalizeFormulaName(displayName);
+    return [displayName, normalizedName];
+  }).filter((value) => value.length >= 3))].sort((left, right) => right.length - left.length);
+}
+
+function replaceLiteralFormulaClaims(value: string, names: string[], replacement: string): string {
+  return names.reduce((output, name) => output.split(name).join(replacement), value);
+}
+
+function isUnambiguousGovernedFormulaClaim(value: string, start: number, end: number, name: string): boolean {
+  if (!name.endsWith("散") || name.length >= 4) return true;
+  const rightContext = value.slice(end);
+  if (end === value.length || /^[\s，,。；;：:、（）()【】\[\]“”"']/.test(rightContext)) return true;
+  if (FORMULA_CLAIM_MODIFIER.test(rightContext)) return true;
+  return FORMULA_CLAIM_LEFT_CONTEXT.test(value.slice(Math.max(0, start - 4), start));
+}
+
+function governedFormulaClaimRanges(value: string): Array<{ start: number; end: number }> {
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (let endIndex = 0; endIndex < value.length; endIndex += 1) {
+    if (!FORMULA_DOSAGE_FORM_CHARACTERS.has(value[endIndex])) continue;
+    const earliestStart = Math.max(0, endIndex - 11);
+    let matchedStart = -1;
+    for (let startIndex = earliestStart; startIndex <= endIndex - 2; startIndex += 1) {
+      const name = value.slice(startIndex, endIndex + 1);
+      if (!GOVERNED_FORMULA_NAMES.has(name)) continue;
+      if (!isUnambiguousGovernedFormulaClaim(value, startIndex, endIndex + 1, name)) continue;
+      matchedStart = startIndex;
+      break;
+    }
+    if (matchedStart >= 0) {
+      ranges.push({ start: matchedStart, end: endIndex + 1 });
+      endIndex = Math.max(endIndex, ranges.at(-1)!.end - 1);
+    }
+  }
+  return ranges;
+}
+
+function replaceGovernedFormulaClaims(value: string, replacement: string): string {
+  const ranges = governedFormulaClaimRanges(value);
+  if (ranges.length === 0) return value;
+  let output = "";
+  let cursor = 0;
+  for (const range of ranges) {
+    if (range.start < cursor) continue;
+    output += value.slice(cursor, range.start) + replacement;
+    cursor = range.end;
+  }
+  return output + value.slice(cursor);
 }
 
 // Formula provenance is stricter than dose lookup: medicinal parts, processing
@@ -310,28 +424,41 @@ function compilationReference(
 }
 
 export function formulaCompilationReferences(names: string[]): FormulaCompilationReference[] {
-  return [...new Set(names.map(normalizeFormulaName).filter(Boolean))].flatMap<FormulaCompilationReference>((normalizedName) => {
-    const official = normalizedOfficialClassics.get(normalizedName);
-    if (official) return [compilationReference(official.name, official.variant, "official_classic_catalog")];
-    const verified = normalizedVerifiedSupplements.get(normalizedName);
-    if (verified) return [compilationReference(verified.name, verified.variant, "verified_reference_catalog")];
-    const local = normalizedCatalog.get(normalizedName);
-    const variants = local?.variants.filter((item) => item.ingredients.length >= 2 && item.ingredients.length <= 30) || [];
-    const signatures = new Set(variants.map((item) => normalizedIngredientSignature(item.ingredients)).filter(Boolean));
-    // A broad historical workbook may contain many different formulas under one short name. Such
-    // names are useful for exact reverse lookup after a doctor supplies herbs, but are not safe as
-    // an M03 -> M04 compilation baseline unless every valid row agrees on one composition.
-    if (!local || variants.length === 0 || signatures.size !== 1) return [];
-    const variant = [...variants].sort((left, right) => left.source.localeCompare(right.source))[0];
-    return [compilationReference(local.name, variant, "local_formula_catalog")];
+  return [...new Set(names.map(exactFormulaIdentityName).filter(Boolean))].flatMap<FormulaCompilationReference>((formulaName) => {
+    const governed = governedFormulaCompilationRow(formulaName);
+    if (!governed) return [];
+    const origin = governed.sourceClass === "official_classic_catalog"
+      ? "official_classic_catalog"
+      : governed.sourceClass === "official_local_formula_standard"
+        ? "local_formula_catalog"
+        : "verified_reference_catalog";
+    return [compilationReference(governed.name, {
+      source: governed.source,
+      ingredients: governed.ingredients,
+    }, origin)];
   });
 }
 
 export function executableFormulaCompilationReferences(names: string[]): FormulaCompilationReference[] {
-  return formulaCompilationReferences(names).filter((reference) => reference.ingredients.every((name) => {
-    const limit = getTcmHerbDoseLimit(name);
-    return isKnownTcmHerbName(name) && limit?.min != null && limit?.max != null;
-  }));
+  return formulaCompilationReferences(names).filter((reference) => {
+    const governed = governedFormulaCompilationRow(reference.formulaName);
+    if (!governed?.doseCompilationEligible) return false;
+    return reference.ingredients.every((name) => {
+    const resolution = resolveGovernedTcmHerbIdentity(name);
+    const doseIdentity = resolution.doseCanonicalName || resolution.canonicalName || name;
+    const limit = getTcmHerbDoseLimit(doseIdentity);
+    return isKnownTcmHerbName(doseIdentity) && limit?.min != null && limit?.max != null;
+    });
+  });
+}
+
+/** Names whose governed formula identity is valid but whose full composition lacks an executable
+ * numeric dose boundary. They may remain visible as a formula direction, but cannot enter M04 dose
+ * generation until the missing identities/boundaries are adjudicated in T8/T9. */
+export function formulaNamesWithoutExecutableDoseCompilation(names: string[]): string[] {
+  const executable = new Set(executableFormulaCompilationReferences(names).map((item) => item.formulaName));
+  return [...new Set(names.map((name) => governedFormulaCompilationRow(name)?.name).filter((name): name is string => Boolean(name)))]
+    .filter((name) => !executable.has(name));
 }
 
 export function formulaCompilationContractIssue(
@@ -390,30 +517,11 @@ export function formulaCompilationContractIssue(
       .some((reference) => reference.ingredients.every((ingredient) => actualHerbs.has(normalizeHerbName(ingredient))));
     if (containsCompleteUnselectedBaseline) return "formula_compilation_composition_drift";
   }
-  const preferredVariantMatched = selectedReferences.every((reference) => {
-    const sourceCandidate: FormulaSourceCandidate = {
-      formulaName: reference.formulaName,
-      variant: {
-        source: reference.source,
-        ingredients: reference.ingredients,
-        requiredIngredients: reference.requiredIngredients,
-        minimumPreservedIngredientCount: reference.minimumPreservedIngredientCount,
-      },
-      origin: reference.origin,
-    };
-    return Boolean(bestFormulaSourceCandidate(
-      [sourceCandidate],
-      herbNames,
-      combined,
-      explicitlyModified,
-      reference.source,
-      false,
-      baseAliases,
-    ) || (!explicitlyModified
-      ? bestFormulaSourceCandidate([sourceCandidate], herbNames, combined, true, reference.source, true, baseAliases)
-      : undefined));
-  });
-  if (preferredVariantMatched) return undefined;
+  const componentVerifications = selectedReferences.map((reference) =>
+    verifyFormulaCompilationComponent(reference, candidate.herbs, combined, explicitlyModified));
+  const failedComponentIndex = componentVerifications.findIndex((item) => !item.verified);
+  if (failedComponentIndex < 0) return undefined;
+  if (combined) return `formula_component_${failedComponentIndex}_unverified`;
   // The signed M03 contract binds every selected name to one governed compilation reference.
   // Same-name historical variants remain searchable as evidence, but cannot replace that baseline
   // during automatic M04 generation because another formula may share most of the short variant.
@@ -446,9 +554,9 @@ export function withDeterministicFormulaReferences(reasoning: ClinicalReasoningR
     const direction = String(reasoning.overview?.recommendedFormulaDirection || "");
     const identifiedNames = identifyKnownFormulaNames(direction);
     const identifiedMode = formulaSelectionMode(direction, identifiedNames);
-    const compilableNames = identifiedNames.filter((name) => executableFormulaCompilationReferences([name]).length === 1);
-    const incompleteCombined = identifiedMode === "combined" && compilableNames.length !== identifiedNames.length;
-    const recommendedFormulaNames = incompleteCombined ? [] : compilableNames;
+    const identityGovernedNames = identifiedNames.filter((name) => formulaCompilationReferences([name]).length === 1);
+    const incompleteCombined = identifiedMode === "combined" && identityGovernedNames.length !== identifiedNames.length;
+    const recommendedFormulaNames = incompleteCombined ? [] : identityGovernedNames;
     const governedDirection = identifiedNames.length > 0 && recommendedFormulaNames.length === 0
       ? "按已锁定病机与治法辨证组方"
       : direction;
@@ -615,6 +723,84 @@ function bestFormulaSourceCandidate(
   return { candidate: best.candidate, overlap: best.overlap, f1: best.f1, matchedHerbs: best.matchedHerbs, usedBaseAlias: best.usedBaseAlias };
 }
 
+export type FormulaComponentVerification = {
+  formulaName: string;
+  source: string;
+  verified: boolean;
+  matchedIngredientCount: number;
+  totalIngredientCount: number;
+  minimumPreservedIngredientCount: number;
+  matchedRequiredIngredientCount: number;
+  requiredIngredientCount: number;
+};
+
+function verifyFormulaCompilationComponent(
+  reference: FormulaCompilationReference,
+  herbs: FormulaHerbInput[],
+  combined: boolean,
+  explicitlyModified: boolean,
+): FormulaComponentVerification {
+  const herbNames = herbs.map(formulaHerbIdentityName).filter(Boolean);
+  const baseAliases = formulaHerbBaseAliases(herbs);
+  const sourceCandidate: FormulaSourceCandidate = {
+    formulaName: reference.formulaName,
+    variant: {
+      source: reference.source,
+      ingredients: reference.ingredients,
+      requiredIngredients: reference.requiredIngredients,
+      minimumPreservedIngredientCount: reference.minimumPreservedIngredientCount,
+    },
+    origin: reference.origin,
+  };
+  const matched = bestFormulaSourceCandidate(
+    [sourceCandidate],
+    herbNames,
+    combined,
+    explicitlyModified,
+    reference.source,
+    false,
+    baseAliases,
+  ) || (!explicitlyModified
+    ? bestFormulaSourceCandidate(
+        [sourceCandidate],
+        herbNames,
+        combined,
+        true,
+        reference.source,
+        true,
+        baseAliases,
+      )
+    : undefined);
+  const normalizedHerbs = new Set(herbNames.map(normalizeHerbName).filter(Boolean));
+  const normalizedBaseAliases = new Set(baseAliases.values());
+  const matchedRequiredIngredientCount = reference.requiredIngredients.filter((ingredient) => {
+    const normalized = normalizeHerbName(ingredient);
+    return normalizedHerbs.has(normalized) ||
+      (!sourceIngredientRequiresProcessingIdentity(normalized) && normalizedBaseAliases.has(normalized));
+  }).length;
+  return {
+    formulaName: reference.formulaName,
+    source: reference.source,
+    verified: Boolean(matched),
+    matchedIngredientCount: matched?.overlap || 0,
+    totalIngredientCount: reference.ingredients.length,
+    minimumPreservedIngredientCount: reference.minimumPreservedIngredientCount,
+    matchedRequiredIngredientCount,
+    requiredIngredientCount: reference.requiredIngredients.length,
+  };
+}
+
+/** Verify every named base against its own governed source, anchors, and composition floor. */
+export function verifyFormulaCompilationComponents(
+  formulaNames: string[],
+  herbs: FormulaHerbInput[],
+  combined = formulaNames.length > 1,
+  explicitlyModified = false,
+): FormulaComponentVerification[] {
+  return formulaCompilationReferences(formulaNames).map((reference) =>
+    verifyFormulaCompilationComponent(reference, herbs, combined, explicitlyModified));
+}
+
 export function resolveFormulaSources(candidateName: string, herbs: FormulaHerbInput[] = []): ResolvedFormulaSource[] {
   const herbNames = herbs.map(formulaHerbIdentityName).filter(Boolean);
   const baseAliases = formulaHerbBaseAliases(herbs);
@@ -654,12 +840,29 @@ export function resolveFormulaSources(candidateName: string, herbs: FormulaHerbI
         ? bestFormulaSourceCandidate(candidates, herbNames, combined, true, sourceHint, true, baseAliases)
         : undefined);
     if (!matched) return [];
+    const normalizedHerbs = new Set(herbNames.map(normalizeHerbName).filter(Boolean));
+    const normalizedBaseAliases = new Set(baseAliases.values());
+    const normalizedIngredients = matched.candidate.variant.ingredients.map(normalizeHerbName).filter(Boolean);
+    const requiredIngredients = requiredFormulaAnchors(
+      matched.candidate.formulaName,
+      matched.candidate.variant,
+      normalizedIngredients,
+    );
+    const matchedRequiredIngredientCount = requiredIngredients.filter((ingredient) =>
+      normalizedHerbs.has(ingredient) ||
+      (!sourceIngredientRequiresProcessingIdentity(ingredient) && normalizedBaseAliases.has(ingredient))
+    ).length;
     matched.matchedHerbs.forEach((herb) => matchedHerbs.add(herb));
     resolved.push({
       formulaName: matched.candidate.formulaName,
       source: matched.candidate.variant.source,
       matchedIngredientCount: matched.overlap,
       totalIngredientCount: matched.candidate.variant.ingredients.length,
+      minimumPreservedIngredientCount: matched.candidate.variant.minimumPreservedIngredientCount ??
+        Math.max(1, Math.ceil(normalizedIngredients.length * 0.8)),
+      matchedRequiredIngredientCount,
+      requiredIngredientCount: requiredIngredients.length,
+      verificationStatus: "verified_individually",
       exactComposition: matched.f1 >= 0.999 && !matched.usedBaseAlias,
       origin: matched.candidate.origin,
     });
@@ -679,15 +882,32 @@ function professionalModelInferenceEvidence(source: string | undefined): Evidenc
   }
   return {
     evidenceLevel: "model_inference",
-    source: "本例证候、病机、治法与药味功效的结构化匹配（模型推断，需医生复核）",
+    source: "本例证候、病机、治法与药味功效的结构化匹配（病例内推理，需医生复核）",
     confidence: "中",
   };
 }
 
-export function enrichReasoning(reasoning: ClinicalReasoningResultV2): { reasoning: ClinicalReasoningResultV2; sourceLabels: string[] } {
+type ClassicEvidenceResolver = (
+  formulaNames: string[],
+) => NonNullable<NonNullable<ClinicalReasoningResultV2["formula"]>["candidates"][number]["classicEvidence"]>;
+
+export function enrichReasoning(
+  reasoning: ClinicalReasoningResultV2,
+  clinicalContext = "",
+  classicEvidenceResolver?: ClassicEvidenceResolver,
+): { reasoning: ClinicalReasoningResultV2; sourceLabels: string[] } {
   if (!reasoning.formula) return { reasoning, sourceLabels: [] };
   const sourceLabels: string[] = [];
   const candidates = reasoning.formula.candidates.map((candidate) => {
+    const herbSafetyProfiles = candidate.herbs.map((herb) => getTcmHerbGenerationSafetyProfile(herb.name));
+    const generationSafetyBoundaries = herbSafetyProfiles.flatMap((profile) => {
+      const actionableRules = profile.populationRules.filter((rule) => rule.severity !== "LOW");
+      if (!profile.isToxic && actionableRules.length === 0) return [];
+      return [`${profile.herb}（${[
+        ...(profile.isToxic ? [`毒性:${profile.toxicity.join("、")}`] : []),
+        ...actionableRules.map((rule) => `${rule.population}:${rule.severity}/${rule.rule}`),
+      ].join("；")}）`];
+    });
     const sources = resolveFormulaSources(candidate.name, candidate.herbs);
     const sourceLabel = sources.map((item) => `${item.formulaName}：${item.source}`).join("；");
     sourceLabels.push(sourceLabel);
@@ -708,28 +928,45 @@ export function enrichReasoning(reasoning: ClinicalReasoningResultV2): { reasoni
     const modificationStatus = /(?:加减|化裁|加味)/.test(candidate.name) || sources.length > 1 || inferredCompositionModification
       ? "modified" as const
       : "canonical" as const;
+    const explicitIdentityNames = explicitFormulaIdentityNames([candidate.name, ...(candidate.formulaNames || [])]);
+    const resolvedFormulaNames = sources.map((item) => item.formulaName);
     return {
       ...candidate,
       name: verifiedName,
-      formulaNames: sources.map((item) => item.formulaName),
+      formulaNames: resolvedFormulaNames,
       constructionType,
       modificationStatus,
-      therapyMatch: constructionType === "self_devised" ? replaceFormulaIdentityClaims(candidate.therapyMatch) : candidate.therapyMatch,
-      formulaAnalysis: constructionType === "self_devised" ? replaceFormulaIdentityClaims(candidate.formulaAnalysis) : candidate.formulaAnalysis,
+      therapyMatch: constructionType === "self_devised" ? replaceFormulaIdentityClaims(candidate.therapyMatch, explicitIdentityNames) : candidate.therapyMatch,
+      formulaAnalysis: constructionType === "self_devised" ? replaceFormulaIdentityClaims(candidate.formulaAnalysis, explicitIdentityNames) : candidate.formulaAnalysis,
       applicable: professionalCandidateBoundary(
         candidate.applicable,
         "适用于与本例锁定证候、病机和治法一致，且处方前安全信息经医生复核的情况。",
       ),
-      notApplicable: professionalCandidateBoundary(
-        candidate.notApplicable,
-        "证候、病机、舌脉或安全边界发生变化时暂停采用，并重新辨证。",
-      ),
+      notApplicable: [
+        professionalCandidateBoundary(
+          candidate.notApplicable.split("逐味生成前安全边界：")[0].trim(),
+          "证候、病机、舌脉或安全边界发生变化时暂停采用，并重新辨证。",
+        ),
+        ...(generationSafetyBoundaries.length > 0
+          ? [`逐味生成前安全边界：${generationSafetyBoundaries.join("；")}。命中相应人群或状态时按规则停用、替换或由医生/药师复核。`]
+          : []),
+      ].join(" "),
       baseFormulas: sources.map((item) => ({
         name: item.formulaName,
         source: item.source,
         matchedIngredientCount: item.matchedIngredientCount,
         totalIngredientCount: item.totalIngredientCount,
+        minimumPreservedIngredientCount: item.minimumPreservedIngredientCount,
+        matchedRequiredIngredientCount: item.matchedRequiredIngredientCount,
+        requiredIngredientCount: item.requiredIngredientCount,
+        verificationStatus: item.verificationStatus,
       })),
+      discriminationPath: formulaDiscriminationPaths(resolvedFormulaNames, clinicalContext),
+      classicEvidence: classicEvidenceResolver
+        ? classicEvidenceResolver(resolvedFormulaNames)
+        : candidate.classicEvidence || [],
+      compositionLogic: compositionLogicForFormulaNames(resolvedFormulaNames),
+      textualModifications: textualModificationsForFormulaNames(resolvedFormulaNames, clinicalContext),
       formulaSource: sourceLabel
         ? {
             evidenceLevel: sources.every((item) => item.origin !== "local_formula_catalog") ? "classic_text" as const : "kb_entry" as const,
@@ -739,8 +976,9 @@ export function enrichReasoning(reasoning: ClinicalReasoningResultV2): { reasoni
               : "中" as const,
           }
         : professionalModelInferenceEvidence(undefined),
-      herbs: candidate.herbs.map((herb) => ({
+      herbs: candidate.herbs.map((herb, herbIndex) => ({
         ...herb,
+        isToxic: herbSafetyProfiles[herbIndex]?.isToxic === true,
         ...(/酸枣仁/.test(herb.name) && /先煎/.test(herb.decoctionRequirement || "")
           ? { decoctionRequirement: "捣碎后与群药同煎" }
           : {}),
@@ -753,16 +991,18 @@ export function enrichReasoning(reasoning: ClinicalReasoningResultV2): { reasoni
   return { reasoning: { ...reasoning, formula: { ...reasoning.formula, candidates } }, sourceLabels };
 }
 
-function replaceSelfDevisedFormulaClaims(block: string): string {
-  return block
-    .replace(/[\u4e00-\u9fa5]{2,12}(?:汤|散|丸|饮|膏|丹)(?:加减|化裁|加味|类方)?/g, "本例辨证组方")
-    .replace(/原方/g, "本方案");
+function replaceSelfDevisedFormulaClaims(block: string, explicitIdentityNames: string[]): string {
+  return replaceGovernedFormulaClaims(
+    replaceLiteralFormulaClaims(block, explicitIdentityNames, "本例辨证组方"),
+    "本例辨证组方",
+  ).replace(/原方/g, "本方案");
 }
 
-function replaceFormulaIdentityClaims(value: string): string {
-  return value
-    .replace(/[\u4e00-\u9fa5]{2,12}(?:汤|散|丸|饮|膏|丹)(?:加减|化裁|加味|类方)?/g, "本方案")
-    .replace(/原方/g, "本方案");
+function replaceFormulaIdentityClaims(value: string, explicitIdentityNames: string[]): string {
+  return replaceGovernedFormulaClaims(
+    replaceLiteralFormulaClaims(value, explicitIdentityNames, "本方案"),
+    "本方案",
+  ).replace(/原方/g, "本方案");
 }
 
 function professionalCandidateBoundary(value: string, fallback: string): string {
@@ -775,6 +1015,7 @@ function replaceCandidateSourceFields(
   sourceHeadings: string[],
   candidateNames: string[],
   candidateConstructionTypes: string[],
+  candidateIdentityClaims: string[][],
 ): string {
   const headingPattern = /^#{2,6}\s*候选(?:处方|方案|方药|方药方案)\s*(?:\d+|[一二三四五六七八九十]+)?\s*[：:]\s*[^\n]+/gm;
   const headings = Array.from(content.matchAll(headingPattern));
@@ -790,7 +1031,7 @@ function replaceCandidateSourceFields(
     const verifiedName = candidateNames[index];
     if (verifiedName) block = block.replace(/^(#{2,6}\s*候选(?:处方|方案|方药|方药方案)\s*(?:\d+|[一二三四五六七八九十]+)?\s*[：:])\s*[^\n]+/m, `$1${verifiedName}`);
     if (candidateConstructionTypes[index] === "self_devised") {
-      block = replaceSelfDevisedFormulaClaims(block);
+      block = replaceSelfDevisedFormulaClaims(block, candidateIdentityClaims[index] || []);
     }
     const sourceLabel = sourceLabels[index] || "";
     const sourceHeading = sourceHeadings[index] || "组方依据";
@@ -807,18 +1048,26 @@ function replaceCandidateSourceFields(
   return output + content.slice(cursor);
 }
 
-export function enrichPrescriptionProvenance(content: string): string {
+export function enrichPrescriptionProvenance(
+  content: string,
+  clinicalContext = "",
+  classicEvidenceResolver?: ClassicEvidenceResolver,
+): string {
   let sourceLabels: string[] = [];
   let sourceHeadings: string[] = [];
   let candidateNames: string[] = [];
   let candidateConstructionTypes: string[] = [];
+  let candidateIdentityClaims: string[][] = [];
   const enriched = content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
     (match, jsonText: string) => {
       try {
         const parsed = JSON.parse(jsonText) as ClinicalReasoningResultV2;
         if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2" || parsed.stage !== "prescribe") return match;
-        const result = enrichReasoning(parsed);
+        candidateIdentityClaims = parsed.formula?.candidates.map((candidate) =>
+          explicitFormulaIdentityNames([candidate.name, ...(candidate.formulaNames || [])])
+        ) || [];
+        const result = enrichReasoning(parsed, clinicalContext, classicEvidenceResolver);
         sourceLabels = result.sourceLabels;
         sourceHeadings = result.reasoning.formula?.candidates.map((candidate) =>
           candidate.modificationStatus === "modified" && candidate.formulaSource.evidenceLevel !== "model_inference"
@@ -843,6 +1092,7 @@ export function enrichPrescriptionProvenance(content: string): string {
     sourceHeadings,
     candidateNames,
     candidateConstructionTypes,
+    candidateIdentityClaims,
   );
   return alignedNarrative.replace(/^([^\n]*酸枣仁[^\n]*)$/gm, (line) =>
     /先煎/.test(line) ? line.replace(/先煎(?:\s*\d+\s*分钟)?/g, "捣碎后同煎") : line

@@ -70,7 +70,7 @@ export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPr
       ok: false,
       status: 409,
       code: "limited_m03_not_prescribable",
-      message: "当前辨病辨证为服务端有限结果（未形成可采纳的证候与病机链），不能生成剂量级 HIS 方案；请补充信息后重新生成辨病辨证。",
+      message: "本次辨病辨证仅形成有限结果，尚未形成可采纳的证候与病机链，不能生成剂量级 HIS 方案；请补充会影响辨证或用药的患者信息后重新分析。",
     };
   }
 

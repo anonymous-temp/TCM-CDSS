@@ -22,6 +22,7 @@ const AUDIT_VERIFIED_METHOD_SUPPLEMENTS: Record<string, string[]> = {
   枇杷叶: ["包煎"],
   菟丝子: ["包煎"],
   莱菔子: ["包煎"],
+  紫苏子: ["包煎"],
 };
 export type DecoctionRule = {
   required: string[];

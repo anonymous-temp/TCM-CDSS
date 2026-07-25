@@ -17,7 +17,8 @@ export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from 
  * LLM 临床语义红旗层的运行时接线。
  *
  * 默认启用；仅当 `CDSS_CLINICAL_FACTS_BACKSTOP === "false"` 时关闭。确定性层负责危急生命体征与明确高置信
- * 事实，LLM 层负责口语、组合语义、否定和时序。模型结论必须通过 schema 与原文引用校验后才可进入安全门。
+ * 事实，LLM 层负责口语、组合语义、否定和时序。模型结论必须通过 schema 与原文引用校验后才可进入
+ * 追加提醒/澄清链；它不单独拥有硬红旗门权。
  * 抽取失败(模型不可用/超时/输出非法)清除陈旧 finding，并显式标记 semantic unavailable，供安全门在
  * 允许 M03 继续分析的同时阻断静默处方升级。
  */
@@ -41,10 +42,17 @@ function projectClinicalFactsSource(fullText: string): { text: string; coverage:
 }
 
 function clinicalFactsTotalTimeoutMs(): number {
-  const configured = Number(process.env.CLINICAL_FACTS_TOTAL_TIMEOUT_MS || 10_000);
-  return Number.isFinite(configured) && configured >= 3_000 && configured <= 15_000
+  const configured = Number(process.env.CLINICAL_FACTS_TOTAL_TIMEOUT_MS || 25_000);
+  return Number.isFinite(configured) && configured >= 5_000 && configured <= 30_000
     ? Math.round(configured)
-    : 10_000;
+    : 25_000;
+}
+
+function clinicalFactsPhaseTimeoutMs(): number {
+  const configured = Number(process.env.CLINICAL_FACTS_PHASE_TIMEOUT_MS || 8_000);
+  return Number.isFinite(configured) && configured >= 3_000 && configured <= 12_000
+    ? Math.round(configured)
+    : 8_000;
 }
 
 type ClinicalFactsPhaseModel = ClinicalFactsModelIdentity & {
@@ -110,8 +118,8 @@ function sameModelIdentity(a: ClinicalFactsModelIdentity, b: ClinicalFactsModelI
 
 export function getClinicalFactsModelPlan() {
   const primary = getPrimaryTextModelConfig();
-  // Triage is a compact JSON classification task. Defaulting to the fast primary model removes the
-  // former 20-30 second pre-report blank period; M03 can still use its deeper diagnose model.
+  // Triage is a compact JSON classification task. All identities are pinned to the approved V4 Pro
+  // release model; phase-specific token/reasoning budgets keep this pre-check bounded.
   const extractor = primaryFactsPhaseModel(process.env.CLINICAL_FACTS_MODEL?.trim() || primary.model);
   const reviewer = independentFactsReviewModel();
   const adjudicator = primaryFactsPhaseModel(
@@ -126,6 +134,11 @@ export function getClinicalFactsModelPlan() {
     adjudicator,
     independentReview,
     independentAdjudication,
+    separateInvocationReview: reviewer.configured,
+    separateInvocationAdjudication: adjudicator.configured,
+    // Same-model phases are still separate calls, but they may not erase or downgrade a grounded
+    // first-pass risk. Disposition reductions require a genuinely different model identity in both
+    // downstream phases.
     reductionsAllowed: independentReview && independentAdjudication,
   };
 }
@@ -223,6 +236,12 @@ async function callFactsPhaseModel(
   signal: AbortSignal | undefined,
 ): Promise<string> {
   if (!config.configured) throw new Error("model_not_configured");
+  // A single slow phase must not consume the entire extractor+review budget. Keeping the phase
+  // deadline separate leaves room for the one bounded independent-review retry below while the
+  // outer request deadline still caps total work.
+  const phaseSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(clinicalFactsPhaseTimeoutMs())])
+    : AbortSignal.timeout(clinicalFactsPhaseTimeoutMs());
   if (config.source === "independent_review") {
     const response = await fetch(config.endpoint, {
       method: "POST",
@@ -241,7 +260,7 @@ async function callFactsPhaseModel(
           thinking: { type: "disabled" },
         } : {}),
       }),
-      signal,
+      signal: phaseSignal,
     });
     if (!response.ok) throw new Error(`review_model_http_${response.status}`);
     const body = await response.json() as { choices?: Array<{ message?: { content?: string | null } }> };
@@ -266,9 +285,28 @@ async function callFactsPhaseModel(
         thinking: { type: "disabled" as const },
       } : {}),
     },
-    { timeout: 10_000, signal },
+    { timeout: clinicalFactsPhaseTimeoutMs(), signal: phaseSignal },
   );
   return res.choices?.[0]?.message?.content || "";
+}
+
+export async function callClinicalFactsPhaseWithRetry(
+  call: () => Promise<string>,
+  signal: AbortSignal | undefined,
+  maxAttempts: 1 | 2,
+): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    if (signal?.aborted) throw signal.reason || new DOMException("Aborted", "AbortError");
+    try {
+      const content = await call();
+      if (content.trim()) return content;
+      lastError = new Error("empty_clinical_facts_phase_response");
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("clinical_facts_phase_unavailable");
 }
 
 const REAL_FACTS_LLM_CALL: FactsLlmCall = async (system, user, signal, phase = "extract") => {
@@ -276,7 +314,16 @@ const REAL_FACTS_LLM_CALL: FactsLlmCall = async (system, user, signal, phase = "
   const config = phase === "review" ? plan.reviewer
     : phase === "adjudicate" ? plan.adjudicator
       : plan.extractor;
-  return callFactsPhaseModel(config, system, user, signal);
+  // Extraction gets one transport/empty-response retry. Independent review has its own bounded
+  // full-contract retry in extractClinicalFacts, which reuses the exact same grounded first pass;
+  // keeping this transport wrapper single-shot for review prevents multiplicative retries.
+  // Repair/adjudication remain single-shot so disagreement cannot be retried into an easier result.
+  const maxAttempts = phase === "extract" ? 2 : 1;
+  return callClinicalFactsPhaseWithRetry(
+    () => callFactsPhaseModel(config, system, user, signal),
+    signal,
+    maxAttempts,
+  );
 };
 
 function attestationKey(): string {
@@ -443,6 +490,8 @@ export async function maybeAttachClinicalFactsBackstop(
         adjudicator: { provider: plan.adjudicator.provider, model: plan.adjudicator.model },
         independentReview: plan.independentReview,
         independentAdjudication: plan.independentAdjudication,
+        separateInvocationReview: plan.separateInvocationReview,
+        separateInvocationAdjudication: plan.separateInvocationAdjudication,
       };
     })(),
     sourceFingerprint,

@@ -33,7 +33,7 @@ function clean(value: unknown): string {
 export function hasMeaningfulMedicationRisk(section?: string): boolean {
   const text = clean(section).replace(/\s+/g, "");
   if (!text || text === "暂无" || text === "待生成") return false;
-  const concreteRiskPattern = /慎用|禁忌|相互作用|ADR|不良反应|过敏|肝肾|出血|妊娠|哺乳|儿童|老年|毒性|当前用药未知|无法评估|减量|替换|停药|转诊|强提示|一般提示|信息不足提示/;
+  const concreteRiskPattern = /慎用|禁忌|相互作用|ADR|不良反应|过敏|肝肾|出血|妊娠|哺乳|儿童|老年|毒性|当前用药未知|无法评估|减量|替换|停药|转诊|强提示|一般提示|信息不足提示|待补充信息后再评估/;
   const noRiskPattern = /未见明显|未发现|暂无|无明确|无特殊/;
   const onlyNoRisk = noRiskPattern.test(text) && !concreteRiskPattern.test(text);
   if (onlyNoRisk) return false;
@@ -52,7 +52,7 @@ export function resolveAuditReviewPresentation(
     };
   }
   const hasIssues = hasMeaningfulMedicationRisk(content) ||
-    /\|\s*(?:强提示|一般提示|信息不足提示)\s*\|/.test(content || "");
+    /\|\s*(?:强提示|一般提示|信息不足提示|待补充信息后再评估)\s*\|/.test(content || "");
   if (!hasIssues) return null;
   return {
     kind: "risk",
@@ -97,7 +97,7 @@ export function buildMedicineCandidateEmptyState(context: MedicineCandidateConte
   ].filter(Boolean);
   return {
     headline: "本次没有形成可安全展示的具体候选药物",
-    explanation: "系统只展示适应证、用法用量边界及来源均可核验的西药/中成药候选；本次没有条目同时满足这些条件，不会为了填满栏目生成具体药名。",
+    explanation: "本地中成药检索未得到与本例证型/治法及症状同时匹配且可核验的条目；西药候选依赖外部说明书证据，本次未取得可绑定证据时不生成具体药名，也不会为了填满栏目生成具体药名。",
     action: missingFacts.length > 0
       ? `如需重新评估，请先补充${missingFacts.join("、")}，然后重新分析。`
       : "如需重新评估，请补充诊断分型所需信息或检查结果后重新分析。",
@@ -121,11 +121,29 @@ function uniqueText(items: string[]): string[] {
   return [...new Set(items.map((item) => clean(item)).filter(Boolean))];
 }
 
+function reasoningFingerprint(value: string): string {
+  return value.normalize("NFKC").replace(/[\s，,。.；;：:（）()、"'“”‘’]/g, "");
+}
+
+/** A rationale must add an explanatory link, not merely repeat the fact list in sentence form. */
+export function isNonRedundantClinicalRationale(rationale: string, supportingFacts: readonly string[]): boolean {
+  const reasoning = reasoningFingerprint(rationale);
+  if (reasoning.length < 8) return false;
+  const facts = supportingFacts.map(reasoningFingerprint).filter(Boolean);
+  if (facts.some((fact) => fact === reasoning || fact.includes(reasoning))) return false;
+  const copiedLength = facts.reduce((total, fact) => total + (reasoning.includes(fact) ? fact.length : 0), 0);
+  const hasInferenceLink = /(?:提示|支持|符合|考虑|因而|故|结合|但|尚不能|不支持|区别于|排除)/.test(rationale);
+  return hasInferenceLink && copiedLength / reasoning.length < 0.8;
+}
+
 export function buildTieredSuggestedChecks(
   context: ClinicalDisplayContext,
   checks: string[],
 ): string[] {
-  const normalizedChecks = uniqueText(checks);
+  const normalizedChecks = uniqueText(checks).map((item) => clean(item
+    .replace(/(?:[；;，,]\s*)?(?:接诊时核实相关症状是否存在|当前为?(?:当前为)?有限资料下的工作判断|判断把握度(?:较)?低)[。.]?/g, "")
+    .replace(/^[；;，,\s]+|[；;，,\s]+$/g, "")))
+    .filter(Boolean);
   if (context.safetyGate?.status === "red_flag") return normalizedChecks;
 
   const sparseAssessment = !presentHistory(context) ||
@@ -137,14 +155,18 @@ export function buildTieredSuggestedChecks(
     /\bCT\b|MRI|磁共振|增强扫描|经颅多普勒|TCD|血管造影|CTA|MRA/i.test(item));
   const hasOtherTesting = normalizedChecks.some((item) =>
     !/\bCT\b|MRI|磁共振|增强扫描|经颅多普勒|TCD|血管造影|CTA|MRA/i.test(item));
+  const nonAdvancedChecks = normalizedChecks.filter((item) =>
+    !/\bCT\b|MRI|磁共振|增强扫描|经颅多普勒|TCD|血管造影|CTA|MRA/i.test(item));
+  const complaint = clean(context.chiefComplaint);
+  const examinationFocus = /头痛|头疼|头晕|眩晕|肢体|麻木|抽搐|意识|言语/.test(complaint)
+    ? "神经系统查体"
+    : "与主诉相关的体格检查";
   return [
-    "先补充病程、诱因、伴随症状及既往史，测量生命体征并完成神经系统查体。",
+    `先补充病程、诱因、伴随症状及既往史，测量生命体征并完成${examinationFocus}。`,
     ...(hasAdvancedTesting
-      ? ["若出现红旗表现或神经系统查体异常，再由接诊医生评估是否需要针对性影像学检查。"]
+      ? [`若补充问诊或${examinationFocus}出现相应指征，再由接诊医生评估针对性影像学检查。`]
       : []),
-    ...(hasOtherTesting
-      ? ["其余检验检查应根据补充问诊和查体后的鉴别方向选择，不作无差别筛查。"]
-      : []),
+    ...(hasOtherTesting ? nonAdvancedChecks : []),
   ];
 }
 

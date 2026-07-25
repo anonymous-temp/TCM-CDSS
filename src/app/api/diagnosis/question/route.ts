@@ -24,20 +24,23 @@ export async function POST(req: Request) {
   }
   const caseState = await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal);
   const fallbackQuestions = buildCaseAwareQuestionFallback(caseState);
-  const fallback = ensureQuestionStructuredEnvelope(fallbackQuestions);
   const safeCaseState = sanitizeCaseStateForModel(caseState);
   const sourceText = trustedInputText(safeCaseState);
+  const fallback = enforceM02UnansweredAxes(
+    ensureQuestionStructuredEnvelope(fallbackQuestions, sourceText),
+    sourceText,
+  );
   const prompt = buildQuestionPrompt(safeCaseState);
   const response = await callDiagnosisStream(prompt, "deepseek", undefined, "question", {
     requestSignal: req.signal,
     streamErrorFallback: fallbackQuestions,
     outputTransform: (content) => enforceM02UnansweredAxes(
-      ensureQuestionStructuredEnvelope(content, sourceText),
+      ensureQuestionStructuredEnvelope(content, sourceText, fallbackQuestions),
       sourceText,
       fallbackQuestions,
       caseState,
     ),
-    finalOutputTransform: (content) => reviewM02QuestionPlan(content, sourceText, req.signal),
+    finalOutputTransform: (content) => reviewM02QuestionPlan(content, sourceText, req.signal, undefined, fallbackQuestions),
   });
   if (response.ok || req.signal.aborted) return response;
   await response.body?.cancel().catch(() => undefined);

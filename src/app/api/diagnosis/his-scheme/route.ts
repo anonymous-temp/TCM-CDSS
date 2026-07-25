@@ -6,6 +6,7 @@ import {
   buildAuditInputAdvisorySection,
   buildLingxiRiskSection,
   buildLocalHighRiskHerbPairSection,
+  buildRxAuditScopeSection,
   buildRxAuditCorrelationMetadata,
   buildUnavailableRxAuditSection,
   mergeLocalHighRiskHerbPairIssues,
@@ -43,6 +44,11 @@ async function evidenceScopeForCase(caseState: Parameters<typeof sanitizeCaseSta
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
+  // Evidence retrieval is independent of the semantic red-flag projection. Run it concurrently so
+  // the HIS boundary cannot serially consume the full clinical-facts budget and then the full
+  // EviMed budget, which previously exceeded the endpoint's 30s integration SLO under a long batch.
+  const evidenceScopePromise = evidenceScopeForCase(parsed.caseState)
+    .catch(() => buildEvidenceScope(""));
   const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal));
   const prescribed = prescribeReasoningFromState(caseState);
   const permission = derivePrescriptionPermission(caseState);
@@ -57,11 +63,11 @@ export async function POST(req: Request) {
       reasoningV2: diagnoseOnlyReasoning,
       prescriptionRevision: undefined,
     };
-    return Response.json(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopeForCase(caseState)));
+    return Response.json(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise));
   }
 
   if (!prescribed && !caseState.prescriptionRevision && !caseState.prescription?.trim()) {
-    return Response.json(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopeForCase(caseState)));
+    return Response.json(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise));
   }
 
   const validation = validateHisPrescriptionForWriteBack(caseState);
@@ -89,6 +95,7 @@ export async function POST(req: Request) {
   if (!providerAudit.ok) {
     console.warn("[tcm-cdss:rxaudit] HIS advisory audit unavailable", { reason: providerAudit.reason });
     const auditSection = [
+      buildRxAuditScopeSection(caseState, candidateIndex),
       buildLocalHighRiskHerbPairSection(caseState, candidateIndex),
       inputAdvisorySection,
       buildUnavailableRxAuditSection(providerAudit.reason),
@@ -121,7 +128,7 @@ export async function POST(req: Request) {
       auditedAt,
     });
     return Response.json({
-      ...buildHisAiSchemePayload(advisoryState, await evidenceScopeForCase(caseState)),
+      ...buildHisAiSchemePayload(advisoryState, await evidenceScopePromise),
       auditCorrelation: correlation,
     });
   }
@@ -132,7 +139,11 @@ export async function POST(req: Request) {
     normalizeAuditOutcomeForPatient(mergedAudit, patientSex),
     inputAdvisories,
   );
-  const auditSection = [inputAdvisorySection, buildLingxiRiskSection(effectiveAudit, patientSex)].filter(Boolean).join("\n\n");
+  const auditSection = [
+    buildRxAuditScopeSection(caseState, candidateIndex),
+    inputAdvisorySection,
+    buildLingxiRiskSection(effectiveAudit, patientSex),
+  ].filter(Boolean).join("\n\n");
   const assessed = withSafetyGate({ ...caseState, riskAssessment: auditSection, safetyLocked: deriveSafetyLocked(caseState) });
   const forcedIncomplete = caseState.skipDifferentiationGate === true && (assessed.completeness.level !== "C" || assessed.safetyGate?.status !== "ready");
   const followup = forcedIncomplete ? buildForcedIncompleteRiskFollowup(assessed) : buildDeterministicRiskFollowup(assessed);
@@ -164,7 +175,7 @@ export async function POST(req: Request) {
     auditedAt,
   });
   return Response.json({
-    ...buildHisAiSchemePayload(auditedState, await evidenceScopeForCase(caseState)),
+    ...buildHisAiSchemePayload(auditedState, await evidenceScopePromise),
     auditCorrelation: correlation,
   });
 }

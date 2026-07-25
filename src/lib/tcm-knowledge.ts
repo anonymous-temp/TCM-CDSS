@@ -28,7 +28,10 @@ type KnowledgeEntry = {
   secondaryCategory?: string;
   toxicity?: string;
   pregnancyRule?: string;
+  pregnancySeverity?: string;
   lactationRule?: string;
+  lactationSeverity?: string;
+  ruleType?: string;
   basis?: string;
   sourceUrl?: string;
   action?: string;
@@ -255,12 +258,21 @@ const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   白术: "健脾益气，燥湿利水，止汗，安胎",
   龙眼肉: "补益心脾，养血安神",
   木香: "行气止痛，健脾消食",
+  // The generated source currently exposes only broad category labels for 柴胡. Keep the
+  // pharmacopoeia function sentence in the governed layer so prompt shortlists, deterministic
+  // direction validation, independent clinical review and the doctor-facing table all see the
+  // same clinical identity instead of disagreeing on whether it can 疏肝解郁.
+  柴胡: "疏散退热，疏肝解郁，升举阳气",
   甘草: "补脾益气，清热解毒，祛痰止咳，缓急止痛，调和诸药",
   酸枣仁: "养心补肝，宁心安神，敛汗生津",
   茯苓: "利水渗湿，健脾，宁心安神",
   远志: "安神益智，交通心肾，祛痰开窍",
   生姜: "解表散寒，温中止呕，温肺止咳，解毒，调和诸药",
   茯神: "宁心安神，利水渗湿",
+  // The compiled workbook row for 玉竹 is polluted with unrelated 补气/活血 labels.
+  // Keep its governed pharmacopoeia identity here so shortlist direction checks do not
+  // falsely reject a standard 养阴药 as an unsupported high-impact blood mover.
+  玉竹: "养阴润燥，生津止渴",
   麦冬: "养阴生津，润肺清心",
   生地黄: "清热凉血，养阴生津",
 };
@@ -590,6 +602,16 @@ function formatHisSupportContext(query: string): string {
 }
 
 function formatCommonDoseIndex(): string {
+  const safetySuffix = (name: string) => {
+    const profile = getTcmHerbGenerationSafetyProfile(name);
+    const flags = [
+      ...(profile.isToxic ? [`毒性:${profile.toxicity.join("、")}`] : []),
+      ...profile.populationRules
+        .filter((rule) => rule.severity !== "LOW")
+        .map((rule) => `${rule.population}:${rule.severity}`),
+    ];
+    return flags.length > 0 ? `，生成前安全:${flags.join("/")}` : "";
+  };
   const common = data.commonHerbs.flatMap((item) => {
     const limit = getTcmHerbDoseLimit(item.name);
     if (limit?.min == null || limit.max == null) return [];
@@ -599,18 +621,18 @@ function formatCommonDoseIndex(): string {
     const sourceConflict = limit.sourceConflict
       ? "，存在分用途剂量差异，模型采用保守主范围并交由审方按实际用途复核"
       : "";
-    return [`${item.name}${dose}${method}${risk}${sourceConflict}`];
+    return [`${item.name}${dose}${method}${risk}${sourceConflict}${safetySuffix(item.name)}`];
   });
   const controlled = ["茯神", "夜交藤"].flatMap((name) => {
     const limit = getTcmHerbDoseLimit(name);
-    return limit?.min != null && limit.max != null ? [`${name}${limit.min}-${limit.max}g`] : [];
+    return limit?.min != null && limit.max != null ? [`${name}${limit.min}-${limit.max}g${safetySuffix(name)}`] : [];
   });
   const commonNames = new Set(data.commonHerbs.map((item) => item.name));
   const conflictGoverned = data.herbs.flatMap((item) => {
     if (commonNames.has(item.name)) return [];
     const limit = getTcmHerbDoseLimit(item.name);
     if (limit?.min == null || limit.max == null || !limit.sourceConflict) return [];
-    return [`${item.name}${limit.min}-${limit.max}g，存在分用途剂量差异，模型采用保守主范围并交由审方按实际用途复核`];
+    return [`${item.name}${limit.min}-${limit.max}g，存在分用途剂量差异，模型采用保守主范围并交由审方按实际用途复核${safetySuffix(item.name)}`];
   });
   return [...common, ...controlled, ...conflictGoverned].join("；");
 }
@@ -975,14 +997,24 @@ export function getTcmHerbDoseLimit(herb: string): TcmHerbDoseLimit | null {
   // 范围不相交则显式标记冲突，而不是把整味药静默降成“无剂量数据”。
   const entries = herbData?.entries || [];
   const primaryDoseEntries = validDoseEntries(entries, "dose");
+  const curatedDoseEntries = validDoseEntries(entries, "curatedDose");
   const decoctionRouteEntries = validDoseEntries(entries, "routeDose").filter((entry) =>
     /煎服|汤剂|另煎|另炖/.test(`${entry.routeForm || ""}${entry.method || ""}`)
   );
-  const primary = resolvedDoseEntry(primaryDoseEntries, "dose", equivalent?.basis, decoctionRouteEntries);
+  // When the pharmacopoeia range and the clinic/dispensing range overlap, model-generated doses
+  // use their conservative intersection. This prevents a candidate that is legal at the broad
+  // source ceiling but predictably rejected by the downstream institutional audit. Disjoint
+  // sources remain an explicit sourceConflict and retain the primary pharmacopoeia range.
+  const primary = resolvedDoseEntry(
+    [...primaryDoseEntries, ...curatedDoseEntries],
+    "dose",
+    equivalent?.basis,
+    decoctionRouteEntries,
+  );
   if (primary) return primary;
   const route = resolvedDoseEntry(decoctionRouteEntries, "routeDose", equivalent?.basis);
   if (route) return route;
-  const curated = herbData?.entries.find((entry) => entry.type === "curatedDose" && entry.minG != null && entry.maxG != null);
+  const curated = curatedDoseEntries[0];
   if (curated) return { min: curated.minG, max: curated.maxG, basis: equivalent?.basis || curated.basis, sourceType: "curatedDose" };
   const common = data.commonHerbs.find((item) => item.name === doseName);
   return common ? { min: common.minG, max: common.maxG, basis: equivalent?.basis || common.basis, sourceType: "common" } : null;
@@ -1065,4 +1097,102 @@ export function getTcmHerbRiskProfile(herb: string): string {
     .flatMap((entry) => [entry.riskCode, entry.riskName, entry.primaryCategory, entry.secondaryCategory, entry.toxicity])
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     .join("；");
+}
+
+export type TcmHerbGenerationSafetyRule = {
+  population: string;
+  severity: "LOW" | "MEDIUM" | "HIGH";
+  rule: string;
+  action: string;
+  basis: string;
+};
+
+export type TcmHerbGenerationSafetyProfile = {
+  herb: string;
+  isToxic: boolean;
+  toxicity: string[];
+  populationRules: TcmHerbGenerationSafetyRule[];
+};
+
+const SAFETY_SEVERITY_RANK = { LOW: 1, MEDIUM: 2, HIGH: 3 } as const;
+
+function normalizedSafetySeverity(value: unknown): TcmHerbGenerationSafetyRule["severity"] {
+  const text = String(value || "").toUpperCase();
+  if (text === "HIGH" || /禁用|忌用|高风险|阻断/.test(text)) return "HIGH";
+  if (text === "MEDIUM" || /慎用|复核|监测/.test(text)) return "MEDIUM";
+  return "LOW";
+}
+
+/**
+ * Structured pre-generation safety facts. M04 consumes this before proposing herbs and again
+ * before signing the compiled candidate; M05/RxAudit remain an independent post-prescription net.
+ */
+export function getTcmHerbGenerationSafetyProfile(herb: string): TcmHerbGenerationSafetyProfile {
+  const canonical = canonicalKnowledgeHerbName(herb);
+  const herbData = data.herbs.find((item) => item.name === canonical || item.aliases.includes(canonical));
+  const entries = herbData?.entries || [];
+  const toxicity = [...new Set(entries
+    .map((entry) => String(entry.toxicity || "").trim())
+    .filter((value) => value && !/^(?:无|无毒|未标注|未见毒性)$/.test(value)))];
+  const populationRules = new Map<string, TcmHerbGenerationSafetyRule>();
+  const addRule = (rule: TcmHerbGenerationSafetyRule) => {
+    const existing = populationRules.get(rule.population);
+    if (!existing || SAFETY_SEVERITY_RANK[rule.severity] > SAFETY_SEVERITY_RANK[existing.severity]) {
+      populationRules.set(rule.population, rule);
+    }
+  };
+  for (const entry of entries) {
+    if (entry.type === "specialPopulation" && entry.population) {
+      addRule({
+        population: entry.population,
+        severity: normalizedSafetySeverity(entry.severity || entry.riskLevel),
+        rule: entry.quote || entry.riskLevel || entry.ruleType || "需医生/药师复核",
+        action: entry.action || "医生/药师复核",
+        basis: entry.basis || "药典/院内规则",
+      });
+    }
+    if (entry.type === "herbRisk") {
+      if (entry.pregnancyRule && !/^(?:非孕期核心规则|一般不因类别禁用)/.test(entry.pregnancyRule)) {
+        addRule({
+          population: "孕期/妊娠",
+          severity: normalizedSafetySeverity(entry.pregnancySeverity || entry.pregnancyRule),
+          rule: entry.pregnancyRule,
+          action: normalizedSafetySeverity(entry.pregnancySeverity || entry.pregnancyRule) === "HIGH"
+            ? "生成期不得形成剂量候选"
+            : "医生/药师复核",
+          basis: entry.basis || "中药风险知识库",
+        });
+      }
+      if (entry.lactationRule && !/^(?:非哺乳期核心规则|一般不因类别禁用)/.test(entry.lactationRule)) {
+        addRule({
+          population: "哺乳期",
+          severity: normalizedSafetySeverity(entry.lactationSeverity || entry.lactationRule),
+          rule: entry.lactationRule,
+          action: normalizedSafetySeverity(entry.lactationSeverity || entry.lactationRule) === "HIGH"
+            ? "生成期不得形成剂量候选"
+            : "医生/药师复核",
+          basis: entry.basis || "中药风险知识库",
+        });
+      }
+    }
+  }
+  return {
+    herb: herbData?.name || canonical,
+    isToxic: toxicity.length > 0,
+    toxicity,
+    populationRules: [...populationRules.values()]
+      .sort((left, right) =>
+        SAFETY_SEVERITY_RANK[right.severity] - SAFETY_SEVERITY_RANK[left.severity] ||
+        left.population.localeCompare(right.population)),
+  };
+}
+
+export function tcmHerbGenerationSafetyBoundaryText(herb: string): string {
+  const profile = getTcmHerbGenerationSafetyProfile(herb);
+  const parts = [
+    profile.isToxic ? `毒性=${profile.toxicity.join("、")}` : "毒性=未标注毒性",
+    ...profile.populationRules.map((rule) =>
+      `${rule.population}=${rule.severity}/${rule.rule}`),
+  ];
+  return parts.join("；");
 }

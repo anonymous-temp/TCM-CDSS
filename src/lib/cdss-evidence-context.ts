@@ -4,7 +4,10 @@ import { buildExternalEvidenceContext } from "./evimed-guide";
 import { buildFormulaProvenanceContext } from "./tcm-formula-provenance";
 import { buildTcmKnowledgeContext } from "./tcm-knowledge";
 import { sanitizeCustomerEvidenceDocument, sanitizeInlineEvidenceClaims, sanitizeLabeledEvidenceLines } from "./customer-evidence";
-import { buildEvidenceScope, sanitizeEvidenceObject, sourceAllowed, sourceSupportsMedicine, type EvidenceScope } from "./evidence-source-validation";
+import { buildEvidenceScope, medicineEvidenceBindingValid, medicineProblemMatchesCase, sanitizeEvidenceObject, sourceAllowed, sourceSupportsMedicine, type EvidenceScope } from "./evidence-source-validation";
+import { buildTcmFormulaIndicationContext, buildTcmFormulaReasoningContext } from "./tcm-formula-indications";
+import { buildLocalPatentMedicineContext } from "./local-patent-medicine-candidates";
+import { diagnoseReasoningFromState } from "./diagnosis-parse";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
 
@@ -21,6 +24,14 @@ export async function buildCdssEvidenceContext(
   const localContext = buildTcmKnowledgeContext(caseState, stage);
   const externalEvidenceContext = await buildExternalEvidenceContext(caseState, stage);
   const formulaProvenanceContext = stage === "prescribe" ? buildFormulaProvenanceContext(caseState) : "";
+  const formulaIndicationContext = stage === "diagnose"
+    ? buildTcmFormulaIndicationContext(caseState)
+    : stage === "prescribe"
+      ? buildTcmFormulaReasoningContext(diagnoseReasoningFromState(caseState))
+      : "";
+  const localPatentMedicineContext = stage === "prescribe"
+    ? buildLocalPatentMedicineContext(caseState)
+    : "";
 
   return [
     "【外部证据与院内知识支持】",
@@ -28,7 +39,9 @@ export async function buildCdssEvidenceContext(
     "## 官方基础依据",
     BASELINE_OFFICIAL_EVIDENCE,
     localContext,
+    formulaIndicationContext,
     formulaProvenanceContext,
+    localPatentMedicineContext,
     externalEvidenceContext,
   ].join("\n\n");
 }
@@ -37,7 +50,7 @@ export function appendEvidenceContext(prompt: string, evidenceContext: string): 
   return `${prompt}\n\n${evidenceContext}\n\n证据引用强约束：输出中的“证据依据/引用来源/依据”只能引用上方资料中的方括号ID、真实题名、真实URL、真实说明书/药典来源或本地知识库已给出的来源字段。未命中时省略客户正文里的来源字段，结构化 evidence 使用 evidenceLevel=insufficient、source=内部证据缺口；严禁向客户输出“证据不足/待检索/检索失败/未配置”等内部状态，也不得编造指南、文献题名、说明书、批准文号、年份、链接、DOI或不存在的院内规则。`;
 }
 
-function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope): string {
+function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medicineCaseText = ""): string {
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
     (match, jsonText: string) => {
@@ -56,16 +69,40 @@ function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope): stri
           if (formula && typeof formula === "object" && !Array.isArray(formula)) {
             const record = formula as { patentAndWestern?: unknown };
             if (Array.isArray(record.patentAndWestern)) {
-              record.patentAndWestern = record.patentAndWestern.filter((item) => {
+              const filteredMedicines = record.patentAndWestern.filter((item) => {
                 if (!item || typeof item !== "object" || Array.isArray(item)) return false;
-                const evidence = (item as { evidence?: unknown }).evidence;
+                const medicine = item as {
+                  name?: unknown;
+                  specification?: unknown;
+                  correspondingProblem?: unknown;
+                  evidenceId?: unknown;
+                  evidenceFingerprint?: unknown;
+                  evidence?: unknown;
+                };
+                const evidence = medicine.evidence;
                 if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return false;
                 const ref = evidence as { evidenceLevel?: unknown; source?: unknown };
-                const name = (item as { name?: unknown }).name;
+                const name = medicine.name;
+                const problem = medicine.correspondingProblem;
                 return ["guideline", "instruction", "drug_label", "literature"].includes(String(ref.evidenceLevel || "")) &&
                   typeof ref.source === "string" && ref.source.trim().length > 0 &&
-                  typeof name === "string" && sourceSupportsMedicine(ref.source, name, scope);
+                  typeof name === "string" && typeof problem === "string" &&
+                  typeof medicine.evidenceId === "string" && typeof medicine.evidenceFingerprint === "string" &&
+                  sourceSupportsMedicine(ref.source, name, scope) &&
+                  medicineEvidenceBindingValid(
+                    medicine.evidenceId,
+                    medicine.evidenceFingerprint,
+                    name,
+                    problem,
+                    typeof medicine.specification === "string" ? medicine.specification : null,
+                    scope,
+                  ) &&
+                  (!medicineCaseText || medicineProblemMatchesCase(problem, medicineCaseText));
               });
+              record.patentAndWestern = filteredMedicines;
+              (record as { medicineCandidateStatus?: unknown }).medicineCandidateStatus = filteredMedicines.length > 0
+                ? { status: "available", reason: "已形成与本例问题匹配并绑定真实说明书条目的候选。" }
+                : { status: "no_evidence_match", reason: "未检索到与本例诊断或证候匹配、且可核验到具体说明书条目的西药或中成药候选。" };
             }
           }
         }
@@ -147,12 +184,21 @@ function hideCustomerEvidencePlaceholders(content: string): string {
 export function buildEvidenceOutputTransform(
   evidenceContext: string,
   priorTransform?: (content: string) => string,
+  medicineCaseState?: CaseState,
 ): (content: string) => string {
   const scope = buildEvidenceScope(evidenceContext);
+  const medicineCaseText = medicineCaseState ? [
+    medicineCaseState.chiefComplaint,
+    ...Object.entries(medicineCaseState.symptoms || {}).map(([key, value]) => `${key}：${String(value ?? "")}`),
+    medicineCaseState.reasoningDiagnose?.westernDiagnosis?.primary?.name,
+    ...(medicineCaseState.reasoningDiagnose?.westernDiagnosis?.primary?.supportingFacts || []),
+    medicineCaseState.reasoningDiagnose?.overview?.primarySyndrome,
+    ...(medicineCaseState.reasoningDiagnose?.overview?.primarySyndromeBasis || []),
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；") : "";
   return (content: string) => {
     const transformed = priorTransform ? priorTransform(content) : content;
     return hideCustomerEvidencePlaceholders(
-      sanitizeSentinelJsonBlocks(sanitizeMarkdownEvidenceClaims(transformed, scope), scope),
+      sanitizeSentinelJsonBlocks(sanitizeMarkdownEvidenceClaims(transformed, scope), scope, medicineCaseText),
     );
   };
 }

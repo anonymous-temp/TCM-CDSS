@@ -1,19 +1,28 @@
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
 import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
-import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName } from "./tcm-knowledge";
+import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
 import { prescriptionRegimenContractIssue, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
-import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
+import { TCM_TREATMENT_PROJECT_CODES, tcmTreatmentProjectIsPointFree } from "./tcm-treatment-projects";
 import { getM03TherapyLock, isExecutableM03TherapyText } from "./m03-therapy-lock";
+import { isActionableFollowupSafetyNet } from "./followup-safety-net";
+import { westernDifferentialIdentity } from "./clinical-terminology";
+import { governedTcmLocationsInText, governedTreatmentPrinciplesInText, tcmDiagnosticDependencyContexts, treatmentPrinciplesInText, westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
+import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
+import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
+import { namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
 
 type M03ReasoningLike = {
   stage?: unknown;
   overview?: {
+    tcmDiseaseName?: unknown;
     primarySyndrome?: unknown;
     primarySyndromeResolution?: unknown;
     primarySyndromeBasis?: unknown;
     primarySyndromeResolutionReason?: unknown;
+    tcmDiagnosticRationale?: unknown;
+    tcmDifferentials?: Array<{ syndrome?: unknown; reason?: unknown; distinguishingPoints?: unknown; nextCheck?: unknown }>;
     evidence?: { confidence?: unknown };
     overallPathogenesis?: unknown;
     recommendedFormulaDirection?: unknown;
@@ -24,10 +33,13 @@ type M03ReasoningLike = {
     primary?: {
       name?: unknown;
       supportingFacts?: unknown;
+      clinicalRationale?: unknown;
       evidence?: { evidenceLevel?: unknown; source?: unknown };
     };
+    differentials?: Array<{ name?: unknown; reason?: unknown; distinguishingPoints?: unknown; nextCheck?: unknown }>;
   };
   pathogenesis?: {
+    summary?: unknown;
     locationDifferentiation?: {
       items?: unknown;
       details?: Array<{ location?: unknown; basis?: unknown }>;
@@ -46,21 +58,46 @@ type M03ReasoningLike = {
     };
     symptomClusters?: Array<{ symptoms?: unknown; mechanism?: unknown }>;
     chain?: Array<{ nodeId?: unknown; patientFact?: unknown; syndromeEvidence?: unknown; pathogenesis?: unknown; therapyDirection?: unknown }>;
+    uncertainties?: Array<{ item?: unknown; reason?: unknown; affects?: unknown }>;
   };
-  therapy?: { overallPrinciple?: unknown; overallMethod?: unknown };
+  therapy?: {
+    overallPrinciple?: unknown;
+    overallMethod?: unknown;
+    subTherapies?: Array<{ therapy?: unknown; targetPathogenesis?: unknown; priority?: unknown }>;
+  };
+  management?: { followupSafetyNet?: unknown } | null;
   formula?: unknown;
 };
 
-const UNSTABLE_REASONING_MARKER = /(?:信息|资料|证据)(?:仍然?|尚)?(?:不足|不充分|欠充分|不全|缺失)|(?:尚|仍|现有)?不足以(?:支持|证实|形成|判断)|(?:尚待|有待|仍待|尚须|仍需|尚未|尚在|仍在)(?:进一步)?(?:验证|商榷|论证|决定|讨论)|(?:暂|尚|仍)?(?:不|未|无)(?:能|可|足以)?(?:形成|明确|明|定|定证|定论|确定|判断|提及|充分|清楚|清|详|辨明)|(?:有待|尚待|仍待|待|需|需要)(?:补充|进一步|继续|重新)?(?:确认|明确|补充|核实|核验|证实|验证|商榷|论证|决定|讨论|辨证|判断|生成|评估|复核|完善|厘清|查|定)|不生成|无法(?:形成|判断|定证|明确)|不能(?:形成|判断|定证)|难下定论|尚难|存疑|未知|不详/;
+const UNSTABLE_REASONING_MARKER = /(?:待辨|待定|待明)|(?:信息|资料|证据)(?:仍然?|尚)?(?:不足|不充分|欠充分|不全|缺失)|(?:尚|仍|现有)?不足以(?:支持|证实|形成|判断)|(?:尚待|有待|仍待|尚须|仍需|尚未|尚在|仍在)(?:进一步)?(?:验证|商榷|论证|决定|讨论)|(?:暂|尚|仍)?(?:不|未|无)(?:能|可|足以)?(?:形成|明确|明|定|定证|定论|确定|判断|提及|充分|清楚|清|详|辨明)|(?:有待|尚待|仍待|待|需|需要)(?:补充|进一步|继续|重新)?(?:确认|明确|补充|核实|核验|证实|验证|商榷|论证|决定|讨论|辨证|判断|生成|评估|复核|完善|厘清|查|定)|不生成|无法(?:形成|判断|定证|明确)|不能(?:形成|判断|定证)|难下定论|尚难|存疑|未知|不详/;
 const GENERATED_PLACEHOLDER_MARKER = /^(?:由服务端(?:知识库)?生成|待生成|待补充|待确认)$/;
 const CUSTOMER_DISPLAY_PLACEHOLDER = /(?:证据不足|待检索|待核验|检索失败|未配置|内部证据缺口|EVIDENCE_GAP)|^(?:暂未|尚未|仍未|未)(?:生成|形成|明确|获得|提供|记录|提及|完成)|^(?:待|需|需要)(?:生成|确认|补充|核实|核验|复核|完善|询问|评估)(?:相关|具体|本项|信息|资料|内容)?[。.]?$/;
 const GENERIC_CORE_LABELS = /(?:当前|本例|该例|总体|整体|主要|核心|初步|考虑|中医|辨证|诊断|结论|证候|证型|病机|治疗|治法|治则|方向|患者|事实|症状|表现|证据|依据|支持|结果|内容|情况|意见|方案|具体|进一步|重新|仍然?|尚|需|需要|因|为|是|暂)/g;
-const TCM_PATHOGENESIS_ANCHOR = /(?:气虚|气滞|气逆|气陷|气脱|气闭|气机不畅|血虚|血瘀|瘀血|血热|血寒|血脱|血燥|血不养|心血不足|肝血不足|阴虚|阳虚|心阴虚|肝阴虚|肺阴虚|肾阴虚|心阳虚|脾阳虚|肾阳虚|脾气虚|心气虚|肺气虚|肾气虚|阴盛|阳亢|阴阳两虚|阴不敛阳|阳不入阴|津亏|液亏|津伤|津液不足|精亏|神扰|神失所养|心神不宁|心火|肝郁|肝火|肝阳|脾虚|肺虚|肾虚|脾湿|痰湿|痰热|痰浊|湿热|寒湿|风寒|风热|风湿|燥热|实热|虚热|虚寒|实寒|郁火|食积|水饮|饮停|水湿|热毒|寒凝|经络不通|络阻|营卫不和|营卫失调|卫外不固|脾不统血|肾不纳气|肺失宣降|心肾不交|少阳枢机不利|脏腑失和|升降失常|气血失和|不荣则痛|不通则痛|化火|上扰|内阻|阻滞|亏虚|失养|失和|失司)/;
+const TCM_PATHOGENESIS_ANCHOR = /(?:气虚|气滞|气逆|气陷|气脱|气闭|气机不畅|血虚|血瘀|瘀血|血热|血寒|血脱|血燥|血不养|心血不足|肝血不足|阴虚|阳虚|心阴虚|肝阴虚|肺阴虚|肾阴虚|心阳虚|脾阳虚|肾阳虚|脾气虚|心气虚|肺气虚|肾气虚|阴盛|阳亢|阴阳两虚|阴不敛阳|阳不入阴|津亏|液亏|津伤|津液不足|精亏|神扰|神失所养|心神不宁|心火|肝郁|肝气郁结|肝火|肝阳|脾虚|肺虚|肾虚|脾湿|痰湿|痰热|痰浊|湿热|寒湿|风寒|风热|风湿|燥热|实热|虚热|虚寒|实寒|郁火|食积|水饮|饮停|水湿|热毒|寒凝|经络不通|络阻|营卫不和|营卫失调|卫外不固|脾不统血|肾不纳气|肺失宣降|心肾不交|少阳枢机不利|脏腑失和|升降失常|气血失和|不荣则痛|不通则痛|化火|上扰|内阻|阻滞|亏虚|失养|失和|失司)/;
 const TCM_THERAPY_ANCHOR = /(?:益气|补气|养血|活血|化瘀|滋阴|育阴|养阴|温阳|扶阳|清热|泻火|疏肝|解郁|理气|行气|降逆|化痰|祛痰|燥湿|利湿|祛湿|健脾|和胃|温中|散寒|通络|止痛|宁心|安神|镇惊|平肝|潜阳|熄风|息风|凉血|解毒|消食|导滞|攻下|通腑|润肠|固涩|敛汗|止血|止咳|平喘|宣肺|肃肺|开窍|醒神|扶正|培本|调和营卫|解表|和解|利水|通淋|升阳|补肾|温肾|健运|温经|散结|软坚|养心|清心|清肝|清肺|清胃|清胆|温补|补益|调经|回阳救逆|透邪外达|升清降浊|调畅气机|交通心肾)/;
 const TCM_DISEASE_LABEL = /(?:眩晕病?|不寐|胸痹|心悸|头痛|胃脘痛|腹痛|咳嗽|喘证|泄泻|便秘|郁证|汗证|痹证|痿证|水肿|淋证|消渴|癃闭|胁痛|黄疸|中风|痫病|痴呆|颤证|耳鸣|鼻鼽)(?!待)/;
-const NON_CLINICAL_PATHOGENESIS = /^(?:精神尚可|状态尚可|情况稳定|一般情况|继续观察|建议复查|完善检查)$/;
-const NON_TCM_THERAPY = /^(?:观察|休息|复查|随访|转诊|急诊|对症|开窗通风|注意休息|继续观察|定期复查|完善检查|对症处理|一般处理|急诊处理|转诊评估)$/;
+const CLINICAL_REASONING_CONNECTOR = /(?:提示|支持|符合|更符合|结合|考虑|因此|尚不支持|不足以|倾向于|病程|鉴别|排除)/;
+// The TCM rationale is a derivation from 四诊 to 证候; its natural connectors extend beyond the
+// Western set. Requiring only the 13 Western connectors rejected textbook-valid rationales such as
+// "四诊合参…辨为心脾两虚证" / "综合舌脉…病机为脾虚失运" — which then forced repair loops and, on
+// retry, degraded a correct 归脾汤 case to self_devised. Anti-restatement stays enforced by the
+// downstream fact-reference + novel-concept + not-a-copy checks (tcm_diagnostic_rationale_restatement),
+// so widening this pre-filter cannot let a pure syndrome-name restatement through.
+const TCM_REASONING_CONNECTOR = /(?:提示|支持|符合|更符合|结合|考虑|因此|尚不支持|不足以|倾向于|病程|鉴别|排除|辨为|辨证|辨属|合参|归纳|综合|可见|均为|病机|所致|导致|引起|系因|乃)/;
+const DIAGNOSTIC_INFERENCE_CONCEPTS = [
+  "病程", "急性", "慢性", "时间窗", "严重度", "功能受损", "危险因素", "诊断标准", "鉴别",
+  "排除", "不支持", "不足以", "机制", "病因", "病位", "病性", "证候", "气血", "阴阳", "脏腑",
+  "失养", "失司", "失和", "阻滞", "痹阻", "不通", "郁结", "亏虚", "阴液", "虚热", "痰湿", "湿热", "血瘀", "气滞",
+] as const;
+const WESTERN_EXCLUSION_REASONING = /(?:但|尚不支持|不足以|不支持|排除|鉴别|未见|否认|缺乏|尚未|有待|仍需|需[^。；;\n]{0,12}(?:核实|检查|确认))/;
+const NATURE_MECHANISM_PHRASE = /(?:失和|失降|失运|失司|不利|不畅|不通|受阻|上逆|不降|不纳|失宣|失肃)/;
 const CLINICAL_NEGATION = /(?:绝非|绝无|毫无|全无|断非|尚无|暂无|没有|阴性|排除|已除外|需除外|未排除|待排除|否认|否定|并非|并无|不认为是|不属|不属于|不存在|不能证实|未能证实|未获证实|未查见|未呈现|未见|未发现|未提示|未观察到|未显示|未证实|尚未证实|未检出|未检测到|未表明|未达到|未成立|未采用|未使用|未选择|未予|未考虑|未支持|未获支持|未得到支持|(?:尚|仍|现有)?不足以(?:支持|证实|形成|判断)|(?:依据|证据)(?:不足|薄弱)[^，,。；;]{0,12}(?:支持|证实)|缺乏[^，,。；;]{0,12}(?:依据|证据|支持)|缺少[^，,。；;]{0,12}(?:依据|证据|支持)|难以|难于|不支持|不符合|不考虑|不宜|不应|不建议|不推荐|不适用|不作为|不选择|不选用|不采取|不施用|不赞成|不认同|反对|非首选|拒用|禁用|禁止|禁忌|忌用|勿用|暂缓(?:治疗|处置|用药)|暂停(?:治疗|处置|用药)|避免|慎用|不可|不予|无需|不需|不主张|暂不|不成立|不采用|不使用|不用|停止(?:治疗|处置|用药)|停用|停服|撤除)/;
+
+export function isAmbiguousM03WesternPrimaryLabel(value: unknown): boolean {
+  if (typeof value !== "string" || !value.trim()) return false;
+  return /[\/／、?？]|(?:或|二者之一|待鉴别)/.test(value) ||
+    /(?:待查|待排|疑似|可能性?)[：:][^。；\n]{1,80}|[：:(（][^。；\n]{1,80}(?:可能|倾向|待排|疑似)[)）]?$/.test(value);
+}
 
 type TcmKnowledgeIdentitySource = {
   herbs?: Array<{ name?: string; aliases?: string[] }>;
@@ -94,52 +131,19 @@ for (const item of tcmIdentitySource.commonHerbs || []) {
   if (token && !tcmHerbCanonicalNameByToken.has(token)) tcmHerbCanonicalNameByToken.set(token, name);
 }
 
-// These aliases are governed by the same local knowledge package as dose/function lookup. They
-// include historical spellings and processed names that do not own an independent knowledge row.
-const GOVERNED_TCM_HERB_IDENTITY_ALIASES: Readonly<Record<string, string>> = {
-  桂圆肉: "龙眼肉",
-  黄耆: "黄芪",
-  炒白术: "白术",
-  麸炒白术: "白术",
-  炒酸枣仁: "酸枣仁",
-  制远志: "远志",
-  蜜炙黄芪: "黄芪",
-  炙黄芪: "黄芪",
-  蜜炙甘草: "甘草",
-  炙甘草: "甘草",
-  夜交藤: "首乌藤",
-  丹皮: "牡丹皮",
-  // 高频口语/俗名 → 药典规范名（目标名均已核验为知识库收载且有功能/剂量覆盖）：
-  杏仁: "苦杏仁",
-  元胡: "延胡索",
-  双花: "金银花",
-  山栀: "栀子",
-  薏米: "薏苡仁",
-  枣仁: "酸枣仁",
-  仙灵脾: "淫羊藿",
-  熟地: "熟地黄",
-  枸杞: "枸杞子",
-  浙贝: "浙贝母",
-  川贝: "川贝母",
-  生地: "生地黄",
-  生地黄: "生地黄",
-};
-
-/** One prescription identity for spelling aliases and non-independent processed variants. */
+/** One prescription identity, with T9 as the only alias/preparation resolver. */
 export function canonicalTcmHerbIdentity(value: unknown): string {
   const token = normalizedTcmHerbIdentityToken(value);
   if (!token) return "";
-  const governed = GOVERNED_TCM_HERB_IDENTITY_ALIASES[token];
-  if (governed) {
-    const governedToken = normalizedTcmHerbIdentityToken(governed);
-    return tcmHerbCanonicalNameByToken.get(governedToken) || governedToken;
+  const governedIdentity = resolveGovernedTcmHerbIdentity(token);
+  if (governedIdentity.status === "ambiguous") return token;
+  if (governedIdentity.canonicalName) {
+    const canonicalToken = normalizedTcmHerbIdentityToken(governedIdentity.canonicalName);
+    return tcmHerbCanonicalNameByToken.get(canonicalToken) || governedIdentity.canonicalName;
   }
   const direct = tcmHerbCanonicalNameByToken.get(token);
   if (direct) return direct;
-  const withoutProcessing = token
-    .replace(/^(?:蜜炙|麸炒|土炒|米炒|醋制|酒制|盐制|姜制|醋炒|酒炒|盐炒|姜炒|炒|炙|制|煅|炮|焦|生)/, "")
-    .replace(/(?:炒炭|煅炭|炭)$/, "");
-  return tcmHerbCanonicalNameByToken.get(withoutProcessing) || withoutProcessing || token.toLowerCase();
+  return token.toLowerCase();
 }
 
 function concreteClinicalAnchor(value: string): string {
@@ -285,9 +289,7 @@ function hasPathogenesisAnchor(value: unknown): boolean {
   if (isUnstableM03CoreText(value) || typeof value !== "string") return false;
   return clinicalClauses(value).some((clause) => {
     if (isNegatedClinicalClause(clause)) return false;
-    const concrete = concreteClinicalAnchor(clause);
-    return hasAffirmedClinicalTerm(clause, TCM_PATHOGENESIS_ANCHOR) ||
-      (concrete.length >= 4 && !NON_CLINICAL_PATHOGENESIS.test(concrete));
+    return hasAffirmedClinicalTerm(clause, TCM_PATHOGENESIS_ANCHOR);
   });
 }
 
@@ -295,9 +297,7 @@ function hasTherapyAnchor(value: unknown): boolean {
   if (isUnstableM03CoreText(value) || !isExecutableM03TherapyText(value)) return false;
   return clinicalClauses(value).some((clause) => {
     if (isNegatedClinicalClause(clause)) return false;
-    const concrete = concreteClinicalAnchor(clause);
-    return hasAffirmedClinicalTerm(clause, TCM_THERAPY_ANCHOR) ||
-      (concrete.length >= 2 && !NON_TCM_THERAPY.test(concrete));
+    return hasAffirmedClinicalTerm(clause, TCM_THERAPY_ANCHOR);
   });
 }
 
@@ -350,9 +350,13 @@ function recordAffirmsFeverByTemperature(record: string): boolean {
 const FEVER_FACT_PATTERN = /发热|高热/;
 const CHILLS_FACT_PATTERN = /寒战/;
 const ABDOMINAL_PAIN_FACT_PATTERN = /腹痛/;
+// Clinical records commonly use cough as a verb (干咳、咳痰、咳几声) instead of the noun 咳嗽.
+// Keep these surface forms in one grounding class so a semantically faithful reordered phrase can
+// be rebound to the exact chart sentence instead of being dropped and emptying the whole M03 chain.
+const COUGH_FACT_PATTERN = /咳嗽|干咳|咳痰|咳(?:了)?(?:一|两|几|三|四|五|\d+)\s*(?:口|声)|咳(?:出|着|起来|个不停)/;
 const FEVER_CONCEPT_SURFACE = /发热|高热|发烧/;
 const CHILLS_CONCEPT_SURFACE = /寒战|寒颤|战栗/;
-const ABDOMINAL_PAIN_CONCEPT_SURFACE = /腹痛|腹隐痛|胃脘痛|胃脘部隐痛|胃痛/;
+const ABDOMINAL_PAIN_CONCEPT_SURFACE = /腹痛|腹隐痛|胃脘痛|胃脘部隐痛|胃痛|(?:肚子|小肚子|腹部|小腹|下腹|上腹|胃脘|胃部|肚脐周围)(?:(?!不|没|无|未)[^.。；;\n]){0,8}(?:疼|痛)/;
 
 type GroundedFactConcept = {
   key: "fever" | "chills" | "abdominal_pain";
@@ -407,8 +411,8 @@ function sentenceNegatesGroundedConcept(sentence: string, concept: GroundedFactC
 }
 
 const GROUNDED_FACT_GROUPS = [
-  /胸痛|心前区痛|胸(?:骨后|前|部)[^。；，,]{0,12}(?:疼痛|痛)/, /胸闷/, /心悸|心慌|心跳不适/, /晕厥/, /意识丧失/, /头痛/, /头晕|眩晕/, /视物模糊/, FEVER_FACT_PATTERN, CHILLS_FACT_PATTERN, /咳嗽/, /气促/, /呼吸困难/,
-  ABDOMINAL_PAIN_FACT_PATTERN, /恶心/, /呕吐/, /失眠|不寐|寐差|难以入睡|不易入睡|入睡(?:困难|时间延长|慢)|睡眠(?:逐渐|明显)?(?:不佳|欠佳|较差|变差|差)|睡不好|醒后(?:难以|不易|无法)?再(?:入)?睡|再入睡困难/, /早醒/, /多梦/, /乏力|疲乏|疲倦|疲惫|疲劳|困倦|倦怠|神疲|(?:白天|日间|身体|人)?(?:有点|很|较|明显|总觉得)累|(?:总|容易)累/, /健忘|记忆力(?:下降|减退)/, /食欲不振|食欲欠佳|食欲较差|胃口差|纳差|食少|纳少/, /盗汗|夜(?:里|间)(?:总|反复|经常)?(?:出汗|汗出)|睡(?:着|眠)(?:后|时)(?:总|反复|经常)?(?:出汗|汗出)/, /自汗/, /潮热/, /口苦/, /口渴|口干|咽干/, /便秘/, /腹泻/, /便溏|溏便|大便(?:溏薄|稀溏)|大便较稀/,
+  /胸痛|心前区痛|胸(?:骨后|前|部)[^。；，,]{0,12}(?:疼痛|痛)/, /胸闷/, /心悸|心慌|心跳不适/, /晕厥/, /意识丧失/, /头痛/, /头晕|眩晕/, /视物模糊/, FEVER_FACT_PATTERN, CHILLS_FACT_PATTERN, COUGH_FACT_PATTERN, /气促/, /呼吸困难/,
+  ABDOMINAL_PAIN_FACT_PATTERN, /恶心/, /呕吐/, /失眠|不寐|寐差|难以入睡|不易入睡|入睡(?:困难|时间延长|慢)|睡眠(?:逐渐|明显)?(?:不佳|欠佳|较差|变差|差)|睡不好|醒后(?:难以|不易|无法)?再(?:入)?睡|再入睡困难|(?:(?:躺|上床|入睡|睡觉)[^。；;\n]{0,18})?(?:要|得|需|花)[^。；;\n]{0,10}(?:小时|分钟)[^。；;\n]{0,8}才(?:能)?睡着/, /早醒/, /多梦/, /乏力|疲乏|疲倦|疲惫|疲劳|困倦|倦怠|神疲|(?:白天|日间|身体|人)?(?:有点|很|较|明显|总觉得)累|(?:总|容易)累/, /健忘|记忆力(?:下降|减退)/, /食欲不振|食欲欠佳|食欲较差|胃口差|纳差|食少|纳少|食欲/, /盗汗|夜(?:里|间)(?:总|反复|经常)?(?:出汗|汗出)|睡(?:着|眠)(?:后|时)(?:总|反复|经常)?(?:出汗|汗出)/, /自汗/, /潮热/, /口苦/, /口渴|口干|咽干/, /便秘/, /腹泻/, /便溏|溏便|大便(?:溏薄|稀溏|较稀|性状|情况|不调|时干时稀)/,
   /打鼾|鼾声/, /呼吸暂停/, /日间嗜睡/, /焦虑/, /烦躁/, /情绪低落|抑郁/, /耳鸣/, /耳聋/, /腰膝酸软|腰酸|膝软/, /畏寒|怕冷/, /肢冷|手足冷/, /夜尿|小便频数/,
   /舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/,
   /脉(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促){1,4}/,
@@ -443,6 +447,26 @@ function hasLiteralFactSupport(value: string, clinicalContext: string, requireSa
   return factClauses.every((factText) => contexts.some((clause) => normalizedFactSupportText(clause).includes(factText)));
 }
 
+function unrecognizedFactResidue(
+  value: string,
+  groups: readonly RegExp[],
+  concepts: readonly GroundedFactConcept[],
+): string {
+  let residue = value;
+  for (const pattern of groups) {
+    residue = residue.replace(new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`), "");
+  }
+  for (const concept of concepts) {
+    residue = residue.replace(
+      new RegExp(concept.surface.source, concept.surface.flags.includes("g") ? concept.surface.flags : `${concept.surface.flags}g`),
+      "",
+    );
+  }
+  return normalizedFactSupportText(
+    residue.replace(/(?:患者|本次|当前|目前|症见|表现为|伴有|伴|并有|以及|及|和|与|、)/g, ""),
+  );
+}
+
 function ungroundedPatientFactReason(reasoning: M03ReasoningLike, clinicalContext: string): string | undefined {
   if (!clinicalContext) return undefined;
   for (const [chainIndex, item] of (reasoning.pathogenesis?.chain || []).entries()) {
@@ -469,11 +493,15 @@ function ungroundedPatientFactReason(reasoning: M03ReasoningLike, clinicalContex
           (factNegated && !contextNegatesGroundedConcept(clinicalContext, concept));
       });
       if (groupMismatch || conceptMismatch) return `patient_fact_ungrounded_${chainIndex}_${factIndex}_polarity`;
-      // Known concepts must preserve polarity and are deterministically replaced with chart source
-      // clauses after validation. Unknown concepts still require literal source support here.
-      if (factIndex === 1) continue;
-      if (matchedGroups.length > 0 || matchedConcepts.length > 0) continue;
-      if (!hasLiteralFactSupport(fact, clinicalContext, false)) {
+      // Validate every sub-clause, including syndromeEvidence. A known symptom in one part of the
+      // field cannot grant source authority to an unrelated invented symptom in the same string.
+      if (
+        !hasLiteralFactSupport(fact, clinicalContext, false) &&
+        (
+          matchedGroups.length === 0 && matchedConcepts.length === 0 ||
+          unrecognizedFactResidue(fact, matchedGroups, matchedConcepts).length >= 2
+        )
+      ) {
         return `patient_fact_ungrounded_${chainIndex}_${factIndex}_literal`;
       }
     }
@@ -759,13 +787,24 @@ export function isWesternSupportingFactPolarityAligned(value: string, clinicalCo
     const factPattern = concept ? concept.surface : pattern;
     if (!factPattern.test(fact)) return false;
     if (!hasAffirmedClinicalTerm(fact, factPattern)) return false;
-    return concept ? contextNegatesGroundedConcept(clinicalContext, concept) : contextNegatesTerm(clinicalContext, pattern);
+    const contextAffirms = concept
+      ? contextAffirmsGroundedConcept(clinicalContext, concept)
+      : contextAffirmsTerm(clinicalContext, pattern);
+    const contextNegates = concept
+      ? contextNegatesGroundedConcept(clinicalContext, concept)
+      : contextNegatesTerm(clinicalContext, pattern);
+    // A chart can affirm a general symptom while explicitly denying a dangerous subtype, e.g.
+    // “头痛2个月；否认突发最剧烈头痛”. That is not a polarity contradiction: the first clause
+    // remains valid support and the second is rule-out context. Reject only when the record has
+    // negated the concept without any affirmed occurrence.
+    return contextNegates && !contextAffirms;
   });
   if (groupConflict) return false;
   return !groundedFactConceptsForText(fact).some((concept) =>
     !concept.group.test(fact) &&
     hasAffirmedClinicalTerm(fact, concept.surface) &&
-    contextNegatesGroundedConcept(clinicalContext, concept));
+    contextNegatesGroundedConcept(clinicalContext, concept) &&
+    !contextAffirmsGroundedConcept(clinicalContext, concept));
 }
 
 function m03WesternSupportIssue(reasoning: M03ReasoningLike, clinicalContext: string): string | undefined {
@@ -827,6 +866,13 @@ function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext
   const syndromeBasis = nonEmptyStringList(overview?.primarySyndromeBasis);
   const explicitSyndromeResolution = clinicalResolution(overview?.primarySyndromeResolution);
   const syndromeResolution = explicitSyndromeResolution || (syndrome ? "bounded" : "unresolved");
+  // A bounded/resolved primary syndrome is a clinical conclusion, not a place to append
+  // “待辨/待定/资料不足” to a symptom list. Keep uncertainty in the resolution fields so
+  // the repair loop can form the minimum finite-information conclusion instead of signing a
+  // placeholder as if it were a diagnosis. An explicitly unresolved limited result remains valid.
+  if (syndromeResolution !== "unresolved" && (UNSTABLE_REASONING_MARKER.test(syndrome) || isUnstableM03CoreText(syndrome))) {
+    return "primary_syndrome_unstable";
+  }
   if (syndromeResolution === "resolved") {
     if (!syndrome) return "primary_syndrome_resolved_without_value";
     if (syndromeBasis.length === 0) return "primary_syndrome_resolved_without_basis";
@@ -880,37 +926,492 @@ function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext
   return undefined;
 }
 
+const M03_LOCATION_EVIDENCE_DIMENSIONS: ReadonlyArray<[string, RegExp]> = [
+  ["tongue", /舌|苔/],
+  ["pulse", /脉/],
+  ["stool", /大便|排便|便秘|便溏|下利|泄泻/],
+  ["urination", /小便|排尿|尿色|尿量|尿频|尿急/],
+  ["thermal", /恶寒|恶热|怕冷|怕热|发热|寒热|手足(?:冷|热|温)|四肢(?:冷|热|温)/],
+  ["sweating", /汗出|无汗|自汗|盗汗|大汗/],
+  ["sleep", /睡眠|入睡|早醒|夜醒|失眠|不得眠|但欲寐/],
+  ["appetite", /胃口|食欲|进食|纳差|不欲食/],
+];
+
+const M03_COLD_HEAT_EVIDENCE_DIMENSIONS: ReadonlyArray<[string, RegExp]> = [
+  ["face_spirit", /面色|两颧|目(?:赤|眩|有神)|精神|神志/],
+  ["breath", /口鼻气|呼出气|气息|口气|呼吸急促/],
+  ["tongue", /舌|苔/],
+  ["pulse", /脉/],
+  ["chest_abdomen", /胸|腹|心下|喜按|拒按|按之|久按/],
+  ["urination", /小便|排尿|尿色|尿量|尿频|尿急/],
+  ["thirst", /口渴|不渴|欲饮|不欲饮|喜冷饮|喜热饮/],
+  ["stool", /大便|排便|便秘|便溏|下利|泄泻|肛门灼热/],
+  ["thermal", /恶寒|恶热|怕冷|怕热|发热|寒热|手足(?:冷|热|温)|四肢(?:冷|热|温)/],
+  ["sweating", /汗出|无汗|自汗|盗汗|大汗/],
+];
+
+function evidenceDimensionCount(text: string, dimensions: ReadonlyArray<readonly [string, RegExp]>): number {
+  return dimensions.filter(([, pattern]) => pattern.test(text)).length;
+}
+
+function m03SevenStageInferenceIssue(reasoning: M03ReasoningLike): string | undefined {
+  const location = reasoning.pathogenesis?.locationDifferentiation;
+  if (clinicalResolution(location?.resolution) === "resolved") {
+    const locationBasis = (location?.details || [])
+      .map((detail) => typeof detail.basis === "string" ? detail.basis.trim() : "")
+      .filter(Boolean)
+      .join("；");
+    if (locationBasis && evidenceDimensionCount(locationBasis, M03_LOCATION_EVIDENCE_DIMENSIONS) < 2) {
+      return "single_evidence_location";
+    }
+  }
+
+  const nature = reasoning.pathogenesis?.natureDifferentiation;
+  const natureResolution = clinicalResolution(nature?.resolution);
+  const natureItems = [
+    ...nonEmptyStringList(nature?.items),
+    ...nonEmptyStringList(nature?.rootDeficiency),
+    ...nonEmptyStringList(nature?.branchExcess),
+  ].join("；");
+  if (
+    natureResolution === "resolved" &&
+    /寒|热|火|温|凉/.test(natureItems) &&
+    typeof nature?.basis === "string" &&
+    evidenceDimensionCount(nature.basis, M03_COLD_HEAT_EVIDENCE_DIMENSIONS) < 2
+  ) {
+    return "nature_dimension_insufficient";
+  }
+  return undefined;
+}
+
+type M03PathogenesisConcept = {
+  code: string;
+  pattern: RegExp;
+};
+
+// `pathogenesis.summary` is a projection of the already-established syndrome/nature/chain,
+// not a second reasoning surface. Keep this list limited to disease-nature conclusions whose
+// silent introduction materially changes downstream treatment. The independent reviewer still
+// owns clinical adequacy; this guard only rejects internal structural drift.
+const M03_PATHOGENESIS_SUMMARY_CONCEPTS: readonly M03PathogenesisConcept[] = [
+  { code: "phlegm_heat", pattern: /(?:痰热|热痰)/ },
+  { code: "damp_heat", pattern: /(?:湿热|热湿)/ },
+  { code: "cold_damp", pattern: /(?:寒湿|湿寒)/ },
+  { code: "qi_deficiency", pattern: /(?:正气(?:略|稍|相对)?(?:虚|不足)|气虚|气亏|气不足|气弱|元气(?:亏|不足)|中气不足|气血两虚|气血不足)/ },
+  { code: "blood_deficiency", pattern: /(?:血虚|血亏|血不足|气血两虚|气血不足|心血不足|肝血不足)/ },
+  { code: "yin_deficiency", pattern: /(?:阴虚|阴亏|阴液不足|津(?:亏|伤|液不足)|津液不足|精亏)/ },
+  { code: "yang_deficiency", pattern: /(?:阳虚|阳气不足|阳气亏虚|虚寒)/ },
+  { code: "blood_stasis", pattern: /(?:血瘀|瘀血|瘀阻|瘀滞|血行不畅|络阻)/ },
+  { code: "phlegm_damp", pattern: /(?:痰湿|湿痰|痰浊|湿浊|水湿)/ },
+  { code: "heat_fire", pattern: /(?:心火|肝火|胃火|肺热|胃热|实热|虚热|郁火|火旺|火热|热证|热邪)/ },
+  { code: "cold", pattern: /(?:实寒|寒证|寒邪|寒凝|里寒|外寒)/ },
+  { code: "food_accumulation", pattern: /(?:食积|食滞|积食|饮食积滞|宿食)/ },
+  { code: "fluid_retention", pattern: /(?:水饮|饮停|水液停聚|水液内停)/ },
+];
+
+function hasAssertedPathogenesisConcept(value: unknown, pattern: RegExp): boolean {
+  if (typeof value !== "string" || !value.trim()) return false;
+  return value
+    .split(/[，,。；;\n]+/)
+    .some((clause) => pattern.test(clause) && !CLINICAL_NEGATION.test(clause) && !UNSTABLE_REASONING_MARKER.test(clause));
+}
+
+function m03PathogenesisSummaryConsistencyIssue(reasoning: M03ReasoningLike): string | undefined {
+  const summary = reasoning.pathogenesis?.summary;
+  if (typeof summary !== "string" || !summary.trim()) return undefined;
+  const nature = reasoning.pathogenesis?.natureDifferentiation;
+  const authoritativeCore = [
+    reasoning.overview?.primarySyndrome,
+    reasoning.overview?.overallPathogenesis,
+    ...nonEmptyStringList(nature?.items),
+    ...nonEmptyStringList(nature?.rootDeficiency),
+    ...nonEmptyStringList(nature?.branchExcess),
+    ...(reasoning.pathogenesis?.chain || []).map((item) => item.pathogenesis),
+  ].filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
+
+  for (const concept of M03_PATHOGENESIS_SUMMARY_CONCEPTS) {
+    if (
+      hasAssertedPathogenesisConcept(summary, concept.pattern) &&
+      !authoritativeCore.some((item) => hasAssertedPathogenesisConcept(item, concept.pattern))
+    ) {
+      return `pathogenesis_summary_${concept.code}_drift`;
+    }
+  }
+  return undefined;
+}
+
+const UNCERTAINTY_RECORDED_ASSERTION = /(?:已|已经)(?:在(?:本次)?(?:病历|记录|资料)中?)?(?:明确)?(?:记录|记载|提供|确认|核实|采集|获知)|(?:病历|资料)(?:中)?(?:已|明确)(?:记录|记载|提供|确认)/;
+const UNCERTAINTY_VAGUE_RECORDED_ASSERTION = /(?:该|上述|相关)(?:症状|情况|信息|资料|内容)?(?:已|已经)(?:在(?:本次)?(?:病历|记录|资料)中?)?(?:明确)?(?:记录|记载|提供|确认|核实|采集|获知)/;
+const UNKNOWN_DOCUMENTATION_CLAUSE = /(?:本次|当前|目前)?(?:未取得(?:该|相关)?信息|未能确认|未提供|未记录|未询问|未采集|未提及|不详|未知|说不清|不清楚)/;
+const UNCERTAINTY_DOCUMENTATION_AXES: ReadonlyArray<{
+  item: RegExp;
+  context: RegExp;
+}> = [
+  { item: /既往史|既往疾病|基础疾病|手术史/, context: /既往史|既往(?:患有|有|曾患|诊断|确诊)|(?:疾病|手术)史/ },
+  { item: /用药史|当前用药|服药史|药物清单/, context: /用药史|当前用药|目前用药|现用药|(?:正在|长期|规律|目前|当前)[^。；;\n]{0,16}(?:服用|口服|使用)|否认[^。；;\n]{0,10}(?:服药|用药)|(?:无|未)[^。；;\n]{0,8}(?:服药|用药)/ },
+  { item: /过敏史|过敏原|过敏反应/, context: /过敏史|对[^。；;\n]{1,20}过敏|(?:否认|无|未见)[^。；;\n]{0,10}过敏/ },
+  { item: /舌象|舌质|舌苔/, context: /舌象|舌质|舌苔|舌(?:红|绛|淡|暗|紫|胖|瘦|有齿痕)/ },
+  { item: /脉象|脉诊/, context: /脉象|脉(?:弦|细|数|迟|滑|涩|沉|浮|弱|洪|紧|缓|结|代)/ },
+  { item: /生命体征|血压|体温|脉搏|心率|呼吸频率|血氧/, context: /生命体征|血压|体温|脉搏|心率|呼吸频率|血氧|SpO2/i },
+];
+
+function contextDocumentsUncertaintyAxis(clinicalContext: string, pattern: RegExp): boolean {
+  return clinicalContext
+    .split(/[，,。；;\n]+/)
+    .map((clause) => clause.trim())
+    .filter(Boolean)
+    .some((clause) => pattern.test(clause) && !UNKNOWN_DOCUMENTATION_CLAUSE.test(clause));
+}
+
+/**
+ * An uncertainty row may describe a known fact plus a narrower unknown attribute, but it cannot
+ * claim a governed chart field is already documented when that field is absent from the same
+ * de-identified grounding corpus. Vague claims such as “该症状已在病历中明确记录” are also rejected:
+ * they neither identify the known fact nor explain the uncertainty and can silently convert an
+ * unknown history into a known one.
+ */
+function m03UncertaintyStateIssue(reasoning: M03ReasoningLike, clinicalContext: string): string | undefined {
+  const uncertainties = reasoning.pathogenesis?.uncertainties;
+  if (!Array.isArray(uncertainties)) return undefined;
+  for (const row of uncertainties) {
+    const item = typeof row?.item === "string" ? row.item.trim() : "";
+    const reason = typeof row?.reason === "string" ? row.reason.trim() : "";
+    if (!reason || !UNCERTAINTY_RECORDED_ASSERTION.test(reason)) continue;
+    if (UNCERTAINTY_VAGUE_RECORDED_ASSERTION.test(reason)) return "uncertainty_state_mismatch";
+    if (!clinicalContext) continue;
+    const axes = UNCERTAINTY_DOCUMENTATION_AXES.filter((axis) => axis.item.test(item));
+    if (axes.some((axis) => !contextDocumentsUncertaintyAxis(clinicalContext, axis.context))) {
+      return "uncertainty_state_mismatch";
+    }
+  }
+  return undefined;
+}
+
+const DIAGNOSIS_LABEL_ONLY = /^(?:[\p{Script=Han}A-Za-z0-9+\-]+(?:病|炎|癌|瘤|综合征|衰竭|不全)|高血压|糖尿病|房颤|心房颤动|湿疹|类风湿(?:关节炎)?|系统性红斑狼疮|SLE|RA)(?:病史)?(?:(?:已)?\d+(?:\.\d+)?年(?:余)?)?$/iu;
+
+function isCurrentPositiveTcmAnchor(value: string): boolean {
+  const normalized = value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]]+/g, "");
+  if (!normalized || isNegatedClinicalClause(value) || isHistoricalWesternSupportFact(value)) return false;
+  return !DIAGNOSIS_LABEL_ONLY.test(normalized);
+}
+
+function hasCurrentPositiveTcmAnchor(reasoning: M03ReasoningLike): boolean {
+  const anchors = [
+    ...nonEmptyStringList(reasoning.overview?.primarySyndromeBasis),
+    ...(reasoning.pathogenesis?.chain || []).flatMap((item) => [item.patientFact, item.syndromeEvidence])
+      .filter((item): item is string => typeof item === "string" && Boolean(item.trim())),
+  ];
+  return anchors.some(isCurrentPositiveTcmAnchor);
+}
+
+const DIARRHEA_DURATION_CLAUSE = /(?:腹泻|腹瀉|拉肚子|稀便|稀水样|大便[^。；;\n]{0,12}稀|稀稀|吃[^。；;\n]{0,12}跑厕所)/i;
+const CHRONIC_OR_FUNCTIONAL_DIARRHEA_LABEL = /(?:慢性[^，,。；;]{0,8}(?:腹泻|腹瀉)|(?:腹泻|腹瀉)[^，,。；;]{0,8}慢性|功能性腹泻)/i;
+
+function chineseDurationNumber(value: string): number | undefined {
+  const normalized = value.trim();
+  if (/^半$/.test(normalized)) return 0.5;
+  const direct: Record<string, number> = {
+    一: 1, 二: 2, 两: 2, 兩: 2, 三: 3, 四: 4, 五: 5,
+    六: 6, 七: 7, 八: 8, 九: 9, 十: 10,
+  };
+  if (direct[normalized] != null) return direct[normalized];
+  const tens = normalized.match(/^([一二两兩三四五六七八九]?)[十]([一二三四五六七八九]?)$/);
+  if (!tens) return undefined;
+  return (direct[tens[1]] || 1) * 10 + (direct[tens[2]] || 0);
+}
+
+function durationDaysFromClause(clause: string): number[] {
+  const results: number[] = [];
+  const durationPattern = /(\d+(?:\.\d+)?|半|[一二两兩三四五六七八九十]{1,3})\s*(?:个)?\s*(天|日|周|星期|个月|月|年)/g;
+  for (const match of clause.matchAll(durationPattern)) {
+    const value = /^\d/.test(match[1]) ? Number(match[1]) : chineseDurationNumber(match[1]);
+    if (value == null || !Number.isFinite(value) || value <= 0) continue;
+    const multiplier = /^(?:天|日)$/.test(match[2])
+      ? 1
+      : /^(?:周|星期)$/.test(match[2])
+        ? 7
+        : /^(?:个月|月)$/.test(match[2])
+          ? 30
+          : 365;
+    results.push(value * multiplier);
+  }
+  return results;
+}
+
+/**
+ * Reject only a definite temporal overstatement: an explicitly documented current diarrhoea
+ * course shorter than four weeks cannot be labelled chronic or functional diarrhoea. Missing or
+ * mixed-duration records stay with the independent reviewer instead of being guessed locally.
+ */
+export function m03WesternDurationIssue(reasoning: M03ReasoningLike, clinicalContext: string): string | undefined {
+  const name = reasoning.westernDiagnosis?.primary?.name;
+  if (typeof name !== "string" || !CHRONIC_OR_FUNCTIONAL_DIARRHEA_LABEL.test(name) || !clinicalContext) return undefined;
+  const relevantDurations = clinicalContext
+    .split(/[。；;\n]+/)
+    .filter((clause) => DIARRHEA_DURATION_CLAUSE.test(clause) && !isHistoricalWesternSupportFact(clause))
+    .flatMap(durationDaysFromClause);
+  if (relevantDurations.length === 0 || relevantDurations.some((days) => days >= 28)) return undefined;
+  return "western_primary_duration_mismatch";
+}
+
+function narrativeFingerprint(value: unknown): string {
+  return typeof value === "string"
+    ? value.normalize("NFKC").replace(GENERIC_CORE_LABELS, "").replace(/[\s，,。；;：:、（）()【】\[\]“”"'‘’]/g, "")
+    : "";
+}
+
+function narrativeMostlyCopies(value: unknown, sources: readonly unknown[]): boolean {
+  const narrative = narrativeFingerprint(value);
+  if (narrative.length < 4) return false;
+  const facts = sources.map(narrativeFingerprint).filter((item) => item.length >= 2);
+  if (facts.some((fact) => fact === narrative || fact.includes(narrative))) return true;
+  const copied = facts.reduce((total, fact) => total + (narrative.includes(fact) ? fact.length : 0), 0);
+  return copied / narrative.length >= 0.85;
+}
+
+function rationaleReferencesSupportingFact(rationale: string, facts: readonly string[]): boolean {
+  const normalizedRationale = normalizedFactSupportText(rationale);
+  return facts.some((fact) => {
+    const normalizedFact = normalizedFactSupportText(fact);
+    if (normalizedFact.length >= 2 && normalizedRationale.includes(normalizedFact)) return true;
+    const factConcepts = groundedFactConceptsForText(fact);
+    const rationaleConcepts = groundedFactConceptsForText(rationale);
+    return factConcepts.some((factConcept) =>
+      rationaleConcepts.some((rationaleConcept) => rationaleConcept.group === factConcept.group));
+  });
+}
+
+function rationaleHasNovelDiagnosticConcept(rationale: string, patientFacts: readonly string[]): boolean {
+  return DIAGNOSTIC_INFERENCE_CONCEPTS.some((concept) =>
+    rationale.includes(concept) && !patientFacts.some((fact) => fact.includes(concept)));
+}
+
+export function m03WesternClinicalRationaleIssue(
+  reasoning: M03ReasoningLike | null | undefined,
+): "western_clinical_rationale_missing" | "western_clinical_rationale_restatement" | undefined {
+  const westernPrimary = reasoning?.westernDiagnosis?.primary;
+  const westernRationale = typeof westernPrimary?.clinicalRationale === "string"
+    ? westernPrimary.clinicalRationale.trim()
+    : "";
+  if (westernRationale.length < 8 || !CLINICAL_REASONING_CONNECTOR.test(westernRationale)) {
+    return "western_clinical_rationale_missing";
+  }
+  const westernFacts = nonEmptyStringList(westernPrimary?.supportingFacts);
+  if (
+    narrativeMostlyCopies(westernRationale, westernFacts) ||
+    !rationaleReferencesSupportingFact(westernRationale, westernFacts) ||
+    !rationaleHasNovelDiagnosticConcept(westernRationale, westernFacts) ||
+    !WESTERN_EXCLUSION_REASONING.test(westernRationale)
+  ) {
+    return "western_clinical_rationale_restatement";
+  }
+  return undefined;
+}
+
+function rationaleReferencesChartFact(rationale: string, clinicalContext: string): boolean {
+  if (!clinicalContext) return false;
+  if (GROUNDED_FACT_GROUPS.some((group) =>
+    hasAffirmedClinicalTerm(rationale, group) && contextAffirmsTerm(clinicalContext, group))) {
+    return true;
+  }
+  return groundedFactConceptsForText(rationale).some((concept) =>
+    contextAffirmsGroundedConcept(clinicalContext, concept));
+}
+
+function m03PathogenesisAndTherapyStructureIssue(
+  reasoning: M03ReasoningLike,
+  clinicalContext: string,
+): string | undefined {
+  const chain = reasoning.pathogenesis?.chain || [];
+  const overallPathogenesis = reasoning.overview?.overallPathogenesis;
+  const factSurface = [
+    ...nonEmptyStringList(reasoning.overview?.primarySyndromeBasis),
+    ...nonEmptyStringList(reasoning.westernDiagnosis?.primary?.supportingFacts),
+    ...chain.map((item) => item.patientFact),
+    clinicalContext,
+  ];
+  if (narrativeMostlyCopies(overallPathogenesis, factSurface)) return "overall_pathogenesis_restates_facts";
+
+  const nodePathogenesis = chain.map((item) => narrativeFingerprint(item.pathogenesis)).filter(Boolean);
+  const nodeTherapies = chain.map((item) => narrativeFingerprint(item.therapyDirection)).filter(Boolean);
+  if (chain.length > 1 && new Set(nodePathogenesis).size === 1) return "pathogenesis_nodes_duplicated";
+  if (chain.length > 1 && new Set(nodeTherapies).size === 1) return "pathogenesis_therapy_directions_duplicated";
+
+  const subTherapies = reasoning.therapy?.subTherapies || [];
+  if (subTherapies.length === 0) return "sub_therapies_missing";
+  if (chain.length > 1 && subTherapies.length < Math.min(2, chain.length)) return "sub_therapies_insufficient";
+  const therapyTexts = subTherapies.map((item) => narrativeFingerprint(item.therapy)).filter(Boolean);
+  const targets = subTherapies.map((item) => narrativeFingerprint(item.targetPathogenesis)).filter(Boolean);
+  if (therapyTexts.length !== subTherapies.length || targets.length !== subTherapies.length) return "sub_therapy_incomplete";
+  if (!subTherapies.some((item) => item.priority === "主要")) return "sub_therapy_primary_missing";
+  if (therapyTexts.length > 1 && new Set(therapyTexts).size !== therapyTexts.length) return "sub_therapy_duplicated";
+  if (targets.length > 1 && new Set(targets).size !== targets.length) return "sub_therapy_target_duplicated";
+  const principlePolicies = treatmentPrinciplesInText(reasoning.therapy?.overallPrinciple)
+    .map((entry) => entry.relationPolicy);
+  if (principlePolicies.includes("requires_root_and_manifestation_targets") &&
+    (subTherapies.length < 2 || new Set(targets).size < 2)) {
+    return "treatment_principle_target_mismatch";
+  }
+  const overallMethod = narrativeFingerprint(reasoning.therapy?.overallMethod);
+  // With one pathogenesis node, the sole concrete therapy is also the complete overall method;
+  // equality is clinically expected and must not collapse an otherwise valid M03 result. Only a
+  // multi-node plan is required to decompose the combined overall method into distinct directions.
+  if (chain.length > 1 && overallMethod && therapyTexts.some((item) => item === overallMethod)) {
+    return "sub_therapy_repeats_overall_method";
+  }
+  return undefined;
+}
+
 export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined, clinicalContext = "", _visibleContent = ""): string | undefined {
   void _visibleContent;
-  const hasCompleteChainItem = reasoning?.pathogenesis?.chain?.some((item) =>
+  const chain = reasoning?.pathogenesis?.chain || [];
+  const hasCompleteChain = chain.length > 0 && chain.every((item) =>
     !isUnstableM03CoreText(item.patientFact) &&
     !isUnstableM03CoreText(item.syndromeEvidence) &&
-    typeof item.pathogenesis === "string" && item.pathogenesis.trim().length >= 2 &&
-    typeof item.therapyDirection === "string" && item.therapyDirection.trim().length >= 2
+    hasPathogenesisAnchor(item.pathogenesis) &&
+    hasTherapyAnchor(item.therapyDirection)
   );
   if (!reasoning || reasoning.stage !== "diagnose") return "stage";
+  if (/(?:本次主诉及伴随症状变化|接诊时核实相关症状是否存在)/.test(JSON.stringify(reasoning))) {
+    return "explanation_placeholder";
+  }
   if (reasoning.formula != null) return "formula_not_null";
   if (m03ContainsDoseLevelInstruction(reasoning)) return "dose_level_content";
+  // The pathogenesis chain is the load-bearing M03 inference structure. Report its absence before
+  // secondary prose-quality findings so the repair loop restores the missing structure first.
+  if (!chain.length) return "chain_empty";
   const westernPrimary = reasoning.westernDiagnosis?.primary;
   if (
     typeof westernPrimary?.name !== "string" ||
     westernPrimary.name.trim().length < 2 ||
     /(?:基于主诉的)?现代医学诊断倾向|待生成|待明确|未知/.test(westernPrimary.name)
   ) return "western_diagnosis_unstable";
-  if (/[\/／、]|(?:或|二者之一|待鉴别)/.test(westernPrimary.name)) return "western_primary_ambiguous";
+  if (isAmbiguousM03WesternPrimaryLabel(westernPrimary.name)) return "western_primary_ambiguous";
+  if (westernLabelContainsTcmSyndrome(westernPrimary.name)) return "western_primary_tcm_pollution";
+  const westernDurationIssue = m03WesternDurationIssue(reasoning, clinicalContext);
+  if (westernDurationIssue) return westernDurationIssue;
   const westernSupportIssue = m03WesternSupportIssue(reasoning, clinicalContext);
   if (westernSupportIssue) return westernSupportIssue;
-  if (!reasoning.pathogenesis?.chain?.length) return "chain_empty";
-  if (!hasCompleteChainItem) return "chain_incomplete";
-  if (reasoning.pathogenesis.chain.every((item) => isNeutralTongueOnlyFact(item.patientFact))) return "neutral_tongue_only";
+  const westernRationaleIssue = m03WesternClinicalRationaleIssue(reasoning);
+  if (westernRationaleIssue) return westernRationaleIssue;
+  if (
+    !isDisplayableClinicalText(reasoning.overview?.tcmDiseaseName) ||
+    /^(?:中医病名|中医诊断|病名待定|待辨|待定|未知|不详)$/.test(reasoning.overview.tcmDiseaseName.trim())
+  ) return "tcm_disease_missing";
+  const differentialIdentities = (reasoning.westernDiagnosis?.differentials || [])
+    .map((item) => westernDifferentialIdentity(item.name))
+    .filter(Boolean);
+  if (new Set(differentialIdentities).size !== differentialIdentities.length) {
+    return "western_differential_duplicate";
+  }
+  if ((reasoning.westernDiagnosis?.differentials || []).some((item) =>
+    typeof item.reason !== "string" || item.reason.trim().length < 4 ||
+    typeof item.distinguishingPoints !== "string" || item.distinguishingPoints.trim().length < 4)) {
+    return "western_differential_analysis_missing";
+  }
+  const coreTcmText = [
+    reasoning.overview?.primarySyndrome,
+    reasoning.overview?.overallPathogenesis,
+    reasoning.therapy?.overallPrinciple,
+    reasoning.therapy?.overallMethod,
+    ...chain.flatMap((item) => [item.pathogenesis, item.therapyDirection]),
+  ].filter((item): item is string => typeof item === "string").join("；");
+  if (/(?:功能失调候|调护功能)/.test(coreTcmText)) return "generic_tcm_template";
+  if (!hasCompleteChain) return "chain_incomplete";
+  const tcmRationale = typeof reasoning.overview?.tcmDiagnosticRationale === "string"
+    ? reasoning.overview.tcmDiagnosticRationale.trim()
+    : "";
+  if (tcmRationale.length < 8 || !TCM_REASONING_CONNECTOR.test(tcmRationale)) return "tcm_diagnostic_rationale_missing";
+  if (tcmDiagnosticDependencyContexts(tcmRationale).length > 0) return "tcm_reasoning_diagnostic_dependency";
+  const syndromeFacts = nonEmptyStringList(reasoning.overview?.primarySyndromeBasis);
+  const chainPatientFacts = chain
+    .map((item) => item.patientFact)
+    .filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
+  const tcmFacts = syndromeFacts.length > 0 ? syndromeFacts : chainPatientFacts;
+  if (
+    narrativeMostlyCopies(tcmRationale, tcmFacts) ||
+    (
+      !rationaleReferencesSupportingFact(tcmRationale, tcmFacts) &&
+      !rationaleReferencesChartFact(tcmRationale, clinicalContext)
+    ) ||
+    !rationaleHasNovelDiagnosticConcept(tcmRationale, tcmFacts)
+  ) return "tcm_diagnostic_rationale_restatement";
   const resolutionIssue = m03ResolutionContractIssue(reasoning, clinicalContext);
   if (resolutionIssue) return resolutionIssue;
+  const sevenStageInferenceIssue = m03SevenStageInferenceIssue(reasoning);
+  if (sevenStageInferenceIssue) return sevenStageInferenceIssue;
+  const tcmDifferentials = reasoning.overview?.tcmDifferentials || [];
+  if (tcmDifferentials.some((item) =>
+    typeof item.syndrome !== "string" || item.syndrome.trim().length < 2 ||
+    typeof item.reason !== "string" || item.reason.trim().length < 4 ||
+    typeof item.distinguishingPoints !== "string" || item.distinguishingPoints.trim().length < 4)) {
+    return "tcm_differential_analysis_missing";
+  }
+  const syndromeResolution = reasoning.overview?.primarySyndromeResolution;
+  const hasStructuredDifferentialLimitation =
+    typeof reasoning.overview?.primarySyndromeResolutionReason === "string" &&
+    /(?:无法|不能|不足以|缺少|待补充)[^。；;\n]{0,24}(?:鉴别|区分|辨别)|(?:鉴别|区分|辨别)[^。；;\n]{0,24}(?:无法|不能|不足|缺少)/.test(
+      reasoning.overview.primarySyndromeResolutionReason,
+    );
+  if ((syndromeResolution === "resolved" || syndromeResolution === "bounded") &&
+    tcmDifferentials.length === 0 &&
+    !hasStructuredDifferentialLimitation) {
+    return "discrimination_missing";
+  }
+  const tcmReasoningSurface = [
+    tcmRationale,
+    reasoning.overview?.primarySyndromeResolutionReason,
+    ...(reasoning.overview?.tcmDifferentials || []).flatMap((item) => [item.reason, item.distinguishingPoints, item.nextCheck]),
+    reasoning.pathogenesis?.summary,
+    ...(reasoning.pathogenesis?.locationDifferentiation?.details || []).flatMap((item) => [item.basis]),
+    reasoning.pathogenesis?.locationDifferentiation?.resolutionReason,
+    reasoning.pathogenesis?.natureDifferentiation?.basis,
+    reasoning.pathogenesis?.natureDifferentiation?.resolutionReason,
+    ...(reasoning.pathogenesis?.symptomClusters || []).flatMap((item) => [item.mechanism]),
+    ...(reasoning.pathogenesis?.chain || []).flatMap((item) => [item.syndromeEvidence, item.pathogenesis, item.therapyDirection]),
+    ...(reasoning.pathogenesis?.uncertainties || []).flatMap((item) => [item.item, item.reason, item.affects]),
+  ].filter((item): item is string => typeof item === "string").join("；");
+  if (tcmDiagnosticDependencyContexts(tcmReasoningSurface).length > 0) return "tcm_reasoning_diagnostic_dependency";
+  const natureItems = nonEmptyStringList(reasoning.pathogenesis?.natureDifferentiation?.items);
+  if (natureItems.some((item) => NATURE_MECHANISM_PHRASE.test(item))) return "nature_item_is_mechanism";
+  const locationItems = nonEmptyStringList(reasoning.pathogenesis?.locationDifferentiation?.items);
+  // T2/T3 are component taxonomies, not exhaustive diagnostic dictionaries. Exact aliases are
+  // canonicalized before this check, while valid composites (for example 寒湿) and peripheral
+  // sites (for example 咽喉/关节) remain subject to the independent clinical reviewer. Treating
+  // every table miss as a hard contract violation caused clinically usable M03 results to collapse
+  // after both model attempts, contradicting T2's explicit "未命中不等于术语错误" scope.
+  const locationsNamedInReasoning = governedTcmLocationsInText([
+    reasoning.overview?.primarySyndrome,
+    reasoning.overview?.overallPathogenesis,
+    ...chain.flatMap((item) => [item.syndromeEvidence, item.pathogenesis]),
+  ].filter((item): item is string => typeof item === "string").join("；"));
+  if (reasoning.pathogenesis?.locationDifferentiation && locationsNamedInReasoning.length > 0 && locationItems.length === 0) {
+    return "location_classification_missing";
+  }
+  const principle = typeof reasoning.therapy?.overallPrinciple === "string" ? reasoning.therapy.overallPrinciple.trim() : "";
+  const method = typeof reasoning.therapy?.overallMethod === "string" ? reasoning.therapy.overallMethod.trim() : "";
+  if (!method) return "therapy_method_missing";
+  if (!principle || governedTreatmentPrinciplesInText(principle).length === 0) return "therapy_principle_invalid";
+  const normalizedPrinciple = principle.replace(/[\s，,。；;：:、]/g, "");
+  const normalizedMethod = method.replace(/[\s，,。；;：:、]/g, "");
+  if (normalizedPrinciple === normalizedMethod) return "therapy_principle_method_duplicate";
+  const structureIssue = m03PathogenesisAndTherapyStructureIssue(reasoning, clinicalContext);
+  if (structureIssue) return structureIssue;
+  if (chain.every((item) => isNeutralTongueOnlyFact(item.patientFact))) return "neutral_tongue_only";
+  const summaryConsistencyIssue = m03PathogenesisSummaryConsistencyIssue(reasoning);
+  if (summaryConsistencyIssue) return summaryConsistencyIssue;
+  const uncertaintyStateIssue = m03UncertaintyStateIssue(reasoning, clinicalContext);
+  if (uncertaintyStateIssue) return uncertaintyStateIssue;
+  if (clinicalContext && !hasCurrentPositiveTcmAnchor(reasoning)) return "tcm_syndrome_current_fact_missing";
   // Semantic adequacy and clinical coherence are owned by the independent reviewer. This local
   // contract only rejects ungrounded patient facts and malformed resolution states; it does not
   // decide TCM syndrome, disease location, disease nature or therapy via finite keyword lists.
   if (clinicalContext) {
     const groundingIssue = ungroundedPatientFactReason(reasoning, clinicalContext);
     if (groundingIssue) return groundingIssue;
+  }
+  if (!isActionableFollowupSafetyNet(reasoning.management?.followupSafetyNet)) {
+    return "followup_safety_net_not_actionable";
   }
   return undefined;
 }
@@ -930,8 +1431,15 @@ type M04ReasoningLike = {
       constructionType?: unknown;
       modificationStatus?: unknown;
       therapyMatch?: unknown;
-      herbs?: Array<{ name?: unknown; dose?: unknown; role?: unknown; prescriptionRole?: unknown; targetKind?: unknown; targetRef?: unknown; structureRole?: unknown; targetPathogenesis?: unknown; function?: unknown; decoctionRequirement?: unknown }>;
-      decoction?: { doseCount?: unknown; method?: unknown; course?: unknown; followUpNode?: unknown };
+      herbs?: Array<{ name?: unknown; dose?: unknown; role?: unknown; prescriptionRole?: unknown; targetKind?: unknown; targetRef?: unknown; structureRole?: unknown; targetPathogenesis?: unknown; function?: unknown; isToxic?: unknown; decoctionRequirement?: unknown }>;
+      decoction?: {
+        doseCount?: unknown;
+        dosesPerDay?: unknown;
+        administrationTimesPerDay?: unknown;
+        method?: unknown;
+        course?: unknown;
+        followUpNode?: unknown;
+      };
     }>;
     modifications?: Array<{ trigger?: unknown; targetPathogenesis?: unknown; action?: unknown; doseOrHandling?: unknown; reason?: unknown; riskNote?: unknown }>;
   } | null;
@@ -939,10 +1447,35 @@ type M04ReasoningLike = {
     diet?: unknown;
     lifestyle?: unknown;
     emotion?: unknown;
-    tcmTreatments?: Array<{ projectCode?: unknown; targetRef?: unknown; targetPathogenesis?: unknown; assessmentPositioning?: unknown; operatorRequirement?: unknown; requiredChecks?: unknown; availability?: unknown; riskLevel?: unknown; recommendationMode?: unknown; executable?: unknown; clinicianReviewRequired?: unknown }>;
+    tcmTreatments?: Array<{ projectCode?: unknown; targetRef?: unknown; targetPathogenesis?: unknown; assessmentPositioning?: unknown; protocolStatus?: unknown; protocolGap?: unknown; treatmentContent?: unknown; suggestedSitesOrPoints?: unknown; scheduleSuggestion?: unknown; techniqueBoundary?: unknown; protocolSource?: unknown; operatorRequirement?: unknown; requiredChecks?: unknown; availability?: unknown; riskLevel?: unknown; recommendationMode?: unknown; executable?: unknown; clinicianReviewRequired?: unknown }>;
     monitoring?: unknown;
   } | null;
 };
+
+function normalizedModificationTrigger(value: string): string {
+  return value
+    .replace(/^(?:患者|主诉|现病史|问诊补充|当前|目前)[：:\s]*/g, "")
+    .replace(/[\s，,。；;：:、（）()【】\[\]“”"']/g, "")
+    .trim();
+}
+
+function finalModificationTriggerGrounded(trigger: string, prior?: M03ReasoningLike | null): boolean {
+  if (!prior) return false;
+  if (/(?:^|[，,；;])\s*(?:若|如|当|一旦)|复诊时|接诊时核实|症状变化时|出现时|加重时|未缓解时|以后出现/.test(trigger)) return false;
+  const normalizedTrigger = normalizedModificationTrigger(trigger);
+  if (normalizedTrigger.length < 2) return false;
+  const anchors = [
+    ...nonEmptyStringList(prior.overview?.primarySyndromeBasis),
+    ...nonEmptyStringList(prior.westernDiagnosis?.primary?.supportingFacts),
+    ...(prior.pathogenesis?.chain || []).flatMap((node) => typeof node.patientFact === "string" ? [node.patientFact] : []),
+  ];
+  return anchors.some((anchor) => {
+    const normalizedAnchor = normalizedModificationTrigger(anchor);
+    return normalizedAnchor.length >= 2 && (
+      normalizedTrigger.includes(normalizedAnchor) || normalizedAnchor.includes(normalizedTrigger)
+    );
+  });
+}
 
 type TcmTherapyConcept =
   | "qi_tonify" | "blood_nourish" | "calm_spirit" | "spleen_support"
@@ -1014,27 +1547,10 @@ const HIGH_IMPACT_THERAPY_CONCEPTS = new Set<TcmTherapyConcept>([
   "mass_soften",
 ]);
 
-// Governed supplement for KB category-only records whose function text omits the herb's
-// canonical pharmacopoeia direction (e.g. 柴胡's KB record is only "发散风热药；解表药", which
-// would invert its primary clinical direction 疏肝解郁 for 逍遥散-type use). Same discipline as
-// CONTROLLED_HERB_FUNCTION_TEXT in tcm-knowledge.ts: minimal, evidence-bound （药典2020), and
-// applied ONLY when the KB record is empty or nothing but category labels.
-const GOVERNED_HERB_FUNCTION_SUPPLEMENT: Readonly<Record<string, string>> = {
-  柴胡: "疏散退热，疏肝解郁，升举阳气",
-};
-
-function isCategoryOnlyHerbKnowledge(name: string): boolean {
-  const text = getTcmHerbFunctionText(name).trim();
-  if (!text) return true;
-  const categories = getTcmHerbFunctionCategories(name).join("；").trim();
-  return Boolean(categories) && text === categories;
-}
-
 function herbKnowledgeFunctionText(name: string): string {
-  const text = getTcmHerbFunctionText(name);
-  if (!isCategoryOnlyHerbKnowledge(name)) return text;
-  const supplement = GOVERNED_HERB_FUNCTION_SUPPLEMENT[name];
-  return supplement ? [supplement, text].filter(Boolean).join("，") : text;
+  // Controlled pharmacopoeia supplements live in tcm-knowledge so every consumer (validator,
+  // reviewer payload, prompt shortlist and visible table) uses one authoritative function text.
+  return getTcmHerbFunctionText(name);
 }
 
 function herbTherapyConcepts(name: string): Set<TcmTherapyConcept> {
@@ -1092,10 +1608,11 @@ function requiredTherapyConcepts(prior: M03ReasoningLike | null | undefined): Se
 function primaryPathogenesisTherapyConcepts(prior: M03ReasoningLike | null | undefined): Set<TcmTherapyConcept> {
   const chain = prior?.pathogenesis?.chain || [];
   const primaryNode = chain.find((node, index) => String(node.nodeId || `P${index + 1}`) === "P1") || chain[0];
-  return affirmedTcmTherapyConcepts([
+  const concrete = [
     primaryNode?.therapyDirection,
-    prior?.therapy?.overallPrinciple,
-  ].map((value) => String(value || "").trim()).filter(Boolean).join("；"));
+    prior?.therapy?.overallMethod,
+  ].map((value) => String(value || "").trim()).filter(Boolean).join("；");
+  return affirmedTcmTherapyConcepts(concrete || String(prior?.therapy?.overallPrinciple || ""));
 }
 
 // Current-heat facts documented in the signed M03 payload's own grounded fields: verbatim chain
@@ -1329,6 +1846,8 @@ export function transparentFormulaTherapyIssue(
   if (!candidate || !prior || prior.stage !== "diagnose") return "transparent_therapy_contract_missing";
   const required = requiredTherapyConcepts(prior);
   if (required.size === 0) return "transparent_therapy_unresolved";
+  const primaryRequired = primaryPathogenesisTherapyConcepts(prior);
+  const coverageRequired = primaryRequired.size > 0 ? primaryRequired : required;
 
   const allHerbs = candidate.herbs || [];
   const highImpactIssue = unsupportedHighImpactHerbIssue(allHerbs, prior);
@@ -1338,9 +1857,9 @@ export function transparentFormulaTherapyIssue(
   const herbConcepts = therapeuticHerbs.map((herb) => herbTherapyConcepts(String(herb.name || "")));
   if (herbConcepts.some((concepts) => concepts.size === 0)) return "transparent_therapy_herb_knowledge_missing";
 
-  const coveredRequired = [...required].filter((concept) => herbConcepts.some((concepts) => concepts.has(concept)));
-  const directlySupportingHerbs = herbConcepts.filter((concepts) => setsIntersect(concepts, required)).length;
-  if (coveredRequired.length / required.size < 0.6) return "transparent_therapy_coverage";
+  const coveredRequired = [...coverageRequired].filter((concept) => herbConcepts.some((concepts) => concepts.has(concept)));
+  const directlySupportingHerbs = herbConcepts.filter((concepts) => setsIntersect(concepts, coverageRequired)).length;
+  if (coveredRequired.length / coverageRequired.size < 0.5) return "transparent_therapy_coverage";
   if (directlySupportingHerbs / therapeuticHerbs.length < 0.5) return "transparent_therapy_herb_support";
 
   return undefined;
@@ -1533,6 +2052,45 @@ function doseWithinConservativeModelLimit(name: string, dose: string, decoctionM
   return governedRanges.some((range) => grams >= range.min && grams <= range.max);
 }
 
+const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
+  population: RegExp;
+  patient: RegExp;
+  code: string;
+}> = [
+  { population: /孕期|妊娠/, patient: /妊娠|怀孕|孕妇|孕期|备孕|计划妊娠/, code: "pregnancy" },
+  { population: /哺乳期/, patient: /哺乳|乳母|产后喂养/, code: "lactation" },
+  { population: /儿童|婴幼儿/, patient: /儿童|婴儿|幼儿|小儿|未成年|(?:年龄|患者年龄)\s*[:：]?\s*(?:[0-9]|1[0-7])\s*岁/, code: "pediatric" },
+  { population: /出血倾向|月经期|抗凝状态/, patient: /出血倾向|月经期|经期|抗凝|抗血小板|华法林|利伐沙班|阿哌沙班|达比加群|肝素|阿司匹林|氯吡格雷/, code: "bleeding_anticoagulation" },
+  { population: /老年人/, patient: /老年|高龄|(?:年龄|患者年龄)\s*[:：]?\s*(?:6[5-9]|[7-9]\d|1\d{2})\s*岁/, code: "older_adult" },
+  { population: /肝功能不全/, patient: /肝功能不全|肝衰竭|失代偿期肝硬化|Child-Pugh\s*[BC]/i, code: "hepatic_impairment" },
+  { population: /肾功能不全/, patient: /肾功能不全|肾衰竭|尿毒症|慢性肾脏病|慢性肾病|eGFR\s*[:：]?\s*(?:[0-5]?\d(?:\.\d+)?)\b/i, code: "renal_impairment" },
+  { population: /心血管病/, patient: /心力衰竭|心衰|冠心病|心律失常|高血压|心肌梗死|心绞痛/, code: "cardiovascular_disease" },
+  { population: /心血管\/青光眼\/前列腺/, patient: /心血管病|心力衰竭|心衰|冠心病|心律失常|高血压|青光眼|前列腺增生/, code: "cardio_glaucoma_prostate" },
+  { population: /糖尿病/, patient: /糖尿病|血糖控制不佳|糖化血红蛋白升高/, code: "diabetes" },
+  { population: /体虚\/胃弱/, patient: /体虚|体质虚弱|胃弱|脾胃虚弱/, code: "frailty_gastric_weakness" },
+  { population: /运动员/, patient: /运动员|竞技体育|兴奋剂检查/, code: "athlete" },
+];
+
+export function m04GenerationSpecialPopulationIssue(
+  herbs: ReadonlyArray<{ name?: unknown }>,
+  clinicalContext: string,
+): string | undefined {
+  if (!clinicalContext.trim()) return undefined;
+  for (const [herbIndex, herb] of herbs.entries()) {
+    const name = typeof herb.name === "string" ? herb.name.trim() : "";
+    if (!name) continue;
+    const profile = getTcmHerbGenerationSafetyProfile(name);
+    for (const rule of profile.populationRules) {
+      if (rule.severity !== "HIGH") continue;
+      const matcher = M04_SPECIAL_POPULATION_MATCHERS.find((item) => item.population.test(rule.population));
+      if (matcher && contextAffirmsTerm(clinicalContext, matcher.patient)) {
+        return `herb_${herbIndex}_special_population_high_risk_${matcher.code}`;
+      }
+    }
+  }
+  return undefined;
+}
+
 function herbFunctionMatchesKnowledge(name: string, claimedFunction: string, role = "", target = ""): boolean {
   const knowledgeText = herbKnowledgeFunctionText(name);
   if (/(?:美容|养颜|改善视力|减肥|抗癌|延年益寿|包治|根治)/.test(claimedFunction)) return false;
@@ -1661,6 +2219,10 @@ function crossStageReasoningIssue(
   const candidate = reasoning.formula?.candidates?.[0];
   const workbenchEdited = trustedWorkbenchEdit && candidate?.constructionType === "self_devised" && candidate?.modificationStatus === "modified" && /医生编辑版/.test(String(candidate?.name || ""));
   const governedPriorNames = governedFormulaNames(prior.overview?.recommendedFormulaNames);
+  if (governedPriorNames?.length) {
+    const sufficiencyIssue = namedFormulaPositiveSufficiencyIssue(prior, governedPriorNames);
+    if (sufficiencyIssue) return sufficiencyIssue;
+  }
   const governedMode = prior.overview?.formulaSelectionMode;
   const governedContractEnabled = governedPriorNames != null &&
     ["single", "combined", "alternatives", "self_devised", "none"].includes(String(governedMode));
@@ -1705,6 +2267,59 @@ function followUpConsistent(course: string, followUpNode: string): boolean {
   return courseDays == null || followUpDays == null || followUpDays <= courseDays + 2;
 }
 
+const MONITORING_ACTION_OR_CONDITION = /(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/;
+
+function normalizedMonitoringText(value: string): string {
+  return value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]]+/g, "");
+}
+
+function monitoringMetricGroundedInPrior(metric: string, prior?: M03ReasoningLike | null): boolean {
+  if (!prior) return false;
+  const anchors = [
+    ...nonEmptyStringList(prior.overview?.primarySyndromeBasis),
+    ...nonEmptyStringList(prior.westernDiagnosis?.primary?.supportingFacts),
+    ...(prior.pathogenesis?.chain || []).flatMap((item) => [item.patientFact, item.syndromeEvidence])
+      .filter((item): item is string => typeof item === "string" && Boolean(item.trim())),
+  ];
+  const normalizedMetric = normalizedMonitoringText(metric);
+  if (anchors.some((anchor) => {
+    const normalizedAnchor = normalizedMonitoringText(anchor);
+    return normalizedAnchor.length >= 2 &&
+      (normalizedMetric.includes(normalizedAnchor) || normalizedAnchor.includes(normalizedMetric));
+  })) return true;
+  const metricAliasGroups = [
+    /入睡时间|入睡耗时|夜醒|睡眠时长|睡眠质量/,
+    /疼痛(?:评分|程度)|痛感|活动距离|步行距离/,
+    /发作次数|发作频次/,
+  ];
+  if (metricAliasGroups.some((alias) =>
+    alias.test(metric) && anchors.some((anchor) => {
+      if (alias.source.includes("入睡")) return /失眠|不寐|入睡|睡眠|夜醒/.test(anchor);
+      if (alias.source.includes("疼痛")) return /痛|疼/.test(anchor);
+      return /发作|反复|次数|频次/.test(anchor);
+    }))) return true;
+  return GROUNDED_FACT_GROUPS.some((group) =>
+    group.test(metric) && anchors.some((anchor) => group.test(anchor)));
+}
+
+function monitoringSemanticIssue(
+  monitoring: Array<{ metric?: unknown; timing?: unknown; trigger?: unknown }>,
+  prior?: M03ReasoningLike | null,
+): string | undefined {
+  for (const [index, item] of monitoring.entries()) {
+    const metric = typeof item.metric === "string" ? item.metric.trim() : "";
+    const timing = typeof item.timing === "string" ? item.timing.trim() : "";
+    const trigger = typeof item.trigger === "string" ? item.trigger.trim() : "";
+    if (!metric || !timing || !trigger) return `monitoring_${index}_incomplete`;
+    if (MONITORING_ACTION_OR_CONDITION.test(metric)) return `monitoring_${index}_metric_semantics`;
+    if (!MONITORING_ACTION_OR_CONDITION.test(trigger)) return `monitoring_${index}_trigger_semantics`;
+    const normalized = [metric, timing, trigger].map(normalizedMonitoringText);
+    if (new Set(normalized).size !== normalized.length) return `monitoring_${index}_duplicate`;
+    if (prior && !monitoringMetricGroundedInPrior(metric, prior)) return `monitoring_${index}_metric_ungrounded`;
+  }
+  return undefined;
+}
+
 export function m04SemanticIssue(
   reasoning: M04ReasoningLike | null | undefined,
   visibleContent = "",
@@ -1714,6 +2329,7 @@ export function m04SemanticIssue(
   serverOwnsFollowUpNode = false,
   trustedWorkbenchEdit = false,
   auditedClinicalRisksAreAdvisory = false,
+  clinicalContext = "",
 ): string | undefined {
   const candidates = reasoning?.formula?.candidates;
   if (reasoning?.stage !== "prescribe") return "stage";
@@ -1725,6 +2341,11 @@ export function m04SemanticIssue(
     typeof nonPharma.emotion !== "string" || !nonPharma.emotion.trim() ||
     !Array.isArray(nonPharma.monitoring) || nonPharma.monitoring.length === 0
   ) return "non_pharma_incomplete";
+  const monitoringIssue = monitoringSemanticIssue(
+    nonPharma.monitoring as Array<{ metric?: unknown; timing?: unknown; trigger?: unknown }>,
+    priorReasoning,
+  );
+  if (monitoringIssue) return monitoringIssue;
   const treatmentProjects = Array.isArray(nonPharma.tcmTreatments) ? nonPharma.tcmTreatments : [];
   const treatmentNodeIds = new Set((priorReasoning?.pathogenesis?.chain || [])
     .map((node, index) => String(node.nodeId || `P${index + 1}`)));
@@ -1732,10 +2353,33 @@ export function m04SemanticIssue(
   if (treatmentProjects.length > 3) return "non_pharma_treatment_count";
   for (const [index, project] of treatmentProjects.entries()) {
     if (!knownTreatmentCodes.has(String(project.projectCode || ""))) return `non_pharma_treatment_${index}_code`;
-    if (![project.targetRef, project.targetPathogenesis, project.assessmentPositioning, project.operatorRequirement]
+    if (![project.targetRef, project.targetPathogenesis, project.treatmentContent,
+      project.techniqueBoundary, project.protocolSource, project.operatorRequirement]
       .every((value) => typeof value === "string" && value.trim())) return `non_pharma_treatment_${index}_incomplete`;
+    if (project.assessmentPositioning != null &&
+      (typeof project.assessmentPositioning !== "string" || !project.assessmentPositioning.trim())) {
+      return `non_pharma_treatment_${index}_positioning`;
+    }
     if (!treatmentNodeIds.has(String(project.targetRef))) return `non_pharma_treatment_${index}_target_ref`;
     if (!Array.isArray(project.requiredChecks) || project.requiredChecks.length === 0) return `non_pharma_treatment_${index}_checks`;
+    if (!Array.isArray(project.suggestedSitesOrPoints) ||
+      project.suggestedSitesOrPoints.some((value) => typeof value !== "string" || !value.trim())) {
+      return `non_pharma_treatment_${index}_plan`;
+    }
+    const protocolStatus = String(project.protocolStatus || "");
+    if (!["governed_patient_specific_plan", "assessment_only_no_patient_specific_protocol"].includes(protocolStatus)) {
+      return `non_pharma_treatment_${index}_protocol_status`;
+    }
+    if (protocolStatus === "governed_patient_specific_plan" &&
+      ((project.suggestedSitesOrPoints.length === 0 && !tcmTreatmentProjectIsPointFree(String(project.projectCode || ""))) ||
+        typeof project.scheduleSuggestion !== "string" || !project.scheduleSuggestion.trim())) {
+      return `non_pharma_treatment_${index}_governed_plan_incomplete`;
+    }
+    if (protocolStatus === "assessment_only_no_patient_specific_protocol" &&
+      (project.suggestedSitesOrPoints.length > 0 || (typeof project.scheduleSuggestion === "string" && project.scheduleSuggestion.trim()) ||
+        typeof project.protocolGap !== "string" || !project.protocolGap.trim())) {
+      return `non_pharma_treatment_${index}_assessment_parameters`;
+    }
     if (!["clinic_available", "referral_only"].includes(String(project.availability || ""))) return `non_pharma_treatment_${index}_availability`;
     if (!["low", "moderate", "specialist"].includes(String(project.riskLevel || ""))) return `non_pharma_treatment_${index}_risk`;
     if (!["clinician_assessment", "referral_assessment", "specialist_assessment_only"].includes(String(project.recommendationMode || ""))) return `non_pharma_treatment_${index}_mode`;
@@ -1746,6 +2390,15 @@ export function m04SemanticIssue(
   if (stageIssue) return stageIssue;
   if (!Array.isArray(candidates) || candidates.length === 0) return "candidates_empty";
   if (candidates.length !== 1) return "candidate_count";
+  const candidateNeedsKnowledgeCoverage =
+    !trustedWorkbenchEdit &&
+    (candidates[0].constructionType === "self_devised" ||
+      !Array.isArray(candidates[0].formulaNames) ||
+      candidates[0].formulaNames.length === 0);
+  if (candidateNeedsKnowledgeCoverage && priorReasoning) {
+    const coverageIssue = transparentFormulaTherapyIssue(reasoning, priorReasoning);
+    if (coverageIssue) return `candidate_0_${coverageIssue}`;
+  }
   const availableRows = visibleContent ? visibleHerbRows(visibleContent) : [];
   const visibleMethod = visibleContent ? visibleLabeledValue(visibleContent, "煎服法") : "";
   if (!serverOwnsDecoctionMethod && visibleContent && (!visibleMethod || !hasCompleteDecoctionMethod(visibleMethod))) {
@@ -1755,8 +2408,26 @@ export function m04SemanticIssue(
     if (typeof candidate.name !== "string" || !candidate.name.trim()) return `candidate_${candidateIndex}_name`;
     if (typeof candidate.therapyMatch !== "string" || !candidate.therapyMatch.trim()) return `candidate_${candidateIndex}_therapy_match`;
     if (!Array.isArray(candidate.herbs) || candidate.herbs.length === 0) return `candidate_${candidateIndex}_herbs_empty`;
+    const classicContraindicationIssue = !trustedWorkbenchEdit
+      ? firstFormulaContraindicationIssue(
+          [
+            typeof candidate.name === "string" ? candidate.name : "",
+            ...(Array.isArray(candidate.formulaNames)
+              ? candidate.formulaNames.filter((name): name is string => typeof name === "string")
+              : []),
+          ],
+          clinicalContext,
+        )
+      : undefined;
+    if (classicContraindicationIssue) {
+      return `candidate_${candidateIndex}_classic_contraindication_${classicContraindicationIssue}`;
+    }
     const normalizedHerbNames = candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name));
     if (new Set(normalizedHerbNames).size !== normalizedHerbNames.length) return `candidate_${candidateIndex}_duplicate_herb`;
+    const specialPopulationIssue = !trustedWorkbenchEdit
+      ? m04GenerationSpecialPopulationIssue(candidate.herbs, clinicalContext)
+      : undefined;
+    if (specialPopulationIssue) return `candidate_${candidateIndex}_${specialPopulationIssue}`;
     const pairConflict = !trustedWorkbenchEdit && !auditedClinicalRisksAreAdvisory
       ? findTcmHerbPairIncompatibilities(candidate.herbs.map((herb) => String(herb.name || "")))[0]
       : undefined;
@@ -1772,8 +2443,19 @@ export function m04SemanticIssue(
     if (highImpactIssue) return `candidate_${candidateIndex}_${highImpactIssue}`;
     const doseCount = candidate.decoction?.doseCount;
     const course = candidate.decoction?.course;
-    const regimenIssue = prescriptionRegimenIssue(doseCount, course);
+    const regimenIssue = prescriptionRegimenIssue(doseCount, course, candidate.decoction?.dosesPerDay);
     if (regimenIssue) return `candidate_${candidateIndex}_${regimenIssue}`;
+    const administrationTimesPerDay = candidate.decoction?.administrationTimesPerDay;
+    if (
+      typeof administrationTimesPerDay !== "number" ||
+      !Number.isInteger(administrationTimesPerDay) ||
+      administrationTimesPerDay < 1 ||
+      administrationTimesPerDay > 6 ||
+      typeof candidate.decoction?.dosesPerDay !== "number" ||
+      administrationTimesPerDay < candidate.decoction.dosesPerDay
+    ) {
+      return `candidate_${candidateIndex}_administration_times_per_day`;
+    }
     const validateCompleteRegimen = trustedWorkbenchEdit || (!serverOwnsDecoctionMethod && !serverOwnsFollowUpNode);
     if (!serverOwnsDecoctionMethod) {
       if (typeof candidate.decoction?.method !== "string") return `candidate_${candidateIndex}_method_incomplete_missing`;
@@ -1824,6 +2506,9 @@ export function m04SemanticIssue(
     if (![modification.trigger, modification.targetPathogenesis, modification.action, modification.reason]
       .every((value) => typeof value === "string" && value.trim())) {
       return `modification_${modificationIndex}_incomplete`;
+    }
+    if (!finalModificationTriggerGrounded(String(modification.trigger), priorReasoning)) {
+      return `modification_${modificationIndex}_trigger_ungrounded`;
     }
     if (typeof modification.doseOrHandling === "string" && modification.doseOrHandling.trim()) {
       return `modification_${modificationIndex}_unaudited_dose`;

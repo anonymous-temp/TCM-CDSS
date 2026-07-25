@@ -1,5 +1,5 @@
 // src/lib/diagnosis-engine.ts
-import type { CaseState, Phase } from "./diagnosis-types";
+import type { CaseState, Phase, StructuredFollowupTimelineItem } from "./diagnosis-types";
 import { ageValue, createInitialCaseState, normalizeCaseStateInput } from "./diagnosis-types";
 import { extractDiagnosisJSON, stripDiagnosisJSON, parseCompleteness } from "./diagnosis-parse";
 import { isUnknownClinicalFieldText, isUnknownClinicalText } from "./clinical-state";
@@ -467,11 +467,32 @@ function applyStreamChunk(accumulated: string, content: string): string {
   return markerIdx >= 0 ? combined.slice(markerIdx + STREAM_REPLACE_MARKER.length) : combined;
 }
 
-export async function consumeMarkdownStream(
+function parseTypedFollowupTimeline(value: unknown): StructuredFollowupTimelineItem[] | null {
+  if (!Array.isArray(value)) return null;
+  const items = value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const item = entry as Record<string, unknown>;
+    if (typeof item.time !== "string" || !item.time.trim() ||
+      typeof item.action !== "string" || !item.action.trim() ||
+      !Array.isArray(item.indicators) || !item.indicators.every((part) => typeof part === "string" && Boolean(part.trim())) ||
+      !Array.isArray(item.triggers) || !item.triggers.every((part) => typeof part === "string" && Boolean(part.trim()))) {
+      return [];
+    }
+    return [{
+      time: item.time.trim(),
+      action: item.action.trim(),
+      indicators: item.indicators.slice(0, 8) as string[],
+      triggers: item.triggers.slice(0, 8) as string[],
+    }];
+  }).slice(0, 8);
+  return items.length === value.length && items.length > 0 ? items : null;
+}
+
+export async function consumeMarkdownStreamWithMetadata(
   response: Response,
   onChunk: (text: string) => void,
   opts?: StreamConsumeOptions,
-): Promise<string> {
+): Promise<{ content: string; followupTimeline: StructuredFollowupTimelineItem[] }> {
   if (!response.body) throw new Error("模型响应为空");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -479,6 +500,7 @@ export async function consumeMarkdownStream(
   let buffer = "";
   let accumulated = "";
   const qutoItems: unknown[] = [];
+  let followupTimeline: StructuredFollowupTimelineItem[] = [];
   let sawEnd = false;
   let malformedLines = 0;
   let upstreamError = "";
@@ -517,6 +539,14 @@ export async function consumeMarkdownStream(
             markValidFrame();
             const visible = filterStreamingText(accumulated);
             onChunk([visible, chunk.status.trim()].filter(Boolean).join("\n\n"));
+          } else if (chunk.type === "followup_timeline") {
+            const parsedTimeline = parseTypedFollowupTimeline(chunk.timelineItems);
+            if (parsedTimeline) {
+              markValidFrame();
+              followupTimeline = parsedTimeline;
+            } else {
+              malformedLines += 1;
+            }
           } else if (chunk.content === "[END]") {
             markValidFrame();
             sawEnd = true;
@@ -552,6 +582,14 @@ export async function consumeMarkdownStream(
           markValidFrame();
           const visible = filterStreamingText(accumulated);
           onChunk([visible, chunk.status.trim()].filter(Boolean).join("\n\n"));
+        } else if (chunk.type === "followup_timeline") {
+          const parsedTimeline = parseTypedFollowupTimeline(chunk.timelineItems);
+          if (parsedTimeline) {
+            markValidFrame();
+            followupTimeline = parsedTimeline;
+          } else {
+            malformedLines += 1;
+          }
         } else if (chunk.content === "[END]") {
           markValidFrame();
           sawEnd = true;
@@ -615,7 +653,15 @@ export async function consumeMarkdownStream(
     }
   }
 
-  return accumulated;
+  return { content: accumulated, followupTimeline };
+}
+
+export async function consumeMarkdownStream(
+  response: Response,
+  onChunk: (text: string) => void,
+  opts?: StreamConsumeOptions,
+): Promise<string> {
+  return (await consumeMarkdownStreamWithMetadata(response, onChunk, opts)).content;
 }
 
 /**

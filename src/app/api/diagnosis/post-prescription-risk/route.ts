@@ -5,14 +5,16 @@ import {
   buildAuditInputAdvisorySection,
   buildLingxiRiskSection,
   buildLocalHighRiskHerbPairSection,
+  buildRxAuditScopeSection,
   buildRxAuditCorrelationMetadata,
   buildUnavailableRxAuditSection,
   mergeLocalHighRiskHerbPairIssues,
   normalizeAuditOutcomeForPatient,
   resolveRxAuditCandidateIndex,
   runBoundedRxAudit,
+  rxAuditSubmissionIssue,
 } from "@/lib/rxaudit";
-import { buildDeterministicRiskFollowup, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
+import { buildDeterministicRiskFollowupPayload, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { editedPrescriptionIssueMessage, editedPrescriptionSemanticIssue, hasIncompleteEditedHerb } from "@/lib/prescription-revision";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
@@ -91,6 +93,31 @@ export async function POST(req: Request) {
       },
     }, { status: 422 });
   }
+  const submissionIssue = rxAuditSubmissionIssue(caseState, resolvedCandidateIndex);
+  if (submissionIssue) {
+    const inputAdvisories = buildAuditInputAdvisories(caseState, resolvedCandidateIndex);
+    const message = submissionIssue === "regimen_incomplete"
+      ? "当前处方缺少可核验的给药频次、疗程或复诊节点，未提交自动审方。"
+      : submissionIssue === "herb_dose_incomplete"
+        ? "当前处方存在无法解析的单味剂量，未提交自动审方。"
+        : "当前处方没有可审查的结构化药味，未提交自动审方。";
+    return Response.json({
+      error: message,
+      code: `rxaudit_${submissionIssue}`,
+      section: `## 合理用药审方\n**提交前校验**：${message}\n**处置建议**：请补齐处方结构后重新审方；本次未调用外部审方接口。`,
+      risks: [],
+      audit: {
+        source: "local_input_validation",
+        safetyLocked: deriveSafetyLocked(caseState),
+        degraded: false,
+        reason: submissionIssue,
+        needManualReview: true,
+        inputAdvisories,
+        herbHash,
+        auditedAt: new Date().toISOString(),
+      },
+    }, { status: 422 });
+  }
   const { medicationExtraction, providerAudit } = await runBoundedRxAudit(caseState, resolvedCandidateIndex, req.signal);
   const inputAdvisories = buildAuditInputAdvisories(caseState, resolvedCandidateIndex, medicationExtraction);
   const auditedAt = new Date().toISOString();
@@ -104,9 +131,13 @@ export async function POST(req: Request) {
       inputAdvisories,
     );
     const inputAdvisorySection = buildAuditInputAdvisorySection(inputAdvisories);
-    const section = [inputAdvisorySection, buildLingxiRiskSection(effectiveAudit, patientSex)].filter(Boolean).join("\n\n");
+    const section = [
+      buildRxAuditScopeSection(caseState, resolvedCandidateIndex),
+      inputAdvisorySection,
+      buildLingxiRiskSection(effectiveAudit, patientSex),
+    ].filter(Boolean).join("\n\n");
     const assessed = withSafetyGate({ ...caseState, riskAssessment: section, safetyLocked });
-    const followup = buildDeterministicRiskFollowup(assessed);
+    const followup = buildDeterministicRiskFollowupPayload(assessed);
     const correlation = buildRxAuditCorrelationMetadata({
       providerOutcome: providerAudit,
       effectiveOutcome: effectiveAudit,
@@ -116,7 +147,8 @@ export async function POST(req: Request) {
     });
     return Response.json({
       section,
-      followup,
+      followup: followup.markdown,
+      followupTimeline: followup.timelineItems,
       risks: [],
       audit: {
         source: "lingxi",
@@ -150,13 +182,14 @@ export async function POST(req: Request) {
 
   console.warn("[tcm-cdss:rxaudit] post-prescription advisory audit unavailable", { reason: providerAudit.reason });
   const section = [
+    buildRxAuditScopeSection(caseState, resolvedCandidateIndex),
     buildLocalHighRiskHerbPairSection(caseState, resolvedCandidateIndex),
     buildAuditInputAdvisorySection(inputAdvisories),
     buildUnavailableRxAuditSection(providerAudit.reason),
   ].filter(Boolean).join("\n\n");
   const safetyLocked = deriveSafetyLocked(caseState);
   const assessed = withSafetyGate({ ...caseState, riskAssessment: section, safetyLocked });
-  const followup = buildDeterministicRiskFollowup(assessed);
+  const followup = buildDeterministicRiskFollowupPayload(assessed);
   const correlation = buildRxAuditCorrelationMetadata({
     providerOutcome: providerAudit,
     candidateIndex,
@@ -165,7 +198,8 @@ export async function POST(req: Request) {
   });
   return Response.json({
     section,
-    followup,
+    followup: followup.markdown,
+    followupTimeline: followup.timelineItems,
     risks: [],
     audit: {
       source: "lingxi_unavailable",

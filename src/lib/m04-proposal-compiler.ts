@@ -12,6 +12,7 @@ import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
 import { canonicalTcmHerbIdentity, highImpactHerbDirectionIssue } from "./diagnosis-stage-contract";
 import { getM03TherapyLock } from "./m03-therapy-lock";
+import type { CaseState } from "./diagnosis-types";
 
 const evidence = {
   evidenceLevel: "model_inference" as const,
@@ -23,7 +24,7 @@ function medicineEvidenceFromSource(source: string) {
   const clean = source.trim().slice(0, 800);
   const evidenceLevel = /\[(?:EVID-INST|OFFICIAL-CPM-GUIDE)-\d+\]|\[OFFICIAL-CPM-GUIDE\]|说明书/i.test(clean)
     ? "instruction" as const
-    : /\[LABEL-NMPA-\d+\]|药品标签|批准文号/i.test(clean)
+    : /\[(?:LOCAL-INST|LABEL-NMPA)-\d+\]|药品标签|批准文号/i.test(clean)
       ? "drug_label" as const
       : /\[(?:EVID-GUIDE|OFFICIAL-[A-Z0-9_-]+)-\d+\]|\[OFFICIAL-[A-Z0-9_-]+\]|指南|共识/i.test(clean)
         ? "guideline" as const
@@ -37,18 +38,58 @@ function medicineEvidenceFromSource(source: string) {
   };
 }
 
+// Shared with the stage contract: a monitoring trigger must carry a condition or an action;
+// a metric must not carry either. Used to drop malformed rows instead of rejecting the batch.
+const MONITORING_ACTION_OR_CONDITION_PATTERN = /(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/;
+
+/** Coerce an unambiguous positive-integer regimen value (1, "1", "每日1剂", "一日2次", "2次/日")
+ *  to a number; anything unclear returns undefined so the contract can fail closed. */
+function coerceRegimenPositiveInt(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 30) return value;
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  const match = /^(?:每日|一日|每天|1日)?\s*([1-9]\d?)\s*(?:剂|次|遍|袋|包)?\s*(?:\/|每)?\s*(?:日|天)?$/.exec(text);
+  if (!match) return undefined;
+  const n = Number.parseInt(match[1], 10);
+  return n >= 1 && n <= 30 ? n : undefined;
+}
+
+/** Providers often carry the frequency only inside the decoction method free text
+ *  ("水煎服，每日1剂，早晚分2次温服"). When the structured dosesPerDay /
+ *  administrationTimesPerDay fields are absent, extract the value from the model's own method
+ *  text — deterministic extraction, never invention; no match means the contract still fails
+ *  closed. */
+function deriveRegimenFromMethodText(method: string | undefined): { dosesPerDay?: number; administrationTimesPerDay?: number } {
+  if (!method) return {};
+  const out: { dosesPerDay?: number; administrationTimesPerDay?: number } = {};
+  const doses = /(?:每日|一日|每天|日)\s*([123一二三])\s*剂/.exec(method);
+  if (doses) {
+    const map: Record<string, number> = { "1": 1, "2": 2, "3": 3, 一: 1, 二: 2, 两: 2, 三: 3 } as never;
+    out.dosesPerDay = map[doses[1]] ?? map[doses[1]?.replace("两", "二")];
+  }
+  const times = /(?:分\s*([123456两二三四五六])\s*次|早晚分服|分早晚(?:两次)?(?:温服|服用)?|([123456])\s*次分服)/.exec(method);
+  if (times) {
+    const raw = times[1] || times[2] || (times[0].includes("早晚") ? "2" : undefined);
+    const map: Record<string, number> = { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6 } as never;
+    if (raw && map[raw]) out.administrationTimesPerDay = map[raw];
+  }
+  return out;
+}
+
 const PatentAndWesternProposalSchema = z.object({
   type: z.enum(["西药", "中成药"]),
   name: z.string().min(1).max(300),
-  specification: z.string().min(1).max(300),
-  singleDose: z.string().min(1).max(300),
-  frequency: z.string().min(1).max(300),
-  route: z.string().min(1).max(300),
+  specification: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable().optional()).transform((value) => value ?? null),
+  singleDose: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable().optional()).transform((value) => value ?? null),
+  frequency: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable().optional()).transform((value) => value ?? null),
+  route: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable().optional()).transform((value) => value ?? null),
   usageBoundary: z.string().min(1).max(800),
-  course: z.string().min(1).max(500),
+  course: z.preprocess(normalizeModelNullableText, z.string().max(500).nullable().optional()).transform((value) => value ?? null),
   positioning: z.enum(["联合治疗", "替代方案", "短期对症", "需医生评估"]),
   correspondingProblem: z.string().min(1).max(800),
-  evidenceSource: z.string().min(1).max(800),
+  evidenceId: z.string().regex(/^(?:EVID|LOCAL)-INST-\d{3}$/),
+  evidenceFingerprint: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+  evidenceSource: z.string().max(800).optional(),
   relationship: z.string().min(1).max(800),
   riskNote: z.string().min(1).max(1000),
 });
@@ -77,6 +118,8 @@ const M04ProposalSchema = z.object({
     formulaAnalysis: z.string().min(1).max(4000).optional(),
     decoction: z.object({
       doseCount: z.string().min(1).max(120).refine((value) => controlledDoseCount(value) != null),
+      dosesPerDay: z.number().int().min(1).max(3),
+      administrationTimesPerDay: z.number().int().min(1).max(6),
       method: z.string().min(1).max(1000).optional(),
       course: z.string().min(1).max(1000).refine((value) => controlledCourseDays(value) != null),
       followUpNode: z.string().min(1).max(1000).optional(),
@@ -90,6 +133,17 @@ const M04ProposalSchema = z.object({
     herbName: z.string().min(1).max(120),
     reason: z.string().min(2).max(800),
   })).max(4).default([]),
+  modificationReview: z.object({
+    submittedCount: z.number().int().min(0).max(30),
+    retainedCount: z.number().int().min(0).max(30),
+    droppedCount: z.number().int().min(0).max(30),
+    droppedReason: z.string().max(1200).nullable(),
+    droppedReasons: z.array(z.object({
+      code: z.string().min(1).max(80),
+      count: z.number().int().min(1).max(30),
+      message: z.string().min(1).max(300),
+    })).max(12),
+  }).optional(),
   nonPharma: z.object({
     diet: z.string().min(1).max(1600),
     lifestyle: z.string().min(1).max(1600),
@@ -100,12 +154,29 @@ const M04ProposalSchema = z.object({
       targetRef: z.string().regex(/^P\d{1,2}$/),
     })).max(3).default([]),
     monitoring: z.array(z.object({
-      metric: z.string().max(300),
-      timing: z.string().max(300),
-      trigger: z.string().max(600),
+      metric: z.string().min(2).max(300).refine(
+        (value) => !/(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/.test(value),
+        "metric 只能填写要观察的病例指标，不得混入条件或处置动作",
+      ),
+      timing: z.string().min(2).max(300),
+      trigger: z.string().min(2).max(600).refine(
+        (value) => /(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/.test(value),
+        "trigger 必须包含可识别的条件或处置动作",
+      ),
     })).min(1).max(20),
   }),
 }).superRefine((proposal, context) => {
+  proposal.nonPharma.monitoring.forEach((item, index) => {
+    const normalized = [item.metric, item.timing, item.trigger]
+      .map((value) => value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]]+/g, ""));
+    if (new Set(normalized).size !== normalized.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["nonPharma", "monitoring", index],
+        message: "metric、timing、trigger 必须分别承载指标、时间和触发处置，不能互相复制",
+      });
+    }
+  });
   const seenHerbs = new Map<string, number>();
   proposal.candidate.herbs.forEach((herb, index) => {
     const key = canonicalTcmHerbIdentity(herb.name);
@@ -120,16 +191,28 @@ const M04ProposalSchema = z.object({
       seenHerbs.set(key, index);
     }
   });
-  if (prescriptionRegimenIssue(proposal.candidate.decoction.doseCount, proposal.candidate.decoction.course) === "course_inconsistent") {
+  if (proposal.candidate.decoction.administrationTimesPerDay < proposal.candidate.decoction.dosesPerDay) {
+    context.addIssue({
+      code: "custom",
+      path: ["candidate", "decoction", "administrationTimesPerDay"],
+      message: "每日分服次数不得少于每日剂数",
+    });
+  }
+  if (prescriptionRegimenIssue(
+    proposal.candidate.decoction.doseCount,
+    proposal.candidate.decoction.course,
+    proposal.candidate.decoction.dosesPerDay,
+  ) === "course_inconsistent") {
     context.addIssue({
       code: "custom",
       path: ["candidate", "decoction", "course"],
-      message: "每日1剂的剂数必须与疗程天数一致",
+      message: "总剂数必须等于每日剂数乘以疗程天数",
     });
   }
 });
 
 export type M04Proposal = z.infer<typeof M04ProposalSchema>;
+export type EvidenceBoundMedicineProposal = M04Proposal["patentAndWestern"][number];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -261,19 +344,130 @@ function normalizeModificationAction(value: unknown): "add" | "remove" | "adjust
   return undefined;
 }
 
+function normalizeModificationFact(value: string): string {
+  return value
+    .replace(/^(?:患者|主诉|现病史|问诊补充|当前|目前)[：:\s]*/g, "")
+    .replace(/[\s，,。；;：:、（）()【】\[\]“”"']/g, "")
+    .trim();
+}
+
+const MODIFICATION_FACT_CONCEPTS = [
+  /失眠|不寐|入睡|夜醒|多梦|早醒/,
+  /疼痛|头痛|胃痛|胃脘痛|腹痛|腰痛|膝痛|关节痛/,
+  /乏力|疲乏|倦怠|没劲/,
+  /心悸|心慌/,
+  /咳嗽|咳痰|痰多/,
+  /气短|气促|喘|呼吸困难/,
+  /恶心|呕吐|反酸|烧心/,
+  /腹泻|便溏|稀便/,
+  /便秘|大便干|排便困难/,
+  /头晕|眩晕/,
+  /口干|口渴/,
+  /怕冷|畏寒|恶寒/,
+  /发热|发烧|身热/,
+  /自汗|盗汗|出汗/,
+  /水肿|浮肿/,
+] as const;
+
+/**
+ * Modifications are current-visit symptom adjustments, not speculative future prescriptions.
+ * The trigger therefore has to be a literal fact already signed by M03. This closes the whole
+ * class of generic "复诊时若出现..." rows without trying to rewrite model prose into a fact.
+ */
+export function modificationTriggerGroundedInM03(
+  trigger: string,
+  prior?: ClinicalReasoningResultV2 | null,
+): boolean {
+  return Boolean(resolveModificationTriggerSource(trigger, prior));
+}
+
+export type ModificationTriggerSource = {
+  kind: "primary_syndrome_basis" | "pathogenesis_patient_fact" | "western_supporting_fact";
+  sourceRef: string;
+  sourceQuote: string;
+};
+
+export function resolveModificationTriggerSource(
+  trigger: string,
+  prior?: ClinicalReasoningResultV2 | null,
+): ModificationTriggerSource | undefined {
+  if (!prior || prior.stage !== "diagnose") return undefined;
+  if (/(?:^|[，,；;])\s*(?:若|如|当|一旦)|复诊时|接诊时核实|症状变化时|出现时|加重时|未缓解时|以后出现/.test(trigger)) {
+    return undefined;
+  }
+  const normalizedTrigger = normalizeModificationFact(trigger);
+  if (normalizedTrigger.length < 2) return undefined;
+  const anchors: ModificationTriggerSource[] = [
+    ...(prior.overview.primarySyndromeBasis || []).map((sourceQuote, index) => ({
+      kind: "primary_syndrome_basis" as const,
+      sourceRef: `overview.primarySyndromeBasis[${index}]`,
+      sourceQuote,
+    })),
+    ...prior.pathogenesis.chain.map((node, index) => ({
+      kind: "pathogenesis_patient_fact" as const,
+      sourceRef: `pathogenesis.chain[${index}].patientFact${node.nodeId ? `:${node.nodeId}` : ""}`,
+      sourceQuote: node.patientFact,
+    })),
+    ...(prior.westernDiagnosis.primary.supportingFacts || []).map((sourceQuote, index) => ({
+      kind: "western_supporting_fact" as const,
+      sourceRef: `westernDiagnosis.primary.supportingFacts[${index}]`,
+      sourceQuote,
+    })),
+  ].filter((item) => typeof item.sourceQuote === "string" && Boolean(item.sourceQuote.trim()));
+  return anchors.find((anchor) => {
+    const normalizedAnchor = normalizeModificationFact(anchor.sourceQuote);
+    return normalizedAnchor.length >= 2 &&
+      (normalizedTrigger.includes(normalizedAnchor) || normalizedAnchor.includes(normalizedTrigger));
+  }) || anchors.find((anchor) =>
+    MODIFICATION_FACT_CONCEPTS.some((concept) =>
+      concept.test(trigger) && concept.test(anchor.sourceQuote)));
+}
+
+type ModificationDropCode =
+  | "malformed"
+  | "contains_unaudited_dose"
+  | "trigger_not_current_fact"
+  | "unknown_herb"
+  | "invalid_target"
+  | "action_conflicts_with_candidate"
+  | "bounded_limit"
+  | "direction_conflict";
+
+const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>> = {
+  malformed: "条目缺少触发事实、病机引用、动作、药名或理由",
+  contains_unaudited_dose: "条件性加减夹带了未经审方的具体剂量",
+  trigger_not_current_fact: "触发条件不能回溯到本次病历已确认的当前事实",
+  unknown_herb: "该药味不在中药知识库收录范围",
+  invalid_target: "所引病机不属于本次已确认的病机",
+  action_conflicts_with_candidate: "增减动作与当前处方药味状态冲突",
+  bounded_limit: "超过单次最多展示 4 条随症加减的安全边界",
+  direction_conflict: "拟加药味与已锁定病机或治法方向冲突",
+};
+
+type ModificationNormalization = {
+  items: unknown[];
+  submittedCount: number;
+  droppedReasons: ModificationDropCode[];
+};
+
 function normalizeModifications(
   value: unknown,
   prior?: ClinicalReasoningResultV2 | null,
   prescribedHerbNames: ReadonlySet<string> = new Set(),
-): unknown[] {
-  if (!Array.isArray(value)) return [];
+): ModificationNormalization {
+  if (!Array.isArray(value)) return { items: [], submittedCount: 0, droppedReasons: [] };
   const governedNodeIds = new Set(
     prior?.stage === "diagnose"
       ? prior.pathogenesis.chain.map((node) => node.nodeId).filter(Boolean)
       : [],
   );
-  return value.flatMap((item) => {
-    if (!isRecord(item)) return [];
+  const droppedReasons: ModificationDropCode[] = [];
+  const normalizedItems = value.flatMap((item) => {
+    const drop = (reason: ModificationDropCode) => {
+      droppedReasons.push(reason);
+      return [];
+    };
+    if (!isRecord(item)) return drop("malformed");
     const actionType = normalizeModificationAction(item.actionType ?? item.action ?? item["动作"]);
     const trigger = unwrapSingleText(item.trigger ?? item["触发条件"]);
     const targetRef = unwrapSingleText(item.targetRef ?? item["病机引用"]);
@@ -282,17 +476,50 @@ function normalizeModifications(
     // Conditional modifications are optional decision support. A malformed optional row must not
     // invalidate an otherwise complete core prescription, but no missing field may be invented.
     const doseBearingText = [trigger, herbName, reason].filter(Boolean).join("；");
-    if (!actionType || !trigger || !targetRef || !herbName || !reason || /(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)\s*(?:mg|g|毫克|克)(?!\s*\/\s*(?:L|升))/i.test(doseBearingText)) return [];
+    if (!actionType || !trigger || !targetRef || !herbName || !reason) return drop("malformed");
+    if (/(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)\s*(?:mg|g|毫克|克)(?!\s*\/\s*(?:L|升))/i.test(doseBearingText)) {
+      return drop("contains_unaudited_dose");
+    }
+    if (!modificationTriggerGroundedInM03(trigger, prior)) return drop("trigger_not_current_fact");
     const normalizedHerbName = canonicalTcmHerbIdentity(herbName.trim());
     // 随症加减是可选决策支持，不能让一条模型臆造的药味、病机引用或动作拖垮
     // 已通过核心契约的候选处方。服务端只保留知识库可识别且与当前上下文一致的行。
-    if (!isKnownTcmHerbName(normalizedHerbName)) return [];
-    if (governedNodeIds.size > 0 && !governedNodeIds.has(targetRef)) return [];
+    if (!isKnownTcmHerbName(normalizedHerbName)) return drop("unknown_herb");
+    if (governedNodeIds.size > 0 && !governedNodeIds.has(targetRef)) return drop("invalid_target");
     const herbIdentity = canonicalTcmHerbIdentity(normalizedHerbName);
-    if (["remove", "adjust"].includes(actionType) && !prescribedHerbNames.has(herbIdentity)) return [];
-    if (actionType === "add" && prescribedHerbNames.has(herbIdentity)) return [];
+    if (["remove", "adjust"].includes(actionType) && !prescribedHerbNames.has(herbIdentity)) return drop("action_conflicts_with_candidate");
+    if (actionType === "add" && prescribedHerbNames.has(herbIdentity)) return drop("action_conflicts_with_candidate");
     return [{ ...item, trigger, targetRef, actionType, herbName: normalizedHerbName, reason }];
-  }).slice(0, 4);
+  });
+  if (normalizedItems.length > 4) {
+    droppedReasons.push(...Array.from(
+      { length: normalizedItems.length - 4 },
+      () => "bounded_limit" as const,
+    ));
+  }
+  const items = normalizedItems.slice(0, 4);
+  return { items, submittedCount: value.length, droppedReasons };
+}
+
+function summarizeModificationReview(
+  submittedCount: number,
+  retainedCount: number,
+  reasons: ModificationDropCode[],
+) {
+  const grouped = [...new Set(reasons)].map((code) => ({
+    code,
+    count: reasons.filter((reason) => reason === code).length,
+    message: MODIFICATION_DROP_MESSAGES[code],
+  }));
+  return {
+    submittedCount,
+    retainedCount,
+    droppedCount: Math.max(0, submittedCount - retainedCount),
+    droppedReason: grouped.length > 0
+      ? grouped.map((item) => `${item.message}${item.count > 1 ? `（${item.count}条）` : ""}`).join("；")
+      : null,
+    droppedReasons: grouped,
+  };
 }
 
 function trustedCandidateName(
@@ -507,15 +734,30 @@ function normalizeM04ProposalInput(
   const courseDays = typeof normalizedCourse === "string"
     ? controlledCourseDays(normalizedCourse)
     : undefined;
-  // The executable regimen is fixed at one dose per day, so dose count and course are one fact,
-  // not two independent model decisions. Canonicalize the redundant field from whichever bounded
-  // value the model supplied instead of retrying an otherwise valid prescription for prose such as
-  // "五剂为一疗程". If both are present, dose count owns the executable duration.
-  if (doseCount != null) {
+  let dosesPerDay = coerceRegimenPositiveInt(decoction.dosesPerDay);
+  if (dosesPerDay != null) decoction.dosesPerDay = dosesPerDay;
+  const administrationTimesPerDay = coerceRegimenPositiveInt(decoction.administrationTimesPerDay);
+  if (administrationTimesPerDay != null) decoction.administrationTimesPerDay = administrationTimesPerDay;
+  // Structured frequency fields omitted by the provider but present in its own method free text
+  // ("每日1剂，早晚分2次温服") are extracted deterministically; no invention, absence still
+  // fails closed at the contract.
+  if (decoction.dosesPerDay == null || decoction.administrationTimesPerDay == null) {
+    const derived = deriveRegimenFromMethodText(unwrapSingleText(decoction.method ?? decoction["煎服法"] ?? decoction["方法"]));
+    if (decoction.dosesPerDay == null && derived.dosesPerDay != null) {
+      decoction.dosesPerDay = derived.dosesPerDay;
+      dosesPerDay = derived.dosesPerDay;
+    }
+    if (decoction.administrationTimesPerDay == null && derived.administrationTimesPerDay != null) {
+      decoction.administrationTimesPerDay = derived.administrationTimesPerDay;
+    }
+  }
+  // Total doses and daily doses jointly determine the course. Do not invent either frequency
+  // dimension; only canonicalize the redundant course when the submitted controlled values agree.
+  if (doseCount != null && dosesPerDay != null && doseCount % dosesPerDay === 0) {
     decoction.doseCount = `${doseCount}剂`;
-    decoction.course = `${doseCount}日`;
-  } else if (courseDays != null && courseDays <= 30) {
-    decoction.doseCount = `${courseDays}剂`;
+    decoction.course = `${doseCount / dosesPerDay}日`;
+  } else if (courseDays != null && dosesPerDay != null && courseDays * dosesPerDay <= 30) {
+    decoction.doseCount = `${courseDays * dosesPerDay}剂`;
     decoction.course = `${courseDays}日`;
   } else {
     decoction.doseCount = normalizedDoseCount;
@@ -535,10 +777,18 @@ function normalizeM04ProposalInput(
   const concreteMedicationValue = (item: unknown) => typeof item === "string" &&
     item.trim().length > 0 &&
     !/(?:按说明书|医生复核|医生评估|待确认|待核验|待检索|结合病情|另行确定)/.test(item);
-  const patentAndWestern = Array.isArray(value.patentAndWestern)
-    ? value.patentAndWestern.flatMap((raw) => {
+  // Some providers preserve every required M04 sibling but accidentally place the three
+  // proposal-level fields inside candidate after a targeted repair. Their names and ownership are
+  // unambiguous, so lift only those exact fields without changing any clinical value. This is an
+  // envelope canonicalization, not a safety relaxation; each lifted value still passes its normal
+  // schema and semantic validation below.
+  const rawPatentAndWestern = value.patentAndWestern ?? candidate.patentAndWestern;
+  const rawModifications = value.modifications ?? candidate.modifications;
+  const rawNonPharmaValue = value.nonPharma ?? candidate.nonPharma;
+  const patentAndWestern = Array.isArray(rawPatentAndWestern)
+    ? rawPatentAndWestern.flatMap((raw) => {
         if (!isRecord(raw)) return [];
-        if (![raw.name, raw.specification, raw.singleDose, raw.frequency, raw.route, raw.course, raw.evidenceSource]
+        if (![raw.name, raw.evidenceId, raw.evidenceFingerprint, raw.correspondingProblem]
           .every(concreteMedicationValue)) return [];
         const parsed = PatentAndWesternProposalSchema.safeParse(raw);
         return parsed.success ? [parsed.data] : [];
@@ -549,8 +799,9 @@ function normalizeM04ProposalInput(
       ? candidate.herbs.flatMap((herb) => isRecord(herb) && typeof herb.name === "string" ? [canonicalTcmHerbIdentity(herb.name)] : [])
       : [],
   );
-  const modifications = normalizeModifications(value.modifications, prior, prescribedHerbNames);
-  const rawNonPharma = isRecord(value.nonPharma) ? { ...value.nonPharma } : value.nonPharma;
+  const modificationNormalization = normalizeModifications(rawModifications, prior, prescribedHerbNames);
+  const modifications = modificationNormalization.items;
+  const rawNonPharma = isRecord(rawNonPharmaValue) ? { ...rawNonPharmaValue } : rawNonPharmaValue;
   const nonPharma = isRecord(rawNonPharma)
     ? {
         ...rawNonPharma,
@@ -566,7 +817,24 @@ function normalizeM04ProposalInput(
               return [[`${projectCode}:${targetRef}`, { projectCode, targetRef }] as const];
             })).values()].slice(0, 3)
           : [],
-        monitoring: Array.isArray(rawNonPharma.monitoring) ? rawNonPharma.monitoring.slice(0, 20) : rawNonPharma.monitoring,
+        // Malformed monitoring rows (bad trigger semantics, metric carrying condition words,
+        // or metric/timing/trigger duplicating each other) must not invalidate the whole
+        // prescription; drop only the offending rows, the remaining valid rows still satisfy
+        // the contract. Same philosophy as tcmTreatments above.
+        monitoring: Array.isArray(rawNonPharma.monitoring)
+          ? rawNonPharma.monitoring.filter((item) => {
+              if (!isRecord(item)) return false;
+              const metric = typeof item.metric === "string" ? item.metric.trim() : "";
+              const timing = typeof item.timing === "string" ? item.timing.trim() : "";
+              const trigger = typeof item.trigger === "string" ? item.trigger.trim() : "";
+              if (!metric || !timing || !trigger) return false;
+              if (MONITORING_ACTION_OR_CONDITION_PATTERN.test(metric)) return false;
+              if (!MONITORING_ACTION_OR_CONDITION_PATTERN.test(trigger)) return false;
+              const normalized = [metric, timing, trigger]
+                .map((value) => value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]]+/g, ""));
+              return new Set(normalized).size === normalized.length;
+            }).slice(0, 20)
+          : rawNonPharma.monitoring,
       }
     : rawNonPharma;
 
@@ -576,6 +844,11 @@ function normalizeM04ProposalInput(
     candidate,
     patentAndWestern,
     modifications,
+    modificationReview: summarizeModificationReview(
+      modificationNormalization.submittedCount,
+      modifications.length,
+      modificationNormalization.droppedReasons,
+    ),
     nonPharma,
   };
 }
@@ -644,13 +917,28 @@ export function m04ProposalRegimenShape(value: unknown): { candidate: string; de
 export function compileM04Proposal(
   value: unknown,
   prior: ClinicalReasoningResultV2 | null | undefined,
+  caseState?: CaseState,
+  trustedMedicineCandidates: readonly EvidenceBoundMedicineProposal[] = [],
 ): ClinicalReasoningResultV2 | undefined {
   if (!prior || prior.stage !== "diagnose") return undefined;
   const parsed = M04ProposalSchema.safeParse(normalizeM04ProposalInput(value, prior));
   if (!parsed.success) return undefined;
   // Preserve the exact model proposal through compilation. Dose normalization may canonicalize
   // representation, but must never change the clinical value before the independent audit sees it.
-  const proposal = parsed.data;
+  const trustedMedicines = trustedMedicineCandidates.flatMap((item) => {
+    const checked = PatentAndWesternProposalSchema.safeParse(item);
+    return checked.success ? [checked.data] : [];
+  }).slice(0, 6);
+  // Medicine discovery is a server-owned evidence plan. The generative M04 proposal may still
+  // echo valid rows, but it cannot erase the independently retrieved plan or inject a different
+  // drug. Merge by exact evidence identity before independent clinical review.
+  const proposal = {
+    ...parsed.data,
+    patentAndWestern: [...new Map(
+      [...parsed.data.patentAndWestern, ...trustedMedicines]
+        .map((item) => [`${item.evidenceId}:${item.evidenceFingerprint}`, item] as const),
+    ).values()].slice(0, 6),
+  };
   if (modificationIssue(proposal, prior)) return undefined;
   const cleanNarrative = (value: string | undefined, fallback: string) =>
     sanitizeUnverifiedClinicalNarrative(value || "") || fallback;
@@ -669,6 +957,7 @@ export function compileM04Proposal(
       evidence,
     };
   });
+  const directionDropReasons: ModificationDropCode[] = [];
   const compiledModifications = proposal.modifications.flatMap((item) => {
     const node = prior.pathogenesis.chain.find((candidate) => candidate.nodeId === item.targetRef);
     const declaredDirection = [item.reason, node?.therapyDirection, node?.pathogenesis]
@@ -677,18 +966,35 @@ export function compileM04Proposal(
     // A conditional add/remove row is optional decision support, not the current prescription.
     // Omit a row that conflicts with M03 instead of discarding the audited core prescription or
     // passing an unaudited hypothetical medicine downstream.
-    if (item.actionType === "add" && highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior)) return [];
+    if (item.actionType === "add" && highImpactHerbDirectionIssue(item.herbName, declaredDirection, prior)) {
+      directionDropReasons.push("direction_conflict");
+      return [];
+    }
+    const triggerSource = resolveModificationTriggerSource(item.trigger, prior);
+    if (!triggerSource) {
+      directionDropReasons.push("trigger_not_current_fact");
+      return [];
+    }
     const actionVerb = item.actionType === "add" ? "加" : item.actionType === "remove" ? "减" : "调整";
     return [{
-      trigger: cleanNarrative(item.trigger, "症状或证候发生相应变化时"),
+      trigger: item.trigger,
+      triggerSource,
       targetPathogenesis: node?.pathogenesis || node?.syndromeEvidence || item.targetRef,
       action: `${actionVerb}${item.herbName.trim()}`,
       doseOrHandling: null,
       reason: cleanNarrative(item.reason, "随证调整治疗重点"),
       riskNote: "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
-      evidence,
+      evidence: {
+        evidenceLevel: "model_inference" as const,
+        source: `患者事实（${triggerSource.sourceRef}）：${triggerSource.sourceQuote}；对应病机节点：${item.targetRef}`,
+        confidence: "中" as const,
+      },
     }];
   });
+  const m03FormulaNames = Array.isArray(prior.overview.recommendedFormulaNames)
+    ? prior.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+    : [];
+  const selfDevisedFromM03 = m03FormulaNames.length === 0 || ["none", "self_devised"].includes(String(prior.overview.formulaSelectionMode || ""));
   return {
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "prescribe",
@@ -706,10 +1012,15 @@ export function compileM04Proposal(
         // M03 owns the treatment direction. M04 may select medicines but cannot rewrite that lock
         // through a free-text therapyMatch field.
         therapyMatch: getM03TherapyLock(prior).candidateMatch,
-        applicable: cleanNarrative(proposal.candidate.applicable, `适用于与本例锁定证候“${prior.overview.primarySyndrome}”及病机链一致的情况。`),
+        applicable: cleanNarrative(
+          proposal.candidate.applicable,
+          selfDevisedFromM03
+            ? "经典方主治与本例当前阳性事实及核心病机未形成完整匹配，故按已锁定病机与治法辨证组方。"
+            : `适用于与本例锁定证候“${prior.overview.primarySyndrome}”及病机链一致的情况。`,
+        ),
         notApplicable: cleanNarrative(proposal.candidate.notApplicable, "证候、病机、舌脉或安全边界变化时暂停采用，并重新辨证。"),
         herbs: compiledHerbs,
-        formulaAnalysis: cleanNarrative(proposal.candidate.formulaAnalysis, "由服务端按最终药味、君臣佐使和病机引用生成。"),
+        formulaAnalysis: cleanNarrative(proposal.candidate.formulaAnalysis, "依据最终药味、君臣佐使与对应病机生成。"),
         decoction: {
           ...proposal.candidate.decoction,
           method: proposal.candidate.decoction.method || "由服务端生成",
@@ -721,24 +1032,44 @@ export function compileM04Proposal(
             type: item.type,
             name: item.name,
             specification: item.specification,
-            singleDose: item.singleDose,
-            frequency: item.frequency,
-            route: item.route,
-            usageBoundary: cleanNarrative(item.usageBoundary, "用法用量按说明书和医生复核"),
-            course: cleanNarrative(item.course, "疗程由医生结合病情确定"),
+            evidenceId: item.evidenceId,
+            evidenceFingerprint: item.evidenceFingerprint,
+            recommendationMode: item.type === "西药" ? "discussion_only" as const : "candidate_review" as const,
+            // EviMed's current instruction summary may not return a complete executable regimen.
+            // Keep both categories non-dose until every regimen field can be bound to the same
+            // fingerprint; western medicines are explicitly discussion-only in this release.
+            singleDose: undefined,
+            frequency: undefined,
+            route: undefined,
+            usageBoundary: item.type === "西药"
+              ? "仅供与接诊医生讨论，不构成处方或剂量建议。"
+              : cleanNarrative(item.usageBoundary, "仅作有说明书依据的候选，具体用法须依据完整说明书和医生评估。"),
+            course: "本候选不形成疗程医嘱",
             positioning: item.positioning,
             correspondingProblem: cleanNarrative(item.correspondingProblem, "对应本例现代医学诊断倾向"),
-            evidence: medicineEvidenceFromSource(item.evidenceSource),
+            evidence: medicineEvidenceFromSource(`[${item.evidenceId}]`),
             relationship: cleanNarrative(item.relationship, "与中药饮片方案的联用或替代关系由医生确定"),
             riskNote: cleanNarrative(item.riskNote, "需复核禁忌、相互作用、重复用药和特殊人群风险"),
           }))
         : [],
+      medicineCandidateStatus: proposal.patentAndWestern.length > 0
+        ? { status: "available" as const, reason: "已形成与本例问题匹配并绑定真实说明书条目的候选。" }
+        : { status: "no_evidence_match" as const, reason: "未检索到与本例诊断或证候匹配、且可核验到具体说明书条目的西药或中成药候选。" },
       modifications: compiledModifications,
+      modificationReview: summarizeModificationReview(
+        proposal.modificationReview?.submittedCount ?? proposal.modifications.length,
+        compiledModifications.length,
+        [
+          ...((proposal.modificationReview?.droppedReasons || []).flatMap((item) =>
+            Array.from({ length: item.count }, () => item.code as ModificationDropCode))),
+          ...directionDropReasons,
+        ],
+      ),
     },
     nonPharma: {
       ...proposal.nonPharma,
       acupointCare: null,
-      tcmTreatments: compileTcmTreatmentRecommendations(proposal.nonPharma.tcmTreatments, prior),
+      tcmTreatments: compileTcmTreatmentRecommendations(proposal.nonPharma.tcmTreatments, prior, caseState),
     },
     lineageAdaptation: prior.lineageAdaptation,
     management: prior.management,
@@ -748,6 +1079,8 @@ export function compileM04Proposal(
 export function compileM04JsonObjectContent(
   content: string,
   prior: ClinicalReasoningResultV2 | null | undefined,
+  caseState?: CaseState,
+  trustedMedicineCandidates: readonly EvidenceBoundMedicineProposal[] = [],
 ): ClinicalReasoningResultV2 | undefined {
   try {
     const parsed = JSON.parse(content.trim()) as { schemaVersion?: unknown };
@@ -755,7 +1088,7 @@ export function compileM04JsonObjectContent(
     // M04 is intentionally an untrusted, minimal proposal. Accepting a complete V2 object here
     // would let the provider replace M03-owned overview/pathogenesis/therapy fields and bypass the
     // server compiler. Legacy full-V2 responses must be regenerated through the proposal contract.
-    return compileM04Proposal(parsed, prior);
+    return compileM04Proposal(parsed, prior, caseState, trustedMedicineCandidates);
   } catch {
     return undefined;
   }

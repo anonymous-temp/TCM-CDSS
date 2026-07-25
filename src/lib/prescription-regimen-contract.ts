@@ -12,10 +12,17 @@ export function controlledCourseDays(value: string): number | undefined {
   return days >= 1 && days <= 90 ? days : undefined;
 }
 
-export function prescriptionRegimenIssue(doseCount: unknown, course: unknown): string | undefined {
+export function prescriptionRegimenIssue(
+  doseCount: unknown,
+  course: unknown,
+  dosesPerDay: unknown = 1,
+): string | undefined {
   if (typeof doseCount !== "string" || controlledDoseCount(doseCount) == null) return "dose_count";
   if (typeof course !== "string" || controlledCourseDays(course) == null) return "course";
-  return controlledDoseCount(doseCount) === controlledCourseDays(course)
+  if (typeof dosesPerDay !== "number" || !Number.isInteger(dosesPerDay) || dosesPerDay < 1 || dosesPerDay > 3) {
+    return "doses_per_day";
+  }
+  return controlledDoseCount(doseCount) === controlledCourseDays(course)! * dosesPerDay
     ? undefined
     : "course_inconsistent";
 }
@@ -25,7 +32,8 @@ export type PrescriptionRegimenDto = {
   doseCountValue: number;
   course: string;
   courseDays: number;
-  dosesPerDay: 1;
+  dosesPerDay: 1 | 2 | 3;
+  administrationTimesPerDay: number;
   administration: string;
   followUpNode: string;
 };
@@ -35,18 +43,26 @@ export function prescriptionRegimenContractIssue(value: unknown): string | undef
   const raw = value as Record<string, unknown>;
   const doseCount = typeof raw.doseCount === "string" ? raw.doseCount.trim() : "";
   const course = typeof raw.course === "string" ? raw.course.trim() : "";
-  const baseIssue = prescriptionRegimenIssue(doseCount, course);
+  const dosesPerDay = raw.dosesPerDay;
+  const administrationTimesPerDay = raw.administrationTimesPerDay;
+  const baseIssue = prescriptionRegimenIssue(doseCount, course, dosesPerDay);
   if (baseIssue) return baseIssue;
+  if (
+    typeof administrationTimesPerDay !== "number" ||
+    !Number.isInteger(administrationTimesPerDay) ||
+    administrationTimesPerDay < 1 ||
+    administrationTimesPerDay > 6 ||
+    administrationTimesPerDay < (dosesPerDay as number)
+  ) {
+    return "administration_times_per_day";
+  }
 
   const administration = typeof raw.method === "string" ? raw.method.trim() : "";
   if (!administration) return "method_daily_dose";
   const dailyDoseCounts = dailyDoseCountsFromMethod(administration);
-  const structuredDailyDoseCount = typeof raw.dailyDoseCount === "number" ? raw.dailyDoseCount : undefined;
-  if (structuredDailyDoseCount != null && (!Number.isInteger(structuredDailyDoseCount) || structuredDailyDoseCount !== 1)) {
-    return "method_daily_dose";
-  }
-  if (structuredDailyDoseCount == null && dailyDoseCounts.length === 0) return "method_daily_dose";
-  if (dailyDoseCounts.some((count) => count !== 1)) return "method_daily_dose";
+  // The controlled numeric field is authoritative. Free-text method may omit the repeated daily
+  // count, but if it states one it must agree with the structured value.
+  if (dailyDoseCounts.some((count) => count !== dosesPerDay)) return "method_daily_dose";
 
   const followUpNode = typeof raw.followUpNode === "string" ? raw.followUpNode.trim() : "";
   if (!followUpNode) return "follow_up_inconsistent";
@@ -109,9 +125,15 @@ export function prescriptionRegimenFromDecoction(value: unknown): PrescriptionRe
   const followUpNode = typeof raw.followUpNode === "string" ? raw.followUpNode.trim() : "";
   const doseCountValue = controlledDoseCount(doseCount);
   const courseDays = controlledCourseDays(course);
+  const dosesPerDay = typeof raw.dosesPerDay === "number" ? raw.dosesPerDay : undefined;
+  const administrationTimesPerDay = typeof raw.administrationTimesPerDay === "number"
+    ? raw.administrationTimesPerDay
+    : undefined;
   if (prescriptionRegimenContractIssue(value) ||
       doseCountValue == null ||
-      courseDays == null) {
+      courseDays == null ||
+      dosesPerDay == null ||
+      administrationTimesPerDay == null) {
     return null;
   }
   return {
@@ -119,12 +141,13 @@ export function prescriptionRegimenFromDecoction(value: unknown): PrescriptionRe
     doseCountValue,
     course,
     courseDays,
-    dosesPerDay: 1,
+    dosesPerDay: dosesPerDay as 1 | 2 | 3,
+    administrationTimesPerDay,
     administration,
     followUpNode,
   };
 }
 
 export function prescriptionRegimenSummary(regimen: PrescriptionRegimenDto): string {
-  return `处方计划：共${regimen.doseCount}，疗程${regimen.course}，每日${regimen.dosesPerDay}剂；服法：${regimen.administration}；复诊节点：${regimen.followUpNode}`;
+  return `处方计划：共${regimen.doseCount}，疗程${regimen.course}，每日${regimen.dosesPerDay}剂、每日分${regimen.administrationTimesPerDay}次服；服法：${regimen.administration}；复诊节点：${regimen.followUpNode}`;
 }

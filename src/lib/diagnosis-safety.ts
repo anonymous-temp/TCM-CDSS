@@ -1,4 +1,4 @@
-import type { CaseState, ClinicalReasoningResultV2, Completeness, HisRecordSnapshot, SafetyGate, SafetyMissingItemCode } from "./diagnosis-types";
+import type { CaseState, ClinicalReasoningResultV2, Completeness, HisRecordSnapshot, SafetyGate, SafetyMissingItemCode, StructuredFollowupTimelineItem } from "./diagnosis-types";
 import { sectionTitleGroup } from "./cdss-vocab";
 import {
   assessConceptionState,
@@ -11,8 +11,49 @@ import {
 } from "./clinical-state";
 import { generalizeOccupation, scrubQuasiIdentifierText } from "./phi-sanitizer";
 import { determineCompletenessLevel } from "./diagnosis-parse";
-import { additiveRedFlagsFromFacts, priorityEvaluationItemsFromFacts, semanticTriageAdvisoriesFromFacts } from "./clinical-facts";
-import { clinicalEventTemporalScopeAt } from "./clinical-polarity";
+import {
+  additiveRedFlagsFromFacts,
+  groundedPatientTriageCategories,
+  priorityEvaluationItemsFromFacts,
+  semanticTriageAdvisoriesFromFacts,
+  type BackstopRedFlagCategory,
+} from "./clinical-facts";
+import { affirmedCurrentMedicationText, clinicalEventTemporalScopeAt } from "./clinical-polarity";
+import { ensureActionableFollowupSafetyNet } from "./followup-safety-net";
+import { buildThreePartLimitedStateCopyForSurface, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
+import { clinicalFieldRequiresExplicitPrescriptionState, clinicalRequiredFieldLabel } from "./clinical-governance-tables";
+import { patientSexAllowsDoseLevelSuggestion } from "./clinical-required-fields";
+import { sixHealthFollowupTable } from "./tcm-followup-dimensions";
+import redflagTriageLexicon from "../data/redflag-triage-lexicon.json" with { type: "json" };
+
+type GovernedRedFlagCategory = {
+  id: string;
+  symptoms: string[];
+  dangerCompanions: string[];
+};
+
+const GOVERNED_RED_FLAG_CATEGORIES = redflagTriageLexicon.categoryRules as GovernedRedFlagCategory[];
+const governedRedFlagCategory = (id: string): GovernedRedFlagCategory => {
+  const category = GOVERNED_RED_FLAG_CATEGORIES.find((item) => item.id === id);
+  if (!category) throw new Error(`缺少红旗治理分类：${id}`);
+  return category;
+};
+const GOVERNED_CARDIAC_SYMPTOMS = governedRedFlagCategory("cardiac").symptoms;
+const GOVERNED_CARDIAC_PAIN_SYMPTOMS = GOVERNED_CARDIAC_SYMPTOMS.filter((term) => term !== "胸闷");
+const GOVERNED_CARDIAC_COMPANIONS = governedRedFlagCategory("cardiac").dangerCompanions;
+const GOVERNED_ACUTE_ABDOMEN_SYMPTOMS = governedRedFlagCategory("acute_abdomen").symptoms;
+const GOVERNED_ACUTE_ABDOMEN_COMPANIONS = governedRedFlagCategory("acute_abdomen").dangerCompanions;
+const GOVERNED_PERITONEAL_SIGNS = GOVERNED_ACUTE_ABDOMEN_COMPANIONS.filter((term) =>
+  ["反跳痛", "松手更疼", "板状腹", "腹肌紧张"].includes(term));
+const GOVERNED_ACUTE_ONSET_TERMS = redflagTriageLexicon.dimensions.acuteOnset;
+const GOVERNED_SEVERE_TERMS = redflagTriageLexicon.dimensions.severe;
+
+function governedTermAlternation(terms: string[]): string {
+  return [...terms]
+    .sort((left, right) => right.length - left.length)
+    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|");
+}
 
 function stringifyClinicalValue(value: unknown): string {
   if (value == null) return "";
@@ -56,10 +97,6 @@ function fieldText(state: CaseState, key: keyof HisRecordSnapshot["fields"]): st
   return state.hisRecord?.fields?.[key] ?? "";
 }
 
-function latestUserMessage(state: CaseState): string {
-  return [...state.conversation].reverse().find((item) => item.role === "user" && item.content.trim())?.content.trim() || "";
-}
-
 function allUserMessages(state: CaseState): string {
   return state.conversation
     .filter((item) => item.role === "user" && item.content.trim())
@@ -74,10 +111,10 @@ function authoritativeFieldOrFallback(
 ): string {
   const field = fieldText(state, key);
   if (state.hisRecord) return field;
-  const latestUser = latestUserMessage(state);
-  if (latestUser) {
+  const userEnteredText = allUserMessages(state);
+  if (userEnteredText) {
     const candidate = stringifyClinicalValue(fallback).trim();
-    return candidate && normalizeClinicalText(latestUser).includes(normalizeClinicalText(candidate)) ? candidate : "";
+    return candidate && normalizeClinicalText(userEnteredText).includes(normalizeClinicalText(candidate)) ? candidate : "";
   }
   return stringifyClinicalValue(fallback);
 }
@@ -168,31 +205,136 @@ const CLINICAL_POSITIVE_FACT_TERMS = [
   "胸痛", "胸闷", "心悸", "晕厥", "头痛", "视物模糊", "发热", "咳嗽", "气促", "呼吸困难",
   "腹痛", "恶心", "呕吐", "失眠", "入睡困难", "早醒", "盗汗", "潮热", "口苦", "口渴", "便秘", "腹泻",
 ] as const;
+const CLINICAL_NEGATION_FACT_TERMS = [...new Set([...RED_FLAG_NEGATION_TERMS, ...CLINICAL_POSITIVE_FACT_TERMS])];
 const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
+  ["发热", "发烧", "高热", "低热", "体温升高"],
+  ["头痛", "头疼", "脑袋疼", "脑袋痛", "头部疼痛", "偏头痛"],
+  // High-risk bleeding concepts must be grounded across ordinary patient phrasing. In particular,
+  // Chinese aspect markers split the canonical surface ("没吐过血" does not literally contain
+  // "吐血"). Without an explicit concept group, the output scrubber can incorrectly weaken a
+  // documented denial into "尚未确认呕血" after the clinical review has already accepted it.
+  ["呕血", "吐血", "吐过血", "呕出鲜血", "吐出鲜血", "呕咖啡色液体", "吐咖啡色液体"],
+  ["黑便", "大便发黑", "粪便发黑", "排黑色便", "柏油样便"],
+  ["便血", "血便", "大便带血", "排便带血", "解血便"],
+  ["咯血", "咳血", "咳出血"],
+  ["言语不清", "说话不清", "言语含糊", "口齿不清"],
+  ["肢体无力", "手脚无力", "单侧无力", "胳膊腿无力", "手臂无力", "上肢无力", "腿无力", "下肢无力"],
+  ["放射痛", "疼痛向下肢放射", "疼痛往腿上窜", "痛往腿上窜", "往腿上窜", "向腿部放射", "向下肢放射", "窜到腿上", "串到腿上"],
+  ["咳嗽", "干咳", "有痰咳嗽", "咳痰", "咳个不停", "一直咳"],
+  ["呼吸困难", "气促", "气短", "喘憋", "气喘", "喘不上气", "呼吸费力"],
+  ["胸痛", "胸口疼", "心前区痛", "胸口压迫", "胸骨后压榨感"],
+  ["腹痛", "肚子疼", "肚子痛", "小肚子疼", "小肚子痛", "小腹疼", "小腹痛", "下腹疼", "下腹痛", "上腹疼", "上腹痛", "胃疼", "胃痛", "胃脘疼", "胃脘痛"],
+  ["心悸", "心慌", "心跳快", "心跳加速", "心跳乱", "漏跳感"],
+  ["胸闷", "胸口发闷", "胸口憋闷", "胸口堵", "胸部压迫感"],
+  ["恶心", "反胃", "想吐"],
+  ["呕吐", "吐了", "呕出", "吐出"],
+  ["便秘", "大便难解", "排便困难", "解不出大便", "排便次数减少"],
   ["失眠", "入睡困难", "难以入睡", "睡眠差", "睡眠障碍"],
   ["早醒", "易醒", "多梦易醒", "醒后再睡困难"],
   ["盗汗", "夜间出汗", "夜里出汗", "夜里总出汗", "睡后出汗", "睡着后出汗", "睡眠后出汗", "睡醒后才发现汗湿"],
+  ["腹泻", "泄泻", "拉肚子", "稀便", "大便稀", "便稀", "稀稀的", "水样便", "便溏"],
+  ["瘙痒", "痒", "鼻痒", "鼻子痒", "眼痒", "眼睛痒", "鼻眼痒", "鼻子眼睛都痒", "皮肤痒", "皮肤瘙痒"],
+];
+const POSITIVE_FACT_EQUIVALENT_PATTERNS: readonly {
+  terms: readonly string[];
+  patterns: readonly RegExp[];
+}[] = [
+  {
+    terms: POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes("头痛")) || ["头痛"],
+    patterns: [
+      // Patients commonly describe headache by location and pain quality without using the
+      // canonical noun “头痛” (for example “右边脑袋一跳一跳地疼”). Match the
+      // location phrase itself so the shared negation-scope check still protects “脑袋不疼”.
+      /(?:脑袋|头部|后脑勺|太阳穴)[^。；;\n]{0,12}(?:疼|痛|胀|跳|刺)/,
+      // Tight-band headache is commonly charted without the words 疼/痛 ("头上像戴了个紧箍").
+      // It still establishes the existence of a headache-type complaint; severity, cause and
+      // associated symptoms remain separate attributes and may legitimately stay unknown.
+      /(?:头上|头部|脑袋)[^。；;\n]{0,12}(?:紧箍|箍紧|勒紧|绷紧|紧胀)/,
+    ],
+  },
+  {
+    terms: POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes("咳嗽")) || ["咳嗽"],
+    patterns: [
+      // Colloquial charting often records the event as a verb ("老咳一口白痰", "咳几声")
+      // rather than the noun 咳嗽. Start the match at 咳 so the shared negation-scope check still
+      // sees preceding "不/没有/否认" and cannot turn a denied cough into an affirmed symptom.
+      /咳(?:了)?(?:一|两|几|三|四|五|\d+)\s*(?:口|声)/,
+      /咳(?:出|着|起来|个不停)/,
+    ],
+  },
+  {
+    terms: POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes("入睡困难")) || ["入睡困难"],
+    patterns: [
+      // Patients often quantify sleep latency without naming insomnia ("得一两个小时才睡着").
+      // That still establishes difficulty initiating sleep, while duration/severity and cause may
+      // remain unknown. Keep explicit negation in the match window for the shared polarity check.
+      /(?:(?:躺|上床|入睡|睡觉)[^。；;\n]{0,18})?(?:要|得|需|花)[^。；;\n]{0,10}(?:小时|分钟)[^。；;\n]{0,8}才(?:能)?睡着/,
+      /(?:躺|上床)[^。；;\n]{0,20}才(?:能)?睡着/,
+    ],
+  },
+  {
+    terms: POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes("呼吸困难")) || ["呼吸困难"],
+    patterns: [
+      // Colloquial exertional wheeze is a documented respiratory positive even when the patient
+      // does not use the noun 呼吸困难. This only prevents output from relabelling the known
+      // manifestation as unknown; red-flag urgency remains owned by the safety gate.
+      /(?:胸口|胸部)[^。；;\n]{0,8}(?:呼呼响|喘鸣|哮鸣)/,
+      /(?:喘鸣|哮鸣)(?:音|声)?/,
+    ],
+  },
+  {
+    terms: POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes("腹痛")) || ["腹痛"],
+    patterns: [
+      // A location plus colloquial “疼/痛” is the same positive abdominal-pain concept. Keep
+      // the gap free of explicit negators so “肚子一点也不疼” cannot become an affirmation.
+      /(?:肚子|小肚子|腹部|小腹|下腹|上腹|胃脘|胃部|肚脐周围)(?:(?!不|没|无|未)[^.。；;\n]){0,8}(?:疼|痛)/,
+    ],
+  },
+  {
+    terms: POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes("便秘")) || ["便秘"],
+    patterns: [
+      /大便[^。；;\n]{0,10}(?:解不出(?:来)?|排不出(?:来)?|拉不出(?:来)?|难解)/,
+      /(?:排便|解大便)[^。；;\n]{0,8}(?:困难|费劲|不畅)/,
+      /(?:隔)?[二两三四五六七八九十\d]{1,3}(?:[至到－—-][二两三四五六七八九十\d]{1,3})?天[^。；;\n]{0,4}(?:一|1)次/,
+      /(?:每周|一周)[^。；;\n]{0,6}(?:[一二两12]次|少于三次|不足三次|不到三次)/,
+    ],
+  },
 ];
 const DEGREE_AFTER_NEGATOR = "(?:很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)";
 const CLINICAL_NEGATION_CUE = new RegExp(`(否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|均无|均未见|未见|未诉|未出现|没有|不伴|无明显|无再发|未再发|(?:当前|目前|现阶段|患者|病人)?(?:从未有|未曾有|无)(?=[\\u4e00-\\u9fa5]))`);
 const NEGATION_SCOPE_BREAK = /[，,](?:但|而|仍|却|同时|另有|随后|继而|突发|新发|出现|伴有)/;
 const NON_SYMPTOM_NEGATION_OBJECT = /(?:诱因|原因|缓解|好转|改善|变化|异常检查)/;
 
+function hasImmediateBareNegator(text: string, index: number): boolean {
+  // The broad assertion parser deliberately does not treat every bare “不/未” as a negation cue,
+  // because phrases such as “不很严重” describe degree rather than absence. Here the cue is
+  // accepted only when it is immediately adjacent to the matched clinical expression, or when a
+  // short patient-action/aspect phrase is wholly inside the negation ("没解过柏油样便"). This
+  // covers ordinary directional and event denials without letting a distant “不/未” cross clauses.
+  return /(?:[不未无没]|(?:没有|没|未|无)(?:排|解|拉|咳|吐|呕|出现|发生|见|诉)?过?)\s*$/.test(
+    text.slice(Math.max(0, index - 8), index),
+  );
+}
+
 function sourceDocumentsNegation(source: string, term: string): boolean {
   const normalized = normalizeClinicalText(source);
+  const equivalents = POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term)) || [term];
   for (const sentence of normalized.split(/[。；;\n]+/)) {
-    let termIndex = sentence.indexOf(term);
-    while (termIndex >= 0) {
-      const before = sentence.slice(Math.max(0, termIndex - 24), termIndex);
-      const negations = Array.from(before.matchAll(new RegExp(CLINICAL_NEGATION_CUE.source, "g")));
-      const nearest = negations.at(-1);
-      if (nearest?.index != null) {
-        const between = before.slice(nearest.index + nearest[0].length);
-        if (!NEGATION_SCOPE_BREAK.test(between) && !NON_SYMPTOM_NEGATION_OBJECT.test(between)) return true;
+    for (const equivalent of equivalents) {
+      let termIndex = sentence.indexOf(equivalent);
+      while (termIndex >= 0) {
+        if (!isExcludedClinicalAssertionAt(sentence, termIndex) && hasImmediateBareNegator(sentence, termIndex)) return true;
+        const before = sentence.slice(Math.max(0, termIndex - 24), termIndex);
+        const negations = Array.from(before.matchAll(new RegExp(CLINICAL_NEGATION_CUE.source, "g")));
+        const nearest = negations.at(-1);
+        if (nearest?.index != null) {
+          const between = before.slice(nearest.index + nearest[0].length);
+          if (!NEGATION_SCOPE_BREAK.test(between) && !NON_SYMPTOM_NEGATION_OBJECT.test(between)) return true;
+        }
+        const after = sentence.slice(termIndex + equivalent.length, termIndex + equivalent.length + 10);
+        if (new RegExp(`^(?:均)?(?:未见|未诉|未出现|否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|没有|无)`).test(after)) return true;
+        termIndex = sentence.indexOf(equivalent, termIndex + equivalent.length);
       }
-      const after = sentence.slice(termIndex + term.length, termIndex + term.length + 10);
-      if (new RegExp(`^(?:均)?(?:未见|未诉|未出现|否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|没有|无)`).test(after)) return true;
-      termIndex = sentence.indexOf(term, termIndex + term.length);
     }
   }
   return false;
@@ -232,12 +374,24 @@ function sourceDocumentsCurrentNormality(source: string, term: string): boolean 
 function sourceDocumentsAffirmation(source: string, term: string): boolean {
   const normalized = normalizeClinicalText(source);
   const equivalents = POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term)) || [term];
+  const conceptPatterns = POSITIVE_FACT_EQUIVALENT_PATTERNS.find((item) => item.terms.includes(term))?.patterns || [];
   for (const sentence of normalized.split(/[。；;\n]+/)) {
     for (const equivalent of equivalents) {
       let index = sentence.indexOf(equivalent);
       while (index >= 0) {
-        if (!isNegatedAt(sentence, index) && !/(待核实|待确认|不清楚|未知|不详|未采集|未说明)/.test(sentence)) return true;
+        if (
+          !isExcludedClinicalAssertionAt(sentence, index) &&
+          !hasImmediateBareNegator(sentence, index) &&
+          !isNegatedAt(sentence, index) &&
+          !/(待核实|待确认|不清楚|未知|不详|未采集|未说明)/.test(sentence)
+        ) return true;
         index = sentence.indexOf(equivalent, index + equivalent.length);
+      }
+    }
+    for (const pattern of conceptPatterns) {
+      const matches = sentence.matchAll(new RegExp(pattern.source, `${pattern.flags.replace("g", "")}g`));
+      for (const match of matches) {
+        if (match.index != null && !isNegatedAt(sentence, match.index)) return true;
       }
     }
   }
@@ -250,6 +404,20 @@ function sourceHasKnownTongue(source: string): boolean {
 
 function sourceHasKnownPulse(source: string): boolean {
   return !isUnknownClinicalFieldText(source, "pulse");
+}
+
+function clauseOnlyAssertsFactWasNotRecorded(clause: string, prefix: string, terms: readonly string[]): boolean {
+  let remainder = clause.slice(prefix.length);
+  for (const term of [...terms].sort((left, right) => right.length - left.length)) {
+    remainder = remainder.split(term).join("");
+  }
+  remainder = remainder
+    .replace(/(?:本次|当前|目前|病历|患者|病人|主诉|自诉|症见|表现|症状|阳性|存在|有|均|以及|及|和|或|到|中|尚)?(?:未记录|未提及|未询问|未采集)/g, "")
+    .replace(/[、，,。；;:：\s]/g, "");
+  // Attribute-level gaps (for example “便秘相关细节未记录” or “排便费力程度未记录”)
+  // intentionally leave meaningful text here. A known symptom's existence must never be used to
+  // erase unknown severity, quality, timing, trigger, history or other sub-attributes.
+  return remainder.length === 0;
 }
 
 function sanitizeUngroundedNegationText(value: string, source: string): string {
@@ -269,31 +437,47 @@ function sanitizeUngroundedNegationText(value: string, source: string): string {
     if (documentedPendingTests.length > 0) {
       return `${prefix}病历已记录本次${documentedPendingTests.join("、")}未见明显异常；是否复查由医生结合病情判断`;
     }
-    const unrecordedButDocumentedPositive = RED_FLAG_NEGATION_TERMS.filter(
+    const unrecordedButDocumentedPositive = CLINICAL_NEGATION_FACT_TERMS.filter(
       (term) => clause.includes(term) &&
         /(?:未记录|未提及|未询问|未采集)/.test(clause) &&
         sourceDocumentsAffirmation(source, term),
     );
-    if (unrecordedButDocumentedPositive.length > 0) {
+    if (
+      unrecordedButDocumentedPositive.length > 0 &&
+      clauseOnlyAssertsFactWasNotRecorded(clause, prefix, unrecordedButDocumentedPositive)
+    ) {
       return `${prefix}病历已记录${unrecordedButDocumentedPositive.join("、")}阳性`;
     }
+    if (/(?:尚未|未)(?:确认|核实)[^。；;]{0,48}是否存在/.test(clause)) {
+      const mentioned = CLINICAL_NEGATION_FACT_TERMS.filter((term) => clause.includes(term));
+      const documentedPositive = mentioned.filter((term) => sourceDocumentsAffirmation(source, term));
+      const documentedNegative = mentioned.filter((term) => !documentedPositive.includes(term) && sourceDocumentsNegation(source, term));
+      const stillUnknown = mentioned.filter((term) => !documentedPositive.includes(term) && !documentedNegative.includes(term));
+      if (documentedPositive.length > 0 || documentedNegative.length > 0) {
+        return `${prefix}${[
+          documentedPositive.length > 0 ? `病历已记录${documentedPositive.join("、")}阳性` : "",
+          documentedNegative.length > 0 ? `病历已记录否认${documentedNegative.join("、")}` : "",
+          stillUnknown.length > 0 ? `病历尚未确认${stillUnknown.join("、")}是否存在` : "",
+        ].filter(Boolean).join("；")}`;
+      }
+    }
     if (CLINICAL_NEGATION_CUE.test(negationProbe)) {
-      const contradictedPositive = RED_FLAG_NEGATION_TERMS.filter(
+      const contradictedPositive = CLINICAL_NEGATION_FACT_TERMS.filter(
         (term) => clause.includes(term) && sourceDocumentsAffirmation(source, term),
       );
-      const unknown = RED_FLAG_NEGATION_TERMS.filter(
+      const unknown = CLINICAL_NEGATION_FACT_TERMS.filter(
         (term) => clause.includes(term) &&
           !sourceDocumentsNegation(source, term) &&
           !sourceDocumentsAffirmation(source, term),
       );
       if (contradictedPositive.length > 0 || unknown.length > 0) {
-        const supported = RED_FLAG_NEGATION_TERMS.filter(
+        const supported = CLINICAL_NEGATION_FACT_TERMS.filter(
           (term) => clause.includes(term) && sourceDocumentsNegation(source, term),
         );
         return `${prefix}${[
           contradictedPositive.length > 0 ? `病历已记录${contradictedPositive.join("、")}阳性` : "",
           supported.length > 0 ? `病历已记录否认${supported.join("、")}` : "",
-          unknown.length > 0 ? "本次主诉及伴随症状变化" : "",
+          unknown.length > 0 ? `病历尚未确认${unknown.join("、")}是否存在` : "",
         ].filter(Boolean).join("；")}`;
       }
     }
@@ -307,10 +491,12 @@ function sanitizeUngroundedNegationText(value: string, source: string): string {
     }
     if (/(?:患者|病人|主诉|自诉|症见|表现为|伴有|出现|可见|现有)/.test(clause)) {
       const unsupportedPositive = CLINICAL_POSITIVE_FACT_TERMS.filter(
-        (term) => clause.includes(term) && !sourceDocumentsNegation(clause, term) && !sourceDocumentsAffirmation(source, term),
+        (term) => hasPatientScopedSpanOccurrence(clause, term) &&
+          !sourceDocumentsNegation(clause, term) &&
+          !sourceDocumentsAffirmation(source, term),
       );
       if (unsupportedPositive.length > 0) {
-        return `${prefix}接诊时核实相关症状是否存在`;
+        return `${prefix}病历尚未确认${unsupportedPositive.join("、")}是否存在`;
       }
     }
     return clause;
@@ -348,6 +534,22 @@ function sanitizeAgeClaimText(value: string, state: CaseState): string {
 }
 
 const FEMALE_ONLY_CLINICAL_CONTEXT = /(月经|经期|妊娠|孕产|孕妇|孕期|哺乳|备孕女性|女性[^。；，,]{0,8}备孕)/;
+const DEDUPLICATED_CLINICAL_LIST_FIELDS = new Set(["limitations", "suggestedChecks", "mustCollect"]);
+
+function deduplicateClinicalListItems(items: unknown[]): unknown[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (typeof item !== "string") return true;
+    const identity = item
+      .normalize("NFKC")
+      .trim()
+      .replace(/\s+/g, "")
+      .replace(/[。；;]+$/g, "");
+    if (!identity || seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
 
 function isAuthoritativeMale(state: CaseState): boolean {
   const value = String(state.hisRecord?.fields?.sex || state.patient.sex || "").trim();
@@ -381,24 +583,83 @@ export function sanitizeUngroundedRedFlagNegations(content: string, state: CaseS
     (match, jsonText: string) => {
       let sanitizedBlock = match;
       try {
-        const visit = (value: unknown, key = ""): unknown => {
+        const visit = (value: unknown, key = "", parentKey = ""): unknown => {
           // Identity labels are not patient assertions. They have already passed the stage contract;
           // running negation prose replacement over them can turn a valid diagnosis name into a
           // sentence such as "病历已记录头痛阳性" and break the signed result after validation.
           if (typeof value === "string" && key === "name") return value;
-          if (typeof value === "string") return sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(value, source), state), state);
-          if (Array.isArray(value)) return value.map((item) => visit(item, key));
+          // Monitoring metric/timing/trigger are contract-owned structured fields. Rewriting their
+          // prose here destroyed the trigger's condition/action semantics ("若…需复诊" →
+          // "病历已记录…阳性；病历尚未确认…是否存在"), making the M04 contract reject the server's
+          // own sanitized output. Leave the whole subtree byte-exact; the stage contract validates it.
+          if (key === "monitoring" && parentKey === "nonPharma") return value;
+          if (typeof value === "string") {
+            // Exact source facts have already crossed the structured grounding contract. Rewriting
+            // them as explanatory prose can corrupt mixed-polarity records: for example, the exact
+            // quote “否认突发最剧烈头痛” was expanded into both “头痛阳性” and “否认头痛”, making
+            // the post-review contract reject its own grounded projection. Preserve exact chart
+            // substrings in provenance-bearing fact fields; unsupported/provider-invented values
+            // still flow through the sanitizer and remain fail-closed.
+            if (
+              ["supportingFacts", "primarySyndromeBasis", "patientFact", "syndromeEvidence"].includes(key) &&
+              value.trim().length >= 2 &&
+              source.includes(value.trim())
+            ) {
+              return value;
+            }
+            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(value, source), state), state);
+            if (key === "followupSafetyNet") return ensureActionableFollowupSafetyNet(sanitized);
+            const documentedPositive = sanitized.match(/病历已记录(.+?)阳性/);
+            const exactDocumentedPositive = sanitized.match(/^\s*病历已记录(.+?)阳性[。；;]?\s*$/);
+            if (key === "nextCheck" && documentedPositive?.[1]) {
+              return `结合已记录的${documentedPositive[1]}，进一步评估严重度、诱发因素及必要检查`;
+            }
+            // If an uncertainty row says an already documented positive symptom is unknown, the
+            // whole row is contradictory. Mark its reason empty so the containing uncertainty
+            // object is removed below; do not manufacture a new “已明确记录” uncertainty reason.
+            if (key === "reason" && parentKey === "uncertainties" && exactDocumentedPositive) return "";
+            if (key === "reason" && exactDocumentedPositive?.[1]) {
+              return `该症状已在病历中明确记录；后续仅需评估${exactDocumentedPositive[1]}的严重度、诱因及伴随表现`;
+            }
+            if ((key === "primarySyndromeResolutionReason" || key === "resolutionReason") && exactDocumentedPositive?.[1]) {
+              // sanitizeUngroundedNegationText promotes a comma before a new discourse clause
+              // (“，仍…”) to a semicolon. Emit that canonical boundary immediately so a
+              // second pre-signature pass is byte-idempotent and cannot invalidate an accepted
+              // independent M03 review.
+              return `该症状已在病历中明确记录；当前仅能对相关证候或病机范围作有限判断；仍需结合${exactDocumentedPositive[1]}的严重度、诱因、伴随表现及四诊信息复核`;
+            }
+            // An uncertainty/check row that merely restates an already documented positive fact is
+            // not a useful limitation or test. Remove the contradictory row instead of displaying
+            // a synthetic "病历已记录...阳性" item under 建议检查/限制与反证.
+            if ((key === "suggestedChecks" || key === "limitations" || key === "mustCollect") && exactDocumentedPositive) return "";
+            return sanitized;
+          }
+          if (Array.isArray(value)) {
+            const visited = value.map((item) => visit(item, key, key));
+            if (key === "uncertainties") return visited.filter((item) => item !== undefined);
+            return DEDUPLICATED_CLINICAL_LIST_FIELDS.has(key)
+              ? deduplicateClinicalListItems(visited.filter((item) => typeof item !== "string" || Boolean(item.trim())))
+              : visited;
+          }
           if (!value || typeof value !== "object") return value;
-          return Object.fromEntries(
-            Object.entries(value as Record<string, unknown>).map(([childKey, raw]) => [childKey, visit(raw, childKey)]),
+          const visited = Object.fromEntries(
+            Object.entries(value as Record<string, unknown>).map(([childKey, raw]) => [childKey, visit(raw, childKey, key)]),
           );
+          if (key === "uncertainties") {
+            const row = visited as { item?: unknown; reason?: unknown; affects?: unknown };
+            if ([row.item, row.reason, row.affects].some((item) => typeof item !== "string" || !item.trim())) return undefined;
+          }
+          return visited;
         };
         sanitizedBlock = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(visit(JSON.parse(jsonText)), null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
       } catch {
         // Leave an invalid block unchanged; the structured-response validator will reject it.
       }
       const index = jsonBlocks.push(sanitizedBlock) - 1;
-      return `\n__TCM_CDSS_JSON_BLOCK_${index}__\n`;
+      // Preserve the exact surrounding whitespace. Injecting wrapper newlines here made each
+      // pre-review/pre-signature pass add another blank line even when the JSON was unchanged,
+      // which broke byte-idempotence and could trigger an unnecessary second model review.
+      return `__TCM_CDSS_JSON_BLOCK_${index}__`;
     },
   );
   const sanitizedNarrative = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(placeholderContent, source), state), state);
@@ -785,6 +1046,61 @@ function vitalsText(state: CaseState): string {
   ].filter(Boolean).join(" ");
 }
 
+export type CurrentVitalMeasurements = {
+  bloodPressure: { systolic: number; diastolic: number } | null;
+  temperature: number | null;
+  pulse: number | null;
+  respiration: number | null;
+  spo2: number | null;
+  invertedCriticalBloodPressure: { first: number; second: number } | null;
+};
+
+function bloodPressureReviewPriority(value: { systolic: number; diastolic: number } | null): number {
+  if (!value) return 0;
+  if (bloodPressureIsCritical(value)) return 3;
+  if (value.systolic >= 180 || value.diastolic >= 120 || value.systolic <= 90 || value.diastolic <= 50) return 2;
+  return 1;
+}
+
+/**
+ * One current-measurement source for both hard red flags and non-blocking vital advisories.
+ * Values documented in clinician-entered free text are parsed with the same polarity and temporal
+ * rules as structured vitals, so a subcritical abnormal value cannot disappear merely because it
+ * was entered in the narrative field.
+ */
+export function currentVitalMeasurements(state: CaseState): CurrentVitalMeasurements {
+  const structuredText = vitalsText(state);
+  const narrativeText = trustedInputText(state);
+  const structuredBloodPressure = parseContextualBloodPressure(structuredText);
+  const narrativeBloodPressure = parseContextualBloodPressure(narrativeText);
+  const bloodPressure = [structuredBloodPressure, narrativeBloodPressure]
+    .sort((left, right) => bloodPressureReviewPriority(right) - bloodPressureReviewPriority(left))[0] ?? null;
+  return {
+    bloodPressure,
+    temperature: preferAbnormalNumber(
+      parseContextualTemperature(structuredText),
+      parseContextualTemperature(narrativeText),
+      (value) => value >= 39 || value < 36,
+    ),
+    pulse: preferAbnormalNumber(
+      parseContextualPulse(structuredText),
+      parseContextualPulse(narrativeText),
+      (value) => value >= 120 || value < 50,
+    ),
+    respiration: preferAbnormalNumber(
+      parseContextualRespiration(structuredText),
+      parseContextualRespiration(narrativeText),
+      (value) => value >= 25 || value < 8,
+    ),
+    spo2: preferAbnormalNumber(
+      parseContextualSpo2(structuredText),
+      parseContextualSpo2(narrativeText),
+      (value) => value <= 91,
+    ),
+    invertedCriticalBloodPressure: criticalInvertedBloodPressure(`${structuredText}\n${narrativeText}`),
+  };
+}
+
 function hasRequiredVitals(state: CaseState): boolean {
   const text = vitalsText(state);
   return Boolean(parseTemperature(text) && parsePulse(text) && parseRespiration(text) && parseBloodPressure(text));
@@ -900,6 +1216,20 @@ function symptomsFieldText(state: CaseState, key: string): string {
   return stringifyClinicalValue(value);
 }
 
+function hasSubstantivePresentHistory(value: string): boolean {
+  const normalized = normalizeClinicalText(value)
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!isKnownClinicalText(normalized)) return false;
+  const compact = normalized.replace(/[\s，,。.!！?？；;：:、（）()【】\[\]"'“”‘’_-]+/g, "");
+  if (!compact || /^(?:(?:null|undefined|nan|none|nil|unknown|test|测试|患者|病人|无|不详|未知|未提供))+$/i.test(compact)) return false;
+  // Narrative completeness requires at least one clinical-course or symptom signal. Arbitrary
+  // control-character/XSS/program-literal payloads are still sanitized elsewhere, but they cannot
+  // be counted as meaningful present history merely because their string length is non-zero.
+  return /(?:\d+(?:\.\d+)?\s*(?:分钟|小时|天|日|周|月|年)|近来|近期|今[日天晨晚]|昨[日天晚]|夜间|晨起|起病|开始|突发|逐渐|持续|反复|间断|发作|诱因|受凉|劳累|进食|活动|体位|伴|不伴|加重|减轻|缓解|治疗|服药|检查|疼|痛|胀|麻|晕|悸|咳|痰|喘|热|寒|汗|吐|泻|便|尿|睡|眠|食欲|乏力|皮疹|瘙痒|出血|水肿|呼吸|血压|血糖)/i.test(normalized);
+}
+
 export function deriveOperationalCompleteness(state: CaseState): Completeness {
   const chiefText = authoritativeFieldOrFallback(state, "zhushu", state.chiefComplaint);
   const presentHistoryText = authoritativeFieldOrFallback(state, "xianbingshi", symptomsFieldText(state, "presentHistory"));
@@ -908,7 +1238,7 @@ export function deriveOperationalCompleteness(state: CaseState): Completeness {
   const hasTongue = isKnownTongueClinicalText(authoritativeFieldOrFallback(state, "tcmTongue", state.tongue)) ||
     Boolean(state.hisRecord?.tongueImageUploaded && isKnownTongueClinicalText(state.tongueImageDesc));
   const hasPulse = isKnownPulseClinicalText(authoritativeFieldOrFallback(state, "tcmPulse", state.pulse));
-  const hasPresentHistory = isKnownClinicalText(presentHistoryText);
+  const hasPresentHistory = hasSubstantivePresentHistory(presentHistoryText);
   const hasTcmDetail = isKnownClinicalText(authoritativeFieldOrFallback(state, "tcmDetail", symptomsFieldText(state, "tcmDetail"))) ||
     isKnownClinicalText(authoritativeFieldOrFallback(state, "tcmFace", state.faceNote));
   const hasPastOrMedicationContext = isKnownClinicalText(authoritativeFieldOrFallback(state, "jiwangshi", state.pastHistory)) ||
@@ -936,16 +1266,24 @@ export function deriveOperationalCompleteness(state: CaseState): Completeness {
     (hasVitals ? 0.25 : 0),
   );
   const rawInfoGain = [hasChief, hasNarrativeDetail, hasTongue, hasPulse].filter(Boolean).length / 4;
-  const infoGain = hasNarrativeDetail ? rawInfoGain : Math.min(rawInfoGain, 0.5);
-  const managementImpact = [
+  const infoGain = hasChief
+    ? Math.max(0.3, hasNarrativeDetail ? rawInfoGain : Math.min(rawInfoGain, 0.5))
+    : 0;
+  const rawManagementImpact = [
     hasChief,
     hasTongue,
     hasPulse,
     hasContextDetail || hasVitals || hasPastOrMedicationContext,
   ].filter(Boolean).length / 4;
+  const managementImpact = hasChief ? Math.max(0.3, rawManagementImpact) : 0;
   const rawAnswerability = [hasChief, hasTongue, hasPulse, hasNarrativeDetail].filter(Boolean).length / 4;
-  const answerability = hasNarrativeDetail ? rawAnswerability : Math.min(rawAnswerability, 0.5);
-  const scores = { redFlag, infoGain, managementImpact, answerability };
+  const answerability = hasChief
+    ? Math.max(0.3, hasNarrativeDetail ? rawAnswerability : Math.min(rawAnswerability, 0.5))
+    : 0;
+  // A real chief complaint is an analyzable but insufficient record, so it starts at B rather than
+  // A. It still cannot reach C without an independent present-history/四诊 contribution and explicit
+  // safety screening; copied chief-complaint text and normal defaults do not add those contributions.
+  const scores = { redFlag: hasChief ? Math.max(0.3, redFlag) : redFlag, infoGain, managementImpact, answerability };
   return {
     ...scores,
     level: determineCompletenessLevel(scores),
@@ -959,7 +1297,7 @@ export function canProceedToM03AfterFollowup(state: CaseState): boolean {
 
 // 裸“没”是口语标准否定词（“没胸痛晕倒”），但大量固定搭配里它不是对后续症状词的否定
 // （没胃口=纳差、没精神=乏力、没什么/没关系/没问题…），用负向前瞻排除这些搭配，避免制造漏报。
-const NEGATION_PATTERN = new RegExp(`(否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|没有|没(?!有什么|关系|问题|事|错|完|意思|办法|时间|空|钱|人|影|底|数|辙|门|胃口|精神|力气|劲儿|劲|趣)|未诉|无诉|未主诉|未出现|未发生|未有|未曾|未再发|无再发|从未|从无|没有过|不伴|已缓解|已消失|排除)`, "g");
+const NEGATION_PATTERN = new RegExp(`(否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|未发现|未诊断|未患|没有|没(?!有什么|关系|问题|事|错|完|意思|办法|时间|空|钱|人|影|底|数|辙|门|胃口|精神|力气|劲儿|劲|趣)|未诉|无诉|未主诉|未出现|未发生|未有|未曾|未再发|无再发|从未|从无|没有过|不伴|已缓解|已消失|排除)`, "g");
 const NON_NEGATING_PHRASES = /(无明显诱因|无诱因|无缓解|无好转|无改善|没缓解|没好转|没改善|没消失|无规律|无特殊处理|未予处理|未治疗)/g;
 
 function containsNegation(value: string): boolean {
@@ -981,18 +1319,21 @@ type ClinicalAssertionContext = {
 
 const PATIENT_SUBJECT_MARKER = /^(?:患者本人|患者|病人|患儿|本人|我)$/;
 const CLINICAL_SUBJECT_MARKERS = /(?:我|其)?(?:父亲|母亲|爸爸|妈妈|爸|妈|父母|家属|家人|家里人|亲属|祖父|祖母|爷爷|奶奶|外祖父|外祖母|姥爷|姥姥|儿子|女儿|哥哥|姐姐|弟弟|妹妹|兄|姐|弟|妹|兄弟|姐妹|丈夫|妻子|配偶|岳父|岳母|岳父母|公公|婆婆|公婆|伯父|伯母|叔叔|婶婶|舅舅|舅妈|姑姑|姑父|姨妈|姨父|侄子|侄女|外甥|外甥女)|患者本人|患者|病人|患儿|本人|我/g;
+const REPORTER_RELATIVE_SOURCE = "(?:家属|家人|亲属|儿子|女儿|妻子|丈夫|配偶|母亲|父亲|妈妈|爸爸|老伴|哥哥|弟弟|姐姐|妹妹|兄弟|姐妹)";
+const REPORTER_RELATIVE_AT_END = new RegExp(`${REPORTER_RELATIVE_SOURCE}$`);
 
 function clinicalAssertionContextAt(text: string, index: number): ClinicalAssertionContext {
   const normalized = normalizeClinicalText(text);
   const hardStart = Math.max(
     normalized.lastIndexOf("。", index - 1),
+    normalized.lastIndexOf(".", index - 1),
     normalized.lastIndexOf("；", index - 1),
     normalized.lastIndexOf(";", index - 1),
     normalized.lastIndexOf("\n", index - 1),
   ) + 1;
   const prefix = normalized.slice(hardStart, index);
 
-  const conditionalMatches = [...prefix.matchAll(/(?:若|如果|一旦|倘若|假如|当(?=(?:患者|病人|患儿|本人|我|出现|发生|血压|血氧|体温|心率|脉搏|呼吸))|如(?:出现|发生|再发|有)?(?=$))(?=[^。；;\n]{0,40})/g)];
+  const conditionalMatches = [...prefix.matchAll(/(?:若|如果|一旦|倘若|假如|当(?=(?:患者|病人|患儿|本人|我|出现|发生|血压|血氧|体温|心率|脉搏|呼吸))|如(?=(?:出现|发生|再发|有)))(?=[^。；;\n]{0,40})/g)];
   const lastConditional = conditionalMatches.at(-1);
   let mood: ClinicalAssertionMood = "actual";
   if (lastConditional?.index != null) {
@@ -1027,6 +1368,17 @@ function clinicalAssertionContextAt(text: string, index: number): ClinicalAssert
   if (/^[^，,。；;\n]{0,28}时\s*(?:应|需|要|则|会|可|请|立即|建议)/.test(assertionTail)) {
     mood = "conditional";
   }
+  // "如胸痛加重，应立即急诊" is prospective safety-net language even though "如" is
+  // followed by the symptom rather than by "出现". Inspect the full hard clause (the prefix alone
+  // ends immediately before the symptom) and suppress only symptom occurrences before the advice
+  // verb. A later explicit current statement in the same clause therefore remains an actual finding.
+  const hardAssertion = normalized.slice(hardStart, assertionEnd);
+  for (const match of hardAssertion.matchAll(/如[^。；;\n]{0,32}(?:加重|恶化)[^。；;\n]{0,32}(?:应|需|请|建议|立即|及时|马上|就医|转诊|急诊)/g)) {
+    const adviceOffset = match[0].search(/(?:应|需|请|建议|立即|及时|马上|就医|转诊|急诊)/);
+    const conditionalStart = hardStart + (match.index ?? 0);
+    const adviceStart = adviceOffset < 0 ? conditionalStart + match[0].length : conditionalStart + adviceOffset;
+    if (index >= conditionalStart && index < adviceStart) mood = "conditional";
+  }
 
   let subject: ClinicalAssertionSubject = /家族史\s*[:：]?/.test(prefix) ? "non_patient" : "patient";
   const clauseStart = Math.max(
@@ -1034,7 +1386,7 @@ function clinicalAssertionContextAt(text: string, index: number): ClinicalAssert
     normalized.lastIndexOf("，", index - 1) + 1,
     normalized.lastIndexOf(",", index - 1) + 1,
   );
-  const clauseEndCandidates = ["，", ",", "。", "；", ";", "\n"]
+  const clauseEndCandidates = ["，", ",", "。", ".", "；", ";", "\n"]
     .map((marker) => normalized.indexOf(marker, index))
     .filter((value) => value >= 0);
   const clauseEnd = clauseEndCandidates.length > 0 ? Math.min(...clauseEndCandidates) : normalized.length;
@@ -1052,14 +1404,17 @@ function clinicalAssertionContextAt(text: string, index: number): ClinicalAssert
         : 0;
     if (distance <= nearestDistance) {
       nearestDistance = distance;
-      subject = PATIENT_SUBJECT_MARKER.test(match[0]) ? "patient" : "non_patient";
+      const relativeSelfMarker =
+        match[0] === "本人" &&
+        REPORTER_RELATIVE_AT_END.test(clause.slice(Math.max(0, markerStart - 8), markerStart));
+      subject = PATIENT_SUBJECT_MARKER.test(match[0]) && !relativeSelfMarker ? "patient" : "non_patient";
     }
   }
   CLINICAL_SUBJECT_MARKERS.lastIndex = 0;
   const reporterPrefix = normalized.slice(hardStart, index);
   if (
-    /(?:家属|家人|亲属)\s*(?:代诉|诉|称|反映|报告|告知|提供病史)\s*[：:]?[^。；;\n]*$/.test(reporterPrefix) &&
-    !/(?:家属|家人|亲属)(?:本人|自己)|(?:家属|家人|亲属)\s*(?:有|出现|发生|突发|患有)/.test(reporterPrefix)
+    new RegExp(`${REPORTER_RELATIVE_SOURCE}\\s*(?:代诉|诉|说|称|反映|报告|告知|提供病史)\\s*[：:]?[^。；;\\n]*$`).test(reporterPrefix) &&
+    !new RegExp(`${REPORTER_RELATIVE_SOURCE}\\s*(?:本人|自己|有|出现|发生|突发|患有)`).test(reporterPrefix)
   ) {
     subject = "patient";
   }
@@ -1296,7 +1651,7 @@ function hasPatternWithoutNegation(text: string, pattern: RegExp): boolean {
 
 function hasAbdominalPrioritySignal(text: string): boolean {
   const normalized = normalizeClinicalText(text);
-  for (const term of ["腹痛", "腹胀"]) {
+  for (const term of GOVERNED_ACUTE_ABDOMEN_SYMPTOMS) {
     let index = normalized.indexOf(term);
     while (index !== -1) {
       if (isExcludedClinicalAssertionAt(normalized, index)) {
@@ -1316,7 +1671,9 @@ function hasAbdominalPrioritySignal(text: string): boolean {
           .filter((position) => position >= 0);
         const clauseEnd = clauseEndCandidates.length > 0 ? Math.min(...clauseEndCandidates) : normalized.length;
         const localClause = normalized.slice(Math.max(clauseStart, index - 24), Math.min(clauseEnd, index + term.length + 48));
-        const priority = /(?:快速|明显|很快|迅速|持续|进行性|越来越)[^，,。；;\n]{0,4}加重|(?:仍|一直|反复)?持续(?:存在|不缓解)?|(?:未|无|没有|尚未)(?:见)?(?:缓解|好转|改善)/.test(localClause);
+        const priority =
+          GOVERNED_ACUTE_ONSET_TERMS.some((cue) => localClause.includes(cue)) ||
+          /(?:快速|明显|很快|迅速|持续|进行性|越来越)[^，,。；;\n]{0,4}加重|(?:仍|一直|反复)?持续(?:存在|不缓解)?|(?:未|无|没有|尚未)(?:见)?(?:缓解|好转|改善)/.test(localClause);
         if (priority) return true;
       }
       index = normalized.indexOf(term, index + term.length);
@@ -1328,9 +1685,18 @@ function hasAbdominalPrioritySignal(text: string): boolean {
 function hasAcuteAbdominalSignal(text: string): boolean {
   // 腹膜刺激征的口语表达（“按下去松手更疼”=反跳痛）与“肚子疼”类口语主诉必须覆盖；
   // 松手后“不疼”的否定式描述不命中（间隔字符排除不/无/未）。
-  return hasAnyTerm(text, ["急腹痛", "板状腹", "反跳痛", "腹膜刺激征", "腹肌紧张"]) ||
+  const severe = governedTermAlternation(GOVERNED_SEVERE_TERMS);
+  const symptoms = governedTermAlternation(GOVERNED_ACUTE_ABDOMEN_SYMPTOMS);
+  return hasAnyTerm(text, ["急腹痛", "腹膜刺激征", ...GOVERNED_PERITONEAL_SIGNS]) ||
+    hasPatternWithoutNegation(text, new RegExp(
+      `(?:${symptoms})[^。；;\\n]{0,16}(?:疼得厉害|痛得厉害|挺不住|无法忍受|明显加重|快速加重|迅速加重|越来越重)|` +
+      `(?:疼得厉害|痛得厉害|挺不住|无法忍受|明显加重|快速加重|迅速加重|越来越重)[^。；;\\n]{0,16}(?:${symptoms})`,
+    )) ||
     hasPatternWithoutNegation(text, /(?:松手|放手|抬手|松开)(?:时|后)?[^，,。；;\n不无未]{0,4}(?:更|最|特别)?(?:疼|痛)/) ||
-    hasPatternWithoutNegation(text, /(?:急性|突发|突然|剧烈).{0,12}(?:腹痛|腹胀|肚子疼|肚子痛|肚子胀|全腹[^。；;\n]{0,4}痛)|(?:腹痛|腹胀|肚子疼|肚子痛|肚子胀|全腹[^。；;\n]{0,4}痛).{0,10}(?:急性|突发|突然|剧烈)/);
+    hasPatternWithoutNegation(text, new RegExp(
+      `(?:${severe})[^。；;\\n]{0,12}(?:${symptoms}|全腹[^。；;\\n]{0,4}痛)|` +
+      `(?:${symptoms}|全腹[^。；;\\n]{0,4}痛)[^。；;\\n无未不否没]{0,12}(?:${severe})`,
+    ));
 }
 
 function clinicalClauseBounds(text: string, index: number): { start: number; end: number } {
@@ -1394,10 +1760,12 @@ function hasRecentPositiveTerm(text: string, terms: string[]): boolean {
 }
 
 const FOCAL_NEUROLOGIC_TERMS = [
-  "意识改变", "言语不清", "口齿不清", "构音不清", "说话含糊", "失语", "不能说话", "不能讲话",
+  "意识改变", "意识障碍", "意识不清", "神志不清", "言语不清", "口齿不清", "构音不清", "说话含糊", "失语", "不能说话", "不能讲话",
   "言语理解障碍", "语言理解障碍", "肢体无力", "口角歪斜", "偏盲",
 ];
-const FOCAL_NEUROLOGIC_PATTERN = /(?:意识改变|言语不清|口齿不清|构音不清|说话含糊|失语|不能说话|不能讲话|言语理解障碍|语言理解障碍|肢体无力|口角歪斜|偏盲)/;
+const FOCAL_NEUROLOGIC_PATTERN = /(?:意识改变|意识障碍|意识不清|神志不清|言语不清|口齿不清|构音不清|说话含糊|失语|不能说话|不能讲话|言语理解障碍|语言理解障碍|肢体无力|口角歪斜|偏盲)/;
+const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐|惊厥|癫痫持续状态)/;
+const ACUTE_CONSCIOUSNESS_CHANGE_TERMS = ["昏睡", "嗜睡", "谵妄"];
 
 function hasAcuteExtendedStrokeWarning(text: string): boolean {
   const acuteCue = /(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\s*(?:\d+|[一二两三四五六七八九十几两]+)\s*(?:分钟|小时|天|日)|本次|当前|目前|新发|突发|突然|再发|复发)/;
@@ -1515,6 +1883,19 @@ function neuroResidualFramingAt(text: string, index: number, matchText: string):
   if (anchoredResidual) return true;
   const { start } = clinicalSubClauseBoundsAt(text, index, matchText.length);
   return NEURO_RESIDUAL_MARKER_PATTERN.test(text.slice(start, index));
+}
+
+function hasOnlyStableResidualNeurologicDeficit(text: string): boolean {
+  const normalized = normalizeClinicalText(text);
+  if (hasNeurologicEmergencySignal(normalized)) return false;
+  let sawResidual = false;
+  for (const match of normalized.matchAll(new RegExp(FOCAL_NEUROLOGIC_PATTERN.source, "g"))) {
+    const index = match.index ?? -1;
+    if (index < 0 || isExcludedClinicalAssertionAt(normalized, index) || isNegatedAt(normalized, index)) continue;
+    if (!neuroResidualFramingAt(normalized, index, match[0])) return false;
+    sawResidual = true;
+  }
+  return sawResidual;
 }
 
 function hasCurrentFocalNeurologicDeficit(text: string): boolean {
@@ -1637,6 +2018,8 @@ function firstPatternMatchWithoutNegation(text: string, pattern: RegExp): { inde
 
 function hasNeurologicEmergencySignal(text: string): boolean {
   const normalized = normalizeClinicalText(text);
+  if (hasPatternWithoutNegation(normalized, CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN)) return true;
+  if (hasAcutePositiveTerm(normalized, ACUTE_CONSCIOUSNESS_CHANGE_TERMS)) return true;
   const stablePostAcuteCourse = hasStablePostAcuteNeurologicContext(normalized);
   const extendedStrokeWarning = hasAcuteExtendedStrokeWarning(normalized);
   const unilateralSensoryMatch = firstPatternMatchWithoutNegation(
@@ -1789,18 +2172,17 @@ function hasCurrentOrRecurrentPositiveTerm(text: string, terms: string[]): boole
 function hasPositiveCardiacSignalAfterClearance(text: string, clearanceBoundary: number): boolean {
   const normalized = normalizeClinicalText(text);
   const afterClearance = normalized.slice(Math.max(0, clearanceBoundary));
-  const cardiacSymptoms = ["胸痛", "心前区痛", "胸闷"];
-  const cardiacCompanions = ["大汗", "放射痛", "压榨", "濒死", "气促", "呼吸困难"];
   return (
-    hasCurrentOrRecurrentPositiveTerm(afterClearance, [...cardiacSymptoms, ...cardiacCompanions]) ||
-    hasRecentPositiveTerm(afterClearance, cardiacSymptoms) ||
-    hasAcutePositiveTerm(afterClearance, cardiacSymptoms) ||
-    (hasAnyTerm(afterClearance, cardiacSymptoms) && hasAnyTerm(afterClearance, cardiacCompanions))
+    hasCurrentOrRecurrentPositiveTerm(afterClearance, [...GOVERNED_CARDIAC_SYMPTOMS, ...GOVERNED_CARDIAC_COMPANIONS]) ||
+    hasRecentPositiveTerm(afterClearance, GOVERNED_CARDIAC_SYMPTOMS) ||
+    hasAcutePositiveTerm(afterClearance, GOVERNED_CARDIAC_SYMPTOMS) ||
+    (hasAnyTerm(afterClearance, GOVERNED_CARDIAC_SYMPTOMS) && hasAnyTerm(afterClearance, GOVERNED_CARDIAC_COMPANIONS))
   );
 }
 
 const MENTAL_HEALTH_CRISIS_TERMS = [
-  "自杀", "轻生", "不想活", "不愿活", "结束生命", "自伤", "割腕", "跳楼", "服毒", "伤害自己", "伤害他人", "他伤",
+  "自杀", "轻生", "想死", "不想活", "不愿活", "活不下去", "寻短见", "一了百了", "不想醒来",
+  "结束生命", "自伤", "割腕", "跳楼", "服毒", "伤害自己", "伤害他人", "他伤",
 ];
 
 function hasCurrentMentalHealthCrisis(text: string): boolean {
@@ -1825,8 +2207,8 @@ function mentalHealthSafetyScreenRequired(text: string): boolean {
 }
 
 function hasExplicitMentalHealthSafetyScreen(text: string): boolean {
-  return /(?:否认|无|没有|未见|未出现|从无)[^。；;\n]{0,24}(?:自杀|轻生|不想活|自伤|伤害自己|伤害他人|他伤)(?:意念|想法|计划|行为|倾向)?/.test(text) ||
-    /(?:自杀|轻生|自伤|伤害自己|伤害他人|他伤)(?:意念|想法|计划|行为|倾向)?[^。；;\n]{0,16}(?:阴性|否认|无|没有|未见)/.test(text);
+  return /(?:否认|无|没有|未见|未出现|从无)[^。；;\n]{0,24}(?:自杀|轻生|想死|不想活|不愿活|活不下去|寻短见|一了百了|不想醒来|自伤|伤害自己|伤害他人|他伤)(?:意念|想法|计划|行为|倾向)?/.test(text) ||
+    /(?:自杀|轻生|想死|不想活|不愿活|活不下去|寻短见|一了百了|不想醒来|自伤|伤害自己|伤害他人|他伤)(?:意念|想法|计划|行为|倾向)?[^。；;\n]{0,16}(?:阴性|否认|无|没有|未见)/.test(text);
 }
 
 function insomniaPresentation(text: string): boolean {
@@ -1861,22 +2243,32 @@ function hasCurrentThyroidAssessment(text: string): boolean {
 
 export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const text = trustedInputText(state);
-  const vitalText = vitalsText(state);
   const redFlags: string[] = [];
   // The semantic ensemble owns broad natural-language triage. These few catastrophic narrative
   // checks are an always-on lower bound: a signed empty model result can never erase an already
   // explicit time-sensitive emergency. This layer only adds; same-episode clearance remains handled
   // by the existing temporal/polarity contract below.
-  const vitalBp = parseContextualBloodPressure(vitalText);
-  const narrativeBp = parseContextualBloodPressure(text);
-  const bp = bloodPressureIsCritical(narrativeBp) ? narrativeBp : vitalBp ?? narrativeBp;
-  const temp = preferAbnormalNumber(parseContextualTemperature(vitalText), parseContextualTemperature(text), (value) => value >= 38.5 || value < 36);
-  const pulse = preferAbnormalNumber(parseContextualPulse(vitalText), parseContextualPulse(text), (value) => value >= 120 || value < 50);
-  const respiration = preferAbnormalNumber(parseContextualRespiration(vitalText), parseContextualRespiration(text), (value) => value >= 25 || value < 8);
-  const spo2 = preferAbnormalNumber(parseContextualSpo2(vitalText), parseContextualSpo2(text), (value) => value <= 91);
-  const invertedCriticalBp = criticalInvertedBloodPressure(`${vitalText}\n${text}`);
+  const measurements = currentVitalMeasurements(state);
+  const bp = measurements.bloodPressure;
+  const temp = measurements.temperature;
+  const pulse = measurements.pulse;
+  const respiration = measurements.respiration;
+  const spo2 = measurements.spo2;
+  const invertedCriticalBp = measurements.invertedCriticalBloodPressure;
   if (hasCurrentMentalHealthCrisis(text)) {
     redFlags.push("已出现自杀、自伤或伤害他人的意念/计划/行为线索，需立即进行现场安全评估并联系精神专科或急诊处置，不得仅依赖自动分级");
+  }
+  const explicitCurrentTcmCriticalPattern = text
+    .split(/[。；;\n]+/)
+    .map((clause) => clause.trim())
+    .some((clause) => {
+      if (!hasPatternWithoutNegation(clause, /戴阳证|阴盛格阳|脉微欲绝/)) return false;
+      const historicalOnly = /(?:既往|曾经|曾有|上次|过去|多年前)/.test(clause) &&
+        !/(?:当前|目前|现见|现为|本次|今日|仍|再次|复发)/.test(clause);
+      return !historicalOnly;
+    });
+  if (explicitCurrentTcmCriticalPattern) {
+    redFlags.push("病历明确记录当前危重中医证候术语（戴阳、阴盛格阳或脉微欲绝），需立即核实意识、呼吸、循环和生命体征并急诊评估；不得仅据课程方证自行处置");
   }
   if (invertedCriticalBp) {
     redFlags.push(`血压录入 ${invertedCriticalBp.first}/${invertedCriticalBp.second}mmHg 疑似收缩压/舒张压倒置且包含危急值，不能静默纠正；需立即规范复测并按高血压危象或循环风险完成现场评估`);
@@ -1886,20 +2278,20 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     text,
     /(?:胸口|胸前|胸部|胸骨后|心口|心前区).{0,10}(?:(?:像|跟|如同).{0,5})?(?:石头|重物|东西)?(?:压着|压住|压得|压迫|发紧|勒紧|箍紧|堵得慌|闷得慌)/,
   );
-  const chestPainSignal = hasAnyTerm(text, ["胸痛", "心前区痛"]) || colloquialChestPressureSignal;
+  const chestPainSignal = hasAnyTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) || colloquialChestPressureSignal;
   const chestTightnessSignal = hasAnyTerm(text, ["胸闷"]);
   // 劳力性慢性稳定型（劳力诱发 + 慢性病程/规律服药/控制稳定，无急性变化线索）不是急性冠脉
   // 待排情形，降级急性信号；静息/夜间/新发/突发/加重/不缓解等急性线索附着时不受影响。
   const chronicStableExertionalCardiacOnly = hasChronicStableExertionalCardiacOnly(text);
   const acuteChestPainSignal = !chronicStableExertionalCardiacOnly && (
-    hasAcutePositiveTerm(text, ["胸痛", "心前区痛"]) ||
-    hasRecentPositiveTerm(text, ["胸痛", "心前区痛"]) ||
-    hasCurrentOrRecurrentPositiveTerm(text, ["胸痛", "心前区痛"]) ||
+    hasAcutePositiveTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) ||
+    hasRecentPositiveTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) ||
+    hasCurrentOrRecurrentPositiveTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) ||
     (colloquialChestPressureSignal && /(?:突然|突发|刚才|刚刚|新发|开始|持续|不缓解|无缓解|冷汗|大汗|气促|呼吸困难|\d+(?:\.\d+)?\s*(?:分钟|分|小时))/.test(text)));
   const acuteChestTightnessSignal = !chronicStableExertionalCardiacOnly && (
     hasAcutePositiveTerm(text, ["胸闷"]) ||
     hasCurrentOrRecurrentPositiveTerm(text, ["胸闷"]));
-  const cardiacCompanion = hasAnyTerm(text, ["大汗", "冷汗", "一身汗", "放射痛", "压榨", "濒死", "气促", "呼吸困难"]);
+  const cardiacCompanion = hasAnyTerm(text, [...GOVERNED_CARDIAC_COMPANIONS, "一身汗", "压榨", "濒死"]);
   const cardiacClearanceBoundary = acuteCardiacClearanceBoundary(text);
   const cardiacCleared = cardiacClearanceBoundary >= 0;
   const activeCardiacAfterClearance = cardiacCleared && hasPositiveCardiacSignalAfterClearance(text, cardiacClearanceBoundary);
@@ -1973,16 +2365,52 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   if (spo2 != null && spo2 <= 89) {
     redFlags.push(`血氧饱和度 ${spo2}% 偏低，需先评估缺氧风险`);
   }
-  // The semantic layer may add only grounded, current, emergency-level findings. Urgent/clarify
-  // findings remain M02 targets and routine symptoms continue through ordinary diagnosis.
-  const patientScopedFacts = state.clinicalFacts
-    ? {
-        ...state.clinicalFacts,
-        redFlags: state.clinicalFacts.redFlags.filter((finding) => hasPatientScopedSpanOccurrence(text, finding.quote)),
-      }
-    : undefined;
-  redFlags.push(...additiveRedFlagsFromFacts(patientScopedFacts, text, redFlags));
+  // T6 authority boundary: grounded model findings remain visible through semantic advisories and
+  // priority questions, but only deterministic category rules or validated vital thresholds may
+  // create a hard red flag here.
   return Array.from(new Set(redFlags));
+}
+
+type ProgrammaticRedFlagFinding = NonNullable<SafetyGate["redFlagFindings"]>[number];
+
+const RED_FLAG_FINDING_RULES: Array<{
+  id: string;
+  message: RegExp;
+  source: RegExp;
+  explanation: string;
+}> = [
+  { id: "critical-vital-sign", message: /^(?:血压|体温|心率\/脉搏|呼吸 \d|血氧饱和度)/, source: /血压|BP|体温|T\s*[:：]?\s*\d|心率|脉搏|P\s*[:：]?\s*\d|呼吸|R\s*[:：]?\s*\d|血氧|SpO2/i, explanation: "已记录生命体征达到确定性危急阈值，需规范复测并现场评估。" },
+  { id: "mental-crisis-current", message: /自杀|自伤|伤害他人/, source: /想死|活不下去|寻短见|一了百了|不想醒来|自杀|轻生|自伤|他伤/, explanation: "当前自伤、他伤或自杀意念需要立即现场安全评估。" },
+  { id: "acute-cardiac-event", message: /心血管|冠脉|胸痛|胸闷/, source: /胸痛|胸闷|胸口|胸前|胸骨后|心口|心前区/, explanation: "急性或伴危险表现的胸部症状需先排除时间敏感性心血管事件。" },
+  { id: "acute-neurologic-event", message: /神经系统|神经功能|头痛/, source: /头痛|意识障碍|意识不清|神志不清|昏迷|昏睡|嗜睡|谵妄|呼之不应|抽搐|惊厥|无力|偏瘫|说不出话/, explanation: "急性意识、发作性事件或局灶神经异常需优先排除神经急症。" },
+  { id: "acute-abdomen-emergency", message: /急腹症|剧烈腹痛|腹痛\/腹胀/, source: /腹痛|腹胀|胃痛|胃脘痛|肚子疼|右下腹痛|上腹痛|心口窝痛|胃部疼痛|反跳痛|松手更疼|板状腹|腹肌紧张/, explanation: "剧烈腹痛或腹膜刺激征达到急腹症硬门槛；单纯突发、尚无重症表现者进入优先评估而非自动急诊定级。" },
+  { id: "active-gi-bleeding", message: /消化道出血/, source: /呕血|吐血|黑便|柏油样便|便血|咖啡样/, explanation: "活动性消化道出血表现需立即评估失血量和循环状态。" },
+  { id: "acute-respiratory-event", message: /呼吸循环急症|缺氧/, source: /呼吸困难|气促|喘憋|端坐呼吸|不能平卧|无法平卧|喘不上气|发紫/, explanation: "静息或快速加重的呼吸困难及缺氧表现需立即评估。" },
+  { id: "tcm-critical-pattern", message: /危重中医证候术语/, source: /戴阳证|阴盛格阳|脉微欲绝/, explanation: "病历明确记录当前危重证候术语；该术语只触发现代急症核实，不直接授权任何课程方药或操作。" },
+];
+
+function programmaticRedFlagFindings(
+  state: CaseState,
+  redFlags: readonly string[],
+): ProgrammaticRedFlagFinding[] {
+  const sourceText = trustedInputText(state);
+  const clauses = sourceText
+    .split(/[\n。；;]+/)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+  return redFlags.map((message, index) => {
+    const rule = RED_FLAG_FINDING_RULES.find((candidate) => candidate.message.test(message));
+    const sourceQuote = rule
+      ? clauses.find((clause) => hasPatternWithoutNegation(clause, rule.source))
+      : undefined;
+    return {
+      ruleId: rule?.id || `deterministic-red-flag-${index + 1}`,
+      severity: "emergency" as const,
+      sourceQuote: (sourceQuote || message.match(/(?:血压|体温|心率\/脉搏|呼吸|血氧饱和度)[^，。；]{0,60}/)?.[0] || "结构化病例事实命中确定性规则").slice(0, 500),
+      ruleExplanation: rule?.explanation || "当前病例事实命中确定性急危重症规则，需先完成现场评估。",
+      message,
+    };
+  });
 }
 
 /**
@@ -1991,49 +2419,58 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
  * distinguish severity, timing and symptom combinations. The normal path remains fully model-owned.
  */
 export function narrativeFallbackAdvisories(state: CaseState): string[] {
-  // A grounded semantic finding is already visible even when the second reader timed out. Repeating
-  // a keyword fallback for the same event only creates alert fatigue; retain fallback advisories for
-  // genuinely empty/unavailable semantic screens.
-  if (state.clinicalFacts?.semanticStatus === "checked" && state.clinicalFacts.redFlags.length > 0) return [];
   const text = trustedInputText(state);
+  const semanticCategories = state.clinicalFacts?.semanticStatus === "checked"
+    ? groundedPatientTriageCategories(state.clinicalFacts, text)
+    : new Set<BackstopRedFlagCategory>();
   const advisories: string[] = [];
+  const addAdvisory = (category: BackstopRedFlagCategory, message: string) => {
+    if (!semanticCategories.has(category)) advisories.push(message);
+  };
   if (hasAnyTerm(text, ["晕厥", "黑矇", "意识丧失"])) {
-    advisories.push("晕厥、黑矇或意识丧失相关信息需优先复核当前状态、诱因、伤情及心电风险");
+    addAdvisory("syncope", "晕厥、黑矇或意识丧失相关信息需优先复核当前状态、诱因、伤情及心电风险");
+  }
+  if (
+    hasAnyTerm(text, [...FOCAL_NEUROLOGIC_TERMS, "昏迷", "昏睡", "嗜睡", "谵妄", "呼之不应", "抽搐", "惊厥"]) &&
+    !hasStablePostAcuteNeurologicContext(text) &&
+    !hasOnlyStableResidualNeurologicDeficit(text)
+  ) {
+    addAdvisory("neuro", "意识水平改变、抽搐或局灶神经功能异常需优先复核起病时间、当前意识、发作持续时间及卒中/癫痫等急症风险");
   }
   if (hasAnyTerm(text, ["呕血", "吐血", "黑便", "大便发黑", "粪便发黑", "排黑色便", "柏油样便", "便血"])) {
-    advisories.push("消化道出血相关表现需优先复核出血量、持续性、循环状态及血红蛋白");
+    addAdvisory("gi_bleed", "消化道出血相关表现需优先复核出血量、持续性、循环状态及血红蛋白");
   }
   if (hasAnyTerm(text, ["咯血", "阴道流血", "外伤出血", "出血不止", "大量出血"])) {
-    advisories.push("出血相关表现需优先复核出血量、活动性及循环状态");
+    addAdvisory("bleeding", "出血相关表现需优先复核出血量、活动性及循环状态");
   }
   if (hasAnyTerm(text, ["寒战"]) && (hasAnyTerm(text, ["高热", "发热"]) || (parseContextualTemperature(text) ?? 0) >= 38.5)) {
-    advisories.push("发热伴寒战需优先复核意识、循环、感染灶及脓毒症风险");
+    addAdvisory("sepsis", "发热伴寒战需优先复核意识、循环、感染灶及脓毒症风险");
   }
   if (hasAbdominalPrioritySignal(text)) {
-    advisories.push("持续或进行性腹痛/腹胀需优先复核严重度、腹膜刺激征、呕吐、排气排便及循环状态");
+    addAdvisory("acute_abdomen", "持续或进行性腹痛/腹胀需优先复核严重度、腹膜刺激征、呕吐、排气排便及循环状态");
   }
   if (hasAnyTerm(text, ["呼吸困难", "气促", "喘憋"])) {
-    advisories.push("呼吸困难或气促相关表现需优先复核静息严重度、说话能力、血氧及循环状态");
+    addAdvisory("respiratory", "呼吸困难或气促相关表现需优先复核静息严重度、说话能力、血氧及循环状态");
   }
   if (hasAnyTerm(text, ["误服", "过量服用", "整瓶", "整盒", "中毒", "农药", "毒物"])) {
-    advisories.push("可疑中毒或药物过量需立即核实物质、剂量、时间、意识及呼吸循环状态");
+    addAdvisory("poisoning", "可疑中毒或药物过量需立即核实物质、剂量、时间、意识及呼吸循环状态");
   }
   const glucose = text.match(/(?:血糖|GLU)\s*[:：]?\s*(\d+(?:\.\d+)?)/i)?.[1];
   if ((glucose != null && Number(glucose) < 3) || hasAnyTerm(text, ["严重低血糖", "低血糖昏迷"])) {
-    advisories.push("严重低血糖或代谢异常线索需立即复测，并优先评估意识与循环状态");
+    addAdvisory("metabolic", "严重低血糖或代谢异常线索需立即复测，并优先评估意识与循环状态");
   }
   if (hasAnyTerm(text, ["妊娠", "怀孕", "孕早期", "早孕"]) &&
       hasAnyTerm(text, ["腹痛", "阴道流血", "头晕", "晕厥"])) {
-    advisories.push("妊娠相关腹痛、出血或循环症状需优先排除产科急症");
+    addAdvisory("obstetric", "妊娠相关腹痛、出血或循环症状需优先排除产科急症");
   }
   if (hasAnyTerm(text, ["全身冰冷", "四肢冰冷", "少尿", "无尿", "意识模糊"])) {
-    advisories.push("循环灌注异常线索需立即复核血压、意识、尿量及末梢循环");
+    addAdvisory("shock", "循环灌注异常线索需立即复核血压、意识、尿量及末梢循环");
   }
   if (hasAnyTerm(text, ["风团", "荨麻疹", "脸肿", "喉紧", "喉头肿胀", "声音嘶哑"])) {
-    advisories.push("严重过敏或气道受累线索需立即复核气道、呼吸和循环");
+    addAdvisory("anaphylaxis", "严重过敏或气道受累线索需立即复核气道、呼吸和循环");
   }
   if (hasAnyTerm(text, ["发绀", "精神萎靡", "反应差"]) && hasQualitativePediatricContext(state)) {
-    advisories.push("儿童全身危重表现需立即复核呼吸、循环、意识及脱水状态");
+    addAdvisory("pediatric_critical", "儿童全身危重表现需立即复核呼吸、循环、意识及脱水状态");
   }
   return Array.from(new Set(advisories));
 }
@@ -2051,12 +2488,13 @@ export function hasDeterministicCriticalVitalRedFlag(state: CaseState): boolean 
  * timing, baseline and target-organ findings; these advisories never become workflow blockers.
  */
 export function measuredVitalAdvisories(state: CaseState): string[] {
-  const text = vitalsText(state);
-  const bp = parseContextualBloodPressure(text);
-  const temperature = parseContextualTemperature(text);
-  const pulse = parseContextualPulse(text);
-  const respiration = parseContextualRespiration(text);
-  const spo2 = parseContextualSpo2(text);
+  const {
+    bloodPressure: bp,
+    temperature,
+    pulse,
+    respiration,
+    spo2,
+  } = currentVitalMeasurements(state);
   const advisories: string[] = [];
   if (bp && !bloodPressureIsCritical(bp) &&
       (bp.systolic >= 180 || bp.diastolic >= 120 || bp.systolic <= 90 || bp.diastolic <= 50)) {
@@ -2159,9 +2597,26 @@ function patientSexText(state: CaseState): string {
 }
 
 function patientAgeText(state: CaseState): string {
-  const structured = authoritativeFieldOrFallback(state, "age", state.patient.age != null ? String(state.patient.age) : "");
+  // An HIS snapshot owns demographics whenever it exists, including an intentionally empty field;
+  // never fall back to a potentially stale compatibility DTO in that case. Without HIS, however,
+  // `patient.age` is the caller's structured demographic input and must survive later follow-up
+  // messages. Requiring the *last* user message to repeat the age made a valid 56-year-old become
+  // age-unknown after answering an unrelated M02 question, silently disabling both age-sensitive
+  // diagnostic management and downstream dose calibration.
+  if (state.hisRecord) {
+    const hisAge = fieldText(state, "age");
+    if (isKnownClinicalText(hisAge)) return hisAge;
+    // A current HIS raw record is still a primary source. Accept only a patient-bound demographic
+    // phrase from that record; never fall back to the top-level compatibility DTO and never treat a
+    // relative's age as the patient's age.
+    return patientBoundNarrativeAge(normalizeClinicalText(trustedInputText(state)));
+  }
+  const structured = state.patient.age != null ? String(state.patient.age).trim() : "";
   if (isKnownClinicalText(structured)) return structured;
-  const text = normalizeClinicalText(trustedInputText(state));
+  return patientBoundNarrativeAge(normalizeClinicalText(trustedInputText(state)));
+}
+
+function patientBoundNarrativeAge(text: string): string {
   const ageLiteral = String.raw`(-?\d{1,4}(?:\.\d+)?\s*(?:岁(?:\s*\d{1,4}(?:\.\d+)?\s*(?:个月|月龄))?|个月|月龄))`;
   const labeled = text.match(new RegExp(`(?:^|[。；;\\n])\\s*(?:(?:患者|病人)\\s*)?年龄\\s*[:：]?\\s*${ageLiteral}`));
   if (labeled?.[1]) return labeled[1];
@@ -2371,6 +2826,7 @@ export function hardDoseSafetyBoundaryReasons(state: CaseState): string[] {
   if (hasPositivePregnancyOrLactationRisk(text)) {
     reasons.push("已记录妊娠、哺乳或备孕阳性/可疑状态");
   }
+  reasons.push(...highRiskDoseBoundaryReasons(state));
   return reasons;
 }
 
@@ -2383,6 +2839,65 @@ export type PrescriptionPermission = {
   formalAdoption: "eligible_after_doctor_confirmation" | "blocked";
   reasons: string[];
 };
+
+function hasNonNegatedClinicalPattern(text: string, pattern: RegExp): boolean {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  for (const match of text.matchAll(new RegExp(pattern.source, flags))) {
+    const index = match.index ?? -1;
+    if (index < 0 || isExcludedClinicalAssertionAt(text, index)) continue;
+    if (!isNegatedAt(text, index) || hasCommaSeparatedPositiveEvidence(text, index, match[0])) return true;
+  }
+  return false;
+}
+
+function hasReducedEgfr(text: string): boolean {
+  for (const match of text.matchAll(/eGFR\s*[:：]?\s*(\d{1,3}(?:\.\d+)?)/gi)) {
+    const index = match.index ?? -1;
+    const value = Number(match[1]);
+    if (index < 0 || !Number.isFinite(value) || value >= 60) continue;
+    if (!isExcludedClinicalAssertionAt(text, index) && !isNegatedAt(text, index)) return true;
+  }
+  return false;
+}
+
+/**
+ * Dose-level plans are intentionally stricter than diagnostic discussion. These conditions span
+ * diseases, objective renal/cardiac measurements, treatment state and medicines, so the gate works
+ * from clinical concepts rather than individual test-case sentences. The independent M04 reviewer
+ * remains a semantic backstop for equivalent wording that the deterministic lower bound cannot see.
+ */
+export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
+  const source = trustedInputText(state);
+  const medicationSource = [
+    authoritativeFieldOrFallback(state, "yongyaoshi", state.medicationHistory),
+    extractMedicationEvidenceText(source),
+  ].filter(Boolean).join("；");
+  const activeMedication = affirmedCurrentMedicationText(medicationSource) || "";
+  const reasons: string[] = [];
+  const push = (value: string) => {
+    if (!reasons.includes(value)) reasons.push(value);
+  };
+
+  if (hasNonNegatedClinicalPattern(source, /(?:CKD|慢性肾脏病|慢性肾病)(?:[^。；\n]{0,12}(?:[3-5三四五]期|Ⅲ|Ⅳ|Ⅴ))|(?:肾功能不全|肾衰竭|尿毒症)/i) || hasReducedEgfr(source)) {
+    push("慢性肾病3-5期、eGFR降低或肾功能不全需专科/药师完成个体化剂量复核");
+  }
+  if (hasNonNegatedClinicalPattern(source, /(?:心力衰竭|心衰|HFrEF|HFpEF|射血分数\s*(?:EF)?\s*[:：]?\s*(?:[1-3]?\d(?:\.\d+)?)\s*%|EF\s*[:：]?\s*(?:[1-3]?\d(?:\.\d+)?)\s*%)/i)) {
+    push("心力衰竭或射血分数降低需结合容量状态、肾功能及现用药完成剂量复核");
+  }
+  if (/(?:华法林|利伐沙班|阿哌沙班|达比加群|艾多沙班|肝素|依诺肝素|磺达肝癸钠|抗凝药|抗凝治疗|阿司匹林|氯吡格雷|替格瑞洛|普拉格雷|抗血小板)/i.test(activeMedication)) {
+    push("当前抗凝或抗血小板治疗需完成出血风险与药物相互作用复核");
+  }
+  if (/(?:环孢素|他克莫司|吗替麦考酚酯|霉酚酸|硫唑嘌呤|甲氨蝶呤|来氟米特|环磷酰胺|生物制剂|免疫抑制剂|长期[^。；\n]{0,8}(?:泼尼松|糖皮质激素)|正在[^。；\n]{0,8}(?:泼尼松|糖皮质激素))/i.test(activeMedication)) {
+    push("当前免疫抑制治疗需完成感染、肝肾功能及药物相互作用复核");
+  }
+  if (hasNonNegatedClinicalPattern(source, /(?:糖尿病足|糖尿病性足溃疡|足部溃疡|足坏疽|糖足)/i)) {
+    push("糖尿病足、足部溃疡或坏疽需先完成创面、感染和血供分级");
+  }
+  if (hasNonNegatedClinicalPattern(source, /(?:(?:活动期|急性发作|再次发作|明显加重|未控制)[^。；\n]{0,16}(?:系统性红斑狼疮|红斑狼疮|类风湿关节炎|血管炎|炎症性肠病|自身免疫病)|(?:系统性红斑狼疮|红斑狼疮|类风湿关节炎|血管炎|炎症性肠病|自身免疫病)[^。；\n]{0,16}(?:活动期|急性发作|再次发作|明显加重|未控制))/i)) {
+    push("活动期自身免疫性疾病需由相关专科与药师联合复核后再决定剂量方案");
+  }
+  return reasons;
+}
 
 /**
  * Candidate generation and formal adoption are separate permissions. Clinical alerts and audit
@@ -2405,13 +2920,24 @@ export function derivePrescriptionPermission(state: CaseState): PrescriptionPerm
     };
   }
 
+  const operationalCompleteness = deriveOperationalCompleteness(state);
+  if (operationalCompleteness.level !== "C" && state.questionRounds < 1) {
+    return {
+      candidateMode: "non_dose_only",
+      formalAdoption: "blocked",
+      reasons: ["当前病历关键信息覆盖有限，需优先完成至少一轮高信息增益追问"],
+    };
+  }
+
   const text = structuredCaseText(state);
   const age = numberFromClinicalText(patientAgeText(state));
   const pediatric = (age != null && age < 18) || (age == null && hasQualitativePediatricContext(state));
   const positivePregnancyOrLactation = hasPositivePregnancyOrLactationRisk(text);
+  const highRiskReasons = highRiskDoseBoundaryReasons(state);
   const nonDoseReasons = [
     pediatric ? "儿童病例当前未配置可验证的个体化剂量规则" : "",
     positivePregnancyOrLactation ? "已记录妊娠、哺乳或备孕阳性/可疑状态" : "",
+    ...highRiskReasons,
   ].filter(Boolean);
   if (nonDoseReasons.length > 0) {
     return { candidateMode: "non_dose_only", formalAdoption: "blocked", reasons: nonDoseReasons };
@@ -2423,8 +2949,20 @@ export function derivePrescriptionPermission(state: CaseState): PrescriptionPerm
       candidateMode: "non_dose_only",
       formalAdoption: "blocked",
       reasons: Array.from(new Set([
-        "语义红旗筛查或独立复核未完成，当前仅生成非剂量临床分析",
+        "本次临床风险复核未完成，当前仅生成非剂量临床分析",
         ...(gate.missingItems || []),
+      ])),
+    };
+  }
+
+  if (operationalCompleteness.level !== "C") {
+    return {
+      candidateMode: "limited_dose",
+      formalAdoption: "eligible_after_doctor_confirmation",
+      reasons: Array.from(new Set([
+        "已完成追问但关键信息仍有限；可生成有限信息候选，正式采纳前需医生逐项确认未知边界",
+        ...(gate.missingItems || []),
+        ...(gate.advisories || []),
       ])),
     };
   }
@@ -2452,8 +2990,18 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   };
   const reasons: string[] = [];
   const vitalAdvisories = measuredVitalAdvisories(state);
-  const semanticAdvisories = semanticTriageAdvisoriesFromFacts(state.clinicalFacts, trustedInputText(state));
-  const priorityEvaluationItems = priorityEvaluationItemsFromFacts(state.clinicalFacts, trustedInputText(state));
+  const semanticSourceText = trustedInputText(state);
+  const semanticAdvisories = semanticTriageAdvisoriesFromFacts(state.clinicalFacts, semanticSourceText);
+  const semanticEmergencyFindings = additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, []);
+  const priorityEvaluationItems = priorityEvaluationItemsFromFacts(state.clinicalFacts, semanticSourceText);
+  if (hasAbdominalPrioritySignal(semanticSourceText) && !hasAcuteAbdominalSignal(semanticSourceText)) {
+    priorityEvaluationItems.push("突发、持续或进展性腹痛/胃痛需优先完成腹部查体与严重度评估");
+  }
+  const semanticTriage = semanticEmergencyFindings.length > 0
+    ? { level: "emergency_review" as const, findings: semanticEmergencyFindings }
+    : priorityEvaluationItems.length > 0
+      ? { level: "priority_review" as const, findings: priorityEvaluationItems }
+      : undefined;
   const fallbackAdvisories = narrativeFallbackAdvisories(state);
   const advisories = Array.from(new Set([...semanticAdvisories, ...fallbackAdvisories, ...vitalAdvisories]));
   const text = structuredCaseText(state);
@@ -2477,10 +3025,11 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   const medicationText =
     authoritativeFieldOrFallback(state, "yongyaoshi", state.medicationHistory) ||
     extractMedicationEvidenceText(trustedText);
-  if (!isKnownClinicalText(sex)) addMissing("sex_unknown", "性别/生理状态");
-  if (!isKnownClinicalText(allergyText)) addMissing("allergy_unknown", "过敏史（明确有/无及过敏原/反应）");
+  const reproductiveScreenRequired = pregnancyScreenRequired(state);
+  if (!patientSexAllowsDoseLevelSuggestion(sex)) addMissing("sex_unknown", `${clinicalRequiredFieldLabel("sex", "性别/生理状态")}（剂量建议前需明确生理风险分层）`);
+  if (clinicalFieldRequiresExplicitPrescriptionState("allergy_history") && !isKnownClinicalText(allergyText)) addMissing("allergy_unknown", `${clinicalRequiredFieldLabel("allergy_history", "过敏史")}（明确有/无及过敏原/反应）`);
   else if (allergyHistoryNeedsClarification(allergyText)) addMissing("allergy_details", "已提及过敏史但缺少过敏原/反应");
-  if (!isKnownClinicalText(medicationText)) addMissing("medication_unknown", "当前用药（明确有/无及药物清单）");
+  if (clinicalFieldRequiresExplicitPrescriptionState("medication_history") && !isKnownClinicalText(medicationText)) addMissing("medication_unknown", `${clinicalRequiredFieldLabel("medication_history", "当前用药")}（明确有/无及药物清单）`);
   else if (medicationHistoryNeedsClarification(medicationText)) addMissing("medication_details", "已提及当前用药但缺少药名/剂量/频次");
   if (hasInvalidBp) addMissing("blood_pressure_invalid", "血压数值需复核（收缩压应高于舒张压）");
   const invalidVitalFindings = invalidEnteredVitalFindings(state).filter((finding) => !(finding.name === "血压" && hasInvalidBp));
@@ -2514,10 +3063,11 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
     // necessary clinical context but cannot be treated as a pediatric dose algorithm.
     addMissing("pediatric_dose_rules_unavailable", "未配置儿童剂量级处方规则（需儿科中医师/药师个体化复核）");
   }
-  if (pregnancyScreenRequired(state)) {
-    if (!hasExplicitPregnancyStatus(text)) addMissing("pregnancy_unknown", "妊娠状态");
-    if (!hasExplicitLactationStatus(text)) addMissing("lactation_unknown", "哺乳状态");
-    if (!hasExplicitConceptionStatus(text)) addMissing("conception_unknown", "备孕状态");
+  if (reproductiveScreenRequired) {
+    const reproductiveLabel = clinicalRequiredFieldLabel("reproductive_status", "妊娠/哺乳/备孕状态");
+    if (!hasExplicitPregnancyStatus(text)) addMissing("pregnancy_unknown", `${reproductiveLabel}（妊娠）`);
+    if (!hasExplicitLactationStatus(text)) addMissing("lactation_unknown", `${reproductiveLabel}（哺乳）`);
+    if (!hasExplicitConceptionStatus(text)) addMissing("conception_unknown", `${reproductiveLabel}（备孕）`);
   }
   if (mentalHealthSafetyScreenRequired(trustedText) &&
       !hasExplicitMentalHealthSafetyScreen(trustedText) &&
@@ -2536,6 +3086,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   // feed itself back into the next safety evaluation and permanently lock the case.
   const redFlags = detectProgrammaticRedFlags(state);
   if (redFlags.length > 0) {
+    const redFlagFindings = programmaticRedFlagFindings(state, redFlags);
     return {
       status: "red_flag",
       // 急性红旗不终止 Agent 会话：允许 M03 继续生成风险分析、鉴别与转诊闭环；
@@ -2546,8 +3097,10 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
       missingItems,
       missingItemCodes,
       redFlags,
+      redFlagFindings,
       advisories,
-      reasons: ["命中程序化红旗指征，需先完成急危重症排查或转诊评估。"],
+      semanticTriage,
+      reasons: ["当前资料提示急危重症风险，需先完成急诊或转诊评估。"],
     };
   }
 
@@ -2567,6 +3120,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
       missingItemCodes,
       redFlags: [],
       advisories,
+      semanticTriage,
       reasons,
     };
   }
@@ -2590,6 +3144,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
       missingItemCodes,
       redFlags: [],
       advisories,
+      semanticTriage,
       reasons,
     };
   }
@@ -2603,6 +3158,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
     missingItemCodes: [],
     redFlags: [],
     advisories,
+    semanticTriage,
     reasons: [...vitalAdvisories, "主诉、舌脉和核心辨证信息已具备，可进入辅助推理。"],
   };
 }
@@ -2677,19 +3233,41 @@ export function deriveSafetyLocked(
 }
 
 export function buildSafetyLimitedDiagnosis(state: CaseState, gate: SafetyGate): string {
-  const status = gate.status === "red_flag" ? "高风险安全建议模式" : "信息不足建议模式";
+  const analysisIncomplete = gate.missingItems.some((item) => /辨病辨证结果完整性/.test(item));
+  const status = gate.status === "red_flag"
+    ? "需优先处置的高风险提示"
+    : analysisIncomplete
+      ? "本次未形成可复核的完整辨病辨证结果"
+      : "现有信息下的有限建议";
   const redFlagRows = gate.redFlags.length > 0
     ? gate.redFlags.map((item) => `| 急危重红旗 | 高风险 | ${item} | 先急诊/转诊或完成专科排查；补充评估结果后可重新推理 |`)
-    : ["| 急危重红旗 | 信息不足/待复核 | 未见确定性程序化红旗；仍需按病情补齐关键安全信息 | 补齐缺失槽位后重新评估 |"];
+    : ["| 急危重红旗 | 尚需结合现场评估 | 当前病历未识别明确急危重线索；仍需结合病情核实关键安全信息 | 补充必要信息后重新评估 |"];
   const missingRows = gate.missingItems.length > 0
-    ? gate.missingItems.map((item) => `| ${item} | 影响红旗排查/辨证或处方安全 | 左侧病历字段或底部补充框补录后重新提交 |`)
+    ? gate.missingItems.map((item) => `| ${item} | 影响红旗排查/辨证或处方安全 | ${analysisIncomplete ? "重新运行辨病辨证分析；如仍未形成完整结果，由医生结合现有病历人工判断" : "补充会直接改变判断的病历信息后重新评估"} |`)
     : ["| 无确定缺失项 | 仍需医生现场查体、生命体征和必要检查复核 | 如病情变化，补充后重新提交 |"];
-  return [
-    "## CDSS输出层级",
+  const limitedStateCopy = buildThreePartLimitedStateCopyForSurface(
+    gate.status === "red_flag" ? "red_flag_escalation" : "limited_clinical_scheme",
+    {
+      knownFacts: gate.redFlags.length > 0
+        ? `已识别需优先处置的风险线索：${gate.redFlags.join("；")}`
+        : "已记录本次主诉并完成当前病历的风险筛查",
+      unavailableConclusion: "可直接采纳的完整辨病辨证及具体用药方案",
+      reason: gate.reasons.join("；") || "现有资料尚不能支持该结论",
+      nextAction: gate.status === "red_flag"
+        ? "立即按急诊或转诊流程处置；完成现场评估后再重新推理"
+        : analysisIncomplete
+          ? "重新运行辨病辨证分析；如仍未形成完整结果，由医生结合现有病历判断"
+          : "补充会改变诊断、辨证或用药安全判断的必要信息后重新评估",
+    },
+  );
+  return sanitizeAuthoritativeClinicalOutput([
+    "## 本次分析结论",
+    limitedStateCopy,
+    "",
     `**结论**：${status}`,
     `**理由**：${gate.reasons.join("；")}`,
     `**缺失信息**：${gate.missingItems.length > 0 ? gate.missingItems.join("、") : "无"}`,
-    `**处理建议**：${gate.status === "red_flag" ? "立即停止常规诊疗并转急诊；危及生命时呼叫120。先完成急诊/转诊评估或补充检查；若医生已排除急症，可在左侧补充排查结果后重新推理。" : "请完善关键病历与安全槽位后再进行辨证和处方建议。"}`,
+    `**处理建议**：${gate.status === "red_flag" ? "立即停止常规诊疗并转急诊；危及生命时呼叫120。先完成急诊/转诊评估；若医生已排除急症，可补充现场评估结果后重新推理。" : analysisIncomplete ? "重新运行辨病辨证分析；如仍未形成完整结果，保留已录入病历并由医生人工判断，本结果不进入剂量级候选。" : "请补充会影响诊断、辨证或用药安全的必要信息后重新评估。"}`,
     "",
     "## 红旗排查",
     "| 风险类别 | 风险评估 | 患者依据 | 下一步 |",
@@ -2704,37 +3282,37 @@ export function buildSafetyLimitedDiagnosis(state: CaseState, gate: SafetyGate):
     "## 西医诊断",
     "| 项目 | 内容 |",
     "|------|------|",
-    `| 西医诊断 | ${gate.status === "red_flag" ? "急危重症风险线索待排除，需优先转诊或急诊评估" : "信息不足，暂不生成西医诊断倾向"} |`,
+    `| 西医诊断 | ${gate.status === "red_flag" ? "急危重症风险线索待排除，需优先转诊或急诊评估" : analysisIncomplete ? "本次未形成可复核的西医工作诊断" : "现有资料尚不足以支持西医诊断倾向"} |`,
     `| 支持证据 | ${gate.redFlags.join("；") || gate.reasons.join("；")} |`,
     "| 建议检查 | 由医生结合主诉和现场情况补充生命体征、必要检验检查及专科评估 |",
-    "| 证据依据 | 程序化红旗与安全槽位门控；具体医学依据需结合院内规则和指南复核 |",
+    "| 证据依据 | 当前病历、已测生命体征与急危重风险筛查；具体诊断仍需结合现场查体和院内规范 |",
     "",
     "## 中医证候诊断",
-    "**证候诊断**：暂不生成",
-    "**证候-病机关联**：信息不足，需补齐主诉、舌象、脉象或处方级安全信息后再进行处方级建议。年龄和非高风险场景下的生命体征不作为通用必填项；性别/生理状态、过敏史、当前用药以及儿童、妊娠哺乳等特殊人群信息必须在剂量级候选方药前明确。",
+    "**证候诊断**：尚未形成可复核的证候结论",
+    "**证候-病机联系**：当前信息尚不能形成可复核的证候—病机链。可补充与本病有关的四诊信息；性别/生理状态、过敏史、当前用药及儿童、妊娠哺乳等特殊人群信息须在采用具体用量候选前核实。",
     "**证据支持**：当前资料不足以形成可采纳的证候-病机链路。",
-    "**证据依据**：程序化安全门控；具体医学依据需结合院内规范、指南/文献/说明书检索和医生现场评估复核。",
+    "**证据依据**：当前病历与风险筛查结果；具体医学判断须结合院内规范、指南/文献/说明书及医生现场评估。",
     "",
     "## 证候分布与病机映射",
-    "| 候选证候 | 主/兼 | 关联病机 | 治法方向 | 支持证据 | 反证/冲突点 | 置信度 | 下一步 |",
-    "|---------|------|---------|---------|---------|------------|-------|-------|",
-    "| 暂不生成 | - | 信息不足或安全门控未满足 | 暂不进入方药 | 当前缺少关键补录项或存在红旗排查需求 | 无法形成闭环证据链 | 低 | 补齐后重新推理 |",
+    "| 候选证候 | 主/兼 | 关联病机 | 治法方向 | 支持证据 | 反证/冲突点 | 下一步 |",
+    "|---------|------|---------|---------|---------|------------|-------|",
+    "| 尚未形成可复核的证候结论 | - | 当前尚未形成稳定病机链 | 现有资料不支持进入候选方药 | 缺少会改变辨证或用药的必要信息，或需先排除急症 | 无法形成闭环证据链 | 补充后重新推理 |",
     "",
     "## 总体病机",
     "**病位**：暂不判断",
     "**病性**：暂不判断",
-    "**核心病机**：暂不生成；需补齐安全门控与四诊证据后再判断。",
+    "**核心病机**：尚未形成可复核结论；需补充必要四诊信息或先完成急症排查后再判断。",
     "**病机依据**：当前输出只用于补录与安全提示，不作为处方级辨证依据。",
     "",
     "## 治法框架",
-    "**总治法**：暂不生成",
+    "**总治法**：尚未形成可复核结论",
     "**子治法组合**：待红旗排查与四诊信息补齐后生成。",
     "",
     "## 证据链",
-    "| 结论 | 支持证据 | 反证/限制 | 缺失信息 | 来源依据 | 置信度 | 下一步 |",
-    "|------|---------|-----------|---------|---------|-------|-------|",
-    `| ${status} | ${gate.redFlags.join("；") || gate.reasons.join("；")} | 不形成正式诊断或处方 | ${gate.missingItems.join("、") || "医生现场评估结果"} | 程序化安全门控 | 中 | 补齐后重新评估 |`,
-  ].join("\n");
+    "| 结论 | 支持证据 | 反证/限制 | 缺失信息 | 来源依据 | 下一步 |",
+    "|------|---------|-----------|---------|---------|-------|",
+    `| ${status} | ${gate.redFlags.join("；") || gate.reasons.join("；")} | 不形成正式诊断或处方 | ${gate.missingItems.join("、") || "医生现场评估结果"} | 当前病历与风险筛查 | 补充后重新评估 |`,
+  ].join("\n"));
 }
 
 /**
@@ -2749,7 +3327,7 @@ export function buildSafetyLimitedDiagnosisReasoning(
   const redFlag = gate.status === "red_flag";
   const evidence = {
     evidenceLevel: "deterministic_rule" as const,
-    source: redFlag ? "服务端急危重安全门禁" : "服务端M03有限结果门禁",
+    source: redFlag ? "急危重风险筛查" : "现有信息下的有限诊断结果",
     confidence: redFlag ? "高" as const : "低" as const,
   };
   const supportingFacts = redFlag
@@ -2770,15 +3348,15 @@ export function buildSafetyLimitedDiagnosisReasoning(
     stage: "diagnose",
     completeness: state.completeness,
     overview: {
-      primarySyndrome: redFlag ? "急症处置优先，中医证候暂缓" : "暂未形成稳定证候锚点",
+      primarySyndrome: redFlag ? "急症处置优先，中医证候暂缓" : "当前证候依据不足以形成稳定结论",
       primarySyndromeResolution: "unresolved",
       primarySyndromeBasis: [],
       primarySyndromeResolutionReason: redFlag
-        ? "已命中急危重安全门禁，不应因追求中医证候闭环而延误急诊处置"
-        : "M03未形成通过临床与结构复核的稳定证候结果",
+        ? "当前急危重症风险应优先处置，不应因继续辨证而延误急诊评估"
+        : "本次分析尚未形成通过临床复核的稳定证候结果",
       secondarySyndromes: [],
       overallPathogenesis: "当前不形成可采纳的中医病机链",
-      overallTherapy: redFlag ? "立即急诊或专科评估，不进入中药处方" : "补充信息或重新生成并复核M03",
+      overallTherapy: redFlag ? "立即急诊或专科评估，不进入中药处方" : "重新完成辨病辨证分析与临床复核",
       recommendedFormulaDirection: "暂不进入候选方药",
       recommendedFormulaNames: [],
       formulaSelectionMode: "none",
@@ -2792,7 +3370,7 @@ export function buildSafetyLimitedDiagnosisReasoning(
         supportingFacts,
         limitations: [redFlag
           ? "本路径只确认急诊处置优先级，不替代现场诊断"
-          : "当前M03未形成可信的完整结果"],
+          : "本次分析尚未形成可信的完整诊断结果"],
         suggestedChecks: [redFlag ? "立即按急诊或对应专科流程评估" : "由医生补充鉴别所需问诊、查体和检查"],
         evidence,
       },
@@ -2820,7 +3398,7 @@ export function buildSafetyLimitedDiagnosisReasoning(
     management: {
       redFlagLoop: redFlag ? "立即停止常规诊疗并转急诊；危及生命时呼叫120" : "病情加重或出现新的急危重线索时立即升级处置",
       mustCollect: gate.missingItems.slice(0, 12),
-      followupSafetyNet: "完成现场评估或补录后再重新运行M03",
+      followupSafetyNet: "完成现场评估或补录后，重新运行辨病辨证分析",
     },
   };
 }
@@ -2835,8 +3413,8 @@ export function renderSafetyLimitedDiagnosisContract(
     "",
     "## 本节生成状态",
     gate.status === "red_flag"
-      ? "已形成服务端签名的急症限定结果；本结果只用于急诊分流和阻断剂量处方，不声称已完成中医辨证。"
-      : "本次M03未通过完整临床契约；已形成服务端签名的有限结果，明确阻断剂量处方并保留重新生成路径。",
+      ? "当前仅形成急症限定结果；本结果只用于急诊分流和暂停剂量级候选处方，不代表已经完成中医辨证。"
+      : "本次资料尚不足以形成完整诊断；当前仅显示有限临床建议，不生成剂量级候选处方，可补充资料后重新评估。",
     "",
     "<!-- DIAGNOSIS_JSON_START -->",
     JSON.stringify(signedReasoning, null, 2),
@@ -2845,35 +3423,64 @@ export function renderSafetyLimitedDiagnosisContract(
 }
 
 export function buildSafetyLimitedPrescription(gate: SafetyGate): string {
-  return [
+  const limitedStateCopy = buildThreePartLimitedStateCopyForSurface("non_dose_treatment_direction", {
+    knownFacts: gate.redFlags.length > 0
+      ? `已识别需优先处置的风险线索：${gate.redFlags.join("；")}`
+      : "已完成当前可用病历和处方前风险边界核查",
+    unavailableConclusion: "包含具体用量的候选处方",
+    reason: gate.reasons.join("；") || "尚有处方安全信息需要核实",
+    nextAction: gate.status === "red_flag"
+      ? "立即按急诊或转诊流程处置，完成现场评估后再考虑用药"
+      : "核实所列信息并完成院内审方后，再决定是否采用具体用量",
+  });
+  return sanitizeAuthoritativeClinicalOutput([
     "<!-- CDSS_NON_DOSE_PRESCRIPTION -->",
+    "## 当前结论",
+    limitedStateCopy,
+    "",
     "## 处方前必要信息核查",
     `**医生开方前需确认**：${[...gate.missingItems, ...gate.redFlags].join("；") || "需完成医生复核"}`,
-    "**处方安全边界**：当前未满足剂量级候选处方安全门控，不生成中药饮片剂量、剂数、煎服法或西药/中成药用法用量。",
+    "**处方安全边界**：当前尚不具备形成包含具体用量候选处方的必要条件，因此不提供中药饮片剂量、剂数、煎服法或西药/中成药用法用量。",
     "",
     "## 中药饮片处方",
-    "当前不展示剂量级候选方药。请先完成急诊/转诊评估，或补充会直接影响用药安全的信息后重新分析。",
+    "当前不展示包含具体用量的候选方药。请先完成急诊/转诊评估，或补充会直接影响用药安全的信息后重新分析。",
     "",
     "## 西药/中成药方案",
-    "暂不生成联用、替代或对症用药方案。",
+    "现有资料尚不足以支持联用、替代或对症用药方案。",
     "",
     "## 用药风险提示",
-    `- **提示强度**：${gate.status === "red_flag" ? "强提示" : "信息不足提示"}`,
+    `- **提示强度**：${gate.status === "red_flag" ? "强提示" : "待补充信息后再评估"}`,
     `- **风险点**：${gate.redFlags.join("；") || gate.reasons.join("；")}`,
     // Reasons carry the gate rationale (e.g. 急诊指引/门禁原因). When concrete red flags already
     // occupy the risk line above, they must still be rendered instead of being silently dropped.
     ...(gate.redFlags.length > 0 && gate.reasons.length > 0
-      ? [`- **急诊指引/门禁原因**：${gate.reasons.join("；")}`]
+      ? [`- **急诊指引/处置原因**：${gate.reasons.join("；")}`]
       : []),
     "- **医生动作**：补齐信息、完成红旗排查和院内审方复核后再考虑处方。",
-  ].join("\n");
+  ].join("\n"));
 }
 
 export function buildSafetyLimitedRisk(gate: SafetyGate): string {
-  return [
+  const limitedStateCopy = buildThreePartLimitedStateCopyForSurface(
+    gate.status === "red_flag" ? "red_flag_escalation" : "limited_clinical_scheme",
+    {
+      knownFacts: gate.redFlags.length > 0
+        ? `已识别需优先处置的风险线索：${gate.redFlags.join("；")}`
+        : "已完成当前可用病历的风险筛查",
+      unavailableConclusion: "完整的处方安全结论",
+      reason: gate.reasons.join("；") || "尚有安全信息需要核实",
+      nextAction: gate.status === "red_flag"
+        ? "立即按急诊或转诊流程处置"
+        : "补充所列信息并重新完成风险评估",
+    },
+  );
+  return sanitizeAuthoritativeClinicalOutput([
+    "## 当前结论",
+    limitedStateCopy,
+    "",
     "## 处方安全总评",
-    `**最高提示强度**：${gate.status === "red_flag" ? "强提示" : "信息不足提示"}`,
-    `**综合风险判断**：${gate.status === "red_flag" ? "高风险" : "信息不足无法判断"}`,
+    `**最高提示强度**：${gate.status === "red_flag" ? "强提示" : "待补充信息后再评估"}`,
+    `**综合风险判断**：${gate.status === "red_flag" ? "高风险" : "当前尚有安全信息待核实；补充所列信息后重新评估"}`,
     `**评级依据**：${gate.reasons.join("；")}`,
     `**医生需确认事项**：${[...gate.missingItems, ...gate.redFlags].join("；") || "请完善病历后复核"}`,
     "",
@@ -2885,9 +3492,9 @@ export function buildSafetyLimitedRisk(gate: SafetyGate): string {
     "## 随访时间轴",
     "| 时间点 | 医生/患者动作 | 观察指标 | 触发处置 |",
     "|------|--------------|---------|---------|",
-    `| 当前 | 完善${gate.missingItems.join("、") || "红旗排查"} | 主诉、舌脉、四诊问诊，以及已提示但不完整的过敏/用药/特殊人群信息 | 信息未补齐前不生成剂量级候选处方 |`,
-    "| 补齐后 | 重新发起辅助推理 | 证候、病机、风险提示 | 符合安全槽位后进入候选方案 |",
-  ].join("\n");
+    `| 当前 | 完善${gate.missingItems.join("、") || "红旗排查"} | 主诉、舌脉、四诊问诊，以及已提示但不完整的过敏/用药/特殊人群信息 | 信息未补齐前不形成包含具体用量的候选处方 |`,
+    "| 补齐后 | 重新发起辅助推理 | 证候、病机、风险提示 | 完成必要的处方前信息核查后进入候选方案 |",
+  ].join("\n"));
 }
 
 function riskSignalLines(text: string): string[] {
@@ -2918,7 +3525,7 @@ export function isConditionalSafetyNetRiskLine(line: string): boolean {
 }
 
 export function isRiskLineNegatedOrEnumerative(line: string): boolean {
-  return /(未见|未提示|未发现|无明确|暂无|没有|否认|排除|不提示|不构成|低风险|未命中|暂不需要|不需要|无需|仅为枚举|风险分级|低风险\s*\/\s*需关注\s*\/\s*高风险|强提示\s*\/\s*一般提示|强提示\s*\/\s*一般提示\s*\/\s*信息不足提示)/.test(line) ||
+  return /(未见|未提示|未发现|无明确|暂无|没有|否认|排除|不提示|不构成|低风险|未命中|暂不需要|不需要|无需|仅为枚举|风险分级|低风险\s*\/\s*需关注\s*\/\s*高风险|强提示\s*\/\s*一般提示|强提示\s*\/\s*一般提示\s*\/\s*(?:信息不足提示|待补充信息后再评估))/.test(line) ||
     isConditionalSafetyNetRiskLine(line);
 }
 
@@ -2977,7 +3584,7 @@ function buildNonDoseRiskFollowup(gate: SafetyGate): string {
   const pending = gate.missingItems.join("、") || "结构化剂量方案及其处方级安全复核";
   return [
     "## 处方安全总评",
-    "**最高提示强度**：信息不足提示",
+    "**最高提示强度**：待补充信息后再评估",
     "**综合风险判断**：本轮未生成剂量级处方，不作处方用药风险或疗效判定，也不生成用药阶段随访安排。",
     `**当前受限状态**：${pending}尚未完成；不得将本轮结果表述为可采纳或可审阅的剂量级候选处方。`,
     "",
@@ -2998,7 +3605,7 @@ function buildRestrictedDoseRiskFollowup(reasons: string[]): string {
   const reasonText = reasons.join("；") || "处方级安全筛查尚未完成";
   return [
     "## 处方安全总评",
-    "**最高提示强度**：信息不足提示",
+    "**最高提示强度**：待补充信息后再评估",
     "**综合风险判断**：本轮虽存在结构化剂量候选，但处方级安全筛查未完成，当前为受限状态。",
     `**受限原因**：${reasonText}。`,
     "**医生需确认事项**：当前候选不得采纳、执行或转写；仅可保留为待复核记录。",
@@ -3016,12 +3623,147 @@ function buildRestrictedDoseRiskFollowup(reasons: string[]): string {
   ].join("\n");
 }
 
-export function buildDeterministicRiskFollowup(state: CaseState): string {
+function followupTableCell(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").replace(/\|/g, "／").replace(/\s+/g, " ").trim();
+}
+
+function uniqueFollowupText(values: Array<string | undefined>, limit = 5): string[] {
+  return [...new Set(values
+    .map((value) => followupTableCell(value || ""))
+    .filter((value) => value.length >= 2))].slice(0, limit);
+}
+
+function structuredFollowupInputs(state: CaseState): {
+  metrics: string[];
+  timings: string[];
+  triggers: string[];
+  coreFacts: string[];
+} {
+  const prescribe = state.reasoningPrescribe || (state.reasoningV2?.stage === "prescribe" ? state.reasoningV2 : undefined);
+  const diagnose = state.reasoningDiagnose || state.reasoningV2;
+  const monitoring = prescribe?.nonPharma?.monitoring || [];
+  return {
+    metrics: uniqueFollowupText(monitoring.map((item) => item.metric), 6),
+    timings: uniqueFollowupText(monitoring.map((item) => item.timing), 4),
+    triggers: uniqueFollowupText(monitoring.map((item) => item.trigger), 6),
+    coreFacts: uniqueFollowupText([
+      ...(diagnose?.westernDiagnosis?.primary?.supportingFacts || []),
+      ...(diagnose?.overview?.primarySyndromeBasis || []),
+      state.chiefComplaint,
+    ], 5),
+  };
+}
+
+const FOLLOWUP_TIMELINE_START = "<!-- FOLLOWUP_TIMELINE_JSON_START -->";
+const FOLLOWUP_TIMELINE_END = "<!-- FOLLOWUP_TIMELINE_JSON_END -->";
+
+function validStructuredFollowupItem(value: unknown): value is StructuredFollowupTimelineItem {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.time === "string" && Boolean(item.time.trim()) &&
+    typeof item.action === "string" && Boolean(item.action.trim()) &&
+    Array.isArray(item.indicators) && item.indicators.every((entry) => typeof entry === "string" && Boolean(entry.trim())) &&
+    Array.isArray(item.triggers) && item.triggers.every((entry) => typeof entry === "string" && Boolean(entry.trim()));
+}
+
+export function parseStructuredFollowupTimeline(content: string | undefined): StructuredFollowupTimelineItem[] {
+  if (!content) return [];
+  const start = content.indexOf(FOLLOWUP_TIMELINE_START);
+  const end = content.indexOf(FOLLOWUP_TIMELINE_END, start + FOLLOWUP_TIMELINE_START.length);
+  if (start < 0 || end < 0) return [];
+  try {
+    const parsed = JSON.parse(content.slice(start + FOLLOWUP_TIMELINE_START.length, end).trim());
+    return Array.isArray(parsed) ? parsed.filter(validStructuredFollowupItem).slice(0, 8) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function stripStructuredFollowupTimeline(content: string): string {
+  return content
+    .replace(/<!-- FOLLOWUP_TIMELINE_JSON_START -->[\s\S]*?<!-- FOLLOWUP_TIMELINE_JSON_END -->/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function normalizedStructuredFollowupItems(items: StructuredFollowupTimelineItem[]): StructuredFollowupTimelineItem[] {
+  return items
+    .map((item) => ({
+      time: followupTableCell(item.time),
+      action: followupTableCell(item.action),
+      indicators: uniqueFollowupText(item.indicators, 8),
+      triggers: uniqueFollowupText(item.triggers, 8),
+    }))
+    .filter((item) => item.time && item.action && (item.indicators.length > 0 || item.triggers.length > 0))
+    .slice(0, 8);
+}
+
+function withStructuredFollowupTimeline(markdown: string, items: StructuredFollowupTimelineItem[]): string {
+  return [
+    markdown,
+    FOLLOWUP_TIMELINE_START,
+    JSON.stringify(normalizedStructuredFollowupItems(items)),
+    FOLLOWUP_TIMELINE_END,
+  ].join("\n");
+}
+
+function concreteAuditRiskObservations(value: string): string[] {
+  return uniqueFollowupText(value
+    .split(/\n+/)
+    .map((line) => line
+      .replace(/^\s*(?:[-*]|\d+[.、])\s*/, "")
+      .replace(/\*\*/g, "")
+      .replace(/^\|?|\|?$/g, "")
+      .trim())
+    .filter((line) =>
+      line.length >= 4 &&
+      /(禁忌|慎用|相互作用|过敏|超量|剂量|肝肾|妊娠|哺乳|出血|毒性|重复用药|强提示|一般提示)/.test(line) &&
+      !/(?:未见明确|未识别|未发现|暂无|无明确).{0,12}(?:风险|冲突|问题)/.test(line) &&
+      !/(?:处方可作为候选方案|结合过敏史|现用药|特殊人群状态和院内规则完成复核)/.test(line)), 4);
+}
+
+export type DeterministicRiskFollowupPayload = {
+  markdown: string;
+  timelineItems: StructuredFollowupTimelineItem[];
+};
+
+export function buildDeterministicRiskFollowupPayload(state: CaseState): DeterministicRiskFollowupPayload {
   const gate = state.safetyGate || evaluateSafetyGate(state);
-  if (gate.status === "red_flag") return buildSafetyLimitedRisk(gate);
-  if (!hasStructuredDoseCandidate(state)) return buildNonDoseRiskFollowup(gate);
+  const followup = structuredFollowupInputs(state);
+  if (gate.status === "red_flag") {
+    return {
+      markdown: buildSafetyLimitedRisk(gate),
+      timelineItems: normalizedStructuredFollowupItems([{
+      time: "当前",
+      action: "优先完成现场风险处置",
+      indicators: uniqueFollowupText([...gate.redFlags, ...followup.coreFacts]),
+      triggers: uniqueFollowupText(gate.reasons.length > 0 ? gate.reasons : ["按急诊或转诊流程处置"]),
+      }]),
+    };
+  }
+  if (!hasStructuredDoseCandidate(state)) {
+    return {
+      markdown: buildNonDoseRiskFollowup(gate),
+      timelineItems: normalizedStructuredFollowupItems([{
+        time: "当前",
+        action: "补足处方级评估所需信息",
+        indicators: uniqueFollowupText([...followup.coreFacts, ...gate.missingItems]),
+        triggers: ["安全信息和结构化剂量方案未完成前，不形成用药阶段随访安排"],
+      }]),
+    };
+  }
   const hardDoseBoundary = hardDoseSafetyBoundaryReasons(state);
-  if (hardDoseBoundary.length > 0) return buildRestrictedDoseRiskFollowup(hardDoseBoundary);
+  if (hardDoseBoundary.length > 0) {
+    return {
+      markdown: buildRestrictedDoseRiskFollowup(hardDoseBoundary),
+      timelineItems: normalizedStructuredFollowupItems([{
+        time: "当前",
+        action: "完成受限项并人工复核",
+        indicators: uniqueFollowupText(hardDoseBoundary),
+        triggers: ["受限原因未解除前，候选处方不可采纳或执行"],
+      }]),
+    };
+  }
 
   const vitalAdvisories = unparseableVitalAdvisories(state);
   const missingAdvisory = gate.missingItems.length > 0 ? gate.missingItems.join("、") : "";
@@ -3033,7 +3775,7 @@ export function buildDeterministicRiskFollowup(state: CaseState): string {
   );
   // NOTE: pure evidence-provenance tokens ("待检索"/"证据不足") are intentionally NOT here — every
   // model-inference prescription cites them, so scanning for them mislabels benign cases as 中风险.
-  const hasReviewRisk = Boolean(missingAdvisory) || hasCurrentRiskLine(riskSource, /(一般提示|需复核|慎用|相互作用|过敏|特殊人群|信息不足提示|用药史|当前用药)/);
+  const hasReviewRisk = Boolean(missingAdvisory) || hasCurrentRiskLine(riskSource, /(一般提示|需复核|慎用|相互作用|过敏|特殊人群|信息不足提示|待补充信息后再评估|用药史|当前用药)/);
   const highest = hasStrongRisk ? "强提示" : hasReviewRisk ? "一般提示" : "说明性提示";
   const overall = hasStrongRisk ? "较高风险，需调整或复核后采纳" : hasReviewRisk ? "中等风险，需医生复核后采纳" : "当前未识别确定性高危用药冲突，仍需医生最终确认";
   const doctorAction = hasStrongRisk
@@ -3042,11 +3784,40 @@ export function buildDeterministicRiskFollowup(state: CaseState): string {
       ? "处方可作为候选方案审阅，请结合过敏史、现用药、特殊人群状态和院内规则完成复核。"
       : "当前无确定性强提示；仍需医生按病情、说明书和院内药事规则最终确认。";
   const firstReview = deriveFirstReviewTiming(state, hasStrongRisk);
-  const trigger = hasStrongRisk
-    ? "强提示未解除、症状加重或出现明显不良反应"
-    : "症状无改善、睡眠/疼痛/消化等核心指标恶化，或出现皮疹、腹泻、头晕等疑似不良反应";
+  const coreMetrics = followup.metrics.length > 0
+    ? followup.metrics.join("；")
+    : followup.coreFacts.length > 0
+      ? `${followup.coreFacts.join("；")}的严重程度、发作频次及对日常功能的影响`
+      : "本次主要症状的严重程度、发作频次及对日常功能的影响";
+  const efficacyTrigger = followup.triggers.length > 0
+    ? followup.triggers.join("；")
+    : "主要症状较首诊无改善或加重，或出现新的伴随症状";
+  const actualRiskIndicators = concreteAuditRiskObservations(riskSource);
+  const timelineItems: StructuredFollowupTimelineItem[] = [];
+  if (hasStrongRisk || hasReviewRisk) {
+    timelineItems.push({
+      time: "采纳候选前",
+      action: "完成针对性安全复核",
+      indicators: uniqueFollowupText([...actualRiskIndicators, missingAdvisory]),
+      triggers: [hasStrongRisk ? "强提示未解除前不采纳；调整后重新审方" : "复核结果影响用药选择时调整方案并重新审方"],
+    });
+  }
+  timelineItems.push(...((state.reasoningPrescribe || (state.reasoningV2?.stage === "prescribe" ? state.reasoningV2 : undefined))
+    ?.nonPharma?.monitoring || []).map((item) => ({
+        time: followupTableCell(item.timing),
+        action: "记录并复核本例指标",
+        indicators: [followupTableCell(item.metric)],
+        triggers: [followupTableCell(item.trigger)],
+      })));
+  const timelineRows = timelineItems.map((item) => [
+    item.time,
+    item.action,
+    item.indicators.join("；"),
+    item.triggers.join("；"),
+  ]);
 
-  return [
+  return {
+    markdown: [
     "## 处方安全总评",
     `**最高提示强度**：${highest}`,
     `**综合风险判断**：${overall}`,
@@ -3057,21 +3828,28 @@ export function buildDeterministicRiskFollowup(state: CaseState): string {
     "",
     "## 随访管理方案",
     `**首次复诊时间**：${firstReview}`,
-    "**复诊评估重点**：主诉核心症状变化、舌脉变化、睡眠/饮食/二便、生命体征、用药依从性和不良反应。",
-    "**疗效评价标准**：主要症状较首诊改善、伴随症状减轻、生活功能恢复，且无明显不良反应。",
-    "**安全性观察**：皮疹瘙痒、胃肠不适、头晕乏力、心悸胸闷、出血倾向，以及与现用西药/中成药的联用风险。",
-    `**无效或加重的处置预案**：${trigger}时，停止自动沿用候选方案，由医生复评辨证、复核处方风险并考虑转诊/检查。`,
+    `**复诊评估重点**：${coreMetrics}；舌脉及本例已记录的客观指标变化；用药执行情况。`,
+    `**疗效评价标准**：以首诊记录为基线，比较${coreMetrics}；同时确认未出现新发不适。`,
+    ...(actualRiskIndicators.length > 0 ? [`**安全性观察**：${actualRiskIndicators.join("；")}。`] : []),
+    `**无效或加重的处置预案**：${efficacyTrigger}时，不自动沿用候选方案，由医生复评诊断、辨证与处方风险，并按实际情况安排检查或转诊。`,
+    "",
+    ...sixHealthFollowupTable().split("\n"),
     "",
     "## 随访时间轴",
     "| 时间点 | 医生/患者动作 | 观察指标 | 触发处置 |",
     "|------|--------------|---------|---------|",
-    "| 当日 | 医生完成处方复核并交代服法与禁忌 | 处方剂量、煎服法、过敏/现用药及已测生命体征 | 强提示未解除时调整方案并复核 |",
-    `| ${firstReview} | 复诊或线上随访，记录症状评分和舌脉变化 | 主诉改善度、睡眠/饮食/二便、舌脉、ADR | 无效、加重或ADR时复评辨证并调整方案 |`,
-    "| 7-14天 | 根据疗效决定续方、减量、加减或进一步检查 | 疗效稳定性、复发、药物耐受性 | 疗效不稳定或出现明显不良反应时暂停续方并复评 |",
+    ...timelineRows.map((row) => `| ${row.map(followupTableCell).join(" | ")} |`),
     "",
-    "## 中医康复管理",
-    "根据证候与主诉进行饮食、作息、情志和运动管理；避免自行叠加中药、中成药或镇静催眠类药物，复诊时携带全部现用药清单。",
-  ].join("\n");
+    "## 生活管理",
+    "按本例非药物建议安排饮食、作息、情志和活动；不要自行叠加中药或中成药，复诊时携带实际使用的全部药物清单。",
+    ].join("\n"),
+    timelineItems: normalizedStructuredFollowupItems(timelineItems),
+  };
+}
+
+export function buildDeterministicRiskFollowup(state: CaseState): string {
+  const payload = buildDeterministicRiskFollowupPayload(state);
+  return withStructuredFollowupTimeline(payload.markdown, payload.timelineItems);
 }
 
 export function buildForcedIncompleteRiskFollowup(state: CaseState): string {
@@ -3080,7 +3858,7 @@ export function buildForcedIncompleteRiskFollowup(state: CaseState): string {
   return [
     "## 处方安全总评",
     "**最高提示强度**：待临床复核",
-    "**综合风险判断**：本轮已按医生选择，基于现有资料形成候选方案；资料缺口降低判断把握度，但不阻断报告生成。",
+    "**综合风险判断**：本轮已按医生选择，基于现有资料形成候选方案；以下待核实信息不会阻断报告生成，但须在正式采纳前由医生确认。",
     `**待复核信息**：${missing}。请结合本次接诊可获得的资料核对证候、病机、方药匹配与剂量合理性。`,
     "",
     "## 随访管理方案",
@@ -3088,6 +3866,8 @@ export function buildForcedIncompleteRiskFollowup(state: CaseState): string {
     `**复诊评估重点**：按临床可得情况补录${missing}，复核主症、兼症、舌脉变化与用药反应。`,
     "**安全性观察**：皮疹瘙痒、胃肠不适、头晕乏力、心悸胸闷、出血倾向及原症加重。",
     "**无效或加重的处置预案**：停止自动沿用候选方案，由医生重新辨证并复核处方。",
+    "",
+    ...sixHealthFollowupTable().split("\n"),
     "",
     "## 随访时间轴",
     "| 时间点 | 医生/患者动作 | 观察指标 | 触发处置 |",
@@ -3328,7 +4108,14 @@ export function sanitizeFreeTextForModel(text: string): string {
 }
 
 export function markdownNdjsonResponse(markdown: string): Response {
-  const body = `${JSON.stringify({ content: markdown })}\n${JSON.stringify({ content: "[END]" })}\n`;
+  const timelineItems = parseStructuredFollowupTimeline(markdown);
+  const visibleMarkdown = sanitizeAuthoritativeClinicalOutput(stripStructuredFollowupTimeline(markdown));
+  const body = [
+    ...(timelineItems.length > 0 ? [JSON.stringify({ type: "followup_timeline", timelineItems })] : []),
+    JSON.stringify({ content: visibleMarkdown }),
+    JSON.stringify({ content: "[END]" }),
+    "",
+  ].join("\n");
   return new Response(body, {
     headers: {
       "Content-Type": "application/x-ndjson; charset=utf-8",

@@ -20,7 +20,7 @@ export const EVIDENCE_LEVEL_LABELS: Record<EvidenceLevelValue, string> = {
   drug_label: "药品标签",
   literature: "文献证据",
   classic_text: "经典出处",
-  model_inference: "模型推断",
+  model_inference: "病例内推理",
   insufficient: "证据不足",
 };
 
@@ -59,4 +59,4 @@ export function sectionTitleGroup<K extends keyof typeof SECTION_TITLES>(key: K)
   return [...SECTION_TITLES[key]];
 }
 
-export const SAFETY_DEFERENCE_TEXT = "安全门控和审方规则优先于流派偏好";
+export const SAFETY_DEFERENCE_TEXT = "急危重风险处置和药事审方要求优先于流派偏好";

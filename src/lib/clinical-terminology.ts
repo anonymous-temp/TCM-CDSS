@@ -1,8 +1,15 @@
+import { canonicalTcmLocationTerm, canonicalTcmNatureTerm } from "./clinical-governance-tables";
+
 const SPACE_AND_PUNCTUATION = /[\s，,。.!！?？；;：:、（）()【】\[\]《》"'“”‘’_-]+/g;
 
 type TerminologyReasoning = {
   overview: { primarySyndrome: string; tcmDiseaseName?: string };
   westernDiagnosis: { primary: { name: string }; differentials?: Array<{ name: string }> };
+  pathogenesis?: {
+    locationDifferentiation?: { items?: string[] };
+    natureDifferentiation?: { items?: string[]; rootDeficiency?: string[]; branchExcess?: string[] };
+  };
+  therapy?: { overallPrinciple?: string; overallMethod?: string };
 };
 
 function compactTerm(value: unknown): string {
@@ -45,6 +52,20 @@ export function canonicalWesternDiagnosisName(value: unknown): string {
   return canonicalFromRules(original, WESTERN_DIAGNOSIS_RULES) || original;
 }
 
+/**
+ * Differential rows are diagnostic identities, not free-form conclusions. A provider can wrap a
+ * governed disease name in prose (for example, "症状待查，需排除阻塞性睡眠呼吸暂停") and also emit the
+ * same disease as a standalone row. Resolve both to the same canonical identity so downstream
+ * de-duplication and contract checks cannot mistake wording variation for two diagnoses.
+ */
+export function canonicalWesternDifferentialName(value: unknown): string {
+  return canonicalWesternDiagnosisName(value);
+}
+
+export function westernDifferentialIdentity(value: unknown): string {
+  return compactTerm(canonicalWesternDifferentialName(value));
+}
+
 export function canonicalTcmDiseaseName(
   value: unknown,
   context: TerminologyReasoning,
@@ -75,18 +96,50 @@ export function withCanonicalClinicalTerminology<T extends TerminologyReasoning>
         ? {
             differentials: reasoning.westernDiagnosis.differentials.map((item) => ({
               ...item,
-              name: canonicalWesternDiagnosisName(item.name) || item.name,
+              name: canonicalWesternDifferentialName(item.name) || item.name,
             })),
           }
         : {}),
     },
   };
   const tcmDiseaseName = canonicalTcmDiseaseName(normalized.overview.tcmDiseaseName, normalized);
+  const location = normalized.pathogenesis?.locationDifferentiation;
+  const nature = normalized.pathogenesis?.natureDifferentiation;
+  const therapy = normalized.therapy;
+  const canonicalList = (
+    values: string[] | undefined,
+    canonicalize: (value: string) => { canonical: string } | undefined,
+  ) => Array.isArray(values)
+    ? [...new Set(values.map((value) => canonicalize(value)?.canonical || value.trim()).filter(Boolean))]
+    : values;
   return {
     ...normalized,
     overview: {
       ...normalized.overview,
       ...(tcmDiseaseName ? { tcmDiseaseName } : {}),
     },
+    ...(normalized.pathogenesis ? {
+      pathogenesis: {
+        ...normalized.pathogenesis,
+        ...(location ? {
+          locationDifferentiation: {
+            ...location,
+            items: canonicalList(location.items, canonicalTcmLocationTerm),
+          },
+        } : {}),
+        ...(nature ? {
+          natureDifferentiation: {
+            ...nature,
+            items: canonicalList(nature.items, canonicalTcmNatureTerm),
+            rootDeficiency: canonicalList(nature.rootDeficiency, canonicalTcmNatureTerm),
+            branchExcess: canonicalList(nature.branchExcess, canonicalTcmNatureTerm),
+          },
+        } : {}),
+      },
+    } : {}),
+    // Do not invent a cross-case treatment principle when terminology normalization misses.
+    // The original value must reach the M03 repair contract, which can request a clinically
+    // supported principle instead of silently turning every case into “因人制宜”.
+    ...(therapy ? { therapy } : {}),
   } as T;
 }

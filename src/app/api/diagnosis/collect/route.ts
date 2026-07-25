@@ -2,6 +2,7 @@ import { callDiagnosisStream, isTongueVisionConfigured } from "@/lib/diagnosis-a
 import { buildTongueVisionPrompt } from "@/lib/diagnosis-prompts";
 import { readJsonRequest } from "@/lib/diagnosis-request";
 import { markdownNdjsonResponse } from "@/lib/diagnosis-safety";
+import { validateCollectRequiredFields } from "@/lib/clinical-required-fields";
 
 const MAX_IMAGE_SIZE = 5_600_000; // ~4MB binary as base64
 const MAX_USER_INPUT_CHARS = 12000;
@@ -30,7 +31,7 @@ function isValidTongueImageDataUrl(value: string): boolean {
 export async function POST(req: Request) {
   const parsed = await readJsonRequest(req, { maxBytes: MAX_IMAGE_SIZE + MAX_USER_INPUT_CHARS + 2048 });
   if (!parsed.ok) return parsed.response;
-  const body = parsed.body && typeof parsed.body === "object" ? parsed.body as { userInput?: unknown; tongueImage?: unknown; tongueImageConsent?: unknown } : {};
+  const body = parsed.body && typeof parsed.body === "object" ? parsed.body as { userInput?: unknown; patientSex?: unknown; tongueImage?: unknown; tongueImageConsent?: unknown } : {};
   const userInput = typeof body.userInput === "string" ? body.userInput : "";
   const tongueImage = typeof body.tongueImage === "string" ? body.tongueImage : "";
   const tongueImageConsent = body.tongueImageConsent === true;
@@ -46,6 +47,10 @@ export async function POST(req: Request) {
   }
   if (tongueImage && !tongueImageConsent) {
     return Response.json({ error: "舌照外发分析前需确认已取得患者授权。" }, { status: 400 });
+  }
+  const requiredFields = validateCollectRequiredFields(body.patientSex);
+  if (!requiredFields.ok) {
+    return Response.json({ error: requiredFields.error, code: "required_field_missing", field: "sex" }, { status: 400 });
   }
   if (tongueImage && !isValidTongueImageDataUrl(tongueImage)) {
     return Response.json({ error: "舌象图片格式不支持，请上传PNG/JPEG/WebP位图" }, { status: 400 });

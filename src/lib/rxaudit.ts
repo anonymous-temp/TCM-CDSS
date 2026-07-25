@@ -3,8 +3,9 @@
 // Wraps `POST /api/v1/rational-drug-use` (operation=PRESCRIPTION_AUDIT) — the vendor 合理用药 审方
 // engine — as the sole prescription-safety reviewer for the post-prescription audit path. Callers must
 // expose any failure/timeout/missing herb items as a visible manual-review advisory. Audit is not a
-// workflow lock, but callers must never interpret an unavailable audit as "no risk". The Markdown compatibility path below only recovers M04
-// herb rows into LingXi items[] when reasoningV2 was not persisted; it does not perform local risk review.
+// workflow lock, but callers must never interpret an unavailable audit as "no risk". Legacy Markdown
+// parsing is retained only for local input-quality explanation. No external audit request is allowed
+// unless a structured M04 candidate supplies every dose plus a complete frequency/course regimen.
 //
 // PHI: only sanitized free text is sent; patient name is never forwarded (a fixed 匿名患者 is used).
 
@@ -13,8 +14,9 @@ import { diagnoseReasoningFromState, parseReasoningV2, prescribeReasoningFromSta
 import { ageValue, type CaseState } from "./diagnosis-types";
 import { normalizeLingxiDecision, normalizeRiskLevel, type RxAuditResultCode, type RxAuditRiskLevel } from "./rxaudit-normalize";
 import { prescriptionRegimenFromDecoction, prescriptionRegimenSummary } from "./prescription-regimen-contract";
-import { affirmedAllergyText, affirmedClinicalText, affirmedCurrentMedicationText, medicationContinuationOnly, medicationNameFromEventText } from "./clinical-polarity";
+import { affirmedAllergyText, affirmedClinicalText, affirmedCurrentMedicationText, clinicalClausePolarity, medicationContinuationOnly, medicationNameFromEventText } from "./clinical-polarity";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "./http-response-limit";
+import { cancelResponseBody } from "./http-response-lifecycle";
 import {
   currentMedicationSummaryFromSemanticExtraction,
   currentMedicationsFromSemanticExtraction,
@@ -78,8 +80,12 @@ export type RxAuditCorrelationMetadata = {
 const DEFAULT_BASE_URL = "";
 const DEFAULT_TENANT = "EH_INTERNET_HOSPITAL";
 const AUDIT_PATH = "/api/v1/rational-drug-use";
-const DEFAULT_AUDIT_TOTAL_TIMEOUT_MS = 15_000;
-const DEFAULT_AUDIT_ATTEMPT_TIMEOUT_MS = 12_000;
+// LingXi usually returns in under a second, but a cold database/rule path can occasionally take
+// 12–15 seconds. A shorter attempt budget aborts that valid response, starts overlapping work and
+// then exhausts the total deadline. One 30-second attempt stays below the 45-second M05 interaction
+// target; retries remain available for fast 5xx/network failures within the same shared deadline.
+const DEFAULT_AUDIT_TOTAL_TIMEOUT_MS = 30_000;
+const DEFAULT_AUDIT_ATTEMPT_TIMEOUT_MS = 30_000;
 const MIN_AUDIT_TIMEOUT_MS = 1000;
 const MAX_AUDIT_TIMEOUT_MS = 30_000;
 const MIN_RETRY_ATTEMPT_BUDGET_MS = 1000;
@@ -149,7 +155,9 @@ function insecureHttpHostAllowed(value: string): boolean {
 
 export function getRxAuditConfig() {
   const baseUrl = (process.env.RXAI_AUDIT_BASE_URL || DEFAULT_BASE_URL).trim().replace(/\/$/, "");
-  const token = (process.env.RXAI_AUDIT_TOKEN || "").trim();
+  // Current LingXi contract authenticates with X-API-Key. Keep RXAI_AUDIT_TOKEN as a
+  // backward-compatible configuration alias so existing deployments do not lose their key.
+  const token = (process.env.RXAI_AUDIT_API_KEY || process.env.RXAI_AUDIT_TOKEN || "").trim();
   const tenantId = (process.env.RXAI_AUDIT_TENANT_ID || DEFAULT_TENANT).trim();
   const systemCode = (process.env.RXAI_AUDIT_SYSTEM_CODE || tenantId).trim();
   const configured = Boolean(token && baseUrl);
@@ -166,6 +174,14 @@ export function getRxAuditConfig() {
         ? undefined
         : "rxaudit_disabled";
   return { baseUrl, token, tenantId, systemCode, enabled, configured, allowInsecureHttp, transportAllowed, disabledReason };
+}
+
+function rxAuditHeaders(cfg: ReturnType<typeof getRxAuditConfig>): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "X-API-Key": cfg.token,
+    "X-Tenant-Id": cfg.tenantId,
+  };
 }
 
 export function getRxAuditStatus() {
@@ -188,13 +204,14 @@ export type RxAuditTransportProbe = Readonly<{
   ok: boolean;
   checkedAt: string;
   latencyMs: number;
-  reason: "ok" | "not_configured" | "insecure_transport" | "timeout" | "network_error" | "upstream_5xx";
+  reason: "ok" | "not_configured" | "insecure_transport" | "unauthorized" | "upstream_4xx" | "timeout" | "network_error" | "upstream_5xx";
   upstreamStatus?: number;
 }>;
 
 /**
- * Connectivity-only release probe. It deliberately sends no patient or prescription payload. Any
- * non-5xx HTTP response proves that the configured sidecar/gateway is reachable; the live positive
+ * Credential-aware release probe. It deliberately sends an empty POST and no patient or
+ * prescription payload. A 400/422 response proves that authentication reached request validation;
+ * 401/403, missing routes and server failures must keep strict readiness false. Live positive
  * controls remain responsible for validating actual audit semantics before deployment.
  */
 export async function probeRxAuditTransport(): Promise<RxAuditTransportProbe> {
@@ -205,18 +222,24 @@ export async function probeRxAuditTransport(): Promise<RxAuditTransportProbe> {
   if (!cfg.transportAllowed) return { ok: false, checkedAt, latencyMs: 0, reason: "insecure_transport" };
   try {
     const response = await fetch(`${cfg.baseUrl}${AUDIT_PATH}`, {
-      method: "OPTIONS",
-      headers: {
-        authorization: `Bearer ${cfg.token}`,
-        "x-tenant-id": cfg.tenantId,
-      },
+      method: "POST",
+      headers: rxAuditHeaders(cfg),
+      body: "{}",
       signal: AbortSignal.timeout(Math.min(getRxAuditAttemptTimeoutMs(), 5_000)),
       cache: "no-store",
     });
     const latencyMs = Date.now() - startedAt;
-    return response.status >= 500
-      ? { ok: false, checkedAt, latencyMs, reason: "upstream_5xx", upstreamStatus: response.status }
-      : { ok: true, checkedAt, latencyMs, reason: "ok", upstreamStatus: response.status };
+    await cancelResponseBody(response);
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, checkedAt, latencyMs, reason: "unauthorized", upstreamStatus: response.status };
+    }
+    if (response.status >= 500) {
+      return { ok: false, checkedAt, latencyMs, reason: "upstream_5xx", upstreamStatus: response.status };
+    }
+    if (response.status >= 400 && response.status !== 400 && response.status !== 422) {
+      return { ok: false, checkedAt, latencyMs, reason: "upstream_4xx", upstreamStatus: response.status };
+    }
+    return { ok: true, checkedAt, latencyMs, reason: "ok", upstreamStatus: response.status };
   } catch (error) {
     const timeout = error instanceof DOMException && (error.name === "TimeoutError" || error.name === "AbortError");
     return {
@@ -359,7 +382,11 @@ export function medicationCandidatesFromSource(value: string | undefined): strin
       .replace(/^\s*(?:已)?(?:改为|换成|更换为)\s*/, "改用")
       .trim();
     if (!segment || medicationContinuationOnly(segment)) continue;
-    if (/^(?:未|没有|从未|否认|不曾|并未)\s*(?:服用|口服|使用|吃|用)(?!.*(?:停用|停服|停药))/.test(segment)) continue;
+    const negatedStop = /(?:未|没有|否认|不曾|并未|尚未)[^，,；;。\n]{0,12}(?:停用|停服|停药|停止)/.test(segment);
+    // Candidate coverage is a fail-closed drug-name check, not a keyword scan. Reuse the shared
+    // polarity boundary so “否认当前其他用药/没有长期药物” does not become a fictitious missing
+    // drug. A negated stop remains eligible because “未停用阿司匹林” affirms current use.
+    if (clinicalClausePolarity(segment) !== "affirmed" && !negatedStop) continue;
     if (/^(?:家属|父亲|母亲|配偶|子女|陪同者|监护人)[^，,；;。\n]*(?:服用|使用|在吃)/.test(segment)) continue;
     const candidate = medicationNameFromEventText(segment)
       .replace(/^(?:已)?(?:改为|换成|更换为)\s*/, "")
@@ -465,10 +492,10 @@ function parseDoseText(dose: string | null | undefined): { value?: number; unit?
     : { text };
 }
 
-export function buildAuditItemsFromHerbs(state: CaseState, candidateIndex?: number): Array<Record<string, unknown>> {
+function buildAuditItemsFromStructuredHerbs(state: CaseState, candidateIndex?: number): Array<Record<string, unknown>> {
   const candidate = candidateFromState(state, candidateIndex);
   if (!candidate) return [];
-  return candidate.herbs
+  const herbItems = candidate.herbs
     .filter((herb) => herb.name?.trim())
     .slice(0, 50)
     .map((herb, index) => {
@@ -497,6 +524,65 @@ export function buildAuditItemsFromHerbs(state: CaseState, candidateIndex?: numb
         ...(herb.isToxic != null ? { is_toxic_herb: herb.isToxic } : {}),
       };
     });
+  const medicineItems = (state.reasoningPrescribe?.formula?.patentAndWestern || [])
+    .filter((item) => item?.name?.trim() && (item.type === "中成药" || item.type === "西药"))
+    .slice(0, Math.max(0, 50 - herbItems.length))
+    .map((item, index) => ({
+      item_no: herbItems.length + index + 1,
+      drug_name: item.name.trim(),
+      drug_type: item.type,
+      ...(item.specification?.trim() ? { specification: item.specification.trim() } : {}),
+      ...(item.frequency?.trim() ? { frequency_name: item.frequency.trim() } : {}),
+      ...(item.route?.trim() ? { route_name: item.route.trim() } : {}),
+      ...(item.course?.trim() ? { course_text: item.course.trim() } : {}),
+      review_requirement: [
+        item.usageBoundary?.trim(),
+        item.relationship?.trim(),
+        item.riskNote?.trim(),
+        "中成药/西药候选仅提交药品身份与联用边界，不向审方接口伪造单次剂量",
+      ].filter(Boolean).join("；"),
+    }));
+  return [...herbItems, ...medicineItems];
+}
+
+export function buildAuditItemsFromHerbs(state: CaseState, candidateIndex?: number): Array<Record<string, unknown>> {
+  const candidate = candidateFromState(state, candidateIndex);
+  if (!candidate) return [];
+  const regimen = prescriptionRegimenFromDecoction(candidate.decoction);
+  // The provider audits dose together with frequency. Sending a dose-only item creates one
+  // INPUT_QUALITY warning per herb. A malformed/legacy regimen is therefore never submitted;
+  // local validation still uses the raw structured items to explain what must be completed.
+  if (!regimen) return [];
+  return buildAuditItemsFromStructuredHerbs(state, candidateIndex).map((item) => ({
+    ...(item.drug_type === "中药饮片"
+      ? {
+          ...item,
+          frequency_code: regimen.dosesPerDay === 1 ? "QD" : regimen.dosesPerDay === 2 ? "BID" : "TID",
+          frequency_name: `每日${regimen.dosesPerDay}剂，每日分${regimen.administrationTimesPerDay}次服`,
+          route_name: "口服",
+          course_days: regimen.courseDays,
+        }
+      : item),
+  }));
+}
+
+export type RxAuditSubmissionIssue =
+  | "candidate_missing"
+  | "regimen_incomplete"
+  | "herb_dose_incomplete";
+
+export function isRxAuditSubmissionIssueReason(reason: string): reason is RxAuditSubmissionIssue {
+  return reason === "candidate_missing" || reason === "regimen_incomplete" || reason === "herb_dose_incomplete";
+}
+
+export function rxAuditSubmissionIssue(state: CaseState, candidateIndex?: number): RxAuditSubmissionIssue | undefined {
+  const candidate = candidateFromState(state, candidateIndex);
+  if (!candidate || (candidate.herbs.length === 0 && (state.reasoningPrescribe?.formula?.patentAndWestern || []).length === 0)) {
+    return "candidate_missing";
+  }
+  if (!prescriptionRegimenFromDecoction(candidate.decoction)) return "regimen_incomplete";
+  if (candidate.herbs.some((herb) => parseDoseText(herb.dose).value == null)) return "herb_dose_incomplete";
+  return undefined;
 }
 
 function buildAuditHerbTargetSummary(state: CaseState, candidateIndex?: number): string {
@@ -526,7 +612,14 @@ export function buildAuditInputAdvisories(
   candidateIndex?: number,
   medicationExtraction?: MedicationSemanticExtraction,
 ): RxAuditInputAdvisory[] {
-  const advisories: RxAuditInputAdvisory[] = buildAuditItems(state, candidateIndex).flatMap((item) => {
+  const structuredItems = buildAuditItemsFromStructuredHerbs(state, candidateIndex);
+  const validationItems = structuredItems.length > 0
+    ? structuredItems
+    : candidateIndex == null
+      ? buildAuditItemsFromPrescriptionMarkdown(state.prescription || "")
+      : [];
+  const advisories: RxAuditInputAdvisory[] = validationItems.flatMap((item) => {
+    if (item.drug_type !== "中药饮片") return [];
     const itemNo = typeof item.item_no === "number" ? item.item_no : 0;
     const drugName = typeof item.drug_name === "string" ? item.drug_name.trim() : "";
     const hasDose = typeof item.single_dose === "number"
@@ -563,6 +656,29 @@ export function buildAuditInputAdvisories(
     });
   }
   return advisories;
+}
+
+export function buildRxAuditScopeSection(state: CaseState, candidateIndex?: number): string {
+  const candidate = candidateFromState(state, candidateIndex);
+  if (!candidate) return "";
+  const herbCount = candidate.herbs.filter((herb) => herb.name?.trim()).length;
+  const medicines = (state.reasoningPrescribe?.formula?.patentAndWestern || [])
+    .filter((item) => item?.name?.trim() && (item.type === "中成药" || item.type === "西药"));
+  const patentCount = medicines.filter((item) => item.type === "中成药").length;
+  const westernCount = medicines.filter((item) => item.type === "西药").length;
+  const submitted = buildAuditItemsFromHerbs(state, candidateIndex);
+  const submittedMedicineCount = submitted.filter((item) => item.drug_type === "中成药" || item.drug_type === "西药").length;
+  const lines = [
+    `**本次审方范围**：中药饮片 ${herbCount} 味；中成药 ${patentCount} 项；西药 ${westernCount} 项。`,
+  ];
+  if (medicines.length > submittedMedicineCount) {
+    lines.push(`**范围限制**：${medicines.length - submittedMedicineCount} 项中成药/西药候选未提交审方，需人工复核联用；本次结果不得解释为整张处方通过。`);
+  } else if (medicines.length > 0) {
+    lines.push("**范围说明**：中成药/西药候选已按药品身份及联用边界提交，但未伪造单次剂量；剂量与具体用法仍需医生/药师人工确认。");
+  } else {
+    lines.push("**范围说明**：本次没有形成可提交的中成药或西药候选，审方结论仅覆盖上述中药饮片，不代表其他合并用药已通过。");
+  }
+  return lines.join("\n");
 }
 
 export function buildAuditInputAdvisorySection(advisories: readonly RxAuditInputAdvisory[]): string {
@@ -693,6 +809,9 @@ export function buildAuditData(
   const chiefComplaint = clean(authoritativeClinicalField(state, "zhushu", state.chiefComplaint));
   const syndrome = clean(diagnoseReasoningFromState(state)?.overview?.primarySyndrome || state.reasoningV2?.overview?.primarySyndrome || extractSyndromeName(state.diagnosis), 120);
   const diagnosisName = clean(structuredWesternDiagnosisName(state) || extractWesternDiagnosisName(state.diagnosis) || syndrome || "中医内科待辨", 60) || "中医内科待辨";
+  const diagnosisCoding = diagnoseReasoningFromState(state)?.westernDiagnosis?.primary?.coding
+    || prescribeReasoningFromState(state)?.westernDiagnosis?.primary?.coding
+    || state.reasoningV2?.westernDiagnosis?.primary?.coding;
   const consultationNo = "cdss-anonymous";
 
   const patient: Record<string, unknown> = {
@@ -702,9 +821,12 @@ export function buildAuditData(
   const age = authoritativeAge(state);
   if (age != null) patient.age = age;
   if (chiefComplaint) patient.chief_complaint = chiefComplaint;
-  const presentIllness = affirmedClinicalText(clean(authoritativeClinicalField(state, "xianbingshi")));
+  // An unresolved comorbidity ("可能有心衰", "疑似肾功能不全") must still reach the audit engine:
+  // dropping it removes the exact fact that would have raised a drug-disease warning. Explicit
+  // denials stay excluded — forwarding "否认肾功能不全" would invert into a false comorbidity alert.
+  const presentIllness = affirmedClinicalText(clean(authoritativeClinicalField(state, "xianbingshi")), "affirmed_or_uncertain");
   if (presentIllness) patient.present_illness = presentIllness;
-  const pastHistory = affirmedClinicalText(clean(authoritativeClinicalField(state, "jiwangshi", state.pastHistory)));
+  const pastHistory = affirmedClinicalText(clean(authoritativeClinicalField(state, "jiwangshi", state.pastHistory)), "affirmed_or_uncertain");
   if (pastHistory) patient.past_medical_history = pastHistory;
   const vitalsText = clean([currentVitalsSummary(state), firstField(state, "vitalsDetail"), state.tongue, state.pulse].filter(Boolean).join("；") || undefined, 500);
   if (vitalsText) patient.physical_examination = vitalsText;
@@ -745,6 +867,10 @@ export function buildAuditData(
       diagnoses: [
         {
           diagnosis_name: diagnosisName,
+          ...(diagnosisCoding ? {
+            diagnosis_code: diagnosisCoding.code,
+            diagnosis_code_system: diagnosisCoding.system,
+          } : {}),
           ...(syndrome ? { tcm_syndrome_name: syndrome } : {}),
           is_primary: true,
         },
@@ -812,6 +938,25 @@ function boundedCorrelationIdentifier(value: unknown): string | undefined {
   return identifier && /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/.test(identifier) ? identifier : undefined;
 }
 
+function doctorFacingAuditIssueTitle(issueType: string | undefined, providerTitle: string | undefined): string {
+  const title = providerTitle?.trim();
+  // Preserve a provider-authored clinical title. Uppercase enum/code strings are transport data,
+  // not clinician-facing copy, even when the provider placed them in issue_title.
+  if (title && !/^[A-Z][A-Z0-9_:/.-]{2,}$/.test(title)) return title;
+  const type = (issueType || title || "").toUpperCase();
+  if (/(?:DECOCTION|煎法|煎煮)/.test(type)) return "煎服方法需复核";
+  if (/(?:SPECIAL_POP|PREGN|LACT|妊娠|哺乳)/.test(type)) return "特殊人群用药需复核";
+  if (/(?:REPULSION|INCOMPAT|HERB_PAIR|十八反|十九畏|配伍)/.test(type)) return "中药配伍禁忌需处理";
+  if (/(?:DUPLICATE|REPEAT|重复)/.test(type)) return "存在重复用药风险";
+  if (/(?:INTERACTION|相互作用)/.test(type)) return "存在药物相互作用风险";
+  if (/(?:DOSE|用量|剂量)/.test(type)) return "用法用量需调整";
+  if (/(?:CONTRAINDICATION|禁忌)/.test(type)) return "用药禁忌需复核";
+  if (/(?:ALLERG|过敏)/.test(type)) return "过敏风险需复核";
+  if (/(?:FREQUENCY|频次)/.test(type)) return "用药频次需复核";
+  if (/(?:ROUTE|途径)/.test(type)) return "给药途径需复核";
+  return "用药风险提示";
+}
+
 export function normalizeIssues(raw: unknown): RxAuditIssue[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((entry) => {
@@ -851,7 +996,7 @@ export function normalizeIssues(raw: unknown): RxAuditIssue[] {
       riskLevel,
       ruleLevel,
       issueType,
-      title: title || description || "用药风险提示",
+      title: doctorFacingAuditIssueTitle(issueType, title),
       description: description || "",
       action: boundedProviderText(issue.action, 1200),
       relatedItemNos,
@@ -958,6 +1103,7 @@ export function buildLocalHighRiskHerbPairIssues(state: CaseState, candidateInde
   if (!candidate) return [];
   return findTcmHerbPairIncompatibilities(candidate.herbs.map((herb) => herb.name)).map((conflict) => ({
     issueId: stableAuditIssueId(["local-tcm-herb-pair", conflict.leftDrug, conflict.rightDrug]),
+    issueIdGenerated: true,
     riskLevel: "HIGH",
     ruleLevel: "LOCAL_DETERMINISTIC",
     issueType: "TCM_HERB_PAIR_INCOMPATIBILITY",
@@ -1069,6 +1215,20 @@ export async function runBoundedRxAudit(
 ): Promise<BoundedRxAuditRun> {
   const timeoutMs = getRxAuditTimeoutMs();
   const absoluteDeadline = Date.now() + timeoutMs;
+  const submissionIssue = rxAuditSubmissionIssue(state, candidateIndex);
+  if (submissionIssue) {
+    return {
+      medicationExtraction: { source: "not_needed", events: [], unresolvedReferences: [], needsManualReview: false },
+      providerAudit: {
+        ok: false,
+        source: "unavailable",
+        reason: submissionIssue,
+        itemCount: candidateFromState(state, candidateIndex)?.herbs.length ?? 0,
+      },
+      timeoutMs,
+      timedOut: false,
+    };
+  }
   const itemCount = buildAuditData(state, candidateIndex)?.itemCount ?? 0;
   if (itemCount === 0) {
     return {
@@ -1143,14 +1303,17 @@ export async function runBoundedRxAudit(
 
 /** Consistent advisory copy for every route when no complete provider result is available. */
 export function buildUnavailableRxAuditSection(reason: string): string {
-  const noItems = reason === "no_prescription_items";
-  const status = noItems
+  const status = reason === "no_prescription_items" || reason === "candidate_missing"
     ? "当前候选方药尚未形成可审查的完整药味清单，本次未发起自动审方。"
-    : reason === "rxaudit_total_timeout" || reason === "rxaudit_timeout"
+    : reason === "regimen_incomplete"
+      ? "当前处方缺少可核验的每日频次、疗程或复诊节点，本次未调用外部审方接口。"
+      : reason === "herb_dose_incomplete"
+        ? "当前处方存在缺失或无法解析的单味剂量，本次未调用外部审方接口。"
+        : reason === "rxaudit_total_timeout" || reason === "rxaudit_timeout"
       ? "现用药语义抽取与自动审方未能在统一总时限内完整完成，本次按审方降级处理。"
-      : reason === "rxaudit_request_aborted"
-        ? "现用药语义抽取与自动审方编排被中断，本次按审方降级处理。"
-        : "本次未取得完整的自动用药复核结果，按审方降级处理。";
+        : reason === "rxaudit_request_aborted"
+          ? "现用药语义抽取与自动审方编排被中断，本次按审方降级处理。"
+          : "本次未取得完整的自动用药复核结果，按审方降级处理。";
   return [
     "## 合理用药审方",
     `**审方服务状态**：${status}`,
@@ -1183,6 +1346,15 @@ export async function auditPrescriptionWithLingxi(
   medicationExtraction?: MedicationSemanticExtraction,
   absoluteDeadline = Date.now() + getRxAuditTimeoutMs(),
 ): Promise<RxAuditOutcome> {
+  const submissionIssue = rxAuditSubmissionIssue(state, candidateIndex);
+  if (submissionIssue) {
+    return {
+      ok: false,
+      source: "unavailable",
+      reason: submissionIssue,
+      itemCount: candidateFromState(state, candidateIndex)?.herbs.length ?? 0,
+    };
+  }
   const built = buildAuditData(state, candidateIndex, medicationExtraction);
   if (!built) return { ok: false, source: "unavailable", reason: "no_prescription_items", itemCount: 0 };
   const requestTimeoutMs = getRxAuditAttemptTimeoutMs();
@@ -1249,11 +1421,7 @@ export async function auditPrescriptionWithLingxi(
     try {
       res = await fetch(`${cfg.baseUrl}${AUDIT_PATH}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${cfg.token}`,
-          "X-Tenant-Id": cfg.tenantId,
-        },
+        headers: rxAuditHeaders(cfg),
         body,
         signal: controller.signal,
       });

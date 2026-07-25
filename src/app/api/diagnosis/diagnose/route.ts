@@ -3,8 +3,9 @@ import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTra
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
-import { buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { retrieveTcmFormulaIndicationCandidates } from "@/lib/tcm-formula-indications";
 
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
@@ -50,7 +51,20 @@ export async function POST(req: Request) {
       action: "complete_before_prescription",
       missingItems: ["本次当前活动性治疗目标"],
       redFlags: [],
-      reasons: [`独立语义预检一致判断当前记录仅含既往、已缓解或稳定背景（原文：“${encounterScope.quote}”）；不得据此推演当前剂量处方。`],
+      reasons: [`当前记录仅含既往、已缓解或稳定背景（原文：“${encounterScope.quote}”），未明确本次活动性诊疗目标，不据此推演当前剂量处方。`],
+    }));
+  }
+  if (gated.completeness.level !== "C" && gated.questionRounds < 1) {
+    return markdownNdjsonResponse(signedLimitedDiagnosis({
+      status: "needs_information",
+      allowDiagnosis: true,
+      allowDosePrescription: false,
+      action: "complete_before_prescription",
+      missingItems: gated.safetyGate?.missingItems || ["与当前主诉相关的现病史和四诊信息"],
+      missingItemCodes: gated.safetyGate?.missingItemCodes,
+      redFlags: [],
+      advisories: gated.safetyGate?.advisories,
+      reasons: ["当前尚未完成首轮重点追问；请优先补充能改变诊断、辨证或处置的关键信息。若患者确实无法补充，完成本轮追问后仍可基于现有信息进行有限推理。"],
     }));
   }
 
@@ -70,9 +84,9 @@ export async function POST(req: Request) {
     allowDiagnosis: false,
     allowDosePrescription: false,
     action: "complete_before_prescription" as const,
-    missingItems: ["模型辨证输出完整性"],
+    missingItems: ["本次辨病辨证结果完整性"],
     redFlags: [],
-    reasons: ["M03 辨证输出被截断、结构化结果未闭合或语义复核未通过，系统已转为签名有限结果。"],
+    reasons: ["本次辨病辨证结果未通过完整性与临床一致性复核，本轮不生成剂量级候选。"],
   };
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
@@ -82,6 +96,10 @@ export async function POST(req: Request) {
     // Structured retries and independent review are external model calls. Keep their grounding
     // context on the same deidentified DTO as the primary generation request.
     structuredClinicalContext: clinicalGroundingText(safeState),
+    structuredPatientAge: authoritativePatientAgeYears(gated),
+    structuredAllowedM03FormulaNames: retrieveTcmFormulaIndicationCandidates(safeState)
+      .filter((item) => item.prescriptionLockEligible)
+      .map((item) => item.name),
     // Evidence is isolated from the patient-fact grounding channel so literature text can never
     // satisfy a missing patient fact during contract validation.
     structuredReviewEvidenceContext: evidenceContext,

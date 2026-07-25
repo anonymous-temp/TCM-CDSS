@@ -33,9 +33,6 @@ const MODEL_API_PATHS = new Set([
   "/api/diagnosis/question/interpret",
   "/api/diagnosis/diagnose",
   "/api/diagnosis/prescribe",
-  "/api/diagnosis/assess",
-  "/api/diagnosis/red-flags",
-  "/api/diagnosis/post-prescription-risk",
 ]);
 
 type ApiAuthAttemptBucket = {

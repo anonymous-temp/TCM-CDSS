@@ -1,5 +1,6 @@
 // src/lib/diagnosis-types.ts
 import { z } from "zod";
+import { isSupportedIcd10PayerCode } from "./icd10-code";
 import { EVIDENCE_LEVELS, type EvidenceLevelValue } from "./cdss-vocab";
 import { withCanonicalClinicalTerminology } from "./clinical-terminology";
 import { resolveLineageCode } from "./tcm-lineages";
@@ -67,7 +68,18 @@ export interface SafetyGate {
   missingItems: string[];
   missingItemCodes?: SafetyMissingItemCode[];
   redFlags: string[];
+  redFlagFindings?: Array<{
+    ruleId: string;
+    severity: "emergency";
+    sourceQuote: string;
+    ruleExplanation: string;
+    message: string;
+  }>;
   advisories?: string[];
+  semanticTriage?: {
+    level: "emergency_review" | "priority_review";
+    findings: string[];
+  };
   reasons: string[];
 }
 
@@ -96,6 +108,13 @@ export type SafetyMissingItemCode =
   | "behavioral_crisis_screening"
   | "osa_screening"
   | "thyroid_screening";
+
+export type StructuredFollowupTimelineItem = {
+  time: string;
+  action: string;
+  indicators: string[];
+  triggers: string[];
+};
 
 export interface CaseState {
   id: string;
@@ -147,6 +166,7 @@ export interface CaseState {
   diagnosis?: string;
   prescription?: string;
   riskAssessment?: string;
+  followupTimeline?: StructuredFollowupTimelineItem[];
   // Display-only snapshot retained while a newer run is in progress or has failed. It must never
   // participate in model context, safety decisions, prescription audit, report export, or HIS write-back.
   previousResult?: {
@@ -201,12 +221,28 @@ export type ClinicalReviewAttestation = {
   reviewedPayloadHash?: string;
 };
 
+export type ControlledTerminologyMappingTrace = {
+  namespace: "tcm_syndrome" | "tcm_location" | "tcm_nature" | "tcm_treatment_principle" |
+    "tcm_formula" | "medicine_clinical_concept" | "icd10";
+  fieldPath: string;
+  originalText: string;
+  candidateId: string;
+  canonical: string;
+  resolvedBy: "deepseek_closed_set";
+  status: "suggested" | "clinician_confirmed";
+  confidence: number;
+  model: string;
+  consensus: true;
+  cache: "hit" | "miss";
+};
+
 export interface ClinicalReasoningResultV2 {
   schemaVersion: "tcm-cdss-reasoning-v2";
   stage: "diagnose" | "prescribe";
   contractSignatureVersion?: "tcm-cdss-m03-signature-v4" | "tcm-cdss-m04-signature-v1";
   contractSignature?: string;
   clinicalReview?: ClinicalReviewAttestation;
+  terminologyMappings?: ControlledTerminologyMappingTrace[];
   completeness?: Completeness;
   overview: {
     tcmDiseaseName?: string;
@@ -214,20 +250,40 @@ export interface ClinicalReasoningResultV2 {
     primarySyndromeResolution: ClinicalResolution;
     primarySyndromeBasis: string[];
     primarySyndromeResolutionReason?: string;
+    tcmDiagnosticRationale?: string;
+    tcmDifferentials?: Array<{
+      syndrome: string;
+      reason: string;
+      distinguishingPoints: string;
+      nextCheck: string | null;
+    }>;
     secondarySyndromes?: string[];
     overallPathogenesis: string;
     overallTherapy: string;
     recommendedFormulaDirection: string;
     recommendedFormulaNames?: string[];
     formulaSelectionMode?: "single" | "combined" | "alternatives" | "self_devised" | "none";
+    deferredFormulaSelection?: {
+      direction: string;
+      names: string[];
+      mode: "single" | "combined" | "alternatives";
+      reason: "semantic_mapping_pending_clinician_confirmation";
+    };
     evidence: EvidenceRef;
   };
   westernDiagnosis: {
     primary: {
       name: string;
+      coding?: {
+        system: "ICD-10";
+        code: string;
+        display: string;
+        source: string;
+      };
       status: "考虑" | "需排除" | "证据有限";
       confidence: "高" | "中" | "低";
       supportingFacts: string[];
+      clinicalRationale?: string;
       limitations: string[];
       suggestedChecks: string[];
       evidence: EvidenceRef;
@@ -235,6 +291,7 @@ export interface ClinicalReasoningResultV2 {
     differentials: Array<{
       name: string;
       reason: string;
+      distinguishingPoints?: string;
       nextCheck: string | null;
     }>;
   };
@@ -301,6 +358,43 @@ export interface ClinicalReasoningResultV2 {
         source: string;
         matchedIngredientCount: number;
         totalIngredientCount?: number;
+        minimumPreservedIngredientCount?: number;
+        matchedRequiredIngredientCount?: number;
+        requiredIngredientCount?: number;
+        verificationStatus?: "verified_individually";
+      }>;
+      discriminationPath?: Array<{
+        againstFormula: string;
+        question: string;
+        status: "confirmed" | "absent" | "unknown";
+        sourceRef: string;
+      }>;
+      classicEvidence?: Array<{
+        evidenceId: string;
+        citation: string;
+        anchorLevel: "tiaowen" | "chapter_paragraph" | "page_paragraph";
+        clauseNumber?: number;
+        excerpt: string;
+        tier: "canon" | "common" | "experience";
+      }>;
+      compositionLogic?: Array<{
+        formulaName: string;
+        summary: string;
+        tier: "common" | "experience";
+        sourceRefs: string[];
+      }>;
+      textualModifications?: Array<{
+        ruleId: string;
+        baseFormula: string;
+        matchedTriggers: string[];
+        resultingFormula?: string;
+        addHerbs: string[];
+        removeHerbs: string[];
+        sourceEvidenceId: string;
+        sourceCitation: string;
+        evidenceAnchorLevel: "tiaowen" | "chapter_paragraph" | "page_paragraph";
+        tier: "canon" | "common" | "experience";
+        requiresClinicianReview: true;
       }>;
       formulaSource: EvidenceRef;
       therapyMatch: string;
@@ -327,7 +421,8 @@ export interface ClinicalReasoningResultV2 {
         method: string;
         course: string;
         followUpNode: string;
-        dailyDoseCount?: number;
+        dosesPerDay: number;
+        administrationTimesPerDay: number;
         soakMinutes?: number;
         decoctionTimes?: number;
         firstDecoctionMinutes?: number;
@@ -342,6 +437,9 @@ export interface ClinicalReasoningResultV2 {
       type: "西药" | "中成药";
       name: string;
       specification: string | null;
+      evidenceId?: string;
+      evidenceFingerprint?: string;
+      recommendationMode?: "candidate_review" | "discussion_only";
       singleDose?: string;
       frequency?: string;
       route?: string;
@@ -353,8 +451,17 @@ export interface ClinicalReasoningResultV2 {
       relationship: string;
       riskNote: string;
     }> | null;
+    medicineCandidateStatus?: {
+      status: "available" | "no_evidence_match";
+      reason: string;
+    };
     modifications: Array<{
       trigger: string;
+      triggerSource?: {
+        kind: "primary_syndrome_basis" | "pathogenesis_patient_fact" | "western_supporting_fact";
+        sourceRef: string;
+        sourceQuote: string;
+      };
       targetPathogenesis: string;
       action: string;
       doseOrHandling: string | null;
@@ -362,6 +469,13 @@ export interface ClinicalReasoningResultV2 {
       riskNote: string;
       evidence: EvidenceRef;
     }>;
+    modificationReview?: {
+      submittedCount: number;
+      retainedCount: number;
+      droppedCount: number;
+      droppedReason: string | null;
+      droppedReasons: Array<{ code: string; count: number; message: string }>;
+    };
   };
   nonPharma: null | {
     diet: string;
@@ -376,12 +490,19 @@ export interface ClinicalReasoningResultV2 {
       recommendationMode: "clinician_assessment" | "referral_assessment" | "specialist_assessment_only";
       targetRef: string;
       targetPathogenesis: string;
-      assessmentPositioning: string;
+      assessmentPositioning?: string;
+      protocolStatus: "governed_patient_specific_plan" | "assessment_only_no_patient_specific_protocol";
+      protocolGap?: string;
+      treatmentContent: string;
+      suggestedSitesOrPoints: string[];
+      scheduleSuggestion: string;
+      techniqueBoundary: string;
+      protocolSource: string;
       operatorRequirement: string;
       requiredChecks: string[];
       containsMedication: boolean;
       requiresMedicationAudit: boolean;
-      executable: false;
+      executable: boolean;
       clinicianReviewRequired: true;
     }>;
     monitoring: Array<{ metric: string; timing: string; trigger: string }>;
@@ -515,10 +636,12 @@ const INSUFFICIENT_EVIDENCE_REF: EvidenceRef = {
 
 const DEFAULT_OVERVIEW: ClinicalReasoningResultV2["overview"] = {
   tcmDiseaseName: undefined,
-  primarySyndrome: "暂未形成稳定证候锚点",
+  primarySyndrome: "尚未形成稳定证型",
   primarySyndromeResolution: "unresolved",
   primarySyndromeBasis: [],
-  primarySyndromeResolutionReason: "当前资料不足以形成稳定证候结论",
+  primarySyndromeResolutionReason: "结构化结果中没有可供判断的证型名称与可回溯依据",
+  tcmDiagnosticRationale: "",
+  tcmDifferentials: [],
   secondarySyndromes: [],
   overallPathogenesis: "病机链尚未稳定，需结合补充问诊后复核",
   overallTherapy: "暂不锁定剂量级治法",
@@ -530,8 +653,8 @@ const DEFAULT_OVERVIEW: ClinicalReasoningResultV2["overview"] = {
 
 const DEFAULT_PATHOGENESIS: ClinicalReasoningResultV2["pathogenesis"] = {
   summary: "病机链尚未稳定，需补充关键四诊与安全边界后复核。",
-  locationDifferentiation: { items: [], details: [], resolution: "unresolved", resolutionReason: "当前资料不足以定位病位", evidence: INSUFFICIENT_EVIDENCE_REF },
-  natureDifferentiation: { items: [], rootDeficiency: [], branchExcess: [], basis: "", resolution: "unresolved", resolutionReason: "当前资料不足以归纳病性", evidence: INSUFFICIENT_EVIDENCE_REF },
+  locationDifferentiation: { items: [], details: [], resolution: "unresolved", resolutionReason: "结构化结果中没有病位分类及可回溯依据", evidence: INSUFFICIENT_EVIDENCE_REF },
+  natureDifferentiation: { items: [], rootDeficiency: [], branchExcess: [], basis: "", resolution: "unresolved", resolutionReason: "结构化结果中没有病性分类及可回溯依据", evidence: INSUFFICIENT_EVIDENCE_REF },
   symptomClusters: [],
   caseRelationship: undefined,
   chain: [],
@@ -550,6 +673,7 @@ const DEFAULT_WESTERN_DIAGNOSIS: ClinicalReasoningResultV2["westernDiagnosis"] =
     status: "证据有限",
     confidence: "低",
     supportingFacts: [],
+    clinicalRationale: "",
     limitations: ["当前模型结果未形成可用的西医诊断区块"],
     suggestedChecks: [],
     evidence: INSUFFICIENT_EVIDENCE_REF,
@@ -569,6 +693,27 @@ const ReasoningV2SchemaBase = z.object({
     source: z.enum(["preferred", "cross_model_fallback"]).optional().catch(undefined),
     reviewedPayloadHash: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional().catch(undefined),
   }).optional().catch(undefined),
+  terminologyMappings: z.array(z.object({
+    namespace: z.enum([
+      "tcm_syndrome",
+      "tcm_location",
+      "tcm_nature",
+      "tcm_treatment_principle",
+      "tcm_formula",
+      "medicine_clinical_concept",
+      "icd10",
+    ]),
+    fieldPath: z.string().min(1).max(200),
+    originalText: z.string().min(1).max(600),
+    candidateId: z.string().min(1).max(160),
+    canonical: z.string().min(1).max(600),
+    resolvedBy: z.literal("deepseek_closed_set"),
+    status: z.enum(["suggested", "clinician_confirmed"]),
+    confidence: z.number().min(0).max(1),
+    model: z.string().min(1).max(160),
+    consensus: z.literal(true),
+    cache: z.enum(["hit", "miss"]),
+  })).max(20).optional().catch([]),
   completeness: CompletenessSchema.optional(),
   overview: z.object({
     tcmDiseaseName: z.string().min(1).max(300).optional().catch(undefined),
@@ -576,20 +721,40 @@ const ReasoningV2SchemaBase = z.object({
     primarySyndromeResolution: z.enum(["resolved", "bounded", "unresolved"]).optional().catch(undefined),
     primarySyndromeBasis: z.array(z.string().min(1).max(600)).max(8).optional().catch([]),
     primarySyndromeResolutionReason: z.string().min(1).max(800).optional().catch(undefined),
+    tcmDiagnosticRationale: z.string().max(1600).optional().catch(""),
+    tcmDifferentials: z.array(z.object({
+      syndrome: z.string().min(1).max(300),
+      reason: z.string().min(2).max(1000),
+      distinguishingPoints: z.string().min(2).max(1000),
+      nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
+    })).max(6).optional().catch([]),
     secondarySyndromes: z.array(z.string().min(1).max(300)).max(6).optional().catch([]),
     overallPathogenesis: z.string().max(2000),
     overallTherapy: z.string().max(1200),
     recommendedFormulaDirection: z.string().max(1200),
     recommendedFormulaNames: z.array(z.string().max(300)).max(4).optional().catch([]),
     formulaSelectionMode: z.enum(["single", "combined", "alternatives", "self_devised", "none"]).optional().catch("none"),
+    deferredFormulaSelection: z.object({
+      direction: z.string().min(1).max(1200),
+      names: z.array(z.string().min(1).max(300)).min(1).max(4),
+      mode: z.enum(["single", "combined", "alternatives"]),
+      reason: z.literal("semantic_mapping_pending_clinician_confirmation"),
+    }).optional().catch(undefined),
     evidence: EvidenceRefSchema,
   }).catch(DEFAULT_OVERVIEW),
   westernDiagnosis: z.object({
     primary: z.object({
       name: z.string().min(2).max(600).catch(DEFAULT_WESTERN_DIAGNOSIS.primary.name),
+      coding: z.object({
+        system: z.literal("ICD-10"),
+        code: z.string().refine(isSupportedIcd10PayerCode, "invalid governed ICD-10 payer code"),
+        display: z.string().min(2).max(600),
+        source: z.string().min(2).max(300),
+      }).optional().catch(undefined),
       status: z.preprocess(normalizeWesternDiagnosisStatus, z.enum(["考虑", "需排除", "证据有限"])),
       confidence: z.preprocess(normalizeClinicalConfidence, z.enum(["高", "中", "低"])),
       supportingFacts: z.array(z.string().min(1).max(600)).max(12).catch([]),
+      clinicalRationale: z.string().max(1600).optional().catch(""),
       limitations: z.array(z.string().max(600)).max(12).catch([]),
       suggestedChecks: z.array(z.string().max(600)).max(12).catch([]),
       evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
@@ -597,6 +762,7 @@ const ReasoningV2SchemaBase = z.object({
     differentials: z.array(z.object({
       name: z.string().max(600),
       reason: z.string().max(1000),
+      distinguishingPoints: z.string().max(1000).optional().catch(""),
       nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
     })).max(8).catch([]),
   }).catch(DEFAULT_WESTERN_DIAGNOSIS),
@@ -652,7 +818,7 @@ const ReasoningV2SchemaBase = z.object({
     subTherapies: z.array(z.object({
       therapy: z.string().max(600),
       targetPathogenesis: z.string().max(600),
-      priority: z.enum(["主要", "次要"]).catch("次要"),
+      priority: z.enum(["主要", "次要"]),
       evidence: EvidenceRefSchema,
     })).max(12).default([]),
   }).catch(DEFAULT_THERAPY),
@@ -670,7 +836,44 @@ const ReasoningV2SchemaBase = z.object({
         source: z.string().max(800).catch(""),
         matchedIngredientCount: z.number().int().min(0).max(100).catch(0),
         totalIngredientCount: z.number().int().min(1).max(100).optional(),
+        minimumPreservedIngredientCount: z.number().int().min(1).max(100).optional(),
+        matchedRequiredIngredientCount: z.number().int().min(0).max(100).optional(),
+        requiredIngredientCount: z.number().int().min(0).max(100).optional(),
+        verificationStatus: z.literal("verified_individually").optional(),
       })).max(4).optional(),
+      discriminationPath: z.array(z.object({
+        againstFormula: z.string().min(1).max(300),
+        question: z.string().min(1).max(800),
+        status: z.enum(["confirmed", "absent", "unknown"]),
+        sourceRef: z.string().min(1).max(500),
+      })).max(6).optional().catch([]),
+      classicEvidence: z.array(z.object({
+        evidenceId: z.string().min(1).max(100),
+        citation: z.string().min(1).max(300),
+        anchorLevel: z.enum(["tiaowen", "chapter_paragraph", "page_paragraph"]),
+        clauseNumber: z.number().int().min(1).max(500).optional(),
+        excerpt: z.string().min(1).max(600),
+        tier: z.enum(["canon", "common", "experience"]),
+      })).max(6).optional().catch([]),
+      compositionLogic: z.array(z.object({
+        formulaName: z.string().min(1).max(300),
+        summary: z.string().min(1).max(1200),
+        tier: z.enum(["common", "experience"]),
+        sourceRefs: z.array(z.string().min(1).max(500)).min(1).max(6),
+      })).max(4).optional().catch([]),
+      textualModifications: z.array(z.object({
+        ruleId: z.string().min(1).max(100),
+        baseFormula: z.string().min(1).max(300),
+        matchedTriggers: z.array(z.string().min(1).max(100)).min(1).max(8),
+        resultingFormula: z.string().min(1).max(300).optional(),
+        addHerbs: z.array(z.string().min(1).max(120)).max(8),
+        removeHerbs: z.array(z.string().min(1).max(120)).max(8),
+        sourceEvidenceId: z.string().min(1).max(100),
+        sourceCitation: z.string().min(1).max(300),
+        evidenceAnchorLevel: z.enum(["tiaowen", "chapter_paragraph", "page_paragraph"]),
+        tier: z.enum(["canon", "common", "experience"]),
+        requiresClinicianReview: z.literal(true),
+      })).max(6).optional().catch([]),
       formulaSource: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
       therapyMatch: z.string().max(1200).catch(""),
       applicable: z.string().max(1200).catch(""),
@@ -699,7 +902,8 @@ const ReasoningV2SchemaBase = z.object({
         method: z.string().max(1000),
         course: z.string().max(1000),
         followUpNode: z.string().max(1000),
-        dailyDoseCount: z.number().int().min(1).max(3).optional(),
+        dosesPerDay: z.number().int().min(1).max(3),
+        administrationTimesPerDay: z.number().int().min(1).max(6),
         soakMinutes: z.number().int().min(0).max(120).optional(),
         decoctionTimes: z.number().int().min(1).max(4).optional(),
         firstDecoctionMinutes: z.number().int().min(1).max(180).optional(),
@@ -714,6 +918,9 @@ const ReasoningV2SchemaBase = z.object({
       type: z.enum(["西药", "中成药"]),
       name: z.string().max(300),
       specification: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable()),
+      evidenceId: z.string().max(80).optional(),
+      evidenceFingerprint: z.string().max(100).optional(),
+      recommendationMode: z.enum(["candidate_review", "discussion_only"]).optional(),
       singleDose: z.string().max(300).optional(),
       frequency: z.string().max(300).optional(),
       route: z.string().max(300).optional(),
@@ -725,8 +932,17 @@ const ReasoningV2SchemaBase = z.object({
       relationship: z.string().max(800),
       riskNote: z.string().max(1000),
     })).max(8).nullable().catch(null),
+    medicineCandidateStatus: z.object({
+      status: z.enum(["available", "no_evidence_match"]),
+      reason: z.string().max(500),
+    }).optional(),
     modifications: z.array(z.object({
       trigger: z.string().max(800),
+      triggerSource: z.object({
+        kind: z.enum(["primary_syndrome_basis", "pathogenesis_patient_fact", "western_supporting_fact"]),
+        sourceRef: z.string().min(1).max(120),
+        sourceQuote: z.string().min(1).max(600),
+      }).optional(),
       targetPathogenesis: z.string().max(600).nullable().transform((value) => value ?? ""),
       action: z.string().max(600),
       doseOrHandling: z.string().max(300).nullable(),
@@ -734,6 +950,17 @@ const ReasoningV2SchemaBase = z.object({
       riskNote: z.string().max(1200).nullable().transform((value) => value ?? ""),
       evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
     })).max(30).default([]),
+    modificationReview: z.object({
+      submittedCount: z.number().int().min(0).max(30),
+      retainedCount: z.number().int().min(0).max(30),
+      droppedCount: z.number().int().min(0).max(30),
+      droppedReason: z.string().max(1200).nullable(),
+      droppedReasons: z.array(z.object({
+        code: z.string().min(1).max(80),
+        count: z.number().int().min(1).max(30),
+        message: z.string().min(1).max(300),
+      })).max(12),
+    }).optional(),
   }).nullable(),
   nonPharma: z.object({
     diet: z.string().max(1600),
@@ -748,12 +975,19 @@ const ReasoningV2SchemaBase = z.object({
       recommendationMode: z.enum(["clinician_assessment", "referral_assessment", "specialist_assessment_only"]),
       targetRef: z.string().regex(/^P\d{1,2}$/),
       targetPathogenesis: z.string().min(1).max(600),
-      assessmentPositioning: z.string().min(1).max(800),
+      assessmentPositioning: z.string().min(1).max(800).optional(),
+      protocolStatus: z.enum(["governed_patient_specific_plan", "assessment_only_no_patient_specific_protocol"]),
+      protocolGap: z.string().min(1).max(800).optional(),
+      treatmentContent: z.string().min(1).max(1200),
+      suggestedSitesOrPoints: z.array(z.string().min(1).max(200)).max(12),
+      scheduleSuggestion: z.string().max(600),
+      techniqueBoundary: z.string().min(1).max(1000),
+      protocolSource: z.string().min(1).max(1000),
       operatorRequirement: z.string().min(1).max(600),
       requiredChecks: z.array(z.string().min(1).max(600)).min(1).max(8),
       containsMedication: z.boolean().catch(false),
       requiresMedicationAudit: z.boolean().catch(false),
-      executable: z.literal(false),
+      executable: z.boolean(),
       clinicianReviewRequired: z.literal(true),
     })).max(3).default([]),
     monitoring: z.array(z.object({
@@ -937,7 +1171,18 @@ const SafetyGateInputSchema = z.object({
     "conception_unknown", "behavioral_crisis_screening", "osa_screening", "thyroid_screening",
   ])).default([]),
   redFlags: z.array(z.string()).default([]),
+  redFlagFindings: z.array(z.object({
+    ruleId: z.string().min(1).max(100),
+    severity: z.literal("emergency"),
+    sourceQuote: z.string().min(1).max(500),
+    ruleExplanation: z.string().min(1).max(500),
+    message: z.string().min(1).max(1000),
+  })).max(20).default([]),
   advisories: z.array(z.string()).default([]),
+  semanticTriage: z.object({
+    level: z.enum(["emergency_review", "priority_review"]),
+    findings: z.array(z.string()).min(1).max(20),
+  }).optional(),
   reasons: z.array(z.string()).default([]),
 }).partial().catch({});
 
@@ -970,6 +1215,7 @@ const CaseStateInputSchema = z.object({
   diagnosis: z.unknown().optional(),
   prescription: z.unknown().optional(),
   riskAssessment: z.unknown().optional(),
+  followupTimeline: z.unknown().optional(),
   previousResult: z.unknown().optional(),
   auditAdvisory: z.unknown().optional(),
   reasoningDiagnose: z.unknown().optional(),
@@ -1018,6 +1264,30 @@ function normalizePreviousResult(value: unknown): CaseState["previousResult"] {
   const capturedAt = stringValue(raw.capturedAt, 80);
   if ((!diagnosis && !prescription && !riskAssessment) || !capturedAt) return undefined;
   return { diagnosis, prescription, riskAssessment, capturedAt };
+}
+
+export function normalizeStructuredFollowupTimeline(value: unknown): StructuredFollowupTimelineItem[] {
+  if (!Array.isArray(value)) return [];
+  const items = value.flatMap((entry) => {
+    const raw = recordValue(entry);
+    const time = stringValue(raw.time, 120);
+    const action = stringValue(raw.action, 400);
+    const indicators = Array.isArray(raw.indicators)
+      ? raw.indicators.flatMap((item) => stringValue(item, 400) || []).slice(0, 8)
+      : [];
+    const triggers = Array.isArray(raw.triggers)
+      ? raw.triggers.flatMap((item) => stringValue(item, 600) || []).slice(0, 8)
+      : [];
+    return time && action && (indicators.length > 0 || triggers.length > 0)
+      ? [{ time, action, indicators, triggers }]
+      : [];
+  }).slice(0, 8);
+  return items;
+}
+
+function normalizeFollowupTimeline(value: unknown): StructuredFollowupTimelineItem[] | undefined {
+  const items = normalizeStructuredFollowupTimeline(value);
+  return items.length > 0 ? items : undefined;
 }
 
 export function createInitialCaseState(opts?: { maxQuestionRounds?: number }): CaseState {
@@ -1110,7 +1380,9 @@ function normalizeSafetyGate(value: unknown): SafetyGate | undefined {
     missingItems: gate.missingItems || [],
     missingItemCodes: gate.missingItemCodes || [],
     redFlags: gate.redFlags || [],
+    redFlagFindings: gate.redFlagFindings || [],
     advisories: gate.advisories || [],
+    semanticTriage: gate.semanticTriage,
     reasons: gate.reasons || [],
   };
 }
@@ -1178,7 +1450,9 @@ export function normalizeReasoningV2(value: unknown): ClinicalReasoningResultV2 
       primarySyndromeResolution: syndromeResolution,
       primarySyndromeBasis: syndromeBasis,
       primarySyndromeResolutionReason: normalized.overview.primarySyndromeResolutionReason
-        || (syndromeResolution === "resolved" ? undefined : "基于当前有限资料形成工作判断，需结合后续四诊复核"),
+        || (syndromeResolution === "resolved"
+          ? undefined
+          : `证型“${normalized.overview.primarySyndrome || "未定"}”只有${syndromeBasis.length}条结构化可回溯依据`),
     },
     pathogenesis: {
       ...normalized.pathogenesis,
@@ -1186,13 +1460,21 @@ export function normalizeReasoningV2(value: unknown): ClinicalReasoningResultV2 
         ...location,
         resolution: locationResolution,
         resolutionReason: location.resolutionReason
-          || (locationResolution === "resolved" ? undefined : locationResolution === "bounded" ? "病位为有限资料下的工作归纳" : "当前资料不足以定位病位"),
+          || (locationResolution === "resolved"
+            ? undefined
+            : locationResolution === "bounded"
+              ? `病位“${location.items.join("、")}”只有${location.details?.length || 0}条结构化可回溯依据`
+              : "结构化结果中没有病位分类及可回溯依据"),
       },
       natureDifferentiation: {
         ...nature,
         resolution: natureResolution,
         resolutionReason: nature.resolutionReason
-          || (natureResolution === "resolved" ? undefined : natureResolution === "bounded" ? "病性为有限资料下的工作归纳" : "当前资料不足以归纳病性"),
+          || (natureResolution === "resolved"
+            ? undefined
+            : natureResolution === "bounded"
+              ? `病性“${[...nature.items, ...(nature.rootDeficiency || []), ...(nature.branchExcess || [])].join("、")}”缺少结构化可回溯依据`
+              : "结构化结果中没有病性分类及可回溯依据"),
       },
     },
     therapy: {
@@ -1369,6 +1651,7 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
     diagnosis: stringValue(input.diagnosis, MAX_MODEL_OUTPUT_CHARS),
     prescription: stringValue(input.prescription, MAX_MODEL_OUTPUT_CHARS),
     riskAssessment: stringValue(input.riskAssessment, MAX_MODEL_OUTPUT_CHARS),
+    followupTimeline: normalizeFollowupTimeline(input.followupTimeline),
     previousResult: normalizePreviousResult(input.previousResult),
     auditAdvisory: normalizeAuditAdvisory(input.auditAdvisory),
     reasoningDiagnose: normalizedReasoningDiagnose,

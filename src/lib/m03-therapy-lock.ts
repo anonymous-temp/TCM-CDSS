@@ -53,10 +53,13 @@ export function getM03TherapyLock(priorReasoning: unknown): TherapyLock {
   const overallMethod = actionableTherapyText(therapy?.overallMethod);
   const overallPrinciple = actionableTherapyText(therapy?.overallPrinciple);
   const candidateMatch = overallMethod || [...new Set(nodeMethods)].join("；") || overallPrinciple;
-  const validationContext = [...new Set([
+  const concreteValidationContext = [...new Set([
     overallMethod,
-    overallPrinciple,
     ...nodeMethods,
   ].filter(Boolean))].join("；");
+  // A broad treatment principle (for example 扶正祛邪 or 因人制宜) cannot prove that an emperor
+  // herb covers the concrete M03 treatment direction. Use it only for legacy/limited records that
+  // truly lack both an overall method and node-level therapy directions.
+  const validationContext = concreteValidationContext || overallPrinciple;
   return { candidateMatch, validationContext };
 }

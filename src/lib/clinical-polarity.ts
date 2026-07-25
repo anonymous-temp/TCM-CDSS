@@ -2,6 +2,11 @@ export type ClinicalClausePolarity = "affirmed" | "negative" | "uncertain";
 export type ClinicalEventTemporalScope = "current" | "historical" | "historical_resolved";
 
 const NEGATIVE_PREFIX = /^(?:(?:患者|病人|本人|既往|目前|当前|现阶段|本次|既往史|过敏史|用药史)\s*[：:]?\s*)?(?:否认|不是(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|并非(?!很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|不曾|没有|并无|未见|未发现|未提示|未诊断|未患|未(?:服用|使用|口服|应用)|暂(?:不|未)(?:服用|使用|口服|应用|吃)|没(?:有)?(?:服用|使用|吃)|从未|无(?!菌性|痛性|症状性|创性|脉性|意识性)|暂无(?:明确)?|已排除|已除外)/;
+// Colloquial history commonly uses the aspect marker “过” instead of a formal “否认/未见”,
+// for example “没吐过血” or “没有晕厥过”. Requiring the aspect marker keeps this boundary
+// narrow enough that affirmative negative-form symptoms such as “没精神/没力气/没胃口” remain
+// symptoms rather than being silently discarded as denials.
+const COLLOQUIAL_PAST_EVENT_NEGATION = /^(?:(?:患者|病人|本人|既往|目前|当前|现阶段|本次)\s*[：:]?\s*)?(?:没|没有)[^，,。；;\n]{1,32}过[^，,。；;\n]{0,16}$/;
 const BARE_NO_HISTORY = /^无(?!菌性|痛性|症状性|创性|脉性|意识性)[^。；;\n]{0,48}(?:病史|过敏史|用药史|功能不全|功能异常|异常|过敏|用药|服药)$/;
 const NEGATIVE_SUFFIX = /(?:已排除|已除外|检查阴性|未见(?:明显)?异常|未发现(?:明显)?异常|不支持|不考虑)$/;
 const POSTFIX_NEGATIVE = /(?:病史|过敏史|用药史|功能不全|功能异常|过敏|用药|服药)\s*[：:]?\s*(?:无|否认|没有|并无|未见|未发现|未患)$/;
@@ -78,20 +83,22 @@ export function clinicalClausePolarity(value: string): ClinicalClausePolarity {
     .replace(DISCOURSE_PREFIX, "")
     .trim();
   if (!clause) return "uncertain";
-  if (NEGATIVE_PREFIX.test(clause) || BARE_NO_HISTORY.test(clause) || NEGATIVE_SUFFIX.test(clause) || POSTFIX_NEGATIVE.test(clause)) return "negative";
+  if (NEGATIVE_PREFIX.test(clause) || COLLOQUIAL_PAST_EVENT_NEGATION.test(clause) || BARE_NO_HISTORY.test(clause) || NEGATIVE_SUFFIX.test(clause) || POSTFIX_NEGATIVE.test(clause)) return "negative";
   if (UNCERTAIN_CUE.test(clause)) return "uncertain";
   return "affirmed";
 }
 
-function hasIndependentAffirmedAssertion(clause: string, hasDiscourseBoundary: boolean): boolean {
-  return hasDiscourseBoundary || AFFIRMED_ASSERTION_PREFIX.test(clause) || AFFIRMED_PREDICATE.test(clause);
-}
+/**
+ * Returns affirmed text as exact substrings of the supplied clinical source. This companion to
+ * `affirmedClinicalText` deliberately preserves the caller's punctuation and wording, so patient
+ * evidence can be projected into signed/visible contracts without presenting a normalized or
+ * provider-joined reconstruction as a verbatim chart quote.
+ */
+export function affirmedClinicalSourceClauses(value: string | null | undefined): string[] {
+  const source = value?.replace(/\r\n?/g, "\n").trim() || "";
+  if (!source) return [];
 
-export function affirmedClinicalText(value: string | null | undefined): string | undefined {
-  const normalized = value ? normalizedClinicalText(value) : "";
-  if (!normalized) return undefined;
-
-  const parts = normalized.split(/([，,、。；;\n]+)/);
+  const parts = source.split(/([，,、。；;\n]+)/);
   const clauses: string[] = [];
   let inheritedPolarity: ClinicalClausePolarity | undefined;
   let previousWasAffirmed = false;
@@ -126,6 +133,75 @@ export function affirmedClinicalText(value: string | null | undefined): string |
     }
     inheritedPolarity = polarity;
     previousWasAffirmed = polarity === "affirmed";
+  }
+
+  return [...new Set(clauses)];
+}
+
+function hasIndependentAffirmedAssertion(clause: string, hasDiscourseBoundary: boolean): boolean {
+  return hasDiscourseBoundary || AFFIRMED_ASSERTION_PREFIX.test(clause) || AFFIRMED_PREDICATE.test(clause);
+}
+
+/**
+ * Which clause polarities a caller wants back.
+ *
+ * `affirmed` (the default) suits recall-style callers: retrieving a formula from a hedged "可能有
+ * 心衰" would be over-reach. It is the WRONG default for contraindication and audit callers, where
+ * dropping an uncertain comorbidity silently removes the very fact that would have raised a
+ * warning. Those callers must opt into `affirmed_or_uncertain` so an unresolved finding fails
+ * safe (included) instead of failing silent (dropped alongside explicit negatives).
+ *
+ * `negative` is never returned by either policy — an explicit denial must not become a positive
+ * fact anywhere.
+ */
+export type ClinicalPolarityScope = "affirmed" | "affirmed_or_uncertain";
+
+function polarityInScope(polarity: ClinicalClausePolarity, scope: ClinicalPolarityScope): boolean {
+  return polarity === "affirmed" || (scope === "affirmed_or_uncertain" && polarity === "uncertain");
+}
+
+export function affirmedClinicalText(
+  value: string | null | undefined,
+  scope: ClinicalPolarityScope = "affirmed",
+): string | undefined {
+  const normalized = value ? normalizedClinicalText(value) : "";
+  if (!normalized) return undefined;
+
+  const parts = normalized.split(/([，,、。；;\n]+)/);
+  const clauses: string[] = [];
+  let inheritedPolarity: ClinicalClausePolarity | undefined;
+  let previousWasAffirmed = false;
+
+  for (let index = 0; index < parts.length; index += 2) {
+    const separator = index === 0 ? "" : parts[index - 1];
+    const hardBoundary = index === 0 || /[。；;\n]/.test(separator);
+    if (hardBoundary) inheritedPolarity = undefined;
+
+    const rawClause = parts[index].trim();
+    if (!rawClause) {
+      previousWasAffirmed = false;
+      continue;
+    }
+    const discourseMatch = rawClause.match(DISCOURSE_PREFIX);
+    const clause = rawClause.replace(DISCOURSE_PREFIX, "").trim();
+    if (!clause) continue;
+
+    const explicitPolarity = clinicalClausePolarity(clause);
+    let polarity = explicitPolarity;
+    if (!hardBoundary && explicitPolarity === "affirmed" && inheritedPolarity &&
+        !hasIndependentAffirmedAssertion(clause, Boolean(discourseMatch))) {
+      polarity = inheritedPolarity;
+    }
+
+    if (polarityInScope(polarity, scope)) {
+      if (!hardBoundary && previousWasAffirmed && clauses.length > 0) {
+        clauses[clauses.length - 1] += `${separator}${clause}`;
+      } else {
+        clauses.push(clause);
+      }
+    }
+    inheritedPolarity = polarity;
+    previousWasAffirmed = polarityInScope(polarity, scope);
   }
 
   const uniqueClauses = [...new Set(clauses)];

@@ -39,7 +39,7 @@ export const LINEAGE_GROUP_DEFINITIONS: Readonly<Record<LineageGroup, LineageGro
 };
 
 export const LINEAGE_SAFETY_OBEDIENCE =
-  "流派偏好仅用于组织问诊与辨治思路，必须服从患者证据、红旗门控、特殊人群禁忌、药事审方和执业医师复核。";
+  "流派偏好仅用于组织问诊与辨治思路；急危重风险处置、特殊人群禁忌、药事审方和执业医师复核始终优先。";
 
 const ACTIVE_GOVERNANCE = (cardVersion: string): LineageGovernance => ({
   schemaVersion: "1.0.0",
@@ -119,13 +119,13 @@ export const LINEAGE_CARDS: readonly LineageCard[] = [
     provenance: {
       representativePhysicians: [],
       representativeWorks: ["《中华人民共和国药典》", "国家及本机构现行诊疗、药事与审方规则"],
-      lineageSummary: "不主张特定医家传承，以可核查证据和临床安全门控作为默认工作路径。",
+      lineageSummary: "不主张特定医家传承，以患者事实、可核查依据和药事安全要求作为默认工作路径。",
     },
     governance: ACTIVE_GOVERNANCE("1.0.0"),
     safetyObedience: LINEAGE_SAFETY_OBEDIENCE,
     aliases: ["", "不限定", "循证安全优先"],
-    coreTheory: "不预设流派，以患者证据、红旗门控、指南/药典/院内规则和审方结果优先。",
-    dxEmphasis: ["病证证据匹配", "安全门控", "证据可核查"],
+    coreTheory: "不预设流派，以患者事实、急危重风险处置、指南/药典/院内规则和审方结果优先。",
+    dxEmphasis: ["病证依据匹配", "急危重风险处置", "依据可核查"],
     formulaStyle: "根据证候、病机和安全边界选择方药，不为贴合流派强行联想代表方。",
     representativeFormulas: [],
     herbTendency: "随证取舍，避免倾向性过强。",
@@ -474,7 +474,7 @@ export const LINEAGE_QUESTION_STRATEGIES: Record<string, LineageQuestionStrategy
     "时方/验方思路",
     ["主症分层", "兼症加减", "门诊可操作性"],
     ["主病主证明确", "兼症与加减动作一一对应", "安全复核可执行"],
-    ["经验方不得覆盖安全门控", "无证候锚点不得凭经验出方", "药味过多需说明取舍"],
+    ["经验方不得绕过风险处置和药事审查", "缺少本例证候依据时不得凭经验出方", "药味过多需说明取舍"],
     [
       {
         id: "empirical-main-symptom",

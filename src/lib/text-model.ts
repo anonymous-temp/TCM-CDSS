@@ -72,7 +72,7 @@ function getOpenAICompatibleConfig(): TextModelConfig {
 
   const resolvedBaseUrl = cleanBaseUrl(baseUrl.value || "https://api.deepseek.com");
   const transportAllowed = endpointTransportAllowed(resolvedBaseUrl);
-  const resolvedModel = model.value || "deepseek-v4-flash";
+  const resolvedModel = model.value || "deepseek-v4-pro";
   const allowedHosts = new Set([
     "api.deepseek.com",
     ...(process.env.CDSS_DEEPSEEK_ALLOWED_HOSTS || "")
@@ -111,6 +111,22 @@ export function getPrimaryTextModelConfig(): TextModelConfig {
   const provider = (process.env.AI_TEXT_PROVIDER || process.env.AI_PROVIDER || "openai-compatible").toLowerCase();
   if (provider === "openai-compatible" || provider === "deepseek") return config;
   return { ...config, configured: false, disabledReason: "vendor_policy" };
+}
+
+/**
+ * Explicit GOV-08 exception: this is an independent closed-set terminology classifier, not a
+ * fallback for M01-M04 clinical generation. Its model identity is separately visible in health.
+ */
+export function getControlledTerminologyModelConfig(): TextModelConfig {
+  const primary = getOpenAICompatibleConfig();
+  const model = process.env.CONTROLLED_TERMINOLOGY_MODEL?.trim() || "deepseek-v4-flash";
+  const modelAllowed = isDeepseekModel(model);
+  return {
+    ...primary,
+    model,
+    configured: primary.configured && modelAllowed,
+    disabledReason: !modelAllowed ? "vendor_policy" : primary.disabledReason,
+  };
 }
 
 export function createTextModelClient(config = getPrimaryTextModelConfig()): OpenAI {

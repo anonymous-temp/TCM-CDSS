@@ -95,7 +95,14 @@ export type HisAiSchemePayload = {
       projectName: string;
       availability: "clinic_available" | "referral_only";
       targetPathogenesis: string;
-      assessmentPositioning: string;
+      assessmentPositioning?: string;
+      protocolStatus: "governed_patient_specific_plan" | "assessment_only_no_patient_specific_protocol";
+      protocolGap?: string;
+      treatmentContent: string;
+      suggestedSitesOrPoints: string[];
+      scheduleSuggestion: string;
+      techniqueBoundary: string;
+      protocolSource: string;
       operatorRequirement: string;
       requiredChecks: string[];
       riskLevel: "low" | "moderate" | "specialist";
@@ -205,7 +212,7 @@ function redFlagStatus(caseState: CaseState, gate: SafetyGate): {
 } {
   const redFlags = gate.redFlags.length > 0 ? gate.redFlags : detectProgrammaticRedFlags(caseState);
   if (redFlags.length > 0) {
-    return { label: "高风险", description: redFlags[0] || gate.reasons[0] || "命中程序化红旗指征" };
+    return { label: "高风险", description: redFlags[0] || gate.reasons[0] || "当前资料提示需优先处理的急危重症风险" };
   }
   if ((gate.advisories || []).length > 0) {
     return { label: "需关注", description: gate.advisories?.[0] || "当前信息提示需优先复核的临床线索" };
@@ -213,7 +220,7 @@ function redFlagStatus(caseState: CaseState, gate: SafetyGate): {
   if (gate.status === "needs_information") {
     return { label: "需关注", description: gate.reasons[0] || `需补充：${gate.missingItems.join("、")}` };
   }
-  return { label: "低风险", description: "确定性红旗门控未命中；需由医生结合现场情况复核" };
+  return { label: "低风险", description: "当前资料未识别明确急危重症风险；仍需由医生结合现场情况复核" };
 }
 
 type StructuredEvidence = { evidenceLevel?: string; source?: string; confidence?: string };
@@ -342,9 +349,13 @@ function structuredHerbalSection(caseState: CaseState): string {
     formulaEvidenceStatus === "traceable"
       ? `**${candidate.formulaSource.evidenceLevel === "kb_entry" ? "方剂资料收载来源" : candidate.constructionType === "self_devised" || candidate.constructionType === "single_herb" ? "组方依据" : "经典方出处"}**：${clean(candidate.formulaSource.source)}`
       : "",
+    (candidate.constructionType === "self_devised" || candidate.constructionType === "single_herb") && candidate.applicable
+      ? `**未采用经典方说明**：${clean(candidate.applicable)}`
+      : "",
     ...(candidate.baseFormulas?.length ? [
       "**原方案基础方与出处**：",
-      ...candidate.baseFormulas.map((base) => `- ${clean(base.name)}：${clean(base.source)}；当前保留匹配药味 ${base.matchedIngredientCount} 味`),
+      ...candidate.baseFormulas.map((base) =>
+        `- ${clean(base.name)}：${clean(base.source)}；${base.verificationStatus === "verified_individually" ? "逐方已核验" : "原方案来源参考"}；组成匹配 ${base.matchedIngredientCount}/${base.totalIngredientCount || "?"} 味${base.requiredIngredientCount != null ? `；核心药味 ${base.matchedRequiredIngredientCount || 0}/${base.requiredIngredientCount} 味` : ""}${base.minimumPreservedIngredientCount != null ? `；组成下限 ${base.minimumPreservedIngredientCount} 味` : ""}`),
     ] : []),
     candidate.formulaAnalysis ? `**组方解析**：${clean(candidate.formulaAnalysis)}` : "",
     "| 序号 | 药名 | 剂量 | 角色 | 煎服要求 |",
@@ -617,6 +628,13 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         availability: project.availability,
         targetPathogenesis: project.targetPathogenesis,
         assessmentPositioning: project.assessmentPositioning,
+        protocolStatus: project.protocolStatus,
+        protocolGap: project.protocolGap,
+        treatmentContent: project.treatmentContent,
+        suggestedSitesOrPoints: project.suggestedSitesOrPoints,
+        scheduleSuggestion: project.scheduleSuggestion,
+        techniqueBoundary: project.techniqueBoundary,
+        protocolSource: project.protocolSource,
         operatorRequirement: project.operatorRequirement,
         requiredChecks: project.requiredChecks,
         riskLevel: project.riskLevel,

@@ -1,4 +1,5 @@
 const CUSTOMER_DISPLAY_PLACEHOLDER = /(?:证据不足|待检索|待核验|检索失败|未配置|内部证据缺口|EVIDENCE_GAP)|^(?:暂未|尚未|仍未|未)(?:生成|形成|明确|获得|提供|记录|提及|完成)|^(?:待|需|需要)(?:生成|确认|补充|核实|核验|复核|完善|询问|评估)(?:相关|具体|本项|信息|资料|内容)?[。.]?$/;
+const NON_ACTIONABLE_CLINICAL_BOILERPLATE = /(?:判断把握度(?:较)?低|当前为?(?:当前为)?有限资料下的工作判断|基于当前有限资料形成工作判断|接诊时核实相关症状是否存在|本次主诉及伴随症状变化)/;
 const M03_SIGNATURE = /^hmac-sha256:[a-f0-9]{64}$/;
 
 type SignedM03Like = {
@@ -11,7 +12,9 @@ type SignedM03Like = {
 
 /** UI-only placeholder filter. Server-side diagnosis contracts remain authoritative. */
 export function isDisplayableClinicalText(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0 && !CUSTOMER_DISPLAY_PLACEHOLDER.test(value.trim());
+  return typeof value === "string" && value.trim().length > 0 &&
+    !CUSTOMER_DISPLAY_PLACEHOLDER.test(value.trim()) &&
+    !NON_ACTIONABLE_CLINICAL_BOILERPLATE.test(value.trim());
 }
 
 /**

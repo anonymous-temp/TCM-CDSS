@@ -1,12 +1,13 @@
 import type { ClinicalStateStatus } from "./clinical-state";
 import { clinicalClausePolarity, clinicalEventTemporalScopeAt } from "./clinical-polarity";
+import redFlagTriageJson from "../data/redflag-triage-lexicon.json" with { type: "json" };
 
 /**
  * 结构化临床语义分诊层。
  *
- * 目标:确定性红旗层用正则解析自然语言,存在召回缺口(如非常规书写"黑便3天，无腹痛")。本模块用 LLM 作
- * **受约束语义判断器**,同时判断事实极性和处置紧急度。自然语言的红旗判断以该语义层为主；
- * 确定性代码只保留危急生命体征，并在语义层不可用时提供降级兜底。
+ * 目标:本模块用 LLM 作**受约束的追加语义发现器**,同时判断事实极性和处置紧急度。
+ * 它可以发现口语化风险并提出优先复核/澄清，但不能单独拥有硬红旗门权；硬门只由确定性规则或
+ * 已校验生命体征触发。语义层不可用时，确定性层仍独立工作。
  *
  * 四护栏:
  *  1. schema reject —— 严格校验结构/枚举,任一非法条目使整份结果失效并进入受限修复。
@@ -138,10 +139,13 @@ export type RedFlagFinding = {
   urgency: "emergency" | "urgent" | "clarify" | "routine";
   triageBasis: TriageBasis;
   quote: string;
+  /** Model-synthesized, additive-only escalation from multiple separately grounded facts. */
+  escalationRationale?: string;
+  escalationEvidenceQuotes?: string[];
 };
 
-export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v18";
-export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v20";
+export const CLINICAL_FACTS_EXTRACTOR_VERSION = "tcm-cdss-clinical-facts-triage-v19";
+export const CLINICAL_FACTS_PROMPT_VERSION = "tcm-cdss-clinical-facts-triage-prompt-v21";
 
 // 劳力/活动诱发的慢性基线症状限定词（“平路气短”“活动后气促”“劳力性胸闷”）：在已知慢性心肺肾
 // 疾病或慢性病程框架下，这类限定描述的是基线功能状态而非急性事件；静息/夜间/端坐/新发/突发/
@@ -150,6 +154,87 @@ const BASELINE_EXERTIONAL_MARKER = /(?:平路|平地|步行|走路|上楼|爬楼
 const CARDIOPULMONARY_BASELINE_CONTEXT = /(?:心衰|心力衰竭|HF|EF\s*\d{1,2}\s*%?|射血分数|冠心病|心绞痛|心肌梗死|陈旧性心梗|COPD|慢阻肺|哮喘|肺心病|CKD|慢性肾|肾功能不全|尿毒症|支气管扩张|间质性肺|肺纤维化)/i;
 const CHRONIC_COURSE_MARKER = /(?:(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:年|个月|月)|多年|数年|长期|平素|一直)/;
 const ACUTE_ESCALATION_MARKER = /(?:夜间阵发|端坐呼吸|不能平卧|无法平卧|平卧困难|憋醒|痛醒|新发|突发|突然|急性|明显加重|进行性|加重|恶化|不缓解|难以缓解|大汗|冷汗|濒死|胸痛|晕厥|意识(?:模糊|障碍|改变)|咳粉红|粉红色泡沫|发绀|口唇发紫|嘴唇发紫|咯血)/;
+
+type GovernedRedFlagCategoryRule = {
+  id: string;
+  symptoms: string[];
+  dangerCompanions: string[];
+};
+
+const GOVERNED_RED_FLAG_CATEGORY_RULES = redFlagTriageJson.categoryRules as GovernedRedFlagCategoryRule[];
+const GOVERNED_CARDIAC_RULE = (() => {
+  const rule = GOVERNED_RED_FLAG_CATEGORY_RULES.find((item) => item.id === "cardiac");
+  if (!rule) throw new Error("缺少 T6 cardiac 红旗治理分类");
+  return rule;
+})();
+const GOVERNED_NEURO_RULE = (() => {
+  const rule = GOVERNED_RED_FLAG_CATEGORY_RULES.find((item) => item.id === "neuro") as
+    | (GovernedRedFlagCategoryRule & { benignDowngrade?: { benignSymptoms: string[]; dangerExclusions: string[] } })
+    | undefined;
+  if (!rule?.benignDowngrade) throw new Error("缺少 T6 neuro 红旗治理分类或 benignDowngrade 边界");
+  return rule as GovernedRedFlagCategoryRule & { benignDowngrade: { benignSymptoms: string[]; dangerExclusions: string[] } };
+})();
+const NEURO_ACUTE_ONSET_MARKERS = (redFlagTriageJson.dimensions?.acuteOnset as string[] | undefined) ?? [];
+
+function containsAnyGovernedTerm(value: string, terms: readonly string[]): boolean {
+  return terms.some((term) => value.includes(term));
+}
+
+function isNonAcuteIsolatedChestTightnessFinding(finding: RedFlagFinding, sourceText: string): boolean {
+  if (finding.category !== "cardiac" || finding.subject !== "patient" ||
+      (finding.status !== "positive" && finding.status !== "possible")) return false;
+  const nonTightnessCardiacSymptoms = GOVERNED_CARDIAC_RULE.symptoms.filter((term) => term !== "胸闷");
+  let offset = sourceText.indexOf(finding.quote);
+  while (offset >= 0) {
+    let sentenceStart = offset;
+    while (sentenceStart > 0 && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceStart - 1])) sentenceStart -= 1;
+    let sentenceEnd = offset + finding.quote.length;
+    while (sentenceEnd < sourceText.length && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceEnd])) sentenceEnd += 1;
+    const sentence = sourceText.slice(sentenceStart, sentenceEnd);
+    const hasNonAcuteCourse = /(?:[2-9]|[一二两三四五六七八九十半数几多])\s*(?:周|月|年)|半个月|数周|数月|多年/.test(sentence);
+    const isolatedTightness = sentence.includes("胸闷") && !containsAnyGovernedTerm(sentence, nonTightnessCardiacSymptoms);
+    const hasDangerCompanion = containsAnyGovernedTerm(sentence, GOVERNED_CARDIAC_RULE.dangerCompanions);
+    const governedBaselineContext = BASELINE_EXERTIONAL_MARKER.test(sentence) || CARDIOPULMONARY_BASELINE_CONTEXT.test(sentence);
+    if (hasNonAcuteCourse && isolatedTightness && !hasDangerCompanion && !governedBaselineContext && !ACUTE_ESCALATION_MARKER.test(sentence)) return true;
+    offset = sourceText.indexOf(finding.quote, offset + finding.quote.length);
+  }
+  return false;
+}
+
+// T6 neuro category boundary: a plain headache/dizziness complaint is the single most common benign
+// outpatient chief complaint (眩晕/头痛/不寐). A batch model routinely overcalls it as a neuro
+// "clarify" advisory, which then renders as a "神经系统相关表现需优先复核" card and couples a
+// pre-prescription clarification. Cap the ENTIRE benign-head-symptom class deterministically — but
+// ONLY the model's own clarify-level advisory, and ONLY when the quote's sentence contains no
+// governed neuro emergency symptom, acute-onset qualifier, dangerCompanion, or posterior-circulation
+// / meningeal danger term. This is strictly monotonic (clarify → routine, visibility only drops) and
+// never touches emergency/urgent, so it is mathematically incapable of erasing a hard neuro red flag
+// (雷击样头痛/卒中样起病 stay). Danger boundary is governed in redflag-triage-lexicon.json, not
+// hardcoded, so the excluded-sign list is auditable and extendable in one place.
+function isBenignHeadSymptomNeuroFinding(finding: RedFlagFinding, sourceText: string): boolean {
+  if (finding.category !== "neuro" || finding.subject !== "patient" || finding.urgency !== "clarify") return false;
+  if (finding.status !== "positive" && finding.status !== "possible") return false;
+  const { benignSymptoms, dangerExclusions } = GOVERNED_NEURO_RULE.benignDowngrade;
+  const blockingTerms = [
+    ...GOVERNED_NEURO_RULE.symptoms,
+    ...GOVERNED_NEURO_RULE.dangerCompanions,
+    ...NEURO_ACUTE_ONSET_MARKERS,
+    ...dangerExclusions,
+  ];
+  let offset = sourceText.indexOf(finding.quote);
+  while (offset >= 0) {
+    let sentenceStart = offset;
+    while (sentenceStart > 0 && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceStart - 1])) sentenceStart -= 1;
+    let sentenceEnd = offset + finding.quote.length;
+    while (sentenceEnd < sourceText.length && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceEnd])) sentenceEnd += 1;
+    const sentence = sourceText.slice(sentenceStart, sentenceEnd);
+    const hasBenignHeadSymptom = containsAnyGovernedTerm(sentence, benignSymptoms);
+    const hasBlockingTerm = containsAnyGovernedTerm(sentence, blockingTerms);
+    if (hasBenignHeadSymptom && !hasBlockingTerm) return true;
+    offset = sourceText.indexOf(finding.quote, offset + finding.quote.length);
+  }
+  return false;
+}
 
 // quote 级底线：劳力诱发限定 + 无急性线索的 quote 达不到 emergency 的证据底线（与 syncope 等
 // 既有 quote 底线同一机制），降级为 urgent 走优先复核而非急性红旗。
@@ -173,6 +258,8 @@ export type ClinicalFactsModelTrace = {
   adjudicator?: ClinicalFactsModelIdentity;
   independentReview: boolean;
   independentAdjudication: boolean;
+  separateInvocationReview?: boolean;
+  separateInvocationAdjudication?: boolean;
 };
 
 export type EncounterScope = {
@@ -310,7 +397,16 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
   const redFlags: RedFlagFinding[] = [];
   for (const item of list) {
     if (!item || typeof item !== "object") continue;
-    const { category, subject, status, urgency, triageBasis, quote } = item as Record<string, unknown>;
+    const {
+      category,
+      subject,
+      status,
+      urgency,
+      triageBasis,
+      quote,
+      escalationRationale,
+      escalationEvidenceQuotes,
+    } = item as Record<string, unknown>;
     if (typeof category !== "string" || !(category in BACKSTOP_RED_FLAG_CATEGORIES)) continue;
     if (typeof subject !== "string" || !VALID_SUBJECTS.has(subject)) continue;
     if (typeof status !== "string" || !VALID_STATUSES.has(status)) continue;
@@ -335,10 +431,24 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
       parsedUrgency === "clarify" && parsedTriageBasis === "clarification_needed"
     );
     if (!dispositionContractSatisfied || !subjectContractSatisfied) continue;
+    const parsedEscalationQuotes = Array.isArray(escalationEvidenceQuotes)
+      ? [...new Set(escalationEvidenceQuotes
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter((value) => value.length >= 2 && value.length <= 200))]
+      : [];
+    const parsedEscalationRationale = typeof escalationRationale === "string"
+      ? escalationRationale.trim().slice(0, 600)
+      : "";
+    const validEscalation = parsedEscalationRationale.length >= 6 &&
+      parsedEscalationQuotes.length >= 2 && parsedEscalationQuotes.length <= 6;
+    const evidenceFloorText = validEscalation
+      ? [quote.trim(), ...parsedEscalationQuotes].join("；")
+      : quote.trim();
     const evidenceFloorSatisfied = parsedUrgency !== "emergency" || emergencyEvidenceFloorSatisfied(
       category as BackstopRedFlagCategory,
       parsedTriageBasis,
-      quote.trim(),
+      evidenceFloorText,
     );
     redFlags.push({
       category: category as BackstopRedFlagCategory,
@@ -350,6 +460,10 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
       urgency: evidenceFloorSatisfied ? parsedUrgency : "urgent",
       triageBasis: evidenceFloorSatisfied ? parsedTriageBasis : "urgent_review",
       quote: quote.trim().slice(0, 200),
+      ...(validEscalation ? {
+        escalationRationale: parsedEscalationRationale,
+        escalationEvidenceQuotes: parsedEscalationQuotes,
+      } : {}),
     });
   }
   if (list.length > 0 && redFlags.length === 0) return null;
@@ -430,6 +544,12 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
   const independentAdjudication = rawModelTrace && typeof rawModelTrace === "object"
     ? (rawModelTrace as { independentAdjudication?: unknown }).independentAdjudication
     : undefined;
+  const separateInvocationReview = rawModelTrace && typeof rawModelTrace === "object"
+    ? (rawModelTrace as { separateInvocationReview?: unknown }).separateInvocationReview
+    : undefined;
+  const separateInvocationAdjudication = rawModelTrace && typeof rawModelTrace === "object"
+    ? (rawModelTrace as { separateInvocationAdjudication?: unknown }).separateInvocationAdjudication
+    : undefined;
   const modelTrace = extractorIdentity && typeof independentReview === "boolean" && typeof independentAdjudication === "boolean"
     ? {
         extractor: extractorIdentity,
@@ -437,6 +557,8 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
         ...(adjudicatorIdentity ? { adjudicator: adjudicatorIdentity } : {}),
         independentReview,
         independentAdjudication,
+        ...(typeof separateInvocationReview === "boolean" ? { separateInvocationReview } : {}),
+        ...(typeof separateInvocationAdjudication === "boolean" ? { separateInvocationAdjudication } : {}),
       }
     : undefined;
   const attestation = typeof (root as { attestation?: unknown }).attestation === "string" && /^hmac-sha256:[a-f0-9]{64}$/.test((root as { attestation: string }).attestation)
@@ -493,6 +615,32 @@ export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): C
     if (f.status !== "positive" && f.status !== "possible") return true;
     return hasCurrentQuoteOccurrence(sourceText, f.quote, f.status === "possible");
   }).map((finding) => {
+    if (finding.escalationRationale) {
+      const evidenceQuotes = finding.escalationEvidenceQuotes || [];
+      const escalationGrounded = evidenceQuotes.length >= 2 && evidenceQuotes.every((quote) =>
+        sourceText.includes(quote) && hasCurrentQuoteOccurrence(sourceText, quote, false));
+      if (!escalationGrounded) {
+        const withoutInvalidEscalation = { ...finding };
+        delete withoutInvalidEscalation.escalationRationale;
+        delete withoutInvalidEscalation.escalationEvidenceQuotes;
+        return finding.urgency === "emergency"
+          ? { ...withoutInvalidEscalation, urgency: "urgent" as const, triageBasis: "urgent_review" as const }
+          : withoutInvalidEscalation;
+      }
+    }
+    // T6 cardiac category boundary: an isolated, non-acute chest-tightness complaint without any
+    // category-specific danger companion is routine diagnostic context. A model may still overcall
+    // it during a long batch; cap the entire class deterministically so identical records cannot
+    // oscillate between ready and emergency across runs.
+    if (isNonAcuteIsolatedChestTightnessFinding(finding, sourceText)) {
+      return { ...finding, urgency: "routine" as const, triageBasis: "routine_care" as const };
+    }
+    // T6 neuro category boundary: plain headache/dizziness clarify-level overcall → routine
+    // diagnostic context. Governed danger boundary blocks the downgrade whenever any emergency
+    // symptom / acute-onset qualifier / posterior-circulation sign is present in the same sentence.
+    if (isBenignHeadSymptomNeuroFinding(finding, sourceText)) {
+      return { ...finding, urgency: "routine" as const, triageBasis: "routine_care" as const };
+    }
     // 明确轻度腹痛且同一事件无突发剧烈、进行性加重、腹膜刺激征、反复呕吐、
     // 高热或出血等危险组合时，不能只因“腹痛”症状名被模型升为 urgent/emergency。
     // 保留 clarify 以便门诊继续追问，而不把该类普通当前症状并入红旗处置。
@@ -651,6 +799,11 @@ function memberOf<const T extends readonly string[]>(value: unknown, values: T):
   return typeof value === "string" && values.includes(value as T[number]) ? value as T[number] : undefined;
 }
 
+function escalationExplanation(finding: RedFlagFinding): string {
+  if (!finding.escalationRationale || !finding.escalationEvidenceQuotes?.length) return "";
+  return `；组合升级依据：${finding.escalationRationale}（逐字证据：${finding.escalationEvidenceQuotes.map((quote) => `“${quote}”`).join("、")}）`;
+}
+
 /**
  * 护栏 3+4:语义分诊合并(同步)。返回**待追加**的红旗消息:仅 grounded、positive 且 emergency、
  * 且类目尚未被确定性红旗覆盖的 finding 才生成消息。绝不移除 existingRedFlags 中的任何一条。
@@ -672,7 +825,7 @@ export function additiveRedFlagsFromFacts(
     // 该事实仍经 semanticTriageAdvisoriesFromFacts 以优先复核形式保持可见。
     if (chronicBaselineFramedFinding(finding, sourceText)) continue;
     if (coveredCategories.has(finding.category)) continue;
-    const message = `${RED_FLAG_MESSAGE[finding.category]}（原文依据：“${finding.quote}”）`;
+    const message = `${RED_FLAG_MESSAGE[finding.category]}（原文依据：“${finding.quote}”${escalationExplanation(finding)}）`;
     // 若确定性层已就该类目给出红旗(消息包含类目关键词),不重复追加。
     const alreadyCovered = existingRedFlags.some((existing) => overlapsCategory(existing, finding.category));
     if (alreadyCovered) continue;
@@ -707,11 +860,15 @@ export function semanticTriageAdvisoriesFromFacts(
     // 被消费层判别为劳力性慢性基线的 emergency finding 降级为可见的优先复核提示：
     // 保持 additive-only 的可追溯性，但不形成急性红旗。
     const demotedBaselineEmergency = finding.urgency === "emergency" && chronicBaselineFramedFinding(finding, sourceText);
-    if (finding.urgency !== "urgent" && finding.urgency !== "clarify" && !demotedBaselineEmergency) continue;
+    if (finding.urgency !== "emergency" && finding.urgency !== "urgent" && finding.urgency !== "clarify" && !demotedBaselineEmergency) continue;
     if (coveredCategories.has(finding.category)) continue;
     coveredCategories.add(finding.category);
-    const action = finding.urgency === "urgent" || demotedBaselineEmergency ? "建议优先评估" : "建议在本轮问诊中澄清";
-    advisories.push(`${TRIAGE_ADVISORY_MESSAGE[finding.category]}，${action}（原文依据：“${finding.quote}”）`);
+    const action = finding.urgency === "emergency" && !demotedBaselineEmergency
+      ? "建议立即由接诊医生现场复核并按复核结果处置；本条语义发现不单独形成硬门"
+      : finding.urgency === "urgent" || demotedBaselineEmergency
+        ? "建议优先评估"
+        : "建议在本轮问诊中澄清";
+    advisories.push(`${TRIAGE_ADVISORY_MESSAGE[finding.category]}，${action}（原文依据：“${finding.quote}”${escalationExplanation(finding)}）`);
   }
   return advisories;
 }
@@ -733,11 +890,15 @@ export function priorityEvaluationItemsFromFacts(
   for (const finding of grounded) {
     if (finding.subject !== "patient" ||
         (finding.status !== "positive" && finding.status !== "possible") ||
-        (finding.urgency !== "urgent" && finding.urgency !== "clarify")) continue;
+        (finding.urgency !== "emergency" && finding.urgency !== "urgent" && finding.urgency !== "clarify")) continue;
     if (coveredCategories.has(finding.category)) continue;
     coveredCategories.add(finding.category);
-    const action = finding.urgency === "urgent" ? "处方前需完成评估" : "处方前需澄清";
-    items.push(`${TRIAGE_ADVISORY_MESSAGE[finding.category]}；${action}（原文依据：“${finding.quote}”）`);
+    const action = finding.urgency === "emergency"
+      ? "需立即现场复核并完成相应处置后再评估处方"
+      : finding.urgency === "urgent"
+        ? "处方前需完成评估"
+        : "处方前需澄清";
+    items.push(`${TRIAGE_ADVISORY_MESSAGE[finding.category]}；${action}（原文依据：“${finding.quote}”${escalationExplanation(finding)}）`);
   }
   return items;
 }
@@ -761,6 +922,26 @@ const CATEGORY_DEDUP_KEYWORDS: Record<BackstopRedFlagCategory, RegExp> = {
   vital_instability: /生命体征|血压|心率|脉搏|呼吸频率|血氧|体温/,
   other_critical: /急危重|立即改变处置|优先复核/,
 };
+
+/**
+ * Categories already represented by grounded, current patient findings.
+ * Consumers use this to de-duplicate only the same risk category instead of allowing one semantic
+ * finding to suppress unrelated deterministic fallback advisories.
+ */
+export function groundedPatientTriageCategories(
+  facts: ClinicalFacts | undefined,
+  sourceText: string,
+): ReadonlySet<BackstopRedFlagCategory> {
+  if (!facts || facts.redFlags.length === 0) return new Set();
+  return new Set(
+    groundClinicalFacts(facts, sourceText).redFlags
+      .filter((finding) =>
+        finding.subject === "patient" &&
+        (finding.status === "positive" || finding.status === "possible") &&
+        (finding.urgency === "emergency" || finding.urgency === "urgent" || finding.urgency === "clarify"))
+      .map((finding) => finding.category),
+  );
+}
 
 function overlapsCategory(existingMessage: string, category: BackstopRedFlagCategory): boolean {
   return CATEGORY_DEDUP_KEYWORDS[category].test(existingMessage);
@@ -787,11 +968,16 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
   const categories = Object.entries(BACKSTOP_RED_FLAG_CATEGORIES)
     .map(([key, label]) => `  "${key}"（${label}）`)
     .join("\n");
+  const governedCategoryRules = redFlagTriageJson.categoryRules.map((rule) =>
+    `- ${rule.id}｜症状：${rule.symptoms.join("、")}｜限定维度：${rule.qualifiers.join("、")}｜危险伴随：${rule.dangerCompanions.join("、") || "无"}｜硬门条件：${rule.hardGateRequires}`,
+  ).join("\n");
   return [
     "从下面【临床文本】中识别急危重红旗线索。先在内部完成口语归一、否定与时序判断，只输出**一个 JSON 对象**，不要正文/代码围栏/解释。",
-    "格式：{\"redFlags\":[{\"category\":<类目键>,\"subject\":<patient|other|uncertain>,\"status\":<positive|possible|negative|historical|unknown>,\"urgency\":<emergency|urgent|clarify|routine>,\"triageBasis\":<处置依据键>,\"quote\":<原文逐字片段>}],\"encounterScope\":{\"status\":<active_current_target|historical_or_stable_only|unclear>,\"quote\":<原文逐字片段>}}",
+    "格式：{\"redFlags\":[{\"category\":<类目键>,\"subject\":<patient|other|uncertain>,\"status\":<positive|possible|negative|historical|unknown>,\"urgency\":<emergency|urgent|clarify|routine>,\"triageBasis\":<处置依据键>,\"quote\":<原文逐字片段>,\"escalationRationale\":<可选：多线索合成升级理由>,\"escalationEvidenceQuotes\":<可选：2-6条原文逐字片段>}],\"encounterScope\":{\"status\":<active_current_target|historical_or_stable_only|unclear>,\"quote\":<原文逐字片段>}}",
     "类目键只能取以下之一：",
     categories,
+    "T6 类目组合边界（用于语义发现与澄清；不得把词表做无差别组合，也不得由模型单独形成硬门）：",
+    governedCategoryRules,
     "处置依据键只能取以下之一：",
     Object.entries(TRIAGE_BASIS).map(([key, label]) => `  \"${key}\"（${label}）`).join("\n"),
     "硬规则：",
@@ -815,6 +1001,7 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
     "- 当前未缓解的胸痛按疑似时间敏感性心血管事件标 emergency，即使伴随症状尚未记录；单纯含糊胸闷通常先 urgent/clarify，若同时存在持续气促、大汗、晕厥或明显进行性加重，则按当前组合重新判断是否 emergency。",
     "- 单次少量黑便、便血、呕血或外伤后渗血，且当前稳定、没有灌注不足表现时通常标 urgent/clarify；反复显性出血，或出血同时伴头晕乏力、晕厥、意识/循环异常等灌注不足线索，现有资料已足以按活动性大出血或其他即时威胁标 emergency。不能因为缺少血红蛋白或生命体征记录就把这种组合降级。",
     "- 同一危险事件的伴随表现用于提高主事件严重度时，优先合并为一个最能代表处置路径的 finding，避免重复拆成多个类目。例如柏油样黑便伴站立眼前发黑应由 gi_bleed + major_active_bleeding 表达；不要再输出一个使用 major_active_bleeding 的 syncope finding。每条 triageBasis 都必须属于该 category 允许的急诊依据。",
+    "- 当单条线索均未达到升级阈值、但同一当前事件的多条事实组合后足以提升处置层级时，可在代表处置路径的一个 finding 中填写 escalationRationale，并用 escalationEvidenceQuotes 列出 2-6 条分别支撑合成判断的最短连续原文逐字片段。不得引用人口学信息本身冒充危险事实，不得跨患者主体、跨既往与当前事件拼接，不得用未提及/未知项补全组合。该字段只能追加或升级语义发现，绝不能降低任何确定性结论。",
     "- 单次晕厥后已清醒且当前稳定通常标 urgent；伴持续意识异常、严重外伤、进行性心肺症状或循环不稳时才标 emergency。",
     "- 突发雷击样剧烈头痛、当前新发或较稳定基线明显加重的局灶神经功能缺损标 emergency；只有‘剧烈头痛’但起病方式和神经体征不明时标 urgent/clarify。突发剧烈、短病程腹痛本身已构成急腹症待排，应标 emergency；仅持续加重但未见突发剧烈、腹膜刺激征、休克或持续呕吐时先 urgent/clarify。腹膜刺激征的口语表达同样构成急腹症：‘按下去松手更疼/松手更疼’（反跳痛）、腹肌紧张、板状腹，或腹痛伴反复呕吐（≥2次）、高热、停止排气排便，均按 acute_abdomen + emergency，不得因主诉口语化（肚子疼/右下肚子疼）而降级。",
     "- emergency 既可由当前持续严重症状、意识/循环/呼吸受损、显著进行性恶化构成，也可由‘突发严重短病程’、‘稳定基线上新近局灶缺损’、‘反复显性出血伴灌注不足’等时间敏感组合构成。未记录某个伴随症状不等于明确否认，不能以资料缺项作为降级依据。单独的慢性、间歇、运动诱发、夜间偶发症状，以及没有当前严重度信息的表达，不得仅因症状名称标 emergency。",
@@ -1081,21 +1268,26 @@ export async function extractClinicalFacts(
     }
   }
   if (!options.independentReview) return { ...grounded, reviewStatus: "skipped" };
-  try {
-    const reviewedRaw = await llmCall(
+  // A reviewer response can be non-empty yet still violate the findingId/grounding contract. Give
+  // that independent phase one bounded fresh attempt using the exact same grounded first pass.
+  // The original findings stay fixed across attempts, so a malformed response can neither erase a
+  // stricter disposition nor trigger a new extractor run with an easier baseline.
+  for (let reviewAttempt = 1; reviewAttempt <= 2; reviewAttempt += 1) {
+    try {
+      const reviewedRaw = await llmCall(
       CLINICAL_FACTS_REVIEW_SYSTEM_PROMPT,
       buildClinicalFactsReviewPrompt(text, grounded),
       signal,
       "review",
     );
-    if (signal?.aborted) return null;
-    const reviewed = parseClinicalFacts(reviewedRaw);
-    if (!reviewed) return { ...grounded, reviewStatus: "unavailable" };
-    const reviewedGrounded = groundClinicalFacts(reviewed, text);
+      if (signal?.aborted) return null;
+      const reviewed = parseClinicalFacts(reviewedRaw);
+      if (!reviewed) throw new Error("clinical_facts_review_schema_invalid");
+      const reviewedGrounded = groundClinicalFacts(reviewed, text);
     // The reviewer is authoritative only when every returned item passes the same source contract.
     // A malformed citation cannot erase or upgrade the already-grounded first pass.
     if (reviewedGrounded.redFlags.length !== reviewed.redFlags.length) {
-      return { ...grounded, reviewStatus: "unavailable" };
+      throw new Error("clinical_facts_review_grounding_invalid");
     }
     const activeInitial = grounded.redFlags.filter((finding) => finding.status === "positive" || finding.status === "possible");
     const monotonicReview = activeInitial.every((initial) =>
@@ -1172,28 +1364,28 @@ export async function extractClinicalFacts(
       }
       reviewedFindingIds.set(findingId, index);
     });
-    if (malformedReviewDecision) return { ...grounded, reviewStatus: "unavailable" };
+    if (malformedReviewDecision) throw new Error("clinical_facts_review_decision_invalid");
     const dispositionReductions: DispositionReduction[] = [];
     for (let index = 0; index < grounded.redFlags.length; index += 1) {
       const initialFinding = grounded.redFlags[index];
       if (initialFinding.status !== "positive" && initialFinding.status !== "possible") continue;
       const findingId = `rf-${index + 1}`;
       const reviewDecision = decisions.get(findingId);
-      if (!reviewDecision) return { ...grounded, reviewStatus: "unavailable" };
+      if (!reviewDecision) throw new Error("clinical_facts_review_decision_missing");
       const reviewedIndex = reviewedFindingIds.get(findingId);
       const proposedFinding = reviewedIndex == null ? undefined : reviewedGrounded.redFlags[reviewedIndex];
       if (reviewDecision.decision === "confirm" && !proposedFinding) {
-        return { ...grounded, reviewStatus: "unavailable" };
+        throw new Error("clinical_facts_review_confirmed_finding_missing");
       }
       if (reviewDecision.decision === "modify" && !proposedFinding) {
-        return { ...grounded, reviewStatus: "unavailable" };
+        throw new Error("clinical_facts_review_modified_finding_missing");
       }
       if (reviewDecision.decision === "reject" && proposedFinding) {
-        return { ...grounded, reviewStatus: "unavailable" };
+        throw new Error("clinical_facts_review_rejected_finding_retained");
       }
       if (isDispositionReduction(initialFinding, proposedFinding)) {
         if (!reviewDecision.evidenceBasis || !reviewDecision.evidenceQuote) {
-          return { ...grounded, reviewStatus: "unavailable" };
+          throw new Error("clinical_facts_review_reduction_evidence_missing");
         }
         dispositionReductions.push({
           findingId,
@@ -1221,7 +1413,7 @@ export async function extractClinicalFacts(
     // a review decision. Treating silence as clearance would let an empty second response erase a
     // grounded emergency fact.
     if (unresolvedInitialFinding) {
-      return { ...grounded, reviewStatus: "unavailable" };
+      throw new Error("clinical_facts_review_initial_finding_unresolved");
     }
     if (dispositionReductions.length > 0) {
       const approvals = new Map<string, boolean>();
@@ -1266,7 +1458,10 @@ export async function extractClinicalFacts(
       encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
       reviewStatus: "checked",
     };
-  } catch {
-    return { ...grounded, reviewStatus: "unavailable" };
+    } catch {
+      if (signal?.aborted) return null;
+      if (reviewAttempt === 2) return { ...grounded, reviewStatus: "unavailable" };
+    }
   }
+  return { ...grounded, reviewStatus: "unavailable" };
 }

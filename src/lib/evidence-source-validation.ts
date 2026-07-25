@@ -1,3 +1,5 @@
+import { medicineClinicalConceptsMatch } from "./medicine-clinical-concepts.ts";
+
 export type EvidenceRecord = {
   ids: Set<string>;
   urls: Set<string>;
@@ -127,6 +129,38 @@ export function sourceSupportsMedicine(
     const recordText = record.text.normalize("NFKC").replace(/[\s（）()【】\[\]·]/g, "");
     return names.some((name) => recordText.includes(name));
   });
+}
+
+function normalizedMedicineBindingText(value: string): string {
+  return value.normalize("NFKC").replace(/[\s（）()【】\[\]·，,。；;：:|｜]/g, "").toLowerCase();
+}
+
+/** Bind a medicine row to one exact retrieved instruction record and its case-relevant indication. */
+export function medicineEvidenceBindingValid(
+  evidenceId: string,
+  evidenceFingerprint: string,
+  medicineName: string,
+  correspondingProblem: string,
+  specification: string | null | undefined,
+  scope: EvidenceScope,
+): boolean {
+  if (!/^(?:EVID|LOCAL)-INST-\d{3}$/.test(evidenceId) || !/^sha256:[a-f0-9]{64}$/.test(evidenceFingerprint)) return false;
+  const record = scope.records.find((candidate) => candidate.ids.has(evidenceId));
+  if (!record || !record.text.includes(`条目指纹：${evidenceFingerprint}`)) return false;
+  const recordText = normalizedMedicineBindingText(record.text);
+  if (!normalizedMedicineNames(medicineName).some((name) => recordText.includes(normalizedMedicineBindingText(name)))) return false;
+  if (specification && !recordText.includes(normalizedMedicineBindingText(specification))) return false;
+  const problemConceptMatched = medicineClinicalConceptsMatch(correspondingProblem, record.text);
+  if (problemConceptMatched) return true;
+  const problem = normalizedMedicineBindingText(correspondingProblem);
+  return problem.length >= 2 && recordText.includes(problem);
+}
+
+export function medicineProblemMatchesCase(problem: string, caseText: string): boolean {
+  if (medicineClinicalConceptsMatch(problem, caseText)) return true;
+  const normalizedProblem = normalizedMedicineBindingText(problem);
+  const normalizedCase = normalizedMedicineBindingText(caseText);
+  return normalizedProblem.length >= 2 && normalizedCase.includes(normalizedProblem);
 }
 
 const INSUFFICIENT_EVIDENCE = {

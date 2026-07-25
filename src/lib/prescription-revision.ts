@@ -60,13 +60,13 @@ export function editedPrescriptionSemanticIssue(
 export function editedPrescriptionIssueMessage(issue: string | undefined): string {
   if (!issue) return "";
   if (issue === "duplicate_herb") return "存在重复药味，请合并为一行并确认总剂量。";
-  if (/unknown/.test(issue)) return "药味未命中当前中药知识库，不能提交审方。";
+  if (/unknown/.test(issue)) return "该药味不在当前中药知识库收录范围，不能提交审方。";
   if (/dose_(?:outside_knowledge|sanity_ceiling)|_dose$/.test(issue)) return "剂量格式不规范或达到明显异常的安全阈值，请复核。";
   if (/dose_count|course|method_daily_dose|follow_up/.test(issue)) return "剂数、疗程、每日剂次或复诊节点不规范或不一致；当前按每日1剂计算，请复核后重新审方。";
   if (/function_ungrounded/.test(issue)) return "药味功用与知识库不一致，请按真实功用修正。";
-  if (/pathogenesis|cross_stage|therapy|target_ref|structure_/.test(issue)) return "药味必须引用当前 M03 病机节点；仅佐使药可选择受控的方内结构作用。";
+  if (/pathogenesis|cross_stage|therapy|target_ref|structure_/.test(issue)) return "药味必须引用本例已确认的病机；仅佐使药可选择方内结构作用。";
   if (/decoction|route/.test(issue)) return "炮制或特殊煎服要求不符合当前药味规则，请复核。";
-  return "编辑后处方未通过结构化临床一致性校验，请复核药名、剂量、病机、功用和煎服要求。";
+  return "编辑后处方未通过临床一致性核对，请复核药名、剂量、病机、功用和煎服要求。";
 }
 
 function editedFormulaAnalysis(herbs: Herb[]): string {

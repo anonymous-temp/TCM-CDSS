@@ -18,10 +18,12 @@ export function isM03WesternSupportContractReason(reason: string): boolean {
 export function shouldRunTargetedStructuredRetry(stage: "diagnose" | "prescribe", reason: string): boolean {
   if (stage === "prescribe") {
     return /^(?:json_invalid|sentinel_count_\d+_\d+|structured_resolver_rejected)$/.test(reason) ||
-      /(?:formula_reference|formula_direction|formula_compilation|m04_proposal|m04_(?:clinical|formula_composition|herb_plan|dose_rationale|patient_context)_semantic_review)/.test(reason);
+      /(?:formula_reference|formula_direction|formula_compilation|formula_component_\d+_unverified|m04_proposal|m04_(?:clinical|formula_composition|herb_plan|dose_rationale|patient_context)_semantic_review)/.test(reason) ||
+      /^m04_candidate_\d+_(?:emperor_(?:missing|excess)|herb_\d+_(?:emperor_(?:not_primary|knowledge_missing|therapy_mismatch)|unknown|dose_outside_conservative_range|special_population_high_risk_[a-z0-9_]+|unsupported_high_impact_[a-z0-9_]+))$/.test(reason) ||
+      /^m04_modification_\d+_herb_\d+_unsupported_high_impact_[a-z0-9_]+$/.test(reason);
   }
   return isM03WesternSupportContractReason(reason) ||
-    /^(?:json_invalid|sentinel_count_\d+_\d+|structured_resolver_rejected|m03_(?:(?:primary_diagnosis|tcm_reasoning|formula_indication)_semantic_review|(?:heat|cold_yang|phlegm_damp|blood_stasis|yin_deficiency)_decision_ungrounded|patient_fact_ungrounded_.+|chain_(?:empty|incomplete)|(?:location|nature)_classification_empty|primary_syndrome_unstable|overall_pathogenesis_unstable|therapy(?:_method)?_unstable|western_(?:primary_ambiguous|diagnosis_unstable)))$/.test(reason);
+    /^(?:json_invalid|sentinel_count_\d+_\d+|structured_resolver_rejected|m03_(?:(?:primary_diagnosis|tcm_reasoning|formula_indication)_semantic_review|pathogenesis_summary_[a-z_]+_drift|(?:heat|cold_yang|phlegm_damp|blood_stasis|yin_deficiency)_decision_ungrounded|patient_fact_ungrounded_.+|chain_(?:empty|incomplete)|(?:location|nature)_classification_empty|single_evidence_location|nature_dimension_insufficient|discrimination_missing|primary_syndrome_unstable|tcm_syndrome_current_fact_missing|generic_tcm_template|explanation_placeholder|uncertainty_state_mismatch|followup_safety_net_not_actionable|overall_pathogenesis_unstable|therapy(?:_method)?_unstable|western_(?:primary_ambiguous|primary_background_comorbidity|primary_duration_mismatch|diagnosis_unstable|clinical_rationale_(?:missing|restatement)|differential_analysis_missing)|tcm_(?:diagnostic_rationale_(?:missing|restatement)|differential(?:_analysis)?_missing)))$/.test(reason);
 }
 
 type BalancedJsonObject = {
