@@ -1,0 +1,160 @@
+{
+  "schemaVersion": "tcm-formula-aliases-v2",
+  "generatedFrom": [
+    "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md",
+    "参考/nihaixia-StableV2026.5.23/SKILL.md"
+  ],
+  "entries": [
+    {
+      "canonical": "白虎加人参汤",
+      "aliases": [
+        "人参白虎汤"
+      ],
+      "sourceRefs": [
+        "formula-patterns.md"
+      ]
+    },
+    {
+      "canonical": "大黄䗪虫丸",
+      "aliases": [
+        "大黄蛰虫丸",
+        "大黄蟅虫丸"
+      ],
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md"
+      ]
+    },
+    {
+      "canonical": "大青龙汤",
+      "aliases": [
+        "大气浓汤"
+      ],
+      "sourceRefs": [
+        "correction-decisions.md:16"
+      ]
+    },
+    {
+      "canonical": "茯苓桂枝白术甘草汤",
+      "aliases": [
+        "苓桂术甘汤"
+      ],
+      "sourceRefs": [
+        "formula-patterns.md",
+        "formula-patterns.md:31"
+      ]
+    },
+    {
+      "canonical": "茯苓桂枝甘草大枣汤",
+      "aliases": [
+        "苓桂甘枣汤"
+      ],
+      "sourceRefs": [
+        "formula-patterns.md",
+        "formula-patterns.md:32"
+      ]
+    },
+    {
+      "canonical": "葛根黄芩黄连汤",
+      "aliases": [
+        "葛根芩连汤",
+        "葛芩连汤"
+      ],
+      "sourceRefs": [
+        "formula-patterns.md",
+        "formula-patterns.md:24"
+      ]
+    },
+    {
+      "canonical": "栝蒌桂枝汤",
+      "aliases": [
+        "瓜蒌桂枝汤"
+      ],
+      "sourceRefs": [
+        "correction-decisions.md:43"
+      ]
+    },
+    {
+      "canonical": "桂枝加葛根汤",
+      "aliases": [
+        "桂枝汤加葛根"
+      ],
+      "sourceRefs": [
+        "formula-patterns.md"
+      ]
+    },
+    {
+      "canonical": "金匮方",
+      "aliases": [
+        "金柜方"
+      ],
+      "sourceRefs": [
+        "correction-decisions.md:60"
+      ]
+    },
+    {
+      "canonical": "金匮肾气丸",
+      "aliases": [
+        "八味肾气丸",
+        "肾气丸"
+      ],
+      "sourceRefs": [
+        "nihaisha-nishi-tcm-main/references/jingui.md"
+      ]
+    },
+    {
+      "canonical": "苓桂术甘汤",
+      "aliases": [
+        "苓桂术甘汤方"
+      ],
+      "sourceRefs": [
+        "correction-decisions.md:28"
+      ]
+    },
+    {
+      "canonical": "麻杏甘石汤",
+      "aliases": [
+        "麻黄杏仁甘草石膏汤",
+        "麻杏石甘汤"
+      ],
+      "sourceRefs": [
+        "formula-patterns.md"
+      ]
+    },
+    {
+      "canonical": "胃苓汤",
+      "aliases": [
+        "胃灵汤"
+      ],
+      "sourceRefs": [
+        "correction-decisions.md:45"
+      ]
+    },
+    {
+      "canonical": "抑肝散",
+      "aliases": [
+        "易肝散"
+      ],
+      "sourceRefs": [
+        "correction-decisions.md:72"
+      ]
+    },
+    {
+      "canonical": "栀子豉汤",
+      "aliases": [
+        "生产整理层方"
+      ],
+      "sourceRefs": [
+        "correction-decisions.md:59"
+      ]
+    },
+    {
+      "canonical": "炙甘草汤",
+      "aliases": [
+        "复脉汤"
+      ],
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md"
+      ]
+    }
+  ]
+}

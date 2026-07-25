@@ -1,0 +1,1076 @@
+{
+  "schemaVersion": "tcm-textual-modification-rules-v2",
+  "advisoryOnly": true,
+  "automaticPrescriptionMutationAllowed": false,
+  "governance": {
+    "coveragePolicy": "高频首方必须至少有一条可回溯到安全证据行的受控加减规则；规则仅在患者触发词明确肯定时展示，禁止自动增删药味。",
+    "targetBaseFormulas": [
+      "桂枝汤",
+      "真武汤",
+      "四逆散",
+      "理中丸",
+      "通脉四逆汤",
+      "小青龙汤",
+      "小柴胡汤",
+      "归脾汤",
+      "二陈汤",
+      "六君子汤",
+      "补中益气汤",
+      "逍遥散",
+      "四物汤",
+      "八珍汤"
+    ]
+  },
+  "entries": [
+    {
+      "id": "T14-MOD-GUIZHI-GEGEN",
+      "baseFormula": "桂枝汤",
+      "triggerTerms": [
+        "项背强",
+        "汗出",
+        "恶风"
+      ],
+      "triggerMode": "all",
+      "resultingFormula": "桂枝加葛根汤",
+      "addHerbs": [
+        "葛根"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p0346-r002",
+      "sourceCitation": "pdf-evidence:d2b093656655#p346:r002",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-GUIZHI-HOUPU-XINGREN",
+      "baseFormula": "桂枝汤",
+      "triggerTerms": [
+        "喘",
+        "咳嗽"
+      ],
+      "triggerMode": "any",
+      "resultingFormula": "桂枝加厚朴杏子汤",
+      "addHerbs": [
+        "厚朴",
+        "杏仁"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-58423f817a06-p0031-r005",
+      "sourceCitation": "pdf-evidence:58423f817a06#p31:r005",
+      "evidenceAnchorLevel": "tiaowen",
+      "tier": "experience",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOQINGLONG-URINATION",
+      "baseFormula": "小青龙汤",
+      "triggerTerms": [
+        "小便不利",
+        "少腹满"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "茯苓"
+      ],
+      "removeHerbs": [
+        "麻黄"
+      ],
+      "sourceEvidenceId": "T15-125053a536e3-p0039-r004",
+      "sourceCitation": "pdf-evidence:125053a536e3#p39:r004",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "experience",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOQINGLONG-WHEEZE",
+      "baseFormula": "小青龙汤",
+      "triggerTerms": [
+        "喘"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "杏仁"
+      ],
+      "removeHerbs": [
+        "麻黄"
+      ],
+      "sourceEvidenceId": "T15-58423f817a06-p0060-r002",
+      "sourceCitation": "pdf-evidence:58423f817a06#p60:r002",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "experience",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-GUIZHI-CHEST-FULLNESS",
+      "baseFormula": "桂枝汤",
+      "triggerTerms": [
+        "下后",
+        "脉促",
+        "胸满"
+      ],
+      "triggerMode": "all",
+      "resultingFormula": "桂枝去芍药汤",
+      "addHerbs": [],
+      "removeHerbs": [
+        "芍药"
+      ],
+      "sourceEvidenceId": "T15-d2b093656655-p0139-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p139:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOQINGLONG-THIRST",
+      "baseFormula": "小青龙汤",
+      "triggerTerms": [
+        "口渴"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "栝蒌根"
+      ],
+      "removeHerbs": [
+        "半夏"
+      ],
+      "sourceEvidenceId": "T15-125053a536e3-p0039-r004",
+      "sourceCitation": "pdf-evidence:125053a536e3#p39:r004",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "experience",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOCHAIHU-CHEST-VEXATION",
+      "baseFormula": "小柴胡汤",
+      "triggerTerms": [
+        "胸中烦",
+        "不呕"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "栝蒌实"
+      ],
+      "removeHerbs": [
+        "半夏",
+        "人参"
+      ],
+      "sourceEvidenceId": "T15-STABLE-SHANGHAN-L3632",
+      "sourceCitation": "参考/nihaixia-StableV2026.5.23/modules/01_shanghan_sun.md:3632",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "common",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOCHAIHU-THIRST",
+      "baseFormula": "小柴胡汤",
+      "triggerTerms": [
+        "口渴"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "人参",
+        "栝蒌根"
+      ],
+      "removeHerbs": [
+        "半夏"
+      ],
+      "sourceEvidenceId": "T15-STABLE-SHANGHAN-L3633",
+      "sourceCitation": "参考/nihaixia-StableV2026.5.23/modules/01_shanghan_sun.md:3633",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "common",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOCHAIHU-ABDOMINAL-PAIN",
+      "baseFormula": "小柴胡汤",
+      "triggerTerms": [
+        "腹痛"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "芍药"
+      ],
+      "removeHerbs": [
+        "黄芩"
+      ],
+      "sourceEvidenceId": "T15-STABLE-SHANGHAN-L3634",
+      "sourceCitation": "参考/nihaixia-StableV2026.5.23/modules/01_shanghan_sun.md:3634",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "common",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOCHAIHU-HYPOCHONDRIAC-FULLNESS",
+      "baseFormula": "小柴胡汤",
+      "triggerTerms": [
+        "胁下痞硬"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "牡蛎"
+      ],
+      "removeHerbs": [
+        "大枣"
+      ],
+      "sourceEvidenceId": "T15-STABLE-SHANGHAN-L3635",
+      "sourceCitation": "参考/nihaixia-StableV2026.5.23/modules/01_shanghan_sun.md:3635",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "common",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOCHAIHU-PALPITATION-URINATION",
+      "baseFormula": "小柴胡汤",
+      "triggerTerms": [
+        "心下悸",
+        "小便不利"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "茯苓"
+      ],
+      "removeHerbs": [
+        "黄芩"
+      ],
+      "sourceEvidenceId": "T15-STABLE-SHANGHAN-L3636",
+      "sourceCitation": "参考/nihaixia-StableV2026.5.23/modules/01_shanghan_sun.md:3636",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "common",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOCHAIHU-EXTERIOR-HEAT",
+      "baseFormula": "小柴胡汤",
+      "triggerTerms": [
+        "不渴",
+        "微热"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "桂枝"
+      ],
+      "removeHerbs": [
+        "人参"
+      ],
+      "sourceEvidenceId": "T15-STABLE-SHANGHAN-L3637",
+      "sourceCitation": "参考/nihaixia-StableV2026.5.23/modules/01_shanghan_sun.md:3637",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "common",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOCHAIHU-COUGH",
+      "baseFormula": "小柴胡汤",
+      "triggerTerms": [
+        "咳嗽"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "五味子",
+        "干姜"
+      ],
+      "removeHerbs": [
+        "人参",
+        "大枣",
+        "生姜"
+      ],
+      "sourceEvidenceId": "T15-STABLE-SHANGHAN-L3638",
+      "sourceCitation": "参考/nihaixia-StableV2026.5.23/modules/01_shanghan_sun.md:3638",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "common",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-GUIPITANG-CHRONIC-BLEEDING",
+      "baseFormula": "归脾汤",
+      "triggerTerms": [
+        "血崩",
+        "面色萎黄",
+        "惊悸不寐"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "熟地",
+        "白芍"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1237-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1237:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-GUIPITANG-LIVER-SPLEEN-PHLEGM-HEAT",
+      "baseFormula": "归脾汤",
+      "triggerTerms": [
+        "胸痞内热",
+        "喉中若有一核",
+        "月经不调"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "半夏",
+        "山栀",
+        "升麻",
+        "柴胡"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1240-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1240:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-GUIPITANG-CONSTRAINED-DEFICIENCY",
+      "baseFormula": "归脾汤",
+      "triggerTerms": [
+        "郁怒伤阴",
+        "胀闷",
+        "大小便不利"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "山栀",
+        "木香"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1258-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1258:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-GUIPITANG-DAMP-HEAT-ITCHING",
+      "baseFormula": "归脾汤",
+      "triggerTerms": [
+        "阴内痛",
+        "作痒",
+        "食少体倦"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "生白芍",
+        "牡丹皮",
+        "黑山栀",
+        "生甘草"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1246-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1246:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-ERCHENTANG-LIVER-SPLEEN-QI-STAGNATION",
+      "baseFormula": "二陈汤",
+      "triggerTerms": [
+        "心腹作痛",
+        "胸胁膨胀",
+        "吞酸不食"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "山楂",
+        "山栀",
+        "青皮",
+        "木香"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1252-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1252:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-ERCHENTANG-QI-MOVEMENT-DEFICIENCY",
+      "baseFormula": "二陈汤",
+      "triggerTerms": [
+        "气动"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "人参"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0157-r009",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p157:r009",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-LIUJUNZI-MEAT-FOOD-INJURY",
+      "baseFormula": "六君子汤",
+      "triggerTerms": [
+        "肉食所伤"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "山楂"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-LIUJUNZI-RICE-FOOD-INJURY",
+      "baseFormula": "六君子汤",
+      "triggerTerms": [
+        "米食所伤"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "麦芽",
+        "枳壳"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-LIUJUNZI-FLOUR-FOOD-INJURY",
+      "baseFormula": "六君子汤",
+      "triggerTerms": [
+        "面食所伤"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "莱菔子"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-LIUJUNZI-SPLEEN-QI-STAGNATION-PHLEGM",
+      "baseFormula": "六君子汤",
+      "triggerTerms": [
+        "心腹作痛",
+        "吐痰食少",
+        "脾虚气滞"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "柴胡",
+        "枳壳"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1252-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1252:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-LIUJUNZI-ANGER-HYPOCHONDRIAC-DISTENSION",
+      "baseFormula": "六君子汤",
+      "triggerTerms": [
+        "怒气",
+        "两胁作胀",
+        "中脘疼痛"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "柴胡",
+        "升麻",
+        "木香"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1252-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1252:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-BUZHONGYIQI-MALARIA-DISCHARGE",
+      "baseFormula": "补中益气汤",
+      "triggerTerms": [
+        "久疟",
+        "发热口渴",
+        "体倦食少"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "茯苓",
+        "半夏"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1240-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1240:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-BUZHONGYIQI-SPLEEN-STOMACH-DAMP-HEAT",
+      "baseFormula": "补中益气汤",
+      "triggerTerms": [
+        "吞酸饱满",
+        "食少便泄",
+        "湿热下注"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "半夏",
+        "茯苓",
+        "炮姜"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1240-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1240:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-BUZHONGYIQI-DAMP-HEAT-BLEEDING",
+      "baseFormula": "补中益气汤",
+      "triggerTerms": [
+        "带下赤白",
+        "痰喘胸满",
+        "大便下血"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "炮姜",
+        "白芍",
+        "茯苓",
+        "半夏"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1240-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1240:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-BUZHONGYIQI-PREGNANCY-CHRONIC-DYSENTERY",
+      "baseFormula": "补中益气汤",
+      "triggerTerms": [
+        "妊娠",
+        "久痢",
+        "腹内重坠",
+        "胎气不安"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "白芍",
+        "木香"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1258-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1258:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOYAO-WOOD-CONSTRAINT",
+      "baseFormula": "逍遥散",
+      "triggerTerms": [
+        "木郁"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "牡丹皮",
+        "栀子"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOYAO-FIRE-CONSTRAINT",
+      "baseFormula": "逍遥散",
+      "triggerTerms": [
+        "火郁"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "黄连"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOYAO-METAL-CONSTRAINT",
+      "baseFormula": "逍遥散",
+      "triggerTerms": [
+        "金郁"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "黄芩",
+        "苏叶"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOYAO-EARTH-CONSTRAINT",
+      "baseFormula": "逍遥散",
+      "triggerTerms": [
+        "土郁"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "石膏",
+        "知母"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOYAO-WATER-CONSTRAINT",
+      "baseFormula": "逍遥散",
+      "triggerTerms": [
+        "水郁"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "泽泻",
+        "猪苓"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOYAO-LIVER-QI-PAIN",
+      "baseFormula": "逍遥散",
+      "triggerTerms": [
+        "善怒多郁",
+        "小腹痛胀",
+        "胁肋痞满"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "木香",
+        "香附"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1243-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1243:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOYAO-PREGNANCY-DEFICIENCY-CONSTIPATION",
+      "baseFormula": "逍遥散",
+      "triggerTerms": [
+        "妊娠",
+        "大小便不利",
+        "郁怒伤阴"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "生地"
+      ],
+      "removeHerbs": [
+        "牡丹皮"
+      ],
+      "sourceEvidenceId": "T15-d2b093656655-p1258-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1258:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-XIAOYAO-POST-DYSENTERY-FLUID-DEFICIENCY",
+      "baseFormula": "逍遥散",
+      "triggerTerms": [
+        "妊娠痢疾愈后",
+        "二便不通",
+        "津液无以下润"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "车前子"
+      ],
+      "removeHerbs": [
+        "牡丹皮"
+      ],
+      "sourceEvidenceId": "T15-d2b093656655-p1258-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1258:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-SIWU-HEMATEMESIS",
+      "baseFormula": "四物汤",
+      "triggerTerms": [
+        "吐血"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "麦冬",
+        "甘草"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-SIWU-HEMATOCHEZIA",
+      "baseFormula": "四物汤",
+      "triggerTerms": [
+        "便血"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "地榆",
+        "黄芩"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-a60ecf5c4021-p0175-r001",
+      "sourceCitation": "pdf-evidence:a60ecf5c4021#p175:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-SIWU-SEVERE-BLOOD-STASIS",
+      "baseFormula": "四物汤",
+      "triggerTerms": [
+        "瘀血较重"
+      ],
+      "triggerMode": "all",
+      "resultingFormula": "桃红四物汤",
+      "addHerbs": [
+        "桃仁",
+        "红花"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-57bd28cae94e-p0233-r005",
+      "sourceCitation": "pdf-evidence:57bd28cae94e#p233:r005",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "experience",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-SIWU-LIVER-QI-STAGNATION-PAIN",
+      "baseFormula": "四物汤",
+      "triggerTerms": [
+        "善怒多郁",
+        "小腹痛胀",
+        "胁肋痞满"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "柴胡",
+        "青皮",
+        "橘核",
+        "延胡索"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1243-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1243:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-BAZHEN-SPLEEN-QI-BLOOD-DEFICIENCY-FEVER",
+      "baseFormula": "八珍汤",
+      "triggerTerms": [
+        "脾经气血虚",
+        "发热烦躁",
+        "脉洪大而虚"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "炮姜"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1237-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1237:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-BAZHEN-LIVER-CHANNEL-DAMP-HEAT",
+      "baseFormula": "八珍汤",
+      "triggerTerms": [
+        "小腹痞胀",
+        "小水不利",
+        "气血两虚",
+        "湿热郁于肝经"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "柴胡",
+        "山栀",
+        "龙胆",
+        "车前子"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1243-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1243:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-BAZHEN-FLUID-DEFICIENCY-CONSTIPATION",
+      "baseFormula": "八珍汤",
+      "triggerTerms": [
+        "妊娠痢疾愈后",
+        "二便不通",
+        "气血两虚",
+        "津液无以下润"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "火麻仁",
+        "杏仁"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1258-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1258:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-ZHENWU-COUGH",
+      "baseFormula": "真武汤",
+      "triggerTerms": [
+        "咳"
+      ],
+      "triggerMode": "any",
+      "addHerbs": [
+        "五味子",
+        "细辛",
+        "干姜"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-58423f817a06-p0249-r003",
+      "sourceCitation": "pdf-evidence:58423f817a06#p249:r003",
+      "evidenceAnchorLevel": "tiaowen",
+      "tier": "experience",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-SINISAN-COUGH",
+      "baseFormula": "四逆散",
+      "triggerTerms": [
+        "咳"
+      ],
+      "triggerMode": "any",
+      "addHerbs": [
+        "五味子",
+        "干姜"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p0387-r006",
+      "sourceCitation": "pdf-evidence:d2b093656655#p387:r006",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-SINISAN-PALPITATION",
+      "baseFormula": "四逆散",
+      "triggerTerms": [
+        "悸"
+      ],
+      "triggerMode": "any",
+      "addHerbs": [
+        "桂枝"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p0387-r006",
+      "sourceCitation": "pdf-evidence:d2b093656655#p387:r006",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-SINISAN-URINATION",
+      "baseFormula": "四逆散",
+      "triggerTerms": [
+        "小便不利"
+      ],
+      "triggerMode": "any",
+      "addHerbs": [
+        "茯苓"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p0387-r006",
+      "sourceCitation": "pdf-evidence:d2b093656655#p387:r006",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-SINISAN-TENESMUS",
+      "baseFormula": "四逆散",
+      "triggerTerms": [
+        "泄利下重"
+      ],
+      "triggerMode": "any",
+      "addHerbs": [
+        "薤白"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-64bc78fc08a4-p0565-r011",
+      "sourceCitation": "pdf-evidence:64bc78fc08a4#p565:r011",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-LIZHONG-NAVEL-THROB",
+      "baseFormula": "理中丸",
+      "triggerTerms": [
+        "脐上筑"
+      ],
+      "triggerMode": "any",
+      "addHerbs": [
+        "桂枝"
+      ],
+      "removeHerbs": [
+        "白术"
+      ],
+      "sourceEvidenceId": "T15-fcf026a0b4f9-p0017-r002",
+      "sourceCitation": "pdf-evidence:fcf026a0b4f9#p17:r002",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "experience",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-LIZHONG-VOMIT",
+      "baseFormula": "理中丸",
+      "triggerTerms": [
+        "吐多"
+      ],
+      "triggerMode": "any",
+      "addHerbs": [
+        "生姜"
+      ],
+      "removeHerbs": [
+        "白术"
+      ],
+      "sourceEvidenceId": "T15-fcf026a0b4f9-p0017-r002",
+      "sourceCitation": "pdf-evidence:fcf026a0b4f9#p17:r002",
+      "evidenceAnchorLevel": "chapter_paragraph",
+      "tier": "experience",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
+      "id": "T14-MOD-TONGMAI-RED-FACE",
+      "baseFormula": "通脉四逆汤",
+      "triggerTerms": [
+        "面色赤"
+      ],
+      "triggerMode": "any",
+      "addHerbs": [
+        "葱白"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p0495-r005",
+      "sourceCitation": "pdf-evidence:d2b093656655#p495:r005",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    }
+  ],
+  "summary": {
+    "ruleCount": 51,
+    "targetBaseFormulaCount": 14,
+    "coveredBaseFormulaCount": 14,
+    "sourceAnchoredRuleCount": 51
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "engineering-jargon-lexicon-v2",
+  "governance": {
+    "status": "project_visible_output_lint_catalog",
+    "sourceRefs": ["SRC-PROJECT-REASONING-CONTRACT"],
+    "scopeNote": "构建期扫描确定性模板；运行时扫描模型与流式输出并走拒绝、修复或医生可理解替换。不能把运行时模型文本问题误称为构建期即可消除。"
+  },
+  "entries": [
+    { "id": "programmatic", "terms": ["程序化", "程序判定"], "replacement": "按当前风险筛查规则", "severity": "reject_visible_output" },
+    { "id": "safety_gate", "terms": ["安全门控", "确定性门控", "门控"], "replacement": "处方前安全条件", "severity": "reject_visible_output" },
+    { "id": "server", "terms": ["服务端", "后端", "前端"], "replacement": "系统", "severity": "reject_visible_output" },
+    { "id": "placeholder", "terms": ["placeholder", "占位符", "待生成"], "replacement": "当前尚未形成该项结论", "severity": "reject_visible_output" },
+    { "id": "internal_contract", "terms": ["stage-contract", "schema", "sentinel", "NDJSON", "fixpoint"], "replacement": "输出结构校验", "severity": "reject_visible_output" },
+    { "id": "internal_reasoning", "terms": ["证候锚点", "病机关联", "权重", "槽位", "签名载荷"], "replacement": "病例依据", "severity": "reject_visible_output" },
+    { "id": "generic_not_generated", "terms": ["暂不生成", "不生成正式", "暂不进入方药"], "replacement": "当前未满足形成该项建议的条件", "severity": "requires_three_part_explanation" },
+    { "id": "internal_evidence_gap", "terms": ["EVIDENCE_GAP", "内部证据缺口"], "replacement": "当前可核验依据不足", "severity": "reject_visible_output" },
+    { "id": "model_provider", "terms": ["LLM", "大模型", "模型后端", "provider", "prompt", "提示词", "token", "temperature"], "replacement": "系统分析", "severity": "reject_visible_output" },
+    { "id": "stream_transport", "terms": ["SSE", "chunk", "流式协议", "心跳包", "连接超时"], "replacement": "系统响应", "severity": "reject_visible_output" },
+    { "id": "parse_repair", "terms": ["JSON", "解析失败", "修复轮次", "retry", "fallback", "降级分支"], "replacement": "当前结果未通过结构校验", "severity": "reject_visible_output" },
+    { "id": "infrastructure", "terms": ["API", "接口鉴权", "限流", "环境变量", "密钥", "localStorage"], "replacement": "系统内部处理", "severity": "reject_visible_output" },
+    { "id": "insufficient_information_template", "terms": ["信息不足，需补齐", "信息不足需补齐", "信息不足，无法生成", "信息不足无法判断"], "replacement": "当前资料尚不足以形成该项结论；请补充会改变判断的病例信息后复评", "severity": "requires_three_part_explanation" },
+    { "id": "dose_level_engineering", "terms": ["剂量级候选方药", "剂量级处方", "剂量级输出", "剂量级"], "replacement": "包含具体用量的处方建议", "severity": "reject_visible_output" }
+  ],
+  "allowedSurfaces": ["developer_log", "telemetry", "test_fixture", "source_code_comment"]
+}

@@ -3,6 +3,11 @@
   "entries": {
     "归脾汤": {
       "source": "《济生》卷四。",
+      "indications": [
+        "思虑伤脾，健忘怔忡，吐血下血。",
+        "心脾气血两虚证：心悸怔忡，健忘失眠，盗汗，体倦食少，面色萎黄，舌淡，苔薄白，脉细弱（《方剂学》规划教材主治，用于检索召回）。"
+      ],
+      "curatedSyndromeTags": ["heart_spleen_deficiency", "TCM-SYNDROME-49DEF276EE71"],
       "ingredients": ["白术", "茯苓", "黄耆", "龙眼肉", "酸枣仁", "人参", "木香", "甘草"],
       "requiredIngredients": ["白术", "黄耆", "龙眼肉", "酸枣仁"],
       "verification": [
@@ -14,6 +19,7 @@
     },
     "酸枣仁汤": {
       "source": "《金匮要略》",
+      "indications": ["虚劳虚烦不得眠。"],
       "ingredients": ["酸枣仁", "知母", "茯苓", "川芎", "甘草"],
       "requiredIngredients": ["酸枣仁"],
       "verification": [
@@ -29,12 +35,56 @@
     },
     "逍遥散": {
       "source": "《局方》卷九。",
+      "indications": ["肝郁血虚，两胁疼痛，头痛目眩，口燥咽干，神疲食少，往来寒热，或妇人月水不调。"],
+      "curatedSyndromeTags": ["TCM-SYNDROME-5A6226E3BDDA"],
       "ingredients": ["甘草", "当归", "茯苓", "白芍", "白术", "柴胡"],
       "requiredIngredients": ["柴胡", "白芍", "当归", "白术"],
       "verification": [
         {
           "title": "本地方剂库《局方》卷九逍遥散组成记录",
           "url": "urn:tcm-cdss:formula-catalog:逍遥散:局方卷九"
+        }
+      ]
+    },
+    "紫雪丹": {
+      "source": "《外台秘要》引《苏恭方》",
+      "indications": ["温热病热邪内陷心包、热盛动风相关高热烦躁、神昏谵语、痉厥等；急危重症必须先行急诊处置，本条只治理方剂身份。"],
+      "ingredients": ["石膏", "寒水石", "滑石", "磁石", "玄参", "木香", "沉香", "升麻", "甘草", "丁香", "芒硝", "硝石", "麝香", "朱砂"],
+      "requiredIngredients": ["石膏", "寒水石", "玄参", "麝香", "朱砂"],
+      "verification": [
+        {
+          "title": "中华人民共和国药典（2025年版）品种目录",
+          "url": "https://www.nmpa.gov.cn/directory/web/nmpa/images/1742899061887079524.pdf"
+        },
+        {
+          "title": "本地方剂来源汇编《外台秘要》紫雪方记录",
+          "url": "urn:tcm-cdss:formula-catalog:紫雪丹:外台秘要"
+        }
+      ]
+    },
+    "桂枝加葛根汤": {
+      "source": "《伤寒论》第17条",
+      "indications": ["太阳病，项背强几几，汗出，恶风。"],
+      "ingredients": ["葛根", "桂枝", "白芍", "炙甘草", "生姜", "大枣"],
+      "requiredIngredients": ["葛根", "桂枝", "白芍"],
+      "aliases": ["桂枝汤加葛根"],
+      "verification": [
+        {
+          "title": "本地伤寒条文与课程截图双锚定记录",
+          "url": "urn:tcm-cdss:nihaisha-fusion:shanghan:17"
+        }
+      ]
+    },
+    "大黄䗪虫丸": {
+      "source": "《金匮要略·血痹虚劳病脉证并治第六》",
+      "indications": ["五劳虚极羸瘦，腹满不能饮食，肌肤甲错，两目黯黑，内有干血。"],
+      "ingredients": ["大黄", "黄芩", "甘草", "桃仁", "杏仁", "白芍", "干地黄", "干漆", "虻虫", "水蛭", "蛴螬", "䗪虫"],
+      "requiredIngredients": ["大黄", "桃仁", "干地黄", "䗪虫"],
+      "aliases": ["大黄蛰虫丸", "大黄蟅虫丸"],
+      "verification": [
+        {
+          "title": "本地金匮篇段与课程板书双锚定记录",
+          "url": "urn:tcm-cdss:nihaisha-fusion:jingui:xulao-dahuangzhechongwan"
         }
       ]
     }

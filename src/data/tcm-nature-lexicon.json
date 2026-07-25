@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "tcm-nature-lexicon-v2",
+  "governance": {
+    "status": "project_component_taxonomy_with_standard_linkage",
+    "standardReference": "GB/T 16751.2-2021",
+    "standardUrl": "https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=C71A9DAD24CB1252F12439D1F045DA6A",
+    "sourceRefs": ["SRC-GBT-16751-2-2021"],
+    "scopeNote": "29项为项目使用的病性组成标签；完整规范证候覆盖由T1的2060条标准索引承担。未命中组成标签不等于术语错误。"
+  },
+  "entries": [
+    { "id": "wind", "canonical": "风", "aliases": ["风邪"], "kind": "pathogen" },
+    { "id": "cold", "canonical": "寒", "aliases": ["寒邪", "寒盛"], "kind": "pathogen" },
+    { "id": "heat", "canonical": "热", "aliases": ["热邪", "热盛"], "kind": "pathogen" },
+    { "id": "fire_heat", "canonical": "火热", "aliases": ["火", "火邪", "火盛"], "kind": "pathogen" },
+    { "id": "summerheat", "canonical": "暑", "aliases": ["暑邪"], "kind": "pathogen" },
+    { "id": "dampness", "canonical": "湿", "aliases": ["湿邪", "湿盛"], "kind": "pathogen" },
+    { "id": "dryness", "canonical": "燥", "aliases": ["燥邪"], "kind": "pathogen" },
+    { "id": "phlegm", "canonical": "痰", "aliases": ["痰浊", "痰邪"], "kind": "pathological_product" },
+    { "id": "fluid_retention", "canonical": "饮", "aliases": ["水饮", "饮停"], "kind": "pathological_product" },
+    { "id": "water_dampness", "canonical": "水湿", "aliases": ["水停", "水气"], "kind": "pathological_product" },
+    { "id": "toxin", "canonical": "毒", "aliases": ["毒邪", "热毒"], "kind": "pathogen" },
+    { "id": "food_stagnation", "canonical": "食积", "aliases": ["食滞", "饮食积滞"], "kind": "pathological_product" },
+    { "id": "parasite_accumulation", "canonical": "虫积", "aliases": ["虫证", "虫邪积聚"], "kind": "pathological_product" },
+    { "id": "internal_wind", "canonical": "内风", "aliases": ["动风", "风动", "肝风内动"], "kind": "pathodynamic_state" },
+    { "id": "qi_deficiency", "canonical": "气虚", "aliases": ["气亏", "元气不足"], "kind": "deficiency" },
+    { "id": "qi_stagnation", "canonical": "气滞", "aliases": ["气郁", "气机郁滞", "气机不畅"], "kind": "qi_disorder" },
+    { "id": "qi_counterflow", "canonical": "气逆", "aliases": ["气机上逆", "逆气"], "kind": "qi_disorder" },
+    { "id": "qi_sinking", "canonical": "气陷", "aliases": ["中气下陷", "气虚下陷"], "kind": "qi_disorder" },
+    { "id": "qi_collapse", "canonical": "气脱", "aliases": ["元气暴脱"], "kind": "qi_disorder" },
+    { "id": "blood_deficiency", "canonical": "血虚", "aliases": ["血亏", "血不足"], "kind": "deficiency" },
+    { "id": "blood_stasis", "canonical": "血瘀", "aliases": ["瘀血", "血行瘀滞", "瘀阻"], "kind": "blood_disorder" },
+    { "id": "blood_heat", "canonical": "血热", "aliases": ["热入血分"], "kind": "blood_disorder" },
+    { "id": "blood_cold", "canonical": "血寒", "aliases": ["寒凝血脉"], "kind": "blood_disorder" },
+    { "id": "yin_deficiency", "canonical": "阴虚", "aliases": ["阴亏", "阴液不足"], "kind": "deficiency" },
+    { "id": "yang_deficiency", "canonical": "阳虚", "aliases": ["阳气不足", "阳亏"], "kind": "deficiency" },
+    { "id": "essence_deficiency", "canonical": "精亏", "aliases": ["肾精不足", "精血不足"], "kind": "deficiency" },
+    { "id": "fluid_depletion", "canonical": "津亏", "aliases": ["津伤", "津液不足", "液亏"], "kind": "deficiency" },
+    { "id": "qi_blood_disharmony", "canonical": "气血失和", "aliases": ["气血不和"], "kind": "disharmony" },
+    { "id": "yin_yang_disharmony", "canonical": "阴阳失调", "aliases": ["阴阳不和"], "kind": "disharmony" },
+    { "id": "deficiency", "canonical": "虚", "aliases": ["亏虚", "不足"], "kind": "eight_principles" },
+    { "id": "excess", "canonical": "实", "aliases": ["邪实", "壅实"], "kind": "eight_principles" }
+  ]
+}

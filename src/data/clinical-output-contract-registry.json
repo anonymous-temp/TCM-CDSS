@@ -1,0 +1,312 @@
+{
+  "schemaVersion": "clinical-output-contract-registry-v2",
+  "governance": {
+    "status": "current_linear_m01_m05_contract",
+    "targetArchitectureExcluded": true,
+    "visibleOutputPolicy": "可见临床结论必须绑定患者事实、确定性规则或证据条目；内部签名、哈希和工程术语不得进入可见区。",
+    "sourceRefs": [
+      "SRC-PROJECT-REASONING-CONTRACT",
+      "SRC-PROJECT-DETERMINISTIC-SAFETY"
+    ]
+  },
+  "summary": {
+    "contractCount": 18,
+    "visibleContractCount": 16,
+    "internalContractCount": 2
+  },
+  "limitedStateCopy": {
+    "requiredParts": [
+      "knownFacts",
+      "unavailableConclusion",
+      "nextAction"
+    ],
+    "templates": {
+      "knownFacts": "当前已确认：{knownFacts}",
+      "unavailableConclusion": "当前尚不能形成：{unavailableConclusion}；原因：{reason}",
+      "nextAction": "下一步：{nextAction}"
+    },
+    "policy": "不得只写“信息不足”或“暂不生成”；必须同时说明已知事实、受限结论和可执行的补充/转诊动作。"
+  },
+  "surfaces": [
+    {
+      "id": "case_collection",
+      "label": "病例采集",
+      "sectionOrder": [
+        "M01-case-summary"
+      ]
+    },
+    {
+      "id": "question_round",
+      "label": "集中追问",
+      "sectionOrder": [
+        "M02-question-plan"
+      ]
+    },
+    {
+      "id": "comprehensive_clinical_scheme",
+      "label": "完整诊疗支持方案",
+      "sectionOrder": [
+        "red-flag-warning",
+        "M03-overview",
+        "M03-western",
+        "M03-pathogenesis",
+        "M03-therapy",
+        "M03-M04-lineage",
+        "M04-formula",
+        "M04-decoction",
+        "M04-modifications",
+        "M04-patent-western",
+        "M03-M04-nonpharma",
+        "M03-M04-management",
+        "health-education",
+        "M05-assessment"
+      ]
+    },
+    {
+      "id": "limited_clinical_scheme",
+      "label": "受限态诊疗支持方案",
+      "sectionOrder": [
+        "red-flag-warning",
+        "M03-overview",
+        "M03-western",
+        "M03-pathogenesis",
+        "M03-M04-management",
+        "health-education"
+      ],
+      "copyContract": "limitedStateCopy"
+    },
+    {
+      "id": "red_flag_escalation",
+      "label": "红旗处置方案",
+      "sectionOrder": [
+        "red-flag-warning",
+        "M03-western",
+        "M03-M04-management",
+        "health-education"
+      ],
+      "copyContract": "limitedStateCopy"
+    },
+    {
+      "id": "non_dose_treatment_direction",
+      "label": "非剂量治疗方向",
+      "sectionOrder": [
+        "red-flag-warning",
+        "M03-overview",
+        "M03-pathogenesis",
+        "M03-therapy",
+        "M03-M04-nonpharma",
+        "M03-M04-management",
+        "health-education"
+      ],
+      "copyContract": "limitedStateCopy"
+    },
+    {
+      "id": "post_prescription_followup",
+      "label": "处方后风险与随访",
+      "sectionOrder": [
+        "red-flag-warning",
+        "M05-assessment",
+        "M03-M04-management",
+        "health-education"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "id": "red-flag-warning",
+      "stage": "diagnose|prescribe|assess",
+      "path": "safetyGate.redFlags/reasons",
+      "label": "红旗预警",
+      "requiredStatus": "required_when_red_flag_or_priority_evaluation",
+      "evidenceBinding": "deterministic_rule_and_patient_fact",
+      "visibility": "visible",
+      "rendererId": "risk-summary-panel",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M01-case-summary",
+      "stage": "collect",
+      "path": "caseState/hisRecord",
+      "label": "病例摘要",
+      "requiredStatus": "required",
+      "evidenceBinding": "patient_facts_only",
+      "visibility": "visible",
+      "rendererId": "case-record-panel",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M02-question-plan",
+      "stage": "question",
+      "path": "M02Plan.questions",
+      "label": "集中追问",
+      "requiredStatus": "conditional",
+      "evidenceBinding": "sourceEvidence_verbatim_binding",
+      "visibility": "visible",
+      "rendererId": "question-plan-card",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M03-overview",
+      "stage": "diagnose",
+      "path": "reasoningV2.overview",
+      "label": "中医诊断概览",
+      "requiredStatus": "required",
+      "evidenceBinding": "evidence_ref_and_primary_syndrome_basis",
+      "visibility": "visible",
+      "rendererId": "diagnosis-conclusion-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M03-western",
+      "stage": "diagnose",
+      "path": "reasoningV2.westernDiagnosis",
+      "label": "西医诊断倾向与鉴别",
+      "requiredStatus": "required",
+      "evidenceBinding": "supporting_facts_limitations_and_checks",
+      "visibility": "visible",
+      "rendererId": "diagnosis-conclusion-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M03-pathogenesis",
+      "stage": "diagnose",
+      "path": "reasoningV2.pathogenesis",
+      "label": "病机拆解",
+      "requiredStatus": "required",
+      "evidenceBinding": "patient_fact_to_pathogenesis_chain",
+      "visibility": "visible",
+      "rendererId": "pathogenesis-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M03-therapy",
+      "stage": "diagnose",
+      "path": "reasoningV2.therapy",
+      "label": "治则治法",
+      "requiredStatus": "required",
+      "evidenceBinding": "target_pathogenesis_and_evidence_ref",
+      "visibility": "visible",
+      "rendererId": "therapy-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M04-formula",
+      "stage": "prescribe",
+      "path": "reasoningV2.formula.candidates",
+      "label": "候选方药",
+      "requiredStatus": "conditional",
+      "evidenceBinding": "formula_source_herb_evidence_and_target_ref",
+      "visibility": "visible",
+      "rendererId": "formula-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M04-patent-western",
+      "stage": "prescribe",
+      "path": "reasoningV2.formula.patentAndWestern",
+      "label": "中成药/西药候选",
+      "requiredStatus": "nullable",
+      "evidenceBinding": "evidence_id_fingerprint_and_risk_note",
+      "visibility": "visible",
+      "rendererId": "medicine-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M04-modifications",
+      "stage": "prescribe",
+      "path": "reasoningV2.formula.modifications",
+      "label": "加减规则",
+      "requiredStatus": "optional",
+      "evidenceBinding": "trigger_target_and_evidence_ref",
+      "visibility": "visible",
+      "rendererId": "formula-modification-list",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M04-decoction",
+      "stage": "prescribe",
+      "path": "reasoningV2.formula.candidates[].decoction",
+      "label": "煎服与复评节点",
+      "requiredStatus": "required_when_formula_exists",
+      "evidenceBinding": "candidate_formula_binding",
+      "visibility": "visible",
+      "rendererId": "decoction-panel",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M03-M04-nonpharma",
+      "stage": "diagnose|prescribe",
+      "path": "reasoningV2.nonPharma",
+      "label": "非药物调护与中医项目",
+      "requiredStatus": "nullable",
+      "evidenceBinding": "pathogenesis_target_and_protocol_source",
+      "visibility": "visible",
+      "rendererId": "followup-care-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M03-M04-lineage",
+      "stage": "diagnose|prescribe",
+      "path": "reasoningV2.lineageAdaptation",
+      "label": "学术流派适配",
+      "requiredStatus": "nullable",
+      "evidenceBinding": "applicability_reason_and_safety_deference",
+      "visibility": "visible",
+      "rendererId": "lineage-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M03-M04-management",
+      "stage": "diagnose|prescribe",
+      "path": "reasoningV2.management",
+      "label": "管理与安全网",
+      "requiredStatus": "nullable",
+      "evidenceBinding": "red_flag_loop_and_followup_trigger",
+      "visibility": "visible",
+      "rendererId": "followup-care-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "M05-assessment",
+      "stage": "assess",
+      "path": "deterministic assessment markdown",
+      "label": "风险与随访汇总",
+      "requiredStatus": "required",
+      "evidenceBinding": "structured_post_prescription_audit",
+      "visibility": "visible",
+      "rendererId": "audit-followup-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "health-education",
+      "stage": "diagnose|prescribe|assess",
+      "path": "management.healthEducation",
+      "label": "健康宣教",
+      "requiredStatus": "required_when_actionable",
+      "evidenceBinding": "case_bound_behavior_and_safety_boundary",
+      "visibility": "visible",
+      "rendererId": "followup-care-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
+      "id": "internal-signature",
+      "stage": "diagnose|prescribe",
+      "path": "contractSignature/contractSignatureVersion",
+      "label": "结构签名",
+      "requiredStatus": "internal_required_when_configured",
+      "evidenceBinding": "signed_payload",
+      "visibility": "internal_only",
+      "unknownPolicy": "never_render_to_clinical_user"
+    },
+    {
+      "id": "internal-review-hash",
+      "stage": "diagnose|prescribe",
+      "path": "clinicalReview.reviewedPayloadHash",
+      "label": "复核载荷哈希",
+      "requiredStatus": "internal_optional",
+      "evidenceBinding": "sha256_payload_binding",
+      "visibility": "internal_only",
+      "unknownPolicy": "never_render_to_clinical_user"
+    }
+  ]
+}

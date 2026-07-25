@@ -1,0 +1,218 @@
+{
+  "schemaVersion": "tcm-contraindication-rules-v1",
+  "advisoryOnly": true,
+  "rules": [
+    {
+      "id": "T14-MAHUANG-SWEAT-DEPLETION",
+      "formulaNames": [
+        "麻黄汤",
+        "大青龙汤",
+        "葛根汤"
+      ],
+      "contraindicationTerms": [
+        "汗出不止",
+        "大汗",
+        "津液不足",
+        "咽干",
+        "尺脉迟微",
+        "淋家",
+        "疮家"
+      ],
+      "message": "发汗法存在课程禁忌或津液受损线索，不能直接承接为剂量级候选。",
+      "severity": "block",
+      "sourceRefs": [
+        "six-channel.md#太阳病",
+        "formula-patterns.md#太阳病方证"
+      ]
+    },
+    {
+      "id": "T14-PURGE-DEFICIENCY",
+      "formulaNames": [
+        "大承气汤",
+        "小承气汤",
+        "调胃承气汤",
+        "桃核承气汤"
+      ],
+      "contraindicationTerms": [
+        "喜按",
+        "自利不渴",
+        "脉弱",
+        "虚寒",
+        "孕妇",
+        "妊娠"
+      ],
+      "message": "攻下或破血方向与虚寒/特殊人群线索冲突，必须停止自动编译并人工复核。",
+      "severity": "block",
+      "sourceRefs": [
+        "six-channel.md#阳明病",
+        "formula-patterns.md#阳明病方证"
+      ]
+    },
+    {
+      "id": "T14-FUZI-HIGH-RISK",
+      "formulaNames": [
+        "四逆汤",
+        "通脉四逆汤",
+        "白通汤",
+        "白通加猪胆汁汤",
+        "真武汤",
+        "麻黄附子细辛汤",
+        "干姜附子汤"
+      ],
+      "contraindicationTerms": [
+        "孕妇",
+        "妊娠",
+        "心律失常",
+        "室性早搏",
+        "肝功能异常",
+        "肾功能异常"
+      ],
+      "message": "附子类高风险方与特殊人群或心肝肾风险并存，禁止自动形成可执行处方。",
+      "severity": "block",
+      "sourceRefs": [
+        "formula-patterns.md#三阴病方证",
+        "nihaixia-StableV2026.5.23/SKILL.md#禁忌规则"
+      ]
+    },
+    {
+      "id": "T14-BLOOD-BREAKING-BLEEDING",
+      "formulaNames": [
+        "抵当汤",
+        "抵当丸",
+        "桃核承气汤",
+        "大黄䗪虫丸"
+      ],
+      "contraindicationTerms": [
+        "活动性出血",
+        "月经过多",
+        "妊娠",
+        "孕妇",
+        "抗凝药",
+        "华法林"
+      ],
+      "message": "破血逐瘀方向存在出血或妊娠风险，必须人工复核且不得自动处方。",
+      "severity": "block",
+      "sourceRefs": [
+        "formula-patterns.md#少阳与变证方证",
+        "nihaixia-StableV2026.5.23/SKILL.md#禁忌规则"
+      ]
+    },
+    {
+      "id": "T14-GUIZHI-NO-SWEAT",
+      "formulaNames": [
+        "桂枝汤",
+        "桂枝加葛根汤"
+      ],
+      "contraindicationTerms": [
+        "无汗",
+        "脉浮紧",
+        "脉紧"
+      ],
+      "message": "无汗或脉紧与桂枝汤类的太阳中风方证不符，禁止由方名直接承接为处方。",
+      "severity": "block",
+      "sourceRefs": [
+        "formula-patterns.md:17",
+        "nihaixia-StableV2026.5.23/SKILL.md:6151"
+      ]
+    },
+    {
+      "id": "T14-EPHEDRA-SPONTANEOUS-SWEAT",
+      "formulaNames": [
+        "麻黄汤",
+        "大青龙汤",
+        "葛根汤"
+      ],
+      "contraindicationTerms": [
+        "有汗",
+        "自汗",
+        "汗出",
+        "脉微弱",
+        "恶风"
+      ],
+      "message": "已有汗出、恶风或脉弱时，发汗方方向存在方证冲突，必须停止自动编译。",
+      "severity": "block",
+      "sourceRefs": [
+        "formula-patterns.md:22",
+        "nihaixia-StableV2026.5.23/SKILL.md:951"
+      ]
+    },
+    {
+      "id": "T14-SHAOYIN-FORBID-STRONG-SWEATING",
+      "formulaNames": [
+        "麻黄汤",
+        "大青龙汤",
+        "葛根汤"
+      ],
+      "contraindicationTerms": [
+        "少阴",
+        "脉微细",
+        "但欲寐",
+        "手足厥冷"
+      ],
+      "message": "少阴里证或亡阳线索不可按普通太阳表证强发汗；特殊微汗语境也必须由医师辨证。",
+      "severity": "block",
+      "sourceRefs": [
+        "six-channel.md#少阴病",
+        "correction-decisions.md#少阴禁汗语境"
+      ]
+    },
+    {
+      "id": "T14-EXTERIOR-FORBID-PURGING",
+      "formulaNames": [
+        "大承气汤",
+        "小承气汤",
+        "调胃承气汤",
+        "桃核承气汤",
+        "大陷胸汤",
+        "大陷胸丸"
+      ],
+      "contraindicationTerms": [
+        "表证",
+        "恶寒",
+        "脉浮",
+        "头项强痛"
+      ],
+      "message": "表证未解时攻里可能造成误治，未完成表里鉴别前禁止自动编译攻下方向。",
+      "severity": "block",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:6151",
+        "formula-patterns.md:65"
+      ]
+    },
+    {
+      "id": "T14-GUIZHI-ALCOHOL-RISK",
+      "formulaNames": [
+        "桂枝汤",
+        "桂枝加葛根汤"
+      ],
+      "contraindicationTerms": [
+        "酒客",
+        "长期饮酒",
+        "大量饮酒"
+      ],
+      "message": "参考资料把长期大量饮酒列为桂枝汤课程禁忌；仅作风险提示，须结合现代肝功能和用药史人工复核。",
+      "severity": "review",
+      "sourceRefs": [
+        "formula-patterns.md:17",
+        "nihaixia-StableV2026.5.23/SKILL.md:6151"
+      ]
+    },
+    {
+      "id": "T14-ZHIZI-LOOSE-STOOL",
+      "formulaNames": [
+        "栀子豉汤",
+        "栀子厚朴枳实汤"
+      ],
+      "contraindicationTerms": [
+        "旧微溏",
+        "便溏",
+        "下利清稀"
+      ],
+      "message": "既往或当前便溏与栀子豉汤课程禁忌线索冲突，需重新核对寒热虚实。",
+      "severity": "review",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:3463"
+      ]
+    }
+  ]
+}

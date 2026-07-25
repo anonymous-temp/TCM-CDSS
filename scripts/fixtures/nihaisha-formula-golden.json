@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "nihaisha-formula-golden-v1",
+  "cases": [
+    {
+      "id": "solar-wind-sweating",
+      "clinicalText": "发热恶风，自汗，脉浮缓",
+      "relevant": ["桂枝汤"],
+      "forbidden": ["麻黄汤"],
+      "discriminator": "有汗/无汗、脉缓/脉紧"
+    },
+    {
+      "id": "solar-cold-no-sweat",
+      "clinicalText": "恶寒无汗，全身疼痛，脉浮紧",
+      "relevant": ["麻黄汤"],
+      "forbidden": ["桂枝汤"],
+      "discriminator": "有汗/无汗、脉缓/脉紧"
+    },
+    {
+      "id": "hot-diarrhea",
+      "clinicalText": "下利臭秽、肛门灼热、口渴、小便黄",
+      "relevant": ["葛根黄芩黄连汤"],
+      "forbidden": ["桂枝人参汤"],
+      "discriminator": "热利灼热或寒利清稀"
+    },
+    {
+      "id": "water-urinary-bleeding",
+      "clinicalText": "小便不利伴血尿、口渴",
+      "relevant": ["猪苓汤"],
+      "forbidden": ["五苓散"],
+      "discriminator": "水逆气化不利或兼阴伤血尿"
+    },
+    {
+      "id": "cold-collapse-versus-qi-stagnation",
+      "clinicalText": "下利清谷，四肢厥冷，脉微欲绝",
+      "relevant": ["四逆汤"],
+      "forbidden": ["四逆散"],
+      "discriminator": "里寒下利脉微或气机郁滞"
+    }
+  ]
+}

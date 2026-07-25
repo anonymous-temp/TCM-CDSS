@@ -1,0 +1,87 @@
+{
+  "schemaVersion": "diagnostics-context-lexicon-v2",
+  "governance": {
+    "status": "project_context_policy_catalog",
+    "sourceRefs": ["SRC-NHC-MEDICAL-RECORD-2010", "SRC-BEIJING-TCM-RECORD-2025", "SRC-PROJECT-REASONING-CONTRACT"],
+    "scopeNote": "本表描述术语在中医推理区块中的上下文策略，不使用简单禁词。检查名可以出现在鉴别边界中，但不得被写成证候成立的必要前提。"
+  },
+  "groups": [
+    {
+      "id": "modern_imaging",
+      "class": "modern_diagnostic_test",
+      "terms": ["CT", "MRI", "磁共振", "核磁", "X线", "影像学", "彩超", "超声", "B超", "内镜", "胃镜", "肠镜"],
+      "tcmReasoningPolicy": "allowed_only_as_western_differential_boundary",
+      "forbiddenFrames": ["缺乏", "缺少", "未做", "未查", "尚无", "待查", "未完善"]
+    },
+    {
+      "id": "modern_laboratory",
+      "class": "modern_diagnostic_test",
+      "terms": ["实验室检查", "化验", "检验", "血常规", "尿常规", "生化", "肝功能", "肾功能", "电解质", "血糖", "空腹血糖", "餐后血糖", "HbA1c", "糖化血红蛋白", "炎症指标", "C反应蛋白", "CRP", "甲状腺功能", "甲功", "TSH", "促甲状腺激素", "血气分析"],
+      "tcmReasoningPolicy": "allowed_only_as_western_differential_boundary",
+      "forbiddenFrames": ["缺乏", "缺少", "未做", "未查", "尚无", "待查", "未完善"]
+    },
+    {
+      "id": "modern_scale",
+      "class": "modern_diagnostic_test",
+      "terms": ["量表", "评分", "PHQ-9", "GAD-7", "PSQI", "ESS", "STOP-BANG"],
+      "tcmReasoningPolicy": "allowed_only_as_western_differential_boundary",
+      "forbiddenFrames": ["缺乏", "缺少", "未做", "未查", "尚无", "待查", "未完善"]
+    },
+    {
+      "id": "tcm_abdominal_examination",
+      "class": "tcm_examination",
+      "terms": ["腹诊", "按诊", "腹部按诊", "腹部触诊"],
+      "tcmReasoningPolicy": "allowed_when_case_bound_and_relevant",
+      "forbiddenFrames": ["仅因缺乏", "常规缺项", "一律需补"]
+    },
+    {
+      "id": "tcm_tongue_pulse_instrument",
+      "class": "tcm_examination_instrument",
+      "terms": ["舌诊仪", "脉诊仪", "舌脉仪", "经络检测仪"],
+      "tcmReasoningPolicy": "instrument_is_optional_and_cannot_replace_four_examinations",
+      "forbiddenFrames": ["必须依赖", "缺少仪器无法辨证"]
+    },
+    {
+      "id": "western_physical_examination",
+      "class": "physical_examination",
+      "terms": ["心肺查体", "腹膜刺激征", "反跳痛", "肌紧张", "神经系统查体", "局灶神经体征"],
+      "tcmReasoningPolicy": "allowed_as_patient_fact_or_safety_boundary",
+      "forbiddenFrames": []
+    },
+    {
+      "id": "modern_microbiology",
+      "class": "modern_diagnostic_test",
+      "terms": ["培养", "药敏", "病原学", "微生物", "核酸检测", "PCR", "抗原检测"],
+      "tcmReasoningPolicy": "allowed_only_as_western_differential_or_treatment_safety_boundary",
+      "forbiddenFrames": ["缺乏", "缺少", "未做", "未查", "尚无", "待查", "未完善"]
+    },
+    {
+      "id": "modern_pathology",
+      "class": "modern_diagnostic_test",
+      "terms": ["病理", "组织病理", "细胞学", "活检", "穿刺病理"],
+      "tcmReasoningPolicy": "allowed_only_as_western_differential_boundary",
+      "forbiddenFrames": ["缺乏", "缺少", "未做", "未查", "尚无", "待查", "未完善"]
+    },
+    {
+      "id": "modern_electrophysiology",
+      "class": "modern_diagnostic_test",
+      "terms": ["心电图", "动态心电图", "Holter", "脑电图", "肌电图", "神经传导"],
+      "tcmReasoningPolicy": "allowed_as_western_differential_or_safety_boundary",
+      "forbiddenFrames": ["缺少检查无法辨证"]
+    },
+    {
+      "id": "modern_functional_test",
+      "class": "modern_diagnostic_test",
+      "terms": ["肺功能", "睡眠监测", "多导睡眠", "动态血压", "动态血糖", "前庭功能"],
+      "tcmReasoningPolicy": "allowed_as_western_differential_or_management_boundary",
+      "forbiddenFrames": ["缺少检查无法辨证"]
+    },
+    {
+      "id": "tcm_four_examinations",
+      "class": "tcm_examination",
+      "terms": ["望诊", "闻诊", "问诊", "切诊", "舌诊", "脉诊", "面诊", "四诊"],
+      "tcmReasoningPolicy": "allowed_when_recorded_as_patient_fact_or_information_boundary",
+      "forbiddenFrames": ["未提及即正常", "缺一项即无法辨证"]
+    }
+  ]
+}

@@ -1,0 +1,331 @@
+{
+  "schemaVersion": "clinical-governance-source-registry-v1",
+  "governance": {
+    "status": "source_locator_and_scope_registry",
+    "evidencePolicy": "临床运行资格由表内状态和确定性规则决定；网页可证明来源存在，但不能替代患者级审方或机构资质。",
+    "reproductionPolicy": "标准全文和受版权保护定义不写入运行表，只登记定位信息与必要摘要。"
+  },
+  "summary": {
+    "sourceCount": 29,
+    "regulatoryOrGovernmentCount": 22,
+    "projectSourceCount": 7
+  },
+  "entries": [
+    {
+      "id": "SRC-GBT-16751-2-2021",
+      "title": "中医临床诊疗术语 第2部分：证候",
+      "publisher": "国家市场监督管理总局、国家标准化管理委员会",
+      "sourceType": "national_recommended_standard",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=C71A9DAD24CB1252F12439D1F045DA6A",
+      "publishedDate": "2021-11-26",
+      "scope": "证候规范名、同义词、英文名和分类；定义只保存指纹",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-GBT-16751-3-2023",
+      "title": "中医临床诊疗术语 第3部分：治则治法",
+      "publisher": "国家市场监督管理总局、国家标准化管理委员会",
+      "sourceType": "national_recommended_standard",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=E8BBBAB76E1AF1498C5DA5DFBB2194EC",
+      "publishedDate": "2023-03-17",
+      "scope": "治则、治法和疗法规范名、同义词、英文名和分类；定义只保存指纹",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-TCM-CODE-MAPPING-2020",
+      "title": "4项中医临床诊疗术语标准新旧映射表",
+      "publisher": "国家卫生健康委员会、国家中医药管理局",
+      "sourceType": "official_mapping_attachment",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://www.natcm.gov.cn/yizhengsi/zhengcewenjian/2020-11-23/18461.html",
+      "publishedDate": "2020-11-23",
+      "scope": "疾病、证候、治法和分类代码的新旧映射",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-NHC-MEDICAL-RECORD-2010",
+      "title": "病历书写基本规范",
+      "publisher": "国家卫生健康委员会",
+      "sourceType": "departmental_normative_document",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://www.nhc.gov.cn/wjw/c100175/201002/b1bec53d90f243e0861529723f00221a.shtml",
+      "publishedDate": "2010-02-04",
+      "scope": "门诊病历基本信息、主诉、病史、体格检查和辅助检查记录要求",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-BEIJING-TCM-RECORD-2025",
+      "title": "中医病历书写基本规范",
+      "publisher": "北京市中医药管理局",
+      "sourceType": "regional_normative_document",
+      "authorityTier": "government_primary",
+      "locator": "https://zyj.beijing.gov.cn/sy/tzgg/202511/t20251106_4263764.html",
+      "publishedDate": "2025-11-06",
+      "scope": "中医门诊病历的一般信息、主诉、现病史、四诊及辨证记录结构",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-NHC-EMR-FUNCTION-2010",
+      "title": "电子病历系统功能规范（试行）",
+      "publisher": "国家卫生健康委员会",
+      "sourceType": "departmental_normative_document",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://www.nhc.gov.cn/wjw/gfxwj/201101/a769b5f4b9ca4415a72fa9888bce0bc1.shtml",
+      "publishedDate": "2010-12-30",
+      "scope": "电子病历信息记录、修改留痕、权限与数据结构要求",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-NHC-PRESCRIPTION-MANAGEMENT",
+      "title": "处方管理办法",
+      "publisher": "国家卫生健康委员会",
+      "sourceType": "departmental_rule",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://www.nhc.gov.cn/wjw/c100221/202201/6a4ee53e4a3a407fbd9f520e1e2662c5.shtml",
+      "scope": "处方开具、调剂、审核和责任边界",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-NHC-PRESCRIPTION-AUDIT-2018",
+      "title": "医疗机构处方审核规范",
+      "publisher": "国家卫生健康委员会",
+      "sourceType": "departmental_normative_document",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://www.nhc.gov.cn/yzygj/c100068/201807/03df2450431348e18feb3701c199262d.shtml",
+      "publishedDate": "2018-06-29",
+      "scope": "真实处方审核的人员职责、审核内容和处置流程",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-SZJG-TCM-FORMULA-2011",
+      "title": "中药方剂编码规则及编码 第2部分：中药方剂编码（SZJG/T 38.2-2011）",
+      "publisher": "深圳市市场监督管理局",
+      "sourceType": "local_technical_standard",
+      "authorityTier": "government_primary",
+      "locator": "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf",
+      "publishedDate": "2011-02-01",
+      "scope": "方剂编码、方名、来源、组成、功效和主治；用于身份交叉核验，不提供患者级剂量依据",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-NMPA-CHP-2025-INDEX",
+      "title": "中华人民共和国药典（2025年版）品种目录",
+      "publisher": "国家药品监督管理局",
+      "sourceType": "pharmacopoeia_index",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://www.nmpa.gov.cn/directory/web/nmpa/images/1742899061887079524.pdf",
+      "publishedDate": "2025-03-25",
+      "scope": "药典收载品种名称索引；不能单独证明汤剂与丸剂身份相同",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-NHC-EMERGENCY-DEPT-2009",
+      "title": "急诊科建设与管理指南（试行）",
+      "publisher": "国家卫生健康委员会",
+      "sourceType": "departmental_guideline",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://www.nhc.gov.cn/zwgkzt/pyzgl1/200906/41146.shtml",
+      "publishedDate": "2009-05-25",
+      "scope": "胸痛、呼吸困难、休克、急腹症、出血、抽搐、晕厥等急症类别",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-BEIJING-EMERGENCY-TRIAGE-2019",
+      "title": "关于实施急救分级分类救护的办法",
+      "publisher": "北京市卫生健康委员会",
+      "sourceType": "regional_triage_rule",
+      "authorityTier": "government_primary",
+      "locator": "https://www.beijing.gov.cn/zhengce/gfxwj/sj/201911/t20191115_511747.html",
+      "publishedDate": "2019-11-15",
+      "scope": "急危、急重、急症和非急症分级及典型症状体征",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-SAMR-ACUPUNCTURE-OPS",
+      "title": "针灸技术操作规范系列国家标准",
+      "publisher": "国家市场监督管理总局、国家标准化管理委员会",
+      "sourceType": "national_standard_series",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://std.samr.gov.cn/gb/search/gbDetailed?id=qP0EZu%2ByzEI%3D&mode=p",
+      "scope": "针灸类技术操作规范的标准入口；具体项目仍须核对分册和机构资质",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-GBT-40666-2021-MEDICATED-BATH",
+      "title": "中医技术操作规范 皮肤科 中药药浴",
+      "publisher": "国家市场监督管理总局、国家标准化管理委员会",
+      "sourceType": "national_guidance_standard",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=FC50372571AB2AB1D5C8764390ED9DB8",
+      "publishedDate": "2021",
+      "scope": "中药药浴操作和安全边界",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-GBT-21709-22-2013-GUASHA",
+      "title": "针灸技术操作规范 第22部分：刮痧",
+      "publisher": "国家标准化管理委员会",
+      "sourceType": "national_recommended_standard",
+      "authorityTier": "regulatory_primary",
+      "locator": "https://zjjcmspublic.oss-cn-hangzhou-zwynet-d01-a.internet.cloud.zj.gov.cn/jcms_files/jcms1/web3462/site/attach/0/dcfdb77a81074e2bb135e1dd1102dc20.pdf",
+      "publishedDate": "2013",
+      "scope": "刮痧操作规范",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-TCM-INFECTION-CONTROL",
+      "title": "中医医疗技术相关感染预防与控制指南",
+      "publisher": "卫生健康行政部门公开镜像",
+      "sourceType": "infection_control_guideline",
+      "authorityTier": "government_mirror",
+      "locator": "https://zyk.bjhd.gov.cn/zwdt/xxgk/tzgg/201810/t20181009_3756979_hd.shtml",
+      "scope": "侵入性及接触性中医技术的消毒、无菌与感染控制边界",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-NATIONAL-MEDICAL-SERVICE-TCM",
+      "title": "全国医疗服务项目技术规范（中医项目公开说明）",
+      "publisher": "卫生健康行政部门公开页",
+      "sourceType": "medical_service_project_specification",
+      "authorityTier": "government_primary",
+      "locator": "https://ws.zibo.gov.cn/art/2023/10/31/art_812_2754211.html",
+      "publishedDate": "2023-10-31",
+      "scope": "中医医疗服务项目分类和项目边界",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-HUNAN-INFLUENZA-TCM-2025",
+      "title": "湖南省冬春季流感中医药防治方案（2025年版）",
+      "publisher": "湖南省中医药管理局",
+      "sourceType": "provincial_tcm_treatment_plan",
+      "authorityTier": "government_primary",
+      "locator": "https://tcm.hunan.gov.cn/tcm/xxgk/tzgg/202501/t20250111_33561694.html",
+      "publishedDate": "2025-01-11",
+      "scope": "流感针刺、艾灸与拔罐的选穴、操作方向和频次",
+      "accessedAt": "2026-07-23"
+    },
+    {
+      "id": "SRC-BEIJING-TCM-DOUBLE-HEART",
+      "title": "话说双心",
+      "publisher": "北京市中医药管理局",
+      "sourceType": "government_clinical_health_guidance",
+      "authorityTier": "government_primary",
+      "locator": "https://zyj.beijing.gov.cn/ylfw/ysbj/201912/t20191223_1412285.html",
+      "publishedDate": "2011-07-04",
+      "scope": "失眠针刺主穴和辨证配穴；未提供固定治疗频次",
+      "accessedAt": "2026-07-23"
+    },
+    {
+      "id": "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+      "title": "中医日间诊疗服务项目频次参考表",
+      "publisher": "淄博市医疗保障局、淄博市卫生健康委员会",
+      "sourceType": "regional_medical_service_frequency_reference",
+      "authorityTier": "government_primary",
+      "locator": "https://ybj.zibo.gov.cn/gongkai/channel_c_5f9fa491ab327f36e4c1305f_5fb3bcc7a40661f2aebb98a4/doc_61f342da93a456a2f282fe85.html",
+      "publishedDate": "2022-01-26",
+      "scope": "普通针刺、艾灸、推拿、耳针、放血、小针刀等门诊服务频次参考；仅作项目排程上限参考，不单独证明患者适应证或疗效",
+      "accessedAt": "2026-07-23"
+    },
+    {
+      "id": "SRC-BEIJING-COVID-TCM-REHAB-2020",
+      "title": "北京市新型冠状病毒肺炎恢复期中医康复指导建议（试行）",
+      "publisher": "北京市中医药管理局",
+      "sourceType": "regional_tcm_rehabilitation_guidance",
+      "authorityTier": "government_primary",
+      "locator": "https://zyj.beijing.gov.cn/sy/tzgg/202003/t20200314_1706179.html",
+      "publishedDate": "2020-03-13",
+      "scope": "恢复期针灸、耳针、艾灸、拔罐、经穴推拿、运动康复和心理疏导的选穴、频次与安全边界",
+      "accessedAt": "2026-07-23"
+    },
+    {
+      "id": "SRC-HORGOS-THREAD-EMBEDDING-2025",
+      "title": "中医特色疗法——穴位埋线",
+      "publisher": "霍尔果斯市人民政府",
+      "sourceType": "government_hospital_health_guidance",
+      "authorityTier": "government_primary",
+      "locator": "https://www.xjhegs.gov.cn/xjhegs/c114432/202502/59ed9d552f8c406fb08f48511b068e23.shtml",
+      "publishedDate": "2025-02-19",
+      "scope": "肥胖等适应证的穴位埋线项目介绍及两周一次、4至5次的门诊排程参考；必须由专科医生现场评估",
+      "accessedAt": "2026-07-23"
+    },
+    {
+      "id": "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+      "title": "nihaisha-nishi-tcm 针灸课程证据索引",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "user_supplied_educational_reference",
+      "authorityTier": "project_governed_source",
+      "locator": "参考/nihaisha-nishi-tcm-main/references/acupuncture.md",
+      "sha256": "69c4561fe967f3d03eb0615383bb4e5ae4ec15dbc40f10b54bc7118984b70b21",
+      "scope": "常见病证的穴位索引和明确安全警示；仅作辅助选穴线索，必须与政府方案、操作标准和现场医师复核共同使用",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-PROJECT-DETERMINISTIC-SAFETY",
+      "title": "中医 CDSS 确定性安全规则",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "project_runtime_rule",
+      "authorityTier": "project_governed_source",
+      "locator": "src/lib/diagnosis-safety.ts",
+      "sha256": "68e48ca86449541528e5201a31c7ae5c874c9ed7dca495ba2b4b03ab8b820096",
+      "scope": "红旗、生命体征和特殊人群的实际运行门禁；外部来源只做类别和阈值复核",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-PROJECT-REASONING-CONTRACT",
+      "title": "中医 CDSS 结构化推理契约",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "project_runtime_contract",
+      "authorityTier": "project_governed_source",
+      "locator": "src/lib/diagnosis-types.ts",
+      "sha256": "be3abdaa1cd56c8d8d15b22c4ec5f51c3be79a0f9941652183242fc28c6bb588",
+      "scope": "M01-M05 当前实际字段与输出结构",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-PROJECT-TREATMENT-CAPABILITY",
+      "title": "中医 CDSS 非药物项目能力目录",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "project_runtime_catalog",
+      "authorityTier": "project_governed_source",
+      "locator": "src/lib/tcm-treatment-projects.ts",
+      "sha256": "29aa92e9a0f70917a9878dba11715561593d0530af40b3a48e02c57b371b5115",
+      "scope": "22类非药物/外治项目的风险、资质、药物审方与适用标签",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-PROJECT-HERB-MAPPING",
+      "title": "中药饮片标准名别名炮制品映射表",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "project_governed_mapping",
+      "authorityTier": "project_governed_source",
+      "locator": "药学基础数据/重点整理数据表/中药饮片标准名别名炮制品映射表.csv",
+      "sha256": "40f821a8c0fd59734cd83e7f4ae76d5469804d495da2d14984b002a5b7381cc3",
+      "scope": "中药标准名、别名、炮制品、置信度和歧义组",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-PROJECT-FORMULA-SOURCES",
+      "title": "本地方剂来源汇编",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "project_compiled_source",
+      "authorityTier": "project_governed_source",
+      "locator": "src/data/tcm-formula-sources.json",
+      "sha256": "2444ebbf3b5fc8c99276ef507f1ccac03a0d08a94791e0c8df5fef9b4941004d",
+      "scope": "方名、古籍来源和组成的候选全集；同名记录不自动成为治理基线",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722",
+      "title": "甲方测评问题与临床术语裁定记录",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "customer_acceptance_and_clinical_adjudication",
+      "authorityTier": "project_governed_source",
+      "locator": "docs/灵犀中医CDSS问题-根因分析与整改方案-20260722.md",
+      "sha256": "3dd54abe8a3e6e954358463a709fb0785dc2a068e20a7f761ecbd10ec61db1ac",
+      "scope": "测评钦定证型、临床常用锚词和项目扩展术语；扩展条目明确标注为非国标来源",
+      "accessedAt": "2026-07-22"
+    }
+  ]
+}

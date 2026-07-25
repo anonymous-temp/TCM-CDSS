@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "clinical-governance-table-manifest-v1",
+  "tables": [
+    {
+      "id": "T1",
+      "file": "tcm-syndrome-lexicon.json",
+      "schemaVersion": "tcm-syndrome-lexicon-v2",
+      "sha256": "5296486104b9fb0a344b0538ffcd314e471e51fe125ba251a52564fc7539a507",
+      "recordCount": 2061
+    },
+    {
+      "id": "T2",
+      "file": "tcm-nature-lexicon.json",
+      "schemaVersion": "tcm-nature-lexicon-v2",
+      "sha256": "a80bca0c2c8c5040dc84b7683a3a46475414c8d6c9c91be850a81e8c7d0121d3",
+      "recordCount": 31
+    },
+    {
+      "id": "T3",
+      "file": "tcm-location-lexicon.json",
+      "schemaVersion": "tcm-location-lexicon-v2",
+      "sha256": "2b790ee22f9a4f0e39cd52210754e7245bdf15a304c9420e613e1bd1194149f0",
+      "recordCount": 36
+    },
+    {
+      "id": "T4",
+      "file": "tcm-treatment-principle-lexicon.json",
+      "schemaVersion": "tcm-treatment-principle-lexicon-v3",
+      "sha256": "98717af20471528e9d81a876365b73c47401ea147165955ee3be023793840e41",
+      "recordCount": 1279
+    },
+    {
+      "id": "T5",
+      "file": "diagnostics-context-lexicon.json",
+      "schemaVersion": "diagnostics-context-lexicon-v2",
+      "sha256": "c26970d02411f269891160a24cfdcb0fd0426474b7169d582eb85163179719e9",
+      "recordCount": 11
+    },
+    {
+      "id": "T6",
+      "file": "redflag-triage-lexicon.json",
+      "schemaVersion": "redflag-triage-lexicon-v2",
+      "sha256": "11b032e150b6ad724d7a4508e45dc07e26703c0a07d02a9a8031f51a9be27846",
+      "recordCount": 17
+    },
+    {
+      "id": "T7",
+      "file": "engineering-jargon-lexicon.json",
+      "schemaVersion": "engineering-jargon-lexicon-v2",
+      "sha256": "cc62e636f3502a1ebb27ef51d1f5664d661a7b24f31fc00ddd5edcf78bc29bcf",
+      "recordCount": 14
+    },
+    {
+      "id": "T8",
+      "file": "tcm-formula-governed-catalog.json",
+      "schemaVersion": "tcm-formula-governed-catalog-v2",
+      "sha256": "eb26dab230d0bbb9ec87534e0927b417937589a7210c672d5fec85fbe82f3829",
+      "recordCount": 500
+    },
+    {
+      "id": "T9",
+      "file": "tcm-herb-identity-catalog.json",
+      "schemaVersion": "tcm-herb-identity-catalog-v2",
+      "sha256": "0194f520f0c6b0077e1ea16fd9312b22410c49e6c0844b2ec5fe582301925cd6",
+      "recordCount": 625
+    },
+    {
+      "id": "T10",
+      "file": "clinical-required-field-matrix.json",
+      "schemaVersion": "clinical-required-field-matrix-v1",
+      "sha256": "ebfd87e8225412a22969869b9ce02b48cad11d794d17fc5d513334c11aa1f853",
+      "recordCount": 16
+    },
+    {
+      "id": "T11",
+      "file": "clinical-output-contract-registry.json",
+      "schemaVersion": "clinical-output-contract-registry-v2",
+      "sha256": "a6d1d82e6101c54b3faf8c386b91f66f157f42b13e16d4099a67a33e55d06dee",
+      "recordCount": 18
+    },
+    {
+      "id": "T12",
+      "file": "tcm-nondrug-treatment-evidence-catalog.json",
+      "schemaVersion": "tcm-nondrug-treatment-evidence-catalog-v2",
+      "sha256": "abed87724cb12e207c659fb91e3529f3899b93f6e47f5e1f64ab653656628a41",
+      "recordCount": 22
+    }
+  ],
+  "sourceRegistry": {
+    "file": "clinical-governance-source-registry.json",
+    "sha256": "e99f52b3ed79134fd914df8d5017790d9cca6b4cc3b6354803061a44565c55a5",
+    "recordCount": 29
+  },
+  "auxiliaryIndexes": [
+    {
+      "governanceTable": "T8",
+      "file": "tcm-formula-retrieval-index.json",
+      "schemaVersion": "tcm-formula-retrieval-index-v2",
+      "sha256": "105952d7a47758cede0937a61f0185183ea3b6b1ff9ec3e1f014fa1dc7618e07",
+      "recordCount": 500
+    }
+  ],
+  "buildSummary": {
+    "formulaGoverned": 500,
+    "formulaEligible": 500,
+    "formulaDoseCompilationEligible": 319,
+    "formulaCandidatesAwaitingReview": 0,
+    "formulaEvidenceAdjudicated": 8,
+    "herbStandardNames": 625,
+    "herbAmbiguousInputs": 510
+  }
+}

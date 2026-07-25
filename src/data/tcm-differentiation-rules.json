@@ -1,0 +1,2488 @@
+{
+  "schemaVersion": "tcm-differentiation-rules-v2",
+  "advisoryOnly": true,
+  "systematicReviewDimensions": [
+    {
+      "id": "sleep",
+      "label": "睡眠",
+      "safetyClass": "standard",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    },
+    {
+      "id": "appetite",
+      "label": "胃口与进食",
+      "safetyClass": "standard",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    },
+    {
+      "id": "stool",
+      "label": "大便",
+      "safetyClass": "standard",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    },
+    {
+      "id": "urination",
+      "label": "小便",
+      "safetyClass": "standard",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    },
+    {
+      "id": "thirst",
+      "label": "口渴与饮水",
+      "safetyClass": "standard",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    },
+    {
+      "id": "hot_cold",
+      "label": "寒热与手足温度",
+      "safetyClass": "standard",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    },
+    {
+      "id": "sweating",
+      "label": "汗出",
+      "safetyClass": "standard",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    },
+    {
+      "id": "energy",
+      "label": "体力与精神",
+      "safetyClass": "standard",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    },
+    {
+      "id": "sexual_function",
+      "label": "性功能（仅在病例相关且适宜时询问）",
+      "safetyClass": "sensitive_context_only",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    },
+    {
+      "id": "menstruation",
+      "label": "月经（仅对相关患者且适宜时询问）",
+      "safetyClass": "sensitive_context_only",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6065"
+    }
+  ],
+  "coldHeatEvidenceDimensions": [
+    {
+      "id": "T13-COLD-HEAT-6445",
+      "dimension": "面色",
+      "trueColdFalseHeat": "两颧色红，界限分明，红部鲜艳，不红部白中带青",
+      "trueHeatFalseCold": "表虽冷，两目炯炯有神",
+      "runtimePolicy": "仅在患者事实明确且至少两个维度同向时参与寒热收敛；冲突或缺失保持 unknown。",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:6445",
+        "nihaixia-StableV2026.5.23/SKILL.md:6458"
+      ],
+      "tier": "common"
+    },
+    {
+      "id": "T13-COLD-HEAT-6446",
+      "dimension": "口鼻气",
+      "trueColdFalseHeat": "呼出气不温，不急促，气不臭",
+      "trueHeatFalseCold": "呼出气必温，且急促",
+      "runtimePolicy": "仅在患者事实明确且至少两个维度同向时参与寒热收敛；冲突或缺失保持 unknown。",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:6446",
+        "nihaixia-StableV2026.5.23/SKILL.md:6459"
+      ],
+      "tier": "common"
+    },
+    {
+      "id": "T13-COLD-HEAT-6447",
+      "dimension": "舌形",
+      "trueColdFalseHeat": "舌干而质淡，或红而质润",
+      "trueHeatFalseCold": "舌干而质燥，苔薄而根必厚",
+      "runtimePolicy": "仅在患者事实明确且至少两个维度同向时参与寒热收敛；冲突或缺失保持 unknown。",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:6447",
+        "nihaixia-StableV2026.5.23/SKILL.md:6460"
+      ],
+      "tier": "common"
+    },
+    {
+      "id": "T13-COLD-HEAT-6448",
+      "dimension": "脉象",
+      "trueColdFalseHeat": "脉虽浮数，按之则无力",
+      "trueHeatFalseCold": "脉虽沉细，必兼数急",
+      "runtimePolicy": "仅在患者事实明确且至少两个维度同向时参与寒热收敛；冲突或缺失保持 unknown。",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:6448",
+        "nihaixia-StableV2026.5.23/SKILL.md:6461"
+      ],
+      "tier": "common"
+    },
+    {
+      "id": "T13-COLD-HEAT-6449",
+      "dimension": "胸腹",
+      "trueColdFalseHeat": "按之不蒸手，初按似热，久按不觉甚热",
+      "trueHeatFalseCold": "四肢虽寒，胸腹必热，久按蒸蒸有热气",
+      "runtimePolicy": "仅在患者事实明确且至少两个维度同向时参与寒热收敛；冲突或缺失保持 unknown。",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:6449",
+        "nihaixia-StableV2026.5.23/SKILL.md:6462"
+      ],
+      "tier": "common"
+    },
+    {
+      "id": "T13-COLD-HEAT-6450",
+      "dimension": "小便",
+      "trueColdFalseHeat": "清长，尿色淡白",
+      "trueHeatFalseCold": "短赤，尿色深黄",
+      "runtimePolicy": "仅在患者事实明确且至少两个维度同向时参与寒热收敛；冲突或缺失保持 unknown。",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:6450",
+        "nihaixia-StableV2026.5.23/SKILL.md:6463"
+      ],
+      "tier": "common"
+    },
+    {
+      "id": "T13-COLD-HEAT-6451",
+      "dimension": "口渴",
+      "trueColdFalseHeat": "渴不欲饮，或喜热饮",
+      "trueHeatFalseCold": "口渴喜冷饮，饮入即消",
+      "runtimePolicy": "仅在患者事实明确且至少两个维度同向时参与寒热收敛；冲突或缺失保持 unknown。",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:6451",
+        "nihaixia-StableV2026.5.23/SKILL.md:6464"
+      ],
+      "tier": "common"
+    },
+    {
+      "id": "T13-COLD-HEAT-6452",
+      "dimension": "大便",
+      "trueColdFalseHeat": "便稀溏，无肛门灼热",
+      "trueHeatFalseCold": "便硬结，或热结旁流，肛门灼热",
+      "runtimePolicy": "仅在患者事实明确且至少两个维度同向时参与寒热收敛；冲突或缺失保持 unknown。",
+      "sourceRefs": [
+        "nihaixia-StableV2026.5.23/SKILL.md:6452",
+        "nihaixia-StableV2026.5.23/SKILL.md:6465"
+      ],
+      "tier": "common"
+    }
+  ],
+  "tonguePulseConflictPolicy": {
+    "sourceClaim": "参考材料列出 5 类脉舌矛盾；运行时不得机械采用“以舌为准”的经验结论。",
+    "runtimePolicy": "不得机械择一；冲突时两者均降为待复核证据，写入 uncertainties，并核实采集质量、时序和重复检查。",
+    "tier": "experience"
+  },
+  "sixChannelDimensions": [
+    "太阳",
+    "少阳",
+    "阳明",
+    "太阴",
+    "少阴",
+    "厥阴"
+  ],
+  "rules": [
+    {
+      "priority": 100,
+      "informationGain": 0.5,
+      "discriminates": [
+        "桂枝汤",
+        "麻黄汤",
+        "葛根汤",
+        "大青龙汤"
+      ],
+      "id": "T13-SOLAR-SWEAT",
+      "triggerTerms": [
+        "发热",
+        "恶寒",
+        "恶风",
+        "身痛",
+        "项背强"
+      ],
+      "question": "发作时是有汗还是无汗？更偏恶风还是恶寒？",
+      "resolves": [
+        "桂枝汤",
+        "麻黄汤",
+        "葛根汤",
+        "大青龙汤"
+      ],
+      "dimensions": [
+        "表里",
+        "寒热",
+        "津液"
+      ],
+      "sourceRefs": [
+        "symptom-index.md#发热、恶寒、汗出",
+        "six-channel.md#太阳病"
+      ]
+    },
+    {
+      "priority": 100,
+      "informationGain": 0.5,
+      "discriminates": [
+        "小柴胡汤",
+        "柴胡桂枝汤",
+        "桂枝麻黄各半汤"
+      ],
+      "id": "T13-SHAOYANG",
+      "triggerTerms": [
+        "往来寒热",
+        "胸胁",
+        "口苦",
+        "恶心"
+      ],
+      "question": "寒热是交替发作还是持续发热？有无胸胁苦满、口苦或恶心？",
+      "resolves": [
+        "小柴胡汤",
+        "柴胡桂枝汤",
+        "桂枝麻黄各半汤"
+      ],
+      "dimensions": [
+        "病位",
+        "表里"
+      ],
+      "sourceRefs": [
+        "symptom-index.md#往来寒热、胸胁苦满、恶心",
+        "six-channel.md#少阳病"
+      ]
+    },
+    {
+      "priority": 100,
+      "informationGain": 0.5,
+      "discriminates": [
+        "白虎汤",
+        "小承气汤",
+        "大承气汤",
+        "调胃承气汤"
+      ],
+      "id": "T13-YANGMING-BOWEL",
+      "triggerTerms": [
+        "高热",
+        "口渴",
+        "便秘",
+        "腹痛",
+        "腹胀"
+      ],
+      "question": "大便是否通、能否排气，腹部喜按还是拒按，小便颜色如何？",
+      "resolves": [
+        "白虎汤",
+        "小承气汤",
+        "大承气汤",
+        "调胃承气汤"
+      ],
+      "dimensions": [
+        "寒热",
+        "虚实",
+        "津液"
+      ],
+      "sourceRefs": [
+        "symptom-index.md#便秘",
+        "six-channel.md#阳明病"
+      ]
+    },
+    {
+      "priority": 100,
+      "informationGain": 0.5,
+      "discriminates": [
+        "葛根黄芩黄连汤",
+        "桂枝人参汤",
+        "四逆汤"
+      ],
+      "id": "T13-DIARRHEA-COLD-HEAT",
+      "triggerTerms": [
+        "腹泻",
+        "下利",
+        "便溏"
+      ],
+      "question": "大便清稀还是臭秽灼热？口渴、小便颜色、腹部喜按或拒按分别如何？",
+      "resolves": [
+        "葛根黄芩黄连汤",
+        "桂枝人参汤",
+        "四逆汤"
+      ],
+      "dimensions": [
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md#下利、腹泻、假水泻"
+      ]
+    },
+    {
+      "priority": 100,
+      "informationGain": 0.5,
+      "discriminates": [
+        "五苓散",
+        "猪苓汤",
+        "真武汤",
+        "茯苓桂枝白术甘草汤"
+      ],
+      "id": "T13-WATER-METABOLISM",
+      "triggerTerms": [
+        "小便不利",
+        "尿频",
+        "口渴",
+        "水肿",
+        "眩晕"
+      ],
+      "question": "小便不利还是尿频？有无口渴欲饮、饮后呕吐、血尿或起立眩晕？",
+      "resolves": [
+        "五苓散",
+        "猪苓汤",
+        "真武汤",
+        "茯苓桂枝白术甘草汤"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "津液"
+      ],
+      "sourceRefs": [
+        "symptom-index.md#小便不利、尿频、尿血、结石"
+      ]
+    },
+    {
+      "priority": 100,
+      "informationGain": 0.5,
+      "discriminates": [
+        "当归四逆汤",
+        "四逆汤",
+        "四逆散",
+        "通脉四逆汤"
+      ],
+      "id": "T13-COLD-EXTREMITIES",
+      "triggerTerms": [
+        "手足冷",
+        "四肢冷",
+        "厥冷",
+        "厥逆"
+      ],
+      "question": "冷仅到手足末端，还是超过腕踝甚至肘膝？有无下利、脉微、嗜睡、胸痛或意识异常？",
+      "resolves": [
+        "当归四逆汤",
+        "四逆汤",
+        "四逆散",
+        "通脉四逆汤"
+      ],
+      "dimensions": [
+        "寒热",
+        "虚实",
+        "病位",
+        "现代急症"
+      ],
+      "sourceRefs": [
+        "symptom-index.md#手足冷、厥逆",
+        "six-channel.md#厥阴病"
+      ]
+    },
+    {
+      "priority": 100,
+      "informationGain": 0.5,
+      "discriminates": [
+        "栀子豉汤",
+        "干姜附子汤",
+        "黄连阿胶汤",
+        "桂枝甘草汤"
+      ],
+      "id": "T13-RESTLESSNESS",
+      "triggerTerms": [
+        "失眠",
+        "烦躁",
+        "心悸"
+      ],
+      "question": "症状是否发生在汗、吐、下之后？是虚烦、昼间烦躁，还是心中烦不得卧？",
+      "resolves": [
+        "栀子豉汤",
+        "干姜附子汤",
+        "黄连阿胶汤",
+        "桂枝甘草汤"
+      ],
+      "dimensions": [
+        "寒热",
+        "虚实",
+        "病程"
+      ],
+      "sourceRefs": [
+        "symptom-index.md#睡眠、烦躁、心悸"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "太阳中风",
+        "太阳伤寒"
+      ],
+      "id": "T13-WATERSHED-11",
+      "triggerTerms": [
+        "发热恶寒"
+      ],
+      "question": "有汗/无汗，脉缓/脉紧",
+      "resolves": [
+        "太阳中风",
+        "太阳伤寒"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:11"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "少阳病",
+        "小柴胡汤类"
+      ],
+      "id": "T13-WATERSHED-12",
+      "triggerTerms": [
+        "往来寒热"
+      ],
+      "question": "是否恶心、胸胁苦满、经期",
+      "resolves": [
+        "小柴胡汤"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:12"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "阳明经热",
+        "腑实"
+      ],
+      "id": "T13-WATERSHED-13",
+      "triggerTerms": [
+        "高热大渴"
+      ],
+      "question": "大便通不通、腹是否拒按",
+      "resolves": [
+        "阳明经热",
+        "腑实"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:13"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "热实",
+        "寒实",
+        "脾约",
+        "蓄血"
+      ],
+      "id": "T13-WATERSHED-14",
+      "triggerTerms": [
+        "便秘"
+      ],
+      "question": "小便深黄还是清白，腹痛拒按否",
+      "resolves": [
+        "热实",
+        "寒实",
+        "脾约",
+        "蓄血"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:14"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "葛根黄芩黄连汤",
+        "葛芩连汤",
+        "桂枝人参汤",
+        "热结旁流"
+      ],
+      "id": "T13-WATERSHED-15",
+      "triggerTerms": [
+        "下利"
+      ],
+      "question": "热利/寒利/假水泻，小便颜色",
+      "resolves": [
+        "葛根黄芩黄连汤",
+        "葛芩连汤",
+        "桂枝人参汤"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:15"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "虚胀",
+        "实胀",
+        "太阴",
+        "阳明"
+      ],
+      "id": "T13-WATERSHED-16",
+      "triggerTerms": [
+        "腹胀腹痛"
+      ],
+      "question": "喜按/拒按，时痛/持续痛",
+      "resolves": [
+        "虚胀",
+        "实胀",
+        "太阴",
+        "阳明"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:16"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "栀子豉汤",
+        "干姜附子汤",
+        "黄连阿胶汤"
+      ],
+      "id": "T13-WATERSHED-17",
+      "triggerTerms": [
+        "失眠烦躁"
+      ],
+      "question": "汗吐下后虚烦，昼日烦躁，心中烦不得卧",
+      "resolves": [
+        "栀子豉汤",
+        "干姜附子汤",
+        "黄连阿胶汤"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:17"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "桂枝甘草汤",
+        "去芍药",
+        "炙甘草汤"
+      ],
+      "id": "T13-WATERSHED-18",
+      "triggerTerms": [
+        "心悸胸满"
+      ],
+      "question": "发汗后心下悸、胸满、脉结代",
+      "resolves": [
+        "桂枝甘草汤",
+        "炙甘草汤"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:18"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "五苓散",
+        "猪苓汤",
+        "少阴水气"
+      ],
+      "id": "T13-WATERSHED-19",
+      "triggerTerms": [
+        "小便不利"
+      ],
+      "question": "口渴、尿血、结石、水逆",
+      "resolves": [
+        "五苓散",
+        "猪苓汤"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:19"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "当归四逆汤",
+        "四逆汤辈",
+        "厥阴厥"
+      ],
+      "id": "T13-WATERSHED-20",
+      "triggerTerms": [
+        "手足冷"
+      ],
+      "question": "冷到手足末端还是肘膝，是否下利脉微",
+      "resolves": [
+        "当归四逆汤",
+        "四逆汤"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:20"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "热入血室",
+        "小柴胡汤"
+      ],
+      "id": "T13-WATERSHED-21",
+      "triggerTerms": [
+        "经期感冒"
+      ],
+      "question": "是否正在月经，是否往来寒热/如见鬼状",
+      "resolves": [
+        "小柴胡汤"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:21"
+      ]
+    },
+    {
+      "priority": 90,
+      "informationGain": 1,
+      "discriminates": [
+        "甘草汤",
+        "桔梗汤",
+        "猪肤汤",
+        "半夏散及汤"
+      ],
+      "id": "T13-WATERSHED-22",
+      "triggerTerms": [
+        "咽痛"
+      ],
+      "question": "少阴咽痛、下利、心烦、声不出",
+      "resolves": [
+        "甘草汤",
+        "桔梗汤",
+        "猪肤汤",
+        "半夏散及汤"
+      ],
+      "dimensions": [
+        "病位",
+        "寒热",
+        "虚实"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:22"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.8500000000000001,
+      "discriminates": [
+        "必须问",
+        "有汗",
+        "无汗",
+        "恶风",
+        "恶寒",
+        "身痛",
+        "项背强",
+        "烦躁有无",
+        "口渴",
+        "小便颜色",
+        "大便情况",
+        "咽喉是否干燥",
+        "尺脉是否迟微",
+        "课程辨法",
+        "脉缓",
+        "太阳中风"
+      ],
+      "id": "T13-MUST-ASK-24",
+      "triggerTerms": [
+        "发热",
+        "恶寒",
+        "汗出"
+      ],
+      "question": "有汗还是无汗；恶风还是恶寒；身痛、项背强、喘、烦躁有无；口渴、小便颜色、大便情况；咽喉是否干燥，尺脉是否迟微",
+      "resolves": [
+        "桂枝汤方",
+        "麻黄汤方",
+        "葛根汤方",
+        "大青龙汤方",
+        "白虎汤方"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:24"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.77,
+      "discriminates": [
+        "必须问",
+        "寒热是否",
+        "来回发作",
+        "持续高热",
+        "胸胁苦满",
+        "口苦",
+        "恶心",
+        "女性是否月经期",
+        "已有误下",
+        "误汗",
+        "课程辨法",
+        "少阳枢机不利",
+        "小柴胡汤方向",
+        "一半太阳一半少阳",
+        "柴胡桂枝汤方向",
+        "经期外感"
+      ],
+      "id": "T13-MUST-ASK-47",
+      "triggerTerms": [
+        "往来寒热",
+        "胸胁苦满",
+        "恶心"
+      ],
+      "question": "寒热是否“来回发作”，还是持续高热；是否胸胁苦满、口苦、恶心；女性是否月经期；是否已有误下、误汗",
+      "resolves": [
+        "小柴胡汤方",
+        "柴胡桂枝汤方",
+        "柴胡加芒硝汤方"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:47"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.69,
+      "discriminates": [
+        "必须问",
+        "渴欲饮水",
+        "口渴不欲饮",
+        "小便深黄",
+        "清白",
+        "不利",
+        "高热",
+        "大汗",
+        "大便结",
+        "课程辨法",
+        "阳明大热大渴",
+        "白虎汤或白虎加人参汤方向",
+        "蓄血常见口渴不欲饮",
+        "小便自利",
+        "少阴自利而渴",
+        "小便色白"
+      ],
+      "id": "T13-MUST-ASK-63",
+      "triggerTerms": [
+        "口渴与饮水"
+      ],
+      "question": "渴欲饮水还是口渴不欲饮；小便深黄/清白/不利；有无高热、大汗、大便结",
+      "resolves": [
+        "渴欲饮水还是口渴不欲饮",
+        "白虎汤或白虎加人参汤方",
+        "蓄血常见口渴不欲饮",
+        "五苓散方"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:63"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.8500000000000001,
+      "discriminates": [
+        "必须问",
+        "几天不便",
+        "痛苦",
+        "放屁",
+        "能食",
+        "大便气味和形状",
+        "臭秽",
+        "羊屎",
+        "黑便",
+        "小便深黄",
+        "清白",
+        "腹部喜按",
+        "拒按",
+        "天枢是否压痛",
+        "课程辨法",
+        "表现"
+      ],
+      "id": "T13-MUST-ASK-78",
+      "triggerTerms": [
+        "便秘"
+      ],
+      "question": "几天不便，是否痛苦；是否放屁，是否能食；大便气味和形状：臭秽、羊屎、黑便；小便深黄还是清白；腹部喜按还是拒按，天枢是否压痛",
+      "resolves": [
+        "方证方",
+        "承气汤",
+        "大承气汤",
+        "小承气汤",
+        "麻子仁丸",
+        "温阳去寒方",
+        "抵当汤方"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:78"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.8500000000000001,
+      "discriminates": [
+        "必须问",
+        "大便是清稀",
+        "臭秽",
+        "便脓血",
+        "清水样",
+        "腹部喜按",
+        "拒按",
+        "小便深黄",
+        "清白",
+        "口渴与否",
+        "肛门灼热与否",
+        "误下后发生",
+        "课程辨法",
+        "热利",
+        "葛根黄芩黄连汤",
+        "葛芩连汤"
+      ],
+      "id": "T13-MUST-ASK-104",
+      "triggerTerms": [
+        "下利",
+        "腹泻",
+        "假水泻"
+      ],
+      "question": "大便是清稀、臭秽、便脓血，还是清水样；腹部喜按还是拒按；小便深黄还是清白；口渴与否，肛门灼热与否；是否误下后发生",
+      "resolves": [
+        "葛根黄芩黄连汤",
+        "葛芩连汤",
+        "桂枝人参汤",
+        "四逆汤辈方",
+        "大承气汤急下方",
+        "桃花汤方"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:104"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.8500000000000001,
+      "discriminates": [
+        "必须问",
+        "喜按",
+        "拒按",
+        "腹满时痛",
+        "持续剧痛",
+        "小便颜色",
+        "大便通不通",
+        "放屁",
+        "痛在少腹",
+        "心下",
+        "胸胁",
+        "全腹",
+        "课程辨法",
+        "偏实",
+        "阳明燥屎",
+        "蓄血"
+      ],
+      "id": "T13-MUST-ASK-123",
+      "triggerTerms": [
+        "腹胀",
+        "腹痛",
+        "腹诊"
+      ],
+      "question": "喜按还是拒按；腹满时痛还是持续剧痛；小便颜色；大便通不通、是否放屁；痛在少腹、心下、胸胁还是全腹",
+      "resolves": [
+        "结胸等方",
+        "太阴寒湿方",
+        "蓄血方"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:123"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.77,
+      "discriminates": [
+        "必须问",
+        "汗吐下之后出现",
+        "是虚烦不得眠",
+        "昼日烦躁不得眠",
+        "心中烦不得卧",
+        "心悸",
+        "脉结代",
+        "胸痛",
+        "手足温度",
+        "大便",
+        "胃口",
+        "课程辨法",
+        "汗吐下后虚烦不得眠",
+        "栀子豉汤方向",
+        "发汗伤阳",
+        "干姜附子汤方向"
+      ],
+      "id": "T13-MUST-ASK-140",
+      "triggerTerms": [
+        "睡眠",
+        "烦躁",
+        "心悸"
+      ],
+      "question": "是否汗吐下之后出现；是虚烦不得眠，还是昼日烦躁不得眠；是否心中烦不得卧、心悸、脉结代、胸痛；手足温度、大便、胃口",
+      "resolves": [
+        "栀子豉汤方",
+        "干姜附子汤方",
+        "桂枝甘草汤方",
+        "炙甘草汤方",
+        "黄连阿胶汤方"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:140"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.77,
+      "discriminates": [
+        "必须问",
+        "小便不利",
+        "尿频",
+        "尿色深黄",
+        "清白",
+        "血尿",
+        "口渴",
+        "发热",
+        "下利",
+        "腹痛",
+        "有结石诊断或绞痛",
+        "课程辨法",
+        "水液代谢失常",
+        "水逆",
+        "五苓散方向",
+        "泌尿结石"
+      ],
+      "id": "T13-MUST-ASK-164",
+      "triggerTerms": [
+        "小便不利",
+        "尿频",
+        "尿血",
+        "结石"
+      ],
+      "question": "小便不利还是尿频；尿色深黄、清白、血尿；口渴、发热、下利、腹痛；是否有结石诊断或绞痛",
+      "resolves": [
+        "五苓散方",
+        "猪苓汤方",
+        "真武汤",
+        "四逆类高风险方"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:164"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.77,
+      "discriminates": [
+        "必须问",
+        "冷到手指脚趾",
+        "到腕踝",
+        "肘膝",
+        "下利清谷",
+        "脉微细",
+        "但欲寐",
+        "口渴",
+        "烦躁",
+        "腹痛",
+        "小便颜色",
+        "胸痛",
+        "气短",
+        "意识异常",
+        "课程辨法",
+        "手足末梢厥寒"
+      ],
+      "id": "T13-MUST-ASK-179",
+      "triggerTerms": [
+        "手足冷",
+        "厥逆"
+      ],
+      "question": "冷到手指脚趾，还是到腕踝、肘膝；是否下利清谷、脉微细、但欲寐；是否口渴、烦躁、腹痛、小便颜色；是否胸痛、气短、意识异常",
+      "resolves": [
+        "当归四逆汤方",
+        "四逆汤辈方",
+        "四逆散方",
+        "四逆汤"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:179"
+      ]
+    },
+    {
+      "priority": 80,
+      "informationGain": 0.77,
+      "discriminates": [
+        "必须问",
+        "经期",
+        "经前后",
+        "少腹痛是否急结",
+        "硬满",
+        "小便是否自利",
+        "黑便",
+        "善忘",
+        "肌肤甲错",
+        "课程辨法",
+        "经期感冒",
+        "热入血室",
+        "小柴胡汤方向",
+        "绝不普通发汗",
+        "少腹急结",
+        "小便自利"
+      ],
+      "id": "T13-MUST-ASK-199",
+      "triggerTerms": [
+        "妇科",
+        "血证",
+        "瘀血"
+      ],
+      "question": "是否经期、经前后；少腹痛是否急结/硬满；小便是否自利；是否黑便、善忘、肌肤甲错",
+      "resolves": [
+        "小柴胡汤方",
+        "口渴不欲饮",
+        "桃核承气汤方",
+        "抵当汤"
+      ],
+      "dimensions": [
+        "四诊合参",
+        "缺口回补"
+      ],
+      "sourceRefs": [
+        "symptom-index.md:199"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "太阳中风",
+        "太阳伤寒",
+        "阳明经热"
+      ],
+      "id": "T13-COLLOQUIAL-30",
+      "triggerTerms": [
+        "感冒发烧",
+        "怕冷"
+      ],
+      "question": "出汗吗？身上痛吗？脖子项背紧吗？口渴吗？",
+      "resolves": [
+        "太阳中风",
+        "太阳伤寒",
+        "阳明经热"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:30"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "太阳伤寒",
+        "麻黄汤方向",
+        "先查禁汗"
+      ],
+      "id": "T13-COLLOQUIAL-31",
+      "triggerTerms": [
+        "感冒不出汗",
+        "浑身痛"
+      ],
+      "question": "怕冷重吗？喘吗？脉是否紧？咽干吗？",
+      "resolves": [
+        "麻黄汤方"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:31"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "太阳中风",
+        "桂枝汤方向"
+      ],
+      "id": "T13-COLLOQUIAL-32",
+      "triggerTerms": [
+        "感冒有汗",
+        "怕风"
+      ],
+      "question": "汗多不多？怕风还是怕冷？有无项背强？",
+      "resolves": [
+        "桂枝汤方"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:32"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "少阳病",
+        "小柴胡汤方向"
+      ],
+      "id": "T13-COLLOQUIAL-33",
+      "triggerTerms": [
+        "一阵冷一阵热"
+      ],
+      "question": "恶心吗？胸胁胀吗？口苦吗？女性是否经期？",
+      "resolves": [
+        "小柴胡汤方"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:33"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "热入血室",
+        "小柴胡汤方向",
+        "不普通发汗"
+      ],
+      "id": "T13-COLLOQUIAL-34",
+      "triggerTerms": [
+        "经期感冒"
+      ],
+      "question": "正在月经吗？是否一阵冷一阵热、烦、像做梦害怕？",
+      "resolves": [
+        "小柴胡汤方"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:34"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "阳明经热",
+        "腑实",
+        "白虎汤或承气汤鉴别"
+      ],
+      "id": "T13-COLLOQUIAL-35",
+      "triggerTerms": [
+        "很渴",
+        "很热"
+      ],
+      "question": "大便通吗？肚子拒按吗？小便深黄吗？",
+      "resolves": [
+        "白虎汤或承气汤"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:35"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "热实便秘",
+        "寒实便秘",
+        "脾约",
+        "蓄血"
+      ],
+      "id": "T13-COLLOQUIAL-36",
+      "triggerTerms": [
+        "好几天不大便"
+      ],
+      "question": "小便深黄还是清白？肚子痛不痛？放屁吗？大便臭吗？",
+      "resolves": [
+        "热实便秘",
+        "寒实便秘",
+        "脾约",
+        "蓄血"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:36"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "热利",
+        "寒利",
+        "热结旁流"
+      ],
+      "id": "T13-COLLOQUIAL-37",
+      "triggerTerms": [
+        "拉肚子"
+      ],
+      "question": "大便臭热还是清稀？肚子按着痛吗？小便深黄吗？",
+      "resolves": [
+        "热利",
+        "寒利",
+        "热结旁流"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:37"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "热结旁流风险",
+        "需谨慎辨别"
+      ],
+      "id": "T13-COLLOQUIAL-38",
+      "triggerTerms": [
+        "拉出来像水"
+      ],
+      "question": "肚子是不是拒按？小便是否深黄？",
+      "resolves": [
+        "热结旁流风险",
+        "需谨慎辨别"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:38"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "虚胀",
+        "实胀",
+        "太阴",
+        "阳明鉴别"
+      ],
+      "id": "T13-COLLOQUIAL-39",
+      "triggerTerms": [
+        "肚子胀"
+      ],
+      "question": "按着舒服还是更痛？大便通吗？小便颜色？",
+      "resolves": [
+        "虚胀",
+        "实胀",
+        "太阴",
+        "阳明鉴别"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:39"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "腹诊入口",
+        "蓄血",
+        "燥屎",
+        "太阴腹痛",
+        "结胸"
+      ],
+      "id": "T13-COLLOQUIAL-40",
+      "triggerTerms": [
+        "肚子痛"
+      ],
+      "question": "喜温喜按还是拒按？痛在少腹、心下还是全腹？",
+      "resolves": [
+        "腹诊入口",
+        "蓄血",
+        "燥屎",
+        "太阴腹痛",
+        "结胸"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:40"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "栀子豉汤",
+        "干姜附子汤",
+        "黄连阿胶汤方向"
+      ],
+      "id": "T13-COLLOQUIAL-41",
+      "triggerTerms": [
+        "睡不着",
+        "心烦"
+      ],
+      "question": "是否汗吐下后出现？白天烦还是夜里烦？心悸吗？",
+      "resolves": [
+        "栀子豉汤",
+        "干姜附子汤",
+        "黄连阿胶汤方"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:41"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "桂枝甘草汤",
+        "炙甘草汤方向",
+        "胸痛需就医"
+      ],
+      "id": "T13-COLLOQUIAL-42",
+      "triggerTerms": [
+        "心慌心悸"
+      ],
+      "question": "是否发汗后出现？有胸痛吗？脉结代吗？",
+      "resolves": [
+        "桂枝甘草汤",
+        "炙甘草汤方"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:42"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "当归四逆汤",
+        "四逆散",
+        "四逆汤辈鉴别"
+      ],
+      "id": "T13-COLLOQUIAL-43",
+      "triggerTerms": [
+        "手脚冰凉"
+      ],
+      "question": "冷到手指脚趾还是肘膝？有下利、想睡、脉微吗？",
+      "resolves": [
+        "当归四逆汤",
+        "四逆散",
+        "四逆汤"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:43"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "五苓散",
+        "猪苓汤",
+        "少阴水气"
+      ],
+      "id": "T13-COLLOQUIAL-44",
+      "triggerTerms": [
+        "尿少",
+        "尿不出来"
+      ],
+      "question": "口渴吗？尿血吗？结石吗？小便清白还是深黄？",
+      "resolves": [
+        "五苓散",
+        "猪苓汤"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:44"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "少阴咽痛相关方证"
+      ],
+      "id": "T13-COLLOQUIAL-45",
+      "triggerTerms": [
+        "咽喉痛"
+      ],
+      "question": "有没有下利、心烦、声音出不来？",
+      "resolves": [
+        "少阴咽痛相关方"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:45"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "高风险学习边界",
+        "不能自行用药"
+      ],
+      "id": "T13-COLLOQUIAL-46",
+      "triggerTerms": [
+        "看到课程说癌症",
+        "阴实"
+      ],
+      "question": "是想学习理论还是本人病情？是否有医生诊断？",
+      "resolves": [
+        "高风险学习边界",
+        "不能自行用药"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:46"
+      ]
+    },
+    {
+      "priority": 60,
+      "informationGain": 0.7,
+      "discriminates": [
+        "截图证据"
+      ],
+      "id": "T13-COLLOQUIAL-47",
+      "triggerTerms": [
+        "想知道某个说法有无出处"
+      ],
+      "question": "关键词是什么？要板书、PPT还是课次？",
+      "resolves": [
+        "截图证据"
+      ],
+      "dimensions": [
+        "白话入口",
+        "信息增益"
+      ],
+      "sourceRefs": [
+        "beginner-questions.md:47"
+      ]
+    },
+    {
+      "priority": 75,
+      "informationGain": 0.8200000000000001,
+      "discriminates": [
+        "课程定位",
+        "伤寒论01-05",
+        "核心抓手",
+        "三大纲领",
+        "脉浮",
+        "头项强痛",
+        "恶寒",
+        "太阳中风",
+        "有汗",
+        "恶风",
+        "脉缓",
+        "偏桂枝汤证",
+        "太阳伤寒",
+        "无汗",
+        "体痛",
+        "脉紧"
+      ],
+      "id": "T13-SIX-MUST-ASK-18",
+      "triggerTerms": [
+        "太阳病",
+        "表证与营卫"
+      ],
+      "question": "有汗还是无汗；恶风还是恶寒；身痛、项背强、喘、烦躁有无；尺脉是否迟微，咽喉是否干燥，是否淋家/疮家",
+      "resolves": [
+        "桂枝汤",
+        "麻黄汤",
+        "葛根汤",
+        "课程归入大青龙汤"
+      ],
+      "dimensions": [
+        "六经",
+        "四诊合参"
+      ],
+      "sourceRefs": [
+        "six-channel.md:18"
+      ]
+    },
+    {
+      "priority": 75,
+      "informationGain": 0.8200000000000001,
+      "discriminates": [
+        "课程定位",
+        "伤寒论06-09",
+        "核心抓手",
+        "往来寒热",
+        "胸胁苦满",
+        "口苦",
+        "咽干",
+        "目眩",
+        "默默不欲饮食",
+        "心烦喜呕",
+        "妇人经期外感",
+        "课程强调",
+        "热入血室",
+        "不能按普通太阳表证去发汗",
+        "病邪一半在太阳",
+        "一半在少阳"
+      ],
+      "id": "T13-SIX-MUST-ASK-43",
+      "triggerTerms": [
+        "少阳病",
+        "枢机与半表半里"
+      ],
+      "question": "寒热是否往来，而非单纯持续高热；是否胸胁苦满、恶心、口苦；女性是否正在经期或经期前后；是否已有误汗、误吐、误下历史",
+      "resolves": [
+        "默默不欲饮",
+        "可进入柴胡桂枝汤"
+      ],
+      "dimensions": [
+        "六经",
+        "四诊合参"
+      ],
+      "sourceRefs": [
+        "six-channel.md:43"
+      ]
+    },
+    {
+      "priority": 75,
+      "informationGain": 0.8200000000000001,
+      "discriminates": [
+        "课程定位",
+        "伤寒论10-12",
+        "部分见",
+        "02",
+        "04",
+        "14",
+        "核心抓手",
+        "胃家实",
+        "肠胃内有热实",
+        "燥屎或津液被热耗",
+        "但热不寒",
+        "阳明为纯热证",
+        "课程强调无寒",
+        "经热证",
+        "大便通畅但大热",
+        "大渴"
+      ],
+      "id": "T13-SIX-MUST-ASK-66",
+      "triggerTerms": [
+        "阳明病",
+        "里实热与攻下"
+      ],
+      "question": "大便形态、气味、是否放屁；小便深黄还是清白；腹部喜按还是拒按，天枢是否压痛；是否口大渴、大汗、神昏、谵语、视物异常",
+      "resolves": [
+        "白虎汤",
+        "承气汤",
+        "方证方",
+        "白虎汤",
+        "白虎加人参汤",
+        "小承气汤",
+        "大承气汤",
+        "大承气汤急下方",
+        "麻子仁丸",
+        "温阳去寒方"
+      ],
+      "dimensions": [
+        "六经",
+        "四诊合参"
+      ],
+      "sourceRefs": [
+        "six-channel.md:66"
+      ]
+    },
+    {
+      "priority": 75,
+      "informationGain": 0.8200000000000001,
+      "discriminates": [
+        "课程定位",
+        "伤寒论13",
+        "核心抓手",
+        "自利不渴",
+        "腹满时痛",
+        "脾寒湿",
+        "运化失司",
+        "课程强调",
+        "治太阴阴证一定要利小便",
+        "关键思想",
+        "太阴不是阳明实热",
+        "不能见腹满就用攻下",
+        "腹满时痛偏虚寒湿",
+        "需温中",
+        "恢复脾胃运化",
+        "水湿出路以小便为要"
+      ],
+      "id": "T13-SIX-MUST-ASK-100",
+      "triggerTerms": [
+        "太阴病",
+        "脾虚寒湿"
+      ],
+      "question": "下利是否清稀，是否口渴；腹痛喜温喜按还是拒按；小便情况；手足温度、精神状态",
+      "resolves": [],
+      "dimensions": [
+        "六经",
+        "四诊合参"
+      ],
+      "sourceRefs": [
+        "six-channel.md:100"
+      ]
+    },
+    {
+      "priority": 75,
+      "informationGain": 0.8200000000000001,
+      "discriminates": [
+        "课程定位",
+        "伤寒论13-14",
+        "核心抓手",
+        "脉微细",
+        "但欲寐",
+        "自利而渴",
+        "小便色白",
+        "压迫性尿频",
+        "手足厥冷",
+        "恶寒踡卧",
+        "心肾阳虚",
+        "水液不能气化",
+        "关键思想",
+        "课程用",
+        "二次蒸馏",
+        "解释水液气化"
+      ],
+      "id": "T13-SIX-MUST-ASK-124",
+      "triggerTerms": [
+        "少阴病",
+        "心肾与里寒"
+      ],
+      "question": "精神是否但欲寐；脉是否微细，手足是否冷；下利、小便、口渴性质；是否烦躁不得卧、咽痛、便脓血等少阴变证",
+      "resolves": [
+        "课程另以麻黄附子甘草汤",
+        "四逆汤",
+        "白通汤",
+        "通脉四逆汤",
+        "附子类和四逆汤"
+      ],
+      "dimensions": [
+        "六经",
+        "四诊合参"
+      ],
+      "sourceRefs": [
+        "six-channel.md:124"
+      ]
+    },
+    {
+      "priority": 75,
+      "informationGain": 0.8200000000000001,
+      "discriminates": [
+        "课程定位",
+        "伤寒论14-15",
+        "核心抓手",
+        "手脚冰冷可至肘膝",
+        "寒热错杂",
+        "上热下寒",
+        "真寒假热",
+        "真热假寒",
+        "消渴",
+        "气上撞心",
+        "心中疼热",
+        "饥不欲食",
+        "食则吐蛔",
+        "久利",
+        "蛔厥",
+        "四肢末梢极寒"
+      ],
+      "id": "T13-SIX-MUST-ASK-153",
+      "triggerTerms": [
+        "厥阴病",
+        "寒热错杂与阴阳不接"
+      ],
+      "question": "手足冷到哪里，是否过肘膝；口渴、饥饿、呕吐、腹痛、下利情况；寒热真假：小便颜色、腹诊、精神、脉象；是否有寄生虫望诊线索，如眼白蓝斑、牙龈白点等课程提到的体征",
+      "resolves": [
+        "乌梅丸",
+        "当归四逆汤",
+        "四逆散",
+        "不等同于四逆汤"
+      ],
+      "dimensions": [
+        "六经",
+        "四诊合参"
+      ],
+      "sourceRefs": [
+        "six-channel.md:153"
+      ]
+    }
+  ],
+  "pulsePatterns": [
+    {
+      "id": "T13-PULSE-6382",
+      "name": "浮",
+      "interpretation": "太阳（表证）",
+      "note": "轻按即得",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6382",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-6383",
+      "name": "浮缓",
+      "interpretation": "太阳中风",
+      "note": "体虚有汗",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6383",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-6384",
+      "name": "浮紧",
+      "interpretation": "太阳伤寒",
+      "note": "体实无汗",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6384",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-6385",
+      "name": "大/洪大",
+      "interpretation": "阳明",
+      "note": "热盛",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6385",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-6386",
+      "name": "弦",
+      "interpretation": "少阳",
+      "note": "半表半里特征脉",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6386",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-6387",
+      "name": "浮缓/弱",
+      "interpretation": "太阴",
+      "note": "脾虚湿盛",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6387",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-6388",
+      "name": "微细/沉",
+      "interpretation": "少阴",
+      "note": "气血不足",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6388",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-6389",
+      "name": "微浮",
+      "interpretation": "厥阴（欲愈）",
+      "note": "正气来复",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6389",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-COMBINED-6395",
+      "name": "浮弦",
+      "interpretation": "太阳少阳合病",
+      "formulaNames": [
+        "柴胡桂枝汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6395",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-COMBINED-6396",
+      "name": "沉细",
+      "interpretation": "少阴寒化",
+      "formulaNames": [
+        "四逆汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6396",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-COMBINED-6397",
+      "name": "弦数",
+      "interpretation": "少阳化热",
+      "formulaNames": [
+        "小柴胡汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6397",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-COMBINED-6398",
+      "name": "沉弦",
+      "interpretation": "厥阴肝郁",
+      "formulaNames": [
+        "四逆散"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6398",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-COMBINED-6399",
+      "name": "浮大",
+      "interpretation": "阳明经证",
+      "formulaNames": [
+        "白虎汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6399",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-COMBINED-6400",
+      "name": "弦缓",
+      "interpretation": "少阳兼太阴",
+      "formulaNames": [
+        "柴胡桂枝干姜汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6400",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-COMBINED-6401",
+      "name": "浮紧有力",
+      "interpretation": "太阳阳明合病",
+      "formulaNames": [
+        "大青龙汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6401",
+      "tier": "common"
+    },
+    {
+      "id": "T13-PULSE-COMBINED-6402",
+      "name": "微细欲绝",
+      "interpretation": "少阴亡阳",
+      "formulaNames": [
+        "四逆汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6402",
+      "tier": "common"
+    }
+  ],
+  "tonguePatterns": [
+    {
+      "id": "T13-TONGUE-6410",
+      "name": "薄白苔",
+      "interpretation": "正常/太阳表证",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6410",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-6411",
+      "name": "白厚苔、津液多",
+      "interpretation": "太阴（湿盛）",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6411",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-6412",
+      "name": "黄燥苔",
+      "interpretation": "阳明（热盛）",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6412",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-6413",
+      "name": "舌干质淡",
+      "interpretation": "真寒假热",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6413",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-6414",
+      "name": "舌干质燥、苔黄",
+      "interpretation": "真热假寒",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6414",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-COMBINED-6420",
+      "name": "舌淡胖大齿痕 + 苔白腻",
+      "interpretation": "太阴脾虚湿盛",
+      "formulaNames": [
+        "理中汤合平胃散"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6420",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-COMBINED-6421",
+      "name": "舌红绛 + 苔黄燥",
+      "interpretation": "阳明腑实",
+      "formulaNames": [
+        "大承气汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6421",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-COMBINED-6422",
+      "name": "舌青紫 + 苔白",
+      "interpretation": "少阴寒化兼瘀血",
+      "formulaNames": [
+        "四逆汤合当归四逆汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6422",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-COMBINED-6423",
+      "name": "舌红剥苔",
+      "interpretation": "少阴热化、胃阴亏虚",
+      "formulaNames": [
+        "黄连阿胶汤合益胃汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6423",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-COMBINED-6424",
+      "name": "舌红苔白",
+      "interpretation": "厥阴寒热错杂",
+      "formulaNames": [
+        "乌梅丸"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6424",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TONGUE-COMBINED-6425",
+      "name": "舌淡苔白厚腻",
+      "interpretation": "太阴寒湿",
+      "formulaNames": [
+        "理中汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6425",
+      "tier": "common"
+    }
+  ],
+  "tonguePulseConflictRules": [
+    {
+      "id": "T13-TONGUE-PULSE-CONFLICT-6431",
+      "conflict": "脉浮但舌苔厚腻",
+      "sourceHandling": "里证为主，脉浮为假象",
+      "runtimeHandling": "两类证据均保留并降为待复核；重复采集并结合患者症状、二便、寒热和时序后再判断。",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6431",
+      "tier": "experience"
+    },
+    {
+      "id": "T13-TONGUE-PULSE-CONFLICT-6432",
+      "conflict": "舌红但苔白",
+      "sourceHandling": "寒热错杂：舌红为脏热、苔白为腑寒（厥阴特征）",
+      "runtimeHandling": "两类证据均保留并降为待复核；重复采集并结合患者症状、二便、寒热和时序后再判断。",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6432",
+      "tier": "experience"
+    },
+    {
+      "id": "T13-TONGUE-PULSE-CONFLICT-6433",
+      "conflict": "脉数但舌淡",
+      "sourceHandling": "真寒假热，以舌为准",
+      "runtimeHandling": "两类证据均保留并降为待复核；重复采集并结合患者症状、二便、寒热和时序后再判断。",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6433",
+      "tier": "experience"
+    },
+    {
+      "id": "T13-TONGUE-PULSE-CONFLICT-6434",
+      "conflict": "脉沉但舌红苔黄",
+      "sourceHandling": "真热假寒，热深厥深",
+      "runtimeHandling": "两类证据均保留并降为待复核；重复采集并结合患者症状、二便、寒热和时序后再判断。",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6434",
+      "tier": "experience"
+    },
+    {
+      "id": "T13-TONGUE-PULSE-CONFLICT-6435",
+      "conflict": "脉弦但舌淡苔白",
+      "sourceHandling": "少阳兼太阴虚（柴胡桂枝干姜汤证）",
+      "runtimeHandling": "两类证据均保留并降为待复核；重复采集并结合患者症状、二便、寒热和时序后再判断。",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6435",
+      "tier": "experience"
+    }
+  ],
+  "sixChannelFormulaRules": [
+    {
+      "id": "T13-SIX-CHANNEL-6131",
+      "title": "公式一：太阳病",
+      "positiveTerms": [
+        "脉浮",
+        "头项强痛",
+        "恶寒"
+      ],
+      "formulaNames": [
+        "桂枝汤",
+        "麻黄汤",
+        "桂枝加葛根汤",
+        "桂枝汤",
+        "脉浮紧无汗者不可用桂枝汤",
+        "桂枝汤方"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6131",
+      "tier": "common"
+    },
+    {
+      "id": "T13-SIX-CHANNEL-6157",
+      "title": "公式二：阳明病",
+      "positiveTerms": [
+        "身热",
+        "汗自出",
+        "不恶寒反恶热",
+        "脉大"
+      ],
+      "formulaNames": [
+        "白虎汤",
+        "承气汤",
+        "调胃承气汤",
+        "小承气汤",
+        "大承气汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6157",
+      "tier": "common"
+    },
+    {
+      "id": "T13-SIX-CHANNEL-6189",
+      "title": "公式三：少阳病",
+      "positiveTerms": [
+        "口苦",
+        "咽干",
+        "目眩",
+        "往来寒热",
+        "胸胁苦满"
+      ],
+      "formulaNames": [
+        "小柴胡汤",
+        "小柴胡汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6189",
+      "tier": "common"
+    },
+    {
+      "id": "T13-SIX-CHANNEL-6215",
+      "title": "公式四：太阴病",
+      "positiveTerms": [
+        "腹满",
+        "呕吐",
+        "食不下",
+        "自利",
+        "大便溏湿",
+        "时腹自痛",
+        "不口渴"
+      ],
+      "formulaNames": [
+        "理中汤",
+        "理中丸",
+        "小建中汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6215",
+      "tier": "common"
+    },
+    {
+      "id": "T13-SIX-CHANNEL-6245",
+      "title": "公式五：少阴病",
+      "positiveTerms": [
+        "脉微细",
+        "但欲寐",
+        "精神萎靡",
+        "恶寒蜷卧",
+        "手足逆冷"
+      ],
+      "formulaNames": [
+        "四逆汤",
+        "真武汤",
+        "黄连阿胶汤",
+        "麻黄附子细辛汤",
+        "少阴兼表证主方",
+        "八味肾气丸",
+        "炙甘草汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6245",
+      "tier": "common"
+    },
+    {
+      "id": "T13-SIX-CHANNEL-6278",
+      "title": "公式六：厥阴病",
+      "positiveTerms": [
+        "消渴",
+        "气上撞心",
+        "心中疼热",
+        "饥而不欲食",
+        "下利",
+        "手足厥逆",
+        "寒热错杂"
+      ],
+      "formulaNames": [
+        "乌梅丸",
+        "厥阴主方",
+        "治肝第一方",
+        "久利神方",
+        "当归四逆汤",
+        "白头翁汤",
+        "吴茱萸汤",
+        "小建中汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6278",
+      "tier": "common"
+    },
+    {
+      "id": "T13-SIX-CHANNEL-6310",
+      "title": "公式七：少阴热化证",
+      "positiveTerms": [
+        "脉细数",
+        "心烦不得卧",
+        "舌红少苔"
+      ],
+      "formulaNames": [
+        "黄连阿胶汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6310",
+      "tier": "common"
+    },
+    {
+      "id": "T13-SIX-CHANNEL-6324",
+      "title": "公式八：合病/并病速查",
+      "positiveTerms": [
+        "合病",
+        "两经或三经同时发病",
+        "并病",
+        "一经未罢",
+        "又传入另一经",
+        "先后发病",
+        "合病类型",
+        "核心症状",
+        "方剂",
+        "太阳少阳合病",
+        "发热汗出恶风",
+        "口苦胁痛",
+        "脉浮弦",
+        "柴胡桂枝汤",
+        "太阳阳明合病",
+        "表寒里热俱实",
+        "无汗恶寒身痛",
+        "口渴便秘",
+        "脉浮紧有力",
+        "大青龙汤",
+        "表证轻里热重",
+        "轻微恶寒",
+        "高热大汗口渴便秘"
+      ],
+      "formulaNames": [
+        "柴胡桂枝汤",
+        "大青龙汤",
+        "葛根芩连汤",
+        "葛根汤",
+        "大柴胡汤",
+        "柴胡桂枝干姜汤",
+        "桂枝人参汤",
+        "白虎汤",
+        "麻黄附子细辛汤",
+        "附子理中汤",
+        "四逆汤合乌梅丸"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6324",
+      "tier": "common"
+    }
+  ],
+  "combinedDiseaseRules": [
+    {
+      "id": "T13-COMBINED-6331",
+      "type": "太阳少阳合病",
+      "positiveTerms": [
+        "发热汗出恶风",
+        "口苦胁痛",
+        "脉浮弦"
+      ],
+      "formulaNames": [
+        "柴胡桂枝汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6331",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6332",
+      "type": "太阳阳明合病（表寒里热俱实）",
+      "positiveTerms": [
+        "无汗恶寒身痛",
+        "口渴便秘",
+        "脉浮紧有力"
+      ],
+      "formulaNames": [
+        "大青龙汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6332",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6333",
+      "type": "太阳阳明合病（表证轻里热重）",
+      "positiveTerms": [
+        "轻微恶寒",
+        "高热大汗口渴便秘"
+      ],
+      "formulaNames": [
+        "葛根芩连汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6333",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6334",
+      "type": "太阳阳明合病（下利）",
+      "positiveTerms": [
+        "发热恶寒",
+        "下利"
+      ],
+      "formulaNames": [
+        "葛根汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6334",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6335",
+      "type": "少阳阳明合病",
+      "positiveTerms": [
+        "寒热往来口苦",
+        "高热便秘",
+        "脉弦数有力"
+      ],
+      "formulaNames": [
+        "大柴胡汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6335",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6336",
+      "type": "少阳太阴合病",
+      "positiveTerms": [
+        "往来寒热口苦",
+        "腹满便溏食不下",
+        "脉弦缓"
+      ],
+      "formulaNames": [
+        "柴胡桂枝干姜汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6336",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6337",
+      "type": "太阳太阴并病",
+      "positiveTerms": [
+        "太阴里虚寒",
+        "太阳表证"
+      ],
+      "formulaNames": [
+        "桂枝人参汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6337",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6338",
+      "type": "三阳合病",
+      "positiveTerms": [
+        "腹满身重",
+        "口不仁",
+        "面垢谵语遗尿"
+      ],
+      "formulaNames": [
+        "白虎汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6338",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6339",
+      "type": "太阳少阴两感",
+      "positiveTerms": [
+        "发热恶寒",
+        "脉沉微但欲寐"
+      ],
+      "formulaNames": [
+        "麻黄附子细辛汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6339",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6340",
+      "type": "太阴少阴并病",
+      "positiveTerms": [
+        "腹满便溏",
+        "脉微细厥冷"
+      ],
+      "formulaNames": [
+        "附子理中汤"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6340",
+      "tier": "common"
+    },
+    {
+      "id": "T13-COMBINED-6341",
+      "type": "少阴厥阴并病",
+      "positiveTerms": [
+        "脉微细厥冷",
+        "寒热错杂"
+      ],
+      "formulaNames": [
+        "四逆汤合乌梅丸"
+      ],
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6341",
+      "tier": "common"
+    }
+  ],
+  "treatmentOrderRules": [
+    {
+      "id": "T13-TREATMENT-ORDER-1",
+      "rule": "合病（同时发病）→ 合方同治",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6324",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TREATMENT-ORDER-2",
+      "rule": "并病（先后发病）→ 先治原发经，或标本同治",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6324",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TREATMENT-ORDER-3",
+      "rule": "里虚者 → 先温里后解表",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6324",
+      "tier": "common"
+    },
+    {
+      "id": "T13-TREATMENT-ORDER-4",
+      "rule": "三阳合病 → 独清阳明（白虎汤）",
+      "sourceRef": "nihaixia-StableV2026.5.23/SKILL.md:6324",
+      "tier": "common"
+    }
+  ]
+}

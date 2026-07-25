@@ -1,0 +1,1283 @@
+{
+  "schemaVersion": "tcm-nondrug-treatment-evidence-catalog-v2",
+  "governance": {
+    "status": "all_runtime_project_codes_governed",
+    "runtimePolicy": "有适应证级权威来源且病例文字命中时，可显示治理过的穴位/部位与频次并保持医生复核；无对应来源时仅生成评估卡片，不得套用患者级参数。",
+    "medicationPolicy": "含药外治项目必须同时通过中药身份与处方后审方。",
+    "sourceRefs": [
+      "SRC-PROJECT-TREATMENT-CAPABILITY",
+      "SRC-NATIONAL-MEDICAL-SERVICE-TCM",
+      "SRC-TCM-INFECTION-CONTROL"
+    ]
+  },
+  "summary": {
+    "projectCount": 22,
+    "riskCounts": {
+      "low": 3,
+      "moderate": 12,
+      "specialist": 7
+    },
+    "evidenceStatusCounts": {
+      "category_governed_protocol_pending": 19,
+      "official_standard_linked": 3
+    },
+    "medicationProjectCount": 5,
+    "executableProjectCount": 0,
+    "planTemplateCount": 25,
+    "parameterizedProjectCount": 12,
+    "governedFrequencyProjectCount": 10,
+    "explicitDispositionProjectCount": 22,
+    "sourceTemplateProjectCount": 12
+  },
+  "entries": [
+    {
+      "projectCode": "acupuncture",
+      "projectName": "针刺疗法",
+      "aliases": [
+        "针刺",
+        "针灸"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "digestive",
+        "respiratory",
+        "upper_airway",
+        "musculoskeletal_pain",
+        "neurologic_rehabilitation",
+        "dizziness_balance",
+        "movement_disorder",
+        "gynecology",
+        "dermatology",
+        "headache",
+        "sleep_emotion",
+        "metabolic_rehabilitation"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "由具备相应资质的中医执业人员操作",
+      "safetyFocus": "出血倾向、抗凝用药、妊娠相关穴位、局部感染和晕针史",
+      "evidenceStatus": "official_standard_linked",
+      "protocolSourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-TCM-INFECTION-CONTROL"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_clinician_review",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "acupuncture-insomnia-government-guidance",
+          "indicationTag": "sleep_emotion",
+          "matchAny": [
+            "失眠",
+            "不寐"
+          ],
+          "sitesOrPoints": [
+            "安眠",
+            "神门",
+            "内关",
+            "心俞"
+          ],
+          "techniqueBoundary": "留针用补法；实际取穴、进针和刺激参数由现场医师复核。",
+          "scheduleSuggestion": "门诊项目频次参考为每日1次；实际间隔与疗程由面诊医生按耐受和复评结果确定。",
+          "sourceRefs": [
+            "SRC-BEIJING-TCM-DOUBLE-HEART",
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+            "SRC-SAMR-ACUPUNCTURE-OPS"
+          ],
+          "parameterCompleteness": "points_and_government_frequency_reference_governed"
+        },
+        {
+          "id": "acupuncture-influenza-hunan-2025",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "流感",
+            "流行性感冒"
+          ],
+          "sitesOrPoints": [
+            "列缺",
+            "合谷",
+            "风池",
+            "太阳",
+            "外关"
+          ],
+          "techniqueBoundary": "针刺采用泻法；须先排除急危重症并由具备资质人员操作。",
+          "scheduleSuggestion": "每日1次，每次30分钟。",
+          "sourceRefs": [
+            "SRC-HUNAN-INFLUENZA-TCM-2025",
+            "SRC-SAMR-ACUPUNCTURE-OPS"
+          ],
+          "parameterCompleteness": "points_frequency_and_duration_governed"
+        },
+        {
+          "id": "acupuncture-post-infection-respiratory-rehab",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "恢复期",
+            "肺脾气虚",
+            "肺胃阴虚",
+            "气阴两伤"
+          ],
+          "sitesOrPoints": [
+            "太渊",
+            "足三里",
+            "肺俞或膻中（按证型二选一）",
+            "证型配穴由医师复核"
+          ],
+          "techniqueBoundary": "仅适用于已完成急性感染期处置后的恢复期；毫针操作、证型配穴和禁忌由具备资质的医师复核。",
+          "scheduleSuggestion": "每日或隔日1次，每次留针10-25分钟。",
+          "sourceRefs": [
+            "SRC-BEIJING-COVID-TCM-REHAB-2020",
+            "SRC-SAMR-ACUPUNCTURE-OPS"
+          ],
+          "parameterCompleteness": "syndrome_points_frequency_and_duration_governed"
+        },
+        {
+          "id": "acupuncture-digestive-common-outpatient",
+          "indicationTag": "digestive",
+          "matchAny": [
+            "痞满",
+            "功能性消化不良",
+            "便秘",
+            "泄泻",
+            "腹胀"
+          ],
+          "sitesOrPoints": [
+            "中脘",
+            "双侧天枢",
+            "足三里",
+            "关元（须结合寒热虚实复核）"
+          ],
+          "techniqueBoundary": "腹部急痛、腹膜刺激征、消化道出血等先按红旗处置；穴位仅为课程索引与门诊病种频次的组合参考。",
+          "scheduleSuggestion": "门诊项目频次参考为每日1次；每次选穴和疗程须根据症状变化复评。",
+          "sourceRefs": [
+            "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+            "SRC-SAMR-ACUPUNCTURE-OPS"
+          ],
+          "parameterCompleteness": "supplementary_points_and_government_frequency_reference_governed"
+        },
+        {
+          "id": "acupuncture-headache-common-outpatient",
+          "indicationTag": "headache",
+          "matchAny": [
+            "头痛",
+            "偏头痛"
+          ],
+          "sitesOrPoints": [
+            "百会",
+            "合谷",
+            "太阳或率谷（按疼痛部位复核）",
+            "风池（仅由专业人员操作）"
+          ],
+          "techniqueBoundary": "突发剧烈头痛、神经功能缺损、发热颈强或外伤后头痛先行急诊评估；不输出进针方向和深度。",
+          "scheduleSuggestion": "门诊项目频次参考为每日1次；急性期与维持期的具体间隔由面诊医生确定。",
+          "sourceRefs": [
+            "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+            "SRC-SAMR-ACUPUNCTURE-OPS"
+          ],
+          "parameterCompleteness": "supplementary_points_and_government_frequency_reference_governed"
+        },
+        {
+          "id": "acupuncture-gynecology-common-outpatient",
+          "indicationTag": "gynecology",
+          "matchAny": [
+            "痛经",
+            "月经不调",
+            "经期腹痛"
+          ],
+          "sitesOrPoints": [
+            "三阴交",
+            "血海",
+            "关元"
+          ],
+          "techniqueBoundary": "妊娠可能、异常大量出血、急性腹痛或盆腔感染线索必须先复核；孕期禁忌穴位和操作由医师现场决定。",
+          "scheduleSuggestion": "门诊项目频次参考为每日1次；是否围绕经期安排及疗程长度由妇科/针灸医师复评。",
+          "sourceRefs": [
+            "SRC-REFERENCE-NISHI-ACUPUNCTURE",
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+            "SRC-SAMR-ACUPUNCTURE-OPS"
+          ],
+          "parameterCompleteness": "supplementary_points_and_government_frequency_reference_governed"
+        },
+        {
+          "id": "acupuncture-musculoskeletal-common-outpatient",
+          "indicationTag": "musculoskeletal_pain",
+          "matchAny": [
+            "项痹",
+            "肩痹",
+            "膝痹",
+            "腰痛",
+            "颈肩",
+            "膝关节"
+          ],
+          "sitesOrPoints": [
+            "局部阿是穴（查体确认）",
+            "循经远端穴（按疼痛部位选择）"
+          ],
+          "techniqueBoundary": "先排除骨折、感染、进行性神经损害及脊髓压迫；深刺、透刺和高风险解剖区域不由系统给出操作参数。",
+          "scheduleSuggestion": "门诊项目频次参考为每日1次；每次治疗前复查疼痛、活动度和神经血管状态。",
+          "sourceRefs": [
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+            "SRC-SAMR-ACUPUNCTURE-OPS",
+            "SRC-REFERENCE-NISHI-ACUPUNCTURE"
+          ],
+          "parameterCompleteness": "region_and_government_frequency_reference_governed_exact_points_require_exam"
+        },
+        {
+          "id": "acupuncture-neurologic-rehabilitation-outpatient",
+          "indicationTag": "neurologic_rehabilitation",
+          "matchAny": [
+            "中风后遗症",
+            "脑梗死恢复期",
+            "偏瘫",
+            "面瘫"
+          ],
+          "sitesOrPoints": [
+            "百会",
+            "曲池",
+            "足三里",
+            "阳陵泉（按功能缺损复核）"
+          ],
+          "techniqueBoundary": "仅用于病情稳定的康复期；新发无力、言语障碍、意识改变等按卒中急症流程处理，不以针刺替代现代康复。",
+          "scheduleSuggestion": "门诊项目频次参考为每日1次；与现代康复训练错峰安排并按功能量表复评。",
+          "sourceRefs": [
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+            "SRC-SAMR-ACUPUNCTURE-OPS",
+            "SRC-REFERENCE-NISHI-ACUPUNCTURE"
+          ],
+          "parameterCompleteness": "rehabilitation_points_and_government_frequency_reference_governed"
+        }
+      ]
+    },
+    {
+      "projectCode": "moxibustion",
+      "projectName": "灸法",
+      "aliases": [
+        "艾灸",
+        "灸"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "digestive",
+        "respiratory",
+        "upper_airway",
+        "musculoskeletal_pain",
+        "gynecology",
+        "sleep_emotion",
+        "metabolic_rehabilitation"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "由受训医务人员评估火源、温度和皮肤耐受",
+      "safetyFocus": "感觉障碍、糖尿病足、发热热证、皮损和烫伤风险",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-TCM-INFECTION-CONTROL"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_clinician_review",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "moxibustion-influenza-hunan-2025",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "流感",
+            "流行性感冒"
+          ],
+          "sitesOrPoints": [
+            "按针刺方案中与当前证型匹配的穴位"
+          ],
+          "techniqueBoundary": "可用悬灸、灸盒灸或温针灸；内闭外脱虚证只灸不针。",
+          "scheduleSuggestion": "每日1次，每次30分钟。",
+          "sourceRefs": [
+            "SRC-HUNAN-INFLUENZA-TCM-2025",
+            "SRC-SAMR-ACUPUNCTURE-OPS"
+          ],
+          "parameterCompleteness": "frequency_and_duration_governed_points_require_syndrome_selection"
+        },
+        {
+          "id": "moxibustion-post-infection-respiratory-rehab",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "恢复期",
+            "畏寒",
+            "肺脾气虚"
+          ],
+          "sitesOrPoints": [
+            "膀胱经大杼至肾俞区域（现场定位）"
+          ],
+          "techniqueBoundary": "仅适用于恢复期且无皮肤破损、感觉障碍或热损伤高风险者；距离和热度由医师控制。",
+          "scheduleSuggestion": "隔日1次，每次约30分钟。",
+          "sourceRefs": [
+            "SRC-BEIJING-COVID-TCM-REHAB-2020",
+            "SRC-SAMR-ACUPUNCTURE-OPS"
+          ],
+          "parameterCompleteness": "region_frequency_and_duration_governed"
+        }
+      ]
+    },
+    {
+      "projectCode": "tuina",
+      "projectName": "推拿疗法",
+      "aliases": [
+        "推拿",
+        "按摩"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "digestive",
+        "respiratory",
+        "musculoskeletal_pain",
+        "neurologic_rehabilitation",
+        "metabolic_rehabilitation"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "由具备相应资质的人员操作",
+      "safetyFocus": "骨折、严重骨质疏松、脊髓压迫、急性炎症和妊娠禁忌部位",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_clinician_review",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "tuina-post-infection-respiratory-rehab",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "恢复期",
+            "咳嗽",
+            "乏力"
+          ],
+          "sitesOrPoints": [
+            "咳嗽：天突、膻中、内关",
+            "乏力：双侧膀胱经大杼至肾俞"
+          ],
+          "techniqueBoundary": "仅用于恢复期经穴推拿；胸痛、呼吸困难、低氧或急性发热先行急症评估。",
+          "scheduleSuggestion": "咳嗽点按每日1次；乏力背部经穴点按隔日1次。",
+          "sourceRefs": [
+            "SRC-BEIJING-COVID-TCM-REHAB-2020"
+          ],
+          "parameterCompleteness": "points_and_frequency_governed"
+        }
+      ]
+    },
+    {
+      "projectCode": "cupping",
+      "projectName": "拔罐疗法",
+      "aliases": [
+        "拔罐"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "respiratory",
+        "musculoskeletal_pain"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "由受训人员操作并控制留罐时间",
+      "safetyFocus": "皮肤破损、出血倾向、抗凝治疗、感觉障碍和感染",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_clinician_review",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "cupping-influenza-hunan-2025",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "流感",
+            "流行性感冒"
+          ],
+          "sitesOrPoints": [
+            "膀胱经相关背部区域"
+          ],
+          "techniqueBoundary": "按证型在闪罐、走罐、留罐或刺络拔罐中选择；不在本系统给出负压和留罐参数。",
+          "scheduleSuggestion": "每周2次。",
+          "sourceRefs": [
+            "SRC-HUNAN-INFLUENZA-TCM-2025"
+          ],
+          "parameterCompleteness": "region_and_frequency_governed_technique_requires_clinician_selection"
+        },
+        {
+          "id": "cupping-post-infection-respiratory-rehab",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "恢复期",
+            "咳嗽",
+            "乏力"
+          ],
+          "sitesOrPoints": [
+            "双侧风门",
+            "肺俞",
+            "膈俞",
+            "气海俞",
+            "足三里（按症状选择）"
+          ],
+          "techniqueBoundary": "根据咳嗽、乏力选穴；出血风险、皮肤破损、感觉障碍或感染时不实施。",
+          "scheduleSuggestion": "每周2-3次，每次留罐5-10分钟。",
+          "sourceRefs": [
+            "SRC-BEIJING-COVID-TCM-REHAB-2020"
+          ],
+          "parameterCompleteness": "points_frequency_and_duration_governed"
+        }
+      ]
+    },
+    {
+      "projectCode": "guasha",
+      "projectName": "刮痧疗法",
+      "aliases": [
+        "刮痧"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "respiratory",
+        "musculoskeletal_pain",
+        "dermatology"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "由受训人员操作",
+      "safetyFocus": "出血倾向、抗凝治疗、皮损、感染和高热衰弱",
+      "evidenceStatus": "official_standard_linked",
+      "protocolSourceRefs": [
+        "SRC-GBT-21709-22-2013-GUASHA",
+        "SRC-TCM-INFECTION-CONTROL"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_clinician_review",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "guasha-influenza-hunan-2025",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "流感",
+            "流行性感冒"
+          ],
+          "sitesOrPoints": [
+            "肺经",
+            "膀胱经",
+            "胃经",
+            "大肠经（按证型选择）"
+          ],
+          "techniqueBoundary": "不强求出痧；出血风险、皮肤破损、感染或感觉障碍者不实施。",
+          "scheduleSuggestion": "每周1次，或痧退后再行下一次。",
+          "sourceRefs": [
+            "SRC-HUNAN-INFLUENZA-TCM-2025",
+            "SRC-GBT-21709-22-2013-GUASHA"
+          ],
+          "parameterCompleteness": "meridians_and_frequency_governed"
+        }
+      ]
+    },
+    {
+      "projectCode": "needle_knife",
+      "projectName": "针刀",
+      "aliases": [
+        "针刀疗法",
+        "小针刀"
+      ],
+      "riskLevel": "specialist",
+      "indicationTags": [
+        "musculoskeletal_pain"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "仅限具备针刀诊疗资质和无菌操作条件的机构",
+      "safetyFocus": "解剖风险、出血感染、神经血管损伤及明确适应证",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "specialist_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_specialist_assessment_only",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "needle-knife-musculoskeletal-specialist-assessment",
+          "indicationTag": "musculoskeletal_pain",
+          "matchAny": [
+            "项痹",
+            "肩痹",
+            "膝痹",
+            "腰痛",
+            "软组织粘连"
+          ],
+          "sitesOrPoints": [
+            "经影像、查体和专项评估确认的软组织病变靶点"
+          ],
+          "techniqueBoundary": "仅形成专科转介和排程参考；必须排除感染、肿瘤、骨折、凝血异常和进行性神经损害，不输出进刀层次或操作步骤。",
+          "scheduleSuggestion": "项目频次上限参考为每周1次；每次是否实施须由具备专项资质的医生重新评估。",
+          "sourceRefs": [
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+            "SRC-TCM-INFECTION-CONTROL"
+          ],
+          "parameterCompleteness": "specialist_target_and_frequency_reference_governed_procedure_requires_exam"
+        }
+      ]
+    },
+    {
+      "projectCode": "acupoint_application",
+      "projectName": "敷贴",
+      "aliases": [
+        "穴位贴敷",
+        "敷贴疗法"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "digestive",
+        "respiratory",
+        "upper_airway",
+        "musculoskeletal_pain",
+        "gynecology"
+      ],
+      "containsMedication": true,
+      "requiresMedicationAudit": true,
+      "operatorRequirement": "由医务人员选穴、选药并评估皮肤反应",
+      "safetyFocus": "过敏史、皮损、儿童皮肤耐受、发泡药物和敷贴时长",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "medication_audit_required_no_unreviewed_patient_parameters",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "含药外治即使存在来源模板，也必须先完成具体药物身份、处方和审方；未完成前不显示患者级操作参数。",
+      "planTemplates": []
+    },
+    {
+      "projectCode": "medicated_plaster",
+      "projectName": "膏药",
+      "aliases": [
+        "中药膏药"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "musculoskeletal_pain"
+      ],
+      "containsMedication": true,
+      "requiresMedicationAudit": true,
+      "operatorRequirement": "由医生确认适应证、成分和使用时长",
+      "safetyFocus": "接触性皮炎、破损皮肤、妊娠禁忌成分和重复外用",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "medication_audit_required_no_unreviewed_patient_parameters",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "含药外治即使存在来源模板，也必须先完成具体药物身份、处方和审方；未完成前不显示患者级操作参数。",
+      "planTemplates": []
+    },
+    {
+      "projectCode": "fumigation_wash",
+      "projectName": "熏洗",
+      "aliases": [
+        "熏洗疗法",
+        "中药熏洗"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "musculoskeletal_pain",
+        "gynecology",
+        "dermatology",
+        "anorectal"
+      ],
+      "containsMedication": true,
+      "requiresMedicationAudit": true,
+      "operatorRequirement": "由医生确定外用方和温度",
+      "safetyFocus": "烫伤、皮肤破损、感觉障碍、感染和外用药过敏",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "medication_audit_required_no_unreviewed_patient_parameters",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "含药外治即使存在来源模板，也必须先完成具体药物身份、处方和审方；未完成前不显示患者级操作参数。",
+      "planTemplates": []
+    },
+    {
+      "projectCode": "medicated_bath",
+      "projectName": "药浴",
+      "aliases": [
+        "中药药浴"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "musculoskeletal_pain",
+        "dermatology"
+      ],
+      "containsMedication": true,
+      "requiresMedicationAudit": true,
+      "operatorRequirement": "由医生确定药物、温度和时长",
+      "safetyFocus": "心血管不稳定、烫伤、皮损感染、过敏和儿童老人监护",
+      "evidenceStatus": "official_standard_linked",
+      "protocolSourceRefs": [
+        "SRC-GBT-40666-2021-MEDICATED-BATH"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "medication_audit_required_no_unreviewed_patient_parameters",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "含药外治即使存在来源模板，也必须先完成具体药物身份、处方和审方；未完成前不显示患者级操作参数。",
+      "planTemplates": []
+    },
+    {
+      "projectCode": "auricular",
+      "projectName": "耳穴",
+      "aliases": [
+        "耳穴压豆",
+        "耳针"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "digestive",
+        "upper_airway",
+        "musculoskeletal_pain",
+        "dizziness_balance",
+        "gynecology",
+        "headache",
+        "sleep_emotion",
+        "metabolic_rehabilitation",
+        "respiratory"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "由受训人员辨穴并指导按压",
+      "safetyFocus": "耳部皮损感染、胶布或籽粒过敏和刺激强度",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-TCM-INFECTION-CONTROL"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_clinician_review",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "auricular-post-infection-respiratory-rehab",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "恢复期",
+            "咳嗽",
+            "喘",
+            "便秘"
+          ],
+          "sitesOrPoints": [
+            "肺",
+            "平喘",
+            "神门",
+            "大肠",
+            "内分泌（按症状选择）"
+          ],
+          "techniqueBoundary": "皮肤破溃、过敏或瘢痕体质禁用；仅显示按压和更换频次，不输出侵入性埋针步骤。",
+          "scheduleSuggestion": "每日按压，每次1-2分钟；每3天更换。",
+          "sourceRefs": [
+            "SRC-BEIJING-COVID-TCM-REHAB-2020"
+          ],
+          "parameterCompleteness": "auricular_points_frequency_and_change_interval_governed"
+        },
+        {
+          "id": "auricular-sleep-emotion-standard-points",
+          "indicationTag": "sleep_emotion",
+          "matchAny": [
+            "失眠",
+            "不寐",
+            "入睡困难",
+            "多梦",
+            "易醒",
+            "心悸",
+            "焦虑"
+          ],
+          "sitesOrPoints": [
+            "神门",
+            "心",
+            "皮质下",
+            "枕",
+            "脾（按证型加选）"
+          ],
+          "techniqueBoundary": "耳穴贴压为无创操作；耳廓皮肤破溃、冻疮、感染或过敏时禁用，妊娠期慎用。实际取穴由现场医师按辨证复核。",
+          "scheduleSuggestion": "单耳贴压、双耳交替；每日自行按压3-5次，每次1-2分钟；每3-5天更换一次。疗程由复评决定。",
+          "sourceRefs": [
+            "SRC-SAMR-ACUPUNCTURE-OPS",
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+          ],
+          "parameterCompleteness": "auricular_points_and_press_frequency_governed"
+        },
+        {
+          "id": "auricular-digestive-standard-points",
+          "indicationTag": "digestive",
+          "matchAny": [
+            "胃脘",
+            "腹胀",
+            "纳差",
+            "恶心",
+            "呕吐",
+            "便秘",
+            "泄泻"
+          ],
+          "sitesOrPoints": [
+            "脾",
+            "胃",
+            "神门",
+            "交感",
+            "大肠（便秘或泄泻时按症选择）"
+          ],
+          "techniqueBoundary": "先排除急腹症、消化道出血和腹膜刺激征等红旗；耳廓皮肤破损或感染时禁用。",
+          "scheduleSuggestion": "单耳贴压、双耳交替；每日按压3-5次，每次1-2分钟；每3-5天更换一次。",
+          "sourceRefs": [
+            "SRC-SAMR-ACUPUNCTURE-OPS",
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+          ],
+          "parameterCompleteness": "auricular_points_and_press_frequency_governed"
+        },
+        {
+          "id": "auricular-headache-standard-points",
+          "indicationTag": "headache",
+          "matchAny": [
+            "头痛",
+            "偏头痛",
+            "头胀"
+          ],
+          "sitesOrPoints": [
+            "神门",
+            "皮质下",
+            "枕",
+            "额或颞（按疼痛部位选择）"
+          ],
+          "techniqueBoundary": "突发剧烈头痛、意识改变或局灶神经异常须先按神经急症处置，不得以耳穴替代评估。",
+          "scheduleSuggestion": "单耳贴压、双耳交替；每日按压3-5次，每次1-2分钟；每3-5天更换一次。",
+          "sourceRefs": [
+            "SRC-SAMR-ACUPUNCTURE-OPS",
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022"
+          ],
+          "parameterCompleteness": "auricular_points_and_press_frequency_governed"
+        }
+      ]
+    },
+    {
+      "projectCode": "thread_embedding",
+      "projectName": "埋线",
+      "aliases": [
+        "穴位埋线"
+      ],
+      "riskLevel": "specialist",
+      "indicationTags": [
+        "respiratory",
+        "musculoskeletal_pain",
+        "gynecology",
+        "metabolic_rehabilitation"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "仅限具备相应资质和无菌操作条件的机构",
+      "safetyFocus": "植入物过敏、感染、出血、妊娠和局部解剖风险",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-TCM-INFECTION-CONTROL"
+      ],
+      "recommendationMode": "specialist_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_specialist_assessment_only",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "thread-embedding-obesity-specialist-assessment",
+          "indicationTag": "metabolic_rehabilitation",
+          "matchAny": [
+            "肥胖",
+            "体重管理"
+          ],
+          "sitesOrPoints": [
+            "具体埋线穴位须经专科查体和辨证确认"
+          ],
+          "techniqueBoundary": "侵入性专科项目，仅形成适应证和转介评估；不得由系统给出埋线材料、深度或操作步骤。",
+          "scheduleSuggestion": "门诊排程参考为每2周1次，4-5次为一疗程；每次实施前均须专科复评。",
+          "sourceRefs": [
+            "SRC-HORGOS-THREAD-EMBEDDING-2025",
+            "SRC-SAMR-ACUPUNCTURE-OPS",
+            "SRC-TCM-INFECTION-CONTROL"
+          ],
+          "parameterCompleteness": "specialist_frequency_reference_governed_points_require_exam"
+        }
+      ]
+    },
+    {
+      "projectCode": "medicated_ironing",
+      "projectName": "药熨",
+      "aliases": [
+        "中药热熨",
+        "药熨疗法"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "digestive",
+        "musculoskeletal_pain",
+        "gynecology"
+      ],
+      "containsMedication": true,
+      "requiresMedicationAudit": true,
+      "operatorRequirement": "由医务人员确定药物和温度",
+      "safetyFocus": "烫伤、感觉障碍、皮肤破损和外用药过敏",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "medication_audit_required_no_unreviewed_patient_parameters",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "含药外治即使存在来源模板，也必须先完成具体药物身份、处方和审方；未完成前不显示患者级操作参数。",
+      "planTemplates": []
+    },
+    {
+      "projectCode": "bloodletting",
+      "projectName": "放血",
+      "aliases": [
+        "刺络放血",
+        "放血疗法"
+      ],
+      "riskLevel": "specialist",
+      "indicationTags": [
+        "musculoskeletal_pain",
+        "dermatology",
+        "respiratory"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "仅限具备相应资质和无菌操作条件的机构",
+      "safetyFocus": "凝血功能、抗凝用药、贫血、感染和晕针风险",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-SAMR-ACUPUNCTURE-OPS",
+        "SRC-TCM-INFECTION-CONTROL"
+      ],
+      "recommendationMode": "specialist_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_specialist_assessment_only",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "bloodletting-influenza-heat-excess-specialist",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "流感",
+            "热证",
+            "实证"
+          ],
+          "sitesOrPoints": [
+            "点刺或刺络部位须由专科医师按证型现场确定"
+          ],
+          "techniqueBoundary": "仅限热证、实证且完成出血风险、抗凝药和感染控制复核；不得用于替代高热、低氧或危重症处置。",
+          "scheduleSuggestion": "项目频次上限参考为每周2次至隔日1次；是否实施及实际间隔由专科医师决定。",
+          "sourceRefs": [
+            "SRC-HUNAN-INFLUENZA-TCM-2025",
+            "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+            "SRC-TCM-INFECTION-CONTROL"
+          ],
+          "parameterCompleteness": "specialist_indication_and_frequency_reference_governed_site_requires_exam"
+        }
+      ]
+    },
+    {
+      "projectCode": "fire_cautery",
+      "projectName": "火烙",
+      "aliases": [
+        "火烙法"
+      ],
+      "riskLevel": "specialist",
+      "indicationTags": [
+        "dermatology",
+        "anorectal"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "仅限具备专项资质和完整急救条件的机构",
+      "safetyFocus": "烧伤、瘢痕、感染、适应证和术后处理",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "specialist_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "specialist_only_no_cross_indication_template",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "无项目级适应证方案来源时仅输出评估方向，不显示患者级穴位、强度或疗程。",
+      "planTemplates": []
+    },
+    {
+      "projectCode": "hook_cutting",
+      "projectName": "钩割",
+      "aliases": [
+        "钩割疗法"
+      ],
+      "riskLevel": "specialist",
+      "indicationTags": [
+        "musculoskeletal_pain"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "仅限具备专项资质和无菌手术条件的机构",
+      "safetyFocus": "解剖损伤、出血、感染、明确适应证和术后处理",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "specialist_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "specialist_only_no_cross_indication_template",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "无项目级适应证方案来源时仅输出评估方向，不显示患者级穴位、强度或疗程。",
+      "planTemplates": []
+    },
+    {
+      "projectCode": "thread_drainage",
+      "projectName": "挂线",
+      "aliases": [
+        "挂线疗法"
+      ],
+      "riskLevel": "specialist",
+      "indicationTags": [
+        "anorectal"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "仅限具备外科专项资质和随访条件的机构",
+      "safetyFocus": "明确外科适应证、感染、出血、疼痛控制和术后随访",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "specialist_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "specialist_only_no_cross_indication_template",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "无项目级适应证方案来源时仅输出评估方向，不显示患者级穴位、强度或疗程。",
+      "planTemplates": []
+    },
+    {
+      "projectCode": "ligation",
+      "projectName": "结扎",
+      "aliases": [
+        "结扎疗法"
+      ],
+      "riskLevel": "specialist",
+      "indicationTags": [
+        "anorectal"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "仅限具备外科专项资质和随访条件的机构",
+      "safetyFocus": "明确外科适应证、组织坏死、感染、出血和术后随访",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "specialist_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "specialist_only_no_cross_indication_template",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "无项目级适应证方案来源时仅输出评估方向，不显示患者级穴位、强度或疗程。",
+      "planTemplates": []
+    },
+    {
+      "projectCode": "diet_therapy",
+      "projectName": "食疗法",
+      "aliases": [
+        "食疗",
+        "药膳"
+      ],
+      "riskLevel": "low",
+      "indicationTags": [
+        "digestive",
+        "respiratory",
+        "gynecology",
+        "dermatology",
+        "sleep_emotion",
+        "metabolic_rehabilitation"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "由医生结合证候、营养状况和慢病限制指导",
+      "safetyFocus": "食物过敏、糖脂代谢、肾功能和药食相互作用",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "source_template_registered_for_clinician_review",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "diet-therapy-spleen-stomach-outpatient",
+          "indicationTag": "digestive",
+          "matchAny": [
+            "纳差",
+            "便溏",
+            "腹胀",
+            "脾虚",
+            "食欲",
+            "消化"
+          ],
+          "sitesOrPoints": [],
+          "techniqueBoundary": "食疗只作调护，不替代药物治疗；合并糖尿病、慢性肾病、吞咽障碍或食物过敏时须按专科饮食医嘱调整。",
+          "scheduleSuggestion": "随三餐日常调整，按复诊时症状变化复评；不设固定疗程。",
+          "sourceRefs": [
+            "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+          ],
+          "parameterCompleteness": "dietary_scope_governed_no_invasive_parameter"
+        },
+        {
+          "id": "diet-therapy-sleep-emotion-outpatient",
+          "indicationTag": "sleep_emotion",
+          "matchAny": [
+            "失眠",
+            "不寐",
+            "多梦",
+            "心悸",
+            "焦虑",
+            "情志"
+          ],
+          "sitesOrPoints": [],
+          "techniqueBoundary": "以规律作息与晚间饮食节制为主；不得以食疗替代已判定需要的药物或专科干预。",
+          "scheduleSuggestion": "日常执行，复诊时按睡眠质量与伴随症状复评。",
+          "sourceRefs": [
+            "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+          ],
+          "parameterCompleteness": "dietary_scope_governed_no_invasive_parameter"
+        }
+      ]
+    },
+    {
+      "projectCode": "mind_therapy",
+      "projectName": "意疗法",
+      "aliases": [
+        "意疗",
+        "情志疗法"
+      ],
+      "riskLevel": "low",
+      "indicationTags": [
+        "sleep_emotion"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "由医生进行情志评估和规范指导",
+      "safetyFocus": "严重精神症状、自伤风险和需专科转诊的情况",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "source_template_registered_for_clinician_review",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "mind-therapy-sleep-emotion-outpatient",
+          "indicationTag": "sleep_emotion",
+          "matchAny": [
+            "失眠",
+            "不寐",
+            "焦虑",
+            "抑郁",
+            "情志",
+            "易怒",
+            "紧张"
+          ],
+          "sitesOrPoints": [],
+          "techniqueBoundary": "情志调摄为辅助措施；出现自伤、自杀或严重行为危机线索时必须立即转精神科急诊，不得以意疗替代。",
+          "scheduleSuggestion": "日常执行；复诊时按情绪与睡眠变化复评，不设固定疗程。",
+          "sourceRefs": [
+            "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+          ],
+          "parameterCompleteness": "counselling_scope_governed_no_invasive_parameter"
+        }
+      ]
+    },
+    {
+      "projectCode": "qigong_daoyin",
+      "projectName": "气功导引疗法",
+      "aliases": [
+        "气功",
+        "导引",
+        "导引疗法"
+      ],
+      "riskLevel": "low",
+      "indicationTags": [
+        "respiratory",
+        "musculoskeletal_pain",
+        "neurologic_rehabilitation",
+        "movement_disorder",
+        "sleep_emotion",
+        "metabolic_rehabilitation"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "由受训人员按体能和病情分级指导",
+      "safetyFocus": "心肺不稳定、跌倒风险、急性疼痛和运动禁忌",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "clinician_assessment_only",
+      "executable": false,
+      "governedParameterTemplateAvailable": true,
+      "governedFrequencyTemplateAvailable": true,
+      "coverageDisposition": "source_template_registered_for_clinician_review",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": true,
+      "parameterPolicy": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+      "planTemplates": [
+        {
+          "id": "qigong-post-infection-respiratory-rehab",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "恢复期",
+            "气短",
+            "乏力",
+            "呼吸康复"
+          ],
+          "sitesOrPoints": [
+            "八段锦、太极拳、五禽戏或六字诀呼吸导引（按体能选择）"
+          ],
+          "techniqueBoundary": "遵循循序渐进；运动中出现胸痛、明显气促、头晕或血氧下降立即停止并评估。",
+          "scheduleSuggestion": "身体活动每日累计不少于30分钟；强度和分段方式按个体体能制定。",
+          "sourceRefs": [
+            "SRC-BEIJING-COVID-TCM-REHAB-2020"
+          ],
+          "parameterCompleteness": "modality_frequency_and_daily_duration_governed"
+        }
+      ]
+    },
+    {
+      "projectCode": "miscellaneous",
+      "projectName": "杂疗法",
+      "aliases": [
+        "杂疗"
+      ],
+      "riskLevel": "moderate",
+      "indicationTags": [
+        "digestive",
+        "respiratory",
+        "musculoskeletal_pain",
+        "neurologic_rehabilitation",
+        "gynecology",
+        "dermatology",
+        "sleep_emotion",
+        "metabolic_rehabilitation",
+        "anorectal"
+      ],
+      "containsMedication": false,
+      "requiresMedicationAudit": false,
+      "operatorRequirement": "必须先明确具体项目、适应证、资质和操作规范",
+      "safetyFocus": "未明确具体技术时不得给出操作参数或疗程",
+      "evidenceStatus": "category_governed_protocol_pending",
+      "protocolSourceRefs": [
+        "SRC-NATIONAL-MEDICAL-SERVICE-TCM"
+      ],
+      "recommendationMode": "not_recommendable_until_specific_project_identified",
+      "executable": false,
+      "governedParameterTemplateAvailable": false,
+      "governedFrequencyTemplateAvailable": false,
+      "coverageDisposition": "specific_project_identity_required",
+      "clinicianReviewRequired": true,
+      "patientSpecificParametersAllowed": false,
+      "parameterPolicy": "无项目级适应证方案来源时仅输出评估方向，不显示患者级穴位、强度或疗程。",
+      "planTemplates": []
+    }
+  ]
+}

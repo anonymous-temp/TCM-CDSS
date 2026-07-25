@@ -1,0 +1,186 @@
+{
+  "schemaVersion": "nihaisha-fusion-manifest-v1",
+  "generatedAt": "2026-07-23",
+  "sources": [
+    {
+      "path": "参考/nihaisha-nishi-tcm-main/references/pdf-evidence/evidence-cards.jsonl",
+      "sha256": "20df7a8b3eeca77cda572079286aaaebbb108a0d63942bb560fcf3dd8cccc512",
+      "records": 10538
+    },
+    {
+      "path": "参考/nihaisha-nishi-tcm-main/references/pdf-evidence/source-manifest.json",
+      "sha256": "04dbe12e620ae374f93836378f5bb431aa7f95bce3dde5d0c9dd74ba111a3132",
+      "records": 22
+    },
+    {
+      "path": "参考/nihaixia-StableV2026.5.23/SKILL.md",
+      "sha256": "fab0e9078d93eba669240dd319b0d9ca3113a47ff9a0d341997cf348cd995d91"
+    },
+    {
+      "path": "参考/nihaixia-StableV2026.5.23/modules/01_shanghan_sun.md",
+      "sha256": "526af8847494dd4231102c96910e3e718a556654793229559e99464382083c55"
+    },
+    {
+      "path": "参考/nihaixia-StableV2026.5.23/modules/03_yian.md",
+      "sha256": "571d9051a3105150d9599122b7d400e7d88d3559569885fb53dddecda0085bdc",
+      "records": 119
+    },
+    {
+      "path": "参考/nihaixia-StableV2026.5.23/cases/*.md",
+      "sha256": "0e0d410983b2e7a6bae604153a5ef65ad3bad30ebdbb09bbe5476569d52e819a",
+      "records": 364
+    },
+    {
+      "path": "src/data/tcm-formula-governed-catalog.json",
+      "sha256": "627a59476ba27f9b069d25f6d97dc8ba9793af47876ec8caf9b8767f40d04584",
+      "records": 500
+    }
+  ],
+  "evidence": {
+    "inputCards": 10538,
+    "mappedCards": 10538,
+    "mappedRecords": 55790,
+    "safeOrRestrictedRecords": 55127,
+    "quarantinedRecords": 663,
+    "mixedSafetySourceCards": 372,
+    "shanghanUniqueClauseAnchors": 333,
+    "shanghanCoverageOf398": 0.8367,
+    "jinguiAnchorPolicy": "chapter_paragraph_only",
+    "runtimeFormulaCount": 222,
+    "runtimeRetrievalPolicy": "full_record_scan_no_prebuilt_index",
+    "runtimeScannableRecords": 55127
+  },
+  "caseCorpus": {
+    "records": 364,
+    "quarantinedRecords": 100,
+    "replayEligibleRecords": 52,
+    "runtimeRetrievalAllowed": false
+  },
+  "clinicalRuleCoverage": {
+    "systematicReviewDimensions": {
+      "actual": 10,
+      "minimum": 10,
+      "passed": true
+    },
+    "pulsePatterns": {
+      "actual": 16,
+      "minimum": 16,
+      "passed": true
+    },
+    "tonguePatterns": {
+      "actual": 11,
+      "minimum": 11,
+      "passed": true
+    },
+    "tonguePulseConflictRules": {
+      "actual": 5,
+      "minimum": 5,
+      "passed": true
+    },
+    "coldHeatEvidenceDimensions": {
+      "actual": 8,
+      "minimum": 8,
+      "passed": true
+    },
+    "sixChannelFormulaRules": {
+      "actual": 8,
+      "minimum": 8,
+      "passed": true
+    },
+    "combinedDiseaseRules": {
+      "actual": 11,
+      "minimum": 11,
+      "passed": true
+    },
+    "treatmentOrderRules": {
+      "actual": 4,
+      "minimum": 4,
+      "passed": true
+    },
+    "discriminationQuestions": {
+      "actual": 53,
+      "minimum": 35,
+      "passed": true
+    },
+    "formulaNodes": {
+      "actual": 61,
+      "minimum": 55,
+      "passed": true
+    },
+    "formulaEdges": {
+      "actual": 77,
+      "minimum": 45,
+      "passed": true
+    },
+    "formulaAliases": {
+      "actual": 16,
+      "minimum": 9,
+      "passed": true
+    },
+    "formulaCompositionRules": {
+      "actual": 40,
+      "minimum": 35,
+      "passed": true
+    },
+    "textualModificationRules": {
+      "actual": 51,
+      "minimum": 12,
+      "passed": true
+    },
+    "contraindicationRules": {
+      "actual": 10,
+      "minimum": 10,
+      "passed": true
+    }
+  },
+  "reviewQueue": [
+    {
+      "type": "source_case_count_gap",
+      "claimedMinimum": 450,
+      "importedDistinctStructuredBlocks": 364,
+      "action": "需要补充原始病例索引或缺失病例文件；禁止复制、拆分或合成病例凑数。"
+    }
+  ],
+  "outputs": {
+    "tcm-formula-aliases.json": {
+      "sha256": "de5ee563c3c71b7260e45662b9e0368e1fbafaf5f9eb01fb54481e6446a53191",
+      "bytes": 3158
+    },
+    "tcm-differentiation-rules.json": {
+      "sha256": "0f2479d5bc31d3a071443c346b62d8e5aff80df7d1a9340ab66ea3151cf4e2d0",
+      "bytes": 62815
+    },
+    "tcm-formula-discrimination-graph.json": {
+      "sha256": "73e52965bbdf7a52627c188e7c7de0e903da452cef93fd3e83353f6f770c6feb",
+      "bytes": 130638
+    },
+    "tcm-formula-composition-rules.json": {
+      "sha256": "cb2e9661550f8684e58189fe66f996e35037952429193afdeb24e0ee5f352a4b",
+      "bytes": 22637
+    },
+    "tcm-textual-modification-rules.json": {
+      "sha256": "0ac5d83945480a75715b377ea1d5027b5b5591e98072b9b6c600bc320203577a",
+      "bytes": 30326
+    },
+    "tcm-contraindication-rules.json": {
+      "sha256": "23c5aab9bc10fb60e5a1102ffc77b7f1ebecc5b466355a265277de0fc53efa0e",
+      "bytes": 5866
+    },
+    "tcm-classic-case-eval-corpus.json": {
+      "sha256": "98270d31ada063371015836dc7e1e2b27305cf1d00deeb433a89163125f0bf0a",
+      "bytes": 211451
+    },
+    "tcm-classic-text-evidence.jsonl": {
+      "sha256": "64056b4fa544dad9698e5889c83a54b38451b3283b776595a4e3806691ac7295",
+      "bytes": 44370023
+    },
+    "tcm-classic-text-evidence-quarantine.jsonl": {
+      "sha256": "2287d6c40f1975cd0c16c63d77b0d3fefb1e07ef539478c12879efa6b8d1b954",
+      "bytes": 409145
+    },
+    "tcm-classic-formula-evidence.json": {
+      "sha256": "304d61a2570f35c9b09849788ec27214af45a8c39dbcea4911b1ab468b8c3459",
+      "bytes": 496624
+    }
+  }
+}

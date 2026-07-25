@@ -1,0 +1,1669 @@
+{
+  "schemaVersion": "tcm-formula-indications-v1",
+  "sourceFile": "中医方剂Excel数据表_84295.xlsx",
+  "sourceSha256": "0ddb7ad8a00c077ce8f4ec0dca5f5756689821e646d39f8e3105a15c57d3ffe4",
+  "sourceRowCount": 84294,
+  "governedFormulaCount": 206,
+  "matchedFormulaCount": 93,
+  "entries": [
+    {
+      "id": "TCM-FORMULA-6599020BF0D5",
+      "name": "三甲复脉汤",
+      "source": "《温病条辨》",
+      "ingredients": [
+        "炙甘草",
+        "干地黄",
+        "生白芍",
+        "麦冬",
+        "阿胶",
+        "麻仁",
+        "生牡蛎",
+        "生鳖甲",
+        "生龟板"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "温病后期，热烁肝肾之阴，虚风内动之手指蠕动，甚则心中痛，舌干齿黑，唇裂，脉沉细数。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-0B56B0A7C443",
+      "name": "两地汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "大生地",
+        "元参",
+        "白芍药",
+        "麦冬肉",
+        "地骨皮",
+        "阿胶"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "先期经来只1-2点者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C8B06C7C1C5F",
+      "name": "举元煎",
+      "source": "《景岳全书》",
+      "ingredients": [
+        "人参",
+        "黄芪",
+        "炙甘草",
+        "升麻",
+        "白术"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "气虚下陷，血崩血脱，亡阳垂危。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-438647DD3E67",
+      "name": "乌药汤",
+      "source": "《兰室秘藏》",
+      "ingredients": [
+        "当归",
+        "甘草",
+        "木香",
+        "乌药",
+        "香附子"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "瘀血挟逆气内阻，经前及经行腹痛，血崩、溲血。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-102C1066AB08",
+      "name": "二冬汤",
+      "source": "《医学心悟》",
+      "ingredients": [
+        "天冬",
+        "麦冬",
+        "花粉",
+        "黄芩",
+        "知母",
+        "甘草",
+        "人参",
+        "荷叶"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "上消。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-3A5646375595",
+      "name": "人参五味子汤",
+      "source": "《幼幼集成》",
+      "ingredients": [
+        "官拣参",
+        "漂白术",
+        "白云苓",
+        "北五味",
+        "杭麦冬",
+        "炙甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "久嗽脾虚，中气怯弱，面白唇白。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-A69B1E7EAB86",
+      "name": "会厌逐瘀汤",
+      "source": "《医林改错》",
+      "ingredients": [
+        "桃仁",
+        "红花",
+        "甘草",
+        "桔梗",
+        "生地",
+        "当归",
+        "玄参",
+        "柴胡",
+        "枳壳",
+        "赤芍"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "痘5-6天后，饮水即呛；瘀血凝滞之呃逆。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-0E74817FBDD3",
+      "name": "保阴煎",
+      "source": "《景岳全书》",
+      "ingredients": [
+        "生地",
+        "熟地",
+        "芍药",
+        "山药",
+        "川续断",
+        "黄芩",
+        "黄柏",
+        "生甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "男妇带浊遗淋，色赤带血，脉滑多热，便血不止，及血崩血淋，或经期太早，凡一切阴虚内热动血等证。胎气热而不安，及产妇淋沥不止。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-29D34F6798E1",
+      "name": "养精种玉汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "大熟地",
+        "当归",
+        "白芍",
+        "山萸肉"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "妇人身瘦不孕，一交男子，即卧病终朝。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-48159221DFAF",
+      "name": "凉血地黄汤",
+      "source": "《外科大成》",
+      "ingredients": [
+        "归尾",
+        "生地",
+        "赤芍",
+        "黄连",
+        "枳壳",
+        "黄芩",
+        "槐角",
+        "地榆",
+        "荆芥",
+        "升麻",
+        "天花粉",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "痔肿痛，出血。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-D0A23FE50787",
+      "name": "化肝煎",
+      "source": "《景岳全书》",
+      "ingredients": [
+        "青皮",
+        "陈皮",
+        "芍药",
+        "丹皮",
+        "栀子",
+        "泽泻",
+        "土贝母"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "怒气伤肝，因而气逆动火，致为烦热、胁痛、胀满、动血，咳吐痰血。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-54771499B671",
+      "name": "半夏泻心汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "半夏",
+        "黄芩",
+        "干姜",
+        "人参",
+        "甘草",
+        "黄连",
+        "大枣"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "寒热平调，消痞散结。主治寒热错杂之痞证。心下痞，但满而不痛，或呕吐，肠鸣下利，舌苔腻而微黄。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-48F5B7D425E8",
+      "name": "半夏白术天麻汤",
+      "source": "《医学心悟》",
+      "ingredients": [
+        "半夏",
+        "天麻",
+        "茯苓",
+        "橘红",
+        "白术",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "痰厥头痛者，胸隔多痰，动则眩晕。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-36D1EB6876C9",
+      "name": "吴茱萸汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "吴茱萸",
+        "人参",
+        "生姜",
+        "大枣"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "胃中虚寒，干呕，胸满，吐涎沫；厥阴头痛；少阴吐利，手足逆冷；吞酸。现用于神经性呕吐、偏头痛、神经性头痛、美尼尔氏综合症等属肝胃虚寒者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-F40764195BB4",
+      "name": "四妙勇安汤",
+      "source": "《验方新编》",
+      "ingredients": [
+        "金银花",
+        "元参",
+        "当归",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "脱骨疽。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-4ECDEE25DCC5",
+      "name": "固本止崩汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "大熟地",
+        "白术",
+        "黄芪",
+        "当归",
+        "黑姜",
+        "人参"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "妇人虚火血崩，两目黑暗，昏晕在地，不省人事。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-A466A910AA92",
+      "name": "固阴煎",
+      "source": "《景岳全书》",
+      "ingredients": [
+        "人参随宜",
+        "熟地",
+        "山药",
+        "山茱萸",
+        "远志",
+        "炙甘草",
+        "五味子十四粒",
+        "菟丝子"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "肝肾两亏，遗精滑泄，带下崩漏，胎动不安，产后恶露不止，妇人阴挺。带浊淋遗，及经水因虚不固。肝肾血虚，胎动不安；产后冲任损伤，恶露不止。阴虚滑脱，以致下坠者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-5D0C06BC6F88",
+      "name": "圣愈汤",
+      "source": "《兰室秘藏》",
+      "ingredients": [
+        "生地黄",
+        "熟地黄",
+        "川芎",
+        "人参",
+        "当归身",
+        "黄芪"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "诸恶疮，血出多而心烦不安，不得睡眠。一切失血；或血虚烦渴、躁热，睡卧不宁；或疮证脓水出多，五心烦热，作渴等。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-7747D8890B49",
+      "name": "增液承气汤",
+      "source": "《温病条辨》",
+      "ingredients": [
+        "元参",
+        "麦冬",
+        "细生地",
+        "大黄",
+        "芒硝"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "阳明温病，津液不足，无水舟停，下之不通，间服增液仍不下者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-3CF41EA8B97C",
+      "name": "大黄䗪虫丸",
+      "source": "《金匮要略·血痹虚劳病脉证并治第六》",
+      "ingredients": [
+        "大黄",
+        "黄芩",
+        "甘草",
+        "桃仁",
+        "杏仁",
+        "白芍",
+        "干地黄",
+        "干漆",
+        "虻虫",
+        "水蛭",
+        "蛴螬",
+        "䗪虫"
+      ],
+      "catalog": "verified_reference_catalog",
+      "indications": [
+        "五劳虚极羸瘦，腹满不能饮食，肌肤甲错，两目黯黑，内有干血。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-3DC75B90A43C",
+      "name": "完带汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "白术",
+        "山药",
+        "人参",
+        "白芍",
+        "车前子",
+        "苍术",
+        "甘草",
+        "陈皮",
+        "黑芥穗",
+        "柴胡"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "妇人湿盛火衰，肝郁气弱，脾土受伤，湿气下陷，致患白带终年累月下流白物，如涕如唾，不能禁止，甚则臭秽者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-9CB8095EAE49",
+      "name": "定经汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "菟丝子",
+        "白芍",
+        "当归",
+        "大熟地",
+        "山药",
+        "白茯苓",
+        "芥穗",
+        "柴胡"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "妇人经来断续，或前或后无定期。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-AA59315606E0",
+      "name": "宣痹汤",
+      "source": "《温病条辨》",
+      "ingredients": [
+        "防己",
+        "杏仁",
+        "滑石",
+        "连翘",
+        "山栀",
+        "薏苡",
+        "半夏",
+        "晚蚕沙",
+        "赤小豆皮"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "太阴湿温，气分痹郁而哕者。",
+        "湿痹。湿聚热蒸，蕴于经络，寒战热炽，骨骱烦疼，舌色灰滞，面目萎黄。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-95FE554648C9",
+      "name": "宣郁通经汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "白芍",
+        "当归",
+        "丹皮",
+        "山栀子",
+        "白芥子",
+        "柴胡",
+        "香附",
+        "川郁金",
+        "黄芩",
+        "生甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "妇人经前腹疼数日，而后经水行，经来多紫黑块。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-9C99D440A742",
+      "name": "导痰汤",
+      "source": "《传信适用方》",
+      "ingredients": [
+        "半夏",
+        "天南星",
+        "枳实",
+        "橘红",
+        "赤茯苓"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "痰凝气滞，胸膈痞塞，胁肋胀满，头痛吐逆，痰嗽喘急，不思饮食，以及头晕，不寐，短气，谵语，中风，痰厥，痰呃。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-9F1FC6577C70",
+      "name": "小承气汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "大黄",
+        "厚朴",
+        "枳实"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "阳明腑实证，热邪与积滞互结，潮热谵语，大便秘结，胸腹痞满，苔黄糙，脉滑数；或热结旁流，下利清水；或痢疾初起，腹痛胀满，里急后重。霍乱，大便不通，哕数口，谵语。杂病上焦痞满不通。里症已见三四，脐腹胀满而不甚坚硬，或胸满潮热不恶寒，狂言而喘，病属小热小实小满者。邪传少阴，口燥咽干而渴，或下利肠垢，目不明。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-3B3F2D8E4C85",
+      "name": "小陷胸汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "黄连",
+        "半夏",
+        "瓜蒌实"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "小结胸病，心下按之则痛，舌苔黄腻，脉浮滑。及痰热互结而成的胸痹，或痰热在膈上而致的咳嗽面赤，胸腹常热，脉洪，苔黄腻。小结胸病，正在心下，按之则痛，脉浮滑。时气结胸，心下坚，按之即痛，其脉沉滑。伤寒发渴而饮水太过，成水结胸而发呃。痰热塞胸。痰热互结而成的胸痹，及热痰在膈上所致的咳嗽面赤，胸腹常热（唯手足有时觉凉），脉洪。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-6A70810BEDB9",
+      "name": "左归饮",
+      "source": "《景岳全书》",
+      "ingredients": [
+        "熟地",
+        "山药",
+        "枸杞",
+        "炙甘草",
+        "茯苓",
+        "山茱萸"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "真阴不足，腰痠且痛，遗精盗汗，咽燥口渴；阴衰阳胜，身热烦渴，脉虚气弱。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-5D7768F0CBF8",
+      "name": "异功散",
+      "source": "《小儿药证直诀》",
+      "ingredients": [
+        "人参",
+        "茯苓",
+        "白术",
+        "陈皮",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "脾虚气滞。饮食减少，胸脘痞闷，食入作胀，大便溏薄，神疲气短，身体羸瘦，或面部浮肿者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-144F389252B5",
+      "name": "归脾汤",
+      "source": "《济生》卷四。",
+      "ingredients": [
+        "白术",
+        "茯苓",
+        "黄耆",
+        "龙眼肉",
+        "酸枣仁",
+        "人参",
+        "木香",
+        "甘草"
+      ],
+      "catalog": "verified_reference_catalog",
+      "indications": [
+        "思虑伤脾，健忘怔忡，吐血下血。",
+        "心脾气血两虚证：心悸怔忡，健忘失眠，盗汗，体倦食少，面色萎黄，舌淡，苔薄白，脉细弱（《方剂学》规划教材主治，用于检索召回）。",
+        "思虑伤脾。健忘怔忡，吐血下血。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-B6D2B19C4C20",
+      "name": "当归四逆汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "当归",
+        "桂枝",
+        "芍药",
+        "细辛",
+        "甘草",
+        "通草",
+        "大枣"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "血虚受寒，手足厥寒；舌淡苔白，脉沉细或沉细欲绝者；并治寒入经络，以致腰股、腿、足疼痛或麻木。现用于早期雷诺氏病及冻伤。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-1F2E9B8F88FE",
+      "name": "托里消毒散",
+      "source": "《外科正宗》",
+      "ingredients": [
+        "人参",
+        "川芎",
+        "白芍",
+        "黄芪",
+        "当归",
+        "白术",
+        "茯苓",
+        "金银花",
+        "白芷",
+        "甘草",
+        "皂角针",
+        "桔梗"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "痈疽已成，不得内消者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C85F959EC5B2",
+      "name": "散偏汤",
+      "source": "《辨证录》",
+      "ingredients": [
+        "白芍",
+        "川芎",
+        "郁李仁",
+        "柴胡",
+        "白芥子",
+        "香附",
+        "甘草",
+        "白芷"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "郁气不宣，复因风邪袭于少阳之经，以致半边头痛。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C7CB9D64976B",
+      "name": "新加香薷饮",
+      "source": "《温病条辨》",
+      "ingredients": [
+        "香薷",
+        "银花",
+        "鲜扁豆花",
+        "厚朴",
+        "连翘"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "手太阴暑温，形如伤寒，右脉洪大，左手反小，面赤口渴，但汗不出者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-214F8E64CD2C",
+      "name": "旋覆代赭汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "旋覆花",
+        "人参",
+        "生姜",
+        "代赭",
+        "甘草",
+        "半夏",
+        "大枣"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "伤寒发汗若吐若下解后，心下痞硬，噫气不除者。胃虚气逆证。心下痞硬，噫气频作，反胃呕吐，吐涎沫，舌苔白滑，脉弦而虚。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-FC84A5067305",
+      "name": "易黄汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "山药",
+        "芡实",
+        "黄柏",
+        "车前子",
+        "白果"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "黄带。带下色黄，宛如黄茶浓汁，其气腥秽。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-577248AF2859",
+      "name": "普济消毒饮子",
+      "source": "《东垣试效方》",
+      "ingredients": [
+        "黄芩",
+        "黄连",
+        "人参",
+        "橘红",
+        "玄参",
+        "生甘草",
+        "连翘",
+        "黍粘子",
+        "板蓝根",
+        "马勃",
+        "白僵蚕",
+        "升麻",
+        "柴胡",
+        "桔梗"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "时毒，大头天行，初觉憎寒体重，次传头面肿盛，目不能开，上喘，咽喉不利，舌干口燥。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-44764143214C",
+      "name": "暖肝煎",
+      "source": "《景岳全书》",
+      "ingredients": [
+        "当归",
+        "枸杞",
+        "茯苓",
+        "小茴香",
+        "肉桂",
+        "乌药",
+        "沉香"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "肝肾阴寒，小腹疼痛，疝气。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-3267F1D2606B",
+      "name": "柴胡桂枝汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "桂枝",
+        "黄芩",
+        "人参",
+        "甘草",
+        "半夏",
+        "芍药",
+        "大枣",
+        "生姜",
+        "柴胡"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "和解少阳，调和营卫。主治外感风寒，发热自汗，微恶寒，或寒热往来，鼻鸣干呕，头痛项强，胸胁痛满，脉弦或浮大。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C5A29986580F",
+      "name": "柴葛解肌汤",
+      "source": "《医学心悟》",
+      "ingredients": [
+        "柴胡",
+        "葛根",
+        "赤芍",
+        "甘草",
+        "黄芩",
+        "知母",
+        "贝母",
+        "生地",
+        "丹皮"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "春温夏热之病，其症发热头痛，与正伤寒同，但不恶寒而口渴。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-B014F3146326",
+      "name": "栀子柏皮汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "肥栀子",
+        "甘草",
+        "黄柏"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "伤寒，身黄发热者；衄血，或从口出，或从鼻出，暴出而色鲜，衄至1-2斗，闷绝者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-9FDC2C61DEB9",
+      "name": "栀子豉汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "栀子",
+        "香豉"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "伤寒汗吐下后，虚烦不得眠，心中懊憹、胸脘痞闷，饥不能食，脉数，苔薄黄腻；感冒发为寒热，头痛体痛；小儿痘疹，虚烦惊悸不得眠。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C4D7F6EEC035",
+      "name": "桂枝加厚朴杏子汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "桂枝",
+        "甘草",
+        "生姜",
+        "芍药",
+        "大枣",
+        "厚朴",
+        "杏仁"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "解肌祛风，降气定喘。主治宿有喘病，又感风寒而见桂枝汤证者；或风寒表证误用下剂后，表证未解而微喘者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-B7520D43B4D8",
+      "name": "桂枝加葛根汤",
+      "source": "《伤寒论》第17条",
+      "ingredients": [
+        "葛根",
+        "桂枝",
+        "白芍",
+        "炙甘草",
+        "生姜",
+        "大枣"
+      ],
+      "catalog": "verified_reference_catalog",
+      "indications": [
+        "太阳病，项背强几几，汗出，恶风。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-3C43B80DF76F",
+      "name": "桂枝芍药知母汤",
+      "source": "《金匮要略》",
+      "ingredients": [
+        "桂枝",
+        "芍药",
+        "甘草",
+        "麻黄",
+        "生姜",
+        "白术",
+        "知母",
+        "防风",
+        "附子"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "通阳行痹，祛风逐湿，和营止痛。清热，散寒，通络，活血，补虚。主诸肢节疼痛，身体尪羸，脚肿如脱，头眩短气，温温欲吐。风毒肿痛，憎寒壮热，渴而脉数；痘疮将欲成脓而不能十分贯脓，或过期不结痂。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C7076AAF123D",
+      "name": "桂枝麻黄各半汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "桂枝",
+        "芍药",
+        "生姜",
+        "甘草",
+        "麻黄",
+        "大枣",
+        "杏仁"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "太阳病，得之8-9日，如疟状，发热恶寒，热多寒少，其人不呕，清便欲自可，1日2-3度发，面色反有热色，身痒者。痘疮热气如灼，表郁难以见点，或见点稠密，风疹交出，或痘不起胀，喘咳咽痛者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-A38DC21B76BD",
+      "name": "桃核承气汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "桃仁",
+        "大黄",
+        "桂枝",
+        "甘草",
+        "芒硝"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "下焦蓄血，少腹急结，大便色黑，小便自利，甚则谵语烦渴，其人如狂，至夜发热，及血瘀经闭，痛经，跌打损伤。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-CCC96FF5B5D5",
+      "name": "桑杏汤",
+      "source": "《温病条辨》",
+      "ingredients": [
+        "桑叶",
+        "杏仁",
+        "沙参",
+        "象贝",
+        "香豉",
+        "栀皮",
+        "梨皮"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "秋感燥气，右脉数大，伤手太阴气分者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-3F53E319C7D8",
+      "name": "沙参麦冬汤",
+      "source": "《温病条辨》",
+      "ingredients": [
+        "沙参",
+        "玉竹",
+        "生甘草",
+        "冬桑叶",
+        "麦冬",
+        "生扁豆",
+        "花粉"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "燥伤肺胃或肺胃阴津不足，咽干口渴，或热，或干咳少痰。现用于气管炎、肺结核、胸膜炎、慢性咽炎等属于肺胃阴伤者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-24D0ED797D61",
+      "name": "泻白散",
+      "source": "《小儿药证直诀》",
+      "ingredients": [
+        "地骨皮",
+        "桑白皮",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "肺热咳嗽，甚则气喘，皮肤蒸热，日晡尤甚，舌红苔黄，脉细数。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-6706727E7183",
+      "name": "泻黄散",
+      "source": "《小儿药证直诀》",
+      "ingredients": [
+        "藿香叶",
+        "山栀子仁",
+        "石膏",
+        "甘草",
+        "防风"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "脾胃伏火，口疮口臭，烦渴易饥，口燥唇干，舌红脉数，以及脾热弄舌等。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-AFBAB75AEB17",
+      "name": "济川煎",
+      "source": "《景岳全书》",
+      "ingredients": [
+        "当归",
+        "牛膝",
+        "肉苁蓉",
+        "泽泻",
+        "升麻",
+        "枳壳"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "虚损，大便秘结不通。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C78E6CFA1741",
+      "name": "消乳丸",
+      "source": "《婴童百问》",
+      "ingredients": [
+        "香附",
+        "甘草",
+        "陈皮",
+        "缩砂仁",
+        "神曲",
+        "麦芽"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "小儿伤食不化，呕吐，脉沉者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-ECE711AE928D",
+      "name": "消瘰丸",
+      "source": "《医学心悟》",
+      "ingredients": [
+        "元参",
+        "牡蛎",
+        "贝母"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "瘰疬初起，痰核。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C717473DFD02",
+      "name": "清上蠲痛汤",
+      "source": "《寿世保元》",
+      "ingredients": [
+        "当归",
+        "小川芎",
+        "白芷",
+        "细辛",
+        "羌活",
+        "独活",
+        "防风",
+        "菊花",
+        "蔓荆子",
+        "苍术",
+        "片芩",
+        "麦门冬",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "一切头痛，不问左右、偏正、新久。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-A5BE3B42E567",
+      "name": "清肝止淋汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "白芍",
+        "当归",
+        "生地",
+        "阿胶",
+        "粉丹皮",
+        "黄柏",
+        "牛膝",
+        "香附",
+        "红枣",
+        "小黑豆"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "赤带。带下色红，似血非血，淋沥不断。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C1C73BB286C2",
+      "name": "清胃汤",
+      "source": "《审视瑶函》",
+      "ingredients": [
+        "山栀仁",
+        "枳壳",
+        "苏子",
+        "石膏",
+        "川黄连",
+        "陈皮",
+        "连翘",
+        "归尾",
+        "荆芥穗",
+        "黄芩",
+        "防风",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "脾生痰核，眼胞红硬。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-AA9ABD685E81",
+      "name": "牛蒡甘桔汤",
+      "source": "《外科正宗》",
+      "ingredients": [
+        "牛蒡子",
+        "桔梗",
+        "陈皮",
+        "天花粉",
+        "黄连",
+        "川芎",
+        "赤芍",
+        "甘草",
+        "苏木"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "颐毒，表邪已尽，耳项结肿，微热不红疼痛者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C1CEB941B42A",
+      "name": "牵正散",
+      "source": "《杨氏家藏方》",
+      "ingredients": [
+        "白附子",
+        "白僵蚕",
+        "全蝎",
+        "并生用"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "中风，口眼斜，半身不遂。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-F586B6892B2F",
+      "name": "猪苓汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "猪苓",
+        "茯苓",
+        "泽泻",
+        "阿胶",
+        "滑石"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "水热互结，阴亏津伤，发热心烦，渴欲饮水，小便不利，或兼有咳嗽、呕恶下利。现亦用于乳糜尿、流行性出血热休克期、急性膀胱炎。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-F4B738B59277",
+      "name": "玉女煎",
+      "source": "《景岳全书》",
+      "ingredients": [
+        "生石膏",
+        "熟地",
+        "麦冬",
+        "知母",
+        "牛膝"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "水亏火盛，六脉浮洪滑大，少阴不足，阳明有余，烦热干渴，头痛牙疼，失血。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-9F510520E95F",
+      "name": "甘草泻心汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "甘草",
+        "黄芩",
+        "干姜",
+        "大枣",
+        "半夏",
+        "黄连"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "伤寒痞证，胃气虚弱，腹中雷鸣，下利，水谷不化，心下痞硬而满，干呕心烦不得安；狐惑病；常用于急慢性胃肠炎症、白塞氏综合症等；产后口糜，泻痢。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-E7D4299537C1",
+      "name": "生姜泻心汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "生姜",
+        "甘草",
+        "人参",
+        "干姜",
+        "黄芩",
+        "半夏",
+        "黄连",
+        "大枣"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "伤寒汗后，胃阳虚弱，水饮内停，心下痞硬，肠鸣下利；妊娠恶阻，噤口痢;现用于胃下垂、胃扩张、慢性胃炎等属胃阳虚弱，水饮内停者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-420A7EE47F5D",
+      "name": "白虎加人参汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "知母",
+        "石膏",
+        "甘草",
+        "粳米",
+        "人参"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "清热、益气、生津。主治伤寒、温病、暑病气分热盛，津气两伤，身热而渴，汗出恶寒，脉虚大无力；火热迫肺，上消多饮者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-1D771CD1ABA5",
+      "name": "益胃汤",
+      "source": "《温病条辨》",
+      "ingredients": [
+        "沙参",
+        "麦冬",
+        "冰糖",
+        "细生地",
+        "玉竹"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "阳明温病，下后汗出，胃阴受伤。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-AA746855FDAD",
+      "name": "真武汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "茯苓",
+        "芍药",
+        "生姜",
+        "白术",
+        "附子"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "脾肾阳虚，水气内停，小便不利，四肢沉重疼痛，腹痛下利，或肢体浮肿，苔白不渴，脉沉；太阳病误汗不解，发热，心下悸，头眩，身瞤动，振振欲擗地者；少阴病腹痛，自下利者，此为有水气，其人或咳，或呕者。虚劳之人，憎寒壮热，咳嗽下利。治少阴肾证，水饮与里寒合而作嗽。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-61DF249C0EC8",
+      "name": "竹叶石膏汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "竹叶二把",
+        "石膏",
+        "半夏",
+        "麦门冬",
+        "人参",
+        "甘草",
+        "粳米"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "伤寒、温病、暑病之后，余热未清，气津两伤，虚羸少气，身热多汗，呕逆烦渴，唇干口燥，或虚烦不寐，舌红少苔，脉虚数。现用于中暑、糖尿病、小儿夏季热等出现气阴两伤证候者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-8C4D87F86076",
+      "name": "紫雪丹",
+      "source": "《外台秘要》引《苏恭方》",
+      "ingredients": [
+        "石膏",
+        "寒水石",
+        "滑石",
+        "磁石",
+        "玄参",
+        "木香",
+        "沉香",
+        "升麻",
+        "甘草",
+        "丁香",
+        "芒硝",
+        "硝石",
+        "麝香",
+        "朱砂"
+      ],
+      "catalog": "verified_reference_catalog",
+      "indications": [
+        "温热病热邪内陷心包、热盛动风相关高热烦躁、神昏谵语、痉厥等；急危重症必须先行急诊处置，本条只治理方剂身份。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-473EE0353565",
+      "name": "羌活胜风汤",
+      "source": "《原机启微》",
+      "ingredients": [
+        "白术",
+        "枳壳",
+        "羌活",
+        "川芎",
+        "白芷",
+        "独活",
+        "防风",
+        "前胡",
+        "桔梗",
+        "薄荷",
+        "荆芥",
+        "甘草",
+        "柴胡",
+        "黄芩"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "暴风客热风胜目痛。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C93AB2A96B4E",
+      "name": "膈下逐瘀汤",
+      "source": "《医林改错》",
+      "ingredients": [
+        "灵脂",
+        "当归",
+        "川芎",
+        "桃仁",
+        "丹皮",
+        "赤芍",
+        "乌药",
+        "元胡",
+        "甘草",
+        "香附",
+        "红花",
+        "枳壳"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "积聚痞块，痛不移处，卧则腹坠，及肾泻、久泻由瘀血所致者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C2F070DEF91E",
+      "name": "芍药甘草汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "白芍药",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "阴血不足，血行不畅，腿脚挛急或腹中疼痛；伤寒脉浮，自汗出，小便数，心烦微恶寒，脚挛急，足温者；小肠腑发咳，咳而失气。四时伤寒腹痛；小儿热腹痛，小便不通；痘疹肚痛；营血受伤，热不止；小儿夜啼不止，腹中挛急甚者；妇人伤寒，汗解表除，热入血室，经水过多，无实满者；及杂病木克脾土，阴阳血气不和而腹痛；产后腹痛。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-8D95EDC3ACB2",
+      "name": "苓桂术甘汤",
+      "source": "《金匮要略》",
+      "ingredients": [
+        "茯苓",
+        "桂枝",
+        "白术",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "温阳化饮，健脾利湿。主治中阳不足之痰饮。胸胁支满，目眩心悸，短气而咳，舌苔白滑，脉弦滑或沉紧。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-7683C013EED8",
+      "name": "茵陈术附汤",
+      "source": "《医学心悟》",
+      "ingredients": [
+        "茵陈",
+        "白术",
+        "附子",
+        "干姜",
+        "甘草",
+        "肉桂"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "阴黄。身冷，脉沉细，小便自利。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-5BFC8FAB8A4E",
+      "name": "茵陈蒿汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "茵陈蒿",
+        "栀子",
+        "大黄"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "湿热黄疸，面、目、一身尽黄，黄色鲜明，腹微满，口渴，小便不利，舌苔黄腻，脉沉数者。阳明病，发热汗出者，此为热越，不能发黄也。但头汗出，身无汗，齐颈而还，小便不利，渴引水浆者，此为瘀热在里，身必发黄。谷疸之为病，寒热不食，食即头眩，心胸不安，久久发黄，为谷疸也。黄汗，身体四肢微肿，胸满，不得汗，汗出如黄柏汁，由大汗出，卒入水所致。湿热发黄，脉沉实者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-680723CF41B6",
+      "name": "藿朴夏苓汤",
+      "source": "《医原》",
+      "ingredients": [
+        "杜藿香",
+        "真川朴",
+        "姜半夏",
+        "赤苓",
+        "光杏仁",
+        "生薏仁",
+        "白蔻末",
+        "猪苓",
+        "淡香豉",
+        "建泽泻"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "芳香化浊，行气渗湿。主治湿温初起，身热不渴，肢体倦怠，胸闷口腻，舌苔白滑，脉濡缓。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-E2930988FCA7",
+      "name": "蠲痹汤",
+      "source": "《医学心悟》",
+      "ingredients": [
+        "羌活",
+        "独活",
+        "桂心",
+        "秦艽",
+        "当归",
+        "川芎",
+        "甘草",
+        "海风藤",
+        "桑枝",
+        "乳香",
+        "木香"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "风寒湿三气合而成痹。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-D3250E54CD82",
+      "name": "解郁汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "人参",
+        "白术",
+        "白茯苓",
+        "当归",
+        "白芍",
+        "枳壳",
+        "砂仁三粒",
+        "山栀子",
+        "薄荷"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "妊娠怀抱忧郁，肝气不通，以致子悬，胎动不安，两胁闷而疼痛，如弓上弦。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-C42B70515CDF",
+      "name": "调肝汤",
+      "source": "《傅青主女科》",
+      "ingredients": [
+        "山药",
+        "阿胶",
+        "当归",
+        "白芍",
+        "山萸肉",
+        "巴戟",
+        "甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "妇人肾气涸，行经后少腹疼痛。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-E05687F83601",
+      "name": "身痛逐瘀汤",
+      "source": "《医林改错》",
+      "ingredients": [
+        "秦艽",
+        "川芎",
+        "桃仁",
+        "红花",
+        "甘草",
+        "羌活",
+        "没药",
+        "当归",
+        "灵脂",
+        "香附",
+        "牛膝",
+        "地龙"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "痹症有瘀血者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-F0F7E5DF5DD4",
+      "name": "连朴饮",
+      "source": "《霍乱论》",
+      "ingredients": [
+        "制厚朴",
+        "川连",
+        "石菖蒲",
+        "制半夏",
+        "香豉",
+        "焦栀",
+        "芦根"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "湿热蕴伏而成霍乱。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-66D60D34583A",
+      "name": "逍遥散",
+      "source": "《局方》卷九。",
+      "ingredients": [
+        "甘草",
+        "当归",
+        "茯苓",
+        "白芍",
+        "白术",
+        "柴胡"
+      ],
+      "catalog": "verified_reference_catalog",
+      "indications": [
+        "肝郁血虚，两胁疼痛，头痛目眩，口燥咽干，神疲食少，往来寒热，或妇人月水不调。",
+        "肝郁血虚，两胁疼痛，头痛目眩，口燥咽干，神疲食少，往来寒热；妇人月水不调。血虚劳倦，五心烦热，肢体疼痛，头目昏重，心忪颊赤，发热盗汗，减食嗜卧；血热相搏，月水不调，脐腹胀痛，寒热如疟；及室女血弱阴虚，荣卫不和，痰嗽潮热，肌体羸瘦，渐成骨蒸。产后亡阴血虚，心烦自汗，精神昏冒。口舌生疮。或因劳疫所伤，或食煎炒，血得热而流于脬中，小便带血。乳母肝脾有热，致小儿痘疮欲靥不靥，欲落不落。女子月经来少色淡，或闭不行。怒火而致翻花疮。血虚小便不禁。肝胆二经郁火，或胃脘当心而痛，或肩背绊痛，或时眼赤痛，连及太阳；六经伤寒阳证；或妇人郁怒伤肝，致血妄行，赤白淫，砂淋、崩浊。心肝郁而致肝痈，左胁痛，手不可按，左胁见紫色而舌青。肝家血虚火旺，口苦，倦怠烦渴，抑郁不乐，小腹重坠。伤寒火郁于中，干咳连声而痰不来，或全无痰。肝郁血虚所致的神疲食少，乳房作胀，舌淡红，脉弦而虚者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-A77CFCB80216",
+      "name": "通窍活血汤",
+      "source": "《医林改错》",
+      "ingredients": [
+        "赤芍",
+        "川芎",
+        "桃仁",
+        "红花",
+        "老葱三根",
+        "鲜姜",
+        "红枣",
+        "麝香"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "血瘀所致的脱发，暴发火眼，酒糟鼻，耳聋，白癜风，紫癜风，牙疳，男女劳病，小儿疳证，头痛，骨膊胸膈顽硬刺痛，中风。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-1A1088155A04",
+      "name": "通脉四逆汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "甘草",
+        "附子",
+        "干姜"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "少阴病，阴盛隔阳。下利清谷，里寒外热，反不恶寒，手足厥逆，脉微欲绝。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-75525F3AC9D4",
+      "name": "酸枣仁汤",
+      "source": "《金匮要略》",
+      "ingredients": [
+        "酸枣仁",
+        "知母",
+        "茯苓",
+        "川芎",
+        "甘草"
+      ],
+      "catalog": "verified_reference_catalog",
+      "indications": [
+        "虚劳虚烦不得眠。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-94788F1B69E2",
+      "name": "金水六君煎",
+      "source": "《景岳全书》",
+      "ingredients": [
+        "当归",
+        "熟地",
+        "陈皮",
+        "半夏",
+        "茯苓",
+        "炙甘草"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "肺肾虚寒，水泛为痰。或年迈阴虚，血气不足，外受风寒，咳嗽，呕恶多痰，喘急等症。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-FA17862AECB0",
+      "name": "防己黄芪汤",
+      "source": "《金匮要略》",
+      "ingredients": [
+        "防己",
+        "甘草",
+        "白术",
+        "黄芪"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "益气祛风，健脾利水。主治表虚不固之风水或风湿证。汗出恶风，身重微肿，或肢节疼痛，小便不利，舌淡苔白，脉浮。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-DD1C7F865287",
+      "name": "附子汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "附子",
+        "茯苓",
+        "人参",
+        "白术",
+        "芍药"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "少阴病。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-52F747DC1A69",
+      "name": "麻黄汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "麻黄",
+        "桂枝",
+        "甘草",
+        "杏仁"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "外感风寒，恶寒发热，头身疼痛，无汗而喘，口不渴，舌苔薄白，脉浮而紧。现用于流行性感冒、支气管炎、支气管哮喘、某些皮肤疾患等具有上述症状者。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-6EC3EE3886C0",
+      "name": "麻黄细辛附子汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "麻黄",
+        "细辛",
+        "附子"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "素体阳虚，外感风寒，无汗恶寒，发热，踡卧，苔白，脉沉。亦治肾咳及寒厥头痛。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-22EEA8C7D5EF",
+      "name": "黄芩汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "黄芩",
+        "芍药",
+        "甘草",
+        "大枣"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "泄泻或痢疾。身热不恶寒，腹痛，口苦咽干，舌苔黄，脉弦数。",
+        "干呕下利。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-972CA9488AA7",
+      "name": "黄芪桂枝五物汤",
+      "source": "《金匮要略》",
+      "ingredients": [
+        "黄芪",
+        "芍药",
+        "桂枝",
+        "生姜",
+        "大枣"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "益气温经，和血通痹。主治血痹。肌肤麻木不仁，脉微涩而紧。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-DD755EB44E65",
+      "name": "黄芪汤",
+      "source": "《金匮翼》",
+      "ingredients": [
+        "绵黄芪",
+        "陈皮"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "益气润肠通便。主治气虚性便秘，大便并不硬，虽有便意，但排便困难，便后乏力，面白神疲，脉弱。"
+      ]
+    },
+    {
+      "id": "TCM-FORMULA-EDD276A45B37",
+      "name": "黄连汤",
+      "source": "《伤寒论》",
+      "ingredients": [
+        "黄连",
+        "甘草",
+        "干姜",
+        "桂枝",
+        "人参",
+        "半夏",
+        "大枣"
+      ],
+      "catalog": "official_classic_catalog",
+      "indications": [
+        "胸中有热，胃中有寒，阴阳痞塞，升降失常，心下痞满，腹痛欲吐。"
+      ]
+    }
+  ]
+}

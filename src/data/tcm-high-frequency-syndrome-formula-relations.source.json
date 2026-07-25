@@ -1,0 +1,1367 @@
+{
+  "schemaVersion": "tcm-high-frequency-syndrome-formula-relations-source-v1",
+  "governanceTable": "T8",
+  "policy": "本表只提供门诊高频证候到受控方剂身份的正向召回关系。每个关系必须同时核对已签名主证候和治法；不得据此生成患者级剂量，也不得替代 M04 组成编译与处方后审方。",
+  "sourceRefs": [
+    "SRC-GBT-16751-2-2021",
+    "SRC-GBT-16751-3-2023",
+    "SRC-SZJG-TCM-FORMULA-2011",
+    "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722"
+  ],
+  "entries": [
+    {
+      "syndrome": "心脾两虚",
+      "formulas": [
+        {
+          "name": "归脾汤",
+          "therapyTerms": [
+            "补益心脾",
+            "益气",
+            "养血",
+            "安神"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "酸枣仁汤",
+          "therapyTerms": [
+            "养血",
+            "安神"
+          ],
+          "fit": "differential",
+          "discriminator": "仅在心血不足、虚烦不寐突出而脾虚不显著时作为鉴别候选；脾气虚与摄血不足明显时优先归脾汤。"
+        },
+        {
+          "name": "参苓白术散",
+          "therapyTerms": [
+            "益气",
+            "健脾",
+            "渗湿"
+          ],
+          "fit": "differential",
+          "discriminator": "仅在纳差便溏、湿困中焦等脾虚夹湿证据明确时作为合方鉴别；无湿象时不得拼接。"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝火扰心",
+      "formulas": [
+        {
+          "name": "龙胆泻肝汤",
+          "therapyTerms": [
+            "清肝",
+            "泻火"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "丹栀逍遥散",
+          "therapyTerms": [
+            "疏肝",
+            "清热"
+          ],
+          "fit": "differential",
+          "discriminator": "兼肝郁、血虚或脾虚线索时才进入鉴别；肝胆实火偏盛者优先核对龙胆泻肝汤方证。"
+        }
+      ]
+    },
+    {
+      "syndrome": "痰湿蕴肺",
+      "formulas": [
+        {
+          "name": "二陈汤",
+          "therapyTerms": [
+            "燥湿",
+            "化痰",
+            "理气"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "风寒犯肺",
+      "formulas": [
+        {
+          "name": "麻黄汤",
+          "therapyTerms": [
+            "辛温解表",
+            "宣肺",
+            "平喘"
+          ],
+          "fit": "primary",
+          "discriminator": "须同时核对无汗、恶寒、脉浮紧及禁汗线索。"
+        }
+      ]
+    },
+    {
+      "syndrome": "风热犯肺",
+      "formulas": [
+        {
+          "name": "银翘散",
+          "therapyTerms": [
+            "辛凉解表",
+            "疏风",
+            "清热"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "痰热阻肺",
+      "formulas": [
+        {
+          "name": "清金化痰汤",
+          "therapyTerms": [
+            "清肺",
+            "化痰",
+            "止咳"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肺气虚",
+      "formulas": [
+        {
+          "name": "玉屏风散",
+          "therapyTerms": [
+            "益气",
+            "固表"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "脾气虚",
+      "formulas": [
+        {
+          "name": "四君子汤",
+          "therapyTerms": [
+            "益气",
+            "健脾"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "脾虚湿困",
+      "formulas": [
+        {
+          "name": "参苓白术散",
+          "therapyTerms": [
+            "益气",
+            "健脾",
+            "渗湿"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "湿困中焦",
+      "formulas": [
+        {
+          "name": "平胃散",
+          "therapyTerms": [
+            "燥湿",
+            "运脾",
+            "和胃"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "藿香正气散",
+          "therapyTerms": [
+            "化湿",
+            "和中",
+            "解表"
+          ],
+          "fit": "differential",
+          "discriminator": "兼外感表证或吐泻并作时选藿香正气散；单纯湿滞脾胃用平胃散。"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝胃郁热",
+      "formulas": [
+        {
+          "name": "左金丸",
+          "therapyTerms": [
+            "疏肝",
+            "泻热",
+            "降逆"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "柴胡疏肝散",
+          "therapyTerms": [
+            "疏肝",
+            "理气",
+            "和胃"
+          ],
+          "fit": "differential",
+          "discriminator": "仅有肝胃气滞而无郁热、反酸烧心等热证时才进入鉴别。"
+        }
+      ]
+    },
+    {
+      "syndrome": "胃气上逆",
+      "formulas": [
+        {
+          "name": "旋覆代赭汤",
+          "therapyTerms": [
+            "和胃",
+            "降逆"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝郁气滞",
+      "formulas": [
+        {
+          "name": "柴胡疏肝散",
+          "therapyTerms": [
+            "疏肝",
+            "理气",
+            "解郁"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝郁血虚",
+      "formulas": [
+        {
+          "name": "逍遥散",
+          "therapyTerms": [
+            "疏肝",
+            "养血",
+            "健脾"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝郁化火",
+      "formulas": [
+        {
+          "name": "丹栀逍遥散",
+          "therapyTerms": [
+            "疏肝",
+            "清热",
+            "养血"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "心肾不交",
+      "formulas": [
+        {
+          "name": "黄连阿胶汤",
+          "therapyTerms": [
+            "滋阴",
+            "清热",
+            "安神"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "阴虚火旺",
+      "formulas": [
+        {
+          "name": "知柏地黄丸",
+          "therapyTerms": [
+            "滋阴",
+            "降火"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肾阴虚",
+      "formulas": [
+        {
+          "name": "六味地黄丸",
+          "therapyTerms": [
+            "滋阴",
+            "补肾"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肾阳虚",
+      "formulas": [
+        {
+          "name": "金匮肾气丸",
+          "therapyTerms": [
+            "温阳",
+            "补肾"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "气阴两虚",
+      "formulas": [
+        {
+          "name": "生脉散",
+          "therapyTerms": [
+            "益气",
+            "养阴",
+            "生津"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "气血两虚",
+      "formulas": [
+        {
+          "name": "八珍汤",
+          "therapyTerms": [
+            "益气",
+            "养血"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "血虚",
+      "formulas": [
+        {
+          "name": "四物汤",
+          "therapyTerms": [
+            "补血",
+            "养血"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "瘀血阻络",
+      "formulas": [
+        {
+          "name": "血府逐瘀汤",
+          "therapyTerms": [
+            "活血",
+            "化瘀",
+            "通络"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "寒凝血瘀",
+      "formulas": [
+        {
+          "name": "温经汤",
+          "therapyTerms": [
+            "温经",
+            "散寒",
+            "活血"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝阳上亢",
+      "formulas": [
+        {
+          "name": "天麻钩藤饮",
+          "therapyTerms": [
+            "平肝",
+            "潜阳",
+            "息风"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "心火炽盛",
+      "formulas": [
+        {
+          "name": "导赤散",
+          "therapyTerms": [
+            "清心",
+            "泻火"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "胃火炽盛",
+      "formulas": [
+        {
+          "name": "清胃散",
+          "therapyTerms": [
+            "清胃",
+            "泻火"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "湿热下注",
+      "formulas": [
+        {
+          "name": "八正散",
+          "therapyTerms": [
+            "清热",
+            "利湿",
+            "通淋"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "膀胱湿热",
+      "formulas": [
+        {
+          "name": "八正散",
+          "therapyTerms": [
+            "清热",
+            "利湿",
+            "通淋"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "脾阳虚",
+      "formulas": [
+        {
+          "name": "理中丸",
+          "therapyTerms": [
+            "温中",
+            "健脾"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "心阳虚",
+      "formulas": [
+        {
+          "name": "桂枝甘草汤",
+          "therapyTerms": [
+            "温通心阳"
+          ],
+          "fit": "primary",
+          "discriminator": "须核对发汗后心悸、心阳受损语境；一般心悸不得机械套用。"
+        }
+      ]
+    },
+    {
+      "syndrome": "肺阴虚",
+      "formulas": [
+        {
+          "name": "麦门冬汤",
+          "therapyTerms": [
+            "养阴",
+            "润肺",
+            "降逆"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝肾阴虚",
+      "formulas": [
+        {
+          "name": "杞菊地黄丸",
+          "therapyTerms": [
+            "滋补肝肾",
+            "养阴"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "心肝血虚",
+      "formulas": [
+        {
+          "name": "酸枣仁汤",
+          "therapyTerms": [
+            "养血",
+            "安神"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "风寒束表",
+      "formulas": [
+        {
+          "name": "荆防败毒散",
+          "therapyTerms": [
+            "发散风寒",
+            "解表",
+            "祛湿"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "风热犯表",
+      "formulas": [
+        {
+          "name": "银翘散",
+          "therapyTerms": [
+            "辛凉解表",
+            "疏风",
+            "清热"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "痰热内扰",
+      "formulas": [
+        {
+          "name": "温胆汤",
+          "therapyTerms": [
+            "清热",
+            "化痰",
+            "和胃",
+            "安神"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "胆郁痰扰",
+      "formulas": [
+        {
+          "name": "温胆汤",
+          "therapyTerms": [
+            "理气",
+            "化痰",
+            "和胃",
+            "安神"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肺脾气虚",
+      "formulas": [
+        {
+          "name": "六君子汤",
+          "therapyTerms": [
+            "益气",
+            "健脾",
+            "化痰"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "心气虚",
+      "formulas": [
+        {
+          "name": "炙甘草汤",
+          "therapyTerms": [
+            "益气",
+            "养心",
+            "复脉"
+          ],
+          "fit": "primary",
+          "discriminator": "须核对脉结代、心动悸等方证，不得仅凭乏力或一般心悸套用。"
+        }
+      ]
+    },
+    {
+      "syndrome": "气滞血瘀",
+      "formulas": [
+        {
+          "name": "血府逐瘀汤",
+          "therapyTerms": [
+            "行气",
+            "活血",
+            "化瘀"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝郁脾虚",
+      "formulas": [
+        {
+          "name": "逍遥散",
+          "therapyTerms": [
+            "疏肝",
+            "解郁",
+            "健脾",
+            "养血"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "痛泻要方",
+          "therapyTerms": [
+            "健脾",
+            "柔肝",
+            "除湿"
+          ],
+          "fit": "differential",
+          "discriminator": "仅在腹痛即泻、泻后痛减的肝木乘脾泄泻为主证时选用；无泄泻规律者不得替换逍遥散。"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝脾不调",
+      "formulas": [
+        {
+          "name": "四逆散",
+          "therapyTerms": [
+            "疏肝",
+            "理气",
+            "解郁"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "逍遥散",
+          "therapyTerms": [
+            "疏肝",
+            "健脾",
+            "养血"
+          ],
+          "fit": "differential",
+          "discriminator": "兼血虚见头晕目眩、月经不调时优先逍遥散；单纯气机不畅而无血虚者用四逆散。"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝胃气滞",
+      "formulas": [
+        {
+          "name": "柴胡疏肝散",
+          "therapyTerms": [
+            "疏肝",
+            "行气",
+            "和胃"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "越鞠丸",
+          "therapyTerms": [
+            "行气",
+            "解郁",
+            "消积"
+          ],
+          "fit": "differential",
+          "discriminator": "六郁并见而不以肝胃为主时作为鉴别；单纯肝胃气滞不得改用。"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝火上炎",
+      "formulas": [
+        {
+          "name": "龙胆泻肝汤",
+          "therapyTerms": [
+            "清肝",
+            "泻火",
+            "利湿"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝风内动",
+      "formulas": [
+        {
+          "name": "天麻钩藤饮",
+          "therapyTerms": [
+            "平肝",
+            "息风",
+            "潜阳"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝血虚",
+      "formulas": [
+        {
+          "name": "四物汤",
+          "therapyTerms": [
+            "补血",
+            "养血",
+            "和血"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "寒滞肝脉",
+      "formulas": [
+        {
+          "name": "暖肝煎",
+          "therapyTerms": [
+            "温经",
+            "散寒",
+            "行气"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "当归四逆汤",
+          "therapyTerms": [
+            "温经",
+            "散寒",
+            "养血",
+            "通脉"
+          ],
+          "fit": "differential",
+          "discriminator": "以手足厥寒、脉细欲绝的血虚寒厥为主时选当归四逆汤；少腹冷痛疝气为主时用暖肝煎。"
+        }
+      ]
+    },
+    {
+      "syndrome": "痰火扰神",
+      "formulas": [
+        {
+          "name": "温胆汤",
+          "therapyTerms": [
+            "理气",
+            "化痰",
+            "清胆",
+            "和胃"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "心虚胆怯",
+      "formulas": [
+        {
+          "name": "温胆汤",
+          "therapyTerms": [
+            "化痰",
+            "和胃",
+            "宁心"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "心血瘀阻",
+      "formulas": [
+        {
+          "name": "血府逐瘀汤",
+          "therapyTerms": [
+            "活血",
+            "化瘀",
+            "行气"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "桃红四物汤",
+          "therapyTerms": [
+            "活血",
+            "养血",
+            "化瘀"
+          ],
+          "fit": "differential",
+          "discriminator": "兼血虚而瘀滞不重时作为鉴别；胸痛固定、舌质紫暗等瘀阻明显者用血府逐瘀汤。"
+        }
+      ]
+    },
+    {
+      "syndrome": "心肾阳虚",
+      "formulas": [
+        {
+          "name": "真武汤",
+          "therapyTerms": [
+            "温阳",
+            "利水"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "济生肾气丸",
+          "therapyTerms": [
+            "温阳",
+            "补肾",
+            "利水"
+          ],
+          "fit": "differential",
+          "discriminator": "以腰膝酸软、小便不利的肾阳虚水停为主时选济生肾气丸；心悸水肿并见者用真武汤。"
+        }
+      ]
+    },
+    {
+      "syndrome": "血热妄行",
+      "formulas": [
+        {
+          "name": "犀角地黄汤",
+          "therapyTerms": [
+            "清热",
+            "凉血",
+            "散瘀"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "痰浊阻肺",
+      "formulas": [
+        {
+          "name": "二陈汤",
+          "therapyTerms": [
+            "燥湿",
+            "化痰",
+            "理气"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "苏子降气汤",
+          "therapyTerms": [
+            "降气",
+            "化痰",
+            "止咳",
+            "平喘"
+          ],
+          "fit": "differential",
+          "discriminator": "痰涎壅盛兼上盛下虚喘咳时选苏子降气汤；单纯痰湿犯肺用二陈汤。"
+        }
+      ]
+    },
+    {
+      "syndrome": "寒饮伏肺",
+      "formulas": [
+        {
+          "name": "小青龙汤",
+          "therapyTerms": [
+            "解表",
+            "散寒",
+            "温肺",
+            "化饮"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "燥邪伤肺",
+      "formulas": [
+        {
+          "name": "桑杏汤",
+          "therapyTerms": [
+            "清热",
+            "润燥",
+            "止咳"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "清燥救肺汤",
+          "therapyTerms": [
+            "清热",
+            "润燥",
+            "养阴",
+            "止咳"
+          ],
+          "fit": "differential",
+          "discriminator": "燥热伤及气阴、见身热气逆者选清燥救肺汤；外感温燥轻证用桑杏汤。"
+        }
+      ]
+    },
+    {
+      "syndrome": "阴虚肺燥",
+      "formulas": [
+        {
+          "name": "沙参麦冬汤",
+          "therapyTerms": [
+            "养阴",
+            "润燥",
+            "生津"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肺卫不固",
+      "formulas": [
+        {
+          "name": "玉屏风散",
+          "therapyTerms": [
+            "益气",
+            "固表",
+            "止汗"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "风热感冒",
+      "formulas": [
+        {
+          "name": "银翘散",
+          "therapyTerms": [
+            "辛凉",
+            "解表",
+            "清热",
+            "解毒"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "桑菊饮",
+          "therapyTerms": [
+            "疏散风热",
+            "宣肺",
+            "止咳"
+          ],
+          "fit": "differential",
+          "discriminator": "以咳嗽为主、发热不甚的风热轻证用桑菊饮；发热咽痛明显者用银翘散。"
+        }
+      ]
+    },
+    {
+      "syndrome": "风寒感冒",
+      "formulas": [
+        {
+          "name": "桂枝汤",
+          "therapyTerms": [
+            "解表",
+            "散寒",
+            "调和营卫"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "麻黄汤",
+          "therapyTerms": [
+            "发散风寒",
+            "宣肺",
+            "平喘"
+          ],
+          "fit": "differential",
+          "discriminator": "无汗而喘、脉浮紧的表实证用麻黄汤；汗出恶风的表虚证用桂枝汤，二者不得互换。"
+        }
+      ]
+    },
+    {
+      "syndrome": "暑湿感冒",
+      "formulas": [
+        {
+          "name": "藿香正气散",
+          "therapyTerms": [
+            "解表",
+            "化湿",
+            "和中"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "寒湿困脾",
+      "formulas": [
+        {
+          "name": "平胃散",
+          "therapyTerms": [
+            "燥湿",
+            "运脾",
+            "行气"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "实脾散",
+          "therapyTerms": [
+            "温阳",
+            "健脾",
+            "利水",
+            "化寒湿"
+          ],
+          "fit": "differential",
+          "discriminator": "寒湿困脾兼阳虚水肿时选实脾散；无水肿者不得升级。"
+        }
+      ]
+    },
+    {
+      "syndrome": "湿热蕴脾",
+      "formulas": [
+        {
+          "name": "连朴饮",
+          "therapyTerms": [
+            "清热",
+            "化湿",
+            "理气",
+            "和中"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "茵陈蒿汤",
+          "therapyTerms": [
+            "清热",
+            "利湿",
+            "退黄"
+          ],
+          "fit": "differential",
+          "discriminator": "仅在身目发黄的湿热黄疸成立时选茵陈蒿汤；无黄疸不得套用。"
+        }
+      ]
+    },
+    {
+      "syndrome": "脾胃湿热",
+      "formulas": [
+        {
+          "name": "连朴饮",
+          "therapyTerms": [
+            "清热",
+            "化湿",
+            "和中"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "半夏泻心汤",
+          "therapyTerms": [
+            "和胃",
+            "降逆",
+            "泄热",
+            "除痞"
+          ],
+          "fit": "differential",
+          "discriminator": "寒热错杂、心下痞满为主时选半夏泻心汤；单纯湿热中阻用连朴饮。"
+        }
+      ]
+    },
+    {
+      "syndrome": "大肠湿热",
+      "formulas": [
+        {
+          "name": "芍药汤",
+          "therapyTerms": [
+            "清热",
+            "燥湿",
+            "行气",
+            "和血"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "白头翁汤",
+          "therapyTerms": [
+            "清热",
+            "解毒",
+            "凉血"
+          ],
+          "fit": "differential",
+          "discriminator": "热毒血痢、下痢脓血赤多白少时选白头翁汤；湿热下痢兼气血失调用芍药汤。"
+        }
+      ]
+    },
+    {
+      "syndrome": "大肠津亏",
+      "formulas": [
+        {
+          "name": "麻子仁丸",
+          "therapyTerms": [
+            "润燥",
+            "通便",
+            "增液"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "热结肠燥",
+      "formulas": [
+        {
+          "name": "麻子仁丸",
+          "therapyTerms": [
+            "润燥",
+            "泻热",
+            "通便"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "大承气汤",
+          "therapyTerms": [
+            "攻下",
+            "泻热"
+          ],
+          "fit": "differential",
+          "discriminator": "痞满燥实坚俱备的阳明腑实急下证才可考虑大承气汤，且须先排除急腹症；一般肠燥便秘不得使用。"
+        }
+      ]
+    },
+    {
+      "syndrome": "胃气虚",
+      "formulas": [
+        {
+          "name": "四君子汤",
+          "therapyTerms": [
+            "益气",
+            "健脾",
+            "和胃"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "六君子汤",
+          "therapyTerms": [
+            "益气",
+            "健脾",
+            "燥湿",
+            "化痰"
+          ],
+          "fit": "differential",
+          "discriminator": "兼痰湿见恶心呕吐、苔白腻时选六君子汤；单纯气虚用四君子汤。"
+        }
+      ]
+    },
+    {
+      "syndrome": "胃阴虚",
+      "formulas": [
+        {
+          "name": "益胃汤",
+          "therapyTerms": [
+            "养阴",
+            "益胃",
+            "生津"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "麦门冬汤",
+          "therapyTerms": [
+            "养阴",
+            "润肺",
+            "益胃",
+            "降逆"
+          ],
+          "fit": "differential",
+          "discriminator": "兼肺胃阴伤、气逆咳唾涎沫时选麦门冬汤；单纯胃阴不足用益胃汤。"
+        }
+      ]
+    },
+    {
+      "syndrome": "脾胃虚寒",
+      "formulas": [
+        {
+          "name": "理中丸",
+          "therapyTerms": [
+            "温中",
+            "散寒",
+            "益气",
+            "健脾"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "小建中汤",
+          "therapyTerms": [
+            "温中",
+            "补虚",
+            "和里",
+            "缓急"
+          ],
+          "fit": "differential",
+          "discriminator": "以脘腹挛急疼痛、喜温喜按为主时选小建中汤；吐利腹满的中焦虚寒用理中丸。"
+        }
+      ]
+    },
+    {
+      "syndrome": "中气下陷",
+      "formulas": [
+        {
+          "name": "补中益气汤",
+          "therapyTerms": [
+            "补中",
+            "益气",
+            "升阳",
+            "举陷"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "脾肾阳虚",
+      "formulas": [
+        {
+          "name": "真武汤",
+          "therapyTerms": [
+            "温阳",
+            "利水",
+            "健脾"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "四神丸",
+          "therapyTerms": [
+            "温肾",
+            "健脾",
+            "固涩"
+          ],
+          "fit": "differential",
+          "discriminator": "以五更泄泻为主证时选四神丸；水肿、心悸等阳虚水泛为主者用真武汤。"
+        }
+      ]
+    },
+    {
+      "syndrome": "肾精不足",
+      "formulas": [
+        {
+          "name": "左归丸",
+          "therapyTerms": [
+            "滋阴",
+            "补肾",
+            "填精"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "水湿内停",
+      "formulas": [
+        {
+          "name": "五苓散",
+          "therapyTerms": [
+            "利水",
+            "渗湿",
+            "温阳",
+            "化气"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "猪苓汤",
+          "therapyTerms": [
+            "利水",
+            "渗湿",
+            "养阴",
+            "清热"
+          ],
+          "fit": "differential",
+          "discriminator": "水热互结兼阴伤见小便不利、心烦不寐时选猪苓汤；表里同病的蓄水证用五苓散。"
+        }
+      ]
+    },
+    {
+      "syndrome": "风寒袭肺",
+      "formulas": [
+        {
+          "name": "麻黄汤",
+          "therapyTerms": [
+            "辛温解表",
+            "宣肺",
+            "平喘"
+          ],
+          "fit": "primary",
+          "discriminator": "须同时核对无汗、恶寒、脉浮紧及禁汗线索。"
+        },
+        {
+          "name": "桂枝汤",
+          "therapyTerms": [
+            "解表",
+            "散寒",
+            "调和营卫"
+          ],
+          "fit": "differential",
+          "discriminator": "汗出恶风的表虚证用桂枝汤；无汗表实证不得替换麻黄汤。"
+        }
+      ]
+    },
+    {
+      "syndrome": "痰热壅肺",
+      "formulas": [
+        {
+          "name": "清金化痰汤",
+          "therapyTerms": [
+            "清肺",
+            "化痰",
+            "止咳"
+          ],
+          "fit": "primary"
+        }
+      ]
+    },
+    {
+      "syndrome": "肝胃不和",
+      "formulas": [
+        {
+          "name": "柴胡疏肝散",
+          "therapyTerms": [
+            "疏肝",
+            "行气",
+            "和胃"
+          ],
+          "fit": "primary"
+        },
+        {
+          "name": "左金丸",
+          "therapyTerms": [
+            "清肝",
+            "泻火",
+            "降逆",
+            "和胃"
+          ],
+          "fit": "differential",
+          "discriminator": "肝火犯胃见嘈杂吞酸、口苦者用左金丸；单纯气机不畅无火象时不得使用。"
+        }
+      ]
+    }
+  ]
+}

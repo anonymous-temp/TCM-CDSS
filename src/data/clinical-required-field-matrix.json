@@ -1,0 +1,298 @@
+{
+  "schemaVersion": "clinical-required-field-matrix-v1",
+  "governance": {
+    "status": "current_contract_aligned",
+    "universalMinimum": [
+      "chief_complaint",
+      "sex"
+    ],
+    "safetyRule": "条件性必填由确定性风险、特殊人群和候选治疗共同触发；未知必须保持未知。",
+    "implementationDrift": [],
+    "sourceRefs": [
+      "SRC-NHC-MEDICAL-RECORD-2010",
+      "SRC-BEIJING-TCM-RECORD-2025",
+      "SRC-PROJECT-DETERMINISTIC-SAFETY",
+      "SRC-PROJECT-REASONING-CONTRACT"
+    ]
+  },
+  "summary": {
+    "fieldPolicyCount": 16,
+    "universalRequiredCount": 2,
+    "m02TargetedPolicyCount": 9
+  },
+  "entries": [
+    {
+      "id": "chief_complaint",
+      "label": "主诉",
+      "casePaths": [
+        "chiefComplaint",
+        "hisRecord.fields.zhushu"
+      ],
+      "stagePolicy": {
+        "collect": "required",
+        "diagnose": "required",
+        "prescribe": "required"
+      },
+      "currentEnforcement": "client_execution_gate_and_safety_gate",
+      "unknownPolicy": "not_allowed",
+      "rationale": "没有本次就诊目标就无法形成患者特异的分析。"
+    },
+    {
+      "id": "sex",
+      "label": "性别/生理状态",
+      "casePaths": [
+        "patient.sex",
+        "hisRecord.fields.sex"
+      ],
+      "stagePolicy": {
+        "collect": "required",
+        "diagnose": "required_state_may_be_explicit_unknown",
+        "prescribe": "resolved_biological_risk_state_required_for_dose_level_adoption"
+      },
+      "currentEnforcement": "ui_required_and_collect_route_server_gate_and_dose_safety_gate",
+      "unknownPolicy": "其他或未明确_is_filled_but_blocks_dose_level_suggestion",
+      "rationale": "建案时必须记录；无法确认可选“其他或未明确”继续非剂量分析，但不得据此放开具体用量建议。"
+    },
+    {
+      "id": "age",
+      "label": "年龄",
+      "casePaths": [
+        "patient.age",
+        "hisRecord.fields.age"
+      ],
+      "stagePolicy": {
+        "collect": "recommended",
+        "diagnose": "conditional",
+        "prescribe": "required_for_pediatric_or_age_sensitive_decisions"
+      },
+      "currentEnforcement": "conditional_safety_gate_for_invalid_conflicting_or_pediatric_age",
+      "unknownPolicy": "explicit_unknown",
+      "rationale": "儿童、老年及年龄相关鉴别和剂量边界需要；并非所有病例的通用拒答条件。"
+    },
+    {
+      "id": "present_illness",
+      "label": "现病史",
+      "casePaths": [
+        "hisRecord.fields.xianbingshi",
+        "symptoms.presentHistory"
+      ],
+      "m02TargetField": "xianbingshi",
+      "stagePolicy": {
+        "collect": "recommended",
+        "diagnose": "information_gain_driven",
+        "prescribe": "information_gain_driven"
+      },
+      "currentEnforcement": "m02_target_field",
+      "unknownPolicy": "explicit_unknown",
+      "rationale": "病程、诱因、演变和伴随症状用于诊断与辨证，但稀疏病例仍需给出有界结论。"
+    },
+    {
+      "id": "past_history",
+      "label": "既往史",
+      "casePaths": [
+        "pastHistory",
+        "hisRecord.fields.jiwangshi"
+      ],
+      "m02TargetField": "jiwangshi",
+      "stagePolicy": {
+        "collect": "recommended",
+        "diagnose": "conditional",
+        "prescribe": "conditional"
+      },
+      "currentEnforcement": "m02_target_field",
+      "unknownPolicy": "unknown_never_negative",
+      "rationale": "共病、既往事件和手术史按本次问题相关性补录。"
+    },
+    {
+      "id": "allergy_history",
+      "label": "过敏史",
+      "casePaths": [
+        "allergyHistory",
+        "hisRecord.fields.guomin"
+      ],
+      "m02TargetField": "allergyHistory",
+      "stagePolicy": {
+        "collect": "recommended",
+        "diagnose": "may_remain_unknown",
+        "prescribe": "explicit_state_required_for_dose_level_adoption"
+      },
+      "currentEnforcement": "safety_missing_item_and_m02_target_field",
+      "unknownPolicy": "unknown_never_no_allergy",
+      "rationale": "未知时只能生成对未知状态更稳健的医生候选，不能视为无过敏。"
+    },
+    {
+      "id": "medication_history",
+      "label": "当前用药",
+      "casePaths": [
+        "medicationHistory",
+        "hisRecord.fields.yongyaoshi"
+      ],
+      "m02TargetField": "medicationHistory",
+      "stagePolicy": {
+        "collect": "recommended",
+        "diagnose": "may_remain_unknown",
+        "prescribe": "explicit_state_required_for_dose_level_adoption"
+      },
+      "currentEnforcement": "safety_missing_item_and_m02_target_field",
+      "unknownPolicy": "unknown_never_no_medication",
+      "rationale": "影响重复用药、相互作用、停药风险和处方后审方。"
+    },
+    {
+      "id": "vitals",
+      "label": "生命体征",
+      "casePaths": [
+        "vitals",
+        "hisRecord.fields.vitalsT",
+        "hisRecord.fields.vitalsP",
+        "hisRecord.fields.vitalsR",
+        "hisRecord.fields.vitalsBP",
+        "hisRecord.fields.vitalsDetail"
+      ],
+      "m02TargetField": "vitalsDetail",
+      "stagePolicy": {
+        "collect": "conditional",
+        "diagnose": "required_for_red_flag_or_high_risk_context",
+        "prescribe": "required_for_red_flag_or_high_risk_context"
+      },
+      "currentEnforcement": "deterministic_parse_and_conditional_safety_gate",
+      "unknownPolicy": "unknown_allowed_unless_risk_context_requires_measurement",
+      "rationale": "危急阈值必须确定性解析；普通稳定门诊不把全套生命体征当统一拒答条件。"
+    },
+    {
+      "id": "pediatric_weight",
+      "label": "儿童体重",
+      "casePaths": [
+        "patient.weight",
+        "symptoms.weight"
+      ],
+      "stagePolicy": {
+        "collect": "conditional",
+        "diagnose": "conditional",
+        "prescribe": "required_for_pediatric_dose"
+      },
+      "currentEnforcement": "pediatric_dose_safety_gate",
+      "unknownPolicy": "unknown_blocks_pediatric_dose",
+      "rationale": "儿童剂量计算缺体重时必须关闭剂量级输出。"
+    },
+    {
+      "id": "reproductive_status",
+      "label": "妊娠/哺乳/备孕状态",
+      "casePaths": [
+        "symptoms.pregnancy",
+        "symptoms.lactation",
+        "symptoms.conception"
+      ],
+      "stagePolicy": {
+        "collect": "conditional",
+        "diagnose": "conditional",
+        "prescribe": "explicit_state_required_when_applicable"
+      },
+      "currentEnforcement": "special_population_safety_gate",
+      "unknownPolicy": "unknown_never_negative",
+      "rationale": "仅在生理状态适用时追问；药物风险不能因未提及而默认为阴性。"
+    },
+    {
+      "id": "tongue",
+      "label": "舌象",
+      "casePaths": [
+        "tongue",
+        "hisRecord.fields.tcmTongue",
+        "tongueDx"
+      ],
+      "m02TargetField": "tcmTongue",
+      "stagePolicy": {
+        "collect": "recommended",
+        "diagnose": "confidence_affecting_not_global_gate",
+        "prescribe": "confidence_affecting"
+      },
+      "currentEnforcement": "m02_target_and_completeness_dimension",
+      "unknownPolicy": "explicit_unknown",
+      "rationale": "舌象提高辨证分辨率，但稀疏资料必须返回有界而非编造的工作结论。"
+    },
+    {
+      "id": "pulse",
+      "label": "脉象",
+      "casePaths": [
+        "pulse",
+        "hisRecord.fields.tcmPulse"
+      ],
+      "m02TargetField": "tcmPulse",
+      "stagePolicy": {
+        "collect": "recommended",
+        "diagnose": "confidence_affecting_not_global_gate",
+        "prescribe": "confidence_affecting"
+      },
+      "currentEnforcement": "m02_target_and_completeness_dimension",
+      "unknownPolicy": "explicit_unknown",
+      "rationale": "脉象为重要四诊事实，但缺失不能触发模型补造。"
+    },
+    {
+      "id": "face_and_other_tcm",
+      "label": "面色及其他四诊",
+      "casePaths": [
+        "faceNote",
+        "hisRecord.fields.tcmFace",
+        "hisRecord.fields.tcmDetail"
+      ],
+      "m02TargetField": "tcmFace|tcmDetail",
+      "stagePolicy": {
+        "collect": "optional",
+        "diagnose": "information_gain_driven",
+        "prescribe": "information_gain_driven"
+      },
+      "currentEnforcement": "m02_target_fields",
+      "unknownPolicy": "explicit_unknown",
+      "rationale": "仅在可能改变证候、病机或安全边界时补录。"
+    },
+    {
+      "id": "auxiliary_examinations",
+      "label": "辅助检查",
+      "casePaths": [
+        "hisRecord.fields.fuzhuJiancha",
+        "symptoms.exams"
+      ],
+      "m02TargetField": "fuzhuJiancha",
+      "stagePolicy": {
+        "collect": "optional",
+        "diagnose": "western_differential_driven",
+        "prescribe": "safety_driven"
+      },
+      "currentEnforcement": "m02_target_field",
+      "unknownPolicy": "not_done_is_not_negative",
+      "rationale": "用于西医鉴别和安全边界，不应写成中医证候成立的必要前提。"
+    },
+    {
+      "id": "behavioral_osa_thyroid_screens",
+      "label": "精神安全/睡眠呼吸/甲状腺筛查",
+      "casePaths": [
+        "conversation",
+        "clinicalFacts",
+        "symptoms"
+      ],
+      "stagePolicy": {
+        "collect": "conditional",
+        "diagnose": "required_when_triggered",
+        "prescribe": "required_when_triggered"
+      },
+      "currentEnforcement": "semantic_trigger_to_required_question",
+      "unknownPolicy": "unknown_requires_clarification_when_triggered",
+      "rationale": "仅在对应线索命中时成为必须补问项。"
+    },
+    {
+      "id": "patient_name",
+      "label": "患者姓名",
+      "casePaths": [
+        "patient.name",
+        "hisRecord.fields.patientName"
+      ],
+      "stagePolicy": {
+        "collect": "optional_identifier",
+        "diagnose": "not_required",
+        "prescribe": "not_required"
+      },
+      "currentEnforcement": "phi_scrubbed_before_model",
+      "unknownPolicy": "allowed",
+      "rationale": "用于院内身份关联，不属于诊断推理所需事实，送模型前脱敏。"
+    }
+  ]
+}

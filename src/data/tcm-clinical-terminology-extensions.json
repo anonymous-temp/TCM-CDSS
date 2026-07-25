@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "tcm-clinical-terminology-extensions-v1",
+  "governance": {
+    "status": "project_clinical_extensions_outside_or_above_exact_standard_terms",
+    "policy": "国家标准规范词优先；临床高频扩展必须显式标注非国标身份、来源和消歧规则，不得伪称国标收录。",
+    "sourceRefs": [
+      "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722"
+    ]
+  },
+  "syndromeEntries": [
+    {
+      "id": "TCM-SYNDROME-EXT-LIVER-FIRE-DISTURBING-HEART",
+      "canonical": "肝火扰心",
+      "aliases": [
+        "肝火扰神",
+        "肝火上扰心神"
+      ],
+      "termClass": "clinical_extension",
+      "standardStatus": "not_found_in_GBT_16751_2_2021_exact_index",
+      "locations": [
+        "liver",
+        "heart"
+      ],
+      "natures": [
+        "fire_heat"
+      ],
+      "sourceRefs": [
+        "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722"
+      ]
+    }
+  ],
+  "treatmentAliasAugmentations": [
+    {
+      "targetCanonical": "正治法",
+      "aliases": [
+        "正治"
+      ]
+    },
+    {
+      "targetCanonical": "反治法",
+      "aliases": [
+        "反治"
+      ]
+    },
+    {
+      "targetCanonical": "急则治标",
+      "aliases": [
+        "治标"
+      ]
+    },
+    {
+      "targetCanonical": "缓则治本",
+      "aliases": [
+        "治本"
+      ]
+    }
+  ],
+  "treatmentEntries": [
+    {
+      "id": "TCM-THERAPY-EXT-THREE-ADAPTATIONS",
+      "canonical": "三因制宜",
+      "aliases": [
+        "因时因地因人制宜"
+      ],
+      "examples": [
+        "因时制宜",
+        "因地制宜",
+        "因人制宜"
+      ],
+      "termClass": "clinical_extension",
+      "standardStatus": "umbrella_term_for_three_standard_principles",
+      "relationPolicy": "principle_only",
+      "sourceRefs": [
+        "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722"
+      ]
+    },
+    {
+      "id": "TCM-THERAPY-EXT-TREAT-DISEASE-ROOT",
+      "canonical": "治病求本",
+      "aliases": [
+        "治病必求于本"
+      ],
+      "examples": [],
+      "termClass": "clinical_extension",
+      "standardStatus": "clinical_principle_extension",
+      "relationPolicy": "root_priority_requires_case_binding",
+      "sourceRefs": [
+        "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722"
+      ]
+    },
+    {
+      "id": "TCM-THERAPY-EXT-SAME-DISEASE-DIFFERENT-TREATMENT",
+      "canonical": "同病异治",
+      "aliases": [],
+      "examples": [],
+      "termClass": "clinical_extension",
+      "standardStatus": "clinical_principle_extension",
+      "relationPolicy": "requires_case_specific_syndrome_basis",
+      "sourceRefs": [
+        "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722"
+      ]
+    }
+  ],
+  "normalizationPolicy": {
+    "exactCanonicalWins": true,
+    "multiTargetAliasBehavior": "ambiguous_fail_closed",
+    "aliasCanonicalCollisionBehavior": "canonical_term_wins",
+    "returnCandidatesOnAmbiguity": true
+  },
+  "syndromeAliasAugmentations": [
+    {
+      "targetCanonical": "痰火扰神",
+      "aliases": [
+        "痰热扰心",
+        "痰热扰神"
+      ],
+      "sourceRefs": [
+        "SRC-GBT-16751-2-2021",
+        "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722"
+      ]
+    },
+    {
+      "targetCanonical": "大肠津亏",
+      "aliases": [
+        "肠燥津亏"
+      ],
+      "sourceRefs": [
+        "SRC-GBT-16751-2-2021",
+        "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722"
+      ]
+    },
+    {
+      "targetCanonical": "肝胃气滞",
+      "aliases": [
+        "气滞胃痛"
+      ],
+      "sourceRefs": [
+        "SRC-GBT-16751-2-2021",
+        "SRC-PROJECT-CLINICAL-ADJUDICATION-20260722"
+      ]
+    }
+  ]
+}

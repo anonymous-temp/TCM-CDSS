@@ -1,0 +1,4183 @@
+{
+  "schemaVersion": "tcm-formula-discrimination-graph-v2",
+  "advisoryOnly": true,
+  "edges": [
+    {
+      "id": "T14-001",
+      "from": "桂枝汤",
+      "to": "麻黄汤",
+      "discriminator": "有汗/无汗、脉缓/脉紧",
+      "discriminatingSymptom": "有汗/无汗、脉缓/脉紧",
+      "questionText": "当前阳性事实更支持“太阳中风，有汗、恶风、脉缓；解肌调营卫”，还是“太阳伤寒，无汗、体痛、脉紧；发阳宣肺”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阳中风",
+            "有汗",
+            "恶风",
+            "脉缓",
+            "解肌调营卫"
+          ],
+          "againstTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ],
+          "againstTerms": [
+            "太阳中风",
+            "有汗",
+            "恶风",
+            "脉缓",
+            "解肌调营卫"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 100,
+      "ruleId": "T13-SOLAR-SWEAT",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-002",
+      "from": "麻黄汤",
+      "to": "大青龙汤",
+      "discriminator": "是否兼明显烦躁与里热",
+      "discriminatingSymptom": "是否兼明显烦躁与里热",
+      "questionText": "当前阳性事实更支持“太阳伤寒，无汗、体痛、脉紧；发阳宣肺”，还是“表寒里热，无汗烦躁、体痛”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ],
+          "againstTerms": [
+            "表寒里热",
+            "无汗烦躁",
+            "体痛"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "表寒里热",
+            "无汗烦躁",
+            "体痛"
+          ],
+          "againstTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 100,
+      "ruleId": "T13-SOLAR-SWEAT",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-003",
+      "from": "桂枝加葛根汤",
+      "to": "葛根汤",
+      "discriminator": "项背强伴有汗或无汗",
+      "discriminatingSymptom": "项背强伴有汗或无汗",
+      "questionText": "当前阳性事实更支持“太阳中风兼项背强、面部中风方向”，还是“项背强几几、无汗、恶风”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阳中风兼项背强"
+          ],
+          "againstTerms": [
+            "项背强几几",
+            "无汗",
+            "恶风"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "项背强几几",
+            "无汗",
+            "恶风"
+          ],
+          "againstTerms": [
+            "太阳中风兼项背强"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 100,
+      "ruleId": "T13-SOLAR-SWEAT",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-004",
+      "from": "葛根黄芩黄连汤",
+      "to": "桂枝人参汤",
+      "discriminator": "热利灼热或寒利清稀",
+      "discriminatingSymptom": "热利灼热或寒利清稀",
+      "questionText": "当前阳性事实更支持“热利，表证误下或食物中毒热利”，还是“寒利，中焦虚寒下利”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "热利",
+            "表证误下或食物中毒热利"
+          ],
+          "againstTerms": [
+            "寒利",
+            "中焦虚寒下利"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "寒利",
+            "中焦虚寒下利"
+          ],
+          "againstTerms": [
+            "热利",
+            "表证误下或食物中毒热利"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 100,
+      "ruleId": "T13-DIARRHEA-COLD-HEAT",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-005",
+      "from": "白虎汤",
+      "to": "大承气汤",
+      "discriminator": "大便是否腑实、腹部是否拒按",
+      "discriminatingSymptom": "大便是否腑实、腹部是否拒按",
+      "questionText": "当前阳性事实更支持“阳明经热，高热、大渴、大汗、大烦，大便未必结”，还是“阳明腑实重，不放屁、无食欲、天枢拒按、谵语；急下存阴”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "阳明经热",
+            "高热",
+            "大渴",
+            "大汗",
+            "大烦",
+            "大便未必结"
+          ],
+          "againstTerms": [
+            "阳明腑实重",
+            "不放屁",
+            "无食欲",
+            "天枢拒按",
+            "谵语",
+            "急下存阴"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "阳明腑实重",
+            "不放屁",
+            "无食欲",
+            "天枢拒按",
+            "谵语",
+            "急下存阴"
+          ],
+          "againstTerms": [
+            "阳明经热",
+            "高热",
+            "大渴",
+            "大汗",
+            "大烦",
+            "大便未必结"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "白虎汤含高风险课程方向，不能据图自动处方",
+        "大承气汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 100,
+      "ruleId": "T13-YANGMING-BOWEL",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-006",
+      "from": "小承气汤",
+      "to": "大承气汤",
+      "discriminator": "能否进食排气及腹痛拒按程度",
+      "discriminatingSymptom": "能否进食排气及腹痛拒按程度",
+      "questionText": "当前阳性事实更支持“阳明腑实轻，尚能进食、放屁”，还是“阳明腑实重，不放屁、无食欲、天枢拒按、谵语；急下存阴”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "阳明腑实轻",
+            "尚能进食",
+            "放屁"
+          ],
+          "againstTerms": [
+            "阳明腑实重",
+            "不放屁",
+            "无食欲",
+            "天枢拒按",
+            "谵语",
+            "急下存阴"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "阳明腑实重",
+            "不放屁",
+            "无食欲",
+            "天枢拒按",
+            "谵语",
+            "急下存阴"
+          ],
+          "againstTerms": [
+            "阳明腑实轻",
+            "尚能进食",
+            "放屁"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "大承气汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 100,
+      "ruleId": "T13-YANGMING-BOWEL",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-007",
+      "from": "五苓散",
+      "to": "猪苓汤",
+      "discriminator": "水逆气化不利或兼阴伤血尿",
+      "discriminatingSymptom": "水逆气化不利或兼阴伤血尿",
+      "questionText": "当前阳性事实更支持“水液代谢失常，小便不利、水逆”，还是“小便不利、泌尿结石、阴虚火旺、尿血”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ],
+          "againstTerms": [
+            "小便不利",
+            "泌尿结石",
+            "阴虚火旺",
+            "尿血"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "小便不利",
+            "泌尿结石",
+            "阴虚火旺",
+            "尿血"
+          ],
+          "againstTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 100,
+      "ruleId": "T13-WATER-METABOLISM",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-008",
+      "from": "五苓散",
+      "to": "真武汤",
+      "discriminator": "口渴水逆或下焦阳虚寒湿",
+      "discriminatingSymptom": "口渴水逆或下焦阳虚寒湿",
+      "questionText": "当前阳性事实更支持“水液代谢失常，小便不利、水逆”，还是“下焦寒湿、水气内停，少阴水气病”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ],
+          "againstTerms": [
+            "下焦寒湿",
+            "水气内停",
+            "少阴水气病"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "下焦寒湿",
+            "水气内停",
+            "少阴水气病"
+          ],
+          "againstTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "真武汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 100,
+      "ruleId": "T13-WATER-METABOLISM",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-009",
+      "from": "茯苓桂枝白术甘草汤",
+      "to": "茯苓桂枝甘草大枣汤",
+      "discriminator": "起则头眩或脐下悸欲奔豚",
+      "discriminatingSymptom": "起则头眩或脐下悸欲奔豚",
+      "questionText": "当前阳性事实更支持“中焦水饮，心下逆满、气上冲胸、起则头眩”，还是“发汗后脐下悸、欲作奔豚”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ],
+          "againstTerms": [
+            "发汗后脐下悸",
+            "欲作奔豚"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "发汗后脐下悸",
+            "欲作奔豚"
+          ],
+          "againstTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 100,
+      "ruleId": "T13-WATER-METABOLISM",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-010",
+      "from": "四逆汤",
+      "to": "四逆散",
+      "discriminator": "里寒下利脉微或气机郁滞",
+      "discriminatingSymptom": "里寒下利脉微或气机郁滞",
+      "questionText": "当前阳性事实更支持“太阴/少阴里寒极盛，下利清谷、四肢厥冷”，还是“四逆但偏气机郁滞，柴胡、枳实、芍药、甘草”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ],
+          "againstTerms": [
+            "四逆但偏气机郁滞",
+            "柴胡",
+            "枳实",
+            "芍药",
+            "甘草"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "四逆但偏气机郁滞",
+            "柴胡",
+            "枳实",
+            "芍药",
+            "甘草"
+          ],
+          "againstTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "四逆汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 100,
+      "ruleId": "T13-COLD-EXTREMITIES",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-011",
+      "from": "四逆汤",
+      "to": "当归四逆汤",
+      "discriminator": "厥冷达肘膝伴全身衰弱或仅末梢血脉寒凝",
+      "discriminatingSymptom": "厥冷达肘膝伴全身衰弱或仅末梢血脉寒凝",
+      "questionText": "当前阳性事实更支持“太阴/少阴里寒极盛，下利清谷、四肢厥冷”，还是“厥阴手足末梢厥寒、冻疮、糖尿病足课程案例”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ],
+          "againstTerms": [
+            "厥阴手足末梢厥寒",
+            "冻疮",
+            "糖尿病足课程案例"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "厥阴手足末梢厥寒",
+            "冻疮",
+            "糖尿病足课程案例"
+          ],
+          "againstTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "四逆汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 100,
+      "ruleId": "T13-COLD-EXTREMITIES",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-012",
+      "from": "栀子豉汤",
+      "to": "干姜附子汤",
+      "discriminator": "虚烦余热或阳虚昼日烦躁",
+      "discriminatingSymptom": "虚烦余热或阳虚昼日烦躁",
+      "questionText": "当前阳性事实更支持“汗吐下后虚烦不得眠、心中懊憹”，还是“发汗太过，昼日烦躁不得眠，阳气伤”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "汗吐下后虚烦不得眠",
+            "心中懊憹"
+          ],
+          "againstTerms": [
+            "发汗太过",
+            "昼日烦躁不得眠",
+            "阳气伤"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "发汗太过",
+            "昼日烦躁不得眠",
+            "阳气伤"
+          ],
+          "againstTerms": [
+            "汗吐下后虚烦不得眠",
+            "心中懊憹"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "栀子豉汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 100,
+      "ruleId": "T13-RESTLESSNESS",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-013",
+      "from": "干姜附子汤",
+      "to": "黄连阿胶汤",
+      "discriminator": "阳虚烦躁或阴虚火扰",
+      "discriminatingSymptom": "阳虚烦躁或阴虚火扰",
+      "questionText": "当前阳性事实更支持“发汗太过，昼日烦躁不得眠，阳气伤”，还是“少阴病心中烦、不得卧，偏阴虚火扰”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "发汗太过",
+            "昼日烦躁不得眠",
+            "阳气伤"
+          ],
+          "againstTerms": [
+            "少阴病心中烦",
+            "不得卧",
+            "偏阴虚火扰"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴病心中烦",
+            "不得卧",
+            "偏阴虚火扰"
+          ],
+          "againstTerms": [
+            "发汗太过",
+            "昼日烦躁不得眠",
+            "阳气伤"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 100,
+      "ruleId": "T13-RESTLESSNESS",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-014",
+      "from": "小柴胡汤",
+      "to": "桂枝麻黄各半汤",
+      "discriminator": "有无胸胁苦满、恶心等少阳证",
+      "discriminatingSymptom": "有无胸胁苦满、恶心等少阳证",
+      "questionText": "当前阳性事实更支持“少阳病往来寒热、胸胁苦满；妇人热入血室”，还是“往来寒热但无恶心，皮下邪气未透”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阳病往来寒热",
+            "胸胁苦满",
+            "妇人热入血室"
+          ],
+          "againstTerms": [
+            "往来寒热但无恶心",
+            "皮下邪气未透"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "往来寒热但无恶心",
+            "皮下邪气未透"
+          ],
+          "againstTerms": [
+            "少阳病往来寒热",
+            "胸胁苦满",
+            "妇人热入血室"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 100,
+      "ruleId": "T13-SHAOYANG",
+      "sourceRefs": [
+        "参考/nihaisha-nishi-tcm-main/references/formula-patterns.md"
+      ]
+    },
+    {
+      "id": "T14-015",
+      "from": "新加汤",
+      "to": "麻黄汤",
+      "discriminator": "与麻黄汤体痛不同，已伤津血，不能再发汗",
+      "discriminatingSymptom": "与麻黄汤体痛不同，已伤津血，不能再发汗",
+      "questionText": "当前阳性事实更支持“发汗后津血亏虚而身疼痛”，还是“太阳伤寒，无汗、体痛、脉紧；发阳宣肺”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "发汗后津血亏虚而身疼痛"
+          ],
+          "againstTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ],
+          "againstTerms": [
+            "发汗后津血亏虚而身疼痛"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 90,
+      "ruleId": "T14-FORMULA-29",
+      "sourceRefs": [
+        "formula-patterns.md:29"
+      ]
+    },
+    {
+      "id": "T14-016",
+      "from": "茯苓桂枝白术甘草汤",
+      "to": "五苓散",
+      "discriminator": "与五苓散、真武汤区别在水饮层位；不可与脐下悸的苓桂甘枣汤混同",
+      "discriminatingSymptom": "与五苓散、真武汤区别在水饮层位；不可与脐下悸的苓桂甘枣汤混同",
+      "questionText": "当前阳性事实更支持“中焦水饮，心下逆满、气上冲胸、起则头眩”，还是“水液代谢失常，小便不利、水逆”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ],
+          "againstTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ],
+          "againstTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 90,
+      "ruleId": "T14-FORMULA-31",
+      "sourceRefs": [
+        "formula-patterns.md:31"
+      ]
+    },
+    {
+      "id": "T14-017",
+      "from": "茯苓桂枝白术甘草汤",
+      "to": "真武汤",
+      "discriminator": "与五苓散、真武汤区别在水饮层位；不可与脐下悸的苓桂甘枣汤混同",
+      "discriminatingSymptom": "与五苓散、真武汤区别在水饮层位；不可与脐下悸的苓桂甘枣汤混同",
+      "questionText": "当前阳性事实更支持“中焦水饮，心下逆满、气上冲胸、起则头眩”，还是“下焦寒湿、水气内停，少阴水气病”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ],
+          "againstTerms": [
+            "下焦寒湿",
+            "水气内停",
+            "少阴水气病"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "下焦寒湿",
+            "水气内停",
+            "少阴水气病"
+          ],
+          "againstTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "真武汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 90,
+      "ruleId": "T14-FORMULA-31",
+      "sourceRefs": [
+        "formula-patterns.md:31"
+      ]
+    },
+    {
+      "id": "T14-018",
+      "from": "茯苓桂枝甘草大枣汤",
+      "to": "苓桂术甘汤",
+      "discriminator": "水停下焦、冲气欲上；与中焦水饮、起则头眩的苓桂术甘汤鉴别",
+      "discriminatingSymptom": "水停下焦、冲气欲上；与中焦水饮、起则头眩的苓桂术甘汤鉴别",
+      "questionText": "当前阳性事实更支持“发汗后脐下悸、欲作奔豚”，还是“中膈有水饮，心下逆满、气上冲胸、起则头眩”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "发汗后脐下悸",
+            "欲作奔豚"
+          ],
+          "againstTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ],
+          "againstTerms": [
+            "发汗后脐下悸",
+            "欲作奔豚"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 90,
+      "ruleId": "T14-FORMULA-32",
+      "sourceRefs": [
+        "formula-patterns.md:32"
+      ]
+    },
+    {
+      "id": "T14-019",
+      "from": "茯苓四逆汤",
+      "to": "四逆汤",
+      "discriminator": "四逆汤辈高风险",
+      "discriminatingSymptom": "四逆汤辈高风险",
+      "questionText": "当前阳性事实更支持“汗下后阳虚、烦躁，里寒重”，还是“太阴/少阴里寒极盛，下利清谷、四肢厥冷”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "汗下后阳虚",
+            "烦躁",
+            "里寒重"
+          ],
+          "againstTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ],
+          "againstTerms": [
+            "汗下后阳虚",
+            "烦躁",
+            "里寒重"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "茯苓四逆汤含高风险课程方向，不能据图自动处方",
+        "四逆汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 90,
+      "ruleId": "T14-FORMULA-33",
+      "sourceRefs": [
+        "formula-patterns.md:33"
+      ]
+    },
+    {
+      "id": "T14-020",
+      "from": "真武汤",
+      "to": "苓桂术甘汤",
+      "discriminator": "与苓桂术甘汤所主的中膈有水饮不同；附子高风险",
+      "discriminatingSymptom": "与苓桂术甘汤所主的中膈有水饮不同；附子高风险",
+      "questionText": "当前阳性事实更支持“下焦寒湿、水气内停，少阴水气病”，还是“中膈有水饮，心下逆满、气上冲胸、起则头眩”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "下焦寒湿",
+            "水气内停",
+            "少阴水气病"
+          ],
+          "againstTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ],
+          "againstTerms": [
+            "下焦寒湿",
+            "水气内停",
+            "少阴水气病"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "真武汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 90,
+      "ruleId": "T14-FORMULA-37",
+      "sourceRefs": [
+        "formula-patterns.md:37"
+      ]
+    },
+    {
+      "id": "T14-021",
+      "from": "抵当汤",
+      "to": "抵当丸",
+      "discriminator": "抵当汤/丸为同一课程条目中的不同剂型或并列方证，须依据原方组成与病情轻重另行复核",
+      "discriminatingSymptom": "抵当汤/丸为同一课程条目中的不同剂型或并列方证，须依据原方组成与病情轻重另行复核",
+      "questionText": "当前阳性事实更支持“蓄血重症，少腹硬满、小便自利、善忘、黑便”，还是“蓄血重症，少腹硬满、小便自利、善忘、黑便”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便",
+            "阳明蓄血"
+          ],
+          "againstTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便"
+          ],
+          "againstTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便",
+            "阳明蓄血"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "抵当汤含高风险课程方向，不能据图自动处方",
+        "抵当丸含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 70,
+      "ruleId": "T14-VARIANT-50",
+      "sourceRefs": [
+        "formula-patterns.md:50"
+      ]
+    },
+    {
+      "id": "T14-022",
+      "from": "大陷胸汤",
+      "to": "大陷胸丸",
+      "discriminator": "大陷胸汤/丸为同一课程条目中的不同剂型或并列方证，须依据原方组成与病情轻重另行复核",
+      "discriminatingSymptom": "大陷胸汤/丸为同一课程条目中的不同剂型或并列方证，须依据原方组成与病情轻重另行复核",
+      "questionText": "当前阳性事实更支持“结胸，实热老痰结聚胸部”，还是“结胸，实热老痰结聚胸部”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "结胸",
+            "实热老痰结聚胸部"
+          ],
+          "againstTerms": [
+            "结胸",
+            "实热老痰结聚胸部"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "结胸",
+            "实热老痰结聚胸部"
+          ],
+          "againstTerms": [
+            "结胸",
+            "实热老痰结聚胸部"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "大陷胸汤含高风险课程方向，不能据图自动处方",
+        "大陷胸丸含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 70,
+      "ruleId": "T14-VARIANT-51",
+      "sourceRefs": [
+        "formula-patterns.md:51"
+      ]
+    },
+    {
+      "id": "T14-023",
+      "from": "小建中汤",
+      "to": "甘草汤",
+      "discriminator": "与炙甘草汤补阴相对",
+      "discriminatingSymptom": "与炙甘草汤补阴相对",
+      "questionText": "当前阳性事实更支持“重建脾胃，治痿独取阳明，补阳”，还是“少阴咽痛”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "重建脾胃",
+            "治痿独取阳明",
+            "补阳"
+          ],
+          "againstTerms": [
+            "少阴咽痛"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴咽痛"
+          ],
+          "againstTerms": [
+            "重建脾胃",
+            "治痿独取阳明",
+            "补阳"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 90,
+      "ruleId": "T14-FORMULA-56",
+      "sourceRefs": [
+        "formula-patterns.md:56"
+      ]
+    },
+    {
+      "id": "T14-024",
+      "from": "麻黄附子甘草汤",
+      "to": "麻黄附子细辛汤",
+      "discriminator": "与麻黄附子细辛汤轻重不同",
+      "discriminatingSymptom": "与麻黄附子细辛汤轻重不同",
+      "questionText": "当前阳性事实更支持“少阴病得二三日，微发汗方向”，还是“少阴病初得兼表，脉沉微细”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴病得二三日"
+          ],
+          "againstTerms": [
+            "少阴病初得兼表",
+            "脉沉微细"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴病初得兼表",
+            "脉沉微细"
+          ],
+          "againstTerms": [
+            "少阴病得二三日"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "麻黄附子甘草汤含高风险课程方向，不能据图自动处方",
+        "麻黄附子细辛汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 90,
+      "ruleId": "T14-FORMULA-79",
+      "sourceRefs": [
+        "formula-patterns.md:79"
+      ]
+    },
+    {
+      "id": "T14-025",
+      "from": "黄连阿胶汤",
+      "to": "四逆汤",
+      "discriminator": "与四逆汤寒化方向相反",
+      "discriminatingSymptom": "与四逆汤寒化方向相反",
+      "questionText": "当前阳性事实更支持“少阴病心中烦、不得卧，偏阴虚火扰”，还是“太阴/少阴里寒极盛，下利清谷、四肢厥冷”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴病心中烦",
+            "不得卧",
+            "偏阴虚火扰"
+          ],
+          "againstTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ],
+          "againstTerms": [
+            "少阴病心中烦",
+            "不得卧",
+            "偏阴虚火扰"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "四逆汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 90,
+      "ruleId": "T14-FORMULA-80",
+      "sourceRefs": [
+        "formula-patterns.md:80"
+      ]
+    },
+    {
+      "id": "T14-026",
+      "from": "甘草汤",
+      "to": "桔梗汤",
+      "discriminator": "甘草汤/桔梗汤为同一课程条目中的不同剂型或并列方证，须依据原方组成与病情轻重另行复核",
+      "discriminatingSymptom": "甘草汤/桔梗汤为同一课程条目中的不同剂型或并列方证，须依据原方组成与病情轻重另行复核",
+      "questionText": "当前阳性事实更支持“少阴咽痛”，还是“少阴咽痛”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴咽痛"
+          ],
+          "againstTerms": [
+            "少阴咽痛"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴咽痛"
+          ],
+          "againstTerms": [
+            "少阴咽痛"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 70,
+      "ruleId": "T14-VARIANT-83",
+      "sourceRefs": [
+        "formula-patterns.md:83"
+      ]
+    },
+    {
+      "id": "T14-027",
+      "from": "桂枝汤",
+      "to": "桂枝加葛根汤",
+      "discriminator": "桂枝汤：太阳中风，有汗、恶风、脉缓；解肌调营卫；桂枝加葛根汤：太阳中风兼项背强、面部中风方向",
+      "discriminatingSymptom": "桂枝汤：太阳中风，有汗、恶风、脉缓；解肌调营卫；桂枝加葛根汤：太阳中风兼项背强、面部中风方向",
+      "questionText": "当前阳性事实更支持“太阳中风，有汗、恶风、脉缓；解肌调营卫”，还是“太阳中风兼项背强、面部中风方向”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阳中风",
+            "有汗",
+            "恶风",
+            "脉缓",
+            "解肌调营卫"
+          ],
+          "againstTerms": [
+            "太阳中风兼项背强"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "太阳中风兼项背强"
+          ],
+          "againstTerms": [
+            "太阳中风",
+            "有汗",
+            "恶风",
+            "脉缓",
+            "解肌调营卫"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-17-18",
+      "sourceRefs": [
+        "formula-patterns.md:17",
+        "formula-patterns.md:18"
+      ]
+    },
+    {
+      "id": "T14-028",
+      "from": "桂枝加葛根汤",
+      "to": "桂枝加附子汤",
+      "discriminator": "桂枝加葛根汤：太阳中风兼项背强、面部中风方向；桂枝加附子汤：发汗太过、汗漏不止，阳虚不能固表",
+      "discriminatingSymptom": "桂枝加葛根汤：太阳中风兼项背强、面部中风方向；桂枝加附子汤：发汗太过、汗漏不止，阳虚不能固表",
+      "questionText": "当前阳性事实更支持“太阳中风兼项背强、面部中风方向”，还是“发汗太过、汗漏不止，阳虚不能固表”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阳中风兼项背强"
+          ],
+          "againstTerms": [
+            "发汗太过",
+            "汗漏不止",
+            "阳虚不能固表"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "发汗太过",
+            "汗漏不止",
+            "阳虚不能固表"
+          ],
+          "againstTerms": [
+            "太阳中风兼项背强"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "桂枝加附子汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-18-19",
+      "sourceRefs": [
+        "formula-patterns.md:18",
+        "formula-patterns.md:19"
+      ]
+    },
+    {
+      "id": "T14-029",
+      "from": "桂枝加附子汤",
+      "to": "桂枝去芍药汤",
+      "discriminator": "桂枝加附子汤：发汗太过、汗漏不止，阳虚不能固表；桂枝去芍药汤：胸满、心脏负担，课程强调胸满去芍药",
+      "discriminatingSymptom": "桂枝加附子汤：发汗太过、汗漏不止，阳虚不能固表；桂枝去芍药汤：胸满、心脏负担，课程强调胸满去芍药",
+      "questionText": "当前阳性事实更支持“发汗太过、汗漏不止，阳虚不能固表”，还是“胸满、心脏负担，课程强调胸满去芍药”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "发汗太过",
+            "汗漏不止",
+            "阳虚不能固表"
+          ],
+          "againstTerms": [
+            "胸满",
+            "心脏负担",
+            "课程强调胸满去芍药"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "胸满",
+            "心脏负担",
+            "课程强调胸满去芍药"
+          ],
+          "againstTerms": [
+            "发汗太过",
+            "汗漏不止",
+            "阳虚不能固表"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "桂枝加附子汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-19-20",
+      "sourceRefs": [
+        "formula-patterns.md:19",
+        "formula-patterns.md:20"
+      ]
+    },
+    {
+      "id": "T14-030",
+      "from": "桂枝去芍药汤",
+      "to": "桂枝麻黄各半汤",
+      "discriminator": "桂枝去芍药汤：胸满、心脏负担，课程强调胸满去芍药；桂枝麻黄各半汤：往来寒热但无恶心，皮下邪气未透",
+      "discriminatingSymptom": "桂枝去芍药汤：胸满、心脏负担，课程强调胸满去芍药；桂枝麻黄各半汤：往来寒热但无恶心，皮下邪气未透",
+      "questionText": "当前阳性事实更支持“胸满、心脏负担，课程强调胸满去芍药”，还是“往来寒热但无恶心，皮下邪气未透”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "胸满",
+            "心脏负担",
+            "课程强调胸满去芍药"
+          ],
+          "againstTerms": [
+            "往来寒热但无恶心",
+            "皮下邪气未透"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "往来寒热但无恶心",
+            "皮下邪气未透"
+          ],
+          "againstTerms": [
+            "胸满",
+            "心脏负担",
+            "课程强调胸满去芍药"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-20-21",
+      "sourceRefs": [
+        "formula-patterns.md:20",
+        "formula-patterns.md:21"
+      ]
+    },
+    {
+      "id": "T14-031",
+      "from": "桂枝麻黄各半汤",
+      "to": "麻黄汤",
+      "discriminator": "桂枝麻黄各半汤：往来寒热但无恶心，皮下邪气未透；麻黄汤：太阳伤寒，无汗、体痛、脉紧；发阳宣肺",
+      "discriminatingSymptom": "桂枝麻黄各半汤：往来寒热但无恶心，皮下邪气未透；麻黄汤：太阳伤寒，无汗、体痛、脉紧；发阳宣肺",
+      "questionText": "当前阳性事实更支持“往来寒热但无恶心，皮下邪气未透”，还是“太阳伤寒，无汗、体痛、脉紧；发阳宣肺”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "往来寒热但无恶心",
+            "皮下邪气未透"
+          ],
+          "againstTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ],
+          "againstTerms": [
+            "往来寒热但无恶心",
+            "皮下邪气未透"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-21-22",
+      "sourceRefs": [
+        "formula-patterns.md:21",
+        "formula-patterns.md:22"
+      ]
+    },
+    {
+      "id": "T14-032",
+      "from": "麻黄汤",
+      "to": "葛根汤",
+      "discriminator": "麻黄汤：太阳伤寒，无汗、体痛、脉紧；发阳宣肺；葛根汤：项背强几几、无汗、恶风",
+      "discriminatingSymptom": "麻黄汤：太阳伤寒，无汗、体痛、脉紧；发阳宣肺；葛根汤：项背强几几、无汗、恶风",
+      "questionText": "当前阳性事实更支持“太阳伤寒，无汗、体痛、脉紧；发阳宣肺”，还是“项背强几几、无汗、恶风”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ],
+          "againstTerms": [
+            "项背强几几",
+            "无汗",
+            "恶风"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "项背强几几",
+            "无汗",
+            "恶风"
+          ],
+          "againstTerms": [
+            "太阳伤寒",
+            "无汗",
+            "体痛",
+            "脉紧",
+            "发阳宣肺"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-22-23",
+      "sourceRefs": [
+        "formula-patterns.md:22",
+        "formula-patterns.md:23"
+      ]
+    },
+    {
+      "id": "T14-033",
+      "from": "葛根汤",
+      "to": "葛根黄芩黄连汤",
+      "discriminator": "葛根汤：项背强几几、无汗、恶风；葛根黄芩黄连汤：热利，表证误下或食物中毒热利",
+      "discriminatingSymptom": "葛根汤：项背强几几、无汗、恶风；葛根黄芩黄连汤：热利，表证误下或食物中毒热利",
+      "questionText": "当前阳性事实更支持“项背强几几、无汗、恶风”，还是“热利，表证误下或食物中毒热利”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "项背强几几",
+            "无汗",
+            "恶风"
+          ],
+          "againstTerms": [
+            "热利",
+            "表证误下或食物中毒热利"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "热利",
+            "表证误下或食物中毒热利"
+          ],
+          "againstTerms": [
+            "项背强几几",
+            "无汗",
+            "恶风"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-23-24",
+      "sourceRefs": [
+        "formula-patterns.md:23",
+        "formula-patterns.md:24"
+      ]
+    },
+    {
+      "id": "T14-034",
+      "from": "葛根黄芩黄连汤",
+      "to": "大青龙汤",
+      "discriminator": "葛根黄芩黄连汤：热利，表证误下或食物中毒热利；大青龙汤：表寒里热，无汗烦躁、体痛",
+      "discriminatingSymptom": "葛根黄芩黄连汤：热利，表证误下或食物中毒热利；大青龙汤：表寒里热，无汗烦躁、体痛",
+      "questionText": "当前阳性事实更支持“热利，表证误下或食物中毒热利”，还是“表寒里热，无汗烦躁、体痛”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "热利",
+            "表证误下或食物中毒热利"
+          ],
+          "againstTerms": [
+            "表寒里热",
+            "无汗烦躁",
+            "体痛"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "表寒里热",
+            "无汗烦躁",
+            "体痛"
+          ],
+          "againstTerms": [
+            "热利",
+            "表证误下或食物中毒热利"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-24-25",
+      "sourceRefs": [
+        "formula-patterns.md:24",
+        "formula-patterns.md:25"
+      ]
+    },
+    {
+      "id": "T14-035",
+      "from": "大青龙汤",
+      "to": "小青龙汤",
+      "discriminator": "大青龙汤：表寒里热，无汗烦躁、体痛；小青龙汤：心下有水气、咳而微喘，寒饮",
+      "discriminatingSymptom": "大青龙汤：表寒里热，无汗烦躁、体痛；小青龙汤：心下有水气、咳而微喘，寒饮",
+      "questionText": "当前阳性事实更支持“表寒里热，无汗烦躁、体痛”，还是“心下有水气、咳而微喘，寒饮”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "表寒里热",
+            "无汗烦躁",
+            "体痛"
+          ],
+          "againstTerms": [
+            "心下有水气",
+            "咳而微喘",
+            "寒饮"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "心下有水气",
+            "咳而微喘",
+            "寒饮"
+          ],
+          "againstTerms": [
+            "表寒里热",
+            "无汗烦躁",
+            "体痛"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-25-26",
+      "sourceRefs": [
+        "formula-patterns.md:25",
+        "formula-patterns.md:26"
+      ]
+    },
+    {
+      "id": "T14-036",
+      "from": "小青龙汤",
+      "to": "干姜附子汤",
+      "discriminator": "小青龙汤：心下有水气、咳而微喘，寒饮；干姜附子汤：发汗太过，昼日烦躁不得眠，阳气伤",
+      "discriminatingSymptom": "小青龙汤：心下有水气、咳而微喘，寒饮；干姜附子汤：发汗太过，昼日烦躁不得眠，阳气伤",
+      "questionText": "当前阳性事实更支持“心下有水气、咳而微喘，寒饮”，还是“发汗太过，昼日烦躁不得眠，阳气伤”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "心下有水气",
+            "咳而微喘",
+            "寒饮"
+          ],
+          "againstTerms": [
+            "发汗太过",
+            "昼日烦躁不得眠",
+            "阳气伤"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "发汗太过",
+            "昼日烦躁不得眠",
+            "阳气伤"
+          ],
+          "againstTerms": [
+            "心下有水气",
+            "咳而微喘",
+            "寒饮"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-26-27",
+      "sourceRefs": [
+        "formula-patterns.md:26",
+        "formula-patterns.md:27"
+      ]
+    },
+    {
+      "id": "T14-037",
+      "from": "干姜附子汤",
+      "to": "桂枝甘草汤",
+      "discriminator": "干姜附子汤：发汗太过，昼日烦躁不得眠，阳气伤；桂枝甘草汤：发汗伤心阳，心下悸",
+      "discriminatingSymptom": "干姜附子汤：发汗太过，昼日烦躁不得眠，阳气伤；桂枝甘草汤：发汗伤心阳，心下悸",
+      "questionText": "当前阳性事实更支持“发汗太过，昼日烦躁不得眠，阳气伤”，还是“发汗伤心阳，心下悸”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "发汗太过",
+            "昼日烦躁不得眠",
+            "阳气伤"
+          ],
+          "againstTerms": [
+            "发汗伤心阳",
+            "心下悸"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "发汗伤心阳",
+            "心下悸"
+          ],
+          "againstTerms": [
+            "发汗太过",
+            "昼日烦躁不得眠",
+            "阳气伤"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-27-28",
+      "sourceRefs": [
+        "formula-patterns.md:27",
+        "formula-patterns.md:28"
+      ]
+    },
+    {
+      "id": "T14-038",
+      "from": "桂枝甘草汤",
+      "to": "新加汤",
+      "discriminator": "桂枝甘草汤：发汗伤心阳，心下悸；新加汤：发汗后津血亏虚而身疼痛",
+      "discriminatingSymptom": "桂枝甘草汤：发汗伤心阳，心下悸；新加汤：发汗后津血亏虚而身疼痛",
+      "questionText": "当前阳性事实更支持“发汗伤心阳，心下悸”，还是“发汗后津血亏虚而身疼痛”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "发汗伤心阳",
+            "心下悸"
+          ],
+          "againstTerms": [
+            "发汗后津血亏虚而身疼痛"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "发汗后津血亏虚而身疼痛"
+          ],
+          "againstTerms": [
+            "发汗伤心阳",
+            "心下悸"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-28-29",
+      "sourceRefs": [
+        "formula-patterns.md:28",
+        "formula-patterns.md:29"
+      ]
+    },
+    {
+      "id": "T14-039",
+      "from": "新加汤",
+      "to": "厚朴生姜半夏甘草人参汤",
+      "discriminator": "新加汤：发汗后津血亏虚而身疼痛；厚朴生姜半夏甘草人参汤：发汗后腹胀满，偏虚胀",
+      "discriminatingSymptom": "新加汤：发汗后津血亏虚而身疼痛；厚朴生姜半夏甘草人参汤：发汗后腹胀满，偏虚胀",
+      "questionText": "当前阳性事实更支持“发汗后津血亏虚而身疼痛”，还是“发汗后腹胀满，偏虚胀”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "发汗后津血亏虚而身疼痛"
+          ],
+          "againstTerms": [
+            "发汗后腹胀满",
+            "偏虚胀"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "发汗后腹胀满",
+            "偏虚胀"
+          ],
+          "againstTerms": [
+            "发汗后津血亏虚而身疼痛"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-29-30",
+      "sourceRefs": [
+        "formula-patterns.md:29",
+        "formula-patterns.md:30"
+      ]
+    },
+    {
+      "id": "T14-040",
+      "from": "厚朴生姜半夏甘草人参汤",
+      "to": "茯苓桂枝白术甘草汤",
+      "discriminator": "厚朴生姜半夏甘草人参汤：发汗后腹胀满，偏虚胀；茯苓桂枝白术甘草汤：中焦水饮，心下逆满、气上冲胸、起则头眩",
+      "discriminatingSymptom": "厚朴生姜半夏甘草人参汤：发汗后腹胀满，偏虚胀；茯苓桂枝白术甘草汤：中焦水饮，心下逆满、气上冲胸、起则头眩",
+      "questionText": "当前阳性事实更支持“发汗后腹胀满，偏虚胀”，还是“中焦水饮，心下逆满、气上冲胸、起则头眩”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "发汗后腹胀满",
+            "偏虚胀"
+          ],
+          "againstTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "心下逆满",
+            "气上冲胸",
+            "起则头眩"
+          ],
+          "againstTerms": [
+            "发汗后腹胀满",
+            "偏虚胀"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-30-31",
+      "sourceRefs": [
+        "formula-patterns.md:30",
+        "formula-patterns.md:31"
+      ]
+    },
+    {
+      "id": "T14-041",
+      "from": "茯苓桂枝甘草大枣汤",
+      "to": "茯苓四逆汤",
+      "discriminator": "茯苓桂枝甘草大枣汤：发汗后脐下悸、欲作奔豚；茯苓四逆汤：汗下后阳虚、烦躁，里寒重",
+      "discriminatingSymptom": "茯苓桂枝甘草大枣汤：发汗后脐下悸、欲作奔豚；茯苓四逆汤：汗下后阳虚、烦躁，里寒重",
+      "questionText": "当前阳性事实更支持“发汗后脐下悸、欲作奔豚”，还是“汗下后阳虚、烦躁，里寒重”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "发汗后脐下悸",
+            "欲作奔豚"
+          ],
+          "againstTerms": [
+            "汗下后阳虚",
+            "烦躁",
+            "里寒重"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "汗下后阳虚",
+            "烦躁",
+            "里寒重"
+          ],
+          "againstTerms": [
+            "发汗后脐下悸",
+            "欲作奔豚"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "茯苓四逆汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-32-33",
+      "sourceRefs": [
+        "formula-patterns.md:32",
+        "formula-patterns.md:33"
+      ]
+    },
+    {
+      "id": "T14-042",
+      "from": "茯苓四逆汤",
+      "to": "五苓散",
+      "discriminator": "茯苓四逆汤：汗下后阳虚、烦躁，里寒重；五苓散：水液代谢失常，小便不利、水逆",
+      "discriminatingSymptom": "茯苓四逆汤：汗下后阳虚、烦躁，里寒重；五苓散：水液代谢失常，小便不利、水逆",
+      "questionText": "当前阳性事实更支持“汗下后阳虚、烦躁，里寒重”，还是“水液代谢失常，小便不利、水逆”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "汗下后阳虚",
+            "烦躁",
+            "里寒重"
+          ],
+          "againstTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ],
+          "againstTerms": [
+            "汗下后阳虚",
+            "烦躁",
+            "里寒重"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "茯苓四逆汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-33-34",
+      "sourceRefs": [
+        "formula-patterns.md:33",
+        "formula-patterns.md:34"
+      ]
+    },
+    {
+      "id": "T14-043",
+      "from": "五苓散",
+      "to": "栀子豉汤",
+      "discriminator": "五苓散：水液代谢失常，小便不利、水逆；栀子豉汤：汗吐下后虚烦不得眠、心中懊憹",
+      "discriminatingSymptom": "五苓散：水液代谢失常，小便不利、水逆；栀子豉汤：汗吐下后虚烦不得眠、心中懊憹",
+      "questionText": "当前阳性事实更支持“水液代谢失常，小便不利、水逆”，还是“汗吐下后虚烦不得眠、心中懊憹”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ],
+          "againstTerms": [
+            "汗吐下后虚烦不得眠",
+            "心中懊憹"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "汗吐下后虚烦不得眠",
+            "心中懊憹"
+          ],
+          "againstTerms": [
+            "水液代谢失常",
+            "小便不利",
+            "水逆"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "栀子豉汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-34-35",
+      "sourceRefs": [
+        "formula-patterns.md:34",
+        "formula-patterns.md:35"
+      ]
+    },
+    {
+      "id": "T14-044",
+      "from": "栀子豉汤",
+      "to": "栀子厚朴枳实汤",
+      "discriminator": "栀子豉汤：汗吐下后虚烦不得眠、心中懊憹；栀子厚朴枳实汤：虚烦兼胸腹满",
+      "discriminatingSymptom": "栀子豉汤：汗吐下后虚烦不得眠、心中懊憹；栀子厚朴枳实汤：虚烦兼胸腹满",
+      "questionText": "当前阳性事实更支持“汗吐下后虚烦不得眠、心中懊憹”，还是“虚烦兼胸腹满”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "汗吐下后虚烦不得眠",
+            "心中懊憹"
+          ],
+          "againstTerms": [
+            "虚烦兼胸腹满"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "虚烦兼胸腹满"
+          ],
+          "againstTerms": [
+            "汗吐下后虚烦不得眠",
+            "心中懊憹"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "栀子豉汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-35-36",
+      "sourceRefs": [
+        "formula-patterns.md:35",
+        "formula-patterns.md:36"
+      ]
+    },
+    {
+      "id": "T14-045",
+      "from": "栀子厚朴枳实汤",
+      "to": "真武汤",
+      "discriminator": "栀子厚朴枳实汤：虚烦兼胸腹满；真武汤：下焦寒湿、水气内停，少阴水气病",
+      "discriminatingSymptom": "栀子厚朴枳实汤：虚烦兼胸腹满；真武汤：下焦寒湿、水气内停，少阴水气病",
+      "questionText": "当前阳性事实更支持“虚烦兼胸腹满”，还是“下焦寒湿、水气内停，少阴水气病”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "虚烦兼胸腹满"
+          ],
+          "againstTerms": [
+            "下焦寒湿",
+            "水气内停",
+            "少阴水气病"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "下焦寒湿",
+            "水气内停",
+            "少阴水气病"
+          ],
+          "againstTerms": [
+            "虚烦兼胸腹满"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "真武汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-36-37",
+      "sourceRefs": [
+        "formula-patterns.md:36",
+        "formula-patterns.md:37"
+      ]
+    },
+    {
+      "id": "T14-046",
+      "from": "小柴胡汤",
+      "to": "柴胡桂枝汤",
+      "discriminator": "小柴胡汤：少阳病往来寒热、胸胁苦满；妇人热入血室；柴胡桂枝汤：一半太阳一半少阳",
+      "discriminatingSymptom": "小柴胡汤：少阳病往来寒热、胸胁苦满；妇人热入血室；柴胡桂枝汤：一半太阳一半少阳",
+      "questionText": "当前阳性事实更支持“少阳病往来寒热、胸胁苦满；妇人热入血室”，还是“一半太阳一半少阳”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阳病往来寒热",
+            "胸胁苦满",
+            "妇人热入血室"
+          ],
+          "againstTerms": [
+            "一半太阳一半少阳"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "一半太阳一半少阳"
+          ],
+          "againstTerms": [
+            "少阳病往来寒热",
+            "胸胁苦满",
+            "妇人热入血室"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-44-45",
+      "sourceRefs": [
+        "formula-patterns.md:44",
+        "formula-patterns.md:45"
+      ]
+    },
+    {
+      "id": "T14-047",
+      "from": "柴胡桂枝汤",
+      "to": "柴胡加芒硝汤",
+      "discriminator": "柴胡桂枝汤：一半太阳一半少阳；柴胡加芒硝汤：少阳兼阳明实热",
+      "discriminatingSymptom": "柴胡桂枝汤：一半太阳一半少阳；柴胡加芒硝汤：少阳兼阳明实热",
+      "questionText": "当前阳性事实更支持“一半太阳一半少阳”，还是“少阳兼阳明实热”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "一半太阳一半少阳"
+          ],
+          "againstTerms": [
+            "少阳兼阳明实热"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阳兼阳明实热"
+          ],
+          "againstTerms": [
+            "一半太阳一半少阳"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "柴胡加芒硝汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-45-46",
+      "sourceRefs": [
+        "formula-patterns.md:45",
+        "formula-patterns.md:46"
+      ]
+    },
+    {
+      "id": "T14-048",
+      "from": "柴胡加芒硝汤",
+      "to": "柴胡加龙骨牡蛎汤",
+      "discriminator": "柴胡加芒硝汤：少阳兼阳明实热；柴胡加龙骨牡蛎汤：三焦惊烦、水停、烦躁惊悸",
+      "discriminatingSymptom": "柴胡加芒硝汤：少阳兼阳明实热；柴胡加龙骨牡蛎汤：三焦惊烦、水停、烦躁惊悸",
+      "questionText": "当前阳性事实更支持“少阳兼阳明实热”，还是“三焦惊烦、水停、烦躁惊悸”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阳兼阳明实热"
+          ],
+          "againstTerms": [
+            "三焦惊烦",
+            "水停",
+            "烦躁惊悸"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "三焦惊烦",
+            "水停",
+            "烦躁惊悸"
+          ],
+          "againstTerms": [
+            "少阳兼阳明实热"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "柴胡加芒硝汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-46-47",
+      "sourceRefs": [
+        "formula-patterns.md:46",
+        "formula-patterns.md:47"
+      ]
+    },
+    {
+      "id": "T14-049",
+      "from": "柴胡加龙骨牡蛎汤",
+      "to": "柴胡桂枝干姜汤",
+      "discriminator": "柴胡加龙骨牡蛎汤：三焦惊烦、水停、烦躁惊悸；柴胡桂枝干姜汤：痨症，风湿入血脉，消瘦疲劳",
+      "discriminatingSymptom": "柴胡加龙骨牡蛎汤：三焦惊烦、水停、烦躁惊悸；柴胡桂枝干姜汤：痨症，风湿入血脉，消瘦疲劳",
+      "questionText": "当前阳性事实更支持“三焦惊烦、水停、烦躁惊悸”，还是“痨症，风湿入血脉，消瘦疲劳”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "三焦惊烦",
+            "水停",
+            "烦躁惊悸"
+          ],
+          "againstTerms": [
+            "痨症",
+            "风湿入血脉",
+            "消瘦疲劳"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "痨症",
+            "风湿入血脉",
+            "消瘦疲劳"
+          ],
+          "againstTerms": [
+            "三焦惊烦",
+            "水停",
+            "烦躁惊悸"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-47-48",
+      "sourceRefs": [
+        "formula-patterns.md:47",
+        "formula-patterns.md:48"
+      ]
+    },
+    {
+      "id": "T14-050",
+      "from": "柴胡桂枝干姜汤",
+      "to": "桃核承气汤",
+      "discriminator": "柴胡桂枝干姜汤：痨症，风湿入血脉，消瘦疲劳；桃核承气汤：蓄血初/实，少腹急结、口渴不欲饮、小便自利",
+      "discriminatingSymptom": "柴胡桂枝干姜汤：痨症，风湿入血脉，消瘦疲劳；桃核承气汤：蓄血初/实，少腹急结、口渴不欲饮、小便自利",
+      "questionText": "当前阳性事实更支持“痨症，风湿入血脉，消瘦疲劳”，还是“蓄血初/实，少腹急结、口渴不欲饮、小便自利”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "痨症",
+            "风湿入血脉",
+            "消瘦疲劳"
+          ],
+          "againstTerms": [
+            "蓄血初",
+            "少腹急结",
+            "小便自利"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "蓄血初",
+            "少腹急结",
+            "小便自利"
+          ],
+          "againstTerms": [
+            "痨症",
+            "风湿入血脉",
+            "消瘦疲劳"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-48-49",
+      "sourceRefs": [
+        "formula-patterns.md:48",
+        "formula-patterns.md:49"
+      ]
+    },
+    {
+      "id": "T14-051",
+      "from": "桃核承气汤",
+      "to": "抵当汤",
+      "discriminator": "桃核承气汤：蓄血初/实，少腹急结、口渴不欲饮、小便自利；抵当汤：蓄血重症，少腹硬满、小便自利、善忘、黑便",
+      "discriminatingSymptom": "桃核承气汤：蓄血初/实，少腹急结、口渴不欲饮、小便自利；抵当汤：蓄血重症，少腹硬满、小便自利、善忘、黑便",
+      "questionText": "当前阳性事实更支持“蓄血初/实，少腹急结、口渴不欲饮、小便自利”，还是“蓄血重症，少腹硬满、小便自利、善忘、黑便”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "蓄血初",
+            "少腹急结",
+            "小便自利"
+          ],
+          "againstTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便",
+            "阳明蓄血"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便",
+            "阳明蓄血"
+          ],
+          "againstTerms": [
+            "蓄血初",
+            "少腹急结",
+            "小便自利"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "抵当汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-49-50",
+      "sourceRefs": [
+        "formula-patterns.md:49",
+        "formula-patterns.md:50"
+      ]
+    },
+    {
+      "id": "T14-052",
+      "from": "抵当汤",
+      "to": "大陷胸汤",
+      "discriminator": "抵当汤：蓄血重症，少腹硬满、小便自利、善忘、黑便；大陷胸汤：结胸，实热老痰结聚胸部",
+      "discriminatingSymptom": "抵当汤：蓄血重症，少腹硬满、小便自利、善忘、黑便；大陷胸汤：结胸，实热老痰结聚胸部",
+      "questionText": "当前阳性事实更支持“蓄血重症，少腹硬满、小便自利、善忘、黑便”，还是“结胸，实热老痰结聚胸部”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便",
+            "阳明蓄血"
+          ],
+          "againstTerms": [
+            "结胸",
+            "实热老痰结聚胸部"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "结胸",
+            "实热老痰结聚胸部"
+          ],
+          "againstTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便",
+            "阳明蓄血"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "抵当汤含高风险课程方向，不能据图自动处方",
+        "大陷胸汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-50-51",
+      "sourceRefs": [
+        "formula-patterns.md:50",
+        "formula-patterns.md:51"
+      ]
+    },
+    {
+      "id": "T14-053",
+      "from": "大陷胸汤",
+      "to": "桂枝人参汤",
+      "discriminator": "大陷胸汤：结胸，实热老痰结聚胸部；桂枝人参汤：寒利，中焦虚寒下利",
+      "discriminatingSymptom": "大陷胸汤：结胸，实热老痰结聚胸部；桂枝人参汤：寒利，中焦虚寒下利",
+      "questionText": "当前阳性事实更支持“结胸，实热老痰结聚胸部”，还是“寒利，中焦虚寒下利”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "结胸",
+            "实热老痰结聚胸部"
+          ],
+          "againstTerms": [
+            "寒利",
+            "中焦虚寒下利"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "寒利",
+            "中焦虚寒下利"
+          ],
+          "againstTerms": [
+            "结胸",
+            "实热老痰结聚胸部"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "大陷胸汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-51-52",
+      "sourceRefs": [
+        "formula-patterns.md:51",
+        "formula-patterns.md:52"
+      ]
+    },
+    {
+      "id": "T14-054",
+      "from": "桂枝人参汤",
+      "to": "旋覆代赭汤",
+      "discriminator": "桂枝人参汤：寒利，中焦虚寒下利；旋覆代赭汤：胃酸反逆、心下痞硬、噫气不除",
+      "discriminatingSymptom": "桂枝人参汤：寒利，中焦虚寒下利；旋覆代赭汤：胃酸反逆、心下痞硬、噫气不除",
+      "questionText": "当前阳性事实更支持“寒利，中焦虚寒下利”，还是“胃酸反逆、心下痞硬、噫气不除”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "寒利",
+            "中焦虚寒下利"
+          ],
+          "againstTerms": [
+            "胃酸反逆",
+            "心下痞硬",
+            "噫气不除"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "胃酸反逆",
+            "心下痞硬",
+            "噫气不除"
+          ],
+          "againstTerms": [
+            "寒利",
+            "中焦虚寒下利"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-52-53",
+      "sourceRefs": [
+        "formula-patterns.md:52",
+        "formula-patterns.md:53"
+      ]
+    },
+    {
+      "id": "T14-055",
+      "from": "旋覆代赭汤",
+      "to": "大黄黄连泻心汤",
+      "discriminator": "旋覆代赭汤：胃酸反逆、心下痞硬、噫气不除；大黄黄连泻心汤：心下痞、上部出血、热痞",
+      "discriminatingSymptom": "旋覆代赭汤：胃酸反逆、心下痞硬、噫气不除；大黄黄连泻心汤：心下痞、上部出血、热痞",
+      "questionText": "当前阳性事实更支持“胃酸反逆、心下痞硬、噫气不除”，还是“心下痞、上部出血、热痞”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "胃酸反逆",
+            "心下痞硬",
+            "噫气不除"
+          ],
+          "againstTerms": [
+            "心下痞",
+            "上部出血",
+            "热痞"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "心下痞",
+            "上部出血",
+            "热痞"
+          ],
+          "againstTerms": [
+            "胃酸反逆",
+            "心下痞硬",
+            "噫气不除"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-53-54",
+      "sourceRefs": [
+        "formula-patterns.md:53",
+        "formula-patterns.md:54"
+      ]
+    },
+    {
+      "id": "T14-056",
+      "from": "大黄黄连泻心汤",
+      "to": "附子泻心汤",
+      "discriminator": "大黄黄连泻心汤：心下痞、上部出血、热痞；附子泻心汤：心下痞兼阳虚",
+      "discriminatingSymptom": "大黄黄连泻心汤：心下痞、上部出血、热痞；附子泻心汤：心下痞兼阳虚",
+      "questionText": "当前阳性事实更支持“心下痞、上部出血、热痞”，还是“心下痞兼阳虚”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "心下痞",
+            "上部出血",
+            "热痞"
+          ],
+          "againstTerms": [
+            "心下痞兼阳虚"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "心下痞兼阳虚"
+          ],
+          "againstTerms": [
+            "心下痞",
+            "上部出血",
+            "热痞"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "附子泻心汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-54-55",
+      "sourceRefs": [
+        "formula-patterns.md:54",
+        "formula-patterns.md:55"
+      ]
+    },
+    {
+      "id": "T14-057",
+      "from": "附子泻心汤",
+      "to": "小建中汤",
+      "discriminator": "附子泻心汤：心下痞兼阳虚；小建中汤：重建脾胃，治痿独取阳明，补阳",
+      "discriminatingSymptom": "附子泻心汤：心下痞兼阳虚；小建中汤：重建脾胃，治痿独取阳明，补阳",
+      "questionText": "当前阳性事实更支持“心下痞兼阳虚”，还是“重建脾胃，治痿独取阳明，补阳”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "心下痞兼阳虚"
+          ],
+          "againstTerms": [
+            "重建脾胃",
+            "治痿独取阳明",
+            "补阳"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "重建脾胃",
+            "治痿独取阳明",
+            "补阳"
+          ],
+          "againstTerms": [
+            "心下痞兼阳虚"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "附子泻心汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-55-56",
+      "sourceRefs": [
+        "formula-patterns.md:55",
+        "formula-patterns.md:56"
+      ]
+    },
+    {
+      "id": "T14-058",
+      "from": "白虎汤",
+      "to": "白虎加人参汤",
+      "discriminator": "白虎汤：阳明经热，高热、大渴、大汗、大烦，大便未必结；白虎加人参汤：阳明热盛兼津气伤、极渴",
+      "discriminatingSymptom": "白虎汤：阳明经热，高热、大渴、大汗、大烦，大便未必结；白虎加人参汤：阳明热盛兼津气伤、极渴",
+      "questionText": "当前阳性事实更支持“阳明经热，高热、大渴、大汗、大烦，大便未必结”，还是“阳明热盛兼津气伤、极渴”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "阳明经热",
+            "高热",
+            "大渴",
+            "大汗",
+            "大烦",
+            "大便未必结"
+          ],
+          "againstTerms": [
+            "阳明热盛兼津气伤",
+            "极渴"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "阳明热盛兼津气伤",
+            "极渴"
+          ],
+          "againstTerms": [
+            "阳明经热",
+            "高热",
+            "大渴",
+            "大汗",
+            "大烦",
+            "大便未必结"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "白虎汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-62-63",
+      "sourceRefs": [
+        "formula-patterns.md:62",
+        "formula-patterns.md:63"
+      ]
+    },
+    {
+      "id": "T14-059",
+      "from": "白虎加人参汤",
+      "to": "小承气汤",
+      "discriminator": "白虎加人参汤：阳明热盛兼津气伤、极渴；小承气汤：阳明腑实轻，尚能进食、放屁",
+      "discriminatingSymptom": "白虎加人参汤：阳明热盛兼津气伤、极渴；小承气汤：阳明腑实轻，尚能进食、放屁",
+      "questionText": "当前阳性事实更支持“阳明热盛兼津气伤、极渴”，还是“阳明腑实轻，尚能进食、放屁”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "阳明热盛兼津气伤",
+            "极渴"
+          ],
+          "againstTerms": [
+            "阳明腑实轻",
+            "尚能进食",
+            "放屁"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "阳明腑实轻",
+            "尚能进食",
+            "放屁"
+          ],
+          "againstTerms": [
+            "阳明热盛兼津气伤",
+            "极渴"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-63-64",
+      "sourceRefs": [
+        "formula-patterns.md:63",
+        "formula-patterns.md:64"
+      ]
+    },
+    {
+      "id": "T14-060",
+      "from": "大承气汤",
+      "to": "调胃承气汤",
+      "discriminator": "大承气汤：阳明腑实重，不放屁、无食欲、天枢拒按、谵语；急下存阴；调胃承气汤：阳明燥热偏中焦，调胃承气方向",
+      "discriminatingSymptom": "大承气汤：阳明腑实重，不放屁、无食欲、天枢拒按、谵语；急下存阴；调胃承气汤：阳明燥热偏中焦，调胃承气方向",
+      "questionText": "当前阳性事实更支持“阳明腑实重，不放屁、无食欲、天枢拒按、谵语；急下存阴”，还是“阳明燥热偏中焦，调胃承气方向”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "阳明腑实重",
+            "不放屁",
+            "无食欲",
+            "天枢拒按",
+            "谵语",
+            "急下存阴"
+          ],
+          "againstTerms": [
+            "阳明燥热偏中焦"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "阳明燥热偏中焦"
+          ],
+          "againstTerms": [
+            "阳明腑实重",
+            "不放屁",
+            "无食欲",
+            "天枢拒按",
+            "谵语",
+            "急下存阴"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "大承气汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-65-66",
+      "sourceRefs": [
+        "formula-patterns.md:65",
+        "formula-patterns.md:66"
+      ]
+    },
+    {
+      "id": "T14-061",
+      "from": "调胃承气汤",
+      "to": "麻子仁丸",
+      "discriminator": "调胃承气汤：阳明燥热偏中焦，调胃承气方向；麻子仁丸：脾约，津液枯竭，大便羊屎状",
+      "discriminatingSymptom": "调胃承气汤：阳明燥热偏中焦，调胃承气方向；麻子仁丸：脾约，津液枯竭，大便羊屎状",
+      "questionText": "当前阳性事实更支持“阳明燥热偏中焦，调胃承气方向”，还是“脾约，津液枯竭，大便羊屎状”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "阳明燥热偏中焦"
+          ],
+          "againstTerms": [
+            "脾约",
+            "津液枯竭",
+            "大便羊屎状"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "脾约",
+            "津液枯竭",
+            "大便羊屎状"
+          ],
+          "againstTerms": [
+            "阳明燥热偏中焦"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-66-67",
+      "sourceRefs": [
+        "formula-patterns.md:66",
+        "formula-patterns.md:67"
+      ]
+    },
+    {
+      "id": "T14-062",
+      "from": "麻子仁丸",
+      "to": "猪苓汤",
+      "discriminator": "麻子仁丸：脾约，津液枯竭，大便羊屎状；猪苓汤：小便不利、泌尿结石、阴虚火旺、尿血",
+      "discriminatingSymptom": "麻子仁丸：脾约，津液枯竭，大便羊屎状；猪苓汤：小便不利、泌尿结石、阴虚火旺、尿血",
+      "questionText": "当前阳性事实更支持“脾约，津液枯竭，大便羊屎状”，还是“小便不利、泌尿结石、阴虚火旺、尿血”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "脾约",
+            "津液枯竭",
+            "大便羊屎状"
+          ],
+          "againstTerms": [
+            "小便不利",
+            "泌尿结石",
+            "阴虚火旺",
+            "尿血"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "小便不利",
+            "泌尿结石",
+            "阴虚火旺",
+            "尿血"
+          ],
+          "againstTerms": [
+            "脾约",
+            "津液枯竭",
+            "大便羊屎状"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-67-68",
+      "sourceRefs": [
+        "formula-patterns.md:67",
+        "formula-patterns.md:68"
+      ]
+    },
+    {
+      "id": "T14-063",
+      "from": "猪苓汤",
+      "to": "抵当汤",
+      "discriminator": "猪苓汤：小便不利、泌尿结石、阴虚火旺、尿血；抵当汤：阳明蓄血，善忘、黑便、少腹硬满",
+      "discriminatingSymptom": "猪苓汤：小便不利、泌尿结石、阴虚火旺、尿血；抵当汤：阳明蓄血，善忘、黑便、少腹硬满",
+      "questionText": "当前阳性事实更支持“小便不利、泌尿结石、阴虚火旺、尿血”，还是“蓄血重症，少腹硬满、小便自利、善忘、黑便”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "小便不利",
+            "泌尿结石",
+            "阴虚火旺",
+            "尿血"
+          ],
+          "againstTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便",
+            "阳明蓄血"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "蓄血重症",
+            "少腹硬满",
+            "小便自利",
+            "善忘",
+            "黑便",
+            "阳明蓄血"
+          ],
+          "againstTerms": [
+            "小便不利",
+            "泌尿结石",
+            "阴虚火旺",
+            "尿血"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "抵当汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-68-69",
+      "sourceRefs": [
+        "formula-patterns.md:68",
+        "formula-patterns.md:69"
+      ]
+    },
+    {
+      "id": "T14-064",
+      "from": "桂枝加芍药汤",
+      "to": "桂枝加大黄汤",
+      "discriminator": "桂枝加芍药汤：太阴病腹满时痛；桂枝加大黄汤：太阴兼实积，腹满痛较重",
+      "discriminatingSymptom": "桂枝加芍药汤：太阴病腹满时痛；桂枝加大黄汤：太阴兼实积，腹满痛较重",
+      "questionText": "当前阳性事实更支持“太阴病腹满时痛”，还是“太阴兼实积，腹满痛较重”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阴病腹满时痛"
+          ],
+          "againstTerms": [
+            "太阴兼实积",
+            "腹满痛较重"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "太阴兼实积",
+            "腹满痛较重"
+          ],
+          "againstTerms": [
+            "太阴病腹满时痛"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-75-76",
+      "sourceRefs": [
+        "formula-patterns.md:75",
+        "formula-patterns.md:76"
+      ]
+    },
+    {
+      "id": "T14-065",
+      "from": "桂枝加大黄汤",
+      "to": "四逆汤",
+      "discriminator": "桂枝加大黄汤：太阴兼实积，腹满痛较重；四逆汤：太阴/少阴里寒极盛，下利清谷、四肢厥冷",
+      "discriminatingSymptom": "桂枝加大黄汤：太阴兼实积，腹满痛较重；四逆汤：太阴/少阴里寒极盛，下利清谷、四肢厥冷",
+      "questionText": "当前阳性事实更支持“太阴兼实积，腹满痛较重”，还是“太阴/少阴里寒极盛，下利清谷、四肢厥冷”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阴兼实积",
+            "腹满痛较重"
+          ],
+          "againstTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ],
+          "againstTerms": [
+            "太阴兼实积",
+            "腹满痛较重"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "四逆汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-76-77",
+      "sourceRefs": [
+        "formula-patterns.md:76",
+        "formula-patterns.md:77"
+      ]
+    },
+    {
+      "id": "T14-066",
+      "from": "四逆汤",
+      "to": "麻黄附子细辛汤",
+      "discriminator": "四逆汤：太阴/少阴里寒极盛，下利清谷、四肢厥冷；麻黄附子细辛汤：少阴病初得兼表，脉沉微细",
+      "discriminatingSymptom": "四逆汤：太阴/少阴里寒极盛，下利清谷、四肢厥冷；麻黄附子细辛汤：少阴病初得兼表，脉沉微细",
+      "questionText": "当前阳性事实更支持“太阴/少阴里寒极盛，下利清谷、四肢厥冷”，还是“少阴病初得兼表，脉沉微细”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ],
+          "againstTerms": [
+            "少阴病初得兼表",
+            "脉沉微细"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴病初得兼表",
+            "脉沉微细"
+          ],
+          "againstTerms": [
+            "太阴",
+            "少阴里寒极盛",
+            "下利清谷",
+            "四肢厥冷"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "四逆汤含高风险课程方向，不能据图自动处方",
+        "麻黄附子细辛汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-77-78",
+      "sourceRefs": [
+        "formula-patterns.md:77",
+        "formula-patterns.md:78"
+      ]
+    },
+    {
+      "id": "T14-067",
+      "from": "麻黄附子甘草汤",
+      "to": "黄连阿胶汤",
+      "discriminator": "麻黄附子甘草汤：少阴病得二三日，微发汗方向；黄连阿胶汤：少阴病心中烦、不得卧，偏阴虚火扰",
+      "discriminatingSymptom": "麻黄附子甘草汤：少阴病得二三日，微发汗方向；黄连阿胶汤：少阴病心中烦、不得卧，偏阴虚火扰",
+      "questionText": "当前阳性事实更支持“少阴病得二三日，微发汗方向”，还是“少阴病心中烦、不得卧，偏阴虚火扰”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴病得二三日"
+          ],
+          "againstTerms": [
+            "少阴病心中烦",
+            "不得卧",
+            "偏阴虚火扰"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴病心中烦",
+            "不得卧",
+            "偏阴虚火扰"
+          ],
+          "againstTerms": [
+            "少阴病得二三日"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "麻黄附子甘草汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-79-80",
+      "sourceRefs": [
+        "formula-patterns.md:79",
+        "formula-patterns.md:80"
+      ]
+    },
+    {
+      "id": "T14-068",
+      "from": "黄连阿胶汤",
+      "to": "桃花汤",
+      "discriminator": "黄连阿胶汤：少阴病心中烦、不得卧，偏阴虚火扰；桃花汤：少阴下利便脓血，涩剂",
+      "discriminatingSymptom": "黄连阿胶汤：少阴病心中烦、不得卧，偏阴虚火扰；桃花汤：少阴下利便脓血，涩剂",
+      "questionText": "当前阳性事实更支持“少阴病心中烦、不得卧，偏阴虚火扰”，还是“少阴下利便脓血，涩剂”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴病心中烦",
+            "不得卧",
+            "偏阴虚火扰"
+          ],
+          "againstTerms": [
+            "少阴下利便脓血",
+            "涩剂"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴下利便脓血",
+            "涩剂"
+          ],
+          "againstTerms": [
+            "少阴病心中烦",
+            "不得卧",
+            "偏阴虚火扰"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-80-81",
+      "sourceRefs": [
+        "formula-patterns.md:80",
+        "formula-patterns.md:81"
+      ]
+    },
+    {
+      "id": "T14-069",
+      "from": "桃花汤",
+      "to": "猪肤汤",
+      "discriminator": "桃花汤：少阴下利便脓血，涩剂；猪肤汤：少阴下利咽痛、胸满心烦",
+      "discriminatingSymptom": "桃花汤：少阴下利便脓血，涩剂；猪肤汤：少阴下利咽痛、胸满心烦",
+      "questionText": "当前阳性事实更支持“少阴下利便脓血，涩剂”，还是“少阴下利咽痛、胸满心烦”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴下利便脓血",
+            "涩剂"
+          ],
+          "againstTerms": [
+            "少阴下利咽痛",
+            "胸满心烦"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴下利咽痛",
+            "胸满心烦"
+          ],
+          "againstTerms": [
+            "少阴下利便脓血",
+            "涩剂"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-81-82",
+      "sourceRefs": [
+        "formula-patterns.md:81",
+        "formula-patterns.md:82"
+      ]
+    },
+    {
+      "id": "T14-070",
+      "from": "猪肤汤",
+      "to": "甘草汤",
+      "discriminator": "猪肤汤：少阴下利咽痛、胸满心烦；甘草汤：少阴咽痛",
+      "discriminatingSymptom": "猪肤汤：少阴下利咽痛、胸满心烦；甘草汤：少阴咽痛",
+      "questionText": "当前阳性事实更支持“少阴下利咽痛、胸满心烦”，还是“少阴咽痛”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴下利咽痛",
+            "胸满心烦"
+          ],
+          "againstTerms": [
+            "少阴咽痛"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴咽痛"
+          ],
+          "againstTerms": [
+            "少阴下利咽痛",
+            "胸满心烦"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-82-83",
+      "sourceRefs": [
+        "formula-patterns.md:82",
+        "formula-patterns.md:83"
+      ]
+    },
+    {
+      "id": "T14-071",
+      "from": "甘草汤",
+      "to": "半夏散及汤",
+      "discriminator": "甘草汤：少阴咽痛；半夏散及汤：少阴咽中痛、声不出方向",
+      "discriminatingSymptom": "甘草汤：少阴咽痛；半夏散及汤：少阴咽中痛、声不出方向",
+      "questionText": "当前阳性事实更支持“少阴咽痛”，还是“少阴咽中痛、声不出方向”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴咽痛"
+          ],
+          "againstTerms": [
+            "少阴咽中痛"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴咽中痛"
+          ],
+          "againstTerms": [
+            "少阴咽痛"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-83-84",
+      "sourceRefs": [
+        "formula-patterns.md:83",
+        "formula-patterns.md:84"
+      ]
+    },
+    {
+      "id": "T14-072",
+      "from": "半夏散及汤",
+      "to": "白通汤",
+      "discriminator": "半夏散及汤：少阴咽中痛、声不出方向；白通汤：少阴下利，阴寒格阳方向",
+      "discriminatingSymptom": "半夏散及汤：少阴咽中痛、声不出方向；白通汤：少阴下利，阴寒格阳方向",
+      "questionText": "当前阳性事实更支持“少阴咽中痛、声不出方向”，还是“少阴下利，阴寒格阳方向”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴咽中痛"
+          ],
+          "againstTerms": [
+            "少阴下利"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴下利"
+          ],
+          "againstTerms": [
+            "少阴咽中痛"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "白通汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-84-85",
+      "sourceRefs": [
+        "formula-patterns.md:84",
+        "formula-patterns.md:85"
+      ]
+    },
+    {
+      "id": "T14-073",
+      "from": "白通汤",
+      "to": "白通加猪胆汁汤",
+      "discriminator": "白通汤：少阴下利，阴寒格阳方向；白通加猪胆汁汤：少阴危候，下利脉微、阴盛格阳，引阳入阴",
+      "discriminatingSymptom": "白通汤：少阴下利，阴寒格阳方向；白通加猪胆汁汤：少阴危候，下利脉微、阴盛格阳，引阳入阴",
+      "questionText": "当前阳性事实更支持“少阴下利，阴寒格阳方向”，还是“少阴危候，下利脉微、阴盛格阳，引阳入阴”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴下利"
+          ],
+          "againstTerms": [
+            "少阴危候",
+            "下利脉微",
+            "阴盛格阳",
+            "引阳入阴"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "少阴危候",
+            "下利脉微",
+            "阴盛格阳",
+            "引阳入阴"
+          ],
+          "againstTerms": [
+            "少阴下利"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "白通汤含高风险课程方向，不能据图自动处方",
+        "白通加猪胆汁汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-85-86",
+      "sourceRefs": [
+        "formula-patterns.md:85",
+        "formula-patterns.md:86"
+      ]
+    },
+    {
+      "id": "T14-074",
+      "from": "白通加猪胆汁汤",
+      "to": "通脉四逆汤",
+      "discriminator": "白通加猪胆汁汤：少阴危候，下利脉微、阴盛格阳，引阳入阴；通脉四逆汤：里寒外热、手足厥逆、脉微欲绝",
+      "discriminatingSymptom": "白通加猪胆汁汤：少阴危候，下利脉微、阴盛格阳，引阳入阴；通脉四逆汤：里寒外热、手足厥逆、脉微欲绝",
+      "questionText": "当前阳性事实更支持“少阴危候，下利脉微、阴盛格阳，引阳入阴”，还是“里寒外热、手足厥逆、脉微欲绝”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "少阴危候",
+            "下利脉微",
+            "阴盛格阳",
+            "引阳入阴"
+          ],
+          "againstTerms": [
+            "里寒外热",
+            "手足厥逆",
+            "脉微欲绝"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "里寒外热",
+            "手足厥逆",
+            "脉微欲绝"
+          ],
+          "againstTerms": [
+            "少阴危候",
+            "下利脉微",
+            "阴盛格阳",
+            "引阳入阴"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "白通加猪胆汁汤含高风险课程方向，不能据图自动处方",
+        "通脉四逆汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-86-87",
+      "sourceRefs": [
+        "formula-patterns.md:86",
+        "formula-patterns.md:87"
+      ]
+    },
+    {
+      "id": "T14-075",
+      "from": "通脉四逆汤",
+      "to": "四逆散",
+      "discriminator": "通脉四逆汤：里寒外热、手足厥逆、脉微欲绝；四逆散：四逆但偏气机郁滞，柴胡、枳实、芍药、甘草",
+      "discriminatingSymptom": "通脉四逆汤：里寒外热、手足厥逆、脉微欲绝；四逆散：四逆但偏气机郁滞，柴胡、枳实、芍药、甘草",
+      "questionText": "当前阳性事实更支持“里寒外热、手足厥逆、脉微欲绝”，还是“四逆但偏气机郁滞，柴胡、枳实、芍药、甘草”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "里寒外热",
+            "手足厥逆",
+            "脉微欲绝"
+          ],
+          "againstTerms": [
+            "四逆但偏气机郁滞",
+            "柴胡",
+            "枳实",
+            "芍药",
+            "甘草"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "四逆但偏气机郁滞",
+            "柴胡",
+            "枳实",
+            "芍药",
+            "甘草"
+          ],
+          "againstTerms": [
+            "里寒外热",
+            "手足厥逆",
+            "脉微欲绝"
+          ]
+        }
+      },
+      "contraindicationHints": [
+        "通脉四逆汤含高风险课程方向，不能据图自动处方"
+      ],
+      "priority": 40,
+      "ruleId": "T14-SECTION-87-88",
+      "sourceRefs": [
+        "formula-patterns.md:87",
+        "formula-patterns.md:88"
+      ]
+    },
+    {
+      "id": "T14-076",
+      "from": "四逆散",
+      "to": "乌梅丸",
+      "discriminator": "四逆散：四逆但偏气机郁滞，柴胡、枳实、芍药、甘草；乌梅丸：厥阴蛔厥、寒热错杂久利",
+      "discriminatingSymptom": "四逆散：四逆但偏气机郁滞，柴胡、枳实、芍药、甘草；乌梅丸：厥阴蛔厥、寒热错杂久利",
+      "questionText": "当前阳性事实更支持“四逆但偏气机郁滞，柴胡、枳实、芍药、甘草”，还是“厥阴蛔厥、寒热错杂久利”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "四逆但偏气机郁滞",
+            "柴胡",
+            "枳实",
+            "芍药",
+            "甘草"
+          ],
+          "againstTerms": [
+            "厥阴蛔厥",
+            "寒热错杂久利"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "厥阴蛔厥",
+            "寒热错杂久利"
+          ],
+          "againstTerms": [
+            "四逆但偏气机郁滞",
+            "柴胡",
+            "枳实",
+            "芍药",
+            "甘草"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-88-89",
+      "sourceRefs": [
+        "formula-patterns.md:88",
+        "formula-patterns.md:89"
+      ]
+    },
+    {
+      "id": "T14-077",
+      "from": "乌梅丸",
+      "to": "当归四逆汤",
+      "discriminator": "乌梅丸：厥阴蛔厥、寒热错杂久利；当归四逆汤：厥阴手足末梢厥寒、冻疮、糖尿病足课程案例",
+      "discriminatingSymptom": "乌梅丸：厥阴蛔厥、寒热错杂久利；当归四逆汤：厥阴手足末梢厥寒、冻疮、糖尿病足课程案例",
+      "questionText": "当前阳性事实更支持“厥阴蛔厥、寒热错杂久利”，还是“厥阴手足末梢厥寒、冻疮、糖尿病足课程案例”？",
+      "sides": {
+        "from": {
+          "supportTerms": [
+            "厥阴蛔厥",
+            "寒热错杂久利"
+          ],
+          "againstTerms": [
+            "厥阴手足末梢厥寒",
+            "冻疮",
+            "糖尿病足课程案例"
+          ]
+        },
+        "to": {
+          "supportTerms": [
+            "厥阴手足末梢厥寒",
+            "冻疮",
+            "糖尿病足课程案例"
+          ],
+          "againstTerms": [
+            "厥阴蛔厥",
+            "寒热错杂久利"
+          ]
+        }
+      },
+      "contraindicationHints": [],
+      "priority": 40,
+      "ruleId": "T14-SECTION-89-90",
+      "sourceRefs": [
+        "formula-patterns.md:89",
+        "formula-patterns.md:90"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "T14-NODE-001",
+      "formulaName": "桂枝汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "太阳中风，有汗、恶风、脉缓；解肌调营卫",
+      "supportTerms": [
+        "太阳中风",
+        "有汗",
+        "恶风",
+        "脉缓",
+        "解肌调营卫"
+      ],
+      "discriminator": "与麻黄汤分水岭是有汗/无汗；酒客、吐家、胸满需慎",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:17"
+      ]
+    },
+    {
+      "id": "T14-NODE-002",
+      "formulaName": "桂枝加葛根汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "太阳中风兼项背强、面部中风方向",
+      "supportTerms": [
+        "太阳中风兼项背强"
+      ],
+      "discriminator": "葛根上行至项背；有汗用桂枝加葛根，无汗偏葛根汤",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:18"
+      ]
+    },
+    {
+      "id": "T14-NODE-003",
+      "formulaName": "桂枝加附子汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "发汗太过、汗漏不止，阳虚不能固表",
+      "supportTerms": [
+        "发汗太过",
+        "汗漏不止",
+        "阳虚不能固表"
+      ],
+      "discriminator": "课程以炮附子温经固表；附子高风险",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:19"
+      ]
+    },
+    {
+      "id": "T14-NODE-004",
+      "formulaName": "桂枝去芍药汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "胸满、心脏负担，课程强调胸满去芍药",
+      "supportTerms": [
+        "胸满",
+        "心脏负担",
+        "课程强调胸满去芍药"
+      ],
+      "discriminator": "芍药偏收静脉回流，胸满/心脏病需辨",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:20"
+      ]
+    },
+    {
+      "id": "T14-NODE-005",
+      "formulaName": "桂枝麻黄各半汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "往来寒热但无恶心，皮下邪气未透",
+      "supportTerms": [
+        "往来寒热但无恶心",
+        "皮下邪气未透"
+      ],
+      "discriminator": "与小柴胡汤区别：无少阳恶心、胸胁苦满",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:21"
+      ]
+    },
+    {
+      "id": "T14-NODE-006",
+      "formulaName": "麻黄汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "太阳伤寒，无汗、体痛、脉紧；发阳宣肺",
+      "supportTerms": [
+        "太阳伤寒",
+        "无汗",
+        "体痛",
+        "脉紧",
+        "发阳宣肺"
+      ],
+      "discriminator": "发汗前必须看尺脉与津液；咽干、淋家、疮家禁汗",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:22"
+      ]
+    },
+    {
+      "id": "T14-NODE-007",
+      "formulaName": "葛根汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "项背强几几、无汗、恶风",
+      "supportTerms": [
+        "项背强几几",
+        "无汗",
+        "恶风"
+      ],
+      "discriminator": "葛根上行；课程用于项背、刚痉、鼻窦炎等案例",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:23"
+      ]
+    },
+    {
+      "id": "T14-NODE-008",
+      "formulaName": "葛根黄芩黄连汤",
+      "formulaAliases": [
+        "葛芩连汤"
+      ],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "热利，表证误下或食物中毒热利",
+      "supportTerms": [
+        "热利",
+        "表证误下或食物中毒热利"
+      ],
+      "discriminator": "与桂枝人参汤寒利相反；看热象、小便、肛门灼热等",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:24"
+      ]
+    },
+    {
+      "id": "T14-NODE-009",
+      "formulaName": "大青龙汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "表寒里热，无汗烦躁、体痛",
+      "supportTerms": [
+        "表寒里热",
+        "无汗烦躁",
+        "体痛"
+      ],
+      "discriminator": "与麻黄汤相比多里热烦躁；发汗风险更高",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:25"
+      ]
+    },
+    {
+      "id": "T14-NODE-010",
+      "formulaName": "小青龙汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "心下有水气、咳而微喘，寒饮",
+      "supportTerms": [
+        "心下有水气",
+        "咳而微喘",
+        "寒饮"
+      ],
+      "discriminator": "课程有“麻芍姜辛桂五草半”口诀截图",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:26"
+      ]
+    },
+    {
+      "id": "T14-NODE-011",
+      "formulaName": "干姜附子汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "发汗太过，昼日烦躁不得眠，阳气伤",
+      "supportTerms": [
+        "发汗太过",
+        "昼日烦躁不得眠",
+        "阳气伤"
+      ],
+      "discriminator": "与栀子豉汤虚烦不同，偏阳虚烦躁",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:27"
+      ]
+    },
+    {
+      "id": "T14-NODE-012",
+      "formulaName": "桂枝甘草汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "发汗伤心阳，心下悸",
+      "supportTerms": [
+        "发汗伤心阳",
+        "心下悸"
+      ],
+      "discriminator": "桂枝降冲逆，炙甘草补中强心",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:28"
+      ]
+    },
+    {
+      "id": "T14-NODE-013",
+      "formulaName": "新加汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "发汗后津血亏虚而身疼痛",
+      "supportTerms": [
+        "发汗后津血亏虚而身疼痛"
+      ],
+      "discriminator": "与麻黄汤体痛不同，已伤津血，不能再发汗",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:29"
+      ]
+    },
+    {
+      "id": "T14-NODE-014",
+      "formulaName": "厚朴生姜半夏甘草人参汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "发汗后腹胀满，偏虚胀",
+      "supportTerms": [
+        "发汗后腹胀满",
+        "偏虚胀"
+      ],
+      "discriminator": "与承气汤实胀区别：喜按/拒按、小便色、燥屎",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:30"
+      ]
+    },
+    {
+      "id": "T14-NODE-015",
+      "formulaName": "茯苓桂枝白术甘草汤",
+      "formulaAliases": [
+        "苓桂术甘汤"
+      ],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "中焦水饮，心下逆满、气上冲胸、起则头眩",
+      "supportTerms": [
+        "心下逆满",
+        "气上冲胸",
+        "起则头眩"
+      ],
+      "discriminator": "与五苓散、真武汤区别在水饮层位；不可与脐下悸的苓桂甘枣汤混同",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:31"
+      ]
+    },
+    {
+      "id": "T14-NODE-016",
+      "formulaName": "茯苓桂枝甘草大枣汤",
+      "formulaAliases": [
+        "苓桂甘枣汤"
+      ],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "发汗后脐下悸、欲作奔豚",
+      "supportTerms": [
+        "发汗后脐下悸",
+        "欲作奔豚"
+      ],
+      "discriminator": "水停下焦、冲气欲上；与中焦水饮、起则头眩的苓桂术甘汤鉴别",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:32"
+      ]
+    },
+    {
+      "id": "T14-NODE-017",
+      "formulaName": "茯苓四逆汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "汗下后阳虚、烦躁，里寒重",
+      "supportTerms": [
+        "汗下后阳虚",
+        "烦躁",
+        "里寒重"
+      ],
+      "discriminator": "四逆汤辈高风险",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:33"
+      ]
+    },
+    {
+      "id": "T14-NODE-018",
+      "formulaName": "五苓散",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "水液代谢失常，小便不利、水逆",
+      "supportTerms": [
+        "水液代谢失常",
+        "小便不利",
+        "水逆"
+      ],
+      "discriminator": "与猪苓汤区别：五苓偏气化利水，猪苓兼阴虚血尿/结石",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:34"
+      ]
+    },
+    {
+      "id": "T14-NODE-019",
+      "formulaName": "栀子豉汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "汗吐下后虚烦不得眠、心中懊憹",
+      "supportTerms": [
+        "汗吐下后虚烦不得眠",
+        "心中懊憹"
+      ],
+      "discriminator": "胸膈余热津亏；与干姜附子汤的阳虚烦躁鉴别",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:35"
+      ]
+    },
+    {
+      "id": "T14-NODE-020",
+      "formulaName": "栀子厚朴枳实汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "虚烦兼胸腹满",
+      "supportTerms": [
+        "虚烦兼胸腹满"
+      ],
+      "discriminator": "厚朴主腹满，枳实主胸满",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:36"
+      ]
+    },
+    {
+      "id": "T14-NODE-021",
+      "formulaName": "真武汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "下焦寒湿、水气内停，少阴水气病",
+      "supportTerms": [
+        "下焦寒湿",
+        "水气内停",
+        "少阴水气病"
+      ],
+      "discriminator": "与苓桂术甘汤所主的中膈有水饮不同；附子高风险",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:37"
+      ]
+    },
+    {
+      "id": "T14-NODE-022",
+      "formulaName": "苓桂术甘汤",
+      "formulaAliases": [],
+      "sixChannelSection": "太阳病方证",
+      "pattern": "中膈有水饮，心下逆满、气上冲胸、起则头眩",
+      "supportTerms": [
+        "心下逆满",
+        "气上冲胸",
+        "起则头眩"
+      ],
+      "discriminator": "利水剂中甘草使用需看层位，课程特别比较",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:38"
+      ]
+    },
+    {
+      "id": "T14-NODE-023",
+      "formulaName": "小柴胡汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "少阳病往来寒热、胸胁苦满；妇人热入血室",
+      "supportTerms": [
+        "少阳病往来寒热",
+        "胸胁苦满",
+        "妇人热入血室"
+      ],
+      "discriminator": "经期外感首重和解，不发汗",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:44"
+      ]
+    },
+    {
+      "id": "T14-NODE-024",
+      "formulaName": "柴胡桂枝汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "一半太阳一半少阳",
+      "supportTerms": [
+        "一半太阳一半少阳"
+      ],
+      "discriminator": "既有表证又有少阳枢机不利",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:45"
+      ]
+    },
+    {
+      "id": "T14-NODE-025",
+      "formulaName": "柴胡加芒硝汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "少阳兼阳明实热",
+      "supportTerms": [
+        "少阳兼阳明实热"
+      ],
+      "discriminator": "和解少阳兼攻下实热，需专业辨证",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:46"
+      ]
+    },
+    {
+      "id": "T14-NODE-026",
+      "formulaName": "柴胡加龙骨牡蛎汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "三焦惊烦、水停、烦躁惊悸",
+      "supportTerms": [
+        "三焦惊烦",
+        "水停",
+        "烦躁惊悸"
+      ],
+      "discriminator": "龙骨治失精，牡蛎治失津，课程讲潜阳",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:47"
+      ]
+    },
+    {
+      "id": "T14-NODE-027",
+      "formulaName": "柴胡桂枝干姜汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "痨症，风湿入血脉，消瘦疲劳",
+      "supportTerms": [
+        "痨症",
+        "风湿入血脉",
+        "消瘦疲劳"
+      ],
+      "discriminator": "课程称治痨第一方；不要被癌症/病名绑架",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:48"
+      ]
+    },
+    {
+      "id": "T14-NODE-028",
+      "formulaName": "桃核承气汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "蓄血初/实，少腹急结、口渴不欲饮、小便自利",
+      "supportTerms": [
+        "蓄血初",
+        "少腹急结",
+        "小便自利"
+      ],
+      "discriminator": "治瘀血第一方；与阳明燥屎看小便和少腹",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:49"
+      ]
+    },
+    {
+      "id": "T14-NODE-029",
+      "formulaName": "抵当汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "蓄血重症，少腹硬满、小便自利、善忘、黑便",
+      "supportTerms": [
+        "蓄血重症",
+        "少腹硬满",
+        "小便自利",
+        "善忘",
+        "黑便",
+        "阳明蓄血"
+      ],
+      "discriminator": "汤急丸缓；破血峻剂，高风险",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:50",
+        "formula-patterns.md:69"
+      ]
+    },
+    {
+      "id": "T14-NODE-030",
+      "formulaName": "抵当丸",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "蓄血重症，少腹硬满、小便自利、善忘、黑便",
+      "supportTerms": [
+        "蓄血重症",
+        "少腹硬满",
+        "小便自利",
+        "善忘",
+        "黑便"
+      ],
+      "discriminator": "汤急丸缓；破血峻剂，高风险",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:50"
+      ]
+    },
+    {
+      "id": "T14-NODE-031",
+      "formulaName": "大陷胸汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "结胸，实热老痰结聚胸部",
+      "supportTerms": [
+        "结胸",
+        "实热老痰结聚胸部"
+      ],
+      "discriminator": "痛感向下用汤，向上用丸；脏结不可攻下",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:51"
+      ]
+    },
+    {
+      "id": "T14-NODE-032",
+      "formulaName": "大陷胸丸",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "结胸，实热老痰结聚胸部",
+      "supportTerms": [
+        "结胸",
+        "实热老痰结聚胸部"
+      ],
+      "discriminator": "痛感向下用汤，向上用丸；脏结不可攻下",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:51"
+      ]
+    },
+    {
+      "id": "T14-NODE-033",
+      "formulaName": "桂枝人参汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "寒利，中焦虚寒下利",
+      "supportTerms": [
+        "寒利",
+        "中焦虚寒下利"
+      ],
+      "discriminator": "与葛根黄芩黄连汤（葛芩连汤）热利相反",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:52"
+      ]
+    },
+    {
+      "id": "T14-NODE-034",
+      "formulaName": "旋覆代赭汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "胃酸反逆、心下痞硬、噫气不除",
+      "supportTerms": [
+        "胃酸反逆",
+        "心下痞硬",
+        "噫气不除"
+      ],
+      "discriminator": "降逆化痰，兼顾胃气",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:53"
+      ]
+    },
+    {
+      "id": "T14-NODE-035",
+      "formulaName": "大黄黄连泻心汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "心下痞、上部出血、热痞",
+      "supportTerms": [
+        "心下痞",
+        "上部出血",
+        "热痞"
+      ],
+      "discriminator": "制法关键：热水泡取气，课程强调不可煮",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:54"
+      ]
+    },
+    {
+      "id": "T14-NODE-036",
+      "formulaName": "附子泻心汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "心下痞兼阳虚",
+      "supportTerms": [
+        "心下痞兼阳虚"
+      ],
+      "discriminator": "附子温阳与泻心清热并用，高风险",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:55"
+      ]
+    },
+    {
+      "id": "T14-NODE-037",
+      "formulaName": "小建中汤",
+      "formulaAliases": [],
+      "sixChannelSection": "少阳与变证方证",
+      "pattern": "重建脾胃，治痿独取阳明，补阳",
+      "supportTerms": [
+        "重建脾胃",
+        "治痿独取阳明",
+        "补阳"
+      ],
+      "discriminator": "与炙甘草汤补阴相对",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:56"
+      ]
+    },
+    {
+      "id": "T14-NODE-038",
+      "formulaName": "白虎汤",
+      "formulaAliases": [],
+      "sixChannelSection": "阳明病方证",
+      "pattern": "阳明经热，高热、大渴、大汗、大烦，大便未必结",
+      "supportTerms": [
+        "阳明经热",
+        "高热",
+        "大渴",
+        "大汗",
+        "大烦",
+        "大便未必结"
+      ],
+      "discriminator": "与承气汤区别在是否有燥屎腑实；课程强调石膏剂量要足但不可自行用药",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:62"
+      ]
+    },
+    {
+      "id": "T14-NODE-039",
+      "formulaName": "白虎加人参汤",
+      "formulaAliases": [],
+      "sixChannelSection": "阳明病方证",
+      "pattern": "阳明热盛兼津气伤、极渴",
+      "supportTerms": [
+        "阳明热盛兼津气伤",
+        "极渴"
+      ],
+      "discriminator": "水需脾胃谷气与小肠火气化才成津液",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:63"
+      ]
+    },
+    {
+      "id": "T14-NODE-040",
+      "formulaName": "小承气汤",
+      "formulaAliases": [],
+      "sixChannelSection": "阳明病方证",
+      "pattern": "阳明腑实轻，尚能进食、放屁",
+      "supportTerms": [
+        "阳明腑实轻",
+        "尚能进食",
+        "放屁"
+      ],
+      "discriminator": "与大承气汤看食欲、屁、腹痛拒按程度",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:64"
+      ]
+    },
+    {
+      "id": "T14-NODE-041",
+      "formulaName": "大承气汤",
+      "formulaAliases": [],
+      "sixChannelSection": "阳明病方证",
+      "pattern": "阳明腑实重，不放屁、无食欲、天枢拒按、谵语；急下存阴",
+      "supportTerms": [
+        "阳明腑实重",
+        "不放屁",
+        "无食欲",
+        "天枢拒按",
+        "谵语",
+        "急下存阴"
+      ],
+      "discriminator": "中病即止，看小便深黄转清；高风险",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:65"
+      ]
+    },
+    {
+      "id": "T14-NODE-042",
+      "formulaName": "调胃承气汤",
+      "formulaAliases": [],
+      "sixChannelSection": "阳明病方证",
+      "pattern": "阳明燥热偏中焦，调胃承气方向",
+      "supportTerms": [
+        "阳明燥热偏中焦"
+      ],
+      "discriminator": "需与大小承气辨轻重和部位",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:66"
+      ]
+    },
+    {
+      "id": "T14-NODE-043",
+      "formulaName": "麻子仁丸",
+      "formulaAliases": [],
+      "sixChannelSection": "阳明病方证",
+      "pattern": "脾约，津液枯竭，大便羊屎状",
+      "supportTerms": [
+        "脾约",
+        "津液枯竭",
+        "大便羊屎状"
+      ],
+      "discriminator": "仁剂润肠，课程强调丸剂缓治",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:67"
+      ]
+    },
+    {
+      "id": "T14-NODE-044",
+      "formulaName": "猪苓汤",
+      "formulaAliases": [],
+      "sixChannelSection": "阳明病方证",
+      "pattern": "小便不利、泌尿结石、阴虚火旺、尿血",
+      "supportTerms": [
+        "小便不利",
+        "泌尿结石",
+        "阴虚火旺",
+        "尿血"
+      ],
+      "discriminator": "滑石碎石润滑，阿胶修补止血；与五苓散不同",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:68"
+      ]
+    },
+    {
+      "id": "T14-NODE-045",
+      "formulaName": "桂枝加芍药汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "太阴病腹满时痛",
+      "supportTerms": [
+        "太阴病腹满时痛"
+      ],
+      "discriminator": "偏虚寒腹痛，不是阳明实满",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:75"
+      ]
+    },
+    {
+      "id": "T14-NODE-046",
+      "formulaName": "桂枝加大黄汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "太阴兼实积，腹满痛较重",
+      "supportTerms": [
+        "太阴兼实积",
+        "腹满痛较重"
+      ],
+      "discriminator": "大黄加入需辨有实；不可见太阴即攻",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:76"
+      ]
+    },
+    {
+      "id": "T14-NODE-047",
+      "formulaName": "四逆汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "太阴/少阴里寒极盛，下利清谷、四肢厥冷",
+      "supportTerms": [
+        "太阴",
+        "少阴里寒极盛",
+        "下利清谷",
+        "四肢厥冷"
+      ],
+      "discriminator": "破阴回阳猛剂，含附子，严禁自行尝试",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:77"
+      ]
+    },
+    {
+      "id": "T14-NODE-048",
+      "formulaName": "麻黄附子细辛汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴病初得兼表，脉沉微细",
+      "supportTerms": [
+        "少阴病初得兼表",
+        "脉沉微细"
+      ],
+      "discriminator": "少阴外感特殊方，高风险，非普通发汗",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:78"
+      ]
+    },
+    {
+      "id": "T14-NODE-049",
+      "formulaName": "麻黄附子甘草汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴病得二三日，微发汗方向",
+      "supportTerms": [
+        "少阴病得二三日"
+      ],
+      "discriminator": "与麻黄附子细辛汤轻重不同",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:79"
+      ]
+    },
+    {
+      "id": "T14-NODE-050",
+      "formulaName": "黄连阿胶汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴病心中烦、不得卧，偏阴虚火扰",
+      "supportTerms": [
+        "少阴病心中烦",
+        "不得卧",
+        "偏阴虚火扰"
+      ],
+      "discriminator": "与四逆汤寒化方向相反",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:80"
+      ]
+    },
+    {
+      "id": "T14-NODE-051",
+      "formulaName": "桃花汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴下利便脓血，涩剂",
+      "supportTerms": [
+        "少阴下利便脓血",
+        "涩剂"
+      ],
+      "discriminator": "与热利、寒利、湿热下利需鉴别",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:81"
+      ]
+    },
+    {
+      "id": "T14-NODE-052",
+      "formulaName": "猪肤汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴下利咽痛、胸满心烦",
+      "supportTerms": [
+        "少阴下利咽痛",
+        "胸满心烦"
+      ],
+      "discriminator": "咽痛变证，不等同普通上火",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:82"
+      ]
+    },
+    {
+      "id": "T14-NODE-053",
+      "formulaName": "甘草汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴咽痛",
+      "supportTerms": [
+        "少阴咽痛"
+      ],
+      "discriminator": "甘草汤不差与桔梗汤，课程有条文截图",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:83"
+      ]
+    },
+    {
+      "id": "T14-NODE-054",
+      "formulaName": "桔梗汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴咽痛",
+      "supportTerms": [
+        "少阴咽痛"
+      ],
+      "discriminator": "甘草汤不差与桔梗汤，课程有条文截图",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:83"
+      ]
+    },
+    {
+      "id": "T14-NODE-055",
+      "formulaName": "半夏散及汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴咽中痛、声不出方向",
+      "supportTerms": [
+        "少阴咽中痛"
+      ],
+      "discriminator": "生半夏相关风险高",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:84"
+      ]
+    },
+    {
+      "id": "T14-NODE-056",
+      "formulaName": "白通汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴下利，阴寒格阳方向",
+      "supportTerms": [
+        "少阴下利"
+      ],
+      "discriminator": "高风险救逆理论",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:85"
+      ]
+    },
+    {
+      "id": "T14-NODE-057",
+      "formulaName": "白通加猪胆汁汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "少阴危候，下利脉微、阴盛格阳，引阳入阴",
+      "supportTerms": [
+        "少阴危候",
+        "下利脉微",
+        "阴盛格阳",
+        "引阳入阴"
+      ],
+      "discriminator": "课程提童子尿/猪胆汁，绝不可自行实操",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:86"
+      ]
+    },
+    {
+      "id": "T14-NODE-058",
+      "formulaName": "通脉四逆汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "里寒外热、手足厥逆、脉微欲绝",
+      "supportTerms": [
+        "里寒外热",
+        "手足厥逆",
+        "脉微欲绝"
+      ],
+      "discriminator": "重用温热药，高风险",
+      "safetyClass": "restricted",
+      "sourceRefs": [
+        "formula-patterns.md:87"
+      ]
+    },
+    {
+      "id": "T14-NODE-059",
+      "formulaName": "四逆散",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "四逆但偏气机郁滞，柴胡、枳实、芍药、甘草",
+      "supportTerms": [
+        "四逆但偏气机郁滞",
+        "柴胡",
+        "枳实",
+        "芍药",
+        "甘草"
+      ],
+      "discriminator": "与四逆汤寒厥完全不同；课程有胆结石加减",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:88"
+      ]
+    },
+    {
+      "id": "T14-NODE-060",
+      "formulaName": "乌梅丸",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "厥阴蛔厥、寒热错杂久利",
+      "supportTerms": [
+        "厥阴蛔厥",
+        "寒热错杂久利"
+      ],
+      "discriminator": "酸静、辣伏、苦下的诱杀逻辑",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:89"
+      ]
+    },
+    {
+      "id": "T14-NODE-061",
+      "formulaName": "当归四逆汤",
+      "formulaAliases": [],
+      "sixChannelSection": "三阴病方证",
+      "pattern": "厥阴手足末梢厥寒、冻疮、糖尿病足课程案例",
+      "supportTerms": [
+        "厥阴手足末梢厥寒",
+        "冻疮",
+        "糖尿病足课程案例"
+      ],
+      "discriminator": "方中不用生姜，偏血脉寒凝",
+      "safetyClass": "standard",
+      "sourceRefs": [
+        "formula-patterns.md:90"
+      ]
+    }
+  ]
+}
