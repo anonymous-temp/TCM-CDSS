@@ -38,7 +38,11 @@ HIGH_FREQUENCY_RELATION_FLOOR = 77
 SYNDROME_TAG_ADJUDICATIONS = DATA_ROOT / "tcm-formula-syndrome-tag-adjudications.source.json"
 # Same ratchet as the relation table: a tag decides whether a formula can be identity-locked and
 # prescribed, so losing rows silently would remove formulas from the doctor's reach.
-SYNDROME_TAG_ADJUDICATION_FLOOR = 241
+# 241 → 233：首批裁定里有 8 条打给了**根本不是方剂**的条目（喘促=症状、痿症/子痫=病名、
+# 中湿论/岭南诸病/形证并治法=篇名），它们是 tcmoc 自动抽取把篇名当方名入库、进而混进待裁定清单的。
+# 清除假方名后这 8 条成了孤儿，触发本校验——这正是它该拦下的东西。下调闸门是对**已核实的
+# 数据缺陷**做的一次性修正，不是放松标准：真方剂的裁定一条没少。
+SYNDROME_TAG_ADJUDICATION_FLOOR = 233
 FORMULA_RETRIEVAL_INDEX_OUTPUT = DATA_ROOT / "tcm-formula-retrieval-index.json"
 HERB_OUTPUT = DATA_ROOT / "tcm-herb-identity-catalog.json"
 MANIFEST_OUTPUT = DATA_ROOT / "clinical-governance-table-manifest.json"
@@ -115,7 +119,10 @@ HIGH_FREQUENCY_FORMULA_PRIORITY = (
     "乌梅丸", "黄连阿胶汤", "五苓散", "金匮肾气丸", "黄土汤", "桂枝茯苓丸",
     "安宫牛黄丸", "至宝丹", *HIGH_FREQUENCY_REVIEW_QUEUE,
 )
-FORMULA_CATALOG_TARGET = 1800
+# 受控源域（经典名方 + 项目补充 + SZJG 标准，去重后）实测 2103 首。上限低于源域时，
+# 排在后面的标准方会被静默截断——温病批入库（+174 首）后正好把真武汤等挤出目录。
+# 上限的作用是给构建规模一个显式天花板，不是替代治理；正确性由 fail-closed 校验守住。
+FORMULA_CATALOG_TARGET = 2300
 
 TABLE_FILES = {
     "T1": "tcm-syndrome-lexicon.json",
@@ -671,9 +678,21 @@ def build_formula_catalog(
     governed_identity_keys = {formula_identity_key(name) for name in governed}
 
     standard_by_name = {compact(item["name"]): item for item in standard_rows}
+    # 优先级必须**从高频证候关系表自己派生**，不能只靠一份手写名单。
+    # 手写名单会漂移：目录到达 FORMULA_CATALOG_TARGET 上限后，未列名的标准方会被截断挤出，
+    # 而关系表里恰好依赖它们时构建才 fail-closed 报错——实测温病批入库时就撞上了
+    # 心肾阳虚->真武汤/济生肾气丸、脾肾阳虚->真武汤/四神丸，这三首都不在手写名单里。
+    # 关系表已经声明了「哪些方必须可达」，目录构建照它执行即可，不需要第二份平行清单去同步。
+    relation_required_names = [
+        compact(formula_relation.get("name"))
+        for relation in high_frequency_relations
+        for formula_relation in (relation.get("formulas") or [])
+        if compact(formula_relation.get("name"))
+    ]
+    prioritized_names = list(dict.fromkeys([*relation_required_names, *HIGH_FREQUENCY_FORMULA_PRIORITY]))
     prioritized_standard_rows = [
         standard_by_name[name]
-        for name in HIGH_FREQUENCY_FORMULA_PRIORITY
+        for name in prioritized_names
         if name in standard_by_name
     ]
     prioritized_codes = {item["code"] for item in prioritized_standard_rows}

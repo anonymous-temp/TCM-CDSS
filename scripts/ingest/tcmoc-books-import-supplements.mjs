@@ -6,27 +6,50 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
-const SRCDIR = resolve(ROOT, "artifacts/tcmoc-formula-extract-books");
+// 与抽取脚本同批次口径：BOOK_BATCH=温病批 时读 wenbing 目录，复核队列也各自成表，
+// 否则温病批会覆盖方书批已有的 1343 条待复核。
+const BATCH_DIR = process.env.BOOK_BATCH === "温病批" ? "tcmoc-formula-extract-wenbing" : "tcmoc-formula-extract-books";
+const SRCDIR = resolve(ROOT, `artifacts/${BATCH_DIR}`);
 const SUPP = resolve(ROOT, "src/data/tcm-verified-formula-supplements.json");
-const REVIEW = resolve(ROOT, "artifacts/tcmoc-formula-extract-books/governance-review-queue.json");
+const REVIEW = resolve(ROOT, `artifacts/${BATCH_DIR}/governance-review-queue.json`);
 
 const szjg = JSON.parse(readFileSync(resolve(ROOT, "src/data/szjg-tcm-formula-standard.json"), "utf-8"));
 const szjgNames = new Set((szjg.entries || []).map((e) => e.name));
 const supp = JSON.parse(readFileSync(SUPP, "utf-8"));
 const ADJUVANT = new Set(["甘草", "炙甘草", "生姜", "大枣", "姜", "枣"]);
 
+// 方名形状守卫。抽取器是按 <篇名> 切条目的，而方书里大量篇名是**论述/证治/条辨**而不是方剂
+// （「中暑论」「伏暑条辨第十三」「伤风痧脉辨」「六、黑苔」，甚至「侦探」）。这些条目一旦入库，
+// 就会以「方剂」身份进入检索候选，占掉短名单名额；身份锁虽然拦得住开方，但医生看到的
+// 候选列表里会混入根本不存在的方。实测温病批入库后补充表里有 220 条这类条目，全部来自自动抽取。
+// 这里只做**形状**判断，不做语义判断：不以受控剂型后缀结尾的一律不入库，改进复核队列。
+// 宁可漏掉少数不以常见后缀命名的真方（它们会在复核队列里被人看到），也不能让篇名冒充方名。
+const FORMULA_NAME_SHAPE = /(?:汤|丸|散|丹|膏|饮|煎|饮子|汁|粥|茶|酒|露|霜|锭|片|栓|方|子)$/;
+
 const files = readdirSync(SRCDIR).filter((f) => f.endsWith(".jsonl") && !f.startsWith("_"));
 const stats = { books: {}, clean: 0, flagged: 0, imported: 0, merged: 0, skippedSzjg: 0, skippedDup: 0, failed: 0 };
 const review = [];
 const seen = new Map(); // name -> {book, herbs, indications}
 for (const file of files) {
-  const rows = readFileSync(resolve(SRCDIR, file), "utf-8").trim().split("\n").map((l) => JSON.parse(l));
+  // 逐行过滤空串：某部书零产出时文件只有一个换行，"".trim().split("\n") 得到 [""]，
+  // JSON.parse("") 直接抛异常，整批导入中断。抽取端存在零产出的书（无 <篇名> 标记的现代整理本），
+  // 导入端就必须容得下空文件。
+  const rows = readFileSync(resolve(SRCDIR, file), "utf-8")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => JSON.parse(l));
   let bookClean = 0, bookFlagged = 0, bookFailed = 0;
   for (const r of rows) {
     if (!r.ok) { bookFailed++; stats.failed++; continue; }
     const j = r.extracted;
     const name = String(j.name || r.chapter).trim();
     const herbs = [...new Set((j.composition || []).map((c) => String(c.herb || "").trim()).filter(Boolean))];
+    if (!FORMULA_NAME_SHAPE.test(name)) {
+      bookFlagged++; stats.flagged++;
+      review.push({ book: r.book, chapter: r.chapter, reason: `name-not-formula-shaped:${name}` });
+      continue;
+    }
     if (herbs.length < 2) { bookFlagged++; stats.flagged++; review.push({ book: r.book, chapter: r.chapter, reason: "composition<2" }); continue; }
     if (r.unmatchedHerbs.length > 0) {
       bookFlagged++; stats.flagged++;

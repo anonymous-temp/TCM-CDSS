@@ -131,6 +131,19 @@ for (const summary of [formulas.summary, formulaRetrievalIndex.summary]) {
 }
 assert.ok(formulas.summary.curatedSyndromeFormulaRelationCount >= HIGH_FREQUENCY_SYNDROME_FLOOR);
 
+// ─── 自动抽取的补充方剂必须是「方」，不能是篇名 ───
+// tcmoc 抽取器按 <篇名> 切条目，而方书里大量篇名是论述/证治/条辨而非方剂
+// （「中暑论」「伏暑条辨第十三」「痿症」「喘促」，甚至「侦探」）。这类条目一旦入库就以方剂身份
+// 进入检索候选、占掉短名单名额；身份锁拦得住开方，但医生看到的候选里会混入不存在的方。
+// 实测温病批入库后一次性混进 220 条，其中 8 条还被打上了证型标签（裁定花在了不存在的方上）。
+const FORMULA_NAME_SHAPE = /(?:汤|丸|散|丹|膏|饮|煎|饮子|汁|粥|茶|酒|露|霜|锭|片|栓|方|子)$/;
+const nonFormulaShaped = formulas.entries
+  .filter((entry) => entry.sourceClass === "verified_reference_catalog")
+  .filter((entry) => !FORMULA_NAME_SHAPE.test(entry.name))
+  .map((entry) => entry.name);
+assert.deepEqual(nonFormulaShaped, [],
+  `自动抽取的补充方剂名必须是方名形状，命中篇名/病名/症状名：${nonFormulaShaped.slice(0, 10).join("、")}`);
+
 // ─── 证型标签裁定表必须逐条落地，且对全部 sourceClass 生效 ───
 // 这道断言存在的原因：tcm-verified-formula-supplements.json 的 curatedSyndromeTags 只喂
 // verified_reference_catalog 一类。若把裁定结果走那条通道，经典名方与地方标准方会被**静默丢弃**

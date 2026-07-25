@@ -3808,10 +3808,11 @@
       "containsQuarantinedContent": false,
       "replaySanitizedFromQuarantinedSource": false,
       "replayInput": "已记录患者事实：失眠、苔黄",
-      "replayEligible": true,
+      "replayEligible": false,
       "sourceRef": "参考/nihaixia-StableV2026.5.23/cases/06_other.md#54",
       "sourceType": "structured_case_file",
-      "tier": "experience"
+      "tier": "experience",
+      "dataQualityNote": "回放输入(失眠、苔黄)与期望方(附子汤)临床方向矛盾：源案为芍药甘草附子汤症(糖尿病/术后出血)，distill 元数据映射为附子汤，且芍药甘草附子汤不在受控目录；回放输入抽取丢失关键事实，暂不可用于治理回放。待构建器修复 safeReplayInput 后恢复。"
     },
     {
       "caseId": "T16-06_other-55",

@@ -11,8 +11,22 @@
       "scope": "artifacts/证型标签待裁定清单.md 391 首（仅差证型标签、已可检索且可编译剂量）",
       "method": "deepseek-v4-pro(reasoning_effort=high, thinking) 初审，铁律=只勾主治原文直接支持的主证、最多2个、拿不准留空；确定性校验要求每个标签归一到 T1 词表 id（拦截 37 个模型自造名）；抽样人工复核 10 例",
       "reviewed": 391,
-      "adopted": 241,
-      "abstained": 150
+      "adopted": 233,
+      "abstained": 150,
+      "revokedNonFormula": {
+        "count": 8,
+        "names": [
+          "喘促",
+          "岭南诸病",
+          "疟痢用常山、罂粟壳",
+          "痿症",
+          "形证并治法",
+          "许胤宗黄防风汤熏蒸法",
+          "中湿论",
+          "子痫"
+        ],
+        "reason": "这些条目根本不是方剂——是症状名(喘促)、病名(痿症/子痫)、篇名(中湿论/岭南诸病/形证并治法)或论述标题。它们由 tcmoc 自动抽取误当方名入库，进而混进待裁定清单；裁定本身没错，是对象不该存在。已从补充表清除并加形状守卫。"
+      }
     }
   ],
   "entries": [
@@ -352,18 +366,6 @@
         "实火"
       ],
       "basis": "主治“火盛而不宜补者”，纯实无虚，明确为实火证。",
-      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
-    },
-    {
-      "name": "喘促",
-      "sourceClass": "verified_reference_catalog",
-      "syndromeTagIds": [
-        "TCM-SYNDROME-2FC8CB11E271"
-      ],
-      "syndromeNames": [
-        "热邪壅肺"
-      ],
-      "basis": "脉浮大，喘而目如脱，宣肺泄热",
       "batch": "ADJ-20260725-SYNDROME-TAG-B1"
     },
     {
@@ -1273,18 +1275,6 @@
       "batch": "ADJ-20260725-SYNDROME-TAG-B1"
     },
     {
-      "name": "岭南诸病",
-      "sourceClass": "verified_reference_catalog",
-      "syndromeTagIds": [
-        "TCM-SYNDROME-F7B5F1CE424D"
-      ],
-      "syndromeNames": [
-        "气分湿热"
-      ],
-      "basis": "感山岚瘴雾毒气，发寒热，胁膈饱闷，不思饮食，方以清热燥湿行气降痰，主因湿热蕴阻气分。",
-      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
-    },
-    {
       "name": "六味回阳饮",
       "sourceClass": "official_local_formula_standard",
       "syndromeTagIds": [
@@ -1466,18 +1456,6 @@
         "气滞"
       ],
       "basis": "“热少冷多，唾白沫清涎”为阳虚；干呕噫气为上焦气滞。",
-      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
-    },
-    {
-      "name": "疟痢用常山、罂粟壳",
-      "sourceClass": "verified_reference_catalog",
-      "syndromeTagIds": [
-        "TCM-SYNDROME-4BA0A19DC153"
-      ],
-      "syndromeNames": [
-        "痰浊内蕴"
-      ],
-      "basis": "疟疾痰水作恙，下痢日久无痛需涩肠",
       "batch": "ADJ-20260725-SYNDROME-TAG-B1"
     },
     {
@@ -2167,18 +2145,6 @@
       "batch": "ADJ-20260725-SYNDROME-TAG-B1"
     },
     {
-      "name": "痿症",
-      "sourceClass": "verified_reference_catalog",
-      "syndromeTagIds": [
-        "TCM-SYNDROME-BBA3843C00EB"
-      ],
-      "syndromeNames": [
-        "肝肾不足"
-      ],
-      "basis": "两足痿弱，治以虎潜丸补肝肾强筋骨，属肝肾不足",
-      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
-    },
-    {
       "name": "温脾汤",
       "sourceClass": "official_classic_catalog",
       "syndromeTagIds": [
@@ -2387,18 +2353,6 @@
       "batch": "ADJ-20260725-SYNDROME-TAG-B1"
     },
     {
-      "name": "形证并治法",
-      "sourceClass": "verified_reference_catalog",
-      "syndromeTagIds": [
-        "TCM-SYNDROME-848FEFF3CCA7"
-      ],
-      "syndromeNames": [
-        "火热邪毒壅盛"
-      ],
-      "basis": "主治“咽喉肿痛痰涎涌盛”兼“清热解毒”，指向热毒壅盛证。",
-      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
-    },
-    {
       "name": "芎归泻心汤",
       "sourceClass": "official_local_formula_standard",
       "syndromeTagIds": [
@@ -2446,18 +2400,6 @@
         "气血两虚"
       ],
       "basis": "主治“汗散既多，元气不复”“衰老弱质”“补气养血”，直指气血两虚。",
-      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
-    },
-    {
-      "name": "许胤宗黄防风汤熏蒸法",
-      "sourceClass": "verified_reference_catalog",
-      "syndromeTagIds": [
-        "TCM-SYNDROME-BBC9BA50301D"
-      ],
-      "syndromeNames": [
-        "气虚感冒"
-      ],
-      "basis": "主治感风，用黄芪补虚、防风驱风，补虚驱风并用，属气虚外感。",
       "batch": "ADJ-20260725-SYNDROME-TAG-B1"
     },
     {
@@ -2849,18 +2791,6 @@
       "batch": "ADJ-20260725-SYNDROME-TAG-B1"
     },
     {
-      "name": "中湿论",
-      "sourceClass": "verified_reference_catalog",
-      "syndromeTagIds": [
-        "TCM-SYNDROME-D6202BBFCCD8"
-      ],
-      "syndromeNames": [
-        "脾虚寒湿"
-      ],
-      "basis": "主治“湿伤脾”，用苍术、白术、官桂、干姜等健脾温中燥湿，符合脾虚寒湿。",
-      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
-    },
-    {
       "name": "朱砂酸枣仁乳香散",
       "sourceClass": "verified_reference_catalog",
       "syndromeTagIds": [
@@ -2918,18 +2848,6 @@
         "心肺两虚"
       ],
       "basis": "主治直言“心肺俱损，血脉虚弱”",
-      "batch": "ADJ-20260725-SYNDROME-TAG-B1"
-    },
-    {
-      "name": "子痫",
-      "sourceClass": "verified_reference_catalog",
-      "syndromeTagIds": [
-        "TCM-SYNDROME-AC0AE7741CCC"
-      ],
-      "syndromeNames": [
-        "痰蒙心窍"
-      ],
-      "basis": "主治有“痰涎壅盛”“不省人事”。",
       "batch": "ADJ-20260725-SYNDROME-TAG-B1"
     },
     {

@@ -32,8 +32,8 @@
     },
     {
       "path": "src/data/tcm-formula-governed-catalog.json",
-      "sha256": "627a59476ba27f9b069d25f6d97dc8ba9793af47876ec8caf9b8767f40d04584",
-      "records": 500
+      "sha256": "33c8069fa02a90426917222ebd9ac9930a0c452aa619250e3e3d4b30b7b3bf07",
+      "records": 1800
     }
   ],
   "evidence": {
@@ -53,7 +53,7 @@
   "caseCorpus": {
     "records": 364,
     "quarantinedRecords": 100,
-    "replayEligibleRecords": 52,
+    "replayEligibleRecords": 51,
     "runtimeRetrievalAllowed": false
   },
   "clinicalRuleCoverage": {
@@ -167,7 +167,7 @@
       "bytes": 5866
     },
     "tcm-classic-case-eval-corpus.json": {
-      "sha256": "98270d31ada063371015836dc7e1e2b27305cf1d00deeb433a89163125f0bf0a",
+      "sha256": "a4525c3a76bf4ded5cf6f9e675fe9aa8a05b7cc6de23b1471b0122c5c7436064",
       "bytes": 211451
     },
     "tcm-classic-text-evidence.jsonl": {
