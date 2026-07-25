@@ -669,6 +669,15 @@ def build_formula_catalog(
             identity_blocking_reasons.append("missing_governed_indication")
         dose_blocking_reasons = []
         unresolved_ingredients = [link["rawName"] for link in ingredient_links if not link.get("autoResolvable")]
+        # 单字药名不是「解析不出剂量」，是**数据缺陷**：源书为 GB18030，古籍生僻字（如黄芪的「耆」）
+        # 丢字后只剩单字残留（实测 13 处「黄」、若干「芍」）。把它按普通剂量缺口埋进
+        # unresolvedDoseIngredientNames，会让一个抽取 bug 长期伪装成治理进度问题。
+        # 这里单列出来，使其以数据缺陷的身份可见；不做任何猜测性补全——
+        # 单字药名无法安全推断（黄=黄芪/黄芩/黄连/大黄…），必须回源修抽取或人工裁定。
+        corrupt_ingredient_names = sorted({
+            link["rawName"] for link in ingredient_links
+            if isinstance(link.get("rawName"), str) and len(link["rawName"].strip()) == 1
+        })
         if unresolved_ingredients:
             dose_blocking_reasons.append("ingredient_identity_requires_resolution")
         missing_dose_boundaries = [
@@ -722,6 +731,7 @@ def build_formula_catalog(
             "identityBlockingReasons": identity_blocking_reasons,
             "doseBlockingReasons": dose_blocking_reasons,
             "unresolvedDoseIngredientNames": unresolved_ingredients,
+            "corruptIngredientNames": corrupt_ingredient_names,
             "missingDoseBoundaryIngredientNames": missing_dose_boundaries,
             "blockingReasons": identity_blocking_reasons,
         })

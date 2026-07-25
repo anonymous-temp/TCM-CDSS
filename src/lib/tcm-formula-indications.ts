@@ -498,7 +498,16 @@ function renderFormulaCandidates(
       ...(phaseLabel === "M03签名证候/病机"
         ? [`  命名方正向充分性：${candidate.positiveSufficiency ? `通过（${candidate.positiveSufficiencyBasis}）` : `不通过（${candidate.positiveSufficiencyBasis}）`}`]
         : []),
-      `  治理状态：${candidate.identityLockEligible ? "方剂身份可在方证整体匹配后锁定；剂量仍由M04独立编译并经处方后审方" : "仅作检索参考，不得锁定方名或生成剂量"}`,
+      // identityLockEligible 只说明「治理层允许锁定」，不代表本方真能锁上：身份锁要求主证候直接
+      // 关联（positiveSufficiency 需 directPrimarySyndromeMatch），而无 syndromeTags 的方剂在任何
+      // 输入下都不可能满足。实测 1795 首里 810 首属于此类——卡片若一律写「可锁定」，
+      // 模型选中后必被 enforceRetrievedM03FormulaSelection 剥离、结果降级为自拟方，
+      // 对医生是负价值。因此这里按**实际可锁定性**呈现，并说明它仍可用于鉴别。
+      `  治理状态：${!candidate.identityLockEligible
+        ? "仅作检索参考，不得锁定方名或生成剂量"
+        : candidate.syndromeTags.length === 0
+          ? "尚未建立标准证候关联，本方不可锁定方名；可用于鉴别对比，不得作为最终推荐方"
+          : "方剂身份可在方证整体匹配后锁定；剂量仍由M04独立编译并经处方后审方"}`,
     ].join("\n");
   });
 }

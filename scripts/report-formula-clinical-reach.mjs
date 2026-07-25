@@ -64,6 +64,9 @@ const summary = {
   blockedOnlyByRetrieval: count((r) => r.lockable && r.dosable && !r.retrievable),
   // 展示了却锁不住 = 对医生负价值：选中即被剥离，结果降级为自拟方。
   offeredButNeverLockable: count((r) => r.retrievable && !r.lockable),
+  // 数据缺陷（非治理进度）：源书生僻字丢失后只剩单字药名，如黄芪→「黄」。
+  // 单列出来，避免一个抽取 bug 长期伪装成剂量缺口。
+  formulasWithCorruptIngredientNames: entries.filter((e) => (e.corruptIngredientNames || []).length > 0).length,
 };
 
 const bySource = {};
@@ -90,6 +93,7 @@ if (process.argv.includes("--json")) {
   console.log(`仅差剂量可编译            ${summary.blockedOnlyByDose}`);
   console.log(`仅差检索命中              ${summary.blockedOnlyByRetrieval}`);
   console.log(`展示了却永远锁不住        ${summary.offeredButNeverLockable}   ← 对医生负价值`);
+  console.log(`组成含缺字药名            ${summary.formulasWithCorruptIngredientNames}   ← 数据缺陷，需回源修抽取`);
   console.log("─".repeat(58));
   console.log("按来源：");
   for (const [source, bucket] of Object.entries(bySource).sort((a, b) => b[1].total - a[1].total)) {
