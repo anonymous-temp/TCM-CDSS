@@ -1,8 +1,0 @@
-[B] dx=ok(85244ms) rx=FAIL(4214ms) assess=ok(4349ms) risk=ok(3864ms) q=ok(20910ms) rx.err=HTTP 409: {"error":"辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。"}
-[A] dx=ok(71404ms) rx=FAIL(1686ms) assess=ok(1522ms) risk=ok(1862ms) q=ok(46004ms) rx.err=HTTP 409: {"error":"辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。"}
-[C] dx=ok(93141ms) rx=FAIL(2885ms) assess=ok(2848ms) risk=ok(3154ms) q=ok(34379ms) rx.err=HTTP 409: {"error":"辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。"}
-[F] dx=ok(85795ms) rx=FAIL(3083ms) assess=ok(3087ms) risk=ok(2924ms) q=ok(30761ms) rx.err=HTTP 409: {"error":"辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。"}
-[D] dx=ok(93016ms) rx=FAIL(2099ms) assess=ok(1598ms) risk=ok(1769ms) q=ok(50104ms) rx.err=HTTP 409: {"error":"辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。"}
-[E] dx=ok(100663ms) rx=FAIL(4065ms) assess=ok(3071ms) risk=ok(3389ms) q=ok(38796ms) rx.err=HTTP 409: {"error":"辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。"}
-
-写入 /Users/wangzeyuan/Desktop/中医CDSS/deeptest/out

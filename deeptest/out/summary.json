@@ -4,102 +4,12 @@
     "stages": {
       "diagnose": {
         "ok": true,
-        "ms": 30162,
+        "ms": 88561,
         "error": null
       },
       "prescribe": {
         "ok": true,
-        "ms": 22792,
-        "error": null
-      },
-      "assess": {
-        "ok": true,
-        "ms": 6436,
-        "error": null
-      },
-      "postRisk": {
-        "ok": true,
-        "ms": 6598,
-        "error": null
-      },
-      "question": {
-        "ok": true,
-        "ms": 12645,
-        "error": null
-      }
-    }
-  },
-  "C": {
-    "case": "C",
-    "stages": {
-      "diagnose": {
-        "ok": true,
-        "ms": 35121,
-        "error": null
-      },
-      "prescribe": {
-        "ok": true,
-        "ms": 23882,
-        "error": null
-      },
-      "assess": {
-        "ok": true,
-        "ms": 6700,
-        "error": null
-      },
-      "postRisk": {
-        "ok": true,
-        "ms": 6047,
-        "error": null
-      },
-      "question": {
-        "ok": true,
-        "ms": 10231,
-        "error": null
-      }
-    }
-  },
-  "B": {
-    "case": "B",
-    "stages": {
-      "diagnose": {
-        "ok": true,
-        "ms": 58728,
-        "error": null
-      },
-      "prescribe": {
-        "ok": true,
-        "ms": 26663,
-        "error": null
-      },
-      "assess": {
-        "ok": true,
-        "ms": 6868,
-        "error": null
-      },
-      "postRisk": {
-        "ok": true,
-        "ms": 9083,
-        "error": null
-      },
-      "question": {
-        "ok": true,
-        "ms": 11865,
-        "error": null
-      }
-    }
-  },
-  "F": {
-    "case": "F",
-    "stages": {
-      "diagnose": {
-        "ok": true,
-        "ms": 7,
-        "error": null
-      },
-      "prescribe": {
-        "ok": true,
-        "ms": 6,
+        "ms": 35803,
         "error": null
       },
       "assess": {
@@ -112,63 +22,7 @@
       },
       "question": {
         "ok": true,
-        "ms": 10420,
-        "error": null
-      }
-    }
-  },
-  "E": {
-    "case": "E",
-    "stages": {
-      "diagnose": {
-        "ok": true,
-        "ms": 36257,
-        "error": null
-      },
-      "prescribe": {
-        "ok": true,
-        "ms": 3629,
-        "error": null
-      },
-      "assess": {
-        "ok": true,
-        "skipped": "non-dose M04: client-side deterministic risk followup, M05 not invoked"
-      },
-      "postRisk": {
-        "ok": true,
-        "skipped": "non-dose M04: post-prescription-risk not invoked"
-      },
-      "question": {
-        "ok": true,
-        "ms": 9625,
-        "error": null
-      }
-    }
-  },
-  "D": {
-    "case": "D",
-    "stages": {
-      "diagnose": {
-        "ok": true,
-        "ms": 36664,
-        "error": null
-      },
-      "prescribe": {
-        "ok": true,
-        "ms": 22304,
-        "error": null
-      },
-      "assess": {
-        "ok": true,
-        "skipped": "non-dose M04: client-side deterministic risk followup, M05 not invoked"
-      },
-      "postRisk": {
-        "ok": true,
-        "skipped": "non-dose M04: post-prescription-risk not invoked"
-      },
-      "question": {
-        "ok": true,
-        "ms": 10372,
+        "ms": 11613,
         "error": null
       }
     }
