@@ -6,6 +6,7 @@ import { buildTcmKnowledgeContext } from "./tcm-knowledge";
 import { sanitizeCustomerEvidenceDocument, sanitizeInlineEvidenceClaims, sanitizeLabeledEvidenceLines } from "./customer-evidence";
 import { buildEvidenceScope, medicineEvidenceBindingValid, medicineProblemMatchesCase, sanitizeEvidenceObject, sourceAllowed, sourceSupportsMedicine, type EvidenceScope } from "./evidence-source-validation";
 import { buildLocalPatentMedicineContext } from "./local-patent-medicine-candidates";
+import type { AssistedNegationClauses } from "./clinical-polarity";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
 
@@ -18,6 +19,10 @@ const BASELINE_OFFICIAL_EVIDENCE = [
 export async function buildCdssEvidenceContext(
   caseState: CaseState,
   stage: EvidenceStage,
+  // M03 会先算出增补否定子句（口语否定的语义兜底），M04 此前不传，于是同一句「胸口不疼」
+  // 在 M03 判否定、在 M04 的中成药说明书召回里又变回阳性事实——M04 会拿 M03 已经排除的
+  // 症状去召回中成药。兜底层建对了但只铺了一个阶段，这里把它接到 M04。
+  assistedNegations?: AssistedNegationClauses,
 ): Promise<string> {
   const localContext = buildTcmKnowledgeContext(caseState, stage);
   const externalEvidenceContext = await buildExternalEvidenceContext(caseState, stage);
@@ -28,7 +33,7 @@ export async function buildCdssEvidenceContext(
   // 提示词抵消，结论降级为自拟方。同一段内容出现两次且指令相反，是这条链路上最难查的一类缺陷。
   const formulaIndicationContext = "";
   const localPatentMedicineContext = stage === "prescribe"
-    ? buildLocalPatentMedicineContext(caseState)
+    ? buildLocalPatentMedicineContext(caseState, 10, assistedNegations)
     : "";
 
   return [

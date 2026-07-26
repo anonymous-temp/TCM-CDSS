@@ -61,8 +61,39 @@ for (const text of ["已断奶", "未哺乳"]) {
   assert.notEqual(statusOf(assessLactationState(text)), "positive", `不得读成正在哺乳：${text}`);
 }
 
+// ─── 妊娠状态必须真的门控到非药物治疗项目 ───
+// 识别对了但没人用，等于没识别。此前 tcmTreatmentProjectExclusionReason 的全部禁忌只有
+// 婴幼儿湿疹/糖尿病足/活动性炎症/灸法热证/心衰/肾功能异常六项，**妊娠一项没有**——
+// 而妊娠禁针（合谷、三阴交、昆仑、至阴等催产活血穴，腰骶与下腹部腧穴）是针灸最基本的禁忌。
+// 现改为复用本文件上面验证的确定性状态层，而不是再写第七条正则。
+const { tcmTreatmentProjectExclusionReason } = await import("../src/lib/tcm-treatment-capabilities.server.ts");
+const priorFixture = {
+  overview: { primarySyndrome: "寒湿痹阻", overallPathogenesis: "寒湿阻络" },
+  pathogenesis: { chain: [] },
+  therapy: { overallPrinciple: "散寒除湿", overallMethod: "温经通络" },
+  westernDiagnosis: { primary: { name: "腰肌劳损", status: "考虑" }, differentials: [] },
+};
+const caseWith = (text) => ({ chiefComplaint: text, symptoms: {}, patient: { sex: "女", age: 28 } });
+const INVASIVE_OR_THERMAL = ["acupuncture", "moxibustion", "bloodletting", "thread_embedding", "cupping", "guasha", "needle_knife"];
+for (const text of ["患者女，28岁，孕妇，腰痛3天", "怀孕了，最近腰酸", "停经45天，验孕棒两条杠，颈肩痛"]) {
+  for (const code of INVASIVE_OR_THERMAL) {
+    assert.ok(tcmTreatmentProjectExclusionReason(code, priorFixture, caseWith(text)),
+      `妊娠/可疑妊娠必须拦下 ${code}：${text}`);
+  }
+}
+// 非侵入、无穴位刺激的项目不受此条影响——过度阻断会让医生开始无视禁忌提示。
+for (const code of ["diet_therapy", "mind_therapy"]) {
+  assert.equal(tcmTreatmentProjectExclusionReason(code, priorFixture, caseWith("患者女，28岁，孕妇，腰痛3天")), undefined,
+    `${code} 非侵入非热疗，不应因妊娠被拦`);
+}
+// 未孕对照：不得因补了口语阳性词表而误拦普通患者。
+for (const code of INVASIVE_OR_THERMAL) {
+  assert.equal(tcmTreatmentProjectExclusionReason(code, priorFixture, caseWith("颈肩痛3天，未孕")), undefined,
+    `明确未孕不得被误拦：${code}`);
+}
+
 console.log(JSON.stringify({
   pregnancyPositive: MUST_BE_POSITIVE.length,
-  cases: MUST_BE_POSITIVE.length + 3 + 5 + 5 + 5,
+  cases: MUST_BE_POSITIVE.length + 3 + 5 + 5 + 5 + 21 + 2 + 7,
   failures: 0,
 }));

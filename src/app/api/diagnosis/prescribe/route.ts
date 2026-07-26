@@ -1,5 +1,6 @@
 import { callDiagnosisStream } from "@/lib/diagnosis-api";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
+import { assistedNegationClauses } from "@/lib/polarity-negation-assist.server";
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
@@ -145,7 +146,8 @@ export async function POST(req: Request) {
   ].filter(Boolean).join("\n");
   const [medicinePlan, baseEvidenceContext] = await Promise.all([
     planEvidenceBoundMedicineCandidates(safeState, req.signal),
-    buildCdssEvidenceContext(safeState, "prescribe"),
+    assistedNegationClauses(safeState).then((assistedNegations) =>
+      buildCdssEvidenceContext(safeState, "prescribe", assistedNegations)),
   ]);
   const evidenceContext = [baseEvidenceContext, medicinePlan.evidenceContext].filter(Boolean).join("\n\n");
   let prompt = appendEvidenceContext(buildPrescribePrompt(safeState), evidenceContext);

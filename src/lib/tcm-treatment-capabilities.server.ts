@@ -10,6 +10,7 @@ import {
   type TcmTreatmentIndicationTag,
 } from "./tcm-treatment-projects";
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
+import { assessPregnancyState } from "./clinical-state";
 
 type DeliveryMode = "onsite" | "referral";
 type DeploymentCapability = {
@@ -327,6 +328,33 @@ export function tcmTreatmentProjectExclusionReason(
 
   const majorRenalImpairment = /慢性肾病\s*[3-5三四五ⅢⅣⅤ]期|CKD\s*[3-5]|肾功能不全|肾衰|尿毒症|eGFR\s*[<≤]\s*60/.test(facts);
   if (majorRenalImpairment && projectCode === "medicated_bath") return "显著肾功能异常不常规推荐药浴";
+
+  // ─── 妊娠禁忌 ───
+  // 这条此前**完全不存在**：本函数的全部禁忌只覆盖婴幼儿湿疹、糖尿病足、活动性炎症、
+  // 灸法热证冲突、心衰、肾功能异常六项，妊娠一项没有——而妊娠禁针是针灸最基本的禁忌之一
+  // （合谷、三阴交、昆仑、至阴、肩井等催产/活血穴，以及腰骶部、下腹部腧穴）。
+  //
+  // 判定**复用确定性状态层** assessPregnancyState/assessLactationState，不再写第七条正则：
+  // 上面六条禁忌各写各的正则，正是"关键词冒充覆盖"的来源（口语「脚上烂了个洞老不收口」
+  // 就绕过了糖尿病足那条）。妊娠状态层已有完整的阳性/可疑/否定/既往四档词表与套件
+  // （test:pregnancy-recall），接它一处，四档语义与今后的每次扩充都自动同步。
+  //
+  // 取 positive 与 possible 两档：可疑妊娠同样不能扎。既往妊娠（historical）不拦。
+  // 系统不建模具体穴位与部位，因此对侵入性/热疗/腹腰骶相关项目一律转人工按禁忌穴位评估——
+  // 这是 fail-closed：宁可让医师多确认一次，不可默认放行。
+  const pregnancyStatus = assessPregnancyState(facts).status;
+  if (pregnancyStatus === "positive" || pregnancyStatus === "possible") {
+    if (new Set<TcmTreatmentProjectCode>([
+      "acupuncture", "moxibustion", "tuina", "cupping", "guasha", "needle_knife",
+      "thread_embedding", "bloodletting", "fire_cautery", "hook_cutting", "thread_drainage",
+      "ligation", "medicated_bath", "medicated_ironing", "fumigation_wash", "acupoint_application",
+      "medicated_plaster",
+    ]).has(projectCode)) {
+      return pregnancyStatus === "positive"
+        ? "妊娠期：合谷、三阴交、昆仑、至阴等催产活血穴及腰骶、下腹部腧穴禁用，本系统不建模具体穴位与施术部位，需医师按妊娠禁忌逐项评估后决定"
+        : "存在妊娠可能且未排除：涉及穴位刺激、热疗或外治的项目需先明确妊娠状态再评估";
+    }
+  }
   return undefined;
 }
 

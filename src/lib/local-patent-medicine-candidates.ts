@@ -99,8 +99,12 @@ function compact(value: string, limit: number, fallback = "未载明"): string {
   return (clean || fallback).slice(0, limit);
 }
 
-export function buildLocalPatentMedicineContext(caseState: CaseState, limit = 10): string {
-  const candidates = retrieveLocalPatentMedicineCandidates(caseState, limit);
+export function buildLocalPatentMedicineContext(
+  caseState: CaseState,
+  limit = 10,
+  assistedNegations?: AssistedNegationClauses,
+): string {
+  const candidates = retrieveLocalPatentMedicineCandidates(caseState, limit, assistedNegations);
   if (candidates.length === 0) {
     return "【本地中成药说明书检索】本例当前阳性事实未命中本地非处方中成药说明书索引；不得据此自由生成中成药候选。";
   }
