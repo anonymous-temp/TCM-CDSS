@@ -1,0 +1,170 @@
+{
+  "note": "「一章多方」聚合章节被当成单方入库的条目。正文并列多首方，抽取器把整章药味揉成一个组成；以「方」结尾故混过剂型后缀守卫。已加 AGGREGATION_CHAPTER_NAME 守卫拒收，待多方拆分器落地后按章拆分重入。",
+  "count": 41,
+  "entries": [
+    {
+      "name": "附诸方",
+      "ingredients": 4
+    },
+    {
+      "name": "急救诸方",
+      "ingredients": 3
+    },
+    {
+      "name": "诸方",
+      "ingredients": 5
+    },
+    {
+      "name": "疫疹诸方",
+      "ingredients": 10
+    },
+    {
+      "name": "治腹疼、寒疝诸方",
+      "ingredients": 3
+    },
+    {
+      "name": "治膈噎诸方",
+      "ingredients": 6
+    },
+    {
+      "name": "治黄胆、黑疸、谷疸诸方",
+      "ingredients": 11
+    },
+    {
+      "name": "治霍乱吐利上筑腹疼诸方",
+      "ingredients": 4
+    },
+    {
+      "name": "治面、粉刺、面诸方",
+      "ingredients": 18
+    },
+    {
+      "name": "治诸方",
+      "ingredients": 17
+    },
+    {
+      "name": "胞衣不下各方",
+      "ingredients": 11
+    },
+    {
+      "name": "背痈诸方",
+      "ingredients": 11
+    },
+    {
+      "name": "霍乱诸方",
+      "ingredients": 17
+    },
+    {
+      "name": "集催生诸方",
+      "ingredients": 24
+    },
+    {
+      "name": "交骨不开各方",
+      "ingredients": 4
+    },
+    {
+      "name": "痢疾各方",
+      "ingredients": 20
+    },
+    {
+      "name": "梦遗各方",
+      "ingredients": 5
+    },
+    {
+      "name": "内外备用诸方",
+      "ingredients": 8
+    },
+    {
+      "name": "疟疾外治各方",
+      "ingredients": 9
+    },
+    {
+      "name": "辟瘟诸方",
+      "ingredients": 30
+    },
+    {
+      "name": "伤寒外治诸方",
+      "ingredients": 9
+    },
+    {
+      "name": "损伤诸方",
+      "ingredients": 19
+    },
+    {
+      "name": "吐血诸方",
+      "ingredients": 26
+    },
+    {
+      "name": "洗腿各方",
+      "ingredients": 5
+    },
+    {
+      "name": "小儿疳疾各方",
+      "ingredients": 7
+    },
+    {
+      "name": "牙痛擦药神效诸方",
+      "ingredients": 12
+    },
+    {
+      "name": "牙痛煎剂经验诸方",
+      "ingredients": 7
+    },
+    {
+      "name": "牙痛噙药经验诸方",
+      "ingredients": 9
+    },
+    {
+      "name": "牙痛漱口经验诸方",
+      "ingredients": 13
+    },
+    {
+      "name": "眼科经验各方",
+      "ingredients": 39
+    },
+    {
+      "name": "遗精诸方",
+      "ingredients": 9
+    },
+    {
+      "name": "阴疽诸方",
+      "ingredients": 6
+    },
+    {
+      "name": "治痞诸方",
+      "ingredients": 18
+    },
+    {
+      "name": "痔疮诸方",
+      "ingredients": 25
+    },
+    {
+      "name": "中风诸方",
+      "ingredients": 4
+    },
+    {
+      "name": "中疳中蛇中肿中癫诸方",
+      "ingredients": 10
+    },
+    {
+      "name": "中暑诸方",
+      "ingredients": 6
+    },
+    {
+      "name": "治头风、头痛及风痒诸方",
+      "ingredients": 11
+    },
+    {
+      "name": "瘰诸方",
+      "ingredients": 17
+    },
+    {
+      "name": "遗精白浊各方",
+      "ingredients": 20
+    },
+    {
+      "name": "种子诸方",
+      "ingredients": 11
+    }
+  ]
+}

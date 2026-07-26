@@ -55,12 +55,13 @@
       "confidence": "high"
     },
     {
-      "formulaName": "柴葛解肌汤",
+      "formulaName": "柴葛解肌汤（《医学心悟》程氏）",
       "rawIngredient": "贝母",
       "resolvedIngredient": "川贝母",
       "evidence": "《重订广温热论》：\"柴葛解肌汤（柴胡、葛根、赤芍、甘草、黄芩、知母、川贝、生地、丹皮、石膏、淡竹叶）\"",
       "basis": "贝母",
-      "confidence": "high"
+      "confidence": "high",
+      "note": "原裁定作于基线为程国彭版时;2026-07-25 同名异方改造后,含贝母的是程氏变体(基线已换陶节庵《伤寒六书》版,无贝母),本行随身份迁移。"
     },
     {
       "formulaName": "柴胡桂枝汤",

@@ -189,15 +189,38 @@ const shaoyaoTargets = new Set(ingredientAdjudications.entries
 assert.ok(shaoyaoTargets.has("白芍") && shaoyaoTargets.has("赤芍"),
   "芍药裁定必须同时存在白芍与赤芍两种结论，否则说明退化成了一刀切默认");
 
+// ─── 「一章多方」的聚合章节不得作为单方入库 ───
+// 篇名是「中风诸方」「眼科经验各方」这类的章节，正文里并列着好几首方，抽取器把整章药味
+// 揉成一个组成。它们以「方」结尾，能混过下面的剂型后缀守卫——实测 41 首入了库，
+// 其中 15 首组成 ≥12 味（眼科经验各方 39 味、辟瘟诸方 30 味）。
+// 危害不在剂量（这些都不可编译剂量），在**身份**：identityLockEligible=true 意味着它们会进
+// 检索候选、被模型选中并锁定方名，医生看到的是一个根本不存在的 39 味「方」。
+// 正确处置是走多方拆分器，不是当单方入库。
+const AGGREGATION_CHAPTER_NAME = /(?:诸方|备用方|通用方|杂方|各方|等方|方论|方选|类方)$/;
+const aggregationChapters = formulas.entries
+  .filter((entry) => entry.sourceClass === "verified_reference_catalog")
+  .filter((entry) => AGGREGATION_CHAPTER_NAME.test(entry.name.replace(/(?:[一二三四五六七八九十百]+|\d+)$/, "")))
+  .map((entry) => `${entry.name}(${entry.ingredients.length}味)`);
+assert.deepEqual(aggregationChapters, [],
+  `聚合章节不得作为单方入库，应进多方拆分器：${aggregationChapters.slice(0, 8).join("、")}`);
+
 // ─── 自动抽取的补充方剂必须是「方」，不能是篇名 ───
 // tcmoc 抽取器按 <篇名> 切条目，而方书里大量篇名是论述/证治/条辨而非方剂
 // （「中暑论」「伏暑条辨第十三」「痿症」「喘促」，甚至「侦探」）。这类条目一旦入库就以方剂身份
 // 进入检索候选、占掉短名单名额；身份锁拦得住开方，但医生看到的候选里会混入不存在的方。
 // 实测温病批入库后一次性混进 220 条，其中 8 条还被打上了证型标签（裁定花在了不存在的方上）。
 const FORMULA_NAME_SHAPE = /(?:汤|丸|散|丹|膏|饮|煎|饮子|汁|粥|茶|酒|露|霜|锭|片|栓|方|子)$/;
+// 同名列卷次变体是合法身份约定:import 端把「拔疔散（二）」改写为汉字直缀「拔疔散二」
+// （括注尾缀会在 T8 身份归一(剥括注)下让同名列互撞身份）。形状判断与 import 端同口径——
+// 先剥卷次数字再测裸名;入库身份保留数字以区分同名列变体。
+const VOLUME_SUFFIX = /(?:[一二三四五六七八九十百]+|\d+)$/;
 const nonFormulaShaped = formulas.entries
   .filter((entry) => entry.sourceClass === "verified_reference_catalog")
-  .filter((entry) => !FORMULA_NAME_SHAPE.test(entry.name))
+  // 同名异方具名变体(柴葛解肌汤（《医学心悟》程氏）等)是人工裁定命名,不是自动抽取,
+  // 形状守卫防的是「篇名冒充方名」,裁定变体不在其射程内(其身份由 homonym 通道的
+  // fail-closed 校验单独守住:基线必须在册、身份不得碰撞、组成必须不同)。
+  .filter((entry) => entry.sourceCatalog !== "adjudicated_homonym_variant")
+  .filter((entry) => !FORMULA_NAME_SHAPE.test(entry.name.replace(VOLUME_SUFFIX, "")))
   .map((entry) => entry.name);
 assert.deepEqual(nonFormulaShaped, [],
   `自动抽取的补充方剂名必须是方名形状，命中篇名/病名/症状名：${nonFormulaShaped.slice(0, 10).join("、")}`);

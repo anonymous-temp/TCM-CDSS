@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
 // 与抽取脚本同批次口径：BOOK_BATCH=温病批 时读 wenbing 目录，复核队列也各自成表，
 // 否则温病批会覆盖方书批已有的 1343 条待复核。
-const BATCH_DIR_SLUG = { 温病批: "tcmoc-formula-extract-wenbing", 方书二批: "tcmoc-formula-extract-books2" };
+const BATCH_DIR_SLUG = { 温病批: "tcmoc-formula-extract-wenbing", 方书二批: "tcmoc-formula-extract-books2", 救援批: "tcmoc-formula-extract-rescued" };
 const BATCH_DIR = BATCH_DIR_SLUG[process.env.BOOK_BATCH] || "tcmoc-formula-extract-books";
 const SRCDIR = resolve(ROOT, `artifacts/${BATCH_DIR}`);
 const SUPP = resolve(ROOT, "src/data/tcm-verified-formula-supplements.json");
@@ -57,11 +57,21 @@ for (const file of files) {
   for (const r of rows) {
     if (!r.ok) { bookFailed++; stats.failed++; continue; }
     const j = r.extracted;
-    const name = String(j.name || r.chapter).trim();
+    // 卷次序号尾缀:古方汇精等书同名列（一）（二）（三）为并列变体方。括注尾缀会被
+    // 形状守卫误杀(不以剂型字结尾)、又会在 T8 身份归一(剥括注)下互相撞身份。
+    // 改写为汉字直缀:拔疔散（二）→ 拔疔散二——形状可读、身份互异、同名列保留。
+    const name = String(j.name || r.chapter).trim().replace(/（([一二三四五六七八九十百]+|\d+)）$/, "$1");
     const herbs = [...new Set((j.composition || []).map((c) => String(c.herb || "").trim()).filter(Boolean))];
-    if (!FORMULA_NAME_SHAPE.test(name)) {
+    // 形状判断在剥掉卷次数字的裸名上做(拔疔散二→拔疔散),但入库身份保留数字以区分同名列变体。
+    const nameForShapeTest = name.replace(/(?:[一二三四五六七八九十百]+|\d+)$/, "");
+    if (!FORMULA_NAME_SHAPE.test(nameForShapeTest)) {
       bookFlagged++; stats.flagged++;
       review.push({ book: r.book, chapter: r.chapter, reason: `name-not-formula-shaped:${name}` });
+      continue;
+    }
+    if (AGGREGATION_CHAPTER_NAME.test(nameForShapeTest)) {
+      bookFlagged++; stats.flagged++;
+      review.push({ book: r.book, chapter: r.chapter, reason: `aggregation-chapter-needs-splitting:${name}` });
       continue;
     }
     if (herbs.length < 2) { bookFlagged++; stats.flagged++; review.push({ book: r.book, chapter: r.chapter, reason: "composition<2" }); continue; }

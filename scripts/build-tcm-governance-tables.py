@@ -48,11 +48,14 @@ SYNDROME_TAG_ADJUDICATION_FLOOR = 233
 # 因此这张表是 (方名, 原文药名) → 品种，而不是药名→药名。
 INGREDIENT_IDENTITY_ADJUDICATIONS = DATA_ROOT / "tcm-formula-ingredient-identity-adjudications.source.json"
 INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 76
+# 同名异方变体表(ADJ-HOMONYM-20260725):历史并存的不同方两版并存为不同身份(加味逍遥散模式)。
+HOMONYM_VARIANTS = DATA_ROOT / "tcm-formula-homonym-variants.source.json"
 FORMULA_RETRIEVAL_INDEX_OUTPUT = DATA_ROOT / "tcm-formula-retrieval-index.json"
 HERB_OUTPUT = DATA_ROOT / "tcm-herb-identity-catalog.json"
 MANIFEST_OUTPUT = DATA_ROOT / "clinical-governance-table-manifest.json"
 SOURCE_REGISTRY = DATA_ROOT / "clinical-governance-source-registry.json"
 TCM_KNOWLEDGE = DATA_ROOT / "tcm-knowledge.json"
+
 
 FORMULA_STANDARD_URL = "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
 FORMULA_STANDARD_OVERRIDES: dict[str, dict[str, Any]] = {
@@ -105,6 +108,85 @@ FORMULA_STANDARD_OVERRIDES: dict[str, dict[str, Any]] = {
         "indications": ["肝经有热、肝阳偏亢相关头痛头胀、耳鸣目眩等表现"],
     },
 }
+
+# OCR 拆字修复批次(2026-07-25):源表把双字药名拆成两条(如 炙甘+草→炙甘草),全部确定性合并修复
+FORMULA_STANDARD_OVERRIDES.update({
+    "再造散": {
+        "ingredients": ["黄芪", "人参", "桂枝", "甘草", "炮附片", "细辛", "羌活", "防风", "川芎", "煨姜", "大枣"],
+    },
+    "参苓白术散": {
+        "ingredients": ["莲子", "薏苡仁", "砂仁", "桔梗", "炙甘草", "炒白扁豆", "茯苓", "人参", "白术", "山药"],
+    },
+    "和营通气散": {
+        "ingredients": ["当归", "丹参", "醋香附", "川芎", "醋延胡索", "麸炒青皮", "枳壳", "郁金", "姜半夏", "木香", "小茴香"],
+    },
+    "安老汤": {
+        "ingredients": ["人参", "黄芪", "土白术", "酒当归", "熟地黄", "山萸肉", "阿胶珠", "芥穗炭", "醋香附", "木耳炭", "甘草"],
+    },
+    "定痛膏": {
+        "ingredients": ["芙蓉叶", "紫金皮", "独活", "制南星", "白芷"],
+    },
+    "小柴胡汤": {
+        "ingredients": ["柴胡", "黄芩片", "人参", "炙甘草", "法半夏", "生姜", "大枣"],
+    },
+    "左归丸": {
+        "ingredients": ["熟地黄", "麸炒山药", "山萸肉", "枸杞子", "盐菟丝子", "酒川牛膝", "鹿胶珠", "龟胶珠"],
+    },
+    "归灵内托散": {
+        "ingredients": ["川芎", "当归", "白芍", "熟地黄", "薏苡仁", "木瓜", "防己", "天花粉", "金银花", "白鲜皮", "人参", "白术", "甘草", "威灵仙", "牛膝", "土茯苓"],
+    },
+    "新伤续断汤": {
+        "ingredients": ["当归", "土鳖虫", "醋乳香", "醋没药", "丹参", "煅自然铜", "烫骨碎补", "泽兰", "醋延胡索", "苏木", "续断", "桑枝", "燀桃仁"],
+    },
+    "柏子养心丸": {
+        "ingredients": ["柏子仁", "枸杞子", "麦冬", "当归", "石菖蒲", "茯神", "玄参", "熟地黄", "甘草"],
+    },
+    "桃仁红花煎": {
+        "ingredients": ["丹参", "赤芍", "燀桃仁", "红花", "醋香附", "醋延胡索", "醋青皮", "当归", "川芎", "地黄"],
+    },
+    "棕蒲散": {
+        "ingredients": ["棕榈炭", "蒲黄炭", "当归", "川芎", "地黄", "炒白芍", "牡丹皮", "秦艽", "泽兰", "盐杜仲"],
+    },
+    "海藻玉壶汤": {
+        "ingredients": ["海藻", "贝母", "陈皮", "昆布", "青皮", "川芎", "当归", "连翘", "法半夏", "甘草", "独活"],
+    },
+    "清胃解毒汤": {
+        "ingredients": ["当归", "黄连", "生地黄", "天花粉", "连翘", "升麻", "牡丹皮", "赤芍药"],
+    },
+    "生血补髓汤": {
+        "ingredients": ["当归", "地黄", "熟地黄", "白术", "枳壳", "荆芥", "白芍", "防风", "陈皮", "盐杜仲", "牡丹皮", "川芎", "干姜", "牛膝", "独活", "五加皮", "续断", "黄芪", "炒艾叶", "香附", "羌活", "红花", "甘草", "茯苓"],
+    },
+    "益气活血通脉汤": {
+        "ingredients": ["葛根", "黄芪", "党参", "丹参", "川芎", "地龙", "燀桃仁"],
+    },
+    "续骨活血汤": {
+        "ingredients": ["当归", "赤芍", "白芍", "地黄", "红花", "土鳖虫", "烫骨碎补", "煅自然铜", "续断", "积雪草", "醋乳香", "醋没药"],
+    },
+    "苍附导痰丸": {
+        "ingredients": ["茯苓", "姜半夏", "陈皮", "甘草", "麸炒苍术", "醋香附", "制天南星", "麸炒枳壳", "生姜", "麸炒神曲"],
+    },
+    "菊花决明散": {
+        "ingredients": ["决明子", "石决明", "木贼", "防风", "羌活", "蔓荆子", "菊花", "炙甘草", "川芎", "石膏", "黄芩片"],
+    },
+    "血府逐瘀汤": {
+        "ingredients": ["燀桃仁", "红花", "当归", "地黄", "川芎", "赤芍", "牛膝", "桔梗", "柴胡", "枳壳", "甘草"],
+    },
+    "调营饮": {
+        "ingredients": ["醋莪术", "川芎", "当归", "大黄", "赤芍", "醋延胡索", "瞿麦", "槟榔", "陈皮", "大腹皮", "炒葶苈子", "茯苓", "桑白皮", "细辛", "肉桂", "炙甘草", "生姜", "大枣", "白芷"],
+    },
+    "金匮肾气丸": {
+        "ingredients": ["熟地黄", "山药", "山萸肉", "牡丹皮", "泽泻", "茯苓", "桂枝", "炮附片"],
+    },
+    "陀僧膏": {
+        "ingredients": ["南佗僧", "赤芍", "当归", "乳香", "没药", "赤石脂", "苦参", "百草霜", "银黝", "桐油", "香油", "血竭", "孩儿茶", "川大黄"],
+    },
+    "鳖甲煎丸": {
+        "ingredients": ["醋鳖甲", "射干", "黄芩片", "柴胡", "鼠妇虫", "干姜", "大黄", "白芍", "桂枝", "葶苈子", "石韦", "厚朴", "牡丹皮", "瞿麦", "凌霄花", "法半夏", "人参", "土鳖虫", "阿胶珠", "制蜂房", "硝石", "蜣螂", "桃仁"],
+    },
+    "黎峒丸": {
+        "ingredients": ["牛黄", "冰片", "麝香", "阿魏", "大黄", "儿茶", "血竭", "醋乳香", "醋没药", "三七粉", "天竺黄"],
+    },
+})
 
 HIGH_FREQUENCY_REVIEW_QUEUE = (
     "龙胆泻肝汤",
@@ -802,6 +884,58 @@ def build_formula_catalog(
         }
         governed_identity_keys.add(identity_key)
 
+    # 同名异方变体通道(ADJ-HOMONYM-20260725):历史并存的不同方,两版并存为不同身份。
+    # 基线条目身份不变(可带裁定级基线换版);变体以「方名（《出处》氏/特征）」具名入库。
+    # 全部校验 fail-closed:基线必须在册、变体身份不得碰撞、变体组成必须与基线不同——
+    # 同名同组成的「变体」是数据缺陷,不是同名异方。
+    homonym_payload = read_json(HOMONYM_VARIANTS)
+    for pair in homonym_payload.get("entries", []):
+        baseline_name = compact(pair.get("baselineName"))
+        if baseline_name not in governed:
+            raise SystemExit(f"T8 homonym variant baseline missing from catalog: {baseline_name}")
+        base_entry = governed[baseline_name]
+        override = pair.get("baselineOverride")
+        if override:
+            # 基线换版是裁定级改动:裁定说明与出处进 verification 留痕,不许静默覆盖。
+            base_entry["ingredients"] = override.get("ingredients") or base_entry["ingredients"]
+            base_entry["source"] = compact(override.get("source")) or base_entry["source"]
+            base_entry["adjudicatedIndications"] = override.get("indications") or []
+            base_entry.setdefault("verification", []).append({
+                "title": f"同名异方裁定基线换版:{compact(override.get('note'))}",
+                "url": f"urn:tcm-cdss:adjudication:{homonym_payload.get('adjudicationRef')}:{baseline_name}",
+                "sourceRef": homonym_payload.get("adjudicationRef"),
+            })
+        variant = pair.get("variant") or {}
+        vname = compact(variant.get("name"))
+        vkey = formula_identity_key(vname)
+        if not vname or baseline_name not in vname:
+            raise SystemExit(f"T8 homonym variant name must carry the baseline name: {vname}")
+        if vkey in governed_identity_keys:
+            raise SystemExit(f"T8 homonym variant identity collides with an existing entry: {vname}")
+        v_ingredients = variant.get("ingredients") or []
+        if sorted(v_ingredients) == sorted(base_entry.get("ingredients") or []):
+            raise SystemExit(f"T8 homonym variant composition identical to baseline: {vname}")
+        governed[vname] = {
+            "name": vname,
+            "aliases": variant.get("aliases") or [],
+            **({"aliasResolutionRule": variant.get("aliasResolutionRule")} if variant.get("aliasResolutionRule") else {}),
+            "source": compact(variant.get("source")),
+            "sourceOriginal": compact(variant.get("source")),
+            "prescriptionOriginal": None,
+            "ingredients": v_ingredients,
+            "dosageForm": None,
+            "sourceClass": "verified_reference_catalog",
+            "sourceCatalog": "adjudicated_homonym_variant",
+            "adjudicatedIndications": variant.get("indications") or [],
+            "verification": [{
+                "title": f"同名异方裁定变体;基线「{baseline_name}」维持教材正选,本版按出处独立成身份",
+                "url": f"urn:tcm-cdss:adjudication:{homonym_payload.get('adjudicationRef')}:{vname}",
+                "sourceRef": homonym_payload.get("adjudicationRef"),
+            }],
+            "curatedSyndromeTags": [],
+        }
+        governed_identity_keys.add(vkey)
+
     # fail-closed 覆盖断言：SZJG 标准方与经典名方**必须全量在册**。
     # 项目补充先于标准方占位 + 上限截断 = 标准方被静默挤出（方书二批后实测 406/703 缺失，
     # 右归丸/三仁汤都在其中，检索回归立刻变红）。上限再充裕也只是缓冲，这里才是门禁：
@@ -824,7 +958,8 @@ def build_formula_catalog(
     entries = []
     for name, item in sorted(governed.items()):
         indication_entry = indications_by_name.get(name, {})
-        indications = indication_entry.get("indications") or verified.get(name, {}).get("indications") or item.get("standardIndications") or []
+        # 裁定级主治(同名异方基线换版/变体)优先于各来源层——换版后来源层的旧版主治必须让位。
+        indications = item.get("adjudicatedIndications") or indication_entry.get("indications") or verified.get(name, {}).get("indications") or item.get("standardIndications") or []
         if not indications and item["sourceClass"] == "official_classic_catalog":
             source_indication = official_source_indication(item.get("sourceOriginal"))
             if source_indication:
