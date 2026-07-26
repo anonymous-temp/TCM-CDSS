@@ -1,0 +1,81 @@
+{
+  "schemaVersion": "external-data-manifest-v1",
+  "note": "这些目录是构建输入（语料 / 第三方参考实现），不是应用源码：不入 git、不进镜像。清单进 git 是为了让缺失可见——换机器或重跑 ingest 前，按 sha256 核对手上这份是否一致。校验: node scripts/build-external-data-manifest.mjs 后 git diff 该文件；无差异即一致。",
+  "dockerignored": true,
+  "gitignored": true,
+  "roots": [
+    {
+      "path": "中医补充数据",
+      "present": true,
+      "fileCount": 1419,
+      "totalBytes": 2448195561,
+      "totalMB": 2335,
+      "largeFiles": [
+        {
+          "path": "中医补充数据/灵丹GitHub/TCM Ancient books.txt",
+          "bytes": 621825242,
+          "sha256": "d3d9a7df2fd118aa29cc7bebe0d9aa4e73f9a0c67ce2a573e870022d87152017"
+        },
+        {
+          "path": "中医补充数据/灵丹GitHub/wudao_medical.txt",
+          "bytes": 615023185,
+          "sha256": "d662de1cef1e761c902e1e3f867af4370aa97858cf29a9086864a6133cdd216a"
+        },
+        {
+          "path": "中医补充数据/灵丹GitHub/ChatMed_Consult.txt",
+          "bytes": 386833492,
+          "sha256": "c65f6277c044f116877615b414d98167838eaf32cf243c318aca0fe22c9eef65"
+        },
+        {
+          "path": "中医补充数据/灵丹GitHub/CMtMedQA.txt",
+          "bytes": 131436047,
+          "sha256": "4bc5aea9248dd53aa98a3fd3f5e8b158347192ee8b57cbda061a05b1eb0333a4"
+        },
+        {
+          "path": "中医补充数据/灵丹GitHub/qizhenGPT_TCM.txt",
+          "bytes": 120282627,
+          "sha256": "27e2758abf8af74a2bc1a761cd131656760ad84abcaff52fa451eaa13875614b"
+        },
+        {
+          "path": "中医补充数据/灵丹GitHub/TCPM QA.json",
+          "bytes": 62668986,
+          "sha256": "f390b5e19e173759511750a73866fa8718958ab04a79aa36983cfdaa705ade5f"
+        },
+        {
+          "path": "中医补充数据/灵丹GitHub/TCM Educational Materials.txt",
+          "bytes": 31746051,
+          "sha256": "fc365e7da68c1c14f18d0b411aba148ab76ee2032f342bc97ca494cca1f957c4"
+        },
+        {
+          "path": "中医补充数据/灵丹GitHub/Medical Records.txt",
+          "bytes": 28166823,
+          "sha256": "3431c4e5b3c18bc330a7a6f2222b81392e14bc4d5d4aa0620215d2f35b99c658"
+        },
+        {
+          "path": "中医补充数据/pretrain/adapter_model.bin",
+          "bytes": 26269837,
+          "sha256": "15eae14e41befe50f83f7b30e3e8996cce3f0602e9b21ceb205479066b226263"
+        },
+        {
+          "path": "中医补充数据/tcmoc-master/books/074-普济方.txt",
+          "bytes": 14322004,
+          "sha256": "690318b37878bfb14b1c966b401f856e774a59edfe0499b304484c34365c4d8c"
+        }
+      ]
+    },
+    {
+      "path": "参考",
+      "present": true,
+      "fileCount": 3143,
+      "totalBytes": 149853076,
+      "totalMB": 143,
+      "largeFiles": [
+        {
+          "path": "参考/nihaisha-nishi-tcm-main/references/pdf-evidence/evidence-cards.jsonl",
+          "bytes": 28785111,
+          "sha256": "20df7a8b3eeca77cda572079286aaaebbb108a0d63942bb560fcf3dd8cccc512"
+        }
+      ]
+    }
+  ]
+}

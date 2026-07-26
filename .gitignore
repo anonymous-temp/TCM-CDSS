@@ -61,3 +61,12 @@ next-env.d.ts
 .repro-*.mjs
 scripts/.repro-*.mjs
 scripts/tmp-verify/
+
+# 构建输入，非应用源码：语料 2.3GB / 第三方参考实现 143MB。
+# 不入 git（每次 checkout 与打包都要背这个体量），也不进镜像（.dockerignore 已挡）。
+# 但缺失不能是静默的——src/data/external-data-manifest.json 记录了体量、文件数与
+# 全部 >10MB 文件的 sha256，换机器或重跑 ingest 前按它核对。
+# 重新生成: node scripts/build-external-data-manifest.mjs
+/中医补充数据/
+/参考/
+/*.docx
