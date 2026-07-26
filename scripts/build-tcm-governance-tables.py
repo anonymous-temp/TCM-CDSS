@@ -842,9 +842,19 @@ def build_formula_catalog(
         if name in standard_by_name
     ]
     prioritized_codes = {item["code"] for item in prioritized_standard_rows}
+    malformed_standard_rows: list[str] = []
     for standard_item in [*prioritized_standard_rows, *[item for item in standard_rows if item["code"] not in prioritized_codes]]:
         if len(governed) >= FORMULA_CATALOG_TARGET:
             break
+        # PDF 第 85 页有 4 行被解析成整体错位一列：name 存的是编码、source 存的才是方名、
+        # ingredients 存的是出处书名、functions 存的是未切分的连写药串。
+        # 后果是目录里出现方名为「0602010025」、组成为「《医方集解》」的条目，且 identityLockEligible=true——
+        # 医生可能看到「候选方：0602010025」，组成是一本书。
+        # 不做自动纠偏：药串无分隔符，按 T9 最长匹配切分实测只有 2/4 能切干净（熟大黄、海带不在词表），
+        # 猜出来的组成会直接变成处方。整行拒收，记入复核队列等回源重录。
+        if compact(standard_item.get("name")) == compact(standard_item.get("code")):
+            malformed_standard_rows.append(compact(standard_item.get("code")))
+            continue
         source_name = compact(standard_item["name"])
         name = "加味逍遥散（《审视瑶函》暴盲方）" if source_name == "加味逍遥散" else source_name
         identity_key = formula_identity_key(name)
@@ -943,12 +953,23 @@ def build_formula_catalog(
     # 等价口径与构建自身去重一致（formula_identity_key）：济生肾气丸加减 由 济生肾气丸 覆盖、
     # 苇茎汤 由经典层同名条目覆盖,均视为在册——否则断言会把去重语义误报成截断。
     governed_keys = {formula_identity_key(name) for name in governed}
+    # 结构性错位的行是**显式拒收**，不是截断——它们的 name 字段存的是编码而不是方名，
+    # 整行数据都错了位（组成里是书名）。把它们计入「被截断」会让这条守卫报一个假警，
+    # 促使人去调 FORMULA_CATALOG_TARGET，而真正该做的是回源重录。两者必须分开。
+    malformed_standard_keys = {formula_identity_key(code) for code in malformed_standard_rows}
     missing_standard = sorted(
         {formula_identity_key(item["name"]) for item in standard_rows}
         - governed_keys
+        - malformed_standard_keys
         # 加味逍遥散按治理裁定以具名变体「加味逍遥散（《审视瑶函》暴盲方）」入库,本名不出现属预期
         - ({formula_identity_key("加味逍遥散")} if any("审视瑶函" in name and "加味逍遥散" in name for name in governed) else set())
     )
+    if malformed_standard_rows:
+        print(json.dumps({
+            "warning": "szjg_standard_rows_rejected_as_malformed",
+            "note": "整行错位（name=编码、ingredients=出处书名），已拒收，需回源第 85 页重录",
+            "codes": malformed_standard_rows,
+        }, ensure_ascii=False))
     if missing_standard:
         raise SystemExit(
             f"T8 catalog silently truncated {len(missing_standard)} SZJG standard formulas "

@@ -189,6 +189,24 @@ const shaoyaoTargets = new Set(ingredientAdjudications.entries
 assert.ok(shaoyaoTargets.has("白芍") && shaoyaoTargets.has("赤芍"),
   "芍药裁定必须同时存在白芍与赤芍两种结论，否则说明退化成了一刀切默认");
 
+// ─── 方名不得是标准编码 ───
+// SZJG 源表 PDF 第 85 页有 4 行被解析成整体错位一列：name 存编码、source 存方名、
+// ingredients 存出处书名、functions 存未切分的连写药串。结果目录里出现方名「0602010025」、
+// 组成「《医方集解》」且 identityLockEligible=true——医生可能看到「候选方：0602010025」，
+// 组成是一本书。已在构建期整行拒收（不自动纠偏：药串无分隔符，按 T9 最长匹配实测只有 2/4
+// 能切干净，猜出来的组成会直接变成处方）。
+const codeNamedFormulas = formulas.entries
+  .filter((entry) => /^\d{6,}$/.test(entry.name))
+  .map((entry) => `${entry.name}(${entry.source})`);
+assert.deepEqual(codeNamedFormulas, [],
+  `方名不得是标准编码，说明源表列错位未被拒收：${codeNamedFormulas.join("、")}`);
+// 组成里也不得出现书名（同一错位的另一面）。
+const bookAsIngredient = formulas.entries
+  .filter((entry) => (entry.ingredients || []).some((name) => /^《.+》$/.test(name)))
+  .map((entry) => entry.name);
+assert.deepEqual(bookAsIngredient, [],
+  `组成里不得出现书名：${bookAsIngredient.slice(0, 6).join("、")}`);
+
 // ─── 「一章多方」的聚合章节不得作为单方入库 ───
 // 篇名是「中风诸方」「眼科经验各方」这类的章节，正文里并列着好几首方，抽取器把整章药味
 // 揉成一个组成。它们以「方」结尾，能混过下面的剂型后缀守卫——实测 41 首入了库，
