@@ -3811,4 +3811,35 @@ const invalidPositioningMedicineProposal = compileM04Proposal({
 assert.ok(invalidPositioningMedicineProposal, "one invalid optional medicine must not discard the validated herbal candidate");
 assert.deepEqual(invalidPositioningMedicineProposal?.formula?.patentAndWestern, [], "contract-invalid optional medicine items are dropped individually");
 
-console.log(JSON.stringify({ cases: 316, failures: 0 }));
+// ─── 药典炮制名必须继承母药的煎法要求 ───
+// 煎法查表原本只有「手写别名表 + 前缀剥离」两条字面规则，覆盖不到药典正式炮制名：
+// 「炮附片」的前缀「炮」不在剥离表里，「黑顺片」「朱砂粉」「燀苦杏仁」压根没有可剥离前缀，
+// 于是整条煎法规则查不到——附子的**先煎、久煎**（乌头碱水解，煎法里最要紧的一条）直接丢失。
+// 而炮附片/黑顺片正是药典正名、临床实际调配的形态。
+// 此前没出事只因 isKnownTcmHerbName("炮附片")=false 让 M04 驳回整条候选，那是身份覆盖的
+// 巧合而非安全规则；T9 身份表一扩（本轮 90→377）巧合就会失效。现兜底走 T9 受控归一。
+for (const [processed, base] of [["炮附片", "附子"], ["黑顺片", "附子"], ["朱砂粉", "朱砂"], ["燀苦杏仁", "苦杏仁"]]) {
+  assert.equal(
+    requiredDecoctionRequirement(processed),
+    requiredDecoctionRequirement(base),
+    `炮制名 ${processed} 必须继承 ${base} 的煎法要求，否则 M04 会给出无煎法约束的剂量`,
+  );
+}
+assert.match(requiredDecoctionRequirement("炮附片") || "", /先煎/, "附子类炮制名必须保留先煎要求");
+
+// ─── 干品生地黄不得继承鲜地黄的剂量上限 ───
+// 药典「地黄」条目一行里同时写着「鲜地黄 12～30g。生地黄 10～15g。」，解析只留了第一行，
+// 因此仓库为生地黄硬编码了 10-15g 覆盖。但剂量归一走的是 doseCanonicalName（生地黄的剂量
+// 条目挂在地黄下），于是 干地黄/细生地/大生地/怀生地 被一路归一成「地黄」，绕过该覆盖拿到
+// 鲜品的 12-30g——上限翻倍。更糟的是两区间相交、sourceConflict 不置位，30g 一路判合规。
+// 现改为先按身份正名（canonicalName=生地黄）查覆盖表。
+for (const dried of ["生地黄", "生地", "干地黄", "细生地", "大生地", "怀生地"]) {
+  const limit = getTcmHerbDoseLimit(dried);
+  assert.equal(`${limit?.min}-${limit?.max}`, "10-15",
+    `${dried} 是干品生地黄，药典 10-15g，不得继承鲜地黄 12-30g 的上限`);
+}
+const freshRehmannia = getTcmHerbDoseLimit("鲜生地");
+assert.equal(`${freshRehmannia?.min}-${freshRehmannia?.max}`, "12-30",
+  "鲜生地确系鲜品，应保留药典鲜地黄 12-30g，不可被干品覆盖误伤");
+
+console.log(JSON.stringify({ cases: 328, failures: 0 }));

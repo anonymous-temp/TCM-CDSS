@@ -1010,7 +1010,21 @@ function resolvedDoseEntry(
 
 export function getTcmHerbDoseLimit(herb: string): TcmHerbDoseLimit | null {
   const canonical = canonicalKnowledgeHerbName(herb);
-  const exact = CONTROLLED_EXACT_HERB_DOSE_LIMITS[canonical];
+  // 显式炮制边界必须先按**身份正名**查，再退回剂量归一名。
+  //
+  // canonicalKnowledgeHerbName 取的是 doseCanonicalName || canonicalName，而 doseCanonicalName
+  // 只是「剂量条目挂在哪」的重定向（生地黄的条目挂在地黄下）。它会把 干地黄/细生地/大生地/
+  // 怀生地 一路归一成「地黄」，从而**绕过**下面专为生地黄设的 10-15g 覆盖，拿到地黄那一行里
+  // 鲜地黄的 12-30g —— 上限整整翻倍。而 地黄 的 dose 条目 doseText 原文是
+  //   「鲜地黄 12～30g。\n生地黄 10～15g。」
+  // 解析只保留了第一行，这正是下面那条硬覆盖存在的原因；可它此前只在归一名恰好等于
+  // 「生地黄」时才生效——生地/生地黄 幸免仅因它们在 CONTROLLED_HERB_ALIASES 里被提前拦住。
+  // 更麻烦的是 10-15 与 12-30 相交，sourceConflict 不置位，30g 一路判合规、不转人工复核，
+  // 是 fail-open。干地黄/细生地/大生地/怀生地 都是**干品**生地黄，药典就是 10-15g。
+  // 鲜生地 的身份正名是鲜地黄、不在覆盖表内，仍走 12-30g，符合药典。
+  const identityName = resolveGovernedTcmHerbIdentity(herb).canonicalName;
+  const exact = (identityName ? CONTROLLED_EXACT_HERB_DOSE_LIMITS[identityName] : undefined)
+    ?? CONTROLLED_EXACT_HERB_DOSE_LIMITS[canonical];
   if (exact) return { ...exact };
   // 受控等价条目（茯神→茯苓）按原始名称优先：T9 归一会把茯神直接解析为茯苓，若只按归一名
   // 查表，会丢掉"茯神为带松根的茯苓部位，用量按茯苓复核"的审计口径（该口径有套件锁定）。

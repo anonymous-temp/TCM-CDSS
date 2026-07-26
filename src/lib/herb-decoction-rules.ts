@@ -1,4 +1,5 @@
 import knowledge from "../data/tcm-knowledge.json" with { type: "json" };
+import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 
 type HerbEntry = Record<string, unknown>;
 type HerbRecord = { name: string; aliases?: string[]; entries?: HerbEntry[] };
@@ -45,9 +46,25 @@ function resolveHerb(value: string): HerbRecord | undefined {
   const normalized = normalizedName(value);
   const controlled = CONTROLLED_ALIASES[normalized];
   const withoutProcessing = normalized.replace(/^(?:蜜炙|麸炒|土炒|炒|炙|醋制|酒制|盐制|姜制|煅|制|生)/, "");
-  return herbByName.get(normalized) ||
+  const direct = herbByName.get(normalized) ||
     (controlled ? herbByName.get(controlled) : undefined) ||
     (withoutProcessing !== normalized ? herbByName.get(withoutProcessing) : undefined);
+  if (direct) return direct;
+  // 兜底走 T9 受控身份归一。上面那两条（手写 CONTROLLED_ALIASES + 前缀剥离）都是字面规则，
+  // 覆盖不到药典正式炮制名：`炮附片`/`黑顺片`的前缀「炮」不在剥离表里，`朱砂粉`/`燀苦杏仁`
+  // 压根没有可剥离的前缀。后果是**煎法规则整条查不到**——
+  //   附子 → 先煎、久煎（乌头碱水解，中药煎法里最要紧的一条）
+  //   炮附片/黑顺片 → undefined
+  //   朱砂 → 禁止同煎 / 冲服；朱砂粉 → undefined
+  //   苦杏仁 → 后下、捣碎后同煎；燀苦杏仁 → undefined
+  // 而炮附片/黑顺片正是药典正名、临床实际调配的形态。
+  // 此前没出事只因 `isKnownTcmHerbName("炮附片")=false` 让 M04 把整条候选驳回——
+  // 那是身份覆盖的**巧合**，不是安全规则；T9 身份表一扩（本轮 90→377），巧合就会失效。
+  // 只接受 autoResolvable 的归一结果：resolveGovernedTcmHerbIdentity 仅在人工裁定过的行上
+  // 返回 canonicalName，ambiguous/待裁定的行不返回，因此这条兜底不会引入未经治理的猜测。
+  const identity = resolveGovernedTcmHerbIdentity(value);
+  const governed = identity.canonicalName || identity.doseCanonicalName;
+  return governed ? herbByName.get(normalizedName(governed)) : undefined;
 }
 
 export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
