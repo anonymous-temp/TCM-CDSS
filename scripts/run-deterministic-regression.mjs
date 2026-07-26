@@ -22,6 +22,8 @@ const scripts = [
   "test:tcm-treatments",
   "test:acupoint-evidence",
   "test:modern-case-corpus",
+  "test:disease-lexicon",
+  "test:runtime-data-presence",
   "test:customer-evidence",
   "test:stage-contract",
   "test:repair-guidance",

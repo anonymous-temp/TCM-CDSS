@@ -82,7 +82,9 @@
     "start": "next start",
     "lint": "eslint --max-warnings=0",
     "test:acupoint-evidence": "jiti scripts/test-acupoint-evidence.mjs",
-    "test:modern-case-corpus": "jiti scripts/test-modern-case-corpus.mjs"
+    "test:modern-case-corpus": "jiti scripts/test-modern-case-corpus.mjs",
+    "test:disease-lexicon": "jiti scripts/test-disease-lexicon.mjs",
+    "test:runtime-data-presence": "jiti scripts/test-runtime-data-presence.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

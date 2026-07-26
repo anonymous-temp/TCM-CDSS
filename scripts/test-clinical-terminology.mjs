@@ -26,7 +26,7 @@ const sparseContext = {
   westernDiagnosis: { primary: { name: "睡眠问题" }, differentials: [] },
 };
 assert.equal(canonicalTcmDiseaseName(undefined, sparseContext), undefined, "a syndrome alone must not invent a TCM disease");
-assert.equal(canonicalTcmDiseaseName("失眠", sparseContext), "不寐");
+assert.equal(canonicalTcmDiseaseName("失眠", sparseContext), "不寐病"); // 辩病词表(GB/T 15657)正名为不寐病,失眠为其别名(2026-07-26 词表升级)
 
 const normalized = withCanonicalClinicalTerminology({
   overview: { primarySyndrome: "心脾两虚证", tcmDiseaseName: "失眠" },
@@ -35,7 +35,7 @@ const normalized = withCanonicalClinicalTerminology({
     differentials: [{ name: "OSA综合征" }],
   },
 });
-assert.equal(normalized.overview.tcmDiseaseName, "不寐");
+assert.equal(normalized.overview.tcmDiseaseName, "不寐病");
 assert.equal(normalized.westernDiagnosis.primary.name, "慢性失眠障碍");
 assert.equal(normalized.westernDiagnosis.differentials[0].name, "阻塞性睡眠呼吸暂停");
 
