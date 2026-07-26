@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "../..");
-const SRC = resolve(ROOT, "artifacts/证型标签待裁定清单.md");
-const OUTDIR = resolve(ROOT, "artifacts/syndrome-tag-adjudication");
+const SRC = resolve(ROOT, process.env.ADJ_SRC || "artifacts/证型标签待裁定清单.md");
+const OUTDIR = resolve(ROOT, process.env.ADJ_OUTDIR || "artifacts/syndrome-tag-adjudication");
 mkdirSync(OUTDIR, { recursive: true });
 const KEY = process.env.DEEPSEEK_API_KEY;
 if (!KEY) throw new Error("DEEPSEEK_API_KEY required");
