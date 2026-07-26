@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "tcm-controlled-toxic-herb-policy-v1",
+  "note": "受管制毒性药材的剂量编制政策（治理输入，非生成物）。此表只管『监管轴』——即哪些药材因法规身份而不得由系统自动编制剂量，与『药典毒性分级』是两回事。药典标注有毒/小毒但非管制的品种（附子、半夏、苦杏仁、吴茱萸、全蝎…）不在此表，它们靠药典剂量上下限硬钳制 + 煎法要求 + 处方后审兜底，毒性以审方警示呈现而非阻断——一刀切阻断会让麻黄汤(苦杏仁)、吴茱萸汤、胶艾汤(艾叶)这类常规方全部不可用，是过防。",
+  "designNote": "为什么按『监管身份』而不是『毒性标签』建模：毒性标签回答『这药毒不毒』，回答不了『系统能不能替医生把它开出去』。后者取决于三件系统**结构上做不到**的事——处方权资格核验、专用处方载体、跨处方累积用量。凡是踩到这三条的，剂量编制必须整味退出；踩不到的，剂量本身就是安全边界，交由既有的上限校验与审方处理。",
+  "batches": [
+    {
+      "id": "ADJ-20260726-CONTROLLED-TOXIC",
+      "date": "2026-07-26",
+      "scope": "两道剂量门禁（依据轴/途径轴）之后仍可自动配剂量的 23 味毒性药，逐味核监管归属",
+      "method": "联网取证《医疗用毒性药品管理办法》(国务院令第23号)附录28种中药名单、《麻醉药品和精神药品管理条例》、《医院中药饮片管理规范》，并与本仓 KB 的生品/炮制品条目结构交叉核对",
+      "caveat": "取证时 nhc.gov.cn / nmpa.gov.cn 返回 412/403，28 种名单由吉林省药监局官网与齐鲁工业大学两处转载互证（文字一致），未取到国务院原始页面。《医院中药饮片管理规范(2026版)》是否删去 2007 版『二日极量』表述仅有二手来源，未在官方原文核实——本表不依赖该条，故不受影响。"
+    }
+  ],
+  "controlClasses": {
+    "narcotic": "麻醉药品。需麻醉药品处方权 + 专用处方 + 专册登记，且有跨处方累积限量。系统结构上无法满足，整味退出剂量编制。",
+    "toxic_catalog": "《医疗用毒性药品管理品种目录》28 种中药。须正式处方、药师以上复核签章、处方剂量受限。系统不得自动编制剂量。"
+  },
+  "entries": [
+    {
+      "herb": "罂粟壳",
+      "controlClass": "narcotic",
+      "policy": "blocked",
+      "affectedFormulas": 9,
+      "basis": "《麻醉药品和精神药品品种目录(2013年版)》收载罂粟壳；《麻醉药品和精神药品管理条例》第38/40/41条要求处方权、专用处方、专册登记；《医院中药饮片管理规范》规定不得单方发药、每张处方≤3日用量、连续使用≤7天。",
+      "whySystemCannotComply": "四层都不是剂量数值问题：①处方权绑定到医师个人，系统无法核验；②须走麻醉药品专用处方载体，CDSS 的方剂结构里没有这个概念；③『3日用量/连续≤7天』是跨处方、跨就诊的累积约束，而剂量编制是单方无状态计算，**原理上算不出来**；④『不得单方发药』是对成方结构的约束，且自动建议一个成瘾性药物本身带诱导性。"
+    },
+    { "herb": "砒石", "aliases": ["红砒", "白砒", "信石"], "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "砒霜", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "水银", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "斑蝥", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "青娘虫", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "红娘虫", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "闹羊花", "aliases": ["闹阳花"], "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录『闹阳花』，任何形态均管制" },
+    { "herb": "雪上一枝蒿", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "红升丹", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "白降丹", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "蟾酥", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "洋金花", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "红粉", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "轻粉", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "雄黄", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录，任何形态均管制" },
+    { "herb": "生马钱子", "aliases": ["生马前子"], "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录『生马前子』；炮制品马钱子粉不在字面范围但药典仅入丸散" },
+    { "herb": "生川乌", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录；制川乌为炮制品，不在字面范围" },
+    { "herb": "生草乌", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录；制草乌为炮制品，不在字面范围" },
+    { "herb": "生附子", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录。注意：药典『附子』饮片本身即炮制品(黑顺片/白附片/淡附片/炮附片)，不等于生附子" },
+    { "herb": "生半夏", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录。注意：KB『半夏』条目 doseText 原文为『内服一般炮制后使用，3～9g』，即炮制品口径，不等于生半夏" },
+    { "herb": "生白附子", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录。KB『白附子』doseText 为『一般炮制后用』，炮制品口径" },
+    { "herb": "生天南星", "aliases": ["生南星"], "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录『生南星』；制天南星、胆南星为炮制品" },
+    { "herb": "生巴豆", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录；巴豆霜为炮制品但药典仅入丸散" },
+    { "herb": "生甘遂", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录" },
+    { "herb": "生狼毒", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录" },
+    { "herb": "生藤黄", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录" },
+    { "herb": "生千金子", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录；千金子霜为炮制品但药典仅入丸散" },
+    { "herb": "生天仙子", "controlClass": "toxic_catalog", "policy": "blocked", "basis": "国务院令第23号附录" }
+  ],
+  "explicitlyNotBlocked": {
+    "note": "以下药材在两道门禁后仍可编译剂量，且经核**不属管制品种**，故不进本表。它们的安全由『药典剂量上下限硬钳制 + 煎法要求(若有) + 特殊人群门禁 + 灵犀处方后审』兜底，毒性以审方警示呈现。这是一条**政策决定**：把毒性标签当成阻断开关会让常规经方大面积失效。",
+      "pharmacopoeiaToxicNotControlled": ["附子", "半夏", "白附子", "制川乌", "制天南星", "全蝎", "蜈蚣", "山豆根", "苍耳子", "木鳖子", "蓖麻子", "常山", "白果", "干漆", "仙茅", "芫花"],
+    "pharmacopoeiaMildlyToxic": ["苦杏仁", "吴茱萸", "蒺藜", "艾叶", "川楝子", "蛇床子"],
+    "knownGap": "白附子、制天南星、半夏在 KB 里**没有煎法要求条目**（附子、制川乌有『先煎、久煎』，苦杏仁有『后下、捣碎后同煎』）。对这三味，运行时的 decoctionRuleSatisfied 会因『无规则』而空转通过，等于条件约束不存在。这是数据缺口不是政策决定，需补药典煎法/炮制要求后才能真正形成条件放行。"
+  }
+}

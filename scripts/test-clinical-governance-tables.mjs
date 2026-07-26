@@ -268,6 +268,47 @@ assert.deepEqual(decoctionCompiledPillOnly, [],
   "药典途径只有丸散/外用的药材不得进入煎剂剂量编制：" +
   decoctionCompiledPillOnly.map((entry) => `${entry.name}[${entry.herbs.join("、")}]`).join("; "));
 
+// ─── 监管轴：管制品种不得自动编制剂量 ───
+// 前两条管"剂量数字可不可信"和"这味药能不能煎"，都是药学问题。这一条管的是
+// **系统有没有资格替医生做这个动作**——罂粟壳药典剂量 3-6g 完全正常，但它需要
+// 麻醉药品处方权、专用处方、专册登记，且"每张处方≤3日用量、连续≤7天"是跨处方的
+// 累积约束，而剂量编制是单方无状态计算，原理上算不出来。配一个区间内的 3-6g，
+// 仍然是把受限动作默认放行。医疗用毒性药品目录 28 种同理（须药师以上复核签章）。
+//
+// 反向也要钉住：药典有毒/小毒但非管制的品种**不得**被这条误伤——一刀切会让
+// 麻黄汤(苦杏仁)、吴茱萸汤、胶艾汤(艾叶)、附子理中汤(附子)全部不可用。
+const controlledPolicy = readJson("tcm-controlled-toxic-herb-policy.source.json");
+const controlledToxicNames = new Set(controlledPolicy.entries
+  .filter((entry) => entry.policy === "blocked")
+  .flatMap((entry) => [entry.herb, ...(entry.aliases || [])])
+  .filter(Boolean));
+assert.ok(controlledToxicNames.has("罂粟壳") && controlledToxicNames.has("雄黄"),
+  "管制品种表必须覆盖麻醉药品与毒性药品目录两类，否则门禁形同虚设");
+const controlledStillCompilable = formulas.entries
+  .filter((entry) => entry.doseCompilationEligible)
+  .map((entry) => ({
+    name: entry.name,
+    herbs: [...new Set((entry.ingredientLinks || [])
+      .map(effectiveDoseName)
+      .filter((name) => name && controlledToxicNames.has(name)))],
+  }))
+  .filter((entry) => entry.herbs.length > 0);
+assert.deepEqual(controlledStillCompilable, [],
+  "管制品种(麻醉药品/医疗用毒性药品目录)不得自动编制剂量，须转有相应处方权的医师人工决策：" +
+  controlledStillCompilable.map((entry) => `${entry.name}[${entry.herbs.join("、")}]`).join("; "));
+
+// 非管制的药典毒性药必须**仍然可用**——这条断言防的是"毒性一刀切"这种过防回潮。
+const routineToxicStillAvailable = ["附子", "半夏", "苦杏仁", "吴茱萸", "艾叶"]
+  .map((herb) => ({
+    herb,
+    formulas: formulas.entries.filter((entry) => entry.doseCompilationEligible &&
+      (entry.ingredientLinks || []).some((link) => effectiveDoseName(link) === herb)).length,
+  }))
+  .filter((item) => item.formulas === 0);
+assert.deepEqual(routineToxicStillAvailable, [],
+  "药典有毒/小毒但非管制的常规药必须保持可编译剂量（毒性走审方警示而非剂量阻断），" +
+  `否则麻黄汤/吴茱萸汤/附子理中汤这类常规方会整片失效：${routineToxicStillAvailable.map((item) => item.herb).join("、")}`);
+
 // ─── 方名不得是标准编码 ───
 // SZJG 源表 PDF 第 85 页有 4 行被解析成整体错位一列：name 存编码、source 存方名、
 // ingredients 存出处书名、functions 存未切分的连写药串。结果目录里出现方名「0602010025」、

@@ -36,6 +36,7 @@ HIGH_FREQUENCY_RELATION_FLOOR = 77
 # because that file only feeds verified_reference_catalog entries: routing adjudications through it
 # would silently drop every classic-catalog and local-standard formula (101 of the first 241).
 SYNDROME_TAG_ADJUDICATIONS = DATA_ROOT / "tcm-formula-syndrome-tag-adjudications.source.json"
+CONTROLLED_TOXIC_POLICY = DATA_ROOT / "tcm-controlled-toxic-herb-policy.source.json"
 # Same ratchet as the relation table: a tag decides whether a formula can be identity-locked and
 # prescribed, so losing rows silently would remove formulas from the doctor's reach.
 # 241 → 233：首批裁定里有 8 条打给了**根本不是方剂**的条目（喘促=症状、痿症/子痫=病名、
@@ -639,6 +640,44 @@ def pharmacopoeia_forbids_internal_decoction(herb: dict[str, Any]) -> bool:
     return any(PILL_POWDER_ROUTE.search(route) for route in pharmacopoeia_routes)
 
 
+def controlled_toxic_herb_names() -> set[str]:
+    """受管制毒性药材：法规身份使系统**结构上无法合规地**替医生开出，故不得自动编制剂量。
+
+    这条门禁按**监管身份**而不是药典毒性标签建模，因为两者回答的不是同一个问题：
+    毒性标签回答"这药毒不毒"，回答不了"系统能不能替医生把它开出去"。后者取决于三件
+    系统结构上做不到的事——处方权资格核验、专用处方载体、跨处方累积用量。
+
+    最能说明问题的是罂粟壳：它药典剂量 3-6g 完全正常，但《医院中药饮片管理规范》要求
+    "每张处方不得超过三日用量，连续使用不得超过七天"——这是**跨处方、跨就诊**的累积约束，
+    而剂量编制是单方无状态计算，**原理上算不出来**。给它配一个合规区间内的 3-6g，
+    仍然是把一个需要麻醉药品处方权的受限动作默认放行。
+
+    反过来，药典标注"有毒/小毒"但非管制的品种（附子、半夏、苦杏仁、吴茱萸、全蝎…）
+    **不在这里阻断**：一刀切会让麻黄汤(苦杏仁)、吴茱萸汤、胶艾汤(艾叶)这类常规经方
+    全部不可用，是过防。它们靠药典剂量上下限硬钳制 + 煎法要求 + 特殊人群门禁 +
+    处方后审兜底，毒性以审方警示呈现。
+
+    28 目录条目多写作"生"品（生附子/生半夏/生南星…），而药典同名饮片本就是炮制品
+    （KB 里"半夏"的 doseText 原文即"内服一般炮制后使用"），两者在 KB 中是独立条目，
+    故这里只按表中写明的名字与别名匹配，不做前缀推断——把"附子"当成"生附子"阻断，
+    等于误伤 132 首含附片的常规方。
+    """
+    payload = read_json(CONTROLLED_TOXIC_POLICY)
+    names: set[str] = set()
+    for entry in payload.get("entries", []):
+        if entry.get("policy") != "blocked":
+            continue
+        for value in [entry.get("herb"), *(entry.get("aliases") or [])]:
+            if compact(value):
+                names.add(compact(value))
+    if not names:
+        raise SystemExit(
+            "controlled toxic herb policy table is empty; refusing to build a catalog that would "
+            "silently authorize narcotic/catalogued-toxic herbs for automatic dose compilation"
+        )
+    return names
+
+
 def numeric_decoction_dose_names() -> set[str]:
     """Return herbs with a pharmacopoeia-backed numeric internal-decoction boundary in the KB.
 
@@ -748,6 +787,7 @@ def build_formula_catalog(
     resolution_index: dict[str, dict[str, Any]],
     numeric_dose_names: set[str],
 ) -> dict[str, Any]:
+    controlled_toxic_names = controlled_toxic_herb_names()
     source = read_json(FORMULA_SOURCE)
     indication_source = read_json(FORMULA_INDICATIONS)
     verified = read_json(VERIFIED_FORMULAS).get("entries", {})
@@ -1065,6 +1105,17 @@ def build_formula_catalog(
         ]
         if missing_dose_boundaries:
             dose_blocking_reasons.append("ingredient_numeric_dose_boundary_missing")
+        # 监管轴：管制品种(麻醉药品 / 医疗用毒性药品目录 28 种)不得自动编制剂量。
+        # 与上面两项并列而不合并——它阻断的理由不是"算不出剂量"，而是"这个动作系统没资格做"，
+        # 在 doseBlockingReasons 里保留独立取值，下游才能给出正确的转人工提示。
+        controlled_toxic_ingredients = sorted({
+            link["rawName"]
+            for link in ingredient_links
+            if link.get("autoResolvable")
+            and compact(link.get("doseCanonicalName") or link.get("canonicalName")) in controlled_toxic_names
+        })
+        if controlled_toxic_ingredients:
+            dose_blocking_reasons.append("ingredient_controlled_toxic_requires_manual_prescription")
         if item["sourceClass"] == "verified_reference_catalog":
             governance_status = "project_reference_verified"
         elif item["sourceClass"] == "official_local_formula_standard":
@@ -1109,6 +1160,7 @@ def build_formula_catalog(
             "requiresPostPrescriptionAudit": True,
             "identityBlockingReasons": identity_blocking_reasons,
             "doseBlockingReasons": dose_blocking_reasons,
+            "controlledToxicIngredientNames": controlled_toxic_ingredients,
             "unresolvedDoseIngredientNames": unresolved_ingredients,
             "corruptIngredientNames": corrupt_ingredient_names,
             "missingDoseBoundaryIngredientNames": missing_dose_boundaries,
