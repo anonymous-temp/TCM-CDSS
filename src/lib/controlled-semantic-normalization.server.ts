@@ -44,7 +44,14 @@ type CacheEntry = {
 type CacheFile = { schemaVersion: "controlled-semantic-cache-v1"; entries: CacheEntry[] };
 type JsonRecord = Record<string, unknown>;
 
-const MAX_TARGETS_PER_CALL = 14;
+// 必须 ≥ extractM03Targets 的结构性最大值，否则末尾 slice 会**静默丢弃** target。
+// 结构上限 = 主证1 + 中医鉴别3 + 病位4 + 病性4 + 治则1 + 方名4 + 西医主诊1 + 西医鉴别4
+//          + 中成药概念(结论)1 + 中成药概念(口语)1 = 24。
+// 此前是 14，而当时结构上限已是 19——被丢掉的正是**最后 push 的中成药概念 target**，
+// 也就是审查指出的"中成药召回唯一的语义补位"。病例的鉴别/病位/病性条目一多，
+// 这条补位就无声消失，中成药路径退回 40 条硬编码正则。
+// max_tokens 同步抬高：每条 decision 约 50 token，24 条需要约 1200，900 装不下。
+const MAX_TARGETS_PER_CALL = 24;
 const MAX_CACHE_ENTRIES = 4_000;
 const MODEL_TIMEOUT_MS = 25_000;
 const PROBE_CACHE_TTL_MS = 5 * 60_000;
@@ -219,7 +226,7 @@ function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function extractM03Targets(reasoning: JsonRecord): ControlledSemanticTarget[] {
+function extractM03Targets(reasoning: JsonRecord, patientNarrative = ""): ControlledSemanticTarget[] {
   const targets: Array<ControlledSemanticTarget | undefined> = [];
   const push = (
     namespace: ControlledSemanticNamespace,
@@ -245,6 +252,14 @@ function extractM03Targets(reasoning: JsonRecord): ControlledSemanticTarget[] {
   if (westernPrimary.status === "考虑") {
     push("icd10", "westernDiagnosis.primary.name", westernPrimary.name, 24);
   }
+  // 鉴别诊断此前**完全不进归一**，只有 primary 进。而去重恰恰发生在鉴别列表上：
+  // westernDifferentialIdentity 退回 clinical-terminology.ts 里那 6 条硬编码规则，
+  // 于是「COPD」与「慢性阻塞性肺疾病」「胃食管反流病」与「反流性食管炎」被判成两个身份，
+  // 医生看到同一个诊断列两遍（那个函数的注释本身就在讲要防这件事）。
+  // ICD 索引没有同义词层（aliases 就是名称本身，COPD/上感/慢性阻塞性肺疾病 全未收），
+  // 所以补同义词表没用——正确解法是让这批也走 LLM 闭集映射，落到同一个 ICD 编码上。
+  asArray(westernDiagnosis.differentials).slice(0, 4).forEach((item: unknown, index: number) =>
+    push("icd10", `westernDiagnosis.differentials.${index}.name`, asRecord(item).name, 24));
   const medicineConceptInput = [
     westernPrimary.name,
     overview.primarySyndrome,
@@ -257,6 +272,20 @@ function extractM03Targets(reasoning: JsonRecord): ControlledSemanticTarget[] {
     medicineConceptInput,
     CANDIDATES.medicine_clinical_concept.length,
   );
+  // 上面那条的输入全是 M03 的**结论字段**（诊断名/证候/病机/治法），覆盖不到
+  // "医生用口语写了一个症状"这个场景——而中成药召回的准入门槛正是 40 条硬编码正则概念
+  // （medicine-clinical-concepts.ts），「心窝子疼」「胃口那块儿烧得慌」「一天跑五六趟厕所」
+  // 一个都不命中，整条中成药路径直接零候选。
+  // 一个 target 只产出一个 candidateId，所以这里**另开一条**以病历原文为输入的映射，
+  // 让口语症状也能落到受控概念上；两条互不覆盖，合起来支持"结论概念 + 口语概念"并存。
+  if (patientNarrative && patientNarrative.trim()) {
+    push(
+      "medicine_clinical_concept",
+      "retrieval.medicineClinicalConcept.narrative",
+      patientNarrative,
+      CANDIDATES.medicine_clinical_concept.length,
+    );
+  }
   return targets.filter((item): item is ControlledSemanticTarget => Boolean(item)).slice(0, MAX_TARGETS_PER_CALL);
 }
 
@@ -326,7 +355,7 @@ async function callClosedSetModel(
         { role: "user", content: semanticPrompt(targets) },
       ],
       temperature: 0,
-      max_tokens: 900,
+      max_tokens: 1800,
       stream: false,
       response_format: { type: "json_object" },
     }, { signal: controller.signal });
@@ -370,6 +399,9 @@ function replaceSentinelJson(content: string, transform: (value: JsonRecord) => 
 export async function annotateM03ControlledTerminology(
   content: string,
   signal?: AbortSignal,
+  // 病历原文。用于让口语症状也能映射到受控中成药概念——M03 结论字段覆盖不到"医生用口语
+  // 写了一个症状"这个场景。缺省为空串时行为与此前完全一致。
+  patientNarrative = "",
 ): Promise<string> {
   if (!enabled() || signal?.aborted) return content;
   const config = getControlledTerminologyModelConfig();
@@ -388,7 +420,7 @@ export async function annotateM03ControlledTerminology(
     },
   );
   if (!reasoning) return content;
-  const targets = extractM03Targets(reasoning);
+  const targets = extractM03Targets(reasoning, patientNarrative);
   if (targets.length === 0) return content;
   await loadCache();
   const mappings: ControlledTerminologyMapping[] = [];

@@ -4433,11 +4433,15 @@ function ResultTabsV2({
   const failedStage = caseState.phase === "error" && caseState.lastError ? caseState.lastError.phase : undefined;
   const prescribeStageFailed = failedStage === "prescribe";
   const assessStageFailed = failedStage === "assess";
+  // 传**结构化病性条目**而不是拼接后的自由文本：拼接串会让「上热下寒」同时命中寒热两条、
+  // 让「尚未化热」这类否定表述照样触发建议。buildSeasonalCare 现按 T2 病性词表逐条解析。
   const seasonalCare = buildSeasonalCare([
+    ...(reasoning.pathogenesis?.natureDifferentiation?.items || []),
+    ...(reasoning.pathogenesis?.natureDifferentiation?.rootDeficiency || []),
+    ...(reasoning.pathogenesis?.natureDifferentiation?.branchExcess || []),
     reasoning.overview.primarySyndrome,
     ...(reasoning.overview.secondarySyndromes || []),
-    reasoning.overview.overallPathogenesis,
-  ].filter(Boolean).join("；"), new Date());
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())), new Date());
   const governedSurfaceId = caseState.safetyGate?.status === "red_flag"
     ? "red_flag_escalation"
     : hasExplicitNonDoseResult
@@ -5730,11 +5734,20 @@ function inferDraftPatchFromFreeText(text: string): Partial<HisRecordDraft> {
     if (/脉象|舌脉|舌和脉/.test(normalized)) patch.tcmPulse = "脉象待核实";
   }
 
-  const sexMatch = normalized.match(/(?:性别|患者)?\s*(男|女)(?:性|患者)?/);
-  if (!patch.sex && sexMatch?.[1] &&
+  // 性别必须有明确前后文标记才认。原正则 /(?:性别|患者)?\s*(男|女)(?:性|患者)?/ 的前缀是**可选**的，
+  // 于是任意位置的裸「男」「女」字都命中——「女婿陪同」「其子女均体健」「妇女保健科」
+  // 都会把性别抽出来，而 mergeDraftPatch(..., true) 是覆盖语义，会把已录入的正确值改掉。
+  // 性别不是显示字段：它进 FEMALE_ONLY_CLINICAL_CONTEXT（diagnosis-safety.ts）、进 collect
+  // 必填校验、并参与妊娠相关路径，判错方向是**放行**（男性患者不会触发妊娠门禁）。
+  // 因此这里只认四种明确写法，其余一律不猜——采集缺项有独立的追问链路兜底，比猜错强。
+  const sexMatch = normalized.match(
+    /(?:性别\s*[:：]?\s*(男|女)|(男|女)性(?![^，。；;]{0,4}(?:朋友|友))|患者\s*(男|女)|(?:^|[，,、；;])\s*(男|女)\s*(?=[，,、；;]|\s*\d{1,3}\s*岁))/,
+  );
+  const inferredSex = sexMatch ? (sexMatch[1] || sexMatch[2] || sexMatch[3] || sexMatch[4]) : undefined;
+  if (!patch.sex && inferredSex &&
       !/(男女|男或女|男性或女性)/.test(normalized) &&
       !/(?:是否|是不是|可能|疑似|待确认|需确认)[^，。；;]{0,6}(?:男|女)/.test(normalized)) {
-    patch.sex = sexMatch[1];
+    patch.sex = inferredSex;
   }
 
   const ageMatch = normalized.match(/(?:年龄|患者)?\s*(\d{1,3})\s*岁/);

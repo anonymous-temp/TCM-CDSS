@@ -360,7 +360,7 @@ async function prepareDiagnoseStructuredContent(
   const rationaleBound = normalizeM03TcmRationaleEvidenceBoundary(classified);
   const projected = normalizeM03PathogenesisSummaryProjection(rationaleBound);
   const normalized = normalizeDiagnoseConfidenceAndLabels(projected, clinicalContext);
-  const terminologyAnnotated = await annotateM03ControlledTerminology(normalized, signal);
+  const terminologyAnnotated = await annotateM03ControlledTerminology(normalized, signal, clinicalContext);
   const evidenceBound = enforceRetrievedM03FormulaSelection(terminologyAnnotated, allowedFormulaNames);
   const formalCriteriaBound = declassifyUnmetFormalM03WesternPrimary(evidenceBound, clinicalContext);
   const singlePrimary = declassifyAmbiguousM03WesternPrimary(formalCriteriaBound, clinicalContext);
