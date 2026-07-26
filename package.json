@@ -84,7 +84,8 @@
     "test:acupoint-evidence": "jiti scripts/test-acupoint-evidence.mjs",
     "test:modern-case-corpus": "jiti scripts/test-modern-case-corpus.mjs",
     "test:disease-lexicon": "jiti scripts/test-disease-lexicon.mjs",
-    "test:runtime-data-presence": "jiti scripts/test-runtime-data-presence.mjs"
+    "test:runtime-data-presence": "jiti scripts/test-runtime-data-presence.mjs",
+    "test:pregnancy-recall": "jiti scripts/test-pregnancy-state-recall.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

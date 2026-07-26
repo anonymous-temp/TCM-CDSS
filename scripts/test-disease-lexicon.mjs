@@ -125,4 +125,4 @@ for (const [n, c] of tcmNames) {
 missed.sort((a, b) => b[1] - a[1]);
 assert.ok(ok / total >= 0.9, `现代医案中医病名解析率 ${(ok / total * 100).toFixed(1)}% < 90%(未解样例:${missed.slice(0, 10).map((m) => m[0]).join("、")})`);
 
-console.log(JSON.stringify({ entries: entries.length, aliases: lexicon.summary.aliasCount, corpusTcmNameResolution: `${(ok / total * 100).toFixed(1)}%`, missedTop: missed.slice(0, 8) }));
+console.log(JSON.stringify({ entries: entries.length, aliases: lexicon.summary.aliasCount, corpusTcmNameResolution: `${(ok / total * 100).toFixed(1)}%`, correctlyHeld, missedTop: missed.slice(0, 8) }));

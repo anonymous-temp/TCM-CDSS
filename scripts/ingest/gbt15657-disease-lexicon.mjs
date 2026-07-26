@@ -15,8 +15,6 @@ const OUT = resolve(ROOT, "src/data/tcm-disease-lexicon.json");
 const lines = readFileSync(SRC, "utf-8").split("\n");
 // 疾病部分范围:从「5.2 中医疾病名」到证候部分开始(B 码段/附录A)。
 // 实测结构:表1 是类目表,疾病条目自 A01.01.01.01 伤风 始;证候条目为 B 码。
-const CODE_RE = /^(A\d{2}(?:\.\d{2}){1,3})\s+([一-龥（）()·、，,]{2,30})\s*$/;
-const ALIAS_RE = /^\s{2,}([一-龥（）()·、，,]{2,30})\s*$/;
 const CATEGORY_RE = /^(?:表\s*\d+\s*)?中医疾病名标识符/;
 const SECTION_RE = /^5\.\d/;
 const PAGE_NOISE = /^(GB\/T|\d{1,3}\s*$|\s*$)/;
@@ -65,7 +63,6 @@ for (const e of clinical) canonCount.set(e.canonical, (canonCount.get(e.canonica
 const dupNames = [...canonCount].filter(([, n]) => n > 1).map(([k]) => k);
 if (dupNames.length) problems.push(`正名重复(可能为同名异类,保留但需复核): ${dupNames.slice(0, 10).join("、")}`);
 
-const sha = (v) => createHash("sha256").update(v).digest("hex").slice(0, 16).toUpperCase();
 
 // ─── 临床扩展层(规划教材/高频临床叫法,受控增补) ───
 // 两类:ALIAS_EXTENSIONS 输入名→标准正名的映射(目标必须已存在于标准词表,构建期校验);
@@ -177,7 +174,7 @@ const CANONICAL_EXTENSIONS = [
 const canonicalNames = new Set();
 const canonicalByName = new Map();
 for (const e of entries) { canonicalNames.add(e.canonical); canonicalByName.set(e.canonical, e); }
-for (const [canon, aliases, note] of CANONICAL_EXTENSIONS) {
+for (const [canon, aliases] of CANONICAL_EXTENSIONS) {
   if (canonicalByName.has(canon)) { aliasProblems.push(`扩展正名与标准冲突:${canon}`); continue; }
   entries.push({
     code: `EXT-${canon}`,

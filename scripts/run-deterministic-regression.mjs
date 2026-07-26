@@ -24,6 +24,7 @@ const scripts = [
   "test:modern-case-corpus",
   "test:disease-lexicon",
   "test:runtime-data-presence",
+  "test:pregnancy-recall",
   "test:customer-evidence",
   "test:stage-contract",
   "test:repair-guidance",
