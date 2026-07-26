@@ -42,12 +42,12 @@ SYNDROME_TAG_ADJUDICATIONS = DATA_ROOT / "tcm-formula-syndrome-tag-adjudications
 # 中湿论/岭南诸病/形证并治法=篇名），它们是 tcmoc 自动抽取把篇名当方名入库、进而混进待裁定清单的。
 # 清除假方名后这 8 条成了孤儿，触发本校验——这正是它该拦下的东西。下调闸门是对**已核实的
 # 数据缺陷**做的一次性修正，不是放松标准：真方剂的裁定一条没少。
-SYNDROME_TAG_ADJUDICATION_FLOOR = 233
+SYNDROME_TAG_ADJUDICATION_FLOOR = 488  # 233(B1) + 255(B2)
 # 按方裁定的药味身份。古方只写「芍药/贝母/紫苏/菖蒲」时，品种由**这一首方**的原书或标准注疏决定，
 # 不能全局归一：同一个「芍药」在桂枝汤里是白芍、在排脓散里是赤芍，猜错等于开错方向相反的药。
 # 因此这张表是 (方名, 原文药名) → 品种，而不是药名→药名。
 INGREDIENT_IDENTITY_ADJUDICATIONS = DATA_ROOT / "tcm-formula-ingredient-identity-adjudications.source.json"
-INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 76
+INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 154  # 76(B1) + 78(B2)
 # 同名异方变体表(ADJ-HOMONYM-20260725):历史并存的不同方两版并存为不同身份(加味逍遥散模式)。
 HOMONYM_VARIANTS = DATA_ROOT / "tcm-formula-homonym-variants.source.json"
 FORMULA_RETRIEVAL_INDEX_OUTPUT = DATA_ROOT / "tcm-formula-retrieval-index.json"
@@ -600,15 +600,63 @@ def linked_ingredients(
     return result
 
 
+# 只有药典背书的剂量边界才能授权自动配剂量。
+# KB 里的数值边界有两类依据：药典条目（`中华人民共和国药典：2020年版．一部` /
+# `中国药典2020一部【用法与用量】…`），以及「常用药典用量/调剂规范待人工复核」
+# 「高置信中药饮片剂量校准层」「甲方反馈补充」这类**尚未复核**的推定值。
+# 后者是给药师看的参考，不是可以拿来自动开方的口径。
+PHARMACOPOEIA_DOSE_BASIS = re.compile(r"中华人民共和国药典|中国药典2020一部")
+DECOCTION_ROUTE = re.compile(r"煎服|汤剂|另煎|另炖")
+PILL_POWDER_ROUTE = re.compile(r"丸散|丸剂|胶囊")
+
+
+def pharmacopoeia_forbids_internal_decoction(herb: dict[str, Any]) -> bool:
+    """True when the pharmacopoeia enumerates this herb's routes and none of them is a decoction.
+
+    本函数名叫 `numeric_decoction_dose_names`——煎剂——但它此前从不检查药典是否允许煎服。
+    KB 里 44 味药的药典分途径条目**只有丸散/外用、没有煎服**，却照样拿到了煎剂配剂量许可：
+    马钱子、巴豆霜、斑蝥、蟾酥、雄黄、朱砂、轻粉、洋金花、闹羊花、甘遂、红大戟、麝香、牛黄…
+    实测 155 首可编译剂量的方含这类药材，其中 18 首方名/剂型明确是汤剂——
+    升麻鳖甲汤[雄黄]、散瘀和伤汤[马钱子]、硫黄汤[硫黄]、十枣汤/大陷胸汤/甘遂半夏汤[甘遂]。
+    十枣汤尤其典型：其经典用法本就是甘遂/大戟/芫花**研末、枣汤送服**，三药根本不入煎。
+
+    判据只用**药典自己列的途径**，不做推断：
+    · 药典分途径条目存在，且其中有丸散/胶囊、却没有任何煎服项 ⇒ 药典不认煎服，排除；
+    · 根本没有分途径条目 ⇒ 药典没说限制，不排除（缺数据不等于证据，与 §12.3 同一原则）；
+    · 「高置信中药饮片剂量校准层」给雄黄/朱砂/轻粉凭空补出的「煎服/汤剂」途径**不计入**——
+      它未经复核，且与药典同表的「丸散」「有毒且不入汤剂」直接冲突。
+    """
+    pharmacopoeia_routes = [
+        f"{entry.get('routeForm') or ''}{entry.get('method') or ''}"
+        for entry in herb.get("entries", [])
+        if entry.get("type") == "routeDose"
+        and PHARMACOPOEIA_DOSE_BASIS.search(compact(entry.get("basis")) or "")
+    ]
+    if not pharmacopoeia_routes:
+        return False
+    if any(DECOCTION_ROUTE.search(route) for route in pharmacopoeia_routes):
+        return False
+    return any(PILL_POWDER_ROUTE.search(route) for route in pharmacopoeia_routes)
+
+
 def numeric_decoction_dose_names() -> set[str]:
-    """Return herbs with an actual numeric internal-decoction boundary in the runtime KB.
+    """Return herbs with a pharmacopoeia-backed numeric internal-decoction boundary in the KB.
 
     T9 identity resolution alone does not authorize a dose. Keeping this derivation in the T8
     builder makes the catalog flag and the M04 runtime gate share the same concrete requirement.
+
+    依据来源必须是药典条目。此前本函数只看「有没有数字」，不看「数字是哪来的」，于是
+    13 首方靠未复核的推定值获得了自动配剂量许可——其中 11 首经由**天南星**，而天南星
+    `toxicity=有毒`、`pregnancy_forbidden`、列入高风险监管目录，它那条 3-6g 的依据原文
+    就写着「属毒性中药，待人工复核」。给毒性药按未复核值自动配剂量，是典型的把「未知」
+    当「无风险」。`commonHerbs` 整表 99 条依据全部未复核，因此整表不再授权（其中 95 味
+    另有药典条目背书，不受影响；真正掉出的只有 4 味）。
     """
     knowledge = read_json(TCM_KNOWLEDGE)
     names: set[str] = set()
     for herb in knowledge.get("herbs", []):
+        if pharmacopoeia_forbids_internal_decoction(herb):
+            continue
         for entry in herb.get("entries", []):
             try:
                 minimum = float(entry.get("minG"))
@@ -617,22 +665,22 @@ def numeric_decoction_dose_names() -> set[str]:
                 continue
             if minimum <= 0 or maximum < minimum:
                 continue
+            if not PHARMACOPOEIA_DOSE_BASIS.search(compact(entry.get("basis")) or ""):
+                continue
             entry_type = entry.get("type")
             if entry_type in {"dose", "curatedDose"}:
                 names.add(compact(herb.get("name")))
             elif entry_type == "routeDose" and re.search(
-                r"煎服|汤剂|另煎|另炖",
+                DECOCTION_ROUTE,
                 f"{entry.get('routeForm') or ''}{entry.get('method') or ''}",
             ):
                 names.add(compact(herb.get("name")))
-    for herb in knowledge.get("commonHerbs", []):
-        try:
-            minimum = float(herb.get("minG"))
-            maximum = float(herb.get("maxG"))
-        except (TypeError, ValueError):
-            continue
-        if minimum > 0 and maximum >= minimum:
-            names.add(compact(herb.get("name")))
+    if not names:
+        raise SystemExit(
+            "no pharmacopoeia-backed numeric dose boundary found in the runtime KB; "
+            "the dose basis vocabulary likely changed — fix this derivation instead of "
+            "letting every formula silently lose dose compilation"
+        )
     return {name for name in names if name}
 
 
@@ -729,8 +777,11 @@ def build_formula_catalog(
             *source.get("officialClassicFormulas", {}).keys(),
             *verified.keys(),
             *(item.get("name") for item in standard_rows),
+            # 同名异方具名变体也是受控源域的一部分(ADJ-HOMONYM-20260725):变体在三个来源层之外,
+            # 裁定表引用变体名时若不纳入源域,会被「outside governed source universe」误杀。
+            *((pair.get("variant") or {}).get("name") for pair in read_json(HOMONYM_VARIANTS).get("entries", [])),
         ]
-        if compact(name)
+        if name and compact(name)
     }
     adjudicated_tags_by_formula = load_syndrome_tag_adjudications(governed_formula_names)
     identity_adjudications = load_ingredient_identity_adjudications(resolution_index)

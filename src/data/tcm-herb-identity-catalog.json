@@ -7,8 +7,8 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "79df6ffc9517a0702a09843d482d9946199452b8a1ed4679e02209b1366af0ea",
-    "rowCount": 90
+    "sha256": "b6aa5383afd7cb812ff6ed7ae1b35eac9481d2562d3e81c254e7935909447c0f",
+    "rowCount": 377
   },
   "governance": {
     "status": "generated_mapping_plus_source_backed_clinical_extensions",
@@ -17,15 +17,15 @@
     "scopeNote": "联网检索可用于收集权威来源和完成知识治理，但不能替代真实处方依法依规的审核职责；多目标别名保持 fail-closed。"
   },
   "summary": {
-    "standardNameCount": 625,
-    "ambiguousInputCount": 510,
+    "standardNameCount": 628,
+    "ambiguousInputCount": 501,
     "resolutionStatusCounts": {
-      "ambiguous": 510,
+      "ambiguous": 501,
       "exact_standard_name": 616,
-      "source_backed_clinical_extension": 89,
-      "source_backed_preparation_form": 125,
+      "source_backed_clinical_extension": 374,
+      "source_backed_preparation_form": 124,
       "unique_high_confidence": 74,
-      "unique_source_backed": 4704
+      "unique_source_backed": 4703
     }
   },
   "entries": [
@@ -4993,18 +4993,6 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
-      ]
-    },
-    {
-      "standardName": "六神曲",
-      "inChp2020": false,
-      "chpEntryId": null,
-      "riskTags": [],
-      "variants": [],
-      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
-      "sourceRefs": [
-        "SRC-SZJG-TCM-FORMULA-2011",
-        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -15873,6 +15861,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "姜炭",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -29491,6 +29491,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "熟大黄",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -53875,6 +53887,18 @@
       ]
     },
     {
+      "standardName": "酒萸肉",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "酸枣仁",
       "inChp2020": true,
       "chpEntryId": "583",
@@ -61228,6 +61252,18 @@
       ]
     },
     {
+      "standardName": "鲜地黄",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "鳖甲",
       "inChp2020": true,
       "chpEntryId": "615",
@@ -66757,13 +66793,14 @@
       "autoResolvable": true
     },
     "云苓": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "茯苓",
-        "茯苓皮"
+      "canonicalName": "茯苓",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "茯苓"
     },
     "云英": {
       "canonicalName": "络石藤",
@@ -72067,13 +72104,14 @@
       "autoResolvable": false
     },
     "天台乌药": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "乌药",
-        "土木香"
+      "canonicalName": "乌药",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "乌药"
     },
     "天山雪莲": {
       "canonicalName": "天山雪莲",
@@ -73955,9 +73993,14 @@
       "autoResolvable": true
     },
     "山芋": {
-      "canonicalName": "狼毒",
-      "status": "unique_source_backed",
-      "autoResolvable": true
+      "canonicalName": "山药",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山药"
     },
     "山芋头": {
       "canonicalName": "狼毒",
@@ -74023,13 +74066,14 @@
       "autoResolvable": true
     },
     "山茵陈": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "北刘寄奴",
-        "香薷"
+      "canonicalName": "茵陈",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "茵陈"
     },
     "山茶根": {
       "canonicalName": "黄芩",
@@ -75662,13 +75706,14 @@
       "autoResolvable": true
     },
     "文蛤": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "五倍子",
-        "蛤壳"
+      "canonicalName": "蛤壳",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "蛤壳"
     },
     "斑庄": {
       "canonicalName": "虎杖",
@@ -77202,13 +77247,14 @@
       "autoResolvable": true
     },
     "梅花冰片": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "冰片（合成龙脑）",
-        "天然冰片（右旋龙脑）"
+      "canonicalName": "天然冰片（右旋龙脑）",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "天然冰片（右旋龙脑）"
     },
     "梅花脑": {
       "canonicalName": null,
@@ -83653,13 +83699,14 @@
       "autoResolvable": true
     },
     "秦椒": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "花椒",
-        "辣椒"
+      "canonicalName": "花椒",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "花椒"
     },
     "秦爪": {
       "canonicalName": "秦艽",
@@ -84960,14 +85007,14 @@
       "autoResolvable": true
     },
     "红藤": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "千年健",
-        "大血藤",
-        "鸡血藤"
+      "canonicalName": "大血藤",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "大血藤"
     },
     "红藤草": {
       "canonicalName": "马鞭草",
@@ -87816,14 +87863,14 @@
       "autoResolvable": true
     },
     "草蔻": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "草果",
-        "草豆蔻",
-        "豆蔻"
+      "canonicalName": "草豆蔻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "草豆蔻"
     },
     "草蔻仁": {
       "canonicalName": null,
@@ -87871,13 +87918,14 @@
       "autoResolvable": true
     },
     "草龙胆": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "青叶胆",
-        "龙胆"
+      "canonicalName": "龙胆",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "龙胆"
     },
     "荎蕏": {
       "canonicalName": "五味子",
@@ -90352,13 +90400,14 @@
       "autoResolvable": true
     },
     "象贝": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "土贝母",
-        "浙贝母"
+      "canonicalName": "浙贝母",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "浙贝母"
     },
     "象贝母": {
       "canonicalName": null,
@@ -94436,13 +94485,14 @@
       "autoResolvable": true
     },
     "香白芷": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "独活",
-        "白芷"
+      "canonicalName": "白芷",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "doseCanonicalName": "白芷"
     },
     "香脐子": {
       "canonicalName": "麝香",
@@ -97670,15 +97720,6 @@
       ],
       "preparation": "炮制"
     },
-    "神曲": {
-      "canonicalName": "六神曲",
-      "status": "source_backed_clinical_extension",
-      "autoResolvable": true,
-      "sourceRefs": [
-        "SRC-SZJG-TCM-FORMULA-2011",
-        "SRC-NMPA-CHP-2025-INDEX"
-      ]
-    },
     "葱白": {
       "canonicalName": "葱白",
       "status": "source_backed_clinical_extension",
@@ -97866,6 +97907,2767 @@
       ],
       "preparation": "研粉规格，同药材",
       "doseCanonicalName": "朱砂"
+    },
+    "葶苈": {
+      "canonicalName": "葶苈子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "葶苈子"
+    },
+    "生干地黄": {
+      "canonicalName": "地黄",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "地黄"
+    },
+    "栝蒌仁": {
+      "canonicalName": "瓜蒌子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "瓜蒌子"
+    },
+    "钟乳粉": {
+      "canonicalName": "钟乳石",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "钟乳石"
+    },
+    "煨肉豆蔻": {
+      "canonicalName": "肉豆蔻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "肉豆蔻"
+    },
+    "白茯神": {
+      "canonicalName": "茯苓",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "茯苓"
+    },
+    "当归梢": {
+      "canonicalName": "当归",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "当归"
+    },
+    "沙苑蒺藜": {
+      "canonicalName": "沙苑子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "沙苑子"
+    },
+    "白蜜": {
+      "canonicalName": "蜂蜜",
+      "status": "ambiguous",
+      "autoResolvable": false,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蜂蜜"
+    },
+    "扁豆": {
+      "canonicalName": "白扁豆",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白扁豆"
+    },
+    "旋复花": {
+      "canonicalName": "旋覆花",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "旋覆花"
+    },
+    "栀子仁": {
+      "canonicalName": "栀子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "栀子"
+    },
+    "延胡索": {
+      "canonicalName": "延胡索（元胡）",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "延胡索（元胡）"
+    },
+    "良姜": {
+      "canonicalName": "高良姜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "高良姜"
+    },
+    "甘菊花": {
+      "canonicalName": "菊花",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "菊花"
+    },
+    "葫芦巴": {
+      "canonicalName": "胡芦巴",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "胡芦巴"
+    },
+    "蓬术": {
+      "canonicalName": "莪术",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "莪术"
+    },
+    "醋延胡索": {
+      "canonicalName": "延胡索（元胡）",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "preparation": "醋制",
+      "doseCanonicalName": "延胡索（元胡）"
+    },
+    "猪胆": {
+      "canonicalName": "猪胆粉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "猪胆粉"
+    },
+    "石苇": {
+      "canonicalName": "石韦",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "石韦"
+    },
+    "芙蓉叶": {
+      "canonicalName": "木芙蓉叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "木芙蓉叶"
+    },
+    "莲肉": {
+      "canonicalName": "莲子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "莲子"
+    },
+    "胡桃": {
+      "canonicalName": "核桃仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "核桃仁"
+    },
+    "皮硝": {
+      "canonicalName": "芒硝",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "芒硝"
+    },
+    "皂矾": {
+      "canonicalName": "皂矾（绿矾）",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "皂矾（绿矾）"
+    },
+    "石莲肉": {
+      "canonicalName": "莲子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "莲子"
+    },
+    "土白术": {
+      "canonicalName": "白术",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白术"
+    },
+    "元明粉": {
+      "canonicalName": "玄明粉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "玄明粉"
+    },
+    "熟大黄": {
+      "canonicalName": "熟大黄",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "大黄"
+    },
+    "广木香": {
+      "canonicalName": "木香",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "木香"
+    },
+    "苁蓉": {
+      "canonicalName": "肉苁蓉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "肉苁蓉"
+    },
+    "甘菊": {
+      "canonicalName": "菊花",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "菊花"
+    },
+    "北细辛": {
+      "canonicalName": "细辛",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "细辛"
+    },
+    "蛤粉": {
+      "canonicalName": "蛤壳",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蛤壳"
+    },
+    "川当归": {
+      "canonicalName": "当归",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "当归"
+    },
+    "广术": {
+      "canonicalName": "莪术",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "莪术"
+    },
+    "台乌药": {
+      "canonicalName": "乌药",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "乌药"
+    },
+    "生干姜": {
+      "canonicalName": "干姜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "干姜"
+    },
+    "陈橘皮": {
+      "canonicalName": "陈皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "陈皮"
+    },
+    "芎": {
+      "canonicalName": "川芎",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "川芎"
+    },
+    "山楂炭": {
+      "canonicalName": "山楂",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山楂"
+    },
+    "川升麻": {
+      "canonicalName": "升麻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "升麻"
+    },
+    "制香附": {
+      "canonicalName": "香附",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "香附"
+    },
+    "诃子仁": {
+      "canonicalName": "诃子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "诃子"
+    },
+    "丹皮炭": {
+      "canonicalName": "牡丹皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "牡丹皮"
+    },
+    "南枣": {
+      "canonicalName": "大枣",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "大枣"
+    },
+    "龟胶珠": {
+      "canonicalName": "龟甲胶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "龟甲胶"
+    },
+    "鹿胶珠": {
+      "canonicalName": "鹿角胶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "鹿角胶"
+    },
+    "紫菀茸": {
+      "canonicalName": "紫菀",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "紫菀"
+    },
+    "淡竹叶心": {
+      "canonicalName": "淡竹叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "淡竹叶"
+    },
+    "泽兰叶": {
+      "canonicalName": "泽兰",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "泽兰"
+    },
+    "生大黄": {
+      "canonicalName": "大黄",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "大黄"
+    },
+    "蓬莪术": {
+      "canonicalName": "莪术",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "莪术"
+    },
+    "浓朴": {
+      "canonicalName": "厚朴",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "厚朴"
+    },
+    "诃子肉": {
+      "canonicalName": "诃子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "诃子"
+    },
+    "木瓜干": {
+      "canonicalName": "木瓜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "木瓜"
+    },
+    "东洋参": {
+      "canonicalName": "人参",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "人参"
+    },
+    "白菊花": {
+      "canonicalName": "菊花",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "菊花"
+    },
+    "真阿胶": {
+      "canonicalName": "阿胶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "阿胶"
+    },
+    "马牙硝": {
+      "canonicalName": "芒硝",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "芒硝"
+    },
+    "赤苓": {
+      "canonicalName": "茯苓",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "茯苓"
+    },
+    "酒苁蓉": {
+      "canonicalName": "肉苁蓉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "肉苁蓉"
+    },
+    "乳山药": {
+      "canonicalName": "山药",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山药"
+    },
+    "乳茯苓": {
+      "canonicalName": "茯苓",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "茯苓"
+    },
+    "大麻仁": {
+      "canonicalName": "火麻仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "火麻仁"
+    },
+    "海蛤": {
+      "canonicalName": "蛤壳",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蛤壳"
+    },
+    "白蔻仁": {
+      "canonicalName": "豆蔻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "豆蔻"
+    },
+    "干山药": {
+      "canonicalName": "山药",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山药"
+    },
+    "苏木节": {
+      "canonicalName": "苏木",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "苏木"
+    },
+    "诃子皮": {
+      "canonicalName": "诃子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "诃子"
+    },
+    "本": {
+      "canonicalName": "藁本",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "藁本"
+    },
+    "鼠粘子": {
+      "canonicalName": "牛蒡子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "牛蒡子"
+    },
+    "川柏": {
+      "canonicalName": "黄柏",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黄柏"
+    },
+    "黄松节": {
+      "canonicalName": "油松节",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "油松节"
+    },
+    "条芩": {
+      "canonicalName": "黄芩",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黄芩"
+    },
+    "黑参": {
+      "canonicalName": "玄参",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "玄参"
+    },
+    "干熟地黄": {
+      "canonicalName": "熟地黄",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "熟地黄"
+    },
+    "舶上茴香": {
+      "canonicalName": "八角茴香",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "八角茴香"
+    },
+    "生蒲黄": {
+      "canonicalName": "蒲黄",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蒲黄"
+    },
+    "蒸川贝母": {
+      "canonicalName": "川贝母",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "川贝母"
+    },
+    "白豆蔻仁": {
+      "canonicalName": "豆蔻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "豆蔻"
+    },
+    "麻子": {
+      "canonicalName": "火麻仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "火麻仁"
+    },
+    "赤茯神": {
+      "canonicalName": "茯苓",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "茯苓"
+    },
+    "槐角子": {
+      "canonicalName": "槐角",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "槐角"
+    },
+    "连翘心": {
+      "canonicalName": "连翘",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "连翘"
+    },
+    "灯芯": {
+      "canonicalName": "灯心草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "灯心草"
+    },
+    "柏皮": {
+      "canonicalName": "黄柏",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黄柏"
+    },
+    "麋衔": {
+      "canonicalName": "鹿衔草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "鹿衔草"
+    },
+    "珍珠粉": {
+      "canonicalName": "珍珠",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "珍珠"
+    },
+    "青橘皮": {
+      "canonicalName": "青皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "青皮"
+    },
+    "枯白矾": {
+      "canonicalName": "白矾",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白矾"
+    },
+    "酒浸当归": {
+      "canonicalName": "当归",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "当归"
+    },
+    "黑脂麻拌炒补骨脂": {
+      "canonicalName": "补骨脂",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "补骨脂"
+    },
+    "生甘草梢": {
+      "canonicalName": "甘草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "甘草"
+    },
+    "生鳖甲": {
+      "canonicalName": "鳖甲",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "鳖甲"
+    },
+    "山楂肉": {
+      "canonicalName": "山楂",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山楂"
+    },
+    "芡实粉": {
+      "canonicalName": "芡实",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "芡实"
+    },
+    "海蛤粉": {
+      "canonicalName": "蛤壳",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蛤壳"
+    },
+    "甜硝": {
+      "canonicalName": "芒硝",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "芒硝"
+    },
+    "白石膏": {
+      "canonicalName": "石膏",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "石膏"
+    },
+    "薰陆香": {
+      "canonicalName": "乳香",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "乳香"
+    },
+    "龙脑薄荷": {
+      "canonicalName": "薄荷",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "薄荷"
+    },
+    "官拣参": {
+      "canonicalName": "人参",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "人参"
+    },
+    "生龟板": {
+      "canonicalName": "龟甲",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "龟甲"
+    },
+    "漂苍术": {
+      "canonicalName": "苍术",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "苍术"
+    },
+    "蔓荆": {
+      "canonicalName": "蔓荆子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蔓荆子"
+    },
+    "赤苓皮": {
+      "canonicalName": "茯苓皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "茯苓皮"
+    },
+    "山萸": {
+      "canonicalName": "山茱萸",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山茱萸"
+    },
+    "乌麻": {
+      "canonicalName": "黑芝麻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黑芝麻"
+    },
+    "白云苓": {
+      "canonicalName": "茯苓",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "茯苓"
+    },
+    "青葙": {
+      "canonicalName": "青葙子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "青葙子"
+    },
+    "东行桑根": {
+      "canonicalName": "桑白皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "桑白皮"
+    },
+    "白头地龙": {
+      "canonicalName": "地龙",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "地龙"
+    },
+    "茯芩": {
+      "canonicalName": "茯苓",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "茯苓"
+    },
+    "陈阿胶": {
+      "canonicalName": "阿胶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "阿胶"
+    },
+    "云茯苓": {
+      "canonicalName": "茯苓",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "茯苓"
+    },
+    "青橘": {
+      "canonicalName": "青皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "青皮"
+    },
+    "楮实": {
+      "canonicalName": "楮实子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "楮实子"
+    },
+    "君子": {
+      "canonicalName": "使君子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "使君子"
+    },
+    "生甘": {
+      "canonicalName": "甘草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "甘草"
+    },
+    "淮山药": {
+      "canonicalName": "山药",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山药"
+    },
+    "侧柏炭": {
+      "canonicalName": "侧柏叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "侧柏叶"
+    },
+    "大黄炭": {
+      "canonicalName": "大黄",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "大黄"
+    },
+    "干苏叶": {
+      "canonicalName": "紫苏叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "紫苏叶"
+    },
+    "乌梅炭": {
+      "canonicalName": "乌梅",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "乌梅"
+    },
+    "草豆蔻仁": {
+      "canonicalName": "草豆蔻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "草豆蔻"
+    },
+    "崖蜜": {
+      "canonicalName": "蜂蜜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蜂蜜"
+    },
+    "红椒": {
+      "canonicalName": "花椒",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "花椒"
+    },
+    "青桑枝": {
+      "canonicalName": "桑枝",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "桑枝"
+    },
+    "梨花蜜": {
+      "canonicalName": "蜂蜜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蜂蜜"
+    },
+    "石莲子肉": {
+      "canonicalName": "莲子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "莲子"
+    },
+    "黑姜": {
+      "canonicalName": "炮姜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "炮姜"
+    },
+    "败龟板": {
+      "canonicalName": "龟甲",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "龟甲"
+    },
+    "芥穗炭": {
+      "canonicalName": "荆芥穗炭",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "荆芥穗炭"
+    },
+    "生草节": {
+      "canonicalName": "甘草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "甘草"
+    },
+    "白鸡冠花": {
+      "canonicalName": "鸡冠花",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "鸡冠花"
+    },
+    "炒枣仁": {
+      "canonicalName": "酸枣仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "酸枣仁"
+    },
+    "猪芩": {
+      "canonicalName": "猪苓",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "猪苓"
+    },
+    "芝麻": {
+      "canonicalName": "黑芝麻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黑芝麻"
+    },
+    "禹余石": {
+      "canonicalName": "禹余粮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "禹余粮"
+    },
+    "吴白芷": {
+      "canonicalName": "白芷",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白芷"
+    },
+    "土炒当归": {
+      "canonicalName": "当归",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "当归"
+    },
+    "广郁金": {
+      "canonicalName": "郁金",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "郁金"
+    },
+    "川姜": {
+      "canonicalName": "干姜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "干姜"
+    },
+    "桃仁十四粒": {
+      "canonicalName": "桃仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "桃仁"
+    },
+    "椿根白皮": {
+      "canonicalName": "椿皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "椿皮"
+    },
+    "炒白芍菜": {
+      "canonicalName": "白芍",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白芍"
+    },
+    "四制香附": {
+      "canonicalName": "香附",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "香附"
+    },
+    "焦山栀": {
+      "canonicalName": "焦栀子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "焦栀子"
+    },
+    "莲子肉": {
+      "canonicalName": "莲子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "莲子"
+    },
+    "冬桑叶": {
+      "canonicalName": "桑叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "桑叶"
+    },
+    "淡肉苁蓉": {
+      "canonicalName": "肉苁蓉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "肉苁蓉"
+    },
+    "人参随宜": {
+      "canonicalName": "人参",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "人参"
+    },
+    "五味子十四粒": {
+      "canonicalName": "五味子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "五味子"
+    },
+    "西黄": {
+      "canonicalName": "牛黄",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "牛黄"
+    },
+    "香瓜子": {
+      "canonicalName": "甜瓜子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "甜瓜子"
+    },
+    "角沉香": {
+      "canonicalName": "沉香",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "沉香"
+    },
+    "桂府滑石": {
+      "canonicalName": "滑石",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "滑石"
+    },
+    "制胆星": {
+      "canonicalName": "胆南星",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "胆南星"
+    },
+    "姜炭": {
+      "canonicalName": "炮姜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "炮姜"
+    },
+    "嫩桑叶": {
+      "canonicalName": "桑叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "桑叶"
+    },
+    "射香": {
+      "canonicalName": "麝香",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "麝香"
+    },
+    "败姜": {
+      "canonicalName": "干姜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "干姜"
+    },
+    "火麻子": {
+      "canonicalName": "火麻仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "火麻仁"
+    },
+    "穗炭": {
+      "canonicalName": "荆芥穗炭",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "荆芥穗炭"
+    },
+    "焦楂肉": {
+      "canonicalName": "山楂",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山楂"
+    },
+    "宣木瓜": {
+      "canonicalName": "木瓜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "木瓜"
+    },
+    "蒸麦冬": {
+      "canonicalName": "麦冬",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "麦冬"
+    },
+    "蒸百部": {
+      "canonicalName": "百部",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "百部"
+    },
+    "蒸北沙参": {
+      "canonicalName": "北沙参",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "北沙参"
+    },
+    "缩砂": {
+      "canonicalName": "砂仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "砂仁"
+    },
+    "三七根": {
+      "canonicalName": "三七",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "三七"
+    },
+    "京豉": {
+      "canonicalName": "淡豆豉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "淡豆豉"
+    },
+    "生扁豆": {
+      "canonicalName": "白扁豆",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白扁豆"
+    },
+    "栝蒌子": {
+      "canonicalName": "瓜蒌子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "瓜蒌子"
+    },
+    "豉": {
+      "canonicalName": "淡豆豉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "淡豆豉"
+    },
+    "生麝香": {
+      "canonicalName": "麝香",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "麝香"
+    },
+    "虎杖根": {
+      "canonicalName": "虎杖",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "虎杖"
+    },
+    "草": {
+      "canonicalName": "甘草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "甘草"
+    },
+    "蛤蜊壳": {
+      "canonicalName": "蛤壳",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蛤壳"
+    },
+    "菟丝": {
+      "canonicalName": "菟丝子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "菟丝子"
+    },
+    "芦蓬": {
+      "canonicalName": "漏芦",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "漏芦"
+    },
+    "蛇脱皮": {
+      "canonicalName": "蛇蜕",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蛇蜕"
+    },
+    "油麻": {
+      "canonicalName": "黑芝麻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黑芝麻"
+    },
+    "楮桃儿": {
+      "canonicalName": "楮实子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "楮实子"
+    },
+    "生明乳香": {
+      "canonicalName": "乳香",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "乳香"
+    },
+    "生明没药": {
+      "canonicalName": "没药",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "没药"
+    },
+    "桑上寄生": {
+      "canonicalName": "桑寄生",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "桑寄生"
+    },
+    "莲叶": {
+      "canonicalName": "荷叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "荷叶"
+    },
+    "藜花子": {
+      "canonicalName": "水红花子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "水红花子"
+    },
+    "大槟榔": {
+      "canonicalName": "槟榔",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "槟榔"
+    },
+    "白花百合": {
+      "canonicalName": "百合",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "百合"
+    },
+    "枯末": {
+      "canonicalName": "夏枯草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "夏枯草"
+    },
+    "生桑条": {
+      "canonicalName": "桑枝",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "桑枝"
+    },
+    "大荆": {
+      "canonicalName": "荆芥",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "荆芥"
+    },
+    "山茱萸肉": {
+      "canonicalName": "山茱萸",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山茱萸"
+    },
+    "红枣肉": {
+      "canonicalName": "大枣",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "大枣"
+    },
+    "麻子仁": {
+      "canonicalName": "火麻仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "火麻仁"
+    },
+    "干莲肉": {
+      "canonicalName": "莲子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "莲子"
+    },
+    "鹿角尖": {
+      "canonicalName": "鹿角",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "鹿角"
+    },
+    "于术": {
+      "canonicalName": "白术",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白术"
+    },
+    "生山药": {
+      "canonicalName": "山药",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山药"
+    },
+    "生鸡内金": {
+      "canonicalName": "鸡内金",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "鸡内金"
+    },
+    "鲜生地": {
+      "canonicalName": "鲜地黄",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "地黄"
+    },
+    "霜桑叶": {
+      "canonicalName": "桑叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "桑叶"
+    },
+    "佩兰叶": {
+      "canonicalName": "佩兰",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "佩兰"
+    },
+    "血蝎": {
+      "canonicalName": "血竭",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "血竭"
+    },
+    "广陈皮": {
+      "canonicalName": "陈皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "陈皮"
+    },
+    "牛蒡": {
+      "canonicalName": "牛蒡子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "牛蒡子"
+    },
+    "远志肉": {
+      "canonicalName": "远志",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "远志"
+    },
+    "酒萸肉": {
+      "canonicalName": "酒萸肉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山茱萸"
+    },
+    "牡桂": {
+      "canonicalName": "桂枝",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "桂枝"
+    },
+    "通脱木": {
+      "canonicalName": "通草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "通草"
+    },
+    "小川芎": {
+      "canonicalName": "川芎",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "川芎"
+    },
+    "甜葶苈": {
+      "canonicalName": "葶苈子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "葶苈子"
+    },
+    "炙甘草减半": {
+      "canonicalName": "炙甘草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "炙甘草"
+    },
+    "小黑豆": {
+      "canonicalName": "黑豆",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黑豆"
+    },
+    "择细黄连": {
+      "canonicalName": "黄连",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黄连"
+    },
+    "独头蒜": {
+      "canonicalName": "大蒜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "大蒜"
+    },
+    "枣": {
+      "canonicalName": "大枣",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "大枣"
+    },
+    "晋矾": {
+      "canonicalName": "白矾",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白矾"
+    },
+    "真川贝": {
+      "canonicalName": "川贝母",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "川贝母"
+    },
+    "西": {
+      "canonicalName": "西瓜霜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "西瓜霜"
+    },
+    "川断": {
+      "canonicalName": "续断",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "续断"
+    },
+    "团参": {
+      "canonicalName": "人参",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "人参"
+    },
+    "真川朴": {
+      "canonicalName": "厚朴",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "厚朴"
+    },
+    "生薏仁": {
+      "canonicalName": "薏苡仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "薏苡仁"
+    },
+    "白蔻末": {
+      "canonicalName": "豆蔻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "豆蔻"
+    },
+    "淡香豉": {
+      "canonicalName": "淡豆豉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "淡豆豉"
+    },
+    "建泽泻": {
+      "canonicalName": "泽泻",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "泽泻"
+    },
+    "当归头": {
+      "canonicalName": "当归",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "当归"
+    },
+    "土蒸白术": {
+      "canonicalName": "白术",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白术"
+    },
+    "酒蒸枸杞": {
+      "canonicalName": "枸杞子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "枸杞子"
+    },
+    "螺青": {
+      "canonicalName": "青黛",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "青黛"
+    },
+    "卷荷叶": {
+      "canonicalName": "荷叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "荷叶"
+    },
+    "当归须": {
+      "canonicalName": "当归",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "当归"
+    },
+    "勾藤勾": {
+      "canonicalName": "钩藤",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "钩藤"
+    },
+    "大蒜头": {
+      "canonicalName": "大蒜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "大蒜"
+    },
+    "煨诃子肉": {
+      "canonicalName": "诃子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "诃子"
+    },
+    "苦葶苈子": {
+      "canonicalName": "葶苈子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "葶苈子"
+    },
+    "五味": {
+      "canonicalName": "五味子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "五味子"
+    },
+    "茜根": {
+      "canonicalName": "茜草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "茜草"
+    },
+    "陈枳壳": {
+      "canonicalName": "枳壳",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "枳壳"
+    },
+    "白梅花肉": {
+      "canonicalName": "梅花",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "梅花"
+    },
+    "干柏叶": {
+      "canonicalName": "侧柏叶",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "侧柏叶"
+    },
+    "青蒿脑": {
+      "canonicalName": "青蒿",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "青蒿"
+    },
+    "生枳壳": {
+      "canonicalName": "枳壳",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "枳壳"
+    },
+    "陈广皮": {
+      "canonicalName": "陈皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "陈皮"
+    },
+    "舶茴香": {
+      "canonicalName": "八角茴香",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "八角茴香"
+    },
+    "栝蒌实": {
+      "canonicalName": "瓜蒌",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "瓜蒌"
+    },
+    "绵黄芪": {
+      "canonicalName": "黄芪",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黄芪"
+    },
+    "生脑子": {
+      "canonicalName": "天然冰片（右旋龙脑）",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "天然冰片（右旋龙脑）"
+    },
+    "杞子": {
+      "canonicalName": "枸杞子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "枸杞子"
+    },
+    "萸肉": {
+      "canonicalName": "山茱萸",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "山茱萸"
+    },
+    "淡苁蓉": {
+      "canonicalName": "肉苁蓉",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "肉苁蓉"
+    },
+    "辛夷仁": {
+      "canonicalName": "辛夷",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "辛夷"
+    },
+    "白丹皮根木": {
+      "canonicalName": "牡丹皮",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "牡丹皮"
+    },
+    "旱莲": {
+      "canonicalName": "墨旱莲",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "墨旱莲"
+    },
+    "西牛黄": {
+      "canonicalName": "牛黄",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "牛黄"
+    },
+    "砂仁三粒": {
+      "canonicalName": "砂仁",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "砂仁"
+    },
+    "生黄芩": {
+      "canonicalName": "黄芩",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "黄芩"
+    },
+    "制厚朴": {
+      "canonicalName": "厚朴",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "厚朴"
+    },
+    "焦栀": {
+      "canonicalName": "焦栀子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "焦栀子"
+    },
+    "沙蜜": {
+      "canonicalName": "蜂蜜",
+      "status": "ambiguous",
+      "autoResolvable": false,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "蜂蜜"
+    },
+    "鲜姜": {
+      "canonicalName": "生姜",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "生姜"
+    },
+    "金钱薄荷": {
+      "canonicalName": "连钱草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "连钱草"
+    },
+    "玄胡": {
+      "canonicalName": "延胡索（元胡）",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "延胡索（元胡）"
+    },
+    "生白矾": {
+      "canonicalName": "白矾",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "白矾"
+    },
+    "藤钩": {
+      "canonicalName": "钩藤",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "钩藤"
+    },
+    "麦门冬已上": {
+      "canonicalName": "麦冬",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "麦冬"
+    },
+    "炮姜炭": {
+      "canonicalName": "姜炭",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "炮姜"
+    },
+    "大梅子": {
+      "canonicalName": "乌梅",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "乌梅"
+    },
+    "射干根": {
+      "canonicalName": "射干",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "射干"
+    },
+    "茅山苍术": {
+      "canonicalName": "苍术",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "苍术"
+    },
+    "藿香梗": {
+      "canonicalName": "广藿香",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "广藿香"
+    },
+    "椒红": {
+      "canonicalName": "花椒",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ],
+      "doseCanonicalName": "花椒"
     },
     "制南星": {
       "canonicalName": "天南星",
@@ -98931,15 +101733,6 @@
     },
     "麸炒白术": {
       "canonicalName": "白术",
-      "status": "source_backed_preparation_form",
-      "autoResolvable": true,
-      "sourceRefs": [
-        "SRC-SZJG-TCM-FORMULA-2011"
-      ],
-      "preparation": "麸炒"
-    },
-    "麸炒神曲": {
-      "canonicalName": "六神曲",
       "status": "source_backed_preparation_form",
       "autoResolvable": true,
       "sourceRefs": [
@@ -103359,24 +106152,6 @@
       "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
     },
     {
-      "id": "TCM-HERB-IDENTITY-REVIEW-FF9DAB7BDBF2",
-      "inputName": "云苓",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "茯苓",
-        "茯苓皮"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
       "id": "TCM-HERB-IDENTITY-REVIEW-62B66A0C2641",
       "inputName": "五里香",
       "status": "awaiting_evidence_adjudication",
@@ -104634,24 +107409,6 @@
       "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
     },
     {
-      "id": "TCM-HERB-IDENTITY-REVIEW-FE01ED73C650",
-      "inputName": "天台乌药",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "乌药",
-        "土木香"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
       "id": "TCM-HERB-IDENTITY-REVIEW-4461499E9E64",
       "inputName": "天星草",
       "status": "awaiting_evidence_adjudication",
@@ -105270,24 +108027,6 @@
       "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
     },
     {
-      "id": "TCM-HERB-IDENTITY-REVIEW-C657A9858EC5",
-      "inputName": "山茵陈",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "北刘寄奴",
-        "香薷"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
       "id": "TCM-HERB-IDENTITY-REVIEW-E0862375DB11",
       "inputName": "山萝卜",
       "status": "awaiting_evidence_adjudication",
@@ -105678,24 +108417,6 @@
       "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
     },
     {
-      "id": "TCM-HERB-IDENTITY-REVIEW-3E296A28E1C5",
-      "inputName": "文蛤",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "五倍子",
-        "蛤壳"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
       "id": "TCM-HERB-IDENTITY-REVIEW-7F474A03602C",
       "inputName": "斑杖",
       "status": "awaiting_evidence_adjudication",
@@ -106004,24 +108725,6 @@
       "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
     },
     {
-      "id": "TCM-HERB-IDENTITY-REVIEW-51AE3D964F6C",
-      "inputName": "梅花冰片",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "冰片（合成龙脑）",
-        "天然冰片（右旋龙脑）"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
       "id": "TCM-HERB-IDENTITY-REVIEW-45079AF92237",
       "inputName": "梅花脑",
       "status": "awaiting_evidence_adjudication",
@@ -106138,6 +108841,21 @@
         "半边莲",
         "浮萍"
       ],
+      "serviceLevel": {
+        "triageBusinessDays": 1,
+        "adjudicationBusinessDays": 5
+      },
+      "requiredEvidence": [
+        "authoritative_source_locator",
+        "HIS_local_code_or_dispensing_identity_when_available"
+      ],
+      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
+    },
+    {
+      "id": "TCM-HERB-IDENTITY-REVIEW-FC3CAE8546F0",
+      "inputName": "沙蜜",
+      "status": "awaiting_evidence_adjudication",
+      "candidates": [],
       "serviceLevel": {
         "triageBusinessDays": 1,
         "adjudicationBusinessDays": 5
@@ -107145,6 +109863,21 @@
       "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
     },
     {
+      "id": "TCM-HERB-IDENTITY-REVIEW-3A8802E13C3C",
+      "inputName": "白蜜",
+      "status": "awaiting_evidence_adjudication",
+      "candidates": [],
+      "serviceLevel": {
+        "triageBusinessDays": 1,
+        "adjudicationBusinessDays": 5
+      },
+      "requiredEvidence": [
+        "authoritative_source_locator",
+        "HIS_local_code_or_dispensing_identity_when_available"
+      ],
+      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
+    },
+    {
       "id": "TCM-HERB-IDENTITY-REVIEW-90189B1B7A02",
       "inputName": "白血藤",
       "status": "awaiting_evidence_adjudication",
@@ -107708,24 +110441,6 @@
       "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
     },
     {
-      "id": "TCM-HERB-IDENTITY-REVIEW-56986B43424F",
-      "inputName": "秦椒",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "花椒",
-        "辣椒"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
       "id": "TCM-HERB-IDENTITY-REVIEW-A3DC5397FA8E",
       "inputName": "穿心草",
       "status": "awaiting_evidence_adjudication",
@@ -108097,25 +110812,6 @@
       "candidates": [
         "京大戟",
         "红大戟"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
-      "id": "TCM-HERB-IDENTITY-REVIEW-12FEC47A6310",
-      "inputName": "红藤",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "千年健",
-        "大血藤",
-        "鸡血藤"
       ],
       "serviceLevel": {
         "triageBusinessDays": 1,
@@ -109199,25 +111895,6 @@
       "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
     },
     {
-      "id": "TCM-HERB-IDENTITY-REVIEW-025EEC5536CC",
-      "inputName": "草蔻",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "草果",
-        "草豆蔻",
-        "豆蔻"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
       "id": "TCM-HERB-IDENTITY-REVIEW-BBD1692D4D91",
       "inputName": "草蔻仁",
       "status": "awaiting_evidence_adjudication",
@@ -109225,24 +111902,6 @@
         "草果",
         "草豆蔻",
         "豆蔻"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
-      "id": "TCM-HERB-IDENTITY-REVIEW-BD8609C57134",
-      "inputName": "草龙胆",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "青叶胆",
-        "龙胆"
       ],
       "serviceLevel": {
         "triageBusinessDays": 1,
@@ -109701,24 +112360,6 @@
         "草果",
         "草豆蔻",
         "豆蔻"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
-      "id": "TCM-HERB-IDENTITY-REVIEW-C6B83B205549",
-      "inputName": "象贝",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "土贝母",
-        "浙贝母"
       ],
       "serviceLevel": {
         "triageBusinessDays": 1,
@@ -111222,24 +113863,6 @@
       "candidates": [
         "乌药",
         "土木香"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
-      "id": "TCM-HERB-IDENTITY-REVIEW-799B12115AF5",
-      "inputName": "香白芷",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "独活",
-        "白芷"
       ],
       "serviceLevel": {
         "triageBusinessDays": 1,

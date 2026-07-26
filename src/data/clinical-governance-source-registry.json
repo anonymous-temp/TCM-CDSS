@@ -312,7 +312,7 @@
       "sourceType": "project_compiled_source",
       "authorityTier": "project_governed_source",
       "locator": "src/data/tcm-formula-sources.json",
-      "sha256": "2444ebbf3b5fc8c99276ef507f1ccac03a0d08a94791e0c8df5fef9b4941004d",
+      "sha256": "d49f44b89877fd67272b958e8cc952ca11daacb11d71d42b5dbcefb36ea1f441",
       "scope": "方名、古籍来源和组成的候选全集；同名记录不自动成为治理基线",
       "accessedAt": "2026-07-22"
     },

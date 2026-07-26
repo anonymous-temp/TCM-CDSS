@@ -407,11 +407,6 @@
       "autoResolvable": true
     },
     {
-      "inputName": "神曲",
-      "canonicalName": "六神曲",
-      "autoResolvable": true
-    },
-    {
       "inputName": "葱白",
       "canonicalName": "葱白",
       "autoResolvable": true,
@@ -533,6 +528,2311 @@
       "doseCanonicalName": "朱砂",
       "preparation": "研粉规格，同药材",
       "autoResolvable": true
+    },
+    {
+      "inputName": "葶苈",
+      "canonicalName": "葶苈子",
+      "doseCanonicalName": "葶苈子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):葶苈子为药典正品，古方葶苈即此，无同名异物风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生干地黄",
+      "canonicalName": "地黄",
+      "doseCanonicalName": "地黄",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生干地黄即干地黄，药典标准名地黄涵盖生地黄，剂量相符。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "栝蒌仁",
+      "canonicalName": "瓜蒌子",
+      "doseCanonicalName": "瓜蒌子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):栝蒌即瓜蒌，仁为种子，对应药典瓜蒌子，无混淆。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "钟乳粉",
+      "canonicalName": "钟乳石",
+      "doseCanonicalName": "钟乳石",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):钟乳粉为钟乳石粉末，药典无毒，剂量3-9g可配。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "煨肉豆蔻",
+      "canonicalName": "肉豆蔻",
+      "doseCanonicalName": "肉豆蔻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):煨肉豆蔻为药典收载炮制品，功效用量与肉豆蔻一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白茯神",
+      "canonicalName": "茯苓",
+      "doseCanonicalName": "茯苓",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):茯神与茯苓同基原，药典未单列，作茯苓用安全。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "当归梢",
+      "canonicalName": "当归",
+      "doseCanonicalName": "当归",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):当归梢即当归尾，同药材，药典不分部位，可用当归。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "沙苑蒺藜",
+      "canonicalName": "沙苑子",
+      "doseCanonicalName": "沙苑子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):沙苑蒺藜为沙苑子异名，药典收载，与刺蒺藜性效不同。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白蜜",
+      "canonicalName": "蜂蜜",
+      "doseCanonicalName": "蜂蜜",
+      "autoResolvable": false,
+      "note": "中医师裁定(2026-07-26):白蜜即蜂蜜，古方中多用作炼蜜为丸等赋形剂，剂量语义不同于饮片煎服，故标excipient。【赋形/外用载体为主,身份归一但保持剂量阻断】",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "扁豆",
+      "canonicalName": "白扁豆",
+      "doseCanonicalName": "白扁豆",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):扁豆即白扁豆，为豆科植物扁豆的种子，与药典白扁豆一致，无异名异物风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "旋复花",
+      "canonicalName": "旋覆花",
+      "doseCanonicalName": "旋覆花",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古今正名演变，药性无异，旋复花即旋覆花，药典标准名为旋覆花。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "栀子仁",
+      "canonicalName": "栀子",
+      "doseCanonicalName": "栀子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):栀子仁即栀子种仁，现今统一使用栀子果实，药典标准名为栀子，药性无异。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "延胡索",
+      "canonicalName": "延胡索（元胡）",
+      "doseCanonicalName": "延胡索（元胡）",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):提案加注元胡，药典标准名仅为延胡索，规范为标准名，剂量3-10g与药典一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "良姜",
+      "canonicalName": "高良姜",
+      "doseCanonicalName": "高良姜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):良姜为高良姜之简称，药典标准名为高良姜，同名异物风险无。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "甘菊花",
+      "canonicalName": "菊花",
+      "doseCanonicalName": "菊花",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):甘菊花即味甘之菊花，栽培品种符合药典菊花项下，古今用药一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "葫芦巴",
+      "canonicalName": "胡芦巴",
+      "doseCanonicalName": "胡芦巴",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古今正名演变，葫芦巴与胡芦巴为同一药材，药典标准名为胡芦巴。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蓬术",
+      "canonicalName": "莪术",
+      "doseCanonicalName": "莪术",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蓬术为莪术古称，基原相同，药典收载，无毒，非同名异物，果断采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "醋延胡索",
+      "canonicalName": "延胡索（元胡）",
+      "doseCanonicalName": "延胡索（元胡）",
+      "preparation": "醋制",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):醋延胡索为延胡索炮制品，药典有独立标准，剂量与延胡索一致，映射为醋延胡索更准确。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "猪胆",
+      "canonicalName": "猪胆粉",
+      "doseCanonicalName": "猪胆粉",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古方猪胆汁与药典猪胆粉基原一致，干燥品剂量0.3-0.6g可用，非外用赋形，采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "石苇",
+      "canonicalName": "石韦",
+      "doseCanonicalName": "石韦",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):石苇为石韦别名，同物，药典正名石韦，古今演变无异议，果断采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "芙蓉叶",
+      "canonicalName": "木芙蓉叶",
+      "doseCanonicalName": "木芙蓉叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):芙蓉叶即木芙蓉叶，药典正名明确，虽多外用但不属赋形剂，仍为药味，采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "莲肉",
+      "canonicalName": "莲子",
+      "doseCanonicalName": "莲子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):莲肉即去心莲子，药典正名莲子，基原一致，无毒性，采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "胡桃",
+      "canonicalName": "核桃仁",
+      "doseCanonicalName": "核桃仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):胡桃即核桃，种仁为核桃仁，药典收载，非毒非同名，采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "皮硝",
+      "canonicalName": "芒硝",
+      "doseCanonicalName": "芒硝",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):皮硝即朴硝，精制后为芒硝，药典收载芒硝，无毒，映射合理，采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "皂矾",
+      "canonicalName": "皂矾（绿矾）",
+      "doseCanonicalName": "皂矾（绿矾）",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):药典收载皂矾（绿矾），内服量0.8～1.6g，功用相符",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "石莲肉",
+      "canonicalName": "莲子",
+      "doseCanonicalName": "莲子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):石莲肉为石莲子去壳取肉，即莲子肉，药典正名莲子",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "土白术",
+      "canonicalName": "白术",
+      "doseCanonicalName": "白术",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):土白术为白术土炒炮制品，基原为菊科白术，药典正名白术",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "元明粉",
+      "canonicalName": "玄明粉",
+      "doseCanonicalName": "玄明粉",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):元明粉为玄明粉清代避讳名称，同物异名，药典正名玄明粉",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "熟大黄",
+      "canonicalName": "熟大黄",
+      "doseCanonicalName": "大黄",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):熟大黄为酒炖大黄，药典大黄炮制品，用量同大黄3～15g，用熟大黄名避生熟混淆",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "广木香",
+      "canonicalName": "木香",
+      "doseCanonicalName": "木香",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):广木香为木香商品名，均来源于木香Aucklandia lappa，药典正名木香",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "苁蓉",
+      "canonicalName": "肉苁蓉",
+      "doseCanonicalName": "肉苁蓉",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):苁蓉为肉苁蓉之简称，古今通用，药典正名肉苁蓉",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "甘菊",
+      "canonicalName": "菊花",
+      "doseCanonicalName": "菊花",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):甘菊为菊花古称，味甘，性效与药典菊花无异",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "北细辛",
+      "canonicalName": "细辛",
+      "doseCanonicalName": "细辛",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):北细辛为细辛道地习称，基原同药典细辛，无毒剧药强制blank情形",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蛤粉",
+      "canonicalName": "蛤壳",
+      "doseCanonicalName": "蛤壳",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蛤粉系蛤壳研粉，基原一致，无同名异物或赋形剂问题",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "川当归",
+      "canonicalName": "当归",
+      "doseCanonicalName": "当归",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):川当归为当归产地习称，基原Angelica sinensis一致",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "广术",
+      "canonicalName": "莪术",
+      "doseCanonicalName": "莪术",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):广术即莪术别名，药典正名莪术，古今演变无性效差异",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "台乌药",
+      "canonicalName": "乌药",
+      "doseCanonicalName": "乌药",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):台乌药为天台乌药，与药典乌药同基原",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "草龙胆",
+      "canonicalName": "龙胆",
+      "doseCanonicalName": "龙胆",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):草龙胆为龙胆别名，基原与药典龙胆一致",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生干姜",
+      "canonicalName": "干姜",
+      "doseCanonicalName": "干姜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生干姜即未炮制的干姜，与药典干姜一致",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "陈橘皮",
+      "canonicalName": "陈皮",
+      "doseCanonicalName": "陈皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):陈橘皮即陈皮，古今正名演变，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "芎",
+      "canonicalName": "川芎",
+      "doseCanonicalName": "川芎",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):芎为川芎简称，古今用药一致，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "山楂炭",
+      "canonicalName": "山楂",
+      "doseCanonicalName": "山楂",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):山楂炭为山楂炒炭炮制品，药典山楂可涵盖。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "川升麻",
+      "canonicalName": "升麻",
+      "doseCanonicalName": "升麻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):川升麻为道地升麻，与药典升麻同基原。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "制香附",
+      "canonicalName": "香附",
+      "doseCanonicalName": "香附",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):制香附为香附醋制或炮制，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "诃子仁",
+      "canonicalName": "诃子",
+      "doseCanonicalName": "诃子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):诃子仁即诃子去核用仁，对应药典诃子。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "丹皮炭",
+      "canonicalName": "牡丹皮",
+      "doseCanonicalName": "牡丹皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):丹皮炭为牡丹皮炒炭，基原一致，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "南枣",
+      "canonicalName": "大枣",
+      "doseCanonicalName": "大枣",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):南枣为枣的品种之一，与药典大枣同基原。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "龟胶珠",
+      "canonicalName": "龟甲胶",
+      "doseCanonicalName": "龟甲胶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):龟胶珠为龟甲胶珠，系龟甲胶炒制品，药典收载于龟甲胶项下，用量一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "鹿胶珠",
+      "canonicalName": "鹿角胶",
+      "doseCanonicalName": "鹿角胶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):鹿胶珠即鹿角胶珠，为鹿角胶炮制品，药典鹿角胶项下包含此品，用量相符。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "文蛤",
+      "canonicalName": "蛤壳",
+      "doseCanonicalName": "蛤壳",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):药典蛤壳来源包括文蛤的贝壳，文蛤即蛤壳正品，无毒，剂量可对应。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "紫菀茸",
+      "canonicalName": "紫菀",
+      "doseCanonicalName": "紫菀",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):紫菀茸为紫菀根茎别名，与药典紫菀基原一致，无混淆风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "淡竹叶心",
+      "canonicalName": "淡竹叶",
+      "doseCanonicalName": "淡竹叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):淡竹叶心为淡竹叶嫩叶心，与药典淡竹叶同源，无毒，可使用同一剂量。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "云苓",
+      "canonicalName": "茯苓",
+      "doseCanonicalName": "茯苓",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):云苓为茯苓习用名，指云南产者，基原与药典茯苓一致，无风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "泽兰叶",
+      "canonicalName": "泽兰",
+      "doseCanonicalName": "泽兰",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):泽兰叶即泽兰地上部分，药典泽兰为唇形科全草，来源一致，无毒，非同名异物。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "红藤",
+      "canonicalName": "大血藤",
+      "doseCanonicalName": "大血藤",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):红藤为木通科大血藤习用名，药典收载为大血藤，无毒，无同名异物风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生大黄",
+      "canonicalName": "大黄",
+      "doseCanonicalName": "大黄",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生大黄即生大黄饮片，药典大黄生品无异，无毒，名称无歧义。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蓬莪术",
+      "canonicalName": "莪术",
+      "doseCanonicalName": "莪术",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蓬莪术为莪术基原之一，古今正名演变，药性无异，果断采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "浓朴",
+      "canonicalName": "厚朴",
+      "doseCanonicalName": "厚朴",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):浓朴为厚朴古名，同物异名，无毒，无混淆，果断采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "诃子肉",
+      "canonicalName": "诃子",
+      "doseCanonicalName": "诃子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):诃子肉为诃子去核果肉，与药典诃子同源，功效相同，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "木瓜干",
+      "canonicalName": "木瓜",
+      "doseCanonicalName": "木瓜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):木瓜干为古代木瓜干燥品称谓，即贴梗海棠果实，与药典一致，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "东洋参",
+      "canonicalName": "人参",
+      "doseCanonicalName": "人参",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):东洋参为日本产人参，基原同人参，古方用于补气，药典同源，无同名异物。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白菊花",
+      "canonicalName": "菊花",
+      "doseCanonicalName": "菊花",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白菊花为菊花商品规格，同基原菊科菊头状花序，药典统一菊花。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "真阿胶",
+      "canonicalName": "阿胶",
+      "doseCanonicalName": "阿胶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):真阿胶即阿胶，强调驴皮真品，与药典阿胶完全一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "马牙硝",
+      "canonicalName": "芒硝",
+      "doseCanonicalName": "芒硝",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):马牙硝为芒硝别名，硫酸钠结晶，功效一致，药典收载芒硝。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "赤苓",
+      "canonicalName": "茯苓",
+      "doseCanonicalName": "茯苓",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):赤苓即赤茯苓，现行药典以茯苓为标准饮片名，不分赤白。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "酒苁蓉",
+      "canonicalName": "肉苁蓉",
+      "doseCanonicalName": "肉苁蓉",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):酒苁蓉为肉苁蓉酒制饮片，基原相同，药典肉苁蓉包括炮制品。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "乳山药",
+      "canonicalName": "山药",
+      "doseCanonicalName": "山药",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):乳山为山药道地产区，即山药，基原药典薯蓣科薯蓣。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "乳茯苓",
+      "canonicalName": "茯苓",
+      "doseCanonicalName": "茯苓",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):乳茯苓为茯苓炮制品（人乳蒸），基原不变，剂量参照茯苓。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "大麻仁",
+      "canonicalName": "火麻仁",
+      "doseCanonicalName": "火麻仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):大麻仁即大麻种仁，为火麻仁别名，药典收载火麻仁。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "海蛤",
+      "canonicalName": "蛤壳",
+      "doseCanonicalName": "蛤壳",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):海蛤即海蛤壳，药典标准名蛤壳，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白蔻仁",
+      "canonicalName": "豆蔻",
+      "doseCanonicalName": "豆蔻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白蔻仁即白豆蔻仁，现行药典名豆蔻，无异物。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "干山药",
+      "canonicalName": "山药",
+      "doseCanonicalName": "山药",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):干山药为山药之干燥品，药典标准名山药。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "苏木节",
+      "canonicalName": "苏木",
+      "doseCanonicalName": "苏木",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):苏木节为苏木茎节，与药典苏木基原一致，可通。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "诃子皮",
+      "canonicalName": "诃子",
+      "doseCanonicalName": "诃子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):诃子皮即诃子去核用皮，与药典诃子同源，功效一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "本",
+      "canonicalName": "藁本",
+      "doseCanonicalName": "藁本",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):“本”为藁本之略称，古今一致，无异物。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "鼠粘子",
+      "canonicalName": "牛蒡子",
+      "doseCanonicalName": "牛蒡子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):鼠粘子为牛蒡子古名，药典标准名牛蒡子。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "川柏",
+      "canonicalName": "黄柏",
+      "doseCanonicalName": "黄柏",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):川柏即川黄柏，属药典黄柏来源之一，可统称黄柏。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "黄松节",
+      "canonicalName": "油松节",
+      "doseCanonicalName": "油松节",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):黄松节即松节，因色黄得名，《中国药典》标准名为油松节，基原与功效一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "条芩",
+      "canonicalName": "黄芩",
+      "doseCanonicalName": "黄芩",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):条芩为黄芩根部商品规格，基原均为唇形科黄芩，与药典黄芩一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "黑参",
+      "canonicalName": "玄参",
+      "doseCanonicalName": "玄参",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):黑参为玄参的古代别名，在方书常通用，来源与功效均与药典玄参一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "干熟地黄",
+      "canonicalName": "熟地黄",
+      "doseCanonicalName": "熟地黄",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):干熟地黄色黑柔润，为生地黄蒸晒而成，即今之熟地黄，方中与生地黄同用可证。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "舶上茴香",
+      "canonicalName": "八角茴香",
+      "doseCanonicalName": "八角茴香",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):舶上茴香为舶来品八角茴香，非伞形科小茴香，药典收载八角茴香，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生蒲黄",
+      "canonicalName": "蒲黄",
+      "doseCanonicalName": "蒲黄",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生蒲黄即蒲黄生品，与《中国药典》蒲黄为同一药材，属香蒲科花粉。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蒸川贝母",
+      "canonicalName": "川贝母",
+      "doseCanonicalName": "川贝母",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蒸川贝母为川贝母的蒸制炮制品，基原相同，现行药典统一作川贝母。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白豆蔻仁",
+      "canonicalName": "豆蔻",
+      "doseCanonicalName": "豆蔻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白豆蔻仁即姜科白豆蔻种子仁，药典标准名豆蔻，无毒，剂量一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "麻子",
+      "canonicalName": "火麻仁",
+      "doseCanonicalName": "火麻仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):麻子为火麻仁古称，润肠通便，方证相符，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "赤茯神",
+      "canonicalName": "茯苓",
+      "doseCanonicalName": "茯苓",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):赤茯神为带松根的茯苓，药典无茯神，同基原用茯苓剂量安全。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "槐角子",
+      "canonicalName": "槐角",
+      "doseCanonicalName": "槐角",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):槐角子即槐角，豆科槐成熟果实，药典标准名槐角。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "连翘心",
+      "canonicalName": "连翘",
+      "doseCanonicalName": "连翘",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):连翘心与连翘同基原，药典收载连翘，剂量相符。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "灯芯",
+      "canonicalName": "灯心草",
+      "doseCanonicalName": "灯心草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):灯芯为灯心草通称，药典标准名灯心草，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "柏皮",
+      "canonicalName": "黄柏",
+      "doseCanonicalName": "黄柏",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古方柏皮（如栀子柏皮汤）指黄柏，与药典黄柏一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "麋衔",
+      "canonicalName": "鹿衔草",
+      "doseCanonicalName": "鹿衔草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):麋衔即鹿衔草，始载《本经》，药典标准名鹿衔草。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "珍珠粉",
+      "canonicalName": "珍珠",
+      "doseCanonicalName": "珍珠",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):珍珠粉为珍珠研粉炮制品，基原一致，药典珍珠可研粉服用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "梅花冰片",
+      "canonicalName": "天然冰片（右旋龙脑）",
+      "doseCanonicalName": "天然冰片（右旋龙脑）",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):梅花冰片为天然冰片（右旋龙脑）传统习称，药典收载。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "青橘皮",
+      "canonicalName": "青皮",
+      "doseCanonicalName": "青皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):青橘皮即青皮古称，为橘未成熟果皮，与药典品一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "枯白矾",
+      "canonicalName": "白矾",
+      "doseCanonicalName": "白矾",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):枯白矾为白矾煅制品，药典白矾项下收载枯矾，内服剂量同白矾。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "酒浸当归",
+      "canonicalName": "当归",
+      "doseCanonicalName": "当归",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):酒浸当归为当归酒制品，药典中当归与酒当归用量相同。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "黑脂麻拌炒补骨脂",
+      "canonicalName": "补骨脂",
+      "doseCanonicalName": "补骨脂",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):黑脂麻拌炒系炮制方法，药材本体补骨脂，与药典补骨脂一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生甘草梢",
+      "canonicalName": "甘草",
+      "doseCanonicalName": "甘草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生甘草梢为甘草生品细梢，与药典甘草同源，现代统一使用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生鳖甲",
+      "canonicalName": "鳖甲",
+      "doseCanonicalName": "鳖甲",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生鳖甲为鳖甲生品，与药典鳖甲基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "山楂肉",
+      "canonicalName": "山楂",
+      "doseCanonicalName": "山楂",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):山楂去核果肉，药典山楂相同基原。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "芡实粉",
+      "canonicalName": "芡实",
+      "doseCanonicalName": "芡实",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):芡实粉碎加工品，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "海蛤粉",
+      "canonicalName": "蛤壳",
+      "doseCanonicalName": "蛤壳",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):海蛤粉即蛤壳研粉，药典蛤壳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "甜硝",
+      "canonicalName": "芒硝",
+      "doseCanonicalName": "芒硝",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):味微甘故称甜硝，芒硝别名。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白石膏",
+      "canonicalName": "石膏",
+      "doseCanonicalName": "石膏",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):色白，即石膏，矿物药一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "薰陆香",
+      "canonicalName": "乳香",
+      "doseCanonicalName": "乳香",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):薰陆香为乳香古称，同物异名。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "龙脑薄荷",
+      "canonicalName": "薄荷",
+      "doseCanonicalName": "薄荷",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):薄荷栽培变种，与药典薄荷同源。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "官拣参",
+      "canonicalName": "人参",
+      "doseCanonicalName": "人参",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):清代优质人参称谓，即人参。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生龟板",
+      "canonicalName": "龟甲",
+      "doseCanonicalName": "龟甲",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生龟板为龟甲生品，药典标准名龟甲，性味功效一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "漂苍术",
+      "canonicalName": "苍术",
+      "doseCanonicalName": "苍术",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):漂苍术为苍术米泔水浸漂品，基原功效同苍术，剂量可参照。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蔓荆",
+      "canonicalName": "蔓荆子",
+      "doseCanonicalName": "蔓荆子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蔓荆为蔓荆子常见简称，为同一药材。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "草蔻",
+      "canonicalName": "草豆蔻",
+      "doseCanonicalName": "草豆蔻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):草蔻为草豆蔻的简称，同物。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "赤苓皮",
+      "canonicalName": "茯苓皮",
+      "doseCanonicalName": "茯苓皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):赤苓皮即茯苓外皮，标准名茯苓皮，同物异名。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "山萸",
+      "canonicalName": "山茱萸",
+      "doseCanonicalName": "山茱萸",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):山萸为山茱萸的常用简称，如山萸肉，标准名山茱萸。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "乌麻",
+      "canonicalName": "黑芝麻",
+      "doseCanonicalName": "黑芝麻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古方乌麻即黑芝麻，《本草纲目》载为别名，药典收载为黑芝麻。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "秦椒",
+      "canonicalName": "花椒",
+      "doseCanonicalName": "花椒",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):秦椒为花椒古称，同属花椒，药典名花椒，无同名异物。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白云苓",
+      "canonicalName": "茯苓",
+      "doseCanonicalName": "茯苓",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白云苓即白茯苓，为茯苓白色部分，无毒性，药典正名茯苓。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "青葙",
+      "canonicalName": "青葙子",
+      "doseCanonicalName": "青葙子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):青葙为药典青葙子之原植物名，即其种子，无毒性。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "东行桑根",
+      "canonicalName": "桑白皮",
+      "doseCanonicalName": "桑白皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):东行桑根即取东向桑树根皮入药，即药典桑白皮。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白头地龙",
+      "canonicalName": "地龙",
+      "doseCanonicalName": "地龙",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白头地龙为地龙异名，以头部白颈得名，与药典地龙一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "茯芩",
+      "canonicalName": "茯苓",
+      "doseCanonicalName": "茯苓",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):'茯芩'为'茯苓'笔误，历代方书通用茯苓，即茯苓。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "陈阿胶",
+      "canonicalName": "阿胶",
+      "doseCanonicalName": "阿胶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):陈阿胶为陈久阿胶，基质不变，即药典阿胶。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "云茯苓",
+      "canonicalName": "茯苓",
+      "doseCanonicalName": "茯苓",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):云茯苓为云南产茯苓道地品名，即茯苓。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "青橘",
+      "canonicalName": "青皮",
+      "doseCanonicalName": "青皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):青橘即青橘皮，为青皮古名，与药典青皮一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "楮实",
+      "canonicalName": "楮实子",
+      "doseCanonicalName": "楮实子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古方楮实为构树果实，今药典正名楮实子，药性无异。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "君子",
+      "canonicalName": "使君子",
+      "doseCanonicalName": "使君子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):君子为使君子简称，药典收载，无毒，非赋形用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生甘",
+      "canonicalName": "甘草",
+      "doseCanonicalName": "甘草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生甘为生甘草简称，属药典甘草生品，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "淮山药",
+      "canonicalName": "山药",
+      "doseCanonicalName": "山药",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):淮山药为山药习用名，基原薯蓣，与药典一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "侧柏炭",
+      "canonicalName": "侧柏叶",
+      "doseCanonicalName": "侧柏叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):侧柏炭为侧柏叶炭制品，药典收载，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "大黄炭",
+      "canonicalName": "大黄",
+      "doseCanonicalName": "大黄",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):大黄炭为大黄炭制品，药典收载，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "干苏叶",
+      "canonicalName": "紫苏叶",
+      "doseCanonicalName": "紫苏叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):干苏叶即干燥紫苏叶，与药典品一致，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "乌梅炭",
+      "canonicalName": "乌梅",
+      "doseCanonicalName": "乌梅",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):乌梅炭为乌梅炭制品，药典收载，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "草豆蔻仁",
+      "canonicalName": "草豆蔻",
+      "doseCanonicalName": "草豆蔻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):草豆蔻仁即草豆蔻种子仁，为药典草豆蔻来源，无异名异物风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "崖蜜",
+      "canonicalName": "蜂蜜",
+      "doseCanonicalName": "蜂蜜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):崖蜜即野生蜂蜜，与药典蜂蜜同源，去母水方中非专作赋形剂。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "红椒",
+      "canonicalName": "花椒",
+      "doseCanonicalName": "花椒",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):红椒为花椒别名，双美丸用其去目，与药典花椒一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "青桑枝",
+      "canonicalName": "桑枝",
+      "doseCanonicalName": "桑枝",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):青桑枝即桑嫩枝，与药典桑枝为同一药材。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "梨花蜜",
+      "canonicalName": "蜂蜜",
+      "doseCanonicalName": "蜂蜜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):梨花蜜为蜂蜜一种，功用与药典蜂蜜相同，吐狂血方用为内服。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "石莲子肉",
+      "canonicalName": "莲子",
+      "doseCanonicalName": "莲子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):石莲子肉为老熟莲子去壳取肉，与药典莲子来源一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "黑姜",
+      "canonicalName": "炮姜",
+      "doseCanonicalName": "炮姜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):黑姜即炮姜俗称，固本止崩汤用炮姜，属药典炮姜。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "败龟板",
+      "canonicalName": "龟甲",
+      "doseCanonicalName": "龟甲",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):败龟板为龟甲古称，与药典龟甲基原一致，无毒性或同名异物问题。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "芥穗炭",
+      "canonicalName": "荆芥穗炭",
+      "doseCanonicalName": "荆芥穗炭",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):芥穗为荆芥穗简称，炭为炒炭，即荆芥穗炭，药典收载，炮制明确。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生草节",
+      "canonicalName": "甘草",
+      "doseCanonicalName": "甘草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生草节即生甘草节，为甘草根茎部，药典甘草包含根及根茎，可统一。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白鸡冠花",
+      "canonicalName": "鸡冠花",
+      "doseCanonicalName": "鸡冠花",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白鸡冠花为鸡冠花白色花序，同种植物，药典鸡冠花涵盖所有花色。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "炒枣仁",
+      "canonicalName": "酸枣仁",
+      "doseCanonicalName": "酸枣仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):炒枣仁为酸枣仁炒制品，药典收载炒酸枣仁，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "猪芩",
+      "canonicalName": "猪苓",
+      "doseCanonicalName": "猪苓",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):猪芩为猪苓古异写，二者为同一药材，药典标准名猪苓。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "芝麻",
+      "canonicalName": "黑芝麻",
+      "doseCanonicalName": "黑芝麻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):芝麻为黑芝麻习用名，同基原，药典以黑芝麻收载，可采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "禹余石",
+      "canonicalName": "禹余粮",
+      "doseCanonicalName": "禹余粮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):禹余石为禹余粮之别名，同物异名，药典收载。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "山芋",
+      "canonicalName": "山药",
+      "doseCanonicalName": "山药",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):山芋为山药之古称，历代本草指薯蓣科山药，药典收载。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "吴白芷",
+      "canonicalName": "白芷",
+      "doseCanonicalName": "白芷",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):吴白芷为白芷产地习称，与药典白芷基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "土炒当归",
+      "canonicalName": "当归",
+      "doseCanonicalName": "当归",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):土炒当归为当归的炮制品，基原相同，剂量参照当归。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "广郁金",
+      "canonicalName": "郁金",
+      "doseCanonicalName": "郁金",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):广郁金为郁金之商品规格名，来源相同，药典收载。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "川姜",
+      "canonicalName": "干姜",
+      "doseCanonicalName": "干姜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):川姜为干姜之习称，以产地命名，药典干姜即此。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "桃仁十四粒",
+      "canonicalName": "桃仁",
+      "doseCanonicalName": "桃仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古方桃仁即今之桃仁，药典收载，去剂量描述用标准名。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "象贝",
+      "canonicalName": "浙贝母",
+      "doseCanonicalName": "浙贝母",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):象贝为浙贝母习称，主产浙江象山，即药典浙贝母。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "椿根白皮",
+      "canonicalName": "椿皮",
+      "doseCanonicalName": "椿皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):椿根白皮即臭椿根皮，药典椿皮为苦木科臭椿根皮。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "炒白芍菜",
+      "canonicalName": "白芍",
+      "doseCanonicalName": "白芍",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):疑为'炒白芍'传抄衍文，去'菜'字以白芍为标准名。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "四制香附",
+      "canonicalName": "香附",
+      "doseCanonicalName": "香附",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):四制香附为香附炮制品，基原相同，均属莎草科。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "焦山栀",
+      "canonicalName": "焦栀子",
+      "doseCanonicalName": "焦栀子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):焦山栀为栀子炒焦品，即药典焦栀子。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "莲子肉",
+      "canonicalName": "莲子",
+      "doseCanonicalName": "莲子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):莲子肉为莲子的俗称，去心后入药，药典收载。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "冬桑叶",
+      "canonicalName": "桑叶",
+      "doseCanonicalName": "桑叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):冬桑叶为桑叶习用名，现行药典标准名即为桑叶。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "淡肉苁蓉",
+      "canonicalName": "肉苁蓉",
+      "doseCanonicalName": "肉苁蓉",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):淡肉苁蓉为肉苁蓉漂去咸味之品，基原一致，现行药典标准名肉苁蓉。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "人参随宜",
+      "canonicalName": "人参",
+      "doseCanonicalName": "人参",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):人参随宜即人参，剂量应随证而定，原方无固定量，仅映射标准名，剂量须另行注明。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "五味子十四粒",
+      "canonicalName": "五味子",
+      "doseCanonicalName": "五味子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):五味子为药典品种，原方以粒计量，映射需保留原粒数形式，不宜直接用克数范围替换。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "西黄",
+      "canonicalName": "牛黄",
+      "doseCanonicalName": "牛黄",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):西黄为牛黄别名，指进口优质天然牛黄，药典标准名牛黄。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "香瓜子",
+      "canonicalName": "甜瓜子",
+      "doseCanonicalName": "甜瓜子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):香瓜子为甜瓜子异名，基原为甜瓜种子，药典收载甜瓜子，无同名异物风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "角沉香",
+      "canonicalName": "沉香",
+      "doseCanonicalName": "沉香",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):角沉香为沉香优质规格，基原一致，现行标准统称沉香。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "桂府滑石",
+      "canonicalName": "滑石",
+      "doseCanonicalName": "滑石",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):桂府滑石为滑石道地优质品，基原相同，药典标准名滑石。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "制胆星",
+      "canonicalName": "胆南星",
+      "doseCanonicalName": "胆南星",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):制胆星为胆南星炮制加工品，药典收载胆南星，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "姜炭",
+      "canonicalName": "炮姜",
+      "doseCanonicalName": "炮姜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):姜炭为干姜炒炭品，药典炮姜项下包含炒炭规格，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "嫩桑叶",
+      "canonicalName": "桑叶",
+      "doseCanonicalName": "桑叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):嫩桑叶为桑树嫩叶，与药典桑叶同原植物、同部位，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "射香",
+      "canonicalName": "麝香",
+      "doseCanonicalName": "麝香",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):射香为麝香异写，古今通用，药典收载麝香。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "败姜",
+      "canonicalName": "干姜",
+      "doseCanonicalName": "干姜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):败姜为干姜古别名，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "火麻子",
+      "canonicalName": "火麻仁",
+      "doseCanonicalName": "火麻仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):火麻子为火麻仁别名，同为桑科大麻果实，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "穗炭",
+      "canonicalName": "荆芥穗炭",
+      "doseCanonicalName": "荆芥穗炭",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):穗炭为荆芥穗炭的简称，无同名异物风险，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "焦楂肉",
+      "canonicalName": "山楂",
+      "doseCanonicalName": "山楂",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):焦楂肉为山楂炒焦品，药典山楂涵盖该规格，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "宣木瓜",
+      "canonicalName": "木瓜",
+      "doseCanonicalName": "木瓜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):宣木瓜即木瓜（贴梗海棠），药典正品，剂量一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蒸麦冬",
+      "canonicalName": "麦冬",
+      "doseCanonicalName": "麦冬",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蒸麦冬为麦冬蒸制品，基原同药典麦冬，药性无差异。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蒸百部",
+      "canonicalName": "百部",
+      "doseCanonicalName": "百部",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蒸百部为百部炮制品，药典百部有小毒但非剧毒，可映射。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蒸北沙参",
+      "canonicalName": "北沙参",
+      "doseCanonicalName": "北沙参",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蒸北沙参即北沙参蒸制品，药典正品，安全可映射。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "缩砂",
+      "canonicalName": "砂仁",
+      "doseCanonicalName": "砂仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):缩砂为砂仁古称，与药典砂仁基原一致，药性无异。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "三七根",
+      "canonicalName": "三七",
+      "doseCanonicalName": "三七",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):三七根即三七的根部，药典正品，剂量匹配。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "京豉",
+      "canonicalName": "淡豆豉",
+      "doseCanonicalName": "淡豆豉",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):京豉为淡豆豉古别名，药典正品，无毒性。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生扁豆",
+      "canonicalName": "白扁豆",
+      "doseCanonicalName": "白扁豆",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生扁豆即白扁豆生用，古今正名演变，药典收载白扁豆，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "栝蒌子",
+      "canonicalName": "瓜蒌子",
+      "doseCanonicalName": "瓜蒌子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):栝蒌为瓜蒌古称，古今演变，药典收载瓜蒌子，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "豉",
+      "canonicalName": "淡豆豉",
+      "doseCanonicalName": "淡豆豉",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古方豉即淡豆豉，药典收载，非同名异物，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生麝香",
+      "canonicalName": "麝香",
+      "doseCanonicalName": "麝香",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生麝香即未炮制麝香，与药典麝香同物，非毒性药，可采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "虎杖根",
+      "canonicalName": "虎杖",
+      "doseCanonicalName": "虎杖",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):虎杖根即虎杖根部，药典名虎杖，源流清晰，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "草",
+      "canonicalName": "甘草",
+      "doseCanonicalName": "甘草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古方“草”常为甘草省称，无同名异物混淆，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蛤蜊壳",
+      "canonicalName": "蛤壳",
+      "doseCanonicalName": "蛤壳",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蛤蜊壳即蛤壳，药典收载，为贝壳类，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "菟丝",
+      "canonicalName": "菟丝子",
+      "doseCanonicalName": "菟丝子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古籍“菟丝”为菟丝子简称，来源一致，药典收载，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "芦蓬",
+      "canonicalName": "漏芦",
+      "doseCanonicalName": "漏芦",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):《中华本草》载芦蓬为漏芦异名，无毒，药典收载漏芦。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "蛇脱皮",
+      "canonicalName": "蛇蜕",
+      "doseCanonicalName": "蛇蜕",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):蛇脱皮即蛇蜕，药典收载，无毒，无同名异物风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "油麻",
+      "canonicalName": "黑芝麻",
+      "doseCanonicalName": "黑芝麻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):《本草纲目》称脂麻为油麻，即黑芝麻，药食两用，非赋形。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "楮桃儿",
+      "canonicalName": "楮实子",
+      "doseCanonicalName": "楮实子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):楮桃儿为楮实子古别名，药典收载，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "香白芷",
+      "canonicalName": "白芷",
+      "doseCanonicalName": "白芷",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):香白芷为白芷习用别名，同物，无毒，药典收载。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生明乳香",
+      "canonicalName": "乳香",
+      "doseCanonicalName": "乳香",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生明乳香系乳香生品，内服活血，非毒性药。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生明没药",
+      "canonicalName": "没药",
+      "doseCanonicalName": "没药",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生明没药为没药生用，与药典品同，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "桑上寄生",
+      "canonicalName": "桑寄生",
+      "doseCanonicalName": "桑寄生",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):桑上寄生为桑寄生古名，现代用桑寄生，药典收载，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "莲叶",
+      "canonicalName": "荷叶",
+      "doseCanonicalName": "荷叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):莲叶即荷叶，睡莲科莲的叶，药典收载荷叶，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "藜花子",
+      "canonicalName": "水红花子",
+      "doseCanonicalName": "水红花子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):藜花子为蓼花子形误，即水红花子，药典收载，古方治痞块常用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "大槟榔",
+      "canonicalName": "槟榔",
+      "doseCanonicalName": "槟榔",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):大槟榔为槟榔之古称，药典收载槟榔，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白花百合",
+      "canonicalName": "百合",
+      "doseCanonicalName": "百合",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白花百合为百合品种之一，药典百合项下来源包含，功效相符。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "枯末",
+      "canonicalName": "夏枯草",
+      "doseCanonicalName": "夏枯草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):枯末为夏枯草末之省称，基原一致，药典收载夏枯草。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生桑条",
+      "canonicalName": "桑枝",
+      "doseCanonicalName": "桑枝",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):桑条即桑枝，生用，药典收载桑枝。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "大荆",
+      "canonicalName": "荆芥",
+      "doseCanonicalName": "荆芥",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):大荆即大荆芥之省称，药典收载荆芥，治赤白痢合于功效。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "山茱萸肉",
+      "canonicalName": "山茱萸",
+      "doseCanonicalName": "山茱萸",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):山茱萸为去核果肉，山茱萸肉名异实同，药典剂量适用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "红枣肉",
+      "canonicalName": "大枣",
+      "doseCanonicalName": "大枣",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):红枣即大枣，肉为去核果肉，与大枣同物，药典剂量6-15g。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "麻子仁",
+      "canonicalName": "火麻仁",
+      "doseCanonicalName": "火麻仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):麻子仁为火麻仁之别名，古今通用，药典正名火麻仁。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "干莲肉",
+      "canonicalName": "莲子",
+      "doseCanonicalName": "莲子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):干莲肉即干燥莲子肉，去心，与药典莲子基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "鹿角尖",
+      "canonicalName": "鹿角",
+      "doseCanonicalName": "鹿角",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):鹿角尖为鹿角之尖端，属同一药材，药典剂量适用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "于术",
+      "canonicalName": "白术",
+      "doseCanonicalName": "白术",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):于术为白术道地称谓，今统一为白术，药性无异。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生山药",
+      "canonicalName": "山药",
+      "doseCanonicalName": "山药",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生山药即山药生品，与药典山药同源，剂量适用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生鸡内金",
+      "canonicalName": "鸡内金",
+      "doseCanonicalName": "鸡内金",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生鸡内金为鸡内金生品饮片，药典未分列，剂量3-10g可用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "山茵陈",
+      "canonicalName": "茵陈",
+      "doseCanonicalName": "茵陈",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):山茵陈为茵陈的古今别名，基原一致，药典剂量可配。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "鲜生地",
+      "canonicalName": "鲜地黄",
+      "doseCanonicalName": "地黄",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):鲜生地即鲜地黄，药典分列，宜用鲜地黄名并参考其剂量15-30g。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "霜桑叶",
+      "canonicalName": "桑叶",
+      "doseCanonicalName": "桑叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):霜桑叶为桑叶的霜后品，来源一致，药典用量适用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "佩兰叶",
+      "canonicalName": "佩兰",
+      "doseCanonicalName": "佩兰",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):佩兰叶即佩兰的地上部分，与药典佩兰同源同效。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "血蝎",
+      "canonicalName": "血竭",
+      "doseCanonicalName": "血竭",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):血蝎为血竭形近误写，方义吻合，药典剂量可用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "广陈皮",
+      "canonicalName": "陈皮",
+      "doseCanonicalName": "陈皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):广陈皮为茶枝柑皮，属药典陈皮来源之一，剂量通用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "牛蒡",
+      "canonicalName": "牛蒡子",
+      "doseCanonicalName": "牛蒡子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古方‘牛蒡’为牛蒡子简称，基原明确，药典剂量适用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "远志肉",
+      "canonicalName": "远志",
+      "doseCanonicalName": "远志",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):远志肉为去心根皮，与药典远志饮片一致，剂量通用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "酒萸肉",
+      "canonicalName": "酒萸肉",
+      "doseCanonicalName": "山茱萸",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):酒萸肉为山茱萸酒制炮制品，药典收载，剂量6-12g，与山茱萸同效。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "牡桂",
+      "canonicalName": "桂枝",
+      "doseCanonicalName": "桂枝",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):牡桂去皮即桂枝，消水圣愈汤为桂枝去芍药加麻辛附汤。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "通脱木",
+      "canonicalName": "通草",
+      "doseCanonicalName": "通草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):通脱木为五加科植物通脱木茎髓，即药典通草基源。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "小川芎",
+      "canonicalName": "川芎",
+      "doseCanonicalName": "川芎",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):小川芎为川芎商品规格，基原相同，无毒性。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "甜葶苈",
+      "canonicalName": "葶苈子",
+      "doseCanonicalName": "葶苈子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):甜葶苈为葶苈子的一种，药典统称葶苈子，剂量3-10g。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "炙甘草减半",
+      "canonicalName": "炙甘草",
+      "doseCanonicalName": "炙甘草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):‘减半’为剂量描述，药名实为炙甘草，药典收载。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "小黑豆",
+      "canonicalName": "黑豆",
+      "doseCanonicalName": "黑豆",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):小黑豆即黑豆，来源于豆科大豆黑色种子，药典收载。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "择细黄连",
+      "canonicalName": "黄连",
+      "doseCanonicalName": "黄连",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):‘择细’指选细条良品，实为黄连，药典剂量2-5g。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "独头蒜",
+      "canonicalName": "大蒜",
+      "doseCanonicalName": "大蒜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):独头蒜即独瓣大蒜，基原一致，无毒性，药典剂量可用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "枣",
+      "canonicalName": "大枣",
+      "doseCanonicalName": "大枣",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):古方中“枣”多指大枣，基原明确，无同名异物风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "晋矾",
+      "canonicalName": "白矾",
+      "doseCanonicalName": "白矾",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):晋矾为山西产白矾佳品，与药典白矾基原相同。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "真川贝",
+      "canonicalName": "川贝母",
+      "doseCanonicalName": "川贝母",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):“真川贝”强调正品川贝母，基原一致无混淆。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "西",
+      "canonicalName": "西瓜霜",
+      "doseCanonicalName": "西瓜霜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):碧雪丹常用西瓜霜清热利咽，“西”为其简称，可确定。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "川断",
+      "canonicalName": "续断",
+      "doseCanonicalName": "续断",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):川断为续断常用俗称，基原一致无风险。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "团参",
+      "canonicalName": "人参",
+      "doseCanonicalName": "人参",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):团参为古方人参别名，神秘散中明确即指人参。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "天台乌药",
+      "canonicalName": "乌药",
+      "doseCanonicalName": "乌药",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):天台乌药为乌药道地药材，与药典乌药同种。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "真川朴",
+      "canonicalName": "厚朴",
+      "doseCanonicalName": "厚朴",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):真川朴为四川道地厚朴，与药典厚朴基原一致，无毒，内服。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生薏仁",
+      "canonicalName": "薏苡仁",
+      "doseCanonicalName": "薏苡仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生薏仁即薏苡仁生品，基原一致，常用汤剂，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白蔻末",
+      "canonicalName": "豆蔻",
+      "doseCanonicalName": "豆蔻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白蔻为豆蔻（白豆蔻）俗称，末指打碎入煎，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "淡香豉",
+      "canonicalName": "淡豆豉",
+      "doseCanonicalName": "淡豆豉",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):淡香豉为淡豆豉别名，同为发酵豆制品，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "建泽泻",
+      "canonicalName": "泽泻",
+      "doseCanonicalName": "泽泻",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):建泽泻为福建道地泽泻，基原一致，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "当归头",
+      "canonicalName": "当归",
+      "doseCanonicalName": "当归",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):当归头为当归根头部，同基原，无毒，可统一。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "土蒸白术",
+      "canonicalName": "白术",
+      "doseCanonicalName": "白术",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):土蒸白术为白术土制炮品，基原一致，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "酒蒸枸杞",
+      "canonicalName": "枸杞子",
+      "doseCanonicalName": "枸杞子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):酒蒸枸杞为枸杞子酒制品，基原一致，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "螺青",
+      "canonicalName": "青黛",
+      "doseCanonicalName": "青黛",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):螺青为青黛古异名，基原一致，无同名异物混淆。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "卷荷叶",
+      "canonicalName": "荷叶",
+      "doseCanonicalName": "荷叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):卷荷叶为荷叶卷曲嫩叶，基原相同，药典以荷叶收载。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "当归须",
+      "canonicalName": "当归",
+      "doseCanonicalName": "当归",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):当归须为当归须根，药典统作当归，部位差异不影响映射。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "勾藤勾",
+      "canonicalName": "钩藤",
+      "doseCanonicalName": "钩藤",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):勾藤勾为钩藤异写，同指带钩茎枝，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "大蒜头",
+      "canonicalName": "大蒜",
+      "doseCanonicalName": "大蒜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):大蒜头即大蒜鳞茎，为同一药材。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "煨诃子肉",
+      "canonicalName": "诃子",
+      "doseCanonicalName": "诃子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):煨诃子肉为诃子去核煨制品，药典以诃子为标准名。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "苦葶苈子",
+      "canonicalName": "葶苈子",
+      "doseCanonicalName": "葶苈子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):苦葶苈子为葶苈子品种之一，药典统称葶苈子，无混淆。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "五味",
+      "canonicalName": "五味子",
+      "doseCanonicalName": "五味子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):苓甘五味姜辛汤中五味为五味子简称，仲景习用，此处无歧义。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "茜根",
+      "canonicalName": "茜草",
+      "doseCanonicalName": "茜草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):茜根即茜草根部，古今正名演变，药性无异，现行药典标准名茜草。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "陈枳壳",
+      "canonicalName": "枳壳",
+      "doseCanonicalName": "枳壳",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):陈枳壳为陈久枳壳，与药典枳壳同一药材，仅贮存时间差异，无毒性。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白梅花肉",
+      "canonicalName": "梅花",
+      "doseCanonicalName": "梅花",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白梅花肉即白梅花的花部，药典梅花为梅的花蕾，效用一致，无同名异物。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "干柏叶",
+      "canonicalName": "侧柏叶",
+      "doseCanonicalName": "侧柏叶",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):干柏叶即干燥侧柏叶，直接对应药典侧柏叶，古今正名无异。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "青蒿脑",
+      "canonicalName": "青蒿",
+      "doseCanonicalName": "青蒿",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):青蒿脑为青蒿嫩尖，与药典青蒿（黄花蒿地上部分）同源，药性一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生枳壳",
+      "canonicalName": "枳壳",
+      "doseCanonicalName": "枳壳",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生枳壳即枳壳生品，与药典枳壳为同一药材，无毒性，剂量通用。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "陈广皮",
+      "canonicalName": "陈皮",
+      "doseCanonicalName": "陈皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):陈广皮即广陈皮，为陈皮道地药材，药典标准名陈皮，古今一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "舶茴香",
+      "canonicalName": "八角茴香",
+      "doseCanonicalName": "八角茴香",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):舶茴香为八角茴香别名，源自番舶，实八瓣，与药典八角茴香一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "栝蒌实",
+      "canonicalName": "瓜蒌",
+      "doseCanonicalName": "瓜蒌",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):栝蒌实即瓜蒌成熟果实，与药典瓜蒌(Trichosanthis Fructus)全果对应。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "绵黄芪",
+      "canonicalName": "黄芪",
+      "doseCanonicalName": "黄芪",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):绵黄芪为黄芪道地别名，主产绵山，即现行药典黄芪，性效无异。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生脑子",
+      "canonicalName": "天然冰片（右旋龙脑）",
+      "doseCanonicalName": "天然冰片（右旋龙脑）",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生脑子即龙脑香，系天然右旋龙脑，对应药典天然冰片，无毒，非赋形物料。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "杞子",
+      "canonicalName": "枸杞子",
+      "doseCanonicalName": "枸杞子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):杞子为枸杞子常用简称，药典收载，无毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "萸肉",
+      "canonicalName": "山茱萸",
+      "doseCanonicalName": "山茱萸",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):萸肉即山萸肉，为山茱萸去核果肉，药典名山茱萸。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "淡苁蓉",
+      "canonicalName": "肉苁蓉",
+      "doseCanonicalName": "肉苁蓉",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):淡苁蓉为未盐渍的甜苁蓉，药典肉苁蓉。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "辛夷仁",
+      "canonicalName": "辛夷",
+      "doseCanonicalName": "辛夷",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):辛夷仁为辛夷去毛花蕾的古称，同药典辛夷。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "白丹皮根木",
+      "canonicalName": "牡丹皮",
+      "doseCanonicalName": "牡丹皮",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):白丹皮根木即白牡丹皮根木，为牡丹皮古称，药典收载牡丹皮。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "旱莲",
+      "canonicalName": "墨旱莲",
+      "doseCanonicalName": "墨旱莲",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):旱莲为墨旱莲的简称，药典墨旱莲。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "西牛黄",
+      "canonicalName": "牛黄",
+      "doseCanonicalName": "牛黄",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):西牛黄为天然牛黄商品规格，药典牛黄。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "砂仁三粒",
+      "canonicalName": "砂仁",
+      "doseCanonicalName": "砂仁",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):砂仁三粒去粒数，药典砂仁。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生黄芩",
+      "canonicalName": "黄芩",
+      "doseCanonicalName": "黄芩",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生黄芩即黄芩生品，药典黄芩为干燥根，生用，剂量3-10g。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "制厚朴",
+      "canonicalName": "厚朴",
+      "doseCanonicalName": "厚朴",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):制厚朴为姜厚朴，药典厚朴项下包含姜制品，用量同生品。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "焦栀",
+      "canonicalName": "焦栀子",
+      "doseCanonicalName": "焦栀子",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):焦栀即焦栀子的习用简称，药典焦栀子为栀子炒焦品。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "沙蜜",
+      "canonicalName": "蜂蜜",
+      "doseCanonicalName": "蜂蜜",
+      "autoResolvable": false,
+      "note": "中医师裁定(2026-07-26):沙蜜为蜂蜜别名，膏剂中多作赋形基质，剂量语义不属饮片煎服。【赋形/外用载体为主,身份归一但保持剂量阻断】",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "鲜姜",
+      "canonicalName": "生姜",
+      "doseCanonicalName": "生姜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):鲜姜即新鲜生姜，药典生姜为姜科植物姜的新鲜根茎。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "金钱薄荷",
+      "canonicalName": "连钱草",
+      "doseCanonicalName": "连钱草",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):金钱薄荷为活血丹别名，与药典连钱草为同一物，非薄荷。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "玄胡",
+      "canonicalName": "延胡索（元胡）",
+      "doseCanonicalName": "延胡索（元胡）",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):玄胡即延胡索古名，药典正名延胡索，改标准名，剂量不变。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "生白矾",
+      "canonicalName": "白矾",
+      "doseCanonicalName": "白矾",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):生白矾即白矾生品，药典白矾内服0.6-1.5g，非剧毒但有小毒。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "藤钩",
+      "canonicalName": "钩藤",
+      "doseCanonicalName": "钩藤",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):藤钩即钩藤之倒写，基原一致，可采纳。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "麦门冬已上",
+      "canonicalName": "麦冬",
+      "doseCanonicalName": "麦冬",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):『已上』非药名，系古方剂量描述词，去此二字，正名麦冬。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "炮姜炭",
+      "canonicalName": "姜炭",
+      "doseCanonicalName": "炮姜",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):炮姜炭即姜炭，药典姜炭温经止血，与阳和汤用法更合。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "大梅子",
+      "canonicalName": "乌梅",
+      "doseCanonicalName": "乌梅",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):大梅子为乌梅之优者，基原相同，古今用法对应。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "射干根",
+      "canonicalName": "射干",
+      "doseCanonicalName": "射干",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):射干药用根茎，古方射干根即药典之射干。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "茅山苍术",
+      "canonicalName": "苍术",
+      "doseCanonicalName": "苍术",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):茅山苍术即茅苍术，为苍术道地品，基原与药典苍术同。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "藿香梗",
+      "canonicalName": "广藿香",
+      "doseCanonicalName": "广藿香",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):藿香梗为广藿香之梗，属同一药材，可对应广藿香剂量。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "椒红",
+      "canonicalName": "花椒",
+      "doseCanonicalName": "花椒",
+      "autoResolvable": true,
+      "note": "中医师裁定(2026-07-26):椒红即花椒去目红皮，即药典花椒，基原一致。",
+      "batch": "ADJ-20260726-DOSE-BLOCKING"
     }
   ]
 }

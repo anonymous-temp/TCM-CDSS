@@ -622,6 +622,708 @@
       "evidence": "“白芍药（酒炒）”明确使用。",
       "basis": "《医方集解》紫苏饮",
       "confidence": "high"
+    },
+    {
+      "formulaName": "升麻除湿和血汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：同书他处直书“赤芍”，则单写“芍药”当指白芍；方名和血，配伍归、地，取白芍养血和血。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "参术饮",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：清代方书四物汤中芍药多定为白芍；全方调养营卫、安胎，白芍养血敛阴，与熟地、当归相合。",
+      "basis": "芍药",
+      "confidence": "high",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "《深师》七气汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断: 方义明言'和肝', 用芍药以柔肝和血, 白芍长于养血柔肝, 更合和肝之旨。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "一柴胡饮",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断: 方从凉散, 外邪内火, 配生地凉血养阴, 赤芍功善清热凉血散瘀, 较白芍更宜。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "丁香乌梅丸",
+      "rawIngredient": "紫苏",
+      "resolvedIngredient": "紫苏叶",
+      "evidence": "推断: 主治有外感风寒, 紫苏叶长于解表散寒, 功合外感之需, 故宜用叶。",
+      "basis": "紫苏",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "万灵丸",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "大皂角",
+      "evidence": "推断: 方用'好紫色皂角, 去皮弦', 乃皂荚常规用法; 未标'牙皂', 故非猪牙皂, 当为皂荚。（T9 正名为大皂角,皂荚系其通用名,归一到受控词表）",
+      "basis": "皂角",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "三柴胡饮",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断: 方从肝经血分, 配伍当归养血, 白芍养血柔肝, 与当归相须为用, 契合阴血不足。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "三物白散",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "川贝母",
+      "evidence": "交叉: 《退思集类方歌注》同方明言'川贝母', 且寒实结胸无热证, 宜川贝化痰散结。",
+      "basis": "贝母",
+      "confidence": "high",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "五疳保童丸",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "大皂角",
+      "evidence": "推断：疳积寒痰用皂角烧存性化痰消积，传统多取皂荚(大皂角)而非猪牙皂（T9 正名为大皂角,皂荚系其通用名,归一到受控词表）",
+      "basis": "皂角",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "人参当归汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：产后烦闷属虚，配伍当归地黄养血，当用白芍养血和营",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "人参清膈散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断：疮疹热毒，配伍知母地骨皮清热，用赤芍凉血散瘀",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "人参蛤蚧散",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "川贝母",
+      "evidence": "推断：久咳肺损脓血，补肺润燥，应取川贝母润肺化痰",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "内托千金散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断：脑背痈疽恶疮，托毒活血，宜用赤芍凉血散瘀消肿",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "四顺清凉饮",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断：清代方治实热便秘痘不出，配伍大黄当归，取赤芍凉血散瘀通滞，助痘外出。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "地罗汤",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "浙贝母",
+      "evidence": "推断：清代治肺痈实热痰瘀，需清热化痰散结，浙贝母力峻，较川贝母更合病机。",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "增损四物汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "方义推断：方为四物汤变方，配伍甘温，主治无热象，取其养血和营缓急，宋以后补血用白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "大七气汤",
+      "rawIngredient": "紫苏",
+      "resolvedIngredient": "紫苏叶",
+      "evidence": "方义推断：半夏厚朴汤类方，治七气郁结、咽喉炙脔，取紫苏叶行气散结之功",
+      "basis": "紫苏",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "大全宝光散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "方义推断：外洗治目赤烂眼，配伍黄连清热，取赤芍凉血活血消赤痛",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "大山芋丸",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "方义推断：补虚剂治诸虚百损，配伍当归、川芎、熟地，取白芍补血和营",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "大岩蜜汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "方义推断：治产后血痛，原方用生干地黄，需活血定痛，赤芍散瘀更合",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "大苦参丸",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "浙贝母",
+      "evidence": "推断+治人面疮，疮疡宜清热散结，浙贝母力强",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "如圣饮",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断+方解言归芍活血，赤芍长于活血化瘀",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "安神养血汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断+安神养血，配地黄当归补血，宜白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "常山饮",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "川贝母",
+      "evidence": "推断+宋代《局方》，贝母多指川贝母，化痰散结",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "当归四逆加吴茱萸生姜汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：明代《医方考》载“芍药(炒)”，炒法多用于白芍，且原方出自《伤寒论》，主治血虚寒厥，白芍养血和营。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "当归黄汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：宋代《三因方》治产后腰脚痛，配伍当归、黄芪，益气养血，白芍养血柔肝止痛，合产后病机。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "急治时行瘟症方",
+      "rawIngredient": "紫苏",
+      "resolvedIngredient": "紫苏叶",
+      "evidence": "推断：清《大小诸证方论》治时行瘟症初起，配藿香、白芷等解表化湿，紫苏叶擅发散风寒，宜用于表证。",
+      "basis": "紫苏",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "愈风丹",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "大皂角",
+      "evidence": "推断：《医方考》无‘牙皂’直书；本方皂角五斤熬膏作丸剂基质，大皂荚（皂荚）多用于熬膏，猪牙皂少见大量熬膏用途，故从皂荚。（T9 正名为大皂角,皂荚系其通用名,归一到受控词表）",
+      "basis": "皂角",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "排风汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：清代《成方切用》，方中芍药配当归养血和营，主治风虚冷湿而无热象，故用白芍。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "搜毒煎",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断：清代《成方切用》，方治痘疹热毒炽盛、紫黑干枯，芍药配凉血解毒药，当以赤芍凉血活血为用。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "敌痰丸",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "大皂角",
+      "evidence": "推断：元代《瑞竹堂经验方》无‘牙皂’直书；皂角去皮弦微烧入丸，古代多指皂荚，猪牙皂以开窍吹鼻为常用。（T9 正名为大皂角,皂荚系其通用名,归一到受控词表）",
+      "basis": "皂角",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "救五绝方",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "猪牙皂",
+      "evidence": "推断：清代《惠直堂经验方》，皂角为末吹鼻开窍急救，猪牙皂开窍力峻，传统急救多用之，故定猪牙皂。",
+      "basis": "皂角",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "栝蒌根桂枝汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：桂枝汤成法，清代医家多遵伤寒论用白芍，合桂枝和营卫治痉，故取白芍养血敛阴",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "治产后二便不通及失禁方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：产后津亏便秘，配大黄、枳壳润肠，芍药当养血滋阴缓急，白芍较宜。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "治伤寒中风方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "交叉：同段小建中汤加芍药治虚劳里急腹痛，传统用白芍，桂枝汤意亦同。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "治伤寒汗出不解如疟方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：方含桂枝二麻黄一汤意，芍药功用同桂枝汤，宜白芍和营。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "治大便难及大小便并不通方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：方类麻子仁丸，芍药配大黄、麻仁润肠缓下，用白芍养血润肠。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "治妇人伤于丈夫及交接出血方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：与生地黄配伍养血滋阴，主治伤于丈夫后体虚头痛，当用白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "治妇人妒乳疮痛方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：配伍甘草缓急止痛，治乳痈疼痛，常用白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "治妇人阴脱及阴疮、阴痒方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：与当归配伍养血，治阴脱，当用白芍养血固脱",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "治泄痢不禁及痢后谷道疼方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：结肠丸用芍药配阿胶养血，治热毒下痢，常用白芍和血止痛",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "治虚劳里急骨热羸瘦诸不足方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：黄芪建中汤中芍药配甘草缓急止痛，经典用白芍",
+      "basis": "芍药",
+      "confidence": "high",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "火疮方",
+      "rawIngredient": "紫苏",
+      "resolvedIngredient": "紫苏叶",
+      "evidence": "推断：配伍荆芥、薄荷疏风解毒，取叶轻扬发散止痒，清代《验方新编》中紫苏多作叶用",
+      "basis": "紫苏",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "灸疮膏",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断：外贴灸疮活血生肌，赤芍活血散瘀为强，清代《惠直堂》外用方常用赤芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "玉屑润金丸",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "浙贝母",
+      "evidence": "推断：治远近咳逆发热，知母、贝母清热化痰，证似实热，浙贝母清热散结力优",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "生津止渴丸",
+      "rawIngredient": "紫苏",
+      "resolvedIngredient": "紫苏叶",
+      "evidence": "推断：与薄荷、葛根同用，轻扬宣发助津上承，紫苏叶宣肺气利咽喉，宜生津方中",
+      "basis": "紫苏",
+      "confidence": "low",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "海藻玉壶汤",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "浙贝母",
+      "evidence": "推断: 瘿瘤初起需化痰散结，明代外科多用浙贝母，川贝润肺不适宜，土贝母另有其药，故当为浙贝母。",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "清流饮",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断: 主治阴虚挟热利下纯红鲜血，宜凉血止血，清代赤白芍分明，赤芍清热凉血效符。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "清膈煎",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "浙贝母",
+      "evidence": "推断: 痰因火动气壅喘满，浙贝苦寒清热散结化痰，较川贝润燥止咳更贴合病机。",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "清金化痰汤",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "川贝母",
+      "evidence": "推断: 痰嗽难出色黄咽喉干痛，属燥热伤肺，用川贝母甘寒润肺化痰为宜。",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "百顺丸",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "猪牙皂",
+      "evidence": "直书：原书注疏写'牙皂角'，即猪牙皂。",
+      "basis": "皂角",
+      "confidence": "high",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "皱肺丸",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "川贝母",
+      "evidence": "推断：方用贝母润肺止咳，配伍知母阿胶，宜用川贝母润肺化痰。",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "瞿麦散",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断：痈疽已溃，需活血排脓止痛，赤芍能凉血散瘀。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "知母麻黄汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：方中用麻黄桂心散寒，知母黄芩清热，芍药和营敛阴，防发散太过，宜白芍。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "疏肝清胃丸",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "浙贝母",
+      "evidence": "推断：乳岩结块属外科疮疡，浙贝清热散结力胜，清代外科多用。",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "痧症初起方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断：疹为阳邪需凉血透达，赤芍散邪优于白芍；清代治疹升麻葛根汤多用赤芍。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "神仙坠痰丸",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "大皂角",
+      "evidence": "直书: 原方'去皮弦...去子净',猪牙皂不结子,故为皂荚（T9 正名为大皂角,皂荚系其通用名,归一到受控词表）",
+      "basis": "皂角",
+      "confidence": "high",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "稀涎散",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "猪牙皂",
+      "evidence": "推断: 开窍涌吐剂,传统稀涎散用猪牙皂力峻",
+      "basis": "皂角",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "竹叶黄汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断: 含四物汤框架,补血用白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "约营煎",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断：方用芍药凉血止血，清代凉血方中多配赤芍，取其清热凉血之功。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "细辛膏",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "大皂角",
+      "evidence": "推断：宋代方中外用通窍，皂角常指皂荚，刮屑外用符合皂荚用法。（T9 正名为大皂角,皂荚系其通用名,归一到受控词表）",
+      "basis": "皂角",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "肿痛围药方",
+      "rawIngredient": "皂角",
+      "resolvedIngredient": "大皂角",
+      "evidence": "推断：外用消肿止痛，清代围药方中皂角多取皂荚，研末调敷。（T9 正名为大皂角,皂荚系其通用名,归一到受控词表）",
+      "basis": "皂角",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "肿香汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "赤芍",
+      "evidence": "推断：清代方，治阴症肿毒坚硬，配乳没牛膝等活血，宜赤芍凉血散瘀",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "脾约丸",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：方中芍药炒用，取其酸收敛津，助润肠，宜白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "芍药汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：经典治痢方，行血调气，酸以收之，多用白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "芍药甘草附子汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：伤寒方，汗后阳虚，芍药配甘草附子益阴，宜白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "苦参丸",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "川贝母",
+      "evidence": "推断：治妊娠小便难，贝母清热宣肺利水，宜川贝母润降",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "药方",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：升麻散治疹未出，芍药和营，防升散太过，宜白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "菊花清燥汤",
+      "rawIngredient": "贝母",
+      "resolvedIngredient": "浙贝母",
+      "evidence": "推断: 方治湿热肘尖疽，配伍芩连等清热，取浙贝清热散结消痈之力。",
+      "basis": "贝母",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "蜜附汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断: 治虚寒腹痛，配桂附温里，应取白芍养血和营、缓急止痛。",
+      "basis": "芍药",
+      "confidence": "high",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "调中汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断: 产后虚寒洞泄，配归芎养血，取白芍养血和血、柔肝止痛。",
+      "basis": "芍药",
+      "confidence": "high",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "贲豚汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断:方用疏肝养血,芍药配当归养肝血,宜白芍",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "迮毒汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断:配伍熟地当归养血,四肢拘挛宜白芍柔肝缓急",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "逍遥饮",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断:养血安神疏肝,与熟地当归配伍,宜白芍养血柔肝",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "附子八物汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断:与甘草酸甘缓急,治四肢疼痛,宜白芍和营柔肝",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "黄五物汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：本方源自《金匮》黄芪桂枝五物汤，治血痹，当用白芍养血和营，宋《三因方》多循此法。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "黄芩加半夏生姜汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：方出《伤寒论》黄芩加半夏生姜汤，仲景用芍药历代多取白芍，敛阴清热和营。",
+      "basis": "芍药",
+      "confidence": "high",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
+    },
+    {
+      "formulaName": "黄苦酒汤",
+      "rawIngredient": "芍药",
+      "resolvedIngredient": "白芍",
+      "evidence": "推断：方治自汗如汁，芍药用以敛阴止汗，与黄芪、桂心配伍，属白芍功用。",
+      "basis": "芍药",
+      "confidence": "medium",
+      "batch": "ADJ-20260726-HERB-VARIETY-B2"
     }
   ]
 }

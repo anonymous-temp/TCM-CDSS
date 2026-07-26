@@ -189,6 +189,85 @@ const shaoyaoTargets = new Set(ingredientAdjudications.entries
 assert.ok(shaoyaoTargets.has("白芍") && shaoyaoTargets.has("赤芍"),
   "芍药裁定必须同时存在白芍与赤芍两种结论，否则说明退化成了一刀切默认");
 
+// ─── 剂量依据未经复核的药材，不得因身份补充而获得剂量编制许可 ───
+// 剂量 KB 里有一类药材：它的数值剂量边界**只**出自「常用药典用量/调剂规范待人工复核」
+// 「高置信中药饮片剂量校准层」「甲方反馈补充」这类依据，没有任何一条药典条目背书。
+// 它们在 T9 身份表里查不到，因此含这些药的方剂一律不可编译剂量——**这是正确的保守行为**。
+//
+// 本轮我一度往 T9 补了龙骨/五灵脂/败酱草的身份条目，理由写的是「剂量 KB 已有药典口径」。
+// 那个理由是错的（basis 明写待人工复核），联网核实龙骨自 1977 年版起已不被《中国药典》收载、
+// 15-30g 出自地方炮制规范。后果是含这三味药的方从 0 首变成 30 首可编译剂量——
+// 等于用未经复核的校准值给药典外的药开了自动配剂量权限。已撤回。
+//
+// 这里**从 KB 推导整类**而不是钉死当时那 6 个名字：新增一味 curatedDose-only 的药材时，
+// 断言会自动把它纳入保护，不需要有人记得回来改列表。
+const PHARMACOPOEIA_DOSE_BASIS = /中华人民共和国药典|中国药典2020一部/;
+const doseKnowledge = readJson("tcm-knowledge.json");
+const unreviewedDoseHerbs = new Set((doseKnowledge.herbs || [])
+  .filter((herb) => {
+    const bounded = (herb.entries || []).filter((item) => item.minG != null || item.maxG != null);
+    return bounded.length > 0 && !bounded.some((item) => PHARMACOPOEIA_DOSE_BASIS.test(String(item.basis || "")));
+  })
+  .map((herb) => herb.name));
+assert.ok(unreviewedDoseHerbs.size > 0,
+  "未能从 KB 推导出「剂量依据未复核」药材集合，basis 字段口径可能变了——先修这里，别让断言退化成空转");
+// 断言直接钉**目录级不变量**，而不是去管 T9 补充表怎么写：
+// 「灵脂 → 五灵脂」这类身份映射本身是对的，不该被禁；真正不能发生的是
+// **某方因为一个未复核的剂量值而变成可自动配剂量**。按结果断言，既不冤枉正确的身份映射，
+// 也拦得住任何一条通往同一后果的新路径（补充表、别名表、重定向、KB 新增条目）。
+//
+// 生效的剂量名口径必须与构建器一致：doseCanonicalName || canonicalName（不是 inputName），
+// 见 build-tcm-governance-tables.py 的 `link["doseCanonicalName"] or link["canonicalName"]`。
+const effectiveDoseName = (link) => link.doseCanonicalName || link.canonicalName || link.inputName || link.name;
+const doseCompiledOnUnreviewedBasis = formulas.entries
+  .filter((entry) => entry.doseCompilationEligible)
+  .map((entry) => ({
+    name: entry.name,
+    herbs: [...new Set((entry.ingredientLinks || [])
+      .map(effectiveDoseName)
+      .filter((name) => name && unreviewedDoseHerbs.has(name)))],
+  }))
+  .filter((entry) => entry.herbs.length > 0);
+assert.deepEqual(doseCompiledOnUnreviewedBasis, [],
+  "方剂不得因「待人工复核/校准层」的推定剂量而获得自动配剂量许可——" +
+  "这些依据是给药师看的参考值，不是可自动开方的药典口径：" +
+  doseCompiledOnUnreviewedBasis.map((entry) => `${entry.name}[${entry.herbs.join("、")}]`).join("; "));
+
+// ─── 药典只许丸散的药材，不得进入煎剂剂量编制 ───
+// 上一条管「剂量数字的依据可不可信」，这一条管「这味药能不能煎」——两个正交的轴，
+// 都必须查。KB 里 44 味药的药典分途径条目只有丸散/外用而无煎服：马钱子、巴豆霜、斑蝥、
+// 蟾酥、雄黄、朱砂、轻粉、洋金花、闹羊花、甘遂、麝香…它们此前照样拿到煎剂配剂量许可，
+// 155 首方受影响，其中 18 首方名明确是汤（升麻鳖甲汤[雄黄]、散瘀和伤汤[马钱子]、
+// 十枣汤[甘遂]——而十枣汤的经典用法本就是三药研末、枣汤送服，根本不入煎）。
+//
+// 判据只认药典自列途径：无分途径条目 ⇒ 不排除（缺数据不等于证据）；
+// 「校准层」凭空补出的煎服途径不计入（它与药典同表的「丸散」「有毒且不入汤剂」冲突）。
+const DECOCTION_ROUTE = /煎服|汤剂|另煎|另炖/;
+const PILL_POWDER_ROUTE = /丸散|丸剂|胶囊/;
+const pillOnlyHerbs = new Set((doseKnowledge.herbs || [])
+  .filter((herb) => {
+    const routes = (herb.entries || [])
+      .filter((item) => item.type === "routeDose" && PHARMACOPOEIA_DOSE_BASIS.test(String(item.basis || "")))
+      .map((item) => `${item.routeForm || ""}${item.method || ""}`);
+    if (routes.length === 0 || routes.some((route) => DECOCTION_ROUTE.test(route))) return false;
+    return routes.some((route) => PILL_POWDER_ROUTE.test(route));
+  })
+  .map((herb) => herb.name));
+assert.ok(pillOnlyHerbs.size > 0,
+  "未能从 KB 推导出「药典仅丸散」药材集合，分途径条目口径可能变了——先修这里，别让断言空转");
+const decoctionCompiledPillOnly = formulas.entries
+  .filter((entry) => entry.doseCompilationEligible)
+  .map((entry) => ({
+    name: entry.name,
+    herbs: [...new Set((entry.ingredientLinks || [])
+      .map(effectiveDoseName)
+      .filter((name) => name && pillOnlyHerbs.has(name)))],
+  }))
+  .filter((entry) => entry.herbs.length > 0);
+assert.deepEqual(decoctionCompiledPillOnly, [],
+  "药典途径只有丸散/外用的药材不得进入煎剂剂量编制：" +
+  decoctionCompiledPillOnly.map((entry) => `${entry.name}[${entry.herbs.join("、")}]`).join("; "));
+
 // ─── 方名不得是标准编码 ───
 // SZJG 源表 PDF 第 85 页有 4 行被解析成整体错位一列：name 存编码、source 存方名、
 // ingredients 存出处书名、functions 存未切分的连写药串。结果目录里出现方名「0602010025」、
