@@ -4,7 +4,7 @@ import { assistedNegationClauses } from "@/lib/polarity-negation-assist.server";
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
-import { authoritativePatientAgeYears, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, markdownNdjsonResponse, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, gateDispositionIsAdvisory, markdownNdjsonResponse, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -67,9 +67,15 @@ export async function POST(req: Request) {
   const gated = withSafetyGate(caseState);
   const permission = derivePrescriptionPermission(gated);
   const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready" || permission.candidateMode === "limited_dose";
-  // Red flags do not stop the clinical workflow, but they are a server-owned hard boundary for
-  // concrete doses. M03 and M05 remain available; M04 returns an explicit non-dose result.
-  if (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked") {
+  // 红旗/完整度处置（甲方决策：不阻断临床流程）。检测照常；advise 模式下 M04 照常生成
+  // 剂量级候选，可见正文置顶确定性安全警示横幅（红旗内容 + 审方提示），红旗同步写进提示词
+  // 让用药风险段优先急诊指引。缺主诉（permission=blocked 且无主诉）仍然拦——没有主诉连
+  // 辨证对象都不存在，不属于「有结果可给」的范畴。CDSS_GATE_DISPOSITION=block 切回旧行为。
+  const advisoryDisposition = gateDispositionIsAdvisory();
+  if (
+    (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked") &&
+    (!advisoryDisposition || !(gated.chiefComplaint || gated.hisRecord?.fields?.zhushu || "").trim())
+  ) {
     const gate: SafetyGate = {
       status: gated.safetyGate?.status || "needs_information",
       allowDiagnosis: true,
@@ -81,11 +87,13 @@ export async function POST(req: Request) {
     };
     return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
   }
+  const advisorySafetyNotes = advisoryDisposition && (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked")
+    ? (permission.reasons.length > 0 ? permission.reasons : ["当前病例存在未解除的安全或信息完整性提示"])
+    : [];
   // An attested "unclear" encounter scope means the reviewed semantic pre-check could not prove
-  // whether this visit has an active treatment target. Dose generation must not proceed silently;
-  // it requires a follow-up answer (which changes the record and forces re-extraction) or an
-  // explicit doctor confirmation bound to the current clinical-facts fingerprint.
-  if (hasUnconfirmedUnclearEncounterScope(gated)) {
+  // whether this visit has an active treatment target. advise 模式下不再拦截：照常生成，
+  // 警示横幅与提示词都明示「本次就诊目标需医生确认」，确认动作交给医生而不是流程。
+  if (hasUnconfirmedUnclearEncounterScope(gated) && !advisoryDisposition) {
     const gate: SafetyGate = {
       status: "needs_information",
       allowDiagnosis: true,
@@ -119,7 +127,9 @@ export async function POST(req: Request) {
       ? unavailableFormulaNames.length === governedFormulaNames.length
       : unavailableFormulaNames.length > 0
   );
-  if (noExecutableFormulaPath) {
+  // advise 模式下锁定方缺剂量基准不再作废本次生成：转自拟组方路径（提示词明示不得沿用
+  // 该方名身份），方名方向保留给医生参考。block 模式维持旧行为。
+  if (noExecutableFormulaPath && !advisoryDisposition) {
     const gate: SafetyGate = {
       status: "needs_information",
       allowDiagnosis: true,
@@ -160,6 +170,15 @@ export async function POST(req: Request) {
   if (signedPriorReasoning.clinicalReview?.status !== "accepted") {
     prompt += "\n\n【辨证复核状态】M03 独立复核本轮未完成，但其结构、病历接地、极性与安全边界已通过确定性核验。可继续生成有界候选；必须在适用边界中提示复核状态，不得把未完成复核写成已经通过，也不得因此拒绝生成。";
   }
+  if (advisorySafetyNotes.length > 0) {
+    prompt += `\n\n【急危重线索并存】服务器确定性判定本例存在未解除的安全提示：${advisorySafetyNotes.join("；")}。请照常生成剂量级候选方药；在用药风险提示中把急诊/转诊评估列为第一优先级，剂量取保守区间下段，不得因安全提示拒绝生成，也不得淡化提示。`;
+  }
+  if (hasUnconfirmedUnclearEncounterScope(gated) && advisoryDisposition) {
+    prompt += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请照常生成候选，并在适用边界中显式提示“本次就诊目标需医生确认后方可采纳”。";
+  }
+  if (noExecutableFormulaPath && advisoryDisposition) {
+    prompt += `\n\n【方名剂量基准缺失】推荐方 ${unavailableFormulaNames.join("、")} 在本地受治理知识库暂无可执行的逐味剂量基准。请按已锁定证候与治法自拟组方（constructionType=self_devised，不得沿用该方名身份），方名方向已另行保留给医生参考。`;
+  }
   const truncationGate: SafetyGate = {
     status: "needs_information",
     allowDiagnosis: true,
@@ -169,9 +188,22 @@ export async function POST(req: Request) {
     redFlags: [],
     reasons: ["模型处方输出被截断、结构化结果未闭合或未通过处方合同校验，服务端已阻断不可采纳的药味与剂量。"],
   };
+  const advisoryBanner = buildSafetyAdvisoryBanner(
+    advisorySafetyNotes.length > 0 ? gated.safetyGate : undefined,
+    [
+      ...(advisorySafetyNotes.length > 0 && !(gated.safetyGate?.redFlags || []).length ? advisorySafetyNotes : []),
+      ...(hasUnconfirmedUnclearEncounterScope(gated) && advisoryDisposition
+        ? ["本次就诊是否存在当前活动性治疗目标未确认，请医生确认后再采纳。"] : []),
+      ...(noExecutableFormulaPath && advisoryDisposition
+        ? [`推荐方 ${unavailableFormulaNames.join("、")} 暂无可执行剂量基准，本次候选为辨证自拟组方，方名方向供参考。`] : []),
+    ],
+  );
   const evidenceOutputTransform = buildEvidenceOutputTransform(
     evidenceContext,
-    (content) => sanitizeUngroundedRedFlagNegations(enforceReviewedPrescriptionOutput(content), safeState),
+    (content) => {
+      const sanitized = sanitizeUngroundedRedFlagNegations(enforceReviewedPrescriptionOutput(content), safeState);
+      return advisoryBanner ? `${advisoryBanner}${sanitized}` : sanitized;
+    },
     safeState,
   );
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {

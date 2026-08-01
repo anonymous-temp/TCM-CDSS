@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
+// 本套件验证的是安全门/就诊目标门的**机制**（红旗判定、指纹确认、过期指纹拒绝、非剂量合同
+// 渲染）。产品默认档已改为 advise（提示不拦截，甲方 2026-08-01 决策），机制保留在 block 档
+// 作为运维回退开关——因此这里显式切到 block 档来测机制本身；advise 档的默认性与横幅行为
+// 由下方独立断言与 50 例在线回归覆盖。必须在 import diagnosis-safety 之前设置。
+process.env.CDSS_GATE_DISPOSITION = "block";
+
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": "/dev/null" } });
 const {
   buildSafetyLimitedDiagnosis,
@@ -458,3 +464,25 @@ for (const [label, redFlags] of [
 }
 
 console.log(JSON.stringify({ cases: 72, failures: 0 }));
+
+// ─── 处置模式：默认 advise（提示不拦截），block 为显式回退档 ─────────────────────
+// 本套件顶部把进程切到了 block 档来测机制；这里验证开关本身的语义与默认值，
+// 以及横幅构造器的确定性输出（不经模型、有稳定标记、必含审方提示）。
+{
+  const { gateDispositionIsAdvisory, buildSafetyAdvisoryBanner, SAFETY_ADVISORY_MARKER } =
+    await jiti.import("../src/lib/diagnosis-safety.ts");
+  assert.equal(gateDispositionIsAdvisory(), false, "本套件已显式设 block，开关必须尊重环境变量");
+  const prev = process.env.CDSS_GATE_DISPOSITION;
+  delete process.env.CDSS_GATE_DISPOSITION;
+  assert.equal(gateDispositionIsAdvisory(), true, "缺省必须是 advise——CDSS 不阻断临床流程是产品语义");
+  process.env.CDSS_GATE_DISPOSITION = prev;
+  const banner = buildSafetyAdvisoryBanner(
+    { status: "red_flag", allowDiagnosis: false, allowDosePrescription: false, action: "refer_or_emergency",
+      missingItems: [], redFlags: ["胸痛伴大汗"], reasons: ["建议急诊评估优先"] },
+    ["附加提示"],
+  );
+  assert.ok(banner.startsWith(SAFETY_ADVISORY_MARKER), "横幅必须以稳定标记开头，供集成方识别");
+  assert.ok(/胸痛伴大汗/.test(banner) && /附加提示/.test(banner), "红旗与附加提示都必须原样呈现");
+  assert.ok(/审方复核/.test(banner), "横幅必须包含审方复核提示");
+  assert.equal(buildSafetyAdvisoryBanner(undefined, []), "", "无任何提示时不产生横幅");
+}

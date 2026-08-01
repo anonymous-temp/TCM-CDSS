@@ -2755,8 +2755,8 @@ function replaceRiskAssessmentFollowup(existing: string | undefined, generated: 
 export function generationStatus(phase: Phase, isRedFlag = false): { title: string; desc: string } {
   if (isRedFlag && (phase === "prescribe" || phase === "assess")) {
     return {
-      title: "正在生成风险处置建议",
-      desc: "正在整理转诊依据、现场评估要点和安全边界；急危重风险未排除前不生成候选方药或剂量。",
+      title: "正在生成候选方药与风险处置建议",
+      desc: "本例存在急危重风险提示：候选方药照常生成并置顶安全警示，采纳前请先完成急诊/转诊评估。",
     };
   }
   if (phase === "diagnose") {
@@ -4789,6 +4789,57 @@ export function prioritizeWesternEvidenceForDisplay(facts: readonly string[], li
   }).slice(0, Math.max(1, limit));
 }
 
+/**
+ * 服务端置顶通知：安全警示横幅（`<!-- CDSS_SAFETY_ADVISORY -->` 后的引用块）与质量批注
+ * （前置普通段落）都位于可见正文首个 "## " 标题之前。结果区按节抽取渲染，标题前的内容
+ * 不属于任何节——不在这里显式提取，服务端刚写进去的警示与批注就会被前端整体丢掉。
+ */
+function extractServerLeadingNotices(caseState: CaseState): { safety: string[]; annotations: string[] } {
+  const safety: string[] = [];
+  const annotations: string[] = [];
+  for (const text of [caseState.diagnosis, caseState.prescription]) {
+    const head = (text || "").split(/^##\s/m)[0] || "";
+    if (!head.trim()) continue;
+    const hasMarker = head.includes("<!-- CDSS_SAFETY_ADVISORY -->");
+    for (const rawLine of head.split("\n")) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("<!--")) continue;
+      if (line.startsWith(">")) {
+        const quoted = line.replace(/^>+\s*-?\s*/, "").replace(/\*\*/g, "").trim();
+        if (quoted && hasMarker && !safety.includes(quoted)) safety.push(quoted);
+        continue;
+      }
+      if (!line.startsWith("#") && /[。；]/.test(line) && !annotations.includes(line)) annotations.push(line);
+    }
+  }
+  return { safety, annotations };
+}
+
+function ServerLeadingNotices({ caseState }: { caseState: CaseState }) {
+  const { safety, annotations } = extractServerLeadingNotices(caseState);
+  if (safety.length === 0 && annotations.length === 0) return null;
+  return (
+    <div className="space-y-2" data-testid="server-leading-notices">
+      {safety.length > 0 && (
+        <div className="rounded-xl border border-red-300 bg-red-50 p-3" data-testid="server-safety-advisory">
+          <p className="text-xs font-bold text-red-800">安全警示（服务端判定，未解除）</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-relaxed text-red-800">
+            {safety.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+        </div>
+      )}
+      {annotations.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3" data-testid="server-quality-annotations">
+          <p className="text-xs font-bold text-amber-900">质量批注（采纳前请核对）</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-relaxed text-amber-900">
+            {annotations.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ResultTabsV2({
   caseState,
   summary,
@@ -4889,6 +4940,7 @@ function ResultTabsV2({
       data-governed-section-order={governedSectionOrder.join(",")}
       className="flex scroll-mt-3 flex-col gap-3"
     >
+      <ServerLeadingNotices caseState={caseState} />
       <SchemeSection
         order={sectionOrder(["M03-overview", "M03-western"])}
         id="cdss-section-diagnosis"
@@ -5648,7 +5700,7 @@ function EmergencyReferralReport({
       </div>
 
       <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-relaxed text-gray-600">
-        已暂停：常规辨病辨证与候选方药生成。急危重风险未排除前不生成。
+        辨病辨证与候选方药照常生成并附安全警示；在完成上述急诊/转诊评估之前，请勿采纳其中的用药内容。
       </p>
 
       {missingItems.length > 0 && (
@@ -5690,7 +5742,11 @@ function CompactAiSchemeCardFlow({
   const hasDosePrescription = hasGeneratedDosePrescription(summary, activeReasoning);
   const isRedFlag = (caseState.safetyGate || evaluateSafetyGate(caseState)).status === "red_flag";
 
-  if (isRedFlag) {
+  // 处置改「提示不拦截」后，红旗与完整结果**并存**是常态：服务端照常生成 M03/M04（置顶
+  // 安全警示横幅），前端相应地把急诊卡置顶、结果照常展示。旧行为用急诊卡整页替换结果区，
+  // 服务端刚生成的辨证与候选被前端藏掉——后台改完前端还在拦，正是要消灭的形态。
+  // 结果尚未生成时（红旗在采集阶段即命中），急诊卡仍然独占——此时确实没有别的可展示。
+  if (isRedFlag && !activeReasoning) {
     return (
       <EmergencyReferralReport
         caseState={caseState}
@@ -5701,7 +5757,18 @@ function CompactAiSchemeCardFlow({
   }
 
   if (activeReasoning) {
-    return <ResultTabsV2 caseState={caseState} summary={summary} onRetry={onRetry} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} restoredUnsavedDraft={restoredUnsavedDraft} onUnsavedDraftChange={onUnsavedDraftChange} />;
+    return (
+      <div className="space-y-3">
+        {isRedFlag && (
+          <EmergencyReferralReport
+            caseState={caseState}
+            onDownloadReport={onDownloadReport}
+            onConfirmEmergencyClearance={onConfirmEmergencyClearance}
+          />
+        )}
+        <ResultTabsV2 caseState={caseState} summary={summary} onRetry={onRetry} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} restoredUnsavedDraft={restoredUnsavedDraft} onUnsavedDraftChange={onUnsavedDraftChange} />
+      </div>
+    );
   }
 
   // A failed structured stage is already explained by StageErrorCard. Do not render the legacy

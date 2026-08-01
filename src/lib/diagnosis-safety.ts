@@ -80,7 +80,13 @@ function flattenClinicalInput(value: unknown): string[] {
 }
 
 export function isLimitedDiagnosisText(text: string | undefined): boolean {
-  const t = text || "";
+  // 服务端前置区（安全警示横幅 + 质量批注）位于首个 "## " 标题之前，措辞里天然含
+  // 「急危重」「补充…确认」这类词。有限诊断的判定对象是**正文**——真正的降级页自身就以
+  // "## 本次分析结论" 开头，剥掉前置区不影响其识别；不剥则带警示的完整结果会被误判为
+  // 降级页，前端随即清空处方走回旧的拦截路径。
+  const raw = text || "";
+  const firstHeading = raw.search(/^##\s/m);
+  const t = firstHeading > 0 ? raw.slice(firstHeading) : raw;
   // When M03 explicitly commits to "完整候选方案" as its 结论 (only permitted when the deterministic
   // completeness gate is C and no red flag), it produced a full candidate scheme. Do NOT let management
   // next-step narrative elsewhere in the report ("建议完善甲功后再评估" / "补齐现病史后再辨证") re-flag it
@@ -3069,6 +3075,46 @@ export function highRiskDoseBoundaryReasons(state: CaseState): string[] {
 }
 
 /**
+ * 安全门处置模式（甲方产品决策 2026-08-01）：CDSS 不阻断临床流程。
+ *
+ * 检测层一条不删——红旗、危急体征、完整度、就诊目标的判定照常执行、照常进 HIS 载荷；
+ * 改变的只是**处置**：默认 advise 模式下，命中不再换来一页「未形成结论」，而是完整结果 +
+ * 置顶安全警示横幅 + 审方复核提示。医生永远拿得到分析与候选，警示永远在最上面。
+ *
+ * 保留 block 档（CDSS_GATE_DISPOSITION=block）作为运维回退开关：切回旧的 fail-closed
+ * 拦截行为，不需要改代码或重新构建。
+ */
+export function gateDispositionIsAdvisory(): boolean {
+  return (process.env.CDSS_GATE_DISPOSITION || "advise").trim().toLowerCase() !== "block";
+}
+
+/** 集成方用于识别「本响应携带未解除安全警示」的稳定标记（见对外接口文档）。 */
+export const SAFETY_ADVISORY_MARKER = "<!-- CDSS_SAFETY_ADVISORY -->";
+
+/**
+ * 置顶安全警示横幅。内容全部来自确定性安全门的判定结果，不经模型；
+ * 前置到可见正文最前，不进入结构化 sentinel，也不参与合同签名载荷。
+ */
+export function buildSafetyAdvisoryBanner(
+  gate: SafetyGate | null | undefined,
+  extraNotes: readonly string[] = [],
+): string {
+  const redFlags = (gate?.redFlags || []).filter(Boolean);
+  const reasons = (gate?.reasons || []).filter(Boolean);
+  const notes = extraNotes.filter(Boolean);
+  if (redFlags.length === 0 && reasons.length === 0 && notes.length === 0) return "";
+  const lines = [
+    SAFETY_ADVISORY_MARKER,
+    "> ⚠️ **安全警示（未解除，请医生优先处置）**",
+  ];
+  if (redFlags.length > 0) lines.push(`> - 红旗提示：${redFlags.join("；")}`);
+  for (const reason of reasons) lines.push(`> - ${reason}`);
+  for (const note of notes) lines.push(`> - ${note}`);
+  lines.push("> - 以下分析与候选方药仅供医生在完成上述风险处置判断的前提下参考，采纳前须经院内审方复核。");
+  return `${lines.join("\n")}\n\n`;
+}
+
+/**
  * Candidate generation and formal adoption are separate permissions. Clinical alerts and audit
  * outcomes remain visible, but they cannot silently change either permission. This is the single
  * authority consumed by M04, the workbench and the HIS integration payload.
@@ -3080,6 +3126,18 @@ export function derivePrescriptionPermission(state: CaseState): PrescriptionPerm
     return { candidateMode: "blocked", formalAdoption: "blocked", reasons: ["缺少主诉"] };
   }
   if (gate.status === "red_flag") {
+    // advise 档（默认）：红旗不改变候选权限，只改变呈现——警示置顶、正式采纳仍须医生
+    // 逐条确认。block 档保留旧的非剂量降级（浏览器端 process.env 无该变量 ⇒ 恒为 advise，
+    // 与服务端默认一致）。
+    if (gateDispositionIsAdvisory()) {
+      return {
+        candidateMode: "full_dose",
+        formalAdoption: "eligible_after_doctor_confirmation",
+        reasons: gate.redFlags && gate.redFlags.length > 0
+          ? [...gate.redFlags]
+          : ["当前存在急危重分流提示"],
+      };
+    }
     return {
       candidateMode: "non_dose_only",
       formalAdoption: "blocked",
@@ -3091,6 +3149,14 @@ export function derivePrescriptionPermission(state: CaseState): PrescriptionPerm
 
   const operationalCompleteness = deriveOperationalCompleteness(state);
   if (operationalCompleteness.level !== "C" && state.questionRounds < 1) {
+    // advise 档：信息覆盖有限降级为「有限信息候选」而不是拒绝——追问是增强手段，不是门槛。
+    if (gateDispositionIsAdvisory()) {
+      return {
+        candidateMode: "limited_dose",
+        formalAdoption: "eligible_after_doctor_confirmation",
+        reasons: ["当前病历关键信息覆盖有限，候选按有限信息生成；建议补充一轮追问以提高信心"],
+      };
+    }
     return {
       candidateMode: "non_dose_only",
       formalAdoption: "blocked",
@@ -3369,6 +3435,12 @@ export function withSafetyGate(state: CaseState): CaseState {
 export function reconcileRestoredCaseState(state: CaseState): CaseState {
   const recomputed = withSafetyGate(state);
   if (recomputed.safetyGate?.allowDiagnosis === false) {
+    // advise 档：恢复快照不清空已生成的结论。旧行为把红旗病例刷新一次就打回 question 阶段并
+    // 删除全部 M03/M04/M05 结果——服务端明明是带警示完整生成的，前端一次刷新等于把医生的
+    // 工作成果销毁。改为保留内容 + safetyLocked 警示锁（呈现层置顶警示、采纳须医生确认）。
+    if (gateDispositionIsAdvisory()) {
+      return { ...recomputed, safetyLocked: true, lastError: state.lastError };
+    }
     return {
       ...recomputed,
       phase: state.lastError ? "error" : "question",

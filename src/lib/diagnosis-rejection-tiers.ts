@@ -167,6 +167,12 @@ export function rejectionTier(reason: string): RejectionTier {
   const bare = code.startsWith("m03_") ? code.slice(4) : code;
   if (T2_M03.has(bare)) return "T2";
   if (T3_M03.has(bare)) return "T3";
+  // 病历接地的**字面**分支单独降为 T2：它拦的是「时间/频度副词与症状本体跨子句重组」
+  //（病历「下腹部发热」+「多在下午3时后出现」→ 模型引用「下午3时后下腹部发热」），
+  // 重组不产生新的临床断言。实测网络医案 10/31「内伤发热」连续 4 轮命中同一个
+  // *_literal 码、修复不收敛、整页作废——医生连证候病机都拿不到。
+  // **极性**分支（*_polarity，断言与病历相反）不在此列，仍是 T1：那是编造，不是措辞。
+  if (/^patient_fact_ungrounded_\d+_\d+_literal$/.test(bare)) return "T2";
   return "T1";
 }
 

@@ -186,7 +186,12 @@ async function runCase(entry) {
     // 安全门拒绝出剂量方是**正确**的临床行为；把它和「合同校验没过」混在一个出方率里，
     // 等于用一个指标同时奖励和惩罚同一件事。按降级文案的来源分类。
     outcome: (Array.isArray(candidate?.herbs) && candidate.herbs.length > 0)
-      ? "prescribed"
+      // 处置改「提示不拦截」后，安全警示与出方并存是正常路径——单独计一类，
+      // 让「带警示出方率」可被直接读出，而不是混在普通出方里。
+      ? ((record.stages.prescribe?.visible || "").includes("<!-- CDSS_SAFETY_ADVISORY -->")
+        || (record.stages.diagnose?.visible || "").includes("<!-- CDSS_SAFETY_ADVISORY -->")
+        ? "prescribed_with_alerts"
+        : "prescribed")
       : /模型处方输出被截断|未通过处方合同校验/.test(record.stages.prescribe?.visible || "")
         ? "contract_rejected"
         : /尚未形成通过临床复核的稳定证候结果|辨病辨证结果完整性/.test(record.stages.prescribe?.visible || "")

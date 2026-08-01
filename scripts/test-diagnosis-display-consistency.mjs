@@ -113,13 +113,15 @@ assert.deepEqual(
   ["咳嗽3天"],
   "western diagnosis-basis chips remove normal padding and duplicates",
 );
+// 处置改「提示不拦截」（甲方 2026-08-01 决策）：红旗病例照常生成候选方药，文案必须如实
+// 说明「照常生成 + 置顶警示 + 采纳前先完成急诊评估」，不得再宣称"不生成"。
 assert.deepEqual(
   generationStatus("prescribe", true),
   {
-    title: "正在生成风险处置建议",
-    desc: "正在整理转诊依据、现场评估要点和安全边界；急危重风险未排除前不生成候选方药或剂量。",
+    title: "正在生成候选方药与风险处置建议",
+    desc: "本例存在急危重风险提示：候选方药照常生成并置顶安全警示，采纳前请先完成急诊/转诊评估。",
   },
-  "a red-flag prescribe stage must never claim that candidate medicines are being generated",
+  "a red-flag prescribe stage must state that candidates are generated with a safety advisory",
 );
 assert.equal(
   buildVitalsLine({ vitalsT: "36.5℃", vitalsP: "74次/分", vitalsR: "18次/分", vitalsBP: "118/72mmHg" }),
@@ -694,11 +696,10 @@ const nonDoseRiskExport = buildCompleteReport({
   diagnosis: "## 红旗排查\n持续胸痛伴大汗，建议急诊评估。",
   prescription: "## 中药饮片处方\n黄芪 15g",
 });
-assert.match(nonDoseRiskExport, /中医CDSS急诊转诊建议与依据/);
-assert.match(nonDoseRiskExport, /处置类别：急诊转诊建议/);
-assert.match(nonDoseRiskExport, /转诊建议与触发依据，不含候选方药或剂量/);
-assert.doesNotMatch(nonDoseRiskExport, /L3 ·|非剂量风险报告/);
-assert.doesNotMatch(nonDoseRiskExport, /黄芪 15g/, "red-flag exports must strip dose-level prescription content");
+// 处置改「提示不拦截」：红旗导出**保留**候选方药段（服务端本来就带警示生成了它），
+// 警示以最高级别呈现在报告里；把结果从导出里删掉等于前端替医生把工作成果藏起来。
+assert.match(nonDoseRiskExport, /持续胸痛伴大汗/, "red-flag exports must surface the red-flag facts");
+assert.match(nonDoseRiskExport, /黄芪 15g/, "advisory red-flag exports keep the generated prescription content");
 const thunderclapPresentation = buildEmergencyPresentation({
   ...rareOccupationCase,
   chiefComplaint: "突发人生最剧烈头痛伴恶心呕吐",

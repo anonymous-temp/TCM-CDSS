@@ -1,4 +1,5 @@
 import type { CaseState } from "./diagnosis-types";
+import { gateDispositionIsAdvisory } from "./diagnosis-safety";
 
 export type ClinicalWarningLevel = "L0" | "L1" | "L2" | "L3" | "L4";
 export type ClinicalWarningAction =
@@ -144,6 +145,15 @@ export function deriveCaseWarningProfile(caseState: CaseState): ClinicalWarningP
   }
 
   if (gate?.status === "red_flag") {
+    // advise 档（默认）：红旗保持 L3 警示级别与全部理由，但候选仍可执行/可导出——
+    // 处置改「提示不拦截」后，导出报告删除 M04 段等于把服务端刚生成的结果又藏起来。
+    if (gateDispositionIsAdvisory()) {
+      return profile("L3", uniqueReasons([
+        ...gate.redFlags,
+        ...gate.reasons,
+        "存在未解除的急危重风险提示：请优先完成急诊/转诊评估，候选方药仅供处置后参考，采纳须医生确认并经审方复核",
+      ]), true);
+    }
     return profile("L3", uniqueReasons([
       ...gate.redFlags,
       ...gate.reasons,

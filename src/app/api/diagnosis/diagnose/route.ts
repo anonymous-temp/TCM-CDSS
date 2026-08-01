@@ -5,7 +5,7 @@ import { assistedNegationClauses } from "@/lib/polarity-negation-assist.server";
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
-import { authoritativePatientAgeYears, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 
@@ -35,17 +35,18 @@ export async function POST(req: Request) {
       buildDiagnoseContractSignatureContext(gated),
     ),
   );
-  // Once a server-owned hard red flag is established, forcing the model to invent a complete TCM
-  // pathogenesis chain is both clinically inappropriate and slow. Close M03 immediately with a
-  // signed, explicitly unresolved contract; M04 can then deterministically return the non-dose path.
-  if (redFlagAnalysis) {
+  // 红旗处置（甲方决策：不阻断临床流程）。检测照常，advise 模式下不再用「安全有限合同」
+  // 顶替整份辨证——那一页对医生的价值是零，红旗本身反而淹没在降级文案里。改为：完整跑
+  // M03，可见正文置顶确定性安全警示横幅，红旗同步写进提示词让 management 优先急诊指引。
+  // CDSS_GATE_DISPOSITION=block 可切回旧拦截行为。
+  if (redFlagAnalysis && !gateDispositionIsAdvisory()) {
     return markdownNdjsonResponse(signedLimitedDiagnosis(gated.safetyGate!));
   }
   const encounterScope = gated.clinicalFacts?.encounterScope;
   const historicalOnlyEncounter = encounterScope?.status === "historical_or_stable_only" &&
     encounterScope.reviewAgreement === "agreed" &&
     hasValidClinicalFactsAttestation(gated.clinicalFacts);
-  if (historicalOnlyEncounter) {
+  if (historicalOnlyEncounter && !gateDispositionIsAdvisory()) {
     return markdownNdjsonResponse(signedLimitedDiagnosis({
       status: "needs_information",
       allowDiagnosis: true,
@@ -97,6 +98,12 @@ export async function POST(req: Request) {
   if (limitedInformation) {
     prompt += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
   }
+  if (redFlagAnalysis) {
+    prompt += `\n\n【急危重线索并存】服务器确定性判定本例存在红旗：${(gated.safetyGate?.redFlags || []).join("；") || "见安全提示"}。请照常完成辨病辨证；在 management 中把急诊/转诊评估列为第一优先级并给出具体处置指引，不得因红旗拒绝输出辨证结论，也不得淡化红旗。`;
+  }
+  if (historicalOnlyEncounter) {
+    prompt += `\n\n【就诊目标以既往背景为主】语义预检确认本次记录主要为既往、已缓解或稳定背景（原文：“${encounterScope.quote}”）。请照常完成辨证分析，并在 uncertainties 与 management.mustCollect 中显式提示“本次活动性诊疗目标需医生确认”。`;
+  }
   // Attested "unclear" scope does not short-circuit M03; the model keeps reasoning but must make
   // the unconfirmed visit target explicit so the downstream dose gate stays evidence-bound.
   if (encounterScope?.status === "unclear" && hasValidClinicalFactsAttestation(gated.clinicalFacts)) {
@@ -130,7 +137,18 @@ export async function POST(req: Request) {
     diagnoseSignatureContext: buildDiagnoseContractSignatureContext(gated),
     outputTransform: buildEvidenceOutputTransform(
       evidenceContext,
-      (content) => sanitizeUngroundedRedFlagNegations(content, safeState),
+      (content) => {
+        const sanitized = sanitizeUngroundedRedFlagNegations(content, safeState);
+        // 警示横幅在最终可见正文最前（sentinel 与签名载荷不受影响）：红旗/既往背景等
+        // 确定性判定必须比任何模型内容先被医生看到。
+        const banner = buildSafetyAdvisoryBanner(
+          redFlagAnalysis ? gated.safetyGate : undefined,
+          historicalOnlyEncounter
+            ? [`本次记录以既往、已缓解或稳定背景为主（原文：“${encounterScope?.quote || ""}”），本次活动性诊疗目标需医生确认。`]
+            : [],
+        );
+        return banner ? `${banner}${sanitized}` : sanitized;
+      },
     ),
   });
 }
