@@ -71,11 +71,31 @@ export function canAcceptTransparentFormulaFallback(input: TransparentFormulaFal
  * transparent_therapy_contract_missing 不在此列：它意味着候选或 M03 结构本身缺失，无从标注。
  */
 export function m04TherapyIssueQualityAnnotation(therapyIssue: string | undefined): string | undefined {
-  if (therapyIssue === "transparent_therapy_coverage") {
+  if (typeof therapyIssue !== "string" || !therapyIssue) return undefined;
+  // 各发射点会给同一族码加不同前缀（m04_ / candidate_N_ / transparent_therapy_ /
+  // modification_N_），豁免语义只看核心码。
+  const core = therapyIssue
+    .replace(/^m04_/, "")
+    .replace(/^candidate_\d+_/, "")
+    .replace(/^modification_\d+_/, "")
+    // 注意 herb_support 也以 herb_ 开头——只在后随数字（herb_3_…逐味码）时才剥这层前缀。
+    .replace(/^transparent_therapy_(?=herb_\d)/, "");
+  if (core === "transparent_therapy_coverage") {
     return "本次候选方药的逐味剂量边界、配伍禁忌、特殊人群与高影响方向门禁均已通过安全核验；但系统未能自动核验全部治法方向的覆盖情况，方义与治法的对应关系请医生结合本次病历确认后再采纳。";
   }
-  if (therapyIssue === "transparent_therapy_herb_support") {
+  if (core === "transparent_therapy_herb_support") {
     return "本次候选方药的逐味剂量边界、配伍禁忌、特殊人群与高影响方向门禁均已通过安全核验；但部分君臣药味的功效方向未能被系统自动对应到已锁定治法，请医生逐味核对方义后再采纳。";
+  }
+  // 词表未成立 ≠ 方向对立：对立（与锁定治法直接相反）在合同里是独立判定、任何时候不豁免；
+  // 这里放行的只是「系统词表没能把该药的方向对应到 M03 已锁定治法」。
+  if (/^herb_\d+_unsupported_high_impact_[a-z_]+$/.test(core)) {
+    return "本次候选方药的逐味剂量边界、配伍禁忌与特殊人群门禁均已通过安全核验；但个别药味的功效方向未能被系统自动对应到本例已锁定的治法（不属于方向相反），该药味的取舍请医生结合方义判断后再采纳。";
+  }
+  if (/^herb_\d+_emperor_therapy_mismatch$/.test(core)) {
+    return "本次候选方药的逐味剂量边界、配伍禁忌与特殊人群门禁均已通过安全核验；但君药的功效方向未能被系统自动对应到主病机治法，君药的选取请医生按辨证结论确认后再采纳。";
+  }
+  if (/^pathogenesis_node_uncovered_[A-Za-z0-9]+$/.test(core)) {
+    return "本次候选方药的逐味剂量边界、配伍禁忌与特殊人群门禁均已通过安全核验；但 M03 辨证提出的个别病机方向本次未见对应药味，是否补充针对性药味请医生判断后再采纳。";
   }
   return undefined;
 }

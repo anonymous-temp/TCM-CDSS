@@ -2009,8 +2009,18 @@ function herbHighImpactConcepts(name: string, declaredFunction?: string): Set<Tc
 
 function requiredTherapyConcepts(prior: M03ReasoningLike | null | undefined): Set<TcmTherapyConcept> {
   const chain = prior?.pathogenesis?.chain || [];
+  const subTherapies = prior?.therapy?.subTherapies || [];
+  // 「已锁定治法方向」必须取 M03 签名载荷里的**全部**治法字段。此前只读 overallPrinciple
+  // 与链条方向，不读 overallMethod / subTherapies——实测网络医案 37（自汗）：M03 自己写了
+  // overallMethod「益气固表，温阳敛汗」、subTherapy「温阳固卫」，高影响门却判方中温阳药
+  // yang_warm 未成立、整方 0 味。同一窄口径此前已在君臣支撑率上修过一次（那里单独补了
+  // overallMethod），说明按消费点逐个补是补不完的——收敛到这里，所有读「已锁定方向」的
+  // 门禁（高影响、君药、覆盖率、支撑率、短名单注入）共用同一个全集。
+  // overallPrinciple 常是「标本兼治/治病求本」这类原则语，解析为空是常态，其余字段才承载方向。
   return affirmedTcmTherapyConcepts([
     prior?.therapy?.overallPrinciple,
+    prior?.therapy?.overallMethod,
+    ...subTherapies.map((sub) => (sub && typeof sub === "object" ? (sub as { therapy?: unknown }).therapy : undefined)),
     ...chain.map((node) => node.therapyDirection),
   ].map((value) => String(value || "").trim()).filter(Boolean).join("；"));
 }
@@ -2207,6 +2217,7 @@ function unsupportedHighImpactHerbIssue(
   prior: M03ReasoningLike | null | undefined,
   allowGovernedFormulaBaseline = false,
   selectedFormulaNames: readonly string[] = [],
+  waiveVocabUnsupportedAnnotated = false,
 ): string | undefined {
   const required = requiredTherapyConcepts(prior);
   // 症状指征通道：M03 治法文本未明写该方向时，签名病历里的对应症状事实同样构成成立依据
@@ -2244,16 +2255,23 @@ function unsupportedHighImpactHerbIssue(
     const opposingPool = declaredConcepts && declaredConcepts.size === 0 && tcmTherapyConcepts(getTcmHerbFunctionCategories(herbName).join("；")).size > 0
       ? new Set([...tcmTherapyConcepts(getTcmHerbFunctionCategories(herbName).join("；")), ...tcmTherapyConcepts(getTcmHerbRiskProfile(herbName))])
       : herbTherapyConcepts(herbName);
+    // 对立方向的判定要求**该药自己那一侧未被锁定**：M03 自己锁了寒温并用（清上温下、
+    // 平调寒热——半夏泻心汤类）时，required 同时含 heat_clear 与 yang_warm，此时温药的
+    // 温性是方义本身，不是「与锁定方向对立」。不加这条，widen 后的方向全集会让所有
+    // 寒温并用方自我误伤。
     const opposingLocked = [...opposingPool].filter((knowledgeConcept) =>
       HIGH_IMPACT_THERAPY_CONCEPTS.has(knowledgeConcept) &&
       OPPOSING_THERAPY_CONCEPTS.some(([left, right]) =>
-        (knowledgeConcept === left && required.has(right)) ||
-        (knowledgeConcept === right && required.has(left))))
+        (knowledgeConcept === left && required.has(right) && !required.has(left)) ||
+        (knowledgeConcept === right && required.has(left) && !required.has(right))))
     ;
-    const unsupported = [...new Set([
-      ...[...highImpact].filter((concept) => !required.has(concept) && !factSupported.has(concept)),
-      ...opposingLocked,
-    ])];
+    // 「词表未成立」与「方向对立」是两种性质：前者是本系统词表没能把该方向对应到 M03
+    // 已锁定治法（能力边界，修复耗尽后可带批注受理）；后者是该药身份方向与锁定治法直接
+    // 相反（临床错误，任何时候不豁免）。合并成一个码时豁免会把对立一起放走，必须拆开。
+    const vocabUnsupported = waiveVocabUnsupportedAnnotated
+      ? []
+      : [...highImpact].filter((concept) => !required.has(concept) && !factSupported.has(concept));
+    const unsupported = [...new Set([...vocabUnsupported, ...opposingLocked])];
     if (unsupported.length > 0) return `herb_${index}_unsupported_high_impact_${unsupported.join("_")}`;
   }
   return undefined;
@@ -2474,6 +2492,7 @@ export function isM04TherapyMatchAligned(lockedTherapy: string, therapyMatch: st
 export function transparentFormulaTherapyIssue(
   reasoning: M04ReasoningLike | null | undefined,
   prior: M03ReasoningLike | null | undefined,
+  waiveVocabUnsupportedAnnotated = false,
 ): string | undefined {
   const candidate = reasoning?.formula?.candidates?.[0];
   if (!candidate || !prior || prior.stage !== "diagnose") return "transparent_therapy_contract_missing";
@@ -2520,6 +2539,7 @@ export function transparentFormulaTherapyIssue(
     prior,
     true,
     baselineFormulaNames,
+    waiveVocabUnsupportedAnnotated,
   );
   if (highImpactIssue) return `transparent_therapy_${highImpactIssue}`;
   const therapeuticHerbs = allHerbs.filter((herb) => herb.targetKind !== "formula_structure");
@@ -2872,6 +2892,7 @@ function crossStageReasoningIssue(
   prior?: M03ReasoningLike | null,
   visibleContent = "",
   trustedWorkbenchEdit = false,
+  waiveTherapyCoverageAnnotated = false,
 ): string | undefined {
   void visibleContent;
   if (!prior) return undefined;
@@ -2953,7 +2974,10 @@ function crossStageReasoningIssue(
       if (requiresDirectKnowledgeAlignment && primaryTherapy.size > 0) {
         const knowledgeTherapy = herbTherapyConcepts(String(herb.name || ""));
         if (knowledgeTherapy.size === 0) return `candidate_${candidateIndex}_herb_${herbIndex}_emperor_knowledge_missing`;
-        if (!setsIntersect(knowledgeTherapy, primaryTherapy)) {
+        // 君药方向与主病机治法「未能对应」同样是词表能力问题（酸枣仁-安神 vs 治法写
+        // 「滋阴降火」）；修复耗尽后转批注，缺知识（emperor_knowledge_missing）与结构错误
+        //（emperor_missing/excess/not_primary）不豁免。
+        if (!setsIntersect(knowledgeTherapy, primaryTherapy) && !waiveTherapyCoverageAnnotated) {
           return `candidate_${candidateIndex}_herb_${herbIndex}_emperor_therapy_mismatch`;
         }
       }
@@ -3105,7 +3129,7 @@ export function m04SemanticIssue(
     if (project.executable !== false || project.clinicianReviewRequired !== true) return `non_pharma_treatment_${index}_execution_boundary`;
     if (project.riskLevel === "specialist" && project.recommendationMode !== "specialist_assessment_only") return `non_pharma_treatment_${index}_specialist_mode`;
   }
-  const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, visibleContent, trustedWorkbenchEdit);
+  const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, visibleContent, trustedWorkbenchEdit, waiveTherapyCoverageAnnotated);
   if (stageIssue) return stageIssue;
   if (!Array.isArray(candidates) || candidates.length === 0) return "candidates_empty";
   if (candidates.length !== 1) return "candidate_count";
@@ -3115,9 +3139,9 @@ export function m04SemanticIssue(
       !Array.isArray(candidates[0].formulaNames) ||
       candidates[0].formulaNames.length === 0);
   if (candidateNeedsKnowledgeCoverage && priorReasoning) {
-    const coverageIssue = transparentFormulaTherapyIssue(reasoning, priorReasoning);
-    // 修复轮走完后的带批注受理：豁免的只是覆盖率阈值这一族，跳过后其余检查照常执行，
-    // 不存在「豁免一个码放过后面检查」的短路——这里本来就是顺序执行。
+    const coverageIssue = transparentFormulaTherapyIssue(reasoning, priorReasoning, waiveTherapyCoverageAnnotated);
+    // 修复轮走完后的带批注受理：豁免的只是覆盖率阈值与词表未成立两族，跳过后其余检查照常
+    // 执行，不存在「豁免一个码放过后面检查」的短路——这里本来就是顺序执行。
     if (coverageIssue && !(waiveTherapyCoverageAnnotated && isWaivableM04TherapyCoverageCode(coverageIssue))) {
       return `candidate_0_${coverageIssue}`;
     }
@@ -3260,7 +3284,9 @@ export function m04SemanticIssue(
     }
   }
   // 覆盖不足放在最后：它是 T2，绝不能短路掉排在它前面的任何安全检查。
-  if (priorReasoning) {
+  // 修复耗尽后按带批注受理跳过（它自己的文档就写明了 T2 性质——缺口要让医生看见，
+  // 批注正是让医生看见的方式，0 味反而是让医生什么都看不见）。
+  if (priorReasoning && !waiveTherapyCoverageAnnotated) {
     const coverageIssue = m03NodeCoverageIssue(reasoning, priorReasoning);
     if (coverageIssue) return coverageIssue;
   }
@@ -3346,7 +3372,7 @@ export function m04SafetyContractIssue(
 ): string | undefined {
   if (reasoning?.stage !== "prescribe") return "stage";
   // 锁定字段漂移与君药绑定：绝对否决。
-  const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, "", trustedWorkbenchEdit);
+  const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, "", trustedWorkbenchEdit, waiveTherapyCoverageAnnotated);
   if (stageIssue) return stageIssue;
   const candidates = reasoning.formula?.candidates;
   if (!Array.isArray(candidates) || candidates.length === 0) return "candidates_empty";
@@ -3358,7 +3384,7 @@ export function m04SafetyContractIssue(
       !Array.isArray(candidates[0].formulaNames) ||
       candidates[0].formulaNames.length === 0);
   if (candidateNeedsKnowledgeCoverage && priorReasoning) {
-    const coverageIssue = transparentFormulaTherapyIssue(reasoning, priorReasoning);
+    const coverageIssue = transparentFormulaTherapyIssue(reasoning, priorReasoning, waiveTherapyCoverageAnnotated);
     if (coverageIssue && !(waiveTherapyCoverageAnnotated && isWaivableM04TherapyCoverageCode(coverageIssue))) {
       return `candidate_0_${coverageIssue}`;
     }

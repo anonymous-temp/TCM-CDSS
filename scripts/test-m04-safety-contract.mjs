@@ -593,3 +593,69 @@ console.log(JSON.stringify({
     if (ok) assert.ok(/确定性核验/.test(annotation), `${issueCode} 的批注必须写明确定性层已通过`);
   }
 }
+
+// ─── 扩展族：君药方向不符 / 病机节点未覆盖 / 高影响词表未成立 ────────────────────
+// 这三族与覆盖率阈值同性质（系统词表能力，非逐味安全事实），修复耗尽后带批注受理；
+// 前缀（m04_ / candidate_N_ / transparent_therapy_）不改变语义。
+// 反向钉住：方向**对立**与结构错误（emperor_missing/not_primary/excess、herbs_empty）
+// 永远不得被映射为批注——对立不是词表缺口，是临床错误。
+{
+  const { m04TherapyIssueQualityAnnotation } = await import("../src/lib/m04-repair-policy.ts");
+  for (const code of [
+    "m04_candidate_0_herb_0_emperor_therapy_mismatch",
+    "candidate_0_transparent_therapy_herb_1_unsupported_high_impact_heat_clear",
+    "transparent_therapy_herb_0_unsupported_high_impact_yang_warm",
+    "m04_pathogenesis_node_uncovered_P3",
+  ]) {
+    const annotation = m04TherapyIssueQualityAnnotation(code);
+    assert.ok(annotation && /已通过安全核验/.test(annotation),
+      `${code} 应带批注受理且写明安全层已通过：${annotation}`);
+  }
+  for (const code of [
+    "candidate_0_emperor_missing",
+    "candidate_0_herb_0_emperor_not_primary",
+    "candidate_0_herb_0_emperor_knowledge_missing",
+    "candidate_0_herbs_empty",
+    "candidate_0_herb_0_pathogenesis_unaligned_heat_clear",
+    "candidate_0_high_risk_pair_incompatibility",
+    "transparent_therapy_contract_missing",
+  ]) {
+    assert.equal(m04TherapyIssueQualityAnnotation(code), undefined, `${code} 不得被映射为批注`);
+  }
+}
+
+// ─── 词表未成立 vs 方向对立：豁免必须只放前者 ─────────────────────────────────
+// unsupportedHighImpactHerbIssue 此前把两者合并进同一个码；拆分后：豁免口径下，
+// 词表未成立不再驳回，方向对立照旧驳回。另钉：M03 自己锁定寒温并用（required 同时含
+// 两侧）时，温药不算「与锁定方向对立」——那是方义本身（半夏泻心汤类）。
+{
+  const { highImpactHerbDirectionIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+  const priorOf = (therapy) => ({
+    stage: "diagnose",
+    overview: { recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+    therapy: { overallPrinciple: therapy, overallMethod: therapy, subTherapies: [{ therapy }] },
+    pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "示例", therapyDirection: therapy }] },
+  });
+  // 干姜（温里）在纯清热锁定下：对立，任何口径都驳回。
+  const coldHerbInHeat = highImpactHerbDirectionIssue("干姜", "温中散寒", priorOf("清热泻火"));
+  assert.match(String(coldHerbInHeat), /unsupported_high_impact/, "对立方向必须驳回");
+  // 干姜在寒温并用（泻心汤类）锁定下：required 同时含两侧，不属对立。
+  assert.equal(highImpactHerbDirectionIssue("干姜", "温中散寒", priorOf("清热化痰，温中散寒")), undefined,
+    "M03 锁定寒温并用时温药是方义本身，不得判对立");
+}
+
+// ─── requiredTherapyConcepts 必须读 overallMethod 与 subTherapies ─────────────
+// 实测网络医案 37：M03 的 overallPrinciple 是「标本兼治」（原则语，解析为空），温阳方向只写在
+// overallMethod「益气固表，温阳敛汗」与 subTherapy「温阳固卫」里。窄口径下高影响门判方中
+// 温阳药 yang_warm 未成立 → 整方 0 味。
+{
+  const { highImpactHerbDirectionIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+  const prior = {
+    stage: "diagnose",
+    overview: { recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+    therapy: { overallPrinciple: "标本兼治", overallMethod: "益气固表，温阳敛汗", subTherapies: [{ therapy: "温阳固卫" }] },
+    pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "气虚卫外不固", therapyDirection: "益气固表" }] },
+  };
+  assert.equal(highImpactHerbDirectionIssue("桂枝", "温阳固卫", prior), undefined,
+    "M03 在 overallMethod/subTherapies 里锁定的方向必须计入已成立方向");
+}

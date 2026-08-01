@@ -3395,12 +3395,20 @@ async function callPrimaryTextModelStream(
               });
             }
             if (transparentReview.status !== "repair" || transparentReviewQualityOnly) {
-              // 两类批注可同时成立（治法覆盖未自动核验 + 复核保留意见），都要让医生看到。
+              // 批注可多条同时成立（复核保留意见 + 治法覆盖 + 被豁免的具体缺陷），都要让医生看到。
+              // 被豁免缺陷的定位：对同一份降级内容跑一次**不带豁免**的归因，得到的第一个码
+              // 就是豁免所吸收的那个缺陷（验证已在豁免口径下通过，故该码只会落在可豁免族里；
+              // 全部通过时归因返回 resolver_rejected，映射为空）。
+              const waivedDefectAnnotation = m04TherapyIssueQualityAnnotation(structuredRejectionReason(
+                declassifiedContent, "prescribe", finishReason,
+                opts.structuredClinicalContext, opts.structuredPriorReasoning, true,
+              ));
               const therapyAnnotation = m04TherapyIssueQualityAnnotation(therapyIssue);
-              m04TransparentQualityAnnotation = [
+              m04TransparentQualityAnnotation = [...new Set([
                 transparentReviewQualityOnly ? transparentReviewAnnotation : undefined,
                 therapyAnnotation,
-              ].filter(Boolean).join("\n\n") || undefined;
+                waivedDefectAnnotation,
+              ].filter(Boolean))].join("\n\n") || undefined;
               transparentFormulaDeclassificationAccepted = true;
               advisoryM04RiskAccepted = true;
               structuredSentinelIncomplete = false;
