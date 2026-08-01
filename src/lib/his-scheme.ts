@@ -1,8 +1,7 @@
 import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, isNonDosePrescriptionText, withSafetyGate } from "./diagnosis-safety";
 import { sectionTitleGroup } from "./cdss-vocab";
 import type { CaseState, SafetyGate } from "./diagnosis-types";
-import { lineageLabel } from "./tcm-lineages";
-import { extractPrescribedHerbs, getTcmHerbDoseLimit } from "./tcm-knowledge";
+import { extractPrescribedHerbs, getTcmHerbDoseLimit, clinicianDoseHerbClass } from "./tcm-knowledge";
 import { diagnoseReasoningFromState, mergeReasoningStages, prescribeReasoningFromState } from "./diagnosis-parse";
 import { isValidEditedHerbDose } from "./prescription-revision";
 import { prescriptionRegimenFromDecoction, type PrescriptionRegimenDto } from "./prescription-regimen-contract";
@@ -11,6 +10,8 @@ import { resolveFormulaSources } from "./tcm-formula-provenance";
 import { sourceAllowed, type EvidenceScope } from "./evidence-source-validation";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
 import { isKnownTcmTreatmentProjectCode } from "./tcm-treatment-projects";
+import { lineageLabel } from "./tcm-lineages";
+import { classifyHerbWarning, deriveCaseWarningProfile, warningLevelRank, type ClinicalWarningLevel } from "./clinical-warning-tier";
 
 type SchemeStatus = "ready" | "pending" | "limited";
 
@@ -44,6 +45,21 @@ export type HisAiSchemePayload = {
   auditStatus: "pass" | "alert" | "unavailable" | "not_submitted";
   workflowPermission: "continue";
   reviewRequired: boolean;
+  warningProfile: {
+    level: ClinicalWarningLevel;
+    label: string;
+    action: "display_only" | "acknowledge" | "reason_required" | "non_executable";
+    executable: boolean;
+    reasons: string[];
+    exportMode: "full_advisory_report" | "non_dose_risk_report";
+  };
+  lastWarningAcknowledgement?: {
+    warningLevel: "L2" | "L3" | "L4";
+    acknowledgedAt: string;
+    reportFingerprint: string;
+    exportMode: "full_advisory_report" | "non_dose_risk_report";
+    reasonRecorded: boolean;
+  };
   redFlag: {
     label: "低风险" | "需关注" | "高风险" | "待评估";
     description: string;
@@ -85,6 +101,11 @@ export type HisAiSchemePayload = {
       targetPathogenesis: string;
       function: string;
       decoctionRequirement?: string;
+      verificationTier: "verified" | "unverified_dose" | "identity_pending" | "toxic_regulated";
+      warningLevel: ClinicalWarningLevel;
+      verificationLabel: string;
+      verificationReasons: string[];
+      doseSource: "governed_boundary" | "classical_source" | "none";
     }>;
     westernOrPatent: AdoptableItem[];
     regimen: PrescriptionRegimenDto | null;
@@ -123,6 +144,9 @@ export type HisAiSchemePayload = {
       doctorReviewRequired: boolean;
       pharmacistReviewRequired: boolean;
       overrideReasonRequired: boolean;
+      warningConfirmationMode: "none" | "checkbox" | "checkbox_and_reason" | "blocked";
+      warningAcknowledgementRequired: boolean;
+      warningReasonRequired: boolean;
       finalPrescriptionReleaseAllowed: false;
       autoWriteDiagnosis: false;
       autoWritePrescription: false;
@@ -349,12 +373,13 @@ function structuredHerbalSection(caseState: CaseState): string {
   ].join(""));
   return [
     candidate.name ? `**候选方名/方向**：${clean(candidate.name)}` : "",
-    formulaEvidenceStatus === "traceable"
-      ? `**${candidate.formulaSource.evidenceLevel === "kb_entry" ? "方剂资料收载来源" : candidate.constructionType === "self_devised" || candidate.constructionType === "single_herb" ? "组方依据" : "经典方出处"}**：${clean(candidate.formulaSource.source)}`
-      : "",
-    (candidate.constructionType === "self_devised" || candidate.constructionType === "single_herb") && candidate.applicable
-      ? `**未采用经典方说明**：${clean(candidate.applicable)}`
-      : "",
+    candidate.constructionType === "self_devised"
+      ? "**方案类型**：自拟方"
+      : candidate.constructionType === "single_herb"
+        ? "**方案类型**：单味方案"
+        : formulaEvidenceStatus === "traceable"
+          ? `**${candidate.formulaSource.evidenceLevel === "kb_entry" ? "方剂资料收载来源" : "经典方出处"}**：${clean(candidate.formulaSource.source)}`
+          : "",
     ...(candidate.baseFormulas?.length ? [
       "**原方案基础方与出处**：",
       ...candidate.baseFormulas.map((base) =>
@@ -417,12 +442,31 @@ function missingMedicationAuditSection(): string {
   ].join("\n");
 }
 
+
+/**
+ * 无法定数值剂量边界的成分在处方里的核验级别。
+ *
+ * 系统不再因它们否决整方（甲方决策：降低门禁、审方兜底），但也绝不把它们与有药典边界的
+ * 药味等同呈现——责任是移交而不是消失：管制毒性与法律禁用动物药按最高级别标注并要求
+ * 医师按监管要求单独处理；其余标为待核验剂量，提示用量由医师确定。
+ */
+function clinicianDoseTier(name: unknown): "toxic_regulated" | "unverified_dose" | undefined {
+  const herbName = typeof name === "string" ? name.trim() : "";
+  if (!herbName) return undefined;
+  const clinicianClass = clinicianDoseHerbClass(herbName);
+  if (!clinicianClass) return undefined;
+  return clinicianClass === "controlled_or_toxic" || clinicianClass === "endangered_or_banned"
+    ? "toxic_regulated"
+    : "unverified_dose";
+}
+
 export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: EvidenceScope): HisAiSchemePayload {
   const normalizedState = withSafetyGate(caseState);
   const gate = evaluateSafetyGate(normalizedState);
   caseState = normalizedState;
   const permission = derivePrescriptionPermission(caseState);
   const suppressDoseLevelOutputs = permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked";
+  const warningProfile = deriveCaseWarningProfile(caseState);
   const diagnosis = caseState.diagnosis || "";
   const prescription = suppressDoseLevelOutputs ? "" : caseState.prescription || "";
   const risk = caseState.riskAssessment || "";
@@ -543,6 +587,17 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
     auditStatus,
     workflowPermission: "continue",
     reviewRequired: true,
+    warningProfile: {
+      ...warningProfile,
+      exportMode: warningProfile.executable ? "full_advisory_report" : "non_dose_risk_report",
+    },
+    lastWarningAcknowledgement: caseState.warningAcknowledgement ? {
+      warningLevel: caseState.warningAcknowledgement.warningLevel,
+      acknowledgedAt: caseState.warningAcknowledgement.acknowledgedAt,
+      reportFingerprint: caseState.warningAcknowledgement.reportFingerprint,
+      exportMode: caseState.warningAcknowledgement.exportMode,
+      reasonRecorded: Boolean(caseState.warningAcknowledgement.reason),
+    } : undefined,
     redFlag: {
       label: redFlag.label,
       description: redFlag.description,
@@ -567,7 +622,14 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         caseState.hisRecord?.fields?.tcmPulse || caseState.pulse,
         caseState.hisRecord?.fields?.tcmDetail,
       ].filter(Boolean).join("；"),
-      tcmLineagePreference: lineageLabel(caseState.hisRecord?.fields?.tcmLineagePreference || caseState.tcmLineagePreference),
+      // 该字段在接口类型里声明了，但此前从未赋值——医生选定的学术流派倾向一路走到 HIS 就成了
+      // undefined。写入的是受控卡片的**可读标签**而不是内部代码：caseState.tcmLineagePreference
+      // 在 normalizeCaseStateInput 里已被 resolveLineageCode 归一成 classical-formula 这类枚举，
+      // 直接回传等于把内部标识符塞进病历文本字段。lineageLabel 做的正是「代码→医生读得懂的名称」。
+      // 未选择流派时留空，不要下发 unrestricted 兜底卡的标签冒充医生的选择。
+      tcmLineagePreference: caseState.tcmLineagePreference
+        ? lineageLabel(caseState.tcmLineagePreference)
+        : undefined,
       vitals: [
         caseState.hisRecord?.fields?.vitalsT,
         caseState.hisRecord?.fields?.vitalsP,
@@ -604,19 +666,55 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         safetyLocked,
         blockedReason,
       })],
-      structuredHerbs: suppressDoseLevelOutputs ? [] : structuredHerbs(caseState).map((herb, index) => ({
-        itemNo: index + 1,
-        name: clean(herb.name),
-        ...(herb.processing ? { processing: clean(herb.processing) } : {}),
-        dose: clean(herb.dose || ""),
-        role: clean(herb.role),
-        prescriptionRole: clean(herb.prescriptionRole),
-        ...(herb.targetKind ? { targetKind: herb.targetKind } : {}),
-        ...(herb.targetRef ? { targetRef: clean(herb.targetRef) } : {}),
-        targetPathogenesis: clean(herb.targetPathogenesis),
-        function: clean(herb.function),
-        ...(herb.decoctionRequirement ? { decoctionRequirement: clean(herb.decoctionRequirement) } : {}),
-      })),
+      structuredHerbs: suppressDoseLevelOutputs ? [] : structuredHerbs(caseState).map((herb, index) => {
+        const doseLimit = getTcmHerbDoseLimit(herb.name);
+        const evidence = herb.evidence?.evidenceLevel === "insufficient"
+          ? "证据来源待核验"
+          : herb.evidence?.source || "";
+        const safety = [
+          herb.isToxic ? "毒性药味，需复核" : "",
+          herb.decoctionRequirement,
+          doseLimit?.sourceConflict ? "分用途剂量范围存在冲突，需药师复核" : "",
+        ].filter(Boolean).join("；");
+        const verification = classifyHerbWarning({
+          drug: herb.name,
+          dose: herb.dose || "",
+          evidence,
+          safety,
+          verificationTier: herb.verificationTier,
+          verificationReasons: herb.verificationReasons,
+        });
+        return {
+          itemNo: index + 1,
+          name: clean(herb.name),
+          ...(herb.processing ? { processing: clean(herb.processing) } : {}),
+          dose: clean(herb.dose || ""),
+          role: clean(herb.role),
+          prescriptionRole: clean(herb.prescriptionRole),
+          ...(herb.targetKind ? { targetKind: herb.targetKind } : {}),
+          ...(herb.targetRef ? { targetRef: clean(herb.targetRef) } : {}),
+          targetPathogenesis: clean(herb.targetPathogenesis),
+          function: clean(herb.function),
+          ...(herb.decoctionRequirement ? { decoctionRequirement: clean(herb.decoctionRequirement) } : {}),
+          // 「由医师确定用量」类成分（无法定数值边界，甲方 2026-08-01 决策改为不阻断出方）
+          // 必须在这里如实分级，否则医生看到的是一张所有药味都同等可信的处方：
+          // 管制毒性与法律禁用动物药 → toxic_regulated（告警升级、要求单独处理）；
+          // 药典未收载/丸散专用/食材辅料 → unverified_dose（提示用量由医师确定）。
+          verificationTier: herb.verificationTier || (
+            herb.isToxic
+              ? "toxic_regulated"
+              : clinicianDoseTier(herb.name) || (
+                doseLimit && !doseLimit.sourceConflict
+                  ? "verified"
+                  : "unverified_dose"
+              )
+          ),
+          warningLevel: verification.level,
+          verificationLabel: verification.label,
+          verificationReasons: verification.reasons,
+          doseSource: herb.doseSource || (doseLimit && !doseLimit.sourceConflict ? "governed_boundary" as const : "none" as const),
+        };
+      }),
       westernOrPatent: suppressDoseLevelOutputs ? [] : [item("medicine-1", "西药/中成药方案", medicine, {
         adoptable: canAdopt,
         safetyLocked,
@@ -660,7 +758,14 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
       allowOneClickAdoption: false,
       doctorReviewRequired: true,
       pharmacistReviewRequired: true,
-      overrideReasonRequired: strongPrescriptionRisk,
+      overrideReasonRequired: strongPrescriptionRisk || warningLevelRank(warningProfile.level) >= warningLevelRank("L3"),
+      warningConfirmationMode:
+        warningProfile.level === "L4" ? "blocked" :
+        warningProfile.level === "L3" ? "checkbox_and_reason" :
+        warningProfile.level === "L2" ? "checkbox" :
+        "none",
+      warningAcknowledgementRequired: warningLevelRank(warningProfile.level) >= warningLevelRank("L2"),
+      warningReasonRequired: warningLevelRank(warningProfile.level) >= warningLevelRank("L3"),
       finalPrescriptionReleaseAllowed: false,
       autoWriteDiagnosis: false,
       autoWritePrescription: false,

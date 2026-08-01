@@ -56,6 +56,7 @@ HERB_OUTPUT = DATA_ROOT / "tcm-herb-identity-catalog.json"
 MANIFEST_OUTPUT = DATA_ROOT / "clinical-governance-table-manifest.json"
 SOURCE_REGISTRY = DATA_ROOT / "clinical-governance-source-registry.json"
 TCM_KNOWLEDGE = DATA_ROOT / "tcm-knowledge.json"
+CLINICIAN_DOSE_POLICY = DATA_ROOT / "tcm-herb-dose-clinician-policy.source.json"
 
 
 FORMULA_STANDARD_URL = "https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
@@ -723,6 +724,57 @@ def numeric_decoction_dose_names() -> set[str]:
     return {name for name in names if name}
 
 
+
+
+
+def clinician_dose_ingredient_names() -> set[str]:
+    """缺法定数值边界、改由医师确定用量的成分（甲方 2026-08-01 决策：降低门禁、审方兜底）。
+
+    这些成分不再阻断整方的剂量可编译性。系统对它们不校验数值边界——本来也没有边界可校验——
+    而是在 HIS 载荷里按类别标注核验级别（管制毒性/禁用动物药 → toxic_regulated，
+    其余 → unverified_dose），用量由医师确定，并照常提交灵犀审方。
+
+    此前 fail-closed 的代价：1352/2915 的受控方一旦被 M03 锁定，M04 只能返回非剂量结果，
+    医生连一张自拟方都拿不到。责任没有消失，只是从「系统替医师定量」明确移交为
+    「系统标注 + 医师定量 + 审方复核」。
+
+    与运行时 tcm-knowledge.clinicianDoseHerbClass 共用同一张表，避免目录与运行时判定分叉。
+    """
+    policy = read_json(CLINICIAN_DOSE_POLICY)
+    names: set[str] = set()
+    # 管制毒性与法律禁用动物药不参与豁免（监管门槛，非数据缺口）——与运行时
+    # tcm-knowledge.isClinicianDoseHerb 的 REGULATORY_BLOCKED_CLASSES 同口径。
+    regulatory_blocked = {"controlled_or_toxic", "endangered_or_banned"}
+    for group, items in (policy.get("ingredients") or {}).items():
+        if group in regulatory_blocked:
+            continue
+        for item in items:
+            compacted = compact(item.get("name"))
+            if compacted:
+                names.add(compacted)
+    return names
+
+
+CLINICIAN_DOSE_AFFIX = re.compile(
+    r"^(?:蜜炙|麸炒|土炒|盐炒|酒炒|醋炒|姜炒|炒|炙|醋|酒|盐|姜|煅|制|生|焦|熟|鲜)|(?:炭|霜|片|粉|末|丝|段|块)$"
+)
+
+
+def is_clinician_dose_name(raw: object, names: set[str]) -> bool:
+    """与运行时 clinicianDoseHerbClass 同口径：炮制变体查基名。
+
+    醋没药→没药、煅龙骨→龙骨、朱砂粉→朱砂。炮制不改变「有没有法定剂量边界」，
+    不剥离的话变体名查不到基名，会让 71 张方继续阻断而运行时却认为可编译——两侧分叉。
+    """
+    compacted = compact(raw)
+    if not compacted:
+        return False
+    if compacted in names:
+        return True
+    base = CLINICIAN_DOSE_AFFIX.sub("", compacted).strip()
+    return bool(base) and base != compacted and base in names
+
+
 def load_syndrome_tag_adjudications(governed_formula_names: set[str]) -> dict[str, list[str]]:
     """Load human-adjudicated formula->syndrome tags, rejecting anything that cannot be proven.
 
@@ -1086,7 +1138,12 @@ def build_formula_catalog(
         if not indications:
             identity_blocking_reasons.append("missing_governed_indication")
         dose_blocking_reasons = []
-        unresolved_ingredients = [link["rawName"] for link in ingredient_links if not link.get("autoResolvable")]
+        clinician_dose_names = clinician_dose_ingredient_names()
+        # 「由医师确定用量」类成分不参与剂量可编译性判定（见 clinician_dose_ingredient_names）。
+        unresolved_ingredients = [
+            link["rawName"] for link in ingredient_links
+            if not link.get("autoResolvable") and not is_clinician_dose_name(link.get("rawName"), clinician_dose_names)
+        ]
         # 单字药名不是「解析不出剂量」，是**数据缺陷**：源书为 GB18030，古籍生僻字（如黄芪的「耆」）
         # 丢字后只剩单字残留（实测 13 处「黄」、若干「芍」）。把它按普通剂量缺口埋进
         # unresolvedDoseIngredientNames，会让一个抽取 bug 长期伪装成治理进度问题。
@@ -1101,7 +1158,9 @@ def build_formula_catalog(
         missing_dose_boundaries = [
             link["rawName"]
             for link in ingredient_links
-            if link.get("autoResolvable") and compact(link.get("doseCanonicalName") or link.get("canonicalName")) not in numeric_dose_names
+            if link.get("autoResolvable")
+            and compact(link.get("doseCanonicalName") or link.get("canonicalName")) not in numeric_dose_names
+            and not is_clinician_dose_name(link.get("rawName"), clinician_dose_names)
         ]
         if missing_dose_boundaries:
             dose_blocking_reasons.append("ingredient_numeric_dose_boundary_missing")
@@ -1114,8 +1173,16 @@ def build_formula_catalog(
             if link.get("autoResolvable")
             and compact(link.get("doseCanonicalName") or link.get("canonicalName")) in controlled_toxic_names
         })
+        # 管制品种不再阻断整方编译（甲方 2026-08-01 决策：降低门禁、审方兜底），但**必须**
+        # 在载荷里保持独立可见：下游据此把该药味标为 toxic_regulated、提升告警级别，
+        # 医师按监管要求单独处理，灵犀审方另有一道复核。保留字段而不保留阻断，是本次下调的边界。
+        # 监管轴保留阻断（即便产品侧已降低其余门禁）：处方权绑定医师个人、须走专用处方载体，
+        # 这不是「算不出剂量」而是「系统没有资格做」，审方兜底替代不了处方权。
         if controlled_toxic_ingredients:
             dose_blocking_reasons.append("ingredient_controlled_toxic_requires_manual_prescription")
+        controlled_toxic_notice = (
+            "ingredient_controlled_toxic_requires_manual_prescription" if controlled_toxic_ingredients else ""
+        )
         if item["sourceClass"] == "verified_reference_catalog":
             governance_status = "project_reference_verified"
         elif item["sourceClass"] == "official_local_formula_standard":
@@ -1161,9 +1228,14 @@ def build_formula_catalog(
             "identityBlockingReasons": identity_blocking_reasons,
             "doseBlockingReasons": dose_blocking_reasons,
             "controlledToxicIngredientNames": controlled_toxic_ingredients,
+            "controlledToxicNotice": controlled_toxic_notice,
             "unresolvedDoseIngredientNames": unresolved_ingredients,
             "corruptIngredientNames": corrupt_ingredient_names,
             "missingDoseBoundaryIngredientNames": missing_dose_boundaries,
+            "clinicianDoseIngredientNames": sorted({
+                link["rawName"] for link in ingredient_links
+                if is_clinician_dose_name(link.get("rawName"), clinician_dose_names)
+            }),
             "blockingReasons": identity_blocking_reasons,
         })
 

@@ -28,7 +28,11 @@ export type M02PlanOption = {
   id: string;
   label: string;
   answer: string;
-  kind: "clinical_fact" | "unknown";
+  // 需求1：选项须含「其他」，由医生自己输入。它与 unknown 不是一回事：
+  //   unknown = 本次没取得这条信息（不写入病历）；
+  //   other   = 取得了信息，但两个预设分支都不合适，医生要自己写（写入病历）。
+  // 两者混用会让「问到了但答案不在选项里」被记成「没问到」，那是一条被丢掉的患者事实。
+  kind: "clinical_fact" | "other" | "unknown";
   recordValue?: string;
   requiresDetail?: boolean;
 };
@@ -62,6 +66,8 @@ type PossibleRiskQuestion = {
 const QUESTION_SENTINEL_START = "<!-- DIAGNOSIS_JSON_START -->";
 const QUESTION_SENTINEL_END = "<!-- DIAGNOSIS_JSON_END -->";
 const UNKNOWN_OPTION = /(?:不清楚|不确定|未取得|未能确认|不知道|待确认|未测(?:量|具体)?|未记录|说不清)/;
+// 服务端确定性追加的「其他（请补充）」在 Markdown 往返后据此认回。
+const OTHER_OPTION = /^\s*其他(?:（请补充）|\(请补充\))?\s*$|医生补充的具体情况/;
 const LOW_VALUE_QUESTION = /(姓名|联系方式|手机号|身份证|职业|住址|爱好|喜欢.{0,4}(?:颜色|音乐|电影)|天气|早餐吃了什么)/;
 const GENERIC_DETAIL_ONLY_OPTION = /^(?:(?:存在|出现|有)(?:异常|表现|情况|症状)[，,；;\s]*)?(?:请)?(?:补充|填写|记录)(?:实际|具体)?(?:异常|表现|情况|症状|信息)?[。.]?$|^(?:存在|出现|有)(?:异常|表现|情况|症状)[。.]?$/;
 const M02_DECISION_BRANCHES = new Set<M02DecisionBranch>(["triage", "differential", "syndrome", "treatment_safety"]);
@@ -172,7 +178,10 @@ export function parseM02Plan(value: unknown, sourceText = ""): M02Plan | null {
     const sourceEvidence = item.sourceEvidence.map((entry) => groundedM02Evidence(entry, sourceText));
     if (sourceEvidence.some((entry) => !entry)) return null;
 
-    if (!Array.isArray(item.options) || item.options.length !== 3) return null;
+    // 模型给 3 个（两个互斥临床分支 + 本次未取得）；服务端在下方确定性追加「其他（请补充）」，
+    // 因此经历「结构化 → Markdown → 反解析」往返后会带 4 个回来。两种长度都必须接受，
+    // 否则往返回来的计划会整份判空——这正是加「其他」时踩到的坑。
+    if (!Array.isArray(item.options) || (item.options.length !== 3 && item.options.length !== 4)) return null;
     const options: M02PlanOption[] = [];
     const optionIds = new Set<string>();
     let unknownCount = 0;
@@ -182,13 +191,21 @@ export function parseM02Plan(value: unknown, sourceText = ""): M02Plan | null {
       const optionId = boundedText(option.id, 40);
       const label = boundedText(option.label, 80);
       const answer = boundedText(option.answer, 300);
-      const kind = option.kind === "clinical_fact" || option.kind === "unknown" ? option.kind : undefined;
+      // "other" 必须被接受为合法入参：本函数会在末尾确定性追加一个「其他（请补充）」，
+      // 而问题计划会经历「结构化 → 渲染成 Markdown → 反解析回结构化」的往返（见 renderEnvelope
+      // 与下方的 Markdown 反解析）。若不接受 other，往返回来的那一份就会因 kind 非法而整份判空。
+      const kind = option.kind === "clinical_fact" || option.kind === "unknown" || option.kind === "other"
+        ? option.kind
+        : undefined;
       const requiresDetail = option.requiresDetail === true;
       const recordValue = boundedText(option.recordValue, 400);
       if (!optionId || optionIds.has(optionId) || !label || !answer || !kind) return null;
       if (kind === "unknown") {
         unknownCount += 1;
         if (recordValue || requiresDetail) return null;
+      } else if (kind === "other") {
+        // 其他项由服务端生成，形状固定：只要求医生补充，不携带预置 recordValue。
+        if (recordValue) return null;
       } else if (!recordValue && !requiresDetail) {
         return null;
       } else if (isGenericDetailOnlyQuestionOption(answer)) {
@@ -201,6 +218,21 @@ export function parseM02Plan(value: unknown, sourceText = ""): M02Plan | null {
       options.push({ id: optionId, label, answer, kind, recordValue, requiresDetail });
     }
     if (unknownCount !== 1 || options.filter((option) => option.kind === "clinical_fact").length !== 2) return null;
+    // 「其他」由服务端确定性追加，不交给模型产出：交给模型意味着措辞不稳定、还可能漏给，
+    // 而这一项是医生把「问到了、但答案不在预设分支里」写进病历的唯一入口。
+    // 追加必须幂等——同一份计划会经历「结构化 → Markdown → 反解析」的往返，重复追加会让
+    // 选项越滚越多。插在 unknown 之前：先给能记录事实的选项，最后才是「本次未取得」。
+    if (!options.some((option) => option.kind === "other")) {
+      const unknownIndex = options.findIndex((option) => option.kind === "unknown");
+      const otherOption: M02PlanOption = {
+        id: `${id}_other`,
+        label: "其他（请补充）",
+        answer: "医生补充的具体情况",
+        kind: "other",
+        requiresDetail: true,
+      };
+      options.splice(unknownIndex >= 0 ? unknownIndex : options.length, 0, otherOption);
+    }
     questions.push({
       id,
       question,
@@ -728,7 +760,9 @@ function parseOptions(block: string): Array<{ label: string; text: string }> {
 function isAnswerableQuestionBlock(block: string): boolean {
   if (LOW_VALUE_QUESTION.test(block)) return false;
   const options = parseOptions(block);
-  if (options.length !== 3 || options.some((option, index) => option.label !== ["A", "B", "C"][index])) return false;
+  // 3 个为模型原始输出，4 个为追加「其他」后的形态；标签必须仍是连续的 A/B/C[/D]。
+  if ((options.length !== 3 && options.length !== 4) ||
+    options.some((option, index) => option.label !== ["A", "B", "C", "D"][index])) return false;
   if (options.filter((option) => UNKNOWN_OPTION.test(option.text)).length !== 1) return false;
   const known = options.filter((option) => !UNKNOWN_OPTION.test(option.text));
   if (known.length !== 2) return false;
@@ -889,7 +923,7 @@ export function ensureQuestionStructuredEnvelope(content: string, sourceText = "
       const fieldLabel = block.match(/补录字段[：:]\s*([^\n]+)/)?.[1]?.trim() || "";
       const targetField = targetFieldMap[fieldLabel] || (M02_TARGET_FIELD_SET.has(fieldLabel) ? fieldLabel as M02TargetField : undefined);
       const options = parseOptions(block);
-      if (!question || !reason || !targetField || options.length !== 3) return null;
+      if (!question || !reason || !targetField || (options.length !== 3 && options.length !== 4)) return null;
       const decisionBranch: M02DecisionBranch = /(急诊|急症|危重|红旗|立即处置|优先处置)/.test(`${question}${reason}`)
         ? "triage"
         : /(用药|过敏|妊娠|哺乳|禁忌|安全)/.test(`${question}${reason}`)
@@ -908,13 +942,18 @@ export function ensureQuestionStructuredEnvelope(content: string, sourceText = "
         sourceEvidence: [],
         options: options.map((option, optionIndex) => {
           const unknown = UNKNOWN_OPTION.test(option.text);
+          // 服务端追加的「其他」在往返回来时必须被认回 other，而不是当成第三个 clinical_fact——
+          // parseM02Plan 要求 clinical_fact 恰好两个，认错会让整份计划在往返后判空。
+          const other = !unknown && OTHER_OPTION.test(option.text);
           const requiresDetail = !unknown && /(?:补充|填写|记录)具体/.test(option.text);
           return {
-            id: unknown ? "unknown" : String.fromCharCode(97 + optionIndex),
+            id: unknown ? "unknown" : other ? "other" : String.fromCharCode(97 + optionIndex),
             label: boundedText(option.text, 80) || option.label,
             answer: option.text,
-            kind: unknown ? "unknown" as const : "clinical_fact" as const,
-            ...(requiresDetail ? { requiresDetail: true } : !unknown ? { recordValue: option.text } : {}),
+            kind: unknown ? "unknown" as const : other ? "other" as const : "clinical_fact" as const,
+            ...(other
+              ? { requiresDetail: true }
+              : requiresDetail ? { requiresDetail: true } : !unknown ? { recordValue: option.text } : {}),
           };
         }),
       };

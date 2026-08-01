@@ -2,6 +2,7 @@ const LABELED_EVIDENCE_LINE = /^(\s*(?:[-*]\s*)?(?:\*\*)?(?:证据依据|来源�
 const INTERNAL_PLACEHOLDER = /(?:待检索|待核验|证据不足|检索失败|未配置|内部证据缺口|来源机构未明|年份未明|摘要未提供)/;
 const EVIDENCE_COLUMN = /^(?:证据依据|来源依据|参考依据|引用来源|证据支持|方剂出处或依据|经典方出处|方剂资料收载来源|药典依据|依据)$/;
 const AUTOMATION_ARTIFACT = /(?:Playwright\s+structured\s+V2\s+probe|Playwright\s+probe|自动化测试探针|回归测试结构化(?:药味|病机|候选方)?)/gi;
+const PATIENT_NARRATIVE_REFERENCE = /(?:^|[\s；;|])(?:主诉|现病史|既往史|过敏史|用药史|患者事实|病例事实|本例资料|病历原文|舌象|脉象|生命体征)\s*[：:]|(?:患者|病人)\s*(?:诉|自述|描述|出现|伴有|伴随)|基于本例(?:病史|症状|资料|主诉)|来自本例(?:病史|症状|资料|主诉)/;
 
 export type CustomerEvidenceDisplayStatus = "traceable" | "hidden";
 
@@ -31,6 +32,7 @@ export function customerEvidenceDisplayStatus(evidence: unknown): CustomerEviden
   return source &&
     CUSTOMER_REFERENCE_LEVELS.has(level) &&
     !INTERNAL_PLACEHOLDER.test(source) &&
+    !PATIENT_NARRATIVE_REFERENCE.test(source) &&
     hasTraceableReferenceSource(source)
     ? "traceable"
     : "hidden";

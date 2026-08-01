@@ -23,14 +23,23 @@ const CORPUS_FILES = [
   "../data/tcm-classic-text-evidence-tcmoc.jsonl",
 ];
 
-// ① 每个语料必须有且只有一处字面量 URL 构造。
+// ① 每个语料的 readFileSync 必须直接包住字面量 URL。仅在数组里构造字面量 URL、再把
+// source.url 传给 readFileSync，仍会让 Turbopack/NFT 把 fs 模式扩成整个项目。
 for (const file of CORPUS_FILES) {
   const literal = `new URL("${file}", import.meta.url)`;
   const occurrences = source.split(literal).length - 1;
   assert.equal(occurrences, 1,
     `${file} 必须以字面量形式构造 URL 恰好一次（实际 ${occurrences} 次）——` +
     "写成变量或循环变量会让 Turbopack 只保留一个资源引用，该语料线上永久失效");
+  const escapedLiteral = literal.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  assert.match(
+    source,
+    new RegExp(`readFileSync\\(\\s*${escapedLiteral}\\s*,\\s*"utf8"\\s*,?\\s*\\)`),
+    `${file} 必须在 readFileSync 调用点直接使用字面量 URL，禁止经 source.url/数组间接传递`,
+  );
 }
+assert.doesNotMatch(source, /readFileSync\(\s*source\.(?:url|path)/,
+  "Turbopack/NFT 会把 readFileSync(source.url) 追踪成宽泛文件模式");
 
 // ② 不允许任何以标识符（而非字符串字面量）作首参的 URL 构造。这正是回归会长成的样子。
 const variableUrl = /new URL\(\s*(?!["'`])[A-Za-z_$][\w$.]*\s*,\s*import\.meta\.url\s*\)/.exec(source);
@@ -133,4 +142,3 @@ console.log(JSON.stringify({
   checkedBuildOutput: existsSync(chunkDir),
   failures: 0,
 }));
-

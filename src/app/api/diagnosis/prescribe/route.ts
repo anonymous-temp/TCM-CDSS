@@ -9,13 +9,23 @@ import { formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompi
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { applyTcmTreatmentCapabilityPriority } from "@/lib/tcm-treatment-capabilities.server";
-import { isStableM03Reasoning, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
+import { m03SafetyContractIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
+import { qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-safety";
 import type { SafetyGate } from "@/lib/diagnosis-types";
 import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
+
+/** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
+function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReasoningV2>): string | undefined {
+  const index = Number(issue.match(/herb_(\d+)/)?.[1]);
+  if (!Number.isInteger(index)) return undefined;
+  const herb = reasoning?.formula?.candidates?.[0]?.herbs?.[index];
+  const name = typeof herb?.name === "string" ? herb.name.trim() : "";
+  return name || undefined;
+}
 
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
@@ -89,7 +99,7 @@ export async function POST(req: Request) {
   }
   // M03 的结构化合同是阶段间的唯一辨证充分度依据。可见正文中的鉴别或管理建议（例如
   // “完善甲功后再评估”）不能反向否定一份已包含主证、病机链和治法的有效结构化辨证。
-  if (!isStableM03Reasoning(signedPriorReasoning, clinicalGroundingText(gated))) {
+  if (m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated))) {
     const gate: SafetyGate = {
       status: "needs_information",
       allowDiagnosis: false,
@@ -101,19 +111,6 @@ export async function POST(req: Request) {
     };
     return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
   }
-  if (signedPriorReasoning.clinicalReview?.status !== "accepted") {
-    const gate: SafetyGate = {
-      status: "needs_information",
-      allowDiagnosis: true,
-      allowDosePrescription: false,
-      action: "complete_before_prescription",
-      missingItems: ["辨证语义复核"],
-      redFlags: [],
-      reasons: ["本轮辨证语义复核未完成；辨证内容可供医生继续审阅，具体剂量待复核服务恢复后重新生成。"],
-    };
-    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
-  }
-
   const governedFormulaNames = signedPriorReasoning.overview.recommendedFormulaNames || [];
   const unavailableFormulaNames = formulaNamesWithoutExecutableDoseCompilation(governedFormulaNames);
   const formulaMode = signedPriorReasoning.overview.formulaSelectionMode || "none";
@@ -160,14 +157,17 @@ export async function POST(req: Request) {
   if (limitedInformation) {
     prompt += `\n\n【有限信息候选】当前待复核：${permission.reasons.join("、") || gated.safetyGate?.missingItems.join("、") || "部分病历信息"}。请基于已知证候、病机和治法生成医生审阅用候选方案，并把相关未知项或阳性风险写入适用边界；不得臆造患者事实，也不得仅因缺项或风险提示拒绝生成。`;
   }
+  if (signedPriorReasoning.clinicalReview?.status !== "accepted") {
+    prompt += "\n\n【辨证复核状态】M03 独立复核本轮未完成，但其结构、病历接地、极性与安全边界已通过确定性核验。可继续生成有界候选；必须在适用边界中提示复核状态，不得把未完成复核写成已经通过，也不得因此拒绝生成。";
+  }
   const truncationGate: SafetyGate = {
     status: "needs_information",
     allowDiagnosis: true,
     allowDosePrescription: false,
     action: "complete_before_prescription",
-    missingItems: ["模型处方输出完整性"],
+    missingItems: ["模型处方输出完整性及结构化合同"],
     redFlags: [],
-    reasons: ["模型处方输出被截断或结构化结果未闭合，服务端已阻断半截处方文本。"],
+    reasons: ["模型处方输出被截断、结构化结果未闭合或未通过处方合同校验，服务端已阻断不可采纳的药味与剂量。"],
   };
   const evidenceOutputTransform = buildEvidenceOutputTransform(
     evidenceContext,
@@ -213,14 +213,53 @@ export async function POST(req: Request) {
         true,
         clinicalGroundingText(safeState),
       );
+      const synchronized = synchronizeVisibleClinicalSummary(enriched, "prescribe");
       if (issue) {
-        console.warn("[tcm-cdss:contract] finalized M04 rejected", {
+        // Tier-2/3 带批注受理。在此之前，M04 的 60+ 个原因码一律等价于最高危级别：一条建议性
+        // 中医治疗项目卡片的字段缺失，与附子超量一样会作废整张已通过剂量、十八反十九畏、
+        // 特殊人群与审方的处方，医生拿到的是一页拒绝说明。
+        //
+        // 受理的前提是重跑 m04SafetyContractIssue，而不是只看这个拒绝码——这一步不能省：
+        // m04SemanticIssue 命中第一个问题就短路返回，而它的检查顺序**不反映临床严重度**
+        // （nonPharma.tcmTreatments 的 15 个字段检查排在剂量、配伍禁忌与特殊人群之前）。
+        // 拿到一个 T2 码只证明排在它前面的检查通过了，后面的 T1 检查根本没有执行。
+        // shouldAcceptWithQualityAnnotation 在 safetyIssue 缺省时判为不可受理，双重 fail-closed。
+        const safetyIssue = m04SafetyContractIssue(
+          reasoning,
+          signedPriorReasoning,
+          isKnownTcmHerbName,
+          false,
+          false,
+          clinicalGroundingText(safeState),
+        ) || "";
+        const rejectionReason = `m04_${issue}`;
+        const annotation = shouldAcceptWithQualityAnnotation({
+          rejectionReason,
+          safetyIssue,
+          visibleDraftLength: synchronized.trim().length,
+          // 处方正文含药味表与煎服法，远长于 M03 叙述；沿用 80 字下限等于不设限。
+          minimumDraftLength: 200,
+        })
+          ? qualityAnnotationCopy(rejectionReason)
+          : undefined;
+        if (!annotation) {
+          console.warn("[tcm-cdss:contract] finalized M04 rejected", {
+            issue,
+            safetyIssue: safetyIssue || undefined,
+            stage: "prescribe",
+            // 原因码里的 herb_2 是**下标**，日志里没有药名，线上根本无法定位是哪味药被驳回——
+            // 而 herb_*_unsupported_high_impact_* 恰恰是最高频的驳回族。补上该下标对应的药名
+            // （药名不是 PHI），把「无法形成处方」从不可诊断变成可诊断。
+            offendingHerb: rejectedHerbName(issue, reasoning),
+          });
+          throw new Error(`finalized_prescription_${issue}`);
+        }
+        console.warn("[tcm-cdss:contract] finalized M04 accepted with quality annotation", {
           issue,
           stage: "prescribe",
         });
-        throw new Error(`finalized_prescription_${issue}`);
+        return [informationNotice, `> ${annotation}`, synchronized].filter(Boolean).join("\n\n");
       }
-      const synchronized = synchronizeVisibleClinicalSummary(enriched, "prescribe");
       return [informationNotice, synchronized].filter(Boolean).join("\n\n");
     },
   });

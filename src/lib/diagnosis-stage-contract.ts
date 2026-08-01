@@ -1,6 +1,7 @@
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
+import { PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
 import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
-import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName } from "./tcm-knowledge";
+import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
 import { prescriptionRegimenContractIssue, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
@@ -11,7 +12,7 @@ import { westernDifferentialIdentity } from "./clinical-terminology";
 import { governedTcmLocationsInText, governedTreatmentPrinciplesInText, tcmDiagnosticDependencyContexts, treatmentPrinciplesInText, westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
-import { namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
+import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
 
 type M03ReasoningLike = {
   stage?: unknown;
@@ -21,6 +22,7 @@ type M03ReasoningLike = {
     primarySyndromeResolution?: unknown;
     primarySyndromeBasis?: unknown;
     primarySyndromeResolutionReason?: unknown;
+    tcmDiseaseRationale?: unknown;
     tcmDiagnosticRationale?: unknown;
     tcmDifferentials?: Array<{ syndrome?: unknown; reason?: unknown; distinguishingPoints?: unknown; nextCheck?: unknown }>;
     evidence?: { confidence?: unknown };
@@ -69,12 +71,18 @@ type M03ReasoningLike = {
   formula?: unknown;
 };
 
-const UNSTABLE_REASONING_MARKER = /(?:待辨|待定|待明)|(?:信息|资料|证据)(?:仍然?|尚)?(?:不足|不充分|欠充分|不全|缺失)|(?:尚|仍|现有)?不足以(?:支持|证实|形成|判断)|(?:尚待|有待|仍待|尚须|仍需|尚未|尚在|仍在)(?:进一步)?(?:验证|商榷|论证|决定|讨论)|(?:暂|尚|仍)?(?:不|未|无)(?:能|可|足以)?(?:形成|明确|明|定|定证|定论|确定|判断|提及|充分|清楚|清|详|辨明)|(?:有待|尚待|仍待|待|需|需要)(?:补充|进一步|继续|重新)?(?:确认|明确|补充|核实|核验|证实|验证|商榷|论证|决定|讨论|辨证|判断|生成|评估|复核|完善|厘清|查|定)|不生成|无法(?:形成|判断|定证|明确)|不能(?:形成|判断|定证)|难下定论|尚难|存疑|未知|不详/;
+const UNSTABLE_REASONING_MARKER = /(?:待辨|待定|待明)|(?:信息|资料|证据)(?:仍然?|尚)?(?:不足|不充分|欠充分|不全|缺失)|(?:尚|仍|现有)?不足以(?:支持|证实|形成|判断)|(?:尚待|有待|仍待|尚须|仍需|尚未|尚在|仍在)(?:进一步)?(?:验证|商榷|论证|决定|讨论)|(?:暂|尚|仍)?(?:不|未|无)(?:能|可|足以)?(?:形成|明确|明(?!显)|定|定证|定论|确定|判断|提及|充分|清楚|清|详|辨明)|(?:有待|尚待|仍待|待|需|需要)(?:补充|进一步|继续|重新)?(?:确认|明确|补充|核实|核验|证实|验证|商榷|论证|决定|讨论|辨证|判断|生成|评估|复核|完善|厘清|查|定|鉴别|甄别)|不生成|无法(?:形成|判断|定证|明确)|不能(?:形成|判断|定证)|难下定论|尚难|存疑|未知|不详/;
 const GENERATED_PLACEHOLDER_MARKER = /^(?:由服务端(?:知识库)?生成|待生成|待补充|待确认)$/;
 const CUSTOMER_DISPLAY_PLACEHOLDER = /(?:证据不足|待检索|待核验|检索失败|未配置|内部证据缺口|EVIDENCE_GAP)|^(?:暂未|尚未|仍未|未)(?:生成|形成|明确|获得|提供|记录|提及|完成)|^(?:待|需|需要)(?:生成|确认|补充|核实|核验|复核|完善|询问|评估)(?:相关|具体|本项|信息|资料|内容)?[。.]?$/;
 const GENERIC_CORE_LABELS = /(?:当前|本例|该例|总体|整体|主要|核心|初步|考虑|中医|辨证|诊断|结论|证候|证型|病机|治疗|治法|治则|方向|患者|事实|症状|表现|证据|依据|支持|结果|内容|情况|意见|方案|具体|进一步|重新|仍然?|尚|需|需要|因|为|是|暂)/g;
-const TCM_PATHOGENESIS_ANCHOR = /(?:气虚|气滞|气逆|气陷|气脱|气闭|气机不畅|血虚|血瘀|瘀血|血热|血寒|血脱|血燥|血不养|心血不足|肝血不足|阴虚|阳虚|心阴虚|肝阴虚|肺阴虚|肾阴虚|心阳虚|脾阳虚|肾阳虚|脾气虚|心气虚|肺气虚|肾气虚|阴盛|阳亢|阴阳两虚|阴不敛阳|阳不入阴|津亏|液亏|津伤|津液不足|精亏|神扰|神失所养|心神不宁|心火|肝郁|肝气郁结|肝火|肝阳|脾虚|肺虚|肾虚|脾湿|痰湿|痰热|痰浊|湿热|寒湿|风寒|风热|风湿|燥热|实热|虚热|虚寒|实寒|郁火|食积|水饮|饮停|水湿|热毒|寒凝|经络不通|络阻|营卫不和|营卫失调|卫外不固|脾不统血|肾不纳气|肺失宣降|心肾不交|少阳枢机不利|脏腑失和|升降失常|气血失和|不荣则痛|不通则痛|化火|上扰|内阻|阻滞|亏虚|失养|失和|失司)/;
-const TCM_THERAPY_ANCHOR = /(?:益气|补气|养血|活血|化瘀|滋阴|育阴|养阴|温阳|扶阳|清热|泻火|疏肝|解郁|理气|行气|降逆|化痰|祛痰|燥湿|利湿|祛湿|健脾|和胃|温中|散寒|通络|止痛|宁心|安神|镇惊|平肝|潜阳|熄风|息风|凉血|解毒|消食|导滞|攻下|通腑|润肠|固涩|敛汗|止血|止咳|平喘|宣肺|肃肺|开窍|醒神|扶正|培本|调和营卫|解表|和解|利水|通淋|升阳|补肾|温肾|健运|温经|散结|软坚|养心|清心|清肝|清肺|清胃|清胆|温补|补益|调经|回阳救逆|透邪外达|升清降浊|调畅气机|交通心肾)/;
+// 病机动词存在**动宾与主谓两种语序**，词表必须两边都收，否则同一个病机换个写法就锚不住。
+// 实测（月经先期-血热，观测字段 pathogenesisUnanchored）：P2「热扰心神，热盛伤津」整条落空——
+// 表里有主谓序的「神扰」「津伤」，却没有动宾序的「扰心神」「伤津」，于是 chain_incomplete 三连塌、
+// M03 归零。补齐的是两个族而不是两个词：扰动族（扰心/扰神/扰动/内扰）与津伤族
+//（伤津/伤阴/伤液/耗津/耗液/耗阴/耗气/灼津/灼阴/劫阴/化燥）。
+// 本表只判「病机链节点是否落在辨证学措辞上」，不是安全门；扩它不放宽任何剂量或风险边界。
+const TCM_PATHOGENESIS_ANCHOR = /(?:气虚|气滞|气逆|气陷|气脱|气闭|气机不畅|血虚|血瘀|瘀血|血热|血寒|血脱|血燥|血不养|心血不足|肝血不足|阴虚|阳虚|心阴虚|肝阴虚|肺阴虚|肾阴虚|心阳虚|脾阳虚|肾阳虚|脾气虚|心气虚|肺气虚|肾气虚|阴盛|阳亢|阴阳两虚|阴不敛阳|阳不入阴|津亏|液亏|津伤|津液不足|精亏|神扰|神失所养|心神不宁|心火|肝郁|肝气郁结|肝火|肝阳|脾虚|肺虚|肾虚|脾湿|痰湿|痰热|痰浊|湿热|寒湿|风寒|风热|风湿|燥热|实热|虚热|虚寒|实寒|郁火|食积|水饮|饮停|水湿|热毒|寒凝|湿困|湿阻|湿滞|困阻|困遏|阻遏|蒙蔽清窍|清窍被蒙|清阳不升|清窍不利|经络不通|络阻|营卫不和|营卫失调|卫外不固|脾不统血|肾不纳气|肺失宣降|心肾不交|少阳枢机不利|脏腑失和|升降失常|气血失和|不荣则痛|不通则痛|化火|上扰|内阻|阻滞|亏虚|失养|失和|失司|(?:胃|肺|胆|肾|脾|大肠|小肠|膀胱|三焦)[火热]|冲任|胞宫|血海|天癸|带脉|督脉|任脉|精室|迫血|动血|血不循经|血溢|伏热|邪热|热邪|火邪|热灼|燔灼|热入营血|热入血分|上攻|上炎|上冲|扰心|扰神|扰动|内扰|伤津|伤阴|伤液|耗津|耗液|耗阴|耗气|灼津|灼阴|劫阴|化燥|风邪|寒邪|暑邪|湿邪|燥邪|疫毒|秽浊|下陷|升举无力|统摄无权|固摄无力|失濡|失煦|失润|失充|失荣)/;
+const TCM_THERAPY_ANCHOR = /(?:益气|补气|养血|活血|化瘀|滋阴|育阴|养阴|温阳|扶阳|清热|泻火|疏肝|解郁|理气|行气|降逆|化痰|祛痰|燥湿|利湿|祛湿|健脾|和胃|温中|散寒|通络|止痛|宁心|安神|镇惊|平肝|潜阳|熄风|息风|凉血|解毒|消食|导滞|攻下|通腑|润肠|固涩|敛汗|止血|止咳|平喘|宣肺|肃肺|开窍|醒神|扶正|培本|调和营卫|解表|和解|利水|通淋|升阳|补肾|温肾|健运|温经|散结|软坚|养心|清心|清肝|清肺|清胃|清胆|温补|补益|调经|回阳救逆|透邪外达|升清降浊|调畅气机|交通心肾|固冲|固经|固摄|摄血|止带|止崩|润燥|润肺|濡润|清燥|生津|增液)/;
 const TCM_DISEASE_LABEL = /(?:眩晕病?|不寐|胸痹|心悸|头痛|胃脘痛|腹痛|咳嗽|喘证|泄泻|便秘|郁证|汗证|痹证|痿证|水肿|淋证|消渴|癃闭|胁痛|黄疸|中风|痫病|痴呆|颤证|耳鸣|鼻鼽)(?!待)/;
 const CLINICAL_REASONING_CONNECTOR = /(?:提示|支持|符合|更符合|结合|考虑|因此|尚不支持|不足以|倾向于|病程|鉴别|排除)/;
 // The TCM rationale is a derivation from 四诊 to 证候; its natural connectors extend beyond the
@@ -177,7 +185,16 @@ function splitIntoClinicalClauses(normalized: string): string[] {
         // “病历已记录否认A、B” is the deterministic transport rewrite of a charted denial (the
         // customer-output negation sanitizer). Without the transport prefix in this starter the
         // negation scope is lost at the 、 boundary and every later enumerated term reads affirmed.
-        const explicitNegation = clause.match(/^(?:(?:当前|目前|现阶段|现有|本例|患者|临床|病历已记录)?)(绝无|全无|尚无|暂无|没有|否认|未见|未出现|不伴|并无|无)/)?.[1];
+        // 固化否定式症状名：无汗/无痰/无力/无神/无苔/无华 等是四诊里的**症状名本身**，
+        // 「无」是构词成分而不是作用于后续列举的否定运算符。把它们当运算符会让否定作用域
+        // 泄漏到下一个从句——实测「恶寒发热，无汗，头身疼痛明显」中「头身疼痛」被重写成
+        // 「无头身疼痛」，于是针对该痛证加的川芎被判方向未成立、整方作废；把「无汗」挪到
+        // 句尾同一份病历就能通过，这种语序敏感本身就证明是缺陷而非策略。
+        // 只豁免**整个从句就是该症状名**的情形；「无汗出而喘」「无恶寒」等仍按否定处理。
+        const FIXED_NEGATIVE_SYMPTOM = /^(?:无汗|无痰|无力|无神|无苔|无华|无嗅觉|无味觉)$/;
+        const explicitNegation = FIXED_NEGATIVE_SYMPTOM.test(clause)
+          ? undefined
+          : clause.match(/^(?:(?:当前|目前|现阶段|现有|本例|患者|临床|病历已记录)?)(绝无|全无|尚无|暂无|没有|否认|未见|未出现|不伴|并无|无)/)?.[1];
         if (explicitNegation) inheritedNegation = explicitNegation;
         else if (/^(?:有|见|伴|出现|主诉|自诉|症见|表现为|宜|应|可)/.test(clause) || /(?:为主|主导|为核心|明确为|证实为)/.test(clause)) inheritedNegation = "";
         else if (inheritedNegation) clause = `${inheritedNegation}${clause}`;
@@ -235,8 +252,17 @@ export function isUnstableM03CoreText(value: unknown): boolean {
   const prefix = normalized.slice(0, markerIndex);
   const namedDiseaseConclusion = TCM_DISEASE_LABEL.test(prefix) && concreteClinicalAnchor(prefix).length >= 2;
   const boundedUncertainty = /(?:兼证|次证|伴证)[^。；;]*$/.test(prefix) || /[。；;]\s*$/.test(prefix);
-  const affirmedAnchors = clinicalClauses(prefix)
+  // hedge 的**主语**必然落在截断点之前，被 confirmedClinicalPrefix 留在 confirmed 部分里：
+  // 「风邪袭肺证，肺气虚尚待进一步辨证」截断后 prefix = 「风邪袭肺证，肺气虚」，而「肺气虚」
+  // 正是那个待辨证的对象，不是已确立结论。把它计入 multiAnchor，就会让「一个已确立证 + 一个
+  // 待定证」凑够两个锚，整串被判成稳定结论、标签不再截断到「风邪袭肺证」。
+  // 因此发生截断时（markerIndex >= 0）丢弃 prefix 的最后一个从句；未发生截断时不受影响。
+  const prefixClauses = clinicalClauses(prefix);
+  const concludedClauses = prefixClauses.length > 1 ? prefixClauses.slice(0, -1) : prefixClauses;
+  const affirmedAnchors = concludedClauses
     .filter((clause) => !isNegatedClinicalClause(clause))
+    // 对冲式二选一从句（血热或肝火）的锚是备选不是结论，不计入 multiAnchor。
+    .filter((clause) => !isHedgedAlternativeClause(clause, TCM_PATHOGENESIS_ANCHOR))
     .flatMap((clause) => clause.match(new RegExp(TCM_PATHOGENESIS_ANCHOR.source, "g")) || []);
   const multiAnchorConclusion = new Set(affirmedAnchors).size >= 2 && concreteClinicalAnchor(prefix).length >= 6;
   return (!boundedUncertainty && !multiAnchorConclusion && !namedDiseaseConclusion) || concreteClinicalAnchor(prefix).length < 2;
@@ -285,11 +311,48 @@ export function stableM03SyndromeLabel(value: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * 对冲式二选一从句：「可能为血热或肝火」在一个从句里命中两个不同的病机锚，但它是**备选枚举**
+ * 不是结论——两个锚互为替代，谁都没被确立。原逻辑把两个锚都算成肯定结论，multiAnchor 判定
+ * 反而给它加分（实测该句整体判为"已锚定"）。从句含「或」且命中 ≥2 个不同锚即视为对冲。
+ * 病因层的「情志不遂或饮食不节」不受影响（那些词本来就不是病机锚）。
+ */
+function isHedgedAlternativeClause(clause: string, anchor: RegExp): boolean {
+  if (!clause.includes("或")) return false;
+  const hits = new Set(clause.match(new RegExp(anchor.source, "g")) || []);
+  return hits.size >= 2;
+}
+
+// ─── 构词法锚定（枚举短语表的补充通道）──────────────────────────────────────────
+//
+// 上面两张锚点表是逐例累积的**固定短语枚举**，而中医病机与治法是**组合式构词**：
+//   病机 = [病理要素] × [病机动作]   食滞胃脘 = 食 × 滞；痰气交阻 = 痰/气 × 阻
+//   治法 = [治疗动作] × [作用对象]   清利肝胆湿热 = 清利 × 肝胆湿热；化湿泄浊 = 化 × 湿
+// 枚举永远追不上组合：一次 40 组教科书写法的覆盖体检里，纯枚举漏掉 12 组，且漏的都是
+// 已收词的另一种搭配（收了「食积」漏「食滞」、收了「清肝」漏「清利肝胆」、收了「气陷」
+// 漏「中气下陷」）。逐词补下去，1 万份病历还会有几百个同样的漏。
+//
+// 因此在枚举通道之后追加构词通道：要素词与动作词各命中至少一个才算锚定。
+// 两条边界保证它不会让空泛叙述蒙混：
+//   · **必须同时**命中要素与动作——「患者近日不适」「情况较前变化」两侧皆空，照旧拒；
+//   · 否定、对冲式二选一、占位语判定全部前置复用，与枚举通道同一口径。
+// 枚举通道保持原样先行匹配，既有行为一字不变；构词通道只增加覆盖，不改变任何已有判定。
+const TCM_PATHOGENESIS_ELEMENT = /(?:气|血|阴|阳|津|液|精|髓|痰|饮|湿|浊|瘀|热|火|寒|风|燥|暑|毒|食|水|营|卫|脏|腑|经|络|窍|神|心|肝|脾|肺|肾|胃|胆|肠|膀胱|三焦|胞宫|冲任)/;
+const TCM_PATHOGENESIS_ACTION = /(?:虚|实|滞|逆|陷|脱|闭|结|阻|痹|困|蕴|蒙|扰|伤|耗|灼|亏|损|瘀|凝|停|泛|溢|越|亢|盛|衰|郁|滥|壅|遏|袭|犯|侵|乘|侮|夹|挟|交阻|互结|失职|失司|失和|失养|失濡|失煦|失润|失常|不固|不足|不利|不畅|不通|不荣|不纳|不摄|不升|不降|乏源|无权|无力|外泄|上炎|上攻|上冲|下注|下陷|内生|内蕴|内扰|妄行)/;
+const TCM_THERAPY_ACTION = /(?:补|益|养|滋|填|温|清|泻|凉|散|解|疏|理|行|降|升|化|祛|利|渗|燥|通|开|宣|肃|敛|固|涩|摄|止|消|导|软|散结|活|破|镇|安|宁|潜|平|息|熄|和|调|扶|培|回|纳|引|透)/;
+const TCM_THERAPY_OBJECT = /(?:气|血|阴|阳|津|液|精|髓|痰|饮|湿|浊|瘀|热|火|寒|风|燥|暑|毒|食|水|营|卫|表|里|中|神|窍|心|肝|脾|肺|肾|胃|胆|肠|膀胱|三焦|冲任|胞宫|经|络|筋|骨|痛|喘|咳|呕|汗|带|崩|经)/;
+
+function hasCompositionalAnchor(clause: string, element: RegExp, action: RegExp): boolean {
+  return element.test(clause) && action.test(clause);
+}
+
 function hasPathogenesisAnchor(value: unknown): boolean {
   if (isUnstableM03CoreText(value) || typeof value !== "string") return false;
   return clinicalClauses(value).some((clause) => {
     if (isNegatedClinicalClause(clause)) return false;
-    return hasAffirmedClinicalTerm(clause, TCM_PATHOGENESIS_ANCHOR);
+    if (isHedgedAlternativeClause(clause, TCM_PATHOGENESIS_ANCHOR)) return false;
+    if (hasAffirmedClinicalTerm(clause, TCM_PATHOGENESIS_ANCHOR)) return true;
+    return hasCompositionalAnchor(clause, TCM_PATHOGENESIS_ELEMENT, TCM_PATHOGENESIS_ACTION);
   });
 }
 
@@ -297,7 +360,9 @@ function hasTherapyAnchor(value: unknown): boolean {
   if (isUnstableM03CoreText(value) || !isExecutableM03TherapyText(value)) return false;
   return clinicalClauses(value).some((clause) => {
     if (isNegatedClinicalClause(clause)) return false;
-    return hasAffirmedClinicalTerm(clause, TCM_THERAPY_ANCHOR);
+    if (isHedgedAlternativeClause(clause, TCM_THERAPY_ANCHOR)) return false;
+    if (hasAffirmedClinicalTerm(clause, TCM_THERAPY_ANCHOR)) return true;
+    return hasCompositionalAnchor(clause, TCM_THERAPY_ACTION, TCM_THERAPY_OBJECT);
   });
 }
 
@@ -411,11 +476,16 @@ function sentenceNegatesGroundedConcept(sentence: string, concept: GroundedFactC
 }
 
 const GROUNDED_FACT_GROUPS = [
-  /胸痛|心前区痛|胸(?:骨后|前|部)[^。；，,]{0,12}(?:疼痛|痛)/, /胸闷/, /心悸|心慌|心跳不适/, /晕厥/, /意识丧失/, /头痛/, /头晕|眩晕/, /视物模糊/, FEVER_FACT_PATTERN, CHILLS_FACT_PATTERN, COUGH_FACT_PATTERN, /气促/, /呼吸困难/,
+  /胸痛|心前区痛|胸(?:骨后|前|部)[^。；，,]{0,12}(?:疼痛|痛)/, /胸闷/, /心悸|心慌|心跳不适/, /晕厥/,
+  /意识(?:丧失|异常|障碍)|神志(?:不清|改变|异常)|神志不省|昏迷|嗜睡|反应迟钝/,
+  /抽搐|惊厥|癫痫发作/, /咯血|痰中带血/, /便血|黑便|柏油样便/, /呕血|吐血/,
+  /黄疸|皮肤黄染|巩膜黄染/, /瘫痪|偏瘫|单瘫|偏侧无力/,
+  /失语|言语不清|构音障碍/, /紫绀|发绀|口唇青紫/, /颈项强直|颈抵抗/,
+  /头痛/, /头晕|眩晕/, /视物模糊/, FEVER_FACT_PATTERN, CHILLS_FACT_PATTERN, COUGH_FACT_PATTERN, /气促/, /呼吸困难/,
   ABDOMINAL_PAIN_FACT_PATTERN, /恶心/, /呕吐/, /失眠|不寐|寐差|难以入睡|不易入睡|入睡(?:困难|时间延长|慢)|睡眠(?:逐渐|明显)?(?:不佳|欠佳|较差|变差|差)|睡不好|醒后(?:难以|不易|无法)?再(?:入)?睡|再入睡困难|(?:(?:躺|上床|入睡|睡觉)[^。；;\n]{0,18})?(?:要|得|需|花)[^。；;\n]{0,10}(?:小时|分钟)[^。；;\n]{0,8}才(?:能)?睡着/, /早醒/, /多梦/, /乏力|疲乏|疲倦|疲惫|疲劳|困倦|倦怠|神疲|(?:白天|日间|身体|人)?(?:有点|很|较|明显|总觉得)累|(?:总|容易)累/, /健忘|记忆力(?:下降|减退)/, /食欲不振|食欲欠佳|食欲较差|胃口差|纳差|食少|纳少|食欲/, /盗汗|夜(?:里|间)(?:总|反复|经常)?(?:出汗|汗出)|睡(?:着|眠)(?:后|时)(?:总|反复|经常)?(?:出汗|汗出)/, /自汗/, /潮热/, /口苦/, /口渴|口干|咽干/, /便秘/, /腹泻/, /便溏|溏便|大便(?:溏薄|稀溏|较稀|性状|情况|不调|时干时稀)/,
   /打鼾|鼾声/, /呼吸暂停/, /日间嗜睡/, /焦虑/, /烦躁/, /情绪低落|抑郁/, /耳鸣/, /耳聋/, /腰膝酸软|腰酸|膝软/, /畏寒|怕冷/, /肢冷|手足冷/, /夜尿|小便频数/,
   /舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/,
-  /脉(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促){1,4}/,
+  new RegExp(`脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?`),
   /面色(?:苍白|少华|萎黄|淡白|潮红|晦暗|青紫)|眼周晦暗/,
   /大便(?:偏干|干结|溏薄|稀溏)|小便(?:正常|清长|黄赤)/,
   /肝功能|肾功能|甲状腺功能|甲功|血常规|血糖|心电图/,
@@ -435,7 +505,61 @@ function normalizedFactSupportText(value: string): string {
     .replace(/(?:入睡困难|睡眠不佳|睡眠欠佳|睡眠较差|睡眠差|睡不好)/g, "失眠")
     .replace(/(?:工作压力增大|工作压力大|工作负担重)/g, "工作压力")
     .replace(/(?:明显加重|加剧)/g, "加重")
+    // 比较级/程度副词不携带临床内容，两侧对称剥除：病历写「经量较前明显增多」，模型引用成
+    // 「经量增多」是**同一个事实**的合理压缩，不是编造——实测这一类让唯一的妇科病例反复
+    // patient_fact_ungrounded_*_literal（长枚举句里几乎必然发生副词重组）。
+    // 否定词一律不碰（polarity 检查在前，剥副词不可能翻转极性）；「更」带前瞻限定，
+    // 避免伤及「更年期」这类实义词。
+    // 少许 是弱化量词，剥除后事实方向不变；大量/骤增 等告警性量词刻意**不**剥——
+    // 病历写少许、模型写大量时必须仍然接地失败。
+    .replace(/(?:较前|较上次|明显|显著|略有|稍有|少许|进一步|依然|仍然)/g, "")
+    .replace(/更(?=[多少甚重差好轻])/g, "")
     .replace(/(?:逐渐|近期|近来|目前|当前|本次|长期|反复)/g, "");
+}
+
+function normalizedPolarityLiteral(value: string): string {
+  return value
+    .normalize("NFKC")
+    .replace(
+      /^(?:(?:当前|目前|现阶段|现有|本例|患者|病人|临床|明确|病历已记录|主诉|自诉|问诊补充)\s*)?(?:绝无|全无|尚无|暂无|没有|否认|未见|未出现|不伴|并无|无|非)?(?:任何|相关|上述|该|此类|明显)?/,
+      "",
+    )
+    .replace(/^(?:伴有|伴|出现|有|见|症见|表现为)/, "")
+    .split(/(?:提示|支持|反映|说明|考虑|符合|可见于|为.+依据)/)[0]
+    .replace(/(?:明确|本次|目前|当前|已经|现)/g, "")
+    .replace(/[（）()【】\[\]：:；;，,。.!！?？、\s]+/g, "");
+}
+
+function genericPolarityConflictTerm(value: string, clinicalContext: string): string | undefined {
+  if (!value.trim() || !clinicalContext.trim()) return undefined;
+  const affirmedRecordLiterals = recordClauses(clinicalContext)
+    .filter((clause) => !isNegatedClinicalClause(clause))
+    .map(normalizedPolarityLiteral)
+    .filter((literal) => literal.length >= 2);
+  const negatedRecordLiterals = recordClauses(clinicalContext)
+    .filter(isNegatedClinicalClause)
+    .map(normalizedPolarityLiteral)
+    .filter((literal) => literal.length >= 2);
+
+  for (const clause of clinicalClauses(value)) {
+    if (isNegatedClinicalClause(clause)) continue;
+    const literal = normalizedPolarityLiteral(clause);
+    if (
+      literal.length < 2 ||
+      /^(?:异常|正常|不适|症状|表现|阳性|疼痛|病史|体征)$/.test(literal)
+    ) continue;
+    const negated = negatedRecordLiterals.find((recordLiteral) => recordLiteral.includes(literal));
+    if (!negated) continue;
+    // “头痛2个月；否认突发最剧烈头痛”这类记录同时有一般症状阳性和危险亚型阴性。
+    // 只要病历另有同一逐字事实的阳性落点，就不把它误判成极性冲突。
+    if (affirmedRecordLiterals.some((recordLiteral) => recordLiteral.includes(literal))) continue;
+    return literal;
+  }
+  return undefined;
+}
+
+function isGenericPatientEvidencePolarityAligned(value: string, clinicalContext: string): boolean {
+  return !genericPolarityConflictTerm(value, clinicalContext);
 }
 
 function hasLiteralFactSupport(value: string, clinicalContext: string, requireSameClause: boolean): boolean {
@@ -474,6 +598,7 @@ function ungroundedPatientFactReason(reasoning: M03ReasoningLike, clinicalContex
       if (typeof fact !== "string") continue;
       const matchedGroups = GROUNDED_FACT_GROUPS.filter((pattern) => pattern.test(fact));
       const matchedConcepts = groundedFactConceptsForText(fact);
+      const genericConflict = genericPolarityConflictTerm(fact, clinicalContext);
       const groupMismatch = matchedGroups.some((pattern) => {
         const concept = groundedFactConceptForGroup(pattern);
         const factPattern = concept ? concept.surface : pattern;
@@ -492,7 +617,7 @@ function ungroundedPatientFactReason(reasoning: M03ReasoningLike, clinicalContex
         return (factAffirmed && !contextAffirmsGroundedConcept(clinicalContext, concept)) ||
           (factNegated && !contextNegatesGroundedConcept(clinicalContext, concept));
       });
-      if (groupMismatch || conceptMismatch) return `patient_fact_ungrounded_${chainIndex}_${factIndex}_polarity`;
+      if (groupMismatch || conceptMismatch || genericConflict) return `patient_fact_ungrounded_${chainIndex}_${factIndex}_polarity`;
       // Validate every sub-clause, including syndromeEvidence. A known symptom in one part of the
       // field cannot grant source authority to an unrelated invented symptom in the same string.
       if (
@@ -544,12 +669,17 @@ export function describeM03GroundingConflict(reasoning: M03ReasoningLike, clinic
           return `病机链 ${nodeId} 的 ${field} 把“${term}”写成阴性/否认，但病历并未这样记录。请只保留与病历原文极性一致的表述。`;
         }
       }
+      const genericConflict = genericPolarityConflictTerm(fact, clinicalContext);
+      if (genericConflict) {
+        return `病机链 ${nodeId} 的 ${field} 把病历已明确否认的“${genericConflict}”写成了阳性依据。请删除该词，或替换为病历中确有阳性记录且极性一致的患者事实。`;
+      }
     }
   }
   return undefined;
 }
 
 export function patientFactSourceQuote(value: string, clinicalContext: string): string | undefined {
+  if (!isGenericPatientEvidencePolarityAligned(value, clinicalContext)) return undefined;
   const approximateSourceQuote = (): string | undefined => {
     const normalizedFact = normalizedFactSupportText(value);
     if (normalizedFact.length < 4) return undefined;
@@ -641,15 +771,32 @@ function containsKnownHerbDose(value: string): boolean {
   return false;
 }
 
-function m03ContainsDoseLevelInstruction(value: unknown, key = ""): boolean {
-  if (key === "patientFact" || key === "source" || key === "contractSignature") return false;
+const M03_REGIMEN_INSTRUCTION =
+  /(?:每日|每天|一日|日服)\s*(?:\d+|[一二两三四五六七八九十半]+)\s*剂|(?:连服\s*)?(?:\d+|[一二两三四五六七八九十半]+)\s*剂(?:后|内|分|，|,|。|；|;|$)|水煎(?:服)?|煎煮(?:\d+|[一二两三四五六七八九十]+)?次|早晚分服|分[一二两三四五六七八九十2]\s*次服/;
+
+export function m03DoseLevelInstructionFindings(
+  value: unknown,
+  key = "",
+  path = "$",
+): Array<{ path: string; kind: "herb_dose" | "regimen" }> {
+  if (key === "patientFact" || key === "source" || key === "contractSignature") return [];
   if (typeof value === "string") {
-    return containsKnownHerbDose(value) ||
-      /(?:每日|每天|一日|日服)\s*(?:\d+|[一二两三四五六七八九十半]+)\s*剂|(?:连服\s*)?(?:\d+|[一二两三四五六七八九十半]+)\s*剂(?:后|内|分|，|,|。|；|;|$)|水煎(?:服)?|煎煮(?:\d+|[一二两三四五六七八九十]+)?次|早晚分服|分[一二两三四五六七八九十2]\s*次服/.test(value.normalize("NFKC"));
+    const findings: Array<{ path: string; kind: "herb_dose" | "regimen" }> = [];
+    if (containsKnownHerbDose(value)) findings.push({ path, kind: "herb_dose" });
+    if (M03_REGIMEN_INSTRUCTION.test(value.normalize("NFKC"))) findings.push({ path, kind: "regimen" });
+    return findings;
   }
-  if (Array.isArray(value)) return value.some((item) => m03ContainsDoseLevelInstruction(item, key));
-  if (!value || typeof value !== "object") return false;
-  return Object.entries(value).some(([childKey, child]) => m03ContainsDoseLevelInstruction(child, childKey));
+  if (Array.isArray(value)) {
+    return value.flatMap((item, index) =>
+      m03DoseLevelInstructionFindings(item, key, `${path}[${index}]`));
+  }
+  if (!value || typeof value !== "object") return [];
+  return Object.entries(value).flatMap(([childKey, child]) =>
+    m03DoseLevelInstructionFindings(child, childKey, `${path}.${childKey}`));
+}
+
+function m03ContainsDoseLevelInstruction(value: unknown): boolean {
+  return m03DoseLevelInstructionFindings(value).length > 0;
 }
 
 type ClinicalResolutionValue = "resolved" | "bounded" | "unresolved";
@@ -668,7 +815,9 @@ function hasResolutionReason(value: unknown): boolean {
   return typeof value === "string" && value.trim().length >= 4;
 }
 
-const TCM_ONLY_WESTERN_SUPPORT = /(?:舌(?:象|质|体|红|淡|紫|暗)|苔(?:薄|厚|白|黄|腻|燥|润)|脉象|脉(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促)|证候|证型|病机|治则|治法)/;
+const TCM_ONLY_WESTERN_SUPPORT = new RegExp(
+  `(?:舌(?:象|质|体|红|淡|紫|暗)|苔(?:薄|厚|白|黄|腻|燥|润)|脉象|脉(?:${PULSE_QUALITY_PATTERN_SOURCE})|证候|证型|病机|治则|治法)`,
+);
 const HISTORICAL_SUPPORT = /(?:既往|曾经|多年病史|[^。；]{1,16}病史(?:$|[，,；;])|病史\d|术后|后遗症|恢复期|已缓解|已治愈|无新发|未再发|目前稳定|当前稳定)/;
 
 // A multi-year duration without any current-episode cue is background history (2型糖尿病10年、
@@ -799,7 +948,7 @@ export function isWesternSupportingFactPolarityAligned(value: string, clinicalCo
     // negated the concept without any affirmed occurrence.
     return contextNegates && !contextAffirms;
   });
-  if (groupConflict) return false;
+  if (groupConflict || !isGenericPatientEvidencePolarityAligned(fact, clinicalContext)) return false;
   return !groundedFactConceptsForText(fact).some((concept) =>
     !concept.group.test(fact) &&
     hasAffirmedClinicalTerm(fact, concept.surface) &&
@@ -855,6 +1004,10 @@ export function describeM03WesternSupportConflict(reasoning: M03ReasoningLike, c
       const term = fact.match(concept.surface)?.[0] || "该表现";
       return `westernDiagnosis.primary.supportingFacts 中的“${fact}”把病历已明确否认的“${term}”写成了阳性依据。请删除这条依据，或替换为病历当前语境中确有阳性记录、且能支持本次工作诊断的事实；不得把阴性事实反写成阳性。`;
     }
+    const genericConflict = genericPolarityConflictTerm(fact, clinicalContext);
+    if (genericConflict) {
+      return `westernDiagnosis.primary.supportingFacts 中的“${fact}”把病历已明确否认的“${genericConflict}”写成了阳性依据。请删除这条依据，或替换为病历当前语境中确有阳性记录、且能支持本次工作诊断的事实；不得把阴性事实反写成阳性。`;
+    }
   }
   return undefined;
 }
@@ -864,6 +1017,25 @@ function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext
   const overview = reasoning.overview;
   const syndrome = typeof overview?.primarySyndrome === "string" ? overview.primarySyndrome.trim() : "";
   const syndromeBasis = nonEmptyStringList(overview?.primarySyndromeBasis);
+  if (clinicalContext && syndromeBasis.some((basis) => !isGenericPatientEvidencePolarityAligned(basis, clinicalContext))) {
+    return "primary_syndrome_basis_polarity";
+  }
+  const symptomClusterFacts = (reasoning.pathogenesis?.symptomClusters || [])
+    .flatMap((item) => nonEmptyStringList(item.symptoms));
+  if (clinicalContext && symptomClusterFacts.some((fact) => !isGenericPatientEvidencePolarityAligned(fact, clinicalContext))) {
+    return "symptom_cluster_polarity";
+  }
+  const keySweatingDiscriminators = syndromeBasis.flatMap((basis) =>
+    basis.match(/无汗|自汗/g) || []);
+  if (
+    keySweatingDiscriminators.length > 0 &&
+    !keySweatingDiscriminators.every((term) =>
+      (reasoning.pathogenesis?.chain || []).some((item) =>
+        [item.patientFact, item.syndromeEvidence].some((value) =>
+          typeof value === "string" && value.includes(term))))
+  ) {
+    return "chain_key_discriminator_missing";
+  }
   const explicitSyndromeResolution = clinicalResolution(overview?.primarySyndromeResolution);
   const syndromeResolution = explicitSyndromeResolution || (syndrome ? "bounded" : "unresolved");
   // A bounded/resolved primary syndrome is a clinical conclusion, not a place to append
@@ -1208,6 +1380,49 @@ export function m03WesternClinicalRationaleIssue(
   return undefined;
 }
 
+const CLINICAL_INTENSITY_PAIRS: ReadonlyArray<[RegExp, RegExp, RegExp]> = [
+  [/咳嗽|咳/, /声重|轻微|轻度|稍|略|有点|偶有/, /剧烈|严重|重度|频繁|持续不止/],
+  [/头痛|腹痛|胸痛|疼痛/, /轻微|轻度|稍|略|有点|隐痛|偶有/, /剧烈|严重|重度|难以忍受|最剧烈/],
+  [/恶心|呕吐/, /轻微|轻度|稍|略|有点|偶有/, /剧烈|严重|频繁|喷射性|持续不止/],
+  [/头晕|眩晕/, /轻微|轻度|稍|略|有点|偶有/, /剧烈|严重|重度|无法站立/],
+  [/气促|气短|呼吸困难/, /轻微|轻度|稍|略|有点|活动后/, /严重|重度|静息时|端坐呼吸/],
+];
+
+function m03ClinicalWordingFidelityIssue(reasoning: M03ReasoningLike, clinicalContext: string): string | undefined {
+  if (!clinicalContext) return undefined;
+  const analysisSurface = [
+    ...nonEmptyStringList(reasoning.westernDiagnosis?.primary?.supportingFacts),
+    reasoning.westernDiagnosis?.primary?.clinicalRationale,
+    reasoning.overview?.tcmDiagnosticRationale,
+    reasoning.overview?.overallPathogenesis,
+    ...(reasoning.pathogenesis?.symptomClusters || []).flatMap((item) => [item.mechanism]),
+    ...(reasoning.pathogenesis?.chain || []).flatMap((item) => [item.syndromeEvidence, item.pathogenesis]),
+  ].filter((item): item is string => typeof item === "string" && Boolean(item.trim())).join("；");
+
+  for (const [symptom, lowerIntensity, higherIntensity] of CLINICAL_INTENSITY_PAIRS) {
+    const recordHasLowerOnly = recordClauses(clinicalContext).some((clause) =>
+      !isNegatedClinicalClause(clause) &&
+      symptom.test(clause) &&
+      lowerIntensity.test(clause) &&
+      !higherIntensity.test(clause));
+    const analysisUpgradesIntensity = clinicalClauses(analysisSurface).some((clause) =>
+      !isNegatedClinicalClause(clause) && symptom.test(clause) && higherIntensity.test(clause));
+    if (recordHasLowerOnly && analysisUpgradesIntensity) return "clinical_wording_intensity_mismatch";
+  }
+
+  const temperatures = measuredTemperatures(clinicalContext);
+  const currentTemperatureNormal = temperatures.length > 0 &&
+    temperatures.every((temperature) => temperature < FEVER_TEMPERATURE_CELSIUS);
+  if (
+    currentTemperatureNormal &&
+    /(?:病历已记录|客观检查提示|测得|体温)(?:[^。；;\n]{0,8})(?:发热|升高|异常)/.test(analysisSurface) &&
+    !/(?:自诉|主诉|病程中|曾有)[^。；;\n]{0,12}(?:发热|恶寒发热)[^。；;\n]{0,24}(?:当前|本次)[^。；;\n]{0,12}(?:体温正常|测温未升高|未见体温升高)/.test(analysisSurface)
+  ) {
+    return "clinical_wording_subjective_objective_mismatch";
+  }
+  return undefined;
+}
+
 function rationaleReferencesChartFact(rationale: string, clinicalContext: string): boolean {
   if (!clinicalContext) return false;
   if (GROUNDED_FACT_GROUPS.some((group) =>
@@ -1292,17 +1507,19 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
   if (westernDurationIssue) return westernDurationIssue;
   const westernSupportIssue = m03WesternSupportIssue(reasoning, clinicalContext);
   if (westernSupportIssue) return westernSupportIssue;
+  const wordingFidelityIssue = m03ClinicalWordingFidelityIssue(reasoning, clinicalContext);
+  if (wordingFidelityIssue) return wordingFidelityIssue;
   const westernRationaleIssue = m03WesternClinicalRationaleIssue(reasoning);
   if (westernRationaleIssue) return westernRationaleIssue;
-  if (
-    !isDisplayableClinicalText(reasoning.overview?.tcmDiseaseName) ||
-    /^(?:中医病名|中医诊断|病名待定|待辨|待定|未知|不详)$/.test(reasoning.overview.tcmDiseaseName.trim())
-  ) return "tcm_disease_missing";
   const differentialIdentities = (reasoning.westernDiagnosis?.differentials || [])
     .map((item) => westernDifferentialIdentity(item.name))
     .filter(Boolean);
   if (new Set(differentialIdentities).size !== differentialIdentities.length) {
     return "western_differential_duplicate";
+  }
+  if ((reasoning.westernDiagnosis?.differentials || []).some((item) =>
+    isAmbiguousM03WesternPrimaryLabel(item.name))) {
+    return "western_differential_ambiguous";
   }
   if ((reasoning.westernDiagnosis?.differentials || []).some((item) =>
     typeof item.reason !== "string" || item.reason.trim().length < 4 ||
@@ -1413,6 +1630,24 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
   if (!isActionableFollowupSafetyNet(reasoning.management?.followupSafetyNet)) {
     return "followup_safety_net_not_actionable";
   }
+  // 需求3：辨病与辨证是两个判断，各自要有推理过程。此前二者共用 tcmDiagnosticRationale，
+  // 病名归属的理由被证型推理挤掉——医生看到「不寐」却读不到为什么归入不寐而不是郁病或心悸。
+  // 放在末尾且分级为 T2：缺一段辨病推理不影响结论可用性，应带批注受理而不是驳回整份 M03。
+  const tcmDiseaseName = typeof reasoning.overview?.tcmDiseaseName === "string"
+    ? reasoning.overview.tcmDiseaseName.trim()
+    : "";
+  if (tcmDiseaseName) {
+    const diseaseRationale = typeof reasoning.overview?.tcmDiseaseRationale === "string"
+      ? reasoning.overview.tcmDiseaseRationale.trim()
+      : "";
+    if (diseaseRationale.length < 8 || !TCM_REASONING_CONNECTOR.test(diseaseRationale)) {
+      return "tcm_disease_rationale_missing";
+    }
+  }
+  // 经典方优先是本产品的既定策略，也决定 M04 能否拿到可编译基准方。漏锁不由服务端代选——选方是
+  // 临床决策，仍归模型与医生——但服务端有权指出：模型对自己签名的证候留空了方名，而受控目录中
+  // 存在满足正向充分性且可锁定的候选。放在最后，是因为这属策略层问题，结构性缺陷应先修完。
+  if (missedLockableFormulaCandidates(reasoning).length > 0) return "formula_selection_missed_lockable";
   return undefined;
 }
 
@@ -1443,54 +1678,90 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
  *
  * 维护要求：往 m03SemanticIssue 里新增任何安全承重检查时，必须同步加到这里。
  */
+/**
+ * M03 硬安全合同。调用方传入的 isSafetyReason 谓词**必须**生效：此前它被 `void` 掉，
+ * 于是本函数把 tier 表明确判为非安全的码（chain_incomplete=T2）也当作硬安全项返回，
+ * 而带批注受理的前提是 safetyIssue 为空 —— 两个判定源对同一个码给出相反结论，
+ * 结果是整条受理路径成为死代码（实测线上从未触发过一次），凡是链节点措辞不稳的病例
+ * 一律归零，医生拿不到任何辨证结果。
+ *
+ * 跳过非安全码后**继续检查后续项**，而不是就此返回 undefined —— 否则一个靠前的非安全码
+ * 会掩盖它后面真正的安全项（如事实接地失败），那才是危险的放宽。
+ */
 export function m03SafetyContractIssue(
   reasoning: M03ReasoningLike | null | undefined,
   clinicalContext = "",
   isSafetyReason: (reason: string) => boolean = () => true,
 ): string | undefined {
+  const skipped = new Set<string>();
+  for (let guard = 0; guard <= 24; guard += 1) {
+    const issue = m03HardContractIssue(reasoning, clinicalContext, skipped);
+    if (!issue) return undefined;
+    // 谓词只能放宽**文档质量类**的码，绝不能放宽硬安全集合：传入一个恶意或有缺陷的
+    // 「全部非安全」谓词时，stage/formula_not_null/chain_empty/事实接地失败等仍必须绝对阻断。
+    // 若内部再次给出已跳过的码，说明它不响应跳过——直接返回，宁可严格也不空转。
+    if (m03NonWaivableSafetyCode(issue) || skipped.has(issue) || isSafetyReason(issue)) return issue;
+    skipped.add(issue);
+  }
+  return undefined;
+}
+
+/**
+ * 不可豁免的 M03 硬安全码。清单是白名单的补集写法：除了这里列出的文档质量类可由分级谓词
+ * 放宽（目前只有 chain_incomplete——链存在、仅个别节点措辞不稳，带批注受理比整份归零更有价值），
+ * 其余一律绝对阻断。新增检查项默认落进不可豁免侧（default-deny）。
+ */
+function m03NonWaivableSafetyCode(code: string): boolean {
+  const WAIVABLE = new Set(["chain_incomplete"]);
+  return !WAIVABLE.has(code);
+}
+
+function m03HardContractIssue(
+  reasoning: M03ReasoningLike | null | undefined,
+  clinicalContext: string,
+  skipped: ReadonlySet<string>,
+): string | undefined {
+  const emit = (code: string): string | undefined => (skipped.has(code) ? undefined : code);
   if (!reasoning || reasoning.stage !== "diagnose") return "stage";
   const chain = reasoning.pathogenesis?.chain || [];
-  if (reasoning.formula != null) return "formula_not_null";
-  if (m03ContainsDoseLevelInstruction(reasoning)) return "dose_level_content";
-  if (!chain.length) return "chain_empty";
-  const westernPrimaryName = reasoning.westernDiagnosis?.primary?.name;
-  if (
-    typeof westernPrimaryName !== "string" ||
-    westernPrimaryName.trim().length < 2 ||
-    /(?:基于主诉的)?现代医学诊断倾向|待生成|待明确|未知/.test(westernPrimaryName)
-  ) return "western_diagnosis_unstable";
-  if (isAmbiguousM03WesternPrimaryLabel(westernPrimaryName)) return "western_primary_ambiguous";
-  const durationIssue = m03WesternDurationIssue(reasoning, clinicalContext);
-  if (durationIssue) return durationIssue;
-  const supportIssue = m03WesternSupportIssue(reasoning, clinicalContext);
-  if (supportIssue) return supportIssue;
-  // 唯一允许分级过滤的辅助函数：其返回类型已收敛为两个非 T1 码，过滤不可能跳过 T1 检查。
-  const rationaleIssue = m03WesternClinicalRationaleIssue(reasoning);
-  if (rationaleIssue && isSafetyReason(rationaleIssue)) return rationaleIssue;
-  const tcmDiseaseName = reasoning.overview?.tcmDiseaseName;
-  if (
-    !isDisplayableClinicalText(tcmDiseaseName) ||
-    /^(?:中医病名|中医诊断|病名待定|待辨|待定|未知|不详)$/.test(tcmDiseaseName.trim())
-  ) return "tcm_disease_missing";
-  const resolutionIssue = m03ResolutionContractIssue(reasoning, clinicalContext);
-  if (resolutionIssue) return resolutionIssue;
-  const sevenStageIssue = m03SevenStageInferenceIssue(reasoning);
-  if (sevenStageIssue) return sevenStageIssue;
-  const structureIssue = m03PathogenesisAndTherapyStructureIssue(reasoning, clinicalContext);
-  if (structureIssue) return structureIssue;
-  if (chain.every((item) => isNeutralTongueOnlyFact(item.patientFact))) return "neutral_tongue_only";
-  const summaryIssue = m03PathogenesisSummaryConsistencyIssue(reasoning);
-  if (summaryIssue) return summaryIssue;
-  const uncertaintyIssue = m03UncertaintyStateIssue(reasoning, clinicalContext);
-  if (uncertaintyIssue) return uncertaintyIssue;
-  if (clinicalContext && !hasCurrentPositiveTcmAnchor(reasoning)) return "tcm_syndrome_current_fact_missing";
+  if (reasoning.formula != null) { const e = emit("formula_not_null"); if (e) return e; }
+  if (m03ContainsDoseLevelInstruction(reasoning)) { const e = emit("dose_level_content"); if (e) return e; }
+  if (!chain.length) { const e = emit("chain_empty"); if (e) return e; }
+
+  // Hard M03 safety is deliberately narrower than the full documentation-quality contract.
+  // A Western evidence-list formatting defect, a missing optional location/nature classification,
+  // or an incomplete differential paragraph must never erase a grounded TCM chain. What remains
+  // load-bearing is: a real non-placeholder syndrome, a non-empty fact→mechanism→therapy chain,
+  // exact chart grounding/polarity, and an actionable follow-up safety net.
+  const syndrome = typeof reasoning.overview?.primarySyndrome === "string"
+    ? reasoning.overview.primarySyndrome.trim()
+    : "";
+  if (!syndrome || isUnstableM03CoreText(syndrome)) { const e = emit("primary_syndrome_unstable"); if (e) return e; }
+  const overallPathogenesis = typeof reasoning.overview?.overallPathogenesis === "string"
+    ? reasoning.overview.overallPathogenesis.trim()
+    : "";
+  if (!overallPathogenesis || isUnstableM03CoreText(overallPathogenesis)) { const e = emit("overall_pathogenesis_unstable"); if (e) return e; }
+  const overallMethod = typeof reasoning.therapy?.overallMethod === "string"
+    ? reasoning.therapy.overallMethod.trim()
+    : "";
+  if (!overallMethod || isUnstableM03CoreText(overallMethod)) { const e = emit("therapy_method_missing"); if (e) return e; }
+  if (chain.some((item) =>
+    typeof item.patientFact !== "string" ||
+    !item.patientFact.trim() ||
+    typeof item.syndromeEvidence !== "string" ||
+    !item.syndromeEvidence.trim() ||
+    typeof item.pathogenesis !== "string" ||
+    isUnstableM03CoreText(item.pathogenesis) ||
+    typeof item.therapyDirection !== "string" ||
+    isUnstableM03CoreText(item.therapyDirection)
+  )) { const e = emit("chain_incomplete"); if (e) return e; }
+  if (chain.every((item) => isNeutralTongueOnlyFact(item.patientFact))) { const e = emit("neutral_tongue_only"); if (e) return e; }
+  if (clinicalContext && !hasCurrentPositiveTcmAnchor(reasoning)) { const e = emit("tcm_syndrome_current_fact_missing"); if (e) return e; }
   if (clinicalContext) {
     const groundingIssue = ungroundedPatientFactReason(reasoning, clinicalContext);
-    if (groundingIssue) return groundingIssue;
+    if (groundingIssue) { const e = emit(groundingIssue); if (e) return e; }
   }
-  if (!isActionableFollowupSafetyNet(reasoning.management?.followupSafetyNet)) {
-    return "followup_safety_net_not_actionable";
-  }
+  if (!isActionableFollowupSafetyNet(reasoning.management?.followupSafetyNet)) { const e = emit("followup_safety_net_not_actionable"); if (e) return e; }
   return undefined;
 }
 
@@ -1526,7 +1797,7 @@ type M04ReasoningLike = {
     lifestyle?: unknown;
     emotion?: unknown;
     tcmTreatments?: Array<{ projectCode?: unknown; targetRef?: unknown; targetPathogenesis?: unknown; assessmentPositioning?: unknown; protocolStatus?: unknown; protocolGap?: unknown; treatmentContent?: unknown; suggestedSitesOrPoints?: unknown; scheduleSuggestion?: unknown; techniqueBoundary?: unknown; protocolSource?: unknown; operatorRequirement?: unknown; requiredChecks?: unknown; availability?: unknown; riskLevel?: unknown; recommendationMode?: unknown; executable?: unknown; clinicianReviewRequired?: unknown }>;
-    monitoring?: unknown;
+    // 刻意不声明 precautions：合同层不校验注意事项，声明它只会诱导后人在这里加驳回码。
   } | null;
 };
 
@@ -1560,7 +1831,8 @@ type TcmTherapyConcept =
   | "qi_regulate" | "heat_clear" | "phlegm_resolve" | "damp_resolve"
   | "yang_warm" | "yin_nourish" | "exterior_release" | "blood_move"
   | "purge" | "astringe" | "hemostasis" | "cough_relieve"
-  | "food_resolve" | "wind_extinguish" | "orifice_open" | "mass_soften";
+  | "food_resolve" | "wind_extinguish" | "orifice_open" | "mass_soften"
+  | "menstrual_regulate";
 
 // The concept regexes below are the contract-side therapy vocabulary; the generator-side prompt
 // mapping (THERAPY_HERB_CATEGORY_RULES in diagnosis-prompts.ts) and the knowledge-base function
@@ -1575,33 +1847,53 @@ type TcmTherapyConcept =
 // mass_soften) without auditing every herb whose function text would newly match — a wider
 // high-impact regex turns into new fail-closed false positives.
 const TCM_THERAPY_CONCEPTS: ReadonlyArray<[TcmTherapyConcept, RegExp]> = [
-  ["qi_tonify", /补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|大补元气|扶正|升阳|举陷|固表/],
-  ["blood_nourish", /养(?:心|肝)?血|补(?:心|肝)?血|益血|生血|补血/],
-  ["calm_spirit", /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄/],
-  ["spleen_support", /健脾|补脾|益脾|补益心脾|健运|运化/],
-  ["qi_regulate", /理气|行气|疏肝|解郁|开郁|调畅气机|下气|降气|宽中|除满|消胀|除痞|行滞|破气|顺气|和胃|降逆|宽胸/],
-  ["heat_clear", /清热|泻火|凉血|解毒|辛凉|清(?:肺|肝|心|胃|营|暑)|泄热/],
-  ["phlegm_resolve", /化痰|祛痰|涤痰|豁痰|消痰/],
-  ["damp_resolve", /利湿|渗湿|利水|祛湿|燥湿|化湿|醒脾|化寒湿|散寒湿|除湿/],
-  ["yang_warm", /温阳|扶阳|回阳|散寒|辛温|温(?:中|肾|里|肺|经|化|补|通|养)|补阳/],
-  ["yin_nourish", /滋阴|养阴|育阴|生津|增液|补阴/],
-  ["exterior_release", /解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风/],
-  ["blood_move", /活血|化瘀|行瘀|破血|通经|(?:气血|血行|血脉)(?:运行|畅行|周行|流通)|调[和畅][^，。；;]{0,6}气血/],
-  ["purge", /通便|泻下|攻下|逐水/],
-  ["astringe", /收涩|敛汗|固涩|固精|止带/],
-  ["hemostasis", /止血|凉血止血|化瘀止血/],
-  ["cough_relieve", /止咳|平喘|宣肺|肃肺|降肺|开宣肺气|宣(?:通|畅|降)肺气/],
-  ["food_resolve", /消食|导滞|健胃|消积/],
-  ["wind_extinguish", /息风|止痉|平肝|潜阳/],
+  ["qi_tonify", /补(?:中|脾|肺|肾)?气|益(?:中|脾|肺|肾)?气|大补元气|扶正|升阳|举陷|固表|培[元本土]|补虚|益胃|扶脾|健胃|补火|补益法?(?![^，。；;]*(?:精|阴|血))|扶元|益火生土|提壶揭盖/],
+  ["blood_nourish", /养(?:心|肝)?血|补(?:心|肝)?血|益血|生血|补血|和血|调营|养营|滋血|补益精血|理血/],
+  ["calm_spirit", /安神|宁心|宁神|养心|定志|镇惊|安魂|定魄|重镇|清心除烦/],
+  ["spleen_support", /健脾|补脾|益脾|补益心脾|健运|运化|运脾|醒脾|调理脾胃|调理肠胃|养胃和中|和中|抑肝扶脾|理脾/],
+  ["qi_regulate", /理气|行气|疏肝|解郁|开郁|调畅气机|下气|降气|宽中|除满|消胀|除痞|行滞|破气|顺气|和胃|降逆|宽胸|调气|利气|宣通气机|辛开苦降|舒筋|宣痹|疏泄|和解|表里双解|平调寒热|寒温并用|开达膜原|交通心肾|逆流挽舟|开噤|通关|调和营卫|调和肝脾/],
+  ["heat_clear", /清热|泻火|凉血|解毒|辛凉|清[泄泻宣透利](?!湿)|清(?:肺|肝|心|胃|营|暑|肠|胆|骨|金|气|血)|泄热|退热|除烦|降火|潜降虚火|泻[肺肝心胃肠胆火]|清化(?![^，。；;]{0,2}痰)|清解|气血双清|泻南补北|佐金平木/],
+  ["phlegm_resolve", /化痰|祛痰|涤痰|豁痰|消痰|化饮|蠲饮|除痰|截疟|涌吐|吐法|催吐|消石/],
+  ["damp_resolve", /利湿|渗湿|利水|祛湿|燥湿|化湿|化寒湿|散寒湿|除湿|分消|逐水|退黄|化浊|泄浊|利尿|通淋|渗利|淡渗|祛暑|清暑|开鬼门|洁净府|滑利窍道|宣通三焦/],
+  // 同构：温补类动词与「阳」被脏腑名隔开（补肾壮阳、温补肾阳已可解析，补肾壮阳此前不能）。
+  ["yang_warm", /温阳|扶阳|回阳|散寒|辛温|温(?:中|肾|里|肺|经|化|补|通|养)|补阳|[温补][补益]?[肾脾心]{1,2}阳|壮阳|益火|引火归[原元]|辛甘化阳|温脏|暖宫|温下/],
+  // 「补益动词 + 脏腑 + 阴阳」是中医治法的高频构词，动词与「阴」被脏腑名隔开：
+  // 滋补肾阴、滋养肝阴、滋补肝肾、补益肝肾、滋肾养肝。原正则只认紧邻的「滋阴/补阴」，
+  // 这些写法一律解析为空集 —— 实测腰痛-肾阴虚：M03 治法「滋补肾阴，壮水制火」，
+  // M04 的 requiredTherapyConcepts 为空，整方以 transparent_therapy_unresolved 作废、0 味。
+  // 脏腑名用有限枚举而不是通配，避免把无关文本吞进来。
+  ["yin_nourish", /滋阴|养阴|育阴|生津|增液|补阴|润燥|润肺|濡润|清燥|[滋养补][补养益]?[肝肾心肺胃脾]{1,2}阴|[滋补][补养益]?[肝肾心肺胃脾]{1,2}(?=[肝肾心肺胃脾])|补益[肝肾心肺脾][肝肾心肺脾]|滋[肝肾][养补][肝肾]|壮水|大补真阴|坚阴|酸甘化阴|金水相生|滋补[肾精]{1,2}|补[肾益]{1,2}精|益精|填精/],
+  ["exterior_release", /解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风|解肌|透疹|透表|发汗|疏解|辛散|求汗|轻宣|宣散|治风法/],
+  // 通经(?!脉)：「通经」作为活血概念指通(月)经、通经络；而「温通经脉」是「温通 + 经脉」，
+  // 表达的是温阳通脉，不是活血。两者只差一个「脉」字，方向却不同。少了这个否定前瞻，桂枝的
+  // 药典功用句「温通经脉，助阳化气」会让它在**肾阳虚证（治法：温补肾阳，化气利水）**里被判
+  // 「活血方向未成立」而驳回——桂枝正是金匮肾气丸的法定组成，M03 也确实锁了金匮肾气丸。
+  // 实测驳回码：candidate_0_transparent_therapy_herb_4_unsupported_high_impact_yang_warm_blood_move。
+  ["blood_move", /活血|化瘀|行瘀|破血|祛瘀|散瘀|消瘀|逐瘀|行血|化癥|消癥|破癥|通脉|通络|和络|通经(?!脉)|(?:气血|血行|血脉)(?:运行|畅行|周行|流通)|调[和畅][^，。；;]{0,6}气血/],
+  ["purge", /通便|泻下|攻下|逐水|通腑|急下|消导法?|杀虫|驱蛔|安蛔|以毒攻毒/],
+  // 固经/固冲/固摄/止崩 与 摄血：妇科调固类治法。这些动词上一轮已进 TCM_THERAPY_ANCHOR
+  //（管 M03 病机链锚定），但概念表没同步——M03 治法「调理冲任，固经调冲」通过链锚定后，
+  // M04 侧 requiredTherapyConcepts 解析为空集，每一版候选都被 transparent_therapy_unresolved
+  // 整方驳回（实测 月经先期-血热 三连拒 0 味）。锚点表与概念表是同一词汇域的两张投影，
+  // 扩一张必须同步另一张（test-therapy-vocabulary-sync 的 GYN_THERAPY_PHRASES 钉住本类）。
+  ["astringe", /收涩|敛汗|固涩|固精|止带|固经|固冲|固摄|止崩|涩肠|涩精|固脱|固护|固脬|缩尿|止遗|敛[肺阴疮]|收敛/],
+  ["hemostasis", /止血|凉血止血|化瘀止血|摄血/],
+  ["cough_relieve", /止咳|平喘|宣肺|肃肺|降肺|开宣肺气|宣(?:通|畅|降)肺气|纳气|敛肺|降气|定喘/],
+  ["food_resolve", /消食|导滞|健胃|消积|化积|消谷|运食/],
+  ["wind_extinguish", /息风|熄风|止痉|解痉|平肝|潜阳|定痫|定惊|镇肝|柔肝/],
   ["orifice_open", /开窍|醒神/],
   ["mass_soften", /软坚|散结/],
+  // 调经/调冲任：妇科月经病的核心治法方向（非高影响）。没有它，「调理冲任」类治法解析不出
+  // 任何概念，M04 的方向覆盖与配伍正向相关全部失效；当归/香附/益母草等「调经」功用药也无法
+  // 以该方向落实正向相关。
+  ["menstrual_regulate", /调经|调冲任|理冲任|调理冲任|调摄冲任|安冲|调冲|安胎|通乳|种子|下胎|催生/],
 ];
 
 function tcmTherapyConcepts(text: string): Set<TcmTherapyConcept> {
   return new Set(TCM_THERAPY_CONCEPTS.filter(([, pattern]) => pattern.test(text)).map(([concept]) => concept));
 }
 
-function affirmedTcmTherapyConcepts(text: string): Set<TcmTherapyConcept> {
+export function affirmedTcmTherapyConcepts(text: string): Set<TcmTherapyConcept> {
   const concepts = new Set<TcmTherapyConcept>();
   for (const clause of clinicalClauses(text)) {
     if (isNegatedClinicalClause(clause)) continue;
@@ -1624,6 +1916,45 @@ const HIGH_IMPACT_THERAPY_CONCEPTS = new Set<TcmTherapyConcept>([
   "orifice_open",
   "mass_soften",
 ]);
+
+// 高影响门的**药侧触发**收窄口径。治法侧的方向声明判定（affirmedTcmTherapyConcepts）仍用
+// TCM_THERAPY_CONCEPTS 全口径：治法写「润肠通便」时 purge 照常算已声明，麻子仁丸类不受影响；
+// 君药方向覆盖（emperor_*）与配伍正向相关也不经本表，当归仍可按养血/和血方向入方。
+//
+// 收窄依据（对 695 味知识库全量审计，见 test-therapy-vocabulary-sync 的触发侧钉表）：
+// - 润肠通便：润下类兼功（当归/桃仁/苦杏仁/肉苁蓉/黑芝麻/核桃仁/锁阳/亚麻子/罗汉果，仅此
+//   9 味变化），不构成攻下身份；真攻下（大黄「泻下攻积」/芒硝/甘遂「逐水」/番泻叶）经
+//   泻下|攻下|逐水 或「泻下药」分类照常触发。实测反例：心脾两虚锁定归脾汤后，方中当归被判
+//   unsupported_high_impact_blood_move_purge，透明降级路径整方 0 味。
+// - 补血活血/养血活血：和血类固定搭配（全量审计仅当归变化），不构成破血逐瘀身份；丹参
+//   「活血祛瘀」、川芎「活血行气」的独立「活血」照常触发。
+// 模型显式为该味声明了高影响方向时（intended 命中），收窄失效、门禁照常执行。
+const HIGH_IMPACT_HERB_TRIGGER_OVERRIDES: ReadonlyArray<[TcmTherapyConcept, RegExp]> = [
+  ["blood_move", /(?<!补血)(?<!养血)活血|化瘀|行瘀|破血|通经(?!脉)|(?:气血|血行|血脉)(?:运行|畅行|周行|流通)|调[和畅][^，。；;]{0,6}气血/],
+  ["purge", /(?<!润肠)通便|泻下|攻下|逐水|通腑/],
+];
+
+/**
+ * 在药材知识文本（功用 ∪ 分类 ∪ 风险画像）上，共享词表命中但触发口径不命中的高影响方向。
+ * 这些方向从该药的高影响**身份**里剔除；显式声明（intended）该方向时不剔除，门禁照常。
+ */
+function highImpactTriggerNarrowedOut(
+  name: string,
+  intended?: ReadonlySet<TcmTherapyConcept> | null,
+): Set<TcmTherapyConcept> {
+  const text = [
+    herbKnowledgeFunctionText(name),
+    ...getTcmHerbFunctionCategories(name),
+    getTcmHerbRiskProfile(name),
+  ].join("；");
+  const out = new Set<TcmTherapyConcept>();
+  for (const [concept, trigger] of HIGH_IMPACT_HERB_TRIGGER_OVERRIDES) {
+    if (intended?.has(concept)) continue;
+    const shared = TCM_THERAPY_CONCEPTS.find(([item]) => item === concept)?.[1];
+    if (shared?.test(text) && !trigger.test(text)) out.add(concept);
+  }
+  return out;
+}
 
 function herbKnowledgeFunctionText(name: string): string {
   // Controlled pharmacopoeia supplements live in tcm-knowledge so every consumer (validator,
@@ -1671,8 +2002,9 @@ function herbHighImpactConcepts(name: string, declaredFunction?: string): Set<Tc
         (knowledgeConcept === left && intendedConcepts.has(right)) ||
         (knowledgeConcept === right && intendedConcepts.has(left))))
     : [];
+  const narrowedOut = highImpactTriggerNarrowedOut(name, intendedConcepts);
   return new Set([...categoryConcepts, ...intendedKnowledgeConcepts, ...governedConcepts, ...opposingKnowledgeConcepts]
-    .filter((concept) => HIGH_IMPACT_THERAPY_CONCEPTS.has(concept)));
+    .filter((concept) => HIGH_IMPACT_THERAPY_CONCEPTS.has(concept) && !narrowedOut.has(concept)));
 }
 
 function requiredTherapyConcepts(prior: M03ReasoningLike | null | undefined): Set<TcmTherapyConcept> {
@@ -1702,8 +2034,56 @@ function primaryPathogenesisTherapyConcepts(prior: M03ReasoningLike | null | und
 // undocumented usage still rejects, and the opposing-direction invariant below is unchanged.
 const GROUNDED_HEAT_FACT_PATTERN = /舌红|舌绛|苔黄|苔燥|少津|口干|口苦|口渴|潮热|盗汗|心烦|烦躁|尿黄|小便黄|大便秘结|便秘|发热|面红|目赤|咽痛|牙龈肿痛|脉数/;
 
-function priorDocumentedHeatFacts(prior: M03ReasoningLike | null | undefined): boolean {
-  if (!prior) return false;
+// 「锁定方 + 基于症状的加减」是本产品的既定需求：医生开的是「麻黄汤加川芎」，川芎冲的是
+// 患者已记录的**头身疼痛**，不是冲 M03 治法文本里有没有「活血」二字。此前高影响方向的成立
+// 依据只认两样：M03 治法文本，以及仅对 heat_clear 开放的症状事实通道。于是一味有明确症状
+// 指征的加味药会被判「方向未成立」，连带整张方作废——实测感冒-风寒束表锁麻黄汤：基准四味
+// 齐全、川芎针对「头身疼痛」，全方 0 味。
+//
+// 因此把 heat_clear 那条既有通道推广成**全部高影响方向共用**的症状事实支撑表。这不是放宽
+// 安全面，而是补回一条本该存在的成立依据：
+//   · 事实来源仍限签名 M03 的 grounded 字段（chain 的 patientFact/syndromeEvidence、主证依据、
+//     西医支持事实、病位病性判定理由与不确定项），不接受模型自由文本；
+//   · 否定从句照常排除（「无口干」不支撑清热）；
+//   · **对立方向一票否决不变**：清热证里的温阳药、温阳证里的清热药照旧驳回（OPPOSING 分支）；
+//   · 剂量上下限、十八反十九畏、特殊人群、灵犀审方一条不减，君药方向仍须与 P1 对齐。
+const THERAPY_CONCEPT_FACT_SUPPORT: ReadonlyArray<readonly [TcmTherapyConcept, RegExp]> = [
+  ["heat_clear", GROUNDED_HEAT_FACT_PATTERN],
+  // 痛证与瘀象是活血类加味的经典指征（川芎治头身痛、丹参治胸痹刺痛）。
+  ["blood_move", /头痛|头身疼痛|身痛|身疼|肢体疼痛|关节疼痛|刺痛|痛处固定|夜间痛甚|拒按|舌暗|舌紫|紫暗|瘀斑|瘀点|舌下络脉|血块|经血有块|痛经|肌肤甲错|面色晦暗|脉涩|癥瘕|包块/],
+  // 腑实/便秘是通下类加味的指征。
+  ["purge", /便秘|大便秘结|大便干|大便干结|大便硬|数日未(?:解|行)|腹胀满|腹满痛|腹痛拒按|矢气不通|苔黄燥|苔焦/],
+  // 寒象是温阳类加味的指征。**只收特异性里寒征**：舌淡、苔白、脉沉细在血虚/气虚里同样常见
+  //（实测「舌淡脉细」的心肝血虚失眠，若把舌淡计入，附子会被判方向成立而放行——那是误放行）；
+  // 恶寒同理排除，它是表证的主症，对应治法是解表而非温里。
+  ["yang_warm", /畏寒|形寒|肢冷|四肢不温|手足不温|喜温(?:喜按|饮)?|得温则(?:减|舒|缓)|遇冷加重|冷痛|脘腹冷|五更泻|完谷不化|下利清谷|小便清长/],
+  // 神昏窍闭是开窍类加味的指征。**只收真窍闭**：健忘、失眠多梦、心神不宁属安神范畴，
+  // 让它们支撑开窍会把麝香、冰片一类放进普通失眠方。
+  ["orifice_open", /神昏|昏迷|昏蒙|意识不清|谵语|窍闭|牙关紧闭|不省人事|中风闭证/],
+  // 结块痰核是软坚散结类加味的指征。
+  ["mass_soften", /瘰疬|痰核|癥瘕|积聚|包块|结节|肿块|甲状腺肿|乳癖|肝脾肿大/],
+];
+
+/**
+ * 签名 M03 已记录事实所支撑的高影响治法方向（症状指征通道）。
+ * 与治法文本通道并列：两者任一成立即视为该方向已成立。
+ */
+function priorDocumentedFactConcepts(prior: M03ReasoningLike | null | undefined): Set<TcmTherapyConcept> {
+  const supported = new Set<TcmTherapyConcept>();
+  const texts = groundedM03FactText(prior);
+  if (!texts) return supported;
+  for (const clause of clinicalClauses(texts)) {
+    if (isNegatedClinicalClause(clause)) continue;
+    for (const [concept, pattern] of THERAPY_CONCEPT_FACT_SUPPORT) {
+      if (pattern.test(clause)) supported.add(concept);
+    }
+  }
+  return supported;
+}
+
+/** 签名 M03 里可作为患者事实依据的 grounded 字段全集（两条支撑通道共用，避免口径漂移）。 */
+function groundedM03FactText(prior: M03ReasoningLike | null | undefined): string {
+  if (!prior) return "";
   const overview = prior.overview as { primarySyndromeBasis?: unknown } | undefined;
   const pathogenesis = prior.pathogenesis as {
     chain?: Array<{ patientFact?: unknown; syndromeEvidence?: unknown }>;
@@ -1719,7 +2099,7 @@ function priorDocumentedHeatFacts(prior: M03ReasoningLike | null | undefined): b
       const row = item as { item?: unknown; reason?: unknown; affects?: unknown };
       return [row.item, row.reason, row.affects].filter((value): value is string => typeof value === "string");
     });
-  const texts = [
+  return [
     ...(pathogenesis?.chain || []).flatMap((node) => [node.patientFact, node.syndromeEvidence]),
     ...(Array.isArray(overview?.primarySyndromeBasis) ? overview!.primarySyndromeBasis! : [overview?.primarySyndromeBasis]),
     ...(Array.isArray(westernPrimary?.supportingFacts) ? westernPrimary!.supportingFacts! : []),
@@ -1729,11 +2109,6 @@ function priorDocumentedHeatFacts(prior: M03ReasoningLike | null | undefined): b
     pathogenesis?.natureDifferentiation?.basis,
     ...uncertaintyTexts,
   ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；");
-  for (const clause of clinicalClauses(texts)) {
-    if (isNegatedClinicalClause(clause)) continue;
-    if (GROUNDED_HEAT_FACT_PATTERN.test(clause)) return true;
-  }
-  return false;
 }
 
 type HighImpactHerbLike = {
@@ -1818,15 +2193,21 @@ function unsupportedHighImpactHerbIssue(
   selectedFormulaNames: readonly string[] = [],
 ): string | undefined {
   const required = requiredTherapyConcepts(prior);
-  const documentedHeatSupport = priorDocumentedHeatFacts(prior);
+  // 症状指征通道：M03 治法文本未明写该方向时，签名病历里的对应症状事实同样构成成立依据
+  //（锁定方 + 基于症状的加减）。对立方向否决在下方独立执行，不受本通道影响。
+  const factSupported = priorDocumentedFactConcepts(prior);
+  // 基准组成豁免必须按**药材身份**比对，不能按原始字符串：基准写「当归身」「择细黄连」这类
+  // 饮片/部位名，模型按规范名写「当归」「黄连」，字符串相等永远对不上——实测清胃散被 M03 锁定后，
+  // 它自己的当归仍以 blood_move 被驳回，整方 0 味。canonicalTcmHerbIdentity 两侧同归一，
+  // 当归身与当归收敛到同一身份；解析不了的名字保持原样，不会误并。
   const governedFormulaIngredients = allowGovernedFormulaBaseline
     ? new Set(executableFormulaCompilationReferences(
         selectedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim())),
-      ).flatMap((formula) => formula.ingredients))
+      ).flatMap((formula) => formula.ingredients).map((name) => canonicalTcmHerbIdentity(name)))
     : new Set<string>();
   for (const [index, herb] of herbs.entries()) {
     const herbName = String(herb.name || "").trim();
-    if (governedFormulaIngredients.has(herbName)) continue;
+    if (governedFormulaIngredients.has(canonicalTcmHerbIdentity(herbName))) continue;
     if (isControlledCounterAssistanceHerb(herbs, index, prior, required)) continue;
     const intendedUse = [herb.prescriptionRole, herb.targetPathogenesis]
       .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
@@ -1854,8 +2235,7 @@ function unsupportedHighImpactHerbIssue(
         (knowledgeConcept === right && required.has(left))))
     ;
     const unsupported = [...new Set([
-      ...[...highImpact].filter((concept) =>
-        !required.has(concept) && !(concept === "heat_clear" && documentedHeatSupport)),
+      ...[...highImpact].filter((concept) => !required.has(concept) && !factSupported.has(concept)),
       ...opposingLocked,
     ])];
     if (unsupported.length > 0) return `herb_${index}_unsupported_high_impact_${unsupported.join("_")}`;
@@ -1869,6 +2249,165 @@ export function highImpactHerbDirectionIssue(
   prior: M03ReasoningLike | null | undefined,
 ): string | undefined {
   return unsupportedHighImpactHerbIssue([{ name: herbName, function: declaredFunction }], prior);
+}
+
+/**
+ * 单味药的高影响方向判定，入参是**完整候选行**而不是拼接后的功用串。
+ *
+ * 确定性剔除必须与门禁走同一个入口：门禁读 prescriptionRole/targetPathogenesis（并剥离
+ * 「知识库功用：」尾巴、排除占位符），而按字符串拼接再调 highImpactHerbDirectionIssue 只会
+ * 落到 herb.function 分支，两条口径判定不一致——该剔的没剔，门禁照样驳回，整方仍然作废
+ *（实测感冒-风寒束表：前胡 heat_clear 未成立，剔除未命中，全方 0 味）。
+ */
+export function m04HerbDirectionIssue(
+  herb: HighImpactHerbLike,
+  prior: M03ReasoningLike | null | undefined,
+  allowGovernedFormulaBaseline = false,
+  selectedFormulaNames: readonly string[] = [],
+): string | undefined {
+  return unsupportedHighImpactHerbIssue([herb], prior, allowGovernedFormulaBaseline, selectedFormulaNames);
+}
+
+/**
+ * 药味「身份级」高影响方向 = 功能分类 ∪ 风险画像 ∪ 受治理高影响映射。
+ *
+ * 与 herbHighImpactConcepts 的关键区别：**不看合并功用文本里顺带提到的次要功效**。
+ * 中药功用文本天然复合（石菖蒲「化湿开胃，化痰开窍，解毒杀虫，益心益智」、安息香「开窍醒神，
+ * 行气活血」），把整段功用文本当成「本方声明的方向」会把全部次要功效升格为高影响声明。
+ * 该药真正进入本方时承担的是它被列入的那个方向：编译层把 prescriptionRole 写成
+ * `${role}药：${node.therapyDirection}`，验证层 unsupportedHighImpactHerbIssue 看到的就是
+ * 该 M03 治法方向，而不是全功用文本。分类/风险/受治理映射是这味药的身份，才是短名单该看的。
+ */
+function herbIdentityHighImpactConcepts(name: string): Set<TcmTherapyConcept> {
+  return new Set([
+    ...tcmTherapyConcepts(getTcmHerbFunctionCategories(name).join("；")),
+    // 功用文本必须进这个集合。本地分类词表的粒度不足以承载「身份级方向」这个判断：乌药、九香虫、
+    // 刀豆、土木香在分类词表里**只标了「理气药」**，它们的温里作用（温肾散寒／温中／温中下气／
+    // 温中理气）只存在于功用文本里。只看分类词会让这四味药在纯理气证（P1=胃气上逆、治法仅
+    // 「和胃降逆」，M03 未确立温阳方向）的短名单里放行——把未成立的高影响方向送进君药候选。
+    // scripts/test-tcm-formula-provenance.mjs 的
+    // assert.doesNotMatch(理气方向短名单, /乌药|九香虫|刀豆|土木香/) 就是这条不变量。
+    //
+    // 合并功用文本确实嘈杂（getTcmHerbFunctionText 会把历史条文按分数重排后取前 5 条），
+    // 石菖蒲的「解毒杀虫」被算成 heat_clear 是真实的误杀。但解法不是在这里整体调松——那会
+    // 连同上面四味药一起放行。误杀按**逐味受控治理**处理：把该药的药典功用句写进
+    // tcm-knowledge.ts 的 CONTROLLED_HERB_FUNCTION_TEXT（玉竹、柴胡已是先例），
+    // 让这一味药的功用面回到药典口径，而不是让全部药味的方向门禁一起降级。
+    ...tcmTherapyConcepts(herbKnowledgeFunctionText(name)),
+    ...tcmTherapyConcepts(getTcmHerbRiskProfile(name)),
+    ...getTcmHerbGovernedHighImpactConcepts(name),
+  ].filter((concept) => HIGH_IMPACT_THERAPY_CONCEPTS.has(concept)));
+}
+
+/**
+ * M04 君药/药味短名单的方向准入判定（选择引导，不是安全裁决，故返回 boolean 而不是驳回码）。
+ *
+ * 这里刻意不复用 highImpactHerbDirectionIssue：短名单原先把**整段合并功用文本**当
+ * declaredFunction 传进去，等于宣称「这味药在本例里要发挥它记载过的全部作用」，于是
+ * herbHighImpactConcepts 里 intendedConcepts === fullFunctionConcepts，declaredFunction 的
+ * 区分机制被完全短路。结果是短名单比它本该预测的那个校验器**更严**：最正统的开窍药石菖蒲
+ * 因功用文本含「解毒杀虫」被判 heat_clear 未成立而剔除，安息香因「行气活血」被剔除，开窍
+ * 方向只剩 1 味可选——纯属自伤。
+ *
+ * 两条安全控制原样保留、没有任何放宽：
+ * 1) 身份级高影响方向未在 M03 锁定治法（或已记录热象事实）中成立 ⇒ 不进短名单
+ *    （鳖甲 governed=mass_soften、红豆蔻/黄连的清热分类在温里病例里仍被挡）。
+ * 2) 寒热极性不变量取**全知识面**（功用文本 + 分类 + 风险），与已锁定方向相反的高影响概念
+ *    一票否决——「温里病例里混进清热药」这类错误照旧拦截。
+ */
+export function herbShortlistDirectionEligible(
+  herbName: string,
+  prior: M03ReasoningLike | null | undefined,
+): boolean {
+  const required = requiredTherapyConcepts(prior);
+  if (required.size === 0) return false;
+  // 正向相关性：这味药必须至少落实一条本例已成立的治法方向。此前这里只有「排除」没有「相关」，
+  // 一味与本例毫不相干、又恰好没有高影响作用的药可以一路畅通——实测心脾两虚（补益心脾，养血安神）
+  // 病例里麻黄判为可任君药，因为它的解表/止咳都不在高影响集内。调用方按方向分桶掩盖了这个洞，
+  // 但准入判定本身不该依赖调用方的分桶才成立。
+  if (![...herbTherapyConcepts(herbName)].some((concept) => required.has(concept))) return false;
+  const factSupported = priorDocumentedFactConcepts(prior);
+  const unsupportedIdentity = [...herbIdentityHighImpactConcepts(herbName)].some((concept) =>
+    !required.has(concept) && !factSupported.has(concept));
+  if (unsupportedIdentity) return false;
+  return ![...herbTherapyConcepts(herbName)].some((concept) =>
+    HIGH_IMPACT_THERAPY_CONCEPTS.has(concept) &&
+    OPPOSING_THERAPY_CONCEPTS.some(([left, right]) =>
+      (concept === left && required.has(right)) || (concept === right && required.has(left))));
+}
+
+/**
+ * 风险画像里真正属于「风险」的那一段。
+ *
+ * getTcmHerbRiskProfile 返回 `风险类目；中文风险描述；分类；分类…`，尾部只是把功能分类又抄了
+ * 一遍。整串取概念会让分类字段的噪声混进风险信号：龙眼肉的回声里带着错误的「补阳药」，
+ * 于是这味《药典》功用写着「补益心脾，养血安神」的补血药被判成 yang_warm，在心脾两虚病例里
+ * 被自己的短名单剔除。分类该由分类字段负责，风险画像只负责它的风险类目
+ * （WARMING_INTERIOR / PURGATIVE_ATTACK / BLOOD_STASIS / BITTER_COLD_HEAT_CLEARING /
+ * AROMATIC_ORIFICE…），取前两段即可。
+ */
+function herbRiskClassText(name: string): string {
+  return getTcmHerbRiskProfile(name).split("；").slice(0, 2).join("；");
+}
+
+/**
+ * 药味「受治理身份」的高影响方向 = 功能分类 ∪ 风险类目 ∪ 受治理映射。
+ *
+ * 与 herbIdentityHighImpactConcepts 只差一处：**不读合并功用文本**。这处差别是有边界依据的，
+ * 不是放松——两者回答的是不同的问题：
+ *   - 功能分类/风险类目/受治理映射回答「这味药是干什么的」：大黄=攻下药、丹参=活血化瘀药、
+ *     黄连=清热药、红豆蔻=温里药、麝香=开窍药、鳖甲=软坚。这是**主要作用**，也是被选进方里的理由。
+ *   - 合并功用文本回答「这味药记载过什么」：它是多条历史条文的并集，几乎每味经典药都会顺带
+ *     记载一个高影响作用——当归「补血活血」、甘草「清热解毒」、党参「清肺」、山楂「行气散瘀」。
+ *     这些是**伴随作用**，不是这味药被开进方里的理由。
+ *
+ * 把伴随作用当成主要作用来筛，代价是可证的：心脾两虚（治法「补益心脾，养血安神」）病例里，
+ * 当归、党参、甘草、龙眼肉会被自己的短名单全部剔除——归脾汤 12 味中的 4 味，医生一眼就能
+ * 看出名单是错的，而这正是「中药味数太少」的直接来源。伴随作用真正的风险出口另有其人：
+ * 寒热极性一票否决（下方第 3 条，仍取全知识面）、妊娠/出血等特殊人群规则、以及灵犀审方。
+ */
+function herbCuratedHighImpactConcepts(name: string): Set<TcmTherapyConcept> {
+  const narrowedOut = highImpactTriggerNarrowedOut(name);
+  return new Set([
+    ...tcmTherapyConcepts(getTcmHerbFunctionCategories(name).join("；")),
+    ...tcmTherapyConcepts(herbRiskClassText(name)),
+    ...getTcmHerbGovernedHighImpactConcepts(name),
+  ].filter((concept) => HIGH_IMPACT_THERAPY_CONCEPTS.has(concept) && !narrowedOut.has(concept)));
+}
+
+/**
+ * 臣佐使配伍候选的方向准入（需求11：药味数尽可能多，但每一味都要合理且有依据）。
+ *
+ * 与 herbShortlistDirectionEligible（君药面）并列而不是替代它。君药决定全方走向，用「记载过
+ * 什么」这种保守口径筛是站得住的——乌药/九香虫/刀豆/土木香的温里作用只写在功用文本里，
+ * 让它们做纯理气证的君药确实不该。但同一把尺子量到臣佐使就过界了：配伍药承担的是它被列入的
+ * 那个方向，伴随作用不构成选它的理由。
+ *
+ * 三条准入，各自用有效范围内的信号：
+ * 1) **正向相关**（新增）：这味药必须至少落实一条本例已成立的治法方向。原先的短名单只做排除，
+ *    从不检查「这味药到底为本例做什么」——一味与本例毫无关系、又恰好没有高影响作用的药可以
+ *    一路畅通。需求11 要的是「多且有依据」，依据就落在这一条上。
+ * 2) **受治理身份级高影响方向必须成立**：见 herbCuratedHighImpactConcepts。大黄、丹参、黄连、
+ *    红豆蔻、附子、麝香、石菖蒲、鳖甲、远志在方向未成立时照旧挡在门外。
+ * 3) **寒热极性一票否决**：取全知识面（功用文本 ∪ 分类），与君药面同一条不变量，一字未放宽。
+ *    「温里病例里混进清热药」「清热病例里混进温阳药」照旧拦截。
+ */
+export function herbCombinationDirectionEligible(
+  herbName: string,
+  prior: M03ReasoningLike | null | undefined,
+): boolean {
+  const required = requiredTherapyConcepts(prior);
+  if (required.size === 0) return false;
+  const knowledgeConcepts = herbTherapyConcepts(herbName);
+  if (![...knowledgeConcepts].some((concept) => required.has(concept))) return false;
+  const factSupported = priorDocumentedFactConcepts(prior);
+  const unsupportedIdentity = [...herbCuratedHighImpactConcepts(herbName)].some((concept) =>
+    !required.has(concept) && !factSupported.has(concept));
+  if (unsupportedIdentity) return false;
+  return ![...knowledgeConcepts].some((concept) =>
+    HIGH_IMPACT_THERAPY_CONCEPTS.has(concept) &&
+    OPPOSING_THERAPY_CONCEPTS.some(([left, right]) =>
+      (concept === left && required.has(right)) || (concept === right && required.has(left))));
 }
 
 function setsIntersect<T>(left: ReadonlySet<T>, right: ReadonlySet<T>): boolean {
@@ -1923,12 +2462,49 @@ export function transparentFormulaTherapyIssue(
   const candidate = reasoning?.formula?.candidates?.[0];
   if (!candidate || !prior || prior.stage !== "diagnose") return "transparent_therapy_contract_missing";
   const required = requiredTherapyConcepts(prior);
-  if (required.size === 0) return "transparent_therapy_unresolved";
+  // 治法解析为空 = **本系统的词表没覆盖到这条治法**，不等于「这张方的治法不成立」。
+  // 把能力边界当成临床错误，代价是整方作废、医生一无所获——实测腰痛-肾阴虚就因治法写
+  //「滋补肾阴」（受控词表收录、但概念正则当时未覆盖）被判 unresolved、0 味。
+  //
+  // 国标治法词表共 1240 条，其中 282 条是针灸/推拿/注射/切开等**操作疗法**、42 条是外科
+  // 疮疡外治，它们本来就没有对应的药味方向；即便把内服治法覆盖到 96%，仍会有长尾。
+  // 因此这里改为：方向核验能力不可用时**跳过该维度**，其余检查（药味知识、剂量边界、
+  // 十八反十九畏、特殊人群、君臣结构、灵犀审方）一条不减，并保持医师复核与审方兜底。
+  // 这与项目的 fail-closed 一致——fail-closed 是「不放行未经核验的剂量」，
+  // 不是「把系统不认识的治法判成错误」。
+  const therapyDirectionVerifiable = required.size > 0;
   const primaryRequired = primaryPathogenesisTherapyConcepts(prior);
   const coverageRequired = primaryRequired.size > 0 ? primaryRequired : required;
 
   const allHerbs = candidate.herbs || [];
-  const highImpactIssue = unsupportedHighImpactHerbIssue(allHerbs, prior);
+  // 与 m04SemanticIssue 里那道同名检查用**同一套豁免**：命名方基准药味不重复判高影响方向。
+  // 此前这里少传后两个参数（allowGovernedFormulaBaseline / selectedFormulaNames），于是同一味药
+  // 在前一道门按「它是所选经典方的法定组成」放行、在这道门被判「方向未成立」驳回——两道门对同一
+  // 张方给出相反结论，M04 只能反复修复直到 120s 编排时限，医生最终拿到的是一页「无法形成处方」。
+  //
+  // 实测（公开医案，肝阳上亢兼痰热扰心，治法「平肝潜阳，清热化痰，宁心安神」）：
+  // m04_candidate_0_transparent_therapy_herb_2_unsupported_high_impact_yang_warm。
+  // 触发药是半夏——温化寒痰药，身份带 yang_warm，而它正是温胆汤/黄连温胆汤的核心组成，
+  // 原医案用的也是它（方中另有黄芩、竹茹、胆南星等寒凉药制约其温性）。
+  // 这不是「把温药塞进热证」，是经典方自身的配伍结构，理应由命名方基准豁免承接。
+  // 基准方名取「候选自带 ∪ M03 已锁定」。只看候选自带的那一半在**透明降级**路径上必然为空：
+  // 降级的定义就是剥掉方名身份，formulaNames 被清空，于是这张方自己的法定组成失去豁免依据。
+  //
+  // 实测 10 例甲方测试病历：M03 锁定命名方 6 例，其中 5 例最终 0 味出方，驳回码全是
+  // transparent_therapy_*_unsupported_high_impact_*——被判的正是经典方自己的组成
+  // （龙胆泻肝汤的当归、清胃散的生地丹皮、六味地黄丸的牡丹皮，都带 blood_move）。
+  // 降级是为了不冒用方名，不是为了否定组成；这些药的正当理由来自 M03 锁定的那张方，
+  // 剥标签不该连理由一起剥掉。反过来，M03 没锁方时该集合为空，判定与此前完全一致。
+  const baselineFormulaNames = [...new Set([
+    ...(governedFormulaNames(candidate.formulaNames) || []),
+    ...(governedFormulaNames(prior.overview?.recommendedFormulaNames) || []),
+  ])];
+  const highImpactIssue = unsupportedHighImpactHerbIssue(
+    allHerbs,
+    prior,
+    true,
+    baselineFormulaNames,
+  );
   if (highImpactIssue) return `transparent_therapy_${highImpactIssue}`;
   const therapeuticHerbs = allHerbs.filter((herb) => herb.targetKind !== "formula_structure");
   if (therapeuticHerbs.length === 0) return "transparent_therapy_herbs_missing";
@@ -1936,9 +2512,71 @@ export function transparentFormulaTherapyIssue(
   if (herbConcepts.some((concepts) => concepts.size === 0)) return "transparent_therapy_herb_knowledge_missing";
 
   const coveredRequired = [...coverageRequired].filter((concept) => herbConcepts.some((concepts) => concepts.has(concept)));
-  const directlySupportingHerbs = herbConcepts.filter((concepts) => setsIntersect(concepts, coverageRequired)).length;
-  if (coveredRequired.length / coverageRequired.size < 0.5) return "transparent_therapy_coverage";
-  if (directlySupportingHerbs / therapeuticHerbs.length < 0.5) return "transparent_therapy_herb_support";
+  // 基准方组成身份集：出现在 M03 锁定（或候选自带）经典方法定组成里的药味，其在方中的正当性
+  // 来自方剂本身——方剂与证候的对齐已由 M03 的正向充分性核验完成，这里不重复要求它的功用词
+  // 再命中治法词表。P1 内核下限与君臣支撑率两处同用这一豁免（六味地黄丸"三补三泻"，
+  // 词表口径下只有熟地黄一味纯滋阴，任何按功用词计数的下限都会误伤这类结构）。
+  const baselineIngredientIdentities = new Set(
+    executableFormulaCompilationReferences(baselineFormulaNames)
+      .flatMap((reference) => reference.ingredients)
+      .map((name) => canonicalTcmHerbIdentity(name)),
+  );
+  const herbInBaseline = (index: number): boolean =>
+    baselineIngredientIdentities.has(canonicalTcmHerbIdentity(String(therapeuticHerbs[index]?.name || "")));
+  const directlySupportingHerbs = herbConcepts.filter((concepts, index) =>
+    setsIntersect(concepts, coverageRequired) || herbInBaseline(index)).length;
+  // 「已支撑」的口径必须与 unsupportedHighImpactHerbIssue 一致：那里允许一味清热药由**已记录的
+  // 热象患者事实**支撑，即使锁定治法文本只写了平肝潜阳。若这里只认锁定治法，同一味药会被上一道
+  // 门放行、被下一道门驳回——医生看到的是无从解释的拒绝，而两处策略本应是同一条。
+  // 典型用例：P1=肝阳上亢/治法=平肝潜阳，舌红苔薄黄已记录，方中天麻(平肝)+黄芩(清肝泻火)。
+  // 「已锁定方向」必须取全集。requiredTherapyConcepts 只读 therapy.overallPrinciple 和
+  // chain[].therapyDirection，**不读 therapy.overallMethod**；而 coverageRequired 走的
+  // primaryPathogenesisTherapyConcepts 是读的。若下面这道门只用前者，一味支撑写在 overallMethod
+  // 里的治法的药就会被判成「不落在任何锁定方向上」——实测：治法「调畅头部气血，安神定志」，
+  // 方为川芎(活血)+酸枣仁(安神)，安神定志只出现在 overallMethod，酸枣仁因此被判无支撑，
+  // 1/2=0.5 未过 0.8。overallMethod 同样是 M03 已锁定的治法，必须计入。
+  // 症状指征通道与上方高影响门同一口径：一味药的方向由已记录症状事实支撑时，
+  // 它同样算「落在已成立方向上」，否则同一味药会被上一道门放行、被这道门驳回。
+  const factSupportedConcepts: TcmTherapyConcept[] = [...priorDocumentedFactConcepts(prior)];
+  const supportedDirections = new Set<TcmTherapyConcept>([
+    ...required,
+    ...coverageRequired,
+    ...factSupportedConcepts,
+  ]);
+  // 支撑判定按「角色的有效范围」计（阈值放宽与角色豁免同时执行）：
+  //
+  // 1) **分母只算君臣**。君臣定义全方治疗方向，要求它们落在已锁定治法方向上是合理的；
+  //    佐使的职责本来就不是攻主病机——龙胆泻肝汤的当归（佐，养血防苦寒伤阴）、甘草（使，
+  //    调和诸药）按定义就"不支撑"清肝泻火，把它们算进 80% 分母等于禁止经典方的君臣佐使
+  //    结构本身。实测 10 例甲方病历里 3 例（六味地黄丸/清胃散/龙胆泻肝汤）栽在这条上。
+  //    佐使并非失管：高影响方向门禁（上方 unsupportedHighImpactHerbIssue）对每一味照常执行，
+  //    附子做佐药混进热证照旧驳回；十八反十九畏、剂量、特殊人群检查也都按味覆盖。
+  // 2) **基准方组成计为支撑**。一味药出现在 M03 锁定（或候选自带）经典方的法定组成里，
+  //    它在方中的正当性来自方剂本身，与其功用词是否命中治法词表无关。
+  // 3) 模型未标角色（全部无 role）时退回旧口径——按全体治疗性药味算，防止靠"不标角色"绕过。
+  const coreRoleHerbs = therapeuticHerbs
+    .map((herb, index) => ({ herb, concepts: herbConcepts[index], index }))
+    .filter(({ herb }) => herb.role === "君" || herb.role === "臣");
+  const supportAccountable = coreRoleHerbs.length > 0
+    ? coreRoleHerbs
+    : therapeuticHerbs.map((herb, index) => ({ herb, concepts: herbConcepts[index], index }));
+  const lockedSupportingHerbs = supportAccountable.filter(({ concepts, index }) =>
+    setsIntersect(concepts, supportedDirections) || herbInBaseline(index)).length;
+  // 方向不可核验时跳过覆盖率与君臣支撑率——它们都以「已锁定治法方向」为分母，
+  // 分母不存在时这两个比值没有意义，强行判定等于用未知否定候选。
+  if (therapyDirectionVerifiable && coveredRequired.length / coverageRequired.size < 0.5) return "transparent_therapy_coverage";
+  // 主病机 P1 方向必须有真实的君臣内核，但内核规模不应被整方味数稀释成百分比。旧规则是
+  // directlySupportingHerbs / therapeuticHerbs >= 0.5，等价于把自拟方味数上限锁死在
+  // ≈2×P1方向药味数：实测同一 prior 下 4 味通过、8 味恰好 0.50 通过、11 味即 0.36 被驳。
+  // 它拦的是「P1 没有内核」，用绝对下限表达更准，且不再随味数增长自动收紧。
+  // 内核下限随方剂规模伸缩。写死 min(2, n) 会要求一张 2 味方把两味都压在 P1 上，
+  // 于是「一味主攻 P1 + 一味应对已记录患者事实」这种完全合理的小方被驳回
+  // （实测：天麻平肝 + 黄芩清肝泻火，舌红苔薄黄已记录 —— 旧比例规则 1/2=0.5 是通过的）。
+  // 3 味以上才要求 2 味内核：既保住「P1 不能没有君臣」，又不给小方施加它无法满足的绝对值。
+  const p1CoreFloor = therapeuticHerbs.length >= 3 ? 2 : 1;
+  if (directlySupportingHerbs < p1CoreFloor) return "transparent_therapy_herb_support";
+  // 君臣核心里几乎每味都必须落在某条已锁定治法方向上（或属基准方组成），杜绝"凑数量"。
+  if (therapyDirectionVerifiable && lockedSupportingHerbs / supportAccountable.length < 0.8) return "transparent_therapy_herb_support";
 
   return undefined;
 }
@@ -2120,6 +2758,12 @@ function dosePassesSafetySanityCeiling(name: string, dose: string): boolean {
 function doseWithinConservativeModelLimit(name: string, dose: string, decoctionMethod: string): boolean {
   const grams = doseInGrams(dose);
   const limit = getTcmHerbDoseLimit(name);
+  // 「由医师确定用量」类成分（无法定数值边界）：系统不比对边界，因为根本没有边界可比。
+  // 它们照旧要求写出一个可解析的数值剂量（不接受空值或占位），并在 HIS 载荷里按类别标注
+  // unverified_dose / toxic_regulated，最终由医师确认并经灵犀审方复核。
+  // 这是甲方 2026-08-01 的显式决策：此前 fail-closed 让 1352/2915 的方一被锁定就只能返回
+  // 非剂量结果；现在把「这一味的量由谁负责」讲清楚，而不是整张方作废。
+  if (grams != null && isClinicianDoseHerb(name)) return true;
   if (grams == null || limit?.min == null || limit.max == null) return false;
   const routeMatchedAlternatives = (limit.alternatives || []).filter((range) =>
     range.sourceType === "routeDose" &&
@@ -2346,67 +2990,25 @@ function followUpConsistent(course: string, followUpNode: string): boolean {
 }
 
 /**
- * 随访监测语义边界：trigger 必须带条件或动作，metric 不得带。
+ * 已删除：随访监测（nonPharma.monitoring）的 metric/timing/trigger 语义合同。
  *
- * 单一事实来源：m04-proposal-compiler 原先复制了一份字面量并注释「Shared with the stage contract」，
- * 但两份是各自独立的常量——改一处不会同步另一处，编译层放行的行会被合同层拒掉。改为导出共用。
+ * 原先这里有 MONITORING_ACTION_OR_CONDITION 词表、monitoringMetricGroundedInPrior 与
+ * monitoringSemanticIssue，共产出 5 个 M04 驳回码：monitoring_N_incomplete /
+ * _metric_semantics / _trigger_semantics / _duplicate / _metric_ungrounded。任一命中即整份
+ * M04 被驳回（prescribe 路由抛 finalized_prescription_*），一张已通过剂量、十八反十九畏、
+ * 特殊人群与审方的处方就此作废。
  *
- * 分层职责：编译层用它**丢弃**畸形监测行（Tier-3 确定性归一），合同层用它**校验**幸存的行。
- * 词表本身穷举不完随访表述，因此它只应停留在这个形式层，不承担安全判断。
+ * 为什么删除是净安全收益：
+ * 1) 它防的是「文案的字段语义分离与措辞归属」，不是临床安全。红旗/剂量放行的权威在
+ *    withSafetyGate，处方后审方的权威在 rxaudit，两者都完全不读 nonPharma.monitoring。
+ * 2) 这 5 个码在 structured-clinical-repair.ts 里本就没有任何修复引导语
+ *    （buildM04ClinicalRepairHint 对 m04_monitoring_* 返回空串），命中后模型拿到的是裸码，
+ *    只能盲目重采样直到 M04_ORCHESTRATION_DEADLINE_MS 把可用结果降级为签名受限输出。
+ * 3) 替代字段 nonPharma.precautions 是零驳回码的自由文本：「必有内容」由
+ *    m04-proposal-compiler 的 deterministicPrecautions 确定性兜底提供，而不是靠驳回；
+ *    「不得混入剂量」由编译层的 PRECAUTION_DOSE_LIKE 逐条剥离承担（丢该行、不丢整份处方）。
+ * 因此合同层对注意事项刻意**不做任何校验**，也不要重新加回来。
  */
-export const MONITORING_ACTION_OR_CONDITION = /(?:若|如|一旦|当|出现|发生|加重|无改善|未缓解|请|应|需|建议|联系|复诊|就医|调整|暂停|停药|转诊|急诊)/;
-
-function normalizedMonitoringText(value: string): string {
-  return value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]]+/g, "");
-}
-
-function monitoringMetricGroundedInPrior(metric: string, prior?: M03ReasoningLike | null): boolean {
-  if (!prior) return false;
-  const anchors = [
-    ...nonEmptyStringList(prior.overview?.primarySyndromeBasis),
-    ...nonEmptyStringList(prior.westernDiagnosis?.primary?.supportingFacts),
-    ...(prior.pathogenesis?.chain || []).flatMap((item) => [item.patientFact, item.syndromeEvidence])
-      .filter((item): item is string => typeof item === "string" && Boolean(item.trim())),
-  ];
-  const normalizedMetric = normalizedMonitoringText(metric);
-  if (anchors.some((anchor) => {
-    const normalizedAnchor = normalizedMonitoringText(anchor);
-    return normalizedAnchor.length >= 2 &&
-      (normalizedMetric.includes(normalizedAnchor) || normalizedAnchor.includes(normalizedMetric));
-  })) return true;
-  const metricAliasGroups = [
-    /入睡时间|入睡耗时|夜醒|睡眠时长|睡眠质量/,
-    /疼痛(?:评分|程度)|痛感|活动距离|步行距离/,
-    /发作次数|发作频次/,
-  ];
-  if (metricAliasGroups.some((alias) =>
-    alias.test(metric) && anchors.some((anchor) => {
-      if (alias.source.includes("入睡")) return /失眠|不寐|入睡|睡眠|夜醒/.test(anchor);
-      if (alias.source.includes("疼痛")) return /痛|疼/.test(anchor);
-      return /发作|反复|次数|频次/.test(anchor);
-    }))) return true;
-  return GROUNDED_FACT_GROUPS.some((group) =>
-    group.test(metric) && anchors.some((anchor) => group.test(anchor)));
-}
-
-function monitoringSemanticIssue(
-  monitoring: Array<{ metric?: unknown; timing?: unknown; trigger?: unknown }>,
-  prior?: M03ReasoningLike | null,
-): string | undefined {
-  for (const [index, item] of monitoring.entries()) {
-    const metric = typeof item.metric === "string" ? item.metric.trim() : "";
-    const timing = typeof item.timing === "string" ? item.timing.trim() : "";
-    const trigger = typeof item.trigger === "string" ? item.trigger.trim() : "";
-    if (!metric || !timing || !trigger) return `monitoring_${index}_incomplete`;
-    if (MONITORING_ACTION_OR_CONDITION.test(metric)) return `monitoring_${index}_metric_semantics`;
-    if (!MONITORING_ACTION_OR_CONDITION.test(trigger)) return `monitoring_${index}_trigger_semantics`;
-    const normalized = [metric, timing, trigger].map(normalizedMonitoringText);
-    if (new Set(normalized).size !== normalized.length) return `monitoring_${index}_duplicate`;
-    if (prior && !monitoringMetricGroundedInPrior(metric, prior)) return `monitoring_${index}_metric_ungrounded`;
-  }
-  return undefined;
-}
-
 export function m04SemanticIssue(
   reasoning: M04ReasoningLike | null | undefined,
   visibleContent = "",
@@ -2421,18 +3023,14 @@ export function m04SemanticIssue(
   const candidates = reasoning?.formula?.candidates;
   if (reasoning?.stage !== "prescribe") return "stage";
   const nonPharma = reasoning.nonPharma;
+  // 语义收窄：只要求饮食/起居/情志三段调护非空。注意事项（precautions）刻意不在这里校验——
+  // 它是零驳回码字段，专业度由提示词在生成侧要求，内容兜底由编译层确定性提供。
   if (
     !nonPharma ||
     typeof nonPharma.diet !== "string" || !nonPharma.diet.trim() ||
     typeof nonPharma.lifestyle !== "string" || !nonPharma.lifestyle.trim() ||
-    typeof nonPharma.emotion !== "string" || !nonPharma.emotion.trim() ||
-    !Array.isArray(nonPharma.monitoring) || nonPharma.monitoring.length === 0
+    typeof nonPharma.emotion !== "string" || !nonPharma.emotion.trim()
   ) return "non_pharma_incomplete";
-  const monitoringIssue = monitoringSemanticIssue(
-    nonPharma.monitoring as Array<{ metric?: unknown; timing?: unknown; trigger?: unknown }>,
-    priorReasoning,
-  );
-  if (monitoringIssue) return monitoringIssue;
   const treatmentProjects = Array.isArray(nonPharma.tcmTreatments) ? nonPharma.tcmTreatments : [];
   const treatmentNodeIds = new Set((priorReasoning?.pathogenesis?.chain || [])
     .map((node, index) => String(node.nodeId || `P${index + 1}`)));
@@ -2612,6 +3210,208 @@ export function m04SemanticIssue(
     const removal = action.match(/(?:^|时|则|可|建议)(?:减去|减量|减|去掉|去|删除|停用)([\u4e00-\u9fa5]{1,8})/);
     if (removal && !prescribedHerbs.has(removal[1])) return `modification_${modificationIndex}_missing_herb`;
     const addition = action.match(/(?:^|时|则|可|建议)(?:加入|加用|新增|加)([\u4e00-\u9fa5]{1,8})/);
+    if (addition && isKnownHerbName && !isKnownHerbName(addition[1])) return `modification_${modificationIndex}_unknown_herb`;
+    if (addition && priorReasoning) {
+      const highImpactIssue = unsupportedHighImpactHerbIssue([{
+        name: addition[1],
+        function: [modification.reason, modification.targetPathogenesis]
+          .filter((value): value is string => typeof value === "string")
+          .join("；"),
+      }], priorReasoning);
+      if (highImpactIssue) return `modification_${modificationIndex}_${highImpactIssue}`;
+    }
+  }
+  // 覆盖不足放在最后：它是 T2，绝不能短路掉排在它前面的任何安全检查。
+  if (priorReasoning) {
+    const coverageIssue = m03NodeCoverageIssue(reasoning, priorReasoning);
+    if (coverageIssue) return coverageIssue;
+  }
+  return undefined;
+}
+
+/**
+ * 病机节点覆盖：M03 每个声明了治法方向的节点，都必须至少有一味药承接。
+ *
+ * 这是「处方不得超出诊断」的反方向，而它此前在全仓库不存在。超出的一侧被三重把守——
+ * crossStageReasoningIssue 的 target_ref_invalid / _mismatch / _missing 要求每味药都指向真实节点，
+ * unsupportedHighImpactHerbIssue 再禁止药味超出 M03 已签名方向；反方向（M03 的每个 Pn 是否
+ * 真的被处方覆盖）没有任何检查。实测：M03 给出 P1 脾胃虚弱 与 P2 脾虚湿盛，一张把全部药味都绑在
+ * P1、完全无视 P2 的处方，可以通过包括 T1 硬门在内的每一道检查。
+ *
+ * 唯一近似的覆盖检查 transparentFormulaTherapyIssue 被 candidateNeedsKnowledgeCoverage 门死：
+ * 只在自拟方或未锁定方名时才跑，而 M03 成功锁定经典方恰恰是本产品主推路径。
+ *
+ * 分级为 T2（带批注受理）而非 T1：覆盖不足不影响这张方能不能安全服用，但医生必须被告知
+ * 「M03 提出的某个病机方向本次没有对应药味」——静默不覆盖比明确降级更危险，因为医生看不到缺口
+ * 就不会去补。只检查声明了 therapyDirection 的节点：没有治法方向的节点本就不要求药味承接。
+ */
+export function m03NodeCoverageIssue(
+  reasoning: M04ReasoningLike | null | undefined,
+  priorReasoning: M03ReasoningLike | null | undefined,
+): string | undefined {
+  const chain = priorReasoning?.pathogenesis?.chain || [];
+  if (chain.length === 0) return undefined;
+  const referenced = new Set(
+    (reasoning?.formula?.candidates || [])
+      .flatMap((candidate) => candidate.herbs || [])
+      .filter((herb) => herb.targetKind === "pathogenesis_node")
+      .map((herb) => String(herb.targetRef || "").trim())
+      .filter(Boolean),
+  );
+  for (const [index, node] of chain.entries()) {
+    const nodeId = String(node.nodeId || `P${index + 1}`).trim();
+    if (!nodeId) continue;
+    // 没有治法方向的节点不要求药味承接（例如仅描述病程或限制条件的节点）。
+    if (typeof node.therapyDirection !== "string" || !node.therapyDirection.trim()) continue;
+    if (!referenced.has(nodeId)) return `pathogenesis_node_uncovered_${nodeId}`;
+  }
+  return undefined;
+}
+
+/**
+ * m04SemanticIssue 的 T1 子集，为 M04「带批注受理」提供硬门禁。
+ *
+ * 为什么必须独立完整重跑（与 m03SafetyContractIssue 同理，但在 M04 上后果更重）：
+ * m04SemanticIssue 命中第一个问题就短路返回，而它的检查顺序**不反映临床严重度**——
+ * nonPharma.tcmTreatments 的 15 个字段完整性检查排在最前，早于跨阶段锁定字段、候选方、
+ * 剂量、十八反十九畏与特殊人群。实测：一张含甘草+甘遂（十八反）的处方，只要同时带一条
+ * 字段不全的中医治疗项目卡片，返回的就是 non_pharma_treatment_0_incomplete——配伍禁忌与
+ * 全部剂量、特殊人群检查根本没有执行。今天这不构成放行（任何码都整份驳回），但一旦把建议性
+ * 字段降级为可受理，只看拒绝码就等于放行了一张从未被安全检查过的剂量级处方。
+ *
+ * ★ 核心不变量（改动前必读）★
+ * 1) 本函数只调用 m04SemanticIssue 已经在用的同一批谓词，不重写任何判定——安全规则在本仓库
+ *    只存在一份。
+ * 2) 多码辅助函数一律按「绝对否决」处理：只要返回非空就阻断受理，不看分级。理由与 M03 相同——
+ *    它们内部同样短路，若按分级丢弃排在前面的码，排在后面的 T1 检查就永远执行不到。属此类的有：
+ *    crossStageReasoningIssue（含君药绑定与 M03 锁定字段漂移）、transparentFormulaTherapyIssue、
+ *    firstFormulaContraindicationIssue、m04GenerationSpecialPopulationIssue、
+ *    unsupportedHighImpactHerbIssue、prescriptionRegimenIssue、prescriptionRegimenContractIssue。
+ * 3) 展示层不参与安全判定：visibleContent 一律按空串处理。权威是结构化 JSON，可见正文由服务端
+ *    同步生成；用渲染结果反向否决临床结论是本末倒置。
+ *
+ * 不属于 T1 的（因此可降级为带批注受理）：建议性字段（nonPharma 全部、随症加减的措辞与接地）、
+ * 展示同步（visible_*）、药味行的叙述性字段（role/prescriptionRole/targetPathogenesis/function）、
+ * 以及煎服法与复诊节点的文本完整性——它们要么由服务端确定性生成，要么不改变这张方能否安全服用。
+ *
+ * 维护要求：往 m04SemanticIssue 新增任何安全承重检查时必须同步加到这里；
+ * scripts/test-m04-safety-contract.mjs 对遗漏做确定性断言。
+ */
+export function m04SafetyContractIssue(
+  reasoning: M04ReasoningLike | null | undefined,
+  priorReasoning?: M03ReasoningLike | null,
+  isKnownHerbName?: (name: string) => boolean,
+  trustedWorkbenchEdit = false,
+  auditedClinicalRisksAreAdvisory = false,
+  clinicalContext = "",
+): string | undefined {
+  if (reasoning?.stage !== "prescribe") return "stage";
+  // 锁定字段漂移与君药绑定：绝对否决。
+  const stageIssue = crossStageReasoningIssue(reasoning, priorReasoning, "", trustedWorkbenchEdit);
+  if (stageIssue) return stageIssue;
+  const candidates = reasoning.formula?.candidates;
+  if (!Array.isArray(candidates) || candidates.length === 0) return "candidates_empty";
+  if (candidates.length !== 1) return "candidate_count";
+
+  const candidateNeedsKnowledgeCoverage =
+    !trustedWorkbenchEdit &&
+    (candidates[0].constructionType === "self_devised" ||
+      !Array.isArray(candidates[0].formulaNames) ||
+      candidates[0].formulaNames.length === 0);
+  if (candidateNeedsKnowledgeCoverage && priorReasoning) {
+    const coverageIssue = transparentFormulaTherapyIssue(reasoning, priorReasoning);
+    if (coverageIssue) return `candidate_0_${coverageIssue}`;
+  }
+
+  for (const [candidateIndex, candidate] of candidates.entries()) {
+    if (!Array.isArray(candidate.herbs) || candidate.herbs.length === 0) return `candidate_${candidateIndex}_herbs_empty`;
+    const classicContraindicationIssue = !trustedWorkbenchEdit
+      ? firstFormulaContraindicationIssue(
+          [
+            typeof candidate.name === "string" ? candidate.name : "",
+            ...(Array.isArray(candidate.formulaNames)
+              ? candidate.formulaNames.filter((name): name is string => typeof name === "string")
+              : []),
+          ],
+          clinicalContext,
+        )
+      : undefined;
+    if (classicContraindicationIssue) {
+      return `candidate_${candidateIndex}_classic_contraindication_${classicContraindicationIssue}`;
+    }
+    const normalizedHerbNames = candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name));
+    if (new Set(normalizedHerbNames).size !== normalizedHerbNames.length) return `candidate_${candidateIndex}_duplicate_herb`;
+    const specialPopulationIssue = !trustedWorkbenchEdit
+      ? m04GenerationSpecialPopulationIssue(candidate.herbs, clinicalContext)
+      : undefined;
+    if (specialPopulationIssue) return `candidate_${candidateIndex}_${specialPopulationIssue}`;
+    const pairConflict = !trustedWorkbenchEdit && !auditedClinicalRisksAreAdvisory
+      ? findTcmHerbPairIncompatibilities(candidate.herbs.map((herb) => String(herb.name || "")))[0]
+      : undefined;
+    if (pairConflict) return `candidate_${candidateIndex}_high_risk_pair_incompatibility`;
+    const highImpactIssue = priorReasoning && !trustedWorkbenchEdit && !auditedClinicalRisksAreAdvisory
+      ? unsupportedHighImpactHerbIssue(
+          candidate.herbs,
+          priorReasoning,
+          true,
+          governedFormulaNames(candidate.formulaNames) || [],
+        )
+      : undefined;
+    if (highImpactIssue) return `candidate_${candidateIndex}_${highImpactIssue}`;
+
+    // 处方计划算术：剂数/每日剂数/分服次数不自洽会直接产生不可执行或超量的服法。
+    const regimenIssue = prescriptionRegimenIssue(
+      candidate.decoction?.doseCount,
+      candidate.decoction?.course,
+      candidate.decoction?.dosesPerDay,
+    );
+    if (regimenIssue) return `candidate_${candidateIndex}_${regimenIssue}`;
+    const administrationTimesPerDay = candidate.decoction?.administrationTimesPerDay;
+    if (
+      typeof administrationTimesPerDay !== "number" ||
+      !Number.isInteger(administrationTimesPerDay) ||
+      administrationTimesPerDay < 1 ||
+      administrationTimesPerDay > 6 ||
+      typeof candidate.decoction?.dosesPerDay !== "number" ||
+      administrationTimesPerDay < candidate.decoction.dosesPerDay
+    ) {
+      return `candidate_${candidateIndex}_administration_times_per_day`;
+    }
+
+    for (const [herbIndex, herb] of candidate.herbs.entries()) {
+      // 药味身份与剂量：无法核验身份或超出安全边界的药味不能进入剂量级处方。
+      if (typeof herb.name !== "string" || !herb.name.trim()) return `candidate_${candidateIndex}_herb_${herbIndex}_name`;
+      if (isKnownHerbName && !isKnownHerbName(herb.name.trim())) return `candidate_${candidateIndex}_herb_${herbIndex}_unknown`;
+      if (typeof herb.dose !== "string" || !normalizeComparableDose(herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose`;
+      if (!dosePassesSafetySanityCeiling(herb.name.trim(), herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_sanity_ceiling`;
+      if (!trustedWorkbenchEdit && !doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""))) {
+        return `candidate_${candidateIndex}_herb_${herbIndex}_dose_outside_conservative_range`;
+      }
+      // 特殊煎法是毒性与刺激性药味安全控制的一部分，不是叙述性字段。
+      const decoctionRule = decoctionRuleForHerb(herb.name);
+      if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
+      if (!decoctionRuleSatisfied(herb.name, String(herb.decoctionRequirement || ""))) {
+        return `candidate_${candidateIndex}_herb_${herbIndex}_decoction_missing_required`;
+      }
+    }
+  }
+
+  // 随症加减里只有三类属安全承重：夹带未经审方的剂量（自由文本变成绕过审方的剂量通道）、
+  // 加入知识库未收载的药味、以及加入方向未成立的高影响药味。措辞与接地问题属建议层。
+  for (const [modificationIndex, modification] of (reasoning.formula?.modifications || []).entries()) {
+    if (typeof modification.doseOrHandling === "string" && modification.doseOrHandling.trim()) {
+      return `modification_${modificationIndex}_unaudited_dose`;
+    }
+    const fields = [modification.trigger, modification.targetPathogenesis, modification.action,
+      modification.doseOrHandling, modification.reason, modification.riskNote]
+      .filter((value): value is string => typeof value === "string")
+      .join("；")
+      .replace(/\s/g, "");
+    if (/(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)(?:mg|g|毫克|克)(?![\/／](?:L|升))/i.test(fields)) {
+      return `modification_${modificationIndex}_unaudited_dose`;
+    }
+    const action = typeof modification.action === "string" ? modification.action.trim().replace(/\s/g, "") : "";
+    const addition = action.match(/(?:^|时|则|可|建议)(?:加入|加用|新增|加)([一-龥]{1,8})/);
     if (addition && isKnownHerbName && !isKnownHerbName(addition[1])) return `modification_${modificationIndex}_unknown_herb`;
     if (addition && priorReasoning) {
       const highImpactIssue = unsupportedHighImpactHerbIssue([{

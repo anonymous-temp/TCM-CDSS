@@ -1,3 +1,4 @@
+import { PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
 const TONGUE_EQUIVALENCE_GROUPS = [
   /舌尖(?:略|稍|微)?红/,
   /(?:舌边|边)(?:有)?(?:轻|轻度)?(?:齿痕|齿印)|齿痕舌/,
@@ -45,7 +46,7 @@ export function appendClinicalPresetValue(field: string, current: string, value:
 }
 
 const TONGUE_SPECIFIC_MARKER = /(?:舌|苔|齿痕|齿印|裂纹|瘀点|瘀斑|舌下络脉)/;
-const PULSE_COMPACT_PATTERN = /^(?:脉)?(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|洪|结|代|促|虚|实|微|散|芤|革|牢|伏|动|长|短){1,4}(?:脉)?$/;
+const PULSE_COMPACT_PATTERN = new RegExp(`^(?:脉)?(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:脉)?(?:${PULSE_FORCE_PATTERN_SOURCE})?$`);
 
 export type TonguePulseFieldConflict = {
   swapped: boolean;

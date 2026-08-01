@@ -36,9 +36,13 @@ for (const entry of lexicon.entries || []) {
 
 const limitArg = Number(process.argv.find((a) => a.startsWith("--limit="))?.split("=")[1] || 0);
 const sourceArg = process.argv.find((a) => a.startsWith("--source="))?.split("=")[1];
+// 池选择:B2 已裁剂量可编译池(442 首);B3 转向「检索可达但剂量未编译」池(~821 首)——
+// 证型标签不依赖剂量状态,缺标签同样锁不住,补标签是它们的唯一缺口。
+const poolArg = process.argv.find((a) => a.startsWith("--pool="))?.split("=")[1] || "dose";
 
 const pending = catalog.entries
-  .filter((e) => e.retrievalEligible && (e.syndromeTags || []).length === 0 && e.doseCompilationEligible)
+  .filter((e) => e.retrievalEligible && (e.syndromeTags || []).length === 0)
+  .filter((e) => (poolArg === "non-dose" ? !e.doseCompilationEligible : e.doseCompilationEligible))
   .filter((e) => !sourceArg || e.sourceClass === sourceArg)
   // 经典方目录优先：临床价值最高、量最小。
   .sort((a, b) => (a.sourceClass === "official_classic_catalog" ? -1 : 0) - (b.sourceClass === "official_classic_catalog" ? -1 : 0));

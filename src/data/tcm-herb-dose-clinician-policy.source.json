@@ -1,0 +1,4228 @@
+{
+  "schemaVersion": "tcm-herb-dose-clinician-policy-v1",
+  "generatedAt": "2026-08-01",
+  "note": "缺法定数值剂量边界的成分治理表。**产品决策（甲方确认）**：这些成分不再阻断整方的剂量编译；系统对它们不校验数值边界，改为在处方中标注核验级别，由医师确定用量，并由灵犀审方兜底。系统仍然不为它们「保证」剂量正确——responsibility 明确移交医师与审方。",
+  "policies": {
+    "food_or_vehicle": {
+      "decision": "exempt_with_clinician_dose",
+      "rationale": "方剂组成中的食材/溶媒（粳米、鸡子黄、白蜜、黄酒）。它们在原方里有明确用量（六合、二枚），属组成而非药引，缺法定数值边界时不得由系统代为定量。补齐路径：省级中药饮片调剂规程或部颁标准中能逐项定位到数值边界的条目。",
+      "prescriptionLabel": "药引/辅料，用量按传统常规，由医师确定",
+      "blocksDoseCompilation": false,
+      "verificationTier": "unverified_dose"
+    },
+    "controlled_or_toxic": {
+      "decision": "block_regulatory",
+      "rationale": "《医疗用毒性药品管理办法》《麻醉药品和精神药品品种目录》收载品种。保留阻断的理由不是「算不出剂量」，而是「这个动作系统没有资格做」：处方权绑定医师个人、须走专用处方载体与专册登记——灵犀审方能复核用药合理性，但替代不了处方权与处方载体。因此即便在降低门禁的产品决策下，这一类仍必须转有相应处方权的医师人工决策。",
+      "prescriptionLabel": "含医疗用毒性/管制品种，系统不编制用量，须由具备处方权的医师按监管要求单独处理",
+      "blocksDoseCompilation": true,
+      "verificationTier": "toxic_regulated"
+    },
+    "endangered_or_banned": {
+      "decision": "block_regulatory",
+      "rationale": "《野生动物保护法》与相关公告禁用或严格管制的动物药（犀角、虎骨、穿山甲、麝香、熊胆、玳瑁）。法律禁用不是数据缺口，系统不得为其编制用量，应由医师改用合法替代品。",
+      "prescriptionLabel": "含禁用/严管动物药，本方仅供文献参考，临床须由医师改用合法替代品",
+      "blocksDoseCompilation": true,
+      "verificationTier": "toxic_regulated"
+    },
+    "pill_powder_only": {
+      "decision": "exempt_with_clinician_dose",
+      "rationale": "药典明确只列丸散/外用途径、不列煎服的成分（乳香、没药、冰片、牛黄、青黛、琥珀）。含这类成分的方多本身即丸散膏丹剂型，用汤剂剂量标准去编制不成立。",
+      "prescriptionLabel": "本方含丸散专用成分，不适用汤剂剂量编制，须由医师按原剂型或改汤剂后重新定量",
+      "blocksDoseCompilation": false,
+      "verificationTier": "unverified_dose"
+    },
+    "pharmacopoeia_not_listed": {
+      "decision": "exempt_with_clinician_dose",
+      "rationale": "2020 版药典未收载、现有剂量来自未复核层的成分（龙骨、神曲、五灵脂、琥珀、萆薢等），以及古方生僻药材（黄蜡、松香、皂角）。前者可由省级中药饮片炮制规范或部颁标准补齐后转为可编译；后者本就不适合自动配剂量。补齐必须登记法定标准原文锚点与文件哈希，不接受二手网页或推定值。",
+      "prescriptionLabel": "该成分无法定数值用量来源，系统不编制用量，须由医师确定",
+      "blocksDoseCompilation": false,
+      "verificationTier": "unverified_dose"
+    }
+  },
+  "ingredients": {
+    "pharmacopoeia_not_listed": [
+      {
+        "name": "神曲",
+        "blockedFormulaCount": 35
+      },
+      {
+        "name": "龙骨",
+        "blockedFormulaCount": 31
+      },
+      {
+        "name": "芍药",
+        "blockedFormulaCount": 25
+      },
+      {
+        "name": "五灵脂",
+        "blockedFormulaCount": 25
+      },
+      {
+        "name": "天南星",
+        "blockedFormulaCount": 21
+      },
+      {
+        "name": "黄蜡",
+        "blockedFormulaCount": 19
+      },
+      {
+        "name": "皂角",
+        "blockedFormulaCount": 15
+      },
+      {
+        "name": "松香",
+        "blockedFormulaCount": 13
+      },
+      {
+        "name": "南星",
+        "blockedFormulaCount": 13
+      },
+      {
+        "name": "萆薢",
+        "blockedFormulaCount": 13
+      },
+      {
+        "name": "官桂",
+        "blockedFormulaCount": 12
+      },
+      {
+        "name": "代赭石",
+        "blockedFormulaCount": 11
+      },
+      {
+        "name": "黑牵牛",
+        "blockedFormulaCount": 10
+      },
+      {
+        "name": "贝母",
+        "blockedFormulaCount": 10
+      },
+      {
+        "name": "菖蒲",
+        "blockedFormulaCount": 10
+      },
+      {
+        "name": "半夏曲",
+        "blockedFormulaCount": 10
+      },
+      {
+        "name": "牵牛子",
+        "blockedFormulaCount": 9
+      },
+      {
+        "name": "贯众",
+        "blockedFormulaCount": 9
+      },
+      {
+        "name": "虻虫",
+        "blockedFormulaCount": 9
+      },
+      {
+        "name": "紫苏",
+        "blockedFormulaCount": 8
+      },
+      {
+        "name": "土鳖虫",
+        "blockedFormulaCount": 8
+      },
+      {
+        "name": "百草霜",
+        "blockedFormulaCount": 8
+      },
+      {
+        "name": "猪胆",
+        "blockedFormulaCount": 8
+      },
+      {
+        "name": "水粉",
+        "blockedFormulaCount": 7
+      },
+      {
+        "name": "人中白",
+        "blockedFormulaCount": 7
+      },
+      {
+        "name": "广皮",
+        "blockedFormulaCount": 7
+      },
+      {
+        "name": "炉甘石",
+        "blockedFormulaCount": 7
+      },
+      {
+        "name": "自然铜",
+        "blockedFormulaCount": 7
+      },
+      {
+        "name": "牙皂",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "青木香",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "竹叶",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "胡粉",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "龙齿",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "大青",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "鲫鱼",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "猪牙皂",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "鸡子",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "沙参",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "柳枝",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "京墨",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "皂角子",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "姜皮",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "六神曲",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "紫河车",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "萝卜",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "白酒",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "猪胆汁",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "瓜蒂",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "桂",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "铜绿",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "针砂",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "黑丑",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "榆白皮",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "鸡子清",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "薯蓣",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "白石脂",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "蝎梢",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "焦六神曲",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "秫米",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "冬葵子",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "木耳",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "蜂蜡",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "阳起石",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "白蜡",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "胎发",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "白面",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "头垢",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "芜荑",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "白花蛇",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "牛皮胶",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "白胶香",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "黄",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "鸡屎",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "马兜铃",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "炒麦芽",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "樟冰",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "槐枝",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "硝",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "续随子",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "水龙骨",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "冬瓜仁",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "人言",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "伏龙肝",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "黑枣",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "生姜皮",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "葛花",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "人中黄",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "生地黄汁",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "紫檀香",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "羊粪",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "砂糖",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "米",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "蜣螂",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "定粉",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "鼠粪",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "晚蚕砂",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "脑子",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "风化硝",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "石南",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "硇砂",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "韭白",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "青布",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "锻石",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "松脂",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "皂荚",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "大枫子",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "石燕",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "猪肾",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "牙硝",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "白石英",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "砂",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "秋石",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "猪牙皂角",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "蜗牛",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "月石",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "猪牙皂荚",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "丁皮",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "狗宝",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "大皂角",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "柏子仁油",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "白牵牛",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "炒半夏曲",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "螺蛳",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "白盐",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "猪油",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "羯羊胆",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "刺猬皮",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "人粪",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "陈仓米",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "明天麻",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "半两钱",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "马膏",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "煨姜",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "鸡苏叶",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "淡附子",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "片脑",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "蜜陀僧",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "蛇含石",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "淡菜",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "小草",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "松萝",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "寒食面",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "云母",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "南木香",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "川萆",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "五谷虫",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "粱米",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "国丹",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "西黄",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "指甲末",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "太阴玄精石",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "川楝",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "山羊粪",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "蛴螬",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "䗪虫",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "天仙藤",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "白梅",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "牵牛",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "独核肥皂",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "水仙花根",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "干胭脂",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "脐带",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "冬瓜",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "巨胜子",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "白丁香",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "蓖麻仁",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "五铢钱",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "白萝卜",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "荞麦粉",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "粉",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "好酒",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "橘叶",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "松萝茶",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "猪肚",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "桃胶",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "广胶",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "韭菜",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "曲",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "羊乳",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "泽漆",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "榆皮",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "鸡",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "羊肺",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "蒴",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "灶中黄土",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "鬼臼",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "生铁",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "鸡屎白",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "皮",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "髑髅骨",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "生猪油",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "菊花叶",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "土槿皮",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "野芥菜",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "水",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "蟹爪",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "土牛膝",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "熟艾",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "苦丁香",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "零陵香",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "茅香",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "太阴玄精",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "海石",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "西瓜翠衣",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "礞石",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "猪蹄",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "柞树皮",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "沥青",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "猪心",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "人尿",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "建曲",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "夜明砂",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "土牛膝根",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "虎胫骨",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "鱼胶",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "羊肝",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "灵脂",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "陈锻石",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "螃蟹",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "四物汤",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "白沙蜜",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "火硝",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "桐油",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "韭菜汁",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "苇茎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "瓜瓣",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "草锦",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "玄精石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荭草根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苎麻根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "大风子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荆三棱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "真蒲黄",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牛肚油",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "柿子皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "藤黄",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "山羊血",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "兰香叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "大附子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄土",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "草蔻仁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "海粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "赤脚蜈蚣",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "乌喙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈小粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生野狼牙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蟹壳",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "凝水石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "松子仁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪左足悬蹄甲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "干蟾蜍",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "胎粪",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "细茶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "薰陆香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生鸡子黄",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄明胶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "夫衣带",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "淳酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "漂白术",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "樗根白皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蛤蚧",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "溏鸡屎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "千金拔草根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "菊花根叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "石蟹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "茅苍术",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白槿树花子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "好末茶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "古青钱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "地黄叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "皂角叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苍耳叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "何首乌叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生黄",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蔷薇根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "地脉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "人指甲灰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈松香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生狗头",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "羊血",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "青铜大钱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "豆油",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "真烧酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "梗树皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "剪草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "竹节白附子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "妇人发",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "野蓝菊花根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "浮海石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "潮脑",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "地仙子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "凤仙花子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "枸杞子汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荆沥",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "真酥",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蔷蘼",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "杜衡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "茄杆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪心血",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "人参芦",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "竹中白节",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "梅枝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "三十斤",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "西瓜子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "马桶碱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荷叶蒂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "杵头糠",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈胆星",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鹅血",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "梨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "莱菔",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黑砂糖",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "肥皂荚",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鸡头梢",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "羊角灰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "稻米",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黍米",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "土蜂窝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "樗皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "楱皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "绢",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "锦地罗",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "甘石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "扫盆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "炮山甲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鼠骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "肥老腊肉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "象牙末",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蕈菰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "染坯",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "金星石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "银星石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "云母石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "不灰木",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "紫苏茎叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "桑芽炭",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "井盐",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白附",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "栀仁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "人参少则用",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "多则用",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "熟地少则用",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "火单苦杏仁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "炒虻虫",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "炒蛴螬",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "焰硝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "羊角",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鬼羽箭",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "沙糖",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "好陈酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "糠青",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "甘李根皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苦瓠子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苦葫芦子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄黍米",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "乌雌鸡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "雄鸡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生李根白皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈细茶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "犬屎内骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "身",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "煅龙齿",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "木耳炭",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "土楝实",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "紫金皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蒸茯神",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牙皂角",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "芫荽",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "皂荚子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "晚蚕沙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪骨髓",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "乌羊角",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "篦下发垢",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "公猪眼梢处臭肉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "公猪腰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牡猪肝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "津唾",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "癞虾蟆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "一法",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蚯蚓泥",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "小蓟根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "墨炭",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "枫香脂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灵霄根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "岐良",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "干蝎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "烧盐",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "茶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鲤鱼鳞",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "丝瓜子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "石莲子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "甘草头",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "参芦",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄瓜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "真麻油",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "烧酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "川槿皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黑甘草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "土蝮蛇",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "橙叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "茵芋",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "番卤砂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "大蜈蚣",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "射香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "嫩松香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "小鸡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "大瓦松",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "海蜈蚣",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "狗胎骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "汉古钱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白术香根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "云南钱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "千里马",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "老古钱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "银精",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "金精石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "磕头虫",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荞面",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黑小羊角",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "千金子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄榔刺树根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "小雄鸡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "枣树根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灯盏内油",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "孩儿牙齿",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "菊花蒂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "虎睛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "巴霜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "胡茄子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鲜扁豆花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "新绛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "辣蓼草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "福珍酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牛胆南星",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "杉木炭",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "胎发灰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "昨叶荷草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "雄雀粪",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蒸天冬",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "獭肝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "金丝大虾蟆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "大雄鸡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "血管鹅毛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "松木屑",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "汤",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "去核",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "用",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "飞面",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "杉木节",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "透骨子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黑沙糖",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪胰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生萝卜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鱼鳔",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "豆腐皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "麦芽曲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "慈竹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "柞木叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "萱草根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪髓",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪脊髓",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荷叶梗",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "坯",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "赤蔹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "栀皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "梨皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牛酥",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "糯谷",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈矿灰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "红豆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "茯神木",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蝎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "连",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "梢蛇",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蚕砂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白梅肉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "没石子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "古锻石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "新锻石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "丝瓜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "铁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "空青",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "葫芦",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "小米",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "绍兴酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "大、小蒜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "紫苋菜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "冬瓜根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "常思叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鬼目叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牛耳垢",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "铁精",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "常思草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "稻穣",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "马粪",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "川通草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "核桃皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "桐叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "狗牙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "巴山虎草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "全黑公牛粪",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鹿角灰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "羊脂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "橄榄核",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "人退",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "壁钱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "六畜毛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猫胞衣",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "油头发",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "桃皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "马",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "宫粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "飞丹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "银",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "雄鸡肠",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "空井中草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "故扇",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "昌蒲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "麦窠",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪KT",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "菘菜子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "梁上尘",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "柏白皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苦竹叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "熟鸡子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "羊髓",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "柳叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "柳皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鼠查茎叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "螟蛉窠",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "杜蘅",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牛脂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "干枸杞根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "干蔷薇根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "松树根及皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苦瓜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黑羊胆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "粟",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白马尿",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "胡麻",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "枯竹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "椒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "枳根皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "腊",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灶中热灰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "热牛屎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "虎牙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "薤汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蟾蜍",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白鸽",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苍耳草梗内之虫",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "松柏",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生韭",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "发灰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "螺壳",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "踯蝎花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "桃花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "木白汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "釜月下土",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "羊蹄根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "大麻子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灶墨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "铜锁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "路边荆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "紫竹根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "野葛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "槐根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "桃根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "乱发灰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "虫",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪后悬蹄甲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生槐皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "槐赤鸡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "玩月砂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "槐皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈豉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈茶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "竹挂灯",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白信",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "麦",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "马蹄香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "枸杞苗",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "甘竹叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "大钱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "粗理黄石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鱼汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "童子小便",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "榛子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灶下黄土",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鸡卵",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "夫尿",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "真珠",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "赤米",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灶突中土",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "炊箪",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "夫单衣",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生麻油",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白鹁鸽翎毛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生漆丝棉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "榆条",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "椿条",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "柳条",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "槐条",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "银珠",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "京粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "弊蒲席",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鸡苏",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "新生犊子未食草者脐屎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蚕蜕纸",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄犍牛尿",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "泽漆叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "比轮钱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牛耳中毛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牛尾",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鲤鱼齿",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "贝齿",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "穣草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牛马屎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "石蚕",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "野狼牙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鼠尾草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灶突中尘",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白越布",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "干鳗鲡鱼脂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "桂屑",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "腊月猪脂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鸡冠血",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "妇人月经",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鼠屎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "死马腹中屎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "矢汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "桑灰汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "炙石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "醇酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鸡毛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "乌鸡肝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "小面馒头",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "凤眼草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "好墨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "紫荆藤",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蚕布",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "乌鱼骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "土红朱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鲜山岳",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白洋糖",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苦楝根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "炒盐",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "红曲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "柿霜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荷梗",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "扁豆花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "冬瓜子仁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈松萝茶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鱼脑骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黛麦冬",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "棉花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "雄鸭",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "火蠊蛇",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "并生用",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪肤",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白糯米",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白酒娘",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪腰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "青蒿汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "天门冬汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "铁粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "象牙屑",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白酒一斗",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "干糖",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "虫白蜡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "省头草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "悬豆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黑山栀",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鲥鱼鳞",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鲫鱼头",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "红矾",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "丛竹壳",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "野油麻叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈屋茅",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "百合花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猫儿骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄砂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "紫荆叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "芜荑仁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蚕蜕",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鸦片",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白石榴",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "红信",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "象牙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白垩",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "清油",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白马毛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "麻汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "小蝉肝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "炙山甲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "海参",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生白附",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "草决明",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荠",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "井泥",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "菜子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "石茎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "虢丹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "松罗",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "麦曲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "银花叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白萝卜苗",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "初生乌鸡壳",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白麦饭石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "御米",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白仙茆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "紫润圆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "酥涂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "去顶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "脑骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白羊子肝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "八棱麻根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "无灰酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生铁落",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "竹叶二把",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生葛汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蚌粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "汤泡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄泥",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪脚壳",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪毛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "螺青",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蚯蚓粪",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蚌粉花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "薄桂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鱼螵蛸",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "石蝎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "老蜘蛛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "铁孕粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "淡附",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈神曲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白花蛇头",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "乌梢蛇尾",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "丝瓜根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白童子鸡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "食茱萸",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "瓜瓣仁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "野苎根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "金银",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "南苏子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "茄蒂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "子贝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "石首鱼脑骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "细茶牙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荞麦",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "画边胭脂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "土乌药",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "青梅",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "莨菪",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "石龙芮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "千年锻石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "豆腐",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "番尾草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "嫩老鼠",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "荠菜根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "仙半夏",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "青子芩",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "碧玉散",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "杜藿香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "光杏仁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蟾头",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "晚蚕蛾",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蛇含",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蟹黄",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "虾蟆胆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "慎火草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "棕毛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "烟胶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鹅胆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "胡桐泪",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪大肠",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "牛髓",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "炒糯米",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苍耳茸",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生黄丝绢",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "木律",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "虎头骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鬼箭羽",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "御米壳",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蜒蚰",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白梅干",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "败蒲席",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "久用炊单布",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "绯帛",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "红海蛤",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蟹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "车螯",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "凉膈散",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "贝子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪前蹄",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "沙蜜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "老葱三根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "夏曲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "枯谷芽",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "雄精",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "茅山者佳米泔浸晒三",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "松花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "响铜屑",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "花龙骨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "柏香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "煨石膏",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "东丹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "干虾蟆",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "野麻根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苍耳草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蓝石",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "景天",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蝎尾",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "脑麝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "小粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "转粪虫所转牛粪丸",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鼠肝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鼠脑",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "锡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "苎根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "纹银",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "元珠丹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蜒蝣",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈盐梅子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "万年青根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "甘草已上",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "栗子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "柿饼",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "金箔",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黑附子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "南佗僧",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "银黝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "铁落",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "吊扬尘",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "夜明沙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "若木疮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄瓜霜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "棘针",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "小鼠子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "清酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "石燕子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "头垢泥",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "带毛雀儿",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "金丝矾",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "陈酒糟",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蛀神曲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "淡吴萸",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "天仙",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白丑",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "败酱草",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "无名异",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鲤鱼",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鼠妇虫",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "六一散",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鸡屎醴",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪肝",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "核桃肉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪脏头",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鲜蟹水",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "麋茸",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "麋角",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "寒蚕绵",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "宣郎",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "飞罗面",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灶心黄土",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "胶饴",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "矮黄栀子根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "紫荷车",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "釜底煤",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "梁尘",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "灶突墨",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "韭根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "人发",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "萝卜菜干",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪精肉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "栗壳",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "磨刀石上粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生脑子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "怀牛膝",
+        "blockedFormulaCount": 1
+      }
+    ],
+    "controlled_or_toxic": [
+      {
+        "name": "雄黄",
+        "blockedFormulaCount": 79
+      },
+      {
+        "name": "朱砂",
+        "blockedFormulaCount": 76
+      },
+      {
+        "name": "轻粉",
+        "blockedFormulaCount": 47
+      },
+      {
+        "name": "巴豆",
+        "blockedFormulaCount": 43
+      },
+      {
+        "name": "硫黄",
+        "blockedFormulaCount": 34
+      },
+      {
+        "name": "黄丹",
+        "blockedFormulaCount": 30
+      },
+      {
+        "name": "辰砂",
+        "blockedFormulaCount": 20
+      },
+      {
+        "name": "硼砂",
+        "blockedFormulaCount": 20
+      },
+      {
+        "name": "川乌",
+        "blockedFormulaCount": 19
+      },
+      {
+        "name": "草乌",
+        "blockedFormulaCount": 18
+      },
+      {
+        "name": "川乌头",
+        "blockedFormulaCount": 18
+      },
+      {
+        "name": "水银",
+        "blockedFormulaCount": 17
+      },
+      {
+        "name": "枯矾",
+        "blockedFormulaCount": 17
+      },
+      {
+        "name": "朴硝",
+        "blockedFormulaCount": 15
+      },
+      {
+        "name": "硝石",
+        "blockedFormulaCount": 12
+      },
+      {
+        "name": "蟾酥",
+        "blockedFormulaCount": 12
+      },
+      {
+        "name": "甘遂",
+        "blockedFormulaCount": 11
+      },
+      {
+        "name": "乌头",
+        "blockedFormulaCount": 11
+      },
+      {
+        "name": "藜芦",
+        "blockedFormulaCount": 9
+      },
+      {
+        "name": "斑蝥",
+        "blockedFormulaCount": 9
+      },
+      {
+        "name": "胆矾",
+        "blockedFormulaCount": 8
+      },
+      {
+        "name": "银朱",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "密陀僧",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "天雄",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "大戟",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "草乌头",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "铅粉",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "巴豆霜",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "番木鳖",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "生半夏",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "生附子",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "生川乌",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "黑铅",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "雌黄",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "石硫黄",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "腻粉",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "生巴豆",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "砒石",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "商陆根",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "砒",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "生白附子",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "红芽大戟",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "升药",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "蟾酥丸",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白砒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "巴豆仁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "金鼎砒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "番木鳖子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白硼砂",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "铅丹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "马钱子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "巴豆肉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "金顶砒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "闹羊花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "北黄丹",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "干商陆根",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "明雄黄",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "天雄尖",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "乌头尖",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "白矾汤姜同煮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "野狼毒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "铅",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "粉霜",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生草乌",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "信石",
+        "blockedFormulaCount": 1
+      }
+    ],
+    "endangered_or_banned": [
+      {
+        "name": "麝香",
+        "blockedFormulaCount": 97
+      },
+      {
+        "name": "穿山甲",
+        "blockedFormulaCount": 16
+      },
+      {
+        "name": "犀角",
+        "blockedFormulaCount": 13
+      },
+      {
+        "name": "虎骨",
+        "blockedFormulaCount": 9
+      },
+      {
+        "name": "熊胆",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "炙虎骨",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "象皮",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "白犀角",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生犀角",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "玳瑁",
+        "blockedFormulaCount": 1
+      }
+    ],
+    "food_or_vehicle": [
+      {
+        "name": "葱白",
+        "blockedFormulaCount": 33
+      },
+      {
+        "name": "麻油",
+        "blockedFormulaCount": 16
+      },
+      {
+        "name": "粳米",
+        "blockedFormulaCount": 16
+      },
+      {
+        "name": "白蜜",
+        "blockedFormulaCount": 15
+      },
+      {
+        "name": "食盐",
+        "blockedFormulaCount": 12
+      },
+      {
+        "name": "糯米",
+        "blockedFormulaCount": 11
+      },
+      {
+        "name": "绿豆",
+        "blockedFormulaCount": 10
+      },
+      {
+        "name": "苦酒",
+        "blockedFormulaCount": 10
+      },
+      {
+        "name": "黄酒",
+        "blockedFormulaCount": 10
+      },
+      {
+        "name": "猪膏",
+        "blockedFormulaCount": 9
+      },
+      {
+        "name": "竹沥",
+        "blockedFormulaCount": 8
+      },
+      {
+        "name": "小麦",
+        "blockedFormulaCount": 8
+      },
+      {
+        "name": "童便",
+        "blockedFormulaCount": 8
+      },
+      {
+        "name": "米醋",
+        "blockedFormulaCount": 8
+      },
+      {
+        "name": "鸡子黄",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "生姜汁",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "姜汁",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "羊肉",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "大麦",
+        "blockedFormulaCount": 5
+      },
+      {
+        "name": "饴糖",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "猪脂",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "鸡蛋",
+        "blockedFormulaCount": 4
+      },
+      {
+        "name": "醋山甲",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "人乳",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "白糖",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "牛乳",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "香油",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "蒜辫",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "葱头",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "藕汁",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "冰糖",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "葱叶",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "盐卤",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "绿豆皮",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "茶叶",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "酒浸枸杞子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "酒浸菟丝子",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "黄酒面曲",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鸡蛋清",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "萝卜汁",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "糯米饭",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "盐花",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "酒洗地黄",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生姜汁四滴",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "葱胡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "鸡子白皮",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "盐",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "酒蜡",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "绿豆粉",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "猪脂油",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "酒",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "绿豆衣",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "葱",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "小麦奴",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "盐梅",
+        "blockedFormulaCount": 1
+      }
+    ],
+    "pill_powder_only": [
+      {
+        "name": "乳香",
+        "blockedFormulaCount": 100
+      },
+      {
+        "name": "没药",
+        "blockedFormulaCount": 64
+      },
+      {
+        "name": "天然冰片（右旋龙脑）",
+        "blockedFormulaCount": 50
+      },
+      {
+        "name": "冰片",
+        "blockedFormulaCount": 48
+      },
+      {
+        "name": "琥珀",
+        "blockedFormulaCount": 36
+      },
+      {
+        "name": "青黛",
+        "blockedFormulaCount": 29
+      },
+      {
+        "name": "牛黄",
+        "blockedFormulaCount": 21
+      },
+      {
+        "name": "芦荟",
+        "blockedFormulaCount": 13
+      },
+      {
+        "name": "珍珠",
+        "blockedFormulaCount": 12
+      },
+      {
+        "name": "安息香",
+        "blockedFormulaCount": 6
+      },
+      {
+        "name": "樟脑",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "土木香",
+        "blockedFormulaCount": 3
+      },
+      {
+        "name": "龙脑",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "梅花冰片",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "苏合香",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "小叶莲",
+        "blockedFormulaCount": 2
+      },
+      {
+        "name": "血琥珀",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "滴乳香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "生明乳香",
+        "blockedFormulaCount": 1
+      },
+      {
+        "name": "西牛黄",
+        "blockedFormulaCount": 1
+      }
+    ]
+  },
+  "whyNoExemption": "曾评估过按类别豁免（让缺剂量成分不阻断整方），已否决。理由：方剂组成中的食材是**有实际用量的药味**而不是药引——白虎汤的粳米（六合）、黄连阿胶汤的鸡子黄（二枚）都在原方定量之列。既有回归断言已记录过一次同类尝试的验真结果：所引《北京市中药饮片调剂规程》只出现粳米药名与应付规则，并无 6~30g 通用边界，白虎汤因此恢复 fail-closed。豁免只是换个入口达成同样的效果，本质仍是在没有法定来源的情况下替医师定量。",
+  "remediationPriority": [
+    {
+      "rank": 1,
+      "class": "pharmacopoeia_not_listed",
+      "blockedFormulas": 1605,
+      "action": "优先补龙骨/神曲/五灵脂/琥珀/萆薢等临床常用品种——省级中药饮片炮制规范多有收载，单条收益最高（龙骨解锁 31 方、神曲 35 方）"
+    },
+    {
+      "rank": 2,
+      "class": "controlled_or_toxic",
+      "blockedFormulas": 614,
+      "action": "不补。监管品种由医师按《医疗用毒性药品管理办法》单独处理，系统保持转人工"
+    },
+    {
+      "rank": 3,
+      "class": "pill_powder_only",
+      "blockedFormulas": 345,
+      "action": "不补。药典只列丸散途径，含此类成分的方多为丸散剂型，汤剂剂量标准不适用"
+    },
+    {
+      "rank": 4,
+      "class": "food_or_vehicle",
+      "blockedFormulas": 288,
+      "action": "可补。需省级调剂规程中可定位的数值边界；此前一次尝试因原文无边界而被验真否决"
+    },
+    {
+      "rank": 5,
+      "class": "endangered_or_banned",
+      "blockedFormulas": 149,
+      "action": "不补。法律禁用，应由医师改用合法替代品"
+    }
+  ],
+  "decisionRecord": "2026-08-01 甲方决策：降低门禁，改由审方兜底。此前实现为 fail-closed（缺法定来源即整方不可编译），代价是 1352/2915 的受控方一旦被锁定就只能返回非剂量结果，医生连自拟方都拿不到。既有断言曾记录过一次豁免尝试被验真否决（白虎汤粳米无可定位边界）——该结论在「系统替医师定量」的前提下成立；现在前提变了：系统不定量，只标注并交审方。\n补充（同日）：执行豁免时保留了 controlled_or_toxic 与 endangered_or_banned 两类的阻断。它们的门槛来自法规（处方权/专用处方载体/法律禁用）而非数据质量，不属于可由产品参数调整的范围；其余四类（药典未收载、丸散专用、食材辅料、身份未解析）已全部豁免。"
+}

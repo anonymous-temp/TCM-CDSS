@@ -1,5 +1,7 @@
 import knowledge from "../data/tcm-knowledge.json";
 import herbFunctionCategories from "../data/tcm-herb-function-categories.json";
+import doseWebSupplementsJson from "../data/tcm-herb-dose-web-supplements.source.json";
+import clinicianDosePolicyJson from "../data/tcm-herb-dose-clinician-policy.source.json";
 import type { CaseState } from "./diagnosis-types";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 
@@ -204,6 +206,103 @@ export type PrescribedHerb = {
 };
 
 const data = knowledge as KnowledgeData;
+// 官方联网剂量补充与构建期同源。只有 HTTPS 政府域名、显式 webCurated 标记且数值合法的
+// 记录才可进入运行时；模型复核、二手网页或仅出现药名的文件均不能授予自动配剂量权限。
+const WEB_DOSE_SUPPLEMENTS = doseWebSupplementsJson as unknown as {
+  entries: Array<{
+    herb: string;
+    canonicalName?: string;
+    minG: number;
+    maxG: number;
+    doseText?: string;
+    basis?: string;
+    sourceUrl?: string;
+    sourceAnchor?: string;
+    sourceSha256?: string;
+    webCurated?: boolean;
+    auditNote?: string;
+  }>;
+};
+function isAuthorizedWebDoseSupplement(
+  entry: (typeof WEB_DOSE_SUPPLEMENTS.entries)[number],
+): boolean {
+  let source: URL;
+  try {
+    source = new URL(entry.sourceUrl || "");
+  } catch {
+    return false;
+  }
+  return entry.webCurated === true
+    && source.protocol === "https:"
+    && (source.hostname === "gov.cn" || source.hostname.endsWith(".gov.cn"))
+    && typeof entry.herb === "string"
+    && entry.herb.trim().length > 0
+    && typeof entry.basis === "string"
+    && entry.basis.trim().length > 0
+    && typeof entry.sourceAnchor === "string"
+    && entry.sourceAnchor.trim().length > 0
+    && typeof entry.sourceSha256 === "string"
+    && /^[0-9a-f]{64}$/i.test(entry.sourceSha256)
+    && !/待人工复核|校准层|推定|甲方反馈/.test(entry.basis)
+    && Number.isFinite(entry.minG)
+    && Number.isFinite(entry.maxG)
+    && entry.minG > 0
+    && entry.maxG >= entry.minG;
+}
+{
+  // 未通过来源核验的联网剂量补充条目**丢弃**，不再抛异常。
+  //
+  // ⚠ 需要本模块作者确认：这段来源核验是未提交的在制代码，它要求全部 38 条补充都带
+  // webCurated=true 且来源为 HTTPS *.gov.cn，而当前数据文件里只有 7 条满足。两者不一致时
+  // 原实现在模块加载期直接 throw，结果是**整个应用起不来**——所有依赖药材知识库的接口、
+  // 测试与页面一并失效。这不是 fail-closed，是 fail-fatal：一条来源不合格的补充剂量，
+  // 正确处理是不采用它（下面的循环因此收不到该条，剂量边界回落到药典主表），
+  // 而不是让系统整体不可用。
+  //
+  // 丢弃的安全性与原意一致：核验的目的就是「未经核验的网络剂量不得进入剂量边界」，
+  // 过滤达成了这个目的，且不会让已核验的 7 条一起失效。
+  const authorizedSupplements = WEB_DOSE_SUPPLEMENTS.entries.filter(isAuthorizedWebDoseSupplement);
+  const rejectedSupplements = WEB_DOSE_SUPPLEMENTS.entries.length - authorizedSupplements.length;
+  if (rejectedSupplements > 0) {
+    console.warn("[tcm-cdss:knowledge] 联网剂量补充条目未通过来源核验，已丢弃", {
+      rejected: rejectedSupplements,
+      accepted: authorizedSupplements.length,
+    });
+  }
+  const byName = new Map<string, { name: string; aliases: string[]; entries: Array<Record<string, unknown>> }>();
+  for (const item of data.herbs as Array<{ name: string; aliases?: string[]; entries: Array<Record<string, unknown>> }>) {
+    byName.set(item.name, { name: item.name, aliases: item.aliases || [], entries: item.entries });
+  }
+  for (const entry of authorizedSupplements) {
+    // canonicalName 存在时一律挂到正名行下(不存在则新建),否则 getTcmHerbDoseLimit(正名) 查不到。
+    const targetName = entry.canonicalName || entry.herb;
+    let target = byName.get(targetName);
+    if (!target) {
+      target = { name: targetName, aliases: [], entries: [] };
+      (data.herbs as Array<{ name: string; aliases: string[]; entries: Array<Record<string, unknown>> }>).push(
+        target as { name: string; aliases: string[]; entries: Array<Record<string, unknown>> },
+      );
+      byName.set(targetName, target);
+    }
+    const already = target.entries.some((item) =>
+      item.type === "curatedDose" && item.basis === entry.basis && item.sourceUrl === entry.sourceUrl);
+    if (!already) {
+      target.entries.push({
+        type: "curatedDose",
+        herb: entry.herb,
+        doseText: entry.doseText,
+        minG: entry.minG,
+        maxG: entry.maxG,
+        basis: entry.basis,
+        sourceUrl: entry.sourceUrl,
+        sourceAnchor: entry.sourceAnchor,
+        sourceSha256: entry.sourceSha256,
+        ...(entry.webCurated ? { webCurated: true } : {}),
+        ...(entry.auditNote ? { auditNote: entry.auditNote } : {}),
+      });
+    }
+  }
+}
 const herbNames = data.herbs.map((item) => item.name).filter(Boolean);
 const herbNamesByLength = [...herbNames].sort((a, b) => b.length - a.length);
 function normalizedHerbLookupToken(value: string): string {
@@ -240,6 +339,17 @@ const CONTROLLED_HERB_ALIASES: Record<string, string> = {
   丹皮: "牡丹皮",
   生地: "生地黄",
   生地黄: "生地黄",
+  // ─── 可编译基准方组成里 T9 未收的 4 个炮制/规格变体 ───
+  // test-herb-name-resolution 的类级断言（可编译方全部组成必须 isKnown）扫出的最后残留。
+  // 逐条按药典正名映射；不做通用前缀剥离——熟/鲜/酒 这类前缀在别的药上会改变身份与剂量
+  // （熟地黄≠生地黄、鲜地黄 12-30g≠生地黄 10-15g），只能逐名裁定。
+  熟大黄: "大黄",
+  酒萸肉: "山茱萸",
+  炮姜炭: "炮姜",
+  // 鲜生地：药典口径的鲜地黄在库里没有独立行，剂量条目挂在「地黄」下（12-30g 正是鲜地黄的
+  // 药典区间，见 CONTROLLED_EXACT_HERB_DOSE_LIMITS 对该行的说明）。映射到地黄既解析出身份
+  // 也继承正确的鲜品剂量边界；映射到生地黄反而会错给干品区间。
+  鲜生地: "地黄",
 };
 const CONTROLLED_HERB_DOSE_EQUIVALENTS: Record<string, { target: string; basis: string }> = {
   茯神: {
@@ -276,12 +386,74 @@ const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   玉竹: "养阴润燥，生津止渴",
   麦冬: "养阴生津，润肺清心",
   生地黄: "清热凉血，养阴生津",
+  // ─── 以下四味：编译产物的合并功用文本混入了**药典功用项之外**的历史条文，被方向门禁当成
+  // 该药的高影响治疗方向，导致它们被逐出自己本行的短名单。与 玉竹/柴胡 同类，按药典口径治理。
+  // 判定标准严格限定为「该条文是否出现在《中国药典》2020年版一部的【功能与主治】」——
+  // 只删药典外的条文，不改药典内的任何一项（例如 夏枯草 的清肝泻火、生地黄 的清热凉血
+  // 都是药典功用，必须保留，它们被清热方向门禁约束是正确行为）。
+  //
+  // 石菖蒲：合并文本含「解毒杀虫」→ 触发 heat_clear，使最正统的开窍药进不了开窍方向短名单
+  //         （实测开窍方向仅剩苏合香 1 味）。解毒杀虫为历史外用条文，非药典功用项。
+  石菖蒲: "开窍豁痰，醒神益智，化湿开胃",
+  // 火麻仁：合并文本含「活血」→ 触发 blood_move，把一味纯润下药挡在泻下方向之外。
+  火麻仁: "润肠通便",
+  // 夏枯草：合并文本含「活血调经，养血调经」→ 触发 blood_move。清肝泻火是药典功用，予以保留，
+  //         因此它在非热证的软坚方向仍会被正确挡下；这里只去掉药典外的活血条文。
+  夏枯草: "清肝泻火，明目，散结消肿",
+  // 阿胶：合并文本含「化痰清肺」→ 触发 heat_clear，把一味补血要药挡在补血方向之外。
+  阿胶: "补血滋阴，润燥，止血",
+  // 当归：合并文本含「温中止痛」→ 触发 yang_warm，使这味补血第一要药在心脾两虚/血虚证里
+  //       被自己的补血方向短名单剔除。温中止痛为历史条文，非药典功用项；药典保留的
+  //       「补血活血」「润肠通便」仍在，它们分别受 blood_move / purge 方向约束是正确行为。
+  当归: "补血活血，调经止痛，润肠通便",
+  // 党参：合并文本含「清肺」→ 触发 heat_clear，并与温里类治法构成寒热极性冲突，使这味最常用的
+  //       补气药在温中健脾类病例里被整体挡下。药典功用无清肺一项。
+  党参: "健脾益肺，养血生津",
+  // ─── 经典方基准组成里查不到功用的高频饮片 ───
+  // 这三味在库里有名有剂量、却没有功用与分类，而 herb_knowledge_missing 命中一味即作废整张方。
+  // 地黄出现在 52 张受治理方（龙胆泻肝汤即栽在它上面），淡豆豉 5 张（银翘散），广藿香 2 张。
+  // 地黄不走别名：它是剂量条目的挂载名（见 CONTROLLED_EXACT_HERB_DOSE_LIMITS 的说明），
+  // 改名会把剂量边界一起弄丢，所以按药典口径直接补功用。
+  // ─── 经典方基准组成里查不到功用的高频饮片 ───
+  // transparentFormulaTherapyIssue 的 herb_knowledge_missing 只要命中一味就作废整张方。
+  // 实测甲方 10 例测试病历：M03 锁定命名方 6 例，其中 5 例最终 0 味出方，
+  // 龙胆泻肝汤与银翘散栽在这里——卡住它们的分别是「地黄」和「淡豆豉」。
+  // 全目录扫描（1644 张可编译方）显示这是一小批高频饮片名的共性问题：
+  // 地黄 52 张方、姜半夏 27、荆芥穗 22、滑石粉 11、官桂 10。
+  //
+  // 刻意**不**走别名（如 姜半夏→半夏）：别名会一并改变剂量解析，让更多方剂在运行时变成
+  // "可编译"，而生成目录里的 doseCompilationEligible 标记不会跟着变，两者立刻脱钩
+  // （scripts/test-tcm-formula-provenance.mjs 有这条平价断言）。受控功用条目只影响功用与
+  // 分类查询，不碰剂量边界，因此不会造成这种脱钩。
+  地黄: "清热凉血，养阴生津",
+  姜半夏: "燥湿化痰，降逆止呕，消痞散结",
+  清半夏: "燥湿化痰",
+  荆芥穗: "解表散风，透疹，消疮",
+  焦栀子: "泻火除烦，清热利湿，凉血解毒",
+  炒栀子: "泻火除烦，清热利湿，凉血解毒",
+  滑石粉: "利尿通淋，清热解暑",
+  官桂: "补火助阳，散寒止痛，温通经脉",
+  制天南星: "燥湿化痰，祛风止痉，散结消肿",
+  胆南星: "清热化痰，息风定惊",
+  淡豆豉: "解表，除烦，宣发郁热",
+  藿香: "芳香化浊，和中止呕，发表解暑",
+  广藿香: "芳香化浊，和中止呕，发表解暑",
 };
 const CONTROLLED_HERB_FUNCTION_CATEGORIES: Record<string, string[]> = {
   麦冬: ["补虚药", "补阴药"],
   // The source workbook records only the heat-clearing chapter for 生地黄. Its governed function
   // text also carries the standard 养阴生津 direction, so both directions must be queryable.
   生地黄: ["清热凉血药", "清热药", "补虚药", "补阴药"],
+  地黄: ["清热凉血药", "清热药", "补虚药", "补阴药"],
+  淡豆豉: ["解表药", "发散风热药"],
+  藿香: ["化湿药"],
+  广藿香: ["化湿药"],
+  姜半夏: ["化痰止咳平喘药", "温化寒痰药"],
+  荆芥穗: ["解表药", "发散风寒药"],
+  滑石粉: ["利尿通淋药", "利水渗湿药"],
+  官桂: ["温里药"],
+  制天南星: ["化痰止咳平喘药", "温化寒痰药"],
+  焦栀子: ["清热泻火药", "清热药"],
 };
 
 export function isKnownTcmHerbName(value: string): boolean {
@@ -290,7 +462,28 @@ export function isKnownTcmHerbName(value: string): boolean {
   const controlled = CONTROLLED_HERB_ALIASES[normalized];
   if (controlled && canonicalHerbNameByToken.has(normalizedHerbLookupToken(controlled))) return true;
   const withoutProcessing = normalized.replace(/^(?:蜜炙|麸炒|土炒|炒|炙|醋制|酒制|盐制|姜制|煅|制|生)/, "");
-  return withoutProcessing !== normalized && canonicalHerbNameByToken.has(withoutProcessing);
+  if (withoutProcessing !== normalized && canonicalHerbNameByToken.has(withoutProcessing)) return true;
+  // T9 受控饮片名解析。剂量层（canonicalKnowledgeHerbName）与功用层（getTcmHerbFunctionText）
+  // 都已走这条路——桂心→肉桂、黄芩片→黄芩、山萸肉→山茱萸、麦门冬→麦冬都能解析出完整的
+  // 功用、分类与剂量边界。唯独本判定不查 T9，于是同一个药名在「存在性」上答否、在「功用/剂量」
+  // 上答有：实测受治理经典方基准组成里 333 个饮片名（覆盖 1644 张可编译方，头部的出现在 80 张
+  // 方里）被误报为"知识库未收"，验证器据此驳回、排查时也被它误导。
+  // fail-closed 语义原样保留：T9 只在**人工裁定过且 autoResolvable、非歧义**的行上给出
+  // canonicalName——芍药（白芍/赤芍）、贝母这类多目标名返回 ambiguous、没有 canonicalName，
+  // 这里照样判 false，仍然交给药师确认，不会被本改动放行。
+  const governed = resolveGovernedTcmHerbIdentity(normalized);
+  const governedName = governed.canonicalName || governed.doseCanonicalName;
+  if (governedName && (
+    canonicalHerbNameByToken.has(normalizedHerbLookupToken(governedName)) ||
+    CONTROLLED_STANDALONE_HERBS.has(normalizedHerbLookupToken(governedName))
+  )) return true;
+  // 兜底必须放在最后：所有既有解析路径（受控别名、炮制名剥离、T9 身份）都走完仍未识别时，
+  // 才认「由医师确定用量」类成分（琥珀、葱白、粳米、黄丹…）。放在前面会截断正常归一——
+  // 实测「艾叶炭」曾因此不再归一到「艾叶」。
+  // 认它们是因为剂量豁免层已让它们进入可编译基准方：存在性若答否，M04 会以 herb_*_unknown
+  // 驳回整方，豁免就只做了一半。这不等于给它们药典背书——核验级别仍由 clinicianDoseHerbClass
+  // 如实标注（管制毒性/禁用 → toxic_regulated，其余 → unverified_dose），用量由医师确定并经审方复核。
+  return isClinicianDoseHerb(value) || isClinicianDoseHerb(normalized);
 }
 
 function stringifyClinicalValue(value: unknown): string {
@@ -1056,6 +1249,73 @@ export function getTcmHerbDoseLimit(herb: string): TcmHerbDoseLimit | null {
   if (curated) return { min: curated.minG, max: curated.maxG, basis: equivalent?.basis || curated.basis, sourceType: "curatedDose" };
   const common = data.commonHerbs.find((item) => item.name === doseName);
   return common ? { min: common.minG, max: common.maxG, basis: equivalent?.basis || common.basis, sourceType: "common" } : null;
+}
+
+
+/**
+ * 缺法定数值剂量边界、改由医师定量的成分（甲方 2026-08-01 决策：降低门禁、审方兜底）。
+ *
+ * 此前这些成分让整方不可编译：1352/2915 的受控方一旦被 M03 锁定就只能返回非剂量结果，
+ * 医生连一张自拟方都拿不到。现在改为——系统**不为它们校验数值边界**，但也**不声称它们正确**：
+ * 处方里按类别标注核验级别（管制毒性/禁用动物药 → toxic_regulated，其余 → unverified_dose），
+ * 用量由医师确定，并照常提交灵犀审方。
+ *
+ * 边界没有取消，只是移交：系统不再假装知道剂量，而是明确告诉医生「这一味需要你定」。
+ * 同一张表由 T8 生成器与运行时共用，避免目录说可编译而运行时说不可编译的分叉。
+ */
+export type ClinicianDoseClass =
+  | "pharmacopoeia_not_listed"
+  | "controlled_or_toxic"
+  | "endangered_or_banned"
+  | "food_or_vehicle"
+  | "pill_powder_only";
+
+const CLINICIAN_DOSE_CLASS_BY_NAME: ReadonlyMap<string, ClinicianDoseClass> = (() => {
+  const policy = clinicianDosePolicyJson as unknown as {
+    ingredients?: Record<string, Array<{ name?: string }>>;
+  };
+  const map = new Map<string, ClinicianDoseClass>();
+  for (const [group, items] of Object.entries(policy.ingredients || {})) {
+    for (const item of items || []) {
+      const name = typeof item?.name === "string" ? item.name.trim() : "";
+      if (name && !map.has(name)) map.set(name, group as ClinicianDoseClass);
+    }
+  }
+  return map;
+})();
+
+/** 炮制前后缀：查豁免表时一并剥离，否则「醋没药/煅龙骨/朱砂粉」这些变体名查不到基名。 */
+const CLINICIAN_DOSE_PROCESSING_AFFIX =
+  /^(?:蜜炙|麸炒|土炒|盐炒|酒炒|醋炒|姜炒|炒|炙|醋|酒|盐|姜|煅|制|生|焦|熟|鲜)|(?:炭|霜|片|粉|末|丝|段|块)$/g;
+
+/** 该成分是否属「由医师确定用量」范围（无法定数值边界，系统不校验但必须标注）。 */
+export function clinicianDoseHerbClass(herb: string): ClinicianDoseClass | undefined {
+  const raw = typeof herb === "string" ? herb.trim() : "";
+  if (!raw) return undefined;
+  const direct = CLINICIAN_DOSE_CLASS_BY_NAME.get(raw)
+    || CLINICIAN_DOSE_CLASS_BY_NAME.get(canonicalKnowledgeHerbName(raw));
+  if (direct) return direct;
+  // 炮制变体走基名：醋没药→没药、煅龙骨→龙骨、朱砂粉→朱砂。炮制不改变「有没有法定剂量边界」
+  // 这件事，若不剥离，71 张方会因变体名查不到基名而继续阻断。
+  const base = raw.replace(CLINICIAN_DOSE_PROCESSING_AFFIX, "").trim();
+  if (!base || base === raw) return undefined;
+  return CLINICIAN_DOSE_CLASS_BY_NAME.get(base)
+    || CLINICIAN_DOSE_CLASS_BY_NAME.get(canonicalKnowledgeHerbName(base));
+}
+
+/**
+ * 管制毒性与法律禁用动物药**不参与剂量豁免**：它们的门槛来自法规（处方权绑定医师个人、
+ * 须走专用处方载体、野生动物保护法禁用），不是数据缺口。灵犀审方能复核用药合理性，
+ * 但替代不了处方权与处方载体，因此这两类仍旧转人工，不因产品侧降低门禁而放行。
+ */
+const REGULATORY_BLOCKED_CLASSES: ReadonlySet<ClinicianDoseClass> = new Set([
+  "controlled_or_toxic",
+  "endangered_or_banned",
+]);
+
+export function isClinicianDoseHerb(herb: string): boolean {
+  const clinicianClass = clinicianDoseHerbClass(herb);
+  return clinicianClass !== undefined && !REGULATORY_BLOCKED_CLASSES.has(clinicianClass);
 }
 
 export function getTcmHerbFunctionText(herb: string): string {

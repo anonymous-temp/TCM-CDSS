@@ -1,6 +1,6 @@
 {
   "schemaVersion": "nihaisha-fusion-manifest-v1",
-  "generatedAt": "2026-07-23",
+  "generatedAt": "2026-08-01",
   "sources": [
     {
       "path": "参考/nihaisha-nishi-tcm-main/references/pdf-evidence/evidence-cards.jsonl",
@@ -32,8 +32,8 @@
     },
     {
       "path": "src/data/tcm-formula-governed-catalog.json",
-      "sha256": "33c8069fa02a90426917222ebd9ac9930a0c452aa619250e3e3d4b30b7b3bf07",
-      "records": 1800
+      "sha256": "22fed4337f795ad88c3c52aafd159edf6fdfb2a44a9f70a3604b6c5a15a31694",
+      "records": 2937
     }
   ],
   "evidence": {
@@ -46,7 +46,7 @@
     "shanghanUniqueClauseAnchors": 333,
     "shanghanCoverageOf398": 0.8367,
     "jinguiAnchorPolicy": "chapter_paragraph_only",
-    "runtimeFormulaCount": 222,
+    "runtimeFormulaCount": 588,
     "runtimeRetrievalPolicy": "full_record_scan_no_prebuilt_index",
     "runtimeScannableRecords": 55127
   },
@@ -98,17 +98,17 @@
       "passed": true
     },
     "discriminationQuestions": {
-      "actual": 53,
+      "actual": 126,
       "minimum": 35,
       "passed": true
     },
     "formulaNodes": {
-      "actual": 61,
+      "actual": 169,
       "minimum": 55,
       "passed": true
     },
     "formulaEdges": {
-      "actual": 77,
+      "actual": 167,
       "minimum": 45,
       "passed": true
     },
@@ -118,12 +118,12 @@
       "passed": true
     },
     "formulaCompositionRules": {
-      "actual": 40,
+      "actual": 164,
       "minimum": 35,
       "passed": true
     },
     "textualModificationRules": {
-      "actual": 51,
+      "actual": 52,
       "minimum": 12,
       "passed": true
     },
@@ -147,40 +147,40 @@
       "bytes": 3158
     },
     "tcm-differentiation-rules.json": {
-      "sha256": "0f2479d5bc31d3a071443c346b62d8e5aff80df7d1a9340ab66ea3151cf4e2d0",
-      "bytes": 62815
+      "sha256": "5c5e457a6690c41029e009c1729955ada9888f04d1d71ff947dace7db22c2efe",
+      "bytes": 129828
     },
     "tcm-formula-discrimination-graph.json": {
-      "sha256": "73e52965bbdf7a52627c188e7c7de0e903da452cef93fd3e83353f6f770c6feb",
-      "bytes": 130638
+      "sha256": "338231ed0b831968a13622abf0551e930768546146a1cc7006d9fdca52f0f570",
+      "bytes": 305512
     },
     "tcm-formula-composition-rules.json": {
-      "sha256": "cb2e9661550f8684e58189fe66f996e35037952429193afdeb24e0ee5f352a4b",
-      "bytes": 22637
+      "sha256": "44b578e876a23ec22f496aa5c7f81f10d4306ce6ca5ba7ca3754e022d2a26914",
+      "bytes": 116958
     },
     "tcm-textual-modification-rules.json": {
-      "sha256": "0ac5d83945480a75715b377ea1d5027b5b5591e98072b9b6c600bc320203577a",
-      "bytes": 30326
+      "sha256": "bb1cb07c69fcb704a5479fbb3ce3dd6516ad0fa3fb70e8ed665eed4dfb01b31b",
+      "bytes": 30935
     },
     "tcm-contraindication-rules.json": {
       "sha256": "23c5aab9bc10fb60e5a1102ffc77b7f1ebecc5b466355a265277de0fc53efa0e",
       "bytes": 5866
     },
     "tcm-classic-case-eval-corpus.json": {
-      "sha256": "a4525c3a76bf4ded5cf6f9e675fe9aa8a05b7cc6de23b1471b0122c5c7436064",
-      "bytes": 211451
+      "sha256": "f4b0ac780900ffa8cdcd95746435ae52ac15387d5bdb22349022fac79406ba80",
+      "bytes": 212167
     },
     "tcm-classic-text-evidence.jsonl": {
-      "sha256": "64056b4fa544dad9698e5889c83a54b38451b3283b776595a4e3806691ac7295",
-      "bytes": 44370023
+      "sha256": "aa7cfcfaac63bfffa42ac8d5b1cd94cbf28be0346e7007eff749b891910fb6d9",
+      "bytes": 44405613
     },
     "tcm-classic-text-evidence-quarantine.jsonl": {
-      "sha256": "2287d6c40f1975cd0c16c63d77b0d3fefb1e07ef539478c12879efa6b8d1b954",
-      "bytes": 409145
+      "sha256": "2e0022103331b6a8c82f9937461db1f41f255dae5304e0f218798da8bb37a386",
+      "bytes": 409353
     },
     "tcm-classic-formula-evidence.json": {
-      "sha256": "304d61a2570f35c9b09849788ec27214af45a8c39dbcea4911b1ab468b8c3459",
-      "bytes": 496624
+      "sha256": "698d5709863c1349098e15f839f95ecf6efeb5af489cab7861b73e86d575a754",
+      "bytes": 1060630
     }
   }
 }

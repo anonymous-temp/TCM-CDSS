@@ -4,7 +4,7 @@ import { buildM04ClinicalReviewPrompt, parseM04ClinicalReview } from "../src/lib
 
 const apiKey = (process.env.OPENAI_API_KEY || "").trim();
 const baseUrl = (process.env.OPENAI_BASE_URL || "https://api.deepseek.com").replace(/\/+$/, "");
-const model = (process.env.PRIMARY_DIAGNOSE_MODEL || "deepseek-v4-pro").trim();
+const model = (process.env.PRIMARY_DIAGNOSE_MODEL || "deepseek-v4-flash").trim();
 const timeoutMs = Number(process.env.LIVE_CLINICAL_REVIEW_TIMEOUT_MS || 35_000);
 assert.ok(apiKey, "OPENAI_API_KEY is required for the live independent-review regression");
 

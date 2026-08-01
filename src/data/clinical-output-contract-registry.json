@@ -10,9 +10,9 @@
     ]
   },
   "summary": {
-    "contractCount": 18,
+    "contractCount": 19,
     "visibleContractCount": 16,
-    "internalContractCount": 2
+    "internalContractCount": 3
   },
   "limitedStateCopy": {
     "requiredParts": [
@@ -51,11 +51,11 @@
         "M03-western",
         "M03-pathogenesis",
         "M03-therapy",
-        "M03-M04-lineage",
         "M04-formula",
         "M04-decoction",
         "M04-modifications",
         "M04-patent-western",
+        "M03-M04-tcm-treatment",
         "M03-M04-nonpharma",
         "M03-M04-management",
         "health-education",
@@ -160,9 +160,9 @@
       "id": "M03-western",
       "stage": "diagnose",
       "path": "reasoningV2.westernDiagnosis",
-      "label": "西医诊断倾向与鉴别",
+      "label": "西医诊断倾向",
       "requiredStatus": "required",
-      "evidenceBinding": "supporting_facts_limitations_and_checks",
+      "evidenceBinding": "supporting_facts_only",
       "visibility": "visible",
       "rendererId": "diagnosis-conclusion-section",
       "unknownPolicy": "show_boundary_never_fabricate"
@@ -234,10 +234,21 @@
       "unknownPolicy": "show_boundary_never_fabricate"
     },
     {
+      "id": "M03-M04-tcm-treatment",
+      "stage": "diagnose|prescribe",
+      "path": "reasoningV2.nonPharma.tcmTreatments",
+      "label": "中医治疗项目",
+      "requiredStatus": "nullable",
+      "evidenceBinding": "pathogenesis_target_and_protocol_source",
+      "visibility": "visible",
+      "rendererId": "tcm-treatment-section",
+      "unknownPolicy": "show_boundary_never_fabricate"
+    },
+    {
       "id": "M03-M04-nonpharma",
       "stage": "diagnose|prescribe",
       "path": "reasoningV2.nonPharma",
-      "label": "非药物调护与中医项目",
+      "label": "健康调护与注意事项",
       "requiredStatus": "nullable",
       "evidenceBinding": "pathogenesis_target_and_protocol_source",
       "visibility": "visible",
@@ -248,12 +259,11 @@
       "id": "M03-M04-lineage",
       "stage": "diagnose|prescribe",
       "path": "reasoningV2.lineageAdaptation",
-      "label": "学术流派适配",
+      "label": "流派适配记录",
       "requiredStatus": "nullable",
       "evidenceBinding": "applicability_reason_and_safety_deference",
-      "visibility": "visible",
-      "rendererId": "lineage-section",
-      "unknownPolicy": "show_boundary_never_fabricate"
+      "visibility": "internal_only",
+      "unknownPolicy": "never_render_to_clinical_user"
     },
     {
       "id": "M03-M04-management",

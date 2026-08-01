@@ -42,9 +42,31 @@ assert.ok(corpus.cases.length > 15000, `语料规模 sanity(实际 ${corpus.case
 const ids = new Set(corpus.cases.map((c) => c.caseId));
 assert.equal(ids.size, corpus.cases.length, "caseId 唯一");
 const DOB = /\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*出生|出生日期|出生于\s*\d{4}/;
+const DOSE_OR_INSTRUCTION = /(?:(?:\d+(?:\.\d+)?|[〇零一二三四五六七八九十百半]+)\s*(?:克|g|钱|两|升|合|铢)|每日.{0,8}(?:服|次)|(?:先煎|后下|久煎|水煎服)|(?:针|刺|灸).{0,16}(?:穴|分钟|寸))/i;
+const TOXIC_HERBS = new Set([
+  "马钱子", "巴豆", "巴豆霜", "罂粟壳", "御米壳", "雄黄", "商陆", "红大戟", "京大戟", "甘遂",
+  "蓖麻子", "蓖麻仁", "苦楝皮", "仙茅", "砒霜", "轻粉", "红粉", "水银", "铅", "铅丹", "铅粉",
+  "斑蝥", "蟾酥", "生川乌", "生草乌", "生附子", "生半夏", "生天南星", "生白附子", "硫黄", "硫磺",
+]);
 let withHerbs = 0, withDiag = 0;
+const REPLAY_GATES = (c) =>
+  (c.expectedFormulaNames || []).length > 0 &&
+  [c.chiefComplaint, c.fourExams, c.patternAnalysis, c.diagnosisTcm, c.treatmentPrinciple, c.course].every((v) => typeof v === "string" && v.trim().length > 0) &&
+  (c.herbs || []).length >= 2 &&
+  (c.herbs || []).every((h) => typeof h.herb === "string" && h.herb.trim().length > 1 && !TOXIC_HERBS.has(h.herb)) &&
+  typeof c.replayInput === "string" &&
+  c.replayInput.length >= 24 &&
+  !DOSE_OR_INSTRUCTION.test(c.replayInput) &&
+  c.containsQuarantinedContent === false;
 for (const c of corpus.cases) {
-  assert.equal(c.replayEligible, false, `${c.caseId} 不得进回放池`);
+  // 回放池只向治理闸门全过的子集开放(ADJ-20260726-MODERN-CASE-REPLAY-POOL);
+  // 不在子集内的一律 false——现代案默认不可回放,闸门不是形式。
+  if (c.replayEligible) {
+    assert.equal(REPLAY_GATES(c), true, `${c.caseId} 回放资格与治理闸门不符`);
+    assert.ok(c.replayGovernance?.startsWith("ADJ-20260726-MODERN-CASE-REPLAY-POOL"), `${c.caseId} 回放资格须带治理批次`);
+  }
+  assert.equal(corpus.evaluationOnly, true, "仅评测");
+  assert.equal(corpus.runtimeRetrievalAllowed, false, "禁运行时检索");
   assert.equal(c.containsQuarantinedContent, false);
   assert.equal(c.tier, "experience");
   assert.match(c.sourceRef, /Medical Records\.txt#L\d+$/, "行锚可回指");
@@ -58,4 +80,6 @@ for (const c of corpus.cases) {
 assert.ok(withHerbs / corpus.cases.length > 0.85, `药味字段覆盖率 ${(withHerbs / corpus.cases.length * 100).toFixed(1)}%`);
 assert.ok(withDiag / corpus.cases.length > 0.9, `中医诊断覆盖率 ${(withDiag / corpus.cases.length * 100).toFixed(1)}%`);
 
-console.log(JSON.stringify({ cases: corpus.cases.length, withHerbs, withDiag, withFormulaInCatalog: corpus.cases.filter((c) => c.expectedFormulaNames.length).length }));
+const replayPool = corpus.cases.filter((c) => c.replayEligible).length;
+assert.ok(replayPool > 0 && replayPool < corpus.cases.length, "回放池必须是治理过的真子集");
+console.log(JSON.stringify({ cases: corpus.cases.length, withHerbs, withDiag, withFormulaInCatalog: corpus.cases.filter((c) => c.expectedFormulaNames.length).length, replayPool }));

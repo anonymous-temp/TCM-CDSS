@@ -7,10 +7,14 @@ import {
 import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { isKnownTcmHerbName } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
+import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
-import { MONITORING_ACTION_OR_CONDITION, canonicalTcmHerbIdentity, highImpactHerbDirectionIssue } from "./diagnosis-stage-contract";
+import {
+  canonicalTcmHerbIdentity,
+  highImpactHerbDirectionIssue,
+} from "./diagnosis-stage-contract";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import type { CaseState } from "./diagnosis-types";
 
@@ -19,6 +23,62 @@ const evidence = {
   source: "基于本例证候、病机、治法与候选药味的配伍分析",
   confidence: "中" as const,
 };
+
+function compileHerbVerification(name: string): {
+  verificationTier: "verified" | "unverified_dose" | "identity_pending" | "toxic_regulated";
+  doseSource: "governed_boundary" | "classical_source" | "none";
+  verificationReasons: string[];
+  isToxic: boolean;
+} {
+  const identity = resolveGovernedTcmHerbIdentity(name);
+  const canonicalName = identity.doseCanonicalName || identity.canonicalName;
+  if (!canonicalName) {
+    return {
+      verificationTier: "identity_pending",
+      doseSource: "none",
+      verificationReasons: [
+        identity.status === "ambiguous"
+          ? `药味身份存在多个候选：${identity.candidates.join("、") || "待药师核定"}`
+          : "药味身份尚未进入受治理标准名目录",
+      ],
+      isToxic: false,
+    };
+  }
+
+  const doseLimit = getTcmHerbDoseLimit(canonicalName);
+  const safety = getTcmHerbGenerationSafetyProfile(canonicalName);
+  if (safety.isToxic) {
+    return {
+      verificationTier: "toxic_regulated",
+      doseSource: doseLimit && !doseLimit.sourceConflict ? "governed_boundary" : "none",
+      verificationReasons: [
+        ...safety.toxicity.map((item) => `毒性提示：${item}`),
+        ...(doseLimit?.sourceConflict ? ["剂量边界存在分用途冲突，需药师按实际用途复核"] : []),
+      ].slice(0, 8),
+      isToxic: true,
+    };
+  }
+
+  if (!doseLimit || doseLimit.min == null || doseLimit.max == null || doseLimit.sourceConflict) {
+    return {
+      verificationTier: "unverified_dose",
+      doseSource: "none",
+      verificationReasons: [
+        doseLimit?.sourceConflict
+          ? "剂量边界存在分用途冲突，当前数值不能标为已核验"
+          : "本地受治理知识库尚无完整数值型内服剂量边界",
+      ],
+      isToxic: false,
+    };
+  }
+
+  return {
+    verificationTier: "verified",
+    doseSource: "governed_boundary",
+    verificationReasons: [`受治理剂量边界 ${doseLimit.min}-${doseLimit.max}g 已用于生成后校验`],
+    isToxic: false,
+  };
+}
 
 function medicineEvidenceFromSource(source: string) {
   const clean = source.trim().slice(0, 800);
@@ -38,9 +98,80 @@ function medicineEvidenceFromSource(source: string) {
   };
 }
 
-// 与合同层共用同一常量（此前是各自一份字面量，改一处不会同步另一处）。
-// 这里用它丢弃畸形监测行，合同层用它校验幸存的行。
-const MONITORING_ACTION_OR_CONDITION_PATTERN = MONITORING_ACTION_OR_CONDITION;
+// ─── 非药物调护「注意事项」的确定性归一与兜底 ──────────────────────────────────
+// 这里替换了原先的 monitoring(metric/timing/trigger) 归一逻辑。合同层已不再对该字段产生任何
+// 驳回码，因此本模块承担两件事：(1) 逐条清洗模型提交的自由文本，只丢行、绝不驳回整份提案；
+// (2) 清洗后为空时用确定性兜底保证 UI / M05 永远有非空注意事项——这个「必有内容」的保证由
+// 确定性代码提供，不由驳回码提供。
+
+// 通用安全文案：不断言任何患者事实、不含任何剂量，因此不违反证据绑定基线。
+const BASELINE_PRECAUTIONS = [
+  "服药期间如出现皮疹、瘙痒、明显恶心呕吐、腹泻或心悸等新发不适，应立即停药并联系接诊医生。",
+  "本方为本次辨证形成的候选方案，未经医生复核不得自行加量、延长疗程或转给他人服用。",
+  "如同时在服用其他中药、中成药或西药，复诊时须携带完整用药清单交由医生核对。",
+] as const;
+
+// 放开自由文本会带来一个新风险：模型可能把剂量级指令（「不适时加服半剂」「再加茯苓10g」）
+// 写进注意事项，从而绕过药味工作台与审方链路。这条正则把该风险重新关掉——命中即丢弃该行，
+// 而不是驳回整份处方（fail-safe 而非 fail-closed 到不出方）。
+const PRECAUTION_DOSE_LIKE = /\d+(?:\.\d+)?\s*(?:g|克|mg|毫克|ml|毫升|片|粒|袋|丸|支)/i;
+// 全串锚定，避免误伤「若症状加重请遵医嘱调整」这类正常句子——只有整行就是占位语时才丢弃。
+// 允许一个字段名前缀：模型最常见的占位写法不是裸的「待补充」，而是「注意事项：待补充」。
+// 原实现只列了裸占位词，而它们全部短于下面 6 字的长度下限、且长度检查先行，
+// 于是这条正则实际上永远命中不到——一条给人以安全感的死规则。前缀分支把它救活。
+const PRECAUTION_PLACEHOLDER = /^(?:注意事项|风险提示|注意|提示|其他)?[：:，,、]?\s*(?:待检索|待确认|待补充|待评估|待完善|证据不足|遵医嘱|按说明书|无特殊|暂无|不适用|无)[。.]?$/;
+
+function normalizedPrecautionKey(value: string): string {
+  return value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]“”"']+/g, "");
+}
+
+/** 逐条清洗模型提交的注意事项：只丢行、绝不驳回。 */
+function normalizeSubmittedPrecautions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const raw of value) {
+    if (typeof raw !== "string") continue;
+    const text = sanitizeUnverifiedClinicalNarrative(raw).trim();
+    if (text.length < 6 || text.length > 200) continue;
+    if (PRECAUTION_DOSE_LIKE.test(text)) continue;
+    if (PRECAUTION_PLACEHOLDER.test(text)) continue;
+    const key = normalizedPrecautionKey(text);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    kept.push(text);
+    if (kept.length >= 6) break;
+  }
+  return kept;
+}
+
+/** 从签名 M03 里取一个可用于纵向比较的患者事实锚点。 */
+function priorFactAnchor(prior?: ClinicalReasoningResultV2 | null): string | undefined {
+  if (!prior) return undefined;
+  const strings = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      : [];
+  return [
+    ...strings(prior.westernDiagnosis?.primary?.supportingFacts),
+    ...strings(prior.overview?.primarySyndromeBasis),
+    ...(Array.isArray(prior.pathogenesis?.chain)
+      ? prior.pathogenesis.chain.flatMap((node) => strings([node.patientFact, node.syndromeEvidence]))
+      : []),
+  ].find((value) => {
+    const clean = value.trim();
+    return clean.length >= 2 && clean.length <= 240;
+  })?.trim();
+}
+
+/** 确定性兜底：即便模型一条注意事项都没给出（或全被过滤），输出仍恒为非空。 */
+function deterministicPrecautions(prior?: ClinicalReasoningResultV2 | null): string[] {
+  const anchor = priorFactAnchor(prior)?.replace(/[。；;]+$/g, "");
+  return [
+    ...(anchor ? [`请留意${anchor}的变化；若明显加重或持续无改善，应提前复诊由医生复评。`] : []),
+    ...BASELINE_PRECAUTIONS,
+  ].slice(0, 6);
+}
 
 /** Coerce an unambiguous positive-integer regimen value (1, "1", "每日1剂", "一日2次", "2次/日")
  *  to a number; anything unclear returns undefined so the contract can fail closed. */
@@ -153,30 +284,13 @@ const M04ProposalSchema = z.object({
       projectCode: z.enum(TCM_TREATMENT_PROJECT_CODES),
       targetRef: z.string().regex(/^P\d{1,2}$/),
     })).max(3).default([]),
-    monitoring: z.array(z.object({
-      metric: z.string().min(2).max(300).refine(
-        (value) => !MONITORING_ACTION_OR_CONDITION_PATTERN.test(value),
-        "metric 只能填写要观察的病例指标，不得混入条件或处置动作",
-      ),
-      timing: z.string().min(2).max(300),
-      trigger: z.string().min(2).max(600).refine(
-        (value) => MONITORING_ACTION_OR_CONDITION_PATTERN.test(value),
-        "trigger 必须包含可识别的条件或处置动作",
-      ),
-    })).min(1).max(20),
+    // 注意事项：无 min(1)、无 refine。归一化（normalizeSubmittedPrecautions）已经在 safeParse
+    // 之前把非法行丢掉并截断到 6 条，所以这里的类型/长度错误实际不可达——即字段级驳回面为零。
+    // 原先的 monitoring 是 .min(1) + 两条 refine，是「随访监测能单独打掉整份处方」的隐蔽入口
+    // （zod 路径码 too_small_nonPharma_monitoring 同样没有修复引导语）。
+    precautions: z.array(z.string().min(2).max(200)).max(6).default([]),
   }),
 }).superRefine((proposal, context) => {
-  proposal.nonPharma.monitoring.forEach((item, index) => {
-    const normalized = [item.metric, item.timing, item.trigger]
-      .map((value) => value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]]+/g, ""));
-    if (new Set(normalized).size !== normalized.length) {
-      context.addIssue({
-        code: "custom",
-        path: ["nonPharma", "monitoring", index],
-        message: "metric、timing、trigger 必须分别承载指标、时间和触发处置，不能互相复制",
-      });
-    }
-  });
   const seenHerbs = new Map<string, number>();
   proposal.candidate.herbs.forEach((herb, index) => {
     const key = canonicalTcmHerbIdentity(herb.name);
@@ -803,7 +917,12 @@ function normalizeM04ProposalInput(
   const modifications = modificationNormalization.items;
   const rawNonPharma = isRecord(rawNonPharmaValue) ? { ...rawNonPharmaValue } : rawNonPharmaValue;
   const nonPharma = isRecord(rawNonPharma)
-    ? {
+    ? (() => {
+        const submittedPrecautions = normalizeSubmittedPrecautions(rawNonPharma.precautions);
+        const precautions = submittedPrecautions.length > 0
+          ? submittedPrecautions
+          : deterministicPrecautions(prior);
+        return {
         ...rawNonPharma,
         acupointCare: null,
         // These are optional recommendations chosen from a server-owned catalog. Extra, repeated,
@@ -817,25 +936,12 @@ function normalizeM04ProposalInput(
               return [[`${projectCode}:${targetRef}`, { projectCode, targetRef }] as const];
             })).values()].slice(0, 3)
           : [],
-        // Malformed monitoring rows (bad trigger semantics, metric carrying condition words,
-        // or metric/timing/trigger duplicating each other) must not invalidate the whole
-        // prescription; drop only the offending rows, the remaining valid rows still satisfy
-        // the contract. Same philosophy as tcmTreatments above.
-        monitoring: Array.isArray(rawNonPharma.monitoring)
-          ? rawNonPharma.monitoring.filter((item) => {
-              if (!isRecord(item)) return false;
-              const metric = typeof item.metric === "string" ? item.metric.trim() : "";
-              const timing = typeof item.timing === "string" ? item.timing.trim() : "";
-              const trigger = typeof item.trigger === "string" ? item.trigger.trim() : "";
-              if (!metric || !timing || !trigger) return false;
-              if (MONITORING_ACTION_OR_CONDITION_PATTERN.test(metric)) return false;
-              if (!MONITORING_ACTION_OR_CONDITION_PATTERN.test(trigger)) return false;
-              const normalized = [metric, timing, trigger]
-                .map((value) => value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]]+/g, ""));
-              return new Set(normalized).size === normalized.length;
-            }).slice(0, 20)
-          : rawNonPharma.monitoring,
-      }
+        // 注意事项同样是「丢行不驳回」：过短/过长、含剂量级文字（避免自由文本变成绕过药味
+        // 工作台与审方的剂量通道）、占位语和重复行逐条丢弃；全部被丢掉时用确定性兜底补齐，
+        // 因此这个字段永远不可能让一份已通过核心契约的处方作废。哲学同上方 tcmTreatments。
+        precautions,
+      };
+      })()
     : rawNonPharma;
 
   return {
@@ -949,8 +1055,11 @@ export function compileM04Proposal(
     const targetPathogenesis = node?.pathogenesis || node?.syndromeEvidence ||
       formulaStructureTarget(herb.structureRole) || herb.targetRef;
     const intendedTherapy = node?.therapyDirection || targetPathogenesis;
+    const verification = compileHerbVerification(herb.name);
     return {
       ...herb,
+      ...verification,
+      isToxic: herb.isToxic === true || verification.isToxic,
       prescriptionRole: `${herb.role}药：${intendedTherapy}`,
       targetPathogenesis,
       function: "由服务端知识库生成",

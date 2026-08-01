@@ -242,9 +242,9 @@ function runFrontendContractChecks() {
   assert(!source.includes("function lineagePatchToDraftPatch") && questionPrompt.includes("tcmLineageQuestionInstruction(caseState)") && promptSource.includes("当前流派化问诊策略") && questionPrompt.includes("患者事实"), "follow-up questions use the selected lineage strategy without injecting static generic patient facts", questionPrompt.slice(0, 4600));
   assert(["classical-formula", "warm-disease", "spleen-stomach", "warm-tonify-yang", "gongxie", "hanliang"].every((code) => lineageSource.includes(code)), "lineage: major TCM schools are covered by the question strategy map", lineageSource);
   assert(questionPrompt.includes("tcmLineageQuestionInstruction") && questionPrompt.includes("流派化侧重") && promptSource.includes("流派只在信息增益相近时作为排序因素") && !promptSource.includes("至少保留1个与当前流派直接相关的临床问题"), "M02: model prompt receives lineage-specific strategy without forcing a low-value lineage quota", questionPrompt.slice(0, 4200));
-  assert(promptSource.includes("card.governance.cardVersion") && promptSource.includes("card.provenance.representativeWorks") && source.includes("card.provenance.representativeWorks") && !source.slice(source.indexOf('testId=\"tcm-lineage\"'), source.indexOf('testId=\"tcm-lineage\"') + 2600).includes("卡片v"), "lineage governance remains in the model contract while customer UI omits internal card versions", `${promptSource.slice(1200, 3600)}\n${source.slice(source.indexOf('testId=\"tcm-lineage\"'), source.indexOf('testId=\"tcm-lineage\"') + 2600)}`);
-  assert(lineageFollowup === "" && questionPrompt.includes("tcmLineageQuestionInstruction") && questionPrompt.includes("最终只输出互不重复的前2题"), "frontend: lineage-aware questions are model-planned in the same one-round top-2 question contract", questionPrompt.slice(0, 4200));
-  assert(questionPrompt.includes("只进行一轮追问") && questionPrompt.includes("最终只输出互不重复的前2题") && questionPrompt.includes("信息增益"), "M02: the model chooses one round of top-2 highest-information clinical questions", questionPrompt.slice(0, 4200));
+  assert(promptSource.includes("card.governance.cardVersion") && promptSource.includes("card.provenance.representativeWorks") && !source.includes("card.provenance.representativeWorks") && !source.slice(source.indexOf('testId=\"tcm-lineage\"'), source.indexOf('testId=\"tcm-lineage\"') + 2600).includes("卡片v"), "lineage governance remains in the model contract while customer UI omits internal card versions", `${promptSource.slice(1200, 3600)}\n${source.slice(source.indexOf('testId=\"tcm-lineage\"'), source.indexOf('testId=\"tcm-lineage\"') + 2600)}`);
+  assert(lineageFollowup === "" && questionPrompt.includes("tcmLineageQuestionInstruction") && questionPrompt.includes("不得输出第3题"), "frontend: lineage-aware questions are model-planned in the same one-round top-2 question contract", questionPrompt.slice(0, 4200));
+  assert(questionPrompt.includes("只进行一轮追问") && questionPrompt.includes("不得输出第3题") && questionPrompt.includes("信息增益"), "M02: the model chooses one round of top-2 highest-information clinical questions", questionPrompt.slice(0, 4200));
   assert(!source.includes("信息不足，暂未生成完整诊断/处方"), "frontend: information-insufficient state avoids blunt diagnosis/prescription failure wording");
   assert(!prescriptionSection.includes("PrescriptionAdoptionBanner") && !prescriptionSection.includes("候选方药状态") && !prescriptionSection.includes("审方提示") && resultV2.includes("<AuditReviewSection"), "frontend: candidate formula stays clinically focused and audit advisories live only in the unified audit section", prescriptionSection.slice(0, 3200));
   assert(resultV2.includes('title="诊断结论"') && resultV2.includes('title="病机分析"') && resultV2.includes('title="治则治法"') && resultV2.includes('title="候选方药"') && resultV2.includes("<AuditReviewSection") && !resultV2.includes("role=\"tablist\""), "frontend: the report uses top-down clinical sections and one centralized audit section without exposing internal stage codes", resultV2.slice(0, 5600));
@@ -258,7 +258,7 @@ function runFrontendContractChecks() {
     sourceBetween(source, "function HisMedicalRecordWorkspace(", "function AiSupportPanel(")
   );
 
-  assert(source.includes("hasExecutableM03Diagnosis") && !prescribeRoute.includes("hasActionableM03Diagnosis") && prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("isStableM03Reasoning(signedPriorReasoning, clinicalGroundingText(gated))") && limitedOutputHelpers.includes("isLimitedDiagnosisText"), "stage contract: current cases use signed structured M03 truth, while text detection is legacy-only", `${limitedOutputHelpers}\n${prescribeRoute.slice(0, 5000)}`);
+  assert(source.includes("hasExecutableM03Diagnosis") && !prescribeRoute.includes("hasActionableM03Diagnosis") && prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated))") && limitedOutputHelpers.includes("isLimitedDiagnosisText"), "stage contract: current cases use signed structured M03 truth, while text detection is legacy-only", `${limitedOutputHelpers}\n${prescribeRoute.slice(0, 5000)}`);
   assert(["建议", "补充", "补齐", "完善", "再", "处方", "证候锚点", "病机链"].every((token) => limitedOutputHelpers.includes(token)), "shared: limited M03 helper covers non-fixed information-insufficient phrasing variants", limitedOutputHelpers);
   const completeConclusionIndex = limitedOutputHelpers.indexOf("完整候选方案");
   const broadLimitedPhraseIndex = limitedOutputHelpers.indexOf("建议(?:先)?(?:补充|补齐|完善)");
@@ -294,7 +294,7 @@ function runFrontendContractChecks() {
     "shared: management-like wording without a committed complete conclusion remains conservative",
     limitedOutputHelpers
   );
-  assert(prescribeRoute.includes("模型处方输出完整性") && diagnosisApiSource.includes("[TRUNCATED]") && diagnosisApiSource.includes("候选方药生成状态") && diagnosisApiSource.includes("本次未展示不完整的药味与剂量"), "backend: truncated or interrupted M04 ends cleanly without exposing a partial dose table", `${prescribeRoute}\n${diagnosisApiSource.slice(220, 1800)}`);
+  assert(prescribeRoute.includes("模型处方输出完整性及结构化合同") && prescribeRoute.includes("未通过处方合同校验") && diagnosisApiSource.includes("[TRUNCATED]") && diagnosisApiSource.includes("候选方药生成状态") && diagnosisApiSource.includes("本次未展示不完整的药味与剂量"), "backend: truncated, interrupted, or contract-rejected M04 ends cleanly without exposing a partial dose table", `${prescribeRoute}\n${diagnosisApiSource.slice(220, 1800)}`);
   assert(diagnoseRoute.includes("truncateFallback") && diagnoseRoute.includes("本次辨病辨证结果完整性"), "backend: truncated or interrupted M03 fails closed before M04 with clinician-facing wording", diagnoseRoute);
   assert(diagnoseRoute.includes("hasChiefComplaint") && diagnoseRoute.includes("【有限信息推理】") && !diagnoseRoute.includes("canProceedToM03AfterFollowup") && !diagnoseRoute.includes('gated.completeness.level !== "C" && !forcedProceed && !redFlagAnalysis'), "backend: M03 requires only a chief complaint and treats other missing data as confidence-lowering uncertainty", diagnoseRoute);
   assert(diagnoseRoute.includes("降低相应结论置信度") && diagnoseRoute.includes("historicalOnlyEncounter") && diagnoseRoute.includes("hasValidClinicalFactsAttestation") && diagnoseRoute.includes("sanitizeUngroundedRedFlagNegations(content, safeState)"), "backend: limited-information M03 gets a non-blocking uncertainty boundary, independently reviewed temporal scope, and grounded negative-history guard", diagnoseRoute);
@@ -344,12 +344,12 @@ function runFrontendContractChecks() {
       diagnosisApiSource.includes('process.env.PRIMARY_PRESCRIBE_MODEL?.trim() || defaultModel') &&
       diagnosisApiSource.includes('process.env.PRIMARY_PRESCRIBE_REPAIR_MODEL?.trim()') &&
       diagnosisApiSource.includes('process.env.PRIMARY_DIAGNOSE_MODEL?.trim()') &&
-      diagnosisApiSource.includes('process.env.PRIMARY_PRESCRIBE_REASONING_EFFORT || process.env.PRIMARY_TEXT_REASONING_EFFORT || "low"') &&
+      diagnosisApiSource.includes('String(process.env.PRIMARY_PRESCRIBE_REASONING_EFFORT || "medium")') &&
       diagnosisApiSource.includes('reasoning_effort: reasoningEffortForStructuredRepair(structuredStage)') &&
       diagnosisApiSource.includes("先不重不漏地输出所选基准 ingredients 的全部药味") &&
       promptSource.includes("minimumPreservedIngredientCount") &&
       promptSource.includes("组成身份下限"),
-    "M04 fluency: the first pass uses the configured fast model, repair escalates to the stronger model and medium effort, and named-formula limits are machine-readable",
+    "M04 fluency: the first pass already runs at medium effort (repair rounds hit the orchestration deadline), repair escalates to the configured repair model, and named-formula limits are machine-readable",
     `${diagnosisApiSource.slice(4500, 6500)}\n${promptSource.slice(21000, 27000)}`,
   );
   assert(
@@ -416,14 +416,14 @@ function runFrontendContractChecks() {
     "model prompt: M03 and M04 each emit one JSON object while M04 remains an actionable minimal proposal for server compilation",
     `${m03ReasoningInstruction}\n${m04ProposalInstruction}`,
   );
-  assert(prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("isStableM03Reasoning(signedPriorReasoning, clinicalGroundingText(gated))") && !prescribeRoute.includes("hasActionableM03Diagnosis"), "M04 route: verifies the server-signed, patient-grounded structured M03 contract before dose-level prescribing", prescribeRoute.slice(0, 5600));
+  assert(prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated))") && !prescribeRoute.includes("hasActionableM03Diagnosis"), "M04 route: verifies the server-signed, patient-grounded structured M03 contract before dose-level prescribing", prescribeRoute.slice(0, 5600));
   assert(
     reasoningContractSignatureSource.includes('DIAGNOSE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m03-signature-v4"') &&
       reasoningContractSignatureSource.includes("clinicalInputHash") &&
       reasoningContractSignatureSource.includes("clinicalInputSnapshot(deidentified)") &&
       reasoningContractSignatureSource.includes("sanitizeCaseStateForBrowserPersistence(normalized)") &&
       reasoningContractSignatureSource.includes("reasoning,") &&
-      diagnosisTypesSource.includes('z.enum(["tcm-cdss-m03-signature-v4", "tcm-cdss-m04-signature-v1"])'),
+      diagnosisTypesSource.includes('z.enum(["tcm-cdss-m03-signature-v4", "tcm-cdss-m04-signature-v2"])'),
     "M03 signature: complete normalized reasoning, de-identified clinical snapshot, and explicit contract version share one HMAC payload",
     `${reasoningContractSignatureSource}\n${diagnosisTypesSource.slice(10000, 13500)}`,
   );
@@ -439,7 +439,7 @@ function runFrontendContractChecks() {
     `${diagnoseRoute}\n${diagnosisApiSource.slice(-3600)}\n${prescribeRoute.slice(0, 1800)}\n${postPrescriptionRiskRoute.slice(0, 1200)}\n${hisPrescriptionValidationSource.slice(0, 2200)}`,
   );
   assert(
-    reasoningContractSignatureSource.includes('PRESCRIBE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m04-signature-v1"') &&
+    reasoningContractSignatureSource.includes('PRESCRIBE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m04-signature-v2"') &&
       reasoningContractSignatureSource.includes("diagnoseContractHash") &&
       reasoningContractSignatureSource.includes("bindClinicalReviewAttestation") &&
       prescribeRoute.includes("buildPrescribeContractSignatureContext(trustedGated)") &&
@@ -536,16 +536,17 @@ function runFrontendContractChecks() {
   assert(diagnosisApiSource.includes('opts.structuredStage === "diagnose" ? sanitizeDiagnoseStreamingDraft(content) : content') && source.includes("sanitizeDiagnoseStreamingDraft") && diagnosisApiSource.includes("diagnosePreviewBuffer") && sourceBetween(source, "const runDiagnoseChain", "const runCollect").includes("sanitizeDiagnoseStreamingDraft"), "M03 streaming: every server exit plus browser preview/persistence masks dose-level instructions while retaining line-by-line clinical reasoning", `${diagnosisApiSource.slice(0, 9000)}\n${sourceBetween(source, "function sanitizeStreamingPreview", "function StreamingPreviewCard")}`);
   const streamingSanitizer = sourceBetween(source, "function sanitizeStreamingPreview", "function StreamingPreviewCard");
   assert(streamingSanitizer.includes("Preserve the candidate structure") && streamingSanitizer.includes("用法用量待最终核验") && !streamingSanitizer.includes("本阶段完成后展示"), "frontend: M04 streaming preserves medicine names and section structure while masking only unfinished dose fragments", streamingSanitizer);
-  assert(envExample.includes("OPENAI_MODEL=deepseek-v4-pro") && envExample.includes("PRIMARY_TEXT_REASONING_EFFORT=low") && composeFile.includes("OPENAI_MODEL:-deepseek-v4-pro") && composeFile.includes("PRIMARY_TEXT_REASONING_EFFORT:-low"), "deploy: every text phase defaults to deepseek-v4-pro with a bounded reasoning effort", `${envExample}\n${composeFile}`);
-  assert(envExample.includes("PRIMARY_CLINICAL_REVIEW_PROVIDER=primary") && envExample.includes("PRIMARY_CLINICAL_REVIEW_MODEL=deepseek-v4-pro") && envExample.includes("PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT=low") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_PROVIDER:-primary") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_MODEL:-deepseek-v4-pro") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_TIMEOUT_MS:-30000"), "deploy: all clinical text review defaults to the primary DeepSeek provider with an explicit bounded timeout", `${envExample}\n${composeFile}`);
-  assert(envExample.includes("GLM_VISION_ENABLED=false") && envExample.includes("GLM_VISION_MODEL=glm-5v-turbo") && composeFile.includes("GLM_VISION_ENABLED:-false") && composeFile.includes("GLM_VISION_MODEL:-glm-5v-turbo"), "deploy: GLM-5V is an explicit opt-in used only for tongue-image vision", `${envExample}\n${composeFile}`);
+  assert(envExample.includes("OPENAI_MODEL=deepseek-v4-flash") && envExample.includes("PRIMARY_TEXT_REASONING_EFFORT=low") && composeFile.includes("OPENAI_MODEL:-deepseek-v4-flash") && composeFile.includes("PRIMARY_TEXT_REASONING_EFFORT:-low"), "deploy: every text phase defaults to deepseek-v4-flash with a bounded reasoning effort", `${envExample}\n${composeFile}`);
+  assert(envExample.includes("PRIMARY_CLINICAL_REVIEW_PROVIDER=primary") && envExample.includes("PRIMARY_CLINICAL_REVIEW_MODEL=deepseek-v4-flash") && envExample.includes("PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT=low") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_PROVIDER:-primary") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_MODEL:-deepseek-v4-flash") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_TIMEOUT_MS:-30000"), "deploy: all clinical text review defaults to the primary DeepSeek provider with an explicit bounded timeout", `${envExample}\n${composeFile}`);
+  assert(envExample.includes("GLM_VISION_ENABLED=true") && envExample.includes("GLM_VISION_MODEL=glm-5v-turbo") && composeFile.includes("GLM_VISION_ENABLED:-true") && composeFile.includes("GLM_VISION_MODEL:-glm-5v-turbo"), "deploy: GLM-5V tongue-image vision is enabled by default and remains isolated from text reasoning", `${envExample}\n${composeFile}`);
+  assert(envExample.includes("SYNDROME_HYPOTHESIS_RERANK=true") && composeFile.includes("SYNDROME_HYPOTHESIS_RERANK:-true"), "deploy: L1b closed-set syndrome-hypothesis reranking is enabled in the release contract", `${envExample}\n${composeFile}`);
   assert(envExample.includes("NEXT_PUBLIC_BASE_PATH=/tcm-cdss") && composeFile.includes("NEXT_PUBLIC_BASE_PATH:-/tcm-cdss") && dockerfile.includes('ARG NEXT_PUBLIC_BASE_PATH="/tcm-cdss"'), "deploy: production image and runtime share the /tcm-cdss build-time base path", `${envExample}\n${dockerfile}\n${composeFile}`);
   assert(composeFile.includes("IMAGE_TAG:?set immutable IMAGE_TAG") && composeFile.includes("CDSS_API_TOKEN:?set CDSS_API_TOKEN") && composeFile.includes("CASE_SNAPSHOT_ENCRYPTION_KEY:?set CASE_SNAPSHOT_ENCRYPTION_KEY") && composeFile.includes("REASONING_CONTRACT_SIGNING_KEY:?set REASONING_CONTRACT_SIGNING_KEY") && composeFile.includes("healthcheck:") && composeFile.includes("health?strict=1") && composeFile.includes("strictReady!==true"), "deploy: immutable image tag, access token, snapshot key, reasoning signature key, and strict authenticated healthcheck are mandatory", composeFile);
   assert(dockerfile.includes(".next-build-persistence-flag") && dockerfile.includes("NEXT_PUBLIC_ENABLE_BROWSER_CASE_PERSISTENCE changed after build"), "deploy: browser persistence cannot drift between image build and container runtime", dockerfile);
   assert(["playwright-report", "test-results", ".playwright-mcp", "*.trace.zip", "*.har", "*.log", "/*.png", "/*.jpg"].every((entry) => dockerignore.includes(entry)), "deploy: browser traces, root screenshots, and local test artifacts are excluded from the Docker build context", dockerignore);
   assert(dockerignore.includes("/scripts/test-*") && dockerignore.includes("/scripts/regress-*"), "deploy: synthetic clinical test and regression fixtures never enter the Docker builder context", dockerignore);
   assert(dockerignore.includes("!.env.example"), "deploy: the non-secret environment contract remains available to release-side regression", dockerignore);
-  assert(textModelSource.includes('firstEnv(["OPENAI_API_KEY"])') && textModelSource.includes('const resolvedModel = model.value || "deepseek-v4-pro"') && textModelSource.includes("isDeepseekModel(resolvedModel)"), "model: OpenAI-compatible configuration defaults to the explicitly vendor-validated DeepSeek V4 Pro model", textModelSource.slice(2400, 4300));
+  assert(textModelSource.includes('firstEnv(["OPENAI_API_KEY"])') && textModelSource.includes('const resolvedModel = model.value || "deepseek-v4-flash"') && textModelSource.includes("isDeepseekModel(resolvedModel)"), "model: OpenAI-compatible configuration defaults to the explicitly vendor-validated DeepSeek V4 Flash model", textModelSource.slice(2400, 4300));
   const structuredFollowupTimelineType = sourceBetween(
     diagnosisTypesSource,
     "export type StructuredFollowupTimelineItem",
@@ -570,13 +571,19 @@ function runFrontendContractChecks() {
     "M05: server emits typed timeline fields and the frontend never reverse-parses Markdown",
     `${followupTimelineParser}\n${postPrescriptionRiskRoute}\n${diagnoseChain.slice(-2600)}`,
   );
-  assert(resultV2.includes('title="健康调护与随访"') && resultV2.includes("pathogenesisType") && resultV2.includes("min-w-[760px]") && riskPanel.includes('const isRedFlag =') && riskPanel.includes("{isRedFlag &&"), "frontend: structured report closes with health follow-up, pathogenesis tags, responsive herb table, and positive-only red-flag handling", resultV2.slice(0, 9200));
+  assert(resultV2.includes('title="健康调护与注意事项"') && resultV2.includes("pathogenesisType") && resultV2.includes("min-w-[760px]") && riskPanel.includes('const isRedFlag =') && riskPanel.includes("{isRedFlag &&"), "frontend: structured report closes with health follow-up, pathogenesis tags, responsive herb table, and positive-only red-flag handling", resultV2.slice(0, 9200));
   assert(diagnosisTypesSource.includes("locationDifferentiation") && diagnosisTypesSource.includes("details:") && diagnosisTypesSource.includes("rootDeficiency") && diagnosisTypesSource.includes("branchExcess") && diagnosisTypesSource.includes("symptomClusters"), "M03 schema: pathogenesis supports per-location basis, root-deficiency/branch-excess classification, and symptom-cluster mapping", diagnosisTypesSource.slice(5200, 9800));
   assert(resultV2.includes("病位辨证") && resultV2.includes("病性辨证") && resultV2.includes("本证") && resultV2.includes("主要表现") && resultV2.includes("症状群与病机联系") && !resultV2.includes("step.biaoBen"), "frontend: structured pathogenesis fields are rendered as clinician-readable sections without deprecated per-node root/manifestation badges", resultV2.slice(3400, 8200));
   assert(diagnosisStageContractSource.includes("primarySyndromeResolution") && diagnosisStageContractSource.includes("primary_syndrome_resolution_reason_missing") && diagnosisStageContractSource.includes("location_resolution_reason_missing") && diagnosisStageContractSource.includes("nature_resolution_reason_missing"), "M03 contract: semantic conclusions carry explicit resolution and uncertainty contracts", diagnosisStageContractSource.slice(18500, 23500));
   assert(diagnosisApiSource.includes("prepareDiagnoseStructuredContent") && diagnosisApiSource.includes("sanitizeOptionalPathogenesisClassifications") && diagnosisVisibleSummarySource.includes("Clinical classification is a semantic task owned by the model and the independent reviewer") && diagnosisVisibleSummarySource.includes("patientFactSourceQuote") && diagnosisVisibleSummarySource.includes("primarySyndromeResolution"), "M03 pipeline: model-owned classifications are source-grounded and uncertainty-bounded before signed review", `${diagnosisApiSource.slice(5200, 7000)}\n${diagnosisVisibleSummarySource.slice(0, 6200)}`);
-  assert(resultV2.includes("const seasonalCare = buildSeasonalCare([") && resultV2.includes("].filter(Boolean).join(\"；\"), new Date());") && !resultV2.includes("hisRecord?.updatedAt"), "frontend: seasonal care uses the current visit date rather than a stale saved-record timestamp", resultV2.slice(0, 2600));
-  assert(source.includes("shouldRenderEvidenceStatus") && source.includes('customerEvidenceDisplayStatus(evidence) === "traceable"') && !source.includes("外部依据未核验 · 需人工复核") && resultV2.includes("shouldRenderEvidenceStatus(firstCandidate.formulaSource)") && resultV2.includes("shouldRenderEvidenceStatus(reasoning.westernDiagnosis.primary.evidence)") && resultV2.includes("isCompleteStructuredMedicineCandidate"), "frontend: only traceable external evidence is shown; inference, insufficient, and pending states never reach customers", sourceBetween(source, "function hasDisplayableEvidence", "function ResultTabsV2"));
+  assert(
+    resultV2.includes("const seasonalCare = buildSeasonalCare([") &&
+      resultV2.includes('].filter((value): value is string => typeof value === "string" && Boolean(value.trim())), new Date());') &&
+      !resultV2.includes("hisRecord?.updatedAt"),
+    "frontend: seasonal care uses structured pathogenesis terms and the current visit date rather than a stale saved-record timestamp",
+    resultV2.slice(0, 2600),
+  );
+  assert(source.includes("shouldRenderEvidenceStatus") && source.includes('customerEvidenceDisplayStatus(evidence) === "traceable"') && !source.includes("外部依据未核验 · 需人工复核") && resultV2.includes("shouldRenderEvidenceStatus(firstCandidate.formulaSource)") && !resultV2.includes("reasoning.westernDiagnosis.primary.evidence") && resultV2.includes("isCompleteStructuredMedicineCandidate"), "frontend: only traceable external evidence is shown; inference, insufficient, and pending states never reach customers", sourceBetween(source, "function hasDisplayableEvidence", "function ResultTabsV2"));
   assert(hisSchemeSource.includes("customerEvidenceDisplayStatus") && hisSchemeSource.includes('formulaEvidenceStatus === "traceable"') && !hisSchemeSource.includes("方剂依据核验状态") && !hisSchemeSource.includes("药味依据核验") && !hisSchemeSource.includes("随症加减依据核验"), "HIS: only traceable formula references are emitted; missing evidence is omitted instead of rendered as an internal gap", sourceBetween(hisSchemeSource, "function structuredHerbalSection", "function normalizedHerbName"));
   assert(hisSchemeSource.includes("withSafetyGate(caseState)") && hisSchemeSource.includes("prescribeReasoningFromState") && hisSchemeSource.includes("function structuredHerbalSection") && hisSchemeSource.includes("candidate.herbs"), "HIS: payload rebuilds safety invariants and uses M04 structured herbs as the write-back source", hisSchemeSource.slice(0, 9200));
   assert(hisSchemeRoute.includes("runBoundedRxAudit") && hisSchemeRoute.includes("audit outcome itself is advisory") && hisSchemeRoute.includes("deriveSafetyLocked"), "HIS: the server refreshes trustworthy audit warnings without turning audit results into adoption locks", hisSchemeRoute);
@@ -642,7 +649,7 @@ function runFrontendContractChecks() {
   );
   assert(editedHerbBuilder.includes("candidateIndex") && editedHerbBuilder.includes("synchronizeEditedCandidate") && editedHerbBuilder.includes("filterModificationsForEditedHerbs"), "frontend: edited herb list and all herb-dependent narratives are synchronized before re-audit", editedHerbBuilder);
   assert(m04ProposalCompilerSource.includes("实际采用时请在药味工作台确定剂量") && m04ProposalCompilerSource.includes("重新审方"), "M04: conditional modifications explain the concrete edit-and-re-audit workflow instead of exposing an empty risk note", m04ProposalCompilerSource.slice(15000, 18000));
-  assert(diagnosisVisibleSummarySource.includes("主要治疗支点") && diagnosisVisibleSummarySource.includes("从核心病机到兼夹与配伍调和的治疗层次"), "M04: deterministic formula analysis explains role groups and connected prescription logic", diagnosisVisibleSummarySource.slice(4200, 7000));
+  assert(!diagnosisVisibleSummarySource.includes("直治核心病机，构成本方主要治疗支点。") && diagnosisVisibleSummarySource.includes("buildFormulaAnalysis"), "M04: deterministic formula analysis explains what each herb does in THIS formula instead of a cross-formula template sentence", diagnosisVisibleSummarySource.slice(4200, 7000));
   assert(herbWorkbench.includes("/api/diagnosis/post-prescription-risk") && herbWorkbench.includes("buildReasoningWithEditedHerbs") && herbWorkbench.includes("重新审方"), "frontend: edited herb lists are re-audited through the deterministic post-prescription audit path", herbWorkbench.slice(0, 5200));
   assert(herbWorkbench.includes("submittedAuditState") && herbWorkbench.includes("computePrescriptionVersionHash(revisedReasoning, candidateIndex, submittedAuditState)"), "frontend: prescription audit hashes bind selected herbs to the current patient context", herbWorkbench.slice(0, 6200));
   assert(herbWorkbench.includes('body?.audit?.degraded !== true') && herbWorkbench.includes("needManualReview: body?.audit?.needManualReview === true") && source.includes("revision.degraded === true") && source.includes("revision.needManualReview === true"), "frontend: degraded/manual-review audit status remains a warning after persistence and restore", `${herbWorkbench.slice(5000, 7600)}\n${sourceBetween(source, "function auditRevisionNeedsAttention", "function defaultEvidenceRef")}`);
@@ -1845,7 +1852,7 @@ async function runLimitedEndpointCases() {
 async function runPrescriptionOnlyGateEndpointCases() {
   const source = readFileSync(new URL("../src/app/api/diagnosis/prescribe/route.ts", import.meta.url), "utf8");
   assert(source.includes('gated.safetyGate?.status === "red_flag"') && !source.includes("if (!gated.safetyGate?.allowDosePrescription)") && !source.includes("canForceProceedPastSafetyGate"), "M04: red flags suppress concrete doses while optional demographic, tongue/pulse, allergy, medication, and pregnancy gaps remain advisories", source.slice(0, 3400));
-  assert(source.includes("verifyDiagnoseReasoningSignature") && source.includes("isStableM03Reasoning"), "M04: signed stable M03 integrity remains the candidate-generation boundary", source.slice(0, 3200));
+  assert(source.includes("verifyDiagnoseReasoningSignature") && source.includes("m03SafetyContractIssue"), "M04: signed stable M03 integrity remains the candidate-generation boundary", source.slice(0, 3200));
 }
 
 async function runM03SignatureBoundaryCases() {
@@ -2126,9 +2133,9 @@ async function runKnowledgeCalls() {
     primaryModel,
   );
   assert(
-    health.json?.providers?.diagnoseModel?.model === "deepseek-v4-pro" &&
-      health.json?.providers?.prescribeModel?.repairModel === "deepseek-v4-pro",
-    "health keeps M03 and bounded M04 repair on DeepSeek V4 Pro even when routine stages use Flash",
+    health.json?.providers?.diagnoseModel?.model === "deepseek-v4-flash" &&
+      health.json?.providers?.prescribeModel?.repairModel === "deepseek-v4-flash",
+    "health pins M03 and bounded M04 repair to the approved DeepSeek V4 Flash release",
     health.json?.providers,
   );
   assert(health.json?.providers?.primaryModel?.reasoningEffort === expectedReasoningEffort, `health reasoning effort ${expectedReasoningEffort}`, health.json?.providers?.primaryModel);

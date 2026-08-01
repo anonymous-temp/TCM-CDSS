@@ -118,8 +118,8 @@ function sameModelIdentity(a: ClinicalFactsModelIdentity, b: ClinicalFactsModelI
 
 export function getClinicalFactsModelPlan() {
   const primary = getPrimaryTextModelConfig();
-  // Triage is a compact JSON classification task. All identities are pinned to the approved V4 Pro
-  // release model; phase-specific token/reasoning budgets keep this pre-check bounded.
+  // Triage is a compact JSON classification task. All identities follow the approved primary
+  // DeepSeek release model; phase-specific token/reasoning budgets keep this pre-check bounded.
   const extractor = primaryFactsPhaseModel(process.env.CLINICAL_FACTS_MODEL?.trim() || primary.model);
   const reviewer = independentFactsReviewModel();
   const adjudicator = primaryFactsPhaseModel(
@@ -527,10 +527,16 @@ export async function maybeAttachClinicalFactsBackstop(
 }
 
 function classifyUnavailableReason(error: unknown, signal?: AbortSignal): ClinicalFactsUnavailableReason {
-  if (signal?.aborted) return "aborted";
+  // 超时判定先于 abort 判定：相位截止用 AbortSignal.timeout 实现，其 reason 是 TimeoutError、
+  // SDK 侧抛的是 abort 形态的错误——按 abort 先判会把「模型太慢」误标成「请求被中止」，
+  // 运维排障会被引向客户端断连而不是相位预算（实测 case9 两次 8s 相位超时被标 aborted）。
+  const signalReasonName = signal?.aborted && signal.reason instanceof Error ? signal.reason.name : "";
+  const signalReasonMessage = signal?.aborted && signal.reason instanceof Error ? signal.reason.message : "";
+  if (signalReasonName === "TimeoutError" || /timed?\s*out|timeout/i.test(signalReasonMessage)) return "timeout";
   const name = error instanceof Error ? error.name : "";
   const message = error instanceof Error ? error.message : String(error || "");
-  if (name === "AbortError") return "aborted";
   if (name === "TimeoutError" || /timed?\s*out|timeout/i.test(message)) return "timeout";
+  if (signal?.aborted) return "aborted";
+  if (name === "AbortError" || name === "APIUserAbortError") return "aborted";
   return "model_error";
 }

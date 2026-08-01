@@ -15,6 +15,7 @@ const {
   clinicalGroundingText,
   hardDoseSafetyBoundaryReasons,
   measuredVitalAdvisories,
+  redFlagClearanceFingerprint,
   withSafetyGate,
 } = await import("../src/lib/diagnosis-safety.ts");
 const { createInitialCaseState } = await import("../src/lib/diagnosis-types.ts");
@@ -584,10 +585,16 @@ for (const text of ["突发胸痛30分钟，今日急诊已明确排除ACS，目
 for (const text of ["突发胸痛30分钟，今日已明确由急诊排除ACS，目前无胸痛。", "突发胸痛30分钟，今日明确经急诊排除ACS，目前无胸痛。", "突发胸痛30分钟，今日明确排除ACS，经急诊确认，目前无胸痛。"] ) {
   assert.equal(detectProgrammaticRedFlags(stateFromRecord(text, { zhushu: "复诊" })).length, 0, text);
 }
+// 日期必须相对当前动态生成，不能写死。写死的「2026年8月1日」在编写时是遥远未来，
+// 到了 2026-07-31 就变成次日，落进「当日/近日急诊已排除」窗口而被合理消解——测试随之
+// 无故转红。当日排除消解红旗是既定安全设计（另有独立用例覆盖），这里要验证的是
+// **与本次发作不匹配的日期（过去或明显未来）不得消解当前红旗**。
+const pastYear = new Date().getFullYear() - 1;
+const farFutureYear = new Date().getFullYear() + 1;
 for (const text of [
-  "2小时前突发胸痛伴大汗；2026年6月1日，已由心内科评估排除急性冠脉事件。",
-  "2小时前突发胸痛伴大汗；2026年6月1日患者曾在外院就诊，已由心内科评估排除急性冠脉事件。",
-  "2小时前突发胸痛伴大汗；2026年8月1日，已由急诊评估排除急性冠脉事件。",
+  `2小时前突发胸痛伴大汗；${pastYear}年6月1日，已由心内科评估排除急性冠脉事件。`,
+  `2小时前突发胸痛伴大汗；${pastYear}年6月1日患者曾在外院就诊，已由心内科评估排除急性冠脉事件。`,
+  `2小时前突发胸痛伴大汗；${farFutureYear}年8月1日，已由急诊评估排除急性冠脉事件。`,
 ]) {
   assert.match(detectProgrammaticRedFlags(stateFromRecord(text, { zhushu: "复诊" })).join("\n"), /胸痛/, text);
 }
@@ -643,11 +650,70 @@ for (const value of [
 }
 assert.equal(isUnknownClinicalFieldText("舌象待核实，现服阿司匹林100mg每日一次", "tongue"), true);
 assert.equal(isUnknownClinicalFieldText("舌象待核实，但本次可见舌淡苔薄白", "tongue"), false);
+for (const tongue of ["边有齿印", "齿痕舌", "舌边齿痕", "舌边可见齿印", "舌体胖大，边缘有齿痕"]) {
+  assert.equal(isUnknownClinicalFieldText(tongue, "tongue"), false, `documented tongue variant must be recognized: ${tongue}`);
+}
+for (const pulse of ["浮紧脉", "脉来浮而紧", "脉象为弦细", "脉沉兼迟", "脉见滑数"]) {
+  assert.equal(isUnknownClinicalFieldText(pulse, "pulse"), false, `documented pulse variant must be recognized: ${pulse}`);
+}
 const crossFieldUnknownTongue = stateFromRecord("舌象待核实，现服阿司匹林100mg每日一次。", {
   zhushu: "睡眠差", tcmTongue: "舌象待核实，现服阿司匹林100mg每日一次", tcmPulse: "脉弦细",
   sex: "男", guomin: "否认药物过敏", yongyaoshi: "现服阿司匹林100mg每日一次",
 });
 assert.match(evaluateSafetyGate(crossFieldUnknownTongue).missingItems.join("、"), /舌象/);
+
+const thunderclapEmergency = stateFromRecord(
+  "今日突发人生最剧烈头痛，伴恶心呕吐，既往无类似发作。",
+  {
+    zhushu: "突发人生最剧烈头痛伴恶心呕吐",
+    sex: "女",
+    age: "36岁",
+    tcmTongue: "舌边齿痕",
+    tcmPulse: "脉来浮而紧",
+    guomin: "否认药物及食物过敏",
+    yongyaoshi: "目前无正在使用的中西药或保健品",
+  },
+);
+thunderclapEmergency.patient = { sex: "女", age: 36 };
+thunderclapEmergency.tongue = "舌边齿痕";
+thunderclapEmergency.pulse = "脉来浮而紧";
+const thunderclapGate = evaluateSafetyGate(thunderclapEmergency);
+assert.equal(thunderclapGate.status, "red_flag");
+assert.match(thunderclapGate.redFlagFindings?.[0]?.sourceQuote || "", /最剧烈头痛/);
+const clearedThunderclap = {
+  ...thunderclapEmergency,
+  emergencyClearance: {
+    redFlagFingerprint: redFlagClearanceFingerprint(thunderclapGate),
+    confirmedAt: "2026-07-28T08:00:00.000Z",
+    assessmentSummary: "急诊影像及神经系统评估已排除急性神经血管事件",
+    contractSignature: `hmac-sha256:${"a".repeat(64)}`,
+  },
+};
+const clearedThunderclapGate = evaluateSafetyGate(clearedThunderclap);
+assert.notEqual(clearedThunderclapGate.status, "red_flag", "doctor clearance bound to the current findings should restore the ordinary workflow");
+assert.equal(clearedThunderclapGate.allowDiagnosis, true);
+assert.equal(
+  evaluateSafetyGate({
+    ...clearedThunderclap,
+    emergencyClearance: { ...clearedThunderclap.emergencyClearance, redFlagFingerprint: "RF-STALE000" },
+  }).status,
+  "red_flag",
+  "a stale or fabricated clearance fingerprint must never release an emergency block",
+);
+const changedEmergency = stateFromRecord(
+  "今日突发人生最剧烈头痛，伴恶心呕吐，随后又出现压榨性胸痛伴冷汗。",
+  {
+    ...thunderclapEmergency.hisRecord.fields,
+    zhushu: "突发最剧烈头痛后出现压榨性胸痛伴冷汗",
+  },
+);
+changedEmergency.patient = { sex: "女", age: 36 };
+changedEmergency.emergencyClearance = clearedThunderclap.emergencyClearance;
+assert.equal(
+  evaluateSafetyGate(changedEmergency).status,
+  "red_flag",
+  "a newly added emergency finding must invalidate the previously recorded clearance",
+);
 
 const oldModelSelfLock = stateFromRecord("否认胸痛胸闷，无其他急性不适。", { zhushu: "睡眠不佳" });
 oldModelSelfLock.diagnosis = "## 红旗排查\n高风险：胸痛已出现，建议急诊";
@@ -944,6 +1010,27 @@ assert.match(
   /病历已记录头痛阳性/,
   "a tight-band head complaint must not be weakened into an unknown headache",
 );
+const qualifiedHeadacheDenial = stateFromRecord(
+  "头痛5天，头痛如裹，肢体困重。否认突发雷击样头痛、发热和意识异常。",
+  { zhushu: "头痛5天" },
+);
+const preservedQualifiedHeadacheDenial = sanitizeUngroundedRedFlagNegations(
+  "本例否认突发雷击样头痛、发热和意识异常。",
+  qualifiedHeadacheDenial,
+);
+assert.match(preservedQualifiedHeadacheDenial, /否认突发雷击样头痛、发热和意识异常/);
+assert.doesNotMatch(
+  preservedQualifiedHeadacheDenial,
+  /病历已记录头痛阳性.*病历已记录否认头痛/,
+  "qualified thunderclap denial must never collapse into the contradictory generic denial of headache",
+);
+const reconciledQualifiedHeadacheDenial = sanitizeUngroundedRedFlagNegations(
+  "病历已记录头痛阳性；病历已记录否认头痛、发热。",
+  qualifiedHeadacheDenial,
+);
+assert.match(reconciledQualifiedHeadacheDenial, /病历已记录头痛阳性/);
+assert.match(reconciledQualifiedHeadacheDenial, /否认突发雷击样头痛、发热和意识异常/);
+assert.doesNotMatch(reconciledQualifiedHeadacheDenial, /病历已记录否认头痛(?:、|。|；|$)/);
 const headacheUncertaintyContent = [
   "<!-- DIAGNOSIS_JSON_START -->",
   JSON.stringify({
@@ -1410,6 +1497,32 @@ assert.deepEqual(typedFollowupResult.followupTimeline, [{
   triggers: ["失眠加重时提前复诊"],
 }], "typed follow-up frames must reach the client as structured data instead of a dead channel");
 
+const complaintPollutedReferenceFrames = [
+  { content: "## 辨病辨证\n临床正文。" },
+  {
+    quto: [
+      "主诉：入睡困难、多梦易醒3个月",
+      "入睡困难，多梦易醒，醒后再睡困难",
+      { title: "患者反复头晕3天，转头时明显" },
+      { literatureTitle: "中国成人失眠诊断与治疗指南", journal: "中华神经科杂志", author: "中华医学会神经病学分会", year: "2023" },
+      { title: "失眠症诊断和治疗指南", doi: "10.1234/example.2024.01" },
+    ],
+  },
+  { content: "[END]" },
+].map((frame) => `${JSON.stringify(frame)}\n`).join("");
+const complaintSafeReferenceResult = await consumeMarkdownStream(
+  new Response(complaintPollutedReferenceFrames),
+  () => undefined,
+);
+assert.match(complaintSafeReferenceResult, /## 参考文献/);
+assert.match(complaintSafeReferenceResult, /中国成人失眠诊断与治疗指南/);
+assert.match(complaintSafeReferenceResult, /10\.1234\/example\.2024\.01/);
+assert.doesNotMatch(
+  complaintSafeReferenceResult.split("## 参考文献")[1] || "",
+  /主诉|入睡困难，多梦易醒，醒后再睡困难|患者反复头晕3天/,
+  "patient complaints and retrieval queries must never be repackaged as references",
+);
+
 const trailingAfterEnd = [
   { content: "权威正文" },
   { content: "[END]" },
@@ -1470,3 +1583,30 @@ await assert.rejects(
 );
 
 console.log(JSON.stringify({ cases: 169, failures: 0 }));
+
+// ─── 程度副词/弱化量词重组不构成编造（2026-07 甲方妇科病例实测的类）───
+// 长枚举句病历里，模型引用几乎必然发生副词压缩：「经量较前明显增多」→「经量增多」、
+// 「夹有少许血块」→「夹有血块」。这是同一事实的合理压缩，原字面检查却按编造驳回，
+// 唯一的妇科病例因此反复 patient_fact_ungrounded_*_literal。
+// 边界：告警性量词（大量/骤增）与否定词不剥——病历写少许、模型写大量必须仍拒。
+{
+  const { m03SafetyContractIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+  const context = "近1个月月经周期提前至22天即来潮，经量较前明显增多，色紫红，夹有少许血块，伴心烦易怒。";
+  const mk = (fact) => ({
+    stage: "diagnose",
+    overview: { primarySyndrome: "血热证", overallPathogenesis: "阳盛血热，热扰冲任" },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: fact, syndromeEvidence: "心烦易怒", pathogenesis: "阳盛血热，热扰冲任", therapyDirection: "清热凉血，固冲调经" }] },
+    therapy: { overallPrinciple: "热者清之", overallMethod: "清热凉血，固冲调经" },
+    management: { followupSafetyNet: "若经量骤增不止或头晕乏力，应及时就诊复查。" },
+    formula: null,
+  });
+  for (const fact of ["经量增多", "经量较前增多", "夹有血块", "月经周期提前至22天，经量增多"]) {
+    assert.equal(m03SafetyContractIssue(mk(fact), context), undefined,
+      `合理压缩的事实「${fact}」必须接地成功`);
+  }
+  for (const fact of ["夹有大量血块", "经量骤增", "带下量多色黄"]) {
+    assert.match(m03SafetyContractIssue(mk(fact), context) || "",
+      /patient_fact_ungrounded/,
+      `「${fact}」升级或编造了病历没有的表述，必须仍拒`);
+  }
+}

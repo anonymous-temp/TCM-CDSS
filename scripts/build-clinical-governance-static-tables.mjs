@@ -517,15 +517,20 @@ const outputContracts = [
   ["M01-case-summary", "collect", "caseState/hisRecord", "病例摘要", "required", "patient_facts_only", "visible", "case-record-panel"],
   ["M02-question-plan", "question", "M02Plan.questions", "集中追问", "conditional", "sourceEvidence_verbatim_binding", "visible", "question-plan-card"],
   ["M03-overview", "diagnose", "reasoningV2.overview", "中医诊断概览", "required", "evidence_ref_and_primary_syndrome_basis", "visible", "diagnosis-conclusion-section"],
-  ["M03-western", "diagnose", "reasoningV2.westernDiagnosis", "西医诊断倾向与鉴别", "required", "supporting_facts_limitations_and_checks", "visible", "diagnosis-conclusion-section"],
+  ["M03-western", "diagnose", "reasoningV2.westernDiagnosis", "西医诊断倾向", "required", "supporting_facts_only", "visible", "diagnosis-conclusion-section"],
   ["M03-pathogenesis", "diagnose", "reasoningV2.pathogenesis", "病机拆解", "required", "patient_fact_to_pathogenesis_chain", "visible", "pathogenesis-section"],
   ["M03-therapy", "diagnose", "reasoningV2.therapy", "治则治法", "required", "target_pathogenesis_and_evidence_ref", "visible", "therapy-section"],
   ["M04-formula", "prescribe", "reasoningV2.formula.candidates", "候选方药", "conditional", "formula_source_herb_evidence_and_target_ref", "visible", "formula-section"],
   ["M04-patent-western", "prescribe", "reasoningV2.formula.patentAndWestern", "中成药/西药候选", "nullable", "evidence_id_fingerprint_and_risk_note", "visible", "medicine-section"],
   ["M04-modifications", "prescribe", "reasoningV2.formula.modifications", "加减规则", "optional", "trigger_target_and_evidence_ref", "visible", "formula-modification-list"],
   ["M04-decoction", "prescribe", "reasoningV2.formula.candidates[].decoction", "煎服与复评节点", "required_when_formula_exists", "candidate_formula_binding", "visible", "decoction-panel"],
-  ["M03-M04-nonpharma", "diagnose|prescribe", "reasoningV2.nonPharma", "非药物调护与中医项目", "nullable", "pathogenesis_target_and_protocol_source", "visible", "followup-care-section"],
-  ["M03-M04-lineage", "diagnose|prescribe", "reasoningV2.lineageAdaptation", "学术流派适配", "nullable", "applicability_reason_and_safety_deference", "visible", "lineage-section"],
+  // 需求9：中医治疗项目从「非药物调护」内部抽出，成为独立模块，排在健康调护之前。
+  // 它与饮食/起居/情志不是同一类东西——前者是受控目录里的可开展治疗项目（有操作方案、
+  // 部位穴位、术者资质与必查项），后者是生活方式建议。嵌在一起时医生要在调护文字里翻找
+  // 可开的治疗项目，两类内容的决策权重也被拉平。
+  ["M03-M04-tcm-treatment", "diagnose|prescribe", "reasoningV2.nonPharma.tcmTreatments", "中医治疗项目", "nullable", "pathogenesis_target_and_protocol_source", "visible", "tcm-treatment-section"],
+  ["M03-M04-nonpharma", "diagnose|prescribe", "reasoningV2.nonPharma", "健康调护与注意事项", "nullable", "pathogenesis_target_and_protocol_source", "visible", "followup-care-section"],
+  ["M03-M04-lineage", "diagnose|prescribe", "reasoningV2.lineageAdaptation", "流派适配记录", "nullable", "applicability_reason_and_safety_deference", "internal_only", null],
   ["M03-M04-management", "diagnose|prescribe", "reasoningV2.management", "管理与安全网", "nullable", "red_flag_loop_and_followup_trigger", "visible", "followup-care-section"],
   ["M05-assessment", "assess", "deterministic assessment markdown", "风险与随访汇总", "required", "structured_post_prescription_audit", "visible", "audit-followup-section"],
   ["health-education", "diagnose|prescribe|assess", "management.healthEducation", "健康宣教", "required_when_actionable", "case_bound_behavior_and_safety_boundary", "visible", "followup-care-section"],
@@ -579,7 +584,7 @@ writeJson("clinical-output-contract-registry.json", {
     {
       id: "comprehensive_clinical_scheme",
       label: "完整诊疗支持方案",
-      sectionOrder: ["red-flag-warning", "M03-overview", "M03-western", "M03-pathogenesis", "M03-therapy", "M03-M04-lineage", "M04-formula", "M04-decoction", "M04-modifications", "M04-patent-western", "M03-M04-nonpharma", "M03-M04-management", "health-education", "M05-assessment"],
+      sectionOrder: ["red-flag-warning", "M03-overview", "M03-western", "M03-pathogenesis", "M03-therapy", "M04-formula", "M04-decoction", "M04-modifications", "M04-patent-western", "M03-M04-tcm-treatment", "M03-M04-nonpharma", "M03-M04-management", "health-education", "M05-assessment"],
     },
     {
       id: "limited_clinical_scheme",

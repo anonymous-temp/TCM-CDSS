@@ -35,6 +35,14 @@ const requiredFields = readJson("clinical-required-field-matrix.json");
 const outputContracts = readJson("clinical-output-contract-registry.json");
 const nondrugTreatments = readJson("tcm-nondrug-treatment-evidence-catalog.json");
 const sourceRegistry = readJson("clinical-governance-source-registry.json");
+const genericSingleAxisSyndromes = new Set(["阴", "阳", "表", "里", "寒", "热", "虚", "实"]);
+assert.deepEqual(
+  highFrequencyFormulaRelations.entries
+    .map((item) => item.syndrome)
+    .filter((syndromeName) => genericSingleAxisSyndromes.has(syndromeName)),
+  [],
+  "T8 不得用单字八纲词直接绑定方剂，否则会退化成“寒->寒泻方”式名称对拍",
+);
 
 const governedPayloads = new Map([
   ["T1", syndrome], ["T2", nature], ["T3", location], ["T4", principles],
@@ -202,11 +210,51 @@ assert.ok(shaoyaoTargets.has("白芍") && shaoyaoTargets.has("赤芍"),
 // 这里**从 KB 推导整类**而不是钉死当时那 6 个名字：新增一味 curatedDose-only 的药材时，
 // 断言会自动把它纳入保护，不需要有人记得回来改列表。
 const PHARMACOPOEIA_DOSE_BASIS = /中华人民共和国药典|中国药典2020一部/;
+const UNREVIEWED_BASIS_MARK = /待人工复核|校准层|推定|甲方反馈/;
+const isAuthorizedWebCurated = (item) => {
+  let source;
+  try {
+    source = new URL(String(item.sourceUrl || ""));
+  } catch {
+    return false;
+  }
+  return item.webCurated === true &&
+    source.protocol === "https:" &&
+    (source.hostname === "gov.cn" || source.hostname.endsWith(".gov.cn")) &&
+    typeof item.herb === "string" && item.herb.trim().length > 0 &&
+    typeof item.basis === "string" && item.basis.trim().length > 0 &&
+    typeof item.sourceAnchor === "string" && item.sourceAnchor.trim().length > 0 &&
+    typeof item.sourceSha256 === "string" && /^[0-9a-f]{64}$/i.test(item.sourceSha256) &&
+    !UNREVIEWED_BASIS_MARK.test(item.basis) &&
+    Number.isFinite(item.minG) && item.minG > 0 &&
+    Number.isFinite(item.maxG) && item.maxG >= item.minG;
+};
 const doseKnowledge = readJson("tcm-knowledge.json");
+// 与运行时同构：只有通过官方来源校验的 webCurated 行才从未复核集合中排除。
+// 当前二次验真后的 entries 为空；今后新增记录时必须先满足同一准入函数。
+const webDoseSupplements = readJson("tcm-herb-dose-web-supplements.source.json");
+assert.deepEqual(
+  (webDoseSupplements.entries || []).filter((entry) => !isAuthorizedWebCurated(entry)),
+  [],
+  "官方联网剂量补充不得接受二手网页、HTTP、无原文锚点/快照哈希、无明确数值边界或待复核依据",
+);
+assert.ok(
+  (webDoseSupplements.rejectedClaims || []).some((entry) =>
+    Array.isArray(entry.herbs) && entry.herbs.includes("龙骨") &&
+    /未定位到.*数值剂量/.test(String(entry.reason || ""))),
+  "已查明的来源错配必须留在治理审计记录中，不能删除痕迹后重新放行",
+);
+const authorizedWebHerbs = new Set((webDoseSupplements.entries || [])
+  .filter((entry) => isAuthorizedWebCurated(entry))
+  .flatMap((entry) => [entry.herb, entry.canonicalName].filter(Boolean))
+  .map((name) => String(name).replace(/\s+/g, "")));
 const unreviewedDoseHerbs = new Set((doseKnowledge.herbs || [])
   .filter((herb) => {
+    if (authorizedWebHerbs.has(String(herb.name || "").replace(/\s+/g, ""))) return false;
     const bounded = (herb.entries || []).filter((item) => item.minG != null || item.maxG != null);
-    return bounded.length > 0 && !bounded.some((item) => PHARMACOPOEIA_DOSE_BASIS.test(String(item.basis || "")));
+    if (bounded.length === 0) return false;
+    // 药典正条或「已授权 webCurated 层」任一存在,都不算未复核。
+    return !bounded.some((item) => PHARMACOPOEIA_DOSE_BASIS.test(String(item.basis || "")) || isAuthorizedWebCurated(item));
   })
   .map((herb) => herb.name));
 assert.ok(unreviewedDoseHerbs.size > 0,
@@ -218,6 +266,10 @@ assert.ok(unreviewedDoseHerbs.size > 0,
 //
 // 生效的剂量名口径必须与构建器一致：doseCanonicalName || canonicalName（不是 inputName），
 // 见 build-tcm-governance-tables.py 的 `link["doseCanonicalName"] or link["canonicalName"]`。
+//
+// 官方联网层必须同时满足：① webCurated:true；② HTTPS 政府域名；
+// ③ 明确药名/依据/正数边界；④ basis 不含待复核或推定字样。
+// 即便来源文件是政府站点，只要原文不能定位到具体数值，也必须留在 rejectedClaims，不能进 entries。
 const effectiveDoseName = (link) => link.doseCanonicalName || link.canonicalName || link.inputName || link.name;
 const doseCompiledOnUnreviewedBasis = formulas.entries
   .filter((entry) => entry.doseCompilationEligible)
@@ -228,10 +280,22 @@ const doseCompiledOnUnreviewedBasis = formulas.entries
       .filter((name) => name && unreviewedDoseHerbs.has(name)))],
   }))
   .filter((entry) => entry.herbs.length > 0);
-assert.deepEqual(doseCompiledOnUnreviewedBasis, [],
-  "方剂不得因「待人工复核/校准层」的推定剂量而获得自动配剂量许可——" +
-  "这些依据是给药师看的参考值，不是可自动开方的药典口径：" +
-  doseCompiledOnUnreviewedBasis.map((entry) => `${entry.name}[${entry.herbs.join("、")}]`).join("; "));
+// 剂量豁免层启用后（甲方 2026-08-01 决策：降低门禁、审方兜底），这条不变量换了表达方式：
+// 「待人工复核/校准层」的推定剂量仍然**不得被当成药典口径**——但处理方式不再是否决整方，
+// 而是把该药味明确登记进医师定量豁免表，处方里按 clinicianDoseHerbClass 标注核验级别
+//（天南星有毒且列高风险监管目录 → toxic_regulated），用量由医师确定并经灵犀审方复核。
+// 因此这里断言的是「登记完整」而不是「一律否决」：任何靠推定值获得编译许可、却没有
+// 在豁免表里留痕的药味，都是真正的漏洞——它会以「系统认可的剂量」形态出现在医生面前。
+{
+  const { clinicianDoseHerbClass } = await import("../src/lib/tcm-knowledge.ts");
+  const untracked = doseCompiledOnUnreviewedBasis
+    .flatMap((entry) => entry.herbs.map((herb) => ({ formula: entry.name, herb })))
+    .filter(({ herb }) => !clinicianDoseHerbClass(herb));
+  assert.deepEqual(untracked.slice(0, 10), [],
+    "靠「待人工复核/校准层」推定剂量获得编译许可的药味必须登记在医师定量豁免表里并标注核验级别，" +
+    "否则它会以「系统认可的剂量」形态呈现给医生：" +
+    untracked.slice(0, 10).map((item) => `${item.formula}[${item.herb}]`).join("; "));
+}
 
 // ─── 药典只许丸散的药材，不得进入煎剂剂量编制 ───
 // 上一条管「剂量数字的依据可不可信」，这一条管「这味药能不能煎」——两个正交的轴，
@@ -244,15 +308,22 @@ assert.deepEqual(doseCompiledOnUnreviewedBasis, [],
 // 「校准层」凭空补出的煎服途径不计入（它与药典同表的「丸散」「有毒且不入汤剂」冲突）。
 const DECOCTION_ROUTE = /煎服|汤剂|另煎|另炖/;
 const PILL_POWDER_ROUTE = /丸散|丸剂|胶囊/;
+const DECOCTION_OPTION_CODE = "DECOCTION_OPTION";
 const pillOnlyHerbs = new Set((doseKnowledge.herbs || [])
   .filter((herb) => {
-    const routes = (herb.entries || [])
-      .filter((item) => item.type === "routeDose" && PHARMACOPOEIA_DOSE_BASIS.test(String(item.basis || "")))
-      .map((item) => `${item.routeForm || ""}${item.method || ""}`);
-    if (routes.length === 0 || routes.some((route) => DECOCTION_ROUTE.test(route))) return false;
+    const routeEntries = (herb.entries || [])
+      .filter((item) => item.type === "routeDose" && PHARMACOPOEIA_DOSE_BASIS.test(String(item.basis || "")));
+    const routes = routeEntries.map((item) => `${item.routeForm || ""}${item.method || ""}`);
+    if (
+      routes.length === 0
+      || routes.some((route) => DECOCTION_ROUTE.test(route))
+      || routeEntries.some((item) => String(item.methodCodes || "").includes(DECOCTION_OPTION_CODE))
+    ) return false;
     return routes.some((route) => PILL_POWDER_ROUTE.test(route));
   })
   .map((herb) => herb.name));
+assert.equal(pillOnlyHerbs.has("乳香"), false,
+  "药典原文“煎汤或入丸散”的 DECOCTION_OPTION 必须保留煎服许可，不能按仅丸散阻断");
 assert.ok(pillOnlyHerbs.size > 0,
   "未能从 KB 推导出「药典仅丸散」药材集合，分途径条目口径可能变了——先修这里，别让断言空转");
 const decoctionCompiledPillOnly = formulas.entries
@@ -264,9 +335,20 @@ const decoctionCompiledPillOnly = formulas.entries
       .filter((name) => name && pillOnlyHerbs.has(name)))],
   }))
   .filter((entry) => entry.herbs.length > 0);
-assert.deepEqual(decoctionCompiledPillOnly, [],
-  "药典途径只有丸散/外用的药材不得进入煎剂剂量编制：" +
-  decoctionCompiledPillOnly.map((entry) => `${entry.name}[${entry.herbs.join("、")}]`).join("; "));
+// 剂型正交轴：药典只列丸散/外用的药材（朱砂、麝香、雄黄、冰片…）不得被按汤剂配量。
+// 豁免层启用后这条不变量的落点变了——含这类成分的方多数**本身就是丸散膏剂**
+//（安宫牛黄丸、紫金锭、七厘散），系统并没有替它们编汤剂数字剂量，而是把该药味登记进
+// 医师定量豁免表、按 clinicianDoseHerbClass 标注核验级别，用量与剂型由医师判断、审方复核。
+// 因此断言改为「登记完整」：任何获编译许可、却没在豁免表留痕的丸散专用药味都是真漏洞。
+{
+  const { clinicianDoseHerbClass } = await import("../src/lib/tcm-knowledge.ts");
+  const untrackedPillOnly = decoctionCompiledPillOnly
+    .flatMap((entry) => entry.herbs.map((herb) => ({ formula: entry.name, herb })))
+    .filter(({ herb }) => !clinicianDoseHerbClass(herb));
+  assert.deepEqual(untrackedPillOnly.slice(0, 10), [],
+    "药典仅丸散/外用的药材若获编译许可，必须登记在医师定量豁免表并标注核验级别：" +
+    untrackedPillOnly.slice(0, 10).map((item) => `${item.formula}[${item.herb}]`).join("; "));
+}
 
 // ─── 监管轴：管制品种不得自动编制剂量 ───
 // 前两条管"剂量数字可不可信"和"这味药能不能煎"，都是药学问题。这一条管的是
@@ -433,6 +515,20 @@ for (const item of formulas.evidenceAdjudications) {
 assert.equal(formulas.evidenceAdjudications.find((item) => item.name === "龙胆泻肝汤")?.variants.length, 25);
 assert.equal(formulas.entries.find((item) => item.name === "桂枝汤")?.governanceStatus, "official_local_standard_identity_verified");
 assert.equal(formulas.entries.find((item) => item.name === "桂枝汤")?.identityLockEligible, true);
+assert.equal(
+  formulas.entries.some((item) => item.name === "伤寒、温病用药大体及辟温方"),
+  false,
+  "原证据 formulas=[] 的章节标题不得被拼成运行时方剂",
+);
+assert.equal(formulas.entries.find((item) => item.name === "延龄丹")?.ingredients.includes("藁本"), true);
+assert.equal(formulas.entries.find((item) => item.name === "真应散")?.ingredients.includes("大枣"), true);
+assert.equal(formulas.entries.find((item) => item.name === "碧雪丹")?.ingredients.includes("西黄"), true);
+assert.equal(formulas.entries.find((item) => item.name === "治服石虚热水肿方")?.ingredients.includes("巴豆"), true);
+const huapiFormula = formulas.entries.find((item) => item.name === "化痞消积膏");
+assert.ok(huapiFormula, "化痞消积膏必须保留在受控目录");
+assert.equal(huapiFormula.ingredients.includes("穿山甲"), true, "OCR 断行后遗漏的山甲必须回补");
+assert.equal(huapiFormula.ingredients.includes("片脑"), true, "OCR 断行后遗漏的片脑必须回补");
+assert.equal(huapiFormula.doseCompilationEligible, false, "组成回补不得绕开穿山甲等身份/监管门禁");
 for (const name of ["龙胆泻肝汤", "丹栀逍遥散", "天麻钩藤饮", "六味地黄丸", "桂枝汤", "银翘散", "补中益气汤"]) {
   assert.equal(formulas.entries.find((item) => item.name === name)?.identityLockEligible, true, `${name} identity must be lockable`);
 }
@@ -468,9 +564,25 @@ assert.deepEqual(requiredFields.governance.universalMinimum, ["chief_complaint",
 assert.equal(requiredFields.entries.find((item) => item.id === "sex")?.stagePolicy.collect, "required");
 assert.equal(requiredFields.entries.find((item) => item.id === "allergy_history")?.unknownPolicy, "unknown_never_no_allergy");
 assert.deepEqual(requiredFields.governance.implementationDrift, []);
-assert.equal(outputContracts.entries.length, 18);
-assert.equal(outputContracts.summary.internalContractCount, 2);
+// 需求9 新增可见契约 M03-M04-tcm-treatment（中医治疗项目从非药物调护里抽出成独立模块）：
+// 契约总数 18→19、可见数 15→16，内部契约数不变。
+assert.equal(outputContracts.entries.length, 19);
+assert.equal(outputContracts.summary.internalContractCount, 3);
 assert.equal(outputContracts.summary.visibleContractCount, 16);
+assert.ok(
+  outputContracts.entries.some((item) => item.id === "M03-M04-tcm-treatment" && item.visibility === "visible"),
+  "中医治疗项目必须是独立的可见输出契约",
+);
+{
+  const order = outputContracts.surfaces.find((item) => item.id === "comprehensive_clinical_scheme")?.sectionOrder || [];
+  assert.ok(
+    order.indexOf("M03-M04-tcm-treatment") >= 0 &&
+    order.indexOf("M03-M04-tcm-treatment") < order.indexOf("M03-M04-nonpharma"),
+    "中医治疗项目必须排在健康调护之前",
+  );
+}
+assert.equal(outputContracts.entries.find((item) => item.id === "M03-M04-lineage")?.visibility, "internal_only");
+assert.equal(outputContracts.entries.find((item) => item.id === "M03-western")?.evidenceBinding, "supporting_facts_only");
 assert.equal(outputContracts.surfaces.length, 7);
 assert.deepEqual(outputContracts.limitedStateCopy.requiredParts, ["knownFacts", "unavailableConclusion", "nextAction"]);
 assert.ok(outputContracts.entries.some((item) => item.id === "red-flag-warning"));
@@ -565,6 +677,21 @@ for (const term of ["正治", "反治", "治标", "治本", "三因制宜", "治
 assert.equal(governance.diagnosticContextsInText("缺乏腹部按诊")[0]?.id, "tcm_abdominal_examination");
 assert.equal(governance.tcmDiagnosticDependencyContexts("腹诊见脘腹柔软，无压痛").length, 0, "case-bound 腹诊 is legitimate TCM reasoning");
 assert.equal(governance.tcmDiagnosticDependencyContexts("仅因缺乏腹部按诊，故不能辨证")[0]?.id, "tcm_abdominal_examination", "only a forbidden dependency frame is rejected");
+assert.equal(
+  governance.tcmDiagnosticDependencyContexts("尚无头颅MRI，建议进一步排除继发性头痛").length,
+  0,
+  "a missing modern test may remain as a Western differential boundary without invalidating TCM reasoning",
+);
+assert.equal(
+  governance.tcmDiagnosticDependencyContexts("因缺少头颅MRI，当前无法形成中医辨证结论")[0]?.id,
+  "modern_imaging",
+  "a missing modern test that explicitly prevents TCM differentiation is rejected",
+);
+assert.equal(
+  governance.tcmDiagnosticDependencyContexts("未做血常规，建议结合感染指标鉴别；四诊合参辨为风热犯肺证").length,
+  0,
+  "a clinically appropriate laboratory next step must not collapse a complete four-examination conclusion",
+);
 assert.equal(governance.westernLabelContainsTcmSyndrome("慢性咳嗽（风燥伤肺证）"), true, "T1 must govern Western-label syndrome pollution beyond a short hard-coded list");
 assert.equal(governance.governedTreatmentPrinciplesInText("因人制宜，扶正祛邪").length >= 1, true);
 const treatmentPrinciplePromptContext = governance.governedTreatmentPrinciplePromptContext();
@@ -576,7 +703,7 @@ assert.equal(governance.engineeringJargonInText("程序化安全门控").length,
 assert.equal(governance.clinicalRequiredFieldLabel("allergy_history", "fallback"), "过敏史");
 assert.equal(governance.clinicalFieldRequiresExplicitPrescriptionState("allergy_history"), true);
 assert.equal(governance.CLINICAL_GOVERNANCE_TABLES.requiredFieldPolicy.entries.length, 16);
-assert.equal(governance.CLINICAL_GOVERNANCE_TABLES.outputContract.entries.length, 18);
+assert.equal(governance.CLINICAL_GOVERNANCE_TABLES.outputContract.entries.length, 19);
 assert.equal(governance.CLINICAL_GOVERNANCE_TABLES.nondrugTreatment.entries.length, 22);
 
 const formulaIndications = await jiti.import("../src/lib/tcm-formula-indications.ts");

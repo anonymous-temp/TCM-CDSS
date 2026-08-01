@@ -16,6 +16,10 @@ const DROP = new Set([
 ]);
 // 人工裁定增补(回源段原文/通行组成/物料归一,依据见各 evidence 注释)
 const CURATED = [
+  ["延龄丹", "本", "藁本", "canonical:《三因极一病证方论》同方完整组成及历代通行药名"],
+  ["真应散", "枣", "大枣", "text:《三因极一病证方论》原文明确为「枣子一个」"],
+  ["碧雪丹", "西", "西黄", "text:《古方汇精》原文行断裂为「西\\n（四分）」,同方组成校本为西黄"],
+  ["治服石虚热水肿方", "巴", "巴豆", "text:《外台秘要》同源葱豆洗汤原文明确为「巴豆一百枚」"],
   ["东垣胃风汤", "本", "藁本", "canonical:东垣胃风汤通行组成含藁本,源段「羌活五分 本五分」序列自洽"],
   ["大黄虫丸", "虫", "䗪虫", "canonical:大黄䗪虫丸(《金匮》)组成,源段虻虫/蛴螬已见"],
   ["五灰散", "皮", "刺猬皮", "canonical:五灰散(《三因》)鳖甲/猬皮/悬蹄甲/蜂房/蛇蜕"],
@@ -60,6 +64,17 @@ const CURATED = [
 ];
 // 非药味垃圾 token(抽取误入组成的动词/用法词),直接删除不进修复
 const JUNK_REMOVE = { 木香顺气丸: ["汤", "用"] };
+// 原 OCR 在「山甲十四片」处断行并吞掉后续多味；两个独立全文库的同方组成一致。
+// 穿山甲仍不进入 T9 自动解析，因此修正文献身份不会绕开受保护物种/毒性门禁。
+const FULL_COMPOSITION_REPLACEMENTS = {
+  化痞消积膏: {
+    ingredients: [
+      "秦艽", "三棱", "莪术", "蜈蚣", "巴豆", "当归", "大黄", "黄连", "全蝎",
+      "穿山甲", "木鳖子", "阿胶", "阿魏", "芦荟", "麝香", "片脑", "没药", "乳香",
+    ],
+    evidence: "《惠直堂经验方》卷四原文；Chinese Text Project 与中医世家同方组成交叉核验",
+  },
+};
 
 const pass1 = JSON.parse(readFileSync(resolve(DIR, "repairs.json"), "utf-8"));
 const pass2 = JSON.parse(readFileSync(resolve(DIR, "repairs-pass2.json"), "utf-8"));
@@ -99,6 +114,26 @@ for (const [name, repairs] of repairMap) {
     }];
     applied.push({ name, remainingSingles: remaining });
   }
+}
+for (const [name, replacement] of Object.entries(FULL_COMPOSITION_REPLACEMENTS)) {
+  const e = supp.entries[name];
+  if (!e) {
+    skipped.push({ name, why: "no supplement entry for full composition replacement" });
+    continue;
+  }
+  if (JSON.stringify(e.ingredients) === JSON.stringify(replacement.ingredients)) continue;
+  e.ingredients = replacement.ingredients;
+  e.verification = [...(e.verification || []), {
+    title: `OCR 断行组成回补(${replacement.evidence})`,
+    url: "https://ctext.org/wiki.pl?chapter=170623&if=gb&remap=gb",
+    sourceRef: "CORRUPT-HERB-REPAIR-20260727",
+  }];
+  applied.push({
+    name,
+    remainingSingles: replacement.ingredients.filter(
+      (herbName) => typeof herbName === "string" && herbName.trim().length === 1,
+    ),
+  });
 }
 writeFileSync(SUPP, JSON.stringify(supp, null, 2) + "\n");
 const fullyClean = applied.filter((a) => a.remainingSingles.length === 0).length;

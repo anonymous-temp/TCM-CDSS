@@ -2,6 +2,7 @@ import localMedicineIndex from "../data/local-patent-medicine-index.json" with {
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
 import { matchingMedicineClinicalConcepts } from "./medicine-clinical-concepts";
+import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 
 type LocalPatentMedicineEntry = {
   name: string;
@@ -34,6 +35,28 @@ export type LocalPatentMedicineCandidate = LocalPatentMedicineEntry & {
 // controlled clinical concept. The model therefore cannot retrieve a medicine from a disease name
 // alone when the patient explicitly denies the corresponding symptom.
 const ENTRIES = (localMedicineIndex as { entries?: LocalPatentMedicineEntry[] }).entries || [];
+
+/** 中成药名去掉剂型后缀后的基础方名，用作同方多剂型的去重键。 */
+const PATENT_DOSAGE_FORM_SUFFIX = /(?:缓释|控释|肠溶)?(?:片|胶囊|颗粒|丸|口服液|合剂|液|冲剂|糖浆|散|膏|丹|栓|贴|酊|露|饮)$/;
+
+function patentMedicineBaseName(name: string): string {
+  return String(name || "").normalize("NFKC").replace(/\s/g, "").replace(PATENT_DOSAGE_FORM_SUFFIX, "");
+}
+
+/**
+ * 该中成药是否为受控方剂目录中某个经典名方的成药剂型；是则返回该经典方名。
+ * 既作临床性 tie-breaker（药典标准方优先于同证冷门厂牌药），也作同方多剂型的去重键
+ * ——归脾丸／归脾合剂／归脾片／归脾液 全部归到「归脾汤」这一个键上。
+ */
+function governedClassicFormulaName(name: string): string | undefined {
+  const base = patentMedicineBaseName(name);
+  if (base.length < 2) return undefined;
+  for (const suffix of ["汤", "散", "丸", "饮", "煎"]) {
+    const reference = executableFormulaCompilationReferences([`${base}${suffix}`])[0];
+    if (reference) return reference.formulaName;
+  }
+  return undefined;
+}
 
 function positiveCaseFacts(caseState: CaseState, assistedNegations?: AssistedNegationClauses): string[] {
   const reasoning = caseState.reasoningDiagnose;
@@ -75,23 +98,41 @@ export function retrieveLocalPatentMedicineCandidates(
   const scored = ENTRIES.map((entry) => {
     const matched = matchingMedicineClinicalConcepts(facts.join("；"), entry.indication, semanticConceptIds);
     const matchedPatientFacts = facts.filter((fact) => matched.some((concept) => concept.casePattern.test(fact)));
-    const riskDetailScore = [entry.contraindication, entry.precaution, entry.pregnancyLactation, entry.interaction]
-      .filter((value) => value && !/^(?:尚不明确|无|暂无)$/.test(value)).length * 0.05;
+    // 原实现在这里加一项 riskDetailScore：说明书的禁忌/注意/孕哺/相互作用四栏每填一栏 +0.05。
+    // 本意是「文档更全的产品略微优先」，但临床概念词表粒度粗、并列极其常见，于是这个**非临床**
+    // 代理指标事实上成了排序主键。实测（心脾两虚型不寐）：召回 10 条里 9 条并列 17.15，
+    // 唯一的区分项就是这 0.05——归脾丸因说明书「禁忌：尚不明确」少算一栏，以 17.1 排在最后，
+    // 输给了五味安神颗粒、参茯胶囊、灵芪加口服液等冷门厂牌药。药典标准方被文档完整度挤掉。
+    //
+    // 换成临床性 tie-breaker：该中成药是否为受控目录中某个经典名方的成药剂型
+    // （归脾丸→归脾汤、逍遥丸→逍遥散、补中益气丸→补中益气汤）。权重仅 0.5，
+    // 远小于证型轴 6–7 分，只在临床信号真正并列时起作用，不会盖过方证匹配本身。
+    const classicFormula = governedClassicFormulaName(entry.name);
     return {
       ...entry,
       id: "",
       matchedConcepts: matched.map((concept) => concept.key),
       matchedPatientFacts: [...new Set(matchedPatientFacts)].slice(0, 3),
-      score: matched.reduce((total, concept) => total + concept.weight, 0) + riskDetailScore,
+      score: matched.reduce((total, concept) => total + concept.weight, 0) + (classicFormula ? 0.5 : 0),
+      classicFormula,
     };
   })
     .filter((entry) => entry.matchedConcepts.length > 0)
     .sort((left, right) =>
       right.score - left.score ||
       right.matchedConcepts.length - left.matchedConcepts.length ||
-      left.name.localeCompare(right.name))
-    .slice(0, Math.max(0, limit));
-  return scored.map((entry, index) => ({ ...entry, id: `LOCAL-INST-${String(index + 1).padStart(3, "0")}` }));
+      left.name.localeCompare(right.name));
+
+  // 同方多剂型去重。归脾合剂／归脾液／归脾片／归脾丸 是同一基础方的四种剂型，此前各占一个名额，
+  // 实测把 10 条候选中的 4 条吃掉，把真正不同的选择挤出列表。按基础方保留评分最高的一条。
+  const byBaseFormula = new Map<string, (typeof scored)[number]>();
+  for (const entry of scored) {
+    const key = entry.classicFormula || patentMedicineBaseName(entry.name) || entry.name;
+    if (!byBaseFormula.has(key)) byBaseFormula.set(key, entry);
+  }
+  return [...byBaseFormula.values()]
+    .slice(0, Math.max(0, limit))
+    .map((entry, index) => ({ ...entry, id: `LOCAL-INST-${String(index + 1).padStart(3, "0")}` }));
 }
 
 function compact(value: string, limit: number, fallback = "未载明"): string {

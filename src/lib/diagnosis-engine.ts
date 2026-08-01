@@ -162,6 +162,17 @@ export function sanitizeCaseStateForBrowserPersistence(state: CaseState): CaseSt
       auditId: undefined,
       traceId: undefined,
     } : undefined,
+    warningAcknowledgement: state.warningAcknowledgement ? {
+      ...state.warningAcknowledgement,
+      acknowledgedAt: dateOnly(state.warningAcknowledgement.acknowledgedAt),
+      reason: state.warningAcknowledgement.reason
+        ? scrubPersistentPhiText(state.warningAcknowledgement.reason, explicitNames)
+        : undefined,
+    } : undefined,
+    emergencyClearance: state.emergencyClearance ? {
+      ...state.emergencyClearance,
+      assessmentSummary: scrubPersistentPhiText(state.emergencyClearance.assessmentSummary, explicitNames),
+    } : undefined,
     hisRecord: state.hisRecord ? {
       ...state.hisRecord,
       updatedAt: dateOnly(state.hisRecord.updatedAt),
@@ -664,11 +675,30 @@ export async function consumeMarkdownStream(
   return (await consumeMarkdownStreamWithMetadata(response, onChunk, opts)).content;
 }
 
+const PATIENT_NARRATIVE_REFERENCE = /(?:^|[\s；;|])(?:主诉|现病史|既往史|过敏史|用药史|患者事实|病例事实|本例资料|病历原文|舌象|脉象|生命体征)\s*[：:]|(?:患者|病人)\s*(?:诉|自述|描述|出现|伴有|伴随)|基于本例(?:病史|症状|资料|主诉)/;
+const REFERENCE_IDENTIFIER = /\b(?:PMID|PMCID|DOI)\s*[:：]?\s*[A-Za-z0-9._/-]+/i;
+const REFERENCE_YEAR = /\b(?:19|20)\d{2}\b/;
+
+function quoteText(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) return value.map(quoteText).filter(Boolean).join("、");
+  return "";
+}
+
+function bibliographicStringReference(value: string): boolean {
+  const text = value.trim();
+  if (!text || PATIENT_NARRATIVE_REFERENCE.test(text)) return false;
+  return REFERENCE_IDENTIFIER.test(text) ||
+    (/《[^》]{2,120}》/.test(text) && REFERENCE_YEAR.test(text));
+}
+
 /**
  * Build a Markdown ## 参考文献 section from optional quote items.
- * Quote objects usually include title/literatureTitle/url/journal/author/year.
- * Falls back to string handling for simpler formats.
- * Deduplicates by title to avoid repeated citations.
+ *
+ * Upstream adapters sometimes place the retrieval query or copied chief complaint in `quto`.
+ * A bare string or title is therefore not evidence. Only records carrying bibliographic identity
+ * (DOI/PMID, or title plus author/journal/year metadata) are allowed into the clinician-facing
+ * reference list.
  */
 function buildReferenceSection(items: unknown[]): string {
   const lines: string[] = [];
@@ -686,23 +716,42 @@ function buildReferenceSection(items: unknown[]): string {
   };
   items.forEach((item) => {
     if (typeof item === "string" && item.trim()) {
+      if (!bibliographicStringReference(item)) return;
       if (seenTitles.has(item.trim())) return;
       seenTitles.add(item.trim());
-      const encoded = encodeURIComponent(item.trim().slice(0, 150));
-      lines.push(`${lines.length + 1}. [${safeLabel(item.trim())}](https://www.evimed.com/#/search?keywords=${encoded})`);
+      const doi = item.match(/\b10\.\d{4,9}\/[^\s，。；、）》】]+/i)?.[0];
+      const pmid = item.match(/\bPMID\s*[:：]?\s*(\d{4,12})/i)?.[1];
+      const href = doi
+        ? `https://doi.org/${doi}`
+        : pmid
+          ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/`
+          : `https://www.evimed.com/#/search?keywords=${encodeURIComponent(item.trim().slice(0, 150))}`;
+      lines.push(`${lines.length + 1}. [${safeLabel(item.trim())}](${href})`);
     } else if (item && typeof item === "object") {
       const obj = item as Record<string, unknown>;
-      // Use literatureTitle (full citation) if available, else title
       const display =
         typeof obj.literatureTitle === "string" && obj.literatureTitle.trim()
           ? obj.literatureTitle.trim()
           : typeof obj.title === "string" && obj.title.trim()
           ? obj.title.trim()
           : null;
-      // Prefer evimed URL for direct deep-link
-      // url can be a string or a dict {"h5_evimed": "...", "evimed": "..."}
+      if (!display || PATIENT_NARRATIVE_REFERENCE.test(display)) return;
+      const author = quoteText(obj.author || obj.authors);
+      const journal = quoteText(obj.journal || obj.publisher || obj.organization);
+      const year = quoteText(obj.year || obj.publicationYear || obj.publicationDate || obj.publishDate)
+        .match(REFERENCE_YEAR)?.[0] || "";
+      const doi = quoteText(obj.doi || obj.DOI).match(/10\.\d{4,9}\/[^\s，。；、）》】]+/i)?.[0] ||
+        display.match(/\b10\.\d{4,9}\/[^\s，。；、）》】]+/i)?.[0] || "";
+      const pmid = quoteText(obj.pmid || obj.PMID).match(/\d{4,12}/)?.[0] ||
+        display.match(/\bPMID\s*[:：]?\s*(\d{4,12})/i)?.[1] || "";
+      const hasBibliographicIdentity = Boolean(
+        doi || pmid ||
+        (year && (author || journal)) ||
+        (author && journal),
+      );
+      if (!hasBibliographicIdentity) return;
       const urlField = obj.url;
-      const href =
+      const evimedHref =
         typeof urlField === "string"
           ? safeEvimedUrl(urlField)
           : urlField && typeof urlField === "object"
@@ -711,14 +760,16 @@ function buildReferenceSection(items: unknown[]): string {
               return safeEvimedUrl(u.evimed) || safeEvimedUrl(u.h5_evimed) || null;
             })()
           : null;
-      const finalHref = href ?? (display
-        ? `https://www.evimed.com/#/search?keywords=${encodeURIComponent(display.slice(0, 150))}`
-        : "https://www.evimed.com/");
-      if (display) {
-        if (seenTitles.has(display)) return;
-        seenTitles.add(display);
-        lines.push(`${lines.length + 1}. [${safeLabel(display)}](${finalHref})`);
-      }
+      const finalHref = evimedHref ||
+        (doi ? `https://doi.org/${doi}` : "") ||
+        (pmid ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : "") ||
+        `https://www.evimed.com/#/search?keywords=${encodeURIComponent(display.slice(0, 150))}`;
+      const citation = [display, author, journal, year, doi ? `DOI:${doi}` : "", pmid ? `PMID:${pmid}` : ""]
+        .filter(Boolean)
+        .join("；");
+      if (seenTitles.has(citation)) return;
+      seenTitles.add(citation);
+      lines.push(`${lines.length + 1}. [${safeLabel(citation)}](${finalHref})`);
     }
   });
   if (lines.length === 0) return "";

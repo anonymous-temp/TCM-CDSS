@@ -5171,6 +5171,7 @@
       "expectedFormulaNames": [
         "五苓散",
         "四逆汤",
+        "肾着汤",
         "胃苓汤"
       ],
       "containsQuarantinedContent": true,
@@ -5226,6 +5227,8 @@
       ],
       "sixChannels": [],
       "expectedFormulaNames": [
+        "麻黄附子细辛汤",
+        "甘遂半夏汤",
         "五苓散",
         "十枣汤",
         "四逆汤",
@@ -5521,6 +5524,7 @@
       "sixChannels": [],
       "expectedFormulaNames": [
         "当归四逆汤",
+        "八味丸",
         "四逆汤"
       ],
       "containsQuarantinedContent": true,
@@ -5539,6 +5543,7 @@
       "sixChannels": [],
       "expectedFormulaNames": [
         "当归四逆汤",
+        "甘草附子汤",
         "四逆汤",
         "附子汤"
       ],
@@ -5626,6 +5631,7 @@
       "sixChannels": [],
       "expectedFormulaNames": [
         "当归四逆汤",
+        "甘草附子汤",
         "四逆汤",
         "附子汤"
       ],
@@ -5798,6 +5804,7 @@
       "diseases": [],
       "sixChannels": [],
       "expectedFormulaNames": [
+        "甘草附子汤",
         "四逆汤",
         "附子汤"
       ],
@@ -5850,6 +5857,7 @@
       "diseases": [],
       "sixChannels": [],
       "expectedFormulaNames": [
+        "甘草附子汤",
         "四逆汤",
         "附子汤"
       ],
@@ -5943,7 +5951,9 @@
         "腹水"
       ],
       "sixChannels": [],
-      "expectedFormulaNames": [],
+      "expectedFormulaNames": [
+        "实脾饮"
+      ],
       "containsQuarantinedContent": false,
       "replaySanitizedFromQuarantinedSource": false,
       "replayInput": "",
@@ -6374,6 +6384,7 @@
       ],
       "sixChannels": [],
       "expectedFormulaNames": [
+        "麻黄附子细辛汤",
         "射干麻黄汤",
         "桂枝汤",
         "麻黄汤"
@@ -6396,7 +6407,8 @@
       "sixChannels": [],
       "expectedFormulaNames": [
         "黄连阿胶汤",
-        "四逆汤"
+        "四逆汤",
+        "肾着汤"
       ],
       "containsQuarantinedContent": true,
       "replaySanitizedFromQuarantinedSource": true,
@@ -6450,6 +6462,7 @@
       "sixChannels": [],
       "expectedFormulaNames": [
         "当归四逆汤",
+        "利膈汤",
         "四逆汤"
       ],
       "containsQuarantinedContent": false,
@@ -6642,7 +6655,8 @@
       "sixChannels": [],
       "expectedFormulaNames": [
         "黄连阿胶汤",
-        "四逆汤"
+        "四逆汤",
+        "排脓汤"
       ],
       "containsQuarantinedContent": true,
       "replaySanitizedFromQuarantinedSource": true,
@@ -6875,7 +6889,8 @@
       "expectedFormulaNames": [
         "甘麦大枣汤",
         "小建中汤",
-        "四逆汤"
+        "四逆汤",
+        "控涎丹"
       ],
       "containsQuarantinedContent": true,
       "replaySanitizedFromQuarantinedSource": true,

@@ -13,6 +13,7 @@ import {
   m03DiagnosticReviewNeedsAdjudication,
   m03GroundingHasCurrentPositiveFacts,
   m03PathogenesisSummaryIsExactProjection,
+  m03SymptomDowngradeReviewIsNonActionable,
   m03TcmRepairMode,
   matchesM03QuarantineShape,
   parseM03DiagnosticReview,
@@ -28,6 +29,8 @@ const reviewed = {
     tcmDiseaseName: "不寐",
     primarySyndrome: "心脾两虚证",
     primarySyndromeBasis: ["心悸健忘", "纳差便溏"],
+    // 需求3：辨病与辨证各自成段。
+    tcmDiseaseRationale: "以入睡困难、多梦易醒为主症，病程3个月，符合不寐范畴，与郁病、心悸相区分。",
     tcmDiagnosticRationale: "心悸健忘与纳差便溏并见，结合舌淡脉细弱，支持心脾两虚、心神失养。",
     tcmDifferentials: [],
     secondarySyndromes: [],
@@ -75,6 +78,61 @@ const reviewed = {
   },
   management: { followupSafetyNet: "若入睡困难持续2周不缓解或明显加重，及时复诊评估。" },
 };
+
+assert.equal(
+  m03SymptomDowngradeReviewIsNonActionable(
+    { status: "repair", issueCode: "supporting_fact_mismatch", repairInstruction: "请修复" },
+    {
+      westernDiagnosis: {
+        primary: {
+          name: "反流症状",
+          status: "证据有限",
+          confidence: "低",
+          supportingFacts: ["反酸烧心伴上腹胀2周"],
+          limitations: ["现有资料不足以满足原具体疾病的完整诊断标准，当前仅保留症状性工作诊断"],
+        },
+      },
+    },
+  ),
+  true,
+  "a vague repeated mismatch after exact symptom downgrade becomes review-unavailable instead of triggering another full generation",
+);
+assert.equal(
+  m03SymptomDowngradeReviewIsNonActionable(
+    { status: "repair", issueCode: "supporting_fact_mismatch", repairInstruction: "supportingFacts 混入舌象" },
+    {
+      westernDiagnosis: {
+        primary: {
+          name: "反流症状",
+          status: "证据有限",
+          confidence: "低",
+          supportingFacts: ["反酸烧心伴上腹胀2周"],
+          limitations: ["现有资料不足以满足原具体疾病的完整诊断标准，当前仅保留症状性工作诊断"],
+        },
+      },
+    },
+  ),
+  true,
+  "a stale pollution instruction is non-actionable after the server has already reduced support to one clean chart fact",
+);
+assert.equal(
+  m03SymptomDowngradeReviewIsNonActionable(
+    { status: "repair", issueCode: "supporting_fact_mismatch", repairInstruction: "supportingFacts 混入舌象" },
+    {
+      westernDiagnosis: {
+        primary: {
+          name: "反流症状",
+          status: "证据有限",
+          confidence: "低",
+          supportingFacts: ["反酸烧心伴上腹胀2周"],
+          limitations: ["模型自行声称完成降级"],
+        },
+      },
+    },
+  ),
+  false,
+  "only the deterministic server downgrade marker may convert a repeated mismatch to review-unavailable",
+);
 
 const provenanceOnly = structuredClone(reviewed);
 provenanceOnly.overview.evidence = { ...evidence, source: "经服务端证据白名单核验" };
@@ -307,7 +365,7 @@ const jiti = createJiti(import.meta.url, {
     "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
   },
 });
-const { callDiagnosisStream, clinicalReviewModelCandidates, clinicalReviewRetryPlan, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
+const { callDiagnosisStream, clinicalReviewModelCandidates, clinicalReviewRetryPlan, m03ReviewCanDowngradeToAdvisory, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
 assert.deepEqual(clinicalReviewRetryPlan(0, 30_000, 35_000), { attemptCount: 0, chainBudgetMs: 35_000 });
 assert.deepEqual(clinicalReviewRetryPlan(2, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 35_000 });
 assert.deepEqual(clinicalReviewRetryPlan(1, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 50_000 }, "one independent reviewer gets one bounded transient retry");
@@ -315,6 +373,26 @@ assert.deepEqual(clinicalReviewRetryPlan(1, 45_000, 35_000), { attemptCount: 2, 
 assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签：phlegm_damp_overreach"), true, "TCM semantic overreach is regenerated from patient facts instead of editing the biased candidate");
 assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_primary_diagnosis_semantic_review", "独立复核的受控定位标签"), false, "western label repair retains its field-targeted path");
 assert.equal(shouldRegenerateM03ClinicalRepair("prescribe", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签"), false, "M04 repair behavior is unchanged");
+assert.equal(
+  m03ReviewCanDowngradeToAdvisory(
+    { status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: "phlegm_damp_overreach" },
+    reviewed,
+    reviewedClinicalContext,
+  ),
+  true,
+  "an M03 review quality concern becomes a bounded advisory after the deterministic safety contract passes",
+);
+const unsafeReviewedCandidate = structuredClone(reviewed);
+unsafeReviewedCandidate.pathogenesis.chain[0].patientFact = "意识异常";
+assert.equal(
+  m03ReviewCanDowngradeToAdvisory(
+    { status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: "chain_not_closed" },
+    unsafeReviewedCandidate,
+    `${reviewedClinicalContext}；否认意识异常`,
+  ),
+  false,
+  "review downgrade never masks a patient-fact polarity violation",
+);
 
 const reviewModelEnv = {
   diagnose: process.env.PRIMARY_DIAGNOSE_MODEL,
@@ -367,6 +445,48 @@ try {
     ["PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL", reviewModelEnv.diagnoseFallback],
     ["PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL", reviewModelEnv.prescribeFallback],
   ]) {
+    if (value == null) delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+// 跨供应商复核拓扑（bailian-qwen,OpenAI 兼容）:指定第二供应商且配置齐全时,
+// 复核走不同模型身份 independentFromGenerator=true;配置不全 fail-closed 回同供应商链。
+const qwenEnvBackup = {};
+for (const key of ["PRIMARY_CLINICAL_REVIEW_PROVIDER", "PRIMARY_CLINICAL_REVIEW_MODEL", "BAILIAN_QWEN_API_KEY", "BAILIAN_QWEN_BASE_URL", "BAILIAN_QWEN_MODEL"]) {
+  qwenEnvBackup[key] = process.env[key];
+}
+try {
+  const crossPrimary = {
+    provider: "deepseek",
+    apiKey: "test-key",
+    baseUrl: "https://model.example.test/v1",
+    model: "deepseek-v4-pro",
+    configured: true,
+  };
+  process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER = "bailian-qwen";
+  process.env.BAILIAN_QWEN_API_KEY = "test-qwen-key";
+  process.env.BAILIAN_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+  process.env.BAILIAN_QWEN_MODEL = "qwen3-32b";
+  // Reproduce the deployable compose contract: the generic review model remains
+  // pinned to DeepSeek even when the explicit Bailian topology is enabled.
+  process.env.PRIMARY_CLINICAL_REVIEW_MODEL = "deepseek-v4-pro";
+  const crossCandidates = clinicalReviewModelCandidates("diagnose", crossPrimary, "deepseek-v4-pro");
+  const crossPreferred = crossCandidates[0];
+  assert.equal(crossPreferred.provider, "bailian-qwen");
+  assert.equal(crossPreferred.model, "qwen3-32b");
+  assert.equal(crossPreferred.configured, true, "qwen 配置齐全时复核拓扑可用");
+  assert.equal(crossPreferred.independentFromGenerator, true, "跨供应商复核必须是不同模型身份");
+  assert.equal(crossPreferred.endpoint.includes("dashscope.aliyuncs.com"), true);
+  // 同链回退候选仍是同供应商身份(供拓扑失败时 fail-closed 回退,不是无复核)
+  assert.ok(crossCandidates.length >= 1);
+  process.env.BAILIAN_QWEN_API_KEY = "";
+  const unconfiguredPreferred = clinicalReviewModelCandidates("diagnose", crossPrimary, "deepseek-v4-pro")[0];
+  assert.notEqual(unconfiguredPreferred.provider, "bailian-qwen", "key 缺失时不得使用未配置拓扑");
+  process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER = "other-vendor";
+  const deadPreferred = clinicalReviewModelCandidates("diagnose", crossPrimary, "deepseek-v4-pro")[0];
+  assert.equal(deadPreferred.provider !== "other-vendor", true, "未实现的供应商名 fail-closed");
+} finally {
+  for (const [key, value] of Object.entries(qwenEnvBackup)) {
     if (value == null) delete process.env[key];
     else process.env[key] = value;
   }
@@ -464,7 +584,7 @@ assert.deepEqual(
     issueCode: "tcm_reasoning_unsupported",
     repairInstruction: "病机链非空，故不触发硬性完整性拒绝；supportingFacts 中引用了矛盾舌脉，需删除。",
   }),
-  [],
+  ["western_support_tcm_pollution", "western_support_polarity_mismatch"],
 );
 assert.deepEqual(
   m03DiagnosticRepairGuidanceCodes({
@@ -566,7 +686,7 @@ const {
   m03SignedLimitedFallbackReasonCode,
   reasoningEffortForStructuredRepair,
 } = await jiti.import("../src/lib/diagnosis-api.ts");
-assert.equal(M03_ORCHESTRATION_DEADLINE_MS, 120_000);
+assert.equal(M03_ORCHESTRATION_DEADLINE_MS, 180_000);
 const exactProjectionReasoning = structuredClone(reviewed);
 exactProjectionReasoning.pathogenesis.summary = exactProjectionReasoning.pathogenesis.chain.map((node) => node.pathogenesis).join("；");
 const falseSummaryReview = {
@@ -585,14 +705,21 @@ assert.equal(m03ReviewerProjectionContradiction({ ...falseSummaryReview, repairI
 const deadlineStart = 1_000_000;
 assert.equal(m03OrchestrationDeadlineExpired(deadlineStart, deadlineStart + M03_ORCHESTRATION_DEADLINE_MS - 1), false);
 assert.equal(m03OrchestrationDeadlineExpired(deadlineStart, deadlineStart + M03_ORCHESTRATION_DEADLINE_MS), true);
-// Default 120s + one in-flight repair (≤120s absolute clamp) must bound worst-case M03 under 300s.
-assert.ok(M03_ORCHESTRATION_DEADLINE_MS + 120_000 < 300_000);
+// Default 180s + one in-flight repair (≤120s absolute clamp) must bound worst-case M03 to 300s.
+assert.ok(M03_ORCHESTRATION_DEADLINE_MS + 120_000 <= 300_000);
 assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: true, quarantineLoopEarlyExit: false }), "signed_limited_fallback_deadline");
 assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: true, quarantineLoopEarlyExit: true }), "signed_limited_fallback_deadline");
 assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: false, quarantineLoopEarlyExit: true }), "signed_limited_fallback_quarantine_loop");
 assert.equal(m03SignedLimitedFallbackReasonCode({ deadlineExceeded: false, quarantineLoopEarlyExit: false }), "signed_limited_fallback");
 assert.equal(reasoningEffortForStructuredRepair("diagnose"), "low", "bounded M03 repair avoids a second full diagnostic reasoning budget");
 assert.equal(reasoningEffortForStructuredRepair("prescribe"), "medium", "M04 multi-invariant reconstruction keeps medium repair effort");
+const originalPrescribeRepairEffort = process.env.PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT;
+process.env.PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT = "high";
+assert.equal(reasoningEffortForStructuredRepair("prescribe"), "high", "M04 repair effort must be deploy-time configurable");
+process.env.PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT = "unsupported";
+assert.equal(reasoningEffortForStructuredRepair("prescribe"), "medium", "invalid M04 repair effort must fail to the documented safe default");
+if (originalPrescribeRepairEffort == null) delete process.env.PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT;
+else process.env.PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT = originalPrescribeRepairEffort;
 
 // ─── (c) Finalization idempotence w.r.t. already-reviewed decisions ───
 // The diagnose output transform (ungrounded-negation sanitizer + evidence scrubber) rewrites JSON

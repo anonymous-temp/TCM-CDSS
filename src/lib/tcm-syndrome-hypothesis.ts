@@ -64,6 +64,12 @@ export type SyndromeHypothesis = {
   score: number;
 };
 
+export type SyndromeHypothesisRerankDecision = {
+  syndromeId: string;
+  /** 闭集语义相关度，只能在 0–1 之间；它不是诊断置信度。 */
+  relevance: number;
+};
+
 /**
  * 至少要命中两条轴。单轴命中毫无鉴别力——「heat」一条轴就能挂上 982 条证候，
  * 那等于把噪声当召回。
@@ -169,4 +175,85 @@ export function syndromeHypothesesFromAffirmedText(
 ): SyndromeHypothesis[] {
   const axes = clinicalAxesFromAffirmedText(affirmedTexts);
   return syndromeHypothesesFromAxes(axes.locations, axes.natures, limit, eligibleSyndromeIds);
+}
+
+/**
+ * 解析 L1b 闭集重排结果。任何候选外 ID、重复 ID、越界分数或非 JSON 内容都被逐项隔离；
+ * 解析失败返回空数组，调用方据此完整回退到 L1a。
+ */
+export function parseClosedSetSyndromeHypothesisRerank(
+  raw: unknown,
+  candidateSyndromeIds: ReadonlySet<string>,
+): SyndromeHypothesisRerankDecision[] {
+  let payload: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!payload || typeof payload !== "object") return [];
+  const rankings = (payload as { rankings?: unknown }).rankings;
+  if (!Array.isArray(rankings)) return [];
+
+  const seen = new Set<string>();
+  const decisions: SyndromeHypothesisRerankDecision[] = [];
+  for (const item of rankings) {
+    if (!item || typeof item !== "object") continue;
+    const syndromeId = (item as { syndromeId?: unknown }).syndromeId;
+    const relevance = (item as { relevance?: unknown }).relevance;
+    if (
+      typeof syndromeId !== "string" ||
+      !candidateSyndromeIds.has(syndromeId) ||
+      seen.has(syndromeId) ||
+      typeof relevance !== "number" ||
+      !Number.isFinite(relevance) ||
+      relevance < 0 ||
+      relevance > 1
+    ) {
+      continue;
+    }
+    seen.add(syndromeId);
+    decisions.push({ syndromeId, relevance });
+  }
+  return decisions;
+}
+
+/**
+ * L1b 只允许在 L1a 已生成的闭集内做最多 +20% 的加性重排。
+ *
+ * - 不给任何 L1a 假设减分或按模型结果直接过滤；调用方仍可应用既有 Top-K 输出边界；
+ * - 不接纳候选外 ID；
+ * - 不修改 matchedAxes / coverage；
+ * - 无有效结果时严格保持 L1a 的原顺序与分数。
+ */
+export function applyBoundedSyndromeHypothesisRerank(
+  hypotheses: readonly SyndromeHypothesis[],
+  decisions: readonly SyndromeHypothesisRerankDecision[],
+  limit = hypotheses.length,
+): SyndromeHypothesis[] {
+  if (hypotheses.length === 0 || decisions.length === 0) {
+    return hypotheses.slice(0, Math.max(0, limit));
+  }
+  const candidateIds = new Set(hypotheses.map((item) => item.syndromeId));
+  const relevanceById = new Map(
+    decisions
+      .filter((item) => candidateIds.has(item.syndromeId) && item.relevance >= 0 && item.relevance <= 1)
+      .map((item) => [item.syndromeId, item.relevance] as const),
+  );
+  if (relevanceById.size === 0) return hypotheses.slice(0, Math.max(0, limit));
+
+  return hypotheses
+    .map((item) => {
+      const relevance = relevanceById.get(item.syndromeId);
+      return relevance == null
+        ? { ...item }
+        : { ...item, score: item.score * (1 + Math.min(1, Math.max(0, relevance)) * 0.2) };
+    })
+    .sort((left, right) =>
+      right.score - left.score ||
+      right.matchedAxes - left.matchedAxes ||
+      left.canonical.localeCompare(right.canonical, "zh-CN"))
+    .slice(0, Math.max(0, limit));
 }

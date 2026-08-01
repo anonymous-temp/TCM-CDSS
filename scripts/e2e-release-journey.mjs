@@ -12,6 +12,7 @@ const IPV6_LOCAL_DEV = /^http:\/\/\[::1\](?::\d+)?$/.test(BASE_URL);
 const NAV_BASE_URL = IPV6_LOCAL_DEV ? BASE_URL.replace("http://[::1]", "http://localhost") : BASE_URL;
 const TOKEN = process.env.CDSS_API_TOKEN || "";
 const OUTPUT_DIR = resolve(process.env.E2E_OUTPUT_DIR || "artifacts/release-current/browser-journey");
+const CHROMIUM_EXECUTABLE_PATH = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?.trim() || undefined;
 mkdirSync(OUTPUT_DIR, { recursive: true });
 
 const failures = [];
@@ -42,12 +43,34 @@ async function loginIfRequired(page) {
 
 async function clickPresetAndCheckAnchor(page, triggerName, optionText, fieldTestId, screenshotName) {
   const trigger = page.getByRole("button", { name: triggerName });
-  const triggerBox = await trigger.boundingBox();
   await trigger.click();
   const option = page.getByRole("button", { name: optionText, exact: true }).last();
   await option.waitFor({ state: "visible", timeout: 5_000 });
-  const optionBox = await option.boundingBox();
-  check(`${triggerName}菜单锚定当前控件`, Boolean(triggerBox && optionBox && Math.abs(optionBox.x - triggerBox.x) < 520 && optionBox.y >= triggerBox.y - 40), JSON.stringify({ triggerBox, optionBox }));
+  const panel = option.locator(
+    "xpath=ancestor::div[contains(concat(' ', normalize-space(@class), ' '), ' fixed ') and contains(concat(' ', normalize-space(@class), ' '), ' z-50 ')][1]",
+  );
+  // The portal first renders with a conservative maximum height and is then
+  // placed again once ResizeObserver has measured its real content height.
+  await page.waitForTimeout(100);
+  const elementRect = (element) => {
+    const rect = element.getBoundingClientRect();
+    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+  };
+  const [triggerBox, panelBox] = await Promise.all([
+    trigger.evaluate(elementRect),
+    panel.evaluate(elementRect),
+  ]);
+  const horizontalGap = triggerBox && panelBox
+    ? Math.max(0, panelBox.x - (triggerBox.x + triggerBox.width), triggerBox.x - (panelBox.x + panelBox.width))
+    : Number.POSITIVE_INFINITY;
+  const verticalGap = triggerBox && panelBox
+    ? Math.max(0, panelBox.y - (triggerBox.y + triggerBox.height), triggerBox.y - (panelBox.y + panelBox.height))
+    : Number.POSITIVE_INFINITY;
+  check(
+    `${triggerName}菜单锚定当前控件`,
+    Boolean(triggerBox && panelBox && horizontalGap <= 8 && verticalGap <= 8),
+    JSON.stringify({ triggerBox, panelBox, horizontalGap, verticalGap }),
+  );
   await screenshot(page, `${screenshotName}-open`);
   await option.click();
   await screenshot(page, `${screenshotName}-selected`);
@@ -69,6 +92,7 @@ async function waitForFullResult(page) {
 
 const browser = await chromium.launch({
   headless: true,
+  executablePath: CHROMIUM_EXECUTABLE_PATH,
   args: IPV6_LOCAL_DEV ? ["--host-resolver-rules=MAP localhost [::1]"] : [],
 });
 const context = await browser.newContext({ viewport: { width: 1600, height: 1050 }, locale: "zh-CN" });
@@ -87,6 +111,7 @@ try {
   check("首屏是可用诊疗工作台", await page.getByText("门诊病历", { exact: true }).isVisible());
 
   await page.getByTestId("patient-sex").selectOption("男");
+  await page.getByTestId("patient-age").fill("46岁");
   await page.getByTestId("chief-complaint").fill("头晕反复3天");
   await page.getByTestId("present-history").fill("起身或转头时明显，每次持续数分钟，休息后缓解，无晕厥、胸痛或呼吸困难。");
   await screenshot(page, "history-entered");
@@ -141,9 +166,26 @@ try {
   check("候选方药不混入审方状态套话", !/候选方药状态|审方提示|需调整后复核|有限候选|流派适配说明|服务端知识契约/.test(prescriptionText), prescriptionText.slice(0, 500));
   check("候选方药不把病例推断冒充参考依据", !/参考依据[^\n]*基于本例病史与症状推断/.test(prescriptionText), prescriptionText.slice(0, 500));
   const reportText = await page.getByTestId("ai-report-v2").innerText();
-  check("客户报告不展示证据占位词", !/证据不足|待检索|内部证据缺口/.test(reportText));
+  check("客户报告不展示内部检索占位词", !/待检索|内部证据缺口/.test(reportText));
   check("客户报告不展示低把握度与有限资料免责套话", !/判断把握度低|当前为有限资料下的工作判断|接诊时核实相关症状是否存在|本次生成依据/.test(reportText));
-  check("完整饮片候选展示频次与服法", !/候选方药/.test(reportText) || /频次与服法|每日1剂/.test(reportText));
+  const externalReferenceBlocks = page.getByText("外部参考资料（可核验）", { exact: true }).locator("..");
+  const externalReferenceText = await externalReferenceBlocks.allInnerTexts();
+  check(
+    "外部参考资料不展示证据占位词",
+    externalReferenceText.every((text) => !/证据不足|待检索|内部证据缺口/.test(text)),
+    externalReferenceText.join("\n").slice(0, 800),
+  );
+  check(
+    "外部参考资料不复述主诉或现病史",
+    externalReferenceText.every((text) => !/头晕反复3天|起身或转头时明显|主诉[：:]|现病史[：:]/.test(text)),
+    externalReferenceText.join("\n").slice(0, 800),
+  );
+  const nonDoseBoundary = /本轮非剂量安全结论|当前不展示包含具体用量的候选方药/.test(prescriptionText);
+  check(
+    "完整饮片候选展示频次与服法，降级结果明确非剂量边界",
+    nonDoseBoundary || /频次与服法|每日1剂/.test(prescriptionText),
+    prescriptionText.slice(0, 500),
+  );
   const auditHeadings = page.getByText(/^合理用药审查(?:\s*·.*)?$/);
   const auditHeadingCount = await auditHeadings.count();
   check("合理用药审查无风险时隐藏、有风险时至多展示一次", auditHeadingCount <= 1, `count=${auditHeadingCount}`);

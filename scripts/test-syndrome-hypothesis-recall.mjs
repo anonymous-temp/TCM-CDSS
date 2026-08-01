@@ -12,7 +12,12 @@
 import assert from "node:assert/strict";
 
 const { retrieveTcmFormulaIndicationCandidates } = await import("../src/lib/tcm-formula-indications.ts");
-const { clinicalAxesFromAffirmedText, syndromeHypothesesFromAffirmedText } =
+const {
+  applyBoundedSyndromeHypothesisRerank,
+  clinicalAxesFromAffirmedText,
+  parseClosedSetSyndromeHypothesisRerank,
+  syndromeHypothesesFromAffirmedText,
+} =
   await import("../src/lib/tcm-syndrome-hypothesis.ts");
 
 const formulaCase = (chiefComplaint) => ({ chiefComplaint, symptoms: {}, conversation: [] });
@@ -50,6 +55,83 @@ const DIRECTION_CASES = [
     // 左归丸是滋补肾阴，与"遇冷加重"的寒象方向相反。寒热阴阳搞反是最不能接受的一类错误。
     forbidTop1: ["左归丸"],
   },
+  {
+    label: "痰热壅肺（黄痰+口渴+苔黄腻）",
+    text: "咳嗽气促，痰黄黏稠，口渴，舌红苔黄腻，脉滑数",
+    hint: "咳嗽、气喘、黄痰、痰稠、口渴、苔黄腻、脉滑、脉数",
+    expectAnyOf: ["定喘汤", "泻白散"],
+    forbidTop1: ["二陈汤"],
+  },
+  {
+    label: "痰湿阻肺（白痰+身重+苔白腻）",
+    text: "咳嗽反复，痰多色白，胸闷，身重困倦，苔白腻，脉滑",
+    hint: "咳嗽、痰多、白痰、胸闷、身重、苔白腻、脉滑",
+    expectAnyOf: ["二陈汤", "渗湿汤"],
+    forbidTop1: ["定喘汤"],
+  },
+  {
+    label: "肝郁气滞（胁胀+太息+脉弦）",
+    text: "胁肋胀痛，情志不畅，善太息，脉弦",
+    hint: "胁胀、情志不畅、善太息、脉弦",
+    expectAnyOf: ["柴胡疏肝散", "加味乌药汤", "正气天香散", "越鞠丸"],
+    forbidTop1: ["龙胆泻肝汤"],
+  },
+  {
+    label: "胃气上逆（嗳气反酸+恶心呕吐）",
+    text: "脘腹胀满，嗳气反酸，恶心呕吐",
+    hint: "脘腹胀满、嗳气、反酸、恶心、呕吐",
+    expectAnyOf: ["左金丸", "旋覆代赭汤", "苏叶黄连汤", "沉香化气丸"],
+    forbidTop1: [],
+  },
+  {
+    label: "肾阴虚内热（五心烦热+盗汗+腰膝酸软）",
+    text: "五心烦热，潮热盗汗，口干，腰膝酸软，舌红脉细数",
+    hint: "五心烦热、潮热、盗汗、口干、腰膝酸软、舌红、脉细、脉数",
+    expectAnyOf: ["六味地黄丸加黄柏知母方", "大补阴丸", "一阴煎", "七味都气丸"],
+    forbidTop1: ["右归丸", "右归饮"],
+  },
+  {
+    label: "脾虚湿困（神疲+便溏+齿痕+白腻苔）",
+    text: "神疲乏力，食少腹胀，身重困倦，便溏，舌有齿痕苔白腻",
+    hint: "神疲、乏力、食少、腹胀、身重、便溏、齿痕舌、苔白腻",
+    expectAnyOf: ["参苓白术散", "实脾饮", "厚朴温中汤", "资生健脾丸"],
+    forbidTop1: ["大补阴丸"],
+  },
+  {
+    label: "血瘀痛经（固定刺痛+舌紫暗）",
+    text: "经行腹痛，痛处固定拒按，经色暗有块，舌质紫暗",
+    hint: "痛经、刺痛、痛处固定、舌质紫暗",
+    expectAnyOf: ["延胡索散", "血府逐瘀汤", "桂枝茯苓丸"],
+    forbidTop1: ["四物汤"],
+  },
+  {
+    label: "气血两虚（乏力+心悸气短+面色萎黄）",
+    text: "神疲乏力，心悸气短，面色萎黄，唇甲色淡，脉细弱",
+    hint: "神疲、乏力、心悸、气短、面色萎黄、唇甲色淡、脉细弱",
+    expectAnyOf: ["归脾汤", "人参养荣汤", "八珍汤", "人参归脾丸"],
+    forbidTop1: ["龙胆泻肝汤"],
+  },
+  {
+    label: "肠燥津亏（便干+口干+舌红少津）",
+    text: "大便干结数日一行，口干，舌红少津，脉细数",
+    hint: "便秘、大便干、口干、舌红、脉细、脉数",
+    expectAnyOf: ["养胃增液汤", "麻子仁丸", "更衣丸"],
+    forbidTop1: ["理中丸"],
+  },
+  {
+    label: "风热犯肺（咽痛+黄痰+脉浮数）",
+    text: "发热恶风，咽喉肿痛，咳嗽痰黄，口渴，脉浮数",
+    hint: "发热恶风、咽痛、咳嗽、黄痰、口渴、脉浮、脉数",
+    expectAnyOf: ["银翘散", "桑菊饮"],
+    forbidTop1: ["麻黄汤", "桂枝汤"],
+  },
+  {
+    label: "寒湿困脾（便溏身重+畏寒+白腻苔）",
+    text: "脘腹胀满，食少便溏，身重困倦，畏寒，苔白腻，脉沉迟",
+    hint: "腹胀、食少、便溏、身重、畏寒、苔白腻、脉沉迟",
+    expectAnyOf: ["实脾饮", "参苓白术散", "厚朴温中汤"],
+    forbidTop1: ["茵陈蒿汤"],
+  },
 ];
 
 for (const item of DIRECTION_CASES) {
@@ -62,6 +144,69 @@ for (const item of DIRECTION_CASES) {
   for (const forbidden of item.forbidTop1) {
     assert.notEqual(list[0], forbidden,
       `${item.label} 首位不得是治疗方向相反的 ${forbidden}，实际：${list.join("、")}`);
+  }
+}
+
+// ─── 对侧变形：仅改变寒热/痰色等方向线索，检索首位必须随治疗方向变化 ───
+const CONTRAST_CASES = [
+  [
+    "痰热↔痰湿",
+    ["咳嗽气促，痰黄黏稠，口渴，苔黄腻，脉滑数", "咳嗽反复，痰多色白，身重，苔白腻，脉滑"],
+    ["黄痰、痰稠、口渴、苔黄腻、脉滑、脉数", "痰多、白痰、身重、苔白腻、脉滑"],
+  ],
+  [
+    "肾阳虚↔肾阴虚",
+    ["腰膝酸软，畏寒肢冷，遇冷加重", "腰膝酸软，五心烦热，潮热盗汗"],
+    ["腰膝酸软、畏寒肢冷、遇冷加重", "腰膝酸软、五心烦热、潮热、盗汗"],
+  ],
+  [
+    "风寒表证↔风热犯肺",
+    ["恶寒发热，无汗，鼻塞流清涕，脉浮紧", "发热恶风，咽痛，咳嗽痰黄，口渴，脉浮数"],
+    ["恶寒发热、无汗、流清涕、脉浮紧", "发热恶风、咽痛、黄痰、口渴、脉浮、脉数"],
+  ],
+];
+for (const [label, texts, hints] of CONTRAST_CASES) {
+  const left = retrieveTcmFormulaIndicationCandidates(formulaCase(texts[0]), 6, hints[0]);
+  const right = retrieveTcmFormulaIndicationCandidates(formulaCase(texts[1]), 6, hints[1]);
+  assert.ok(left[0] && right[0], `${label} 两侧都必须产生受控候选`);
+  assert.notEqual(left[0].name, right[0].name,
+    `${label} 只改变方向性线索后首位不应保持同一方：${left[0].name}`);
+}
+assert.deepEqual(
+  retrieveTcmFormulaIndicationCandidates(formulaCase("否认口苦目赤，也没有急躁易怒"), 6),
+  [],
+  "显式否定的方向线索不得形成 L1a 方剂候选",
+);
+
+// ─── 轴类别矩阵：覆盖病位、病性、寒热、虚实、痰湿、瘀血与升降失常 ───
+const AXIS_CASES = [
+  ["中焦气滞", "脘腹胀满", ["spleen", "stomach"], ["qi_stagnation"]],
+  ["脾气虚", "神疲乏力", ["spleen"], ["qi_deficiency", "deficiency"]],
+  ["肺脾气虚", "少气懒言", ["lung", "spleen"], ["qi_deficiency"]],
+  ["卫气不固", "动则汗出", ["lung", "exterior"], ["qi_deficiency"]],
+  ["阴虚盗汗", "盗汗", ["heart", "kidney"], ["yin_deficiency", "heat"]],
+  ["肝胆热", "口苦目赤", ["liver", "gallbladder"], ["heat"]],
+  ["肝郁", "胁胀善太息", ["liver"], ["qi_stagnation"]],
+  ["肾虚", "腰膝酸软", ["kidney", "bones"], ["deficiency"]],
+  ["肾阳虚寒", "畏寒肢冷", ["kidney"], ["yang_deficiency", "cold"]],
+  ["风寒表实", "恶寒发热无汗", ["exterior"], ["cold", "excess"]],
+  ["痰热", "咳嗽痰黄黏稠", ["lung"], ["phlegm", "heat"]],
+  ["肠燥津伤", "大便干结口干", ["large_intestine"], ["dryness", "fluid_depletion"]],
+  ["胃气上逆", "恶心呕吐嗳气", ["stomach"], ["qi_counterflow"]],
+  ["瘀血阻络", "刺痛且痛处固定", ["blood_level", "collaterals"], ["blood_stasis"]],
+  ["湿热", "苔黄腻", [], ["dampness", "heat"]],
+  ["寒湿", "苔白腻", [], ["dampness", "cold"]],
+  ["血瘀舌", "舌质紫暗", [], ["blood_stasis"]],
+  ["肝郁脉", "脉弦", ["liver"], ["qi_stagnation"]],
+];
+
+for (const [label, text, expectedLocations, expectedNatures] of AXIS_CASES) {
+  const axes = clinicalAxesFromAffirmedText([text]);
+  for (const location of expectedLocations) {
+    assert.ok(axes.locations.has(location), `${label} 应命中病位 ${location}`);
+  }
+  for (const nature of expectedNatures) {
+    assert.ok(axes.natures.has(nature), `${label} 应命中病性 ${nature}`);
   }
 }
 
@@ -132,4 +277,37 @@ for (const candidate of litmus.filter((item) => !item.hasLiteralEvidence)) {
 assert.ok(hyp(["腰膝酸软", "遇冷加重"]).some((h) => h.matchedAxes >= 3),
   "该病例应存在命中轴 ≥3 的特异假设，否则纯假设候选不该出现");
 
-console.log(JSON.stringify({ directionCases: DIRECTION_CASES.length, failures: 0 }));
+// ─── L1b 闭集、加权上限与失败回退不变量 ───
+const l1aPool = [
+  { syndromeId: "s1", canonical: "甲证", matchedAxes: 4, coverage: 1, score: 10 },
+  { syndromeId: "s2", canonical: "乙证", matchedAxes: 4, coverage: 0.95, score: 9.5 },
+  { syndromeId: "s3", canonical: "丙证", matchedAxes: 3, coverage: 1, score: 9 },
+];
+const parsedRerank = parseClosedSetSyndromeHypothesisRerank(JSON.stringify({
+  rankings: [
+    { syndromeId: "s3", relevance: 1 },
+    { syndromeId: "outside", relevance: 1 },
+    { syndromeId: "s2", relevance: 1.1 },
+    { syndromeId: "s3", relevance: 0.2 },
+  ],
+}), new Set(l1aPool.map((item) => item.syndromeId)));
+assert.deepEqual(parsedRerank, [{ syndromeId: "s3", relevance: 1 }],
+  "L1b 必须逐项隔离候选外 ID、越界分数与重复 ID");
+const reranked = applyBoundedSyndromeHypothesisRerank(l1aPool, parsedRerank);
+assert.deepEqual(new Set(reranked.map((item) => item.syndromeId)), new Set(l1aPool.map((item) => item.syndromeId)),
+  "L1b 不得新增或删除 L1a 候选");
+assert.equal(reranked[0].syndromeId, "s3", "有效闭集相关度可以改变 L1a 候选顺序");
+assert.ok(reranked.find((item) => item.syndromeId === "s3").score <= 9 * 1.2,
+  "L1b 对任一候选的加权不得超过 20%");
+assert.deepEqual(applyBoundedSyndromeHypothesisRerank(l1aPool, []), l1aPool,
+  "L1b 超时、非法输出或空结果必须原样回退 L1a");
+assert.deepEqual(parseClosedSetSyndromeHypothesisRerank("not-json", new Set(["s1"])), [],
+  "L1b 非 JSON 输出必须安全回退");
+
+console.log(JSON.stringify({
+  directionCases: DIRECTION_CASES.length,
+  contrastCases: CONTRAST_CASES.length,
+  axisCases: AXIS_CASES.length,
+  l1bInvariantCases: 6,
+  failures: 0,
+}));

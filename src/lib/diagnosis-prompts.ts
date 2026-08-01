@@ -17,7 +17,8 @@ import {
 import { buildTcmTreatmentProjectPromptContext } from "./tcm-treatment-capabilities.server";
 import { requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { buildTcmFormulaIndicationContext, buildTcmFormulaReasoningContext } from "./tcm-formula-indications";
-import { highImpactHerbDirectionIssue } from "./diagnosis-stage-contract";
+import type { SyndromeHypothesisRerankDecision } from "./tcm-syndrome-hypothesis";
+import { herbCombinationDirectionEligible, herbShortlistDirectionEligible } from "./diagnosis-stage-contract";
 import { M03_CLINICAL_INFERENCE_AUTHORITY } from "./clinical-inference-authority";
 import {
   buildM02ClassicDiscriminationContext,
@@ -129,6 +130,15 @@ const THERAPY_HERB_CATEGORY_RULES: ReadonlyArray<readonly [RegExp, readonly stri
   [/止血/, ["止血"]],
   [/通便|泻下|攻下|润下/, ["泻下", "润下", "攻下"]],
   [/收涩|敛汗|固涩|固精/, ["收涩", "固精"]],
+  // 开窍与软坚两条长期缺失。契约侧 TCM_THERAPY_CONCEPTS 治理 orifice_open / mass_soften（两者都在
+  // HIGH_IMPACT_THERAPY_CONCEPTS 内），KB 准入正则 KB_THERAPY_KNOWLEDGE_PATTERN 也收了它们，唯独
+  // 本表没有对应规则：M03 锁定这两类治法时 therapyCategoryKeys() 返回空，短名单整段不注入，而 M04
+  // 硬约束仍写着「从上方短名单对应方向中选取君药」——模型被指向一份不存在的名单，只能按自身先验猜
+  // 君药，随后被 candidate_*_herb_*_emperor_knowledge_missing 确定性驳回。知识库并非无货：开窍方向
+  // 有 5 味（石菖蒲、苏合香、安息香、麝香等），软坚散结方向有 29 味带剂量边界的药。
+  // 三张表必须覆盖同一方向集合，scripts/test-therapy-vocabulary-sync.mjs 对此做确定性断言。
+  [/开窍|醒神|豁痰开窍|化浊开窍/, ["开窍"]],
+  [/软坚|散结|消瘰|消瘿|化痰散结/, ["软坚散结"]],
 ];
 
 function therapyCategoryKeys(text: string): string[] {
@@ -187,17 +197,18 @@ const KB_THERAPY_KNOWLEDGE_PATTERN = new RegExp([
   "化痰|祛痰|涤痰|豁痰|消痰",
   "利湿|渗湿|利水|祛湿|燥湿|化湿|醒脾|化寒湿|散寒湿|除湿",
   "温阳|扶阳|回阳|散寒|辛温|温(?:中|肾|里|肺|经|化|补|通|养)|补阳",
-  "滋阴|养阴|育阴|生津|增液|补阴",
+  "滋阴|养阴|育阴|生津|增液|补阴|润燥|润肺|濡润|清燥",
   "解表|祛风|疏风|疏散风邪|疏风散邪|发散风寒|发散风热|疏散风热|凉散风热|疏风散热|散风",
-  "活血|化瘀|行瘀|破血|通经|(?:气血|血行|血脉)(?:运行|畅行|周行|流通)|调[和畅][^，。；;]{0,6}气血",
-  "通便|泻下|攻下|逐水",
-  "收涩|敛汗|固涩|固精|止带",
-  "止血|凉血止血|化瘀止血",
+  "活血|化瘀|行瘀|破血|通经(?!脉)|(?:气血|血行|血脉)(?:运行|畅行|周行|流通)|调[和畅][^，。；;]{0,6}气血",
+  "通便|泻下|攻下|逐水|通腑",
+  "收涩|敛汗|固涩|固精|止带|固经|固冲|固摄|止崩",
+  "止血|凉血止血|化瘀止血|摄血",
   "止咳|平喘|宣肺|肃肺|降肺|开宣肺气|宣(?:通|畅|降)肺气",
   "消食|导滞|健胃|消积",
   "息风|止痉|平肝|潜阳",
   "开窍|醒神",
   "软坚|散结",
+  "调经|调冲任|理冲任|调理冲任|调摄冲任|安冲|调冲",
 ].join("|"));
 
 type KbCoveredHerb = { name: string; categories: string[]; functionText: string };
@@ -231,12 +242,22 @@ const CATEGORY_KEY_THERAPY_PATTERNS: ReadonlyMap<string, ReadonlyArray<RegExp>> 
   return map;
 })();
 
+// 少数治法方向在药味功能分类词表里没有同名分类。「软坚散结」就横跨清化热痰（浙贝母、昆布、海藻、
+// 瓦楞子、海蛤壳）、清热解毒（山慈菇）、平肝息风（牡蛎）、清热泻火（夏枯草）和理气（橘核）等多个
+// 分类，按分类名永远匹配不到。这些方向在此登记，短名单改用 CATEGORY_KEY_THERAPY_PATTERNS 的正则
+// 直接匹配功用文本；未登记的方向仍按分类名匹配，行为完全不变。
+const FUNCTION_TEXT_MATCHED_DIRECTIONS: ReadonlySet<string> = new Set(["软坚散结"]);
+
 // 短名单药味行整体硬性封顶，避免知识上下文无界增长。
-const KB_COVERED_SHORTLIST_BUDGET = 1_800;
-// The governed common subset currently reaches 13 herbs in some broad directions (for example
-// 清热). Keep the cap above that class-level floor so a clinically central but non-common herb can
-// still enter by case-direction score without arbitrary displacement by the name tie-breaker.
-const KB_COVERED_SHORTLIST_PER_DIRECTION = 16;
+// 1_800 在 4 方向病例已用掉约 1.7k 字符，第 5 个方向会被整行 break 丢弃；实测 M04 prompt 全长
+// 仅 11k–12.5k 字符，而 PRIMARY_TEXT_MAX_PROMPT_CHARS 上限是 60_000（超限直接 413），余量充足。
+// 注意：这个预算必须 ≤ structured-clinical-repair.ts 的 m04KnowledgeShortlistFromPrompt 截断上限，
+// 否则修复轮注入的短名单会在药名中间被切断成残串，诱导模型输出非法药名。改一处必须同步另一处。
+const KB_COVERED_SHORTLIST_BUDGET = 4_000;
+// 每方向条数上限。放宽身份级过滤后 16 立刻成为新瓶颈：清热约 68 味、理气 27 味、解表 25 味、
+// 利水渗湿 20 味都会被砍到 16，把该方向真正的核心药挤掉。24 覆盖绝大多数受治理方向的常用面，
+// 同时保留封顶以免上下文无界增长。
+const KB_COVERED_SHORTLIST_PER_DIRECTION = 24;
 
 // Fine-grained action terms rank herbs inside a broad category. They do not authorize a treatment
 // direction (the M03 lock and deterministic contract still do that); they stop a generic common
@@ -248,6 +269,12 @@ const SPECIFIC_THERAPY_ACTIONS = [
   "和胃", "降逆", "止呕", "止呃", "消食", "导滞", "通便", "泻下", "止血", "止咳",
   "平喘", "宣肺", "平肝", "潜阳", "息风", "开窍", "软坚", "散结", "收涩",
 ] as const;
+
+/** 只能由医生正向决定、不得靠「充实层次」被顺手选入的药味：毒性药与 HIGH 特殊人群限制药。 */
+function isRestrictedBreadthCandidate(herbName: string): boolean {
+  const safety = getTcmHerbGenerationSafetyProfile(herbName);
+  return safety.isToxic || safety.populationRules.some((rule) => rule.severity === "HIGH");
+}
 
 function kbCoveredHerbShortlistContext(diagnoseReasoning: ReturnType<typeof diagnoseReasoningFromState>): string {
   if (!diagnoseReasoning) return "";
@@ -263,28 +290,30 @@ function kbCoveredHerbShortlistContext(diagnoseReasoning: ReturnType<typeof diag
   const specificActions = SPECIFIC_THERAPY_ACTIONS.filter((action) => primaryText.includes(action));
   const lines: string[] = [];
   let budget = KB_COVERED_SHORTLIST_BUDGET;
-  for (const key of directionKeys) {
-    const herbs = kbCoveredHerbIndex
-      .filter((herb) => herb.categories.some((category) => category.includes(key)))
-      // This list is an emperor-selection surface. Do not offer a herb whose governed multi-action
-      // profile already conflicts with the signed M03 polarity and force the model into a repair
-      // loop that the deterministic contract can predict in advance.
-      .filter((herb) => !highImpactHerbDirectionIssue(herb.name, herb.functionText, diagnoseReasoning))
+  const rankHerbs = (
+    pool: typeof kbCoveredHerbIndex,
+  ): string[] => pool
       .map((herb) => {
         const categoryHits = directionKeys.filter((direction) =>
           herb.categories.some((category) => category.includes(direction))).length;
         const functionHits = directionKeys.filter((direction) =>
           (CATEGORY_KEY_THERAPY_PATTERNS.get(direction) || []).some((pattern) => pattern.test(herb.functionText))).length;
+        const limit = getTcmHerbDoseLimit(herb.name);
         return {
           name: herb.name,
           common: isCommonTcmHerbName(herb.name),
+          // 无剂量边界的药味会被渲染成「无剂量边界，不得进入剂量候选」——它占着名额却 100%
+          // 不可用（doseWithinConservativeModelLimit / dosePassesSafetySanityCeiling 必然驳回）。
+          // 排在最后，不再挤掉该方向真正可开的药。
+          hasDoseBound: limit?.min != null && limit.max != null,
           specificScore: specificActions.filter((action) => herb.functionText.includes(action)).length,
           score: categoryHits * 2 + functionHits,
         };
       })
       // The cap must not turn lexicographic order into clinical selection. Surface the governed
       // common-clinic subset first, then use case-direction coverage and name only as tie-breakers.
-      .sort((left, right) => right.specificScore - left.specificScore ||
+      .sort((left, right) => Number(right.hasDoseBound) - Number(left.hasDoseBound) ||
+        right.specificScore - left.specificScore ||
         Number(right.common) - Number(left.common) ||
         right.score - left.score || left.name.localeCompare(right.name))
       .slice(0, KB_COVERED_SHORTLIST_PER_DIRECTION)
@@ -302,17 +331,59 @@ function kbCoveredHerbShortlistContext(diagnoseReasoning: ReturnType<typeof diag
           ? `${herb.name}[${limit.min}-${limit.max}g${safetyFlags.length > 0 ? `；${safetyFlags.join("；")}` : ""}]`
           : `${herb.name}[无剂量边界，不得进入剂量候选]`;
       });
-    if (herbs.length === 0) continue;
-    const line = `- ${key}方向：${herbs.join("、")}`;
-    if (lines.length > 0 && budget - line.length < 0) break;
-    lines.push(line);
-    budget -= line.length;
+
+  let truncatedDirections = 0;
+  for (const key of directionKeys) {
+    const directionFunctionPatterns = CATEGORY_KEY_THERAPY_PATTERNS.get(key) || [];
+    const directionPool = kbCoveredHerbIndex
+      .filter((herb) => (FUNCTION_TEXT_MATCHED_DIRECTIONS.has(key)
+        ? directionFunctionPatterns.some((pattern) => pattern.test(herb.functionText))
+        : herb.categories.some((category) => category.includes(key))));
+
+    // 第一行 = 君药面。君药决定全方走向，用最保守的口径筛：身份级高影响方向（功能分类 ∪ 风险画像
+    // ∪ 受治理映射 ∪ 合并功用文本）必须已在 M03 成立，且寒热极性无冲突。乌药/九香虫/刀豆/土木香
+    // 这类温里作用只写在功用文本里的药，不进君药面。
+    const emperorHerbs = rankHerbs(directionPool
+      .filter((herb) => herbShortlistDirectionEligible(herb.name, diagnoseReasoning)));
+
+    // 第二行 = 臣佐使配伍面（需求11：药味数尽可能多，但每味都要有依据）。同一把尺子量到配伍药就
+    // 过界了：配伍药承担的是它被列入的那个方向，功用文本里顺带记载的伴随作用不构成选它的理由。
+    // 用「受治理身份」口径（功能分类 ∪ 风险类目 ∪ 受治理映射）+ 正向相关 + 同一条寒热极性否决，
+    // 把当归、党参、甘草、龙眼肉这类被伴随作用误伤的常用药放回来；大黄、丹参、黄连、附子、麝香、
+    // 鳖甲在方向未成立时照旧挡下。详见 diagnosis-stage-contract 的 herbCombinationDirectionEligible。
+    const emperorNames = new Set(emperorHerbs.map((entry) => entry.replace(/\[.*$/, "")));
+    const combinationHerbs = rankHerbs(directionPool
+      .filter((herb) => !emperorNames.has(herb.name) &&
+        // 配伍面是「充实君臣佐使层次」的备选面，进入它的理由是广度。毒性药与 HIGH 特殊人群
+        // 限制药进方必须是医生的正向临床决定，不能靠凑层次被顺手选中——实测放宽身份级口径后，
+        // 一个普通的心脾两虚失眠病例的安神配伍面里冒出了朱砂（有毒、药典限量 0.1–0.5g、
+        // 不宜大量或持续服用）。此前它是被 heat_clear（清心/解毒）碰巧挡住的，属于运气不是设计。
+        // 君药面不加这条：附子任四逆汤之君是正当临床选择，那一面本就是正向决定。
+        !isRestrictedBreadthCandidate(herb.name) &&
+        herbCombinationDirectionEligible(herb.name, diagnoseReasoning)));
+
+    if (emperorHerbs.length === 0 && combinationHerbs.length === 0) continue;
+    const directionLines = [
+      ...(emperorHerbs.length > 0 ? [`- ${key}方向（君臣佐使均可选）：${emperorHerbs.join("、")}`] : []),
+      ...(combinationHerbs.length > 0 ? [`- ${key}方向（仅可作臣佐使配伍，不得为君）：${combinationHerbs.join("、")}`] : []),
+    ];
+    const cost = directionLines.reduce((total, line) => total + line.length, 0);
+    if (lines.length > 0 && budget - cost < 0) {
+      truncatedDirections = directionKeys.length - directionKeys.indexOf(key);
+      break;
+    }
+    lines.push(...directionLines);
+    budget -= cost;
   }
   if (lines.length === 0) return "";
+  // 无声截断会让模型以为名单已覆盖全部治法方向。被预算砍掉的方向必须说出来。
+  if (truncatedDirections > 0) {
+    lines.push(`- （另有 ${truncatedDirections} 个治法方向因上下文预算未展开，该方向选药仍须满足下方同一套规则）`);
+  }
   return [
     "【本例治法方向的知识库覆盖药味短名单（均有服务端功能分类或功用收载，治疗方向可核验）】",
     ...lines,
-    "使用规则：方括号内是该药服务端保守剂量边界与生成前安全标签，不属于药名；输出 name 时只写方括号前的规范药名，dose 必须落在对应边界内，isToxic 必须与“毒”标签一致。HIGH 特殊人群规则一旦与本例阳性事实相符，不得选择该药形成剂量候选；MEDIUM 必须优先改用同治法低风险药味，确需保留时写入适用边界。无剂量边界的药味不得进入剂量候选。自拟方或未承接命名方身份候选的君药必须从本短名单对应方向中选取；仅当短名单未覆盖本例方向时，才可选择知识库另有功能收载、方向一致且有明确剂量边界的药味。完全无功能收载的药味不得担任君药，服务端将确定性驳回。若理想君药无知识库覆盖，改用同一治法方向上最近的覆盖药味，不得坚持无覆盖药味。命名方基准药味的角色由方证身份承接；外加或替换药味同样优先从本短名单选择。",
+    "使用规则：方括号内是该药服务端保守剂量边界与生成前安全标签，不属于药名；输出 name 时只写方括号前的规范药名，dose 必须落在对应边界内，isToxic 必须与“毒”标签一致。HIGH 特殊人群规则一旦与本例阳性事实相符，不得选择该药形成剂量候选；MEDIUM 必须优先改用同治法低风险药味，确需保留时写入适用边界。无剂量边界的药味不得进入剂量候选。两行的区别是角色权限：标「君臣佐使均可选」的药味方向已按最严口径核验，可任君药；标「仅可作臣佐使配伍，不得为君」的药味方向同样经服务端核验且与本例治法相符，但其记载中另有未在本例成立的伴随作用，只可作臣、佐、使充实方剂层次，不得担任君药。自拟方或未承接命名方身份候选的君药必须从本例对应方向的「君臣佐使均可选」行中选取；仅当该行未覆盖本例方向时，才可选择知识库另有功能收载、方向一致且有明确剂量边界的药味。完全无功能收载的药味不得担任君药，服务端将确定性驳回。若理想君药无知识库覆盖，改用同一治法方向上最近的覆盖药味，不得坚持无覆盖药味。命名方基准药味的角色由方证身份承接；外加或替换药味同样优先从本短名单选择。臣、佐、使药应优先从两行中选取，名单内药味均已通过服务端方向核验，可放心用于扩充方剂层次到完整的君臣佐使结构。",
   ].join("\n");
 }
 
@@ -344,14 +415,14 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
     "emotion":"情志调护",
     "acupointCare":null,
     "tcmTreatments":[{"projectCode":"受控目录代码","targetRef":"P1"}],
-    "monitoring":[{"metric":"病历已记录且需纵向比较的具体症状、体征或检查指标","timing":"观察或复核时间点","trigger":"达到何种条件时采取复诊、停药、急诊或调整方案等动作"}]
+    "precautions":["一句完整的注意事项：要观察什么、多久看一次、出现什么情况怎么处理"]
   }
 }
 
 硬约束：
-- candidate.herbs 只包含本次真正采用的药味，药味数必须服从方剂结构：经典方/合方按服务端给出的基础方组成编译，自拟复方通常不少于4味；明确的单味方案可为1味。不得为凑数量增药，所有条件性加减不得写在表外。
+- candidate.herbs 只包含本次真正采用的药味。经典方/合方按服务端给出的基础方组成编译；自拟复方在有依据的前提下应给出完整的君臣佐使层次，常见规模为 8–14 味（不少于4味，明确的单味方案可为1味）。每增加一味都必须同时满足三条：绑定一个真实病机节点 targetRef 或受控 formula_structure 角色、在服务端药味知识库有功能收载、其收载方向与本例某条已锁定治法方向一致；三条任一不满足即不得加入。不得为凑数量增药，不得加入与任何锁定治法方向无关的药味，所有条件性加减不得写在表外。
 - dose 必须是单一数值加单位（如10g），不得用范围、片、枚、酌量或待确认。
-- nonPharma.monitoring 严格区分三种语义：metric 只写本例病历已记录、可纵向比较的症状/体征/检查指标，不得写“若/出现/请/需/复诊/停药”等条件或动作；timing 只写观察时间；trigger 必须写清条件及复诊、停药、急诊或调整等处置。三字段不得互相复制，缺少病例锚点时不要编造该行。
+- nonPharma.precautions 是 0–6 条注意事项，每条写成一句完整、专业、可直接给医生看的中文（20–80字），自己把“要观察什么 / 多久 / 出现什么情况怎么处理”在同一句里说清楚，不要拆成 metric/timing/trigger 这类多字段，也不要写成表格。可写：本例已记录症状的变化与复诊时机、服药期间可能出现的不适与停药就医边界、与其他中西药或食物同用的核对要求、需要立即就医的表现。不得出现克数、片数、毫升等剂量，不得编造病历没有的症状；没有可写的就输出空数组，服务端会补充通用安全注意事项。
 - candidate.decoction 必须是单个对象，并同时包含：doseCount（总剂数，1–30整数加“剂”）、dosesPerDay（每日剂数，1–3整数）、administrationTimesPerDay（每日分服次数，1–6整数且不得小于每日剂数）。三者不得省略、写成自由文本或由服务端猜测；总剂数必须能被每日剂数整除，疗程和复诊节点由服务端按这三项统一生成。
 - role 只能是君/臣/佐/使中的一个值，processing 和 decoctionRequirement 只能是字符串或 null。
 - 君臣药只能引用 targetKind=pathogenesis_node 与有效 P1/P2...；佐使药若只承担方内结构作用，可引用 targetKind=formula_structure、targetRef=FORMULA_STRUCTURE，并将 structureRole 限于 middle_jiao_support/harmonize/guide/temper。
@@ -363,8 +434,11 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
 - 不得在提案中重写 M03 证候、病机、治法、流派信息、方剂出处、药味功用、方义、适用边界或证据字段；这些全部由服务端生成。唯一例外：形成自拟方时，可在 candidate.applicable 中用一句话说明已注入的经典名方候选未覆盖本例哪个病机/治法维度（不得罗列被排除方名、不得写《》出处），作为自拟方的组方依据。
 - patentAndWestern 只能从证据上下文中【EviMed 说明书检索】或【本地中成药说明书检索】实际返回的 EVID-INST / LOCAL-INST 条目中选择；药名、evidenceId、evidenceFingerprint 必须逐字绑定同一条目，集外药名、错配ID或错配指纹会被服务端删除。每项必须说明与本例当前诊断/证候/阳性症状的匹配点、联用或替代定位，以及该条目已返回的禁忌、相互作用和特殊人群边界；没有合格条目时输出空数组，服务端会显示具体缺失原因。
 - 当前版本所有西药仅为 discussion_only：不得输出单次剂量、频次、途径或疗程医嘱。中成药可形成说明书绑定的候选，但当检索摘要没有完整用法用量字段时同样不得猜剂量；singleDose/frequency/route/course 均填 null。specification 只可逐字复制同一条目，条目未返回则填 null。不得用“按说明书”之类套话伪装成已经取得的剂量依据。
-- modifications 只用于本次病历已明确记录的当前伴随症状，不预设未来或复诊时才可能出现的症状。可给出0–3条；trigger 必须逐字引用 primarySyndromeBasis、pathogenesis.chain.patientFact 或 westernDiagnosis.primary.supportingFacts 中的当前事实，不得写“若出现、复诊时出现、接诊时核实、症状变化时”等假设句。每条必须包含动作（actionType=add/remove/adjust 加 herbName）、理由（reason=该加减对应的病机依据）和有效 targetRef；风险说明由服务端统一附加，模型不得自行输出。add 只能加入知识库已收载且当前处方没有的药味，remove/adjust 只能针对当前处方药味。没有合格当前伴随症状时输出空数组即可，不得为了显得完整而编造加减。
-- nonPharma 必须输出，以患者现有信息给出简洁的饮食、起居、情志、中医非药物治疗项目和监测建议；不要求其他病历字段齐全。acupointCare 固定输出 null，避免绕过受控项目目录。tcmTreatments 只能填写后附候选中的 projectCode 与现有病机 targetRef，最多3项，优先本机构可开展项目；没有适合项目时输出空数组。
+- modifications 是给接诊医生的**随证加减建议**：针对本次病历已记录、但主方未直接针对的兼症，提示可以加哪味药或减哪味药。它是决策支持，不是让医生自己去改方——因此**只要存在合格兼症就必须给出建议，不要图省事输出空数组**。
+- 判断合格兼症的方法：逐条读 primarySyndromeBasis、pathogenesis.chain.patientFact 与 westernDiagnosis.primary.supportingFacts 中已记录的当前表现，找出主方君臣佐使未直接针对的那些（例如主方主攻心脾两虚，而病历还记录了脘腹胀满、大便偏干或咽干）。每条这样的兼症都值得一条加减建议。通常能给出1–3条；确实每条已记录表现都已被主方药味直接覆盖时，才输出空数组。
+- trigger 必须逐字引用上述来源中的**已记录当前表现**，不得写“若出现、复诊时出现、接诊时核实、症状变化时”等假设句，也不得为了凑加减而编造病历没有的症状。加减针对的是已经存在但主方覆盖不足的兼症，不是预设未来可能出现的新症状。
+- 每条必须包含动作（actionType=add/remove/adjust 加 herbName）、理由（reason 写清这味药如何处理该兼症所对应的病机）和有效 targetRef；风险说明由服务端统一附加，模型不得自行输出。add 只能加入知识库已收载且当前处方没有的药味，remove/adjust 只能针对当前处方已有的药味。加减行本身不得写具体克数——剂量由药味工作台与审方链路负责。
+- nonPharma 必须输出：以患者现有信息给出饮食、起居、情志三段调护和注意事项，不要求其他病历字段齐全。三段调护每段 1–3 句，必须写成专业可执行的建议 —— 说明与本例证候/病机的对应关系、具体怎么做、要避免什么；不得只写“注意饮食、规律作息、保持心情舒畅”这类无信息量套话。acupointCare 固定输出 null，避免绕过受控项目目录。tcmTreatments 只能填写后附候选中的 projectCode 与现有病机 targetRef，最多3项，优先本机构可开展项目；没有适合项目时输出空数组。
 - nonPharma.diet 只能给出普通、低风险的规律饮食和生活方式建议；不得把山楂、黑木耳、药膳等具体食物写成“活血化瘀、安神、补气、滋阴”等治疗手段，不得暗示食疗可替代诊疗或药物。患者过敏史、当前用药或基础病未知时，不得推荐可能影响凝血、血糖、血压或药物作用的功能性食物。
 `;
   }
@@ -375,8 +449,10 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
 ## V2结构化临床数据（唯一输出）
 只输出一个合法 JSON 对象，不要输出 Markdown、sentinel、代码围栏、解释或第二份结果。医生可见报告由服务端从这个通过校验的对象确定性渲染。该 JSON 不包含、也不得填写任何安全裁决字段；红旗、处方放行、审方和写回权限由系统确定性规则独立计算。
 overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesis、overview.overallTherapy、therapy.overallPrinciple 和 therapy.overallMethod 应在当前已知资料范围内给出最佳临床工作判断，不得为了显得完整而补写患者没有提供的表现。tcmDiseaseName 是规范中医病名，只有当前资料支持病名倾向时填写（如符合不寐病范畴时写“不寐”）；短期“睡不好”等孤立症状不得自动升级为病名。primarySyndrome 是证型，二者不得混写。overallPathogenesis 必须解释阳性事实经何种功能失常或气血津液变化形成当前证候，不能复制主诉或把症状串联后改名为病机。overallPrinciple 是治则，overallMethod/overview.overallTherapy 是具体治法，治则与治法不得复写成同一句。overview.secondarySyndromes 只填写本例已有事实支持的兼证，没有可靠兼证时输出空数组。
-westernDiagnosis.primary.name 必须是纯现代医学诊断或症状级工作诊断，不得夹带“痰湿型、肝火型、气虚证”等中医证型后缀。supportingFacts 负责逐项列事实；clinicalRationale 不得逐项串联或复制 supportingFacts，也不得整句复述现病史。它必须用1–2句完成“已记录事实中的病程/表现模式 → 当前工作诊断 → 尚缺哪类病因判别信息、因此为何暂不采用更具体病因标签”的推理链。可采用“已记录的〔症状概念〕及〔病程/模式〕支持将〔primary.name〕作为当前工作判断；但尚未取得〔具体判别信息〕，因此暂不采用更具体病因标签”的结构；方括号内容只能来自本例已记录事实、limitations 或 differentials，没有具体病因候选时写“具体病因”而不得臆造疾病。westernDiagnosis.differentials 每项必须写真正的鉴别理由和能区分主诊断的要点，不能只罗列病史。
-overview.tcmDiagnosticRationale 必须基于望闻问切已获得的症状、舌脉、病程与体征解释“中医病名+主证”如何形成，不得把缺少CT、MRI、化验、量表等现代检查写成中医辨证不能成立的理由。overview.tcmDifferentials 在已有可比较证候时给出1–3项，每项写候选证候、为何需要鉴别、与本例主证的区分点以及必要的下一步四诊核实；稀疏到无法形成有意义鉴别时可为空，但不得输出套话。若因资料稀疏而把 tcmDifferentials 留空，必须在 primarySyndromeResolutionReason 中明确写出为何暂不能形成鉴别——须包含“不足以/无法/不能……鉴别/区分”这类表述（例如“现有四诊与病史尚不足以与相邻证候鉴别”），不得只留空而不说明。
+westernDiagnosis.primary.name 必须是纯现代医学诊断或症状级工作诊断，不得夹带“痰湿型、肝火型、气虚证”等中医证型后缀。supportingFacts 负责逐项列事实；clinicalRationale 不得逐项串联或复制 supportingFacts，也不得整句复述现病史。它必须用1–2句完成“已记录事实中的病程/表现模式 → 当前工作诊断 → 尚缺哪类病因判别信息、因此为何暂不采用更具体病因标签”的推理链。可采用“已记录的〔症状概念〕及〔病程/模式〕支持将〔primary.name〕作为当前工作判断；但尚未取得〔具体判别信息〕，因此暂不采用更具体病因标签”的结构；方括号内容只能来自本例已记录事实、limitations 或 differentials，没有具体病因候选时写“具体病因”而不得臆造疾病。westernDiagnosis.differentials 每项必须写真正的鉴别理由和能区分主诊断的要点，不能只罗列病史；每项 name 只能写一个疾病/症状方向，多个候选必须拆成多项，不得用“或/斜杠/顿号/可能”合并命名。
+诊断分三段呈现，各自给出自己的推理过程，都不得复述病历：西医诊断（westernDiagnosis.primary，服务端另行关联 ICD-10 编码）、中医辨病（overview.tcmDiseaseName + tcmDiseaseRationale）、中医辨证（overview.primarySyndrome + tcmDiagnosticRationale）。
+overview.tcmDiseaseRationale 只写**辨病**：这组表现为什么归入该中医病名范畴，而不是相邻病名。依据是主症特征、病程形态与病位层次——例如以入睡困难与睡眠维持障碍为主、病程逾月且非情志抑郁为主导，故归入不寐而非郁病或心悸。用1–2句写成“主症与病程形态 → 病名归属 → 与哪个相邻病名区分”，不要在这里写证型、病机或治法。资料稀疏到只能形成症状层工作病名时，写明是按主诉直接对应的症状层病名，并说明尚缺哪类信息才能升级为传统病名。
+overview.tcmDiagnosticRationale 只写**辨证**：在已确定的中医病名之下，四诊合参如何得出该证型。必须基于望闻问切已获得的症状、舌脉、病程与体征，写成“四诊要点 → 病机 → 证型归属”的推理链；不得把缺少CT、MRI、化验、量表等现代检查写成中医辨证不能成立的理由，也不要重复辨病段已经写过的病名归属理由。overview.tcmDifferentials 在已有可比较证候时给出1–3项，每项写候选证候、为何需要鉴别、与本例主证的区分点以及必要的下一步四诊核实；稀疏到无法形成有意义鉴别时可为空，但不得输出套话。若因资料稀疏而把 tcmDifferentials 留空，必须在 primarySyndromeResolutionReason 中明确写出为何暂不能形成鉴别——须包含“不足以/无法/不能……鉴别/区分”这类表述（例如“现有四诊与病史尚不足以与相邻证候鉴别”），不得只留空而不说明。
 therapy.overallPrinciple 必须写治则层原则（如正治、反治、治病求本、急则治标、缓则治本、扶正祛邪、标本缓急或三因制宜），overallMethod 才写疏肝、清热、健脾、化痰、安神等具体治法；不得把具体治法冒充治则，也不得两栏同句复写。subTherapies 必须逐项对应病机节点：只有一个病机节点时，唯一子治法可以与完整的 overallMethod 相同；有多个子病机时至少形成两个可区分的分治方向，各 therapy 与 targetPathogenesis 不得整行复制组合后的 overallMethod，也不得在多行中重复。
 
 M03 的证候、病位和病性必须显式标注 resolution：resolved=现有资料可以稳定支持；bounded=可以形成有边界的工作判断但仍有关键未知；unresolved=现有资料连有意义的工作判断都不能支持。基层稀疏病例通常应在诚实降置信后给出 bounded 工作判断并继续流程，不得仅因缺少舌脉、生命体征或某一兼症就写 unresolved。resolved 必须提供逐字可回溯的患者事实依据；bounded/unresolved 必须填写 resolutionReason，并把未知项及影响写入 pathogenesis.uncertainties。primarySyndromeBasis 只能逐字摘录病例或医生补充中的短句，不得改写；模型不得把 resolution 当作流程放行或安全裁决。
@@ -384,6 +460,7 @@ M03 的证候、病位和病性必须显式标注 resolution：resolved=现有�
 JSON要求：
 - 必须是合法 JSON，不要代码块，不要注释，不要尾逗号。
 - M03 stage=diagnose 时 ${formulaRule}。
+- M03 只形成辨病辨证、病机、治法与方名方向，任何字段都不得输出药味组成、克数/毫克数、每日剂数、煎服法或疗程。recommendedFormulaDirection/recommendedFormulaNames 只能写方名或方义方向，不得携带药味、剂量、剂数、煎服法和疗程；这些内容只能在 M04 生成并经审方。
 - overview.recommendedFormulaNames 与 formulaSelectionMode 是本例方名锁定的机器读取字段，必须认真填写：当上方【M03经典方检索】短名单中存在与本例证候-病机匹配的经典方时，recommendedFormulaNames 必须从短名单中逐字抄写 1–3 个最匹配方名（不得改写、不得自造、不得留空），formulaSelectionMode 对应填 single（主方明确）、combined（明确合方）或 alternatives（多候选并列待医生选择）；仅当短名单中确实没有方证匹配的条目时，recommendedFormulaNames 才允许留空并填 self_devised。不得把未收载方伪装成经典方，也不得在短名单有匹配方时仍默认自拟。
 - overview.recommendedFormulaDirection 必须经典方优先：方证匹配时优先选用有出处可考的经典名方（本地方剂目录收载的古代经典名方、核验补充方或组成一致的地方目录方），并直接写出方名（如“血府逐瘀汤加减”）；确无方证匹配的经典方时才按已锁定病机与治法自拟，自拟时只写“按已锁定病机与治法辨证组方”，不得罗列被排除的方名、书名或文献。
 - M03 pathogenesis.chain[].therapyDirection 必须逐节点具体且互不重复，不得给所有节点复写同一句治法；M04 将按各节点治法方向确定性生成君臣佐使方义，重复句式会直接造成方义重复。
@@ -393,12 +470,14 @@ JSON要求：
 - 必须逐条区分 current/recent、historical、negated 和 unknown。既往稳定疾病、后遗症、已缓解事件以及“当前稳定/无新发”只能作为背景、限制或鉴别边界；没有本次活动性变化时，不得升级为 westernDiagnosis.primary、主证候、P1 核心病机或主要治疗目标。
 - westernDiagnosis.primary 必须优先解释本次主诉与当前主要功能问题；高血压等共病只有在本次主诉以其为主要评估目标时才可列为主诊断，否则放入鉴别、背景或管理建议。已记录的 SpO2、HbA1c、eGFR 等客观指标必须进入 supportingFacts，不得被舌脉或一般描述挤出。
 - westernDiagnosis.primary.supportingFacts 只写与该现代医学主诊断直接相关的当前患者事实。舌象、脉象、证候、病机、治法不是现代医学 supportingFacts；年龄性别、职业、住址和一组无诊断区分力的正常生命体征不得凑数。正常/阴性事实只有在它确实排除关键鉴别或定义病程边界时才保留，并说明其作用。
+- 全部诊断与病机分析必须保持患者原文的事实极性和程度词：不得把“咳嗽声重/轻微/偶有”升级为“咳嗽剧烈/严重/频繁”，不得把阴性枚举中的任一项改写成阳性。患者自诉“恶寒发热”但本次测温正常时，应写“自诉恶寒发热，当前测温未升高”，不得写成“病历已记录客观发热”。
 - westernDiagnosis.primary.name 只能填写一个当前最可能的工作诊断；不得用斜杠、顿号或“或”把多个互斥病因/诊断塞进主诊断。病因证据不足时优先使用与病程及主导症状精确匹配的症状性诊断，把候选病因分别放入 differentials，并通过 status、confidence、limitations 表达不确定性。症状名称不得互相替换：病历写“喘鸣/胸口呼呼响”而未明确气不够用时应写“喘息症状”，不得改写成“呼吸困难/气短”；只有病历明确记录气短、气促或呼吸困难时才使用相应标签。病历以“大便解不出来、排便费劲或数日一次”为主时应写“便秘症状”，伴随腹胀不得反客为主写成“腹胀症状”。不得擅自添加病历没有支持的“恢复期、急性期、术后”等阶段标签。
-- 对具有正式诊断标准的疾病，必须在内部逐项核对本例已提供的病程阈值、必备核心症状、必要排除条件和客观依据；任一必备条件未满足或尚未取得时，不得把该疾病作为 primary。此时应选择与当前主诉和病程相符的症状性工作诊断，把该疾病放入 differentials，并明确尚缺的判定条件。不得因“可能性看起来像”而跳过诊断标准。
+- 具有正式诊断标准的疾病，只有在本例已提供的病程阈值、必备核心症状、必要排除条件和客观依据全部满足时才能作为 primary。任一必备条件未满足或尚未取得，就改用与当前主诉和病程相符的症状性工作诊断，把该疾病放入 differentials 并在 limitations 写明尚缺哪一条判定条件。“可能性看起来像”不构成满足。
 - M03 locationDifferentiation.details 按实际涉及病位逐项填写 location + basis，basis 用不超过60字的“患者事实 → 归属理由”提炼，禁止复制整段现病史；没有患者依据的病位不要列。若 primarySyndrome、overallPathogenesis 或 pathogenesis.chain 已明确写出心、肝、脾、肺、肾、胃、经络等受控病位，locationDifferentiation.items 必须同步列出相应病位，不能一边使用病位推理一边显示病位为空。natureDifferentiation.items 直接填写气虚、血虚、气滞、痰湿等病性；rootDeficiency/branchExcess 只供全案虚实关系归纳，不得把“本虚/标实”本身当作病性名称。病位或病性有合理临床归纳但缺少可逐字引用的直接依据时，保留模型归纳并标记 bounded，不得用关键词表删除；真正合理性由独立临床模型复核。
 - M03 pathogenesis.caseRelationship 用全案层级区分本证与主要表现：rootPattern 写核心证候或病机，mainManifestation 写主要中医病名/症状表现，relationship 解释二者关系。逐节点 biaoBen 已废弃，不得输出；pathogenesisType 只在时序或传变关系有明确意义时填写，不为凑标签强制填写。
 - M03 symptomClusters 用 0–6 组“患者症状组合 → 共同机制”归纳病机，每组 symptoms 只能取自病历同极性的已知表现；单个孤立症状或无法形成共同机制时可输出空数组。
-- M03 pathogenesis.chain[].patientFact 与 syndromeEvidence 只能引用病历实际记录、且**极性一致**的患者表现：**严禁写入病历已明确否认或根本未提及的症状/体征**。例如病历写“无自汗/否认盗汗/无明显寒热”，则 patientFact 和 syndromeEvidence 中都不得出现“自汗/盗汗/寒热”等被否认词，也不得因某证型的典型表现（如气虚多自汗、阴虚多盗汗）而把本例并未记录的表现当作患者事实或证候证据。证型典型表现若本例缺失，只能写入 pathogenesis.uncertainties。逐条自检：每个 patientFact/syndromeEvidence 是否都能在病历中找到相同极性的原文。
+- M03 pathogenesis.chain[].patientFact 与 syndromeEvidence 只能引用病历实际记录、且**极性一致**的患者表现：**严禁写入病历已明确否认或根本未提及的症状/体征**。例如病历写“无自汗/否认盗汗/无明显寒热”，则 patientFact 和 syndromeEvidence 中都不得出现“自汗/盗汗/寒热”等被否认词，也不得因某证型的典型表现（如气虚多自汗、阴虚多盗汗）而把本例并未记录的表现当作患者事实或证候证据。证型典型表现若本例缺失，只能写入 pathogenesis.uncertainties。
+- primarySyndromeBasis 已选入会直接改变表实/表虚或卫表固摄判断的“无汗/自汗”时，至少一个 pathogenesis.chain 节点的 patientFact 或 syndromeEvidence 必须逐字绑定该鉴别点；不得只在总览列出、却让下游病机和治法完全看不见它。盗汗等伴随表现是否进入主链由全案病机决定，不得一律强制占用主链节点。
 - evidenceLevel 只能使用 ${EVIDENCE_LEVELS.join("/")}。model_inference 仅表示病例内推理，不是“参考依据”；只有实际命中的指南、说明书、药品标签、文献、经典出处或知识库记录才可作为医生可见参考文献。
 - westernDiagnosis.primary.suggestedChecks 必须分层：先列与主诉直接相关的补充问诊、生命体征和查体；只有病例已有红旗、神经系统异常或明确鉴别指征时，才列具体 CT/MRI/增强扫描、经颅多普勒或成套实验室检查。资料稀疏且未见红旗时不得输出无差别的高级检查清单，只能写明出现何种阳性事实后再评估相应检查。
 - 无明确来源时 evidenceLevel 写 insufficient、source 写“内部证据缺口”；该状态只供后台审计，不得出现在客户正文。不得编造文献、DOI或指南。
@@ -415,7 +494,8 @@ JSON要求：
     "primarySyndromeResolution": "bounded",
     "primarySyndromeBasis": ["从病历逐字摘录的支持事实"],
     "primarySyndromeResolutionReason": "当前工作判断仍受哪些未知信息限制",
-    "tcmDiagnosticRationale": "四诊事实如何支持中医病名与主证的临床分析",
+    "tcmDiseaseRationale": "辨病推理：主症特征与病程形态如何把本例归入该中医病名，与哪个相邻病名区分",
+    "tcmDiagnosticRationale": "辨证推理：在该病名之下，四诊合参如何得出该证型（四诊要点→病机→证型）",
     "tcmDifferentials": [{"syndrome":"中医鉴别证候","reason":"为何需要鉴别","distinguishingPoints":"本例用于区分主证与该证的要点","nextCheck":"下一步四诊核实项或null"}],
     "secondarySyndromes": [],
     "overallPathogenesis": "总病机",
@@ -468,7 +548,7 @@ JSON要求：
 // ─── M01：一诉五史、生命体征、四诊信息结构化采集（DeepSeek）────────────────────
 
 export function buildCollectPrompt(userInput: string): string {
-  return `你是中医CDSS AI Agent的一诉五史、生命体征和四诊信息采集模块（DeepSeek V4 Pro驱动）。
+  return `你是中医CDSS AI Agent的一诉五史、生命体征和四诊信息采集模块。
 
 ## 任务
 从医生录入的患者信息中，精准提取“一诉五史 + 生命体征 + 四诊信息”，为后续辨证、病机拆解和处方建议奠定基础。
@@ -586,9 +666,13 @@ ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
 ${classicDiscriminationContext}
 
-先做内部信息差审计：逐项读取病历和已有记录，把已经明确的阳性、阴性、程度、时序、诱因、缓解因素、用药反应和检查结论列为已知；再生成至少6个尚未知的候选轴，比较其对处置分支、首要鉴别、主证候权重和方药方向的预期信息增益。最终只输出互不重复的前2题。若确实只有1个问题能改变判断，可只输出1题，绝不以泛化病程、舌脉或人口学问题凑数。每题只问一个主题，不为补齐表格而发问。
+输出1到2题。每题必须同时满足以下四条，这是对成品的要求（不要在输出里写审计过程或候选轴，页面只渲染这个 JSON）：
+1. 指向病历尚未回答的信息。任一选项的答案若已能从病历直接读到（含同义改写），该题信息增益为0，换一个方向。
+2. 两个临床选项必须把至少一项临床判断推向不同方向——不同的处置分支、不同的首要鉴别、不同的主证候权重或不同的方药方向。做不到互斥就换方向。
+3. reason 与 expectedDecisionImpact 写明会改变哪一项具体临床判断，不写“有助于全面了解病情”这类空话。
+4. 两题主题互不重复，每题只问一个主题。宁可只出1题，也不用泛化病程、舌脉或人口学问题凑数。
 
-输出前对每题做反事实自检：A/B两个回答必须把至少一项临床判断推向不同方向；任一回答若已能从病历直接得到（包括同义改写），该题信息增益为0，必须删除并换下一个候选轴。sourceEvidence 只能说明为什么要问，不能是问题答案本身；必须只复制病历值本身，不要添加“主诉：”“现病史：”等字段标签。reason 与 expectedDecisionImpact 必须具体写明会改变哪项临床判断。
+sourceEvidence 只说明为什么要问，不能是问题的答案；只逐字复制病历值本身，不要加“主诉：”“现病史：”等字段标签。
 
 约束：
 - 仅当病历已有胸痛、晕厥、呼吸困难、高热、意识异常、行为危机等触发线索时，追问对应急症；普通慢性失眠、汗出、疲乏不得例行罗列心血管急症。
@@ -601,7 +685,7 @@ ${classicDiscriminationContext}
 - 儿童等特殊人群要结合当前主诉和已有事实评估全身状态与处置优先级；不得把单一体温或单个非特异表现直接等同于疾病诊断或用药决策。
 - 舌脉、年龄、性别、生命体征和五史都不是通用流程门槛。不得称其为“金标准、必须、缺失就无法开方”，也不得把未知写成阴性。
 - 问法和追问理由均面向接诊医生，使用临床语言；不要出现“证候归纳、病机关联、安全边界、安全门控、确定性门控、权重、槽位、服务端”等工程内部词。
-- 每题提供2个互斥临床回答和1个“本次未取得该信息”；A/B 必须都代表已经取得的明确患者事实，不得包含“未测、说不清、未记录、待确认”等未知表达，所有未知情况只放在C。页面另有医生自由输入，不要把“其他”写进选项。每个可直接回填的阳性选项只能表达一个原子患者事实；若问题为了效率列出多个表现，阳性选项必须写成“存在上述任一情况，请补充具体表现”，由医生填写具体内容后才算已核实，绝不能把一组选项整体当作患者同时具有全部症状。
+- 每题提供2个互斥临床回答和1个“本次未取得该信息”；A/B 必须都代表已经取得的明确患者事实，不得包含“未测、说不清、未记录、待确认”等未知表达，所有未知情况只放在“本次未取得该信息”。“其他（请补充）”由服务端统一追加，你不要自己写进 options——它与“本次未取得”不是一回事：前者是问到了、但答案不在两个预设分支里，医生自己填写后写入病历；后者是本次没取得这条信息，不写入病历。因此两个预设分支要尽量覆盖临床上最可能的两种回答，把“其他”留给真正的例外。每个可直接回填的阳性选项只能表达一个原子患者事实；若问题为了效率列出多个表现，阳性选项必须写成“存在上述任一情况，请补充具体表现”，由医生填写具体内容后才算已核实，绝不能把一组选项整体当作患者同时具有全部症状。
 - “请补充具体表现”“请补充实际异常”“存在异常”等泛化录入指令本身不是患者事实，禁止单独作为 A/B 选项；requiresDetail 只能附在已经明确了阳性分支的原子事实，或上述多表现问题的“存在上述任一情况”分支之后。
 - 提交任意一题或跳过后都进入M03，不得生成第二轮。
 
@@ -620,6 +704,7 @@ ${compactJsonContract}`;
 export type M03FormulaRetrievalOptions = {
   formulaRecallHint?: string;
   assistedNegations?: AssistedNegationClauses;
+  syndromeHypothesisRerank?: readonly SyndromeHypothesisRerankDecision[];
 };
 
 export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaRetrievalOptions = {}): string {
@@ -648,10 +733,22 @@ export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaR
   const safePatientDesc = promptDataText(patientDesc);
   const safeConversationText = promptDataText(conversationText);
   const formulaIndicationContext = buildTcmFormulaIndicationContext(
-    caseState, 5, retrieval.formulaRecallHint || "", retrieval.assistedNegations);
+    caseState,
+    5,
+    retrieval.formulaRecallHint || "",
+    retrieval.assistedNegations,
+    retrieval.syndromeHypothesisRerank,
+  );
   const sevenStageContext = buildM03SevenStageContext(caseState);
 
-  return `请基于中医辨证论治和循证医学，为以下患者提供“西医诊断 + 中医病名与证型 + 病机治则治法 + 证据支持”。
+  // ★ 顺序即缓存边界 ★
+  // DeepSeek 的 context caching 按**前缀**自动命中（实测同一 2866-token 前缀第二次起命中 2816），
+  // 而此前本模板把患者资料排在第 114 个字符处，等于把后面约 16k 字符的固定规范全挡在缓存之外，
+  // 每个病例都要重新处理一遍完全相同的输出规范。
+  // 因此固定内容（原则、推理授权、治法词表、脱敏说明、结构化契约）全部前置，
+  // 病例资料、对话补充、检索上下文、覆盖度这些**逐例变化**的部分一律后置。
+  // 语义未变：所有指令仍在患者资料之前给出，模型读到资料时规范已经完整。
+  return `你是中医CDSS的辨病辨证模块。下面先给出本模块的固定规范，患者资料在规范之后给出。
 
 重要原则：
 1. “症状+四诊 → 辨证 → 总体病机 → 子病机 → 子治疗方向”是M03-M04内部推理模型。主诉是唯一入口条件；其余资料按实际提供情况参与推理，缺失只降低置信度或形成复核建议。
@@ -668,6 +765,10 @@ ${governedTreatmentPrinciplePromptContext()}
 
 ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
+${reasoningV2Instruction("diagnose", caseState)}
+
+以上为固定规范。以下是本例患者资料与检索上下文，请据此按上述规范输出一份结构化临床结论。
+
 【患者临床资料】
 ${safePatientDesc}
 
@@ -681,8 +782,7 @@ ${sevenStageContext}
 【当前信息覆盖度】
 系统计算的信息覆盖度：${caseState.completeness?.level || "未评估"}。该等级只用于表达置信范围，不是流程门槛。只要有主诉，就必须基于已知信息给出西医诊断倾向、非空的中医工作病名与证候、总体病机、子病机和治法。overview.tcmDiseaseName 不得留空或写占位词；无法稳定归入传统病名时，使用与当前主诉直接对应的症状层工作病名，不得为命名而新增病性。病位或病性无法由已知事实归属时，必须保持 items=[] 且 resolution=unresolved 并说明资料边界，不得为补齐结构而推断脏腑、寒热虚实或气血津液属性。未提供内容写入不确定项，不得拒绝分析。
 
-只生成一份结构化临床结论。每个病机节点必须同时包含非空 patientFact、syndromeEvidence、pathogenesis 和 therapyDirection；不得输出空节点。patientFact 必须尽量沿用患者原话。输出前必须做一次“阳性事实→核心推理”投影自检：overview.primarySyndrome/overallPathogenesis、pathogenesis.summary/locationDifferentiation/natureDifferentiation/chain 和 therapy 中出现的每个脏腑归属、寒热虚实、痰湿、血瘀、气血亏虚、阴阳津液等具体结论，都必须能指向病历中明确记录的当前阳性原文；不得用“此症常见”“中医理论可解释”或低置信度代替患者证据。若现有阳性资料只支持症状本身，就形成 bounded 的症状层中性功能病机与相应调理方向；未形成任何病位归属时病位可保持 unresolved，但只要中性功能病机已明确写出胃、肺、心等病位，就必须同步写入 locationDifferentiation.items；病性仍不得自动补出痰湿、寒热、血瘀、阴虚、阳虚、气虚、血虚或相应治法。pathogenesis.summary 只能归纳已在主证候、总体病机、病性和病机节点中成立的内容，不得新增任何病因、病位、病性或治法方向。没有已核验外部来源时，结构化 evidence 保留内部缺口供后台审计。不要同时生成一份 Markdown 草稿，避免双轨结论和额外输出时延。
-${reasoningV2Instruction("diagnose", caseState)}`;
+只生成一份结构化临床结论。每个病机节点必须同时包含非空 patientFact、syndromeEvidence、pathogenesis 和 therapyDirection；不得输出空节点。patientFact 必须尽量沿用患者原话。“阳性事实→核心推理”投影要求（这是对成品逐字成立的性质，不是让你先在心里跑一遍流程再输出）：overview.primarySyndrome/overallPathogenesis、pathogenesis.summary/locationDifferentiation/natureDifferentiation/chain 和 therapy 中出现的每个脏腑归属、寒热虚实、痰湿、血瘀、气血亏虚、阴阳津液等具体结论，都必须能指向病历中明确记录的当前阳性原文；指不到原文的结论一律降为中性功能病机并写入 uncertainties，不得用“此症常见”“中医理论可解释”或低置信度代替患者证据。若现有阳性资料只支持症状本身，就形成 bounded 的症状层中性功能病机与相应调理方向；未形成任何病位归属时病位可保持 unresolved，但只要中性功能病机已明确写出胃、肺、心等病位，就必须同步写入 locationDifferentiation.items；病性仍不得自动补出痰湿、寒热、血瘀、阴虚、阳虚、气虚、血虚或相应治法。pathogenesis.summary 只能归纳已在主证候、总体病机、病性和病机节点中成立的内容，不得新增任何病因、病位、病性或治法方向。没有已核验外部来源时，结构化 evidence 保留内部缺口供后台审计。不要同时生成一份 Markdown 草稿，避免双轨结论和额外输出时延。`;
 }
 
 // ─── M04：循证组方建议（DeepSeek）────────────────────────────────────────────

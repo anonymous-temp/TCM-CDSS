@@ -27,6 +27,20 @@ export function prescriptionRegimenIssue(
     : "course_inconsistent";
 }
 
+/**
+ * followUpNode 是服务端派生字段（diagnosis-visible-summary.applyDeterministicFollowUpNode 按
+ * doseCount/dosesPerDay 纯确定性推导），**已从处方 UI 与处方可见 Markdown 移除展示**（需求5）。
+ *
+ * 不得因为「界面上看不到了」而清理这个字段或下面的 follow_up_inconsistent 校验：它仍是
+ *   1) rxaudit 的提交门（rxaudit.ts → rxAuditSubmissionIssue "regimen_incomplete"，缺失即不提交
+ *      外部审方，fail-closed 到人工药师复核锁）；
+ *   2) 医生编辑处方回写路径的合同（prescription-revision.ts / his-prescription-validation.ts 走
+ *      trustedWorkbenchEdit ⇒ prescriptionRegimenContractIssue）；
+ *   3) HIS 导出契约（his-scheme.ts 的「复诊节点」）；
+ *   4) M05 首次复诊时间（diagnosis-safety.deriveFirstReviewTiming）。
+ * 删除它会同时打断这四条链路中的一条安全控制。生成成本为零：M04 提示词根本不要求模型输出该
+ * 字段（提案 schema 里是 .optional()，空值直接 delete），保留它只是一次服务端字符串拼接。
+ */
 export type PrescriptionRegimenDto = {
   doseCount: string;
   doseCountValue: number;

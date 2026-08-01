@@ -801,7 +801,45 @@ function memberOf<const T extends readonly string[]>(value: unknown, values: T):
 
 function escalationExplanation(finding: RedFlagFinding): string {
   if (!finding.escalationRationale || !finding.escalationEvidenceQuotes?.length) return "";
-  return `；组合升级依据：${finding.escalationRationale}（逐字证据：${finding.escalationEvidenceQuotes.map((quote) => `“${quote}”`).join("、")}）`;
+  return `。${finding.escalationRationale}。相关患者原文：${finding.escalationEvidenceQuotes.join("、")}`;
+}
+
+export type StructuredRedFlagEvidence = {
+  category: BackstopRedFlagCategory;
+  sourceQuote: string;
+  escalationRationale?: string;
+  evidenceQuotes: string[];
+};
+
+/**
+ * 将语义升级依据保留为结构化数据，供页面用 evidence chips 呈现。
+ * 不把理由和逐字证据重新拼进一条告警字符串，避免括号嵌套和同句重复。
+ */
+export function structuredRedFlagEvidenceFromFacts(
+  facts: ClinicalFacts | undefined,
+  sourceText: string,
+): StructuredRedFlagEvidence[] {
+  if (!facts || facts.redFlags.length === 0) return [];
+  const grounded = groundClinicalFacts(facts, sourceText).redFlags;
+  const categories = new Set<BackstopRedFlagCategory>();
+  const evidence: StructuredRedFlagEvidence[] = [];
+  for (const finding of grounded) {
+    if (
+      finding.subject !== "patient" ||
+      finding.status !== "positive" ||
+      finding.urgency !== "emergency" ||
+      chronicBaselineFramedFinding(finding, sourceText) ||
+      categories.has(finding.category)
+    ) continue;
+    categories.add(finding.category);
+    evidence.push({
+      category: finding.category,
+      sourceQuote: finding.quote,
+      ...(finding.escalationRationale ? { escalationRationale: finding.escalationRationale } : {}),
+      evidenceQuotes: [...new Set([finding.quote, ...(finding.escalationEvidenceQuotes || [])])].slice(0, 8),
+    });
+  }
+  return evidence;
 }
 
 /**
@@ -825,7 +863,7 @@ export function additiveRedFlagsFromFacts(
     // 该事实仍经 semanticTriageAdvisoriesFromFacts 以优先复核形式保持可见。
     if (chronicBaselineFramedFinding(finding, sourceText)) continue;
     if (coveredCategories.has(finding.category)) continue;
-    const message = `${RED_FLAG_MESSAGE[finding.category]}（原文依据：“${finding.quote}”${escalationExplanation(finding)}）`;
+    const message = RED_FLAG_MESSAGE[finding.category];
     // 若确定性层已就该类目给出红旗(消息包含类目关键词),不重复追加。
     const alreadyCovered = existingRedFlags.some((existing) => overlapsCategory(existing, finding.category));
     if (alreadyCovered) continue;
@@ -868,7 +906,7 @@ export function semanticTriageAdvisoriesFromFacts(
       : finding.urgency === "urgent" || demotedBaselineEmergency
         ? "建议优先评估"
         : "建议在本轮问诊中澄清";
-    advisories.push(`${TRIAGE_ADVISORY_MESSAGE[finding.category]}，${action}（原文依据：“${finding.quote}”${escalationExplanation(finding)}）`);
+    advisories.push(`${TRIAGE_ADVISORY_MESSAGE[finding.category]}，${action}。原文依据：“${finding.quote}”${escalationExplanation(finding)}`);
   }
   return advisories;
 }
@@ -898,7 +936,7 @@ export function priorityEvaluationItemsFromFacts(
       : finding.urgency === "urgent"
         ? "处方前需完成评估"
         : "处方前需澄清";
-    items.push(`${TRIAGE_ADVISORY_MESSAGE[finding.category]}；${action}（原文依据：“${finding.quote}”${escalationExplanation(finding)}）`);
+    items.push(`${TRIAGE_ADVISORY_MESSAGE[finding.category]}；${action}。原文依据：“${finding.quote}”${escalationExplanation(finding)}`);
   }
   return items;
 }

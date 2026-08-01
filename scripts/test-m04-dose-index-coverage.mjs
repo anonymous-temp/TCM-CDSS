@@ -22,10 +22,11 @@ const jiti = createJiti(import.meta.url, {
   },
 });
 
-const { buildTcmKnowledgeContext, getTcmHerbDoseLimit } = await jiti.import("../src/lib/tcm-knowledge.ts");
+const { buildTcmKnowledgeContext, getTcmHerbDoseLimit, clinicianDoseHerbClass } = await jiti.import("../src/lib/tcm-knowledge.ts");
 const { createInitialCaseState } = await jiti.import("../src/lib/diagnosis-types.ts");
 const knowledge = (await jiti.import("../src/data/tcm-knowledge.json", { default: true }));
 const catalog = (await jiti.import("../src/data/tcm-formula-governed-catalog.json", { default: true }));
+const governanceManifest = (await jiti.import("../src/data/clinical-governance-table-manifest.json", { default: true }));
 
 const caseState = createInitialCaseState();
 caseState.patient.sex = "女";
@@ -84,9 +85,35 @@ const fullyCovered = catalog.entries.filter((entry) => {
     return limit?.min != null && limit?.max != null;
   });
 }).length;
+const governedDoseCompilationEligible = catalog.entries.filter((entry) => entry.doseCompilationEligible === true).length;
 assert.ok(
   fullyCovered >= 300,
   `仅 ${fullyCovered} 个受控方剂的全部药味可解析剂量（修复前为 7，接入 T9 饮片名解析后为 327）；低于 300 说明剂量覆盖面又退化了`,
+);
+// 剂量豁免层启用后（甲方 2026-08-01 决策：降低门禁、审方兜底），编译许可数**必然**高于
+// 「全部药味可解析剂量」数——差额正是那些无法定数值边界、改由医师确定用量的成分
+//（琥珀、龙骨、粳米、朱砂…）。它们不再阻断出方，但也没有获得剂量背书：
+// HIS 载荷按 clinicianDoseHerbClass 把它们标为 unverified_dose / toxic_regulated。
+// 因此这里不再要求许可数 ≤ 可解析数，改为守住「差额全部来自豁免层」这条更强的不变量：
+// 任何一首获许可却含**非豁免**未解析药味的方，都说明豁免链路漏了口子。
+{
+  const leaked = catalog.entries.filter((entry) => entry.doseCompilationEligible === true).filter((entry) => {
+    const ingredients = (entry.ingredients || [])
+      .map((item) => (typeof item === "string" ? item : item.name || item.herb || ""))
+      .filter(Boolean);
+    return ingredients.some((herb) => {
+      const limit = getTcmHerbDoseLimit(herb);
+      if (limit?.min != null && limit?.max != null) return false;
+      return !clinicianDoseHerbClass(herb);
+    });
+  }).map((entry) => entry.name);
+  assert.deepEqual(leaked.slice(0, 10), [],
+    `获剂量编译许可的方中存在既无法定剂量、又不在医师定量豁免表内的药味（共 ${leaked.length} 首）`);
+}
+assert.equal(
+  governedDoseCompilationEligible,
+  governanceManifest.buildSummary.formulaDoseCompilationEligible,
+  "M04 测试、T8 目录与治理 manifest 的剂量可编译统计口径必须一致",
 );
 
 
@@ -111,7 +138,8 @@ for (const rawToxic of ["生川乌", "生草乌", "生半夏", "生附子"]) {
 console.log(JSON.stringify({
   doseResolvableHerbs: doseResolvable.length,
   curatedWorklistRows: knowledge.commonHerbs.length,
-  governedFormulasFullyDosable: fullyCovered,
+  ingredientDoseResolvableFormulas: fullyCovered,
+  governedDoseCompilationEligible,
   coreTonicsPresent: CORE_TONICS.length - missingTonics.length,
   failures: 0,
 }, null, 2));

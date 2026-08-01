@@ -12,7 +12,13 @@ import { sanitizeCaseStateForBrowserPersistence } from "./diagnosis-engine";
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
 export const DIAGNOSE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m03-signature-v4" as const;
-export const PRESCRIBE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m04-signature-v1" as const;
+// v2：M04 nonPharma 的 monitoring(metric/timing/trigger) 三元组已替换为自由文本 precautions。
+// 签名覆盖整个 normalize 后对象，字段集变化会让在途快照（浏览器 localStorage / 加密快照里已存在的
+// prescribe reasoning）HMAC 不符。显式升版本号，让失效表现为可解释的「合同版本不匹配」而不是
+// 难以定位的签名不符；两种情况都仍然 fail-closed 转人工复核，安全语义不变。
+// M03 侧无此风险：M03 提示词模板固定输出 "nonPharma": null，签名载荷不变，
+// DIAGNOSE_CONTRACT_SIGNATURE_VERSION 无需变动。
+export const PRESCRIBE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m04-signature-v2" as const;
 
 export type DiagnoseContractSignatureContext = Readonly<{
   contractVersion: typeof DIAGNOSE_CONTRACT_SIGNATURE_VERSION;

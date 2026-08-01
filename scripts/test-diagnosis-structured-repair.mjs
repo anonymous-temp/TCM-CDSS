@@ -25,27 +25,49 @@ assert.match(
   /不得逐项串联、换标点复制 supportingFacts/,
   "the bounded M03 repair tells the live model how to escape Western-rationale restatement",
 );
-// Tier-2 带批注受理的接线不变量。判定逻辑本身在 test:rejection-tiers 里以纯函数验证；
-// 这里守住「接线」——即它在终态分支中的位置与门控，改错任何一条都会让受理路径变得不安全。
+// Tier-2/3 带批注受理的接线不变量（解除截断式）。判定逻辑本身在 test:rejection-tiers 里以
+// 纯函数验证；这里守住「接线」——受理发生在 finalize 之前（清除 structuredSentinelIncomplete），
+// 让候选走归一→独立复核→attestation→签名的完整既有管线。旧的渲染层受理分支已删除：它要求
+// m03DiagnosticReviewStatus==="accepted"，而合同否决发生在复核之前（not_run），目标场景下是
+// 死路径，且它输出的草稿没有签名结构化载荷，M04 无法继续。改错任何一条都会让受理变得不安全。
 assert.match(
   diagnosisApiSource,
-  /m03TierAcceptance[\s\S]{0,1200}?m03SafetyContractIssue\([\s\S]{0,300}?isSafetyRejection/,
+  /m03QualityAcceptedReason[\s\S]{0,1500}?m03SafetyContractIssue\([\s\S]{0,300}?isSafetyRejection/,
   "受理判定必须重跑 m03SafetyContractIssue 并注入 isSafetyRejection——只看拒绝码会漏掉短路后未执行的 T1 检查",
 );
 assert.match(
   diagnosisApiSource,
-  /m03TierAcceptance = \(\(\)[\s\S]{0,400}?if \(clinicalReviewUnavailableFallback \|\| m03SemanticReviewSalvage \|\| authoritativeFallbackAccepted\) return undefined;/,
-  "受理必须与其余终态分支互斥，不得截断 clinical_review_unavailable / semantic-review salvage / 授权兜底",
+  /shouldAcceptWithQualityAnnotation\(\{[\s\S]{0,300}?\}\) && qualityAnnotationCopy\(tierRejectionReason\)\) \{\s*\n\s*structuredSentinelIncomplete = false;/,
+  "只有 tier 表受理判定与批注文案同时存在时才允许解除截断——未知码经 default-deny tier 表保持 fail-closed",
 );
 assert.match(
   diagnosisApiSource,
-  /m03TierAcceptance[\s\S]{0,900}?if \(m03DiagnosticReviewStatus !== "accepted"\) return undefined;/,
-  "独立复核未接受的结果不得走带批注受理——那属于 semantic-review salvage 的判断范围",
+  /structuredSentinelIncomplete = false;\s*\n\s*m03QualityAcceptedReason = tierRejectionReason;/,
+  "受理即解除截断，让候选进入完整 finalize 管线（归一/独立复核/attestation/签名），而不是另辟无签名渲染支路",
+);
+// 充实度度量必须随契约形态走：incompleteM03VisibleDraft 对 JSON-only 响应恒返回 ""，
+// 若只用它，受理门槛（>=80）在当前 JSON-only 的 M03 上永远过不去，整条受理路径是死代码。
+assert.match(
+  diagnosisApiSource,
+  /const tierDraftLength = Math\.max\(\s*\n\s*incompleteM03VisibleDraft\(authoritativeContent\)\.length,\s*\n\s*tierReasoning \? JSON\.stringify\(tierReasoning\)\.length : 0,/,
+  "JSON-only 契约下必须以结构化载荷体积衡量充实度，与 Markdown 草稿取大（旧形态行为不变）",
 );
 assert.match(
   diagnosisApiSource,
-  /: m03TierAcceptance\s*\n\s*\? `\$\{STREAM_REPLACE_MARKER\}\$\{m03TierAcceptance\.annotation\}/,
-  "受理时必须把医生可读批注前置到可见正文",
+  /m03QualityAcceptedReason\) \{\s*\n\s*const annotation = qualityAnnotationCopy\(m03QualityAcceptedReason\);\s*\n\s*if \(annotation\) signedContent = `\$\{annotation\}\\n\\n\$\{signedContent\}`;/,
+  "受理时必须把医生可读批注前置到签名后的可见正文",
+);
+// 受理结果仍要过 finalize 的 attestation 绑定门：无既有 attestation（复核 not_run）时，
+// 管线必须对最终 reasoning 补跑独立临床复核，repair 仍走兜底——受理不产生未复核的签名结论。
+assert.match(
+  diagnosisApiSource,
+  /currentAttestation\?\.reviewedPayloadHash !== finalPayloadHash/,
+  "finalize 必须校验临床复核 attestation 与最终载荷哈希的绑定",
+);
+assert.match(
+  diagnosisApiSource,
+  /\} else if \(opts\.structuredStage === "diagnose"\) \{\s*\n\s*const review = observeClinicalReview\(await reviewM03DiagnosticCriteria\(/,
+  "attestation 未绑定时 finalize 必须对最终 M03 reasoning 补跑独立临床复核",
 );
 assert.match(
   diagnosisApiSource,
@@ -57,6 +79,20 @@ assert.match(
   diagnosisApiSource,
   /const retryableStructuredTerminal = finishReason === "stop" \|\| finishReason === "length";[\s\S]*structuredSentinelIncomplete && retryableStructuredTerminal/,
   "a max-token length terminal must enter the same bounded structured retry as a normal stop",
+);
+// 单味剔除必须先于透明降级判定。两者各自正确却不串联时依旧 0 味：降级分支读原始
+// authoritativeContent，方向未成立的那一味仍在方中，transparentFormulaTherapyIssue 必然非空、
+// 降级被拒（实测感冒-风寒束表：麻黄汤基准 4/4 达标 + 川芎未剔除 → 降级被拒 → 整方作废）。
+assert.match(
+  diagnosisApiSource,
+  /const declassifiedContent = markTransparentFormulaDeclassification\([\s\S]{0,200}?dropUnsupportedM04CandidateHerbs\(authoritativeContent, opts\.structuredPriorReasoning, false\),\s*\n\s*\);/,
+  "透明降级前必须先做单味剔除，且**不套用经典方基准保留数**（方名已剥离，基准不再是约束）——" +
+  "否则基准本就不满足的候选会放弃剔除，问题药留在方里、降级验证随即失败，最终仍是 0 味",
+);
+assert.match(
+  diagnosisApiSource,
+  /finalized = dropUnsupportedM04CandidateHerbs\(finalized, opts\.structuredPriorReasoning\);/,
+  "正常 finalize 链路同样要做单味剔除——两条路径共用同一条不变量",
 );
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "sentinel_count_0_0"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "json_invalid"), true);
@@ -123,6 +159,14 @@ for (const reason of [
   "m04_candidate_0_herb_2_unsupported_high_impact_yang_warm",
   "m04_modification_1_herb_0_unsupported_high_impact_yang_warm",
 ]) assert.equal(shouldRunTargetedStructuredRetry("prescribe", reason), true, `${reason} has bounded deterministic repair guidance and must reach the second repair`);
+const targetRefRepairHint = buildM04ClinicalRepairHint("m04_candidate_0_herb_2_target_ref_invalid");
+assert.match(targetRefRepairHint, /现有 P1\/P2/);
+assert.match(targetRefRepairHint, /targetPathogenesis 必须逐字等于/);
+assert.match(
+  diagnosisApiSource,
+  /candidate\.decoction 必须是单个对象[\s\S]{0,500}?doseCount[\s\S]{0,250}?dosesPerDay[\s\S]{0,250}?administrationTimesPerDay[\s\S]{0,300}?三者都不得省略/,
+  "the targeted M04 repair prompt must preserve every required regimen dimension",
+);
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "m04_candidate_0_high_risk_pair_incompatibility"), false, "high-risk pair conflicts remain fail-closed instead of entering automatic repair");
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "json_invalid"), true);
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "sentinel_count_0_1"), true);
@@ -507,7 +551,16 @@ const driftedPrescription = [
 ].join("\n");
 const synchronizedPrescription = synchronizeVisibleClinicalSummary(driftedPrescription, "prescribe");
 assert.match(synchronizedPrescription, /\*\*煎服法\*\*：每日1剂，冷水浸泡30分钟，煎煮2次，合并药液约400mL，每日分2次服/);
-assert.match(synchronizedPrescription, /\*\*疗程建议\*\*：5日；首次复诊：5日复诊/);
+// 需求5：处方展示面不再出现复诊节点。
+assert.match(synchronizedPrescription, /\*\*疗程建议\*\*：5日(?!；首次复诊)/);
+assert.doesNotMatch(synchronizedPrescription, /首次复诊/, "处方展示区不再出现复诊小节");
+// 但字段本身必须保留——它是 rxaudit 提交门、HIS 导出与 M05 首次复诊时间的唯一数据源，
+// 删字段就是 fail-open。这条断言防止后人把「不展示」误做成「不生成」。
+assert.match(
+  JSON.stringify(prescribeReasoning.formula.candidates[0].decoction || {}),
+  /followUpNode/,
+  "followUpNode 必须继续生成：处方只是不再展示它，审方/HIS/M05 仍然消费它",
+);
 assert.match(synchronizedPrescription, /\| 1 \| 酸枣仁 \| 炒；捣碎后同煎 \| 15g \|/);
 assert.match(synchronizedPrescription, /\| 2 \| 炙甘草 \| 饮片 \| 6g \|/);
 assert.doesNotMatch(synchronizedPrescription, /\| 酸枣仁 \| 10g \|/);

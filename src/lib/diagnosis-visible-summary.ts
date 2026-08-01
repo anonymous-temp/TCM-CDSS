@@ -1,7 +1,7 @@
-import { isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
-import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
+import { buildFormulaAnalysis, formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity } from "./clinical-polarity";
 import { getM03TherapyLock } from "./m03-therapy-lock";
@@ -224,7 +224,7 @@ export function normalizeM03StructuralDuplicates(content: string): string {
         // 只删除治法与所针对病机同时逐字重复的行。治法相同但病机靶点不同的行各自承载不同临床内容,
         // 删除会丢一个靶点并可能把一个驳回码换成另一个,故保持原样交给合同。空指纹行同样保留。
         if (!therapyPrint || !targetPrint) return true;
-        const key = `${therapyPrint} ${targetPrint}`;
+        const key = `${therapyPrint}\x00${targetPrint}`;
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -277,7 +277,11 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       : null;
     if (overview) {
       overview.primarySyndromeBasis = semanticItems(overview.primarySyndromeBasis)
-        .map(groundedQuote)
+        .flatMap((item) => {
+          const quote = groundedQuote(item);
+          return quote ? affirmedClinicalSourceClauses(quote) : [];
+        })
+        .filter((item) => clinicalClausePolarity(item) === "affirmed")
         .filter(Boolean);
       const syndrome = typeof overview.primarySyndrome === "string" ? overview.primarySyndrome.trim() : "";
       const requested = resolutionValue(overview.primarySyndromeResolution);
@@ -392,6 +396,267 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
         return symptoms.length > 0 ? [{ ...cluster, symptoms, mechanism: cluster.mechanism.trim() }] : [];
       });
     }
+    return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+  } catch {
+    return content;
+  }
+}
+
+const M03_LOCATION_QUALITY_DIMENSIONS = [
+  /舌|苔/,
+  /脉/,
+  /大便|排便|便秘|便溏|下利|泄泻/,
+  /小便|排尿|尿色|尿量|尿频|尿急/,
+  /恶寒|恶热|怕冷|怕热|发热|寒热/,
+  /汗出|无汗|自汗|盗汗|大汗/,
+  /睡眠|入睡|早醒|夜醒|失眠/,
+  /胃口|食欲|进食|纳差|不欲食/,
+] as const;
+
+const M03_COLD_HEAT_QUALITY_DIMENSIONS = [
+  /面色|两颧|目赤|精神|神志/,
+  /口鼻气|气息|呼吸急促/,
+  /舌|苔/,
+  /脉/,
+  /胸|腹|心下|喜按|拒按/,
+  /小便|排尿|尿色|尿量|尿频|尿急/,
+  /口渴|不渴|欲饮|不欲饮|喜冷饮|喜热饮/,
+  /大便|排便|便秘|便溏|下利|泄泻/,
+  /恶寒|恶热|怕冷|怕热|发热|寒热/,
+  /汗出|无汗|自汗|盗汗|大汗/,
+] as const;
+
+function m03QualityDimensionCount(text: string, dimensions: readonly RegExp[]): number {
+  return dimensions.filter((pattern) => pattern.test(text)).length;
+}
+
+const NONDIAGNOSTIC_WESTERN_SUPPORT = /^(?:不限定|未限定|既往体健|无特殊病史|无用药史|无过敏史|纳可|纳眠可|二便正常|大小便正常|口不渴(?:，?二便正常)?|面色正常|神清)$/;
+
+/**
+ * M03 质量门的局部降级投影。
+ *
+ * 这一步只做四类可逆操作：删除未接地/无鉴别力项、把 resolved 降为 bounded、
+ * 从已经存在的病机链投影重复结构字段、追加医生可见的质量边界。它不新增证候、病机、
+ * 治法或患者事实。真正的硬安全边界仍由 m03SafetyContractIssue 独立执行。
+ */
+export function applyM03AdvisoryQualityBoundaries(content: string, clinicalContext: string): string {
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  try {
+    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    if (reasoning.stage !== "diagnose") return content;
+    const overview = recordValue(reasoning.overview);
+    const western = recordValue(reasoning.westernDiagnosis);
+    const primary = recordValue(western?.primary);
+    const pathogenesis = recordValue(reasoning.pathogenesis);
+    const therapy = recordValue(reasoning.therapy);
+    if (!overview || !pathogenesis || !therapy) return content;
+
+    // 需求3：诊断要出三个——西医诊断（含 ICD-10）、中医辨病、中医辨证候。中医病名因此重新成为
+    // 展示字段，不能再在归一化阶段删掉。
+    //
+    // 此前这里写着「产品不展示中医病名」并 delete 掉该字段。提示词（要求填 tcmDiseaseName +
+    // tcmDiagnosticRationale）、可见摘要（第 1747 行渲染「**中医病名**」）、结构化契约
+    // （m03SemanticIssue 的 tcm_disease_rationale_missing）和界面（「辨病：」一行）都已经按需求3
+    // 接好了，唯独这一句把字段在送达客户端之前删掉——实测一组公开医案跑下来，辨病推理写着
+    // 「符合『不寐』病范畴」，病名本身却是空的，界面上「辨病」那一行永远不出现。
+    // 该字段仍然是可选的：模型给不出稳定病名时留空，不构成门禁。
+
+    const chain = recordList(pathogenesis.chain);
+    if (primary) {
+      const fallback = chiefComplaintFallbackDiagnosis(clinicalContext);
+      const fallbackFacts = affirmedClinicalSourceClauses(stripClinicalTransportPrefix(fallback.fact || ""))
+        .filter((fact) => !isNondiscriminatingWesternSupportingFact(fact));
+      const fallbackFact = fallbackFacts[0] || "";
+      const currentName = markdownCell(primary.name);
+      if (
+        !isDisplayableClinicalText(currentName) ||
+        isAmbiguousM03WesternPrimaryLabel(currentName) ||
+        /(?:风寒|风热|痰湿|湿热|气虚|血虚|阴虚|阳虚|血瘀|证$)/.test(currentName)
+      ) {
+        primary.name = symptomLevelWesternName(fallbackFact, fallback.name);
+        primary.status = "证据有限";
+        primary.confidence = "低";
+      }
+
+      const groundedFacts = semanticItems(primary.supportingFacts)
+        .flatMap((fact) => exactClinicalSourceQuotes(fact, clinicalContext))
+        .flatMap((fact) => affirmedClinicalSourceClauses(stripClinicalTransportPrefix(fact)))
+        .filter((fact) =>
+          Boolean(fact) &&
+          !isNondiscriminatingWesternSupportingFact(fact) &&
+          clinicalClausePolarity(fact) === "affirmed" &&
+          isWesternSupportingFactPolarityAligned(fact, clinicalContext)
+        );
+      const documentedCurrentFacts = [
+        ...documentedSymptomFieldFacts(clinicalContext),
+        ...documentedObjectiveFacts(clinicalContext),
+        ...documentedMaterialFacts(clinicalContext),
+      ]
+        .flatMap((fact) => affirmedClinicalSourceClauses(stripClinicalTransportPrefix(fact)))
+        .filter((fact) =>
+          Boolean(fact) &&
+          !NONDIAGNOSTIC_WESTERN_SUPPORT.test(fact) &&
+          !isNondiscriminatingWesternSupportingFact(fact) &&
+          isWesternSupportingFactPolarityAligned(fact, clinicalContext)
+        );
+      const chainFact = chain
+        .map((node) => markdownCell(node.patientFact))
+        .find((fact) =>
+          Boolean(fact) &&
+          !isNondiscriminatingWesternSupportingFact(fact) &&
+          isWesternSupportingFactPolarityAligned(fact, clinicalContext)
+        );
+      primary.supportingFacts = uniqueClinicalFacts([
+        ...groundedFacts,
+        ...fallbackFacts,
+        ...documentedCurrentFacts,
+        ...(chainFact ? [chainFact] : []),
+      ])
+        .filter((fact) => !NONDIAGNOSTIC_WESTERN_SUPPORT.test(fact))
+        .filter((fact) => !isNondiscriminatingWesternSupportingFact(fact))
+        .slice(0, 8);
+      if ((primary.supportingFacts as unknown[]).length === 0) {
+        primary.status = "证据有限";
+        primary.confidence = "低";
+        primary.limitations = uniqueClinicalFacts([
+          ...semanticItems(primary.limitations),
+          "当前缺少可逐字回溯且具有鉴别力的西医诊断依据，西医部分仅作症状性工作判断。",
+        ]).slice(0, 12);
+      }
+      if (!isDisplayableClinicalText(markdownCell(primary.clinicalRationale)) && (primary.supportingFacts as unknown[]).length > 0) {
+        primary.clinicalRationale =
+          `${String((primary.supportingFacts as unknown[])[0])}支持当前症状性工作判断；具体病因仍需结合病程、查体及必要检查鉴别。`;
+      }
+    }
+
+    if (western) {
+      const submittedDifferentials = deduplicateWesternDifferentials(western.differentials);
+      const displayableDifferentials = submittedDifferentials.filter((item) =>
+        isDisplayableClinicalText(markdownCell(item.name)) &&
+        markdownCell(item.reason).length >= 4 &&
+        markdownCell(item.distinguishingPoints).length >= 4
+      );
+      western.differentials = displayableDifferentials;
+      // 下限守卫。这段过滤原本只删不判，是本文件三处同构过滤里唯一没有下限的一处——
+      // 紧邻的中医鉴别分支（下方）与 supportingFacts 分支（上方）都在被删空时降级并写明原因。
+      //
+      // 两层代价：
+      // 1) 医生看到的是「有主诊断、鉴别列表为空」，而没有任何迹象表明鉴别项是被系统删掉的，
+      //    因此不会去追问——静默变短比明确降级更危险。
+      // 2) 它压制了自己的检测器：m03SemanticIssue 的 western_differential_analysis_missing
+      //    判据正是「任一鉴别项 reason 或 distinguishingPoints < 4 字」，而这里删掉的恰好就是它们。
+      //    本函数在 m03SemanticIssue 之前运行，于是那个本该触发一轮定向修复的 T2 码永远命中不到。
+      if (submittedDifferentials.length > 0 && displayableDifferentials.length === 0 && primary) {
+        primary.confidence = "低";
+        primary.limitations = uniqueClinicalFacts([
+          ...semanticItems(primary.limitations),
+          "本次未能形成可展示的西医鉴别分析，主诊断按症状性工作判断展示；请结合病程、查体与必要检查自行核对需排除的方向。",
+        ]).slice(0, 12);
+        lowerEvidenceConfidence(primary.evidence);
+      }
+    }
+
+    const syndrome = markdownCell(overview.primarySyndrome);
+    const syndromeBasis = uniqueClinicalFacts(semanticItems(overview.primarySyndromeBasis));
+    overview.primarySyndromeBasis = syndromeBasis;
+    const tcmDifferentials = recordList(overview.tcmDifferentials).filter((item) =>
+      isDisplayableClinicalText(markdownCell(item.syndrome)) &&
+      markdownCell(item.reason).length >= 4 &&
+      markdownCell(item.distinguishingPoints).length >= 4
+    );
+    overview.tcmDifferentials = tcmDifferentials;
+    if (syndrome && (syndromeBasis.length === 0 || tcmDifferentials.length === 0)) {
+      overview.primarySyndromeResolution = "bounded";
+      overview.primarySyndromeResolutionReason = tcmDifferentials.length === 0
+        ? "现有资料尚不足以完成相近证型的稳定鉴别，当前证型按有界建议展示。"
+        : "当前证型可逐字回溯的本例依据仍有限，按有界建议展示。";
+      lowerEvidenceConfidence(overview.evidence);
+    }
+
+    const location = recordValue(pathogenesis.locationDifferentiation);
+    if (location?.resolution === "resolved") {
+      const basis = recordList(location.details).map((item) => markdownCell(item.basis)).filter(Boolean).join("；");
+      if (m03QualityDimensionCount(basis, M03_LOCATION_QUALITY_DIMENSIONS) < 2) {
+        location.resolution = "bounded";
+        location.resolutionReason = "病位归纳目前只有单一证据维度支持，已按有界建议展示。";
+        lowerEvidenceConfidence(location.evidence);
+      }
+    }
+    const nature = recordValue(pathogenesis.natureDifferentiation);
+    if (nature?.resolution === "resolved") {
+      const labels = [
+        ...semanticItems(nature.items),
+        ...semanticItems(nature.rootDeficiency),
+        ...semanticItems(nature.branchExcess),
+      ].join("；");
+      const basis = markdownCell(nature.basis);
+      if (/寒|热|火|温|凉/.test(labels) &&
+          m03QualityDimensionCount(basis, M03_COLD_HEAT_QUALITY_DIMENSIONS) < 2) {
+        nature.resolution = "bounded";
+        nature.resolutionReason = "寒热病性目前缺少两个以上相互独立的证据维度，已按有界建议展示。";
+        lowerEvidenceConfidence(nature.evidence);
+      }
+    }
+
+    const projectedSubTherapies = chain.flatMap((node, index) => {
+      const therapyDirection = markdownCell(node.therapyDirection);
+      const targetPathogenesis = markdownCell(node.pathogenesis);
+      const evidence = recordValue(node.evidence) || recordValue(overview.evidence) || {
+        evidenceLevel: "model_inference",
+        source: "既有病机链的确定性投影",
+        confidence: "低",
+      };
+      return therapyDirection && targetPathogenesis
+        ? [{
+            therapy: therapyDirection,
+            targetPathogenesis,
+            priority: index === 0 ? "主要" : "次要",
+            evidence,
+          }]
+        : [];
+    });
+    const existingSubTherapies = recordList(therapy.subTherapies);
+    if (projectedSubTherapies.length > 0 && (
+      existingSubTherapies.length === 0 ||
+      existingSubTherapies.some((item) =>
+        !markdownCell(item.therapy) || !markdownCell(item.targetPathogenesis))
+    )) {
+      therapy.subTherapies = projectedSubTherapies;
+    }
+
+    for (const node of chain) {
+      if (narrativeFingerprint(node.patientFact) !== narrativeFingerprint(node.syndromeEvidence)) continue;
+      const replacement = syndromeBasis.find((basis) =>
+        narrativeFingerprint(basis) &&
+        narrativeFingerprint(basis) !== narrativeFingerprint(node.patientFact)
+      );
+      if (replacement) node.syndromeEvidence = replacement;
+    }
+
+    const strictIssue = m03SemanticIssue(reasoning, clinicalContext);
+    const projectedQualityBoundary = [
+      markdownCell(overview.primarySyndromeResolutionReason),
+      markdownCell(location?.resolutionReason),
+      markdownCell(nature?.resolutionReason),
+    ].some((value) => /有界|证据维度|依据仍有限/.test(value));
+    if (strictIssue || projectedQualityBoundary) {
+      const westernOnly = typeof strictIssue === "string" && /^western_|^clinical_wording_/.test(strictIssue);
+      const item = westernOnly ? "西医诊断依据边界" : "辨证推理质量边界";
+      const reason = westernOnly
+        ? "西医部分存在依据完整性或表述层面的不足，已与中医辨证解耦并按有界建议展示。"
+        : "部分支撑说明、分类或鉴别深度仍不充分；已保留可回溯的患者事实、工作证候及病机治法。";
+      const uncertainties = recordList(pathogenesis.uncertainties).filter((row) => markdownCell(row.item) !== item);
+      pathogenesis.uncertainties = [...uncertainties, {
+        item,
+        reason,
+        affects: westernOnly
+          ? "影响西医工作诊断的置信度，不影响已通过事实核验的中医辨证部分。"
+          : "影响结论深度与鉴别把握，不影响风险筛查和已回溯患者事实。",
+      }].slice(0, 12);
+    }
+
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;
@@ -730,34 +995,21 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
     const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
     if (reasoning.stage !== "prescribe") return content;
     const formula = recordValue(reasoning.formula);
-    const roleOrder = ["君", "臣", "佐", "使"];
-    const roleLogic: Record<string, string> = {
-      君: "直治核心病机，构成本方主要治疗支点",
-      臣: "协同君药并加强相关病机的处理",
-      佐: "兼顾次要病机、配伍制约或中焦耐受",
-      使: "协调方中药性并使各治疗方向相互衔接",
-    };
     for (const candidate of recordList(formula?.candidates)) {
       const herbs = recordList(candidate.herbs);
-      const roleLines = roleOrder.flatMap((role) => {
-        const members = herbs.filter((herb) => markdownCell(herb.role) === role);
-        if (!members.length) return [];
-        const names = members.map((herb) => {
-          const name = markdownCell(herb.name);
-          const herbFunction = markdownCell(herb.function).replace(/[；;。]+$/g, "");
-          return name && herbFunction ? `${name}（${herbFunction}）` : name;
-        }).filter(Boolean).join("、");
-        const targets = [...new Set(members
-          .map((herb) => markdownCell(herb.targetPathogenesis).replace(/[；;。]+$/g, ""))
-          .filter(Boolean))].join("；");
-        return [`${role}药以${names}为组，${targets ? `对应${targets}，` : ""}${roleLogic[role]}。`];
-      });
-      const therapyMatch = markdownCell(candidate.therapyMatch);
-      candidate.formulaAnalysis = [
-        `本候选方共${herbs.length}味${therapyMatch ? `，围绕“${therapyMatch}”展开组方` : "，按已锁定病机与治法展开组方"}。`,
-        ...roleLines,
-        "各药组共同形成从核心病机到兼夹与配伍调和的治疗层次；药味增删改后，方义将按当前完整处方重新计算。",
-      ].join("");
+      // 逐味成句，见 buildFormulaAnalysis 的注释：原实现按角色分组 + 每角色一句固定模板，
+      // 「直治核心病机，构成本方主要治疗支点」对每一张方的君药都相同，读不出本例信息，
+      // 也读不出同一病机上两味药各自承担什么。
+      const analysis = buildFormulaAnalysis(
+        herbs.map((herb) => ({
+          name: markdownCell(herb.name),
+          role: markdownCell(herb.role),
+          function: markdownCell(herb.function),
+          targetPathogenesis: markdownCell(herb.targetPathogenesis),
+        })),
+        markdownCell(candidate.therapyMatch),
+      );
+      if (analysis) candidate.formulaAnalysis = analysis;
     }
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
@@ -884,6 +1136,42 @@ export function alignNormalizedM03WesternClinicalRationale(content: string): str
   }
 }
 
+/**
+ * Keep the explanatory TCM rationale from becoming a second failure surface after grounding.
+ * This only projects the surviving model-authored fact, syndrome and pathogenesis into one
+ * readable inference sentence; it does not infer a new syndrome, location, nature or therapy.
+ */
+export function alignNormalizedM03TcmDiagnosticRationale(content: string): string {
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  try {
+    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    if (reasoning.stage !== "diagnose") return content;
+    const issue = m03SemanticIssue(reasoning);
+    if (issue !== "tcm_diagnostic_rationale_missing" && issue !== "tcm_diagnostic_rationale_restatement") return content;
+
+    const overview = recordValue(reasoning.overview);
+    const pathogenesis = recordValue(reasoning.pathogenesis);
+    const chain = recordList(pathogenesis?.chain);
+    const fact = semanticItems(overview?.primarySyndromeBasis)[0] || markdownCell(chain[0]?.patientFact);
+    const syndrome = markdownCell(overview?.primarySyndrome);
+    const mechanism = markdownCell(overview?.overallPathogenesis) || markdownCell(chain[0]?.pathogenesis);
+    if (
+      !isDisplayableClinicalText(fact) ||
+      !isDisplayableClinicalText(syndrome) ||
+      !isDisplayableClinicalText(mechanism)
+    ) return content;
+
+    overview!.tcmDiagnosticRationale =
+      `${fact}为本例已记录的阳性辨证依据，结合其表现模式，证候倾向“${syndrome}”；` +
+      `当前病机机制归纳以“${mechanism}”为限。`;
+    return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+  } catch {
+    return content;
+  }
+}
+
 export function groundStructuredPatientFacts(content: string, clinicalContext: string): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -899,6 +1187,17 @@ export function groundStructuredPatientFacts(content: string, clinicalContext: s
     const westernPrimary = recordValue(western?.primary);
     const fallback = chiefComplaintFallbackDiagnosis(clinicalContext);
     if (westernPrimary) {
+      const serverDowngradeMarker =
+        "现有资料不足以满足原具体疾病的完整诊断标准，当前仅保留症状性工作诊断";
+      const isServerSymptomDowngrade =
+        westernPrimary.status === "证据有限" &&
+        westernPrimary.confidence === "低" &&
+        typeof westernPrimary.name === "string" &&
+        /(?:症状|不适)$/.test(westernPrimary.name.trim()) &&
+        typeof westernPrimary.clinicalRationale === "string" &&
+        Boolean(fallback.fact) &&
+        westernPrimary.clinicalRationale.startsWith(`${fallback.fact}支持症状级工作诊断；`) &&
+        semanticItems(westernPrimary.limitations).includes(serverDowngradeMarker);
       const groundedFacts = (Array.isArray(westernPrimary.supportingFacts) ? westernPrimary.supportingFacts : []).flatMap((fact) => {
         if (typeof fact !== "string") return [];
         return exactClinicalSourceQuotes(fact, clinicalContext).flatMap((sourceQuote) => {
@@ -914,18 +1213,20 @@ export function groundStructuredPatientFacts(content: string, clinicalContext: s
       });
       const courseFacts = documentedMaterialFacts(clinicalContext);
       const symptomFieldFacts = documentedSymptomFieldFacts(clinicalContext);
-      westernPrimary.supportingFacts = boundedClinicalFacts(uniqueClinicalFacts([
-        ...(fallback.fact ? [fallback.fact] : []),
-        ...symptomFieldFacts,
-        ...documentedObjectiveFacts(clinicalContext),
-        ...courseFacts,
-        ...groundedFacts,
-        ...documentedExclusionFacts(clinicalContext),
-      ]
-        // Filter before containment de-duplication. Otherwise an inadmissible long line containing
-        // tongue/pulse or mixed polarity can hide a shorter, exact and clinically valid source fact.
-        .filter((fact) => !isNondiscriminatingWesternSupportingFact(fact))
-        .filter((fact) => isWesternSupportingFactPolarityAligned(fact, clinicalContext))));
+      westernPrimary.supportingFacts = isServerSymptomDowngrade
+        ? (fallback.fact ? [fallback.fact] : groundedFacts.slice(0, 1))
+        : boundedClinicalFacts(uniqueClinicalFacts([
+            ...(fallback.fact ? [fallback.fact] : []),
+            ...symptomFieldFacts,
+            ...documentedObjectiveFacts(clinicalContext),
+            ...courseFacts,
+            ...groundedFacts,
+            ...documentedExclusionFacts(clinicalContext),
+          ]
+            // Filter before containment de-duplication. Otherwise an inadmissible long line containing
+            // tongue/pulse or mixed polarity can hide a shorter, exact and clinically valid source fact.
+            .filter((fact) => !isNondiscriminatingWesternSupportingFact(fact))
+            .filter((fact) => isWesternSupportingFactPolarityAligned(fact, clinicalContext))));
       const primaryEvidence = recordValue(westernPrimary.evidence);
       const providerEvidenceSource = markdownCell(primaryEvidence?.source);
       westernPrimary.evidence = {
@@ -1018,6 +1319,7 @@ export function declassifyUnsupportedM03WesternPrimary(content: string, clinical
     primary.name = symptomName;
     primary.status = "证据有限";
     primary.confidence = "低";
+    primary.supportingFacts = [fallback.fact];
     primary.clinicalRationale = `${fallback.fact}支持症状级工作诊断；原具体疾病的病程阈值或必备条件尚未全部取得，因此暂不作为主诊断。`;
     primary.limitations = uniqueClinicalFacts([
       ...semanticItems(primary.limitations),
@@ -1137,7 +1439,7 @@ function stripClinicalTransportPrefix(value: string): string {
     .map((part) => part
       .trim()
       .replace(/^(?:医生\/患者|医生记录|系统)[：:]\s*/, "")
-      .replace(/^(?:基层接诊初始记录|本轮追问补充|问诊补充|四诊补充|症状补充|病情经过)[：:]\s*/, "")
+      .replace(/^(?:基层接诊初始记录|本轮追问补充|问诊补充|四诊补充|症状补充|病情经过|主诉|现病史)[：:]\s*/, "")
       .trim())
     .filter(Boolean)
     .join("；");
@@ -1217,6 +1519,17 @@ function symptomLevelWesternName(fact: string | undefined, fallback: string): st
   const governed = governedSymptomLabels.find((item) => item.pattern.test(fact));
   if (governed) return governed.label;
   return fallback;
+}
+
+/**
+ * Keep the signed Western diagnosis label unchanged for review and downstream contracts, while
+ * presenting governed symptom-level labels as an explicit working diagnosis to clinicians.
+ */
+export function westernDiagnosisLabelForDisplay(value: unknown): string {
+  const label = typeof value === "string" ? value.trim() : "";
+  if (!label) return "";
+  const symptomLabel = label.match(/^(.{1,24})症状$/)?.[1]?.trim();
+  return symptomLabel ? `${symptomLabel}（症状性工作诊断）` : label;
 }
 
 function documentedMaterialFacts(clinicalContext: string): string[] {
@@ -1412,7 +1725,6 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>): strin
   const overview = recordValue(reasoning.overview);
   const westernDiagnosis = recordValue(reasoning.westernDiagnosis);
   const westernPrimary = recordValue(westernDiagnosis?.primary);
-  const westernDifferentials = recordList(westernDiagnosis?.differentials);
   const pathogenesis = recordValue(reasoning.pathogenesis);
   const therapy = recordValue(reasoning.therapy);
   const caseRelationship = recordValue(pathogenesis?.caseRelationship);
@@ -1424,7 +1736,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>): strin
   );
   const uncertainties = recordList(pathogenesis?.uncertainties);
   const subTherapies = recordList(therapy?.subTherapies);
-  const westernHeading = `## ${clinicalOutputLabel("M03-western", "西医诊断倾向与鉴别")}`;
+  const westernHeading = `## ${clinicalOutputLabel("M03-western", "西医诊断倾向")}`;
   const overviewHeading = `## ${clinicalOutputLabel("M03-overview", "中医诊断概览")}`;
   const pathogenesisHeading = `## ${clinicalOutputLabel("M03-pathogenesis", "病机拆解")}`;
   const therapyHeading = `## ${clinicalOutputLabel("M03-therapy", "治则治法")}`;
@@ -1432,42 +1744,44 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>): strin
     "# 中医辅助诊疗报告",
     "",
     westernHeading,
-    `**诊断倾向**：${markdownCell(westernPrimary?.name)}`,
+    `**诊断倾向**：${westernDiagnosisLabelForDisplay(markdownCell(westernPrimary?.name))}`,
   ];
   const westernFacts = Array.isArray(westernPrimary?.supportingFacts) ? westernPrimary.supportingFacts.map(markdownCell).filter(Boolean) : [];
-  const westernLimitations = Array.isArray(westernPrimary?.limitations) ? westernPrimary.limitations.map(markdownCell).filter(Boolean) : [];
-  const westernChecks = Array.isArray(westernPrimary?.suggestedChecks) ? westernPrimary.suggestedChecks.map(markdownCell).filter(Boolean) : [];
   if (westernFacts.length > 0) lines.push(`**支持依据**：${joinClinicalClauses(westernFacts, "；")}`);
-  if (isDisplayableClinicalText(markdownCell(westernPrimary?.clinicalRationale))) {
-    lines.push(`**临床分析**：${markdownCell(westernPrimary?.clinicalRationale)}`);
-  }
-  if (westernLimitations.length > 0) lines.push(`**限制与反证**：${joinClinicalClauses(westernLimitations, "；")}`);
-  if (westernChecks.length > 0) lines.push(`**建议检查**：${joinClinicalClauses(westernChecks, "；")}`);
-  const westernEvidence = recordValue(westernPrimary?.evidence);
-  if (customerEvidenceDisplayStatus(westernEvidence) === "traceable") {
-    const references = markdownCell(westernEvidence?.source).split(/\n+|；(?=\s*(?:\[[A-Z]|《|https?:\/\/))/).map((item) => item.trim()).filter(Boolean);
-    if (references.length > 0) lines.push("", "### 参考文献", ...references.map((item, index) => `${index + 1}. ${item}`));
-  }
-  if (westernDifferentials.length > 0) {
-    lines.push(
-      "",
-      "### 鉴别方向",
-      ...westernDifferentials.map((item) => `- **${markdownCell(item.name)}**：${clinicalSentence([
-        markdownCell(item.reason),
-        markdownCell(item.distinguishingPoints) ? `区分要点：${markdownCell(item.distinguishingPoints)}` : "",
-        markdownCell(item.nextCheck) ? `建议核实：${markdownCell(item.nextCheck)}` : "",
-      ], "；")}`),
-    );
-  }
   lines.push(
     "",
     overviewHeading,
     ...(isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseName)) ? [`**中医病名**：${markdownCell(overview?.tcmDiseaseName)}`] : []),
     `**证型**：${markdownCell(overview?.primarySyndrome)}`,
+    // 服务端把模型选的方名剥离进 deferredFormulaSelection 之后，必须告诉医生它被剥离了。
+    //
+    // 剥离本身是对的：方名锁定要求签名证候与该方在治理目录中有直接关系，关系不成立就不该锁。
+    // 但此前这个字段写进签名信封后**三处都不渲染**（界面、可见摘要、HIS 全无），医生只看到
+    // 「本例辨证组方」，完全不知道模型其实选了方、更不知道为什么没采纳。
+    //
+    // 实测一例：24 岁女性，恶寒重发热轻、无汗、脉浮紧、舌淡红苔薄白——教科书麻黄汤证。
+    // 模型选的正是麻黄汤，服务端因「模型签名的是风寒束**表**证，而麻黄汤在目录里标的是
+    // 风寒束**肺**证」判定关系不成立，剥离后显示自拟方。两个国标证候码相邻却互不关联，
+    // 这属于术语治理层要补的关系；在补上之前，至少不能让医生连模型选过什么都看不到。
+    ...deferredFormulaSelectionLines(overview),
     "",
     pathogenesisHeading,
     `**总体病机**：${markdownCell(overview?.overallPathogenesis)}`,
   );
+/**
+ * 被剥离的方名选择渲染成一行医生可读的说明。方名只从签名信封里逐字取出，不重新检索、不代选，
+ * 措辞明确写成「未锁定、供医生判断」，避免被读成推荐。
+ */
+function deferredFormulaSelectionLines(overview: Record<string, unknown> | null | undefined): string[] {
+  const deferred = recordValue(overview?.deferredFormulaSelection);
+  if (!deferred) return [];
+  const names = Array.isArray(deferred.names)
+    ? deferred.names.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+    : [];
+  if (names.length === 0) return [];
+  return [`**待确认方名**：本次分析曾指向 ${names.map(markdownCell).join("、")}，因该方在治理目录中与本例签名证候尚无直接对应关系，服务端未予锁定；是否采用由医生结合方证判断。`];
+}
+
   if (isDisplayableClinicalText(markdownCell(overview?.tcmDiagnosticRationale))) {
     lines.splice(lines.indexOf(pathogenesisHeading), 0, `**辨证分析**：${markdownCell(overview?.tcmDiagnosticRationale)}`, "");
   }
@@ -1574,13 +1888,19 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
     `# ${clinicalOutputLabel("M04-formula", "候选方药")}`,
   ];
   if (candidate) {
+    const constructionType = markdownCell(candidate.constructionType);
+    const isSelfDevised = constructionType === "self_devised";
+    const isSingleHerb = constructionType === "single_herb";
     lines.push(
       "",
       `## ${markdownCell(candidate.name)}`,
+      ...(isSelfDevised ? ["**方案类型**：自拟方"] : isSingleHerb ? ["**方案类型**：单味方案"] : []),
       ...(candidate.identityDeclassified === true ? [
         "**处方身份说明**：实际组成未沿用原命名经方身份，不代表原方或经典出处；请按当前完整药味与剂量重新审方。",
       ] : []),
-      ...(customerEvidenceDisplayStatus(formulaSource) === "traceable" ? [`**方剂出处**：${markdownCell(formulaSource?.source)}`] : []),
+      ...(!isSelfDevised && !isSingleHerb && customerEvidenceDisplayStatus(formulaSource) === "traceable"
+        ? [`**方剂出处**：${markdownCell(formulaSource?.source)}`]
+        : []),
       "",
       "### 药味清单",
       canonicalHerbTable(candidate),
@@ -1639,12 +1959,16 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
         `**剂数**：${markdownCell(decoction.doseCount)}`,
         `**每日剂数 / 分服次数**：每日 ${markdownCell(decoction.dosesPerDay)} 剂 / 每日分 ${markdownCell(decoction.administrationTimesPerDay)} 次服`,
         `**煎服法**：${markdownCell(decoction.method)}`,
-        `**疗程建议**：${joinClinicalClauses([markdownCell(decoction.course), markdownCell(decoction.followUpNode)], "；首次复诊：")}`,
+        // 需求5：处方展示面不再出现复诊节点（M05「随访管理方案/随访时间轴」仍确定性给出首次复诊
+        // 时间）。decoction.followUpNode 字段本身及其服务端确定性生成（applyDeterministicFollowUpNode）
+        // 必须保留——它是 rxaudit 提交门、HIS 导出与 M05 首次复诊的唯一数据源，删字段即 fail-open。
+        // 保留 joinClinicalClauses 包裹：clinicalClauseText 会剥尾部标点，直接用 markdownCell 会改变归一化行为。
+        `**疗程建议**：${joinClinicalClauses([markdownCell(decoction.course)])}`,
       );
     }
   }
   if (modifications.length > 0) {
-    lines.push("", "## 本次随症加减", ...modifications.map((item) => {
+    lines.push("", "## 随证加减建议", ...modifications.map((item) => {
       const triggerSource = recordValue(item.triggerSource);
       const sourceQuote = markdownCell(triggerSource?.sourceQuote);
       return `- **${markdownCell(item.trigger)}**：${clinicalSentence([
@@ -1654,15 +1978,6 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
         sourceQuote ? `触发依据：${sourceQuote}` : "",
       ], "；")}`;
     }));
-  }
-  const modificationReview = recordValue(formula?.modificationReview);
-  const droppedCount = typeof modificationReview?.droppedCount === "number" ? modificationReview.droppedCount : 0;
-  if (droppedCount > 0) {
-    lines.push(
-      "",
-      "## 加减建议核查说明",
-      `另有 ${droppedCount} 条加减建议未展示：${markdownCell(modificationReview?.droppedReason) || "未满足当前事实、病机引用或药味安全条件"}。`,
-    );
   }
   if (patentAndWestern.length > 0) {
     lines.push(
@@ -1710,9 +2025,16 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
         );
       }
     }
-    const monitoring = recordList(nonPharma.monitoring);
-    if (monitoring.length > 0) {
-      lines.push("", "### 监测指标", "| 指标 | 时间 | 复诊触发 |", "|---|---|---|", ...monitoring.map((item) => `| ${markdownCell(item.metric)} | ${markdownCell(item.timing)} | ${markdownCell(item.trigger)} |`));
+    // 渲染侧从「监测指标」三列表格改为「注意事项」条目列表：字段已由 metric/timing/trigger
+    // 三元组换成自由文本 precautions（见 diagnosis-types 与 diagnosis-stage-contract 的注释）。
+    const precautions = Array.isArray(nonPharma.precautions)
+      ? nonPharma.precautions
+          .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+          .map(markdownCell)
+          .filter(isDisplayableClinicalText)
+      : [];
+    if (precautions.length > 0) {
+      lines.push("", "### 注意事项", ...precautions.map((item) => `- ${item}`));
     }
   }
   return `${lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n").trim()}\n\n`;

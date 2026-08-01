@@ -2,7 +2,7 @@
   "schemaVersion": "tcm-verified-formula-supplements-v1",
   "entries": {
     "归脾汤": {
-      "source": "《济生》卷四。",
+      "source": "《校注妇人良方》（通行十味方；初出《济生方》卷四为八味，薛己补当归、远志）。",
       "indications": [
         "思虑伤脾，健忘怔忡，吐血下血。",
         "心脾气血两虚证：心悸怔忡，健忘失眠，盗汗，体倦食少，面色萎黄，舌淡，苔薄白，脉细弱（《方剂学》规划教材主治，用于检索召回）。",
@@ -15,8 +15,10 @@
       ],
       "ingredients": [
         "白术",
+        "当归",
         "茯苓",
         "黄耆",
+        "远志",
         "龙眼肉",
         "酸枣仁",
         "人参",
@@ -31,8 +33,12 @@
       ],
       "verification": [
         {
-          "title": "本地方剂库《济生》卷四归脾汤组成记录",
+          "title": "本地方剂库《济生》卷四归脾汤组成记录（八味初方，血统来源）",
           "url": "urn:tcm-cdss:formula-catalog:归脾汤:济生卷四"
+        },
+        {
+          "title": "《校注妇人良方》归脾汤通行十味组成（《方剂学》规划教材同方；本条 indications 第 4 句即其方解：茯神远志枣仁龙眼补心、当归养血）",
+          "url": "urn:tcm-cdss:formula-catalog:归脾汤:校注妇人良方"
         }
       ]
     },
@@ -40,7 +46,8 @@
       "source": "《金匮要略》",
       "indications": [
         "虚劳虚烦不得眠。",
-        "治虚劳虚烦不得眠。 酸枣仁（二升。） 甘草（一两。） 知母（二两。（《金匮方歌括》主治，用于检索召回）"
+        "治虚劳虚烦不得眠。 酸枣仁（二升。） 甘草（一两。） 知母（二两。（《金匮方歌括》主治，用于检索召回）",
+        "虚烦失眠，心悸不安，头目眩晕，咽干口燥，舌红，脉弦细（肝血不足、虚热内扰之虚烦不眠证；功效养血安神、清热除烦——《方剂学》教材与中国药典通行主治，ADJ-20260727-INDICATION-ENRICH 补入）"
       ],
       "ingredients": [
         "酸枣仁",
@@ -60,6 +67,14 @@
         {
           "title": "中国药科大学学报：酸枣仁汤研究资料",
           "url": "https://jcpu.cpu.edu.cn/article/id/20020108"
+        },
+        {
+          "title": "方剂学教材/百度百科词条：酸枣仁汤（养血安神、清热除烦；虚烦失眠、心悸不安、头目眩晕、咽干口燥、舌红脉弦细）",
+          "url": "https://baike.baidu.com/item/%E9%85%B8%E6%9E%A3%E4%BB%81%E6%B1%A4/4431899"
+        },
+        {
+          "title": "国家医疗保障局：酸枣仁养心补肝、宁心安神，用于虚烦不眠、惊悸多梦",
+          "url": "https://www.nhsa.gov.cn/art/2025/7/13/art_14_17219.html"
         }
       ]
     },
@@ -15570,7 +15585,7 @@
         "附子",
         "石膏",
         "泽兰",
-        "本",
+        "藁本",
         "厚朴",
         "甘草",
         "白姜",
@@ -15589,6 +15604,11 @@
         },
         {
           "title": "OCR 缺字修复(黄→黄芪;回源段/通行组成/物料归一,联网抽查核验)",
+          "url": "urn:tcm-cdss:corrupt-herb-repair:20260725:延龄丹",
+          "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
+        },
+        {
+          "title": "OCR 缺字修复(黄→黄芪,本→藁本;回源段/通行组成/物料归一,联网抽查核验)",
           "url": "urn:tcm-cdss:corrupt-herb-repair:20260725:延龄丹",
           "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
         }
@@ -32572,7 +32592,7 @@
         "硼砂",
         "真川贝",
         "马勃",
-        "西"
+        "西黄"
       ],
       "requiredIngredients": [
         "土牛膝根",
@@ -32583,6 +32603,11 @@
         {
           "title": "《古方汇精》·碧雪丹（十六）（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:古方汇精:碧雪丹（十六）"
+        },
+        {
+          "title": "OCR 缺字修复(西→西黄;回源段/通行组成/物料归一,联网抽查核验)",
+          "url": "urn:tcm-cdss:corrupt-herb-repair:20260725:碧雪丹",
+          "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
         }
       ]
     },
@@ -37183,9 +37208,15 @@
         "大黄",
         "黄连",
         "全蝎",
-        "山",
+        "穿山甲",
+        "木鳖子",
+        "阿胶",
+        "阿魏",
+        "芦荟",
         "麝香",
-        "片"
+        "片脑",
+        "没药",
+        "乳香"
       ],
       "requiredIngredients": [
         "秦艽",
@@ -37196,6 +37227,11 @@
         {
           "title": "《惠直堂经验方》·化痞消积膏（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:惠直堂经验方:化痞消积膏"
+        },
+        {
+          "title": "OCR 断行组成回补(《惠直堂经验方》卷四原文；Chinese Text Project 与中医世家同方组成交叉核验)",
+          "url": "https://ctext.org/wiki.pl?chapter=170623&if=gb&remap=gb",
+          "sourceRef": "CORRUPT-HERB-REPAIR-20260727"
         }
       ]
     },
@@ -43787,7 +43823,7 @@
         "蒺藜子",
         "菘菜子",
         "蒴",
-        "巴"
+        "巴豆"
       ],
       "requiredIngredients": [
         "赤小豆",
@@ -43801,6 +43837,11 @@
         },
         {
           "title": "OCR 缺字修复(葱→葱白;回源段/通行组成/物料归一,联网抽查核验)",
+          "url": "urn:tcm-cdss:corrupt-herb-repair:20260725:治服石虚热水肿方",
+          "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
+        },
+        {
+          "title": "OCR 缺字修复(葱→葱白,巴→巴豆;回源段/通行组成/物料归一,联网抽查核验)",
           "url": "urn:tcm-cdss:corrupt-herb-repair:20260725:治服石虚热水肿方",
           "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
         }
@@ -56595,37 +56636,6 @@
         }
       ]
     },
-    "伤寒、温病用药大体及辟温方": {
-      "source": "《集验方》",
-      "indications": [
-        "除热解毒，治热盛；断温病令不相染；辟温病；疾疫流行预备",
-        "多用苦酸之品除热解毒，兼用芳香辟秽、桑根柏枝等防疫，归经以清热、解毒、辟秽为主"
-      ],
-      "ingredients": [
-        "苦参",
-        "青葙",
-        "艾",
-        "葶苈子",
-        "苦酒",
-        "乌梅",
-        "东行桑根",
-        "芎",
-        "白芷",
-        "藁本",
-        "南向社中柏"
-      ],
-      "requiredIngredients": [
-        "苦参",
-        "青葙",
-        "艾"
-      ],
-      "verification": [
-        {
-          "title": "《集验方》·伤寒、温病用药大体及辟温方（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
-          "url": "urn:tcm-cdss:tcmoc-books:集验方:伤寒、温病用药大体及辟温方"
-        }
-      ]
-    },
     "治贲豚气方": {
       "source": "（《外台》卷十二）",
       "indications": [
@@ -57173,29 +57183,6 @@
         {
           "title": "《验方新编》·菊花清燥汤（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:验方新编:菊花清燥汤"
-        }
-      ]
-    },
-    "两背忽生疮成痈阳症易治用三星汤": {
-      "source": "《验方新编》",
-      "indications": [
-        "两背忽生疮成痈，阳症易治",
-        "清热解毒，消肿散痈，归经于肺、胃、肝"
-      ],
-      "ingredients": [
-        "金银花",
-        "生甘草",
-        "蒲公英"
-      ],
-      "requiredIngredients": [
-        "金银花",
-        "生甘草",
-        "蒲公英"
-      ],
-      "verification": [
-        {
-          "title": "《验方新编》·两背忽生疮成痈阳症易治用三星汤（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
-          "url": "urn:tcm-cdss:tcmoc-books:验方新编:两背忽生疮成痈阳症易治用三星汤"
         }
       ]
     },
@@ -58544,7 +58531,7 @@
         "款冬花",
         "桑白皮",
         "生姜",
-        "枣"
+        "大枣"
       ],
       "requiredIngredients": [
         "白石英",
@@ -58555,6 +58542,11 @@
         {
           "title": "《三因极一病证方论》·真应散（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
           "url": "urn:tcm-cdss:tcmoc-books:composition-reextract:真应散"
+        },
+        {
+          "title": "OCR 缺字修复(枣→大枣;回源段/通行组成/物料归一,联网抽查核验)",
+          "url": "urn:tcm-cdss:corrupt-herb-repair:20260725:真应散",
+          "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
         }
       ]
     }

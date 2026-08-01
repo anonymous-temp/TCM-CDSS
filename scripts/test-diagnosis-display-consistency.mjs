@@ -13,10 +13,18 @@ const {
   hasExplicitNonDosePrescriptionResult,
   getStepStatus,
   buildCompleteReport,
+  buildEmergencyPresentation,
+  automaticSignatureRecoveryState,
   buildDecisionSummary,
+  buildVitalsLine,
+  generationStatus,
+  normalizePresentHistoryText,
+  prioritizeTcmEvidenceForDisplay,
+  prioritizeWesternEvidenceForDisplay,
   differentiationScoreCaption,
   enrichEvidenceReferenceForDisplay,
   errorRequiresM03Refresh,
+  errorRequiresM04Refresh,
   maxQuestionRoundNotice,
   parseQuestionItems,
   prescriptionRiskLabel,
@@ -28,8 +36,103 @@ const {
   runningStageElapsedSeconds,
   scrubReportPhi,
   stageErrorDisplay,
+  stripTcmDiseaseNameForCustomer,
+  stripWesternAnalysisForCustomer,
   WORKBENCH_REFRESH_WARNING,
 } = await jiti.import("../src/app/diagnosis/DiagnosisClient.tsx");
+assert.equal(
+  stripTcmDiseaseNameForCustomer([
+    "## 中医病名与证候诊断",
+    "**中医病名**：咳嗽病",
+    "**证型**：风寒袭肺",
+    "",
+    "## 病机分析",
+    "风寒束表，肺气失宣。",
+  ].join("\n")),
+  [
+    "## 中医证候诊断",
+    "**证型**：风寒袭肺",
+    "",
+    "## 病机分析",
+    "风寒束表，肺气失宣。",
+  ].join("\n"),
+  "customer-visible diagnosis output must omit the TCM disease-name row while preserving syndrome and pathogenesis",
+);
+assert.equal(
+  stripTcmDiseaseNameForCustomer("| 中医病名 | 咳嗽病 |\n| 证型 | 风寒袭肺 |"),
+  "| 证型 | 风寒袭肺 |",
+  "table-shaped TCM disease-name rows must also be removed from customer-visible exports",
+);
+assert.equal(
+  stripWesternAnalysisForCustomer([
+    "## 西医诊断倾向与鉴别",
+    "**诊断倾向**：头痛症状",
+    "**支持依据**：头痛5天",
+    "**临床分析**：当前缺少病因学检查。",
+    "**限制与反证**：病因尚不明确。",
+    "**建议检查**：结合查体评估。",
+    "",
+    "### 鉴别方向",
+    "- **偏头痛**：需进一步鉴别。",
+    "",
+    "## 中医诊断概览",
+    "**证型**：湿浊中阻证",
+  ].join("\n")),
+  [
+    "## 西医诊断倾向",
+    "**诊断倾向**：头痛症状",
+    "**支持依据**：头痛5天",
+    "",
+    "## 中医诊断概览",
+    "**证型**：湿浊中阻证",
+  ].join("\n"),
+  "legacy snapshots and exported reports must keep the concise Western conclusion while removing model analysis prose",
+);
+assert.deepEqual(
+  prioritizeTcmEvidenceForDisplay(
+    ["咳嗽3天"],
+    ["咳嗽3天", "咳白稀痰", "流清涕", "无汗", "舌淡苔薄白", "脉浮紧"],
+    "咳嗽3天。",
+    5,
+  ),
+  ["舌淡苔薄白", "咳白稀痰", "流清涕", "脉浮紧", "无汗"],
+  "a generic complaint must not displace discriminating four-examination evidence in the clinician-facing basis",
+);
+assert.deepEqual(
+  prioritizeTcmEvidenceForDisplay(["入睡困难2周"], [], "入睡困难2周", 3),
+  ["入睡困难2周"],
+  "a sparse case keeps its grounded complaint when no stronger signed M03 evidence exists",
+);
+assert.deepEqual(
+  prioritizeTcmEvidenceForDisplay(["纳眠可，二便正常", "无汗"], ["咳白稀痰"], "咳嗽3天", 5),
+  ["咳白稀痰", "无汗"],
+  "normal appetite, sleep and stool text cannot pad the TCM diagnosis-basis chips",
+);
+assert.deepEqual(
+  prioritizeWesternEvidenceForDisplay(["咳嗽3天", "纳眠可，二便正常", "咳嗽3天"]),
+  ["咳嗽3天"],
+  "western diagnosis-basis chips remove normal padding and duplicates",
+);
+assert.deepEqual(
+  generationStatus("prescribe", true),
+  {
+    title: "正在生成风险处置建议",
+    desc: "正在整理转诊依据、现场评估要点和安全边界；急危重风险未排除前不生成候选方药或剂量。",
+  },
+  "a red-flag prescribe stage must never claim that candidate medicines are being generated",
+);
+assert.equal(
+  buildVitalsLine({ vitalsT: "36.5℃", vitalsP: "74次/分", vitalsR: "18次/分", vitalsBP: "118/72mmHg" }),
+  "T 36.5℃，P 74次/分，R 18次/分，BP 118/72mmHg",
+  "unit-bearing manual inputs must render idempotently in the workbench and exported report",
+);
+assert.equal(normalizePresentHistoryText("现病史：现病史补充：淋雨后咳嗽3天"), "淋雨后咳嗽3天");
+assert.equal(normalizePresentHistoryText("病史补充：突发头痛伴呕吐"), "突发头痛伴呕吐");
+assert.equal(
+  buildVitalsLine({ vitalsT: "36.5", vitalsP: "74", vitalsR: "18", vitalsBP: "118/72" }),
+  "T 36.5℃，P 74次/分，R 18次/分，BP 118/72mmHg",
+  "unitless manual inputs must receive one canonical display unit",
+);
 const {
   buildMedicineCandidateEmptyState,
   buildTieredSuggestedChecks,
@@ -121,7 +224,6 @@ assert.equal(
 );
 
 const diagnosisClientSource = fs.readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
-const lineageSource = fs.readFileSync(new URL("../src/lib/tcm-lineages.ts", import.meta.url), "utf8");
 assert.doesNotMatch(diagnosisClientSource, /cdss-section-generation-basis|本次生成依据/, "generic generation-basis boilerplate must be removed from the report");
 assert.doesNotMatch(diagnosisClientSource, /Lingxi 建议性复核/, "the report must use the customer-facing reasonable-medication-review name");
 assert.doesNotMatch(diagnosisClientSource, /判断把握度/, "the clinician UI must show rationale and limitations instead of a low-confidence badge");
@@ -131,9 +233,9 @@ assert.doesNotMatch(
   "the clinician UI must use clinical wording instead of exposing pipeline vocabulary",
 );
 assert.doesNotMatch(
-  lineageSource,
-  /证候锚点|安全门控|红旗门控|服务端/,
-  "lineage cards are rendered directly and therefore must remain clinician-facing at the data source",
+  diagnosisClientSource,
+  /病名：\{reasoning\.overview\.tcmDiseaseName\}|标准证候名建议|标准编码建议|onConfirmTerminologyMapping|handleConfirmTerminologyMapping/,
+  "the advisory UI must not display a TCM disease-name row or expose a clinician terminology-confirmation workflow",
 );
 assert.match(
   diagnosisClientSource,
@@ -145,11 +247,14 @@ assert.match(
   /data-testid="tcm-differential-boundary"[\s\S]{0,240}tcmDifferentialBoundary/,
   "a bounded TCM differential explanation must be visible when no differential row can be formed",
 );
-assert.match(
+assert.doesNotMatch(diagnosisClientSource, /rendererId="lineage-section"|testId="tcm-lineage"/, "lineage adaptation and preference controls are internal-only");
+assert.doesNotMatch(diagnosisClientSource, />西医诊断分析</, "the clinician report must not render the Western analysis panel");
+assert.doesNotMatch(
   diagnosisClientSource,
-  /rendererId="lineage-section"[\s\S]{0,1800}lineageAdaptation\.safetyDeference/,
-  "structured lineage adaptation must have a visible, safety-bounded renderer",
+  />未采用经典方说明<|>逐味核验<|modification-review-omissions/,
+  "internal formula-selection explanations and verification counters must not be rendered",
 );
+assert.match(diagnosisClientSource, /data-testid="self-devised-formula-badge"[\s\S]{0,240}自拟方/, "self-devised candidates need one concise visible badge");
 
 const offsetViewportPosition = resolveToggleChipPanelPosition(
   { top: 720, bottom: 752, right: 600 },
@@ -179,7 +284,10 @@ assert.equal(hasExplicitNonDosePrescriptionResult({ prescription: "当前不展�
 assert.equal(hasExplicitNonDosePrescriptionResult({ prescription: "归脾汤加减，酸枣仁15g。" }), false);
 // 上面三条断言用的是手写短语，服务端改写降级正文后它们仍然通过，生产上却把每一次安全降级
 // 都误判成“候选方药生成失败”。判定必须对着真实生成物断言，否则同类漂移会再次静默复发。
-const { buildSafetyLimitedPrescription: buildNonDoseForDisplayCheck } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const {
+  buildDeterministicRiskFollowupPayload,
+  buildSafetyLimitedPrescription: buildNonDoseForDisplayCheck,
+} = await jiti.import("../src/lib/diagnosis-safety.ts");
 const generatedNonDosePrescription = buildNonDoseForDisplayCheck({
   status: "needs_information",
   allowDiagnosis: true,
@@ -194,6 +302,35 @@ assert.equal(
   true,
   "服务端安全降级处方必须被展示层识别为非剂量结果，而不是生成失败",
 );
+const journeyFollowup = buildDeterministicRiskFollowupPayload({
+  patient: { age: 24, sex: "男" },
+  chiefComplaint: "头痛5天",
+  symptoms: {},
+  conversation: [],
+  safetyGate: { status: "ready", allowDiagnosis: true, allowDosePrescription: true, redFlags: [], reasons: [], missingItems: [] },
+  reasoningPrescribe: {
+    stage: "prescribe",
+    westernDiagnosis: { primary: { supportingFacts: ["头痛5天"] } },
+    overview: { primarySyndromeBasis: ["肢体困重", "胸闷纳呆"] },
+    formula: {
+      candidates: [{
+        herbs: [{ name: "藿香", dose: "9g" }],
+        decoction: { followUpNode: "完成5剂（5日）后复诊" },
+      }],
+    },
+    nonPharma: {
+      precautions: ["服药期间清淡饮食", "头痛加重或出现视物模糊、呕吐时立即就医"],
+    },
+  },
+});
+// 原先此处还断言时间轴含一行 time=「每日记录」，它来自 nonPharma.monitoring[].timing。
+// 该字段（连同它在合同层的 5 个驳回码）已按需求10 移除：一条建议性随访行的措辞瑕疵不该作废
+// 整份 M04。M05 随访时间轴本身**没有**被删——它由服务端确定性生成，下面两条断言就是它的证据。
+// 注意区分两个「时间轴」：被删的是健康调护区里模型填写的监测三元组，保留的是 M05 这条确定性随访轴。
+assert.ok(journeyFollowup.timelineItems.some((item) => /首次复诊/.test(item.action)));
+assert.ok(journeyFollowup.timelineItems.some((item) => /治疗期间随时/.test(item.time)));
+assert.ok(journeyFollowup.timelineItems.length >= 2, "M05 确定性随访时间轴必须继续给出可执行行");
+assert.doesNotMatch(JSON.stringify(journeyFollowup.timelineItems), /采纳候选前|完成针对性安全复核/);
 const { buildCaseAwareQuestionFallback, ensureQuestionStructuredEnvelope, ensureSingleRoundQuestionContract } = await jiti.import("../src/lib/m02-question-contract.ts");
 const { isStableM03Reasoning } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
@@ -211,7 +348,11 @@ const {
   normalizeDiagnoseConfidenceAndLabels,
   sanitizeOptionalPathogenesisClassifications,
   scrubInternalVocabularyFromVisibleText,
+  westernDiagnosisLabelForDisplay,
 } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+
+assert.equal(westernDiagnosisLabelForDisplay("头痛症状"), "头痛（症状性工作诊断）");
+assert.equal(westernDiagnosisLabelForDisplay("偏头痛"), "偏头痛", "established disease labels must not be rewritten as symptom-level diagnoses");
 
 assert.equal(
   scrubInternalVocabularyFromVisibleText("## 西医诊断\n**判断把握度**：低\n临床分析：现有病程尚需结合查体鉴别。"),
@@ -476,6 +617,12 @@ for (const prompt of [buildDiagnosePrompt(promptConversationFixture), buildPresc
 const sparseDiagnosePrompt = buildDiagnosePrompt(promptConversationFixture);
 assert.match(sparseDiagnosePrompt, /items=\[\].*resolution=unresolved/, "M03 generation resolves unsupported location and nature explicitly instead of inventing fields");
 assert.match(sparseDiagnosePrompt, /overview\.tcmDiseaseName 不得留空/, "M03 generation always returns a patient-facing TCM working disease name");
+// 需求3：诊断分三段，辨病与辨证各自给出推理。两段的分工必须在提示词里被分别定义——
+// 它们此前共用 tcmDiagnosticRationale，模型无从知道哪段写病名归属、哪段写证型推理。
+assert.match(sparseDiagnosePrompt, /tcmDiseaseRationale[\s\S]{0,60}辨病/, "提示词必须说明 tcmDiseaseRationale 承担辨病");
+assert.match(sparseDiagnosePrompt, /tcmDiagnosticRationale[\s\S]{0,60}辨证/, "提示词必须说明 tcmDiagnosticRationale 承担辨证");
+assert.match(sparseDiagnosePrompt, /相邻病名/, "辨病推理必须写出与哪个相邻病名区分，否则又会退回成证型推理的复述");
+assert.match(sparseDiagnosePrompt, /ICD-10/, "西医诊断段必须说明服务端另行关联 ICD-10");
 assert.match(sparseDiagnosePrompt, /阳性事实→核心推理/, "M03 generation performs the same evidence projection required by its independent reviewer");
 assert.match(sparseDiagnosePrompt, /不得自动补出痰湿、寒热、血瘀、阴虚、阳虚、气虚、血虚/, "sparse M03 generation blocks the recurring unsupported nature classes before review");
 assert.match(sparseDiagnosePrompt, /pathogenesis\.summary 只能归纳/, "M03 summary is constrained to a projection of already-supported core reasoning");
@@ -519,8 +666,67 @@ const rareOccupationCase = normalizeCaseStateInput({
   chiefComplaint: "失眠",
   patient: { sex: "男", age: 42, occupation: "大学教授" },
 });
+const warningAcknowledgementCase = normalizeCaseStateInput({
+  ...rareOccupationCase,
+  warningAcknowledgement: {
+    warningLevel: "L3",
+    acknowledgedAt: "2026-07-27T10:00:00.000Z",
+    reportFingerprint: `sha256-${"a".repeat(64)}`,
+    reason: "已完成人工复核，仅导出风险报告",
+    exportMode: "non_dose_risk_report",
+  },
+});
+assert.equal(warningAcknowledgementCase.warningAcknowledgement?.warningLevel, "L3");
+assert.equal(warningAcknowledgementCase.warningAcknowledgement?.exportMode, "non_dose_risk_report");
 const completeScrubbedExport = scrubReportPhi(buildCompleteReport(rareOccupationCase), rareOccupationCase);
 assert.doesNotMatch(completeScrubbedExport, /occupation|大学教授/, "the real report builder never exports a rare occupation quasi-identifier");
+const nonDoseRiskExport = buildCompleteReport({
+  ...rareOccupationCase,
+  safetyGate: {
+    status: "red_flag",
+    allowDiagnosis: false,
+    allowDosePrescription: false,
+    action: "refer_or_emergency",
+    redFlags: ["持续胸痛伴大汗"],
+    reasons: ["优先急诊评估"],
+    missingItems: [],
+  },
+  diagnosis: "## 红旗排查\n持续胸痛伴大汗，建议急诊评估。",
+  prescription: "## 中药饮片处方\n黄芪 15g",
+});
+assert.match(nonDoseRiskExport, /中医CDSS急诊转诊建议与依据/);
+assert.match(nonDoseRiskExport, /处置类别：急诊转诊建议/);
+assert.match(nonDoseRiskExport, /转诊建议与触发依据，不含候选方药或剂量/);
+assert.doesNotMatch(nonDoseRiskExport, /L3 ·|非剂量风险报告/);
+assert.doesNotMatch(nonDoseRiskExport, /黄芪 15g/, "red-flag exports must strip dose-level prescription content");
+const thunderclapPresentation = buildEmergencyPresentation({
+  ...rareOccupationCase,
+  chiefComplaint: "突发人生最剧烈头痛伴恶心呕吐",
+  safetyGate: {
+    status: "red_flag",
+    allowDiagnosis: true,
+    allowDosePrescription: false,
+    action: "refer_or_emergency",
+    redFlags: ["突发最剧烈头痛伴恶心呕吐，需先排除急性神经系统事件"],
+    redFlagFindings: [{
+      ruleId: "acute-neurologic-event",
+      severity: "emergency",
+      sourceQuote: "突发人生最剧烈头痛伴恶心呕吐",
+      ruleExplanation: "需排查急性神经血管事件",
+      message: "突发最剧烈头痛伴恶心呕吐",
+    }],
+    reasons: ["优先急诊评估"],
+    missingItems: ["生命体征"],
+  },
+});
+assert.equal(thunderclapPresentation.pageTitle, "急诊转诊建议");
+assert.match(thunderclapPresentation.eventTitle, /雷击样头痛/);
+assert.ok(thunderclapPresentation.evidenceChips.some((item) => /最剧烈头痛/.test(item)));
+assert.ok(thunderclapPresentation.evidenceChips.includes("恶心"));
+assert.ok(thunderclapPresentation.evidenceChips.includes("呕吐"));
+assert.match(diagnosisClientSource, /!isActiveRedFlag && \(/, "ordinary completion banner must be suppressed on emergency referral pages");
+assert.match(diagnosisClientSource, /data-testid="confirm-emergency-clearance"/);
+assert.match(diagnosisClientSource, /下载转诊建议与依据/);
 const governedCustomerReport = buildCompleteReport({
   ...rareOccupationCase,
   diagnosis: "## 西医诊断\n程序化安全门控已通过；stage-contract 与 sentinel 正常。",
@@ -532,6 +738,42 @@ assert.doesNotMatch(
   "page and exported-report surfaces must consume T7's governed doctor-facing vocabulary",
 );
 assert.match(governedCustomerReport, /风险筛查规则|输出结构校验|包含具体用量的处方建议/);
+
+const legacyAnalysisReport = buildCompleteReport({
+  ...rareOccupationCase,
+  tcmLineagePreference: "jingfang",
+  diagnosis: [
+    "## 西医诊断倾向与鉴别",
+    "**诊断倾向**：头痛症状",
+    "**支持依据**：头痛5天",
+    "**临床分析**：现有资料不足以明确病因。",
+    "### 鉴别方向",
+    "- 偏头痛：需进一步鉴别。",
+    "## 中医诊断概览",
+    "**证型**：湿浊中阻证",
+  ].join("\n"),
+});
+assert.match(legacyAnalysisReport, /诊断倾向.*头痛症状/);
+assert.match(legacyAnalysisReport, /支持依据.*头痛5天/);
+assert.doesNotMatch(legacyAnalysisReport, /诊疗思路偏好|临床分析|鉴别方向|偏头痛/, "exports must not revive removed lineage or Western-analysis prose from old snapshots");
+const legacyFormulaProcessReport = buildCompleteReport({
+  ...rareOccupationCase,
+  prescription: [
+    "## 本例辨证组方",
+    "**未采用经典方说明**：受控目录未覆盖本例病机，故自拟。",
+    "**逐味核验**：L3：1，L0：6",
+    "## 加减建议核查说明",
+    "另有 1 条加减建议未展示：方向冲突。",
+  ].join("\n"),
+  riskAssessment: "| 采纳候选前 | 完成针对性安全复核 | 过敏史 | 复核后调整 |",
+}, {
+  warningProfile: { level: "L1", label: "常规复核", executable: true, reasons: [] },
+});
+assert.doesNotMatch(
+  legacyFormulaProcessReport,
+  /未采用经典方说明|逐味核验|加减建议核查说明|加减建议未展示|采纳候选前|完成针对性安全复核/,
+  "exports must scrub deprecated model-process and hidden-item notices from old snapshots",
+);
 
 const stableM04 = {
   schemaVersion: "tcm-cdss-reasoning-v2",
@@ -627,6 +869,7 @@ for (const failedPhase of ["question", "diagnose", "prescribe", "assess"]) {
 const prescribeFailureDisplay = stageErrorDisplay({ phase: "prescribe", message: "候选方药生成失败 (422)" });
 assert.equal(prescribeFailureDisplay.stepLabel, "候选方药");
 assert.equal(prescribeFailureDisplay.retryText, "重新生成候选方药");
+assert.equal(prescribeFailureDisplay.warningLevel, "L2", "ordinary stage failures are recoverable warnings, not red safety incidents");
 assert.deepEqual(prescribeFailureDisplay.downstreamLabels, ["审方随访"], "the failed M04 panel must name M05 as not executed");
 const diagnoseFailureDisplay = stageErrorDisplay({ phase: "diagnose", message: "辨病辨证本次未完整生成" });
 assert.equal(diagnoseFailureDisplay.retryText, "重新生成辨病辨证");
@@ -659,7 +902,36 @@ assert.equal(
 );
 assert.equal(errorRequiresM03Refresh({ phase: "prescribe", message: "M03 合同签名失效，请重新生成M03" }), true);
 assert.equal(errorRequiresM03Refresh({ phase: "assess", message: "reasoning contract signature mismatch" }), true);
+assert.equal(errorRequiresM03Refresh({ phase: "assess", message: "辨病辨证结果签名已失效，请重新生成后再评估。" }), true);
 assert.equal(errorRequiresM03Refresh({ phase: "prescribe", message: "模型请求超时" }), false);
+assert.equal(errorRequiresM04Refresh({ phase: "assess", message: "当前候选处方缺少有效签名，请重新生成候选方药后再评估。" }), true);
+assert.equal(errorRequiresM04Refresh({ phase: "assess", message: "推理已取消" }), false);
+assert.equal(
+  stageErrorDisplay({ phase: "assess", message: "当前候选处方缺少有效签名，请重新生成候选方药后再评估。" }).retryText,
+  "重新生成候选方药并继续",
+);
+const automaticM04Recovery = automaticSignatureRecoveryState(
+  {
+    ...rareOccupationCase,
+    phase: "assess",
+    diagnosis: "已签名辨病辨证",
+    prescription: "旧候选处方",
+    riskAssessment: "旧审方结果",
+    reasoningDiagnose: stableM03,
+    reasoningPrescribe: { ...stableM03, stage: "prescribe" },
+  },
+  { phase: "assess", message: "当前候选处方缺少有效签名，请重新生成候选方药后再评估。" },
+);
+assert.equal(automaticM04Recovery?.phase, "prescribe");
+assert.equal(automaticM04Recovery?.diagnosis, "已签名辨病辨证");
+assert.equal(automaticM04Recovery?.prescription, undefined);
+assert.equal(automaticM04Recovery?.reasoningDiagnose, stableM03);
+assert.equal(automaticM04Recovery?.reasoningPrescribe, undefined);
+assert.equal(
+  stageErrorDisplay({ phase: "assess", message: "检测到伪造的处方签名" }).warningLevel,
+  "L3",
+  "integrity/security failures remain red high-risk warnings",
+);
 
 const complete = {
   score: 100,
@@ -771,7 +1043,7 @@ assert.equal(normalizedM03Json.westernDiagnosis.primary.confidence, "低", "an u
 assert.equal(normalizedM03Json.overview.evidence.confidence, "中", "the grounding pass must not fabricate a TCM confidence decision");
 assert.deepEqual(normalizedM03Json.pathogenesis.uncertainties, [], "the grounding pass must not synthesize clinical uncertainties that the model did not return");
 assert.equal(normalizedM03Json.pathogenesis.chain.length, 1, "a fuzzy provider wording may survive only after being replaced by the exact chart quote");
-assert.equal(normalizedM03Json.pathogenesis.chain[0].patientFact, "主诉：脑梗死后右侧肢体无力3个月，要求康复调理");
+assert.equal(normalizedM03Json.pathogenesis.chain[0].patientFact, "脑梗死后右侧肢体无力3个月，要求康复调理", "患者事实保留原文内容但移除表单传输标签，避免参考依据只是在重复字段名");
 assert.equal(normalizedM03Json.pathogenesis.chain[0].syndromeEvidence, "肢体无力", "evidence remains a distinct grounded observation instead of being overwritten by patientFact");
 assert.equal(isStableM03Reasoning(normalizedM03Json, lowConfidenceContext), false, "grounded observations alone cannot sign an unsupported mechanism and treatment chain");
 
@@ -869,6 +1141,18 @@ assert.match(m05Summary.referralSection, /按主诉评估/);
 assert.match(m05Summary.followupSection, /5日复诊/);
 assert.match(m05Summary.followupTimelineSection, /触发处置/);
 assert.match(m05Summary.redFlagPatientSection, /胸痛立即就医/);
+const legacyFollowupSummary = buildDecisionSummary({
+  followupTimeline: [
+    { time: "采纳候选前", action: "完成针对性安全复核", indicators: ["过敏史"], triggers: ["必要时调整"] },
+    { time: "5日后", action: "完成首次复诊与疗效复评", indicators: ["头痛程度"], triggers: ["加重时提前复诊"] },
+  ],
+});
+assert.deepEqual(legacyFollowupSummary.followupTimelineItems, [{
+  time: "5日后",
+  action: "完成首次复诊与疗效复评",
+  indicators: ["头痛程度"],
+  triggers: ["加重时提前复诊"],
+}]);
 
 // P2-7 证据展示契约：URL/DOI/文献ID/检索时间只来自证据载荷本身；缺失时 UI 明示“来源未提供链接”，
 // 检索时间留空，绝不在渲染层伪造。
@@ -981,4 +1265,54 @@ assert.ok(panel.includes("以上方药味表与处方后审方为准"),
   "必须声明古代剂量不可直接换算，本例用量以药味表与审方为准");
 assert.match(panel, /<details/, "默认折叠：右栏宽度有限，条文是核验材料不是首屏结论");
 
-console.log(JSON.stringify({ cases: 129, failures: 0 }));
+console.log(JSON.stringify({ cases: 134, failures: 0 }));
+
+// ─── 被剥离的方名选择必须告诉医生 ────────────────────────────────────────────
+// 方名锁定要求签名证候与该方在治理目录中有直接关系，关系不成立就剥离——这一步是对的。
+// 但剥离结果 deferredFormulaSelection 此前写进签名信封后三处都不渲染（界面、可见摘要、HIS），
+// 医生只看到「本例辨证组方」，不知道模型选过方，更不知道为什么没采纳。
+//
+// 实测：恶寒重发热轻、无汗、脉浮紧、舌淡红苔薄白的教科书麻黄汤证，模型选的正是麻黄汤，
+// 因「签名的是风寒束表证、麻黄汤目录标的是风寒束肺证」被剥离，显示为自拟方。
+{
+  const { synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
+  const reasoning = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: {
+      tcmDiseaseName: "感冒", primarySyndrome: "风寒束表证", primarySyndromeResolution: "bounded",
+      primarySyndromeBasis: ["恶寒发热2天"], overallPathogenesis: "风寒外束，卫阳被郁",
+      overallTherapy: "辛温解表", recommendedFormulaDirection: "按已锁定病机与治法辨证组方",
+      recommendedFormulaNames: [], formulaSelectionMode: "self_devised", secondarySyndromes: [],
+      deferredFormulaSelection: {
+        direction: "麻黄汤加减", names: ["麻黄汤"], mode: "single",
+        reason: "semantic_mapping_pending_clinician_confirmation",
+      },
+    },
+    westernDiagnosis: { primary: { name: "急性上呼吸道感染", supportingFacts: ["恶寒发热2天"] }, differentials: [] },
+    pathogenesis: {
+      summary: "风寒外束",
+      chain: [{ nodeId: "P1", patientFact: "恶寒发热2天", syndromeEvidence: "脉浮紧", pathogenesis: "风寒束表", therapyDirection: "辛温解表" }],
+      uncertainties: [],
+    },
+    therapy: { overallPrinciple: "治病求本", overallMethod: "辛温解表", subTherapies: [] },
+    management: { followupSafetyNet: "若出现高热不退或呼吸困难应立即就医。" },
+  };
+  const visible = synchronizeVisibleClinicalSummary(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
+    "diagnose",
+  );
+  assert.match(visible, /待确认方名/, "被剥离的方名必须出现在医生可见摘要里");
+  assert.match(visible, /麻黄汤/, "必须逐字给出模型原本选的方名");
+  assert.match(visible, /未予锁定|由医生/, "措辞必须说明它未被锁定、由医生判断，不能读成推荐");
+  // 没有被剥离选择时不得凭空生成这一行。
+  const withoutDeferred = structuredClone(reasoning);
+  delete withoutDeferred.overview.deferredFormulaSelection;
+  assert.doesNotMatch(
+    synchronizeVisibleClinicalSummary(
+      `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(withoutDeferred)}\n<!-- DIAGNOSIS_JSON_END -->`,
+      "diagnose",
+    ),
+    /待确认方名/,
+    "没有被剥离的选择时不得输出该行",
+  );
+}

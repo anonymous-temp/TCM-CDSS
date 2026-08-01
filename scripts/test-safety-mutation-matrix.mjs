@@ -390,6 +390,35 @@ assert.notEqual(crossClauseChestCue.status, "red_flag", "a current-time word in 
 assert.equal(crossClauseChestCue.redFlags.length, 0);
 cases += 1;
 
+// Another symptom's “加重” modifier must not cross a comma and turn accompanying chest
+// tightness into ACS. The positive controls prove that genuinely acute/worsening chest tightness
+// still retains the deterministic emergency floor.
+for (const scenario of [
+  "头晕昏蒙、头重如裹，转头和进食油腻后加重，伴胸闷恶心、痰多黏白。",
+  "腹胀进食后加重，伴胸闷嗳气，已有1个月。",
+  "咳嗽活动后加重，伴胸闷痰多，否认胸痛、大汗和气促。",
+]) {
+  for (const placement of ["chief", "history", "conversation"]) {
+    const gate = evaluateSafetyGate(stateWith(scenario, placement));
+    assert.notEqual(gate.status, "red_flag", `${placement}: unrelated symptom modifier crossed into chest tightness: ${scenario}`);
+    assert.doesNotMatch(gate.redFlags.join("、"), /心血管|冠脉|胸闷/, `${placement}: ${scenario}`);
+    cases += 1;
+  }
+}
+for (const scenario of [
+  "今晨突发胸闷伴大汗。",
+  "胸闷近1周明显加重。",
+  "目前胸闷持续2小时未缓解。",
+  "胸闷2年，近日再发。",
+]) {
+  for (const placement of ["chief", "history", "conversation"]) {
+    const gate = evaluateSafetyGate(stateWith(scenario, placement));
+    assert.equal(gate.status, "red_flag", `${placement}: true acute chest tightness must remain blocked: ${scenario}`);
+    assert.match(gate.redFlags.join("、"), /心血管|冠脉|胸闷/, `${placement}: ${scenario}`);
+    cases += 1;
+  }
+}
+
 const criticalStructuredBloodPressures = [
   { vitals: { systolicBP: "220", diastolicBP: "130" }, expected: "220/130" },
   { vitals: { SBP: 225, DBP: 80 }, expected: "225/80" },
@@ -630,7 +659,13 @@ const structuredDoseRisk = buildDeterministicRiskFollowup({
   clinicalFacts: checkedEmptyFacts,
   reasoningPrescribe: {
     nonPharma: {
-      monitoring: [{ metric: "入睡耗时与夜间觉醒次数", timing: "服药后第1-3天", trigger: "连续3晚入睡耗时无改善或白天嗜睡加重" }],
+      // monitoring(指标/时间/触发)三元组已按需求10 移除——它一个字段就带 5 个驳回码，
+      // 任一命中即作废整份 M04。承接它的是自由文本 precautions：同样把模型给出的、
+      // 病例特异的随访要点送达医生，但措辞瑕疵只丢该行、不作废处方。
+      precautions: [
+        "服药后第1-3天记录入睡耗时与夜间觉醒次数",
+        "连续3晚入睡耗时无改善或白天嗜睡加重时提前复诊",
+      ],
     },
     formula: {
       candidates: [{
@@ -642,14 +677,16 @@ const structuredDoseRisk = buildDeterministicRiskFollowup({
 });
 assert.doesNotMatch(structuredDoseRisk, /本轮未生成剂量级处方/);
 assert.match(structuredDoseRisk, /入睡耗时与夜间觉醒次数|5天后复诊/);
+// 核心不变量不变：模型给出的病例特异随访要点必须原样送达医生，只是改由「注意事项」这一栏承载。
 assert.match(structuredDoseRisk, /连续3晚入睡耗时无改善或白天嗜睡加重/);
+assert.match(structuredDoseRisk, /\*\*注意事项\*\*/, "precautions 必须在 M05 随访汇总里有独立呈现位置");
 assert.doesNotMatch(structuredDoseRisk, /睡眠\/疼痛\/消化|出血倾向|7-14天|中医康复管理/);
-assert.deepEqual(parseStructuredFollowupTimeline(structuredDoseRisk), [{
-  time: "服药后第1-3天",
-  action: "记录并复核本例指标",
-  indicators: ["入睡耗时与夜间觉醒次数"],
-  triggers: ["连续3晚入睡耗时无改善或白天嗜睡加重"],
-}]);
+const structuredDoseTimeline = parseStructuredFollowupTimeline(structuredDoseRisk);
+// 时间轴只保留两条确定性行。原先第一行由 monitoring 三元组逐字派生（time=服药后第1-3天），
+// 那条路随该字段一并移除；随访要点改走上面的注意事项栏，不再伪装成结构化时间轴行。
+assert.ok(structuredDoseTimeline.some((item) => item.time === "5天后复诊" && /首次复诊/.test(item.action)));
+assert.ok(structuredDoseTimeline.some((item) => item.time === "治疗期间随时" && item.triggers.some((trigger) => /红旗症状/.test(trigger))));
+assert.doesNotMatch(JSON.stringify(structuredDoseTimeline), /采纳候选前|完成针对性安全复核/);
 cases += 1;
 
 const painFollowup = buildDeterministicRiskFollowup({
@@ -658,7 +695,10 @@ const painFollowup = buildDeterministicRiskFollowup({
   clinicalFacts: checkedEmptyFacts,
   reasoningPrescribe: {
     nonPharma: {
-      monitoring: [{ metric: "右膝疼痛0-10分与步行距离", timing: "每日晚间记录", trigger: "疼痛增加2分或出现红肿发热" }],
+      precautions: [
+        "每日晚间记录右膝疼痛0-10分与步行距离",
+        "疼痛增加2分或出现红肿发热时提前复诊",
+      ],
     },
     formula: {
       candidates: [{
@@ -670,7 +710,7 @@ const painFollowup = buildDeterministicRiskFollowup({
 });
 assert.match(painFollowup, /右膝疼痛0-10分与步行距离/);
 assert.doesNotMatch(painFollowup, /入睡耗时与夜间觉醒次数/);
-assert.notEqual(painFollowup, structuredDoseRisk, "follow-up content must vary with the structured monitoring plan and current problem");
+assert.notEqual(painFollowup, structuredDoseRisk, "follow-up content must vary with the case-specific precautions and current problem");
 cases += 1;
 
 const restrictedStructuredDoseRisk = buildDeterministicRiskFollowup({

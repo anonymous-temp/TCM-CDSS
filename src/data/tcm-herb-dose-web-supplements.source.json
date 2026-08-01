@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "tcm-herb-dose-web-supplements-v2",
+  "note": "官方联网剂量补充治理输入。只有能够在所引法定标准原文中逐项定位到药名、给药途径和数值边界，并登记原文锚点与文件 SHA-256 的记录才允许进入 entries；二手网页、模型复核和仅出现药名/调剂方式均不能授予自动配剂量权限。",
+  "adjudicationRef": "ADJ-20260727-WEB-DOSE-PROVENANCE-REVIEW",
+  "entries": [],
+  "rejectedClaims": [
+    {
+      "herbs": ["神曲", "龙骨", "煅龙骨", "葱白", "粳米", "糯米", "琥珀"],
+      "claimedBasis": "北京市中药饮片调剂规程（2011年修订）",
+      "sourceUrl": "https://zyj.beijing.gov.cn/sy/tsbk/xzzq/202304/P020250109597221546673.docx",
+      "sourceSha256": "31affacc13134006be2bbe050729e7920a133ce38a45c2e38506d6111ddd73f3",
+      "reason": "原文可定位药名、别名或特殊调剂方式，但未定位到本批声称的通用数值剂量；不得据此授予自动配剂量权限。"
+    }
+  ],
+  "redundantClaimsRemoved": {
+    "count": 31,
+    "reason": "相关药典正条已由 tcm-knowledge.json 的本地药典构建源覆盖；本批二手网页不能作为重复或覆盖药典边界的独立准入依据。没药 3～10g 与现有药典源 3～5g 冲突，已拒绝。"
+  }
+}

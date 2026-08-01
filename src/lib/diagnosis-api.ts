@@ -9,34 +9,36 @@
 //
 // Both backends return NDJSON: {"content":"..."}\n per chunk, end with {"content":"[END]"}\n
 
-import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isDeepseekModel } from "@/lib/text-model";
+import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isDeepseekModel, getBailianQwenConfig } from "@/lib/text-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isStableM03Reasoning, m03ChainNodeDiagnostics, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
-import { alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { parseOpenAICompatCompletionPayload } from "@/lib/openai-compatible-response";
-import { applyDeterministicFormulaReferences, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue } from "@/lib/tcm-formula-provenance";
+import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences } from "@/lib/tcm-formula-provenance";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
 import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenShape, type EvidenceBoundMedicineProposal } from "@/lib/m04-proposal-compiler";
 import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.server";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
+import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
 import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } from "@/lib/m04-repair-policy";
-import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
+import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
 import { recordCdssClinicalReviewTelemetry, recordCdssStageTelemetry, type CdssClinicalReviewOutcome, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
 import { createHash } from "node:crypto";
 import { requiredDecoctionRequirement } from "@/lib/herb-decoction-rules";
 import { m04CandidateHerbsFromRepairPayload, m04KnowledgeShortlistFromPrompt, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } from "@/lib/structured-clinical-repair";
+import { missedLockableFormulaCandidates } from "@/lib/tcm-formula-indications";
 import { enforceRetrievedM03FormulaSelection } from "@/lib/tcm-formula-indications";
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
-import { dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
+import { dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 
 const GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const GLM_VISION_MODEL = process.env.GLM_VISION_MODEL?.trim() || "glm-5v-turbo";
@@ -63,8 +65,8 @@ const STRUCTURED_RUN_TOTAL_TIMEOUT_MS = (() => {
 // Checking only between rounds allowed an in-flight repair/review to overrun the advertised bound;
 // the same absolute deadline is now passed to the provider and reviewer cancellation paths.
 export const M03_ORCHESTRATION_DEADLINE_MS = (() => {
-  const value = Number(process.env.M03_ORCHESTRATION_DEADLINE_MS || 120_000);
-  return Number.isFinite(value) && value >= 60_000 && value <= 180_000 ? Math.round(value) : 120_000;
+  const value = Number(process.env.M03_ORCHESTRATION_DEADLINE_MS || 180_000);
+  return Number.isFinite(value) && value >= 60_000 && value <= 180_000 ? Math.round(value) : 180_000;
 })();
 
 /** Pure predicate, exported for unit tests. */
@@ -157,9 +159,14 @@ const PRIMARY_DIAGNOSE_REPAIR_REASONING_EFFORT = (() => {
   const value = String(process.env.PRIMARY_DIAGNOSE_REPAIR_REASONING_EFFORT || "low").trim().toLowerCase();
   return ["low", "medium", "high"].includes(value) ? value : "low";
 })();
+// M04 首轮要从零完成选药、定量、君臣佐使分配和 P 节点绑定；修复轮拿到的是已被逐条指明的缺陷，
+// 严格更简单。首轮努力度低于修复轮（reasoningEffortForStructuredRepair 的 prescribe 默认 medium）
+// 会系统性地制造「低努力度生成 → 命中 246 个契约驳回码之一 → 中努力度修复」的多余往返：每个病例
+// 都多付一整轮延迟与上游成本，而这一轮本可由首轮直接给足努力度避免。
+// 同时不再回落到 PRIMARY_TEXT_REASONING_EFFORT——那是给自由文本阶段的档位，不该决定剂量级处方。
 const PRIMARY_PRESCRIBE_REASONING_EFFORT = (() => {
-  const value = String(process.env.PRIMARY_PRESCRIBE_REASONING_EFFORT || process.env.PRIMARY_TEXT_REASONING_EFFORT || "low").trim().toLowerCase();
-  return ["low", "medium", "high"].includes(value) ? value : "low";
+  const value = String(process.env.PRIMARY_PRESCRIBE_REASONING_EFFORT || "medium").trim().toLowerCase();
+  return ["low", "medium", "high"].includes(value) ? value : "medium";
 })();
 const PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT = (() => {
   const value = String(process.env.PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT || "low").trim().toLowerCase();
@@ -239,9 +246,14 @@ function incompleteM03VisibleDraft(content: string): string {
     .trim();
 }
 
-function clinicalReviewUnavailableNotice(stage: "diagnose" | "prescribe"): string {
+function clinicalReviewUnavailableNotice(
+  stage: "diagnose" | "prescribe",
+  boundary: "service_unavailable" | "quality_concern" = "service_unavailable",
+): string {
   return stage === "diagnose"
-    ? "> 临床复核状态：独立诊断复核本轮未完成。以下结果已通过结构与患者事实边界校验，作为医生审阅草稿展示，不代表独立临床复核已通过。"
+    ? boundary === "quality_concern"
+      ? "> 临床复核状态：独立诊断复核提出了需进一步核对的质量意见。以下结果已通过结构、患者事实、极性与安全边界核验，按有界建议展示；请结合本次病历核对相关内容，其余已核实部分继续保留。"
+      : "> 临床复核状态：独立诊断复核本轮因服务繁忙或超时未完成。以下结果已通过结构、患者事实、极性与安全边界核验，按有界建议展示；这表示“尚未完成复核”，不表示“复核未通过”。"
     : "> 临床复核状态：独立处方复核本轮未完成。以下候选已通过结构与患者事实边界校验，仍须结合合理用药审方和医生判断复核。";
 }
 
@@ -270,15 +282,18 @@ async function fetchWithConnectTimeout(
   }
 }
 
-async function readProviderChunk(
+export async function readProviderChunk(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   deadline: number,
   abortUpstream?: () => void,
 ): Promise<ReadableStreamReadResult<Uint8Array>> {
   const remaining = deadline - Date.now();
   if (remaining <= 0) {
-    await reader.cancel().catch(() => undefined);
     abortUpstream?.();
+    // Some provider/body implementations leave cancel() pending while the remote peer is wedged.
+    // The wall-clock gate must not await that promise: abort the transport first and let cleanup
+    // finish in the background, otherwise a 120s orchestration deadline can stretch for minutes.
+    void reader.cancel().catch(() => undefined);
     throw new Error("模型流总时长超时，请重试");
   }
   let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -298,8 +313,8 @@ async function readProviderChunk(
     ]);
   } catch (error) {
     if (timedOut) {
-      await reader.cancel().catch(() => undefined);
       abortUpstream?.();
+      void reader.cancel().catch(() => undefined);
     }
     throw error;
   } finally {
@@ -366,7 +381,9 @@ async function prepareDiagnoseStructuredContent(
   const singlePrimary = declassifyAmbiguousM03WesternPrimary(formalCriteriaBound, clinicalContext);
   const westernProjection = normalizeM03WesternDifferentials(singlePrimary, clinicalContext, patientAgeYears);
   const westernRationaleAligned = alignNormalizedM03WesternClinicalRationale(westernProjection);
-  return applyDeterministicIcd10Coding(applyActionableFollowupSafetyNetContract(westernRationaleAligned));
+  const tcmRationaleAligned = alignNormalizedM03TcmDiagnosticRationale(westernRationaleAligned);
+  const qualityBounded = applyM03AdvisoryQualityBoundaries(tcmRationaleAligned, clinicalContext);
+  return applyDeterministicIcd10Coding(applyActionableFollowupSafetyNetContract(qualityBounded));
 }
 
 function markTransparentFormulaDeclassification(content: string): string {
@@ -377,8 +394,20 @@ function markTransparentFormulaDeclassification(content: string): string {
         const parsed = JSON.parse(jsonText) as { formula?: { candidates?: Array<Record<string, unknown>> } };
         const candidate = parsed.formula?.candidates?.[0];
         if (!candidate) return match;
+        // 打标记不足以完成降级：候选若仍保留经典方名，下游合同看到的仍是「声称经典方」，
+        // 于是 composition_drift 会一路走到整方作废（实测感冒-风寒束表：麻黄汤 4 味小方被加到
+        // 9 味，组成漂移 → 0 味，而方中药味本身全部通过剂量/配伍/君臣校验）。
+        // 身份剥离在这里确定性完成：改自拟标签、清空 formulaNames/baseFormulas、标 self_devised。
+        // 调用方必须在剥离后重新跑严格合同自证合格才可受理，本函数只做剥离不做放行。
+        const hadClassicIdentity = Array.isArray(candidate.formulaNames) && candidate.formulaNames.length > 0;
         parsed.formula!.candidates![0] = {
           ...candidate,
+          ...(hadClassicIdentity ? {
+            name: /(?:加减|化裁|加味)/.test(String(candidate.name || "")) ? "本例辨证组方加减" : "本例辨证组方",
+            formulaNames: [],
+            baseFormulas: [],
+            constructionType: "self_devised",
+          } : {}),
           identityDeclassified: true,
           identityDeclassificationReason: "classic_composition_unverified_after_repair",
         };
@@ -428,6 +457,27 @@ export function shouldRegenerateM03ClinicalRepair(
     clinicalReviewGuidance.includes("独立复核的受控定位标签");
 }
 
+/**
+ * M03 独立复核属于质量层。复核提出意见时，只要候选仍完整通过确定性的结构、事实、
+ * 极性、阶段权限与安全网合同，就保留候选并降为有界建议；真正的安全/造假问题仍拒绝。
+ */
+export function m03ReviewCanDowngradeToAdvisory(
+  review: M03DiagnosticReview,
+  reasoning: unknown,
+  clinicalContext: string,
+): boolean {
+  if (review.status !== "repair") return false;
+  const rejectionReason = m03SemanticReviewReason(review);
+  if (!rejectionReason || isSafetyRejection(rejectionReason)) return false;
+  // The orchestrator calls this only after schema normalization; the safety contract is still
+  // repeated here so a quality-tier decision can never bypass grounding or polarity.
+  return !m03SafetyContractIssue(
+    reasoning as ClinicalReasoningResultV2,
+    clinicalContext,
+    isSafetyRejection,
+  );
+}
+
 type ClinicalReviewStage = "diagnose" | "prescribe";
 
 type ClinicalReviewModelConfig = {
@@ -460,6 +510,28 @@ function preferredClinicalReviewModelConfig(
   const generatorModel = generatorModelOverride || modelForStructuredStage(primary.model, stage);
   const provider = (process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER || "primary").trim().toLowerCase();
   if (provider !== "primary") {
+    // 跨供应商复核拓扑（当前实现阿里云百炼 qwen，OpenAI 兼容协议）：
+    // 指定第二供应商时复核走不同模型身份（independentFromGenerator=true）——
+    // 与默认全同模型（单一 DeepSeek 主模型）下的第二次请求是本质不同的复核强度。
+    // 配置不全 fail-closed：拓扑不可用回退到既有同供应商候选链，绝不静默降级为无复核。
+    if (["bailian-qwen", "bailian", "qwen"].includes(provider)) {
+      const qwen = getBailianQwenConfig();
+      // 跨供应商拓扑必须使用供应商专属模型。PRIMARY_CLINICAL_REVIEW_MODEL
+      // 在 compose 中默认固定为 DeepSeek，若复用该变量会把 DeepSeek 主模型 ID
+      // 错发给百炼端点，形成“配置看似开启、实际不可用”的部署漂移。
+      const model = qwen.model;
+      const endpoint = chatCompletionsUrl(qwen.baseUrl);
+      return {
+        provider: qwen.provider,
+        model,
+        apiKey: qwen.apiKey,
+        endpoint,
+        configured: qwen.configured && Boolean(model) && validClinicalReviewEndpoint(endpoint),
+        independentInvocation: true,
+        independentFromGenerator: true,
+        source: "preferred",
+      };
+    }
     return {
       provider: "unconfigured",
       model: "unconfigured",
@@ -644,7 +716,13 @@ export function reasoningEffortForStructuredRepair(stage?: "diagnose" | "prescri
   // clinical decisions and exact defects are already supplied. M04 remains medium because it must
   // reconstruct dose, composition and target-reference invariants together.
   if (stage === "diagnose") return PRIMARY_DIAGNOSE_REPAIR_REASONING_EFFORT;
-  return stage === "prescribe" ? "medium" : PRIMARY_TEXT_REASONING_EFFORT;
+  if (stage === "prescribe") {
+    const value = String(process.env.PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT || "medium")
+      .trim()
+      .toLowerCase();
+    return ["low", "medium", "high"].includes(value) ? value : "medium";
+  }
+  return PRIMARY_TEXT_REASONING_EFFORT;
 }
 
 // 辨证需要产出严格结构化 JSON;思考模式会先吃掉 token 预算导致正文截断，且 DeepSeek 只回 reasoning_content
@@ -696,7 +774,15 @@ function validatedStructuredReasoning(
     const reasoning = normalizeReasoningV2(rawReasoning);
     if (!reasoning || reasoning.stage !== expectedStage) return undefined;
     const visibleContent = content.slice(0, start);
-    if (expectedStage === "diagnose" && !isStableM03Reasoning(reasoning, clinicalContext, visibleContent)) return undefined;
+    if (expectedStage === "diagnose") {
+      const hardIssue = m03SafetyContractIssue(reasoning, clinicalContext, isSafetyRejection);
+      if (hardIssue) return undefined;
+      const strictIssue = m03SemanticIssue(reasoning, clinicalContext, visibleContent);
+      // The strict contract also audits documentation depth and presentation quality. Those
+      // allowlisted T2/T3 findings remain visible as bounded review notes, but they no longer zero a
+      // grounded diagnosis. Unknown/new reasons stay fail-closed through the default-deny tier map.
+      if (strictIssue && isSafetyRejection(strictIssue)) return undefined;
+    }
     if (expectedStage === "prescribe") {
       // Final route output enriches formula identity/source before its last semantic check. Validate
       // that exact enriched object here as well, so a late route transform cannot turn an otherwise
@@ -776,9 +862,14 @@ function wrapStructuredJsonObject(
   caseState?: CaseState,
   trustedMedicineCandidates: readonly EvidenceBoundMedicineProposal[] = [],
 ): string {
-  return stage === "diagnose"
+  const wrapped = stage === "diagnose"
     ? wrapDiagnoseJsonObject(content, stage)
     : wrapPrescribeJsonObject(content, stage, prior, caseState, trustedMedicineCandidates);
+  // M04 每一版响应（首轮与每一轮修复）都在合同判定前，做一次确定性的命名方身份恢复：
+  // 组成确定性满足 M03 锁定基准、模型却把方名写成自拟标签时，服务端按已核验事实补回身份，
+  // 而不是把它判成 formula_reference_declassified 再让模型重写（实测会 fixpoint 到 0 味）。
+  // 恢复之后所有合同、剂量与安全校验照常完整执行，见 restoreGovernedFormulaIdentity 的说明。
+  return stage === "prescribe" ? applyRestoredGovernedFormulaIdentity(wrapped, prior) : wrapped;
 }
 
 /**
@@ -866,7 +957,25 @@ function structuredRejectionReason(
   }
 }
 
-function structuredRejectionDiagnostic(content: string, reason: string, clinicalContext = ""): Record<string, string | number> | undefined {
+function structuredRejectionDiagnostic(content: string, reason: string, clinicalContext = "", prior?: unknown): Record<string, string | number> | undefined {
+  if (reason === "m03_dose_level_content") {
+    const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
+    const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
+    const start = content.lastIndexOf(startMarker);
+    const end = start >= 0 ? content.indexOf(endMarker, start + startMarker.length) : -1;
+    if (start >= 0 && end > start) {
+      try {
+        const parsed = JSON.parse(content.slice(start + startMarker.length, end).trim());
+        const findings = m03DoseLevelInstructionFindings(parsed).slice(0, 6);
+        return {
+          doseInstructionPaths: findings.map((item) => item.path).join(","),
+          doseInstructionKinds: findings.map((item) => item.kind).join(","),
+        };
+      } catch {
+        return { doseInstructionPaths: "json_invalid" };
+      }
+    }
+  }
   if (reason === "m03_chain_incomplete") {
     const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
     const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
@@ -880,6 +989,15 @@ function structuredRejectionDiagnostic(content: string, reason: string, clinical
         const chain = Array.isArray(parsed.pathogenesis?.chain) ? parsed.pathogenesis.chain : [];
         const lengths = (key: string) => chain.map((item) => typeof item[key] === "string" ? item[key].trim().length : 0);
         const nodeDiagnostics = m03ChainNodeDiagnostics(parsed);
+        // 病机/治法是辨证学措辞而非患者事实，可入日志定位词表类缺口；patientFact 是病历原文，
+        // 与 patient_fact_ungrounded 同一口径，绝不入服务端日志。
+        const unanchoredText = (key: "pathogenesis" | "therapyDirection", flag: "pathogenesisAnchored" | "therapyAnchored") =>
+          nodeDiagnostics
+            .flatMap((item, index) => !item[flag] && typeof chain[index]?.[key] === "string"
+              ? [`P${index + 1}:${String(chain[index][key]).trim().slice(0, 24)}`]
+              : [])
+            .join("|")
+            .slice(0, 120);
         return {
           chainCount: chain.length,
           patientFactLengths: lengths("patientFact").join(","),
@@ -890,6 +1008,8 @@ function structuredRejectionDiagnostic(content: string, reason: string, clinical
           syndromeEvidenceStable: nodeDiagnostics.map((item) => Number(item.syndromeEvidenceStable)).join(","),
           pathogenesisAnchored: nodeDiagnostics.map((item) => Number(item.pathogenesisAnchored)).join(","),
           therapyAnchored: nodeDiagnostics.map((item) => Number(item.therapyAnchored)).join(","),
+          pathogenesisUnanchored: unanchoredText("pathogenesis", "pathogenesisAnchored"),
+          therapyUnanchored: unanchoredText("therapyDirection", "therapyAnchored"),
         };
       } catch {
         return { chainCount: 0 };
@@ -899,6 +1019,52 @@ function structuredRejectionDiagnostic(content: string, reason: string, clinical
   if (/^m03_patient_fact_ungrounded/.test(reason) && clinicalContext) {
     // 具体冲突文本来自患者病历，只能用于同一次模型修复提示，不能进入服务端日志。
     return { groundingConflict: 1 };
+  }
+  if (/^m04_formula_(?:reference_declassified|compilation_composition_drift|reference_selection_drift|component_\d+_unverified)$/.test(reason)) {
+    // 方名/组成核验类失败的服务端可观测性：方名与药材名是方剂学数据而非患者事实，可入日志。
+    // 没有这份差异明细时，「declassified」只能事后猜测是版本分歧（济生方 8 味 vs 通行 10 味）、
+    // 饮片名解析还是真丢药——观测通道与 offendingHerb 同一口径。
+    const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
+    const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
+    const start = content.lastIndexOf(startMarker);
+    const end = start >= 0 ? content.indexOf(endMarker, start + startMarker.length) : -1;
+    if (start >= 0 && end > start) {
+      try {
+        const parsed = JSON.parse(content.slice(start + startMarker.length, end).trim()) as {
+          formula?: { candidates?: Array<{ name?: unknown; formulaNames?: unknown; herbs?: Array<{ name?: unknown }> }> };
+        };
+        const candidate = parsed.formula?.candidates?.[0];
+        const priorLockedNames = Array.isArray((prior as { overview?: { recommendedFormulaNames?: unknown } } | undefined)?.overview?.recommendedFormulaNames)
+          ? ((prior as { overview: { recommendedFormulaNames: unknown[] } }).overview.recommendedFormulaNames)
+              .filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+          : [];
+        const candidateNames = [...new Set([
+          ...(Array.isArray(candidate?.formulaNames)
+            ? candidate.formulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+            : []),
+          // declassified 时候选侧方名已被剥空，差异要对照 M03 锁定的基准方名计算才有意义。
+          ...priorLockedNames,
+        ])];
+        const herbNames = (candidate?.herbs || [])
+          .map((herb) => typeof herb?.name === "string" ? herb.name.trim() : "")
+          .filter(Boolean);
+        const actualIdentities = new Set(herbNames.map((name) => canonicalTcmHerbIdentity(name)));
+        const references = formulaCompilationReferences(candidateNames);
+        const componentDiffs = references.map((reference) => {
+          const missing = reference.ingredients
+            .filter((ingredient) => !actualIdentities.has(canonicalTcmHerbIdentity(ingredient)));
+          return `${reference.formulaName}(${reference.ingredients.length - missing.length}/${reference.ingredients.length}≥${reference.minimumPreservedIngredientCount}${missing.length > 0 ? ` 缺:${missing.join("、")}` : ""})`;
+        });
+        return {
+          candidateName: String(candidate?.name || "").slice(0, 30),
+          candidateFormulaNames: candidateNames.join("、").slice(0, 60),
+          herbCount: herbNames.length,
+          compositionDiff: componentDiffs.join("；").slice(0, 200) || "no_reference_resolved",
+        };
+      } catch {
+        return { compositionDiff: "json_invalid" };
+      }
+    }
   }
   const match = reason.match(/^m04_candidate_(\d+)_herb_(\d+)_/);
   if (!match) return undefined;
@@ -1154,7 +1320,19 @@ async function retryCompletePrimaryResponse(
         // Candidate-wide guidance is an optimization only; the primary reason-specific repair stays authoritative.
       }
     }
-    const clinicalRepairHint = structuredClinicalRepairHint(structuredStage, rejectionReason);
+    // 「漏锁命名方」的修复提示必须携带按签名证候反查出的真实方名——生成前短名单是按症状召回的，
+    // 常常并不含这几个方；不带名字的「短名单里就有」等于让模型去一份不存在的清单里找。
+    const missedLockableNames = structuredStage === "diagnose" && (rejectionReason || "").endsWith("formula_selection_missed_lockable")
+      ? (() => {
+          try {
+            const reasoning = m03ReasoningFromStructuredContent(rejectedJson
+              ? `<!-- DIAGNOSIS_JSON_START -->${rejectedJson}<!-- DIAGNOSIS_JSON_END -->`
+              : "");
+            return reasoning ? missedLockableFormulaCandidates(reasoning) : [];
+          } catch { return []; }
+        })()
+      : [];
+    const clinicalRepairHint = structuredClinicalRepairHint(structuredStage, rejectionReason, missedLockableNames);
     const governedM04HerbShortlist = structuredStage === "prescribe"
       ? m04KnowledgeShortlistFromPrompt(prompt)
       : "";
@@ -1166,7 +1344,13 @@ async function retryCompletePrimaryResponse(
         ].join("\n")
       : "";
     const proposalRepairHint = structuredStage === "prescribe"
-      ? "M04 修复结果始终必须是 schemaVersion=tcm-cdss-m04-proposal-v1 的最小提案对象，即使待修复内容是完整 reasoning-v2 也只提取其中的单个候选方：candidate 必须是单个对象，candidate.herbs 必须是数组且只含本次实际采用药味；candidate.decoction 必须是单个对象，且必须包含格式严格为1–30整数加‘剂’的 doseCount 纯字符串（如\"5剂\"），不得省略、输出数字、null、数组或包装对象，course 和复诊节点由服务端统一生成。经典方/合方服从服务端基础方组成，自拟复方通常不少于4味，明确单味方案可为1味，不得为凑数量增药。每味药 name 必须是纯字符串，dose 必须是带单位的字符串（如10g），role 只能填君/臣/佐/使中的一个字；整个 candidate.herbs 必须恰有 1–2 味君药，且每味君药都必须 targetKind=pathogenesis_node、targetRef=P1。targetKind=pathogenesis_node 时 structureRole 必须为 null；只有 targetKind=formula_structure 时才可填写受控 structureRole。顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；patentAndWestern 只能选择已注入的 EVID-INST 或 LOCAL-INST 说明书条目并逐字回填 evidenceId/evidenceFingerprint，西药一律不填剂量，中成药在条目没有完整用法字段时也不猜剂量。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/actionType/herbName/reason。nonPharma 的 diet、lifestyle、emotion 必须是非空字符串，acupointCare 固定为 null，tcmTreatments 只能包含受控 projectCode 和有效 targetRef 且最多3项，monitoring 至少一项且包含 metric、timing、trigger。不要保留或输出 reasoning-v2 的 overview、pathogenesis、therapy、formula 等字段，也不要重写 M03 字段。"
+      ? [
+          "M04 修复结果始终必须是 schemaVersion=tcm-cdss-m04-proposal-v1 的最小提案对象，即使待修复内容是完整 reasoning-v2 也只提取其中的单个候选方：candidate 必须是单个对象，candidate.herbs 必须是数组且只含本次实际采用药味。",
+          "candidate.decoction 必须是单个对象，并同时包含 doseCount（格式严格为1–30整数加“剂”的纯字符串，如\"5剂\"）、dosesPerDay（1–3整数）和 administrationTimesPerDay（1–6整数且不得小于 dosesPerDay）；三者都不得省略、输出 null、数组或包装对象，doseCount 必须能被 dosesPerDay 整除，course 和复诊节点由服务端统一生成。",
+          "经典方/合方服从服务端基础方组成；自拟复方在有依据的前提下应给出完整君臣佐使层次，常见规模8–14味（不少于4味，明确单味方案可为1味），每增加一味都必须同时绑定真实 targetRef 或受控 structureRole、在服务端药味知识库有功能收载、且其收载方向与本例某条已锁定治法方向一致，不得为凑数量增药，也不得加入与任何锁定治法方向无关的药味。每味药 name 必须是纯字符串，dose 必须是带单位的字符串（如10g），role 只能填君/臣/佐/使中的一个字；整个 candidate.herbs 必须恰有 1–2 味君药，且每味君药都必须 targetKind=pathogenesis_node、targetRef=P1。targetKind=pathogenesis_node 时 structureRole 必须为 null；只有 targetKind=formula_structure 时才可填写受控 structureRole。",
+          "顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；patentAndWestern 只能选择已注入的 EVID-INST 或 LOCAL-INST 说明书条目并逐字回填 evidenceId/evidenceFingerprint，西药一律不填剂量，中成药在条目没有完整用法字段时也不猜剂量。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/actionType/herbName/reason。",
+          "nonPharma 的 diet、lifestyle、emotion 必须是非空字符串，acupointCare 固定为 null，tcmTreatments 只能包含受控 projectCode 和有效 targetRef 且最多3项，precautions 是0–6条纯字符串注意事项，允许为空数组。不要保留或输出 reasoning-v2 的 overview、pathogenesis、therapy、formula 等字段，也不要重写 M03 字段。",
+        ].join("\n")
       : "";
     const repairFieldRule = structuredStage === "prescribe"
       ? "不要照搬待修复 JSON 的外层结构；保留本次实际采用的候选药味及其剂量、角色、病机引用、煎服疗程、已绑定 EVID-INST 或 LOCAL-INST 条目ID与指纹的中成药/西药候选和非药物调护，并严格重组为最小提案。不得新增患者事实；未绑定真实说明书条目的中成药或西药直接从 patentAndWestern 删除，不得写待检索占位。"
@@ -1327,6 +1511,7 @@ type ClinicalReviewerIdentity = {
 type ClinicalReviewExecution<T extends ClinicalReviewResult> = T & {
   reviewer?: ClinicalReviewerIdentity;
   execution?: ClinicalReviewExecutionMeta;
+  advisoryBoundary?: "quality_concern";
 };
 
 function clinicalReviewAttestation(
@@ -1566,6 +1751,22 @@ async function reviewM03DiagnosticCriteria(
   parentSignal?: AbortSignal,
   generatorModel?: string,
 ): Promise<ClinicalReviewExecution<M03DiagnosticReview>> {
+  const applyAdvisoryBoundary = (
+    review: ClinicalReviewExecution<M03DiagnosticReview>,
+  ): ClinicalReviewExecution<M03DiagnosticReview> => {
+    if (!m03ReviewCanDowngradeToAdvisory(review, reasoning, clinicalContext)) return review;
+    console.warn("[tcm-cdss:model] M03 clinical review quality concern retained as bounded advisory", {
+      issueCode: review.issueCode,
+      repairGuidanceCodes: m03DiagnosticRepairGuidanceCodes(review),
+    });
+    return {
+      status: "unavailable",
+      issueCode: "review_unavailable",
+      ...(review.reviewer ? { reviewer: review.reviewer } : {}),
+      ...(review.execution ? { execution: review.execution } : {}),
+      advisoryBoundary: "quality_concern",
+    };
+  };
   const first = await runIndependentClinicalReview<M03DiagnosticReview>({
     stage: "diagnose",
     systemPrompt: "你是独立临床诊断标准复核器，只输出约定 JSON。不得编造患者事实。",
@@ -1577,7 +1778,7 @@ async function reviewM03DiagnosticCriteria(
     generatorModel,
   });
   if (!m03DiagnosticReviewNeedsAdjudication(first) || parentSignal?.aborted || absoluteDeadline <= Date.now()) {
-    return first;
+    return applyAdvisoryBoundary(first);
   }
   const adjudicated = await runIndependentClinicalReview<M03DiagnosticReview>({
     stage: "diagnose",
@@ -1604,7 +1805,7 @@ async function reviewM03DiagnosticCriteria(
         : first.execution?.reason || "repair" as const,
   };
   if (adjudicated.status === "accepted") return { ...adjudicated, execution };
-  if (adjudicated.status === "repair") return { ...adjudicated, execution };
+  if (adjudicated.status === "repair") return applyAdvisoryBoundary({ ...adjudicated, execution });
   return { ...first, execution };
 }
 
@@ -1705,6 +1906,10 @@ async function callPrimaryTextModelStream(
       ? requestStartedAt + M04_ORCHESTRATION_DEADLINE_MS
       : structuredRunDeadline;
   const absoluteRunDeadline = Math.min(structuredRunDeadline, orchestrationDeadline);
+  const absoluteDeadlineAbortTimer = setTimeout(
+    () => upstreamController.abort(),
+    Math.max(1, absoluteRunDeadline - Date.now()),
+  );
   const abortFromRequest = () => upstreamController.abort();
   if (opts.requestSignal?.aborted) upstreamController.abort();
   else opts.requestSignal?.addEventListener("abort", abortFromRequest, { once: true });
@@ -1722,7 +1927,40 @@ async function callPrimaryTextModelStream(
       let reasoningChars = 0;
       let finishReason: string | null = null;
       let structuredRetryCount = 0;
+      /**
+       * 「同一条确定性合同拒绝码只修一次」的账本。
+       *
+       * 既有的三处定点守卫（m03IdenticalGuidanceFixpoint / m03SameGuidanceFixpoint /
+       * m04SameGuidanceFixpoint）全部键在**复核驱动**的条件上——quarantineShape 为真、或
+       * reviewBasedRejection 为真。纯粹由确定性合同产生的拒绝码不满足其中任何一条，于是
+       * 那条路上没有任何定点检测：同一个码可以在多个顺序重试阶段里被反复注入。
+       *
+       * 实测一次 M03 里 m03_patient_fact_ungrounded_0_1_literal 连续出现 3 次（同一病机节点、
+       * 同一条事实），M04 的 m04_formula_reference_declassified 连续 2 次，单例 M03 因此从
+       * 15s 涨到 2.4 分钟。合同拒绝码对应的修复提示是 (阶段, 原因码) 的纯函数，同码必然同提示，
+       * 再注入一次就是把同一张彩票重抽一遍——CLAUDE.md 里「同一修复提示重复注入(fixpoint)
+       * 应提前收敛」说的正是这种情况。
+       *
+       * 这个改动只会让流程**更早停**，不会让任何原本被拒的结果通过：终态出口仍然重跑
+       * m03SafetyContractIssue / m04SafetyContractIssue 这道 T1 硬门，再决定是带批注受理
+       * 还是降级。复核驱动的拒绝码不进这个账本，它们的「同码不同子型仍算新信息」语义保持不变。
+       */
+      // 上限 2 而不是 1：合同拒绝码对应的修复提示虽是 (阶段, 原因码) 的纯函数，但生成本身有
+      // 随机性，重抽一次的成功率并不低——实测同一例月经先期病例，chain_incomplete 首轮修复
+      // 即通过的跑次存在；收成 1 次后它连续三跑都塌到安全有限页。2 次保住了时限上界
+      // （此前同码可跨多个重试阶段无限重注入），也保留一次真实的重抽机会。
+      const CONTRACT_REPAIR_MAX_PER_REASON = 2;
+      const contractRepairedReasons = new Map<string, number>();
+      const isRepeatedContractRepair = (reason: string | undefined, reviewDriven: boolean): boolean =>
+        Boolean(reason) && !reviewDriven &&
+        (contractRepairedReasons.get(reason as string) || 0) >= CONTRACT_REPAIR_MAX_PER_REASON;
+      const noteContractRepair = (reason: string | undefined, reviewDriven: boolean) => {
+        if (reason && !reviewDriven) {
+          contractRepairedReasons.set(reason, (contractRepairedReasons.get(reason) || 0) + 1);
+        }
+      };
       let m03DiagnosticReviewStatus: M03DiagnosticReview["status"] | "not_run" = "not_run";
+      let m03ReviewAdvisoryBoundary = false;
       let m03DiagnosticReviewReason: string | undefined;
       let m03DiagnosticRepairGuidance = "";
       // Quarantine-loop tracking: the server repair policy can only emit one bounded neutral
@@ -1867,6 +2105,9 @@ async function callPrimaryTextModelStream(
         );
         finalized = applyDeterministicFollowUpNode(finalized);
         finalized = dropUnsupportedM04ModificationDirections(finalized, opts.structuredPriorReasoning);
+        // 同一条不变量的另一半：方向未成立的**实际加味**按单味剔除，不让单味缺陷放大成整方作废。
+        // 必须排在独立复核与签名之前——复核看到的、签名绑定的都必须是剔除后的最终候选。
+        finalized = dropUnsupportedM04CandidateHerbs(finalized, opts.structuredPriorReasoning);
         if (!opts.outputTransform) return finalized;
         try {
           return opts.outputTransform(finalized);
@@ -1973,7 +2214,11 @@ async function callPrimaryTextModelStream(
             }
           }
         }
-        if (review.status === "repair" && (review.issueCode === "criteria_not_met" || review.issueCode === "diagnostic_label_overstated")) {
+        if (review.status === "repair" && (
+          review.issueCode === "criteria_not_met" ||
+          review.issueCode === "diagnostic_label_overstated" ||
+          review.issueCode === "supporting_fact_mismatch"
+        )) {
           const declassifiedContent = declassifyUnsupportedM03WesternPrimary(
             candidateContent,
             opts.structuredClinicalContext || "",
@@ -1996,6 +2241,18 @@ async function callPrimaryTextModelStream(
               candidateReasoning = refinalizedCandidate.reasoning;
             }
             review = await clinicallyReview();
+            // The final display sanitizer may legitimately trim the internal downgrade limitation.
+            // Bind this fixpoint decision to the validated deterministic downgrade produced above,
+            // not to wording that survives presentation normalization.
+            if (m03SymptomDowngradeReviewIsNonActionable(review, declassifiedReasoning)) {
+              console.warn("[tcm-cdss:model] M03 reviewer returned a non-actionable mismatch after safe symptom downgrade; marking review unavailable");
+              review = {
+                status: "unavailable",
+                issueCode: "review_unavailable",
+                ...(review.reviewer ? { reviewer: review.reviewer } : {}),
+                ...(review.execution ? { execution: review.execution } : {}),
+              };
+            }
           }
         }
         return { content: candidateContent, reasoning: candidateReasoning, review };
@@ -2040,6 +2297,9 @@ async function callPrimaryTextModelStream(
       let stageReasonCode = "not_completed";
       let diagnosePreviewBuffer = "";
       let diagnosePreviewClosed = false;
+      // 需求2 的按模块流式反馈状态：已上流的顶层模块，以及上次扫描时的内容长度（用于节流）。
+      const emittedModuleKeys = new Set<string>();
+      let moduleScanCursor = 0;
       // All structured stages are buffered. Streaming a second, provisional representation before
       // the authoritative JSON is validated caused visible/structured drift and could expose raw
       // internal fields. Clients receive truthful progress followed by one deterministic rendering.
@@ -2118,6 +2378,7 @@ async function callPrimaryTextModelStream(
         });
         clientStreamClosed = true;
         stopHeartbeat();
+        clearTimeout(absoluteDeadlineAbortTimer);
         opts.requestSignal?.removeEventListener("abort", abortFromRequest);
         ctrl.close();
       };
@@ -2231,6 +2492,21 @@ async function callPrimaryTextModelStream(
                   enqueueClient(`\n\n${progressMessages[progressIndex]}`);
                   progressIndex += 1;
                 }
+                // 需求2：按模块顺序反馈。权威 JSON 的顶层模块每写完一个，就推一行结论标题，
+                // 医生因此能一个模块一个模块看到结论落地，而不是盯着「请稍候」等到最后一次性出。
+                // 这里刻意**不**推第二份临床正文——见 diagnosis-stream-modules.ts 顶部关于
+                // 「provisional representation 曾造成 visible/structured drift」的既有决策。
+                // 只推白名单结论标题，且末尾 STREAM_REPLACE_MARKER 会把这些行整段丢弃。
+                if (opts.structuredStage) {
+                  // 每个 delta 都全串扫描是 O(n²)：单阶段输出可达 80k 字符。按增量节流，
+                  // 只在内容显著增长后再扫一次。
+                  if (accumulatedContent.length - moduleScanCursor >= 200) {
+                    moduleScanCursor = accumulatedContent.length;
+                    for (const notice of newModuleNotices(accumulatedContent, emittedModuleKeys)) {
+                      enqueueClient(`\n${sanitizeDiagnoseStreamingDraft(notice)}`);
+                    }
+                  }
+                }
               } else if (opts.structuredStage === "diagnose") {
                 diagnosePreviewBuffer += delta;
                 const structuredStart = diagnosePreviewBuffer.indexOf("<!-- DIAGNOSIS_JSON_START -->");
@@ -2339,6 +2615,7 @@ async function callPrimaryTextModelStream(
           authoritativeContent = reviewed.content;
           structuredReasoning = reviewed.reasoning;
           const review = reviewed.review;
+          if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
           m03DiagnosticReviewStatus = review.status;
           m03DiagnosticReviewReason = m03SemanticReviewReason(review);
           m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -2420,16 +2697,31 @@ async function callPrimaryTextModelStream(
         // safe fallback for content_filter/tool_calls/null terminals.
         const retryableStructuredTerminal = finishReason === "stop" || finishReason === "length";
         let transparentFormulaDeclassificationAccepted = false;
-        if (structuredSentinelIncomplete && retryableStructuredTerminal && opts.structuredStage && !m03OrchestrationDeadlineGate() && !m04OrchestrationDeadlineGate()) {
-          const rejectionReason = opts.structuredStage === "diagnose" && m03DiagnosticReviewStatus === "repair"
-            ? m03DiagnosticReviewReason || "m03_primary_diagnosis_semantic_review"
-            : opts.structuredStage === "prescribe" && initialM04ClinicalReviewRejected
-              ? m04ClinicalReviewReason || "m04_clinical_semantic_review"
-              : structuredRejectionReason(authoritativeContent, opts.structuredStage, finishReason, opts.structuredClinicalContext, opts.structuredPriorReasoning);
+        // 拒绝码与「是否复核驱动」提到条件之前计算，这样同一条合同码的重复注入可以直接并进
+        // 重试门（见 contractRepairedReasons 的说明），而不必在块内再包一层分支。
+        const pendingRejectionReason = structuredSentinelIncomplete && retryableStructuredTerminal && opts.structuredStage
+          ? (opts.structuredStage === "diagnose" && m03DiagnosticReviewStatus === "repair"
+              ? m03DiagnosticReviewReason || "m03_primary_diagnosis_semantic_review"
+              : opts.structuredStage === "prescribe" && initialM04ClinicalReviewRejected
+                ? m04ClinicalReviewReason || "m04_clinical_semantic_review"
+                : structuredRejectionReason(authoritativeContent, opts.structuredStage, finishReason, opts.structuredClinicalContext, opts.structuredPriorReasoning))
+          : undefined;
+        const pendingReviewDriven = (opts.structuredStage === "diagnose" && m03DiagnosticReviewStatus === "repair") ||
+          (opts.structuredStage === "prescribe" && initialM04ClinicalReviewRejected);
+        const pendingRepairIsFixpoint = isRepeatedContractRepair(pendingRejectionReason, pendingReviewDriven);
+        if (pendingRepairIsFixpoint) {
+          console.warn("[tcm-cdss:model] identical contract rejection repeated; skipping repair round", {
+            stage: opts.structuredStage,
+            reason: pendingRejectionReason,
+          });
+        }
+        if (structuredSentinelIncomplete && retryableStructuredTerminal && opts.structuredStage && !pendingRepairIsFixpoint && !m03OrchestrationDeadlineGate() && !m04OrchestrationDeadlineGate()) {
+          const rejectionReason = pendingRejectionReason as string;
+          noteContractRepair(rejectionReason, pendingReviewDriven);
           console.warn("[tcm-cdss:model] structured response rejected; retrying full response", {
             stage: opts.structuredStage,
             reason: rejectionReason,
-            diagnostic: structuredRejectionDiagnostic(authoritativeContent, rejectionReason, opts.structuredClinicalContext),
+            diagnostic: structuredRejectionDiagnostic(authoritativeContent, rejectionReason, opts.structuredClinicalContext, opts.structuredPriorReasoning),
             preNormalizationReason: opts.structuredStage === "diagnose" && resolvedStructuredContent
               ? structuredRejectionReason(resolvedStructuredContent, "diagnose", finishReason, opts.structuredClinicalContext)
               : undefined,
@@ -2535,6 +2827,7 @@ async function callPrimaryTextModelStream(
             resolvedRetryContent = reviewed.content;
             retriedReasoning = reviewed.reasoning;
             const review = reviewed.review;
+            if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
             m03DiagnosticReviewStatus = review.status;
             m03DiagnosticReviewReason = m03SemanticReviewReason(review);
             m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -2598,7 +2891,7 @@ async function callPrimaryTextModelStream(
             console.warn("[tcm-cdss:model] structured retry contract rejected", {
               stage: opts.structuredStage,
               reason: retryRejectionReason,
-              diagnostic: structuredRejectionDiagnostic(resolvedRetryContent || retry.content, retryRejectionReason, opts.structuredClinicalContext),
+              diagnostic: structuredRejectionDiagnostic(resolvedRetryContent || retry.content, retryRejectionReason, opts.structuredClinicalContext, opts.structuredPriorReasoning),
               preNormalizationReason: opts.structuredStage === "diagnose" && referencedRetryContent
                 ? structuredRejectionReason(referencedRetryContent, "diagnose", retry.finishReason, opts.structuredClinicalContext)
                 : undefined,
@@ -2653,7 +2946,26 @@ async function callPrimaryTextModelStream(
                 noteM03QuarantineFixpoint(retryRejectionReason);
               }
               if (targetedM03Retry && m03OrchestrationDeadlineGate()) targetedM03Retry = false;
+              // 与主重试门同一条规则：同一条确定性合同拒绝码不再修第二次。既有的三处定点守卫
+              // 只覆盖复核驱动的路径，纯合同码（如 patient_fact_ungrounded_*、
+              // formula_reference_declassified）此前在这里可以再注入一遍同样的提示。
+              // 复核标志必须按阶段取。此前这里对 M03 和 M04 都传了 M03 的
+              // retriedDiagnosticReviewRejected，于是 M04 的合同拒绝码被误判成「复核驱动」而
+              // 跳过账本——实测一次 prescribe 里 m04_formula_reference_declassified 仍连注两轮，
+              // 最后由 M04 自己那道 identical-guidance 守卫才收住，白烧一轮。
+              const targetedReviewDriven = opts.structuredStage === "prescribe"
+                ? retriedM04ClinicalReviewRejected
+                : retriedDiagnosticReviewRejected;
+              if ((targetedM04Retry || targetedM03Retry) && isRepeatedContractRepair(retryRejectionReason, targetedReviewDriven)) {
+                console.warn("[tcm-cdss:model] identical contract rejection repeated; skipping targeted repair round", {
+                  stage: opts.structuredStage,
+                  reason: retryRejectionReason,
+                });
+                targetedM04Retry = false;
+                targetedM03Retry = false;
+              }
               if (targetedM04Retry || targetedM03Retry) {
+              noteContractRepair(retryRejectionReason, targetedReviewDriven);
               enqueueClient(targetedM04Retry
                 ? "\n\n正在复核候选方药、治法与方剂组成的一致性，请稍候…"
                 : "\n\n正在复核辨病辨证与已录入病历的一致性，请稍候…");
@@ -2723,6 +3035,7 @@ async function callPrimaryTextModelStream(
                 secondResolved = reviewed.content;
                 secondReasoning = reviewed.reasoning;
                 const review = reviewed.review;
+                if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
                 m03DiagnosticReviewStatus = review.status;
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                 m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -2811,6 +3124,9 @@ async function callPrimaryTextModelStream(
                 if (thirdM03Fixpoint) noteM03QuarantineFixpoint(secondRejectionReason);
                 if (
                   !thirdM03Fixpoint &&
+                  // 同一条确定性合同拒绝码不再修第三次。上面的 thirdM03Fixpoint 只覆盖隔离形态，
+                  // patient_fact_ungrounded_* 这类纯合同码走不到它。
+                  !isRepeatedContractRepair(secondRejectionReason, secondDiagnosticReviewRejected) &&
                   opts.structuredStage === "diagnose" &&
                   shouldRunTargetedStructuredRetry("diagnose", secondRejectionReason) &&
                   !upstreamController.signal.aborted &&
@@ -2819,6 +3135,7 @@ async function callPrimaryTextModelStream(
                 ) {
                   enqueueClient("\n\n正在按最新校验结果收束最小病机链，请稍候…");
                   structuredRetryCount += 1;
+                  noteContractRepair(secondRejectionReason, secondDiagnosticReviewRejected);
                   m03LastRepairTriggerReason = secondRejectionReason;
                   m03LastInjectedGuidance = thirdM03Guidance;
                   const thirdRetry = await retryCompletePrimaryResponseWithTransientRecovery(
@@ -2867,6 +3184,7 @@ async function callPrimaryTextModelStream(
                     thirdResolved = reviewed.content;
                     thirdReasoning = reviewed.reasoning;
                     const review = reviewed.review;
+                    if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
                     m03DiagnosticReviewStatus = review.status;
                     m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                     m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -2963,8 +3281,24 @@ async function callPrimaryTextModelStream(
           // preserve the usable prescription as an explicitly self-devised formula. This relaxes
           // formula provenance only; every dose, herb, regimen, grounding and safety contract above
           // must still pass before this branch can run.
+          // 「组成漂移」与「已降级自拟」是同一件事的两种写法：前者是模型保留了方名、后者是模型
+          // 自己剥了名。两者都意味着这张方不能继承该经典身份，都应当以自拟方形态保留已通过全部
+          // 药味级校验的候选，而不是让方名问题放大成整方作废（实测：麻黄汤 4 味小方被加到 9 味，
+          // 组成漂移 → 0 味，而方中每一味的剂量/配伍/君臣/病机引用都是通过的）。
+          //
+          // 因此这里先确定性剥离身份，再用**剥离后的内容**重跑严格合同自证：只有剥离后确实
+          // 不再有任何方剂身份问题、且治法合同通过，才允许受理。剥离不放宽任何检查——
+          // 独立临床复核在下方照常执行，剂量/配伍/特殊人群/审方一条不减。
+          // 剔除必须先于降级判定：降级分支读的是原始 authoritativeContent，而单味剔除发生在
+          // finalizeM04CandidateContent 里。不先剔除，方向未成立的那一味仍在方中，
+          // transparentFormulaTherapyIssue 必然非空，降级随即被拒——两个修复各自正确却没串起来，
+          // 结果依旧 0 味（实测感冒-风寒束表：基准 4/4 达标 + 川芎未剔除 → 降级被拒）。
+          const declassifiedContent = markTransparentFormulaDeclassification(
+            // 降级路径不再声称经典方身份，因此不套用基准保留数（见该参数的说明）。
+            dropUnsupportedM04CandidateHerbs(authoritativeContent, opts.structuredPriorReasoning, false),
+          );
           const transparentReasoning = validatedStructuredReasoning(
-            authoritativeContent,
+            declassifiedContent,
             "prescribe",
             opts.structuredClinicalContext,
             opts.structuredPriorReasoning,
@@ -2983,27 +3317,106 @@ async function callPrimaryTextModelStream(
           const therapyIssue = transparentReasoning
             ? transparentFormulaTherapyIssue(enrichReasoning(transparentReasoning).reasoning, opts.structuredPriorReasoning)
             : "transparent_therapy_contract_missing";
-          if (transparentReasoning && canAcceptTransparentFormulaFallback({
+          const transparentFallbackInput = {
             completedRepairAttempts: m04RepairState.completedAttempts,
+            // fixpoint 早退与编排超时同样意味着 provider 侧机会用尽，与「完成一轮修复」等价。
+            repairExhausted: m04RepairLoopEarlyExit || m04DeadlineExceeded,
             strictFormulaIssue,
             therapyIssue,
             requestAborted: m04RepairState.requestAborted || upstreamController.signal.aborted || opts.requestSignal?.aborted === true,
-          })) {
+          };
+          if (!transparentReasoning || !canAcceptTransparentFormulaFallback(transparentFallbackInput)) {
+            // 降级是 0 味与可用处方之间的最后一道分岔，此前它被拒时完全不可见——只能看到最终
+            // 「未形成处方」。这些字段全是合同码与状态位，不含患者内容。
+            console.warn("[tcm-cdss:model] transparent formula fallback not accepted", {
+              stage: "prescribe",
+              reasoningValidated: Boolean(transparentReasoning),
+              // 验证失败时必须给出**为什么**：只报 false 无法区分是 schema 不合法、安全合同未过，
+              // 还是剥离/剔除后的候选自身有残余缺陷。合同码不含患者内容。
+              declassifiedRejectionReason: transparentReasoning
+                ? "n/a"
+                : structuredRejectionReason(declassifiedContent, "prescribe", finishReason, opts.structuredClinicalContext, opts.structuredPriorReasoning),
+              completedRepairAttempts: transparentFallbackInput.completedRepairAttempts,
+              repairExhausted: transparentFallbackInput.repairExhausted,
+              strictFormulaIssue: strictFormulaIssue || "none",
+              therapyIssue: therapyIssue || "none",
+              requestAborted: transparentFallbackInput.requestAborted,
+            });
+          }
+          if (transparentReasoning && canAcceptTransparentFormulaFallback(transparentFallbackInput)) {
             const transparentReview = await reviewTrackedM04Candidate(
               transparentReasoning,
               m04GeneratorModel,
               "for transparent formula fallback",
             );
+            if (transparentReview.status === "repair") {
+              console.warn("[tcm-cdss:model] transparent formula fallback rejected by clinical review", {
+                stage: "prescribe",
+              });
+            }
             if (transparentReview.status !== "repair") {
               transparentFormulaDeclassificationAccepted = true;
               advisoryM04RiskAccepted = true;
               structuredSentinelIncomplete = false;
-              authoritativeContent = markTransparentFormulaDeclassification(authoritativeContent);
+              authoritativeContent = declassifiedContent;
               console.warn("[tcm-cdss:model] M04 classic identity declassified after repair exhaustion", {
                 stage: "prescribe",
                 completedRepairAttempts: m04RepairState.completedAttempts,
               });
             }
+          }
+        }
+        // M03 的 T2/T3 文档质量码带批注受理（需求语义与 M04 transparent fallback 同构）：
+        // 修复轮耗尽后，若剩余缺陷只是允许受理的文档质量项（tier 表判定）、且 M03 硬安全合同
+        // （m03SafetyContractIssue，独立 T1 子集）完整重跑通过，则解除截断，让候选走完整的
+        // 既有 finalize 管线——确定性归一、**独立临床复核**（复核驳回仍照旧走兜底/救援分支）、
+        // attestation 与合同签名一个不少。医生拿到的是带质量批注的**可执行**签名结果，而不是
+        // 一页「未形成结论」。
+        //
+        // 为什么必须在这里做而不是在渲染层做：实测（月经先期-血热，flash）每一轮都塌在**不同的**
+        // T2/T3 码上——m03_chain_incomplete → m03_sub_therapy_repeats_overall_method →
+        // m03_western_clinical_rationale_restatement——逐码修词表不收敛；而旧的渲染层受理分支
+        // 要求 m03DiagnosticReviewStatus==="accepted"，但合同否决发生在复核之前（not_run），
+        // 该分支在它的目标场景下是死路径，且它渲染的草稿被剥掉了结构化签名载荷，M04 无法继续。
+        let m03QualityAcceptedReason: string | undefined;
+        if (
+          structuredSentinelIncomplete &&
+          finishReason === "stop" &&
+          opts.structuredStage === "diagnose"
+        ) {
+          const tierRejectionReason = structuredRejectionReason(
+            authoritativeContent,
+            "diagnose",
+            finishReason,
+            opts.structuredClinicalContext,
+            opts.structuredPriorReasoning,
+          );
+          const tierReasoning = m03ReasoningFromStructuredContent(authoritativeContent);
+          const tierSafetyIssue = tierReasoning
+            ? (m03SafetyContractIssue(tierReasoning, opts.structuredClinicalContext || "", isSafetyRejection) || "")
+            : "safety_contract_unvalidated";
+          // 充实度的度量对象必须随契约形态走。incompleteM03VisibleDraft 只认 Markdown-first 的
+          // 旧形态，对 JSON-only 响应直接返回 ""（那是刻意的：截断的裸 JSON 不是医生可读草稿）。
+          // 而当前 M03 正是 JSON-only，可见正文由服务端从结构化载荷确定性渲染——于是草稿长度
+          // 恒为 0，受理门槛永远过不去，整条带批注受理在它的目标场景下是死路径
+          //（实测月经先期-血热：T3 码 m03_sub_therapy_repeats_overall_method 反复塌，从未受理）。
+          // JSON-only 时改用结构化载荷体积：该载荷已通过 schema 与 T1 硬安全合同，不可能是空壳，
+          // 且它就是最终渲染成医生正文的那份数据。两者取大，旧形态行为一字不变。
+          const tierDraftLength = Math.max(
+            incompleteM03VisibleDraft(authoritativeContent).length,
+            tierReasoning ? JSON.stringify(tierReasoning).length : 0,
+          );
+          if (tierReasoning && shouldAcceptWithQualityAnnotation({
+            rejectionReason: tierRejectionReason,
+            safetyIssue: tierSafetyIssue,
+            visibleDraftLength: tierDraftLength,
+          }) && qualityAnnotationCopy(tierRejectionReason)) {
+            structuredSentinelIncomplete = false;
+            m03QualityAcceptedReason = tierRejectionReason;
+            console.warn("[tcm-cdss:model] M03 quality-tier acceptance after repair exhaustion", {
+              stage: "diagnose",
+              reason: tierRejectionReason,
+            });
           }
         }
         if (structuredSentinelIncomplete && opts.structuredStage) {
@@ -3062,9 +3475,24 @@ async function callPrimaryTextModelStream(
           }
         }
         const transformOutput = (content: string): { content: string; ok: boolean } => {
-          if (!opts.outputTransform) return { content, ok: true };
           try {
-            return { content: opts.outputTransform(content), ok: true };
+            const transformed = opts.outputTransform ? opts.outputTransform(content) : content;
+            // The route-owned final sanitizer can legitimately remove or rewrite an ungrounded
+            // negative clause after the candidate has already been normalized. That may leave
+            // clinicalRationale pointing at a supporting fact which no longer survives in the
+            // signed payload, causing two expensive repair rounds to collapse an otherwise valid
+            // diagnosis into the generic limited fallback. Re-align only this explanatory
+            // projection from the final surviving fact + already-reviewed diagnosis label, then
+            // run the full contract and attestation rebind below. No diagnosis or patient fact is
+            // added here.
+            return {
+              content: opts.structuredStage === "diagnose"
+                ? alignNormalizedM03TcmDiagnosticRationale(
+                    alignNormalizedM03WesternClinicalRationale(transformed),
+                  )
+                : transformed,
+              ok: true,
+            };
           } catch (error) {
             const message = error instanceof Error ? error.message : "";
             console.warn("[tcm-cdss:model] final output transform rejected", {
@@ -3139,6 +3567,7 @@ async function callPrimaryTextModelStream(
                 transformed.content,
                 finalizedM03RejectionReason,
                 opts.structuredClinicalContext,
+                opts.structuredPriorReasoning,
               ),
             });
             // The customer-output transform runs after the last orchestration repair round, so a
@@ -3201,6 +3630,7 @@ async function callPrimaryTextModelStream(
                 finalizedRetryCandidate = reviewed.content;
                 finalizedRetryReasoning = reviewed.reasoning;
                 const review = reviewed.review;
+                if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
                 m03DiagnosticReviewStatus = review.status;
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                 m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -3303,6 +3733,7 @@ async function callPrimaryTextModelStream(
                   upstreamController.signal,
                   m03GeneratorModel,
                 ));
+                if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
                 m03DiagnosticReviewStatus = review.status;
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                 m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
@@ -3351,9 +3782,18 @@ async function callPrimaryTextModelStream(
             signedContent = applyPrescribeContractSignature(signedContent, signatureContext);
           }
           if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03DiagnosticReviewStatus !== "accepted") {
-            signedContent = `${clinicalReviewUnavailableNotice("diagnose")}\n\n${signedContent}`;
+            signedContent = `${clinicalReviewUnavailableNotice(
+              "diagnose",
+              m03ReviewAdvisoryBoundary ? "quality_concern" : "service_unavailable",
+            )}\n\n${signedContent}`;
           } else if (!truncated && transformed.ok && opts.structuredStage === "prescribe" && m04ClinicalReviewStatus !== "accepted") {
             signedContent = `${clinicalReviewUnavailableNotice("prescribe")}\n\n${signedContent}`;
+          }
+          // 质量批注必须与结果一起呈现：带批注受理的 M03 是完整签名结果，但医生要一眼看到
+          // 「哪一项文档质量项未达标、为什么仍可继续」。批注只加在可见正文最前，不进签名载荷。
+          if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03QualityAcceptedReason) {
+            const annotation = qualityAnnotationCopy(m03QualityAcceptedReason);
+            if (annotation) signedContent = `${annotation}\n\n${signedContent}`;
           }
           if (opts.structuredStage === "diagnose") {
             signedContent = sanitizeDiagnoseStreamingDraft(signedContent);
@@ -3368,7 +3808,7 @@ async function callPrimaryTextModelStream(
           // depth rejection AND a deterministic-contract (preflight) failure to the same
           // *_semantic_review string. Only the former passed grounding; the latter may be fabricated.
           // So salvage ONLY when the accumulated candidate itself re-validates through the full M03
-          // contract (validatedStructuredReasoning → isStableM03Reasoning → m03SemanticIssue==null).
+          // hard-safety contract plus the allowlisted quality-tier map.
           // If it does not re-validate, m03SalvageContractPassed is false → empty fallback as before
           // (no regression, no fabrication leak).
           const m03SalvageContractPassed = opts.structuredStage === "diagnose" && Boolean(
@@ -3393,45 +3833,13 @@ async function callPrimaryTextModelStream(
             /semantic_review/.test(m03DiagnosticReviewReason) &&
             m03SalvageContractPassed &&
             incompleteM03VisibleDraft(accumulatedContent).length >= 80;
-          // Tier-2/3 带批注受理。与上面的 semantic-review salvage 平行、且互斥：
-          // 那一条处理「独立复核否决但确定性合同整体通过」；这一条处理「确定性合同因非安全项否决」。
-          //
-          // 为什么必须重跑 m03SafetyContractIssue 而不能只看拒绝码：m03SemanticIssue 命中第一个问题
-          // 就短路返回，拿到一个 T3 码只证明排在它前面的检查通过了，后面的 T1 检查根本没执行。
-          // shouldAcceptWithQualityAnnotation 在 safetyIssue 未传入时缺省判为不可受理，双重 fail-closed。
-          const m03TierAcceptance = ((): { reason: string; annotation: string } | undefined => {
-            if (opts.structuredStage !== "diagnose") return undefined;
-            // 只在「确定性合同否决」这一条路径上受理；其余终态分支各自的语义保持不变。
-            if (clinicalReviewUnavailableFallback || m03SemanticReviewSalvage || authoritativeFallbackAccepted) return undefined;
-            if (!(truncated || !transformed.ok)) return undefined;
-            // 独立复核明确否决过的结果不走本路径——那属于 semantic-review salvage 的判断范围。
-            if (m03DiagnosticReviewStatus !== "accepted") return undefined;
-            const reasoning = m03ReasoningFromStructuredContent(accumulatedContent);
-            if (!reasoning) return undefined;
-            const rejectionReason = structuredRejectionReason(
-              accumulatedContent,
-              "diagnose",
-              finishReason,
-              opts.structuredClinicalContext,
-              opts.structuredPriorReasoning,
-            );
-            const safetyIssue = m03SafetyContractIssue(
-              reasoning,
-              opts.structuredClinicalContext,
-              isSafetyRejection,
-            ) || "";
-            if (!shouldAcceptWithQualityAnnotation({
-              rejectionReason,
-              safetyIssue,
-              visibleDraftLength: incompleteM03VisibleDraft(accumulatedContent).length,
-            })) return undefined;
-            const annotation = qualityAnnotationCopy(rejectionReason);
-            return annotation ? { reason: rejectionReason, annotation } : undefined;
-          })();
+          // Tier-2/3 带批注受理不在这里渲染：它在 finalize 之前就解除截断
+          //（见上方 m03QualityAcceptedReason 块），让候选走归一→独立复核→attestation→签名的
+          // 完整既有管线，输出的是可执行的签名结果。此处原有的渲染层受理分支已删除——
+          // 它要求 m03DiagnosticReviewStatus==="accepted"，而合同否决发生在复核之前（not_run），
+          // 目标场景下是死路径；且它渲染的草稿被剥掉了结构化签名载荷，M04 无法继续。
           enqueueClient(clinicalReviewUnavailableFallback
             ? `${STREAM_REPLACE_MARKER}${transformed.content}`
-            : m03TierAcceptance
-            ? `${STREAM_REPLACE_MARKER}${m03TierAcceptance.annotation}\n\n${incompleteM03VisibleDraft(accumulatedContent)}\n`
             : m03SemanticReviewSalvage
             ? `${STREAM_REPLACE_MARKER}${visibleIncompleteContent(transformed.content, "semantic_review")}\n\n[TRUNCATED]\n`
             : authoritativeFallbackAccepted
@@ -3441,8 +3849,6 @@ async function callPrimaryTextModelStream(
               : `${STREAM_REPLACE_MARKER}${signedContent}`);
           stageOutcome = clinicalReviewUnavailableFallback
             ? "fallback"
-            : m03TierAcceptance
-            ? "repaired"
             : m03SemanticReviewSalvage
             ? "fallback"
             : authoritativeFallbackAccepted
@@ -3452,8 +3858,6 @@ async function callPrimaryTextModelStream(
               : structuredRetryCount > 0 ? "repaired" : "success";
           stageReasonCode = clinicalReviewUnavailableFallback
             ? "clinical_review_unavailable"
-            : m03TierAcceptance
-            ? `quality_annotated_${m03TierAcceptance.reason}`
             : authoritativeFallbackAccepted
             ? m03SignedLimitedFallbackReasonCode({
                 deadlineExceeded: m03DeadlineExceeded,
@@ -3466,7 +3870,9 @@ async function callPrimaryTextModelStream(
                       repairLoopEarlyExit: m04RepairLoopEarlyExit,
                     })
                   : "final_contract_rejected")
-              : "accepted";
+              : m03QualityAcceptedReason
+                ? `quality_annotated_${m03QualityAcceptedReason}`
+                : "accepted";
         } else if (!truncated && opts.outputTransform) {
           const transformed = transformOutput(authoritativeContent);
           if (!transformed.ok) throw new Error("Final output transform rejected the model response");
@@ -3573,6 +3979,7 @@ async function callPrimaryTextModelStream(
     cancel() {
       clientStreamClosed = true;
       stopClientHeartbeat();
+      clearTimeout(absoluteDeadlineAbortTimer);
       upstreamController.abort();
       opts.requestSignal?.removeEventListener("abort", abortFromRequest);
     },
@@ -3605,7 +4012,7 @@ async function callGlmStream(
   images?: { tongue?: string },
   requestSignal?: AbortSignal,
 ): Promise<Response> {
-  if (process.env.GLM_VISION_ENABLED !== "true") {
+  if (!isTongueVisionEnabled()) {
     return errResponse(503, "舌象图像识别当前未启用，请改用结构化舌象录入");
   }
   const apiKey = process.env.GLM_API_KEY || "";
@@ -3761,8 +4168,12 @@ export async function callDiagnosisStream(
   return callGlmStream(prompt, images, opts.requestSignal);
 }
 
+export function isTongueVisionEnabled(): boolean {
+  return process.env.GLM_VISION_ENABLED !== "false";
+}
+
 export function isTongueVisionConfigured(): boolean {
-  return process.env.GLM_VISION_ENABLED === "true" && Boolean(process.env.GLM_API_KEY);
+  return isTongueVisionEnabled() && Boolean(process.env.GLM_API_KEY);
 }
 
 export type TongueVisionProbeResult = {
@@ -3791,7 +4202,7 @@ export async function probeTongueVisionModel(): Promise<TongueVisionProbeResult>
     return { ...shared, cached: true };
   }
   const run = (async () => {
-    const enabled = process.env.GLM_VISION_ENABLED === "true";
+    const enabled = isTongueVisionEnabled();
     const apiKey = process.env.GLM_API_KEY?.trim() || "";
     const configured = enabled && Boolean(apiKey);
     let ok = !enabled;
@@ -3881,6 +4292,7 @@ export function getDiagnosisProviderStatus() {
       thinkingEnabled: thinkingEnabledForStructuredStage("prescribe"),
       maxTokens: maxTokensForStructuredStage("prescribe"),
       repairModel: modelForStructuredRepair(primary.model, "prescribe"),
+      repairReasoningEffort: reasoningEffortForStructuredRepair("prescribe"),
     },
     diagnoseModel: {
       provider: primary.provider,
@@ -3891,6 +4303,7 @@ export function getDiagnosisProviderStatus() {
       thinkingEnabled: thinkingEnabledForStructuredStage("diagnose"),
       maxTokens: maxTokensForStructuredStage("diagnose"),
       repairModel: modelForStructuredRepair(primary.model, "diagnose"),
+      repairReasoningEffort: reasoningEffortForStructuredRepair("diagnose"),
     },
     clinicalReviewModel: {
       provider: preferredClinicalReview?.provider || "unconfigured",
@@ -3913,8 +4326,10 @@ export function getDiagnosisProviderStatus() {
     tongueVision: {
       provider: "GLM vision",
       model: GLM_VISION_MODEL,
+      enabled: isTongueVisionEnabled(),
       configured: isTongueVisionConfigured(),
-      optional: true,
+      requiredForRelease: isTongueVisionEnabled(),
+      optional: !isTongueVisionEnabled(),
     },
     evidenceAdapter: {
       provider: "EviMed guide, instruction, and literature evidence context",

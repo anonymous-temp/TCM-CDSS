@@ -235,7 +235,21 @@ for (const formula of governedFormulaCatalog.entries) {
     `T8 dose-compilation flag must equal the M04 runtime gate: ${formula.name}`,
   );
 }
-assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["白虎汤"]), ["白虎汤"]);
+// 历史记录（保留以说明取舍变更）：曾二次验真确认所引《北京市中药饮片调剂规程》只出现粳米
+// 药名/应付规则、没有 6～30g 通用边界，白虎汤因此恢复 fail-closed。
+// 2026-08-01 甲方决策改变了前提：系统**不再替医师定量**，改为标注核验级别 + 医师确定用量 +
+// 灵犀审方复核。原判断成立的前提（系统声称自己知道剂量）已不存在，因此白虎汤转为可编译，
+// 粳米在处方里以 unverified_dose 呈现。禁止倒退的那条不变量改由下方分级断言承担：
+// 豁免不得使成分被当作「有药典边界」呈现。
+assert.deepEqual(
+  formulaNamesWithoutExecutableDoseCompilation(["白虎汤"]),
+  [],
+  "剂量豁免层启用后白虎汤可编译；粳米以待核验剂量呈现，用量由医师确定",
+);
+// 古方蜡矾丸含黄蜡(赋形剂)与**雄黄**(医疗用毒性药品目录)。黄蜡属数据缺口、已豁免；
+// 雄黄属监管轴，处方权与专用处方载体不是审方能替代的，因此整方仍不可自动编制剂量。
+// 这正是本次门禁下调的边界：放开数据缺口，不放开监管资格。
+assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["古方蜡矾丸"]), ["古方蜡矾丸"]);
 assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["归脾汤"]), []);
 
 for (const [name, entry] of Object.entries(formulaCatalog.officialClassicFormulas)) {
@@ -280,7 +294,12 @@ assert.equal(guipiCompilation.length, 1, "a governed M03 formula must provide on
 assert.equal(guipiCompilation[0].formulaName, "归脾汤");
 assert.match(guipiCompilation[0].source, /济生/);
 assert.ok(["人参", "黄芪", "白术", "茯苓"].every((name) => guipiCompilation[0].ingredients.includes(name)), "归脾汤 compilation anchor must preserve its canonical core tonic composition");
-assert.equal(guipiCompilation[0].minimumPreservedIngredientCount, 7, "归脾汤 compilation anchor must expose the same 80% preservation threshold enforced after generation");
+// 基准已修订为《校注妇人良方》通行十味（薛己补当归、远志；初出《济生》八味见血统 verification）。
+// 依据：治理条目自身 indications 第 4 句即十味方解（“茯神远志枣仁龙眼补心，当归养血”），而旧
+// ingredients 只收八味初方，模型按教材写十味即组成漂移 declassify——实测 flash 三例锁定命名方
+// 全部降级自拟。80% 保留阈值随之 10×0.8=8。
+assert.ok(["当归", "远志"].every((name) => guipiCompilation[0].ingredients.includes(name)), "归脾汤 compilation anchor must carry the canonical ten-herb 校注妇人良方 composition (当归/远志)");
+assert.equal(guipiCompilation[0].minimumPreservedIngredientCount, 8, "归脾汤 compilation anchor must expose the same 80% preservation threshold enforced after generation");
 assert.ok(guipiCompilation[0].requiredIngredients.includes("白术"), "归脾汤 compilation anchor must expose its identity anchor to the model repair contract");
 const xiaoyaoCompilation = formulaCompilationReferences(["逍遥散"]);
 assert.equal(xiaoyaoCompilation.length, 1, "a governed 逍遥散 must resolve to one controlled 局方 baseline");
@@ -594,13 +613,16 @@ assert.deepEqual(inferredModifiedGuipiJson.formula.candidates[0].formulaNames, [
 const guipiPrior = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaNames: ["归脾汤"], formulaSelectionMode: "single" } };
 assert.equal(formulaCompilationContractIssue(inferredModifiedGuipiJson, guipiPrior), undefined, "the final formula must match the exact governed compilation baseline");
 const preparedGuipi = resolveFormulaSources("归脾汤加减", [
-  ...["白术", "茯苓", "黄芪", "龙眼肉", "人参", "木香"].map((name) => ({ name })),
+  ...["白术", "当归", "茯苓", "黄芪", "龙眼肉", "人参", "木香", "远志"].map((name) => ({ name })),
   { name: "酸枣仁", processing: "捣碎" },
   { name: "甘草", processing: "炙" },
-  { name: "远志" },
 ]);
-assert.match(preparedGuipi[0]?.source || "", /《济生》/, "physical preparation such as crushing must not change the herb identity used for formula provenance");
-assert.equal(preparedGuipi[0]?.matchedIngredientCount, 8, "a separately recorded processed candidate may inherit an unprocessed base-formula identity");
+assert.match(preparedGuipi[0]?.source || "", /校注妇人良方/, "physical preparation such as crushing must not change the herb identity used for formula provenance");
+assert.equal(preparedGuipi[0]?.matchedIngredientCount, 10, "a separately recorded processed candidate may inherit an unprocessed base-formula identity");
+// 血统兼容：目录仍独立收载《济生》卷四八味初方，按初方书写的候选照旧获得身份，不因通行十味
+// 基准入库而失去出处——两个变体各自成立，模型写哪一版都不会被判组成漂移。
+const jishengGuipi = resolveFormulaSources("归脾汤", ["白术", "茯苓", "黄芪", "龙眼肉", "酸枣仁", "人参", "木香", "甘草"].map((name) => ({ name })));
+assert.match(jishengGuipi[0]?.source || "", /济生/, "《济生》卷四八味初方必须保留可追溯身份");
 const processedSuanzaoren = resolveFormulaSources("酸枣仁汤", [
   { name: "酸枣仁", processing: "炒" },
   ...["知母", "茯苓", "川芎", "甘草"].map((name) => ({ name })),
@@ -620,10 +642,15 @@ declassifiedGuipi.formula.candidates[0] = {
   },
 };
 assert.equal(formulaCompilationContractIssue(declassifiedGuipi, guipiPrior), undefined, "a composition that cannot inherit the M03 classic identity must remain usable after transparent self-devised declassification");
+// 本 fixture 的组成与上一行 inferredModifiedGuipiJson 完全相同，而那一行断言它**满足**归脾汤
+// 基准（8/10 ≥ 最低保留 8，另加生姜大枣）。同一份达标组成仅因标签降级就在 provider 阶段被驳回，
+// 会与修复提示的「路径二：放弃方名身份」直接冲突，模型无论走哪条路径都被拒（实测麻黄汤 fixpoint
+// 整方 0 味）。因此达标组成放行；「靠改名自拟绕过组成核验」的防护由文件末尾组成不达标的用例
+// （1/4 无关组成、3/4 低于保留数）继续承担，锚点药与最低保留数门槛一条未减。
 assert.equal(
   formulaCompilationContractIssue(declassifiedGuipi, guipiPrior, false, false),
-  "formula_reference_declassified",
-  "provider validation must request a governed-composition repair before accepting the transparent self-devised fallback",
+  undefined,
+  "a declassified label over a composition that verifiably matches the governed baseline must stay usable",
 );
 const falselyNamedDeclassifiedGuipi = structuredClone(declassifiedGuipi);
 falselyNamedDeclassifiedGuipi.formula.candidates[0].name = "归脾汤加减";
@@ -840,10 +867,22 @@ const descendingPrompt = prescribePromptFor(promptM03Reasoning({
   method: "和胃降逆",
   chain: [["P1", "胃气上逆", "和胃降逆"]],
 }));
-const descendingLine = descendingPrompt.match(/- 理气方向：([^\n]+)/)?.[1] || "";
+// 短名单分两行：君药面按最严口径（含合并功用文本）核验，配伍面按受治理身份口径核验。
+// 温里作用只写在功用文本里的药（乌药/九香虫/刀豆/土木香）只能落到配伍面。
+const descendingLine = descendingPrompt.match(/- 理气方向（君臣佐使均可选）：([^\n]+)/)?.[1] || "";
 assert.ok(descendingLine.includes("佛手"), "the descending shortlist must retain a KB-covered gentle 和胃 herb");
 assert.ok(descendingLine.indexOf("佛手") < descendingLine.indexOf("枳壳"), "a direct 和胃 function hit must rank ahead of a generic common 理气 herb");
 assert.doesNotMatch(descendingLine, /乌药|九香虫|刀豆|土木香/, "M03-unsupported warming herbs must be filtered before emperor selection");
+const descendingCombinationLine = descendingPrompt.match(/- 理气方向（仅可作臣佐使配伍，不得为君）：([^\n]+)/)?.[1] || "";
+assert.match(descendingCombinationLine, /乌药/, "配伍面必须真的接住被君药面挡下的同方向药味——否则这条放宽等于没做");
+assert.ok(
+  !descendingCombinationLine.includes("黄连") && !descendingCombinationLine.includes("附子") && !descendingCombinationLine.includes("大黄"),
+  "配伍面放宽的只是伴随作用，主要方向未成立的清热/温里/攻下药仍须挡下",
+);
+assert.ok(
+  !descendingPrompt.includes("朱砂") && !descendingPrompt.includes("川楝子"),
+  "配伍面是广度备选面，毒性药与 HIGH 特殊人群限制药不得靠充实层次被顺手选中",
+);
 
 const fenghanPrompt = prescribePromptFor(promptM03Reasoning({
   syndrome: "风寒表证",
@@ -873,12 +912,17 @@ for (const [label, needle] of [
   ["repetitive rationale mechanism", "重复引用会产生重复方义"],
   ["therapy-to-herb mapping rule", "治法→药味映射"],
   ["therapy coverage rule", "必须覆盖 M03 therapy.subTherapies 中每个“主要”治法方向"],
-  ["modification bounded count", "可给出0–3条"],
-  ["modification current-fact trigger", "trigger 必须逐字引用 primarySyndromeBasis"],
+  // 需求6：随证加减改成主动给建议。原措辞「可给出0–3条」+「没有合格当前伴随症状时输出空数组即可」
+  // 把模型推向了空数组：既然 trigger 必须是**已记录的当前表现**，那味药就该在主方里，
+  // 于是「加减」这件事在语义上无处安放。改为「针对主方未直接针对的兼症」并要求有兼症就给建议，
+  // 同时保留上限与反编造守卫。下面的断言相应改为检查这两条性质，而不是旧的字面措辞。
+  ["modification bounded count", "1–3条"],
+  ["modification targets uncovered accompanying symptom", "主方未直接针对的兼症"],
+  ["modification must be offered when qualifying symptoms exist", "只要存在合格兼症就必须给出建议"],
+  ["modification current-fact trigger", "trigger 必须逐字引用"],
   ["modification action field", "动作（actionType=add/remove/adjust 加 herbName）"],
-  ["modification reason field", "理由（reason=该加减对应的病机依据）"],
   ["modification risk note field", "风险说明由服务端统一附加，模型不得自行输出"],
-  ["empty modification is valid", "没有合格当前伴随症状时输出空数组即可"],
+  ["no fabricated modification", "不得为了凑加减而编造病历没有的症状"],
 ]) {
   assert.ok(xinmaiPrompt.includes(needle), `M04 prompt must contain ${label}: ${needle}`);
 }
@@ -907,12 +951,12 @@ const shortlistStart = xiaokePrompt.indexOf("【本例治法方向的知识库�
 const shortlistEnd = xiaokePrompt.indexOf("【M04药味可引用病机节点】");
 assert.ok(shortlistStart >= 0 && shortlistEnd > shortlistStart, "M04 prompt must inject the KB-covered herb shortlist for a 消渴/阴虚内热-type case");
 const shortlistSection = xiaokePrompt.slice(shortlistStart, shortlistEnd);
-assert.ok(shortlistSection.includes("- 补阴方向："), "the shortlist must group covered herbs by the 补阴 direction");
-assert.ok(shortlistSection.includes("- 清热方向："), "the shortlist must group covered herbs by the 清热 direction");
+assert.ok(shortlistSection.includes("- 补阴方向（"), "the shortlist must group covered herbs by the 补阴 direction");
+assert.ok(shortlistSection.includes("- 清热方向（"), "the shortlist must group covered herbs by the 清热 direction");
 for (const herb of ["知母", "天花粉"]) {
   assert.ok(shortlistSection.includes(herb), `KB-covered 消渴-direction herb ${herb} must appear in the shortlist`);
 }
-assert.ok(/- 补阴方向：[^\n]*(?:石斛|玉竹|百合|黄精|天冬|女贞子)/.test(shortlistSection), "at least one covered 补阴 herb must appear in the 补阴 group");
+assert.ok(/- 补阴方向（[^\n]*(?:石斛|玉竹|百合|黄精|天冬|女贞子)/.test(shortlistSection), "at least one covered 补阴 herb must appear in the 补阴 group");
 assert.ok(shortlistSection.includes("生地黄"), "生地黄's governed 清热凉血/养阴生津 coverage must make it eligible for the matching direction");
 assert.ok(shortlistSection.includes("麦冬"), "麦冬's 补阴 category now maps to yin_nourish on both sides, so the canonical 养阴 emperor must be offered");
 const commonYinHerbs = tcmKnowledgeCatalog.commonHerbs
@@ -940,8 +984,8 @@ assert.ok(neutralShortlistStart >= 0, "the bounded functional syndrome shape mus
 const neutralShortlistEnd = neutralXiaokePrompt.indexOf("【M04药味可引用病机节点】");
 assert.ok(neutralShortlistEnd > neutralShortlistStart, "the shortlist block must be well-formed for the neutral shape");
 const neutralShortlistSection = neutralXiaokePrompt.slice(neutralShortlistStart, neutralShortlistEnd);
-assert.ok(neutralShortlistSection.includes("- 理气方向："), "调畅气机 must map to the 理气 direction group on the prompt side as it does on the contract side");
-assert.ok(/- 理气方向：[^\n]*(?:陈皮|厚朴|木香|香附|枳壳)/.test(neutralShortlistSection), "the 理气 group must list KB-covered regulating herbs");
+assert.ok(neutralShortlistSection.includes("- 理气方向（"), "调畅气机 must map to the 理气 direction group on the prompt side as it does on the contract side");
+assert.ok(/- 理气方向（[^\n]*(?:陈皮|厚朴|木香|香附|枳壳)/.test(neutralShortlistSection), "the 理气 group must list KB-covered regulating herbs");
 
 const { buildM04ClinicalRepairHint, m04KnowledgeShortlistFromPrompt } = await import("../src/lib/structured-clinical-repair.ts");
 const repairedPromptShortlist = m04KnowledgeShortlistFromPrompt(piweiPrompt);
@@ -1009,3 +1053,99 @@ for (const item of classicEvidenceItems) {
 }
 
 console.log(JSON.stringify({ cases: 328, classicEvidencePerCandidate: classicEvidenceItems.length, failures: 0 }));
+
+// ─── 降级标签 + 组成实测达标：放行而非驳回 ──────────────────────────────────────
+// 类问题：修复提示给模型两条合法路径（采用基准组成／放弃方名身份），但 provider 验证阶段对
+// 路径二无条件返回 formula_reference_declassified，模型无论走哪条都被拒 → identical-guidance
+// fixpoint → 整方 0 味。实测（感冒-风寒束表，M03 锁麻黄汤，flash）：第一轮 compositionDiff
+// 麻黄汤(1/4≥4 缺:麻黄、桂枝、杏仁) 正确驳回；第二轮改出完整四味并按提示降级标签，仍被驳回。
+// 方名身份归服务端裁定：基准核验由服务端自己跑通时应放行并在渲染阶段确定性补回方名/出处。
+{
+  const priorMahuang = { schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose", overview: { recommendedFormulaNames: ["麻黄汤"], formulaSelectionMode: "single" } };
+  const declassifiedCandidate = (herbNames) => ({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{
+      name: "本例辨证组方", constructionType: "self_devised", formulaNames: [], modificationStatus: "modified",
+      herbs: herbNames.map((name) => ({ name, dose: "9g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1" })),
+    }] },
+  });
+  assert.equal(
+    formulaCompilationContractIssue(declassifiedCandidate(["麻黄", "桂枝", "杏仁", "甘草"]), priorMahuang, false, false),
+    undefined,
+    "降级标签但组成实测满足锁定基准时必须放行——服务端自己核验出的身份比模型声称的更可靠",
+  );
+  assert.equal(
+    formulaCompilationContractIssue(declassifiedCandidate(["麻黄", "桂枝", "杏仁", "甘草", "生姜"]), priorMahuang, false, false),
+    undefined,
+    "基准齐全 + 有依据加减仍应放行",
+  );
+  assert.equal(
+    formulaCompilationContractIssue(declassifiedCandidate(["甘草", "川芎", "荆芥", "防风"]), priorMahuang, false, false),
+    "formula_reference_declassified",
+    "组成与基准无关时照旧驳回——放行条件是核验通过，不是标签形态",
+  );
+  assert.equal(
+    formulaCompilationContractIssue(declassifiedCandidate(["麻黄", "杏仁", "甘草"]), priorMahuang, false, false),
+    "formula_reference_declassified",
+    "低于最低保留数（麻黄汤 4/4）照旧驳回，锚点药与保留数门槛一条未减",
+  );
+}
+
+// ─── 剂量豁免层：不阻断出方，但必须如实分级 ─────────────────────────────────
+// 甲方 2026-08-01 决策：降低门禁、由灵犀审方兜底。此前 fail-closed 的代价是
+// 1352/2915 的受控方一旦被 M03 锁定就只能返回非剂量结果，医生连自拟方都拿不到。
+// 责任不是消失而是移交：系统不替医师定量，改为标注核验级别 + 医师确定 + 审方复核。
+// 因此这里钉住三件事：①目录与运行时同口径；②豁免不是免检——分级必须如实；
+// ③管制毒性与法律禁用成分仍按最高级别标注（它们的问题不是「算不出量」而是「谁有资格开」）。
+{
+  const { clinicianDoseHerbClass } = await import("../src/lib/tcm-knowledge.ts");
+  const policy = JSON.parse(readFileSync(new URL("../src/data/tcm-herb-dose-clinician-policy.source.json", import.meta.url), "utf8"));
+  const catalog = JSON.parse(readFileSync(new URL("../src/data/tcm-formula-governed-catalog.json", import.meta.url), "utf8"));
+  // ① 目录与运行时同口径：分叉会让 M04 拿到自相矛盾的基准。
+  for (const name of ["镇肝熄风汤", "黄连阿胶汤", "白虎汤", "归脾汤"]) {
+    const row = catalog.entries.find((entry) => entry.name === name);
+    assert.ok(row?.doseCompilationEligible, `${name} 目录侧应可编译（数据缺口类已豁免）`);
+    assert.ok(executableFormulaCompilationReferences([name]).length > 0,
+      `${name} 运行时必须与目录同口径`);
+  }
+  // 监管轴两侧同样必须一致地保持阻断。
+  for (const name of ["天王补心丹", "古方蜡矾丸"]) {
+    const row = catalog.entries.find((entry) => entry.name === name);
+    assert.equal(row?.doseCompilationEligible, false,
+      `${name} 含管制毒性成分，目录侧必须保持阻断`);
+    assert.equal(executableFormulaCompilationReferences([name]).length, 0,
+      `${name} 运行时必须与目录同口径地阻断`);
+  }
+  // ② 分级如实：三类成分各自归位。
+  assert.equal(clinicianDoseHerbClass("朱砂"), "controlled_or_toxic");
+  assert.equal(clinicianDoseHerbClass("雄黄"), "controlled_or_toxic");
+  assert.equal(clinicianDoseHerbClass("麝香"), "endangered_or_banned");
+  assert.equal(clinicianDoseHerbClass("犀角"), "endangered_or_banned");
+  assert.equal(clinicianDoseHerbClass("龙骨"), "pharmacopoeia_not_listed");
+  assert.equal(clinicianDoseHerbClass("粳米"), "food_or_vehicle");
+  // 有法定药典边界的常用药不得被误归入豁免层——那会让它们的剂量校验被跳过。
+  for (const name of ["黄芪", "当归", "柴胡", "白芍", "甘草"]) {
+    assert.equal(clinicianDoseHerbClass(name), undefined,
+      `${name} 有药典剂量边界，不得进入豁免层（否则其剂量校验会被跳过）`);
+  }
+  // ③ HIS 载荷侧必须把管制/禁用成分升到 toxic_regulated。
+  const hisSource = readFileSync(new URL("../src/lib/his-scheme.ts", import.meta.url), "utf8");
+  assert.match(hisSource, /clinicianDoseTier\(herb\.name\)/,
+    "HIS 载荷必须对豁免成分标注核验级别，否则医生看到的是所有药味同等可信的处方");
+  assert.match(hisSource, /clinicianClass === "controlled_or_toxic" \|\| clinicianClass === "endangered_or_banned"\s*\n?\s*\? "toxic_regulated"/,
+    "管制毒性与法律禁用动物药必须标为 toxic_regulated");
+  // 政策表：数据缺口类已豁免，监管轴两类必须保持阻断——这条分界不得被后续改动抹平。
+  const REGULATORY = new Set(["controlled_or_toxic", "endangered_or_banned"]);
+  for (const [name, rule] of Object.entries(policy.policies)) {
+    assert.equal(rule.blocksDoseCompilation, REGULATORY.has(name),
+      REGULATORY.has(name)
+        ? `${name} 的门槛来自法规（处方权/专用处方载体/法律禁用），审方兜底替代不了，必须保持阻断`
+        : `${name} 属数据缺口类，应已转为不阻断`);
+    assert.ok(rule.verificationTier, `${name} 必须声明其处方核验级别`);
+  }
+  // 运行时豁免查询必须排除监管两类，否则数据表的分界形同虚设。
+  const kbSource = readFileSync(new URL("../src/lib/tcm-knowledge.ts", import.meta.url), "utf8");
+  assert.match(kbSource, /REGULATORY_BLOCKED_CLASSES/,
+    "运行时豁免必须显式排除监管轴类别");
+  assert.ok(policy.decisionRecord, "豁免是产品决策，必须在数据表里留下决策记录与代价说明");
+}

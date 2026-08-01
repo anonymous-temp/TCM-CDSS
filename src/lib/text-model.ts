@@ -71,7 +71,7 @@ function getOpenAICompatibleConfig(): TextModelConfig {
 
   const resolvedBaseUrl = cleanBaseUrl(baseUrl.value || "https://api.deepseek.com");
   const transportAllowed = endpointTransportAllowed(resolvedBaseUrl);
-  const resolvedModel = model.value || "deepseek-v4-pro";
+  const resolvedModel = model.value || "deepseek-v4-flash";
   const allowedHosts = new Set([
     "api.deepseek.com",
     ...(process.env.CDSS_DEEPSEEK_ALLOWED_HOSTS || "")

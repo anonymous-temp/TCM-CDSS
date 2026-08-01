@@ -168,6 +168,27 @@ export function clinicalOutputSurface(id: string): ClinicalOutputSurface | undef
   return OUTPUT_REGISTRY.surfaces.find((surface) => surface.id === id);
 }
 
+/**
+ * 把 T11 输出契约登记表的 surface.sectionOrder 解析成一个 CSS flex `order` 数值。
+ *
+ * 语义与 DiagnosisClient 里原有的本地闭包完全一致（index*10 + offset、多 id 取最小索引、
+ * 不在该 surface 内时回落到 sectionOrder.length），提到 lib 只是为了让「某模块必须排在另一个
+ * 模块之前」这条不变量能被确定性单测锁死，而不是靠源码正则或人眼在 e2e 里发现顺序回退。
+ * 修改这里等于修改所有 SchemeSection 的视觉顺序——不得改动 index*10+offset 与 Math.min 语义。
+ */
+export function governedSectionOrderValue(
+  sectionOrder: readonly string[],
+  contractIds: string | readonly string[],
+  offset = 0,
+): number {
+  const ids: readonly string[] = typeof contractIds === "string" ? [contractIds] : contractIds;
+  const indexes = ids
+    .map((id) => sectionOrder.indexOf(id))
+    .filter((index) => index >= 0);
+  const index = indexes.length > 0 ? Math.min(...indexes) : sectionOrder.length;
+  return index * 10 + offset;
+}
+
 export function buildThreePartLimitedStateCopy(input: {
   knownFacts: string;
   unavailableConclusion: string;

@@ -1,4 +1,4 @@
-// 缺字药名 LLM 修复器（v4 flash，构建期）：逐方给出 源段原文+缺字组成,修复单字药名。
+// 缺字药名 LLM 修复器（v4 pro，构建期）：逐方给出 源段原文+缺字组成,修复单字药名。
 // 证据纪律:修复结果必须 a) 原文支持(evidence=text,全名或其长形出现在源段) 或
 // b) 该方通行组成知识(evidence=canonical,标注备查)——两都不占进复核队列,绝不猜。
 // 真单字物料(盐/酒/醋/蜜/茶/葱/蜡/墨)按通行名归一(食盐/黄酒/米醋/蜂蜜/茶叶/葱白/蜂蜡/京墨)。
@@ -14,6 +14,12 @@ const OUTDIR = resolve(ROOT, "artifacts/corrupt-herb-repair");
 const OUTFILE = process.env.OUTFILE || "repairs.json";
 const KEY = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
 if (!KEY) throw new Error("DEEPSEEK_API_KEY or OPENAI_API_KEY required");
+const BASE_URL = String(
+  process.env.DEEPSEEK_API_KEY
+    ? (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com")
+    : (process.env.OPENAI_BASE_URL || "https://api.deepseek.com"),
+).replace(/\/+$/, "");
+const MODEL = process.env.CORRUPT_HERB_REPAIR_MODEL || "deepseek-v4-pro";
 const CONC = Number(process.argv[2] || 4);
 const PACK = Number(process.env.PACK || 10);
 
@@ -28,13 +34,17 @@ const SYSTEM = `你是中医古籍 OCR 缺字修复师。输入若干首方剂�
 要求:只输出 JSON 数组;to 必须是完整规范药名(≥2字,物料归一除外);宁进 unrepairable 也不猜。`;
 
 async function callApi(user, attempt = 0) {
-  const res = await fetch("https://api.deepseek.com/chat/completions", {
+  const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${KEY}` },
     body: JSON.stringify({
-      model: "deepseek-v4-flash",
+      model: MODEL,
       messages: [{ role: "system", content: SYSTEM }, { role: "user", content: user }],
-      temperature: 0, max_tokens: 3500, thinking: { type: "disabled" }, stream: false,
+      temperature: 0,
+      max_tokens: 5000,
+      reasoning_effort: "high",
+      thinking: { type: "enabled" },
+      stream: false,
     }),
   });
   if (res.status === 429 && attempt < 4) {

@@ -17,6 +17,7 @@ import {
   getControlledTerminologyNormalizationStatus,
   probeControlledTerminologyModel,
 } from "@/lib/controlled-semantic-normalization.server";
+import { getSyndromeHypothesisRerankStatus } from "@/lib/syndrome-hypothesis-rerank.server";
 
 export async function GET(req: Request) {
   const strictProbe = new URL(req.url).searchParams.get("strict") === "1";
@@ -54,6 +55,10 @@ export async function GET(req: Request) {
   const controlledTerminologyReady = controlledTerminology.enabled &&
     controlledTerminology.model.configured &&
     (!strictProbe || controlledTerminologyProbe?.ok === true);
+  const syndromeHypothesisRerank = getSyndromeHypothesisRerankStatus();
+  const syndromeHypothesisRerankReady = syndromeHypothesisRerank.enabled &&
+    syndromeHypothesisRerank.configured &&
+    (!strictProbe || controlledTerminologyProbe?.ok === true);
   const evidenceMissing = externalEvidence.sources
     .filter((source) => source.requiredForRelease && !source.configured)
     .map((source) => `evidence_${source.kind}_not_configured`);
@@ -65,13 +70,19 @@ export async function GET(req: Request) {
   // optional property instead of being misrepresented as the only form of independent review.
   const clinicalReviewConfigured = providers.clinicalReviewModel.configured && providers.clinicalReviewModel.independentInvocation;
   const clinicalReviewAvailable = !strictProbe || clinicalReviewProbe?.ok === true;
-  const tongueVisionRequired = providers.tongueVision.configured;
-  const tongueVisionAvailable = !strictProbe || !tongueVisionRequired || tongueVisionProbe?.ok === true;
+  const tongueVisionRequired = providers.tongueVision.enabled;
+  const tongueVisionAvailable = !tongueVisionRequired || (
+    providers.tongueVision.configured &&
+    (!strictProbe || tongueVisionProbe?.ok === true)
+  );
   const degradedReasons = [
     ...(!providers.primaryModel.configured ? ["primary_model_not_configured"] : []),
     ...(!clinicalReviewConfigured ? ["independent_clinical_reviewer_not_configured"] : []),
     ...(strictProbe && !clinicalReviewAvailable ? ["independent_clinical_reviewer_unavailable"] : []),
-    ...(strictProbe && tongueVisionRequired && !tongueVisionAvailable ? [`tongue_vision_${tongueVisionProbe?.reason || "unavailable"}`] : []),
+    ...(tongueVisionRequired && !providers.tongueVision.configured ? ["tongue_vision_api_key_not_configured"] : []),
+    ...(strictProbe && tongueVisionRequired && providers.tongueVision.configured && !tongueVisionAvailable
+      ? [`tongue_vision_${tongueVisionProbe?.reason || "unavailable"}`]
+      : []),
     ...evidenceMissing,
     ...evidenceUnavailable,
     ...(!rxAudit.enabled ? [rxAudit.disabledReason || "rxaudit_disabled"] : []),
@@ -95,10 +106,12 @@ export async function GET(req: Request) {
     ...(strictProbe && controlledTerminology.enabled && !controlledTerminologyProbe?.ok
       ? [`controlled_terminology_${controlledTerminologyProbe?.reason || "unavailable"}`]
       : []),
+    ...(!syndromeHypothesisRerank.enabled ? ["syndrome_hypothesis_rerank_disabled"] : []),
+    ...(!syndromeHypothesisRerank.configured ? ["syndrome_hypothesis_rerank_model_not_configured"] : []),
   ];
   // RxAudit remains advisory for an individual clinical decision, but a release advertised as the
   // complete M01-M05 product is not healthy when its configured audit sidecar is unreachable.
-  const strictReady = providers.primaryModel.configured && clinicalReviewConfigured && clinicalReviewAvailable && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && controlledTerminologyReady;
+  const strictReady = providers.primaryModel.configured && clinicalReviewConfigured && clinicalReviewAvailable && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && controlledTerminologyReady && syndromeHypothesisRerankReady;
 
   const body = {
     module: "tcm-cdss",
@@ -108,6 +121,7 @@ export async function GET(req: Request) {
     strictReady,
     degradedReasons,
     providers,
+    syndromeHypothesisRerank,
     ...(tongueVisionProbe ? { tongueVisionProbe } : {}),
     ...(clinicalReviewProbe ? { clinicalReviewProbe } : {}),
     knowledge: getTcmKnowledgeStatus(),

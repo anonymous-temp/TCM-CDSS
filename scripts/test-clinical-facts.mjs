@@ -7,6 +7,7 @@ import {
   parseClinicalFacts,
   groundClinicalFacts,
   additiveRedFlagsFromFacts,
+  structuredRedFlagEvidenceFromFacts,
   priorityEvaluationItemsFromFacts,
   semanticTriageAdvisoriesFromFacts,
   extractClinicalFacts,
@@ -44,10 +45,14 @@ ok("组合升级: 多条逐字证据可形成 additive-only 的可解释语义�
   });
   const grounded = parsed && groundClinicalFacts(parsed, source);
   const message = parsed ? additiveRedFlagsFromFacts(parsed, source, [])[0] || "" : "";
+  const evidence = parsed ? structuredRedFlagEvidenceFromFacts(parsed, source)[0] : undefined;
   return grounded?.redFlags[0]?.urgency === "emergency" &&
     grounded.redFlags[0].escalationEvidenceQuotes?.length === 3 &&
-    /组合升级依据/.test(message) &&
-    /突发胸痛/.test(message) && /大汗/.test(message) && /濒死感/.test(message);
+    !/组合升级依据|原文依据|逐字证据|[（(]/.test(message) &&
+    evidence?.sourceQuote === "突发胸痛" &&
+    evidence.evidenceQuotes.length === 3 &&
+    evidence.evidenceQuotes.includes("大汗") &&
+    evidence.evidenceQuotes.includes("濒死感");
 })());
 ok("组合升级: 任一组合证据未逐字落地时不得保留模型的 emergency 升级权限", (() => {
   const source = "1小时前突发胸痛，同时大汗。";

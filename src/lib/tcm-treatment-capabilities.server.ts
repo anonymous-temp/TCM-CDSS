@@ -653,7 +653,7 @@ export function applyTcmTreatmentCapabilityPriority(
       emotion: "",
       acupointCare: null,
       tcmTreatments: [],
-      monitoring: [],
+      precautions: [],
     };
     reasoning.nonPharma.tcmTreatments = recommendations;
     reasoning.nonPharma.acupointCare = null;

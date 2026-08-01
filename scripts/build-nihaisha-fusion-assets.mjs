@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
-import { createReadStream, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { crossCheckFusionAssets } from "./ingest/cross-check-fusion-assets.mjs";
 import { buildDiagnosticRuleAsset } from "./ingest/diagnostic-rule-parser.mjs";
 import { buildFormulaRuleAssets } from "./ingest/formula-rule-parser.mjs";
+import { compileFormulaMentionMatcher } from "./lib/formula-mention-hits.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const nishiRoot = resolve(root, "参考/nihaisha-nishi-tcm-main");
@@ -178,6 +179,42 @@ const parsedFormulaAssets = buildFormulaRuleAssets({
 });
 const formulaAliases = parsedFormulaAssets.formulaAliases;
 const formulaDiscriminationGraph = parsedFormulaAssets.formulaDiscriminationGraph;
+// T14 鉴别图谱治理扩展并入（与温病规则同通道：受控源文件 + 构建期合并，不手改产物）。
+// 既有 61 节点/77 边全部出自参考仓六经素材，时方/温病/补益等高频方族没有鉴别轨道；
+// 扩展经 ADJ-20260727-T14-GRAPH-EXPANSION 裁定，续编 T14-NODE-###/T14-### 合并。
+const graphExtensionsPath = resolve(root, "src/data/tcm-formula-discrimination-extensions.source.json");
+if (existsSync(graphExtensionsPath)) {
+  const graphExtensions = JSON.parse(readFileSync(graphExtensionsPath, "utf8"));
+  const maxSeq = (ids, pattern) => ids.reduce((max, id) => {
+    const match = pattern.exec(id);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0);
+  const nodeIds = new Set(formulaDiscriminationGraph.nodes.map((node) => node.id));
+  const nodeNames = new Set(formulaDiscriminationGraph.nodes.map((node) => node.formulaName));
+  let nodeSeq = maxSeq([...nodeIds], /^T14-NODE-(\d+)$/);
+  for (const node of graphExtensions.nodes || []) {
+    if (nodeNames.has(node.formulaName)) continue;
+    nodeSeq += 1;
+    const id = `T14-NODE-${String(nodeSeq).padStart(3, "0")}`;
+    if (nodeIds.has(id)) throw new Error(`鉴别图谱扩展节点 id 冲突：${id}`);
+    formulaDiscriminationGraph.nodes.push({ id, sixChannelSection: "时方温病方族扩展", ...node });
+    nodeNames.add(node.formulaName);
+    nodeIds.add(id);
+  }
+  const edgeIds = new Set(formulaDiscriminationGraph.edges.map((edge) => edge.id));
+  const edgePairs = new Set(formulaDiscriminationGraph.edges.map((edge) => [edge.from, edge.to].sort().join("↔")));
+  let edgeSeq = maxSeq([...edgeIds], /^T14-(\d+)$/);
+  for (const edge of graphExtensions.edges || []) {
+    const pair = [edge.from, edge.to].sort().join("↔");
+    if (edgePairs.has(pair)) continue;
+    edgeSeq += 1;
+    const id = `T14-${String(edgeSeq).padStart(3, "0")}`;
+    if (edgeIds.has(id)) throw new Error(`鉴别图谱扩展边 id 冲突：${id}`);
+    formulaDiscriminationGraph.edges.push({ id, ...edge });
+    edgePairs.add(pair);
+    edgeIds.add(id);
+  }
+}
 const differentiationRules = buildDiagnosticRuleAsset({
   seed: differentiationRulesSeed,
   symptomMarkdown: symptomIndexMarkdown,
@@ -185,6 +222,26 @@ const differentiationRules = buildDiagnosticRuleAsset({
   sixChannelMarkdown,
   stableMarkdown: stableSkillMarkdown,
 });
+// 温病轨道并入。参考仓（six-channel.md 等）只有六经素材，没有对标的温病结构化源，
+// 因此温病规则以受控源文件形式维护在 src/data/，在这里合并——**产物仍由生成器产出**，
+// 不手改 tcm-differentiation-rules.json。
+// 此前 53 条规则全是六经维度，温病轨道为 0；而规则经 rankedDifferentiationRules 取 top-4
+// 注入 M03/M04 提示词，缺轨道意味着湿温类病例模型没有推理轨道可走，只能靠检索结果猜。
+const warmDiseaseRules = JSON.parse(readFileSync(resolve(root, "src/data/tcm-warm-disease-rules.source.json"), "utf8"));
+const warmDiseaseIds = new Set(warmDiseaseRules.rules.map((rule) => rule.id));
+if (warmDiseaseIds.size !== warmDiseaseRules.rules.length) {
+  throw new Error("温病规则源存在重复 id");
+}
+for (const rule of differentiationRules.rules) {
+  if (warmDiseaseIds.has(rule.id)) throw new Error(`温病规则 id 与既有规则冲突：${rule.id}`);
+}
+// groundingExcerpt 只是治理留痕，不进运行时资产——运行时只认 T13 规则契约的字段。
+differentiationRules.rules.push(...warmDiseaseRules.rules.map((rule) => {
+  const runtimeRule = { ...rule };
+  delete runtimeRule.groundingExcerpt;
+  return runtimeRule;
+}));
+differentiationRules.warmDiseaseDimensions = ["卫分", "气分", "营分", "血分", "湿热"];
 const fusionCoverage = crossCheckFusionAssets({
   differentiationRules,
   formulaDiscriminationGraph,
@@ -983,7 +1040,7 @@ const cleanExcerpt = (text, length = 260) => text
   .trim()
   .slice(0, length);
 
-const formulaHits = (text) => formulaNames.filter((name) => text.includes(name)).slice(0, 12);
+const formulaHits = compileFormulaMentionMatcher(formulaNames, 12);
 const patternHits = (text) => [
   "太阳", "少阳", "阳明", "太阴", "少阴", "厥阴", "表证", "里证", "寒证", "热证",
   "虚证", "实证", "气虚", "血虚", "阴虚", "阳虚", "痰饮", "水饮", "瘀血", "湿热",
@@ -1134,8 +1191,9 @@ const textualModificationRules = {
   entries: textualModificationSeeds.flatMap((seed) => {
     const evidenceCandidates = evidenceRows.filter((row) =>
       row.safetyClass !== "quarantine" &&
-      row.formulas.includes(seed.baseFormula) &&
-      (!seed.sourceEvidenceId || row.evidenceId === seed.sourceEvidenceId) &&
+      (seed.sourceEvidenceId
+        ? row.evidenceId === seed.sourceEvidenceId
+        : row.formulas.includes(seed.baseFormula)) &&
       seed.evidencePattern.test(row.text));
     const evidence = evidenceCandidates
       .sort((left, right) => {
@@ -1183,9 +1241,14 @@ if (
   textualModificationRules.summary.sourceAnchoredRuleCount !== textualModificationRules.entries.length ||
   textualModificationRules.entries.filter((item) => item.baseFormula === "归脾汤").length < 4
 ) {
+  const emittedRuleIds = new Set(textualModificationRules.entries.map((item) => item.id));
+  const missingRuleIds = textualModificationSeeds
+    .filter((item) => !emittedRuleIds.has(item.id))
+    .map((item) => item.id);
   throw new Error(
     `T14 textual modification source gate failed: rules=${textualModificationRules.entries.length}, ` +
-    `coverage=${textualModificationRules.summary.coveredBaseFormulaCount}/${textualModificationTargetFormulaNames.length}`,
+    `coverage=${textualModificationRules.summary.coveredBaseFormulaCount}/${textualModificationTargetFormulaNames.length}, ` +
+    `missing=${missingRuleIds.join(",")}`,
   );
 }
 
@@ -1292,7 +1355,20 @@ const moduleCases = stableYianMarkdown.split(/(?=^###\s+医案\d+)/m).flatMap((b
     tier: "experience",
   }];
 });
-const t16Cases = [...fileCases, ...moduleCases];
+// Generated corpus governance belongs in the generator, never as a hand edit to the JSON output.
+// This source case's distilled replay input drops the decisive diabetes/postoperative-bleeding
+// context and points at 附子汤 although the source is a 芍药甘草附子汤 case.
+const caseReplayGovernance = new Map([
+  ["T16-06_other-54", {
+    replayEligible: false,
+    dataQualityNote:
+      "回放输入(失眠、苔黄)与期望方(附子汤)临床方向矛盾：源案为芍药甘草附子汤症(糖尿病/术后出血)，distill 元数据映射为附子汤，且芍药甘草附子汤不在受控目录；回放输入抽取丢失关键事实，暂不可用于治理回放。待构建器修复 safeReplayInput 后恢复。",
+  }],
+]);
+const t16Cases = [...fileCases, ...moduleCases].map((item) => ({
+  ...item,
+  ...(caseReplayGovernance.get(item.caseId) || {}),
+}));
 const t16CaseCorpus = {
   schemaVersion: "tcm-classic-case-eval-corpus-v2",
   evaluationOnly: true,
@@ -1320,7 +1396,7 @@ const classicRuntime = {
 
 const manifest = {
   schemaVersion: "nihaisha-fusion-manifest-v1",
-  generatedAt: "2026-07-23",
+  generatedAt: new Date().toISOString().slice(0, 10),
   sources: [
     {
       path: "参考/nihaisha-nishi-tcm-main/references/pdf-evidence/evidence-cards.jsonl",

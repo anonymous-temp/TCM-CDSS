@@ -2,7 +2,7 @@ import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
 import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
-import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import {
   compositionLogicForFormulaNames,
@@ -460,11 +460,15 @@ export function formulaCompilationReferences(names: string[]): FormulaCompilatio
   });
 }
 
+
 export function executableFormulaCompilationReferences(names: string[]): FormulaCompilationReference[] {
   return formulaCompilationReferences(names).filter((reference) => {
     const governed = governedFormulaCompilationRow(reference.formulaName);
     if (!governed?.doseCompilationEligible) return false;
     return reference.ingredients.every((name) => {
+    // 「由医师确定用量」类成分不阻断整方编译（甲方决策：降低门禁、审方兜底）。
+    // 它们在处方里按类别标注核验级别，用量由医师确定；系统不替它们担保剂量。
+    if (isClinicianDoseHerb(name)) return true;
     const resolution = resolveGovernedTcmHerbIdentity(name);
     const doseIdentity = resolution.doseCanonicalName || resolution.canonicalName || name;
     const limit = getTcmHerbDoseLimit(doseIdentity);
@@ -513,6 +517,21 @@ export function formulaCompilationContractIssue(
     candidate.constructionType === "self_devised" &&
     /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(candidate.name.trim());
   if (declassifiedSelfDevised) {
+    // 组成实测满足 M03 锁定基准时，这不是「冒用方名」也不是「组成不符」，只是模型把标签写保守了。
+    // 此时驳回是自相矛盾的：修复提示明写两条路径（采用基准组成／放弃方名身份），而这里对路径二
+    // 无条件返回 declassified，等于模型无论走哪条都被拒 —— 实测（感冒-风寒束表，M03 锁麻黄汤）
+    // 第一轮 1/4 组成不符被正确驳回，第二轮改出完整麻黄汤四味并按提示降级标签，仍被判
+    // declassified，随即 identical-guidance fixpoint，整方 0 味。
+    //
+    // 方名身份本就归服务端裁定（enforceRetrievedM03FormulaSelection / applyDeterministicFormulaReferences
+    // 都在做同一件事）：既然基准组成核验由服务端自己跑通，这份身份比模型声称的更可靠，
+    // 应当放行并在渲染阶段确定性补回方名与出处，而不是丢弃一张正确的方。
+    // 边界未放宽：核验仍走同一个 verifyFormulaCompilationComponent（锚点药、最低保留数、
+    // 合方/加减语义一条不减）；核验不通过时行为与此前完全一致。
+    const declassifiedButMatchesBaseline = references.length > 0 &&
+      references.every((reference) =>
+        verifyFormulaCompilationComponent(reference, candidate.herbs, mode === "combined", true).verified);
+    if (declassifiedButMatchesBaseline) return undefined;
     // Provider generation gets a chance to honour an M03-governed classic baseline. Transparent
     // declassification remains a valid final safety fallback, but accepting it during provider
     // validation would suppress the targeted composition repair entirely.
@@ -604,6 +623,83 @@ export function withDeterministicFormulaReferences(reasoning: ClinicalReasoningR
     };
   }
   return reasoning;
+}
+
+/**
+ * 服务端确定性恢复被模型丢弃的命名方身份。
+ *
+ * 问题的类：M03 锁定了命名方，M04 生成的药味**确定性地满足**该方基准（服务端自己能核验），
+ * 但模型把 candidate.name 写成了「本例辨证组方」——formulaNames 由 name 派生，于是为空，
+ * formulaCompilationContractIssue 判 formula_reference_declassified，触发修复；修复提示要求
+ * 「沿用方名」或「显式改自拟」二选一，模型再次选自拟，构成 fixpoint，整方降级 0 味。
+ *
+ * 实测（感冒-风寒束表证，flash）：M03 锁定麻黄汤，第二轮修复后的候选 6 味含麻黄汤全部 4 味
+ * （compositionDiff 麻黄汤 4/4≥4，组成完全合规），仍因方名缺失被判 declassified 并最终 0 味。
+ * 医生看到的是一页「无法形成处方」，而系统手里其实握着一张组成合规的麻黄汤加减。
+ *
+ * 这不是放宽任何检查，而是把一个**服务端已知的确定性事实**（基准组成 ⊆ 候选组成）落到字段上：
+ *   · 方名与证候的关系由 M03 的 positiveSufficiency 核验，本函数不做证候判断；
+ *   · 组成是否满足基准由 verifyFormulaCompilationComponents 核验，与合同校验同一入口；
+ *   · 恢复后 formulaCompilationContractIssue 照常完整重跑（走 selectedReferences 分支），
+ *     剂量、君臣佐使、病机绑定、高影响方向、十八反十九畏、特殊人群一条未减。
+ * 三条边界：只在 M03 确有锁定方名、候选自带方名为空、且 name 是受控自拟标签时触发；
+ * 任一基准未通过组成核验即不恢复（fail-closed，保持既有 declassify 路径）。
+ */
+export function restoreGovernedFormulaIdentity(
+  reasoning: ClinicalReasoningResultV2,
+  prior: ClinicalReasoningResultV2 | null | undefined,
+): ClinicalReasoningResultV2 {
+  if (reasoning.stage !== "prescribe" || !reasoning.formula) return reasoning;
+  if (!prior || prior.stage !== "diagnose") return reasoning;
+  const governedNames = (prior.overview?.recommendedFormulaNames || [])
+    .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
+  if (governedNames.length === 0) return reasoning;
+  const mode = prior.overview?.formulaSelectionMode || "none";
+  // alternatives 由模型在多个基准中择一，恢复身份等于代替医生/模型做方剂选择，不做。
+  if (mode !== "single" && mode !== "combined") return reasoning;
+  const references = formulaCompilationReferences(governedNames);
+  if (references.length !== governedNames.length) return reasoning;
+  const candidates = reasoning.formula.candidates.map((candidate, index) => {
+    if (index !== 0) return candidate;
+    const declassifiedLabel = /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(String(candidate.name || "").trim());
+    if (!declassifiedLabel || (candidate.formulaNames || []).length > 0) return candidate;
+    const combined = governedNames.length > 1;
+    const verifications = verifyFormulaCompilationComponents(governedNames, candidate.herbs, combined, true);
+    if (verifications.length !== governedNames.length || !verifications.every((item) => item.verified)) return candidate;
+    // 候选药味多于基准即为「加减」，与既有 explicitlyModified 口径一致。
+    const baselineIdentities = new Set(references.flatMap((reference) => reference.ingredients).map(normalizeHerbName));
+    const actualNames = candidate.herbs.map(formulaHerbIdentityName).filter(Boolean);
+    const extraHerbs = actualNames.filter((name) => !baselineIdentities.has(normalizeHerbName(name)));
+    const restoredName = `${governedNames.join("合")}${extraHerbs.length > 0 ? "加减" : ""}`;
+    return {
+      ...candidate,
+      name: restoredName,
+      formulaNames: [...governedNames],
+      constructionType: combined ? "combined" as const : "single_base" as const,
+      modificationStatus: extraHerbs.length > 0 ? "modified" as const : "canonical" as const,
+    };
+  });
+  return { ...reasoning, formula: { ...reasoning.formula, candidates } };
+}
+
+export function applyRestoredGovernedFormulaIdentity(
+  content: string,
+  prior: ClinicalReasoningResultV2 | null | undefined,
+): string {
+  return content.replace(
+    /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
+    (match, jsonText: string) => {
+      try {
+        const parsed = JSON.parse(jsonText) as ClinicalReasoningResultV2;
+        if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2") return match;
+        const next = restoreGovernedFormulaIdentity(parsed, prior);
+        if (next === parsed) return match;
+        return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(next, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
+      } catch {
+        return match;
+      }
+    },
+  );
 }
 
 export function applyDeterministicFormulaReferences(content: string): string {

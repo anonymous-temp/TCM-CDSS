@@ -7,6 +7,7 @@ import { readCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { authoritativePatientAgeYears, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
@@ -55,31 +56,44 @@ export async function POST(req: Request) {
       reasons: [`当前记录仅含既往、已缓解或稳定背景（原文：“${encounterScope.quote}”），未明确本次活动性诊疗目标，不据此推演当前剂量处方。`],
     }));
   }
-  if (gated.completeness.level !== "C" && gated.questionRounds < 1) {
-    return markdownNdjsonResponse(signedLimitedDiagnosis({
-      status: "needs_information",
-      allowDiagnosis: true,
-      allowDosePrescription: false,
-      action: "complete_before_prescription",
-      missingItems: gated.safetyGate?.missingItems || ["与当前主诉相关的现病史和四诊信息"],
-      missingItemCodes: gated.safetyGate?.missingItemCodes,
-      redFlags: [],
-      advisories: gated.safetyGate?.advisories,
-      reasons: ["当前尚未完成首轮重点追问；请优先补充能改变诊断、辨证或处置的关键信息。若患者确实无法补充，完成本轮追问后仍可基于现有信息进行有限推理。"],
-    }));
-  }
+  // 需求1「追问不阻断流程」：此处原有一道门——completeness 未达 C 且未做过首轮追问时，
+  // 直接返回降级的 needs_information 有限诊断，把医生赶回 M02。已移除。
+  //
+  // 移除是安全的，因为它是**流程门**而不是安全控制：
+  //   · 剂量级放行由 M04 独立把守（prescribe/route.ts 自己检查 completeness.level !== "C"
+  //     与 safetyGate.status !== "ready"），删掉这道门不会让稀疏病例拿到剂量级处方；
+  //   · 红旗与生命体征危急值由 withSafetyGate 独立判定，与追问轮次无关；
+  //   · M03 提示词本身就写着「该等级只用于表达置信范围，不是流程门槛」「只要有主诉，
+  //     就必须基于已知信息给出西医诊断倾向、非空的中医工作病名与证候」——路由的这道门
+  //     与提示词的这条要求长期自相矛盾，删除后两侧口径才一致。
+  // 追问因此变成可选的增强：医生随时可以补充信息并重跑推理，而不是被拦在门外。
 
   const safeState = sanitizeCaseStateForModel(gated);
   // 口语主诉在受控主治语料里匹配不到术语时（"睡不着觉""腰杆子疼"），先用轻量模型改写成标准中医
   // 术语作为检索查询。只影响候选召回，不进入病历事实、不呈现给医生；不可用时静默降级为纯确定性召回。
+  // 证据检索只依赖病历本身，与下面两个语义增补层没有数据依赖，因此在最前面就发出去，
+  // 让它与增补层、证候重排全程重叠。此前它被排在第二批、白等第一批跑完——实测前置层
+  // 占 M03 端到端 4~15s，这一条重排把 EviMed 的往返基本藏进了其余前置工作里。
+  // 失败不阻断：catch 回退到空证据上下文，与既有降级语义一致。
+  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose").catch(() => "");
   // 两个增补层互不依赖，并发跑；任一不可用都静默退回确定性行为。
   const [formulaRecallHint, assistedNegations] = await Promise.all([
-    normalizeCaseTextForFormulaRecall(safeState),
-    assistedNegationClauses(safeState),
+    normalizeCaseTextForFormulaRecall(safeState, req.signal),
+    assistedNegationClauses(safeState, req.signal),
   ]);
-  const evidenceContext = await buildCdssEvidenceContext(safeState, "diagnose");
+  // L1b 只在 L1a 的受控证候 ID 闭集内做最多 +20% 的召回重排；失败、超时或非法输出均返回空集，
+  // 下游严格保持 L1a 原顺序。它不写病历、不做诊断、不绕过方名身份锁。
+  const [syndromeHypothesisRerank, evidenceContext] = await Promise.all([
+    rerankSyndromeHypothesesForFormulaRecall(safeState, assistedNegations, req.signal),
+    evidenceContextPromise,
+  ]);
   let prompt = appendEvidenceContext(
-    buildDiagnosePrompt(safeState, { formulaRecallHint, assistedNegations }), evidenceContext);
+    buildDiagnosePrompt(
+      safeState,
+      { formulaRecallHint, assistedNegations, syndromeHypothesisRerank },
+    ),
+    evidenceContext,
+  );
   if (limitedInformation) {
     prompt += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
   }

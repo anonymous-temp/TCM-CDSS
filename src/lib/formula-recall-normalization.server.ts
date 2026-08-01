@@ -3,7 +3,7 @@ import "server-only";
 import type { CaseState } from "./diagnosis-types";
 import { sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { affirmedClinicalText } from "./clinical-polarity";
-import { createTextModelClient, getControlledTerminologyModelConfig } from "./text-model";
+import { createTextModelClient, getControlledTerminologyModelConfig, isDeepseekModel } from "./text-model";
 
 /**
  * 口语主诉 → 标准中医临床术语（仅用于候选召回的检索查询）。
@@ -78,6 +78,10 @@ export async function normalizeCaseTextForFormulaRecall(
       model: config.model,
       temperature: 0,
       max_tokens: 128,
+      ...(isDeepseekModel(config.model) ? {
+        reasoning_effort: "low" as const,
+        thinking: { type: "disabled" as const },
+      } : {}),
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: sanitizeFreeTextForModel(source) },

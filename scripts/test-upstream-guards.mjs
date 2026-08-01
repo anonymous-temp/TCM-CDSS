@@ -12,8 +12,8 @@ const jiti = createJiti(import.meta.url, {
 });
 const { UpstreamResponseTooLargeError, readResponseTextLimited } = await jiti.import("../src/lib/http-response-limit.ts");
 const { cancelResponseBody } = await jiti.import("../src/lib/http-response-lifecycle.ts");
-const { isTongueVisionConfigured } = await jiti.import("../src/lib/diagnosis-api.ts");
-const { callDiagnosisStream } = await jiti.import("../src/lib/diagnosis-api.ts");
+const { callDiagnosisStream, isTongueVisionConfigured, isTongueVisionEnabled, readProviderChunk } =
+  await jiti.import("../src/lib/diagnosis-api.ts");
 const { buildTongueVisionPrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
 const { getPrimaryTextModelConfig } = await jiti.import("../src/lib/text-model.ts");
 const { POST: collectPost } = await jiti.import("../src/app/api/diagnosis/collect/route.ts");
@@ -36,6 +36,76 @@ assert.equal(missingSexCollect.status, 400);
 assert.equal((await missingSexCollect.json()).field, "sex", "ordinary collection still enforces T10 sex/physiology state");
 
 const composeSource = readFileSync(new URL("../docker-compose.yml", import.meta.url), "utf8");
+const envExampleSource = readFileSync(new URL("../.env.example", import.meta.url), "utf8");
+for (const flashAssistPath of [
+  "../src/lib/formula-recall-normalization.server.ts",
+  "../src/lib/polarity-negation-assist.server.ts",
+  "../src/lib/syndrome-hypothesis-rerank.server.ts",
+]) {
+  const flashAssistSource = readFileSync(new URL(flashAssistPath, import.meta.url), "utf8");
+  assert.match(
+    flashAssistSource,
+    /reasoning_effort:\s*"low"[\s\S]{0,100}thinking:\s*\{\s*type:\s*"disabled"/,
+    `${flashAssistPath} must disable extended thinking so its bounded output budget reaches final content`,
+  );
+}
+const governedFormulaCatalog = JSON.parse(readFileSync(new URL("../src/data/tcm-formula-governed-catalog.json", import.meta.url), "utf8"));
+const governedFormulaByName = new Map(governedFormulaCatalog.entries.map((entry) => [entry.name, entry]));
+const embeddedFormulaChapterAliases = governedFormulaCatalog.entries.flatMap((entry) => {
+  const match = entry.name.match(/(?:用|宜|服)([一-龥]{2,12}(?:汤|丸|散|膏|丹|饮|方))$/);
+  if (!match) return [];
+  const target = governedFormulaByName.get(match[1]);
+  if (!target || target.source !== entry.source) return [];
+  const sourceIngredients = new Set(entry.ingredients || []);
+  const targetIngredients = new Set(target.ingredients || []);
+  const denominator = Math.min(sourceIngredients.size, targetIngredients.size);
+  const overlap = denominator
+    ? [...sourceIngredients].filter((ingredient) => targetIngredients.has(ingredient)).length / denominator
+    : 0;
+  return overlap >= 0.6 ? [{ chapterTitle: entry.name, target: target.name, overlap }] : [];
+});
+assert.deepEqual(
+  embeddedFormulaChapterAliases,
+  [],
+  "章节描述句不得在同源真实方名已存在且组成高度重合时，再作为第二个运行时方剂身份",
+);
+assert.ok(governedFormulaByName.has("三星汤"), "隔离章节描述句时必须保留真实方名三星汤");
+assert.match(
+  composeSource,
+  /PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT: \$\{PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT:-medium\}/,
+  "M04 repair reasoning effort must be visible in the production container contract",
+);
+assert.match(
+  envExampleSource,
+  /^PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT=medium$/m,
+  "M04 repair reasoning effort must be documented in the deployable environment template",
+);
+for (const enabledByDefaultAssist of [
+  "FORMULA_RECALL_NORMALIZATION",
+  "POLARITY_NEGATION_ASSIST",
+  "SYNDROME_HYPOTHESIS_RERANK",
+]) {
+  assert.match(
+    composeSource,
+    new RegExp(`${enabledByDefaultAssist}: \\$\\{${enabledByDefaultAssist}:-true\\}`),
+    `${enabledByDefaultAssist} must be visible in the production container contract`,
+  );
+  assert.match(
+    envExampleSource,
+    new RegExp(`^${enabledByDefaultAssist}=true$`, "m"),
+    `${enabledByDefaultAssist} must be documented in the environment template`,
+  );
+}
+assert.match(
+  composeSource,
+  /CDSS_MODEL_RATE_LIMIT_PER_10_MIN: \$\{CDSS_MODEL_RATE_LIMIT_PER_10_MIN:-60\}/,
+  "the production container must receive the documented per-tenant model rate limit",
+);
+assert.match(
+  envExampleSource,
+  /^CDSS_MODEL_RATE_LIMIT_PER_10_MIN=60$/m,
+  "the deployable environment template must document the production model rate limit",
+);
 for (const modelVariable of [
   "OPENAI_MODEL",
   "PRIMARY_DIAGNOSE_MODEL",
@@ -52,18 +122,36 @@ for (const modelVariable of [
 ]) {
   assert.match(
     composeSource,
-    new RegExp(`${modelVariable}: \\$\\{${modelVariable}:-deepseek-v4-pro\\}`),
-    `${modelVariable} must be pinned to DeepSeek V4 Pro in the production container contract`,
+    new RegExp(`${modelVariable}: \\$\\{${modelVariable}:-deepseek-v4-flash\\}`),
+    `${modelVariable} must be pinned to DeepSeek V4 Flash in the production container contract`,
+  );
+}
+for (const bailianVariable of [
+  "BAILIAN_QWEN_API_KEY",
+  "BAILIAN_QWEN_BASE_URL",
+  "BAILIAN_QWEN_MODEL",
+]) {
+  assert.match(
+    composeSource,
+    new RegExp(`${bailianVariable}: \\\${${bailianVariable}:-`),
+    `${bailianVariable} must be forwarded into the production container`,
+  );
+  assert.match(
+    envExampleSource,
+    new RegExp(`^${bailianVariable}=`, "m"),
+    `${bailianVariable} must be documented in the deployable environment template`,
   );
 }
 
 const originalGlmKey = process.env.GLM_API_KEY;
 const originalGlmVisionEnabled = process.env.GLM_VISION_ENABLED;
-process.env.GLM_API_KEY = "configured-but-not-enabled";
+process.env.GLM_API_KEY = "configured-for-test";
 process.env.GLM_VISION_ENABLED = "false";
-assert.equal(isTongueVisionConfigured(), false, "a stored GLM key must not implicitly enable a provider");
-process.env.GLM_VISION_ENABLED = "true";
-assert.equal(isTongueVisionConfigured(), true, "tongue vision requires both an explicit rollout flag and a key");
+assert.equal(isTongueVisionEnabled(), false, "an explicit false flag must retain the degraded manual-entry deployment mode");
+assert.equal(isTongueVisionConfigured(), false, "an explicitly disabled provider must remain unavailable even with a stored key");
+delete process.env.GLM_VISION_ENABLED;
+assert.equal(isTongueVisionEnabled(), true, "tongue vision must be enabled by default");
+assert.equal(isTongueVisionConfigured(), true, "the default-enabled tongue provider becomes configured when a key is present");
 const noImageGlm = await callDiagnosisStream("病例文本不得发给GLM", "glm");
 assert.equal(noImageGlm.status, 400, "GLM route must reject text-only requests");
 const visionPrompt = buildTongueVisionPrompt();
@@ -124,6 +212,29 @@ const streamed = new ReadableStream({
 await assert.rejects(() => readResponseTextLimited(new Response(streamed), 5), UpstreamResponseTooLargeError);
 assert.equal(await readResponseTextLimited(new Response("正常响应"), 64), "正常响应");
 
+let wedgedReaderAborted = false;
+let wedgedReaderCancelCalled = false;
+const wedgedReader = {
+  read: () => new Promise(() => {}),
+  cancel: () => {
+    wedgedReaderCancelCalled = true;
+    return new Promise(() => {});
+  },
+};
+const wedgedReaderStartedAt = Date.now();
+await assert.rejects(
+  () => readProviderChunk(wedgedReader, Date.now() + 20, () => {
+    wedgedReaderAborted = true;
+  }),
+  /模型流长时间无响应|模型流总时长超时/,
+);
+assert.equal(wedgedReaderAborted, true, "stream timeout must abort the upstream transport before body cleanup");
+assert.equal(wedgedReaderCancelCalled, true, "stream timeout still starts provider-body cleanup");
+assert.ok(
+  Date.now() - wedgedReaderStartedAt < 500,
+  "a provider cancel() promise that never resolves must not stretch the orchestration deadline",
+);
+
 let sharedCancellationCalls = 0;
 const sharedFailedResponse = new Response(new ReadableStream({
   start(controller) {
@@ -170,4 +281,4 @@ const failedEvidence = await fetchExternalEvidence("guide", "测试非成功响�
 assert.equal(failedEvidence.ok, false);
 assert.equal(cancelledFailureBodies, 1, "EviMed non-success bodies must be cancelled before returning or retrying");
 
-console.log(JSON.stringify({ cases: 34, failures: 0 }));
+console.log(JSON.stringify({ cases: 36, failures: 0 }));

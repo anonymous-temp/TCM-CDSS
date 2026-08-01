@@ -78,31 +78,53 @@ let fullClassicEvidenceRecords: ClassicEvidenceRecord[] | undefined;
 //     top-12 排序实际只剩 6 条不同证据。
 // 这类失效不会报错、不会降级，只会安静地少一半证据，因此这里的写法本身就是防线，
 // 由 scripts/test-classic-evidence-bundling.mjs 钉死。
-const CLASSIC_EVIDENCE_SOURCES = [
-  { name: "tcm-classic-text-evidence.jsonl", url: new URL("../data/tcm-classic-text-evidence.jsonl", import.meta.url) },
-  { name: "tcm-classic-text-evidence-tcmoc.jsonl", url: new URL("../data/tcm-classic-text-evidence-tcmoc.jsonl", import.meta.url) },
+const CLASSIC_EVIDENCE_SOURCE_NAMES = [
+  "tcm-classic-text-evidence.jsonl",
+  "tcm-classic-text-evidence-tcmoc.jsonl",
 ] as const;
 
 /** 每个语料实际加载到的条数；语料缺失是允许的（可选语料），但必须可观测。 */
 const classicEvidenceLoadCounts = new Map<string, number>();
 
+function appendClassicEvidenceRows(records: ClassicEvidenceRecord[], raw: string): number {
+  let loaded = 0;
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    records.push(JSON.parse(line) as ClassicEvidenceRecord);
+    loaded += 1;
+  }
+  return loaded;
+}
+
 function loadFullClassicEvidenceRecords(): ClassicEvidenceRecord[] {
   if (fullClassicEvidenceRecords) return fullClassicEvidenceRecords;
   const records: ClassicEvidenceRecord[] = [];
-  for (const source of CLASSIC_EVIDENCE_SOURCES) {
-    let loaded = 0;
-    try {
-      const raw = readFileSync(source.url, "utf8");
-      for (const line of raw.split("\n")) {
-        if (line.trim()) {
-          records.push(JSON.parse(line) as ClassicEvidenceRecord);
-          loaded += 1;
-        }
-      }
-    } catch {
-      // Optional corpus file missing in this deployment: continue with whatever is present.
-    }
-    classicEvidenceLoadCounts.set(source.name, loaded);
+
+  // Keep each readFileSync call fully literal. Passing a literal URL through an array/loop still
+  // makes the fs call dynamic to Turbopack/NFT and broadens the trace to the whole project.
+  try {
+    const raw = readFileSync(
+      new URL("../data/tcm-classic-text-evidence.jsonl", import.meta.url),
+      "utf8",
+    );
+    classicEvidenceLoadCounts.set(
+      "tcm-classic-text-evidence.jsonl",
+      appendClassicEvidenceRows(records, raw),
+    );
+  } catch {
+    classicEvidenceLoadCounts.set("tcm-classic-text-evidence.jsonl", 0);
+  }
+  try {
+    const raw = readFileSync(
+      new URL("../data/tcm-classic-text-evidence-tcmoc.jsonl", import.meta.url),
+      "utf8",
+    );
+    classicEvidenceLoadCounts.set(
+      "tcm-classic-text-evidence-tcmoc.jsonl",
+      appendClassicEvidenceRows(records, raw),
+    );
+  } catch {
+    classicEvidenceLoadCounts.set("tcm-classic-text-evidence-tcmoc.jsonl", 0);
   }
   fullClassicEvidenceRecords = records;
   return fullClassicEvidenceRecords;
@@ -114,9 +136,9 @@ function loadFullClassicEvidenceRecords(): ClassicEvidenceRecord[] {
  */
 export function classicEvidenceCorpusStatus(): { name: string; records: number }[] {
   loadFullClassicEvidenceRecords();
-  return CLASSIC_EVIDENCE_SOURCES.map((source) => ({
-    name: source.name,
-    records: classicEvidenceLoadCounts.get(source.name) || 0,
+  return CLASSIC_EVIDENCE_SOURCE_NAMES.map((name) => ({
+    name,
+    records: classicEvidenceLoadCounts.get(name) || 0,
   }));
 }
 

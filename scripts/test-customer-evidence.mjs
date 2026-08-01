@@ -72,6 +72,16 @@ assert.equal(customerEvidenceDisplayStatus({ evidenceLevel: "guideline", source:
 assert.equal(customerEvidenceDisplayStatus({ evidenceLevel: "model_inference", source: "基于本例病史与症状推断；置信度：中" }), "hidden");
 assert.equal(customerEvidenceDisplayStatus({ evidenceLevel: "deterministic_rule", source: "结构化匹配规则" }), "hidden");
 assert.equal(customerEvidenceDisplayStatus({ evidenceLevel: "literature", source: "PMID: 12345678" }), "traceable");
+assert.equal(
+  customerEvidenceDisplayStatus({ evidenceLevel: "guideline", source: "[EVID-GUIDE-001] 主诉：入睡困难、多梦易醒3个月" }),
+  "hidden",
+  "a valid-looking evidence ID must not turn a copied complaint into a customer-visible reference",
+);
+assert.equal(
+  customerEvidenceDisplayStatus({ evidenceLevel: "literature", source: "患者诉头晕反复3天；PMID: 12345678" }),
+  "hidden",
+  "bibliographic markers must not authorize patient-narrative pollution",
+);
 assert.equal(customerEvidenceDisplayStatus({ evidenceLevel: "guideline", source: "待检索" }), "hidden");
 assert.equal(customerEvidenceDisplayStatus(undefined), "hidden");
 

@@ -90,6 +90,11 @@ try {
   const { hasExecutableSignedM03 } = require("../src/lib/diagnosis-client-guards.ts");
   const { editedPrescriptionSemanticIssue, synchronizeEditedCandidate } = require("../src/lib/prescription-revision.ts");
   const { confirmControlledTerminologyMapping } = require("../src/lib/controlled-terminology-confirmation.server.ts");
+  const {
+    issueEmergencyClearance,
+    stripInvalidEmergencyClearance,
+    verifyEmergencyClearance,
+  } = require("../src/lib/emergency-clearance.server.ts");
 
   const caseState = normalizeCaseStateInput({
     id: "case_signature_001",
@@ -147,6 +152,72 @@ try {
   assert.ok(caseState, "signature fixture must normalize");
   const fixtureGate = withSafetyGate(caseState).safetyGate;
   assert.equal(fixtureGate?.allowDosePrescription, true, `signature route fixture must reach the signature boundary: ${JSON.stringify(fixtureGate)}`);
+
+  const emergencyCase = normalizeCaseStateInput({
+    id: "case_emergency_clearance_001",
+    phase: "diagnose",
+    patient: { name: "测试患者", sex: "女", age: 36 },
+    chiefComplaint: "突发人生最剧烈头痛伴恶心呕吐",
+    symptoms: { presentHistory: "今日突发人生最剧烈头痛，伴恶心呕吐，既往无类似发作" },
+    tongue: "舌边齿痕",
+    pulse: "脉来浮而紧",
+    pastHistory: "既往无类似发作",
+    medicationHistory: "目前无正在使用的中西药",
+    allergyHistory: "否认药物及食物过敏",
+    hisRecord: {
+      schemaVersion: "tcm-cdss-his-v1",
+      source: "tcm-cdss-his",
+      caseId: "encounter_emergency_clearance_001",
+      updatedAt: "2026-07-28T08:00:00.000Z",
+      tongueImageUploaded: false,
+      fields: {
+        patientName: "测试患者",
+        sex: "女",
+        age: "36岁",
+        zhushu: "突发人生最剧烈头痛伴恶心呕吐",
+        xianbingshi: "今日突发人生最剧烈头痛，伴恶心呕吐，既往无类似发作",
+        tcmTongue: "舌边齿痕",
+        tcmPulse: "脉来浮而紧",
+        guomin: "否认药物及食物过敏",
+        yongyaoshi: "目前无正在使用的中西药",
+      },
+      rawText: "主诉：突发人生最剧烈头痛伴恶心呕吐；现病史：今日突发人生最剧烈头痛，伴恶心呕吐。",
+    },
+    conversation: [],
+  });
+  assert.ok(emergencyCase);
+  assert.equal(withSafetyGate(emergencyCase).safetyGate?.status, "red_flag");
+  const issuedClearance = issueEmergencyClearance(
+    emergencyCase,
+    "测试患者已经急诊影像及神经系统评估，排除急性神经血管事件",
+  );
+  assert.equal(issuedClearance.ok, true);
+  if (!issuedClearance.ok) throw new Error(issuedClearance.error);
+  assert.doesNotMatch(issuedClearance.clearance.assessmentSummary, /测试患者/);
+  assert.equal(verifyEmergencyClearance({ ...emergencyCase, emergencyClearance: issuedClearance.clearance }), true);
+  const normalizedEmergencyCase = normalizeCaseStateInput({
+    ...emergencyCase,
+    emergencyClearance: issuedClearance.clearance,
+  });
+  assert.ok(normalizedEmergencyCase?.emergencyClearance);
+  assert.equal(verifyEmergencyClearance(normalizedEmergencyCase), true);
+  const persistedEmergencyCase = sanitizeCaseStateForBrowserPersistence(normalizedEmergencyCase);
+  assert.equal(verifyEmergencyClearance(persistedEmergencyCase), true);
+  assert.notEqual(
+    withSafetyGate({ ...emergencyCase, emergencyClearance: issuedClearance.clearance }).safetyGate?.status,
+    "red_flag",
+  );
+  const tamperedClearanceCase = {
+    ...emergencyCase,
+    emergencyClearance: {
+      ...issuedClearance.clearance,
+      assessmentSummary: `${issuedClearance.clearance.assessmentSummary}（伪改）`,
+    },
+  };
+  assert.equal(verifyEmergencyClearance(tamperedClearanceCase), false);
+  assert.equal(stripInvalidEmergencyClearance(tamperedClearanceCase).emergencyClearance, undefined);
+  assert.equal(withSafetyGate(stripInvalidEmergencyClearance(tamperedClearanceCase)).safetyGate?.status, "red_flag");
+  caseCount += 12;
 
   const reasoning = normalizeReasoningV2({
     schemaVersion: "tcm-cdss-reasoning-v2",
@@ -276,7 +347,10 @@ try {
     ["completeness.answerability", (value) => { value.completeness.answerability = 0.2; }],
     ["overview.evidence.source", (value) => { value.overview.evidence.source = "被替换的证据来源"; }],
     ["pathogenesis.uncertainties", (value) => { value.pathogenesis.uncertainties[0].affects = "被修改的影响范围"; }],
-    ["nonPharma.monitoring", (value) => { value.nonPharma.monitoring[0].trigger = "被修改的触发条件"; }],
+    // monitoring(metric/timing/trigger) 三元组已被自由文本 precautions 取代。签名覆盖的是整个
+    // normalize 后对象而不是字段白名单，所以新字段自动进入签名载荷——这条断言正是用来证明
+    // 「换了字段之后新字段依然被签名保护」，不能因为旧字段没了就删掉。
+    ["nonPharma.precautions", (value) => { value.nonPharma.precautions[0] = "被篡改的注意事项"; }],
   ]) {
     check(`previously unsigned field rejects: ${name}`, () => {
       const tampered = clone(signed);

@@ -24,3 +24,71 @@ export function formulaStructureTarget(value: unknown): string | undefined {
   const role = normalizeFormulaStructureRole(value);
   return role ? FORMULA_STRUCTURE_TARGETS[role] : undefined;
 }
+
+/**
+ * 逐味方义生成（需求7：「方义分析写得过于笼统，要写清楚药是在这个方子里干了啥起了啥作用」）。
+ *
+ * 原实现按**角色分组**成句，且每个角色配一句固定模板：
+ *   「君药以党参（补脾益气）为组，对应脾胃虚弱，直治核心病机，构成本方主要治疗支点。」
+ * 三个问题叠加导致「笼统」：
+ *   1) 分组之后看不出组内每味药各自干什么——「臣药以白术、茯苓为组」读不出茯苓的独立作用；
+ *   2) 「直治核心病机，构成本方主要治疗支点」这句话对**每一张方**的君药都完全相同，不携带本例信息；
+ *   3) 结尾固定附一句「各药组共同形成……治疗层次」，不含任何可核对内容。
+ *
+ * 改为逐味成句，每句只由本例数据构成：该药的**自身功用** + 它**实际承接的病机原文** + 角色关系。
+ * 同一病机上的两味药因功用不同而自然写出不同的句子，这正是医生按方义读方时需要的粒度。
+ * 服务端与药味工作台编辑后共用本函数，避免两条路径给出不同口径的方义。
+ */
+export type FormulaAnalysisHerb = {
+  name?: unknown;
+  role?: unknown;
+  function?: unknown;
+  targetPathogenesis?: unknown;
+};
+
+const ANALYSIS_ROLE_ORDER = ["君", "臣", "佐", "使"] as const;
+
+function analysisText(value: unknown): string {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").replace(/[；;。、,，]+$/g, "").trim() : "";
+}
+
+function roleClause(role: string, target: string, sharesEmperorTarget: boolean): string {
+  if (role === "君") return target ? `直接承接核心病机「${target}」，是本方的治疗支点` : "承担本方的核心治疗作用";
+  if (role === "臣") {
+    if (!target) return "协同君药、加强主治方向";
+    return sharesEmperorTarget ? `与君药同承接「${target}」，加强该方向的力量` : `承接次级病机「${target}」`;
+  }
+  if (role === "佐") return target ? `兼顾「${target}」` : "兼顾兼夹病机或制约峻烈";
+  if (role === "使") return target ? `承担「${target}」的方内结构作用` : "协调方中药性、衔接各治疗方向";
+  return target ? `对应「${target}」` : "参与本方配伍";
+}
+
+/** 返回逐味方义段落；herbs 为空时返回空串（调用方自行决定占位文案）。 */
+export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], therapyMatch = ""): string {
+  const rows = herbs
+    .map((herb) => ({
+      name: analysisText(herb.name),
+      role: analysisText(herb.role),
+      fn: analysisText(herb.function),
+      target: analysisText(herb.targetPathogenesis),
+    }))
+    .filter((row) => row.name);
+  if (rows.length === 0) return "";
+  const emperorTargets = new Set(rows.filter((row) => row.role === "君" && row.target).map((row) => row.target));
+  const ordered = [...rows].sort((left, right) => {
+    const leftIndex = ANALYSIS_ROLE_ORDER.indexOf(left.role as typeof ANALYSIS_ROLE_ORDER[number]);
+    const rightIndex = ANALYSIS_ROLE_ORDER.indexOf(right.role as typeof ANALYSIS_ROLE_ORDER[number]);
+    return (leftIndex < 0 ? ANALYSIS_ROLE_ORDER.length : leftIndex) - (rightIndex < 0 ? ANALYSIS_ROLE_ORDER.length : rightIndex);
+  });
+  const lines = ordered.map((row) => {
+    const clause = roleClause(row.role, row.target, row.role === "臣" && emperorTargets.has(row.target));
+    const roleLabel = row.role ? `（${row.role}）` : "";
+    return row.fn
+      ? `· ${row.name}${roleLabel}——以「${row.fn}」${clause}。`
+      : `· ${row.name}${roleLabel}——${clause}。`;
+  });
+  const head = therapyMatch
+    ? `本方共${rows.length}味，围绕「${analysisText(therapyMatch)}」分层组方：`
+    : `本方共${rows.length}味，按已锁定病机与治法分层组方：`;
+  return [head, ...lines].join("\n");
+}

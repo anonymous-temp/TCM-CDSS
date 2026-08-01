@@ -1306,7 +1306,10 @@ export function buildUnavailableRxAuditSection(reason: string): string {
   const status = reason === "no_prescription_items" || reason === "candidate_missing"
     ? "当前候选方药尚未形成可审查的完整药味清单，本次未发起自动审方。"
     : reason === "regimen_incomplete"
-      ? "当前处方缺少可核验的每日频次、疗程或复诊节点，本次未调用外部审方接口。"
+      // 复诊节点已从处方展示面移除（需求5），错误提示不再指向医生看不到也改不了的字段；
+      // 实际触发条件仍是 doseCount/dosesPerDay/course 不合法（followUpNode 由服务端派生）。
+      // 提交门本身（prescriptionRegimenFromDecoction）未改动，仍然读 followUpNode。
+      ? "当前处方缺少可核验的每日频次或疗程，本次未调用外部审方接口。"
       : reason === "herb_dose_incomplete"
         ? "当前处方存在缺失或无法解析的单味剂量，本次未调用外部审方接口。"
         : reason === "rxaudit_total_timeout" || reason === "rxaudit_timeout"

@@ -3,7 +3,7 @@ import "server-only";
 import type { CaseState } from "./diagnosis-types";
 import { clinicalClausePolarity, type AssistedNegationClauses } from "./clinical-polarity";
 import { sanitizeFreeTextForModel } from "./diagnosis-safety";
-import { createTextModelClient, getControlledTerminologyModelConfig } from "./text-model";
+import { createTextModelClient, getControlledTerminologyModelConfig, isDeepseekModel } from "./text-model";
 
 /**
  * 口语否定增补：确定性正则判为阳性、但实际是口语否定的分句，交模型判一次。
@@ -99,6 +99,10 @@ export async function assistedNegationClauses(
       model: config.model,
       temperature: 0,
       max_tokens: 64,
+      ...(isDeepseekModel(config.model) ? {
+        reasoning_effort: "low" as const,
+        thinking: { type: "disabled" as const },
+      } : {}),
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: numbered },

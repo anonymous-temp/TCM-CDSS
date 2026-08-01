@@ -212,8 +212,10 @@ export function buildM03DiagnosticReviewPrompt(
     "不得把尚未满足标准的病因或疾病藏进症状性诊断的括号、后缀或‘可能’限定中（例如‘某症状（某疾病可能）’）；这种写法仍属于过度诊断，必须返回 diagnostic_label_overstated，并把该疾病移入 differentials。",
     "检查 supportingFacts 是否来自病例且确实支持该主诊断。不要因为缺少非必需检查而否定合理的症状性工作诊断。",
     "supportingFacts 只保留与当前主诊断直接相关的现代医学患者事实：不得混入舌苔脉象、证候病机等中医推理，不得用年龄性别或一组正常生命体征充当诊断支持，也不得堆入与本次主诉无关的既往病名。",
+    "逐字段核对事实极性与措辞强度：患者记录为“声重、轻微、偶有、活动后”时，supportingFacts、clinicalRationale、中医分析和病机链不得升级为“剧烈、严重、频繁、静息时”；共享否定枚举中的每一项都保持阴性。自诉发热而当前测温正常时必须同时写清主观病史与当前客观测温，不得把它表述成已测得发热。",
     "严格区分当前问题与历史背景。既往稳定疾病、后遗症、已缓解事件或当前明确无新发症状，只能作为背景或鉴别边界；除非病例有当前活动性变化，不得把它们升级成本次 primary、主证候锚点或主要病机治疗目标。",
     "核对中医主证、病位病性、病机链和治法是否由阳性患者事实支撑。不能把未询问、未知、条件句或待鉴别方向当作已经存在的证候锚点。",
+    "若 primarySyndromeBasis 已包含无汗、自汗或盗汗等会改变表虚表实、营卫或津液判断的关键鉴别点，至少一个 pathogenesis.chain 节点必须在 patientFact 或 syndromeEvidence 中逐字绑定它，并让病机与治法保持相称；不得只在总览出现而在下游推理丢失。",
     "单独执行一次‘病机总结投影一致性审计’：pathogenesis.summary 是服务端从核心病机字段生成的只读投影，只能归纳 overview.primarySyndrome、overview.overallPathogenesis、pathogenesis.natureDifferentiation 和 pathogenesis.chain[].pathogenesis 中已成立的结论。若 summary 与非空 pathogenesis.chain[].pathogenesis 按顺序用分号连接的文本完全一致，或在链为空时与 overview.overallPathogenesis 完全一致，就不得返回 pathogenesis_summary_drift；若这些核心结论本身超出患者事实，应针对核心字段返回对应的病位、病性或具体 overreach 问题，不能把核心问题误报为摘要漂移。只有 summary 单独额外引入核心字段均不存在的病因、病位、寒热虚实、气血津液、痰湿瘀血或治法方向时，才返回 tcm_reasoning_unsupported，repairInstruction 以 pathogenesis_summary_drift 开头并只要求删除总结中的额外断言，不得倒向补造核心推理。",
     "单独执行一次‘当前阳性事实覆盖审计’：逐条读取患者事实边界中的当前阳性症状、体征和检查结果，再核对它们是否已进入 westernDiagnosis 的依据/鉴别，或 overview.primarySyndromeBasis、pathogenesis.chain.patientFact、pathogenesis.uncertainties 中至少一个与其临床作用相符的位置。只有可能实质改变诊断、风险分层、证候深度、治法方向或随访安排的事实属于必审项；无关偶发信息、历史背景、明确阴性、未知项以及已被同义概括的事实不要求逐字重复。若遗漏了必审阳性事实，尤其是活动后气喘、夜间症状、体重变化、出血、神经功能改变、用药反应或异常检查等会改变方向的线索，必须返回 tcm_reasoning_unsupported，repairInstruction 以 positive_fact_omission 开头并只指出需要补入的结构路径；可以将尚不能归入主证的事实放入 uncertainties，不得为了覆盖而强行推出气虚、阴虚、痰湿等具体证型。",
     "逐条复核 pathogenesis.uncertainties 的 item、reason 与 affects 是否自洽并符合患者事实边界。病历未提供的既往史、用药史、过敏史、舌脉、生命体征或检查不得在 reason 中写成‘已记录、已提供、已确认’；已知事实只有某个属性仍未知时，reason 必须点明已知事实和具体缺失属性。‘该症状已在病历中明确记录’等没有事实对象、不能解释该不确定项的套话必须返回 tcm_reasoning_unsupported，repairInstruction 以 uncertainty_state_mismatch 开头，只修正冲突的不确定项，不得新增患者事实。",
@@ -301,6 +303,33 @@ export function boundedM03DiagnosticRepairGuidance(
       "保持已通过校验的西医诊断、中医主证、病位病性、病机链、治法、方向和管理建议不变。",
     ].join("\n");
   }
+  // 方向对称：复核意见指向「漏了」时，修复引导也必须指向「补上」。
+  // 原实现无论定位标签是遗漏还是越界，最终都落进下面以「硬性删减」为首行的策略——
+  // 一个「differentials 未覆盖心源性方向」的意见会被翻译成「删掉没有支撑的概念」，
+  // 模型照做只会删得更多，而漏掉的必须排除方向仍然不在结果里。
+  //
+  // 仅在**没有任何越界标签**时启用本分支：越界与遗漏并存时仍以删减策略为准，
+  // 因为越界是安全承重的一侧（写进了没有患者事实支撑的结论），必须优先处理。
+  const omissionOnly = codes.length > 0 &&
+    codes.every((code) => M03_REPAIR_UNDER_DEPTH_CODES.has(code)) &&
+    codes.some((code) => code === "differential_omission" || code === "positive_fact_omission");
+  if (omissionOnly) {
+    return [
+      `独立复核的受控定位标签：${codes.join(",")}。这些标签指向的是**遗漏**，不是越界；本轮只补不删。`,
+      "保持已成立的西医主诊断、中医主证、病位病性、病机链、治则治法与方名方向不变——不要删除任何已通过校验的结论，也不要降低它们的置信度。",
+      codes.includes("differential_omission")
+        ? "differential_omission：在 westernDiagnosis.differentials 补上复核指出的必须排除方向，每项写明为何需要鉴别以及本例用于区分的要点；同时在 management.followupSafetyNet 写清这些线索持续或加重时的处置边界。缺少客观依据时只能作为需排除方向，不得升级为 primary 或写成确诊。"
+        : "",
+      codes.includes("positive_fact_omission")
+        ? "覆盖修复：逐条复核会实质改变诊断、风险、证候深度、治法或随访的当前阳性事实；每项至少进入 westernDiagnosis 依据/鉴别、primarySyndromeBasis、pathogenesis.chain.patientFact 或 uncertainties 之一。不能支持主证的事实放 uncertainties。"
+        : "",
+      "补入不得反向制造越界：不要为了覆盖这些内容而新推出气虚、阴虚、痰湿、血瘀等具体证型或新的脏腑归属，也不要补造病历没有的舌脉、体征与阴性史；拿不准的一律进 uncertainties。",
+      // 刻意不回显 review.repairInstruction：复核器原文可能携带患者事实，而服务端下发的修复引导
+      // 必须是 PHI 安全的受控文本——这正是 m03DiagnosticRepairGuidanceCodes 只提取标签的原因。
+      // scripts/test-m03-diagnostic-review.mjs 对此有确定性断言。
+    ].filter(Boolean).join("\n");
+  }
+
   const prohibitedConcepts = [
     "阴虚、阳虚、气虚、血虚、津亏、阴阳两虚及对应补益治法",
     "寒、热、火、痰、湿、瘀、食积、水饮及对应祛邪治法",
@@ -341,7 +370,17 @@ export function boundedM03DiagnosticRepairGuidance(
 
 const M03_REPAIR_GUIDANCE_CODE_RULES: Array<[string, RegExp]> = [
   ["pathogenesis_summary_drift", /pathogenesis_summary_drift/i],
+  ["western_support_tcm_pollution", /(?:supportingFacts?|支持事实|西医诊断依据)[^。；]{0,32}(?:舌|苔|脉|中医证候|病机)/i],
+  ["western_support_normal_vital_padding", /(?:supportingFacts?|支持事实|西医诊断依据)[^。；]{0,32}(?:正常|平稳|无异常)[^。；]{0,16}(?:生命体征|血压|体温|心率|呼吸)/i],
+  ["western_support_history_padding", /(?:supportingFacts?|支持事实|西医诊断依据)[^。；]{0,32}(?:既往史|家族史|人口学|年龄|性别)[^。；]{0,20}(?:无关|不能支持|不足以支持|混入)/i],
+  ["western_support_polarity_mismatch", /(?:supportingFacts?|支持事实|西医诊断依据)[^。；]{0,32}(?:否认|阴性|未提及|矛盾|相反)/i],
+  ["western_support_unrelated", /(?:supportingFacts?|支持事实|西医诊断依据)[^。；]{0,32}(?:无关|不相关|不能支持|不足以支持|与主诊断不匹配)/i],
   ["positive_fact_omission", /positive_fact_omission|(?:遗漏|漏用|未纳入|未覆盖|未体现)[^。；]{0,24}(?:当前|本例|管理相关|有鉴别意义)?(?:阳性事实|阳性症状|阳性体征|检查异常)/i],
+  // 鉴别遗漏。复核提示词明确布置了「呼吸—心源性交叉鉴别审计」（differentials 必须覆盖呼吸系统、
+  // 心功能不全与冠心病/心肌缺血等方向），却一直没有对应的定位标签：复核器报了这类问题也无法被
+  // 分类，既进不了遥测，也无法参与 m03TcmRepairMode 的策略选择，最终落进以「硬性删减」为首行的
+  // 通用引导——一个「你漏了必须排除的方向」的意见，被翻译成「删掉没有支撑的概念」，方向正好相反。
+  ["differential_omission", /(?:differentials?|鉴别(?:诊断|方向|项|列表)?)[^。；]{0,24}(?:未覆盖|未纳入|缺少|遗漏|未列出|应补充|需补充|不完整)|(?:未覆盖|未纳入|缺少|遗漏)[^。；]{0,16}(?:心源性|心功能不全|冠心病|心肌缺血|必须排除)[^。；]{0,16}(?:方向|鉴别)?/i],
   ["empty_or_unresolved", /(?:清空|留空|删除)[^。；]{0,16}(?:病机链|chain|病位|病性)|待辨|待定|无法(?:完成|形成|判断)|资料不足/],
   ["symptom_restatement", /(?:重复|复述|改写)[^。；]{0,16}(?:主诉|症状|患者事实)|只是[^。；]{0,16}(?:主诉|症状)/],
   ["location_unsupported", /病位(?![^。；]{0,16}(?:不得留空|不能留空|需同步|必须(?:写入|列出|保留)))[^。；]{0,24}(?:无依据|缺乏|不足以|超出|不能支持|不得写入)/],
@@ -364,6 +403,45 @@ export function m03DiagnosticRepairGuidanceCodes(review: M03DiagnosticReview): s
   if (review.status !== "repair" || !review.repairInstruction) return [];
   return M03_REPAIR_GUIDANCE_CODE_RULES
     .flatMap(([code, pattern]) => pattern.test(review.repairInstruction || "") ? [code] : []);
+}
+
+/**
+ * A reviewer that still returns a bare supporting-fact mismatch after the server has already
+ * reduced the result to one exact chart fact and a low-confidence symptom label has supplied no
+ * actionable correction. Treat that reviewer outcome as unavailable rather than burning full
+ * regeneration rounds and discarding the complete TCM reasoning. This never converts the review
+ * to accepted; the existing doctor-review notice and attestation path remain in force.
+ */
+export function m03SymptomDowngradeReviewIsNonActionable(
+  review: M03DiagnosticReview,
+  reasoning: unknown,
+): boolean {
+  if (
+    review.status !== "repair" ||
+    review.issueCode !== "supporting_fact_mismatch"
+  ) return false;
+  const source = record(reasoning);
+  const western = record(source?.westernDiagnosis);
+  const primary = record(western?.primary);
+  const supportingFacts = Array.isArray(primary?.supportingFacts)
+    ? primary.supportingFacts.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+    : [];
+  const limitations = Array.isArray(primary?.limitations)
+    ? primary.limitations.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+    : [];
+  const isServerDowngrade = limitations.includes(
+    "现有资料不足以满足原具体疾病的完整诊断标准，当前仅保留症状性工作诊断",
+  );
+  const hasPollutedFact = supportingFacts.some((item) =>
+    /(?:舌|苔|脉|中医证候|病机|治法|方药|生命体征正常|既往史无关)/.test(item)
+  );
+  return primary?.status === "证据有限" &&
+    primary?.confidence === "低" &&
+    typeof primary?.name === "string" &&
+    /(?:症状|不适)$/.test(primary.name.trim()) &&
+    supportingFacts.length === 1 &&
+    isServerDowngrade &&
+    !hasPollutedFact;
 }
 
 const M03_QUARANTINE_OVERREACH_CODES = new Set([
@@ -494,6 +572,7 @@ export function m03GroundingHasCurrentPositiveFacts(clinicalContext: string): bo
 
 const M03_REPAIR_UNDER_DEPTH_CODES = new Set([
   "positive_fact_omission",
+  "differential_omission",
   "symptom_restatement",
   "chain_not_closed",
   "empty_or_unresolved",

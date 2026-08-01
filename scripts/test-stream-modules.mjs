@@ -1,0 +1,160 @@
+/**
+ * Invariant: 按模块顺序反馈可以做，但不得退回到「在验证前流式输出第二份临床正文」。
+ *
+ * 需求2 要「推理时按模块顺序执行，一个模块一个模块来，而不是最后统一出」。这与代码里一条既有
+ * 决策直接相邻——diagnosis-api.ts 把全部结构化阶段设为 bufferedClinicalStage，注释写明理由：
+ *   "Streaming a second, provisional representation before the authoritative JSON is validated
+ *    caused visible/structured drift and could expose raw internal fields."
+ * 这个项目试过流式输出临时临床正文，出过事才改成缓冲。
+ *
+ * 因此实现取的是两者之间那条窄路：**只推模块完成信号 + 该模块的结论标题**，字段走白名单，
+ * 完整正文仍然只在末尾由 STREAM_REPLACE_MARKER 一次性确定性渲染（该标记会把之前推送的内容
+ * 整段丢弃，见 diagnosis-engine 的 `combined.slice(markerIdx + marker.length)`）。
+ *
+ * 本文件锁三件事：模块确实按顺序逐个落地；标题只来自白名单字段；未登记模块默认不上流。
+ * 最后一条是「不泄漏原始内部字段」这条约束的落点——默认不暴露，新增模块必须显式登记。
+ */
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import {
+  completedTopLevelKeys,
+  moduleProgressNotice,
+  newModuleNotices,
+} from "../src/lib/diagnosis-stream-modules.ts";
+
+const M03_PAYLOAD = {
+  schemaVersion: "tcm-cdss-reasoning-v2",
+  stage: "diagnose",
+  overview: {
+    tcmDiseaseName: "不寐",
+    primarySyndrome: "心脾两虚证",
+    primarySyndromeBasis: ["面色萎黄", "舌淡苔薄白"],
+    // 内部字段：绝不能出现在可见流里。
+    primarySyndromeResolutionReason: "缺少腰膝酸软等定位证据",
+  },
+  westernDiagnosis: {
+    primary: { name: "失眠障碍", supportingFacts: ["入睡困难3月余"], clinicalRationale: "病程符合慢性失眠" },
+    differentials: [],
+  },
+  pathogenesis: { summary: "心脾两虚，心神失养", chain: [{ nodeId: "P1" }, { nodeId: "P2" }], uncertainties: [] },
+  therapy: { overallPrinciple: "虚则补之", overallMethod: "补益心脾，养血安神" },
+  formula: null,
+  nonPharma: { diet: "清淡饮食", lifestyle: "规律作息", emotion: "调畅情志" },
+  management: { followupSafetyNet: "症状加重时复诊" },
+};
+
+// ── 1) 模块按顺序逐个落地，而不是最后一次性出 ────────────────────────────────
+const serialized = JSON.stringify(M03_PAYLOAD);
+const emitted = new Set();
+const timeline = [];
+for (let cursor = 40; ; cursor += 40) {
+  const partial = serialized.slice(0, Math.min(cursor, serialized.length));
+  for (const notice of newModuleNotices(partial, emitted)) {
+    timeline.push({ atChars: partial.length, notice });
+  }
+  if (cursor >= serialized.length) break; // 最后一片必须扫到，否则末尾模块被漏判
+}
+// 7 个已登记模块，M03 阶段 formula 恒为 null 不上流 ⇒ 恰好 6 条。写死数字而不是 >=，
+// 这样「悄悄多推一个模块」和「悄悄少推一个模块」都会失败。
+assert.equal(
+  timeline.length,
+  6,
+  `模块应逐个落地且恰好 6 条，实得 ${timeline.length}：${timeline.map((item) => item.notice).join(" | ")}`,
+);
+assert.ok(
+  timeline[0].atChars < serialized.length,
+  "第一个模块必须在整份 JSON 写完之前就上流——否则等于没有按模块反馈",
+);
+assert.ok(
+  timeline.every((item, index) => index === 0 || item.atChars >= timeline[index - 1].atChars),
+  "模块反馈必须按写完顺序推送",
+);
+const noticeText = timeline.map((item) => item.notice).join("\n");
+assert.match(noticeText, /中医辨病辨证：辨病 不寐／辨证 心脾两虚证/);
+assert.match(noticeText, /西医诊断：失眠障碍/);
+assert.match(noticeText, /病机分析：已形成 2 个病机节点/);
+assert.match(noticeText, /治则治法：补益心脾，养血安神/);
+
+// ── 2) 只暴露白名单结论标题，不泄漏内部字段 ──────────────────────────────────
+for (const internalFragment of [
+  "primarySyndromeResolutionReason",
+  "缺少腰膝酸软",
+  "clinicalRationale",
+  "病程符合慢性失眠",
+  "supportingFacts",
+  "入睡困难3月余",
+  "schemaVersion",
+  "tcm-cdss-reasoning-v2",
+  "nodeId",
+  "uncertainties",
+]) {
+  assert.ok(
+    !noticeText.includes(internalFragment),
+    `可见流泄漏了内部字段或未登记内容：${internalFragment}`,
+  );
+}
+
+// ── 3) 未登记模块默认不上流（default-deny）────────────────────────────────────
+const withUnknownModule = JSON.stringify({
+  ...M03_PAYLOAD,
+  internalAudit: { rawPromptFingerprint: "sha256:deadbeef", reviewerNotes: "不得外泄" },
+});
+const unknownEmitted = new Set();
+const unknownNotices = newModuleNotices(withUnknownModule, unknownEmitted).join("\n");
+assert.ok(unknownEmitted.has("internalAudit"), "扫描器应识别到该顶层键（否则本用例无意义）");
+assert.ok(
+  !unknownNotices.includes("internalAudit") && !unknownNotices.includes("deadbeef") && !unknownNotices.includes("不得外泄"),
+  "未登记的模块必须默认不上流——新增模块要显式登记它暴露哪个字段",
+);
+
+// M03 阶段 formula 恒为 null，不应产出候选方药的进度行。
+assert.equal(moduleProgressNotice(serialized, "formula"), undefined, "值为 null 的模块不上流");
+
+// ── 4) M04 的候选方药只报方名与味数，不报药名剂量 ────────────────────────────
+const m04Payload = JSON.stringify({
+  stage: "prescribe",
+  formula: {
+    candidates: [{
+      name: "归脾汤加减",
+      herbs: [
+        { name: "党参", dose: "12g" },
+        { name: "白术", dose: "10g" },
+        { name: "茯苓", dose: "12g" },
+      ],
+    }],
+  },
+});
+const m04Notice = moduleProgressNotice(m04Payload, "formula") || "";
+assert.match(m04Notice, /归脾汤加减/, "可以报方名");
+assert.match(m04Notice, /共 3 味/, "可以报味数");
+for (const forbidden of ["党参", "12g", "白术", "茯苓"]) {
+  assert.ok(!m04Notice.includes(forbidden), `进度行不得出现药名或剂量：${forbidden}（剂量要等审方，组成要等核验）`);
+}
+
+// ── 5) 截断的 JSON 不得误报未写完的模块 ──────────────────────────────────────
+const truncated = serialized.slice(0, serialized.indexOf('"pathogenesis"') + 30);
+assert.ok(
+  !completedTopLevelKeys(truncated).includes("pathogenesis"),
+  "值尚未闭合的模块不得被判为已写完",
+);
+
+// ── 6) 既有决策仍然成立：结构化阶段仍是缓冲的，完整正文只出一次 ──────────────
+const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+assert.match(
+  apiSource,
+  /const bufferedClinicalStage = opts\.structuredStage != null/,
+  "结构化阶段必须仍然缓冲：按模块反馈只加进度行，不得改回流式输出临床正文",
+);
+assert.match(
+  apiSource,
+  /不\*\*推第二份临床正文/,
+  "这条约束的理由必须留在代码里，否则下一个人会把临床正文加回流式输出",
+);
+
+console.log(JSON.stringify({
+  suite: "stream-modules",
+  moduleNotices: timeline.length,
+  firstNoticeAtChars: timeline[0].atChars,
+  totalChars: serialized.length,
+  failures: 0,
+}, null, 2));

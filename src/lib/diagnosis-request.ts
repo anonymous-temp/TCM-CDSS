@@ -1,4 +1,5 @@
 import { normalizeCaseStateInput, type CaseState } from "./diagnosis-types";
+import { stripInvalidEmergencyClearance } from "./emergency-clearance.server";
 import { readJsonBodyWithLimit } from "./http-guard";
 
 export type CaseStateRequestResult =
@@ -26,5 +27,5 @@ export async function readCaseStateRequest(req: Request): Promise<CaseStateReque
     return { ok: false, response: Response.json({ error: "caseState must be an object" }, { status: 400 }) };
   }
 
-  return { ok: true, caseState };
+  return { ok: true, caseState: stripInvalidEmergencyClearance(caseState) };
 }

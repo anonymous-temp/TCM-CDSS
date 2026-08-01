@@ -1,3 +1,5 @@
+import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
+
 export type ClinicalStateStatus = "positive" | "possible" | "negative" | "historical" | "unknown";
 
 export type ClinicalStateResult = {
@@ -12,10 +14,24 @@ export function containsUnknownClinicalCue(value: unknown): boolean {
   return UNKNOWN_CLINICAL_TEXT_PATTERN.test(typeof value === "string" ? value : String(value));
 }
 
+/**
+ * 脉象词表的**唯一**来源。此前同一份词表在 6 处各抄了一遍（clinical-state 两处、clinical-entry、
+ * diagnosis-safety、diagnosis-stage-contract 两处、DiagnosisClient），并且已经开始分叉：
+ * clinical-entry 收了完整的二十八脉，其余五处只有 18 个，散、芤、革、牢、伏、动、长、短全缺。
+ * 同一个「这是不是一条脉象记录」的判断，在不同环节会给出不同答案。
+ */
+export const PULSE_QUALITY_PATTERN_SOURCE =
+  "浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促|散|芤|革|牢|伏|动|长|短|疾";
+/**
+ * 脉力与节律限定词。它们几乎总是跟在脉象之后（脉细弦无力、脉沉细无力、脉弱无力），
+ * 但不属于脉象本身，所以必须单独成组。
+ */
+export const PULSE_FORCE_PATTERN_SOURCE = "无力|有力|少力|不整|不齐";
+
 const CONCRETE_CLINICAL_FACT_PATTERN = new RegExp([
   "舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|有齿痕|齿痕|边红|尖红)",
   "苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)",
-  "脉(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促){1,4}",
+  `脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?`,
   "(?:体温|T|血压|BP|脉搏|心率|P|呼吸|R|血氧|SpO2)?\\s*\\d+(?:\\.\\d+)?\\s*(?:℃|次/分|次每分|mmHg|%|mg|毫克|g|克|mL|毫升)",
   "(?:现服|正在服用|正在使用|用药为|口服|静滴|肌注)[^，。；;\\n]{1,30}",
   "(?:对[^，。；;\\n]{1,24}过敏|(?:药物|食物|青霉素|头孢|磺胺)[^，。；;\\n]{0,12}过敏)",
@@ -23,8 +39,20 @@ const CONCRETE_CLINICAL_FACT_PATTERN = new RegExp([
   "(?:(?:突发|持续|反复|进行性|外伤后|今晨|今日|排|近\\d+(?:小时|天|周|月))[^，。；;\\n]{0,10})?(?:出血不止|持续出血|呕血|黑便|黑色便|柏油样便|便血|咯血|晕厥|黑矇|意识丧失|胸痛|胸闷|气促|呼吸困难|剧烈头痛|肢体无力|腹痛|腹胀|寒战|高热)(?:[^，。；;\\n]{0,12}(?:不止|加重|未缓解|\\d+(?:分钟|小时|天|周|月|mL|毫升)))?",
   "(?:检查|检验|化验|心电图|肌钙蛋白|肝功能|肾功能|甲功|血常规)[^，。；;\\n]{0,30}(?:正常|异常|阴性|阳性|升高|降低|未见异常)",
 ].join("|"), "i");
-const CONCRETE_TONGUE_PATTERN = /舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|有齿痕|齿痕|边红|尖红)|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/;
-const CONCRETE_PULSE_PATTERN = /(?:^|[，,；;\s])(?:脉)?(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促){1,4}(?=$|[，,；;\s])/;
+const CONCRETE_TONGUE_PATTERN = new RegExp([
+  "舌(?:质|体)?(?:色)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|边红|尖红)",
+  "舌(?:边|缘|两边)?(?:可见|见|有|呈|伴)?(?:轻度?|明显)?(?:齿痕|齿印)",
+  "(?:齿痕|齿印)(?:舌|明显|可见)?",
+  "苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)",
+].join("|"));
+const CONCRETE_PULSE_PATTERN = new RegExp(
+  `(?:^|[，,。；;：:\\s])(?:(?:脉象|脉来|脉)(?:为|见|呈|偏)?\\s*)?(?:${PULSE_QUALITY_PATTERN_SOURCE})(?:(?:而|兼|且|、|\\/|\\s)*(?:${PULSE_QUALITY_PATTERN_SOURCE})){0,3}(?:脉)?` +
+  // 右边界要求整段必须在标点或结尾处收住。少了这一组，「脉细弦无力」这种最常见的写法里，
+  // 多写出来的「无力」反而让整个脉象判为**未记录**——信息越全，接地越差，方向是反的。
+  // 实测后果：医生录入「脉细弦无力」，输出里回给他「脉象待核实」，辨证依据写成
+  // 「月经量少推迟、脉象待核实为血虚」。
+  `(?:(?:而|且|、|\\s)*(?:${PULSE_FORCE_PATTERN_SOURCE}))?(?=$|[，,。；;\\s])`,
+);
 
 function hasConcreteClinicalFactAlongsideUnknown(text: string): boolean {
   return text
@@ -44,20 +72,39 @@ export function isUnknownClinicalText(value: unknown): boolean {
   return !hasConcreteClinicalFactAlongsideUnknown(text);
 }
 
+/** 某个正则在文本里最后一次命中的下标；没命中返回 -1。 */
+function lastMatchIndex(text: string, pattern: RegExp): number {
+  const global = pattern.flags.includes("g") ? pattern : new RegExp(pattern.source, `${pattern.flags}g`);
+  return Array.from(text.matchAll(global)).at(-1)?.index ?? -1;
+}
+
 export function isUnknownClinicalFieldText(
   value: unknown,
-  field: "tongue" | "pulse" | "medication" | "allergy" | "generic",
+  field: "tongue" | "pulse" | "face" | "medication" | "allergy" | "generic",
 ): boolean {
   if (field === "generic") return isUnknownClinicalText(value);
   const text = typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
   if (!text) return true;
-  if (field === "tongue" || field === "pulse") {
-    const concrete = field === "tongue" ? CONCRETE_TONGUE_PATTERN : CONCRETE_PULSE_PATTERN;
-    const unknown = field === "tongue"
-      ? /舌象[^。；;\n]{0,16}(?:待核实|待确认|未知|无法判断|未采集)/g
-      : /脉象[^。；;\n]{0,16}(?:待核实|待确认|未知|无法判断|未采集)/g;
-    const concreteGlobal = new RegExp(concrete.source, "g");
-    const lastConcrete = Array.from(text.matchAll(concreteGlobal)).at(-1)?.index ?? -1;
+  if (field === "tongue" || field === "pulse" || field === "face") {
+    // 具体性判定取「形态学正则 ∪ 受控词表」。两者缺一不可：
+    // - 形态学正则认自由输入（医生自己敲的「舌淡红苔薄白」「脉细弦无力」）；
+    // - 受控词表认页面点选值。该词表里的「舌体颤动」「络脉青紫」「苔白如积粉」「平脉」等
+    //   在形态学正则里全无对应，只按正则判会把医生点过的词判成未采集，再被输出净化器
+    //   改写成「舌象待核实」。实测 80 词里原本 28 词命中这个陷阱。
+    // 词表是补充不是白名单：自由文本不受限，两者取并集。
+    const morphology = field === "tongue"
+      ? CONCRETE_TONGUE_PATTERN
+      : field === "pulse" ? CONCRETE_PULSE_PATTERN : undefined;
+    const unknownLabel = field === "tongue" ? "舌象" : field === "pulse" ? "脉象" : "面象";
+    const unknown = new RegExp(`${unknownLabel}[^。；;\\n]{0,16}(?:待核实|待确认|未知|无法判断|未采集)`, "g");
+    const lastConcrete = Math.max(
+      morphology ? lastMatchIndex(text, morphology) : -1,
+      lastMatchIndex(text, inspectionLexiconPattern(field)),
+      // 「面色正常」「舌象正常」「脉象正常」是医生最常点的那一项，属于阳性的「已查且正常」，
+      // 不是「未采集」。词表里的正常项写的是专业表述（红黄隐隐／淡红舌，薄白苔／平脉），
+      // 口语写法必须一并认下，否则最省事的那条录入路径反而判不出来。
+      lastMatchIndex(text, new RegExp(`${unknownLabel}(?:未见(?:明显)?异常|正常|无异常)|(?:面色|舌象|脉象)正常`)),
+    );
     const lastUnknown = Array.from(text.matchAll(unknown)).at(-1)?.index ?? -1;
     return lastConcrete < 0 || lastUnknown > lastConcrete;
   }

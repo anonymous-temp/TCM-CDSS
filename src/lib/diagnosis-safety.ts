@@ -8,7 +8,10 @@ import {
   isUnknownClinicalFieldText,
   isUnknownClinicalText,
   isPositiveOrPossibleClinicalState,
+  PULSE_FORCE_PATTERN_SOURCE,
+  PULSE_QUALITY_PATTERN_SOURCE,
 } from "./clinical-state";
+import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
 import { generalizeOccupation, scrubQuasiIdentifierText } from "./phi-sanitizer";
 import { determineCompletenessLevel } from "./diagnosis-parse";
 import {
@@ -16,6 +19,7 @@ import {
   groundedPatientTriageCategories,
   priorityEvaluationItemsFromFacts,
   semanticTriageAdvisoriesFromFacts,
+  structuredRedFlagEvidenceFromFacts,
   type BackstopRedFlagCategory,
 } from "./clinical-facts";
 import { affirmedCurrentMedicationText, clinicalEventTemporalScopeAt } from "./clinical-polarity";
@@ -182,8 +186,35 @@ export function trustedInputText(state: CaseState): string {
   ].filter(Boolean).join("\n");
 }
 
+/**
+ * 「接地语料」与「安全语料」是两件事，失效方向相反，因此不能共用同一份文本。
+ *
+ * trustedInputText 刻意把 state.symptoms 排除在外：M01 collect 可能把「否认胸痛，但突发晕厥」
+ * 误读成 symptoms.pain=「胸痛」，把模型衍生字段喂回确定性安全门会把被否认的症状变成阳性红旗。
+ * 对**红旗判定**来说，少一个来源是保守的——顶多漏掉一个模型幻觉。
+ *
+ * 但同一份文本还被用来判断「病历里到底有没有记录某个症状」。对**接地判定**来说，少一个来源是
+ * 反向的：净化器会把一条真实记录的症状改写成「病历尚未确认X是否存在」，凭空制造一个不存在的
+ * 「未知」。实测一例主诉为「睡不着三年多了」的失眠病例，M02 追问一产生对话，symptoms 整体出局，
+ * 输出里出现了「病历尚未确认入睡困难是否存在；但睡眠障碍为突出表现」这种自相矛盾的句子——
+ * 排除条件写的是「存在 HIS 记录或对话」，而真正的危险是「该字段可能由模型衍生」，两者并不等价：
+ * 医生答完一条追问，并不会让他之前录入的症状变得不可信。trustedInputText 自己的注释也写着
+ * 「一条后续消息不得驱逐已录入的舌象、脉象、生命体征与病史」——那条原则唯独没有应用到症状上，
+ * 而症状恰恰是承载主症的字段。
+ *
+ * 因此这里把 symptoms 重新纳入接地语料，但**逐条**排除权威文本已明确否认的那些：极性反转
+ * （模型把否认写成阳性）是当初排除它的唯一真实理由，权威否认一票否决即可堵住，不必连同全部
+ * 真实症状一起丢弃。红旗判定仍走 trustedInputText，一字未改。
+ */
 export function clinicalGroundingText(state: CaseState): string {
-  return trustedInputText(state);
+  const authoritative = trustedInputText(state);
+  const symptomEntries = flattenClinicalInput(state.symptoms)
+    .filter((entry) => typeof entry === "string" && entry.trim())
+    .filter((entry) => !authoritative.includes(entry.trim()))
+    .filter((entry) => !CLINICAL_NEGATION_FACT_TERMS.some((term) =>
+      entry.includes(term) && sourceDocumentsNegation(authoritative, term)));
+  if (symptomEntries.length === 0) return authoritative;
+  return [authoritative, ...symptomEntries].filter(Boolean).join("\n");
 }
 
 const RED_FLAG_NEGATION_TERMS = [
@@ -420,6 +451,65 @@ function clauseOnlyAssertsFactWasNotRecorded(clause: string, prefix: string, ter
   return remainder.length === 0;
 }
 
+function clauseNegationsAreLiterallyDocumented(clause: string, source: string): boolean {
+  const match = clause.match(/(?:绝无|全无|尚无|暂无|没有|否认|未见|未出现|不伴|并无|无)(?:任何|相关|上述|该|此类|明显)?([^。；;]+)/);
+  if (!match?.[1]) return false;
+  const items = match[1]
+    .split(/[、，,]|(?:及|和|或)/)
+    .map((item) => item.replace(/^(?:本例|患者|病人|当前|目前)\s*/, "").trim())
+    .filter((item) => item.length >= 2);
+  if (items.length === 0) return false;
+  return items.every((item) => {
+    const index = source.indexOf(item);
+    return index >= 0 && isNegatedAt(source, index);
+  });
+}
+
+function qualifiedDocumentedDenial(source: string, term: string): string | undefined {
+  for (const raw of source.split(/[。；;\n]+/)) {
+    const clause = raw.trim();
+    const index = clause.indexOf(term);
+    if (index < 0 || !isNegatedAt(clause, index)) continue;
+    const beforeTerm = clause
+      .slice(0, index)
+      .replace(/^.*?(?:绝无|全无|尚无|暂无|没有|否认|未见|未出现|不伴|并无|无)(?:任何|相关|上述|该|此类|明显)?/, "")
+      .replace(/[\s，,、及和或]/g, "");
+    // Only restore a qualified subtype denial (e.g. 雷击样头痛), never use a generic “否认头痛”
+    // to overwrite the same chart's affirmative ordinary headache.
+    if (beforeTerm.length > 0) return clause;
+  }
+  return undefined;
+}
+
+function reconcileSyntheticPolarityContradictions(value: string, source: string): string {
+  const positiveTerms = CLINICAL_NEGATION_FACT_TERMS.filter((term) =>
+    value.includes(`病历已记录${term}阳性`));
+  if (positiveTerms.length === 0 || !value.includes("病历已记录否认")) return value;
+  const seen = new Set<string>();
+  return value
+    .split(/([。；;])/)
+    .map((part) => {
+      if (!part || /^[。；;]$/.test(part)) return part;
+      let clause = part;
+      if (/病历已记录否认/.test(clause)) {
+        for (const term of positiveTerms) {
+          if (!clause.includes(term)) continue;
+          const qualified = qualifiedDocumentedDenial(source, term);
+          if (qualified) {
+            clause = `病历已记录${qualified}`;
+            break;
+          }
+        }
+      }
+      const fingerprint = clause.normalize("NFKC").replace(/[\s，,。；;：:、]/g, "");
+      if (fingerprint && seen.has(fingerprint)) return "";
+      if (fingerprint) seen.add(fingerprint);
+      return clause;
+    })
+    .join("")
+    .replace(/([。；;]){2,}/g, "$1");
+}
+
 function sanitizeUngroundedNegationText(value: string, source: string): string {
   const sanitizeClause = (clause: string): string => {
     const negationProbe = clause
@@ -429,6 +519,11 @@ function sanitizeUngroundedNegationText(value: string, source: string): string {
       // post-stroke fact into the synthetic sentence “病历已记录肢体无力阳性”.
       .replace(/肢体无力/g, "肢体乏力");
     const prefix = clause.match(/^(\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?)/)?.[1] || "";
+    // Preserve a qualified denial only when every denied phrase is literally present under a
+    // negation cue in the chart. This keeps “否认突发雷击样头痛” distinct from “否认头痛” when the
+    // same record also affirms ordinary headache; collapsing the qualifier creates an impossible
+    // same-screen “头痛阳性 + 否认头痛” contradiction.
+    if (clauseNegationsAreLiterallyDocumented(clause, source)) return clause;
     const documentedPendingTests = CLINICAL_NORMALITY_TERMS.filter(
       (term) => clause.includes(term) &&
         /(?:待核实|待确认|待查|未提供|未记录|未完成|不详|未知)/.test(clause) &&
@@ -508,11 +603,18 @@ function sanitizeUngroundedNegationText(value: string, source: string): string {
     }
     return line.replace(/[^。；;]+/g, sanitizeClause);
   }).join("\n");
+  sanitized = reconcileSyntheticPolarityContradictions(sanitized, source);
   if (!sourceHasKnownTongue(source)) {
-    sanitized = sanitized.replace(/舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)[^，。；;\n|]{0,24}|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/g, "舌象待核实");
+    // 识别面与改写面必须认同一批词。少了受控词表这一半，病历里没有舌象、模型却编出
+    // 「舌体颤动」「络脉青紫」时，净化器认不出来、原样放行——一条无据的舌象就这么进了结论。
+    sanitized = sanitized
+      .replace(/舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)[^，。；;\n|]{0,24}|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/g, "舌象待核实")
+      .replace(new RegExp(inspectionLexiconPattern("tongue").source, "g"), "舌象待核实");
   }
   if (!sourceHasKnownPulse(source)) {
-    sanitized = sanitized.replace(/脉(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促){1,4}/g, "脉象待核实");
+    sanitized = sanitized
+      .replace(new RegExp(`脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?`, "g"), "脉象待核实")
+      .replace(new RegExp(inspectionLexiconPattern("pulse").source, "g"), "脉象待核实");
   }
   return sanitized;
 }
@@ -576,7 +678,10 @@ function sanitizePatientApplicableText(value: string, state: CaseState): string 
  * addition to the prompt contract because fabricated negative history can suppress follow-up.
  */
 export function sanitizeUngroundedRedFlagNegations(content: string, state: CaseState): string {
-  const source = trustedInputText(state);
+  // 接地语料而非安全语料：这里判断的是「病历里有没有记录过这个症状」。用安全语料会把医生
+  // 已录入、只是恰好没出现在 HIS/对话里的症状判成未知，从而凭空写出「病历尚未确认X是否存在」。
+  // 见 clinicalGroundingText 的说明；红旗判定不走这条路径。
+  const source = clinicalGroundingText(state);
   const jsonBlocks: string[] = [];
   const placeholderContent = content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
@@ -588,11 +693,12 @@ export function sanitizeUngroundedRedFlagNegations(content: string, state: CaseS
           // running negation prose replacement over them can turn a valid diagnosis name into a
           // sentence such as "病历已记录头痛阳性" and break the signed result after validation.
           if (typeof value === "string" && key === "name") return value;
-          // Monitoring metric/timing/trigger are contract-owned structured fields. Rewriting their
-          // prose here destroyed the trigger's condition/action semantics ("若…需复诊" →
-          // "病历已记录…阳性；病历尚未确认…是否存在"), making the M04 contract reject the server's
-          // own sanitized output. Leave the whole subtree byte-exact; the stage contract validates it.
-          if (key === "monitoring" && parentKey === "nonPharma") return value;
+          // 已删除 nonPharma.monitoring 的净化豁免。该豁免不是安全控制，而是对本净化器的**豁免**：
+          // 它存在的唯一理由是重写 trigger 的条件/动作措辞会破坏 monitoring 的语义合同，让 M04
+          // 合同拒掉服务端自己净化过的输出。语义合同（5 个 monitoring_* 驳回码）已随字段一并删除，
+          // 继任字段 precautions 没有任何语义合同，因此恢复默认净化更安全：净化器只重写带否定/
+          // 未知线索的从句（「否认X」「尚未确认X是否存在」），条件句「如出现黑便应立即就医」不触发
+          // 任何分支；即便被改写也只是文案变形，不会造成任何驳回。
           if (typeof value === "string") {
             // Exact source facts have already crossed the structured grounding contract. Rewriting
             // them as explanatory prose can corrupt mixed-polarity records: for example, the exact
@@ -1964,6 +2070,36 @@ function cardiacAcuteChangeAttachedAt(text: string, index: number, matchText: st
   return false;
 }
 
+/**
+ * Chest tightness is common in respiratory, digestive and anxiety presentations. Unlike current
+ * chest pain, an isolated current mention is not by itself a high-specificity ACS floor. Acute
+ * authority therefore requires an onset/change cue attached to the chest-tightness subclause.
+ * This prevents another symptom's modifier in “头晕加重，伴胸闷” from crossing the comma and
+ * falsely becoming “胸闷加重”, while preserving “胸闷近一周明显加重/今晨突发胸闷”.
+ */
+function hasScopedAcuteChestTightnessSignal(text: string): boolean {
+  const normalized = normalizeClinicalText(text);
+  const term = "胸闷";
+  let index = normalized.indexOf(term);
+  const scopedCue = new RegExp(
+    `${CARDIAC_ACUTE_ONSET_CUE_SOURCE}|${CARDIAC_ACUTE_CHANGE_CUE_SOURCE}|` +
+    String.raw`(?:持续|未缓解|无缓解|没有缓解|压榨|濒死|\d+(?:\.\d+)?\s*(?:分钟|分|小时|h|H)|半小时|数小时)`,
+  );
+  while (index >= 0) {
+    if (
+      !isExcludedClinicalAssertionAt(normalized, index) &&
+      (!isNegatedAt(normalized, index) || hasCommaSeparatedPositiveEvidence(normalized, index, term)) &&
+      !isHistoricalOrResolvedAt(normalized, index, term.length)
+    ) {
+      if (cardiacAcuteChangeAttachedAt(normalized, index, term)) return true;
+      const { start, end } = clinicalSubClauseBoundsAt(normalized, index, term.length);
+      if (scopedCue.test(normalized.slice(start, end).replace(NON_NEGATING_PHRASES, ""))) return true;
+    }
+    index = normalized.indexOf(term, index + term.length);
+  }
+  return false;
+}
+
 // 单个胸痛/胸闷出现位置是否被框定为劳力性慢性稳定基线：本小句带劳力诱发词，
 // 且同一硬句内有慢性病程（2年/数月/多年）或稳定性/管理锚点（稳定型心绞痛/规律服药/控制同前）。
 function cardiacMentionIsChronicStableAt(text: string, index: number, matchText: string): boolean {
@@ -2288,9 +2424,8 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     hasRecentPositiveTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) ||
     hasCurrentOrRecurrentPositiveTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) ||
     (colloquialChestPressureSignal && /(?:突然|突发|刚才|刚刚|新发|开始|持续|不缓解|无缓解|冷汗|大汗|气促|呼吸困难|\d+(?:\.\d+)?\s*(?:分钟|分|小时))/.test(text)));
-  const acuteChestTightnessSignal = !chronicStableExertionalCardiacOnly && (
-    hasAcutePositiveTerm(text, ["胸闷"]) ||
-    hasCurrentOrRecurrentPositiveTerm(text, ["胸闷"]));
+  const acuteChestTightnessSignal =
+    !chronicStableExertionalCardiacOnly && hasScopedAcuteChestTightnessSignal(text);
   const cardiacCompanion = hasAnyTerm(text, [...GOVERNED_CARDIAC_COMPANIONS, "一身汗", "压榨", "濒死"]);
   const cardiacClearanceBoundary = acuteCardiacClearanceBoundary(text);
   const cardiacCleared = cardiacClearanceBoundary >= 0;
@@ -2372,6 +2507,40 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
 }
 
 type ProgrammaticRedFlagFinding = NonNullable<SafetyGate["redFlagFindings"]>[number];
+
+function stableRedFlagHash(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `RF-${(hash >>> 0).toString(16).padStart(8, "0").toUpperCase()}`;
+}
+
+export function redFlagClearanceFingerprint(
+  gate: Pick<SafetyGate, "redFlags" | "redFlagFindings">,
+): string {
+  const atoms = (gate.redFlagFindings || []).map((finding) =>
+    [finding.ruleId, finding.sourceQuote, finding.message].map((item) => item.trim().replace(/\s+/g, " ")).join("|"),
+  );
+  const source = atoms.length > 0
+    ? atoms
+    : gate.redFlags.map((item) => item.trim().replace(/\s+/g, " "));
+  return stableRedFlagHash([...new Set(source)].sort().join("\n"));
+}
+
+function hasCurrentEmergencyClearance(
+  state: CaseState,
+  gate: Pick<SafetyGate, "redFlags" | "redFlagFindings">,
+): boolean {
+  const clearance = state.emergencyClearance;
+  if (
+    !clearance ||
+    clearance.assessmentSummary.trim().length < 12 ||
+    !Number.isFinite(Date.parse(clearance.confirmedAt))
+  ) return false;
+  return clearance.redFlagFingerprint === redFlagClearanceFingerprint(gate);
+}
 
 const RED_FLAG_FINDING_RULES: Array<{
   id: string;
@@ -2993,12 +3162,17 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   const semanticSourceText = trustedInputText(state);
   const semanticAdvisories = semanticTriageAdvisoriesFromFacts(state.clinicalFacts, semanticSourceText);
   const semanticEmergencyFindings = additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, []);
+  const semanticEmergencyEvidence = structuredRedFlagEvidenceFromFacts(state.clinicalFacts, semanticSourceText);
   const priorityEvaluationItems = priorityEvaluationItemsFromFacts(state.clinicalFacts, semanticSourceText);
   if (hasAbdominalPrioritySignal(semanticSourceText) && !hasAcuteAbdominalSignal(semanticSourceText)) {
     priorityEvaluationItems.push("突发、持续或进展性腹痛/胃痛需优先完成腹部查体与严重度评估");
   }
   const semanticTriage = semanticEmergencyFindings.length > 0
-    ? { level: "emergency_review" as const, findings: semanticEmergencyFindings }
+    ? {
+        level: "emergency_review" as const,
+        findings: semanticEmergencyFindings,
+        evidence: semanticEmergencyEvidence,
+      }
     : priorityEvaluationItems.length > 0
       ? { level: "priority_review" as const, findings: priorityEvaluationItems }
       : undefined;
@@ -3087,6 +3261,22 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   const redFlags = detectProgrammaticRedFlags(state);
   if (redFlags.length > 0) {
     const redFlagFindings = programmaticRedFlagFindings(state, redFlags);
+    const activeGate = { redFlags, redFlagFindings };
+    if (hasCurrentEmergencyClearance(state, activeGate)) {
+      const clearanceNotice = `已记录医生现场急症排查结果：${state.emergencyClearance?.assessmentSummary}`;
+      return {
+        status: missingItems.length > 0 ? "needs_information" : "ready",
+        allowDiagnosis: true,
+        allowDosePrescription: missingItems.length === 0,
+        action: missingItems.length > 0 ? "complete_before_prescription" : "proceed",
+        missingItems,
+        missingItemCodes,
+        redFlags: [],
+        redFlagFindings: [],
+        advisories: Array.from(new Set([clearanceNotice, ...advisories])),
+        reasons: [clearanceNotice, "原急危重风险线索保留在病例留痕中；当前常规诊疗仅基于医生已完成的现场排查继续。"],
+      };
+    }
     return {
       status: "red_flag",
       // 急性红旗不终止 Agent 会话：允许 M03 继续生成风险分析、鉴别与转诊闭环；
@@ -3650,19 +3840,17 @@ function uniqueFollowupText(values: Array<string | undefined>, limit = 5): strin
     .filter((value) => value.length >= 2))].slice(0, limit);
 }
 
+// M05 随访汇总原先从 nonPharma.monitoring 取 指标/时间/触发 三路输入。该结构化字段已删除，
+// 这里改为：指标与触发落到既有的 coreFacts / 固定回退路径（两条回退本就存在且被测试覆盖），
+// 注意事项只作为一条只读文本行呈现，不再变成随访时间轴的结构化行。
 function structuredFollowupInputs(state: CaseState): {
-  metrics: string[];
-  timings: string[];
-  triggers: string[];
+  precautions: string[];
   coreFacts: string[];
 } {
   const prescribe = state.reasoningPrescribe || (state.reasoningV2?.stage === "prescribe" ? state.reasoningV2 : undefined);
   const diagnose = state.reasoningDiagnose || state.reasoningV2;
-  const monitoring = prescribe?.nonPharma?.monitoring || [];
   return {
-    metrics: uniqueFollowupText(monitoring.map((item) => item.metric), 6),
-    timings: uniqueFollowupText(monitoring.map((item) => item.timing), 4),
-    triggers: uniqueFollowupText(monitoring.map((item) => item.trigger), 6),
+    precautions: uniqueFollowupText(prescribe?.nonPharma?.precautions || [], 6),
     coreFacts: uniqueFollowupText([
       ...(diagnose?.westernDiagnosis?.primary?.supportingFacts || []),
       ...(diagnose?.overview?.primarySyndromeBasis || []),
@@ -3801,31 +3989,35 @@ export function buildDeterministicRiskFollowupPayload(state: CaseState): Determi
       ? "处方可作为候选方案审阅，请结合过敏史、现用药、特殊人群状态和院内规则完成复核。"
       : "当前无确定性强提示；仍需医生按病情、说明书和院内药事规则最终确认。";
   const firstReview = deriveFirstReviewTiming(state, hasStrongRisk);
-  const coreMetrics = followup.metrics.length > 0
-    ? followup.metrics.join("；")
-    : followup.coreFacts.length > 0
-      ? `${followup.coreFacts.join("；")}的严重程度、发作频次及对日常功能的影响`
-      : "本次主要症状的严重程度、发作频次及对日常功能的影响";
-  const efficacyTrigger = followup.triggers.length > 0
-    ? followup.triggers.join("；")
-    : "主要症状较首诊无改善或加重，或出现新的伴随症状";
+  const coreMetrics = followup.coreFacts.length > 0
+    ? `${followup.coreFacts.join("；")}的严重程度、发作频次及对日常功能的影响`
+    : "本次主要症状的严重程度、发作频次及对日常功能的影响";
+  const efficacyTrigger = "主要症状较首诊无改善或加重，或出现新的伴随症状";
   const actualRiskIndicators = concreteAuditRiskObservations(riskSource);
+  // 随访时间轴只保留两条确定性行（首次复诊 + 治疗期间随时）。原先由 nonPharma.monitoring 派生的
+  // 第三类行随字段一并删除：注意事项是自由文本，不再有 timing/metric/trigger 的字段归属，
+  // 硬塞进结构化时间轴只会重新制造那套语义合同。它改由下方 `**注意事项**` 只读行呈现。
   const timelineItems: StructuredFollowupTimelineItem[] = [];
-  if (hasStrongRisk || hasReviewRisk) {
-    timelineItems.push({
-      time: "采纳候选前",
-      action: "完成针对性安全复核",
-      indicators: uniqueFollowupText([...actualRiskIndicators, missingAdvisory]),
-      triggers: [hasStrongRisk ? "强提示未解除前不采纳；调整后重新审方" : "复核结果影响用药选择时调整方案并重新审方"],
-    });
-  }
-  timelineItems.push(...((state.reasoningPrescribe || (state.reasoningV2?.stage === "prescribe" ? state.reasoningV2 : undefined))
-    ?.nonPharma?.monitoring || []).map((item) => ({
-        time: followupTableCell(item.timing),
-        action: "记录并复核本例指标",
-        indicators: [followupTableCell(item.metric)],
-        triggers: [followupTableCell(item.trigger)],
-      })));
+  timelineItems.push(
+    {
+      time: firstReview,
+      action: "完成首次复诊与疗效复评",
+      indicators: uniqueFollowupText([coreMetrics, "舌脉变化", "实际用药与不适反应"], 6),
+      triggers: uniqueFollowupText([
+        efficacyTrigger,
+        ...actualRiskIndicators.map((item) => `出现${item}时提前复诊`),
+      ], 6),
+    },
+    {
+      time: "治疗期间随时",
+      action: "记录症状变化并按触发条件提前复评",
+      indicators: uniqueFollowupText([...followup.coreFacts, "新发不适或原症加重"], 6),
+      triggers: uniqueFollowupText([
+        efficacyTrigger,
+        "出现急性加重或新的红旗症状时及时就医",
+      ], 6),
+    },
+  );
   const timelineRows = timelineItems.map((item) => [
     item.time,
     item.action,
@@ -3848,6 +4040,7 @@ export function buildDeterministicRiskFollowupPayload(state: CaseState): Determi
     `**复诊评估重点**：${coreMetrics}；舌脉及本例已记录的客观指标变化；用药执行情况。`,
     `**疗效评价标准**：以首诊记录为基线，比较${coreMetrics}；同时确认未出现新发不适。`,
     ...(actualRiskIndicators.length > 0 ? [`**安全性观察**：${actualRiskIndicators.join("；")}。`] : []),
+    ...(followup.precautions.length > 0 ? [`**注意事项**：${followup.precautions.join("；")}`] : []),
     `**无效或加重的处置预案**：${efficacyTrigger}时，不自动沿用候选方案，由医生复评诊断、辨证与处方风险，并按实际情况安排检查或转诊。`,
     "",
     ...sixHealthFollowupTable().split("\n"),

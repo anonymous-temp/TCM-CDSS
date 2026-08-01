@@ -79,6 +79,12 @@ export interface SafetyGate {
   semanticTriage?: {
     level: "emergency_review" | "priority_review";
     findings: string[];
+    evidence?: Array<{
+      category: string;
+      sourceQuote: string;
+      escalationRationale?: string;
+      evidenceQuotes: string[];
+    }>;
   };
   reasons: string[];
 }
@@ -150,6 +156,23 @@ export interface CaseState {
   // 医生对“本次就诊目标不明确”语义预检结论的显式确认。通过 sourceFingerprint 绑定当前病历版本：
   // 病历文本变化后指纹改变，确认自动失效，需对最新语义预检结论重新确认。
   encounterScopeConfirmation?: { sourceFingerprint: string; confirmedAt: string };
+  // 医生完成现场急症排查后的显式留痕。它只对当前红旗事实指纹有效：
+  // 病历中的红旗证据发生变化后自动失效，不能作为全局关闭急症规则的开关。
+  emergencyClearance?: {
+    redFlagFingerprint: string;
+    confirmedAt: string;
+    assessmentSummary: string;
+    contractSignature: string;
+  };
+  // 医生导出前对当前风险分级的确认记录。L4/red-flag 只允许 non_dose_risk_report，
+  // 该记录不能改变处方权限、审方结论或安全门状态。
+  warningAcknowledgement?: {
+    warningLevel: "L2" | "L3" | "L4";
+    acknowledgedAt: string;
+    reportFingerprint: string;
+    reason?: string;
+    exportMode: "full_advisory_report" | "non_dose_risk_report";
+  };
 
   // M02 充分度
   completeness: Completeness;
@@ -239,7 +262,10 @@ export type ControlledTerminologyMappingTrace = {
 export interface ClinicalReasoningResultV2 {
   schemaVersion: "tcm-cdss-reasoning-v2";
   stage: "diagnose" | "prescribe";
-  contractSignatureVersion?: "tcm-cdss-m03-signature-v4" | "tcm-cdss-m04-signature-v1";
+  // 只登记当前在用的版本号（历史版本不保留）。M04 升到 v2 是因为 nonPharma 的 monitoring 三元组
+  // 已换成自由文本 precautions，签名载荷字段集随之变化；在途快照会因版本不匹配确定性失效并
+  // fail-closed 转人工复核，而不是表现为难以解释的 HMAC 不符。
+  contractSignatureVersion?: "tcm-cdss-m03-signature-v4" | "tcm-cdss-m04-signature-v2";
   contractSignature?: string;
   clinicalReview?: ClinicalReviewAttestation;
   terminologyMappings?: ControlledTerminologyMappingTrace[];
@@ -250,6 +276,14 @@ export interface ClinicalReasoningResultV2 {
     primarySyndromeResolution: ClinicalResolution;
     primarySyndromeBasis: string[];
     primarySyndromeResolutionReason?: string;
+    // 需求3：诊断分三段——西医诊断（含 ICD-10 关联）、中医辨病、中医辨证候，各自给出推理过程。
+    // 辨病与辨证是两个不同的判断：辨病回答「这组表现属于哪个中医病名范畴」（病名归属，看主症
+    // 特征与病程形态），辨证回答「当前是该病的哪一证型」（证候归属，看四诊合参与病机）。
+    // 它们此前共用 tcmDiagnosticRationale 一个字段，结果是病名归属的理由被证型推理挤掉——
+    // 医生看到「不寐」却读不到为什么把这组表现归入不寐而不是郁病或心悸。
+    // tcmDiagnosticRationale 保留承担**辨证**（它现有的 restatement 契约检查正是为辨证写的），
+    // 辨病另起 tcmDiseaseRationale。
+    tcmDiseaseRationale?: string;
     tcmDiagnosticRationale?: string;
     tcmDifferentials?: Array<{
       syndrome: string;
@@ -413,6 +447,9 @@ export interface ClinicalReasoningResultV2 {
         function: string;
         isToxic?: boolean;
         decoctionRequirement?: string;
+        verificationTier?: "verified" | "unverified_dose" | "identity_pending" | "toxic_regulated";
+        doseSource?: "governed_boundary" | "classical_source" | "none";
+        verificationReasons?: string[];
         evidence: EvidenceRef;
       }>;
       formulaAnalysis: string;
@@ -505,7 +542,13 @@ export interface ClinicalReasoningResultV2 {
       executable: boolean;
       clinicianReviewRequired: true;
     }>;
-    monitoring: Array<{ metric: string; timing: string; trigger: string }>;
+    // 注意事项（自由文本）。刻意不做 metric/timing/trigger 这类多字段语义分离：
+    // 旧的 monitoring 三元组正是 5 个 M04 驳回码（monitoring_N_incomplete / _metric_semantics /
+    // _trigger_semantics / _duplicate / _metric_ungrounded）的唯一产地，而这 5 个码在
+    // structured-clinical-repair 里从来没有修复引导语，命中后模型只能盲目重采样直到编排
+    // 超时把可用处方降级成受限输出。安全权威在 withSafetyGate 与 rxaudit，二者都不读这个字段，
+    // 因此把它改成零驳回码的自由文本是净安全收益。「必有内容」由编译层确定性兜底提供。
+    precautions: string[];
   };
   lineageAdaptation: null | {
     schemaVersion: "tcm-cdss-reasoning-v2";
@@ -640,6 +683,7 @@ const DEFAULT_OVERVIEW: ClinicalReasoningResultV2["overview"] = {
   primarySyndromeResolution: "unresolved",
   primarySyndromeBasis: [],
   primarySyndromeResolutionReason: "结构化结果中没有可供判断的证型名称与可回溯依据",
+  tcmDiseaseRationale: "",
   tcmDiagnosticRationale: "",
   tcmDifferentials: [],
   secondarySyndromes: [],
@@ -684,7 +728,7 @@ const DEFAULT_WESTERN_DIAGNOSIS: ClinicalReasoningResultV2["westernDiagnosis"] =
 const ReasoningV2SchemaBase = z.object({
   schemaVersion: z.literal("tcm-cdss-reasoning-v2"),
   stage: z.enum(["diagnose", "prescribe"]),
-  contractSignatureVersion: z.enum(["tcm-cdss-m03-signature-v4", "tcm-cdss-m04-signature-v1"]).optional().catch(undefined),
+  contractSignatureVersion: z.enum(["tcm-cdss-m03-signature-v4", "tcm-cdss-m04-signature-v2"]).optional().catch(undefined),
   contractSignature: z.string().max(160).optional().catch(undefined),
   clinicalReview: z.object({
     status: z.enum(["accepted", "unavailable"]),
@@ -721,6 +765,7 @@ const ReasoningV2SchemaBase = z.object({
     primarySyndromeResolution: z.enum(["resolved", "bounded", "unresolved"]).optional().catch(undefined),
     primarySyndromeBasis: z.array(z.string().min(1).max(600)).max(8).optional().catch([]),
     primarySyndromeResolutionReason: z.string().min(1).max(800).optional().catch(undefined),
+    tcmDiseaseRationale: z.string().max(1200).optional().catch(""),
     tcmDiagnosticRationale: z.string().max(1600).optional().catch(""),
     tcmDifferentials: z.array(z.object({
       syndrome: z.string().min(1).max(300),
@@ -894,6 +939,9 @@ const ReasoningV2SchemaBase = z.object({
           normalizeModelNullableText,
           z.string().max(200).nullable().optional(),
         ).transform((value) => value ?? undefined),
+        verificationTier: z.enum(["verified", "unverified_dose", "identity_pending", "toxic_regulated"]).optional(),
+        doseSource: z.enum(["governed_boundary", "classical_source", "none"]).optional(),
+        verificationReasons: z.array(z.string().min(1).max(500)).max(8).optional().catch(undefined),
         evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
       })).max(50).default([]),
       formulaAnalysis: z.string().max(4000).catch(""),
@@ -990,11 +1038,11 @@ const ReasoningV2SchemaBase = z.object({
       executable: z.boolean(),
       clinicianReviewRequired: z.literal(true),
     })).max(3).default([]),
-    monitoring: z.array(z.object({
-      metric: z.string().max(300),
-      timing: z.string().max(300),
-      trigger: z.string().max(600),
-    })).max(20).default([]),
+    // `.default([]).catch([])` 双保险：旧快照（含 monitoring、无 precautions）在 normalize 时
+    // 静默补 []，类型非法时归零而不是让整个 nonPharma 落到下面的 `.nullable().catch(null)`
+    // ——后者会连带丢掉 diet/lifestyle/emotion。旧的 monitoring 键因 nonPharma 不是 strict
+    // object 而被静默剥离，不产生任何拒绝。
+    precautions: z.array(z.string().max(200)).max(6).default([]).catch([]),
   }).nullable().catch(null),
   lineageAdaptation: z.object({
     schemaVersion: z.literal("tcm-cdss-reasoning-v2"),
@@ -1182,6 +1230,12 @@ const SafetyGateInputSchema = z.object({
   semanticTriage: z.object({
     level: z.enum(["emergency_review", "priority_review"]),
     findings: z.array(z.string()).min(1).max(20),
+    evidence: z.array(z.object({
+      category: z.string().min(1).max(80),
+      sourceQuote: z.string().min(1).max(240),
+      escalationRationale: z.string().min(1).max(600).optional(),
+      evidenceQuotes: z.array(z.string().min(1).max(200)).max(8).default([]),
+    })).max(20).optional(),
   }).optional(),
   reasons: z.array(z.string()).default([]),
 }).partial().catch({});
@@ -1207,6 +1261,8 @@ const CaseStateInputSchema = z.object({
   hisRecord: HisRecordInputSchema.optional(),
   safetyGate: SafetyGateInputSchema.optional(),
   clinicalFacts: z.unknown().optional(),
+  emergencyClearance: z.unknown().optional(),
+  warningAcknowledgement: z.unknown().optional(),
   completeness: z.unknown().optional(),
   questionRounds: z.unknown().optional(),
   questionOutcome: z.unknown().optional(),
@@ -1515,6 +1571,46 @@ function normalizeEncounterScopeConfirmation(value: unknown): CaseState["encount
   return { sourceFingerprint, confirmedAt };
 }
 
+function normalizeEmergencyClearance(value: unknown): CaseState["emergencyClearance"] {
+  const raw = recordValue(value);
+  const redFlagFingerprint = stringValue(raw.redFlagFingerprint, 96);
+  const confirmedAt = stringValue(raw.confirmedAt, 64);
+  const assessmentSummary = stringValue(raw.assessmentSummary, 1_000);
+  const contractSignature = stringValue(raw.contractSignature, 96);
+  if (
+    !redFlagFingerprint ||
+    !confirmedAt ||
+    !assessmentSummary ||
+    !contractSignature ||
+    assessmentSummary.length < 12 ||
+    !/^hmac-sha256:[a-f0-9]{64}$/i.test(contractSignature) ||
+    !Number.isFinite(Date.parse(confirmedAt))
+  ) return undefined;
+  return { redFlagFingerprint, confirmedAt, assessmentSummary, contractSignature };
+}
+
+function normalizeWarningAcknowledgement(value: unknown): CaseState["warningAcknowledgement"] {
+  const raw = recordValue(value);
+  const warningLevel = raw.warningLevel;
+  const acknowledgedAt = stringValue(raw.acknowledgedAt, 64);
+  const reportFingerprint = stringValue(raw.reportFingerprint, 96);
+  const exportMode = raw.exportMode;
+  if (
+    (warningLevel !== "L2" && warningLevel !== "L3" && warningLevel !== "L4") ||
+    !acknowledgedAt ||
+    !reportFingerprint ||
+    !Number.isFinite(Date.parse(acknowledgedAt)) ||
+    (exportMode !== "full_advisory_report" && exportMode !== "non_dose_risk_report")
+  ) return undefined;
+  return {
+    warningLevel,
+    acknowledgedAt,
+    reportFingerprint,
+    reason: stringValue(raw.reason, 500),
+    exportMode,
+  };
+}
+
 function likelyHisRecordText(value: string | undefined): boolean {
   if (!value) return false;
   return value.includes("\n") && /(患者信息|主诉|现病史|既往史|过敏史|用药史|生命体征|舌象|脉象)/.test(value);
@@ -1641,6 +1737,8 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
     safetyGate: normalizeSafetyGate(input.safetyGate),
     clinicalFacts: parseClinicalFacts(input.clinicalFacts) || undefined,
     encounterScopeConfirmation: normalizeEncounterScopeConfirmation(input.encounterScopeConfirmation),
+    emergencyClearance: normalizeEmergencyClearance(input.emergencyClearance),
+    warningAcknowledgement: normalizeWarningAcknowledgement(input.warningAcknowledgement),
     completeness: normalizeCompleteness(input.completeness),
     questionRounds: Math.min(Math.max(numberValue(input.questionRounds) ?? 0, 0), maxQuestionRounds),
     maxQuestionRounds,

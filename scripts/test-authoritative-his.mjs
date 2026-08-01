@@ -120,7 +120,34 @@ assert.deepEqual(schemeWithStructuredHerb.prescriptions.structuredHerbs[0], {
   targetPathogenesis: "心血不足，心神失养",
   function: "养心安神",
   decoctionRequirement: "捣碎后同煎",
+  verificationTier: "verified",
+  warningLevel: "L2",
+  verificationLabel: "需确认",
+  verificationReasons: ["炒酸枣仁证据来源尚未完成核验"],
+  doseSource: "governed_boundary",
 });
+assert.match(schemeWithStructuredHerb.warningProfile.level, /^L[0-3]$/);
+assert.equal(schemeWithStructuredHerb.warningProfile.exportMode, "full_advisory_report");
+
+const blockedWarningScheme = buildHisAiSchemePayload({
+  ...normalized,
+  prescriptionRevision: {
+    source: "herb_workbench",
+    candidateIndex: 0,
+    herbHash: "blocked-warning-fixture",
+    auditedAt: new Date(0).toISOString(),
+    auditResult: "BLOCK",
+    highestRiskLevel: "CRITICAL",
+    auditAvailable: true,
+  },
+});
+assert.equal(blockedWarningScheme.warningProfile.level, "L4");
+assert.equal(blockedWarningScheme.warningProfile.executable, false);
+assert.equal(blockedWarningScheme.warningProfile.exportMode, "non_dose_risk_report");
+assert.equal(blockedWarningScheme.writeBackPolicy.overrideReasonRequired, true);
+assert.equal(blockedWarningScheme.writeBackPolicy.warningConfirmationMode, "blocked");
+assert.equal(blockedWarningScheme.writeBackPolicy.warningAcknowledgementRequired, true);
+assert.equal(blockedWarningScheme.writeBackPolicy.warningReasonRequired, true);
 
 // GOV-01 同类守卫：服务端安全降级的非剂量正文绝不能被 HIS 当成可采纳的中药饮片处方。
 // 未加此断言前，该正文会得到 status='ready' / candidateStatus='valid' / herbal[0].adoptable=true。

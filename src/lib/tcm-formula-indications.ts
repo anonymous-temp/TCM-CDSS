@@ -3,8 +3,13 @@ import retrievalConceptJson from "../data/tcm-formula-retrieval-concepts.json" w
 import retrievalIndexJson from "../data/tcm-formula-retrieval-index.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
-import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, governedTcmTermLabelById } from "./clinical-governance-tables";
-import { syndromeHypothesesFromAffirmedText } from "./tcm-syndrome-hypothesis";
+import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, formulaMatchSyndromeCompatible, governedSyndromeFeatureMatch, governedTcmTermLabelById, matchCompatibleGovernedSyndromeIds } from "./clinical-governance-tables";
+import {
+  applyBoundedSyndromeHypothesisRerank,
+  syndromeHypothesesFromAffirmedText,
+  type SyndromeHypothesis,
+  type SyndromeHypothesisRerankDecision,
+} from "./tcm-syndrome-hypothesis";
 
 type FormulaIndicationEntry = {
   id: string;
@@ -24,6 +29,8 @@ type FormulaIndicationEntry = {
   retrievalEligible: boolean;
   identityLockEligible: boolean;
   prescriptionLockEligible: boolean;
+  /** 治理目录是否已为该方全部药味备齐可执行的数值剂量边界（1563/2937）。 */
+  doseCompilationEligible: boolean;
   governanceStatus: string;
   blockingReasons: string[];
 };
@@ -90,6 +97,7 @@ type GovernedFormulaRow = {
   retrievalEligible: boolean;
   identityLockEligible: boolean;
   prescriptionLockEligible: boolean;
+  doseCompilationEligible?: boolean;
   governanceStatus: string;
   blockingReasons: string[];
 };
@@ -119,6 +127,7 @@ const ENTRIES: readonly FormulaIndicationEntry[] = governedCatalog.entries
     retrievalEligible: entry.retrievalEligible,
     identityLockEligible: entry.identityLockEligible,
     prescriptionLockEligible: entry.prescriptionLockEligible,
+    doseCompilationEligible: entry.doseCompilationEligible === true,
     governanceStatus: entry.governanceStatus,
     blockingReasons: entry.blockingReasons,
   }));
@@ -171,11 +180,15 @@ const COMMON_TERM_DF_RATIO = 0.08;
  *   1.6 太低——肝火病例完全不动，二至丸（肝肾阴虚，治疗方向相反）仍居首；
  *   3.0 三例方向全对——归脾汤 #1、泻青丸+当归龙荟丸（清肝泻火）居前、桂枝汤 #1；
  *   6.0 开始过冲——证候路压过词面证据，风寒例灌入消风百解散这类冷僻方。
- * ★ 这是在三个病例上调出来的常数，样本很小，有过拟合风险。验收口径是**治疗方向是否正确**，
- *   不是某一首方是否精确命中——这只是给模型推理用的短名单，不是最终答案。
+ * ★ 这个常数最初只在三个病例上选点，不能把那三例当泛化证明。当前发布回归已扩为 15 个
+ *   治疗方向病例 + 18 个病位/病性轴病例，并保留寒热、虚实对侧禁例；未因扩容结果重新调常数，
+ *   避免拿验收集继续拟合。验收口径是**治疗方向是否正确**，不是某一首方是否精确命中——
+ *   这只是给模型推理用的短名单，不是最终答案。
  */
 const SYNDROME_PATH_WEIGHT = 3.0;
 const SYNDROME_PATH_FORMULAS_PER_HYPOTHESIS = 6;
+const SYNDROME_HYPOTHESIS_LIMIT = 8;
+export const SYNDROME_HYPOTHESIS_RERANK_POOL_LIMIT = 40;
 /**
  * 「零字面证据准入」的特异性门槛。
  *
@@ -265,7 +278,7 @@ function indicationTermMatches(facts: readonly string[]): Map<string, { score: n
   return hits;
 }
 
-function positiveCaseFacts(caseState: CaseState, assistedNegations?: AssistedNegationClauses): string[] {
+export function positiveCaseFacts(caseState: CaseState, assistedNegations?: AssistedNegationClauses): string[] {
   const symptomText = Object.entries(caseState.symptoms || {})
     .map(([key, value]) => {
       const positive = affirmedClinicalText(typeof value === "string" ? value : String(value ?? ""), "affirmed", assistedNegations);
@@ -285,11 +298,31 @@ function positiveCaseFacts(caseState: CaseState, assistedNegations?: AssistedNeg
     .filter((value): value is string => Boolean(value));
 }
 
+/**
+ * L1b 的唯一候选来源：L1a 在“可到达受控方剂”的证候闭集里生成的确定性假设。
+ * 不带 recallHint，避免把另一轮模型改写的文本当作患者事实再次送进语义重排。
+ */
+export function formulaSyndromeHypothesisPool(
+  caseState: CaseState,
+  assistedNegations?: AssistedNegationClauses,
+): { facts: string[]; hypotheses: SyndromeHypothesis[] } {
+  const facts = positiveCaseFacts(caseState, assistedNegations);
+  return {
+    facts,
+    hypotheses: syndromeHypothesesFromAffirmedText(
+      facts,
+      SYNDROME_HYPOTHESIS_RERANK_POOL_LIMIT,
+      FORMULA_REACHABLE_SYNDROME_IDS,
+    ),
+  };
+}
+
 export function retrieveTcmFormulaIndicationCandidates(
   caseState: CaseState,
   limit = 5,
   recallHint = "",
   assistedNegations?: AssistedNegationClauses,
+  syndromeRerank: readonly SyndromeHypothesisRerankDecision[] = [],
 ): FormulaIndicationCandidate[] {
   // 口语否定增补只作用于证据类 scope（见 clinical-polarity 的 AssistedNegationClauses 注释）。
   const facts = positiveCaseFacts(caseState, assistedNegations);
@@ -309,8 +342,21 @@ export function retrieveTcmFormulaIndicationCandidates(
   // 只因二至丸主治里恰好同时出现口苦/失眠/多梦。
   // 这一路把阳性事实映射到病位/病性轴，再按轴一致性取受控证候假设，走既有的
   // syndromeToFormulaIds 索引。**纯并集**：本层无命中时结果与之前完全一致。
-  const syndromeHypotheses = syndromeHypothesesFromAffirmedText(
-    recallFacts, undefined, FORMULA_REACHABLE_SYNDROME_IDS);
+  const syndromeHypotheses = syndromeRerank.length > 0
+    ? applyBoundedSyndromeHypothesisRerank(
+      syndromeHypothesesFromAffirmedText(
+        recallFacts,
+        SYNDROME_HYPOTHESIS_RERANK_POOL_LIMIT,
+        FORMULA_REACHABLE_SYNDROME_IDS,
+      ),
+      syndromeRerank,
+      SYNDROME_HYPOTHESIS_LIMIT,
+    )
+    : syndromeHypothesesFromAffirmedText(
+      recallFacts,
+      SYNDROME_HYPOTHESIS_LIMIT,
+      FORMULA_REACHABLE_SYNDROME_IDS,
+    );
   const hypothesisScoreByFormulaId = new Map<string, number>();
   /** 每首方所命中假设里最特异的那条的轴数，用于「零字面证据准入」门槛。 */
   const hypothesisAxesByFormulaId = new Map<string, number>();
@@ -460,6 +506,15 @@ function governedReasoningTags(reasoning: FormulaReasoningProjection): {
   return {
     syndrome: new Set([
       ...syndromeValues.flatMap((value) => canonicalTcmSyndromeTerm(value)?.id ? [canonicalTcmSyndromeTerm(value)!.id] : []),
+      // 主证候还要再走一次「复合证候取首段」归一。候选集合 candidateIds 正是由这里的 tags.syndrome
+      // 反查 syndromeToFormulaIds 得来的：整串归一失败时，主证对应的方剂**根本进不了候选集**，
+      // 后面无论正向充分性怎么判都没有意义。只补主证一项，兼证/鉴别证仍按原口径整串归一。
+      ...(canonicalPrimarySyndromeId(reasoning.overview.primarySyndrome) ? [canonicalPrimarySyndromeId(reasoning.overview.primarySyndrome)!] : []),
+      // 主证的匹配相容类也进入召回：方剂标签挂在同证的另一个 id 下时，不展开就意味着该方
+      // 连候选集都进不了（胃火上炎的候选池里没有标成胃火炽盛的清胃散，匹配层再对也没用）。
+      // 召回口径与匹配口径一致（严格相等 ∪ 差一个继发负担维度，全部否决生效）——只对主证展开，
+      // 兼证/鉴别证仍按原口径整串归一。
+      ...matchCompatibleGovernedSyndromeIds(canonicalPrimarySyndromeId(reasoning.overview.primarySyndrome)),
       ...mappedGovernedIds(reasoning, "tcm_syndrome"),
     ]),
     nature: new Set([
@@ -478,12 +533,66 @@ function governedReasoningTags(reasoning: FormulaReasoningProjection): {
  * intentionally separate from pre-generation retrieval so model conclusions cannot leak backward
  * and masquerade as patient facts.
  */
+/**
+ * 复合证候的主证段归一。
+ *
+ * 命名方身份锁要求 primarySyndromeId 存在（positiveSufficiency 需 directPrimarySyndromeMatch）。
+ * 而受控证候词表收的是**单一证候**：「心脾两虚证」「肝阳上亢证」「痰热扰心证」都能归一，
+ * 「心脾两虚兼血瘀」「肝阳上亢，痰热扰心」整串则一个都归不上。
+ *
+ * 真实病例里复合证候是常态而不是例外——一组 10 例公开医案跑下来，6 例的主证候是复合写法，
+ * 这 6 例的 primarySyndromeId 全为空，于是检索出的 200 个候选**没有一个**能满足正向充分性，
+ * M03 只能一律走自拟方。医生因此从头到尾看不到一次「归脾汤加减」这样的命名方结论，
+ * 而这恰恰是中医处方最该给出的东西。
+ *
+ * 按中医书写惯例，复合证候的**首段**是主证，其后是兼证（结构上另有 secondarySyndromes 承接）。
+ * 所以这里只做一件事：整串归一失败时，按连接词切分并只取**首段**再归一一次。
+ *
+ * 三条边界，缺一不可：
+ * - 只取首段，不是任意一段。取任意段会让兼证反客为主，把方锁到次要矛盾上。
+ * - 仍然走同一张受控词表，不做模糊匹配；首段是已签名证候的字面子串，不引入新的语义推断，
+ *   因此仍属确定性归一（primarySyndromeIdentityConfirmed），与需要医生确认的语义兜底路径不同。
+ * - 锁定方名只是让 M04 拿到可编译基准方，剂量、配伍禁忌、特殊人群、治法覆盖等检查一条未减。
+ */
+function canonicalPrimarySyndromeId(primarySyndrome: unknown): string | undefined {
+  const whole = canonicalTcmSyndromeTerm(primarySyndrome)?.id;
+  if (whole) return whole;
+  const text = typeof primarySyndrome === "string" ? primarySyndrome.trim() : "";
+  if (!text) return undefined;
+  // 表述噪声剥离。模型在信息不全时会把主证候写成**描述性短语**而不是规范证候名：
+  // 实测公开医案「眩晕-痰热上扰」得到「头晕（症状层）伴痰湿内阻倾向」——病机段写得完全正确
+  //（痰湿内蕴、湿郁化热），但主证候字段带着括号注释与「倾向」尾缀，整串与首段都归不上，
+  // 于是方剂身份锁全链失效、只能出自拟方。括号注释与不确定性尾缀不携带证候语义，先剥掉。
+  const denoised = text
+    .replace(/[（(][^）)]*[）)]/g, "")
+    .replace(/(?:倾向|趋势|可能|状态|表现|为主)$/g, "")
+    .trim();
+  const denoisedWhole = denoised && denoised !== text
+    ? canonicalTcmSyndromeTerm(denoised)?.id || canonicalTcmSyndromeTerm(`${denoised}证`)?.id
+    : undefined;
+  if (denoisedWhole) return denoisedWhole;
+  const segments = (denoised || text)
+    .split(/[，,；;、]|兼(?:有|见|夹)?|夹(?:有)?|合并|伴(?:有|见)?/)
+    .map((segment) => segment.replace(/(?:倾向|趋势|可能|状态)$/g, "").trim())
+    .filter(Boolean);
+  if (segments.length === 0) return undefined;
+  // 仍然是**首段优先**：按顺序取第一个能归一的段，首段是有效证候时必然命中它，
+  // 兼证不会反客为主。只有当首段根本不是证候表述（如上面的「头晕」症状层）时，
+  // 才会继续用后续段——那正是需要挽回的情形，而不是让整例退化成自拟方。
+  for (const segment of segments) {
+    if (segment === text) continue;
+    const id = canonicalTcmSyndromeTerm(segment)?.id || canonicalTcmSyndromeTerm(`${segment}证`)?.id;
+    if (id) return id;
+  }
+  return undefined;
+}
+
 export function retrieveTcmFormulaCandidatesForReasoning(
   reasoning: FormulaReasoningProjection,
   limit = 5,
 ): FormulaIndicationCandidate[] {
   const tags = governedReasoningTags(reasoning);
-  const deterministicPrimarySyndromeId = canonicalTcmSyndromeTerm(reasoning.overview.primarySyndrome)?.id;
+  const deterministicPrimarySyndromeId = canonicalPrimarySyndromeId(reasoning.overview.primarySyndrome);
   const semanticPrimaryMapping = primarySyndromeSemanticMapping(reasoning);
   const primarySyndromeId = deterministicPrimarySyndromeId || semanticPrimaryMapping?.candidateId;
   // A semantic miss-recovery mapping is additive retrieval evidence. It cannot silently replace
@@ -520,9 +629,19 @@ export function retrieveTcmFormulaCandidatesForReasoning(
     const locationMatches = entry.locationTags.filter((id) => tags.location.has(id));
     const conceptMatches = reasoningConcepts.filter((concept) =>
       (RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []).includes(entry.id));
-    const directPrimarySyndromeMatch = Boolean(primarySyndromeId && entry.syndromeTags.includes(primarySyndromeId));
+    // 主证匹配走证候特征等同层：模型写规范名、方剂标签用古典名（心胆气虚 vs 心虚胆怯）时，
+    // 两个国标 id 在特征层（病位×病性）是同一个证。等同判定完全建立在受控枚举上
+    // （见 clinical-governance-tables 的 governedSyndromeFeatureMatch），阴阳/寒热/虚实极性
+    // 与脏腑边界一票否决，无特征或混合极性条目 fail-closed 不参与——同 id 语义原样保留。
+    // 在此之上叠加表↔肺卫外感风证的受控 match-tier 相容（肺主皮毛：风寒束表 ↔ 风寒犯肺），
+    // 与 tags.syndrome 的召回展开共用同一谓词（formulaMatchSyndromeCompatible），
+    // 否则相容方连候选池都进不了；基准措辞在 basis 里如实区分「精确关系」与「表↔肺卫相容」。
+    const exactPrimarySyndromeMatch = Boolean(primarySyndromeId &&
+      entry.syndromeTags.some((tag) => governedSyndromeFeatureMatch(tag, primarySyndromeId)));
+    const directPrimarySyndromeMatch = exactPrimarySyndromeMatch || Boolean(primarySyndromeId &&
+      entry.syndromeTags.some((tag) => formulaMatchSyndromeCompatible(tag, primarySyndromeId)));
     const curatedPrimaryRelation = primarySyndromeId
-      ? entry.curatedSyndromeRelations.find((relation) => relation.syndromeId === primarySyndromeId)
+      ? entry.curatedSyndromeRelations.find((relation) => formulaMatchSyndromeCompatible(relation.syndromeId, primarySyndromeId))
       : undefined;
     const curatedTherapySatisfied = Boolean(curatedPrimaryRelation?.therapyTerms.some((term) =>
       therapyText.includes(term.replace(/\s+/g, ""))));
@@ -530,6 +649,13 @@ export function retrieveTcmFormulaCandidatesForReasoning(
     // direct relation. Nature/location-only matches and differential-syndrome matches remain useful
     // for comparison but can never lock a formula identity. Curated high-frequency relations add a
     // second, explicit therapy-alignment requirement.
+    // ★ 已知数据缺口（不在本层修复）：治理目录里只有 1563/2937 的方备齐全部药味的数值剂量边界，
+    // 锁定不可编译的方会让 M04 秒级返回非剂量降级（实测天王补心丹、镇肝熄风汤 0 味）。
+    // 曾尝试在此处加 entry.doseCompilationEligible 过滤，但它误伤经典方——缺的往往是
+    // **非药典成分**而非药味本身：黄连阿胶汤缺「鸡子黄」（食材）、天王补心丹缺「朱砂粉」
+    //（管制毒性药）、镇肝熄风汤缺矿物药剂量。按可编译性禁锁等于把这些常用方整类逐出，
+    // 既有治理关系（心肾不交→黄连阿胶汤）随即断裂。
+    // 正确修法在数据侧：为食材/矿物/管制成分补齐或显式豁免剂量边界，而不是在召回层收紧。
     const positiveSufficiency = primarySyndromeIdentityConfirmed && directPrimarySyndromeMatch && (
       curatedPrimaryRelation ? curatedTherapySatisfied : true
     );
@@ -557,7 +683,9 @@ export function retrieveTcmFormulaCandidatesForReasoning(
       positiveSufficiencyBasis: positiveSufficiency
         ? curatedPrimaryRelation
           ? `高频证候关系:${curatedPrimaryRelation.syndrome}；治法:${curatedPrimaryRelation.therapyTerms.join("、")}`
-          : `方剂主治与主证候精确关系:${governedTcmTermLabelById(primarySyndromeId!) || primarySyndromeId}`
+          : exactPrimarySyndromeMatch
+            ? `方剂主治与主证候精确关系:${governedTcmTermLabelById(primarySyndromeId!) || primarySyndromeId}`
+            : `方剂主治与主证候表↔肺卫外感风证受控相容:${governedTcmTermLabelById(primarySyndromeId!) || primarySyndromeId}`
         : directPrimarySyndromeMatch && !primarySyndromeIdentityConfirmed
           ? `闭集语义映射仅用于召回，主证候“${reasoning.overview.primarySyndrome}”映射到“${semanticPrimaryMapping?.canonical || primarySyndromeId}”尚待医生确认`
         : directPrimarySyndromeMatch && curatedPrimaryRelation
@@ -567,6 +695,12 @@ export function retrieveTcmFormulaCandidatesForReasoning(
   }).filter((entry) => entry.score >= 2)
     .sort((left, right) =>
       Number(right.positiveSufficiency) - Number(left.positiveSufficiency) ||
+      // 同为正向充分时，剂量可编译的方排前面。治理目录里只有 1563/2937 的方备齐全部药味的
+      // 法定数值剂量边界——锁定一个不可编译的方，M04 只能返回非剂量降级，医生连自拟方都拿不到
+      //（实测：肝阳上亢锁镇肝熄风汤[龙骨药典未收载] → 0 味；同证的天麻钩藤饮完全可编译）。
+      // 这里只调整**排序**不改变可锁集合：无可编译替代时该方照旧可锁，
+      // 既有治理关系（心肾不交→黄连阿胶汤[鸡子黄非药典成分]）不会因此断裂。
+      Number(right.doseCompilationEligible) - Number(left.doseCompilationEligible) ||
       right.score - left.score ||
       Number(right.prescriptionLockEligible) - Number(left.prescriptionLockEligible) ||
       left.name.localeCompare(right.name))
@@ -592,7 +726,10 @@ function renderFormulaCandidates(
       `  基础组成：${candidate.ingredients.join("、")}`,
       `  目录主治：${candidate.indications.join("；").slice(0, 260)}`,
       `  ${phaseLabel}命中：${candidate.matchedConcepts.join("、")}｜事实：${candidate.matchedPatientFacts.join("；") || "由已签名结构化辨证字段精确召回"}`,
-      `  T1/T3/T4关联索引：${governedRelations.join("、") || "暂无标准术语关联"}（仅作检索关联，必须结合本例事实临床核对）`,
+      // 逐条重复「仅作检索关联，必须结合本例事实临床核对」会把同一句对冲复制 N 遍，与区块开头的
+      // 选择规则重复。实测中这类层叠对冲的净效果是把模型推向最保守的一侧——对一个 8/8 方证吻合、
+      // 排名第一的候选仍然写「无匹配、自拟」。核对要求保留在区块开头说一次即可。
+      `  T1/T3/T4关联索引：${governedRelations.join("、") || "暂无标准术语关联"}`,
       ...(phaseLabel === "M03签名证候/病机"
         ? [`  命名方正向充分性：${candidate.positiveSufficiency ? `通过（${candidate.positiveSufficiencyBasis}）` : `不通过（${candidate.positiveSufficiencyBasis}）`}`]
         : []),
@@ -615,15 +752,25 @@ export function buildTcmFormulaIndicationContext(
   limit = 5,
   recallHint = "",
   assistedNegations?: AssistedNegationClauses,
+  syndromeRerank: readonly SyndromeHypothesisRerankDecision[] = [],
 ): string {
-  const candidates = retrieveTcmFormulaIndicationCandidates(caseState, limit, recallHint, assistedNegations);
+  const candidates = retrieveTcmFormulaIndicationCandidates(
+    caseState,
+    limit,
+    recallHint,
+    assistedNegations,
+    syndromeRerank,
+  );
   if (candidates.length === 0) {
     return "【M03经典方检索】本例当前阳性事实未命中受控经典方主治索引；可按已锁定病机与治法形成自拟方向，但必须说明未采用经典方是因受控目录无匹配结果。";
   }
+  // 选择规则前置。原实现把它放在 5 条候选之后，模型要先读完 5 遍「仅作检索关联」「候选不是自动
+  // 推荐」才知道该拿这些候选做什么；加上 M03 提示词全局 100+ 条禁令，净效果是模型学到「保守、别
+  // 下结论」，对方证 8/8 吻合、排名第一的候选仍写自拟。规则改为先说「怎么选」，再列候选。
   return [
-    "【M03经典方检索（受控目录；候选不是自动推荐）】",
+    "【M03经典方检索（受控目录）】",
+    "选择规则：以下候选已按本例阳性事实召回并排序。逐条核对方证眼目后，从“治理状态=可锁定”的条目中选出 1–3 个方证整体匹配的方名，逐字写入 overview.recommendedFormulaNames（不得改写、不得加书名号），formulaSelectionMode 相应填 single/combined/alternatives，recommendedFormulaDirection 直接写出方名。确有匹配却留空改自拟会被服务端确定性驳回并要求重做：自拟方没有出处可考，临床上比承接经典方更难辩护。只有当每一条都与本例方证不符时才写“按已锁定病机与治法辨证组方”，并说明是哪条方证眼目不满足。标记为仅检索参考的条目只能用于鉴别，不得锁定；也不得使用候选以外的未受控命名方。方名锁定不等于剂量已定——剂量由 M04 独立编译并经处方后审方。",
     ...renderFormulaCandidates(candidates, "M03病例事实"),
-    "选择纪律：逐一核对当前阳性事实、舌脉与核心病机；只有 identityLockEligible 且方证整体匹配者才可在 recommendedFormulaDirection 写入方名。方名身份锁定不等于患者剂量已确定，也不等于处方后审方通过。标记为仅检索的条目只能用于鉴别。候选仅部分匹配或反证明显时不得硬套；全部不匹配时写“按已锁定病机与治法辨证组方”，并说明病例内理由。不得使用候选以外的未受控命名方。",
   ].join("\n");
 }
 
@@ -667,6 +814,59 @@ export function namedFormulaPositiveSufficiencyIssue(
     [entry.name, ...entry.aliases].map(normalizedFormulaIdentity)));
   const unsupported = formulaNames.find((name) => !allowed.has(normalizedFormulaIdentity(name)));
   return unsupported ? `named_formula_positive_sufficiency_missing:${unsupported}` : undefined;
+}
+
+/**
+ * The missing symmetric half of enforceRetrievedM03FormulaSelection.
+ *
+ * That guard only ever REMOVES a formula the case cannot support — its first branch returns the
+ * content unchanged when `recommendedFormulaNames` is empty. So over-claiming is caught and
+ * under-claiming passes silently, even though under-claiming is the more damaging direction:
+ * a self-devised formula carries no 出处, is clinically harder to defend than the classic it
+ * replaced, and strips M04 of its compilable baseline — forcing herbs, doses, 君臣佐使 and P-node
+ * bindings to be generated from scratch on the hardest available path.
+ *
+ * Measured: a textbook 心脾两虚 不寐 whose own signed M03 yields 归脾汤 (plus 酸枣仁汤, 参苓白术散,
+ * 秘元煎) at positive sufficiency was emitted as `self_devised` with an empty name list. Nothing
+ * caught it; M04 then burned two repair rounds and degraded to a non-dose contract, and the
+ * doctor saw a refusal page.
+ *
+ * This function does NOT pick a formula — choosing one is a clinical decision that stays with the
+ * model and the physician. It only reports which lock-eligible, positively-sufficient candidates
+ * the model passed over, so the contract can demand a repair round that names them.
+ *
+ * Returns [] whenever the selection is legitimate: a formula was locked, the server itself
+ * deferred the choice pending clinician confirmation, or no sufficient candidate exists.
+ */
+export function missedLockableFormulaCandidates(reasoning: unknown, limit = 3): string[] {
+  const overview = (reasoning as {
+    overview?: {
+      recommendedFormulaNames?: unknown;
+      deferredFormulaSelection?: unknown;
+      primarySyndromeResolution?: unknown;
+    };
+  } | null | undefined)?.overview;
+  if (!overview) return [];
+  const locked = Array.isArray(overview.recommendedFormulaNames)
+    ? overview.recommendedFormulaNames.filter((name): name is string =>
+        typeof name === "string" && Boolean(name.trim()))
+    : [];
+  if (locked.length > 0) return [];
+  // An empty list that enforceRetrievedM03FormulaSelection produced itself, by parking the model's
+  // choice until a clinician confirms the governed syndrome mapping, is our doing — not an omission.
+  if (overview.deferredFormulaSelection) return [];
+  // A formula identity is locked TO a syndrome. When the model states it could not establish one,
+  // demanding a lock would be asking it to bind a formula to nothing — that case belongs to the
+  // limited-result path, not to this policy check.
+  if (overview.primarySyndromeResolution === "unresolved") return [];
+  try {
+    return retrieveTcmFormulaCandidatesForReasoning(reasoning as ClinicalReasoningResultV2, 8)
+      .filter((entry) => entry.identityLockEligible && entry.positiveSufficiency)
+      .slice(0, limit)
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
 }
 
 /**

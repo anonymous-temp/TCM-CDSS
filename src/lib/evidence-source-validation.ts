@@ -150,10 +150,21 @@ export function medicineEvidenceBindingValid(
   const recordText = normalizedMedicineBindingText(record.text);
   if (!normalizedMedicineNames(medicineName).some((name) => recordText.includes(normalizedMedicineBindingText(name)))) return false;
   if (specification && !recordText.includes(normalizedMedicineBindingText(specification))) return false;
-  const problemConceptMatched = medicineClinicalConceptsMatch(correspondingProblem, record.text);
-  if (problemConceptMatched) return true;
+  // correspondingProblem 只能在**适应证段**核验，不能在整行上跑。
+  //
+  // 记录行是 `标签：值｜标签：值` 结构，除适应证外还含「禁忌/注意」「特殊人群」「相互作用」。
+  // 原实现的概念匹配与裸子串兜底都跑在 record.text 整行上，于是反指征条文可以证明适应证。
+  // 实测（丁桂温胃散，适应证=温胃散寒，行气止痛；禁忌栏写「不适用于肝肾阴虚，主要表现为口干、
+  // 手足心热、心烦易怒」）：correspondingProblem 取「肝肾阴虚」「肾阴虚」「手足心热」三者
+  // 全部通过绑定校验——一个温里药可以被绑成「对应肝肾阴虚」，正好用反了。
+  //
+  // 没有适应证段的条目一律判不通过：一条不载明适应证的说明书记录，本就无法证明某药对某问题适用。
+  // 药名、规格与指纹仍按整行核对——它们是条目身份，不是临床适应关系。
+  const indication = record.text.match(/适应证[：:]([^｜|]*)/)?.[1]?.trim();
+  if (!indication) return false;
+  if (medicineClinicalConceptsMatch(correspondingProblem, indication)) return true;
   const problem = normalizedMedicineBindingText(correspondingProblem);
-  return problem.length >= 2 && recordText.includes(problem);
+  return problem.length >= 2 && normalizedMedicineBindingText(indication).includes(problem);
 }
 
 export function medicineProblemMatchesCase(problem: string, caseText: string): boolean {

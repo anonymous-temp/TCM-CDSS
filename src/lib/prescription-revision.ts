@@ -1,6 +1,7 @@
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { canonicalTcmHerbIdentity, m04SemanticIssue } from "./diagnosis-stage-contract";
 import { isKnownTcmHerbName } from "./tcm-knowledge";
+import { buildFormulaAnalysis } from "./herb-target-contract";
 
 type Formula = NonNullable<ClinicalReasoningResultV2["formula"]>;
 type Candidate = Formula["candidates"][number];
@@ -62,7 +63,10 @@ export function editedPrescriptionIssueMessage(issue: string | undefined): strin
   if (issue === "duplicate_herb") return "存在重复药味，请合并为一行并确认总剂量。";
   if (/unknown/.test(issue)) return "该药味不在当前中药知识库收录范围，不能提交审方。";
   if (/dose_(?:outside_knowledge|sanity_ceiling)|_dose$/.test(issue)) return "剂量格式不规范或达到明显异常的安全阈值，请复核。";
-  if (/dose_count|course|method_daily_dose|follow_up/.test(issue)) return "剂数、疗程、每日剂次或复诊节点不规范或不一致；当前按每日1剂计算，请复核后重新审方。";
+  // 正则里的 follow_up 必须保留：m04SemanticIssue 在 trustedWorkbenchEdit 路径下仍会返回
+  // follow_up_inconsistent（复诊节点是服务端派生字段，未从数据契约中删除）。这里只改文案，
+  // 不再把医生指向一个已经从处方界面移除、他也无法编辑的字段。
+  if (/dose_count|course|method_daily_dose|follow_up/.test(issue)) return "剂数、疗程或每日剂次不规范或不一致；当前按每日1剂计算，请复核后重新审方。";
   if (/function_ungrounded/.test(issue)) return "药味功用与知识库不一致，请按真实功用修正。";
   if (/pathogenesis|cross_stage|therapy|target_ref|structure_/.test(issue)) return "药味必须引用本例已确认的病机；仅佐使药可选择方内结构作用。";
   if (/decoction|route/.test(issue)) return "炮制或特殊煎服要求不符合当前药味规则，请复核。";
@@ -70,17 +74,14 @@ export function editedPrescriptionIssueMessage(issue: string | undefined): strin
 }
 
 function editedFormulaAnalysis(herbs: Herb[]): string {
-  const roleOrder: Herb["role"][] = ["君", "臣", "佐", "使"];
-  const roleText = roleOrder.flatMap((role) => {
-    const members = herbs.filter((herb) => herb.role === role && herb.name.trim());
-    if (members.length === 0) return [];
-    return [`${role}药${members.map((herb) => `${herb.name}（${herb.function}，对应${herb.targetPathogenesis}）`).join("、")}`];
-  });
+  // 与服务端共用 buildFormulaAnalysis：两条路径若各写一套，医生在工作台编辑前后会读到
+  // 口径不同的方义。原实现同样是按角色分组，读不出组内每味药各自承担什么。
+  const analysis = buildFormulaAnalysis(herbs);
   return [
     `编辑后方义（以当前${herbs.length}味药为准）`,
-    ...roleText,
+    analysis,
     "本段由当前结构化药味表确定性生成；药味再次增删改后须重新生成并获取审方提示。",
-  ].join("；");
+  ].filter(Boolean).join("\n");
 }
 
 function removeDeletedHerbClauses(value: string, deletedNames: string[]): string {

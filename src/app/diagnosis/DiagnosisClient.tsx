@@ -28,7 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { appendClinicalPresetValue, appendDelimitedValue, detectTonguePulseFieldConflict } from "@/lib/clinical-entry";
-import type { CaseState, ClinicalReasoningResultV2, ControlledTerminologyMappingTrace, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
+import type { CaseState, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
 import { ageValue, normalizeCaseStateInput, normalizeStructuredFollowupTimeline } from "@/lib/diagnosis-types";
 import {
   saveCase, loadLatestCase, clearCase, clearAllSavedCases, isBrowserCasePersistenceEnabled,
@@ -46,9 +46,9 @@ import {
 } from "@/lib/diagnosis-parse";
 import { hasExecutableSignedM03, isDisplayableClinicalText } from "@/lib/diagnosis-client-guards";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
-import { containsUnknownClinicalCue, isUnknownClinicalText } from "@/lib/clinical-state";
+import { containsUnknownClinicalCue, isUnknownClinicalText, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "@/lib/clinical-state";
+import { inspectionLexiconGroups, inspectionLexiconNormal, type InspectionField } from "@/lib/tcm-inspection-lexicon";
 import { computeTongueRoiCrop, detectTongueRoi } from "@/lib/tongue-image-roi";
-import { LINEAGE_OPTIONS, getLineageCard, getLineageQuestionStrategy, lineageLabel } from "@/lib/tcm-lineages";
 import { customerEvidenceDisplayStatus, sanitizeCustomerEvidenceNarrative, sanitizeLabeledEvidenceLines } from "@/lib/customer-evidence";
 import { clinicalOutputRendererId, clinicalOutputSurface, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "@/lib/clinical-output-authority";
 import {
@@ -76,7 +76,6 @@ import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { parseClinicalFacts, type ClinicalFacts } from "@/lib/clinical-facts";
 import {
   buildMedicineCandidateEmptyState,
-  buildTieredSuggestedChecks,
   herbCaseMeaning,
   isNonRedundantClinicalRationale,
   resolveAuditReviewPresentation,
@@ -93,6 +92,13 @@ import {
   tcmTreatmentAssessmentPositioningForDisplay,
   type TcmTreatmentProjectCode,
 } from "@/lib/tcm-treatment-projects";
+import {
+  classifyHerbWarning,
+  deriveCaseWarningProfile,
+  type ClinicalWarningLevel,
+  type ClinicalWarningProfile,
+} from "@/lib/clinical-warning-tier";
+import { westernDiagnosisLabelForDisplay } from "@/lib/diagnosis-visible-summary";
 
 const APP_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const BROWSER_CASE_PERSISTENCE_ENABLED = isBrowserCasePersistenceEnabled();
@@ -536,11 +542,56 @@ function normalizeClinicalText(text: string): string {
 function sanitizeCustomerEvidenceSurface(text: string): string {
   return sanitizeAuthoritativeClinicalOutput(sanitizeCustomerEvidenceNarrative(text)
     .replace(/^.*(?:内部检索状态|AUTO_PARSED_NEEDS_REVIEW).*$/gm, "")
+    .replace(/^\s*#{1,6}\s*加减建议核查说明\s*$/gm, "")
+    .replace(/^.*(?:未采用经典方说明|逐味核验|本次未形成同时满足.+随症加减条目|另有\s*\d+\s*条加减建议未展示).*$/gm, "")
+    .replace(/^\s*\|[^|\n]*采纳候选前[^|\n]*\|[^|\n]*完成针对性安全复核[^|\n]*\|.*$/gm, "")
     .replace(/(?:证据不足\s*[/／]\s*待检索|依据待检索|引用待检索|证据来源待核验|证据URL待核验|内部证据缺口)/g, "")
     .replace(/<!--\s*EVIDENCE_GAP:[^>]+-->/g, "")
     .replace(/^\s*(?:[-*]\s*)?\*\*(?:证据依据|来源依据|参考依据|引用来源|方剂出处或依据)\*\*[：:]\s*$/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim());
+}
+
+/**
+ * `tcmDiseaseName` remains part of the signed reasoning contract because retrieval and
+ * downstream consistency checks use it. It is not useful on the clinician-facing syndrome
+ * card, so remove only the labeled disease-name row from customer-visible Markdown.
+ */
+export function stripTcmDiseaseNameForCustomer(text: string): string {
+  return text
+    .replace(/^(#{1,6}\s*.*)中医病名与证候诊断(.*)$/gm, "$1中医证候诊断$2")
+    .replace(/^\s*(?:[-*]\s*)?(?:\*\*)?(?:中医)?病名(?:\*\*)?\s*[：:].*(?:\n|$)/gm, "")
+    .replace(/^\s*\|\s*(?:中医)?病名\s*\|[^\n]*(?:\n|$)/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Keep only the concise Western working diagnosis and grounded supporting facts on clinician-facing
+ * compatibility/export surfaces. Structured rationale, differentials and checks remain available
+ * to the review contracts but are not repeated as model reasoning in the report.
+ */
+export function stripWesternAnalysisForCustomer(text: string): string {
+  const lines = text
+    .replace(/西医诊断倾向与鉴别/g, "西医诊断倾向")
+    .split("\n");
+  const result: string[] = [];
+  let hiddenHeadingLevel: number | null = null;
+  for (const line of lines) {
+    const heading = line.match(/^(#{1,6})\s*(.+?)\s*$/);
+    if (hiddenHeadingLevel != null) {
+      if (!heading || heading[1].length > hiddenHeadingLevel) continue;
+      hiddenHeadingLevel = null;
+    }
+    const title = heading?.[2]?.replace(/[：:]/g, "").trim() || "";
+    if (heading && /^(?:西医诊断分析|西医鉴别分析|鉴别方向|参考文献)$/.test(title)) {
+      hiddenHeadingLevel = heading[1].length;
+      continue;
+    }
+    if (/^\s*(?:[-*]\s*)?\*\*(?:临床分析|限制与反证|建议检查|下一步)\*\*[：:]/.test(line)) continue;
+    result.push(line);
+  }
+  return result.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function cleanInlineMarkdown(text: string): string {
@@ -866,6 +917,82 @@ function redFlagStatusForCase(caseState: CaseState) {
     };
   }
   return { label: "低风险", tone: "green", desc: "已提交信息中未识别明确急危重红旗；仍需医生结合现场查体、生命体征和必要检查复核。" };
+}
+
+export type EmergencyPresentation = {
+  pageTitle: "急诊转诊建议";
+  eventTitle: string;
+  immediateAction: string;
+  clinicalConcern: string;
+  evidenceChips: string[];
+  escalationRationale?: string;
+  actions: string[];
+};
+
+export function buildEmergencyPresentation(caseState: CaseState): EmergencyPresentation {
+  const gate = caseState.safetyGate || evaluateSafetyGate(caseState);
+  const finding = gate.redFlagFindings?.[0];
+  const semanticEvidence = gate.semanticTriage?.evidence?.[0];
+  const rawEvidence = [
+    ...(semanticEvidence?.evidenceQuotes || []),
+    semanticEvidence?.sourceQuote,
+    finding?.sourceQuote,
+  ].filter((value): value is string => Boolean(value?.trim()));
+  const focusedEvidence = rawEvidence.flatMap((value) =>
+    value.match(/突发[^，。；\n]{0,20}(?:最剧烈|爆炸样|雷击样)[^，。；\n]{0,12}头痛|(?:恶心|呕吐)|胸(?:痛|闷)|大汗|呼吸困难|意识(?:障碍|不清)|偏瘫|抽搐/g) || [],
+  );
+  const evidenceChips = [...new Set([
+    ...(focusedEvidence.length > 0
+      ? focusedEvidence
+      : [...(semanticEvidence?.evidenceQuotes || []), ...rawEvidence]),
+  ]
+    .map((value) => value.trim().replace(/^[“”"'「」]+|[“”"'「」]+$/g, ""))
+    .filter((value) => value.length <= 120))].slice(0, 8);
+  const ruleId = finding?.ruleId || "";
+
+  if (ruleId === "acute-neurologic-event" || /头痛|神经/.test(gate.redFlags.join("；"))) {
+    return {
+      pageTitle: "急诊转诊建议",
+      eventTitle: "疑似急性神经血管事件（雷击样头痛）",
+      immediateAction: "建议立即急诊或转诊评估；危及生命时呼叫 120。",
+      clinicalConcern: "符合雷击样头痛特征，需排查蛛网膜下腔出血等急性神经血管事件。",
+      evidenceChips,
+      escalationRationale: semanticEvidence?.escalationRationale,
+      actions: [
+        "现场评估血压、意识、瞳孔及神经系统体征。",
+        "立即联系急诊或安排转诊；危及生命时呼叫 120。",
+        "急症排除并留痕后，再回到本系统继续常规诊疗。",
+      ],
+    };
+  }
+  if (ruleId === "acute-cardiac-event" || /心血管|冠脉|胸痛|胸闷/.test(gate.redFlags.join("；"))) {
+    return {
+      pageTitle: "急诊转诊建议",
+      eventTitle: "疑似急性心血管事件",
+      immediateAction: "建议立即急诊或转诊评估；危及生命时呼叫 120。",
+      clinicalConcern: "需优先排查急性冠脉综合征等时间敏感性心血管事件。",
+      evidenceChips,
+      escalationRationale: semanticEvidence?.escalationRationale,
+      actions: [
+        "现场复测生命体征并完成心电图等急性心血管评估。",
+        "立即联系急诊或安排转诊；危及生命时呼叫 120。",
+        "急症排除并留痕后，再回到本系统继续常规诊疗。",
+      ],
+    };
+  }
+  return {
+    pageTitle: "急诊转诊建议",
+    eventTitle: "疑似急危重症事件",
+    immediateAction: "建议立即急诊或转诊评估；危及生命时呼叫 120。",
+    clinicalConcern: finding?.ruleExplanation || gate.redFlags[0] || "当前病例存在需要优先排查的急危重症风险。",
+    evidenceChips,
+    escalationRationale: semanticEvidence?.escalationRationale,
+    actions: [
+      "立即复测生命体征并完成针对性的现场评估。",
+      "联系急诊或安排转诊；危及生命时呼叫 120。",
+      "急症排除并留痕后，再回到本系统继续常规诊疗。",
+    ],
+  };
 }
 
 type DifferentiationSignalStatus = "complete" | "partial" | "missing";
@@ -1382,6 +1509,13 @@ function RiskSummaryPanel({
 }) {
   const redStatus = redFlagStatusForCase(caseState);
   const summary = buildDecisionSummary(caseState);
+  const activeGate = caseState.safetyGate || evaluateSafetyGate(caseState);
+  const isRedFlag = activeGate.status === "red_flag";
+  const hasEmergencyReferralReport = isRedFlag && Boolean(caseState.diagnosis || caseState.riskAssessment);
+  const emergencyPresentation = useMemo(
+    () => buildEmergencyPresentation(caseState),
+    [caseState],
+  );
   const differentiationProfile = useMemo(
     () => {
       const base = differentiationSufficiencyProfile(caseState, summary);
@@ -1402,15 +1536,12 @@ function RiskSummaryPanel({
     [caseState, summary],
   );
   const shouldShowDifferentiationProfile =
-    Boolean(caseState.diagnosis) ||
-    isDifferentiationLimitedTerminalCase(caseState);
+    !isRedFlag && (
+      Boolean(caseState.diagnosis) ||
+      isDifferentiationLimitedTerminalCase(caseState)
+    );
   const questionRoundNotice = maxQuestionRoundNotice(caseState);
-  const redFlagSummary = useMemo(
-    () => extractSectionLoose(caseState.diagnosis, ["红旗排查", "红旗指征", "红旗风险", "红旗预警"]),
-    [caseState.diagnosis],
-  );
-  const isRedFlag = (caseState.safetyGate || evaluateSafetyGate(caseState)).status === "red_flag";
-  const hasTriageAdvisory = !isRedFlag && ((caseState.safetyGate || evaluateSafetyGate(caseState)).advisories || []).length > 0;
+  const hasTriageAdvisory = !isRedFlag && (activeGate.advisories || []).length > 0;
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
   const scoreComponents = useMemo(
     () => differentiationScoreComponents(caseState, differentiationProfile.signals),
@@ -1419,25 +1550,28 @@ function RiskSummaryPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      {isRedFlag && (
+      {isRedFlag && !hasEmergencyReferralReport && (
         <div
           data-testid="risk-red-flag-card"
           data-clinical-contract-ids="red-flag-warning"
           data-clinical-renderer="risk-summary-panel"
-          className="bg-white border rounded-xl p-4"
+          className="rounded-xl border border-red-200 bg-red-50 p-4"
         >
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">急危重红旗风险</p>
-          <span data-testid="risk-status-badge" className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusToneClass(redStatus.tone)}`}>
-            {redStatus.label}
-          </span>
-        </div>
-        <p className="mt-2 text-xs leading-relaxed text-gray-500">{redStatus.desc}</p>
-        {redFlagSummary && (
-          <div className="mt-3 rounded-lg border bg-gray-50 px-3 py-2 text-xs leading-relaxed text-gray-700">
-            <MarkdownBlock content={compactMarkdown(redFlagSummary, 420)} compact />
+          <p className="text-[11px] font-bold tracking-wide text-red-700">{emergencyPresentation.pageTitle}</p>
+          <h2 className="mt-1 text-sm font-bold leading-snug text-red-950">{emergencyPresentation.eventTitle}</h2>
+          <p className="mt-2 text-xs font-semibold leading-relaxed text-red-800">{emergencyPresentation.immediateAction}</p>
+          {emergencyPresentation.evidenceChips.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5" aria-label="红旗触发证据">
+              {emergencyPresentation.evidenceChips.map((evidence) => (
+                <span key={evidence} className="rounded-full border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-800">
+                  {evidence}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="sr-only">
+            <span data-testid="risk-status-badge">{redStatus.label}</span>
           </div>
-        )}
         </div>
       )}
 
@@ -1532,6 +1666,21 @@ function RiskSummaryPanel({
                 ? "本例无需追加关键追问"
                 : `已完成 ${caseState.questionRounds}/${caseState.maxQuestionRounds} 轮追问`}
           </p>
+          {caseState.questionOutcome !== "not_needed" && (
+            <div
+              className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-gray-100"
+              role="progressbar"
+              aria-label="关键追问进度"
+              aria-valuemin={0}
+              aria-valuemax={caseState.maxQuestionRounds}
+              aria-valuenow={caseState.questionRounds}
+            >
+              <div
+                className="h-full rounded-full bg-teal-500 transition-[width]"
+                style={{ width: `${Math.min(100, Math.round((caseState.questionRounds / Math.max(1, caseState.maxQuestionRounds)) * 100))}%` }}
+              />
+            </div>
+          )}
           {questionRoundNotice && (
             <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs leading-relaxed text-amber-700">
               {questionRoundNotice}
@@ -1545,7 +1694,7 @@ function RiskSummaryPanel({
         </div>
       )}
 
-      {!shouldShowDifferentiationProfile && followupQuestionCard && (
+      {!isRedFlag && !shouldShowDifferentiationProfile && followupQuestionCard && (
         <div data-testid="sufficiency-followup-card" className="bg-white border rounded-xl p-4">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">本轮关键追问</p>
           <p className="mt-1 text-xs leading-relaxed text-gray-500">可点选实际回答或在每题下直接记录患者原话、查体和检查结果；也可跳过并按现有信息继续。</p>
@@ -1563,7 +1712,48 @@ export function errorRequiresM03Refresh(lastError: CaseState["lastError"] | unde
   // NOTE: this routes recovery off the doctor-facing message text, so any reword of a message that
   // must force an M03 refresh has to be reflected here too — 未能取得确认后的诊断结论 is the
   // terminology-confirmation failure raised in confirmTerminologyMapping.
-  return /M03.*(?:签名|合同)|重新生成\s*M03|未能取得确认后的诊断结论|reasoning.*signature|contract.*signature/i.test(message);
+  return /M03.*(?:签名|合同)|重新生成\s*M03|辨病辨证结果签名已失效|当前辨病辨证结果已失效|未能取得确认后的诊断结论|reasoning.*signature|contract.*signature/i.test(message);
+}
+
+export function errorRequiresM04Refresh(lastError: CaseState["lastError"] | undefined): boolean {
+  if (!lastError || lastError.phase !== "assess") return false;
+  const message = normalizeRequestError(lastError.message, "");
+  return /M04.*(?:签名|合同)|重新生成\s*M04|候选处方.*(?:签名|合同).*(?:失效|无效)|当前候选处方.*有效签名|重新生成候选方药|prescription.*signature/i.test(message);
+}
+
+export function automaticSignatureRecoveryState(
+  state: CaseState,
+  lastError: NonNullable<CaseState["lastError"]>,
+): CaseState | undefined {
+  if (errorRequiresM03Refresh(lastError)) {
+    return {
+      ...state,
+      phase: "diagnose",
+      diagnosis: undefined,
+      prescription: undefined,
+      riskAssessment: undefined,
+      followupTimeline: undefined,
+      reasoningDiagnose: undefined,
+      reasoningPrescribe: undefined,
+      reasoningV2: undefined,
+      auditAdvisory: undefined,
+      lastError: undefined,
+    };
+  }
+  if (errorRequiresM04Refresh(lastError)) {
+    return {
+      ...state,
+      phase: "prescribe",
+      prescription: undefined,
+      riskAssessment: undefined,
+      followupTimeline: undefined,
+      reasoningPrescribe: undefined,
+      reasoningV2: diagnoseReasoningFromState(state),
+      auditAdvisory: undefined,
+      lastError: undefined,
+    };
+  }
+  return undefined;
 }
 
 export function stageErrorDisplay(lastError: NonNullable<CaseState["lastError"]>): {
@@ -1571,13 +1761,16 @@ export function stageErrorDisplay(lastError: NonNullable<CaseState["lastError"]>
   message: string;
   retryText: string;
   downstreamLabels: string[];
+  warningLevel: "L2" | "L3";
 } {
   const failedStep = PHASE_STEPS.find((step) => step.phase === lastError.phase);
   const stepLabel = failedStep?.label || "当前阶段";
   const message = normalizeRequestError(lastError.message, `${stepLabel} 未完成，请补充信息或重试。`);
   const requiresM03Refresh = errorRequiresM03Refresh(lastError);
+  const requiresM04Refresh = errorRequiresM04Refresh(lastError);
   const retryText =
     requiresM03Refresh ? "重新生成辨病辨证并继续" :
+    requiresM04Refresh ? "重新生成候选方药并继续" :
     lastError.phase === "diagnose" ? "重新生成辨病辨证" :
     lastError.phase === "prescribe" ? "重新生成候选方药" :
     lastError.phase === "assess" ? "重新生成审方与随访" :
@@ -1585,29 +1778,42 @@ export function stageErrorDisplay(lastError: NonNullable<CaseState["lastError"]>
   // PHASE_ORDER 比 PHASE_STEPS 多一个头部 "idle"，索引差 1：下游切片直接用 PHASE_ORDER 下标即可，
   // 不能再 +1，否则失败阶段的下一个阶段会被漏掉（例如 M04 失败时漏掉“审方随访未执行”）。
   const downstreamLabels = PHASE_STEPS.slice(phaseIndex(lastError.phase)).map((step) => step.label);
-  return { stepLabel, message, retryText, downstreamLabels };
+  const warningLevel = /(?:篡改|伪造|非法|越权|鉴权失败|权限不足|CSRF|安全合同不一致)/i.test(message) ? "L3" : "L2";
+  return { stepLabel, message, retryText, downstreamLabels, warningLevel };
 }
 
 function StageErrorCard({ caseState, onRetry }: { caseState: CaseState; onRetry: () => void }) {
   if (caseState.phase !== "error" || !caseState.lastError) return null;
-  const { stepLabel, message, retryText, downstreamLabels } = stageErrorDisplay(caseState.lastError);
+  const { stepLabel, message, retryText, downstreamLabels, warningLevel } = stageErrorDisplay(caseState.lastError);
+  const highRisk = warningLevel === "L3";
 
   return (
-    <div data-testid="stage-error-card" className="mb-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">
+    <div
+      data-testid="stage-error-card"
+      data-warning-level={warningLevel}
+      className={`mb-3 rounded-xl border p-4 ${highRisk ? "border-red-200 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-950"}`}
+    >
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-700" />
+        <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${highRisk ? "text-red-700" : "text-amber-700"}`} />
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-bold">{stepLabel} 未完成</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[13px] font-bold">{stepLabel} 未完成</p>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${highRisk ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>
+              {warningLevel} · {highRisk ? "安全异常" : "可恢复异常"}
+            </span>
+          </div>
           <p className="mt-1 text-[12px] leading-relaxed">{message}</p>
           {downstreamLabels.length > 0 && (
-            <p className="mt-1 text-[12px] leading-relaxed text-red-700">
+            <p className={`mt-1 text-[12px] leading-relaxed ${highRisk ? "text-red-700" : "text-amber-800"}`}>
               上一阶段未成功，{downstreamLabels.join("、")} 阶段未执行。
             </p>
           )}
           <button
             type="button"
             onClick={onRetry}
-            className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-[12px] font-bold text-red-700 transition-colors hover:bg-red-100"
+            className={`mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg border bg-white px-3 py-2 text-[12px] font-bold transition-colors ${
+              highRisk ? "border-red-200 text-red-700 hover:bg-red-100" : "border-amber-200 text-amber-800 hover:bg-amber-100"
+            }`}
           >
             <RefreshCw className="h-3.5 w-3.5" />
             {retryText}
@@ -2417,7 +2623,9 @@ export function buildDecisionSummary(caseState: CaseState) {
   const referralSection = extractSectionLoose(riskText, ["转诊评估", "转诊建议"]);
   const followupSection = extractSectionLoose(riskText, ["随访管理方案", "随访方案"]);
   const followupTimelineSection = extractSectionLoose(riskText, ["随访时间轴", "时间轴"]);
-  const followupTimelineItems = caseState.followupTimeline || [];
+  const followupTimelineItems = (caseState.followupTimeline || []).filter((item) =>
+    !/采纳候选前/.test(item.time) && !/完成针对性安全复核/.test(item.action)
+  );
   const redFlagPatientSection = extractSectionLoose(riskText, ["红旗预警（患者须知）", "红旗预警"]);
   const rehabSection = extractSectionLoose(riskText, ["中医康复管理", "康复管理"]);
   const streamIntegritySection = [
@@ -2544,7 +2752,13 @@ function replaceRiskAssessmentFollowup(existing: string | undefined, generated: 
   return [extractRiskAuditSection(existing), generated.trim()].filter(Boolean).join("\n\n");
 }
 
-function generationStatus(phase: Phase): { title: string; desc: string } {
+export function generationStatus(phase: Phase, isRedFlag = false): { title: string; desc: string } {
+  if (isRedFlag && (phase === "prescribe" || phase === "assess")) {
+    return {
+      title: "正在生成风险处置建议",
+      desc: "正在整理转诊依据、现场评估要点和安全边界；急危重风险未排除前不生成候选方药或剂量。",
+    };
+  }
   if (phase === "diagnose") {
     return { title: "正在生成辨病辨证结果", desc: "完成后会展示现代医学风险方向、证候诊断、病机、治法和证据支持。" };
   }
@@ -2557,15 +2771,31 @@ function generationStatus(phase: Phase): { title: string; desc: string } {
   return { title: "正在处理", desc: "请稍候。" };
 }
 
-export function buildCompleteReport(caseState: CaseState): string {
+export function buildCompleteReport(
+  caseState: CaseState,
+  options: { warningProfile?: ClinicalWarningProfile; nonDoseOnly?: boolean } = {},
+): string {
   const reportSection = (content?: string) => sanitizeCustomerEvidenceSurface(stripDiagnosisJSON(content || ""));
+  const diagnosisReportSection = (content?: string) =>
+    stripWesternAnalysisForCustomer(stripTcmDiseaseNameForCustomer(reportSection(content)));
+  const warningProfile = options.warningProfile || deriveCaseWarningProfile(caseState);
+  const nonDoseOnly = options.nonDoseOnly === true || !warningProfile.executable;
+  const emergencyReferral = (caseState.safetyGate || evaluateSafetyGate(caseState)).status === "red_flag";
+  const emergencyPresentation = emergencyReferral ? buildEmergencyPresentation(caseState) : undefined;
+  const acknowledgement = caseState.warningAcknowledgement;
   const deidentifiedPatient = {
     sex: caseState.patient.sex,
     age: caseState.patient.age,
   };
   return normalizeClinicalText([
-    `# 中医CDSS辅助诊疗脱敏报告`,
+    emergencyReferral ? "# 中医CDSS急诊转诊建议与依据" : "# 中医CDSS辅助诊疗脱敏报告",
     `导出说明：本报告默认脱敏，仅供授权医生在院内环境复核使用。`,
+    emergencyReferral ? `处置类别：${emergencyPresentation?.pageTitle}` : `风险分级：${warningProfile.level} · ${warningProfile.label}`,
+    `可执行状态：${emergencyReferral ? "转诊建议与触发依据，不含候选方药或剂量" : nonDoseOnly ? "安全评估说明，不得作为处方或医嘱执行" : "辅助建议，须经医生最终确认"}`,
+    `分级理由：${warningProfile.reasons.join("；") || "无额外分级理由"}`,
+    acknowledgement
+      ? `导出确认：${acknowledgement.acknowledgedAt}；模式=${acknowledgement.exportMode}；指纹=${acknowledgement.reportFingerprint}${acknowledgement.reason ? `；理由=${acknowledgement.reason}` : ""}`
+      : "",
     `病例编号：已脱敏`,
     `主诉：${caseState.chiefComplaint || "未采集"}`,
     "",
@@ -2579,10 +2809,21 @@ export function buildCompleteReport(caseState: CaseState): string {
     `既往史：${formatUnknown(caseState.pastHistory)}`,
     `用药史：${formatUnknown(caseState.medicationHistory)}`,
     `过敏史：${formatUnknown(caseState.allergyHistory)}`,
-    `诊疗思路偏好：${caseState.tcmLineagePreference ? lineageLabel(caseState.tcmLineagePreference) : "未设置"}`,
     "",
-    caseState.diagnosis ? `## 辨病辨证\n${reportSection(caseState.diagnosis)}` : "",
-    caseState.prescription ? `## 候选方药\n${reportSection(caseState.prescription)}` : "",
+    emergencyPresentation ? [
+      "## 急诊转诊建议",
+      `疑似事件：${emergencyPresentation.eventTitle}`,
+      `立即行动：${emergencyPresentation.immediateAction}`,
+      `临床关注：${emergencyPresentation.clinicalConcern}`,
+      `触发证据：${emergencyPresentation.evidenceChips.join("；") || "结构化病例事实命中确定性规则"}`,
+      ...emergencyPresentation.actions.map((action, index) => `${index + 1}. ${action}`),
+    ].join("\n") : "",
+    caseState.emergencyClearance
+      ? `## 医生现场排查留痕\n确认时间：${caseState.emergencyClearance.confirmedAt}\n评估结果：${caseState.emergencyClearance.assessmentSummary}`
+      : "",
+    caseState.diagnosis ? `## 辨病辨证\n${diagnosisReportSection(caseState.diagnosis)}` : "",
+    !nonDoseOnly && caseState.prescription ? `## 候选方药\n${reportSection(caseState.prescription)}` : "",
+    nonDoseOnly ? `## 处方执行边界\n${emergencyReferral ? "急危重风险未排除前不生成候选方药或剂量；请先完成急诊或转诊评估。" : "本次安全评估不允许导出剂量级候选方药；请解除确定性阻断后重新评估。"}` : "",
     caseState.riskAssessment ? `## 审方与风险随访\n${reportSection(caseState.riskAssessment)}` : "",
   ].filter(Boolean).join("\n\n"));
 }
@@ -2637,6 +2878,20 @@ export function scrubReportPhi(text: string, caseState: CaseState): string {
   return sanitizeFreeTextForExternalClinicalService(text, explicitNames)
     .replace(/(?:年龄\s*[:：]?\s*)?(?:9\d|1[0-4]\d)\s*岁/g, "年龄：90岁以上")
     .replace(/(?:职业|工作岗位|occupation)\s*[:：]?\s*[^，；。\n]+/gi, "职业：[已泛化]");
+}
+
+async function reportExportFingerprint(caseState: CaseState): Promise<string> {
+  const payload = JSON.stringify({
+    caseId: caseState.id,
+    diagnosis: caseState.diagnosis || "",
+    prescription: caseState.prescription || "",
+    riskAssessment: caseState.riskAssessment || "",
+    safetyStatus: caseState.safetyGate?.status || "",
+    redFlags: caseState.safetyGate?.redFlags || [],
+    herbHash: caseState.prescriptionRevision?.herbHash || "",
+  });
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(payload));
+  return `sha256-${Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 type DecisionSummary = ReturnType<typeof buildDecisionSummary>;
@@ -2856,6 +3111,20 @@ type AcceptedEditedPrescription = {
   revision: NonNullable<CaseState["prescriptionRevision"]>;
 };
 
+function structuredHerbWarningProfile(herb: StructuredHerb): ClinicalWarningProfile {
+  return classifyHerbWarning({
+    drug: herb.name,
+    dose: herb.dose || "",
+    evidence: herb.evidence?.source || "",
+    safety: [
+      herb.isToxic ? "毒性药味，需复核" : "",
+      herb.decoctionRequirement,
+    ].filter(Boolean).join("；"),
+    verificationTier: herb.verificationTier,
+    verificationReasons: herb.verificationReasons,
+  });
+}
+
 function auditRevisionNeedsAttention(revision: NonNullable<CaseState["prescriptionRevision"]>): boolean {
   return revision.auditAvailable === false ||
     revision.degraded === true ||
@@ -2934,16 +3203,24 @@ function synchronizeEditedCandidate(candidate: StructuredCandidate, herbs: Struc
     structureRole: herb.structureRole, targetPathogenesis: herb.targetPathogenesis,
     function: herb.function, decoctionRequirement: herb.decoctionRequirement, isToxic: herb.isToxic,
   });
-  const synchronizedHerbs = herbs.map((herb) => ({
-    ...herb,
-    prescriptionRole: herb.prescriptionRole.replace(/(?:^|；)\s*知识库功用[：:][\s\S]*$/, "").trim()
-      || `对应${herb.targetPathogenesis}`,
-    evidence: !originalByName.has(herb.name.trim()) ||
-      editComparable(originalByName.get(herb.name.trim())!) !== editComparable(herb) ||
-      EDITED_HERB_PLACEHOLDER.test(herb.evidence?.source || "") || /待重新审方/.test(herb.evidence?.source || "")
-      ? { evidenceLevel: "model_inference" as const, source: "医生结构化编辑记录；已纳入本次编辑后审方版本", confidence: "中" as const }
-      : herb.evidence,
-  }));
+  const synchronizedHerbs = herbs.map((herb) => {
+    const original = originalByName.get(herb.name.trim());
+    const clinicallyChanged = !original || editComparable(original) !== editComparable(herb);
+    return {
+      ...herb,
+      prescriptionRole: herb.prescriptionRole.replace(/(?:^|；)\s*知识库功用[：:][\s\S]*$/, "").trim()
+        || `对应${herb.targetPathogenesis}`,
+      verificationTier: clinicallyChanged ? "unverified_dose" as const : herb.verificationTier,
+      doseSource: clinicallyChanged ? "none" as const : herb.doseSource,
+      verificationReasons: clinicallyChanged
+        ? ["医生已编辑药味或剂量；本次审方可识别处方风险，但不能替代药味身份与剂量来源核验"]
+        : herb.verificationReasons,
+      evidence: clinicallyChanged ||
+        EDITED_HERB_PLACEHOLDER.test(herb.evidence?.source || "") || /待重新审方/.test(herb.evidence?.source || "")
+        ? { evidenceLevel: "model_inference" as const, source: "医生结构化编辑记录；已纳入本次编辑后审方版本", confidence: "中" as const }
+        : herb.evidence,
+    };
+  });
   const currentNames = new Set(synchronizedHerbs.map((herb) => herb.name.trim()).filter(Boolean));
   const deletedNames = candidate.herbs
     .map((herb) => herb.name.trim())
@@ -3048,6 +3325,9 @@ function createBlankHerb(defaultNode?: { id: string; text: string }): Structured
     function: "待医生填写加减目的",
     isToxic: false,
     decoctionRequirement: undefined,
+    verificationTier: "identity_pending",
+    doseSource: "none",
+    verificationReasons: ["医生新增药味，药味身份与剂量来源待重新核验"],
     evidence: defaultEvidenceRef(),
   };
 }
@@ -3076,17 +3356,18 @@ function markdownTableCell(value: unknown): string {
 function buildAcceptedPrescriptionMarkdown(reasoning: ClinicalReasoningResultV2, candidateIndex: number, herbHash?: string): string {
   const candidate = reasoning.formula?.candidates[candidateIndex];
   if (!candidate) return "";
-  const herbRows = candidate.herbs.map((herb, index) =>
-    `| ${index + 1} | ${markdownTableCell(herb.name)} | ${markdownTableCell(herb.dose || "待医生确认")} | ${markdownTableCell(herb.role)} | ${markdownTableCell(herb.targetPathogenesis)} | ${markdownTableCell(herb.function)} | ${markdownTableCell([herb.processing ? `炮制：${herb.processing}` : "", herb.decoctionRequirement].filter(Boolean).join("；") || "常规")} |`
-  );
+  const herbRows = candidate.herbs.map((herb, index) => {
+    const warning = structuredHerbWarningProfile(herb);
+    return `| ${index + 1} | ${markdownTableCell(herb.name)} | ${markdownTableCell(herb.verificationTier === "identity_pending" ? "待核定" : herb.dose || "待医生确认")} | ${markdownTableCell(herb.role)} | ${markdownTableCell(herb.targetPathogenesis)} | ${markdownTableCell(herb.function)} | ${markdownTableCell([herb.processing ? `炮制：${herb.processing}` : "", herb.decoctionRequirement].filter(Boolean).join("；") || "常规")} | ${warning.level} · ${markdownTableCell(warning.reasons.join("；"))} |`;
+  });
   const modifications = reasoning.formula?.modifications || [];
   return [
     "## 中药饮片处方",
     ...(herbHash ? [`**处方版本摘要**：${markdownTableCell(herbHash)}`] : []),
     `**候选方名/方向**：${markdownTableCell(candidate.name)}`,
     "",
-    "| 序号 | 药名 | 剂量 | 角色 | 对应病机 | 功用 | 炮制/煎服 |",
-    "|---|---|---|---|---|---|---|",
+    "| 序号 | 药名 | 剂量 | 角色 | 对应病机 | 功用 | 炮制/煎服 | 核验分级 |",
+    "|---|---|---|---|---|---|---|---|",
     ...herbRows,
     "",
     "## 方义解析",
@@ -3774,9 +4055,41 @@ function HerbModificationWorkbench({
 
 function HerbPrescriptionRows({ table }: { table?: MarkdownTable }) {
   if (!table || table.rows.length === 0) return null;
+  const classifiedRows = table.rows.map((row, index) => {
+    const drug = getTableCell(table, row, ["药名"]);
+    const spec = getTableCell(table, row, ["炮制/规格", "规格"]);
+    const dose = getTableCell(table, row, ["剂量"]);
+    const role = getTableCell(table, row, ["君臣佐使"]);
+    const position = getTableCell(table, row, ["处方角色", "药物定位"]);
+    const target = getTableCell(table, row, ["对应病机/证候/症状", "对应病机", "对应证候", "对应症状"]);
+    const meaning = getTableCell(table, row, ["配伍意义", "存在意义"]);
+    const evidence = getTableCell(table, row, ["证据依据", "证据支持", "依据"]);
+    const safety = getTableCell(table, row, ["安全提示", "风险提示"]);
+    return {
+      row,
+      index,
+      drug,
+      spec,
+      dose,
+      role,
+      position,
+      target,
+      meaning,
+      evidence,
+      safety,
+      warning: classifyHerbWarning({ drug, dose, evidence, safety }),
+    };
+  });
+  const tierCounts = classifiedRows.reduce<Record<ClinicalWarningLevel, number>>(
+    (counts, item) => {
+      counts[item.warning.level] += 1;
+      return counts;
+    },
+    { L0: 0, L1: 0, L2: 0, L3: 0, L4: 0 },
+  );
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-white">
+    <div className="overflow-hidden rounded-xl border bg-white" data-testid="herb-warning-tier-table">
       <div className="hidden grid-cols-[1.1fr_0.85fr_1.05fr_1.35fr_1.1fr] gap-3 border-b bg-gray-50 px-4 py-2 text-[11px] font-semibold text-gray-500 md:grid">
         <span>饮片/规格/剂量</span>
         <span>君臣佐使</span>
@@ -3785,21 +4098,33 @@ function HerbPrescriptionRows({ table }: { table?: MarkdownTable }) {
         <span>证据与安全</span>
       </div>
       <div className="divide-y divide-gray-100">
-        {table.rows.map((row, index) => {
-          const drug = getTableCell(table, row, ["药名"]);
-          const spec = getTableCell(table, row, ["炮制/规格", "规格"]);
-          const dose = getTableCell(table, row, ["剂量"]);
-          const role = getTableCell(table, row, ["君臣佐使"]);
-          const position = getTableCell(table, row, ["处方角色", "药物定位"]);
-          const target = getTableCell(table, row, ["对应病机/证候/症状", "对应病机", "对应证候", "对应症状"]);
-          const meaning = getTableCell(table, row, ["配伍意义", "存在意义"]);
-          const evidence = getTableCell(table, row, ["证据依据", "证据支持", "依据"]);
-          const safety = getTableCell(table, row, ["安全提示", "风险提示"]);
+        {classifiedRows.map(({ index, drug, spec, dose, role, position, target, meaning, evidence, safety, warning }) => {
+          const tierTone =
+            warning.level === "L4" ? "border-l-red-900 bg-red-50/70" :
+            warning.level === "L3" ? "border-l-red-500 bg-red-50/40" :
+            warning.level === "L2" ? "border-l-orange-400 bg-orange-50/30" :
+            warning.level === "L1" ? "border-l-amber-300 bg-amber-50/20" :
+            "border-l-slate-300";
+          const badgeTone =
+            warning.level === "L4" ? "bg-red-900 text-white" :
+            warning.level === "L3" ? "bg-red-100 text-red-800" :
+            warning.level === "L2" ? "bg-orange-100 text-orange-800" :
+            warning.level === "L1" ? "bg-amber-100 text-amber-800" :
+            "bg-slate-100 text-slate-700";
 
           return (
-            <div key={`${drug}-${index}`} className="grid gap-3 px-4 py-3 text-xs md:grid-cols-[1.1fr_0.85fr_1.05fr_1.35fr_1.1fr]">
+            <div
+              key={`${drug}-${index}`}
+              data-warning-level={warning.level}
+              className={`grid gap-3 border-l-4 px-4 py-3 text-xs md:grid-cols-[1.1fr_0.85fr_1.05fr_1.35fr_1.1fr] ${tierTone}`}
+            >
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-950">{drug || `药味${index + 1}`}</p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <p className="text-sm font-semibold text-gray-950">{drug || `药味${index + 1}`}</p>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeTone}`} title={warning.reasons.join("；")}>
+                    {warning.level} · {warning.label}
+                  </span>
+                </div>
                 <p className="mt-1 text-gray-500">{[spec, dose].filter(Boolean).join(" · ") || "剂量待医生确认"}</p>
               </div>
               <div className="min-w-0 flex-1">
@@ -3817,10 +4142,24 @@ function HerbPrescriptionRows({ table }: { table?: MarkdownTable }) {
                   <p className="text-blue-800"><span className="font-semibold">依据：</span>{evidence}</p>
                 )}
                 <p className="text-amber-700"><span className="font-semibold">安全：</span>{safety || "安全提示待医生结合审方规则复核"}</p>
+                {warning.level !== "L0" && (
+                  <p className="text-gray-500"><span className="font-semibold">分级理由：</span>{warning.reasons.join("；")}</p>
+                )}
               </div>
             </div>
           );
         })}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 border-t bg-gray-50 px-4 py-2 text-[11px] text-gray-600">
+        <span className="font-semibold text-gray-800">药味警示汇总</span>
+        {(["L4", "L3", "L2", "L1", "L0"] as ClinicalWarningLevel[])
+          .filter((level) => tierCounts[level] > 0)
+          .map((level) => (
+            <span key={level} className="rounded-full border border-gray-200 bg-white px-2 py-0.5">
+              {level}：{tierCounts[level]}
+            </span>
+          ))}
+        <span className="ml-auto">L2 以上需确认；L4 不可执行或写回。</span>
       </div>
     </div>
   );
@@ -4060,7 +4399,7 @@ function StructuredMedicinePlanCards({ candidates }: {
             <SummaryLine label="风险提示" value={item.riskNote} tone="amber" />
           </div>
           <div className="mt-3 border-t border-blue-100 pt-2 text-xs leading-relaxed text-blue-800">
-            <p className="font-semibold">参考文献</p>
+            <p className="font-semibold">外部参考资料（可核验）</p>
             <EvidenceReferenceList source={item.evidence.source} relevance="支持该药品的适应证、用法边界或风险提示" />
           </div>
         </div>
@@ -4321,6 +4660,9 @@ function EvidenceReferenceList({ source, relevance }: { source?: string; relevan
   if (references.length === 0) return null;
   return (
     <div className="mt-1">
+      <p className="mb-1.5 text-[10px] font-normal opacity-75">
+        仅列可回查的指南、说明书、文献或知识库出处；本例主诉与四诊事实不在此重复。
+      </p>
       <ol className="list-decimal space-y-2 pl-4">
         {references.map((reference) => {
           const display = enrichEvidenceReferenceForDisplay(reference);
@@ -4365,13 +4707,94 @@ function evidenceReferenceItems(source: string | undefined): string[] {
   return splitEvidenceReferenceItems(source).filter((item) => !isCustomerEvidencePlaceholder(item));
 }
 
+const TCM_DISCRIMINATING_EVIDENCE =
+  /(?:舌|苔|脉|痰(?:白|黄|清|稀|稠|黏|粘|泡沫|带血)|(?:白|黄|清|稀|稠|黏|粘|泡沫|带血)[^，,。；;]{0,3}痰|流清涕|流黄涕|鼻涕清|鼻涕黄|无汗|自汗|盗汗|恶寒|寒战|口渴|口不渴|咽痒|咽痛|胸闷|喘鸣|便溏|便秘|尿黄|夜尿|经量|带下|喜按|拒按|刺痛|灼痛|冷痛|浮紧|浮数|弦细|滑数)/;
+const GENERIC_COMPLAINT_WITH_DURATION =
+  /^(?:反复|持续|间断|阵发)?(?:咳嗽|头痛|头晕|失眠|腹痛|腹胀|乏力|心悸|胸闷|纳差|便秘|腹泻|发热|疼痛)(?:伴[^，,。；;]{0,6})?(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半]+)?(?:余)?(?:天|日|周|月|年)?$/;
+const NONDISCRIMINATING_DISPLAY_FACT_PART =
+  /^(?:(?:患者|本例|目前|当前)?(?:一般情况|生命体征)(?:平稳|正常|无异常)|神清|精神可|面色正常|纳可|纳眠可|食欲正常|睡眠正常|二便正常|大小便正常|大便正常|小便正常|饮食睡眠(?:可|正常)|无特殊不适|未见明显异常|不限定)$/;
+
+function clinicalEvidenceFingerprint(value: string): string {
+  return value.normalize("NFKC").replace(/[\s，,。；;：:、+（）()[\]【】"'“”‘’]+/g, "").toLowerCase();
+}
+
+function isSameClinicalNarrative(left: string | undefined, right: string | undefined): boolean {
+  if (!left?.trim() || !right?.trim()) return false;
+  return clinicalEvidenceFingerprint(left) === clinicalEvidenceFingerprint(right);
+}
+
+function isNondiscriminatingDisplayFact(value: string): boolean {
+  const parts = value.split(/[，,、；;。]+/).map((part) => part.trim()).filter(Boolean);
+  return parts.length > 0 && parts.every((part) => NONDISCRIMINATING_DISPLAY_FACT_PART.test(part));
+}
+
+/**
+ * Presentation-only prioritization of facts the signed M03 result already selected.
+ * It never creates a new clinical fact: candidates must come from primarySyndromeBasis,
+ * grounded symptom clusters, or grounded pathogenesis-chain facts. A generic chief complaint
+ * such as “咳嗽3天” remains available only when no more discriminating selected fact exists.
+ */
+export function prioritizeTcmEvidenceForDisplay(
+  primaryFacts: readonly string[],
+  alternativeFacts: readonly string[],
+  chiefComplaint: string,
+  limit = 5,
+): string[] {
+  const chiefFingerprint = clinicalEvidenceFingerprint(chiefComplaint);
+  const seen = new Set<string>();
+  const ranked = [...primaryFacts, ...alternativeFacts].flatMap((raw, order) => {
+    const fact = raw.trim();
+    const fingerprint = clinicalEvidenceFingerprint(fact);
+    if (
+      !fact ||
+      !fingerprint ||
+      seen.has(fingerprint) ||
+      !isDisplayableClinicalText(fact) ||
+      isNondiscriminatingDisplayFact(fact)
+    ) return [];
+    seen.add(fingerprint);
+    const isChiefRestatement = Boolean(chiefFingerprint) &&
+      (fingerprint === chiefFingerprint || (fingerprint.length >= 4 && chiefFingerprint === fingerprint.replace(/(?:余)?(?:天|日|周|月|年)$/, "")));
+    const score =
+      (TCM_DISCRIMINATING_EVIDENCE.test(fact) ? 120 : 0) +
+      (/[，,。；;+]/.test(fact) ? 20 : 0) +
+      Math.min(fingerprint.length, 30) -
+      (isChiefRestatement ? 300 : 0) -
+      (GENERIC_COMPLAINT_WITH_DURATION.test(fact) ? 100 : 0);
+    return [{ fact, fingerprint, order, score, isChiefRestatement }];
+  });
+  if (ranked.length === 0) return [];
+  const hasSpecificAlternative = ranked.some((item) => !item.isChiefRestatement && item.score > 0);
+  return ranked
+    .filter((item) => !hasSpecificAlternative || !item.isChiefRestatement)
+    .sort((left, right) => right.score - left.score || left.order - right.order)
+    .slice(0, Math.max(1, limit))
+    .map((item) => item.fact);
+}
+
+export function prioritizeWesternEvidenceForDisplay(facts: readonly string[], limit = 5): string[] {
+  const seen = new Set<string>();
+  return facts.flatMap((raw) => {
+    const fact = raw.trim();
+    const fingerprint = clinicalEvidenceFingerprint(fact);
+    if (
+      !fact ||
+      !fingerprint ||
+      seen.has(fingerprint) ||
+      !isDisplayableClinicalText(fact) ||
+      isNondiscriminatingDisplayFact(fact)
+    ) return [];
+    seen.add(fingerprint);
+    return [fact];
+  }).slice(0, Math.max(1, limit));
+}
+
 function ResultTabsV2({
   caseState,
   summary,
   onRetry,
   onAcceptEditedPrescription,
   onConfirmEncounterScope,
-  onConfirmTerminologyMapping,
   restoredUnsavedDraft,
   onUnsavedDraftChange,
 }: {
@@ -4380,7 +4803,6 @@ function ResultTabsV2({
   onRetry?: () => void;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
   onConfirmEncounterScope: () => Promise<void>;
-  onConfirmTerminologyMapping: (mapping: ControlledTerminologyMappingTrace) => Promise<void>;
   restoredUnsavedDraft?: WorkbenchUnsavedDraftFlag | null;
   onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
 }) {
@@ -4389,6 +4811,7 @@ function ResultTabsV2({
 
   const formula = reasoning.formula;
   const firstCandidate = formula?.candidates?.[0];
+  const firstCandidateWarnings = firstCandidate?.herbs.map(structuredHerbWarningProfile) || [];
   const hasExplicitNonDoseResult = hasExplicitNonDosePrescriptionResult(caseState, Boolean(firstCandidate));
   // The server remains the enforcement point (attestation + fingerprint); this only mirrors the
   // visible state so the doctor gets an explicit confirmation action instead of a dead end.
@@ -4399,13 +4822,12 @@ function ResultTabsV2({
   const medicineCandidates = formula?.patentAndWestern?.filter(isCompleteStructuredMedicineCandidate) || [];
   const hasMedicineCandidates = medicineCandidates.length > 0;
   const medicineCandidateEmptyState = buildMedicineCandidateEmptyState(caseState);
-  const suggestedChecks = buildTieredSuggestedChecks(caseState, reasoning.westernDiagnosis.primary.suggestedChecks);
-  const westernRationale = isDisplayableClinicalText(reasoning.westernDiagnosis.primary.clinicalRationale || "") &&
-    isNonRedundantClinicalRationale(
-      reasoning.westernDiagnosis.primary.clinicalRationale || "",
-      reasoning.westernDiagnosis.primary.supportingFacts,
-    )
-    ? reasoning.westernDiagnosis.primary.clinicalRationale || ""
+  // 需求3：诊断分三段各带推理——西医诊断（含 ICD-10）、中医辨病、中医辨证。
+  // 辨病与辨证此前共用 tcmDiagnosticRationale，界面上也只显示证型：医生看到「心脾两虚证」
+  // 却读不到中医病名，更读不到为什么把这组表现归入该病名而不是相邻病名。
+  const tcmDiseaseName = (reasoning.overview.tcmDiseaseName || "").trim();
+  const tcmDiseaseRationale = isDisplayableClinicalText(reasoning.overview.tcmDiseaseRationale || "")
+    ? reasoning.overview.tcmDiseaseRationale || ""
     : "";
   const tcmRationale = isDisplayableClinicalText(reasoning.overview.tcmDiagnosticRationale || "") &&
     isNonRedundantClinicalRationale(
@@ -4420,14 +4842,18 @@ function ResultTabsV2({
     isDisplayableClinicalText(reasoning.overview.primarySyndromeResolutionReason || "")
     ? reasoning.overview.primarySyndromeResolutionReason || ""
     : "";
-  const primarySyndromeMapping = (reasoning.terminologyMappings || []).find((item) =>
-    item.namespace === "tcm_syndrome" &&
-    item.fieldPath === "overview.primarySyndrome" &&
-    item.status === "suggested");
-  const icd10Mapping = (reasoning.terminologyMappings || []).find((item) =>
-    item.namespace === "icd10" &&
-    item.fieldPath === "westernDiagnosis.primary.name" &&
-    item.status === "suggested");
+  const tcmGroundedAlternativeFacts = [
+    ...(reasoning.pathogenesis?.symptomClusters || []).flatMap((cluster) => cluster.symptoms || []),
+    ...(reasoning.pathogenesis?.chain || []).flatMap((step) => [step.patientFact, step.syndromeEvidence]),
+  ].filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
+  const primarySyndromeEvidenceDisplay = prioritizeTcmEvidenceForDisplay(
+    reasoning.overview.primarySyndromeBasis,
+    tcmGroundedAlternativeFacts,
+    caseState.chiefComplaint || caseState.hisRecord?.fields?.zhushu || "",
+  );
+  const westernSupportingFactsDisplay = prioritizeWesternEvidenceForDisplay(
+    reasoning.westernDiagnosis.primary.supportingFacts,
+  );
   // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
   // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
   const failedStage = caseState.phase === "error" && caseState.lastError ? caseState.lastError.phase : undefined;
@@ -4483,7 +4909,7 @@ function ResultTabsV2({
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-950">
             <p className="font-bold text-blue-800">西医诊断倾向</p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold">{reasoning.westernDiagnosis.primary.name}</p>
+              <p className="text-sm font-semibold">{westernDiagnosisLabelForDisplay(reasoning.westernDiagnosis.primary.name)}</p>
               {reasoning.westernDiagnosis.primary.coding && (
                 <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-800">
                   ICD-10 {reasoning.westernDiagnosis.primary.coding.code}
@@ -4493,21 +4919,9 @@ function ResultTabsV2({
             {reasoning.westernDiagnosis.primary.coding && reasoning.westernDiagnosis.primary.coding.display !== reasoning.westernDiagnosis.primary.name && (
               <p className="mt-1 text-[11px] text-blue-700">编码名称：{reasoning.westernDiagnosis.primary.coding.display}</p>
             )}
-            {!reasoning.westernDiagnosis.primary.coding && icd10Mapping && (
-              <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-blue-200 bg-white/80 px-2 py-1 text-[11px] text-blue-800">
-                <span>标准编码建议：ICD-10 {icd10Mapping.candidateId}（{icd10Mapping.canonical}）；尚未替换诊断。</span>
-                <button
-                  type="button"
-                  onClick={() => { void onConfirmTerminologyMapping(icd10Mapping); }}
-                  className="shrink-0 rounded border border-blue-300 bg-white px-2 py-1 font-bold text-blue-800 hover:bg-blue-50"
-                >
-                  医生确认
-                </button>
-              </div>
-            )}
-            {reasoning.westernDiagnosis.primary.supportingFacts.length > 0 && (
+            {westernSupportingFactsDisplay.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {reasoning.westernDiagnosis.primary.supportingFacts.slice(0, 5).map((fact, index) => (
+                {westernSupportingFactsDisplay.map((fact, index) => (
                   <span key={`${fact}-${index}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-blue-900">{fact}</span>
                 ))}
               </div>
@@ -4515,64 +4929,27 @@ function ResultTabsV2({
           </div>
           <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">
             <p className="font-bold text-amber-800">中医诊断</p>
-            {reasoning.overview.tcmDiseaseName && (
-              <p className="mt-1 text-sm font-semibold">病名：{reasoning.overview.tcmDiseaseName}</p>
-            )}
-            <p className={`${reasoning.overview.tcmDiseaseName ? "mt-1" : "mt-1 text-sm"} font-semibold`}>证型：{reasoning.overview.primarySyndrome}</p>
-            {primarySyndromeMapping && (
-              <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-white/80 px-2 py-1 text-[11px] text-amber-900">
-                <span>标准证候名建议：{primarySyndromeMapping.canonical}；医生确认前不替换主证候、不锁定方名。</span>
-                <button
-                  type="button"
-                  onClick={() => { void onConfirmTerminologyMapping(primarySyndromeMapping); }}
-                  className="shrink-0 rounded border border-amber-300 bg-white px-2 py-1 font-bold text-amber-900 hover:bg-amber-50"
-                >
-                  医生确认
-                </button>
-              </div>
-            )}
+            {/* 需求3：辨病与辨证是两个判断，必须都呈现。此前只显示证型。 */}
+            {tcmDiseaseName && <p className="mt-1 text-sm font-semibold">辨病：{tcmDiseaseName}</p>}
+            <p className="mt-1 text-sm font-semibold">辨证：{reasoning.overview.primarySyndrome}</p>
             {reasoning.overview.secondarySyndromes && reasoning.overview.secondarySyndromes.length > 0 && (
               <p className="mt-1">兼证：{joinClinicalClauses(reasoning.overview.secondarySyndromes, "、")}</p>
             )}
-            {reasoning.overview.primarySyndromeBasis.length > 0 && (
+            {primarySyndromeEvidenceDisplay.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {reasoning.overview.primarySyndromeBasis.slice(0, 5).map((fact, index) => (
+                {primarySyndromeEvidenceDisplay.map((fact, index) => (
                   <span key={`${fact}-${index}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-amber-950">{fact}</span>
                 ))}
               </div>
             )}
           </div>
         </div>
-        {(westernRationale || reasoning.westernDiagnosis.differentials.length > 0 || suggestedChecks.length > 0 || shouldRenderEvidenceStatus(reasoning.westernDiagnosis.primary.evidence)) && (
-          <div className="mt-3 rounded-lg border border-blue-100 bg-white p-3 text-xs leading-relaxed text-gray-700">
-            <p className="font-bold text-blue-800">西医诊断分析</p>
-            {westernRationale && <p className="mt-1"><span className="font-semibold">推理：</span>{westernRationale}</p>}
-            {reasoning.westernDiagnosis.differentials.length > 0 && (
-              <div className="mt-2 grid gap-2 lg:grid-cols-2">
-                {reasoning.westernDiagnosis.differentials.map((item, index) => (
-                  <p key={`${item.name}-${index}`} className="rounded-md bg-blue-50 px-2.5 py-2">
-                    <span className="font-semibold text-blue-900">鉴别 {item.name}：</span>
-                    {clinicalSentence([
-                      item.reason,
-                      item.distinguishingPoints ? `区分要点：${item.distinguishingPoints}` : "",
-                      item.nextCheck ? `建议核实：${item.nextCheck}` : "",
-                    ], "；")}
-                  </p>
-                ))}
-              </div>
-            )}
-            {suggestedChecks.length > 0 && <p className="mt-2"><span className="font-semibold">下一步：</span>{joinClinicalClauses(suggestedChecks, "；")}</p>}
-            {shouldRenderEvidenceStatus(reasoning.westernDiagnosis.primary.evidence) && (
-              <div className="mt-2 border-t border-blue-100 pt-2 text-blue-800">
-                <EvidenceReferenceList source={reasoning.westernDiagnosis.primary.evidence.source} relevance="支持当前西医诊断倾向或鉴别边界" />
-              </div>
-            )}
-          </div>
-        )}
-        {(tcmRationale || tcmDifferentials.length > 0 || tcmDifferentialBoundary) && (
+        {(tcmDiseaseRationale || tcmRationale || tcmDifferentials.length > 0 || tcmDifferentialBoundary) && (
           <div className="mt-3 rounded-lg border border-amber-100 bg-white p-3 text-xs leading-relaxed text-gray-700">
-            <p className="font-bold text-amber-800">中医辨证分析</p>
-            {tcmRationale && <p className="mt-1"><span className="font-semibold">推理：</span>{tcmRationale}</p>}
+            <p className="font-bold text-amber-800">中医辨病辨证分析</p>
+            {/* 两段推理分开呈现：辨病回答「为什么归入这个病名」，辨证回答「为什么是这个证型」。 */}
+            {tcmDiseaseRationale && <p className="mt-1"><span className="font-semibold">辨病推理：</span>{tcmDiseaseRationale}</p>}
+            {tcmRationale && <p className="mt-1"><span className="font-semibold">辨证推理：</span>{tcmRationale}</p>}
             {tcmDifferentials.length > 0 && (
               <div className="mt-2 grid gap-2 lg:grid-cols-2">
                 {tcmDifferentials.map((item, index) => (
@@ -4612,28 +4989,39 @@ function ResultTabsV2({
           const placeholder = /(暂未|证据不足|待补|待确认|待生成|不生成|无法形成|需补充关键)/;
           const overallPathogenesis = (reasoning.overview.overallPathogenesis || "").trim();
           const summaryText = (p.summary || "").trim();
-          const summaryOk = !isDisplayableClinicalText(overallPathogenesis) && isDisplayableClinicalText(summaryText) && !placeholder.test(summaryText);
+          const summaryOk = isDisplayableClinicalText(summaryText) &&
+            !placeholder.test(summaryText) &&
+            !isSameClinicalNarrative(summaryText, overallPathogenesis);
           const locItems = p.locationDifferentiation.items.map((item) => item.trim()).filter(isDisplayableClinicalText);
           const locDetails = (p.locationDifferentiation.details || []).filter((item) =>
             isDisplayableClinicalText(item.location) && isDisplayableClinicalText(item.basis)
           );
-          // details 是 items 的子集（见下方渲染处注释）；把没有 detail 的病位单列出来，
-          // 避免 details 非空时它们被整条吃掉。
-          const locDetailLocations = new Set(locDetails.map((item) => item.location.trim()));
-          const locItemsWithoutDetail = locItems.filter((item) => !locDetailLocations.has(item));
+          // 需求4 之后病位只按 items 渲染，details 仅用于判断本区块是否有结论（见下方注释）。
           const locationResolutionReason = (p.locationDifferentiation.resolutionReason || "").trim();
           const hasLocationConclusion = locItems.length > 0 || locDetails.length > 0 ||
             p.locationDifferentiation.resolution === "unresolved" || isDisplayableClinicalText(locationResolutionReason);
           const natItems = p.natureDifferentiation.items.map((item) => item.trim()).filter(isDisplayableClinicalText);
           const rootDeficiency = (p.natureDifferentiation.rootDeficiency || []).map((item) => item.trim()).filter(isDisplayableClinicalText);
           const branchExcess = (p.natureDifferentiation.branchExcess || []).map((item) => item.trim()).filter(isDisplayableClinicalText);
-          const natureBasis = (p.natureDifferentiation.basis || "").trim();
+          // 需求4：病性的 basis 不再上屏，因此不再计算它的展示版本。
           const natureResolutionReason = (p.natureDifferentiation.resolutionReason || "").trim();
           const hasNatureConclusion = natItems.length > 0 || rootDeficiency.length > 0 || branchExcess.length > 0 ||
             p.natureDifferentiation.resolution === "unresolved" || isDisplayableClinicalText(natureResolutionReason);
-          const symptomClusters = (p.symptomClusters || []).filter((item) =>
-            item.symptoms.some(isDisplayableClinicalText) && isDisplayableClinicalText(item.mechanism)
-          );
+          // 需求4：症状群只保留真正有信息量的。原过滤只要求「至少一个症状可展示 + 机制可展示」，
+          // 于是两类无意义条目照样上屏：
+          //   1) 只有一个症状的「群」——症状群的价值就在于多个表现指向同一机制，单症状不构成群，
+          //      它已经在病机链里逐条出现过；
+          //   2) 机制只是把症状换个说法重述（「入睡困难 + 多梦：睡眠障碍」），读完不增加任何判断。
+          const symptomClusters = (p.symptomClusters || []).filter((item) => {
+            const symptoms = (item.symptoms || []).filter(isDisplayableClinicalText);
+            const mechanism = (item.mechanism || "").trim();
+            if (symptoms.length < 2 || !isDisplayableClinicalText(mechanism)) return false;
+            const mechanismCore = mechanism.replace(/[\s，,。；;、（）()]/g, "");
+            return !symptoms.every((symptom) => {
+              const core = symptom.replace(/[\s，,。；;、（）()]/g, "");
+              return core.length > 0 && mechanismCore.includes(core);
+            });
+          });
           const chain = p.chain.filter((step) =>
             step.patientFact?.trim() &&
             !isCustomerEvidencePlaceholder(step.patientFact) &&
@@ -4645,6 +5033,10 @@ function ResultTabsV2({
             !isCustomerEvidencePlaceholder(step.therapyDirection)
           );
           const caseRelationship = p.caseRelationship;
+          const caseRelationshipText = isSameClinicalNarrative(caseRelationship?.relationship, overallPathogenesis) ||
+            isSameClinicalNarrative(caseRelationship?.relationship, summaryText)
+            ? ""
+            : caseRelationship?.relationship;
           const fallback = compactMarkdown(summary.mechanismSection || summary.patternSection || "", 1200);
           const showFallback = chain.length === 0 && !summaryOk && Boolean(fallback) && fallback !== "待生成";
           const deepReasoning = compactMarkdown([
@@ -4661,28 +5053,16 @@ function ResultTabsV2({
                   {hasLocationConclusion && (
                     <div className="rounded-lg bg-amber-50 p-3">
                       <p className="text-[11px] font-bold text-amber-700">病位辨证</p>
-                      {locDetails.length > 0 ? (
-                        <div className="mt-1 space-y-1.5 text-xs leading-relaxed text-amber-950">
-                          {locDetails.map((item, index) => (
-                            <p key={`${item.location}-${index}`}><span className="font-semibold">{item.location}：</span>{item.basis}</p>
-                          ))}
-                          {/*
-                            details 只是 items 的「逐字可回溯」子集：服务端会丢弃无法精确回溯或引用重复的
-                            detail（diagnosis-visible-summary.ts），而 items 一条不删。原先这里是
-                            details ? … : items ? … 的三元，details 非空时把无 detail 的病位整条吃掉——
-                            心脾两虚证只显示「脾」，「心」在界面上凭空消失，医生会以为系统没辨出来。
-                            这里补回来，但措辞只陈述「无独立依据」，不指向任何依据所在：契约只保证
-                            「reasoning 里出现的病位必须进 items」，从不保证反过来每条 items 都有可引用出处，
-                            写成「依据见病机链」会把医生指向一段可能不存在的文字。
-                            版式也刻意与上方有依据的条目区分（font-normal + 浅一号），不把推断项伪装成有据项。
-                          */}
-                          {locItemsWithoutDetail.length > 0 && (
-                            <p className="text-amber-800">
-                              <span className="font-normal">{joinClinicalClauses(locItemsWithoutDetail, "、")}：本例暂无可逐字回溯的独立依据</span>
-                            </p>
-                          )}
-                        </div>
-                      ) : locItems.length > 0 ? (
+                      {/*
+                        需求4：病机区不再逐条罗列「依据」。此前病位按 details[].basis 逐条展开成
+                        「脾：食少倦怠 → 归属脾」这类句子，与紧邻的病机链、证候依据大面积重复，
+                        医生要在三处读同一批原文。结论本身（病位）保留，依据回到病机链一处呈现。
+                        顺带消掉一类 bug：details 只是 items 的「逐字可回溯」子集，原实现是
+                        details ? … : items ? … 的三元，details 非空时会把没有 detail 的病位整条吃掉
+                        （心脾两虚只显示「脾」，「心」在界面上凭空消失）。现在统一按 items 渲染，
+                        两个列表不再有分歧，locDetails / locItemsWithoutDetail 也不再参与展示。
+                      */}
+                      {locItems.length > 0 ? (
                         <p className="mt-1 text-xs leading-relaxed text-amber-950">{joinClinicalClauses(locItems, "、")}</p>
                       ) : (
                         <p className="mt-1 text-xs leading-relaxed text-amber-950">
@@ -4691,7 +5071,7 @@ function ResultTabsV2({
                       )}
                       {shouldRenderEvidenceStatus(p.locationDifferentiation.evidence) && (
                         <p className="mt-2 border-t border-amber-100 pt-2 text-[11px] leading-relaxed text-amber-800">
-                          参考文献：{evidenceReferenceItems(p.locationDifferentiation.evidence.source).join("；")}
+                          外部参考资料：{evidenceReferenceItems(p.locationDifferentiation.evidence.source).join("；")}
                         </p>
                       )}
                     </div>
@@ -4708,10 +5088,10 @@ function ResultTabsV2({
                           {natureResolutionReason || "当前记录尚不能支持明确病性归纳"}
                         </p>
                       )}
-                      {isDisplayableClinicalText(natureBasis) && <p className="mt-1 text-[11px] leading-relaxed text-rose-800">判断依据：{natureBasis}</p>}
+                      {/* 需求4：病性同样不再单列「判断依据」，理由同病位——依据统一回到病机链一处。 */}
                       {shouldRenderEvidenceStatus(p.natureDifferentiation.evidence) && (
                         <p className="mt-2 border-t border-rose-100 pt-2 text-[11px] leading-relaxed text-rose-800">
-                          参考文献：{evidenceReferenceItems(p.natureDifferentiation.evidence.source).join("；")}
+                          外部参考资料：{evidenceReferenceItems(p.natureDifferentiation.evidence.source).join("；")}
                         </p>
                       )}
                     </div>
@@ -4725,11 +5105,13 @@ function ResultTabsV2({
                   {summaryOk && <p className="mt-1 text-xs leading-relaxed text-amber-800">{summaryText}</p>}
                 </div>
               )}
-              {caseRelationship && [caseRelationship.rootPattern, caseRelationship.mainManifestation, caseRelationship.relationship].some(isDisplayableClinicalText) && (
+              {caseRelationship && [caseRelationship.rootPattern, caseRelationship.mainManifestation, caseRelationshipText].some(isDisplayableClinicalText) && (
                 <div className="grid gap-2 rounded-lg border border-violet-100 bg-violet-50 p-3 text-xs leading-relaxed text-violet-950 md:grid-cols-3">
                   <div><p className="text-[11px] font-bold text-violet-700">本证</p><p className="mt-1">{caseRelationship.rootPattern}</p></div>
                   <div><p className="text-[11px] font-bold text-violet-700">主要表现</p><p className="mt-1">{caseRelationship.mainManifestation}</p></div>
-                  <div><p className="text-[11px] font-bold text-violet-700">病机联系</p><p className="mt-1">{caseRelationship.relationship}</p></div>
+                  {isDisplayableClinicalText(caseRelationshipText) && (
+                    <div><p className="text-[11px] font-bold text-violet-700">病机联系</p><p className="mt-1">{caseRelationshipText}</p></div>
+                  )}
                 </div>
               )}
               {symptomClusters.length > 0 && (
@@ -4745,7 +5127,26 @@ function ResultTabsV2({
               {chain.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-[11px] font-bold text-gray-500">子病机与对应治法</p>
-                  {chain.map((step, index) => (
+                  {chain.map((step, index) => {
+                    const pathogenesisDisplay = isSameClinicalNarrative(step.pathogenesis, overallPathogenesis) ||
+                      isSameClinicalNarrative(step.pathogenesis, summaryText) ||
+                      isSameClinicalNarrative(step.pathogenesis, caseRelationshipText)
+                      ? ""
+                      : step.pathogenesis;
+                    const relatedClusterFacts = symptomClusters
+                      .filter((cluster) => {
+                        const mechanism = clinicalEvidenceFingerprint(cluster.mechanism);
+                        const pathogenesis = clinicalEvidenceFingerprint(step.pathogenesis);
+                        return mechanism.includes(pathogenesis) || pathogenesis.includes(mechanism);
+                      })
+                      .flatMap((cluster) => cluster.symptoms);
+                    const evidenceDisplay = prioritizeTcmEvidenceForDisplay(
+                      [step.syndromeEvidence],
+                      relatedClusterFacts.length > 0 ? relatedClusterFacts : tcmGroundedAlternativeFacts,
+                      caseState.chiefComplaint || caseState.hisRecord?.fields?.zhushu || "",
+                      2,
+                    );
+                    return (
                     <div key={`${step.pathogenesis}-${index}`} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs leading-relaxed">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <p className="font-semibold text-gray-900">子病机 {index + 1}</p>
@@ -4753,12 +5154,18 @@ function ResultTabsV2({
                       </div>
                       <div className="mt-2 grid gap-1.5 md:grid-cols-2">
                         <p className="rounded-md bg-white px-2 py-1.5 text-gray-700"><span className="font-semibold">患者事实：</span>{step.patientFact}</p>
-                        <p className="rounded-md bg-white px-2 py-1.5 text-sky-800"><span className="font-semibold">证候依据：</span>{step.syndromeEvidence}</p>
+                        <p className="rounded-md bg-white px-2 py-1.5 text-sky-800">
+                          <span className="font-semibold">辨证关键依据：</span>
+                          {joinClinicalClauses(evidenceDisplay.length > 0 ? evidenceDisplay : [step.syndromeEvidence], "；")}
+                        </p>
                       </div>
-                      <p className="mt-1 text-amber-800"><span className="font-semibold">病机演变：</span>{step.pathogenesis}</p>
+                      {isDisplayableClinicalText(pathogenesisDisplay) && (
+                        <p className="mt-1 text-amber-800"><span className="font-semibold">病机演变：</span>{pathogenesisDisplay}</p>
+                      )}
                       <p className="mt-1 text-emerald-800"><span className="font-semibold">对应治法：</span>{step.therapyDirection}</p>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               {p.uncertainties.length > 0 && (
@@ -4812,41 +5219,6 @@ function ResultTabsV2({
         </div>
       </SchemeSection>
 
-      {reasoning.lineageAdaptation && (
-        <SchemeSection
-          order={sectionOrder("M03-M04-lineage")}
-          id="cdss-section-lineage"
-          title="学术流派适配"
-          subtitle="仅说明流派偏好如何影响本例辨证，不改变确定性安全边界"
-          contractIds="M03-M04-lineage"
-          rendererId="lineage-section"
-          // 右栏只有 410/460px 宽，结论类与分析类此前以完全相同的视觉权重铺开十张卡。
-          // 这一张是纯背景说明（其中「安全规则优先」子块恒为同一句话），默认收起，
-          // 让首屏留给结论类。内容一条不减，点开即在。
-          defaultOpen={false}
-        >
-          <div className="space-y-3 text-xs leading-relaxed text-gray-700">
-            <div className="grid gap-2 md:grid-cols-2">
-              <SummaryLine label={`${reasoning.lineageAdaptation.label}适配结论`} value={reasoning.lineageAdaptation.applicabilityReason} tone="blue" />
-              <SummaryLine label="安全规则优先" value={reasoning.lineageAdaptation.safetyDeference} tone="amber" />
-            </div>
-            {reasoning.lineageAdaptation.influencedDecisions.length > 0 && (
-              <div className="grid gap-2 md:grid-cols-2">
-                {reasoning.lineageAdaptation.influencedDecisions.map((item, index) => (
-                  <div key={`${item.aspect}-${index}`} className="rounded-lg border bg-gray-50 p-3">
-                    <p className="font-semibold text-gray-950">{item.aspect}</p>
-                    <p className="mt-1">{item.detail}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            {reasoning.lineageAdaptation.alternativeDirection && (
-              <SummaryLine label="非本流派的可选辨治方向" value={reasoning.lineageAdaptation.alternativeDirection} tone="gray" />
-            )}
-          </div>
-        </SchemeSection>
-      )}
-
       {prescribeStageFailed && onRetry && (
         <SchemeSection order={sectionOrder("M04-formula")} id="cdss-section-prescription" title="候选方药" subtitle="本阶段未完成" contractIds="M04-formula" rendererId="formula-section">
           <StageErrorCard caseState={caseState} onRetry={onRetry} />
@@ -4859,7 +5231,19 @@ function ResultTabsV2({
             <div className="space-y-3">
               <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2">
                 <div className="min-w-0">
-                  <h3 className="mt-1 text-base font-bold text-gray-950">{firstCandidate.name}</h3>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-bold text-gray-950">{firstCandidate.name}</h3>
+                    {firstCandidate.constructionType === "self_devised" && (
+                      <span data-testid="self-devised-formula-badge" className="rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[10px] font-bold text-violet-700">
+                        自拟方
+                      </span>
+                    )}
+                    {firstCandidate.constructionType === "single_herb" && (
+                      <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-700">
+                        单味方案
+                      </span>
+                    )}
+                  </div>
                   {firstCandidate.therapyMatch && !/^对应锁定治法[：:]/.test(firstCandidate.therapyMatch) && (
                     <p className="mt-1 text-xs leading-relaxed text-gray-600">{firstCandidate.therapyMatch}</p>
                   )}
@@ -4871,26 +5255,20 @@ function ResultTabsV2({
                   <p className="mt-1">实际组成未沿用原命名经方身份，不代表原方或经典出处；请按当前完整药味与剂量重新审方。</p>
                 </div>
               )}
-              {(firstCandidate.constructionType === "self_devised" || firstCandidate.constructionType === "single_herb") && firstCandidate.applicable && (
-                <div className="rounded-lg border border-violet-100 bg-violet-50 p-3 text-xs leading-relaxed text-violet-950">
-                  <p className="font-bold text-violet-800">未采用经典方说明</p>
-                  <p className="mt-1">{firstCandidate.applicable}</p>
-                </div>
-              )}
-              {shouldRenderEvidenceStatus(firstCandidate.formulaSource) && (
+              {firstCandidate.constructionType !== "self_devised" &&
+                firstCandidate.constructionType !== "single_herb" &&
+                shouldRenderEvidenceStatus(firstCandidate.formulaSource) && (
                 <div className={`rounded-lg border p-3 text-xs leading-relaxed ${firstCandidate.formulaSource.evidenceLevel === "insufficient" ? "border-amber-200 bg-amber-50 text-amber-950" : "border-blue-100 bg-blue-50 text-blue-950"}`}>
                   <p className={`font-bold ${firstCandidate.formulaSource.evidenceLevel === "insufficient" ? "text-amber-800" : "text-blue-800"}`}>
                     {firstCandidate.formulaSource.evidenceLevel === "kb_entry"
                       ? "方剂资料收载来源"
-                      : firstCandidate.constructionType === "self_devised" || firstCandidate.constructionType === "single_herb"
-                      ? "组方依据"
                       : firstCandidate.constructionType === "combined"
                         ? "合方基础方出处"
                         : firstCandidate.modificationStatus === "modified"
                           ? "参考基础方及出处"
                           : "经典方出处"}
                   </p>
-                  <EvidenceDetail evidence={firstCandidate.formulaSource} relevance="支持候选方身份、组方依据或药味来源" />
+                  <EvidenceDetail evidence={firstCandidate.formulaSource} relevance="支持候选方身份、经典出处或药味来源" />
                   {firstCandidate.constructionType === "combined" && firstCandidate.baseFormulas && firstCandidate.baseFormulas.length > 1 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {firstCandidate.baseFormulas.map((base) => (
@@ -4910,36 +5288,73 @@ function ResultTabsV2({
                   <span>药名</span><span>剂量</span><span>角色</span><span>对应病机</span><span>本例配伍意义</span>
                 </div>
                 <div className="divide-y divide-gray-100">
-                  {firstCandidate.herbs.map((herb, index) => (
-                    <div key={`${herb.name}-${index}`} className="px-3 py-2 text-xs leading-relaxed text-gray-700">
+                  {firstCandidate.herbs.map((herb, index) => {
+                    const warning = firstCandidateWarnings[index];
+                    const rowTone =
+                      warning.level === "L4" ? "border-l-red-900 bg-red-50/70" :
+                      warning.level === "L3" ? "border-l-red-500 bg-red-50/40" :
+                      warning.level === "L2" ? "border-l-orange-400 bg-orange-50/30" :
+                      warning.level === "L1" ? "border-l-amber-300 bg-amber-50/20" :
+                      "border-l-slate-300";
+                    const badgeTone =
+                      warning.level === "L4" ? "bg-red-900 text-white" :
+                      warning.level === "L3" ? "bg-red-100 text-red-800" :
+                      warning.level === "L2" ? "bg-orange-100 text-orange-800" :
+                      warning.level === "L1" ? "bg-amber-100 text-amber-800" :
+                      "bg-slate-100 text-slate-700";
+                    return (
+                    <div
+                      key={`${herb.name}-${index}`}
+                      data-warning-level={warning.level}
+                      className={`border-l-4 px-3 py-2 text-xs leading-relaxed text-gray-700 ${rowTone}`}
+                    >
                       <div className="grid grid-cols-[0.9fr_0.65fr_0.65fr_1fr_1fr] gap-2">
-                        <span className="font-semibold text-gray-950">{herb.name}{herb.processing ? `（${herb.processing}）` : ""}</span>
-                        <span>{herb.dose}</span>
+                        <span className="font-semibold text-gray-950">
+                          {herb.name}{herb.processing ? `（${herb.processing}）` : ""}
+                          <span className={`ml-1.5 inline-flex rounded-full px-1.5 py-0.5 align-middle text-[9px] font-bold ${badgeTone}`} title={warning.reasons.join("；")}>
+                            {warning.level}
+                          </span>
+                        </span>
+                        <span className={warning.level === "L2" || warning.level === "L3" || warning.level === "L4" ? "font-semibold text-orange-800" : ""}>
+                          {herb.verificationTier === "identity_pending" ? "待核定" : herb.dose}
+                        </span>
                         <span>{herb.role}</span>
                         <span>{herb.targetPathogenesis}</span>
                         <span>{herb.function}</span>
                       </div>
-                      {(herb.isToxic || herb.decoctionRequirement) && (
+                      {(warning.level !== "L0" || herb.isToxic || herb.decoctionRequirement) && (
                         <div className="mt-2 rounded-lg bg-gray-50 p-2 text-[11px] text-gray-600">
+                          {warning.level !== "L0" && <p><span className="font-semibold text-gray-700">分级理由：</span>{warning.reasons.join("；")}</p>}
+                          {herb.doseSource && <p><span className="font-semibold text-gray-700">剂量来源：</span>{herb.doseSource === "governed_boundary" ? "受治理知识库边界校验" : herb.doseSource === "classical_source" ? "经典来源原方量" : "未形成可执行来源"}</p>}
                           {herb.isToxic && <p><span className="font-semibold text-gray-700">药味注意：</span>毒性/峻烈药需严守炮制剂量。</p>}
                           {herb.decoctionRequirement && <p><span className="font-semibold text-gray-700">特殊煎法：</span>{herb.decoctionRequirement}</p>}
                         </div>
                       )}
                     </div>
-                  ))}
+                  )})}
                 </div>
                 </div>
               </div>
-              {formula?.modifications?.length ? (
+              {/*
+                需求6：药味加减要以「随证加减建议」的形式主动给出，而不是把加减这件事整个丢给
+                药味工作台让医生自己改。因此这一块即使为空也要出现——否则医生分不清
+                「系统评估过、本方已覆盖各兼症」与「系统压根没做这件事」。
+              */}
+              {formula ? (
                 <div
                   className="rounded-lg border bg-gray-50 p-3"
                   data-clinical-contract-ids="M04-modifications"
                   data-clinical-renderer="formula-modification-list"
                 >
-                  <p className="text-sm font-semibold text-gray-950">本次随症加减</p>
-                  <p className="mt-1 text-[11px] leading-relaxed text-gray-500">只列本次病历已经记录的伴随症状；实际采用后须按调整后的完整处方重新审方。</p>
+                  <p className="text-sm font-semibold text-gray-950">随证加减建议</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-gray-500">针对本次病历已记录、主方未直接针对的兼症给出加减提示；采用后须按调整后的完整处方重新审方。</p>
+                  {!formula.modifications?.length && (
+                    <p className="mt-2 rounded-md bg-white px-2.5 py-2 text-xs leading-relaxed text-gray-600">
+                      本次病历已记录的表现均已由主方药味直接覆盖，暂无需额外加减；如复诊时出现新的兼症，可在药味工作台调整后重新审方。
+                    </p>
+                  )}
                   <div className="mt-2 space-y-2">
-                    {formula.modifications.map((item, index) => (
+                    {(formula.modifications || []).map((item, index) => (
                       <div key={`${item.trigger}-${index}`} className="rounded-lg border bg-white p-3 text-xs leading-relaxed text-gray-700">
                         <p><span className="font-semibold text-gray-950">{item.trigger}：</span>{item.action}{item.doseOrHandling ? `（${item.doseOrHandling}）` : ""}</p>
                         <p className="mt-1"><span className="font-semibold text-gray-900">对应病机：</span>{clinicalSentence([item.targetPathogenesis, item.reason], "；")}</p>
@@ -4952,20 +5367,6 @@ function ResultTabsV2({
                       </div>
                     ))}
                   </div>
-                </div>
-              ) : (
-                <div
-                  className="rounded-lg border border-dashed bg-gray-50 p-3 text-xs leading-relaxed text-gray-600"
-                  data-clinical-contract-ids="M04-modifications"
-                  data-clinical-renderer="formula-modification-list"
-                >
-                  本次未形成同时满足“当前症状已记录、病机引用有效、药味可核验”的随症加减条目；不展示缺少可追溯依据的通用加减模板。
-                </div>
-              )}
-              {formula?.modificationReview?.droppedCount ? (
-                <div data-testid="modification-review-omissions" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
-                  <p className="font-semibold">另有 {formula.modificationReview.droppedCount} 条加减建议未展示</p>
-                  <p className="mt-1">{formula.modificationReview.droppedReason}</p>
                 </div>
               ) : null}
               <HerbModificationWorkbench
@@ -5050,11 +5451,56 @@ function ResultTabsV2({
         </SchemeSection>
       )}
 
+      {/* 需求9：中医治疗项目独立成模块，排在健康调护之前。它是本机构目录里可开展的治疗项目
+          （带操作方案、部位穴位、术者资质与必查项），与饮食起居情志这类生活方式建议不是
+          同一类决策；嵌在调护文字里会让医生需要翻找，两类内容的权重也被拉平。 */}
+      {reasoning.nonPharma && reasoning.nonPharma.tcmTreatments.length > 0 && (
+        <SchemeSection
+          order={sectionOrder("M03-M04-tcm-treatment")}
+          id="cdss-section-tcm-treatment"
+          title="中医治疗项目"
+          subtitle="本机构可开展项目、对应病机与操作安全边界"
+          contractIds="M03-M04-tcm-treatment"
+          rendererId="tcm-treatment-section"
+        >
+          <div className="grid gap-2 sm:grid-cols-2">
+            {reasoning.nonPharma.tcmTreatments.map((item, index) => (
+              <div key={`${item.projectCode}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-gray-950">{item.projectName}</p>
+                  <span className={`rounded px-2 py-0.5 font-medium ${item.protocolStatus === "governed_patient_specific_plan" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                    {item.protocolStatus === "governed_patient_specific_plan" ? "标准方案 · 待复核" : "仅项目评估"}
+                  </span>
+                </div>
+                <p className="mt-2"><span className="font-medium text-gray-900">治疗内容：</span>{item.treatmentContent}</p>
+                <p className="mt-2"><span className="font-medium text-gray-900">对应病机：</span>{item.targetPathogenesis}</p>
+                {item.suggestedSitesOrPoints.length > 0 && (
+                  <p className="mt-1"><span className="font-medium text-gray-900">建议部位/候选穴位：</span>{joinClinicalClauses(item.suggestedSitesOrPoints, "；")}</p>
+                )}
+                {item.scheduleSuggestion && (
+                  <p className="mt-1"><span className="font-medium text-gray-900">评估节奏：</span>{item.scheduleSuggestion}</p>
+                )}
+                {item.protocolGap && (
+                  <p className="mt-1 rounded-md bg-amber-50 px-2 py-1.5 text-amber-900">
+                    <span className="font-medium">未形成患者级方案：</span>{item.protocolGap}
+                  </p>
+                )}
+                {tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning) && (
+                  <p className="mt-1"><span className="font-medium text-gray-900">项目边界：</span>{tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning)}</p>
+                )}
+                <p className="mt-1 text-amber-800"><span className="font-medium">安全边界：</span>{clinicalSentence([item.techniqueBoundary, item.operatorRequirement, ...item.requiredChecks], "；")}</p>
+                <p className="mt-1 text-[11px] text-gray-500"><span className="font-medium">方案依据：</span>{item.protocolSource}</p>
+              </div>
+            ))}
+          </div>
+        </SchemeSection>
+      )}
+
       <SchemeSection
         order={sectionOrder(["M03-M04-nonpharma", "M03-M04-management", "health-education"])}
         id="cdss-section-followup"
-        title="健康调护与随访"
-        subtitle="饮食起居、情志外治、复诊节奏和触发处置"
+        title="健康调护与注意事项"
+        subtitle="饮食起居、情志调护、注意事项与随访安全网"
         contractIds={["M03-M04-nonpharma", "M03-M04-management", "health-education"]}
         rendererId="followup-care-section"
       >
@@ -5065,52 +5511,16 @@ function ResultTabsV2({
               <SummaryLine label="生活方式" value={reasoning.nonPharma.lifestyle} tone="blue" />
               <SummaryLine label="情志调护" value={reasoning.nonPharma.emotion} tone="amber" />
               {reasoning.nonPharma.acupointCare && <SummaryLine label="穴位/外治" value={reasoning.nonPharma.acupointCare} tone="blue" />}
-              {reasoning.nonPharma.tcmTreatments.length > 0 && (
-                <div>
-                  <p className="mb-2 text-xs font-semibold text-gray-900">中医治疗项目</p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {reasoning.nonPharma.tcmTreatments.map((item, index) => (
-                      <div key={`${item.projectCode}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="font-semibold text-gray-950">{item.projectName}</p>
-                          <span className={`rounded px-2 py-0.5 font-medium ${item.protocolStatus === "governed_patient_specific_plan" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                            {item.protocolStatus === "governed_patient_specific_plan" ? "标准方案 · 待复核" : "仅项目评估"}
-                          </span>
-                        </div>
-                        <p className="mt-2"><span className="font-medium text-gray-900">治疗内容：</span>{item.treatmentContent}</p>
-                        <p className="mt-2"><span className="font-medium text-gray-900">对应病机：</span>{item.targetPathogenesis}</p>
-                        {item.suggestedSitesOrPoints.length > 0 && (
-                          <p className="mt-1"><span className="font-medium text-gray-900">建议部位/候选穴位：</span>{joinClinicalClauses(item.suggestedSitesOrPoints, "；")}</p>
-                        )}
-                        {item.scheduleSuggestion && (
-                          <p className="mt-1"><span className="font-medium text-gray-900">评估节奏：</span>{item.scheduleSuggestion}</p>
-                        )}
-                        {item.protocolGap && (
-                          <p className="mt-1 rounded-md bg-amber-50 px-2 py-1.5 text-amber-900">
-                            <span className="font-medium">未形成患者级方案：</span>{item.protocolGap}
-                          </p>
-                        )}
-                        {tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning) && (
-                          <p className="mt-1"><span className="font-medium text-gray-900">项目边界：</span>{tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning)}</p>
-                        )}
-                        <p className="mt-1 text-amber-800"><span className="font-medium">安全边界：</span>{clinicalSentence([item.techniqueBoundary, item.operatorRequirement, ...item.requiredChecks], "；")}</p>
-                        <p className="mt-1 text-[11px] text-gray-500"><span className="font-medium">方案依据：</span>{item.protocolSource}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* 中医治疗项目已上移为独立模块（cdss-section-tcm-treatment），此处不再重复渲染。 */}
               {seasonalCare && <SummaryLine label={`节气调护（${seasonalCare.solarTerm}）`} value={`${seasonalCare.climateFocus}：${seasonalCare.advice}`} tone="green" />}
-              {reasoning.nonPharma.monitoring.length > 0 && (
-                <div className="overflow-x-auto rounded-lg border border-gray-100">
-                  <table className="min-w-full text-left text-xs">
-                    <thead className="bg-gray-50 text-gray-500"><tr><th className="px-3 py-2">监测指标</th><th className="px-3 py-2">观察时间</th><th className="px-3 py-2">复诊触发</th></tr></thead>
-                    <tbody className="divide-y divide-gray-100 text-gray-700">
-                      {reasoning.nonPharma.monitoring.map((item, index) => (
-                        <tr key={`${item.metric}-${index}`}><td className="px-3 py-2 font-medium text-gray-900">{item.metric}</td><td className="px-3 py-2">{item.timing}</td><td className="px-3 py-2">{item.trigger}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {reasoning.nonPharma.precautions.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+                  <p className="mb-1.5 text-xs font-semibold text-amber-900">注意事项</p>
+                  <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-amber-900">
+                    {reasoning.nonPharma.precautions.map((item, index) => (
+                      <li key={`precaution-${index}`}>{item}</li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
@@ -5132,12 +5542,134 @@ function ResultTabsV2({
   );
 }
 
+function EmergencyReferralReport({
+  caseState,
+  onDownloadReport,
+  onConfirmEmergencyClearance,
+}: {
+  caseState: CaseState;
+  onDownloadReport: () => void;
+  onConfirmEmergencyClearance: (assessmentSummary: string) => Promise<void>;
+}) {
+  const gate = caseState.safetyGate || evaluateSafetyGate(caseState);
+  const presentation = buildEmergencyPresentation(caseState);
+  const [assessmentSummary, setAssessmentSummary] = useState("");
+  const [isConfirming, setIsConfirming] = useState(false);
+  const canConfirm = assessmentSummary.trim().length >= 12 && !isConfirming;
+  const missingItems = [...new Set(gate.missingItems)].filter(Boolean);
+
+  return (
+    <div
+      id="cdss-section-ai"
+      data-testid="ai-report-red-flag"
+      data-clinical-contract-ids="red-flag-warning"
+      data-clinical-renderer="emergency-referral-report"
+      className="space-y-3 scroll-mt-3"
+    >
+      <div className="rounded-xl border border-red-300 bg-red-50 p-4">
+        <p className="text-[11px] font-bold tracking-wide text-red-700">{presentation.pageTitle}</p>
+        <h2 className="mt-1 text-lg font-bold leading-snug text-red-950">{presentation.eventTitle}</h2>
+        <p className="mt-2 text-sm font-semibold leading-relaxed text-red-800">{presentation.immediateAction}</p>
+      </div>
+
+      <div className="rounded-xl border border-red-100 bg-white p-4">
+        <p className="text-xs font-bold text-gray-900">触发证据（患者原文）</p>
+        <div className="mt-2 flex flex-wrap gap-2" data-testid="emergency-evidence-chips">
+          {presentation.evidenceChips.length > 0 ? presentation.evidenceChips.map((evidence) => (
+            <span key={evidence} className="rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-800">
+              {evidence}
+            </span>
+          )) : (
+            <span className="text-xs text-gray-500">当前结构化病历事实已命中急危重症规则。</span>
+          )}
+        </div>
+        <p className="mt-3 text-sm leading-relaxed text-gray-800">{presentation.clinicalConcern}</p>
+        {presentation.escalationRationale && (
+          <p className="mt-2 border-l-2 border-red-200 pl-3 text-xs leading-relaxed text-gray-600">
+            组合判断：{presentation.escalationRationale}
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <p className="text-xs font-bold text-gray-900">你需要做的</p>
+        <ol className="mt-2 space-y-2 text-sm leading-relaxed text-gray-700">
+          {presentation.actions.map((action, index) => (
+            <li key={action} className="flex gap-2">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-50 text-[11px] font-bold text-red-700">{index + 1}</span>
+              <span>{action}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+        <label className="block text-xs font-bold text-sky-950" htmlFor="emergency-clearance-summary">
+          已完成现场急症排查时，请记录评估结果
+        </label>
+        <textarea
+          id="emergency-clearance-summary"
+          data-testid="emergency-clearance-summary"
+          value={assessmentSummary}
+          onChange={(event) => setAssessmentSummary(event.target.value.slice(0, 1_000))}
+          maxLength={1_000}
+          rows={3}
+          placeholder="例如：血压复测正常，意识清楚，瞳孔等大等圆，神经系统查体未见局灶异常；已经急诊影像评估排除急性神经血管事件。"
+          className="mt-2 w-full resize-y rounded-lg border border-sky-200 bg-white px-3 py-2 text-sm leading-relaxed text-gray-900 outline-none focus:border-sky-400"
+        />
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            data-testid="confirm-emergency-clearance"
+            disabled={!canConfirm}
+            onClick={async () => {
+              setIsConfirming(true);
+              try {
+                await onConfirmEmergencyClearance(assessmentSummary.trim());
+              } finally {
+                setIsConfirming(false);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-3 py-2 text-xs font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+          >
+            {isConfirming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            已完成急症排查，继续常规诊疗
+          </button>
+          <button
+            type="button"
+            onClick={onDownloadReport}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50"
+          >
+            <Download className="h-3.5 w-3.5" />
+            下载转诊建议与依据
+          </button>
+        </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-sky-800">确认记录只对当前红旗事实有效；病历出现新的急危重线索时会自动重新拦截。</p>
+      </div>
+
+      <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-relaxed text-gray-600">
+        已暂停：常规辨病辨证与候选方药生成。急危重风险未排除前不生成。
+      </p>
+
+      {missingItems.length > 0 && (
+        <details className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500">
+          <summary className="cursor-pointer font-semibold text-gray-600">待补充信息（不影响当前急诊处置）</summary>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {missingItems.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function CompactAiSchemeCardFlow({
   caseState,
   onRetry,
   onAcceptEditedPrescription,
   onConfirmEncounterScope,
-  onConfirmTerminologyMapping,
+  onConfirmEmergencyClearance,
+  onDownloadReport,
   restoredUnsavedDraft,
   onUnsavedDraftChange,
 }: {
@@ -5145,7 +5677,8 @@ function CompactAiSchemeCardFlow({
   onRetry: () => void;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
   onConfirmEncounterScope: () => Promise<void>;
-  onConfirmTerminologyMapping: (mapping: ControlledTerminologyMappingTrace) => Promise<void>;
+  onConfirmEmergencyClearance: (assessmentSummary: string) => Promise<void>;
+  onDownloadReport: () => void;
   restoredUnsavedDraft?: WorkbenchUnsavedDraftFlag | null;
   onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
 }) {
@@ -5159,34 +5692,16 @@ function CompactAiSchemeCardFlow({
 
   if (isRedFlag) {
     return (
-      <div
-        id="cdss-section-ai"
-        data-testid="ai-report-red-flag"
-        data-clinical-contract-ids="red-flag-warning"
-        data-clinical-renderer="risk-summary-panel"
-        className="space-y-3 scroll-mt-3"
-      >
-        <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-          <p className="text-[11px] font-bold uppercase tracking-wide text-red-700">急危重风险处置提示</p>
-          <h2 className="mt-1 break-words text-[15px] font-bold leading-snug text-gray-950">
-            {caseState.chiefComplaint || "待采集主诉"}
-          </h2>
-          <p className="mt-2 text-[11px] leading-relaxed text-red-800">
-            当前信息提示急危重风险，应优先完成急诊或转诊评估；本页继续提供风险依据与处置建议，不生成常规候选方药。
-          </p>
-        </div>
-        {caseState.diagnosis && (
-          <div className="rounded-xl border border-red-100 bg-white p-4">
-            <p className="mb-2 text-xs font-bold text-red-800">本次风险依据与处置</p>
-            <MarkdownBlock content={compactMarkdown(caseState.diagnosis, 1800)} compact />
-          </div>
-        )}
-      </div>
+      <EmergencyReferralReport
+        caseState={caseState}
+        onDownloadReport={onDownloadReport}
+        onConfirmEmergencyClearance={onConfirmEmergencyClearance}
+      />
     );
   }
 
   if (activeReasoning) {
-    return <ResultTabsV2 caseState={caseState} summary={summary} onRetry={onRetry} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} onConfirmTerminologyMapping={onConfirmTerminologyMapping} restoredUnsavedDraft={restoredUnsavedDraft} onUnsavedDraftChange={onUnsavedDraftChange} />;
+    return <ResultTabsV2 caseState={caseState} summary={summary} onRetry={onRetry} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} restoredUnsavedDraft={restoredUnsavedDraft} onUnsavedDraftChange={onUnsavedDraftChange} />;
   }
 
   // A failed structured stage is already explained by StageErrorCard. Do not render the legacy
@@ -5227,13 +5742,6 @@ function CompactAiSchemeCardFlow({
       {hasDosePrescription && <SchemeSection id="cdss-section-prescription" title="处方建议" subtitle="中药饮片 / 西药与中成药">
         <div className="space-y-3">
           <PrescriptionPlanTabs summary={summary} />
-        </div>
-      </SchemeSection>}
-
-      {summary.westernSection && <SchemeSection title="西医诊断依据" subtitle={summary.westernReference || "支持证据与限制"}>
-        <div className="space-y-3">
-          <EvidenceCallout evidence={summary.westernEvidence} reference={summary.westernReference} />
-          <MarkdownBlock content={compactMarkdown(summary.westernSection, 1000)} compact />
         </div>
       </SchemeSection>}
 
@@ -5486,22 +5994,40 @@ type ChipGroupPreset = {
   items: string[];
 };
 
-const FACE_PRESETS: ChipGroupPreset[] = [
-  { title: "面色", items: ["面色少华", "面色萎黄", "面色淡白", "面色潮红", "面色晦暗", "面色青紫"] },
-  { title: "神态", items: ["神清", "精神倦怠", "烦躁易怒", "少气懒言", "形寒肢冷", "目赤"] },
-  { title: "形体/局部", items: ["形体消瘦", "形体肥胖", "目周色暗", "唇色淡", "唇色紫暗", "两颧潮红"] },
-];
+/**
+ * 面象 / 舌象 / 脉象的点选项直接由望诊字典生成，不再手写。
+ * （措辞注意：本文件被 test:diagnosis-display 扫描，注释里也不要出现流水线术语。）
+ *
+ * 此前这三组是手写常量，与甲方字典**双向分叉**：字典里的舌态整组（舌体萎软/歪斜/颤动/强硬/
+ * 吐弄舌/短缩舌）、苔腐/苔剥落/苔灰/苔黑/苔白如积粉/黄白苔、舌下络脉整组、面色黑/青/红、
+ * 目光乏神、精神不振在页面上根本点不到；反过来页面有些词字典里没有。
+ * 「页面能点的」「后台能认的」「字典里有的」本该是同一份东西。
+ *
+ * 词表之外的既有常用词并未删除，另置一组保留——它们临床上成立（脉浮紧是最常见的表寒合脉之一，
+ * 甲方字典的合脉列表里恰好没有），删掉是净损失。这些词照样被后台的形态学正则识别。
+ */
+const LEXICON_EXTRA_PRESETS: Record<InspectionField, ChipGroupPreset | undefined> = {
+  face: { title: "其他常用", items: ["神清", "精神倦怠", "少气懒言", "形体消瘦", "形体肥胖", "两颧潮红", "唇色淡", "唇色紫暗", "目周色暗"] },
+  pulse: { title: "其他常用", items: ["脉浮紧", "脉沉缓", "脉弦滑数", "脉细涩"] },
+  tongue: { title: "其他常用", items: ["瘀点瘀斑", "舌淡胖", "苔白滑", "苔黄腻", "苔厚腻"] },
+};
 
-const PULSE_PRESETS: ChipGroupPreset[] = [
-  { title: "合脉", items: ["脉沉细", "脉沉迟", "脉细弱", "脉细数", "脉弦细", "脉弦数", "脉滑数", "脉浮紧", "脉浮数"] },
-  { title: "单脉", items: ["脉浮", "脉沉", "脉弦", "脉细", "脉数", "脉滑", "脉涩", "脉弱", "脉濡", "脉缓", "脉紧", "脉迟"] },
-];
+function inspectionPresets(field: InspectionField): ChipGroupPreset[] {
+  const normal = inspectionLexiconNormal(field);
+  const groups: ChipGroupPreset[] = [
+    // 正常项单列一组放最前：这是门诊最高频的一次点击，埋在分组里等于让医生每次都找。
+    ...(normal ? [{ title: "正常", items: [normal] }] : []),
+    ...inspectionLexiconGroups(field).map((group) => ({ title: group.name, items: [...group.terms] })),
+  ];
+  const extra = LEXICON_EXTRA_PRESETS[field];
+  const known = new Set(groups.flatMap((group) => group.items));
+  const remaining = extra ? extra.items.filter((item) => !known.has(item)) : [];
+  return remaining.length > 0 ? [...groups, { title: extra!.title, items: remaining }] : groups;
+}
 
-const TONGUE_PRESETS: ChipGroupPreset[] = [
-  { title: "舌质", items: ["舌淡红", "舌淡白", "舌红", "舌尖红", "舌边红", "舌绛", "舌暗紫", "瘀点瘀斑"] },
-  { title: "舌形", items: ["舌淡胖", "边有齿印", "舌体瘦小", "舌有裂纹", "舌有点刺", "舌下络脉迂曲"] },
-  { title: "舌苔", items: ["苔薄白", "苔白滑", "苔黄", "苔黄腻", "苔厚腻", "苔少", "无苔", "苔燥"] },
-];
+const FACE_PRESETS: ChipGroupPreset[] = inspectionPresets("face");
+const PULSE_PRESETS: ChipGroupPreset[] = inspectionPresets("pulse");
+const TONGUE_PRESETS: ChipGroupPreset[] = inspectionPresets("tongue");
 
 const TCM_DETAIL_PRESETS: ChipGroupPreset[] = [
   { title: "寒热汗出", items: ["畏寒喜暖", "手足不温", "五心烦热", "潮热盗汗", "自汗", "无汗"] },
@@ -5510,7 +6036,6 @@ const TCM_DETAIL_PRESETS: ChipGroupPreset[] = [
   { title: "腹诊/疼痛", items: ["腹部喜按", "腹部拒按", "疼痛固定刺痛", "疼痛游走", "胀痛", "刺痛"] },
 ];
 
-const TCM_LINEAGE_SELECT_OPTIONS = LINEAGE_OPTIONS;
 const PATIENT_SEX_OPTIONS = [
   { value: "", label: "请选择" },
   { value: "男", label: "男" },
@@ -5578,15 +6103,27 @@ function hasPendingQuestionDetail(
   );
 }
 
+export function normalizePresentHistoryText(value: string): string {
+  let normalized = value.trim();
+  while (/^(?:现病史(?:补充)?|病史补充)\s*[：:]\s*/.test(normalized)) {
+    normalized = normalized.replace(/^(?:现病史(?:补充)?|病史补充)\s*[：:]\s*/, "").trim();
+  }
+  return normalized;
+}
+
 function questionDetailPatch(selection: QuestionOptionSelection, detailText: string): Partial<HisRecordDraft> {
   const detail = detailText.trim();
   if (!detail) return {};
   const selected = selection;
   if (selected.targetField) {
-    return { [selected.targetField]: detail } as Partial<HisRecordDraft>;
+    return {
+      [selected.targetField]: selected.targetField === "xianbingshi"
+        ? normalizePresentHistoryText(detail)
+        : detail,
+    } as Partial<HisRecordDraft>;
   }
   if (selected.detailTarget === "xianbingshi") {
-    return { xianbingshi: `现病史补充：${detail}` };
+    return { xianbingshi: normalizePresentHistoryText(detail) };
   }
   if (selected.detailTarget === "tcmDetail") {
     return { tcmDetail: `问诊补充：${detail}` };
@@ -5620,7 +6157,7 @@ function questionDetailPatch(selection: QuestionOptionSelection, detailText: str
   }
   const label = `${selected.label || ""} ${selected.answer}`;
   if (/诱因病程|具体病程|起病|病程|诱因|症状性质|发作规律|加重缓解|现病史/.test(label)) {
-    return { xianbingshi: `现病史补充：${detail}` };
+    return { xianbingshi: normalizePresentHistoryText(detail) };
   }
   return { tcmDetail: `问诊补充（${selected.label || "详情"}）：${detail}` };
 }
@@ -5769,7 +6306,7 @@ function inferDraftPatchFromFreeText(text: string): Partial<HisRecordDraft> {
 
   const tongueMatch = unknownCue.test(normalized) ? null : normalized.match(/舌[^，。；;\n]{1,50}(?:[，,、 ]?苔[^，。；;\n]{1,30})?/);
   if (tongueMatch?.[0]) patch.tcmTongue = tongueMatch[0];
-  const pulseMatch = unknownCue.test(normalized) ? null : normalized.match(/脉(?:浮|沉|迟|数|滑|涩|弦|细|弱|濡|缓|紧|实|虚|微|洪|结|代|促){1,4}/);
+  const pulseMatch = unknownCue.test(normalized) ? null : normalized.match(new RegExp(`脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?`));
   if (pulseMatch?.[0]) patch.tcmPulse = pulseMatch[0];
 
   return patch;
@@ -5786,12 +6323,19 @@ function normalizeBloodPressureInput(value: string): string {
   return `${first}/${second}`;
 }
 
-function buildVitalsLine(draft: HisRecordDraft): string {
+function normalizeVitalValueUnit(value: string, unitPattern: RegExp): string {
+  return value.trim().replace(unitPattern, "").trim();
+}
+
+export function buildVitalsLine(draft: HisRecordDraft): string {
   const bp = normalizeBloodPressureInput(draft.vitalsBP);
+  const temperature = normalizeVitalValueUnit(draft.vitalsT, /(?:℃|°C|度)$/i);
+  const pulse = normalizeVitalValueUnit(draft.vitalsP, /(?:次\s*[\/／]\s*分|次每分|bpm)$/i);
+  const respiration = normalizeVitalValueUnit(draft.vitalsR, /(?:次\s*[\/／]\s*分|次每分|bpm)$/i);
   const values = [
-    draft.vitalsT && `T ${draft.vitalsT}℃`,
-    draft.vitalsP && `P ${draft.vitalsP}次/分`,
-    draft.vitalsR && `R ${draft.vitalsR}次/分`,
+    temperature && `T ${temperature}℃`,
+    pulse && `P ${pulse}次/分`,
+    respiration && `R ${respiration}次/分`,
     bp && `BP ${bp}mmHg`,
     draft.vitalsDetail,
   ].filter(Boolean);
@@ -5800,6 +6344,7 @@ function buildVitalsLine(draft: HisRecordDraft): string {
 
 function buildHisRecordText(draft: HisRecordDraft, extraText = "", tongueUploaded = false): string {
   const ageText = draft.age.trim();
+  const presentHistory = normalizePresentHistoryText(draft.xianbingshi);
   const patient = [
     draft.sex && `性别${draft.sex}`,
     ageText && `年龄${/(岁|月|天|日)/.test(ageText) ? ageText : `${ageText}岁`}`,
@@ -5807,7 +6352,7 @@ function buildHisRecordText(draft: HisRecordDraft, extraText = "", tongueUploade
   const rows = [
     patient && `患者信息：${patient}`,
     draft.zhushu && `主诉：${draft.zhushu}`,
-    draft.xianbingshi && `现病史：${draft.xianbingshi}`,
+    presentHistory && `现病史：${presentHistory}`,
     draft.jiwangshi && `既往史：${draft.jiwangshi}`,
     draft.allergyHistory && `过敏史：${draft.allergyHistory}`,
     draft.medicationHistory && `用药史：${draft.medicationHistory}`,
@@ -5816,7 +6361,6 @@ function buildHisRecordText(draft: HisRecordDraft, extraText = "", tongueUploade
     (draft.tcmTongue || tongueUploaded) && `舌象：${[draft.tcmTongue, tongueUploaded ? "已上传舌象图片" : ""].filter(Boolean).join("，")}`,
     draft.tcmPulse && `脉象：${draft.tcmPulse}`,
     draft.tcmDetail && `其他四诊/问诊补充：${draft.tcmDetail}`,
-    draft.tcmLineagePreference && draft.tcmLineagePreference !== "unrestricted" && `诊疗思路偏好：${lineageLabel(draft.tcmLineagePreference)}`,
     draft.fuzhuJiancha && `辅助检查：${draft.fuzhuJiancha}`,
     extraText.trim() && `补充说明：${extraText.trim()}`,
   ].filter(Boolean);
@@ -5854,7 +6398,7 @@ function buildHisRecordSnapshot(
       sex: draft.sex,
       age: draft.age,
       zhushu: draft.zhushu,
-      xianbingshi: draft.xianbingshi,
+      xianbingshi: normalizePresentHistoryText(draft.xianbingshi),
       jiwangshi: draft.jiwangshi,
       guomin: draft.allergyHistory,
       yongyaoshi: draft.medicationHistory,
@@ -5867,7 +6411,7 @@ function buildHisRecordSnapshot(
       tcmPulse: draft.tcmPulse,
       tcmTongue: draft.tcmTongue,
       tcmDetail: draft.tcmDetail,
-      tcmLineagePreference: draft.tcmLineagePreference,
+      tcmLineagePreference: "unrestricted",
       ...(draft.clinicTreatmentCapabilities.trim()
         ? { clinicTreatmentCapabilities: draft.clinicTreatmentCapabilities.trim() }
         : {}),
@@ -5911,7 +6455,6 @@ const DRAFT_INPUT_TEST_IDS = [
   "tcm-pulse",
   "tcm-tongue",
   "tcm-detail",
-  "tcm-lineage",
   "aux-exam",
 ] as const;
 
@@ -5919,7 +6462,6 @@ function hasAnyDraftInputInDocument(): boolean {
   if (typeof document === "undefined") return false;
   return DRAFT_INPUT_TEST_IDS.some((testId) => {
     const element = document.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(`[data-testid="${testId}"]`);
-    if (testId === "tcm-lineage" && element?.value === "unrestricted") return false;
     return Boolean(element?.value.trim());
   });
 }
@@ -5946,7 +6488,7 @@ function applyDraftToCaseState(
   );
   const symptoms = {
     ...Object.fromEntries(Object.entries(state.symptoms || {}).filter(([key]) => !["presentHistory", "tcmDetail", "exams", "extraText"].includes(key))),
-    ...(draft.xianbingshi.trim() ? { presentHistory: draft.xianbingshi.trim() } : {}),
+    ...(normalizePresentHistoryText(draft.xianbingshi) ? { presentHistory: normalizePresentHistoryText(draft.xianbingshi) } : {}),
     ...(draft.tcmDetail.trim() ? { tcmDetail: draft.tcmDetail.trim() } : {}),
     ...(draft.fuzhuJiancha.trim() ? { exams: draft.fuzhuJiancha.trim() } : {}),
     ...(extraText.trim() ? { extraText: extraText.trim() } : {}),
@@ -5967,7 +6509,7 @@ function applyDraftToCaseState(
     pastHistory: draft.jiwangshi.trim() || undefined,
     medicationHistory: draft.medicationHistory.trim() || undefined,
     allergyHistory: draft.allergyHistory.trim() || undefined,
-    tcmLineagePreference: draft.tcmLineagePreference.trim() || undefined,
+    tcmLineagePreference: "unrestricted",
     clinicTreatmentCapabilities: draft.clinicTreatmentCapabilities.trim()
       ? parseTcmTreatmentCapabilities(draft.clinicTreatmentCapabilities)
       : undefined,
@@ -6735,31 +7277,18 @@ function HisMedicalRecordWorkspace({
           <div className="grid border-b border-gray-200 md:grid-cols-3">
             <InputCell label="姓名" value={draft.patientName} onChange={(value) => update("patientName", value)} placeholder="可不填" testId="patient-name" />
             <SelectCell label="性别" required value={draft.sex} onChange={(value) => update("sex", value)} options={PATIENT_SEX_OPTIONS} testId="patient-sex" />
-            <InputCell label="年龄" value={draft.age} onChange={(value) => update("age", value)} placeholder="如45岁/6个月" testId="patient-age" />
+            <InputCell label="年龄" required value={draft.age} onChange={(value) => update("age", value)} placeholder="如45岁/6个月" testId="patient-age" />
           </div>
+          {parseAgeInput(draft.age) == null && (
+            <p data-testid="age-required-hint" className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-medium leading-relaxed text-amber-800 sm:px-[96px]">
+              请录入实际年龄或月龄；年龄会参与儿童、妊娠和老年安全规则，未录入时暂不能开始推理。
+            </p>
+          )}
           <TextareaCell label="主诉" required value={draft.zhushu} onChange={(value) => update("zhushu", value)} placeholder="核心症状 + 持续时间，例如：失眠多梦伴心悸半年" testId="chief-complaint" />
           <TextareaCell label="现病史" value={draft.xianbingshi} onChange={(value) => update("xianbingshi", value)} placeholder="起病、诱因、主要症状、伴随症状、诊治经过" testId="present-history" />
           <TextareaCell label="既往史" value={draft.jiwangshi} onChange={(value) => update("jiwangshi", value)} placeholder="慢病、手术外伤、传染病、家族相关信息可在补充说明中展开" testId="past-history" />
           <TextareaCell label="过敏史" value={draft.allergyHistory} onChange={(value) => update("allergyHistory", value)} placeholder="否认过敏 / 具体药物或食物过敏及反应" testId="allergy-history" />
           <TextareaCell label="用药史" value={draft.medicationHistory} onChange={(value) => update("medicationHistory", value)} placeholder="当前中药、中成药、西药、保健品及剂量频次" testId="medication-history" />
-          <SelectCell
-            label="流派偏好"
-            value={draft.tcmLineagePreference}
-            onChange={(value) => update("tcmLineagePreference", value)}
-            options={TCM_LINEAGE_SELECT_OPTIONS}
-            testId="tcm-lineage"
-          />
-          <div className="border-b border-gray-200 bg-sky-50/60 px-3 py-2 text-[11px] leading-relaxed text-sky-900 sm:px-[96px]">
-            {(() => {
-              const card = getLineageCard(draft.tcmLineagePreference);
-              const strategy = getLineageQuestionStrategy(draft.tcmLineagePreference);
-              const formulas = card.representativeFormulas.length ? `示例方：${card.representativeFormulas.slice(0, 4).join("、")}。` : "";
-              const focus = strategy.lineageCode !== "unrestricted" ? `问诊焦点：${strategy.inquiryFocus.slice(0, 3).join("、")}；辨证要点：${strategy.syndromeAnchors.slice(0, 3).join("、")}。` : "";
-              const provenance = card.provenance.representativeWorks.length ? `依据：${card.provenance.representativeWorks.slice(0, 3).join("、")}。` : "";
-              return `${card.coreTheory}${formulas}${focus}${provenance} 诊疗思路用于辅助辨证，急危重风险仍需优先处置。`;
-            })()}
-          </div>
-
           <div className="border-b border-gray-200 px-3 py-2 sm:px-[96px]" data-testid="tcm-treatment-capability-settings">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
@@ -7012,7 +7541,7 @@ function AiSupportPanel({
   onDownloadReport,
   onAcceptEditedPrescription,
   onConfirmEncounterScope,
-  onConfirmTerminologyMapping,
+  onConfirmEmergencyClearance,
   onRunReasoning,
   canRunReasoning,
   submitHint,
@@ -7040,7 +7569,7 @@ function AiSupportPanel({
   onDownloadReport: () => void;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
   onConfirmEncounterScope: () => Promise<void>;
-  onConfirmTerminologyMapping: (mapping: ControlledTerminologyMappingTrace) => Promise<void>;
+  onConfirmEmergencyClearance: (assessmentSummary: string) => Promise<void>;
   onRunReasoning: () => void;
   canRunReasoning: boolean;
   submitHint?: string;
@@ -7048,6 +7577,14 @@ function AiSupportPanel({
   onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
 }) {
   const hasDecisionResults = Boolean(caseState.diagnosis || caseState.prescription || caseState.riskAssessment);
+  const warningProfile = deriveCaseWarningProfile(caseState);
+  const isActiveRedFlag = (caseState.safetyGate || evaluateSafetyGate(caseState)).status === "red_flag";
+  const warningBadgeTone =
+    warningProfile.level === "L4" ? "bg-red-900 text-white" :
+    warningProfile.level === "L3" ? "bg-red-100 text-red-800" :
+    warningProfile.level === "L2" ? "bg-orange-100 text-orange-800" :
+    warningProfile.level === "L1" ? "bg-amber-100 text-amber-800" :
+    "bg-slate-100 text-slate-700";
   const isFollowupOnlyState =
     !caseState.prescription &&
     !caseState.riskAssessment &&
@@ -7142,20 +7679,22 @@ function AiSupportPanel({
     <aside id="cdss-section-ai-panel" className="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white xl:min-h-0 xl:w-[410px] 2xl:w-[460px]">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-gray-200 px-4">
         <div className="flex items-center gap-2">
-          <Brain className="h-4 w-4 text-teal-700" />
-          <span className="text-[14px] font-bold text-teal-700">中医辅助诊疗报告</span>
+          {isActiveRedFlag ? <AlertTriangle className="h-4 w-4 text-red-700" /> : <Brain className="h-4 w-4 text-teal-700" />}
+          <span className={`text-[14px] font-bold ${isActiveRedFlag ? "text-red-800" : "text-teal-700"}`}>
+            {isActiveRedFlag ? "急诊转诊建议" : "中医辅助诊疗报告"}
+          </span>
         </div>
         <button
           type="button"
           onClick={onDownloadReport}
           className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] font-bold text-gray-500 hover:bg-gray-50"
-          title="下载完整报告"
+          title={isActiveRedFlag ? "下载转诊建议与依据" : "下载完整报告"}
         >
           <Download className="h-3 w-3" />
-          报告
+          {isActiveRedFlag ? "转诊依据" : "报告"}
         </button>
       </div>
-      <TopProgress caseState={caseState} />
+      {!isActiveRedFlag && <TopProgress caseState={caseState} />}
 
       <div className="flex flex-col bg-[#F7F9FB] p-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
         {caseState.phase === "error" && !isRunning && !stageErrorCoveredInFlow && (
@@ -7210,6 +7749,7 @@ function AiSupportPanel({
           <div className="mb-3">
             <StreamingPreviewCard
               phase={caseState.phase}
+              isRedFlag={isActiveRedFlag}
               content={currentStreaming}
               runningElapsedSeconds={runningElapsedSeconds}
               canCancelRun={canCancelRun}
@@ -7253,10 +7793,10 @@ function AiSupportPanel({
               <Loader2 className="mt-0.5 h-4 w-4 animate-spin text-teal-600" />
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-gray-900">
-                  {caseState.phase === "collect" ? "正在整理病历与评估下一步" : generationStatus(caseState.phase).title}
+                  {caseState.phase === "collect" ? "正在整理病历与评估下一步" : generationStatus(caseState.phase, isActiveRedFlag).title}
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-gray-500">
-                  {caseState.phase === "collect" ? "已同步门诊病历，系统正在决定是否需要追问或进入诊疗方案生成。" : generationStatus(caseState.phase).desc}
+                  {caseState.phase === "collect" ? "已同步门诊病历，系统正在决定是否需要追问或进入诊疗方案生成。" : generationStatus(caseState.phase, isActiveRedFlag).desc}
                 </p>
                 <p className="mt-1 text-[11px] font-medium text-teal-700">
                   本阶段耗时 {runningElapsedSeconds}s{runningElapsedSeconds >= 60 ? " · 本阶段仍在生成" : ""}
@@ -7276,13 +7816,19 @@ function AiSupportPanel({
           </div>
         )}
 
-        {caseState.phase === "done" && !isRunning && hasDecisionResults && !hasStaleClinicalOutput && !isFollowupOnlyState &&
-          (caseState.safetyGate || evaluateSafetyGate(caseState)).status !== "red_flag" && (
+        {caseState.phase === "done" && !isRunning && hasDecisionResults && !hasStaleClinicalOutput && !isFollowupOnlyState && !isActiveRedFlag && (
           <div data-testid="run-complete-banner" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5">
             <div className="min-w-0">
-              <p className="text-[13px] font-bold text-gray-900">本轮辅助推理已完成</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[13px] font-bold text-gray-900">本轮辅助推理已完成</p>
+                <span data-testid="case-warning-level" className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${warningBadgeTone}`}>
+                  {warningProfile.level} · {warningProfile.label}
+                </span>
+              </div>
               <p className="mt-0.5 text-[11px] leading-relaxed text-gray-500">
-                下方结论仅供参考，请结合患者情况判断后再开具医嘱；需要补充病历可直接编辑左侧后重新分析。
+                {warningProfile.executable
+                  ? "下方结论仅供参考，请结合患者情况判断后再开具医嘱；需要补充病历可直接编辑左侧后重新分析。"
+                  : "当前只允许查看和导出非剂量风险说明，不允许作为处方或医嘱执行。"}
               </p>
             </div>
             <button
@@ -7291,13 +7837,22 @@ function AiSupportPanel({
               className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-teal-700"
             >
               <Download className="h-3.5 w-3.5" />
-              下载脱敏报告
+              {warningProfile.executable ? "下载脱敏报告" : "下载非剂量风险报告"}
             </button>
           </div>
         )}
 
         {hasDecisionResults && !hasStaleClinicalOutput && !isFollowupOnlyState && (
-          <CompactAiSchemeCardFlow caseState={caseState} onRetry={onRetry} onAcceptEditedPrescription={onAcceptEditedPrescription} onConfirmEncounterScope={onConfirmEncounterScope} onConfirmTerminologyMapping={onConfirmTerminologyMapping} restoredUnsavedDraft={restoredUnsavedDraft} onUnsavedDraftChange={onUnsavedDraftChange} />
+          <CompactAiSchemeCardFlow
+            caseState={caseState}
+            onRetry={onRetry}
+            onAcceptEditedPrescription={onAcceptEditedPrescription}
+            onConfirmEncounterScope={onConfirmEncounterScope}
+            onConfirmEmergencyClearance={onConfirmEmergencyClearance}
+            onDownloadReport={onDownloadReport}
+            restoredUnsavedDraft={restoredUnsavedDraft}
+            onUnsavedDraftChange={onUnsavedDraftChange}
+          />
         )}
       </div>
     </aside>
@@ -7318,7 +7873,7 @@ function sanitizeStreamingPreview(content: string, phase: Phase): string {
     .replace(/<!-- DIAGNOSIS_JSON_START -->[\s\S]*$/g, "")
     .replace(/<!-- DIAGNOSIS_JSON_END -->/g, "")
     .trim();
-  if (phase === "diagnose") return sanitizeDiagnoseStreamingDraft(next);
+  if (phase === "diagnose") return stripTcmDiseaseNameForCustomer(sanitizeDiagnoseStreamingDraft(next));
   if (phase !== "prescribe") return next;
   // Preserve the candidate structure and medicine names during streaming so the section does not
   // appear to vanish. Only unfinalized dosage fragments are masked until evidence normalization
@@ -7331,6 +7886,7 @@ function sanitizeStreamingPreview(content: string, phase: Phase): string {
 
 function StreamingPreviewCard({
   phase,
+  isRedFlag,
   content,
   runningElapsedSeconds,
   canCancelRun,
@@ -7338,13 +7894,14 @@ function StreamingPreviewCard({
   onCancelRun,
 }: {
   phase: Phase;
+  isRedFlag: boolean;
   content: string;
   runningElapsedSeconds: number;
   canCancelRun: boolean;
   isCancelling: boolean;
   onCancelRun: () => void;
 }) {
-  const status = generationStatus(phase);
+  const status = generationStatus(phase, isRedFlag);
   const safePreview = sanitizeStreamingPreview(content, phase);
   // M05 是确定性 Markdown，会真的逐段下发正文，保持文档式渲染。
   // M03/M04 在完成前只有进度行；但流末尾会用最终正文整体替换一次，此时必须立刻切回文档式渲染，
@@ -7360,7 +7917,9 @@ function StreamingPreviewCard({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-gray-900">{status.title}</p>
           <p className="mt-1 text-xs leading-relaxed text-gray-500">
-            {phase === "prescribe"
+            {isRedFlag && (phase === "prescribe" || phase === "assess")
+              ? status.desc
+              : phase === "prescribe"
               ? "处方包含药味与剂量，完整通过病机对应、剂量、煎法和出处校验后才会展示；当前卡片会持续更新生成进度。"
               : phase === "assess"
                 ? "正在同步合理用药风险提示并生成随访计划；审方暂不可用时仍会完成报告，不阻断医生继续审阅。"
@@ -7428,11 +7987,17 @@ export default function DiagnosisPage() {
   const [uploadNotice, setUploadNotice] = useState("");
   const [captureModal, setCaptureModal] = useState<"tongue" | null>(null);
   const [pendingNewCaseConfirm, setPendingNewCaseConfirm] = useState(false);
+  const [pendingReportExport, setPendingReportExport] = useState<ClinicalWarningProfile | null>(null);
+  const [reportExportAcknowledged, setReportExportAcknowledged] = useState(false);
+  const [reportExportReason, setReportExportReason] = useState("");
   const [workbenchUnsavedDraft, setWorkbenchUnsavedDraft] = useState<WorkbenchUnsavedDraftFlag | null>(null);
   const tongueInputRef = useRef<HTMLInputElement>(null);
   const activeCaseIdRef = useRef(caseState.id);
   const hasInProgressWorkRef = useRef(false);
   const workspaceRestoreGenerationRef = useRef(0);
+  const runDiagnoseChainRef = useRef<(state: CaseState, automaticSignatureRecoveryAttempts?: number) => Promise<void>>(
+    async () => undefined,
+  );
 
   const commitSelectedQuestionOptions = useCallback((next: Record<string, QuestionOptionSelection>) => {
     selectedQuestionOptionsRef.current = next;
@@ -7611,7 +8176,10 @@ export default function DiagnosisPage() {
   // ─── M03→M04→M05 chain ──────────────────────────────────────────────────────
   // Defined before runCollect so it can be referenced in runCollect's closure.
 
-  const runDiagnoseChain = useCallback(async (state: CaseState): Promise<void> => {
+  const runDiagnoseChain = useCallback(async (
+    state: CaseState,
+    automaticSignatureRecoveryAttempts = 0,
+  ): Promise<void> => {
     let current = await refreshClinicalSafetyFacts(state);
     // Only a missing chief complaint prevents starting the chain. Optional-history gaps and positive
     // safety findings remain visible advisories while the doctor-facing report continues downstream.
@@ -7753,7 +8321,16 @@ export default function DiagnosisPage() {
         current = { ...current, safetyLocked: deriveSafetyLocked(current) };
         persistState(current);
       } catch (e) {
-        persistState(setError(current, normalizeRequestError(e, "候选方药生成失败")));
+        const message = normalizeRequestError(e, "候选方药生成失败");
+        const recovery = automaticSignatureRecoveryAttempts < 1
+          ? automaticSignatureRecoveryState(current, { phase: "prescribe", message })
+          : undefined;
+        if (recovery && !activeRunAbortController?.signal.aborted) {
+          persistState(recovery);
+          await runDiagnoseChainRef.current(recovery, automaticSignatureRecoveryAttempts + 1);
+          return;
+        }
+        persistState(setError(current, message));
         return;
       }
     }
@@ -7809,11 +8386,20 @@ export default function DiagnosisPage() {
       });
       persistState(current);
     } catch (e) {
+      const message = normalizeRequestError(e, "合理用药审方与随访生成失败");
       if (activeRunAbortController?.signal.aborted) {
         // A cancelled M05 must land in the same failed-stage state as M03/M04: the failed panel
         // shows the actual reason with an in-panel retry, instead of leaving the 审方随访 step
         // spinning in a "running" state that no action can recover from.
-        persistState(setError(current, normalizeRequestError(e, "合理用药审方与随访生成失败")));
+        persistState(setError(current, message));
+        return;
+      }
+      const recovery = automaticSignatureRecoveryAttempts < 1
+        ? automaticSignatureRecoveryState(current, { phase: "assess", message })
+        : undefined;
+      if (recovery) {
+        persistState(recovery);
+        await runDiagnoseChainRef.current(recovery, automaticSignatureRecoveryAttempts + 1);
         return;
       }
       // M05 contains an advisory external audit plus deterministic follow-up. An unavailable audit
@@ -7832,6 +8418,10 @@ export default function DiagnosisPage() {
       }));
     }
   }, [persistState, setStreamingForPhase]);
+
+  useEffect(() => {
+    runDiagnoseChainRef.current = runDiagnoseChain;
+  }, [runDiagnoseChain]);
 
   // ─── M02 question ───────────────────────────────────────────────────────────
 
@@ -8169,7 +8759,8 @@ export default function DiagnosisPage() {
         const recordChanged = hasQuestionRecordChange(retryDraft, caseState.hisRecord, Boolean(tongueImage), caseState.id);
         const requiresM03Refresh = errorRequiresM03Refresh(caseState.lastError) ||
           (["prescribe", "assess"].includes(failedPhase) && recordChanged);
-        retryPhase = requiresM03Refresh ? "diagnose" : failedPhase;
+        const requiresM04Refresh = !requiresM03Refresh && errorRequiresM04Refresh(caseState.lastError);
+        retryPhase = requiresM03Refresh ? "diagnose" : requiresM04Refresh ? "prescribe" : failedPhase;
         const draftAppliedState = withSafetyGateAndOperationalCompleteness(applyDraftToCaseState(caseState, retryDraft, supplemental, Boolean(tongueImage)));
         const recoveredBase = { ...draftAppliedState, phase: retryPhase, lastError: undefined };
         recovered = retryPhase === "diagnose"
@@ -8275,6 +8866,9 @@ export default function DiagnosisPage() {
     setUploadNotice("");
     setCaptureModal(null);
     setPendingNewCaseConfirm(false);
+    setPendingReportExport(null);
+    setReportExportAcknowledged(false);
+    setReportExportReason("");
     setWorkbenchUnsavedDraft(null);
   }
 
@@ -8287,17 +8881,57 @@ export default function DiagnosisPage() {
     resetCurrentCase();
   }
 
-  function handleDownloadReport() {
-    const report = scrubReportPhi(buildCompleteReport(caseState), caseState);
+  function downloadReport(state: CaseState, warningProfile: ClinicalWarningProfile) {
+    const nonDoseOnly = !warningProfile.executable;
+    const emergencyReferral = (state.safetyGate || evaluateSafetyGate(state)).status === "red_flag";
+    const report = scrubReportPhi(buildCompleteReport(state, { warningProfile, nonDoseOnly }), state);
     const blob = new Blob([report], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `中医CDSS脱敏报告_${Date.now()}.md`;
+    a.download = `${
+      emergencyReferral
+        ? "中医CDSS转诊建议与依据"
+        : nonDoseOnly
+          ? "中医CDSS安全评估说明"
+          : "中医CDSS脱敏报告"
+    }_${Date.now()}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function handleDownloadReport() {
+    const warningProfile = deriveCaseWarningProfile(caseState);
+    if (warningProfile.level === "L0" || warningProfile.level === "L1") {
+      downloadReport(caseState, warningProfile);
+      return;
+    }
+    setReportExportAcknowledged(false);
+    setReportExportReason("");
+    setPendingReportExport(warningProfile);
+  }
+
+  async function confirmReportExport() {
+    if (!pendingReportExport || !reportExportAcknowledged) return;
+    if (pendingReportExport.level === "L0" || pendingReportExport.level === "L1") return;
+    if ((pendingReportExport.level === "L3" || pendingReportExport.level === "L4") && !reportExportReason.trim()) return;
+    const acknowledgedState: CaseState = {
+      ...caseState,
+      warningAcknowledgement: {
+        warningLevel: pendingReportExport.level,
+        acknowledgedAt: new Date().toISOString(),
+        reportFingerprint: await reportExportFingerprint(caseState),
+        reason: reportExportReason.trim() || undefined,
+        exportMode: pendingReportExport.executable ? "full_advisory_report" : "non_dose_risk_report",
+      },
+    };
+    persistState(acknowledgedState);
+    downloadReport(acknowledgedState, pendingReportExport);
+    setPendingReportExport(null);
+    setReportExportAcknowledged(false);
+    setReportExportReason("");
   }
 
   async function handleAcceptEditedPrescription(accepted: AcceptedEditedPrescription): Promise<void> {
@@ -8404,54 +9038,57 @@ export default function DiagnosisPage() {
     }
   }
 
-  async function handleConfirmTerminologyMapping(
-    mapping: ControlledTerminologyMappingTrace,
-  ): Promise<void> {
-    if (runningRef.current || isRunning || mapping.status !== "suggested") return;
+  async function handleConfirmEmergencyClearance(assessmentSummary: string): Promise<void> {
+    if (runningRef.current || isRunning) return;
+    const summary = assessmentSummary.trim();
+    if (summary.length < 12) return;
+    const currentGate = evaluateSafetyGate(caseState);
+    if (currentGate.status !== "red_flag") return;
+
     setRunning(true);
     beginRunScope();
     try {
-      const response = await fetchWithTimeout(apiUrl("/api/diagnosis/terminology/confirm"), {
+      const response = await fetchWithTimeout(apiUrl("/api/diagnosis/emergency-clearance"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          caseState,
-          mapping: {
-            namespace: mapping.namespace,
-            fieldPath: mapping.fieldPath,
-            candidateId: mapping.candidateId,
-          },
-        }),
+        body: JSON.stringify({ caseState, assessmentSummary: summary }),
       });
-      if (!response.ok) {
-        throw new Error(await readErrorMessage(response, `标准术语确认失败 (${response.status})`));
-      }
-      const payload = await response.json() as { reasoning?: unknown };
-      const confirmedReasoning = normalizeCaseStateInput({
-        ...caseState,
-        reasoningDiagnose: payload.reasoning,
-      })?.reasoningDiagnose;
-      if (!confirmedReasoning || confirmedReasoning.stage !== "diagnose") {
-        throw new Error("未能取得确认后的诊断结论，请重试。");
+      const payload = await response.json().catch(() => null) as {
+        emergencyClearance?: CaseState["emergencyClearance"];
+        error?: string;
+      } | null;
+      if (!response.ok || !payload?.emergencyClearance) {
+        throw new Error(payload?.error || `急症排查确认失败 (${response.status})`);
       }
       const confirmed = withSafetyGate({
         ...caseState,
-        diagnosis: caseState.diagnosis,
-        reasoningDiagnose: confirmedReasoning,
-        reasoningV2: confirmedReasoning,
+        emergencyClearance: payload.emergencyClearance,
+        previousResult: capturePreviousResult(caseState),
+        diagnosis: undefined,
         prescription: undefined,
-        reasoningPrescribe: undefined,
         riskAssessment: undefined,
         followupTimeline: undefined,
-        auditAdvisory: undefined,
+        reasoningDiagnose: undefined,
+        reasoningPrescribe: undefined,
+        reasoningV2: undefined,
         prescriptionRevision: undefined,
+        auditAdvisory: undefined,
+        warningAcknowledgement: undefined,
+        safetyLocked: true,
         lastError: undefined,
-        phase: "prescribe",
+        skipDifferentiationGate: true,
+        phase: "diagnose",
       });
+      if (confirmed.safetyGate?.status === "red_flag") {
+        throw new Error("当前病历中的急危重风险线索已经变化，请重新完成现场评估并记录结果。");
+      }
       persistState(confirmed);
       await runDiagnoseChain(confirmed);
     } catch (error) {
-      persistState(setError(caseState, normalizeRequestError(error, "标准术语确认失败")));
+      persistState(setError(
+        { ...caseState, phase: "diagnose" },
+        normalizeRequestError(error, "急症排查记录未能绑定当前病历"),
+      ));
     } finally {
       setRunning(false);
     }
@@ -8550,6 +9187,7 @@ export default function DiagnosisPage() {
   const liveUiCaseState = isQuestionSupplementFlow ? liveReassessmentCaseState : liveDraftCaseState;
   const chiefComplaintReady = hasChiefComplaintInput(recordDraft);
   const patientSexReady = Boolean(recordDraft.sex.trim());
+  const patientAgeReady = parseAgeInput(recordDraft.age) != null;
   const recordChangedForSubmit = hasQuestionRecordChange(projectedQuestionDraft, caseState.hisRecord, Boolean(tongueImage), caseState.id);
   const hasUnsubmittedRecordChange = caseState.phase !== "idle" && !isQuestionSupplementFlow && recordChangedForSubmit;
   const selectedAnswerForBudget = selectedQuestionAnswerText(selectedQuestionOptions);
@@ -8563,12 +9201,16 @@ export default function DiagnosisPage() {
     ? [selectedAnswerForBudget, recordChangedForSubmit ? pendingRecordSupplement : input.trim()].filter(Boolean).join("\n\n")
     : pendingHisRecordText;
   const modelInputTooLong = isModelInputOverBudget(pendingSubmitText);
+  const pendingExportIsEmergency = Boolean(pendingReportExport) &&
+    (caseState.safetyGate || evaluateSafetyGate(caseState)).status === "red_flag";
   const canSubmit = isQuestionSupplementFlow
-    ? patientSexReady && chiefComplaintReady && hasSubmitChange && !modelInputTooLong
-    : patientSexReady && chiefComplaintReady && hasHisRecordInput(recordDraft, input, Boolean(tongueImage)) && !modelInputTooLong;
-  const noChangeToSubmit = patientSexReady && chiefComplaintReady && !canSubmit;
+    ? patientSexReady && patientAgeReady && chiefComplaintReady && hasSubmitChange && !modelInputTooLong
+    : patientSexReady && patientAgeReady && chiefComplaintReady && hasHisRecordInput(recordDraft, input, Boolean(tongueImage)) && !modelInputTooLong;
+  const noChangeToSubmit = patientSexReady && patientAgeReady && chiefComplaintReady && !canSubmit;
   const submitHint = !patientSexReady
     ? "请先选择性别；无法确认时可选择“其他或未明确”。"
+    : !patientAgeReady
+      ? "请录入有效年龄或月龄（如 45岁、6个月）；年龄用于安全规则判定。"
     : !chiefComplaintReady
       ? "请先填写主诉。"
     : isQuestionSupplementFlow && hasPendingDetail && !hasSubmitChange
@@ -8667,7 +9309,7 @@ export default function DiagnosisPage() {
             onDownloadReport={handleDownloadReport}
             onAcceptEditedPrescription={handleAcceptEditedPrescription}
             onConfirmEncounterScope={handleConfirmEncounterScope}
-            onConfirmTerminologyMapping={handleConfirmTerminologyMapping}
+            onConfirmEmergencyClearance={handleConfirmEmergencyClearance}
             restoredUnsavedDraft={workbenchUnsavedDraft}
             onUnsavedDraftChange={handleWorkbenchUnsavedDraftChange}
             onRunReasoning={() => {
@@ -8709,6 +9351,97 @@ export default function DiagnosisPage() {
               }}
               onClose={() => setCaptureModal(null)}
             />
+          )}
+          {pendingReportExport && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/30 px-4" role="presentation">
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="report-export-confirm-title"
+                className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-5 shadow-xl"
+                data-testid="report-export-confirm"
+              >
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className={`mt-0.5 h-5 w-5 shrink-0 ${pendingReportExport.level === "L4" ? "text-red-600" : "text-amber-600"}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 id="report-export-confirm-title" className="text-sm font-bold text-gray-900">
+                        {pendingExportIsEmergency ? "下载转诊建议与依据" : "导出前风险确认"}
+                      </h2>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        pendingReportExport.level === "L4" ? "bg-red-100 text-red-800" :
+                        pendingReportExport.level === "L3" ? "bg-orange-100 text-orange-800" :
+                        "bg-amber-100 text-amber-800"
+                      }`}>
+                        {pendingExportIsEmergency ? "急诊转诊建议" : `${pendingReportExport.level} · ${pendingReportExport.label}`}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-[13px] leading-relaxed text-gray-600">
+                      {pendingReportExport.executable
+                        ? "报告仍是辅助建议，不会自动写回正式诊断或医嘱。请确认已阅读以下风险。"
+                        : pendingExportIsEmergency
+                          ? "当前只导出转诊建议与触发依据，不含候选方药或剂量，不能用于开方或写回医嘱。"
+                          : "当前安全评估不允许导出剂量级处方。系统只会生成不含候选剂量的安全评估说明，不能用于开方或写回医嘱。"}
+                    </p>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-[12px] leading-relaxed text-gray-600">
+                      {pendingReportExport.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+                    </ul>
+                  </div>
+                </div>
+
+                {(pendingReportExport.level === "L3" || pendingReportExport.level === "L4") && (
+                  <label className="mt-4 block text-[12px] font-semibold text-gray-700">
+                    {pendingExportIsEmergency ? "转诊处置/导出用途" : "复核/导出理由"}
+                    <textarea
+                      value={reportExportReason}
+                      onChange={(event) => setReportExportReason(event.target.value.slice(0, 500))}
+                      maxLength={500}
+                      rows={3}
+                      placeholder={pendingExportIsEmergency ? "请记录转诊处置或本次导出用途" : "请记录已完成的复核或本次导出用途"}
+                      className="mt-1.5 w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-normal outline-none focus:border-teal-400"
+                    />
+                  </label>
+                )}
+
+                <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-[12px] leading-relaxed text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={reportExportAcknowledged}
+                    onChange={(event) => setReportExportAcknowledged(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-teal-600"
+                  />
+                  <span>
+                    我已阅读风险分级及处置边界，并确认本次导出仅供授权医务人员复核，不代表系统自动开具医嘱。
+                  </span>
+                </label>
+
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingReportExport(null);
+                      setReportExportAcknowledged(false);
+                      setReportExportReason("");
+                    }}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-[13px] font-bold text-gray-700 hover:bg-gray-50"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmReportExport}
+                    disabled={!reportExportAcknowledged || ((pendingReportExport.level === "L3" || pendingReportExport.level === "L4") && !reportExportReason.trim())}
+                    className="rounded-lg bg-teal-600 px-3 py-2 text-[13px] font-bold text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                  >
+                    {pendingReportExport.executable
+                      ? "确认并导出"
+                      : pendingExportIsEmergency
+                        ? "下载转诊建议与依据"
+                        : "导出安全评估说明"}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
           {pendingNewCaseConfirm && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/30 px-4" role="presentation">

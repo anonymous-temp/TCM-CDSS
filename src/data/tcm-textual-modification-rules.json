@@ -522,6 +522,27 @@
       "requiresClinicianReview": true
     },
     {
+      "id": "T14-MOD-LIUJUNZI-FOOD-INJURY-ACID-REGURGITATION",
+      "baseFormula": "六君子汤",
+      "triggerTerms": [
+        "饮食所伤",
+        "胸膈胀满",
+        "咽酸嗳气"
+      ],
+      "triggerMode": "all",
+      "addHerbs": [
+        "神曲",
+        "山楂"
+      ],
+      "removeHerbs": [],
+      "sourceEvidenceId": "T15-d2b093656655-p1282-r001",
+      "sourceCitation": "pdf-evidence:d2b093656655#p1282:r001",
+      "evidenceAnchorLevel": "page_paragraph",
+      "tier": "canon",
+      "requiresAffirmedPatientTrigger": true,
+      "requiresClinicianReview": true
+    },
+    {
       "id": "T14-MOD-BUZHONGYIQI-MALARIA-DISCHARGE",
       "baseFormula": "补中益气汤",
       "triggerTerms": [
@@ -1068,9 +1089,9 @@
     }
   ],
   "summary": {
-    "ruleCount": 51,
+    "ruleCount": 52,
     "targetBaseFormulaCount": 14,
     "coveredBaseFormulaCount": 14,
-    "sourceAnchoredRuleCount": 51
+    "sourceAnchoredRuleCount": 52
   }
 }

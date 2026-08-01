@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
+import { formulaMentionHits } from "./lib/formula-mention-hits.mjs";
 
 const jiti = createJiti(import.meta.url, {
   alias: { "@": `${process.cwd()}/src` },
@@ -46,8 +47,13 @@ const safeEvidenceRows = safeEvidenceText.trim().split("\n").map((line) => JSON.
 const quarantineEvidenceRows = quarantineEvidenceText.trim().split("\n").map((line) => JSON.parse(line));
 const governedCatalog = json("../src/data/tcm-formula-governed-catalog.json");
 const golden = json("./fixtures/nihaisha-formula-golden.json");
+const governedCatalogRaw = readFileSync(new URL("../src/data/tcm-formula-governed-catalog.json", import.meta.url));
+const governedCatalogSource = manifest.sources.find((item) =>
+  item.path === "src/data/tcm-formula-governed-catalog.json");
 
 assert.equal(manifest.evidence.inputCards, 10_538, "all PDF evidence cards must be mapped");
+assert.equal(governedCatalogSource?.records, governedCatalog.entries.length, "fusion manifest catalog count must match the current governed catalog");
+assert.equal(governedCatalogSource?.sha256, sha256(governedCatalogRaw), "fusion assets must be rebuilt when the governed catalog changes");
 assert.equal(manifest.evidence.mappedCards, manifest.evidence.inputCards, "record-level governance cannot drop a page card");
 assert.equal(safeEvidenceRows.length + quarantineEvidenceRows.length, manifest.evidence.mappedRecords);
 assert.ok(manifest.evidence.mappedRecords > manifest.evidence.inputCards, "page cards must be split into record-level evidence");
@@ -87,6 +93,9 @@ assert.ok(quarantineEvidenceText.trim().length > 0, "quarantine partition must b
 assert.equal(caseCorpus.cases.length, 364);
 assert.equal(caseCorpus.runtimeRetrievalAllowed, false);
 assert.ok(caseCorpus.cases.filter((item) => item.replayEligible).length >= 30);
+const knownMislabeledReplay = caseCorpus.cases.find((item) => item.caseId === "T16-06_other-54");
+assert.equal(knownMislabeledReplay?.replayEligible, false, "known formula-label drift must stay excluded through generator rebuilds");
+assert.match(knownMislabeledReplay?.dataQualityNote || "", /临床方向矛盾/);
 assert.equal(caseCorpus.sourceClaimAudit.claimedCaseCount, 849);
 assert.equal(caseCorpus.sourceClaimAudit.importedDistinctStructuredBlocks, 364);
 assert.equal(caseCorpus.sourceClaimAudit.status, "source_material_below_claimed_target");
@@ -98,6 +107,22 @@ assert.ok(caseCorpus.cases.filter((item) => item.replayEligible)
     item.expectedFormulaNames.length > 0 &&
     item.replayInput.startsWith("已记录患者事实：") &&
     !/(疫苗|生附子|硫磺|刺血|放血|童子尿|人尿|拒绝.{0,16}(?:急诊|手术|化疗|放疗)|\d+\s*(?:克|g|钱|两))/i.test(item.replayInput)));
+
+assert.deepEqual(
+  formulaMentionHits("麻黄汤证，不应重复标成黄汤", ["麻黄汤", "黄汤"]),
+  ["麻黄汤"],
+  "a short catalog name contained in a longer formula must not become a second evidence hit",
+);
+assert.deepEqual(
+  formulaMentionHits("痰饮内停，尚未形成方剂结论", ["痰饮"]),
+  [],
+  "two-character syndrome/formula homonyms are too ambiguous for free-text substring extraction",
+);
+assert.deepEqual(
+  formulaMentionHits("先议半夏汤，后与甘遂半夏汤鉴别", ["半夏汤", "甘遂半夏汤"]),
+  ["甘遂半夏汤", "半夏汤"],
+  "a separately stated shorter formula remains visible beside the longer formula",
+);
 
 const canonicalAlias = (value) => aliases.entries.find((entry) =>
   entry.canonical === value || entry.aliases.includes(value))?.canonical;
