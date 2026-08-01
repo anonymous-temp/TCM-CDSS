@@ -2636,6 +2636,8 @@ async function callPrimaryTextModelStream(
           }
         }
         let advisoryM04RiskAccepted = false;
+        /** 修复轮耗尽后按质量批注受理透明降级候选时，给医生的批注文案。 */
+        let m04TransparentQualityAnnotation: string | undefined;
         if (!structuredReasoning && !initialM04ClinicalReviewRejected && finishReason === "stop" && opts.structuredStage === "prescribe" && sentinelStarted && sentinelClosed) {
           const initialM04Reason = structuredRejectionReason(
             authoritativeContent,
@@ -3349,12 +3351,36 @@ async function callPrimaryTextModelStream(
               m04GeneratorModel,
               "for transparent formula fallback",
             );
+            // 复核在**修复轮已耗尽**时给出的 repair，不是一个还能被执行的指令——修复轮
+            // 已经证明再修也是同一张失败彩票（fixpoint 早退），此处唯一的分岔是「出方」
+            // 还是「0 味」。因此必须区分复核意见的性质：
+            //   · 组成不符 / 君臣-病机匹配：这两项都有**确定性对应检查**，且已经在
+            //     m04SafetyContractIssue（药味知识、逐味剂量边界、十八反十九畏、特殊人群、
+            //     君臣结构）里跑过并通过；复核在此之上给的是质量意见，按带批注受理。
+            //   · 剂量强度不相称 / 依赖未成立的患者前提：这两项直接关系用药安全，
+            //     确定性层无法替它们背书，维持 fail-closed 作废。
+            //   · 未知码：default-deny，作废。
+            // 与 M03 侧修复轮耗尽后的「带质量批注受理」同构——医生拿到的是通过完整安全
+            // 核验、带批注的可执行处方，而不是一页「未形成处方」。
+            // 实测（网络医案 14，头痛-肝胃郁热）：左金丸候选被 declassify 后，复核以
+            // herb_plan_mismatch 判 repair，fixpoint 早退 → 整方 0 味。
+            const transparentReviewQualityOnly = transparentReview.status === "repair" &&
+              (transparentReview.issueCode === "formula_composition_mismatch" ||
+                transparentReview.issueCode === "herb_plan_mismatch");
             if (transparentReview.status === "repair") {
               console.warn("[tcm-cdss:model] transparent formula fallback rejected by clinical review", {
                 stage: "prescribe",
+                issueCode: transparentReview.issueCode,
+                acceptedWithQualityAnnotation: transparentReviewQualityOnly,
               });
             }
-            if (transparentReview.status !== "repair") {
+            if (transparentReview.status !== "repair" || transparentReviewQualityOnly) {
+              if (transparentReviewQualityOnly) {
+                // 批注不复述原因码：医生需要知道的是「哪一层已通过、哪一层只是意见」。
+                m04TransparentQualityAnnotation = transparentReview.issueCode === "formula_composition_mismatch"
+                  ? "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；因实际组成未能满足所引经方的核心结构，已改按本例辨证组方呈现，请结合本次病历核对方义后再采纳。"
+                  : "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；独立复核对方药与病机的对应关系仍有保留意见，请结合本次病历逐味核对后再采纳。";
+              }
               transparentFormulaDeclassificationAccepted = true;
               advisoryM04RiskAccepted = true;
               structuredSentinelIncomplete = false;
@@ -3794,6 +3820,11 @@ async function callPrimaryTextModelStream(
           if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03QualityAcceptedReason) {
             const annotation = qualityAnnotationCopy(m03QualityAcceptedReason);
             if (annotation) signedContent = `${annotation}\n\n${signedContent}`;
+          }
+          // M04 同理：透明降级候选按质量批注受理时，医生必须一眼看到复核提了什么意见、
+          // 以及为什么仍然可以用（承重的安全核验层全部通过）。
+          if (!truncated && transformed.ok && opts.structuredStage === "prescribe" && m04TransparentQualityAnnotation) {
+            signedContent = `${m04TransparentQualityAnnotation}\n\n${signedContent}`;
           }
           if (opts.structuredStage === "diagnose") {
             signedContent = sanitizeDiagnoseStreamingDraft(signedContent);

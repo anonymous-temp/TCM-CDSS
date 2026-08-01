@@ -52,6 +52,9 @@ function ndjson(raw) {
   const marker = content.lastIndexOf(STREAM_REPLACE_MARKER);
   return {
     visible: marker >= 0 ? content.slice(marker + STREAM_REPLACE_MARKER.length) : content,
+    // 模型原始正文（被最终替换掉的那段）。0 味时唯一能回答「模型到底写了什么、
+    // 哪条合同判死的」的证据；不留就只能看到降级文案，没法归因。
+    generated: marker >= 0 ? content.slice(0, marker) : "",
     ended: raw.includes('"[END]"'),
     errors,
   };
@@ -145,7 +148,12 @@ for (const entry of selected) {
     const prescribe = await post("/api/diagnosis/prescribe", { caseState: prescribeState });
     const p = ndjson(prescribe.raw);
     const reasoningPrescribe = sentinel(p.visible);
-    record.stages.prescribe = { status: prescribe.status, ms: prescribe.ms, errors: p.errors, reasoning: reasoningPrescribe, visible: p.visible };
+    record.stages.prescribe = {
+      status: prescribe.status, ms: prescribe.ms, errors: p.errors,
+      reasoning: reasoningPrescribe, visible: p.visible,
+      // 只在 0 味时留模型原文：出方成功不需要它，失败时它是唯一的归因证据。
+      generated: /^\| *\d+ *\|/m.test(p.visible) ? "" : p.generated.slice(0, 24_000),
+    };
     const assess = await post("/api/diagnosis/assess", {
       caseState: { ...prescribeState, phase: "assess", prescription: p.visible, reasoningPrescribe },
     });
