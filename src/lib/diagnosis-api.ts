@@ -27,7 +27,7 @@ import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
-import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, m04FinalReviewQualityAnnotation } from "@/lib/m04-repair-policy";
+import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
@@ -762,6 +762,7 @@ function validatedStructuredReasoning(
   serverOwnsDecoctionMethod = false,
   allowTransparentFormulaDeclassification = false,
   auditedClinicalRisksAreAdvisory = false,
+  waiveM04TherapyCoverageAnnotated = false,
 ) {
   const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
   const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
@@ -798,6 +799,7 @@ function validatedStructuredReasoning(
         false,
         auditedClinicalRisksAreAdvisory,
         clinicalContext,
+        waiveM04TherapyCoverageAnnotated,
       )) return undefined;
       if (formulaCompilationContractIssue(
         enrichedReasoning,
@@ -2643,6 +2645,8 @@ async function callPrimaryTextModelStream(
         let advisoryM04RiskAccepted = false;
         /** 修复轮耗尽后按质量批注受理透明降级候选时，给医生的批注文案。 */
         let m04TransparentQualityAnnotation: string | undefined;
+        /** M03 finalize 复核意见按质量批注受理时的批注文案（同一条最后一公里策略）。 */
+        let m03FinalReviewAnnotation: string | undefined;
         if (!structuredReasoning && !initialM04ClinicalReviewRejected && finishReason === "stop" && opts.structuredStage === "prescribe" && sentinelStarted && sentinelClosed) {
           const initialM04Reason = structuredRejectionReason(
             authoritativeContent,
@@ -3318,6 +3322,9 @@ async function callPrimaryTextModelStream(
             true,
             true,
             true,
+            // 最后一公里：治法覆盖率阈值按带批注受理（见 m04TherapyIssueQualityAnnotation），
+            // 若在此仍以该码整体拒绝，批注分流永远轮不到执行。其余合同一条不减。
+            true,
           );
           const strictFormulaIssue = transparentReasoning
             ? formulaCompilationContractIssue(
@@ -3388,9 +3395,12 @@ async function callPrimaryTextModelStream(
               });
             }
             if (transparentReview.status !== "repair" || transparentReviewQualityOnly) {
-              if (transparentReviewQualityOnly) {
-                m04TransparentQualityAnnotation = transparentReviewAnnotation;
-              }
+              // 两类批注可同时成立（治法覆盖未自动核验 + 复核保留意见），都要让医生看到。
+              const therapyAnnotation = m04TherapyIssueQualityAnnotation(therapyIssue);
+              m04TransparentQualityAnnotation = [
+                transparentReviewQualityOnly ? transparentReviewAnnotation : undefined,
+                therapyAnnotation,
+              ].filter(Boolean).join("\n\n") || undefined;
               transparentFormulaDeclassificationAccepted = true;
               advisoryM04RiskAccepted = true;
               structuredSentinelIncomplete = false;
@@ -3503,6 +3513,9 @@ async function callPrimaryTextModelStream(
               false,
               transparentFormulaDeclassificationAccepted,
               advisoryM04RiskAccepted,
+              // 校验作用域必须与受理时一致：受理时豁免了治法覆盖阈值，finalize 再用全口径
+              // 校验同一份内容，就会把刚受理的候选重新判死——又一个「分叉复发」点。
+              m04TransparentQualityAnnotation !== undefined,
             )) {
             console.warn("[tcm-cdss:model] finalized structured response rejected", {
               stage: opts.structuredStage,
@@ -3782,7 +3795,22 @@ async function callPrimaryTextModelStream(
                 m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
                 m03ClinicalReviewAttestation = review.status === "repair" ? undefined : clinicalReviewAttestation(review, finalReasoning);
                 m03ReviewedReasoning = review.status === "repair" ? undefined : finalReasoning;
-                if (review.status === "repair") {
+                // finalize 的这次复核跑在全部修复轮之后，它的 repair 没有承接者，唯一效果是
+                // 把辨证判成空白 → M04 无有效 M03 可用 → 后台 agent 流程整体卡死（实测网络
+                // 医案 10/13/24「内伤发热」类，复核码 tcm_reasoning_unsupported 占 71 次）。
+                // 与 M04 侧同一条最后一公里策略：质量意见带批注受理，且受理前必须由
+                // m03SafetyContractIssue（病历接地/极性/红旗/结构，独立 T1 子集）完整重跑通过；
+                // 重跑不过或意见指向诊断标签本身（criteria_not_met 类）时维持作废。
+                const m03FinalAnnotation = m03FinalReviewQualityAnnotation(review);
+                const m03FinalHardContractClean = m03FinalAnnotation !== undefined &&
+                  !m03SafetyContractIssue(finalReasoning, opts.structuredClinicalContext || "", isSafetyRejection);
+                if (review.status === "repair" && m03FinalHardContractClean) {
+                  m03FinalReviewAnnotation = m03FinalAnnotation;
+                  console.warn("[tcm-cdss:model] final M03 review repair accepted with quality annotation", {
+                    stage: "diagnose",
+                    issueCode: review.issueCode,
+                  });
+                } else if (review.status === "repair") {
                   truncated = true;
                   transformed = transformTruncateFallback();
                 }
@@ -3851,6 +3879,9 @@ async function callPrimaryTextModelStream(
           if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03QualityAcceptedReason) {
             const annotation = qualityAnnotationCopy(m03QualityAcceptedReason);
             if (annotation) signedContent = `${annotation}\n\n${signedContent}`;
+          }
+          if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03FinalReviewAnnotation) {
+            signedContent = `${m03FinalReviewAnnotation}\n\n${signedContent}`;
           }
           // M04 同理：透明降级候选按质量批注受理时，医生必须一眼看到复核提了什么意见、
           // 以及为什么仍然可以用（承重的安全核验层全部通过）。

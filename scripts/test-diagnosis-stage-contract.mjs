@@ -3705,7 +3705,11 @@ assert.equal(compiledMisplacedProposalSiblings?.nonPharma?.acupointCare, null, "
 assert.equal(compiledMisplacedProposalSiblings?.formula?.candidates?.[0]?.herbs?.[0]?.name, "黄连", "lifting misplaced siblings never changes the clinical herb plan");
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, strictFormulaIssue: "formula_reference_declassified", requestAborted: false }), false);
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 1, strictFormulaIssue: "formula_reference_declassified", requestAborted: false }), true);
-assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, strictFormulaIssue: "formula_reference_declassified", therapyIssue: "transparent_therapy_coverage", requestAborted: false }), false);
+// 治法覆盖率阈值（coverage/herb_support）按产品语义「安全问题阻断，质量问题标注」在修复
+// 耗尽后带批注受理（实测网络医案 37/41 两例自汗因此 0 味）；结构缺失类（contract_missing）
+// 仍然阻断——无从标注。
+assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, strictFormulaIssue: "formula_reference_declassified", therapyIssue: "transparent_therapy_coverage", requestAborted: false }), true);
+assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, strictFormulaIssue: "formula_reference_declassified", therapyIssue: "transparent_therapy_contract_missing", requestAborted: false }), false);
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, strictFormulaIssue: "formula_reference_declassified", requestAborted: true }), false);
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, strictFormulaIssue: "formula_reference_declassified", requestAborted: false }), true);
 // 调用方在判定前已确定性剥离方剂身份并用剥离后的内容重跑严格合同，因此「无剩余方剂问题」
@@ -3715,7 +3719,11 @@ assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, s
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 1, strictFormulaIssue: undefined, requestAborted: false }), true, "剥离身份后严格合同无剩余问题即可受理");
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 1, strictFormulaIssue: "", requestAborted: false }), true, "空字符串与 undefined 同义");
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, strictFormulaIssue: undefined, requestAborted: false }), false, "未完成定向修复轮不得直接降级");
-assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 1, strictFormulaIssue: undefined, therapyIssue: "transparent_therapy_herb_support", requestAborted: false }), false, "治法合同未过时降级仍被拒——降级只放宽方剂身份，不放宽治法");
+// 治法覆盖率阈值改按「安全阻断，质量标注」：herb_support/coverage 是本系统词表上的
+// 覆盖率，不是逐味安全事实（高影响方向门禁/剂量边界/配伍禁忌/特殊人群各自独立执行），
+// 修复耗尽后带批注受理；结构缺失类照旧阻断。
+assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 1, strictFormulaIssue: undefined, therapyIssue: "transparent_therapy_herb_support", requestAborted: false }), true, "治法覆盖率阈值在修复耗尽后带批注受理");
+assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 1, strictFormulaIssue: undefined, therapyIssue: "transparent_therapy_unresolved", requestAborted: false }), false, "治法解析缺失（unresolved）不属于覆盖率阈值，照旧阻断");
 // 剥离后仍存在的其他方剂身份问题（歧义/选择漂移/合方分项未核验）绝不因降级而放行。
 for (const residual of ["formula_reference_ambiguous", "formula_reference_selection_drift", "formula_component_0_unverified", "formula_direction_drift", "formula_compilation_contract_missing"]) {
   assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, strictFormulaIssue: residual, requestAborted: false }), false, `剥离后仍报 ${residual} 时不得受理`);
@@ -3727,7 +3735,8 @@ for (const residual of ["formula_reference_ambiguous", "formula_reference_select
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, repairExhausted: true, strictFormulaIssue: undefined, requestAborted: false }), true, "fixpoint/超时导致的修复耗尽必须与完成一轮修复等价");
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, repairExhausted: true, strictFormulaIssue: "formula_reference_declassified", requestAborted: false }), true, "修复耗尽 + 仅剩身份问题必须可降级");
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, repairExhausted: false, strictFormulaIssue: undefined, requestAborted: false }), false, "既未完成修复轮也未耗尽时不得降级——降级不是首轮捷径");
-assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, repairExhausted: true, strictFormulaIssue: undefined, therapyIssue: "transparent_therapy_coverage", requestAborted: false }), false, "修复耗尽也不放宽治法合同");
+assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, repairExhausted: true, strictFormulaIssue: undefined, therapyIssue: "transparent_therapy_coverage", requestAborted: false }), true, "修复耗尽后治法覆盖率阈值带批注受理（安全阻断，质量标注）");
+assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, repairExhausted: true, strictFormulaIssue: undefined, therapyIssue: "transparent_therapy_contract_missing", requestAborted: false }), false, "结构缺失类治法码照旧阻断——无从标注");
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, repairExhausted: true, strictFormulaIssue: "formula_reference_ambiguous", requestAborted: false }), false, "修复耗尽也不放行方名歧义");
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, repairExhausted: true, strictFormulaIssue: undefined, requestAborted: true }), false, "请求已中止时一律不得降级");
 let repairState = initialM04RepairState();

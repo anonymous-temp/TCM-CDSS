@@ -3014,6 +3014,18 @@ function followUpConsistent(course: string, followUpNode: string): boolean {
  *    「不得混入剂量」由编译层的 PRECAUTION_DOSE_LIKE 逐条剥离承担（丢该行、不丢整份处方）。
  * 因此合同层对注意事项刻意**不做任何校验**，也不要重新加回来。
  */
+/**
+ * 治法覆盖类质量码：transparent_therapy_coverage / transparent_therapy_herb_support（带或不带
+ * candidate_N_ 前缀）。它们是本系统治法词表上的覆盖率阈值，不是逐味安全事实——逐味的高影响
+ * 方向门禁、剂量边界、配伍禁忌、特殊人群检查各自独立执行、不经此码。修复轮走完后，
+ * 调用方可对这一族按「带批注受理」处理（m04TherapyIssueQualityAnnotation 出批注文案）；
+ * transparent_therapy_contract_missing / unresolved 不在此列。
+ */
+export function isWaivableM04TherapyCoverageCode(code: string | undefined): boolean {
+  return typeof code === "string" &&
+    /^(?:candidate_\d+_)?transparent_therapy_(?:coverage|herb_support)$/.test(code);
+}
+
 export function m04SemanticIssue(
   reasoning: M04ReasoningLike | null | undefined,
   visibleContent = "",
@@ -3024,6 +3036,7 @@ export function m04SemanticIssue(
   trustedWorkbenchEdit = false,
   auditedClinicalRisksAreAdvisory = false,
   clinicalContext = "",
+  waiveTherapyCoverageAnnotated = false,
 ): string | undefined {
   const candidates = reasoning?.formula?.candidates;
   if (reasoning?.stage !== "prescribe") return "stage";
@@ -3087,7 +3100,11 @@ export function m04SemanticIssue(
       candidates[0].formulaNames.length === 0);
   if (candidateNeedsKnowledgeCoverage && priorReasoning) {
     const coverageIssue = transparentFormulaTherapyIssue(reasoning, priorReasoning);
-    if (coverageIssue) return `candidate_0_${coverageIssue}`;
+    // 修复轮走完后的带批注受理：豁免的只是覆盖率阈值这一族，跳过后其余检查照常执行，
+    // 不存在「豁免一个码放过后面检查」的短路——这里本来就是顺序执行。
+    if (coverageIssue && !(waiveTherapyCoverageAnnotated && isWaivableM04TherapyCoverageCode(coverageIssue))) {
+      return `candidate_0_${coverageIssue}`;
+    }
   }
   const availableRows = visibleContent ? visibleHerbRows(visibleContent) : [];
   const visibleMethod = visibleContent ? visibleLabeledValue(visibleContent, "煎服法") : "";
@@ -3309,6 +3326,7 @@ export function m04SafetyContractIssue(
   trustedWorkbenchEdit = false,
   auditedClinicalRisksAreAdvisory = false,
   clinicalContext = "",
+  waiveTherapyCoverageAnnotated = false,
 ): string | undefined {
   if (reasoning?.stage !== "prescribe") return "stage";
   // 锁定字段漂移与君药绑定：绝对否决。
@@ -3325,7 +3343,9 @@ export function m04SafetyContractIssue(
       candidates[0].formulaNames.length === 0);
   if (candidateNeedsKnowledgeCoverage && priorReasoning) {
     const coverageIssue = transparentFormulaTherapyIssue(reasoning, priorReasoning);
-    if (coverageIssue) return `candidate_0_${coverageIssue}`;
+    if (coverageIssue && !(waiveTherapyCoverageAnnotated && isWaivableM04TherapyCoverageCode(coverageIssue))) {
+      return `candidate_0_${coverageIssue}`;
+    }
   }
 
   for (const [candidateIndex, candidate] of candidates.entries()) {

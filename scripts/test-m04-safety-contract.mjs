@@ -504,9 +504,16 @@ console.log(JSON.stringify({
     assert.ok(/已完整通过安全核验/.test(annotation),
       `${issueCode} 的批注必须写明哪一层已通过，否则医生无从判断能不能用`);
   }
-  // 维持 fail-closed：剂量强度是唯一不能含糊的一项（确定性层只保证不越界，
-  // 保证不了「这个强度对这个人合不合适」）；未知码 default-deny。
-  for (const issueCode of ["dose_rationale_concern", "some_future_issue_code", "none"]) {
+  // 剂量强度意见也带批注受理（甲方产品语义：安全问题阻断，质量问题标注）——数值本身
+  // 已被药典上下限确定性钳制，越界在此之前就被逐味驳回；复核在圈内提的「相称性」正是
+  // 医师定夺事项。批注必须点名「剂量强度需医生把握」。
+  {
+    const annotation = m04FinalReviewQualityAnnotation({ status: "repair", issueCode: "dose_rationale_concern" });
+    assert.ok(annotation && /剂量强度/.test(annotation) && /药典边界内/.test(annotation),
+      `dose_rationale_concern 应带批注受理且写明边界事实：${annotation}`);
+  }
+  // 未知码 default-deny：策略表之外的意见永远不能自动受理。
+  for (const issueCode of ["some_future_issue_code", "none"]) {
     assert.equal(m04FinalReviewQualityAnnotation({ status: "repair", issueCode }), undefined,
       `${issueCode} 不得被带批注受理`);
   }
@@ -542,5 +549,47 @@ console.log(JSON.stringify({
     assert.ok(affirmedTcmTherapyConcepts(text).has(entry.missingConcept)
       || entry.missingConcept === "blood_stanch",   // 止血方向不在 TCM_THERAPY_CONCEPTS 治法词表内
       `${entry.herb} 补充后仍解析不出 ${entry.missingConcept}：${[...affirmedTcmTherapyConcepts(text)].join(",")}`);
+  }
+}
+
+
+// ─── 最后一公里统一策略：治法覆盖阈值 + M03 finalize 复核意见 ───────────────────
+// 产品语义（甲方定）：**安全问题阻断，质量问题标注**。0 味只保留给真正的安全阻断与
+// 「模型根本没给出候选」。这里钉住三件事：
+//   ① 治法覆盖率阈值码（coverage/herb_support）在修复耗尽后必须能带批注受理——
+//      它们是本系统词表上的覆盖率，不是逐味安全事实（实测网络医案 37/41 两例自汗 0 味）；
+//   ② contract_missing / unresolved 不在豁免列：结构缺失无从标注；
+//   ③ M03 finalize 复核的质量意见（tcm_reasoning_unsupported 等）同样带批注受理，
+//      诊断标签类意见（criteria_not_met 族）维持作废。
+{
+  const { m04TherapyIssueQualityAnnotation, m03FinalReviewQualityAnnotation, canAcceptTransparentFormulaFallback } =
+    await import("../src/lib/m04-repair-policy.ts");
+  const { isWaivableM04TherapyCoverageCode } = await import("../src/lib/diagnosis-stage-contract.ts");
+  for (const code of ["transparent_therapy_coverage", "transparent_therapy_herb_support"]) {
+    const annotation = m04TherapyIssueQualityAnnotation(code);
+    assert.ok(annotation && /已通过安全核验/.test(annotation),
+      `${code} 应带批注受理且写明哪些安全层已通过：${annotation}`);
+    assert.ok(isWaivableM04TherapyCoverageCode(code) && isWaivableM04TherapyCoverageCode(`candidate_0_${code}`),
+      `${code} 及其 candidate 前缀形式都必须被识别为可豁免`);
+    assert.ok(canAcceptTransparentFormulaFallback({
+      completedRepairAttempts: 1, requestAborted: false, therapyIssue: code,
+    }), `修复耗尽后 ${code} 不得再阻断透明降级`);
+  }
+  for (const code of ["transparent_therapy_contract_missing", "transparent_therapy_unresolved"]) {
+    assert.equal(m04TherapyIssueQualityAnnotation(code), undefined, `${code} 不得被豁免`);
+    assert.ok(!isWaivableM04TherapyCoverageCode(code), `${code} 不得被识别为可豁免`);
+  }
+  for (const [issueCode, ok] of [
+    ["tcm_reasoning_unsupported", true],
+    ["formula_indication_mismatch", true],
+    ["criteria_not_met", false],
+    ["diagnostic_label_overstated", false],
+    ["supporting_fact_mismatch", false],
+    ["future_unknown_code", false],
+  ]) {
+    const annotation = m03FinalReviewQualityAnnotation({ status: "repair", issueCode });
+    assert.equal(annotation !== undefined, ok,
+      `M03 finalize 复核 ${issueCode} 的受理处置应为 ${ok ? "带批注受理" : "作废"}：${annotation}`);
+    if (ok) assert.ok(/确定性核验/.test(annotation), `${issueCode} 的批注必须写明确定性层已通过`);
   }
 }

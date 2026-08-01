@@ -55,7 +55,29 @@ export function canAcceptTransparentFormulaFallback(input: TransparentFormulaFal
     !input.requestAborted &&
     (input.strictFormulaIssue === undefined || input.strictFormulaIssue === "" ||
       input.strictFormulaIssue === "formula_reference_declassified") &&
-    !input.therapyIssue;
+    (!input.therapyIssue || m04TherapyIssueQualityAnnotation(input.therapyIssue) !== undefined);
+}
+
+/**
+ * 治法覆盖类问题在修复耗尽后的处置：带批注受理，而不是 0 味。
+ *
+ * 依据是这两个码的**性质**：它们是本系统治法词表上的覆盖率阈值（方向覆盖 ≥50%、君臣落在
+ * 已锁定方向 ≥80%），不是药有没有毒、量有没有越界。每一味药此前都已单独通过：高影响方向
+ * 门禁（附子混进热证照样拦）、逐味药典剂量边界、十八反十九畏、特殊人群门禁、监管名单扣除。
+ * 阈值不达标只说明「本系统没能自动核验方义」，把它当成「这张方临床错误」，就是网络医案
+ * 37/41（两例自汗，煅牡蛎/麻黄根类收涩方向）整方 0 味的直接原因。
+ *
+ * 产品语义（甲方定）：**安全问题阻断，质量问题标注**——医生看得到批注，灵犀审方照常复核。
+ * transparent_therapy_contract_missing 不在此列：它意味着候选或 M03 结构本身缺失，无从标注。
+ */
+export function m04TherapyIssueQualityAnnotation(therapyIssue: string | undefined): string | undefined {
+  if (therapyIssue === "transparent_therapy_coverage") {
+    return "本次候选方药的逐味剂量边界、配伍禁忌、特殊人群与高影响方向门禁均已通过安全核验；但系统未能自动核验全部治法方向的覆盖情况，方义与治法的对应关系请医生结合本次病历确认后再采纳。";
+  }
+  if (therapyIssue === "transparent_therapy_herb_support") {
+    return "本次候选方药的逐味剂量边界、配伍禁忌、特殊人群与高影响方向门禁均已通过安全核验；但部分君臣药味的功效方向未能被系统自动对应到已锁定治法，请医生逐味核对方义后再采纳。";
+  }
+  return undefined;
 }
 
 /**
@@ -86,6 +108,37 @@ export function m04FinalReviewQualityAnnotation(review: { status?: string; issue
   }
   if (review.issueCode === "patient_context_mismatch") {
     return "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；但本例的过敏史、当前用药、肝肾功能等信息尚未采集，方案按「未知」保守处理，请医生补充确认并经院内审方复核后再采纳。";
+  }
+  if (review.issueCode === "dose_rationale_concern") {
+    // 数值本身出不了圈：每味剂量已被药典上下限确定性钳制，越界在此之前就被逐味驳回。
+    // 复核在圈内提的是「强度与本例相称与否」——这正是医师定夺的事项，批注明示并交由
+    // 医师与审方，比整方作废让医生一无所获更安全（0 味时医生只能脱离系统徒手开方）。
+    return "本次候选方药的每味剂量均在药典边界内，配伍禁忌、特殊人群与君臣结构已通过安全核验；独立复核认为部分药味的剂量强度与本例病情的相称性需医生把握，请结合患者年龄、体质与证候强度调整后再采纳。";
+  }
+  return undefined;
+}
+
+/**
+ * M03 侧的同一条最后一公里策略：finalize 阶段的独立复核跑在全部修复轮之后，它给出的
+ * repair 已无承接者，唯一的效果是把一份**确定性接地合同已通过**的辨证判成空白，随后
+ * M04 直接 409/降级，整个后台 agent 流程在此卡死（实测网络医案 10/13/24「内伤发热」类）。
+ *
+ * 受理边界与 M04 同构：
+ *  · tcm_reasoning_unsupported / formula_indication_mismatch —— 复核对辨证依据充分性/
+ *    方向对应关系的**质量意见**。确定性层的 m03SafetyContractIssue（病历接地、极性、
+ *    红旗、完整度、链条结构）必须由调用方重跑并确认为空，才允许带批注受理。
+ *  · criteria_not_met / diagnostic_label_overstated / supporting_fact_mismatch —— 指向
+ *    「诊断标签本身站不住」，且其对应的确定性降级路径（西医主诊断降级为『考虑』）在
+ *    修复轮内已有机会执行，finalize 处维持作废。
+ *  · 未知码 default-deny。
+ */
+export function m03FinalReviewQualityAnnotation(review: { status?: string; issueCode?: string }): string | undefined {
+  if (review.status !== "repair") return undefined;
+  if (review.issueCode === "tcm_reasoning_unsupported") {
+    return "本次辨证的病历接地、红旗边界与结构完整性已通过确定性核验；独立复核对部分辨证依据的充分性仍有保留意见，请医生结合四诊资料复核证候结论后再采纳。";
+  }
+  if (review.issueCode === "formula_indication_mismatch") {
+    return "本次辨证的病历接地、红旗边界与结构完整性已通过确定性核验；独立复核对推荐方向与证候的对应关系仍有保留意见，方药方向请以医生辨证为准。";
   }
   return undefined;
 }
