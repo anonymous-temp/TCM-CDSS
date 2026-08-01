@@ -366,18 +366,38 @@ const controlledToxicNames = new Set(controlledPolicy.entries
   .filter(Boolean));
 assert.ok(controlledToxicNames.has("罂粟壳") && controlledToxicNames.has("雄黄"),
   "管制品种表必须覆盖麻醉药品与毒性药品目录两类，否则门禁形同虚设");
-const controlledStillCompilable = formulas.entries
+// 责任的落点从「整方作废」移到「该味退出可编译组成」：系统仍然一次都不为管制品种编制
+// 用量，但不再因为方里有一味管制药，就连其余药味都不给医生。原口径的代价是实测出来的——
+// 天王补心丹因古方组成含朱砂被整方作废，病例锁到方了仍然 0 味。
+// 因此这里改钉两条更强的：①管制味必须被扣除且可见；②扣除后的可编译组成里一味都不许残留。
+const controlledDoseCompiled = formulas.entries
   .filter((entry) => entry.doseCompilationEligible)
-  .map((entry) => ({
-    name: entry.name,
-    herbs: [...new Set((entry.ingredientLinks || [])
-      .map(effectiveDoseName)
-      .filter((name) => name && controlledToxicNames.has(name)))],
-  }))
+  .map((entry) => {
+    const deducted = new Set(entry.manualDoseIngredientNames || []);
+    return {
+      name: entry.name,
+      herbs: [...new Set((entry.ingredientLinks || [])
+        .map(effectiveDoseName)
+        .filter((name) => name && controlledToxicNames.has(name)))]
+        .filter((name) => !deducted.has(name)
+          && !(entry.ingredientLinks || []).some((link) =>
+            deducted.has(link.rawName) && effectiveDoseName(link) === name)),
+    };
+  })
   .filter((entry) => entry.herbs.length > 0);
-assert.deepEqual(controlledStillCompilable, [],
-  "管制品种(麻醉药品/医疗用毒性药品目录)不得自动编制剂量，须转有相应处方权的医师人工决策：" +
-  controlledStillCompilable.map((entry) => `${entry.name}[${entry.herbs.join("、")}]`).join("; "));
+assert.deepEqual(controlledDoseCompiled, [],
+  "管制品种(麻醉药品/医疗用毒性药品目录)不得进入可编译组成，须转有相应处方权的医师人工决策：" +
+  controlledDoseCompiled.map((entry) => `${entry.name}[${entry.herbs.join("、")}]`).join("; "));
+// 扣除不得是静默丢弃：含管制味的方必须把它列进 manualDoseIngredientNames，下游据此
+// 标注 toxic_regulated 并提示医师单独处理，否则医生根本不知道原方里还有这一味。
+const silentlyDropped = formulas.entries
+  .filter((entry) => entry.doseCompilationEligible)
+  .filter((entry) => (entry.ingredientLinks || []).some((link) =>
+    controlledToxicNames.has(effectiveDoseName(link) || "")))
+  .filter((entry) => (entry.manualDoseIngredientNames || []).length === 0)
+  .map((entry) => entry.name);
+assert.deepEqual(silentlyDropped.slice(0, 10), [],
+  `含管制味却未在 manualDoseIngredientNames 中声明（共 ${silentlyDropped.length} 首）`)
 
 // 非管制的药典毒性药必须**仍然可用**——这条断言防的是"毒性一刀切"这种过防回潮。
 const routineToxicStillAvailable = ["附子", "半夏", "苦杏仁", "吴茱萸", "艾叶"]

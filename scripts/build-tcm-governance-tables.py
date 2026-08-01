@@ -756,8 +756,28 @@ def clinician_dose_ingredient_names() -> set[str]:
 
 
 CLINICIAN_DOSE_AFFIX = re.compile(
-    r"^(?:蜜炙|麸炒|土炒|盐炒|酒炒|醋炒|姜炒|炒|炙|醋|酒|盐|姜|煅|制|生|焦|熟|鲜)|(?:炭|霜|片|粉|末|丝|段|块)$"
+    r"^(?:蜜炙|麸炒|土炒|盐炒|酒炒|醋炒|姜炒|炒|炙|醋|酒|盐|姜|煅|制|生|焦|熟|鲜|明|上|净|真)|(?:炭|霜|片|粉|末|丝|段|块)$"
 )
+
+
+def name_variants(*values: object) -> list[str]:
+    """处方用名 → 候选查名。同一味药在古方里写作 生明没药 / 大蓟炭 / 朱砂粉，
+    而剂量表与豁免表按规范名收录。两侧任一处漏了剥离，就会出现「构建期说缺剂量、
+    运行时查得到」的分叉——实测大蓟炭(药典 5-10g)与生明没药(豁免表已收没药)都栽在这里。
+    """
+    out: list[str] = []
+    for value in values:
+        compacted = compact(value)
+        if not compacted or compacted in out:
+            continue
+        out.append(compacted)
+        base = CLINICIAN_DOSE_AFFIX.sub("", compacted).strip()
+        # 多重前后缀（生明没药 = 生 + 明 + 没药）需要反复剥离到不动点。
+        while base and base != compacted:
+            if base not in out:
+                out.append(base)
+            compacted, base = base, CLINICIAN_DOSE_AFFIX.sub("", base).strip()
+    return out
 
 
 def is_clinician_dose_name(raw: object, names: set[str]) -> bool:
@@ -766,13 +786,7 @@ def is_clinician_dose_name(raw: object, names: set[str]) -> bool:
     醋没药→没药、煅龙骨→龙骨、朱砂粉→朱砂。炮制不改变「有没有法定剂量边界」，
     不剥离的话变体名查不到基名，会让 71 张方继续阻断而运行时却认为可编译——两侧分叉。
     """
-    compacted = compact(raw)
-    if not compacted:
-        return False
-    if compacted in names:
-        return True
-    base = CLINICIAN_DOSE_AFFIX.sub("", compacted).strip()
-    return bool(base) and base != compacted and base in names
+    return any(variant in names for variant in name_variants(raw))
 
 
 def load_syndrome_tag_adjudications(governed_formula_names: set[str]) -> dict[str, list[str]]:
@@ -1159,7 +1173,16 @@ def build_formula_catalog(
             link["rawName"]
             for link in ingredient_links
             if link.get("autoResolvable")
-            and compact(link.get("doseCanonicalName") or link.get("canonicalName")) not in numeric_dose_names
+            # 只认原名与 T9 规范名，**不做炮制剥离**：炮制不改变「有没有豁免身份」，
+            # 却实实在在改变用法用量——煅石膏主外用收湿敛疮，套用石膏 15-60g 的内服区间
+            # 是错的。剥离只用于豁免表分类（is_clinician_dose_name），不用于数值边界。
+            and not any(
+                compact(value) in numeric_dose_names
+                for value in (
+                    link.get("doseCanonicalName"), link.get("canonicalName"), link.get("rawName"),
+                )
+                if compact(value)
+            )
             and not is_clinician_dose_name(link.get("rawName"), clinician_dose_names)
         ]
         if missing_dose_boundaries:
@@ -1180,6 +1203,44 @@ def build_formula_catalog(
         # 这不是「算不出剂量」而是「系统没有资格做」，审方兜底替代不了处方权。
         if controlled_toxic_ingredients:
             dose_blocking_reasons.append("ingredient_controlled_toxic_requires_manual_prescription")
+
+        # ── 毒性/管制味不作废整方，改为「扣除该味 + 其余正常编译 + 医师单独处理 + 强制审方」──
+        # 原口径把「方里有一味系统不敢定量」等同于「这张方不能用」。代价是 521/2915 张受治理方
+        # 整体退化为只给方名：天王补心丹因古方组成含朱砂（可解析、但剂量库无数值边界）被整方作废，
+        # 病例锁到方了仍然 0 味。而项目既有政策本就是「毒性药走审方警示而非剂量阻断」——
+        # 整方作废与该政策自相矛盾。
+        #
+        # 扣除的边界（不是全面放开）：
+        #   · 只扣**身份可解析**的味。水银/黄丹/穿山甲/犀角这类连规范名都定不下来的，
+        #     以及单字残缺（数据缺陷，如「黄」「砂」），继续整方阻断——把它们印成
+        #     「用量由医师确定」比不给更糟。
+        #   · 扣除后可编译组成必须仍 ≥3 味且 ≥ 原方 60%：安宫牛黄丸这类**方义就在毒性味上**的，
+        #     扣完不成方，保持阻断。
+        #   · 扣除的味整体进 manualDoseIngredientNames，下游必须显式呈现并转医师/审方，
+        #     系统不替它们担保剂量。
+        deducted_dose_ingredients = sorted({
+            link["rawName"] for link in ingredient_links
+            if link.get("autoResolvable")
+            and link["rawName"] in set(missing_dose_boundaries) | set(controlled_toxic_ingredients)
+        })
+        compilable_ingredient_count = len([
+            link for link in ingredient_links
+            if link["rawName"] not in set(deducted_dose_ingredients)
+        ])
+        deduction_preserves_formula = (
+            compilable_ingredient_count >= 3
+            and compilable_ingredient_count >= 0.6 * max(1, len(ingredient_links))
+        )
+        if deducted_dose_ingredients and deduction_preserves_formula:
+            dose_blocking_reasons = [
+                reason for reason in dose_blocking_reasons
+                if reason not in {
+                    "ingredient_numeric_dose_boundary_missing",
+                    "ingredient_controlled_toxic_requires_manual_prescription",
+                }
+            ]
+        else:
+            deducted_dose_ingredients = []
         controlled_toxic_notice = (
             "ingredient_controlled_toxic_requires_manual_prescription" if controlled_toxic_ingredients else ""
         )
@@ -1232,6 +1293,8 @@ def build_formula_catalog(
             "unresolvedDoseIngredientNames": unresolved_ingredients,
             "corruptIngredientNames": corrupt_ingredient_names,
             "missingDoseBoundaryIngredientNames": missing_dose_boundaries,
+            # 已从可编译组成中扣除、转由医师单独确定用量并经审方复核的味（见上方扣除边界）。
+            "manualDoseIngredientNames": deducted_dose_ingredients,
             "clinicianDoseIngredientNames": sorted({
                 link["rawName"] for link in ingredient_links
                 if is_clinician_dose_name(link.get("rawName"), clinician_dose_names)

@@ -5,7 +5,7 @@ import type { AssistedNegationClauses } from "./clinical-polarity";
 import { EVIDENCE_LEVELS, SAFETY_DEFERENCE_TEXT } from "./cdss-vocab";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import { getLineageCard, getLineageQuestionStrategy } from "./tcm-lineages";
-import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
+import { executableFormulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
 import {
   getTcmHerbDoseLimit,
   getTcmHerbFunctionCategories,
@@ -806,6 +806,11 @@ export function buildPrescribePrompt(caseState: CaseState): string {
       `  组成身份下限：至少保留上述 ${item.minimumPreservedIngredientCount}/${item.ingredients.length} 味，且必须包含锚点药味 ${item.requiredIngredients.join("、")}；需要删减更多时不得继续沿用该方名`,
       `  历史常用量参考（仅用于模型优先落在保守区间，不代表现行药典核验）：${doseBoundaries}`,
       `  生成前逐味安全边界：${item.ingredients.map((name) => `${name}〔${tcmHerbGenerationSafetyBoundaryText(name)}〕`).join("；")}`,
+      // 古方原组成里的毒性/管制味已从基准药味中扣除（系统不为其编制用量）。必须显式告知模型
+      // 「原方有、但本次不写进处方」，否则模型会自行补回去、随后被剂量门禁拒绝整方。
+      ...(formulaManualDoseIngredients(item.formulaName).length > 0
+        ? [`  原方含但本次不编制用量的药味：${formulaManualDoseIngredients(item.formulaName).join("、")}（毒性/管制类，用量与是否使用由医师单独确定并经审方复核）。不得写入本次处方药味表，也不计入组成身份下限。`]
+        : []),
     ].join("\n");
   }).join("\n");
   const m03FormulaRetrievalContext = buildTcmFormulaReasoningContext(diagnoseReasoning);

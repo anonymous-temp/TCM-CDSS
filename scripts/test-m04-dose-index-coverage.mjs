@@ -98,9 +98,14 @@ assert.ok(
 // 任何一首获许可却含**非豁免**未解析药味的方，都说明豁免链路漏了口子。
 {
   const leaked = catalog.entries.filter((entry) => entry.doseCompilationEligible === true).filter((entry) => {
+    // manualDoseIngredientNames 是 T8 已从可编译组成中扣除的毒性/管制味：系统不为它们编制
+    // 用量，它们也不进处方药味表，因此不在本不变量的定义域内。但扣除不得成为藏缺口的口子——
+    // 下方单独断言：每一个扣除味都必须确实缺法定剂量（否则就是把能定量的药也悄悄扣掉了）。
+    const deducted = new Set(entry.manualDoseIngredientNames || []);
     const ingredients = (entry.ingredients || [])
       .map((item) => (typeof item === "string" ? item : item.name || item.herb || ""))
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((herb) => !deducted.has(herb));
     return ingredients.some((herb) => {
       const limit = getTcmHerbDoseLimit(herb);
       if (limit?.min != null && limit?.max != null) return false;
@@ -109,6 +114,26 @@ assert.ok(
   }).map((entry) => entry.name);
   assert.deepEqual(leaked.slice(0, 10), [],
     `获剂量编译许可的方中存在既无法定剂量、又不在医师定量豁免表内的药味（共 ${leaked.length} 首）`);
+
+  // 扣除只允许从**构建期已证明拿不到内服煎剂剂量边界**的那一批里取，不能自己再挑。
+  // 否则「扣除」会变成绕过剂量核验的万能出口：把任何拿不准的药一扣，整方就"可编译"了。
+  //
+  // 判据必须用目录自己记录的两个集合，而不是回头用 getTcmHerbDoseLimit 重新推一遍——
+  // 后者不看给药途径，与构建期的煎剂口径不是同一条规则，重推只会制造假警报：
+  //   · 朱砂/雄黄/轻粉 有药典数字（0.1-0.5g 等），但条目自带「有毒且不入汤剂」；
+  //   · 大蓟炭 有药典 5-10g，但药典给它列的唯一途径是丸散，没有煎服。
+  // 两者都该扣除，用剂量数字判会双双误判为「有边界却被扣掉」。
+  const wronglyDeducted = catalog.entries.flatMap((entry) => {
+    const provable = new Set([
+      ...(entry.missingDoseBoundaryIngredientNames || []),
+      ...(entry.controlledToxicIngredientNames || []),
+    ]);
+    return (entry.manualDoseIngredientNames || [])
+      .filter((herb) => !provable.has(herb))
+      .map((herb) => `${entry.name}/${herb}`);
+  });
+  assert.deepEqual(wronglyDeducted.slice(0, 10), [],
+    `扣除了构建期未证明缺内服剂量边界的药味（共 ${wronglyDeducted.length} 处）`);
 }
 assert.equal(
   governedDoseCompilationEligible,

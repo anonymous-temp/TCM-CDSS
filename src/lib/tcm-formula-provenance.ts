@@ -74,6 +74,8 @@ type GovernedFormulaCompilationRow = {
   /** 构建期已解析的药味链接；adjudicatedIngredient 是「按方裁定」后的品种（见下方 compilationIngredients）。 */
   ingredientLinks?: Array<{ rawName: string; adjudicatedIngredient?: string }>;
   sourceClass: "official_classic_catalog" | "verified_reference_catalog" | "official_local_formula_standard";
+  /** T8 已从可编译组成中扣除、转医师单独确定用量并强制审方的味（毒性/管制/无数值边界）。 */
+  manualDoseIngredientNames?: string[];
   identityLockEligible: boolean;
   prescriptionLockEligible: boolean;
   doseCompilationEligible: boolean;
@@ -138,8 +140,18 @@ function compilationIngredients(row: GovernedFormulaCompilationRow): string[] {
       .filter((link) => link.adjudicatedIngredient)
       .map((link) => [link.rawName, link.adjudicatedIngredient as string]),
   );
-  if (adjudicated.size === 0) return row.ingredients;
-  return row.ingredients.map((name) => adjudicated.get(name) || name);
+  // 扣除味必须同时退出「模型看到的应有组成」与「80% 基准保留线」：留在组成里，模型会照写
+  // 朱砂，随后被剂量门禁拒绝；写进基准线，扣掉一味就变成「组成不符」。T8 判定与 M04 运行时
+  // 编译必须是同一份组成，否则又回到「宣称可编译、运行时拒绝」的分叉。
+  const deducted = new Set(row.manualDoseIngredientNames || []);
+  const kept = row.ingredients.filter((name) => !deducted.has(name));
+  if (adjudicated.size === 0) return kept;
+  return kept.map((name) => adjudicated.get(name) || name);
+}
+
+/** 该方中系统不编制用量、需医师单独开具并经审方复核的味（可为空）。 */
+export function formulaManualDoseIngredients(name: string): string[] {
+  return [...(governedFormulaCompilationRow(name)?.manualDoseIngredientNames || [])];
 }
 
 function governedFormulaCompilationRow(value: string): GovernedFormulaCompilationRow | undefined {

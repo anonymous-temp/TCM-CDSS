@@ -2,6 +2,7 @@ import knowledge from "../data/tcm-knowledge.json";
 import herbFunctionCategories from "../data/tcm-herb-function-categories.json";
 import doseWebSupplementsJson from "../data/tcm-herb-dose-web-supplements.source.json";
 import clinicianDosePolicyJson from "../data/tcm-herb-dose-clinician-policy.source.json";
+import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.source.json";
 import type { CaseState } from "./diagnosis-types";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 
@@ -1270,6 +1271,27 @@ export type ClinicianDoseClass =
   | "food_or_vehicle"
   | "pill_powder_only";
 
+/**
+ * 监管轴名单（麻醉药品目录 / 医疗用毒性药品目录）此前只在**构建期**被读到：T8 目录据它
+ * 决定整方能不能自动配剂量，运行时却没有任何消费者。后果是同一张表在两侧口径不一致——
+ * 自拟方里出现罂粟壳，运行时 clinicianDoseHerbClass 返回 undefined，既不阻断也不标注，
+ * 而它是麻醉药品目录品种。这里让运行时读同一份 source 表，两侧从此同源。
+ */
+const REGULATORY_CONTROLLED_HERB_NAMES: ReadonlySet<string> = (() => {
+  const payload = controlledToxicPolicyJson as unknown as {
+    entries?: Array<{ herb?: string; aliases?: string[]; policy?: string }>;
+  };
+  const names = new Set<string>();
+  for (const entry of payload.entries || []) {
+    if (entry?.policy !== "blocked") continue;
+    for (const value of [entry.herb, ...(entry.aliases || [])]) {
+      const name = typeof value === "string" ? value.trim() : "";
+      if (name) names.add(name);
+    }
+  }
+  return names;
+})();
+
 const CLINICIAN_DOSE_CLASS_BY_NAME: ReadonlyMap<string, ClinicianDoseClass> = (() => {
   const policy = clinicianDosePolicyJson as unknown as {
     ingredients?: Record<string, Array<{ name?: string }>>;
@@ -1286,12 +1308,18 @@ const CLINICIAN_DOSE_CLASS_BY_NAME: ReadonlyMap<string, ClinicianDoseClass> = ((
 
 /** 炮制前后缀：查豁免表时一并剥离，否则「醋没药/煅龙骨/朱砂粉」这些变体名查不到基名。 */
 const CLINICIAN_DOSE_PROCESSING_AFFIX =
-  /^(?:蜜炙|麸炒|土炒|盐炒|酒炒|醋炒|姜炒|炒|炙|醋|酒|盐|姜|煅|制|生|焦|熟|鲜)|(?:炭|霜|片|粉|末|丝|段|块)$/g;
+  /^(?:蜜炙|麸炒|土炒|盐炒|酒炒|醋炒|姜炒|炒|炙|醋|酒|盐|姜|煅|制|生|焦|熟|鲜|明|上|净|真)|(?:炭|霜|片|粉|末|丝|段|块)$/g;
 
 /** 该成分是否属「由医师确定用量」范围（无法定数值边界，系统不校验但必须标注）。 */
 export function clinicianDoseHerbClass(herb: string): ClinicianDoseClass | undefined {
   const raw = typeof herb === "string" ? herb.trim() : "";
   if (!raw) return undefined;
+  // 监管身份优先于豁免表：它回答的不是「有没有法定剂量」，而是「系统有没有资格替医生开」。
+  // 别名与规范名都要认——腻粉/明雄黄/扫盆 都指向目录品种。
+  if (REGULATORY_CONTROLLED_HERB_NAMES.has(raw)
+    || REGULATORY_CONTROLLED_HERB_NAMES.has(canonicalKnowledgeHerbName(raw))) {
+    return "controlled_or_toxic";
+  }
   const direct = CLINICIAN_DOSE_CLASS_BY_NAME.get(raw)
     || CLINICIAN_DOSE_CLASS_BY_NAME.get(canonicalKnowledgeHerbName(raw));
   if (direct) return direct;
@@ -1299,6 +1327,10 @@ export function clinicianDoseHerbClass(herb: string): ClinicianDoseClass | undef
   // 这件事，若不剥离，71 张方会因变体名查不到基名而继续阻断。
   const base = raw.replace(CLINICIAN_DOSE_PROCESSING_AFFIX, "").trim();
   if (!base || base === raw) return undefined;
+  if (REGULATORY_CONTROLLED_HERB_NAMES.has(base)
+    || REGULATORY_CONTROLLED_HERB_NAMES.has(canonicalKnowledgeHerbName(base))) {
+    return "controlled_or_toxic";
+  }
   return CLINICIAN_DOSE_CLASS_BY_NAME.get(base)
     || CLINICIAN_DOSE_CLASS_BY_NAME.get(canonicalKnowledgeHerbName(base));
 }

@@ -7,6 +7,7 @@ const {
   executableFormulaCompilationReferences,
   formulaCompilationContractIssue,
   formulaCompilationReferences,
+  formulaManualDoseIngredients,
   formulaNamesWithoutExecutableDoseCompilation,
   identifyKnownFormulaNames,
   resolveFormulaSources,
@@ -246,10 +247,19 @@ assert.deepEqual(
   [],
   "剂量豁免层启用后白虎汤可编译；粳米以待核验剂量呈现，用量由医师确定",
 );
-// 古方蜡矾丸含黄蜡(赋形剂)与**雄黄**(医疗用毒性药品目录)。黄蜡属数据缺口、已豁免；
-// 雄黄属监管轴，处方权与专用处方载体不是审方能替代的，因此整方仍不可自动编制剂量。
-// 这正是本次门禁下调的边界：放开数据缺口，不放开监管资格。
-assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["古方蜡矾丸"]), ["古方蜡矾丸"]);
+// 监管轴的边界从「整方作废」改为「扣除该味」：系统始终不为雄黄编制用量（处方权与专用处方
+// 载体不是审方能替代的），但也不再因此让医生连其余四味都拿不到。雄黄退出可编译组成与 80%
+// 基准线，进 manualDoseIngredientNames，由医师单独开具并经审方复核。
+// 原口径的代价是实测出来的：天王补心丹因古方组成含朱砂被整方作废，病例锁到方仍 0 味。
+assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["古方蜡矾丸"]), []);
+assert.deepEqual(formulaManualDoseIngredients("古方蜡矾丸"), ["雄黄"],
+  "雄黄必须以「医师单独确定用量」身份可见，而不是被静默丢弃");
+assert.ok(!formulaCompilationReferences(["古方蜡矾丸"])[0].ingredients.includes("雄黄"),
+  "扣除味不得留在可编译组成里——留着模型会照写，随后被剂量门禁拒绝");
+assert.ok(formulaCompilationReferences(["古方蜡矾丸"])[0].minimumPreservedIngredientCount <= 4,
+  "80% 基准线必须按扣除后的组成计算，否则少一味就变成「组成不符」");
+// 方义本身落在毒性味上的（安宫牛黄丸：牛黄/麝香/犀角/雄黄/朱砂），扣完不成方，仍整方阻断。
+assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["安宫牛黄丸"]), ["安宫牛黄丸"]);
 assert.deepEqual(formulaNamesWithoutExecutableDoseCompilation(["归脾汤"]), []);
 
 for (const [name, entry] of Object.entries(formulaCatalog.officialClassicFormulas)) {
@@ -1108,11 +1118,24 @@ console.log(JSON.stringify({ cases: 328, classicEvidencePerCandidate: classicEvi
     assert.ok(executableFormulaCompilationReferences([name]).length > 0,
       `${name} 运行时必须与目录同口径`);
   }
-  // 监管轴两侧同样必须一致地保持阻断。
+  // 监管轴：不为该味编制用量的责任不变，但改由**扣除该味**承担，而不是作废整方。
+  // 两侧仍必须同口径——分叉会让 M04 拿到自相矛盾的基准。
   for (const name of ["天王补心丹", "古方蜡矾丸"]) {
     const row = catalog.entries.find((entry) => entry.name === name);
-    assert.equal(row?.doseCompilationEligible, false,
-      `${name} 含管制毒性成分，目录侧必须保持阻断`);
+    assert.ok(row?.doseCompilationEligible, `${name} 扣除管制毒性味后应可编译其余组成`);
+    assert.ok((row?.manualDoseIngredientNames || []).length > 0,
+      `${name} 的管制毒性味必须以「医师单独确定用量」身份可见`);
+    const reference = executableFormulaCompilationReferences([name])[0];
+    assert.ok(reference, `${name} 运行时必须与目录同口径`);
+    for (const manual of row.manualDoseIngredientNames) {
+      assert.ok(!reference.ingredients.includes(manual),
+        `${name} 的扣除味 ${manual} 不得留在可编译组成里`);
+    }
+  }
+  // 方义落在毒性/濒危味上的（扣完不成方，或身份都定不下来）仍整方阻断。
+  for (const name of ["安宫牛黄丸"]) {
+    const row = catalog.entries.find((entry) => entry.name === name);
+    assert.equal(row?.doseCompilationEligible, false, `${name} 扣除后不成方，必须保持阻断`);
     assert.equal(executableFormulaCompilationReferences([name]).length, 0,
       `${name} 运行时必须与目录同口径地阻断`);
   }
