@@ -3,6 +3,7 @@ import herbFunctionCategories from "../data/tcm-herb-function-categories.json";
 import doseWebSupplementsJson from "../data/tcm-herb-dose-web-supplements.source.json";
 import clinicianDosePolicyJson from "../data/tcm-herb-dose-clinician-policy.source.json";
 import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.source.json";
+import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
 import type { CaseState } from "./diagnosis-types";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 
@@ -1350,6 +1351,26 @@ export function isClinicianDoseHerb(herb: string): boolean {
   return clinicianClass !== undefined && !REGULATORY_BLOCKED_CLASSES.has(clinicianClass);
 }
 
+/**
+ * 功用补充：分类表按**主章节**归类（牡蛎→平抑肝阳药），同一味药落在别的章节里的第二功效
+ * （煅牡蛎收敛固涩）因此在知识库里查不到。后果不是提示不全，而是整方被驳——治法写
+ * 「益气固表，敛汗止汗」的方里用煅牡蛎，君臣支撑率会把它算作不落在任何已锁定方向上
+ * （实测网络医案 37/41 自汗案，均因此 0 味）。
+ * 只追加、不替换：原功用文本与分类标签一字不动。
+ */
+const FUNCTION_SUPPLEMENT_BY_NAME: ReadonlyMap<string, string> = new Map(
+  (functionSupplementsJson as unknown as { entries?: Array<{ herb?: string; supplement?: string }> })
+    .entries
+    ?.filter((entry) => typeof entry?.herb === "string" && typeof entry?.supplement === "string")
+    .map((entry) => [entry.herb as string, entry.supplement as string]) || [],
+);
+
+function withFunctionSupplement(canonical: string, text: string): string {
+  const supplement = FUNCTION_SUPPLEMENT_BY_NAME.get(canonical);
+  if (!supplement || text.includes(supplement)) return text;
+  return text ? `${text}；${supplement}` : supplement;
+}
+
 export function getTcmHerbFunctionText(herb: string): string {
   const canonical = canonicalKnowledgeHerbName(herb);
   const herbData = data.herbs.find((item) => item.name === canonical || item.aliases.includes(canonical));
@@ -1360,7 +1381,7 @@ export function getTcmHerbFunctionText(herb: string): string {
   const categoryIndex = herbFunctionCategories.categories as Record<string, string[]>;
   const categories = categoryIndex[canonical] || [];
   const controlled = CONTROLLED_HERB_FUNCTION_TEXT[canonical];
-  if (controlled) return [controlled, ...categories.slice(0, 2)].filter(Boolean).join("；");
+  if (controlled) return withFunctionSupplement(canonical, [controlled, ...categories.slice(0, 2)].filter(Boolean).join("；"));
 
   const categoryConcepts: Array<[RegExp, RegExp]> = [
     [/补气|补虚/, /大补元气|补中益气|健脾益气|补气|益气|固表|升阳/],
@@ -1391,7 +1412,7 @@ export function getTcmHerbFunctionText(herb: string): string {
     concise.push(item.text);
     if (concise.length >= 5) break;
   }
-  return [concise.join("，"), ...categories.slice(0, 2)].filter(Boolean).join("；");
+  return withFunctionSupplement(canonical, [concise.join("，"), ...categories.slice(0, 2)].filter(Boolean).join("；"));
 }
 
 /**

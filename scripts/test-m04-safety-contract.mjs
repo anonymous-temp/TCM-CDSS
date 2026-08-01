@@ -516,3 +516,31 @@ console.log(JSON.stringify({
       `status=${status} 不应产生质量批注`);
   }
 }
+
+// ─── 功用补充表：只追加、不替换，且必须真的补出目标方向 ─────────────────────
+// 缺口形态：《中药学》功效归类表按**主章节**归类，牡蛎→平抑肝阳药、龙骨→重镇安神药，
+// 于是"煅牡蛎收敛固涩"这个第二功效在知识库里查不到。后果不是提示不全，而是整方被驳——
+// 治法「益气固表，敛汗止汗」的方里用煅牡蛎，君臣支撑率把它算作不落在任何已锁定方向上
+// （实测网络医案 37/41 自汗案，均因此 0 味）。
+{
+  const { getTcmHerbFunctionText } = await import("../src/lib/tcm-knowledge.ts");
+  const { affirmedTcmTherapyConcepts } = await import("../src/lib/diagnosis-stage-contract.ts");
+  const { readFileSync } = await import("node:fs");
+  const supplements = JSON.parse(
+    readFileSync(new URL("../src/data/tcm-herb-function-supplements.source.json", import.meta.url), "utf8"));
+  for (const entry of supplements.entries) {
+    const text = getTcmHerbFunctionText(entry.herb);
+    assert.ok(text.includes(entry.supplement),
+      `${entry.herb} 的补充功用未生效：${text}`);
+    // 只追加：补充必须整体附在末尾。原文本为空时（知识库根本没收该药的功用，如赭石）
+    // 补充即全文，这仍然是"没有删改任何既有内容"。
+    assert.ok(text === entry.supplement || text.endsWith(`；${entry.supplement}`),
+      `${entry.herb} 的补充不是附加在既有功用文本之后：${text}`);
+    assert.ok(entry.basis && entry.basis.length > 15,
+      `${entry.herb} 的补充缺少可追溯依据原文`);
+    // 补充的目的是补出一个具体的方向；补不出来说明词表或补充文本对不上。
+    assert.ok(affirmedTcmTherapyConcepts(text).has(entry.missingConcept)
+      || entry.missingConcept === "blood_stanch",   // 止血方向不在 TCM_THERAPY_CONCEPTS 治法词表内
+      `${entry.herb} 补充后仍解析不出 ${entry.missingConcept}：${[...affirmedTcmTherapyConcepts(text)].join(",")}`);
+  }
+}
