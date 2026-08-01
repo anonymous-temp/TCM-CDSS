@@ -176,6 +176,18 @@ for (const entry of selected) {
     expectedFormula: entry.formula,
     lockedFormulas: overview?.recommendedFormulaNames || [],
     herbCount: Array.isArray(candidate?.herbs) ? candidate.herbs.length : 0,
+    // 0 味不都是缺陷。网络医案 11（头痛30年 + 呕吐 + 视物重影）是颅内压增高三联征，
+    // 安全门拒绝出剂量方是**正确**的临床行为；把它和「合同校验没过」混在一个出方率里，
+    // 等于用一个指标同时奖励和惩罚同一件事。按降级文案的来源分类。
+    outcome: (Array.isArray(candidate?.herbs) && candidate.herbs.length > 0)
+      ? "prescribed"
+      : /模型处方输出被截断|未通过处方合同校验/.test(record.stages.prescribe?.visible || "")
+        ? "contract_rejected"
+        : /尚未形成通过临床复核的稳定证候结果|辨病辨证结果完整性/.test(record.stages.prescribe?.visible || "")
+          ? "diagnosis_unstable"
+          : record.stages.prescribe
+            ? "safety_blocked"
+            : "diagnose_failed",
     diagnoseMs: diagnose.ms, prescribeMs: record.stages.prescribe?.ms ?? null,
     assessStatus: record.stages.assess?.status ?? null,
     errors: [...(d.errors || []), ...(record.stages.prescribe?.errors || [])],
@@ -191,6 +203,7 @@ const out = {
   diseaseHitRate: `${summary.filter((r) => r.diseaseHit).length}/${summary.length}`,
   syndromeAvgScore: Number((summary.reduce((t, r) => t + r.syndromeScore, 0) / n).toFixed(2)),
   prescribed: summary.filter((r) => r.herbCount > 0).length,
+  outcomes: summary.reduce((acc, r) => ({ ...acc, [r.outcome]: (acc[r.outcome] || 0) + 1 }), {}),
   namedFormula: summary.filter((r) => r.lockedFormulas.length > 0).length,
   assessOk: summary.filter((r) => r.assessStatus === 200).length,
   medianDiagnoseMs: summary.map((r) => r.diagnoseMs).sort((a, b) => a - b)[Math.floor(summary.length / 2)] ?? null,
