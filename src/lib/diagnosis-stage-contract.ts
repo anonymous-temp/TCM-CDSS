@@ -2062,13 +2062,29 @@ const THERAPY_CONCEPT_FACT_SUPPORT: ReadonlyArray<readonly [TcmTherapyConcept, R
   ["orifice_open", /神昏|昏迷|昏蒙|意识不清|谵语|窍闭|牙关紧闭|不省人事|中风闭证/],
   // 结块痰核是软坚散结类加味的指征。
   ["mass_soften", /瘰疬|痰核|癥瘕|积聚|包块|结节|肿块|甲状腺肿|乳癖|肝脾肿大/],
+  // ── 以下为**非高影响**方向。本表原本只为高影响门禁而建，于是君臣支撑率那道门里，
+  // 一味按症状加的解表药/敛汗药永远算不出依据——它既不在治法文本里，也没有事实通道可走。
+  // 实测 3 例自汗案（治法「益气固表，敛汗止汗」，方为玉屏风散合牡蛎散类）全部因此 0 味：
+  // 防风走表祛风，「背部常有恶寒感」「发热恶风」都已记录在案，却被判成不落在任何已成立方向上。
+  // 高影响门禁只查它关心的那 6 个方向，多出来的条目对它是惰性的；这里补的是支撑率的分子。
+  ["exterior_release", /恶风|恶寒|畏风|汗出恶风|鼻塞|流涕|喷嚏|头项强痛|周身酸痛|骨节疼痛|发热恶寒/],
+  ["astringe", /自汗|盗汗|汗出|多汗|大汗|久泻|久痢|滑精|遗精|遗尿|尿频|带下清稀|崩漏|久咳/],
+  ["calm_spirit", /失眠|不寐|入睡困难|多梦|易醒|心悸|怔忡|心烦|易惊|善惊|健忘|心神不宁/],
+  ["cough_relieve", /咳嗽|干咳|咳痰|痰多|气喘|喘息|气促|胸闷憋气|咽痒/],
+  ["spleen_support", /纳差|纳呆|食少|食欲不振|腹胀|脘痞|便溏|大便稀|完谷不化|食后腹胀/],
+  ["qi_tonify", /乏力|倦怠|神疲|气短|懒言|动则气促|自汗|声低|面色㿠白|易感冒/],
+  ["blood_nourish", /面色萎黄|面色无华|唇甲色淡|头晕目眩|爪甲不荣|经量少|经色淡|舌淡(?![^，。；;]{0,4}胖)/],
+  ["yin_nourish", /五心烦热|潮热|盗汗|口干|咽干|舌红少苔|舌红无苔|少津|大便干结|脉细数/],
+  ["damp_resolve", /苔腻|头重|身重|困重|肢体困重|水肿|浮肿|小便不利|带下量多|大便黏滞/],
+  ["phlegm_resolve", /痰多|咳痰|喉中痰鸣|痰粘|苔厚腻|恶心欲呕|头晕目眩(?=[^，。；;]*痰)/],
+  ["qi_regulate", /胁胀|胁痛|脘腹胀满|嗳气|太息|情志不畅|抑郁|烦躁易怒|嘈杂|痛无定处/],
 ];
 
 /**
  * 签名 M03 已记录事实所支撑的高影响治法方向（症状指征通道）。
  * 与治法文本通道并列：两者任一成立即视为该方向已成立。
  */
-function priorDocumentedFactConcepts(prior: M03ReasoningLike | null | undefined): Set<TcmTherapyConcept> {
+export function priorDocumentedFactConcepts(prior: M03ReasoningLike | null | undefined): Set<TcmTherapyConcept> {
   const supported = new Set<TcmTherapyConcept>();
   const texts = groundedM03FactText(prior);
   if (!texts) return supported;

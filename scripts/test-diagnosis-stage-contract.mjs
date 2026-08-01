@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SafetyContractIssue, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, stableM03SyndromeLabel, transparentFormulaTherapyIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SafetyContractIssue, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, priorDocumentedFactConcepts, stableM03SyndromeLabel, transparentFormulaTherapyIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
 const { getM03TherapyLock } = await import("../src/lib/m03-therapy-lock.ts");
 const { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } = await import("../src/lib/m04-repair-policy.ts");
 const { editedPrescriptionSemanticIssue } = await import("../src/lib/prescription-revision.ts");
@@ -4372,4 +4372,43 @@ console.log(JSON.stringify({ cases: 382, failures: 0 }));
   const bothIssue = m03SafetyContractIssue(both, ctxStable, isSafetyRejection);
   assert.ok(bothIssue && /ungrounded/.test(bothIssue),
     `跳过非安全码后必须继续检查并报出真正的安全项，实得 ${bothIssue}`);
+}
+
+// ─── 症状指征通道必须覆盖非高影响方向 ───────────────────────────────────────
+// 本表原本只为高影响门禁而建（清热/温阳/活血/泻下/开窍/软坚），于是君臣支撑率那道门里，
+// 一味按症状加的解表药/敛汗药永远算不出依据——既不在治法文本里，也没有事实通道可走。
+// 实测 3 例自汗案（治法「益气固表，敛汗止汗」，方为玉屏风散合牡蛎散类）全部因此 0 味：
+// 防风走表祛风，「背部常有恶寒感」「发热恶风」都已记录在案，却被判成不落在任何已成立方向上。
+{
+  const factCases = [
+    ["背部常有恶寒感，汗出清冷", "exterior_release"],
+    ["自汗已三年，稍动则汗出浸衣", "astringe"],
+    ["入睡困难，多梦易醒，心悸", "calm_spirit"],
+    ["咳嗽咳痰，气促作喘", "cough_relieve"],
+    ["纳差腹胀，大便稀溏", "spleen_support"],
+    ["神疲乏力，气短懒言", "qi_tonify"],
+    ["胁胀嗳气，情志不畅", "qi_regulate"],
+  ];
+  for (const [factText, concept] of factCases) {
+    const prior = {
+      ...stable,
+      pathogenesis: {
+        ...stable.pathogenesis,
+        chain: [{ ...stable.pathogenesis.chain[0], patientFact: factText }],
+      },
+    };
+    const supported = priorDocumentedFactConcepts(prior);
+    assert.ok(supported.has(concept),
+      `已记录事实「${factText}」应当支撑 ${concept}，实际：${[...supported].join(",") || "(空)"}`);
+  }
+  // 反向：高影响方向的收窄口径不得被本次扩表放宽——恶寒是表证主症，不能支撑温里。
+  const coldPrior = {
+    ...stable,
+    pathogenesis: {
+      ...stable.pathogenesis,
+      chain: [{ ...stable.pathogenesis.chain[0], patientFact: "发热恶寒，周身骨节疼痛" }],
+    },
+  };
+  assert.ok(!priorDocumentedFactConcepts(coldPrior).has("yang_warm"),
+    "恶寒是表证主症，对应治法是解表而非温里，不得支撑 yang_warm（附子类会被误放行）");
 }
