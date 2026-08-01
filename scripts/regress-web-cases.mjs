@@ -123,7 +123,13 @@ const selected = source.cases.filter((c) => ONLY.size === 0 || ONLY.has(String(c
 await fs.mkdir(ARTIFACT_DIR, { recursive: true });
 const summary = [];
 
-for (const entry of selected) {
+// 并发跑例。串行 50 例 = 纯模型时延累加（实测 94 分钟），例与例之间无共享状态，
+// 唯一的共享约束是服务端模型限流（CDSS_MODEL_RATE_LIMIT_PER_10_MIN，默认 60/10min）：
+// 每例约 5-8 次模型调用，4 并发≈14 次/分钟，本地测试服务器需将该上限调高（wrapper 里设）。
+// 默认 1 保持旧行为，避免误伤生产限流。
+const CONCURRENCY = Math.max(1, Number(process.env.WEB_CASES_CONCURRENCY || "1") || 1);
+
+async function runCase(entry) {
   process.stderr.write(`[web] ${entry.no}. ${entry.tcmDisease}-${entry.syndrome} …\n`);
   let base = caseStateOf(entry);
   // 与产品客户端一致：先做语义红旗预检并回传，避免各阶段重复预检。
@@ -194,6 +200,28 @@ for (const entry of selected) {
   };
   summary.push(row);
   process.stderr.write(`  ↳ ${JSON.stringify(row)}\n`);
+}
+
+{
+  const queue = [...selected];
+  const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+    for (;;) {
+      const entry = queue.shift();
+      if (!entry) return;
+      try {
+        await runCase(entry);
+      } catch (error) {
+        // 单例崩溃不拖垮整轮；按失败行记入汇总，保持 50 例账目完整。
+        process.stderr.write(`  ↳ 病例 ${entry.no} 异常: ${String(error?.message || error)}\n`);
+        summary.push({ no: entry.no, expectedDisease: entry.tcmDisease, actualDisease: null, diseaseHit: false,
+          expectedSyndrome: entry.syndrome, actualSyndrome: null, syndromeScore: 0, expectedFormula: entry.formula,
+          lockedFormulas: [], herbCount: 0, outcome: "harness_error", diagnoseMs: 0, prescribeMs: null,
+          assessStatus: null, errors: [String(error?.message || error)] });
+      }
+    }
+  });
+  await Promise.all(workers);
+  summary.sort((a, b) => a.no - b.no);
 }
 
 const n = summary.length || 1;
