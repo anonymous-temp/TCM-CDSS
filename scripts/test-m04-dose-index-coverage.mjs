@@ -22,7 +22,7 @@ const jiti = createJiti(import.meta.url, {
   },
 });
 
-const { buildTcmKnowledgeContext, getTcmHerbDoseLimit, clinicianDoseHerbClass } = await jiti.import("../src/lib/tcm-knowledge.ts");
+const { buildTcmKnowledgeContext, getTcmHerbDoseLimit, clinicianDoseHerbClass, isKnownTcmHerbName } = await jiti.import("../src/lib/tcm-knowledge.ts");
 const { createInitialCaseState } = await jiti.import("../src/lib/diagnosis-types.ts");
 const knowledge = (await jiti.import("../src/data/tcm-knowledge.json", { default: true }));
 const catalog = (await jiti.import("../src/data/tcm-formula-governed-catalog.json", { default: true }));
@@ -168,3 +168,32 @@ console.log(JSON.stringify({
   coreTonicsPresent: CORE_TONICS.length - missingTonics.length,
   failures: 0,
 }, null, 2));
+
+// ─── 存在性判定必须覆盖本仓自己的功效权威表 ─────────────────────────────────
+// 缺口的形态：《中药学》第十版功效归类表(507 味)认识浮小麦(固表止汗药)、白花蛇舌草、
+// 玉米须、绞股蓝…，而 isKnownTcmHerbName 只查剂量知识库，于是同一味药在「有没有功效」上
+// 答有、在「存不存在」上答否。M04 据后者以 herb_*_unknown 把整方判死——实测汗证病例
+// 开出浮小麦后 0 味，而浮小麦是甘麦大枣汤/牡蛎散的核心药。
+// 逐味补是修不完的；这里钉住整表：功效表里的每一味，要么被识别，要么落在两个**显式**的
+// 例外集合里。新增缺口一律红。
+{
+  const functionCategories = await jiti.import("../src/data/tcm-herb-function-categories.json", { default: true });
+  // ① 监管轴：门槛来自法规而非数据缺口，不进豁免层（见 tcm-controlled-toxic-herb-policy）。
+  const REGULATORY = new Set(["守宫", "海狗肾", "熊胆粉", "甜瓜蒂", "硼砂", "蟾皮", "铅丹", "黄狗肾"]);
+  // ② 源表 OCR 残缺名：GB18030 生僻字丢字，必须回源修抽取，不得靠猜测补全
+  //    （斑鳌=斑蝥、广董香=广藿香、淡豆鼓=淡豆豉、瓜萎=瓜蒌、稀签草=豨莶草、
+  //     罂栗壳=罂粟壳、芒麻根=苎麻根、芜花=芫花、青箱子=青葙子、枳棋子=枳椇子、老鹤草=老鹳草）。
+  const SOURCE_OCR_DEFECTS = new Set([
+    "广董香", "斑鳌", "枳棋子", "淡豆鼓", "瓜萎", "白鼓", "稀签草", "罂栗壳", "老鹤草",
+    "芒麻根", "芜花", "青箱子",
+  ]);
+  const unrecognized = Object.keys(functionCategories.categories)
+    .filter((herb) => !isKnownTcmHerbName(herb))
+    .filter((herb) => !REGULATORY.has(herb) && !SOURCE_OCR_DEFECTS.has(herb));
+  assert.deepEqual(unrecognized, [],
+    `功效表收载但存在性判定不认的药味（M04 会以 herb_*_unknown 作废整方）：${unrecognized.join("、")}`);
+  // 反向：例外集合不得被用来掩盖已经修好的缺口，否则它会慢慢变成一张万能白名单。
+  const staleExceptions = [...REGULATORY, ...SOURCE_OCR_DEFECTS].filter((herb) => isKnownTcmHerbName(herb));
+  assert.deepEqual(staleExceptions, [],
+    `已被识别的药味仍留在例外集合里，应当移除：${staleExceptions.join("、")}`);
+}
