@@ -3278,7 +3278,13 @@ async function callPrimaryTextModelStream(
         }
         if (
           structuredSentinelIncomplete &&
-          m04ClinicalReviewStatus !== "repair" &&
+          // 复核判 repair 时原本整块跳过——于是这条降级通道对**最需要它的那批**恰好不可达：
+          // 修复轮已经耗尽、复核仍不满意，正是「出方还是 0 味」的分岔点。实测网络医案
+          // 9/14/15/16 都停在这里，日志里连一行 transparent fallback 都没有。
+          // 放开的只是**入口**：块内会用剥离身份后的内容重跑严格合同，并对降级候选**重新执行**
+          // 独立复核，按意见性质分流（组成/君臣/患者前提 → 带批注受理；剂量强度与未知码 →
+          // 维持作废）。因此这不是绕过复核，而是让复核对正确的对象再判一次。
+          (m04ClinicalReviewStatus !== "repair" || m04RepairLoopEarlyExit || m04DeadlineExceeded) &&
           finishReason === "stop" &&
           opts.structuredStage === "prescribe" &&
           opts.structuredPriorReasoning
@@ -3374,7 +3380,8 @@ async function callPrimaryTextModelStream(
             // herb_plan_mismatch 判 repair，fixpoint 早退 → 整方 0 味。
             const transparentReviewQualityOnly = transparentReview.status === "repair" &&
               (transparentReview.issueCode === "formula_composition_mismatch" ||
-                transparentReview.issueCode === "herb_plan_mismatch");
+                transparentReview.issueCode === "herb_plan_mismatch" ||
+                transparentReview.issueCode === "patient_context_mismatch");
             if (transparentReview.status === "repair") {
               console.warn("[tcm-cdss:model] transparent formula fallback rejected by clinical review", {
                 stage: "prescribe",
@@ -3387,7 +3394,13 @@ async function callPrimaryTextModelStream(
                 // 批注不复述原因码：医生需要知道的是「哪一层已通过、哪一层只是意见」。
                 m04TransparentQualityAnnotation = transparentReview.issueCode === "formula_composition_mismatch"
                   ? "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；因实际组成未能满足所引经方的核心结构，已改按本例辨证组方呈现，请结合本次病历核对方义后再采纳。"
-                  : "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；独立复核对方药与病机的对应关系仍有保留意见，请结合本次病历逐味核对后再采纳。";
+                  : transparentReview.issueCode === "patient_context_mismatch"
+                    // 「依赖未成立的患者前提」在门诊几乎必然出现——过敏史/用药史/肝肾功能常常
+                    // 就是没采集。确定性层能管的部分（妊娠/哺乳/儿科门禁、十八反十九畏、逐味剂量
+                    // 上限）已经全部跑过并通过，管不了的是「未知」本身，而对未知的正确处理是
+                    // 让医生看见并确认，不是把整张方作废——审方复核在其后仍会独立执行。
+                    ? "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；但本例的过敏史、当前用药、肝肾功能等信息尚未采集，方案按「未知」保守处理，请医生补充确认并经院内审方复核后再采纳。"
+                    : "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；独立复核对方药与病机的对应关系仍有保留意见，请结合本次病历逐味核对后再采纳。";
               }
               transparentFormulaDeclassificationAccepted = true;
               advisoryM04RiskAccepted = true;
