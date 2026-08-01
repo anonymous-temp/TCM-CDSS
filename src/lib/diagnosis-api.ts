@@ -899,6 +899,11 @@ function structuredRejectionReason(
   finishReason: string | null,
   clinicalContext = "",
   priorReasoning?: ReturnType<typeof normalizeReasoningV2>,
+  // 对**已经完成透明降级**的内容归因时必须放开这一项，否则合同在第一道就返回
+  // formula_reference_declassified 并短路，后面的真实失败原因永远不会被计算出来——
+  // 日志里看到的 m04_formula_reference_declassified 只是「它确实降级过」，
+  // 而不是「它为什么没通过」。实测网络医案 14/15/16 全部卡在这个盲区上。
+  allowTransparentDeclassification = false,
 ): string {
   if (finishReason !== "stop") return `finish_${finishReason || "null"}`;
   const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
@@ -935,7 +940,7 @@ function structuredRejectionReason(
         enrichedReasoning,
         priorReasoning,
         false,
-        false,
+        allowTransparentDeclassification,
       );
       if (formulaIssue) return `m04_${formulaIssue}`;
       const issue = m04SemanticIssue(
@@ -3337,7 +3342,10 @@ async function callPrimaryTextModelStream(
               // 还是剥离/剔除后的候选自身有残余缺陷。合同码不含患者内容。
               declassifiedRejectionReason: transparentReasoning
                 ? "n/a"
-                : structuredRejectionReason(declassifiedContent, "prescribe", finishReason, opts.structuredClinicalContext, opts.structuredPriorReasoning),
+                : structuredRejectionReason(
+                    declassifiedContent, "prescribe", finishReason,
+                    opts.structuredClinicalContext, opts.structuredPriorReasoning, true,
+                  ),
               completedRepairAttempts: transparentFallbackInput.completedRepairAttempts,
               repairExhausted: transparentFallbackInput.repairExhausted,
               strictFormulaIssue: strictFormulaIssue || "none",
