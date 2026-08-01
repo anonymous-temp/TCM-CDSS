@@ -27,7 +27,7 @@ import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
-import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } from "@/lib/m04-repair-policy";
+import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, m04FinalReviewQualityAnnotation } from "@/lib/m04-repair-policy";
 import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
@@ -3378,10 +3378,8 @@ async function callPrimaryTextModelStream(
             // 核验、带批注的可执行处方，而不是一页「未形成处方」。
             // 实测（网络医案 14，头痛-肝胃郁热）：左金丸候选被 declassify 后，复核以
             // herb_plan_mismatch 判 repair，fixpoint 早退 → 整方 0 味。
-            const transparentReviewQualityOnly = transparentReview.status === "repair" &&
-              (transparentReview.issueCode === "formula_composition_mismatch" ||
-                transparentReview.issueCode === "herb_plan_mismatch" ||
-                transparentReview.issueCode === "patient_context_mismatch");
+            const transparentReviewAnnotation = m04FinalReviewQualityAnnotation(transparentReview);
+            const transparentReviewQualityOnly = Boolean(transparentReviewAnnotation);
             if (transparentReview.status === "repair") {
               console.warn("[tcm-cdss:model] transparent formula fallback rejected by clinical review", {
                 stage: "prescribe",
@@ -3391,16 +3389,7 @@ async function callPrimaryTextModelStream(
             }
             if (transparentReview.status !== "repair" || transparentReviewQualityOnly) {
               if (transparentReviewQualityOnly) {
-                // 批注不复述原因码：医生需要知道的是「哪一层已通过、哪一层只是意见」。
-                m04TransparentQualityAnnotation = transparentReview.issueCode === "formula_composition_mismatch"
-                  ? "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；因实际组成未能满足所引经方的核心结构，已改按本例辨证组方呈现，请结合本次病历核对方义后再采纳。"
-                  : transparentReview.issueCode === "patient_context_mismatch"
-                    // 「依赖未成立的患者前提」在门诊几乎必然出现——过敏史/用药史/肝肾功能常常
-                    // 就是没采集。确定性层能管的部分（妊娠/哺乳/儿科门禁、十八反十九畏、逐味剂量
-                    // 上限）已经全部跑过并通过，管不了的是「未知」本身，而对未知的正确处理是
-                    // 让医生看见并确认，不是把整张方作废——审方复核在其后仍会独立执行。
-                    ? "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；但本例的过敏史、当前用药、肝肾功能等信息尚未采集，方案按「未知」保守处理，请医生补充确认并经院内审方复核后再采纳。"
-                    : "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；独立复核对方药与病机的对应关系仍有保留意见，请结合本次病历逐味核对后再采纳。";
+                m04TransparentQualityAnnotation = transparentReviewAnnotation;
               }
               transparentFormulaDeclassificationAccepted = true;
               advisoryM04RiskAccepted = true;
@@ -3474,6 +3463,13 @@ async function callPrimaryTextModelStream(
             m03DeadlineExceeded,
           });
         }
+        // 「修复确实已经无路可走」：fixpoint 早退 / 编排超时 / 修复轮已经用过一轮 /
+        // 已按透明降级受理。finalize 阶段的复核在这之后才跑，届时任何 repair 意见都
+        // 没有承接者，只能决定「出方」还是「0 味」。
+        const repairRoundsExhausted = opts.structuredStage === "prescribe" && (
+          m04RepairLoopEarlyExit || m04DeadlineExceeded ||
+          transparentFormulaDeclassificationAccepted || m04RepairState.completedAttempts >= 1
+        );
         let truncated = finishReason !== "stop" || structuredSentinelIncomplete;
         if (!truncated && opts.structuredStage) {
           // Duplicate presentation fields are synchronized only after the untouched provider
@@ -3802,7 +3798,21 @@ async function callPrimaryTextModelStream(
                 ));
                 trackM04ReviewResult(review, finalReasoning);
                 m04ClinicalReviewStatus = review.status;
-                if (review.status === "repair") {
+                // finalize 阶段这次复核发生在所有修复轮之后——它给出的 repair 已经没有任何
+                // 修复轮可以承接，唯一的效果就是把一份走完全部确定性核验的方判成 0 味。
+                // 更糟的是它会把上面刚刚**带批注受理**的透明降级候选重新判死（实测网络医案 3，
+                // 郁证-天王补心丹：降级已受理，随后这里以 herb_plan_mismatch 作废整方）。
+                // 因此这里与降级块共用同一条分流规则；无路可修时按意见性质受理或作废。
+                const finalReviewAnnotation = repairRoundsExhausted
+                  ? m04FinalReviewQualityAnnotation(review)
+                  : undefined;
+                if (review.status === "repair" && finalReviewAnnotation) {
+                  m04TransparentQualityAnnotation = m04TransparentQualityAnnotation || finalReviewAnnotation;
+                  console.warn("[tcm-cdss:model] final M04 review repair accepted with quality annotation", {
+                    stage: "prescribe",
+                    issueCode: review.issueCode,
+                  });
+                } else if (review.status === "repair") {
                   truncated = true;
                   transformed = transformTruncateFallback();
                 }

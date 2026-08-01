@@ -488,3 +488,31 @@ console.log(JSON.stringify({
   assert.deepEqual(namesOf(dropUnsupportedM04CandidateHerbs(allBad, prior, false)), ["前胡"],
     "剔除后不得零治疗性药味——那比原驳回更糟，此时放弃剔除");
 }
+
+// ─── 修复轮走完之后，复核 repair 意见的分流 ─────────────────────────────────────
+// 这条规则此前散落在三处，每处各自决定「repair ⇒ 作废」，同一类 0 味修了三遍还在复发：
+// 透明降级块内、块外的入口守卫、finalize 阶段的最后一次复核（后者会把刚刚受理的降级候选
+// 重新判死——实测网络医案 3，郁证-天王补心丹）。现在只有一处实现，这里钉住它的取值。
+{
+  const { m04FinalReviewQualityAnnotation } = await import("../src/lib/m04-repair-policy.ts");
+  // 受理：这三项在确定性层都有对应检查且已经跑过（方剂基准组成、君臣结构与病机引用、
+  // 妊娠哺乳儿科门禁 + 十八反十九畏 + 逐味剂量上限）。复核在其上给的是质量意见。
+  for (const issueCode of ["formula_composition_mismatch", "herb_plan_mismatch", "patient_context_mismatch"]) {
+    const annotation = m04FinalReviewQualityAnnotation({ status: "repair", issueCode });
+    assert.ok(annotation && annotation.length > 20,
+      `${issueCode} 应当带批注受理，而不是把整方判成 0 味`);
+    assert.ok(/已完整通过安全核验/.test(annotation),
+      `${issueCode} 的批注必须写明哪一层已通过，否则医生无从判断能不能用`);
+  }
+  // 维持 fail-closed：剂量强度是唯一不能含糊的一项（确定性层只保证不越界，
+  // 保证不了「这个强度对这个人合不合适」）；未知码 default-deny。
+  for (const issueCode of ["dose_rationale_concern", "some_future_issue_code", "none"]) {
+    assert.equal(m04FinalReviewQualityAnnotation({ status: "repair", issueCode }), undefined,
+      `${issueCode} 不得被带批注受理`);
+  }
+  // 非 repair 状态不产生批注（accepted 走正常路径，unavailable 另有转人工通道）。
+  for (const status of ["accepted", "unavailable"]) {
+    assert.equal(m04FinalReviewQualityAnnotation({ status, issueCode: "herb_plan_mismatch" }), undefined,
+      `status=${status} 不应产生质量批注`);
+  }
+}
