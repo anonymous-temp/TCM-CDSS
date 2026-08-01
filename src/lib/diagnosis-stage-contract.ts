@@ -2574,7 +2574,12 @@ export function transparentFormulaTherapyIssue(
   // （实测：天麻平肝 + 黄芩清肝泻火，舌红苔薄黄已记录 —— 旧比例规则 1/2=0.5 是通过的）。
   // 3 味以上才要求 2 味内核：既保住「P1 不能没有君臣」，又不给小方施加它无法满足的绝对值。
   const p1CoreFloor = therapeuticHerbs.length >= 3 ? 2 : 1;
-  if (directlySupportingHerbs < p1CoreFloor) return "transparent_therapy_herb_support";
+  // 这条绝对下限与上面两个比值同源：directlySupportingHerbs 数的是「落在 coverageRequired 上
+  // 或属基准方组成」的味。治法方向不可核验时 coverageRequired 为空，于是它只剩基准方那一项——
+  // 对一张没有锁定经典方的自拟方，计数必然是 0，无论方里写了什么都判死。
+  // 上面已经因为「分母不存在」跳过了两个比值，这里必须跳过同一个理由，否则等于换个写法
+  // 继续用未知否定候选。
+  if (therapyDirectionVerifiable && directlySupportingHerbs < p1CoreFloor) return "transparent_therapy_herb_support";
   // 君臣核心里几乎每味都必须落在某条已锁定治法方向上（或属基准方组成），杜绝"凑数量"。
   if (therapyDirectionVerifiable && lockedSupportingHerbs / supportAccountable.length < 0.8) return "transparent_therapy_herb_support";
 
