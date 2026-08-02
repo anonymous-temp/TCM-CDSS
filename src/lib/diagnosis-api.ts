@@ -14,7 +14,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -789,7 +789,22 @@ function validatedStructuredReasoning(
       // that exact enriched object here as well, so a late route transform cannot turn an otherwise
       // retryable provider response into an immediate visible M04 fallback.
       const enrichedReasoning = enrichReasoning(reasoning).reasoning;
-      if (m04SemanticIssue(
+      // 最后一公里（透明降级受理 / finalize 复验）只验**安全底线合同**：逐味剂量边界、
+      // 配伍禁忌、特殊人群、方向对立、君臣结构、跨阶段漂移——T1 的定义本身。质量检查
+      // （m04SemanticIssue 的全量口径）在生成与修复轮里已经行使过全部权力；修复耗尽后再用
+      // 全量口径复验，等于任何一个没打豁免旗的质量发射点都能把已受理的候选再判成 0 味——
+      // 这个「逐点打旗、漏一点复发一类」的模式已经复发了四次，结构上必须终结。
+      if (waiveM04TherapyCoverageAnnotated) {
+        if (m04SafetyContractIssue(
+          enrichedReasoning,
+          priorReasoning,
+          isKnownTcmHerbName,
+          false,
+          auditedClinicalRisksAreAdvisory,
+          clinicalContext,
+          true,
+        )) return undefined;
+      } else if (m04SemanticIssue(
         enrichedReasoning,
         visibleContent,
         priorReasoning,
@@ -799,7 +814,6 @@ function validatedStructuredReasoning(
         false,
         auditedClinicalRisksAreAdvisory,
         clinicalContext,
-        waiveM04TherapyCoverageAnnotated,
       )) return undefined;
       if (formulaCompilationContractIssue(
         enrichedReasoning,

@@ -3190,6 +3190,7 @@ export function m04SemanticIssue(
           priorReasoning,
           true,
           governedFormulaNames(candidate.formulaNames) || [],
+          waiveTherapyCoverageAnnotated,
         )
       : undefined;
     if (highImpactIssue) return `candidate_${candidateIndex}_${highImpactIssue}`;
@@ -3427,6 +3428,7 @@ export function m04SafetyContractIssue(
           priorReasoning,
           true,
           governedFormulaNames(candidate.formulaNames) || [],
+          waiveTherapyCoverageAnnotated,
         )
       : undefined;
     if (highImpactIssue) return `candidate_${candidateIndex}_${highImpactIssue}`;
