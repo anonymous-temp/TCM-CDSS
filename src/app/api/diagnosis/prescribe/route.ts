@@ -305,9 +305,20 @@ export async function POST(req: Request) {
           issue,
           stage: "prescribe",
         });
-        return [informationNotice, `> ${annotation}`, synchronized].filter(Boolean).join("\n\n");
+        // synchronizeVisibleClinicalSummary 从结构化载荷重建可见正文，标题前的警示横幅
+        // 不在载荷里、会被重建丢掉——这里显式补回，横幅必须活到最终输出。
+        return [
+          advisoryBanner && !synchronized.includes("CDSS_SAFETY_ADVISORY") ? advisoryBanner.trimEnd() : "",
+          informationNotice,
+          `> ${annotation}`,
+          synchronized,
+        ].filter(Boolean).join("\n\n");
       }
-      return [informationNotice, synchronized].filter(Boolean).join("\n\n");
+      return [
+        advisoryBanner && !synchronized.includes("CDSS_SAFETY_ADVISORY") ? advisoryBanner.trimEnd() : "",
+        informationNotice,
+        synchronized,
+      ].filter(Boolean).join("\n\n");
     },
   });
 }
