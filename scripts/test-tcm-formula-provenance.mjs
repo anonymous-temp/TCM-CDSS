@@ -957,8 +957,10 @@ const xiaokePrompt = prescribePromptFor(xiaokeReasoning);
 assert.ok(xiaokePrompt.includes("君药知识库覆盖"), "M04 prompt must state the emperor KB-coverage hard rule");
 assert.ok(xiaokePrompt.includes("完全无功能收载的药味不得为君"), "the hard rule must forbid emperors without any KB function coverage");
 assert.ok(xiaokePrompt.includes("改用同一治法方向上最近的有覆盖药味"), "the prompt must steer an uncovered ideal emperor to the closest covered herb in the same direction");
-const shortlistStart = xiaokePrompt.indexOf("【本例治法方向的知识库覆盖药味短名单");
-const shortlistEnd = xiaokePrompt.indexOf("【M04药味可引用病机节点】");
+// 固定规范里有对两个段落标题的**文字引用**（"后附【…】"），必须用行首形式定位真实段落，
+// 否则 indexOf 会命中前缀里的引用而不是段落本体。
+const shortlistStart = xiaokePrompt.indexOf("\n【本例治法方向的知识库覆盖药味短名单");
+const shortlistEnd = xiaokePrompt.indexOf("\n【M04药味可引用病机节点】");
 assert.ok(shortlistStart >= 0 && shortlistEnd > shortlistStart, "M04 prompt must inject the KB-covered herb shortlist for a 消渴/阴虚内热-type case");
 const shortlistSection = xiaokePrompt.slice(shortlistStart, shortlistEnd);
 assert.ok(shortlistSection.includes("- 补阴方向（"), "the shortlist must group covered herbs by the 补阴 direction");
@@ -989,9 +991,9 @@ const neutralXiaokePrompt = prescribePromptFor(promptM03Reasoning({
   method: "调畅气机，助津液输布",
   chain: [["P1", "津液输布与气化功能失调", "调畅气机"]],
 }));
-const neutralShortlistStart = neutralXiaokePrompt.indexOf("【本例治法方向的知识库覆盖药味短名单");
+const neutralShortlistStart = neutralXiaokePrompt.indexOf("\n【本例治法方向的知识库覆盖药味短名单");
 assert.ok(neutralShortlistStart >= 0, "the bounded functional syndrome shape must still get a KB-covered shortlist via the functional therapy vocabulary");
-const neutralShortlistEnd = neutralXiaokePrompt.indexOf("【M04药味可引用病机节点】");
+const neutralShortlistEnd = neutralXiaokePrompt.indexOf("\n【M04药味可引用病机节点】");
 assert.ok(neutralShortlistEnd > neutralShortlistStart, "the shortlist block must be well-formed for the neutral shape");
 const neutralShortlistSection = neutralXiaokePrompt.slice(neutralShortlistStart, neutralShortlistEnd);
 assert.ok(neutralShortlistSection.includes("- 理气方向（"), "调畅气机 must map to the 理气 direction group on the prompt side as it does on the contract side");
