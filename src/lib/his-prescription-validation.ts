@@ -2,7 +2,7 @@ import "server-only";
 
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "./diagnosis-parse";
-import { m04SemanticIssue } from "./diagnosis-stage-contract";
+import { m04SafetyContractIssue } from "./diagnosis-stage-contract";
 import {
   editedPrescriptionIssueMessage,
   editedPrescriptionSemanticIssue,
@@ -127,19 +127,21 @@ export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPr
   };
 
   if (!trustedWorkbenchEdit) {
-    // Model-originated M04 must not inherit the doctor-edit exemption. Re-run the strict M04
-    // contract against the signed M03 contract.
-    const strictIssue = m04SemanticIssue(
+    // HIS 写回是最后一道信任边界，执行的是**安全底线合同**（逐味剂量边界、配伍禁忌、特殊
+    // 人群、方向对立、君臣结构、跨阶段漂移），而不是全量质量口径——质量合同的权力止于流层
+    // 的生成与修复轮。此前这里复跑全量 m04SemanticIssue：流层按降级/批注受理的候选（页面
+    // 已显示完成）在生成 HIS 方案时被同一族 T2 码再判死、422 拒绝——「页面看似完成、对外
+    // 集成拿不到交付结果」（甲方生产实测病例1），这是同一结构性分叉的第 6 处复发点。
+    const floorIssue = m04SafetyContractIssue(
       selectedReasoning,
-      "",
       diagnoseReasoning,
       isKnownTcmHerbName,
-      true,
-      true,
       false,
       true,
+      "",
+      true,
     );
-    if (strictIssue) return invalidPrescription(strictIssue);
+    if (floorIssue) return invalidPrescription(floorIssue);
   }
 
   // Every HIS candidate reaches the same server compilation contract. That contract applies its
