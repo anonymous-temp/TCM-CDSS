@@ -353,6 +353,46 @@ function hasImmediateBareNegator(text: string, index: number): boolean {
   );
 }
 
+/**
+ * 限定词塌缩的呈现修正：模型把「否认高热」压缩成「否认发热」、「否认突发最剧烈头痛」压缩成
+ * 「否认头痛」时，净化器按接地纪律改写成「病历尚未确认发热是否存在」在逻辑上没错
+ * （否认高热确实不排除低热），但对医生是自相矛盾的呈现（甲方生产实测）。
+ * 这里识别「记录否认了 term 的更具体变体」：后缀限定（X=修饰+term）走通用规则，
+ * 少数非后缀的临床上下位对（高热/低热→发热）走小表。命中时提示改为
+ * 「病历已记录否认<变体>；<term>的一般情况需医生核实」。
+ */
+const NEGATED_HYPONYM_TABLE: Record<string, readonly string[]> = {
+  发热: ["高热", "低热", "壮热", "中等度热"],
+  出血: ["大出血", "大量出血"],
+};
+
+function documentedQualifiedDenial(source: string, term: string): string | undefined {
+  const normalized = normalizeClinicalText(source);
+  const qualifiers = "(?:持续|突发|突然|急性|反复|阵发性?|间断|明显|大量|剧烈|进行性|严重|轻微|最)";
+  const candidates = [
+    new RegExp(`${qualifiers}{1,3}${term}`, "g"),
+    ...(NEGATED_HYPONYM_TABLE[term] || []).map((variant) => new RegExp(variant, "g")),
+  ];
+  for (const pattern of candidates) {
+    for (const match of normalized.matchAll(pattern)) {
+      const variant = match[0];
+      if (variant === term) continue;
+      if (sourceDocumentsNegation(normalized, variant)) return variant;
+    }
+  }
+  return undefined;
+}
+
+function unknownTermNotice(source: string, terms: readonly string[]): string {
+  const parts = terms.map((term) => {
+    const denied = documentedQualifiedDenial(source, term);
+    return denied
+      ? `病历已记录否认${denied}，${term}的一般情况需医生核实`
+      : `病历尚未确认${term}是否存在`;
+  });
+  return parts.join("；");
+}
+
 function sourceDocumentsNegation(source: string, term: string): boolean {
   const normalized = normalizeClinicalText(source);
   const equivalents = POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term)) || [term];
@@ -558,7 +598,7 @@ function sanitizeUngroundedNegationText(value: string, source: string): string {
         return `${prefix}${[
           documentedPositive.length > 0 ? `病历已记录${documentedPositive.join("、")}阳性` : "",
           documentedNegative.length > 0 ? `病历已记录否认${documentedNegative.join("、")}` : "",
-          stillUnknown.length > 0 ? `病历尚未确认${stillUnknown.join("、")}是否存在` : "",
+          stillUnknown.length > 0 ? unknownTermNotice(source, stillUnknown) : "",
         ].filter(Boolean).join("；")}`;
       }
     }
@@ -578,7 +618,7 @@ function sanitizeUngroundedNegationText(value: string, source: string): string {
         return `${prefix}${[
           contradictedPositive.length > 0 ? `病历已记录${contradictedPositive.join("、")}阳性` : "",
           supported.length > 0 ? `病历已记录否认${supported.join("、")}` : "",
-          unknown.length > 0 ? `病历尚未确认${unknown.join("、")}是否存在` : "",
+          unknown.length > 0 ? unknownTermNotice(source, unknown) : "",
         ].filter(Boolean).join("；")}`;
       }
     }

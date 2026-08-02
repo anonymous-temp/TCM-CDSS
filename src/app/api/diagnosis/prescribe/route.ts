@@ -18,6 +18,7 @@ import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignatur
 import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
 import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
+import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
 function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReasoningV2>): string | undefined {
@@ -213,7 +214,10 @@ export async function POST(req: Request) {
   );
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
-    truncateFallback: buildSafetyLimitedPrescription(truncationGate),
+    // 模型输出彻底不可回收时：M03 已锁定可编译方 → 确定性渲染「基准组成+药典区间」参考页
+    // （不经模型、非剂量、医师定量），医生不再拿到空白页；未锁方/不可编译 → 原安全有限文案。
+    truncateFallback: buildDeterministicFormulaReferenceFallback(gated, signedPriorReasoning)
+      ?? buildSafetyLimitedPrescription(truncationGate),
     structuredStage: "prescribe",
     // M04 repair/review must never receive raw HIS identifiers.
     structuredClinicalContext,
