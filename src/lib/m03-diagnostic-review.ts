@@ -116,6 +116,18 @@ function m03DiagnosticReviewRebindPayloads(
     before.reason = "__server_grounded_differential_reason__";
     after.reason = "__server_grounded_differential_reason__";
   }
+  // 复核与 finalize 之间只有服务端确定性变换在执行，模型无法再触碰载荷；
+  // alignNormalizedM03WesternClinicalRationale 会用幸存事实重排 primary.clinicalRationale
+  // （解释性投影，不是诊断决策）。不掩码它，指纹必然漂移 → rebind 失败 → finalize 重跑一次
+  // **随机**复核（实测终版 50 例中 5 次全因此字段），既多花 ~3s，又给了已受理结果第二次被
+  // 驳回的机会。诊断名/检查/鉴别/中医全部决策仍逐字段哈希绑定。
+  const reviewedPrimary = record(reviewedWestern?.primary);
+  const finalPrimary = record(finalWestern?.primary);
+  if (reviewedPrimary && finalPrimary &&
+      typeof reviewedPrimary.clinicalRationale === "string" && typeof finalPrimary.clinicalRationale === "string") {
+    reviewedPrimary.clinicalRationale = "__server_realigned_clinical_rationale__";
+    finalPrimary.clinicalRationale = "__server_realigned_clinical_rationale__";
+  }
   return [reviewed, final];
 }
 

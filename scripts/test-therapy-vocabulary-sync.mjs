@@ -33,7 +33,8 @@ const CONTRACT_SOURCE = readFileSync(new URL("../src/lib/diagnosis-stage-contrac
 
 /** The real shortlist block. Distinct from the hard-constraint back-reference to it. */
 const SHORTLIST_BLOCK = "【本例治法方向的知识库覆盖药味短名单（均有服务端功能分类或功用收载，治疗方向可核验）】";
-const SHORTLIST_BACK_REFERENCE = "优先从上方【本例治法方向的知识库覆盖药味短名单】对应方向中选择君药";
+// M04 模板重排后固定规范在前、检索上下文在后，指代词由「上方」改为「后附」。
+const SHORTLIST_BACK_REFERENCE = "优先从后附【本例治法方向的知识库覆盖药味短名单】对应方向中选择君药";
 
 /**
  * Read the governed concept list straight out of the contract source so a newly added concept
@@ -394,4 +395,38 @@ console.log(JSON.stringify({ governedConcepts: concepts.length, checked, failure
   const probe = transparentFormulaTherapyIssue(reasoning, prior);
   assert.notEqual(probe, "transparent_therapy_unresolved",
     "词表未覆盖的治法必须降级为不自动核验，而不是把整方判为 transparent_therapy_unresolved");
+}
+
+// ─── M04 prompt 顺序即缓存边界(与 M03 同一条不变量) ─────────────────────────────
+// 实测重排前 M04 可缓存前缀只有 16%(固定规范被病例内容截断), 重排后 58%。
+// 被改回去时缓存收益静默消失且没有测试会红——在此钉住。
+{
+  const { buildPrescribePrompt } = await import("../src/lib/diagnosis-prompts.ts");
+  const prior = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    completeness: { level: "C", redFlag: 0.85, infoGain: 0.9, managementImpact: 0.9, answerability: 0.9 },
+    overview: { tcmDiseaseName: "胃痛", primarySyndrome: "肝气犯胃证", primarySyndromeResolution: "resolved",
+      primarySyndromeBasis: ["情绪波动时加重"], recommendedFormulaDirection: "疏肝理气",
+      recommendedFormulaNames: ["柴胡疏肝散"], formulaSelectionMode: "single",
+      evidence: { evidenceLevel: "model_inference", source: "病例内推理", confidence: "中" } },
+    pathogenesis: { summary: "肝气犯胃", chain: [{ nodeId: "P1", patientFact: "缓存边界探针事实XYZQ", syndromeEvidence: "脉弦", pathogenesis: "肝气犯胃", therapyDirection: "疏肝理气和胃" }] },
+    therapy: { overallPrinciple: "疏肝理气", overallMethod: "疏肝理气和胃", subTherapies: [{ therapy: "疏肝理气" }] },
+  };
+  const prompt = buildPrescribePrompt({
+    id: "cache-probe", phase: "prescribe", patient: { sex: "女", age: "42" },
+    chiefComplaint: "缓存边界探针主诉M04ABC", symptoms: {},
+    hisRecord: { source: "manual", encounterId: "cp", rawText: "缓存边界探针主诉M04ABC", fields: { zhushu: "缓存边界探针主诉M04ABC" } },
+    conversation: [], completeness: prior.completeness, questionRounds: 1, maxQuestionRounds: 2,
+    reasoningDiagnose: prior,
+  });
+  const boundary = prompt.indexOf("以上为固定规范");
+  assert.ok(boundary > 0, "M04 模板必须保留固定规范与病例内容之间的显式分界句");
+  for (const probe of ["缓存边界探针主诉M04ABC", "缓存边界探针事实XYZQ", "柴胡疏肝散"]) {
+    const at = prompt.indexOf(probe);
+    assert.ok(at < 0 || at > boundary, `逐例内容「${probe}」必须在分界之后（实际 @${at}，分界 @${boundary}）`);
+  }
+  const schemaAt = prompt.indexOf("tcm-cdss-m04-proposal-v1");
+  assert.ok(schemaAt > 0 && schemaAt < boundary, "M04 最小提案 schema 是固定规范，必须留在可缓存前缀内");
+  assert.ok(boundary / prompt.length >= 0.5,
+    `M04 可缓存前缀应覆盖模板大部分（当前 ${Math.round(boundary * 100 / prompt.length)}%）`);
 }

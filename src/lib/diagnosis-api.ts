@@ -2178,10 +2178,23 @@ async function callPrimaryTextModelStream(
           reason: rejectionReason,
         });
       };
+      // 驳回码族归一：candidate_0_herb_3_xxx 与 candidate_0_herb_5_xxx 是同一**族**问题的
+      // 不同下标。逐字相同才判 fixpoint 时，模型换一味药再犯同族错就又烧一整轮（p90 37.6s
+      // 的主要来源）；对**可豁免族**（treatment-coverage/身份类，修复耗尽后本就会带批注受理）
+      // 同族重复即视为 fixpoint，直接走降级受理，省一轮重试且结局不变——无损压缩。
+      // 安全族（剂量/配伍/特殊人群等 T1）保持逐字判定：多修一轮可能真的修好，不抢它的机会。
+      const m04RejectionFamily = (reason: string): string => reason
+        .replace(/^m04_/, "")
+        .replace(/(?:candidate|herb|modification)_\d+_?/g, "")
+        .replace(/_{2,}/g, "_");
+      const M04_WAIVABLE_FAMILY = /formula_reference_declassified|formula_compilation_composition_drift|transparent_therapy|emperor_therapy_mismatch|unsupported_high_impact|pathogenesis_node_uncovered/;
       const m04SameGuidanceFixpoint = (rejectionReason: string, guidanceToInject: string): boolean => (
-        opts.structuredStage === "prescribe" &&
-        m04LastRepairTriggerReason === rejectionReason &&
-        m04LastInjectedGuidance === guidanceToInject
+        opts.structuredStage === "prescribe" && (
+          (m04LastRepairTriggerReason === rejectionReason && m04LastInjectedGuidance === guidanceToInject) ||
+          (m04LastRepairTriggerReason != null &&
+            M04_WAIVABLE_FAMILY.test(rejectionReason) &&
+            m04RejectionFamily(m04LastRepairTriggerReason) === m04RejectionFamily(rejectionReason))
+        )
       );
       const reviewM03Candidate = async (
         content: string,

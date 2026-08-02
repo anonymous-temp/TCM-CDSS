@@ -428,7 +428,7 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
 - 君臣药只能引用 targetKind=pathogenesis_node 与有效 P1/P2...；佐使药若只承担方内结构作用，可引用 targetKind=formula_structure、targetRef=FORMULA_STRUCTURE，并将 structureRole 限于 middle_jiao_support/harmonize/guide/temper。
 - 君臣佐使必须通过引用体现差异化方义，不得把每味药都绑到同一句核心病机上：臣药必须引用与君药不同的次级病机节点（如 P2/P3），仅当确为增强君药主治时才与君药同节点；佐/使药选用 formula_structure 时应按实际结构功能选择不同枚举，同一 structureRole 不得无差别套用于多味无关药。服务端按 targetRef/structureRole 确定性生成每味药的角色理由，重复引用会产生重复方义。
 - 君药去偏：君药必须直接针对主证核心病机（P1）承担中心治疗作用，不得以“通用补益”充任。山药、党参、黄芪、甘草等通用补益/调和药，仅当 P1 病机本身就是该药主治的虚损证型（本例已有对应虚损患者事实）时才可为君；不得把“健脾扶正”之类的同一模板理由跨病种、跨候选复用于君药，不同 P1 病机的君药功能必须随之改变（如 P1 为瘀血阻络时君药应为活血化瘀药而非补气药）。
-- 君药知识库覆盖：自拟方或未承接命名方身份候选的君药，必须出自服务端药味知识库有功能收载（功能分类或功用文本）的药味，且其收载治疗方向与 P1 治法方向一致；完全无功能收载的药味不得为君，服务端会确定性核验并驳回。优先从上方【本例治法方向的知识库覆盖药味短名单】对应方向中选择君药；若本例理想君药无知识库覆盖，必须改用同一治法方向上最近的有覆盖药味，不得坚持无覆盖药味。臣佐使药同样优先选择知识库有功能收载的药味。
+- 君药知识库覆盖：自拟方或未承接命名方身份候选的君药，必须出自服务端药味知识库有功能收载（功能分类或功用文本）的药味，且其收载治疗方向与 P1 治法方向一致；完全无功能收载的药味不得为君，服务端会确定性核验并驳回。优先从后附【本例治法方向的知识库覆盖药味短名单】对应方向中选择君药；若本例理想君药无知识库覆盖，必须改用同一治法方向上最近的有覆盖药味，不得坚持无覆盖药味。臣佐使药同样优先选择知识库有功能收载的药味。
 - 高影响方向禁则：凡主要方向为清热、温阳、活血、泻下、开窍、软坚类的药味，仅当该方向已在 M03 治法（overallPrinciple、subTherapies 或病机节点 therapyDirection）或患者阳性事实中明确成立时才可使用；未成立时一律不得选用，也不得靠改写 prescriptionRole、降低剂量或改换角色把该药保留在方中。服务端对每味药确定性核对该方向是否成立，未成立即驳回。
 - 治法→药味映射：每味药必须经 targetRef/structureRole 绑定到它实际落实的治法方向，候选药味集合必须覆盖 M03 therapy.subTherapies 中每个“主要”治法方向（至少一味药的功能与之对应）；不得出现治法要求活血化瘀而方中无活血药、治法要求解表而方中无解表药这类治法与药味漂移。
 - 不得在提案中重写 M03 证候、病机、治法、流派信息、方剂出处、药味功用、方义、适用边界或证据字段；这些全部由服务端生成。唯一例外：形成自拟方时，可在 candidate.applicable 中用一句话说明已注入的经典名方候选未覆盖本例哪个病机/治法维度（不得罗列被排除方名、不得写《》出处），作为自拟方的组方依据。
@@ -879,6 +879,20 @@ export function buildPrescribePrompt(caseState: CaseState): string {
 
 ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
+【方内结构作用枚举】
+- middle_jiao_support：顾护中焦、防补药滋腻
+- harmonize：调和诸药、协调药性
+- guide：引经载药、调和诸药
+- temper：制约峻烈、缓和药性
+
+M04 提案不允许重写 overview、pathogenesis、therapy 或 lineageAdaptation；服务端将从已签名 M03 原样复制这些字段。若 M03 推荐方向含明确命名方，唯一 candidate.name 和实际 herbs[] 必须承接该方。M03 只给一个命名方时不得扩成合方；给出“或/酌选”等备选时只能选择其中一个，不得夹带未列方。所有实际药味都必须进入唯一候选的 herbs[]。
+每味药必须引用后附【M04药味可引用病机节点】中的节点或方内结构作用枚举。每个候选必须恰有 1–2 味君药，且这些君药全部直接引用 P1；君/臣药只能使用 pathogenesis_node；佐/使药使用 formula_structure 时必须选择一个结构枚举。臣药的引用节点必须不同于君药，整方药味必须覆盖 M03 各主要治法方向，服务端按 targetRef/structureRole 逐味生成“角色＋治法方向”的治法→药味映射，重复引用会产生重复方义。不得把肝郁、痰湿、血瘀等 M03 未确认病机塞进自由文本；服务端会忽略模型自写 targetPathogenesis，并根据 targetRef/structureRole 生成最终可见内容。
+
+只输出一个 JSON 对象，不要生成哨兵、Markdown 正文、表格或 JSON 之外的任何内容。服务端会把最小提案编译为完整 V2 契约，并在药味剂量校验、方剂出处复核和证据净化后确定性生成医生可见报告。这样可以确保页面、报告、审方与 HIS 使用同一份方名、药味和剂量。
+${reasoningV2Instruction("prescribe", caseState)}
+
+以上为固定规范。以下是本例患者资料、已签名 M03 结果与检索上下文——只有这部分逐例变化。
+
 【患者基本信息】
 ${safePatientContext}
 
@@ -900,19 +914,7 @@ ${classicSafetyContext}
 ${kbShortlistContext ? `${kbShortlistContext}\n\n` : ""}【M04药味可引用病机节点】
 ${pathogenesisNodeOptions || "（无可引用节点；不得生成剂量级候选处方）"}
 
-【方内结构作用枚举】
-- middle_jiao_support：顾护中焦、防补药滋腻
-- harmonize：调和诸药、协调药性
-- guide：引经载药、调和诸药
-- temper：制约峻烈、缓和药性
-
-${buildTcmTreatmentProjectPromptContext(caseState)}
-
-M04 提案不允许重写 overview、pathogenesis、therapy 或 lineageAdaptation；服务端将从已签名 M03 原样复制这些字段。若 M03 推荐方向含明确命名方，唯一 candidate.name 和实际 herbs[] 必须承接该方。M03 只给一个命名方时不得扩成合方；给出“或/酌选”等备选时只能选择其中一个，不得夹带未列方。所有实际药味都必须进入唯一候选的 herbs[]。
-每味药必须引用上方病机节点或方内结构作用枚举。每个候选必须恰有 1–2 味君药，且这些君药全部直接引用 P1；君/臣药只能使用 pathogenesis_node；佐/使药使用 formula_structure 时必须选择一个结构枚举。臣药的引用节点必须不同于君药，整方药味必须覆盖 M03 各主要治法方向，服务端按 targetRef/structureRole 逐味生成“角色＋治法方向”的治法→药味映射，重复引用会产生重复方义。不得把肝郁、痰湿、血瘀等 M03 未确认病机塞进自由文本；服务端会忽略模型自写 targetPathogenesis，并根据 targetRef/structureRole 生成最终可见内容。
-
-只输出一个 JSON 对象，不要生成哨兵、Markdown 正文、表格或 JSON 之外的任何内容。服务端会把最小提案编译为完整 V2 契约，并在药味剂量校验、方剂出处复核和证据净化后确定性生成医生可见报告。这样可以确保页面、报告、审方与 HIS 使用同一份方名、药味和剂量。
-${reasoningV2Instruction("prescribe", caseState)}`;
+${buildTcmTreatmentProjectPromptContext(caseState)}`;
 }
 
 // ─── Deprecated M05 prompt draft ─────────────────────────────────────────────
