@@ -19,8 +19,17 @@ function sanitizeUnstructuredMedicationLine(line: string): string {
   return REMOVED_MESSAGE;
 }
 
+/**
+ * 数字缺失的服法模板残片（"每日　剂""每日分　次服""共　剂"——模型偶发输出留空占位，
+ * 全角/半角空格皆有）。这类残片与后文确定性煎服法（每日1剂、分2次）并存时直接自相矛盾
+ * （甲方生产实测）。数字缺失的从句整段剔除——权威剂数/频次由服务端从结构化载荷渲染，
+ * 不靠模型叙述补位；带数字的正常写法不受影响。
+ */
+const BLANK_REGIMEN_FRAGMENT = /(?:^|[，,；;、／/])?\s*(?:每日|每天)[\s　]*(?:分[\s　]*次?服?|剂)(?=[，,；;、。／/\s]|$)|(?:^|[，,；;、／/])?\s*共[\s　]*剂(?=[，,；;、。／/\s]|$)/g;
+
 function sanitizeVisiblePrescriptionNarrative(content: string): string {
   let inHerbTable = false;
+  content = content.replace(BLANK_REGIMEN_FRAGMENT, "");
   return content.split("\n").map((line) => {
     const isTableLine = line.trimStart().startsWith("|");
     if (isTableLine && /药名/.test(line) && /剂量/.test(line) && /(?:炮制|规格|君臣佐使)/.test(line)) {
