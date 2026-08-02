@@ -87,7 +87,11 @@ export async function POST(req: Request) {
     };
     return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
   }
-  const advisorySafetyNotes = advisoryDisposition && (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked")
+  // 横幅触发不能挂在 candidateMode 上：advisory 档下红旗已返回 full_dose（这正是「不拦截」
+  // 的实现），若仍以 non_dose_only 为条件，红旗病例的 M04 反而成了唯一没有警示的输出。
+  // 直接读安全门状态——它是检测层的原始信号，与处置档位无关。
+  const advisorySafetyNotes = advisoryDisposition &&
+    (gated.safetyGate?.status === "red_flag" || permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked")
     ? (permission.reasons.length > 0 ? permission.reasons : ["当前病例存在未解除的安全或信息完整性提示"])
     : [];
   // An attested "unclear" encounter scope means the reviewed semantic pre-check could not prove
