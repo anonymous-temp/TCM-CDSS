@@ -1552,6 +1552,19 @@ function hasPatientScopedSpanOccurrence(text: string, span: string): boolean {
   return false;
 }
 
+/**
+ * 「纯强度/时相修饰段」：共享否定枚举里，顿号与被测词之间只剩这些修饰词时，说明该段仍是
+ * **同一个枚举项的组成部分**（"否认呕血、黑便、持续剧烈腹痛" 里 、 后的「持续」是
+ * 「持续剧烈腹痛」自己的定语），而不是新起的阳性从句。
+ *
+ * 这是一个类缺陷的根修：红旗词表里大量条目本身以强度词开头/含强度词（持续剧烈腹痛、
+ * 突发最剧烈头痛、急性胸痛…），而下面两个启发式恰恰把这些强度词当作「阳性从句起点」
+ * 与「阳性证据」——共享否定作用域在枚举第 3 项之后被切断，整句否认被判成急症阳性
+ * （甲方生产实测："否认呕血、黑便、持续剧烈腹痛、发热及明显消瘦" 直接弹急诊转诊页）。
+ * 修饰词自身不携带极性；极性只能来自动词性内容或明确的转折/新起词。
+ */
+const INTENSITY_MODIFIER_ONLY_SEGMENT = /^(?:持续|突发|突然|急性|反复|阵发性?|间断|间歇性?|明显|大量|少量|剧烈|进行性|快速|逐渐|新发|再发|复发|严重|轻微|最)*$/;
+
 function isNegatedAt(text: string, index: number): boolean {
   const hardStart = Math.max(
     text.lastIndexOf("。", index - 1),
@@ -1588,7 +1601,10 @@ function isNegatedAt(text: string, index: number): boolean {
   const enumerationIndex = afterNegation.lastIndexOf("、");
   if (enumerationIndex >= 0) {
     const afterEnumeration = afterNegation.slice(enumerationIndex + 1).trim();
-    if (/^(?:但|但有|却|另有|出现|发生|伴|伴有|合并|继而|随后|再发|复发|新发|突发|突然|持续|加重)/.test(afterEnumeration)) return false;
+    // afterNegation 止于被测词起点：顿号之后若只剩纯修饰段，它是被测词自己的定语，
+    // 共享否定继续生效，不得按「新阳性从句」否决。
+    if (!INTENSITY_MODIFIER_ONLY_SEGMENT.test(afterEnumeration) &&
+        /^(?:但|但有|却|另有|出现|发生|伴|伴有|合并|继而|随后|再发|复发|新发|突发|突然|持续|加重)/.test(afterEnumeration)) return false;
   }
 
   return before.length - lastNegationEnd <= 42;
@@ -1609,8 +1625,13 @@ function hasCommaSeparatedPositiveEvidence(text: string, index: number, term: st
   const after = text.slice(index + term.length, index + term.length + 44);
   if (!containsNegation(beforeComma) || containsNegation(afterComma)) return false;
   const separator = beforeTerm[lastComma];
-  if (separator === "、" && !/^(?:但|但有|却|另有|出现|发生|伴|伴有|合并|继而|随后|再发|复发|新发|突发|突然|持续|加重)/.test(afterComma.trim())) {
-    return false;
+  if (separator === "、") {
+    // 顿号 + 纯修饰段 = 同一枚举项的定语（"…、持续[剧烈腹痛]"），仍在共享否定作用域内；
+    // 该段不构成阳性证据，且不得再落入下方「词面含强度词即阳性」的判定。
+    if (INTENSITY_MODIFIER_ONLY_SEGMENT.test(afterComma.trim())) return false;
+    if (!/^(?:但|但有|却|另有|出现|发生|伴|伴有|合并|继而|随后|再发|复发|新发|突发|突然|持续|加重)/.test(afterComma.trim())) {
+      return false;
+    }
   }
   if (/^(?:(?:一|二|两|三|四|五|六|七|八|九|十|数|多|几)?次\s*)?(?:也|均|都)?\s*(?:并|且)?\s*(?:未|没有|无|未见|未出现|未发生|并未|且未|也未|也没有)/.test(after)) return false;
   return /(?:突发|剧烈|急性|持续|加重|快速加重)/.test(term) ||
@@ -2485,6 +2506,14 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   if (acuteRespiratorySignal && !reportableCardiacRisk && !anaphylacticAirwaySignal) {
     redFlags.push("突发或快速加重呼吸困难/端坐呼吸，需优先评估呼吸循环急症");
   }
+  // 产科语境的重度高血压阈值独立于通用危急值：妊娠期/产褥期收缩压≥160 或舒张压≥110 即为
+  // 重度（子痫前期/子痫谱系），常伴持续头痛、视物异常、右上腹痛。通用 180/120 阈值覆盖不到
+  // 这一段（实测产后10天 BP 170/112 + 剧烈头痛 + 视物异常未触发任何确定性红旗）。
+  const obstetricContext = hasPatternWithoutNegation(text, /妊娠|怀孕|孕\d+(?:周|月)|产后|产褥|剖宫产后|顺产后/);
+  if (obstetricContext && bp && (bp.systolic >= 160 || bp.diastolic >= 110) &&
+      !(bp.systolic >= 180 || bp.diastolic >= 120)) {
+    redFlags.push(`妊娠/产褥期血压 ${bp.systolic}/${bp.diastolic}mmHg 达重度高血压标准（≥160/110），需立即按子痫前期/子痫风险急诊评估，尤其伴头痛、视物异常或上腹痛时`);
+  }
   const criticalBp = bp && bloodPressureIsCritical(bp) ? bp : null;
   if (criticalBp) {
     redFlags.push(criticalBp.systolic >= 180 || criticalBp.diastolic >= 120
@@ -3324,7 +3353,17 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   // Hard-stop red flags must be traceable to the current authoritative record. Model report text is
   // intentionally excluded here: a previous limited template or an ungrounded M01 extraction must not
   // feed itself back into the next safety evaluation and permanently lock the case.
-  const redFlags = detectProgrammaticRedFlags(state);
+  const programmaticRedFlags = detectProgrammaticRedFlags(state);
+  // 语义回补层的急症发现（positive + emergency，经病历原文接地与复核）必须参与门禁状态判定，
+  // 而不是只进 semanticTriage 展示字段——否则出现「载荷里写着 emergency_review、顶层门禁
+  // 却是 needs_information、红旗为空」的状态分裂（实测产后重度高血压案）。additive 层的
+  // 纪律不变：只增不减，确定性阳性红旗与危急体征永远不会被它取消；类目级去重由
+  // additiveRedFlagsFromFacts(existingRedFlags) 自己完成。仅在语义结果已过独立复核
+  //（reviewStatus=checked）时参与升级，未复核的语义结果保持展示级。
+  const reviewedSemanticEmergencyFindings = state.clinicalFacts?.reviewStatus === "checked"
+    ? additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, programmaticRedFlags)
+    : [];
+  const redFlags = [...programmaticRedFlags, ...reviewedSemanticEmergencyFindings];
   if (redFlags.length > 0) {
     const redFlagFindings = programmaticRedFlagFindings(state, redFlags);
     const activeGate = { redFlags, redFlagFindings };

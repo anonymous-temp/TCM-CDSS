@@ -1008,3 +1008,45 @@ for (const scenario of [
 }
 
 console.log(JSON.stringify({ cases, failures: 0 }));
+
+// ─── 共享否定枚举作用域 + 语义急症升级 + 产科血压阈值(甲方生产实测三类) ────────────
+{
+  const { withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const mk = (raw, vitals = {}, facts) => withSafetyGate({
+    id: "cls-probe", phase: "collect", patient: { sex: "女", age: "45" }, chiefComplaint: "胃胀2周",
+    hisRecord: { source: "manual", encounterId: "cls", rawText: raw, fields: { zhushu: "胃胀2周" } },
+    vitals, clinicalFacts: facts, conversation: [],
+    completeness: { level: "A", redFlag: 0.2, infoGain: 0.2, managementImpact: 0.2, answerability: 0.2 },
+    questionRounds: 0, maxQuestionRounds: 2,
+  });
+  // 类1: 共享否定对枚举深处强度词条目的作用域。根因是强度修饰词(持续/剧烈/突发)既是红旗
+  // 词条的组成部分, 又被两个启发式当作阳性线索——枚举第3项之后共享否定被切断。
+  for (const t of [
+    "胃胀2周。否认呕血、黑便、持续剧烈腹痛、发热及明显消瘦。",
+    "胃胀2周。明确否认呕血、黑便、持续剧烈腹痛、发热及明显消瘦。",
+    "胃胀2周。无呕血、黑便、持续剧烈腹痛、发热及明显消瘦。",
+    "胃胀2周。否认呕血、黑便、突发最剧烈头痛。",
+  ]) {
+    const g = mk(t).safetyGate;
+    assert.notEqual(g?.status, "red_flag", `共享否定枚举不得误报急症: ${t} → ${(g?.redFlags||[])[0]}`);
+  }
+  // 真阳性不得回退: 逗号后新起阳性从句/单独阳性陈述照常触发。
+  for (const t of ["胃胀2周。否认呕血，今晨出现持续剧烈腹痛。", "胃胀2周。持续剧烈腹痛3小时不缓解。"]) {
+    assert.equal(mk(t).safetyGate?.status, "red_flag", `真阳性必须保持触发: ${t}`);
+  }
+  // 类2: 妊娠/产褥期重度高血压(≥160/110)确定性规则; 非产科语境同值不触发(通用阈值仍 180/120)。
+  const ob = mk("产后10天，血压170/112mmHg", { bloodPressure: "170/112mmHg" }).safetyGate;
+  assert.equal(ob?.status, "red_flag", "产褥期 170/112 必须按子痫前期风险触发红旗");
+  assert.ok((ob?.redFlags||[]).some((f) => /160\/110|子痫/.test(f)), "红旗文案必须写明产科阈值依据");
+  const nonOb = mk("头痛3天。血压170/112mmHg", { bloodPressure: "170/112mmHg" }).safetyGate;
+  assert.notEqual(nonOb?.status, "red_flag", "非产科 170/112 不得被产科阈值误伤");
+  // 类3: 已复核语义急症必须升级顶层门禁(状态一致性); 未复核保持展示级。
+  const facts = { redFlags: [{ category: "obstetric", subject: "patient", status: "positive", urgency: "emergency",
+    triageBasis: "time_sensitive_cardiovascular_event", quote: "产后10天，持续剧烈头痛，视物异常" }],
+    semanticStatus: "checked", reviewStatus: "checked", sourceCoverage: "full" };
+  const sem = mk("产后10天，持续剧烈头痛，视物异常。", {}, facts).safetyGate;
+  assert.equal(sem?.status, "red_flag", "已复核的语义急症发现必须升级门禁状态, 不得只留在 semanticTriage 展示字段");
+  const pending = mk("产后10天，持续剧烈头痛，视物异常。", {}, { ...facts, reviewStatus: "pending" }).safetyGate;
+  assert.notEqual(pending?.status, "red_flag", "未复核的语义结果保持展示级");
+  assert.equal(pending?.semanticTriage?.level, "emergency_review", "展示字段仍完整保留急症分诊信息");
+}
