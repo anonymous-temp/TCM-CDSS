@@ -4392,15 +4392,20 @@ function StructuredMedicinePlanCards({ candidates }: {
               {item.recommendationMode === "discussion_only" ? "仅供讨论" : "候选需复核"}
             </span>
           </div>
+          {/* 甲方 UI 决策：展示医生实际要看的主信息——适应症、用法用量、风险提示、联用关系；
+              「候选定位/使用边界」类定位话术与「外部参考资料核验」块不再呈现。
+              用法用量来自结构化字段（途径/单次量/频次/疗程），缺项自然省略。 */}
           <div className="mt-3 grid gap-2 md:grid-cols-2">
-            <SummaryLine label="候选定位" value={`${item.positioning}；${item.usageBoundary}`} tone="blue" />
-            <SummaryLine label="对应问题" value={item.correspondingProblem} tone="green" />
-            <SummaryLine label="联用/替代关系" value={item.relationship} tone="gray" />
+            <SummaryLine label="适应症（本例对应问题）" value={item.correspondingProblem} tone="green" />
+            <SummaryLine
+              label="用法用量"
+              value={[item.route, item.singleDose, item.frequency, item.course]
+                .filter((part): part is string => typeof part === "string" && Boolean(part.trim()))
+                .join("，")}
+              tone="blue"
+            />
             <SummaryLine label="风险提示" value={item.riskNote} tone="amber" />
-          </div>
-          <div className="mt-3 border-t border-blue-100 pt-2 text-xs leading-relaxed text-blue-800">
-            <p className="font-semibold">外部参考资料（可核验）</p>
-            <EvidenceReferenceList source={item.evidence.source} relevance="支持该药品的适应证、用法边界或风险提示" />
+            <SummaryLine label="联用/替代关系" value={item.relationship} tone="gray" />
           </div>
         </div>
       ))}
@@ -4857,6 +4862,10 @@ function ResultTabsV2({
   restoredUnsavedDraft?: WorkbenchUnsavedDraftFlag | null;
   onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
 }) {
+  // 药味加减工作台已按甲方决策从结果区下线（实现与受理链路保留，待新入口重新挂载）；
+  // 外部参考展示同批下线。props 与实现保留以免破坏上层线程与持久化，显式 void 消除未用告警。
+  void onAcceptEditedPrescription; void restoredUnsavedDraft; void onUnsavedDraftChange;
+  void HerbModificationWorkbench; void candidateHerbSignature; void EvidenceDetail; void evidenceReferenceItems;
   const reasoning = mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2;
   if (!reasoning) return null;
 
@@ -5121,11 +5130,7 @@ function ResultTabsV2({
                           {locationResolutionReason || "当前记录尚不能支持明确病位归属"}
                         </p>
                       )}
-                      {shouldRenderEvidenceStatus(p.locationDifferentiation.evidence) && (
-                        <p className="mt-2 border-t border-amber-100 pt-2 text-[11px] leading-relaxed text-amber-800">
-                          外部参考资料：{evidenceReferenceItems(p.locationDifferentiation.evidence.source).join("；")}
-                        </p>
-                      )}
+                      {/* 甲方 UI 决策：外部参考资料核验展示下线（意义不大）；证据仍在结构化载荷与 HIS 载荷中。 */}
                     </div>
                   )}
                   {hasNatureConclusion && (
@@ -5141,11 +5146,7 @@ function ResultTabsV2({
                         </p>
                       )}
                       {/* 需求4：病性同样不再单列「判断依据」，理由同病位——依据统一回到病机链一处。 */}
-                      {shouldRenderEvidenceStatus(p.natureDifferentiation.evidence) && (
-                        <p className="mt-2 border-t border-rose-100 pt-2 text-[11px] leading-relaxed text-rose-800">
-                          外部参考资料：{evidenceReferenceItems(p.natureDifferentiation.evidence.source).join("；")}
-                        </p>
-                      )}
+
                     </div>
                   )}
                 </div>
@@ -5320,7 +5321,9 @@ function ResultTabsV2({
                           ? "参考基础方及出处"
                           : "经典方出处"}
                   </p>
-                  <EvidenceDetail evidence={firstCandidate.formulaSource} relevance="支持候选方身份、经典出处或药味来源" />
+                  {firstCandidate.formulaSource?.source && (
+                    <p className="mt-1 text-xs text-blue-900">{firstCandidate.formulaSource.source}</p>
+                  )}
                   {firstCandidate.constructionType === "combined" && firstCandidate.baseFormulas && firstCandidate.baseFormulas.length > 1 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {firstCandidate.baseFormulas.map((base) => (
@@ -5335,9 +5338,11 @@ function ResultTabsV2({
               <ClassicEvidencePanel evidence={firstCandidate.classicEvidence} />
               <DecoctionInstructionsPanel decoction={firstCandidate.decoction} />
               <div className="overflow-x-auto rounded-xl border">
-                <div className="min-w-[760px]">
-                <div className="grid grid-cols-[0.9fr_0.65fr_0.65fr_1fr_1fr] gap-2 border-b bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-500">
-                  <span>药名</span><span>剂量</span><span>角色</span><span>对应病机</span><span>本例配伍意义</span>
+                <div className="min-w-[640px]">
+                {/* 甲方 UI 决策：逐味「本例配伍意义」与方义解析重复，删列；全方配伍思路
+                    统一在独立的「方义解析」模块呈现。 */}
+                <div className="grid grid-cols-[1fr_0.6fr_0.5fr_1.4fr] gap-2 border-b bg-gray-50 px-3 py-2 text-[11px] font-bold text-gray-500">
+                  <span>药名</span><span>剂量</span><span>角色</span><span>对应病机</span>
                 </div>
                 <div className="divide-y divide-gray-100">
                   {firstCandidate.herbs.map((herb, index) => {
@@ -5360,7 +5365,7 @@ function ResultTabsV2({
                       data-warning-level={warning.level}
                       className={`border-l-4 px-3 py-2 text-xs leading-relaxed text-gray-700 ${rowTone}`}
                     >
-                      <div className="grid grid-cols-[0.9fr_0.65fr_0.65fr_1fr_1fr] gap-2">
+                      <div className="grid grid-cols-[1fr_0.6fr_0.5fr_1.4fr] gap-2">
                         <span className="font-semibold text-gray-950">
                           {herb.name}{herb.processing ? `（${herb.processing}）` : ""}
                           <span className={`ml-1.5 inline-flex rounded-full px-1.5 py-0.5 align-middle text-[9px] font-bold ${badgeTone}`} title={warning.reasons.join("；")}>
@@ -5372,7 +5377,6 @@ function ResultTabsV2({
                         </span>
                         <span>{herb.role}</span>
                         <span>{herb.targetPathogenesis}</span>
-                        <span>{herb.function}</span>
                       </div>
                       {(warning.level !== "L0" || herb.isToxic || herb.decoctionRequirement) && (
                         <div className="mt-2 rounded-lg bg-gray-50 p-2 text-[11px] text-gray-600">
@@ -5410,36 +5414,38 @@ function ResultTabsV2({
                       <div key={`${item.trigger}-${index}`} className="rounded-lg border bg-white p-3 text-xs leading-relaxed text-gray-700">
                         <p><span className="font-semibold text-gray-950">{item.trigger}：</span>{item.action}{item.doseOrHandling ? `（${item.doseOrHandling}）` : ""}</p>
                         <p className="mt-1"><span className="font-semibold text-gray-900">对应病机：</span>{clinicalSentence([item.targetPathogenesis, item.reason], "；")}</p>
-                        {item.triggerSource && (
-                          <p className="mt-1 text-blue-700">
-                            <span className="font-semibold">触发依据：</span>{item.triggerSource.sourceQuote}
-                          </p>
-                        )}
-                        {item.riskNote && <p className="mt-1 text-amber-700"><span className="font-semibold">采用前：</span>{item.riskNote}</p>}
+                        {/* 甲方 UI 决策：不再逐条渲染「触发依据」（整段现病史原文逐条重复）与
+                            「采用前」（每条同一句审方套话）——加减依据已并入对应病机行，
+                            重新审方的要求由本节副标题一次性说明。 */}
                       </div>
                     ))}
                   </div>
                 </div>
               ) : null}
-              <HerbModificationWorkbench
-                key={`${caseState.id}:0:${candidateHerbSignature(firstCandidate)}`}
-                caseState={caseState}
-                candidate={firstCandidate}
-                candidateIndex={0}
-                onAccept={onAcceptEditedPrescription}
-                restoredUnsavedDraft={restoredUnsavedDraft}
-                onUnsavedDraftChange={onUnsavedDraftChange}
-              />
-              <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-950">
-                <p className="font-bold text-blue-800">方义解析</p>
-                <p className="mt-1">{firstCandidate.formulaAnalysis}</p>
-              </div>
+              {/* 甲方 UI 决策 2026-08-02：药味加减工作台从结果区下线（「工作台的位置不在这，
+                  我们不用做」）。组件实现与 handleAcceptEditedPrescription 链路保留，待产品
+                  确定新入口后重新挂载；方义解析移出本节，单独成块（见下方 SchemeSection）。 */}
             </div>
           ) : caseState.phase === "prescribe" ? null : (
             <PrescriptionPlanTabs summary={summary} />
           )}
         </div>
       </SchemeSection>}
+
+      {formula && firstCandidate?.formulaAnalysis && isDisplayableClinicalText(firstCandidate.formulaAnalysis) && (
+        <SchemeSection
+          order={sectionOrder("M04-formula", 2)}
+          id="cdss-section-formula-analysis"
+          title="方义解析"
+          subtitle="全方结构与配伍思路（逐味意义已并入此段，不再逐行重复）"
+          contractIds="M04-formula"
+          rendererId="formula-analysis-section"
+        >
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-relaxed text-blue-950">
+            {firstCandidate.formulaAnalysis}
+          </div>
+        </SchemeSection>
+      )}
 
       {hasExplicitNonDoseResult && !prescribeStageFailed && (
         <SchemeSection order={sectionOrder("M04-formula")} id="cdss-section-prescription" title="候选方药" subtitle="本轮非剂量安全结论" contractIds="M04-formula" rendererId="formula-section">
@@ -5578,7 +5584,13 @@ function ResultTabsV2({
             </div>
           ) : summary.nonDrugSection ? (
             <MarkdownBlock content={compactMarkdown(summary.nonDrugSection, 1200)} compact />
-          ) : null}
+          ) : (
+            // 空态必须可见：此前 nonPharma 为空时本模块只剩标题+随访占位，视觉上等于「模块消失」
+            //（甲方实测反馈）。明示未生成并给出动作，而不是静默留白。
+            <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-relaxed text-gray-500">
+              本轮未生成饮食/起居/情志调护内容；可点击「重新生成」补齐，或由医生按本例证候直接补充。
+            </p>
+          )}
           {summary.rehabSection && <MarkdownBlock content={compactMarkdown(summary.rehabSection, 1400)} compact />}
           {reasoning.management && (
             <div className="grid gap-2 md:grid-cols-2">

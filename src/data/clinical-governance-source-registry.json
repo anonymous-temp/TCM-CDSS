@@ -268,7 +268,7 @@
       "sourceType": "project_runtime_rule",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-safety.ts",
-      "sha256": "cd68d1f67689152d4a7b6dee2b9a2f1108cac19132159f90cde30070b1a0fa74",
+      "sha256": "feb400b2403f869a2c2c808143618f51e61290056e86e6b751391ac6a81cc10a",
       "scope": "红旗、生命体征和特殊人群的实际运行门禁；外部来源只做类别和阈值复核",
       "accessedAt": "2026-07-22"
     },

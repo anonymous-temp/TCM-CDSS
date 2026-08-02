@@ -80,9 +80,19 @@
       "label": "红旗处置方案",
       "sectionOrder": [
         "red-flag-warning",
+        "M03-overview",
         "M03-western",
+        "M03-pathogenesis",
+        "M03-therapy",
+        "M04-formula",
+        "M04-decoction",
+        "M04-modifications",
+        "M04-patent-western",
+        "M03-M04-tcm-treatment",
+        "M03-M04-nonpharma",
         "M03-M04-management",
-        "health-education"
+        "health-education",
+        "M05-assessment"
       ],
       "copyContract": "limitedStateCopy"
     },
@@ -92,11 +102,18 @@
       "sectionOrder": [
         "red-flag-warning",
         "M03-overview",
+        "M03-western",
         "M03-pathogenesis",
         "M03-therapy",
+        "M04-formula",
+        "M04-decoction",
+        "M04-modifications",
+        "M04-patent-western",
+        "M03-M04-tcm-treatment",
         "M03-M04-nonpharma",
         "M03-M04-management",
-        "health-education"
+        "health-education",
+        "M05-assessment"
       ],
       "copyContract": "limitedStateCopy"
     },

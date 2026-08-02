@@ -54,7 +54,7 @@
       "id": "T8",
       "file": "tcm-formula-governed-catalog.json",
       "schemaVersion": "tcm-formula-governed-catalog-v2",
-      "sha256": "9b3d832d3e3b135791aef1d449a45c385ff713853a36407a7638683e5657bc17",
+      "sha256": "c656ba22c2a6013c97906edf5aee731665e5d73e284f35528e9c588459306772",
       "recordCount": 2937
     },
     {
@@ -75,7 +75,7 @@
       "id": "T11",
       "file": "clinical-output-contract-registry.json",
       "schemaVersion": "clinical-output-contract-registry-v2",
-      "sha256": "66f0f54245a2676346b960ea40b6beea55cbb9ea95bbbc72ec83495ff3c69840",
+      "sha256": "4248b7820f27fcf1ed5ff56fbcdd1675a19a09db2f52b4330ff16045f84687b2",
       "recordCount": 19
     },
     {
@@ -88,7 +88,7 @@
   ],
   "sourceRegistry": {
     "file": "clinical-governance-source-registry.json",
-    "sha256": "6dbe62a622da990e6b3992448d6bbae3f8c06214b208940b0ca704ed87d51812",
+    "sha256": "2ea2759847d238c022b815179bae5765a82c4aea621af92df52a75cbd8fb9cc5",
     "recordCount": 29
   },
   "auxiliaryIndexes": [
@@ -96,14 +96,14 @@
       "governanceTable": "T8",
       "file": "tcm-formula-retrieval-index.json",
       "schemaVersion": "tcm-formula-retrieval-index-v2",
-      "sha256": "0d93370102b7afbddab928588ed76b00878bd6645fc4e9c7f98aa33b6aa14b5b",
+      "sha256": "85b7a3c9d0f0d323fbfd62568b9899b07e4d4a2b860126eac9fe36fcdf993da4",
       "recordCount": 2915
     }
   ],
   "buildSummary": {
     "formulaGoverned": 2937,
     "formulaEligible": 2915,
-    "formulaDoseCompilationEligible": 2579,
+    "formulaDoseCompilationEligible": 2580,
     "formulaCandidatesAwaitingReview": 0,
     "formulaEvidenceAdjudicated": 8,
     "herbStandardNames": 628,

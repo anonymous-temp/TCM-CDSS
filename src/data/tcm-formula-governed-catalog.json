@@ -40,7 +40,7 @@
     "governedFormulaCount": 2937,
     "prescriptionLockEligibleCount": 2915,
     "identityLockEligibleCount": 2915,
-    "doseCompilationEligibleCount": 2579,
+    "doseCompilationEligibleCount": 2580,
     "symptomTaggedFormulaCount": 906,
     "diseaseTaggedFormulaCount": 336,
     "syndromeTaggedFormulaCount": 2344,
@@ -51554,8 +51554,7 @@
         "荷叶炭",
         "茜草炭",
         "栀子炭",
-        "茅根炭",
-        "棕榈炭"
+        "茅根炭"
       ],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [
@@ -51564,7 +51563,9 @@
       "manualDoseIngredientNames": [
         "大蓟炭"
       ],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "棕榈炭"
+      ],
       "blockingReasons": []
     },
     {
@@ -69979,22 +69980,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": false,
+      "doseCompilationEligible": true,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
-      ],
+      "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [
-        "棕榈炭"
-      ],
+      "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
+        "棕榈炭",
         "煅龙骨"
       ],
       "blockingReasons": []
@@ -142828,13 +142826,14 @@
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
-        "棕榈炭",
         "蒲黄炭"
       ],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
+        "棕榈炭"
+      ],
       "blockingReasons": []
     },
     {

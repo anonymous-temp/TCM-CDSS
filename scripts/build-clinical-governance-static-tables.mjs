@@ -595,13 +595,18 @@ writeJson("clinical-output-contract-registry.json", {
     {
       id: "red_flag_escalation",
       label: "红旗处置方案",
-      sectionOrder: ["red-flag-warning", "M03-western", "M03-M04-management", "health-education"],
+      // 处置改「提示不拦截」后，红旗分面与完整方案**并存**：急诊警示置顶，其余各节照常渲染。
+      // 此前本表只留 4 节（旧阻断契约下其余节不渲染），前端 sectionOrder 对缺失 id 回退到
+      // 表长兜底值，结果候选方药被压到最后、健康调护被顶到中间——实测甲方反馈
+      // 「最后一个健康调护模块不见了、随证加减变成最后一块」。分面排序必须覆盖全部会出现的节。
+      sectionOrder: ["red-flag-warning", "M03-overview", "M03-western", "M03-pathogenesis", "M03-therapy", "M04-formula", "M04-decoction", "M04-modifications", "M04-patent-western", "M03-M04-tcm-treatment", "M03-M04-nonpharma", "M03-M04-management", "health-education", "M05-assessment"],
       copyContract: "limitedStateCopy",
     },
     {
       id: "non_dose_treatment_direction",
       label: "非剂量治疗方向",
-      sectionOrder: ["red-flag-warning", "M03-overview", "M03-pathogenesis", "M03-therapy", "M03-M04-nonpharma", "M03-M04-management", "health-education"],
+      // 同上：非剂量分面下若仍渲染 M04 节（方名方向/中成药候选），排序不得回退兜底。
+      sectionOrder: ["red-flag-warning", "M03-overview", "M03-western", "M03-pathogenesis", "M03-therapy", "M04-formula", "M04-decoction", "M04-modifications", "M04-patent-western", "M03-M04-tcm-treatment", "M03-M04-nonpharma", "M03-M04-management", "health-education", "M05-assessment"],
       copyContract: "limitedStateCopy",
     },
     {
