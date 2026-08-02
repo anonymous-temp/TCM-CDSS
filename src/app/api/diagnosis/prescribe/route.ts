@@ -10,7 +10,7 @@ import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.serve
 import { synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { applyTcmTreatmentCapabilityPriority } from "@/lib/tcm-treatment-capabilities.server";
 import { m03SafetyContractIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
-import { qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
+import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-safety";
 import type { SafetyGate } from "@/lib/diagnosis-types";
@@ -113,7 +113,11 @@ export async function POST(req: Request) {
   }
   // M03 的结构化合同是阶段间的唯一辨证充分度依据。可见正文中的鉴别或管理建议（例如
   // “完善甲功后再评估”）不能反向否定一份已包含主证、病机链和治法的有效结构化辨证。
-  if (m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated))) {
+  // 必须注入 isSafetyRejection 谓词——辨证侧带批注受理时豁免的 T2 码（链节点措辞/接地字面/
+  // 随访表述），在这里用无谓词严格口径复检会把**完全正常的签名 M03**再判死，M04 直接拒绝
+  // 出方（实测 28 例新病历中 3 例：证型病机俱全却收到「缺少有效的西医诊断」0 味页）。
+  // 这是「一处受理、他处复判」同一结构分叉的又一处；受理与复检必须同口径。
+  if (m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)) {
     const gate: SafetyGate = {
       status: "needs_information",
       allowDiagnosis: false,

@@ -1,5 +1,6 @@
 import type { CaseState } from "./diagnosis-types";
 import { executableFormulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
+import { retrieveTcmFormulaCandidatesForReasoning } from "./tcm-formula-indications";
 import { getTcmHerbDoseLimit } from "./tcm-knowledge";
 import { requiredDecoctionRequirement } from "./herb-decoction-rules";
 
@@ -34,8 +35,29 @@ export function buildDeterministicFormulaReferenceFallback(
   void state;
   const names = (prior?.overview?.recommendedFormulaNames || [])
     .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
-  if (names.length === 0) return undefined;
-  const references = executableFormulaCompilationReferences(names);
+  let references = names.length > 0 ? executableFormulaCompilationReferences(names) : [];
+  let recallBased = false;
+  if (references.length === 0) {
+    // M03 没锁方（自拟方向）或锁定方不可编译时，退一级：按签名证候/病机做**确定性检索**，
+    // 取受治理目录中可编译的最匹配方作为参考（检索证据+治理加权排序，非模型生成）。
+    // 「一页空白」在任何路径下都是产品缺陷（甲方定性）；检索级参考明确标注"未经本例辨证锁定"，
+    // 医生知道它的证据等级低于锁定方参考。
+    const syndrome = typeof prior?.overview?.primarySyndrome === "string" ? prior.overview.primarySyndrome.trim() : "";
+    if (!syndrome || /依据不足|尚未|不稳定/.test(syndrome)) return undefined;
+    try {
+      const recalled = retrieveTcmFormulaCandidatesForReasoning(
+        prior as Parameters<typeof retrieveTcmFormulaCandidatesForReasoning>[0],
+        6,
+      );
+      const compilable = recalled
+        .map((candidate) => candidate.name)
+        .filter((name): name is string => typeof name === "string" && Boolean(name));
+      references = executableFormulaCompilationReferences(compilable).slice(0, 2);
+      recallBased = references.length > 0;
+    } catch {
+      return undefined;
+    }
+  }
   if (references.length === 0) return undefined;
 
   const syndrome = typeof prior?.overview?.primarySyndrome === "string" ? prior.overview.primarySyndrome : "";
@@ -66,7 +88,9 @@ export function buildDeterministicFormulaReferenceFallback(
   return [
     "<!-- CDSS_NON_DOSE_PRESCRIPTION -->",
     "## 当前结论",
-    "本轮模型未能形成可核验的剂量级候选处方（输出截断或未通过结构化合同）。以下为 M03 已锁定方剂的**受治理基准组成与药典剂量区间**——全部来自本地受治理知识库的确定性数据，不含模型生成内容，供医生直接参考定量。",
+    recallBased
+      ? "本轮模型未能形成可核验的剂量级候选处方（输出截断或未通过结构化合同）。M03 本次未锁定经典方；以下为按已签名证候/病机**确定性检索**到的受治理方剂参考（未经本例辨证锁定，证据等级低于锁定方），组成与药典剂量区间均来自本地受治理知识库，供医生参考判断。"
+      : "本轮模型未能形成可核验的剂量级候选处方（输出截断或未通过结构化合同）。以下为 M03 已锁定方剂的**受治理基准组成与药典剂量区间**——全部来自本地受治理知识库的确定性数据，不含模型生成内容，供医生直接参考定量。",
     "",
     ...(syndrome || method
       ? [`**辨证锚点**：${[syndrome, method].filter(Boolean).join("；")}`, ""]

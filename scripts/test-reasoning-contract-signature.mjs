@@ -702,6 +702,9 @@ try {
   });
 
   await checkAsync("prescribe route keeps a current emergency non-dose even with a valid M03 signature", async () => {
+    // 本检查验证的是 block 档(运维回退)的红旗非剂量机制。默认 advise 档下红旗照常
+    // 完整生成(置顶警示横幅), 在单测环境会推进到模型调用——那是另一条契约的正确行为。
+    process.env.CDSS_GATE_DISPOSITION = "block";
     const emergencyBase = clone(caseState);
     emergencyBase.id = "case_signature_route_emergency";
     emergencyBase.chiefComplaint = "当前持续压榨性胸痛30分钟未缓解，伴大汗";
@@ -722,6 +725,7 @@ try {
     assert.match(body, /不生成具体剂量|急诊|红旗/);
     assert.doesNotMatch(body, /\|\s*药味\s*\|\s*剂量|\b\d+(?:\.\d+)?\s*(?:g|克)\b/i);
     assert.doesNotMatch(body, /<!-- DIAGNOSIS_JSON_START -->/);
+    delete process.env.CDSS_GATE_DISPOSITION;
   });
 
   for (const [name, mutate] of [

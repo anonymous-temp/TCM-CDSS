@@ -341,7 +341,10 @@ const confirmedScopeState = {
 assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(confirmedScopeState)), false, "指纹匹配的确认必须解除 unclear 门禁");
 const confirmedPrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", confirmedScopeState))).text();
 assert.doesNotMatch(confirmedPrescribeText, /本次当前活动性治疗目标确认/, "确认后不得再因 unclear 门禁拦截");
-assert.match(confirmedPrescribeText, /缺少有效的西医诊断|辨证语义复核未完成/, "确认后流程应推进到后续确定性门禁");
+// M03 复检改为注入 isSafetyRejection 谓词后, 本夹具的有限 M03(仅 T2 级缺陷)正确放行到
+// 生成层——单测环境无模型 API key, 推进到模型调用即为「已越过全部确定性门禁」的证明。
+// 若真回退到「缺少有效的西医诊断」拦截, 说明谓词又被丢掉(第7处复发点回归), 必须红。
+assert.match(confirmedPrescribeText, /OPENAI_API_KEY not configured|辨证语义复核未完成/, "确认后流程应推进过 M03 复检直至生成层");
 
 // 1.2c: 过期指纹（病历已变化）的确认 ⇒ 仍阻断
 const staleConfirmedState = {
