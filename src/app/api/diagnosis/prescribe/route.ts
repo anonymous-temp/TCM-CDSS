@@ -17,6 +17,7 @@ import type { SafetyGate } from "@/lib/diagnosis-types";
 import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
+import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
 function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReasoningV2>): string | undefined {
@@ -235,8 +236,13 @@ export async function POST(req: Request) {
       // The stream layer has already exhausted formula-composition repair before allowing a
       // transparent self-devised fallback. Keep that safe fallback usable here while all other
       // formula drift, dose, regimen and clinical-grounding failures remain blocking contracts.
-      const declassificationTherapyIssue = reasoning?.formula?.candidates?.[0]?.identityDeclassified
-        ? transparentFormulaTherapyIssue(reasoning, signedPriorReasoning)
+      // 降级候选（identityDeclassified）在流层已按「安全底线合同 + 带批注受理」验收过；
+      // 路由终审必须用**同一口径**复验，否则这里的全量质量口径会把刚受理的候选再判死——
+      // 这是同一结构性问题的第 5 处复发点（finalized_prescription_transparent_therapy_*）。
+      // 非降级候选保持全量口径不变。
+      const declassifiedAccepted = Boolean(reasoning?.formula?.candidates?.[0]?.identityDeclassified);
+      const declassificationTherapyIssue = declassifiedAccepted
+        ? transparentFormulaTherapyIssue(reasoning, signedPriorReasoning, true)
         : undefined;
       const issue = formulaCompilationContractIssue(reasoning, signedPriorReasoning, false, true) || declassificationTherapyIssue || m04SemanticIssue(
         reasoning,
@@ -248,6 +254,7 @@ export async function POST(req: Request) {
         false,
         true,
         clinicalGroundingText(safeState),
+        declassifiedAccepted,
       );
       const synchronized = synchronizeVisibleClinicalSummary(enriched, "prescribe");
       if (issue) {
@@ -267,9 +274,10 @@ export async function POST(req: Request) {
           false,
           false,
           clinicalGroundingText(safeState),
+          declassifiedAccepted,
         ) || "";
         const rejectionReason = `m04_${issue}`;
-        const annotation = shouldAcceptWithQualityAnnotation({
+        const annotation = (shouldAcceptWithQualityAnnotation({
           rejectionReason,
           safetyIssue,
           visibleDraftLength: synchronized.trim().length,
@@ -277,7 +285,10 @@ export async function POST(req: Request) {
           minimumDraftLength: 200,
         })
           ? qualityAnnotationCopy(rejectionReason)
-          : undefined;
+          : undefined)
+          // 降级候选的治法覆盖/词表族批注：与流层受理策略同源（m04-repair-policy 唯一权威）。
+          // 前提同样是底线合同干净（safetyIssue 为空）——批注永远不放行 T1。
+          ?? (declassifiedAccepted && !safetyIssue ? m04TherapyIssueQualityAnnotation(rejectionReason) : undefined);
         if (!annotation) {
           console.warn("[tcm-cdss:contract] finalized M04 rejected", {
             issue,
