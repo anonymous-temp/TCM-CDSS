@@ -178,3 +178,21 @@ for (const candidate of [...nonDoseHisScheme.prescriptions.herbal, ...nonDoseHis
 assert.notEqual(nonDoseHisScheme.status, "ready", "M04 安全降级的病例不得被 HIS 判为 ready");
 
 console.log(JSON.stringify({ cases: 25, failures: 0 }));
+
+// PUNCT-01 同类守卫：源病历录入的引号错配（中文开引号被英文引号/单引号“闭合”）不得透传成
+// HIS 病历字段的残缺标点（甲方生产实测：既往史 “剖宫产术" / “股骨骨折‘）。归一只修错配对，
+// 本就配平的引号与其余文本逐字保留。
+const quoteScheme = buildHisAiSchemePayload(normalizeCaseStateInput({
+  chiefComplaint: '产后头痛2天',
+  questionRounds: 2,
+  phase: "done",
+  patient: { sex: "女", age: 30 },
+  pastHistory: '2+月前患者于当地医院行“剖宫产术"，术后产下1女；1+年前因“股骨骨折‘行手术治疗；平素体健，“青霉素”皮试阴性。',
+  fields: { zhushu: "产后头痛2天", shexiang: "舌淡苔白", maixiang: "脉细" },
+  vitals: { bp: "118/76", temperature: "36.6", pulse: "78", respiration: "18", spo2: "98" },
+}));
+assert.equal(
+  quoteScheme.aiMedicalRecord.pastHistory,
+  '2+月前患者于当地医院行“剖宫产术”，术后产下1女；1+年前因“股骨骨折”行手术治疗；平素体健，“青霉素”皮试阴性。',
+  "引号错配必须归一为配平的中文引号，且配平引号原样保留",
+);

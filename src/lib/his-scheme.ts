@@ -164,13 +164,35 @@ function section(text: string | undefined, titles: string[]): string {
   return [match[1]?.trim(), (next === -1 ? rest : rest.slice(0, next)).trim()].filter(Boolean).join("\n").trim();
 }
 
+function normalizeQuotePairs(value: string): string {
+  // 源病历录入常见的引号错配（“剖宫产术" / “股骨骨折‘）：中文开引号被英文引号或单引号
+  // “闭合”，透传到 HIS 病历/警示字段就是甲方反馈的“残缺标点”。仅在存在未闭合的中文
+  // 开引号时，把下一个任意引号字符归一为中文闭引号；本就配平的文本逐字保留。
+  let open = false;
+  let out = "";
+  for (const ch of value) {
+    if (ch === "“") { open = true; out += ch; continue; }
+    if (open && (ch === "”" || ch === '"' || ch === "'" || ch === "‘" || ch === "’")) {
+      open = false;
+      out += "”";
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function recordText(value: string | undefined): string | undefined {
+  return typeof value === "string" && value ? normalizeQuotePairs(value) : value;
+}
+
 function clean(value: string | undefined): string {
-  return (value || "")
+  return normalizeQuotePairs((value || "")
     .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/(?:《?中华人民共和国药典》?|中国药典)[^|；。\n]{0,30}2020[^|；。\n]*/g, "历史药典规则基线（不作为现行药典核验结论）")
     .replace(/\*\*/g, "")
     .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .trim());
 }
 
 function firstLine(value: string | undefined): string {
@@ -611,17 +633,17 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
       highestRiskLevel: caseState.prescriptionRevision.highestRiskLevel,
     } : undefined,
     aiMedicalRecord: {
-      chiefComplaint: caseState.hisRecord?.fields?.zhushu || caseState.chiefComplaint,
-      presentHistory: caseState.hisRecord?.fields?.xianbingshi,
-      pastHistory: caseState.hisRecord?.fields?.jiwangshi || caseState.pastHistory,
-      allergyHistory: caseState.hisRecord?.fields?.guomin || caseState.allergyHistory,
-      medicationHistory: caseState.hisRecord?.fields?.yongyaoshi || caseState.medicationHistory,
-      tcmFourDiagnosis: [
+      chiefComplaint: normalizeQuotePairs(caseState.hisRecord?.fields?.zhushu || caseState.chiefComplaint),
+      presentHistory: recordText(caseState.hisRecord?.fields?.xianbingshi),
+      pastHistory: recordText(caseState.hisRecord?.fields?.jiwangshi || caseState.pastHistory),
+      allergyHistory: recordText(caseState.hisRecord?.fields?.guomin || caseState.allergyHistory),
+      medicationHistory: recordText(caseState.hisRecord?.fields?.yongyaoshi || caseState.medicationHistory),
+      tcmFourDiagnosis: normalizeQuotePairs([
         caseState.hisRecord?.fields?.tcmFace || caseState.faceNote,
         caseState.hisRecord?.fields?.tcmTongue || caseState.tongue,
         caseState.hisRecord?.fields?.tcmPulse || caseState.pulse,
         caseState.hisRecord?.fields?.tcmDetail,
-      ].filter(Boolean).join("；"),
+      ].filter(Boolean).join("；")),
       // 该字段在接口类型里声明了，但此前从未赋值——医生选定的学术流派倾向一路走到 HIS 就成了
       // undefined。写入的是受控卡片的**可读标签**而不是内部代码：caseState.tcmLineagePreference
       // 在 normalizeCaseStateInput 里已被 resolveLineageCode 归一成 classical-formula 这类枚举，
