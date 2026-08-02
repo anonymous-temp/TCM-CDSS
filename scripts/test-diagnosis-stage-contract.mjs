@@ -4412,3 +4412,40 @@ console.log(JSON.stringify({ cases: 382, failures: 0 }));
   assert.ok(!priorDocumentedFactConcepts(coldPrior).has("yang_warm"),
     "恶寒是表证主症，对应治法是解表而非温里，不得支撑 yang_warm（附子类会被误放行）");
 }
+
+// ─── 绝对硬核黑名单 vs tier 分级：单一权威(内伤发热类归零的根修) ─────────────────
+// 此前 m03SafetyContractIssue 内部有一套「可豁免白名单」只收 chain_incomplete，与 tier 表
+// 分叉成两套权威：tier 判 T2 的 literal(副词重组)/followup_safety_net 在硬安全层仍被当安全项
+// 返回 → 带批注受理的 safetyIssue 恒非空 → 受理死路径。实测终版 50 例的全部 4 次 M03 归零，
+// 终结码全是 tier 表明说可受理的 T2 码(literal ×1 例、chain_incomplete ×3 例)。
+// 现在绝对硬核是黑名单(结构缺失/剂量内容/极性相反/中性舌象/当前锚点缺失)，其余交 tier 谓词。
+{
+  const { isSafetyRejection } = await import("../src/lib/diagnosis-rejection-tiers.ts");
+  const ctxStable = "入睡困难；舌淡脉细";
+  // literal(副词重组)：谓词注入下必须放行——这是 case「小腹部发热」类连中 4 轮归零的码。
+  const literal = JSON.parse(JSON.stringify(stable));
+  literal.pathogenesis.chain[0].patientFact = "夜间入睡困难明显";   // 重组措辞，非原文逐字
+  const literalCode = m03SemanticIssue(literal, ctxStable, "");
+  if (literalCode && /_literal$/.test(literalCode)) {
+    assert.equal(m03SafetyContractIssue(literal, ctxStable, isSafetyRejection), undefined,
+      "literal(副词重组)在 tier 表是 T2，硬安全层不得再当安全项返回");
+  }
+  // followup_safety_net_not_actionable：管理段文档质量项，谓词注入下放行。
+  const noNet = JSON.parse(JSON.stringify(stable));
+  noNet.management = { ...(noNet.management || {}), followupSafetyNet: "" };
+  const netIssue = m03SafetyContractIssue(noNet, ctxStable, isSafetyRejection);
+  assert.ok(netIssue === undefined || !/followup_safety_net/.test(netIssue),
+    `随访安全网表述不完整不得阻断辨证结论，实得 ${netIssue}`);
+  // 极性相反：绝对硬核，任何谓词都不放。ctx 明确「无汗」，事实却断言「汗出」。
+  const polar = JSON.parse(JSON.stringify(stable));
+  const polarCtx = `${ctxStable}；否认盗汗`;
+  polar.pathogenesis.chain[0].patientFact = "盗汗明显";
+  const polarIssue = m03SafetyContractIssue(polar, polarCtx, isSafetyRejection);
+  assert.ok(polarIssue && /_polarity$/.test(polarIssue),
+    `与病历极性相反的断言必须被绝对硬核拦截，实得 ${polarIssue}`);
+  // 恶意谓词(全部判非安全)也压不掉绝对硬核。
+  const empty2 = JSON.parse(JSON.stringify(stable));
+  empty2.pathogenesis.chain = [];
+  assert.equal(m03SafetyContractIssue(empty2, ctxStable, () => false), "chain_empty",
+    "绝对硬核黑名单不受谓词影响——chain_empty 在任何谓词下都拦");
+}

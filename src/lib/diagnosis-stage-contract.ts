@@ -1705,20 +1705,38 @@ export function m03SafetyContractIssue(
     // 谓词只能放宽**文档质量类**的码，绝不能放宽硬安全集合：传入一个恶意或有缺陷的
     // 「全部非安全」谓词时，stage/formula_not_null/chain_empty/事实接地失败等仍必须绝对阻断。
     // 若内部再次给出已跳过的码，说明它不响应跳过——直接返回，宁可严格也不空转。
-    if (m03NonWaivableSafetyCode(issue) || skipped.has(issue) || isSafetyReason(issue)) return issue;
+    if (m03AbsoluteSafetyCode(issue) || skipped.has(issue) || isSafetyReason(issue)) return issue;
     skipped.add(issue);
   }
   return undefined;
 }
 
 /**
- * 不可豁免的 M03 硬安全码。清单是白名单的补集写法：除了这里列出的文档质量类可由分级谓词
- * 放宽（目前只有 chain_incomplete——链存在、仅个别节点措辞不稳，带批注受理比整份归零更有价值），
- * 其余一律绝对阻断。新增检查项默认落进不可豁免侧（default-deny）。
+ * M03 绝对硬核安全码：任何谓词都不能放宽的集合。
+ *
+ * 这里此前是反着写的——「可豁免白名单」只收 chain_incomplete，其余一律按安全码返回。
+ * 后果是与 diagnosis-rejection-tiers 的分级表**分叉成两套权威**：tier 表判 T2 的
+ * patient_fact_ungrounded_*_literal（副词重组）、followup_safety_net_not_actionable
+ * 在这里仍被当成安全项，带批注受理的 tierSafetyIssue 恒非空、整条受理路径对这些码是
+ * 死路径。实测终版 50 例的全部 4 次 M03 归零，终结码全是 tier 表明说可受理的 T2 码。
+ *
+ * 改为**绝对核黑名单**：结构缺失（stage/chain_empty/主证病机治法占位）、剂量越界内容、
+ * 事实极性相反、中性舌象编造、当前阳性锚点缺失——这些无论哪套分级表都不许放。
+ * 其余码交给调用方谓词（isSafetyRejection = tier 表，default-deny：未分级即 T1 即阻断）。
+ * 双保险语义不变：豁免仍需「不在绝对核」且「tier 判非 T1」同时成立；
+ * 变化只是绝对核不再吞掉 tier 表已明确分级的文档质量码。
  */
-function m03NonWaivableSafetyCode(code: string): boolean {
-  const WAIVABLE = new Set(["chain_incomplete"]);
-  return !WAIVABLE.has(code);
+function m03AbsoluteSafetyCode(code: string): boolean {
+  return code === "stage" ||
+    code === "formula_not_null" ||
+    code === "dose_level_content" ||
+    code === "chain_empty" ||
+    code === "primary_syndrome_unstable" ||
+    code === "overall_pathogenesis_unstable" ||
+    code === "therapy_method_missing" ||
+    code === "neutral_tongue_only" ||
+    code === "tcm_syndrome_current_fact_missing" ||
+    /_polarity$/.test(code);
 }
 
 function m03HardContractIssue(

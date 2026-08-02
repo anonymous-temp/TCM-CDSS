@@ -66,6 +66,10 @@ const T2_M03: ReadonlySet<string> = new Set([
   "location_classification_missing",
   "nature_classification_empty",
   "chain_incomplete",
+  // 随访安全网表述不完整是管理段的文档质量项：辨证结论与病机链不受影响，批注提示医生补充
+  // 随访条件即可。此前未分级（T1），与 chain_incomplete/literal 一起构成内伤发热类归零的
+  // 终结码族。
+  "followup_safety_net_not_actionable",
   "sub_therapies_missing",
   "sub_therapies_insufficient",
   "sub_therapy_incomplete",
