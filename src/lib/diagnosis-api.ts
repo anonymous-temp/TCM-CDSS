@@ -920,6 +920,10 @@ function structuredRejectionReason(
   // 日志里看到的 m04_formula_reference_declassified 只是「它确实降级过」，
   // 而不是「它为什么没通过」。实测网络医案 14/15/16 全部卡在这个盲区上。
   allowTransparentDeclassification = false,
+  // "safety_floor_waived"：与最后一公里受理路径（validatedStructuredReasoning 的豁免分支）
+  // 完全同口径的归因——受理失败时日志必须能说出**底线合同**拒的是哪个码，而不是全量
+  // 质量口径的第一个码（后者在豁免场景下永远指向已被豁免的项，误导排障）。
+  attributionScope: "strict" | "safety_floor_waived" = "strict",
 ): string {
   if (finishReason !== "stop") return `finish_${finishReason || "null"}`;
   const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
@@ -959,6 +963,18 @@ function structuredRejectionReason(
         allowTransparentDeclassification,
       );
       if (formulaIssue) return `m04_${formulaIssue}`;
+      if (attributionScope === "safety_floor_waived") {
+        const floorIssue = m04SafetyContractIssue(
+          enrichedReasoning,
+          priorReasoning,
+          isKnownTcmHerbName,
+          false,
+          true,
+          clinicalContext,
+          true,
+        );
+        return floorIssue ? `m04_${floorIssue}` : "resolver_rejected";
+      }
       const issue = m04SemanticIssue(
         enrichedReasoning,
         content.slice(0, start),
@@ -3372,6 +3388,13 @@ async function callPrimaryTextModelStream(
                 : structuredRejectionReason(
                     declassifiedContent, "prescribe", finishReason,
                     opts.structuredClinicalContext, opts.structuredPriorReasoning, true,
+                  ),
+              // 与受理路径同口径的底线合同归因：受理失败的**真实**原因码。
+              safetyFloorRejectionReason: transparentReasoning
+                ? "n/a"
+                : structuredRejectionReason(
+                    declassifiedContent, "prescribe", finishReason,
+                    opts.structuredClinicalContext, opts.structuredPriorReasoning, true, "safety_floor_waived",
                   ),
               completedRepairAttempts: transparentFallbackInput.completedRepairAttempts,
               repairExhausted: transparentFallbackInput.repairExhausted,

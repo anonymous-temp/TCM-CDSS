@@ -659,3 +659,36 @@ console.log(JSON.stringify({
   assert.equal(highImpactHerbDirectionIssue("桂枝", "温阳固卫", prior), undefined,
     "M03 在 overallMethod/subTherapies 里锁定的方向必须计入已成立方向");
 }
+
+// ─── 目标词 vs 方法词 + 反治法族 ─────────────────────────────────────────────
+// 类别: 概念表编码的是**方法**词汇, 不是疗效目标。「退热」是目标——辛温解表(桂枝汤解肌退热)、
+// 甘温除热同样以退热为目标; 目标词进 heat_clear 的后果是方中每一味温药触发方向对立否决
+// (实测网络医案 42: 调和营卫，解肌退热 → 桂枝被判 yang_warm 对立 → 整方 0 味)。
+// 反治法四则声明的就是悖反用药方向, 词表必须按其用药方向承接, 否则永远被对立否决。
+{
+  const { affirmedTcmTherapyConcepts, highImpactHerbDirectionIssue } =
+    await import("../src/lib/diagnosis-stage-contract.ts");
+  assert.ok(!affirmedTcmTherapyConcepts("解肌退热").has("heat_clear"),
+    "退热是疗效目标词, 不得进入 heat_clear 方法表");
+  assert.ok(affirmedTcmTherapyConcepts("解肌退热").has("exterior_release"),
+    "解肌是标准解表动词(桂枝汤), 必须解析为 exterior_release");
+  for (const [t, concept] of [
+    ["甘温除热", "yang_warm"], ["甘温除大热", "yang_warm"], ["热因热用", "yang_warm"],
+    ["寒因寒用", "heat_clear"], ["通因通用", "purge"], ["塞因塞用", "astringe"],
+  ]) {
+    assert.ok(affirmedTcmTherapyConcepts(t).has(concept), `反治法 ${t} 必须映射到 ${concept}`);
+  }
+  // 端到端: 桂枝汤场景, 君药桂枝在「调和营卫，解肌退热」锁定下不得被判方向对立。
+  const guizhiPrior = {
+    stage: "diagnose",
+    overview: { recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+    therapy: { overallPrinciple: "调和营卫", overallMethod: "调和营卫，解肌退热", subTherapies: [{ therapy: "调和营卫" }] },
+    pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "营卫不和", therapyDirection: "调和营卫，解肌退热" }] },
+  };
+  assert.equal(highImpactHerbDirectionIssue("桂枝", "解肌发表，调和营卫", guizhiPrior), undefined,
+    "桂枝汤的桂枝不得因『退热』目标词被判温药对立");
+  // 反向: 真对立仍拦——纯清热锁定下的干姜照旧驳回。
+  const heatPrior = { ...guizhiPrior, therapy: { overallPrinciple: "清热泻火", overallMethod: "清热泻火", subTherapies: [{ therapy: "清热泻火" }] }, pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "热毒炽盛", therapyDirection: "清热泻火" }] } };
+  assert.match(String(highImpactHerbDirectionIssue("干姜", "温中散寒", heatPrior)), /unsupported_high_impact/,
+    "纯清热锁定下的温里药仍必须被对立否决");
+}
