@@ -25,6 +25,7 @@ import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenSh
 import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.server";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
+import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
 import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
@@ -356,6 +357,12 @@ type StreamSafetyOptions = {
   diagnoseSignatureContext?: DiagnoseContractSignatureContext;
   prescribeSignatureContext?: PrescribeContractSignatureContext;
   requestSignal?: AbortSignal;
+  /**
+   * M03 两半并行生成（时间专项）：提供时，主流式请求改用 tcm 半提示词，western 半同时走
+   * 缓冲请求，流结束后由 mergeParallelM03Halves 确定性合并再进入既有契约/复核/签名链路。
+   * 修复轮仍使用完整单发提示词（prompt 参数），并行层不改变任何修复/降级语义。
+   */
+  m03ParallelHalfPrompts?: { western: string; tcm: string };
 };
 
 async function prepareDiagnoseStructuredContent(
@@ -365,25 +372,39 @@ async function prepareDiagnoseStructuredContent(
   patientAgeYears?: number,
   signal?: AbortSignal,
 ): Promise<string> {
+  // 分段计时：任何 >500ms 的段都记录（时间专项——合并后处理链是 M03 剩余耗时主体，
+  // 必须能定位到具体环节，而不是笼统归因给"生成"）。
+  const phaseDurations: Record<string, number> = {};
+  let phaseStartedAt = Date.now();
+  const phase = <T>(name: string, value: T): T => {
+    const elapsed = Date.now() - phaseStartedAt;
+    if (elapsed > 500) phaseDurations[name] = elapsed;
+    phaseStartedAt = Date.now();
+    return value;
+  };
   // The pathogenesis chain is a clinical conclusion and must come from the model plus semantic
   // review. Never synthesize it from a chief complaint and another model-generated conclusion.
-  const grounded = groundStructuredPatientFacts(content, clinicalContext);
+  const grounded = phase("grounding", groundStructuredPatientFacts(content, clinicalContext));
   // 必须排在 grounding 之后:grounding 才会丢掉未回溯节点并把 nodeId 重排为 P1..Pn,
   // 在此之前判断“逐字重复”用的是尚未落地的文本。
-  const deduplicated = normalizeM03StructuralDuplicates(grounded);
-  const classified = sanitizeOptionalPathogenesisClassifications(deduplicated, clinicalContext);
-  const rationaleBound = normalizeM03TcmRationaleEvidenceBoundary(classified);
-  const projected = normalizeM03PathogenesisSummaryProjection(rationaleBound);
-  const normalized = normalizeDiagnoseConfidenceAndLabels(projected, clinicalContext);
-  const terminologyAnnotated = await annotateM03ControlledTerminology(normalized, signal, clinicalContext);
-  const evidenceBound = enforceRetrievedM03FormulaSelection(terminologyAnnotated, allowedFormulaNames);
-  const formalCriteriaBound = declassifyUnmetFormalM03WesternPrimary(evidenceBound, clinicalContext);
-  const singlePrimary = declassifyAmbiguousM03WesternPrimary(formalCriteriaBound, clinicalContext);
-  const westernProjection = normalizeM03WesternDifferentials(singlePrimary, clinicalContext, patientAgeYears);
-  const westernRationaleAligned = alignNormalizedM03WesternClinicalRationale(westernProjection);
-  const tcmRationaleAligned = alignNormalizedM03TcmDiagnosticRationale(westernRationaleAligned);
-  const qualityBounded = applyM03AdvisoryQualityBoundaries(tcmRationaleAligned, clinicalContext);
-  return applyDeterministicIcd10Coding(applyActionableFollowupSafetyNetContract(qualityBounded));
+  const deduplicated = phase("dedup", normalizeM03StructuralDuplicates(grounded));
+  const classified = phase("classify", sanitizeOptionalPathogenesisClassifications(deduplicated, clinicalContext));
+  const rationaleBound = phase("rationale_boundary", normalizeM03TcmRationaleEvidenceBoundary(classified));
+  const projected = phase("summary_projection", normalizeM03PathogenesisSummaryProjection(rationaleBound));
+  const normalized = phase("confidence_labels", normalizeDiagnoseConfidenceAndLabels(projected, clinicalContext));
+  const terminologyAnnotated = phase("terminology", await annotateM03ControlledTerminology(normalized, signal, clinicalContext));
+  const evidenceBound = phase("formula_selection", enforceRetrievedM03FormulaSelection(terminologyAnnotated, allowedFormulaNames));
+  const formalCriteriaBound = phase("formal_criteria", declassifyUnmetFormalM03WesternPrimary(evidenceBound, clinicalContext));
+  const singlePrimary = phase("single_primary", declassifyAmbiguousM03WesternPrimary(formalCriteriaBound, clinicalContext));
+  const westernProjection = phase("western_differentials", normalizeM03WesternDifferentials(singlePrimary, clinicalContext, patientAgeYears));
+  const westernRationaleAligned = phase("western_rationale", alignNormalizedM03WesternClinicalRationale(westernProjection));
+  const tcmRationaleAligned = phase("tcm_rationale", alignNormalizedM03TcmDiagnosticRationale(westernRationaleAligned));
+  const qualityBounded = phase("quality_boundaries", applyM03AdvisoryQualityBoundaries(tcmRationaleAligned, clinicalContext));
+  const result = phase("safety_net_icd10", applyDeterministicIcd10Coding(applyActionableFollowupSafetyNetContract(qualityBounded)));
+  if (Object.keys(phaseDurations).length > 0) {
+    console.info("[tcm-cdss:timing] m03_prepare_phases", phaseDurations);
+  }
+  return result;
 }
 
 function markTransparentFormulaDeclassification(content: string): string {
@@ -1163,6 +1184,7 @@ async function retryCompletePrimaryResponse(
   clinicalContext = "",
   rejectedContent = "",
   clinicalReviewGuidance = "",
+  m03HalfPrompts?: { western: string; tcm: string },
 ): Promise<
   | { ok: true; content: string; finishReason: string | null; model: string }
   | { ok: false; reason: string; status?: number }
@@ -1172,6 +1194,7 @@ async function retryCompletePrimaryResponse(
   if (!config.configured || !isDeepseekModel(retryModel)) {
     return { ok: false, reason: "deepseek_text_policy" };
   }
+  const repairRoundStartedAt = Date.now();
   const controller = new AbortController();
   const abortFromParent = () => controller.abort();
   if (parentSignal?.aborted) controller.abort();
@@ -1403,12 +1426,20 @@ async function retryCompletePrimaryResponse(
       rejectionReason,
       clinicalReviewGuidance,
     );
+    // 并行 M03 的复核重生成只重跑中医半：触发该路径的拒绝码（m03_tcm_reasoning_semantic_review）
+    // 按构造只针对中医推理，已通过结构校验的西医半从被拒 JSON 原样保留、合并复用。
+    // 输出体量从整份载荷降到中医半，重生成轮从 ~55s 降到与首轮并行段同量级。
+    const regenerateTcmHalfOnly = regenerateM03FromFacts && structuredStage === "diagnose" && Boolean(m03HalfPrompts);
     const repairPrompt = regenerateM03FromFacts
       ? [
-          prompt,
-          "【M03独立复核后重新生成】上一候选的中医推理超出患者事实边界。完全丢弃上一候选，不要沿用其证型、病位病性、病机、治法或方名；从患者事实重新生成一份完整的 diagnose JSON 对象。",
+          regenerateTcmHalfOnly ? m03HalfPrompts!.tcm : prompt,
+          regenerateTcmHalfOnly
+            ? "【M03独立复核后重新生成·中医半】上一候选的中医推理超出患者事实边界。完全丢弃上一候选的中医半，不要沿用其证型、病位病性、病机、治法或方名；从患者事实重新生成中医半 JSON（顶层仍只含 schemaVersion、stage、overview、pathogenesis、therapy、formula、nonPharma、lineageAdaptation；westernDiagnosis 与 management 由服务端保留，不得输出）。"
+            : "【M03独立复核后重新生成】上一候选的中医推理超出患者事实边界。完全丢弃上一候选，不要沿用其证型、病位病性、病机、治法或方名；从患者事实重新生成一份完整的 diagnose JSON 对象。",
           boundedReviewGuidance,
-          "患者事实边界中的每一项会改变诊断、风险、辨证深度或随访的当前阳性事实，都必须进入 westernDiagnosis 依据/鉴别、primarySyndromeBasis、pathogenesis.chain.patientFact 或 uncertainties 至少一处；只使用原文直接支持的最浅结论。",
+          regenerateTcmHalfOnly
+            ? "患者事实边界中每一项会改变辨证深度或随访的当前阳性事实，都必须进入 primarySyndromeBasis、pathogenesis.chain.patientFact 或 uncertainties 至少一处；只使用原文直接支持的最浅结论。"
+            : "患者事实边界中的每一项会改变诊断、风险、辨证深度或随访的当前阳性事实，都必须进入 westernDiagnosis 依据/鉴别、primarySyndromeBasis、pathogenesis.chain.patientFact 或 uncertainties 至少一处；只使用原文直接支持的最浅结论。",
           "只输出一个完整合法 JSON 对象，不要输出 sentinel、正文、代码围栏或额外说明。",
         ].filter(Boolean).join("\n\n")
       : rejectedJson
@@ -1475,6 +1506,20 @@ async function retryCompletePrimaryResponse(
     if (!result) return { ok: false, reason: "retry_invalid_json" };
     if (!content) return { ok: false, reason: "retry_empty_content" };
     if (content.length > PRIMARY_TEXT_MAX_OUTPUT_CHARS) return { ok: false, reason: "retry_output_too_large" };
+    console.info("[tcm-cdss:timing] structured_repair_round", {
+      stage: structuredStage || "unstructured",
+      mode: regenerateTcmHalfOnly ? "regen_tcm_half" : regenerateM03FromFacts ? "regen_full" : rejectedJson ? "targeted_json" : "regen_prompt",
+      reason: rejectionReason || "none",
+      durationMs: Date.now() - repairRoundStartedAt,
+      contentChars: content.length,
+    });
+    if (regenerateTcmHalfOnly) {
+      // 新中医半 + 被拒 JSON 中保留的西医半 → 完整载荷；合并失败按瞬态失败返回，
+      // 由 transport 守卫在预算内重抽一次。
+      const mergedHalves = mergeParallelM03Halves(content, rejectedJson || undefined);
+      if (!mergedHalves) return { ok: false, reason: "retry_invalid_json" };
+      return { ok: true, content: mergedHalves, finishReason: choice?.finish_reason || null, model: retryModel };
+    }
     const stabilizedContent = structuredStage === "prescribe"
       ? stabilizeM04DoseOnlyRepair(rejectedJson, content, rejectionReason)
       : undefined;
@@ -1494,6 +1539,89 @@ async function retryCompletePrimaryResponse(
     clearTimeout(totalTimeout);
     parentSignal?.removeEventListener("abort", abortFromParent);
   }
+}
+
+type M03ParallelHalfResult =
+  | { ok: true; content: string; durationMs: number }
+  | { ok: false; reason: string; durationMs: number };
+
+/**
+ * M03 并行分工的西医半：与主流式请求（中医半）同时发出的非流式完成请求。
+ * 输出体量约为全量载荷的三成，正常在主流结束前完成；瞬态失败在预算允许时重试一次
+ * （与结构化修复的 transport 重试同语义）。任何终态失败都不抛出——合并层缺西医半时
+ * 由既有 western_support_empty 契约驱动全量重生成兜底。
+ */
+async function collectM03ParallelWesternHalf(
+  prompt: string,
+  kind: PromptKind,
+  parentSignal: AbortSignal,
+  absoluteDeadline: number,
+): Promise<M03ParallelHalfResult> {
+  const config = getPrimaryTextModelConfig();
+  const model = modelForStructuredStage(config.model, "diagnose");
+  const startedAt = Date.now();
+  const finish = (result: { ok: true; content: string } | { ok: false; reason: string }): M03ParallelHalfResult =>
+    ({ ...result, durationMs: Date.now() - startedAt });
+  if (!config.configured || !isDeepseekModel(model)) return finish({ ok: false, reason: "deepseek_text_policy" });
+  const attemptOnce = async (): Promise<{ ok: true; content: string } | { ok: false; reason: string }> => {
+    const controller = new AbortController();
+    const abortFromParent = () => controller.abort();
+    if (parentSignal.aborted) controller.abort();
+    else parentSignal.addEventListener("abort", abortFromParent, { once: true });
+    const remaining = absoluteDeadline - Date.now();
+    if (remaining <= 1_000) return { ok: false, reason: "deadline_exhausted" };
+    const timer = setTimeout(() => controller.abort(), remaining);
+    try {
+      const response = await fetchWithConnectTimeout(chatCompletionsUrl(config.baseUrl), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: cdssSystemPrompt(kind) },
+            { role: "user", content: prompt },
+          ],
+          stream: false,
+          max_tokens: maxTokensForStructuredStage("diagnose"),
+          temperature: 0,
+          response_format: { type: "json_object" },
+          thinking: { type: thinkingEnabledForStructuredStage("diagnose") ? "enabled" : "disabled" },
+          reasoning_effort: reasoningEffortForStructuredStage("diagnose"),
+        }),
+      }, controller);
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => undefined);
+        return { ok: false, reason: `http_${response.status}` };
+      }
+      const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, PRIMARY_TEXT_MAX_OUTPUT_CHARS * 4 + 65_536));
+      const content = result?.choices?.[0]?.message?.content || "";
+      if (!result) return { ok: false, reason: "invalid_json" };
+      if (!content) return { ok: false, reason: "empty_content" };
+      if (content.length > PRIMARY_TEXT_MAX_OUTPUT_CHARS) return { ok: false, reason: "output_too_large" };
+      return { ok: true, content };
+    } catch (error) {
+      return {
+        ok: false,
+        reason: error instanceof UpstreamResponseTooLargeError
+          ? "output_too_large"
+          : controller.signal.aborted
+            ? "timeout_or_cancelled"
+            : "network_error",
+      };
+    } finally {
+      clearTimeout(timer);
+      parentSignal.removeEventListener("abort", abortFromParent);
+    }
+  };
+  let result = await attemptOnce();
+  const transientReasons = ["network_error", "timeout_or_cancelled", "empty_content", "invalid_json", "http_408", "http_425", "http_429", "http_500", "http_502", "http_503", "http_504"];
+  if (!result.ok && !parentSignal.aborted && absoluteDeadline - Date.now() > 45_000 && transientReasons.includes(result.reason)) {
+    result = await attemptOnce();
+  }
+  return finish(result);
 }
 
 type StructuredRepairResult = Awaited<ReturnType<typeof retryCompletePrimaryResponse>>;
@@ -1930,7 +2058,13 @@ async function callPrimaryTextModelStream(
   if (!isDeepseekModel(model)) {
     return errResponse(500, "文本临床推理阶段仅允许使用 DeepSeek 模型");
   }
-  if (prompt.length > PRIMARY_TEXT_MAX_PROMPT_CHARS) {
+  const m03ParallelHalves = opts.structuredStage === "diagnose" ? opts.m03ParallelHalfPrompts : undefined;
+  const longestPromptChars = Math.max(
+    prompt.length,
+    m03ParallelHalves?.western.length || 0,
+    m03ParallelHalves?.tcm.length || 0,
+  );
+  if (longestPromptChars > PRIMARY_TEXT_MAX_PROMPT_CHARS) {
     return errResponse(413, "本阶段病例与证据上下文超过模型处理预算，请精简重复病历内容后重试");
   }
 
@@ -1950,6 +2084,10 @@ async function callPrimaryTextModelStream(
   const abortFromRequest = () => upstreamController.abort();
   if (opts.requestSignal?.aborted) upstreamController.abort();
   else opts.requestSignal?.addEventListener("abort", abortFromRequest, { once: true });
+  // 并行 M03 的西医半在主流建立前就发出，与中医半全程重叠；helper 自身永不抛出。
+  const m03WesternHalfPromise = m03ParallelHalves
+    ? collectM03ParallelWesternHalf(m03ParallelHalves.western, kind, upstreamController.signal, absoluteRunDeadline)
+    : undefined;
   let stopClientHeartbeat: () => void = () => {};
   let clientStreamClosed = false;
   const stream = new ReadableStream({
@@ -2464,7 +2602,8 @@ async function callPrimaryTextModelStream(
             model,
             messages: [
               { role: "system", content: cdssSystemPrompt(kind) },
-              { role: "user", content: prompt },
+              // 并行 M03 时主流式请求承担中医半（体量大、模块进度多）；修复轮仍用完整 prompt。
+              { role: "user", content: m03ParallelHalves ? m03ParallelHalves.tcm : prompt },
             ],
             stream: true,
             max_tokens: kind === "question" ? Math.min(3_000, maxTokensForStructuredStage(opts.structuredStage)) : maxTokensForStructuredStage(opts.structuredStage),
@@ -2622,6 +2761,33 @@ async function callPrimaryTextModelStream(
         if (contentChars === 0 && reasoningChars > 0) {
           throw new Error("模型仅返回推理过程，未返回可展示的最终内容，请重试或降低推理复杂度");
         }
+        if (m03ParallelHalves) {
+          const westernHalf = m03WesternHalfPromise ? await m03WesternHalfPromise : undefined;
+          const mergedParallel = mergeParallelM03Halves(
+            accumulatedContent,
+            westernHalf?.ok ? westernHalf.content : undefined,
+          );
+          console.info("[tcm-cdss:timing] m03_parallel_halves", {
+            tcmHalfChars: accumulatedContent.length,
+            westernHalfOk: Boolean(westernHalf?.ok),
+            westernHalfReason: westernHalf && !westernHalf.ok ? westernHalf.reason : "ok",
+            westernHalfDurationMs: westernHalf?.durationMs ?? 0,
+            merged: Boolean(mergedParallel),
+            elapsedMs: Date.now() - requestStartedAt,
+          });
+          if (mergedParallel) {
+            accumulatedContent = mergedParallel;
+            // 西医半模块此刻才在合并文本里闭合，补推其结论标题行，医生看到全部模块落地。
+            for (const notice of newModuleNotices(accumulatedContent, emittedModuleKeys)) {
+              enqueueClient(`\n${sanitizeDiagnoseStreamingDraft(notice)}`);
+            }
+          }
+          // 合并失败（中医半不可解析）时保留原始输出，走既有截断/挽救/重生成路径。
+        }
+        const m03LadderCheckpoint = (point: string) => {
+          if (opts.structuredStage !== "diagnose") return;
+          console.info("[tcm-cdss:timing] m03_ladder_checkpoint", { point, elapsedMs: Date.now() - requestStartedAt });
+        };
         const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
         const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
         let authoritativeContent = wrapStructuredJsonObject(accumulatedContent, opts.structuredStage, opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates);
@@ -2654,14 +2820,17 @@ async function callPrimaryTextModelStream(
             authoritativeContent = finalizeM04CandidateContent(authoritativeContent);
           }
         }
+        m03LadderCheckpoint("prepared");
         const sentinelStarted = authoritativeContent.includes(startMarker);
         const sentinelClosed = authoritativeContent.includes(endMarker);
         let structuredReasoning = sentinelStarted && sentinelClosed && opts.structuredStage
           ? validatedStructuredReasoning(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext, opts.structuredPriorReasoning, true)
           : undefined;
+        m03LadderCheckpoint("validated");
         let initialM04ClinicalReviewRejected = false;
         if (structuredReasoning && opts.structuredStage === "diagnose") {
           const reviewed = await reviewM03Candidate(authoritativeContent, structuredReasoning, m03GeneratorModel);
+          m03LadderCheckpoint("initial_review_done");
           authoritativeContent = reviewed.content;
           structuredReasoning = reviewed.reasoning;
           const review = reviewed.review;
@@ -2835,6 +3004,7 @@ async function callPrimaryTextModelStream(
             opts.structuredClinicalContext,
             authoritativeContent,
             opts.structuredStage === "prescribe" ? m04ClinicalRepairGuidanceText : m03DiagnosticRepairGuidance,
+            m03ParallelHalves,
           );
           if (opts.structuredStage === "prescribe") {
             m04RepairState = advanceM04RepairState(m04RepairState, {
@@ -3043,6 +3213,7 @@ async function callPrimaryTextModelStream(
                 opts.structuredClinicalContext,
                 retry.ok ? retry.content : resolvedRetryContent,
                 targetedM04Retry ? m04ClinicalRepairGuidanceText : m03DiagnosticRepairGuidance,
+                m03ParallelHalves,
               );
               if (opts.structuredStage === "prescribe") {
                 m04RepairState = advanceM04RepairState(m04RepairState, {
@@ -3203,6 +3374,7 @@ async function callPrimaryTextModelStream(
                     opts.structuredClinicalContext,
                     secondRetry.ok ? secondRetry.content : secondResolved || "",
                     thirdM03Guidance,
+                    m03ParallelHalves,
                   );
                   if (clientStreamClosed) return;
                   const thirdWrapped = thirdRetry.ok
@@ -3712,6 +3884,7 @@ async function callPrimaryTextModelStream(
                 opts.structuredClinicalContext,
                 transformed.content,
                 m03DiagnosticRepairGuidance,
+                m03ParallelHalves,
               );
               if (clientStreamClosed) return;
               const finalizedRetryWrapped = finalizedRetry.ok
@@ -3989,6 +4162,7 @@ async function callPrimaryTextModelStream(
           // 完整既有管线，输出的是可执行的签名结果。此处原有的渲染层受理分支已删除——
           // 它要求 m03DiagnosticReviewStatus==="accepted"，而合同否决发生在复核之前（not_run），
           // 目标场景下是死路径；且它渲染的草稿被剥掉了结构化签名载荷，M04 无法继续。
+          m03LadderCheckpoint("final_emit");
           enqueueClient(clinicalReviewUnavailableFallback
             ? `${STREAM_REPLACE_MARKER}${transformed.content}`
             : m03SemanticReviewSalvage

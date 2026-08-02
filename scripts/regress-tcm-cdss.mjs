@@ -258,7 +258,9 @@ function runFrontendContractChecks() {
     sourceBetween(source, "function HisMedicalRecordWorkspace(", "function AiSupportPanel(")
   );
 
-  assert(source.includes("hasExecutableM03Diagnosis") && !prescribeRoute.includes("hasActionableM03Diagnosis") && prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated))") && limitedOutputHelpers.includes("isLimitedDiagnosisText"), "stage contract: current cases use signed structured M03 truth, while text detection is legacy-only", `${limitedOutputHelpers}\n${prescribeRoute.slice(0, 5000)}`);
+  // 22f5d000 起 prescribe 路由复检必须带 isSafetyRejection 分级谓词（第7处受理/复检分叉的修复）；
+  // 钉住带谓词的调用形态，防止有人把复检退回无谓词的全量拒绝口径。
+  assert(source.includes("hasExecutableM03Diagnosis") && !prescribeRoute.includes("hasActionableM03Diagnosis") && prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && limitedOutputHelpers.includes("isLimitedDiagnosisText"), "stage contract: current cases use signed structured M03 truth, while text detection is legacy-only", `${limitedOutputHelpers}\n${prescribeRoute.slice(0, 5000)}`);
   assert(["建议", "补充", "补齐", "完善", "再", "处方", "证候锚点", "病机链"].every((token) => limitedOutputHelpers.includes(token)), "shared: limited M03 helper covers non-fixed information-insufficient phrasing variants", limitedOutputHelpers);
   const completeConclusionIndex = limitedOutputHelpers.indexOf("完整候选方案");
   const broadLimitedPhraseIndex = limitedOutputHelpers.indexOf("建议(?:先)?(?:补充|补齐|完善)");
@@ -416,7 +418,7 @@ function runFrontendContractChecks() {
     "model prompt: M03 and M04 each emit one JSON object while M04 remains an actionable minimal proposal for server compilation",
     `${m03ReasoningInstruction}\n${m04ProposalInstruction}`,
   );
-  assert(prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated))") && !prescribeRoute.includes("hasActionableM03Diagnosis"), "M04 route: verifies the server-signed, patient-grounded structured M03 contract before dose-level prescribing", prescribeRoute.slice(0, 5600));
+  assert(prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && !prescribeRoute.includes("hasActionableM03Diagnosis"), "M04 route: verifies the server-signed, patient-grounded structured M03 contract before dose-level prescribing", prescribeRoute.slice(0, 5600));
   assert(
     reasoningContractSignatureSource.includes('DIAGNOSE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m03-signature-v4"') &&
       reasoningContractSignatureSource.includes("clinicalInputHash") &&
@@ -571,7 +573,8 @@ function runFrontendContractChecks() {
     "M05: server emits typed timeline fields and the frontend never reverse-parses Markdown",
     `${followupTimelineParser}\n${postPrescriptionRiskRoute}\n${diagnoseChain.slice(-2600)}`,
   );
-  assert(resultV2.includes('title="健康调护与注意事项"') && resultV2.includes("pathogenesisType") && resultV2.includes("min-w-[760px]") && riskPanel.includes('const isRedFlag =') && riskPanel.includes("{isRedFlag &&"), "frontend: structured report closes with health follow-up, pathogenesis tags, responsive herb table, and positive-only red-flag handling", resultV2.slice(0, 9200));
+  // UI 改版后药味表为 4 列宽表（min-w-[820px]）；健康调护模块保持在报告收尾。
+  assert(resultV2.includes('title="健康调护与注意事项"') && resultV2.includes("pathogenesisType") && source.includes("min-w-[820px]") && riskPanel.includes('const isRedFlag =') && riskPanel.includes("{isRedFlag &&"), "frontend: structured report closes with health follow-up, pathogenesis tags, responsive herb table, and positive-only red-flag handling", resultV2.slice(0, 9200));
   assert(diagnosisTypesSource.includes("locationDifferentiation") && diagnosisTypesSource.includes("details:") && diagnosisTypesSource.includes("rootDeficiency") && diagnosisTypesSource.includes("branchExcess") && diagnosisTypesSource.includes("symptomClusters"), "M03 schema: pathogenesis supports per-location basis, root-deficiency/branch-excess classification, and symptom-cluster mapping", diagnosisTypesSource.slice(5200, 9800));
   assert(resultV2.includes("病位辨证") && resultV2.includes("病性辨证") && resultV2.includes("本证") && resultV2.includes("主要表现") && resultV2.includes("症状群与病机联系") && !resultV2.includes("step.biaoBen"), "frontend: structured pathogenesis fields are rendered as clinician-readable sections without deprecated per-node root/manifestation badges", resultV2.slice(3400, 8200));
   assert(diagnosisStageContractSource.includes("primarySyndromeResolution") && diagnosisStageContractSource.includes("primary_syndrome_resolution_reason_missing") && diagnosisStageContractSource.includes("location_resolution_reason_missing") && diagnosisStageContractSource.includes("nature_resolution_reason_missing"), "M03 contract: semantic conclusions carry explicit resolution and uncertainty contracts", diagnosisStageContractSource.slice(18500, 23500));
@@ -672,7 +675,8 @@ function runFrontendContractChecks() {
     "frontend: restored browser state cannot masquerade as an authenticated clinician risk override",
     herbWorkbench.slice(0, 11500)
   );
-  assert(resultV2.includes("<HerbModificationWorkbench") && resultV2.includes("candidateIndex={0}"), "frontend: V2 M04 candidate section mounts the herb modification workbench next to the structured candidate", resultV2.slice(0, 7600));
+  // 甲方定案（2026-08-02）：药味加减工作台不在候选区展示——组件保留但不得挂载。
+  assert(!resultV2.includes("<HerbModificationWorkbench"), "frontend: V2 M04 candidate section does NOT mount the herb modification workbench (owner decision)", resultV2.slice(0, 7600));
 
   assert(engineSource.includes('NEXT_PUBLIC_ENABLE_BROWSER_CASE_PERSISTENCE !== "false"') && !sourceBetween(engineSource, "export function saveCase", "export function loadCase").includes("localStorage.setItem") && source.includes("isEncryptedSnapshotEnvelope"), "frontend: persistence is enabled by default but no plaintext case/workspace snapshot is written to localStorage", `${engineSource.slice(0, 5200)}\n${sourceBetween(source, "function saveWorkspaceSnapshot", "function recoverInterruptedRun")}`);
   assert(envExample.includes("NEXT_PUBLIC_ENABLE_BROWSER_CASE_PERSISTENCE=true"), "frontend: env example enables short-term workspace recovery by default", envExample);
@@ -1618,7 +1622,7 @@ cases.push(expected("redflag-suppresses-stale-dose-level-his-output", baseCase("
     highestRiskLevel: "INFO",
     auditAvailable: true,
   },
-}), "red_flag", "高风险", { expectedNoDoseLevelHisOutput: true }));
+}), "red_flag", "高风险", { expectedAdvisoryRedFlagDoseRetention: true }));
 
 const pollutionCases = [
   ["pollution-symptoms", { symptoms: { note: "AI误写突发剧烈胸痛伴大汗" } }, "ready", "低风险"],
@@ -1693,13 +1697,16 @@ async function runHisSchemeCases() {
       const riskSignals = [...(payload?.safetyGate?.redFlags || []), ...(payload?.safetyGate?.advisories || [])];
       assert(riskSignals.some((item) => String(item).includes(c.expectedRiskSignal)), `${c.name}: expected risk signal ${c.expectedRiskSignal}`, payload?.safetyGate);
     }
-    if (c.expectedNoDoseLevelHisOutput) {
-      assert((payload?.prescriptions?.herbal || []).length === 0, `${c.name}: red flag removes stale herbal candidate`, payload?.prescriptions);
-      assert((payload?.prescriptions?.westernOrPatent || []).length === 0, `${c.name}: red flag removes stale western or patent candidate`, payload?.prescriptions);
-      assert(payload?.prescriptions?.regimen == null && payload?.prescriptionRevision == null, `${c.name}: red flag removes stale regimen and audit revision`, payload);
-      const prescriptionJson = JSON.stringify(payload?.prescriptions || {});
-      assert(!/(?:15g|12g|每日1剂|水煎服|5剂)/.test(prescriptionJson), `${c.name}: no dose, decoction, or course survives the red flag boundary`, prescriptionJson);
-      assert(!(payload?.references || []).some((reference) => /方剂知识库|酸枣仁|茯神/.test(JSON.stringify(reference))), `${c.name}: stale prescription references are removed`, payload?.references);
+    if (c.expectedAdvisoryRedFlagDoseRetention) {
+      // 甲方处置学说（advise，2026-08-01）：红旗**不删除**已生成内容，改为置顶分级警示 +
+      // 逐项确认门。检测与呈现照旧，采纳被 L3 确认链约束，陈旧 PASS 审方不得转化为放行。
+      assert((payload?.prescriptions?.herbal || []).length > 0, `${c.name}: advise mode retains the herbal candidate for the doctor`, payload?.prescriptions);
+      const advisoryProfile = payload?.warningProfile || {};
+      assert(["L3", "L4"].includes(advisoryProfile.level) && Array.isArray(advisoryProfile.reasons) && advisoryProfile.reasons.some((reason) => /急危重|急诊|心血管|胸痛/.test(String(reason))), `${c.name}: red-flag reasons stay visible in the warning profile`, advisoryProfile);
+      assert(payload?.reviewRequired === true, `${c.name}: red flag keeps mandatory review`, payload);
+      assert(payload?.auditStatus !== "pass", `${c.name}: stale PASS audit revision must not surface as a passing audit`, { auditStatus: payload?.auditStatus, revision: payload?.prescriptionRevision });
+      assert(payload?.writeBackPolicy?.warningConfirmationMode === "checkbox_and_reason" || payload?.writeBackPolicy?.warningConfirmationMode === "blocked", `${c.name}: adoption requires reasoned confirmation under red flag`, payload?.writeBackPolicy);
+      assert(payload?.writeBackPolicy?.warningAcknowledgementRequired === true && payload?.writeBackPolicy?.overrideReasonRequired === true, `${c.name}: red-flag adoption cannot skip acknowledgement or reason`, payload?.writeBackPolicy);
     }
     if (c.expectedLineage) {
       assert(String(payload?.aiMedicalRecord?.tcmLineagePreference || "").includes(c.expectedLineage), `${c.name}: expected lineage preference`, payload?.aiMedicalRecord);
@@ -1713,6 +1720,9 @@ async function runHisSchemeCases() {
       assert(payload?.status === "ready", `${c.name}: expected ready HIS payload before adoption`, payload);
       assert(payload?.writeBackPolicy?.allowSingleItemAdoption === true, `${c.name}: single item adoption follows unlocked ready status`, payload?.writeBackPolicy);
       assert(payload?.prescriptions?.herbal?.[0]?.adoptable === true && !payload?.prescriptions?.herbal?.[0]?.blockedReason, `${c.name}: adoptable herbal item does not carry a contradictory blocked reason`, payload?.prescriptions?.herbal?.[0]);
+    } else if (c.expectedAdvisoryRedFlagDoseRetention) {
+      // advise 红旗：结果照常就绪，单项采纳保留但被 L3 确认链约束（上方专用断言已核验）。
+      assert(payload?.status === "ready" && payload?.writeBackPolicy?.allowSingleItemAdoption === true, `${c.name}: advise red flag keeps confirmed single-item adoption`, payload?.writeBackPolicy);
     } else {
       assert(payload?.status !== "ready", `${c.name}: fixture does not authorize an adoptable ready payload`, payload);
       assert(payload?.writeBackPolicy?.allowSingleItemAdoption === false, `${c.name}: no single item adoption`, payload?.writeBackPolicy);
@@ -1734,7 +1744,7 @@ async function runHisSchemeCases() {
       assert(adoptableItems.some((item) => item.id === "herbal-1"), `${c.name}: audited structured herbal item is adoptable`, adoptableItems);
       assert(!adoptableItems.some((item) => item.id === "medicine-1"), `${c.name}: empty western/patent placeholder is not adoptable`, adoptableItems);
     }
-    if (c.gate !== "ready" || c.label !== "低风险" || c.expectNoAdoption) {
+    if ((c.gate !== "ready" || c.label !== "低风险" || c.expectNoAdoption) && !c.expectedAdvisoryRedFlagDoseRetention) {
       assert(payload?.writeBackPolicy?.allowSingleItemAdoption === false, `${c.name}: limited or non-low-risk disables single adoption`, payload?.writeBackPolicy);
       assert(payload?.writeBackPolicy?.allowOneClickAdoption === false, `${c.name}: limited or non-low-risk disables one-click adoption`, payload?.writeBackPolicy);
       const adoptableItems = [
@@ -1756,10 +1766,18 @@ async function runHisSchemeCases() {
     reasoningV2: reasoningV2WithHerbs([{ name: "甘草", dose: "6g" }, { name: "海藻", dose: "9g" }]),
   });
   const forgedPassResponse = await request("POST", "/api/diagnosis/his-scheme", { caseState: forgedPass });
-  assert(forgedPassResponse.status === 422, "HIS forged PASS probe is rejected by generation-time formula-therapy precontrol before audit", forgedPassResponse.text.slice(0, 300));
+  // advise 学说下伪造 PASS 的防线：本地确定性配伍规则独立复算（甘草×海藻 十八反）→
+  // L4 确定性阻断 / executable=false / auditStatus=alert / reviewRequired；伪造的历史 PASS
+  // 无法转化为可执行放行或一键采纳。
+  const forgedProfile = forgedPassResponse.json?.warningProfile || {};
+  assert(forgedPassResponse.status === 200 && forgedProfile.level === "L4" && forgedProfile.executable === false, "HIS forged PASS probe is neutralized by deterministic incompatibility rules (L4 non-executable)", forgedPassResponse.text.slice(0, 400));
   assert(
-    /invalid_his_prescription_candidate_0_transparent_therapy/.test(forgedPassResponse.json?.code || ""),
-    "a forged historic PASS cannot bypass the current M03 pathogenesis-node contract",
+    forgedPassResponse.json?.auditStatus !== "pass" &&
+      forgedPassResponse.json?.reviewRequired === true &&
+      forgedPassResponse.json?.writeBackPolicy?.allowOneClickAdoption === false &&
+      forgedPassResponse.json?.writeBackPolicy?.finalPrescriptionReleaseAllowed === false &&
+      (forgedProfile.reasons || []).some((reason) => /十八反|配伍禁忌/.test(String(reason))),
+    "a forged historic PASS cannot bypass the deterministic eighteen-incompatibility boundary",
     forgedPassResponse.json,
   );
   const formalPassPayload = buildHisAiSchemePayload(baseCase("his-formal-audit-pass", {
@@ -3005,6 +3023,7 @@ async function main() {
   if (REGRESSION_SECTION) {
     const sections = {
       "his-processing": runHisProcessingConservationCase,
+      "his-scheme": runHisSchemeCases,
       limited: runLimitedEndpointCases,
       "prescription-gates": runPrescriptionOnlyGateEndpointCases,
       signatures: runM03SignatureBoundaryCases,

@@ -30,6 +30,7 @@ const scripts = [
   "test:warm-disease-rules",
   "test:customer-evidence",
   "test:stage-contract",
+  "test:m03-parallel-merge",
   "test:repair-guidance",
   "test:therapy-vocabulary",
   "test:stage-outcome",

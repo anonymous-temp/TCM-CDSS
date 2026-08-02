@@ -7,6 +7,7 @@ import { readCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { buildM03ParallelHalfSuffix, m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 
 export async function POST(req: Request) {
@@ -120,6 +121,17 @@ export async function POST(req: Request) {
   };
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
+    // M03 两半并行生成（时间专项）：两半共用上面这份完整提示词做前缀（provider 前缀缓存三方
+    // 共享），只在末尾各加一段分工限制。修复轮与所有降级路径仍以完整 prompt 为准。
+    // M03_PARALLEL_GENERATION=false 一键回退单发全量生成。
+    ...(m03ParallelGenerationEnabled()
+      ? {
+          m03ParallelHalfPrompts: {
+            western: `${prompt}\n\n${buildM03ParallelHalfSuffix("western")}`,
+            tcm: `${prompt}\n\n${buildM03ParallelHalfSuffix("tcm")}`,
+          },
+        }
+      : {}),
     truncateFallback: signedLimitedDiagnosis(truncatedGate),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",

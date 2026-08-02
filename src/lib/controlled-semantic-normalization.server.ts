@@ -25,6 +25,7 @@ import {
   createTextModelClient,
   getControlledTerminologyModelConfig,
   getPublicTextModelStatus,
+  isDeepseekModel,
 } from "./text-model";
 
 type CanonicalRow = { id: string; canonical: string; aliases?: string[]; termClass?: string };
@@ -54,6 +55,22 @@ type JsonRecord = Record<string, unknown>;
 const MAX_TARGETS_PER_CALL = 24;
 const MAX_CACHE_ENTRIES = 4_000;
 const MODEL_TIMEOUT_MS = 25_000;
+
+// 消极共识短 TTL 缓存：模型**有响应但未达共识/弃权**的目标，在 TTL 内不再重复发起闭集调用。
+// 同一 M03 请求会跑两遍 prepare（梯子预处理 + 复核前 finalize），修复轮还会再来一遍——
+// 没有这层时每一遍都为同一批注定失败的目标各烧两条模型腿（实测两遍共 60s+）。
+// 传输失败/超时不进此缓存，保持可用性语义：下次照常重试。
+const NO_CONSENSUS_TTL_MS = 10 * 60_000;
+const NO_CONSENSUS_MAX_ENTRIES = 2_000;
+const noConsensusCache = new Map<string, { expiresAt: number; candidateFingerprint: string }>();
+function rememberNoConsensus(key: string, fingerprint: string): void {
+  if (noConsensusCache.size >= NO_CONSENSUS_MAX_ENTRIES) noConsensusCache.clear();
+  noConsensusCache.set(key, { expiresAt: Date.now() + NO_CONSENSUS_TTL_MS, candidateFingerprint: fingerprint });
+}
+function hasFreshNoConsensus(key: string, fingerprint: string): boolean {
+  const entry = noConsensusCache.get(key);
+  return Boolean(entry && entry.expiresAt > Date.now() && entry.candidateFingerprint === fingerprint);
+}
 const PROBE_CACHE_TTL_MS = 5 * 60_000;
 
 const clinicalExtensions = terminologyExtensionsJson as {
@@ -357,6 +374,13 @@ async function callClosedSetModel(
       temperature: 0,
       max_tokens: 1800,
       stream: false,
+      // 闭集映射是微型 JSON 合同。V4 Flash 不显式禁用思考时会先烧推理预算，单次调用被
+      // 25s 超时打满、重试再烧一轮——实测占掉 M03 合并后 60s+ 且常空手而归（其它轻量语义层
+      // 全部带此参数，唯独这里漏了）。禁用后单次应回到秒级。
+      ...(isDeepseekModel(config.model) ? {
+        reasoning_effort: "low" as const,
+        thinking: { type: "disabled" as const },
+      } : {}),
       response_format: { type: "json_object" },
     }, { signal: controller.signal });
     return parseDecisionPayload(completion.choices[0]?.message?.content, targets);
@@ -447,23 +471,34 @@ export async function annotateM03ControlledTerminology(
       misses.push(target);
     }
   }
-  if (misses.length > 0 && !signal?.aborted) {
+  const modelMisses = misses.filter((target) => !hasFreshNoConsensus(
+    targetCacheKey(target, config.model),
+    candidateFingerprint(target),
+  ));
+  if (modelMisses.length > 0 && !signal?.aborted) {
     const [first, second] = await Promise.all([
-      callClosedSetModelWithOneRetry(misses, signal),
-      callClosedSetModelWithOneRetry(misses, signal),
+      callClosedSetModelWithOneRetry(modelMisses, signal),
+      callClosedSetModelWithOneRetry(modelMisses, signal),
     ]);
     const firstByKey = new Map(first.map((item) => [item.key, item]));
     const secondByKey = new Map(second.map((item) => [item.key, item]));
     const minimumConfidence = Math.min(0.99, Math.max(0.5,
       Number(process.env.CONTROLLED_TERMINOLOGY_MIN_CONFIDENCE || 0.8)));
-    for (const target of misses) {
+    for (const target of modelMisses) {
       const accepted = validatedConsensusDecision(
         target,
         firstByKey.get(target.key),
         secondByKey.get(target.key),
         minimumConfidence,
       );
-      if (!accepted) continue;
+      if (!accepted) {
+        // 只有模型确实对该目标给出了裁决（含 candidateId=null 弃权）才负缓存；
+        // 两腿都没返回该 key（超时/传输失败）时不缓存，保持重试语义。
+        if (firstByKey.has(target.key) || secondByKey.has(target.key)) {
+          rememberNoConsensus(targetCacheKey(target, config.model), candidateFingerprint(target));
+        }
+        continue;
+      }
       const mapping: ControlledTerminologyMapping = {
         namespace: target.namespace,
         fieldPath: target.fieldPath,
