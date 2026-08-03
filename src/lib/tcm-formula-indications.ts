@@ -6,10 +6,18 @@ import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-p
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, formulaMatchSyndromeCompatible, governedSyndromeFeatureMatch, governedTcmTermLabelById, matchCompatibleGovernedSyndromeIds } from "./clinical-governance-tables";
 import {
   applyBoundedSyndromeHypothesisRerank,
+  clinicalAxesFromAffirmedText,
   syndromeHypothesesFromAffirmedText,
   type SyndromeHypothesis,
   type SyndromeHypothesisRerankDecision,
 } from "./tcm-syndrome-hypothesis";
+import {
+  buildCasePopulationProfile,
+  buildFormulaAxisProfile,
+  scoreFormulaAxes,
+  type FormulaAxisProfile,
+  type FormulaAxisScoreBreakdown,
+} from "./tcm-formula-axis-score";
 
 type FormulaIndicationEntry = {
   id: string;
@@ -44,6 +52,11 @@ export type FormulaIndicationCandidate = FormulaIndicationEntry & {
   evidenceScore: number;
   /** 是否有字面证据（概念或主治词命中）。为 false 表示该候选完全由证候假设带入。 */
   hasLiteralEvidence?: boolean;
+  /**
+   * 病位/病性/人群轴的逐轴加减分明细（tcm-formula-axis-score.ts）。轴分只进 score（排序），
+   * 绝不进 evidenceScore（准入）——轴对立降权但不淘汰；轴数据缺失时 total=0，回退纯 token 分。
+   */
+  axisScoreBreakdown?: FormulaAxisScoreBreakdown;
   directPrimarySyndromeMatch?: boolean;
   positiveSufficiency?: boolean;
   positiveSufficiencyBasis?: string;
@@ -132,6 +145,16 @@ const ENTRIES: readonly FormulaIndicationEntry[] = governedCatalog.entries
     blockingReasons: entry.blockingReasons,
   }));
 const ENTRY_BY_ID = new Map(ENTRIES.map((entry) => [entry.id, entry] as const));
+
+/** 方剂轴档案按 id 惰性缓存：目录字段是构建期常量，档案只算一次。 */
+const AXIS_PROFILE_BY_ID = new Map<string, FormulaAxisProfile>();
+function axisProfileFor(entry: FormulaIndicationEntry): FormulaAxisProfile {
+  const cached = AXIS_PROFILE_BY_ID.get(entry.id);
+  if (cached) return cached;
+  const profile = buildFormulaAxisProfile(entry);
+  AXIS_PROFILE_BY_ID.set(entry.id, profile);
+  return profile;
+}
 type FormulaRetrievalIndex = {
   indexes: {
     conceptToFormulaIds: Record<string, string[]>;
@@ -372,6 +395,11 @@ export function retrieveTcmFormulaIndicationCandidates(
     ...termHits.keys(),
     ...hypothesisScoreByFormulaId.keys(),
   ]);
+  // 病位/病性/人群轴（2026-08-03 复盘的模板化偏置根修）：token 重叠只再是基础分，
+  // 目录已有的轴数据参与排序——轴一致加分、方向对立减分、人群冲突降权并保留标注。
+  // 病例轴与假设路同源（clinicalAxesFromAffirmedText），人群档案只用阳性事实 + 病例人口学字段。
+  const caseAxes = clinicalAxesFromAffirmedText(recallFacts);
+  const casePopulation = buildCasePopulationProfile(caseState.patient, facts);
   return candidates.map((entry) => {
     const indicationText = entry.indications.join("；");
     const matched = caseConcepts.filter((concept) =>
@@ -428,11 +456,18 @@ export function retrieveTcmFormulaIndicationCandidates(
     const evidenceScore = (rawConceptScore * focusMultiplier + (termHit?.score || 0)) * coordinationFactor +
       hypothesisScore +
       (entry.catalog === "verified_reference_catalog" ? 0.25 : 0);
-    const score = evidenceScore + curatedBoost;
+    // 轴分只调排序：token/概念/假设证据决定准入（evidenceScore），轴一致/对立决定同池内先后。
+    // 轴数据缺失的方剂 total=0，与升级前完全同分——additive 兜底，绝不因缺数据被淘汰。
+    const axisScoreBreakdown = scoreFormulaAxes(axisProfileFor(entry), caseAxes, {
+      mode: "full",
+      population: casePopulation,
+    });
+    const score = evidenceScore + curatedBoost + axisScoreBreakdown.total;
     return {
       ...entry,
       evidenceScore: hypothesisSoleAdmissionAllowed ? evidenceScore : 0,
       hasLiteralEvidence,
+      axisScoreBreakdown,
       matchedConcepts: matched.map((concept) => concept.key),
       matchedIndicationTerms: [...new Set(termHit?.terms || [])]
         .sort((left, right) => right.length - left.length)
@@ -662,9 +697,18 @@ export function retrieveTcmFormulaCandidatesForReasoning(
     const curatedRelationBonus = curatedPrimaryRelation
       ? (curatedPrimaryRelation.fit === "primary" ? 8 : 5) + (curatedTherapySatisfied ? 2 : 0)
       : 0;
-    const score = syndromeMatches.length * 6 + natureMatches.length * 2 + locationMatches.length * 1.5 +
+    const baseScore = syndromeMatches.length * 6 + natureMatches.length * 2 + locationMatches.length * 1.5 +
       curatedRelationBonus +
       conceptMatches.reduce((total, concept) => total + concept.weight, 0);
+    // guard 模式只做方向减分：签名病性/病位与方剂轴方向对立（如签名虚证召回泻实方）沉底，
+    // 匹配加分不重复计（natureMatches/locationMatches 已按签名标签逐条加过分）。
+    // 减分只作用于排序 score；准入仍看 baseScore（evidenceScore），对立候选保留作鉴别参考。
+    const axisScoreBreakdown = scoreFormulaAxes(
+      axisProfileFor(entry),
+      { locations: tags.location, natures: tags.nature },
+      { mode: "guard" },
+    );
+    const score = baseScore + axisScoreBreakdown.total;
     return {
       ...entry,
       matchedConcepts: [
@@ -675,9 +719,11 @@ export function retrieveTcmFormulaCandidatesForReasoning(
       ],
       matchedPatientFacts: [],
       score,
+      axisScoreBreakdown,
       // 此处治理加权与准入分同源：curatedRelationBonus 只在**已签名主证候与该方存在受控关系**时产生，
       // 本身就是一条检索证据；不像症状召回那一路的 curatedBoost 是与本例无关的常数加权。
-      evidenceScore: score,
+      // 准入分固定为轴调整前的 baseScore：轴对立只降排序权重，不得把已凭证据入场的候选挤出集合。
+      evidenceScore: baseScore,
       directPrimarySyndromeMatch,
       positiveSufficiency,
       positiveSufficiencyBasis: positiveSufficiency
@@ -692,7 +738,7 @@ export function retrieveTcmFormulaCandidatesForReasoning(
           ? `证候关系存在，但已签名治法未命中:${curatedPrimaryRelation.therapyTerms.join("、")}`
           : "仅病性、病位、症状或鉴别证候相关，缺少主证候正向充分性",
     };
-  }).filter((entry) => entry.score >= 2)
+  }).filter((entry) => entry.evidenceScore >= 2)
     .sort((left, right) =>
       Number(right.positiveSufficiency) - Number(left.positiveSufficiency) ||
       // 同为正向充分时，剂量可编译的方排前面。治理目录里只有 1563/2937 的方备齐全部药味的
@@ -732,6 +778,10 @@ function renderFormulaCandidates(
       `  T1/T3/T4关联索引：${governedRelations.join("、") || "暂无标准术语关联"}`,
       ...(phaseLabel === "M03签名证候/病机"
         ? [`  命名方正向充分性：${candidate.positiveSufficiency ? `通过（${candidate.positiveSufficiencyBasis}）` : `不通过（${candidate.positiveSufficiencyBasis}）`}`]
+        : []),
+      // 人群轴冲突按规则「降权并保留标注」：候选不淘汰，但医生与模型必须看得到冲突事实。
+      ...((candidate.axisScoreBreakdown?.population.conflicts.length || 0) > 0
+        ? [`  人群轴提示：${candidate.axisScoreBreakdown!.population.conflicts.join("；")}（已在排序中降权，保留供鉴别核对）`]
         : []),
       // identityLockEligible 只说明「治理层允许锁定」，不代表本方真能锁上：身份锁要求主证候直接
       // 关联（positiveSufficiency 需 directPrimarySyndromeMatch），而无 syndromeTags 的方剂在任何

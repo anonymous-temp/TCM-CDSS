@@ -100,7 +100,12 @@ for (const dir of process.argv.slice(2)) {
     // 6. 十八反共存
     if (herbs.length >= 2) {
       const inc = kb.findTcmHerbPairIncompatibilities(herbs.map((h) => h.name));
-      if (inc.length > 0) note(caseId, "INCOMPATIBLE_PAIR", inc.map((x) => `${x.leftDrug}-${x.rightDrug}`).join(","));
+      if (inc.length > 0) {
+        // 配伍对本身可为医师权衡后的例外(海藻玉壶汤类); 缺陷定义 = 命中但页面无确定性警示。
+        const surfaced = /配伍禁忌提示（确定性检测）/.test(rxVis);
+        note(caseId, surfaced ? "INCOMPATIBLE_PAIR_SURFACED" : "INCOMPATIBLE_PAIR_SILENT",
+          inc.map((x) => `${x.leftDrug}-${x.rightDrug}`).join(","));
+      }
     }
     // 10. 模块完整性
     if (st.diagnose?.status === 200 && dxVis.length > 300) {

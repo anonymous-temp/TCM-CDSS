@@ -128,6 +128,8 @@ const summary = [];
 // 每例约 5-8 次模型调用，4 并发≈14 次/分钟，本地测试服务器需将该上限调高（wrapper 里设）。
 // 默认 1 保持旧行为，避免误伤生产限流。
 const CONCURRENCY = Math.max(1, Number(process.env.WEB_CASES_CONCURRENCY || "1") || 1);
+// M03-only 档(考题式证候/治法/方剂金标准基准): 只跑 diagnose, 不烧 M04/M05 预算。
+const STAGES_ONLY_DIAGNOSE = (process.env.WEB_CASES_STAGES || "").trim() === "diagnose";
 
 async function runCase(entry) {
   process.stderr.write(`[web] ${entry.no}. ${entry.tcmDisease}-${entry.syndrome} …\n`);
@@ -149,7 +151,7 @@ async function runCase(entry) {
   const reasoningDiagnose = sentinel(d.visible);
   record.stages.diagnose = { status: diagnose.status, ms: diagnose.ms, errors: d.errors, reasoning: reasoningDiagnose, visible: d.visible };
 
-  if (reasoningDiagnose) {
+  if (reasoningDiagnose && !STAGES_ONLY_DIAGNOSE) {
     const prescribeState = { ...answered, phase: "prescribe", diagnosis: d.visible, reasoningDiagnose };
     const prescribe = await post("/api/diagnosis/prescribe", { caseState: prescribeState });
     const p = ndjson(prescribe.raw);
@@ -185,7 +187,9 @@ async function runCase(entry) {
     // 0 味不都是缺陷。网络医案 11（头痛30年 + 呕吐 + 视物重影）是颅内压增高三联征，
     // 安全门拒绝出剂量方是**正确**的临床行为；把它和「合同校验没过」混在一个出方率里，
     // 等于用一个指标同时奖励和惩罚同一件事。按降级文案的来源分类。
-    outcome: (Array.isArray(candidate?.herbs) && candidate.herbs.length > 0)
+    outcome: STAGES_ONLY_DIAGNOSE
+      ? (overview?.primarySyndrome && !/依据不足|尚未|不稳定/.test(overview.primarySyndrome) ? "diagnosed" : "diagnosis_unstable")
+      : (Array.isArray(candidate?.herbs) && candidate.herbs.length > 0)
       // 处置改「提示不拦截」后，安全警示与出方并存是正常路径——单独计一类，
       // 让「带警示出方率」可被直接读出，而不是混在普通出方里。
       ? ((record.stages.prescribe?.visible || "").includes("<!-- CDSS_SAFETY_ADVISORY -->")

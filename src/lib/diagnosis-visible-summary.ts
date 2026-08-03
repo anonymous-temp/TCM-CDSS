@@ -1,6 +1,6 @@
 import { isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
-import { getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
+import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
 import { buildFormulaAnalysis, formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity } from "./clinical-polarity";
@@ -1971,6 +1971,22 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       "",
       "### 药味清单",
       canonicalHerbTable(candidate),
+      // 配伍禁忌确定性警示(2026-08-03 瘿病案根修): 检测下沉到渲染层**无条件执行**——
+      // 任何上游旗标(审方委托 auditedClinicalRisksAreAdvisory 等)都只能改变处置,不能关掉检测。
+      // 此前该旗标把合同层的十八反检查整个跳过,甘草+海藻自拟方在医生页面零提示地出方
+      // (HIS/L4 与审方仍拦,但 M04 页面沉默)。渲染层命中即显著呈现,处置权交医生/药师。
+      ...(() => {
+        const herbNames = (Array.isArray(candidate.herbs) ? candidate.herbs : [])
+          .map((herb) => (herb && typeof herb === "object" ? String((herb as Record<string, unknown>).name || "") : ""))
+          .filter(Boolean);
+        const pairs = herbNames.length >= 2 ? findTcmHerbPairIncompatibilities(herbNames) : [];
+        if (pairs.length === 0) return [] as string[];
+        return [
+          "",
+          "### ⚠️ 配伍禁忌提示（确定性检测）",
+          ...pairs.map((pair) => `- **${pair.leftDrug} × ${pair.rightDrug}**：命中${pair.category || "十八反十九畏"}（${pair.basis || "本地配伍规则"}）。是否同用须由医师专项权衡并说明理由，采纳前必须经药师逐对复核；本提示为本地规则确定性生成，不可关闭。`),
+        ];
+      })(),
       "",
       "### 方义分析",
       markdownCell(candidate.formulaAnalysis),

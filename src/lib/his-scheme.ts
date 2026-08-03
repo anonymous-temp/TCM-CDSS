@@ -12,6 +12,7 @@ import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities
 import { isKnownTcmTreatmentProjectCode } from "./tcm-treatment-projects";
 import { lineageLabel } from "./tcm-lineages";
 import { classifyHerbWarning, deriveCaseWarningProfile, warningLevelRank, type ClinicalWarningLevel } from "./clinical-warning-tier";
+import { hasBoundClinicalReviewAttestation } from "./clinical-review-binding";
 
 type SchemeStatus = "ready" | "pending" | "limited";
 
@@ -520,6 +521,20 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
   const contentMismatch = suppressDoseLevelOutputs ? false : markdownV2HerbMismatch(markdownHerbal, caseState);
   const invalidStructuredDose = suppressDoseLevelOutputs ? false : structuredHerbs(caseState).some((herb) => !isValidEditedHerbDose(herb.dose));
   const unauditedConcreteMedicine = hasConcreteWesternOrPatentMedication(medicine);
+  // 受理裁决范围读取(2026-08-03 根源工程): 生成侧带批注受理的裁决随合同签名下发,
+  // HIS 侧**读取并呈现**豁免/批注码,而不是用自己的口径把已受理候选再判一遍——
+  // "这里受理、那里重判"的分叉在写回边界由读取取代。哈希未绑定(旧快照/被篡改)时不显示。
+  const acceptanceScopeNotice = (() => {
+    const scope = prescribeReasoning?.clinicalReview?.acceptanceScope;
+    if (!scope || !hasBoundClinicalReviewAttestation(prescribeReasoning)) return "";
+    const codes = [...new Set([...scope.waivedIssueCodes, ...scope.qualityAnnotationCodes])];
+    if (codes.length === 0) return "";
+    return [
+      "## 生成侧受理裁决（随合同签名下发）",
+      `**质量批注受理**：生成侧已按质量批注受理本候选，涉及缺陷码：${codes.join("、")}。`,
+      "对应医生可读批注见处方正文首部；该裁决位于合同签名域内，写回链路只读取、不改写。采纳前请医生结合批注逐项复核；本提示不阻断诊疗流程。",
+    ].join("\n");
+  })();
   const consistencyRisk = [
     contentMismatch
       ? "## 处方一致性校验\n**结论**：处方正文与药味表不一致，HIS 展示已改用药味表；原输出需医生/药师人工复核，不允许写回采纳。"
@@ -542,6 +557,7 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
     "**处置建议**：优先完成急诊或转诊评估；当前不提供任何剂量级候选方药、煎服或疗程信息。",
   ].join("\n") : [
     deterministicRisk,
+    acceptanceScopeNotice,
     consistencyRisk,
     section(prescription, sectionTitleGroup("prescriptionRisk")),
     section(risk, sectionTitleGroup("riskSummary")),

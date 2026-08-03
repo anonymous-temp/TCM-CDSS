@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { canonicalizeForContractHash, clinicalReviewPayloadHash as clinicalReviewPayloadHashImpl, sha256CanonicalForContract } from "./clinical-review-binding";
 import {
   normalizeCaseStateInput,
   normalizeReasoningV2,
@@ -43,46 +44,15 @@ export function reasoningContractSigningConfigured(): boolean {
   return signingKey().length >= 32;
 }
 
-function canonicalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-    .filter(([key]) => key !== "contractSignature")
-    // HMAC canonicalization must be independent of host locale and ICU version.
-    // JavaScript's relational comparison follows UTF-16 code-unit order and is stable on every
-    // supported runtime, unlike localeCompare which can reorder non-ASCII keys by deployment.
-    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
-    .map(([key, item]) => [key, canonicalize(item)]));
-}
-
-function sha256Canonical(value: unknown): `sha256:${string}` {
-  return `sha256:${createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex")}`;
-}
-
-export function clinicalReviewPayloadHash(reasoning: unknown): `sha256:${string}` | undefined {
-  const normalized = normalizeReasoningV2(reasoning);
-  if (!normalized) return undefined;
-  return sha256Canonical({
-    ...normalized,
-    contractSignatureVersion: undefined,
-    contractSignature: undefined,
-    clinicalReview: undefined,
-  });
-}
-
-export function hasBoundClinicalReviewAttestation(reasoning: unknown): boolean {
-  const normalized = normalizeReasoningV2(reasoning);
-  const attestation = normalized?.clinicalReview;
-  const expected = clinicalReviewPayloadHash(normalized);
-  if (!normalized || !attestation || !expected || attestation.reviewedPayloadHash !== expected) return false;
-  if (attestation.status === "accepted") {
-    return Boolean(attestation.provider?.trim() && attestation.model?.trim() && attestation.source);
-  }
-  return attestation.status === "unavailable";
-}
+// 规范化/哈希绑定实现迁至 clinical-review-binding.ts(无 server-only,读取侧可安全 import);
+// 此处 re-export 保持既有引用不变。HMAC 规范化注释与不变量随实现一起迁移。
+const canonicalize = canonicalizeForContractHash;
+const sha256Canonical = sha256CanonicalForContract;
+export { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } from "./clinical-review-binding";
+import { hasBoundClinicalReviewAttestation as hasBoundClinicalReviewAttestationImpl } from "./clinical-review-binding";
 
 function bindClinicalReviewAttestation(reasoning: ClinicalReasoningResultV2): ClinicalReasoningResultV2 {
-  const reviewedPayloadHash = clinicalReviewPayloadHash(reasoning);
+  const reviewedPayloadHash = clinicalReviewPayloadHashImpl(reasoning);
   if (!reviewedPayloadHash) throw new Error("Cannot bind clinical review to an invalid reasoning contract");
   return {
     ...reasoning,
@@ -248,7 +218,7 @@ export function verifyDiagnoseReasoningSignature(
     normalized.stage !== "diagnose" ||
     normalized.contractSignatureVersion !== DIAGNOSE_CONTRACT_SIGNATURE_VERSION ||
     typeof normalized.contractSignature !== "string" ||
-    !hasBoundClinicalReviewAttestation(normalized)) return false;
+    !hasBoundClinicalReviewAttestationImpl(normalized)) return false;
   let context: DiagnoseContractSignatureContext;
   try {
     context = buildDiagnoseContractSignatureContext(currentCaseState);
@@ -327,7 +297,7 @@ export function verifyPrescribeReasoningSignature(
     normalized.stage !== "prescribe" ||
     normalized.contractSignatureVersion !== PRESCRIBE_CONTRACT_SIGNATURE_VERSION ||
     typeof normalized.contractSignature !== "string" ||
-    !hasBoundClinicalReviewAttestation(normalized)) return false;
+    !hasBoundClinicalReviewAttestationImpl(normalized)) return false;
   let context: PrescribeContractSignatureContext;
   try {
     context = buildPrescribeContractSignatureContext(currentCaseState);

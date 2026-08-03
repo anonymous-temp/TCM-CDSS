@@ -311,3 +311,29 @@ console.log(JSON.stringify({
   l1bInvariantCases: 6,
   failures: 0,
 }));
+
+// OBST-01 人群冲突口径钉(2026-08-03): 男性冲突减分只认**胎产限定**方——
+// 宽口径妇人措辞的通用经典方(半夏厚朴汤「妇人咽中如有炙脔」)对男性病例不得降权;
+// 胎产限定方(催乳/保胎类)对男性病例必须降权。
+{
+  const { buildFormulaAxisProfile, buildCasePopulationProfile, scoreFormulaAxes } =
+    await import("../src/lib/tcm-formula-axis-score.ts");
+  const malePopulation = buildCasePopulationProfile({ sex: "男", age: 35 }, ["咽中如有物阻"]);
+  const banxiaHoupo = buildFormulaAxisProfile({
+    natureTags: [], locationTags: [], syndromeTags: [],
+    indications: ["妇人咽中如有炙脔，梅核气，痰气互结"],
+  });
+  const banxiaScore = scoreFormulaAxes(banxiaHoupo, { locations: [], natures: [] }, { mode: "full", population: malePopulation });
+  if (banxiaScore.population.conflicts.length !== 0) {
+    throw new Error(`宽口径妇人措辞不得触发男性人群冲突: ${JSON.stringify(banxiaScore.population)}`);
+  }
+  const cuiruFang = buildFormulaAxisProfile({
+    natureTags: [], locationTags: [], syndromeTags: [],
+    indications: ["产后乳汁不行", "催乳通络"],
+  });
+  const cuiruScore = scoreFormulaAxes(cuiruFang, { locations: [], natures: [] }, { mode: "full", population: malePopulation });
+  if (cuiruScore.population.conflicts.length === 0 || cuiruScore.population.score >= 0) {
+    throw new Error(`胎产限定方对男性必须降权: ${JSON.stringify(cuiruScore.population)}`);
+  }
+  console.log(JSON.stringify({ obstetricGuardCases: 2, failures: 0 }));
+}

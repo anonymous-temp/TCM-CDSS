@@ -1,4 +1,5 @@
 import type { CaseState, ClinicalReasoningResultV2, Completeness, HisRecordSnapshot, SafetyGate, SafetyMissingItemCode, StructuredFollowupTimelineItem } from "./diagnosis-types";
+import { cdssReasonCodeMarker, type CdssDegradeReasonCode } from "./cdss-reason-codes";
 import { sectionTitleGroup } from "./cdss-vocab";
 import {
   assessConceptionState,
@@ -3780,7 +3781,7 @@ export function isNonDosePrescriptionText(text: string | undefined): boolean {
   return NON_DOSE_PRESCRIPTION_DECLARATIONS.some((declaration) => text.includes(declaration));
 }
 
-export function buildSafetyLimitedPrescription(gate: SafetyGate): string {
+export function buildSafetyLimitedPrescription(gate: SafetyGate, reasonCode?: CdssDegradeReasonCode): string {
   const limitedStateCopy = buildThreePartLimitedStateCopyForSurface("non_dose_treatment_direction", {
     knownFacts: gate.redFlags.length > 0
       ? `已识别需优先处置的风险线索：${gate.redFlags.join("；")}`
@@ -3793,6 +3794,7 @@ export function buildSafetyLimitedPrescription(gate: SafetyGate): string {
   });
   return sanitizeAuthoritativeClinicalOutput([
     "<!-- CDSS_NON_DOSE_PRESCRIPTION -->",
+    ...(reasonCode ? [cdssReasonCodeMarker(reasonCode)] : []),
     "## 当前结论",
     limitedStateCopy,
     "",

@@ -1,4 +1,5 @@
 import type { CaseState } from "./diagnosis-types";
+import { cdssReasonCodeMarker } from "./cdss-reason-codes";
 import { executableFormulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
 import { retrieveTcmFormulaCandidatesForReasoning } from "./tcm-formula-indications";
 import { getTcmHerbDoseLimit } from "./tcm-knowledge";
@@ -107,6 +108,7 @@ export function buildDeterministicFormulaReferenceFallback(
 
   return [
     "<!-- CDSS_NON_DOSE_PRESCRIPTION -->",
+    cdssReasonCodeMarker("deterministic_reference"),
     "## 当前结论",
     recallBased
       ? "本轮模型未能形成可核验的剂量级候选处方（输出截断或未通过结构化合同）。M03 本次未锁定经典方；以下为按已签名证候/病机**确定性检索**到的受治理方剂参考（未经本例辨证锁定，证据等级低于锁定方），组成与药典剂量区间均来自本地受治理知识库，供医生参考判断。"

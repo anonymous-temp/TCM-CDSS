@@ -58,7 +58,7 @@ export async function POST(req: Request) {
         signedPriorReasoning.overview.primarySyndromeResolutionReason || "M03未形成可采纳的当前证候与病机链。",
         ...(signedPriorReasoning.management?.redFlagLoop ? [signedPriorReasoning.management.redFlagLoop] : []),
       ],
-    }));
+    }, "m03_unstable"));
   }
   // A deterministic hard red flag already imposes the strongest prescription boundary. Avoid an
   // unnecessary semantic-model round trip before signature verification and the non-dose response.
@@ -87,7 +87,11 @@ export async function POST(req: Request) {
       redFlags: gated.safetyGate?.redFlags || [],
       reasons: ["当前病例可继续完成辨病辨证、调护和非药物治疗建议，但不生成具体剂量。"],
     };
-    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
+    const hasChiefForCode = Boolean((gated.chiefComplaint || gated.hisRecord?.fields?.zhushu || "").trim());
+    return markdownNdjsonResponse(buildSafetyLimitedPrescription(
+      gate,
+      hasChiefForCode ? (gate.status === "red_flag" ? "safety_gate_blocked" : "completeness_below_c") : "missing_chief_complaint",
+    ));
   }
   // 横幅触发不能挂在 candidateMode 上：advisory 档下红旗已返回 full_dose（这正是「不拦截」
   // 的实现），若仍以 non_dose_only 为条件，红旗病例的 M04 反而成了唯一没有警示的输出。
@@ -109,7 +113,7 @@ export async function POST(req: Request) {
       redFlags: [],
       reasons: ["语义预检无法判断本次就诊是否存在当前活动性治疗目标；需医生通过追问回答补充病情，或显式确认本次就诊的治疗目标后，才能生成具体剂量。"],
     };
-    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
+    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate, "completeness_below_c"));
   }
   // M03 的结构化合同是阶段间的唯一辨证充分度依据。可见正文中的鉴别或管理建议（例如
   // “完善甲功后再评估”）不能反向否定一份已包含主证、病机链和治法的有效结构化辨证。
@@ -127,7 +131,7 @@ export async function POST(req: Request) {
       redFlags: [],
       reasons: ["缺少有效的西医诊断、中医证候与病机关联结果，不能直接生成剂量级候选处方。"],
     };
-    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
+    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate, "m03_unstable"));
   }
   const governedFormulaNames = signedPriorReasoning.overview.recommendedFormulaNames || [];
   const unavailableFormulaNames = formulaNamesWithoutExecutableDoseCompilation(governedFormulaNames);
@@ -151,7 +155,7 @@ export async function POST(req: Request) {
         `已形成${governedFormulaNames.join("、")}的方证方向，但其治理组成尚不能逐味完成具体用量核验；保留方名方向供医生审阅，不生成半张处方或猜测缺失剂量。`,
       ],
     };
-    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate));
+    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate, "formula_dose_boundary_unavailable"));
   }
 
   const trustedGated = { ...gated, reasoningDiagnose: signedPriorReasoning };
@@ -221,7 +225,7 @@ export async function POST(req: Request) {
     // 模型输出彻底不可回收时：M03 已锁定可编译方 → 确定性渲染「基准组成+药典区间」参考页
     // （不经模型、非剂量、医师定量），医生不再拿到空白页；未锁方/不可编译 → 原安全有限文案。
     truncateFallback: buildDeterministicFormulaReferenceFallback(gated, signedPriorReasoning)
-      ?? buildSafetyLimitedPrescription(truncationGate),
+      ?? buildSafetyLimitedPrescription(truncationGate, "m04_truncated_no_candidate"),
     structuredStage: "prescribe",
     // M04 repair/review must never receive raw HIS identifiers.
     structuredClinicalContext,

@@ -2153,6 +2153,21 @@ async function callPrimaryTextModelStream(
       let m04ClinicalReviewer = "none";
       let m03ClinicalReviewAttestation: ClinicalReviewAttestation | undefined;
       let m04ClinicalReviewAttestation: ClinicalReviewAttestation | undefined;
+      // 受理裁决范围(2026-08-03 根源工程): 受理时记录豁免码/批注码,finalize 时写进 attestation
+      // (签名域内),下游读取而非重判。安全层码(T1)由受理策略保证永不入 waived。
+      let m03AcceptanceScope: NonNullable<ClinicalReviewAttestation["acceptanceScope"]> | undefined;
+      let m04AcceptanceScope: NonNullable<ClinicalReviewAttestation["acceptanceScope"]> | undefined;
+      const appendAnnotationCode = (
+        scope: NonNullable<ClinicalReviewAttestation["acceptanceScope"]> | undefined,
+        code: string | undefined,
+      ): NonNullable<ClinicalReviewAttestation["acceptanceScope"]> | undefined => {
+        if (!code) return scope;
+        const base = scope || { waivedIssueCodes: [], qualityAnnotationCodes: [] };
+        return {
+          waivedIssueCodes: base.waivedIssueCodes,
+          qualityAnnotationCodes: [...new Set([...base.qualityAnnotationCodes, code])],
+        };
+      };
       let m03ReviewedReasoning: unknown;
       let m04ReviewedSemanticHash: string | undefined;
       let m04ReviewedReasoning: unknown;
@@ -3621,16 +3636,27 @@ async function callPrimaryTextModelStream(
               // 被豁免缺陷的定位：对同一份降级内容跑一次**不带豁免**的归因，得到的第一个码
               // 就是豁免所吸收的那个缺陷（验证已在豁免口径下通过，故该码只会落在可豁免族里；
               // 全部通过时归因返回 resolver_rejected，映射为空）。
-              const waivedDefectAnnotation = m04TherapyIssueQualityAnnotation(structuredRejectionReason(
+              const waivedDefectCode = structuredRejectionReason(
                 declassifiedContent, "prescribe", finishReason,
                 opts.structuredClinicalContext, opts.structuredPriorReasoning, true,
-              ));
+              );
+              const waivedDefectAnnotation = m04TherapyIssueQualityAnnotation(waivedDefectCode);
               const therapyAnnotation = m04TherapyIssueQualityAnnotation(therapyIssue);
               m04TransparentQualityAnnotation = [...new Set([
                 transparentReviewQualityOnly ? transparentReviewAnnotation : undefined,
                 therapyAnnotation,
                 waivedDefectAnnotation,
               ].filter(Boolean))].join("\n\n") || undefined;
+              // 裁决范围: 豁免码=被 declassify 吸收的缺陷码+治法覆盖码; 批注码=medic 可见批注的来源码。
+              m04AcceptanceScope = {
+                waivedIssueCodes: [...new Set([therapyIssue, waivedDefectAnnotation ? waivedDefectCode : undefined]
+                  .filter((code): code is string => Boolean(code)))],
+                qualityAnnotationCodes: [...new Set([
+                  transparentReviewQualityOnly ? transparentReview.issueCode : undefined,
+                  therapyAnnotation ? therapyIssue : undefined,
+                  waivedDefectAnnotation ? waivedDefectCode : undefined,
+                ].filter((code): code is string => Boolean(code)))],
+              };
               transparentFormulaDeclassificationAccepted = true;
               advisoryM04RiskAccepted = true;
               structuredSentinelIncomplete = false;
@@ -3689,6 +3715,10 @@ async function callPrimaryTextModelStream(
           }) && qualityAnnotationCopy(tierRejectionReason)) {
             structuredSentinelIncomplete = false;
             m03QualityAcceptedReason = tierRejectionReason;
+            m03AcceptanceScope = {
+              waivedIssueCodes: [tierRejectionReason],
+              qualityAnnotationCodes: [tierRejectionReason],
+            };
             console.warn("[tcm-cdss:model] M03 quality-tier acceptance after repair exhaustion", {
               stage: "diagnose",
               reason: tierRejectionReason,
@@ -4037,6 +4067,7 @@ async function callPrimaryTextModelStream(
                   !m03SafetyContractIssue(finalReasoning, opts.structuredClinicalContext || "", isSafetyRejection);
                 if (review.status === "repair" && m03FinalHardContractClean) {
                   m03FinalReviewAnnotation = m03FinalAnnotation;
+                  m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.issueCode);
                   console.warn("[tcm-cdss:model] final M03 review repair accepted with quality annotation", {
                     stage: "diagnose",
                     issueCode: review.issueCode,
@@ -4067,6 +4098,7 @@ async function callPrimaryTextModelStream(
                   : undefined;
                 if (review.status === "repair" && finalReviewAnnotation) {
                   m04TransparentQualityAnnotation = m04TransparentQualityAnnotation || finalReviewAnnotation;
+                  m04AcceptanceScope = appendAnnotationCode(m04AcceptanceScope, review.issueCode);
                   console.warn("[tcm-cdss:model] final M04 review repair accepted with quality annotation", {
                     stage: "prescribe",
                     issueCode: review.issueCode,
@@ -4083,10 +4115,16 @@ async function callPrimaryTextModelStream(
           if (clinicalReviewUnavailableFallback) {
             transformed = transformTruncateFallback();
           }
+          const m03AttestationWithScope = m03ClinicalReviewAttestation && m03AcceptanceScope
+            ? { ...m03ClinicalReviewAttestation, acceptanceScope: m03AcceptanceScope }
+            : m03ClinicalReviewAttestation;
+          const m04AttestationWithScope = m04ClinicalReviewAttestation && m04AcceptanceScope
+            ? { ...m04ClinicalReviewAttestation, acceptanceScope: m04AcceptanceScope }
+            : m04ClinicalReviewAttestation;
           let signedContent = opts.structuredStage === "diagnose"
-            ? attachClinicalReviewAttestation(transformed.content, m03ClinicalReviewAttestation)
+            ? attachClinicalReviewAttestation(transformed.content, m03AttestationWithScope)
             : opts.structuredStage === "prescribe"
-              ? attachClinicalReviewAttestation(transformed.content, m04ClinicalReviewAttestation)
+              ? attachClinicalReviewAttestation(transformed.content, m04AttestationWithScope)
               : transformed.content;
           if (!truncated && transformed.ok && !clinicalReviewUnavailableFallback && opts.structuredStage === "diagnose") {
             const signatureContext = opts.diagnoseSignatureContext;

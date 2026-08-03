@@ -242,6 +242,19 @@ export type ClinicalReviewAttestation = {
   model?: string;
   source?: "preferred" | "cross_model_fallback";
   reviewedPayloadHash?: string;
+  /**
+   * 受理裁决范围（2026-08-03 复盘的根源级工程）：受理时把「豁免了哪些质量码、带了哪些
+   * 批注码」一并写进 attestation。attestation 位于合同签名域内（HMAC 只排除 contractSignature
+   * 本身），下游各层（M04 路由终审、HIS 写回）在载荷哈希匹配时**读取**这份签名过的裁决,
+   * 不再各自用不同口径重判一遍——"这里受理、那里重判"的分叉从入口上消失。
+   * 缺省（旧快照/未受理路径）时下游回退既有重算路径,fail-closed 语义不变。
+   * 安全边界：安全层码(T1)永远不允许进入 waivedIssueCodes——写入侧由受理策略保证,
+   * 读取侧仍对全量码重跑安全谓词兜底。
+   */
+  acceptanceScope?: {
+    waivedIssueCodes: string[];
+    qualityAnnotationCodes: string[];
+  };
 };
 
 export type ControlledTerminologyMappingTrace = {
@@ -743,6 +756,12 @@ const ReasoningV2SchemaBase = z.object({
     model: z.string().max(200).optional().catch(undefined),
     source: z.enum(["preferred", "cross_model_fallback"]).optional().catch(undefined),
     reviewedPayloadHash: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional().catch(undefined),
+    // 受理裁决范围：码表为内部驳回码(kebab/snake 短标识),单码长度与数量都设上限,
+    // 防止把自由文本塞进签名域。整体非法时按缺省处理(回退重算路径),不作废 attestation。
+    acceptanceScope: z.object({
+      waivedIssueCodes: z.array(z.string().min(1).max(120)).max(32),
+      qualityAnnotationCodes: z.array(z.string().min(1).max(120)).max(32),
+    }).optional().catch(undefined),
   }).optional().catch(undefined),
   terminologyMappings: z.array(z.object({
     namespace: z.enum([

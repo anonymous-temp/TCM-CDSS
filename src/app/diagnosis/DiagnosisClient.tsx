@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
+import { extractCdssReasonCode, reasonCodeRequiresM03Rerun } from "@/lib/cdss-reason-codes";
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -1732,6 +1733,10 @@ export function prescribeRetryRequiresM03Rerun(
   const message = caseState.lastError?.phase === "prescribe"
     ? normalizeRequestError(caseState.lastError.message, "")
     : "";
+  // reasonCode 机器码优先(2026-08-03 根源工程): 服务端降级页嵌入稳定码,按码分流,
+  // 文案可以随便改。旧文案正则只作为存量缓存病例(无标记)的回退,不再是第一权威。
+  const machineCode = extractCdssReasonCode(message) ?? extractCdssReasonCode(caseState.prescription || "");
+  if (machineCode) return reasonCodeRequiresM03Rerun(machineCode);
   return M03_LEVEL_PRESCRIBE_BLOCK_PATTERN.test(message) ||
     M03_LEVEL_PRESCRIBE_BLOCK_PATTERN.test(caseState.prescription || "");
 }

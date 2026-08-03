@@ -596,6 +596,39 @@ try {
     });
   }
 
+  // SCOPE-01 受理裁决范围(2026-08-03 根源工程): scope 在签名域内——
+  // 归一化保留字段、签名后验证通过、任何篡改(增删码/整体注入)即验签失败。
+  check("acceptanceScope 随签名下发且归一化保留", () => {
+    const withScope = clone(prescribeReasoning);
+    withScope.clinicalReview = {
+      status: "accepted", provider: "DeepSeek", model: "deepseek-v4-flash", source: "preferred",
+      acceptanceScope: {
+        waivedIssueCodes: ["transparent_therapy_coverage"],
+        qualityAnnotationCodes: ["transparent_therapy_coverage", "herb_plan_mismatch"],
+      },
+    };
+    const normalized = normalizeReasoningV2(withScope);
+    assert.deepEqual(
+      normalized.clinicalReview.acceptanceScope,
+      withScope.clinicalReview.acceptanceScope,
+      "normalizeReasoningV2 必须保留 acceptanceScope",
+    );
+    const signedWithScope = signPrescribeReasoning(normalized, prescribeContext);
+    assert.equal(verifyPrescribeReasoningSignature(signedWithScope, prescribeCase), true);
+    const tamperedScope = clone(signedWithScope);
+    tamperedScope.clinicalReview.acceptanceScope.waivedIssueCodes.push("dose_out_of_range");
+    assert.equal(
+      verifyPrescribeReasoningSignature(tamperedScope, prescribeCase), false,
+      "往 waived 里塞码必须破坏签名",
+    );
+    const injectedScope = clone(signedPrescribe);
+    injectedScope.clinicalReview.acceptanceScope = { waivedIssueCodes: ["x"], qualityAnnotationCodes: [] };
+    assert.equal(
+      verifyPrescribeReasoningSignature(injectedScope, prescribeCase), false,
+      "对未带 scope 的签名载荷注入 scope 必须破坏签名",
+    );
+  });
+
   check("M04 cross-case replay rejects", () => {
     assert.equal(verifyPrescribeReasoningSignature(signedPrescribe, { ...prescribeCase, id: "case_signature_m04_replay" }), false);
   });

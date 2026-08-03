@@ -1350,3 +1350,32 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
   const renderedMissing = syncForDecoction(wrap(missingNumbers), "prescribe");
   assert.doesNotMatch(renderedMissing, /每日剂数 \/ 分服次数/, "数字缺失时整行省略而不是渲染空位");
 }
+
+// PAIR-01 配伍禁忌渲染层确定性警示(2026-08-03 瘿病案根修): 检测在渲染层无条件执行,
+// 任何上游旗标只能改处置不能关检测。甘草+海藻 → 警示段必现;无配伍对 → 不得凭空出现。
+{
+  const { synchronizeVisibleClinicalSummary: syncForPair } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const base = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    overview: { primarySyndrome: "痰气互结证", primarySyndromeBasis: ["咽喉异物感"], overallPathogenesis: "气滞痰凝", overallTherapy: "理气化痰散结", recommendedFormulaDirection: "自拟方向", evidence: { evidenceLevel: "model_inference", source: "t" } },
+    westernDiagnosis: { primary: { name: "甲状腺肿", status: "考虑", confidence: "中", supportingFacts: ["甲状腺肿大3月"], limitations: [], suggestedChecks: [], evidence: { evidenceLevel: "model_inference", source: "t" } }, differentials: [] },
+    pathogenesis: { summary: "气滞痰凝", locationDifferentiation: { items: ["肝"], resolution: "bounded", evidence: { evidenceLevel: "model_inference", source: "t" } }, natureDifferentiation: { items: ["气滞"], resolution: "bounded", evidence: { evidenceLevel: "model_inference", source: "t" } }, chain: [], uncertainties: [] },
+    therapy: { overallPrinciple: "疏其气血", overallMethod: "理气化痰", subTherapies: [] },
+    formula: { candidates: [{
+      name: "本例辨证组方", constructionType: "self_devised",
+      herbs: [
+        { name: "海藻", dose: "10g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1" },
+        { name: "甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize" },
+      ],
+      decoction: { doseCount: "3剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "水煎分服", course: "3日", followUpNode: "3剂后复诊" },
+    }] },
+    nonPharma: null,
+  };
+  const wrapPair = (payload) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(payload)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const withPair = syncForPair(wrapPair(base), "prescribe");
+  assert.match(withPair, /配伍禁忌提示（确定性检测）/, "十八反对必须在渲染层出警示段");
+  assert.match(withPair, /海藻 × 甘草|甘草 × 海藻/, "警示必须点名具体药对");
+  const noPair = structuredClone(base);
+  noPair.formula.candidates[0].herbs = [{ name: "陈皮", dose: "6g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1" }];
+  assert.doesNotMatch(syncForPair(wrapPair(noPair), "prescribe"), /配伍禁忌提示（确定性检测）/, "无配伍对时不得凭空出现警示段");
+}

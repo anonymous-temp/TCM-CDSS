@@ -31,6 +31,7 @@ const scripts = [
   "test:customer-evidence",
   "test:stage-contract",
   "test:m03-parallel-merge",
+  "test:cdss-reason-codes",
   "test:repair-guidance",
   "test:therapy-vocabulary",
   "test:stage-outcome",
