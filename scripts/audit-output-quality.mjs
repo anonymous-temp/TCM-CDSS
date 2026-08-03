@@ -40,7 +40,6 @@ function negatedTerms(text) {
   return [...out];
 }
 
-const QUOTE_OPEN = "“", QUOTE_CLOSE = "”";
 function quoteImbalance(text) {
   const o = (text.match(/“/g) || []).length;
   const c = (text.match(/”/g) || []).length;

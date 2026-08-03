@@ -16,7 +16,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - **框架**：Next.js 16（App Router，Turbopack，`output: "standalone"`）+ React 19 + TypeScript 5（strict）
 - **样式/UI**：Tailwind CSS 4 + shadcn（`src/components/ui`）、lucide-react、react-markdown
-- **模型接入**：`openai` SDK，OpenAI 兼容协议；全部文本生成、修复和复核阶段统一使用 DeepSeek V4 Pro（`deepseek-v4-pro`）；GLM 视觉仅用于舌象图片（opt-in）
+- **模型接入**：`openai` SDK，OpenAI 兼容协议；全部文本生成、修复和复核阶段统一使用 DeepSeek V4 Flash（`deepseek-v4-flash`，0731 正式版）；GLM 视觉默认开启且仅用于舌象图片
 - **校验**：zod 4
 - **数据库**：无 —— 病例状态在浏览器 localStorage（加密快照经服务端 AES-256-GCM）+ 本地 JSON 知识库
 - **重要**：本项目没有 `middleware.ts`。请求门控在 `src/proxy.ts`（导出 `proxy()` + `config.matcher`）。写框架代码前先读 `node_modules/next/dist/docs/` 中的官方文档，不要凭训练数据中的 Next.js 经验行事
@@ -67,7 +67,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 
 | 路由 | 阶段 | 说明 |
 |---|---|---|
-| `collect` | M01 | 结构化自由文本；舌象图片仅在 `GLM_VISION_ENABLED` 时走 GLM 视觉（否则拒绝上传，无静默降级） |
+| `collect` | M01 | 结构化自由文本；舌象图片默认走 GLM 视觉，只有显式设置 `GLM_VISION_ENABLED=false` 时拒绝上传并要求手工录入（无静默降级） |
 | `question` / `question/interpret` | M02 | 生成追问；确定性解析医生自由文本回答为结构化状态更新 |
 | `diagnose` | M03 | 西医诊断 + 中医证候 + 病机；由安全门 + 完整度=C 门控；先挂临床事实回补层 |
 | `prescribe` | M04 | 中药处方；要求存在可执行的 M03 诊断 |
@@ -85,7 +85,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 
 - **分阶段模型配置**（见 `.env.example`）：M03/M04、独立临床复核（`PRIMARY_CLINICAL_REVIEW_MODEL`）、临床事实抽取（`CLINICAL_FACTS_MODEL`）可独立配置；`reasoning_effort` / `thinking_enabled` 也是分阶段环境变量。
   - **实际不存在 `PRIMARY_COLLECT_MODEL` / `PRIMARY_QUESTION_MODEL`**：M01 文本路径根本不调模型（无舌象图时 collect 路由直接返回确定性 NDJSON），M02 只能跟随 `OPENAI_MODEL`。
-  - **"独立复核"在默认全 V4-Pro 配置下不是跨模型**：候选链去重后只剩一个模型身份，`independentFromGenerator=false`，实际是对同一模型的第二次无对话状态请求。跨模型拓扑（`PRIMARY_CLINICAL_REVIEW_PROVIDER` ≠ primary）在 `src/` 里是直接判 unconfigured 的死路径。
+  - **"独立复核"在默认全 V4-Flash 配置下不是跨模型**：候选链去重后只剩一个模型身份，`independentFromGenerator=false`，实际是对同一模型的第二次无对话状态请求。跨模型拓扑（`PRIMARY_CLINICAL_REVIEW_PROVIDER` ≠ primary）在 `src/` 里是直接判 unconfigured 的死路径。
   - **M04 修复轮的 `reasoning_effort` 硬编码 `"medium"`**，没有环境变量可改；`PRIMARY_PRESCRIBE_REASONING_EFFORT` 只作用于首轮。
 - **NDJSON 流式契约**（所有后端与确定性响应共享）：每块 `{"content":"…"}\n`，以 `{"content":"[END]"}\n` 结束；错误为 `{"error":"…"}\n`。任何新增流水线环节都必须说这套契约；`markdownNdjsonResponse()` 把确定性 Markdown 包装进去。
 - **关键陷阱**：流只返回 `reasoning_content` 而无 `content` 视为错误（"模型仅返回推理过程"），`model-health?check=1` 校验的是最终内容。
@@ -132,7 +132,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 全部见 `.env.example`（含逐项注释），实际配置放 `.env.local`（`.env*` 已 gitignore，**不要读取/提交真实密钥文件**）。关键项：
 
 - 主模型：`AI_TEXT_PROVIDER`、`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`，及各阶段模型/推理力度覆盖项
-- 可选适配：`GLM_API_KEY` + `GLM_VISION_ENABLED`（舌象视觉，key 单独存在不会启用）；`EVIMED_*`（证据检索）
+- 舌象视觉：`GLM_API_KEY` + `GLM_VISION_ENABLED`（默认开启；缺 key 或真实探针失败会阻断严格发布就绪，只有显式 `false` 才关闭）；`EVIMED_*`（证据检索）
 - 鉴权：`CDSS_API_TOKEN`、`CDSS_REQUIRE_API_AUTH`（默认 true）、`CDSS_TRUST_PROXY_HEADERS`（仅在可信代理后开启）
 - 加密/签名：`CASE_SNAPSHOT_ENCRYPTION_KEY`（病例快照，必需）、`REASONING_CONTRACT_SIGNING_KEY`
 - 审方：`RXAI_AUDIT_*`（灵犀合理用药审方；结果仅为建议，审方不可用走人工复核而非流程硬停 —— 但缺失结构化药味时 fail-closed）
