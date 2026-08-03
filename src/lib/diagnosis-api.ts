@@ -4107,16 +4107,18 @@ async function callPrimaryTextModelStream(
           }
           // 质量批注必须与结果一起呈现：带批注受理的 M03 是完整签名结果，但医生要一眼看到
           // 「哪一项文档质量项未达标、为什么仍可继续」。批注只加在可见正文最前，不进签名载荷。
+          // 三处都带幂等守卫：路由 outputTransform 的终审分支可能已经贴过同一段批注
+          // （甲方生产实测：同段批注顶部裸贴 + 引用块各一次），双层各贴一次是呈现噪音。
           if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03QualityAcceptedReason) {
             const annotation = qualityAnnotationCopy(m03QualityAcceptedReason);
-            if (annotation) signedContent = `${annotation}\n\n${signedContent}`;
+            if (annotation && !signedContent.includes(annotation)) signedContent = `${annotation}\n\n${signedContent}`;
           }
-          if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03FinalReviewAnnotation) {
+          if (!truncated && transformed.ok && opts.structuredStage === "diagnose" && m03FinalReviewAnnotation && !signedContent.includes(m03FinalReviewAnnotation)) {
             signedContent = `${m03FinalReviewAnnotation}\n\n${signedContent}`;
           }
           // M04 同理：透明降级候选按质量批注受理时，医生必须一眼看到复核提了什么意见、
           // 以及为什么仍然可以用（承重的安全核验层全部通过）。
-          if (!truncated && transformed.ok && opts.structuredStage === "prescribe" && m04TransparentQualityAnnotation) {
+          if (!truncated && transformed.ok && opts.structuredStage === "prescribe" && m04TransparentQualityAnnotation && !signedContent.includes(m04TransparentQualityAnnotation)) {
             signedContent = `${m04TransparentQualityAnnotation}\n\n${signedContent}`;
           }
           if (opts.structuredStage === "diagnose") {

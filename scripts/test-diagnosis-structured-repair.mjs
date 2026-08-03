@@ -54,8 +54,10 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /m03QualityAcceptedReason\) \{\s*\n\s*const annotation = qualityAnnotationCopy\(m03QualityAcceptedReason\);\s*\n\s*if \(annotation\) signedContent = `\$\{annotation\}\\n\\n\$\{signedContent\}`;/,
-  "受理时必须把医生可读批注前置到签名后的可见正文",
+  // 带幂等守卫的形态：路由终审分支可能已贴过同一段批注，流层不得重复贴（双层各贴一次
+  // 是甲方生产实测的呈现噪音类）。
+  /m03QualityAcceptedReason\) \{\s*\n\s*const annotation = qualityAnnotationCopy\(m03QualityAcceptedReason\);\s*\n\s*if \(annotation && !signedContent\.includes\(annotation\)\) signedContent = `\$\{annotation\}\\n\\n\$\{signedContent\}`;/,
+  "受理时必须把医生可读批注前置到签名后的可见正文（且带防重复守卫）",
 );
 // 受理结果仍要过 finalize 的 attestation 绑定门：无既有 attestation（复核 not_run）时，
 // 管线必须对最终 reasoning 补跑独立临床复核，repair 仍走兜底——受理不产生未复核的签名结论。

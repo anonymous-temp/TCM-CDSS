@@ -1696,6 +1696,14 @@ function markdownCell(value: unknown): string {
   return typeof value === "string" ? value.replace(/[|\r\n]+/g, " ").trim() : "";
 }
 
+// markdownCell 对非字符串一律返回空串——decoction.dosesPerDay 这类**数字**字段直接经它渲染
+// 会产出「每日  剂 / 每日分  次服」空白模板（甲方生产实测的服法残片一类；下游 re-render
+// 会绕过 outputTransform 清洗层，必须在渲染源头就不产生空位）。
+function markdownNumberCell(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return markdownCell(value);
+}
+
 function canonicalHerbTable(candidate: Record<string, unknown>): string {
   const herbs = Array.isArray(candidate.herbs) ? candidate.herbs : [];
   if (herbs.length === 0) return "";
@@ -1953,11 +1961,16 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       );
     }
     if (decoction) {
+      const dosesPerDayText = markdownNumberCell(decoction.dosesPerDay);
+      const administrationTimesText = markdownNumberCell(decoction.administrationTimesPerDay);
       lines.push(
         "",
         "### 剂数与煎服",
         `**剂数**：${markdownCell(decoction.doseCount)}`,
-        `**每日剂数 / 分服次数**：每日 ${markdownCell(decoction.dosesPerDay)} 剂 / 每日分 ${markdownCell(decoction.administrationTimesPerDay)} 次服`,
+        // 两个数字任一缺失时整行省略——宁可少一行，不产出「每日  剂」空白模板。
+        ...(dosesPerDayText && administrationTimesText
+          ? [`**每日剂数 / 分服次数**：每日 ${dosesPerDayText} 剂 / 每日分 ${administrationTimesText} 次服`]
+          : []),
         `**煎服法**：${markdownCell(decoction.method)}`,
         // 需求5：处方展示面不再出现复诊节点（M05「随访管理方案/随访时间轴」仍确定性给出首次复诊
         // 时间）。decoction.followUpNode 字段本身及其服务端确定性生成（applyDeterministicFollowUpNode）

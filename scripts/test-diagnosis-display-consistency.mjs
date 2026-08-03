@@ -1317,3 +1317,35 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
     "没有被剥离的选择时不得输出该行",
   );
 }
+
+// DECOCT-01 同类守卫：decoction 的数字字段(dosesPerDay/administrationTimesPerDay)不得被
+// markdownCell 的字符串清洗吞成空位——那正是甲方生产实测的「每日  剂 / 每日分  次服」
+// 空白模板残片(第二次复发,这次是数字被清洗层置空;re-render 会绕过 outputTransform 清洗,
+// 必须在渲染源头保证)。数字缺失时整行省略,不产出空位。
+{
+  const { synchronizeVisibleClinicalSummary: syncForDecoction } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const rxPayload = {
+    schemaVersion: "tcm-cdss-reasoning-v2",
+    stage: "prescribe",
+    overview: { primarySyndrome: "风寒束表证", primarySyndromeBasis: ["恶寒发热"], overallPathogenesis: "风寒束表", overallTherapy: "辛温解表", recommendedFormulaDirection: "桂枝汤加减", evidence: { evidenceLevel: "model_inference", source: "test" } },
+    westernDiagnosis: { primary: { name: "上呼吸道感染", status: "考虑", confidence: "中", supportingFacts: ["恶寒发热2天"], limitations: [], suggestedChecks: [], evidence: { evidenceLevel: "model_inference", source: "test" } }, differentials: [] },
+    pathogenesis: { summary: "风寒束表", locationDifferentiation: { items: ["肺"], resolution: "bounded", evidence: { evidenceLevel: "model_inference", source: "test" } }, natureDifferentiation: { items: ["寒"], resolution: "bounded", evidence: { evidenceLevel: "model_inference", source: "test" } }, chain: [], uncertainties: [] },
+    therapy: { overallPrinciple: "扶正祛邪", overallMethod: "辛温解表", subTherapies: [] },
+    formula: {
+      candidates: [{
+        name: "桂枝汤加减",
+        herbs: [{ name: "桂枝", dose: "9g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1" }],
+        decoction: { doseCount: "3剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日1剂，水煎分服", course: "3日", followUpNode: "完成3剂后复诊" },
+      }],
+    },
+    nonPharma: null,
+  };
+  const wrap = (payload) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(payload)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const rendered = syncForDecoction(wrap(rxPayload), "prescribe");
+  assert.match(rendered, /每日 1 剂 \/ 每日分 2 次服/, "数字剂数必须完整渲染");
+  assert.doesNotMatch(rendered, /每日[\s　]*剂[\s　]*\//, "不得出现数字缺失的空白服法模板");
+  const missingNumbers = structuredClone(rxPayload);
+  delete missingNumbers.formula.candidates[0].decoction.dosesPerDay;
+  const renderedMissing = syncForDecoction(wrap(missingNumbers), "prescribe");
+  assert.doesNotMatch(renderedMissing, /每日剂数 \/ 分服次数/, "数字缺失时整行省略而不是渲染空位");
+}
