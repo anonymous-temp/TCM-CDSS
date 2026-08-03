@@ -452,6 +452,7 @@ overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesi
 westernDiagnosis.primary.name 必须是纯现代医学诊断或症状级工作诊断，不得夹带“痰湿型、肝火型、气虚证”等中医证型后缀。supportingFacts 负责逐项列事实；clinicalRationale 不得逐项串联或复制 supportingFacts，也不得整句复述现病史。它必须用1–2句完成“已记录事实中的病程/表现模式 → 当前工作诊断 → 尚缺哪类病因判别信息、因此为何暂不采用更具体病因标签”的推理链。可采用“已记录的〔症状概念〕及〔病程/模式〕支持将〔primary.name〕作为当前工作判断；但尚未取得〔具体判别信息〕，因此暂不采用更具体病因标签”的结构；方括号内容只能来自本例已记录事实、limitations 或 differentials，没有具体病因候选时写“具体病因”而不得臆造疾病。westernDiagnosis.differentials 每项必须写真正的鉴别理由和能区分主诊断的要点，不能只罗列病史；每项 name 只能写一个疾病/症状方向，多个候选必须拆成多项，不得用“或/斜杠/顿号/可能”合并命名。
 诊断分三段呈现，各自给出自己的推理过程，都不得复述病历：西医诊断（westernDiagnosis.primary，服务端另行关联 ICD-10 编码）、中医辨病（overview.tcmDiseaseName + tcmDiseaseRationale）、中医辨证（overview.primarySyndrome + tcmDiagnosticRationale）。
 overview.tcmDiseaseRationale 只写**辨病**：这组表现为什么归入该中医病名范畴，而不是相邻病名。依据是主症特征、病程形态与病位层次——例如以入睡困难与睡眠维持障碍为主、病程逾月且非情志抑郁为主导，故归入不寐而非郁病或心悸。用1–2句写成“主症与病程形态 → 病名归属 → 与哪个相邻病名区分”，不要在这里写证型、病机或治法。资料稀疏到只能形成症状层工作病名时，写明是按主诉直接对应的症状层病名，并说明尚缺哪类信息才能升级为传统病名。
+overview.tcmDiseaseDifferentials 是**病名级鉴别诊断**（与 tcmDifferentials 的证型鉴别是两层）：在已有可比较相邻病名时给出1–3项，每项写候选中医病名（如不寐需与郁病、心悸鉴别；头痛需与眩晕、真头痛鉴别）、为何需要鉴别、本例主症/病程形态上的区分要点、必要的下一步核实项。区分依据是主症与病程形态，不是证型；真头痛、中风等急重病名进入鉴别时，nextCheck 必须写明相应急症排查。资料稀疏无法形成有意义病名鉴别时可为空数组。
 overview.tcmDiagnosticRationale 只写**辨证**：在已确定的中医病名之下，四诊合参如何得出该证型。必须基于望闻问切已获得的症状、舌脉、病程与体征，写成“四诊要点 → 病机 → 证型归属”的推理链；不得把缺少CT、MRI、化验、量表等现代检查写成中医辨证不能成立的理由，也不要重复辨病段已经写过的病名归属理由。overview.tcmDifferentials 在已有可比较证候时给出1–3项，每项写候选证候、为何需要鉴别、与本例主证的区分点以及必要的下一步四诊核实；稀疏到无法形成有意义鉴别时可为空，但不得输出套话。若因资料稀疏而把 tcmDifferentials 留空，必须在 primarySyndromeResolutionReason 中明确写出为何暂不能形成鉴别——须包含“不足以/无法/不能……鉴别/区分”这类表述（例如“现有四诊与病史尚不足以与相邻证候鉴别”），不得只留空而不说明。
 therapy.overallPrinciple 必须写治则层原则（如正治、反治、治病求本、急则治标、缓则治本、扶正祛邪、标本缓急或三因制宜），overallMethod 才写疏肝、清热、健脾、化痰、安神等具体治法；不得把具体治法冒充治则，也不得两栏同句复写。subTherapies 必须逐项对应病机节点：只有一个病机节点时，唯一子治法可以与完整的 overallMethod 相同；有多个子病机时至少形成两个可区分的分治方向，各 therapy 与 targetPathogenesis 不得整行复制组合后的 overallMethod，也不得在多行中重复。
 
@@ -497,6 +498,7 @@ JSON要求：
     "tcmDiseaseRationale": "辨病推理：主症特征与病程形态如何把本例归入该中医病名，与哪个相邻病名区分",
     "tcmDiagnosticRationale": "辨证推理：在该病名之下，四诊合参如何得出该证型（四诊要点→病机→证型）",
     "tcmDifferentials": [{"syndrome":"中医鉴别证候","reason":"为何需要鉴别","distinguishingPoints":"本例用于区分主证与该证的要点","nextCheck":"下一步四诊核实项或null"}],
+    "tcmDiseaseDifferentials": [{"diseaseName":"相邻中医病名","reason":"为何需要与该病名鉴别","distinguishingPoints":"本例主症与病程形态上的区分要点","nextCheck":"必要的核实项或null"}],
     "secondarySyndromes": [],
     "overallPathogenesis": "总病机",
     "overallTherapy": "总治法",
@@ -758,6 +760,7 @@ export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaR
 5. 不得伪造指南、文献题名、年份、链接或DOI；无明确来源时省略客户正文的来源字段，并仅在结构化 evidence 中标记内部证据缺口。
 6. 若医生选择了诊疗思路偏好，只能用于辨证视角、方证/方源选择和加减解释；不得为迎合偏好而忽略反证、禁忌、红旗或更匹配的证候。
 7. 推荐主方方向坚持经典方优先：方证匹配时优先选用有出处可考的经典名方并写出方名；只有确无方证匹配的经典方时才按病机与治法自拟，自拟方向只写“按已锁定病机与治法辨证组方”，不罗列被排除方名。不得默认所有病例都自拟组方，也不得跨病种套用同一套药味与角色。
+8. **主诉主症是全案锚点**：病位辨证、总体病机、P1 核心病机、总治法与推荐方向都必须首先解释并针对主诉主症（如主诉头痛，病位须包含头/清窍及其所属脏腑经络定位，治法须含针对头痛的方向如养血和络止痛，选方须以主治该病症者优先）；心悸、失眠、纳差等伴随症状只能作为兼症进入次级病机与次级治法，不得反客为主导治法或主导选方。主诉主症未被任何病机节点与治法覆盖时，视为辨证未完成。
 
 ${M03_CLINICAL_INFERENCE_AUTHORITY}
 

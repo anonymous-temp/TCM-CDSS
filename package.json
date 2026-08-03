@@ -43,6 +43,7 @@
     "test:customer-evidence": "node --experimental-strip-types scripts/test-customer-evidence.mjs",
     "test:stage-contract": "jiti scripts/test-diagnosis-stage-contract.mjs",
     "test:m03-parallel-merge": "jiti scripts/test-m03-parallel-merge.mjs",
+    "audit:output-quality": "node scripts/audit-output-quality.mjs",
     "test:repair-guidance": "jiti scripts/test-repair-guidance-coverage.mjs",
     "test:therapy-vocabulary": "jiti scripts/test-therapy-vocabulary-sync.mjs",
     "test:stage-outcome": "node scripts/test-stage-outcome.mjs",

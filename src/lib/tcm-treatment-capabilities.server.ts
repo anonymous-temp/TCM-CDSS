@@ -159,9 +159,22 @@ function controlledTreatmentPlan(
   const protocolGap = definition?.patientSpecificParametersAllowed
     ? `目录存在该项目的其他适应证模板，但与本例适应证不符；不得跨适应证套用穴位、部位、频次或疗程。`
     : "当前目录缺少与该项目及本例适应证对应的标准操作方案；不得生成患者级穴位、部位、频次或疗程。";
+  // 甲方评测(2026-08-03) 9.1：评估态项目卡也要给医生看得见的常用穴位参考。聚合该项目**全部
+  // 治理模板**的高频穴位(top5)作为通用参考——不绑定本例适应证、不给频次疗程、protocolStatus
+  // 仍为 assessment_only,呈现层按该状态标注「通用参考,未按本例适应证核定」。空模板项目保持为空。
+  const referencePointFrequency = new Map<string, number>();
+  for (const template of definition?.planTemplates || []) {
+    for (const point of template.sitesOrPoints) {
+      referencePointFrequency.set(point, (referencePointFrequency.get(point) || 0) + 1);
+    }
+  }
+  const referenceCommonPoints = [...referencePointFrequency.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, 5)
+    .map(([point]) => annotateGovernedAcupoint(point));
   return {
     treatmentContent: `本例与${indication}及病机节点“${targetPathogenesis}”存在项目评估关联；仅进入现场适应证、禁忌与资质评估，不形成操作计划。`,
-    suggestedSitesOrPoints: [],
+    suggestedSitesOrPoints: referenceCommonPoints,
     scheduleSuggestion: "",
     techniqueBoundary: definition?.parameterPolicy || protocolGap,
     protocolSource: sourceRefs.join("、") || "T12 中医非药物项目治理目录",

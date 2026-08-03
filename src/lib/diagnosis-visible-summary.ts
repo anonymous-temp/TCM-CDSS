@@ -87,6 +87,25 @@ function hasExertionalNocturnalBreathlessness(clinicalContext: string): boolean 
  * net. These entries are exclusion directions, never deterministic disease diagnoses, and the
  * complete projection is still sent through independent clinical review.
  */
+/**
+ * 甲方评测(2026-08-03) 1.1.1：支持依据里出现「生命体征：88次/分」这类丢失指标名的裸值——
+ * 模型从病历生命体征串里截半句。用病历上下文里的带标签原值把指标名找回来；找不回时原样保留。
+ */
+function relabelBareVitalSupportingFact(fact: string, clinicalContext: string): string {
+  const bare = fact.match(/^生命体征[:：]\s*([\d.]+(?:\/[\d.]+)?)\s*(次\/分|℃|°C|mmHg|%)?$/);
+  if (!bare) return fact;
+  const value = bare[1];
+  const labels: Array<[RegExp, string]> = [
+    [new RegExp(`(?:BP|血压)[:：]?\\s*${value.replace(/\//g, "\\/")}`), "血压"],
+    [new RegExp(`(?:P|脉搏|心率|HR)[:：]?\\s*${value}次`), "脉搏"],
+    [new RegExp(`(?:R|呼吸)[:：]?\\s*${value}次`), "呼吸"],
+    [new RegExp(`(?:T|体温)[:：]?\\s*${value}`), "体温"],
+    [new RegExp(`(?:SpO2|血氧)[:：]?\\s*${value}`), "血氧饱和度"],
+  ];
+  const label = labels.find(([pattern]) => pattern.test(clinicalContext))?.[1];
+  return label ? `${label} ${value}${bare[2] || ""}` : fact;
+}
+
 export function normalizeM03WesternDifferentials(
   content: string,
   clinicalContext: string,
@@ -516,7 +535,8 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
       ])
         .filter((fact) => !NONDIAGNOSTIC_WESTERN_SUPPORT.test(fact))
         .filter((fact) => !isNondiscriminatingWesternSupportingFact(fact))
-        .slice(0, 8);
+        .map((fact) => relabelBareVitalSupportingFact(fact, clinicalContext))
+        .slice(0, 6);
       if ((primary.supportingFacts as unknown[]).length === 0) {
         primary.status = "证据有限";
         primary.confidence = "低";
@@ -1154,7 +1174,8 @@ export function alignNormalizedM03TcmDiagnosticRationale(content: string): strin
     const overview = recordValue(reasoning.overview);
     const pathogenesis = recordValue(reasoning.pathogenesis);
     const chain = recordList(pathogenesis?.chain);
-    const fact = semanticItems(overview?.primarySyndromeBasis)[0] || markdownCell(chain[0]?.patientFact);
+    const facts = semanticItems(overview?.primarySyndromeBasis);
+    const fact = facts[0] || markdownCell(chain[0]?.patientFact);
     const syndrome = markdownCell(overview?.primarySyndrome);
     const mechanism = markdownCell(overview?.overallPathogenesis) || markdownCell(chain[0]?.pathogenesis);
     if (
@@ -1163,9 +1184,25 @@ export function alignNormalizedM03TcmDiagnosticRationale(content: string): strin
       !isDisplayableClinicalText(mechanism)
     ) return content;
 
-    overview!.tcmDiagnosticRationale =
-      `${fact}为本例已记录的阳性辨证依据，结合其表现模式，证候倾向“${syndrome}”；` +
-      `当前病机机制归纳以“${mechanism}”为限。`;
+    // 甲方评测(2026-08-03)「辨证推理无实际内容」：旧模板只有一条事实+『结合其表现模式』
+    // 空话。仍然只做投影(不新增证候/病位/病性/治法),但把已成立的四诊要点(症状依据、舌象、
+    // 脉象)与病位病性一并织进「四诊要点 → 病机 → 证型」推理句,读得出为什么是这个证。
+    const nature = recordValue(pathogenesis?.natureDifferentiation);
+    const location = recordValue(pathogenesis?.locationDifferentiation);
+    const natureItems = semanticItems(nature?.items).slice(0, 3).join("、");
+    const locationItems = semanticItems(location?.items).slice(0, 3).join("、");
+    const tongueFact = facts.find((item) => /舌/.test(item)) || "";
+    const pulseFact = facts.find((item) => /脉/.test(item)) || "";
+    const symptomFacts = facts.filter((item) => item !== tongueFact && item !== pulseFact).slice(0, 3);
+    const fourDiagClues = [symptomFacts.join("、"), tongueFact, pulseFact].filter(Boolean).join("，");
+    overview!.tcmDiagnosticRationale = [
+      `四诊要点：${fourDiagClues || fact}`,
+      locationItems || natureItems
+        ? `提示病位在${locationItems || "待定"}${natureItems ? `、病性属${natureItems}` : ""}`
+        : "",
+      `病机为${mechanism}`,
+      `故辨为“${syndrome}”`,
+    ].filter(Boolean).join("，") + "。";
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
     return content;
@@ -1529,7 +1566,10 @@ export function westernDiagnosisLabelForDisplay(value: unknown): string {
   const label = typeof value === "string" ? value.trim() : "";
   if (!label) return "";
   const symptomLabel = label.match(/^(.{1,24})症状$/)?.[1]?.trim();
-  return symptomLabel ? `${symptomLabel}（症状性工作诊断）` : label;
+  // 甲方评测(2026-08-03)：「症状性工作诊断」不是临床规范术语。医生可见标签改用病历惯用的
+  // 「病因待查」形态(与 structured-clinical-repair 的修复措辞同一约定)；签名载荷内的
+  // primary.name 仍保留 "X症状" 形态,复核与下游契约不变。
+  return symptomLabel ? `${symptomLabel}（病因待查）` : label;
 }
 
 function documentedMaterialFacts(clinicalContext: string): string[] {
@@ -1692,7 +1732,11 @@ export function restoreValidatedM03Chain(content: string, acceptedContent: strin
   return `${content.slice(0, transformed.start + START_MARKER.length)}\n${JSON.stringify(transformed.reasoning, null, 2)}\n${content.slice(transformed.end)}`;
 }
 
+// 构造级根治(2026-08-03 复盘)：此前非字符串一律静默置空——decoction.dosesPerDay 这类数字
+// 字段流经这里就渲染成「每日  剂」空白模板。现在数字在本体内转串,"合法值被清洗器吞掉"
+// 这一类从构造上消失;真正的非法类型(对象/数组)仍置空,由行级省略逻辑兜底。
 function markdownCell(value: unknown): string {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
   return typeof value === "string" ? value.replace(/[|\r\n]+/g, " ").trim() : "";
 }
 
@@ -1793,11 +1837,26 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
   if (isDisplayableClinicalText(markdownCell(overview?.tcmDiagnosticRationale))) {
     lines.splice(lines.indexOf(pathogenesisHeading), 0, `**辨证分析**：${markdownCell(overview?.tcmDiagnosticRationale)}`, "");
   }
+  // 甲方评测(2026-08-03)要求鉴别诊断给到病名级：辨病鉴别(相邻中医病名)在前、证候鉴别在后，
+  // 两层分节呈现，标题不再笼统写「中医鉴别」。
+  const tcmDiseaseDifferentials = recordList(overview?.tcmDiseaseDifferentials);
+  if (tcmDiseaseDifferentials.length > 0) {
+    const insertAt = lines.indexOf(pathogenesisHeading);
+    lines.splice(insertAt, 0,
+      "### 中医辨病鉴别",
+      ...tcmDiseaseDifferentials.map((item) => `- **${markdownCell(item.diseaseName)}**：${clinicalSentence([
+        markdownCell(item.reason),
+        markdownCell(item.distinguishingPoints) ? `区分要点：${markdownCell(item.distinguishingPoints)}` : "",
+        markdownCell(item.nextCheck) ? `建议核实：${markdownCell(item.nextCheck)}` : "",
+      ], "；")}`),
+      "",
+    );
+  }
   const tcmDifferentials = recordList(overview?.tcmDifferentials);
   if (tcmDifferentials.length > 0) {
     const insertAt = lines.indexOf(pathogenesisHeading);
     lines.splice(insertAt, 0,
-      "### 中医鉴别",
+      "### 中医证候鉴别",
       ...tcmDifferentials.map((item) => `- **${markdownCell(item.syndrome)}**：${clinicalSentence([
         markdownCell(item.reason),
         markdownCell(item.distinguishingPoints) ? `区分要点：${markdownCell(item.distinguishingPoints)}` : "",
@@ -2030,7 +2089,9 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
           `- **方案状态**：${hasPatientSpecificProtocol ? "已有对应适应证的标准操作方案，仍须医生复核" : "仅作项目评估，未形成患者级操作方案"}`,
           `- **治疗内容**：${markdownCell(item.treatmentContent)}`,
           `- **对应病机**：${markdownCell(item.targetPathogenesis)}`,
-          ...(sites ? [`- **建议部位/候选穴位**：${sites}`] : []),
+          ...(sites ? [hasPatientSpecificProtocol
+            ? `- **建议部位/候选穴位**：${sites}`
+            : `- **常用穴位（通用参考，未按本例适应证核定）**：${sites}；具体选穴由现场医师按适应证与禁忌确定`] : []),
           ...(markdownCell(item.scheduleSuggestion) ? [`- **评估节奏**：${markdownCell(item.scheduleSuggestion)}`] : []),
           ...(markdownCell(item.protocolGap) ? [`- **未形成方案的原因**：${markdownCell(item.protocolGap)}`] : []),
           `- **安全边界**：${clinicalSentence([markdownCell(item.techniqueBoundary), markdownCell(materialPositioning), markdownCell(item.operatorRequirement), ...requiredChecks], "；")}`,

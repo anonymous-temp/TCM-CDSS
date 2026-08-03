@@ -1801,11 +1801,19 @@ const alignedTcmRationaleContent = alignNormalizedM03TcmDiagnosticRationale(
 const alignedTcmRationale = JSON.parse(
   alignedTcmRationaleContent.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0],
 );
+// 甲方评测(2026-08-03)「辨证推理无实际内容」后模板升级为「四诊要点 → 病位病性 → 病机 → 证型」
+// 推理句：病机在前、证型收尾，且仍只做投影(两者都必须来自载荷既有字段)。
 assert.match(
   alignedTcmRationale.overview.tcmDiagnosticRationale,
-  new RegExp(`${alignedTcmRationale.overview.primarySyndrome}.*${alignedTcmRationale.overview.overallPathogenesis}`),
-  "the TCM rationale projects only the retained syndrome and pathogenesis",
+  new RegExp(`${alignedTcmRationale.overview.overallPathogenesis}[\\s\\S]*${alignedTcmRationale.overview.primarySyndrome}`),
+  "the TCM rationale projects only the retained pathogenesis and syndrome",
 );
+assert.match(
+  alignedTcmRationale.overview.tcmDiagnosticRationale,
+  /四诊要点|提示病位在/,
+  "重建的辨证推理必须织入四诊要点/病位线索，不得退回『结合其表现模式』式空话",
+);
+assert.doesNotMatch(alignedTcmRationale.overview.tcmDiagnosticRationale, /结合其表现模式/);
 assert.equal(
   m03SemanticIssue(alignedTcmRationale, stableSupportContext),
   undefined,
@@ -1996,12 +2004,23 @@ assert.equal(
   undefined,
   "an assessment-only project remains valid only when patient-specific parameters are absent and the gap is explicit",
 );
+// 甲方评测(2026-08-03) 9.1 对齐：assessment_only 允许携带服务端聚合的**通用穴位参考**
+// (呈现层标注「通用参考,未按本例适应证核定」),不再作为驳回条件——此前编译器发穴位、
+// 合同禁穴位的自相矛盾把整方打死(模式二复发)。评估态的安全边界收敛为两条:
+// 不得携带患者级频次/疗程,必须写明 protocolGap。
+const genericPointsTreatment = structuredClone(assessmentOnlyTreatment);
+genericPointsTreatment.nonPharma.tcmTreatments[0].suggestedSitesOrPoints = ["内关(通用参考)", "神门(通用参考)"];
+assert.equal(
+  m04SemanticIssue(genericPointsTreatment, "", stable),
+  undefined,
+  "assessment-only 允许服务端通用穴位参考,不得因此驳回整方",
+);
 const shellTreatment = structuredClone(assessmentOnlyTreatment);
-shellTreatment.nonPharma.tcmTreatments[0].suggestedSitesOrPoints = ["按经验选穴"];
+shellTreatment.nonPharma.tcmTreatments[0].scheduleSuggestion = "每日1次，连做7日";
 assert.match(
   m04SemanticIssue(shellTreatment, "", stable) || "",
   /assessment_parameters/,
-  "an assessment-only project must reject placeholder points or sites",
+  "assessment-only 携带患者级频次/疗程必须驳回",
 );
 // nonPharma.monitoring(metric/timing/trigger) 及其 5 个驳回码
 // (monitoring_N_incomplete/_metric_semantics/_trigger_semantics/_duplicate/_metric_ungrounded)
@@ -3091,14 +3110,22 @@ assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.method, /�
   const analysis = finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis;
   assert.match(analysis, /围绕.+组方/, "开头必须说明本方围绕哪条治法组方");
   assert.match(analysis, /治疗支点/, "君药必须被标明为本方治疗支点");
-  assert.match(analysis, /·\s*人参（君）——以「[^」]+」/, "每味药必须独立成行并写出它自己的功用");
-  assert.match(analysis, /·\s*川芎（[^）]+）——以「[^」]+」/, "同方内其余药味同样逐味成行，不得被并入角色组");
+  // 甲方评测(2026-08-03) 7.1/7.2：改为 Markdown 列表行(不再塌段)、功用剥药类尾巴、
+  // 同一病机原文只全文引用一次。
+  assert.match(analysis, /-\s*\*\*人参\*\*（君）：以「[^」]+」/, "每味药必须独立成列表行并写出它自己的功用");
+  assert.match(analysis, /-\s*\*\*川芎\*\*（[^）]+）：以「[^」]+」/, "同方内其余药味同样逐味成行，不得被并入角色组");
   assert.match(analysis, /承接核心病机「[^」]+」/, "行内必须写出该药实际承接的病机原文，而不是通用模板句");
   assert.equal(
-    analysis.split("\n").filter((line) => line.trim().startsWith("·")).length,
+    analysis.split("\n").filter((line) => line.trim().startsWith("- ")).length,
     finalizedServerOwnedM04.formula.candidates[0].herbs.length,
     "方义行数必须与药味数一致——按角色分组会把多味药压成一行",
   );
+  assert.doesNotMatch(analysis, /；[一-龥]{1,8}药[」；]/, "功用文本不得携带药类归类尾巴(检索索引不是医生要读的方义)");
+  assert.doesNotMatch(analysis, /的[;；]|围绕「[^」]*的」/, "治法方向串必须剥掉受控词表的「…的」后缀与分号连接");
+  const fullTargetQuotes = (analysis.match(/承接[^「]{0,6}「[^」]{12,}」/g) || []).length;
+  assert.ok(fullTargetQuotes <= new Set(finalizedServerOwnedM04.formula.candidates[0].herbs.map((herb) => herb.targetPathogenesis)).size,
+    "同一病机原文不得逐味整句重复引用");
+  assert.match(analysis, /同承接上述|加强该方向|治疗支点/, "重复病机的后续药味应写同承接关系而非重复原文");
   assert.doesNotMatch(analysis, /。，/, "formula analysis must not join terminal punctuation into malformed prose");
   assert.doesNotMatch(analysis, /各药组共同形成/, "结尾套话不携带可核对内容，已移除");
 }

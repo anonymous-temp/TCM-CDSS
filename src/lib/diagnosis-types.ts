@@ -291,6 +291,13 @@ export interface ClinicalReasoningResultV2 {
       distinguishingPoints: string;
       nextCheck: string | null;
     }>;
+    /** 病名级鉴别（与相邻中医病名区分；证型鉴别见 tcmDifferentials）。 */
+    tcmDiseaseDifferentials?: Array<{
+      diseaseName: string;
+      reason: string;
+      distinguishingPoints: string;
+      nextCheck: string | null;
+    }>;
     secondarySyndromes?: string[];
     overallPathogenesis: string;
     overallTherapy: string;
@@ -769,6 +776,14 @@ const ReasoningV2SchemaBase = z.object({
     tcmDiagnosticRationale: z.string().max(1600).optional().catch(""),
     tcmDifferentials: z.array(z.object({
       syndrome: z.string().min(1).max(300),
+      reason: z.string().min(2).max(1000),
+      distinguishingPoints: z.string().min(2).max(1000),
+      nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
+    })).max(6).optional().catch([]),
+    // 甲方评测(2026-08-03)：鉴别诊断要求病名级(与相邻中医病名区分)，证型鉴别(tcmDifferentials)
+    // 保留为辨证层内容。二者呈现在不同小节。
+    tcmDiseaseDifferentials: z.array(z.object({
+      diseaseName: z.string().min(1).max(300),
       reason: z.string().min(2).max(1000),
       distinguishingPoints: z.string().min(2).max(1000),
       nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),

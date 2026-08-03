@@ -3144,8 +3144,11 @@ export function m04SemanticIssue(
         typeof project.scheduleSuggestion !== "string" || !project.scheduleSuggestion.trim())) {
       return `non_pharma_treatment_${index}_governed_plan_incomplete`;
     }
+    // assessment_only 允许携带**服务端聚合的通用穴位参考**（甲方评测 9.1：评估卡也要给医生
+    // 看得见的常用穴位；呈现层按状态标注「通用参考，未按本例适应证核定」）。仍然禁止患者级
+    // 频次/疗程，且必须写明 protocolGap——这两条才是"评估态不得伪装成方案"的安全边界。
     if (protocolStatus === "assessment_only_no_patient_specific_protocol" &&
-      (project.suggestedSitesOrPoints.length > 0 || (typeof project.scheduleSuggestion === "string" && project.scheduleSuggestion.trim()) ||
+      ((typeof project.scheduleSuggestion === "string" && project.scheduleSuggestion.trim()) ||
         typeof project.protocolGap !== "string" || !project.protocolGap.trim())) {
       return `non_pharma_treatment_${index}_assessment_parameters`;
     }

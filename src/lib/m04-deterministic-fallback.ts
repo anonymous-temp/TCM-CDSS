@@ -28,11 +28,31 @@ type PriorReasoningLike = {
  *  · M03 未锁方或锁定方不可编译时，回退到原有安全有限文案（调用方兜底）；
  *  · 不产生结构化 M04 载荷，不参与签名——它是给医生看的确定性参考，不是可采纳候选。
  */
+/** 参考页的特殊人群提醒：只认病历已记录文本，命中即在安全边界段前置一条确定性提示。 */
+function specialPopulationNotice(state: CaseState): string | undefined {
+  const text = [
+    state.chiefComplaint,
+    state.hisRecord?.fields?.xianbingshi,
+    state.pastHistory,
+    state.hisRecord?.fields?.jiwangshi,
+  ].filter(Boolean).join("；");
+  const age = Number(state.patient?.age);
+  if (/妊娠|怀孕|孕\d|停经.{0,12}(?:恶心|呕吐|妊娠试验阳性)|产后|哺乳/.test(text)) {
+    return "**特殊人群提醒**：本例涉及妊娠/产褥/哺乳背景。上表为方剂通用基准，其中药味须逐味核对妊娠禁忌与慎用（如半夏、枳实类须炮制并由医师权衡），采纳前必须完成产科评估并经药师复核。";
+  }
+  if (Number.isFinite(age) && age < 15) {
+    return "**特殊人群提醒**：本例为儿童。上表剂量区间为成人药典边界，儿童用量须由医师按体重/年龄折算并经药师复核，不得直接套用。";
+  }
+  if (Number.isFinite(age) && age >= 75) {
+    return "**特殊人群提醒**：本例为高龄患者。用量宜从药典区间低值起步，结合肝肾功能与合并用药由医师确定并经药师复核。";
+  }
+  return undefined;
+}
+
 export function buildDeterministicFormulaReferenceFallback(
   state: CaseState,
   prior: PriorReasoningLike,
 ): string | undefined {
-  void state;
   const names = (prior?.overview?.recommendedFormulaNames || [])
     .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
   let references = names.length > 0 ? executableFormulaCompilationReferences(names) : [];
@@ -98,6 +118,7 @@ export function buildDeterministicFormulaReferenceFallback(
     ...sections,
     "",
     "## 处方安全边界",
+    ...(specialPopulationNotice(state) ? [specialPopulationNotice(state) as string, ""] : []),
     "上表剂量区间为药典边界而非本例建议量；具体用量由医师结合本例证候强度、年龄与体质确定，采纳前须经院内审方复核。可点击「重新生成」再次尝试形成完整剂量级候选。",
   ].join("\n");
 }

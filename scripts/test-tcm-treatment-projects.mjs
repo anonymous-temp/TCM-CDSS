@@ -866,7 +866,13 @@ try {
     assert.match(digestive.scheduleSuggestion, /每日1次/);
     assert.equal(digestive.protocolStatus, "governed_patient_specific_plan");
     assert.equal(digestive.executable, false);
-    assert.deepEqual(dermatology.suggestedSitesOrPoints, []);
+    // 甲方评测(2026-08-03) 9.1：评估态项目也要给医生看得见的常用穴位——聚合该项目全部治理模板的
+    // 高频穴位(≤5)作为**通用参考**；protocolStatus 仍为 assessment_only、无 schedule，
+    // 呈现层按该状态标注「未按本例适应证核定」。治理边界(不生成患者级操作方案)不变。
+    assert.ok(
+      dermatology.suggestedSitesOrPoints.length > 0 && dermatology.suggestedSitesOrPoints.length <= 5,
+      `评估态针刺项目应给出≤5个通用参考穴位：${dermatology.suggestedSitesOrPoints.join("、")}`,
+    );
     assert.equal(dermatology.scheduleSuggestion, "");
     assert.equal(dermatology.protocolStatus, "assessment_only_no_patient_specific_protocol");
     assert.match(dermatology.protocolGap, /不得跨适应证套用|缺少.*标准操作方案/);

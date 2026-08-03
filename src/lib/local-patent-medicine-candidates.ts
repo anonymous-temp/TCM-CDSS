@@ -44,6 +44,42 @@ function patentMedicineBaseName(name: string): string {
 }
 
 /**
+ * 甲方评测(2026-08-03) 8.1：人参败毒胶囊(益气解表,适用气虚感冒)被推给无气虚证据的风寒表实证。
+ * 类问题 = 说明书主治以特定**体质/虚证前提**为条件的成药，病例没有该前提证据时不得入选。
+ * 确定性门：说明书功能主治命中前提模式(pattern)，而病例阳性事实+签名证候/病性/治法文本中
+ * 找不到对应证据(evidence)时，直接排除该条目。证据判定只认已记录文本，不做推断。
+ */
+export const CONSTITUTION_PREREQUISITES: ReadonlyArray<{ label: string; pattern: RegExp; evidence: RegExp }> = [
+  {
+    label: "气虚",
+    pattern: /(?:气虚|体虚|虚人|正虚|体弱)[^。；，]{0,8}(?:感冒|外感)|益气解表|扶正解表|补气解表/,
+    evidence: /气虚|体虚|正虚|乏力|神疲|气短|懒言|自汗|易感冒|脉虚|脉弱|脉细弱|益气|补气|扶正/,
+  },
+  {
+    label: "阴虚",
+    pattern: /阴虚[^。；，]{0,8}(?:感冒|外感)|滋阴解表|养阴解表/,
+    evidence: /阴虚|口干咽燥|干咳少痰|盗汗|五心烦热|舌红少苔|少津|脉细数|滋阴|养阴/,
+  },
+  {
+    label: "阳虚",
+    pattern: /阳虚[^。；，]{0,8}(?:感冒|外感)|助阳解表|温阳解表/,
+    evidence: /阳虚|畏寒肢冷|四肢不温|小便清长|脉沉迟|温阳|助阳/,
+  },
+  {
+    label: "血虚",
+    pattern: /血虚[^。；，]{0,8}(?:感冒|外感)|养血解表/,
+    evidence: /血虚|面色少华|面色萎黄|唇甲色淡|舌淡|脉细|养血|补血/,
+  },
+];
+
+export function constitutionPrerequisiteMismatch(indication: string, caseEvidenceText: string): string | undefined {
+  for (const rule of CONSTITUTION_PREREQUISITES) {
+    if (rule.pattern.test(indication) && !rule.evidence.test(caseEvidenceText)) return rule.label;
+  }
+  return undefined;
+}
+
+/**
  * 该中成药是否为受控方剂目录中某个经典名方的成药剂型；是则返回该经典方名。
  * 既作临床性 tie-breaker（药典标准方优先于同证冷门厂牌药），也作同方多剂型的去重键
  * ——归脾丸／归脾合剂／归脾片／归脾液 全部归到「归脾汤」这一个键上。
@@ -90,6 +126,16 @@ export function retrieveLocalPatentMedicineCandidates(
 ): LocalPatentMedicineCandidate[] {
   const facts = positiveCaseFacts(caseState, assistedNegations);
   if (facts.length === 0) return [];
+  // 体质前提证据面 = 阳性事实 + 签名证候/病性/治法文本（只认已记录内容）。
+  const reasoning = caseState.reasoningDiagnose;
+  const constitutionEvidenceText = [
+    ...facts,
+    reasoning?.overview?.primarySyndrome,
+    reasoning?.overview?.overallPathogenesis,
+    ...(reasoning?.pathogenesis?.natureDifferentiation?.items || []),
+    reasoning?.therapy?.overallPrinciple,
+    reasoning?.therapy?.overallMethod,
+  ].filter(Boolean).join("；");
   const semanticConceptIds = (caseState.reasoningDiagnose?.terminologyMappings || [])
     .filter((item) =>
       item.namespace === "medicine_clinical_concept" &&
@@ -118,6 +164,7 @@ export function retrieveLocalPatentMedicineCandidates(
     };
   })
     .filter((entry) => entry.matchedConcepts.length > 0)
+    .filter((entry) => !constitutionPrerequisiteMismatch(entry.indication, constitutionEvidenceText))
     .sort((left, right) =>
       right.score - left.score ||
       right.matchedConcepts.length - left.matchedConcepts.length ||

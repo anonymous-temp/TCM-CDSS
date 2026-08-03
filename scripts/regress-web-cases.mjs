@@ -240,6 +240,9 @@ const out = {
   prescribed: summary.filter((r) => r.herbCount > 0).length,
   outcomes: summary.reduce((acc, r) => ({ ...acc, [r.outcome]: (acc[r.outcome] || 0) + 1 }), {}),
   namedFormula: summary.filter((r) => r.lockedFormulas.length > 0).length,
+  // 选方分布直方图：模板偏置(同一方跨病种反复锁定,如归脾汤锚定)只有在分布层面才可见,
+  // 单例断言永远发现不了(2026-08-03 甲方评测复盘机制)。
+  lockedFormulaHistogram: summary.flatMap((r) => r.lockedFormulas).reduce((acc, name) => ({ ...acc, [name]: (acc[name] || 0) + 1 }), {}),
   assessOk: summary.filter((r) => r.assessStatus === 200).length,
   medianDiagnoseMs: summary.map((r) => r.diagnoseMs).sort((a, b) => a - b)[Math.floor(summary.length / 2)] ?? null,
   summary,

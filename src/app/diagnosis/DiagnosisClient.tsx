@@ -1310,13 +1310,26 @@ function canContinueLimitedCase(caseState: CaseState): boolean {
     !caseState.diagnosis && !caseState.prescription && !caseState.riskAssessment;
 }
 
+/**
+ * F1（追问不阻断）：M02 生成追问后分析自动继续，本轮结束时若医生仍未回答/未跳过，
+ * 追问以“并行增强”身份保留在结果区。此状态下的提交沿用既有追问回答链路
+ * （清空结论并从辨病辨证重跑），而不是 done 态的整轮重采集。
+ */
+export function hasPendingFollowupQuestions(
+  caseState: Pick<CaseState, "phase" | "questionOutcome" | "conversation">,
+): boolean {
+  return caseState.phase === "done" &&
+    !caseState.questionOutcome &&
+    caseState.conversation.some((msg) => msg.role === "assistant" && parseQuestionItems(msg.content).length > 0);
+}
+
 export function maxQuestionRoundNotice(
   state: Pick<CaseState, "questionRounds" | "maxQuestionRounds" | "phase">,
 ): string {
   if (state.questionRounds < state.maxQuestionRounds) return "";
   if (state.phase === "done") return "";
   if (state.phase === "question") {
-    return "本轮集中核实关键问题；提交已确认信息或选择跳过后，将直接进入辨病辨证。";
+    return "分析已自动继续；补充回答可随时完善并重新分析。";
   }
   return "";
 }
@@ -1706,6 +1719,23 @@ function RiskSummaryPanel({
   );
 }
 
+/**
+ * F2（甲方反馈「候选方药拦截，刷新后依旧不能生成」）：M04 因 M03 级原因（辨证不稳 / 未形成
+ * 稳定证候 / 辨证复核未完成）给出非剂量页或报错时，仅重跑 M04 会复用同一份 M03，必然原地复卡。
+ * 命中以下判据的“重新生成候选方药/重试本阶段”动作一律升级为从 M03 重跑。
+ */
+const M03_LEVEL_PRESCRIBE_BLOCK_PATTERN = /尚未形成通过临床复核的稳定证候|本次辨病辨证结果完整性|辨证语义复核未完成|未形成可执行|辨证信息完整度不足/;
+
+export function prescribeRetryRequiresM03Rerun(
+  caseState: Pick<CaseState, "lastError" | "prescription">,
+): boolean {
+  const message = caseState.lastError?.phase === "prescribe"
+    ? normalizeRequestError(caseState.lastError.message, "")
+    : "";
+  return M03_LEVEL_PRESCRIBE_BLOCK_PATTERN.test(message) ||
+    M03_LEVEL_PRESCRIBE_BLOCK_PATTERN.test(caseState.prescription || "");
+}
+
 export function errorRequiresM03Refresh(lastError: CaseState["lastError"] | undefined): boolean {
   if (!lastError || !["prescribe", "assess"].includes(lastError.phase)) return false;
   const message = normalizeRequestError(lastError.message, "");
@@ -1768,7 +1798,12 @@ export function stageErrorDisplay(lastError: NonNullable<CaseState["lastError"]>
   const message = normalizeRequestError(lastError.message, `${stepLabel} 未完成，请补充信息或重试。`);
   const requiresM03Refresh = errorRequiresM03Refresh(lastError);
   const requiresM04Refresh = errorRequiresM04Refresh(lastError);
+  // F2：M04 报错但根因在 M03 级（辨证不稳/未形成稳定证候）时，重试按钮明示会从辨证重跑，
+  // 与 handleRetry / handleSubmit 错误分支的升级判据保持一致。
+  const requiresM03RerunForPrescribeBlock =
+    lastError.phase === "prescribe" && M03_LEVEL_PRESCRIBE_BLOCK_PATTERN.test(message);
   const retryText =
+    requiresM03RerunForPrescribeBlock ? "重新辨证并生成方药" :
     requiresM03Refresh ? "重新生成辨病辨证并继续" :
     requiresM04Refresh ? "重新生成候选方药并继续" :
     lastError.phase === "diagnose" ? "重新生成辨病辨证" :
@@ -4794,6 +4829,12 @@ export function prioritizeWesternEvidenceForDisplay(facts: readonly string[], li
   }).slice(0, Math.max(1, limit));
 }
 
+/** 展示层截断：超过 limit 的条目加省略号；完整内容在展开态/下方分析区仍可读。 */
+export function truncateClinicalTextForDisplay(value: string, limit: number): string {
+  const text = value.trim();
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
 /**
  * 服务端置顶通知：安全警示横幅（`<!-- CDSS_SAFETY_ADVISORY -->` 后的引用块）与质量批注
  * （前置普通段落）都位于可见正文首个 "## " 标题之前。结果区按节抽取渲染，标题前的内容
@@ -4866,6 +4907,9 @@ function ResultTabsV2({
   // 外部参考展示同批下线。props 与实现保留以免破坏上层线程与持久化，显式 void 消除未用告警。
   void onAcceptEditedPrescription; void restoredUnsavedDraft; void onUnsavedDraftChange;
   void HerbModificationWorkbench; void candidateHerbSignature; void EvidenceDetail; void evidenceReferenceItems;
+  // F3（甲方反馈：西医支持依据罗列病历、冗余）：默认只展示前 4 条且每条约 60 字截断，
+  // 展开后显示全部完整内容。仅展示层状态，不改结构化载荷。Hook 须在下方 early return 之前调用。
+  const [westernFactsExpanded, setWesternFactsExpanded] = useState(false);
   const reasoning = mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2;
   if (!reasoning) return null;
 
@@ -4911,8 +4955,21 @@ function ResultTabsV2({
     tcmGroundedAlternativeFacts,
     caseState.chiefComplaint || caseState.hisRecord?.fields?.zhushu || "",
   );
-  const westernSupportingFactsDisplay = prioritizeWesternEvidenceForDisplay(
+  const westernSupportingFactsAll = prioritizeWesternEvidenceForDisplay(
     reasoning.westernDiagnosis.primary.supportingFacts,
+    Math.max(1, reasoning.westernDiagnosis.primary.supportingFacts.length),
+  );
+  const westernSupportingFactsDisplay = westernFactsExpanded
+    ? westernSupportingFactsAll
+    : westernSupportingFactsAll.slice(0, 4).map((fact) => truncateClinicalTextForDisplay(fact, 60));
+  const westernFactsCollapsible = westernSupportingFactsAll.length > 4 ||
+    westernSupportingFactsAll.slice(0, 4).some((fact) => fact.trim().length > 60);
+  // F4（甲方反馈：中医诊断卡不要病史罗列）：诊断卡只保留病名、证型与一行主症概括；
+  // 完整依据仍在下方「中医辨病辨证分析」区呈现。
+  const primarySyndromeHeadline = truncateClinicalTextForDisplay(
+    reasoning.overview.primarySyndromeBasis.map((item) => item.trim()).find(isDisplayableClinicalText) ||
+      primarySyndromeEvidenceDisplay[0] || "",
+    40,
   );
   // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
   // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
@@ -4981,10 +5038,20 @@ function ResultTabsV2({
               <p className="mt-1 text-[11px] text-blue-700">编码名称：{reasoning.westernDiagnosis.primary.coding.display}</p>
             )}
             {westernSupportingFactsDisplay.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 {westernSupportingFactsDisplay.map((fact, index) => (
                   <span key={`${fact}-${index}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-blue-900">{fact}</span>
                 ))}
+                {westernFactsCollapsible && (
+                  <button
+                    type="button"
+                    onClick={() => setWesternFactsExpanded((value) => !value)}
+                    aria-expanded={westernFactsExpanded}
+                    className="rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                  >
+                    {westernFactsExpanded ? "收起依据" : `展开全部依据（${westernSupportingFactsAll.length}）`}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -4996,12 +5063,9 @@ function ResultTabsV2({
             {reasoning.overview.secondarySyndromes && reasoning.overview.secondarySyndromes.length > 0 && (
               <p className="mt-1">兼证：{joinClinicalClauses(reasoning.overview.secondarySyndromes, "、")}</p>
             )}
-            {primarySyndromeEvidenceDisplay.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {primarySyndromeEvidenceDisplay.map((fact, index) => (
-                  <span key={`${fact}-${index}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-amber-950">{fact}</span>
-                ))}
-              </div>
+            {/* F4：逐条病史/依据罗列已移除，此处只保留一行主症概括；完整依据见下方「中医辨病辨证分析」。 */}
+            {primarySyndromeHeadline && (
+              <p className="mt-1 text-[11px] text-amber-900">主症：{primarySyndromeHeadline}</p>
             )}
           </div>
         </div>
@@ -5098,14 +5162,10 @@ function ResultTabsV2({
             isSameClinicalNarrative(caseRelationship?.relationship, summaryText)
             ? ""
             : caseRelationship?.relationship;
-          const fallback = compactMarkdown(summary.mechanismSection || summary.patternSection || "", 1200);
+          // F5（甲方反馈）：原「查看证候与病机推理明细」折叠区与本区结构化病机视图内容重复，已移除；
+          // 它唯一可能独有的 subMechanismSection 并入 fallback 链，结构化内容缺失时仍可见。
+          const fallback = compactMarkdown(summary.mechanismSection || summary.patternSection || summary.subMechanismSection || "", 1200);
           const showFallback = chain.length === 0 && !summaryOk && Boolean(fallback) && fallback !== "待生成";
-          const deepReasoning = compactMarkdown([
-            summary.patternSection,
-            summary.mechanismSection,
-            summary.subMechanismSection,
-          ].filter(Boolean).join("\n\n"), 2200);
-          const showDeepReasoning = /\|[^|\n]+\|/.test(deepReasoning);
           const nothing = !isDisplayableClinicalText(overallPathogenesis) && !summaryOk && locItems.length === 0 && locDetails.length === 0 && natItems.length === 0 && rootDeficiency.length === 0 && branchExcess.length === 0 && symptomClusters.length === 0 && chain.length === 0 && !showFallback;
           return (
             <div className="space-y-3">
@@ -5228,14 +5288,6 @@ function ResultTabsV2({
                     {p.uncertainties.map((item, index) => (
                       <p key={`${item.item}-${index}`}><span className="font-semibold text-gray-800">{item.item}：</span>{clinicalSentence([item.reason, item.affects ? `可能影响${item.affects}` : ""], "；")}</p>
                     ))}
-                  </div>
-                </details>
-              )}
-              {showDeepReasoning && (
-                <details className="rounded-lg border border-gray-100 bg-white">
-                  <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold text-gray-700">查看证候与病机推理明细</summary>
-                  <div className="border-t border-gray-100 px-3 py-2">
-                    <MarkdownBlock content={deepReasoning} compact />
                   </div>
                 </details>
               )}
@@ -5533,7 +5585,13 @@ function ResultTabsV2({
                 <p className="mt-2"><span className="font-medium text-gray-900">治疗内容：</span>{item.treatmentContent}</p>
                 <p className="mt-2"><span className="font-medium text-gray-900">对应病机：</span>{item.targetPathogenesis}</p>
                 {item.suggestedSitesOrPoints.length > 0 && (
-                  <p className="mt-1"><span className="font-medium text-gray-900">建议部位/候选穴位：</span>{joinClinicalClauses(item.suggestedSitesOrPoints, "；")}</p>
+                  <p className="mt-1">
+                    <span className="font-medium text-gray-900">
+                      {item.protocolStatus === "governed_patient_specific_plan" ? "建议部位/候选穴位：" : "常用穴位（通用参考，未按本例适应证核定）："}
+                    </span>
+                    {joinClinicalClauses(item.suggestedSitesOrPoints, "；")}
+                    {item.protocolStatus !== "governed_patient_specific_plan" && "；具体选穴由现场医师按适应证与禁忌确定"}
+                  </p>
                 )}
                 {item.scheduleSuggestion && (
                   <p className="mt-1"><span className="font-medium text-gray-900">评估节奏：</span>{item.scheduleSuggestion}</p>
@@ -7697,17 +7755,26 @@ function AiSupportPanel({
     : latestAssistantQuestion ?? (caseState.phase === "question" ? "" : undefined);
   const requiredQuestionItems: QuestionItem[] = [];
   const questionContentForDisplay = questionContent ?? (requiredQuestionItems.length > 0 ? "" : undefined);
+  // F1（追问不阻断）：分析自动续跑后，未回答的追问以并行增强身份保留在结果区，
+  // 医生随时可答；提交沿用“清空结论并重新分析”链路。
+  const hasPendingQuestionEnhancement = hasPendingFollowupQuestions(caseState);
   const shouldShowFollowupQuestionCard =
     !hasStaleClinicalOutput &&
-    isFollowupOnlyState &&
+    (isFollowupOnlyState || hasPendingQuestionEnhancement) &&
     !isRunning &&
     questionContentForDisplay !== undefined;
   const followupQuestionCard = shouldShowFollowupQuestionCard ? (
     <div className="space-y-2">
+      {!isFollowupOnlyState && (
+        <p className="rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-xs leading-relaxed text-teal-800">
+          分析已自动继续；补充回答可随时完善并重新分析。
+        </p>
+      )}
       {/* 跳过入口必须排在追问表单之前：一轮 1-2 题、每题含选项行与两行文本域，排在表单之后时
           在 410px 侧栏里要滚动一屏以上才出现，医生因此不知道可以不作答直接继续。放在普通文档流
-          的表单之前，而不是吸底浮层，选项按钮永远不会被遮挡。 */}
-      {onSkipFollowup && (
+          的表单之前，而不是吸底浮层，选项按钮永远不会被遮挡。跳过按钮只在流程真正停等的
+          followup-only 状态出现——分析已续跑时它没有语义。 */}
+      {onSkipFollowup && isFollowupOnlyState && (
         <button
           type="button"
           onClick={onSkipFollowup}
@@ -8509,6 +8576,11 @@ export default function DiagnosisPage() {
     opts?: { countRound?: boolean },
   ): Promise<void> => {
     setStreamingForPhase("question", "");
+    // 甲方反馈「追问依旧影响诊疗流程」：M02 是并行增强而非门禁。无论追问是否生成成功，
+    // 本轮都继续进入辨病辨证；追问面板保留展示，医生的补充回答随时可以触发重新分析。
+    // 链路续跑放在 try/catch 之外，保证 runDiagnoseChain 只被调用一次（自身内部处理错误），
+    // 不会被本函数的 catch 误当成追问失败而二次续跑。
+    let continueState: CaseState;
     try {
       const res = await fetchWithTimeout(apiUrl("/api/diagnosis/question"), {
         method: "POST",
@@ -8518,13 +8590,10 @@ export default function DiagnosisPage() {
       if (!res.ok) throw new Error(await readErrorMessage(res, `请求失败 (${res.status})`));
       const { displayContent, jsonData } = await consumeCollectStream(res, (t) => setStreamingForPhase("question", t), streamConsumeOptions());
       const updated = withSafetyGateAndOperationalCompleteness(applyQuestionResult(state, displayContent, jsonData, { countRound: opts?.countRound }));
-      if (parseQuestionItems(displayContent).length === 0) {
-        const readyState = setPhase({ ...updated, questionOutcome: "not_needed" }, "diagnose");
-        persistState(readyState);
-        await runDiagnoseChain(readyState);
-        return;
-      }
-      persistState(updated);
+      continueState = parseQuestionItems(displayContent).length === 0
+        ? setPhase({ ...updated, questionOutcome: "not_needed" }, "diagnose")
+        // 新一轮追问已生成：清掉上一组问题的 outcome，本组问题在结果区保持“待回答”状态。
+        : setPhase({ ...updated, questionOutcome: undefined }, "diagnose");
     } catch {
       if (activeRunAbortController?.signal.aborted) {
         // 医生主动取消的口径与 M03/M04/M05 一致：落为失败阶段，面板显示“推理已取消”并给出
@@ -8532,10 +8601,12 @@ export default function DiagnosisPage() {
         persistState(setError({ ...state, phase: "question" }, "推理已取消"));
         return;
       }
-      // M02 improves information gain but is not a workflow dependency. Keep the free-text and skip
-      // surface available so a transient question-model failure cannot become an error dead end.
-      persistState({ ...state, phase: "question", lastError: undefined });
+      // M02 improves information gain but is not a workflow dependency. A transient question-model
+      // failure must not stall the flow in the question phase either: continue into diagnosis.
+      continueState = setPhase({ ...state, lastError: undefined }, "diagnose");
     }
+    persistState(continueState);
+    await runDiagnoseChain(continueState);
   }, [persistState, runDiagnoseChain, setStreamingForPhase]);
 
   // ─── M01 collect ────────────────────────────────────────────────────────────
@@ -8670,14 +8741,30 @@ export default function DiagnosisPage() {
           setRunning(false);
         }
       } else {
+        // F2：M04 因 M03 级原因失败时，仅重跑 M04 会复用同一份 M03 而原地复卡；
+        // 升级为清空诊断结论并从 M03 重跑。
+        const upgradeToM03Rerun = failedPhase === "prescribe" && prescribeRetryRequiresM03Rerun(caseState);
+        const retryTarget = upgradeToM03Rerun
+          ? {
+              ...recovered,
+              diagnosis: undefined,
+              prescription: undefined,
+              riskAssessment: undefined,
+              followupTimeline: undefined,
+              reasoningDiagnose: undefined,
+              reasoningPrescribe: undefined,
+              reasoningV2: undefined,
+              auditAdvisory: undefined,
+            }
+          : recovered;
         setRunning(true);
         try {
-          await runDiagnoseChain(setPhase(recovered, failedPhase));
+          await runDiagnoseChain(setPhase(retryTarget, upgradeToM03Rerun ? "diagnose" : failedPhase));
         } finally {
           setRunning(false);
         }
       }
-    } else if (caseState.phase === "done" && !canContinueLimitedCase(caseState)) {
+    } else if (caseState.phase === "done" && !canContinueLimitedCase(caseState) && !hasPendingFollowupQuestions(caseState)) {
       const draftAppliedState = withSafetyGateAndOperationalCompleteness(applyDraftToCaseState(caseState, recordDraft, trimmed, Boolean(tongueImage)));
       const caseInput = draftAppliedState.hisRecord?.rawText || buildHisRecordText(recordDraft, trimmed, Boolean(tongueImage));
       if (!caseInput.trim()) return;
@@ -8696,7 +8783,7 @@ export default function DiagnosisPage() {
       });
       setInput("");
       await runCollect(caseInput, rerunState, hisRecord);
-    } else if (caseState.phase === "question" || canContinueLimitedCase(caseState)) {
+    } else if (caseState.phase === "question" || canContinueLimitedCase(caseState) || hasPendingFollowupQuestions(caseState)) {
       const submissionSelections = await interpretTypedQuestionDetails(caseState, selectedQuestionOptions);
       if (activeCaseIdRef.current !== submittedCaseId || activeRunAbortController?.signal.aborted) return;
       const submissionAnswer = selectedQuestionAnswerText(submissionSelections);
@@ -8837,6 +8924,8 @@ export default function DiagnosisPage() {
         if (retryDraft !== recordDraft) setRecordDraft(retryDraft);
         const recordChanged = hasQuestionRecordChange(retryDraft, caseState.hisRecord, Boolean(tongueImage), caseState.id);
         const requiresM03Refresh = errorRequiresM03Refresh(caseState.lastError) ||
+          // F2：M04 报错但根因在 M03 级（辨证不稳/未形成稳定证候）时，重试升级为从 M03 重跑。
+          (failedPhase === "prescribe" && prescribeRetryRequiresM03Rerun(caseState)) ||
           (["prescribe", "assess"].includes(failedPhase) && recordChanged);
         const requiresM04Refresh = !requiresM03Refresh && errorRequiresM04Refresh(caseState.lastError);
         retryPhase = requiresM03Refresh ? "diagnose" : requiresM04Refresh ? "prescribe" : failedPhase;
@@ -9098,17 +9187,22 @@ export default function DiagnosisPage() {
     setRunning(true);
     beginRunScope();
     try {
+      // F2：非剂量结论若同时给出 M03 级原因（辨证不稳/未形成稳定证候），确认后仅重跑 M04
+      // 仍会复用同一份 M03 而原地复卡；此时升级为从 M03 重跑（就诊目标确认仍按指纹绑定生效）。
+      const upgradeToM03Rerun = prescribeRetryRequiresM03Rerun(caseState);
       const confirmed = withSafetyGate({
         ...caseState,
         encounterScopeConfirmation: { sourceFingerprint, confirmedAt: new Date().toISOString() },
+        diagnosis: upgradeToM03Rerun ? undefined : caseState.diagnosis,
         prescription: undefined,
         riskAssessment: undefined,
         followupTimeline: undefined,
+        reasoningDiagnose: upgradeToM03Rerun ? undefined : caseState.reasoningDiagnose,
         reasoningPrescribe: undefined,
-        reasoningV2: diagnoseReasoningFromState(caseState),
+        reasoningV2: upgradeToM03Rerun ? undefined : diagnoseReasoningFromState(caseState),
         auditAdvisory: undefined,
         lastError: undefined,
-        phase: "prescribe",
+        phase: upgradeToM03Rerun ? "diagnose" : "prescribe",
       });
       persistState(confirmed);
       await runDiagnoseChain(confirmed);
@@ -9262,7 +9356,9 @@ export default function DiagnosisPage() {
     () => withSafetyGateAndOperationalCompleteness(applyDraftToCaseState(caseState, projectedQuestionDraft, input, Boolean(tongueImage))),
     [caseState, projectedQuestionDraft, input, tongueImage],
   );
-  const isQuestionSupplementFlow = caseState.phase === "question" || limitedCanContinue;
+  // F1：done 态下仍未回答/未跳过的追问保持“补充回答”提交语义（含选项投影与病历补充），
+  // 而不是切回整轮重采集；与 handleSubmit 的分支路由保持一致。
+  const isQuestionSupplementFlow = caseState.phase === "question" || limitedCanContinue || hasPendingFollowupQuestions(caseState);
   const liveUiCaseState = isQuestionSupplementFlow ? liveReassessmentCaseState : liveDraftCaseState;
   const chiefComplaintReady = hasChiefComplaintInput(recordDraft);
   const patientSexReady = Boolean(recordDraft.sex.trim());

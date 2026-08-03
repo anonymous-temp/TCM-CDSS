@@ -353,7 +353,8 @@ const {
   westernDiagnosisLabelForDisplay,
 } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 
-assert.equal(westernDiagnosisLabelForDisplay("头痛症状"), "头痛（症状性工作诊断）");
+// 甲方评测(2026-08-03)：医生可见标签使用临床惯用的「病因待查」,不再用自造的「症状性工作诊断」。
+assert.equal(westernDiagnosisLabelForDisplay("头痛症状"), "头痛（病因待查）");
 assert.equal(westernDiagnosisLabelForDisplay("偏头痛"), "偏头痛", "established disease labels must not be rewritten as symptom-level diagnoses");
 
 assert.equal(

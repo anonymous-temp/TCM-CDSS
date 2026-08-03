@@ -81,3 +81,24 @@ const deniedPlan = await planEvidenceBoundMedicineCandidates(denied);
 assert.equal(deniedPlan.candidates.length, 0, "negated indications must remain empty even when the planner is unavailable");
 
 console.log(JSON.stringify({ cases: 12, failures: 0, retrieved: candidates.length }));
+
+// CONST-01 体质前提门(甲方评测 8.1)：说明书以气虚/阴虚等体质为前提的成药,病例无该前提证据时
+// 不得入选;有证据时保留。模式与证据判定是确定性文本谓词,不做推断。
+{
+  const { constitutionPrerequisiteMismatch } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
+  assert.equal(
+    constitutionPrerequisiteMismatch("益气解表，散风祛湿。用于气虚感冒，恶寒发热", "恶寒发热，恶寒重发热轻，无汗；风寒束表证；辛温解表"),
+    "气虚",
+    "风寒表实证无气虚证据时,益气解表类成药必须被体质前提门排除",
+  );
+  assert.equal(
+    constitutionPrerequisiteMismatch("益气解表，散风祛湿。用于气虚感冒", "神疲乏力，气短懒言；气虚感冒；益气解表"),
+    undefined,
+    "病例确有气虚证据时不拦",
+  );
+  assert.equal(
+    constitutionPrerequisiteMismatch("疏风解表，清热解毒。用于风热感冒", "恶寒发热；风寒束表证"),
+    undefined,
+    "无体质前提的说明书不进此门(风热/风寒错配由既有概念匹配与医生复核处理)",
+  );
+}

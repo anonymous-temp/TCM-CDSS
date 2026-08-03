@@ -63,13 +63,36 @@ function roleClause(role: string, target: string, sharesEmperorTarget: boolean):
   return target ? `对应「${target}」` : "参与本方配伍";
 }
 
+/**
+ * 甲方评测(2026-08-03) 7.1/7.2 的三类呈现根修：
+ *  · 功用文本剥掉「；清热药；清热凉血药」这类**药类归类尾巴**并限长——归类是检索索引，
+ *    不是医生要读的方义；
+ *  · 治法方向串剥掉受控词表的「…的」后缀与分号连接（「发散风寒的;解表的」→「发散风寒、解表」）；
+ *  · 同一病机原文不再逐味整句重复：首次出现全文引用，其后各味写「同承接上述…病机」；
+ *  · 行间用 Markdown 列表（`- `）+ 空行，正文不再塌成一整段。
+ */
+function cleanHerbFunctionText(value: string): string {
+  const segments = value.split(/[；;]/).map((segment) => segment.trim()).filter(Boolean);
+  const functional = segments.filter((segment) => !/^[一-龥]{1,8}药$/.test(segment));
+  const core = (functional[0] || segments[0] || "").split(/[，,]/).map((item) => item.trim()).filter(Boolean);
+  return core.slice(0, 3).join("，");
+}
+
+function cleanTherapyMatchText(value: string): string {
+  const parts = value
+    .split(/[；;、，,]/)
+    .map((part) => part.trim().replace(/的$/, ""))
+    .filter(Boolean);
+  return [...new Set(parts)].join("、");
+}
+
 /** 返回逐味方义段落；herbs 为空时返回空串（调用方自行决定占位文案）。 */
 export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], therapyMatch = ""): string {
   const rows = herbs
     .map((herb) => ({
       name: analysisText(herb.name),
       role: analysisText(herb.role),
-      fn: analysisText(herb.function),
+      fn: cleanHerbFunctionText(analysisText(herb.function)),
       target: analysisText(herb.targetPathogenesis),
     }))
     .filter((row) => row.name);
@@ -80,15 +103,24 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
     const rightIndex = ANALYSIS_ROLE_ORDER.indexOf(right.role as typeof ANALYSIS_ROLE_ORDER[number]);
     return (leftIndex < 0 ? ANALYSIS_ROLE_ORDER.length : leftIndex) - (rightIndex < 0 ? ANALYSIS_ROLE_ORDER.length : rightIndex);
   });
+  const quotedTargets = new Map<string, string>();
   const lines = ordered.map((row) => {
-    const clause = roleClause(row.role, row.target, row.role === "臣" && emperorTargets.has(row.target));
+    const firstQuoteHerb = row.target ? quotedTargets.get(row.target) : undefined;
+    const displayTarget = row.target && !firstQuoteHerb ? row.target : "";
+    if (row.target && !firstQuoteHerb) quotedTargets.set(row.target, row.name);
+    const clause = displayTarget || !row.target
+      ? roleClause(row.role, displayTarget, row.role === "臣" && emperorTargets.has(row.target))
+      : row.role === "臣" && emperorTargets.has(row.target)
+        ? `与君药同承接上述病机（同${firstQuoteHerb}），加强该方向的力量`
+        : `同承接上述病机（同${firstQuoteHerb}）`;
     const roleLabel = row.role ? `（${row.role}）` : "";
     return row.fn
-      ? `· ${row.name}${roleLabel}——以「${row.fn}」${clause}。`
-      : `· ${row.name}${roleLabel}——${clause}。`;
+      ? `- **${row.name}**${roleLabel}：以「${row.fn}」${clause}。`
+      : `- **${row.name}**${roleLabel}：${clause}。`;
   });
-  const head = therapyMatch
-    ? `本方共${rows.length}味，围绕「${analysisText(therapyMatch)}」分层组方：`
+  const cleanedTherapyMatch = cleanTherapyMatchText(analysisText(therapyMatch));
+  const head = cleanedTherapyMatch
+    ? `本方共${rows.length}味，围绕「${cleanedTherapyMatch}」分层组方：`
     : `本方共${rows.length}味，按已锁定病机与治法分层组方：`;
-  return [head, ...lines].join("\n");
+  return [head, "", ...lines].join("\n");
 }
