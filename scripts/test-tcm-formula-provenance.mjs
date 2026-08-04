@@ -132,11 +132,28 @@ for (const item of hinted) {
     assert.doesNotMatch(fact, /失眠|健忘|心悸/, "召回提示不得进入 matchedPatientFacts——它不是病历事实");
   }
 }
-// 提示不得凭空造出候选：受控主治语料里不存在的术语一个方也召不回。
+// 提示不得凭空造出候选。
+//
+// 判据从「表外提示 ⇒ 恒空」改为「表外提示 ⇒ 不新增候选」(2026-08-04)。
+// 原判据借「周身不适 + 表外提示」召回恒空来验证,但它同时依赖了一个**会过期**的前提:
+// 主诉本身也召不回。现代医案索引接入后「周身不适」正是真实病历语言,理应能召回——
+// 前提失效了,而被测的不变量没变。恒空断言测的是语料覆盖度,不是提示的凭空造词能力;
+// 语料每扩一次它就假红一次,于是要么改测试要么退功能,两条路都错。
+//
+// 现判据直接对准原意:同一主诉下,加不加表外提示,候选集必须完全一致——提示词若能
+// 无中生有,差集立刻非空。它不依赖任何语料覆盖前提,语料再扩也不会假红。
+const oovBaseline = retrieveTcmFormulaIndicationCandidates(formulaCase("周身不适"), 4);
+const oovHinted = retrieveTcmFormulaIndicationCandidates(formulaCase("周身不适"), 4, "泽维尔、克罗诺斯");
 assert.deepEqual(
-  retrieveTcmFormulaIndicationCandidates(formulaCase("周身不适"), 4, "泽维尔、克罗诺斯"),
+  oovHinted.map((item) => item.name),
+  oovBaseline.map((item) => item.name),
+  "受控语料外的提示词不得改变候选集（不得凭空造出、也不得挤掉原有候选）",
+);
+// 纯表外主诉 + 表外提示:两侧都无受控语料支撑,必须恒空。
+assert.deepEqual(
+  retrieveTcmFormulaIndicationCandidates(formulaCase("泽维尔克罗诺斯"), 4, "泽维尔、克罗诺斯"),
   [],
-  "受控语料外的术语不得召回任何方剂（注意：测试用词不得含任何真实中医术语子串，如「虚劳」「综合征」）",
+  "主诉与提示均为受控语料外术语时不得召回任何方剂（测试用词不得含任何真实中医术语子串）",
 );
 
 const postM03Reasoning = {

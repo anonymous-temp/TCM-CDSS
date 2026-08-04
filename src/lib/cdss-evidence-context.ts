@@ -6,6 +6,7 @@ import { buildTcmKnowledgeContext } from "./tcm-knowledge";
 import { sanitizeCustomerEvidenceDocument, sanitizeInlineEvidenceClaims, sanitizeLabeledEvidenceLines } from "./customer-evidence";
 import { buildEvidenceScope, medicineEvidenceBindingValid, medicineProblemMatchesCase, sanitizeEvidenceObject, sourceAllowed, sourceSupportsMedicine, type EvidenceScope } from "./evidence-source-validation";
 import { buildLocalPatentMedicineContext } from "./local-patent-medicine-candidates";
+import { buildClinicalDecisionCardContext } from "./tcm-clinical-decision-cards";
 import type { AssistedNegationClauses } from "./clinical-polarity";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
@@ -35,6 +36,11 @@ export async function buildCdssEvidenceContext(
   const localPatentMedicineContext = stage === "prescribe"
     ? buildLocalPatentMedicineContext(caseState, 10, assistedNegations)
     : "";
+  // 甲方决策卡片：**专家参考，不是证据来源**。它带参考文献但无 DOI/PMID，机器不可核验，
+  // 按项目「结论可追溯」原则不能升格为指南/共识。所以它只在 M03/M04 作辨证思路提示注入，
+  // 且每行都带 CLINICAL_DECISION_CARD_LINE_MARKER —— buildEvidenceScope 逐行跳过这些行，
+  // 卡片里的题名/年份/URL 都进不了可引用白名单。M05 是确定性汇总，不注入。
+  const clinicalDecisionCardContext = stage === "assess" ? "" : buildClinicalDecisionCardContext(caseState);
 
   return [
     "【外部证据与院内知识支持】",
@@ -46,6 +52,7 @@ export async function buildCdssEvidenceContext(
     formulaProvenanceContext,
     localPatentMedicineContext,
     externalEvidenceContext,
+    clinicalDecisionCardContext,
   ].join("\n\n");
 }
 

@@ -1,3 +1,4 @@
+import affirmativeNegation from "../data/tcm-affirmative-negation-forms.json" with { type: "json" };
 import derived from "../data/clinical-vocabulary-derived.json" with { type: "json" };
 
 /**
@@ -26,6 +27,9 @@ type Derived = {
 };
 
 const VOCAB = derived as unknown as Derived;
+const AFFIRMATIVE_NEGATION_FORMS = new Set(
+  ((affirmativeNegation as { terms?: Array<{ term: string }> }).terms || []).map((row) => row.term),
+);
 
 export type PopulationScopeGroup = "maternal" | "obstetric" | "pediatric" | "geriatric" | "broad";
 
@@ -95,4 +99,34 @@ export function matchesPopulationScope(text: string, group: PopulationScopeGroup
 /** 供构建期/测试使用:某组人群限定词的全量写法(只读)。 */
 export function populationScopeForms(group: PopulationScopeGroup): readonly string[] {
   return VOCAB.populations[group] || [];
+}
+
+/**
+ * 阴性形式的阳性体征(无汗/不渴/小便不利…)。中医里这类词是证候的**定义性指征**,
+ * 不是「没有该症状」;语言学否定规则若把它们剥离,表实、寒证、腑实等证的关键依据会静默丢失。
+ * 词表为受治理生成物 tcm-affirmative-negation-forms.json(由鉴别图 + 古方主治原文 + 存量种子派生)。
+ */
+export function isAffirmativeNegationForm(clause: string): boolean {
+  const value = String(clause || "").replace(/\s+/g, "");
+  return value.length > 0 && AFFIRMATIVE_NEGATION_FORMS.has(value);
+}
+
+/**
+ * 文本中出现的受治理阴性形式阳性体征词(逐词包含匹配,长词优先)。
+ *
+ * 用于**只有排除权**的守卫路径:极性层按语言学规则会把「无汗」整条剥掉,而它恰是
+ * 太阳伤寒表实证的定义性指征。不在极性层做全局改判——同一字串在症状回顾式否认
+ * (「无发热、咳嗽、消瘦或心悸」)里是真否定,把患者的否认读成阳性体征比原缺陷更危险。
+ * 因此改为在守卫处并入:守卫唯一的权力是**移除**候选,不确定时多排除一个方向相反的
+ * 候选,方向上是安全的;而在极性层改判会让错误读法流向全系统的每一条结论。
+ */
+export function affirmativeNegationFormsIn(text: string): string[] {
+  const value = String(text || "").replace(/\s+/g, "");
+  if (!value) return [];
+  return [...AFFIRMATIVE_NEGATION_FORMS].filter((term) => value.includes(term));
+}
+
+/** 供构建期/测试使用:受治理阴性形式阳性体征词条数。 */
+export function affirmativeNegationFormCount(): number {
+  return AFFIRMATIVE_NEGATION_FORMS.size;
 }

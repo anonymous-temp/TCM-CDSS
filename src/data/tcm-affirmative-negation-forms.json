@@ -1,0 +1,503 @@
+{
+ "schemaVersion": "tcm-cdss-affirmative-negation-forms-v1",
+ "note": "阴性形式的阳性体征：以否定词表达但属阳性诊断依据的中医体征词。极性层在剥离否定前须保护这些词，否则「无汗」「不渴」等证候定义性指征会被静默丢弃。",
+ "basis": "由受治理鉴别图的鉴别词、受治理方剂目录的古方主治原文，以及存量古方主治状态词种子派生；不含人工列举的临床判断词。",
+ "generatedFrom": {
+  "discriminationGraph": "tcm-formula-discrimination-graph.json",
+  "governedCatalog": "tcm-formula-governed-catalog.json",
+  "seed": "tcm-affirmative-negation-seed.source.json"
+ },
+ "admissionPolicy": "curated_sources_only",
+ "count": 68,
+ "terms": [
+  {
+   "term": "心中烦不得卧",
+   "support": 1,
+   "sources": [
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "饥而不欲食",
+   "support": 1,
+   "sources": [
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "不可触近",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "不思饮食",
+   "support": 19,
+   "sources": [
+    "discrimination_graph",
+    "governed_catalog_indications"
+   ]
+  },
+  {
+   "term": "不牵睾丸",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "不进饮食",
+   "support": 6,
+   "sources": [
+    "discrimination_graph",
+    "governed_catalog_indications"
+   ]
+  },
+  {
+   "term": "小便不利",
+   "support": 1,
+   "sources": [
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "无外伤史",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无大烦渴",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无头剧痛",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无头晕痛",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无汗烦躁",
+   "support": 7,
+   "sources": [
+    "discrimination_graph",
+    "governed_catalog_indications"
+   ]
+  },
+  {
+   "term": "无滑胎史",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无脉虚数",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无苔白腻",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "不得卧",
+   "support": 10,
+   "sources": [
+    "discrimination_graph",
+    "governed_catalog_indications"
+   ]
+  },
+  {
+   "term": "不得眠",
+   "support": 2,
+   "sources": [
+    "governed_catalog_indications",
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "不恶寒",
+   "support": 2,
+   "sources": [
+    "governed_catalog_indications",
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "不放屁",
+   "support": 7,
+   "sources": [
+    "discrimination_graph",
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "不欲饮",
+   "support": 2,
+   "sources": [
+    "discrimination_graph",
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "无便秘",
+   "support": 3,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无健忘",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无冷痛",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无出血",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无发热",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无口渴",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无口糜",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无呕吐",
+   "support": 3,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无咳嗽",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无咽痛",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无失眠",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无头痛",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无寒象",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无尿痛",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无心悸",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无恶风",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无抽搐",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无斑疹",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无梦遗",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无欲寐",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无水肿",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无烦渴",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无烦热",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无热象",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无痉厥",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无痞满",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无痰湿",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无皮起",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无盗汗",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无神倦",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无胁痛",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无脉弱",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无脱肛",
+   "support": 3,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无腹痛",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无舌蹇",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无虚烦",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无表寒",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无表虚",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无阴痒",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无面白",
+   "support": 3,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无食欲",
+   "support": 7,
+   "sources": [
+    "discrimination_graph",
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "无食滞",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无高热",
+   "support": 2,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "无黄疸",
+   "support": 1,
+   "sources": [
+    "discrimination_graph"
+   ]
+  },
+  {
+   "term": "食不下",
+   "support": 1,
+   "sources": [
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "不渴",
+   "support": 6,
+   "sources": [
+    "discrimination_graph",
+    "governed_catalog_indications",
+    "legacy_tcm_affirmed_state_terms"
+   ]
+  },
+  {
+   "term": "无汗",
+   "support": 35,
+   "sources": [
+    "discrimination_graph",
+    "governed_catalog_indications"
+   ]
+  },
+  {
+   "term": "无热",
+   "support": 2,
+   "sources": [
+    "discrimination_graph",
+    "governed_catalog_indications"
+   ]
+  }
+ ]
+}

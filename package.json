@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit",
     "build:tcm-knowledge": "node scripts/build-tcm-knowledge.mjs",
     "build:tcm-herb-functions": "python3 scripts/build-tcm-herb-function-categories.py",
     "build:tcm-formula-sources": "python3 scripts/build-tcm-formula-sources.py",
@@ -14,6 +14,7 @@
     "build:formula-syndrome-tags": "node scripts/build-formula-syndrome-tag-candidates.mjs",
     "build:clinical-governance-static-tables": "jiti scripts/build-clinical-governance-static-tables.mjs",
     "build:clinical-vocabulary": "node scripts/build-clinical-vocabulary.mjs",
+    "build:clinical-decision-cards": "node scripts/build-clinical-decision-cards.mjs",
     "import:tcm-standard-terminology": "python3 scripts/import-tcm-standard-terminology.py",
     "build:tcm-governance-tables": "npm run build:clinical-governance-static-tables && python3 scripts/build-tcm-governance-tables.py",
     "build:tcm-inspection-lexicon": "node scripts/build-tcm-inspection-lexicon.mjs",
@@ -68,7 +69,7 @@
     "test:clinical-terminology": "jiti scripts/test-clinical-terminology.mjs",
     "test:controlled-semantic-normalization": "jiti scripts/test-controlled-semantic-normalization.mjs",
     "test:clinical-governance-tables": "jiti scripts/test-clinical-governance-tables.mjs",
-    "test:clinical-polarity": "node --experimental-strip-types scripts/test-clinical-polarity.mjs",
+    "test:clinical-polarity": "jiti scripts/test-clinical-polarity.mjs",
     "test:m03-entry": "jiti scripts/test-m03-entry.mjs",
     "test:m02-contract": "jiti scripts/test-m02-question-contract.mjs",
     "test:m02-nonblocking": "jiti scripts/test-m02-nonblocking.mjs",
@@ -111,7 +112,11 @@
     "test:disease-lexicon": "jiti scripts/test-disease-lexicon.mjs",
     "test:runtime-data-presence": "jiti scripts/test-runtime-data-presence.mjs",
     "test:pregnancy-recall": "jiti scripts/test-pregnancy-state-recall.mjs",
-    "test:warm-disease-rules": "jiti scripts/test-warm-disease-rules.mjs"
+    "test:warm-disease-rules": "jiti scripts/test-warm-disease-rules.mjs",
+    "test:clinical-decision-cards": "jiti scripts/test-clinical-decision-cards.mjs",
+    "test:formula-discrimination-guard": "jiti scripts/test-formula-discrimination-guard.mjs",
+    "build:source-digest": "node scripts/build-source-digest.mjs",
+    "verify:deployed-image": "node scripts/verify-deployed-image.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

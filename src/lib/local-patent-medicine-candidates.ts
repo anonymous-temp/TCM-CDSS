@@ -1,6 +1,8 @@
 import localMedicineIndex from "../data/local-patent-medicine-index.json" with { type: "json" };
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
+import { affirmativeNegationFormsIn } from "./clinical-vocabulary";
+import { formulaCounterEvidence } from "./formula-discrimination-guard";
 import { matchingMedicineClinicalConcepts } from "./medicine-clinical-concepts";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 
@@ -145,6 +147,20 @@ export function retrieveLocalPatentMedicineCandidates(
     reasoning?.therapy?.overallPrinciple,
     reasoning?.therapy?.overallMethod,
   ].filter(Boolean).join("；");
+  // 反证守卫的证据面 = 体质证据面 + 病历原文里出现的受治理**阴性形式阳性体征**词。
+  // 「无汗」「不渴」这类词是证候的定义性指征,却会被极性层当否定剥掉(见 clinical-vocabulary
+  // 的 affirmativeNegationFormsIn 注释);而反证守卫恰恰最需要它们——太阳伤寒与太阳中风的
+  // 分界就是有汗/无汗。这里并入而不在极性层全局改判:守卫只有排除权,宁可多排除一个方向
+  // 相反的候选,也不让「把否认读成阳性」的风险流向全系统结论。
+  const rawCaseText = [
+    caseState.chiefComplaint,
+    ...Object.values(caseState.symptoms || {}).map((value) => (typeof value === "string" ? value : String(value ?? ""))),
+    caseState.tongue,
+    caseState.pulse,
+    reasoning?.overview?.primarySyndrome,
+    ...(reasoning?.overview?.primarySyndromeBasis || []),
+  ].filter(Boolean).join("；");
+  const counterEvidenceText = [constitutionEvidenceText, ...affirmativeNegationFormsIn(rawCaseText)].join("；");
   const semanticConceptIds = (caseState.reasoningDiagnose?.terminologyMappings || [])
     .filter((item) =>
       item.namespace === "medicine_clinical_concept" &&
@@ -174,6 +190,22 @@ export function retrieveLocalPatentMedicineCandidates(
   })
     .filter((entry) => entry.matchedConcepts.length > 0)
     .filter((entry) => !constitutionPrerequisiteMismatch(entry.indication, constitutionEvidenceText))
+    // 方剂鉴别反证排除(2026-08-04,甲方实测 #7:无汗、脉浮紧的风寒**表实**例仍推荐桂枝合剂)。
+    //
+    // 桂枝合剂 = 桂枝汤成药剂型,主治太阳中风**表虚有汗**;其说明书法定禁忌栏原文
+    // 「表实无汗或温病发热、口渴者禁服」。数据一直都在——受治理鉴别图第 T14-001 条
+    // 「桂枝汤 vs 麻黄汤:有汗/无汗、脉缓/脉紧」——只是从没有人拿它做过判断,
+    // 它此前仅被送进提示词供模型参考,而模型并不受其约束。
+    //
+    // 这里对中成药选**排除**而非降权:候选表的职责就是只放该放的。把法定禁忌命中的药
+    // 摆在医生面前,正是甲方指出的缺陷;这不违背 never-block 原则——它不中断任何流程,
+    // 只是不推荐一个方向相反的选项。汤方通路则用降权+批注(见 tcm-formula-indications),
+    // 因为汤方是医生加减化裁的底本,直接删会误伤异病同治与反治法。
+    .filter((entry) => {
+      const classicName = entry.classicFormula || patentMedicineBaseName(entry.name);
+      if (!classicName) return true;
+      return !formulaCounterEvidence(classicName, counterEvidenceText);
+    })
     .sort((left, right) =>
       right.score - left.score ||
       right.matchedConcepts.length - left.matchedConcepts.length ||

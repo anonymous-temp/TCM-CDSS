@@ -1,0 +1,201 @@
+{
+  "schemaVersion": "tcm-cdss-specialty-syndrome-features-source-v1",
+  "note": "专科（妇科/儿科/内科锚点）证型的**教材级证候特征串**受治理来源（2026-08-04 建立）。受治理证候词表 tcm-syndrome-lexicon.json 按 GB/T 16751.2-2021 的**术语分类学**组织（八纲/病因/气血/脏腑/经络…），2060 条里 0 条带症状特征串，也不含科别维度——这正是实测中「教材证候原文逐字照抄的题面系统仍判错」的根因：缺的不是推理能力，是确定性锚点。本文件补的就是这层锚点：证型名 → 主症/舌/脉/治法/代表方，逐条可追溯到公开可核验的教材级出处。代码内不得手写这些词串，一律经 build:clinical-vocabulary 生成后由 src/lib/clinical-vocabulary.ts 读取（守卫见 scripts/test-clinical-vocabulary-single-source.mjs）。",
+  "governance": {
+    "status": "textbook_feature_anchor_supplement",
+    "advisoryOnly": true,
+    "boundary": "本层只做**词法层确定性匹配**并产出候选证型及其命中依据，不产出诊断结论：证候是否成立仍由 M03 在完整病历上辨证并签名后判定。匹配结果可用于（a）为模型提供受控候选与特征对照，（b）证-方一致性交叉校验，（c）评测自检。不得据此绕过安全门或直接锁定处方。",
+    "fabricationPolicy": "matchTerms 必须是 keySymptoms/tongue/pulse/additionalVerbatim 某个**分句**的字符子序列（构建期逐条校验，违者构建失败）——即只能从原文里删字，不能加入原文没有的概念。原文之外确需补入的桥接词（如现代病名 ↔ 中医癥瘕）只能进 adjudicatedTerms，且每条必须写 basis。",
+    "reproductionPolicy": "只摘录辨证论治条目的证候/治法/方名要点（事实性医学要点），不复制教材整章内容。"
+  },
+  "sources": {
+    "SRC-MED66-TCM-GYN-TAIDONGBUAN": {
+      "title": "胎漏、胎动不安的定义、病因病机和辨证论治（中医妇科学）",
+      "publisher": "正保医学教育网（med66.com）· 中医执业医师考试辅导",
+      "sourceType": "textbook_derived_exam_reference",
+      "authorityTier": "textbook_secondary",
+      "locator": "https://www.med66.com/zhongyifuke/wa2010239605.shtml",
+      "scope": "全国中医药行业高等教育规划教材《中医妇科学》胎漏、胎动不安四证型的证候/治法/方药",
+      "accessedAt": "2026-08-04"
+    },
+    "SRC-MED66-TCM-PED-KOUCHUANG": {
+      "title": "口疮的辨证论治（中医儿科学）",
+      "publisher": "正保医学教育网（med66.com）· 中医儿科辅导",
+      "sourceType": "textbook_derived_exam_reference",
+      "authorityTier": "textbook_secondary",
+      "locator": "https://www.med66.com/zhongyierke/wa2012148636.shtml",
+      "scope": "全国中医药行业高等教育规划教材《中医儿科学》口疮三证型的证候/治法/代表方",
+      "accessedAt": "2026-08-04"
+    },
+    "SRC-PROJECT-SYNDROME-ADJUDICATION-20260804": {
+      "title": "甲方考题集 14 例辨证分歧循证裁决",
+      "publisher": "本项目（artifacts/syndrome-adjudication-2026-08-04.json）",
+      "sourceType": "project_clinical_adjudication",
+      "authorityTier": "project_internal",
+      "locator": "artifacts/syndrome-adjudication-2026-08-04.json",
+      "scope": "逐例循证裁决结论与修正建议；本文件只引用其中「症状 ↔ 证候归属」的裁决结论作为 adjudicatedTerms 的 basis",
+      "accessedAt": "2026-08-04"
+    }
+  },
+  "orthographicVariants": {
+    "note": "异体/通用字归一。这是**正字法**层而非临床术语层：教材原文与病历书写在这些字上自由互换（黯/暗、颚/腭），不归一会让确定性匹配在纯书写差异上漏命中。构建期对 matchTerms 与运行时对病历文本施加同一张表。",
+    "map": {
+      "黯": "暗",
+      "顋": "腮",
+      "颚": "腭",
+      "痠": "酸",
+      "藏": "脏"
+    }
+  },
+  "entries": [
+    {
+      "id": "SPEC-SYN-FK-TDBA-SHENXU",
+      "specialty": "妇科",
+      "diseaseCategory": "妊娠病",
+      "disease": "胎漏、胎动不安",
+      "syndromeName": "肾虚证",
+      "syndromeAliases": ["肾虚证", "肾虚", "肾虚冲任不固"],
+      "syndromeId": "TCM-SYNDROME-LOOKUP-肾虚",
+      "keySymptoms": "妊娠期阴道少量下血，色淡黯，腰酸，腹痛下坠，或曾屡孕屡堕，头晕耳鸣，夜尿多，眼眶黯黑或有面部黯斑",
+      "tongue": "舌淡，苔白",
+      "pulse": "脉沉细滑尺脉弱",
+      "therapy": "补肾健脾，益气安胎",
+      "representativeFormula": "寿胎丸加党参、白术或滋肾育胎丸",
+      "matchTerms": ["阴道少量下血", "色淡黯", "腰酸", "腹痛下坠", "屡孕屡堕", "头晕耳鸣", "夜尿多", "眼眶黯黑", "面部黯斑", "舌淡", "苔白", "脉沉细滑", "尺脉弱"],
+      "adjudicatedTerms": [],
+      "basis": "med66 页面逐字给出该证证候、治法、方药；舌脉从原文「舌淡，苔白，脉沉细滑尺脉弱」处拆出。",
+      "sourceRefs": ["SRC-MED66-TCM-GYN-TAIDONGBUAN"]
+    },
+    {
+      "id": "SPEC-SYN-FK-TDBA-XUERE",
+      "specialty": "妇科",
+      "diseaseCategory": "妊娠病",
+      "disease": "胎漏、胎动不安",
+      "syndromeName": "血热证",
+      "syndromeAliases": ["血热证", "血热"],
+      "syndromeId": "TCM-SYNDROME-LOOKUP-血热",
+      "keySymptoms": "妊娠期阴道少量出血，色深红或鲜红，质稠，或腰酸，口苦咽干，心烦少寐，溲黄便结",
+      "tongue": "舌红，苔黄",
+      "pulse": "脉滑数",
+      "therapy": "清热凉血，养血安胎",
+      "representativeFormula": "保阴煎或当归散",
+      "matchTerms": ["阴道少量出血", "色深红", "鲜红", "质稠", "腰酸", "口苦咽干", "心烦少寐", "溲黄便结", "舌红", "苔黄", "脉滑数"],
+      "adjudicatedTerms": [],
+      "basis": "med66 页面逐字给出该证证候、治法、方药；舌脉从原文末「舌红，苔黄，脉滑数」处拆出。",
+      "sourceRefs": ["SRC-MED66-TCM-GYN-TAIDONGBUAN"]
+    },
+    {
+      "id": "SPEC-SYN-FK-TDBA-QIXUEXURUO",
+      "specialty": "妇科",
+      "diseaseCategory": "妊娠病",
+      "disease": "胎漏、胎动不安",
+      "syndromeName": "气血虚弱证",
+      "syndromeAliases": ["气血虚弱证", "气血虚弱", "气血两虚"],
+      "syndromeId": "TCM-SYNDROME-LOOKUP-气血两虚",
+      "keySymptoms": "妊娠期阴道少量下血，色淡红，质稀薄，或小腹空坠而痛、腰酸，面色白，心悸气短，神疲肢倦",
+      "tongue": "舌淡，苔薄白",
+      "pulse": "脉细弱略滑",
+      "therapy": "补气养血，固肾安胎",
+      "representativeFormula": "胎元饮",
+      "matchTerms": ["阴道少量下血", "色淡红", "质稀薄", "小腹空坠", "腰酸", "面色白", "心悸气短", "神疲肢倦", "舌淡", "苔薄白", "脉细弱"],
+      "adjudicatedTerms": [],
+      "basis": "med66 页面逐字给出该证证候、治法、方药；舌脉从原文末「舌淡，苔薄白，脉细弱略滑」处拆出。",
+      "sourceRefs": ["SRC-MED66-TCM-GYN-TAIDONGBUAN"]
+    },
+    {
+      "id": "SPEC-SYN-FK-TDBA-XUEYU",
+      "specialty": "妇科",
+      "diseaseCategory": "妊娠病",
+      "disease": "胎漏、胎动不安",
+      "syndromeName": "血瘀证（癥瘕伤胎）",
+      "syndromeAliases": ["血瘀证", "癥瘕伤胎", "癥瘕伤胎证", "血瘀"],
+      "syndromeId": "TCM-SYNDROME-LOOKUP-血瘀",
+      "keySymptoms": "宿有癥积，孕后常有腰酸腹痛下坠，阴道不时出血，色黯红，或妊娠期跌仆闪挫，继之腹痛或少量阴道出血",
+      "tongue": "舌黯红，或有瘀斑",
+      "pulse": "脉弦滑或沉弦",
+      "therapy": "活血化瘀，补肾安胎",
+      "representativeFormula": "桂枝茯苓丸合寿胎丸",
+      "matchTerms": ["宿有癥积", "癥积", "腰酸", "腹痛下坠", "阴道不时", "色黯红", "跌仆闪挫", "舌黯红", "瘀斑", "沉弦", "弦滑"],
+      "adjudicatedTerms": [
+        {
+          "term": "子宫肌瘤",
+          "mapsTo": "癥积/癥瘕",
+          "basis": "子宫肌瘤属中医「癥瘕（癥积）」范畴；本证证候首句即「宿有癥积」，病历以现代病名书写时必须能命中该锚点。裁决 no=311 明确指出：系统把「子宫肌瘤病史」原样引用却未参与证型推断，是本例判错的第一因。"
+        },
+        {
+          "term": "卵巢囊肿",
+          "mapsTo": "癥瘕",
+          "basis": "同上，卵巢囊肿同属癥瘕范畴的现代病名书写。"
+        },
+        {
+          "term": "口干不欲饮",
+          "mapsTo": "瘀血内阻",
+          "basis": "《中医诊断学》以「口干不欲饮」为瘀血内阻（或湿阻）的经典指征，与「口干欲饮」的津/阴不足相对立。裁决 no=311 明确把系统「口干不欲饮＝肾虚津液不能上承」列为误归因，并要求把该症改挂瘀血内阻。"
+        }
+      ],
+      "basis": "med66 页面逐字给出该证证候、治法、方药；舌脉从原文「舌黯红，或有瘀斑，脉弦滑或沉弦」处拆出。adjudicatedTerms 三条均来自本项目 2026-08-04 循证裁决 no=311 的明确结论。",
+      "sourceRefs": ["SRC-MED66-TCM-GYN-TAIDONGBUAN", "SRC-PROJECT-SYNDROME-ADJUDICATION-20260804"]
+    },
+    {
+      "id": "SPEC-SYN-EK-KOUCHUANG-FENGRECHENGPI",
+      "specialty": "儿科",
+      "diseaseCategory": "脾胃系疾病",
+      "disease": "口疮",
+      "syndromeName": "风热乘脾证",
+      "syndromeAliases": ["风热乘脾证", "风热乘脾"],
+      "syndromeId": null,
+      "syndromeIdNote": "GB/T 16751.2-2021 未收「风热乘脾证」这一儿科专病证名（受治理词表 2060 条内无此写法及别名），故留 null；它是《中医儿科学》口疮篇的教材证型名。",
+      "keySymptoms": "以口颊、上颚、齿龈、口角溃烂为主，甚则满口糜烂，周围黏膜嫩红，疼痛拒食，烦躁不安，口臭，涎多，小便短赤，大便秘结，或伴发热",
+      "tongue": "舌红，苔薄黄",
+      "pulse": "脉浮数，指纹紫",
+      "therapy": "疏风散火，清热解毒",
+      "representativeFormula": "银翘散",
+      "matchTerms": ["口颊", "上颚", "齿龈", "口角溃烂", "满口糜烂", "黏膜嫩红", "疼痛拒食", "烦躁不安", "口臭", "涎多", "小便短赤", "大便秘结", "发热", "舌红", "苔薄黄", "脉浮数", "指纹紫"],
+      "adjudicatedTerms": [
+        {
+          "term": "流涎",
+          "mapsTo": "涎多",
+          "basis": "「流涎」与教材原文「涎多」为同一体征的两种常见书写；裁决 no=340 的题面即写作「口臭流涎」，而教材原文写作「口臭，涎多」。"
+        }
+      ],
+      "basis": "med66 页面逐字给出三证型证候、治法、代表方；舌脉从原文末「舌红，苔薄黄，脉浮数，指纹紫」处拆出。",
+      "sourceRefs": ["SRC-MED66-TCM-PED-KOUCHUANG"]
+    },
+    {
+      "id": "SPEC-SYN-EK-KOUCHUANG-XINHUOSHANGYAN",
+      "specialty": "儿科",
+      "diseaseCategory": "脾胃系疾病",
+      "disease": "口疮",
+      "syndromeName": "心火上炎证",
+      "syndromeAliases": ["心火上炎证", "心火上炎"],
+      "syndromeId": "TCM-SYNDROME-LOOKUP-心火上炎",
+      "keySymptoms": "舌上、舌边溃疡，色赤疼痛，饮食困难，心烦不安，口干欲饮，小便短黄",
+      "tongue": "舌尖红，苔薄黄",
+      "pulse": "脉数，指纹紫",
+      "therapy": "清心凉血，泻火解毒",
+      "representativeFormula": "泻心导赤散",
+      "matchTerms": ["舌上溃疡", "舌边溃疡", "色赤疼痛", "饮食困难", "心烦不安", "口干欲饮", "小便短黄", "舌尖红", "苔薄黄", "脉数", "指纹紫"],
+      "adjudicatedTerms": [],
+      "basis": "med66 页面逐字给出该证证候、治法、代表方；舌脉从原文末「舌尖红，苔薄黄，脉数，指纹紫」处拆出。",
+      "sourceRefs": ["SRC-MED66-TCM-PED-KOUCHUANG"]
+    },
+    {
+      "id": "SPEC-SYN-EK-KOUCHUANG-XUHUOSHANGFU",
+      "specialty": "儿科",
+      "diseaseCategory": "脾胃系疾病",
+      "disease": "口疮",
+      "syndromeName": "虚火上浮证",
+      "syndromeAliases": ["虚火上浮证", "虚火上浮"],
+      "syndromeId": "TCM-SYNDROME-LOOKUP-虚火上浮",
+      "keySymptoms": "口腔溃疡或糜烂，周围色不红或微红，疼痛不甚，反复发作或迁延不愈，神疲颧红，口干不渴",
+      "tongue": "舌红，苔少或花剥",
+      "pulse": "脉细数，指纹淡紫",
+      "therapy": "滋阴降火，引火归原",
+      "representativeFormula": "六味地黄丸加肉桂",
+      "matchTerms": ["口腔溃疡", "糜烂", "疼痛不甚", "反复发作", "迁延不愈", "神疲颧红", "口干不渴", "舌红", "苔少", "花剥", "脉细数", "指纹淡紫"],
+      "adjudicatedTerms": [],
+      "basis": "med66 页面逐字给出该证证候、治法、代表方；舌脉从原文末「舌红，苔少或花剥，脉细数，指纹淡紫」处拆出。",
+      "sourceRefs": ["SRC-MED66-TCM-PED-KOUCHUANG"]
+    }
+  ]
+}

@@ -116,6 +116,18 @@ export async function GET(req: Request) {
   const body = {
     module: "tcm-cdss",
     releaseId: process.env.CDSS_RELEASE_ID?.trim() || "development",
+    // 构建溯源(2026-08-04)。甲方评测第 10 条:「本地 52/52 回归全绿,但线上行为与本地相反,
+    // 说明目前无法证明"测试过的源码"就是"线上运行的镜像"」——这不是一条并列缺陷,而是元缺陷:
+    // 无法证明镜像一致时,前面每一条「已修复」都成了无法验证的断言,于是出现「改了还是老样子」,
+    // 而真正的分歧可能在部署链路而非源码。
+    //
+    // 构建期把 git commit 与关键源码摘要打进镜像,此处回显,部署后立刻比对:对不上就不算部署成功。
+    // 值缺失时显式返回 "unknown"(而不是省略字段),这样"没打进去"和"打进去了"是可区分的两种状态。
+    build: {
+      commit: process.env.CDSS_BUILD_COMMIT?.trim() || "unknown",
+      sourceDigest: process.env.CDSS_BUILD_SOURCE_DIGEST?.trim() || "unknown",
+      builtAt: process.env.CDSS_BUILD_TIMESTAMP?.trim() || "unknown",
+    },
     flow: ["M01采集", "M02追问门控", "M03辨病辨证", "M04候选方药", "M05风险随访"],
     ready: providers.primaryModel.configured,
     strictReady,

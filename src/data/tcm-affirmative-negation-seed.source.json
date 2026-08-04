@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "tcm-cdss-affirmative-negation-seed-v1",
+  "note": "阴性形式阳性体征的存量种子。原手写于 src/lib/tcm-formula-contraindications.ts 的 TCM_AFFIRMED_STATE_TERMS，并被 tcm-classic-inference.ts 复制了一份——两处重复正是漂移风险的实证。此处收归单一来源，由 build:affirmative-negation-forms 与受治理语料合并生成运行时词表。",
+  "basis": "古方主治状态词（《伤寒论》《金匮要略》条文中的否定式阳性指征）。",
+  "sourceRef": "src/lib/tcm-formula-contraindications.ts@2026-08-04 存量常量",
+  "terms": [
+    "小便不利",
+    "饥而不欲食",
+    "心中烦不得卧",
+    "不得眠",
+    "不放屁",
+    "无食欲",
+    "食不下",
+    "不欲饮",
+    "不恶寒",
+    "不渴"
+  ]
+}

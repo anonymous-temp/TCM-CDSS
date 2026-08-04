@@ -1,4 +1,5 @@
 import { medicineClinicalConceptsMatch } from "./medicine-clinical-concepts.ts";
+import { CLINICAL_DECISION_CARD_LINE_MARKER } from "./tcm-clinical-decision-cards.ts";
 
 export type EvidenceRecord = {
   ids: Set<string>;
@@ -42,6 +43,10 @@ export function buildEvidenceScope(evidenceContext: string): EvidenceScope {
     if (/(?:中国药典|药典).{0,12}2020|2020.{0,12}(?:中国药典|药典)|2020版历史/.test(line)) continue;
     // 药典首页只能证明版本状态，不能替代逐药味、逐剂量、逐炮制条目的现行核验。
     if (line.includes("[OFFICIAL-CHP-2025]")) continue;
+    // 厂商临床决策卡片是专家参考，不是可引用来源：它带参考文献却无 DOI/PMID，机器不可核验。
+    // 卡片行注入提示词是为了给辨证思路提示，但绝不能让卡片正文里的期刊题名、年份或链接
+    // 被登记成可引用来源——否则模型复述一句“某研究证实”，清洗层反而会放行。整行跳过。
+    if (line.includes(CLINICAL_DECISION_CARD_LINE_MARKER)) continue;
     const record = lineRecord(line);
     if (!record) continue;
     records.push(record);

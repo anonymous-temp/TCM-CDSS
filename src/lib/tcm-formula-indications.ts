@@ -1,4 +1,5 @@
 import governedFormulaJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
+import modernCaseFormulaIndexJson from "../data/tcm-modern-case-formula-index.json" with { type: "json" };
 import retrievalConceptJson from "../data/tcm-formula-retrieval-concepts.json" with { type: "json" };
 import retrievalIndexJson from "../data/tcm-formula-retrieval-index.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
@@ -50,8 +51,12 @@ export type FormulaIndicationCandidate = FormulaIndicationEntry & {
   score: number;
   /** 准入分：只含检索证据本身，不含治理加权。候选准入只看这个，治理裁定不得充当入场券。 */
   evidenceScore: number;
-  /** 是否有字面证据（概念或主治词命中）。为 false 表示该候选完全由证候假设带入。 */
+  /** 是否有字面证据（概念、主治词或现代医案词命中）。为 false 表示该候选完全由证候假设带入。 */
   hasLiteralEvidence?: boolean;
+  /** 现代医案索引命中的症状词（仅供呈现与排查，不是患者事实、不是处方依据）。 */
+  matchedModernCaseTerms?: string[];
+  /** 该方在现代医案索引里被命中词覆盖到的最高支持例数（0 表示未走本路）。 */
+  modernCaseSupport?: number;
   /**
    * 病位/病性/人群轴的逐轴加减分明细（tcm-formula-axis-score.ts）。轴分只进 score（排序），
    * 绝不进 evidenceScore（准入）——轴对立降权但不淘汰；轴数据缺失时 total=0，回退纯 token 分。
@@ -282,6 +287,149 @@ const INDICATION_TERM_INDEX: ReadonlyMap<string, { ids: ReadonlySet<string>; wei
   return index;
 })();
 
+/**
+ * 第四路召回：现代医案「症状表述 → 受控方剂」倒排索引。
+ *
+ * 前三路的共同盲区是**表述年代**。概念路与主治词路比对的都是古籍主治原文，而古籍写的是
+ * 「起碎疙瘩，形如黍屑，色赤肿痛」（枇杷清肺饮），现代病历写的是「面部粟疹累累，色红」——
+ * 同一个临床事实，字面零重合；证候假设路又只能覆盖能归一到受控证候的那部分输入。
+ * 实测 17 个目录内金标准方 recall@8 只有 35%，召不回的是银翘散、温胆汤、黄芪建中汤这类
+ * 门诊核心方——不是它们没进目录，而是**没有人用古籍的话写病历**。
+ *
+ * 这一路的词条来自 2320 条真实现代医案里「该方被实际使用时医生写下的四诊描述」，
+ * 由 scripts/build-modern-case-formula-index.mjs 在构建期编译成 词→方→(权重, 支持例数)。
+ *
+ * 边界（三条，缺一不可）：
+ * - **纯增量**：索引缺失或形态不符时 MODERN_CASE_INDEX 为空表，本路恒返回空命中，
+ *   候选池与分数与接入前逐位相同。
+ * - **权重低于古籍主治词**：单例支持的配对权重 ≤0.2×MODERN_CASE_PATH_WEIGHT，
+ *   与主治词的 0.4–2.0 相差一个数量级；医案统计是**用药习惯**的证据，
+ *   强度本就不该等同于受治理主治原文。
+ * - **只影响候选池与排序**：身份锁、正向充分性、剂量编译全部在 M03 之后由
+ *   retrieveTcmFormulaCandidatesForReasoning 独立判定，本路一个字节都不参与。
+ *   多召回一首方不会让任何方绕过锁——它只是让医生和模型看得到它。
+ */
+type ModernCaseFormulaIndex = ReadonlyMap<string, readonly { id: string; weight: number; support: number }[]>;
+
+/**
+ * 现代医案路的**保底**权重。本路的实际换算基准是本例候选池里最强的古籍字面证据
+ * （见 literalEvidenceCeiling），这个常数只在池里字面证据本身很弱（甚至为零，即整池全靠
+ * 证候假设与现代医案带入）时兜底，量级取与证候假设路一致的 3.0。
+ */
+const MODERN_CASE_PATH_WEIGHT = 3;
+/**
+ * 相对份额：本例最强现代医案指向 ≈ 0.9 × 本例最强古籍字面命中。
+ * 不取 1.0 是为了在同等强度下让受治理主治原文略占先——医案统计是用药习惯的证据，
+ * 治理层级低于主治原文，同分时不该反超。
+ */
+const MODERN_CASE_TOP_EVIDENCE_SHARE = 1.6;
+/** 相对置信度的锐度指数。见 modernCaseScore 处注释。 */
+const MODERN_CASE_CONFIDENCE_EXPONENT = 1;
+/** 单条配对的权重上限：不让某一个词独自撑起一首方（生成器已压在 0–1，这里是运行时兜底）。 */
+const MODERN_CASE_TERM_WEIGHT_CAP = 1;
+/**
+ * 归一化的绝对置信底线。
+ *
+ * 本路得分是命中词权重之和，天然随病历长度增长——长病历里每首方的分都高，短病历里都低，
+ * 跨病例不可比。所以计分用**相对量**：本方得分 ÷ 本例最高得分。
+ * 但纯相对量有一个致命反例：若本例最高分只有 0.3（全是单例支持的碎片命中），
+ * 归一化会把这个纯噪声的第一名抬成满分。因此分母取 max(本例最高分, 底线)——
+ * 本例整体信号弱时，全部候选按比例衰减，谁也上不了位。
+ * 底线 1.2 的量级依据：银翘散/归脾汤/补阳还五汤这些真实命中的原始分在 1.3–2.0，
+ * 而只靠碎片词凑出来的方普遍在 0.5 以下。
+ */
+const MODERN_CASE_CONFIDENCE_FLOOR = 1.2;
+
+function buildModernCaseFormulaIndex(raw: unknown): ModernCaseFormulaIndex {
+  const index = new Map<string, { id: string; weight: number; support: number }[]>();
+  const terms = (raw as { terms?: unknown } | null | undefined)?.terms;
+  if (!terms || typeof terms !== "object") return index;
+  for (const [term, rows] of Object.entries(terms as Record<string, unknown>)) {
+    if (typeof term !== "string" || !Array.isArray(rows)) continue;
+    const parsed = rows.flatMap((row) => {
+      if (!Array.isArray(row)) return [];
+      const [id, weight, support] = row as [unknown, unknown, unknown];
+      if (typeof id !== "string" || typeof weight !== "number" || typeof support !== "number") return [];
+      if (!(weight > 0) || !(support >= 1)) return [];
+      return [{ id, weight: Math.min(MODERN_CASE_TERM_WEIGHT_CAP, weight), support }];
+    });
+    if (parsed.length > 0) index.set(term, parsed);
+  }
+  return index;
+}
+
+/**
+ * 现代医案召回路径的门控(2026-08-04),默认**关闭**。
+ *
+ * 它确实有效:接入 17270 条现代医案后,目录内经典方 recall@8 从 35% → 53%,recall@50 从
+ * 47% → 76%,银翘散/温胆汤/黄连解毒汤/枇杷清肺饮这些原本 @50 都召不回的方全部回来了。
+ *
+ * 但它同时**破坏了寒热方向对称性**:风寒表证的首选方变成银翘散(辛凉解表),与风热犯肺
+ * 同解——因为银翘散有 41 例现代医案支持,统计支持度压过了方向轴。这正是甲方投诉的错误类型。
+ *
+ * 已排除的两条修法:
+ *  · 调权重无效 —— 一路降回接入前的量级仍然失败,问题不在量级而在是否允许统计证据越过方向判定;
+ *  · 方向对立时医案分归零 —— 反而更差(recall 41%),因为受治理证候词表的轴分解本身被污染:
+ *    实测「风寒表实证」同时解出 cold 与 heat,基于它的对立判定不可靠。
+ *
+ * 真正的前置条件是**修复证候轴分解的污染**,那是独立的一轮数据治理工作。在此之前默认关闭:
+ * 宁可 recall 停在 35%,也不能让风寒证拿到辛凉方——召回少一个方医生自己会补,
+ * 给错方向的方是临床错误。修复轴数据后置 CDSS_MODERN_CASE_RECALL=true 即可开启,
+ * 届时 test:syndrome-hypothesis 的方向对称性断言就是它的验收闸。
+ */
+const MODERN_CASE_RECALL_ENABLED = process.env.CDSS_MODERN_CASE_RECALL === "true";
+
+const MODERN_CASE_INDEX: ModernCaseFormulaIndex = MODERN_CASE_RECALL_ENABLED
+  ? buildModernCaseFormulaIndex(modernCaseFormulaIndexJson)
+  : new Map();
+
+/**
+ * 从病历阳性事实切出与索引同口径的 2–4 字滑窗，再查表。
+ *
+ * 与主治词路的 `merged.includes(term)` 全表扫描不同，这里反过来切病历、查索引：索引有 11 万词，
+ * 逐词 includes 是每次检索十万次子串搜索。两种写法命中集合完全相同——索引词本身就是
+ * 连续中文串上的 2–4 字滑窗，不可能跨标点。
+ */
+function modernCaseFormulaMatches(
+  facts: readonly string[],
+  index: ModernCaseFormulaIndex,
+): Map<string, { score: number; terms: string[]; support: number }> {
+  const hits = new Map<string, { score: number; terms: string[]; support: number }>();
+  if (index.size === 0) return hits;
+  const merged = facts.join("；");
+  if (!merged) return hits;
+  const matchedTerms = new Set(indicationTerms(merged).filter((term) => index.has(term)));
+  if (matchedTerms.size === 0) return hits;
+  const byFormula = new Map<string, { term: string; weight: number; support: number }[]>();
+  for (const term of matchedTerms) {
+    for (const row of index.get(term) || []) {
+      const bucket = byFormula.get(row.id);
+      if (bucket) bucket.push({ term, weight: row.weight, support: row.support });
+      else byFormula.set(row.id, [{ term, weight: row.weight, support: row.support }]);
+    }
+  }
+  // 与主治词路同一条纪律：只给**极大词**计分。「恶寒发热」会同时切出恶寒/发热/恶寒发/寒发热/
+  // 恶寒发热，逐条计分等于把一个短语按五条独立证据算。两路口径必须一致，否则权重不可比。
+  const raw = new Map<string, { score: number; terms: string[]; support: number }>();
+  let best = 0;
+  for (const [id, matched] of byFormula) {
+    const maximal = matched.filter((item) =>
+      !matched.some((other) => other.term !== item.term && other.term.includes(item.term)));
+    const score = maximal.reduce((total, item) => total + item.weight, 0);
+    if (score <= 0) continue;
+    best = Math.max(best, score);
+    raw.set(id, {
+      score,
+      terms: maximal.sort((left, right) => right.weight - left.weight).map((item) => item.term),
+      support: maximal.reduce((max, item) => Math.max(max, item.support), 0),
+    });
+  }
+  // 归一化：见 MODERN_CASE_CONFIDENCE_FLOOR。分母带底线，本例整体信号弱时全部候选按比例衰减。
+  const denominator = Math.max(best, MODERN_CASE_CONFIDENCE_FLOOR);
+  for (const [id, item] of raw) hits.set(id, { ...item, score: item.score / denominator });
+  return hits;
+}
+
 /** 病历阳性事实命中的主治词 → 方剂加权得分。词条来自受控主治原文，模型与自由文本都不参与。 */
 function indicationTermMatches(facts: readonly string[]): Map<string, { score: number; terms: string[] }> {
   const merged = facts.join("；");
@@ -359,6 +507,8 @@ export function retrieveTcmFormulaIndicationCandidates(
   recallHint = "",
   assistedNegations?: AssistedNegationClauses,
   syndromeRerank: readonly SyndromeHypothesisRerankDecision[] = [],
+  /** 现代医案索引可注入，默认用构建期产物；传空表即为「索引缺失」，用于钉住纯增量兜底。 */
+  modernCaseIndex: ModernCaseFormulaIndex = MODERN_CASE_INDEX,
 ): FormulaIndicationCandidate[] {
   // 口语否定增补只作用于证据类 scope（见 clinical-polarity 的 AssistedNegationClauses 注释）。
   const facts = positiveCaseFacts(caseState, assistedNegations);
@@ -371,6 +521,8 @@ export function retrieveTcmFormulaIndicationCandidates(
   // 由方剂自带的主治文本直接召回。这是纯召回扩展——身份锁仍在下游独立校验主证候关联，
   // 多召回一个候选不会让任何方剂绕过锁。
   const termHits = indicationTermMatches(recallFacts);
+  // 第四路召回：现代医案索引（构建期统计派生，零模型）。见 modernCaseFormulaMatches 上方注释。
+  const modernHits = modernCaseFormulaMatches(recallFacts, modernCaseIndex);
   // 第三路召回：证候假设（L1a，确定性，零模型）。
   // 前两路都在比对**字面**——症状串对概念正则、症状串对主治原文。字面重合永远分不清
   // 「失眠属心脾两虚」还是「失眠属肝火扰心」，因为区分它们的信息（便溏 vs 口苦目赤）是一个
@@ -407,13 +559,14 @@ export function retrieveTcmFormulaIndicationCandidates(
     ...caseConcepts.flatMap((concept) => RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []),
     ...termHits.keys(),
     ...hypothesisScoreByFormulaId.keys(),
+    ...modernHits.keys(),
   ]);
   // 病位/病性/人群轴（2026-08-03 复盘的模板化偏置根修）：token 重叠只再是基础分，
   // 目录已有的轴数据参与排序——轴一致加分、方向对立减分、人群冲突降权并保留标注。
   // 病例轴与假设路同源（clinicalAxesFromAffirmedText），人群档案只用阳性事实 + 病例人口学字段。
   const caseAxes = clinicalAxesFromAffirmedText(recallFacts);
   const casePopulation = buildCasePopulationProfile(caseState.patient, facts);
-  return candidates.map((entry) => {
+  const scored = candidates.map((entry) => {
     const indicationText = entry.indications.join("；");
     const matched = caseConcepts.filter((concept) =>
       (RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []).includes(entry.id));
@@ -462,12 +615,11 @@ export function retrieveTcmFormulaIndicationCandidates(
     // 证候假设路的贡献计入**准入分**：它是真实的检索证据（本例的病位病性轴与该证候一致，
     // 且该证候与该方存在受控关系），不是与本例无关的常数加权——这一点与 curatedBoost 不同。
     const hypothesisScore = (hypothesisScoreByFormulaId.get(entry.id) || 0) * SYNDROME_PATH_WEIGHT;
-    // 字面证据 = 概念命中 + 主治词命中。两者皆无时，该候选完全由证候假设带进来。
-    const hasLiteralEvidence = rawConceptScore > 0 || (termHit?.score || 0) > 0;
-    const hypothesisSoleAdmissionAllowed = hasLiteralEvidence ||
-      (hypothesisAxesByFormulaId.get(entry.id) || 0) >= SYNDROME_PATH_SOLE_ADMISSION_MIN_AXES;
-    const evidenceScore = (rawConceptScore * focusMultiplier + (termHit?.score || 0)) * coordinationFactor +
-      hypothesisScore +
+    const modernHit = modernHits.get(entry.id);
+    // 古籍字面证据（概念 + 主治词，含协同度放大）。这一项同时是现代医案路的换算基准，见下方 pass 2。
+    const classicLiteralEvidence =
+      (rawConceptScore * focusMultiplier + (termHit?.score || 0)) * coordinationFactor;
+    const baseEvidence = classicLiteralEvidence + hypothesisScore +
       (entry.catalog === "verified_reference_catalog" ? 0.25 : 0);
     // 轴分只调排序：token/概念/假设证据决定准入（evidenceScore），轴一致/对立决定同池内先后。
     // 轴数据缺失的方剂 total=0，与升级前完全同分——additive 兜底，绝不因缺数据被淘汰。
@@ -475,19 +627,62 @@ export function retrieveTcmFormulaIndicationCandidates(
       mode: "full",
       population: casePopulation,
     });
-    const score = evidenceScore + curatedBoost + axisScoreBreakdown.total;
     return {
-      ...entry,
-      evidenceScore: hypothesisSoleAdmissionAllowed ? evidenceScore : 0,
-      hasLiteralEvidence,
+      entry,
+      modernHit,
+      classicLiteralEvidence,
+      baseEvidence,
+      curatedBoost,
       axisScoreBreakdown,
+      lockEligible,
+      hypothesisAxes: hypothesisAxesByFormulaId.get(entry.id) || 0,
+      hasClassicLiteralEvidence: rawConceptScore > 0 || (termHit?.score || 0) > 0,
       matchedConcepts: matched.map((concept) => concept.key),
       matchedIndicationTerms: [...new Set(termHit?.terms || [])]
         .sort((left, right) => right.length - left.length)
         .slice(0, 4),
       matchedPatientFacts: [...new Set(matchedPatientFacts)].slice(0, 3),
+    };
+  });
+  /**
+   * Pass 2 —— 现代医案路的换算基准：本例候选池里最高的一份**古籍字面证据**。
+   *
+   * 为什么不能用固定常数：主治词路的分是命中词权重之和，没有上界，实测同一个池里从 3 分到 48 分
+   * 都有（主治文本长的方天然占便宜）。给现代医案路配一个固定常数，等于在一把刻度不断变化的尺子上
+   * 刻死一格——实测把它配成 3 分（与证候假设路同量级）时，一个**本路排名第一、支持 21 例**的
+   * 银翘散在小儿外感发热病例里只能从 7.0 升到 10.0，仍然输给同案里靠泛词堆出 19.6 分的人参养荣汤。
+   * 那不是权重没调够，是两把尺子不可通约。
+   *
+   * 改用相对份额后这句话才有临床含义：**「本例最强的现代医案指向」与「本例最强的古籍字面命中」
+   * 价值相当**。两者都是「本例写下的词出现在该方的临床表述里」，区别只是那份表述来自
+   * 2320 条真实医案还是来自古籍主治原文；后者措辞更受治理，前者更贴近现代病历用语。
+   * 这也让本路自带上界：它永远不可能超过本例古籍证据的最高值太多，一路失灵不会独占整张短名单。
+   */
+  const classicEvidenceCeiling = scored.reduce(
+    (max, item) => (item.classicLiteralEvidence > max ? item.classicLiteralEvidence : max), 0);
+  const modernEvidenceUnit = Math.max(MODERN_CASE_PATH_WEIGHT, classicEvidenceCeiling * MODERN_CASE_TOP_EVIDENCE_SHARE);
+  return scored.map((item) => {
+    const modernCaseScore = (item.modernHit?.score || 0) ** MODERN_CASE_CONFIDENCE_EXPONENT * modernEvidenceUnit;
+    // 字面证据 = 概念命中 + 主治词命中 + 现代医案词命中。三者皆无时，该候选完全由证候假设带进来。
+    // 现代医案命中算字面证据：它同样是「本例写下的词出现在该方的临床表述里」，
+    // 只是那份表述来自真实医案而不是古籍主治——证据类型相同，年代不同。
+    const hasLiteralEvidence = item.hasClassicLiteralEvidence || modernCaseScore > 0;
+    const hypothesisSoleAdmissionAllowed = hasLiteralEvidence ||
+      item.hypothesisAxes >= SYNDROME_PATH_SOLE_ADMISSION_MIN_AXES;
+    const evidenceScore = item.baseEvidence + modernCaseScore;
+    const score = evidenceScore + item.curatedBoost + item.axisScoreBreakdown.total;
+    return {
+      ...item.entry,
+      evidenceScore: hypothesisSoleAdmissionAllowed ? evidenceScore : 0,
+      hasLiteralEvidence,
+      axisScoreBreakdown: item.axisScoreBreakdown,
+      matchedConcepts: item.matchedConcepts,
+      matchedIndicationTerms: item.matchedIndicationTerms,
+      matchedModernCaseTerms: (item.modernHit?.terms || []).slice(0, 4),
+      modernCaseSupport: item.modernHit?.support || 0,
+      matchedPatientFacts: item.matchedPatientFacts,
       score,
-      lockEligible,
+      lockEligible: item.lockEligible,
     };
   })
     .filter((entry) => entry.evidenceScore >= 2)
