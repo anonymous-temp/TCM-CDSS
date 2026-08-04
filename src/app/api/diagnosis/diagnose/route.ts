@@ -8,6 +8,7 @@ import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { buildM03ParallelHalfSuffix, m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
+import { cdssReasonCodeMarker } from "@/lib/cdss-reason-codes";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 
 export async function POST(req: Request) {
@@ -119,8 +120,21 @@ export async function POST(req: Request) {
     redFlags: [],
     reasons: ["本次辨病辨证结果未通过完整性与临床一致性复核，本轮不生成剂量级候选。"],
   };
+  // 上游模型服务不可用的专用降级页(2026-08-04):修复轮走非流式端点,provider 503/超时时
+  // 此前与「临床证据不足」共用同一句文案,把服务故障说成了临床结论(实测上游 503 期间
+  // 甲方10例有9例显示「当前证候依据不足」,医生会误以为病历不充分而去补录)。
+  const upstreamGate = {
+    status: "needs_information" as const,
+    allowDiagnosis: false,
+    allowDosePrescription: false,
+    action: "complete_before_prescription" as const,
+    missingItems: ["模型服务恢复后重新生成"],
+    redFlags: [],
+    reasons: ["模型推理服务暂时不可用（上游返回错误或超时），本轮未能完成辨病辨证。这不是病历信息不足——已录入内容无需修改，请稍后点击「重新生成」重试；若持续失败请联系系统管理员。"],
+  };
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
+    upstreamUnavailableFallback: `${cdssReasonCodeMarker("upstream_model_unavailable")}\n${signedLimitedDiagnosis(upstreamGate)}`,
     // M03 两半并行生成（时间专项）：两半共用上面这份完整提示词做前缀（provider 前缀缓存三方
     // 共享），只在末尾各加一段分工限制。修复轮与所有降级路径仍以完整 prompt 为准。
     // M03_PARALLEL_GENERATION=false 一键回退单发全量生成。

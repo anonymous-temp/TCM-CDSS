@@ -382,6 +382,13 @@ type StreamSafetyOptions = {
    * 修复轮仍使用完整单发提示词（prompt 参数），并行层不改变任何修复/降级语义。
    */
   m03ParallelHalfPrompts?: { western: string; tcm: string };
+  /**
+   * 上游模型服务不可用时的专用降级页(2026-08-04)。修复轮与独立复核走**非流式**端点,
+   * provider 503/超时会让它们整体失败;此前这种情况与「临床证据不足」共用同一句降级文案,
+   * 把服务故障说成了临床结论——医生据此以为病历不充分(实测上游 503 期间甲方10例9例如此)。
+   * 提供本字段后,传输类失败改用它,文案与 reasonCode 都明确指向「服务暂时不可用,请重试」。
+   */
+  upstreamUnavailableFallback?: string;
 };
 
 async function prepareDiagnoseStructuredContent(
@@ -2514,6 +2521,14 @@ async function callPrimaryTextModelStream(
         return review;
       };
       let m04RepairState = initialM04RepairState();
+      /** 修复轮是否死于**传输类**失败(provider 503/超时/网络)而非内容问题。 */
+      let repairFailedOnTransport = false;
+      const noteRepairOutcome = (result: { ok: boolean; reason?: string; status?: number }) => {
+        repairFailedOnTransport = !result.ok && ["retry_network_error", "retry_timeout_or_cancelled", "retry_http_error", "retry_empty_content", "retry_budget_exhausted", "deepseek_text_policy"].includes(result.reason || "");
+      };
+      /** 传输类失败改用「服务暂时不可用」专用页,否则用既有的内容类降级页。 */
+      const upstreamAwareTruncateFallback = (): string | undefined =>
+        (repairFailedOnTransport ? opts.upstreamUnavailableFallback : undefined) || opts.truncateFallback;
       let accumulatedContent = "";
       let stageOutcome: CdssTelemetryOutcome = "provider_error";
       let stageReasonCode = "not_completed";
@@ -3040,6 +3055,7 @@ async function callPrimaryTextModelStream(
             opts.structuredStage === "prescribe" ? m04ClinicalRepairGuidanceText : m03DiagnosticRepairGuidance,
             m03ParallelHalves,
           );
+          noteRepairOutcome(retry);
           if (opts.structuredStage === "prescribe") {
             m04RepairState = advanceM04RepairState(m04RepairState, {
               ok: retry.ok,
@@ -3249,6 +3265,7 @@ async function callPrimaryTextModelStream(
                 targetedM04Retry ? m04ClinicalRepairGuidanceText : m03DiagnosticRepairGuidance,
                 m03ParallelHalves,
               );
+              noteRepairOutcome(secondRetry);
               if (opts.structuredStage === "prescribe") {
                 m04RepairState = advanceM04RepairState(m04RepairState, {
                   ok: secondRetry.ok,
@@ -3410,6 +3427,7 @@ async function callPrimaryTextModelStream(
                     thirdM03Guidance,
                     m03ParallelHalves,
                   );
+                  noteRepairOutcome(thirdRetry);
                   if (clientStreamClosed) return;
                   const thirdWrapped = thirdRetry.ok
                     ? wrapStructuredJsonObject(thirdRetry.content, "diagnose", opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates)
@@ -3833,13 +3851,13 @@ async function callPrimaryTextModelStream(
                 ? message
                 : "output_transform_error",
             });
-            return { content: opts.truncateFallback || "", ok: false };
+            return { content: upstreamAwareTruncateFallback() || "", ok: false };
           }
         };
         const transformTruncateFallback = (): { content: string; ok: boolean } => (
           opts.authoritativeTruncateFallback
-            ? { content: opts.truncateFallback || "", ok: true }
-            : transformOutput(opts.truncateFallback || "")
+            ? { content: upstreamAwareTruncateFallback() || "", ok: true }
+            : transformOutput(upstreamAwareTruncateFallback() || "")
         );
         const visibleIncompleteContent = (fallbackContent: string, mode: "truncated" | "semantic_review" = "truncated"): string => {
           if (opts.structuredStage !== "diagnose") return fallbackContent;
@@ -3932,6 +3950,7 @@ async function callPrimaryTextModelStream(
                 m03DiagnosticRepairGuidance,
                 m03ParallelHalves,
               );
+              noteRepairOutcome(finalizedRetry);
               if (clientStreamClosed) return;
               const finalizedRetryWrapped = finalizedRetry.ok
                 ? wrapStructuredJsonObject(finalizedRetry.content, "diagnose", opts.structuredPriorReasoning, opts.structuredCaseState, opts.structuredMedicineCandidates)

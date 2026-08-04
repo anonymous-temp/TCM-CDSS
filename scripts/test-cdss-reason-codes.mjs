@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { jsx: true, alias: { "@": `${process.cwd()}/src` } });
@@ -63,6 +64,30 @@ check("前端按码分流,文案自由改写", () => {
     true,
     "存量无码病例回退旧文案正则",
   );
+});
+
+
+// UPSTREAM-01 服务故障 ≠ 临床证据不足(2026-08-04 生产实测:上游非流式端点 503 期间
+// 甲方10例有9例显示「当前证候依据不足」——把外部依赖故障说成了临床结论,医生会误以为
+// 病历不充分而去补录。两者的处置完全不同:前者重试即可,后者重试无用。)
+check("upstream_model_unavailable 码存在且不触发辨证级重跑", () => {
+  assert.ok(CDSS_DEGRADE_REASON_CODES.includes("upstream_model_unavailable"));
+  assert.equal(reasonCodeRequiresM03Rerun("upstream_model_unavailable"), false,
+    "服务故障应原地重试,不必清场重跑辨证");
+  assert.equal(extractCdssReasonCode(cdssReasonCodeMarker("upstream_model_unavailable")), "upstream_model_unavailable");
+});
+check("流层与路由的传输失败接线", () => {
+  const api = fs.readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+  assert.match(api, /upstreamUnavailableFallback\?: string;/, "opts 必须暴露专用降级页");
+  assert.match(api, /const noteRepairOutcome = \(result:/, "必须记录修复轮失败性质");
+  assert.match(api, /retry_network_error", "retry_timeout_or_cancelled", "retry_http_error"/, "传输类失败码必须完整");
+  assert.ok((api.match(/noteRepairOutcome\(/g) || []).length >= 4,
+    "全部修复轮调用点都要记录结果(4处)");
+  assert.doesNotMatch(api, /\{ content: opts\.truncateFallback \|\| "", ok:/,
+    "降级页选择必须经 upstreamAwareTruncateFallback,不得直接用 truncateFallback");
+  const route = fs.readFileSync(new URL("../src/app/api/diagnosis/diagnose/route.ts", import.meta.url), "utf8");
+  assert.match(route, /upstreamUnavailableFallback:/, "路由必须提供专用降级页");
+  assert.match(route, /这不是病历信息不足/, "文案必须显式澄清不是病历问题");
 });
 
 console.log(JSON.stringify({ cases, failures }));

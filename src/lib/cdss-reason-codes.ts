@@ -31,6 +31,13 @@ export const CDSS_DEGRADE_REASON_CODES = [
   "deterministic_reference",
   /** 锁定方无可执行剂量基准(block 档) —— 医生调整方向或切 advise 档 */
   "formula_dose_boundary_unavailable",
+  /**
+   * 上游模型服务暂时不可用(修复轮/复核走非流式端点,provider 503/超时)。
+   * 与「证候依据不足」是**完全不同**的事:前者是服务故障,重试即可;后者是临床证据不足,
+   * 重试无用、需补充病历。此前两者共用同一句降级文案,把服务故障说成了临床结论——
+   * 医生据此会误以为病历不充分(实测:上游 503 期间甲方10例有9例显示「证候依据不足」)。
+   */
+  "upstream_model_unavailable",
 ] as const;
 
 export type CdssDegradeReasonCode = (typeof CDSS_DEGRADE_REASON_CODES)[number];
