@@ -321,7 +321,13 @@ export interface ClinicalReasoningResultV2 {
       direction: string;
       names: string[];
       mode: "single" | "combined" | "alternatives";
-      reason: "semantic_mapping_pending_clinician_confirmation";
+      /**
+       * semantic_mapping_pending_clinician_confirmation: 模型选了方名但证候映射待医生确认。
+       * system_retrieved_pending_clinician_selection: 模型未给方名(自拟)或所给方名未通过充分性,
+       *   服务端用**已签名证候**做确定性二次检索,把找到的受治理经典方作为参考呈现给医生。
+       *   两者都**不是锁定**:不进 recommendedFormulaNames、不参与 M04 编译、由医生决定是否采用。
+       */
+      reason: "semantic_mapping_pending_clinician_confirmation" | "system_retrieved_pending_clinician_selection";
     };
     evidence: EvidenceRef;
   };
@@ -817,7 +823,7 @@ const ReasoningV2SchemaBase = z.object({
       direction: z.string().min(1).max(1200),
       names: z.array(z.string().min(1).max(300)).min(1).max(4),
       mode: z.enum(["single", "combined", "alternatives"]),
-      reason: z.literal("semantic_mapping_pending_clinician_confirmation"),
+      reason: z.enum(["semantic_mapping_pending_clinician_confirmation", "system_retrieved_pending_clinician_selection"]),
     }).optional().catch(undefined),
     evidence: EvidenceRefSchema,
   }).catch(DEFAULT_OVERVIEW),

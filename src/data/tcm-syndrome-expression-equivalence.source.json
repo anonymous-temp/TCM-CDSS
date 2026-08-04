@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "tcm-cdss-syndrome-expression-equivalence-v1",
+  "note": "系统「病机式证候表述」→ 教材/国标「证候名」的**单向呈现映射**(2026-08-04 建立)。用途只有一个:在医生可见结论里并列显示国标名,让甲方按国标核对时口径一致。刻意**不**写进 tcm-syndrome-lexicon 的 aliases——aliases 是双向等价,而这里多数映射带条件(如「瘀血阻络证」只有在头部病位成立时才等于「瘀血头痛证」),双向化会污染受控词表。每条必须带 basis(循证依据)与 verdict(裁决类型)。",
+  "provenance": "artifacts/syndrome-adjudication-2026-08-04.json —— 对甲方考题集 14 例辨证分歧的循证裁决(教材/国标/权威指南逐例查证)",
+  "mappings": [
+    {
+      "systemExpression": "肝胃不和，气机郁滞",
+      "governedName": "肝郁气滞证",
+      "alsoKnownAs": "情志郁结",
+      "verdict": "naming_only",
+      "basis": "同一证候的两种命名粒度:系统给脏腑病机式表述,教材用证候名。临床等价。"
+    },
+    {
+      "systemExpression": "外感风寒，兼夹食积",
+      "governedName": "感冒夹滞证",
+      "alsoKnownAs": "风寒感冒夹滞",
+      "verdict": "naming_only",
+      "basis": "中医儿科学「感冒夹滞」即外感兼食积,病机表述与病证名等价。"
+    },
+    {
+      "systemExpression": "瘀血阻络证",
+      "governedName": "瘀血头痛证",
+      "verdict": "naming_only",
+      "condition": "仅当病位为头部/清窍时成立",
+      "basis": "中医内科学·头痛「瘀血证」;通用的瘀血阻络在其他病位下不等于瘀血头痛,故带条件。"
+    },
+    {
+      "systemExpression": "血虚肠燥证",
+      "governedName": "血虚秘",
+      "verdict": "system_correct",
+      "basis": "便秘·血虚秘为「血虚津少、肠道失润」,与「津亏肠燥」同属津血不足致燥;系统表述在病机层更完整,教材名为病证层。裁决认定系统表述正确。"
+    },
+    {
+      "systemExpression": "气阴两伤，余邪未净",
+      "governedName": "津液亏虚证",
+      "verdict": "both_valid",
+      "basis": "暴泻伤津、气随津脱者两种表述皆可成立;系统表述额外交代余邪状态,临床等价且信息更全。"
+    }
+  ]
+}

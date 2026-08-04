@@ -46,11 +46,12 @@ assert.match(
   "受理即解除截断，让候选进入完整 finalize 管线（归一/独立复核/attestation/签名），而不是另辟无签名渲染支路",
 );
 // 充实度度量必须随契约形态走：incompleteM03VisibleDraft 对 JSON-only 响应恒返回 ""，
-// 若只用它，受理门槛（>=80）在当前 JSON-only 的 M03 上永远过不去，整条受理路径是死代码。
+// 若只用它，任何以草稿长度为门槛的判断在当前 JSON-only 的 M03 上永远过不去、是死代码。
+// 该口径已收敛到 m03CandidateSubstanceLength（见 SUBSTANCE-01），此处只钉调用点仍走统一口径。
 assert.match(
   diagnosisApiSource,
-  /const tierDraftLength = Math\.max\(\s*\n\s*incompleteM03VisibleDraft\(authoritativeContent\)\.length,\s*\n\s*tierReasoning \? JSON\.stringify\(tierReasoning\)\.length : 0,/,
-  "JSON-only 契约下必须以结构化载荷体积衡量充实度，与 Markdown 草稿取大（旧形态行为不变）",
+  /const tierDraftLength = m03CandidateSubstanceLength\(authoritativeContent, tierReasoning\);/,
+  "JSON-only 契约下必须以统一口径衡量充实度（草稿与结构化载荷体积取大）",
 );
 assert.match(
   diagnosisApiSource,
@@ -757,3 +758,26 @@ assert.equal(
 );
 
 console.log(JSON.stringify({ cases: 59, failures: 0 }));
+
+// SUBSTANCE-01 充实度口径单一化守卫(2026-08-04)。
+// incompleteM03VisibleDraft 对 JSON-only 响应刻意返回 ""，因此任何以「草稿长度」为门槛的判断
+// 在当前契约下恒为 0、永久失效。该坑已复发两次（质量批注受理 / 语义复核救援，后者实测把
+// #384 急性下壁心梗的完整证候整页降级成「证候依据不足」）。口径收敛到 m03CandidateSubstanceLength，
+// 源码里不得再出现「裸 incompleteM03VisibleDraft(...).length >= 阈值」这种判断。
+assert.match(
+  diagnosisApiSource,
+  /function m03CandidateSubstanceLength\(content: string, reasoning\?: unknown\): number \{[\s\S]{0,400}?Math\.max\(/,
+  "必须存在统一的充实度口径函数",
+);
+assert.doesNotMatch(
+  diagnosisApiSource,
+  /incompleteM03VisibleDraft\([^)]*\)\.length\s*>=/,
+  "不得再出现裸草稿长度阈值判断：JSON-only 契约下它恒为 0，必须走 m03CandidateSubstanceLength",
+);
+{
+  // 两处调用点都必须经统一口径
+  const tierUsesUnified = /tierDraftLength = m03CandidateSubstanceLength\(/.test(diagnosisApiSource);
+  const salvageUsesUnified = /m03CandidateSubstanceLength\(\s*\n\s*accumulatedContent,/.test(diagnosisApiSource);
+  assert.ok(tierUsesUnified, "质量批注受理必须走统一口径");
+  assert.ok(salvageUsesUnified, "语义复核救援必须走统一口径");
+}

@@ -146,6 +146,19 @@ const ENTRIES: readonly FormulaIndicationEntry[] = governedCatalog.entries
   }));
 const ENTRY_BY_ID = new Map(ENTRIES.map((entry) => [entry.id, entry] as const));
 
+/**
+ * 可锁定方的排序乘数。校准口径：让「分数接近」的可锁定方稳定胜出，同时不掩盖分数显著更高的
+ * 不可锁定方。实测锚点两端——(a) 心脾两虚案 天王补心丹(不可锁定) 与 归脾汤(可锁定) 分差 < 20%，
+ * 乘数 1.35 让归脾汤回到首位；(b) 食积案 保和丸(不可锁定) 47.9 vs 钩藤饮(可锁定) 27.1×1.35=36.6,
+ * 保和丸仍居首。两端同时成立的乘数区间约 1.2–1.7，取中位 1.35。
+ * 这是排序权重常量，不是临床词表；调整它只改变呈现顺序，不改变任何安全边界或锁定判定。
+ */
+const LOCK_ELIGIBLE_RANK_MULTIPLIER = 1.35;
+
+function formulaRankingScore(entry: { score: number; lockEligible: boolean }): number {
+  return entry.score * (entry.lockEligible ? LOCK_ELIGIBLE_RANK_MULTIPLIER : 1);
+}
+
 /** 方剂轴档案按 id 惰性缓存：目录字段是构建期常量，档案只算一次。 */
 const AXIS_PROFILE_BY_ID = new Map<string, FormulaAxisProfile>();
 function axisProfileFor(entry: FormulaIndicationEntry): FormulaAxisProfile {
@@ -478,23 +491,24 @@ export function retrieveTcmFormulaIndicationCandidates(
     };
   })
     .filter((entry) => entry.evidenceScore >= 2)
-    // Lock-eligible formulas sort ahead of the rest, then by score within each group. A formula
-    // with no syndromeTags can never satisfy the identity lock's direct primary-syndrome
-    // requirement, so if the model picks one it is stripped and the result degrades to 自拟方 —
-    // strictly worse for the doctor than a lower-scoring formula the system can actually stand
-    // behind. Measured: 86 of the 264 offerable formulas are permanently unlockable, and on the
-    // reported 心脾两虚 case 天王补心丹 (阴虚火旺, unlockable, and clinically wrong for 便溏/齿痕/脉细弱)
-    // outranked 归脾汤 on raw symptom overlap. Ordering is the whole remedy: unlockable formulas stay
-    // in the list as differential references, they just no longer head it.
+    // 排序键的层次（两条实测教训必须同时保住，2026-08-04 修正第一条的副作用）：
+    //
+    // 1) 字面证据优先于纯证候假设。假设路比对的是「本例的轴与某证候一致」，不是「本例症状
+    //    出现在该方主治里」；有真正命中主治的候选时，让零字面命中的方领衔就是把推断摆到
+    //    证据前面。实测：「遇热加重，夜尿多」下崔氏八味丸（温阳）零字面命中却居首。
+    //
+    // 2) 可锁定性是**加权**，不再是绝对首键。原实现把 lockEligible 放在最前，理由是不可锁定
+    //    的方被模型选中后会被 strip、退化成自拟方，对医生更差（实测 心脾两虚 案 天王补心丹
+    //    以字面重合压过归脾汤）。但绝对首键把「目录标注缺口」放大成了「临床推荐缺陷」：
+    //    目录 2937 首里 593 首（20%）无证候标注、恒为 lockEligible=false，于是无论多对证都排在
+    //    全部可锁定方之后——短名单只取 5–8 首，它们等于被永久删除。实测保和丸在「食积停滞、
+    //    嗳腐吞酸」病例下证据分 47.9（全池最高，是次高的 1.8 倍）却排 264/274，模型根本看不到它。
+    //    改为乘数后：分数接近时可锁定方仍然胜出（教训 2 保住），分数显著更高的不可锁定方
+    //    可以上位（保和丸类解禁）。乘数是可校准参数，不是临床词表；校准依据见常量注释。
     .sort((left, right) =>
-      Number(right.lockEligible) - Number(left.lockEligible) ||
-      // 有字面证据的排在纯证候假设之前。假设路是有价值的召回来源，但它比对的是「本例的轴与某证候
-      // 一致」，不是「本例的症状出现在该方主治里」——在存在真正命中主治的候选时，让一个
-      // 一个主治词都没命中的方去领衔模型的选择列表，是把推断摆到了证据前面。
-      // 实测：「遇热加重，夜尿多」下崔氏八味丸（温阳）零字面命中却居首。
-      // 纯假设候选仍然保留在列表里作鉴别参考，只是不再打头。
       Number(right.hasLiteralEvidence) - Number(left.hasLiteralEvidence) ||
-      right.score - left.score ||
+      formulaRankingScore(right) - formulaRankingScore(left) ||
+      Number(right.lockEligible) - Number(left.lockEligible) ||
       right.matchedConcepts.length - left.matchedConcepts.length ||
       left.name.localeCompare(right.name))
     .slice(0, Math.max(0, limit));
@@ -949,16 +963,23 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
           };
         };
         if (parsed.stage !== "diagnose" || !parsed.overview) return match;
-        const reasoningAllowed = (() => {
+        // 证候级二次检索（2026-08-04）：生成前的短名单是**症状级**召回，模型只能从它看到的方里选；
+        // 而这里的检索用的是**已签名证候+病机+治法**，精确得多。此前它只用于「校验模型选的方」
+        // （只能删不能加），于是「辨证正确但正解方从未进入模型视野」的病例只能退化成自拟方
+        // （实测 百合固金汤/肾气丸/保阴煎 等 6 例：证候全部辨对，方名一个都没给出）。
+        // 现在同一次检索结果额外承担一个纯增益职责：模型没给出可锁定方名时，把它检索到的
+        // 受治理经典方作为**参考候选**呈现给医生（见下方 systemRetrieved 分支）。
+        const reasoningCandidates = (() => {
           try {
             return retrieveTcmFormulaCandidatesForReasoning(parsed as unknown as ClinicalReasoningResultV2, 8)
-              .filter((entry) => entry.identityLockEligible && entry.positiveSufficiency)
-              .flatMap((entry) => [entry.name, ...entry.aliases])
-              .map((entry) => entry.replace(/\s+/g, ""));
+              .filter((entry) => entry.identityLockEligible && entry.positiveSufficiency);
           } catch {
             return [];
           }
         })();
+        const reasoningAllowed = reasoningCandidates
+          .flatMap((entry) => [entry.name, ...entry.aliases])
+          .map((entry) => entry.replace(/\s+/g, ""));
         // Pre-generation symptom recall controls what the model sees, but cannot prove a formula is
         // sufficient for the signed syndrome. Final identity locking is therefore based solely on
         // the post-M03 positive-sufficiency set.
@@ -967,7 +988,22 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
         const names = Array.isArray(parsed.overview.recommendedFormulaNames)
           ? parsed.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string")
           : [];
-        if (names.length === 0 || names.every((name) => allowed.has(name.replace(/\s+/g, "")))) return match;
+        // 模型未给方名（自拟）时：若证候级检索找到了满足充分性的受治理经典方，作为参考候选呈现。
+        // 不写入 recommendedFormulaNames（不锁定、不进 M04 编译），只落在 deferredFormulaSelection。
+        if (names.length === 0) {
+          const systemRetrieved = reasoningCandidates.slice(0, 2).map((entry) => entry.name);
+          if (systemRetrieved.length === 0 || parsed.overview.deferredFormulaSelection) return match;
+          parsed.overview.deferredFormulaSelection = {
+            direction: typeof parsed.overview.recommendedFormulaDirection === "string"
+              ? parsed.overview.recommendedFormulaDirection
+              : "按已锁定病机与治法辨证组方",
+            names: systemRetrieved,
+            mode: systemRetrieved.length > 1 ? "alternatives" : "single",
+            reason: "system_retrieved_pending_clinician_selection",
+          };
+          return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(parsed, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
+        }
+        if (names.every((name) => allowed.has(name.replace(/\s+/g, "")))) return match;
         const primarySyndromeAwaitingConfirmation = (parsed.terminologyMappings || []).some((item) =>
           item.namespace === "tcm_syndrome" &&
           item.fieldPath === "overview.primarySyndrome" &&

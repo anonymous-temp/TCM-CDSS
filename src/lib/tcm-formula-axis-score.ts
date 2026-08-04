@@ -1,5 +1,6 @@
 import syndromeLexiconJson from "../data/tcm-syndrome-lexicon.json" with { type: "json" };
 import { assessPregnancyState } from "./clinical-state";
+import { matchesPopulationScope } from "./clinical-vocabulary";
 
 /**
  * 经典方召回的病位/病性/人群轴评分内核（确定性、零模型）。
@@ -93,19 +94,22 @@ const LOCATION_EQUIVALENCE: Readonly<Record<string, readonly string[]>> = {
   jueyin_channel_level: ["liver", "pericardium"],
 };
 
-// ─── 人群标记（来自受治理主治原文，正则闭集，构建期一次判定） ───
-/**
- * 「适用」用宽口径（含妇人/经带等妇科措辞），只产生小额加分；
- * 「专用」判定改用严格产科口径：古籍常以「妇人」统摄性别中立的方（《金匮》半夏厚朴汤
- * 「妇人咽中如有炙脔」、四物汤的妇人经病表述），按宽口径判专用会把这类通用经典方
- * 对男性病例错误降权。只有胎产限定（产后/妊娠/恶露…）才足以支撑「与人群冲突」的减分。
- */
-const MATERNAL_RE = /产后|产前|临产|难产|坐月|妊娠|孕妇|胎前|胎动|恶露|乳汁|催乳|妇人|妇女|经闭|月经|经水|经行|崩漏|带下|血崩|胎漏|保胎/;
-const OBSTETRIC_RE = /产后|产前|临产|难产|坐月|妊娠|孕妇|胎前|胎动|胎漏|保胎|恶露|乳汁|催乳/;
-const PEDIATRIC_RE = /小儿|婴儿|婴孩|幼儿|新生儿|胎怯|疳积|解颅/;
-const GERIATRIC_RE = /老人|老年|高年|年高|年老/;
-/** 主治里出现跨人群措辞（大人小儿…）时，该方不是任何单一人群的专用方。 */
-const BROAD_POPULATION_RE = /大人|成人|男子|男女|老幼|老少|无论长幼/;
+// ─── 人群标记 ───
+// 词表已迁出本文件(2026-08-04 词表单一来源):唯一归属地是
+// src/data/tcm-population-scope.source.json,经 build:clinical-vocabulary 生成后由
+// clinical-vocabulary.ts 读取。此前这 5 张表手写在这里,改一处不会全局生效、必然漂移。
+//
+// 口径语义(随词表一起迁移,勿丢):
+//  · maternal 宽口径(含妇人/经带等妇科措辞)只产生「适用」小额加分;
+//  · 冲突减分只认 obstetric 严格胎产口径——古籍常以「妇人」统摄性别中立的方
+//    (《金匮》半夏厚朴汤「妇人咽中如有炙脔」、四物汤的妇人经病表述),按宽口径判专用
+//    会把这类通用经典方对男性病例错误降权(OBST-01 回归钉双向锁定);
+//  · broad(大人/老幼…)出现即否定专用性。
+const matchesMaternal = (text: string) => matchesPopulationScope(text, "maternal");
+const matchesObstetric = (text: string) => matchesPopulationScope(text, "obstetric");
+const matchesPediatric = (text: string) => matchesPopulationScope(text, "pediatric");
+const matchesGeriatric = (text: string) => matchesPopulationScope(text, "geriatric");
+const matchesBroadPopulation = (text: string) => matchesPopulationScope(text, "broad");
 
 export type PopulationGroup = "maternal" | "pediatric" | "geriatric";
 
@@ -248,16 +252,16 @@ function expandLocations(values: Iterable<string>): Set<string> {
 }
 
 function populationOf(indications: readonly string[]): FormulaAxisProfile["population"] & { obstetricDedicated: boolean } {
-  const groups: Array<[PopulationGroup, RegExp]> = [
-    ["maternal", MATERNAL_RE],
-    ["pediatric", PEDIATRIC_RE],
-    ["geriatric", GERIATRIC_RE],
+  const groups: Array<[PopulationGroup, (text: string) => boolean]> = [
+    ["maternal", matchesMaternal],
+    ["pediatric", matchesPediatric],
+    ["geriatric", matchesGeriatric],
   ];
   const meaningful = indications.filter((text) => text.trim().length > 0);
   const dedicated: PopulationGroup[] = [];
   const applicable: PopulationGroup[] = [];
   if (meaningful.length === 0) return { dedicated, applicable, obstetricDedicated: false };
-  const broad = meaningful.some((text) => BROAD_POPULATION_RE.test(text));
+  const broad = meaningful.some((text) => matchesBroadPopulation(text));
   // 「专用」按主治分支判定，不按整段文本：主治原文常把多个适应证并进一句
   // （理中丸「脾胃虚寒证，或阳虚失血证，或小儿慢惊，…」），人群词只统辖它所在的分支。
   // 句读（。；;）分段后再按并列连接词（或/以及）拆分支；每个分支都限定于该人群才算专用。
@@ -268,13 +272,13 @@ function populationOf(indications: readonly string[]): FormulaAxisProfile["popul
     .map((branch) => branch.trim())
     .filter((branch) => branch.length > 0);
   for (const [group, pattern] of groups) {
-    if (!meaningful.some((text) => pattern.test(text))) continue;
+    if (!meaningful.some((text) => pattern(text))) continue;
     applicable.push(group);
-    if (!broad && branches.length > 0 && branches.every((branch) => pattern.test(branch))) {
+    if (!broad && branches.length > 0 && branches.every((branch) => pattern(branch))) {
       dedicated.push(group);
     }
   }
-  const obstetricDedicated = !broad && branches.length > 0 && branches.every((branch) => OBSTETRIC_RE.test(branch));
+  const obstetricDedicated = !broad && branches.length > 0 && branches.every((branch) => matchesObstetric(branch));
   return { dedicated, applicable, obstetricDedicated };
 }
 

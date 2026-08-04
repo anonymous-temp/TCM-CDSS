@@ -247,6 +247,25 @@ function incompleteM03VisibleDraft(content: string): string {
     .trim();
 }
 
+/**
+ * M03 候选的「充实度」度量——**唯一口径**(2026-08-04 收口)。
+ *
+ * incompleteM03VisibleDraft 只认 Markdown-first 的旧形态:对 JSON-only 响应它刻意返回 ""
+ * (截断的裸 JSON 不是医生可读草稿)。而当前 M03 正是 JSON-only,可见正文由服务端从结构化
+ * 载荷确定性渲染——于是任何以「草稿长度」为门槛的判断在 JSON-only 下**恒为 0、永久失效**。
+ *
+ * 这个坑已经踩过两次:第一次是带质量批注受理(tierDraftLength,已修),第二次是语义复核救援
+ * 分支(实测 #384 急性下壁心梗:模型产出了完整证候,救援门槛过不去 → 整页降级成「证候依据
+ * 不足」,连红旗都丢了)。两处各修一次的模式必然还有第三处,因此口径收敛到这一个函数:
+ * 草稿长度与结构化载荷体积取大——载荷已过 schema 与 T1 硬安全合同,不可能是空壳。
+ */
+function m03CandidateSubstanceLength(content: string, reasoning?: unknown): number {
+  return Math.max(
+    incompleteM03VisibleDraft(content).length,
+    reasoning ? JSON.stringify(reasoning).length : 0,
+  );
+}
+
 function clinicalReviewUnavailableNotice(
   stage: "diagnose" | "prescribe",
   boundary: "service_unavailable" | "quality_concern" = "service_unavailable",
@@ -3704,10 +3723,7 @@ async function callPrimaryTextModelStream(
           //（实测月经先期-血热：T3 码 m03_sub_therapy_repeats_overall_method 反复塌，从未受理）。
           // JSON-only 时改用结构化载荷体积：该载荷已通过 schema 与 T1 硬安全合同，不可能是空壳，
           // 且它就是最终渲染成医生正文的那份数据。两者取大，旧形态行为一字不变。
-          const tierDraftLength = Math.max(
-            incompleteM03VisibleDraft(authoritativeContent).length,
-            tierReasoning ? JSON.stringify(tierReasoning).length : 0,
-          );
+          const tierDraftLength = m03CandidateSubstanceLength(authoritativeContent, tierReasoning);
           if (tierReasoning && shouldAcceptWithQualityAnnotation({
             rejectionReason: tierRejectionReason,
             safetyIssue: tierSafetyIssue,
@@ -4196,7 +4212,13 @@ async function callPrimaryTextModelStream(
             typeof m03DiagnosticReviewReason === "string" &&
             /semantic_review/.test(m03DiagnosticReviewReason) &&
             m03SalvageContractPassed &&
-            incompleteM03VisibleDraft(accumulatedContent).length >= 80;
+            m03CandidateSubstanceLength(
+              accumulatedContent,
+              m03ReasoningFromStructuredContent(wrapStructuredJsonObject(
+                accumulatedContent, "diagnose", opts.structuredPriorReasoning,
+                opts.structuredCaseState, opts.structuredMedicineCandidates,
+              )),
+            ) >= 80;
           // Tier-2/3 带批注受理不在这里渲染：它在 finalize 之前就解除截断
           //（见上方 m03QualityAcceptedReason 块），让候选走归一→独立复核→attestation→签名的
           // 完整既有管线，输出的是可执行的签名结果。此处原有的渲染层受理分支已删除——
