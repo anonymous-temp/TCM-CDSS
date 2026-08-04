@@ -117,7 +117,8 @@
     "test:clinical-decision-cards": "jiti scripts/test-clinical-decision-cards.mjs",
     "test:formula-discrimination-guard": "jiti scripts/test-formula-discrimination-guard.mjs",
     "build:source-digest": "node scripts/build-source-digest.mjs",
-    "verify:deployed-image": "node scripts/verify-deployed-image.mjs"
+    "verify:deployed-image": "node scripts/verify-deployed-image.mjs",
+    "regress:prod-smoke": "node scripts/regress-prod-smoke.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

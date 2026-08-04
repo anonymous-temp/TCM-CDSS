@@ -845,11 +845,29 @@ export function retrieveTcmFormulaCandidatesForReasoning(
   const primarySyndromeIdentityConfirmed = Boolean(
     deterministicPrimarySyndromeId || semanticPrimaryMapping?.status === "clinician_confirmed",
   );
+  // 召回文本必须包含**患者主症**,不能只有证候与病机(2026-08-04)。
+  //
+  // 实测缺陷:产后头痛例,M03 已把病位判为「心、脾、头窍」、治法改为「荣脑止痛」,
+  // 但 M04 首选方仍是归脾汤加减,九味药里没有一味针对头痛的(川芎、白芷、蔓荆子之类)。
+  // 追下去发现:候选池由 tags(证候/病性/病位)与 reasoningConcepts 反查索引得来,而
+  // reasoningConcepts 只扫证候名、总病机、病机链——**主诉与主症一个字都没进来**。
+  // 检索索引里 headache 维度挂着 114 首方,概念 id 空间与症状 id 空间 27/27 完全重合,
+  // 也就是说数据齐备、通路也在,只是喂进去的文本里没有「头痛」这两个字。
+  //
+  // 修法是补齐扫描字段,不是加规则:患者主症本就写在签名结论内——病位判据的 basis、
+  // 主证依据、西医诊断的支持事实。这些字段是 M03 对「凭什么这么判」的记录,
+  // 天然含主诉原文(实测 basis = "产后2月余,头痛反复发作1月")。西医诊断的支持事实
+  // 不在 FormulaReasoningProjection 这个投影类型里,故未取——前两项已覆盖本类缺陷。
+  //
+  // 只读签名结论内的字段,不另取 caseState:召回依据必须与已签名的结论同源,
+  // 否则会出现「方是按签名外的信息选的」这种无法追溯的情况。
   const reasoningText = [
     reasoning.overview.primarySyndrome,
     reasoning.overview.overallPathogenesis,
     reasoning.pathogenesis.summary,
     ...(reasoning.pathogenesis.chain || []).flatMap((item) => [item.pathogenesis, item.therapyDirection]),
+    ...(reasoning.overview.primarySyndromeBasis || []),
+    ...(reasoning.pathogenesis.locationDifferentiation?.details || []).map((item) => item.basis),
   ].filter(Boolean).join("；");
   const therapyText = [
     reasoning.therapy?.overallPrinciple,
