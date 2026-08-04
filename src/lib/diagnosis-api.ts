@@ -29,6 +29,7 @@ import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
 import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
+import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
 import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
@@ -38,7 +39,7 @@ import { requiredDecoctionRequirement } from "@/lib/herb-decoction-rules";
 import { m04CandidateHerbsFromRepairPayload, m04KnowledgeShortlistFromPrompt, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } from "@/lib/structured-clinical-repair";
 import { missedLockableFormulaCandidates } from "@/lib/tcm-formula-indications";
 import { governedTcmDiseaseNeighbors } from "@/lib/clinical-terminology";
-import { chiefComplaintAnchor } from "@/lib/tcm-chief-complaint-anchor";
+import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy } from "@/lib/tcm-chief-complaint-anchor";
 import { enforceRetrievedM03FormulaSelection } from "@/lib/tcm-formula-indications";
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
 import { dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
@@ -378,6 +379,11 @@ type StreamSafetyOptions = {
   diagnoseSignatureContext?: DiagnoseContractSignatureContext;
   prescribeSignatureContext?: PrescribeContractSignatureContext;
   requestSignal?: AbortSignal;
+  /**
+   * 「同一病例 + 同一份已签名 M03」的重试身份（见 m04-retry-policy）。医生点「重新生成候选方药」
+   * 时前端原样重发同一份 caseState，服务端据此认出这是第几次尝试；缺失时行为与今天完全一致。
+   */
+  m04AttemptKey?: string;
   /**
    * M03 两半并行生成（时间专项）：提供时，主流式请求改用 tcm 半提示词，western 半同时走
    * 缓冲请求，流结束后由 mergeParallelM03Halves 确定性合并再进入既有契约/复核/签名链路。
@@ -1223,6 +1229,21 @@ function m03GovernedRepairCandidates(
     if (rejectionReason.endsWith("location_chief_symptom_anchor_missing")) {
       return chiefComplaintAnchor(clinicalContext).locationLabels;
     }
+    // 主症优先：把**主症节点自己写的**治法方向逐字带回去。写「请把主症方向提前」而不指名
+    // 哪一条是主症方向，同样是一条不可执行的指令（与病名鉴别、病位锚同一条 doctrine）。
+    if (rejectionReason.endsWith("therapy_chief_complaint_not_leading")) {
+      if (!rejectedJson) return [];
+      const parsed = JSON.parse(rejectedJson) as {
+        pathogenesis?: { chain?: unknown };
+        therapy?: { overallMethod?: unknown };
+      };
+      const chain = Array.isArray(parsed?.pathogenesis?.chain) ? parsed.pathogenesis.chain : [];
+      return chiefComplaintTherapyPrimacy(
+        chain as Array<Record<string, unknown>>,
+        parsed?.therapy?.overallMethod,
+        chiefComplaintAnchor(clinicalContext),
+      ).chiefMethodNames;
+    }
   } catch {
     // 候选带名是增强项；取不到时修复提示退回通用措辞，不影响修复轮本身。
   }
@@ -1241,6 +1262,7 @@ async function retryCompletePrimaryResponse(
   rejectedContent = "",
   clinicalReviewGuidance = "",
   m03HalfPrompts?: { western: string; tcm: string },
+  structuredSamplingTemperature = 0,
 ): Promise<
   | { ok: true; content: string; finishReason: string | null; model: string }
   | { ok: false; reason: string; status?: number }
@@ -1552,7 +1574,7 @@ async function retryCompletePrimaryResponse(
           maxTokensForStructuredStage(structuredStage),
           Math.min(Math.round(maxTokensForStructuredStage(structuredStage) * 1.5), 32_000),
         ),
-        temperature: structuredStage ? 0 : PRIMARY_TEXT_TEMPERATURE,
+        temperature: structuredStage ? structuredSamplingTemperature : PRIMARY_TEXT_TEMPERATURE,
         ...(structuredStage ? { response_format: { type: "json_object" } } : {}),
         ...(isDeepseekModel(retryModel)
           ? {
@@ -2125,6 +2147,18 @@ async function callPrimaryTextModelStream(
     return errResponse(500, "文本临床推理阶段仅允许使用 DeepSeek 模型");
   }
   const m03ParallelHalves = opts.structuredStage === "diagnose" ? opts.m03ParallelHalfPrompts : undefined;
+  // 「重新生成候选方药」不能是同一张彩票（见 m04-retry-policy 的生产实证：同一病例第二次返回
+  // 与第一次逐字节相同的失败页）。只对 M04 生效；M03 与其余阶段保持 temperature 0 的确定性。
+  const m04Retry = m04RetryPolicyForAttempt(
+    opts.structuredStage === "prescribe" ? priorM04ContractRejections(opts.m04AttemptKey) : 0,
+  );
+  if (m04Retry.priorContractRejections > 0) {
+    console.warn("[tcm-cdss:model] M04 regeneration after a previous contract rejection; changing the draw", {
+      priorContractRejections: m04Retry.priorContractRejections,
+      samplingTemperature: m04Retry.samplingTemperature,
+      repairExhaustedOnEntry: m04Retry.repairExhaustedOnEntry,
+    });
+  }
   const longestPromptChars = Math.max(
     prompt.length,
     m03ParallelHalves?.western.length || 0,
@@ -2333,7 +2367,7 @@ async function callPrimaryTextModelStream(
             upstreamController.signal,
           );
           transformed = applyDeterministicFormulaReferences(transformed);
-          transformed = synchronizeVisibleClinicalSummary(transformed, "diagnose");
+          transformed = synchronizeVisibleClinicalSummary(transformed, "diagnose", opts.structuredClinicalContext || "");
           if (opts.outputTransform) transformed = opts.outputTransform(transformed);
           const reasoning = validatedStructuredReasoning(
             transformed,
@@ -2629,6 +2663,14 @@ async function callPrimaryTextModelStream(
           modelResponded: providerDone || contentChars > 0,
           reasonCode: stageReasonCode,
         });
+        // 把本次 M04 的结局留给下一次「重新生成」：合同驳回累计一次，出方立即清账。
+        // 传输类失败(provider_error/fallback)不记账——那不构成「这条轨迹已经走死」的证据。
+        if (opts.structuredStage === "prescribe") {
+          if (stageOutcome === "contract_rejected") recordM04AttemptOutcome(opts.m04AttemptKey, "contract_rejected");
+          else if (stageOutcome === "success" || stageOutcome === "repaired") {
+            recordM04AttemptOutcome(opts.m04AttemptKey, "delivered");
+          }
+        }
         console.info("[tcm-cdss:timing] model_stage", {
           stage: opts.structuredStage || "unstructured",
           durationMs: Date.now() - requestStartedAt,
@@ -2696,7 +2738,9 @@ async function callPrimaryTextModelStream(
             ],
             stream: true,
             max_tokens: kind === "question" ? Math.min(3_000, maxTokensForStructuredStage(opts.structuredStage)) : maxTokensForStructuredStage(opts.structuredStage),
-            temperature: opts.structuredStage || kind === "question" ? 0 : PRIMARY_TEXT_TEMPERATURE,
+            temperature: opts.structuredStage
+              ? m04Retry.samplingTemperature
+              : kind === "question" ? 0 : PRIMARY_TEXT_TEMPERATURE,
             ...(opts.structuredStage || kind === "question" ? { response_format: { type: "json_object" } } : {}),
             ...(isDeepseekModel(model)
               ? {
@@ -3094,6 +3138,7 @@ async function callPrimaryTextModelStream(
             authoritativeContent,
             opts.structuredStage === "prescribe" ? m04ClinicalRepairGuidanceText : m03DiagnosticRepairGuidance,
             m03ParallelHalves,
+            m04Retry.samplingTemperature,
           );
           noteRepairOutcome(retry);
           if (opts.structuredStage === "prescribe") {
@@ -3304,6 +3349,7 @@ async function callPrimaryTextModelStream(
                 retry.ok ? retry.content : resolvedRetryContent,
                 targetedM04Retry ? m04ClinicalRepairGuidanceText : m03DiagnosticRepairGuidance,
                 m03ParallelHalves,
+                m04Retry.samplingTemperature,
               );
               noteRepairOutcome(secondRetry);
               if (opts.structuredStage === "prescribe") {
@@ -3595,7 +3641,8 @@ async function callPrimaryTextModelStream(
           // 放开的只是**入口**：块内会用剥离身份后的内容重跑严格合同，并对降级候选**重新执行**
           // 独立复核，按意见性质分流（组成/君臣/患者前提 → 带批注受理；剂量强度与未知码 →
           // 维持作废）。因此这不是绕过复核，而是让复核对正确的对象再判一次。
-          (m04ClinicalReviewStatus !== "repair" || m04RepairLoopEarlyExit || m04DeadlineExceeded) &&
+          (m04ClinicalReviewStatus !== "repair" || m04RepairLoopEarlyExit || m04DeadlineExceeded ||
+            m04Retry.repairExhaustedOnEntry) &&
           finishReason === "stop" &&
           opts.structuredStage === "prescribe" &&
           opts.structuredPriorReasoning
@@ -3647,7 +3694,9 @@ async function callPrimaryTextModelStream(
           const transparentFallbackInput = {
             completedRepairAttempts: m04RepairState.completedAttempts,
             // fixpoint 早退与编排超时同样意味着 provider 侧机会用尽，与「完成一轮修复」等价。
-            repairExhausted: m04RepairLoopEarlyExit || m04DeadlineExceeded,
+            // 「上一次同输入已经合同驳回」是第三种到达方式：那一次已经把修复轮走完并证明无效，
+            // 本次再原样走一遍只会得到同一份失败页（生产实测两次输出逐字节相同）。
+            repairExhausted: m04RepairLoopEarlyExit || m04DeadlineExceeded || m04Retry.repairExhaustedOnEntry,
             strictFormulaIssue,
             therapyIssue,
             requestAborted: m04RepairState.requestAborted || upstreamController.signal.aborted || opts.requestSignal?.aborted === true,
@@ -3811,7 +3860,7 @@ async function callPrimaryTextModelStream(
         // 已按透明降级受理。finalize 阶段的复核在这之后才跑，届时任何 repair 意见都
         // 没有承接者，只能决定「出方」还是「0 味」。
         const repairRoundsExhausted = opts.structuredStage === "prescribe" && (
-          m04RepairLoopEarlyExit || m04DeadlineExceeded ||
+          m04RepairLoopEarlyExit || m04DeadlineExceeded || m04Retry.repairExhaustedOnEntry ||
           transparentFormulaDeclassificationAccepted || m04RepairState.completedAttempts >= 1
         );
         let truncated = finishReason !== "stop" || structuredSentinelIncomplete;
@@ -3838,7 +3887,7 @@ async function callPrimaryTextModelStream(
             authoritativeContent = applyDeterministicHerbPrescriptionRoles(authoritativeContent);
             authoritativeContent = applyDeterministicFormulaAnalysis(authoritativeContent);
           }
-          authoritativeContent = synchronizeVisibleClinicalSummary(authoritativeContent, opts.structuredStage);
+          authoritativeContent = synchronizeVisibleClinicalSummary(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext || "");
           if (opts.structuredStage === "prescribe" && !validatedStructuredReasoning(
             authoritativeContent,
             opts.structuredStage,

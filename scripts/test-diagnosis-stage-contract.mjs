@@ -3123,19 +3123,21 @@ const finalizedServerOwnedVisible = finalizedServerOwnedContent.split("<!-- DIAG
 assert.equal(finalizedServerOwnedM04.formula.candidates[0].herbs[0].decoctionRequirement, "另煎或另炖");
 assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.followUpNode, /完成5剂（5日）后复诊/);
 assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.method, /约500mL/, "disease duration must not be misread as pediatric age");
-// 需求7：方义改为逐味成句。原实现按角色分组、且每个角色配一句固定模板
-// （「直治核心病机，构成本方主要治疗支点」对每一张方的君药都相同），既读不出组内每味药各自
-// 承担什么，也不携带本例信息。下面的断言相应加强：不再只要求"药名后有括号"，而是要求每味药
-// 都有自己的一行、并在行内写出**它自己的功用**与**它实际承接的病机**。
+// 需求7：方义保持**逐味**粒度（每味药都要读得出它在这张方里干了什么）。
+//
+// 2026-08-04 甲方复测 7.1/7.2 后改为**按病机分组**呈现：病机作组标题只写一次，组内逐味只写
+// 「药名（角色）：功用」。逐味粒度没有减少——角色括号本身就是关系、组标题本身就是「承接哪条
+// 病机」；删掉的是每行尾巴上那句对每张方逐字相同的关系模板（「为本方治疗支点」
+// 「同承接上述病机」），以及与药味表「对应病机」列重复的整句病机引用。
 {
   const analysis = finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis;
   assert.match(analysis, /围绕.+组方/, "开头必须说明本方围绕哪条治法组方");
-  assert.match(analysis, /治疗支点/, "君药必须被标明为本方治疗支点");
-  // 甲方评测(2026-08-03) 7.1/7.2：改为 Markdown 列表行(不再塌段)、功用剥药类尾巴、
-  // 同一病机原文只全文引用一次。
-  assert.match(analysis, /-\s*\*\*人参\*\*（君）：以「[^」]+」/, "每味药必须独立成列表行并写出它自己的功用");
-  assert.match(analysis, /-\s*\*\*川芎\*\*（[^）]+）：以「[^」]+」/, "同方内其余药味同样逐味成行，不得被并入角色组");
-  assert.match(analysis, /承接核心病机「[^」]+」/, "行内必须写出该药实际承接的病机原文，而不是通用模板句");
+  assert.match(analysis, /-\s*人参（君）：[^\n]+/, "每味药必须独立成列表行并写出它自己的功用");
+  assert.match(analysis, /-\s*川芎（[^）]+）：[^\n]+/, "同方内其余药味同样逐味成行，不得被并入角色组");
+  assert.ok(
+    analysis.split("\n").some((line) => /^\*\*.+\*\*$/.test(line.trim())),
+    "承接的病机必须作为分组标题呈现，而不是消失",
+  );
   assert.equal(
     analysis.split("\n").filter((line) => line.trim().startsWith("- ")).length,
     finalizedServerOwnedM04.formula.candidates[0].herbs.length,
@@ -3143,10 +3145,14 @@ assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.method, /�
   );
   assert.doesNotMatch(analysis, /；[一-龥]{1,8}药[」；]/, "功用文本不得携带药类归类尾巴(检索索引不是医生要读的方义)");
   assert.doesNotMatch(analysis, /的[;；]|围绕「[^」]*的」/, "治法方向串必须剥掉受控词表的「…的」后缀与分号连接");
-  const fullTargetQuotes = (analysis.match(/承接[^「]{0,6}「[^」]{12,}」/g) || []).length;
-  assert.ok(fullTargetQuotes <= new Set(finalizedServerOwnedM04.formula.candidates[0].herbs.map((herb) => herb.targetPathogenesis)).size,
-    "同一病机原文不得逐味整句重复引用");
-  assert.match(analysis, /同承接上述|加强该方向|治疗支点/, "重复病机的后续药味应写同承接关系而非重复原文");
+  const groupHeadings = analysis.split("\n").filter((line) => /^\*\*.+\*\*$/.test(line.trim()));
+  assert.equal(new Set(groupHeadings).size, groupHeadings.length, "同一条病机原文不得重复成组");
+  assert.ok(groupHeadings.length <= new Set(finalizedServerOwnedM04.formula.candidates[0].herbs.map((herb) => herb.targetPathogenesis)).size,
+    "分组数不得超过实际病机条数");
+  for (const boilerplate of ["为本方治疗支点", "同承接上述", "承接次级病机", "协同君药同治"]) {
+    assert.ok(!analysis.includes(boilerplate),
+      `「${boilerplate}」对每张方逐字相同、不携带本例信息，已移除（甲方 2026-08-04 第 7.2 条）`);
+  }
   assert.doesNotMatch(analysis, /。，/, "formula analysis must not join terminal punctuation into malformed prose");
   assert.doesNotMatch(analysis, /各药组共同形成/, "结尾套话不携带可核对内容，已移除");
 }

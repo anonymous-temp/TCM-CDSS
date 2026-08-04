@@ -536,6 +536,40 @@ export function governedTreatmentMethodsInText(value: unknown): TreatmentPrincip
 }
 
 /**
+ * 与 governedTreatmentMethodsInText 同一口径，但**按命中位置排序**并带出偏移量。
+ *
+ * 为什么要另开一个访问器：既有访问器返回的是**词表顺序**（filter 保留 entries 的原序），
+ * 与治法在句子里的先后完全无关。实测「补益心脾，益气养血，和络止痛」返回的头一条是
+ * 「和络」（词表 4.8.5.1 排在 4.11.x 之前），而句子里居首的其实是「补益心脾」。
+ * 「主症治法必须居首」这条判据要读的恰恰是句序，用词表序会判反。
+ *
+ * 偏移量取该条目**任一表述**（规范名/别名/示例）在归一化文本中的最早出现位置；归一化与
+ * treatmentPrinciplesInText 完全一致（同一个 normalizedTerm），因此两者的命中集合恒等。
+ */
+export function governedTreatmentMethodOccurrencesInText(
+  value: unknown,
+): Array<{ entry: TreatmentPrincipleEntry; index: number }> {
+  const text = normalizedTerm(value);
+  if (!text) return [];
+  const hits: Array<{ entry: TreatmentPrincipleEntry; index: number }> = [];
+  for (const entry of treatmentPrincipleEntries) {
+    if (entry.termClass === "category_heading") continue;
+    if (entry.relationPolicy !== "method_requires_case_binding") continue;
+    let earliest = -1;
+    for (const term of [entry.canonical, ...entry.aliases, ...entry.examples].map(normalizedTerm)) {
+      if (!term) continue;
+      const index = text.indexOf(term);
+      if (index >= 0 && (earliest < 0 || index < earliest)) earliest = index;
+    }
+    if (earliest >= 0) hits.push({ entry, index: earliest });
+  }
+  // 同一位置起头的两条（「益气养血」上同时命中 4.11.1 补气 与更长的复合治法）按**长度降序**
+  // 定序：长表述是更具体的那一条，医生读到的方向也是它。
+  return hits.sort((left, right) =>
+    left.index - right.index || right.entry.canonical.length - left.entry.canonical.length);
+}
+
+/**
  * 治法族标识：GB/T 16751.3 层级编号去掉末段。同族 = 同一治法大方向。
  *
  * 为什么绑定要按族而不是按条：词表把治法切得很细（安神法 4.18.1 下有养心安神 .4、

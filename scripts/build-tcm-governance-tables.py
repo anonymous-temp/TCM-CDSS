@@ -27,6 +27,10 @@ FORMULA_STANDARD_SOURCE = DATA_ROOT / "szjg-tcm-formula-standard.json"
 HERB_IDENTITY_SUPPLEMENTS = DATA_ROOT / "tcm-herb-identity-supplements.json"
 FORMULA_OUTPUT = DATA_ROOT / "tcm-formula-governed-catalog.json"
 FORMULA_RETRIEVAL_CONCEPTS = DATA_ROOT / "tcm-formula-retrieval-concepts.json"
+FORMULA_RETRIEVAL_CONCEPTS_SOURCE = DATA_ROOT / "tcm-formula-retrieval-concepts.source.json"
+# 受治理症状词族表（症状→病位/病性轴），已被 tcm-syndrome-hypothesis / tcm-chief-complaint-anchor
+# 消费；这里把它的 terms 复用为检索概念的同义词来源，见 build_retrieval_concepts。
+SYMPTOM_AXIS_MAP = DATA_ROOT / "tcm-symptom-axis-map.source.json"
 HIGH_FREQUENCY_SYNDROME_FORMULA_RELATIONS = DATA_ROOT / "tcm-high-frequency-syndrome-formula-relations.source.json"
 # Regression floor for the curated T8 syndrome->formula relation table. Raising it is a deliberate
 # coverage commitment; the build fails if the source drops below it or if any row stops being
@@ -849,6 +853,127 @@ def load_syndrome_tag_adjudications(governed_formula_names: set[str]) -> dict[st
     return tags_by_formula
 
 
+# 派生概念 id 的前缀。用哈希而不是英文 slug：词族名是中文，任何「中文→英文 id」的对照
+# 都是新手写词表，正是 test:clinical-vocabulary 要终结的东西。哈希由词族内容决定，
+# 词族不变则 id 不变，可作为测试与索引的稳定键。
+SYMPTOM_AXIS_CONCEPT_PREFIX = "symptom_axis_"
+# 检索概念覆盖率闸门。降低=召回维度退化，必须显式改这两个常量并说明理由。
+RETRIEVAL_CONCEPT_FLOOR = 39 + 31  # 人工受治理 39 条 + 词族派生 31 条
+SYMPTOM_TAGGED_FORMULA_FLOOR = 1100
+# 词族派生概念的权重。人工表用 1（泛症状）/2（特异症状）——那是逐条裁定过鉴别力的；
+# 派生条目没有经过这一步，治理层级更低，因此一律取人工表的**下**档 1，不按
+# chiefComplaintAnchor 升到 2。
+# 三档实测（686 例现代医案，金标准方在目录内）：
+#   0.5（压到单条不足以独立准入） recall@8=107 @20=155 @50=208
+#   1（本选择）                   recall@8=109 @20=155 @50=208
+#   2（主症族升档）               recall@8=109 @20=155 @50=208
+# 权重不是本层的敏感参数（候选分由主治词路的 3–48 分主导，概念项 1–2×focus 量级小得多），
+# 三档 @20/@50 完全一致。既然测不出差异，就按治理层级取低档，而不是按测点挑。
+DERIVED_CONCEPT_WEIGHT = 1
+
+
+def build_retrieval_concepts() -> list[dict[str, Any]]:
+    """把受治理症状词族表合成进检索概念表，并把生成物写回 FORMULA_RETRIEVAL_CONCEPTS。
+
+    为什么需要这一步：概念表原本是 39 条人工正则，是**唯一**的症状召回词汇来源，于是
+    2937 首受治理方里只有 906 首（30.8%）能拿到 symptomTags，益气聪明汤这类方的 symptomTags
+    恒为空数组，症状路对它们等于不存在。而项目里**已经有**一张受治理的症状词族表
+    （tcm-symptom-axis-map.source.json，69 族，证候词表轴值域校验过，
+    已被 tcm-syndrome-hypothesis / tcm-chief-complaint-anchor 消费）——腰痛、耳鸣、咽痛、
+    呃逆、畏寒肢冷这些门诊常见词全在里面，只是从没接进召回概念。
+
+    合成规则全部是确定性推导，不新增任何一个中文词：
+      · 词族与既有概念**已有交集**（族内任一词能被该概念的 patientPattern/indicationPattern
+        命中）⇒ 把该族全部同义词并进这条概念的两个模式，概念数不变、召回口径变宽；
+      · 词族与所有既有概念**无交集** ⇒ 派生一条新概念，模式即该族同义词的字面并集，
+        权重取自数据本身（chiefComplaintAnchor 主症族=2，伴随症状族=1），与人工表同量级。
+
+    这不是词表扩写，是同一批受治理词汇在第二个消费点上的复用；词族表改了这里自动跟随。
+    """
+    curated_payload = read_json(FORMULA_RETRIEVAL_CONCEPTS_SOURCE)
+    curated = curated_payload.get("entries", [])
+    families = read_json(SYMPTOM_AXIS_MAP).get("entries", [])
+    if not curated or not families:
+        raise SystemExit("T8 retrieval concepts: curated source or symptom axis map is empty")
+
+    def family_terms(family: dict[str, Any]) -> list[str]:
+        # 长词在前：正则交替按顺序取首个匹配，短词在前会把「头痛不适」只匹到「头痛」。
+        # 对命中集合无影响（只影响捕获长度），但保持与词族表一致的可读顺序更利于排错。
+        return sorted({compact(term) for term in family.get("terms", []) if compact(term)}, key=lambda t: (-len(t), t))
+
+    linked_terms: dict[str, set[str]] = {entry["id"]: set() for entry in curated}
+    derived: list[dict[str, Any]] = []
+    for family in families:
+        terms = family_terms(family)
+        if not terms:
+            continue
+        matched = [
+            entry for entry in curated
+            if any(
+                re.search(entry["patientPattern"], term) or re.search(entry["indicationPattern"], term)
+                for term in terms
+            )
+        ]
+        if matched:
+            for entry in matched:
+                linked_terms[entry["id"]].update(terms)
+            continue
+        derived.append({
+            "id": SYMPTOM_AXIS_CONCEPT_PREFIX + hashlib.sha256("\0".join(terms).encode()).hexdigest()[:10],
+            "key": terms[0],
+            "patientPattern": "|".join(re.escape(term) for term in terms),
+            "indicationPattern": "|".join(re.escape(term) for term in terms),
+            "weight": DERIVED_CONCEPT_WEIGHT,
+            "origin": "derived_symptom_axis_family",
+            "derivedFromTerms": terms,
+        })
+
+    entries: list[dict[str, Any]] = []
+    for entry in curated:
+        extra = sorted(
+            (term for term in linked_terms[entry["id"]]
+             if not re.search(entry["patientPattern"], term) or not re.search(entry["indicationPattern"], term)),
+            key=lambda t: (-len(t), t),
+        )
+        widened = [re.escape(term) for term in extra]
+        entries.append({
+            **entry,
+            "patientPattern": "|".join([entry["patientPattern"], *widened]) if widened else entry["patientPattern"],
+            "indicationPattern": "|".join([entry["indicationPattern"], *widened]) if widened else entry["indicationPattern"],
+            "origin": "curated_widened_by_symptom_axis_family" if widened else "curated",
+            **({"derivedFromTerms": extra} if extra else {}),
+        })
+    entries.extend(sorted(derived, key=lambda item: item["id"]))
+    for entry in entries:
+        # 生成物必须自身可编译：一条坏正则会让运行时 new RegExp 抛错、整个召回层挂掉。
+        re.compile(entry["patientPattern"])
+        re.compile(entry["indicationPattern"])
+    if len(entries) < RETRIEVAL_CONCEPT_FLOOR:
+        raise SystemExit(
+            f"T8 retrieval concepts regressed: {len(entries)} < floor {RETRIEVAL_CONCEPT_FLOOR}"
+        )
+    write_json(FORMULA_RETRIEVAL_CONCEPTS, {
+        "schemaVersion": "tcm-formula-retrieval-concepts-v3",
+        "governanceTable": "T8",
+        "generated": True,
+        "policy": curated_payload.get("policy", ""),
+        "note": "生成物：受治理人工概念表 + 受治理症状词族表的确定性合成。请改两个来源文件，不要手改本文件。",
+        "sources": [
+            {"file": FORMULA_RETRIEVAL_CONCEPTS_SOURCE.name, "sha256": sha256(FORMULA_RETRIEVAL_CONCEPTS_SOURCE)},
+            {"file": SYMPTOM_AXIS_MAP.name, "sha256": sha256(SYMPTOM_AXIS_MAP)},
+        ],
+        "summary": {
+            "curatedCount": len(curated),
+            "symptomAxisFamilyCount": len(families),
+            "widenedCuratedCount": sum(1 for item in entries if item.get("origin") == "curated_widened_by_symptom_axis_family"),
+            "derivedCount": len(derived),
+            "conceptCount": len(entries),
+        },
+        "entries": entries,
+    })
+    return entries
+
+
 def build_formula_catalog(
     resolution_index: dict[str, dict[str, Any]],
     numeric_dose_names: set[str],
@@ -1562,8 +1687,20 @@ def build_formula_retrieval_index(formula_catalog: dict[str, Any]) -> dict[str, 
 
 def main() -> None:
     herb_catalog, resolution_index = build_herb_catalog()
+    # 概念表是目录标注（symptomTags/diseaseTags）与检索倒排索引的共同输入，必须先于二者生成。
+    retrieval_concepts = build_retrieval_concepts()
     formula_catalog = build_formula_catalog(resolution_index, numeric_decoction_dose_names())
+    symptom_tagged = formula_catalog["summary"]["symptomTaggedFormulaCount"]
+    if symptom_tagged < SYMPTOM_TAGGED_FORMULA_FLOOR:
+        raise SystemExit(
+            f"T8 symptomTags coverage regressed: {symptom_tagged} < floor {SYMPTOM_TAGGED_FORMULA_FLOOR}"
+        )
     formula_retrieval_index = build_formula_retrieval_index(formula_catalog)
+    print(json.dumps({
+        "retrievalConcepts": len(retrieval_concepts),
+        "symptomTaggedFormulas": symptom_tagged,
+        "symptomRelations": formula_retrieval_index["summary"]["symptomRelationCount"],
+    }, ensure_ascii=False))
     manifest = {
         "schemaVersion": "clinical-governance-table-manifest-v1",
         "tables": [table_record(table_id, file_name) for table_id, file_name in TABLE_FILES.items()],

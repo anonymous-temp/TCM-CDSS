@@ -842,8 +842,11 @@ assert.equal(acupuncture?.executable, false);
 assert.equal(acupuncture?.governedParameterTemplateAvailable, true);
 assert.equal(acupuncture?.governedFrequencyTemplateAvailable, true);
 assert.equal(acupuncture?.clinicianReviewRequired, true);
-assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplate("acupuncture", "患者失眠不寐")?.sitesOrPoints.includes("神门"), true);
-assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplate("acupuncture", "普通腰痛")?.indicationTag, "musculoskeletal_pain");
-assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplate("acupuncture", "普通湿疹"), undefined);
+// 模板选取改为按**有序适应证**逐个匹配（甲方生产实测 2026-08-04 缺陷1：原按目录排列顺序
+// find，导致头痛病例拿到失眠方穴位）。此处传项目自身的全部适应证，语义与原来的"不限定"一致。
+const acupunctureTags = acupuncture?.indicationTags || [];
+assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplateForTags("acupuncture", "患者失眠不寐", acupunctureTags)?.sitesOrPoints.includes("神门"), true);
+assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplateForTags("acupuncture", "普通腰痛", acupunctureTags)?.indicationTag, "musculoskeletal_pain");
+assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplateForTags("acupuncture", "普通湿疹", acupunctureTags), undefined);
 
 console.log(JSON.stringify({ tables: 12, syndromeTerms: 2060, treatmentTerms: 1276, governedFormulas: formulas.entries.length, syndromeTagAdjudications: syndromeTagAdjudications.entries.length, herbNames: herbs.summary.standardNameCount, failures: 0 }));

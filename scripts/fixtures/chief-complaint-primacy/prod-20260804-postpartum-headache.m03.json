@@ -1,0 +1,253 @@
+{
+  "schemaVersion": "tcm-cdss-reasoning-v2",
+  "stage": "diagnose",
+  "overview": {
+    "tcmDiseaseName": "头风病",
+    "primarySyndrome": "心脾两虚，气血不足",
+    "primarySyndromeResolution": "bounded",
+    "primarySyndromeBasis": [
+      "产后2月余，头痛反复发作1月",
+      "舌象：舌淡苔薄白",
+      "脉象：脉细弱"
+    ],
+    "primarySyndromeResolutionReason": "现有四诊与病史支持心脾两虚、气血不足的工作判断；但缺乏产后出血量、恶露、乳汁、情绪、饮食二便等细节，尚不足以完全排除肝郁血虚、肾虚等兼夹，故为。",
+    "tcmDiseaseRationale": "主诉为产后头痛反复发作1月，以头痛为核心症状，病程1月，非眩晕、非心悸为主，故归入头痛病范畴；需与眩晕、真头痛鉴别。",
+    "tcmDiagnosticRationale": "四诊要点：产后2月余，头痛反复发作1月、产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华，舌象：舌淡苔薄白，脉象：脉细弱，提示病位在心、脾、头窍、病性属气血亏虚，病机为产后气血亏虚，心脾两虚，清窍失养，不荣则痛；心神失养则心悸失眠，脾虚不运则神疲乏力，面色少华。，故辨为“心脾两虚，气血不足”。",
+    "tcmDifferentials": [
+      {
+        "syndrome": "肝郁血虚",
+        "reason": "产后情绪波动常见，肝郁可致头痛，且血虚与肝郁并存时症状可重叠。",
+        "distinguishingPoints": "病历尚未确认善太息是否存在。",
+        "nextCheck": "需追问情绪状态、有无胸胁胀满、脉象是否弦。"
+      },
+      {
+        "syndrome": "肾虚头痛",
+        "reason": "产后肾气亏虚可致头痛，且腰膝酸软、耳鸣等可鉴别。",
+        "distinguishingPoints": "本例无腰膝酸软、耳鸣、夜尿频等肾虚表现，故肾虚证据不足。",
+        "nextCheck": "需追问腰膝酸软、耳鸣、夜尿情况。"
+      }
+    ],
+    "tcmDiseaseDifferentials": [
+      {
+        "diseaseName": "眩晕",
+        "reason": "头痛与眩晕可并见；病历已记录头痛阳性。",
+        "distinguishingPoints": "病历已记录头痛阳性。",
+        "nextCheck": "需追问有无视物旋转、站立不稳。"
+      },
+      {
+        "diseaseName": "真头痛",
+        "reason": "真头痛为头痛之急重症，需排除。",
+        "distinguishingPoints": "病历已记录头痛阳性；病历已记录头痛阳性；病历尚未确认剧烈头痛是否存在；病历尚未确认抽搐是否存在；病历尚未确认呕吐是否存在。",
+        "nextCheck": "若出现剧烈头痛、喷射性呕吐、意识改变，需急诊排查。"
+      }
+    ],
+    "secondarySyndromes": [],
+    "overallPathogenesis": "产后气血亏虚，心脾两虚，清窍失养，不荣则痛；心神失养则心悸失眠，脾虚不运则神疲乏力，面色少华。",
+    "overallTherapy": "补益心脾，益气养血，和络止痛。",
+    "recommendedFormulaDirection": "归脾汤加减",
+    "recommendedFormulaNames": [
+      "归脾汤"
+    ],
+    "formulaSelectionMode": "single",
+    "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "低"
+    }
+  },
+  "westernDiagnosis": {
+    "primary": {
+      "name": "头痛症状",
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+        "产后2月余，头痛反复发作1月",
+        "产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华"
+      ],
+      "clinicalRationale": "产后2月余，头痛反复发作1月支持将“头痛症状”作为当前工作诊断；但现有资料尚不足以确定具体病因，因此暂不采用更具体的病因标签。",
+      "limitations": [
+        "未提供神经系统查体及影像学检查，无法排除颅内器质性病变"
+      ],
+      "suggestedChecks": [
+        "测量血压，评估有无高血压",
+        "神经系统查体，包括眼底检查",
+        "若出现红旗征（如突发剧烈头痛、意识改变、局灶神经体征），及时行头颅CT/MRI"
+      ],
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "病例内推理",
+        "confidence": "中"
+      }
+    },
+    "differentials": [
+      {
+        "name": "偏头痛",
+        "reason": "产后头痛常见类型，需与紧张型头痛等鉴别",
+        "distinguishingPoints": "本例头痛反复发作，劳累后加重；但未记录单侧搏动性、恶心呕吐或畏光畏声等偏头痛特征，故暂不优先考虑",
+        "nextCheck": "详细询问头痛性质、部位、持续时间及伴随症状"
+      },
+      {
+        "name": "紧张型头痛",
+        "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
+        "distinguishingPoints": "本例头痛劳累后加重，符合紧张型头痛特点；但缺乏压迫感或紧箍感等典型描述",
+        "nextCheck": "询问头痛性质是否为压迫性或紧箍样"
+      },
+      {
+        "name": "高血压",
+        "reason": "产后2月余，虽已过产后6周；但仍需警惕迟发型子痫前期",
+        "distinguishingPoints": "本例否认高血压病史；但未提供当前血压值，不能完全排除",
+        "nextCheck": "测量血压，必要时查尿蛋白"
+      }
+    ]
+  },
+  "pathogenesis": {
+    "summary": "产后气血亏虚，清窍失养，不荣则痛；心脾两虚，气血不足，心神失养，脾虚不运",
+    "locationDifferentiation": {
+      "items": [
+        "心",
+        "脾",
+        "头窍"
+      ],
+      "details": [
+        {
+          "location": "头窍",
+          "basis": "产后2月余，头痛反复发作1月"
+        }
+      ],
+      "resolution": "bounded",
+      "resolutionReason": "病位判断基于症状与舌脉；但缺乏饮食、二便等脾虚佐证，故为。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "natureDifferentiation": {
+      "items": [
+        "气血亏虚"
+      ],
+      "rootDeficiency": [
+        "气虚",
+        "血虚"
+      ],
+      "branchExcess": [],
+      "basis": "",
+      "resolution": "bounded",
+      "resolutionReason": "病性判断基于症状与舌脉；但缺乏寒热、二便等佐证，故为。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "symptomClusters": [
+      {
+        "symptoms": [
+          "产后2月余，头痛反复发作1月",
+          "劳累后加重"
+        ],
+        "mechanism": "劳累耗气，气血更虚，清窍失养，不荣则痛。"
+      },
+      {
+        "symptoms": [
+          "产后2月余"
+        ],
+        "mechanism": "心脾两虚，气血不足，心神失养，脾虚不运。"
+      }
+    ],
+    "caseRelationship": {
+      "rootPattern": "心脾两虚，气血不足",
+      "mainManifestation": "头痛",
+      "relationship": "心脾两虚，气血不足，清窍失养，不荣则痛，发为头痛。"
+    },
+    "chain": [
+      {
+        "nodeId": "P1",
+        "patientFact": "产后2月余，头痛反复发作1月",
+        "syndromeEvidence": "产后2月余",
+        "pathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+        "therapyDirection": "益气养血，和络止痛。",
+        "pathogenesisType": "始动",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P2",
+        "patientFact": "产后2月余",
+        "syndromeEvidence": "产后2月余，头痛反复发作1月",
+        "pathogenesis": "心脾两虚，气血不足，心神失养，脾虚不运。",
+        "therapyDirection": "补益心脾，养血安神。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ],
+    "uncertainties": [
+      {
+        "item": "产后出血量、恶露情况",
+        "reason": "影响血虚程度判断",
+        "affects": "辨证与方药"
+      },
+      {
+        "item": "情绪状态、有无胁肋胀痛",
+        "reason": "排除肝郁血虚",
+        "affects": "辨证"
+      },
+      {
+        "item": "饮食、二便情况",
+        "reason": "佐证脾虚程度",
+        "affects": "辨证与方药"
+      },
+      {
+        "item": "有无腰膝酸软、耳鸣",
+        "reason": "排除肾虚头痛",
+        "affects": "辨证"
+      },
+      {
+        "item": "辨证推理质量边界",
+        "reason": "部分支撑说明、分类或鉴别深度仍不充分；已保留可回溯的患者事实、工作证候及病机治法。",
+        "affects": "影响结论深度与鉴别把握，不影响风险筛查和已回溯患者事实。"
+      }
+    ]
+  },
+  "therapy": {
+    "overallPrinciple": "虚则补之",
+    "overallMethod": "补益心脾，益气养血，和络止痛。",
+    "subTherapies": [
+      {
+        "therapy": "益气养血，和络止痛",
+        "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "therapy": "补益心脾，养血安神",
+        "targetPathogenesis": "心脾两虚，气血不足，心神失养",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ]
+  },
+  "management": {
+    "mustCollect": [
+      "血压测量值",
+      "头痛性质、部位、持续时间及诱发缓解因素",
+      "神经系统查体结果",
+      "产后哺乳情况"
+    ],
+    "followupSafetyNet": "若头痛突然加剧、伴呕吐、视力模糊、意识改变或肢体无力，需立即就医排查子痫前期或颅内病变；建议1周内复诊评估疗效。"
+  }
+}

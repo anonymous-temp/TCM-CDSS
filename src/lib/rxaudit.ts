@@ -25,6 +25,7 @@ import {
   type MedicationSemanticExtraction,
 } from "./medication-event-extractor";
 import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit } from "./tcm-knowledge";
+import { matchesPopulationScope } from "./clinical-vocabulary";
 
 export type { RxAuditResultCode, RxAuditRiskLevel } from "./rxaudit-normalize";
 
@@ -1525,21 +1526,93 @@ function severityTag(risk: string): string {
 }
 
 /**
+ * 审方风险文本里的**人群枚举**按本例性别逐项裁剪。
+ *
+ * 为什么必须在这一层做：审方风险的适用人群写法几乎都是**析取枚举**——
+ * 「出血倾向/月经期/抗凝状态」「儿童、孕妇、哺乳期妇女、经期妇女、年老体弱者应在医师指导下服用」。
+ * 其中只有一部分限定女性生理状态，其余（出血倾向、抗凝状态、儿童、年老体弱）与性别无关。
+ * 而下游只有一道**按整格/整句**判定的性别适用性净化：整格命中即整格改写为「本例男性不适用」，
+ * 整句命中即整句删除。于是与性别无关的那一半被连坐——
+ * 生产实测（2026-08-04，BASE_URL=https://82.156.128.153/tcm-cdss）：
+ *   · fixa-d2c，71 岁男性胸痹：丹参保心茶说明书第 5 条整条消失（4. 之后直接 6.），
+ *     而该条对本例成立的正是「年老体弱者应在医师指导下服用」；
+ *   · fixa-d2，58 岁男性、长期服阿司匹林：丹参/川芎/桃仁/红花的「出血倾向/月经期/抗凝状态」
+ *     逐味安全边界被清成 19 个连续分号——识别正确的活血药出血风险被整段抹掉。
+ *
+ * 判定用**受治理人群限定词表**（tcm-population-scope.source.json → matchesPopulationScope 的
+ * maternal 组），不新写中文词表：该组恰好覆盖 孕妇/月经/妊娠/妇女/乳汁 等女性生理限定写法，
+ * 而「儿童」「年老体弱者」「出血倾向」「抗凝状态」一个都不命中。
+ *
+ * 边界：只删**枚举项**，不删整条风险、不降风险等级、不改审方结论。整条都只限定女性生理状态时
+ * 不再交给下游猜，本层直接标 not_applicable 并给出不含女性限定词的显式说明。
+ */
+// 刻意不收「和」：它更常出现在词内（调和诸药、和胃降逆）而不是作枚举连接，切开会把正文打碎。
+const RX_AUDIT_ENUMERATION_SEPARATORS = /([、，,;；/／|｜]|以及)/;
+
+export function sexScopedRiskText(text: string, gender: "MALE" | "FEMALE" | "UNKNOWN"): string {
+  if (gender !== "MALE" || !text) return text;
+  const parts = text.split(RX_AUDIT_ENUMERATION_SEPARATORS);
+  // parts = [seg0, sep0, seg1, sep1, ...]。少于两段说明不是枚举，只能整条判定。
+  const segments: string[] = [];
+  const separators: string[] = [];
+  for (const [index, part] of parts.entries()) (index % 2 === 0 ? segments : separators).push(part);
+  if (segments.length < 2) return text;
+  const keep = segments.map((segment) => !matchesPopulationScope(segment, "maternal"));
+  if (keep.every(Boolean) || keep.every((value) => !value)) return text;
+  let rebuilt = "";
+  for (const [index, segment] of segments.entries()) {
+    if (!keep[index]) continue;
+    if (rebuilt) rebuilt += separators[index - 1] ?? "、";
+    rebuilt += segment;
+  }
+  return rebuilt || text;
+}
+
+/** 整条风险是否只限定女性生理状态（逐项都命中受治理 maternal 组）。 */
+export function riskIsMaternalScopedOnly(text: string): boolean {
+  if (!text.trim()) return false;
+  const segments = text.split(RX_AUDIT_ENUMERATION_SEPARATORS).filter((_, index) => index % 2 === 0);
+  return segments.filter((segment) => segment.trim()).every((segment) => matchesPopulationScope(segment, "maternal"));
+}
+
+const RX_AUDIT_SEX_INAPPLICABLE_NOTE =
+  "本条提示的限定人群与本例性别不符，已标注为不适用；原始规则文本见问题ID对应的审方记录。";
+
+function applySexScopeToIssue(issue: RxAuditIssue, gender: "MALE" | "FEMALE" | "UNKNOWN"): RxAuditIssue {
+  if (gender !== "MALE") return { ...issue, patientApplicability: issue.patientApplicability || "unknown" };
+  const scoped = [issue.title, issue.description, ...issue.suggestions].filter((value) => value?.trim());
+  // 整条只限定女性生理状态：显式标不适用，不把原文留给下游整格改写。
+  if (scoped.length > 0 && scoped.every((value) => riskIsMaternalScopedOnly(value))) {
+    return {
+      ...issue,
+      patientApplicability: "not_applicable",
+      suggestions: [RX_AUDIT_SEX_INAPPLICABLE_NOTE],
+    };
+  }
+  return {
+    ...issue,
+    patientApplicability: issue.patientApplicability || "unknown",
+    title: sexScopedRiskText(issue.title, gender),
+    description: sexScopedRiskText(issue.description, gender),
+    suggestions: issue.suggestions.map((value) => sexScopedRiskText(value, gender)),
+    evidence: issue.evidence.map((item) => ({
+      ...item,
+      ...(item.quote ? { quote: sexScopedRiskText(item.quote, gender) } : {}),
+      ...(item.ruleName ? { ruleName: sexScopedRiskText(item.ruleName, gender) } : {}),
+    })),
+  };
+}
+
+/**
  * Preserve every vendor issue and issueId. Local post-processing is monotonic: it may upgrade an
  * incomplete or malformed provider result, but it must never lower provider risk based on free text.
- * Patient applicability can only be consumed once the provider exposes a machine-readable contract.
  */
 export function normalizeAuditOutcomeForPatient(
   outcome: Extract<RxAuditOutcome, { ok: true }>,
   patientSex?: string,
 ): Extract<RxAuditOutcome, { ok: true }> {
-  // Sex is intentionally not used until Lingxi exposes a machine-readable applicability contract.
-  // Keeping the parameter in the boundary prevents callers from inventing free-text downgrades.
-  void patientSex;
-  const issues = dedupeRxAuditIssues(outcome.issues).map((issue) => ({
-    ...issue,
-    patientApplicability: issue.patientApplicability || "unknown",
-  }));
+  const gender = genderCode(patientSex);
+  const issues = dedupeRxAuditIssues(outcome.issues).map((issue) => applySexScopeToIssue(issue, gender));
   const containsGeneratedIssueId = issues.some((issue) => issue.issueIdGenerated);
   const issueHighestRiskLevel = issues.reduce<RxAuditRiskLevel>(
     (highest, issue) => {

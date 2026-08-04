@@ -522,6 +522,18 @@ export function structuredClinicalRepairHint(
       "不得新增患者没有记录的表现；主症原句就在病历里，逐字摘录即可。",
     ].join("\n");
   }
+  if (reason === "m03_therapy_chief_complaint_not_leading") {
+    return [
+      "总治法（therapy.overallMethod）把**兼症方向**写在了最前面，主诉主症对应的治法方向排在它之后。主诉是全案锚点：主症方向必须居首并主导选方，兼症方向只能次之。",
+      contextualCandidates.length > 0
+        ? `按本例病机链，承接主诉主症的节点给出的治法方向是：${contextualCandidates.join("、")}。请把这一方向（或其同义归纳）改写到 overallMethod 的**最前面**。`
+        : "请把承接主诉主症的那个病机节点的治法方向改写到 overallMethod 的最前面。",
+      "兼症方向**保留**，只是移到主症方向之后，可用「兼以…」「佐以…」表明主次；不要删除任何有患者事实支撑的方向，也不要新增方向。",
+      "overview.overallTherapy 与 therapy.subTherapies 的次序须与 overallMethod 一致：承接主症的那条 subTherapy 排在首位且 priority 写“主要”。",
+      "recommendedFormulaDirection / recommendedFormulaNames 必须随之以主症为准重新判断：应优先选用主治该主症的方，不得沿用以兼症为主治的方（例如主症为头痛时，不应停留在以心悸健忘失眠为主治的方上）。若检索短名单中确无主治主症的方，保留原方但在 primarySyndromeResolutionReason 写明这一点。",
+      "西医诊断、证型、病名、病机链节点与患者事实保持不变——本轮只调次序与随之而来的选方判断。",
+    ].join("\n");
+  }
   if (reason === "m03_tcm_reasoning_diagnostic_dependency") {
     return [
       "中医推理把缺少 CT、MRI、化验、量表或仪器检查写成了中医辨证、证候、病位病性或病机不能成立的理由。",

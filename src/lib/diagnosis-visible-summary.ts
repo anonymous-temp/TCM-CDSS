@@ -8,7 +8,9 @@ import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePola
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { tcmTreatmentAssessmentPositioningForDisplay } from "./tcm-treatment-projects";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
-import { resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
+import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, governedTcmLocationsInText, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
+import { clinicalAxisAttributionFromFacts } from "./tcm-syndrome-hypothesis";
+import { classifyWesternDiagnosticEvidence, clinicalFactSourcesFromContext, clinicalFactWithSource } from "./clinical-fact-source";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives } from "./internal-tag-hygiene";
 
@@ -1205,6 +1207,34 @@ export function alignNormalizedM03WesternClinicalRationale(content: string): str
 }
 
 /**
+ * 近似重复的病历事实去重：主诉与现病史常常一句包住另一句（「产后2月余，头痛反复发作1月」
+ * 与「产后2月余，近1月头痛反复，劳累后加重，伴…」）。逐字包含时只保留信息更全的那条，
+ * 避免同一事实在推理句里印两遍。只按**包含关系**判等，不做任何相似度猜测。
+ */
+function dropContainedClinicalFacts(facts: readonly string[]): string[] {
+  const values = [...new Set(facts.map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean))];
+  return values.filter((item) => !values.some((other) => other !== item && other.includes(item)));
+}
+
+/** 病位条目 → 受控病位 ID（认规范名/别名，也认复合表述里内嵌的受控病位）。 */
+function governedLocationAxisIds(item: string): string[] {
+  const exact = canonicalTcmLocationTerm(item);
+  if (exact) return [exact.id];
+  return governedTcmLocationsInText(item).map((entry) => entry.id);
+}
+
+/** 病性条目 → 受控病性 ID。复合写法（气血亏虚）在词表里归一不到时返回空，归属整条跳过。 */
+function governedNatureAxisIds(item: string): string[] {
+  const exact = canonicalTcmNatureTerm(item);
+  return exact ? [exact.id] : [];
+}
+
+/** 拼接前去掉引文自带的句末标点，避免拼出「…。，故辨为…」这类破碎标点。 */
+function trimTrailingClinicalPunctuation(value: string): string {
+  return value.replace(/[。；;，,、\s]+$/u, "");
+}
+
+/**
  * Keep the explanatory TCM rationale from becoming a second failure surface after grounding.
  * This only projects the surviving model-authored fact, syndrome and pathogenesis into one
  * readable inference sentence; it does not infer a new syndrome, location, nature or therapy.
@@ -1232,23 +1262,65 @@ export function alignNormalizedM03TcmDiagnosticRationale(content: string): strin
       !isDisplayableClinicalText(mechanism)
     ) return content;
 
-    // 甲方评测(2026-08-03)「辨证推理无实际内容」：旧模板只有一条事实+『结合其表现模式』
-    // 空话。仍然只做投影(不新增证候/病位/病性/治法),但把已成立的四诊要点(症状依据、舌象、
-    // 脉象)与病位病性一并织进「四诊要点 → 病机 → 证型」推理句,读得出为什么是这个证。
+    // 甲方评测 2026-08-04 第 2.1 条「推理过程没有实际内容」的根修。
+    //
+    // 上一版模板（2026-08-03）已经把四诊要点、病位、病性都织进来了，仍然被判为套话——
+    // 生产实测那一句是：
+    //   「四诊要点：产后2月余，头痛反复发作1月、产后2月余，近1月头痛反复，劳累后加重，伴神疲
+    //     乏力、心悸失眠、面色少华，舌象：…，提示病位在心、脾、头窍、病性属气血亏虚，
+    //     病机为产后气血亏虚，…，不荣则痛；…面色少华。，故辨为“心脾两虚，气血不足”。」
+    // 三个病：① 主诉与现病史近乎逐字重复地并排列出（同一事实印两遍）；
+    //        ② 四诊要点与病位病性之间**没有任何对应关系**——读者读不出为什么是这几个病位，
+    //           这才是「没有实际内容」的实质：它是字段拼接，不是推理；
+    //        ③ 病机原文整段照抄，自带句号，拼出「。，故辨为」这种破碎标点。
+    //
+    // 本版仍然只做投影（不新增证候/病位/病性/治法），但补上缺的那一步**归属关系**：
+    // 每条病位/病性后面注明是本例哪一条四诊要点支持它，映射取自受治理的症状—轴表
+    // （tcm-symptom-axis-map，与证候假设层同一张），不新写任何中文词表；
+    // 归属不上的条目照常列出，只是不带「据」——fail-open，不因为词表没收录就删掉医生的判断。
     const nature = recordValue(pathogenesis?.natureDifferentiation);
     const location = recordValue(pathogenesis?.locationDifferentiation);
-    const natureItems = semanticItems(nature?.items).slice(0, 3).join("、");
-    const locationItems = semanticItems(location?.items).slice(0, 3).join("、");
     const tongueFact = facts.find((item) => /舌/.test(item)) || "";
     const pulseFact = facts.find((item) => /脉/.test(item)) || "";
-    const symptomFacts = facts.filter((item) => item !== tongueFact && item !== pulseFact).slice(0, 3);
+    const symptomFacts = dropContainedClinicalFacts(
+      facts.filter((item) => item !== tongueFact && item !== pulseFact),
+    ).slice(0, 3);
+    // 归属用的事实池比呈现用的四诊要点宽：primarySyndromeBasis 常常只收主诉与舌脉三条，
+    // 而支持病位病性的伴随症状（心悸失眠→心、神疲乏力→脾）写在现病史里。症状簇、病机节点
+    // 患者事实与西医支持事实都是**已接地的病历原句**（groundStructuredPatientFacts 逐条核过），
+    // 拿它们做归属不引入任何新事实。
+    const attributionFacts = dropContainedClinicalFacts([
+      ...symptomFacts,
+      tongueFact,
+      pulseFact,
+      ...chain.map((node) => markdownCell(node.patientFact)).filter(Boolean),
+      ...recordList(pathogenesis?.symptomClusters).flatMap((cluster) => semanticItems(cluster.symptoms)),
+      ...semanticItems(recordValue(recordValue(reasoning.westernDiagnosis)?.primary)?.supportingFacts),
+    ]);
+    const attribution = clinicalAxisAttributionFromFacts(attributionFacts);
+    const withBasis = (item: string, axisIds: readonly string[], table: Map<string, string[]>): string => {
+      const basis = [...new Set(axisIds.flatMap((id) => table.get(id) || []))];
+      return basis.length > 0 ? `${item}（据${joinClinicalClauses(basis.slice(0, 2), "、")}）` : item;
+    };
+    const locationItems = semanticItems(location?.items).slice(0, 3)
+      .map((item) => withBasis(item, governedLocationAxisIds(item), attribution.locations))
+      .join("、");
+    // 病性同时看 items 与 rootDeficiency/branchExcess：复合写法（「气血亏虚」）在受控病性词表里
+    // 归一不到，拆分后的「气虚」「血虚」才归一得到，归属也只有在拆分层才成立。
+    const natureItems = [...new Set([
+      ...semanticItems(nature?.items),
+      ...semanticItems(nature?.rootDeficiency),
+      ...semanticItems(nature?.branchExcess),
+    ])].slice(0, 3)
+      .map((item) => withBasis(item, governedNatureAxisIds(item), attribution.natures))
+      .join("、");
     const fourDiagClues = [symptomFacts.join("、"), tongueFact, pulseFact].filter(Boolean).join("，");
     overview!.tcmDiagnosticRationale = [
       `四诊要点：${fourDiagClues || fact}`,
       locationItems || natureItems
-        ? `提示病位在${locationItems || "待定"}${natureItems ? `、病性属${natureItems}` : ""}`
+        ? `据此辨病位在${locationItems || "待定"}${natureItems ? `、病性属${natureItems}` : ""}`
         : "",
-      `病机为${mechanism}`,
+      `病机为${trimTrailingClinicalPunctuation(mechanism)}`,
       `故辨为“${syndrome}”`,
     ].filter(Boolean).join("，") + "。";
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
@@ -1610,14 +1682,43 @@ function symptomLevelWesternName(fact: string | undefined, fallback: string): st
  * Keep the signed Western diagnosis label unchanged for review and downstream contracts, while
  * presenting governed symptom-level labels as an explicit working diagnosis to clinicians.
  */
-export function westernDiagnosisLabelForDisplay(value: unknown): string {
+/**
+ * 症状级工作诊断的**非规范括注写法**。
+ *
+ * 生产实测（2026-08-04，归档 case-966 在生产复跑）：`primary.name = "头痛（症状性）"`，
+ * 医生页面逐字显示「诊断倾向：头痛（症状性）」。同一批归档里还有「尿路感染（症状性）」
+ * 「多汗症（症状性）」「三叉神经痛（症状性）」——这是一整类写法，不是一个 case 的口误。
+ * 「（症状性）」不是临床规范术语（规范用法是「症状性癫痫」这类**病因学**限定，
+ * 挂在「头痛」后面反而把「病因不明」说成了「病因已知为症状性」，语义正相反）。
+ *
+ * 服务端此前只认 `X症状` 这一种形态（模型按提示词写「头痛症状」时能转），
+ * 模型改用括注写法就整条漏过去。这里按**形态族**收口，而不是逐个字符串补丁。
+ */
+const NON_STANDARD_SYMPTOM_QUALIFIER =
+  /(?:症状|[（(](?:症状性|症状|待查|待因|病因待查|病因待鉴别|病因不明)[）)]|待因)$/u;
+
+/**
+ * Keep the signed Western diagnosis label unchanged for review and downstream contracts, while
+ * presenting governed symptom-level labels as an explicit working diagnosis to clinicians.
+ *
+ * 甲方评测(2026-08-04) 1.1.2：统一为规范诊断名；病因不足时用「X，病因待查」。
+ * 两步都在这里完成，它是医生可见标签的唯一权威（Markdown 摘要、客户端诊断卡、HIS 方案共用）：
+ *   1) 有 ICD-10 编码时以**编码名称**为规范诊断名（编码由服务端确定性关联，不是模型措辞）；
+ *   2) 症状级限定统一收敛成「，病因待查」——甲方指定的形态，不再用括注。
+ * 签名载荷里的 primary.name 原样保留，复核与下游契约不变。
+ */
+export function westernDiagnosisLabelForDisplay(value: unknown, coding?: unknown): string {
   const label = typeof value === "string" ? value.trim() : "";
   if (!label) return "";
-  const symptomLabel = label.match(/^(.{1,24})症状$/)?.[1]?.trim();
-  // 甲方评测(2026-08-03)：「症状性工作诊断」不是临床规范术语。医生可见标签改用病历惯用的
-  // 「病因待查」形态(与 structured-clinical-repair 的修复措辞同一约定)；签名载荷内的
-  // primary.name 仍保留 "X症状" 形态,复核与下游契约不变。
-  return symptomLabel ? `${symptomLabel}（病因待查）` : label;
+  const codingDisplay = markdownCell(recordValue(coding)?.display);
+  const qualifier = label.match(NON_STANDARD_SYMPTOM_QUALIFIER)?.[0] || "";
+  const core = qualifier ? label.slice(0, label.length - qualifier.length).trim() : label;
+  if (!core) return label;
+  // 编码名称只在它确实是本标签的规范化写法时替换（同名或以其为核心），避免编码歧义时改写诊断。
+  const standardCore = codingDisplay && (codingDisplay === core || core.includes(codingDisplay))
+    ? codingDisplay
+    : core;
+  return qualifier ? `${standardCore}，病因待查` : standardCore;
 }
 
 function documentedMaterialFacts(clinicalContext: string): string[] {
@@ -1788,6 +1889,20 @@ function markdownCell(value: unknown): string {
   return typeof value === "string" ? value.replace(/[|\r\n]+/g, " ").trim() : "";
 }
 
+/**
+ * 多行**段落**（非表格单元格）的渲染口。
+ *
+ * 甲方评测(2026-08-04) 7.1「方解格式不正确」的直接根因：方义解析本身是一段合法的 Markdown
+ * 列表（`buildFormulaAnalysis` 用 `\n` 分行），却被 markdownCell 渲染——而 markdownCell 的
+ * 职责是**表格单元格**，它把 `[|\r\n]+` 一律压成空格（换行会撑破表格）。于是整段列表在医生
+ * 页面上塌成一行「… - **黄芪**（君）：… - **当归**（君）：…」，看起来像格式坏了，其实是
+ * 用错了渲染口。段落只需要转义竖线，换行必须原样保留。
+ */
+function markdownBlock(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.replace(/\r\n?/g, "\n").replace(/\|/g, "\\|").trim();
+}
+
 // markdownCell 对非字符串一律返回空串——decoction.dosesPerDay 这类**数字**字段直接经它渲染
 // 会产出「每日  剂 / 每日分  次服」空白模板（甲方生产实测的服法残片一类；下游 re-render
 // 会绕过 outputTransform 清洗层，必须在渲染源头就不产生空位）。
@@ -1875,7 +1990,7 @@ function syndromeLabelWithNationalStandard(
   return standard ? `${label}（国标对应：${standard}）` : label;
 }
 
-function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>): string {
+function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinicalContext = ""): string {
   const overview = recordValue(reasoning.overview);
   const westernDiagnosis = recordValue(reasoning.westernDiagnosis);
   const westernPrimary = recordValue(westernDiagnosis?.primary);
@@ -1898,14 +2013,29 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>): strin
     "# 中医辅助诊疗报告",
     "",
     westernHeading,
-    `**诊断倾向**：${westernDiagnosisLabelForDisplay(markdownCell(westernPrimary?.name))}`,
+    `**诊断倾向**：${westernDiagnosisLabelForDisplay(markdownCell(westernPrimary?.name), westernPrimary?.coding)}`,
   ];
-  const westernFacts = Array.isArray(westernPrimary?.supportingFacts) ? westernPrimary.supportingFacts.map(markdownCell).filter(Boolean) : [];
-  if (westernFacts.length > 0) lines.push(`**支持依据**：${joinClinicalClauses(westernFacts, "；")}`);
+  // 甲方评测(2026-08-04) 1.1.1：诊断依据分「支持/排除/待查」三类并标注事实来源。
+  // 三类都是对已签名载荷既有字段的重新归类（见 clinical-fact-source.ts），不新增任何推断；
+  // 来源取自受治理必填字段矩阵的字段名，标不出来源的条目照常呈现。
+  const evidenceSources = clinicalFactSourcesFromContext(clinicalContext);
+  const evidence = classifyWesternDiagnosticEvidence(westernPrimary);
+  const evidenceLine = (label: string, values: readonly string[], withSource: boolean) => {
+    const items = values.map(markdownCell).filter(Boolean);
+    if (items.length === 0) return;
+    lines.push(`**${label}**：${joinClinicalClauses(
+      items.map((item) => (withSource ? clinicalFactWithSource(item, evidenceSources) : item)), "；")}`);
+  };
+  evidenceLine("支持依据", evidence.supporting, true);
+  evidenceLine("排除依据", evidence.excluding, true);
+  // 待查依据是「尚缺什么/下一步查什么」，本身不是病历事实，标来源没有意义。
+  evidenceLine("待查依据", evidence.pending, false);
   lines.push(
     "",
     overviewHeading,
-    ...(isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseName)) ? [`**中医病名**：${markdownCell(overview?.tcmDiseaseName)}`] : []),
+    // 甲方评测(2026-08-04) 1.2.1「中医诊断卡只保留证候结论，病名与病史复述移除」：
+    // 中医病名与它的归属推理一并移到下方「中医辨病鉴别」段（辨病是独立的一段判断，
+    // 与证候结论不该挤在同一张卡里）。字段本身不变，签名载荷与 HIS 方案照常携带 tcmDiseaseName。
     `**证型**：${syndromeLabelWithNationalStandard(reasoning, "overview.primarySyndrome", overview?.primarySyndrome)}`,
     // 服务端把模型选的方名剥离进 deferredFormulaSelection 之后，必须告诉医生它被剥离了。
     //
@@ -1939,12 +2069,26 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
   return [`**待确认方名**：本次分析曾指向 ${names.map(markdownCell).join("、")}，因该方在治理目录中与本例签名证候尚无直接对应关系，服务端未予锁定；是否采用由医生结合方证判断。`];
 }
 
-  if (isDisplayableClinicalText(markdownCell(overview?.tcmDiagnosticRationale))) {
-    lines.splice(lines.indexOf(pathogenesisHeading), 0, `**辨证分析**：${markdownCell(overview?.tcmDiagnosticRationale)}`, "");
-  }
   // 甲方评测(2026-08-03)要求鉴别诊断给到病名级：辨病鉴别(相邻中医病名)在前、证候鉴别在后，
   // 两层分节呈现，标题不再笼统写「中医鉴别」。
+  //
+  // 2026-08-04 的 1.2.1 在此之上再分一层：概览卡只留证候结论，**辨病**（病名 + 归属推理）与
+  // **辨证**（推理链）各自成段。此前辨证分析直接插在概览卡里，卡片因此同时载着结论、病名与
+  // 一整段引用了主诉原文的推理——甲方读到的就是「诊断卡里又在复述病史」。分段之后，
+  // 卡片回答「是什么证」，两个分段各自回答「为什么是这个病名/这个证型」，与客户端诊断卡同构。
+  const tcmDiseaseName = markdownCell(overview?.tcmDiseaseName);
   const tcmDiseaseDifferentials = recordList(overview?.tcmDiseaseDifferentials);
+  if (isDisplayableClinicalText(tcmDiseaseName) || tcmDiseaseDifferentials.length > 0) {
+    const insertAt = lines.indexOf(pathogenesisHeading);
+    lines.splice(insertAt, 0,
+      "### 中医辨病",
+      ...(isDisplayableClinicalText(tcmDiseaseName) ? [`**中医病名**：${tcmDiseaseName}`] : []),
+      ...(isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseRationale))
+        ? [`**辨病推理**：${markdownCell(overview?.tcmDiseaseRationale)}`]
+        : []),
+      "",
+    );
+  }
   if (tcmDiseaseDifferentials.length > 0) {
     const insertAt = lines.indexOf(pathogenesisHeading);
     lines.splice(insertAt, 0,
@@ -1954,6 +2098,13 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
         markdownCell(item.distinguishingPoints) ? `区分要点：${markdownCell(item.distinguishingPoints)}` : "",
         markdownCell(item.nextCheck) ? `建议核实：${markdownCell(item.nextCheck)}` : "",
       ], "；")}`),
+      "",
+    );
+  }
+  if (isDisplayableClinicalText(markdownCell(overview?.tcmDiagnosticRationale))) {
+    lines.splice(lines.indexOf(pathogenesisHeading), 0,
+      "### 中医辨证",
+      `**辨证推理**：${markdownCell(overview?.tcmDiagnosticRationale)}`,
       "",
     );
   }
@@ -2118,7 +2269,7 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       })(),
       "",
       "### 方义分析",
-      markdownCell(candidate.formulaAnalysis),
+      markdownBlock(candidate.formulaAnalysis),
     );
     if (compositionLogic.length > 0) {
       lines.push(
@@ -2293,6 +2444,11 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
 export function synchronizeVisibleClinicalSummary(
   content: string,
   expectedStage: "diagnose" | "prescribe",
+  /**
+   * 病历接地正文。只用于给诊断依据标注**事实来源**（第 1.1.1 条）：来源靠该正文的行结构确定，
+   * 载荷本身不携带这一信息。缺省为空串——不传时三分类照常呈现，只是不带来源标注（fail-open）。
+   */
+  clinicalContext = "",
 ): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -2311,7 +2467,7 @@ export function synchronizeVisibleClinicalSummary(
     // 签名载荷不受影响（本函数在 applyDiagnose/PrescribeContractSignature 之前运行）。
     const reasoning = sanitizeReasoningNarratives(parsed);
     const visible = expectedStage === "diagnose"
-      ? visibleDiagnoseFromReasoning(reasoning)
+      ? visibleDiagnoseFromReasoning(reasoning, clinicalContext)
       : visiblePrescribeFromReasoning(reasoning);
     const sanitizedSentinel = JSON.stringify(reasoning) === JSON.stringify(parsed)
       ? content.slice(start)

@@ -4,6 +4,10 @@ const scripts = [
   "test:rxaudit-contract",
   "test:rxaudit-payload",
   "test:rxaudit-routes",
+  // 审方风险的性别适用性裁剪（甲方生产实测 2026-08-04 缺陷2）。风险的适用人群几乎都是析取枚举
+  // （出血倾向/月经期/抗凝状态、儿童/孕妇/经期妇女/年老体弱者），而下游只有一道按整格判定的
+  // 性别净化——与性别无关的那一半被连坐，医生动作整格变成「本例男性不适用」。
+  "test:rxaudit-sex-applicability",
   "test:safety-pediatric",
   "test:safety-mutations",
   "test:clinical-facts",
@@ -22,6 +26,10 @@ const scripts = [
   "test:snapshot-auth-binding",
   "test:lineage-governance",
   "test:tcm-treatments",
+  // 治疗项目「适应证—方案」绑定（甲方生产实测 2026-08-04 缺陷1）。上一套断言的是项目**选谁**，
+  // 本套断言的是选中之后**卡片说的适应证与卡片给的方案是不是同一个**——生产实测两者可以分叉：
+  // 头痛病例写着"围绕头痛症状"却给失眠方的安眠/心俞，产后头痛的灸法写出本例没有的"经带与下腹症状"。
+  "test:treatment-indication",
   "test:acupoint-evidence",
   "test:modern-case-corpus",
   "test:disease-lexicon",
@@ -35,8 +43,13 @@ const scripts = [
   "test:cdss-reason-codes",
   "test:clinical-vocabulary",
   "test:formula-syndrome-consistency",
+  "test:formula-symptom-retrieval",
   "test:formula-discrimination-guard",
   "test:repair-guidance",
+  // M04「重新生成候选方药」的跨请求恢复能力（甲方生产实测 2026-08-04 缺陷3）。
+  // 生产上同一病例的第二次请求返回与第一次**逐字节相同**的失败页：编排层「同一修复提示重复注入
+  // = 同一张失败彩票」的信条只在单次请求内生效，跨请求时修复计数/fixpoint/时限全部归零。
+  "test:m04-retry-recovery",
   "test:therapy-vocabulary",
   "test:stage-outcome",
   "test:formula-selection-symmetry",
@@ -56,6 +69,7 @@ const scripts = [
   "test:controlled-semantic-normalization",
   "test:clinical-governance-tables",
   "test:clinical-polarity",
+  "test:negation-scope",
   "test:m03-entry",
   "test:m02-contract",
   "test:m02-nonblocking",
@@ -77,6 +91,15 @@ const scripts = [
   // 治法方向无病例绑定。四条都锁在受治理数据上（GB/T 15657 病名编码、症状—病位映射、
   // GB/T 16751.3 治法编号），因此必须与它们一起回归——词表升级若改了编码层级，本套件先红。
   "test:clinical-four-binding",
+  // 主症/兼症未分主次（甲方 2026-08-04 复测）。与上一条同源但**不是同一个病**：那一条问
+  // 「这个治法方向有没有节点撑着」，本条问「主症与兼症谁居首、谁主导选方」。产后头痛例里
+  // 安神确有节点撑着，上一条放行是对的，主次仍然颠倒。判据同样锁在受治理数据上
+  // （主症词族 + GB/T 16751.3 治法族编号 + 句序偏移），并钉住生产原始载荷。
+  "test:chief-complaint-primacy",
+  // 甲方 2026-08-04 复测「呈现层六条」。共同点是都发生在**渲染边界之后**：结构化载荷信息齐全，
+  // 医生看到的那一页却把它拼错了（方义列表被表格单元格渲染口压成一行）、压扁了（逐味模板句）、
+  // 或根本没分类（依据不分支持/排除/待查）。lib 层套件断言函数返回值，拦不住这一类。
+  "test:presentation-contract",
   "test:nihaisha-fusion",
   "test:nihaisha-replay",
   "test:prompt-injection",

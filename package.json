@@ -50,6 +50,7 @@
     "test:cdss-reason-codes": "jiti scripts/test-cdss-reason-codes.mjs",
     "test:clinical-vocabulary": "node scripts/test-clinical-vocabulary-single-source.mjs",
     "test:formula-syndrome-consistency": "jiti scripts/test-formula-syndrome-consistency.mjs",
+    "test:formula-symptom-retrieval": "jiti scripts/test-formula-symptom-retrieval.mjs",
     "test:repair-guidance": "jiti scripts/test-repair-guidance-coverage.mjs",
     "test:therapy-vocabulary": "jiti scripts/test-therapy-vocabulary-sync.mjs",
     "test:stage-outcome": "node scripts/test-stage-outcome.mjs",
@@ -84,6 +85,8 @@
     "test:stage-telemetry": "jiti scripts/test-cdss-stage-telemetry.mjs",
     "test:m03-clinical-review": "jiti scripts/test-m03-diagnostic-review.mjs",
     "test:clinical-four-binding": "jiti scripts/test-clinical-four-governed-binding.mjs",
+    "test:chief-complaint-primacy": "jiti scripts/test-chief-complaint-primacy.mjs",
+    "test:presentation-contract": "jiti scripts/test-diagnosis-presentation-contract.mjs",
     "build:nihaisha-fusion": "node scripts/build-nihaisha-fusion-assets.mjs",
     "test:nihaisha-fusion": "jiti scripts/test-nihaisha-fusion.mjs",
     "test:nihaisha-replay": "jiti scripts/test-nihaisha-case-replay.mjs",
@@ -118,7 +121,11 @@
     "test:formula-discrimination-guard": "jiti scripts/test-formula-discrimination-guard.mjs",
     "build:source-digest": "node scripts/build-source-digest.mjs",
     "verify:deployed-image": "node scripts/verify-deployed-image.mjs",
-    "regress:prod-smoke": "node scripts/regress-prod-smoke.mjs"
+    "regress:prod-smoke": "node scripts/regress-prod-smoke.mjs",
+    "test:negation-scope": "jiti scripts/test-negation-scope.mjs",
+    "test:treatment-indication": "jiti scripts/test-tcm-treatment-indication-binding.mjs",
+    "test:rxaudit-sex-applicability": "jiti scripts/test-rxaudit-sex-applicability.mjs",
+    "test:m04-retry-recovery": "jiti scripts/test-m04-retry-recovery.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

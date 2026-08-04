@@ -340,7 +340,23 @@ const POSITIVE_FACT_EQUIVALENT_PATTERNS: readonly {
 ];
 const DEGREE_AFTER_NEGATOR = "(?:很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)";
 const CLINICAL_NEGATION_CUE = new RegExp(`(否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|均无|均未见|未见|未诉|未出现|没有|不伴|无明显|无再发|未再发|(?:当前|目前|现阶段|患者|病人)?(?:从未有|未曾有|无)(?=[\\u4e00-\\u9fa5]))`);
-const NEGATION_SCOPE_BREAK = /[，,](?:但|而|仍|却|同时|另有|随后|继而|突发|新发|出现|伴有)/;
+// 否定作用域的终止判据(2026-08-04 修正)。
+//
+// 原判据只在逗号**后接转折词**时断作用域(「无胸痛，但突发晕厥」)。但中文病历里更常见的是
+// 平铺并列:「无高热，头痛明显，周身酸痛，咳嗽不重」——这里「无」只否定紧随其后的「高热」,
+// 逗号之后是各自独立的阳性陈述。原判据下,「无」的作用域一路蔓延过逗号,于是服务端
+// 生成出「病历已记录否认头痛、发热」——**而病历原文明写「头痛明显」**。
+// 生产实测:该串在一份 M03 输出里出现 5–6 次,并写进了病名鉴别的 distinguishingPoints,
+// 医生看到的是系统「否认」了一个白纸黑字记录着的主症。
+//
+// 判据改为:逗号本身即终止否定作用域,**除非**逗号后是并列的否定延续
+// (「无发热、咳嗽、消瘦」这种一个否定辖多项的列举,以及「无发热，无咳嗽」的重复否定,
+// 前者用顿号、后者自带否定词,都不会被这条规则误伤——顿号不在此列,重复否定各自成立)。
+// 保留原有的转折词形态是冗余但无害的:逗号已经断了,转折词只是更明确的信号。
+//
+// 方向上这是**收紧否定、放宽阳性**:宁可少判一个「已否认」(退化为「尚未确认」,
+// 医生会去核实),也不能把病历白纸黑字的阳性主症说成否认——后者是直接的临床事实错误。
+const NEGATION_SCOPE_BREAK = /[，,]/;
 const NON_SYMPTOM_NEGATION_OBJECT = /(?:诱因|原因|缓解|好转|改善|变化|异常检查)/;
 
 function hasImmediateBareNegator(text: string, index: number): boolean {
@@ -1638,6 +1654,24 @@ function isNegatedAt(text: string, index: number): boolean {
     // enumeration comma, however, closes that list before the comma ("否认胸痛、气促，晕厥").
     // Concrete actions/counts are handled as positive evidence by hasCommaSeparatedPositiveEvidence.
     if (!explicitNegativeContinuation && (beforeComma.includes("、") || explicitPositiveClause)) return false;
+    // 逗号紧邻被测词时(afterComma 为空),需要看**词之后**才能判断这是否认列举还是新的阳性陈述。
+    //
+    // 甲方生产实测:病历写「无高热，头痛明显，咳嗽不重」,系统输出「病历已记录否认头痛、发热」
+    // ——把白纸黑字的主症说成否认,还写进了病名鉴别的 distinguishingPoints,一份输出里出现 5–6 次。
+    // 原因是「无」的作用域越过逗号蔓延到了后面的独立陈述。
+    //
+    // 但不能一律按逗号断:「否认胸痛，胸闷，气促」是紧凑否认列举,逗号确实在延续否定。
+    // 两者的区别不在逗号**前**(都是完整的否定对象),而在被测词**后**:
+    //   · 「头痛明显」「心悸频作」「腹痛剧烈」—— 词后跟程度/频次修饰,是阳性断言;
+    //   · 「胸闷」「气促」—— 裸词,是否认列举的延续项。
+    // 因此只在「否定对象已完整 + 词后带阳性修饰」时终止作用域,不影响裸词列举。
+    if (!explicitNegativeContinuation && afterComma.trim().length === 0 && beforeComma.trim().length > 0) {
+      const afterTerm = text.slice(index, index + 24).replace(/^[^一-龥]*/, "");
+      // 跳过被测词本身:词长未知,故取词后 24 字里首个出现的修饰词位置作判据。
+      if (/(?:明显|剧烈|频作|频发|加重|严重|持续|阵发|反复|大量|为主|突出|尤甚|不重|不剧|较轻|轻微)/.test(afterTerm)) {
+        return false;
+      }
+    }
   }
   const enumerationIndex = afterNegation.lastIndexOf("、");
   if (enumerationIndex >= 0) {

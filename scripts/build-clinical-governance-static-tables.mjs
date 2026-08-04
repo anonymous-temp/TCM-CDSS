@@ -322,6 +322,18 @@ const sources = [
     "customer_acceptance_and_clinical_adjudication",
     "测评钦定证型、临床常用锚词和项目扩展术语；扩展条目明确标注为非国标来源",
   ),
+  localSource(
+    "SRC-CLIENT-CLINICAL-REVIEW-20260805",
+    "甲方医学评测点对点回复（2026-08-05）临床意见裁定",
+    "docs/客户评测原件/甲方医学评测点对点回复-20260805.docx",
+    "customer_acceptance_and_clinical_adjudication",
+    // 条目 5.2：气血亏虚头痛宜取益气聪明汤合四物汤方向。
+    // 需要裁定入库而非改代码的原因：益气聪明汤在本仓**全部**受治理数据中只收载
+    // 「脾胃气虚所致内障目昏、耳鸣耳聋」（深圳标准 0600710156 /《东垣试效方》卷五），
+    // 与头痛、气血亏虚没有任何关联记录，因此症状路、主治词路、证候假设路三条召回路
+    // 均不可达——症状标注补到 100% 也召不回它。这是知识缺口，只能由临床裁定补入。
+    "条目5.2：在高频方证关系表的「气血两虚」与「心脾两虚」两证下补入益气聪明汤、四物汤的 differential 关系；归脾汤 primary 地位不变，由医生按主症权重判断",
+  ),
 ];
 
 writeJson("clinical-governance-source-registry.json", {

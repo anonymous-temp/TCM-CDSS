@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { appendClinicalPresetValue, appendDelimitedValue, detectTonguePulseFieldConflict } from "@/lib/clinical-entry";
+import { classifyWesternDiagnosticEvidence, clinicalFactSourcesFromCaseState, clinicalFactWithSource } from "@/lib/clinical-fact-source";
 import type { CaseState, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
 import { ageValue, normalizeCaseStateInput, normalizeStructuredFollowupTimeline } from "@/lib/diagnosis-types";
 import {
@@ -4900,27 +4901,26 @@ function ResultTabsV2({
     ...(reasoning.pathogenesis?.symptomClusters || []).flatMap((cluster) => cluster.symptoms || []),
     ...(reasoning.pathogenesis?.chain || []).flatMap((step) => [step.patientFact, step.syndromeEvidence]),
   ].filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
-  const primarySyndromeEvidenceDisplay = prioritizeTcmEvidenceForDisplay(
-    reasoning.overview.primarySyndromeBasis,
-    tcmGroundedAlternativeFacts,
-    caseState.chiefComplaint || caseState.hisRecord?.fields?.zhushu || "",
-  );
+  // 甲方评测(2026-08-04) 1.1.1：西医诊断下方不再是一串主诉/现病史复述，改为
+  // 支持依据 / 排除依据 / 待查依据三类，每条标注它来自病历的哪个字段。
+  // 三类与来源都由确定性层从已签名载荷与病例状态派生（clinical-fact-source.ts），此处只负责呈现。
+  const westernEvidence = classifyWesternDiagnosticEvidence(reasoning.westernDiagnosis.primary);
+  const westernFactSources = clinicalFactSourcesFromCaseState(caseState);
   const westernSupportingFactsAll = prioritizeWesternEvidenceForDisplay(
-    reasoning.westernDiagnosis.primary.supportingFacts,
-    Math.max(1, reasoning.westernDiagnosis.primary.supportingFacts.length),
+    westernEvidence.supporting,
+    Math.max(1, westernEvidence.supporting.length),
   );
   const westernSupportingFactsDisplay = westernFactsExpanded
     ? westernSupportingFactsAll
     : westernSupportingFactsAll.slice(0, 4).map((fact) => truncateClinicalTextForDisplay(fact, 60));
   const westernFactsCollapsible = westernSupportingFactsAll.length > 4 ||
     westernSupportingFactsAll.slice(0, 4).some((fact) => fact.trim().length > 60);
-  // F4（甲方反馈：中医诊断卡不要病史罗列）：诊断卡只保留病名、证型与一行主症概括；
-  // 完整依据仍在下方「中医辨病辨证分析」区呈现。
-  const primarySyndromeHeadline = truncateClinicalTextForDisplay(
-    reasoning.overview.primarySyndromeBasis.map((item) => item.trim()).find(isDisplayableClinicalText) ||
-      primarySyndromeEvidenceDisplay[0] || "",
-    40,
-  );
+  const westernEvidenceGroups: Array<{ label: string; items: string[]; withSource: boolean }> = [
+    { label: "支持依据", items: westernSupportingFactsDisplay, withSource: true },
+    { label: "排除依据", items: westernEvidence.excluding, withSource: true },
+    // 待查依据是「尚缺什么 / 下一步查什么」，不是已记录的病历事实，标来源没有意义。
+    { label: "待查依据", items: westernEvidence.pending, withSource: false },
+  ].filter((group) => group.items.length > 0);
   // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
   // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
   const failedStage = caseState.phase === "error" && caseState.lastError ? caseState.lastError.phase : undefined;
@@ -4977,7 +4977,7 @@ function ResultTabsV2({
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-950">
             <p className="font-bold text-blue-800">西医诊断倾向</p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold">{westernDiagnosisLabelForDisplay(reasoning.westernDiagnosis.primary.name)}</p>
+              <p className="text-sm font-semibold">{westernDiagnosisLabelForDisplay(reasoning.westernDiagnosis.primary.name, reasoning.westernDiagnosis.primary.coding)}</p>
               {reasoning.westernDiagnosis.primary.coding && (
                 <span className="rounded-full border border-blue-200 bg-white px-2 py-0.5 text-[10px] font-bold text-blue-800">
                   ICD-10 {reasoning.westernDiagnosis.primary.coding.code}
@@ -4987,42 +4987,52 @@ function ResultTabsV2({
             {reasoning.westernDiagnosis.primary.coding && reasoning.westernDiagnosis.primary.coding.display !== reasoning.westernDiagnosis.primary.name && (
               <p className="mt-1 text-[11px] text-blue-700">编码名称：{reasoning.westernDiagnosis.primary.coding.display}</p>
             )}
-            {westernSupportingFactsDisplay.length > 0 && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {westernSupportingFactsDisplay.map((fact, index) => (
-                  <span key={`${fact}-${index}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-blue-900">{fact}</span>
-                ))}
-                {westernFactsCollapsible && (
-                  <button
-                    type="button"
-                    onClick={() => setWesternFactsExpanded((value) => !value)}
-                    aria-expanded={westernFactsExpanded}
-                    className="rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                  >
-                    {westernFactsExpanded ? "收起依据" : `展开全部依据（${westernSupportingFactsAll.length}）`}
-                  </button>
-                )}
+            {westernEvidenceGroups.map((group) => (
+              <div key={group.label} className="mt-2">
+                <p className="text-[11px] font-semibold text-blue-800">{group.label}</p>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {group.items.map((fact, index) => (
+                    <span key={`${fact}-${index}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-blue-900">
+                      {group.withSource ? clinicalFactWithSource(fact, westernFactSources) : fact}
+                    </span>
+                  ))}
+                  {group.label === "支持依据" && westernFactsCollapsible && (
+                    <button
+                      type="button"
+                      onClick={() => setWesternFactsExpanded((value) => !value)}
+                      aria-expanded={westernFactsExpanded}
+                      className="rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                    >
+                      {westernFactsExpanded ? "收起依据" : `展开全部依据（${westernSupportingFactsAll.length}）`}
+                    </button>
+                  )}
+                </div>
               </div>
-            )}
+            ))}
           </div>
           <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">
             <p className="font-bold text-amber-800">中医诊断</p>
-            {/* 需求3：辨病与辨证是两个判断，必须都呈现。此前只显示证型。 */}
-            {tcmDiseaseName && <p className="mt-1 text-sm font-semibold">辨病：{tcmDiseaseName}</p>}
+            {/*
+              甲方评测(2026-08-04) 1.2.1「中医诊断卡只保留证候结论，病名与病史复述移除」。
+              移走的两行各有各的理由：
+                · 「辨病：X」是另一个判断，它的推理（辨病推理 + 病名鉴别）本来就在下方
+                  「中医辨病辨证分析」区，标题留在这张卡里等于把同一段判断劈成两半；
+                · 「主症：…」取的是 primarySyndromeBasis[0]，即主诉原句——正是甲方连续两轮
+                  指出的「病史复述」。它在辨证推理句里作为四诊要点出现即可，不该单列一行。
+              字段本身不变：tcmDiseaseName 仍在签名载荷、HIS 方案与下方分析区中呈现。
+            */}
             <p className="mt-1 text-sm font-semibold">辨证：{reasoning.overview.primarySyndrome}</p>
             {reasoning.overview.secondarySyndromes && reasoning.overview.secondarySyndromes.length > 0 && (
               <p className="mt-1">兼证：{joinClinicalClauses(reasoning.overview.secondarySyndromes, "、")}</p>
             )}
-            {/* F4：逐条病史/依据罗列已移除，此处只保留一行主症概括；完整依据见下方「中医辨病辨证分析」。 */}
-            {primarySyndromeHeadline && (
-              <p className="mt-1 text-[11px] text-amber-900">主症：{primarySyndromeHeadline}</p>
-            )}
           </div>
         </div>
-        {(tcmDiseaseRationale || tcmRationale || tcmDifferentials.length > 0 || tcmDifferentialBoundary) && (
+        {(tcmDiseaseName || tcmDiseaseRationale || tcmRationale || tcmDifferentials.length > 0 || tcmDifferentialBoundary) && (
           <div className="mt-3 rounded-lg border border-amber-100 bg-white p-3 text-xs leading-relaxed text-gray-700">
             <p className="font-bold text-amber-800">中医辨病辨证分析</p>
-            {/* 两段推理分开呈现：辨病回答「为什么归入这个病名」，辨证回答「为什么是这个证型」。 */}
+            {/* 两段推理分开呈现：辨病回答「为什么归入这个病名」，辨证回答「为什么是这个证型」。
+                病名（1.2.1 从诊断卡移出）与它的归属推理归在同一处，医生一眼读到的是完整的一段判断。 */}
+            {tcmDiseaseName && <p className="mt-1"><span className="font-semibold">中医病名：</span>{tcmDiseaseName}</p>}
             {tcmDiseaseRationale && <p className="mt-1"><span className="font-semibold">辨病推理：</span>{tcmDiseaseRationale}</p>}
             {tcmRationale && <p className="mt-1"><span className="font-semibold">辨证推理：</span>{tcmRationale}</p>}
             {tcmDifferentials.length > 0 && (
@@ -5473,7 +5483,13 @@ function ResultTabsV2({
           contractIds="M04-formula"
           rendererId="formula-analysis-section"
         >
-          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-relaxed text-blue-950">
+          {/*
+            7.1「方解格式不正确」：方义解析是一段带分组标题与逐味列表的多行文本
+            （buildFormulaAnalysis 用 \n 分行）。直接放进 div 时 HTML 会把换行折成空格，
+            整段塌成一行——与 Markdown 侧误用 markdownCell 是同一个病的两个现场。
+            whitespace-pre-line 保留换行、折叠多余空格，无需引入 Markdown 渲染器。
+          */}
+          <div className="whitespace-pre-line rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-relaxed text-blue-950">
             {firstCandidate.formulaAnalysis}
           </div>
         </SchemeSection>

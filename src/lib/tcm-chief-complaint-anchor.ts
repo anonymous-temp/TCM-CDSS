@@ -1,5 +1,12 @@
 import symptomAxisMapJson from "../data/tcm-symptom-axis-map.source.json" with { type: "json" };
-import { canonicalTcmLocationTerm, governedTcmLocationsInText, governedTcmTermLabelById } from "./clinical-governance-tables";
+import {
+  canonicalTcmLocationTerm,
+  governedTcmLocationsInText,
+  governedTcmTermLabelById,
+  governedTreatmentMethodOccurrencesInText,
+  governedTreatmentMethodsInText,
+  treatmentMethodFamilyId,
+} from "./clinical-governance-tables";
 
 /**
  * 主诉主症 → 受控病位锚（确定性，零模型）。
@@ -149,4 +156,108 @@ export function textCarriesChiefComplaintSymptom(value: unknown, anchor: ChiefCo
   const text = typeof value === "string" ? value : "";
   if (!text) return false;
   return anchor.symptomTerms.some((term) => text.includes(term));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 主症优先（2026-08-04）
+//
+// ★ 缺的不是检查，是「主次」这个维度本身 ★
+// therapy_method_direction_unbound 只问「这个方向有没有病机节点撑着」。产后头痛例里
+// 「安神」确实有节点撑着——病历真有心悸失眠，模型据此建了安神节点，所以那条检查放行是**对的**。
+// 问题在于服务端把主症节点与兼症节点当成平权的两个节点：两条治法方向谁在前谁在后、
+// 谁决定选方，此前没有任何一层看过。总治法于是写成「补益心脾，益气养血，和络止痛」——
+// 兼症方向（补益心脾，来自心悸失眠/神疲）居首，主症方向（和络止痛）垫底，
+// recommendedFormulaDirection 随之落到归脾汤（主治心脾两虚之心悸健忘失眠，不是头痛）。
+//
+// ★ 判据完全由受治理数据派生，不新写任何中文词表 ★
+//   1) 谁是主症：tcm-symptom-axis-map 的 chiefComplaintAnchor 词族（与病位锚同一张表）；
+//   2) 谁是主症节点：节点的 patientFact 逐字带主症词。**只认 patientFact，不认
+//      syndromeEvidence**——实测模型会把主诉整句复制进兼症节点的 syndromeEvidence
+//      （本例 P2 的 syndromeEvidence 就是「产后2月余，头痛反复发作1月」），
+//      按两个字段取并集会把每个节点都判成主症节点，判据整体失效；
+//   3) 治法方向的身份与族层级：GB/T 16751.3 的 standardNumber（treatmentMethodFamilyId），
+//      与既有绑定检查同一口径；
+//   4) 「居首」按**句序**判定，用 governedTreatmentMethodOccurrencesInText 的偏移量。
+//
+// ★ 边界：只判主次，不判对错 ★
+// 兼症方向照常保留在总治法里（甲方原话「安神是次要的」，不是「安神不该有」）。
+// 缺任一环（词表未收录主症、无主症节点、无兼症节点、任一侧无受治理治法命中、
+// 总治法里两侧方向没有同时出现）一律 fail-open 跳过——「判不了」不等于「判错了」。
+// ─────────────────────────────────────────────────────────────────────────────
+
+type PathogenesisNodeLike = {
+  patientFact?: unknown;
+  syndromeEvidence?: unknown;
+  therapyDirection?: unknown;
+};
+
+export type ChiefComplaintTherapyPrimacy = {
+  /** 判据是否可用；false 时其余字段仅供诊断，不得据以判违规。 */
+  applicable: boolean;
+  /** 兼症治法方向在总治法中居首（主症方向被挤到其后）。 */
+  secondaryLeads: boolean;
+  /** 主症节点治法方向命中的受治理治法族。 */
+  chiefFamilies: string[];
+  /** 仅由兼症节点带来的治法族。 */
+  secondaryOnlyFamilies: string[];
+  /** 主症节点治法方向的受治理规范名（供修复提示逐字引用）。 */
+  chiefMethodNames: string[];
+  /** 总治法中居首的受治理治法规范名。 */
+  leadingMethodName: string;
+};
+
+const EMPTY_PRIMACY: ChiefComplaintTherapyPrimacy = {
+  applicable: false,
+  secondaryLeads: false,
+  chiefFamilies: [],
+  secondaryOnlyFamilies: [],
+  chiefMethodNames: [],
+  leadingMethodName: "",
+};
+
+function therapyFamilySet(nodes: readonly PathogenesisNodeLike[]): { families: Set<string>; names: string[] } {
+  const families = new Set<string>();
+  const names: string[] = [];
+  for (const node of nodes) {
+    for (const entry of governedTreatmentMethodsInText(node.therapyDirection)) {
+      families.add(treatmentMethodFamilyId(entry));
+      if (!names.includes(entry.canonical)) names.push(entry.canonical);
+    }
+  }
+  return { families, names };
+}
+
+/**
+ * 总治法是否让主症方向居首。判据可用性与结论一并返回，调用方只在 applicable 时下结论。
+ */
+export function chiefComplaintTherapyPrimacy(
+  chain: readonly PathogenesisNodeLike[],
+  overallMethod: unknown,
+  anchor: ChiefComplaintAnchor,
+): ChiefComplaintTherapyPrimacy {
+  if (anchor.symptomTerms.length === 0 || chain.length < 2) return EMPTY_PRIMACY;
+  const chiefNodes = chain.filter((node) => textCarriesChiefComplaintSymptom(node.patientFact, anchor));
+  const secondaryNodes = chain.filter((node) => !chiefNodes.includes(node));
+  if (chiefNodes.length === 0 || secondaryNodes.length === 0) return EMPTY_PRIMACY;
+  const chief = therapyFamilySet(chiefNodes);
+  const secondary = therapyFamilySet(secondaryNodes);
+  const secondaryOnly = [...secondary.families].filter((family) => !chief.families.has(family));
+  if (chief.families.size === 0 || secondaryOnly.length === 0) return EMPTY_PRIMACY;
+
+  const occurrences = governedTreatmentMethodOccurrencesInText(overallMethod)
+    .map((hit) => ({ name: hit.entry.canonical, family: treatmentMethodFamilyId(hit.entry) }));
+  const leading = occurrences[0];
+  // 总治法里主症方向根本没出现，属于「主症无人负责」，由 therapy_chief_symptom_unaddressed
+  // 与绑定检查各自负责；本判据只处理「两边都在、次序反了」这一种形态。
+  const carriesChief = occurrences.some((hit) => chief.families.has(hit.family));
+  const carriesSecondaryOnly = occurrences.some((hit) => secondaryOnly.includes(hit.family));
+  if (!leading || !carriesChief || !carriesSecondaryOnly) return EMPTY_PRIMACY;
+  return {
+    applicable: true,
+    secondaryLeads: !chief.families.has(leading.family),
+    chiefFamilies: [...chief.families],
+    secondaryOnlyFamilies: secondaryOnly,
+    chiefMethodNames: chief.names,
+    leadingMethodName: leading.name,
+  };
 }

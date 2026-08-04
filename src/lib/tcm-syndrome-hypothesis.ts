@@ -104,6 +104,46 @@ export function clinicalAxesFromAffirmedText(affirmedTexts: readonly string[]): 
 }
 
 /**
+ * 逐**事实**的轴归属（与 clinicalAxesFromAffirmedText 同一张受治理映射，只是不合并）。
+ *
+ * 为什么需要它：clinicalAxesFromAffirmedText 把所有事实拼成一串再匹配，返回的是一个轴集合——
+ * 能回答「本例涉及哪些病位病性」，回答不了「**哪一条四诊要点**支持这条病位」。而后者正是
+ * 甲方评测(2026-08-04) 第 2.1 条「推理过程没有实际内容」缺的东西：辨证推理写成
+ * 「四诊要点：{原文} …提示病位在心、脾、头窍、病性属气血亏虚」时，四诊要点与病位之间
+ * 没有任何对应关系，读者读不出为什么是这几个病位——那是字段拼接，不是推理。
+ *
+ * 本函数只做**归属**，不下结论：轴仍然是召回先验（见文件头边界 3），证候是否成立仍由 M03
+ * 辨证签名决定。它的唯一用途是把已成立的病位/病性与支持它的四诊要点连起来呈现。
+ *
+ * 返回的是**命中的受治理症状词**（心悸、失眠、神疲乏力），不是整条病历原句：症状词逐字出现在
+ * 病历里（匹配方式就是 includes），因此同样可回溯，但一句现病史往往同时支持三条轴，
+ * 整句回填会让同一段话在推理句里印三遍——那正是本轮要修的「冗长且无信息」。
+ */
+export function clinicalAxisAttributionFromFacts(facts: readonly string[]): {
+  locations: Map<string, string[]>;
+  natures: Map<string, string[]>;
+} {
+  const locations = new Map<string, string[]>();
+  const natures = new Map<string, string[]>();
+  const attribute = (target: Map<string, string[]>, axisId: string, term: string) => {
+    const existing = target.get(axisId);
+    if (!existing) target.set(axisId, [term]);
+    else if (!existing.includes(term)) existing.push(term);
+  };
+  for (const fact of facts) {
+    const text = typeof fact === "string" ? fact.trim() : "";
+    if (!text) continue;
+    for (const entry of AXIS_ENTRIES) {
+      const hit = entry.terms.find((term) => text.includes(term));
+      if (!hit) continue;
+      for (const value of entry.locations) attribute(locations, value, hit);
+      for (const value of entry.natures) attribute(natures, value, hit);
+    }
+  }
+  return { locations, natures };
+}
+
+/**
  * 组合派生轴。逐症状映射只能表达「这个症状指向哪条轴」，表达不了「两条轴同时成立时等于第三条」，
  * 而阴阳虚正是这种关系：虚 + 寒 = 阳虚，虚 + 热 = 阴虚。这是辨证的基本恒等式，不是启发式。
  *

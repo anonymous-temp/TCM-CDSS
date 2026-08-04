@@ -185,6 +185,23 @@ type FormulaRetrievalIndex = {
 };
 const RETRIEVAL_INDEX = (retrievalIndexJson as FormulaRetrievalIndex).indexes;
 
+/**
+ * 概念 → 方剂的**全部**受治理指向。
+ *
+ * 倒排索引里 conceptToFormulaIds / symptomToFormulaIds / diseaseToFormulaIds 是同一批概念正则
+ * 在**不同文本域**上的命中：概念索引只扫主治原文，症状/病名索引还扫方名与别名
+ * （详见 build-tcm-governance-tables.py 的 build_formula_retrieval_index）。此前只有概念索引
+ * 参与候选池构建，后两者在 FormulaRetrievalIndex 类型里声明了却从未被读取——方名/别名自带的
+ * 临床语义（如"头痛丸""耳鸣散"）因此从不召回。三者取并集是纯增量：索引缺失或为空时结果不变。
+ */
+function conceptFormulaIds(conceptId: string): readonly string[] {
+  const concept = RETRIEVAL_INDEX.conceptToFormulaIds[conceptId] || [];
+  const symptom = RETRIEVAL_INDEX.symptomToFormulaIds[conceptId] || [];
+  const disease = RETRIEVAL_INDEX.diseaseToFormulaIds[conceptId] || [];
+  if (symptom.length === 0 && disease.length === 0) return concept;
+  return [...concept, ...symptom, ...disease];
+}
+
 function indexedEntries(ids: Iterable<string>): FormulaIndicationEntry[] {
   return [...new Set(ids)].flatMap((id) => {
     const entry = ENTRY_BY_ID.get(id);
@@ -556,7 +573,7 @@ export function retrieveTcmFormulaIndicationCandidates(
     }
   }
   const candidates = indexedEntries([
-    ...caseConcepts.flatMap((concept) => RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []),
+    ...caseConcepts.flatMap((concept) => conceptFormulaIds(concept.id)),
     ...termHits.keys(),
     ...hypothesisScoreByFormulaId.keys(),
     ...modernHits.keys(),
@@ -568,8 +585,7 @@ export function retrieveTcmFormulaIndicationCandidates(
   const casePopulation = buildCasePopulationProfile(caseState.patient, facts);
   const scored = candidates.map((entry) => {
     const indicationText = entry.indications.join("；");
-    const matched = caseConcepts.filter((concept) =>
-      (RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []).includes(entry.id));
+    const matched = caseConcepts.filter((concept) => conceptFormulaIds(concept.id).includes(entry.id));
     const matchedPatientFacts = facts.filter((fact) => matched.some((concept) => concept.patient.test(fact)));
     const rawConceptScore = matched.reduce((total, concept) => total + concept.weight, 0);
     // Focused source indications are more discriminating than encyclopedic paragraphs that happen
@@ -883,14 +899,13 @@ export function retrieveTcmFormulaCandidatesForReasoning(
     ...[...tags.syndrome].flatMap((id) => RETRIEVAL_INDEX.syndromeToFormulaIds[id] || []),
     ...[...tags.nature].flatMap((id) => RETRIEVAL_INDEX.natureToFormulaIds[id] || []),
     ...[...tags.location].flatMap((id) => RETRIEVAL_INDEX.locationToFormulaIds[id] || []),
-    ...reasoningConcepts.flatMap((concept) => RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []),
+    ...reasoningConcepts.flatMap((concept) => conceptFormulaIds(concept.id)),
   ];
   return indexedEntries(candidateIds).map((entry) => {
     const syndromeMatches = entry.syndromeTags.filter((id) => tags.syndrome.has(id));
     const natureMatches = entry.natureTags.filter((id) => tags.nature.has(id));
     const locationMatches = entry.locationTags.filter((id) => tags.location.has(id));
-    const conceptMatches = reasoningConcepts.filter((concept) =>
-      (RETRIEVAL_INDEX.conceptToFormulaIds[concept.id] || []).includes(entry.id));
+    const conceptMatches = reasoningConcepts.filter((concept) => conceptFormulaIds(concept.id).includes(entry.id));
     // 主证匹配走证候特征等同层：模型写规范名、方剂标签用古典名（心胆气虚 vs 心虚胆怯）时，
     // 两个国标 id 在特征层（病位×病性）是同一个证。等同判定完全建立在受控枚举上
     // （见 clinical-governance-tables 的 governedSyndromeFeatureMatch），阴阳/寒热/虚实极性

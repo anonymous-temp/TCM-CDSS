@@ -10,7 +10,7 @@ import { getM03TherapyLock, isExecutableM03TherapyText } from "./m03-therapy-loc
 import { isActionableFollowupSafetyNet } from "./followup-safety-net";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName, westernDifferentialIdentity } from "./clinical-terminology";
 import { canonicalTcmSyndromeTerm, governedTcmLocationsInText, governedTreatmentMethodsInText, governedTreatmentPrinciplesInText, tcmDiagnosticDependencyContexts, treatmentMethodCoveredBy, treatmentPrinciplesInText, westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
-import { chiefComplaintAnchor, locationItemsCoverChiefComplaintAnchor, textCarriesChiefComplaintSymptom } from "./tcm-chief-complaint-anchor";
+import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy, locationItemsCoverChiefComplaintAnchor, textCarriesChiefComplaintSymptom } from "./tcm-chief-complaint-anchor";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
@@ -1627,12 +1627,18 @@ function m03TcmDiseaseDifferentialIssue(
  * 节点的 therapyDirection 指向安神——「养心安神」是凭空追加的方向，随后把选方拉向归脾汤，
  * 甲方的原话就是「治法仍包含养心安神」「方证针对性不足」。
  *
- * 两条不变式：
+ * 三条不变式：
  *  1) therapy_method_direction_unbound —— 总治法里出现的每一条受治理治法术语，
  *     必须在 subTherapies 或某个病机节点的 therapyDirection 中同样出现。病机节点的
  *     patientFact 已由 T1 接地校验钉在病历原文上，因此这条传递性地把每个治法方向绑到患者事实。
  *  2) therapy_chief_symptom_unaddressed —— 主诉主症必须被某个病机节点承接。
  *     主症没有任何病机节点承接，却有一整套治法，就是兼症反客为主的确定性形态。
+ *  3) therapy_chief_complaint_not_leading —— 主症与兼症都有节点、两侧方向都进了总治法时，
+ *     居首的必须是主症方向（2026-08-04 追加）。前两条都只问「有没有」，答不了「谁主谁次」：
+ *     产后头痛例里安神**确有**心悸失眠节点撑着，(1) 放行是对的，可总治法仍写成
+ *     「补益心脾，益气养血，和络止痛」——兼症方向居首、主症方向垫底，选方随即落到归脾汤。
+ *     判据全部由受治理数据派生（主症词族 + GB/T 16751.3 治法族编号 + 句序），
+ *     见 tcm-chief-complaint-anchor.ts 的 chiefComplaintTherapyPrimacy。
  */
 function m03TherapyCaseBindingIssue(
   reasoning: M03ReasoningLike,
@@ -1662,6 +1668,11 @@ function m03TherapyCaseBindingIssue(
       textCarriesChiefComplaintSymptom(node.patientFact, anchor) ||
       textCarriesChiefComplaintSymptom(node.syndromeEvidence, anchor));
     if (!carried) return "therapy_chief_symptom_unaddressed";
+  }
+  // 主症优先：主症与兼症都有节点、都进了总治法时，居首的必须是主症方向。
+  // 判据可用性由 chiefComplaintTherapyPrimacy 自行判定（缺任一环即 fail-open）。
+  if (chiefComplaintTherapyPrimacy(chain, overallMethod, anchor).secondaryLeads) {
+    return "therapy_chief_complaint_not_leading";
   }
   return undefined;
 }

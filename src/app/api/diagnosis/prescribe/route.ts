@@ -18,6 +18,7 @@ import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignatur
 import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
 import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
+import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
@@ -235,6 +236,13 @@ export async function POST(req: Request) {
     structuredMedicineCandidates: medicinePlan.candidates,
     structuredPriorReasoning: signedPriorReasoning,
     prescribeSignatureContext: buildPrescribeContractSignatureContext(trustedGated),
+    // 医生点「重新生成候选方药」时前端原样重发同一份 caseState 与同一份已签名 M03，
+    // 服务端据此认出这是同一次尝试的第 N 轮（见 m04-retry-policy 的生产实证：不认它时，
+    // 第二次返回与第一次逐字节相同的失败页，恢复动作形同虚设）。
+    m04AttemptKey: m04AttemptKey({
+      caseId: gated.id,
+      m03ContractSignature: signedPriorReasoning?.contractSignature,
+    }),
     // 先校验并清理模型引用，再由服务端用本地方剂库写入可信原典；否则本地补入的
     // 经典出处会被模型证据白名单误判为未核验来源。
     outputTransform: (content) => {

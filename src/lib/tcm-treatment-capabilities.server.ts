@@ -3,9 +3,11 @@ import { resolveAcupoint } from "./tcm-acupoints";
 import {
   TCM_TREATMENT_PROJECTS,
   getTcmTreatmentProjectDefinition,
-  governedTcmTreatmentPlanTemplate,
+  governedTcmTreatmentPlanTemplateForTags,
   isKnownTcmTreatmentProjectCode,
   parseTcmTreatmentCapabilities,
+  tcmTreatmentTemplatePointsAreGoverned,
+  type TcmTreatmentPlanTemplate,
   type TcmTreatmentProjectCode,
   type TcmTreatmentIndicationTag,
 } from "./tcm-treatment-projects";
@@ -114,20 +116,70 @@ const INDICATION_LABEL: Record<TcmTreatmentIndicationTag, string> = {
  * 这比统一加个好看的标签更有用，也不会把未核验项伪装成已核验。
  * executable=false 的项目边界不变：这里只补证据标注，不产生可执行指令。
  */
-function annotateGovernedAcupoint(site: string): string {
+/**
+ * T12 穴位目录收的是**经络腧穴**（361 经穴 + 印堂 + 37 奇穴）。耳穴自成一套定位体系，
+ * 「神门」「心」「枕」在两套体系里是完全不同的部位——给耳穴的神门标上「HT7·手少阴心经」
+ * 不是补充证据，而是把一个未核验的点伪装成已核验，且核错了体位
+ * （生产实测 fixa-d1/d1b：耳穴方案里出现「神门（HT7·手少阴心经）」）。
+ * 只对经穴体系的项目做标注；耳穴保持裸名，与"核验不到即保持原样"的既有约定一致。
+ */
+function annotateGovernedAcupoint(projectCode: TcmTreatmentProjectCode, site: string): string {
+  if (projectCode === "auricular") return site;
   const entry = resolveAcupoint(site);
   if (!entry) return site;
   const meridian = entry.meridian && entry.meridian !== entry.name ? `·${entry.meridian}` : "";
   return `${site}（${entry.code}${meridian}）`;
 }
 
-function dominantIndicationTag(
+/**
+ * 本项目在本例上可成立的适应证，按**与本例的相关度**排序。
+ * 排序只用于在同一个项目内部挑一个适应证；目录里的 indicationTags 仍是资格边界。
+ */
+function orderedIndicationTags(
   projectCode: TcmTreatmentProjectCode,
   tags: ReadonlySet<TcmTreatmentIndicationTag>,
-): TcmTreatmentIndicationTag | undefined {
+): TcmTreatmentIndicationTag[] {
+  const definition = getTcmTreatmentProjectDefinition(projectCode);
+  if (!definition) return [];
   return [...tags]
-    .filter((tag) => Boolean(getTcmTreatmentProjectDefinition(projectCode)?.indicationTags.includes(tag)))
-    .sort((left, right) => (PROJECT_TAG_AFFINITY[projectCode]?.[right] || 0) - (PROJECT_TAG_AFFINITY[projectCode]?.[left] || 0))[0];
+    .filter((tag) => definition.indicationTags.includes(tag))
+    .sort((left, right) =>
+      (PROJECT_TAG_AFFINITY[projectCode]?.[right] || 0) - (PROJECT_TAG_AFFINITY[projectCode]?.[left] || 0) ||
+      left.localeCompare(right));
+}
+
+/**
+ * **一次**解析出本项目卡片使用的适应证与治理模板，卡片上的适应证标注、穴位、频次、疗程
+ * 全部取自这一次解析的结果。
+ *
+ * 此前是三套各自独立的判据：入选打分取"该项目最擅长的那个适应证"、卡片标注取同一口径再算一遍、
+ * 穴位却由 `planTemplates.find(...)` 按**目录排列顺序**决定。三者可以两两不一致，生产实测两种
+ * 表现形式：
+ *   · 标注"围绕头痛症状"、穴位却是失眠方的安眠/神门/内关/心俞（fixa-d1b）；
+ *   · 产后头痛病例的灸法标注"经带与下腹症状"——该适应证来自主诉里的"产后"二字，
+ *     而本例并无经带或下腹症状，标注却把它写成了患者的症状（fixa-d1）。
+ * 解析一次之后，"卡片说的适应证"与"卡片给的方案"在结构上不可能再分叉。
+ */
+function resolveTreatmentIndication(
+  projectCode: TcmTreatmentProjectCode,
+  tags: ReadonlySet<TcmTreatmentIndicationTag>,
+  clinicalText: string,
+): { tag?: TcmTreatmentIndicationTag; template?: TcmTreatmentPlanTemplate } {
+  const ordered = orderedIndicationTags(projectCode, tags);
+  const template = governedTcmTreatmentPlanTemplateForTags(projectCode, clinicalText, ordered);
+  return { tag: template ? template.indicationTag : ordered[0], template };
+}
+
+/**
+ * 该适应证在**本例病历原文**里的落点。评估态卡片只能引用这些落点，不能改口成
+ * INDICATION_LABEL 里的症状域名称——后者是标签的显示名，覆盖面窄于标签本身的匹配面，
+ * 于是"产后"匹配上 gynecology 之后被显示成"经带与下腹症状"，写出了病历里没有的症状。
+ */
+function indicationEvidenceTerms(tag: TcmTreatmentIndicationTag, caseFacts: string): string[] {
+  const pattern = INDICATION_PATTERNS.find(([candidate]) => candidate === tag)?.[1];
+  if (!pattern || !caseFacts) return [];
+  const scan = new RegExp(pattern.source, `${pattern.flags.replace(/g/g, "")}g`);
+  return [...new Set([...caseFacts.matchAll(scan)].map((match) => match[0]).filter(Boolean))].slice(0, 3);
 }
 
 function controlledTreatmentPlan(
@@ -135,23 +187,31 @@ function controlledTreatmentPlan(
   tags: ReadonlySet<TcmTreatmentIndicationTag>,
   targetPathogenesis: string,
   clinicalText: string,
+  caseFacts: string,
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap"
 > {
-  const tag = dominantIndicationTag(projectCode, tags);
-  const indication = tag ? INDICATION_LABEL[tag] : "当前病机与主要症状";
   const definition = getTcmTreatmentProjectDefinition(projectCode);
-  const governedTemplate = governedTcmTreatmentPlanTemplate(projectCode, clinicalText, tags);
+  const { tag, template: governedTemplate } = resolveTreatmentIndication(projectCode, tags, clinicalText);
   if (governedTemplate) {
+    // 甲方评测(2026-08-04) 9.1：只有目录声明**已治理**的取穴才进「候选穴位」栏。
+    // 目录里有三条模板把「点哪儿由别处/查体决定」写进了 sitesOrPoints，那是延期说明不是穴位
+    // （见 tcmTreatmentTemplatePointsAreGoverned）。它照常呈现，但归到操作边界一行，
+    // 不再冒充穴位——医生看到的「常用穴位」必须是穴位。
+    const pointsGoverned = tcmTreatmentTemplatePointsAreGoverned(governedTemplate);
     return {
       // 甲方评测(2026-08-04) 第 3 条：治疗内容不再内嵌病机原文。
       // 同一个对象已经带 targetPathogenesis 字段，渲染层单独成行；内嵌等于每个项目块把同一句病机
       // 印两遍，N 个项目就是 2N 遍。病机归病机字段，治疗内容只写这个项目本身的边界。
-      treatmentContent: `本例适用标准项目方案，围绕${indication}由现场医师复核后实施。`,
-      suggestedSitesOrPoints: governedTemplate.sitesOrPoints.map(annotateGovernedAcupoint),
+      treatmentContent: `本例适用标准项目方案，围绕${INDICATION_LABEL[governedTemplate.indicationTag]}由现场医师复核后实施。`,
+      suggestedSitesOrPoints: pointsGoverned
+        ? governedTemplate.sitesOrPoints.map((site) => annotateGovernedAcupoint(projectCode, site))
+        : [],
       scheduleSuggestion: governedTemplate.scheduleSuggestion,
-      techniqueBoundary: governedTemplate.techniqueBoundary,
+      techniqueBoundary: pointsGoverned
+        ? governedTemplate.techniqueBoundary
+        : [governedTemplate.techniqueBoundary, ...governedTemplate.sitesOrPoints].filter(Boolean).join("；"),
       protocolSource: governedTemplate.sourceRefs.join("、"),
       protocolStatus: "governed_patient_specific_plan",
       protocolGap: undefined,
@@ -165,8 +225,11 @@ function controlledTreatmentPlan(
   // 甲方评测(2026-08-03) 9.1：评估态项目卡也要给医生看得见的常用穴位参考。聚合该项目**全部
   // 治理模板**的高频穴位(top5)作为通用参考——不绑定本例适应证、不给频次疗程、protocolStatus
   // 仍为 assessment_only,呈现层按该状态标注「通用参考,未按本例适应证核定」。空模板项目保持为空。
+  // 9.1：延期说明型模板整条排除在聚合之外——否则「常用穴位」栏里印的是
+  // 「按针刺方案中与当前证型匹配的穴位」这样一句话（生产实测：产后头痛例的灸法卡片）。
   const referencePointFrequency = new Map<string, number>();
   for (const template of definition?.planTemplates || []) {
+    if (!tcmTreatmentTemplatePointsAreGoverned(template)) continue;
     for (const point of template.sitesOrPoints) {
       referencePointFrequency.set(point, (referencePointFrequency.get(point) || 0) + 1);
     }
@@ -174,9 +237,15 @@ function controlledTreatmentPlan(
   const referenceCommonPoints = [...referencePointFrequency.entries()]
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
     .slice(0, 5)
-    .map(([point]) => annotateGovernedAcupoint(point));
+    .map(([point]) => annotateGovernedAcupoint(projectCode, point));
+  // 评估态 = 目录里没有与本例对应的标准方案。此时能证明的只有「病历里的哪句话把这个项目
+  // 带进候选」，不能改口成症状域名称。举不出病历落点（标签只来自模型行文）时一句都不说，
+  // 只讲清这是评估态——fail-closed 优于说一个患者没有的症状。
+  const evidenceTerms = tag ? indicationEvidenceTerms(tag, caseFacts) : [];
   return {
-    treatmentContent: `本例与${indication}存在项目评估关联；仅进入现场适应证、禁忌与资质评估，不形成操作计划。`,
+    treatmentContent: evidenceTerms.length > 0
+      ? `本例的「${evidenceTerms.join("、")}」使该项目进入评估范围；目录中暂无与本例对应的标准操作方案，仅进行现场适应证、禁忌与资质评估，不形成操作计划。`
+      : `目录中暂无与本例对应的该项目标准操作方案；仅就上述病机方向进行现场适应证、禁忌与资质评估，不形成操作计划。`,
     suggestedSitesOrPoints: referenceCommonPoints,
     scheduleSuggestion: "",
     techniqueBoundary: definition?.parameterPolicy || protocolGap,
@@ -211,6 +280,16 @@ function nodeIndicationTags(
   if (local.size > 0) return local;
   const global = indicationTags(globalIndicationText(prior));
   return global.size > 0 ? global : new Set(currentFactFallback);
+}
+
+/** 治理模板匹配所用的正文。排序与编译两处必须用同一份，否则"入选时算有方案、成卡时算没有"。 */
+function treatmentClinicalText(
+  prior: ClinicalReasoningResultV2,
+  node: ClinicalReasoningResultV2["pathogenesis"]["chain"][number],
+  caseFacts: string,
+): string {
+  return [globalIndicationText(prior), caseFacts, node.pathogenesis, node.syndromeEvidence]
+    .filter(Boolean).join("；");
 }
 
 function clinicalAffinity(
@@ -585,7 +664,8 @@ export function compileTcmTreatmentRecommendations(
   const seen = new Set<TcmTreatmentProjectCode>();
   const rankedPool = rankedTreatmentCandidates(scope, prior, proposals, false, caseState);
   const proposalPool = rankedPool.some((item) => item.explicit) ? rankedPool : rankedPool.slice(0, 2);
-  const currentFactFallback = indicationTags(treatmentCaseFacts(caseState));
+  const caseFacts = treatmentCaseFacts(caseState);
+  const currentFactFallback = indicationTags(caseFacts);
 
   return proposalPool.flatMap((proposal) => {
     if (seen.has(proposal.projectCode)) return [];
@@ -604,18 +684,13 @@ export function compileTcmTreatmentRecommendations(
       : medicationAssessment || (!clinicAvailable
         ? "当前仅作转介或现场评估方向，不代表本机构可开展。"
         : undefined);
-    const treatmentClinicalText = [
-      globalIndicationText(prior),
-      treatmentCaseFacts(caseState),
-      node.pathogenesis,
-      node.syndromeEvidence,
-    ].filter(Boolean).join("；");
     const matchedIndicationTags = nodeIndicationTags(prior, node, currentFactFallback);
     const treatmentPlan = controlledTreatmentPlan(
       definition.code,
       matchedIndicationTags,
       node.pathogenesis || node.syndromeEvidence || prior.overview.overallPathogenesis,
-      treatmentClinicalText,
+      treatmentClinicalText(prior, node, caseFacts),
+      caseFacts,
     );
     return [{
       projectCode: definition.code,

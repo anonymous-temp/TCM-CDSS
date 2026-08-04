@@ -6,9 +6,9 @@
     "reproductionPolicy": "标准全文和受版权保护定义不写入运行表，只登记定位信息与必要摘要。"
   },
   "summary": {
-    "sourceCount": 29,
+    "sourceCount": 30,
     "regulatoryOrGovernmentCount": 22,
-    "projectSourceCount": 7
+    "projectSourceCount": 8
   },
   "entries": [
     {
@@ -268,7 +268,7 @@
       "sourceType": "project_runtime_rule",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-safety.ts",
-      "sha256": "feb400b2403f869a2c2c808143618f51e61290056e86e6b751391ac6a81cc10a",
+      "sha256": "5308db45b61cec8a6d4e67c4ecf0712d475c2d630fec54d19a3dba20e415e830",
       "scope": "红旗、生命体征和特殊人群的实际运行门禁；外部来源只做类别和阈值复核",
       "accessedAt": "2026-07-22"
     },
@@ -279,7 +279,7 @@
       "sourceType": "project_runtime_contract",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-types.ts",
-      "sha256": "25d814af4d531e7d03428098fc3587fec9c76f45fdce996b251aac2d2d491157",
+      "sha256": "1bd383fcea56ec8a7853867bd2d12fb46f9d6100fe87777111cdad4916eb5b0c",
       "scope": "M01-M05 当前实际字段与输出结构",
       "accessedAt": "2026-07-22"
     },
@@ -290,7 +290,7 @@
       "sourceType": "project_runtime_catalog",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/tcm-treatment-projects.ts",
-      "sha256": "06cf1c0e14773bce7917e42ce624e23c1f72497589797a1e8a5532607ce26089",
+      "sha256": "9f3034c1e860ed1dfbdcb6135a0fda7f19a8ff7117bb7e50b80bbd93552fc05b",
       "scope": "22类非药物/外治项目的风险、资质、药物审方与适用标签",
       "accessedAt": "2026-07-22"
     },
@@ -325,6 +325,17 @@
       "locator": "docs/灵犀中医CDSS问题-根因分析与整改方案-20260722.md",
       "sha256": "3dd54abe8a3e6e954358463a709fb0785dc2a068e20a7f761ecbd10ec61db1ac",
       "scope": "测评钦定证型、临床常用锚词和项目扩展术语；扩展条目明确标注为非国标来源",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-CLIENT-CLINICAL-REVIEW-20260805",
+      "title": "甲方医学评测点对点回复（2026-08-05）临床意见裁定",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "customer_acceptance_and_clinical_adjudication",
+      "authorityTier": "project_governed_source",
+      "locator": "docs/客户评测原件/甲方医学评测点对点回复-20260805.docx",
+      "sha256": "f731caf77f8ac37143a9aa83def24d0d58ad6f9c547d394ce1eaad41c243b870",
+      "scope": "条目5.2：在高频方证关系表的「气血两虚」与「心脾两虚」两证下补入益气聪明汤、四物汤的 differential 关系；归脾汤 primary 地位不变，由医生按主症权重判断",
       "accessedAt": "2026-07-22"
     }
   ]

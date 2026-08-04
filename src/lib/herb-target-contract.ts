@@ -52,28 +52,13 @@ function analysisText(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").replace(/[；;。、,，]+$/g, "").trim() : "";
 }
 
-function roleClause(role: string, target: string, sharesEmperorTarget: boolean): string {
-  // 甲方评测(2026-08-04) 第 2 条「方义解析仍然冗长」：每句尾巴上的固定模板是主要冗余源。
-  // 「，是本方的治疗支点」「，加强该方向的力量」对每一张方都逐字相同，不携带本例信息；
-  // 角色本身已经写在药名后的括号里（君/臣/佐/使），再用一句话复述角色定义就是纯噪音。
-  // 保留的只有**本例特有**的部分：该药实际承接的那段病机原文。
-  if (role === "君") return target ? `直接承接核心病机「${target}」，为本方治疗支点` : "承担本方的核心治疗作用";
-  if (role === "臣") {
-    if (!target) return "协同君药、加强主治方向";
-    return sharesEmperorTarget ? `协同君药同治「${target}」` : `承接次级病机「${target}」`;
-  }
-  if (role === "佐") return target ? `兼顾「${target}」` : "兼顾兼夹病机或制约峻烈";
-  if (role === "使") return target ? `承担「${target}」的方内结构作用` : "协调方中药性、衔接各治疗方向";
-  return target ? `对应「${target}」` : "参与本方配伍";
-}
-
-/** 同一病机上的后续药味只写关系，不重复病机原文。分组排序保证「上述」永远指向紧邻的上一组。 */
-function repeatTargetClause(role: string, sharesEmperorTarget: boolean): string {
-  if (role === "君") return "同承接上述核心病机，为本方治疗支点";
-  if (role === "臣") return sharesEmperorTarget ? "协同君药同治上述病机" : "同承接上述病机";
-  if (role === "佐") return "兼顾上述病机";
-  if (role === "使") return "承担上述方内结构作用";
-  return "同承接上述病机";
+/** 病机不可用（模型没给 targetPathogenesis）时的兜底关系句。有病机时一律走分组标题，不再逐味重复。 */
+function untargetedRoleClause(role: string): string {
+  if (role === "君") return "承担本方的核心治疗作用";
+  if (role === "臣") return "协同君药、加强主治方向";
+  if (role === "佐") return "兼顾兼夹病机或制约峻烈";
+  if (role === "使") return "协调方中药性、衔接各治疗方向";
+  return "参与本方配伍";
 }
 
 /**
@@ -129,9 +114,15 @@ const TARGET_QUOTE_MAX_CHARS = 40;
 function cleanTargetQuoteText(value: string): string {
   if (!value) return "";
   // 1. 去掉「故…」「则…」引导的症状复述分句。
+  //
+  // 逗号是必需的，不是可选的（甲方评测 2026-08-04 第 7.1 条「方解格式不正确」的实测残句）：
+  // 原式 /[，,]?\s*(?:故|则)[^，,]*$/ 允许零逗号起头，于是「清窍失养，不荣则痛」里那个
+  // **词内**的「则」也被当成分句引导词，砍出「清窍失养，不荣」这种半句话印在医生页面上。
+  // 「不荣则痛」「不通则痛」是病机定式，「则」在词中；真正的症状复述一定挂在逗号之后
+  // （「…胃失和降，故胃脘胀痛」）。要求逗号在场即可精确区分这两种形态。
   const clauses = value.split(/[；;]/).map((clause) => clause.trim()).filter(Boolean);
   const mechanismClauses = clauses.filter((clause) => !/^(?:故|则|以致|遂)/.test(clause));
-  const trunk = (mechanismClauses[0] || clauses[0] || value).replace(/[，,]?\s*(?:故|则)[^，,]*$/, "").trim();
+  const trunk = (mechanismClauses[0] || clauses[0] || value).replace(/[，,]\s*(?:故|则)[^，,]*$/, "").trim();
   if (trunk.length <= TARGET_QUOTE_MAX_CHARS) return trunk;
   // 2. 仍超预算时按逗号边界收敛，至少保留第一个分句。
   const parts = trunk.split(/[，,]/).map((part) => part.trim()).filter(Boolean);
@@ -203,34 +194,49 @@ export function formulaTargetPathogenesisCells(targets: readonly unknown[]): str
 }
 
 export function formulaAnalysisCharBudget(herbCount: number): number {
-  return 80 + 56 * Math.max(0, herbCount);
+  // 甲方评测(2026-08-04) 7.2「方解过于冗长」后的重算预算。
+  // 逐味行不再各背一句关系模板（病机只在分组标题上写一次），每行收敛到
+  //   药名 ≤6 ＋ 角色括号 3 ＋ 功用 ≤15 ＋ 标点 ≈ 26 字；
+  // 分组标题最多与药味数同阶，按每味 ≤14 字摊销（标题 ≤ TARGET_QUOTE_MAX_CHARS + 「**」）。
+  // 头部一行仍 ≤ 80 字。旧预算 80+56N 是逐味模板句时代的上界，留着等于允许它长回去。
+  return 80 + 40 * Math.max(0, herbCount);
 }
 
-/** 返回逐味方义段落；herbs 为空时返回空串（调用方自行决定占位文案）。 */
+/**
+ * 返回按**病机分组**的方义段落；herbs 为空时返回空串（调用方自行决定占位文案）。
+ *
+ * 甲方评测(2026-08-04) 7.1「方解格式不正确」/ 7.2「方解过于冗长」的根修。
+ * 生产实测那一段（归脾汤 9 味）长这样：
+ *   `- **黄芪**（君）：以「补气升阳，固表止汗」直接承接核心病机「产后气血亏虚，清窍失养，不荣」，为本方治疗支点。`
+ *   `- **当归**（君）：以「补血活血，调经止痛」同承接上述核心病机，为本方治疗支点。`
+ *   …（其余 7 行同构）
+ * 三处冗余叠加：① 每行都拖一句「为本方治疗支点 / 同承接上述病机」这类**对每张方逐字相同**的
+ * 关系模板；② 「同承接上述病机」要求读者回头找「上述」是哪一条；③ 病机原文其实已经在药味表的
+ * 「对应病机」列印过一遍。而真正携带本例信息的只有两样：这味药**是什么功用**、它**归在哪条病机下**。
+ *
+ * 因此改为分组呈现：病机作组标题只写一次，组内逐味只写「药名（角色）：功用」。
+ * 逐味粒度（甲方上一轮要求的「写清楚这味药在方子里干了啥」）完全保留——角色括号本身就是关系，
+ * 组标题本身就是「承接哪条病机」，两者都不需要再用一句话复述。
+ */
 export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], therapyMatch = ""): string {
   const rows = herbs
     .map((herb) => ({
       name: analysisText(herb.name),
       role: analysisText(herb.role),
       fn: cleanHerbFunctionText(analysisText(herb.function)),
-      // target 用于**分组与去重判等**（保持原文，两条不同病机不会因取主干而误并成一组）；
-      // quote 是实际印在方义里的短引用。
+      // target 用于**分组判等**（保持原文，两条不同病机不会因取主干而误并成一组）；
+      // quote 是实际印在组标题上的短引用。
       target: analysisText(herb.targetPathogenesis),
       quote: cleanTargetQuoteText(analysisText(herb.targetPathogenesis)),
     }))
     .filter((row) => row.name);
   if (rows.length === 0) return "";
-  const emperorTargets = new Set(rows.filter((row) => row.role === "君" && row.target).map((row) => row.target));
   const roleRank = (role: string): number => {
     const index = ANALYSIS_ROLE_ORDER.indexOf(role as typeof ANALYSIS_ROLE_ORDER[number]);
     return index < 0 ? ANALYSIS_ROLE_ORDER.length : index;
   };
-  // 先按「病机分组」再按君臣佐使排序（第 2/3 条根修）。
-  //
-  // 原实现只按角色排序，同一病机的药味被其他病机的药味隔开，后续药味只能写成
-  // 「同承接上述病机（同熟地黄）」——必须带一个回指药名才不歧义，于是每行多背 6 个字，
-  // 实测 15 味方里这句重复 8 次。按病机分组后「上述」永远指紧邻的上一组，回指药名可以整体删掉。
-  // 组内仍按君臣佐使排列，君药所在的组自然排在最前（roleRank 最小），临床阅读顺序不变。
+  // 组序按「组内最高角色」定：君药所在的病机组排最前，其后臣、佐，方内结构作用（使）殿后，
+  // 与医生按君臣佐使读方的顺序一致。组内仍按君臣佐使排列。
   const groupOrder: string[] = [];
   for (const row of [...rows].sort((left, right) => roleRank(left.role) - roleRank(right.role))) {
     if (row.target && !groupOrder.includes(row.target)) groupOrder.push(row.target);
@@ -241,22 +247,26 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
   };
   const ordered = [...rows].sort((left, right) =>
     groupRank(left.target) - groupRank(right.target) || roleRank(left.role) - roleRank(right.role));
-  const quotedTargets = new Set<string>();
-  const lines = ordered.map((row) => {
-    const sharesEmperorTarget = row.role === "臣" && emperorTargets.has(row.target);
-    const alreadyQuoted = Boolean(row.target) && quotedTargets.has(row.target);
-    if (row.target) quotedTargets.add(row.target);
-    const clause = alreadyQuoted
-      ? repeatTargetClause(row.role, sharesEmperorTarget)
-      : roleClause(row.role, row.quote, sharesEmperorTarget);
+  const herbLine = (row: typeof ordered[number]): string => {
     const roleLabel = row.role ? `（${row.role}）` : "";
-    return row.fn
-      ? `- **${row.name}**${roleLabel}：以「${row.fn}」${clause}。`
-      : `- **${row.name}**${roleLabel}：${clause}。`;
-  });
+    if (row.fn) return `- ${row.name}${roleLabel}：${row.fn}`;
+    // 功用缺失时才退回角色关系句——否则这一行会只剩一个药名，读不出任何东西。
+    return `- ${row.name}${roleLabel}：${untargetedRoleClause(row.role)}`;
+  };
+  const body: string[] = [];
+  let currentTarget: string | undefined;
+  for (const row of ordered) {
+    if (row.target !== currentTarget) {
+      currentTarget = row.target;
+      if (body.length > 0) body.push("");
+      // 病机缺失的一组不写空标题：这些药味直接列在末尾，各自带角色关系句。
+      if (row.quote) body.push(`**${row.quote}**`);
+    }
+    body.push(herbLine(row));
+  }
   const cleanedTherapyMatch = cleanTherapyMatchText(analysisText(therapyMatch));
   const head = cleanedTherapyMatch
     ? `本方共${rows.length}味，围绕「${cleanedTherapyMatch}」分层组方：`
     : `本方共${rows.length}味，按已锁定病机与治法分层组方：`;
-  return [head, "", ...lines].join("\n");
+  return [head, "", ...body].join("\n");
 }

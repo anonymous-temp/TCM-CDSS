@@ -54,7 +54,7 @@
       "id": "T8",
       "file": "tcm-formula-governed-catalog.json",
       "schemaVersion": "tcm-formula-governed-catalog-v2",
-      "sha256": "331296322a37d77037c98ebd8419a1786da3ccecf95a70ded786f355eeda3b11",
+      "sha256": "5d4917d35d56c92b787f1e6364a78908779637877a1a61069bc7d239087f0a97",
       "recordCount": 2937
     },
     {
@@ -88,15 +88,15 @@
   ],
   "sourceRegistry": {
     "file": "clinical-governance-source-registry.json",
-    "sha256": "2ea2759847d238c022b815179bae5765a82c4aea621af92df52a75cbd8fb9cc5",
-    "recordCount": 29
+    "sha256": "dd7dc563d92aac54bbae452f1a1e171d34bc9ca13cb7e7c36aa4652e5cddc4ee",
+    "recordCount": 30
   },
   "auxiliaryIndexes": [
     {
       "governanceTable": "T8",
       "file": "tcm-formula-retrieval-index.json",
       "schemaVersion": "tcm-formula-retrieval-index-v2",
-      "sha256": "b1a0f7a1ef9fb1963ff3f349386513969a33266b2743b4e60cab28c8e00786d3",
+      "sha256": "5457dde6cb77435b2b75a19f4e158c01f46affabf45e97c78e5f822a12408ca9",
       "recordCount": 2915
     }
   ],

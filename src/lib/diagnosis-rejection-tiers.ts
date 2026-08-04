@@ -70,6 +70,9 @@ const T2_M03: ReadonlySet<string> = new Set([
   //   治法的病例绑定（词表 956 条治法自带 method_requires_case_binding，此前无人核对）
   "therapy_method_direction_unbound",
   "therapy_chief_symptom_unaddressed",
+  //   主症优先（2026-08-04）：主症与兼症的治法方向都成立，问题只在总治法里谁居首。
+  //   结论本身可用，因此与同族其余各条一样 T2 带批注受理 + 修复提示。
+  "therapy_chief_complaint_not_leading",
   "tcm_reasoning_diagnostic_dependency",
   "tcm_differential_analysis_missing",
   "discrimination_missing",

@@ -1,0 +1,778 @@
+{
+  "schemaVersion": "tcm-cdss-reasoning-v2",
+  "stage": "prescribe",
+  "overview": {
+    "tcmDiseaseName": "头风病",
+    "primarySyndrome": "心脾两虚，气血不足",
+    "primarySyndromeResolution": "bounded",
+    "primarySyndromeBasis": [
+      "产后2月余，头痛反复发作1月",
+      "舌象：舌淡苔薄白",
+      "脉象：脉细弱"
+    ],
+    "primarySyndromeResolutionReason": "现有四诊与病史支持心脾两虚、气血不足的工作判断；但缺乏产后出血量、恶露、乳汁、情绪、饮食二便等细节，尚不足以完全排除肝郁血虚、肾虚等兼夹，故为。",
+    "tcmDiseaseRationale": "主诉为产后头痛反复发作1月，以头痛为核心症状，病程1月，非眩晕、非心悸为主，故归入头痛病范畴；需与眩晕、真头痛鉴别。",
+    "tcmDiagnosticRationale": "四诊要点：产后2月余，头痛反复发作1月、产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华，舌象：舌淡苔薄白，脉象：脉细弱，提示病位在心、脾、头窍、病性属气血亏虚，病机为产后气血亏虚，心脾两虚，清窍失养，不荣则痛；心神失养则心悸失眠，脾虚不运则神疲乏力，面色少华。，故辨为“心脾两虚，气血不足”。",
+    "tcmDifferentials": [
+      {
+        "syndrome": "肝郁血虚",
+        "reason": "产后情绪波动常见，肝郁可致头痛，且血虚与肝郁并存时症状可重叠。",
+        "distinguishingPoints": "病历尚未确认善太息是否存在。",
+        "nextCheck": "需追问情绪状态、有无胸胁胀满、脉象是否弦。"
+      },
+      {
+        "syndrome": "肾虚头痛",
+        "reason": "产后肾气亏虚可致头痛，且腰膝酸软、耳鸣等可鉴别。",
+        "distinguishingPoints": "本例无腰膝酸软、耳鸣、夜尿频等肾虚表现，故肾虚证据不足。",
+        "nextCheck": "需追问腰膝酸软、耳鸣、夜尿情况。"
+      }
+    ],
+    "tcmDiseaseDifferentials": [
+      {
+        "diseaseName": "眩晕",
+        "reason": "头痛与眩晕可并见；病历已记录头痛阳性。",
+        "distinguishingPoints": "病历已记录头痛阳性。",
+        "nextCheck": "需追问有无视物旋转、站立不稳。"
+      },
+      {
+        "diseaseName": "真头痛",
+        "reason": "真头痛为头痛之急重症，需排除。",
+        "distinguishingPoints": "病历已记录头痛阳性；病历已记录头痛阳性；病历已记录头痛阳性；病历已记录头痛阳性；病历尚未确认剧烈头痛是否存在；病历尚未确认抽搐是否存在；病历尚未确认呕吐是否存在。",
+        "nextCheck": "若出现剧烈头痛、喷射性呕吐、意识改变，需急诊排查。"
+      }
+    ],
+    "secondarySyndromes": [],
+    "overallPathogenesis": "产后气血亏虚，心脾两虚，清窍失养，不荣则痛；心神失养则心悸失眠，脾虚不运则神疲乏力，面色少华。",
+    "overallTherapy": "补益心脾，益气养血，和络止痛。",
+    "recommendedFormulaDirection": "归脾汤加减",
+    "recommendedFormulaNames": [
+      "归脾汤"
+    ],
+    "formulaSelectionMode": "single",
+    "evidence": {
+      "evidenceLevel": "model_inference",
+      "source": "病例内推理",
+      "confidence": "低"
+    }
+  },
+  "westernDiagnosis": {
+    "primary": {
+      "name": "头痛症状",
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+        "产后2月余，头痛反复发作1月",
+        "产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华"
+      ],
+      "clinicalRationale": "产后2月余，头痛反复发作1月支持将“头痛症状”作为当前工作诊断；但现有资料尚不足以确定具体病因，因此暂不采用更具体的病因标签。",
+      "limitations": [
+        "未提供神经系统查体及影像学检查，无法排除颅内器质性病变"
+      ],
+      "suggestedChecks": [
+        "测量血压，评估有无高血压",
+        "神经系统查体，包括眼底检查",
+        "若出现红旗征（如突发剧烈头痛、意识改变、局灶神经体征），及时行头颅CT/MRI"
+      ],
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "病例内推理",
+        "confidence": "中"
+      }
+    },
+    "differentials": [
+      {
+        "name": "偏头痛",
+        "reason": "产后头痛常见类型，需与紧张型头痛等鉴别",
+        "distinguishingPoints": "本例头痛反复发作，劳累后加重；但未记录单侧搏动性、恶心呕吐或畏光畏声等偏头痛特征，故暂不优先考虑",
+        "nextCheck": "详细询问头痛性质、部位、持续时间及伴随症状"
+      },
+      {
+        "name": "紧张型头痛",
+        "reason": "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
+        "distinguishingPoints": "本例头痛劳累后加重，符合紧张型头痛特点；但缺乏压迫感或紧箍感等典型描述",
+        "nextCheck": "询问头痛性质是否为压迫性或紧箍样"
+      },
+      {
+        "name": "高血压",
+        "reason": "产后2月余，虽已过产后6周；但仍需警惕迟发型子痫前期",
+        "distinguishingPoints": "本例否认高血压病史；但未提供当前血压值，不能完全排除",
+        "nextCheck": "测量血压，必要时查尿蛋白"
+      }
+    ]
+  },
+  "pathogenesis": {
+    "summary": "产后气血亏虚，清窍失养，不荣则痛；心脾两虚，气血不足，心神失养，脾虚不运",
+    "locationDifferentiation": {
+      "items": [
+        "心",
+        "脾",
+        "头窍"
+      ],
+      "details": [
+        {
+          "location": "头窍",
+          "basis": "产后2月余，头痛反复发作1月"
+        }
+      ],
+      "resolution": "bounded",
+      "resolutionReason": "病位判断基于症状与舌脉；但缺乏饮食、二便等脾虚佐证，故为。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "natureDifferentiation": {
+      "items": [
+        "气血亏虚"
+      ],
+      "rootDeficiency": [
+        "气虚",
+        "血虚"
+      ],
+      "branchExcess": [],
+      "basis": "",
+      "resolution": "bounded",
+      "resolutionReason": "病性判断基于症状与舌脉；但缺乏寒热、二便等佐证，故为。",
+      "evidence": {
+        "evidenceLevel": "model_inference",
+        "source": "本例四诊与病史推断",
+        "confidence": "低"
+      }
+    },
+    "symptomClusters": [
+      {
+        "symptoms": [
+          "产后2月余，头痛反复发作1月",
+          "劳累后加重"
+        ],
+        "mechanism": "劳累耗气，气血更虚，清窍失养，不荣则痛。"
+      },
+      {
+        "symptoms": [
+          "产后2月余"
+        ],
+        "mechanism": "心脾两虚，气血不足，心神失养，脾虚不运。"
+      }
+    ],
+    "caseRelationship": {
+      "rootPattern": "心脾两虚，气血不足",
+      "mainManifestation": "头痛",
+      "relationship": "心脾两虚，气血不足，清窍失养，不荣则痛，发为头痛。"
+    },
+    "chain": [
+      {
+        "nodeId": "P1",
+        "patientFact": "产后2月余，头痛反复发作1月",
+        "syndromeEvidence": "产后2月余",
+        "pathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+        "therapyDirection": "益气养血，和络止痛。",
+        "pathogenesisType": "始动",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "nodeId": "P2",
+        "patientFact": "产后2月余",
+        "syndromeEvidence": "产后2月余，头痛反复发作1月",
+        "pathogenesis": "心脾两虚，气血不足，心神失养，脾虚不运。",
+        "therapyDirection": "补益心脾，养血安神。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ],
+    "uncertainties": [
+      {
+        "item": "产后出血量、恶露情况",
+        "reason": "影响血虚程度判断",
+        "affects": "辨证与方药"
+      },
+      {
+        "item": "情绪状态、有无胁肋胀痛",
+        "reason": "排除肝郁血虚",
+        "affects": "辨证"
+      },
+      {
+        "item": "饮食、二便情况",
+        "reason": "佐证脾虚程度",
+        "affects": "辨证与方药"
+      },
+      {
+        "item": "有无腰膝酸软、耳鸣",
+        "reason": "排除肾虚头痛",
+        "affects": "辨证"
+      },
+      {
+        "item": "辨证推理质量边界",
+        "reason": "部分支撑说明、分类或鉴别深度仍不充分；已保留可回溯的患者事实、工作证候及病机治法。",
+        "affects": "影响结论深度与鉴别把握，不影响风险筛查和已回溯患者事实。"
+      }
+    ]
+  },
+  "therapy": {
+    "overallPrinciple": "虚则补之",
+    "overallMethod": "补益心脾，益气养血，和络止痛。",
+    "subTherapies": [
+      {
+        "therapy": "益气养血，和络止痛",
+        "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "therapy": "补益心脾，养血安神",
+        "targetPathogenesis": "心脾两虚，气血不足，心神失养",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ]
+  },
+  "formula": {
+    "candidates": [
+      {
+        "name": "归脾汤加减",
+        "formulaNames": [
+          "归脾汤"
+        ],
+        "positioning": "首选",
+        "constructionType": "single_base",
+        "modificationStatus": "modified",
+        "baseFormulas": [
+          {
+            "name": "归脾汤",
+            "source": "《校注妇人良方》（通行十味方；初出《济生方》卷四为八味，薛己补当归、远志）。",
+            "matchedIngredientCount": 8,
+            "totalIngredientCount": 10,
+            "minimumPreservedIngredientCount": 8,
+            "matchedRequiredIngredientCount": 4,
+            "requiredIngredientCount": 4,
+            "verificationStatus": "verified_individually"
+          }
+        ],
+        "discriminationPath": [
+          {
+            "againstFormula": "炙甘草汤",
+            "question": "当前心慌失眠，其脉是细弱，还是结代？",
+            "status": "unknown",
+            "sourceRef": "T14-080:ADJ-20260727-T14-GRAPH-EXPANSION"
+          },
+          {
+            "againstFormula": "八珍汤",
+            "question": "当前气血虚，是以全身倦怠气短为主，还是伴明显怔忡健忘失眠？",
+            "status": "confirmed",
+            "sourceRef": "T14-082:ADJ-20260727-T14-GRAPH-EXPANSION"
+          },
+          {
+            "againstFormula": "补中益气汤",
+            "question": "当前阳性事实更支持「补中益气汤的方证」，还是「归脾汤的方证」？",
+            "status": "confirmed",
+            "sourceRef": "T14-089:ADJ-20260727-T14-GRAPH-EXPANSION"
+          }
+        ],
+        "classicEvidence": [
+          {
+            "evidenceId": "TCMOC-18015743D19DF07E",
+            "citation": "《时方歌括》·归脾汤",
+            "anchorLevel": "chapter_paragraph",
+            "excerpt": "属性：治思虑伤脾。不能摄血。致血妄行。或健忘怔忡。惊怪盗汗。嗜卧少食。或大便不调。 心脾疼痛。疟痢郁结。或因病用药失宜。克伐伤脾。以致变症者。最宜之。 归脾汤内术 神。（白术黄 炙茯神各[具体剂量或操作已隔离]。）参志香甘与枣仁。（人参酸枣仁炒研各[具体剂量或操作已隔离]。远志木香各五分。甘草炙[具体剂量或操作已隔离]。）龙眼当归十味外。（龙眼肉五枚。当归[具体剂量或操作已隔离]。）若加熟 地失其真。（本方只十味。薛氏加山栀丹皮各[具体剂量或操作已隔离]。名为加味归脾汤。治脾虚发热颇效。近 医加熟地黄。名黑归脾汤。则支离甚矣。） 陈修园曰。此方汇集补药。虽无深义。然亦纯而不杂。浙江江苏市医。加入熟地黄一味。 名为黑归脾汤。则不通极矣",
+            "tier": "canon"
+          },
+          {
+            "evidenceId": "TCMOC-CD22CE4104C5B9F4",
+            "citation": "《医学读书记》·归脾汤方论",
+            "anchorLevel": "chapter_paragraph",
+            "excerpt": "属性：归脾汤兼补心脾，而意专治脾。观于甘温补养药中，而加木香醒脾行气，可以见矣。龙 眼、 远志，虽曰补火，实以培土。盖欲使心火下通脾土，而脾益治，五脏受气以其所生也，故曰 归脾。",
+            "tier": "canon"
+          },
+          {
+            "evidenceId": "TCMOC-D002C79E29D1E357",
+            "citation": "《医方论》·归脾汤",
+            "anchorLevel": "chapter_paragraph",
+            "excerpt": "属性：人参 白术（土炒） 茯神 枣仁（炒） 龙眼肉[具体剂量或操作已隔离] 黄 （炙）[具体剂量或操作已隔离]五分 当归（酒 洗）[具体剂量或操作已隔离] 木香 甘草（炙）五分 远志[具体剂量或操作已隔离] 姜、枣煎。 归脾汤专治心脾，阴中之阳药。故不用地黄、白芍。后人加作黑归脾，殊失立方之旨矣。",
+            "tier": "canon"
+          },
+          {
+            "evidenceId": "TCMOC-D0568383BDD040E4",
+            "citation": "《正体类要》·归脾汤",
+            "anchorLevel": "chapter_paragraph",
+            "excerpt": "属性：治跌扑等症，气血损伤，或思虑伤脾，血虚火动，寤而不寐，或心脾作痛，怠惰嗜卧， 怔忡惊悸，自汗盗汗，大便不调，或血上下妄行，其功甚捷。 白术 当归 白茯苓 黄 （炒） 龙眼肉 远志 酸枣仁（炒，各[具体剂量或操作已隔离]） 木香（五分） 甘草（炙，三分） 人参（[具体剂量或操作已隔离]） 上姜枣[具体剂量或操作已隔离]。加柴胡、山栀，即加味归脾汤。",
+            "tier": "canon"
+          },
+          {
+            "evidenceId": "TCMOC-D27A17A20F6399FF",
+            "citation": "《冯氏锦囊秘录》·归脾汤",
+            "anchorLevel": "chapter_paragraph",
+            "excerpt": "属性：治思虑伤脾，不能摄血，健忘怔忡，惊悸不寐，心脾作痛，嗜卧少食，大便不调， 身痛盗汗，月经不调。 人参 白术（土炒） 茯苓 龙眼肉（去核） 酸枣仁（炒，各[具体剂量或操作已隔离]） 远志去骨 归身（各[具体剂量或操作已隔离]） 木香（生用） 甘草（炙，各五分） 黄 （炙，[具体剂量或操作已隔离]五分） 姜[具体剂量或操作已隔离]。 心藏神而生血，脾藏意而统血，思虑太过则两脏受伤，而血不归经，心血不足则健 忘、怔忡，惊悸不寐，脾血不足则嗜队少食，体倦肢痛，不能统血遂致妄行，甚则气 郁而心脾作痛，在女人则带下而月经不调，兹取参、苓、 、术、炙草，甘温可以补 脾，龙眼、枣仁、归身、远志，濡润可以养心，佐以木香者，盖思虑所伤三焦气阻，藉",
+            "tier": "canon"
+          },
+          {
+            "evidenceId": "TCMOC-34D2CAC5B9E043E2",
+            "citation": "《何氏虚劳心传》·归脾汤",
+            "anchorLevel": "chapter_paragraph",
+            "excerpt": "去。肢体酸疼，加牛膝、续断、秦艽、二地。食少多用人参。胃脘 心痛，倍木香，加砂仁、橘红。大便泄泻，倍白术，加米仁、山药、莲肉。便血加生地、白 芍、麦冬、五味。血热甚者，加地榆。血虚发热晡热加地冬，而参、 、木香随症去留。如 因肝经血虚而寒热如疟者，则宜逍遥散加减。如肾中阴虚而发热者，则宜保阴六味之属。经 水先期者为血热，色紫黑者热之甚，加二地、白芍、五味、麦冬。热甚者，加龟甲、黄柏， 而参、 、木香，随症去留。后期者为血虚，色淡者为虚之甚，倍当归，加地芍、枸杞、麋 角、龟甲，兼服六味，左归。经水或前或后不一，其症气乱，患从虚治，仍照上法，再加四 制香附。（为气病之总司，女科之主帅，同艾浸，浸二宿，分作四分，一分盐水浸炒，一分 酒浸炒",
+            "tier": "experience"
+          }
+        ],
+        "compositionLogic": [
+          {
+            "formulaName": "归脾汤",
+            "summary": "受控目录组成：白术、当归、茯苓、黄耆、远志、龙眼肉、酸枣仁、人参、木香、甘草。目录来源为《校注妇人良方》（通行十味方；初出《济生方》卷四为八味，薛己补当归、远志）。；方证定位为“心脾气血两虚，神失所养：心悸健忘，失眠，食少，或脾不统血出血，舌淡脉细弱。”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+            "tier": "common",
+            "sourceRefs": [
+              "urn:tcm-cdss:formula-catalog:归脾汤:济生卷四",
+              "urn:tcm-cdss:formula-catalog:归脾汤:校注妇人良方",
+              "ADJ-20260727-T14-GRAPH-EXPANSION"
+            ]
+          }
+        ],
+        "textualModifications": [],
+        "formulaSource": {
+          "evidenceLevel": "classic_text",
+          "source": "归脾汤：《校注妇人良方》（通行十味方；初出《济生方》卷四为八味，薛己补当归、远志）。",
+          "confidence": "中"
+        },
+        "therapyMatch": "补益心脾，益气养血，和络止痛。",
+        "applicable": "适用于与本例锁定证候“心脾两虚，气血不足”及病机链一致的情况。",
+        "notApplicable": "证候、病机、舌脉或安全边界变化时暂停采用，并重新辨证。 逐味生成前安全边界：当归（孕期/妊娠:MEDIUM/当归）；木香（孕期/妊娠:MEDIUM/木香）。命中相应人群或状态时按规则停用、替换或由医生/药师复核。",
+        "herbs": [
+          {
+            "name": "黄芪",
+            "processing": null,
+            "dose": "20g",
+            "role": "君",
+            "prescriptionRole": "君药：益气养血，和络止痛。",
+            "targetKind": "pathogenesis_node",
+            "targetRef": "P1",
+            "structureRole": null,
+            "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+            "function": "补气升阳，固表止汗，利水消肿，生津养血，托毒排脓，敛疮生肌；补气药；补虚药",
+            "isToxic": false,
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 9-30g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          },
+          {
+            "name": "当归",
+            "processing": null,
+            "dose": "10g",
+            "role": "君",
+            "prescriptionRole": "君药：益气养血，和络止痛。",
+            "targetKind": "pathogenesis_node",
+            "targetRef": "P1",
+            "structureRole": null,
+            "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+            "function": "补血活血，调经止痛，润肠通便；补虚药；补血药",
+            "isToxic": false,
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 6-12g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          },
+          {
+            "name": "白术",
+            "processing": null,
+            "dose": "10g",
+            "role": "臣",
+            "prescriptionRole": "臣药：补益心脾，养血安神。",
+            "targetKind": "pathogenesis_node",
+            "targetRef": "P2",
+            "structureRole": null,
+            "targetPathogenesis": "心脾两虚，气血不足，心神失养，脾虚不运。",
+            "function": "健脾益气，燥湿利水，止汗，安胎；补气药；补虚药",
+            "isToxic": false,
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 6-12g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          },
+          {
+            "name": "茯苓",
+            "processing": null,
+            "dose": "12g",
+            "role": "臣",
+            "prescriptionRole": "臣药：补益心脾，养血安神。",
+            "targetKind": "pathogenesis_node",
+            "targetRef": "P2",
+            "structureRole": null,
+            "targetPathogenesis": "心脾两虚，气血不足，心神失养，脾虚不运。",
+            "function": "利水渗湿，健脾，宁心安神；利水消肿药；利水渗湿药",
+            "isToxic": false,
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 10-15g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          },
+          {
+            "name": "酸枣仁",
+            "processing": "捣碎",
+            "dose": "12g",
+            "role": "臣",
+            "prescriptionRole": "臣药：补益心脾，养血安神。",
+            "targetKind": "pathogenesis_node",
+            "targetRef": "P2",
+            "structureRole": null,
+            "targetPathogenesis": "心脾两虚，气血不足，心神失养，脾虚不运。",
+            "function": "养心补肝，宁心安神，敛汗生津；养心安神药；安神药",
+            "isToxic": false,
+            "decoctionRequirement": "捣碎后同煎",
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 10-15g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          },
+          {
+            "name": "龙眼肉",
+            "processing": null,
+            "dose": "10g",
+            "role": "臣",
+            "prescriptionRole": "臣药：补益心脾，养血安神。",
+            "targetKind": "pathogenesis_node",
+            "targetRef": "P2",
+            "structureRole": null,
+            "targetPathogenesis": "心脾两虚，气血不足，心神失养，脾虚不运。",
+            "function": "补益心脾，养血安神；补虚药；补血药",
+            "isToxic": false,
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 9-15g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          },
+          {
+            "name": "远志",
+            "processing": null,
+            "dose": "6g",
+            "role": "佐",
+            "prescriptionRole": "佐药：补益心脾，养血安神。",
+            "targetKind": "pathogenesis_node",
+            "targetRef": "P2",
+            "structureRole": null,
+            "targetPathogenesis": "心脾两虚，气血不足，心神失养，脾虚不运。",
+            "function": "安神益智，交通心肾，祛痰开窍；养心安神药；安神药",
+            "isToxic": false,
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 3-10g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          },
+          {
+            "name": "木香",
+            "processing": null,
+            "dose": "5g",
+            "role": "佐",
+            "prescriptionRole": "佐药：顾护中焦，防补药滋腻",
+            "targetKind": "formula_structure",
+            "targetRef": "FORMULA_STRUCTURE",
+            "structureRole": "middle_jiao_support",
+            "targetPathogenesis": "顾护中焦，防补药滋腻",
+            "function": "行气止痛，健脾消食；理气药",
+            "isToxic": false,
+            "decoctionRequirement": "后下",
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 3-6g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          },
+          {
+            "name": "炙甘草",
+            "processing": null,
+            "dose": "6g",
+            "role": "使",
+            "prescriptionRole": "使药：调和诸药，协调药性",
+            "targetKind": "formula_structure",
+            "targetRef": "FORMULA_STRUCTURE",
+            "structureRole": "harmonize",
+            "targetPathogenesis": "调和诸药，协调药性",
+            "function": "补脾益气，清热解毒，祛痰止咳，缓急止痛，调和诸药；补气药；补虚药",
+            "isToxic": false,
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 2-10g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          }
+        ],
+        "formulaAnalysis": "本方共9味，围绕「补益心脾、益气养血、和络止痛」分层组方：\n\n- **黄芪**（君）：以「补气升阳，固表止汗」直接承接核心病机「产后气血亏虚，清窍失养，不荣」，为本方治疗支点。\n- **当归**（君）：以「补血活血，调经止痛」同承接上述核心病机，为本方治疗支点。\n- **白术**（臣）：以「健脾益气，燥湿利水」承接次级病机「心脾两虚，气血不足，心神失养，脾虚不运」。\n- **茯苓**（臣）：以「利水渗湿，健脾」同承接上述病机。\n- **酸枣仁**（臣）：以「养心补肝，宁心安神」同承接上述病机。\n- **龙眼肉**（臣）：以「补益心脾，养血安神」同承接上述病机。\n- **远志**（佐）：以「安神益智，交通心肾」兼顾上述病机。\n- **木香**（佐）：以「行气止痛，健脾消食」兼顾「顾护中焦，防补药滋腻」。\n- **炙甘草**（使）：以「补脾益气，清热解毒」承担「调和诸药，协调药性」的方内结构作用。",
+        "decoction": {
+          "doseCount": "7剂",
+          "method": "每日1剂；加冷水浸泡30分钟，武火煮沸后转文火；一煎30分钟、二煎20分钟；两煎合并药液约500mL；每日分2次服；服药与进餐间隔按患者胃肠耐受、方剂性质及院内规范执行；特殊药味按药味表执行",
+          "course": "7日",
+          "followUpNode": "完成7剂（7日）后复诊；出现不适或症状加重时提前复诊",
+          "dosesPerDay": 1,
+          "administrationTimesPerDay": 2,
+          "soakMinutes": 30,
+          "decoctionTimes": 2,
+          "firstDecoctionMinutes": 30,
+          "secondDecoctionMinutes": 20,
+          "targetVolumeMl": 500,
+          "administration": "每日1剂，每日分2次服；服药与进餐间隔按患者胃肠耐受、方剂性质及院内规范执行",
+          "followUpAfterDoses": 7,
+          "followUpAfterDays": 7
+        }
+      }
+    ],
+    "patentAndWestern": [
+      {
+        "type": "中成药",
+        "name": "归脾丸",
+        "specification": "每瓶装 60g",
+        "evidenceId": "EVID-INST-001",
+        "evidenceFingerprint": "sha256:1b8f9a574bca8eb451cf5655664a01408b20e08cfcd3db9a82d5e1dfc75b3ce9",
+        "recommendationMode": "candidate_review",
+        "usageBoundary": "作为饮片煎剂的替代或序贯方案，需在医生指导下使用；哺乳期用药需权衡利弊。",
+        "course": "本候选不形成疗程医嘱",
+        "positioning": "替代方案",
+        "correspondingProblem": "心脾两虚、气血不足所致的产后头痛、心悸失眠、神疲乏力",
+        "evidence": {
+          "evidenceLevel": "instruction",
+          "source": "[EVID-INST-001]",
+          "confidence": "中"
+        },
+        "relationship": "与饮片方案不默认联用，由医生择一或评估联用",
+        "riskNote": "说明书未载明确禁忌；哺乳期妇女应在医师指导下服用；服药期间忌不易消化食物，感冒发热不宜服用；病历已记录心悸阳性；病历尚未确认头晕是否存在。"
+      },
+      {
+        "type": "中成药",
+        "name": "乌圆补血口服液",
+        "specification": "10ml*10支",
+        "evidenceId": "LOCAL-INST-001",
+        "evidenceFingerprint": "sha256:96daaba7123f6ae2411b529e3cdb327fda91d9b394fcde88b2535399501a7beb",
+        "recommendationMode": "candidate_review",
+        "usageBoundary": "仅作与本例当前阳性问题匹配的说明书候选；具体用法须核对完整说明书并由医生决定。",
+        "course": "本候选不形成疗程医嘱",
+        "positioning": "需医生评估",
+        "correspondingProblem": "心脾两虚、气血不足、失眠、心悸、乏力",
+        "evidence": {
+          "evidenceLevel": "drug_label",
+          "source": "[LOCAL-INST-001]",
+          "confidence": "中"
+        },
+        "relationship": "与中药饮片方案不默认联用，由医生结合重复功效、相互作用和治疗目标择一或评估联用。",
+        "riskNote": "尚不明确。；1、忌不易消化食物。病历尚未确认发热是否存在。3、糖尿病、湿热症患者慎用，或在医生指导下使用。4、有高血压、心脏病、肝病、肾病等慢性病患者应在医师指导下服用。5、孕妇、哺乳期妇女应在医师指导下服用。6、心悸或头晕症状严重者应及时去医院就诊。7、服药2周症状无缓解，应去医院就诊。8、严格按用法用量服用，本品不宜长期服用。9、对本品过敏者禁用，过敏体质者慎用。10、本品性状发生改变时禁止使用。11、请将本品放在儿童不能接触的地方。12、如正在使用其他药品，使用极地玉叶乌圆补血口服液前请咨询医师或药师。；如与其他药物同时使用可能会发生药物相互作用，详情请咨询医师或药师。"
+      }
+    ],
+    "medicineCandidateStatus": {
+      "status": "available",
+      "reason": "已形成与本例问题匹配并绑定真实说明书条目的候选。"
+    },
+    "modifications": [
+      {
+        "trigger": "产后2月余，头痛反复发作1月",
+        "triggerSource": {
+          "kind": "primary_syndrome_basis",
+          "sourceRef": "overview.primarySyndromeBasis[0]",
+          "sourceQuote": "产后2月余，头痛反复发作1月"
+        },
+        "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+        "action": "加川芎",
+        "doseOrHandling": null,
+        "reason": "头痛反复发作，为气血亏虚、清窍失养所致，加川芎活血行气、祛风止痛，引药上行头目，以助和络止痛。",
+        "riskNote": "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "患者事实（overview.primarySyndromeBasis[0]）：产后2月余，头痛反复发作1月；对应病机节点：P1",
+          "confidence": "中"
+        }
+      },
+      {
+        "trigger": "伴神疲乏力、心悸失眠、面色少华",
+        "triggerSource": {
+          "kind": "western_supporting_fact",
+          "sourceRef": "westernDiagnosis.primary.supportingFacts[1]",
+          "sourceQuote": "产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华"
+        },
+        "targetPathogenesis": "心脾两虚，气血不足，心神失养，脾虚不运。",
+        "action": "加大枣",
+        "doseOrHandling": null,
+        "reason": "心脾两虚、气血不足，加大枣补中益气、养血安神，以增强补益心脾之力。",
+        "riskNote": "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "患者事实（westernDiagnosis.primary.supportingFacts[1]）：产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华；对应病机节点：P2",
+          "confidence": "中"
+        }
+      }
+    ],
+    "modificationReview": {
+      "submittedCount": 2,
+      "retainedCount": 2,
+      "droppedCount": 0,
+      "droppedReason": null,
+      "droppedReasons": []
+    }
+  },
+  "nonPharma": {
+    "diet": "饮食宜温热、易消化，适当增加富含蛋白质和铁的食物如瘦肉、蛋类、豆制品，避免生冷、油腻及辛辣刺激之品；可少量多餐，忌暴饮暴食。",
+    "lifestyle": "保证充足睡眠，避免劳累和熬夜；产后注意保暖，避免风寒；可适当进行温和活动如室内散步，逐步恢复体力，避免剧烈运动。",
+    "emotion": "保持情绪平稳，避免过度思虑和恼怒；家人应多予关心支持，可尝试听舒缓音乐、深呼吸等方式放松心情。",
+    "acupointCare": null,
+    "tcmTreatments": [
+      {
+        "projectCode": "moxibustion",
+        "projectName": "灸法",
+        "availability": "clinic_available",
+        "riskLevel": "moderate",
+        "recommendationMode": "clinician_assessment",
+        "targetRef": "P1",
+        "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+        "protocolStatus": "assessment_only_no_patient_specific_protocol",
+        "protocolGap": "目录存在该项目的其他适应证模板，但与本例适应证不符；不得跨适应证套用穴位、部位、频次或疗程。",
+        "treatmentContent": "本例与经带与下腹症状存在项目评估关联；仅进入现场适应证、禁忌与资质评估，不形成操作计划。",
+        "suggestedSitesOrPoints": [
+          "按针刺方案中与当前证型匹配的穴位",
+          "膀胱经大杼至肾俞区域（现场定位）"
+        ],
+        "scheduleSuggestion": "",
+        "techniqueBoundary": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+        "protocolSource": "SRC-SAMR-ACUPUNCTURE-OPS、SRC-TCM-INFECTION-CONTROL",
+        "operatorRequirement": "由受训医务人员评估火源、温度和皮肤耐受",
+        "requiredChecks": [
+          "感觉障碍、糖尿病足、发热热证、皮损和烫伤风险"
+        ],
+        "containsMedication": false,
+        "requiresMedicationAudit": false,
+        "executable": false,
+        "clinicianReviewRequired": true
+      },
+      {
+        "projectCode": "auricular",
+        "projectName": "耳穴",
+        "availability": "clinic_available",
+        "riskLevel": "moderate",
+        "recommendationMode": "clinician_assessment",
+        "targetRef": "P2",
+        "targetPathogenesis": "心脾两虚，气血不足，心神失养，脾虚不运。",
+        "protocolStatus": "governed_patient_specific_plan",
+        "treatmentContent": "本例适用标准项目方案，围绕头痛症状由现场医师复核后实施。",
+        "suggestedSitesOrPoints": [
+          "神门（HT7·手少阴心经）",
+          "心",
+          "皮质下",
+          "枕",
+          "脾（按证型加选）"
+        ],
+        "scheduleSuggestion": "单耳贴压、双耳交替；每日自行按压3-5次，每次1-2分钟；每3-5天更换一次。疗程由复评决定。",
+        "techniqueBoundary": "耳穴贴压为无创操作；耳廓皮肤破溃、冻疮、感染或过敏时禁用，妊娠期慎用。实际取穴由现场医师按辨证复核。",
+        "protocolSource": "SRC-SAMR-ACUPUNCTURE-OPS、SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
+        "operatorRequirement": "由受训人员辨穴并指导按压",
+        "requiredChecks": [
+          "耳部皮损感染、胶布或籽粒过敏和刺激强度"
+        ],
+        "containsMedication": false,
+        "requiresMedicationAudit": false,
+        "executable": false,
+        "clinicianReviewRequired": true
+      },
+      {
+        "projectCode": "acupuncture",
+        "projectName": "针刺疗法",
+        "availability": "clinic_available",
+        "riskLevel": "moderate",
+        "recommendationMode": "clinician_assessment",
+        "targetRef": "P1",
+        "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+        "protocolStatus": "governed_patient_specific_plan",
+        "treatmentContent": "本例适用标准项目方案，围绕头痛症状由现场医师复核后实施。",
+        "suggestedSitesOrPoints": [
+          "百会（DU20·督脉）",
+          "合谷（LI4·手阳明大肠经）",
+          "太阳或率谷（按疼痛部位复核）（EX-HN5·经外奇穴）",
+          "风池（仅由专业人员操作）（GB20·足少阳胆经）"
+        ],
+        "scheduleSuggestion": "门诊项目频次参考为每日1次；急性期与维持期的具体间隔由面诊医生确定。",
+        "techniqueBoundary": "突发剧烈头痛、神经功能缺损、发热颈强或外伤后头痛先行急诊评估；不输出进针方向和深度。",
+        "protocolSource": "SRC-REFERENCE-NISHI-ACUPUNCTURE、SRC-ZIBO-TCM-DAY-FREQUENCY-2022、SRC-SAMR-ACUPUNCTURE-OPS",
+        "operatorRequirement": "由具备相应资质的中医执业人员操作",
+        "requiredChecks": [
+          "出血倾向、抗凝用药、妊娠相关穴位、局部感染和晕针史"
+        ],
+        "containsMedication": false,
+        "requiresMedicationAudit": false,
+        "executable": false,
+        "clinicianReviewRequired": true
+      }
+    ],
+    "precautions": [
+      "服药期间若头痛突然加剧、伴呕吐、视力模糊或肢体无力，应立即就医排查子痫前期或颅内病变。",
+      "建议1周内复诊评估疗效，若服药后症状无改善或出现胃脘不适、食欲减退等，应及时就诊调整方案。",
+      "病历尚未确认皮疹是否存在；病历尚未确认腹泻是否存在。",
+      "若同时服用其他药物，尤其是抗凝药、降压药或镇静安神药，需告知医生以评估相互作用。"
+    ]
+  },
+  "management": {
+    "mustCollect": [
+      "血压测量值",
+      "头痛性质、部位、持续时间及诱发缓解因素",
+      "神经系统查体结果",
+      "产后哺乳情况"
+    ],
+    "followupSafetyNet": "若头痛突然加剧、伴呕吐、视力模糊、意识改变或肢体无力，需立即就医排查子痫前期或颅内病变；建议1周内复诊评估疗效。"
+  }
+}

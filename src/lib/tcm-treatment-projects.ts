@@ -161,17 +161,60 @@ export function getTcmTreatmentProjectDefinition(code: TcmTreatmentProjectCode):
   return PROJECT_BY_CODE.get(code);
 }
 
-export function governedTcmTreatmentPlanTemplate(
+/**
+ * 按**给定的适应证优先级**选取治理模板。
+ *
+ * 旧签名接收的是一个无序 Set，实现用 `planTemplates.find(...)`——于是真正决定选哪套穴位的是
+ * **目录里模板的排列顺序**，而不是本例的适应证。针刺的模板表第一条恰好是失眠方
+ * （安眠/神门/内关/心俞），只要病历里出现「失眠」二字，头痛病例也会拿到这套安眠穴位，
+ * 而卡片标题上写的却是按项目亲和度算出来的另一个适应证（头痛症状）——同一张卡片里
+ * 「适应证」和「穴位」来自两套互不相干的判据（生产实测 fixa-d1b：肝阳上亢头痛 → 安眠/心俞）。
+ *
+ * 改为按调用方给出的**有序**适应证逐个匹配：先找排第一的适应证有没有对应模板，没有再退而求其次。
+ * 选中的模板自带 indicationTag，呈现层据此标注，两者不可能再分叉。
+ */
+export function governedTcmTreatmentPlanTemplateForTags(
   code: TcmTreatmentProjectCode,
   clinicalText: string,
-  allowedIndicationTags?: ReadonlySet<TcmTreatmentIndicationTag>,
+  orderedIndicationTags: readonly TcmTreatmentIndicationTag[],
 ): TcmTreatmentPlanTemplate | undefined {
   const normalized = clinicalText.normalize("NFKC");
   const definition = PROJECT_BY_CODE.get(code);
   if (!definition?.patientSpecificParametersAllowed) return undefined;
-  return definition.planTemplates.find((template) =>
-    (!allowedIndicationTags || allowedIndicationTags.has(template.indicationTag)) &&
-    template.matchAny.some((term) => normalized.includes(term)));
+  for (const tag of orderedIndicationTags) {
+    const matched = definition.planTemplates.find((template) =>
+      template.indicationTag === tag &&
+      template.matchAny.some((term) => normalized.includes(term)));
+    if (matched) return matched;
+  }
+  return undefined;
+}
+
+/**
+ * 该模板的 sitesOrPoints 是否**真的是穴位/部位**（甲方评测 2026-08-04 9.1）。
+ *
+ * 目录里有三条模板把「点哪儿由别处决定」写进了 sitesOrPoints 字段：
+ *   moxibustion-influenza-hunan-2025      → 「按针刺方案中与当前证型匹配的穴位」
+ *   thread-embedding-obesity-…-assessment → 「具体埋线穴位须经专科查体和辨证确认」
+ *   bloodletting-influenza-…-specialist   → 「点刺或刺络部位须由专科医师按证型现场确定」
+ * 它们是**延期说明**，不是穴位。呈现层照单全收，于是医生看到的「常用穴位」是一句话
+ * （生产实测：产后头痛例灸法卡片的常用穴位 = 「按针刺方案中与当前证型匹配的穴位」）——
+ * 甲方原话「推荐治疗项目应列出常用穴位」指的正是这个。
+ *
+ * 判据取目录自带的 parameterCompleteness 字段，不做任何文本识别：该字段以
+ * `points_require_syndrome_selection` / `points_require_exam` / `site_requires_exam` 结尾时，
+ * 目录自己声明这条模板的穴位/部位尚未治理。
+ * `exact_points_require_exam`（针刺骨骼肌肉痛：局部阿是穴 + 循经远端穴）**不在此列**——
+ * 它给出的是受治理的取穴范围，精确定位才需查体，属于正常的临床表述。
+ */
+export function tcmTreatmentTemplatePointsAreGoverned(template: TcmTreatmentPlanTemplate): boolean {
+  const completeness = String(template.parameterCompleteness || "");
+  if (completeness.endsWith("exact_points_require_exam")) return true;
+  return !(
+    completeness.endsWith("points_require_syndrome_selection") ||
+    completeness.endsWith("points_require_exam") ||
+    completeness.endsWith("site_requires_exam")
+  );
 }
 
 /** True when every governed template of the project legitimately has no acupoints/sites
