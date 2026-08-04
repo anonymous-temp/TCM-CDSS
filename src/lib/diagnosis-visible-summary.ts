@@ -1,8 +1,8 @@
-import { isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { discriminatingWesternSupportClauses, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
 import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
-import { buildFormulaAnalysis, formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
+import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesisCells, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity } from "./clinical-polarity";
 import { getM03TherapyLock } from "./m03-therapy-lock";
@@ -10,9 +10,53 @@ import { tcmTreatmentAssessmentPositioningForDisplay } from "./tcm-treatment-pro
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
 import { resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
+import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives } from "./internal-tag-hygiene";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
+
+/**
+ * 甲方评测(2026-08-04) 呈现层第 3 条「病机内容仍存在重复」的**单一去重权威**。
+ *
+ * 根因：M03 的病机在结构化载荷里天然存在于五个字段——overview.overallPathogenesis、
+ * pathogenesis.summary（服务端投影＝chain 病机去重后分号连接）、caseRelationship.relationship、
+ * chain[].pathogenesis、therapy.subTherapies[].targetPathogenesis。渲染层此前对每个字段各自
+ * 无条件成句，于是同一段病机原文在一页里被医生读到 2–3 次。实测 1340 份归档产出：
+ * 33% 的 overallPathogenesis 逐字包含某个 chain 病机，18% 的 subTherapies.targetPathogenesis
+ * 与 chain 病机逐字相同，4% 的 caseRelationship.relationship 与两者之一相同。
+ *
+ * 规则：**一段病机原文在整篇可见正文中最多完整呈现一次**，后续位置改为短引用或整条省略。
+ * 服务端 Markdown 投影与客户端结构化渲染共用本账本，避免两条渲染路径各写一套判据后再次分叉。
+ */
+export function createPathogenesisNarrativeLedger() {
+  const shown: string[] = [];
+  const fingerprintOf = (value: unknown): string => narrativeFingerprint(markdownCell(value));
+  return {
+    /** 这段病机是否已在正文别处完整呈现过（逐字相同，或已被更长的一段完整包含）。 */
+    isAlreadyShown(value: unknown): boolean {
+      const print = fingerprintOf(value);
+      if (print.length < 4) return false;
+      return shown.some((seen) => seen === print || seen.includes(print));
+    },
+    /** 登记一段将要完整呈现的病机原文；返回 false 表示调用方应改用短引用。 */
+    claim(value: unknown): boolean {
+      const print = fingerprintOf(value);
+      if (print.length < 4) return true;
+      if (shown.some((seen) => seen === print || seen.includes(print))) return false;
+      shown.push(print);
+      return true;
+    },
+  };
+}
+
+/** 内部经典证据枚举 → 医生可见中文标签；未收录取值返回空串，由调用方整段省略。 */
+function classicTierLabel(value: unknown): string {
+  return typeof value === "string" ? CLASSIC_EVIDENCE_TIER_LABELS[value.trim()] || "" : "";
+}
+
+function classicAnchorLabel(value: unknown): string {
+  return typeof value === "string" ? CLASSIC_EVIDENCE_ANCHOR_LABELS[value.trim()] || "" : "";
+}
 type ClinicalResolutionValue = "resolved" | "bounded" | "unresolved";
 
 function exactClinicalSourceQuotes(value: string, clinicalContext: string): string[] {
@@ -529,12 +573,14 @@ export function applyM03AdvisoryQualityBoundaries(content: string, clinicalConte
           !isNondiscriminatingWesternSupportingFact(fact) &&
           isWesternSupportingFactPolarityAligned(fact, clinicalContext)
         );
+      // 就诊经过分句在这里剥离：三个来源（模型依据、病历投影、病机链）汇合后只此一处，
+      // 避免三条路径各写一遍判据后再分叉。剥离结果仍是病历原文的连续子串，逐字可回溯不变。
       primary.supportingFacts = uniqueClinicalFacts([
         ...groundedFacts,
         ...fallbackFacts,
         ...documentedCurrentFacts,
         ...(chainFact ? [chainFact] : []),
-      ])
+      ].flatMap((fact) => discriminatingWesternSupportClauses(fact)))
         .filter((fact) => !NONDIAGNOSTIC_WESTERN_SUPPORT.test(fact))
         .filter((fact) => !isNondiscriminatingWesternSupportingFact(fact))
         .map((fact) => relabelBareVitalSupportingFact(fact, clinicalContext))
@@ -1753,12 +1799,19 @@ function markdownNumberCell(value: unknown): string {
 function canonicalHerbTable(candidate: Record<string, unknown>): string {
   const herbs = Array.isArray(candidate.herbs) ? candidate.herbs : [];
   if (herbs.length === 0) return "";
+  // 「对应病机」列走统一的去重呈现：同一段病机在本表里只完整写一次，其余行指向首次出现。
+  // 服务端 Markdown 与客户端表格共用 formulaTargetPathogenesisCells，两条渲染路径不再各写一套。
+  const targetCells = formulaTargetPathogenesisCells(
+    herbs.map((rawHerb) => (rawHerb && typeof rawHerb === "object" && !Array.isArray(rawHerb)
+      ? (rawHerb as Record<string, unknown>).targetPathogenesis
+      : "")),
+  );
   const rows = herbs.map((rawHerb, index) => {
     const herb = rawHerb && typeof rawHerb === "object" && !Array.isArray(rawHerb)
       ? rawHerb as Record<string, unknown>
       : {};
     const processing = joinClinicalClauses([markdownCell(herb.processing), markdownCell(herb.decoctionRequirement)], "；") || "饮片";
-    return `| ${index + 1} | ${markdownCell(herb.name)} | ${processing} | ${markdownCell(herb.dose)} | ${markdownCell(herb.role)} | ${markdownCell(herb.prescriptionRole)} | ${markdownCell(herb.targetPathogenesis)} | ${markdownCell(herb.function)} |`;
+    return `| ${index + 1} | ${markdownCell(herb.name)} | ${processing} | ${markdownCell(herb.dose)} | ${markdownCell(herb.role)} | ${markdownCell(herb.prescriptionRole)} | ${markdownCell(targetCells[index])} | ${markdownCell(herb.function)} |`;
   });
   return [
     "| 序号 | 药名 | 炮制/煎服要求 | 剂量 | 君臣佐使 | 处方角色 | 对应病机/证候/症状 | 配伍意义 |",
@@ -1869,6 +1922,9 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>): strin
     pathogenesisHeading,
     `**总体病机**：${markdownCell(overview?.overallPathogenesis)}`,
   );
+  // 病机去重账本按**呈现顺序**登记：总体病机是本节标题句，先占位；后续四个病机字段命中即改短引用。
+  const pathogenesisLedger = createPathogenesisNarrativeLedger();
+  pathogenesisLedger.claim(overview?.overallPathogenesis);
 /**
  * 被剥离的方名选择渲染成一行医生可读的说明。方名只从签名信封里逐字取出，不重新检索、不代选，
  * 措辞明确写成「未锁定、供医生判断」，避免被读成推荐。
@@ -1938,7 +1994,10 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
     lines.push(
       `**本证**：${markdownCell(caseRelationship.rootPattern)}`,
       `**主要表现**：${markdownCell(caseRelationship.mainManifestation)}`,
-      `**病机联系**：${markdownCell(caseRelationship.relationship)}`,
+      // 病机联系与总体病机逐字相同是最常见的一处重复：本行只在它确实补充了新内容时才出现。
+      ...(pathogenesisLedger.claim(caseRelationship.relationship)
+        ? [`**病机联系**：${markdownCell(caseRelationship.relationship)}`]
+        : []),
     );
   }
   if (chain.length > 0) {
@@ -1947,7 +2006,11 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
       "### 子病机与治法",
       "| 患者事实 | 证候依据 | 子病机 | 对应治法 |",
       "|---|---|---|---|",
-      ...chain.map((node) => `| ${markdownCell(node.patientFact)} | ${markdownCell(node.syndromeEvidence)} | ${markdownCell(node.pathogenesis)} | ${markdownCell(node.therapyDirection)} |`),
+      // 子病机列：若该节点病机已被总体病机逐字包含，改写为短引用而不是把同一句再抄一遍。
+      // 表格不留空单元格——「已含于总体病机」本身就是医生要的信息（这一节点没有额外内容）。
+      ...chain.map((node) => `| ${markdownCell(node.patientFact)} | ${markdownCell(node.syndromeEvidence)} | ${
+        pathogenesisLedger.claim(node.pathogenesis) ? markdownCell(node.pathogenesis) : "同总体病机"
+      } | ${markdownCell(node.therapyDirection)} |`),
     );
   }
   lines.push(
@@ -1961,7 +2024,11 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
       "",
       "| 分治方向 | 对应病机 |",
       "|---|---|",
-      ...subTherapies.map((item) => `| ${markdownCell(item.therapy)} | ${markdownCell(item.targetPathogenesis)} |`),
+      // 分治方向表的「对应病机」列与上方子病机表逐字相同的比例实测 18%。命中即改短引用：
+      // 本表的信息量在于治法拆分，病机原文已在上一节完整呈现过。
+      ...subTherapies.map((item) => `| ${markdownCell(item.therapy)} | ${
+        pathogenesisLedger.claim(item.targetPathogenesis) ? markdownCell(item.targetPathogenesis) : "同上述病机"
+      } |`),
     );
   }
   if (uncertainties.length > 0) {
@@ -2057,8 +2124,12 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       lines.push(
         "",
         "### 组成逻辑",
+        // tier/anchorLevel 是内部枚举（canon/common/experience、tiaowen/…）。此前直接 `${}` 进
+        // 医生可见 Markdown，医生页面上就出现「（canon）」这种工程记号——与 L0/L1/L3 同一类问题。
+        // 统一走 internal-tag-hygiene 的标签表，枚举→中文；未收录的取值整段省略而不是打印原码。
         ...compositionLogic.map((item) =>
-          `- **${markdownCell(item.formulaName)}**：${markdownCell(item.summary)}（${markdownCell(item.tier)}）`),
+          `- **${markdownCell(item.formulaName)}**：${markdownCell(item.summary)}${
+            classicTierLabel(item.tier) ? `（${classicTierLabel(item.tier)}）` : ""}`),
       );
     }
     if (discriminationPath.length > 0) {
@@ -2076,8 +2147,13 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       lines.push(
         "",
         "### 经典条文依据",
-        ...classicEvidence.map((item) =>
-          `- ${markdownCell(item.citation)}（${markdownCell(item.anchorLevel)}${markdownCell(item.clauseNumber) ? ` ${markdownCell(item.clauseNumber)}` : ""}；${markdownCell(item.tier)}）`),
+        ...classicEvidence.map((item) => {
+          const qualifiers = joinClinicalClauses([
+            [classicAnchorLabel(item.anchorLevel), markdownCell(item.clauseNumber)].filter(Boolean).join(" "),
+            classicTierLabel(item.tier),
+          ].filter(Boolean), "；");
+          return `- ${markdownCell(item.citation)}${qualifiers ? `（${qualifiers}）` : ""}`;
+        }),
       );
     }
     if (textualModifications.length > 0) {
@@ -2118,12 +2194,15 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
     }
   }
   if (modifications.length > 0) {
+    // 多条加减常挂在同一个病机上；同一本账本，本节内的病机原文只写一次。
+    const modificationPathogenesisLedger = createPathogenesisNarrativeLedger();
     lines.push("", "## 随证加减建议", ...modifications.map((item) => {
       const triggerSource = recordValue(item.triggerSource);
       const sourceQuote = markdownCell(triggerSource?.sourceQuote);
+      const target = markdownCell(item.targetPathogenesis);
       return `- **${markdownCell(item.trigger)}**：${clinicalSentence([
         markdownCell(item.action),
-        markdownCell(item.targetPathogenesis) ? `对应病机：${markdownCell(item.targetPathogenesis)}` : "",
+        target ? `对应病机：${modificationPathogenesisLedger.claim(target) ? target : "同上述病机"}` : "",
         markdownCell(item.reason),
         sourceQuote ? `触发依据：${sourceQuote}` : "",
       ], "；")}`;
@@ -2152,6 +2231,15 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
     const treatmentProjects = recordList(nonPharma.tcmTreatments);
     if (treatmentProjects.length > 0) {
       lines.push("", "### 中医治疗项目");
+      // 多个项目通常挂在同一个病机节点上（本例三项全部指向同一句病机）。逐块重印一遍，
+      // 医生就要把同一句读三遍——接入同一本去重账本，首个项目写全文，其后写短引用。
+      //
+      // 「治疗内容」也走同一本账本，而且**先于**「对应病机」登记：历史载荷里 treatmentContent
+      // 把病机原文内嵌在引号里（生成侧已在 tcm-treatment-capabilities.server.ts 停掉，但归档载荷
+      // 与既有快照仍是旧形态），先登记长句，紧随其后的病机行就会自动收敛成短引用。
+      // 同时，多个项目的 treatmentContent 常是逐字相同的目录级套话，重复行同样收敛。
+      const treatmentPathogenesisLedger = createPathogenesisNarrativeLedger();
+      const shownTreatmentContent = new Set<string>();
       for (const item of treatmentProjects) {
         const availability = item.availability === "clinic_available" ? "本机构可开展" : "转介评估";
         const requiredChecks = Array.isArray(item.requiredChecks)
@@ -2162,11 +2250,21 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
           ? joinClinicalClauses(item.suggestedSitesOrPoints.map(markdownCell), "；")
           : "";
         const hasPatientSpecificProtocol = item.protocolStatus === "governed_patient_specific_plan";
+        const treatmentContent = markdownCell(item.treatmentContent);
+        const target = markdownCell(item.targetPathogenesis);
+        // 历史载荷的 treatmentContent 把本块自己的病机原文内嵌在引号里（生成侧已停，见
+        // tcm-treatment-capabilities.server.ts），此时这行相对「方案状态 + 对应病机」两行不再携带
+        // 新信息，整行省略而不是把同一句病机在同一张卡片里印两遍。新载荷不内嵌，照常呈现。
+        const contentEmbedsTarget = Boolean(treatmentContent) && Boolean(target) && treatmentContent.includes(target);
+        const repeatedContent = Boolean(treatmentContent) && shownTreatmentContent.has(treatmentContent);
+        if (treatmentContent) shownTreatmentContent.add(treatmentContent);
         lines.push(
           `#### ${markdownCell(item.projectName)} · ${availability}`,
           `- **方案状态**：${hasPatientSpecificProtocol ? "已有对应适应证的标准操作方案，仍须医生复核" : "仅作项目评估，未形成患者级操作方案"}`,
-          `- **治疗内容**：${markdownCell(item.treatmentContent)}`,
-          `- **对应病机**：${markdownCell(item.targetPathogenesis)}`,
+          ...(contentEmbedsTarget ? [] : [`- **治疗内容**：${repeatedContent ? "同上述项目" : treatmentContent}`]),
+          `- **对应病机**：${treatmentPathogenesisLedger.claim(target)
+            ? target
+            : "同上述病机"}`,
           ...(sites ? [hasPatientSpecificProtocol
             ? `- **建议部位/候选穴位**：${sites}`
             : `- **常用穴位（通用参考，未按本例适应证核定）**：${sites}；具体选穴由现场医师按适应证与禁忌确定`] : []),
@@ -2200,12 +2298,25 @@ export function synchronizeVisibleClinicalSummary(
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
   try {
-    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
-    if (reasoning.schemaVersion !== "tcm-cdss-reasoning-v2" || reasoning.stage !== expectedStage) return content;
+    const parsed = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2" || parsed.stage !== expectedStage) return content;
+    // ─── 内部工程记号的**唯一**净化点 ───────────────────────────────────────────
+    // 这里是真正的渲染边界：服务端可见 Markdown（下面的 visible*FromReasoning）、客户端结构化
+    // 渲染（DiagnosisClient 解析 sentinel）和 HIS 方案读的都是这一份 reasoning。因此净化必须
+    // 发生在**投影之前**、且要**写回 sentinel**，三个消费者才拿到同一份干净数据；只洗 Markdown
+    // 会让医生页面（走结构化渲染）继续显示 L0/L1/L3。
+    //
+    // 记号集合由 internal-tag-hygiene 从各内部词表推导，不是黑名单；机器取值字段（targetKind /
+    // evidenceLevel / warningLevel / nodeId…）在 MACHINE_VALUED_KEYS 里显式豁免，合同校验与
+    // 签名载荷不受影响（本函数在 applyDiagnose/PrescribeContractSignature 之前运行）。
+    const reasoning = sanitizeReasoningNarratives(parsed);
     const visible = expectedStage === "diagnose"
       ? visibleDiagnoseFromReasoning(reasoning)
       : visiblePrescribeFromReasoning(reasoning);
-    return `${visible}${content.slice(start)}`;
+    const sanitizedSentinel = JSON.stringify(reasoning) === JSON.stringify(parsed)
+      ? content.slice(start)
+      : `${START_MARKER}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+    return `${visible}${sanitizedSentinel}`;
   } catch {
     return content;
   }

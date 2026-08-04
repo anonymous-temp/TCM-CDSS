@@ -22,7 +22,6 @@ const {
   prioritizeTcmEvidenceForDisplay,
   prioritizeWesternEvidenceForDisplay,
   differentiationScoreCaption,
-  enrichEvidenceReferenceForDisplay,
   errorRequiresM03Refresh,
   errorRequiresM04Refresh,
   maxQuestionRoundNotice,
@@ -1156,55 +1155,9 @@ assert.deepEqual(legacyFollowupSummary.followupTimelineItems, [{
   triggers: ["加重时提前复诊"],
 }]);
 
-// P2-7 证据展示契约：URL/DOI/文献ID/检索时间只来自证据载荷本身；缺失时 UI 明示“来源未提供链接”，
-// 检索时间留空，绝不在渲染层伪造。
-const evidenceRefWithDoi = enrichEvidenceReferenceForDisplay({
-  raw: "[EVID-LIT-1] 失眠障碍诊疗共识 DOI:10.3760/cma.j.cn112137-20240101-00001 2024",
-  title: "[EVID-LIT-1] 失眠障碍诊疗共识 DOI:10.3760/cma.j.cn112137-20240101-00001 2024",
-  sourceType: "研究文献",
-  publicationDate: "2024",
-  relevance: "支持当前西医诊断倾向或鉴别边界",
-});
-assert.equal(evidenceRefWithDoi.doi, "10.3760/cma.j.cn112137-20240101-00001");
-assert.equal(evidenceRefWithDoi.literatureId, undefined, "DOI present ⇒ no duplicate literature id line");
-const evidenceRefWithPmid = enrichEvidenceReferenceForDisplay({
-  raw: "[EVID-LIT-2] Insomnia consensus PMID 38063870 2023",
-  title: "[EVID-LIT-2] Insomnia consensus PMID 38063870 2023",
-  sourceType: "研究文献",
-  publicationDate: "2023",
-  relevance: "支持用药边界",
-});
-assert.equal(evidenceRefWithPmid.doi, undefined);
-assert.equal(evidenceRefWithPmid.literatureId, "PMID 38063870");
-const evidenceRefSparse = enrichEvidenceReferenceForDisplay({
-  raw: "[EVID-GUIDE-1] 指南；《金匮要略》",
-  title: "[EVID-GUIDE-1] 指南；《金匮要略》",
-  sourceType: "指南/共识",
-  relevance: "支持候选方身份、组方依据或药味来源",
-});
-assert.deepEqual(evidenceRefSparse, {}, "upstream payload without url/DOI/检索时间 must stay sparse — the UI renders 来源未提供链接 instead of fabricating");
-const evidenceRefRetrieved = enrichEvidenceReferenceForDisplay({
-  raw: "[EVID-INST-1] 国家药监局说明书 检索：2026-07-19",
-  title: "[EVID-INST-1] 国家药监局说明书 检索：2026-07-19",
-  sourceType: "药品说明书/监管资料",
-  relevance: "支持该药品的适应证、用法边界或风险提示",
-  retrievedAt: "2026-07-19",
-});
-assert.equal(evidenceRefRetrieved.retrievedAt, "2026-07-19", "检索时间来自证据载荷/元数据，不是渲染当天日期");
-const evidenceRefRetrievedFromRaw = enrichEvidenceReferenceForDisplay({
-  raw: "[EVID-INST-2] 某说明书 检索时间：2026-07-18",
-  title: "[EVID-INST-2] 某说明书 检索时间：2026-07-18",
-  sourceType: "药品说明书/监管资料",
-  relevance: "支持用药边界",
-});
-assert.equal(evidenceRefRetrievedFromRaw.retrievedAt, "2026-07-18");
-const evidenceRefTrailingPunct = enrichEvidenceReferenceForDisplay({
-  raw: "指南 https://example.org/a DOI:10.1000/xyz123。",
-  title: "指南",
-  sourceType: "指南/共识",
-  relevance: "支持当前西医诊断倾向或鉴别边界",
-});
-assert.equal(evidenceRefTrailingPunct.doi, "10.1000/xyz123", "DOI extraction trims trailing CJK punctuation");
+// P2-7 证据展示契约（enrichEvidenceReferenceForDisplay / evidence-display.ts）随「证据参考文献列表」
+// 组件族一并删除（甲方评测 2026-08-04 第 4 条）：页面上已无任何调用方，断言留下来只会钉住不存在的
+// 渲染。证据「是否可回查」的展示判据仍由 shouldRenderEvidenceStatus / customer-evidence 覆盖。
 
 // ─── PHI quasi-identifier audit probes (2026-07-19), browser snapshot path ───
 // The snapshot scrubber (scrubPersistentPhiText) shares src/lib/phi-sanitizer.ts with model egress;

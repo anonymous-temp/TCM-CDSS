@@ -1,5 +1,8 @@
 import type { CaseState } from "./diagnosis-types";
-import cardSource from "../data/tcm-clinical-decision-cards.source.json";
+// 导入属性不可省略：`node --experimental-strip-types` 下缺 `with { type: "json" }` 会直接
+// ERR_IMPORT_ATTRIBUTE_MISSING（test:customer-evidence 走的正是该运行方式；jiti 不受影响，
+// 所以只有那一个套件红）。src/lib 下其余 JSON 导入一律带该属性。
+import cardSource from "../data/tcm-clinical-decision-cards.source.json" with { type: "json" };
 
 /**
  * 甲方「中医相关卡片」临床决策卡片接入层。

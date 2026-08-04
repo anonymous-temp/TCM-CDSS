@@ -63,12 +63,20 @@ const scripts = [
   "test:prescription-permission",
   "test:primary-care-50-contracts",
   "test:diagnosis-display",
+  // 渲染层卫生（甲方评测 2026-08-04 呈现层四条）。其余套件断言的是 lib 层函数的返回值，
+  // 这一套把归档的真实 M03/M04 产出重新投影、用 react-dom/server 渲染成静态 HTML，
+  // 再对**医生实际看到的文本**断言：内部工程记号、方义解析长度、病机节内不重复、旧组件零残留。
+  // 「函数绿 + 页面错」只有这一套拦得住。
+  "test:visible-output-hygiene",
   "test:icd10-coding",
   "test:reasoning-signature",
   "test:model-rate-limit",
-  "test:evidence-display",
   "test:stage-telemetry",
   "test:m03-clinical-review",
+  // 甲方 2026-08 复测「临床四条」：西医依据混入就诊经过 / 病名鉴别缺失 / 病位缺主症锚 /
+  // 治法方向无病例绑定。四条都锁在受治理数据上（GB/T 15657 病名编码、症状—病位映射、
+  // GB/T 16751.3 治法编号），因此必须与它们一起回归——词表升级若改了编码层级，本套件先红。
+  "test:clinical-four-binding",
   "test:nihaisha-fusion",
   "test:nihaisha-replay",
   "test:prompt-injection",

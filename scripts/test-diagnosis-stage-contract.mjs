@@ -161,6 +161,11 @@ const stable = {
     tcmDiseaseRationale: "以入睡困难与睡眠维持障碍为主症、病程逾月且非情志抑郁为主导，故归入不寐范畴，与郁病、心悸相区分。",
     tcmDiagnosticRationale: "入睡困难结合舌淡脉细，支持心肝血虚、心神失养的工作判断。",
     tcmDifferentials: [],
+    // 病名级鉴别（2026-08-04 起为 T2 不变式）：签名病名在受治理病名词表中存在相邻病名时必须给出。
+    // 不寐病 A04.01.13 的相邻病名按编码邻近度取到的是神劳病/多寐病/百合病这一簇。
+    tcmDiseaseDifferentials: [
+      { diseaseName: "多寐病", reason: "同属睡眠病症但方向相反，需先分辨主症", distinguishingPoints: "本例为入睡困难与睡眠维持障碍，非日间嗜睡", nextCheck: null },
+    ],
     overallPathogenesis: "血不养心，心神失舍",
     recommendedFormulaDirection: "酸枣仁汤加减",
     recommendedFormulaNames: ["酸枣仁汤"],
@@ -186,7 +191,12 @@ const stable = {
   therapy: {
     overallPrinciple: "扶正祛邪",
     overallMethod: "养血安神，疏肝解郁",
-    subTherapies: [{ therapy: "养血安神", targetPathogenesis: "心血不足", priority: "主要" }],
+    // 总治法里的每个治法方向都必须有病例绑定（分治方向或病机节点治法方向）。
+    // 疏肝解郁此前只出现在 overallMethod，正是 therapy_method_direction_unbound 要拦的形态。
+    subTherapies: [
+      { therapy: "养血安神", targetPathogenesis: "心血不足", priority: "主要" },
+      { therapy: "疏肝解郁", targetPathogenesis: "肝血不足，疏泄不利", priority: "次要" },
+    ],
   },
   management: { followupSafetyNet: "若失眠持续两周无改善或明显加重，请及时复诊" },
 };
@@ -286,7 +296,10 @@ const validPrincipleAndMethod = structuredClone(stable);
 validPrincipleAndMethod.therapy = {
   overallPrinciple: "因人制宜，扶正祛邪",
   overallMethod: "养血安神，疏肝解郁",
-  subTherapies: [{ therapy: "养血安神", targetPathogenesis: "心血不足", priority: "主要" }],
+  subTherapies: [
+    { therapy: "养血安神", targetPathogenesis: "心血不足", priority: "主要" },
+    { therapy: "疏肝解郁", targetPathogenesis: "肝血不足，疏泄不利", priority: "次要" },
+  ],
 };
 assert.equal(m03SemanticIssue(validPrincipleAndMethod), undefined, "a treatment principle and its concrete method remain distinct");
 const singleNodeSingleMethod = structuredClone(stable);
@@ -1045,7 +1058,10 @@ for (const instruction of ["酸枣仁用量约15g", "酸枣仁（炒）每味约
 }
 assert.equal(isStableM03Reasoning({
   ...stable,
-  pathogenesis: { chain: [{ ...stable.pathogenesis.chain[0], patientFact: "既往服甘草10g" }] },
+  // 主症仍由该节点的 syndromeEvidence 承接：病机链必须有节点承接主诉主症
+  // （therapy_chief_symptom_unaddressed）。本例要断言的是"用药史剂量可以留在 patientFact"，
+  // 不是"整条链可以不谈主症"。
+  pathogenesis: { chain: [{ ...stable.pathogenesis.chain[0], patientFact: "既往服甘草10g", syndromeEvidence: "入睡困难" }] },
 }, "既往服甘草10g，入睡困难；舌淡脉细"), true, "a grounded historical medication dose may remain a patient fact without becoming an M03 instruction");
 assert.equal(isStableM03Reasoning({
   ...stable,
@@ -1874,6 +1890,11 @@ assert.equal(
   "a denied-only symptom still cannot become affirmative Western support",
 );
 const headacheWithQualifiedRuleOut = structuredClone(stable);
+// 主诉含头疼：病位辨证必须包含主症所在部位（location_chief_symptom_anchor_missing），
+// 病机链也必须有节点承接主症（therapy_chief_symptom_unaddressed）。兼及的心、肝照常保留。
+// 本例断言的是极性边界，不是病位/主症锚，补齐二者以免两类检查互相遮蔽。
+headacheWithQualifiedRuleOut.pathogenesis.locationDifferentiation.items = ["脑", "心", "肝"];
+headacheWithQualifiedRuleOut.pathogenesis.chain[0].patientFact = "头疼头晕、入睡困难2个月";
 headacheWithQualifiedRuleOut.westernDiagnosis.primary.name = "头痛症状";
 headacheWithQualifiedRuleOut.westernDiagnosis.primary.supportingFacts = ["头疼头晕，睡不着觉"];
 headacheWithQualifiedRuleOut.westernDiagnosis.primary.clinicalRationale =

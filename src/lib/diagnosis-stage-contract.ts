@@ -8,8 +8,9 @@ import { executableFormulaCompilationReferences } from "./tcm-formula-provenance
 import { TCM_TREATMENT_PROJECT_CODES, tcmTreatmentProjectIsPointFree } from "./tcm-treatment-projects";
 import { getM03TherapyLock, isExecutableM03TherapyText } from "./m03-therapy-lock";
 import { isActionableFollowupSafetyNet } from "./followup-safety-net";
-import { westernDifferentialIdentity } from "./clinical-terminology";
-import { governedTcmLocationsInText, governedTreatmentPrinciplesInText, tcmDiagnosticDependencyContexts, treatmentPrinciplesInText, westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
+import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName, westernDifferentialIdentity } from "./clinical-terminology";
+import { canonicalTcmSyndromeTerm, governedTcmLocationsInText, governedTreatmentMethodsInText, governedTreatmentPrinciplesInText, tcmDiagnosticDependencyContexts, treatmentMethodCoveredBy, treatmentPrinciplesInText, westernLabelContainsTcmSyndrome } from "./clinical-governance-tables";
+import { chiefComplaintAnchor, locationItemsCoverChiefComplaintAnchor, textCarriesChiefComplaintSymptom } from "./tcm-chief-complaint-anchor";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
@@ -25,6 +26,8 @@ type M03ReasoningLike = {
     tcmDiseaseRationale?: unknown;
     tcmDiagnosticRationale?: unknown;
     tcmDifferentials?: Array<{ syndrome?: unknown; reason?: unknown; distinguishingPoints?: unknown; nextCheck?: unknown }>;
+    // 病名级鉴别（辨病鉴别）。与 tcmDifferentials 的证型鉴别是两层，不可互相顶替。
+    tcmDiseaseDifferentials?: unknown;
     evidence?: { confidence?: unknown };
     overallPathogenesis?: unknown;
     recommendedFormulaDirection?: unknown;
@@ -920,11 +923,93 @@ function isNormalVitalWesternSupportFact(value: string): boolean {
   return measurements.every((measurement) => !measurement.abnormal);
 }
 
+// ── 就诊经过 / 病史叙述句（2026-08-04）──────────────────────────────────────
+//
+// 甲方连续两轮写着「西医诊断下面仍复述主诉、现病史——诊断卡片里塞病史罗列，而非诊断依据」。
+// 根因不在渲染层：本谓词是「什么可以充当西医诊断依据」的**唯一判据**，
+// diagnosis-visible-summary.ts 的确定性病历投影（documentedSymptomFieldFacts / groundStructured-
+// PatientFacts）三处调用它来决定往 supportingFacts 里写什么。它此前只排除了三类——中医四诊、
+// 人口学、正常生命体征——**没有「就诊经过」这一类**，于是「未正规诊治」「故来就诊」
+// 「于当地医院门诊就诊完善相关检查」这种纯病史叙述照单全收，医生看到的就是一段现病史。
+//
+// 判据是**结构性**的而非临床词表：一条依据在剥掉就诊过程叙述后若不再剩下任何临床内容，
+// 它讲的就是「病人怎么来的」，不是「凭什么这么诊断」。与既有 isDemographicWesternSupportFact
+// 的残余量判据同构。诊疗反应（自服某药后缓解/无效）**不属于**本类——那是有鉴别力的证据，
+// 因此保留药名与疗效词后仍有残余，不会被判为就诊经过。
+const CARE_PROCESS_NARRATIVE_SOURCE = [
+  "(?:未|没有|尚未|暂未)?(?:正规|系统|规范|正式)?(?:诊治|就诊|就医|随诊|复诊|初诊|来诊|门诊|急诊|住院|出院|转诊|复查)",
+  "(?:遂|故|特|现|今)?(?:来|至|到|往)(?:我处|我科|我院|门诊|院|诊)",
+  "(?:于|在)?[^，,。；;]{0,12}(?:医院|门诊|诊所|卫生院|急诊|科)",
+  "(?:为(?:求|进一步)|要求)[^，,。；;]{0,12}(?:治疗|诊治|诊疗|就诊)",
+  "(?:建议|嘱)[^，,。；;]{0,10}(?:就诊|就医|转诊|专科|复查)",
+  "(?:完善)?(?:相关)?检查(?:后)?",
+  "(?:未见(?:明显)?异常|未见报告|具体不详|结果不详|未见明显异常)",
+].join("|");
+const CARE_PROCESS_NARRATIVE = new RegExp(CARE_PROCESS_NARRATIVE_SOURCE);
+const CARE_PROCESS_NARRATIVE_GLOBAL = new RegExp(CARE_PROCESS_NARRATIVE_SOURCE, "g");
+
+// 就诊过程之外仍属叙述框架的连接成分：主语、时间状语与「发病以来」这类过渡语。
+// 单独剥掉它们不会消灭任何临床发现，只会让「纯叙述句」的残余归零。
+const NARRATIVE_FRAME = new RegExp([
+  "(?:患者|病人|家属|其|本人|及其|以及|同时)",
+  "(?:\\d+(?:\\.\\d+)?|[一二两三四五六七八九十半数几]+)\\s*\\+?\\s*(?:余)?(?:天|日|周|月|年|小时|分钟)(?:前|余前)?",
+  "(?:发病|起病|病程)(?:以来|后|至今)?",
+  // 「故来就诊」这类分句剥掉就诊词后只剩「故来」：趋向动词本身不携带任何临床内容，
+  // 与主语、时间状语同属叙述框架。只在已命中就诊经过的句子内部剥离，不影响其它文本。
+  "(?:因|由于|自觉|自诉|诉|遂|故|现|今|近|其后|之后|后|自行|治疗|来|至|往)",
+].join("|"), "g");
+
+/**
+ * 纯就诊经过叙述：剥掉就诊过程与叙述框架后不再剩下任何临床内容。
+ *
+ * 本判据刻意只覆盖「病人怎么来的」这一类整句，不试图判断句子里的症状够不够有鉴别力——
+ * 凡剥离后仍剩下症状、体征、数值、药名或疗效的句子一律保留为有效依据。这样它在结构上
+ * **不可能**删掉一条真实临床发现，代价是「主诉复述」这类仍带症状词的句子由展示层的
+ * 主诉去重负责（prioritizeWesternEvidenceForDisplay），两层各管一类，边界清楚。
+ */
+function isCareProcessNarrativeFact(value: string): boolean {
+  const fact = value.trim();
+  if (!fact) return false;
+  if (!CARE_PROCESS_NARRATIVE.test(fact)) return false;
+  const residual = fact
+    .replace(CARE_PROCESS_NARRATIVE_GLOBAL, "")
+    .replace(NARRATIVE_FRAME, "")
+    .replace(/[\s，,、；;。.:："'“”‘’（）()【】\[\]{}0-9a-zA-Z+\-/]+/g, "");
+  return residual.length === 0;
+}
+
+/**
+ * 就诊经过分句的剥离（整句判据的分句形态）。
+ *
+ * 上面那条整句判据只能处理「整条依据都是就诊经过」的形态。实测甲方原始病例（产后血虚头痛）
+ * 里最刺眼的一条是**混合句**：
+ *   「发病后因患者自觉症状不重，未正规诊治，现患者觉头痛症状较前加重，故来就诊」
+ * 四个分句里两个是就诊经过（未正规诊治 / 故来就诊），两个是临床内容（症状不重 / 较前加重）。
+ * 整句判据看到残余非空就整条放行，于是医生在「支持依据」里读到的仍然是一段现病史叙述。
+ *
+ * 因此按分句处理：**只在该条依据里确实存在纯就诊经过分句时**才拆，把纯就诊经过的分句丢掉，
+ * 其余分句各自作为一条依据返回。这样做的两个必要性质：
+ *  · 每个返回值仍是病历原文的**连续子串**，逐字可回溯不被破坏（这也是不能"剥掉中间分句再拼接"
+ *    的原因——拼接结果不是原文里出现过的任何一段）；
+ *  · 不含就诊经过分句的依据原样返回，拆分不会波及正常依据的粒度。
+ */
+export function discriminatingWesternSupportClauses(value: string): string[] {
+  const fact = (value || "").trim();
+  if (!fact) return [];
+  if (!CARE_PROCESS_NARRATIVE.test(fact)) return [fact];
+  const clauses = fact.split(/[，,、；;。]+/).map((clause) => clause.trim()).filter(Boolean);
+  if (clauses.length <= 1) return isCareProcessNarrativeFact(fact) ? [] : [fact];
+  const kept = clauses.filter((clause) => !isCareProcessNarrativeFact(clause));
+  // 没有任何分句是**纯**就诊经过时不拆：这条依据只是措辞里带了个就诊词，粒度应保持原样。
+  return kept.length === clauses.length ? [fact] : kept;
+}
+
 export function isNondiscriminatingWesternSupportingFact(value: string): boolean {
   const fact = value.trim();
   return TCM_ONLY_WESTERN_SUPPORT.test(fact) ||
     isDemographicWesternSupportFact(fact) ||
-    isNormalVitalWesternSupportFact(fact);
+    isNormalVitalWesternSupportFact(fact) ||
+    isCareProcessNarrativeFact(fact);
 }
 
 /**
@@ -1482,6 +1567,105 @@ function m03PathogenesisAndTherapyStructureIssue(
   return undefined;
 }
 
+/**
+ * 病名级鉴别（辨病鉴别）的存在性与身份校验（2026-08-04）。
+ *
+ * ★ 受治理数据一直存在，只是从未参与判断 ★
+ * tcm-disease-lexicon.json 的 1267 条每条都带 GB/T 15657-2021 层级编码，这套编码**就是**
+ * 「相邻病名」关系（头风病 A07.01.02 → 下位 外感头痛/内伤头痛/厥头痛(真头痛)/偏头风/雷头风，
+ * 同级 中风病）。但 clinical-terminology.ts 此前只用 canonical/aliases 建归一表，
+ * code 字段在运行时一次都没被读过。服务端因此既无法要求模型必须给病名鉴别，
+ * 也无法判断它给的到底是病名还是证型。
+ *
+ * 甲方连续两轮的原话：「中医鉴别仍是证候鉴别，不是病名鉴别；要求辨病再辨证」。
+ * 字段（tcmDiseaseDifferentials）、提示词、Markdown 摘要三处早就都有了——缺的正是这层判断。
+ *
+ * 两条不变式（都是 T2：缺一段鉴别不影响辨证结论可用性，带批注受理）：
+ *  1) tcm_disease_differentials_missing —— 签名病名在受治理词表中存在相邻病名，却没给病名鉴别。
+ *  2) tcm_disease_differential_not_a_disease —— 给了，但填进去的是证型而不是病名
+ *     （辨病鉴别写成证候鉴别，正是甲方指出的那个错位）。
+ */
+function m03TcmDiseaseDifferentialIssue(
+  reasoning: M03ReasoningLike,
+  tcmDiseaseName: string,
+): string | undefined {
+  const differentials = Array.isArray(reasoning.overview?.tcmDiseaseDifferentials)
+    ? reasoning.overview.tcmDiseaseDifferentials
+    : [];
+  const entries = differentials.filter((item): item is Record<string, unknown> =>
+    Boolean(item) && typeof item === "object" && !Array.isArray(item));
+  if (entries.length === 0) {
+    // 词表里查不到相邻病名（症状层临时术语如「胃痛」「牙痛」就没有可鉴别的并列病名）时不要求，
+    // fail-open：词表没收录不等于模型漏写。
+    return governedTcmDiseaseNeighbors(tcmDiseaseName).length > 0
+      ? "tcm_disease_differentials_missing"
+      : undefined;
+  }
+  for (const item of entries) {
+    const name = typeof item.diseaseName === "string" ? item.diseaseName.trim() : "";
+    if (!name) return "tcm_disease_differential_not_a_disease";
+    // 证型（受治理证候词表命中且不是受治理病名）填进病名鉴别 = 辨病鉴别写成了证候鉴别。
+    // 只有两者都判定过才下结论：病名词表未收录的写法不当作错误（可能是合理的相邻病名写法）。
+    if (!isGovernedTcmDiseaseName(name) && canonicalTcmSyndromeTerm(name)) {
+      return "tcm_disease_differential_not_a_disease";
+    }
+  }
+  return undefined;
+}
+
+/**
+ * 治法的病例绑定（2026-08-04）。
+ *
+ * ★ 受治理数据一直存在，只是从未参与判断 ★
+ * tcm-treatment-principle-lexicon.json 有 1276 条，其中 **956 条治法类术语的 relationPolicy
+ * 字面写着 `method_requires_case_binding`**——词表自己声明「这条治法必须绑定到本例才成立」。
+ * 但运行时唯一读取口 governedTreatmentPrinciplesInText 把这 956 条**全部过滤掉**，只留 28 条
+ * 治则用于校验 overallPrinciple。于是 therapy.overallMethod 这一栏从来没有被任何受治理词表
+ * 约束过，那句 requires_case_binding 也从来没有被核对过一次。
+ *
+ * 实测（甲方复测第 3 例）：总治法写「益气养血、养心安神、通络止痛」，而病机链里没有任何
+ * 节点的 therapyDirection 指向安神——「养心安神」是凭空追加的方向，随后把选方拉向归脾汤，
+ * 甲方的原话就是「治法仍包含养心安神」「方证针对性不足」。
+ *
+ * 两条不变式：
+ *  1) therapy_method_direction_unbound —— 总治法里出现的每一条受治理治法术语，
+ *     必须在 subTherapies 或某个病机节点的 therapyDirection 中同样出现。病机节点的
+ *     patientFact 已由 T1 接地校验钉在病历原文上，因此这条传递性地把每个治法方向绑到患者事实。
+ *  2) therapy_chief_symptom_unaddressed —— 主诉主症必须被某个病机节点承接。
+ *     主症没有任何病机节点承接，却有一整套治法，就是兼症反客为主的确定性形态。
+ */
+function m03TherapyCaseBindingIssue(
+  reasoning: M03ReasoningLike,
+  anchor: ReturnType<typeof chiefComplaintAnchor>,
+): string | undefined {
+  const chain = reasoning.pathogenesis?.chain || [];
+  const overallMethod = typeof reasoning.therapy?.overallMethod === "string" ? reasoning.therapy.overallMethod : "";
+  const boundTherapySurface = [
+    ...(reasoning.therapy?.subTherapies || []).map((item) => item.therapy),
+    ...chain.map((item) => item.therapyDirection),
+  ].filter((item): item is string => typeof item === "string" && Boolean(item.trim())).join("；");
+  // 受治理治法术语按规范名/别名/示例匹配；总治法里有、而分治方向与病机节点里**整族都没有**的
+  // 方向，就是没有病例绑定的追加方向。按族（GB/T 16751.3 编号的父节点）而不是按条比对：
+  // 「养血安神」归纳成「养心安神」是同族改写，不是多出来的方向；「安神」一族一个节点都没有
+  // 却出现在总治法里，才是甲方指出的那种凭空追加。boundTherapySurface 为空时不判——那属于
+  // 结构缺陷，由 sub_therapies_missing / chain_empty 负责，不在这里重复报。
+  if (boundTherapySurface) {
+    const boundMethods = governedTreatmentMethodsInText(boundTherapySurface);
+    const unbound = governedTreatmentMethodsInText(overallMethod)
+      .filter((entry) => !treatmentMethodCoveredBy(entry, boundMethods));
+    if (unbound.length > 0) return "therapy_method_direction_unbound";
+  }
+  // 主症锚定：主症词表未收录时 anchor.symptomTerms 为空，textCarriesChiefComplaintSymptom
+  // 恒真，本检查跳过（fail-open）。
+  if (anchor.symptomTerms.length > 0 && chain.length > 0) {
+    const carried = chain.some((node) =>
+      textCarriesChiefComplaintSymptom(node.patientFact, anchor) ||
+      textCarriesChiefComplaintSymptom(node.syndromeEvidence, anchor));
+    if (!carried) return "therapy_chief_symptom_unaddressed";
+  }
+  return undefined;
+}
+
 export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined, clinicalContext = "", _visibleContent = ""): string | undefined {
   void _visibleContent;
   const chain = reasoning?.pathogenesis?.chain || [];
@@ -1635,6 +1819,29 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
   if (!isActionableFollowupSafetyNet(reasoning.management?.followupSafetyNet)) {
     return "followup_safety_net_not_actionable";
   }
+  // ── 甲方 2026-08 复测三条：主症锚定与治法病例绑定（都是 T2 质量类）────────────────
+  //
+  // 位置很重要：这三条必须排在**接地与极性检查之后**。它们判的是「讲对/讲全」，
+  // 而 patient_fact_ungrounded_* 判的是「有没有编造」——一份把病历否认的表现写成阳性依据的
+  // M03，应当先因接地失败被驳回，而不是先报一句「主症没被病机节点承接」把真正的问题盖住。
+  // 分层：T1 接地/极性 → T2 质量类，与 diagnosis-rejection-tiers.ts 的分级一致。
+  //
+  // 主诉主症病位锚。既有的 location_classification_missing 只查**反方向**：证候文字里写了病位、
+  // items 却空着。正方向——主症所在部位压根没进 items——服务端从来没查过，它只以提示词与
+  // 独立复核的「主诉主症锚定审计」指令形式存在，两处都是说给模型听的话。
+  //
+  // 实测（甲方复测第 3 例，产后血虚头痛）：病位输出「脾、心、清窍」。脾来自神疲乏力、
+  // 心来自心悸，全是**伴随症状**；主诉「头痛2+月」所在的头部只以未受治理的「清窍」出现。
+  // 病位一旦被兼症占据，治法与选方跟着兼症走，最终落到归脾汤。
+  //
+  // 判据只做加法：要求主症病位出现，不限制模型另外给出的肝脾肾等兼及病位；
+  // 主症在受治理症状词表里查不到时返回空锚，本检查整体跳过（fail-open）。
+  const anchor = chiefComplaintAnchor(clinicalContext);
+  if (locationItems.length > 0 && !locationItemsCoverChiefComplaintAnchor(locationItems, anchor)) {
+    return "location_chief_symptom_anchor_missing";
+  }
+  const therapyBindingIssue = m03TherapyCaseBindingIssue(reasoning, anchor);
+  if (therapyBindingIssue) return therapyBindingIssue;
   // 需求3：辨病与辨证是两个判断，各自要有推理过程。此前二者共用 tcmDiagnosticRationale，
   // 病名归属的理由被证型推理挤掉——医生看到「不寐」却读不到为什么归入不寐而不是郁病或心悸。
   // 放在末尾且分级为 T2：缺一段辨病推理不影响结论可用性，应带批注受理而不是驳回整份 M03。
@@ -1648,6 +1855,8 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
     if (diseaseRationale.length < 8 || !TCM_REASONING_CONNECTOR.test(diseaseRationale)) {
       return "tcm_disease_rationale_missing";
     }
+    const diseaseDifferentialIssue = m03TcmDiseaseDifferentialIssue(reasoning, tcmDiseaseName);
+    if (diseaseDifferentialIssue) return diseaseDifferentialIssue;
   }
   // 经典方优先是本产品的既定策略，也决定 M04 能否拿到可编译基准方。漏锁不由服务端代选——选方是
   // 临床决策，仍归模型与医生——但服务端有权指出：模型对自己签名的证候留空了方名，而受控目录中

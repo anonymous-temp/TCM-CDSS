@@ -33,6 +33,11 @@ const reviewed = {
     tcmDiseaseRationale: "以入睡困难、多梦易醒为主症，病程3个月，符合不寐范畴，与郁病、心悸相区分。",
     tcmDiagnosticRationale: "心悸健忘与纳差便溏并见，结合舌淡脉细弱，支持心脾两虚、心神失养。",
     tcmDifferentials: [],
+    // 病名级鉴别（2026-08-04 起为 T2 不变式）：签名病名在 GB/T 15657 层级编码中存在相邻病名时
+    // 必须给出，且填的必须是病名而不是证型。与上面的 tcmDifferentials（证型鉴别）是两层。
+    tcmDiseaseDifferentials: [
+      { diseaseName: "多寐病", reason: "同属睡眠病症但方向相反，需先分辨主症", distinguishingPoints: "本例为入睡困难与多梦易醒，非日间嗜睡", nextCheck: null },
+    ],
     secondarySyndromes: [],
     overallPathogenesis: "脾气亏虚，心血失养",
     overallTherapy: "健脾益气，养血安神",
@@ -233,7 +238,10 @@ assert.ok(reviewPrompt.includes("症状层的工作证候"), "prompt must name t
 assert.match(reviewPrompt, /不得使用‘功能失调候’‘调护功能’这类跨病例套话/);
 assert.match(reviewPrompt, /病位与病性按治理表正交编码/);
 assert.match(reviewPrompt, /M03统一临床推理权威合同/);
-assert.match(reviewPrompt, /L2 证候归纳层/);
+// 层名已由 L0–L4 改成纯中文（见 clinical-inference-authority.ts：模型上下文里不再存在
+// 可被回声到医生可见字段的 `L\d` 记号）。这里跟着钉住中文层名，顺带保证层名不会悄悄改回编号。
+assert.match(reviewPrompt, /第三层「证候归纳」/);
+assert.doesNotMatch(reviewPrompt, /\bL\d\s*(?:层|级)?\s*(?:患者事实|标准概念|证候归纳|病机治法|方剂方向)/);
 assert.match(reviewPrompt, /病机词和治法词是临床解释，不要求逐字出现在患者原话中/);
 assert.match(reviewPrompt, /两个及以上相互独立的阳性事实维度/);
 assert.match(reviewPrompt, /不得要求改成非标准复合项‘脾气虚’‘心血虚’/);
@@ -618,7 +626,10 @@ const adjudicationPrompt = buildM03DiagnosticReviewAdjudicationPrompt(
 assert.match(adjudicationPrompt, /不得再把上述必填字段误判为空/);
 assert.match(adjudicationPrompt, /items=\[\] 且 resolution=unresolved/);
 assert.match(adjudicationPrompt, /仍含无患者事实组合支持的具体病位、病性、证型/);
-assert.match(adjudicationPrompt, /不得把 L0 的逐字要求错误施加到 L2-L3/);
+// 层名由 L0–L4 改为中文层名：模型上下文里不再存在 `L\d` 记号，就没有可回声进医生可见正文的源
+// （甲方评测 2026-08-04 第 1 条根修，见 clinical-inference-authority.ts 顶部注释）。
+assert.match(adjudicationPrompt, /不得把第一层的逐字要求错误施加到第三、四层/);
+assert.doesNotMatch(adjudicationPrompt, /\bL\d\b/, "推理层号不得以 L0/L1/L3 形态进入模型上下文");
 assert.match(adjudicationPrompt, /不能仅做字符串比对/);
 
 // ─── 情形一-only quarantine injection: deterministic sparse/active signal ───

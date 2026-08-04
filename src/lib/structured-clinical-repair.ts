@@ -482,6 +482,46 @@ export function structuredClinicalRepairHint(
       "不要在这里写证型、病机或治法——那属于 tcmDiagnosticRationale；也不要复述病历原文。资料稀疏到只能形成症状层工作病名时，写明这一点并说明尚缺哪类信息才能升级为传统病名。",
     ].join("\n");
   }
+  // ── 甲方 2026-08 复测四条的修复引导 ────────────────────────────────────────
+  if (reason === "m03_tcm_disease_differentials_missing" || reason === "m03_tcm_disease_differential_not_a_disease") {
+    const notADisease = reason.endsWith("not_a_disease");
+    return [
+      notADisease
+        ? "overview.tcmDiseaseDifferentials 里填的是**证型**而不是**病名**。辨病鉴别与证候鉴别是两层：这一层比较的是「该归入哪个中医病名」，不是「属于哪个证型」；证型鉴别请写在 overview.tcmDifferentials。"
+        : "overview.tcmDiseaseDifferentials 为空，但本例签名的中医病名在受治理病名词表中存在可比较的相邻病名。医生要看的是先辨病、再辨证：缺了病名级鉴别，辨病这一步就没有落到纸面。",
+      contextualCandidates.length > 0
+        ? `受治理病名词表（GB/T 15657-2021 层级编码）中与本例病名相邻的病名为：${contextualCandidates.join("、")}。请从中选取1–3个本例确有比较价值的，写入 tcmDiseaseDifferentials。`
+        : "请给出1–3个与本例主症和病程形态确有比较价值的**相邻中医病名**（例如头痛需与眩晕、真头痛鉴别；不寐需与郁病、心悸鉴别）。",
+      "每项写 diseaseName（只写一个中医病名，不带证型后缀）、reason（为何需要与该病名鉴别）、distinguishingPoints（本例主症特征与病程形态上的区分要点）、nextCheck（必要的核实项或 null）。区分依据只能是主症与病程形态，不是寒热虚实证型。",
+      "真头痛、中风等急重病名进入鉴别时，nextCheck 必须写明相应急症排查。保持西医诊断、证型、病机链、治法与其余字段完全不变——本轮只补这一个数组。",
+    ].join("\n");
+  }
+  if (reason === "m03_location_chief_symptom_anchor_missing") {
+    return [
+      "pathogenesis.locationDifferentiation.items 没有包含**主诉主症所在的病位**。主诉主症是全案锚点：病位辨证必须首先解释主症，伴随症状（心悸、失眠、纳差、乏力等）只能作为兼及病位。",
+      contextualCandidates.length > 0
+        ? `按受治理症状—病位映射，本例主症对应的病位是：${contextualCandidates.join("、")}。请把其中至少一项作为**主病位**列入 items 的首位。`
+        : "请把主症所属的受控病位补入 items，并列在首位。",
+      "这是**加法**，不是替换：已有的肝、脾、肾等兼及病位如确有患者事实支撑，全部保留；details 中为新增病位补一条不超过60字的「患者事实 → 归属理由」，无法逐字引用时 details 可不写该条。",
+      "不得为补齐病位而新增患者没有的表现，也不得改写主证候、病机链或治法来回避这一条。",
+    ].join("\n");
+  }
+  if (reason === "m03_therapy_method_direction_unbound") {
+    return [
+      "therapy.overallMethod 里出现了**没有任何病机节点支撑**的治法方向：它既不在 therapy.subTherapies 的任何一条里，也不在 pathogenesis.chain 各节点的 therapyDirection 里。受治理治法词表对这类术语的策略就是「必须绑定本例才成立」。",
+      "二选一，不要两个都做：(a) 若该方向确有本例患者事实支撑，为它补一个病机节点（patientFact 必须是病历原文逐字摘录）并在 subTherapies 中给出对应分治方向；(b) 若它其实没有本例依据，直接从 overallMethod 中删掉。",
+      "默认选 (b)：治法多写一个方向会直接把选方拉偏（例如主症为头痛时多写「养心安神」，选方就会滑向以心悸失眠为主治的方）。总治法只应是各病机节点治法方向的合并，不得追加第三方向。",
+      "保持西医诊断、证型、病名、病机链既有节点与患者事实不变。",
+    ].join("\n");
+  }
+  if (reason === "m03_therapy_chief_symptom_unaddressed") {
+    return [
+      "主诉主症没有被任何病机节点承接：pathogenesis.chain 各节点的 patientFact / syndromeEvidence 里都找不到主症。这意味着整套病机与治法是围绕伴随症状展开的，主症反而无人负责。",
+      "请重排病机链，使 P1 节点直接承接主诉主症：patientFact 逐字摘录主诉或现病史中描述主症的原句，pathogenesis 解释该主症如何形成，therapyDirection 给出直接针对主症的治法方向；心悸、失眠、纳差等伴随症状降为次级节点。",
+      "总治法与 recommendedFormulaDirection 必须随之以主症为准：主症为头痛时，治法须含针对头痛的方向，选方须以主治该病症者优先，不得沿用以兼症为主治的方。",
+      "不得新增患者没有记录的表现；主症原句就在病历里，逐字摘录即可。",
+    ].join("\n");
+  }
   if (reason === "m03_tcm_reasoning_diagnostic_dependency") {
     return [
       "中医推理把缺少 CT、MRI、化验、量表或仪器检查写成了中医辨证、证候、病位病性或病机不能成立的理由。",

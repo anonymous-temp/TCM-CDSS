@@ -1,0 +1,91 @@
+{
+  "fixtureId": "no-dose-candidate",
+  "provenance": {
+    "source": "artifacts/prod-rootcause-customer/case-1.json",
+    "note": "M04 未形成可展示候选方的降级页，验证空态渲染同样不漏内部记号。",
+    "capturedFrom": "artifacts/ 归档的真实 M03/M04 产出；病例字段按 CaseState 形状归一，阶段正文与 sentinel 逐字保留未改写"
+  },
+  "caseState": {
+    "id": "customer-1",
+    "phase": "done",
+    "patient": {
+      "sex": "女",
+      "age": 24
+    },
+    "chiefComplaint": "恶寒发热、鼻塞流涕2+天",
+    "symptoms": {
+      "presentHistory": "2+天前患者淋雨后出现恶寒发热，恶寒重发热轻，发热后测得体温27.5℃，伴鼻塞流清涕，稍有咳嗽，无汗，发病以来精神饮食尚可，二便调，睡眠欠佳。",
+      "supplement": "恶寒发热，恶寒重发热轻，无汗，精神饮食可，眠欠佳。"
+    },
+    "tongue": "舌淡红，苔薄白。",
+    "pulse": "脉浮紧。",
+    "faceNote": "面色正常。",
+    "vitals": {
+      "T": "37.5℃",
+      "P": "80次/分",
+      "R": "18次/分",
+      "BP": "110/78mmHg"
+    },
+    "pastHistory": "既往体健，否认慢性病、传染病病史，否认输血、手术史。",
+    "medicationHistory": "发病后未服用药物。",
+    "allergyHistory": "否认药物及食物过敏史。",
+    "completeness": {
+      "level": "A",
+      "redFlag": 0.3,
+      "infoGain": 0.3,
+      "managementImpact": 0.3,
+      "answerability": 0.3
+    },
+    "conversation": [],
+    "questionRounds": 0,
+    "maxQuestionRounds": 2,
+    "clinicalFacts": {
+      "redFlags": [],
+      "encounterScope": {
+        "status": "active_current_target",
+        "quote": "恶寒发热、鼻塞流涕2+天",
+        "reviewAgreement": "agreed"
+      },
+      "reviewStatus": "checked",
+      "modelTrace": {
+        "extractor": {
+          "provider": "openai-compatible",
+          "model": "deepseek-v4-flash"
+        },
+        "reviewer": {
+          "provider": "openai-compatible",
+          "model": "deepseek-v4-flash"
+        },
+        "adjudicator": {
+          "provider": "openai-compatible",
+          "model": "deepseek-v4-flash"
+        },
+        "independentReview": false,
+        "independentAdjudication": false,
+        "separateInvocationReview": true,
+        "separateInvocationAdjudication": true
+      },
+      "sourceFingerprint": "94fbd8fe24b79c067d1140cea5a7ad53",
+      "sourceCoverage": "full",
+      "sourceCharCount": 249,
+      "semanticStatus": "checked",
+      "resultSource": "fresh",
+      "attestationVersion": "tcm-cdss-clinical-facts-attestation-v7",
+      "extractorVersion": "tcm-cdss-clinical-facts-triage-v19",
+      "promptVersion": "tcm-cdss-clinical-facts-triage-prompt-v21",
+      "extractedAt": "2026-08-04T02:02:16.215Z",
+      "attestation": "hmac-sha256:d99ae68809aabbdacea4043c2748204f7ff3273c65073009bae720f85335bb11"
+    }
+  },
+  "stages": {
+    "diagnose": {
+      "visible": "# 中医辅助诊疗报告\n\n## 西医诊断倾向\n**诊断倾向**\n## 中医诊断概览\n**中医病名**：感冒\n**证型**：风寒束表证\n\n**辨证分析**：病历已记录发热阳性。\n\n### 中医辨病鉴别\n- **鼻渊**：鼻塞流涕为主，需与鼻渊鉴别；区分要点：本例病程短、有恶寒发热表证，流清涕，非鼻渊之浊涕、头痛、病程长；建议核实：病历尚未确认头痛是否存在。\n\n### 中医证候鉴别\n- **风热犯表证**：同为外感表证；但寒热性质不同；区分要点：本例恶寒重发热轻、流清涕、苔薄白、脉浮紧，均不支持风热（风热多见发热重、咽痛、流浊涕、苔薄黄、脉浮数）；建议核实：询问口渴、咽喉、鼻涕颜色。\n\n## 病机拆解\n**总体病机**：病历已记录发热、咳嗽阳性。\n**病位辨证**：肺、卫表\n- **肺**：恶寒发热、鼻塞流涕2+天\n**病性辨证**：风寒\n**本证**：风寒束表\n**主要表现**：感冒\n**病机联系**：病历已记录发热、咳嗽阳性\n\n### 子病机与治法\n| 患者事实 | 证候依据 | 子病机 | 对应治法 |\n|---|---|---|---|\n| 恶寒发热、鼻塞流涕2+天 | 鼻塞流清涕 | 风寒犯肺，肺气失宣，鼻窍不利 | 宣肺散寒，通利鼻窍 |\n\n## 治则治法\n**治则**：治病求本\n**总治法**：辛温解表，宣肺散寒\n\n| 分治方向 | 对应病机 |\n|---|---|\n| 辛温发汗，解表散寒 | 风寒外束，卫阳被遏 |\n| 宣肺散寒，通利鼻窍 | 肺气失宣，鼻窍不利 |\n\n## 需复核的不确定项\n- **体温记录矛盾（27.5℃与37.5℃）**：影响对发热程度的判断；影响：辨证及病情评估。\n- **口渴、咽喉、身痛情况**：有助于判断寒热轻重及是否化热；影响：方药选择。\n- **睡眠欠佳的具体表现**：可能为外感所致，也可能为其他原因；影响：兼证处理。\n- **西医诊断依据边界**：西医部分存在依据完整性或表述层面的不足，已与中医辨证解耦并按有界建议展示；影响：影响西医工作诊断的置信度，不影响已通过事实核验的中医辨证部分。\n\n<!-- DIAGNOSIS_JSON_START -->\n{\n  \"schemaVersion\": \"tcm-cdss-reasoning-v2\",\n  \"stage\": \"diagnose\",\n  \"clinicalReview\": {\n    \"status\": \"accepted\",\n    \"provider\": \"openai-compatible\",\n    \"model\": \"deepseek-v4-flash\",\n    \"source\": \"preferred\",\n    \"reviewedPayloadHash\": \"sha256:4bc3844d752881f611973134d57d363a071ec986b0a49d72d1b70991b18d850d\"\n  },\n  \"terminologyMappings\": [\n    {\n      \"namespace\": \"tcm_syndrome\",\n      \"fieldPath\": \"overview.primarySyndrome\",\n      \"originalText\": \"风寒束表证\",\n      \"candidateId\": \"TCM-SYNDROME-7969447240D9\",\n      \"canonical\": \"风寒束表\",\n      \"resolvedBy\": \"deepseek_closed_set\",\n      \"status\": \"suggested\",\n      \"confidence\": 1,\n      \"model\": \"deepseek-v4-flash\",\n      \"consensus\": true,\n      \"cache\": \"hit\"\n    },\n    {\n      \"namespace\": \"tcm_syndrome\",\n      \"fieldPath\": \"overview.tcmDifferentials.0.syndrome\",\n      \"originalText\": \"风热犯表证\",\n      \"candidateId\": \"TCM-SYNDROME-ECED6C781629\",\n      \"canonical\": \"风热犯表\",\n      \"resolvedBy\": \"deepseek_closed_set\",\n      \"status\": \"suggested\",\n      \"confidence\": 1,\n      \"model\": \"deepseek-v4-flash\",\n      \"consensus\": true,\n      \"cache\": \"hit\"\n    },\n    {\n      \"namespace\": \"tcm_location\",\n      \"fieldPath\": \"pathogenesis.locationDifferentiation.items.1\",\n      \"originalText\": \"卫表\",\n      \"candidateId\": \"exterior\",\n      \"canonical\": \"表\",\n      \"resolvedBy\": \"deepseek_closed_set\",\n      \"status\": \"suggested\",\n      \"confidence\": 0.9,\n      \"model\": \"deepseek-v4-flash\",\n      \"consensus\": true,\n      \"cache\": \"hit\"\n    },\n    {\n      \"namespace\": \"medicine_clinical_concept\",\n      \"fieldPath\": \"retrieval.medicineClinicalConcept.narrative\",\n      \"originalText\": \"恶寒发热、鼻塞流涕2+天\\n2+天前患者淋雨后出现恶寒发热，恶寒重发热轻，发热后测得体温27.5℃，伴鼻塞流清涕，稍有咳嗽，无汗，发病以来精神饮食尚可，二便调，睡眠欠佳。\\n恶寒发热，恶寒重发热轻，无汗，精神饮食可，眠欠佳。\\n舌象：舌淡红，苔薄白。\\n脉象：脉浮紧。\\n面象：面色正常。\\n生命体征：37.5℃\\n生命体征：80次/分\\n生命体征：18次/分\\n生命体征：110/78mmHg\\n既往史：既往体健，否认慢性病、传染病病史，否认输血、手术史。\\n用药史：发病后未服用药物。\\n过敏史：否认药物及食物过敏史。\",\n      \"candidateId\": \"MED-CONCEPT-012\",\n      \"canonical\": \"感冒\",\n      \"resolvedBy\": \"deepseek_closed_set\",\n      \"status\": \"suggested\",\n      \"confidence\": 0.95,\n      \"model\": \"deepseek-v4-flash\",\n      \"consensus\": true,\n      \"cache\": \"hit\"\n    }\n  ],\n  \"overview\": {\n    \"tcmDiseaseName\": \"感冒\",\n    \"primarySyndrome\": \"风寒束表证\",\n    \"primarySyndromeResolution\": \"bounded\",\n    \"primarySyndromeBasis\": [\n      \"恶寒发热、鼻塞流涕2+天\",\n      \"鼻塞流清涕\",\n      \"舌象：舌淡红，苔薄白\",\n      \"脉象：脉浮紧\"\n    ],\n    \"primarySyndromeResolutionReason\": \"现有四诊支持风寒束表；但缺少口渴、咽喉、身痛等细节，且体温记录存在矛盾（27.5℃与37.5℃），影响对表寒轻重及是否化热的精确判断。\",\n    \"tcmDiseaseRationale\": \"主症为恶寒发热、鼻塞流涕，病程2+天，起病急，符合感冒范畴；与鼻渊（以流浊涕、头痛为主）相鉴别，本例以表证为主。\",\n    \"tcmDiagnosticRationale\": \"病历已记录发热阳性。\",\n    \"tcmDifferentials\": [\n      {\n        \"syndrome\": \"风热犯表证\",\n        \"reason\": \"同为外感表证；但寒热性质不同\",\n        \"distinguishingPoints\": \"本例恶寒重发热轻、流清涕、苔薄白、脉浮紧，均不支持风热（风热多见发热重、咽痛、流浊涕、苔薄黄、脉浮数）\",\n        \"nextCheck\": \"询问口渴、咽喉、鼻涕颜色\"\n      }\n    ],\n    \"tcmDiseaseDifferentials\": [\n      {\n        \"diseaseName\": \"鼻渊\",\n        \"reason\": \"鼻塞流涕为主，需与鼻渊鉴别\",\n        \"distinguishingPoints\": \"本例病程短、有恶寒发热表证，流清涕，非鼻渊之浊涕、头痛、病程长\",\n        \"nextCheck\": \"病历尚未确认头痛是否存在\"\n      }\n    ],\n    \"secondarySyndromes\": [],\n    \"overallPathogenesis\": \"病历已记录发热、咳嗽阳性。\",\n    \"overallTherapy\": \"辛温解表，宣肺散寒\",\n    \"recommendedFormulaDirection\": \"麻黄汤加减\",\n    \"recommendedFormulaNames\": [\n      \"麻黄汤\"\n    ],\n    \"formulaSelectionMode\": \"single\",\n    \"evidence\": {\n      \"evidenceLevel\": \"model_inference\",\n      \"source\": \"病例内推理\",\n      \"confidence\": \"低\"\n    }\n  },\n  \"westernDiagnosis\": {\n    \"primary\": {\n      \"name\": \"症状性诊断，病因待临床鉴别\",\n      \"status\": \"证据有限\",\n      \"confidence\": \"低\",\n      \"supportingFacts\": [],\n      \"clinicalRationale\": \"\",\n      \"limitations\": [\n        \"当前模型结果未形成可用的西医诊断区块\"\n      ],\n      \"suggestedChecks\": [],\n      \"evidence\": {\n        \"evidenceLevel\": \"insufficient\",\n        \"source\": \"内部证据缺口\",\n        \"confidence\": \"低\"\n      }\n    },\n    \"differentials\": []\n  },\n  \"pathogenesis\": {\n    \"summary\": \"风寒犯肺，肺气失宣，鼻窍不利\",\n    \"locationDifferentiation\": {\n      \"items\": [\n        \"肺\",\n        \"卫表\"\n      ],\n      \"details\": [\n        {\n          \"location\": \"肺\",\n          \"basis\": \"恶寒发热、鼻塞流涕2+天\"\n        }\n      ],\n      \"resolution\": \"bounded\",\n      \"resolutionReason\": \"病位在肺卫；但缺少更多肺系症状细节\",\n      \"evidence\": {\n        \"evidenceLevel\": \"model_inference\",\n        \"source\": \"本例四诊与病史推断\",\n        \"confidence\": \"低\"\n      }\n    },\n    \"natureDifferentiation\": {\n      \"items\": [\n        \"风寒\"\n      ],\n      \"rootDeficiency\": [],\n      \"branchExcess\": [\n        \"风寒\"\n      ],\n      \"basis\": \"\",\n      \"resolution\": \"bounded\",\n      \"resolutionReason\": \"寒象明确；但缺少口渴、咽喉等以进一步排除化热\",\n      \"evidence\": {\n        \"evidenceLevel\": \"model_inference\",\n        \"source\": \"本例四诊与病史推断\",\n        \"confidence\": \"低\"\n      }\n    },\n    \"symptomClusters\": [\n      {\n        \"symptoms\": [\n          \"恶寒发热、鼻塞流涕2+天\",\n          \"无汗\",\n          \"脉象：脉浮紧\"\n        ],\n        \"mechanism\": \"风寒外束，卫阳被遏，营卫失调\"\n      },\n      {\n        \"symptoms\": [\n          \"鼻塞流清涕\",\n          \"恶寒发热、鼻塞流涕2+天\"\n        ],\n        \"mechanism\": \"风寒犯肺，肺气失宣\"\n      }\n    ],\n    \"caseRelationship\": {\n      \"rootPattern\": \"风寒束表\",\n      \"mainManifestation\": \"感冒\",\n      \"relationship\": \"病历已记录发热、咳嗽阳性\"\n    },\n    \"chain\": [\n      {\n        \"nodeId\": \"P1\",\n        \"patientFact\": \"恶寒发热、鼻塞流涕2+天\",\n        \"syndromeEvidence\": \"鼻塞流清涕\",\n        \"pathogenesis\": \"风寒犯肺，肺气失宣，鼻窍不利\",\n        \"therapyDirection\": \"宣肺散寒，通利鼻窍\",\n        \"evidence\": {\n          \"evidenceLevel\": \"model_inference\",\n          \"source\": \"本例资料\",\n          \"confidence\": \"中\"\n        }\n      }\n    ],\n    \"uncertainties\": [\n      {\n        \"item\": \"体温记录矛盾（27.5℃与37.5℃）\",\n        \"reason\": \"影响对发热程度的判断\",\n        \"affects\": \"辨证及病情评估\"\n      },\n      {\n        \"item\": \"口渴、咽喉、身痛情况\",\n        \"reason\": \"有助于判断寒热轻重及是否化热\",\n        \"affects\": \"方药选择\"\n      },\n      {\n        \"item\": \"睡眠欠佳的具体表现\",\n        \"reason\": \"可能为外感所致，也可能为其他原因\",\n        \"affects\": \"兼证处理\"\n      },\n      {\n        \"item\": \"西医诊断依据边界\",\n        \"reason\": \"西医部分存在依据完整性或表述层面的不足，已与中医辨证解耦并按有界建议展示。\",\n        \"affects\": \"影响西医工作诊断的置信度，不影响已通过事实核验的中医辨证部分。\"\n      }\n    ]\n  },\n  \"therapy\": {\n    \"overallPrinciple\": \"治病求本\",\n    \"overallMethod\": \"辛温解表，宣肺散寒\",\n    \"subTherapies\": [\n      {\n        \"therapy\": \"辛温发汗，解表散寒\",\n        \"targetPathogenesis\": \"风寒外束，卫阳被遏\",\n        \"priority\": \"主要\",\n        \"evidence\": {\n          \"evidenceLevel\": \"model_inference\",\n          \"source\": \"本例资料\",\n          \"confidence\": \"中\"\n        }\n      },\n      {\n        \"therapy\": \"宣肺散寒，通利鼻窍\",\n        \"targetPathogenesis\": \"肺气失宣，鼻窍不利\",\n        \"priority\": \"次要\",\n        \"evidence\": {\n          \"evidenceLevel\": \"model_inference\",\n          \"source\": \"本例资料\",\n          \"confidence\": \"中\"\n        }\n      }\n    ]\n  },\n  \"formula\": null,\n  \"nonPharma\": null,\n  \"lineageAdaptation\": {\n    \"schemaVersion\": \"tcm-cdss-reasoning-v2\",\n    \"lineageCode\": \"unrestricted\",\n    \"label\": \"不限定：循证安全优先\",\n    \"applicable\": \"partial\",\n    \"applicabilityReason\": \"本例为典型风寒表实证，经典方麻黄汤方证匹配，不限定流派亦适用\",\n    \"influencedDecisions\": [\n      {\n        \"aspect\": \"辨证视角\",\n        \"detail\": \"按六经辨证，属太阳伤寒表实，选用麻黄汤\"\n      }\n    ],\n    \"unaffectedBySafety\": [\n      \"红旗排查\",\n      \"剂量安全\",\n      \"配伍禁忌\",\n      \"特殊人群\",\n      \"相互作用\"\n    ],\n    \"safetyDeference\": \"急危重风险处置和药事审方要求优先于流派偏好\"\n  },\n  \"management\": {\n    \"mustCollect\": [],\n    \"followupSafetyNet\": \"若主要症状持续不缓解、明显加重或出现新的异常表现，请及时复诊；如出现突发剧烈症状、意识改变、呼吸困难、活动性出血或新发神经功能异常，应立即急诊评估。\"\n  },\n  \"contractSignatureVersion\": \"tcm-cdss-m03-signature-v4\",\n  \"contractSignature\": \"hmac-sha256:3d134c59fc1e9525e3819d35b5a2f237b7890873d8c06181c4b7d5ff564e7e84\"\n}\n<!-- DIAGNOSIS_JSON_END -->"
+    },
+    "prescribe": {
+      "visible": "<!-- CDSS_NON_DOSE_PRESCRIPTION -->\n<!-- CDSS_REASON_CODE:deterministic_reference -->\n## 当前结论\n本轮模型未能形成可核验的包含具体用量的处方建议候选处方（输出截断或未通过结构化合同）。以下为 M03 已锁定方剂的**受治理基准组成与药典剂量区间**——全部来自本地受治理知识库的确定性数据，不含模型生成内容，供医生直接参考定量。\n\n**辨证依据**：风寒束表证；辛温解表，宣肺散寒\n\n### 麻黄汤（《伤寒论》）\n\n| 序号 | 药名 | 药典剂量区间 | 特殊煎法 |\n|---|---|---|---|\n| 1 | 麻黄 | 2–10g（药典区间） |  |\n| 2 | 桂枝 | 3–10g（药典区间） |  |\n| 3 | 甘草 | 2–10g（药典区间） |  |\n| 4 | 杏仁 | 5–9g（药典区间） | 后下、捣碎后同煎 |\n\n## 处方安全边界\n上表剂量区间为药典边界而非本例建议量；具体用量由医师结合本例证候强度、年龄与体质确定，采纳前须经院内审方复核。可点击「重新生成」再次尝试形成完整包含具体用量的处方建议候选。\n\n[TRUNCATED]\n"
+    },
+    "assess": {
+      "visible": ""
+    }
+  }
+}

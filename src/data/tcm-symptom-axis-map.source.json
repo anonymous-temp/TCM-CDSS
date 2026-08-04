@@ -4,9 +4,19 @@
   "sourceRefs": ["SRC-PROJECT-CLINICAL-ADJUDICATION-20260725"],
   "usage": {
     "semantics": "union",
-    "boundary": "只增加候选召回路径，不删候选、不改病历事实、不参与 positiveSufficiency 与身份锁"
+    "boundary": "只增加候选召回路径，不删候选、不改病历事实、不参与 positiveSufficiency 与身份锁",
+    "chiefComplaintAnchor": "2026-08-04 追加的第二个用途：主诉主症 → 受控病位锚（src/lib/tcm-chief-complaint-anchor.ts）。它同样只做**加法**——断言「主症所属病位必须出现在 M03 的病位辨证里」，不删除模型给出的任何病位、不指定病性、不参与证候成立与方名锁定。之所以复用本表而不另建一张：主症→病位与症状→病位是同一个判断，两张表必然漂移。"
   },
+  "chiefComplaintAnchorFamilyNote": "主诉主症部位词族（2026-08-04 追加）。补这一族的原因：本表原有 61 条全部覆盖**伴随症状**（便溏/纳呆/心悸/头晕…），却独独漏掉了各科最高频的**主症本身**——头痛、胃痛、腰痛、牙痛、皮肤瘙痒、月经异常一条都没有。后果是主诉「头痛2+月」在受控词表里映射不到任何病位，病位只能由伴随症状反推（心悸→心、神疲→脾），产后血虚头痛因此被写成「脾、心、清窍」，主症所在的头部反而不是病位。同一张表里「头晕」有映射而「头痛」没有，正是漏掉最关键一项的形态。轴取值全部取自 tcm-syndrome-lexicon.json 中同名病症类证候的既有 locations，不新造病位；本族一律不赋 natures——部位性主症只定位，寒热虚实由伴随症状与舌脉给出。",
   "entries": [
+    { "chiefComplaintAnchor": true, "terms": ["头痛", "头疼", "头部疼痛", "偏头痛", "巅顶痛", "头胀痛", "头部胀痛", "头痛不适"], "locations": ["brain", "collaterals", "channels"], "natures": [], "basis": "证候词表中头痛类证候（太阳头痛证 brain、风寒犯头证 channels、瘀阻脑络证 brain+collaterals、风热犯头证 collaterals）的病位取值集合；头痛只定位不定性" },
+    { "chiefComplaintAnchor": true, "terms": ["胃痛", "胃脘痛", "胃脘疼痛", "胃脘胀痛", "上腹痛", "胃部疼痛"], "locations": ["stomach"], "natures": [], "basis": "证候词表胃系证候（胃火炽盛、胃气壅滞等）病位均为 stomach；痛本身不定寒热虚实" },
+    { "chiefComplaintAnchor": true, "terms": ["腰痛", "腰部疼痛", "腰酸痛", "腰痛不适", "腰部酸痛"], "locations": ["kidney", "bones"], "natures": [], "basis": "与本表既有「腰膝酸软→kidney/bones」同族；腰为肾之府、骨属肾。痛不单独立虚，虚由酸软无力等伴随症状给出" },
+    { "chiefComplaintAnchor": true, "terms": ["牙痛", "齿痛", "牙齿疼痛", "牙龈肿痛", "牙龈肿"], "locations": ["stomach", "bones"], "natures": [], "basis": "证候词表齿类证候（火毒犯齿 stomach）+ 齿为骨之余；胃火/风火之别由口干口苦、便秘等伴随症状决定" },
+    { "chiefComplaintAnchor": true, "terms": ["皮肤瘙痒", "瘙痒", "风团", "皮疹", "红斑", "水疱", "疱疹", "皮损"], "locations": ["skin"], "natures": [], "basis": "证候词表肌肤类证候（毒蕴肌肤 skin 等）病位为 skin；风热/血热/湿毒之别由伴随症状与舌脉决定" },
+    { "chiefComplaintAnchor": true, "terms": ["胁肋痛", "胁肋部疼痛", "胁肋疼痛", "胁肋胀痛"], "locations": ["liver", "gallbladder"], "natures": [], "basis": "与本表既有「胁痛→liver」同族，补足「胁肋」连写形态；胆附于肝、经行胁肋。本条不赋 qi_stagnation，气滞仍由既有胁痛条给出" },
+    { "chiefComplaintAnchor": true, "terms": ["月经先期", "经期提前", "月经量多", "经行先期"], "locations": ["uterus"], "natures": [], "basis": "与本表既有「月经量少→uterus」同族；先期/量多的血热与气虚之别由舌脉与伴随症状决定，故不赋性" },
+    { "chiefComplaintAnchor": true, "terms": ["反复感冒", "易感冒", "易患感冒", "经常感冒"], "locations": ["lung", "exterior"], "natures": [], "basis": "与本表既有「自汗→lung/exterior」同族，卫外功能所在部位；反复本身不等于气虚，虚由短气自汗乏力等给出" },
     { "terms": ["便溏", "大便稀"], "locations": ["spleen", "large_intestine"], "natures": ["deficiency"], "basis": "脾失健运则清浊不分；便溏单独出现不足以立湿，故不赋 dampness" },
     { "terms": ["泄泻", "溏泄", "水样便"], "locations": ["spleen", "large_intestine"], "natures": ["deficiency", "dampness"], "basis": "泄泻多挟湿" },
     { "terms": ["纳呆", "食少", "不思饮食", "食欲不振", "吃不下饭", "胃口差"], "locations": ["spleen", "stomach"], "natures": ["deficiency"], "basis": "脾胃运化不及" },

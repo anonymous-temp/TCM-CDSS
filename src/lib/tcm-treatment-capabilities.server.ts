@@ -145,7 +145,10 @@ function controlledTreatmentPlan(
   const governedTemplate = governedTcmTreatmentPlanTemplate(projectCode, clinicalText, tags);
   if (governedTemplate) {
     return {
-      treatmentContent: `本例适用标准项目方案，围绕${indication}与“${targetPathogenesis}”由现场医师复核后实施。`,
+      // 甲方评测(2026-08-04) 第 3 条：治疗内容不再内嵌病机原文。
+      // 同一个对象已经带 targetPathogenesis 字段，渲染层单独成行；内嵌等于每个项目块把同一句病机
+      // 印两遍，N 个项目就是 2N 遍。病机归病机字段，治疗内容只写这个项目本身的边界。
+      treatmentContent: `本例适用标准项目方案，围绕${indication}由现场医师复核后实施。`,
       suggestedSitesOrPoints: governedTemplate.sitesOrPoints.map(annotateGovernedAcupoint),
       scheduleSuggestion: governedTemplate.scheduleSuggestion,
       techniqueBoundary: governedTemplate.techniqueBoundary,
@@ -173,7 +176,7 @@ function controlledTreatmentPlan(
     .slice(0, 5)
     .map(([point]) => annotateGovernedAcupoint(point));
   return {
-    treatmentContent: `本例与${indication}及病机节点“${targetPathogenesis}”存在项目评估关联；仅进入现场适应证、禁忌与资质评估，不形成操作计划。`,
+    treatmentContent: `本例与${indication}存在项目评估关联；仅进入现场适应证、禁忌与资质评估，不形成操作计划。`,
     suggestedSitesOrPoints: referenceCommonPoints,
     scheduleSuggestion: "",
     techniqueBoundary: definition?.parameterPolicy || protocolGap,

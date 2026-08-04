@@ -267,10 +267,10 @@ export function buildM03DiagnosticReviewAdjudicationPrompt(
     buildM03DiagnosticReviewPrompt(clinicalContext, reasoning, evidenceContext),
     "这是对首轮复核结论的独立争议裁决，不是要求你迁就候选，也不是重新生成报告。",
     `首轮复核结论：${JSON.stringify(firstReview)}`,
-    "裁决时必须按统一临床推理权威合同逐层判断：L0 事实必须接地；L2 证候可由多项相互独立事实收敛；L3 病机治法是受证候约束的临床解释，不要求机制词逐字出现在病例。不得把 L0 的逐字要求错误施加到 L2-L3。",
+    "裁决时必须按统一临床推理权威合同逐层判断：第一层患者事实必须接地；第三层证候可由多项相互独立事实收敛；第四层病机治法是受证候约束的临床解释，不要求机制词逐字出现在病例。不得把第一层的逐字要求错误施加到第三、四层。",
     "服务端已确定性验证：overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesis、overview.overallTherapy、therapy.overallPrinciple 以及至少一个逐字锚定患者事实的 pathogenesis.chain 节点均为非空且通过结构合同。不得再把上述必填字段误判为空。",
     "请只裁决首轮指出的深度问题：病位或病性的 items=[] 且 resolution=unresolved 是有限信息下允许的边界，不等于总体病机或病机链为空；症状层工作证候及中医工作病名直接定义的最浅层基础功能病机，只要没有新增寒热虚实、气血津液、痰湿瘀、病因传变或命名方，也不等于机械复述。符合这些条件必须 accepted。",
-    "若候选实际仍含无患者事实组合支持的具体病位、病性、证型、病因、传变、治法或命名方，或患者事实锚点与原文不符，仍必须 repair；不得以有限信息为由放行越界推断。首轮若声称‘心神、气血、脏腑病机词未在原文出现’，必须核对全案症状组合、舌脉和面色是否已在 L2 支持相应证候，不能仅做字符串比对。",
+    "若候选实际仍含无患者事实组合支持的具体病位、病性、证型、病因、传变、治法或命名方，或患者事实锚点与原文不符，仍必须 repair；不得以有限信息为由放行越界推断。首轮若声称‘心神、气血、脏腑病机词未在原文出现’，必须核对全案症状组合、舌脉和面色是否已在第三层证候归纳上支持相应证候，不能仅做字符串比对。",
     "只输出原合同 JSON。accepted 时输出 {\"status\":\"accepted\",\"issueCode\":\"none\"}；repair 时保留准确 issueCode 和不超过300字的 repairInstruction。",
   ].join("\n\n");
 }

@@ -40,6 +40,8 @@ type TreatmentPrincipleEntry = CanonicalEntry & {
   examples: readonly string[];
   relationPolicy: string;
   permitsPrioritization?: boolean;
+  /** GB/T 16751.3 层级编号（养心安神 4.18.1.4）。同一父编号下即同一治法族。 */
+  standardNumber?: string;
 };
 
 type RequiredFieldPolicyEntry = {
@@ -511,6 +513,61 @@ export function governedTreatmentPrinciplesInText(value: unknown): TreatmentPrin
     entry.termClass !== "category_heading" &&
     entry.relationPolicy !== "method_requires_case_binding" &&
     entry.relationPolicy !== "therapy_requires_capability_and_safety_review");
+}
+
+/**
+ * T4 词表里**治法层**（relationPolicy=method_requires_case_binding）的命中项。
+ *
+ * 为什么要单独开这个访问器：治则词表 1276 条里有 956 条是治法类术语，它们的 relationPolicy
+ * 字面就写着 `method_requires_case_binding`——词表自己声明「这条治法必须绑定到本例才成立」。
+ * 但运行时唯一的读取口 governedTreatmentPrinciplesInText **恰恰把这 956 条全部过滤掉**
+ * （它只保留治则层，用于校验 therapy.overallPrinciple）。结果是：治法（overallMethod）
+ * 这一栏在服务端从来没有被任何受治理词表约束过，也从来没有人核对过那句 `requires_case_binding`。
+ *
+ * 实测后果（甲方 2026-08 复测第 3 例）：产后血虚头痛的总治法里挂着「养心安神」，
+ * 而病机链里没有任何节点的 therapyDirection 指向安神——这条治法凭空多出来，
+ * 随后把选方拉向归脾汤。词表里 956 条治法（含「养心安神」「养血安神」「益气养血」）一直都在，
+ * 只是从未参与过判断。
+ */
+export function governedTreatmentMethodsInText(value: unknown): TreatmentPrincipleEntry[] {
+  return treatmentPrinciplesInText(value).filter((entry) =>
+    entry.termClass !== "category_heading" &&
+    entry.relationPolicy === "method_requires_case_binding");
+}
+
+/**
+ * 治法族标识：GB/T 16751.3 层级编号去掉末段。同族 = 同一治法大方向。
+ *
+ * 为什么绑定要按族而不是按条：词表把治法切得很细（安神法 4.18.1 下有养心安神 .4、
+ * 养血安神 .2、镇惊安神 .1…），临床上写「养血安神」而总治法归纳成「养心安神」是同一个方向的
+ * 不同措辞，不是多出来的方向。按条比对会把这类同义改写误报成"凭空追加"，那是噪声不是缺陷。
+ * 真正要抓的是**整个方向都不存在**——病机链里一个安神节点都没有，总治法却挂着安神。
+ * 族的划分直接取词表自带编号，不新写任何映射。
+ */
+export function treatmentMethodFamilyId(entry: TreatmentPrincipleEntry): string {
+  const number = typeof entry.standardNumber === "string" ? entry.standardNumber.trim() : "";
+  if (!number) return entry.id;
+  const segments = number.split(".");
+  return segments.length > 1 ? segments.slice(0, -1).join(".") : number;
+}
+
+/**
+ * 某条治法是否已被一组治法覆盖：同编号、同族，或互为编号前缀（上下位关系，
+ * 如 疏肝清热 4.6.4.5.1.1 之于 清肝泄火 4.6.4.5.1）。
+ */
+export function treatmentMethodCoveredBy(
+  entry: TreatmentPrincipleEntry,
+  covering: readonly TreatmentPrincipleEntry[],
+): boolean {
+  const number = typeof entry.standardNumber === "string" ? entry.standardNumber.trim() : "";
+  const family = treatmentMethodFamilyId(entry);
+  return covering.some((candidate) => {
+    if (candidate.id === entry.id) return true;
+    if (treatmentMethodFamilyId(candidate) === family) return true;
+    const candidateNumber = typeof candidate.standardNumber === "string" ? candidate.standardNumber.trim() : "";
+    if (!number || !candidateNumber) return false;
+    return number.startsWith(`${candidateNumber}.`) || candidateNumber.startsWith(`${number}.`);
+  });
 }
 
 export function governedTreatmentPrinciplePromptContext(): string {

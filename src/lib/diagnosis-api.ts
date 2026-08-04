@@ -37,6 +37,8 @@ import { createHash } from "node:crypto";
 import { requiredDecoctionRequirement } from "@/lib/herb-decoction-rules";
 import { m04CandidateHerbsFromRepairPayload, m04KnowledgeShortlistFromPrompt, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } from "@/lib/structured-clinical-repair";
 import { missedLockableFormulaCandidates } from "@/lib/tcm-formula-indications";
+import { governedTcmDiseaseNeighbors } from "@/lib/clinical-terminology";
+import { chiefComplaintAnchor } from "@/lib/tcm-chief-complaint-anchor";
 import { enforceRetrievedM03FormulaSelection } from "@/lib/tcm-formula-indications";
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
 import { dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
@@ -1199,6 +1201,34 @@ function cdssSystemPrompt(kind: PromptKind): string {
 }
 
 
+/**
+ * 甲方复测两条的修复候选：从受治理词表里取出**真实名字**带进修复提示。
+ *
+ * 与 missedLockableNames 同一条 doctrine（见 structured-clinical-repair.ts 的注释）：
+ * 一条不带名字的修复指令是不可执行的。「补上病名鉴别」——补哪几个？「补上主症病位」——
+ * 受控病位叫什么？这两个答案都只有服务端知道（GB/T 15657 层级编码与症状—病位映射），
+ * 模型看不到，必须逐字给它。
+ */
+function m03GovernedRepairCandidates(
+  rejectionReason: string,
+  rejectedJson: string,
+  clinicalContext: string,
+): string[] {
+  try {
+    if (/tcm_disease_differential/.test(rejectionReason)) {
+      if (!rejectedJson) return [];
+      const parsed = JSON.parse(rejectedJson) as { overview?: { tcmDiseaseName?: unknown } };
+      return governedTcmDiseaseNeighbors(parsed?.overview?.tcmDiseaseName).map((item) => item.canonical);
+    }
+    if (rejectionReason.endsWith("location_chief_symptom_anchor_missing")) {
+      return chiefComplaintAnchor(clinicalContext).locationLabels;
+    }
+  } catch {
+    // 候选带名是增强项；取不到时修复提示退回通用措辞，不影响修复轮本身。
+  }
+  return [];
+}
+
 async function retryCompletePrimaryResponse(
   prompt: string,
   kind: PromptKind,
@@ -1418,7 +1448,17 @@ async function retryCompletePrimaryResponse(
           } catch { return []; }
         })()
       : [];
-    const clinicalRepairHint = structuredClinicalRepairHint(structuredStage, rejectionReason, missedLockableNames);
+    // 同一条doctrine（修复提示必须带真实候选，否则不可执行）适用于甲方复测的两条：
+    //   - 病名鉴别：相邻病名来自 GB/T 15657 层级编码，模型不可能凭空知道服务端认哪几个；
+    //   - 主症病位锚：受控病位名来自症状—病位映射，写「补上主症病位」而不给名字同样不可执行。
+    const governedAnchorCandidates = structuredStage === "diagnose"
+      ? m03GovernedRepairCandidates(rejectionReason || "", rejectedJson, clinicalContext)
+      : [];
+    const clinicalRepairHint = structuredClinicalRepairHint(
+      structuredStage,
+      rejectionReason,
+      governedAnchorCandidates.length > 0 ? governedAnchorCandidates : missedLockableNames,
+    );
     const governedM04HerbShortlist = structuredStage === "prescribe"
       ? m04KnowledgeShortlistFromPrompt(prompt)
       : "";

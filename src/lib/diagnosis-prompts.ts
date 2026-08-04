@@ -833,9 +833,33 @@ export function buildPrescribePrompt(caseState: CaseState): string {
         management: diagnoseReasoning.management || null,
       }, null, 2))
     : "";
-  const pathogenesisNodeOptions = (diagnoseReasoning?.pathogenesis?.chain || [])
-    .map((node, index) => `${node.nodeId || `P${index + 1}`}：${node.pathogenesis || node.syndromeEvidence}`)
-    .join("\n");
+  // 必覆盖节点清单(2026-08-04)。
+  //
+  // 甲方评测:M04 共 13 次,仅 2 次首轮成功、10 次靠修复轮补救。根因是合同与提示词不对齐——
+  // m03NodeCoverageIssue 要求**每一个带 therapyDirection 的病机节点**都有药味 targetRef 承接,
+  // 漏一个即驳回;而提示词只是把节点列成"可选引用项",从不说明哪些是**必须**覆盖的。
+  // 模型得自己从上下文推断强制范围,推错就走修复轮。10/13 能被修复轮救回,说明模型做得到,
+  // 只是首轮没被告知硬要求——这是纯粹的提示词/合同错位,不是模型能力问题。
+  //
+  // 清单由已签名的 M03 结论确定性生成(判据与合同同源:therapyDirection 非空),不是新规则。
+  const chainNodes = (diagnoseReasoning?.pathogenesis?.chain || [])
+    .map((node, index) => ({ ...node, id: String(node.nodeId || `P${index + 1}`).trim() }));
+  const mandatoryNodeIds = chainNodes
+    .filter((node) => typeof node.therapyDirection === "string" && node.therapyDirection.trim())
+    .map((node) => node.id);
+  const pathogenesisNodeOptions = [
+    chainNodes
+      .map((node) => {
+        const direction = typeof node.therapyDirection === "string" ? node.therapyDirection.trim() : "";
+        const mandatory = direction ? "【必覆盖】" : "";
+        const suffix = direction ? `｜治法方向：${direction}` : "";
+        return `${mandatory}${node.id}：${node.pathogenesis || node.syndromeEvidence}${suffix}`;
+      })
+      .join("\n"),
+    mandatoryNodeIds.length > 0
+      ? `\n硬性要求：以上标注【必覆盖】的节点共 ${mandatoryNodeIds.length} 个（${mandatoryNodeIds.join("、")}），每一个都必须至少有一味药以 targetKind=pathogenesis_node、targetRef=该节点号 承接；漏掉任意一个，本次处方一律驳回。无治法方向的节点不作此要求。`
+      : "",
+  ].filter(Boolean).join("\n");
   const conversationText = caseState.conversation
     .filter((message) => message.role === "user")
     .map((m) => `${m.role === "user" ? "医生/患者" : "AI系统"}：${m.content}`)

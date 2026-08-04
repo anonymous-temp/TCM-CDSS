@@ -60,6 +60,16 @@ const T2_M03: ReadonlySet<string> = new Set([
   "tcm_diagnostic_rationale_missing",
   // 需求3：辨病推理缺失。缺一段病名归属理由不影响辨证结论可用性，带批注受理即可。
   "tcm_disease_rationale_missing",
+  // 甲方 2026-08 复测四条的确定性化。四者共同点：结论本身成立且已通过接地与安全合同，
+  // 缺的是「把它讲对/讲全」的那一层，因此一律 T2 带批注受理 + 修复提示，不作废整份 M03。
+  //   辨病鉴别（相邻病名来自 GB/T 15657 层级编码，词表里一直有、此前从未参与判断）
+  "tcm_disease_differentials_missing",
+  "tcm_disease_differential_not_a_disease",
+  //   主症病位锚（症状→病位受治理映射此前独缺主症词族）
+  "location_chief_symptom_anchor_missing",
+  //   治法的病例绑定（词表 956 条治法自带 method_requires_case_binding，此前无人核对）
+  "therapy_method_direction_unbound",
+  "therapy_chief_symptom_unaddressed",
   "tcm_reasoning_diagnostic_dependency",
   "tcm_differential_analysis_missing",
   "discrimination_missing",

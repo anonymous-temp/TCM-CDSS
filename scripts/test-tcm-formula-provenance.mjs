@@ -960,7 +960,8 @@ assert.ok(diagnosePrompt.includes("推荐主方方向坚持经典方优先"), "M
 assert.ok(diagnosePrompt.includes("确无方证匹配的经典方时才按已锁定病机与治法自拟"), "M03 must constrain self-devised directions to a catalog-free label");
 assert.ok(diagnosePrompt.includes("therapyDirection 必须逐节点具体且互不重复"), "M03 must forbid duplicated therapyDirection sentences that flatten downstream fangyi");
 assert.ok(diagnosePrompt.includes("【M03统一临床推理权威合同】"), "M03 generation must use the same inference authority as independent review");
-assert.ok(diagnosePrompt.includes("逐字接地要求只适用于 L0 患者事实"), "M03 generation must distinguish chart facts from supported clinical inference");
+assert.ok(diagnosePrompt.includes("逐字接地要求只适用于第一层患者事实"), "M03 generation must distinguish chart facts from supported clinical inference");
+assert.doesNotMatch(diagnosePrompt, /\bL\d\b/, "推理层号不得以 L0/L1/L3 形态进入 M03 生成上下文（否则会被回声进方义解析）");
 assert.match(diagnosePrompt, /\[TCM-FORMULA-[A-F0-9]+\] 半夏泻心汤[\s\S]*《伤寒论》/, "M03 must receive the case-bound governed classic formula card");
 
 // ─── P0-5 跟进（ES04 类失败）：君药知识库覆盖硬规则、覆盖药味短名单、专属修复提示 ───

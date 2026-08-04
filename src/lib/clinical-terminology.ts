@@ -42,6 +42,109 @@ for (const entry of DISEASE_LEXICON.entries) {
   }
 }
 
+/**
+ * ── 病名鉴别关系层（2026-08-04）────────────────────────────────────────────
+ *
+ * 甲方连续两轮评测都写着同一句：「中医鉴别仍是证候鉴别，不是病名鉴别；要求辨病再辨证」。
+ * 而 tcmDiseaseDifferentials 这个字段早就在 schema、提示词与 Markdown 摘要里了——
+ * 缺的从来不是字段，是**服务端无从判断相邻病名是谁**，因此既没法要求模型必须给，
+ * 也没法核对它给的是不是病名。
+ *
+ * 受治理数据一直躺在仓库里：本词表 1267 条每条都带 GB/T 15657-2021 的层级编码
+ * （头风病 A07.01.02，其下 A07.01.02.01 外感头痛、.02 内伤头痛、.04 厥头痛(真头痛)；
+ * 其上 A07.01 颅脑类病，同级还有 A07.01.01 中风病）。这套编码**就是**「相邻病名」关系，
+ * 而 clinical-terminology.ts 此前只用 canonical/aliases 建了两张归一表，code 字段
+ * 在运行时从未被读取过一次——与鉴别图 167 条边只喂提示词、中成药 contraindication
+ * 召回层从不读取，是同一类问题。
+ *
+ * 这里把 code 的父子/同级关系派生出来，供 M03 合同确定性地要求并核验病名级鉴别。
+ * 只做关系派生，不做临床裁定：给出候选相邻病名，鉴别理由仍由模型在本例事实上写。
+ */
+export type GovernedDiseaseNeighbor = {
+  canonical: string;
+  code: string;
+  /** subtype=本病名下位亚型；sibling=同一上位类目下的并列病名。 */
+  relation: "subtype" | "sibling";
+};
+
+/** 相邻病名上限。层级下同级病名可达十余条，全量注入会把修复提示变成词表倾倒。 */
+const MAX_DISEASE_NEIGHBORS = 8;
+
+function diseaseLexiconEntry(value: unknown): DiseaseLexiconEntry | undefined {
+  const resolved = resolveTcmDiseaseName(value);
+  if (!resolved || resolved.status === "unverified") return undefined;
+  return DISEASE_CANONICAL.get(compactTerm(resolved.canonical));
+}
+
+function parentCode(code: string): string {
+  const segments = (code || "").split(".");
+  return segments.length > 1 ? segments.slice(0, -1).join(".") : "";
+}
+
+/** 该病名是否是受治理病名（GB/T 正名、别名或已登记的临床扩展）。 */
+export function isGovernedTcmDiseaseName(value: unknown): boolean {
+  const resolved = resolveTcmDiseaseName(value);
+  return Boolean(resolved && resolved.status !== "unverified");
+}
+
+/** 编码末段的序号。GB/T 15657 的末段一律是两位十进制序号（A04.01.13 → 13）。 */
+function codeOrdinal(code: string): number {
+  const tail = (code || "").split(".").pop() || "";
+  const parsed = Number.parseInt(tail.replace(/[^0-9]/g, ""), 10);
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+}
+
+/**
+ * 受治理相邻中医病名。用于 M03 病名级鉴别的候选与核验。
+ *
+ * 关系取两类，按临床鉴别价值排序：
+ *  1) subtype —— 本病名下位亚型（头风病 → 外感头痛/内伤头痛/厥头痛(真头痛)/偏头风/雷头风）。
+ *     这是「辨病」最要紧的一层：外感与内伤、真头痛与一般头痛，处置分支完全不同。
+ *  2) sibling —— 同一上位类目下的并列病名（不寐病 ↔ 神劳病/多寐病/梦魇病/百合病）。
+ * 上位病名（parent）**不取**：与自己所属的上位类目做鉴别是个伪命题——上位类目本来就包含本例，
+ * 二者不是可互斥的两个诊断。
+ * 类目标题（isCategoryHeading）与临时诊断用术语（temporary）都不是可鉴别的病名，一律排除。
+ *
+ * ★ 同级病名按**编码邻近度**排序，不按文件顺序 ★
+ * 这不是排版偏好，是正确性问题。GB/T 15657 在一个"系"下按临床亲缘成簇编号，
+ * 心系病 A04.01 下 .01–.08 是胸痹心痛/真心痛/心痹/心水病等心脏病症，
+ * .11–.16 才是百合病/神劳病/不寐病/多寐病/梦魇病/梦游症这一簇神志睡眠病症。
+ * 按文件顺序取前 8 条，不寐病（A04.01.13）拿到的相邻病名会是"胸痹心痛、真心痛、高原胸痹…"
+ * ——全部是心脏病，与不寐毫无鉴别价值，喂进修复提示只会把模型带偏。
+ * 按 |序号差| 升序取，拿到的是神劳病、多寐病、百合病、梦魇病——正是该鉴别的那一簇。
+ */
+export function governedTcmDiseaseNeighbors(value: unknown): GovernedDiseaseNeighbor[] {
+  const entry = diseaseLexiconEntry(value);
+  if (!entry?.code) return [];
+  const selfCode = entry.code;
+  const parent = parentCode(selfCode);
+  const usable = (candidate: DiseaseLexiconEntry) =>
+    candidate.code !== selfCode &&
+    !candidate.isCategoryHeading &&
+    candidate.temporary !== true &&
+    Boolean(candidate.canonical);
+  const subtypes: GovernedDiseaseNeighbor[] = [];
+  const siblings: GovernedDiseaseNeighbor[] = [];
+  for (const candidate of DISEASE_LEXICON.entries) {
+    if (!usable(candidate)) continue;
+    if (parentCode(candidate.code) === selfCode) {
+      subtypes.push({ canonical: candidate.canonical, code: candidate.code, relation: "subtype" });
+      continue;
+    }
+    if (parent && parentCode(candidate.code) === parent) {
+      siblings.push({ canonical: candidate.canonical, code: candidate.code, relation: "sibling" });
+    }
+  }
+  const selfOrdinal = codeOrdinal(selfCode);
+  siblings.sort((left, right) =>
+    Math.abs(codeOrdinal(left.code) - selfOrdinal) - Math.abs(codeOrdinal(right.code) - selfOrdinal) ||
+    codeOrdinal(left.code) - codeOrdinal(right.code));
+  const seen = new Set<string>();
+  return [...subtypes, ...siblings]
+    .filter((item) => (seen.has(item.canonical) ? false : (seen.add(item.canonical), true)))
+    .slice(0, MAX_DISEASE_NEIGHBORS);
+}
+
 export function resolveTcmDiseaseName(value: unknown): TcmDiseaseResolution | undefined {
   // 剥除亚型括注:痹症（腰痹）→痹症、功能（障碍）性子宫出血→功能性子宫出血——括注是亚型标注,不改变病名身份。
   const valueStripped = typeof value === "string" ? value.replace(/（[^（）]*）|\([^()]*\)/g, "") : value;
