@@ -56,11 +56,11 @@
       "id": "ADJ-20260804-SYNDROME-TAG-B6",
       "date": "2026-08-04",
       "scope": "受治理目录中 593 首 syndromeTags 与 curatedSyndromeTags 双空、因而 lockEligible=false 被召回排序永久沉底的方剂",
-      "method": "确定性规则生成候选（scripts/build-formula-syndrome-tag-candidates.mjs，三通道：受治理主治字面归一 / 病机短语规则表 / 病位病性双轴），逐条人工复核命中片段后裁定；非模型直出。外治方与主治自述不辨证者确定性阻断；候选 56 首全部逐条复核，采纳 56 首、弃权 3 首（五加皮汤=熏洗外治方、内经方=三方合录非单方、象皮膏=外用生肌膏）。",
+      "method": "确定性规则生成候选（scripts/build-formula-syndrome-tag-candidates.mjs，三通道：受治理主治字面归一 / 病机短语规则表 / 病位病性双轴），逐条人工复核命中片段后裁定；非模型直出。外治方与主治自述不辨证者确定性阻断；候选 61 首全部逐条复核，采纳 58 首、弃权 3 首（五加皮汤=熏洗外治方、内经方=三方合录非单方、象皮膏=外用生肌膏）。",
       "reviewed": 593,
-      "adopted": 56,
-      "abstained": 537,
-      "note": "残余 537 首多为古籍抽取的外治膏散、催产/金疮/疔疮等无证候语义条目，或主治仅存方义（治法）而无病机表述，留空为安全默认。本批每条依据均可由生成脚本 --verify 复现。"
+      "adopted": 58,
+      "abstained": 535,
+      "note": "残余 535 首多为古籍抽取的外治膏散、催产/金疮/疔疮等无证候语义条目，或主治仅存方义（治法）而无病机表述，留空为安全默认。本批每条依据均可由生成脚本 --verify 复现。"
     }
   ],
   "entries": [
@@ -11865,6 +11865,20 @@
       "batch": "ADJ-20260804-SYNDROME-TAG-B6"
     },
     {
+      "name": "小柴胡汤",
+      "sourceClass": "official_local_formula_standard",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-AE67852A5438",
+        "TCM-SYNDROME-1ADCAC12E04E"
+      ],
+      "syndromeNames": [
+        "邪入少阳",
+        "热结血室"
+      ],
+      "basis": "官方地方标准主治直书“伤寒少阳证；热入血室证；疟疾、黄疸以及内伤杂病而见少阳证者”，功效“和解少阳”。少阳一轴取 GB/T 16751.2 少阳证类头位术语 8.3.1 邪入少阳（8.3.2 邪在少阳、8.3.3 邪郁少阳 为并列近义证，运行时互不等价），与本表既有先例柴胡枳桔汤→邪入少阳一致；“热入血室”为《伤寒论》原名，标准收录为“热结血室证”，属命名体系差异而非临床推断。",
+      "batch": "ADJ-20260804-SYNDROME-TAG-B6"
+    },
+    {
       "name": "续骨活血汤",
       "sourceClass": "official_local_formula_standard",
       "syndromeTagIds": [
@@ -11910,6 +11924,18 @@
         "风寒湿痹阻"
       ],
       "basis": "官方地方标准主治直书“着痹”，功效“祛风散寒，除湿通络”；着痹为风寒湿三气杂至而湿邪偏胜之痹。",
+      "batch": "ADJ-20260804-SYNDROME-TAG-B6"
+    },
+    {
+      "name": "御邪汤",
+      "sourceClass": "verified_reference_catalog",
+      "syndromeTagIds": [
+        "TCM-SYNDROME-1ADCAC12E04E"
+      ],
+      "syndromeNames": [
+        "热结血室"
+      ],
+      "basis": "主治“热入血室，先受邪而经水适来者”，原文直述热入血室；《伤寒论》之“热入血室”即 GB/T 16751.2 之“热结血室证”。",
       "batch": "ADJ-20260804-SYNDROME-TAG-B6"
     },
     {

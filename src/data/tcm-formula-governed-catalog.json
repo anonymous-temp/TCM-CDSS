@@ -43,7 +43,7 @@
     "doseCompilationEligibleCount": 2580,
     "symptomTaggedFormulaCount": 906,
     "diseaseTaggedFormulaCount": 336,
-    "syndromeTaggedFormulaCount": 2400,
+    "syndromeTaggedFormulaCount": 2402,
     "locationTaggedFormulaCount": 579,
     "natureTaggedFormulaCount": 617,
     "candidateFormulaCount": 0,
@@ -98459,8 +98459,14 @@
       "indications": [
         "伤寒少阳证；热入血室证；疟疾、黄疸以及内伤杂病而见少阳证者"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-AE67852A5438",
+        "TCM-SYNDROME-1ADCAC12E04E"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-AE67852A5438",
+        "TCM-SYNDROME-1ADCAC12E04E"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -98470,7 +98476,7 @@
       "diseaseTags": [
         "disease_jaundice"
       ],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -110617,7 +110623,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:医方简义:御邪汤"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-1ADCAC12E04E"
+      ],
       "ingredientLinks": [
         {
           "rawName": "泽兰",
@@ -110660,13 +110668,15 @@
         "方以泽兰、琥珀活血通经，黄芩、栀子清热，杏仁、天麻祛风散邪，共奏祛邪调经之功。",
         "热入血室，先受邪而经水适来者。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-1ADCAC12E04E"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,

@@ -336,6 +336,25 @@ const PATHOGENESIS_RULES = [
     syndromes: ["风热犯表"],
     note: "喉症初起而治以疏风清热，即风热犯表。",
   },
+  // —— 六经 ——
+  {
+    id: "R-SHAOYANG-PATTERN",
+    phrases: ["少阳证"],
+    requires: ["和解少阳"],
+    syndromes: ["邪入少阳"],
+    note:
+      "主治直书少阳证、功效直书和解少阳，双锚一致。GB/T 16751.2 少阳证类下并列 8.3.1 邪入少阳 / " +
+      "8.3.2 邪在少阳 / 8.3.3 邪郁少阳 三个近义证，运行时三者互不等价；取 8.3.1 头位术语，" +
+      "与裁定表既有先例（柴胡枳桔汤→邪入少阳）保持一致。",
+  },
+  {
+    id: "R-HEAT-IN-BLOOD-CHAMBER",
+    phrases: ["热入血室"],
+    syndromes: ["热结血室"],
+    note:
+      "「热入血室」是《伤寒论》原名，GB/T 16751.2 收录为「热结血室证」（别名热入胞宫）——" +
+      "同一证的命名体系差异，不是临床推断。",
+  },
   // —— 火热 ——
   {
     id: "R-TRIPLE-BURNER-FIRE",
@@ -520,6 +539,19 @@ function main() {
   const untagged = (catalog.entries ?? []).filter(
     (entry) => !(entry.syndromeTags ?? []).length && !(entry.curatedSyndromeTags ?? []).length,
   );
+  // 已裁定批次的方剂在目录重生成后已经带上标签、退出「无标注」池。--verify 要复算它们，
+  // 所以把该批次的方名单独并回评估集——否则「裁定生效」本身会让复现校验空跑通过。
+  const verifiedBatchNames = new Set(
+    (adjudication.entries ?? []).filter((row) => row.batch === VERIFIED_BATCH).map((row) => compact(row.name)),
+  );
+  const untaggedNames = new Set(untagged.map((entry) => compact(entry.name)));
+  const evaluated = [
+    ...untagged,
+    ...(catalog.entries ?? []).filter((entry) => {
+      const key = compact(entry.name);
+      return verifiedBatchNames.has(key) && !untaggedNames.has(key);
+    }),
+  ];
 
   // P1 用的字面词条：canonical + alias，长度 ≥2 —— 与构建期 lexicon_terms() 同口径，
   // 因为 P1 扫的是构建期**根本没读到**的那段主治，不存在重复扫描问题。
@@ -534,7 +566,7 @@ function main() {
     .filter(([, names]) => names.length);
 
   const candidates = [];
-  for (const entry of untagged) {
+  for (const entry of evaluated) {
     const name = compact(entry.name);
     const standardRow = standardRows.get(name);
     const indicationText = governedIndicationText(entry, standardRow);
