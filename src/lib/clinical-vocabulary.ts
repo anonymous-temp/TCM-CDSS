@@ -64,11 +64,20 @@ export function governedSyndromeLabelAxes(label: string): { locations: string[];
   if (!value) return { locations: [], natures: [] };
   const exact = VOCAB.syndromeAxes[value];
   if (exact) return { locations: [...exact.locations], natures: [...exact.natures] };
-  // 长词优先的包含匹配:标签常带「证」尾缀或复合表述(如「心脾两虚证」)。
+  // 包含匹配必须取**最长命中**,不能合并全部命中:「脾胃虚寒证」同时包含「虚寒」「脾胃」
+  // 以及一堆更短的证候写法,全合并会把寒热虚实两侧的轴一起塞进来,方向判定随即弃权——
+  // 实测因此漏掉「白虎汤(大寒) × 脾胃虚寒证」这种最典型的方向对立。最大匹配是词法层的
+  // 常规做法:最长的那条写法才是这个标签真正对应的证候。
+  let bestLength = 0;
   const locations = new Set<string>();
   const natures = new Set<string>();
   for (const [form, axes] of Object.entries(VOCAB.syndromeAxes)) {
-    if (form.length < 2 || !value.includes(form)) continue;
+    if (form.length < 2 || form.length < bestLength || !value.includes(form)) continue;
+    if (form.length > bestLength) {
+      bestLength = form.length;
+      locations.clear();
+      natures.clear();
+    }
     for (const id of axes.locations) locations.add(id);
     for (const id of axes.natures) natures.add(id);
   }

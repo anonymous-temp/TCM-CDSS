@@ -43,7 +43,7 @@
     "doseCompilationEligibleCount": 2580,
     "symptomTaggedFormulaCount": 906,
     "diseaseTaggedFormulaCount": 336,
-    "syndromeTaggedFormulaCount": 2344,
+    "syndromeTaggedFormulaCount": 2400,
     "locationTaggedFormulaCount": 579,
     "natureTaggedFormulaCount": 617,
     "candidateFormulaCount": 0,
@@ -552,7 +552,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:医方考:《深师》七气汤"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-7F85B83ECF9F"
+      ],
       "ingredientLinks": [
         {
           "rawName": "干姜",
@@ -636,13 +638,15 @@
         "气噎膈，有物噎塞，防碍饮食。",
         "辛行气（干姜、肉桂、吴萸、半夏、陈皮），苦降气（黄芩、枳实、桔梗），益脾（人参、甘草），滋肾（地黄），和肝（芍药）。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-7F85B83ECF9F"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -8267,7 +8271,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:医方考:三补丸"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-BF780C4D57F3"
+      ],
       "ingredientLinks": [
         {
           "rawName": "黄芩",
@@ -8292,7 +8298,9 @@
         "三焦有火，嗌喉干燥，小便赤涩，大便秘结",
         "降三焦壮火，使气得生、血得养，黄芩清上、黄连泻中、黄柏泻下"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-BF780C4D57F3"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -8302,7 +8310,7 @@
         "constipation"
       ],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -10467,7 +10475,9 @@
           "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9AA952D43A89"
+      ],
       "ingredientLinks": [
         {
           "rawName": "升麻",
@@ -10554,13 +10564,15 @@
         "飧泄肠风等症，肝木太旺，动而生风，犯胃克脾。",
         "纯用风药，燥亦太过，不及易老胃风汤养血柔肝。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9AA952D43A89"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -12063,8 +12075,12 @@
       "indications": [
         "心痛，胃脘诸痛"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "qi_stagnation_blood_stasis"
+      ],
+      "curatedSyndromeTags": [
+        "qi_stagnation_blood_stasis"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -12072,7 +12088,7 @@
       ],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -20473,7 +20489,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:古方汇精:五益膏（四）"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-3AAD68D5C9BF"
+      ],
       "ingredientLinks": [
         {
           "rawName": "玉竹",
@@ -20511,13 +20529,15 @@
         "补气养血，滋阴益肾，适用于虚损诸证。",
         "诸虚百损。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-3AAD68D5C9BF"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -25235,7 +25255,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:瑞竹堂经验方:人参胡桃汤"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-83D8F6C6B5B9"
+      ],
       "ingredientLinks": [
         {
           "rawName": "人参",
@@ -25255,13 +25277,15 @@
         "治胸满喘急，不能睡卧，老人宜服。",
         "补气纳肾，降逆平喘。人参补肺气，胡桃补肾纳气，生姜散寒降逆。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-83D8F6C6B5B9"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -27145,8 +27169,12 @@
       "indications": [
         "疮疡肿毒初起，赤肿焮痛，或身热微恶寒，舌苔薄白或微黄，脉数有力，属于阳证者"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-2C6EB88AF187"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-2C6EB88AF187"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
@@ -27154,7 +27182,7 @@
         "fever_chills"
       ],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -27324,14 +27352,18 @@
       "indications": [
         "虚人蓄血"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -28082,7 +28114,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:伐木丸"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9AA952D43A89"
+      ],
       "ingredientLinks": [
         {
           "rawName": "苍术",
@@ -28108,7 +28142,9 @@
         "伐木丸以苍术、皂矾、酒曲燥湿运脾，消积退黄，安太阴，为仙品。",
         "治脾土衰弱，肝木气盛，肝乘脾土，病心腹中满，或黄肿如土色，服此能助土益元。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9AA952D43A89"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -28116,7 +28152,7 @@
       ],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -29466,8 +29502,12 @@
       "indications": [
         "食积停滞，胸脘痞满，腹胀时痛，嗳腐吞酸，恶食或呕吐泄泻，脉滑，舌苔厚腻或黄"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-F06289A8586D"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-F06289A8586D"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [
         "food_stagnation"
@@ -29481,7 +29521,7 @@
       "diseaseTags": [
         "disease_diarrhea"
       ],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -32372,14 +32412,18 @@
       "indications": [
         "跌打损伤"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -39327,7 +39371,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:仙传外科集验方:内补黄散"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-3AAD68D5C9BF"
+      ],
       "ingredientLinks": [
         {
           "rawName": "附子",
@@ -39448,7 +39494,9 @@
         "治痈疽，内虚不足，脓水不绝，四肢乏弱，不进饮食。久不好者，必为内漏。",
         "补益气血，温阳固脱，兼利水通淋，归经于脾肾心肺。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-3AAD68D5C9BF"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [
         "deficiency"
@@ -39456,7 +39504,7 @@
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -41312,14 +41360,18 @@
       "indications": [
         "脂溢性皮炎，人工荨麻疹，玫瑰糠疹"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-BE65FC64C6BE"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-BE65FC64C6BE"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -45871,8 +45923,12 @@
       "indications": [
         "痰积、食积、酒积、茶积之腹痛、脉沉数滑者"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-A0231EEBCD87"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-A0231EEBCD87"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [
         "food_stagnation"
@@ -45882,7 +45938,7 @@
         "abdominal_pain"
       ],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -49572,7 +49628,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:三因极一病证方论:化虫丸"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-FDD151EC4FB5"
+      ],
       "ingredientLinks": [
         {
           "rawName": "硫黄",
@@ -49602,13 +49660,15 @@
         "治寸白虫，兼治诸虫。",
         "硫黄杀虫，木香行气，蜜陀僧燥湿，附子温阳，共奏杀虫化虫之功。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-FDD151EC4FB5"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -56483,14 +56543,18 @@
       "indications": [
         "咳而脉浮者，厚朴麻黄汤主之。"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-711CF6C58791"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-711CF6C58791"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "regulatory_source_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -61437,7 +61501,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:启宫丸"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-E2EA1822861C"
+      ],
       "ingredientLinks": [
         {
           "rawName": "川芎",
@@ -61491,7 +61557,9 @@
         "足太阴、厥阴药。橘、半、白术燥湿化痰；香附、神曲理气消滞；川芎散郁活血；茯苓、甘草去湿和中，助生气。",
         "治子宫脂满，不能孕育。妇人肥盛不孕，往往因此。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-E2EA1822861C"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -61501,7 +61569,7 @@
       ],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -62532,14 +62600,18 @@
       "indications": [
         "跌打损伤"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -71806,14 +71878,18 @@
       "indications": [
         "泻痢或血痢"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-064C46403192"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-064C46403192"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -74414,14 +74490,18 @@
       "indications": [
         "伤筋络"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -75282,14 +75362,18 @@
       "indications": [
         "跌打损伤，恶血留于胁下，痛不可忍，或小腹作痛或痞闷及便毒初起肿痛"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -83216,7 +83300,9 @@
           "url": "urn:tcm-cdss:nihaisha-fusion:jingui:xulao-dahuangzhechongwan"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-A566E5D39D31"
+      ],
       "ingredientLinks": [
         {
           "rawName": "大黄",
@@ -83293,13 +83379,15 @@
       "indications": [
         "五劳虚极羸瘦，腹满不能饮食，肌肤甲错，两目黯黑，内有干血。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-A566E5D39D31"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -84848,7 +84936,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:古今名医方论:天水散"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-8F9AA032AE41"
+      ],
       "ingredientLinks": [
         {
           "rawName": "滑石",
@@ -84873,13 +84963,15 @@
         "治夏时中暑，热伤元气，内外俱热，无气以动，烦渴欲饮，肠胃枯涸者。又能催生下乳。",
         "益气而不助邪，伤气，不负益元之名。宜与白虎、生脉三方鼎足。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-8F9AA032AE41"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -90340,14 +90432,18 @@
       "indications": [
         "妇人月经过多，过期不止，或不时漏下"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-8097C6663D16"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-8097C6663D16"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -93731,8 +93827,12 @@
       "indications": [
         "麻疹透发不出，发热咳嗽，烦躁口渴，小便赤者"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-685ACCF2C245"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-685ACCF2C245"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
@@ -93743,7 +93843,7 @@
         "mood_distress"
       ],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -93787,7 +93887,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:温病条辨:湿温"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-CFEFA693692E"
+      ],
       "ingredientLinks": [
         {
           "rawName": "猪苓",
@@ -93822,7 +93924,9 @@
         "湿温久羁，三焦弥漫，神昏窍阻，少腹硬满，大便不下",
         "苦辛淡法，二苓、寒石化无形之气，蚕砂、皂子逐有形之湿，通利三焦"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-CFEFA693692E"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -93830,7 +93934,7 @@
       ],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -95875,14 +95979,18 @@
       "indications": [
         "治滑胎。"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9EC09881C4F1"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9EC09881C4F1"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "regulatory_source_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -110398,7 +110506,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:成方切用:徙薪饮"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-BF780C4D57F3"
+      ],
       "ingredientLinks": [
         {
           "rawName": "黄芩",
@@ -110452,7 +110562,9 @@
         "清三焦气火内热，黄芩、黄柏、丹皮清热，麦冬养阴，芍药和营，茯苓渗湿，陈皮理气。",
         "治三焦浮火，肌里伏热，时或呛嗽，痰涎满口，或舌破牙龈肿痛等症。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-BF780C4D57F3"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -110460,7 +110572,7 @@
       ],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -124677,7 +124789,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:三因极一病证方论:曲术丸"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-F06289A8586D"
+      ],
       "ingredientLinks": [
         {
           "rawName": "神曲",
@@ -124701,13 +124815,15 @@
         "治中脘有宿食留饮，酸蜇心痛，口吐清水，嗳宿腐气者。",
         "方中神曲消食化积，苍术燥湿健脾，陈皮理气和胃，共奏消食导滞、和胃降逆之功。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-F06289A8586D"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -140811,7 +140927,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:医方简义:桂麻各半汤"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-B78D07C79FED"
+      ],
       "ingredientLinks": [
         {
           "rawName": "桂枝",
@@ -140860,7 +140978,9 @@
         "治太阳症。服桂枝汤不愈。面热身痒。不得小汗。如疟状者。",
         "调和营卫，小发其汗。太阳表郁，面热身痒。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-B78D07C79FED"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -140868,7 +140988,7 @@
       ],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -146014,7 +146134,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:三因极一病证方论:正阳丹"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9A44678BFE8B"
+      ],
       "ingredientLinks": [
         {
           "rawName": "木瓜",
@@ -146050,13 +146172,15 @@
         "治水肿。",
         "方以木瓜利湿，人参益气，大豆健脾，附子温阳，银朱镇心，共奏利水消肿之功。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9A44678BFE8B"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -170980,7 +171104,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:三因极一病证方论:济危上丹"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-0C4D6AB2DA0B"
+      ],
       "ingredientLinks": [
         {
           "rawName": "乳香",
@@ -171034,7 +171160,9 @@
         "所下过多伤损，虚竭少气，唇青肉冷，汗出神昏，虚脱证",
         "方用硫黄、玄精等温阳固脱，乳香、五灵脂活血，寄生、阿胶养血，卷柏止血，共奏回阳救逆、补虚止血之功。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-0C4D6AB2DA0B"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
@@ -171042,7 +171170,7 @@
         "sweating"
       ],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -172544,14 +172672,18 @@
       "indications": [
         "瘿瘤初起，或肿或硬，或赤或不赤，但未破者，甲状腺机能亢进，脂膜炎，乳腺增生，淋巴结核，结核性腹膜炎，多发性疖病等"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-311EA6F87944"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-311EA6F87944"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -176608,7 +176740,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:医方考:清六丸"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-064C46403192"
+      ],
       "ingredientLinks": [
         {
           "rawName": "滑石",
@@ -176632,13 +176766,15 @@
         "血痢",
         "滑石清六腑热，甘草调六腑气，红曲和六腑血，共治血痢。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-064C46403192"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -177531,14 +177667,18 @@
       "indications": [
         "一切喉症初起"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-ECED6C781629"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-ECED6C781629"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -180401,14 +180541,20 @@
       "indications": [
         "赤带。带下色红，似血非血，淋沥不断。"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-7A199C7CFD1A",
+        "TCM-SYNDROME-A4E8212A15E6"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-7A199C7CFD1A",
+        "TCM-SYNDROME-A4E8212A15E6"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "regulatory_source_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -180718,14 +180864,18 @@
       "indications": [
         "肺脾气燥淋病"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-7EB00A55C3FF"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-7EB00A55C3FF"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -186448,14 +186598,18 @@
       "indications": [
         "慢性湿疹、亚急性湿疹、脂溢性皮炎、异位性皮炎反复发作者"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-1288F5C4C84E"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-1288F5C4C84E"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -189262,14 +189416,18 @@
       "indications": [
         "老年性白内障"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-D0B79453139B"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-D0B79453139B"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -191253,8 +191411,12 @@
       "indications": [
         "中风，口眼斜，半身不遂。"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-665863B793C2"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-665863B793C2"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
@@ -191262,7 +191424,7 @@
       "diseaseTags": [
         "disease_stroke"
       ],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "regulatory_source_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -215797,14 +215959,18 @@
       "indications": [
         "神光散大，昏如雾露，眼前黑花，睹物成二，久而光不收敛，及内障瞳神淡白绿色"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-E62409E9BC62"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-E62409E9BC62"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -216171,7 +216337,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:医方考:石苇散"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-F004D9A90550"
+      ],
       "ingredientLinks": [
         {
           "rawName": "石苇",
@@ -216213,7 +216381,9 @@
         "砂淋痛盛者，溺出砂石，火灼膀胱，浊阴凝结。",
         "通滞用石苇、瞿麦；滑着用滑石、车前、冬葵，治膀胱火灼砂淋。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-F004D9A90550"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -216221,7 +216391,7 @@
       ],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -224449,7 +224619,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:绛雪园古方选注:秫米半夏汤"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-B78D07C79FED"
+      ],
       "ingredientLinks": [
         {
           "rawName": "秫米",
@@ -224467,7 +224639,9 @@
         "治卫气独行于阳，不入于阴，目不瞑，不寐。",
         "半夏从阳分通卫泄邪，秫米入阴分通营补虚，阴阳通，卧立至。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-B78D07C79FED"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
@@ -224477,7 +224651,7 @@
       "diseaseTags": [
         "disease_insomnia"
       ],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -230141,14 +230315,18 @@
       "indications": [
         "骨折及软组织损伤"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9F0DD3371EB8"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -245492,7 +245670,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:三因极一病证方论:茯苓苏子丸"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9A44678BFE8B"
+      ],
       "ingredientLinks": [
         {
           "rawName": "茯苓",
@@ -245536,7 +245716,9 @@
         "治面肿，小便涩，心腹胀满。",
         "利水消肿，降气平喘。归肺、脾、膀胱经。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9A44678BFE8B"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -245546,7 +245728,7 @@
         "epigastric_fullness"
       ],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -252681,14 +252863,20 @@
       "indications": [
         "和解胆经法。"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-CFEFA693692E",
+        "TCM-SYNDROME-60AFB2E45BEC"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-CFEFA693692E",
+        "TCM-SYNDROME-60AFB2E45BEC"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "regulatory_source_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -252908,14 +253096,18 @@
       "indications": [
         "着痹"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-02C6650E94E9"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-02C6650E94E9"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -253183,7 +253375,9 @@
           "sourceRef": "CORRUPT-HERB-REPAIR-20260725"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-4712749DF007"
+      ],
       "ingredientLinks": [
         {
           "rawName": "薯蓣",
@@ -253268,7 +253462,9 @@
         "七情致脏气不行，郁而生涎，涎结为饮，随气上厥，伏留阳经，心中忪悸，四肢缓弱，翕然面热，头目眩晕，如欲摇动。",
         "补脾益气，养心安神，化痰定悸。归经：心、脾、肺。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-4712749DF007"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
@@ -253278,7 +253474,7 @@
       "diseaseTags": [
         "disease_hypertension"
       ],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -260969,14 +261165,18 @@
       "indications": [
         "诸内障，欲变五风，变化视物不明"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-D0B79453139B"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-D0B79453139B"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -261236,14 +261436,18 @@
       "indications": [
         "伤肾者，两耳立聋……次以补肾活血汤……伤气眼者，气喘痛极……次以酒煎补肾活血汤。"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-9EC09881C4F1"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-9EC09881C4F1"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "regulatory_source_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -269230,14 +269434,18 @@
       "indications": [
         "治产后遍身疼痛"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-3AAD68D5C9BF"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-3AAD68D5C9BF"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -271451,7 +271659,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:古方汇精:辟寒煎（七十四）"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-970B79AA6652"
+      ],
       "ingredientLinks": [
         {
           "rawName": "木香",
@@ -271507,13 +271717,15 @@
         "治寒疝。攻心急痛。",
         "温中散寒，行气止痛，归肝、脾、胃经。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-970B79AA6652"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -273327,14 +273539,18 @@
       "indications": [
         "蛔厥证"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-FDD151EC4FB5"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-FDD151EC4FB5"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -275054,14 +275270,18 @@
       "indications": [
         "痈疽诸毒，内脓已成，不穿破者，服之即破"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-3AAD68D5C9BF"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-3AAD68D5C9BF"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -290165,7 +290385,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:三因极一病证方论:附子绿豆汤"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-3C8E2B57694A"
+      ],
       "ingredientLinks": [
         {
           "rawName": "附子",
@@ -290183,7 +290405,9 @@
         "治寒客皮肤，壳壳然而坚，腹大身肿，按之陷而不起，色不变，病名肤胀",
         "附子温阳散寒，绿豆解毒利水，生姜助阳散水，共治寒客皮肤之肤胀"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-3C8E2B57694A"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -290191,7 +290415,7 @@
       ],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -293027,7 +293251,9 @@
           "url": "urn:tcm-cdss:tcmoc-books:087-医方集解.txt:集效丸"
         }
       ],
-      "curatedSyndromeTags": [],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-FDD151EC4FB5"
+      ],
       "ingredientLinks": [
         {
           "rawName": "大黄",
@@ -293083,7 +293309,9 @@
         "足阳明药。虫喜温恶酸畏苦，姜附温之，乌梅诃子酸伏之，大黄槟榔芜荑鹤虱苦杀之，木香顺气。",
         "治因脏腑虚弱，或多食甘肥，致蛔虫动作，心腹绞痛，发则肿聚，往来上下，痛有休止，腹中烦热，口吐涎沫，是蛔咬。又治下部有虫生痔，痔痒痛。"
       ],
-      "syndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-FDD151EC4FB5"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [
@@ -293093,7 +293321,7 @@
         "abdominal_pain"
       ],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "project_reference_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,

@@ -1379,3 +1379,157 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
   noPair.formula.candidates[0].herbs = [{ name: "陈皮", dose: "6g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1" }];
   assert.doesNotMatch(syncForPair(wrapPair(noPair), "prescribe"), /配伍禁忌提示（确定性检测）/, "无配伍对时不得凭空出现警示段");
 }
+
+// ─── GB-SYN-01 国标证候名双显（甲方评测 2026-08-04 根修） ────────────────────
+// 系统写的是脏腑病机式证候名（「外感风寒证」「痰热扰神证」「湿热蕴脾证」），教材与甲方核对
+// 用的是 GB/T 16751.2-2021 的规范名（「风寒外袭证」「痰火扰神证」「湿热困脾证」）。二者临床
+// 等价，但逐字对表就被判为不规范。M03 结论区因此并列显示国标名。
+//
+// 本组把三件事钉死，防止它退化成又一张手写关键词表：
+//  1) 能映射时必须双显，且括号内容**逐字来自受控词表**（src/data/tcm-syndrome-lexicon.json
+//     的 standardTerm/canonical，且条目 sourceRefs 为国标来源）；
+//  2) 映射不到（词表未收录 + 无受控映射轨迹）时**不出现**括号；
+//  3) 走 terminologyMappings 轨迹时，canonical 必须能在词表里原样复现且 candidateId 与词表
+//     条目 id 一致；伪造名、张冠李戴的 candidateId、非国标来源的项目扩展条目一律不显示。
+{
+  const { synchronizeVisibleClinicalSummary: syncForStandardSyndrome } =
+    await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const lexicon = JSON.parse(
+    fs.readFileSync(new URL("../src/data/tcm-syndrome-lexicon.json", import.meta.url), "utf8"),
+  );
+  const nationalStandardTerms = new Set(
+    lexicon.entries
+      .filter((entry) => (entry.sourceRefs || []).includes("SRC-GBT-16751-2-2021"))
+      .flatMap((entry) => [entry.standardTerm, entry.canonical])
+      .filter((term) => typeof term === "string" && term.trim()),
+  );
+
+  const diagnosePayload = (overrides = {}) => ({
+    schemaVersion: "tcm-cdss-reasoning-v2",
+    stage: "diagnose",
+    overview: {
+      tcmDiseaseName: "感冒",
+      primarySyndrome: "外感风寒证",
+      primarySyndromeResolution: "bounded",
+      primarySyndromeBasis: ["恶寒发热2天"],
+      overallPathogenesis: "风寒外束，卫阳被郁",
+      overallTherapy: "辛温解表",
+      recommendedFormulaDirection: "按已锁定病机与治法辨证组方",
+      recommendedFormulaNames: [],
+      formulaSelectionMode: "self_devised",
+      secondarySyndromes: [],
+      ...(overrides.overview || {}),
+    },
+    westernDiagnosis: {
+      primary: { name: "急性上呼吸道感染", supportingFacts: ["恶寒发热2天"] },
+      differentials: [],
+    },
+    pathogenesis: {
+      summary: "风寒外束",
+      chain: [{ nodeId: "P1", patientFact: "恶寒发热2天", syndromeEvidence: "脉浮紧", pathogenesis: "风寒束表", therapyDirection: "辛温解表" }],
+      uncertainties: [],
+    },
+    therapy: { overallPrinciple: "治病求本", overallMethod: "辛温解表", subTherapies: [] },
+    management: { followupSafetyNet: "若出现高热不退或呼吸困难应立即就医。" },
+    ...(overrides.terminologyMappings ? { terminologyMappings: overrides.terminologyMappings } : {}),
+  });
+  const syndromeLine = (payload) => {
+    const rendered = syncForStandardSyndrome(
+      `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(payload)}\n<!-- DIAGNOSIS_JSON_END -->`,
+      "diagnose",
+    );
+    const line = /^\*\*证型\*\*：.*$/m.exec(rendered);
+    assert.ok(line, "M03 结论区必须始终渲染证型行");
+    return line[0];
+  };
+  const renderedStandardName = (line) => {
+    const matched = /（国标对应：([^）]+)）/.exec(line);
+    return matched ? matched[1] : "";
+  };
+  const mapping = (overrides = {}) => ({
+    namespace: "tcm_syndrome",
+    fieldPath: "overview.primarySyndrome",
+    originalText: "外感风寒，兼夹食积",
+    candidateId: "TCM-SYNDROME-508BABEA56C7",
+    canonical: "伤食兼夹",
+    resolvedBy: "deepseek_closed_set",
+    status: "suggested",
+    confidence: 0.9,
+    model: "deepseek-v4-flash",
+    consensus: true,
+    cache: "hit",
+    ...overrides,
+  });
+
+  // (1) 词表别名命中 → 确定性双显，无需任何模型轨迹。
+  const aliasLine = syndromeLine(diagnosePayload());
+  assert.equal(
+    aliasLine,
+    "**证型**：外感风寒证（国标对应：风寒外袭证）",
+    "词表别名命中时必须并列显示国标证候名",
+  );
+
+  // (2) 系统证候本身就是国标规范名（仅「证/型」后缀差异）→ 双显没有信息量，不得出现括号。
+  const canonicalLine = syndromeLine(diagnosePayload({ overview: { primarySyndrome: "瘀血阻络证" } }));
+  assert.equal(canonicalLine, "**证型**：瘀血阻络证", "已是国标规范名时不得重复标注");
+  assert.doesNotMatch(canonicalLine, /国标对应/, "同名重复标注属于噪声");
+
+  // (3) 词表未收录且无受控映射轨迹 → 绝不臆造国标名。
+  const unmappedLine = syndromeLine(diagnosePayload({ overview: { primarySyndrome: "外感风寒，兼夹食积" } }));
+  assert.equal(unmappedLine, "**证型**：外感风寒，兼夹食积", "映射不到时必须原样显示，不得出现括号");
+  assert.doesNotMatch(unmappedLine, /国标对应/, "无受控映射时不得凭空生成国标名");
+
+  // (4) 复用既有 terminologyMappings 闭集映射轨迹（本项目唯一的证候语义映射通路）。
+  const mappedLine = syndromeLine(diagnosePayload({
+    overview: { primarySyndrome: "外感风寒，兼夹食积" },
+    terminologyMappings: [mapping()],
+  }));
+  assert.equal(
+    mappedLine,
+    "**证型**：外感风寒，兼夹食积（国标对应：伤食兼夹证）",
+    "词表外写法必须复用受控术语映射轨迹完成双显",
+  );
+
+  // (5) 括号内容必须逐字来自受控词表的国标条目——这是「不得手写映射表」的可执行判据。
+  for (const line of [aliasLine, mappedLine]) {
+    const shown = renderedStandardName(line);
+    assert.ok(shown, "双显分支必须真的渲染出国标名");
+    assert.ok(
+      nationalStandardTerms.has(shown),
+      `国标名必须逐字来自 tcm-syndrome-lexicon.json 的国标条目：${shown}`,
+    );
+  }
+
+  // (6) 轨迹造假的整类拦截：词表里查无此名 / candidateId 与词表条目 id 对不上 /
+  //     字段路径或原文对不上本次证型 —— 任何一条不成立都不显示，宁缺毋造。
+  const rejectedMappings = [
+    ["词表查无此名", mapping({ canonical: "风寒夹滞证", candidateId: "TCM-SYNDROME-508BABEA56C7" })],
+    ["candidateId 张冠李戴", mapping({ candidateId: "TCM-SYNDROME-297B562712CC" })],
+    ["字段路径不是主证型", mapping({ fieldPath: "overview.tcmDifferentials.0.syndrome" })],
+    ["原文不是本次证型", mapping({ originalText: "外感风寒" })],
+    ["命名空间不是证候", mapping({ namespace: "tcm_nature" })],
+    // 项目临床裁定的扩展条目是合法内部术语但**不是国标**，冠以「国标对应」就是新的编造。
+    ["非国标来源的项目扩展条目", mapping({
+      canonical: "肝火扰心",
+      candidateId: "TCM-SYNDROME-EXT-LIVER-FIRE-DISTURBING-HEART",
+    })],
+  ];
+  for (const [label, item] of rejectedMappings) {
+    const line = syndromeLine(diagnosePayload({
+      overview: { primarySyndrome: "外感风寒，兼夹食积" },
+      terminologyMappings: [item],
+    }));
+    assert.equal(line, "**证型**：外感风寒，兼夹食积", `${label}：不得渲染括号`);
+  }
+
+  // (7) 同类覆盖：证候别名不是孤例，整类别名写法都应双显到各自国标条目。
+  for (const [systemSyndrome, expected] of [
+    ["痰热扰神证", "痰火扰神证"],
+    ["湿热蕴脾证", "湿热困脾证"],
+    ["外感风寒", "风寒外袭证"],
+  ]) {
+    const line = syndromeLine(diagnosePayload({ overview: { primarySyndrome: systemSyndrome } }));
+    assert.equal(line, `**证型**：${systemSyndrome}（国标对应：${expected}）`, `${systemSyndrome} 应双显国标名`);
+    assert.ok(nationalStandardTerms.has(expected), `${expected} 必须是词表内的国标名`);
+  }
+}

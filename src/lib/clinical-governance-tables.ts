@@ -15,6 +15,10 @@ type CanonicalEntry = {
   canonical: string;
   aliases: readonly string[];
   termClass?: string;
+  // T1 词表条目同时保存「去后缀规范名」(canonical，供归一/等同判定) 与「国标原文用词」
+  // (standardTerm，含「证」后缀)。医生可见面必须用后者，内部匹配继续用前者。
+  standardTerm?: string;
+  sourceRefs?: readonly string[];
 };
 
 type DiagnosticContextGroup = {
@@ -142,6 +146,45 @@ export function resolveTcmSyndromeTerm(value: unknown): {
   if (candidates.length === 1) return { status: "alias", entry: candidates[0], candidates };
   if (candidates.length > 1) return { status: "ambiguous", candidates };
   return { status: "unmapped", candidates: [] };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 国标证候名解析（GB/T 16751.2-2021 原文用词）
+//
+// T1 词表里 canonical 是**去后缀**的内部规范名（「风寒外袭」），standardTerm 才是国标原文
+// 用词（「风寒外袭证」）。医生/甲方看到的必须是后者。
+//
+// 词表同时收了项目临床裁定的扩展条目（termClass=clinical_extension，
+// sourceRefs=SRC-PROJECT-…，且没有 standardTerm）。它们是合法的内部受控术语，但**不是国标**，
+// 冠以「国标对应」就成了新的编造。因此这里按 sourceRefs 硬性收口到国标来源。
+const GBT_16751_2_SOURCE_REF = "SRC-GBT-16751-2-2021";
+
+export type NationalStandardSyndromeTerm = {
+  id: string;
+  /** 国标原文用词，含「证」后缀。 */
+  standardTerm: string;
+  /** 词表内部规范名（去后缀），供等同判定复用。 */
+  canonical: string;
+  /**
+   * canonical —— 输入本身就是该国标条目的规范名（仅「证/证候/型」后缀或标点差异）；
+   * alias —— 输入是该国标条目收录的别名（同名异写），此时国标名带来新信息。
+   */
+  matchKind: "canonical" | "alias";
+};
+
+/**
+ * 把任意证候写法解析到 GB/T 16751.2-2021 的规范条目。**只走受控词表的 canonical/aliases**，
+ * 不含任何证候关键词规则；歧义别名（同一别名指向多个条目）与未收录写法一律返回 undefined。
+ */
+export function resolveNationalStandardTcmSyndromeTerm(value: unknown): NationalStandardSyndromeTerm | undefined {
+  const resolved = resolveTcmSyndromeTerm(value);
+  const entry = resolved.entry;
+  if (!entry || (resolved.status !== "canonical" && resolved.status !== "alias")) return undefined;
+  if (!(entry.sourceRefs || []).includes(GBT_16751_2_SOURCE_REF)) return undefined;
+  const standardTerm = typeof entry.standardTerm === "string" && entry.standardTerm.trim()
+    ? entry.standardTerm.trim()
+    : entry.canonical;
+  return { id: entry.id, standardTerm, canonical: entry.canonical, matchKind: resolved.status };
 }
 
 export function canonicalTcmNatureTerm(value: unknown): CanonicalEntry | undefined {

@@ -39,8 +39,17 @@ const ENTRIES = (localMedicineIndex as { entries?: LocalPatentMedicineEntry[] })
 /** 中成药名去掉剂型后缀后的基础方名，用作同方多剂型的去重键。 */
 const PATENT_DOSAGE_FORM_SUFFIX = /(?:缓释|控释|肠溶)?(?:片|胶囊|颗粒|丸|口服液|合剂|液|冲剂|糖浆|散|膏|丹|栓|贴|酊|露|饮)$/;
 
-function patentMedicineBaseName(name: string): string {
+export function patentMedicineBaseName(name: string): string {
   return String(name || "").normalize("NFKC").replace(/\s/g, "").replace(PATENT_DOSAGE_FORM_SUFFIX, "");
+}
+
+/** 中成药说明书条目（按全名，再按去剂型基础名回退）；基准比对器据此判定「同类中成药」。 */
+export function findLocalPatentMedicineEntry(name: string): LocalPatentMedicineEntry | undefined {
+  const raw = String(name || "").normalize("NFKC").replace(/\s/g, "");
+  if (!raw) return undefined;
+  const base = patentMedicineBaseName(raw);
+  return ENTRIES.find((entry) => entry.name.normalize("NFKC").replace(/\s/g, "") === raw)
+    || (base.length >= 2 ? ENTRIES.find((entry) => patentMedicineBaseName(entry.name) === base) : undefined);
 }
 
 /**
@@ -84,7 +93,7 @@ export function constitutionPrerequisiteMismatch(indication: string, caseEvidenc
  * 既作临床性 tie-breaker（药典标准方优先于同证冷门厂牌药），也作同方多剂型的去重键
  * ——归脾丸／归脾合剂／归脾片／归脾液 全部归到「归脾汤」这一个键上。
  */
-function governedClassicFormulaName(name: string): string | undefined {
+export function governedClassicFormulaName(name: string): string | undefined {
   const base = patentMedicineBaseName(name);
   if (base.length < 2) return undefined;
   for (const suffix of ["汤", "散", "丸", "饮", "煎"]) {

@@ -1,12 +1,14 @@
 import { isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
+import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
 import { buildFormulaAnalysis, formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity } from "./clinical-polarity";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { tcmTreatmentAssessmentPositioningForDisplay } from "./tcm-treatment-projects";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
+import { resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
@@ -1773,6 +1775,53 @@ function recordList(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.map(recordValue).filter((item): item is Record<string, unknown> => Boolean(item)) : [];
 }
 
+// ─── 国标证候名双显（甲方评测 2026-08-04） ──────────────────────────────────
+//
+// 系统写的是脏腑病机式证候名（「外感风寒」「痰热扰神证」「湿热蕴脾证」），教材与甲方核对用的
+// 是 GB/T 16751.2-2021 收录的规范证候名（「风寒外袭证」「痰火扰神证」「湿热困脾证」）。二者
+// 临床等价，但按国标逐字对表就会被判为不规范。因此在医生可见的 M03 结论里**并列**显示国标名。
+//
+// 映射只允许来自受控词表（src/data/tcm-syndrome-lexicon.json 的 canonical/aliases），复用两条
+// **既有**通路，不新增第二套映射机制、更不写证候关键词表：
+//  1) clinical-governance-tables.resolveNationalStandardTcmSyndromeTerm —— 确定性 canonical/alias
+//     命中，覆盖「本身就是国标条目别名」的写法（占多数）；
+//  2) terminologyMappings —— controlled-semantic-normalization 的闭集共识映射轨迹，
+//     覆盖词表里查不到的复合写法（「外感风寒，兼夹食积」）。这是既有载荷字段，此处只读不写。
+// 先确定性、后模型轨迹：确定性命中更强，且能就地拦截模型对同一串给出的其它写法。
+//
+// 三条硬约束：输入本身已是国标规范名（仅「证/型」后缀差异）时不显示括号（无信息量）；
+// 两条通路都落空时不显示括号（绝不臆造）；轨迹里的 canonical 必须逐字命中国标词表条目、
+// 且 candidateId 与该条目 id 一致，否则丢弃。
+function nationalStandardSyndromeName(
+  reasoning: Record<string, unknown>,
+  fieldPath: string,
+  syndromeText: unknown,
+): string {
+  const syndrome = typeof syndromeText === "string" ? syndromeText.trim() : "";
+  if (!syndrome) return "";
+  const direct = resolveNationalStandardTcmSyndromeTerm(syndrome);
+  if (direct) return direct.matchKind === "alias" ? direct.standardTerm : "";
+  for (const raw of Array.isArray(reasoning.terminologyMappings) ? reasoning.terminologyMappings : []) {
+    const item = recordValue(raw);
+    if (!item || item.namespace !== "tcm_syndrome" || item.fieldPath !== fieldPath) continue;
+    if (typeof item.originalText !== "string" || item.originalText.trim() !== syndrome) continue;
+    const governed = resolveNationalStandardTcmSyndromeTerm(item.canonical);
+    if (governed?.matchKind === "canonical" && governed.id === item.candidateId) return governed.standardTerm;
+  }
+  return "";
+}
+
+function syndromeLabelWithNationalStandard(
+  reasoning: Record<string, unknown>,
+  fieldPath: string,
+  syndromeText: unknown,
+): string {
+  const label = markdownCell(syndromeText);
+  if (!label) return label;
+  const standard = markdownCell(nationalStandardSyndromeName(reasoning, fieldPath, syndromeText));
+  return standard ? `${label}（国标对应：${standard}）` : label;
+}
+
 function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>): string {
   const overview = recordValue(reasoning.overview);
   const westernDiagnosis = recordValue(reasoning.westernDiagnosis);
@@ -1804,7 +1853,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>): strin
     "",
     overviewHeading,
     ...(isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseName)) ? [`**中医病名**：${markdownCell(overview?.tcmDiseaseName)}`] : []),
-    `**证型**：${markdownCell(overview?.primarySyndrome)}`,
+    `**证型**：${syndromeLabelWithNationalStandard(reasoning, "overview.primarySyndrome", overview?.primarySyndrome)}`,
     // 服务端把模型选的方名剥离进 deferredFormulaSelection 之后，必须告诉医生它被剥离了。
     //
     // 剥离本身是对的：方名锁定要求签名证候与该方在治理目录中有直接关系，关系不成立就不该锁。
@@ -1986,6 +2035,19 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
           "### ⚠️ 配伍禁忌提示（确定性检测）",
           ...pairs.map((pair) => `- **${pair.leftDrug} × ${pair.rightDrug}**：命中${pair.category || "十八反十九畏"}（${pair.basis || "本地配伍规则"}）。是否同用须由医师专项权衡并说明理由，采纳前必须经药师逐对复核；本提示为本地规则确定性生成，不可关闭。`),
         ];
+      })(),
+      // 证-方方向核对(2026-08-04,甲方考题集裁决第1条):证名与所选方各自看都像话、合起来
+      // 自相矛盾的病例此前无任何一层校验(实测判「脾虚湿蕴证」却锁定寒湿阻遏专方茵陈术附汤)。
+      // 与配伍禁忌同样是**提示不阻断**:确定性检出即呈现,处置权交医生。
+      ...(() => {
+        const formulaNames = [
+          ...(Array.isArray(candidate.formulaNames) ? candidate.formulaNames : []),
+          ...(typeof candidate.name === "string" ? [candidate.name] : []),
+        ].filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
+        const overviewRecord = recordValue(reasoning.overview);
+        const syndrome = typeof overviewRecord?.primarySyndrome === "string" ? overviewRecord.primarySyndrome : "";
+        const notice = formulaSyndromeConflictNotice(formulaSyndromeConflicts(formulaNames, syndrome));
+        return notice ? ["", notice] : [];
       })(),
       "",
       "### 方义分析",

@@ -33,6 +33,7 @@ const scripts = [
   "test:m03-parallel-merge",
   "test:cdss-reason-codes",
   "test:clinical-vocabulary",
+  "test:formula-syndrome-consistency",
   "test:repair-guidance",
   "test:therapy-vocabulary",
   "test:stage-outcome",
