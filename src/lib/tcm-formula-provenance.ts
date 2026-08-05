@@ -684,12 +684,28 @@ export function restoreGovernedFormulaIdentity(
   reasoning: ClinicalReasoningResultV2,
   prior: ClinicalReasoningResultV2 | null | undefined,
 ): ClinicalReasoningResultV2 {
-  if (reasoning.stage !== "prescribe" || !reasoning.formula) return reasoning;
-  if (!prior || prior.stage !== "diagnose") return reasoning;
+  // 方名恢复的运行时诊断(2026-08-05)。
+  // 逐环节静态检查全部通过、线上却仍出「本例辨证组方」时,只有运行时状态能说明问题在哪。
+  // 一行 JSON,不含患者信息。
+  const trace = (step: string, extra: Record<string, unknown> = {}) => {
+    console.log(JSON.stringify({ tag: "restoreGovernedFormulaIdentity", step, ...extra }));
+  };
+  if (reasoning.stage !== "prescribe" || !reasoning.formula) {
+    trace("skip_not_prescribe", { stage: reasoning.stage, hasFormula: Boolean(reasoning.formula) });
+    return reasoning;
+  }
+  if (!prior || prior.stage !== "diagnose") {
+    trace("skip_no_prior", { hasPrior: Boolean(prior), priorStage: prior?.stage });
+    return reasoning;
+  }
   const governedNames = (prior.overview?.recommendedFormulaNames || [])
     .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
-  if (governedNames.length === 0) return reasoning;
+  if (governedNames.length === 0) {
+    trace("skip_no_governed_names", { raw: prior.overview?.recommendedFormulaNames });
+    return reasoning;
+  }
   const mode = prior.overview?.formulaSelectionMode || "none";
+  trace("entered", { governedNames, mode, candidateName: reasoning.formula.candidates?.[0]?.name });
   // alternatives 由模型在多个基准中择一，恢复身份等于代替医生/模型做方剂选择，不做。
   if (mode !== "single" && mode !== "combined") return reasoning;
   const references = formulaCompilationReferences(governedNames);
@@ -697,10 +713,17 @@ export function restoreGovernedFormulaIdentity(
   const candidates = reasoning.formula.candidates.map((candidate, index) => {
     if (index !== 0) return candidate;
     const declassifiedLabel = /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(String(candidate.name || "").trim());
-    if (!declassifiedLabel || (candidate.formulaNames || []).length > 0) return candidate;
+    if (!declassifiedLabel || (candidate.formulaNames || []).length > 0) {
+      trace("skip_candidate", { name: candidate.name, declassifiedLabel, formulaNamesCount: (candidate.formulaNames || []).length });
+      return candidate;
+    }
     const combined = governedNames.length > 1;
     const verifications = verifyFormulaCompilationComponents(governedNames, candidate.herbs, combined, true);
-    if (verifications.length !== governedNames.length || !verifications.every((item) => item.verified)) return candidate;
+    if (verifications.length !== governedNames.length || !verifications.every((item) => item.verified)) {
+      trace("skip_verification_failed", { expected: governedNames.length, got: verifications.length, verified: verifications.map((v) => v.verified) });
+      return candidate;
+    }
+    trace("restoring", { from: candidate.name, governedNames });
     // 候选药味多于基准即为「加减」，与既有 explicitlyModified 口径一致。
     const baselineIdentities = new Set(references.flatMap((reference) => reference.ingredients).map(normalizeHerbName));
     const actualNames = candidate.herbs.map(formulaHerbIdentityName).filter(Boolean);

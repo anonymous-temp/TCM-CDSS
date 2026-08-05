@@ -976,7 +976,19 @@ function wrapStructuredJsonObject(
   // 组成确定性满足 M03 锁定基准、模型却把方名写成自拟标签时，服务端按已核验事实补回身份，
   // 而不是把它判成 formula_reference_declassified 再让模型重写（实测会 fixpoint 到 0 味）。
   // 恢复之后所有合同、剂量与安全校验照常完整执行，见 restoreGovernedFormulaIdentity 的说明。
-  return stage === "prescribe" ? applyRestoredGovernedFormulaIdentity(wrapped, prior) : wrapped;
+  if (stage === "prescribe") {
+    // 调用点诊断:确认 prior 是否真的到达了恢复函数(2026-08-05)。
+    console.log(JSON.stringify({
+      tag: "wrapStructuredJsonObject",
+      stage,
+      hasPrior: Boolean(prior),
+      priorStage: prior?.stage,
+      recommendedFormulaNames: prior?.overview?.recommendedFormulaNames,
+      formulaSelectionMode: prior?.overview?.formulaSelectionMode,
+    }));
+    return applyRestoredGovernedFormulaIdentity(wrapped, prior);
+  }
+  return wrapped;
 }
 
 /**
