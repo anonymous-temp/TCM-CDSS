@@ -72,7 +72,14 @@ type GovernedFormulaCompilationRow = {
   source: string;
   ingredients: string[];
   /** 构建期已解析的药味链接；adjudicatedIngredient 是「按方裁定」后的品种（见下方 compilationIngredients）。 */
-  ingredientLinks?: Array<{ rawName: string; adjudicatedIngredient?: string }>;
+  ingredientLinks?: Array<{
+    rawName: string;
+    adjudicatedIngredient?: string;
+    /** 构建期已解析到的药典标准名（炮制前缀、部位后缀、异名统一到同一味）。 */
+    canonicalName?: string;
+    /** 构建期判定该归一无需人工裁定；false 时不得自动采用。 */
+    autoResolvable?: boolean;
+  }>;
   sourceClass: "official_classic_catalog" | "verified_reference_catalog" | "official_local_formula_standard";
   /** T8 已从可编译组成中扣除、转医师单独确定用量并强制审方的味（毒性/管制/无数值边界）。 */
   manualDoseIngredientNames?: string[];
@@ -916,19 +923,58 @@ export type FormulaComponentVerification = {
   requiredIngredientCount: number;
 };
 
+/**
+ * 身份核验专用的基准组成（炮制/部位/异名统一到药典标准名）。
+ *
+ * 实测(2026-08-05)：M03 锁定银翘散、M04 给出的 9 味与基准逐一对应，唯一差异是基准写
+ * 「炒牛蒡子」而处方写「牛蒡子」——一个炮制前缀让整方判为组成不符，方名被剥成
+ * 「本例辨证组方」。同类还有 参苓白术散「炒白扁豆」、清胃散「当归身/择细黄连」。
+ * 手维护别名表穷举不完（原表只有黄耆、代赭两条），而目录 ingredientLinks 在构建期
+ * 已把每一味解析到药典标准名并标了 autoResolvable，这里直接用这份受控解析结果。
+ *
+ * 只用于身份核验，**不改剂量口径**：compilationIngredients 必须与 T8 构建期
+ * doseCompilationEligible 的计算同源（用原始名），否则「构建期标可编译、运行时判不可编译」
+ * 的分叉会复现（实测 中丹：桂心→肉桂、大附子→附子 后运行时门禁翻转）。
+ * 只采用 autoResolvable 的链接：需人工裁定的品种差异不在此层自动合并。
+ */
+function identityVerificationCanonicalMap(reference: FormulaCompilationReference): Map<string, string> {
+  const row = governedFormulaCompilationRow(reference.formulaName);
+  return new Map(
+    (row?.ingredientLinks || [])
+      .filter((link) => link.autoResolvable === true && link.canonicalName)
+      .map((link) => [link.rawName, link.canonicalName as string]),
+  );
+}
+
+/**
+ * 两侧同时过同一张受控解析表，而不是单向替换基准。
+ *
+ * 单向替换会把常用名打掉：麻黄汤基准写「杏仁」、目录标准名是「苦杏仁」，只改基准这一侧，
+ * 模型照写「杏仁」反而不再匹配。方向是双向的——基准侧「炒牛蒡子→牛蒡子」，处方侧
+ * 「杏仁→苦杏仁」，两侧落到同一个标准名上才判同一味。表里没有的名字原样通过。
+ */
+function withIdentityCanonicalNames(names: readonly string[], canonical: ReadonlyMap<string, string>): string[] {
+  if (canonical.size === 0) return [...names];
+  return names.map((name) => canonical.get(name) || name);
+}
+
 function verifyFormulaCompilationComponent(
   reference: FormulaCompilationReference,
   herbs: FormulaHerbInput[],
   combined: boolean,
   explicitlyModified: boolean,
 ): FormulaComponentVerification {
-  const herbNames = herbs.map(formulaHerbIdentityName).filter(Boolean);
+  const identityCanonical = identityVerificationCanonicalMap(reference);
+  const herbNames = withIdentityCanonicalNames(
+    herbs.map(formulaHerbIdentityName).filter(Boolean),
+    identityCanonical,
+  );
   const baseAliases = formulaHerbBaseAliases(herbs);
   const sourceCandidate: FormulaSourceCandidate = {
     formulaName: reference.formulaName,
     variant: {
       source: reference.source,
-      ingredients: reference.ingredients,
+      ingredients: withIdentityCanonicalNames(reference.ingredients, identityCanonical),
       requiredIngredients: reference.requiredIngredients,
       minimumPreservedIngredientCount: reference.minimumPreservedIngredientCount,
     },
