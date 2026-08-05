@@ -191,13 +191,33 @@ check(() => {
   assert.ok(visibleM03.includes(`**中医病名**：${M03.overview.tcmDiseaseName}`), "病名本身不得丢失");
   assert.ok(visibleM03.includes("**辨病推理**："), "辨病推理与病名归在同一处");
 });
-// 病名缺失时不留空段。
+// 病名缺失时不留空段——但也不能让辨病鉴别**静默消失**(2026-08-05 精化)。
+//
+// 原判据是「无病名 ⇒ 不出现『### 中医辨病』」。甲方随后反馈「中医的鉴别诊断依据应该是病的
+// 而不是证候的」:核对 20 例线上语料,辨病鉴别 27 条全部是病名、一条证候都没混进来,分栏本身
+// 是对的;真正被看到的是另一件事——3 例中医病名未成立时整段静默消失,页面上只剩「中医证候鉴别」,
+// 读者自然理解成「这个系统把证候当成了鉴别诊断」。
+//
+// 两条规则并存,判据分开钉:
+//  · 病名与证候鉴别都没有 ⇒ 一个辨病段都不出(原规则,防空段);
+//  · 无病名但**有证候鉴别** ⇒ 出「### 中医辨病鉴别」并写明缺席原因,不静默。
 check(() => {
   const noDisease = structuredClone(M03);
   noDisease.overview.tcmDiseaseName = "";
   noDisease.overview.tcmDiseaseRationale = "";
   noDisease.overview.tcmDiseaseDifferentials = [];
-  assert.ok(!visibleOf(noDisease, "diagnose", CONTEXT).includes("### 中医辨病"), "无病名时不输出空辨病段");
+  noDisease.overview.tcmDifferentials = [];
+  assert.ok(!visibleOf(noDisease, "diagnose", CONTEXT).includes("### 中医辨病"), "无病名且无证候鉴别时不输出空辨病段");
+});
+check(() => {
+  const noDisease = structuredClone(M03);
+  noDisease.overview.tcmDiseaseName = "";
+  noDisease.overview.tcmDiseaseRationale = "";
+  noDisease.overview.tcmDiseaseDifferentials = [];
+  const visible = visibleOf(noDisease, "diagnose", CONTEXT);
+  assert.ok(visible.includes("### 中医辨病鉴别"), "有证候鉴别却无辨病鉴别时,必须出现辨病鉴别段说明缺席原因");
+  assert.ok(/中医病名尚未成立|未形成需要区分的相邻中医病名/.test(visible), "必须写明为何没有辨病鉴别");
+  assert.ok(!visible.includes("**中医病名**："), "病名本身不成立时不得凭空印出病名行");
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -876,6 +876,124 @@ export function applyM03ProjectionOnlyReviewRepair(content: string, issueCodes: 
   }
 }
 
+/**
+ * 煎服方式按方剂性质分档（2026-08-05）。
+ *
+ * 判据只读**已签名 M03 治法**与候选自身的 therapyMatch，两者都在签名信封内；不读 caseState，
+ * 不调模型，不新增任何知识。治法→煎法的对应是中药学教材层面的确定性关系：
+ *   · 解表/透疹/宣肺类：药性轻扬走表，久煎则气散失效。《温病条辨》银翘散原方即注
+ *     「香气大出，即取服，勿过煮」。故短浸短煎、武火、温服取汗、得汗即止。
+ *   · 补益/滋填类：药多厚味质重，需文火久煎方能出味。故长浸久煎、饭前空腹温服。
+ *   · 攻下类：中病即止，不宜多服久服。
+ *   · 其余：常规煎法（即原有默认），行为与改动前一致。
+ * 判不出方剂性质时一律落到常规档——不猜，不外推。
+ */
+function decoctionProfileFromSignedTherapy(
+  reasoning: Record<string, unknown>,
+  candidate: Record<string, unknown>,
+): { id: string; soakMinutes: number; firstMinutes: number; secondMinutes: number; heat: string; administration: string } {
+  const therapy = recordValue(reasoning.therapy);
+  const signed = [
+    typeof therapy?.overallMethod === "string" ? therapy.overallMethod : "",
+    typeof therapy?.overallPrinciple === "string" ? therapy.overallPrinciple : "",
+    typeof candidate.therapyMatch === "string" ? candidate.therapyMatch : "",
+  ].join("；");
+  const REGULAR = {
+    id: "regular",
+    soakMinutes: 30,
+    firstMinutes: 30,
+    secondMinutes: 20,
+    heat: "武火煮沸后转文火",
+    administration: "饭后温服；服药与进餐间隔按患者胃肠耐受及院内规范执行",
+  };
+  if (!signed.trim()) return REGULAR;
+  if (/(?:解表|发汗|疏风|透疹|宣肺|辛凉|辛温|疏散外邪|解肌)/.test(signed)) {
+    return {
+      id: "exterior_releasing",
+      soakMinutes: 20,
+      firstMinutes: 15,
+      secondMinutes: 10,
+      heat: "武火急煎，沸后即计时，不宜久煎",
+      administration: "温服，服后可少进热粥、加衣覆被以助微汗；以遍身微汗为度，得汗即停后服，不必尽剂",
+    };
+  }
+  if (/(?:补益|补气|补血|补虚|滋阴|滋补|温阳|益气|养血|填精|健脾益气|培元|扶正)/.test(signed)) {
+    return {
+      id: "tonifying",
+      soakMinutes: 60,
+      firstMinutes: 45,
+      secondMinutes: 30,
+      heat: "武火煮沸后转文火慢煎",
+      administration: "饭前空腹温服，以利吸收；虚不受补或胃脘不适者改为饭后服",
+    };
+  }
+  if (/(?:攻下|泻下|通腑|荡涤|峻下)/.test(signed)) {
+    return {
+      id: "purgative",
+      soakMinutes: 30,
+      firstMinutes: 20,
+      secondMinutes: 15,
+      heat: "武火煮沸后转文火",
+      administration: "空腹温服；以大便通畅为度，得利即停后服，不可连服久服",
+    };
+  }
+  return REGULAR;
+}
+
+/**
+ * 治则确定性补齐（2026-08-05）。
+ *
+ * 甲方实测：辨证已经明确，「治则」栏却写着「暂不锁定剂量级治法」——这是一句**工程占位串**
+ * （DEFAULT_THERAPY 的兜底值），本意用于安全降级路径，却在模型未填 overallPrinciple 时
+ * 直落到医生眼前。20 例线上语料 19 例命中，等于这一栏几乎从未给出过真正的治则。
+ *
+ * 治则与治法是两层：治法是具体的（健脾益气、渗湿止泻），治则是战略层的（扶正、祛邪、
+ * 标本兼治）。治则可由**已签名病性辨证**确定性推出，不需要模型再判一次：
+ *   · 标本俱见（rootDeficiency 与 branchExcess 皆非空）⇒ 标本兼治，扶正祛邪
+ *   · 纯虚 ⇒ 扶正补虚    · 纯实 ⇒ 祛邪治标
+ * 病性未定（resolution=unresolved 或两侧皆空）时不编造治则，改写成临床可读的等待语，
+ * 而不是工程占位串——医生看到的每一句都应该是临床语言。
+ */
+export function applyDeterministicTreatmentPrinciple(content: string): string {
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  try {
+    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    if (reasoning.stage !== "diagnose") return content;
+    const therapy = recordValue(reasoning.therapy);
+    if (!therapy) return content;
+    const current = typeof therapy.overallPrinciple === "string" ? therapy.overallPrinciple.trim() : "";
+    // 只接管占位串与空值；模型自己写出的治则（「标本兼治」「急则治标」）原样保留。
+    if (current && !/^(?:暂不锁定剂量级治法|暂不锁定|待定|由服务端生成)$/.test(current)) return content;
+
+    const pathogenesis = recordValue(reasoning.pathogenesis);
+    const nature = recordValue(pathogenesis?.natureDifferentiation);
+    const list = (value: unknown): string[] => (Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      : []);
+    const root = list(nature?.rootDeficiency);
+    const branch = list(nature?.branchExcess);
+    const items = list(nature?.items);
+    const DEFICIENCY = /(?:气虚|血虚|阴虚|阳虚|精亏|不足|亏虚|虚弱|虚损|两虚)/;
+    const EXCESS = /(?:实|热|火|寒|湿|痰|饮|瘀|滞|郁|积|毒|风|燥|水停)/;
+    const hasDeficiency = root.length > 0 || items.some((item) => DEFICIENCY.test(item));
+    const hasExcess = branch.length > 0 || items.some((item) => EXCESS.test(item) && !DEFICIENCY.test(item));
+
+    const principle = hasDeficiency && hasExcess
+      ? "标本兼治，扶正祛邪"
+      : hasDeficiency
+        ? "扶正补虚，固本培元"
+        : hasExcess
+          ? "祛邪治标，邪去正安"
+          : "";
+    therapy.overallPrinciple = principle || "病性尚未分明，治则待补充四诊后确定";
+    return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+  } catch {
+    return content;
+  }
+}
+
 export function applyDeterministicDecoctionMethod(content: string, clinicalContext: string, patientAgeYears?: number): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -924,14 +1042,27 @@ export function applyDeterministicDecoctionMethod(content: string, clinicalConte
         administrationTimesPerDay < dosesPerDay ||
         administrationTimesPerDay > 6
       ) continue;
-      decoction.method = `每日${dosesPerDay}剂；加冷水浸泡30分钟，武火煮沸后转文火；一煎30分钟、二煎20分钟；两煎合并药液约${finalVolume}mL；每日分${administrationTimesPerDay}次服；服药与进餐间隔按患者胃肠耐受、方剂性质及院内规范执行；特殊药味按药味表执行`;
+      // 煎法随方剂性质走，不再一张模板打天下(2026-08-05)。
+      //
+      // 原实现把模型写的煎服法**整段覆盖**为固定串：一律浸泡30分钟、一煎30分钟、二煎20分钟，
+      // 只有药液量随年龄变。甲方连试数例发现煎服方式完全一样——确实一样，是代码写死的。
+      // 而解表剂与补益剂的煎法在中医里是相反的：银翘散「香气大出即取服，勿过煮」，
+      // 补益剂则要文火久煎取其厚味。用同一张模板等于把这条基本用药常识抹平了。
+      //
+      // 推导源是**已签名治法**，不是模型自由发挥，也不新增知识：治法词表是受控的(1276 条)，
+      // 治法与煎法的对应是中药学教材层面的确定性关系。方剂性质判不出来时退回常规煎法。
+      const profile = decoctionProfileFromSignedTherapy(reasoning, candidate);
+      decoction.method = `每日${dosesPerDay}剂；加冷水浸泡${profile.soakMinutes}分钟，${profile.heat}；`
+        + `一煎${profile.firstMinutes}分钟、二煎${profile.secondMinutes}分钟；两煎合并药液约${finalVolume}mL；`
+        + `每日分${administrationTimesPerDay}次服，${profile.administration}；特殊药味按药味表执行`;
       delete decoction.dailyDoseCount;
-      decoction.soakMinutes = 30;
+      decoction.soakMinutes = profile.soakMinutes;
       decoction.decoctionTimes = 2;
-      decoction.firstDecoctionMinutes = 30;
-      decoction.secondDecoctionMinutes = 20;
+      decoction.firstDecoctionMinutes = profile.firstMinutes;
+      decoction.secondDecoctionMinutes = profile.secondMinutes;
       decoction.targetVolumeMl = finalVolume;
-      decoction.administration = `每日${dosesPerDay}剂，每日分${administrationTimesPerDay}次服；服药与进餐间隔按患者胃肠耐受、方剂性质及院内规范执行`;
+      decoction.decoctionProfile = profile.id;
+      decoction.administration = `每日${dosesPerDay}剂，每日分${administrationTimesPerDay}次服，${profile.administration}`;
     }
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {
@@ -2020,8 +2151,51 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
   // 来源取自受治理必填字段矩阵的字段名，标不出来源的条目照常呈现。
   const evidenceSources = clinicalFactSourcesFromContext(clinicalContext);
   const evidence = classifyWesternDiagnosticEvidence(westernPrimary);
+  // 「支持依据」不得沦为病历原文的复印件(2026-08-05)。
+  //
+  // 甲方实测:该栏输出「大便时溏时泻，迁延反复，稍进油腻食物，则大便次数明显增加，食少，
+  // 食后脘闷不舒，面」——一整句现病史原文,而且**在「面色萎黄」中间被截断**,末尾孤零零一个
+  // 「面」字。字段本意是「逐项列事实」,实际成了整段病历的复印件,医生读到的不是诊断依据。
+  //
+  // 三条确定性清理,只改呈现形态,不改变任何结论、不新增推断:
+  //  1) 截断残片:末尾分句短于 3 字且整条不以句末标点收尾 ⇒ 该残片是截断产物,去掉;
+  //  2) 逐项拆分:一条里裹着多个并列事实时按分句拆开,恢复「逐项」的本意。因果句
+  //     (「稍进油腻食物，则大便次数明显增加」)由「则/故/因此」判定并整句保留,不拆散;
+  //  3) 舌脉出栏:舌象脉象不构成**西医**诊断依据,它们在中医辨证栏有完整呈现。
+  //     留在西医卡里既占篇幅又误导——读者会以为舌淡在支持「腹泻，病因待查」。
+  const trimTruncatedTail = (value: string): string => {
+    const text = value.trim();
+    if (/[。；;！!？?…]$/.test(text)) return text;
+    const cut = text.lastIndexOf("，");
+    if (cut < 0) return text;
+    return text.length - cut - 1 < 3 ? text.slice(0, cut) : text;
+  };
+  const TONGUE_PULSE_ONLY = /^(?:舌|苔|脉)[^，,；;]*$/;
+  const splitEnumeratedFacts = (value: string): string[] => {
+    const text = trimTruncatedTail(value);
+    if (!text) return [];
+    // 逗号少于 2 个的短句不拆:那本来就是一条事实。
+    if ((text.match(/[，,]/g) || []).length < 2) return [text];
+    const parts: string[] = [];
+    let buffer = "";
+    for (const clause of text.split(/[，,]/).map((item) => item.trim()).filter(Boolean)) {
+      // 因果/转折后件必须与前件合并,否则「则大便次数明显增加」会独立成条,读不懂。
+      if (buffer && /^(?:则|故|因此|遂|即|便|以致|从而|并|伴|兼)/.test(clause)) {
+        buffer = `${buffer}，${clause}`;
+        continue;
+      }
+      if (buffer) parts.push(buffer);
+      buffer = clause;
+    }
+    if (buffer) parts.push(buffer);
+    return parts.filter((item) => item.length >= 3);
+  };
   const evidenceLine = (label: string, values: readonly string[], withSource: boolean) => {
-    const items = values.map(markdownCell).filter(Boolean);
+    const expanded = label === "待查依据"
+      ? values.map((value) => (typeof value === "string" ? trimTruncatedTail(value) : String(value)))
+      : values.flatMap((value) => (typeof value === "string" ? splitEnumeratedFacts(value) : [String(value)]))
+          .filter((item) => !TONGUE_PULSE_ONLY.test(item));
+    const items = [...new Set(expanded)].map(markdownCell).filter(Boolean);
     if (items.length === 0) return;
     lines.push(`**${label}**：${joinClinicalClauses(
       items.map((item) => (withSource ? clinicalFactWithSource(item, evidenceSources) : item)), "；")}`);
@@ -2088,6 +2262,22 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
         : []),
       "",
     );
+  }
+  // 辨病鉴别缺席时必须说明,不能静默消失(2026-08-05)。
+  //
+  // 甲方反馈「中医的鉴别诊断依据应该是病的而不是证候的」。核对 20 例线上语料:辨病鉴别
+  // 27 条**全部是病名**(泄泻↔痢疾、感冒↔咳嗽),一条证候都没混进来,分栏本身是对的。
+  // 真正的问题是另一件事——3 例中医病名根本没成立,于是「中医辨病鉴别」整段静默消失,
+  // 页面上只剩「中医证候鉴别」。医生看到的就是「鉴别诊断怎么全是证候」。
+  // 缺席的原因必须写出来:是辨病未成立,不是把证候当成了病。
+  if (tcmDiseaseDifferentials.length === 0 && recordList(overview?.tcmDifferentials).length > 0) {
+    const insertAt = lines.indexOf(pathogenesisHeading);
+    lines.splice(insertAt, 0,
+      "### 中医辨病鉴别",
+      isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseName))
+        ? "本例现有资料未形成需要区分的相邻中医病名，故未列辨病鉴别；下方为证候层面的鉴别。"
+        : "本例中医病名尚未成立，故不列辨病鉴别；下方为证候层面的鉴别，不能替代辨病诊断。",
+      "");
   }
   if (tcmDiseaseDifferentials.length > 0) {
     const insertAt = lines.indexOf(pathogenesisHeading);

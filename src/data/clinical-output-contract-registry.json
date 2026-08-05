@@ -265,7 +265,7 @@
       "id": "M03-M04-nonpharma",
       "stage": "diagnose|prescribe",
       "path": "reasoningV2.nonPharma",
-      "label": "健康调护与注意事项",
+      "label": "健康调护",
       "requiredStatus": "nullable",
       "evidenceBinding": "pathogenesis_target_and_protocol_source",
       "visibility": "visible",
