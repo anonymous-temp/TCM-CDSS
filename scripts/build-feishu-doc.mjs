@@ -19,7 +19,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const SOURCE = "docs/中医CDSS-对外接口文档-20260803.md";
+const SOURCE = "docs/中医CDSS-对外接口文档.md";
 const OUT_DIR = "artifacts/feishu";
 const OUT_FILE = path.join(OUT_DIR, "中医CDSS-对外接口文档.md");
 
