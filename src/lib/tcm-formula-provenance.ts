@@ -691,6 +691,7 @@ export function restoreGovernedFormulaIdentity(
   reasoning: ClinicalReasoningResultV2,
   prior: ClinicalReasoningResultV2 | null | undefined,
 ): ClinicalReasoningResultV2 {
+  console.log(JSON.stringify({ tag: "restore.call", stage: reasoning.stage, hasFormula: Boolean(reasoning.formula), priorStage: prior?.stage, priorNames: prior?.overview?.recommendedFormulaNames, priorMode: prior?.overview?.formulaSelectionMode }));
   if (reasoning.stage !== "prescribe" || !reasoning.formula) return reasoning;
   if (!prior || prior.stage !== "diagnose") return reasoning;
   const governedNames = (prior.overview?.recommendedFormulaNames || [])
@@ -720,6 +721,7 @@ export function restoreGovernedFormulaIdentity(
     // 补法不放宽任何安全判据:仍要求方名与 M03 锁定方名同源、且组成通过同一套校验;
     // 服务端只是把模型漏填的 formulaNames 按已核验事实补回,不新增任何身份。
     const trimmedName = String(candidate.name || "").trim();
+    console.log(JSON.stringify({ tag: "restore.enter", cand: trimmedName, refs: candidate.formulaNames, governed: governedNames, herbs: (candidate.herbs || []).map((h) => h.name) }));
     const declassifiedLabel = /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(trimmedName);
     const namedWithoutReference = !declassifiedLabel &&
       (candidate.formulaNames || []).length === 0 &&
