@@ -127,7 +127,8 @@
     "test:rxaudit-sex-applicability": "jiti scripts/test-rxaudit-sex-applicability.mjs",
     "test:m04-retry-recovery": "jiti scripts/test-m04-retry-recovery.mjs",
     "regress:online-corpus": "node scripts/regress-online-corpus.mjs",
-    "test:syndrome-name-standard": "jiti scripts/test-syndrome-name-standard.mjs"
+    "test:syndrome-name-standard": "jiti scripts/test-syndrome-name-standard.mjs",
+    "test:formula-name-tiers": "jiti scripts/test-formula-name-tiers.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

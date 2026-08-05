@@ -11,7 +11,6 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
-const contract = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const tables = await jiti.import("../src/lib/clinical-governance-tables.ts");
 
 // 判据函数未导出，此处用与实现同源的三段式重建以验证词表可达性；

@@ -573,6 +573,29 @@ export function formulaCompilationContractIssue(
     verifyFormulaCompilationComponent(reference, candidate.herbs, combined, explicitlyModified));
   const failedComponentIndex = componentVerifications.findIndex((item) => !item.verified);
   if (failedComponentIndex < 0) return undefined;
+
+  // 中间档:核心保留但有增减 ⇒ 应记为「X 加减」,不是作废(2026-08-05)。
+  //
+  // 原实现只有两档:组成一字不差(explicitlyModified=false 时要求 recall 与 precision 均 ≥0.999),
+  // 否则整个方名被剥离、退化成「本例辨证组方」。但中医的**加减本来就意味着组成会变**,
+  // 把它与「核心已不成立」同等处置,等于否认加减这一临床常规。
+  //
+  // 线上实测(风热犯表证):模型给出 金银花 连翘 薄荷 荆芥 桔梗 牛蒡子 淡竹叶 芦根 甘草
+  // ——这就是银翘散加减(略淡豆豉、加芦根,均为临床常规),药味本身全部通过剂量与配伍校验,
+  // 正文里也两次提到银翘散;但因为模型把方名写成「银翘散」而非「银翘散加减」,
+  // 走了严格分支 recall=8/9=0.89 未达 0.999 ⇒ 方名整体作废。
+  // 医生因此看到「本例辨证组方」,不知道这其实是银翘散——线上语料 60 例里自拟方占 74%,
+  // 主因就在这里:**不是召不回方,是方名被剥掉了**。
+  //
+  // 中间档的判据不新增:直接复用同一验证函数的 explicitlyModified=true 分支
+  // (identityFloor ≥80% 保留 + 全部锚定药味在场 + precision ≥0.35)。
+  // 也就是说——**只有当这张方按「加减」标准都不成立时,才谈得上作废**。
+  // 返回专用码而非 undefined:调用方据此把方名规范为「X 加减」,而不是当作完全合格放行。
+  if (!explicitlyModified) {
+    const asModified = selectedReferences.map((reference) =>
+      verifyFormulaCompilationComponent(reference, candidate.herbs, combined, true));
+    if (asModified.every((item) => item.verified)) return "formula_name_requires_modified_suffix";
+  }
   if (combined) return `formula_component_${failedComponentIndex}_unverified`;
   // The signed M03 contract binds every selected name to one governed compilation reference.
   // Same-name historical variants remain searchable as evidence, but cannot replace that baseline

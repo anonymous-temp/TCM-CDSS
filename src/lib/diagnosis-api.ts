@@ -19,7 +19,7 @@ import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { parseOpenAICompatCompletionPayload } from "@/lib/openai-compatible-response";
-import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences } from "@/lib/tcm-formula-provenance";
+import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
 import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenShape, type EvidenceBoundMedicineProposal } from "@/lib/m04-proposal-compiler";
 import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.server";
@@ -455,10 +455,46 @@ function markTransparentFormulaDeclassification(content: string): string {
         // 身份剥离在这里确定性完成：改自拟标签、清空 formulaNames/baseFormulas、标 self_devised。
         // 调用方必须在剥离后重新跑严格合同自证合格才可受理，本函数只做剥离不做放行。
         const hadClassicIdentity = Array.isArray(candidate.formulaNames) && candidate.formulaNames.length > 0;
+
+        // 作废前先试「加减」这一档(2026-08-05)。
+        //
+        // 组成与目录基准的关系有三种,此前只处置了两端:
+        //   一、完全吻合            ⇒ 保留原方名;
+        //   二、核心保留、有增减     ⇒ **应记为「X 加减」**——中医的加减本就意味着组成会变;
+        //   三、核心已不成立        ⇒ 才剥离为自拟方。
+        // 缺了第二档,合法的加减被与「核心不成立」同等作废。线上实测(风热犯表证):
+        // 模型给出金银花连翘薄荷荆芥桔梗牛蒡子淡竹叶芦根甘草——标准的银翘散加减
+        //(略淡豆豉、加芦根),却因方名写作「银翘散」而非「银翘散加减」走了严格分支,
+        // 整个方名作废成「本例辨证组方」。医生看到的药是对的,只是不知道这是银翘散。
+        //
+        // 判据不新增:verifyFormulaCompilationComponents 以 explicitlyModified=true 重跑一次,
+        // 通过即说明「按加减标准成立」,此时规范方名而非抹除身份;不通过才落到第三档。
+        const classicNames = (candidate.formulaNames as string[] | undefined) || [];
+        const rawName = String(candidate.name || "");
+        const alreadyModified = /(?:加减|化裁|加味)/.test(rawName);
+        if (hadClassicIdentity && !alreadyModified) {
+          const herbs = (candidate.herbs as Array<Record<string, unknown>> | undefined) || [];
+          const asModified = verifyFormulaCompilationComponents(
+            classicNames,
+            herbs as never,
+            classicNames.length > 1,
+            true,
+          );
+          if (asModified.length > 0 && asModified.every((item) => item.verified)) {
+            parsed.formula!.candidates![0] = {
+              ...candidate,
+              name: `${rawName}加减`,
+              identityNormalizedToModified: true,
+              identityNormalizationReason: "core_composition_preserved_with_modifications",
+            };
+            return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(parsed)}\n<!-- DIAGNOSIS_JSON_END -->`;
+          }
+        }
+
         parsed.formula!.candidates![0] = {
           ...candidate,
           ...(hadClassicIdentity ? {
-            name: /(?:加减|化裁|加味)/.test(String(candidate.name || "")) ? "本例辨证组方加减" : "本例辨证组方",
+            name: alreadyModified ? "本例辨证组方加减" : "本例辨证组方",
             formulaNames: [],
             baseFormulas: [],
             constructionType: "self_devised",
