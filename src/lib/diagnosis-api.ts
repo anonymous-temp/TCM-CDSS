@@ -3930,6 +3930,18 @@ async function callPrimaryTextModelStream(
             authoritativeContent = applyDeterministicHerbFunctions(authoritativeContent);
             authoritativeContent = applyDeterministicHerbPrescriptionRoles(authoritativeContent);
             authoritativeContent = applyDeterministicFormulaAnalysis(authoritativeContent);
+            // 方名身份恢复必须与其它确定性投影同链、且排在可见摘要同步之前(2026-08-05)。
+            //
+            // 恢复函数原本只挂在 wrapStructuredJsonObject 里。线上诊断日志证明它被正确调用、
+            // 输入也全对(prior 锁定银翘散、候选 9 味与基准逐一对应),但最终出参仍是
+            // 「本例辨证组方」——因为 finalize 这一整段确定性投影(煎服法、药味归属、君臣佐使、
+            // 方义)统统作用在 authoritativeContent 上,**唯独方名恢复不在这条链里**,
+            // 于是这里用的是恢复之前的那份内容,随后 synchronizeVisibleClinicalSummary
+            // 按它重渲染可见正文,方名就永久落在「本例辨证组方」上了。
+            //
+            // 判据一个字没放宽:仍要 M03 确有锁定方名、候选引用为空或方名同源、且组成通过
+            // 与校验模型选择同一套 verifyFormulaCompilationComponents。幂等,自拟方路径不变。
+            authoritativeContent = applyRestoredGovernedFormulaIdentity(authoritativeContent, opts.structuredPriorReasoning);
           }
           authoritativeContent = synchronizeVisibleClinicalSummary(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext || "");
           if (opts.structuredStage === "prescribe" && !validatedStructuredReasoning(
@@ -4289,11 +4301,26 @@ async function callPrimaryTextModelStream(
           const m04AttestationWithScope = m04ClinicalReviewAttestation && m04AcceptanceScope
             ? { ...m04ClinicalReviewAttestation, acceptanceScope: m04AcceptanceScope }
             : m04ClinicalReviewAttestation;
+          // 方名身份的**最后一公里恢复**(2026-08-05)。
+          //
+          // 恢复函数本已挂在 wrapStructuredJsonObject 里,线上诊断日志证明它被正确调用、
+          // 输入也全对(prior 锁定银翘散、候选 9 味与基准逐一对应),但最终出参仍是
+          // 「本例辨证组方」——中间还有一环把它覆盖回去了。四轮定点日志各排除了一个假设
+          //（候选排序、剔除未成立药味、透明降级剥名、修复轮 stage 串味),都不是。
+          //
+          // 与其继续逐环追,不如把这道**确定性投影**放到签名之前的最后一步:判据一个字没放宽
+          //（仍要 M03 确有锁定方名、候选 formulaNames 为空或方名同源、且组成通过与校验模型
+          // 选择同一套 verifyFormulaCompilationComponents),只是保证它不再被下游覆盖。
+          // 幂等:已带引用的候选原样返回;核验不过的候选原样返回,自拟方路径完全不变。
+          // 放在签名前,签名覆盖的就是恢复后的内容,契约链完整。
+          const identityRestored = opts.structuredStage === "prescribe"
+            ? applyRestoredGovernedFormulaIdentity(transformed.content, opts.structuredPriorReasoning)
+            : transformed.content;
           let signedContent = opts.structuredStage === "diagnose"
-            ? attachClinicalReviewAttestation(transformed.content, m03AttestationWithScope)
+            ? attachClinicalReviewAttestation(identityRestored, m03AttestationWithScope)
             : opts.structuredStage === "prescribe"
-              ? attachClinicalReviewAttestation(transformed.content, m04AttestationWithScope)
-              : transformed.content;
+              ? attachClinicalReviewAttestation(identityRestored, m04AttestationWithScope)
+              : identityRestored;
           if (!truncated && transformed.ok && !clinicalReviewUnavailableFallback && opts.structuredStage === "diagnose") {
             const signatureContext = opts.diagnoseSignatureContext;
             if (!signatureContext) throw new Error("Missing M03 signature context");
