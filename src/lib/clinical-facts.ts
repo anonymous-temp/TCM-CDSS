@@ -268,8 +268,33 @@ export type EncounterScope = {
   reviewAgreement?: "agreed" | "disagreed" | "unreviewed";
 };
 
+/**
+ * 病历中**明确记载为阳性**的症状(2026-08-05)。
+ *
+ * 用途单一:核对模型写出的「病历已记录否认X」是否与原文矛盾。
+ * 此前该核对完全靠词表 + 正则作用域,词表未收录的症状(瘀斑、肿胀、乏力、纳差…)
+ * 根本不进入检查,模型的错误否认直接放行——线上 60 例语料实测 4 例误判即出于此。
+ * 症状是开放集合,靠补词表穷举不完;而「这句话是不是在陈述该症状存在」本就是语义判断。
+ *
+ * 与规则层的分工(规则引导式,不是替代):
+ *  · 规则层:词表命中的症状照旧确定性判定,本字段不参与,既有行为完全不变;
+ *  · 本字段:补上词表未覆盖的那一半,由抽取模型在同一次调用里顺带给出;
+ *  · 兜底:抽取不可用时本字段为空,核对退回纯规则,不产生新的降级。
+ *
+ * 方向单调:只能把「否认X」降级为「尚未确认X」,不能反向把「尚未确认」升成「否认」。
+ * 因此模型判错的最坏后果是多一条待核实项,而不是把存在的症状说成不存在。
+ */
+export type AffirmedSymptom = {
+  /** 症状名,尽量用病历原词。 */
+  term: string;
+  /** 病历中的原文依据,必须是原文子串。 */
+  quote: string;
+};
+
 export type ClinicalFacts = {
   redFlags: RedFlagFinding[];
+  /** 病历明确记载为阳性的症状;仅用于否认核对,不参与红旗与门禁判定。 */
+  affirmedSymptoms?: AffirmedSymptom[];
   encounterScope?: EncounterScope;
   sourceFingerprint?: string;
   sourceCoverage?: "full" | "partial";
@@ -564,9 +589,26 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
   const attestation = typeof (root as { attestation?: unknown }).attestation === "string" && /^hmac-sha256:[a-f0-9]{64}$/.test((root as { attestation: string }).attestation)
     ? (root as { attestation: string }).attestation
     : undefined;
+  // 阳性症状:此处只做**结构校验**(字段存在、长度合理)。
+  // 引用接地(quote 必须是病历原文子串)由运行时在拿得到原文的地方执行——
+  // parseClinicalFacts 只接收模型输出,看不到病历,不能在这里假装校验过。
+  // 接地失败的条目静默丢弃而非使整份失效:它只用于「不把存在的症状说成否认」这一个用途,
+  // 少一条的后果是该症状退回纯规则判定(即现状),不会引入新错误。
+  const rawAffirmed = (root as { affirmedSymptoms?: unknown }).affirmedSymptoms;
+  const affirmedSymptoms = Array.isArray(rawAffirmed)
+    ? rawAffirmed.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const term = String((item as { term?: unknown }).term || "").trim();
+        const quote = String((item as { quote?: unknown }).quote || "").trim();
+        if (term.length < 1 || term.length > 20 || quote.length < 2) return [];
+        return [{ term, quote }];
+      }).slice(0, 40)
+    : [];
+
   return {
     // An unavailable semantic check cannot carry forward findings from an earlier successful run.
     redFlags: semanticStatus === "unavailable" ? [] : redFlags,
+    affirmedSymptoms: semanticStatus === "unavailable" ? undefined : affirmedSymptoms,
     encounterScope: semanticStatus === "unavailable" ? undefined : encounterScope,
     sourceFingerprint,
     sourceCoverage,
@@ -1011,7 +1053,8 @@ export function buildClinicalFactsExtractionPrompt(text: string): string {
   ).join("\n");
   return [
     "从下面【临床文本】中识别急危重红旗线索。先在内部完成口语归一、否定与时序判断，只输出**一个 JSON 对象**，不要正文/代码围栏/解释。",
-    "格式：{\"redFlags\":[{\"category\":<类目键>,\"subject\":<patient|other|uncertain>,\"status\":<positive|possible|negative|historical|unknown>,\"urgency\":<emergency|urgent|clarify|routine>,\"triageBasis\":<处置依据键>,\"quote\":<原文逐字片段>,\"escalationRationale\":<可选：多线索合成升级理由>,\"escalationEvidenceQuotes\":<可选：2-6条原文逐字片段>}],\"encounterScope\":{\"status\":<active_current_target|historical_or_stable_only|unclear>,\"quote\":<原文逐字片段>}}",
+    "格式：{\"redFlags\":[{\"category\":<类目键>,\"subject\":<patient|other|uncertain>,\"status\":<positive|possible|negative|historical|unknown>,\"urgency\":<emergency|urgent|clarify|routine>,\"triageBasis\":<处置依据键>,\"quote\":<原文逐字片段>,\"escalationRationale\":<可选：多线索合成升级理由>,\"escalationEvidenceQuotes\":<可选：2-6条原文逐字片段>}],\"affirmedSymptoms\":[{\"term\":<症状名>,\"quote\":<原文逐字片段>}],\"encounterScope\":{\"status\":<active_current_target|historical_or_stable_only|unclear>,\"quote\":<原文逐字片段>}}",
+    "affirmedSymptoms：文本中**明确陈述为存在**的症状，不限于红旗类目，常见如瘀斑、肿胀、乏力、纳差、腰酸、多梦等一律照收；每条 quote 必须逐字来自原文。被否定的（无X、否认X）与未提及的一律不收。该字段仅用于核对后续结论有没有把已记录的症状误写成否认，不参与任何分级判定。",
     "类目键只能取以下之一：",
     categories,
     "T6 类目组合边界（用于语义发现与澄清；不得把词表做无差别组合，也不得由模型单独形成硬门）：",

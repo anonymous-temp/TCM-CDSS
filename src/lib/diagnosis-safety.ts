@@ -573,7 +573,12 @@ function reconcileSyntheticPolarityContradictions(value: string, source: string)
     .replace(/([。；;]){2,}/g, "$1");
 }
 
-function sanitizeUngroundedNegationText(value: string, source: string): string {
+function sanitizeUngroundedNegationText(
+  value: string,
+  source: string,
+  /** 抽取模型给出的、已在病历原文中接地的阳性症状名。规则未覆盖时用它核对否认。 */
+  extractorAffirmedTerms: readonly string[] = [],
+): string {
   const sanitizeClause = (clause: string): string => {
     const negationProbe = clause
       .replace(/无明显(?:诱因|原因|缓解|好转|改善)/g, "")
@@ -587,6 +592,29 @@ function sanitizeUngroundedNegationText(value: string, source: string): string {
     // same record also affirms ordinary headache; collapsing the qualifier creates an impossible
     // same-screen “头痛阳性 + 否认头痛” contradiction.
     if (clauseNegationsAreLiterallyDocumented(clause, source)) return clause;
+
+    // 语义层:规则词表未覆盖的症状,用抽取模型给出的阳性症状表核对(2026-08-05)。
+    //
+    // 规则引导式的分工——规则管确定的,语义管开放的,兜底管失败的:
+    //  · 上面的规则判定照旧优先,词表命中的症状行为完全不变;
+    //  · 走到这里说明规则没能确认这条否认,此时若抽取模型明确记录了该症状为阳性,
+    //    就说明模型写的「否认X」与病历矛盾,降级为「尚未确认」;
+    //  · 抽取不可用 / 未记录该症状 ⇒ 落到下面既有分支,行为与改动前一致(保留模型原文)。
+    //
+    // 为什么必须补这一层:症状是开放集合。此前核对只查一张策展词表(红旗词+阳性事实词),
+    // 瘀斑、肿胀、乏力、纳差这些常见症状根本不在表内,模型的错误否认直接放行——
+    // 线上 60 例语料实测 4 例误判全部出于此。靠继续补词表穷举不完,
+    // 而「这句话是不是在陈述该症状存在」本就是语义判断。
+    //
+    // 方向单调:只能把「否认X」降级为「尚未确认X」,不能反向把「尚未确认」升成「否认」。
+    // 模型判错的最坏后果是多一条待核实项,而不是把存在的症状说成不存在。
+    if (extractorAffirmedTerms.length > 0) {
+      const contradicted = extractorAffirmedTerms.filter((term: string) =>
+        new RegExp(`否认[^。；;]{0,12}${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(clause));
+      if (contradicted.length > 0) {
+        return `${prefix}病历尚未确认${contradicted.join("、")}是否已排除；病历已记录该表现存在，请医生核对后再采纳`;
+      }
+    }
     const documentedPendingTests = CLINICAL_NORMALITY_TERMS.filter(
       (term) => clause.includes(term) &&
         /(?:待核实|待确认|待查|未提供|未记录|未完成|不详|未知)/.test(clause) &&
@@ -745,6 +773,11 @@ export function sanitizeUngroundedRedFlagNegations(content: string, state: CaseS
   // 已录入、只是恰好没出现在 HIS/对话里的症状判成未知，从而凭空写出「病历尚未确认X是否存在」。
   // 见 clinicalGroundingText 的说明；红旗判定不走这条路径。
   const source = clinicalGroundingText(state);
+  // 抽取模型给出的阳性症状:只取 quote 能在接地语料中找到的条目(引用接地校验)。
+  // parseClinicalFacts 只做结构校验、看不到病历原文,接地必须在这里完成。
+  const extractorAffirmedTerms: string[] = (state.clinicalFacts?.affirmedSymptoms || [])
+    .filter((item) => Boolean(item?.term) && Boolean(item?.quote) && source.includes(item.quote))
+    .map((item) => item.term);
   const jsonBlocks: string[] = [];
   const placeholderContent = content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
@@ -776,7 +809,7 @@ export function sanitizeUngroundedRedFlagNegations(content: string, state: CaseS
             ) {
               return value;
             }
-            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(value, source), state), state);
+            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(value, source, extractorAffirmedTerms), state), state);
             if (key === "followupSafetyNet") return ensureActionableFollowupSafetyNet(sanitized);
             const documentedPositive = sanitized.match(/病历已记录(.+?)阳性/);
             const exactDocumentedPositive = sanitized.match(/^\s*病历已记录(.+?)阳性[。；;]?\s*$/);
@@ -831,7 +864,7 @@ export function sanitizeUngroundedRedFlagNegations(content: string, state: CaseS
       return `__TCM_CDSS_JSON_BLOCK_${index}__`;
     },
   );
-  const sanitizedNarrative = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(placeholderContent, source), state), state);
+  const sanitizedNarrative = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(placeholderContent, source, extractorAffirmedTerms), state), state);
   return sanitizedNarrative.replace(/__TCM_CDSS_JSON_BLOCK_(\d+)__/g, (_, index: string) => jsonBlocks[Number(index)] || "");
 }
 

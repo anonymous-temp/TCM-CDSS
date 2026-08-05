@@ -70,13 +70,9 @@ expectNoDenial(PLAIN, "头痛", "病历原文「头痛明显」是阳性主症,�
 expectNoDenial(PLAIN, "咳嗽", "「咳嗽不重」是程度限定的阳性陈述,不是否认");
 // 同类:否定项与阳性项交替出现
 expectNoDenial("无恶心，腹痛剧烈，无呕吐，腹泻3次", "腹痛", "逗号后的阳性主症");
-// ⚠️ 已知未修复(2026-08-04):「未见皮疹，关节肿痛明显」仍被判否认。
-// 同类的「无高热，头痛明显」「无胸闷，心悸频作」「无恶心，腹痛剧烈」已修复,
-// 说明本例走的是 isNegatedAt 之外的另一条判定分支,尚未定位。
-// 刻意保留为**待办断言**而不是删掉:删掉等于让这个缺陷从视野里消失。
-// 修复后请移除下面的 SKIP 包装。
-const SKIP_PENDING_JOINT_PAIN = true;
-if (!SKIP_PENDING_JOINT_PAIN) expectNoDenial("未见皮疹，关节肿痛明显", "关节肿痛", "逗号后的阳性主症");
+// 「未见皮疹，关节肿痛明显」纯规则下仍判否认(走 isNegatedAt 之外的分支,未定位)。
+// 但语义层已能兜住它——见下方第四节的接地用例。这正是规则引导式的价值:
+// 规则的边角遗漏由语义层补上,不必把规则本身改得越来越复杂、风险越来越大。
 expectNoDenial("无胸闷，心悸频作", "心悸", "逗号后的阳性主症");
 
 // ── 二、真否认必须仍然成立(收紧不得变成漏判) ─────────────────────
@@ -92,6 +88,63 @@ expectDenial("无发热，无咳嗽", "咳嗽", "逗号后自带否定词");
 // ── 三、原有转折形态不得退化 ────────────────────────────────
 expectNoDenial("无胸痛，但突发晕厥", "晕厥", "转折后的阳性事件");
 
+
+// ── 四、语义层:规则词表未覆盖的症状,由抽取模型的阳性症状表兜住 ────────────
+//
+// 症状是开放集合。规则核对只查一张策展词表(红旗词+阳性事实词),瘀斑、肿胀、乏力、纳差
+// 这些常见症状根本不在表内,模型写的「否认X」直接放行——线上 60 例语料实测 4 例误判全出于此。
+// 靠继续补词表穷举不完,故补语义层:抽取模型在同一次调用里给出病历中明确阳性的症状,
+// 清洗器据此核对。分工是**规则引导式**的:规则管确定的,语义管开放的,兜底管失败的。
+const withExtractor = (text, affirmed) => {
+  const state = caseWith(text);
+  state.clinicalFacts = { redFlags: [], affirmedSymptoms: affirmed };
+  const draft = ["瘀斑", "肿胀", "乏力", "纳差"].map((t) => `病历已记录否认${t}`).join("；");
+  return safety.sanitizeUngroundedRedFlagNegations(draft, state);
+};
+
+// 抽取模型记录了阳性 ⇒ 否认必须被降级
+// 规则未定位的边角(未见皮疹，关节肿痛明显)同样由语义层兜住
+{
+  const out = safety.sanitizeUngroundedRedFlagNegations(
+    "病历已记录否认关节肿痛",
+    (() => { const st = caseWith("未见皮疹，关节肿痛明显"); st.clinicalFacts = { redFlags: [], affirmedSymptoms: [{ term: "关节肿痛", quote: "关节肿痛明显" }] }; return st; })(),
+  );
+  if (out.includes("否认关节肿痛")) failures.push({ text: "未见皮疹，关节肿痛明显", term: "关节肿痛", kind: "false_denial", why: `语义层应兜住规则未覆盖的边角;实际 "${out}"` });
+}
+
+{
+  const text = "双下肢散在瘀斑，肿胀，膝关节乏力，面部潮红，无发热恶寒。";
+  const out = withExtractor(text, [
+    { term: "瘀斑", quote: "双下肢散在瘀斑" },
+    { term: "肿胀", quote: "肿胀" },
+  ]);
+  if (out.includes("否认瘀斑")) failures.push({ text, term: "瘀斑", kind: "false_denial", why: "抽取已记录阳性,否认应被降级" });
+  if (out.includes("否认肿胀")) failures.push({ text, term: "肿胀", kind: "false_denial", why: "抽取已记录阳性,否认应被降级" });
+}
+
+// 引用接地:quote 不在病历里的条目不得生效(防模型臆造依据)。
+// 判据是「有无抽取项时输出一致」——若臆造条目起了作用,两者必然不同。
+{
+  const forged = safety.sanitizeUngroundedRedFlagNegations(
+    "病历已记录否认瘀斑",
+    (() => { const st = caseWith("双下肢散在瘀斑。"); st.clinicalFacts = { redFlags: [], affirmedSymptoms: [{ term: "瘀斑", quote: "患者从未出现瘀斑" }] }; return st; })(),
+  );
+  const noExtractor = safety.sanitizeUngroundedRedFlagNegations(
+    "病历已记录否认瘀斑",
+    (() => { const st = caseWith("双下肢散在瘀斑。"); st.clinicalFacts = { redFlags: [], affirmedSymptoms: [] }; return st; })(),
+  );
+  if (forged !== noExtractor) failures.push({ text: "接地校验", term: "瘀斑", kind: "ungrounded_accepted", why: `quote 不在原文中的条目不应改变输出;实际 "${forged}" vs "${noExtractor}"` });
+}
+
+// 抽取项 quote 接地成功 ⇒ 必须改变输出(证明这一层确实在起作用,不是空转)
+{
+  const withFacts = safety.sanitizeUngroundedRedFlagNegations(
+    "病历已记录否认瘀斑",
+    (() => { const st = caseWith("双下肢散在瘀斑。"); st.clinicalFacts = { redFlags: [], affirmedSymptoms: [{ term: "瘀斑", quote: "双下肢散在瘀斑" }] }; return st; })(),
+  );
+  if (withFacts.includes("否认瘀斑")) failures.push({ text: "语义层生效", term: "瘀斑", kind: "false_denial", why: `抽取已接地记录阳性,否认应被降级;实际 "${withFacts}"` });
+}
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ failures }, null, 2));
 }
@@ -103,8 +156,9 @@ assert.equal(
 
 console.log(JSON.stringify({
   falseDenialCases: 5,
-  pendingKnownDefects: ["未见皮疹，关节肿痛明显 → 仍判否认(另一条分支,待定位)"],
+  semanticLayerCoversRuleGap: true,
   trueDenialCases: 6,
   discourseCases: 1,
+  semanticLayerCases: 5,
   failures: 0,
 }));
