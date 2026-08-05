@@ -74,6 +74,62 @@ type M03ReasoningLike = {
   formula?: unknown;
 };
 
+/**
+ * 主证名是否达到「规范证候名」要求(2026-08-05,甲方证候名规范化确认项)。
+ *
+ * 判据是**反向**的:只拦一种精确的缺陷形态,其余一律放行。
+ *
+ * 为什么不能正向要求「必须命中受治理证候词表」——证候名是**组合式**的:
+ * 词表 2060 条不可能穷举所有合法组合(「阴虚神扰证」「心脾两虚兼血瘀证」都是临床规范写法,
+ * 但词表里没有这个具体串)。正向要求会把大量正确表述判成不规范,是比原缺陷更坏的结果。
+ *
+ * 甲方指出的缺陷形态是明确的:**病名 + 病机,唯独没有证候**。
+ * 线上实测「头痛（气血失和，脑失濡养）」——「头痛」是病名,括注里的「气血失和」「脑失濡养」
+ * 都是病机描述,整串没有任何一处是证候。
+ *
+ * 而「胸痹心脉痹阻证」形式相同(病名+其他)却是**规范的病证结合写法**,因为剥掉病名「胸痹」
+ * 后剩下的「心脉痹阻证」确实是证候。两者的分界就在这里。
+ *
+ * 故判据为:**以受治理病名开头、且剥掉病名后剩余部分解析不出任何证候** ⇒ 驳回;其余放行。
+ * 驳回后由修复轮按规范重述——主证是签名结论的核心,服务端不擅自改写。
+ */
+function governedSyndromeNameAcceptable(value: string): boolean {
+  const raw = String(value || "").trim();
+  if (!raw) return false;
+
+  /** 文本中能否解析出受治理证候(整串或任一并列段)。 */
+  const carriesSyndrome = (text: string): boolean => {
+    const item = text.trim();
+    if (item.length < 2) return false;
+    if (canonicalTcmSyndromeTerm(item)) return true;
+    return item
+      .replace(/[（(]/g, "，")
+      .replace(/[）)]/g, "")
+      .split(/[，,、；;]/)
+      .map((part) => part.trim())
+      .filter((part) => part.length >= 2)
+      .some((part) => Boolean(canonicalTcmSyndromeTerm(part)));
+  };
+
+  // 逐一试遍所有能构成病名的前缀长度,任一剥法能剩下证候即放行。
+  //
+  // 不能「取最长病名前缀后只试一次」:isGovernedTcmDiseaseName 是包含式匹配,
+  // 「胸痹心脉痹阻」也会被判成病名(它包含「胸痹」),按最长剥法剩下的只有一个「证」字,
+  // 于是规范的病证结合写法反被驳回。实测「胸痹心脉痹阻证」在 L=6/5/4/3 都命中病名前缀,
+  // 唯有 L=2(剥掉「胸痹」)剩下的「心脉痹阻证」才解析得出证候。
+  let hasDiseasePrefix = false;
+  for (let length = 2; length <= Math.min(raw.length - 1, 8); length += 1) {
+    if (!isGovernedTcmDiseaseName(raw.slice(0, length))) continue;
+    hasDiseasePrefix = true;
+    const remainder = raw.slice(length).trim();
+    if (remainder && carriesSyndrome(remainder)) return true;
+  }
+  // 不以病名开头 ⇒ 不是本判据针对的形态,放行(含词表未收录的合法组合证候名)。
+  if (!hasDiseasePrefix) return true;
+  // 以病名开头但任何剥法都剩不下证候 ⇒ 「病名 + 病机」缺陷形态。
+  return false;
+}
+
 const UNSTABLE_REASONING_MARKER = /(?:待辨|待定|待明)|(?:信息|资料|证据)(?:仍然?|尚)?(?:不足|不充分|欠充分|不全|缺失)|(?:尚|仍|现有)?不足以(?:支持|证实|形成|判断)|(?:尚待|有待|仍待|尚须|仍需|尚未|尚在|仍在)(?:进一步)?(?:验证|商榷|论证|决定|讨论)|(?:暂|尚|仍)?(?:不|未|无)(?:能|可|足以)?(?:形成|明确|明(?!显)|定|定证|定论|确定|判断|提及|充分|清楚|清|详|辨明)|(?:有待|尚待|仍待|待|需|需要)(?:补充|进一步|继续|重新)?(?:确认|明确|补充|核实|核验|证实|验证|商榷|论证|决定|讨论|辨证|判断|生成|评估|复核|完善|厘清|查|定|鉴别|甄别)|不生成|无法(?:形成|判断|定证|明确)|不能(?:形成|判断|定证)|难下定论|尚难|存疑|未知|不详/;
 const GENERATED_PLACEHOLDER_MARKER = /^(?:由服务端(?:知识库)?生成|待生成|待补充|待确认)$/;
 const CUSTOMER_DISPLAY_PLACEHOLDER = /(?:证据不足|待检索|待核验|检索失败|未配置|内部证据缺口|EVIDENCE_GAP)|^(?:暂未|尚未|仍未|未)(?:生成|形成|明确|获得|提供|记录|提及|完成)|^(?:待|需|需要)(?:生成|确认|补充|核实|核验|复核|完善|询问|评估)(?:相关|具体|本项|信息|资料|内容)?[。.]?$/;
@@ -1134,6 +1190,24 @@ function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext
   // placeholder as if it were a diagnosis. An explicitly unresolved limited result remains valid.
   if (syndromeResolution !== "unresolved" && (UNSTABLE_REASONING_MARKER.test(syndrome) || isUnstableM03CoreText(syndrome))) {
     return "primary_syndrome_unstable";
+  }
+  // 证候名规范化(2026-08-05,甲方条目 1.1.2 与证候名规范化确认项)。
+  //
+  // 实测:线上主证输出「头痛（气血失和，脑失濡养）」——括号外是**病名**、括号内是**病机**,
+  // 整串既不是国标证候名,也不是任何一层的规范表述。此前合同只校验主证「非空、不含待辨字样」,
+  // 从不校验它**是不是一个证候**。
+  //
+  // 受治理证候词表 2060 条,每条自带 canonical / standardTerm / aliases / standardNumber
+  // (GB/T 编号)——标准一直都在,只是主证这一栏从未拿它比对过。这与病名鉴别、治法、病位
+  // 三处是同一个模式:数据在仓库里,运行时不读。
+  //
+  // 判据刻意宽松,只拦**结构性不规范**,不拦措辞差异:
+  //  · 整串或去掉括注后能解析到受治理证候 ⇒ 放行(「心脾两虚证」「心脾两虚,气血不足」都算);
+  //  · 解析不到、且括注里也解析不到 ⇒ 驳回,交由修复轮改写为规范证候名。
+  // 为什么不直接改写而是驳回:主证是签名结论的核心,服务端擅自改写等于替医生下诊断;
+  // 让模型在修复轮按规范重述,结论仍归模型、仍可追溯。
+  if (syndromeResolution !== "unresolved" && syndrome && !governedSyndromeNameAcceptable(syndrome)) {
+    return "primary_syndrome_name_nonstandard";
   }
   if (syndromeResolution === "resolved") {
     if (!syndrome) return "primary_syndrome_resolved_without_value";
