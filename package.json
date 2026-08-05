@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "NODE_OPTIONS=--max-old-space-size=6144 next build",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit",
     "build:tcm-knowledge": "node scripts/build-tcm-knowledge.mjs",
     "build:tcm-herb-functions": "python3 scripts/build-tcm-herb-function-categories.py",
@@ -128,7 +128,8 @@
     "test:m04-retry-recovery": "jiti scripts/test-m04-retry-recovery.mjs",
     "regress:online-corpus": "node scripts/regress-online-corpus.mjs",
     "test:syndrome-name-standard": "jiti scripts/test-syndrome-name-standard.mjs",
-    "test:formula-name-tiers": "jiti scripts/test-formula-name-tiers.mjs"
+    "test:formula-name-tiers": "jiti scripts/test-formula-name-tiers.mjs",
+    "regress:online-acceptance": "node scripts/regress-online-acceptance.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
