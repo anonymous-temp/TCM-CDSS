@@ -472,7 +472,15 @@ function markTransparentFormulaDeclassification(content: string): string {
         const classicNames = (candidate.formulaNames as string[] | undefined) || [];
         const rawName = String(candidate.name || "");
         const alreadyModified = /(?:加减|化裁|加味)/.test(rawName);
-        if (hadClassicIdentity && !alreadyModified) {
+        // 带「加减」后缀**不能**成为跳过复核的理由(2026-08-05)。
+        //
+        // 原判据是 `hadClassicIdentity && !alreadyModified`,即方名已写成「银翘散加减」时
+        // 直接落到第三档抹除。而服务端确定性恢复(restoreGovernedFormulaIdentity)产出的
+        // 恰恰就是「X 加减」——组成多于基准时按既有口径加后缀。于是恢复刚把身份补回来,
+        // 这里因为看见「加减」二字就不再复核,直接抹成「本例辨证组方加减」。
+        // 线上实测(人参养荣汤、荞脂丸)输出的正是这个串,与该分支一一对应。
+        // 后缀是**结论的表述**,不是「已判定不合格」的标记;复核照跑,不通过再落第三档。
+        if (hadClassicIdentity) {
           const herbs = (candidate.herbs as Array<Record<string, unknown>> | undefined) || [];
           const asModified = verifyFormulaCompilationComponents(
             classicNames,
@@ -483,7 +491,7 @@ function markTransparentFormulaDeclassification(content: string): string {
           if (asModified.length > 0 && asModified.every((item) => item.verified)) {
             parsed.formula!.candidates![0] = {
               ...candidate,
-              name: `${rawName}加减`,
+              name: alreadyModified ? rawName : `${rawName}加减`,
               identityNormalizedToModified: true,
               identityNormalizationReason: "core_composition_preserved_with_modifications",
             };
