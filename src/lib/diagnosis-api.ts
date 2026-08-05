@@ -455,6 +455,8 @@ function markTransparentFormulaDeclassification(content: string): string {
         // 身份剥离在这里确定性完成：改自拟标签、清空 formulaNames/baseFormulas、标 self_devised。
         // 调用方必须在剥离后重新跑严格合同自证合格才可受理，本函数只做剥离不做放行。
         const hadClassicIdentity = Array.isArray(candidate.formulaNames) && candidate.formulaNames.length > 0;
+        // 诊断(2026-08-05,临时):剥名函数入口看到的候选状态。
+        console.log(JSON.stringify({ tag: "markDeclassify.enter", name: candidate.name, formulaNames: candidate.formulaNames, hadClassicIdentity }));
 
         // 作废前先试「加减」这一档(2026-08-05)。
         //
@@ -3700,10 +3702,19 @@ async function callPrimaryTextModelStream(
           // finalizeM04CandidateContent 里。不先剔除，方向未成立的那一味仍在方中，
           // transparentFormulaTherapyIssue 必然非空，降级随即被拒——两个修复各自正确却没串起来，
           // 结果依旧 0 味（实测感冒-风寒束表：基准 4/4 达标 + 川芎未剔除 → 降级被拒）。
-          const declassifiedContent = markTransparentFormulaDeclassification(
-            // 降级路径不再声称经典方身份，因此不套用基准保留数（见该参数的说明）。
-            dropUnsupportedM04CandidateHerbs(authoritativeContent, opts.structuredPriorReasoning, false),
-          );
+          // 诊断(2026-08-05,临时):确认进入透明降级前的方名与药味数。
+          try {
+            const beforeMatch = authoritativeContent.match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/);
+            const beforeCand = beforeMatch ? JSON.parse(beforeMatch[1])?.formula?.candidates?.[0] : null;
+            console.log(JSON.stringify({ tag: "beforeDeclassify", name: beforeCand?.name, formulaNames: beforeCand?.formulaNames, herbCount: beforeCand?.herbs?.length }));
+          } catch { /* 诊断失败不影响主流程 */ }
+          const droppedContent = dropUnsupportedM04CandidateHerbs(authoritativeContent, opts.structuredPriorReasoning, false);
+          try {
+            const afterMatch = droppedContent.match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/);
+            const afterCand = afterMatch ? JSON.parse(afterMatch[1])?.formula?.candidates?.[0] : null;
+            console.log(JSON.stringify({ tag: "afterDropHerbs", name: afterCand?.name, formulaNames: afterCand?.formulaNames, herbCount: afterCand?.herbs?.length }));
+          } catch { /* 同上 */ }
+          const declassifiedContent = markTransparentFormulaDeclassification(droppedContent);
           const transparentReasoning = validatedStructuredReasoning(
             declassifiedContent,
             "prescribe",
