@@ -129,7 +129,8 @@
     "regress:online-corpus": "node scripts/regress-online-corpus.mjs",
     "test:syndrome-name-standard": "jiti scripts/test-syndrome-name-standard.mjs",
     "test:formula-name-tiers": "jiti scripts/test-formula-name-tiers.mjs",
-    "regress:online-acceptance": "node scripts/regress-online-acceptance.mjs"
+    "regress:online-acceptance": "node scripts/regress-online-acceptance.mjs",
+    "test:formula-identity-restore": "jiti scripts/test-formula-identity-restore.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

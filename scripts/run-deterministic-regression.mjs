@@ -72,6 +72,7 @@ const scripts = [
   "test:negation-scope",
   "test:syndrome-name-standard",
   "test:formula-name-tiers",
+  "test:formula-identity-restore",
   "test:m03-entry",
   "test:m02-contract",
   "test:m02-nonblocking",

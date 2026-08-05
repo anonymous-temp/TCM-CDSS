@@ -684,46 +684,48 @@ export function restoreGovernedFormulaIdentity(
   reasoning: ClinicalReasoningResultV2,
   prior: ClinicalReasoningResultV2 | null | undefined,
 ): ClinicalReasoningResultV2 {
-  // 方名恢复的运行时诊断(2026-08-05)。
-  // 逐环节静态检查全部通过、线上却仍出「本例辨证组方」时,只有运行时状态能说明问题在哪。
-  // 一行 JSON,不含患者信息。
-  const trace = (step: string, extra: Record<string, unknown> = {}) => {
-    console.log(JSON.stringify({ tag: "restoreGovernedFormulaIdentity", step, ...extra }));
-  };
-  if (reasoning.stage !== "prescribe" || !reasoning.formula) {
-    trace("skip_not_prescribe", { stage: reasoning.stage, hasFormula: Boolean(reasoning.formula) });
-    return reasoning;
-  }
-  if (!prior || prior.stage !== "diagnose") {
-    trace("skip_no_prior", { hasPrior: Boolean(prior), priorStage: prior?.stage });
-    return reasoning;
-  }
+  if (reasoning.stage !== "prescribe" || !reasoning.formula) return reasoning;
+  if (!prior || prior.stage !== "diagnose") return reasoning;
   const governedNames = (prior.overview?.recommendedFormulaNames || [])
     .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
-  if (governedNames.length === 0) {
-    trace("skip_no_governed_names", { raw: prior.overview?.recommendedFormulaNames });
-    return reasoning;
-  }
+  if (governedNames.length === 0) return reasoning;
   const mode = prior.overview?.formulaSelectionMode || "none";
-  trace("entered", { governedNames, mode, candidateName: reasoning.formula.candidates?.[0]?.name });
   // alternatives 由模型在多个基准中择一，恢复身份等于代替医生/模型做方剂选择，不做。
   if (mode !== "single" && mode !== "combined") return reasoning;
   const references = formulaCompilationReferences(governedNames);
   if (references.length !== governedNames.length) return reasoning;
   const candidates = reasoning.formula.candidates.map((candidate, index) => {
     if (index !== 0) return candidate;
-    const declassifiedLabel = /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(String(candidate.name || "").trim());
-    if (!declassifiedLabel || (candidate.formulaNames || []).length > 0) {
-      trace("skip_candidate", { name: candidate.name, declassifiedLabel, formulaNamesCount: (candidate.formulaNames || []).length });
+    // 恢复的触发形态有两种,此前只处理了第一种(2026-08-05 补第二种)。
+    //
+    //  形态一 自拟标签:方名写成「本例辨证组方」,身份完全没声明;
+    //  形态二 **有名无引用**:方名已经是 M03 锁定的经典方(如「银翘散加减」),
+    //         但 formulaNames 是空数组——模型只在名字里写了方,没填结构化引用字段。
+    //
+    // 形态二此前不被恢复,后果是致命的:合同层见「声称经典方 + 无基准引用」判
+    // formula_reference_declassified,剥名函数据此把「银翘散加减」改成「本例辨证组方」。
+    // 线上诊断日志实证(风热犯表例):
+    //   restoreGovernedFormulaIdentity step=entered  candidateName="银翘散加减"
+    //   restoreGovernedFormulaIdentity step=skip_candidate declassifiedLabel=false formulaNamesCount=0
+    //   → 随后 reason='m04_formula_reference_declassified' → 最终显示「本例辨证组方」
+    // 50 例线上验收里方名可追溯仅 2/13,主因就是这一条:**方名本来是对的,被剥掉了**。
+    //
+    // 补法不放宽任何安全判据:仍要求方名与 M03 锁定方名同源、且组成通过同一套校验;
+    // 服务端只是把模型漏填的 formulaNames 按已核验事实补回,不新增任何身份。
+    const trimmedName = String(candidate.name || "").trim();
+    const declassifiedLabel = /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(trimmedName);
+    const namedWithoutReference = !declassifiedLabel &&
+      (candidate.formulaNames || []).length === 0 &&
+      governedNames.some((name) => trimmedName.includes(name));
+    if (!declassifiedLabel && !namedWithoutReference) {
+      return candidate;
+    }
+    if (declassifiedLabel && (candidate.formulaNames || []).length > 0) {
       return candidate;
     }
     const combined = governedNames.length > 1;
     const verifications = verifyFormulaCompilationComponents(governedNames, candidate.herbs, combined, true);
-    if (verifications.length !== governedNames.length || !verifications.every((item) => item.verified)) {
-      trace("skip_verification_failed", { expected: governedNames.length, got: verifications.length, verified: verifications.map((v) => v.verified) });
-      return candidate;
-    }
-    trace("restoring", { from: candidate.name, governedNames });
+    if (verifications.length !== governedNames.length || !verifications.every((item) => item.verified)) return candidate;
     // 候选药味多于基准即为「加减」，与既有 explicitlyModified 口径一致。
     const baselineIdentities = new Set(references.flatMap((reference) => reference.ingredients).map(normalizeHerbName));
     const actualNames = candidate.herbs.map(formulaHerbIdentityName).filter(Boolean);

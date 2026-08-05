@@ -41,8 +41,14 @@ async function call(path, body) {
       if (!line.trim()) continue;
       try { const o = JSON.parse(line); if (o.content && o.content !== "[END]") md += o.content; if (o.error) return { status: "stream_error", error: o.error }; } catch { /* 心跳等噪声 */ }
     }
-    const m = md.match(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/);
-    return { status: 200, markdown: md, structured: m ? JSON.parse(m[1].trim()) : null };
+    // 流里先是进度提示,真正的权威全文在 <<<CDSS_STREAM_FINAL>>> 之后下发。
+    // 不取最终段就会匹配到前半段的残留,导致「状态 200 却解析不出结构化」的假失败。
+    const finalMark = md.lastIndexOf("<<<CDSS_STREAM_FINAL>>>");
+    const authoritative = finalMark >= 0 ? md.slice(finalMark + "<<<CDSS_STREAM_FINAL>>>".length) : md;
+    const m = authoritative.match(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/);
+    let structured = null;
+    if (m) { try { structured = JSON.parse(m[1].trim()); } catch { structured = null; } }
+    return { status: 200, markdown: authoritative, structured };
   } catch (e) { return { status: "ERR", error: String(e).slice(0, 120) }; }
 }
 
