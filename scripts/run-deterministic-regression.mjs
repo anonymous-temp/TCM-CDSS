@@ -73,6 +73,7 @@ const scripts = [
   "test:syndrome-name-standard",
   "test:formula-name-tiers",
   "test:formula-identity-restore",
+  "test:governed-formula-lock",
   "test:m03-entry",
   "test:m02-contract",
   "test:m02-nonblocking",

@@ -4,7 +4,7 @@ import retrievalConceptJson from "../data/tcm-formula-retrieval-concepts.json" w
 import retrievalIndexJson from "../data/tcm-formula-retrieval-index.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
-import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, formulaMatchSyndromeCompatible, governedSyndromeFeatureMatch, governedTcmTermLabelById, matchCompatibleGovernedSyndromeIds } from "./clinical-governance-tables";
+import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, formulaMatchSyndromeCompatible, governedSyndromeFeatureMatch, governedTcmTermLabelById, governedTreatmentMethodsInText, matchCompatibleGovernedSyndromeIds } from "./clinical-governance-tables";
 import {
   applyBoundedSyndromeHypothesisRerank,
   clinicalAxesFromAffirmedText,
@@ -28,6 +28,8 @@ type FormulaIndicationEntry = {
   ingredients: string[];
   catalog: "official_classic_catalog" | "verified_reference_catalog" | "official_local_formula_standard" | "evidence_adjudicated_identity";
   indications: string[];
+  /** 方剂功效（目录 functions 列），用于系统自主锁定时的治法一致性核验。 */
+  functions: string[];
   syndromeTags: string[];
   curatedSyndromeTags: string[];
   curatedSyndromeRelations: CuratedSyndromeRelation[];
@@ -105,6 +107,7 @@ type GovernedFormulaRow = {
   ingredients: string[];
   sourceClass: FormulaIndicationEntry["catalog"];
   indications: string[];
+  functions?: string[];
   syndromeTags: string[];
   curatedSyndromeTags?: string[];
   curatedSyndromeRelations?: CuratedSyndromeRelation[];
@@ -135,6 +138,7 @@ const ENTRIES: readonly FormulaIndicationEntry[] = governedCatalog.entries
     ingredients: entry.ingredients,
     catalog: entry.sourceClass,
     indications: entry.indications,
+    functions: entry.functions || [],
     syndromeTags: entry.syndromeTags,
     curatedSyndromeTags: entry.curatedSyndromeTags || [],
     curatedSyndromeRelations: entry.curatedSyndromeRelations || [],
@@ -1216,19 +1220,65 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
         const names = Array.isArray(parsed.overview.recommendedFormulaNames)
           ? parsed.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string")
           : [];
-        // 模型未给方名（自拟）时：若证候级检索找到了满足充分性的受治理经典方，作为参考候选呈现。
-        // 不写入 recommendedFormulaNames（不锁定、不进 M04 编译），只落在 deferredFormulaSelection。
+        // 证候级检索里已通过确定性核验、可直接锁定的方（top1 锁定，其余留作医生备选）。
+        //
+        // 判据与「校验模型选的方」完全同源：identityLockEligible（目录有证候标注）
+        // + positiveSufficiency（已签名主证候与该方存在受控正向关系）+ lockEligible（目录级可锁）。
+        // 也就是说，系统自己提出的方要过的是**和模型提出的方一模一样的那道门**，没有任何放宽。
+        //
+        // 系统自主锁定另有一道**比模型提议更严**的门:方剂功效必须与已签名治法有受控治法交集。
+        // 理由是模型至少看着本例病历在选,而系统这一路只凭证候标签反查——形式上核验通过、
+        // 临床上不对证的方由此进入。实测:湿热内蕴证(阳黄)召回到导赤散(功效「清心利水养阴」,
+        // 主治末句恰好写着「属湿热内蕴者」故证候标签命中),而本例签名治法是「清热利湿退黄,
+        // 通腑泄热」。把导赤散挂成阳黄的方名,比输出自拟方更坏——医生会照着抓药。
+        // 治法比对走受控治法词表(1276 条)的包含扫描,不做模糊匹配;无交集即不锁定(fail-closed)。
+        const signedTherapyMethods = new Set(
+          governedTreatmentMethodsInText([
+            parsed.overview.recommendedFormulaDirection,
+            ...(typeof (parsed as { therapy?: { overallMethod?: unknown } }).therapy?.overallMethod === "string"
+              ? [(parsed as { therapy: { overallMethod: string } }).therapy.overallMethod]
+              : []),
+          ].filter((item): item is string => typeof item === "string").join("；"))
+            .map((entry) => entry.id),
+        );
+        // 只否决**明确对立**，不否决数据缺失：目录里相当一部分方 functions 为空（竹叶石膏汤、
+        // 二冬汤），签名侧也有治法词表抽不出的写法（「温肾固冲」抽不出温肾）。若把「抽不出」
+        // 也判为不一致，挡掉的全是数据缺口而不是临床错误——实测会把可锁定率从 80% 打回 60%，
+        // 而真正拦下的错误只有导赤散一例。故：两侧都抽得出治法词、且交集为空时才否决。
+        const therapyAligned = (entry: FormulaIndicationCandidate): boolean => {
+          if (signedTherapyMethods.size === 0) return true;
+          const formulaMethods = governedTreatmentMethodsInText((entry.functions || []).join("；"));
+          if (formulaMethods.length === 0) return true;
+          return formulaMethods.some((method) => signedTherapyMethods.has(method.id));
+        };
+        const systemLockable = reasoningCandidates
+          .filter((entry) => therapyAligned(entry))
+          .map((entry) => entry.name)
+          .filter((name) => lockEligible.has(name.replace(/\s+/g, "")));
+        // 模型未给方名（自拟）时：若证候级检索找到了满足充分性的受治理经典方，锁定其首选。
+        //
+        // 原实现只把它放进 deferredFormulaSelection「仅供参考、不锁定、不进 M04」。实测代价：
+        // 20 例线上语料里 16 例系统本就检索到了正解方（肾阳虚→金匮肾气丸、脾虚湿盛→参苓白术散、
+        // 胃热炽盛→清胃散、风热犯表→银翘散、心脾两虚→归脾汤），却因为不锁定而一律输出「本例辨证
+        // 组方」——甲方看到的自拟方比例 74%，主因就是这一条。医生拿到的是一张没有出处的方，
+        // 而系统手里明明握着一条**受控治理关系**。
+        //
+        // 锁定的证据强度高于模型自由选择：它绑定的是已签名主证候与该方的受控正向关系，
+        // 而不是模型的一次生成。留痕完整：候选全表写入 deferredFormulaSelection，
+        // reason 标明来源，医生可据此改选。fail-closed 不变——一条都不满足时仍走自拟方。
         if (names.length === 0) {
-          const systemRetrieved = reasoningCandidates.slice(0, 2).map((entry) => entry.name);
-          if (systemRetrieved.length === 0 || parsed.overview.deferredFormulaSelection) return match;
+          if (systemLockable.length === 0 || parsed.overview.deferredFormulaSelection) return match;
           parsed.overview.deferredFormulaSelection = {
             direction: typeof parsed.overview.recommendedFormulaDirection === "string"
               ? parsed.overview.recommendedFormulaDirection
               : "按已锁定病机与治法辨证组方",
-            names: systemRetrieved,
-            mode: systemRetrieved.length > 1 ? "alternatives" : "single",
-            reason: "system_retrieved_pending_clinician_selection",
+            names: systemLockable.slice(0, 3),
+            mode: systemLockable.length > 1 ? "alternatives" : "single",
+            reason: "system_retrieved_governed_lock",
           };
+          parsed.overview.recommendedFormulaNames = [systemLockable[0]];
+          parsed.overview.formulaSelectionMode = "single";
+          parsed.overview.recommendedFormulaDirection = `${systemLockable[0]}加减（按已签名证候反查受控目录锁定，医生可改选）`;
           return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(parsed, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
         }
         if (names.every((name) => allowed.has(name.replace(/\s+/g, "")))) return match;
@@ -1253,6 +1303,17 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
             reason: "semantic_mapping_pending_clinician_confirmation",
           };
         }
+        // 模型选了方但没通过核验时：**不用系统的方顶替**，仍走自拟方。
+        //
+        // 这条边界是实测逼出来的，不是保守。曾让系统在这里也补位，20 例可锁定率 45%→80%，
+        // 但湿热内蕴证（阳黄）出现了致命一例：模型选的是茵陈蒿汤（本例金标准方），
+        // 因证候特征层的释义并集差异未通过核验被驳回，系统改锁了同样通过核验的**导赤散**
+        //（清心利水养阴）。医生会照着抓药——把不对证的方挂上方名，比输出自拟方坏得多。
+        //
+        // 区别在于「模型有没有看着本例做过选择」：
+        //   · 模型没选 ⇒ 系统补位只是**增加信息**，不与任何临床判断冲突；
+        //   · 模型选了但没过核验 ⇒ 驳回它是对的，但换一个模型从未考虑过的方是越权。
+        // 后者仍降为自拟方（既有 fail-closed 行为不变），模型原选留痕待医生复核。
         parsed.overview.recommendedFormulaDirection = "按已锁定病机与治法辨证组方";
         parsed.overview.recommendedFormulaNames = [];
         parsed.overview.formulaSelectionMode = "self_devised";

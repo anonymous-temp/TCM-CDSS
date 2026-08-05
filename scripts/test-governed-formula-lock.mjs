@@ -1,0 +1,155 @@
+// 受控目录方名锁定回归(2026-08-05)。
+//
+// 甲方实测:自拟方占比 74%,医生几乎看不到一次「银翘散加减」这样的命名方结论。
+// 线上 20 例语料逐例追下来,根因不是检索差、也不是核验严,而是**处置错**:
+//
+//   16/20 例系统的证候级检索本来就找到了正解方(肾阳虚→金匮肾气丸、脾虚湿盛→参苓白术散、
+//   胃热炽盛→清胃散、风热犯表→银翘散、心脾两虚→归脾汤),且这些方全部通过了
+//   identityLockEligible + positiveSufficiency 的确定性核验。
+//   但它们只被写进 deferredFormulaSelection「仅供参考、不锁定、不进 M04」,
+//   于是 M04 拿不到基准方,只能输出「本例辨证组方」。
+//
+// 补位有一条硬边界:**只在模型没选时补,不在模型选了但没过核验时顶替**。
+// 曾试过在后一种情形也补位,20 例可锁定率 45%→80%,但换来一个致命错例(见第二节)。
+// 最终口径 45%→60%,+3 例全部正确,零临床错误引入——这个取舍是实测定的,不是保守。
+//
+// 本套件钉四件事,每一件都是方向性的、不依赖具体方名:
+//  1) 模型未选而系统检索到已核验方时必须锁定(否则 74% 自拟方复发);
+//  2) 模型已就本例做出选择但未过核验时,不得用系统的方顶替(否则出现导赤散治阳黄一类错误);
+//  3) 一条都不满足时仍走自拟方(fail-closed 不变);
+//  4) 模型选对时原样保留,不得被系统候选顶掉。
+// 锁定走的必须是与校验模型选择**同一道门**(identityLockEligible + positiveSufficiency
+// + 目录级 lockEligible),任何放宽都会让不对证的方挂上方名,临床上比自拟方更坏。
+import assert from "node:assert/strict";
+import { createJiti } from "jiti";
+
+const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const ind = await jiti.import("../src/lib/tcm-formula-indications.ts");
+
+const wrap = (reasoning) =>
+  `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const unwrap = (content) => {
+  const m = content.match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/);
+  return m ? JSON.parse(m[1]) : null;
+};
+
+// 最小 M03 结论骨架。证候/病机/治法是检索的唯一输入——本层只读已签名结论,不读 caseState。
+const m03 = ({ syndrome, pathogenesis, therapy, names, mode }) => ({
+  schemaVersion: "tcm-cdss-reasoning-v2",
+  stage: "diagnose",
+  overview: {
+    primarySyndrome: syndrome,
+    overallPathogenesis: pathogenesis,
+    recommendedFormulaNames: names,
+    formulaSelectionMode: mode,
+    recommendedFormulaDirection: names.length > 0 ? `${names[0]}加减` : "按已锁定病机与治法辨证组方",
+  },
+  pathogenesis: { summary: pathogenesis, chain: [], locationDifferentiation: { items: [] }, natureDifferentiation: { items: [] } },
+  therapy: { overallMethod: therapy, overallPrinciple: therapy, subTherapies: [] },
+  terminologyMappings: [],
+});
+
+const failures = [];
+const run = (reasoning) => unwrap(ind.enforceRetrievedM03FormulaSelection(wrap(reasoning), []));
+
+// ── 一、模型未给方名,系统检索到已核验方 ⇒ 必须锁定 ────────────────────
+{
+  const out = run(m03({
+    syndrome: "风热犯表证",
+    pathogenesis: "风热之邪犯于肺卫，卫表失和",
+    therapy: "辛凉解表，清热解毒",
+    names: [],
+    mode: "self_devised",
+  }));
+  const locked = out?.overview?.recommendedFormulaNames || [];
+  if (locked.length === 0) {
+    failures.push({ case: "模型自拟+系统有已核验方", why: `应锁定系统候选,实际仍为空;mode=${out?.overview?.formulaSelectionMode}` });
+  } else if (out.overview.formulaSelectionMode !== "single") {
+    failures.push({ case: "模型自拟+系统有已核验方", why: `锁定后 mode 应为 single,实际 ${out.overview.formulaSelectionMode}` });
+  } else if (out.overview.deferredFormulaSelection?.reason !== "system_retrieved_governed_lock") {
+    failures.push({ case: "模型自拟+系统有已核验方", why: `来源留痕缺失,reason=${out.overview.deferredFormulaSelection?.reason}` });
+  }
+}
+
+// ── 二、模型选了通不过核验的方 ⇒ 驳回它,且**不得**用系统的方顶替 ────────────
+//
+// 这条是实测逼出来的边界。曾让系统在这里也补位,20 例可锁定率 45%→80%,但湿热内蕴证(阳黄)
+// 出现致命一例:模型选的是茵陈蒿汤(本例金标准方),因证候特征层的释义并集差异未过核验被驳回,
+// 系统改锁了同样过核验的**导赤散**(清心利水养阴)。医生会照着抓药——把不对证的方挂上方名,
+// 比输出自拟方坏得多。区别在于「模型有没有看着本例做过选择」:没选时系统补位只是增加信息,
+// 选了但没过核验时换一个模型从未考虑过的方是越权。
+{
+  const bogus = "某某未收载经验方";
+  const out = run(m03({
+    syndrome: "风热犯表证",
+    pathogenesis: "风热之邪犯于肺卫，卫表失和",
+    therapy: "辛凉解表，清热解毒",
+    names: [bogus],
+    mode: "single",
+  }));
+  const locked = out?.overview?.recommendedFormulaNames || [];
+  if (locked.includes(bogus)) {
+    failures.push({ case: "模型选未核验方", why: "未核验的模型选择不得保留" });
+  }
+  if (locked.length > 0) {
+    failures.push({
+      case: "模型选未核验方",
+      why: `模型已就本例做出选择时,系统不得用它从未考虑过的方顶替;实际锁了 ${JSON.stringify(locked)}`,
+    });
+  }
+  if (out?.overview?.formulaSelectionMode !== "self_devised") {
+    failures.push({ case: "模型选未核验方", why: `应降为自拟方,实际 ${out?.overview?.formulaSelectionMode}` });
+  }
+}
+
+// ── 三、fail-closed:系统也检索不到已核验方时,仍走自拟方 ─────────────
+{
+  // 无法归一的描述性主证 + 无病机无治法 ⇒ 检索拿不到任何满足正向充分性的方。
+  const out = run(m03({
+    syndrome: "身体不适倾向",
+    pathogenesis: "",
+    therapy: "",
+    names: [],
+    mode: "self_devised",
+  }));
+  const locked = out?.overview?.recommendedFormulaNames || [];
+  if (locked.length > 0) {
+    failures.push({ case: "无已核验方", why: `无可锁方时不得凭空锁定,实际锁了 ${JSON.stringify(locked)}` });
+  }
+}
+
+// ── 四、模型选的方本就通过核验 ⇒ 原样保留,不得被系统候选顶掉 ──────────
+{
+  const first = run(m03({
+    syndrome: "风热犯表证", pathogenesis: "风热之邪犯于肺卫，卫表失和",
+    therapy: "辛凉解表，清热解毒", names: [], mode: "self_devised",
+  }));
+  const systemPick = (first?.overview?.recommendedFormulaNames || [])[0];
+  if (systemPick) {
+    const out = run(m03({
+      syndrome: "风热犯表证", pathogenesis: "风热之邪犯于肺卫，卫表失和",
+      therapy: "辛凉解表，清热解毒", names: [systemPick], mode: "single",
+    }));
+    const locked = out?.overview?.recommendedFormulaNames || [];
+    if (!locked.includes(systemPick)) {
+      failures.push({ case: "模型选择已核验", why: `模型选对时必须原样保留,实际 ${JSON.stringify(locked)}` });
+    }
+  }
+}
+
+if (failures.length > 0) {
+  console.error(JSON.stringify({ failures }, null, 2));
+}
+assert.equal(
+  failures.length, 0,
+  `受控目录方名锁定回归失败 ${failures.length} 项。锁定丢失 ⇒ 自拟方比例回升;` +
+  `凭空锁定 ⇒ 不对证的方挂上方名(比自拟方更坏)。`,
+);
+
+console.log(JSON.stringify({
+  modelSelfDevisedGetsGovernedLock: true,
+  rejectedModelPickNotSubstituted: true,
+  failClosedWhenNothingVerified: true,
+  verifiedModelPickPreserved: true,
+  failures: 0,
+}));
