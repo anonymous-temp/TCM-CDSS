@@ -76,6 +76,7 @@ const scripts = [
   "test:governed-formula-lock",
   "test:phi-clinical-collision",
   "test:output-quality",
+  "test:customer-review",
   "test:m03-entry",
   "test:m02-contract",
   "test:m02-nonblocking",

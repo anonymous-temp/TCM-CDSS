@@ -1,4 +1,5 @@
 import { discriminatingWesternSupportClauses, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
 import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
@@ -954,6 +955,65 @@ function decoctionProfileFromSignedTherapy(
  * 病性未定（resolution=unresolved 或两侧皆空）时不编造治则，改写成临床可读的等待语，
  * 而不是工程占位串——医生看到的每一句都应该是临床语言。
  */
+/**
+ * 总体病机不得是病历事实的复述（2026-08-05，甲方 3.2）。
+ *
+ * 甲方截图里的「总体病机」写着：**「病历已记录腹泻，排解不畅。」**——这是一条病历事实
+ * 加一句服务端极性模板，不是病机。病机要回答「为什么会这样」（脾失健运、湿浊内生、
+ * 清浊不分），而不是把主诉换个说法再说一遍。
+ *
+ * 判据是确定性的、只看形态不猜语义：
+ *  · 以服务端事实模板开头（病历已记录/病历尚未确认/患者诉/病历记载…）⇒ 不是病机；
+ *  · 通篇不含任何受控病性或病机动词（虚/实/寒/热/湿/瘀/滞/郁/亏/失健/上逆/不固…）
+ *    ⇒ 只是症状复述，不是病机。
+ * 命中时不编造病机，改写成明确的待补充说明——让医生知道这一栏没有结论，
+ * 而不是把一句病历原文当成病机读下去。
+ */
+function pathogenesisRestatesChartFact(value: unknown): boolean {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return false;
+  if (/^(?:病历已记录|病历尚未确认|病历记载|患者诉|患者自述|现病史记录|本例记录)/.test(text)) return true;
+  const MECHANISM = /(?:虚|实|寒|热|火|湿|痰|饮|瘀|滞|郁|亏|损|陷|逆|亢|衰|结|阻|遏|壅|凝|失健|失运|失司|失养|失和|失宣|失降|不固|不化|不通|不濡|上炎|上扰|上逆|下注|内生|内蕴|外袭|外束)/;
+  return !MECHANISM.test(text);
+}
+
+/**
+ * 中医病名必须是**单一病名**，辨病推理不得是循环套话（2026-08-05，甲方 2.1）。
+ *
+ * 甲方实测输出：病名写成「头痛/头风病」，推理写成
+ *   「患者以头痛为主要症状，符合中医头痛/头风病诊断标准，故诊断头痛/头风病」
+ * 两处都是形式问题，不涉及临床判断：
+ *  · 斜杠并列两个病名 = 辨病没有落定。中医书写惯例主病名在前，取首个受治理病名即可；
+ *    被去掉的那个不是丢失——它本就该出现在辨病鉴别里，而不是塞进病名字段。
+ *  · 「符合 X 诊断标准，故诊断 X」是同义反复，读完仍不知道凭什么判这个病。
+ *    服务端不替模型编造依据（那会造出病历里没有的事实），但必须把这句话标成
+ *    「未给出实质辨病依据」，让医生知道这一栏没有结论可采信。
+ */
+const diseaseIsCircularGuardEnabled = true;
+
+function singleGovernedDiseaseName(value: unknown): { name: string; dropped: string[] } | undefined {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text || !/[/／、|]/.test(text)) return undefined;
+  const segments = text.split(/[/／、|]/).map((item) => item.trim()).filter(Boolean);
+  if (segments.length < 2) return undefined;
+  const governed = segments.filter((item) => isGovernedTcmDiseaseName(item));
+  if (governed.length === 0) return undefined;
+  return { name: governed[0], dropped: segments.filter((item) => item !== governed[0]) };
+}
+
+function diseaseRationaleIsCircular(value: unknown, diseaseName: string): boolean {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text || !diseaseName) return false;
+  // 去掉「以X为主要症状」「符合…诊断标准」「故诊断X」这三段模板后还剩多少实质内容。
+  const stripped = text
+    .replace(/患者?以[^，,。；;]{1,24}为(?:主要)?症状[，,。；;]?/g, "")
+    .replace(/符合(?:中医)?[^，,。；;]{0,24}诊断标准[，,。；;]?/g, "")
+    .replace(/故(?:可)?诊断(?:为)?[^，,。；;]{0,24}[，,。；;]?/g, "")
+    .replace(new RegExp(diseaseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "")
+    .replace(/[，,。；;、\s]/g, "");
+  return stripped.length < 8;
+}
+
 export function applyDeterministicTreatmentPrinciple(content: string): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -961,8 +1021,31 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
   try {
     const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
     if (reasoning.stage !== "diagnose") return content;
-    const therapy = recordValue(reasoning.therapy);
-    if (!therapy) return content;
+    // therapy 缺失时也要能改写病机,故不再早退;新建的 therapy 必须挂回 reasoning,
+    // 否则后面的赋值写在游离对象上、输出里看不到。
+    const therapy = recordValue(reasoning.therapy) || (reasoning.therapy = {} as Record<string, unknown>, recordValue(reasoning.therapy)!);
+    // 总体病机被写成病历事实复述时改写成待补充说明（甲方 3.2）。与治则补齐同一道归一，
+    // 两者都是「医生看到的每一句都应该是临床语言」的同一件事。
+    const overview = recordValue(reasoning.overview);
+    // 甲方 2.1:病名并列与循环套话。两条都只改形式,不替模型编造辨病依据。
+    if (overview) {
+      const single = singleGovernedDiseaseName(overview.tcmDiseaseName);
+      if (single) {
+        const original = String(overview.tcmDiseaseName || "");
+        overview.tcmDiseaseName = single.name;
+        if (typeof overview.tcmDiseaseRationale === "string") {
+          overview.tcmDiseaseRationale = overview.tcmDiseaseRationale.split(original).join(single.name);
+        }
+      }
+      const diseaseName = typeof overview.tcmDiseaseName === "string" ? overview.tcmDiseaseName.trim() : "";
+      if (diseaseIsCircularGuardEnabled && diseaseRationaleIsCircular(overview.tcmDiseaseRationale, diseaseName)) {
+        overview.tcmDiseaseRationale =
+          `本次输出未给出「${diseaseName}」的实质辨病依据（原文为同义反复），请医生结合主症与病程形态自行核定病名。`;
+      }
+    }
+    if (overview && pathogenesisRestatesChartFact(overview.overallPathogenesis)) {
+      overview.overallPathogenesis = "现有四诊与病史尚不足以形成可采纳的总体病机，请补充关键问诊后复核（本栏不采用主诉复述代替病机）。";
+    }
     const current = typeof therapy.overallPrinciple === "string" ? therapy.overallPrinciple.trim() : "";
     // 只接管占位串与空值；模型自己写出的治则（「标本兼治」「急则治标」）原样保留。
     if (current && !/^(?:暂不锁定剂量级治法|暂不锁定|待定|由服务端生成)$/.test(current)) return content;
@@ -1152,6 +1235,15 @@ export function applyDeterministicHerbFunctions(content: string): string {
           name,
           markdownCell(herb.role),
           markdownCell(herb.targetPathogenesis),
+          // 本方治法参与筛选：功效条目须与「本方要做什么」相关才进方义。
+          // 治法可能落在 overallMethod 或 overallPrinciple(历史载荷两种都有),
+          // 加上候选自身的 therapyMatch 与子治法方向,三处并取——少取一处就会把
+          // 相关功效误判成无关而丢掉(实测:治法只写在 overallPrinciple 时,
+          // 酸枣仁的「安神」被整条滤掉)。
+          [markdownCell(recordValue(reasoning.therapy)?.overallMethod),
+            markdownCell(recordValue(reasoning.therapy)?.overallPrinciple),
+            ...recordList(recordValue(reasoning.therapy)?.subTherapies).map((item) => markdownCell(item.therapy)),
+            markdownCell(candidate.therapyMatch)].filter(Boolean).join("；"),
         ).trim();
         if (canonicalFunction) herb.function = canonicalFunction;
       }
@@ -2275,8 +2367,8 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
     lines.splice(insertAt, 0,
       "### 中医辨病鉴别",
       isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseName))
-        ? "本例现有资料未形成需要区分的相邻中医病名，故未列辨病鉴别；下方为证候层面的鉴别。"
-        : "本例中医病名尚未成立，故不列辨病鉴别；下方为证候层面的鉴别，不能替代辨病诊断。",
+        ? "本例现有资料未形成需要区分的相邻中医病名，故未列辨病鉴别。"
+        : "本例中医病名尚未成立，故不列辨病鉴别；证候层面的取舍见上方辨证依据。",
       "");
   }
   if (tcmDiseaseDifferentials.length > 0) {
@@ -2299,18 +2391,15 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
     );
   }
   const tcmDifferentials = recordList(overview?.tcmDifferentials);
-  if (tcmDifferentials.length > 0) {
-    const insertAt = lines.indexOf(pathogenesisHeading);
-    lines.splice(insertAt, 0,
-      "### 中医证候鉴别",
-      ...tcmDifferentials.map((item) => `- **${markdownCell(item.syndrome)}**：${clinicalSentence([
-        markdownCell(item.reason),
-        markdownCell(item.distinguishingPoints) ? `区分要点：${markdownCell(item.distinguishingPoints)}` : "",
-        markdownCell(item.nextCheck) ? `建议核实：${markdownCell(item.nextCheck)}` : "",
-      ], "；")}`),
-      "",
-    );
-  }
+  // 甲方 2.2「鉴别诊断展示错误：要求根据病名进行鉴别诊断，目前还有证候鉴别」(2026-08-05)。
+  //
+  // 鉴别诊断在医生的阅读习惯里是**病名级**判断（泄泻↔痢疾、感冒↔咳嗽），与它并列摆一段
+  // 证候鉴别，读者会把两者都当成鉴别诊断。证候之间的取舍属于辨证过程，本就该在辨证段落里
+  // 交代，而不是另立一段与辨病鉴别对仗。
+  //
+  // 只从**可见正文**移除，签名载荷 overview.tcmDifferentials 与 HIS 出参一字不动——
+  // 已集成的调用方仍能拿到这份数据，医生页面不再把它当鉴别诊断呈现。
+  void tcmDifferentials;
   if (!isDisplayableClinicalText(markdownCell(overview?.overallPathogenesis)) && isDisplayableClinicalText(markdownCell(pathogenesis?.summary))) {
     lines.push(`**病机归纳**：${markdownCell(pathogenesis?.summary)}`);
   }

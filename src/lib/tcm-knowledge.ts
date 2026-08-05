@@ -1433,12 +1433,61 @@ export function getTcmHerbFunctionCategories(herb: string): string[] {
  * signed pathogenesis target and controlled 君臣佐使 role to describe its place in this candidate,
  * without inventing a pharmacological claim.
  */
-export function getTcmHerbFunctionDisplayText(herb: string, role = "", target = ""): string {
-  const knowledgeText = getTcmHerbFunctionText(herb).trim();
-  if (knowledgeText) return knowledgeText;
+/**
+ * 方义里的药味说明：**该药在本方发挥的作用**，不是它的全部功效表(2026-08-05)。
+ *
+ * 甲方 7.1：「方义分析是分析该药在方中所发挥作用，无需罗列所有功效，且生姜分析错误」。
+ * 线上实测（参苓白术散）：
+ *   人参（君）：大补元气，复脉固脱      ← 复脉固脱与本方毫无关系
+ *   桔梗（佐）：祛痰排脓，清利头目      ← 本方桔梗是载药上行、培土生金，写反了
+ *   白扁豆（臣）：协同君药、加强主治方向 ← 纯套话
+ * 追下去有两个原因，都在数据侧：
+ *  1) 知识库功效串里**混着药类分类标签**（「补气药；补虚药」「发散风寒药；解表药」），
+ *     它们是分类学不是方义，直接印出来就是噪声；
+ *  2) 白扁豆、薏苡仁、麻黄这些药在库里**只有分类标签、没有功效条目**，于是全部落到
+ *     那句「协同君药、加强主治方向」的通用兜底上。
+ *
+ * 三条处理，都不新增知识：
+ *  · 剥掉「…药」结尾的分类标签，它们从来不是方义；
+ *  · 按本方治法与该药所绑定的病机节点**筛选**功效条目，只留下与本方目标相关的；
+ *  · 一条都不相关（或库里本就没有功效）时，不写通用套话，改写成绑定该药实际病机节点的
+ *    一句话——说不出该药在本方做什么时，至少说清它挂在哪条病机上，交医生判断。
+ */
+export function getTcmHerbFunctionDisplayText(herb: string, role = "", target = "", therapy = ""): string {
+  const raw = getTcmHerbFunctionText(herb).trim();
+  const clauses = raw
+    .split(/[；;，,、]/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    // 药类分类标签（补气药/解表药/利水渗湿药…）不是方义。
+    .filter((item) => !/药$/.test(item));
+  // 给药途径/调剂语义(冲服、研末、另煎、烊化、外用、不入汤剂…)**永不参与筛选**:
+  // 它们不是方义而是安全信息,滤掉会让「朱砂不可入汤剂」这类边界从出参里消失。
+  // 实测:收紧筛选后 test:stage-contract 的 route_not_decoction 判据当场失守,
+  // 说明这条通路确实承载着安全语义,不能按「与治法是否相关」来取舍。
+  const ROUTE_SEMANTICS = /(?:冲服|调服|研粉|研末|吞服|丸散|另煎|烊化|包煎|先煎|后下|外用|不入汤剂|禁止同煎|入丸散)/;
+  const routeClauses = clauses.filter((item) => ROUTE_SEMANTICS.test(item));
+  const alignmentText = `${therapy}${target}`.replace(/\s+/g, "");
+  const aligned = alignmentText
+    ? clauses.filter((item) => {
+      // 逐字相关即可：功效条目里任意 2 字连续出现在本方治法或该药绑定的病机节点里。
+      for (let index = 0; index + 2 <= item.length; index += 1) {
+        if (alignmentText.includes(item.slice(index, index + 2))) return true;
+      }
+      return false;
+    })
+    : [];
+  const chosen = [...new Set([
+    ...routeClauses,
+    ...(aligned.length > 0 ? aligned : (alignmentText ? [] : clauses)),
+  ])];
+  if (chosen.length > 0) return chosen.slice(0, 3).join("，");
+  // 兜底句**不得嵌入病机原文**:病机在药味表里另有独立一列,嵌进来会让同一句病机
+  // 在一节里被印 7 遍(实测触发 test:visible-output-hygiene 的重复病机判据),
+  // 而这恰恰是甲方 1.1.1 抱怨的同一类冗余。角色 + 需复核声明已足够表达不确定性。
+  void target;
   const controlledRole = /^(?:君|臣|佐|使)$/.test(role.trim()) ? role.trim() : "配伍";
-  const controlledTarget = target.replace(/[|\r\n<>]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "本方治疗目标";
-  return `${controlledRole}药配伍定位：承接“${controlledTarget}”的组方目标`;
+  return `${controlledRole}药，本方中的具体配伍作用需医生结合方义复核`;
 }
 
 export function getTcmHerbRiskProfile(herb: string): string {

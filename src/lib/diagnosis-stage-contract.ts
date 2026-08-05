@@ -3179,6 +3179,15 @@ function herbFunctionMatchesKnowledge(name: string, claimedFunction: string, rol
   if (/(?:美容|养颜|改善视力|减肥|抗癌|延年益寿|包治|根治)/.test(claimedFunction)) return false;
   const canonicalDisplay = getTcmHerbFunctionDisplayText(name, role, target);
   if (claimedFunction.trim() === canonicalDisplay.trim()) return true;
+  // 方义按本方治法筛选后(甲方 7.1),写入的是知识库功效串的**子集**而不是整串
+  // ——「人参：大补元气，复脉固脱，补脾益肺…」筛成「补脾益肺」。逐条包含即同源:
+  // 每一条都出自库里那串,没有新增任何断言,与整串逐字相等是同一强度的接地。
+  // 此前本函数按整串比对,筛选一上线就整片判 function_ungrounded,而该码在
+  // route_not_decoction 之前返回,连朱砂「不可入汤剂」的安全边界都被它盖住了。
+  const claimedClauses = claimedFunction.split(/[，,；;、]/).map((item) => item.trim()).filter(Boolean);
+  if (knowledgeText && claimedClauses.length > 0 && claimedClauses.every((item) => knowledgeText.includes(item))) return true;
+  // 库里没有可用功效条目时的受控兜底句(说不出该药在本方做什么,就说清它挂在哪条病机上)。
+  if (/^(?:君|臣|佐|使|配伍)药，.*需医生结合方义复核$/.test(claimedFunction.trim())) return true;
   if (!knowledgeText) return false;
   // M04 model output is canonicalized to this exact local knowledge text before it reaches the
   // contract. The canonical source must not be rejected merely because a textbook category uses a

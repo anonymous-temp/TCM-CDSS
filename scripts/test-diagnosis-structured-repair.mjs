@@ -420,7 +420,18 @@ assert.equal(normalizeClinicalConfidence("较高"), "高");
 assert.equal(normalizeClinicalConfidence("中等"), "中");
 assert.equal(normalizeClinicalConfidence("待评估"), "低");
 assert.equal(normalizeClinicalConfidence("不高"), "低");
-assert.equal(getTcmHerbFunctionDisplayText("神曲", "佐", "脾气亏虚，运化失司"), "佐药配伍定位：承接“脾气亏虚，运化失司”的组方目标");
+// 兜底措辞在 2026-08-05 换过一次(甲方 7.1)。旧句「佐药配伍定位：承接“X”的组方目标」
+// 与新句都出现在**知识库没有该药功效条目**时,但旧句读起来像给出了方义,实际什么都没说;
+// 新句明说「具体配伍作用需医生结合方义复核」,把不确定性交还给医生。
+// 判据只钉方向,不钉措辞:必须带角色、必须带所绑定的病机、必须显式声明需医生复核。
+{
+  const fallback = getTcmHerbFunctionDisplayText("神曲", "佐", "脾气亏虚，运化失司");
+  assert.match(fallback, /^佐药/, "兜底句必须标明君臣佐使角色");
+  assert.match(fallback, /需医生结合方义复核/, "说不出该药在本方的作用时必须显式交还医生,不得写成像给出了方义");
+  // 病机原文不得嵌进兜底句:药味表里病机另有独立一列,嵌进来会让同一句病机在一节里
+  // 印上七遍(实测触发 test:visible-output-hygiene),与甲方抱怨的冗余是同一类。
+  assert.doesNotMatch(fallback, /脾气亏虚，运化失司/, "兜底句不得嵌入病机原文");
+}
 
 const valid = {
   schemaVersion: "tcm-cdss-reasoning-v2",
