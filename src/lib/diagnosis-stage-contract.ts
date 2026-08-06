@@ -92,8 +92,11 @@ type M03ReasoningLike = {
  *
  * 故判据为:**以受治理病名开头、且剥掉病名后剩余部分解析不出任何证候** ⇒ 驳回;其余放行。
  * 驳回后由修复轮按规范重述——主证是签名结论的核心,服务端不擅自改写。
+ *
+ * **导出供回归钉住真实判据**：test:syndrome-name-standard 此前在测试里重建了一份同源副本,
+ * 那意味着这里改了、测试不会红。重建副本是本仓库反复出现的测试失效形态,不要再引入。
  */
-function governedSyndromeNameAcceptable(value: string): boolean {
+export function governedSyndromeNameAcceptable(value: string): boolean {
   const raw = String(value || "").trim();
   if (!raw) return false;
 
@@ -3174,7 +3177,16 @@ export function m04GenerationSpecialPopulationIssue(
   return undefined;
 }
 
-function herbFunctionMatchesKnowledge(name: string, claimedFunction: string, role = "", target = ""): boolean {
+/**
+ * 药味「配伍意义」是否与受治理知识库同源。
+ *
+ * **导出供回归钉住真实判据**（不在测试里重建副本——重建的判据改了不会红）。
+ * 特别是第 3190 行那条角色兜底句放行：甲方 7.1 要求「没有对得上本方治法的功效条目时，
+ * 宁可写角色兜底句，也不照印全部功效」，而兜底句不是知识库串的子集。曾有一版改动因为
+ * 担心兜底句被判 function_ungrounded 拖垮整个候选，转而放宽 7.1 去照印全部功效——
+ * 那条放行其实一直都在。test:customer-review 现在两头都钉：7.1 的输出形态 + 兜底句可接地。
+ */
+export function herbFunctionMatchesKnowledge(name: string, claimedFunction: string, role = "", target = ""): boolean {
   const knowledgeText = herbKnowledgeFunctionText(name);
   if (/(?:美容|养颜|改善视力|减肥|抗癌|延年益寿|包治|根治)/.test(claimedFunction)) return false;
   const canonicalDisplay = getTcmHerbFunctionDisplayText(name, role, target);

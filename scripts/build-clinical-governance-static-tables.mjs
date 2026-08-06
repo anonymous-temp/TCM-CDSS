@@ -545,7 +545,17 @@ const outputContracts = [
   ["M03-M04-lineage", "diagnose|prescribe", "reasoningV2.lineageAdaptation", "流派适配记录", "nullable", "applicability_reason_and_safety_deference", "internal_only", null],
   ["M03-M04-management", "diagnose|prescribe", "reasoningV2.management", "管理与安全网", "nullable", "red_flag_loop_and_followup_trigger", "visible", "followup-care-section"],
   ["M05-assessment", "assess", "deterministic assessment markdown", "风险与随访汇总", "required", "structured_post_prescription_audit", "visible", "audit-followup-section"],
-  ["health-education", "diagnose|prescribe|assess", "management.healthEducation", "健康宣教", "required_when_actionable", "case_bound_behavior_and_safety_boundary", "visible", "followup-care-section"],
+  // 「健康宣教 / management.healthEducation」已于 2026-08-06 删除：它是一条**幽灵契约**。
+  //
+  // 该条目声明 visibility=visible、有 rendererId，登记表读起来像是一个已交付模块，
+  // 但 ClinicalReasoningResultV2.management 只有 redFlagLoop / mustCollect / followupSafetyNet，
+  // 从来没有 healthEducation 这个字段——路径连其余条目都有的 `reasoningV2.` 前缀都没写，
+  // 说明它从提出那天起就没接过线。DiagnosisClient 只是把这个 id 列进 contractIds，无任何渲染。
+  //
+  // 幽灵条目比缺条目更糟：登记表现在是 HIS 分节咬合（test:his-section-coupling）的事实来源，
+  // 里面混着永远不会出现的模块，就没法再拿它判断「某模块该不该有」。
+  // 患者宣教内容由 M03-M04-nonpharma（饮食/起居/情志/注意事项）承担，那也是甲方 I7 要的东西。
+  // 新增条目前先确认字段真实存在——test:clinical-governance-tables 现在会逐条核对。
   ["internal-signature", "diagnose|prescribe", "contractSignature/contractSignatureVersion", "结构签名", "internal_required_when_configured", "signed_payload", "internal_only", null],
   ["internal-review-hash", "diagnose|prescribe", "clinicalReview.reviewedPayloadHash", "复核载荷哈希", "internal_optional", "sha256_payload_binding", "internal_only", null],
 ].map(([id, stage, path, label, requiredStatus, evidenceBinding, visibility, rendererId]) => ({
@@ -641,7 +651,11 @@ const governedPlanTemplates = new Map([
     {
       id: "acupuncture-insomnia-government-guidance",
       indicationTag: "sleep_emotion",
-      matchAny: ["失眠", "不寐"],
+      // 词表补齐至与同标签下其余模板一致（2026-08-06）。原为 ["失眠","不寐"] 两条，
+      // 而耳穴/食疗/情志三条 sleep_emotion 模板早已收了「入睡困难/多梦/易醒」——
+      // 同一适应证在同一张表里两种宽度，窄的那条静默失配：病历按最常见写法录「入睡困难、多梦」，
+      // 针刺选穴整栏消失，医生反而拿不到建议。穴位与频次内容一字未动，只补匹配词。
+      matchAny: ["失眠", "不寐", "入睡困难", "多梦", "易醒"],
       sitesOrPoints: ["安眠", "神门", "内关", "心俞"],
       techniqueBoundary: "留针用补法；实际取穴、进针和刺激参数由现场医师复核。",
       scheduleSuggestion: "门诊项目频次参考为每日1次；实际间隔与疗程由面诊医生按耐受和复评结果确定。",
@@ -842,7 +856,7 @@ const governedPlanTemplates = new Map([
   }, {
     id: "diet-therapy-sleep-emotion-outpatient",
     indicationTag: "sleep_emotion",
-    matchAny: ["失眠", "不寐", "多梦", "心悸", "焦虑", "情志"],
+    matchAny: ["失眠", "不寐", "入睡困难", "多梦", "心悸", "焦虑", "情志"],
     sitesOrPoints: [],
     techniqueBoundary: "以规律作息与晚间饮食节制为主；不得以食疗替代已判定需要的药物或专科干预。",
     scheduleSuggestion: "日常执行，复诊时按睡眠质量与伴随症状复评。",
@@ -852,7 +866,7 @@ const governedPlanTemplates = new Map([
   ["mind_therapy", [{
     id: "mind-therapy-sleep-emotion-outpatient",
     indicationTag: "sleep_emotion",
-    matchAny: ["失眠", "不寐", "焦虑", "抑郁", "情志", "易怒", "紧张"],
+    matchAny: ["失眠", "不寐", "入睡困难", "焦虑", "抑郁", "情志", "易怒", "紧张"],
     sitesOrPoints: [],
     techniqueBoundary: "情志调摄为辅助措施；出现自伤、自杀或严重行为危机线索时必须立即转精神科急诊，不得以意疗替代。",
     scheduleSuggestion: "日常执行；复诊时按情绪与睡眠变化复评，不设固定疗程。",

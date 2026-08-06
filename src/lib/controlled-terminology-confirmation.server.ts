@@ -84,6 +84,14 @@ export function confirmControlledTerminologyMapping(
 
   if (selected.namespace === "tcm_syndrome") {
     const deferred = current.overview.deferredFormulaSelection;
+    // primarySyndrome 存的是**去后缀规范名**（canonical），不是国标原文用词。
+    //
+    // 这是刻意的，别改：T1 词表每条同时存 canonical（供归一/等同判定、方剂召回、证-方一致性校验）
+    // 与 standardTerm（含「证」后缀的国标原文）。clinical-governance-tables.ts:18 的分工是
+    // 「医生可见面用 standardTerm，内部匹配继续用 canonical」。
+    // 曾尝试把这里改写成 standardTerm 以满足甲方 R2 的国标诉求，结果打断了下游按 canonical 的匹配
+    // （test:reasoning-signature 当场变红）。国标名的呈现责任在渲染层
+    //（diagnosis-visible-summary.nationalStandardSyndromeName 的双显括注），不在这里。
     next = {
       ...next,
       overview: {

@@ -955,4 +955,53 @@ try {
   restore();
 }
 
-console.log(JSON.stringify({ cases, failures: 0 }));
+// —— 选穴的本例绑定与词表一致性（甲方 6.1 / 9.1，2026-08-06 收尾） ——
+{
+  const { governedTcmTreatmentPlanTemplateForTags } = await import("../src/lib/tcm-treatment-projects.ts");
+  const acupuncture = TCM_TREATMENT_PROJECTS.find((project) => project.code === "acupuncture");
+  const allTags = acupuncture.indicationTags;
+
+  // 1) 常见写法必须命中。受治理标签词表对 sleep_emotion 收了「入睡困难/多梦/易醒」，
+  //    而针刺模板的 matchAny 原本只有「失眠/不寐」——同一适应证在同一张表里两种宽度，
+  //    窄的那条静默失配：医生按最常见写法录入，选穴整栏消失。
+  for (const text of ["患者失眠不寐", "患者入睡困难、多梦易醒", "近一月入睡困难"]) {
+    const template = governedTcmTreatmentPlanTemplateForTags("acupuncture", text, allTags);
+    assert.equal(template?.indicationTag, "sleep_emotion", `「${text}」未命中睡眠类选穴模板`);
+    assert.ok(template.sitesOrPoints.includes("神门"), `「${text}」命中的模板穴位异常`);
+  }
+
+  // 2) **本例绑定不得被削弱**。这条钉的是一次真实的错误尝试：为提高覆盖率，曾把判据放宽成
+  //    「该标签下只有一条模板时，标签命中即足够」——实测头痛病例立刻拿到中脘、天枢、足三里
+  //    这套消化类穴位（标签列表里的 digestive 恰好只有一条模板）。放宽等于取消本例绑定，
+  //    而本例绑定正是甲方 6.1/9.1 两轮投诉的核心。宁可不给穴位，不可给错穴位。
+  const headache = governedTcmTreatmentPlanTemplateForTags("acupuncture", "患者产后头痛反复发作", allTags);
+  assert.equal(headache?.indicationTag, "headache", "头痛病例必须命中头痛选穴");
+  for (const wrong of ["中脘", "天枢", "足三里"]) {
+    assert.ok(!headache.sitesOrPoints.includes(wrong), `头痛病例出现消化类穴位「${wrong}」`);
+  }
+  // 病历与任何适应证都对不上时，必须不给穴位，而不是退回某条模板。
+  assert.equal(
+    governedTcmTreatmentPlanTemplateForTags("acupuncture", "患者皮肤湿疹瘙痒", allTags),
+    undefined,
+    "适应证不匹配时必须不给穴位",
+  );
+
+  // 3) 睡眠类模板之间的**常见症状写法**必须齐平。
+  //
+  // 注意这里刻意**不**做「模板 matchAny 必须被受治理标签词表认出」这种全局一致性断言——
+  // 那条不变式的前提是错的：matchAny 收的是病名/证型名（流感、项痹、肺脾气虚），
+  // 标签词表匹配的是症状文本，两者是互补词汇而非同一判断的两份拷贝，强行对齐会误伤一大片。
+  // 真正的缺陷是**同一适应证下、同类症状写法**在各模板间宽窄不一：耳穴/食疗/情志三条
+  // sleep_emotion 模板都收了「入睡困难/多梦」，唯独针刺那条只有「失眠/不寐」。
+  const sleepTemplates = TCM_TREATMENT_PROJECTS
+    .flatMap((project) => (project.planTemplates || []).map((template) => ({ project, template })))
+    .filter(({ template }) => template.indicationTag === "sleep_emotion");
+  assert.ok(sleepTemplates.length >= 3, "睡眠类模板样本过少，断言无意义");
+  const sleepGaps = sleepTemplates
+    .filter(({ template }) => !template.matchAny.includes("入睡困难"))
+    .map(({ project, template }) => `${project.code}/${template.id}`);
+  assert.deepEqual(sleepGaps, [],
+    `睡眠类模板缺少最常见的「入睡困难」写法，医生按常规录入将拿不到该项目的建议：${sleepGaps.join("、")}`);
+}
+
+console.log(JSON.stringify({ cases, acupointBindingChecks: 3, failures: 0 }));

@@ -17,6 +17,7 @@ import type { SafetyGate } from "@/lib/diagnosis-types";
 import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
+import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
 import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
@@ -166,13 +167,17 @@ export async function POST(req: Request) {
     safeState.patient.sex ? `患者性别：${safeState.patient.sex}` : "",
     safeState.patient.age != null ? `患者年龄：${safeState.patient.age}岁` : "",
   ].filter(Boolean).join("\n");
-  const [medicinePlan, baseEvidenceContext] = await Promise.all([
+  const [medicinePlan, baseEvidenceContext, inventoryContext] = await Promise.all([
     planEvidenceBoundMedicineCandidates(safeState, req.signal),
     assistedNegationClauses(safeState).then((assistedNegations) =>
       buildCdssEvidenceContext(safeState, "prescribe", assistedNegations)),
+    // 院内库存可得性（甲方 2026-08-05 入站药品同步）。未导入库存时返回空串，
+    // 提示词与导入前逐字节相同——可得性不是安全控制，缺数据不得改变链路行为。
+    buildDrugInventoryPromptContext(),
   ]);
   const evidenceContext = [baseEvidenceContext, medicinePlan.evidenceContext].filter(Boolean).join("\n\n");
   let prompt = appendEvidenceContext(buildPrescribePrompt(safeState), evidenceContext);
+  if (inventoryContext) prompt += `\n\n${inventoryContext}`;
   const informationNotice = limitedInformation
     ? [
         "## 信息完整性边界",

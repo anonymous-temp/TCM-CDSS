@@ -123,6 +123,25 @@ const normalized = (overview, extra) =>
   if (/协同君药、加强主治方向|兼顾兼夹病机或制约峻烈|配伍定位：承接/.test(filler)) {
     failures.push({ item: "7.1 套话", why: `通用套话不得作为方义: ${filler}` });
   }
+
+  // 7.1 的**反向守卫**：角色兜底句必须被合同层判为已接地。
+  //
+  // 上面几条钉的是「不许照印全部功效」，本条钉的是「照做之后不会把处方弄没」。
+  // 二者缺一不可：曾有一版改动正是因为担心兜底句被判 function_ungrounded 拖垮整个候选，
+  // 转而放宽 7.1 去照印全部功效——而放行正则一直都在，代价白付。
+  // 用**导出的真实判据**断言，不在测试里重建副本。
+  const { herbFunctionMatchesKnowledge } = await import("jiti").then(({ createJiti }) =>
+    createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } })
+      .import("../src/lib/diagnosis-stage-contract.ts"));
+  for (const [herb, role] of [["桔梗", "佐"], ["白扁豆", "臣"], ["薏苡仁", "臣"]]) {
+    const text = analysis(herb, role, "脾虚湿盛，水湿内停", "健脾益气，渗湿止泻");
+    if (!herbFunctionMatchesKnowledge(herb, text, role, "脾虚湿盛，水湿内停")) {
+      failures.push({
+        item: "7.1 兜底句接地",
+        why: `${herb} 的方义「${text}」被合同判为 function_ungrounded，整个候选会被驳回`,
+      });
+    }
+  }
 }
 
 if (failures.length > 0) {

@@ -101,6 +101,16 @@ const finalizeChain = apiText.slice(
   apiText.indexOf("applyDeterministicHerbTargets(authoritativeContent"),
   apiText.indexOf("synchronizeVisibleClinicalSummary(authoritativeContent"),
 );
+// 治则补齐踩了与方名恢复**完全相同**的坑：只挂在 M03 prepare 链上时，看到的还是模型写的
+// 合法治则，而工程占位串是后面的归一层注入的，于是最终 JSON 又变回占位串。
+// 判据同样是「必须出现在 finalize 链、排在可见摘要同步之前」。
+if (!finalizeChain.includes("applyDeterministicTreatmentPrinciple")) {
+  failures.push({
+    kind: "projection_not_in_finalize_chain",
+    projection: "applyDeterministicTreatmentPrinciple",
+    why: "治则补齐必须在 finalize 层重跑：prepare 层跑的时候占位串还没被注入。",
+  });
+}
 for (const projection of [
   "applyDeterministicHerbFunctions",
   "applyDeterministicHerbPrescriptionRoles",

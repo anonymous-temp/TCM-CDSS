@@ -52,7 +52,7 @@ import { containsUnknownClinicalCue, isUnknownClinicalText, PULSE_FORCE_PATTERN_
 import { inspectionLexiconGroups, inspectionLexiconNormal, type InspectionField } from "@/lib/tcm-inspection-lexicon";
 import { computeTongueRoiCrop, detectTongueRoi } from "@/lib/tongue-image-roi";
 import { customerEvidenceDisplayStatus, sanitizeCustomerEvidenceNarrative, sanitizeLabeledEvidenceLines } from "@/lib/customer-evidence";
-import { clinicalOutputRendererId, clinicalOutputSurface, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "@/lib/clinical-output-authority";
+import { clinicalOutputLabel, clinicalOutputRendererId, clinicalOutputSurface, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "@/lib/clinical-output-authority";
 import {
   buildDeterministicRiskFollowupPayload,
   buildSafetyLimitedPrescription,
@@ -4891,6 +4891,16 @@ function ResultTabsV2({
     )
     ? reasoning.overview.tcmDiagnosticRationale || ""
     : "";
+  // 甲方 2.2「要求根据病名进行鉴别诊断，目前还有证候鉴别」(2026-08-05)。
+  //
+  // 服务端可见正文当时就改对了（diagnosis-visible-summary 只出病名鉴别、证候鉴别不出栏），
+  // **但这个 React 页面没跟着改**，而医生看的正是这里：页面上渲染的是「鉴别 {证候名}」，
+  // 病名鉴别 tcmDiseaseDifferentials 则一次都没渲染过——与甲方要求恰好相反。
+  // 又一次「一个出口修了、另一个没修」，与本轮 HIS 投影、食疗净化是同一形态。
+  //
+  // 证候之间的取舍属于辨证过程，已在「辨证推理」一段交代；签名载荷里的
+  // overview.tcmDifferentials 一字不动，已集成的调用方照常可取。
+  const tcmDiseaseDifferentials = reasoning.overview.tcmDiseaseDifferentials || [];
   const tcmDifferentials = reasoning.overview.tcmDifferentials || [];
   const tcmDifferentialBoundary = tcmDifferentials.length === 0 &&
     reasoning.overview.primarySyndromeResolution !== "resolved" &&
@@ -5027,7 +5037,7 @@ function ResultTabsV2({
             )}
           </div>
         </div>
-        {(tcmDiseaseName || tcmDiseaseRationale || tcmRationale || tcmDifferentials.length > 0 || tcmDifferentialBoundary) && (
+        {(tcmDiseaseName || tcmDiseaseRationale || tcmRationale || tcmDiseaseDifferentials.length > 0 || tcmDifferentialBoundary) && (
           <div className="mt-3 rounded-lg border border-amber-100 bg-white p-3 text-xs leading-relaxed text-gray-700">
             <p className="font-bold text-amber-800">中医辨病辨证分析</p>
             {/* 两段推理分开呈现：辨病回答「为什么归入这个病名」，辨证回答「为什么是这个证型」。
@@ -5035,11 +5045,11 @@ function ResultTabsV2({
             {tcmDiseaseName && <p className="mt-1"><span className="font-semibold">中医病名：</span>{tcmDiseaseName}</p>}
             {tcmDiseaseRationale && <p className="mt-1"><span className="font-semibold">辨病推理：</span>{tcmDiseaseRationale}</p>}
             {tcmRationale && <p className="mt-1"><span className="font-semibold">辨证推理：</span>{tcmRationale}</p>}
-            {tcmDifferentials.length > 0 && (
-              <div className="mt-2 grid gap-2 lg:grid-cols-2">
-                {tcmDifferentials.map((item, index) => (
-                  <p key={`${item.syndrome}-${index}`} className="rounded-md bg-amber-50 px-2.5 py-2">
-                    <span className="font-semibold text-amber-900">鉴别 {item.syndrome}：</span>
+            {tcmDiseaseDifferentials.length > 0 && (
+              <div data-testid="tcm-disease-differentials" className="mt-2 grid gap-2 lg:grid-cols-2">
+                {tcmDiseaseDifferentials.map((item, index) => (
+                  <p key={`${item.diseaseName}-${index}`} className="rounded-md bg-amber-50 px-2.5 py-2">
+                    <span className="font-semibold text-amber-900">鉴别 {item.diseaseName}：</span>
                     {clinicalSentence([
                       item.reason,
                       item.distinguishingPoints ? `区分要点：${item.distinguishingPoints}` : "",
@@ -5058,11 +5068,15 @@ function ResultTabsV2({
         )}
       </SchemeSection>
 
-      {/* 顺序按临床逻辑：证候(上方总览) → 病机推理(总体病机/子病机链) → 治则治法 → 候选方药 */}
+      {/* 顺序按临床逻辑：证候(上方总览) → 病机推理(总体病机/子病机链) → 治则治法 → 候选方药。
+          标题取自受治理输出契约登记表，不再硬编码（甲方 3.1「总体病机显示错误，显示为病机分析了」）：
+          登记表里 M03-pathogenesis 的标签是「病机拆解」，服务端可见正文渲染的也是它，
+          唯独这个页面写死成「病机分析」——又一处两份标题各自演进。
+          用 clinicalOutputLabel 取值后，改名只需改登记表一处，页面与正文不会再分叉。 */}
       <SchemeSection
         order={sectionOrder("M03-pathogenesis")}
         id="cdss-section-pathogenesis"
-        title="病机分析"
+        title={clinicalOutputLabel("M03-pathogenesis", "病机拆解")}
         subtitle="总体病机、病位病性与子病机"
         contractIds="M03-pathogenesis"
         rendererId="pathogenesis-section"
@@ -5536,7 +5550,7 @@ function ResultTabsV2({
         </SchemeSection>
       )}
 
-      {hasMedicineCandidates && <SchemeSection order={sectionOrder("M04-patent-western", 1)} id="cdss-section-medicine" title="西药/中成药候选" subtitle="基于西医诊断与证据的独立候选方案" contractIds="M04-patent-western" rendererId="medicine-section">
+      {hasMedicineCandidates && <SchemeSection order={sectionOrder("M04-patent-western", 1)} id="cdss-section-medicine" title={clinicalOutputLabel("M04-patent-western", "中成药/西药候选")} subtitle="基于西医诊断与证据的独立候选方案" contractIds="M04-patent-western" rendererId="medicine-section">
         <StructuredMedicinePlanCards candidates={medicineCandidates} />
       </SchemeSection>}
       {!hasMedicineCandidates && caseState.phase !== "diagnose" && caseState.phase !== "prescribe" && (
@@ -5552,7 +5566,7 @@ function ResultTabsV2({
       {firstCandidate && <AuditReviewSection order={sectionOrder("M04-formula", 2)} caseState={caseState} content={summary.medicineRiskSection} />}
 
       {assessStageFailed && onRetry && (
-        <SchemeSection order={sectionOrder("M05-assessment")} id="cdss-section-assess" title="审方随访" subtitle="本阶段未完成" contractIds="M05-assessment" rendererId="audit-followup-section">
+        <SchemeSection order={sectionOrder("M05-assessment")} id="cdss-section-assess" title={clinicalOutputLabel("M05-assessment", "风险与随访汇总")} subtitle="本阶段未完成" contractIds="M05-assessment" rendererId="audit-followup-section">
           <StageErrorCard caseState={caseState} onRetry={onRetry} />
         </SchemeSection>
       )}
@@ -5611,11 +5625,11 @@ function ResultTabsV2({
       )}
 
       <SchemeSection
-        order={sectionOrder(["M03-M04-nonpharma", "M03-M04-management", "health-education"])}
+        order={sectionOrder(["M03-M04-nonpharma", "M03-M04-management"])}
         id="cdss-section-followup"
         title="健康调护与注意事项"
         subtitle="饮食起居、情志调护、注意事项与随访安全网"
-        contractIds={["M03-M04-nonpharma", "M03-M04-management", "health-education"]}
+        contractIds={["M03-M04-nonpharma", "M03-M04-management"]}
         rendererId="followup-care-section"
       >
         <div className="space-y-3">

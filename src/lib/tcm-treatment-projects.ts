@@ -181,6 +181,16 @@ export function governedTcmTreatmentPlanTemplateForTags(
   const normalized = clinicalText.normalize("NFKC");
   const definition = PROJECT_BY_CODE.get(code);
   if (!definition?.patientSpecificParametersAllowed) return undefined;
+  // matchAny 不是「同一标签下多模板的消歧器」，而是**本例绑定判据本身**：
+  // 调用方（compileTcmTreatmentRecommendations、以及回归套件）允许传入项目声明的全部适应证标签，
+  // 由这里按病历原文决定命中哪一条。
+  //
+  // 2026-08-06 曾试图放宽为「该标签下只有一条模板时，标签命中即足够」，用来解决
+  // 「入睡困难」匹配不到 sleep_emotion 模板的问题——**实测灾难性**：头痛病例拿到了
+  // 中脘、天枢、足三里这套消化类穴位，因为标签列表里的 digestive 恰好只有一条模板。
+  // 那次放宽等于取消本例绑定，而本例绑定正是甲方 9.1 / 6.1 两轮投诉的核心。
+  // 词表稀疏要在**模板 matchAny 数据侧**补齐（见 test:tcm-treatments 的词表一致性断言），
+  // 不能靠削弱这里的判据换取覆盖率。
   for (const tag of orderedIndicationTags) {
     const matched = definition.planTemplates.find((template) =>
       template.indicationTag === tag &&

@@ -743,6 +743,24 @@ function searchLabThresholds(query: string, limit = 8): LabThreshold[] {
   ).slice(0, limit);
 }
 
+/**
+ * 药品目录同步用的只读枚举口（甲方 2026-08-05「药品同步接口」）。
+ *
+ * 与下面两个 search* 不同：那两个是为**拼提示词**设计的模糊 tokenIncluded 匹配，
+ * 复用到对账场景会漏条目。目录同步要的是全量、稳定顺序、原样字段。
+ */
+export function listKnowledgeHerbNames(): string[] {
+  return data.herbs.map((item) => item.name).filter(Boolean).sort();
+}
+
+export function listHisTcmMappings(): readonly HisTcmMapping[] {
+  return data.hisSupport?.tcmMappings || [];
+}
+
+export function listHisSpecConversions(): readonly HisSpecConversion[] {
+  return data.hisSupport?.specConversions || [];
+}
+
 function searchHisTcmMappings(query: string, limit = 8): HisTcmMapping[] {
   const text = query.replace(/\s+/g, "");
   return (data.hisSupport?.tcmMappings || []).filter((item) =>
@@ -1426,6 +1444,165 @@ export function getTcmHerbFunctionCategories(herb: string): string[] {
   return [...new Set([...(categoryIndex[canonical] || []), ...(CONTROLLED_HERB_FUNCTION_CATEGORIES[canonical] || [])])];
 }
 
+/** 功效分类 → 药味的反向索引（由正向表一次性派生，不新增数据）。 */
+const herbsByFunctionCategory: ReadonlyMap<string, readonly string[]> = (() => {
+  const index = new Map<string, string[]>();
+  for (const [herb, categories] of Object.entries(herbFunctionCategories.categories as Record<string, string[]>)) {
+    for (const category of categories) {
+      const bucket = index.get(category);
+      if (bucket) bucket.push(herb);
+      else index.set(category, [herb]);
+    }
+  }
+  // 稳定排序：同一输入必须得到同一批替代药，否则同一病例两次请求给出不同建议。
+  for (const bucket of index.values()) bucket.sort();
+  return index;
+})();
+
+/**
+ * 药味的受治理风险码（BLOOD_BREAKING / TOXIC_REGULATORY / SPECIAL_POPULATION_HIGH_RISK 等）。
+ * 风险档原文是「码；中文名；分类…」的拼接串，这里只取大写码，避免把分类名当风险比。
+ */
+function governedRiskCodes(herb: string): ReadonlySet<string> {
+  return new Set((getTcmHerbRiskProfile(herb).match(/[A-Z][A-Z_]{3,}/g) || []));
+}
+
+export type GovernedHerbSubstitute = {
+  replaces: string;
+  substitute: string;
+  rationale: string;
+  differenceNote: string;
+};
+
+/**
+ * 同向可替换药味（甲方 2026-08-05「随证加减建议——可增加：可替换药味的说明」）。
+ *
+ * 场景是真实的：该加的药缺货、患者过敏、或属特殊人群禁用时，医生需要一个同向替代。
+ * 但**替代药绝不能由模型自由发挥**——那等于让模型开药。这里只做受治理数据的确定性推导：
+ * 候选来自同一功效分类（教材层面的分类表，507 味），再逐条过安全边界。
+ *
+ * 硬约束（缺一不可，宁可返回空数组也不放宽）：
+ *  · 必须有药典数值剂量边界，且无分用途冲突——「由医师确定用量」的药不能作为系统给出的替代；
+ *  · 排除管制毒性与法律禁用品种（clinicianDoseHerbClass 命中即出局）；
+ *  · 与**现方全部药味**及被替换药本身都不得构成十八反十九畏；
+ *  · 不得建议现方已有的药味（那不是替代，是重复）。
+ *
+ * differenceNote 只转述知识库里两味药各自的功效条目，并明写「系统不裁定二者等效」——
+ * 差异判断权在医师。系统不生成任何知识库没有的药理主张。
+ */
+export function governedHerbSubstitutes(
+  herb: string,
+  prescriptionHerbs: readonly string[],
+  limit = 2,
+): GovernedHerbSubstitute[] {
+  const canonical = canonicalKnowledgeHerbName(herb);
+  if (!canonical || !isKnownTcmHerbName(canonical)) return [];
+  const categories = getTcmHerbFunctionCategories(canonical);
+  if (categories.length === 0) return [];
+  // 必须锚在**最具体**的那一档功效分类上，而不是数组第一项——分类表的顺序并不保证由specific到broad
+  // （三七是 ["化瘀止血药","止血药"] 具体在前，半夏却是 ["化痰止咳平喘药","温化寒痰药"] 宽泛在前）。
+  // 按第一项取会出临床错误：半夏（温化寒痰）落到宽泛的「化痰止咳平喘药」，就会把清化热痰的前胡
+  // 当成同向替代——寒热方向正好相反。用类目规模作为具体度的确定性代理：成员越少越具体。
+  const anchorCategory = [...categories].sort((left, right) => {
+    const sizeGap = (herbsByFunctionCategory.get(left)?.length ?? Number.MAX_SAFE_INTEGER)
+      - (herbsByFunctionCategory.get(right)?.length ?? Number.MAX_SAFE_INTEGER);
+    return sizeGap !== 0 ? sizeGap : left.localeCompare(right);
+  })[0];
+  const sourceCategories = new Set(categories);
+  const inPrescription = new Set(prescriptionHerbs.map(canonicalKnowledgeHerbName).filter(Boolean));
+  // 十八反十九畏的比对基准是「现方 + 被替换药」的全集：替代药与其中任何一味冲突都不能给。
+  const compatibilityBase = [...inPrescription, canonical];
+  const baseConflicts = findTcmHerbPairIncompatibilities(compatibilityBase).length;
+  const sourceFunctionText = getTcmHerbFunctionText(canonical);
+  const sourceSafety = getTcmHerbGenerationSafetyProfile(canonical);
+  const sourceRiskCodes = governedRiskCodes(canonical);
+
+  const ranked = (herbsByFunctionCategory.get(anchorCategory) || [])
+    .filter((candidate) => candidate !== canonical)
+    .filter((candidate) => !inPrescription.has(candidate))
+    .filter((candidate) => isKnownTcmHerbName(candidate))
+    // 「由医师确定用量」「管制毒性」「法律禁用」三类一律出局：系统没有资格把它们作为替代给出。
+    .filter((candidate) => !clinicianDoseHerbClass(candidate))
+    .filter((candidate) => {
+      const doseLimit = getTcmHerbDoseLimit(candidate);
+      return Boolean(doseLimit) && !doseLimit?.sourceConflict;
+    })
+    .filter((candidate) =>
+      findTcmHerbPairIncompatibilities([...compatibilityBase, candidate]).length <= baseConflicts)
+    // 风险不得升级（这条守卫是本函数的临床安全核心，删它等于让系统凭"同类"就换药）。
+    //
+    // 「同一功效分类」只保证方向大致相同，**不保证力度与禁忌相同**。实测反例：川芎与三棱同属
+    // 活血化瘀药 + 活血止痛药两个分类，但受治理风险档写得清清楚楚——
+    //   川芎 BLOOD_STASIS 活血化瘀，孕期 MEDIUM；
+    //   三棱 BLOOD_BREAKING 破血逐瘀 + SPECIAL_POPULATION_HIGH_RISK，孕期 HIGH。
+    // 拿三棱去"替代"川芎是把破血之力与妊娠高风险凭空引入本例。
+    //
+    // 判据用的是已入库的风险码与特殊人群档位，不是新知识：
+    //  · 替代药不得引入原药没有的风险码；
+    //  · 同一人群的风险档位不得高于原药；
+    //  · 原药无毒而替代药有毒，一律出局。
+    // 反向（替代药风险更低）允许——那是风险下降。
+    .filter((candidate) => {
+      const safety = getTcmHerbGenerationSafetyProfile(candidate);
+      if (safety.isToxic && !sourceSafety.isToxic) return false;
+      if (safety.toxicity.length > 0 && sourceSafety.toxicity.length === 0) return false;
+      const candidateCodes = governedRiskCodes(candidate);
+      for (const code of candidateCodes) {
+        if (!sourceRiskCodes.has(code)) return false;
+      }
+      for (const rule of safety.populationRules) {
+        const sourceRule = sourceSafety.populationRules.find((entry) => entry.population === rule.population);
+        const sourceRank = sourceRule ? SAFETY_SEVERITY_RANK[sourceRule.severity] : 0;
+        if (SAFETY_SEVERITY_RANK[rule.severity] > sourceRank) return false;
+      }
+      return true;
+    })
+    .sort((left, right) => {
+      // 共享功效分类越多越接近；同分时按名称稳定排序，保证同一病例两次请求结果一致。
+      const shared = (name: string) =>
+        getTcmHerbFunctionCategories(name).filter((category) => sourceCategories.has(category)).length;
+      const gap = shared(right) - shared(left);
+      return gap !== 0 ? gap : left.localeCompare(right);
+    })
+    .slice(0, Math.max(0, limit));
+
+  // 输出契约把 substitutions 定为 rationale/differenceNote 各 ≤400 字且整条 .catch(undefined)——
+  // 超一个字，**整条 substitutions 数组会被静默丢弃**，表现成「功能又没了」而不是报错。
+  // 功效条目是多来源拼接串，长度不可控，因此在这里就把两段各自截断到预算内。
+  const NOTE_LIMIT = 400;
+  const CLOSING = "系统不裁定二者等效，替换前须由医师按本例证候核定，并对调整后的完整处方重新审方。";
+  const clip = (text: string, budget: number) =>
+    text.length <= budget ? text : `${text.slice(0, Math.max(0, budget - 1))}…`;
+
+  return ranked.map((candidate) => {
+    const candidateFunctionText = getTcmHerbFunctionText(candidate);
+    // 两段功效平分「总预算 − 结语 − 分隔符与标签」，谁短谁不占满，余量让给另一段。
+    const overhead = CLOSING.length + `${canonical}功效：`.length + `${candidate}功效：`.length + 2;
+    const share = Math.max(20, Math.floor((NOTE_LIMIT - overhead) / 2));
+    const sourceBudget = candidateFunctionText.length < share
+      ? share + (share - candidateFunctionText.length)
+      : share;
+    const candidateBudget = NOTE_LIMIT - overhead - Math.min(sourceFunctionText.length, sourceBudget);
+    return {
+      replaces: canonical,
+      substitute: candidate,
+      rationale: clip(
+        `与${canonical}同属「${anchorCategory}」，可在${canonical}缺货、患者不耐受或属特殊人群禁用时作同向替代候选。`,
+        NOTE_LIMIT,
+      ),
+      differenceNote: [
+        sourceFunctionText
+          ? `${canonical}功效：${clip(sourceFunctionText, sourceBudget)}`
+          : `${canonical}在知识库中无功效条目`,
+        candidateFunctionText
+          ? `${candidate}功效：${clip(candidateFunctionText, Math.max(20, candidateBudget))}`
+          : `${candidate}在知识库中无功效条目`,
+        CLOSING,
+      ].join("；"),
+    };
+  });
+}
+
 /**
  * Return the server-owned text shown in the prescription's "配伍意义" column. A small subset of
  * catalogued herbs has a governed name and dose boundary but no concise function sentence in the
@@ -1477,6 +1654,18 @@ export function getTcmHerbFunctionDisplayText(herb: string, role = "", target = 
       return false;
     })
     : [];
+  // 分档（甲方 7.1「方义分析是分析该药在方中所发挥作用，无需罗列所有功效」）：
+  //   有对得上本方治法的条目 → 只留对得上的；
+  //   库里有条目但**没有一条对得上** → 走角色兜底句，**不得照印全部功效**；
+  //   库里本就没有条目 → 同样走角色兜底句。
+  //
+  // 中间那一档是甲方 7.1 的原始缺陷点：参苓白术散里的桔梗被印成「祛痰排脓，清利头目」——
+  // 那是桔梗的通用功效，本方用它是载药上行、培土生金，照印等于把方义写反。
+  //
+  // 曾有一版改动把中间档改为「留原条目」，理由是怕角色兜底句被判 function_ungrounded
+  // 拖垮整个候选。该顾虑已由 diagnosis-stage-contract.ts:3190 的专门放行正则覆盖
+  //（并由 test:customer-review 的 7.1 条目与本文件对应断言双向钉住），
+  // 不需要靠牺牲 7.1 来换安全边际。改这一行前先看那两处。
   const chosen = [...new Set([
     ...routeClauses,
     ...(aligned.length > 0 ? aligned : (alignmentText ? [] : clauses)),

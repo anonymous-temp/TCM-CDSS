@@ -2,11 +2,21 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V1.0 |
-| 发布日期 | 2026-08-05 |
+| 文档版本 | V1.1 |
+| 发布日期 | 2026-08-06 |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
+
+**V1.1 变更（针对贵方 2026-08-05《核对内容》「一、接口缺失内容」逐条）**
+
+| 变更 | 说明 |
+|---|---|
+| 更正字段名 | 上一版 M04 出参表把中成药候选写作顶层 `patentMedicines`，**该字段在实现中并不存在**，实际路径是 `formula.patentAndWestern`。贵方按文档取值必然取空，特此更正并致歉 |
+| 补齐 M03 出参 | 西医诊断的 `status` / `limitations` / `suggestedChecks` / `coding`（待查依据） |
+| 补齐 M04 出参 | 方义分析、组成逻辑、方证鉴别、经典条文、剂数与煎服法全部子字段、随证加减（含可替换药味）、中成药完整子字段 |
+| 新增接口章节 | HIS 诊疗方案导出（含健康调护、中医外治）、中药材/中成药目录查询——这些能力此前已实现但未在本文档登记 |
+| 新增能力 | **院内药品库存导入**（§3.12）：贵方导入医院库存药，开方时优先落在有货药味上；缺货药不静默替换，而是标注缺货并给受治理替代候选 |
 
 ---
 
@@ -22,6 +32,13 @@
 | 6 | M05 风险随访 | POST | `/api/diagnosis/assess` | 用药风险与随访计划 |
 | 7 | 红旗筛查 | POST | `/api/diagnosis/red-flags` | 急危重症征象筛查 |
 | 8 | 急症排查确认 | POST | `/api/diagnosis/emergency-clearance` | 红旗病例的排查确认 |
+| 9 | HIS 诊疗方案导出 | POST | `/api/diagnosis/his-scheme` | 面向 HIS 写回的整合方案，含健康调护与中医外治 |
+| 10 | 处方后风险审查 | POST | `/api/diagnosis/post-prescription-risk` | 统一审方结论 |
+| 11 | 中药材知识检索 | GET | `/api/tcm-knowledge/search` | 药材/方剂/配伍禁忌检索 |
+| 12 | 药材功效查询 | GET | `/api/tcm-knowledge/herb-function` | 单味药功效与分类 |
+| 13 | 药品目录同步（出站） | GET | `/api/tcm-knowledge/drug-catalog` | 受治理药品目录分页下发，供院内目录对账 |
+| 14 | 院内药品库存导入（入站） | POST | `/api/drug-inventory` | 导入医院库存药，开方时优先落在有货药味上 |
+| 15 | 服务健康检查 | GET | `/api/diagnosis/health` | `?strict=1` 返回发布就绪状态 |
 
 ---
 
@@ -327,8 +344,15 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 | `overview.tcmDiseaseDifferentials[].reason` | string | 鉴别理由 |
 | `overview.tcmDiseaseDifferentials[].distinguishingPoints` | string | 区分要点 |
 | `overview.tcmDiseaseDifferentials[].nextCheck` | string | 建议核实项 |
-| `westernDiagnosis.primary.name` | string | 西医主要诊断 |
-| `westernDiagnosis.primary.supportingFacts` | array | 支持依据 |
+| `westernDiagnosis.primary.name` | string | 西医主要诊断。症状级工作诊断统一写成「规范症状名，病因待查」形态 |
+| `westernDiagnosis.primary.supportingFacts` | array | 支持依据。只收与该西医诊断直接相关的当前患者事实；舌脉、证候、病机不进此栏 |
+| `westernDiagnosis.primary.status` | string | 诊断程度：`考虑` / `需排除` / `证据有限` |
+| `westernDiagnosis.primary.confidence` | string | 置信度：`高` / `中` / `低` |
+| `westernDiagnosis.primary.limitations` | array | **待查依据（一）资料限制**：当前证据不足在哪、缺哪一条判定条件 |
+| `westernDiagnosis.primary.suggestedChecks` | array | **待查依据（二）建议检查**：补什么能推进诊断。分层给出——先补充问诊/生命体征/查体，仅在已有红旗或明确鉴别指征时才列影像与成套化验 |
+| `westernDiagnosis.primary.clinicalRationale` | string | 事实到诊断倾向的推理，不复述病史 |
+| `westernDiagnosis.primary.coding` | object | ICD-10 关联：`{system, code, display, source}`，由服务端确定性编码 |
+| `westernDiagnosis.differentials` | array | 西医鉴别诊断：`{name, reason, distinguishingPoints, nextCheck}` |
 | `pathogenesis.summary` | string | 病机概要 |
 | `pathogenesis.chain` | array | 病机链 |
 | `pathogenesis.chain[].nodeId` | string | 节点标识，如 `P1` |
@@ -440,8 +464,89 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `formula.candidates[].herbs[].targetRef` | string | 对应病机节点号，如 `P1` |
 | `formula.candidates[].herbs[].isToxic` | boolean | 是否毒性药材 |
 | `formula.candidates[].herbs[].decoctionRequirement` | string | 煎法要求，如先煎/后下 |
-| `patentMedicines` | array | 中成药候选 |
+| `formula.candidates[].herbs[].verificationTier` | string | `verified`（有药典剂量边界）/ `unverified_dose`（用量由医师确定）/ `identity_pending` / `toxic_regulated`（管制毒性或法律禁用，须按监管要求单独处理） |
+| `formula.candidates[].constructionType` | string | `single_base` / `combined` / `self_devised` / `single_herb` |
+| `formula.candidates[].modificationStatus` | string | `canonical`（原方）/ `modified`（加减） |
+| `formula.candidates[].baseFormulas` | array | 基础方与出处，含组成匹配味数与核心药味匹配数 |
 | `contractSignature` | string | 合同签名 |
+
+**方义与出处**（贵方 8-05「方义分析/组成逻辑/方证鉴别/经典条文」🔴高）
+
+四项均为**确定性产物**，锚定在受治理方名上。自拟方（`constructionType=self_devised`）时四项恒为空数组——无受治理方名即无出处可考，这是正确行为而非缺字段。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `formula.candidates[].formulaAnalysis` | string | 方义分析。写**该药在本方发挥的作用**，不罗列全部功效 |
+| `formula.candidates[].compositionLogic` | array | 组成逻辑：`{formulaName, summary, tier, sourceRefs}` |
+| `formula.candidates[].discriminationPath` | array | 方证鉴别：`{againstFormula, question, status, sourceRef}`，`status` 为 `confirmed`/`absent`/`unknown` |
+| `formula.candidates[].classicEvidence` | array | 经典条文：`{evidenceId, citation, anchorLevel, clauseNumber?, excerpt, tier}` |
+| `formula.candidates[].textualModifications` | array | 有出处的成方加减规则，`requiresClinicianReview` 恒为 `true` |
+
+> **经典条文使用边界**：条文按方名检索给出，说明该方的经典出处与主治语境，**不代表已判定适用于本例**；条文内古代剂量与现行法定剂量不可直接换算，用量以药味表与审方结论为准。
+
+**剂数与煎服法**（贵方 8-05 🔴高）
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `formula.candidates[].decoction.doseCount` | string | 剂数，如 `7剂` |
+| `formula.candidates[].decoction.course` | string | 疗程，如 `7日` |
+| `formula.candidates[].decoction.dosesPerDay` | number | 每日剂数，1–3 |
+| `formula.candidates[].decoction.administrationTimesPerDay` | number | 每日服用次数 |
+| `formula.candidates[].decoction.method` | string | 完整煎服法。**随方剂性质变化**：解表剂武火速煎、补益剂文火久煎，不是同一张模板 |
+| `formula.candidates[].decoction.soakMinutes` | number | 浸泡分钟数 |
+| `formula.candidates[].decoction.decoctionTimes` | number | 煎煮次数 |
+| `formula.candidates[].decoction.firstDecoctionMinutes` | number | 一煎分钟数 |
+| `formula.candidates[].decoction.secondDecoctionMinutes` | number | 二煎分钟数 |
+| `formula.candidates[].decoction.targetVolumeMl` | number | 两煎合并药液量（儿童 200mL / 成人 500mL） |
+| `formula.candidates[].decoction.administration` | string | 服法，如「饭后温服」 |
+| `formula.candidates[].decoction.followUpNode` | string | 复诊节点 |
+
+**随证加减建议**（贵方 8-05 🔴高，含「可替换药味的说明」）
+
+加减针对的是**病历已记录、但主方覆盖不足的兼症**，不是预设的未来症状；加减行本身不携带克数——剂量由药味工作台与审方链路负责。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `formula.modifications[].trigger` | string | 触发的已记录患者事实（逐字引用） |
+| `formula.modifications[].triggerSource` | object | 事实出处：`{kind, sourceRef, sourceQuote}` |
+| `formula.modifications[].targetPathogenesis` | string | 对应病机 |
+| `formula.modifications[].action` | string | 动作，如 `加党参` |
+| `formula.modifications[].doseOrHandling` | string\|null | 恒为 `null`（加减不下发剂量） |
+| `formula.modifications[].reason` | string | 理由 |
+| `formula.modifications[].riskNote` | string | 风险提示，含「调整后须重新审方」 |
+| `formula.modifications[].substitutions` | array | **可替换药味**：`{replaces, substitute, rationale, differenceNote}`。覆盖缺货/过敏/特殊人群禁用场景；每条必带与原药的差异说明。替代药同样受剂量上限、十八反十九畏、特殊人群规则全部约束 |
+| `formula.modificationReview` | object | 加减复核统计：`{submittedCount, retainedCount, droppedCount, droppedReasons}` |
+
+**中成药 / 西药候选**（贵方 8-05「中成药候选完整子字段」🟡中）
+
+> ⚠️ **字段名更正**：上一版文档写作顶层 `patentMedicines`，实现中**无此字段**；正确路径是 `formula.patentAndWestern`。HIS 方案导出接口（§3.9）中该数据以 `prescriptions.patentMedicines` 提供，两处命名不同请注意区分。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `formula.patentAndWestern[].type` | string | `中成药` / `西药` |
+| `formula.patentAndWestern[].name` | string | 药品名 |
+| `formula.patentAndWestern[].specification` | string\|null | 规格 |
+| `formula.patentAndWestern[].singleDose` | string\|null | 单次剂量。**西药一律不下发**；中成药仅在说明书条目本身给全时填写，缺项即为 `null`，不作猜测 |
+| `formula.patentAndWestern[].frequency` | string\|null | 用药频次 |
+| `formula.patentAndWestern[].route` | string\|null | 给药途径 |
+| `formula.patentAndWestern[].usageBoundary` | string | 适用边界与服药注意 |
+| `formula.patentAndWestern[].course` | string | 疗程 |
+| `formula.patentAndWestern[].positioning` | string | `联合治疗` / `替代方案` / `短期对症` / `需医生评估` |
+| `formula.patentAndWestern[].correspondingProblem` | string | 对应的本例问题 |
+| `formula.patentAndWestern[].relationship` | string | 与饮片方的关系（是否可叠加） |
+| `formula.patentAndWestern[].riskNote` | string | 风险说明 |
+| `formula.patentAndWestern[].evidenceId` | string | 说明书条目标识（`EVID-INST-*` / `LOCAL-INST-*`） |
+| `formula.medicineCandidateStatus` | object | 无匹配候选时给出 `{status:"no_evidence_match", reason}` |
+
+**健康调护与中医外治**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `nonPharma.diet` | string | 饮食调护 |
+| `nonPharma.lifestyle` | string | 起居调护 |
+| `nonPharma.emotion` | string | 情志调护 |
+| `nonPharma.precautions` | array | 注意事项，0–6 条 |
+| `nonPharma.tcmTreatments` | array | 中医外治项目，含 `suggestedSitesOrPoints`（穴位单列）、`treatmentContent`、`scheduleSuggestion`、`techniqueBoundary`、`operatorRequirement`、`protocolSource`、`clinicianReviewRequired` |
 
 **特殊说明**
 
@@ -695,6 +800,201 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/emergency-clearance"
     "contractSignature": "hmac-sha256:9b2e..."
   }
 }
+```
+
+---
+
+### 3.9 HIS 诊疗方案导出
+
+**接口地址**：`POST /api/diagnosis/his-scheme`
+
+面向 HIS「AI 诊疗支持方案」容器的整合出参。与 M03/M04 的分阶段流式出参不同，本接口返回**单个 JSON 对象**（非 NDJSON），把全流程结论按 HIS 写回所需的形态整合，并附写回权限策略。
+
+**入参**：`{ "caseState": {...} }`，`caseState` 需携带 `reasoningDiagnose` 与 `reasoningPrescribe`。
+
+**出参主结构**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `schemaVersion` | string | 固定 `tcm-cdss-his-ai-scheme-v1` |
+| `status` | string | `ready` / `pending` / `limited` |
+| `candidateStatus` | string | `valid` / `limited` / `invalid` |
+| `auditStatus` | string | `pass` / `alert` / `unavailable` / `not_submitted` |
+| `warningProfile` | object | 风险分级与可执行性：`{level, label, action, executable, reasons, exportMode}` |
+| `redFlag` | object | `{label, description, redFlags[]}` |
+| `safetyGate` | object | 确定性安全门结论 |
+| `aiMedicalRecord` | object | 病历字段回显，含 `tcmLineagePreference`（医生所选流派的可读名称） |
+| `writeBackPolicy` | object | 写回权限。`finalPrescriptionReleaseAllowed`、`autoWriteDiagnosis`、`autoWritePrescription` **恒为 `false`** |
+
+**诊断**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `diagnoses.western[]` | array | 西医诊断卡（`adoptable` 恒为 `false`，仅供参考） |
+| `diagnoses.tcmPatterns[]` | array | 中医证候卡 |
+| `diagnoses.mechanism[]` | array | 病机与治法卡 |
+| `diagnoses.westernDetail` | object\|null | 西医诊断结构化待查依据：`{name, status, confidence, supportingFacts[], limitations[], suggestedChecks[], icd10?}` |
+
+**处方**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `prescriptions.structuredHerbs[]` | array | 药味表，含 `verificationTier` / `warningLevel` / `doseSource` |
+| `prescriptions.regimen` | object\|null | 剂数疗程合同字段：`{doseCount, doseCountValue, course, courseDays, dosesPerDay, administrationTimesPerDay, administration, followUpNode}` |
+| `prescriptions.decoctionDetail` | object\|null | 煎法细节：`{soakMinutes, decoctionTimes, firstDecoctionMinutes, secondDecoctionMinutes, targetVolumeMl, method, course}` |
+| `prescriptions.formulaRationale` | object\|null | 方义四项：`{formulaAnalysis, compositionLogic[], discriminationPath[], classicEvidence[], evidenceBoundary}`。**内部枚举已转中文标签**（`tierLabel` / `anchorLabel` / `statusLabel`） |
+| `prescriptions.modifications[]` | array | 随证加减，含 `substitutions[]` 可替换药味 |
+| `prescriptions.patentMedicines[]` | array | 中成药/西药结构化候选，含 `dosageAvailable` 标记用法用量是否齐备 |
+
+**健康调护与中医外治**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `healthGuidance` | object\|null | `{diet, lifestyle, emotion, precautions[]}`。食疗类治疗性表述已在服务端净化 |
+| `treatments.tcmProjects[]` | array | 中医外治项目，`suggestedSitesOrPoints` 单列穴位，`adoptable` 恒为 `false` |
+
+> **安全边界**：当安全门判定为非剂量输出（红旗未解、剂量级门控未通过）时，`prescriptions` 下所有剂量级字段——`structuredHerbs` / `regimen` / `decoctionDetail` / `formulaRationale` / `modifications` / `patentMedicines`——**一并置空或 `null`**，不存在只抑制一部分的情形。
+
+---
+
+### 3.10 中药材知识检索
+
+**接口地址**：`GET /api/tcm-knowledge/search?q=<关键词>`
+
+检索本地受治理中药材/方剂知识库，返回药材条目、剂量边界、十八反十九畏配伍禁忌、特殊人群规则等。
+
+**接口地址**：`GET /api/tcm-knowledge/herb-function?name=<药名>`
+
+返回单味药的功效文本与功效分类。
+
+---
+
+### 3.11 药品目录同步
+
+**接口地址**：`GET /api/tcm-knowledge/drug-catalog`
+
+把本系统据以做临床判断的受治理药品目录分页下发，供 HIS 与院内目录对账。
+
+> **方向说明**：本接口是**出站**（CDSS → HIS），回答"系统认识哪些药"。
+> **入站**（HIS 把院内库存推给本系统，开方时基于有货的药开）见 §3.12，回答"本院此刻有哪些药"。
+> 两者不要混用。出参每页均带 `inboundSyncEndpoint` 指向入站入口。
+
+**入参**（查询串）
+
+| 参数 | 必填 | 说明 |
+|---|---|---|
+| `type` | 否 | `herb`（饮片正名/别名/剂量边界）、`patent`（中成药说明书条目）、`his_mapping`（HIS 商品名映射）、`spec_conversion`（规格换算）。**不填返回目录概览** |
+| `cursor` | 否 | 分页游标，默认 `0` |
+| `limit` | 否 | 每页条数，默认 100，上限 500 |
+| `since` | 否 | 上次拿到的 `catalogVersion`；一致则返回 `304`，可跳过整轮拉取 |
+
+**出参**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `catalogVersion` | string | 目录版本，形如 `kb:<schema>@<生成时间>\|identity:<schema>\|patent:<源文件哈希前16位>`。三份受治理资产任一重建即变化 |
+| `type` | string | 本页目录类型 |
+| `total` | number | 该类型总条目数 |
+| `cursor` / `nextCursor` | number \| null | 当前游标 / 下一页游标（`null` 表示已到末页） |
+| `items` | array | 条目列表 |
+| `inboundSyncStatus` | string | 恒为 `not_supported_pending_persistence_decision` |
+
+**`type=herb` 条目字段**
+
+| 字段 | 说明 |
+|---|---|
+| `name` | 饮片正名 |
+| `aliases` | 可自动归一的别名 |
+| `ambiguousAliases` | **歧义别名**（如「一包针」可指千年健或石韦）。系统**绝不自动择一**，原样列出待人工裁定 |
+| `doseLimit` | `{min, max, basis}`；仅在 `doseLimitStatus=governed` 时给出 |
+| `doseLimitStatus` | `governed` / `not_governed`（无药典数值边界，用量由医师确定）/ `source_conflict_requires_pharmacist_review`（分用途剂量冲突，须药师复核） |
+
+> `his_mapping` 的 `status` 与 `spec_conversion` 的 `conversionStatus`（如 `AUTO_PARSED_NEEDS_REVIEW`、`P1-需补表/复核`）**原样保留**，表示该条尚未人工确认，不得当作已确认条目直接采用。
+
+**调用示例**
+
+```bash
+# 概览：各类型条目数与目录版本
+curl "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog" \
+  -H "x-cdss-api-token: <token>"
+
+# 分页拉取饮片目录
+curl "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=herb&limit=200&cursor=0" \
+  -H "x-cdss-api-token: <token>"
+
+# 增量判断：目录未变返回 304
+curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=herb&since=<上次的catalogVersion>" \
+  -H "x-cdss-api-token: <token>"
+```
+
+---
+
+### 3.12 院内药品库存导入
+
+**接口地址**：`POST /api/drug-inventory`（导入） / `GET /api/drug-inventory`（状态查询）
+
+贵方把医院库存药导入本系统；开方时系统**优先**落在有货药味上。
+
+> **核心口径：库存是可得性约束，不是临床正确性约束。**
+> 这与贵方对味数的口径一致——"味数控制只是建议，如诊疗必须也不能裁剪"。
+> 本例该用麻黄汤而院内恰好没有麻黄时，系统**不会**悄悄换一味药，而是照常给出麻黄汤、
+> 标注"麻黄：院内暂无库存"，并附受治理替代候选供医师选择。
+> 静默替换会让医生看到的方与系统推理的方不是同一个，临床上比缺货危险得多。
+
+**入参**
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `source` | string | 否 | 来源标识，如院区名或 HIS 实例名 |
+| `items` | array | 是 | 药品条目，单次上限 20000 条，超限返回 `413` 并要求分批 |
+| `items[].name` | string | 是 | 院内药品名 |
+| `items[].kind` | string | 否 | `herb`（饮片，默认）/ `patent`（中成药） |
+| `items[].available` | boolean | 否 | 是否有货，**缺省为 `true`**（推过来的即视为在售目录） |
+| `items[].specification` | string | 否 | 规格 |
+| `items[].goodsId` | string | 否 | 院内商品号 |
+
+**语义：整批替换。** 每次导入完全替换上一批，不做增量合并——增量要求贵方维护删除事件，
+而"某药已下架却没推删除"会让系统长期以为它有货，比整批替换危险。
+
+**出参**
+
+| 字段 | 说明 |
+|---|---|
+| `inventoryVersion` | 库存版本（内容指纹） |
+| `importedAt` / `source` / `itemCount` | 导入时间 / 来源 / 条目数 |
+| `availableHerbCount` / `availablePatentCount` | 有货饮片数 / 有货中成药数 |
+| `unresolvedNames` | **归一不到受治理正名的院内药名**，如实回报供贵方补映射；不静默丢弃 |
+| `ambiguousNames` | 存在多个候选的院内药名（如"一包针"→千年健/石韦）。系统**绝不自动择一** |
+
+**开方时的表现**
+
+| 场景 | 系统行为 |
+|---|---|
+| 已导入库存 | 生成前把有货饮片清单作为**软偏好**注入；HIS 方案出参新增 `inventory`、`herbAvailability[]`、`outOfStock[]` |
+| 药味缺货 | 保留在处方中并标注 `out_of_stock`，附 `substitutes[]`（先过安全边界再按库存过滤） |
+| **未导入库存** | 全部标 `unknown`，开方链路行为与未接库存时**逐字节相同**。可得性不是安全控制，缺库存数据绝不阻断出方 |
+
+> 库存**不进临床合同签名域**：库存每天都在变，若纳入签名，昨天签发的方案今天就会验签失败。
+
+**部署要求**：容器需配置 `CDSS_DRUG_INVENTORY_PATH` 指向持久卷（compose 默认
+`/app/runtime-data/drug-inventory.json`，已挂载 `tcm-cdss-runtime` 卷）。未指向持久卷时
+每次发布后库存归零。
+
+**调用示例**
+
+```bash
+curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
+  -H "Content-Type: application/json" \
+  -H "x-cdss-api-token: <token>" \
+  -d '{
+    "source": "好医生HIS-XX院区",
+    "items": [
+      { "name": "黄芪", "kind": "herb", "available": true },
+      { "name": "当归", "kind": "herb", "available": true },
+      { "name": "麻黄", "kind": "herb", "available": false },
+      { "name": "八珍颗粒", "kind": "patent", "available": true, "specification": "每袋8g", "goodsId": "P-0001" }
+    ]
+  }'
 ```
 
 ## 4. 调用示例

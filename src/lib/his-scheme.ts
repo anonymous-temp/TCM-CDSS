@@ -13,6 +13,8 @@ import { isKnownTcmTreatmentProjectCode } from "./tcm-treatment-projects";
 import { lineageLabel } from "./tcm-lineages";
 import { classifyHerbWarning, deriveCaseWarningProfile, warningLevelRank, type ClinicalWarningLevel } from "./clinical-warning-tier";
 import { hasBoundClinicalReviewAttestation } from "./clinical-review-binding";
+import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS } from "./internal-tag-hygiene";
+import { safeDietAdviceForDisplay } from "./result-display-policy";
 
 type SchemeStatus = "ready" | "pending" | "limited";
 
@@ -87,6 +89,22 @@ export type HisAiSchemePayload = {
     western: AdoptableItem[];
     tcmPatterns: AdoptableItem[];
     mechanism: AdoptableItem[];
+    /**
+     * 西医诊断的结构化待查依据（甲方 2026-08-05「西医诊断无待查依据」）。
+     *
+     * 此前只有 markdown 卡片，而「为什么还不能下这个诊断」被压进正文里，集成方无法分辨
+     * 「资料限制」与「建议检查」是两类不同的东西：前者说明当前证据不足在哪，
+     * 后者说明补什么能推进。status 一并给出，否则 HIS 无法区分「考虑」与「需排除」。
+     */
+    westernDetail: {
+      name: string;
+      status: string;
+      confidence: string;
+      supportingFacts: string[];
+      limitations: string[];
+      suggestedChecks: string[];
+      icd10?: { code: string; display: string; source: string };
+    } | null;
   };
   prescriptions: {
     herbal: AdoptableItem[];
@@ -110,7 +128,99 @@ export type HisAiSchemePayload = {
     }>;
     westernOrPatent: AdoptableItem[];
     regimen: PrescriptionRegimenDto | null;
+    /**
+     * 煎服法细节（甲方 2026-08-05「剂数与煎服法结构化字段」）。
+     *
+     * regimen 只承载剂数/疗程/服法这几项受合同校验的字段——它同时是 rxaudit 的提交门与
+     * 处方回写合同，不能为了补字段去动它。煎法细节另开一块：浸泡/火候/一煎二煎时长/出液量
+     * 本就随方剂性质变化（解表剂「勿过煮」、补益剂文火久煎），此前只存在于 method 那句
+     * 拼接文本里，集成方要靠正则去抠。
+     */
+    decoctionDetail: {
+      soakMinutes?: number;
+      decoctionTimes?: number;
+      firstDecoctionMinutes?: number;
+      secondDecoctionMinutes?: number;
+      targetVolumeMl?: number;
+      method: string;
+      course: string;
+    } | null;
+    /**
+     * 方义/组成逻辑/方证鉴别/经典条文（甲方 2026-08-05 🔴高「补充到 M04 出参结构化字段」）。
+     *
+     * 四项都是**确定性产物**（受治理方剂库 + 组成规则表 164 条 + 鉴别图 167 条边 + 经典条文语料），
+     * 早已生成并进 M04 sentinel，但从未进入对外投影，因此甲方视角是「没有」。
+     * 自拟方时四项恒空——它们锚定在受治理方名上，无方名即无出处，这是正确行为而非缺陷。
+     */
+    formulaRationale: {
+      formulaAnalysis: string;
+      compositionLogic: Array<{ formulaName: string; summary: string; tierLabel: string; sourceRefs: string[] }>;
+      discriminationPath: Array<{ againstFormula: string; question: string; statusLabel: string; sourceRef: string }>;
+      classicEvidence: Array<{
+        evidenceId: string;
+        citation: string;
+        anchorLabel: string;
+        clauseNumber?: number;
+        excerpt: string;
+        tierLabel: string;
+      }>;
+      /** 固定呈现纪律，必须与条文一同下发，避免 HIS 把出处当适应证、把古代剂量当可执行用量。 */
+      evidenceBoundary: string;
+    } | null;
+    /**
+     * 随证加减建议（甲方 2026-08-05 🔴高）+ 可替换药味说明。
+     *
+     * 加减针对的是**已记录但主方覆盖不足的兼症**，不是预设的未来症状；加减行本身不带克数，
+     * 剂量由药味工作台与审方链路负责。substitutions 覆盖缺货/过敏/特殊人群禁用场景，
+     * 每条自带替代理由与差异——只给药名等于让医生自己去查，而差异正是最容易出事的地方。
+     */
+    modifications: Array<{
+      trigger: string;
+      targetPathogenesis: string;
+      action: string;
+      doseOrHandling: string | null;
+      reason: string;
+      riskNote: string;
+      substitutions: Array<{ replaces: string; substitute: string; rationale: string; differenceNote: string }>;
+    }>;
+    /**
+     * 中成药候选的结构化子字段（甲方 2026-08-05「补充到 M04 patentMedicines 结构」）。
+     *
+     * 字段名按甲方文档口径定为 patentMedicines：此前对外接口文档承诺的就是这个名字，
+     * 而代码里叫 formula.patentAndWestern，集成方按文档取值自然恒空。
+     * 保留 westernOrPatent 那张 markdown 卡片不动，避免打断既有集成。
+     */
+    patentMedicines: Array<{
+      type: "西药" | "中成药";
+      name: string;
+      specification: string | null;
+      singleDose: string | null;
+      frequency: string | null;
+      route: string | null;
+      usageBoundary: string;
+      course: string;
+      positioning: string;
+      correspondingProblem: string;
+      relationship: string;
+      riskNote: string;
+      evidenceId?: string;
+      /** 说明书未给全用法用量时不猜，这里如实标记，HIS 不得据此自动生成医嘱。 */
+      dosageAvailable: boolean;
+    }>;
   };
+  /**
+   * 健康调护（甲方 2026-08-05 🔴高「饮食/起居/情志/注意事项：无此模块」）。
+   *
+   * 甲方判断字面属实：三段调护与注意事项在 M04 是必填、医生端也有独立卡片，
+   * 唯独对外投影一处都没有。食疗净化此前只做在客户端，接口出口走的是未净化原文，
+   * 这里统一走服务端净化，避免「山楂活血化瘀」这类把食物写成治疗手段的表述流到 HIS。
+   */
+  healthGuidance: {
+    diet: string;
+    lifestyle: string;
+    emotion: string;
+    precautions: string[];
+  } | null;
   treatments: {
     tcmProjects: Array<{
       projectCode: string;
@@ -154,7 +264,14 @@ export type HisAiSchemePayload = {
   };
 };
 
-function section(text: string | undefined, titles: string[]): string {
+/**
+ * 从医生可见正文里按标题整行精确匹配取出一段。
+ *
+ * **导出是为了让回归套件钉住真实判据本身**，而不是在测试里重建一份同源副本——
+ * 重建副本的后果本仓库已有先例：判据改了测试不会红。test:his-section-coupling 用它
+ * 逐条核对「受治理输出契约登记表的可见标题」与「SECTION_TITLES 分组」是否仍然咬合。
+ */
+export function section(text: string | undefined, titles: string[]): string {
   if (!text) return "";
   const escaped = titles.map((title) => title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   const match = new RegExp(`^##\\s*(?:${escaped})\\s*(?:[：:]\\s*([^\\n]+))?\\s*$`, "im").exec(text);
@@ -483,6 +600,140 @@ function clinicianDoseTier(name: unknown): "toxic_regulated" | "unverified_dose"
     : "unverified_dose";
 }
 
+/** 内部枚举一律经标签表转中文再对外；裸枚举泄漏是甲方 8-04 已提过的缺陷类（L0/L1/L3）。 */
+function tierLabel(tier: unknown): string {
+  const key = typeof tier === "string" ? tier : "";
+  return CLASSIC_EVIDENCE_TIER_LABELS[key] || (key ? "" : "");
+}
+
+function anchorLabel(anchor: unknown): string {
+  const key = typeof anchor === "string" ? anchor : "";
+  return CLASSIC_EVIDENCE_ANCHOR_LABELS[key] || "";
+}
+
+/** 方证鉴别的 status 枚举（confirmed/absent/unknown）此前被原样打印，这里统一中文化。 */
+const DISCRIMINATION_STATUS_LABELS: Record<string, string> = {
+  confirmed: "本例已确认",
+  absent: "本例未见",
+  unknown: "本例尚未核实",
+};
+
+const CLASSIC_EVIDENCE_BOUNDARY =
+  "经典条文按方名检索给出，用于说明该方的经典出处与主治语境，不代表已判定适用于本例；"
+  + "条文内的古代剂量与现代法定剂量不可直接换算，处方用量以药味表与审方结论为准。";
+
+function projectFormulaRationale(
+  candidate: ReturnType<typeof structuredCandidate>,
+): HisAiSchemePayload["prescriptions"]["formulaRationale"] {
+  if (!candidate) return null;
+  const compositionLogic = (candidate.compositionLogic || []).map((entry) => ({
+    formulaName: clean(entry.formulaName),
+    summary: clean(entry.summary),
+    tierLabel: tierLabel(entry.tier),
+    sourceRefs: (entry.sourceRefs || []).map((ref) => clean(ref)).filter(Boolean),
+  })).filter((entry) => entry.formulaName && entry.summary);
+  const discriminationPath = (candidate.discriminationPath || []).map((entry) => ({
+    againstFormula: clean(entry.againstFormula),
+    question: clean(entry.question),
+    statusLabel: DISCRIMINATION_STATUS_LABELS[entry.status] || "本例尚未核实",
+    sourceRef: clean(entry.sourceRef),
+  })).filter((entry) => entry.againstFormula && entry.question);
+  const classicEvidence = (candidate.classicEvidence || []).map((entry) => ({
+    evidenceId: clean(entry.evidenceId),
+    citation: clean(entry.citation),
+    anchorLabel: anchorLabel(entry.anchorLevel),
+    ...(typeof entry.clauseNumber === "number" ? { clauseNumber: entry.clauseNumber } : {}),
+    excerpt: clean(entry.excerpt),
+    tierLabel: tierLabel(entry.tier),
+  })).filter((entry) => entry.citation);
+  const formulaAnalysis = clean(candidate.formulaAnalysis);
+  if (!formulaAnalysis && compositionLogic.length === 0 && discriminationPath.length === 0 && classicEvidence.length === 0) {
+    return null;
+  }
+  return {
+    formulaAnalysis,
+    compositionLogic,
+    discriminationPath,
+    classicEvidence,
+    evidenceBoundary: CLASSIC_EVIDENCE_BOUNDARY,
+  };
+}
+
+function projectModifications(
+  candidateSource: { modifications?: unknown } | null | undefined,
+): HisAiSchemePayload["prescriptions"]["modifications"] {
+  const rows = Array.isArray(candidateSource?.modifications) ? candidateSource.modifications : [];
+  return rows.flatMap((raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+    const entry = raw as Record<string, unknown>;
+    const trigger = clean(typeof entry.trigger === "string" ? entry.trigger : "");
+    const action = clean(typeof entry.action === "string" ? entry.action : "");
+    if (!trigger || !action) return [];
+    const substitutions = Array.isArray(entry.substitutions) ? entry.substitutions : [];
+    return [{
+      trigger,
+      targetPathogenesis: clean(typeof entry.targetPathogenesis === "string" ? entry.targetPathogenesis : ""),
+      action,
+      doseOrHandling: typeof entry.doseOrHandling === "string" && entry.doseOrHandling.trim()
+        ? clean(entry.doseOrHandling)
+        : null,
+      reason: clean(typeof entry.reason === "string" ? entry.reason : ""),
+      riskNote: clean(typeof entry.riskNote === "string" ? entry.riskNote : ""),
+      substitutions: substitutions.flatMap((rawSub) => {
+        if (!rawSub || typeof rawSub !== "object" || Array.isArray(rawSub)) return [];
+        const sub = rawSub as Record<string, unknown>;
+        const replaces = clean(typeof sub.replaces === "string" ? sub.replaces : "");
+        const substitute = clean(typeof sub.substitute === "string" ? sub.substitute : "");
+        if (!replaces || !substitute) return [];
+        return [{
+          replaces,
+          substitute,
+          rationale: clean(typeof sub.rationale === "string" ? sub.rationale : ""),
+          differenceNote: clean(typeof sub.differenceNote === "string" ? sub.differenceNote : ""),
+        }];
+      }),
+    }];
+  });
+}
+
+function projectPatentMedicines(
+  patentAndWestern: unknown,
+): HisAiSchemePayload["prescriptions"]["patentMedicines"] {
+  const rows = Array.isArray(patentAndWestern) ? patentAndWestern : [];
+  return rows.flatMap((raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+    const entry = raw as Record<string, unknown>;
+    const name = clean(typeof entry.name === "string" ? entry.name : "");
+    if (!name) return [];
+    const type = entry.type === "西药" ? "西药" as const : "中成药" as const;
+    const text = (key: string): string | null => {
+      const value = entry[key];
+      return typeof value === "string" && value.trim() ? clean(value) : null;
+    };
+    const singleDose = text("singleDose");
+    const frequency = text("frequency");
+    const route = text("route");
+    return [{
+      type,
+      name,
+      specification: text("specification"),
+      singleDose,
+      frequency,
+      route,
+      usageBoundary: clean(typeof entry.usageBoundary === "string" ? entry.usageBoundary : ""),
+      course: clean(typeof entry.course === "string" ? entry.course : ""),
+      positioning: clean(typeof entry.positioning === "string" ? entry.positioning : ""),
+      correspondingProblem: clean(typeof entry.correspondingProblem === "string" ? entry.correspondingProblem : ""),
+      relationship: clean(typeof entry.relationship === "string" ? entry.relationship : ""),
+      riskNote: clean(typeof entry.riskNote === "string" ? entry.riskNote : ""),
+      ...(typeof entry.evidenceId === "string" && entry.evidenceId.trim() ? { evidenceId: clean(entry.evidenceId) } : {}),
+      // 西药一律不下发剂量，中成药只在说明书条目本身给全时才算可用；缺一项即为不可用，
+      // 由医生按说明书确定，HIS 不得据此自动生成医嘱。
+      dosageAvailable: type === "中成药" && Boolean(singleDose && frequency),
+    }];
+  });
+}
+
 export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: EvidenceScope): HisAiSchemePayload {
   const normalizedState = withSafetyGate(caseState);
   const gate = evaluateSafetyGate(normalizedState);
@@ -696,6 +947,25 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         safetyLocked,
         blockedReason,
       })],
+      westernDetail: (() => {
+        const primary = activeReasoning?.westernDiagnosis?.primary;
+        if (!primary?.name) return null;
+        return {
+          name: clean(primary.name),
+          status: clean(primary.status || ""),
+          confidence: clean(primary.confidence || ""),
+          supportingFacts: (primary.supportingFacts || []).map((fact) => clean(fact)).filter(Boolean),
+          limitations: (primary.limitations || []).map((entry) => clean(entry)).filter(Boolean),
+          suggestedChecks: (primary.suggestedChecks || []).map((entry) => clean(entry)).filter(Boolean),
+          ...(primary.coding?.code ? {
+            icd10: {
+              code: clean(primary.coding.code),
+              display: clean(primary.coding.display),
+              source: clean(primary.coding.source),
+            },
+          } : {}),
+        };
+      })(),
     },
     prescriptions: {
       herbal: suppressDoseLevelOutputs ? [] : [item("herbal-1", firstLine(herbal) || "中药饮片处方", herbal, {
@@ -759,6 +1029,25 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         blockedReason,
       })],
       regimen: suppressDoseLevelOutputs ? null : prescriptionRegimenFromDecoction(structuredCandidate(caseState)?.decoction),
+      decoctionDetail: (() => {
+        if (suppressDoseLevelOutputs) return null;
+        const decoction = structuredCandidate(caseState)?.decoction;
+        if (!decoction) return null;
+        const num = (value: unknown): number | undefined =>
+          typeof value === "number" && Number.isFinite(value) ? value : undefined;
+        return {
+          ...(num(decoction.soakMinutes) != null ? { soakMinutes: num(decoction.soakMinutes) } : {}),
+          ...(num(decoction.decoctionTimes) != null ? { decoctionTimes: num(decoction.decoctionTimes) } : {}),
+          ...(num(decoction.firstDecoctionMinutes) != null ? { firstDecoctionMinutes: num(decoction.firstDecoctionMinutes) } : {}),
+          ...(num(decoction.secondDecoctionMinutes) != null ? { secondDecoctionMinutes: num(decoction.secondDecoctionMinutes) } : {}),
+          ...(num(decoction.targetVolumeMl) != null ? { targetVolumeMl: num(decoction.targetVolumeMl) } : {}),
+          method: clean(decoction.method || ""),
+          course: clean(decoction.course || ""),
+        };
+      })(),
+      formulaRationale: suppressDoseLevelOutputs ? null : projectFormulaRationale(structuredCandidate(caseState)),
+      modifications: suppressDoseLevelOutputs ? [] : projectModifications(prescribeReasoning?.formula),
+      patentMedicines: suppressDoseLevelOutputs ? [] : projectPatentMedicines(prescribeReasoning?.formula?.patentAndWestern),
     },
     treatments: {
       tcmProjects: suppressDoseLevelOutputs ? [] : structuredTcmTreatments(caseState).map((project) => ({
@@ -784,6 +1073,20 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         clinicianReviewRequired: true,
       })),
     },
+    healthGuidance: (() => {
+      const nonPharma = prescribeReasoning?.nonPharma;
+      if (!nonPharma) return null;
+      const diet = clean(safeDietAdviceForDisplay(nonPharma.diet || "", {
+        chiefComplaint: caseState.chiefComplaint,
+        allergyHistory: caseState.allergyHistory,
+        medicationHistory: caseState.medicationHistory,
+      }));
+      const lifestyle = clean(nonPharma.lifestyle || "");
+      const emotion = clean(nonPharma.emotion || "");
+      const precautions = (nonPharma.precautions || []).map((entry) => clean(entry)).filter(Boolean);
+      if (!diet && !lifestyle && !emotion && precautions.length === 0) return null;
+      return { diet, lifestyle, emotion, precautions };
+    })(),
     checks: [item("check-1", "检验检查建议", checks, { adoptable: canAdopt, safetyLocked, blockedReason })],
     followup: [item("followup-1", "风险随访时间轴", followup, { adoptable: canAdopt, safetyLocked, blockedReason })],
     riskTips: [item("risk-1", redFlag.label === "高风险" ? "高风险提示" : "用药与转诊风险提示", riskTips, {

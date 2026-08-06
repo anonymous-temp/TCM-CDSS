@@ -1430,6 +1430,19 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
   assert.equal(canonicalLine, "**证型**：瘀血阻络证", "已是国标规范名时不得重复标注");
   assert.doesNotMatch(canonicalLine, /国标对应/, "同名重复标注属于噪声");
 
+  // (2b) 医生**确认之后**的状态：存的是去后缀 canonical，与国标原文差一个「证」字。
+  //
+  // 这一档此前无覆盖，结果是反直觉的退化：判据原本按 matchKind——alias 命中才双显，
+  // canonical 命中一律静默。而医生点确认会把证候归一成 canonical（「湿热困脾」），
+  // 于是「（国标对应：湿热困脾证）」括注反而消失，医生做了正确动作却看到更不规范的名字。
+  // 判据已改为按**文本是否不同**，本条钉住它（甲方 2026-08-05 R2「国标证候 GB/T 16751.2-2021」）。
+  const confirmedCanonicalLine = syndromeLine(diagnosePayload({ overview: { primarySyndrome: "湿热困脾" } }));
+  assert.equal(
+    confirmedCanonicalLine,
+    "**证型**：湿热困脾（国标对应：湿热困脾证）",
+    "医生确认归一后仍须并列国标证候名——canonical 是去后缀内部名，不是国标原文用词",
+  );
+
   // (3) 词表未收录且无受控映射轨迹 → 绝不臆造国标名。
   const unmappedLine = syndromeLine(diagnosePayload({ overview: { primarySyndrome: "外感风寒，兼夹食积" } }));
   assert.equal(unmappedLine, "**证型**：外感风寒，兼夹食积", "映射不到时必须原样显示，不得出现括号");

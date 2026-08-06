@@ -42,6 +42,15 @@ const T2_M03: ReadonlySet<string> = new Set([
   "western_differential_analysis_missing",
   "clinical_wording_intensity_mismatch",
   "clinical_wording_subjective_objective_mismatch",
+  // 证候**名称写法**不规范（甲方 2026-08-05 R2）。判据只拦「以病名开头、剥掉病名后剩不下
+  // 任何证候」这一种缺陷形态（如「头痛（气血失和，脑失濡养）」），拦的是**措辞**不是结论：
+  // 证候判断本身已经过事实接地与安全边界核验，只是没写成 GB/T 规范证候名。
+  //
+  // 此前它落在默认 T1，也就是安全级硬拦截——修复轮耗尽后整份 M03 作废，医生连病机治法都拿不到。
+  // 这与 2026-08-01 的处置信条相悖（质量类问题在修复耗尽后转批注而非清空），
+  // 分级本身也是倒置的：紧邻的「证候无依据」severity 高得多，反倒是 T2 带批注受理。
+  // 改为 T2 后仍先走修复轮按规范重述，只有修不出来才带批注放行。
+  "primary_syndrome_name_nonstandard",
   // 有结论但证据层级未达到 resolved 时，改成 bounded/unresolved，而不是整单作废。
   "primary_syndrome_resolved_without_basis",
   "primary_syndrome_basis_ungrounded",

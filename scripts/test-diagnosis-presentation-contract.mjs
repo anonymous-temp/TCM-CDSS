@@ -353,4 +353,25 @@ check(() => {
   assert.ok(pool.length > 0, "排除延期说明后灸法仍有可呈现的受治理部位，不能把整栏清空");
 });
 
+// 甲方 2.2「要求根据病名进行鉴别诊断，目前还有证候鉴别」的**前端那一半**（2026-08-06）。
+//
+// 服务端可见正文 2026-08-05 就改对了：只出「中医辨病鉴别」，证候鉴别不出栏
+// （diagnosis-visible-summary 里那段 `void tcmDifferentials` 就是）。
+// 但 DiagnosisClient 没跟着改——医生页面上渲染的恰恰是「鉴别 {证候名}」，
+// 而甲方要的病名鉴别 tcmDiseaseDifferentials 一次都没渲染过，方向完全相反。
+//
+// 这是本轮反复出现的同一形态：一个出口修了、另一个没修（HIS 投影、食疗净化亦然）。
+// 按源码钉住渲染侧，因为 DiagnosisClient 是 9.7k 行客户端组件，整体渲染成本过高，
+// 而这里要防的正是「某个出口被漏掉」——源码级判据足以捕获。
+check(() => {
+  const clientSource = fs.readFileSync(
+    new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+  assert.ok(clientSource.includes("tcmDiseaseDifferentials.map"),
+    "医生页面必须渲染病名鉴别（甲方 2.2 的明确要求）");
+  assert.ok(!/tcmDifferentials\.map/.test(clientSource),
+    "医生页面不得再把证候鉴别当成鉴别诊断渲染——证候取舍属辨证过程，已在「辨证推理」交代");
+  assert.ok(clientSource.includes("reasoning.overview.tcmDifferentials"),
+    "签名载荷里的 tcmDifferentials 仍应被读取用于边界提示，不得连字段一起删掉");
+});
+
 console.log(`diagnosis-presentation-contract: ${checks} checks passed`);

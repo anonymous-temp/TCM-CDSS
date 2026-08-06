@@ -61,6 +61,8 @@ services:
       POLARITY_NEGATION_ASSIST: ${POLARITY_NEGATION_ASSIST:-true}
       SYNDROME_HYPOTHESIS_RERANK: ${SYNDROME_HYPOTHESIS_RERANK:-true}
       CONTROLLED_TERMINOLOGY_CACHE_PATH: /app/runtime-data/controlled-terminology-cache.json
+      # 院内药品库存（入站药品同步）。与上一项共用已挂载的 tcm-cdss-runtime 卷，重启与重新部署都不丢。
+      CDSS_DRUG_INVENTORY_PATH: /app/runtime-data/drug-inventory.json
       PRIMARY_TEXT_MAX_TOKENS: ${PRIMARY_TEXT_MAX_TOKENS:-14000}
       # M03/M04 编排总时限门禁（代码钳制 60–180s）。富上下文（证据/检索注入）下首诊被合同拒绝后
       # 需要预留一次完整修复轮次的时间，默认 120s 容易在修复中途触顶降级。

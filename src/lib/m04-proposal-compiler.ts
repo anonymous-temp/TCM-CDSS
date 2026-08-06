@@ -7,7 +7,7 @@ import {
 import { sanitizeUnverifiedClinicalNarrative } from "./customer-evidence";
 import { formulaStructureTarget, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { controlledCourseDays, controlledDoseCount, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName } from "./tcm-knowledge";
+import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, governedHerbSubstitutes, isKnownTcmHerbName } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
@@ -1067,6 +1067,10 @@ export function compileM04Proposal(
     };
   });
   const directionDropReasons: ModificationDropCode[] = [];
+  // 替代药的排除基准是**本候选方的全部药味**：不得建议方里已有的药，也不得与方内任何一味相反相畏。
+  const candidateHerbNames = compiledHerbs
+    .map((herb) => (typeof herb.name === "string" ? herb.name.trim() : ""))
+    .filter(Boolean);
   const compiledModifications = proposal.modifications.flatMap((item) => {
     const node = prior.pathogenesis.chain.find((candidate) => candidate.nodeId === item.targetRef);
     const declaredDirection = [item.reason, node?.therapyDirection, node?.pathogenesis]
@@ -1085,6 +1089,12 @@ export function compileM04Proposal(
       return [];
     }
     const actionVerb = item.actionType === "add" ? "加" : item.actionType === "remove" ? "减" : "调整";
+    // 可替换药味（甲方 2026-08-05）。**只对 add 行给**：remove/adjust 针对的是现方已有药味，
+    // 「替代」在那里没有语义。候选完全由受治理数据确定性推导（同功效分类 + 药典剂量边界 +
+    // 十八反十九畏排除），模型不参与——让模型提名替代药等于让它开药。
+    const substitutions = item.actionType === "add"
+      ? governedHerbSubstitutes(item.herbName, candidateHerbNames)
+      : [];
     return [{
       trigger: item.trigger,
       triggerSource,
@@ -1093,6 +1103,7 @@ export function compileM04Proposal(
       doseOrHandling: null,
       reason: cleanNarrative(item.reason, "随证调整治疗重点"),
       riskNote: "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
+      ...(substitutions.length > 0 ? { substitutions } : {}),
       evidence: {
         evidenceLevel: "model_inference" as const,
         source: `患者事实（${triggerSource.sourceRef}）：${triggerSource.sourceQuote}；对应病机节点：${item.targetRef}`,

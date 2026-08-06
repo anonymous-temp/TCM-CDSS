@@ -480,6 +480,151 @@ export function formulaCompilationReferences(names: string[]): FormulaCompilatio
 }
 
 
+/**
+ * 按**组成**反查受治理经典方（甲方 2026-08-05 R1 / M5.1 / M5.2）。
+ *
+ * 甲方口径：「首选经方名，如确认无对应的经方，走自拟方」；实测投诉是
+ * 「该方为麻黄汤加味，展示为自拟方？」。
+ *
+ * 根因：既有的 restoreGovernedFormulaIdentity 只在 **M03 已锁定方名**时才恢复身份。
+ * M03 判自拟（formulaSelectionMode=self_devised）时它整个不进场，于是 M04 即便组出了
+ * 麻黄、桂枝、杏仁、甘草这样一张标准麻黄汤，也只能顶着「本例辨证组方」出去——
+ * 系统其实认得这个方，只是从来没有按组成回头查过。
+ *
+ * **判据是「完整包含」，不是 80% 覆盖**。这一点是本函数最容易写错的地方，我第一版就写错了：
+ * 直接套用正向的 minimumPreservedIngredientCount（80%）去反查，结果
+ *   麻黄、桂枝、苦杏仁、炙甘草、生姜、大枣  →  被识别成「桂枝汤加减」
+ * ——桂枝汤五味里命中四味（缺白芍），80% 判据放行。而麻黄汤与桂枝汤正是本仓库
+ * formula-discrimination-guard 双向互斥的表实/表虚对：把麻黄汤叫成桂枝汤，
+ * 等于把无汗表实证的方冠上有汗表虚证的名，比不识别严重得多。
+ *
+ * 80% 那条线是为**正向**设计的（已知是 X，删到几味还能叫 X），反向必须收紧：
+ * 只有当处方**完整包含**某经方的全部基准药味时，才承认它是该方——这也正是
+ * 甲方用词「加味」的含义（只增不减）。缺一味即不认，宁可走自拟方。
+ *
+ * 另加两条防误报，都是纯计数、不涉临床判断：
+ *  · 基准方至少 3 味：否则「甘草汤」「独参汤」这类单味方会命中任何含该药的处方；
+ *  · 增味数不得超过基准味数：麻黄汤（4 味）+2 味仍是麻黄汤加味，+9 味就不是了。
+ */
+export type CompositionIdentifiedFormula = {
+  formulaName: string;
+  source: string;
+  matchedCount: number;
+  baselineCount: number;
+  missingIngredients: string[];
+  extraIngredients: string[];
+  /** canonical=组成与基准一致；加味=只增不减；加减=有增有减或有减。 */
+  modificationKind: "canonical" | "加味" | "加减";
+  displayName: string;
+};
+
+const compositionIdentityCache = new Map<string, string>();
+
+/**
+ * 两侧统一到「去炮制的受治理正名」。
+ *
+ * 两层都必需，缺一就漏识（实测）：
+ *  · 别名层：目录写「杏仁」而处方写「苦杏仁」，靠受治理身份解析统一；
+ *  · 炮制层：目录写「甘草」而处方写「炙甘草」，受治理解析把两者都判为 exact_standard_name、
+ *    各自成名，必须再剥一层炮制前缀才能对上。麻黄汤就是卡在这一层——
+ *    库里是〔麻黄、桂枝、甘草、杏仁〕，临床开的是〔麻黄、桂枝、苦杏仁、炙甘草〕。
+ *
+ * 剥炮制只用于**方剂身份判定**。剂量、毒性、煎法一律仍按处方原样的炮制品走，
+ * 那些地方生甘草与炙甘草不是一回事，绝不可共用这里的归一结果。
+ */
+function compositionIdentityName(value: string): string {
+  const normalized = normalizeHerbName(value);
+  if (!normalized) return "";
+  const cached = compositionIdentityCache.get(normalized);
+  if (cached !== undefined) return cached;
+  const resolution = resolveGovernedTcmHerbIdentity(normalized);
+  const canonical = normalizeHerbName(
+    resolution.doseCanonicalName || resolution.canonicalName || normalized,
+  );
+  const processingPrefixes = [...new Set([
+    ...Object.keys(PROCESSING_IDENTITY_ALIASES),
+    ...Object.values(PROCESSING_IDENTITY_ALIASES),
+  ])].sort((left, right) => right.length - left.length);
+  let base = canonical;
+  for (const prefix of processingPrefixes) {
+    if (base.startsWith(prefix) && base.length > prefix.length + 1) {
+      base = base.slice(prefix.length);
+      break;
+    }
+  }
+  // 剥完再解析一次：「炙甘草」剥成「甘草」后仍要确认它是受治理正名，避免剥出一个不存在的名字。
+  const rebased = normalizeHerbName(
+    resolveGovernedTcmHerbIdentity(base).canonicalName || base,
+  );
+  const result = rebased || canonical;
+  compositionIdentityCache.set(normalized, result);
+  return result;
+}
+
+/**
+ * 候选排序。第一判据不是「谁匹配得多」，而是**增味里有没有安全定性药味**。
+ *
+ * 实测反例：麻黄、桂枝、苦杏仁、炙甘草、生姜、大枣
+ *   · 读作「麻黄汤 + 生姜大枣」——正确，甲方原话就是「该方为麻黄汤加味」；
+ *   · 也可读作「桂枝去芍药汤 + 麻黄苦杏仁」——基准味数与增味数完全相同，纯计数分不出来。
+ * 但把**麻黄**当成一味普通「增味」是不成立的：它是 CORE_SAFETY_HERBS 之一，
+ * 加它等于改变全方的性质与适应证（表实 vs 表虚），而这正是本仓库
+ * formula-discrimination-guard 双向互斥的那一对。因此增味里含安全定性药味的候选一律靠后。
+ */
+function compositionCandidateOutranks(
+  candidate: CompositionIdentifiedFormula,
+  incumbent: CompositionIdentifiedFormula,
+): boolean {
+  const safetyExtras = (item: CompositionIdentifiedFormula) =>
+    item.extraIngredients.filter((name) => CORE_SAFETY_HERBS.has(name)).length;
+  const candidateSafety = safetyExtras(candidate);
+  const incumbentSafety = safetyExtras(incumbent);
+  if (candidateSafety !== incumbentSafety) return candidateSafety < incumbentSafety;
+  if (candidate.extraIngredients.length !== incumbent.extraIngredients.length) {
+    return candidate.extraIngredients.length < incumbent.extraIngredients.length;
+  }
+  if (candidate.baselineCount !== incumbent.baselineCount) {
+    return candidate.baselineCount > incumbent.baselineCount;
+  }
+  // 稳定排序：同一处方两次调用必须得到同一方名，否则医生无从复核。
+  return candidate.formulaName.localeCompare(incumbent.formulaName) < 0;
+}
+
+export function identifyGovernedFormulaByComposition(
+  herbs: ReadonlyArray<FormulaHerbInput>,
+): CompositionIdentifiedFormula | undefined {
+  const actual = [...new Set(
+    herbs.map((herb) => formulaHerbIdentityName(herb)).filter(Boolean).map(compositionIdentityName).filter(Boolean),
+  )];
+  const actualSet = new Set(actual);
+  if (actualSet.size < 3) return undefined;
+
+  let best: CompositionIdentifiedFormula | undefined;
+  for (const row of governedFormulaCompilationRows) {
+    const ingredients = [...new Set(compilationIngredients(row).map(compositionIdentityName).filter(Boolean))];
+    if (ingredients.length < 3) continue;
+    if (ingredients.length > actualSet.size) continue;
+    // 完整包含：缺一味即不认（见上方注释里麻黄汤被误判成桂枝汤的实测）。
+    if (!ingredients.every((name) => actualSet.has(name))) continue;
+    const extras = actual.filter((name) => !ingredients.includes(name));
+    // 增味不得超过基准味数，否则「某经方 + 一大把药」也会顶着经方名出去。
+    if (extras.length > ingredients.length) continue;
+
+    const candidate: CompositionIdentifiedFormula = {
+      formulaName: row.name,
+      source: row.source,
+      matchedCount: ingredients.length,
+      baselineCount: ingredients.length,
+      missingIngredients: [],
+      extraIngredients: extras,
+      modificationKind: extras.length === 0 ? "canonical" as const : "加味" as const,
+      displayName: extras.length === 0 ? row.name : `${row.name}加味`,
+    };
+    if (!best || compositionCandidateOutranks(candidate, best)) best = candidate;
+  }
+  return best;
+}
+
 export function executableFormulaCompilationReferences(names: string[]): FormulaCompilationReference[] {
   return formulaCompilationReferences(names).filter((reference) => {
     const governed = governedFormulaCompilationRow(reference.formulaName);
@@ -687,6 +832,38 @@ export function withDeterministicFormulaReferences(reasoning: ClinicalReasoningR
  * 三条边界：只在 M03 确有锁定方名、候选自带方名为空、且 name 是受控自拟标签时触发；
  * 任一基准未通过组成核验即不恢复（fail-closed，保持既有 declassify 路径）。
  */
+/**
+ * M03 未锁方名时，按**组成**给自拟候选恢复经方身份（甲方 R1「首选经方名」）。
+ *
+ * 只动被标成自拟的那一档：方名已经写了别的东西就不覆盖——那可能是模型的合方判断或
+ * 医生编辑版，替它改名等于替人做方剂裁定。识别不出对应经方时原样返回，即甲方说的
+ * 「确认无对应的经方，走自拟方」。
+ */
+function restoreFormulaIdentityFromComposition(
+  reasoning: ClinicalReasoningResultV2,
+): ClinicalReasoningResultV2 {
+  if (!reasoning.formula) return reasoning;
+  const candidates = reasoning.formula.candidates.map((candidate, index) => {
+    if (index !== 0) return candidate;
+    const trimmedName = String(candidate.name || "").trim();
+    const selfDevisedLabel = /^(?:本例辨证组方|辨证组方|自拟方?)(?:加减|加味)?$/.test(trimmedName);
+    if (!selfDevisedLabel) return candidate;
+    if ((candidate.formulaNames || []).length > 0) return candidate;
+    const identified = identifyGovernedFormulaByComposition(candidate.herbs || []);
+    if (!identified) return candidate;
+    return {
+      ...candidate,
+      name: identified.displayName,
+      formulaNames: [identified.formulaName],
+      constructionType: "single_base" as const,
+      modificationStatus: identified.modificationKind === "canonical"
+        ? "canonical" as const
+        : "modified" as const,
+    };
+  });
+  return { ...reasoning, formula: { ...reasoning.formula, candidates } };
+}
+
 export function restoreGovernedFormulaIdentity(
   reasoning: ClinicalReasoningResultV2,
   prior: ClinicalReasoningResultV2 | null | undefined,
@@ -695,8 +872,19 @@ export function restoreGovernedFormulaIdentity(
   if (!prior || prior.stage !== "diagnose") return reasoning;
   const governedNames = (prior.overview?.recommendedFormulaNames || [])
     .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
-  if (governedNames.length === 0) return reasoning;
   const mode = prior.overview?.formulaSelectionMode || "none";
+  // 形态三 **M03 判自拟、但 M04 的组成其实就是某经方**（甲方 2026-08-05 R1/M5.1/M5.2）。
+  //
+  // 甲方口径：「首选经方名，如确认无对应的经方，走自拟方」；实测投诉「该方为麻黄汤加味，
+  // 展示为自拟方？」。此前本函数在 governedNames 为空时直接 return——M03 没锁方名，
+  // 就再也没人回头看一眼组成。于是 M04 组出标准麻黄汤，照样顶着「本例辨证组方」出去：
+  // 系统认得这个方，只是从来没按组成查过。
+  //
+  // 这一档只在**没有锁定方名**时进场，不与上面两档抢；判据是组成完整包含某受治理经方
+  // （identifyGovernedFormulaByComposition，比正向 80% 线严格得多，理由见该函数注释）。
+  if (governedNames.length === 0) {
+    return restoreFormulaIdentityFromComposition(reasoning);
+  }
   // alternatives 由模型在多个基准中择一，恢复身份等于代替医生/模型做方剂选择，不做。
   if (mode !== "single" && mode !== "combined") return reasoning;
   const references = formulaCompilationReferences(governedNames);

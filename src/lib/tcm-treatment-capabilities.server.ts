@@ -135,6 +135,19 @@ function annotateGovernedAcupoint(projectCode: TcmTreatmentProjectCode, site: st
  * 本项目在本例上可成立的适应证，按**与本例的相关度**排序。
  * 排序只用于在同一个项目内部挑一个适应证；目录里的 indicationTags 仍是资格边界。
  */
+/**
+ * 受治理适应证词表判定：这段文字属于哪些适应证标签。
+ *
+ * **导出供回归钉住词表一致性**：治疗项目的 planTemplates 各自带一份 matchAny 匹配词，
+ * 与本词表编码的是同一个判断。两张表会各自漂移——2026-08-06 修的就是漂移的一半：
+ * 本词表 sleep_emotion 收了「入睡困难/多梦/易醒」，针刺模板的 matchAny 却只有「失眠/不寐」，
+ * 医生按常见写法录入时选穴整栏消失。test:tcm-treatments 现在逐词核对两表是否仍然同向。
+ */
+export function governedIndicationTagsForText(text: string): TcmTreatmentIndicationTag[] {
+  const normalized = String(text || "").normalize("NFKC");
+  return INDICATION_PATTERNS.filter(([, pattern]) => pattern.test(normalized)).map(([tag]) => tag);
+}
+
 function orderedIndicationTags(
   projectCode: TcmTreatmentProjectCode,
   tags: ReadonlySet<TcmTreatmentIndicationTag>,

@@ -21,6 +21,7 @@ import { buildCdssEvidenceContext } from "@/lib/cdss-evidence-context";
 import { buildEvidenceScope } from "@/lib/evidence-source-validation";
 import { createHash } from "node:crypto";
 import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { drugAvailabilityProjection } from "@/lib/drug-inventory.server";
 
 const EVIDENCE_SCOPE_TTL_MS = 60_000;
 const evidenceScopeCache = new Map<string, { expiresAt: number; scope: ReturnType<typeof buildEvidenceScope> }>();
@@ -39,6 +40,17 @@ async function evidenceScopeForCase(caseState: Parameters<typeof sanitizeCaseSta
     }
   }
   return scope;
+}
+
+/**
+ * 给 HIS 方案附加院内库存可得性（甲方 2026-08-05 入站药品同步）。
+ *
+ * 只在**投影边界**附加，不进 buildHisAiSchemePayload 的签名域：库存每天变，
+ * 若进了临床合同，昨天签发的方案今天就会验签失败。处方内容逐字不变，只多出标注与替代候选。
+ */
+async function withDrugAvailability(payload: Awaited<ReturnType<typeof buildHisAiSchemePayload>>) {
+  const availability = await drugAvailabilityProjection(payload.prescriptions.structuredHerbs);
+  return { ...payload, ...availability };
 }
 
 export async function POST(req: Request) {
@@ -63,11 +75,11 @@ export async function POST(req: Request) {
       reasoningV2: diagnoseOnlyReasoning,
       prescriptionRevision: undefined,
     };
-    return Response.json(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise)));
   }
 
   if (!prescribed && !caseState.prescriptionRevision && !caseState.prescription?.trim()) {
-    return Response.json(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise)));
   }
 
   const validation = validateHisPrescriptionForWriteBack(caseState);
@@ -128,7 +140,7 @@ export async function POST(req: Request) {
       auditedAt,
     });
     return Response.json({
-      ...buildHisAiSchemePayload(advisoryState, await evidenceScopePromise),
+      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise))),
       auditCorrelation: correlation,
     });
   }
@@ -175,7 +187,7 @@ export async function POST(req: Request) {
     auditedAt,
   });
   return Response.json({
-    ...buildHisAiSchemePayload(auditedState, await evidenceScopePromise),
+    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise))),
     auditCorrelation: correlation,
   });
 }

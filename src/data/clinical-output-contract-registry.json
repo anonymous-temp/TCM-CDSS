@@ -10,8 +10,8 @@
     ]
   },
   "summary": {
-    "contractCount": 19,
-    "visibleContractCount": 16,
+    "contractCount": 18,
+    "visibleContractCount": 15,
     "internalContractCount": 3
   },
   "limitedStateCopy": {
@@ -265,7 +265,7 @@
       "id": "M03-M04-nonpharma",
       "stage": "diagnose|prescribe",
       "path": "reasoningV2.nonPharma",
-      "label": "健康调护",
+      "label": "健康调护与注意事项",
       "requiredStatus": "nullable",
       "evidenceBinding": "pathogenesis_target_and_protocol_source",
       "visibility": "visible",
@@ -302,17 +302,6 @@
       "evidenceBinding": "structured_post_prescription_audit",
       "visibility": "visible",
       "rendererId": "audit-followup-section",
-      "unknownPolicy": "show_boundary_never_fabricate"
-    },
-    {
-      "id": "health-education",
-      "stage": "diagnose|prescribe|assess",
-      "path": "management.healthEducation",
-      "label": "健康宣教",
-      "requiredStatus": "required_when_actionable",
-      "evidenceBinding": "case_bound_behavior_and_safety_boundary",
-      "visibility": "visible",
-      "rendererId": "followup-care-section",
       "unknownPolicy": "show_boundary_never_fabricate"
     },
     {

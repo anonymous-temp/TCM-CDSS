@@ -586,9 +586,11 @@ assert.equal(requiredFields.entries.find((item) => item.id === "allergy_history"
 assert.deepEqual(requiredFields.governance.implementationDrift, []);
 // 需求9 新增可见契约 M03-M04-tcm-treatment（中医治疗项目从非药物调护里抽出成独立模块）：
 // 契约总数 18→19、可见数 15→16，内部契约数不变。
-assert.equal(outputContracts.entries.length, 19);
+// 2026-08-06 又减 1：health-education 幽灵契约（声明 visible 但字段根本不存在）已从生成器删除，
+// 于是总数回到 18、可见数回到 15。详见文件末尾「T11 不得再出现幽灵契约」那段逐条核对。
+assert.equal(outputContracts.entries.length, 18);
 assert.equal(outputContracts.summary.internalContractCount, 3);
-assert.equal(outputContracts.summary.visibleContractCount, 16);
+assert.equal(outputContracts.summary.visibleContractCount, 15);
 assert.ok(
   outputContracts.entries.some((item) => item.id === "M03-M04-tcm-treatment" && item.visibility === "visible"),
   "中医治疗项目必须是独立的可见输出契约",
@@ -606,7 +608,11 @@ assert.equal(outputContracts.entries.find((item) => item.id === "M03-western")?.
 assert.equal(outputContracts.surfaces.length, 7);
 assert.deepEqual(outputContracts.limitedStateCopy.requiredParts, ["knownFacts", "unavailableConclusion", "nextAction"]);
 assert.ok(outputContracts.entries.some((item) => item.id === "red-flag-warning"));
-assert.ok(outputContracts.entries.some((item) => item.id === "health-education"));
+// health-education 曾在此被断言「必须存在」——但它声明的 management.healthEducation 字段
+// 在契约里根本不存在，这条断言钉住的是一个幽灵。2026-08-06 连同生成器条目一并删除，
+// 改由文件末尾「T11 不得再出现幽灵契约」按真实 zod 契约逐条核对路径。
+assert.equal(outputContracts.entries.some((item) => item.id === "health-education"), false,
+  "health-education 是幽灵契约，必须保持删除状态");
 assert.ok(outputContracts.entries.filter((item) => item.visibility === "internal_only").every((item) => item.unknownPolicy === "never_render_to_clinical_user"));
 assert.ok(outputContracts.entries.filter((item) => item.visibility === "visible").every((item) => item.rendererId), "every visible output contract must bind a renderer");
 const diagnosisClientSource = readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
@@ -723,7 +729,7 @@ assert.equal(governance.engineeringJargonInText("程序化安全门控").length,
 assert.equal(governance.clinicalRequiredFieldLabel("allergy_history", "fallback"), "过敏史");
 assert.equal(governance.clinicalFieldRequiresExplicitPrescriptionState("allergy_history"), true);
 assert.equal(governance.CLINICAL_GOVERNANCE_TABLES.requiredFieldPolicy.entries.length, 16);
-assert.equal(governance.CLINICAL_GOVERNANCE_TABLES.outputContract.entries.length, 19);
+assert.equal(governance.CLINICAL_GOVERNANCE_TABLES.outputContract.entries.length, 18);
 assert.equal(governance.CLINICAL_GOVERNANCE_TABLES.nondrugTreatment.entries.length, 22);
 
 const formulaIndications = await jiti.import("../src/lib/tcm-formula-indications.ts");
@@ -849,4 +855,132 @@ assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplateForTags("acupunct
 assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplateForTags("acupuncture", "普通腰痛", acupunctureTags)?.indicationTag, "musculoskeletal_pain");
 assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplateForTags("acupuncture", "普通湿疹", acupunctureTags), undefined);
 
-console.log(JSON.stringify({ tables: 12, syndromeTerms: 2060, treatmentTerms: 1276, governedFormulas: formulas.entries.length, syndromeTagAdjudications: syndromeTagAdjudications.entries.length, herbNames: herbs.summary.standardNameCount, failures: 0 }));
+// —— T11 输出契约登记表：不得再出现「幽灵契约」（2026-08-06） ——
+//
+// 缺陷形态：登记表里躺着一条 health-education，声明 visibility=visible、有 rendererId、
+// path=management.healthEducation，读起来像一个已交付模块——而 ClinicalReasoningResultV2.management
+// 只有 redFlagLoop / mustCollect / followupSafetyNet，从来没有 healthEducation。
+// 它连其余条目都有的 `reasoningV2.` 前缀都没写，说明从提出那天起就没接过线。
+//
+// 幽灵条目比缺条目更糟：登记表现在是 HIS 分节咬合（test:his-section-coupling）的事实来源，
+// 混进永远不会出现的模块，就没法再拿它判断「某模块该不该有」。
+// 本段按**真实 zod 契约**逐条核对声明路径，杜绝下一条幽灵。
+{
+  const registry = readJson("clinical-output-contract-registry.json");
+  const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
+
+  // zod 包装层：nullable / optional / default / catch / pipe 都会把真身藏在 innerType 里，
+  // 数组在 element。逐层剥到拿得到 shape（对象）或 element（数组）为止。
+  const defOf = (schema) => schema?._def || schema?.def || {};
+  const unwrap = (schema) => {
+    let current = schema;
+    for (let depth = 0; depth < 24 && current; depth += 1) {
+      if (current.shape) return current;
+      const def = defOf(current);
+      const inner = def.innerType || def.in || def.schema
+        || (Array.isArray(def.options) ? def.options.find((option) => defOf(option).type === "object") : undefined);
+      if (!inner) return current;
+      current = inner;
+    }
+    return current;
+  };
+  const elementOf = (schema) => {
+    const def = defOf(schema);
+    return def.element || def.type === "array" ? def.element : undefined;
+  };
+
+  const pathExists = (dotted) => {
+    let node = unwrap(ReasoningV2Schema);
+    for (const rawSegment of dotted.split(".")) {
+      const isArrayElement = rawSegment.endsWith("[]");
+      const segment = isArrayElement ? rawSegment.slice(0, -2) : rawSegment;
+      const shape = node?.shape;
+      if (!shape || !(segment in shape)) return false;
+      let next = unwrap(shape[segment]);
+      if (isArrayElement) {
+        const element = elementOf(next) || defOf(next).element;
+        if (!element) return false;
+        next = unwrap(element);
+      }
+      node = next;
+    }
+    return true;
+  };
+
+  // 可见条目里合法的**非 reasoningV2 来源**。它们不是幽灵：安全门、病历载荷、M02 计划
+  // 各有自己的载体，只是不在推理契约里。清单显式登记，新增来源必须在这里报到。
+  const KNOWN_NON_REASONING_SOURCES = new Set([
+    "safetyGate.redFlags/reasons",
+    "caseState/hisRecord",
+    "M02Plan.questions",
+    "deterministic assessment markdown",
+  ]);
+
+  // 闸门自检：判据本身必须既认得真路径、也拒得掉假路径，否则它只是一段永远绿的装饰。
+  assert.equal(pathExists("formula.candidates[].decoction"), true,
+    "路径遍历认不出数组元素下的字段，闸门会把真契约误报成幽灵");
+  assert.equal(pathExists("nonPharma.precautions"), true);
+  assert.equal(pathExists("westernDiagnosis.primary.suggestedChecks"), true);
+  assert.equal(pathExists("management.healthEducation"), false,
+    "已删除的幽灵字段仍被判为存在，闸门形同虚设");
+  assert.equal(pathExists("formula.candidates[].notAField"), false);
+  assert.equal(pathExists("完全不存在的字段"), false);
+
+  // 单 id 绑定的页面模块，其标题必须与登记表标签一致（甲方 3.1，2026-08-06）。
+  //
+  // 甲方原话「总体病机显示错误，显示为病机分析了」：登记表里 M03-pathogenesis 的标签是
+  // 「病机拆解」，服务端可见正文渲染的也是它，而 DiagnosisClient 把标题写死成「病机分析」。
+  // 与本轮 HIS 分节标题、鉴别诊断出栏同一形态：两份标题各自演进，页面与正文分叉。
+  // 组合模块（一个 SchemeSection 绑多个 id，如「诊断结论」同时覆盖西医与中医）不在此列。
+  {
+    const clientSource = readFileSync(
+      new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+    // 判据是「每个契约 id **至少有一个**页面模块标题与登记表标签一致」，不是「所有模块都一致」：
+    // 同一 id 下允许存在子面板（候选方药模块内的「方义解析」就是），它们另起标题是合理的。
+    // 要防的是**主模块被改名后与登记表分叉**——甲方 3.1 正是这一种。
+    const titlesByContract = new Map();
+    const unknownBindings = [];
+    for (const match of clientSource.matchAll(
+      /<SchemeSection[^>]*?title=(\{clinicalOutputLabel\([^)]*\)\}|"[^"]*")[^>]*?contractIds="([A-Za-z0-9-]+)"/gs)) {
+      const [, rawTitle, contractId] = match;
+      if (!registry.entries.some((item) => item.id === contractId)) {
+        unknownBindings.push(`页面模块绑定了登记表里不存在的 ${contractId}`);
+        continue;
+      }
+      const bucket = titlesByContract.get(contractId) || [];
+      bucket.push(rawTitle.startsWith("{clinicalOutputLabel") ? "__GOVERNED__" : rawTitle.slice(1, -1));
+      titlesByContract.set(contractId, bucket);
+    }
+    assert.deepEqual(unknownBindings, [], unknownBindings.join("\n"));
+    const titleDrift = [];
+    for (const [contractId, titles] of titlesByContract) {
+      const entry = registry.entries.find((item) => item.id === contractId);
+      const aligned = titles.some((title) => title === "__GOVERNED__" || title === entry.label);
+      if (!aligned) {
+        titleDrift.push(`${contractId}：页面标题 ${JSON.stringify(titles)} 无一与登记表标签「${entry.label}」一致`);
+      }
+    }
+    assert.deepEqual(titleDrift, [], `页面模块标题与受治理登记表漂移：\n${titleDrift.join("\n")}`);
+  }
+
+  const ghosts = [];
+  for (const entry of registry.entries) {
+    const path = String(entry.path || "");
+    // 只核对声明为 reasoningV2 字段路径的条目；确定性 markdown、签名等非字段条目跳过。
+    if (!path.startsWith("reasoningV2.")) {
+      // 可见条目若既不是 reasoningV2 路径、也不在已登记的非推理来源清单里，就是可疑的幽灵。
+      if (entry.visibility === "visible" && !KNOWN_NON_REASONING_SOURCES.has(path)) {
+        ghosts.push(`${entry.id}：可见条目的 path「${path}」既非 reasoningV2 字段，也未在非推理来源清单登记`);
+      }
+      continue;
+    }
+    if (!pathExists(path.slice("reasoningV2.".length))) {
+      ghosts.push(`${entry.id}：声明路径「${path}」在 ReasoningV2Schema 中不存在（幽灵契约）`);
+    }
+  }
+  assert.deepEqual(ghosts, [], `T11 登记表存在幽灵契约：\n${ghosts.join("\n")}`);
+  assert.equal(registry.entries.some((entry) => entry.id === "health-education"), false,
+    "health-education 幽灵条目必须保持删除状态");
+}
+
+console.log(JSON.stringify({ tables: 12, syndromeTerms: 2060, treatmentTerms: 1276, governedFormulas: formulas.entries.length, syndromeTagAdjudications: syndromeTagAdjudications.entries.length, herbNames: herbs.summary.standardNameCount, outputContracts: 18, failures: 0 }));

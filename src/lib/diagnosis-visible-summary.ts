@@ -13,6 +13,7 @@ import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, governedTcmLocationsI
 import { clinicalAxisAttributionFromFacts } from "./tcm-syndrome-hypothesis";
 import { classifyWesternDiagnosticEvidence, clinicalFactSourcesFromContext, clinicalFactWithSource } from "./clinical-fact-source";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
+import { safeDietAdviceForDisplay } from "./result-display-policy";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives } from "./internal-tag-hygiene";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
@@ -2191,7 +2192,15 @@ function nationalStandardSyndromeName(
   const syndrome = typeof syndromeText === "string" ? syndromeText.trim() : "";
   if (!syndrome) return "";
   const direct = resolveNationalStandardTcmSyndromeTerm(syndrome);
-  if (direct) return direct.matchKind === "alias" ? direct.standardTerm : "";
+  // 判据是「国标原文与所存文本**是否不同**」，不是「命中方式是不是别名」（甲方 2026-08-05 R2）。
+  //
+  // 原来按 matchKind 判：alias 命中才显示国标名，canonical 命中一律返回空串。
+  // 但 canonical 是**去后缀**规范名，与国标原文本就不同——「湿热困脾」vs 国标「湿热困脾证」。
+  // 于是出现反直觉结果：医生点确认把证候归一到 canonical 之后，
+  // 「（国标对应：湿热困脾证）」这个括注反而消失了，医生做了正确动作却看到更不规范的名字。
+  // 改按文本差异判：别名命中照常显示；canonical 命中但缺「证」后缀时同样显示；
+  // 所存文本已经逐字等于国标原文时才静默（此时再显示就是重复）。
+  if (direct) return direct.standardTerm !== syndrome ? direct.standardTerm : "";
   for (const raw of Array.isArray(reasoning.terminologyMappings) ? reasoning.terminologyMappings : []) {
     const item = recordValue(raw);
     if (!item || item.namespace !== "tcm_syndrome" || item.fieldPath !== fieldPath) continue;
@@ -2667,7 +2676,19 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
   if (nonPharma) {
     lines.push("", `## ${clinicalOutputLabel("M03-M04-nonpharma", "非药物调护与中医项目")}`);
     for (const [label, key] of [["饮食", "diet"], ["起居", "lifestyle"], ["情志", "emotion"], ["穴位保健", "acupointCare"]] as const) {
-      if (isDisplayableClinicalText(markdownCell(nonPharma[key]))) lines.push(`- **${label}**：${markdownCell(nonPharma[key])}`);
+      // 饮食一栏必须过食疗净化再印（甲方 2026-08-05 衍生条目）。
+      //
+      // 此前净化只做在客户端 DiagnosisClient，而**服务端可见正文走的是未净化原文**——
+      // 这份正文会进 caseState.prescription、HIS 的处方卡片与各类导出，
+      // 于是「宜多食山楂、黑木耳以活血化瘀」这类把食物写成治疗手段的表述，
+      // 在医生界面上被拦下了，在接口与导出里却照样流出去。净化必须做在所有出口，不是某一个。
+      //
+      // 这里不传过敏史/用药史：可见正文层拿不到它们，缺省即走**更保守**的那句兜底
+      // （safeDietAdviceForDisplay 在信息未知时本就如此设计），宁可保守不可放宽。
+      const raw = key === "diet"
+        ? safeDietAdviceForDisplay(String(nonPharma[key] ?? ""), {})
+        : nonPharma[key];
+      if (isDisplayableClinicalText(markdownCell(raw))) lines.push(`- **${label}**：${markdownCell(raw)}`);
     }
     const treatmentProjects = recordList(nonPharma.tcmTreatments);
     if (treatmentProjects.length > 0) {

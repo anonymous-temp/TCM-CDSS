@@ -1059,12 +1059,14 @@ const ReasoningV2SchemaBase = z.object({
       doseOrHandling: z.string().max(300).nullable(),
       reason: z.string().max(1200),
       riskNote: z.string().max(1200).nullable().transform((value) => value ?? ""),
+      // 新增字段必须 fail-soft:没有 .catch 时,模型写歪一条 substitutions 会让**整条加减**
+      // 解析失败,进而可能拖垮整个候选。新字段的价值远小于处方本身,不可为它牺牲主链路。
       substitutions: z.array(z.object({
         replaces: z.string().min(1).max(60),
         substitute: z.string().min(1).max(60),
         rationale: z.string().min(1).max(400),
         differenceNote: z.string().min(1).max(400),
-      })).max(4).optional(),
+      })).max(4).optional().catch(undefined),
       evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
     })).max(30).default([]),
     modificationReview: z.object({

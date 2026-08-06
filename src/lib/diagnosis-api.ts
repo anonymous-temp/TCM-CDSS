@@ -3943,6 +3943,16 @@ async function callPrimaryTextModelStream(
             // 与校验模型选择同一套 verifyFormulaCompilationComponents。幂等,自拟方路径不变。
             authoritativeContent = applyRestoredGovernedFormulaIdentity(authoritativeContent, opts.structuredPriorReasoning);
           }
+          // 治则补齐同样必须在 finalize 这一层跑,不能只在 prepareDiagnoseStructuredContent 里(2026-08-05)。
+          //
+          // 与方名恢复是同一个教训,而且是同一次犯:治则补齐原本挂在 M03 prepare 链上,
+          // 那里看到的还是模型自己写的合法治则(线上实测「治病求本」),判据不命中、原样放行;
+          // **工程占位串「暂不锁定剂量级治法」是后面的归一层按 DEFAULT_THERAPY 注入的**,
+          // 于是最终结构化出参又变回占位串——可见正文是「治病求本」、JSON 是占位串,两处不一致,
+          // 而甲方集成读的正是 JSON。确定性投影必须排在**所有可能覆盖它的环节之后**。
+          if (opts.structuredStage === "diagnose") {
+            authoritativeContent = applyDeterministicTreatmentPrinciple(authoritativeContent);
+          }
           authoritativeContent = synchronizeVisibleClinicalSummary(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext || "");
           if (opts.structuredStage === "prescribe" && !validatedStructuredReasoning(
             authoritativeContent,

@@ -75,20 +75,20 @@
       "id": "T11",
       "file": "clinical-output-contract-registry.json",
       "schemaVersion": "clinical-output-contract-registry-v2",
-      "sha256": "372b105f685b95afbd99997ad5d4d0ec2956e3525c60cd4a1a4b09e7126c73c1",
-      "recordCount": 19
+      "sha256": "00648717cf7be960f2e0faaec183d6898853050bc999ed057744c26733b6d3d4",
+      "recordCount": 18
     },
     {
       "id": "T12",
       "file": "tcm-nondrug-treatment-evidence-catalog.json",
       "schemaVersion": "tcm-nondrug-treatment-evidence-catalog-v2",
-      "sha256": "abed87724cb12e207c659fb91e3529f3899b93f6e47f5e1f64ab653656628a41",
+      "sha256": "bd8bd8fd21c3afe6dfa784c93bbc8c4e842803c7395bf6619c743739068db08b",
       "recordCount": 22
     }
   ],
   "sourceRegistry": {
     "file": "clinical-governance-source-registry.json",
-    "sha256": "dd7dc563d92aac54bbae452f1a1e171d34bc9ca13cb7e7c36aa4652e5cddc4ee",
+    "sha256": "f4fbd4bfe0d2c66ebac61baad0b71a3fb61b51ef0201be77192b047208da204f",
     "recordCount": 30
   },
   "auxiliaryIndexes": [
