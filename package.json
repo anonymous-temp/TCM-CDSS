@@ -134,7 +134,8 @@
     "test:governed-formula-lock": "node scripts/test-governed-formula-lock.mjs",
     "test:phi-clinical-collision": "node scripts/test-phi-clinical-collision.mjs",
     "test:output-quality": "node scripts/test-m03-m04-output-quality.mjs",
-    "test:customer-review": "node scripts/test-customer-review-20260805.mjs"
+    "test:customer-review": "node scripts/test-customer-review-20260805.mjs",
+    "test:governed-data-reachability": "node scripts/test-governed-data-reachability.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

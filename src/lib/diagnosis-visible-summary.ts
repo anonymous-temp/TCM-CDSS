@@ -2697,7 +2697,15 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
             : "同上述病机"}`,
           ...(sites ? [hasPatientSpecificProtocol
             ? `- **建议部位/候选穴位**：${sites}`
-            : `- **常用穴位（通用参考，未按本例适应证核定）**：${sites}；具体选穴由现场医师按适应证与禁忌确定`] : []),
+            // 标注必须与选穴依据一致(2026-08-05,甲方 6.1)。
+            // 旧标注写死「通用参考，未按本例适应证核定」——那句话本身就是甲方指出的问题:
+            // 给的是通用穴位池,不是辨证后的处方。现在选穴按本例主症逐条匹配穴位主治
+            // (见 selectAcupointsForCaseTerms),入选穴位自带「主治含X」的入选依据,
+            // 标注随之改口;取不到主症而退回模板高频池时,旧标注照常出现——
+            // 标注说的必须是这一次实际发生的事,不能写死成其中一种。
+            : /主治含/.test(sites)
+              ? `- **本例主症对应候选穴位（按穴位主治核定）**：${sites}；具体选穴、补泻与操作参数由现场医师按适应证与禁忌确定`
+              : `- **常用穴位（通用参考，未按本例适应证核定）**：${sites}；具体选穴由现场医师按适应证与禁忌确定`] : []),
           ...(markdownCell(item.scheduleSuggestion) ? [`- **评估节奏**：${markdownCell(item.scheduleSuggestion)}`] : []),
           ...(markdownCell(item.protocolGap) ? [`- **未形成方案的原因**：${markdownCell(item.protocolGap)}`] : []),
           `- **安全边界**：${clinicalSentence([markdownCell(item.techniqueBoundary), markdownCell(materialPositioning), markdownCell(item.operatorRequirement), ...requiredChecks], "；")}`,

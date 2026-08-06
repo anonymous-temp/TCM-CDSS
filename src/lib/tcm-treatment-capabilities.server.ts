@@ -1,5 +1,5 @@
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
-import { resolveAcupoint } from "./tcm-acupoints";
+import { resolveAcupoint, selectAcupointsForCaseTerms } from "./tcm-acupoints";
 import {
   TCM_TREATMENT_PROJECTS,
   getTcmTreatmentProjectDefinition,
@@ -182,6 +182,22 @@ function indicationEvidenceTerms(tag: TcmTreatmentIndicationTag, caseFacts: stri
   return [...new Set([...caseFacts.matchAll(scan)].map((match) => match[0]).filter(Boolean))].slice(0, 3);
 }
 
+/** 经络腧穴类项目才按穴位主治选穴；耳穴、推拿、拔罐等自成定位体系，不套用经穴目录。 */
+function projectUsesMeridianAcupoints(projectCode: TcmTreatmentProjectCode): boolean {
+  return projectCode === "acupuncture" || projectCode === "moxibustion" || projectCode === "acupoint_application";
+}
+
+/**
+ * 选穴用的本例主症词。只取**已签名结论与病历原文**里出现的症状级词，不引入任何新断言：
+ * 穴位是按主治匹配选出来的，匹配依据必须是本例真实记录的症状，否则又变成通用池。
+ */
+function acupointCaseTerms(clinicalText: string, caseFacts: string, targetPathogenesis: string): string[] {
+  const source = [clinicalText, caseFacts, targetPathogenesis].filter(Boolean).join("；");
+  if (!source) return [];
+  const SYMPTOM_SCAN = /(?:恶寒|发热|头痛|头晕|眩晕|鼻塞|流涕|喷嚏|咽痛|咳嗽|气喘|胸痛|胸闷|心悸|失眠|健忘|多梦|自汗|盗汗|无汗|口渴|纳呆|食少|腹胀|腹痛|泄泻|便秘|呕吐|恶心|呃逆|水肿|尿频|尿急|癃闭|带下|痛经|月经不调|腰痛|膝痛|肩痛|颈痛|痹痛|麻木|抽搐|瘾疹|湿疹|瘙痒|目赤|耳鸣|耳聋|牙痛|口疮)/g;
+  return [...new Set([...source.matchAll(SYMPTOM_SCAN)].map((match) => match[0]))];
+}
+
 function controlledTreatmentPlan(
   projectCode: TcmTreatmentProjectCode,
   tags: ReadonlySet<TcmTreatmentIndicationTag>,
@@ -227,6 +243,23 @@ function controlledTreatmentPlan(
   // 仍为 assessment_only,呈现层按该状态标注「通用参考,未按本例适应证核定」。空模板项目保持为空。
   // 9.1：延期说明型模板整条排除在聚合之外——否则「常用穴位」栏里印的是
   // 「按针刺方案中与当前证型匹配的穴位」这样一句话（生产实测：产后头痛例的灸法卡片）。
+  // 选穴依据从「模板里出现得多」换成「主治与本例主症对得上」(2026-08-05,甲方 6.1)。
+  //
+  // 甲方原话指向的正是旧实现自己写的那句标注:「常用穴位(通用参考,未按本例适应证核定)」——
+  // 风寒束表例(淋雨后、恶寒重发热轻、无汗、脉浮紧)拿到的是一个与本例无关的通用池。
+  // 旧口径是把该项目**全部治理模板**的穴位按出现频次取 top5,与本例是什么证、什么症无关。
+  //
+  // 而 T12 穴位目录 400 穴每一穴都带教材主治(indications),运行时从未查过——
+  // 又一次「治理数据在库里、运行时没读」。改为按本例主症逐条匹配主治后实测:
+  //   风寒感冒 → 合谷、风门、风池、列缺   脾虚泄泻 → 天枢、足三里、公孙、阴陵泉
+  // 都是教材级取穴,且每一穴都能说出是本例哪个症把它选进来的。
+  //
+  // 安全边界一条未动:仍是证据层参考,executable=false 不变,补泻深度留针仍由现场医师定。
+  // 主症取不到(病历太稀疏)时退回原有的模板高频池——不猜,不外推。
+  const caseTerms = acupointCaseTerms(clinicalText, caseFacts, targetPathogenesis);
+  const indicationMatched = projectUsesMeridianAcupoints(projectCode)
+    ? selectAcupointsForCaseTerms(caseTerms, 5)
+    : [];
   const referencePointFrequency = new Map<string, number>();
   for (const template of definition?.planTemplates || []) {
     if (!tcmTreatmentTemplatePointsAreGoverned(template)) continue;
@@ -234,10 +267,12 @@ function controlledTreatmentPlan(
       referencePointFrequency.set(point, (referencePointFrequency.get(point) || 0) + 1);
     }
   }
-  const referenceCommonPoints = [...referencePointFrequency.entries()]
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-    .slice(0, 5)
-    .map(([point]) => annotateGovernedAcupoint(projectCode, point));
+  const referenceCommonPoints = indicationMatched.length > 0
+    ? indicationMatched.map((item) => `${item.entry.name}（${item.entry.code}·主治含${item.matchedTerms.join("、")}）`)
+    : [...referencePointFrequency.entries()]
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .slice(0, 5)
+      .map(([point]) => annotateGovernedAcupoint(projectCode, point));
   // 评估态 = 目录里没有与本例对应的标准方案。此时能证明的只有「病历里的哪句话把这个项目
   // 带进候选」，不能改口成症状域名称。举不出病历落点（标签只来自模型行文）时一句都不说，
   // 只讲清这是评估态——fail-closed 优于说一个患者没有的症状。
