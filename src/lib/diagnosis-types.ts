@@ -146,6 +146,15 @@ export interface CaseState {
   medicationHistory?: string;
   allergyHistory?: string;
   tcmLineagePreference?: string;
+  /**
+   * 饮片味数偏好（2026-08-05，甲方接口需求）。
+   *
+   * 甲方原话把边界写得很清楚：「味数控制只是建议，如诊疗必须也不能裁剪，如经方不能裁剪、
+   * 必须加药味不能裁剪」。所以它是**软偏好**，写进 prompt 供组方时参考，绝不参与任何
+   * 确定性裁剪：经典方基准组成、绑定病机节点的药味、安全所需的佐制药，一味都不因它删减。
+   * 违背偏好时在 M04 输出里说明原因，而不是牺牲方剂完整性去凑数字。
+   */
+  herbCountPreference?: "within_10" | "between_10_15" | "at_least_15";
   clinicTreatmentCapabilities?: string[];
   clinicTreatmentCapabilitiesRestricted?: boolean;
   hisRecord?: HisRecordSnapshot;
@@ -530,6 +539,20 @@ export interface ClinicalReasoningResultV2 {
       doseOrHandling: string | null;
       reason: string;
       riskNote: string;
+      /**
+       * 可替换药味说明（2026-08-05，甲方接口需求「随证加减建议——可增加：可替换药味的说明」）。
+       *
+       * 场景是真实的：该加的药缺货、过敏、或属特殊人群禁用时，医生需要一个同向替代。
+       * 因此每条替代都必须自带**替代理由与差异**——只给一个名字等于让医生自己去查，
+       * 而「替代品与原药的差异在哪」正是临床上最容易出事的地方。
+       * 替代药同样受全部安全边界约束：剂量上限、十八反十九畏、特殊人群规则一条不减。
+       */
+      substitutions?: Array<{
+        replaces: string;
+        substitute: string;
+        rationale: string;
+        differenceNote: string;
+      }>;
       evidence: EvidenceRef;
     }>;
     modificationReview?: {
@@ -1036,6 +1059,12 @@ const ReasoningV2SchemaBase = z.object({
       doseOrHandling: z.string().max(300).nullable(),
       reason: z.string().max(1200),
       riskNote: z.string().max(1200).nullable().transform((value) => value ?? ""),
+      substitutions: z.array(z.object({
+        replaces: z.string().min(1).max(60),
+        substitute: z.string().min(1).max(60),
+        rationale: z.string().min(1).max(400),
+        differenceNote: z.string().min(1).max(400),
+      })).max(4).optional(),
       evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
     })).max(30).default([]),
     modificationReview: z.object({
@@ -1230,6 +1259,7 @@ const HisFieldsInputSchema = z.object({
   tcmTongue: z.unknown().optional(),
   tcmDetail: z.unknown().optional(),
   tcmLineagePreference: z.unknown().optional(),
+  herbCountPreference: z.unknown().optional(),
   clinicTreatmentCapabilities: z.unknown().optional(),
   fuzhuJiancha: z.unknown().optional(),
   extraText: z.unknown().optional(),
@@ -1338,6 +1368,19 @@ const PrescriptionRevisionSchema = z.object({
   auditId: z.string().max(200).optional(),
   traceId: z.string().max(200).optional(),
 });
+
+/**
+ * 饮片味数偏好归一（2026-08-05）。受控枚举之外一律丢弃，不做模糊解析——
+ * 这是个会写进 prompt 的偏好，写错比不写更坏。同时接受甲方文档里的中文档位写法。
+ */
+function normalizeHerbCountPreference(value: unknown): CaseState["herbCountPreference"] {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return undefined;
+  if (text === "within_10" || /10\s*味?以内|≤\s*10|<\s*10/.test(text)) return "within_10";
+  if (text === "between_10_15" || /10\s*[-~－至]\s*15/.test(text)) return "between_10_15";
+  if (text === "at_least_15" || /15\s*味?(?:及以上|以上)|≥\s*15|>\s*15/.test(text)) return "at_least_15";
+  return undefined;
+}
 
 function normalizePrescriptionRevision(value: unknown): CaseState["prescriptionRevision"] {
   const parsed = PrescriptionRevisionSchema.safeParse(value);
@@ -1771,6 +1814,7 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
     medicationHistory: firstText(fields.yongyaoshi, input.medicationHistory),
     allergyHistory: firstText(fields.guomin, input.allergyHistory),
     tcmLineagePreference: resolveLineageCode(firstText(fields.tcmLineagePreference, input.tcmLineagePreference)),
+    herbCountPreference: normalizeHerbCountPreference(input.herbCountPreference),
     clinicTreatmentCapabilities,
     clinicTreatmentCapabilitiesRestricted: capabilityRestrictions.length > 0,
     hisRecord,

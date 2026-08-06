@@ -2630,12 +2630,23 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       const triggerSource = recordValue(item.triggerSource);
       const sourceQuote = markdownCell(triggerSource?.sourceQuote);
       const target = markdownCell(item.targetPathogenesis);
-      return `- **${markdownCell(item.trigger)}**：${clinicalSentence([
+      // 可替换药味另起一行呈现（甲方接口需求）。缺货/过敏/特殊人群禁用时医生要有备选，
+      // 而「替代品与原药差异在哪」是临床最容易出事的地方，必须与药名同时给出。
+      const substitutions = recordList(item.substitutions)
+        .map((sub) => `${markdownCell(sub.replaces)} → ${markdownCell(sub.substitute)}（${clinicalSentence([
+          markdownCell(sub.rationale), markdownCell(sub.differenceNote),
+        ], "；")}）`)
+        .filter(Boolean);
+      return [`- **${markdownCell(item.trigger)}**：${clinicalSentence([
         markdownCell(item.action),
         target ? `对应病机：${modificationPathogenesisLedger.claim(target) ? target : "同上述病机"}` : "",
         markdownCell(item.reason),
         sourceQuote ? `触发依据：${sourceQuote}` : "",
-      ], "；")}`;
+      ], "；")}`,
+        ...(substitutions.length > 0
+          ? [`  - 可替换药味：${substitutions.join("；")}（替代药同样受剂量上限、十八反十九畏与特殊人群规则约束）`]
+          : []),
+      ].join("\n");
     }));
   }
   if (patentAndWestern.length > 0) {

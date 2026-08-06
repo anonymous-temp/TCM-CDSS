@@ -407,7 +407,7 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
     {"type":"中成药","name":"只能逐字选择EVID-INST或LOCAL-INST候选中的药名","specification":"只能复制同一条目的规格；未返回则为null","singleDose":null,"frequency":null,"route":null,"usageBoundary":"候选边界，不形成剂量医嘱","course":null,"positioning":"替代方案","correspondingProblem":"本例当前诊断、证候或症状","evidenceId":"LOCAL-INST-001","evidenceFingerprint":"sha256:逐字复制同一条目指纹","relationship":"与饮片方案不默认联用，由医生择一或评估联用","riskNote":"来自该条目的禁忌、相互作用与特殊人群复核点"}
   ],
   "modifications": [
-    {"trigger":"逐字引用本次病历已记录的当前伴随症状","targetRef":"P1","actionType":"add","herbName":"知识库已收载药味","reason":"与该病机节点对应的加减理由"}
+    {"trigger":"逐字引用本次病历已记录的当前伴随症状","targetRef":"P1","actionType":"add","herbName":"知识库已收载药味","reason":"与该病机节点对应的加减理由","substitutions":[{"replaces":"上面这味药","substitute":"同向可替代药味","rationale":"为何可以替代(功效方向一致)","differenceNote":"与原药的差异与选用注意"}]}
   ],
   "nonPharma": {
     "diet":"饮食调护",
@@ -420,8 +420,9 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
 }
 
 硬约束：
-- candidate.herbs 只包含本次真正采用的药味。经典方/合方按服务端给出的基础方组成编译；自拟复方在有依据的前提下应给出完整的君臣佐使层次，常见规模为 8–14 味（不少于4味，明确的单味方案可为1味）。每增加一味都必须同时满足三条：绑定一个真实病机节点 targetRef 或受控 formula_structure 角色、在服务端药味知识库有功能收载、其收载方向与本例某条已锁定治法方向一致；三条任一不满足即不得加入。不得为凑数量增药，不得加入与任何锁定治法方向无关的药味，所有条件性加减不得写在表外。
+${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真正采用的药味。经典方/合方按服务端给出的基础方组成编译；自拟复方在有依据的前提下应给出完整的君臣佐使层次，常见规模为 8–14 味（不少于4味，明确的单味方案可为1味）。每增加一味都必须同时满足三条：绑定一个真实病机节点 targetRef 或受控 formula_structure 角色、在服务端药味知识库有功能收载、其收载方向与本例某条已锁定治法方向一致；三条任一不满足即不得加入。不得为凑数量增药，不得加入与任何锁定治法方向无关的药味，所有条件性加减不得写在表外。
 - dose 必须是单一数值加单位（如10g），不得用范围、片、枚、酌量或待确认。
+- modifications[].substitutions 是 0–2 条可替换药味说明（甲方需求）。只在该加味确有同向替代时给出：缺货、过敏或特殊人群禁用时医生需要备选。每条必须写清 replaces（被替代药）、substitute（替代药，须为知识库已收载药味）、rationale（为何同向可替代）与 differenceNote（与原药的临床差异与选用注意）——只给名字等于让医生自己去查，而差异恰恰是最容易出事的地方。没有可靠替代就输出空数组，不得为凑字段编造。替代药受全部安全边界约束，不得用于绕开剂量上限、十八反十九畏或特殊人群禁忌。
 - nonPharma.precautions 是 0–6 条注意事项，每条写成一句完整、专业、可直接给医生看的中文（20–80字），自己把“要观察什么 / 多久 / 出现什么情况怎么处理”在同一句里说清楚，不要拆成 metric/timing/trigger 这类多字段，也不要写成表格。可写：本例已记录症状的变化与复诊时机、服药期间可能出现的不适与停药就医边界、与其他中西药或食物同用的核对要求、需要立即就医的表现。不得出现克数、片数、毫升等剂量，不得编造病历没有的症状；没有可写的就输出空数组，服务端会补充通用安全注意事项。
 - candidate.decoction 必须是单个对象，并同时包含：doseCount（总剂数，1–30整数加“剂”）、dosesPerDay（每日剂数，1–3整数）、administrationTimesPerDay（每日分服次数，1–6整数且不得小于每日剂数）。三者不得省略、写成自由文本或由服务端猜测；总剂数必须能被每日剂数整除，疗程和复诊节点由服务端按这三项统一生成。
 - role 只能是君/臣/佐/使中的一个值，processing 和 decoctionRequirement 只能是字符串或 null。
@@ -790,6 +791,26 @@ ${sevenStageContext}
 }
 
 // ─── M04：循证组方建议（DeepSeek）────────────────────────────────────────────
+
+export /**
+ * 饮片味数偏好写进 M04 prompt（2026-08-05，甲方接口需求）。
+ *
+ * 甲方把边界讲得很明确：「味数控制只是建议，如诊疗必须也不能裁剪，如经方不能裁剪、
+ * 必须加药味不能裁剪」。所以这段话的重点不是给出数字，而是**先把不可裁剪的东西讲清楚**，
+ * 再说偏好——顺序反了模型就会为了凑数字去删经典方的基准药味或删掉绑定病机的药。
+ * 服务端侧同样不设任何按味数的确定性裁剪：偏好只影响生成，不参与任何删减判定。
+ */
+function herbCountPreferenceInstruction(caseState: CaseState): string {
+  const band = caseState.herbCountPreference;
+  if (!band) return "";
+  const label = band === "within_10" ? "10 味以内"
+    : band === "between_10_15" ? "10–15 味"
+    : "15 味及以上";
+  return `- 本次就诊方设置了饮片味数偏好：${label}。这是**建议而非硬约束**：经典方的基准组成不得为凑味数裁剪；`
+    + `任何绑定病机节点、承担已锁定治法方向、或作为安全佐制所必需的药味都不得删除；`
+    + `临床确需加味时照加。在不牺牲上述任何一条的前提下尽量贴近该区间；确实无法贴近时，`
+    + `在 candidate.applicable 里用一句话说明是哪条临床必要性使味数超出偏好，不得为迎合数字牺牲方剂完整性。\n`;
+}
 
 export function buildPrescribePrompt(caseState: CaseState): string {
   const diagnoseReasoning = diagnoseReasoningFromState(caseState);

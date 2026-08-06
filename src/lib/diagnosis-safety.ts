@@ -4403,6 +4403,8 @@ export function sanitizeCaseStateForModel(state: CaseState): CaseState {
     medicationHistory: scrub(state.medicationHistory),
     allergyHistory: scrub(state.allergyHistory),
     tcmLineagePreference: scrub(state.tcmLineagePreference, 500),
+    // 味数偏好是受控枚举，不含 PHI，原样透传给模型侧。
+    herbCountPreference: state.herbCountPreference,
     clinicTreatmentCapabilities: state.clinicTreatmentCapabilities?.slice(0, 24),
     clinicTreatmentCapabilitiesRestricted: state.clinicTreatmentCapabilitiesRestricted,
     hisRecord: safeHisRecord,
