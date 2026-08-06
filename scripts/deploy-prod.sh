@@ -11,6 +11,10 @@
 #     实测导致 tcm_treatment_capabilities_invalid_json、strictReady=false。
 #  3) 构建前先 prune：服务器磁盘被镜像塞满时，nginx 写不了 >8KB 的请求体，
 #     M04 会在 0.3 秒内返回 500——看起来像模型问题，其实是磁盘满。
+#  4) compose 必须显式 `-p tcm-cdss-prod`：不指定项目名时 compose 按目录名推导，
+#     会另建一套容器并与在跑的实例撞端口（实测 Bind for 127.0.0.1:3016 failed）。
+#  5) 任何一步都不许用 `| tail` 吞掉退出码：本脚本第一版就因为管道掩盖了 compose 失败，
+#     在部署实际失败的情况下打印了「部署完成」。宁可日志长，不可谎报成功。
 set -euo pipefail
 
 HOST="${DEPLOY_HOST:-82.156.128.153}"
@@ -43,9 +47,16 @@ $SSH "$USER@$HOST" "cd $REMOTE_DIR && DOCKER_BUILDKIT=1 docker build \
   --build-arg CDSS_BUILD_COMMIT=$COMMIT \
   --build-arg CDSS_BUILD_SOURCE_DIGEST=$DIGEST \
   --build-arg CDSS_BUILD_TIMESTAMP=$STAMP \
-  -t tcm-cdss:$TAG . 2>&1 | tail -12"
+  -t tcm-cdss:$TAG ." 2>&1 | tail -12
+$SSH "$USER@$HOST" "docker image inspect tcm-cdss:$TAG >/dev/null" || { echo "!! 构建失败：镜像 $TAG 不存在" >&2; exit 1; }
 
 echo "=== deploy ==="
-$SSH "$USER@$HOST" "cd $REMOTE_DIR && IMAGE_TAG=$TAG docker compose --env-file ./.env.prod.runtime up -d 2>&1 | tail -5"
+$SSH "$USER@$HOST" "cd $REMOTE_DIR && IMAGE_TAG=$TAG docker compose -p tcm-cdss-prod --env-file ./.env.prod.runtime up -d"
 
-echo "=== 部署完成 tag=$TAG commit=${COMMIT:0:12} ==="
+# 只有真正跑起来的镜像与本次 tag 一致，才算部署完成——否则上面任何一步失败都可能被读成成功。
+RUNNING="$($SSH "$USER@$HOST" "docker inspect --format '{{.Config.Image}}' tcm-cdss-prod-tcm-cdss-1 2>/dev/null || true")"
+if [ "$RUNNING" != "tcm-cdss:$TAG" ]; then
+  echo "!! 部署未生效：容器实际镜像为 ${RUNNING:-<无>}，期望 tcm-cdss:$TAG" >&2
+  exit 1
+fi
+echo "=== 部署完成 tag=$TAG commit=${COMMIT:0:12} 容器镜像=$RUNNING ==="
