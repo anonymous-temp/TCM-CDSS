@@ -754,6 +754,14 @@ const DEFAULT_PATHOGENESIS: ClinicalReasoningResultV2["pathogenesis"] = {
   uncertainties: [],
 };
 
+/** 单条分治法。提出为具名 schema，供 subTherapies 的逐条隔离预处理复用同一判据。 */
+const SubTherapySchema = z.object({
+  therapy: z.string().max(600),
+  targetPathogenesis: z.string().max(600),
+  priority: z.enum(["主要", "次要"]),
+  evidence: EvidenceRefSchema,
+});
+
 const DEFAULT_THERAPY: ClinicalReasoningResultV2["therapy"] = {
   overallPrinciple: "暂不锁定剂量级治法",
   overallMethod: undefined,
@@ -923,12 +931,22 @@ const ReasoningV2SchemaBase = z.object({
   therapy: z.object({
     overallPrinciple: z.string().max(2000),
     overallMethod: z.string().max(2000).optional().catch(undefined),
-    subTherapies: z.array(z.object({
-      therapy: z.string().max(600),
-      targetPathogenesis: z.string().max(600),
-      priority: z.enum(["主要", "次要"]),
-      evidence: EvidenceRefSchema,
-    })).max(12).default([]),
+    // 分治法**逐条隔离**：一条不合法只丢那一条，不得连坐整个 therapy（2026-08-06，线上实测）。
+    //
+    // 原先 subTherapies 没有自己的 catch，任何一条子治法缺 evidence 或 priority 不合枚举，
+    // 都会让整个 therapy 对象落到外层 .catch(DEFAULT_THERAPY)——**治则随之变成工程占位串
+    // 「暂不锁定剂量级治法」**。线上实测正是这一幕：可见正文的治则是模型写的「虚则补之」，
+    // 结构化出参却是占位串，而甲方集成读的正是结构化出参（甲方 4.1「治则未显示」）。
+    // 更隐蔽的是 overallMethod 事后又被 overview.overallTherapy 回填，于是表现成
+    // 「治法有、治则没有」，看不出是整块被替换过。
+    //
+    // 与临床事实回补层同一条信条：单条非法不得抹掉同批有效条目。
+    subTherapies: z.preprocess(
+      (value) => (Array.isArray(value)
+        ? value.filter((item) => SubTherapySchema.safeParse(item).success)
+        : value),
+      z.array(SubTherapySchema).max(12).default([]),
+    ).catch([]),
   }).catch(DEFAULT_THERAPY),
   formula: z.object({
     candidates: z.array(z.object({

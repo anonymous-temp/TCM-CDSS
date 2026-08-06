@@ -128,6 +128,7 @@
     "build:source-digest": "node scripts/build-source-digest.mjs",
     "verify:deployed-image": "node scripts/verify-deployed-image.mjs",
     "regress:prod-smoke": "node scripts/regress-prod-smoke.mjs",
+    "regress:online-inventory": "node scripts/regress-online-inventory.mjs",
     "test:negation-scope": "jiti scripts/test-negation-scope.mjs",
     "test:treatment-indication": "jiti scripts/test-tcm-treatment-indication-binding.mjs",
     "test:rxaudit-sex-applicability": "jiti scripts/test-rxaudit-sex-applicability.mjs",

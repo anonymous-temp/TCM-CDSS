@@ -91,6 +91,73 @@ const normalized = (overview, extra) =>
   }
 }
 
+// ─── 甲方 4.1 的**真实线上根因**（2026-08-06 生产实测发现，本地此前无覆盖）───────────
+//
+// 上一段测的是「服务端会不会把占位串补齐」。线上实测发现治则仍是占位串，机制完全在另一处：
+//   therapy 的 zod 是整体 .catch(DEFAULT_THERAPY)，subTherapies 里**一条**子治法缺 evidence
+//   或 priority 不合枚举，整个 therapy 就被替换掉，overallPrinciple 随之变成占位串。
+// 更隐蔽的是 overallMethod 事后又被 overview.overallTherapy 回填，表现成「治法有、治则没有」，
+// 从出参看不出这一整块曾被替换过。生产原始产物：
+//   可见正文 **治则**：虚则补之        ← 模型写的，正确
+//   结构化出参 overallPrinciple：暂不锁定剂量级治法  ← 甲方集成读的正是这个
+{
+  const types = await jiti.import("../src/lib/diagnosis-types.ts");
+  const evidence = { evidenceLevel: "model_inference", source: "病例内推理", confidence: "中" };
+  const base = {
+    schemaVersion: "tcm-cdss-reasoning-v2",
+    stage: "diagnose",
+    overview: {
+      primarySyndrome: "气血两虚证", primarySyndromeResolution: "resolved",
+      primarySyndromeBasis: ["神疲乏力"], overallPathogenesis: "气血亏虚",
+      overallTherapy: "益气养血，濡养清窍，宁心安神。",
+      recommendedFormulaDirection: "归脾汤加减", evidence,
+    },
+    westernDiagnosis: {
+      primary: { name: "头痛，病因待查", status: "考虑", confidence: "中",
+        supportingFacts: ["头痛"], limitations: [], suggestedChecks: [], evidence },
+      differentials: [],
+    },
+    pathogenesis: {
+      summary: "气血亏虚",
+      locationDifferentiation: { items: ["脑"], resolution: "resolved", evidence },
+      natureDifferentiation: { items: ["气虚", "血虚"], resolution: "resolved", evidence },
+      chain: [], uncertainties: [],
+    },
+    formula: null, nonPharma: null, lineageAdaptation: null,
+  };
+  const parse = (subTherapies) => types.normalizeReasoningV2({
+    ...base,
+    therapy: { overallPrinciple: "虚则补之", overallMethod: "益气养血", subTherapies },
+  });
+  const malformedCases = {
+    "子治法缺 evidence": [{ therapy: "益气养血", targetPathogenesis: "气血亏虚", priority: "主要" }],
+    "priority 不合枚举": [{ therapy: "益气养血", targetPathogenesis: "气血亏虚", priority: "高", evidence }],
+    "一条合法一条非法": [
+      { therapy: "益气养血", targetPathogenesis: "气血亏虚", priority: "主要", evidence },
+      { therapy: "", targetPathogenesis: "", priority: "次要" },
+    ],
+  };
+  for (const [label, subTherapies] of Object.entries(malformedCases)) {
+    const out = parse(subTherapies);
+    if (out?.therapy?.overallPrinciple !== "虚则补之") {
+      failures.push({
+        item: "4.1 治则连坐",
+        why: `${label}：单条子治法非法连坐了整个 therapy，治则变成「${out?.therapy?.overallPrinciple}」`,
+      });
+    }
+  }
+  // 合法子治法必须保留——隔离不是把整栏丢掉。
+  const healthy = parse([{ therapy: "益气养血", targetPathogenesis: "气血亏虚", priority: "主要", evidence }]);
+  if (healthy?.therapy?.subTherapies?.length !== 1) {
+    failures.push({ item: "4.1 治则连坐", why: "合法子治法被误丢，隔离过度" });
+  }
+  // 「一条合法一条非法」时，合法那条必须活下来。
+  const mixed = parse(malformedCases["一条合法一条非法"]);
+  if (mixed?.therapy?.subTherapies?.length !== 1) {
+    failures.push({ item: "4.1 治则连坐", why: `混合场景下合法子治法未保留（实际 ${mixed?.therapy?.subTherapies?.length} 条）` });
+  }
+}
+
 // ─── 甲方 7.1 方义分析 ─────────────────────────────────────────────────
 // 原话:「方义分析是分析该药在方中所发挥作用，无需罗列所有功效，且生姜分析错误」。
 // 线上实测(参苓白术散):人参写「大补元气，复脉固脱」、桔梗写「祛痰排脓，清利头目」——
