@@ -208,4 +208,48 @@ for (const guard of ["submittedDifferentials.length > 0 && displayableDifferenti
   assert.ok(advisoryBody.includes(guard), `同构过滤缺少下限守卫：${guard}`);
 }
 
-console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 3, failures: 0 }, null, 2));
+// ── 4) finalize 复验的作用域必须与 finalize 链路**实际接管的东西**一致 ──────────
+//
+// 2026-08-06 生产实测：26% 的病例 M04 返回 200 却没有候选方，退化成非剂量页。
+// 根因是自我否决——finalize 链路先无条件跑 applyDeterministicDecoctionMethod /
+// applyDeterministicFollowUpNode 接管煎服法与复诊节点，紧接着却用
+// serverOwnsDecoctionMethod=false 复验，等于拿「模型没写全煎服法」这条判据
+// 去否决服务端自己刚写的那段文字。同一份内容实测：
+//   serverOwns=false → visible_method_incomplete_negated_or_unresolved
+//   serverOwns=true  → 无任何问题
+// 而该码在 rejectionTier 里属 T3（展示层同步，最轻一档），却把已通过安全合同、
+// 已过独立复核的整张处方清零。
+//
+// 排障之所以卡住，是因为归因函数 structuredRejectionReason 传的一直是 true，
+// 日志只打得出 resolver_rejected（「拒了但说不出为什么」）——两处判据不同源。
+// 本条同时钉住机制与调用点。
+{
+  const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+  const finalizeCall = apiSource.slice(
+    apiSource.indexOf('if (opts.structuredStage === "prescribe" && !validatedStructuredReasoning('),
+    apiSource.indexOf('console.warn("[tcm-cdss:model] finalized structured response rejected"'),
+  );
+  assert.ok(finalizeCall.length > 0, "未定位到 finalize 复验调用点");
+  assert.ok(!/\n\s+false,\n/.test(finalizeCall.split("opts.structuredPriorReasoning,")[1] || ""),
+    "finalize 复验仍以 serverOwnsDecoctionMethod=false 调用，会否决服务端自己写的煎服法");
+
+  // 投影确实无条件执行——否则上面的断言就是在为一个不成立的前提放宽判据。
+  const projectionBlock = apiSource.slice(
+    apiSource.indexOf('if (opts.structuredStage === "prescribe") {\n            authoritativeContent = applyDeterministicFormulaReferences'),
+    apiSource.indexOf("synchronizeVisibleClinicalSummary(authoritativeContent, opts.structuredStage"),
+  );
+  for (const projection of ["applyDeterministicDecoctionMethod", "applyDeterministicFollowUpNode"]) {
+    assert.ok(projectionBlock.includes(projection),
+      `${projection} 不在 finalize 链路里，serverOwns=true 的前提不再成立`);
+  }
+
+  // 分级层：该码属**展示层同步**（T3，最轻一档）。钉住它的档位，是为了让后来人看清
+  // 这次事故的量级——一个 T3 码把整张已通过安全合同的处方清零了。
+  // finalize 目前是布尔校验、不查分级表；档位若被上调，说明有人重新把它当成了安全项，
+  // 那时这条断言先红。
+  assert.equal(rejectionTier("m04_visible_method_incomplete_negated_or_unresolved"), "T3",
+    "煎服法展示不完整属展示层同步问题，不得升格为安全级拒绝");
+  assert.equal(rejectionTier("m04_visible_method_incomplete"), "T3");
+}
+
+console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 4, failures: 0 }, null, 2));

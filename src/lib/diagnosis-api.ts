@@ -3959,7 +3959,17 @@ async function callPrimaryTextModelStream(
             opts.structuredStage,
             opts.structuredClinicalContext,
               opts.structuredPriorReasoning,
-              false,
+              // 服务端**刚刚**在上面无条件接管了煎服法与复诊节点
+              // （applyDeterministicDecoctionMethod / applyDeterministicFollowUpNode）。
+              // 这里必须如实声明「服务端拥有」，否则就是拿「模型没写全煎服法」这条判据
+              // 去否决服务端自己写的那段文字（2026-08-06 生产实测，26% 病例因此不出方）：
+              //   同一份内容，serverOwns=false → visible_method_incomplete_negated_or_unresolved
+              //                serverOwns=true  → 无任何问题
+              // 更荒谬的是该码在 diagnosis-rejection-tiers 里属 T3（展示层同步，最轻一档），
+              // 却在 finalize 把整张已通过安全合同、已过独立复核的处方清零成非剂量页。
+              // 归因函数 structuredRejectionReason 传的一直是 true，所以日志只会打出
+              // resolver_rejected（「拒了但说不出为什么」）——两处判据不同源，排障因此卡了很久。
+              true,
               transparentFormulaDeclassificationAccepted,
               advisoryM04RiskAccepted,
               // 校验作用域必须与受理时一致：受理时豁免了治法覆盖阈值，finalize 再用全口径
