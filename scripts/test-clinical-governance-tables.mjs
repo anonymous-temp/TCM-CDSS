@@ -476,10 +476,28 @@ const syndromeCanonicalById = new Map(
   [...syndrome.entries, ...(syndrome.clinicalExtensions || [])].map((entry) => [entry.id, entry.canonical]),
 );
 const adjudicatedSourceClasses = new Set();
+// 给药途径闸（2026-08-07）：主治写明外用途径、或源书自述不作辨证的方，标签一律不生效。
+// 本断言原本是防「标签**静默**丢失」——那个风险依然存在且更重要，所以规则改成：
+//   要么落地，要么**带一条具名拒收理由**。不允许既没落地又没有理由。
+// 拒收理由写在目录条目的 syndromeTagRejection 上，构建期另有一条 warning 打印被中和的行数。
+let routeRejectedAdjudications = 0;
 for (const row of syndromeTagAdjudications.entries) {
   const entry = governedFormulaByName.get(row.name);
   assert.ok(entry, `裁定的方剂必须存在于受控目录：${row.name}`);
   adjudicatedSourceClasses.add(entry.sourceClass);
+  const rejection = entry.syndromeTagRejection || "";
+  if (rejection) {
+    routeRejectedAdjudications += 1;
+    assert.match(
+      rejection,
+      /^(?:external_route|source_declines_differentiation):/,
+      `拒收理由必须是受控取值：${row.name}->${rejection}`,
+    );
+    // 拒收即彻底：不得留半截标签，否则「拒了但还在池子里」比不拒更危险。
+    assert.deepEqual(entry.curatedSyndromeTags, [], `${row.name} 已被途径闸拒收，却仍留有裁定标签`);
+    assert.deepEqual(entry.syndromeTags, [], `${row.name} 已被途径闸拒收，却仍在运行时候选池里`);
+    continue;
+  }
   for (const tagId of row.syndromeTagIds) {
     assert.ok(syndromeCanonicalById.has(tagId), `裁定标签必须是受控证候 id：${row.name}->${tagId}`);
     assert.ok(entry.curatedSyndromeTags.includes(tagId), `裁定标签未落地到目录：${row.name}->${tagId}`);
@@ -487,6 +505,20 @@ for (const row of syndromeTagAdjudications.entries) {
   }
   // 有标签 ⇒ 可被身份锁锁定，这是裁定的全部意义所在。
   assert.ok(entry.identityLockEligible, `裁定过的方剂必须可被身份锁锁定：${row.name}`);
+}
+// 闸必须真的在拦东西：归零说明判据被改没了或源表被清过，那正是它该拦的那类回归。
+assert.ok(
+  routeRejectedAdjudications >= 30,
+  `途径闸只中和了 ${routeRejectedAdjudications} 行裁定，判据疑似失效——` +
+    "实测基线是 41 行（含剪草散/木瓜酒/伤风腿疼方/咽肿喉闭外治方这类外用方被打上内服证候标签）",
+);
+// 反向：外用途径闸不得误伤**内服**托里生肌方。创面处置词（生肌/收口/敛疮）说明「治什么」，
+// 不说明「怎么给药」，一刀切会把这批经典外科内治方从医生手里拿走。
+for (const name of ["四妙汤", "托里黄汤", "山豆根汤"]) {
+  const entry = governedFormulaByName.get(name);
+  if (!entry) continue;
+  assert.equal(entry.syndromeTagRejection || "", "", `内服托里方 ${name} 被途径闸误伤`);
+  assert.ok(entry.syndromeTags.length > 0, `内服托里方 ${name} 的证候标签丢失`);
 }
 assert.deepEqual(
   [...adjudicatedSourceClasses].sort(),

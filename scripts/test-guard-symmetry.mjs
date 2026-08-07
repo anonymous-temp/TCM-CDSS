@@ -33,6 +33,7 @@ import { structuredClinicalRepairHint } from "../src/lib/structured-clinical-rep
 import { synchronizeEditedCandidate } from "../src/lib/prescription-revision.ts";
 import { clinicalTextForDisplay, isDisplayableClinicalText } from "../src/lib/diagnosis-client-guards.ts";
 import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
+import { classifyHerbWarning } from "../src/lib/clinical-warning-tier.ts";
 
 const START = "<!-- DIAGNOSIS_JSON_START -->";
 const END = "<!-- DIAGNOSIS_JSON_END -->";
@@ -554,4 +555,40 @@ for (const guard of ["submittedDifferentials.length > 0 && displayableDifferenti
   );
 }
 
-console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 10, failures: 0 }, null, 2));
+// 10) 「内部证据占位符」两处各写一份词表，告警层那份少收 6 个。
+//    customer-evidence 登记的 INTERNAL_PLACEHOLDER 含 内部证据缺口/检索失败/未配置/
+//    来源机构未明/年份未明/摘要未提供；clinical-warning-tier 自写的 missingEvidence 判据
+//    一个都没收。而「内部证据缺口」正是 diagnosis-types 的 INSUFFICIENT_EVIDENCE_REF.source
+//    ——系统给「没有证据」这件事起的标准名。
+//    实测：evidence="内部证据缺口" 的药味判 display_only，与 evidence="《伤寒论》" 在告警层
+//    **完全无法区分**——证据最弱的一档渲染成最常规的一档。
+//    它今天没出事只因为 hideInternalEvidenceSources 会先把 source 置空，而那个 transform
+//    只挂在 diagnose / prescribe 两条路由上。靠「另一个模块碰巧先跑」维持的不是 fail-closed。
+{
+  const act = (evidence) => classifyHerbWarning({
+    drug: "黄芪", dose: "15g", evidence, safety: "", verificationTier: "verified",
+  }).action;
+  // 收紧方向：每一个已登记的内部占位符都必须落 acknowledge，不得停在 display_only。
+  for (const placeholder of ["内部证据缺口", "检索失败", "未配置", "来源机构未明", "年份未明", "摘要未提供",
+    "待检索", "待核验", "证据不足", "待补证", "未核验", "暂无"]) {
+    assert.equal(act(placeholder), "acknowledge",
+      `内部占位符「${placeholder}」被判成常规信息——与真引用无法区分`);
+  }
+  // 反向：真引用与服务端编译常量不得被误伤（误伤是另一个方向的 fail-open：
+  // 把 identity_pending / unverified_dose 的真提示冲成满屏噪声）。
+  for (const real of ["《伤寒论》", "《中国药典》2020年版一部", "基于本例证候、病机、治法与候选药味的配伍分析"]) {
+    assert.equal(act(real), "display_only", `真证据来源「${real}」被误判为缺证据`);
+  }
+  // 词表必须同源，不得再各写一份。
+  const tierSource = readFileSync("src/lib/clinical-warning-tier.ts", "utf8");
+  assert.ok(
+    /INTERNAL_EVIDENCE_PLACEHOLDER/.test(tierSource),
+    "clinical-warning-tier 没有引用 customer-evidence 的唯一占位符词表",
+  );
+  assert.ok(
+    !/证据不足\|待核验/.test(tierSource) && !/待检索\|证据不足/.test(tierSource),
+    "clinical-warning-tier 又自写了一份内部占位符词表",
+  );
+}
+
+console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 11, failures: 0 }, null, 2));

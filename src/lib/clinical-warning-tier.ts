@@ -1,5 +1,6 @@
 import type { CaseState } from "./diagnosis-types";
 import { gateDispositionIsAdvisory } from "./diagnosis-safety";
+import { INTERNAL_EVIDENCE_PLACEHOLDER } from "./customer-evidence";
 
 export type ClinicalWarningLevel = "L0" | "L1" | "L2" | "L3" | "L4";
 export type ClinicalWarningAction =
@@ -110,7 +111,13 @@ export function classifyHerbWarning(input: {
   }
 
   const missingDose = !dose || /(?:待确认|待补充|未知|不详|—|--|暂无)/.test(dose);
-  const missingEvidence = !evidence || /(?:待补证|待检索|证据不足|待核验|未核验|暂无|—|--)/.test(evidence);
+  // 内部占位符走 customer-evidence 的唯一一份词表，不在这里另写一份同义词。
+  // 原来这里自写的那份少收 6 个（内部证据缺口/检索失败/未配置/来源机构未明/年份未明/摘要未提供），
+  // 其中「内部证据缺口」就是 INSUFFICIENT_EVIDENCE_REF.source——证据最弱的一档被判成 L0 常规信息，
+  // 与《伤寒论》这类真引用无法区分。两处词表各写各的，是本项目反复出现的形状。
+  const missingEvidence = !evidence ||
+    /(?:待补证|未核验|暂无|—|--)/.test(evidence) ||
+    INTERNAL_EVIDENCE_PLACEHOLDER.test(evidence);
   const unresolvedSafety = /(?:待医生|待药师|人工复核|审方不可用|尚未审方|无法确认|未知)/.test(safety);
   if (missingDose || missingEvidence || unresolvedSafety) {
     return profile("L2", uniqueReasons([

@@ -1,5 +1,21 @@
 const LABELED_EVIDENCE_LINE = /^(\s*(?:[-*]\s*)?(?:\*\*)?(?:证据依据|来源依据|参考依据|引用来源|方剂出处或依据|经典方出处|方剂资料收载来源|药典依据)(?:\*\*)?\s*[：:])\s*(.*?)\s*$/;
-const INTERNAL_PLACEHOLDER = /(?:待检索|待核验|证据不足|检索失败|未配置|内部证据缺口|来源机构未明|年份未明|摘要未提供)/;
+/**
+ * 系统自产的内部证据占位符。**这是全仓唯一一份**——不要在别处再写一份同义词表。
+ *
+ * 立这条的原因：clinical-warning-tier 曾自己写了一份「证据缺失」判据
+ * （待补证|待检索|证据不足|待核验|未核验|暂无|—|--），少收了 内部证据缺口 / 检索失败 /
+ * 未配置 / 来源机构未明 / 年份未明 / 摘要未提供 六个。而「内部证据缺口」正是
+ * diagnosis-types.ts 的 INSUFFICIENT_EVIDENCE_REF.source——系统给「没有证据」这件事
+ * 起的标准名。实测：evidence="内部证据缺口" 的药味被判 display_only，
+ * 与 evidence="《伤寒论》" 的药味**在告警层完全无法区分**。
+ * 也就是说证据最弱的那一档，渲染成了最常规的那一档。
+ *
+ * 它今天之所以没出事，只因为 cdss-evidence-context.hideInternalEvidenceSources 会先把
+ * source 置空——而那个 transform 只挂在 diagnose / prescribe 两条路由上（全仓仅此两处）。
+ * 靠"另一个模块碰巧先跑"来维持 fail-closed，不是 fail-closed。
+ */
+export const INTERNAL_EVIDENCE_PLACEHOLDER = /(?:待检索|待核验|证据不足|检索失败|未配置|内部证据缺口|来源机构未明|年份未明|摘要未提供)/;
+const INTERNAL_PLACEHOLDER = INTERNAL_EVIDENCE_PLACEHOLDER;
 const EVIDENCE_COLUMN = /^(?:证据依据|来源依据|参考依据|引用来源|证据支持|方剂出处或依据|经典方出处|方剂资料收载来源|药典依据|依据)$/;
 const AUTOMATION_ARTIFACT = /(?:Playwright\s+structured\s+V2\s+probe|Playwright\s+probe|自动化测试探针|回归测试结构化(?:药味|病机|候选方)?)/gi;
 const PATIENT_NARRATIVE_REFERENCE = /(?:^|[\s；;|])(?:主诉|现病史|既往史|过敏史|用药史|患者事实|病例事实|本例资料|病历原文|舌象|脉象|生命体征)\s*[：:]|(?:患者|病人)\s*(?:诉|自述|描述|出现|伴有|伴随)|基于本例(?:病史|症状|资料|主诉)|来自本例(?:病史|症状|资料|主诉)/;

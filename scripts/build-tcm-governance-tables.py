@@ -816,6 +816,54 @@ def is_clinician_dose_name(raw: object, names: set[str]) -> bool:
     return any(variant in names for variant in name_variants(raw))
 
 
+# ── 给药途径闸：外用方不得进入内服候选池 ────────────────────────────────────────
+# 判据只取**明确写出给药途径**的词，不取创面处置目标词（生肌/收口/去腐/敛疮）。
+# 两者性质不同：途径词说明「怎么给药」，创面词只说明「治什么」。
+# 四妙汤「溃后排脓去瘀、生肌长肉、气血内虚」、托里黄汤「人参黄芪补气固卫」、
+# 山豆根汤「噙之咽下即愈」都是正经的**内服**托里生肌方，按创面词一刀切会把它们误伤。
+#
+# 立这道闸的原因是一处**已经上线**的 fail-open（本机全量实测，非推断）：
+# 裁定表 983 行里有 34 行主治写明外用途径，20 行可编译数值剂量，6 行含管制毒性药；
+# 更要命的是其中几首是所在证候池的**唯一成员**——
+#   剪草散（含巴豆的顽癣外用散）→「湿毒蕴肤」池仅 1 首
+#   木瓜酒（外敷治香港脚）→「风湿入络」池仅 1 首
+#   伤风腿疼方（外用熏洗）→「风寒阻络」池仅 1 首
+#   咽肿喉闭外治方（名字即外治方，外敷涌泉）→「寒凝阳虚」「肾阳不足」
+# 医生走到这些证，拿到的唯一候选就是一张外用膏散，而且配得出剂量。
+#
+# syndromeTags 非空不只是「允许锁定」：tcm-formula-indications 从 syndromeToFormulaIds 反查候选，
+# 标签就是把该方注入该证候候选池的门票。目录里 dosageForm 只有 616 条非空、且是剂型不是途径，
+# 上述最坏用例全为 null，运行时没有任何一处能把外用方挡回内服池——标签是唯一的门。
+EXTERNAL_ROUTE_MARKERS = (
+    "外敷", "外用", "外贴", "外涂", "外擦", "外洗", "点眼", "洗眼", "吹喉", "吹之",
+    "塞耳", "掺药", "贴敷", "熏洗", "敷之", "涂之", "搽此", "围敷", "膏贴", "灸疮", "点痣",
+)
+# 源书自述不作辨证：原文明说「不问虚实/通治/悉主之」，给它勾一个主证就是替原文表态。
+NO_DIFFERENTIATION_MARKERS = (
+    "不问", "无问", "不拘", "不论虚实", "悉主之", "皆可服", "一切风疾", "无所不治",
+    "通治", "随症加减", "随证加减", "未详述", "原文未明确", "原文缺失", "主治未明确",
+)
+
+
+def syndrome_tag_route_rejection(indication_text: str) -> str:
+    """人工裁定的证候标签为何不该被接受。空串 = 可接受。
+
+    与候选生成器（build-formula-syndrome-tag-candidates.mjs）的关系：那边是**弃权**启发式，
+    宁可多弃权（它还收创面词），代价只是少自动建议一条；这里是**硬拒**，宁可窄，
+    因为过度拒收会把合法的内服托里方从医生手里拿走。两处判据不同宽度是有意的。
+    """
+    text = compact(indication_text)
+    if not text:
+        return ""
+    for marker in EXTERNAL_ROUTE_MARKERS:
+        if marker in text:
+            return f"external_route:{marker}"
+    for marker in NO_DIFFERENTIATION_MARKERS:
+        if marker in text:
+            return f"source_declines_differentiation:{marker}"
+    return ""
+
+
 def load_syndrome_tag_adjudications(governed_formula_names: set[str]) -> dict[str, list[str]]:
     """Load human-adjudicated formula->syndrome tags, rejecting anything that cannot be proven.
 
@@ -1282,6 +1330,10 @@ def build_formula_catalog(
         )
 
     entries = []
+    # 被给药途径闸中和掉的**人工裁定**行：它们仍留在 source 表里（是人工判断的记录），
+    # 但不再生效。每次构建打印出来，避免变成一笔看不见的债——
+    # 「源表里有、实际不生效」正是本项目最怕的那种静默分叉。
+    neutralized_curated_tags: list[str] = []
     for name, item in sorted(governed.items()):
         indication_entry = indications_by_name.get(name, {})
         # 裁定级主治(同名异方基线换版/变体)优先于各来源层——换版后来源层的旧版主治必须让位。
@@ -1411,6 +1463,18 @@ def build_formula_catalog(
             *adjudicated_tags_by_formula.get(name, []),
             *(relation["syndromeId"] for relation in curated_syndrome_relations),
         ]))
+        # 给药途径闸放在**标签组装处**，一次覆盖全部四个来源：verified 补充表的
+        # curatedSyndromeTags、人工裁定表、T8 高频证候-方剂关系表，以及 derived_tag_ids 机器派生。
+        # 分别在每扇门加闸就是又一次「同一判据多处各写各的」——实测机器派生那一扇占泄漏的一半以上，
+        # 只堵人工门等于堵了一半。
+        syndrome_tag_rejection = syndrome_tag_route_rejection("；".join(indications))
+        if syndrome_tag_rejection and (adjudicated_tags_by_formula.get(name) or curated_syndrome_relations
+                                       or (item.get("curatedSyndromeTags") or [])):
+            neutralized_curated_tags.append(f"{name}({syndrome_tag_rejection})")
+        if syndrome_tag_rejection:
+            curated_syndrome_tags = []
+            curated_syndrome_relations = []
+            machine_syndrome_tags = []
         symptom_tags = sorted({
             concept["id"] for concept in retrieval_concepts
             if concept.get("domain", "symptom") == "symptom" and re.search(concept["indicationPattern"], searchable_text)
@@ -1432,7 +1496,12 @@ def build_formula_catalog(
             "locationTags": derived_tag_ids(searchable_text, location_terms),
             "symptomTags": symptom_tags,
             "diseaseTags": disease_tags,
-            "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations" if curated_syndrome_tags else "governed_source_text_derived_index",
+            "syndromeTagRejection": syndrome_tag_rejection,
+            "tagGovernanceStatus": (
+                "external_route_or_source_declines_differentiation" if syndrome_tag_rejection
+                else "governed_source_text_derived_plus_curated_relations" if curated_syndrome_tags
+                else "governed_source_text_derived_index"
+            ),
             "governanceStatus": governance_status,
             "retrievalEligible": identity_lock_eligible,
             "identityLockEligible": identity_lock_eligible,
@@ -1544,6 +1613,8 @@ def build_formula_catalog(
             "sameNamePolicy": "门诊裸词“加味逍遥散”按别名归入丹栀逍遥散；只有明确《审视瑶函》或暴盲语境才进入具名眼科变体。",
         },
         "summary": {
+            "syndromeTagRouteRejectedCount": sum(bool(item.get("syndromeTagRejection")) for item in entries),
+            "syndromeTagCuratedNeutralizedCount": len(neutralized_curated_tags),
             "governedFormulaCount": len(entries),
             "prescriptionLockEligibleCount": sum(bool(item["prescriptionLockEligible"]) for item in entries),
             "identityLockEligibleCount": sum(bool(item["identityLockEligible"]) for item in entries),
@@ -1756,6 +1827,14 @@ def main() -> None:
         },
     }
     write_json(MANIFEST_OUTPUT, manifest)
+    neutralized = formula_catalog["summary"]["syndromeTagCuratedNeutralizedCount"]
+    if neutralized:
+        print(json.dumps({
+            "warning": "curated_syndrome_tags_neutralized_by_route_gate",
+            "count": neutralized,
+            "note": "这些人工裁定行仍在 source 表里，但因主治写明外用途径或源书自述不辨证而不再生效。"
+                    "留着是人工判断的记录，打印出来是为了不让它变成一笔看不见的债。",
+        }, ensure_ascii=False))
     print(json.dumps(manifest["buildSummary"], ensure_ascii=False))
 
 
