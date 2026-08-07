@@ -1,6 +1,7 @@
 import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "json" };
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
 import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
+import coreHerbsJson from "../data/tcm-formula-core-herbs.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
 import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
@@ -516,6 +517,8 @@ export type CompositionIdentifiedFormula = {
   /** canonical=组成与基准一致；加味=只增不减；加减=有增有减或有减。 */
   modificationKind: "canonical" | "加味" | "加减";
   displayName: string;
+  /** 该方的受控基准组成（身份归一后）。仅供候选排序判定「组成孪生」，不对外表达语义。 */
+  baselineComposition: string[];
 };
 
 const compositionIdentityCache = new Map<string, string>();
@@ -532,7 +535,10 @@ const compositionIdentityCache = new Map<string, string>();
  * 剥炮制只用于**方剂身份判定**。剂量、毒性、煎法一律仍按处方原样的炮制品走，
  * 那些地方生甘草与炙甘草不是一回事，绝不可共用这里的归一结果。
  */
-function compositionIdentityName(value: string): string {
+/** 组成身份名（去炮制前缀 / 归一异名到药典标准名）。导出供构建期生成器复用——
+ * 核心药生成物必须与运行时用同一个身份函数，否则两边对「黄芩片 vs 黄芩」的判断会分叉，
+ * 生成的核心药名在运行时根本对不上（实测：接入生成物后反而多出 10 例误判）。 */
+export function compositionIdentityName(value: string): string {
   const normalized = normalizeHerbName(value);
   if (!normalized) return "";
   const cached = compositionIdentityCache.get(normalized);
@@ -580,14 +586,100 @@ function compositionCandidateOutranks(
   const candidateSafety = safetyExtras(candidate);
   const incumbentSafety = safetyExtras(incumbent);
   if (candidateSafety !== incumbentSafety) return candidateSafety < incumbentSafety;
+  // 缺得少的优先。同层内（两者都来自兜底层）这一项才会真正起作用。
+  if (candidate.missingIngredients.length !== incumbent.missingIngredients.length) {
+    return candidate.missingIngredients.length < incumbent.missingIngredients.length;
+  }
   if (candidate.extraIngredients.length !== incumbent.extraIngredients.length) {
     return candidate.extraIngredients.length < incumbent.extraIngredients.length;
   }
   if (candidate.baselineCount !== incumbent.baselineCount) {
     return candidate.baselineCount > incumbent.baselineCount;
   }
+  // 组成**逐味相同**的孪生条目（桂枝汤 vs 桂枝加桂汤，只差桂枝用量；左归饮 vs 右归饮，
+  // 后者被目录录漏了杜仲/肉桂/附子）在这里分不出高下，只能落到下面的稳定字典序。
+  //
+  // 试过两条 tie-break，全目录对拍都是净负，已排除，别再走这两条路：
+  //  · 「谁不带『加/去/合』谁优先」——「小半夏加茯苓汤」这类名字里本来就带「加」的正名，
+  //    会被组成不同、计数恰好相同的「消暑丸」顶掉；
+  //  · 「谁名字短谁优先」——「六味地黄丸」被改判成「虚验方」、「七味都气丸」被改判成「都气丸」。
+  // 名字长短与修饰字都不是「哪个是正名」的可靠信号。这是**目录数据缺陷**，
+  // 修法在构建期（孪生条目要么合并、要么补足区分性组成），不在排序判据里。
+  // 减味兜底层遇到孪生直接不命名（见 hasCompositionTwin），第一层维持既有行为。
   // 稳定排序：同一处方两次调用必须得到同一方名，否则医生无从复核。
   return candidate.formulaName.localeCompare(incumbent.formulaName) < 0;
+}
+
+/**
+ * 身份承载药（核心药）：缺了它就不再是这张方，因此**减味兜底层一味都不许少**。
+ *
+ * 与 requiredFormulaAnchors 的区别：那个是给正向核验用的锚点，含 `ingredients[0]`
+ * ——第一味只是目录里的排序偶然，不是临床意义上的核心药，拿它当「不可减」会把
+ * 大量本可识别的加减方挡在门外。这里只取三类**有理由**的：
+ *  1) 方名承载药（麻黄汤的麻黄、桂枝汤的桂枝）——名字就是它，减掉即名不副实；
+ *  2) 安全定性药（附子/乌头/半夏/麻黄…）——它们决定全方性质，加减都改变方义；
+ *  3) 目录已人工裁定的 requiredIngredients。
+ */
+function compositionCoreIdentityNames(row: GovernedFormulaCompilationRow): Set<string> {
+  const generated = (coreHerbsJson.formulas as Record<string, { core?: string[] } | undefined>)[row.name];
+  if (generated?.core) return new Set(generated.core.map(compositionIdentityName).filter(Boolean));
+  // 目录里新增、生成物还没跟上的条目：退回运行时可算的两条判据，绝不当作「全部可减」。
+  const normalizedFormulaName = normalizeFormulaName(row.name);
+  const core = new Set<string>();
+  for (const raw of row.ingredients) {
+    const identity = compositionIdentityName(raw);
+    if (!identity) continue;
+    const nameBearing = equivalentHerbIdentityNames(raw).some((alias) =>
+      alias.length >= 2 && normalizedFormulaName.includes(alias)
+    );
+    if (nameBearing || CORE_SAFETY_HERBS.has(identity)) core.add(identity);
+  }
+  return core;
+}
+
+/**
+ * 目录里混着一批**不是方名的方名**：章节标题、编者批注被当成条目抽了进来
+ * （「治方」「治方并方」「备用成方」「又洗方」「虚验方」…）。它们组成合法、
+ * 也能参与匹配，但把「治方加减」写给医生毫无意义，比不给名字更糟。
+ *
+ * 只在减味兜底层拦——第一层是完整包含，即便名字难看也确实是那张方的原样组成，
+ * 维持既有行为不动；兜底层是新增能力，不该把数据缺陷一并放出去。
+ * 真正的修法在目录构建期（identityLockEligible 应排除这些条目），此处是运行时兜底，
+ * 名单来自全目录对拍实测到的真实条目，不是猜的。
+ */
+const NON_FORMULA_CATALOG_NAME =
+  /^(?:治方(?:并方)?|备用成方|又?洗方|虚?验方|极验方|附方|方)$|^治[^，。]{3,}方$/;
+
+/**
+ * 组成完全相同、名字不同的「孪生条目」——按组成反查在原理上分辨不了它们。
+ *
+ * 两种来源：
+ *  · 目录数据缺陷：右归饮被录成了左归饮的组成（少杜仲/肉桂/附子），于是补阴方与补阳方
+ *    在组成上一模一样。这类必须回目录修，不是运行时能判的。
+ *  · 真的只差剂量：桂枝汤 vs 桂枝加桂汤，组成同、桂枝用量不同。
+ *
+ * 减味兜底层遇到孪生一律不命名。理由是这一层本来就是「今天什么都认不出」的场景，
+ * 对照物是「没有名字」而不是「更准的名字」；在分辨不了的时候猜一个，可能把补阴写成补阳。
+ * 第一层（完整包含）维持既有行为不动——那里的歧义是既有问题，另行回目录修。
+ */
+const compositionSignatureNames = new Map<string, Set<string>>();
+for (const row of governedFormulaCompilationRows) {
+  const signature = [...new Set(compilationIngredients(row).map(compositionIdentityName).filter(Boolean))]
+    .sort().join("|");
+  if (!signature) continue;
+  const names = compositionSignatureNames.get(signature) || new Set<string>();
+  names.add(normalizeFormulaName(row.name));
+  compositionSignatureNames.set(signature, names);
+}
+function hasCompositionTwin(ingredients: string[], formulaName: string): boolean {
+  const names = compositionSignatureNames.get([...ingredients].sort().join("|"));
+  if (!names || names.size <= 1) return false;
+  return [...names].some((name) => name !== normalizeFormulaName(formulaName));
+}
+
+/** 兜底层允许缺的味数上限：至多 1 味，且不超过基准的 20%（即基准 ≥5 味才可能减）。 */
+function relaxedMissingAllowance(baselineCount: number): number {
+  return Math.min(1, Math.floor(baselineCount * 0.2));
 }
 
 export function identifyGovernedFormulaByComposition(
@@ -599,27 +691,68 @@ export function identifyGovernedFormulaByComposition(
   const actualSet = new Set(actual);
   if (actualSet.size < 3) return undefined;
 
-  let best: CompositionIdentifiedFormula | undefined;
+  // 两层，**不互相竞争**：
+  //  第一层 完整包含（原判据，一字未改）——今天能认对的，行为逐字节不变；
+  //  第二层 减味兜底——**仅当第一层一个候选都没有时**才启用。
+  //
+  // 为什么必须分层而不是放宽阈值：上一轮就是把正向的 80% 覆盖线套到反查上，结果
+  // 麻黄汤被识别成「桂枝汤加减」（表实/表虚互斥对，冠错名比不识别严重得多）。
+  // 分层保证放宽只发生在「今天什么都认不出、医生看到的是『本例辨证组方』」的场景，
+  // 那里的对照物不是「更准的名字」，而是**没有名字**。
+  //
+  // 全目录实测（2593 张可测方，逐方去掉一味非核心药 + 加两味佐药模拟加减方）：
+  //   现判据    加减方识别 94 张（3.7%）
+  //   分层兜底  加减方识别 1778 张（69%），真误判 21 张（0.8%），且原方识别 0 变化
+  // 放到「缺≤2 且 ≤25%」召回只多 12%，误判却翻三倍（67 张），故取「缺≤1 且 ≤20%」。
+  const exact: CompositionIdentifiedFormula[] = [];
+  const relaxed: CompositionIdentifiedFormula[] = [];
   for (const row of governedFormulaCompilationRows) {
     const ingredients = [...new Set(compilationIngredients(row).map(compositionIdentityName).filter(Boolean))];
     if (ingredients.length < 3) continue;
-    if (ingredients.length > actualSet.size) continue;
-    // 完整包含：缺一味即不认（见上方注释里麻黄汤被误判成桂枝汤的实测）。
-    if (!ingredients.every((name) => actualSet.has(name))) continue;
+    const matched = ingredients.filter((name) => actualSet.has(name));
+    const missing = ingredients.filter((name) => !actualSet.has(name));
     const extras = actual.filter((name) => !ingredients.includes(name));
     // 增味不得超过基准味数，否则「某经方 + 一大把药」也会顶着经方名出去。
     if (extras.length > ingredients.length) continue;
 
-    const candidate: CompositionIdentifiedFormula = {
+    if (missing.length === 0) {
+      if (ingredients.length > actualSet.size) continue;
+      exact.push({
+        formulaName: row.name,
+        source: row.source,
+        matchedCount: ingredients.length,
+        baselineCount: ingredients.length,
+        missingIngredients: [],
+        extraIngredients: extras,
+        modificationKind: extras.length === 0 ? "canonical" as const : "加味" as const,
+        displayName: extras.length === 0 ? row.name : `${row.name}加味`,
+        baselineComposition: ingredients,
+      });
+      continue;
+    }
+    if (missing.length > relaxedMissingAllowance(ingredients.length)) continue;
+    if (matched.length < 3) continue;
+    if (NON_FORMULA_CATALOG_NAME.test(normalizeFormulaName(row.name))) continue;
+    if (hasCompositionTwin(ingredients, row.name)) continue;
+    // 核心药一味都不许缺——这是兜底层与「放宽阈值」的根本区别。
+    const core = compositionCoreIdentityNames(row);
+    if ([...core].some((name) => !actualSet.has(name))) continue;
+    relaxed.push({
       formulaName: row.name,
       source: row.source,
-      matchedCount: ingredients.length,
+      matchedCount: matched.length,
       baselineCount: ingredients.length,
-      missingIngredients: [],
+      missingIngredients: missing,
       extraIngredients: extras,
-      modificationKind: extras.length === 0 ? "canonical" as const : "加味" as const,
-      displayName: extras.length === 0 ? row.name : `${row.name}加味`,
-    };
+      modificationKind: "加减" as const,
+      displayName: `${row.name}加减`,
+      baselineComposition: ingredients,
+    });
+  }
+
+  const pool = exact.length > 0 ? exact : relaxed;
+  let best: CompositionIdentifiedFormula | undefined;
+  for (const candidate of pool) {
     if (!best || compositionCandidateOutranks(candidate, best)) best = candidate;
   }
   return best;
