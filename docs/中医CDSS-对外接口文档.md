@@ -9,36 +9,67 @@
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
 
-**V1.2 变更（2026-08-07）**
+## 你要的 9 项内容，分别在哪里取
 
-| 变更 | 说明 |
-|---|---|
-| **新增 §2.3.1 CaseState 入参字段表** | 上一版整篇没有入参字段表，贵方无从知道该往哪传、枚举值是什么。本节每一行均以 `normalizeCaseStateInput` 实测为准 |
-| **新增 §2.3.2 流派选择入参** | 13 个受控 `tcmLineagePreference` 代码 + 中文别名。上一版该字段只作为 HIS 出参回显出现过一次 |
-| **新增 §2.3.3 饮片味数偏好入参** | 3 个 `herbCountPreference` 取值 + 5 条实测语义。**其中两条最易踩**：只认 `caseState` 顶层（放进 `hisRecord.fields` 不生效且不报错，与流派不同）；是软偏好不是硬约束（出参味数可能超档，那是临床必需优先） |
-| 补回 §3.13–§3.18 六条路由 | `question/interpret`、`snapshot`、`terminology/confirm`、`health`、`model-health`、`drug-inventory` GET。上一版相对更早版本丢失了这些章节 |
-| §1 清单方法列更正 | `search` / `herb-function` 补 `POST`，`drug-inventory` 补 `GET` |
+贵方 2026-08-05《核对内容》「一、接口缺失内容」列的 9 项，全部已可取。下表是取值路径，
+研发照这张表对接即可，不用先通读全文。
 
-> **对接方注意：V1.2 没有任何字段改名、删除或路径变更**，接口契约与 V1.1 完全兼容，可直接按本版开始对接。
->
-> 仅有一处**取值**语义变化需要处理：`westernDiagnosis.primary.name` 在模型该栏取值非法时，
-> 现在返回**空串**，而不是像此前那样一律替换成占位串「症状性诊断，病因待临床鉴别」。
-> 原因是那个占位串会让一份其实有支持依据的诊断看起来像「模型没给出诊断」（贵方 1.1.2 抱怨的正是该串本身）。
-> **请把空串按「本次未形成西医工作诊断」处理，不要原样渲染。** 其余字符串字段同理：空值一律表示
-> 「本次未产出」，不再用工程占位串顶替。
->
-> 另有一处上限收紧：`terminologyMappings` 单次最多 20 条（此前生产侧会给到 24 条，
-> 而超过 20 条时该字段会**整段变空**——收紧后反而是拿得到数据的）。
+| 贵方列的内容 | 从哪个接口取 | 字段路径 | 详见 |
+|---|---|---|---|
+| 流派选择传参 | 各阶段请求 | 请求 `caseState.tcmLineagePreference` | §2.3.2 |
+| 中药饮片味数传参 | M04 请求 | 请求 `caseState.herbCountPreference` | §2.3.3 |
+| 西医诊断的待查依据 | M03 出参 | `westernDiagnosis.primary.suggestedChecks`（建议检查）<br>`westernDiagnosis.primary.limitations`（依据不足之处） | §3.4 |
+| 方义分析 | M04 出参 | `formula.candidates[].formulaAnalysis` | §3.5 |
+| 组成逻辑 | M04 出参 | `formula.candidates[].compositionLogic[]` | §3.5 |
+| 方证鉴别 | M04 出参 | `formula.candidates[].discriminationPath[]` | §3.5 |
+| 经典条文 | M04 出参 | `formula.candidates[].classicEvidence[]` | §3.5 |
+| 剂数与煎服法 | M04 出参 | `formula.candidates[].decoction`（剂数、每日剂次、煎煮时长、服法…） | §3.5 |
+| 随证加减 | M04 出参 | `formula.modifications[]`（**在 `formula` 下，不在候选方里**） | §3.5 |
+| └ 可替换药味（贵方建议增加） | M04 出参 | `formula.modifications[].substitutions[]` | §3.5 |
+| 中成药候选完整子字段 | M04 出参 | `formula.patentAndWestern[]` | §3.5 |
+| 健康调护（饮食/起居/情志/注意事项） | M04 出参 | `nonPharma.diet` / `.lifestyle` / `.emotion` / `.precautions` | §3.5 |
+| 中医外治 | M04 出参 | `nonPharma.tcmTreatments[]` | §3.5 |
+| └ 穴位建议（贵方要求单独说明） | M04 出参 | `nonPharma.tcmTreatments[].suggestedSitesOrPoints[]` | §3.5 |
+| 药品同步接口（下发目录） | 独立接口 | `GET /api/tcm-knowledge/drug-catalog` | §3.11 |
+| 药品同步接口（导入院内库存） | 独立接口 | `POST /api/drug-inventory` | §3.12 |
 
-**V1.1 变更（针对贵方 2026-08-05《核对内容》「一、接口缺失内容」逐条）**
+**关于「可替换药味」，有两点研发需要先知道，否则会以为字段坏了：**
 
-| 变更 | 说明 |
-|---|---|
-| 更正字段名 | 上一版 M04 出参表把中成药候选写作顶层 `patentMedicines`，**该字段在实现中并不存在**，实际路径是 `formula.patentAndWestern`。贵方按文档取值必然取空，特此更正并致歉 |
-| 补齐 M03 出参 | 西医诊断的 `status` / `limitations` / `suggestedChecks` / `coding`（待查依据） |
-| 补齐 M04 出参 | 方义分析、组成逻辑、方证鉴别、经典条文、剂数与煎服法全部子字段、随证加减（含可替换药味）、中成药完整子字段 |
-| 新增接口章节 | HIS 诊疗方案导出（含健康调护、中医外治）、中药材/中成药目录查询——这些能力此前已实现但未在本文档登记 |
-| 新增能力 | **院内药品库存导入**（§3.12）：贵方导入医院库存药，开方时优先落在有货药味上；缺货药不静默替换，而是标注缺货并给受治理替代候选 |
+1. 它**只出现在"加某味药"这类加减建议上**。「减某味药」「调整用量」这类建议没有替代药可言，
+   该条加减就不带这个字段。所以一次出参里通常只有部分加减带 `substitutions`，这是正常的。
+2. 替代药**不是模型给的**，是系统按受控药品数据推导的——让模型自己提名替代药等于让模型开药。
+   推导时逐条过硬性边界：功效方向必须同类（不会拿清热药替温里药）、风险等级不得升高、
+   不得超药典剂量上限、不得触发十八反十九畏、不得使用管制毒性药。
+   推不出符合边界的替代药时，宁可不给，也不给一个勉强的。
+
+> **如果贵方走 HIS 集成**：上面这些内容在《HIS 诊疗方案导出》（§3.9）里已整合成一份现成的 JSON，
+> 不用自己从 M03/M04 出参里逐个字段拼。两处字段名略有不同，§3.9 有对照。
+
+---
+
+## 本版（V1.2）与上一版的差异
+
+**接口契约完全兼容**，没有任何字段改名、删除或路径变更，可直接按本版开始对接。本版只是把
+已经能用、但文档里没写的东西补上：
+
+- 补上**请求参数说明**（§2.3.1–§2.3.3）。上一版整篇没有请求字段表，所以流派和味数虽然早就能传，
+  贵方从文档里看不出该往哪传、能填什么值。
+- 补上 6 个接口章节（§3.13–§3.18）：追问回答解析、病例快照、术语确认、健康检查、模型检查、库存查询。
+- §1 清单里补齐了几个接口支持的方法：药材检索和功效查询也支持 `POST`（中文查询词走 POST 不用 URL 编码），
+  库存接口也支持 `GET`（查当前库存）。
+
+**有一处取值变化需要研发处理**（不是字段变化）：
+
+- `westernDiagnosis.primary.name` 现在**可能是空串**。以前不管什么情况都会填一句
+  「症状性诊断，病因待临床鉴别」，但这句话会让一份其实有依据的诊断看起来像"系统没给出诊断"
+  （贵方 1.1.2 反馈的就是这句）。现在改成：填不出来就留空。
+  **请把空串当成"本次未形成西医工作诊断"处理，不要直接显示给医生。**
+  其余文本字段同理——空值统一表示"本次没有产出这一项"。
+- `terminologyMappings`（国标术语映射）单次最多返回 20 条。
+
+**另外提醒一处字段名**：中成药候选在 M04 原始出参里是 `formula.patentAndWestern`，
+在 HIS 方案导出（§3.9）里是 `prescriptions.patentMedicines`。更早版本的文档曾把它写成顶层
+`patentMedicines`，那个路径不存在，按它取值会取到空。
 
 ---
 
@@ -142,7 +173,7 @@
 | `emergencyClearance` | object | 否 | — | 全阶段 | 只能由 `/api/diagnosis/emergency-clearance` 产出；每次读取都会重新校验并剥离，伪造无效 |
 | `reasoningDiagnose` / `reasoningPrescribe` / `reasoningV2` | object | 交接必填 | — | M04/M05 | 上一阶段结论，**必须原样回传**（R2）。任何改写都会导致 `409` |
 
-### 2.3.2 `tcmLineagePreference` 流派选择（甲方需求 #1，优先级「高」）
+### 2.3.2 流派选择 `tcmLineagePreference`
 
 影响 M02 追问策略、M03 辨证重点、M04 组方风格、M05 随访口径四个阶段。不传等价于 `unrestricted`。
 
@@ -166,7 +197,7 @@
 
 出参侧回显在 `reasoningPrescribe.lineageAdaptation`（`lineageCode`/`label`/`applicable`/`applicabilityReason`/`influencedDecisions`/`unaffectedBySafety`/`safetyDeference`），以及 HIS 方案导出中。
 
-### 2.3.3 `herbCountPreference` 饮片味数偏好（甲方需求 #1，优先级「高」）
+### 2.3.3 饮片味数偏好 `herbCountPreference`
 
 | 取值 | 含义 | 也可直接传的中文写法 |
 |---|---|---|
@@ -174,13 +205,16 @@
 | `between_10_15` | 10–15 味 | `10-15`、`10–15`、`10~15`、`10至15`、`10－15` |
 | `at_least_15` | 15 味及以上 | `15味及以上`、`15味以上`、`≥15`、`>15` |
 
-五条实测语义，集成前请逐条确认：
+以下 5 点都是实测行为，对接前请逐条确认，避免"传了没反应"这类难查的问题：
 
-1. **仅接受 `caseState` 顶层字段。** 放进 `hisRecord.fields` 不生效**且不报错**——这与 `tcmLineagePreference` 不同，后者两个通道都生效。
-2. **仅在 M04 `/api/diagnosis/prescribe` 生效**，M01–M03、M05 不读取。
-3. 大小写敏感（`WITHIN_10` 无效）；数字 `12`、模糊说法「少一点」一律丢弃为空，**不报错**。建议直接传三个受控代码，中文写法仅作兼容。
-4. **是软偏好，不是硬约束。** 服务端不做任何按味数的确定性裁剪：经典方基准组成、绑定病机节点的必需药味、安全定性药味都不会为迁就味数被删——与甲方对味数的既有口径一致（「如诊疗必须也不能裁剪」）。
-5. 因此出参味数可能超出所选档位。此时不是失效，而是临床必需优先。
+1. **只认写在 `caseState` 最外层的这个字段。** 放到 `hisRecord.fields` 里**不生效，而且不报错**。
+   注意这一点和流派**不一样**——流派两个位置都认，味数只认最外层。
+2. **只有 M04 开方接口读它**，M01–M03、M05 都不读。
+3. 大小写敏感（`WITHIN_10` 不认）。填数字 `12`、或"少一点"这种模糊说法，一律当没填处理，**不报错**。
+   建议直接传上表左列那三个值，中文写法只是兼容。
+4. **这是偏好，不是硬性限制。** 系统不会为了凑味数去删药：经典方的原方组成、绑定病机的必需药、
+   有安全定性作用的药，都会保留——这正是贵方在核对件里注明的"如诊疗必须也不能裁剪"。
+5. 所以**开出来的药味数可能超出所选档位**。这不是参数没生效，是临床必需优先。
 
 ### 2.4 响应格式
 
@@ -993,7 +1027,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/emergency-clearance"
 | 字段 | 说明 |
 |---|---|
 | `name` | 饮片正名 |
-| `aliases` | 可自动归一的别名 |
+| `aliases` | 可自动对应到该正名的别名 |
 | `ambiguousAliases` | **歧义别名**（如「一包针」可指千年健或石韦）。系统**绝不自动择一**，原样列出待人工裁定 |
 | `doseLimit` | `{min, max, basis}`；仅在 `doseLimitStatus=governed` 时给出 |
 | `doseLimitStatus` | `governed` / `not_governed`（无药典数值边界，用量由医师确定）/ `source_conflict_requires_pharmacist_review`（分用途剂量冲突，须药师复核） |
@@ -1052,7 +1086,7 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 | `inventoryVersion` | 库存版本（内容指纹） |
 | `importedAt` / `source` / `itemCount` | 导入时间 / 来源 / 条目数 |
 | `availableHerbCount` / `availablePatentCount` | 有货饮片数 / 有货中成药数 |
-| `unresolvedNames` | **归一不到受治理正名的院内药名**，如实回报供贵方补映射；不静默丢弃 |
+| `unresolvedNames` | **在我方受控药品目录里找不到对应正名的院内药名**。原样回报给贵方补充映射，不会被悄悄丢掉 |
 | `ambiguousNames` | 存在多个候选的院内药名（如"一包针"→千年健/石韦）。系统**绝不自动择一** |
 
 **开方时的表现**
