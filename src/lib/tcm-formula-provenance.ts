@@ -1158,12 +1158,24 @@ function verifyFormulaCompilationComponent(
     identityCanonical,
   );
   const baseAliases = formulaHerbBaseAliases(herbs);
+  // 锚点必须与组成、处方两侧过同一张表——否则它不是「更严」，而是**恒假**。
+  //
+  // 2026-08-05 给 ingredients 补了这张受控解析表（见上方注释），锚点这一侧漏了，
+  // 于是凡是锚点药带 autoResolvable 炮制前缀的方，处方侧被归一成「陈皮」、锚点仍是
+  // 「醋陈皮」，requiredIngredientsPresent 恒 false → bestFormulaSourceCandidate 返回
+  // undefined → verified=false、overlap=0。模型即便不重不漏原样抄写基准组成也过不了。
+  // 实测（全目录 2062 个可建基准方，把基准组成原样当处方喂回）：281 方核验失败，
+  // 其中 254 方是 M03 能锁进 M04 的，柴胡疏肝散 1/2、三仁汤 0/1、八正散 0/1 全在其中。
+  // 后果链：核验失败 → 身份不恢复 → 方名被剥成「本例辨证组方」→ 判
+  // m04_formula_reference_declassified → 定向修复 → 同码 fixpoint → 修复轮早退。
+  // 这是线上「M04 返回 200 但没有候选方」与甲方「方名可追溯率低」的同一个源头。
+  const requiredIngredients = withIdentityCanonicalNames(reference.requiredIngredients, identityCanonical);
   const sourceCandidate: FormulaSourceCandidate = {
     formulaName: reference.formulaName,
     variant: {
       source: reference.source,
       ingredients: withIdentityCanonicalNames(reference.ingredients, identityCanonical),
-      requiredIngredients: reference.requiredIngredients,
+      requiredIngredients,
       minimumPreservedIngredientCount: reference.minimumPreservedIngredientCount,
     },
     origin: reference.origin,
@@ -1189,7 +1201,7 @@ function verifyFormulaCompilationComponent(
     : undefined);
   const normalizedHerbs = new Set(herbNames.map(normalizeHerbName).filter(Boolean));
   const normalizedBaseAliases = new Set(baseAliases.values());
-  const matchedRequiredIngredientCount = reference.requiredIngredients.filter((ingredient) => {
+  const matchedRequiredIngredientCount = requiredIngredients.filter((ingredient) => {
     const normalized = normalizeHerbName(ingredient);
     return normalizedHerbs.has(normalized) ||
       (!sourceIngredientRequiresProcessingIdentity(normalized) && normalizedBaseAliases.has(normalized));
@@ -1309,6 +1321,8 @@ type ClassicEvidenceResolver = (
 
 /** 与 diagnosis-types.ts 里 candidates[].classicEvidence 的 z.array(...).max(6) 同源，超限即整段清空。 */
 const CANDIDATE_CLASSIC_EVIDENCE_LIMIT = 6;
+/** 与 diagnosis-types.ts candidates[].textualModifications 的 `.max(6)` 同源；超限即整段清空。 */
+const CANDIDATE_TEXTUAL_MODIFICATION_LIMIT = 6;
 
 export function enrichReasoning(
   reasoning: ClinicalReasoningResultV2,
@@ -1389,7 +1403,12 @@ export function enrichReasoning(
         ? classicEvidenceResolver(resolvedFormulaNames)
         : candidate.classicEvidence || []).slice(0, CANDIDATE_CLASSIC_EVIDENCE_LIMIT),
       compositionLogic: compositionLogicForFormulaNames(resolvedFormulaNames),
-      textualModifications: textualModificationsForFormulaNames(resolvedFormulaNames, clinicalContext),
+      // 必须先 slice 到契约上限：`textualModifications` 的 `.max(6).catch([])` 语义是
+      // **整段清空而非截断**，超限的后果是医生一条条文加减线索都看不到，且与「没有命中」
+      // 不可区分。紧邻的 classicEvidence 早就为此加了 slice（见 CANDIDATE_CLASSIC_EVIDENCE_LIMIT），
+      // 这一条漏了：实测逍遥散命中 8 条、小柴胡汤 7 条，两个最常用的方都超限归零。
+      textualModifications: textualModificationsForFormulaNames(resolvedFormulaNames, clinicalContext)
+        .slice(0, CANDIDATE_TEXTUAL_MODIFICATION_LIMIT),
       formulaSource: sourceLabel
         ? {
             evidenceLevel: sources.every((item) => item.origin !== "local_formula_catalog") ? "classic_text" as const : "kb_entry" as const,

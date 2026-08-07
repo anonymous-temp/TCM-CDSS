@@ -558,6 +558,9 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   direction_conflict: "拟加药味与已锁定病机或治法方向冲突",
 };
 
+/** 与 diagnosis-types.ts modificationReview.submittedCount 的 `.max(30)` 同源（该字段无 catch，超限即整份拒收）。 */
+const MODIFICATION_REVIEW_COUNT_LIMIT = 30;
+
 type ModificationNormalization = {
   items: unknown[];
   submittedCount: number;
@@ -612,7 +615,10 @@ function normalizeModifications(
     ));
   }
   const items = normalizedItems.slice(0, 4);
-  return { items, submittedCount: value.length, droppedReasons };
+  // 钳到契约上限：submittedCount 的 `.max(30)` 没有 catch，31 条**可选**随症加减会让整份
+  // M04 提案落到 T1 硬拒且无修复引导——直接违反本文件上方写下的不变量（畸形的可选行不得
+  // 作废一份完整的核心处方）。真实提交量另走日志，不进契约。
+  return { items, submittedCount: Math.min(value.length, MODIFICATION_REVIEW_COUNT_LIMIT), droppedReasons };
 }
 
 function summarizeModificationReview(

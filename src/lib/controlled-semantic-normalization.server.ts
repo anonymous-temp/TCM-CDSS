@@ -52,7 +52,11 @@ type JsonRecord = Record<string, unknown>;
 // 也就是审查指出的"中成药召回唯一的语义补位"。病例的鉴别/病位/病性条目一多，
 // 这条补位就无声消失，中成药路径退回 40 条硬编码正则。
 // max_tokens 同步抬高：每条 decision 约 50 token，24 条需要约 1200，900 装不下。
-const MAX_TARGETS_PER_CALL = 24;
+// 必须 ≤ diagnosis-types.ts 里 terminologyMappings 的 `.max(20)`——那一侧超限即**整段清空**，
+// 不是截断。此前这里是 24：结论最丰富的病例（21 条起）反而完全拿不到国标术语双显，
+// 医生的术语确认动作也会以 409 terminology_suggestion_not_current 被拒。
+// 失败方向与直觉相反：越完整的诊断越拿不到国标名。上限一致性由 test:guard-symmetry 钉住。
+const MAX_TARGETS_PER_CALL = 20;
 const MAX_CACHE_ENTRIES = 4_000;
 const MODEL_TIMEOUT_MS = 25_000;
 

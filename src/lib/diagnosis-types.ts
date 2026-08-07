@@ -754,6 +754,54 @@ const DEFAULT_PATHOGENESIS: ClinicalReasoningResultV2["pathogenesis"] = {
   uncertainties: [],
 };
 
+/**
+ * 数组逐条隔离：一条非法只丢那一条，同批合法条目照常出参。
+ *
+ * 这是本文件里反复付出代价才立住的一条约定。zod 的数组语义是「一条不合法 = 整个数组不合法」，
+ * 再叠上块级 `.catch()`，后果不是「少一条」而是**整块变 null / 整块换成工程占位串**，
+ * 且因为 `.catch()` 让 safeParse **成功**，`reasoningV2SchemaIssueCode` 一律返回 undefined
+ * ——既不产码、不驱动修复轮、也不进任何日志，只能靠线上肉眼发现。同族缺陷已复发 5 次：
+ * 最近一次是单条子治法非法连坐整个 therapy，治则被换成「暂不锁定剂量级治法」出厂（f7b55cda）。
+ *
+ * 与临床事实回补层同一条信条：单条非法不得抹掉同批有效条目。
+ * 用法：`z.preprocess(isolateInvalidItems(X), z.array(X).max(N).default([]))`，
+ * 预处理与数组元素**必须复用同一个 schema 常量**，否则两处判据会各自漂移。
+ *
+ * **它只管「单条非法」，不管「条数超限」。** 服务端自产的数组超过 `.max(N)` 时照样整段清空，
+ * 那一维要靠生成侧先 slice 到上限 + test:guard-symmetry 的上限一致性断言来兜
+ * （实测踩过：逍遥散 8 条 textualModifications、terminologyMappings 生产上限 24 > 契约 20）。
+ * 别因为「这一族已经修过一次」就不查长度维度。
+ */
+function isolateInvalidItems(itemSchema: z.ZodTypeAny) {
+  return (value: unknown) => (Array.isArray(value)
+    ? value.filter((item) => itemSchema.safeParse(item).success)
+    : value);
+}
+
+/** 单条证型鉴别。提出为具名 schema，供 tcmDifferentials 的逐条隔离复用同一判据。 */
+const TcmSyndromeDifferentialSchema = z.object({
+  syndrome: z.string().min(1).max(300),
+  reason: z.string().min(2).max(1000),
+  distinguishingPoints: z.string().min(2).max(1000),
+  nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
+});
+
+/** 单条病名鉴别（甲方 2026-08-03：鉴别诊断要求病名级）。 */
+const TcmDiseaseDifferentialSchema = z.object({
+  diseaseName: z.string().min(1).max(300),
+  reason: z.string().min(2).max(1000),
+  distinguishingPoints: z.string().min(2).max(1000),
+  nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
+});
+
+/** 单条西医鉴别诊断。 */
+const WesternDifferentialSchema = z.object({
+  name: z.string().max(600),
+  reason: z.string().max(1000),
+  distinguishingPoints: z.string().max(1000).optional().catch(""),
+  nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
+});
+
 /** 单条分治法。提出为具名 schema，供 subTherapies 的逐条隔离预处理复用同一判据。 */
 const SubTherapySchema = z.object({
   therapy: z.string().max(600),
@@ -761,6 +809,248 @@ const SubTherapySchema = z.object({
   priority: z.enum(["主要", "次要"]),
   evidence: EvidenceRefSchema,
 });
+
+/** 单条受控术语映射痕迹。提出为具名 schema，供 terminologyMappings 的逐条隔离复用同一判据。 */
+const ControlledTerminologyMappingSchema = z.object({
+  namespace: z.enum([
+    "tcm_syndrome",
+    "tcm_location",
+    "tcm_nature",
+    "tcm_treatment_principle",
+    "tcm_formula",
+    "medicine_clinical_concept",
+    "icd10",
+  ]),
+  fieldPath: z.string().min(1).max(200),
+  originalText: z.string().min(1).max(600),
+  candidateId: z.string().min(1).max(160),
+  canonical: z.string().min(1).max(600),
+  resolvedBy: z.literal("deepseek_closed_set"),
+  status: z.enum(["suggested", "clinician_confirmed"]),
+  confidence: z.number().min(0).max(1),
+  model: z.string().min(1).max(160),
+  consensus: z.literal(true),
+  cache: z.enum(["hit", "miss"]),
+});
+
+/** 单条可替换药味（服务端受治理推导，模型不参与提名）。 */
+const HerbSubstitutionSchema = z.object({
+  replaces: z.string().min(1).max(60),
+  substitute: z.string().min(1).max(60),
+  rationale: z.string().min(1).max(400),
+  differenceNote: z.string().min(1).max(400),
+});
+
+/** 单条症状群。提出为具名 schema，供 symptomClusters 的逐条隔离复用同一判据。 */
+const SymptomClusterSchema = z.object({
+  symptoms: z.array(z.string().min(1).max(300)).min(1).max(8),
+  mechanism: z.string().min(2).max(1000),
+});
+
+/**
+ * 单个病机链节点。提出为具名 schema，供 chain 的逐条隔离复用同一判据。
+ *
+ * 原先单条不是对象就让整个 pathogenesis 落 DEFAULT_PATHOGENESIS，summary、病位、病性、
+ * 症状群一起归零。归零本身被 chain_empty（T1 硬拦）接住，方向是 fail-closed；但代价是
+ * 一条写歪就把整份病机拆解作废，而不是丢那一条——这正是甲方 3.x 反复看到的「病机没拆」。
+ */
+const PathogenesisChainNodeSchema = z.object({
+  nodeId: z.string().regex(/^P\d{1,2}$/).optional().catch(undefined),
+  patientFact: z.string().max(1200).catch(""),
+  syndromeEvidence: z.string().max(1200).catch(""),
+  pathogenesis: z.string().max(1200).catch(""),
+  therapyDirection: z.string().max(1200).catch(""),
+  pathogenesisType: z.enum(["始动", "传变", "兼夹", "因果"]).optional().catch(undefined),
+  biaoBen: z.enum(["本", "标", "标本兼夹"]).optional().catch(undefined),
+  evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
+});
+
+/** 单条病机不确定项。 */
+const PathogenesisUncertaintySchema = z.object({
+  item: z.string().max(600).catch(""),
+  reason: z.string().max(1000).catch(""),
+  affects: z.string().max(1000).catch(""),
+});
+
+/**
+ * 单项中医外治。提出为具名 schema，供 tcmTreatments 的逐条隔离复用同一判据。
+ *
+ * 这一条是全表连坐面最大的：20 个字段、带 regex 与 min(1)，原先没有自己的 catch，
+ * 任一条 projectCode 越枚举 / targetRef 不合 /^P\d{1,2}$/ / 缺 requiredChecks，都会让
+ * 整个 nonPharma 落到 `.nullable().catch(null)` —— **一条外治项目写歪，健康调护
+ * （diet/lifestyle/emotion/precautions）跟着一起消失**，而这两项都是甲方 8-05 标「高」的模块。
+ * 紧邻的 precautions 早就为这个风险加了 `.default([]).catch([])` 双保险并写下了注释，
+ * 但危险得多的 tcmTreatments 一直没做同样处理——又一次「一个面修了、另一个没修」。
+ */
+const TcmTreatmentRecommendationSchema = z.object({
+  projectCode: z.enum(TCM_TREATMENT_PROJECT_CODES),
+  projectName: z.string().min(1).max(120),
+  availability: z.enum(["clinic_available", "referral_only"]),
+  riskLevel: z.enum(["low", "moderate", "specialist"]),
+  recommendationMode: z.enum(["clinician_assessment", "referral_assessment", "specialist_assessment_only"]),
+  targetRef: z.string().regex(/^P\d{1,2}$/),
+  targetPathogenesis: z.string().min(1).max(600),
+  assessmentPositioning: z.string().min(1).max(800).optional(),
+  protocolStatus: z.enum(["governed_patient_specific_plan", "assessment_only_no_patient_specific_protocol"]),
+  protocolGap: z.string().min(1).max(800).optional(),
+  treatmentContent: z.string().min(1).max(1200),
+  suggestedSitesOrPoints: z.array(z.string().min(1).max(200)).max(12),
+  scheduleSuggestion: z.string().max(600),
+  techniqueBoundary: z.string().min(1).max(1000),
+  protocolSource: z.string().min(1).max(1000),
+  operatorRequirement: z.string().min(1).max(600),
+  requiredChecks: z.array(z.string().min(1).max(600)).min(1).max(8),
+  containsMedication: z.boolean().catch(false),
+  requiresMedicationAudit: z.boolean().catch(false),
+  executable: z.boolean(),
+  clinicianReviewRequired: z.literal(true),
+});
+
+/** 单条流派影响决策。提出为具名 schema，供 influencedDecisions 的逐条隔离复用同一判据。 */
+const LineageInfluencedDecisionSchema = z.object({
+  aspect: z.enum(["辨证视角", "方源选择", "组方思路", "加减风格"]),
+  detail: z.string().max(1000),
+});
+
+/**
+ * 单条中成药/西药建议。提出为具名 schema，供 patentAndWestern 的逐条隔离复用同一判据。
+ *
+ * 原先是 `z.array(...).max(8).nullable().catch(null)`：8 条里坏 1 条，另外 7 条一起变 null。
+ * 且这一栏不在 enrichReasoning 的服务端无条件回填清单里，没有任何兜底能救；schema 码、
+ * 语义合同、修复轮、批注四路全无信号，是全表信噪比最差的一格（甲方 8-05「中成药」整项消失）。
+ */
+const PatentAndWesternSchema = z.object({
+  type: z.enum(["西药", "中成药"]),
+  name: z.string().max(300),
+  specification: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable()),
+  evidenceId: z.string().max(80).optional(),
+  evidenceFingerprint: z.string().max(100).optional(),
+  recommendationMode: z.enum(["candidate_review", "discussion_only"]).optional(),
+  singleDose: z.string().max(300).optional(),
+  frequency: z.string().max(300).optional(),
+  route: z.string().max(300).optional(),
+  usageBoundary: z.string().max(800),
+  course: z.string().max(500),
+  positioning: z.enum(["联合治疗", "替代方案", "短期对症", "需医生评估"]),
+  correspondingProblem: z.string().max(800),
+  evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
+  relationship: z.string().max(800),
+  riskNote: z.string().max(1000),
+});
+
+/**
+ * 单张候选方。提出为具名 schema，供 candidates 的逐条隔离复用同一判据。
+ *
+ * 隔离口径是**只隔离备选**：首选（index 0）非法仍整份拒收。
+ * 理由分两头——原先 formula 是全表唯一没有块级 catch 的大块，备选方少一个 dosesPerDay，
+ * 连同已完全合格的首选方、辨证、病机、调护一起作废，这与「非剂量/空白页只在真的没东西
+ * 可展示时才允许」直接冲突，也是修复轮与编排时限被烧光的主要消耗源；但反过来，若把首选也
+ * 一并隔离掉，出参里剩下的第一张就成了原本标注为「备选」的方，等于系统替医生改了首选，
+ * 且剂量安全语义会从 fail-closed 滑向 fail-open。所以首选保持原样冒泡拒收（有 schema 码、
+ * 驱动修复轮），备选逐条丢弃。
+ */
+const PrescriptionCandidateSchema = z.object({
+  name: z.string().max(300),
+  formulaNames: z.array(z.string().max(300)).max(4).optional().catch([]),
+  positioning: z.enum(["首选", "备选", "仅学术思路"]),
+  constructionType: z.enum(["single_base", "combined", "self_devised", "single_herb"]).optional(),
+  modificationStatus: z.enum(["canonical", "modified"]).optional(),
+  identityDeclassified: z.boolean().optional().catch(undefined),
+  identityDeclassificationReason: z.literal("classic_composition_unverified_after_repair").optional().catch(undefined),
+  baseFormulas: z.array(z.object({
+    name: z.string().max(300).catch(""),
+    source: z.string().max(800).catch(""),
+    matchedIngredientCount: z.number().int().min(0).max(100).catch(0),
+    totalIngredientCount: z.number().int().min(1).max(100).optional(),
+    minimumPreservedIngredientCount: z.number().int().min(1).max(100).optional(),
+    matchedRequiredIngredientCount: z.number().int().min(0).max(100).optional(),
+    requiredIngredientCount: z.number().int().min(0).max(100).optional(),
+    verificationStatus: z.literal("verified_individually").optional(),
+  })).max(4).optional(),
+  discriminationPath: z.array(z.object({
+    againstFormula: z.string().min(1).max(300),
+    question: z.string().min(1).max(800),
+    status: z.enum(["confirmed", "absent", "unknown"]),
+    sourceRef: z.string().min(1).max(500),
+  })).max(6).optional().catch([]),
+  classicEvidence: z.array(z.object({
+    evidenceId: z.string().min(1).max(100),
+    citation: z.string().min(1).max(300),
+    anchorLevel: z.enum(["tiaowen", "chapter_paragraph", "page_paragraph"]),
+    clauseNumber: z.number().int().min(1).max(500).optional(),
+    excerpt: z.string().min(1).max(600),
+    tier: z.enum(["canon", "common", "experience"]),
+  })).max(6).optional().catch([]),
+  compositionLogic: z.array(z.object({
+    formulaName: z.string().min(1).max(300),
+    summary: z.string().min(1).max(1200),
+    tier: z.enum(["common", "experience"]),
+    sourceRefs: z.array(z.string().min(1).max(500)).min(1).max(6),
+  })).max(4).optional().catch([]),
+  textualModifications: z.array(z.object({
+    ruleId: z.string().min(1).max(100),
+    baseFormula: z.string().min(1).max(300),
+    matchedTriggers: z.array(z.string().min(1).max(100)).min(1).max(8),
+    resultingFormula: z.string().min(1).max(300).optional(),
+    addHerbs: z.array(z.string().min(1).max(120)).max(8),
+    removeHerbs: z.array(z.string().min(1).max(120)).max(8),
+    sourceEvidenceId: z.string().min(1).max(100),
+    sourceCitation: z.string().min(1).max(300),
+    evidenceAnchorLevel: z.enum(["tiaowen", "chapter_paragraph", "page_paragraph"]),
+    tier: z.enum(["canon", "common", "experience"]),
+    requiresClinicianReview: z.literal(true),
+  })).max(6).optional().catch([]),
+  formulaSource: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
+  therapyMatch: z.string().max(1200).catch(""),
+  applicable: z.string().max(1200).catch(""),
+  notApplicable: z.string().max(1200).catch(""),
+  herbs: z.array(z.object({
+    name: z.string().max(120),
+    processing: z.preprocess(normalizeModelNullableText, z.string().max(120).nullable()),
+    dose: z.string().max(120).nullable(),
+    role: PrescriptionRoleSchema,
+    prescriptionRole: z.string().max(300),
+    targetKind: z.enum(["pathogenesis_node", "formula_structure"]).optional().catch(undefined),
+    targetRef: z.string().max(20).optional().catch(undefined),
+    structureRole: z.enum(["middle_jiao_support", "harmonize", "guide", "temper"]).nullable().optional().catch(undefined),
+    targetPathogenesis: z.string().max(600),
+    function: z.string().max(800),
+    isToxic: z.boolean().optional(),
+    decoctionRequirement: z.preprocess(
+      normalizeModelNullableText,
+      z.string().max(200).nullable().optional(),
+    ).transform((value) => value ?? undefined),
+    verificationTier: z.enum(["verified", "unverified_dose", "identity_pending", "toxic_regulated"]).optional(),
+    doseSource: z.enum(["governed_boundary", "classical_source", "none"]).optional(),
+    verificationReasons: z.array(z.string().min(1).max(500)).max(8).optional().catch(undefined),
+    evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
+  })).max(50).default([]),
+  formulaAnalysis: z.string().max(4000).catch(""),
+  decoction: z.object({
+    doseCount: z.string().max(120).nullable(),
+    method: z.string().max(1000),
+    course: z.string().max(1000),
+    followUpNode: z.string().max(1000),
+    dosesPerDay: z.number().int().min(1).max(3),
+    administrationTimesPerDay: z.number().int().min(1).max(6),
+    soakMinutes: z.number().int().min(0).max(120).optional(),
+    decoctionTimes: z.number().int().min(1).max(4).optional(),
+    firstDecoctionMinutes: z.number().int().min(1).max(180).optional(),
+    secondDecoctionMinutes: z.number().int().min(1).max(180).optional(),
+    targetVolumeMl: z.number().int().min(50).max(3000).optional(),
+    administration: z.string().max(300).optional(),
+    followUpAfterDoses: z.number().int().min(1).max(30).optional(),
+    followUpAfterDays: z.number().int().min(1).max(90).optional(),
+  }),
+});
+
+/**
+ * 候选方隔离：首选（index 0）原样保留，非法就让它冒泡到整份拒收；备选逐条过滤。
+ */
+function isolateInvalidAlternateCandidates(value: unknown) {
+  if (!Array.isArray(value)) return value;
+  return value.filter((item, index) => index === 0 || PrescriptionCandidateSchema.safeParse(item).success);
+}
 
 const DEFAULT_THERAPY: ClinicalReasoningResultV2["therapy"] = {
   overallPrinciple: "暂不锁定剂量级治法",
@@ -800,54 +1090,44 @@ const ReasoningV2SchemaBase = z.object({
       qualityAnnotationCodes: z.array(z.string().min(1).max(120)).max(32),
     }).optional().catch(undefined),
   }).optional().catch(undefined),
-  terminologyMappings: z.array(z.object({
-    namespace: z.enum([
-      "tcm_syndrome",
-      "tcm_location",
-      "tcm_nature",
-      "tcm_treatment_principle",
-      "tcm_formula",
-      "medicine_clinical_concept",
-      "icd10",
-    ]),
-    fieldPath: z.string().min(1).max(200),
-    originalText: z.string().min(1).max(600),
-    candidateId: z.string().min(1).max(160),
-    canonical: z.string().min(1).max(600),
-    resolvedBy: z.literal("deepseek_closed_set"),
-    status: z.enum(["suggested", "clinician_confirmed"]),
-    confidence: z.number().min(0).max(1),
-    model: z.string().min(1).max(160),
-    consensus: z.literal(true),
-    cache: z.enum(["hit", "miss"]),
-  })).max(20).optional().catch([]),
+  terminologyMappings: z.preprocess(
+    isolateInvalidItems(ControlledTerminologyMappingSchema),
+    z.array(ControlledTerminologyMappingSchema).max(20).optional(),
+  ).catch([]),
   completeness: CompletenessSchema.optional(),
   overview: z.object({
     tcmDiseaseName: z.string().min(1).max(300).optional().catch(undefined),
-    primarySyndrome: z.string().max(1200),
+    // 以下五个叙述字段原先都没有自己的 catch，任一越界就让整个 overview 落 DEFAULT_OVERVIEW，
+    // 一次性把主证/病机/治法/选方方向四个工程占位串全放出来，并连坐清空两组鉴别诊断与辨证依据。
+    // 医生看到的是「整个辨证没做出来」，实际只是模型某一栏写长了。
+    // 归零后每一栏各自缺失，且都仍被既有硬合同接住：空主证 → primary_syndrome_unstable、
+    // 空病机 → overall_pathogenesis_unstable（两者的 `!value` 分支与占位串同码），检测力度不变。
+    primarySyndrome: z.string().max(1200).catch(""),
     primarySyndromeResolution: z.enum(["resolved", "bounded", "unresolved"]).optional().catch(undefined),
-    primarySyndromeBasis: z.array(z.string().min(1).max(600)).max(8).optional().catch([]),
+    primarySyndromeBasis: z.preprocess(
+      isolateInvalidItems(z.string().min(1).max(600)),
+      z.array(z.string().min(1).max(600)).max(8).optional(),
+    ).catch([]),
     primarySyndromeResolutionReason: z.string().min(1).max(800).optional().catch(undefined),
     tcmDiseaseRationale: z.string().max(1200).optional().catch(""),
     tcmDiagnosticRationale: z.string().max(1600).optional().catch(""),
-    tcmDifferentials: z.array(z.object({
-      syndrome: z.string().min(1).max(300),
-      reason: z.string().min(2).max(1000),
-      distinguishingPoints: z.string().min(2).max(1000),
-      nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
-    })).max(6).optional().catch([]),
+    tcmDifferentials: z.preprocess(
+      isolateInvalidItems(TcmSyndromeDifferentialSchema),
+      z.array(TcmSyndromeDifferentialSchema).max(6).optional(),
+    ).catch([]),
     // 甲方评测(2026-08-03)：鉴别诊断要求病名级(与相邻中医病名区分)，证型鉴别(tcmDifferentials)
     // 保留为辨证层内容。二者呈现在不同小节。
-    tcmDiseaseDifferentials: z.array(z.object({
-      diseaseName: z.string().min(1).max(300),
-      reason: z.string().min(2).max(1000),
-      distinguishingPoints: z.string().min(2).max(1000),
-      nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
-    })).max(6).optional().catch([]),
-    secondarySyndromes: z.array(z.string().min(1).max(300)).max(6).optional().catch([]),
-    overallPathogenesis: z.string().max(2000),
-    overallTherapy: z.string().max(1200),
-    recommendedFormulaDirection: z.string().max(1200),
+    tcmDiseaseDifferentials: z.preprocess(
+      isolateInvalidItems(TcmDiseaseDifferentialSchema),
+      z.array(TcmDiseaseDifferentialSchema).max(6).optional(),
+    ).catch([]),
+    secondarySyndromes: z.preprocess(
+      isolateInvalidItems(z.string().min(1).max(300)),
+      z.array(z.string().min(1).max(300)).max(6).optional(),
+    ).catch([]),
+    overallPathogenesis: z.string().max(2000).catch(""),
+    overallTherapy: z.string().max(1200).catch(""),
+    recommendedFormulaDirection: z.string().max(1200).catch(""),
     recommendedFormulaNames: z.array(z.string().max(300)).max(4).optional().catch([]),
     formulaSelectionMode: z.enum(["single", "combined", "alternatives", "self_devised", "none"]).optional().catch("none"),
     deferredFormulaSelection: z.object({
@@ -856,11 +1136,16 @@ const ReasoningV2SchemaBase = z.object({
       mode: z.enum(["single", "combined", "alternatives"]),
       reason: z.enum(["semantic_mapping_pending_clinician_confirmation", "system_retrieved_pending_clinician_selection"]),
     }).optional().catch(undefined),
-    evidence: EvidenceRefSchema,
+    evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
   }).catch(DEFAULT_OVERVIEW),
   westernDiagnosis: z.object({
     primary: z.object({
-      name: z.string().min(2).max(600).catch(DEFAULT_WESTERN_DIAGNOSIS.primary.name),
+      // 归零而不是换占位串。原先写死 `.catch("症状性诊断，病因待临床鉴别")`：模型只要把
+      // 病名写短了一个字（min(2)），出参就变成一份「有 supportingFacts 的占位诊断」——
+      // 看起来像模型自己给不出诊断，实际是校验替换的。甲方 1.1.2「诊断术语不规范，
+      // 症状工作性诊断？」抱怨的正是这个串本身。归零后交由 diagnosis-visible-summary
+      // 里既有的**基于患者事实**的兜底决定要不要写占位。
+      name: z.string().min(2).max(600).catch(""),
       coding: z.object({
         system: z.literal("ICD-10"),
         code: z.string().refine(isSupportedIcd10PayerCode, "invalid governed ICD-10 payer code"),
@@ -875,17 +1160,20 @@ const ReasoningV2SchemaBase = z.object({
       suggestedChecks: z.array(z.string().max(600)).max(12).catch([]),
       evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
     }).catch(DEFAULT_WESTERN_DIAGNOSIS.primary),
-    differentials: z.array(z.object({
-      name: z.string().max(600),
-      reason: z.string().max(1000),
-      distinguishingPoints: z.string().max(1000).optional().catch(""),
-      nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
-    })).max(8).catch([]),
+    differentials: z.preprocess(
+      isolateInvalidItems(WesternDifferentialSchema),
+      z.array(WesternDifferentialSchema).max(8),
+    ).catch([]),
   }).catch(DEFAULT_WESTERN_DIAGNOSIS),
   pathogenesis: z.object({
     summary: z.string().max(3000).catch(""),
     locationDifferentiation: z.object({
-      items: z.array(z.string().max(200)).max(16).default([]),
+      // 逐条隔离：原先单条病位超 200 字就让整个病位块落占位（location_classification_missing
+      // 只得一条 T2 批注），医生看到的是「病位没辨出来」，实际只是有一条写长了。
+      items: z.preprocess(
+        isolateInvalidItems(z.string().max(200)),
+        z.array(z.string().max(200)).max(16).default([]),
+      ),
       details: z.array(z.object({
         location: z.string().min(1).max(200),
         basis: z.string().min(1).max(800),
@@ -895,7 +1183,10 @@ const ReasoningV2SchemaBase = z.object({
       evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
     }).catch(DEFAULT_PATHOGENESIS.locationDifferentiation),
     natureDifferentiation: z.object({
-      items: z.array(z.string().max(200)).max(16).default([]),
+      items: z.preprocess(
+        isolateInvalidItems(z.string().max(200)),
+        z.array(z.string().max(200)).max(16).default([]),
+      ),
       rootDeficiency: z.array(z.string().min(1).max(200)).max(8).optional().catch([]),
       branchExcess: z.array(z.string().min(1).max(200)).max(8).optional().catch([]),
       basis: z.string().max(800).optional().catch(""),
@@ -903,33 +1194,31 @@ const ReasoningV2SchemaBase = z.object({
       resolutionReason: z.string().min(1).max(800).optional().catch(undefined),
       evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
     }).catch(DEFAULT_PATHOGENESIS.natureDifferentiation),
-    symptomClusters: z.array(z.object({
-      symptoms: z.array(z.string().min(1).max(300)).min(1).max(8),
-      mechanism: z.string().min(2).max(1000),
-    })).max(6).optional().catch([]),
+    symptomClusters: z.preprocess(
+      isolateInvalidItems(SymptomClusterSchema),
+      z.array(SymptomClusterSchema).max(6).optional(),
+    ).catch([]),
     caseRelationship: z.object({
       rootPattern: z.string().min(1).max(600),
       mainManifestation: z.string().min(1).max(300),
       relationship: z.string().min(1).max(1200),
     }).optional().catch(undefined),
-    chain: z.array(z.object({
-      nodeId: z.string().regex(/^P\d{1,2}$/).optional().catch(undefined),
-      patientFact: z.string().max(1200).catch(""),
-      syndromeEvidence: z.string().max(1200).catch(""),
-      pathogenesis: z.string().max(1200).catch(""),
-      therapyDirection: z.string().max(1200).catch(""),
-      pathogenesisType: z.enum(["始动", "传变", "兼夹", "因果"]).optional().catch(undefined),
-      biaoBen: z.enum(["本", "标", "标本兼夹"]).optional().catch(undefined),
-      evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
-    })).max(12).default([]),
-    uncertainties: z.array(z.object({
-      item: z.string().max(600).catch(""),
-      reason: z.string().max(1000).catch(""),
-      affects: z.string().max(1000).catch(""),
-    })).max(12).default([]),
+    chain: z.preprocess(
+      isolateInvalidItems(PathogenesisChainNodeSchema),
+      z.array(PathogenesisChainNodeSchema).max(12).default([]),
+    ).catch([]),
+    uncertainties: z.preprocess(
+      isolateInvalidItems(PathogenesisUncertaintySchema),
+      z.array(PathogenesisUncertaintySchema).max(12).default([]),
+    ).catch([]),
   }).catch(DEFAULT_PATHOGENESIS),
   therapy: z.object({
-    overallPrinciple: z.string().max(2000),
+    // `.catch("")` 而不是让它连坐整块：治则超长/类型错时落 DEFAULT_THERAPY，治则就变成
+    // 「暂不锁定剂量级治法」并被签名出厂（甲方 4.1「治则未显示」）。而
+    // applyDeterministicTreatmentPrinciple 的接管判据是「空 **或** 恰好等于占位串」，
+    // 超长值两头不沾、守卫早退，占位串反而成了权威出参。归零让守卫能接手；
+    // 真的补不出来时，合同侧 `!principle` 走的仍是同一个 therapy_principle_invalid。
+    overallPrinciple: z.string().max(2000).catch(""),
     overallMethod: z.string().max(2000).optional().catch(undefined),
     // 分治法**逐条隔离**：一条不合法只丢那一条，不得连坐整个 therapy（2026-08-06，线上实测）。
     //
@@ -942,125 +1231,19 @@ const ReasoningV2SchemaBase = z.object({
     //
     // 与临床事实回补层同一条信条：单条非法不得抹掉同批有效条目。
     subTherapies: z.preprocess(
-      (value) => (Array.isArray(value)
-        ? value.filter((item) => SubTherapySchema.safeParse(item).success)
-        : value),
+      isolateInvalidItems(SubTherapySchema),
       z.array(SubTherapySchema).max(12).default([]),
     ).catch([]),
   }).catch(DEFAULT_THERAPY),
   formula: z.object({
-    candidates: z.array(z.object({
-      name: z.string().max(300),
-      formulaNames: z.array(z.string().max(300)).max(4).optional().catch([]),
-      positioning: z.enum(["首选", "备选", "仅学术思路"]),
-      constructionType: z.enum(["single_base", "combined", "self_devised", "single_herb"]).optional(),
-      modificationStatus: z.enum(["canonical", "modified"]).optional(),
-      identityDeclassified: z.boolean().optional().catch(undefined),
-      identityDeclassificationReason: z.literal("classic_composition_unverified_after_repair").optional().catch(undefined),
-      baseFormulas: z.array(z.object({
-        name: z.string().max(300).catch(""),
-        source: z.string().max(800).catch(""),
-        matchedIngredientCount: z.number().int().min(0).max(100).catch(0),
-        totalIngredientCount: z.number().int().min(1).max(100).optional(),
-        minimumPreservedIngredientCount: z.number().int().min(1).max(100).optional(),
-        matchedRequiredIngredientCount: z.number().int().min(0).max(100).optional(),
-        requiredIngredientCount: z.number().int().min(0).max(100).optional(),
-        verificationStatus: z.literal("verified_individually").optional(),
-      })).max(4).optional(),
-      discriminationPath: z.array(z.object({
-        againstFormula: z.string().min(1).max(300),
-        question: z.string().min(1).max(800),
-        status: z.enum(["confirmed", "absent", "unknown"]),
-        sourceRef: z.string().min(1).max(500),
-      })).max(6).optional().catch([]),
-      classicEvidence: z.array(z.object({
-        evidenceId: z.string().min(1).max(100),
-        citation: z.string().min(1).max(300),
-        anchorLevel: z.enum(["tiaowen", "chapter_paragraph", "page_paragraph"]),
-        clauseNumber: z.number().int().min(1).max(500).optional(),
-        excerpt: z.string().min(1).max(600),
-        tier: z.enum(["canon", "common", "experience"]),
-      })).max(6).optional().catch([]),
-      compositionLogic: z.array(z.object({
-        formulaName: z.string().min(1).max(300),
-        summary: z.string().min(1).max(1200),
-        tier: z.enum(["common", "experience"]),
-        sourceRefs: z.array(z.string().min(1).max(500)).min(1).max(6),
-      })).max(4).optional().catch([]),
-      textualModifications: z.array(z.object({
-        ruleId: z.string().min(1).max(100),
-        baseFormula: z.string().min(1).max(300),
-        matchedTriggers: z.array(z.string().min(1).max(100)).min(1).max(8),
-        resultingFormula: z.string().min(1).max(300).optional(),
-        addHerbs: z.array(z.string().min(1).max(120)).max(8),
-        removeHerbs: z.array(z.string().min(1).max(120)).max(8),
-        sourceEvidenceId: z.string().min(1).max(100),
-        sourceCitation: z.string().min(1).max(300),
-        evidenceAnchorLevel: z.enum(["tiaowen", "chapter_paragraph", "page_paragraph"]),
-        tier: z.enum(["canon", "common", "experience"]),
-        requiresClinicianReview: z.literal(true),
-      })).max(6).optional().catch([]),
-      formulaSource: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
-      therapyMatch: z.string().max(1200).catch(""),
-      applicable: z.string().max(1200).catch(""),
-      notApplicable: z.string().max(1200).catch(""),
-      herbs: z.array(z.object({
-        name: z.string().max(120),
-        processing: z.preprocess(normalizeModelNullableText, z.string().max(120).nullable()),
-        dose: z.string().max(120).nullable(),
-        role: PrescriptionRoleSchema,
-        prescriptionRole: z.string().max(300),
-        targetKind: z.enum(["pathogenesis_node", "formula_structure"]).optional().catch(undefined),
-        targetRef: z.string().max(20).optional().catch(undefined),
-        structureRole: z.enum(["middle_jiao_support", "harmonize", "guide", "temper"]).nullable().optional().catch(undefined),
-        targetPathogenesis: z.string().max(600),
-        function: z.string().max(800),
-        isToxic: z.boolean().optional(),
-        decoctionRequirement: z.preprocess(
-          normalizeModelNullableText,
-          z.string().max(200).nullable().optional(),
-        ).transform((value) => value ?? undefined),
-        verificationTier: z.enum(["verified", "unverified_dose", "identity_pending", "toxic_regulated"]).optional(),
-        doseSource: z.enum(["governed_boundary", "classical_source", "none"]).optional(),
-        verificationReasons: z.array(z.string().min(1).max(500)).max(8).optional().catch(undefined),
-        evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
-      })).max(50).default([]),
-      formulaAnalysis: z.string().max(4000).catch(""),
-      decoction: z.object({
-        doseCount: z.string().max(120).nullable(),
-        method: z.string().max(1000),
-        course: z.string().max(1000),
-        followUpNode: z.string().max(1000),
-        dosesPerDay: z.number().int().min(1).max(3),
-        administrationTimesPerDay: z.number().int().min(1).max(6),
-        soakMinutes: z.number().int().min(0).max(120).optional(),
-        decoctionTimes: z.number().int().min(1).max(4).optional(),
-        firstDecoctionMinutes: z.number().int().min(1).max(180).optional(),
-        secondDecoctionMinutes: z.number().int().min(1).max(180).optional(),
-        targetVolumeMl: z.number().int().min(50).max(3000).optional(),
-        administration: z.string().max(300).optional(),
-        followUpAfterDoses: z.number().int().min(1).max(30).optional(),
-        followUpAfterDays: z.number().int().min(1).max(90).optional(),
-      }),
-    })).max(3).default([]),
-    patentAndWestern: z.array(z.object({
-      type: z.enum(["西药", "中成药"]),
-      name: z.string().max(300),
-      specification: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable()),
-      evidenceId: z.string().max(80).optional(),
-      evidenceFingerprint: z.string().max(100).optional(),
-      recommendationMode: z.enum(["candidate_review", "discussion_only"]).optional(),
-      singleDose: z.string().max(300).optional(),
-      frequency: z.string().max(300).optional(),
-      route: z.string().max(300).optional(),
-      usageBoundary: z.string().max(800),
-      course: z.string().max(500),
-      positioning: z.enum(["联合治疗", "替代方案", "短期对症", "需医生评估"]),
-      correspondingProblem: z.string().max(800),
-      evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
-      relationship: z.string().max(800),
-      riskNote: z.string().max(1000),
-    })).max(8).nullable().catch(null),
+    candidates: z.preprocess(
+      isolateInvalidAlternateCandidates,
+      z.array(PrescriptionCandidateSchema).max(3).default([]),
+    ),
+    patentAndWestern: z.preprocess(
+      isolateInvalidItems(PatentAndWesternSchema),
+      z.array(PatentAndWesternSchema).max(8).nullable(),
+    ).catch(null),
     medicineCandidateStatus: z.object({
       status: z.enum(["available", "no_evidence_match"]),
       reason: z.string().max(500),
@@ -1079,12 +1262,10 @@ const ReasoningV2SchemaBase = z.object({
       riskNote: z.string().max(1200).nullable().transform((value) => value ?? ""),
       // 新增字段必须 fail-soft:没有 .catch 时,模型写歪一条 substitutions 会让**整条加减**
       // 解析失败,进而可能拖垮整个候选。新字段的价值远小于处方本身,不可为它牺牲主链路。
-      substitutions: z.array(z.object({
-        replaces: z.string().min(1).max(60),
-        substitute: z.string().min(1).max(60),
-        rationale: z.string().min(1).max(400),
-        differenceNote: z.string().min(1).max(400),
-      })).max(4).optional().catch(undefined),
+      substitutions: z.preprocess(
+        isolateInvalidItems(HerbSubstitutionSchema),
+        z.array(HerbSubstitutionSchema).max(4).optional(),
+      ).catch(undefined),
       evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
     })).max(30).default([]),
     modificationReview: z.object({
@@ -1100,33 +1281,15 @@ const ReasoningV2SchemaBase = z.object({
     }).optional(),
   }).nullable(),
   nonPharma: z.object({
-    diet: z.string().max(1600),
-    lifestyle: z.string().max(1600),
-    emotion: z.string().max(1600),
+    // 三栏各自兜底：原先任一栏超长都会让整个 nonPharma 变 null，连中医外治一并带走。
+    diet: z.string().max(1600).catch(""),
+    lifestyle: z.string().max(1600).catch(""),
+    emotion: z.string().max(1600).catch(""),
     acupointCare: z.string().max(1600).nullable().catch(null),
-    tcmTreatments: z.array(z.object({
-      projectCode: z.enum(TCM_TREATMENT_PROJECT_CODES),
-      projectName: z.string().min(1).max(120),
-      availability: z.enum(["clinic_available", "referral_only"]),
-      riskLevel: z.enum(["low", "moderate", "specialist"]),
-      recommendationMode: z.enum(["clinician_assessment", "referral_assessment", "specialist_assessment_only"]),
-      targetRef: z.string().regex(/^P\d{1,2}$/),
-      targetPathogenesis: z.string().min(1).max(600),
-      assessmentPositioning: z.string().min(1).max(800).optional(),
-      protocolStatus: z.enum(["governed_patient_specific_plan", "assessment_only_no_patient_specific_protocol"]),
-      protocolGap: z.string().min(1).max(800).optional(),
-      treatmentContent: z.string().min(1).max(1200),
-      suggestedSitesOrPoints: z.array(z.string().min(1).max(200)).max(12),
-      scheduleSuggestion: z.string().max(600),
-      techniqueBoundary: z.string().min(1).max(1000),
-      protocolSource: z.string().min(1).max(1000),
-      operatorRequirement: z.string().min(1).max(600),
-      requiredChecks: z.array(z.string().min(1).max(600)).min(1).max(8),
-      containsMedication: z.boolean().catch(false),
-      requiresMedicationAudit: z.boolean().catch(false),
-      executable: z.boolean(),
-      clinicianReviewRequired: z.literal(true),
-    })).max(3).default([]),
+    tcmTreatments: z.preprocess(
+      isolateInvalidItems(TcmTreatmentRecommendationSchema),
+      z.array(TcmTreatmentRecommendationSchema).max(3).default([]),
+    ).catch([]),
     // `.default([]).catch([])` 双保险：旧快照（含 monitoring、无 precautions）在 normalize 时
     // 静默补 []，类型非法时归零而不是让整个 nonPharma 落到下面的 `.nullable().catch(null)`
     // ——后者会连带丢掉 diet/lifestyle/emotion。旧的 monitoring 键因 nonPharma 不是 strict
@@ -1135,17 +1298,17 @@ const ReasoningV2SchemaBase = z.object({
   }).nullable().catch(null),
   lineageAdaptation: z.object({
     schemaVersion: z.literal("tcm-cdss-reasoning-v2"),
-    lineageCode: z.string().max(80),
-    label: z.string().max(120),
+    lineageCode: z.string().max(80).catch(""),
+    label: z.string().max(120).catch(""),
     applicable: z.enum(["applicable", "partial", "not-applicable"]).catch("partial"),
-    applicabilityReason: z.string().max(1600),
-    influencedDecisions: z.array(z.object({
-      aspect: z.enum(["辨证视角", "方源选择", "组方思路", "加减风格"]),
-      detail: z.string().max(1000),
-    })).max(12).default([]),
+    applicabilityReason: z.string().max(1600).catch(""),
+    influencedDecisions: z.preprocess(
+      isolateInvalidItems(LineageInfluencedDecisionSchema),
+      z.array(LineageInfluencedDecisionSchema).max(12).default([]),
+    ).catch([]),
     unaffectedBySafety: z.array(z.string().max(600)).max(12).default([]),
     alternativeDirection: z.string().max(1200).optional(),
-    safetyDeference: z.string().max(1200),
+    safetyDeference: z.string().max(1200).catch(""),
   }).nullable().catch(null),
   management: z.object({
     redFlagLoop: z.string().max(1600).optional(),
@@ -1397,7 +1560,9 @@ function normalizeHerbCountPreference(value: unknown): CaseState["herbCountPrefe
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return undefined;
   if (text === "within_10" || /10\s*味?以内|≤\s*10|<\s*10/.test(text)) return "within_10";
-  if (text === "between_10_15" || /10\s*[-~－至]\s*15/.test(text)) return "between_10_15";
+  // 字符类必须含 en dash / em dash：系统自己在 prompt 里印的就是「10–15 味」（U+2013），
+  // 原样传回来却匹配不上，三档里恰好中间那一档静默失效且不报错。
+  if (text === "between_10_15" || /10\s*[-–—~－至]\s*15/.test(text)) return "between_10_15";
   if (text === "at_least_15" || /15\s*味?(?:及以上|以上)|≥\s*15|>\s*15/.test(text)) return "at_least_15";
   return undefined;
 }

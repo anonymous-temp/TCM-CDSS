@@ -26,6 +26,7 @@ import { readFileSync } from "node:fs";
 import { applyM03AdvisoryQualityBoundaries } from "../src/lib/diagnosis-visible-summary.ts";
 import { m03NodeCoverageIssue, m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
 import { rejectionTier } from "../src/lib/diagnosis-rejection-tiers.ts";
+import { ReasoningV2Schema } from "../src/lib/diagnosis-types.ts";
 import { boundedM03DiagnosticRepairGuidance, m03DiagnosticRepairGuidanceCodes } from "../src/lib/m03-diagnostic-review.ts";
 import { structuredClinicalRepairHint } from "../src/lib/structured-clinical-repair.ts";
 import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
@@ -252,4 +253,115 @@ for (const guard of ["submittedDifferentials.length > 0 && displayableDifferenti
   assert.equal(rejectionTier("m04_visible_method_incomplete"), "T3");
 }
 
-console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 4, failures: 0 }, null, 2));
+// 4) 长度维度的不对称：契约给每个数组写了 `.max(N)`，但那一侧的语义是**整段清空而非截断**，
+//    而服务端自产数组的生成侧没有对称的 slice。于是「服务端写多了」不是降级，是让整节消失，
+//    且因为 `.catch()` 让 safeParse 成功，不产驳回码、不驱动修复轮、不进日志。
+//    实测三例：textualModifications 逍遥散 8 条 / 小柴胡汤 7 条（上限 6）→ 归一后 0 条；
+//    terminologyMappings 生产侧 MAX_TARGETS_PER_CALL=24（上限 20）→ 结论最丰富的病例反而
+//    完全拿不到国标术语双显；modificationReview.submittedCount 取原始行数不钳制（上限 30）→
+//    31 条**可选**随症加减把整份 M04 判成 T1 硬拒且无修复引导。
+//    classicEvidence 早在 2026-08-05 就为此加了 slice，但没人把它推广到兄弟字段——因为没有
+//    任何信号会提醒有人漏了。这条断言就是那个信号：写入侧的硬上限必须 ≤ 契约上限。
+{
+  /** 从契约自身内省出有界数组的上限，不手抄常量——schema 调小时本断言自动跟着变严。 */
+  function boundedArrayLimits(rootSchema) {
+    const limits = new Map();
+    const defOf = (node) => node?._def || node?.def || {};
+    const unwrap = (node) => {
+      let current = node;
+      for (let depth = 0; depth < 24 && current; depth += 1) {
+        if (current.shape) return current;
+        const def = defOf(current);
+        const inner = def.innerType
+          || (defOf(def.in).type === "transform" ? def.out : undefined)
+          || def.in || def.schema;
+        if (!inner) return current;
+        current = inner;
+      }
+      return current;
+    };
+    const arrayMax = (node) => {
+      let current = node;
+      for (let depth = 0; depth < 24 && current; depth += 1) {
+        const def = defOf(current);
+        if (def.type === "array") {
+          const bound = def.checks?.map((entry) => entry?._zod?.def ?? entry?.def ?? entry)
+            .find((entry) => entry?.check === "max_length" || typeof entry?.maximum === "number");
+          return typeof bound?.maximum === "number" ? bound.maximum : undefined;
+        }
+        const inner = def.innerType
+          || (defOf(def.in).type === "transform" ? def.out : undefined)
+          || def.in || def.schema;
+        if (!inner) return undefined;
+        current = inner;
+      }
+      return undefined;
+    };
+    /** 数组元素的真身，用来继续往下走（路径不带 `[]`，与写入侧常量的登记口径一致）。 */
+    const elementOf = (node) => {
+      let current = node;
+      for (let depth = 0; depth < 24 && current; depth += 1) {
+        const def = defOf(current);
+        if (def.type === "array") return def.element;
+        const inner = def.innerType
+          || (defOf(def.in).type === "transform" ? def.out : undefined)
+          || def.in || def.schema;
+        if (!inner) return undefined;
+        current = inner;
+      }
+      return undefined;
+    };
+    const walk = (node, prefix, depth) => {
+      if (depth > 6) return;
+      const shape = unwrap(node)?.shape;
+      if (!shape) return;
+      for (const [key, child] of Object.entries(shape)) {
+        const path = prefix ? `${prefix}.${key}` : key;
+        const max = arrayMax(child);
+        if (typeof max === "number") limits.set(path, max);
+        // 数组要继续往元素里走，否则 formula.candidates 下的 classicEvidence /
+        // textualModifications 这些「候选内数组」根本进不了台账——而它们正是出事的那一批。
+        const element = elementOf(child);
+        walk(element || child, path, depth + 1);
+      }
+    };
+    walk(rootSchema, "", 0);
+    return limits;
+  }
+
+  const limits = boundedArrayLimits(ReasoningV2Schema);
+  assert.ok(limits.size > 20, `契约内省只找到 ${limits.size} 个有界数组，内省判据已与 zod 版本漂移`);
+
+  // 服务端写入侧的硬上限常量 → 它写进的契约字段。新增一处「服务端自己决定写几条」的地方，
+  // 就在这里报到；不报到就等于默认它不会超限，而这正是这一族缺陷反复出现的方式。
+  const WRITE_SIDE_LIMITS = [
+    ["src/lib/tcm-formula-provenance.ts", "CANDIDATE_CLASSIC_EVIDENCE_LIMIT", "formula.candidates.classicEvidence"],
+    ["src/lib/tcm-formula-provenance.ts", "CANDIDATE_TEXTUAL_MODIFICATION_LIMIT", "formula.candidates.textualModifications"],
+    ["src/lib/controlled-semantic-normalization.server.ts", "MAX_TARGETS_PER_CALL", "terminologyMappings"],
+    ["src/lib/m04-proposal-compiler.ts", "MODIFICATION_REVIEW_COUNT_LIMIT", "formula.modifications"],
+  ];
+
+  for (const [file, constName, contractPath] of WRITE_SIDE_LIMITS) {
+    const source = readFileSync(file, "utf8");
+    const match = new RegExp(`const ${constName} = (\\d+);`).exec(source);
+    assert.ok(match, `${file} 里找不到 ${constName}——写入侧上限被改名或删除，本断言失去覆盖`);
+    const writeLimit = Number(match[1]);
+    const contractLimit = limits.get(contractPath);
+    assert.equal(typeof contractLimit, "number", `契约里找不到 ${contractPath} 的数组上限`);
+    assert.ok(
+      writeLimit <= contractLimit,
+      `${constName}=${writeLimit} 超过契约 ${contractPath} 的上限 ${contractLimit}；` +
+        "该字段超限的语义是**整段清空而非截断**，医生会一条都看不到，且不产任何驳回码",
+    );
+  }
+
+  // modificationReview.submittedCount 不是数组，单独钉一条：它的 .max(30) 没有 catch，
+  // 超限会让整份 M04 拒收，所以生成侧的钳制常量必须与它同源。
+  const compilerSource = readFileSync("src/lib/m04-proposal-compiler.ts", "utf8");
+  assert.ok(
+    /submittedCount: Math\.min\(value\.length, MODIFICATION_REVIEW_COUNT_LIMIT\)/.test(compilerSource),
+    "submittedCount 未钳到契约上限：31 条可选随症加减会把整份 M04 判成硬拒且无修复引导",
+  );
+}
+
+console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 5, failures: 0 }, null, 2));

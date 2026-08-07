@@ -54,6 +54,20 @@ const scripts = [
   // （表实/表虚互斥对，比不识别严重）；纯按计数排序会选成「桂枝去芍药汤加味」
   // （基准味数与增味数完全相同，判别点是麻黄属安全定性药味、不能当普通增味）。
   "test:classic-formula-identification",
+  // 自反不变量：受治理方的基准组成**原样当处方**喂回身份核验必须通过。不成立就意味着
+  // M04 定向修复提示（「不重不漏输出基准全部药味」）在这些方上不可满足——模型照做也过不了，
+  // 同码反复注入触发 fixpoint 早退，终点是「200 但没有候选方」的空白处方页。
+  // 2026-08-05 给 ingredients 两侧过了受控解析表，requiredIngredients（锚点）漏了；
+  // 锚点没过表不是更严而是恒假，实测 281/2062 方中招（柴胡疏肝散/三仁汤/八正散 皆在内），
+  // 修掉后 281→1。遍历全目录而非抽样：这类缺陷的特征就是抽样看不出来。
+  "test:formula-baseline-self-verification",
+  // 归一层「单条非法不得连坐」结构性守卫。同族缺陷已复发 6 次，形态完全相同、只换字段：
+  // 单条子治法 → 整个 therapy 变占位串；一条外治 → 整个 nonPharma 变 null（健康调护一起没）；
+  // 8 条中成药坏 1 条 → 整栏 null；备选方少一个 dosesPerDay → 整份 M04 作废。
+  // 门禁一直看不见的原因是 `.catch()` 让 safeParse **成功**，schema 码恒为 undefined——
+  // 修复轮唯一的自动触发器对整个 .catch 家族是瞎的。本套件按行为判：注入「1 条非法 + N 条合法」，
+  // 断言剩下恰好 N 条。新增数组字段必须加进它的 ISOLATED_ARRAYS。
+  "test:reasoning-catch-isolation",
   "test:formula-provenance",
   "test:classic-evidence-bundling",
   "test:syndrome-equivalence",

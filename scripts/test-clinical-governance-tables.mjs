@@ -877,7 +877,11 @@ assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplateForTags("acupunct
     for (let depth = 0; depth < 24 && current; depth += 1) {
       if (current.shape) return current;
       const def = defOf(current);
-      const inner = def.innerType || def.in || def.schema
+      // z.preprocess(fn, schema) 在 zod4 里是 ZodPipe{in: ZodTransform, out: schema}——
+      // 真身在 out 而不是 in。逐条隔离（isolateInvalidItems）大量用到它，只看 in 会在
+      // 预处理函数上停住，把真契约字段误报成幽灵。
+      const preprocessed = defOf(def.in).type === "transform" ? def.out : undefined;
+      const inner = def.innerType || preprocessed || def.in || def.schema
         || (Array.isArray(def.options) ? def.options.find((option) => defOf(option).type === "object") : undefined);
       if (!inner) return current;
       current = inner;
