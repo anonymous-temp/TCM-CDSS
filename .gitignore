@@ -71,3 +71,7 @@ scripts/tmp-verify/
 /中医补充数据/
 /参考/
 /*.docx
+
+# Python 字节码产物（曾误提交进仓库，见 d40072db）
+__pycache__/
+*.pyc

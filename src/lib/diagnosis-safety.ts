@@ -3835,6 +3835,9 @@ export function renderSafetyLimitedDiagnosisContract(
 // 历史故障 b04fe65 只改了正文措辞（“不展示剂量级候选方药”→“不展示包含具体用量的候选方药”），
 // 三处判定仍在匹配旧措辞，于是每一次安全降级都被误判为“候选方药本次未完整生成”的生成失败，
 // 服务端写好的降级原因与下一步动作被整段丢弃。新增或改写降级正文时必须同步本列表。
+/** 非剂量处方页的机器可读标记。服务端渲染时写入，医生不可见，不随文案措辞漂移。 */
+export const NON_DOSE_PRESCRIPTION_MARKER = "<!-- CDSS_NON_DOSE_PRESCRIPTION -->";
+
 const NON_DOSE_PRESCRIPTION_DECLARATIONS = [
   "当前不展示包含具体用量的候选方药",
   // 历史措辞：已保存/已恢复的旧病例仍可能携带，判定必须继续认得。
@@ -3843,8 +3846,25 @@ const NON_DOSE_PRESCRIPTION_DECLARATIONS = [
   "当前未满足剂量级候选处方",
 ] as const;
 
+/**
+ * 机器可读标记优先于文案匹配。
+ *
+ * 这两者本该是同一件事的两种表达，实际却各写各的：非剂量页由服务端渲染时会嵌入
+ * `<!-- CDSS_NON_DOSE_PRESCRIPTION -->` 标记，而本判据只认上面那张**手写文案清单**。
+ * m04-deterministic-fallback 的确定性兜底页（M03 已锁定方剂基准组成 + 逐味药典剂量区间 +
+ * 特殊人群提醒）带了标记、也写了自己的声明句「上表剂量区间为药典边界而非本例建议量」，
+ * 但那句从未登记进清单，于是判据返回 false —— 客户端 `expectedNonDoseLimitedPrescription`
+ * 随之为 false，整页被当成合同不完整丢弃，替换成「本次未形成可核验的完整药味与剂量」并报错。
+ * **该功能的立项理由就是消灭空白页，结果它自己产出的页在生产上从未出厂过。**
+ * 而「重新生成」按钮打的是同一条确定性路由，必然再败。
+ *
+ * 因此判据改为标记优先：标记由服务端渲染时写入、医生不可见、不随文案措辞漂移，
+ * 是比中文句子更可靠的事实来源。文案清单保留，用于兼容不带标记的历史快照。
+ * 客户端另有一道「正文不得出现具体克数」的独立校验，标记优先不会绕过它。
+ */
 export function isNonDosePrescriptionText(text: string | undefined): boolean {
   if (!text) return false;
+  if (text.includes(NON_DOSE_PRESCRIPTION_MARKER)) return true;
   return NON_DOSE_PRESCRIPTION_DECLARATIONS.some((declaration) => text.includes(declaration));
 }
 
@@ -3860,7 +3880,7 @@ export function buildSafetyLimitedPrescription(gate: SafetyGate, reasonCode?: Cd
       : "核实所列信息并完成院内审方后，再决定是否采用具体用量",
   });
   return sanitizeAuthoritativeClinicalOutput([
-    "<!-- CDSS_NON_DOSE_PRESCRIPTION -->",
+    NON_DOSE_PRESCRIPTION_MARKER,
     ...(reasonCode ? [cdssReasonCodeMarker(reasonCode)] : []),
     "## 当前结论",
     limitedStateCopy,

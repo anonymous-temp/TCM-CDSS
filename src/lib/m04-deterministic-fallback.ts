@@ -1,3 +1,4 @@
+import { NON_DOSE_PRESCRIPTION_MARKER } from "@/lib/diagnosis-safety";
 import type { CaseState } from "./diagnosis-types";
 import { cdssReasonCodeMarker } from "./cdss-reason-codes";
 import { executableFormulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
@@ -107,7 +108,7 @@ export function buildDeterministicFormulaReferenceFallback(
   });
 
   return [
-    "<!-- CDSS_NON_DOSE_PRESCRIPTION -->",
+    NON_DOSE_PRESCRIPTION_MARKER,
     cdssReasonCodeMarker("deterministic_reference"),
     "## 当前结论",
     recallBased

@@ -27,6 +27,7 @@ import { applyM03AdvisoryQualityBoundaries } from "../src/lib/diagnosis-visible-
 import { m03NodeCoverageIssue, m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
 import { rejectionTier } from "../src/lib/diagnosis-rejection-tiers.ts";
 import { ReasoningV2Schema } from "../src/lib/diagnosis-types.ts";
+import { NON_DOSE_PRESCRIPTION_MARKER, buildSafetyLimitedPrescription, isNonDosePrescriptionText } from "../src/lib/diagnosis-safety.ts";
 import { boundedM03DiagnosticRepairGuidance, m03DiagnosticRepairGuidanceCodes } from "../src/lib/m03-diagnostic-review.ts";
 import { structuredClinicalRepairHint } from "../src/lib/structured-clinical-repair.ts";
 import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
@@ -391,4 +392,52 @@ for (const guard of ["submittedDifferentials.length > 0 && displayableDifferenti
   );
 }
 
-console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 6, failures: 0 }, null, 2));
+// 6) 非剂量处方页的「机器标记」与「文案清单」不同集：服务端渲染时写标记，判定却只认手写文案。
+//    m04-deterministic-fallback 的确定性兜底页（M03 锁定方基准组成 + 逐味药典剂量区间 +
+//    特殊人群提醒）带了标记、也写了自己的声明句，但那句从未登记进清单 →
+//    isNonDosePrescriptionText 返回 false → 客户端 expectedNonDoseLimitedPrescription 为 false
+//    → 整页被当成合同不完整丢弃，替换成「本次未形成可核验的完整药味与剂量」并报错。
+//    **该功能的立项理由就是消灭空白页，结果它自己产出的页在生产上从未出厂过**，
+//    而「重新生成」按钮打的是同一条确定性路由，必然再败。
+//    已改为标记优先。本断言钉住两件事：标记是唯一常量（不得再出现字面量副本），
+//    以及**每一个服务端非剂量页都必须通过该判定**。
+{
+  const safetySource = readFileSync("src/lib/diagnosis-safety.ts", "utf8");
+  const fallbackSource = readFileSync("src/lib/m04-deterministic-fallback.ts", "utf8");
+
+  assert.ok(
+    /export const NON_DOSE_PRESCRIPTION_MARKER/.test(safetySource),
+    "非剂量标记未提为具名导出常量，各处会重新出现字面量副本",
+  );
+  assert.ok(
+    /if \(text\.includes\(NON_DOSE_PRESCRIPTION_MARKER\)\) return true;/.test(safetySource),
+    "isNonDosePrescriptionText 不再标记优先——带标记的服务端页会因文案未登记而被整页丢弃",
+  );
+  // 常量定义处自然含一次字面量；其余任何位置再出现都是副本。
+  const marker = '"<!-- CDSS_NON_DOSE_PRESCRIPTION -->"';
+  assert.equal(
+    safetySource.split(marker).length - 1, 1,
+    "diagnosis-safety.ts 里标记字面量不止一处——常量定义之外的都是会各自漂移的副本",
+  );
+  assert.equal(
+    fallbackSource.split(marker).length - 1, 0,
+    "m04-deterministic-fallback.ts 仍有标记字面量副本，请改用 NON_DOSE_PRESCRIPTION_MARKER",
+  );
+
+  // 行为级：真跑两个服务端非剂量页，断言判定都认得。
+  const limitedPage = buildSafetyLimitedPrescription({
+    status: "needs_information", allowDiagnosis: true, allowDosePrescription: false,
+    action: "complete_before_prescription", missingItems: ["候选方药完整性"], redFlags: [],
+    reasons: ["尚有处方安全信息需要核实"],
+  });
+  assert.ok(
+    isNonDosePrescriptionText(limitedPage),
+    "buildSafetyLimitedPrescription 产出的非剂量页未被 isNonDosePrescriptionText 认出",
+  );
+  assert.ok(
+    limitedPage.includes(NON_DOSE_PRESCRIPTION_MARKER),
+    "buildSafetyLimitedPrescription 未写入非剂量标记",
+  );
+}
+
+console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 7, failures: 0 }, null, 2));

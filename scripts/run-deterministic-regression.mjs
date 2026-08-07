@@ -82,6 +82,14 @@ const scripts = [
   // 本套件另钉住两条**故意不同**的通道语义：味数只认 caseState 顶层，流派两条通道都生效；
   // 以及文档与实现同源（13 个流派 code 与 3 个味数取值必须在接口文档里列全）。
   "test:herb-count-preference",
+  // 对外接口文档与真实出参的字段一致性。立闸的直接原因是同一类错犯了三次，且全都是「写完没实取」：
+  // 中成药候选写成顶层 patentMedicines（实现中无此路径，甲方照文档取值必然取空）、
+  // 随证加减写成 formula.candidates[].modifications[]（实际在 formula.modifications[]）、
+  // M05 一节凭空写了 riskAssessment / followupTimeline 两个不存在的字段。
+  // 本套件把文档里每条字段路径拿真实归档出参逐条取值，并强制「只在特定条件下出现的字段
+  // 必须写明触发条件」——否则集成方取不到时会当成故障。
+  // 另钉住甲方对可读性的三条反馈：字段表须带中文名列、不得逐行重复长路径、示例 JSON 必须可解析。
+  "test:api-doc-field-parity",
   "test:formula-provenance",
   "test:classic-evidence-bundling",
   "test:syndrome-equivalence",

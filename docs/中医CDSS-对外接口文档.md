@@ -233,15 +233,15 @@ M01–M05 的正文中嵌有结构化 JSON，位于以下两个标记之间：
 
 **入参**
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `token` | string | 是 | 接口访问令牌 |
+| 字段 | 中文名 | 类型 | 必填 | 说明 |
+|---|---|---|---|---|
+| `token` | 接口令牌 | string | 是 | 接口访问令牌 |
 
 **出参**
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `ok` | boolean | 是否成功 |
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `ok` | 是否成功 | boolean | 是否成功 |
 
 成功时通过 `Set-Cookie` 下发 httpOnly 访问 Cookie。
 
@@ -275,12 +275,12 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/auth/access" \
 
 **入参**（本接口为独立请求体，**不使用** `caseState` 包装）
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `userInput` | string | 是 | 病历文本，≤12000 字符 |
-| `patientSex` | string | 是 | 取值：`男` / `女` / `其他或未明确` |
-| `tongueImage` | string | 否 | 舌象照片 data URL，格式 `data:image/(png\|jpeg\|jpg\|webp);base64,...`，二进制 ≤4 MB |
-| `tongueImageConsent` | boolean | 有图时必填 | `true` 表示已取得患者授权 |
+| 字段 | 中文名 | 类型 | 必填 | 说明 |
+|---|---|---|---|---|
+| `userInput` | 病历文本 | string | 是 | 病历文本，≤12000 字符 |
+| `patientSex` | 患者性别 | string | 是 | 取值：`男` / `女` / `其他或未明确` |
+| `tongueImage` | 舌象照片 | string | 否 | 舌象照片 data URL，格式 `data:image/(png\|jpeg\|jpg\|webp);base64,...`，二进制 ≤4 MB |
+| `tongueImageConsent` | 舌象采集授权 | boolean | 有图时必填 | `true` 表示已取得患者授权 |
 
 **出参**：NDJSON 流。
 
@@ -341,15 +341,15 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/collect" \
 
 **出参**：NDJSON 流。结构化结论中 `m02Plan` 字段为追问计划。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `m02Plan.schemaVersion` | string | 固定 `tcm-cdss-m02-plan-v1` |
-| `m02Plan.decision` | string | `ask`（需追问）/ `proceed`（无需追问） |
-| `m02Plan.rationale` | string | 决策理由 |
-| `m02Plan.questions` | array | 追问列表，`decision=proceed` 时为空数组 |
-| `m02Plan.questions[].id` | string | 问题标识 |
-| `m02Plan.questions[].question` | string | 问题文本 |
-| `completeness` | object | 病历完整度评估 |
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `m02Plan.schemaVersion` | 结构版本 | string | 固定 `tcm-cdss-m02-plan-v1` |
+| `m02Plan.decision` | 追问决策 | string | `ask`（需追问）/ `proceed`（无需追问） |
+| `m02Plan.rationale` | 决策理由 | string | 决策理由 |
+| `m02Plan.questions` | 追问列表 | array | 追问列表，`decision=proceed` 时为空数组 |
+| `m02Plan.questions[].id` | 问题标识 | string | 问题标识 |
+| `m02Plan.questions[].question` | 问题文本 | string | 问题文本 |
+| `completeness` | 病历完整度 | object | 病历完整度评估 |
 
 **错误码**
 
@@ -419,42 +419,97 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 | `caseState.vitals` | object | 否 | 生命体征，键如 `BP`/`T`/`P`/`R`/`SpO2` |
 | `caseState.conversation` | array | 否 | 追问对话记录 |
 
-**出参**：NDJSON 流，正文为 Markdown，结构化结论字段如下。
+**出参**：NDJSON 流。正文为 Markdown 报告，结构化结论嵌在
+`<!-- DIAGNOSIS_JSON_START -->` / `<!-- DIAGNOSIS_JSON_END -->` 之间（提取方式见 §3.6）。
 
-| 字段 | 类型 | 说明 |
+下表按**所属对象分组**，「字段」列只写该对象内的字段名，完整路径 = 组标题路径 + 字段名。
+
+**顶层**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `schemaVersion` | 结构版本 | string | 固定 `tcm-cdss-reasoning-v2` |
+| `stage` | 阶段标识 | string | 固定 `diagnose` |
+| `overview` | 诊断概览 | object | 中医病名、证候、鉴别、治法方向 |
+| `westernDiagnosis` | 西医诊断 | object | — |
+| `pathogenesis` | 病机 | object | 病位、病性、病机链 |
+| `therapy` | 治则治法 | object | — |
+| `management` | 管理建议 | object | 须补充采集项与随访安全网 |
+| `terminologyMappings` | 国标术语对应 | array | 可选：仅当发生国标术语归一时输出，单次最多 20 条 |
+| `contractSignatureVersion` | 签名版本 | string | — |
+| `contractSignature` | 合同签名 | string | 格式 `hmac-sha256:<64位十六进制>`，原样回传给 M04 |
+
+**诊断概览 `overview`**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `tcmDiseaseName` | 中医病名 | string | — |
+| `primarySyndrome` | 主证候 | string | 采用 GB/T 16751 国标证候名，不含病机描述 |
+| `primarySyndromeBasis` | 主证候依据 | array | 逐条来自病历的事实 |
+| `primarySyndromeResolution` | 证候确定程度 | string | `resolved` 已确定 / `bounded` 有界 / `unresolved` 未确定 |
+| `tcmDiseaseRationale` | 辨病依据 | string | 不得复述结论本身 |
+| `tcmDiagnosticRationale` | 辨证依据 | string | — |
+| `tcmDiseaseDifferentials` | 中医病名鉴别 | array | 见下 |
+| `tcmDifferentials` | 中医证候鉴别 | array | 结构同下表，首字段为 `syndrome` |
+| `secondarySyndromes` | 兼证 | array | 无兼证时为空数组 |
+| `overallPathogenesis` | 总体病机 | string | — |
+| `overallTherapy` | 总体治法 | string | — |
+| `recommendedFormulaDirection` | 选方方向 | string | — |
+| `recommendedFormulaNames` | 建议方名 | array | M04 据此锁定基准方 |
+| `formulaSelectionMode` | 选方模式 | string | `single` / `combined` / `alternatives` / `self_devised` / `none` |
+
+`overview.tcmDiseaseDifferentials[]` 中医病名鉴别
+
+| 字段 | 中文名 | 类型 |
 |---|---|---|
-| `schemaVersion` | string | 结构版本 |
-| `stage` | string | 固定 `diagnose` |
-| `overview.primarySyndrome` | string | 主证候 |
-| `overview.primarySyndromeBasis` | array | 主证候依据 |
-| `overview.tcmDifferentials` | array | 证候鉴别 |
-| `overview.tcmDiseaseDifferentials` | array | 中医病名鉴别 |
-| `overview.tcmDiseaseDifferentials[].diseaseName` | string | 候选病名 |
-| `overview.tcmDiseaseDifferentials[].reason` | string | 鉴别理由 |
-| `overview.tcmDiseaseDifferentials[].distinguishingPoints` | string | 区分要点 |
-| `overview.tcmDiseaseDifferentials[].nextCheck` | string | 建议核实项 |
-| `westernDiagnosis.primary.name` | string | 西医主要诊断。症状级工作诊断统一写成「规范症状名，病因待查」形态 |
-| `westernDiagnosis.primary.supportingFacts` | array | 支持依据。只收与该西医诊断直接相关的当前患者事实；舌脉、证候、病机不进此栏 |
-| `westernDiagnosis.primary.status` | string | 诊断程度：`考虑` / `需排除` / `证据有限` |
-| `westernDiagnosis.primary.confidence` | string | 置信度：`高` / `中` / `低` |
-| `westernDiagnosis.primary.limitations` | array | **待查依据（一）资料限制**：当前证据不足在哪、缺哪一条判定条件 |
-| `westernDiagnosis.primary.suggestedChecks` | array | **待查依据（二）建议检查**：补什么能推进诊断。分层给出——先补充问诊/生命体征/查体，仅在已有红旗或明确鉴别指征时才列影像与成套化验 |
-| `westernDiagnosis.primary.clinicalRationale` | string | 事实到诊断倾向的推理，不复述病史 |
-| `westernDiagnosis.primary.coding` | object | ICD-10 关联：`{system, code, display, source}`，由服务端确定性编码 |
-| `westernDiagnosis.differentials` | array | 西医鉴别诊断：`{name, reason, distinguishingPoints, nextCheck}` |
-| `pathogenesis.summary` | string | 病机概要 |
-| `pathogenesis.chain` | array | 病机链 |
-| `pathogenesis.chain[].nodeId` | string | 节点标识，如 `P1` |
-| `pathogenesis.chain[].pathogenesis` | string | 病机描述 |
-| `pathogenesis.chain[].therapyDirection` | string | 对应治法方向 |
-| `pathogenesis.locationDifferentiation.items` | array | 病位 |
-| `pathogenesis.natureDifferentiation.items` | array | 病性 |
-| `therapy.overallPrinciple` | string | 治则 |
-| `therapy.overallMethod` | string | 治法 |
-| `therapy.subTherapies` | array | 分治法 |
-| `management` | object | 管理建议 |
-| `contractSignatureVersion` | string | 签名版本 |
-| `contractSignature` | string | 合同签名，格式 `hmac-sha256:<64位十六进制>` |
+| `diseaseName` | 候选病名 | string |
+| `reason` | 鉴别理由 | string |
+| `distinguishingPoints` | 区分要点 | string |
+| `nextCheck` | 建议核实项 | string / null |
+
+**西医诊断 `westernDiagnosis.primary`**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `name` | 西医主要诊断 | string | 症状级工作诊断统一写成「规范症状名，病因待查」形态。**取值可能为空串**，表示本次未形成西医工作诊断，请按缺失处理 |
+| `status` | 诊断程度 | string | `考虑` / `需排除` / `证据有限` |
+| `confidence` | 置信度 | string | `高` / `中` / `低` |
+| `supportingFacts` | 支持依据 | array | 只收与该诊断直接相关的当前患者事实；舌脉、证候、病机不进此栏 |
+| `limitations` | 待查依据·资料限制 | array | 当前证据不足在哪、缺哪一条判定条件 |
+| `suggestedChecks` | 待查依据·建议检查 | array | 补什么能推进诊断。分层给出——先补充问诊/生命体征/查体，仅在已有红旗或明确鉴别指征时才列影像与成套化验 |
+| `clinicalRationale` | 推理说明 | string | 事实到诊断倾向的推理，不复述病史 |
+| `coding` | ICD-10 编码 | object | `{system, code, display, source}`，服务端确定性编码。可选：仅当匹配到受控医保码时输出 |
+
+`westernDiagnosis.differentials[]` 西医鉴别诊断：`{name, reason, distinguishingPoints, nextCheck}`
+
+**病机 `pathogenesis`**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `summary` | 病机概要 | string | — |
+| `locationDifferentiation.items` | 病位 | array | 如 `["心","脾"]` |
+| `natureDifferentiation.items` | 病性 | array | 如 `["气血亏虚"]` |
+| `symptomClusters` | 症状群 | array | `{symptoms, mechanism}` |
+| `chain` | 病机链 | array | 见下 |
+| `uncertainties` | 待复核不确定项 | array | `{item, reason, affects}`；无待复核项时为空数组 |
+
+`pathogenesis.chain[]` 病机链
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `nodeId` | 节点标识 | string | 如 `P1`。M04 的药味与外治项目用 `targetRef` 引用它 |
+| `patientFact` | 患者事实 | string | — |
+| `syndromeEvidence` | 证候依据 | string | — |
+| `pathogenesis` | 病机描述 | string | — |
+| `therapyDirection` | 对应治法方向 | string | — |
+
+**治则治法 `therapy`**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `overallPrinciple` | 治则 | string | — |
+| `overallMethod` | 治法 | string | — |
+| `subTherapies` | 分治法 | array | `{therapy, targetPathogenesis, priority, evidence}`，`priority` 为 `主要` / `次要` |
 
 **特殊说明**
 
@@ -538,104 +593,201 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `caseState.diagnosis` | object | 否 | M03 返回的诊断结论 |
 | 其余字段 | — | — | 同 M03 |
 
-**出参**：NDJSON 流，正文含药味清单、煎服法、中成药方案、用药风险提示，结构化结论字段如下。
+**出参**：NDJSON 流。正文为 Markdown 报告，结构化结论嵌在
+`<!-- DIAGNOSIS_JSON_START -->` / `<!-- DIAGNOSIS_JSON_END -->` 之间（提取方式见 §3.6）。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `stage` | string | 固定 `prescribe` |
-| `formula.candidates` | array | 候选方列表 |
-| `formula.candidates[].name` | string | 方名 |
-| `formula.candidates[].herbs` | array | 药味列表 |
-| `formula.candidates[].herbs[].name` | string | 药名 |
-| `formula.candidates[].herbs[].dose` | string | 剂量，如 `10g` |
-| `formula.candidates[].herbs[].role` | string | 君/臣/佐/使 |
-| `formula.candidates[].herbs[].targetKind` | string | `pathogenesis_node` / `formula_structure` |
-| `formula.candidates[].herbs[].targetRef` | string | 对应病机节点号，如 `P1` |
-| `formula.candidates[].herbs[].isToxic` | boolean | 是否毒性药材 |
-| `formula.candidates[].herbs[].decoctionRequirement` | string | 煎法要求，如先煎/后下 |
-| `formula.candidates[].herbs[].verificationTier` | string | `verified`（有药典剂量边界）/ `unverified_dose`（用量由医师确定）/ `identity_pending` / `toxic_regulated`（管制毒性或法律禁用，须按监管要求单独处理） |
-| `formula.candidates[].constructionType` | string | `single_base` / `combined` / `self_devised` / `single_herb` |
-| `formula.candidates[].modificationStatus` | string | `canonical`（原方）/ `modified`（加减） |
-| `formula.candidates[].baseFormulas` | array | 基础方与出处，含组成匹配味数与核心药味匹配数 |
-| `contractSignature` | string | 合同签名 |
+下列表格按**所属对象分组**，「字段」列只写该对象内的字段名，完整路径 = 组标题路径 + 字段名。
+
+**顶层**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `stage` | 阶段标识 | string | 固定 `prescribe` |
+| `formula` | 方药 | object | 候选方、中成药、随证加减 |
+| `nonPharma` | 非药物调护 | object | 健康调护与中医外治 |
+| `lineageAdaptation` | 流派适配 | object | 可选：仅当请求指定流派偏好时输出 |
+| `contractSignature` | 合同签名 | string | 原样回传给 M05，不得改写 |
+
+**候选方 `formula.candidates[]`**（首选方固定在 `[0]`，其余为备选）
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `name` | 方名 | string | 如 `归脾汤加减`；无受治理方名时为 `本例辨证组方` |
+| `formulaNames` | 基准方名 | array | 该方继承身份的受治理经典方名 |
+| `positioning` | 定位 | string | `首选` / `备选` / `仅学术思路` |
+| `constructionType` | 组方类型 | string | `single_base` 单方加减 / `combined` 合方 / `self_devised` 自拟 / `single_herb` 单味 |
+| `modificationStatus` | 加减状态 | string | `canonical` 原方 / `modified` 加减 |
+| `therapyMatch` | 方证契合说明 | string | 该方与本例治法的对应关系 |
+| `applicable` | 适用情形 | string | — |
+| `notApplicable` | 不适用情形 | string | — |
+| `formulaAnalysis` | 方义分析 | string | 写**该药在本方发挥的作用**，不罗列全部功效 |
+| `baseFormulas` | 基础方与出处 | array | 含组成匹配味数、核心药味匹配数 |
+| `herbs` | 药味清单 | array | 见下 |
+| `decoction` | 剂数与煎服法 | object | 见下 |
+| `compositionLogic` | 组成逻辑 | array | 见下 |
+| `discriminationPath` | 方证鉴别 | array | 见下 |
+| `classicEvidence` | 经典条文 | array | 见下 |
+| `textualModifications` | 有出处的成方加减规则 | array | `requiresClinicianReview` 恒为 `true` |
+| `formulaSource` | 方剂出处 | object | 出处级别与来源 |
+
+**药味 `formula.candidates[].herbs[]`**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `name` | 药名 | string | 受治理正名，如 `黄芪` |
+| `processing` | 炮制 | string / null | 如 `炒`、`蜜炙`；无特殊炮制要求时为 `null` |
+| `dose` | 用量 | string | 如 `20g` |
+| `role` | 君臣佐使 | string | `君` / `臣` / `佐` / `使` |
+| `prescriptionRole` | 配伍作用说明 | string | 如 `君药：益气养血，和络止痛。` |
+| `targetKind` | 对应目标类型 | string | `pathogenesis_node` 对应病机节点 / `formula_structure` 承担方剂结构角色 |
+| `targetRef` | 对应病机节点号 | string | 如 `P1`，对应 M03 的 `pathogenesis.chain[].nodeId` |
+| `targetPathogenesis` | 对应病机 | string | 该药针对的病机表述 |
+| `function` | 药物功效 | string | 取自受治理药材知识库 |
+| `isToxic` | 是否毒性药材 | boolean | — |
+| `decoctionRequirement` | 特殊煎法 | string / null | 仅特殊煎法药味有值，如 `先煎`、`后下`、`包煎`；其余为 `null` |
+| `verificationTier` | 剂量核验等级 | string | `verified` 有药典剂量边界 / `unverified_dose` 用量由医师确定 / `identity_pending` 药名待确认 / `toxic_regulated` 管制毒性或法律禁用，须按监管要求单独处理 |
+| `doseSource` | 剂量依据来源 | string | `governed_boundary` 受治理边界 / `classical_source` 古籍来源 / `none` 无 |
+| `verificationReasons` | 核验依据 | array | 如 `["受治理剂量边界 9-30g 已用于生成后校验"]` |
+| `evidence` | 证据引用 | object | 见 §3.6 |
 
 **方义与出处**
 
-四项均为**确定性产物**，锚定在受治理方名上。自拟方（`constructionType=self_devised`）时四项恒为空数组——无受治理方名即无出处可考，这是正确行为而非缺字段。
+以下四项均为**确定性产物**，锚定在受治理方名上。自拟方（`constructionType=self_devised`）时四项恒为空数组——无受治理方名即无出处可考，属正确行为而非字段缺失。
 
-| 字段 | 类型 | 说明 |
+`formula.candidates[].compositionLogic[]` 组成逻辑
+
+| 字段 | 中文名 | 类型 |
 |---|---|---|
-| `formula.candidates[].formulaAnalysis` | string | 方义分析。写**该药在本方发挥的作用**，不罗列全部功效 |
-| `formula.candidates[].compositionLogic` | array | 组成逻辑：`{formulaName, summary, tier, sourceRefs}` |
-| `formula.candidates[].discriminationPath` | array | 方证鉴别：`{againstFormula, question, status, sourceRef}`，`status` 为 `confirmed`/`absent`/`unknown` |
-| `formula.candidates[].classicEvidence` | array | 经典条文：`{evidenceId, citation, anchorLevel, clauseNumber?, excerpt, tier}` |
-| `formula.candidates[].textualModifications` | array | 有出处的成方加减规则，`requiresClinicianReview` 恒为 `true` |
+| `formulaName` | 方名 | string |
+| `summary` | 组成逻辑说明 | string |
+| `tier` | 证据层级 | string（`common` / `experience`） |
+| `sourceRefs` | 来源引用 | array |
 
-> **经典条文使用边界**：条文按方名检索给出，说明该方的经典出处与主治语境，**不代表已判定适用于本例**；条文内古代剂量与现行法定剂量不可直接换算，用量以药味表与审方结论为准。
+`formula.candidates[].discriminationPath[]` 方证鉴别
 
-**剂数与煎服法**
-
-| 字段 | 类型 | 说明 |
+| 字段 | 中文名 | 类型 |
 |---|---|---|
-| `formula.candidates[].decoction.doseCount` | string | 剂数，如 `7剂` |
-| `formula.candidates[].decoction.course` | string | 疗程，如 `7日` |
-| `formula.candidates[].decoction.dosesPerDay` | number | 每日剂数，1–3 |
-| `formula.candidates[].decoction.administrationTimesPerDay` | number | 每日服用次数 |
-| `formula.candidates[].decoction.method` | string | 完整煎服法。**随方剂性质变化**：解表剂武火速煎、补益剂文火久煎，不是同一张模板 |
-| `formula.candidates[].decoction.soakMinutes` | number | 浸泡分钟数 |
-| `formula.candidates[].decoction.decoctionTimes` | number | 煎煮次数 |
-| `formula.candidates[].decoction.firstDecoctionMinutes` | number | 一煎分钟数 |
-| `formula.candidates[].decoction.secondDecoctionMinutes` | number | 二煎分钟数 |
-| `formula.candidates[].decoction.targetVolumeMl` | number | 两煎合并药液量（儿童 200mL / 成人 500mL） |
-| `formula.candidates[].decoction.administration` | string | 服法，如「饭后温服」 |
-| `formula.candidates[].decoction.followUpNode` | string | 复诊节点 |
+| `againstFormula` | 对比方名 | string |
+| `question` | 鉴别要点 | string |
+| `status` | 本例判定 | string（`confirmed` 符合 / `absent` 不符合 / `unknown` 待确认） |
+| `sourceRef` | 来源引用 | string |
 
-**随证加减建议**
+`formula.candidates[].classicEvidence[]` 经典条文
+
+| 字段 | 中文名 | 类型 |
+|---|---|---|
+| `evidenceId` | 条文标识 | string |
+| `citation` | 出处 | string |
+| `anchorLevel` | 锚定层级 | string（`tiaowen` 条文 / `chapter_paragraph` 章节段 / `page_paragraph` 页段） |
+| `clauseNumber` | 条文编号 | number（可选） |
+| `excerpt` | 条文原文 | string |
+| `tier` | 证据层级 | string（`canon` 经典 / `common` 通行 / `experience` 经验） |
+
+> **经典条文使用边界**：条文按方名检索给出，说明该方的经典出处与主治语境，**不代表已判定适用于本例**；
+> 条文内古代剂量与现行法定剂量不可直接换算，用量以药味表与审方结论为准。
+
+**剂数与煎服法 `formula.candidates[].decoction`**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `doseCount` | 剂数 | string | 如 `7剂` |
+| `course` | 疗程 | string | 如 `7日` |
+| `dosesPerDay` | 每日剂数 | number | 1–3 |
+| `administrationTimesPerDay` | 每日服用次数 | number | — |
+| `method` | 完整煎服法 | string | **随方剂性质变化**：解表剂武火速煎、补益剂文火久煎，不是同一张模板 |
+| `soakMinutes` | 浸泡分钟数 | number | — |
+| `decoctionTimes` | 煎煮次数 | number | — |
+| `firstDecoctionMinutes` | 一煎分钟数 | number | — |
+| `secondDecoctionMinutes` | 二煎分钟数 | number | — |
+| `targetVolumeMl` | 两煎合并药液量 | number | 儿童 200mL / 成人 500mL |
+| `administration` | 服法 | string | 如「饭后温服」 |
+| `followUpNode` | 复诊节点 | string | — |
+
+**随证加减 `formula.modifications[]`**
 
 加减针对的是**病历已记录、但主方覆盖不足的兼症**，不是预设的未来症状；加减行本身不携带克数——剂量由药味工作台与审方链路负责。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `formula.modifications[].trigger` | string | 触发的已记录患者事实（逐字引用） |
-| `formula.modifications[].triggerSource` | object | 事实出处：`{kind, sourceRef, sourceQuote}` |
-| `formula.modifications[].targetPathogenesis` | string | 对应病机 |
-| `formula.modifications[].action` | string | 动作，如 `加党参` |
-| `formula.modifications[].doseOrHandling` | string\|null | 恒为 `null`（加减不下发剂量） |
-| `formula.modifications[].reason` | string | 理由 |
-| `formula.modifications[].riskNote` | string | 风险提示，含「调整后须重新审方」 |
-| `formula.modifications[].substitutions` | array | **可替换药味**：`{replaces, substitute, rationale, differenceNote}`。覆盖缺货/过敏/特殊人群禁用场景；每条必带与原药的差异说明。替代药同样受剂量上限、十八反十九畏、特殊人群规则全部约束 |
-| `formula.modificationReview` | object | 加减复核统计：`{submittedCount, retainedCount, droppedCount, droppedReasons}` |
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `trigger` | 触发事实 | string | 病历已记录的患者事实，逐字引用 |
+| `triggerSource` | 事实出处 | object | `{kind, sourceRef, sourceQuote}` |
+| `targetPathogenesis` | 对应病机 | string | — |
+| `action` | 加减动作 | string | 如 `加川芎` |
+| `doseOrHandling` | 剂量或处理 | string / null | 恒为 `null`，加减不下发剂量 |
+| `reason` | 加减理由 | string | — |
+| `riskNote` | 风险提示 | string | 含「调整后须重新审方」 |
+| `substitutions` | 可替换药味 | array | 可选，见下。**仅出现在「加某味药」类加减上**，且需推得出合规替代药 |
 
-**中成药 / 西药候选**
+`formula.modifications[].substitutions[]` 可替换药味
+
+| 字段 | 中文名 | 类型 |
+|---|---|---|
+| `replaces` | 被替换药名 | string |
+| `substitute` | 替代药名 | string |
+| `rationale` | 替代理由 | string |
+| `differenceNote` | 与原药的差异说明 | string |
+
+> 覆盖缺货、过敏、特殊人群禁用等场景。替代药由系统按受控药品数据推导，不由模型生成，
+> 并逐条校验：功效方向须同类、风险等级不得升高、不得超药典剂量上限、不得触发十八反十九畏、
+> 不得使用管制毒性药材。无符合条件的替代药时不输出该字段。
+
+`formula.modificationReview` 加减复核统计：`{submittedCount, retainedCount, droppedCount, droppedReasons}`
+
+**中成药 / 西药候选 `formula.patentAndWestern[]`**
 
 > **字段路径**：本接口响应中该数据位于 `formula.patentAndWestern`。HIS 方案打包导出（附录 A.1）中同一数据的字段名为 `prescriptions.patentMedicines`，两处命名不同，请勿混用。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `formula.patentAndWestern[].type` | string | `中成药` / `西药` |
-| `formula.patentAndWestern[].name` | string | 药品名 |
-| `formula.patentAndWestern[].specification` | string\|null | 规格 |
-| `formula.patentAndWestern[].singleDose` | string\|null | 单次剂量。**西药一律不下发**；中成药仅在说明书条目本身给全时填写，缺项即为 `null`，不作猜测 |
-| `formula.patentAndWestern[].frequency` | string\|null | 用药频次 |
-| `formula.patentAndWestern[].route` | string\|null | 给药途径 |
-| `formula.patentAndWestern[].usageBoundary` | string | 适用边界与服药注意 |
-| `formula.patentAndWestern[].course` | string | 疗程 |
-| `formula.patentAndWestern[].positioning` | string | `联合治疗` / `替代方案` / `短期对症` / `需医生评估` |
-| `formula.patentAndWestern[].correspondingProblem` | string | 对应的本例问题 |
-| `formula.patentAndWestern[].relationship` | string | 与饮片方的关系（是否可叠加） |
-| `formula.patentAndWestern[].riskNote` | string | 风险说明 |
-| `formula.patentAndWestern[].evidenceId` | string | 说明书条目标识（`EVID-INST-*` / `LOCAL-INST-*`） |
-| `formula.medicineCandidateStatus` | object | 无匹配候选时给出 `{status:"no_evidence_match", reason}` |
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `type` | 药品类别 | string | `中成药` / `西药` |
+| `name` | 药品名 | string | — |
+| `specification` | 规格 | string / null | — |
+| `singleDose` | 单次剂量 | string / null | **西药一律不下发**；中成药仅在说明书条目本身给全时填写，缺项即为 `null`，不作猜测 |
+| `frequency` | 用药频次 | string / null | 同 `singleDose`：说明书未给全即为 `null` |
+| `route` | 给药途径 | string / null | 同 `singleDose`：说明书未给全即为 `null` |
+| `usageBoundary` | 适用边界 | string | 适用范围与服药注意 |
+| `course` | 疗程 | string | — |
+| `positioning` | 定位 | string | `联合治疗` / `替代方案` / `短期对症` / `需医生评估` |
+| `correspondingProblem` | 对应本例问题 | string | — |
+| `relationship` | 与饮片方的关系 | string | 是否可叠加 |
+| `riskNote` | 风险说明 | string | — |
+| `evidenceId` | 说明书条目标识 | string | `EVID-INST-*` / `LOCAL-INST-*` |
 
-**健康调护与中医外治**
+`formula.medicineCandidateStatus`：可选，仅当无匹配中成药候选时输出 `{status:"no_evidence_match", reason}`
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `nonPharma.diet` | string | 饮食调护 |
-| `nonPharma.lifestyle` | string | 起居调护 |
-| `nonPharma.emotion` | string | 情志调护 |
-| `nonPharma.precautions` | array | 注意事项，0–6 条 |
-| `nonPharma.tcmTreatments` | array | 中医外治项目，含 `suggestedSitesOrPoints`（穴位单列）、`treatmentContent`、`scheduleSuggestion`、`techniqueBoundary`、`operatorRequirement`、`protocolSource`、`clinicianReviewRequired` |
+**健康调护 `nonPharma`**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `diet` | 饮食调护 | string | — |
+| `lifestyle` | 起居调护 | string | — |
+| `emotion` | 情志调护 | string | — |
+| `precautions` | 注意事项 | array | 0–6 条；无内容时为空数组 |
+| `acupointCare` | 穴位保健 | string / null | 可选：无穴位保健建议时为 `null` |
+| `tcmTreatments` | 中医外治项目 | array | 见下 |
+
+**中医外治 `nonPharma.tcmTreatments[]`**
+
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `projectCode` | 项目代码 | string | 受控项目枚举 |
+| `projectName` | 项目名称 | string | 如 `毫针刺法` |
+| `availability` | 可开展性 | string | `clinic_available` 本院可做 / `referral_only` 需转诊 |
+| `riskLevel` | 风险等级 | string | `low` / `moderate` / `specialist` |
+| `recommendationMode` | 推荐性质 | string | `clinician_assessment` / `referral_assessment` / `specialist_assessment_only` |
+| `targetRef` | 对应病机节点号 | string | 如 `P1` |
+| `targetPathogenesis` | 对应病机 | string | — |
+| `treatmentContent` | 治疗内容 | string | — |
+| `suggestedSitesOrPoints` | 建议穴位或部位 | array | **穴位单列**，经受控穴位目录核定 |
+| `scheduleSuggestion` | 疗程建议 | string | — |
+| `techniqueBoundary` | 技术边界 | string | 不得超出的操作范围 |
+| `protocolSource` | 方案来源 | string | — |
+| `operatorRequirement` | 操作者资质要求 | string | — |
+| `requiredChecks` | 操作前须完成的检查 | array | — |
+| `containsMedication` | 是否含药物 | boolean | — |
+| `requiresMedicationAudit` | 是否需药事审核 | boolean | — |
+| `executable` | 是否可直接执行 | boolean | — |
+| `clinicianReviewRequired` | 须医师复核 | boolean | 恒为 `true` |
 
 **特殊说明**
 
@@ -723,13 +875,13 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
 
 流中另有一帧结构化随访时间轴：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `type` | string | 固定 `followup_timeline` |
-| `timelineItems` | array | 时间轴条目 |
-| `timelineItems[].time` | string | 时间点 |
-| `timelineItems[].action` | string | 随访动作 |
-| `timelineItems[].indication` | string | 触发指征 |
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `type` | 类型 | string | 固定 `followup_timeline` |
+| `timelineItems` | 随访时间轴 | array | 时间轴条目 |
+| `timelineItems[].time` | 时间点 | string | 时间点 |
+| `timelineItems[].action` | 随访动作 | string | 随访动作 |
+| `timelineItems[].indication` | 触发指征 | string | 触发指征 |
 
 **错误码**
 
@@ -787,13 +939,13 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \
 
 **出参**（`application/json`）
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `available` | boolean | 筛查结果是否可用 |
-| `semanticStatus` | string | `checked` / `unavailable` / `skipped_deterministic_critical_vital` |
-| `redFlags` | array | 命中的红旗项 |
-| `advisories` | array | 建议项 |
-| `clinicalFacts` | object | 提取的临床事实 |
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `available` | 结果是否可用 | boolean | 筛查结果是否可用 |
+| `semanticStatus` | 语义筛查状态 | string | `checked` / `unavailable` / `skipped_deterministic_critical_vital` |
+| `redFlags` | 命中红旗项 | array | 命中的红旗项 |
+| `advisories` | 建议项 | array | 建议项 |
+| `clinicalFacts` | 临床事实 | object | 提取的临床事实 |
 
 ---
 
@@ -834,19 +986,19 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/red-flags" \
 
 **入参**
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `caseState` | object | 是 | 病例状态，须处于红旗状态 |
-| `assessmentSummary` | string | 是 | 现场评估记录，脱敏后 12–1000 字 |
+| 字段 | 中文名 | 类型 | 必填 | 说明 |
+|---|---|---|---|---|
+| `caseState` | 病例状态 | object | 是 | 病例状态，须处于红旗状态 |
+| `assessmentSummary` | 现场评估记录 | string | 是 | 现场评估记录，脱敏后 12–1000 字 |
 
 **出参**（`200`）
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `emergencyClearance.redFlagFingerprint` | string | 红旗事实指纹 |
-| `emergencyClearance.confirmedAt` | string | 确认时间（ISO 8601） |
-| `emergencyClearance.assessmentSummary` | string | 脱敏后的评估记录 |
-| `emergencyClearance.contractSignature` | string | 服务端签名 |
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `emergencyClearance.redFlagFingerprint` | 红旗事实指纹 | string | 红旗事实指纹 |
+| `emergencyClearance.confirmedAt` | 确认时间 | string | 确认时间（ISO 8601） |
+| `emergencyClearance.assessmentSummary` | 脱敏评估记录 | string | 脱敏后的评估记录 |
+| `emergencyClearance.contractSignature` | 服务端签名 | string | 服务端签名 |
 
 返回对象需整体放入 `caseState.emergencyClearance` 供后续阶段使用。
 
@@ -914,24 +1066,24 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/emergency-clearance"
 
 **出参**
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `catalogVersion` | string | 目录版本，形如 `kb:<schema>@<生成时间>\|identity:<schema>\|patent:<源文件哈希前16位>`。三份受治理资产任一重建即变化 |
-| `type` | string | 本页目录类型 |
-| `total` | number | 该类型总条目数 |
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `catalogVersion` | 目录版本 | string | 目录版本，形如 `kb:<schema>@<生成时间>\|identity:<schema>\|patent:<源文件哈希前16位>`。三份受治理资产任一重建即变化 |
+| `type` | 类型 | string | 本页目录类型 |
+| `total` | 总条目数 | number | 该类型总条目数 |
 | `cursor` / `nextCursor` | number \| null | 当前游标 / 下一页游标（`null` 表示已到末页） |
-| `items` | array | 条目列表 |
-| `inboundSyncStatus` | string | 恒为 `not_supported_pending_persistence_decision` |
+| `items` | 条目列表 | array | 条目列表 |
+| `inboundSyncStatus` | 入站同步状态 | string | 恒为 `not_supported_pending_persistence_decision` |
 
 **`type=herb` 条目字段**
 
-| 字段 | 说明 |
-|---|---|
-| `name` | 饮片正名 |
-| `aliases` | 可自动对应到该正名的别名 |
-| `ambiguousAliases` | **歧义别名**（如「一包针」可指千年健或石韦）。系统**绝不自动择一**，原样列出待人工裁定 |
-| `doseLimit` | `{min, max, basis}`；仅在 `doseLimitStatus=governed` 时给出 |
-| `doseLimitStatus` | `governed` / `not_governed`（无药典数值边界，用量由医师确定）/ `source_conflict_requires_pharmacist_review`（分用途剂量冲突，须药师复核） |
+| 字段 | 中文名 | 说明 |
+|---|---|---|
+| `name` | — | 饮片正名 |
+| `aliases` | — | 可自动对应到该正名的别名 |
+| `ambiguousAliases` | — | **歧义别名**（如「一包针」可指千年健或石韦）。系统**绝不自动择一**，原样列出待人工裁定 |
+| `doseLimit` | — | `{min, max, basis}`；仅在 `doseLimitStatus=governed` 时给出 |
+| `doseLimitStatus` | — | `governed` / `not_governed`（无药典数值边界，用量由医师确定）/ `source_conflict_requires_pharmacist_review`（分用途剂量冲突，须药师复核） |
 
 > `his_mapping` 的 `status` 与 `spec_conversion` 的 `conversionStatus`（如 `AUTO_PARSED_NEEDS_REVIEW`、`P1-需补表/复核`）**原样保留**，表示该条尚未人工确认，不得当作已确认条目直接采用。
 
@@ -967,28 +1119,28 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 
 **入参**
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `source` | string | 否 | 来源标识，如院区名或 HIS 实例名 |
-| `items` | array | 是 | 药品条目，单次上限 20000 条，超限返回 `413` 并要求分批 |
-| `items[].name` | string | 是 | 院内药品名 |
-| `items[].kind` | string | 否 | `herb`（饮片，默认）/ `patent`（中成药） |
-| `items[].available` | boolean | 否 | 是否有货，**缺省为 `true`**（推过来的即视为在售目录） |
-| `items[].specification` | string | 否 | 规格 |
-| `items[].goodsId` | string | 否 | 院内商品号 |
+| 字段 | 中文名 | 类型 | 必填 | 说明 |
+|---|---|---|---|---|
+| `source` | 来源标识 | string | 否 | 来源标识，如院区名或 HIS 实例名 |
+| `items` | 条目列表 | array | 是 | 药品条目，单次上限 20000 条，超限返回 `413` 并要求分批 |
+| `items[].name` | 院内药品名 | string | 是 | 院内药品名 |
+| `items[].kind` | 药品类别 | string | 否 | `herb`（饮片，默认）/ `patent`（中成药） |
+| `items[].available` | 是否有货 | boolean | 否 | 是否有货，**缺省为 `true`**（推过来的即视为在售目录） |
+| `items[].specification` | 规格 | string | 否 | 规格 |
+| `items[].goodsId` | 院内商品号 | string | 否 | 院内商品号 |
 
 **语义：整批替换。** 每次导入完全替换上一批，不做增量合并——增量要求调用方维护删除事件，
 而"某药已下架却没推删除"会让系统长期以为它有货，比整批替换危险。
 
 **出参**
 
-| 字段 | 说明 |
-|---|---|
-| `inventoryVersion` | 库存版本（内容指纹） |
+| 字段 | 中文名 | 说明 |
+|---|---|---|
+| `inventoryVersion` | — | 库存版本（内容指纹） |
 | `importedAt` / `source` / `itemCount` | 导入时间 / 来源 / 条目数 |
 | `availableHerbCount` / `availablePatentCount` | 有货饮片数 / 有货中成药数 |
-| `unresolvedNames` | **在受控药品目录中找不到对应正名的院内药名**。原样回报供调用方补充映射，不会被静默丢弃 |
-| `ambiguousNames` | 存在多个候选的院内药名（如"一包针"→千年健/石韦）。系统**绝不自动择一** |
+| `unresolvedNames` | — | **在受控药品目录中找不到对应正名的院内药名**。原样回报供调用方补充映射，不会被静默丢弃 |
+| `ambiguousNames` | — | 存在多个候选的院内药名（如"一包针"→千年健/石韦）。系统**绝不自动择一** |
 
 **开方时的表现**
 
@@ -1110,13 +1262,21 @@ M05 响应为 Markdown 文本流，不采用结构化字段，内容依次为：
 
 ### 6.1 完整链路
 
+以下示例贯穿同一个病例（产后气血亏虚头痛），请求与响应均取自真实运行结果。
+**全流程只需保持 `caseState.id` 不变，并把上一阶段返回的结构化结论原样并回 `caseState`。**
+
+**第 1 步：准备**
+
 ```bash
 BASE="https://82.156.128.153/tcm-cdss"
 TOKEN="<接口令牌>"
-CASE_ID="OPD-20260805-000123"
+CASE_ID="OPD-20260807-000123"
+```
 
-# M03 辨病辨证
-curl -X POST "$BASE/api/diagnosis/diagnose" \
+**第 2 步：M03 辨病辨证**
+
+```bash
+curl -N -X POST "$BASE/api/diagnosis/diagnose" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
   -d '{
@@ -1124,17 +1284,364 @@ curl -X POST "$BASE/api/diagnosis/diagnose" \
       "id": "'"$CASE_ID"'",
       "patient": { "sex": "女", "age": 28 },
       "chiefComplaint": "产后2月余，头痛反复发作1月",
-      "symptoms": { "现病史": "近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠" },
+      "symptoms": { "现病史": "近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华" },
       "tongue": "舌淡苔薄白",
       "pulse": "脉细弱",
-      "conversation": [],
-      "vitals": {}
+      "vitals": { "BP": "108/70mmHg", "T": "36.5", "P": "78" },
+      "tcmLineagePreference": "classical-formula",
+      "conversation": []
     }
   }'
-
-# 从响应中提取 reasoningDiagnose 后，调用 M04
-# caseState 须包含同一个 id，并原样携带 reasoningDiagnose
 ```
+
+响应为 NDJSON 流。按 §3.5 拼出完整正文后，取 `<!-- DIAGNOSIS_JSON_START -->` 与
+`<!-- DIAGNOSIS_JSON_END -->` 之间的 JSON，即为 `reasoningDiagnose`（下为节选，字段含义见 §4.4）：
+
+```json
+{
+  "schemaVersion": "tcm-cdss-reasoning-v2",
+  "stage": "diagnose",
+  "overview": {
+    "tcmDiseaseName": "头风病",
+    "primarySyndrome": "心脾两虚，气血不足",
+    "primarySyndromeBasis": [
+      "产后2月余，头痛反复发作1月",
+      "舌象：舌淡苔薄白",
+      "脉象：脉细弱"
+    ],
+    "primarySyndromeResolution": "bounded",
+    "tcmDiseaseDifferentials": [
+      {
+        "diseaseName": "眩晕",
+        "reason": "头痛与眩晕可并见；病历已记录头痛阳性。",
+        "distinguishingPoints": "病历已记录头痛阳性。",
+        "nextCheck": "需追问有无视物旋转、站立不稳。"
+      },
+      {
+        "diseaseName": "真头痛",
+        "reason": "真头痛为头痛之急重症，需排除。",
+        "distinguishingPoints": "病历已记录头痛阳性；病历已记录头痛阳性；病历尚未确认剧烈头痛是否存在；病历尚未确认抽搐是否存在；病历尚未确认呕吐是否存在。",
+        "nextCheck": "若出现剧烈头痛、喷射性呕吐、意识改变，需急诊排查。"
+      }
+    ],
+    "overallPathogenesis": "产后气血亏虚，心脾两虚，清窍失养，不荣则痛；心神失养则心悸失眠，脾虚不运则神疲乏力，面色少华。",
+    "overallTherapy": "补益心脾，益气养血，和络止痛。",
+    "recommendedFormulaDirection": "归脾汤加减",
+    "recommendedFormulaNames": [
+      "归脾汤"
+    ],
+    "formulaSelectionMode": "single"
+  },
+  "westernDiagnosis": {
+    "primary": {
+      "name": "头痛症状",
+      "status": "考虑",
+      "confidence": "中",
+      "supportingFacts": [
+        "产后2月余，头痛反复发作1月",
+        "产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华"
+      ],
+      "limitations": [
+        "未提供神经系统查体及影像学检查，无法排除颅内器质性病变"
+      ],
+      "suggestedChecks": [
+        "测量血压，评估有无高血压",
+        "神经系统查体，包括眼底检查",
+        "若出现红旗征（如突发剧烈头痛、意识改变、局灶神经体征），及时行头颅CT/MRI"
+      ]
+    }
+  },
+  "pathogenesis": {
+    "summary": "产后气血亏虚，清窍失养，不荣则痛；心脾两虚，气血不足，心神失养，脾虚不运",
+    "locationDifferentiation": {
+      "items": [
+        "心",
+        "脾",
+        "头窍"
+      ]
+    },
+    "chain": [
+      {
+        "nodeId": "P1",
+        "patientFact": "产后2月余，头痛反复发作1月",
+        "syndromeEvidence": "产后2月余",
+        "pathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+        "therapyDirection": "益气养血，和络止痛。",
+        "pathogenesisType": "始动",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ]
+  },
+  "therapy": {
+    "overallPrinciple": "虚则补之",
+    "overallMethod": "补益心脾，益气养血，和络止痛。",
+    "subTherapies": [
+      {
+        "therapy": "益气养血，和络止痛",
+        "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      },
+      {
+        "therapy": "补益心脾，养血安神",
+        "targetPathogenesis": "心脾两虚，气血不足，心神失养",
+        "priority": "主要",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "本例资料",
+          "confidence": "中"
+        }
+      }
+    ]
+  },
+  "contractSignature": "hmac-sha256:3d134c59…（64位十六进制，原样回传）"
+}
+```
+
+**第 3 步：M04 候选方药**
+
+把上一步取到的 JSON **整体**放进 `caseState.reasoningDiagnose`，不要改写任何字段：
+
+```bash
+curl -N -X POST "$BASE/api/diagnosis/prescribe" \
+  -H "Content-Type: application/json" \
+  -H "x-cdss-api-token: $TOKEN" \
+  -d '{
+    "caseState": {
+      "id": "'"$CASE_ID"'",
+      "patient": { "sex": "女", "age": 28 },
+      "chiefComplaint": "产后2月余，头痛反复发作1月",
+      "herbCountPreference": "between_10_15",
+      "reasoningDiagnose": { ...上一步取到的完整 JSON... }
+    }
+  }'
+```
+
+响应中的结构化结论即为 `reasoningPrescribe`（下为节选，字段含义见 §4.5）：
+
+```json
+{
+  "stage": "prescribe",
+  "formula": {
+    "candidates": [
+      {
+        "name": "归脾汤加减",
+        "formulaNames": [
+          "归脾汤"
+        ],
+        "positioning": "首选",
+        "constructionType": "single_base",
+        "modificationStatus": "modified",
+        "herbs": [
+          {
+            "name": "黄芪",
+            "processing": null,
+            "dose": "20g",
+            "role": "君",
+            "prescriptionRole": "君药：益气养血，和络止痛。",
+            "targetKind": "pathogenesis_node",
+            "targetRef": "P1",
+            "structureRole": null,
+            "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+            "function": "补气升阳，固表止汗，利水消肿，生津养血，托毒排脓，敛疮生肌；补气药；补虚药",
+            "isToxic": false,
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 9-30g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          },
+          {
+            "name": "当归",
+            "processing": null,
+            "dose": "10g",
+            "role": "君",
+            "prescriptionRole": "君药：益气养血，和络止痛。",
+            "targetKind": "pathogenesis_node",
+            "targetRef": "P1",
+            "structureRole": null,
+            "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+            "function": "补血活血，调经止痛，润肠通便；补虚药；补血药",
+            "isToxic": false,
+            "verificationTier": "verified",
+            "doseSource": "governed_boundary",
+            "verificationReasons": [
+              "受治理剂量边界 6-12g 已用于生成后校验"
+            ],
+            "evidence": {
+              "evidenceLevel": "model_inference",
+              "source": "基于本例证候、病机、治法与候选药味的配伍分析",
+              "confidence": "中"
+            }
+          }
+        ],
+        "formulaAnalysis": "本方共9味，围绕「补益心脾、益气养血、和络止痛」分层组方：\n\n- **黄芪**（君）：以「补气升阳，固表止汗」直接承接核心病机「产后气血亏虚，清窍失养，不荣」，为本方治疗支点。\n- **当归**（君）：以「补血活血，调经止痛」同承接上述核心…",
+        "decoction": {
+          "doseCount": "7剂",
+          "method": "每日1剂；加冷水浸泡30分钟，武火煮沸后转文火；一煎30分钟、二煎20分钟；两煎合并药液约500mL；每日分2次服；服药与进餐间隔按患者胃肠耐受、方剂性质及院内规范执行；特殊药味按药味表执行",
+          "course": "7日",
+          "followUpNode": "完成7剂（7日）后复诊；出现不适或症状加重时提前复诊",
+          "dosesPerDay": 1,
+          "administrationTimesPerDay": 2,
+          "soakMinutes": 30,
+          "decoctionTimes": 2,
+          "firstDecoctionMinutes": 30,
+          "secondDecoctionMinutes": 20,
+          "targetVolumeMl": 500,
+          "administration": "每日1剂，每日分2次服；服药与进餐间隔按患者胃肠耐受、方剂性质及院内规范执行",
+          "followUpAfterDoses": 7,
+          "followUpAfterDays": 7
+        },
+        "classicEvidence": [
+          {
+            "evidenceId": "TCMOC-18015743D19DF07E",
+            "citation": "《时方歌括》·归脾汤",
+            "anchorLevel": "chapter_paragraph",
+            "excerpt": "属性：治思虑伤脾。不能摄血。致血妄行。或健忘怔忡。惊怪盗汗。嗜卧少食。或大便不调。 心脾疼痛。疟痢郁结。或因病用药失宜。克伐伤脾。以致变症者。最宜之。 归脾汤内术 神。（白术黄 炙茯神各[具体剂量或操作已隔离]。）参志香甘与枣仁。（人参酸枣仁炒研各[具体剂量或操作已隔离]。远志木香各五分。甘草炙[具体剂量或操作已隔离]。）龙眼当归十味外。（龙眼肉五枚。当归[具体剂量或操作已隔离]。）若加熟 地失其真。（本方只十味。薛氏加山栀丹皮各[具体剂量或操作已隔离]。名为加味归脾汤。治脾虚发热颇效。近 医加熟地黄。名黑归脾汤。则支离甚矣。） 陈修园曰。此方汇集补药。虽无深义。然亦纯而不杂。浙江江苏市医。加入熟地黄一味。 名为黑归脾汤。则不通极矣",
+            "tier": "canon"
+          }
+        ],
+        "compositionLogic": [
+          {
+            "formulaName": "归脾汤",
+            "summary": "受控目录组成：白术、当归、茯苓、黄耆、远志、龙眼肉、酸枣仁、人参、木香、甘草。目录来源为《校注妇人良方》（通行十味方；初出《济生方》卷四为八味，薛己补当归、远志）。；方证定位为“心脾气血两虚，神失所养：心悸健忘，失眠，食少，或脾不统血出血，舌淡脉细弱。”，仍须逐项核对患者事实、鉴别边与禁忌后才能进入处方编译。",
+            "tier": "common",
+            "sourceRefs": [
+              "urn:tcm-cdss:formula-catalog:归脾汤:济生卷四",
+              "urn:tcm-cdss:formula-catalog:归脾汤:校注妇人良方",
+              "ADJ-20260727-T14-GRAPH-EXPANSION"
+            ]
+          }
+        ],
+        "discriminationPath": [
+          {
+            "againstFormula": "炙甘草汤",
+            "question": "当前心慌失眠，其脉是细弱，还是结代？",
+            "status": "unknown",
+            "sourceRef": "T14-080:ADJ-20260727-T14-GRAPH-EXPANSION"
+          }
+        ]
+      }
+    ],
+    "modifications": [
+      {
+        "trigger": "产后2月余，头痛反复发作1月",
+        "triggerSource": {
+          "kind": "primary_syndrome_basis",
+          "sourceRef": "overview.primarySyndromeBasis[0]",
+          "sourceQuote": "产后2月余，头痛反复发作1月"
+        },
+        "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+        "action": "加川芎",
+        "doseOrHandling": null,
+        "reason": "头痛反复发作，为气血亏虚、清窍失养所致，加川芎活血行气、祛风止痛，引药上行头目，以助和络止痛。",
+        "riskNote": "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
+        "evidence": {
+          "evidenceLevel": "model_inference",
+          "source": "患者事实（overview.primarySyndromeBasis[0]）：产后2月余，头痛反复发作1月；对应病机节点：P1",
+          "confidence": "中"
+        }
+      }
+    ],
+    "patentAndWestern": [
+      {
+        "type": "中成药",
+        "name": "归脾丸",
+        "specification": "每瓶装 60g",
+        "evidenceId": "EVID-INST-001",
+        "evidenceFingerprint": "sha256:1b8f9a574bca8eb451cf5655664a01408b20e08cfcd3db9a82d5e1dfc75b3ce9",
+        "recommendationMode": "candidate_review",
+        "usageBoundary": "作为饮片煎剂的替代或序贯方案，需在医生指导下使用；哺乳期用药需权衡利弊。",
+        "course": "本候选不形成疗程医嘱",
+        "positioning": "替代方案",
+        "correspondingProblem": "心脾两虚、气血不足所致的产后头痛、心悸失眠、神疲乏力",
+        "evidence": {
+          "evidenceLevel": "instruction",
+          "source": "[EVID-INST-001]",
+          "confidence": "中"
+        },
+        "relationship": "与饮片方案不默认联用，由医生择一或评估联用",
+        "riskNote": "说明书未载明确禁忌；哺乳期妇女应在医师指导下服用；服药期间忌不易消化食物，感冒发热不宜服用；病历已记录心悸阳性；病历尚未确认头晕是否存在。"
+      }
+    ]
+  },
+  "nonPharma": {
+    "diet": "饮食宜温热、易消化，适当增加富含蛋白质和铁的食物如瘦肉、蛋类、豆制品，避免生冷、油腻及辛辣刺激之品；可少量多餐，忌暴饮暴食。",
+    "lifestyle": "保证充足睡眠，避免劳累和熬夜；产后注意保暖，避免风寒；可适当进行温和活动如室内散步，逐步恢复体力，避免剧烈运动。",
+    "emotion": "保持情绪平稳，避免过度思虑和恼怒；家人应多予关心支持，可尝试听舒缓音乐、深呼吸等方式放松心情。",
+    "precautions": [
+      "服药期间若头痛突然加剧、伴呕吐、视力模糊或肢体无力，应立即就医排查子痫前期或颅内病变。",
+      "建议1周内复诊评估疗效，若服药后症状无改善或出现胃脘不适、食欲减退等，应及时就诊调整方案。",
+      "病历尚未确认皮疹是否存在；病历尚未确认腹泻是否存在。",
+      "若同时服用其他药物，尤其是抗凝药、降压药或镇静安神药，需告知医生以评估相互作用。"
+    ],
+    "tcmTreatments": [
+      {
+        "projectCode": "moxibustion",
+        "projectName": "灸法",
+        "availability": "clinic_available",
+        "riskLevel": "moderate",
+        "recommendationMode": "clinician_assessment",
+        "targetRef": "P1",
+        "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
+        "protocolStatus": "assessment_only_no_patient_specific_protocol",
+        "protocolGap": "目录存在该项目的其他适应证模板，但与本例适应证不符；不得跨适应证套用穴位、部位、频次或疗程。",
+        "treatmentContent": "本例与经带与下腹症状存在项目评估关联；仅进入现场适应证、禁忌与资质评估，不形成操作计划。",
+        "suggestedSitesOrPoints": [
+          "按针刺方案中与当前证型匹配的穴位",
+          "膀胱经大杼至肾俞区域（现场定位）"
+        ],
+        "scheduleSuggestion": "",
+        "techniqueBoundary": "仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位/部位与频次；不得跨适应证套用。",
+        "protocolSource": "SRC-SAMR-ACUPUNCTURE-OPS、SRC-TCM-INFECTION-CONTROL",
+        "operatorRequirement": "由受训医务人员评估火源、温度和皮肤耐受",
+        "requiredChecks": [
+          "感觉障碍、糖尿病足、发热热证、皮损和烫伤风险"
+        ],
+        "containsMedication": false,
+        "requiresMedicationAudit": false,
+        "executable": false,
+        "clinicianReviewRequired": true
+      }
+    ]
+  },
+  "contractSignature": "hmac-sha256:9f2ab7c1…（64位十六进制，原样回传）"
+}
+```
+
+**第 4 步：M05 风险随访**
+
+把 M03 与 M04 两份结论都并进 `caseState`：
+
+```bash
+curl -N -X POST "$BASE/api/diagnosis/assess" \
+  -H "Content-Type: application/json" \
+  -H "x-cdss-api-token: $TOKEN" \
+  -d '{
+    "caseState": {
+      "id": "'"$CASE_ID"'",
+      "reasoningDiagnose": { ... },
+      "reasoningPrescribe": { ... }
+    }
+  }'
+```
+
+> **最常见的两个集成错误**
+> 1. 把上一阶段结论「精简」或「重新格式化」后再回传 —— 签名校验失败，返回 `409`。必须逐字节原样。
+> 2. 各阶段用了不同的 `caseState.id` —— 同样返回 `409`。
 
 ### 6.2 响应解析（Node.js）
 
