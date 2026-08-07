@@ -1,114 +1,73 @@
-# 中医 CDSS 对外接口文档
+# 中医临床决策支持系统（中医 CDSS）接口文档
 
 | 项 | 内容 |
 |---|---|
 | 文档版本 | V1.2 |
 | 发布日期 | 2026-08-07 |
-| 对应线上版本 | `tcm-cdss-20260807-herb-knowledge-annot-amd64`（commit `d40072db`） |
+| 服务版本 | `tcm-cdss-20260807-herb-knowledge-annot-amd64` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
-
-## 你要的 9 项内容，分别在哪里取
-
-贵方 2026-08-05《核对内容》「一、接口缺失内容」列的 9 项，全部已可取。下表是取值路径，
-研发照这张表对接即可，不用先通读全文。
-
-| 贵方列的内容 | 从哪个接口取 | 字段路径 | 详见 |
-|---|---|---|---|
-| 流派选择传参 | 各阶段请求 | 请求 `caseState.tcmLineagePreference` | §2.3.2 |
-| 中药饮片味数传参 | M04 请求 | 请求 `caseState.herbCountPreference` | §2.3.3 |
-| 西医诊断的待查依据 | M03 出参 | `westernDiagnosis.primary.suggestedChecks`（建议检查）<br>`westernDiagnosis.primary.limitations`（依据不足之处） | §3.4 |
-| 方义分析 | M04 出参 | `formula.candidates[].formulaAnalysis` | §3.5 |
-| 组成逻辑 | M04 出参 | `formula.candidates[].compositionLogic[]` | §3.5 |
-| 方证鉴别 | M04 出参 | `formula.candidates[].discriminationPath[]` | §3.5 |
-| 经典条文 | M04 出参 | `formula.candidates[].classicEvidence[]` | §3.5 |
-| 剂数与煎服法 | M04 出参 | `formula.candidates[].decoction`（剂数、每日剂次、煎煮时长、服法…） | §3.5 |
-| 随证加减 | M04 出参 | `formula.modifications[]`（**在 `formula` 下，不在候选方里**） | §3.5 |
-| └ 可替换药味（贵方建议增加） | M04 出参 | `formula.modifications[].substitutions[]` | §3.5 |
-| 中成药候选完整子字段 | M04 出参 | `formula.patentAndWestern[]` | §3.5 |
-| 健康调护（饮食/起居/情志/注意事项） | M04 出参 | `nonPharma.diet` / `.lifestyle` / `.emotion` / `.precautions` | §3.5 |
-| 中医外治 | M04 出参 | `nonPharma.tcmTreatments[]` | §3.5 |
-| └ 穴位建议（贵方要求单独说明） | M04 出参 | `nonPharma.tcmTreatments[].suggestedSitesOrPoints[]` | §3.5 |
-| 药品同步接口（下发目录） | 独立接口 | `GET /api/tcm-knowledge/drug-catalog` | §3.9 |
-| 药品同步接口（导入院内库存） | 独立接口 | `POST /api/drug-inventory` | §3.10 |
-
-**关于「可替换药味」，有两点研发需要先知道，否则会以为字段坏了：**
-
-1. 它**只出现在"加某味药"这类加减建议上**。「减某味药」「调整用量」这类建议没有替代药可言，
-   该条加减就不带这个字段。所以一次出参里通常只有部分加减带 `substitutions`，这是正常的。
-2. 替代药**不是模型给的**，是系统按受控药品数据推导的——让模型自己提名替代药等于让模型开药。
-   推导时逐条过硬性边界：功效方向必须同类（不会拿清热药替温里药）、风险等级不得升高、
-   不得超药典剂量上限、不得触发十八反十九畏、不得使用管制毒性药。
-   推不出符合边界的替代药时，宁可不给，也不给一个勉强的。
-
-> **如果贵方走 HIS 集成**：上面这些内容在附录 A.1《HIS 诊疗方案导出》里已整合成一份现成的 JSON，
-> 不用自己从 M03/M04 出参里逐个字段拼。但两处字段名不完全相同，混用容易出错，建议二选一。
+| 数据格式 | 请求 JSON；诊疗流程接口响应为 NDJSON 流，其余为 JSON |
 
 ---
 
-## 本版（V1.2）与上一版的差异
+## 1. 概述
 
-**接口契约完全兼容**，没有任何字段改名、删除或路径变更，可直接按本版开始对接。本版只是把
-已经能用、但文档里没写的东西补上：
+中医 CDSS 面向门诊场景，为医生提供辅助诊疗建议。一次完整诊疗按 M01–M05 五个阶段顺序调用，
+每个阶段的结论作为下一阶段的输入原样传递。
 
-- 补上**请求参数说明**（§2.3.1–§2.3.3）。上一版整篇没有请求字段表，所以流派和味数虽然早就能传，
-  贵方从文档里看不出该往哪传、能填什么值。
-- 精简了接口清单：只保留主体诊疗流程、流程中的安全环节，以及贵方要求的药品同步。
-  其余能力（HIS 方案打包导出、健康检查）移到附录 A，不影响对接。
-- §1 清单里补齐了几个接口支持的方法：药材检索和功效查询也支持 `POST`（中文查询词走 POST 不用 URL 编码），
-  库存接口也支持 `GET`（查当前库存）。
+**系统仅提供建议，不作诊疗决定。** 所有结论均可追溯到患者事实、确定性规则或知识库条目；
+无法追溯的内容会被显式标注为证据不足，不会以确定结论的形式输出。
 
-**有一处取值变化需要研发处理**（不是字段变化）：
+**调用顺序**
 
-- `westernDiagnosis.primary.name` 现在**可能是空串**。以前不管什么情况都会填一句
-  「症状性诊断，病因待临床鉴别」，但这句话会让一份其实有依据的诊断看起来像"系统没给出诊断"
-  （贵方 1.1.2 反馈的就是这句）。现在改成：填不出来就留空。
-  **请把空串当成"本次未形成西医工作诊断"处理，不要直接显示给医生。**
-  其余文本字段同理——空值统一表示"本次没有产出这一项"。
-- `terminologyMappings`（国标术语映射）单次最多返回 20 条。
+```
+访问凭证获取
+      │
+      ▼
+M01 病历采集 ──▶ M02 追问生成 ──▶ M03 辨病辨证 ──▶ M04 候选方药 ──▶ M05 风险随访
+   结构化病历      补充信息缺口      诊断与病机        方药与调护        风险与随访
+                （可跳过）
+      │
+      └──▶ 红旗筛查（任意阶段可调）──▶ 命中时经急症排查确认后继续
+```
 
-**另外提醒一处字段名**：中成药候选在 M04 原始出参里是 `formula.patentAndWestern`，
-在 HIS 方案导出（附录 A.1）里是 `prescriptions.patentMedicines`。更早版本的文档曾把它写成顶层
-`patentMedicines`，那个路径不存在，按它取值会取到空。
+**接口分组**
 
----
-
-## 1. 接口清单
-
-**主体诊疗流程**（按顺序调用）
-
-| 序号 | 接口名称 | 方法 | 路径 | 说明 |
-|---|---|---|---|---|
-| 1 | 访问凭证获取 | POST | `/api/auth/access` | 令牌换取访问凭证，只需调一次 |
-| 2 | M01 病历采集 | POST | `/api/diagnosis/collect` | 自由文本病历结构化；可带舌象图片 |
-| 3 | M02 追问生成 | POST | `/api/diagnosis/question` | 生成缺口追问（不阻断流程，可跳过直接进 M03） |
-| 4 | M03 辨病辨证 | POST | `/api/diagnosis/diagnose` | 西医诊断 + 中医证候 + 病机拆解 + 治则治法 |
-| 5 | M04 候选方药 | POST | `/api/diagnosis/prescribe` | **贵方要的方义/煎服法/加减/中成药/健康调护/中医外治都在这个出参里** |
-| 6 | M05 风险随访 | POST | `/api/diagnosis/assess` | 用药风险提示与随访计划 |
-
-**流程中的安全环节**
-
-| 序号 | 接口名称 | 方法 | 路径 | 说明 |
-|---|---|---|---|---|
-| 7 | 红旗筛查 | POST | `/api/diagnosis/red-flags` | 急危重症征象筛查，随时可单独调 |
-| 8 | 急症排查确认 | POST | `/api/diagnosis/emergency-clearance` | 命中红旗时，医生确认已排查后继续流程 |
-
-**药品同步（贵方核对件第 9 项）**
-
-| 序号 | 接口名称 | 方法 | 路径 | 说明 |
-|---|---|---|---|---|
-| 9 | 药品目录下发 | GET | `/api/tcm-knowledge/drug-catalog` | 我方受控药品目录分页下发，供院内对账 |
-| 10 | 院内库存导入 | POST | `/api/drug-inventory` | 贵方导入医院库存药，开方时优先用有货的 |
-| 11 | 院内库存查询 | GET | `/api/drug-inventory` | 查当前生效的库存快照 |
-
-> 系统还有若干接口（HIS 方案打包导出、健康检查等）本次贵方未要求，已移至**附录 A**，不影响对接。
+| 分组 | 用途 |
+|---|---|
+| 诊疗流程 | M01–M05 五阶段主链路，按顺序调用 |
+| 安全控制 | 急危重症筛查与排查确认，可在任意阶段调用 |
+| 药品同步 | 药品目录下发与院内库存导入，与诊疗流程解耦，可独立对接 |
 
 ---
 
-## 2. 通用约定
+## 2. 接口总表
 
-### 2.1 鉴权
+| 序号 | 分组 | 接口名称 | 方法 | 路径 | 主要用途 |
+|---|---|---|---|---|---|
+| 1 | 诊疗流程 | 访问凭证获取 | POST | `/api/auth/access` | 令牌换取访问凭证，每个会话调用一次 |
+| 2 | 诊疗流程 | M01 病历采集 | POST | `/api/diagnosis/collect` | 自由文本病历结构化，支持舌象图片 |
+| 3 | 诊疗流程 | M02 追问生成 | POST | `/api/diagnosis/question` | 生成信息缺口追问，不阻断流程 |
+| 4 | 诊疗流程 | M03 辨病辨证 | POST | `/api/diagnosis/diagnose` | 西医诊断、中医证候、病机拆解、治则治法 |
+| 5 | 诊疗流程 | M04 候选方药 | POST | `/api/diagnosis/prescribe` | 候选方药、方义、煎服法、随证加减、中成药、健康调护、中医外治 |
+| 6 | 诊疗流程 | M05 风险随访 | POST | `/api/diagnosis/assess` | 用药风险提示与随访计划 |
+| 7 | 安全控制 | 红旗筛查 | POST | `/api/diagnosis/red-flags` | 急危重症征象筛查 |
+| 8 | 安全控制 | 急症排查确认 | POST | `/api/diagnosis/emergency-clearance` | 医生确认已完成急症排查后继续流程 |
+| 9 | 药品同步 | 药品目录下发 | GET | `/api/tcm-knowledge/drug-catalog` | 受控药品目录分页下发，供院内目录对账 |
+| 10 | 药品同步 | 院内库存导入 | POST | `/api/drug-inventory` | 导入院内库存药，开方时优先使用有货药味 |
+| 11 | 药品同步 | 院内库存查询 | GET | `/api/drug-inventory` | 查询当前生效的库存快照 |
+
+接口详细定义见 §4。诊疗结果各项内容在响应中的字段位置见 §5。
+
+另有两项能力（HIS 诊疗方案打包导出、服务健康检查）与主链路无关，见附录 A。
+
+---
+
+## 3. 通用约定
+
+### 3.1 鉴权
 
 所有接口均需鉴权。请求头二选一：
 
@@ -119,14 +78,14 @@
 
 未携带或令牌错误返回 `401`。
 
-### 2.2 请求头
+### 3.2 请求头
 
 | 请求头 | 必填 | 值 |
 |---|---|---|
 | `Content-Type` | 是 | `application/json` |
 | `x-cdss-api-token` | 是 | 接口访问令牌 |
 
-### 2.3 参数传递要求
+### 3.3 参数传递要求
 
 **以下五条为强制要求，不满足将导致接口报错或链路中断。**
 
@@ -157,7 +116,7 @@
 | M03 → M04 | `diagnosis`、`reasoningDiagnose`（含 `contractSignature`） | `caseState.diagnosis`、`caseState.reasoningDiagnose` |
 | M04 → M05 | `prescription`、`reasoningPrescribe`（含 `contractSignature`） | `caseState.prescription`、`caseState.reasoningPrescribe` |
 
-### 2.3.1 CaseState 入参字段表
+### 3.3.1 CaseState 入参字段表
 
 调用方只需构造下表字段；其余为服务端产出、按 R2 原样回传即可。**未列出的键不会报错，但也不会生效。**
 
@@ -173,14 +132,14 @@
 | `tongue` / `pulse` / `faceNote` | string | 建议 | — | M01 起 | 四诊文本 |
 | `tongueImageDesc` | string | 否 | — | M01 | 舌象图片走 GLM 视觉后回填；无图时可手工录入 |
 | `vitals` | object | 建议 | — | 全阶段 | BP/T/P/R/SpO2，危急阈值由确定性安全门解析 |
-| `tcmLineagePreference` | string | 否 | 见 §2.3.2 | M02/M03/M04/M05 | 流派选择。顶层与 `hisRecord.fields` **两条通道都生效** |
-| `herbCountPreference` | string | 否 | 见 §2.3.3 | **仅 M04** | 饮片味数偏好。**仅接受顶层字段** |
+| `tcmLineagePreference` | string | 否 | 见 §3.3.2 | M02/M03/M04/M05 | 流派选择。顶层与 `hisRecord.fields` **两条通道都生效** |
+| `herbCountPreference` | string | 否 | 见 §3.3.3 | **仅 M04** | 饮片味数偏好。**仅接受顶层字段** |
 | `clinicTreatmentCapabilities` | object | 否 | — | M04/M05 | 院内可开展的中医外治项目，决定外治建议是 `clinic_available` 还是 `referral_only` |
 | `hisRecord.fields` | object | 否 | — | 全阶段 | HIS 病历字段直传；与顶层同名字段冲突时以本通道优先 |
 | `emergencyClearance` | object | 否 | — | 全阶段 | 只能由 `/api/diagnosis/emergency-clearance` 产出；每次读取都会重新校验并剥离，伪造无效 |
 | `reasoningDiagnose` / `reasoningPrescribe` / `reasoningV2` | object | 交接必填 | — | M04/M05 | 上一阶段结论，**必须原样回传**（R2）。任何改写都会导致 `409` |
 
-### 2.3.2 流派选择 `tcmLineagePreference`
+### 3.3.2 流派选择 `tcmLineagePreference`
 
 影响 M02 追问策略、M03 辨证重点、M04 组方风格、M05 随访口径四个阶段。不传等价于 `unrestricted`。
 
@@ -204,7 +163,7 @@
 
 出参侧回显在 `reasoningPrescribe.lineageAdaptation`（`lineageCode`/`label`/`applicable`/`applicabilityReason`/`influencedDecisions`/`unaffectedBySafety`/`safetyDeference`），以及 HIS 方案导出中。
 
-### 2.3.3 饮片味数偏好 `herbCountPreference`
+### 3.3.3 饮片味数偏好 `herbCountPreference`
 
 | 取值 | 含义 | 也可直接传的中文写法 |
 |---|---|---|
@@ -212,7 +171,7 @@
 | `between_10_15` | 10–15 味 | `10-15`、`10–15`、`10~15`、`10至15`、`10－15` |
 | `at_least_15` | 15 味及以上 | `15味及以上`、`15味以上`、`≥15`、`>15` |
 
-以下 5 点都是实测行为，对接前请逐条确认，避免"传了没反应"这类难查的问题：
+该参数的行为规则如下，对接前请逐条确认：
 
 1. **只认写在 `caseState` 最外层的这个字段。** 放到 `hisRecord.fields` 里**不生效，而且不报错**。
    注意这一点和流派**不一样**——流派两个位置都认，味数只认最外层。
@@ -220,17 +179,17 @@
 3. 大小写敏感（`WITHIN_10` 不认）。填数字 `12`、或"少一点"这种模糊说法，一律当没填处理，**不报错**。
    建议直接传上表左列那三个值，中文写法只是兼容。
 4. **这是偏好，不是硬性限制。** 系统不会为了凑味数去删药：经典方的原方组成、绑定病机的必需药、
-   有安全定性作用的药，都会保留——这正是贵方在核对件里注明的"如诊疗必须也不能裁剪"。
+   有安全定性作用的药，都会保留。
 5. 所以**开出来的药味数可能超出所选档位**。这不是参数没生效，是临床必需优先。
 
-### 2.4 响应格式
+### 3.4 响应格式
 
 | 接口 | 响应类型 |
 |---|---|
 | M01–M05 | NDJSON 流（见 2.5） |
 | 红旗筛查、急症排查确认、访问凭证 | `application/json` |
 
-### 2.5 NDJSON 流式协议
+### 3.5 NDJSON 流式协议
 
 每行一个 JSON 对象，以换行符分隔：
 
@@ -240,7 +199,7 @@
 | `{"content":"[END]"}` | 流结束标记 |
 | `{"error":"<错误描述>"}` | 流内错误，出现后应终止解析 |
 
-### 2.6 结构化结论提取
+### 3.6 结构化结论提取
 
 M01–M05 的正文中嵌有结构化 JSON，位于以下两个标记之间：
 
@@ -252,7 +211,7 @@ M01–M05 的正文中嵌有结构化 JSON，位于以下两个标记之间：
 
 提取步骤：拼接全部 `content` 片段 → 正则匹配两个标记之间的内容 → `JSON.parse`。
 
-### 2.7 通用错误码
+### 3.7 通用错误码
 
 | 状态码 | 含义 | 处理建议 |
 |---|---|---|
@@ -266,9 +225,9 @@ M01–M05 的正文中嵌有结构化 JSON，位于以下两个标记之间：
 
 ---
 
-## 3. 接口详述
+## 4. 接口详述
 
-### 3.1 访问凭证获取
+### 4.1 访问凭证获取
 
 **接口地址**：`POST /api/auth/access`
 
@@ -310,7 +269,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/auth/access" \
 {"ok": true}
 ```
 
-### 3.2 M01 病历采集
+### 4.2 M01 病历采集
 
 **接口地址**：`POST /api/diagnosis/collect`
 
@@ -360,7 +319,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/collect" \
 {"content":"[END]"}
 ```
 
-### 3.3 M02 追问生成
+### 4.3 M02 追问生成
 
 **接口地址**：`POST /api/diagnosis/question`
 
@@ -441,7 +400,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 }
 ```
 
-### 3.4 M03 辨病辨证
+### 4.4 M03 辨病辨证
 
 **接口地址**：`POST /api/diagnosis/diagnose`
 
@@ -565,7 +524,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 }
 ```
 
-### 3.5 M04 候选方药
+### 4.5 M04 候选方药
 
 **接口地址**：`POST /api/diagnosis/prescribe`
 
@@ -600,7 +559,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `formula.candidates[].baseFormulas` | array | 基础方与出处，含组成匹配味数与核心药味匹配数 |
 | `contractSignature` | string | 合同签名 |
 
-**方义与出处**（贵方 8-05「方义分析/组成逻辑/方证鉴别/经典条文」🔴高）
+**方义与出处**
 
 四项均为**确定性产物**，锚定在受治理方名上。自拟方（`constructionType=self_devised`）时四项恒为空数组——无受治理方名即无出处可考，这是正确行为而非缺字段。
 
@@ -614,7 +573,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 
 > **经典条文使用边界**：条文按方名检索给出，说明该方的经典出处与主治语境，**不代表已判定适用于本例**；条文内古代剂量与现行法定剂量不可直接换算，用量以药味表与审方结论为准。
 
-**剂数与煎服法**（贵方 8-05 🔴高）
+**剂数与煎服法**
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -631,7 +590,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `formula.candidates[].decoction.administration` | string | 服法，如「饭后温服」 |
 | `formula.candidates[].decoction.followUpNode` | string | 复诊节点 |
 
-**随证加减建议**（贵方 8-05 🔴高，含「可替换药味的说明」）
+**随证加减建议**
 
 加减针对的是**病历已记录、但主方覆盖不足的兼症**，不是预设的未来症状；加减行本身不携带克数——剂量由药味工作台与审方链路负责。
 
@@ -647,9 +606,9 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `formula.modifications[].substitutions` | array | **可替换药味**：`{replaces, substitute, rationale, differenceNote}`。覆盖缺货/过敏/特殊人群禁用场景；每条必带与原药的差异说明。替代药同样受剂量上限、十八反十九畏、特殊人群规则全部约束 |
 | `formula.modificationReview` | object | 加减复核统计：`{submittedCount, retainedCount, droppedCount, droppedReasons}` |
 
-**中成药 / 西药候选**（贵方 8-05「中成药候选完整子字段」🟡中）
+**中成药 / 西药候选**
 
-> ⚠️ **字段名更正**：上一版文档写作顶层 `patentMedicines`，实现中**无此字段**；正确路径是 `formula.patentAndWestern`。HIS 方案打包导出（附录 A.1）中该数据叫 `prescriptions.patentMedicines`，两处命名不同请注意区分。
+> **字段路径**：本接口响应中该数据位于 `formula.patentAndWestern`。HIS 方案打包导出（附录 A.1）中同一数据的字段名为 `prescriptions.patentMedicines`，两处命名不同，请勿混用。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -739,7 +698,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
 }
 ```
 
-### 3.6 M05 风险随访
+### 4.6 M05 风险随访
 
 **接口地址**：`POST /api/diagnosis/assess`
 
@@ -813,7 +772,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \
 }
 ```
 
-### 3.7 红旗筛查
+### 4.7 红旗筛查
 
 **接口地址**：`POST /api/diagnosis/red-flags`
 
@@ -869,7 +828,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/red-flags" \
 }
 ```
 
-### 3.8 急症排查确认
+### 4.8 急症排查确认
 
 **接口地址**：`POST /api/diagnosis/emergency-clearance`
 
@@ -934,14 +893,14 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/emergency-clearance"
 
 ---
 
-### 3.9 药品目录下发（贵方「药品同步接口」之一）
+### 4.9 药品目录下发
 
 **接口地址**：`GET /api/tcm-knowledge/drug-catalog`
 
 把本系统据以做临床判断的受治理药品目录分页下发，供 HIS 与院内目录对账。
 
 > **方向说明**：本接口是**出站**（CDSS → HIS），回答"系统认识哪些药"。
-> **入站**（HIS 把院内库存推给本系统，开方时基于有货的药开）见 §3.10，回答"本院此刻有哪些药"。
+> **入站**（HIS 把院内库存推给本系统，开方时基于有货的药开）见 §4.10，回答"本院此刻有哪些药"。
 > 两者不要混用。出参每页均带 `inboundSyncEndpoint` 指向入站入口。
 
 **入参**（查询串）
@@ -994,14 +953,14 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 
 ---
 
-### 3.10 院内药品库存导入（贵方「药品同步接口」之二）
+### 4.10 院内药品库存导入
 
 **接口地址**：`POST /api/drug-inventory`（导入） / `GET /api/drug-inventory`（状态查询）
 
-贵方把医院库存药导入本系统；开方时系统**优先**落在有货药味上。
+将院内库存药导入本系统；开方时系统**优先**落在有货药味上。
 
 > **核心口径：库存是可得性约束，不是临床正确性约束。**
-> 这与贵方对味数的口径一致——"味数控制只是建议，如诊疗必须也不能裁剪"。
+> 与味数偏好同理：库存是可得性约束，不是临床正确性约束，不会为迁就库存牺牲方证对应。
 > 本例该用麻黄汤而院内恰好没有麻黄时，系统**不会**悄悄换一味药，而是照常给出麻黄汤、
 > 标注"麻黄：院内暂无库存"，并附受治理替代候选供医师选择。
 > 静默替换会让医生看到的方与系统推理的方不是同一个，临床上比缺货危险得多。
@@ -1018,7 +977,7 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 | `items[].specification` | string | 否 | 规格 |
 | `items[].goodsId` | string | 否 | 院内商品号 |
 
-**语义：整批替换。** 每次导入完全替换上一批，不做增量合并——增量要求贵方维护删除事件，
+**语义：整批替换。** 每次导入完全替换上一批，不做增量合并——增量要求调用方维护删除事件，
 而"某药已下架却没推删除"会让系统长期以为它有货，比整批替换危险。
 
 **出参**
@@ -1028,7 +987,7 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 | `inventoryVersion` | 库存版本（内容指纹） |
 | `importedAt` / `source` / `itemCount` | 导入时间 / 来源 / 条目数 |
 | `availableHerbCount` / `availablePatentCount` | 有货饮片数 / 有货中成药数 |
-| `unresolvedNames` | **在我方受控药品目录里找不到对应正名的院内药名**。原样回报给贵方补充映射，不会被悄悄丢掉 |
+| `unresolvedNames` | **在受控药品目录中找不到对应正名的院内药名**。原样回报供调用方补充映射，不会被静默丢弃 |
 | `ambiguousNames` | 存在多个候选的院内药名（如"一包针"→千年健/石韦）。系统**绝不自动择一** |
 
 **开方时的表现**
@@ -1062,16 +1021,94 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
   }'
 ```
 
-### 3.11 院内药品库存查询
+### 4.11 院内药品库存查询
 
-与 §3.10 的导入同一路径。返回当前生效的库存快照摘要（批次、条目数、解析状态、歧义与未识别名单）。
+与 §4.10 的导入同一路径。返回当前生效的库存快照摘要（批次、条目数、解析状态、歧义与未识别名单）。
 **未导入库存时链路行为与接入前逐字节相同**——库存是可得性约束，不是安全控制，缺数据不阻断出方。
 
 ---
 
-## 4. 调用示例
+## 5. 输出字段索引
 
-### 4.1 完整链路
+诊疗结果各项内容在响应中的位置。字段完整定义见对应接口章节。
+
+### 5.1 诊断与辨证（M03 响应）
+
+| 内容 | 字段路径 |
+|---|---|
+| 西医诊断 | `westernDiagnosis.primary.name` |
+| 西医诊断依据 | `westernDiagnosis.primary.supportingFacts` |
+| 西医诊断待查依据 | `westernDiagnosis.primary.suggestedChecks`（建议检查）<br>`westernDiagnosis.primary.limitations`（依据不足之处） |
+| 西医鉴别诊断 | `westernDiagnosis.differentials[]` |
+| ICD-10 编码 | `westernDiagnosis.primary.coding`（可选：仅当匹配到受控医保码时输出） |
+| 中医病名 | `overview.tcmDiseaseName` |
+| 中医证候 | `overview.primarySyndrome` |
+| 证候依据 | `overview.primarySyndromeBasis[]` |
+| 中医病名鉴别 | `overview.tcmDiseaseDifferentials[]` |
+| 中医证候鉴别 | `overview.tcmDifferentials[]` |
+| 总体病机 | `overview.overallPathogenesis` |
+| 病机拆解 | `pathogenesis.chain[]` |
+| 病位辨证 | `pathogenesis.locationDifferentiation` |
+| 病性辨证 | `pathogenesis.natureDifferentiation` |
+| 治则 | `therapy.overallPrinciple` |
+| 治法 | `therapy.overallMethod` |
+| 分治法 | `therapy.subTherapies[]` |
+| 国标术语对应关系 | `terminologyMappings[]`（可选：单次最多 20 条） |
+
+### 5.2 方药与调护（M04 响应）
+
+| 内容 | 字段路径 |
+|---|---|
+| 候选方 | `formula.candidates[]`（首选在 `[0]`，其余为备选） |
+| 方名 | `formula.candidates[].name` |
+| 药味组成 | `formula.candidates[].herbs[]`（含药名、用量、君臣佐使、对应病机） |
+| 方义分析 | `formula.candidates[].formulaAnalysis` |
+| 组成逻辑 | `formula.candidates[].compositionLogic[]` |
+| 方证鉴别 | `formula.candidates[].discriminationPath[]` |
+| 经典条文出处 | `formula.candidates[].classicEvidence[]` |
+| 方剂出处 | `formula.candidates[].formulaSource` |
+| 剂数与煎服法 | `formula.candidates[].decoction` |
+| 随证加减 | `formula.modifications[]` |
+| 可替换药味 | `formula.modifications[].substitutions[]`（可选，见下方说明） |
+| 中成药与西药候选 | `formula.patentAndWestern[]` |
+| 健康调护 · 饮食 | `nonPharma.diet` |
+| 健康调护 · 起居 | `nonPharma.lifestyle` |
+| 健康调护 · 情志 | `nonPharma.emotion` |
+| 健康调护 · 注意事项 | `nonPharma.precautions[]` |
+| 中医外治项目 | `nonPharma.tcmTreatments[]` |
+| 中医外治 · 穴位建议 | `nonPharma.tcmTreatments[].suggestedSitesOrPoints[]` |
+| 流派适配说明 | `lineageAdaptation`（可选：仅当请求指定了流派偏好时输出） |
+
+### 5.3 风险与随访（M05 响应）
+
+M05 响应为 Markdown 文本流，不采用结构化字段，内容依次为：审方范围、录入质量提示、
+用药风险分级、随访计划。流中另含一帧结构化随访时间轴：
+
+| 内容 | 字段路径 |
+|---|---|
+| 随访时间轴 | `timelineItems[]`（帧标识 `type: "followup_timeline"`） |
+| 随访时间点 | `timelineItems[].time` |
+| 随访动作 | `timelineItems[].action` |
+| 触发指征 | `timelineItems[].indication` |
+
+详见 §4.6。
+
+**关于「可替换药味」的两点说明**
+
+1. 该字段**仅出现在"增加某味药"类的加减建议上**。"减去某味药""调整用量"类建议不含此字段，属正常。
+2. 替代药由系统按受控药品数据推导，不由模型生成。推导时逐条校验：功效方向须同类、
+   风险等级不得升高、不得超出药典剂量上限、不得触发十八反十九畏、不得使用管制毒性药材。
+   无符合条件的替代药时不输出该字段。
+
+**关于空值**
+
+字符串字段为空串表示"本阶段未产出该项内容"，请按缺失处理，不要直接展示。系统不使用占位文案填充。
+
+---
+
+## 6. 调用示例
+
+### 6.1 完整链路
 
 ```bash
 BASE="https://82.156.128.153/tcm-cdss"
@@ -1099,7 +1136,7 @@ curl -X POST "$BASE/api/diagnosis/diagnose" \
 # caseState 须包含同一个 id，并原样携带 reasoningDiagnose
 ```
 
-### 4.2 响应解析（Node.js）
+### 6.2 响应解析（Node.js）
 
 ```javascript
 const response = await fetch(url, { method: "POST", headers, body });
@@ -1121,7 +1158,7 @@ const structured = match ? JSON.parse(match[1].trim()) : null;
 
 ---
 
-## 5. 限制说明
+## 7. 限制说明
 
 | 项 | 限制 |
 |---|---|
@@ -1132,19 +1169,20 @@ const structured = match ? JSON.parse(match[1].trim()) : null;
 
 
 
-## 附录 A. 以下能力已实现，贵方本次未要求，按需再看
+## 附录 A. 与主链路无关的能力
 
-为避免主文档过长，这两项只给最简说明。不需要就跳过，不影响对接。
+以下能力已实现，但不属于 M01–M05 主链路，按需选用。
 
 ### A.1 HIS 诊疗方案导出 —— `POST /api/diagnosis/his-scheme`
 
-把 M03 + M04 的结果**打包成一份 JSON**，方便一次性写回 HIS，省得贵方自己从两个阶段的出参里拼。
-**如果贵方直接对接 M01–M05，不需要这个接口。**
-注意它内部的字段名与 M03/M04 原始出参**不完全相同**（例如中成药在这里叫 `prescriptions.patentMedicines`，
-在 M04 原始出参里叫 `formula.patentAndWestern`），混用容易出错，建议二选一。
+把 M03 与 M04 的结果打包成一份 JSON，便于一次性写回 HIS，无需从两个阶段的响应中逐字段拼接。
+**直接对接 M01–M05 的调用方不需要此接口。**
+该接口的字段名与 M03/M04 原始响应**不完全相同**（例如中成药在此为 `prescriptions.patentMedicines`，
+在 M04 原始响应中为 `formula.patentAndWestern`）。请勿混用两套字段命名。
 
 ### A.2 服务健康检查 —— `GET /api/diagnosis/health`
 
-运维用。不带参数返回服务状态与当前线上版本标识，可用来核对"线上跑的是哪一版"。
-加 `?strict=1` 会对模型、证据检索、审方、术语库等依赖做真实探测，任一未就绪返回 503。
-该检查会产生真实的上游调用，**不要用于高频轮询**。
+供运维使用。不带参数返回服务状态与当前服务版本标识，可用于核对线上运行版本。
+
+`?strict=1` 会对模型、证据检索、审方、术语库等依赖执行真实探测，任一项未就绪返回 `503`。
+该模式会产生真实的上游调用，**不适用于高频轮询**。
