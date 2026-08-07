@@ -268,7 +268,7 @@
       "sourceType": "project_runtime_rule",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-safety.ts",
-      "sha256": "5157cbdd0d2fceda9bd848ea60d39b1801deee806a6dc281c73e608e29a12a8b",
+      "sha256": "b991e6f7cc6534ff7b3d0145c2a616a5efbc890c9b173d70181b75e552926f88",
       "scope": "红旗、生命体征和特殊人群的实际运行门禁；外部来源只做类别和阈值复核",
       "accessedAt": "2026-07-22"
     },
@@ -279,7 +279,7 @@
       "sourceType": "project_runtime_contract",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-types.ts",
-      "sha256": "84fa844d922a4bb62bda02fbeec9700cdb30f96b99ffd4dc0493a9e991e3b808",
+      "sha256": "7c2b8549dd8b9acd8f354470c06a9cb853168749b2b8591aa6d53cd6dfcf396f",
       "scope": "M01-M05 当前实际字段与输出结构",
       "accessedAt": "2026-07-22"
     },

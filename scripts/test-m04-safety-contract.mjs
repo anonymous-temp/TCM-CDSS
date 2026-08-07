@@ -592,15 +592,52 @@ console.log(JSON.stringify({
   }
   // 两处判据必须同集：policy 侧决定「放行时写什么批注」，contract 侧决定「复验放不放行」。
   // 漏一处的后果不是「没批注」而是**整方作废**——降级块拿到 reasoningValidated=false 直接判死。
-  for (const code of ["transparent_therapy_coverage", "transparent_therapy_herb_support",
-    "transparent_therapy_herb_knowledge_missing", "transparent_therapy_contract_missing",
-    "transparent_therapy_unresolved", "transparent_therapy_herbs_missing"]) {
-    assert.equal(
-      isWaivableM04TherapyCoverageCode(code),
-      m04TherapyIssueQualityAnnotation(code) !== undefined,
-      `${code} 在 diagnosis-stage-contract 与 m04-repair-policy 两处判据不同集——` +
-        "一处放行一处不放行，结果是降级块复验失败、整方作废",
-    );
+  //
+  // ★ 上一版这条断言是**假的**：它只逐个比对了手写的 6 个码，而真实发射码里有
+  //   `transparent_therapy_${highImpactIssue}` 这种拼出来的动态族。手写清单当然全绿——
+  //   它检查的正是它自己列出来的那几个。实测当时仍有三族分叉：
+  //   unsupported_high_impact_* / emperor_therapy_mismatch / pathogenesis_node_uncovered_*
+  //   在 policy 侧可批注、在 contract 侧不可豁免，降级受理后复验被驳，整方 0 味。
+  //   现在按**发射侧真实码空间**比对：从 diagnosis-stage-contract.ts 源码里扫出所有会被
+  //   当作 therapyIssue 发射的码形状，逐个过两侧判据。新增一族码而只改一处，本条必红。
+  const { readFileSync: readSource } = await import("node:fs");
+  const contractSource = readSource("src/lib/diagnosis-stage-contract.ts", "utf8");
+  const emittedCodeShapes = [
+    // 静态字面量：从源码里扫，而不是手写
+    ...new Set([...contractSource.matchAll(/"(transparent_therapy_[a-z_]+)"/g)].map((m) => m[1])),
+    // 动态族：`transparent_therapy_${highImpactIssue}` 与 candidate_N_ 前缀形式的真实取值样本
+    "transparent_therapy_herb_0_unsupported_high_impact_yang_warm",
+    "transparent_therapy_herb_2_unsupported_high_impact_heat_clear_blood_move",
+    "candidate_0_transparent_therapy_herb_1_unsupported_high_impact_purge",
+    "candidate_0_herb_0_emperor_therapy_mismatch",
+    "m04_candidate_0_herb_0_emperor_therapy_mismatch",
+    "pathogenesis_node_uncovered_P2",
+    // 反向：这些永远不得豁免，一并纳入同集比对（两侧都必须答「不」）
+    "candidate_0_emperor_missing",
+    "candidate_0_emperor_excess",
+    "candidate_0_herb_1_emperor_not_primary",
+    "candidate_0_herbs_empty",
+    "candidate_0_herb_6_dose",
+    "herb_3_dose",
+  ];
+  assert.ok(emittedCodeShapes.length >= 15, `发射码样本只有 ${emittedCodeShapes.length} 个，扫描疑似失效`);
+  const diverged = emittedCodeShapes.filter((code) =>
+    isWaivableM04TherapyCoverageCode(code) !== (m04TherapyIssueQualityAnnotation(code) !== undefined));
+  assert.deepEqual(
+    diverged,
+    [],
+    "以下码在 diagnosis-stage-contract 与 m04-repair-policy 两处判据不同集——" +
+      `一处放行一处不放行，结果是降级块复验失败、整方作废：\n  ${diverged.join("\n  ")}`,
+  );
+  // 同集不等于「都放行」：反向边界单独钉住，否则把两侧都改成恒真也能让上面那条全绿。
+  for (const code of ["candidate_0_emperor_missing", "candidate_0_herb_1_emperor_not_primary",
+    "candidate_0_herbs_empty", "transparent_therapy_contract_missing", "herb_3_dose"]) {
+    assert.ok(!isWaivableM04TherapyCoverageCode(code), `${code} 属安全/结构类，任何时候不得豁免`);
+  }
+  // 正向边界：动态族必须**确实**被两侧一致放行，而不是一致拒绝。
+  for (const code of ["transparent_therapy_herb_0_unsupported_high_impact_yang_warm",
+    "candidate_0_herb_0_emperor_therapy_mismatch", "pathogenesis_node_uncovered_P2"]) {
+    assert.ok(isWaivableM04TherapyCoverageCode(code), `${code} 在 policy 侧可批注，复验侧必须同样放行`);
   }
   for (const [issueCode, ok] of [
     ["tcm_reasoning_unsupported", true],

@@ -5,7 +5,7 @@ import clinicianDosePolicyJson from "../data/tcm-herb-dose-clinician-policy.sour
 import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.source.json";
 import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
 import type { CaseState } from "./diagnosis-types";
-import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
+import { isIdentityIndeterminateHerbName, resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 
 type KnowledgeEntry = {
   type: string;
@@ -459,6 +459,9 @@ const CONTROLLED_HERB_FUNCTION_CATEGORIES: Record<string, string[]> = {
 };
 
 export function isKnownTcmHerbName(value: string): boolean {
+  // 单字残片不算「已收录」。它在库里可能查得到（草→甘草），但那是猜的——
+  // 判它已知，下游就会把它当成一味正常饮片编进方里。见 isIdentityIndeterminateHerbName。
+  if (isIdentityIndeterminateHerbName(value)) return false;
   const normalized = normalizedHerbLookupToken(value);
   if (canonicalHerbNameByToken.has(normalized) || CONTROLLED_STANDALONE_HERBS.has(normalized)) return true;
   const controlled = CONTROLLED_HERB_ALIASES[normalized];
@@ -1365,6 +1368,11 @@ const REGULATORY_BLOCKED_CLASSES: ReadonlySet<ClinicianDoseClass> = new Set([
 ]);
 
 export function isClinicianDoseHerb(herb: string): boolean {
+  // 身份判不出来的名字拿不到豁免。豁免的前提是「知道是哪味药、只是没有法定数值边界」；
+  // 单字残片连是不是药都不知道，给它豁免等于把抽取缺陷洗成「医师定量」下发。
+  // 注意只在**授予豁免**这一侧拦，不改 clinicianDoseHerbClass 的分类结果——
+  // 后者还被用来把管制毒性品种排除在候选之外，那条路径变宽才是真的危险。
+  if (isIdentityIndeterminateHerbName(herb)) return false;
   const clinicianClass = clinicianDoseHerbClass(herb);
   return clinicianClass !== undefined && !REGULATORY_BLOCKED_CLASSES.has(clinicianClass);
 }

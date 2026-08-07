@@ -40,7 +40,7 @@
     "governedFormulaCount": 2937,
     "prescriptionLockEligibleCount": 2915,
     "identityLockEligibleCount": 2915,
-    "doseCompilationEligibleCount": 2580,
+    "doseCompilationEligibleCount": 2547,
     "symptomTaggedFormulaCount": 1106,
     "diseaseTaggedFormulaCount": 372,
     "syndromeTaggedFormulaCount": 2402,
@@ -9038,12 +9038,14 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
-        "红芽大戟"
+        "红芽大戟",
+        "硝"
       ],
       "corruptIngredientNames": [
         "硝"
@@ -9052,7 +9054,6 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
         "山羊血",
-        "硝",
         "藤黄"
       ],
       "blockingReasons": []
@@ -32661,14 +32662,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "叶"
+      ],
       "corruptIngredientNames": [
         "叶"
       ],
@@ -32676,7 +32682,6 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
         "何首乌叶",
-        "叶",
         "地黄叶",
         "皂角叶",
         "苍耳叶"
@@ -63740,16 +63745,21 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [
         "雄黄"
       ],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "硝"
+      ],
       "corruptIngredientNames": [
         "硝"
       ],
@@ -63761,8 +63771,7 @@
       ],
       "clinicianDoseIngredientNames": [
         "乳香",
-        "没药",
-        "硝"
+        "没药"
       ],
       "blockingReasons": []
     },
@@ -64537,14 +64546,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "梨"
+      ],
       "corruptIngredientNames": [
         "梨"
       ],
@@ -64557,7 +64571,6 @@
         "麝香"
       ],
       "clinicianDoseIngredientNames": [
-        "梨",
         "鹅血"
       ],
       "blockingReasons": []
@@ -72349,22 +72362,25 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "绢"
+      ],
       "corruptIngredientNames": [
         "绢"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "绢"
-      ],
+      "clinicianDoseIngredientNames": [],
       "blockingReasons": []
     },
     {
@@ -73525,7 +73541,8 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
@@ -76639,11 +76656,13 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
+        "米",
         "水银"
       ],
       "corruptIngredientNames": [
@@ -76658,7 +76677,6 @@
       "clinicianDoseIngredientNames": [
         "指甲末",
         "百草霜",
-        "米",
         "肥老腊肉",
         "蕈菰",
         "蜣螂",
@@ -81416,14 +81434,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "生"
+      ],
       "corruptIngredientNames": [
         "生"
       ],
@@ -81435,7 +81458,6 @@
       ],
       "clinicianDoseIngredientNames": [
         "栀仁",
-        "生",
         "白附",
         "贝母"
       ],
@@ -91092,22 +91114,25 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "身"
+      ],
       "corruptIngredientNames": [
         "身"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "身"
-      ],
+      "clinicianDoseIngredientNames": [],
       "blockingReasons": []
     },
     {
@@ -104104,22 +104129,26 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "茶"
+      ],
       "corruptIngredientNames": [
         "茶"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "乳香",
-        "茶"
+        "乳香"
       ],
       "blockingReasons": []
     },
@@ -123616,12 +123645,15 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
         "黄丹",
+        "粉",
+        "白",
         "熊胆"
       ],
       "corruptIngredientNames": [
@@ -123633,9 +123665,7 @@
       "clinicianDoseIngredientNames": [
         "炉甘石",
         "珍珠",
-        "琥珀",
-        "白",
-        "粉"
+        "琥珀"
       ],
       "blockingReasons": []
     },
@@ -127558,14 +127588,20 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "汤",
+        "用"
+      ],
       "corruptIngredientNames": [
         "汤",
         "用"
@@ -127573,9 +127609,7 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "去核",
-        "汤",
-        "用"
+        "去核"
       ],
       "blockingReasons": []
     },
@@ -142094,11 +142128,15 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair",
         "ingredient_numeric_dose_boundary_missing"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "坯"
+      ],
       "corruptIngredientNames": [
         "坯"
       ],
@@ -142106,9 +142144,7 @@
         "甘遂"
       ],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "坯"
-      ],
+      "clinicianDoseIngredientNames": [],
       "blockingReasons": []
     },
     {
@@ -147270,14 +147306,18 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [
         "蟾酥"
       ],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
       "unresolvedDoseIngredientNames": [
-        "穿山甲"
+        "穿山甲",
+        "黄",
+        "蝎",
+        "连"
       ],
       "corruptIngredientNames": [
         "蝎",
@@ -147296,10 +147336,7 @@
         "乳香",
         "梢蛇",
         "没药",
-        "芦荟",
-        "蝎",
-        "连",
-        "黄"
+        "芦荟"
       ],
       "blockingReasons": []
     },
@@ -150336,14 +150373,21 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "铁",
+        "曲",
+        "米"
+      ],
       "corruptIngredientNames": [
         "曲",
         "米",
@@ -150351,11 +150395,7 @@
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "曲",
-        "米",
-        "铁"
-      ],
+      "clinicianDoseIngredientNames": [],
       "blockingReasons": []
     },
     {
@@ -150802,21 +150842,25 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "桂"
+      ],
       "corruptIngredientNames": [
         "桂"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "桂",
         "空青",
         "竹沥",
         "薯蓣"
@@ -151654,10 +151698,8 @@
         },
         {
           "rawName": "豉",
-          "canonicalName": "淡豆豉",
-          "doseCanonicalName": "淡豆豉",
-          "linkageStatus": "source_backed_clinical_extension",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "unmapped"
         },
         {
           "rawName": "牛耳垢",
@@ -151698,16 +151740,21 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [
         "雄黄"
       ],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "豉"
+      ],
       "corruptIngredientNames": [
         "豉"
       ],
@@ -153071,10 +153118,8 @@
         },
         {
           "rawName": "草",
-          "canonicalName": "甘草",
-          "doseCanonicalName": "甘草",
-          "linkageStatus": "source_backed_clinical_extension",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "unmapped"
         },
         {
           "rawName": "巴山虎草",
@@ -153118,14 +153163,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "草"
+      ],
       "corruptIngredientNames": [
         "草"
       ],
@@ -154377,14 +154427,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "马"
+      ],
       "corruptIngredientNames": [
         "马"
       ],
@@ -154393,8 +154448,7 @@
       "clinicianDoseIngredientNames": [
         "桃皮",
         "芍药",
-        "饴糖",
-        "马"
+        "饴糖"
       ],
       "blockingReasons": []
     },
@@ -155423,22 +155477,26 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "银"
+      ],
       "corruptIngredientNames": [
         "银"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "葱白",
-        "银"
+        "葱白"
       ],
       "blockingReasons": []
     },
@@ -155565,14 +155623,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "鸡"
+      ],
       "corruptIngredientNames": [
         "鸡"
       ],
@@ -155583,8 +155646,7 @@
         "猪胆",
         "羊肉",
         "羊肺",
-        "雄鸡肠",
-        "鸡"
+        "雄鸡肠"
       ],
       "blockingReasons": []
     },
@@ -156059,22 +156121,26 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "桂"
+      ],
       "corruptIngredientNames": [
         "桂"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "昌蒲",
-        "桂"
+        "昌蒲"
       ],
       "blockingReasons": []
     },
@@ -156928,14 +156994,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "蒴"
+      ],
       "corruptIngredientNames": [
         "蒴"
       ],
@@ -156947,8 +157018,7 @@
       ],
       "clinicianDoseIngredientNames": [
         "菘菜子",
-        "葱白",
-        "蒴"
+        "葱白"
       ],
       "blockingReasons": []
     },
@@ -158418,14 +158488,20 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "粟",
+        "蒴"
+      ],
       "corruptIngredientNames": [
         "粟",
         "蒴"
@@ -158434,8 +158510,6 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
         "生铁",
-        "粟",
-        "蒴",
         "青布"
       ],
       "blockingReasons": []
@@ -158661,12 +158735,14 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
-        "藜芦"
+        "藜芦",
+        "椒"
       ],
       "corruptIngredientNames": [
         "椒"
@@ -158677,7 +158753,6 @@
         "松脂",
         "枯竹",
         "枳根皮",
-        "椒",
         "白马尿",
         "胡麻",
         "菖蒲",
@@ -158805,12 +158880,16 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
-        "虎骨"
+        "灰",
+        "腊",
+        "虎骨",
+        "皮"
       ],
       "corruptIngredientNames": [
         "灰",
@@ -158821,11 +158900,8 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
         "头垢",
-        "灰",
         "灶中热灰",
         "热牛屎",
-        "皮",
-        "腊",
         "苦酒",
         "薤汁",
         "虎牙",
@@ -159566,7 +159642,8 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [
         "雄黄"
@@ -159574,6 +159651,7 @@
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
       "unresolvedDoseIngredientNames": [
         "藜芦",
+        "曲",
         "水银"
       ],
       "corruptIngredientNames": [
@@ -159591,7 +159669,6 @@
         "发灰",
         "大麻子",
         "头垢",
-        "曲",
         "木白汁",
         "松脂",
         "桃花",
@@ -160505,10 +160582,8 @@
         },
         {
           "rawName": "本",
-          "canonicalName": "藁本",
-          "doseCanonicalName": "藁本",
-          "linkageStatus": "source_backed_clinical_extension",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "unmapped"
         },
         {
           "rawName": "雷丸",
@@ -160709,16 +160784,24 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [
         "雄黄"
       ],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "皮",
+        "黄",
+        "本",
+        "虫"
+      ],
       "corruptIngredientNames": [
         "本",
         "皮",
@@ -160743,19 +160826,16 @@
         "猪后悬蹄甲",
         "玩月砂",
         "生槐皮",
-        "皮",
         "石南",
         "胡粉",
         "芍药",
         "苦酒",
-        "虫",
         "虻虫",
         "贯众",
         "野葛",
         "陈豉",
         "食盐",
-        "鸡子黄",
-        "黄"
+        "鸡子黄"
       ],
       "blockingReasons": []
     },
@@ -161843,22 +161923,25 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "麦"
+      ],
       "corruptIngredientNames": [
         "麦"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "麦"
-      ],
+      "clinicianDoseIngredientNames": [],
       "blockingReasons": []
     },
     {
@@ -163196,11 +163279,13 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
+        "水",
         "水银"
       ],
       "corruptIngredientNames": [
@@ -163211,7 +163296,6 @@
       "clinicianDoseIngredientNames": [
         "夫尿",
         "榆皮",
-        "水",
         "灶下黄土",
         "珍珠",
         "真珠",
@@ -164724,10 +164808,8 @@
         },
         {
           "rawName": "芎",
-          "canonicalName": "川芎",
-          "doseCanonicalName": "川芎",
-          "linkageStatus": "source_backed_clinical_extension",
-          "autoResolvable": true
+          "canonicalName": null,
+          "linkageStatus": "unmapped"
         },
         {
           "rawName": "熟艾",
@@ -164779,14 +164861,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "芎"
+      ],
       "corruptIngredientNames": [
         "芎"
       ],
@@ -166259,14 +166346,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "粉"
+      ],
       "corruptIngredientNames": [
         "粉"
       ],
@@ -166274,7 +166366,6 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
         "米醋",
-        "粉",
         "苦酒",
         "青布",
         "食盐",
@@ -166737,11 +166828,13 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
+        "水",
         "马鞭皮"
       ],
       "corruptIngredientNames": [
@@ -166755,7 +166848,6 @@
         "妇人月经",
         "桑灰汁",
         "死马腹中屎",
-        "水",
         "炙石",
         "猪膏",
         "矢汁",
@@ -170392,12 +170484,14 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
-        "胆矾"
+        "胆矾",
+        "硝"
       ],
       "corruptIngredientNames": [
         "硝"
@@ -170411,8 +170505,7 @@
         "麝香"
       ],
       "clinicianDoseIngredientNames": [
-        "牛黄",
-        "硝"
+        "牛黄"
       ],
       "blockingReasons": []
     },
@@ -188313,7 +188406,8 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
@@ -198206,14 +198300,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "桂"
+      ],
       "corruptIngredientNames": [
         "桂"
       ],
@@ -198221,7 +198320,6 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
         "姜黄",
-        "桂",
         "黑丑"
       ],
       "blockingReasons": []
@@ -198592,14 +198690,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "黄"
+      ],
       "corruptIngredientNames": [
         "黄"
       ],
@@ -198610,8 +198713,7 @@
         "朱砂"
       ],
       "clinicianDoseIngredientNames": [
-        "琥珀",
-        "黄"
+        "琥珀"
       ],
       "blockingReasons": []
     },
@@ -201607,21 +201709,25 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "盐"
+      ],
       "corruptIngredientNames": [
         "盐"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "盐",
         "紫苏"
       ],
       "blockingReasons": []
@@ -205005,16 +205111,21 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [
         "斑蝥"
       ],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "米"
+      ],
       "corruptIngredientNames": [
         "米"
       ],
@@ -205025,8 +205136,7 @@
         "斑蝥"
       ],
       "clinicianDoseIngredientNames": [
-        "水仙花根",
-        "米"
+        "水仙花根"
       ],
       "blockingReasons": []
     },
@@ -205661,14 +205771,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "桂"
+      ],
       "corruptIngredientNames": [
         "桂"
       ],
@@ -205680,9 +205795,7 @@
         "川乌",
         "巴豆霜"
       ],
-      "clinicianDoseIngredientNames": [
-        "桂"
-      ],
+      "clinicianDoseIngredientNames": [],
       "blockingReasons": []
     },
     {
@@ -208611,14 +208724,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "黄"
+      ],
       "corruptIngredientNames": [
         "黄"
       ],
@@ -208628,7 +208746,6 @@
         "定粉",
         "脑子",
         "零陵香",
-        "黄",
         "黄蜡"
       ],
       "blockingReasons": []
@@ -216574,22 +216691,25 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "荠"
+      ],
       "corruptIngredientNames": [
         "荠"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "荠"
-      ],
+      "clinicianDoseIngredientNames": [],
       "blockingReasons": []
     },
     {
@@ -222008,24 +222128,27 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "砂",
+        "桂"
+      ],
       "corruptIngredientNames": [
         "桂",
         "砂"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "桂",
-        "砂"
-      ],
+      "clinicianDoseIngredientNames": [],
       "blockingReasons": []
     },
     {
@@ -223258,22 +223381,26 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "鸡"
+      ],
       "corruptIngredientNames": [
         "鸡"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "白仙茆",
-        "鸡"
+        "白仙茆"
       ],
       "blockingReasons": []
     },
@@ -271326,24 +271453,27 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "蟹",
+        "酒"
+      ],
       "corruptIngredientNames": [
         "蟹",
         "酒"
       ],
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [
-        "蟹",
-        "酒"
-      ],
+      "clinicianDoseIngredientNames": [],
       "blockingReasons": []
     },
     {
@@ -275341,6 +275471,8 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair",
         "ingredient_numeric_dose_boundary_missing",
         "ingredient_controlled_toxic_requires_manual_prescription"
       ],
@@ -275350,7 +275482,9 @@
         "雄黄"
       ],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "砂"
+      ],
       "corruptIngredientNames": [
         "砂"
       ],
@@ -275363,8 +275497,7 @@
       ],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
-        "白丁香",
-        "砂"
+        "白丁香"
       ],
       "blockingReasons": []
     },
@@ -278392,11 +278525,13 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
       "unresolvedDoseIngredientNames": [
+        "砂",
         "枯矾"
       ],
       "corruptIngredientNames": [
@@ -278410,8 +278545,7 @@
       ],
       "clinicianDoseIngredientNames": [
         "乳香",
-        "沙蜜",
-        "砂"
+        "沙蜜"
       ],
       "blockingReasons": []
     },
@@ -283555,7 +283689,8 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
@@ -283756,13 +283891,15 @@
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [
         "轻粉"
       ],
       "controlledToxicNotice": "ingredient_controlled_toxic_requires_manual_prescription",
       "unresolvedDoseIngredientNames": [
+        "锡",
         "水银"
       ],
       "corruptIngredientNames": [
@@ -283777,8 +283914,7 @@
         "轻粉"
       ],
       "clinicianDoseIngredientNames": [
-        "水粉",
-        "锡"
+        "水粉"
       ],
       "blockingReasons": []
     },
@@ -293804,7 +293940,8 @@
         "missing_governed_indication"
       ],
       "doseBlockingReasons": [
-        "ingredient_identity_requires_resolution"
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
       ],
       "controlledToxicIngredientNames": [
         "雄黄"
@@ -298453,14 +298590,19 @@
       "retrievalEligible": true,
       "identityLockEligible": true,
       "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
       "identityBlockingReasons": [],
-      "doseBlockingReasons": [],
+      "doseBlockingReasons": [
+        "ingredient_identity_requires_resolution",
+        "ingredient_name_corrupt_requires_source_repair"
+      ],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
+      "unresolvedDoseIngredientNames": [
+        "葱"
+      ],
       "corruptIngredientNames": [
         "葱"
       ],
@@ -298469,7 +298611,6 @@
       "clinicianDoseIngredientNames": [
         "广胶",
         "米醋",
-        "葱",
         "陈酒糟"
       ],
       "blockingReasons": []

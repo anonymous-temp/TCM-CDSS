@@ -141,6 +141,10 @@ const scripts = [
   "test:clinical-terminology",
   "test:controlled-semantic-normalization",
   "test:clinical-governance-tables",
+  // 单字残片（古籍抽取丢字/古文简写）不得拿到剂量豁免、不得被猜成真药、不得让整方可编译剂量。
+  // 起因是豁免表按「哪些名字卡住了方剂」自动汇总，把 40 个残片收成了合法豁免成分，
+  // 反过来放行含残片的方；构建脚本注释写了这条规则，代码从没实现。同时钉住两侧同集。
+  "test:herb-name-identity",
   "test:clinical-polarity",
   "test:negation-scope",
   "test:syndrome-name-standard",

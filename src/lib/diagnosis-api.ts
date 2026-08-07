@@ -14,7 +14,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isWaivableM04TherapyCoverageCode, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -2485,12 +2485,19 @@ async function callPrimaryTextModelStream(
         .replace(/^m04_/, "")
         .replace(/(?:candidate|herb|modification)_\d+_?/g, "")
         .replace(/_{2,}/g, "_");
-      const M04_WAIVABLE_FAMILY = /formula_reference_declassified|formula_compilation_composition_drift|transparent_therapy|emperor_therapy_mismatch|unsupported_high_impact|pathogenesis_node_uncovered/;
+      // 「可豁免族」必须问 m04-repair-policy，不能自己写一份正则。原来这里裸写
+      // `transparent_therapy`，把 transparent_therapy_contract_missing / _herbs_missing
+      // 也算成了可豁免——这两个码在受理侧明确不豁免。后果是提前判 fixpoint 退出修复轮，
+      // 然后在受理侧被拒，整方作废：省下的那一轮恰恰是唯一可能修好它的一轮。
+      // 身份类两个码走的是 strictFormulaIssue 那条轴（降级时确定性剥离方名后自证），与治法轴无关。
+      const M04_WAIVABLE_IDENTITY_FAMILY = /formula_reference_declassified|formula_compilation_composition_drift/;
+      const isM04WaivableFamily = (reason: string): boolean =>
+        M04_WAIVABLE_IDENTITY_FAMILY.test(reason) || isWaivableM04TherapyCoverageCode(reason);
       const m04SameGuidanceFixpoint = (rejectionReason: string, guidanceToInject: string): boolean => (
         opts.structuredStage === "prescribe" && (
           (m04LastRepairTriggerReason === rejectionReason && m04LastInjectedGuidance === guidanceToInject) ||
           (m04LastRepairTriggerReason != null &&
-            M04_WAIVABLE_FAMILY.test(rejectionReason) &&
+            isM04WaivableFamily(rejectionReason) &&
             m04RejectionFamily(m04LastRepairTriggerReason) === m04RejectionFamily(rejectionReason))
         )
       );

@@ -587,6 +587,11 @@ def linked_ingredients(
         adjudication = (identity_adjudications or {}).get((formula_name, raw_name))
         lookup_name = adjudication["resolvedIngredient"] if adjudication else raw_name
         resolution = resolution_index.get(lookup_name)
+        # 单字残片一律按歧义处理，绝不自动落到某味真药上——实测放开的后果是
+        # 豉→淡豆豉、草→甘草、本→藁本、芎→川芎，四味被静默解析并配上数值剂量区间。
+        # 与运行时 resolveGovernedTcmHerbIdentity 的同名判据同集。
+        if resolution and is_identity_indeterminate_herb_name(raw_name):
+            resolution = None
         if not resolution:
             result.append({"rawName": raw_name, "canonicalName": None, "linkageStatus": "unmapped"})
         else:
@@ -784,12 +789,30 @@ def name_variants(*values: object) -> list[str]:
     return out
 
 
+def is_identity_indeterminate_herb_name(raw: object) -> bool:
+    """药名身份不可判定：单个汉字。与运行时 tcm-herb-identity.isIdentityIndeterminateHerbName 同集。
+
+    现代饮片规范名没有单字的。目录里的单字有两个来源——古籍抽取丢字（源书 GB18030，
+    「黄芪」丢字只剩「黄」），以及古文简写（《医方集解》写「桂」）。两者性质相同：
+    **从名字判不出是哪味药**。「黄」= 黄芪/黄芩/黄连/大黄，「桂」= 肉桂/桂枝。
+    """
+    text = compact(raw)
+    return len(text) == 1 and bool(re.match(r"[\u4e00-\u9fff]", text))
+
+
 def is_clinician_dose_name(raw: object, names: set[str]) -> bool:
     """与运行时 clinicianDoseHerbClass 同口径：炮制变体查基名。
 
     醋没药→没药、煅龙骨→龙骨、朱砂粉→朱砂。炮制不改变「有没有法定剂量边界」，
     不剥离的话变体名查不到基名，会让 71 张方继续阻断而运行时却认为可编译——两侧分叉。
+
+    单字残片不在豁免范围内：豁免的前提是「知道是哪味药、只是没有法定数值边界」，
+    残片连是不是药都不知道。这条不是多余的防御——豁免表本身是按「哪些药名卡住了方剂」
+    自动汇总的，40 个残片（含「用」「汤」「身」「坯」「绢」这些根本不是药的词）
+    因此被收成了合法豁免成分，反过来放行含残片的方。是个自我授权的闭环。
     """
+    if is_identity_indeterminate_herb_name(raw):
+        return False
     return any(variant in names for variant in name_variants(raw))
 
 
@@ -1290,10 +1313,16 @@ def build_formula_catalog(
         # 单字药名无法安全推断（黄=黄芪/黄芩/黄连/大黄…），必须回源修抽取或人工裁定。
         corrupt_ingredient_names = sorted({
             link["rawName"] for link in ingredient_links
-            if isinstance(link.get("rawName"), str) and len(link["rawName"].strip()) == 1
+            if is_identity_indeterminate_herb_name(link.get("rawName"))
         })
         if unresolved_ingredients:
             dose_blocking_reasons.append("ingredient_identity_requires_resolution")
+        # 单字残片独立成一条阻断理由，不并进上面那条：它的处置不是「补一条剂量」，
+        # 而是**回源修抽取或人工裁定品种**，下游据此给出正确的转人工提示。
+        # 这条阻断在下面的「扣除毒性/无边界味」分支里不会被摘除——扣除只处理
+        # 身份可解析的味，残片按定义身份不可解析。
+        if corrupt_ingredient_names:
+            dose_blocking_reasons.append("ingredient_name_corrupt_requires_source_repair")
         missing_dose_boundaries = [
             link["rawName"]
             for link in ingredient_links

@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V1.2 |
+| 文档版本 | V1.3 |
 | 发布日期 | 2026-08-07 |
 | 服务版本 | `tcm-cdss-20260807-herb-knowledge-annot-amd64` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
@@ -62,6 +62,34 @@ M01 病历采集 ──▶ M02 追问生成 ──▶ M03 辨病辨证 ──▶
 接口详细定义见 §4。诊疗结果各项内容在响应中的字段位置见 §5。
 
 另有两项能力（HIS 诊疗方案打包导出、服务健康检查）与主链路无关，见附录 A。
+
+### 2.1 快速开始：先跑通第一次调用
+
+在对接五阶段主链路之前，建议先用这三步确认网络、鉴权与版本三件事都对齐，
+把环境问题与业务问题分开排查。
+
+```bash
+BASE="https://82.156.128.153/tcm-cdss"
+TOKEN="<接口令牌>"
+
+# ① 连通性与版本核对：确认所连服务与本文档表头的「服务版本」一致
+curl -s "$BASE/api/diagnosis/health" -H "x-cdss-api-token: $TOKEN"
+
+# ② 鉴权校验：令牌正确返回 {"ok":true}，错误返回 401
+curl -s -X POST "$BASE/api/auth/access" \
+  -H "Content-Type: application/json" -d "{\"token\":\"$TOKEN\"}"
+
+# ③ 业务路由连通性：库存查询不经模型、不计入调用频率限制，响应即时，
+#    适合作为首个业务接口冒烟（未导入库存时返回 inventoryLoaded=false，属正常）
+curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
+```
+
+三步都通过后，再按 §6.1 的完整链路示例接入 M01–M05。
+
+> 首个**临床**接口建议直接用 M03（§4.4），它是主链路上信息量最大的一段。
+> 注意红旗筛查（§4.7）虽然判定规则是确定性的，但会触发语义红旗预检，
+> 属于计入调用频率限制的模型调用类接口（§3.8），不适合当作高频探活。
+**首次接入务必先读 §3.3（五条强制要求）与 §3.5（流式帧解析），这两处是集成失败的主要来源。**
 
 ---
 
@@ -180,20 +208,54 @@ M01 病历采集 ──▶ M02 追问生成 ──▶ M03 辨病辨证 ──▶
 
 ### 3.4 响应格式
 
-| 接口 | 响应类型 |
-|---|---|
-| M01–M05 | NDJSON 流（见 2.5） |
-| 红旗筛查、急症排查确认、访问凭证 | `application/json` |
+| 接口 | 响应类型 | `Content-Type` |
+|---|---|---|
+| M01–M05 | NDJSON 流（见 §3.5） | `application/x-ndjson` |
+| 红旗筛查、急症排查确认、访问凭证、药品同步 | 一次性 JSON | `application/json` |
+
+流式响应还会带以下响应头，反向代理与客户端不应缓存或缓冲：
+
+| 响应头 | 值 | 说明 |
+|---|---|---|
+| `Cache-Control` | `no-store, private` | 全部 NDJSON 响应 |
+| `X-Content-Type-Options` | `nosniff` | 全部 NDJSON 响应 |
+| `Connection` | `keep-alive` | 仅真实流式响应；确定性结果为一次性写出，可能不带此头 |
+
+> M01–M05 的响应**并非都是长流**。当本阶段结果可由确定性规则直接给出时（例如信息不足时的
+> 追问、安全降级后的非剂量输出），服务端会一次性写出同样格式的 NDJSON 并立即结束。
+> 两种情形的帧格式完全一致，解析逻辑无需区分。
 
 ### 3.5 NDJSON 流式协议
 
-每行一个 JSON 对象，以换行符分隔：
+每行一个完整 JSON 对象，以 `\n` 分隔。**共四种帧**：
 
-| 行内容 | 含义 |
+| 帧 | 出现时机 | 处理方式 |
+|---|---|---|
+| `{"content":"<文本片段>"}` | 全程 | 按到达顺序拼接为正文 |
+| `{"content":"[END]"}` | 流正常结束 | 结束解析；**未收到该帧即视为流被截断** |
+| `{"error":"<错误描述>"}` | 流内错误 | 终止解析并向上报错；该帧之后不会再有内容 |
+| `{"type":"heartbeat","status":"<进度描述>","processedChars":<已处理字符数>}` | 模型长时间推理期间，每 5 秒一帧 | **跳过，不计入正文**；可用于驱动前端进度提示 |
+
+当本阶段结果含结构化随访节点时（最常见于 M05），流内还会多下发一帧：
+
+| 帧 | 说明 |
 |---|---|
-| `{"content":"<文本片段>"}` | 正文片段，按序拼接 |
-| `{"content":"[END]"}` | 流结束标记 |
-| `{"error":"<错误描述>"}` | 流内错误，出现后应终止解析 |
+| `{"type":"followup_timeline","timelineItems":[<随访节点数组>]}` | 随访节点数组，与正文并行下发；该帧**出现在正文之前**。不需要时跳过即可 |
+
+**解析器必须做到三点**，否则后续版本新增帧类型时会误判为故障：
+
+1. 只拼接**含 `content` 字段**的帧，其余一律跳过；
+2. 遇到含 `error` 字段的帧立即终止；
+3. 对无法识别的 `type` 值**静默忽略**，不要当作错误。
+
+**错误出现在哪一层，取决于时机**：
+
+| 时机 | 表现 |
+|---|---|
+| 首字节写出**之前**失败（鉴权、参数、限流、前置条件） | 普通 HTTP 错误响应，`application/json`，见 §3.7 |
+| 首字节写出**之后**失败（模型超时、上游中断） | HTTP 状态仍为 `200`，错误以 `{"error":...}` 帧出现在流内 |
+
+因此 **`200` 不代表本次调用成功**：必须读到 `{"content":"[END]"}` 才算完整，且中途不得出现 `error` 帧。
 
 ### 3.6 结构化结论提取
 
@@ -209,15 +271,122 @@ M01–M05 的正文中嵌有结构化 JSON，位于以下两个标记之间：
 
 ### 3.7 通用错误码
 
-| 状态码 | 含义 | 处理建议 |
+**错误响应体形态统一如下**，`code` 仅在可程序化区分的错误上出现：
+
+```json
+{ "error": "所选候选方不存在或没有结构化药味，未进入评估。", "code": "invalid_structured_herb" }
+```
+
+| 状态码 | 含义 | 是否可重试 | 处理建议 |
+|---|---|---|---|
+| `400` | 请求参数不合法（JSON 非法、枚举越界、必填缺失） | 否 | 检查必填字段与参数格式；原样重试仍会失败 |
+| `401` | 鉴权失败 | 否 | 检查令牌 |
+| `409` | 流程状态或签名不满足前置条件 | 否 | 见 §3.3 强制要求；须回到上一阶段重新取结论 |
+| `413` | 请求体超出上限 | 否 | 见 §3.10；分批或压缩后重试 |
+| `422` | 业务前置条件不满足（内容合法但当前状态下不可执行） | 否 | 见各接口说明与 `code` |
+| `429` | 触发调用频率限制 | **是** | 按 `Retry-After` 秒数退避后重试，见 §3.8 |
+| `503` | 依赖未就绪或服务暂不可用 | **是** | 指数退避后重试 |
+| `304` | 增量拉取时目录未变更（仅药品目录下发） | — | 沿用本地缓存 |
+
+**结构化错误码速查**
+
+| `code` | 状态码 | 触发条件 |
 |---|---|---|
-| `400` | 请求参数不合法 | 检查必填字段与参数格式 |
-| `401` | 鉴权失败 | 检查令牌 |
-| `409` | 流程状态或签名不满足前置条件 | 见 2.3 强制要求 |
-| `413` | 请求体超出上限 | 压缩内容后重试 |
-| `422` | 业务前置条件不满足 | 见各接口说明 |
-| `429` | 触发调用频率限制 | 退避后重试 |
-| `503` | 服务暂不可用 | 稍后重试 |
+| `required_field_missing` | `400` | 必填字段缺失 |
+| `invalid_m03_signature` | `409` | M03 结论被改写或未原样回传（R2/R3） |
+| `invalid_m04_signature` | `409` | M04 结论被改写或未原样回传（R2） |
+| `invalid_candidate_index` | `422` | 指定的候选方序号不存在 |
+| `invalid_structured_herb` | `422` | 药味缺名称、剂量非单一正数，或缺对应病机/功用 |
+| `invalid_emergency_clearance_request` | `400` | 急症排查确认入参不合法 |
+| `invalid_terminology_confirmation_request` | `400` | 术语确认入参不合法 |
+| `terminology_confirmation_target_not_allowed` | `400` | 术语命名空间不在允许范围内 |
+| `unsupported_catalog_type` | `400` | 药品目录 `type` 取值不受支持 |
+| `invalid_inventory_items` | `400` | 库存条目结构不合法 |
+| `inventory_too_large` | `413` | 库存条目超过 20000 条上限 |
+
+**失败响应示例**
+
+```bash
+# 未携带令牌
+curl -i -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
+  -H "Content-Type: application/json" -d '{"caseState":{"id":"OPD-1"}}'
+```
+
+```
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+
+{"error":"Unauthorized"}
+```
+
+```
+HTTP/1.1 429 Too Many Requests
+Retry-After: 143
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 0
+
+{"error":"Model invocation rate limit exceeded for this session or API tenant"}
+```
+
+```
+HTTP/1.1 413 Payload Too Large
+Content-Type: application/json
+
+{"error":"Request body too large; limit is 1000000 bytes"}
+```
+
+### 3.8 调用频率限制
+
+模型调用类接口按**会话或租户**分桶限流（同一令牌下的不同浏览器会话各自独立计数）：
+
+| 项 | 值 |
+|---|---|
+| 配额 | 默认 **60 次 / 10 分钟**（部署可配，范围 10–2000） |
+| 计数窗口 | 固定 10 分钟窗口，窗口结束后归零 |
+| 覆盖接口 | M01–M05、追问解析、红旗筛查、处方后审方、HIS 方案导出（共 9 条 `POST` 路径） |
+| 超限响应 | `429` + `Retry-After`（秒）+ `X-RateLimit-Limit` + `X-RateLimit-Remaining` |
+
+鉴权失败另有两道独立限流，锁定期内一律 `429`：
+
+| 场景 | 阈值 | 锁定时长 |
+|---|---|---|
+| 访问凭证获取（`POST /api/auth/access`）令牌错误 | 10 分钟内失败 8 次 | 10 分钟 |
+| 其余接口携带错误令牌 | 10 分钟内失败 20 次 | 10 分钟 |
+
+因此**令牌配错时不要自动重试**：重试只会触发锁定，把一个配置问题放大成一段不可用窗口。
+
+> 限流计数在**单实例内存**中维护。若贵方在多实例后端做水平扩展，实际配额会按实例数成倍放大，
+> 需在接入层自行做全局限流。
+
+### 3.9 超时与重试
+
+| 环节 | 时限 |
+|---|---|
+| 与上游模型建立连接 | 90 秒 |
+| 流空闲（两帧之间无数据） | 60 秒 |
+| 单次流总时长 | 180 秒 |
+| M03 整体编排（含复核与修复轮） | 180 秒 |
+| M04 整体编排（含复核与修复轮） | 120 秒 |
+| 舌象图片识别 | 120 秒 |
+| 心跳间隔 | 5 秒 |
+
+**客户端超时建议不低于 200 秒**，否则会在服务端仍在正常推理时被客户端单方面切断。
+心跳帧（§3.5）的作用正是让连接在长推理期间保持活跃，请勿把"一段时间没有正文"判为超时。
+
+**重试语义**：M01–M05 均为**非幂等**接口——同一 `caseState` 重复调用会重新生成内容，
+结论文字可能不同，但不会产生重复的业务副作用（系统无处方落库，结论由贵方决定是否采纳）。
+`429`/`503` 可安全重试；`4xx` 中的其余状态原样重试必然重复失败，须先修正请求。
+
+### 3.10 请求体上限
+
+| 接口 | 上限 |
+|---|---|
+| M01 病历采集 | 约 5.6 MB（舌象图片 ≤4 MB，自由文本 ≤12000 字符） |
+| M02–M05 及其余诊疗流程接口 | 1 MB |
+| 院内库存导入 | 8 MB，且条目数 ≤20000 |
+
+超限返回 `413`，响应体写明实际字节上限。库存导入超限时请**分批**，不要截断——
+被截掉的药会被判为"院内无库存"。
 
 ---
 
@@ -797,7 +966,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 |---|---|---|
 | `409` | 缺有效 M03 签名 | `{"error":"辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。"}` |
 
-> `409` 最常见原因是请求中未携带 `caseState.id`，或未将 M03 结论原样回传。参见 2.3 强制要求 R1、R2。
+> `409` 最常见原因是请求中未携带 `caseState.id`，或未将 M03 结论原样回传。参见 §3.3 强制要求 R1、R2。
 
 ---
 
@@ -1641,34 +1810,76 @@ curl -N -X POST "$BASE/api/diagnosis/assess" \
 
 ### 6.2 响应解析（Node.js）
 
+下例边收边解析，可直接用于渐进式展示；四种帧的处理与 §3.5 一致。
+
 ```javascript
-const response = await fetch(url, { method: "POST", headers, body });
-const raw = await response.text();
+async function callStage(url, headers, body) {
+  const response = await fetch(url, { method: "POST", headers, body });
+  // 首字节之前的失败走普通 HTTP 错误，不会进入流（§3.5）
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(`${response.status} ${detail.code || ""} ${detail.error || ""}`);
+  }
 
-let markdown = "";
-for (const line of raw.split("\n")) {
-  if (!line.trim()) continue;
-  const chunk = JSON.parse(line);
-  if (chunk.error) throw new Error(chunk.error);
-  if (chunk.content && chunk.content !== "[END]") markdown += chunk.content;
+  let markdown = "";
+  let buffer = "";
+  let ended = false;                       // 是否收到 [END]
+  const timeline = [];
+
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    // NDJSON 帧可能被 TCP 分片切开，必须按换行切分并保留未完成的尾部
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const frame = JSON.parse(line);
+      if (frame.error) throw new Error(frame.error);          // 流内错误
+      if (frame.type === "followup_timeline") {               // M05 随访时间轴
+        timeline.push(...(frame.timelineItems || []));
+        continue;
+      }
+      if (typeof frame.content !== "string") continue;        // heartbeat 及未来新增帧一律跳过
+      if (frame.content === "[END]") { ended = true; continue; }
+      markdown += frame.content;
+    }
+  }
+  // HTTP 200 不等于成功：没有 [END] 说明流被截断，结果不可采用
+  if (!ended) throw new Error("stream truncated: [END] not received");
+
+  const match = markdown.match(
+    /<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/
+  );
+  return { markdown, structured: match ? JSON.parse(match[1].trim()) : null, timeline };
 }
-
-const match = markdown.match(
-  /<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/
-);
-const structured = match ? JSON.parse(match[1].trim()) : null;
 ```
+
+> 若贵方暂时只做非流式接入，可用 `await response.text()` 一次性读完再按同样规则逐行解析；
+> 但**客户端超时必须放宽到 200 秒以上**（§3.9），否则会在服务端正常推理途中被切断。
 
 ---
 
 ## 7. 限制说明
 
-| 项 | 限制 |
+| 项 | 限制 | 详见 |
+|---|---|---|
+| 调用频率 | 60 次 / 10 分钟（可配 10–2000），按会话或租户分桶 | §3.8 |
+| 请求体上限 | M01 约 5.6 MB；其余诊疗接口 1 MB；库存导入 8 MB / 20000 条 | §3.10 |
+| 舌象图片 | ≤4 MB | §3.10 |
+| 超时 | 连接 90 秒 / 空闲 60 秒 / 单流总计 180 秒；M03 编排 180 秒、M04 编排 120 秒 | §3.9 |
+| 幂等性 | M01–M05 非幂等；`429`/`503` 可重试，其余 `4xx` 须先修正请求 | §3.9 |
+
+**能力边界**
+
+| 项 | 说明 |
 |---|---|
-| 调用频率 | 60 次 / 10 分钟 |
-| M01 请求体 | ≤5.6 MB，文本 ≤12000 字符 |
-| 舌象图片 | ≤4 MB |
-| 单次请求超时 | 连接 90 秒 / 空闲 60 秒 / 总计 180 秒 |
+| 结论性质 | 仅为建议。系统不出具诊断结论、不代替医师决策，处方须经医师与药师复核后方可使用 |
+| 剂量输出 | 存在未解安全风险或剂量不可核定时，输出会自动降级为非剂量建议，而非给出未经核定的剂量 |
+| 证据边界 | 无法追溯到患者事实、确定性规则或受治理知识库条目的内容会被显式标注为证据不足 |
+| 部署形态 | 限流与库存快照为单实例内存/本地卷；水平扩展需在接入层另行处理（§3.8） |
 
 
 
@@ -1689,3 +1900,21 @@ const structured = match ? JSON.parse(match[1].trim()) : null;
 
 `?strict=1` 会对模型、证据检索、审方、术语库等依赖执行真实探测，任一项未就绪返回 `503`。
 该模式会产生真实的上游调用，**不适用于高频轮询**。
+
+---
+
+## 附录 B. 变更记录
+
+| 版本 | 日期 | 变更 | 是否影响已完成的集成 |
+|---|---|---|---|
+| V1.3 | 2026-08-07 | 补齐 NDJSON 四种帧的完整定义（新增 `heartbeat`、`followup_timeline` 两种此前未文档化的帧）与流响应头；明确"首字节前/后失败"的两种错误表现；错误响应体形态与结构化 `code` 速查表；新增 §3.8 调用频率限制、§3.9 超时与重试、§3.10 请求体上限；补失败响应示例；解析示例改为边收边解析并处理分片与截断 | 否。均为既有行为的补充说明，接口本身未变 |
+| V1.2 | 2026-08-07 | 接口按对象分组、字段补中文名、补完整调用示例；新增 CaseState 入参字段表（含 `tcmLineagePreference`、`herbCountPreference`）；流派对外收敛为 5 档 | 否 |
+| V1.1 | 2026-08-06 | 按《核对内容（2026-08-05）》「接口缺失内容」补齐：方义/组成逻辑/方证鉴别/经典条文、剂数与煎服法、随证加减与可替换药味、中成药完整字段、健康调护、中医外治、药品目录下发与院内库存导入 | 否，均为新增出参与新增接口 |
+| V1.0 | 2026-08-05 | 首次正式发布，8 个接口 | — |
+
+**版本与兼容策略**
+
+1. 出参字段**只增不删**。新增字段一律可选，老集成忽略即可，不需要同步升级。
+2. 新增 NDJSON 帧类型时不改变既有帧语义。请按 §3.5 的三条解析要求实现，即可自动兼容。
+3. 若确需破坏性变更，会提前在本表登记并单独通知，不会静默上线。
+4. 线上实际运行的服务版本可通过 `GET /api/diagnosis/health` 的版本标识核对，与本文档表头的"服务版本"一致即为对齐。

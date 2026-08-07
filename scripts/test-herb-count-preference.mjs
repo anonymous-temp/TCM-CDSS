@@ -81,7 +81,7 @@ check("HCP-04 只认顶层：hisRecord.fields 通道不生效（与流派不同�
     viaHis?.herbCountPreference,
     undefined,
     "herbCountPreference 开始从 hisRecord.fields 生效了——这是行为变更，" +
-      "必须同步改 docs/中医CDSS-对外接口文档.md §2.3.3 第 1 条，否则文档与实现分叉",
+      "必须同步改 docs/中医CDSS-对外接口文档.md §3.3.3 第 1 条，否则文档与实现分叉",
   );
 });
 
@@ -127,7 +127,7 @@ check("HCP-08 流派：中文别名可用，且两条通道都生效", () => {
   assert.equal(
     viaHis?.tcmLineagePreference,
     "classical-formula",
-    "流派的 hisRecord.fields 通道失效了——文档 §2.3.2 声明两条通道都生效",
+    "流派的 hisRecord.fields 通道失效了——文档 §3.3.2 声明两条通道都生效",
   );
 });
 

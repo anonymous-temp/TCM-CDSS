@@ -82,6 +82,7 @@
     "test:clinical-terminology": "jiti scripts/test-clinical-terminology.mjs",
     "test:controlled-semantic-normalization": "jiti scripts/test-controlled-semantic-normalization.mjs",
     "test:clinical-governance-tables": "jiti scripts/test-clinical-governance-tables.mjs",
+    "test:herb-name-identity": "jiti scripts/test-herb-name-identity.mjs",
     "test:clinical-polarity": "jiti scripts/test-clinical-polarity.mjs",
     "test:m03-entry": "jiti scripts/test-m03-entry.mjs",
     "test:m02-contract": "jiti scripts/test-m02-question-contract.mjs",

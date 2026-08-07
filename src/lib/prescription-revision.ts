@@ -113,16 +113,26 @@ export function synchronizeEditedCandidate(candidate: Candidate, herbs: Herb[]):
     structureRole: herb.structureRole, targetPathogenesis: herb.targetPathogenesis,
     function: herb.function, decoctionRequirement: herb.decoctionRequirement, isToxic: herb.isToxic,
   });
-  const synchronizedHerbs = herbs.map((herb) => ({
-    ...herb,
-    prescriptionRole: herb.prescriptionRole.replace(/(?:^|；)\s*知识库功用[：:][\s\S]*$/, "").trim()
-      || `对应${herb.targetPathogenesis}`,
-    evidence: !originalByName.has(canonicalTcmHerbIdentity(herb.name)) ||
-      editComparable(originalByName.get(canonicalTcmHerbIdentity(herb.name))!) !== editComparable(herb) ||
-      EDIT_PLACEHOLDER.test(herb.evidence?.source || "") || /待重新审方/.test(herb.evidence?.source || "")
-      ? { evidenceLevel: "model_inference" as const, source: "医生结构化编辑记录；已纳入本次编辑后审方版本", confidence: "中" as const }
-      : herb.evidence,
-  }));
+  const synchronizedHerbs = herbs.map((herb) => {
+    const original = originalByName.get(canonicalTcmHerbIdentity(herb.name));
+    const clinicallyChanged = !original || editComparable(original) !== editComparable(herb);
+    return {
+      ...herb,
+      prescriptionRole: herb.prescriptionRole.replace(/(?:^|；)\s*知识库功用[：:][\s\S]*$/, "").trim()
+        || `对应${herb.targetPathogenesis}`,
+      // 医生改过的药味必须掉出「已核验」档：审方能识别处方风险，但替代不了药味身份与剂量来源核验。
+      // 这段原先只活在 DiagnosisClient 的私有副本里——即服务端这份（被测试覆盖的那份）反而不降档。
+      verificationTier: clinicallyChanged ? "unverified_dose" as const : herb.verificationTier,
+      doseSource: clinicallyChanged ? "none" as const : herb.doseSource,
+      verificationReasons: clinicallyChanged
+        ? ["医生已编辑药味或剂量；本次审方可识别处方风险，但不能替代药味身份与剂量来源核验"]
+        : herb.verificationReasons,
+      evidence: clinicallyChanged ||
+        EDIT_PLACEHOLDER.test(herb.evidence?.source || "") || /待重新审方/.test(herb.evidence?.source || "")
+        ? { evidenceLevel: "model_inference" as const, source: "医生结构化编辑记录；已纳入本次编辑后审方版本", confidence: "中" as const }
+        : herb.evidence,
+    };
+  });
   const currentNames = new Set(synchronizedHerbs.map((herb) => canonicalTcmHerbIdentity(herb.name)).filter(Boolean));
   const deletedNames = candidate.herbs
     .map((herb) => herb.name.trim())

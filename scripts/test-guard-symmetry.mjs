@@ -24,12 +24,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { applyM03AdvisoryQualityBoundaries } from "../src/lib/diagnosis-visible-summary.ts";
-import { m03NodeCoverageIssue, m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
+import { isWaivableM04TherapyCoverageCode, m03NodeCoverageIssue, m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
 import { rejectionTier } from "../src/lib/diagnosis-rejection-tiers.ts";
 import { ReasoningV2Schema } from "../src/lib/diagnosis-types.ts";
 import { NON_DOSE_PRESCRIPTION_MARKER, buildSafetyLimitedPrescription, isNonDosePrescriptionText } from "../src/lib/diagnosis-safety.ts";
 import { boundedM03DiagnosticRepairGuidance, m03DiagnosticRepairGuidanceCodes } from "../src/lib/m03-diagnostic-review.ts";
 import { structuredClinicalRepairHint } from "../src/lib/structured-clinical-repair.ts";
+import { synchronizeEditedCandidate } from "../src/lib/prescription-revision.ts";
+import { clinicalTextForDisplay, isDisplayableClinicalText } from "../src/lib/diagnosis-client-guards.ts";
 import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
 
 const START = "<!-- DIAGNOSIS_JSON_START -->";
@@ -440,4 +442,131 @@ for (const guard of ["submittedDifferentials.length > 0 && displayableDifferenti
   );
 }
 
-console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 7, failures: 0 }, null, 2));
+// 7) 「可豁免族」在三处各写各的：修复轮的 fixpoint 早退、降级块的受理判据、复验时的豁免判定。
+//    三处判的是同一件事——这个驳回码属不属于「修复耗尽后带批注受理」的质量类。
+//    实测分叉：
+//      · diagnosis-api 的 fixpoint 族正则裸写 `transparent_therapy`，把明确不可豁免的
+//        contract_missing / herbs_missing 也算了进去 → 提前退出修复轮，然后在受理侧被拒，
+//        整方作废。省下的那一轮恰恰是唯一可能修好它的一轮。
+//      · isWaivableM04TherapyCoverageCode 只认 3 族，而 m04TherapyIssueQualityAnnotation 收了 6 族
+//        → unsupported_high_impact / emperor_therapy_mismatch / pathogenesis_node_uncovered
+//        在受理侧通过、在复验侧被驳，降级块拿到 reasoningValidated=false 直接判死。
+//    现在三处共用 m04-repair-policy 一处判据。本断言钉住「源码里不得再出现第二份判据」，
+//    因为行为级断言只能覆盖到我想得到的码，而分叉恰恰发生在我没想到的那一族上。
+{
+  const apiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
+  const contractSource = readFileSync("src/lib/diagnosis-stage-contract.ts", "utf8");
+
+  assert.ok(
+    !/M04_WAIVABLE_FAMILY\s*=\s*\/[^\n]*transparent_therapy(?![_a-z])/.test(apiSource),
+    "diagnosis-api 又出现了自写的可豁免族正则（裸 transparent_therapy 会把 contract_missing 一起放行）",
+  );
+  assert.ok(
+    /isWaivableM04TherapyCoverageCode\(reason\)/.test(apiSource),
+    "fixpoint 早退没有走统一判据，会与受理侧漂开",
+  );
+  assert.ok(
+    /m04TherapyIssueQualityAnnotation\(code\) !== undefined/.test(contractSource),
+    "isWaivableM04TherapyCoverageCode 又自己写了一份正则，而不是问 m04-repair-policy",
+  );
+
+  // 行为级：三族动态码必须一致放行，结构/安全类必须一致拒绝。
+  for (const code of [
+    "m04_candidate_0_transparent_therapy_herb_2_unsupported_high_impact_yang_warm",
+    "m04_candidate_0_herb_0_emperor_therapy_mismatch",
+    "m04_pathogenesis_node_uncovered_P2",
+    "m04_candidate_0_transparent_therapy_coverage",
+  ]) {
+    assert.ok(isWaivableM04TherapyCoverageCode(code), `${code} 应为可豁免质量类，三处判据必须一致放行`);
+  }
+  for (const code of [
+    "m04_transparent_therapy_contract_missing",
+    "m04_candidate_0_transparent_therapy_herbs_missing",
+    "m04_candidate_0_herb_1_emperor_not_primary",
+    "m04_candidate_0_herb_6_dose",
+  ]) {
+    assert.ok(!isWaivableM04TherapyCoverageCode(code), `${code} 属安全/结构类，任何一处都不得放行`);
+  }
+}
+
+// 8) 医生编辑处方的同步逻辑有两份实现，**被测试覆盖的是没人调用的那一份**。
+//    src/lib/prescription-revision.ts 有完整实现且被 test:clinical-grounding 逐条测过
+//    （含「甘草 → 炙甘草 算改动而非一删一增」这条炮制名用例），但它在 src/ 里没有生产调用方；
+//    真正跑在浏览器里的是 DiagnosisClient 内的私有副本，那份按 name.trim() 判同一味药。
+//    后果：同一次编辑在两份实现下 baseFormulas.matchedIngredientCount、随证加减的保留/合成、
+//    煎服法的删句范围三处结果都不同，而绿灯来自那份不出厂的实现。
+//    已合并为一份。本断言钉住「客户端不得再长出私有副本」。
+{
+  const clientSource = readFileSync("src/app/diagnosis/DiagnosisClient.tsx", "utf8");
+  for (const symbol of ["synchronizeEditedCandidate", "filterModificationsForEditedHerbs", "hasIncompleteEditedHerb"]) {
+    assert.ok(
+      !new RegExp(`^\\s*(?:function|const)\\s+${symbol}\\b`, "m").test(clientSource),
+      `DiagnosisClient 又自己实现了 ${symbol}，会与 src/lib/prescription-revision.ts 漂开`,
+    );
+    assert.ok(
+      new RegExp(`\\b${symbol}\\b`).test(clientSource),
+      `DiagnosisClient 不再使用 ${symbol}——编辑后的候选方没有走同步逻辑`,
+    );
+  }
+  assert.ok(
+    /from "@\/lib\/prescription-revision"/.test(clientSource),
+    "DiagnosisClient 没有从 prescription-revision 导入共享实现",
+  );
+  // 行为级：炮制名改动必须算「改动」而不是「一删一增」——这是两份实现分叉的具体表现。
+  // 用 白芍→炒白芍：canonicalTcmHerbIdentity 收得住这一对。
+  // ⚠ 已知未修：炙/蜜/姜/熟 这几个前缀在 canonicalTcmHerbIdentity 里**归不掉**
+  //   （炙甘草/蜜黄芪/姜半夏/熟大黄 原样返回），所以那几味改动仍会被算成一删一增。
+  //   那是归一表本身的缺口，影响面远大于本条（剂量解析同一条路），单独处置，不在此掩盖。
+  const baseHerb = {
+    name: "白芍", processing: null, dose: "9g", role: "臣", prescriptionRole: "敛阴和营",
+    targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null,
+    targetPathogenesis: "营卫不和", function: "敛阴和营", decoctionRequirement: null, isToxic: false,
+    evidence: { evidenceLevel: "governed_rule", source: "《伤寒论》", confidence: "高" },
+  };
+  const candidate = {
+    name: "桂枝汤", herbs: [baseHerb], baseFormulas: [{ name: "桂枝汤", source: "《伤寒论》", matchedIngredientCount: 1 }],
+    formulaSource: { evidenceLevel: "governed_rule", source: "《伤寒论》", confidence: "高" },
+    decoction: { method: "水煎服" }, therapyMatch: "解肌发表", applicable: "外感风寒", notApplicable: "热证",
+  };
+  const edited = synchronizeEditedCandidate(candidate, [{ ...baseHerb, name: "炒白芍" }]);
+  assert.equal(
+    edited.baseFormulas?.[0]?.matchedIngredientCount, 1,
+    "炮制名改动被当成了「原方药味被删」——命中味数被错误清零，两份实现分叉的具体表现",
+  );
+  assert.equal(
+    edited.herbs[0]?.verificationTier, "unverified_dose",
+    "医生改过的药味没有掉出「已核验」档",
+  );
+}
+
+// 9) 客户端展示过滤比服务端严，且是**整段丢弃**：套话与实质内容混在一句里时，整条一起消失。
+//    实测：病机机制文本「肝阳上亢，风阳上扰清窍；判断把握度较低」→ 客户端
+//    isDisplayableClinicalText 判 false → 症状群那一行整行被过滤（symptoms<2 ||
+//    !isDisplayable(mechanism) ⇒ false）→ 医生看到空的病机区，且没有任何迹象表明这里本来有东西。
+//    服务端同名函数不带这层过滤，所以导出的 HIS 方案里有、屏幕上没有。
+//    已改为**从句粒度**剔除：套话从句去掉、其余保留，整段都是套话时才不显示。
+{
+  const mixed = "肝阳上亢，风阳上扰清窍；判断把握度较低。";
+  assert.ok(
+    isDisplayableClinicalText(mixed),
+    "套话与实质内容混排时整段被判为不可显示——病机区会静默变空",
+  );
+  assert.equal(
+    clinicalTextForDisplay(mixed), "肝阳上亢，风阳上扰清窍",
+    "套话从句未被剔除，或连实质内容一起剔掉了",
+  );
+  for (const pureBoilerplate of ["判断把握度较低。", "当前为有限资料下的工作判断"]) {
+    assert.ok(!isDisplayableClinicalText(pureBoilerplate), `整段套话 ${pureBoilerplate} 不应显示`);
+  }
+  assert.equal(
+    clinicalTextForDisplay("肝郁化火，上扰心神。"), "肝郁化火，上扰心神。",
+    "正常病机文本被改动了——过滤只应作用于套话从句",
+  );
+  // 展示侧必须真的用到剔除函数，否则套话会重新出现在屏幕上（另一个方向的回归）。
+  assert.ok(
+    /clinicalTextForDisplay\(item\.mechanism\)/.test(readFileSync("src/app/diagnosis/DiagnosisClient.tsx", "utf8")),
+    "症状群机制文本没有走 clinicalTextForDisplay",
+  );
+}
+
+console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 10, failures: 0 }, null, 2));

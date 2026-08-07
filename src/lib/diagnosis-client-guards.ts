@@ -10,11 +10,32 @@ type SignedM03Like = {
   formula?: unknown;
 };
 
+/**
+ * 去掉不可执行的套话**从句**，保留同一段里的真实临床内容。
+ *
+ * 原实现是「整段命中即整段不显示」，而套话经常与实质内容混在一句话里：
+ * 病机机制文本写「肝阳上亢，风阳上扰清窍；判断把握度较低」，整条机制随之消失，
+ * 差异化辨证那一行也跟着被丢掉（symptoms<2 || !isDisplayable(mechanism) ⇒ 整行 false）。
+ * 医生看到的是空的病机区，且**没有任何迹象表明这里本来有东西**——这正是本项目
+ * 反复出现的「静默变短」，比显示一句套话危险得多。
+ *
+ * 现在按从句粒度剔除：套话从句去掉，其余原样保留；整段都是套话时才不显示。
+ */
+export function clinicalTextForDisplay(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const kept = value
+    .split(/(?<=[；;。])/)
+    .map((clause) => clause.trim())
+    .filter((clause) => clause && !NON_ACTIONABLE_CLINICAL_BOILERPLATE.test(clause));
+  return kept.join("").replace(/^[；;，,。.\s]+|[；;，,\s]+$/g, "").trim();
+}
+
 /** UI-only placeholder filter. Server-side diagnosis contracts remain authoritative. */
 export function isDisplayableClinicalText(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0 &&
-    !CUSTOMER_DISPLAY_PLACEHOLDER.test(value.trim()) &&
-    !NON_ACTIONABLE_CLINICAL_BOILERPLATE.test(value.trim());
+  if (typeof value !== "string" || !value.trim()) return false;
+  if (CUSTOMER_DISPLAY_PLACEHOLDER.test(value.trim())) return false;
+  // 只有**整段**都是套话时才判为不可显示；混排时交给 clinicalTextForDisplay 剔除从句。
+  return clinicalTextForDisplay(value).length > 0;
 }
 
 /**

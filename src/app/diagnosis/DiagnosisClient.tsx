@@ -46,8 +46,9 @@ import {
   prescribeReasoningFromState,
   stripDiagnosisJSON,
 } from "@/lib/diagnosis-parse";
-import { hasExecutableSignedM03, isDisplayableClinicalText } from "@/lib/diagnosis-client-guards";
+import { clinicalTextForDisplay, hasExecutableSignedM03, isDisplayableClinicalText } from "@/lib/diagnosis-client-guards";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
+import { filterModificationsForEditedHerbs, hasIncompleteEditedHerb, synchronizeEditedCandidate } from "@/lib/prescription-revision";
 import { containsUnknownClinicalCue, isUnknownClinicalText, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "@/lib/clinical-state";
 import { inspectionLexiconGroups, inspectionLexiconNormal, type InspectionField } from "@/lib/tcm-inspection-lexicon";
 import { computeTongueRoiCrop, detectTongueRoi } from "@/lib/tongue-image-roi";
@@ -3171,169 +3172,13 @@ function defaultEvidenceRef() {
   return { evidenceLevel: "model_inference" as const, source: "医生编辑后待重新审方", confidence: "中" as const };
 }
 
-const EDITED_HERB_PLACEHOLDER = /(待医生|待填写|待补充|待确认|待核实|未填写|未说明|占位)/;
-const EDITED_HERB_DOSE = /^(\d+(?:\.\d+)?)\s*(g|克|mg|毫克)$/i;
-
-function hasIncompleteEditedHerb(herb: StructuredHerb): boolean {
-  const doseMatch = String(herb.dose ?? "").trim().match(EDITED_HERB_DOSE);
-  const doseAmount = doseMatch ? Number(doseMatch[1]) : Number.NaN;
-  const doseGrams = doseMatch && /^(?:mg|毫克)$/i.test(doseMatch[2]) ? doseAmount / 1000 : doseAmount;
-  const invalidDose = !doseMatch || !Number.isFinite(doseGrams) || doseGrams < 0.001 || doseGrams > 500;
-  const invalidTarget = herb.targetKind === "pathogenesis_node"
-    ? !/^P\d{1,2}$/.test(herb.targetRef || "") || herb.structureRole != null
-    : herb.targetKind === "formula_structure"
-      ? herb.targetRef !== "FORMULA_STRUCTURE" || !herb.structureRole || (herb.role !== "佐" && herb.role !== "使")
-      : true;
-  return !herb.name.trim() || invalidDose || !herb.role || invalidTarget ||
-    !herb.targetPathogenesis.trim() || !herb.function.trim() ||
-    EDITED_HERB_PLACEHOLDER.test(`${herb.targetPathogenesis} ${herb.function}`);
-}
-
-function editedFormulaAnalysis(herbs: StructuredHerb[]): string {
-  const roleOrder: StructuredHerb["role"][] = ["君", "臣", "佐", "使"];
-  const roleText = roleOrder.flatMap((role) => {
-    const members = herbs.filter((herb) => herb.role === role && herb.name.trim());
-    if (members.length === 0) return [];
-    return [`${role}药${members.map((herb) => `${herb.name}（${herb.function}，对应${herb.targetPathogenesis}）`).join("、")}`];
-  });
-  return [
-    `编辑后方义（以当前${herbs.length}味药为准）`,
-    ...roleText,
-    "本段由当前结构化药味表确定性生成；药味再次增删改后须重新生成并获取审方提示。",
-  ].join("；");
-}
-
-function removeDeletedHerbClauses(value: string, deletedNames: string[]): string {
-  if (!value || deletedNames.length === 0) return value;
-  return value
-    .split(/[；;。\n]+/)
-    .map((clause) => clause.trim())
-    .filter((clause) => clause && !deletedNames.some((name) => clause.includes(name)))
-    .join("；");
-}
-
-function synchronizedDecoction(
-  candidate: StructuredCandidate,
-  herbs: StructuredHerb[],
-  deletedNames: string[],
-): StructuredCandidate["decoction"] {
-  const baseMethod = removeDeletedHerbClauses(candidate.decoction.method, deletedNames);
-  const requirements = herbs
-    .filter((herb) => herb.decoctionRequirement?.trim())
-    .map((herb) => `${herb.name}${herb.decoctionRequirement}`)
-    .filter((item, index, all) => all.indexOf(item) === index && !baseMethod.includes(item));
-  return {
-    ...candidate.decoction,
-    method: [baseMethod, ...requirements].filter(Boolean).join("；"),
-  };
-}
-
-function synchronizeEditedCandidate(candidate: StructuredCandidate, herbs: StructuredHerb[]): StructuredCandidate {
-  const originalByName = new Map(candidate.herbs.map((herb) => [herb.name.trim(), herb]));
-  const editComparable = (herb: StructuredHerb) => JSON.stringify({
-    name: herb.name.trim(), processing: herb.processing, dose: herb.dose, role: herb.role,
-    prescriptionRole: herb.prescriptionRole, targetKind: herb.targetKind, targetRef: herb.targetRef,
-    structureRole: herb.structureRole, targetPathogenesis: herb.targetPathogenesis,
-    function: herb.function, decoctionRequirement: herb.decoctionRequirement, isToxic: herb.isToxic,
-  });
-  const synchronizedHerbs = herbs.map((herb) => {
-    const original = originalByName.get(herb.name.trim());
-    const clinicallyChanged = !original || editComparable(original) !== editComparable(herb);
-    return {
-      ...herb,
-      prescriptionRole: herb.prescriptionRole.replace(/(?:^|；)\s*知识库功用[：:][\s\S]*$/, "").trim()
-        || `对应${herb.targetPathogenesis}`,
-      verificationTier: clinicallyChanged ? "unverified_dose" as const : herb.verificationTier,
-      doseSource: clinicallyChanged ? "none" as const : herb.doseSource,
-      verificationReasons: clinicallyChanged
-        ? ["医生已编辑药味或剂量；本次审方可识别处方风险，但不能替代药味身份与剂量来源核验"]
-        : herb.verificationReasons,
-      evidence: clinicallyChanged ||
-        EDITED_HERB_PLACEHOLDER.test(herb.evidence?.source || "") || /待重新审方/.test(herb.evidence?.source || "")
-        ? { evidenceLevel: "model_inference" as const, source: "医生结构化编辑记录；已纳入本次编辑后审方版本", confidence: "中" as const }
-        : herb.evidence,
-    };
-  });
-  const currentNames = new Set(synchronizedHerbs.map((herb) => herb.name.trim()).filter(Boolean));
-  const deletedNames = candidate.herbs
-    .map((herb) => herb.name.trim())
-    .filter((name) => name && !currentNames.has(name));
-  const changedNames = synchronizedHerbs
-    .filter((herb) => {
-      const original = originalByName.get(herb.name.trim());
-      return original && editComparable(original) !== editComparable(herb);
-    })
-    .map((herb) => herb.name.trim());
-  const retainedOriginalCount = candidate.herbs.filter((herb) => currentNames.has(herb.name.trim())).length;
-  const baseFormulas = candidate.baseFormulas?.length
-    ? candidate.baseFormulas.map((base) => ({
-        ...base,
-        matchedIngredientCount: Math.min(base.matchedIngredientCount, retainedOriginalCount),
-      }))
-    : candidate.formulaSource?.source?.trim()
-      ? [{
-          name: candidate.name.replace(/(?:加减|化裁|合方|医生编辑版).*$/, "").trim() || candidate.name,
-          source: candidate.formulaSource.source,
-          matchedIngredientCount: retainedOriginalCount,
-        }]
-      : undefined;
-  return {
-    ...candidate,
-    name: "本例辨证组方（医生编辑版）",
-    constructionType: "self_devised",
-    modificationStatus: "modified",
-    baseFormulas,
-    formulaSource: {
-      evidenceLevel: "model_inference",
-      source: "医生基于原候选方药完成结构化增删改；经典方信息仅作为原方案来源参考",
-      confidence: "中",
-    },
-    herbs: synchronizedHerbs,
-    formulaAnalysis: editedFormulaAnalysis(synchronizedHerbs),
-    decoction: synchronizedDecoction(candidate, synchronizedHerbs, [...deletedNames, ...changedNames]),
-    therapyMatch: removeDeletedHerbClauses(candidate.therapyMatch, deletedNames) || "以编辑后的药味组合对应当前治法与病机，需医生复核。",
-    applicable: removeDeletedHerbClauses(candidate.applicable, deletedNames) || "以编辑后药味、当前证候和安全信息为准。",
-    notApplicable: removeDeletedHerbClauses(candidate.notApplicable, deletedNames) || "证候或安全边界变化时不再适用。",
-  };
-}
-
-function filterModificationsForEditedHerbs(
-  modifications: StructuredFormula["modifications"],
-  originalHerbs: StructuredHerb[],
-  editedHerbs: StructuredHerb[],
-): StructuredFormula["modifications"] {
-  const currentNames = new Set(editedHerbs.map((herb) => herb.name.trim()).filter(Boolean));
-  const originalNames = new Set(originalHerbs.map((herb) => herb.name.trim()).filter(Boolean));
-  const deletedNames = originalHerbs.map((herb) => herb.name.trim()).filter((name) => name && !currentNames.has(name));
-  const retained = modifications.filter((item) => !deletedNames.some((name) =>
-    `${item.action} ${item.doseOrHandling || ""} ${item.reason}`.includes(name)
-  )).map((item) => {
-    const edited = editedHerbs.find((herb) => item.action.includes(herb.name.trim()));
-    const original = edited && originalHerbs.find((herb) => herb.name.trim() === edited.name.trim());
-    if (!edited || !original || JSON.stringify(original) === JSON.stringify(edited)) return item;
-    return {
-      ...item,
-      targetPathogenesis: edited.targetPathogenesis,
-      doseOrHandling: [edited.dose, edited.decoctionRequirement].filter(Boolean).join("；") || null,
-      reason: edited.function,
-      riskNote: "该药味已由医生结构化编辑并进入当前审方版本，原加减说明不再适用。",
-      evidence: { evidenceLevel: "model_inference" as const, source: "医生结构化编辑记录", confidence: "中" as const },
-    };
-  });
-  const added = editedHerbs
-    .filter((herb) => herb.name.trim() && !originalNames.has(herb.name.trim()))
-    .filter((herb) => !retained.some((item) => `${item.action} ${item.doseOrHandling || ""}`.includes(herb.name.trim())))
-    .map((herb): StructuredFormula["modifications"][number] => ({
-      trigger: "医生结构化编辑",
-      targetPathogenesis: herb.targetPathogenesis,
-      action: `加${herb.name.trim()}`,
-      doseOrHandling: [herb.dose, herb.decoctionRequirement].filter(Boolean).join("；") || null,
-      reason: herb.function,
-      riskNote: "新增药味已进入编辑后审方版本，采纳前仍需医生结合患者情况复核。",
-      evidence: { evidenceLevel: "model_inference", source: "医生结构化编辑记录", confidence: "中" },
-    }));
-  return [...retained, ...added];
-}
+// 医生编辑处方的同步逻辑**不在这里实现**。此前这里有一份私有副本，与
+// src/lib/prescription-revision.ts 那份并存并已经漂开：服务端那份按
+// canonicalTcmHerbIdentity 判同一味药（甘草/炙甘草算改动），这里按 name.trim() 判
+// （同一次编辑被算成一删一增），于是 baseFormulas 的命中味数、随证加减的保留与合成、
+// 煎服法的删句范围三处结果都不同。更要命的是**被测试覆盖的是没人调用的那一份**：
+// test:clinical-grounding 测的是 lib 里的实现，线上跑的是这里的副本。
+// 现已合并为一份（lib 侧采纳了本副本原有的「编辑即降核验档」行为）。
 
 function cloneStructuredHerb(herb: StructuredHerb): StructuredHerb {
   return {
@@ -5214,7 +5059,7 @@ function ResultTabsV2({
                   <p className="text-[11px] font-bold text-sky-700">症状群与病机联系</p>
                   <div className="mt-2 space-y-1.5 text-xs leading-relaxed text-sky-950">
                     {symptomClusters.map((item, index) => (
-                      <p key={`${item.mechanism}-${index}`}><span className="font-semibold">{item.symptoms.filter(isDisplayableClinicalText).join(" + ")}：</span>{item.mechanism}</p>
+                      <p key={`${item.mechanism}-${index}`}><span className="font-semibold">{item.symptoms.filter(isDisplayableClinicalText).join(" + ")}：</span>{clinicalTextForDisplay(item.mechanism)}</p>
                     ))}
                   </div>
                 </div>
