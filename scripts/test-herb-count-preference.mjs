@@ -15,7 +15,7 @@ import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { buildPrescribePrompt, buildDiagnosePrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
-const { LINEAGE_CARDS, PUBLISHED_LINEAGE_CODES, publishedLineageCards } = await jiti.import("../src/lib/tcm-lineages.ts");
+const { LINEAGE_CARDS } = await jiti.import("../src/lib/tcm-lineages.ts");
 
 const failures = [];
 function check(name, fn) {
@@ -107,9 +107,8 @@ check("HCP-06 软偏好：不得在 prompt 里表述为硬性裁剪", () => {
   );
 });
 
-check("HCP-07 全部受控流派卡片的 code 都可直接作为入参（含未对外发布的）", () => {
-  // 未发布 ≠ 不可用：不写进对外文档只是不作为承诺能力，解析必须继续认，否则已集成方会突然报错。
-  assert.ok(LINEAGE_CARDS.length >= PUBLISHED_LINEAGE_CODES.length, "受控卡片数少于对外发布集");
+check("HCP-07 流派：5 张受控卡片的 code 全部可直接作为入参", () => {
+  assert.equal(LINEAGE_CARDS.length, 5, `流派卡片数变为 ${LINEAGE_CARDS.length}，需同步接口文档 §3.3.2 的表`);
   for (const card of LINEAGE_CARDS) {
     assert.equal(
       normalizedWith({ tcmLineagePreference: card.code })?.tcmLineagePreference,
@@ -143,22 +142,17 @@ check("HCP-09 流派缺省为 unrestricted，非法值不得猜成某个流派",
   }
 });
 
-check("HCP-10 文档与实现同源：接口文档必须与对外发布流派集**同集**，且列全 3 个味数取值", () => {
-  // 产品决定（2026-08-07）：对外只支持门诊高频 4 个 + 默认档，其余仍可解析但不对外承诺。
-  // 本断言双向钉死——发布集里的必须在文档里，**未发布的一个都不许出现在文档里**。
-  // 上一版就是照抄实现把 13 个全列了，与「流派支持的可以少一些，三四五个」的决定相悖。
+check("HCP-10 文档与实现同源：流派表与卡片表必须同集（双向）", () => {
+  // 这一条是本套件存在的直接原因：功能做完了、文档没露出，甲方就判为未交付。
+  // **双向**：只查「实现有的文档必须有」是不够的——文档一度列了 13 个流派而实现只承诺其中
+  // 一部分，单向断言全绿。反向漏检就是本项目反复出现的「两处各写各的」。
   const doc = readFileSync("docs/中医CDSS-对外接口文档.md", "utf8");
-  for (const card of publishedLineageCards()) {
-    assert.ok(doc.includes(`\`${card.code}\``), `接口文档缺对外发布的流派 code：${card.code}`);
+  for (const card of LINEAGE_CARDS) {
+    assert.ok(doc.includes(`\`${card.code}\``), `接口文档缺流派 code：${card.code}`);
   }
-  const unpublished = LINEAGE_CARDS
-    .filter((card) => !PUBLISHED_LINEAGE_CODES.includes(card.code))
-    .filter((card) => doc.includes(`\`${card.code}\``));
-  assert.deepEqual(
-    unpublished.map((card) => card.code),
-    [],
-    "接口文档出现了未对外发布的流派 code——对外只承诺发布集，多列等于承诺我们没深做的东西",
-  );
+  const RETIRED = ["empirical-formula", "spleen-stomach", "menghe", "lingnan", "haipai", "institution-first", "gongxie", "hanliang"];
+  const leaked = RETIRED.filter((code) => doc.includes(`\`${code}\``));
+  assert.deepEqual(leaked, [], `接口文档仍在承诺已下线的流派：${leaked.join("、")}`);
   for (const band of ["within_10", "between_10_15", "at_least_15"]) {
     assert.ok(doc.includes(`\`${band}\``), `接口文档缺味数取值：${band}`);
   }

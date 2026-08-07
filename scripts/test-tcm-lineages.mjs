@@ -13,22 +13,27 @@ const {
 const LEGACY_ALIASES = {
   unrestricted: ["", "不限定", "循证安全优先"],
   "classical-formula": ["经方", "经方思路", "经典方证", "经典方证对应"],
-  "empirical-formula": ["时方", "验方", "时方/验方", "临床经验方"],
   "warm-disease": ["温病", "卫气营血", "三焦辨证"],
-  "spleen-stomach": ["脾胃", "补土", "中焦", "东垣"],
   "nourish-yin-danxi": ["滋阴", "丹溪", "朱丹溪", "相火", "阴虚"],
   "warm-tonify-yang": ["温补", "扶阳", "温阳", "火神"],
-  menghe: ["孟河", "孟河医派", "轻灵平正"],
-  lingnan: ["岭南", "岭南医派", "湿热", "暑湿"],
-  haipai: ["海派", "海派中医", "中西参证"],
-  "institution-first": ["院内", "院内方案", "院内方案优先", "本院常用方案"],
-  gongxie: ["攻邪", "攻下", "祛邪", "急则治标"],
-  hanliang: ["寒凉", "清热", "清热解毒", "清热凉血"],
 };
+
+// 2026-08-07 下线的 8 张卡。判据是线上可用方剂条数（见 tcm-lineages.ts 顶部注释）。
+// 这些名字必须落到默认档，而不是解析出一个卡片表里已经没有的 code。
+const RETIRED_LINEAGE_INPUTS = [
+  "empirical-formula", "时方", "验方", "临床经验方",
+  "spleen-stomach", "脾胃", "补土", "东垣",
+  "menghe", "孟河", "孟河医派",
+  "lingnan", "岭南", "岭南医派", "暑湿",
+  "haipai", "海派", "海派中医",
+  "institution-first", "院内", "院内方案优先",
+  "gongxie", "攻邪", "攻下",
+  "hanliang", "寒凉", "清热解毒",
+];
 
 const SEMVER = /^\d+\.\d+\.\d+$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const expectedGroups = ["default", "classic", "school", "regional", "institutional"];
+const expectedGroups = ["default", "classic", "school"];
 
 function isRealIsoDate(value) {
   if (!ISO_DATE.test(value)) return false;
@@ -94,11 +99,36 @@ for (const card of LINEAGE_CARDS) {
   }
 }
 
-assert.equal(getLineageCard("empirical-formula").cardNature, "source_preference", "时方/验方 must be disclosed as a source preference");
-assert.equal(getLineageCard("institution-first").cardNature, "operational", "院内方案 must be disclosed as an operational strategy");
-assert.match(getLineageCard("empirical-formula").provenance.lineageSummary, /不对应.*学术流派/);
-assert.match(getLineageCard("institution-first").provenance.lineageSummary, /运营策略.*不是历史医派/);
+assert.equal(getLineageCard("classical-formula").cardNature, "source_preference", "经方 must be disclosed as a source preference, not a single school");
+assert.match(getLineageCard("warm-tonify-yang").provenance.lineageSummary, /内部传承并不单一/);
 assert.equal(resolveLineageCode(undefined), "unrestricted");
 assert.equal(resolveLineageCode("未知流派"), "unrestricted");
+
+// 归一结果必须落在真实卡片集合内。上一版曾出现「resolveLineageCode 返回 gongxie，
+// 而 LINEAGE_CARDS 里已经没有 gongxie，getLineageCard 静默兜回第 0 张卡」的形状——
+// 归一出来的 code 和实际生效的卡不是同一个东西，是本项目反复出现的「两处各写各的」。
+const CARD_CODES = new Set(LINEAGE_CARDS.map((card) => card.code));
+const strayResolutions = [];
+for (const input of [...RETIRED_LINEAGE_INPUTS, "未知流派", "随便写点什么", "school", "TCM"]) {
+  const resolved = resolveLineageCode(input);
+  if (!CARD_CODES.has(resolved)) strayResolutions.push(`${input} → ${resolved}`);
+}
+assert.deepEqual(strayResolutions, [], `resolveLineageCode 归一出了卡片表里不存在的 code：\n  ${strayResolutions.join("\n  ")}`);
+
+const retiredStillResolving = RETIRED_LINEAGE_INPUTS
+  .map((input) => [input, resolveLineageCode(input)])
+  .filter(([, resolved]) => resolved !== "unrestricted");
+assert.deepEqual(
+  retiredStillResolving.map(([input, resolved]) => `${input} → ${resolved}`),
+  [],
+  "已下线流派必须落到默认档 unrestricted",
+);
+
+// 问诊策略注册表不得留下没有卡片的孤儿条目（反向：卡片必须有策略，已在上面逐卡断言）。
+assert.deepEqual(
+  Object.keys(LINEAGE_QUESTION_STRATEGIES).filter((code) => !CARD_CODES.has(code)),
+  [],
+  "LINEAGE_QUESTION_STRATEGIES 里有卡片表中已不存在的流派",
+);
 
 console.log(JSON.stringify({ cards: LINEAGE_CARDS.length, legacyAliases: Object.values(LEGACY_ALIASES).flat().length, failures: 0 }));
