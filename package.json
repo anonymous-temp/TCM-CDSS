@@ -42,6 +42,7 @@
     "test:classic-formula-identification": "jiti scripts/test-classic-formula-identification.mjs",
     "test:formula-baseline-self-verification": "jiti scripts/test-formula-baseline-self-verification.mjs",
     "test:reasoning-catch-isolation": "jiti scripts/test-reasoning-catch-isolation.mjs",
+    "test:herb-count-preference": "jiti scripts/test-herb-count-preference.mjs",
     "test:formula-provenance": "jiti scripts/test-tcm-formula-provenance.mjs",
     "test:classic-evidence-bundling": "jiti scripts/test-classic-evidence-bundling.mjs",
     "test:syndrome-equivalence": "jiti scripts/test-syndrome-equivalence.mjs",

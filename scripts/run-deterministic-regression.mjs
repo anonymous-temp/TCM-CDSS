@@ -68,6 +68,12 @@ const scripts = [
   // 修复轮唯一的自动触发器对整个 .catch 家族是瞎的。本套件按行为判：注入「1 条非法 + N 条合法」，
   // 断言剩下恰好 N 条。新增数组字段必须加进它的 ISOLATED_ARRAYS。
   "test:reasoning-catch-isolation",
+  // 饮片味数偏好 + 流派选择入参（甲方 2026-08-05 接口缺失 #1，标「高」，9 项里唯一没闭环的一条）。
+  // 功能早已实现，但零回归覆盖，于是 between_10_15 的正则漏了 en dash 一直没人发现——
+  // 而系统自己在 prompt 里印的就是「10–15 味」，甲方照抄回传，中间那一档静默失效。
+  // 本套件另钉住两条**故意不同**的通道语义：味数只认 caseState 顶层，流派两条通道都生效；
+  // 以及文档与实现同源（13 个流派 code 与 3 个味数取值必须在接口文档里列全）。
+  "test:herb-count-preference",
   "test:formula-provenance",
   "test:classic-evidence-bundling",
   "test:syndrome-equivalence",

@@ -34,11 +34,15 @@
 | 8 | 急症排查确认 | POST | `/api/diagnosis/emergency-clearance` | 红旗病例的排查确认 |
 | 9 | HIS 诊疗方案导出 | POST | `/api/diagnosis/his-scheme` | 面向 HIS 写回的整合方案，含健康调护与中医外治 |
 | 10 | 处方后风险审查 | POST | `/api/diagnosis/post-prescription-risk` | 统一审方结论 |
-| 11 | 中药材知识检索 | GET | `/api/tcm-knowledge/search` | 药材/方剂/配伍禁忌检索 |
-| 12 | 药材功效查询 | GET | `/api/tcm-knowledge/herb-function` | 单味药功效与分类 |
+| 11 | 中药材知识检索 | GET / POST | `/api/tcm-knowledge/search` | 药材/方剂/配伍禁忌检索 |
+| 12 | 药材功效查询 | GET / POST | `/api/tcm-knowledge/herb-function` | 单味药功效与分类 |
 | 13 | 药品目录同步（出站） | GET | `/api/tcm-knowledge/drug-catalog` | 受治理药品目录分页下发，供院内目录对账 |
-| 14 | 院内药品库存导入（入站） | POST | `/api/drug-inventory` | 导入医院库存药，开方时优先落在有货药味上 |
-| 15 | 服务健康检查 | GET | `/api/diagnosis/health` | `?strict=1` 返回发布就绪状态 |
+| 14 | 院内药品库存导入（入站） | POST / GET | `/api/drug-inventory` | 导入医院库存药，开方时优先落在有货药味上 |
+| 15 | 服务健康检查 | GET | `/api/diagnosis/health` | `?strict=1` 返回发布就绪状态，未就绪时返回 503 |
+| 16 | M02 追问回答解析 | POST | `/api/diagnosis/question/interpret` | 医生自由文本回答 → 结构化病历字段更新 |
+| 17 | 病例快照加解密 | POST | `/api/diagnosis/snapshot` | AES-256-GCM 加密快照，鉴权绑定快照所有者 |
+| 18 | 受控术语确认 | POST | `/api/diagnosis/terminology/confirm` | 医生确认一条国标术语映射 |
+| 19 | 模型健康检查 | GET | `/api/model-health` | `?check=1` 触发一次真实模型调用 |
 
 ---
 
@@ -92,6 +96,69 @@
 |---|---|---|
 | M03 → M04 | `diagnosis`、`reasoningDiagnose`（含 `contractSignature`） | `caseState.diagnosis`、`caseState.reasoningDiagnose` |
 | M04 → M05 | `prescription`、`reasoningPrescribe`（含 `contractSignature`） | `caseState.prescription`、`caseState.reasoningPrescribe` |
+
+### 2.3.1 CaseState 入参字段表
+
+调用方只需构造下表字段；其余为服务端产出、按 R2 原样回传即可。**未列出的键不会报错，但也不会生效。**
+
+| 字段路径 | 类型 | 必填 | 取值 | 作用阶段 | 说明 |
+|---|---|---|---|---|---|
+| `id` | string | 是 | — | 全阶段 | 同一次就诊全程不变（R1）。缺省时服务端自动生成，将导致 M04 返回 `409` |
+| `phase` | enum | 建议 | `idle`/`collect`/`question`/`diagnose`/`prescribe`/`assess`/`done`/`error` | 全阶段 | **枚举外的值会让整个 caseState 被拒**（400），不是被忽略。M02 要求 `phase="question"` |
+| `patient.sex` | string | 建议 | 男/女 | 全阶段 | `hisRecord.fields.sex` 优先 |
+| `patient.age` | number | 建议 | — | 全阶段 | 影响特殊人群剂量规则与儿科门禁 |
+| `patient.name` | string | 否 | — | — | **提交后恒被服务端清空**（脱敏），不要用它传身份信息 |
+| `chiefComplaint` | string | 是 | — | M01 起 | 缺失时 M03 不进入完整诊断 |
+| `symptoms` / `pastHistory` / `medicationHistory` / `allergyHistory` | string | 建议 | — | M01 起 | 一诉五史。**「未提及」不等于阴性**，不要用空串表达「否认」，应写明「否认…」 |
+| `tongue` / `pulse` / `faceNote` | string | 建议 | — | M01 起 | 四诊文本 |
+| `tongueImageDesc` | string | 否 | — | M01 | 舌象图片走 GLM 视觉后回填；无图时可手工录入 |
+| `vitals` | object | 建议 | — | 全阶段 | BP/T/P/R/SpO2，危急阈值由确定性安全门解析 |
+| `tcmLineagePreference` | string | 否 | 见 §2.3.2 | M02/M03/M04/M05 | 流派选择。顶层与 `hisRecord.fields` **两条通道都生效** |
+| `herbCountPreference` | string | 否 | 见 §2.3.3 | **仅 M04** | 饮片味数偏好。**仅接受顶层字段** |
+| `clinicTreatmentCapabilities` | object | 否 | — | M04/M05 | 院内可开展的中医外治项目，决定外治建议是 `clinic_available` 还是 `referral_only` |
+| `hisRecord.fields` | object | 否 | — | 全阶段 | HIS 病历字段直传；与顶层同名字段冲突时以本通道优先 |
+| `emergencyClearance` | object | 否 | — | 全阶段 | 只能由 `/api/diagnosis/emergency-clearance` 产出；每次读取都会重新校验并剥离，伪造无效 |
+| `reasoningDiagnose` / `reasoningPrescribe` / `reasoningV2` | object | 交接必填 | — | M04/M05 | 上一阶段结论，**必须原样回传**（R2）。任何改写都会导致 `409` |
+
+### 2.3.2 `tcmLineagePreference` 流派选择（甲方需求 #1，优先级「高」）
+
+影响 M02 追问策略、M03 辨证重点、M04 组方风格、M05 随访口径四个阶段。不传等价于 `unrestricted`。
+
+**流派偏好不改变任何安全判定**：剂量上限、十八反十九畏、特殊人群禁忌、红旗处置一律不因流派放宽。
+
+| code | 可读名 | 分组 | 也可直接传的中文别名 |
+|---|---|---|---|
+| `unrestricted` | 不限定：循证安全优先 | 默认 | 不限定、循证安全优先 |
+| `classical-formula` | 经方思路 | 经典辨治 | 经方、经典方证、经典方证对应 |
+| `empirical-formula` | 时方/验方思路 | 经典辨治 | 时方、验方、临床经验方 |
+| `warm-disease` | 温病思路 | 经典辨治 | 温病、卫气营血、三焦辨证 |
+| `spleen-stomach` | 脾胃学派 | 学术流派 | 脾胃、补土、中焦、东垣 |
+| `nourish-yin-danxi` | 滋阴/丹溪思路 | 学术流派 | 滋阴、丹溪、朱丹溪、相火、阴虚 |
+| `warm-tonify-yang` | 温补/扶阳思路 | 学术流派 | 温补、扶阳、温阳、火神 |
+| `gongxie` | 攻邪思路 | 学术流派 | 攻邪、攻下、祛邪、急则治标 |
+| `hanliang` | 寒凉思路 | 学术流派 | 寒凉、清热、清热解毒、清热凉血 |
+| `menghe` | 孟河医派 | 地域流派 | 孟河、轻灵平正 |
+| `lingnan` | 岭南医派 | 地域流派 | 岭南、湿热、暑湿 |
+| `haipai` | 海派中医 | 地域流派 | 海派、中西参证 |
+| `institution-first` | 院内方案优先 | 机构 | 院内、院内方案、本院常用方案 |
+
+出参侧回显在 `reasoningPrescribe.lineageAdaptation`（`lineageCode`/`label`/`applicable`/`applicabilityReason`/`influencedDecisions`/`unaffectedBySafety`/`safetyDeference`），以及 HIS 方案导出中。
+
+### 2.3.3 `herbCountPreference` 饮片味数偏好（甲方需求 #1，优先级「高」）
+
+| 取值 | 含义 | 也可直接传的中文写法 |
+|---|---|---|
+| `within_10` | 10 味以内 | `10味以内`、`≤10`、`<10` |
+| `between_10_15` | 10–15 味 | `10-15`、`10–15`、`10~15`、`10至15`、`10－15` |
+| `at_least_15` | 15 味及以上 | `15味及以上`、`15味以上`、`≥15`、`>15` |
+
+五条实测语义，集成前请逐条确认：
+
+1. **仅接受 `caseState` 顶层字段。** 放进 `hisRecord.fields` 不生效**且不报错**——这与 `tcmLineagePreference` 不同，后者两个通道都生效。
+2. **仅在 M04 `/api/diagnosis/prescribe` 生效**，M01–M03、M05 不读取。
+3. 大小写敏感（`WITHIN_10` 无效）；数字 `12`、模糊说法「少一点」一律丢弃为空，**不报错**。建议直接传三个受控代码，中文写法仅作兼容。
+4. **是软偏好，不是硬约束。** 服务端不做任何按味数的确定性裁剪：经典方基准组成、绑定病机节点的必需药味、安全定性药味都不会为迁就味数被删——与甲方对味数的既有口径一致（「如诊疗必须也不能裁剪」）。
+5. 因此出参味数可能超出所选档位。此时不是失效，而是临床必需优先。
 
 ### 2.4 响应格式
 
@@ -996,6 +1063,60 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
     ]
   }'
 ```
+
+### 3.13 M02 追问回答解析 —— `POST /api/diagnosis/question/interpret`
+
+把医生对 M02 追问的**自由文本**回答确定性解析为结构化病历字段更新。
+
+请求体 `{ caseState, m02Plan, answer }`，三者**均为必填**（任一为 `null` → 400）。请求体上限 1 000 000 字节。
+`m02Plan` 必须是 M02 出参里 `decision="ask"` 且 `questions` 非空的**原样**计划；`answer` 为 1–6000 字符自由文本。
+
+成功：`{ ok: true, schemaVersion: "tcm-cdss-m02-answer-interpretation-v1", answers: [...] }`。
+
+失败：`{ ok: false, failure: { code, message, retryable, attempts } }`，状态码按 `code` 映射——
+`invalid_request`/`invalid_case_state` → 400，`invalid_plan`/`invalid_answer` → 422，
+`model_not_configured` → 503，`model_timeout` → 504，`request_aborted` → 408，其余 → 502。
+
+### 3.14 病例快照加解密 —— `POST /api/diagnosis/snapshot`
+
+AES-256-GCM 加密的病例快照，用于浏览器侧持久化。密钥为服务端 `CASE_SNAPSHOT_ENCRYPTION_KEY`，**不下发**。
+
+请求体 `{ action: "encrypt" | "decrypt", binding, payload | envelope }`。`action` 取其它值 → 400。
+`binding` 用于把快照绑定到当前鉴权身份，缺失或不匹配 → 400；**换一个身份无法解开别人的快照**。
+请求体上限 3 MiB，明文上限 2 MiB，超限 → 413。未配置加密密钥 → 503。
+
+### 3.15 受控术语确认 —— `POST /api/diagnosis/terminology/confirm`
+
+医生确认一条控制词表映射（如把「心脾两虚」确认为 GB/T 16751 的「心脾两虚证」）。
+
+请求体 `{ caseState, mapping: { namespace, fieldPath, candidateId } }`。
+
+**`namespace` 只接受 `tcm_syndrome` 与 `icd10` 两个值**，其余命名空间会被**具名拒绝**（400，
+`code: "terminology_confirmation_target_not_allowed"`）而不是静默忽略。
+字段缺失或类型不对 → 400 `invalid_terminology_confirmation_request`。
+若该映射不在当前已签名的合同里（例如 M03 结论已被替换）→ 409 `terminology_suggestion_not_current`。
+
+### 3.16 服务健康检查 —— `GET /api/diagnosis/health`
+
+不带参数时返回基础状态与构建身份（`commit` / `sourceDigest` / `timestamp`），用于核对**线上跑的是哪一版**。
+
+`?strict=1` 额外返回 `strictReady`，并对以下依赖做**真实探针**：主模型、临床复核、证据检索、
+舌象视觉（若启用）、审方、受控术语、快照加密、推理签名、临床事实、中医外治配置、
+证候假设重排、限流身份。任一未就绪 → `strictReady: false` 且 **HTTP 503**。
+
+> 该接口就是容器 healthcheck 打的那个。它会产生真实上游调用，**不要用于高频轮询**。
+
+### 3.17 模型健康检查 —— `GET /api/model-health`
+
+默认只返回配置态（provider / model / 是否配置密钥），不产生上游调用。
+`?check=1` 会**真实调用一次**配置的模型并校验其返回了最终内容——只返回推理过程而无正文的提供方会在这里判失败。
+
+### 3.18 院内药品库存查询 —— `GET /api/drug-inventory`
+
+与 §3.12 的导入同一路径。返回当前生效的库存快照摘要（批次、条目数、解析状态、歧义与未识别名单）。
+**未导入库存时链路行为与接入前逐字节相同**——库存是可得性约束，不是安全控制，缺数据不阻断出方。
+
+---
 
 ## 4. 调用示例
 
