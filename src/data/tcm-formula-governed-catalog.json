@@ -43,7 +43,7 @@
     "doseCompilationEligibleCount": 2547,
     "symptomTaggedFormulaCount": 1106,
     "diseaseTaggedFormulaCount": 372,
-    "syndromeTaggedFormulaCount": 2402,
+    "syndromeTaggedFormulaCount": 2404,
     "locationTaggedFormulaCount": 579,
     "natureTaggedFormulaCount": 617,
     "candidateFormulaCount": 0,
@@ -127258,8 +127258,12 @@
       "indications": [
         "痢疾，食积"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-064C46403192"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-064C46403192"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [
         "food_stagnation"
@@ -127267,7 +127271,7 @@
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
@@ -229167,14 +229171,18 @@
       "indications": [
         "中暑时疫；外敷疔疮肿毒，虫咬损伤，无名肿毒，以及痄腮、丹毒、喉风等"
       ],
-      "syndromeTags": [],
-      "curatedSyndromeTags": [],
+      "syndromeTags": [
+        "TCM-SYNDROME-7AF25C8D914B"
+      ],
+      "curatedSyndromeTags": [
+        "TCM-SYNDROME-7AF25C8D914B"
+      ],
       "curatedSyndromeRelations": [],
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
       "diseaseTags": [],
-      "tagGovernanceStatus": "governed_source_text_derived_index",
+      "tagGovernanceStatus": "governed_source_text_derived_plus_curated_relations",
       "governanceStatus": "official_local_standard_identity_verified",
       "retrievalEligible": true,
       "identityLockEligible": true,
