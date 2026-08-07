@@ -247,7 +247,11 @@ function runFrontendContractChecks() {
   assert(questionPrompt.includes("只进行一轮追问") && questionPrompt.includes("不得输出第3题") && questionPrompt.includes("信息增益"), "M02: the model chooses one round of top-2 highest-information clinical questions", questionPrompt.slice(0, 4200));
   assert(!source.includes("信息不足，暂未生成完整诊断/处方"), "frontend: information-insufficient state avoids blunt diagnosis/prescription failure wording");
   assert(!prescriptionSection.includes("PrescriptionAdoptionBanner") && !prescriptionSection.includes("候选方药状态") && !prescriptionSection.includes("审方提示") && resultV2.includes("<AuditReviewSection"), "frontend: candidate formula stays clinically focused and audit advisories live only in the unified audit section", prescriptionSection.slice(0, 3200));
-  assert(resultV2.includes('title="诊断结论"') && resultV2.includes('title="病机分析"') && resultV2.includes('title="治则治法"') && resultV2.includes('title="候选方药"') && resultV2.includes("<AuditReviewSection") && !resultV2.includes("role=\"tablist\""), "frontend: the report uses top-down clinical sections and one centralized audit section without exposing internal stage codes", resultV2.slice(0, 5600));
+  // 病机区标题**刻意**不再写死：页面曾硬编码「病机分析」，而登记表与服务端可见正文渲染的是
+  // 「病机拆解」——同一个区两份标题各自演进。现在页面走 clinicalOutputLabel("M03-pathogenesis")，
+  // 改名只需改登记表一处。本断言随之改为「必须从登记表取名」，比钉死字面量更强：
+  // 谁再把标题写回字面量，这条就红。（这条断言此前一直挂着旧字面量，实测从 7c56a343 起就没绿过。）
+  assert(resultV2.includes('title="诊断结论"') && resultV2.includes('clinicalOutputLabel("M03-pathogenesis"') && resultV2.includes('title="治则治法"') && resultV2.includes('title="候选方药"') && resultV2.includes("<AuditReviewSection") && !resultV2.includes("role=\"tablist\""), "frontend: the report uses top-down clinical sections and one centralized audit section without exposing internal stage codes", resultV2.slice(0, 5600));
   assert(aiPanel.includes("isFollowupOnlyState") && aiPanel.includes("!isFollowupOnlyState"), "frontend: follow-up-only state hides downstream report flow instead of showing prescription placeholders", aiPanel.slice(0, 4200));
   assert(!riskPanel.includes("completenessStatus.desc"), "frontend: differentiation card does not mix old structural completeness copy into dose-level sufficiency", riskPanel.slice(0, 2400));
   assert(
@@ -432,7 +436,10 @@ function runFrontendContractChecks() {
   assert(
       diagnoseRoute.includes("buildDiagnoseContractSignatureContext(gated)") &&
       diagnosisApiSource.includes("diagnoseSignatureContext?: DiagnoseContractSignatureContext") &&
-      diagnosisApiSource.includes("attachClinicalReviewAttestation(transformed.content, m03ClinicalReviewAttestation)") &&
+      // 实参名随「方名恢复并入 finalize 投影链」改过（transformed.content → identityRestored，
+      // m03ClinicalReviewAttestation → m03AttestationWithScope）。断言按**语义**钉：
+      // M03 的最终产出必须挂上带作用域的复核背书，而不是钉某一版实参名。
+      /attachClinicalReviewAttestation\(\s*identityRestored,\s*m03AttestationWithScope\s*\)/.test(diagnosisApiSource) &&
       diagnosisApiSource.includes("applyDiagnoseContractSignature(signedContent, signatureContext)") &&
       prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") &&
       postPrescriptionRiskRoute.includes("verifyDiagnoseReasoningSignature(diagnoseReasoning, caseState)") &&
@@ -457,7 +464,12 @@ function runFrontendContractChecks() {
     formulaProvenanceSource.includes("ingredientOwner") &&
       formulaProvenanceSource.includes("identityFloorSatisfied") &&
       formulaProvenanceSource.includes("variant.minimumPreservedIngredientCount") &&
-      formulaProvenanceSource.includes("requiredIngredients: reference.requiredIngredients") &&
+      // 锚点不再直接取 reference.requiredIngredients：那样它与组成、处方两侧不过同一张归一表，
+      // 判据不是「更严」而是**恒假**（实测 281/2062 首方自核验失败）。现在两处都必须存在：
+      //   · 基准侧由 requiredFormulaAnchors 统一产出；
+      //   · 核验侧把 reference.requiredIngredients 过 withIdentityCanonicalNames 再比。
+      formulaProvenanceSource.includes("requiredIngredients: requiredFormulaAnchors(formulaName, variant, ingredients)") &&
+      formulaProvenanceSource.includes("withIdentityCanonicalNames(reference.requiredIngredients, identityCanonical)") &&
       formulaProvenanceSource.includes("precision >= 0.35") &&
       formulaProvenanceSource.includes("competingDifferentFormula") &&
       formulaProvenanceSource.includes("ingredientSignature"),
