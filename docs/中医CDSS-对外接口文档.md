@@ -4,7 +4,7 @@
 |---|---|
 | 文档版本 | V1.3 |
 | 发布日期 | 2026-08-07 |
-| 服务版本 | `tcm-cdss-20260807-herb-knowledge-annot-amd64` |
+| 服务版本 | `tcm-cdss-20260807-external-route-gate-amd64` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
