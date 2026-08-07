@@ -24,7 +24,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { applyM03AdvisoryQualityBoundaries } from "../src/lib/diagnosis-visible-summary.ts";
-import { isWaivableM04TherapyCoverageCode, m03NodeCoverageIssue, m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
+import { m03NodeCoverageIssue, m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
 import { rejectionTier } from "../src/lib/diagnosis-rejection-tiers.ts";
 import { ReasoningV2Schema } from "../src/lib/diagnosis-types.ts";
 import { NON_DOSE_PRESCRIPTION_MARKER, buildSafetyLimitedPrescription, isNonDosePrescriptionText } from "../src/lib/diagnosis-safety.ts";
@@ -442,50 +442,35 @@ for (const guard of ["submittedDifferentials.length > 0 && displayableDifferenti
   );
 }
 
-// 7) 「可豁免族」在三处各写各的：修复轮的 fixpoint 早退、降级块的受理判据、复验时的豁免判定。
-//    三处判的是同一件事——这个驳回码属不属于「修复耗尽后带批注受理」的质量类。
-//    实测分叉：
-//      · diagnosis-api 的 fixpoint 族正则裸写 `transparent_therapy`，把明确不可豁免的
-//        contract_missing / herbs_missing 也算了进去 → 提前退出修复轮，然后在受理侧被拒，
-//        整方作废。省下的那一轮恰恰是唯一可能修好它的一轮。
-//      · isWaivableM04TherapyCoverageCode 只认 3 族，而 m04TherapyIssueQualityAnnotation 收了 6 族
-//        → unsupported_high_impact / emperor_therapy_mismatch / pathogenesis_node_uncovered
-//        在受理侧通过、在复验侧被驳，降级块拿到 reasoningValidated=false 直接判死。
-//    现在三处共用 m04-repair-policy 一处判据。本断言钉住「源码里不得再出现第二份判据」，
-//    因为行为级断言只能覆盖到我想得到的码，而分叉恰恰发生在我没想到的那一族上。
+// 7) fixpoint 早退的「可豁免族」正则裸写 `transparent_therapy`，把明确不可豁免的
+//    contract_missing / herbs_missing 也算了进去 → 提前退出修复轮，然后在受理侧被拒、整方作废。
+//    省下的那一轮恰恰是唯一可能修好它的一轮（结构缺失正是多修一轮有可能补齐的东西）。
+//
+//    ⚠ 这个族**故意宽于** isWaivableM04TherapyCoverageCode，两者不是同集：
+//    这里的 reason 来自 waive=false 的真实驳回，unsupported_high_impact 在此可能只是词表缺口；
+//    那边只见 waive=true 口径下的码，同名码在那里必然是方向对立。判据不同是因为输入总体不同。
+//    我曾按「必须同集」把两处并成一处，那是 fail-open 回归（让附子进热证），已实测拦下并回退。
 {
   const apiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
-  const contractSource = readFileSync("src/lib/diagnosis-stage-contract.ts", "utf8");
-
+  const familyLine = apiSource.match(/const M04_WAIVABLE_FAMILY = [^\n]*/)?.[0] || "";
+  assert.ok(familyLine, "fixpoint 可豁免族常量不见了");
   assert.ok(
-    !/M04_WAIVABLE_FAMILY\s*=\s*\/[^\n]*transparent_therapy(?![_a-z])/.test(apiSource),
-    "diagnosis-api 又出现了自写的可豁免族正则（裸 transparent_therapy 会把 contract_missing 一起放行）",
+    !/transparent_therapy(?![_a-z])/.test(familyLine),
+    "fixpoint 族又裸写了 transparent_therapy——contract_missing / herbs_missing 会被误判为可豁免",
   );
   assert.ok(
-    /isWaivableM04TherapyCoverageCode\(reason\)/.test(apiSource),
-    "fixpoint 早退没有走统一判据，会与受理侧漂开",
+    /transparent_therapy_\(\?:coverage\|herb_support\|herb_knowledge_missing\|herb_\\d\)/.test(familyLine),
+    "fixpoint 族没有把 transparent_therapy_* 收窄到具体码",
   );
-  assert.ok(
-    /m04TherapyIssueQualityAnnotation\(code\) !== undefined/.test(contractSource),
-    "isWaivableM04TherapyCoverageCode 又自己写了一份正则，而不是问 m04-repair-policy",
-  );
-
-  // 行为级：三族动态码必须一致放行，结构/安全类必须一致拒绝。
-  for (const code of [
-    "m04_candidate_0_transparent_therapy_herb_2_unsupported_high_impact_yang_warm",
-    "m04_candidate_0_herb_0_emperor_therapy_mismatch",
-    "m04_pathogenesis_node_uncovered_P2",
-    "m04_candidate_0_transparent_therapy_coverage",
-  ]) {
-    assert.ok(isWaivableM04TherapyCoverageCode(code), `${code} 应为可豁免质量类，三处判据必须一致放行`);
+  // 行为级：结构缺失类不得触发提前退出，词表覆盖率类应当触发。
+  const family = new RegExp(familyLine.replace(/^const M04_WAIVABLE_FAMILY = \//, "").replace(/\/;$/, ""));
+  for (const reason of ["m04_transparent_therapy_contract_missing", "m04_candidate_0_transparent_therapy_herbs_missing"]) {
+    assert.ok(!family.test(reason), `${reason} 属结构缺失，不得提前退出修复轮`);
   }
-  for (const code of [
-    "m04_transparent_therapy_contract_missing",
-    "m04_candidate_0_transparent_therapy_herbs_missing",
-    "m04_candidate_0_herb_1_emperor_not_primary",
-    "m04_candidate_0_herb_6_dose",
-  ]) {
-    assert.ok(!isWaivableM04TherapyCoverageCode(code), `${code} 属安全/结构类，任何一处都不得放行`);
+  for (const reason of ["m04_candidate_0_transparent_therapy_coverage",
+    "m04_candidate_0_transparent_therapy_herb_2_unsupported_high_impact_yang_warm",
+    "m04_pathogenesis_node_uncovered_P2"]) {
+    assert.ok(family.test(reason), `${reason} 应被同族 fixpoint 判定覆盖，否则白烧一轮`);
   }
 }
 

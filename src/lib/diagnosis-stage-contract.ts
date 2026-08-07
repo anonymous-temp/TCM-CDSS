@@ -14,7 +14,6 @@ import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy, locationItemsCoverC
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
-import { m04TherapyIssueQualityAnnotation } from "./m04-repair-policy";
 
 type M03ReasoningLike = {
   stage?: unknown;
@@ -3404,23 +3403,28 @@ function followUpConsistent(course: string, followUpNode: string): boolean {
  * transparent_therapy_contract_missing / unresolved 不在此列。
  */
 /**
- * 修复耗尽后可带批注放行的**质量类**码。判据一律是「本系统词表能不能自动核验」，
+ * 修复耗尽后可带批注放行的**治法覆盖率**码。判据一律是「本系统词表能不能自动核验」，
  * 不是「这味药有没有害」——剂量、配伍、特殊人群、方向对立都是独立判定，任何时候不在此列。
  *
- * **实现方式本身就是修复内容**：这里不再自己写一份正则，直接问 m04-repair-policy
- * 「这个码有没有批注」。此前两处各写各的，policy 侧已经收了 6 族、这里只认 3 族，
- * 于是 unsupported_high_impact / emperor_therapy_mismatch / pathogenesis_node_uncovered
- * 三族在 canAcceptTransparentFormulaFallback 里被受理、又在 m04SemanticIssue 复验时被驳回，
- * 结果不是「没批注」而是**整方作废**——降级块拿到 reasoningValidated=false 直接判死。
+ * ⚠ 这个集合**刻意小于** m04-repair-policy 的 m04TherapyIssueQualityAnnotation，两者不是同集，
+ * 也不该是。原因在两个调用点（下方 3505 / 3749）的写法里：它们都是
+ * `waiveTherapyCoverageAnnotated && isWaivable(coverageIssue)`，而 coverageIssue 正是在
+ * **同一个 waive 口径**下算出来的——waive=true 时 unsupportedHighImpactHerbIssue 会把
+ * 「词表未成立」那一半清空（vocabUnsupported = []），只剩「方向对立」。
+ * 实测（M03 锁定「清热泻火」）：
+ *     附子 waive=true → transparent_therapy_herb_1_unsupported_high_impact_yang_warm（对立，仍报）
+ *     丹参 waive=true → transparent_therapy_herb_support（非对立，塌回覆盖率码，在本集合内）
+ * 也就是说：**能走到这里的 unsupported_high_impact 码，方向必然是对立的**。
+ * 把它加进来等于让「附子进热证」这类方向相反的药进入已受理的剂量级处方。
  *
- * 上一轮修 herb_knowledge_missing 时我在这里加过一条「两处同集」断言，但那条断言只逐个比对了
- * **手写的 6 个码**，而真实发射码是 transparentFormulaTherapyIssue 拼出来的动态族
- * （`transparent_therapy_${highImpactIssue}`）。手写清单当然全绿——它检查的正是它自己列出来的
- * 那几个。修 bug 时犯的是与 bug 同一形状的错，这是第二次了。现在改成结构上不可能分叉：
- * 只有一处判据，另一处是它的调用者；test:m04-safety-contract 按**发射侧真实码空间**复验。
+ * 我曾按「两处必须同集」把本函数改成直接问 policy 要批注——那是个 fail-open 回归，
+ * 由对抗核验实测拦下。此处留痕：policy 的批注是**给医生写文案**用的（作用在 waive=false
+ * 重算出来的码上），本函数是**复验时放不放行**，两者输入总体本就不同。
+ * 「同集」在这一对上不是不变量，不要再往这个方向改。
  */
 export function isWaivableM04TherapyCoverageCode(code: string | undefined): boolean {
-  return typeof code === "string" && m04TherapyIssueQualityAnnotation(code) !== undefined;
+  return typeof code === "string" &&
+    /^(?:candidate_\d+_)?transparent_therapy_(?:coverage|herb_support|herb_knowledge_missing)$/.test(code);
 }
 
 export function m04SemanticIssue(

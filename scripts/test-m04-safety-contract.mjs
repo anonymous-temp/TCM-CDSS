@@ -590,54 +590,62 @@ console.log(JSON.stringify({
       completedRepairAttempts: 1, requestAborted: false, therapyIssue: code,
     }), `${code} 属安全/结构类，修复耗尽后仍必须阻断透明降级`);
   }
-  // 两处判据必须同集：policy 侧决定「放行时写什么批注」，contract 侧决定「复验放不放行」。
-  // 漏一处的后果不是「没批注」而是**整方作废**——降级块拿到 reasoningValidated=false 直接判死。
+  // 两处判据**不是同集，也不该是**——这条注释本身就是一次返工的结论，别再往回改。
   //
-  // ★ 上一版这条断言是**假的**：它只逐个比对了手写的 6 个码，而真实发射码里有
-  //   `transparent_therapy_${highImpactIssue}` 这种拼出来的动态族。手写清单当然全绿——
-  //   它检查的正是它自己列出来的那几个。实测当时仍有三族分叉：
-  //   unsupported_high_impact_* / emperor_therapy_mismatch / pathogenesis_node_uncovered_*
-  //   在 policy 侧可批注、在 contract 侧不可豁免，降级受理后复验被驳，整方 0 味。
-  //   现在按**发射侧真实码空间**比对：从 diagnosis-stage-contract.ts 源码里扫出所有会被
-  //   当作 therapyIssue 发射的码形状，逐个过两侧判据。新增一族码而只改一处，本条必红。
-  const { readFileSync: readSource } = await import("node:fs");
-  const contractSource = readSource("src/lib/diagnosis-stage-contract.ts", "utf8");
-  const emittedCodeShapes = [
-    // 静态字面量：从源码里扫，而不是手写
-    ...new Set([...contractSource.matchAll(/"(transparent_therapy_[a-z_]+)"/g)].map((m) => m[1])),
-    // 动态族：`transparent_therapy_${highImpactIssue}` 与 candidate_N_ 前缀形式的真实取值样本
+  // 事情经过：d40072db 在这里写过一条「两处同集」断言，但它只逐个比对手写的 6 个码，
+  // 而真实发射码里有 `transparent_therapy_${highImpactIssue}` 这种拼出来的动态族——
+  // 手写清单当然全绿，它检查的正是它自己列出来的那几个。断言名不副实，属实。
+  // 但据此把 isWaivableM04TherapyCoverageCode 改成「直接问 policy 要批注」是**fail-open**：
+  //
+  //   isWaivable 的两个调用点都写成 `waiveTherapyCoverageAnnotated && isWaivable(coverageIssue)`，
+  //   而 coverageIssue 是在**同一个 waive 口径**下算出来的。waive=true 时
+  //   unsupportedHighImpactHerbIssue 把「词表未成立」那一半清空，只剩「方向对立」。
+  //   实测（M03 锁定「清热泻火」）：
+  //     附子 waive=true → transparent_therapy_herb_1_unsupported_high_impact_yang_warm
+  //     丹参 waive=true → transparent_therapy_herb_support
+  //   能走到 isWaivable 的 unsupported_high_impact 码，方向必然是对立的。放行 = 附子进热证。
+  //
+  // policy 的批注作用在 waive=false 重算出来的码上（给医生写文案），isWaivable 决定复验放不放行。
+  // 输入总体不同，判据不同是正确的。下面钉住的是**两个集合各自的边界**，不是它们相等。
+  const OPPOSING_UNDER_WAIVE = [
     "transparent_therapy_herb_0_unsupported_high_impact_yang_warm",
-    "transparent_therapy_herb_2_unsupported_high_impact_heat_clear_blood_move",
+    "transparent_therapy_herb_2_unsupported_high_impact_heat_clear",
     "candidate_0_transparent_therapy_herb_1_unsupported_high_impact_purge",
-    "candidate_0_herb_0_emperor_therapy_mismatch",
-    "m04_candidate_0_herb_0_emperor_therapy_mismatch",
-    "pathogenesis_node_uncovered_P2",
-    // 反向：这些永远不得豁免，一并纳入同集比对（两侧都必须答「不」）
-    "candidate_0_emperor_missing",
-    "candidate_0_emperor_excess",
-    "candidate_0_herb_1_emperor_not_primary",
-    "candidate_0_herbs_empty",
-    "candidate_0_herb_6_dose",
-    "herb_3_dose",
   ];
-  assert.ok(emittedCodeShapes.length >= 15, `发射码样本只有 ${emittedCodeShapes.length} 个，扫描疑似失效`);
-  const diverged = emittedCodeShapes.filter((code) =>
-    isWaivableM04TherapyCoverageCode(code) !== (m04TherapyIssueQualityAnnotation(code) !== undefined));
-  assert.deepEqual(
-    diverged,
-    [],
-    "以下码在 diagnosis-stage-contract 与 m04-repair-policy 两处判据不同集——" +
-      `一处放行一处不放行，结果是降级块复验失败、整方作废：\n  ${diverged.join("\n  ")}`,
-  );
-  // 同集不等于「都放行」：反向边界单独钉住，否则把两侧都改成恒真也能让上面那条全绿。
-  for (const code of ["candidate_0_emperor_missing", "candidate_0_herb_1_emperor_not_primary",
-    "candidate_0_herbs_empty", "transparent_therapy_contract_missing", "herb_3_dose"]) {
-    assert.ok(!isWaivableM04TherapyCoverageCode(code), `${code} 属安全/结构类，任何时候不得豁免`);
+  for (const code of OPPOSING_UNDER_WAIVE) {
+    assert.ok(
+      !isWaivableM04TherapyCoverageCode(code),
+      `${code} 在 waive 口径下必然是「方向对立」，复验绝不能放行——放行等于让附子进热证`,
+    );
+    // 反过来 policy 侧**应当**给它批注：那是 waive=false 时的词表缺口文案，作用域不同。
+    assert.ok(
+      m04TherapyIssueQualityAnnotation(code) !== undefined,
+      `${code} 在 policy 侧应有批注文案（waive=false 口径），缺了医生就拿不到解释`,
+    );
   }
-  // 正向边界：动态族必须**确实**被两侧一致放行，而不是一致拒绝。
-  for (const code of ["transparent_therapy_herb_0_unsupported_high_impact_yang_warm",
-    "candidate_0_herb_0_emperor_therapy_mismatch", "pathogenesis_node_uncovered_P2"]) {
-    assert.ok(isWaivableM04TherapyCoverageCode(code), `${code} 在 policy 侧可批注，复验侧必须同样放行`);
+  // 结构/安全类：两侧都必须拒绝。
+  for (const code of ["transparent_therapy_contract_missing", "transparent_therapy_herbs_missing",
+    "candidate_0_emperor_missing", "candidate_0_herb_1_emperor_not_primary",
+    "candidate_0_herbs_empty", "candidate_0_herb_6_dose", "herb_3_dose"]) {
+    assert.ok(!isWaivableM04TherapyCoverageCode(code), `${code} 属安全/结构类，复验不得放行`);
+    assert.equal(m04TherapyIssueQualityAnnotation(code), undefined, `${code} 不得有批注文案`);
+  }
+  // 覆盖率三码：两侧都必须放行，且必须是**全部**——从源码扫 isWaivable 的正则，防止有人偷偷加码。
+  const { readFileSync: readSource } = await import("node:fs");
+  const waivableRegexSource = readSource("src/lib/diagnosis-stage-contract.ts", "utf8")
+    .match(/export function isWaivableM04TherapyCoverageCode[\s\S]*?\n}/)?.[0] || "";
+  assert.ok(
+    /coverage\|herb_support\|herb_knowledge_missing/.test(waivableRegexSource),
+    "isWaivableM04TherapyCoverageCode 的可豁免码集合被改动了——这是 fail-closed 边界，改动需要单独论证",
+  );
+  assert.ok(
+    !/m04TherapyIssueQualityAnnotation/.test(waivableRegexSource),
+    "isWaivableM04TherapyCoverageCode 又被改成「问 policy 要批注」——那是已被实测拦下的 fail-open 回归",
+  );
+  for (const code of ["transparent_therapy_coverage", "candidate_0_transparent_therapy_herb_support",
+    "transparent_therapy_herb_knowledge_missing"]) {
+    assert.ok(isWaivableM04TherapyCoverageCode(code), `${code} 是词表覆盖率码，复验必须放行`);
+    assert.ok(m04TherapyIssueQualityAnnotation(code) !== undefined, `${code} 必须有批注文案`);
   }
   for (const [issueCode, ok] of [
     ["tcm_reasoning_unsupported", true],
