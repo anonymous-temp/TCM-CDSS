@@ -565,7 +565,12 @@ console.log(JSON.stringify({
   const { m04TherapyIssueQualityAnnotation, m03FinalReviewQualityAnnotation, canAcceptTransparentFormulaFallback } =
     await import("../src/lib/m04-repair-policy.ts");
   const { isWaivableM04TherapyCoverageCode } = await import("../src/lib/diagnosis-stage-contract.ts");
-  for (const code of ["transparent_therapy_coverage", "transparent_therapy_herb_support"]) {
+  // herb_knowledge_missing 与上面两条同性质：判据是「本系统药味功效词表有没有收载」，
+  // 不是「这味药有没有害」。线上实测（2026-08-07，50 例验收）透明降级块进去 15 次全被拒，
+  // 3 次死在这个码上——同一张方去掉那味未收载的药就能受理，差别只在词表覆盖率，
+  // 而该方逐味剂量/配伍/特殊人群/高影响方向此前都已单独通过。
+  for (const code of ["transparent_therapy_coverage", "transparent_therapy_herb_support",
+    "transparent_therapy_herb_knowledge_missing"]) {
     const annotation = m04TherapyIssueQualityAnnotation(code);
     assert.ok(annotation && /已通过安全核验/.test(annotation),
       `${code} 应带批注受理且写明哪些安全层已通过：${annotation}`);
@@ -575,9 +580,27 @@ console.log(JSON.stringify({
       completedRepairAttempts: 1, requestAborted: false, therapyIssue: code,
     }), `修复耗尽后 ${code} 不得再阻断透明降级`);
   }
-  for (const code of ["transparent_therapy_contract_missing", "transparent_therapy_unresolved"]) {
+  // 边界另一侧：结构缺失无从标注，剂量类是真安全事实——两者都必须维持阻断。
+  // 放宽词表覆盖率的同时必须把这条边界一起钉住，否则下一次「顺手统一」会把剂量也放进来。
+  for (const code of ["transparent_therapy_contract_missing", "transparent_therapy_unresolved",
+    "transparent_therapy_herbs_missing", "candidate_0_herb_6_dose", "herb_3_dose"]) {
     assert.equal(m04TherapyIssueQualityAnnotation(code), undefined, `${code} 不得被豁免`);
     assert.ok(!isWaivableM04TherapyCoverageCode(code), `${code} 不得被识别为可豁免`);
+    assert.ok(!canAcceptTransparentFormulaFallback({
+      completedRepairAttempts: 1, requestAborted: false, therapyIssue: code,
+    }), `${code} 属安全/结构类，修复耗尽后仍必须阻断透明降级`);
+  }
+  // 两处判据必须同集：policy 侧决定「放行时写什么批注」，contract 侧决定「复验放不放行」。
+  // 漏一处的后果不是「没批注」而是**整方作废**——降级块拿到 reasoningValidated=false 直接判死。
+  for (const code of ["transparent_therapy_coverage", "transparent_therapy_herb_support",
+    "transparent_therapy_herb_knowledge_missing", "transparent_therapy_contract_missing",
+    "transparent_therapy_unresolved", "transparent_therapy_herbs_missing"]) {
+    assert.equal(
+      isWaivableM04TherapyCoverageCode(code),
+      m04TherapyIssueQualityAnnotation(code) !== undefined,
+      `${code} 在 diagnosis-stage-contract 与 m04-repair-policy 两处判据不同集——` +
+        "一处放行一处不放行，结果是降级块复验失败、整方作废",
+    );
   }
   for (const [issueCode, ok] of [
     ["tcm_reasoning_unsupported", true],

@@ -28,8 +28,25 @@ for (const f of files) {
   rows.forEach((r, i) => pool.push({ ...r, _src: f.split("/").pop(), _i: i }));
 }
 const step = Math.max(1, Math.floor(pool.length / LIMIT));
-const cases = pool.filter((_, i) => i % step === 0).slice(0, LIMIT);
-console.log(`语料 ${pool.length} 例,均匀抽样 ${cases.length} 例`);
+const sampled = pool.filter((_, i) => i % step === 0).slice(0, LIMIT);
+
+// 断点续跑。整轮 50 例要跑 40–70 分钟，比多数执行环境的会话/超时窗口都长；实测三次
+// 长跑都在中途被环境回收，脚本每 5 例落一次盘也救不回来——重来一次又是一小时。
+// RESUME=1 时读取已有 OUT，跳过其中已完成的编号，只补剩下的；CHUNK 限定本次最多跑几例，
+// 于是可以用若干个短窗口拼出一整轮，且抽样口径与一次性跑完**完全一致**（同一批编号）。
+const RESUME = process.env.RESUME === "1";
+const CHUNK = Number(process.env.CHUNK || 0);
+const results = [];
+if (RESUME && fs.existsSync(OUT)) {
+  try {
+    const prior = JSON.parse(fs.readFileSync(OUT, "utf8"));
+    if (Array.isArray(prior)) results.push(...prior);
+  } catch { /* 落盘半截的 JSON 直接当没有，重跑整轮 */ }
+}
+const done = new Set(results.map((r) => r.编号));
+const pending = sampled.filter((item) => !done.has(item.no ?? item._i));
+const cases = CHUNK > 0 ? pending.slice(0, CHUNK) : pending;
+console.log(`语料 ${pool.length} 例,均匀抽样 ${sampled.length} 例;已完成 ${done.size},本次跑 ${cases.length}`);
 
 async function call(path, body) {
   try {
@@ -53,8 +70,7 @@ async function call(path, body) {
 }
 
 const INTERNAL_TAG = /(?:^|[\s（(【|])L[0-4](?:$|[\s）)】|，,。；;])/;
-const results = [];
-let n = 0;
+let n = results.length;
 
 for (const c of cases) {
   n += 1;

@@ -3402,9 +3402,19 @@ function followUpConsistent(course: string, followUpNode: string): boolean {
  * 调用方可对这一族按「带批注受理」处理（m04TherapyIssueQualityAnnotation 出批注文案）；
  * transparent_therapy_contract_missing / unresolved 不在此列。
  */
+/**
+ * 修复耗尽后可带批注放行的**治法覆盖率**码。判据一律是「本系统词表能不能自动核验」，
+ * 不是「这味药有没有害」——剂量、配伍、特殊人群、方向对立都是独立判定，任何时候不在此列。
+ *
+ * 必须与 m04-repair-policy.ts 的 m04TherapyIssueQualityAnnotation 保持同集：
+ * 前者决定复验时放不放行，后者决定放行时给医生写什么批注。两处漏一处的后果不是「没批注」，
+ * 而是**整方作废**——降级块拿到 reasoningValidated=false 就直接判死，医生看到空白处方页。
+ * 线上实测（2026-08-07，50 例验收）：herb_knowledge_missing 已在 policy 侧可批注、却没进这个
+ * 集合，透明降级块进去 15 次全被拒，其中 3 次正是死在这里。test:m04-safety-contract 钉住同集。
+ */
 export function isWaivableM04TherapyCoverageCode(code: string | undefined): boolean {
   return typeof code === "string" &&
-    /^(?:candidate_\d+_)?transparent_therapy_(?:coverage|herb_support)$/.test(code);
+    /^(?:candidate_\d+_)?transparent_therapy_(?:coverage|herb_support|herb_knowledge_missing)$/.test(code);
 }
 
 export function m04SemanticIssue(
