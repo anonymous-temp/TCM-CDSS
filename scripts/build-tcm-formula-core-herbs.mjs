@@ -42,14 +42,12 @@ const jiti = createJiti(import.meta.url, {
     "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
   },
 });
-const { compositionIdentityName } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
+const { compositionIdentityName, isCoreSafetyHerbName } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const identityName = (raw) => compositionIdentityName(String(raw || ""));
 
-// 与 src/lib/tcm-formula-provenance.ts 的 CORE_SAFETY_HERBS 同源；不一致由
-// test:formula-core-herbs 断言拦住。
-const CORE_SAFETY_HERBS = [
-  "附子", "乌头", "川乌", "草乌", "半夏", "天南星", "麻黄", "细辛", "大黄", "巴豆", "朱砂", "雄黄", "马钱子",
-];
+// 安全定性药判据**直接用运行时那一个**，不再在这里抄一份名单。
+// 抄名单的代价已经实测到：运行时那份是 13 个基原名的精确 Set，姜半夏/法半夏/制川乌/蜜麻黄
+// 这些药典正式饮片规格全部漏判，58 张方在缺这味药时兜底层仍冠原方名。
 
 const catalog = JSON.parse(readFileSync(CATALOG_PATH, "utf8"));
 const rows = catalog.entries.filter((entry) => entry.identityLockEligible && Array.isArray(entry.ingredients));
@@ -94,7 +92,6 @@ function collapsesWithout(item, herb) {
   return "";
 }
 
-const safety = new Set(CORE_SAFETY_HERBS.map(identityName));
 const out = {};
 let coreTotal = 0;
 let optionalTotal = 0;
@@ -106,7 +103,7 @@ for (const item of compositions) {
     const herb = identityName(raw);
     if (!herb) continue;
     if (herb.length >= 2 && item.name.includes(herb)) { core.add(herb); reasons[herb] = "name_bearing"; continue; }
-    if (safety.has(herb)) { core.add(herb); reasons[herb] = "safety_defining"; continue; }
+    if (isCoreSafetyHerbName(herb)) { core.add(herb); reasons[herb] = "safety_defining"; continue; }
   }
   if (item.size >= 4) {
     for (const herb of item.set) {

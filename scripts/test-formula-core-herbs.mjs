@@ -18,7 +18,7 @@ import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
-const { identifyGovernedFormulaByComposition, compositionIdentityName } =
+const { identifyGovernedFormulaByComposition, compositionIdentityName, isCoreSafetyHerbName } =
   await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const coreHerbs = (await import("../src/data/tcm-formula-core-herbs.json", { with: { type: "json" } })).default;
 const catalog = (await import("../src/data/tcm-formula-governed-catalog.json", { with: { type: "json" } })).default;
@@ -58,16 +58,33 @@ check("FCH-01 生成物覆盖全部可锁定条目，且核心+可减 == 组成�
   }
 });
 
-check("FCH-02 生成器与运行时的安全定性药名单必须同源", () => {
-  // 两处各写一份是刻意的（生成器不 import 运行时的数据依赖），但不一致会让核心药判定分叉。
-  const runtime = readFileSync("src/lib/tcm-formula-provenance.ts", "utf8");
+check("FCH-02 生成器不得再抄一份安全定性药名单", () => {
+  // 原来两处各写一份（本断言只逐字比对名单文本），实测代价：运行时那份是 13 个基原名的
+  // **精确 Set**，姜半夏/法半夏/制川乌/制天南星/蜜麻黄这些药典正式饮片规格全部漏判——
+  // 名单一字不差，判据却分叉。逐字比名单挡不住这一类，只有共用同一个**谓词**才行。
   const generator = readFileSync("scripts/build-tcm-formula-core-herbs.mjs", "utf8");
-  const listOf = (source) => {
-    const match = /CORE_SAFETY_HERBS = (?:new Set\()?\[([\s\S]*?)\]/.exec(source);
-    assert.ok(match, "找不到 CORE_SAFETY_HERBS 定义");
-    return [...match[1].matchAll(/"([^"]+)"/g)].map((item) => item[1]).sort();
-  };
-  assert.deepEqual(listOf(generator), listOf(runtime), "生成器与运行时的安全定性药名单已分叉");
+  assert.ok(
+    !/const CORE_SAFETY_HERBS\s*=/.test(generator),
+    "生成器又抄了一份安全定性药名单——请改用运行时导出的 isCoreSafetyHerbName",
+  );
+  assert.ok(
+    /isCoreSafetyHerbName/.test(generator),
+    "生成器没有使用运行时的安全定性药谓词",
+  );
+});
+
+check("FCH-02b 安全定性药按基原判，炮制/规格写法不得逃逸", () => {
+  // 药典 2020 一部收 半夏/法半夏/姜半夏/清半夏 四个条目，蜜麻黄是麻黄项下蜜炙法规格，
+  // 临床按这些名字开方是规范写法，不是边角输入。
+  for (const name of ["蜜麻黄", "炙麻黄", "姜半夏", "法半夏", "清半夏", "半夏曲",
+    "制川乌", "制草乌", "制天南星", "胆南星", "淡附子", "黑附子", "炮附片", "巴豆霜",
+    "熟大黄", "大黄炭", "制马钱子", "雄黄粉"]) {
+    assert.ok(isCoreSafetyHerbName(name), `${name} 未被识别为安全定性药——缺它时兜底层会照旧冠原方名`);
+  }
+  // 形近非同物必须排除：白附子是天南星科独角莲块茎（禹白附），麻黄根药典单列、功效止汗与麻黄相反。
+  for (const name of ["白附子", "麻黄根", "甘草", "桂枝", "茯苓", "天花粉"]) {
+    assert.ok(!isCoreSafetyHerbName(name), `${name} 被误判为安全定性药`);
+  }
 });
 
 check("FCH-03 塌陷判据算出的核心药与临床一致", () => {

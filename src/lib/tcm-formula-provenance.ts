@@ -329,6 +329,70 @@ const CORE_SAFETY_HERBS = new Set([
   "附子", "乌头", "川乌", "草乌", "半夏", "天南星", "麻黄", "细辛", "大黄", "巴豆", "朱砂", "雄黄", "马钱子",
 ]);
 
+/**
+ * 安全定性药味的**炮制/规格写法**。这批名字是药典正式收载的饮片规格，不是边角输入：
+ * 药典 2020 一部收 半夏 / 法半夏 / 姜半夏 / 清半夏 四个条目，蜜麻黄是麻黄项下蜜炙法饮片规格。
+ * 临床与目录里都按这些名字写方。
+ *
+ * 原实现拿 13 个基原名做**精确匹配**，于是这一整批全部漏判。实测后果不是「少标一个」：
+ *   identify(["蜜麻黄","桂枝","苦杏仁","炙甘草","生姜","大枣"]) → 「桂枝去芍药汤加味」
+ * 一张**无汗表实**的组成被冠上**有汗表虚**的方名。写「炙麻黄」时正常出「麻黄汤」——
+ * 差别只在饮片写法。formula-discrimination-guard 专门钉死的正是这一对，
+ * 而它钉的是「麻黄」这个写法，换成药典饮片名就绕过去了。
+ * 全目录扫描：64 对（方, 炮制毒性药）/ 58 张方在缺该药时兜底层仍冠原方名。
+ */
+const CORE_SAFETY_HERB_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|盐炒|酒炒|醋炒|姜炒|姜制|酒制|醋制|盐制|炮制|蜜|炙|炒|制|法|姜|清|仙|淡|黑|煨|煅|焦|熟|生|明|漂|胆|炮)+/;
+const CORE_SAFETY_HERB_PROCESSING_SUFFIX = /(?:炭|霜|曲|尖|仁|肉|粉|末|片|头)+$/;
+/** 别名：剥完前后缀仍对不上基原名的少数写法。 */
+const CORE_SAFETY_HERB_BASE_ALIASES: Readonly<Record<string, string>> = {
+  南星: "天南星", 附: "附子", 乌头尖: "乌头", 草乌头: "草乌", 川乌头: "川乌",
+};
+/**
+ * **形近而非同物**，必须留在集合之外：
+ *  · 白附子 —— 天南星科独角莲块茎（禹白附），与毛茛科乌头子根加工品的附子不是一物；
+ *  · 麻黄根 —— 药典单列条目，功效止汗，与麻黄发汗**相反**。
+ * 这两条错判的方向是「把普通药当成安全定性药」，代价是误降一批方的兜底命名，
+ * 不是安全风险；但错就是错，显式排除并写明依据。
+ */
+const CORE_SAFETY_HERB_NON_MEMBERS = new Set(["白附子", "麻黄根", "附子理中丸"]);
+
+function coreSafetyHerbBaseIdentity(value: string): string {
+  let base = normalizeHerbName(rawHerbIdentityName(value));
+  if (!base) return "";
+  // 先走受治理别名表：附片/黑顺片/炮附片→附子、酒大黄→大黄 是这条路解决的，不是剥前缀。
+  const governed = resolveGovernedTcmHerbIdentity(base);
+  const canonical = governed.canonicalName || governed.doseCanonicalName;
+  if (canonical) base = normalizeHerbName(canonical);
+  if (CORE_SAFETY_HERBS.has(base)) return base;
+  // 剥到不动点：制天南星→天南星、蜜麻黄→麻黄、巴豆霜→巴豆、半夏曲→半夏、胆南星→南星→天南星。
+  for (let guard = 0; guard < 4; guard += 1) {
+    const stripped = base
+      .replace(CORE_SAFETY_HERB_PROCESSING_PREFIX, "")
+      .replace(CORE_SAFETY_HERB_PROCESSING_SUFFIX, "")
+      .trim();
+    const aliased = CORE_SAFETY_HERB_BASE_ALIASES[stripped] || stripped;
+    if (!aliased || aliased === base) break;
+    base = aliased;
+    if (CORE_SAFETY_HERBS.has(base)) return base;
+  }
+  return base;
+}
+
+/**
+ * 该药名是否属安全定性药味（按基原判，不按饮片写法判）。
+ *
+ * **当谓词用，不要用它改写 core 集合的成员**：运行时判据是
+ * `[...core].some(name => !actualSet.has(name))`，core 名与处方 identity 名同域比较。
+ * 若把基原名「半夏」写进 core，凡目录录「姜半夏/法半夏」的方在该药**存在时**也永远匹配不上，
+ * 等于静默废掉约 100 张方的兜底层。
+ */
+export function isCoreSafetyHerbName(value: unknown): boolean {
+  const raw = normalizeHerbName(rawHerbIdentityName(String(value ?? "")));
+  if (!raw || CORE_SAFETY_HERB_NON_MEMBERS.has(raw)) return false;
+  if (CORE_SAFETY_HERBS.has(raw)) return true;
+  return CORE_SAFETY_HERBS.has(coreSafetyHerbBaseIdentity(raw));
+}
+
 function requiredFormulaAnchors(formulaName: string, variant: FormulaVariant, ingredients: string[]): string[] {
   const configured = (variant.requiredIngredients || []).map(normalizeHerbName).filter(Boolean);
   if (configured.length > 0) return configured;
@@ -347,7 +411,7 @@ function requiredFormulaAnchors(formulaName: string, variant: FormulaVariant, in
       identity.length >= 2 && normalizedFormulaName.includes(identity)
     )),
   ])];
-  const safetyCritical = ingredients.filter((ingredient) => CORE_SAFETY_HERBS.has(ingredient));
+  const safetyCritical = ingredients.filter((ingredient) => isCoreSafetyHerbName(ingredient));
   return [...new Set([...named, ...safetyCritical, ingredients[0]].filter(Boolean))];
 }
 
@@ -519,6 +583,8 @@ export type CompositionIdentifiedFormula = {
   displayName: string;
   /** 该方的受控基准组成（身份归一后）。仅供候选排序判定「组成孪生」，不对外表达语义。 */
   baselineComposition: string[];
+  /** 归一**之前**与处方逐字相同的味数。仅供孪生条目定序，不参与任何临床判定。 */
+  literalMatchCount: number;
 };
 
 const compositionIdentityCache = new Map<string, string>();
@@ -547,22 +613,48 @@ export function compositionIdentityName(value: string): string {
   const canonical = normalizeHerbName(
     resolution.doseCanonicalName || resolution.canonicalName || normalized,
   );
+  // 前缀集合刻意宽于 PROCESSING_IDENTITY_ALIASES：那张表是「保留炮制身份」用的，
+  // 这里是「判定是不是同一味药」用的，两者的正确宽度不同。
+  //
+  // 只剥前者时，药典正式收载的饮片规格整批对不上：法半夏/姜半夏/清半夏（药典各自成条目）、
+  // 蜜麻黄（麻黄项下蜜炙法规格）、制川乌/制草乌/制天南星/淡附子/黑附子。
+  // 实测代价不是「少认一张方」：
+  //   〔蜜麻黄、桂枝、甘草、杏仁、生姜、大枣〕→「桂枝去芍药汤加味」
+  // 一张**无汗表实**的组成被冠上**有汗表虚**的方名，而写「麻黄」时正确出「麻黄汤加味」。
+  // formula-discrimination-guard 双向互斥钉的就是这一对，它钉的是「麻黄」这个写法。
   const processingPrefixes = [...new Set([
     ...Object.keys(PROCESSING_IDENTITY_ALIASES),
     ...Object.values(PROCESSING_IDENTITY_ALIASES),
+    "蜜炙", "麸炒", "土炒", "盐炒", "酒炒", "醋炒", "姜炒",
+    "蜜", "法", "清", "仙", "淡", "黑", "煨", "煅", "焦", "熟", "明", "漂", "胆", "炮", "制", "姜", "生",
   ])].sort((left, right) => right.length - left.length);
+  // 后缀同理：巴豆霜→巴豆、半夏曲→半夏、大黄炭→大黄。
+  const processingSuffixes = ["炭", "霜", "曲"];
+  /** 剥出来的名字必须是**受治理正名**才采纳——否则「天花粉」会被剥成不存在的「天花」。 */
+  const acceptStripped = (candidateName: string): string | undefined => {
+    if (!candidateName || candidateName.length < 2) return undefined;
+    const governed = resolveGovernedTcmHerbIdentity(candidateName).canonicalName;
+    return governed ? normalizeHerbName(governed) : undefined;
+  };
   let base = canonical;
-  for (const prefix of processingPrefixes) {
-    if (base.startsWith(prefix) && base.length > prefix.length + 1) {
-      base = base.slice(prefix.length);
-      break;
+  for (let guard = 0; guard < 3; guard += 1) {
+    let next: string | undefined;
+    for (const prefix of processingPrefixes) {
+      if (!base.startsWith(prefix) || base.length <= prefix.length + 1) continue;
+      next = acceptStripped(base.slice(prefix.length));
+      if (next) break;
     }
+    if (!next) {
+      for (const suffix of processingSuffixes) {
+        if (!base.endsWith(suffix) || base.length <= suffix.length + 1) continue;
+        next = acceptStripped(base.slice(0, base.length - suffix.length));
+        if (next) break;
+      }
+    }
+    if (!next || next === base) break;
+    base = next;
   }
-  // 剥完再解析一次：「炙甘草」剥成「甘草」后仍要确认它是受治理正名，避免剥出一个不存在的名字。
-  const rebased = normalizeHerbName(
-    resolveGovernedTcmHerbIdentity(base).canonicalName || base,
-  );
-  const result = rebased || canonical;
+  const result = base || canonical;
   compositionIdentityCache.set(normalized, result);
   return result;
 }
@@ -582,10 +674,17 @@ function compositionCandidateOutranks(
   incumbent: CompositionIdentifiedFormula,
 ): boolean {
   const safetyExtras = (item: CompositionIdentifiedFormula) =>
-    item.extraIngredients.filter((name) => CORE_SAFETY_HERBS.has(name)).length;
+    item.extraIngredients.filter((name) => isCoreSafetyHerbName(name)).length;
   const candidateSafety = safetyExtras(candidate);
   const incumbentSafety = safetyExtras(incumbent);
   if (candidateSafety !== incumbentSafety) return candidateSafety < incumbentSafety;
+  // 组成孪生的定序：谁的药名与处方**逐字相同**得更多谁优先。
+  // 处方写「法半夏」时 `法半夏厚朴汤` 应胜过 `半夏厚朴汤`；两者都对不上（写「蜜麻黄」）时
+  // 本项相等，退回归一后的判据。放在安全定性药之后、缺增味数之前：
+  // 它只在「安全性一样」的候选之间起作用，不会把带安全增味的候选顶上来。
+  if (candidate.literalMatchCount !== incumbent.literalMatchCount) {
+    return candidate.literalMatchCount > incumbent.literalMatchCount;
+  }
   // 缺得少的优先。同层内（两者都来自兜底层）这一项才会真正起作用。
   if (candidate.missingIngredients.length !== incumbent.missingIngredients.length) {
     return candidate.missingIngredients.length < incumbent.missingIngredients.length;
@@ -632,7 +731,8 @@ function compositionCoreIdentityNames(row: GovernedFormulaCompilationRow): Set<s
     const nameBearing = equivalentHerbIdentityNames(raw).some((alias) =>
       alias.length >= 2 && normalizedFormulaName.includes(alias)
     );
-    if (nameBearing || CORE_SAFETY_HERBS.has(identity)) core.add(identity);
+    // 谓词按基原判，加进 core 的仍是目录 identity（姜半夏），两者不可互换——见 isCoreSafetyHerbName。
+    if (nameBearing || isCoreSafetyHerbName(identity)) core.add(identity);
   }
   return core;
 }
@@ -704,9 +804,20 @@ export function identifyGovernedFormulaByComposition(
   //   现判据    加减方识别 94 张（3.7%）
   //   分层兜底  加减方识别 1778 张（69%），真误判 21 张（0.8%），且原方识别 0 变化
   // 放到「缺≤2 且 ≤25%」召回只多 12%，误判却翻三倍（67 张），故取「缺≤1 且 ≤20%」。
+  // 归一（剥炮制前后缀）之前的原样药名集合。用途只有一个：**同组成孪生条目的定序**。
+  // 目录里存在大量逐味相同、只差方名的条目（丁香柿蒂汤/散、八珍汤/散、半夏厚朴汤/法半夏厚朴汤），
+  // 归一让更多条目变成「组成相同」，孪生碰撞随之增多，此时按字典序挑等于掷骰子。
+  // 「谁的药名与处方逐字相同得更多」是本函数手上唯一还剩的信息，也确实是对的信息：
+  // 处方写「法半夏」时 `法半夏厚朴汤` 比 `半夏厚朴汤` 更贴，写「蜜麻黄」时两者都不贴、
+  // 才该退回归一后的匹配（麻黄汤）。
+  const rawActualSet = new Set(
+    herbs.map((herb) => formulaHerbIdentityName(herb)).filter(Boolean).map(normalizeHerbName).filter(Boolean),
+  );
   const exact: CompositionIdentifiedFormula[] = [];
   const relaxed: CompositionIdentifiedFormula[] = [];
   for (const row of governedFormulaCompilationRows) {
+    const rawIngredients = compilationIngredients(row).map(normalizeHerbName).filter(Boolean);
+    const literalMatchCount = rawIngredients.filter((name) => rawActualSet.has(name)).length;
     const ingredients = [...new Set(compilationIngredients(row).map(compositionIdentityName).filter(Boolean))];
     if (ingredients.length < 3) continue;
     const matched = ingredients.filter((name) => actualSet.has(name));
@@ -727,6 +838,7 @@ export function identifyGovernedFormulaByComposition(
         modificationKind: extras.length === 0 ? "canonical" as const : "加味" as const,
         displayName: extras.length === 0 ? row.name : `${row.name}加味`,
         baselineComposition: ingredients,
+        literalMatchCount,
       });
       continue;
     }
@@ -747,6 +859,7 @@ export function identifyGovernedFormulaByComposition(
       modificationKind: "加减" as const,
       displayName: `${row.name}加减`,
       baselineComposition: ingredients,
+      literalMatchCount,
     });
   }
 
