@@ -141,27 +141,23 @@ M01 病历采集 ──▶ M02 追问生成 ──▶ M03 辨病辨证 ──▶
 
 ### 3.3.2 流派选择 `tcmLineagePreference`
 
-影响 M02 追问策略、M03 辨证重点、M04 组方风格、M05 随访口径四个阶段。不传等价于 `unrestricted`。
+影响 M02 追问侧重、M03 辨证视角、M04 组方风格、M05 随访口径。不传等价于 `unrestricted`。
 
 **流派偏好不改变任何安全判定**：剂量上限、十八反十九畏、特殊人群禁忌、红旗处置一律不因流派放宽。
+它只影响"从哪个角度想"，不影响"什么不能做"。
 
-| code | 可读名 | 分组 | 也可直接传的中文别名 |
+| 取值 | 中文名 | 侧重 | 代表方 |
 |---|---|---|---|
-| `unrestricted` | 不限定：循证安全优先 | 默认 | 不限定、循证安全优先 |
-| `classical-formula` | 经方思路 | 经典辨治 | 经方、经典方证、经典方证对应 |
-| `empirical-formula` | 时方/验方思路 | 经典辨治 | 时方、验方、临床经验方 |
-| `warm-disease` | 温病思路 | 经典辨治 | 温病、卫气营血、三焦辨证 |
-| `spleen-stomach` | 脾胃学派 | 学术流派 | 脾胃、补土、中焦、东垣 |
-| `nourish-yin-danxi` | 滋阴/丹溪思路 | 学术流派 | 滋阴、丹溪、朱丹溪、相火、阴虚 |
-| `warm-tonify-yang` | 温补/扶阳思路 | 学术流派 | 温补、扶阳、温阳、火神 |
-| `gongxie` | 攻邪思路 | 学术流派 | 攻邪、攻下、祛邪、急则治标 |
-| `hanliang` | 寒凉思路 | 学术流派 | 寒凉、清热、清热解毒、清热凉血 |
-| `menghe` | 孟河医派 | 地域流派 | 孟河、轻灵平正 |
-| `lingnan` | 岭南医派 | 地域流派 | 岭南、湿热、暑湿 |
-| `haipai` | 海派中医 | 地域流派 | 海派、中西参证 |
-| `institution-first` | 院内方案优先 | 机构 | 院内、院内方案、本院常用方案 |
+| `unrestricted` | 不限定 | 默认档，循证与安全优先，不预设流派视角 | — |
+| `classical-formula` | 经方思路 | 六经辨证、方证对应，组方精简 | 桂枝汤、小柴胡汤、半夏泻心汤、苓桂术甘汤 |
+| `empirical-formula` | 时方/验方思路 | 脏腑辨证为主，门诊常用时方 | 归脾汤、逍遥散、温胆汤、天麻钩藤饮 |
+| `warm-disease` | 温病思路 | 卫气营血 / 三焦辨证，外感热病 | 银翘散、桑菊饮、白虎汤、三仁汤 |
+| `spleen-stomach` | 脾胃学派 | 从中焦论治，重升降与后天之本 | 补中益气汤、参苓白术散、香砂六君子汤、平胃散 |
 
-出参侧回显在 `reasoningPrescribe.lineageAdaptation`（`lineageCode`/`label`/`applicable`/`applicabilityReason`/`influencedDecisions`/`unaffectedBySafety`/`safetyDeference`），以及 HIS 方案导出中。
+也可直接传中文：`经方`、`时方`、`验方`、`温病`、`卫气营血`、`脾胃`、`补土`、`中焦` 等常见说法均可识别。
+无法识别的取值按 `unrestricted` 处理，**不报错、也不猜**。
+
+出参侧回显在 `lineageAdaptation`（流派代码、适用性判断、影响了哪些决策、哪些安全项不受影响）。
 
 ### 3.3.3 饮片味数偏好 `herbCountPreference`
 

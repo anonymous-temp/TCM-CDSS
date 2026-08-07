@@ -110,6 +110,33 @@ export interface LineageQuestionStrategy {
   templates: LineageQuestionTemplate[];
 }
 
+/**
+ * **对外支持的流派集**（产品决定，2026-08-07）。
+ *
+ * 卡片表里定义了 13 个流派，但对外只支持这 5 个：门诊高频 4 个 + 默认档。
+ * 依据不是流派史地位，而是门诊实际使用频度与我方代表方在受控目录里的可锁定性——
+ * 实测 13 张卡的代表方各 4 首、10 张 100% 可锁定，**数据层面区分不出高下**，
+ * 因此这是产品选择而非数据结论，不要拿"知识库支持度"来倒推该支持谁。
+ *
+ * 其余 8 个（孟河/岭南/海派/滋阴丹溪/温补扶阳/攻邪/寒凉/院内优先）**仍可解析、仍会生效**，
+ * 只是不写进对外接口文档、不作为承诺能力——保持向后兼容，同时避免对外承诺我们没深做的东西。
+ * 接口文档里的流派表必须与本常量同集，由 test:herb-count-preference 钉住。
+ */
+export const PUBLISHED_LINEAGE_CODES = [
+  "unrestricted",        // 默认档：不限定，循证安全优先
+  "classical-formula",   // 经方思路
+  "empirical-formula",   // 时方/验方思路
+  "warm-disease",        // 温病思路
+  "spleen-stomach",      // 脾胃学派
+] as const;
+
+/** 对外支持的流派卡片，顺序与 PUBLISHED_LINEAGE_CODES 一致。 */
+export function publishedLineageCards(): LineageCard[] {
+  return PUBLISHED_LINEAGE_CODES
+    .map((code) => LINEAGE_CARDS.find((card) => card.code === code))
+    .filter((card): card is LineageCard => Boolean(card));
+}
+
 export const LINEAGE_CARDS: readonly LineageCard[] = [
   {
     code: "unrestricted",
