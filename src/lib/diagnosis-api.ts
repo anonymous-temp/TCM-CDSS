@@ -3686,8 +3686,18 @@ async function callPrimaryTextModelStream(
           // 放开的只是**入口**：块内会用剥离身份后的内容重跑严格合同，并对降级候选**重新执行**
           // 独立复核，按意见性质分流（组成/君臣/患者前提 → 带批注受理；剂量强度与未知码 →
           // 维持作废）。因此这不是绕过复核，而是让复核对正确的对象再判一次。
+          // 入口门原先只认三个「耗尽标志」，唯独不认**已经完成过修复轮**这件事本身——
+          // 而块内的受理判据 canAcceptTransparentFormulaFallback 第一个条件恰恰就是
+          // `completedRepairAttempts >= 1`。两处判据对同一个前提各写各的，于是出现一道缝：
+          // 修复轮真的跑过 1~2 轮、候选逐味剂量/配伍/君臣/病机引用全通过，只因为最后一次复核
+          // 仍判 repair 且三个标志一个都没置上，就连降级资格都拿不到。
+          // 线上实测（2026-08-07，50 例验收）：10 例 final_contract_rejected 里 5 例正是
+          // reviewStatus='repair' + retryCount 1~2 + 无任何标志，日志里连一行 transparent
+          // fallback 都没有——医生看到的是空白处方页。
+          // 补的是同一个前提的第四种到达方式，不放宽块内任何一道检查（身份剥离后仍要重跑严格
+          // 合同自证，独立复核照常重新执行并按意见性质分流）。
           (m04ClinicalReviewStatus !== "repair" || m04RepairLoopEarlyExit || m04DeadlineExceeded ||
-            m04Retry.repairExhaustedOnEntry) &&
+            m04Retry.repairExhaustedOnEntry || m04RepairState.completedAttempts >= 1) &&
           finishReason === "stop" &&
           opts.structuredStage === "prescribe" &&
           opts.structuredPriorReasoning

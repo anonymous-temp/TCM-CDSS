@@ -364,4 +364,31 @@ for (const guard of ["submittedDifferentials.length > 0 && displayableDifferenti
   );
 }
 
-console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 5, failures: 0 }, null, 2));
+// 5) 「同一个前提，两处判据各写各的」——降级块的**入口门**与**受理判据**必须认同一组到达方式。
+//    m04-repair-policy.ts 的 canAcceptTransparentFormulaFallback 第一个条件是
+//    `completedRepairAttempts >= 1 || repairExhausted`，而 diagnosis-api.ts 的入口门原先只认
+//    三个耗尽标志、不认 completedAttempts。缝隙的代价是空白处方页：修复轮真的跑过 1~2 轮、
+//    候选逐味剂量/配伍/君臣/病机引用全通过，只因最后一次复核仍判 repair 且三个标志都没置上，
+//    连降级资格都拿不到。线上实测（2026-08-07，50 例验收）10 例 final_contract_rejected 中
+//    5 例是这个形状，日志里连一行 transparent fallback 都没有。
+{
+  const apiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
+  const policySource = readFileSync("src/lib/m04-repair-policy.ts", "utf8");
+
+  // 用块内那句独有的注释锚定，避免与上方另一处 structuredSentinelIncomplete 判断混淆。
+  const gateAnchor = apiSource.indexOf("放开的只是**入口**");
+  assert.ok(gateAnchor > 0, "未定位到透明降级块的入口门（锚定注释已被改写，请同步本断言）");
+  const gate = apiSource.slice(gateAnchor, apiSource.indexOf("opts.structuredPriorReasoning", gateAnchor));
+  assert.ok(gate.length > 0, "未定位到透明降级块的入口门");
+  assert.ok(
+    /m04RepairState\.completedAttempts >= 1/.test(gate),
+    "降级入口门不认「已完成过修复轮」，而受理判据认——同一前提两处判据分叉，" +
+      "已跑过修复的候选会连降级资格都拿不到，终点是空白处方页",
+  );
+  assert.ok(
+    /completedRepairAttempts >= 1/.test(policySource),
+    "受理判据不再认 completedRepairAttempts，入口门与它的对称性断言失去意义，请一并复核",
+  );
+}
+
+console.log(JSON.stringify({ suite: "guard-symmetry", asymmetriesLocked: 6, failures: 0 }, null, 2));
