@@ -167,9 +167,15 @@ export async function POST(req: Request) {
     safeState.patient.sex ? `患者性别：${safeState.patient.sex}` : "",
     safeState.patient.age != null ? `患者年龄：${safeState.patient.age}岁` : "",
   ].filter(Boolean).join("\n");
+  // 口语否定增补：**必须传 req.signal**。此前漏传，医生中断请求后它仍会空转满 6s
+  // 才自己超时——diagnose 路由（:83）一直是传的，两条路径写法不同源。
+  //
+  // 并行结构与 diagnose 对齐：assistedNegations 只被 buildLocalPatentMedicineContext 消费，
+  // 而 EviMed 那条慢腿不依赖它。原写法把两者串成一条 then 链，等于让 EviMed 白等 6s。
+  const assistedNegationsPromise = assistedNegationClauses(safeState, req.signal);
   const [medicinePlan, baseEvidenceContext, inventoryContext] = await Promise.all([
     planEvidenceBoundMedicineCandidates(safeState, req.signal),
-    assistedNegationClauses(safeState).then((assistedNegations) =>
+    assistedNegationsPromise.then((assistedNegations) =>
       buildCdssEvidenceContext(safeState, "prescribe", assistedNegations)),
     // 院内库存可得性（甲方 2026-08-05 入站药品同步）。未导入库存时返回空串，
     // 提示词与导入前逐字节相同——可得性不是安全控制，缺数据不得改变链路行为。

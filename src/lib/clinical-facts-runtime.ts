@@ -203,10 +203,23 @@ export async function probeClinicalFactsModels() {
   const run = (async (): Promise<ClinicalFactsModelsProbe> => {
   const plan = getClinicalFactsModelPlan();
   const startedAt = Date.now();
+  // 三个相位在默认全 V4-Flash 拓扑下是**同一个模型身份**，逐个探等于对同一个端点打三次。
+  // health?strict=1 由 Docker healthcheck 每 60s 触发一次，这是纯浪费的真实上游调用。
+  // 按 endpoint+model 去重后按身份分发结果——与复核探针（diagnosis-api.ts:720）同款做法，
+  // 那边一直是去重的，这边没有，又一处「同一件事两处各写各的」。
+  const probeByIdentity = new Map<string, Promise<Awaited<ReturnType<typeof probeClinicalFactsPhaseModel>>>>();
+  const probeOnce = (phase: typeof plan.extractor) => {
+    const identity = `${phase?.endpoint ?? ""}|${phase?.model ?? ""}`;
+    const existing = probeByIdentity.get(identity);
+    if (existing) return existing;
+    const created = probeClinicalFactsPhaseModel(phase);
+    probeByIdentity.set(identity, created);
+    return created;
+  };
   const [extractor, reviewer, adjudicator] = await Promise.all([
-    probeClinicalFactsPhaseModel(plan.extractor),
-    probeClinicalFactsPhaseModel(plan.reviewer),
-    probeClinicalFactsPhaseModel(plan.adjudicator),
+    probeOnce(plan.extractor),
+    probeOnce(plan.reviewer),
+    probeOnce(plan.adjudicator),
   ]);
   const value: ClinicalFactsModelsProbe = {
     checkedAt: new Date().toISOString(),

@@ -9,6 +9,7 @@
 //
 // PHI: only sanitized free text is sent; patient name is never forwarded (a fixed 匿名患者 is used).
 
+import { createHash } from "node:crypto";
 import { currentVitalsSummary, sanitizeFreeTextForExternalClinicalService } from "./diagnosis-safety";
 import { diagnoseReasoningFromState, parseReasoningV2, prescribeReasoningFromState } from "./diagnosis-parse";
 import { ageValue, type CaseState } from "./diagnosis-types";
@@ -444,14 +445,63 @@ export function verifyMedicationSemanticCoverage(
   };
 }
 
+/**
+ * 用药时间线抽取的进程内缓存，键为**抽取输入文本本身**的指纹。
+ *
+ * 为什么可以缓存：buildMedicationExtractionContext 只读用药史类文本，
+ * **与处方药味、剂量、编辑动作完全无关**。而它的三个调用方（M05 随访、医生改方后重新审方、
+ * HIS 方案导出）在同一次诊疗里反复触发——医生每调一次剂量就重打一次 1600-token、
+ * 上限 30s 的模型调用，且它**串行在灵犀审方 HTTP 之前**，整段等待直接叠加到医生面前。
+ *
+ * 键取输入文本而不是 caseState：后者含处方内容，改一味药就换键，等于没有缓存。
+ * 与限流桶同构的进程内存储，单实例假设；丢缓存只是退回今天的行为，不放宽任何判定。
+ */
+const MEDICATION_EXTRACTION_TTL_MS = 10 * 60_000;
+const MEDICATION_EXTRACTION_MAX_ENTRIES = 128;
+const MEDICATION_EXTRACTION_STORE = Symbol.for("tcm-cdss.medication-extraction-cache.v1");
+type MedicationExtractionCacheEntry = { value: MedicationSemanticExtraction; at: number };
+
+function medicationExtractionCache(): Map<string, MedicationExtractionCacheEntry> {
+  const host = globalThis as unknown as Record<symbol, Map<string, MedicationExtractionCacheEntry> | undefined>;
+  const existing = host[MEDICATION_EXTRACTION_STORE];
+  if (existing) return existing;
+  const created = new Map<string, MedicationExtractionCacheEntry>();
+  host[MEDICATION_EXTRACTION_STORE] = created;
+  return created;
+}
+
 /** Run the same authoritative medication timeline extraction for M05, edited re-audit, and HIS. */
 export async function extractMedicationSemanticsForAudit(
   state: CaseState,
   requestSignal?: AbortSignal,
 ): Promise<MedicationSemanticExtraction> {
   const context = buildMedicationExtractionContext(state);
+  const key = createHash("sha256").update(`${context.text}\u0000${context.truncated ? 1 : 0}`).digest("hex");
+  const store = medicationExtractionCache();
+  const now = Date.now();
+  const cached = store.get(key);
+  if (cached && now - cached.at <= MEDICATION_EXTRACTION_TTL_MS) return cached.value;
   const extraction = await extractMedicationEventsWithModel(context.text, requestSignal);
-  return verifyMedicationSemanticCoverage(context.text, extraction, context.truncated);
+  const verified = verifyMedicationSemanticCoverage(context.text, extraction, context.truncated);
+  // 只缓存**成功**结果：needsManualReview 是降级态，缓存它会让一次瞬时故障在 10 分钟内
+  // 反复把同一份病历钉在人工复核上，而重试本可以恢复。
+  if (!verified.needsManualReview) {
+    store.set(key, { value: verified, at: now });
+    for (const [entryKey, entry] of store) {
+      if (now - entry.at > MEDICATION_EXTRACTION_TTL_MS) store.delete(entryKey);
+    }
+    while (store.size > MEDICATION_EXTRACTION_MAX_ENTRIES) {
+      const oldest = store.keys().next();
+      if (oldest.done) break;
+      store.delete(oldest.value);
+    }
+  }
+  return verified;
+}
+
+/** 测试用：清空用药抽取缓存。 */
+export function resetMedicationExtractionCache(): void {
+  medicationExtractionCache().clear();
 }
 
 function firstField(state: CaseState, key: keyof NonNullable<CaseState["hisRecord"]>["fields"]): string {
