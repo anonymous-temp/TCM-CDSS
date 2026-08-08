@@ -1,32 +1,3 @@
-import inspectionLexiconJson from "../data/tcm-inspection-lexicon.json" with { type: "json" };
-import symptomAxisMapJson from "../data/tcm-symptom-axis-map.source.json" with { type: "json" };
-
-/**
- * 「无X / 少X」形态的**阳性体征**——从受控词表里取，不在这里另写一份清单。
- *
- * 原实现用一条写死的否定前瞻 `无(?!菌性|痛性|症状性|创性|脉性|意识性)` 做例外。
- * 那是一张封闭枚举，而自然语言穷举不完；更要命的是**它漏词的方向是危险的**：
- * 漏一个就把阳性体征当成否认，辨证依据直接消失。实测漏掉的包括
- *   无汗 → negative（麻黄汤证/表实证的关键眼目，正是本仓库反复出现的表实/表虚互斥判别点）
- *   无汗而喘 → negative（《伤寒论》原文整条丢失）
- *   无苔 → negative（受控舌诊词表里明明有这一条）
- * 现在改为查受控词表：词表是**可维护、可评审、可测试**的地方，
- * 加一个体征只需改词表，不用动极性判定的正则。
- */
-const GOVERNED_NEGATIVE_FORM_SIGNS: ReadonlySet<string> = (() => {
-  const signs = new Set<string>();
-  const walk = (node: unknown): void => {
-    if (typeof node === "string") {
-      if (/^(?:无|少)[\u4e00-\u9fa5]{1,3}$/.test(node)) signs.add(node);
-      return;
-    }
-    if (node && typeof node === "object") for (const value of Object.values(node)) walk(value);
-  };
-  walk(inspectionLexiconJson);
-  walk(symptomAxisMapJson);
-  return signs;
-})();
-
 /**
  * 「无」的**非否定用法**：无法/无从/无以 是情态，无需/无须 是建议，无论/无非 是连词。
  * 与上面那张体征表不同，这是一个**封闭的语法类**（现代汉语里「无+虚词」就这几个），
@@ -35,14 +6,6 @@ const GOVERNED_NEGATIVE_FORM_SIGNS: ReadonlySet<string> = (() => {
  * 红旗直接被抹掉。这是本次审计里方向最危险的一条。
  */
 const NON_NEGATING_WU_MODAL = /^无(?:法|从|以|需|须|论|非)/;
-
-/** 该从句是否以受控的「无X/少X」阳性体征开头（无汗而喘、无苔而燥）。 */
-function startsWithGovernedNegativeFormSign(clause: string): boolean {
-  for (const sign of GOVERNED_NEGATIVE_FORM_SIGNS) {
-    if (clause.startsWith(sign)) return true;
-  }
-  return false;
-}
 
 export type ClinicalClausePolarity = "affirmed" | "negative" | "uncertain";
 export type ClinicalEventTemporalScope = "current" | "historical" | "historical_resolved";
@@ -131,9 +94,6 @@ export function clinicalClausePolarity(value: string): ClinicalClausePolarity {
     .replace(DISCOURSE_PREFIX, "")
     .trim();
   if (!clause) return "uncertain";
-  // 受控「无X/少X」阳性体征优先于否定判定：无汗、无苔、少苔、少气懒言 是所见，不是否认。
-  // 放在最前面，因为它们的字形与「无+症状」的否认完全一样，只能靠词表分开。
-  if (startsWithGovernedNegativeFormSign(clause)) return "affirmed";
   // 「无法/无从/无需/无论」是情态与连词，不是否认。「无法完全否认呕血」= 可能有呕血。
   if (NON_NEGATING_WU_MODAL.test(clause)) {
     return UNCERTAIN_CUE.test(clause) || /否认|排除|除外/.test(clause) ? "uncertain" : "affirmed";
