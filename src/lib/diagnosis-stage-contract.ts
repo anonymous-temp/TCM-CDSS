@@ -2348,14 +2348,28 @@ function requiredTherapyConcepts(prior: M03ReasoningLike | null | undefined): Se
   ].map((value) => String(value || "").trim()).filter(Boolean).join("；"));
 }
 
-function primaryPathogenesisTherapyConcepts(prior: M03ReasoningLike | null | undefined): Set<TcmTherapyConcept> {
+/**
+ * 君药方向门禁**实际据以判定**的治法文本。导出，供修复提示复用。
+ *
+ * 立此函数是因为两侧曾经各取各的字段：门禁读 [P1.therapyDirection, therapy.overallMethod]，
+ * 而 diagnosis-api 拼修复提示时读的是 [P1.therapyDirection, therapy.overallPrinciple]
+ * ——**模型被要求满足一个没告诉它的条件**。实测某例提示写的是「清退虚热；暂不锁定剂量级治法」
+ * （概念解析为空集），实际被检查的是 {qi_tonify, yin_nourish}。修复轮因此必然空转，
+ * 一路烧到 fixpoint 或编排超时，医生最后拿到的是「未形成处方」。
+ * 判据与提示必须同源；分成两处写，漂开只是时间问题。
+ */
+export function primaryPathogenesisTherapyText(prior: M03ReasoningLike | null | undefined): string {
   const chain = prior?.pathogenesis?.chain || [];
   const primaryNode = chain.find((node, index) => String(node.nodeId || `P${index + 1}`) === "P1") || chain[0];
   const concrete = [
     primaryNode?.therapyDirection,
     prior?.therapy?.overallMethod,
   ].map((value) => String(value || "").trim()).filter(Boolean).join("；");
-  return affirmedTcmTherapyConcepts(concrete || String(prior?.therapy?.overallPrinciple || ""));
+  return concrete || String(prior?.therapy?.overallPrinciple || "").trim();
+}
+
+function primaryPathogenesisTherapyConcepts(prior: M03ReasoningLike | null | undefined): Set<TcmTherapyConcept> {
+  return affirmedTcmTherapyConcepts(primaryPathogenesisTherapyText(prior));
 }
 
 // Current-heat facts documented in the signed M03 payload's own grounded fields: verbatim chain

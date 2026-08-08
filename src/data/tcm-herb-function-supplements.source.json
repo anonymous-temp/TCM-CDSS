@@ -39,6 +39,55 @@
       "supplement": "重镇降逆，凉血止血",
       "basis": "《中华人民共和国药典》2020年版一部「赭石」功能主治：平肝潜阳，重镇降逆，凉血止血。归类表仅收『平抑肝阳药』章节。",
       "missingConcept": "blood_stanch"
+    },
+    {
+      "herb": "麻黄",
+      "supplement": "宣肺平喘，利水消肿",
+      "basis": "《中华人民共和国药典》2020年版一部「麻黄」【功能与主治】：发汗散寒，宣肺平喘，利水消肿。用于风寒感冒，胸闷喘咳，风水浮肿。蜜麻黄润肺止咳。多用于表证已解，气喘咳嗽。归类表仅收『发散风寒药/解表药』章节，宣肺平喘与利水消肿两项不在该章节内。",
+      "sourceUrl": "https://db2.ouryao.com/yd2020/view.php?id=f0cd272b3f",
+      "missingConcept": "cough_relieve"
+    },
+    {
+      "herb": "葛根",
+      "supplement": "解肌退热，生津止渴，透疹",
+      "basis": "《中华人民共和国药典》2020年版一部「葛根」【功能与主治】：解肌退热，生津止渴，透疹，升阳止泻，通经活络，解酒毒。用于外感发热头痛，项背强痛，口渴，消渴，麻疹不透，热痢，泄泻，眩晕头痛，中风偏瘫，胸痹心痛，酒毒伤中。归类表仅收『发散风热药/解表药』章节。",
+      "sourceUrl": "https://db2.ouryao.com/yd2020/view.php?id=fa8d9fa80c",
+      "missingConcept": "yin_nourish"
+    },
+    {
+      "herb": "升麻",
+      "supplement": "发表透疹，清热解毒，升举阳气",
+      "basis": "《中华人民共和国药典》2020年版一部「升麻」【功能与主治】：发表透疹，清热解毒，升举阳气。用于风热头痛，齿痛，口疮，咽喉肿痛，麻疹不透，阳毒发斑，脱肛，子宫脱垂。归类表仅收『发散风热药/解表药』章节，清热解毒与升举阳气两项不在该章节内。",
+      "sourceUrl": "https://db2.ouryao.com/yd2020/view.php?id=f0fd8c849c",
+      "missingConcept": "heat_clear"
+    },
+    {
+      "herb": "防风",
+      "supplement": "祛风解表，胜湿止痛，止痉",
+      "basis": "《中华人民共和国药典》2020年版一部「防风」【功能与主治】：祛风解表，胜湿止痛，止痉。用于感冒头痛，风湿痹痛，风疹瘙痒，破伤风。归类表仅收『发散风寒药/解表药』章节，止痉一项不在该章节内。",
+      "sourceUrl": "https://db2.ouryao.com/yd2020/view.php?id=f61dd37e59",
+      "missingConcept": "wind_extinguish"
+    },
+    {
+      "herb": "羌活",
+      "supplement": "祛风除湿，止痛",
+      "basis": "《中华人民共和国药典》2020年版一部「羌活」【功能与主治】：解表散寒，祛风除湿，止痛。用于风寒感冒，头痛项强，风湿痹痛，肩背酸痛。归类表仅收『发散风寒药/解表药』章节，祛风除湿一项不在该章节内。",
+      "sourceUrl": "https://db2.ouryao.com/yd2020/view.php?id=f94d8b44b9",
+      "missingConcept": "damp_resolve"
+    },
+    {
+      "herb": "肉豆蔻",
+      "supplement": "温中行气，涩肠止泻",
+      "basis": "《中华人民共和国药典》2020年版一部「肉豆蔻」【功能与主治】：温中行气，涩肠止泻。用于脾胃虚寒，久泻不止，脘腹胀痛，食少呕吐。归类表仅收『收涩药/敛肺涩肠药』章节，温中行气不在该章节内。",
+      "sourceUrl": "https://db2.ouryao.com/yd2020/view.php?id=f35db8ccba",
+      "missingConcept": "yang_warm"
+    },
+    {
+      "herb": "五味子",
+      "supplement": "收敛固涩，益气生津，补肾宁心",
+      "basis": "《中华人民共和国药典》2020年版一部「五味子」【功能与主治】：收敛固涩，益气生津，补肾宁心。用于久嗽虚喘，梦遗滑精，遗尿尿频，久泻不止，自汗盗汗，津伤口渴，内热消渴，心悸失眠。归类表仅收『收涩药/敛肺涩肠药』章节，益气生津与补肾宁心两项不在该章节内。",
+      "sourceUrl": "https://db2.ouryao.com/yd2020/view.php?id=fb6de2b538",
+      "missingConcept": "yin_nourish"
     }
   ]
 }

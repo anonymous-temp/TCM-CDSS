@@ -14,7 +14,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
+import { affirmedTcmTherapyConcepts, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -1412,15 +1412,24 @@ async function retryCompletePrimaryResponse(
         const rejectedReasoning = JSON.parse(rejectedJson);
         const herbName = m04CandidateHerbsFromRepairPayload(rejectedReasoning)[Number(emperorMismatchMatch[1])]?.name;
         const lock = priorReasoning && typeof priorReasoning === "object" && !Array.isArray(priorReasoning)
-          ? priorReasoning as { overallPrinciple?: unknown; pathogenesisChain?: Array<{ nodeId?: unknown; therapyDirection?: unknown }> }
+          ? priorReasoning as {
+              overallPrinciple?: unknown;
+              overallMethod?: unknown;
+              pathogenesisChain?: Array<{ nodeId?: unknown; therapyDirection?: unknown }>;
+            }
           : undefined;
-        const chain = Array.isArray(lock?.pathogenesisChain) ? lock!.pathogenesisChain! : [];
-        const primaryNode = chain.find((node, index) => String(node.nodeId || `P${index + 1}`) === "P1") || chain[0];
-        const direction = [primaryNode?.therapyDirection, lock?.overallPrinciple]
-          .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
-          .join("；");
+        // 与门禁**同一个函数**取治法文本，不再各取各的字段。
+        const direction = primaryPathogenesisTherapyText({
+          pathogenesis: { chain: Array.isArray(lock?.pathogenesisChain) ? lock!.pathogenesisChain! : [] },
+          therapy: { overallMethod: lock?.overallMethod, overallPrinciple: lock?.overallPrinciple },
+        } as never);
         if (typeof herbName === "string" && herbName.trim() && direction) {
-          emperorDirectionHint = `⚠️ 君药方向：${herbName.trim()} 的知识库收载方向不覆盖本例 P1 治法「${direction.slice(0, 80)}」。请只从短名单对应方向中重选能直接承担该治法的君药，其余已通过校验的药味、剂量与组成保持不变。`;
+          // 直接告诉模型**本例可任君药的方向短名单**：只给驳回码等于让它重采样，
+          // 给出目标方向它才知道该往哪改（test:repair-guidance 的立意即此）。
+          const wanted = [...affirmedTcmTherapyConcepts(direction)].join("、");
+          emperorDirectionHint = `⚠️ 君药方向：${herbName.trim()} 的知识库收载方向不覆盖本例 P1 治法「${direction.slice(0, 80)}」`
+            + (wanted ? `（本例可任君药的方向：${wanted}）` : "")
+            + `。两味君药中**至少一味**的知识库方向须落在上述方向内即可；请重选或调整君药，其余已通过校验的药味、剂量与组成保持不变。`;
         }
       } catch {
         // 被拒 JSON 可能本身不合法；通用君药方向修复提示仍会指引重试。
@@ -3169,6 +3178,9 @@ async function callPrimaryTextModelStream(
                   }),
                 })),
                 overallPrinciple: (opts.structuredPriorReasoning as { therapy?: { overallPrinciple?: unknown } }).therapy?.overallPrinciple,
+                // overallMethod 是**门禁真正据以判定**的字段（primaryPathogenesisTherapyText）。
+                // 此前只带 overallPrinciple，导致修复提示写的治法与被检查的治法不是同一段。
+                overallMethod: (opts.structuredPriorReasoning as { therapy?: { overallMethod?: unknown } }).therapy?.overallMethod,
                 pathogenesisChain: (opts.structuredPriorReasoning as { pathogenesis?: { chain?: unknown } }).pathogenesis?.chain,
                 };
               })()
