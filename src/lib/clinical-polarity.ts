@@ -1,3 +1,49 @@
+import inspectionLexiconJson from "../data/tcm-inspection-lexicon.json" with { type: "json" };
+import symptomAxisMapJson from "../data/tcm-symptom-axis-map.source.json" with { type: "json" };
+
+/**
+ * 「无X / 少X」形态的**阳性体征**——从受控词表里取，不在这里另写一份清单。
+ *
+ * 原实现用一条写死的否定前瞻 `无(?!菌性|痛性|症状性|创性|脉性|意识性)` 做例外。
+ * 那是一张封闭枚举，而自然语言穷举不完；更要命的是**它漏词的方向是危险的**：
+ * 漏一个就把阳性体征当成否认，辨证依据直接消失。实测漏掉的包括
+ *   无汗 → negative（麻黄汤证/表实证的关键眼目，正是本仓库反复出现的表实/表虚互斥判别点）
+ *   无汗而喘 → negative（《伤寒论》原文整条丢失）
+ *   无苔 → negative（受控舌诊词表里明明有这一条）
+ * 现在改为查受控词表：词表是**可维护、可评审、可测试**的地方，
+ * 加一个体征只需改词表，不用动极性判定的正则。
+ */
+const GOVERNED_NEGATIVE_FORM_SIGNS: ReadonlySet<string> = (() => {
+  const signs = new Set<string>();
+  const walk = (node: unknown): void => {
+    if (typeof node === "string") {
+      if (/^(?:无|少)[\u4e00-\u9fa5]{1,3}$/.test(node)) signs.add(node);
+      return;
+    }
+    if (node && typeof node === "object") for (const value of Object.values(node)) walk(value);
+  };
+  walk(inspectionLexiconJson);
+  walk(symptomAxisMapJson);
+  return signs;
+})();
+
+/**
+ * 「无」的**非否定用法**：无法/无从/无以 是情态，无需/无须 是建议，无论/无非 是连词。
+ * 与上面那张体征表不同，这是一个**封闭的语法类**（现代汉语里「无+虚词」就这几个），
+ * 枚举它是安全的，不属于「穷举自然语言」。
+ * 实测代价：`无法完全否认呕血` 原本判 negative——「排除不了呕血」被读成「已否认呕血」，
+ * 红旗直接被抹掉。这是本次审计里方向最危险的一条。
+ */
+const NON_NEGATING_WU_MODAL = /^无(?:法|从|以|需|须|论|非)/;
+
+/** 该从句是否以受控的「无X/少X」阳性体征开头（无汗而喘、无苔而燥）。 */
+function startsWithGovernedNegativeFormSign(clause: string): boolean {
+  for (const sign of GOVERNED_NEGATIVE_FORM_SIGNS) {
+    if (clause.startsWith(sign)) return true;
+  }
+  return false;
+}
+
 export type ClinicalClausePolarity = "affirmed" | "negative" | "uncertain";
 export type ClinicalEventTemporalScope = "current" | "historical" | "historical_resolved";
 
@@ -11,7 +57,9 @@ const BARE_NO_HISTORY = /^无(?!菌性|痛性|症状性|创性|脉性|意识性)
 const NEGATIVE_SUFFIX = /(?:已排除|已除外|检查阴性|未见(?:明显)?异常|未发现(?:明显)?异常|不支持|不考虑)$/;
 const POSTFIX_NEGATIVE = /(?:病史|过敏史|用药史|功能不全|功能异常|过敏|用药|服药)\s*[：:]?\s*(?:无|否认|没有|并无|未见|未发现|未患)$/;
 const UNCERTAIN_CUE = /(?:待排(?:除)?|待查|待明确|待核实|可能|疑似|不能排除|无法排除|尚不明确|不详|未知|未提供|未采集|未询问|说不清)/;
-const DISCOURSE_PREFIX = /^(?:但|但是|然而|不过|而|另有|同时)\s*/;
+// 转折词。原来漏了「唯/惟/仅/只是/只有」，于是「未见明显异常，唯血压偏高」里的
+// 阳性部分被前半句的否定整条吞掉——阳性事实静默消失，比多报一条危险。
+const DISCOURSE_PREFIX = /^(?:但|但是|然而|不过|而|另有|同时|唯|惟|仅|只是|只有|其中)\s*/;
 const AFFIRMED_ASSERTION_PREFIX = /^(?:(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:小时|天|日|周|月|年)前\s*)?(?:既往|当前|目前|现阶段|本次|今日|今天|今晨|今早|昨夜|昨晚|昨日|近来|近期)?\s*(?:有|是|转为|突发|新发|出现|发生|排出|患有|确诊|诊断为|现服|正在服用|开始服用|开始口服|开始使用|新启用|新开|启用|加用|改用|服用|使用|口服|应用|对)/;
 const AFFIRMED_PREDICATE = /(?:不是|并非)(?:很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|(?:持续|反复|仍有|仍感|依然|存在|加重|恶化|发作|出现|发生|阳性|异常|过敏|服用|口服|使用)|以[^，,。；;\n]{1,16}为主|(?:已|约)?\s*(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半数几多]+)\s*(?:分钟|分|小时|天|日|周|月|年)/;
 
@@ -83,6 +131,13 @@ export function clinicalClausePolarity(value: string): ClinicalClausePolarity {
     .replace(DISCOURSE_PREFIX, "")
     .trim();
   if (!clause) return "uncertain";
+  // 受控「无X/少X」阳性体征优先于否定判定：无汗、无苔、少苔、少气懒言 是所见，不是否认。
+  // 放在最前面，因为它们的字形与「无+症状」的否认完全一样，只能靠词表分开。
+  if (startsWithGovernedNegativeFormSign(clause)) return "affirmed";
+  // 「无法/无从/无需/无论」是情态与连词，不是否认。「无法完全否认呕血」= 可能有呕血。
+  if (NON_NEGATING_WU_MODAL.test(clause)) {
+    return UNCERTAIN_CUE.test(clause) || /否认|排除|除外/.test(clause) ? "uncertain" : "affirmed";
+  }
   if (NEGATIVE_PREFIX.test(clause) || COLLOQUIAL_PAST_EVENT_NEGATION.test(clause) || BARE_NO_HISTORY.test(clause) || NEGATIVE_SUFFIX.test(clause) || POSTFIX_NEGATIVE.test(clause)) return "negative";
   if (UNCERTAIN_CUE.test(clause)) return "uncertain";
   return "affirmed";

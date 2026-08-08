@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   affirmedAllergyText,
+  affirmedClinicalSourceClauses,
   affirmedClinicalText,
   affirmedCurrentMedicationText,
   clinicalClausePolarity,
@@ -245,6 +246,43 @@ for (const symptom of ["没精神", "没力气", "没胃口"]) {
     `${symptom} 是症状本身而非否认，不得被增补层误删`,
   );
 }
+
+// ── 「无X」型：受控阳性体征 vs 真否认 ──────────────────────────────────────────
+// 本项目的词表判据必须回答一个问题：**漏一个词时往哪边倒**。
+// 「无X」这一类原来靠一条写死的否定前瞻做例外（无(?!菌性|痛性|…)），那是封闭枚举，
+// 而它漏词的方向是危险的——把阳性体征当成否认，辨证依据直接消失。实测漏掉的包括：
+//   无汗   → negative（麻黄汤证/表实证的关键眼目，正是本仓库反复出现的表实/表虚互斥判别点）
+//   无汗而喘 → negative（《伤寒论》原文整条丢失）
+//   无苔   → negative（受控舌诊词表里明明收了这一条）
+// 现在改为**查受控词表**：词表是可维护可评审的地方，加体征只改词表，不动极性正则。
+const governedNegativeFormSigns = ["无汗", "无苔", "少苔", "少气懒言"];
+for (const sign of governedNegativeFormSigns) {
+  assert.equal(clinicalClausePolarity(sign), "affirmed", `受控体征「${sign}」被当成了否认，辨证依据会整条消失`);
+}
+assert.equal(clinicalClausePolarity("无汗而喘"), "affirmed", "《伤寒论》原文「无汗而喘」被判成否认");
+assert.equal(clinicalClausePolarity("无苔而燥"), "affirmed", "「无苔而燥」被判成否认");
+
+// 「无」的非否定用法是一个**封闭语法类**（无+虚词），枚举它是安全的，不属于穷举自然语言。
+// 「无法完全否认呕血」= 排除不了呕血，原来被判 negative —— 红旗直接被抹掉，
+// 这是本轮词表审计里方向最危险的一条。
+assert.equal(clinicalClausePolarity("无法完全否认呕血"), "uncertain", "「排除不了」被读成「已否认」——红旗被抹掉");
+assert.equal(clinicalClausePolarity("无法否认黑便史"), "uncertain", "同上");
+for (const modal of ["无需处理", "无论寒热", "无从判断"]) {
+  assert.notEqual(clinicalClausePolarity(modal), "negative", `「${modal}」是情态/连词，不是临床否认`);
+}
+
+// 反向必须一条不丢：真否认仍然是 negative，否则这条修复就是把门拆了。
+for (const denial of ["否认胸痛", "无胸痛", "无发热", "未见异常", "无高血压病史", "无药物过敏史", "无恶心呕吐"]) {
+  assert.equal(clinicalClausePolarity(denial), "negative", `真否认「${denial}」被放行成阳性`);
+}
+
+// 转折词：阳性事实不得被前半句的否定吞掉。原来漏了「唯/仅/只是」。
+assert.deepEqual(
+  affirmedClinicalSourceClauses("未见明显异常，唯血压偏高"),
+  ["血压偏高"],
+  "「唯」后的阳性事实被前半句否定整条吞掉——静默丢失阳性事实比多报一条危险",
+);
+assert.deepEqual(affirmedClinicalSourceClauses("否认胸痛，仅诉乏力"), ["诉乏力"], "「仅」后的阳性事实丢失");
 
 console.log(JSON.stringify({
   cases: cases.length + 20 + 16 + temporalCases.length + hedgedFindings.length + explicitDenials.length * 2 + 4,
