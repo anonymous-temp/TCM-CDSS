@@ -3752,8 +3752,17 @@ async function callPrimaryTextModelStream(
                 false,
               )
             : undefined;
+          // 受理判据取 **waive=true** 口径（甲方 2026-08-08 定：质量类一律不阻断）。
+          //
+          // waive=true 时 unsupportedHighImpactHerbIssue 会把「本系统词表没能把该药方向对应到
+          // 已锁定治法」那一半清空，只留下**方向对立**（附子进热证这类）。也就是说：
+          //   · 词表覆盖率不足 / 君药功效缺登记 / 治法写法未收词 → 这里解析为 undefined，直接受理；
+          //   · 寒热极性相反 → 仍然报码，仍然不受理。
+          // 实测（M03 锁「清热泻火」）：附子 waive=true 仍报 unsupported_high_impact_yang_warm；
+          // 丹参（非对立）waive=true 塌回 transparent_therapy_herb_support。
+          // 这条边界是刻意保留的**唯一**治法侧硬拦：它不是"我们没读懂"，是这味药方向相反。
           const therapyIssue = transparentReasoning
-            ? transparentFormulaTherapyIssue(enrichReasoning(transparentReasoning).reasoning, opts.structuredPriorReasoning)
+            ? transparentFormulaTherapyIssue(enrichReasoning(transparentReasoning).reasoning, opts.structuredPriorReasoning, true)
             : "transparent_therapy_contract_missing";
           const transparentFallbackInput = {
             completedRepairAttempts: m04RepairState.completedAttempts,

@@ -45,6 +45,39 @@ export function advanceM04RepairState(state: M04RepairState, outcome: M04RepairO
  * 继承该经典身份）的另一种写法，却让整方作废：实测麻黄汤 4 味小方被加到 9 味即 0 味出方，
  * 而方中每一味的剂量、配伍、君臣与病机引用都是通过的。
  */
+/**
+ * 修复耗尽后该不该受理这条治法码。
+ *
+ * **默认拒绝 + 质量族白名单**，不是「不匹配就放行」。
+ * 我第一版写成了默认放行，被 test:m04-safety-contract 当场拦下：剂量码 herb_6_dose
+ * 不在排除列表里，于是被放行——那正是 fail-open 的形状。本仓库 rejection-tier 的注释
+ * 早写过同一条：「未分类 → T1。这是安全默认值，不要改成 T2。」
+ *
+ * 白名单里的都是**本系统词表能力边界**，不是这张方有临床错误（甲方 2026-08-08 定：质量不阻断）：
+ *   · transparent_therapy_coverage / herb_support —— 治法方向覆盖率阈值
+ *   · transparent_therapy_herb_knowledge_missing —— 药味功效词表未收载
+ *   · herb_N_emperor_therapy_mismatch / emperor_knowledge_missing —— 君药方向对不上/查不到功效
+ *   · pathogenesis_node_uncovered_Pn —— M03 某病机方向本次没有对应药味
+ * 白名单之外一律拒绝，包括：结构缺失（contract_missing / herbs_missing / unresolved）、
+ * 方向对立（unsupported_high_impact_*，调用方按 waive=true 算码时剩下的必然是对立）、
+ * 以及任何剂量/配伍/特殊人群类码。
+ */
+const ACCEPTABLE_M04_THERAPY_FAMILIES: readonly RegExp[] = [
+  /^transparent_therapy_(?:coverage|herb_support|herb_knowledge_missing)$/,
+  /^herb_\d+_emperor_(?:therapy_mismatch|knowledge_missing)$/,
+  /^pathogenesis_node_uncovered_[A-Za-z0-9]+$/,
+];
+
+export function isAcceptableM04TherapyIssue(therapyIssue: string | undefined): boolean {
+  if (typeof therapyIssue !== "string" || !therapyIssue) return true;
+  const core = therapyIssue
+    .replace(/^m04_/, "")
+    .replace(/^candidate_\d+_/, "")
+    .replace(/^modification_\d+_/, "")
+    .replace(/^transparent_therapy_(?=herb_\d)/, "");
+  return ACCEPTABLE_M04_THERAPY_FAMILIES.some((pattern) => pattern.test(core));
+}
+
 export function canAcceptTransparentFormulaFallback(input: TransparentFormulaFallbackInput): boolean {
   // 「完成一轮修复」与「修复已被证明无效」是同一个前提的两种到达方式。此前只认前者，于是
   // fixpoint 早退（同一提示重复注入）反而拿不到降级资格：fixpoint 的语义正是「再修也是同一张
@@ -55,7 +88,13 @@ export function canAcceptTransparentFormulaFallback(input: TransparentFormulaFal
     !input.requestAborted &&
     (input.strictFormulaIssue === undefined || input.strictFormulaIssue === "" ||
       input.strictFormulaIssue === "formula_reference_declassified") &&
-    (!input.therapyIssue || m04TherapyIssueQualityAnnotation(input.therapyIssue) !== undefined);
+    // 治法侧：**质量类一律受理**（甲方 2026-08-08）。调用方已按 waive=true 口径算 therapyIssue，
+    // 词表覆盖率/君药功效/病机节点这类在那一侧就解析成 undefined 了；能到这里的
+    // therapyIssue 只剩两类——结构缺失（contract_missing / herbs_missing，无从标注、必须拦）
+    // 与方向对立（unsupported_high_impact_*，临床错误、任何时候不豁免）。
+    // 判据因此从「有没有批注文案」改为「是不是这两类」：前者是文案表，会随文案增删漂移；
+    // 后者才是语义。
+    (!input.therapyIssue || isAcceptableM04TherapyIssue(input.therapyIssue));
 }
 
 /**

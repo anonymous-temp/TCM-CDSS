@@ -3309,18 +3309,57 @@ function crossStageReasoningIssue(
       if (herb.targetKind !== "pathogenesis_node" || String(herb.targetRef || "") !== "P1") {
         return `candidate_${candidateIndex}_herb_${herbIndex}_emperor_not_primary`;
       }
-      // A governed classic baseline may assign a traditional emperor role through its verified
-      // formula identity. A generated/declassified composition has no such provenance, so every
-      // emperor must independently demonstrate direct coverage from server-owned herb knowledge.
-      if (requiresDirectKnowledgeAlignment && primaryTherapy.size > 0) {
-        const knowledgeTherapy = herbTherapyConcepts(String(herb.name || ""));
-        if (knowledgeTherapy.size === 0) return `candidate_${candidateIndex}_herb_${herbIndex}_emperor_knowledge_missing`;
-        // 君药方向与主病机治法「未能对应」同样是词表能力问题（酸枣仁-安神 vs 治法写
-        // 「滋阴降火」）；修复耗尽后转批注，缺知识（emperor_knowledge_missing）与结构错误
-        //（emperor_missing/excess/not_primary）不豁免。
-        if (!setsIntersect(knowledgeTherapy, primaryTherapy) && !waiveTherapyCoverageAnnotated) {
-          return `candidate_${candidateIndex}_herb_${herbIndex}_emperor_therapy_mismatch`;
-        }
+    }
+    // ── 君药方向：整组判定，不再逐味判定（甲方 2026-08-08 定口径）──────────────
+    //
+    // 原实现要求**每一味**君药各自与主病机治法有概念交集。全量归档重放（922 组 M03→M04）
+    // 显示这是第一大驳回族（18 例），而逐例还原后**没有一例是临床用错君药**：
+    //   清胃散 黄连+升麻 —— 升麻库里只登记「发散风热药」，临床上它是升散郁火、火郁发之；
+    //   桂枝汤 桂枝+白芍 —— 白芍与桂枝相配才成「调和营卫」；
+    //   四神丸 补骨脂+肉豆蔻 —— 肉豆蔻与补骨脂相配才成「温补脾肾」。
+    // 双君方的方义本来就在**配伍**上，拆开逐味核对等于否定复方配伍本身。
+    //
+    // 甲方决策：两味君药中**至少一味**功效对得上治法即通过。若确实选错，
+    // 另一味兜底 + 医生复核 + 药师审方，而逐味剂量边界、十八反十九畏、特殊人群、
+    // 寒热极性对立（unsupported_high_impact，任何时候不豁免）都在这道门之外独立执行。
+    // M03 已锁定的受控经典方，其**基准组成内**的药味自动具备君药资格（甲方 2026-08-08 定口径 A）。
+    //
+    // 修的是一条自伤回路：M03 锁定经典方 → M04 组成继承不了该身份 → 服务端**自己**剥离方名
+    // → 候选变成 self_devised / formulaNames=[] → requiresDirectKnowledgeAlignment 由 false 翻 true
+    // → 该经典方的**传世君药**随即被判不合格。实测：系统主动推荐小青龙汤，然后判「麻黄的功效
+    // 对不上温肺化饮」把自己推荐的方否掉；葛根汤的葛根、竹叶石膏汤的竹叶与石膏、清胃散的升麻
+    // 同样。桂枝汤更是五味无一可任君。
+    // 剥名是为了不冒用方名，不是为了否定组成——组成的正当性来自 M03 锁定的那张方。
+    // 与 transparentFormulaTherapyIssue 里的基准豁免同源同写法。
+    const emperorBaselineNames = [...new Set([
+      ...(governedFormulaNames(candidate.formulaNames) || []),
+      ...(governedFormulaNames(prior.overview?.recommendedFormulaNames) || []),
+    ])];
+    const emperorBaselineIdentities = new Set(
+      executableFormulaCompilationReferences(emperorBaselineNames)
+        .flatMap((reference) => reference.ingredients)
+        .map((name) => canonicalTcmHerbIdentity(name)),
+    );
+    if (requiresDirectKnowledgeAlignment && primaryTherapy.size > 0) {
+      const emperorInBaseline = emperorHerbs.some(({ herb }) =>
+        emperorBaselineIdentities.has(canonicalTcmHerbIdentity(String(herb.name || ""))));
+      if (!emperorInBaseline) {
+      const emperorAlignment = emperorHerbs.map(({ herb, herbIndex }) => ({
+        herbIndex,
+        knowledge: herbTherapyConcepts(String(herb.name || "")),
+      }));
+      const anyKnown = emperorAlignment.some((item) => item.knowledge.size > 0);
+      const anyAligned = emperorAlignment.some((item) => setsIntersect(item.knowledge, primaryTherapy));
+      // 报码用第一味君药的下标：整组判定下「是哪一味」已无意义，但下标要保持数字形态，
+      // 否则修复指导的匹配（herb_\d+_emperor_*）对不上，模型会收到裸码而只是重采样。
+      const herbIndex = emperorAlignment[0]?.herbIndex ?? 0;
+      // 全部君药都查不到功效 → 仍是知识缺口，保留原码（它有独立的处置路径）。
+      if (!anyKnown) {
+        return `candidate_${candidateIndex}_herb_${herbIndex}_emperor_knowledge_missing`;
+      }
+      if (!anyAligned && !waiveTherapyCoverageAnnotated) {
+        return `candidate_${candidateIndex}_herb_${herbIndex}_emperor_therapy_mismatch`;
+      }
       }
     }
   }

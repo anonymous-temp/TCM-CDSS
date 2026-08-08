@@ -314,7 +314,21 @@ export async function POST(req: Request) {
           // 降级候选的治法覆盖/词表族批注：与流层受理策略同源（m04-repair-policy 唯一权威）。
           // 前提同样是底线合同干净（safetyIssue 为空）——批注永远不放行 T1。
           ?? (declassifiedAccepted && !safetyIssue ? m04TherapyIssueQualityAnnotation(rejectionReason) : undefined);
-        if (!annotation) {
+        // ── 质量类问题一律不阻断（甲方 2026-08-08 定口径）────────────────────────
+        //
+        // 判据只剩一条：**底线合同（T1）干不干净**。safetyIssue 非空 = 逐味药典剂量越界 /
+        // 十八反十九畏 / 特殊人群禁忌 / 管制毒性——这些继续硬拦，医生拿到的是明确的安全拒绝。
+        // safetyIssue 为空时，剩下的全是「本系统没能自动核验」类（治法词表覆盖率、
+        // 君药功效方向、病机节点覆盖、方名可追溯…），**它们一律不再让医生一无所获**。
+        //
+        // 为什么这条口径成立：这类码指向的是我方词表能力边界，不是这张方有临床错误。
+        // 全量归档重放（922 组）逐例还原过第一大驳回族 emperor_therapy_mismatch 的 8 个真实病例，
+        // 没有一例是临床用错君药——全部是知识库缺功用文本、治法写法未收词、双君方配伍才成立。
+        // 而每一味的剂量边界、配伍禁忌、特殊人群门禁、寒热极性对立在这道门之外**独立执行**，
+        // 灵犀审方还会再过一遍。把「我们没读懂」变成「医生一无所获」，是拿产品可用性
+        // 为我方的词表缺口买单。
+        const qualityOnly = !safetyIssue;
+        if (!annotation && !qualityOnly) {
           console.warn("[tcm-cdss:contract] finalized M04 rejected", {
             issue,
             safetyIssue: safetyIssue || undefined,
@@ -332,10 +346,14 @@ export async function POST(req: Request) {
         });
         // synchronizeVisibleClinicalSummary 从结构化载荷重建可见正文，标题前的警示横幅
         // 不在载荷里、会被重建丢掉——这里显式补回，横幅必须活到最终输出。
+        // 批注**不再呈现给医生**（甲方 2026-08-08 定口径 4）：
+        // 「君药方向未自动核验」这类是后台细节，医生并不知道系统内部怎么算的，
+        // 把它印在处方页顶端只会制造无从处置的疑虑。安全类横幅（CDSS_SAFETY_ADVISORY）
+        // 与信息提示（informationNotice）不受影响，那两类是医生需要行动的内容。
+        // 受理事实仍写进服务端日志与遥测，可追溯，只是不上屏。
         return [
           advisoryBanner && !synchronized.includes("CDSS_SAFETY_ADVISORY") ? advisoryBanner.trimEnd() : "",
           informationNotice,
-          `> ${annotation}`,
           synchronized,
         ].filter(Boolean).join("\n\n");
       }
