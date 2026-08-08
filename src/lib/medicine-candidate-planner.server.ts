@@ -139,6 +139,18 @@ function externalCandidateToProposal(
   };
 }
 
+/**
+ * 规划器模型闸（2026-08-08）。原为 35s —— 整条 M04 前置里唯一的重腿，其余语义层 6s，
+ * 而 M04 编排总闸只有 120s，尾部一次慢规划就吃掉四分之一预算，挤压的是生成与修复轮，
+ * 也就是"医生点了生成方药到底拿不拿得到东西"。
+ *
+ * 压这个闸的前提是它的降级态**不是空态**：selection 为空时下面仍保留本地受治理中成药候选
+ * （score>=3 的首选，见 :232-236），丢的只是模型精选与西药说明书精确检索这层增益，
+ * 且规划器产物本就是无剂量的建议性候选（positioning="需医生评估"）。
+ * 闸命中打日志——候选被裁掉必须可测量，不允许静默截断。
+ */
+export const MEDICINE_PLANNER_MODEL_TIMEOUT_MS = 12_000;
+
 async function runPlannerModel(
   caseState: CaseState,
   localCandidates: readonly LocalPatentMedicineCandidate[],
@@ -150,7 +162,11 @@ async function runPlannerModel(
   const abortFromRequest = () => controller.abort();
   if (requestSignal?.aborted) controller.abort();
   else requestSignal?.addEventListener("abort", abortFromRequest, { once: true });
-  const timeout = setTimeout(() => controller.abort(), 35_000);
+  let deadlineFired = false;
+  const timeout = setTimeout(() => {
+    deadlineFired = true;
+    controller.abort();
+  }, MEDICINE_PLANNER_MODEL_TIMEOUT_MS);
   try {
     const localCatalog = localCandidates.map((item) => ({
       evidenceId: item.id,
@@ -186,6 +202,13 @@ async function runPlannerModel(
     const parsed = PlannerSchema.safeParse(parseJsonObject(completion.choices[0]?.message?.content || ""));
     return parsed.success ? parsed.data : undefined;
   } catch {
+    if (deadlineFired) {
+      // 不含患者内容：只报闸命中，用于统计"因为闸而降级到纯本地候选"的比例。
+      console.warn("[tcm-cdss:medicine-planner] planner model deadline reached; falling back to local candidates", {
+        deadlineMs: MEDICINE_PLANNER_MODEL_TIMEOUT_MS,
+        localCandidateCount: localCandidates.length,
+      });
+    }
     return undefined;
   } finally {
     clearTimeout(timeout);

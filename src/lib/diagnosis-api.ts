@@ -399,7 +399,10 @@ type StreamSafetyOptions = {
   upstreamUnavailableFallback?: string;
 };
 
-async function prepareDiagnoseStructuredContent(
+// Exported for `scripts/test-m03-prepare-idempotence.mjs`. The idempotence claimed in the
+// `finalizeM03CandidateForReview` comment is what licenses skipping the second application on the
+// happy path; before that skip existed the claim was a comment with no assertion behind it.
+export async function prepareDiagnoseStructuredContent(
   content: string,
   clinicalContext: string,
   allowedFormulaNames: readonly string[] = [],
@@ -2403,6 +2406,25 @@ async function callPrimaryTextModelStream(
         }
         return true;
       };
+      // 顺利路径上 prepare 会被跑两遍：一次产出候选（:3003），随即 reviewM03Candidate →
+      // finalizeM03CandidateForReview 对同一份产物再跑一遍；修复轮上每轮各再来一遍。第二遍是纯
+      // no-op —— 这不再是注释里的声称：scripts/test-m03-prepare-idempotence.mjs 用 922 组归档
+      // M03 产物逐字节验证了 prepare(prepare(X)) === prepare(X)。
+      // 这里记的是「本请求 prepare 已经产出过的字节」，命中才跳过；不是按输入 memo，所以任何新内容
+      // 仍完整走一遍全部变换，跳过的只有可证明为不动点的那一次。
+      const preparedM03Outputs = new Set<string>();
+      const preparedDiagnoseContent = async (content: string): Promise<string> => {
+        if (preparedM03Outputs.has(content)) return content;
+        const prepared = await prepareDiagnoseStructuredContent(
+          content,
+          opts.structuredClinicalContext || "",
+          opts.structuredAllowedM03FormulaNames,
+          opts.structuredPatientAge,
+          upstreamController.signal,
+        );
+        preparedM03Outputs.add(prepared);
+        return prepared;
+      };
       // Review the exact bytes the signature will cover. The deterministic finalization transforms
       // (including the route's output transform, e.g. the ungrounded-negation sanitizer that
       // rewrites JSON string fields) are idempotent, so applying them BEFORE the review makes the
@@ -2413,13 +2435,7 @@ async function callPrimaryTextModelStream(
       ): Promise<{ content: string; reasoning: ClinicalReasoningResultV2 } | undefined> => {
         if (opts.structuredStage !== "diagnose") return undefined;
         try {
-          let transformed = await prepareDiagnoseStructuredContent(
-            content,
-            opts.structuredClinicalContext || "",
-            opts.structuredAllowedM03FormulaNames,
-            opts.structuredPatientAge,
-            upstreamController.signal,
-          );
+          let transformed = await preparedDiagnoseContent(content);
           transformed = applyDeterministicFormulaReferences(transformed);
           transformed = synchronizeVisibleClinicalSummary(transformed, "diagnose", opts.structuredClinicalContext || "");
           if (opts.outputTransform) transformed = opts.outputTransform(transformed);
@@ -3000,13 +3016,7 @@ async function callPrimaryTextModelStream(
             : undefined;
           if (resolvedStructuredContent) authoritativeContent = resolvedStructuredContent;
           if (opts.structuredStage === "diagnose") {
-            authoritativeContent = await prepareDiagnoseStructuredContent(
-              authoritativeContent,
-              opts.structuredClinicalContext || "",
-              opts.structuredAllowedM03FormulaNames,
-              opts.structuredPatientAge,
-              upstreamController.signal,
-            );
+            authoritativeContent = await preparedDiagnoseContent(authoritativeContent);
           } else if (opts.structuredStage === "prescribe") {
             authoritativeContent = applyDeterministicHerbTargets(authoritativeContent, opts.structuredPriorReasoning);
             authoritativeContent = applyDeterministicCandidateTherapyMatch(authoritativeContent, opts.structuredPriorReasoning);
@@ -3228,13 +3238,7 @@ async function callPrimaryTextModelStream(
           let resolvedRetryContent = referencedRetryContent && opts.structuredStage === "prescribe"
             ? applyDeterministicFormulaAnalysis(applyDeterministicHerbPrescriptionRoles(applyDeterministicHerbFunctions(applyDeterministicHerbDecoctionRequirements(applyDeterministicCandidateTherapyMatch(applyDeterministicHerbTargets(referencedRetryContent, opts.structuredPriorReasoning), opts.structuredPriorReasoning)))))
             : referencedRetryContent && opts.structuredStage === "diagnose"
-              ? await prepareDiagnoseStructuredContent(
-                  referencedRetryContent,
-                  opts.structuredClinicalContext || "",
-                  opts.structuredAllowedM03FormulaNames,
-                  opts.structuredPatientAge,
-                  upstreamController.signal,
-                )
+              ? await preparedDiagnoseContent(referencedRetryContent)
               : referencedRetryContent;
           if (resolvedRetryContent && opts.structuredStage === "prescribe") {
             resolvedRetryContent = finalizeM04CandidateContent(resolvedRetryContent);
@@ -3439,13 +3443,7 @@ async function callPrimaryTextModelStream(
               let secondResolved = secondReferenced && opts.structuredStage === "prescribe"
                 ? applyDeterministicFormulaAnalysis(applyDeterministicHerbPrescriptionRoles(applyDeterministicHerbFunctions(applyDeterministicHerbDecoctionRequirements(applyDeterministicCandidateTherapyMatch(applyDeterministicHerbTargets(secondReferenced, opts.structuredPriorReasoning), opts.structuredPriorReasoning)))))
                 : secondReferenced && opts.structuredStage === "diagnose"
-                  ? await prepareDiagnoseStructuredContent(
-                      secondReferenced,
-                      opts.structuredClinicalContext || "",
-                      opts.structuredAllowedM03FormulaNames,
-                      opts.structuredPatientAge,
-                      upstreamController.signal,
-                    )
+                  ? await preparedDiagnoseContent(secondReferenced)
                   : secondReferenced;
               if (secondResolved && opts.structuredStage === "prescribe") {
                 secondResolved = finalizeM04CandidateContent(secondResolved);
@@ -3592,13 +3590,7 @@ async function callPrimaryTextModelStream(
                     ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(thirdRawResolved, "diagnose"))
                     : undefined;
                   let thirdResolved = thirdReferenced
-                    ? await prepareDiagnoseStructuredContent(
-                        thirdReferenced,
-                        opts.structuredClinicalContext || "",
-                        opts.structuredAllowedM03FormulaNames,
-                        opts.structuredPatientAge,
-                        upstreamController.signal,
-                      )
+                    ? await preparedDiagnoseContent(thirdReferenced)
                     : undefined;
                   let thirdReasoning = thirdResolved
                     ? validatedStructuredReasoning(thirdResolved, "diagnose", opts.structuredClinicalContext, undefined, true)
@@ -4168,13 +4160,7 @@ async function callPrimaryTextModelStream(
                 ? applyDeterministicFormulaReferences(enforceStructuredStageOwnership(finalizedRetryResolved, "diagnose"))
                 : undefined;
               let finalizedRetryCandidate = finalizedRetryReferenced
-                ? await prepareDiagnoseStructuredContent(
-                    finalizedRetryReferenced,
-                    opts.structuredClinicalContext || "",
-                    opts.structuredAllowedM03FormulaNames,
-                    opts.structuredPatientAge,
-                    upstreamController.signal,
-                  )
+                ? await preparedDiagnoseContent(finalizedRetryReferenced)
                 : undefined;
               let finalizedRetryReasoning = finalizedRetryCandidate
                 ? validatedStructuredReasoning(finalizedRetryCandidate, "diagnose", opts.structuredClinicalContext, undefined, true)

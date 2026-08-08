@@ -25,7 +25,23 @@ export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from 
 
 export const CLINICAL_FACTS_ATTESTATION_VERSION = "tcm-cdss-clinical-facts-attestation-v7";
 export const CLINICAL_FACTS_CACHE_TTL_MS = 5 * 60_000;
-export const CLINICAL_FACTS_EMPTY_CACHE_TTL_MS = 30_000;
+/**
+ * 空红旗结果的短 TTL。2026-08-08 由 30s 抬到 150s，理由与边界如下——
+ *
+ * 现象：prod 集实测 diagnose+prescribe p50 57.4s、488/488 全部 > 30s。于是"无红旗"这个多数
+ * 病例在走到 M05 时必然过期，assess 路由触发 extract+review 两次串行模型调用，把一个对外声称
+ * "完全确定性"的阶段拖到 p50 7.0s / p90 17.5s。
+ *
+ * 为什么抬它不等于放宽陈旧风险：内容陈旧由 sourceFingerprint 全额覆盖（:447 要求指纹逐字节
+ * 相等，病历改一个字就重抽），版本陈旧由 attestation/extractor/prompt 三个版本字段覆盖。
+ * 时间 TTL 在这三者之上只剩一件事：对**同一段文本**再抽一次样。同一输入的第二次抽样并不能发现
+ * 新的临床内容，只是同一张彩票再买一次；而第一次抽样已经过单调性复核（review 不得抹掉 grounded
+ * 结果）。所以这里让渡的是"每 30 秒重抽一次"的复采样频率，不是任何一条可判定的安全性质。
+ *
+ * 保留的不变量：空结果 TTL 仍必须**短于**有 finding 的结果（150s < 300s）——空结果是风险方向，
+ * 复采样价值更高，这个不对称是刻意的，scripts/test-clinical-facts.mjs 对两条都有断言。
+ */
+export const CLINICAL_FACTS_EMPTY_CACHE_TTL_MS = 150_000;
 const CLINICAL_FACTS_FUTURE_SKEW_MS = 30_000;
 const CLINICAL_FACTS_SOURCE_LIMIT = 12_000;
 const PROJECTED_SOURCE_MARKER = "【原始病历中段已按模型上下文预算省略】";

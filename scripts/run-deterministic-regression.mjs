@@ -149,6 +149,10 @@ const scripts = [
   // 本层把同义写法折叠到同一受控条目，硬边界是**原本能命中的一律不得被改变**——
   // 第一版用自由子串包含，实测把「除湿通络止痛」引到「活血止痛」，那是语义漂移源。
   "test:therapy-phrasing",
+  // M03 确定性后处理链的幂等性。finalizeM03CandidateForReview 的注释一直声称「第二遍是 no-op」，
+  // 而「复核看到的字节 == 签名覆盖的字节」这条不变量、以及顺利路径上的 prepare 去重，都压在这句
+  // 声称上。此前它没有任何断言：若某段变换不幂等，后果是复核通过之后仍发生临床内容静默改写。
+  "test:m03-prepare-idempotence",
   "test:clinical-polarity",
   "test:negation-scope",
   "test:syndrome-name-standard",

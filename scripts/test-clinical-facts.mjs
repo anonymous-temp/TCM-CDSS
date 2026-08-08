@@ -1031,6 +1031,13 @@ for (const [field, staleValue] of [
 }
 
 ok("缓存生命周期: 空结果 TTL 短于有 finding 的结果", CLINICAL_FACTS_EMPTY_CACHE_TTL_MS < CLINICAL_FACTS_CACHE_TTL_MS);
+// 钉住抬 TTL 的**理由**而不只是数字：短 TTL 必须覆盖一次完整的 M03→M04→M05 链路，否则"无红旗"
+// 这个多数病例每次都在 M05 过期重抽（实测 diagnose+prescribe p50 57.4s、488/488 全部 > 30s），
+// 把一个对外声称完全确定性的阶段变成两次串行模型调用。改小回去必须同时给出新的实测依据。
+ok(
+  "缓存生命周期: 空结果 TTL 覆盖一次完整链路(≥120s)",
+  CLINICAL_FACTS_EMPTY_CACHE_TTL_MS >= 120_000,
+);
 const realDateNow = Date.now;
 const emptyExtractedAtMs = realDateNow() - CLINICAL_FACTS_EMPTY_CACHE_TTL_MS - 1_000;
 let expiredEmptyState;

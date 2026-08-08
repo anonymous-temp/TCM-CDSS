@@ -98,6 +98,7 @@
     "test:model-rate-limit": "node scripts/test-proxy-model-rate-limit.mjs",
     "test:stage-telemetry": "jiti scripts/test-cdss-stage-telemetry.mjs",
     "test:m03-clinical-review": "jiti scripts/test-m03-diagnostic-review.mjs",
+    "test:m03-prepare-idempotence": "jiti scripts/test-m03-prepare-idempotence.mjs",
     "test:clinical-four-binding": "jiti scripts/test-clinical-four-governed-binding.mjs",
     "test:chief-complaint-primacy": "jiti scripts/test-chief-complaint-primacy.mjs",
     "test:presentation-contract": "jiti scripts/test-diagnosis-presentation-contract.mjs",
