@@ -145,6 +145,10 @@ const scripts = [
   // 起因是豁免表按「哪些名字卡住了方剂」自动汇总，把 40 个残片收成了合法豁免成分，
   // 反过来放行含残片的方；构建脚本注释写了这条规则，代码从没实现。同时钉住两侧同集。
   "test:herb-name-identity",
+  // 治法表述归一（L2 规则层）：同一病例重跑治法文字 100% 不同、概念集合 83% 不同。
+  // 本层把同义写法折叠到同一受控条目，硬边界是**原本能命中的一律不得被改变**——
+  // 第一版用自由子串包含，实测把「除湿通络止痛」引到「活血止痛」，那是语义漂移源。
+  "test:therapy-phrasing",
   "test:clinical-polarity",
   "test:negation-scope",
   "test:syndrome-name-standard",

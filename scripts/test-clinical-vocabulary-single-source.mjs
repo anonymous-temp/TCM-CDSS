@@ -67,6 +67,13 @@ const ALLOWLIST = new Map([
   ["src/lib/diagnosis-client-guards.ts", "占位符与未生成态判据,呈现层结构判据不是临床词表。"],
   ["src/lib/clinical-output-authority.ts", "AMBIGUOUS_PLAIN_TERMS 是**工程术语**黑名单(前端/后端/权重/槽位),防止内部词汇泄漏到医生正文;与临床词表无关。"],
   ["src/lib/m04-modification-safety.ts", "加减动作句式(加入/加用/新增),语言学层。"],
+  ["src/lib/tcm-therapy-phrasing.ts",
+    "治法表述归一层。命中的是**语气虚词**（兼以/佐以/为主/为法）与繁简字对——汉语功能词，" +
+    "GB/T 16751.3 里本来就没有也不该有，与 clinical-polarity.ts 同属语言学层。" +
+    "该层的**临床**部分刻意没有写成词表：疗效目标词（止痛/止呕/退黄…）原为 27 词手写白名单，" +
+    "已改为数据驱动——判据是「剥掉尾部两三字后能否命中受治理表」，能命中即说明剩余部分本身" +
+    "是受控治法、被剥掉的是目的而非治法本体。这样既无需手写清单，也随受治理表一起演进。" +
+    "待建 tcm-linguistic-lexicon.source.json 后与上列 TODO-迁移 项一并迁出。"],
 
   // ── 结构/呈现锚点:判据是文本形态而非临床语义 ──
   ["src/lib/customer-evidence.ts", "证据行标签锚点(证据依据/来源依据…),解析结构不是临床词表。"],
