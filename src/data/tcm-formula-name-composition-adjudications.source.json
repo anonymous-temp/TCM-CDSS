@@ -17,6 +17,11 @@
    "date": "2026-08-09",
    "count": 109,
    "note": "核定方自述边界：本次为古籍文本与数据库字段核对，非面向患者的处方建议；未核定剂量、炮制安全性与临床适应证。因此 doctorCorrectedComposition 仅登记不自动生效。"
+  },
+  {
+   "name": "甲方核定表落地决定",
+   "date": "2026-08-09",
+   "note": "6 条恢复组成、3 条剔除（合称条目与重复身份）、15 条题名规范落地。剂量边界仍由药典层单独计算，不取自本表。"
   }
  ],
  "summary": {
@@ -25,7 +30,10 @@
   "unknown": 109,
   "mismatched": 1,
   "doctorReviewed": 109,
-  "doctorMismatched": 9
+  "doctorMismatched": 9,
+  "approvedRestore": 6,
+  "approvedDrop": 3,
+  "approvedDisplayName": 15
  },
  "entries": [
   {
@@ -50,7 +58,10 @@
    "doctorBasis": "《古今名医方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://www.zysj.com.cn/lilunshuji/gujinmingyifanglun/159.html",
    "doctorEvidenceGrade": "A（古籍全文/PDF定位）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedAction": "drop",
+   "approvedDropReason": "三方合称，不是单一方剂；拆分目标中 干姜附子汤/茯苓四逆汤 类已在库，术附汤/参附汤 在库为别本同名异方，芪附汤 缺（另行决定是否新增）",
+   "approvedBy": "甲方核定表 2026-08-09"
   },
   {
    "formulaName": "八珍汤",
@@ -299,7 +310,8 @@
    "doctorBasis": "《大小诸证方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%A4%A7%E5%B0%8F%E8%AB%B8%E8%AD%89%E6%96%B9%E8%AB%96",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "背骨痛方（原书条文题）"
   },
   {
    "formulaName": "补养丸",
@@ -530,7 +542,8 @@
    "doctorBasis": "《大小诸证方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%A4%A7%E5%B0%8F%E8%AB%B8%E8%AD%89%E6%96%B9%E8%AB%96",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "喘嗽方（原书条文题）"
   },
   {
    "formulaName": "春泽汤",
@@ -555,7 +568,10 @@
    "doctorBasis": "《医宗金鉴》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%BE%A1%E7%BA%82%E9%86%AB%E5%AE%97%E9%87%91%E9%91%91_%28%E5%9B%9B%E5%BA%AB%E5%85%A8%E6%9B%B8%E6%9C%AC%29/%E5%8D%B731",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedAction": "restore",
+   "approvedComposition": "人参、白术、茯苓、泽泻、猪苓、桂枝",
+   "approvedBy": "甲方核定表 2026-08-09"
   },
   {
    "formulaName": "打板夹棍仙传膏",
@@ -579,7 +595,10 @@
    "doctorBasis": "《验方新编》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E9%A9%97%E6%96%B9%E6%96%B0%E7%B7%A8/%E5%8D%B723",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedAction": "restore",
+   "approvedComposition": "制乳香、制没药、轻粉、血竭、冰片、麝香、樟脑、黄蜡、猪板油、儿茶",
+   "approvedBy": "甲方核定表 2026-08-09"
   },
   {
    "formulaName": "大黄附子汤",
@@ -683,7 +702,8 @@
    "doctorBasis": "《大小诸证方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%A4%A7%E5%B0%8F%E8%AB%B8%E8%AD%89%E6%96%B9%E8%AB%96",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "大吐寒邪犯肾方（原书条文题）"
   },
   {
    "formulaName": "大陷胸汤",
@@ -1389,7 +1409,10 @@
    "doctorBasis": "《古今名医方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://www.ishibashikomorebi.com/book-082-gujinmingyifanglun.pdf",
    "doctorEvidenceGrade": "A（古籍全文/PDF定位）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedAction": "drop",
+   "approvedDropReason": "二方合称，不是单一方剂；干姜附子汤（《三因》干姜、附子）与茯苓四逆汤（《绛雪园古方选注》）均已在库且组成正确",
+   "approvedBy": "甲方核定表 2026-08-09"
   },
   {
    "formulaName": "干姜黄连黄芩人参汤",
@@ -1932,7 +1955,8 @@
    "doctorBasis": "《大小诸证方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%A4%A7%E5%B0%8F%E8%AB%B8%E8%AD%89%E6%96%B9%E8%AB%96",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "清火止吐汤（“火吐方”条下）"
   },
   {
    "formulaName": "加减复脉汤",
@@ -2048,7 +2072,10 @@
    "doctorBasis": "《济阴纲目》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://www.med66.com/new/201208/wx201208298236.shtml",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedAction": "restore",
+   "approvedComposition": "乌药、砂仁、木香、延胡索、香附、甘草",
+   "approvedBy": "甲方核定表 2026-08-09"
   },
   {
    "formulaName": "加味小建中汤",
@@ -2756,7 +2783,10 @@
    "doctorBasis": "《医方集宜》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E9%86%AB%E6%96%B9%E9%9B%86%E5%AE%9C",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedAction": "restore",
+   "approvedComposition": "真阿魏、雄黄、朱砂",
+   "approvedBy": "甲方核定表 2026-08-09"
   },
   {
    "formulaName": "疟疾不二饮",
@@ -3110,7 +3140,8 @@
    "doctorBasis": "《惠直堂经验方》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E6%83%A0%E7%9B%B4%E5%A0%82%E7%B6%93%E9%A9%97%E6%96%B9",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "乳癖乳岩方（原书条文题）"
   },
   {
    "formulaName": "三拗汤",
@@ -3476,7 +3507,8 @@
    "doctorBasis": "《大小诸证方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%A4%A7%E5%B0%8F%E8%AB%B8%E8%AD%89%E6%96%B9%E8%AB%96",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "肾水成痰引火下降方（原书条文题）"
   },
   {
    "formulaName": "肾着汤",
@@ -4080,7 +4112,8 @@
    "doctorBasis": "《惠直堂经验方》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E6%83%A0%E7%9B%B4%E5%A0%82%E7%B6%93%E9%A9%97%E6%96%B9",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "无名肿毒方（原书条文题）"
   },
   {
    "formulaName": "吴茱萸汤",
@@ -4233,7 +4266,10 @@
    "doctorBasis": "《温热暑疫全书》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E6%BA%AB%E7%86%B1%E6%9A%91%E7%96%AB%E5%85%A8%E6%9B%B8",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedAction": "drop",
+   "approvedDropReason": "章节题误作方名，组成实为白虎汤；《伤寒论》白虎汤已在库，保留本条会形成重复身份",
+   "approvedBy": "甲方核定表 2026-08-09"
   },
   {
    "formulaName": "香薷饮",
@@ -4514,7 +4550,8 @@
    "doctorBasis": "《惠直堂经验方》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E6%83%A0%E7%9B%B4%E5%A0%82%E7%B6%93%E9%A9%97%E6%96%B9",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "虚验方（原书条文题）"
   },
   {
    "formulaName": "玄参升麻汤",
@@ -4553,7 +4590,8 @@
    "doctorBasis": "《大小诸证方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%A4%A7%E5%B0%8F%E8%AB%B8%E8%AD%89%E6%96%B9%E8%AB%96",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "阳痿不举方（原书条文题）"
   },
   {
    "formulaName": "阳虚下陷方",
@@ -4655,7 +4693,8 @@
    "doctorBasis": "《验方新编》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E9%A9%97%E6%96%B9%E6%96%B0%E7%B7%A8",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "又洗方（承接治枪子伤肉条）"
   },
   {
    "formulaName": "玉屏风散",
@@ -4723,7 +4762,11 @@
    "doctorBasis": "《验方新编》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://www.theqi.com/simplified/cmed/oldbook/book57/b57_23.html",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedAction": "restore",
+   "approvedComposition": "朱砂、麝香、冰片、儿茶、乳香、没药、血竭、红花",
+   "approvedBy": "甲方核定表 2026-08-09",
+   "approvedDisplayName": "七厘散（《验方新编》跌打损伤经验方）"
   },
   {
    "formulaName": "增损四物汤",
@@ -4829,7 +4872,8 @@
    "doctorBasis": "《大小诸证方论》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%A4%A7%E5%B0%8F%E8%AB%B8%E8%AD%89%E6%96%B9%E8%AB%96",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "止吐方（原书条文题）"
   },
   {
    "formulaName": "枳实理中丸",
@@ -4868,7 +4912,8 @@
    "doctorBasis": "《集验方》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://www.zysj.com.cn/lilunshuji/yixinfang/quanben.html",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "治口中臭散方（《集验方》条文）"
   },
   {
    "formulaName": "治伤寒中风方",
@@ -4892,7 +4937,8 @@
    "doctorBasis": "《外台》卷二对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%A4%96%E8%87%BA%E7%A7%98%E8%A6%81/%E5%8D%B7%E7%AC%AC%E4%BA%8C",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "桂枝汤（《外台》引治伤寒中风方）"
   },
   {
    "formulaName": "治瞳人散大方",
@@ -4938,7 +4984,8 @@
    "doctorBasis": "《集验方》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zhongyibaodian.com/jiyanfang/",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedDisplayName": "治胸腹胀满方（《集验方》条文）"
   },
   {
    "formulaName": "朱砂酸枣仁乳香散",
@@ -5033,7 +5080,10 @@
    "doctorBasis": "《成方切用》对应方/条文；按方名、卷次与药味共同定位",
    "doctorBasisUrl": "https://zh.wikisource.org/wiki/%E5%A5%87%E6%96%B9%E9%A1%9E%E7%B7%A8",
    "doctorEvidenceGrade": "A/B（古籍电子全文或可靠全文转录）",
-   "doctorReviewedAt": "2026-08-09"
+   "doctorReviewedAt": "2026-08-09",
+   "approvedAction": "restore",
+   "approvedComposition": "人参、白豆蔻、莲子肉、黄连、桔梗、神曲、薏苡仁、芡实、陈皮、藿香、白术、山药、麦芽、山楂、白茯苓、炙甘草、白扁豆、泽泻",
+   "approvedBy": "甲方核定表 2026-08-09"
   },
   {
    "formulaName": "滋血汤",

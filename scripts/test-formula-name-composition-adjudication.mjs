@@ -56,14 +56,21 @@ checks += 4;
 // ── 剔除集合必须恰好等于「mismatched + high」，一条都不能多、不能少 ──────────────
 // 甲方 2026-08-09 决策：名实不符的条目**整条剔除**（连文献证据资格一并去掉），
 // 不是此前的「只取消身份资格、保留为证据」。
-// 医生裁定优先于机器裁定：机器判 unknown 的绝大多数理由是「同名异方，无法确认通行组成」，
-// 那正是需要人来定的；有了人的逐条裁定（带依据定位与链接）就不该再让 unknown 挡着。
+// 三层优先级（高 → 低），改动前先读懂为什么是这个顺序：
+//   ① approvedAction —— 甲方核定表的落地决定（restore 恢复组成 / drop 剔除）。
+//      医生给出了通行组成的，**恢复优先于剔除**：救回来比剔掉更有价值，
+//      春泽汤、资生丸这类常用方身上还挂着人工做过的证候标签裁定。
+//   ② doctorVerdict —— 中医师逐条核定（带古籍定位与链接）。
+//   ③ 机器裁定 mismatched + high。
+// 机器判 unknown 的绝大多数理由是「同名异方，无法确认通行组成」——那正是需要人来定的。
+const dropExpectedFor = (e) => {
+  if (e.approvedAction === "drop") return true;
+  if (e.approvedAction === "restore") return false;
+  if (e.doctorVerdict) return e.doctorVerdict === "mismatched";
+  return e.verdict === "mismatched" && e.confidence === "high";
+};
 const shouldDrop = new Set(
-  source.entries
-    .filter((e) => (e.doctorVerdict
-      ? e.doctorVerdict === "mismatched"
-      : e.verdict === "mismatched" && e.confidence === "high"))
-    .map((e) => `${e.formulaName}@${e.source}`),
+  source.entries.filter(dropExpectedFor).map((e) => `${e.formulaName}@${e.source}`),
 );
 const actuallyDropped = new Set(catalog.summary?.nameCompositionMismatchDropped || []);
 ok(
@@ -80,10 +87,7 @@ for (const key of shouldDrop) {
 // unknown / 非 high 的 mismatched **不得**被剔除——这是本表的反向护栏。
 // 误剔一条正当条目等于凭空少给医生一个方名，代价高于留着一个错名。
 for (const entry of source.entries) {
-  const dropExpected = entry.doctorVerdict
-    ? entry.doctorVerdict === "mismatched"
-    : entry.verdict === "mismatched" && entry.confidence === "high";
-  if (dropExpected) continue;
+  if (dropExpectedFor(entry)) continue;
   const key = `${entry.formulaName}@${entry.source}`;
   if (actuallyDropped.has(key)) {
     failures.push(`不该剔除却被剔除: ${key} (verdict=${entry.verdict}/${entry.doctorVerdict}, confidence=${entry.confidence})`);
@@ -122,21 +126,46 @@ if (zhengdang) {
   }
   checks += 1;
 
-  // **纠正组成只登记、不自动生效**。核定方明确声明本次是古籍文本与字段核对、
-  // 未核定剂量与炮制安全性；把它写进可剂量编译的受治理条目会超出该次核定的授权范围。
-  // 这条断言防的是「下次有人顺手把 doctorCorrectedComposition 接进构建」。
+  // **纠正组成不得被隐式应用**——只有带 approvedComposition（甲方逐条授权）的才生效。
+  // 护栏本意不变：防「下次有人顺手把 doctorCorrectedComposition 整批接进构建」。
+  // 医生核定的自述边界是「古籍文本与字段核对，未核定剂量与炮制安全性」，
+  // 因此整批自动生效会超出该次核定的授权范围；逐条授权则是甲方明确做出的决定。
   const corrected = source.entries.filter((e) => String(e.doctorCorrectedComposition || "").trim());
-  ok(`登记了纠正组成的条目（${corrected.length}）均未进入目录`, corrected.every((entry) => {
+  const unauthorized = corrected.filter((e) => !String(e.approvedComposition || "").trim());
+  ok(`未授权的纠正组成（${unauthorized.length}）一律未进入目录`, unauthorized.every((entry) => {
     const row = catalog.entries.find((c) => c.name === entry.formulaName && c.source === entry.source);
     if (!row) return true; // 已整条剔除
-    const recorded = (row.ingredients || []).join("、");
-    return recorded !== entry.doctorCorrectedComposition;
+    return (row.ingredients || []).join("、") !== entry.doctorCorrectedComposition;
   }));
+
+  // 已授权恢复的必须**真的**按授权组成落地，且药味数对得上——
+  // 「授权了但没生效」和「未授权却生效了」同样是缺陷。
+  const restored = source.entries.filter((e) => e.approvedAction === "restore");
+  ok(`授权恢复条数与 summary 一致（${restored.length}）`,
+    restored.length === (catalog.summary?.nameCompositionRestored || []).length);
+  for (const entry of restored) {
+    const row = catalog.entries.find((c) => c.name === entry.formulaName && c.source === entry.source);
+    ok(`授权恢复的条目仍在目录: ${entry.formulaName}`, Boolean(row));
+    if (!row) continue;
+    const expected = String(entry.approvedComposition).replace(/，/g, "、").split("、").map((x) => x.trim()).filter(Boolean);
+    ok(`${entry.formulaName} 组成按授权落地（${(row.ingredients || []).length}/${expected.length} 味）`,
+      (row.ingredients || []).join("、") === expected.join("、"));
+  }
+
+  // 题名规范只改展示名，**身份键 name 不得改动**——改了会让既有裁定表、别名表、
+  // 归档产物里的引用全部悬空，比题名不规范严重得多。
+  for (const entry of source.entries.filter((e) => e.approvedDisplayName)) {
+    const row = catalog.entries.find((c) => c.name === entry.formulaName && c.source === entry.source);
+    if (!row) continue;
+    ok(`${entry.formulaName} 身份键未被改名`, row.name === entry.formulaName);
+    ok(`${entry.formulaName} 展示名已落地`, row.displayName === entry.approvedDisplayName);
+  }
 
   // 判否的必须真的不在目录里。这批是**组成截断/漏味/方名错位/复合条目未拆**，
   // 且剔除前 8/9 可剂量编译——例如春泽汤漏桂枝、资生丸 18 味只剩 4 味、
   // 疟丹挂错方（错挂的那份含巴豆）。留着比少几条覆盖危险得多。
-  for (const entry of reviewed.filter((e) => e.doctorVerdict === "mismatched")) {
+  // 医生判否且**未获授权恢复**的必须真的不在目录里。
+  for (const entry of reviewed.filter((e) => e.doctorVerdict === "mismatched" && e.approvedAction !== "restore")) {
     ok(`医生判否已剔除: ${entry.formulaName}`,
       !catalog.entries.some((c) => c.name === entry.formulaName && c.source === entry.source));
   }

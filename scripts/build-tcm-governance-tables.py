@@ -536,6 +536,49 @@ def derived_tag_ids(text: str, lexicon: list[tuple[str, list[str]]]) -> list[str
     return sorted({item_id for item_id, terms in lexicon if any(term in text for term in terms)})
 
 
+def load_name_composition_actions() -> dict[tuple[str, str], dict[str, Any]]:
+    """(方名, 出处) → 甲方核定表落地动作：restore（恢复组成）/ drop（剔除）/ rename（题名规范）。
+
+    与下面的 load_name_composition_mismatches 分工：那个只管「判否 → 剔除」；
+    这个承载甲方 2026-08-09 核定表的**具体处置**——医生给出了通行组成的，恢复而不是剔除。
+
+    边界（重要）：本表只决定**这方由哪些药组成**与**叫什么名**。
+    剂量边界一向由药典层逐味单独计算，不取自本表；毒性/管制药材的自动剂量排除亦不受影响。
+    """
+    payload = read_json(NAME_COMPOSITION_ADJUDICATIONS)
+    actions: dict[tuple[str, str], dict[str, Any]] = {}
+    for entry in payload.get("entries", []):
+        action = compact(entry.get("approvedAction"))
+        display = compact(entry.get("approvedDisplayName"))
+        if not action and not display:
+            continue
+        formula_name = compact(entry.get("formulaName"))
+        source = compact(entry.get("source"))
+        if not (formula_name and source):
+            raise SystemExit(f"approved action row is incomplete: {entry}")
+        if action == "restore":
+            composition = compact(entry.get("approvedComposition"))
+            if not composition:
+                raise SystemExit(f"approvedAction=restore 缺 approvedComposition: {formula_name}")
+            ingredients = [compact(part) for part in composition.replace("，", "、").split("、")]
+            ingredients = [part for part in ingredients if part]
+            if len(ingredients) < 2:
+                raise SystemExit(f"approvedComposition 解析出的药味过少: {formula_name} -> {ingredients}")
+        elif action == "drop":
+            if not compact(entry.get("approvedDropReason")):
+                raise SystemExit(f"approvedAction=drop 缺 approvedDropReason: {formula_name}")
+            ingredients = []
+        elif action:
+            raise SystemExit(f"未知 approvedAction: {formula_name} = {action}")
+        else:
+            ingredients = []
+        actions[(formula_name, source)] = {
+            "action": action, "ingredients": ingredients, "displayName": display,
+            "reason": compact(entry.get("approvedDropReason")) or compact(entry.get("doctorVerdictText")),
+        }
+    return actions
+
+
 def load_name_composition_mismatches() -> dict[tuple[str, str], dict[str, Any]]:
     """(方名, 出处) → 名实不符裁定。只收 verdict=mismatched 且 confidence=high 的行。
 
@@ -1153,6 +1196,7 @@ def build_formula_catalog(
     adjudicated_tags_by_formula = load_syndrome_tag_adjudications(governed_formula_names)
     identity_adjudications = load_ingredient_identity_adjudications(resolution_index)
     name_composition_mismatches = load_name_composition_mismatches()
+    name_composition_actions = load_name_composition_actions()
 
     resolved_high_frequency_syndrome_ids: set[str] = set()
     resolved_high_frequency_relations: list[dict[str, Any]] = []
@@ -1401,12 +1445,33 @@ def build_formula_catalog(
     # 「源表里有、实际不生效」正是本项目最怕的那种静默分叉。
     neutralized_curated_tags: list[str] = []
     dropped_name_composition_mismatches: list[str] = []
+    restored_name_composition: list[str] = []
+    renamed_name_composition: list[str] = []
     for name, item in sorted(governed.items()):
+        # 甲方核定表落地（2026-08-09）：恢复组成 / 剔除 / 题名规范。
+        # 恢复优先于剔除——医生给出了通行组成的，救回来比剔掉更有价值
+        # （春泽汤、资生丸这类常用方身上还挂着人工做过的证候标签裁定）。
+        approved = name_composition_actions.get((name, item.get("source") or ""))
+        if approved and approved["action"] == "restore":
+            item = {**item, "ingredients": list(approved["ingredients"])}
+            restored_name_composition.append(
+                f"{name}@{item.get('source') or ''}:{len(approved['ingredients'])}味"
+            )
+        if approved and approved.get("displayName"):
+            # 题名规范只改**展示名**，不改身份键：身份键改了会让既有裁定表、别名表、
+            # 归档产物里的引用全部悬空——那是比题名不规范严重得多的问题。
+            item = {**item, "displayName": approved["displayName"]}
+            renamed_name_composition.append(f"{name} → {approved['displayName']}")
+        if approved and approved["action"] == "drop":
+            dropped_name_composition_mismatches.append(f"{name}@{item.get('source') or ''}")
+            continue
         # 名实不符的条目**整条剔除**（甲方 2026-08-09 决策）。
         # 此前的做法是只取消身份资格、保留为文献证据；甲方口径是这类数据错配的条目
         # 连证据资格一并去掉，避免它再以任何形式参与检索与呈现。
         # 只对 verdict=mismatched 且 confidence=high 生效，见 load_name_composition_mismatches。
-        if (name, item.get("source") or "") in name_composition_mismatches:
+        if (name, item.get("source") or "") in name_composition_mismatches and not (
+            approved and approved["action"] == "restore"
+        ):
             dropped_name_composition_mismatches.append(f"{name}@{item.get('source') or ''}")
             continue
         indication_entry = indications_by_name.get(name, {})
@@ -1577,6 +1642,9 @@ def build_formula_catalog(
                 else "governed_source_text_derived_index"
             ),
             "governanceStatus": governance_status,
+            # 题名规范建议（甲方核定表）。只作展示，不改身份键 name——
+            # 改身份键会让既有裁定表/别名表/归档产物里的引用全部悬空。
+            "displayName": item.get("displayName") or name,
             "retrievalEligible": identity_lock_eligible,
             "identityLockEligible": identity_lock_eligible,
             "prescriptionLockEligible": identity_lock_eligible,
@@ -1692,6 +1760,8 @@ def build_formula_catalog(
             # 名实不符被整条剔除的条目。落进 summary 而不只是打印，
             # 是为了让测试能对「剔除集合 == 裁定集合」做确定性断言。
             "nameCompositionMismatchDropped": dropped_name_composition_mismatches,
+            "nameCompositionRestored": restored_name_composition,
+            "nameCompositionRenamed": renamed_name_composition,
             "governedFormulaCount": len(entries),
             "prescriptionLockEligibleCount": sum(bool(item["prescriptionLockEligible"]) for item in entries),
             "identityLockEligibleCount": sum(bool(item["identityLockEligible"]) for item in entries),
@@ -1930,6 +2000,23 @@ def main() -> None:
             "entries": dropped_mismatch,
             "note": "方名与自身记录组成矛盾，按甲方 2026-08-09 决策整条剔除（连文献证据资格一并去掉）。"
                     "裁定见 tcm-formula-name-composition-adjudications.source.json，只对 mismatched+high 生效。",
+        }, ensure_ascii=False))
+    restored = formula_catalog["summary"].get("nameCompositionRestored") or []
+    if restored:
+        print(json.dumps({
+            "info": "entries_restored_by_doctor_review",
+            "count": len(restored),
+            "entries": restored,
+            "note": "中医师核定给出通行组成后恢复的条目（甲方 2026-08-09 落地决定）。"
+                    "本表只决定组成与题名；剂量边界仍由药典层逐味单独计算，"
+                    "毒性/管制药材的自动剂量排除不受影响。",
+        }, ensure_ascii=False))
+    renamed = formula_catalog["summary"].get("nameCompositionRenamed") or []
+    if renamed:
+        print(json.dumps({
+            "info": "entries_display_name_normalized",
+            "count": len(renamed),
+            "note": "只改展示名，身份键 name 不动——改身份键会让既有裁定表与归档引用全部悬空。",
         }, ensure_ascii=False))
     neutralized = formula_catalog["summary"]["syndromeTagCuratedNeutralizedCount"]
     if neutralized:
