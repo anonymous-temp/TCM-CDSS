@@ -56,9 +56,13 @@ checks += 4;
 // ── 剔除集合必须恰好等于「mismatched + high」，一条都不能多、不能少 ──────────────
 // 甲方 2026-08-09 决策：名实不符的条目**整条剔除**（连文献证据资格一并去掉），
 // 不是此前的「只取消身份资格、保留为证据」。
+// 医生裁定优先于机器裁定：机器判 unknown 的绝大多数理由是「同名异方，无法确认通行组成」，
+// 那正是需要人来定的；有了人的逐条裁定（带依据定位与链接）就不该再让 unknown 挡着。
 const shouldDrop = new Set(
   source.entries
-    .filter((e) => e.verdict === "mismatched" && e.confidence === "high")
+    .filter((e) => (e.doctorVerdict
+      ? e.doctorVerdict === "mismatched"
+      : e.verdict === "mismatched" && e.confidence === "high"))
     .map((e) => `${e.formulaName}@${e.source}`),
 );
 const actuallyDropped = new Set(catalog.summary?.nameCompositionMismatchDropped || []);
@@ -76,10 +80,13 @@ for (const key of shouldDrop) {
 // unknown / 非 high 的 mismatched **不得**被剔除——这是本表的反向护栏。
 // 误剔一条正当条目等于凭空少给医生一个方名，代价高于留着一个错名。
 for (const entry of source.entries) {
-  if (entry.verdict === "mismatched" && entry.confidence === "high") continue;
+  const dropExpected = entry.doctorVerdict
+    ? entry.doctorVerdict === "mismatched"
+    : entry.verdict === "mismatched" && entry.confidence === "high";
+  if (dropExpected) continue;
   const key = `${entry.formulaName}@${entry.source}`;
   if (actuallyDropped.has(key)) {
-    failures.push(`不该剔除却被剔除: ${key} (verdict=${entry.verdict}, confidence=${entry.confidence})`);
+    failures.push(`不该剔除却被剔除: ${key} (verdict=${entry.verdict}/${entry.doctorVerdict}, confidence=${entry.confidence})`);
   }
   // 且必须仍然实际存在于目录里。
   if (!catalog.entries.some((e) => e.name === entry.formulaName && e.source === entry.source)) {
@@ -98,6 +105,41 @@ ok(
 const zhengdang = catalog.entries.find((e) => e.name === "四君子汤");
 if (zhengdang) {
   ok("四君子汤保留命名资格（遮蔽不是缺陷）", zhengdang.identityLockEligible === true);
+}
+
+
+// ── 医生核定层的契约（2026-08-09 中医师逐条核定 109 条 unknown）────────────────
+{
+  const reviewed = source.entries.filter((e) => e.doctorVerdict);
+  ok(`医生核定条数与 summary 一致（${reviewed.length}）`, reviewed.length === (source.summary?.doctorReviewed ?? -1));
+  for (const entry of reviewed) {
+    if (!["consistent", "mismatched"].includes(entry.doctorVerdict)) {
+      failures.push(`未知 doctorVerdict: ${entry.formulaName} = ${entry.doctorVerdict}`);
+    }
+    if (!String(entry.doctorVerdictText || "").trim()) failures.push(`缺医生裁定原文: ${entry.formulaName}`);
+    // 依据可回溯是医生核定优先于机器裁定的前提——没有依据就不该压过机器的 unknown。
+    if (!String(entry.doctorBasis || "").trim()) failures.push(`缺核定依据定位: ${entry.formulaName}`);
+  }
+  checks += 1;
+
+  // **纠正组成只登记、不自动生效**。核定方明确声明本次是古籍文本与字段核对、
+  // 未核定剂量与炮制安全性；把它写进可剂量编译的受治理条目会超出该次核定的授权范围。
+  // 这条断言防的是「下次有人顺手把 doctorCorrectedComposition 接进构建」。
+  const corrected = source.entries.filter((e) => String(e.doctorCorrectedComposition || "").trim());
+  ok(`登记了纠正组成的条目（${corrected.length}）均未进入目录`, corrected.every((entry) => {
+    const row = catalog.entries.find((c) => c.name === entry.formulaName && c.source === entry.source);
+    if (!row) return true; // 已整条剔除
+    const recorded = (row.ingredients || []).join("、");
+    return recorded !== entry.doctorCorrectedComposition;
+  }));
+
+  // 判否的必须真的不在目录里。这批是**组成截断/漏味/方名错位/复合条目未拆**，
+  // 且剔除前 8/9 可剂量编译——例如春泽汤漏桂枝、资生丸 18 味只剩 4 味、
+  // 疟丹挂错方（错挂的那份含巴豆）。留着比少几条覆盖危险得多。
+  for (const entry of reviewed.filter((e) => e.doctorVerdict === "mismatched")) {
+    ok(`医生判否已剔除: ${entry.formulaName}`,
+      !catalog.entries.some((c) => c.name === entry.formulaName && c.source === entry.source));
+  }
 }
 
 if (failures.length > 0) {

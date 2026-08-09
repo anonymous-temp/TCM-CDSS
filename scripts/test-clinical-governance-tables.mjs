@@ -481,8 +481,21 @@ const adjudicatedSourceClasses = new Set();
 //   要么落地，要么**带一条具名拒收理由**。不允许既没落地又没有理由。
 // 拒收理由写在目录条目的 syndromeTagRejection 上，构建期另有一条 warning 打印被中和的行数。
 let routeRejectedAdjudications = 0;
+// 因名实核定被整条剔除的方，其人工证候标签裁定随之失效。这是**具名理由**的一种：
+// 方剂本身已被判定为组成错配/截断（春泽汤漏桂枝、资生丸 18 味只剩 4 味、疟丹挂错方…），
+// 标签跟着走是正确的。但它同样是「人工工作失效」，构建期有 warning 打印，不许变成看不见的债。
+// 见 tcm-formula-name-composition-adjudications.source.json 与构建告警
+// entries_dropped_name_composition_mismatch / curated_syndrome_tags_orphaned_by_drop。
+const droppedByNameComposition = new Set(
+  (formulas.summary?.nameCompositionMismatchDropped || []).map((key) => String(key).split("@")[0]),
+);
+let orphanedByDropAdjudications = 0;
 for (const row of syndromeTagAdjudications.entries) {
   const entry = governedFormulaByName.get(row.name);
+  if (!entry && droppedByNameComposition.has(row.name)) {
+    orphanedByDropAdjudications += 1;
+    continue;
+  }
   assert.ok(entry, `裁定的方剂必须存在于受控目录：${row.name}`);
   adjudicatedSourceClasses.add(entry.sourceClass);
   const rejection = entry.syndromeTagRejection || "";

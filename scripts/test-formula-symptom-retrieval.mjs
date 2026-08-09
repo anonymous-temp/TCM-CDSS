@@ -39,8 +39,19 @@ const familyMap = read("tcm-symptom-axis-map.source.json");
 /* ── 1. 覆盖率闸门：只能涨不能落 ────────────────────────────────────────────── */
 // 基线是本轮补齐后的实测值。降低这三个数字必须是显式动作并写明理由——它们各自对应
 // 一条召回通路：概念数=症状词汇面，标注方数=能被症状路召回的方，关系数=索引边。
+// 覆盖率地板**从生成器源码里读**，不在这里再抄一份数字。
+// 2026-08-09 实测教训：这两个常量此前在生成器与本测试里各写一份，
+// 生成器那份按医生核定下调后，测试这份还停在旧值，门禁当场红——
+// 正是本仓库反复出现的「同一判据两处各写各的」，这次出现在护栏自己身上。
+// 现在生成器是唯一来源；改地板只需改一处，且必须在那里写明下调理由。
+const buildSource = fs.readFileSync(new URL("./build-tcm-governance-tables.py", import.meta.url), "utf8");
+const readFloor = (name) => {
+  const matched = buildSource.match(new RegExp(`^${name} = (\\d+)`, "m"));
+  assert.ok(matched, `取不到生成器里的 ${name}——生成器结构变了，先更新本测试`);
+  return Number(matched[1]);
+};
 const CONCEPT_FLOOR = 70;
-const SYMPTOM_TAGGED_FORMULA_FLOOR = 1100;
+const SYMPTOM_TAGGED_FORMULA_FLOOR = readFloor("SYMPTOM_TAGGED_FORMULA_FLOOR");
 const SYMPTOM_RELATION_FLOOR = 2300;
 
 const symptomTagged = catalog.entries.filter((entry) => (entry.symptomTags || []).length > 0);

@@ -32,8 +32,8 @@
     },
     {
       "path": "src/data/tcm-formula-governed-catalog.json",
-      "sha256": "a30aee5b2dcf03661b93478a54ebbce3f607d1cb82ac226d31b59ff2f9342645",
-      "records": 2936
+      "sha256": "23fb136548c533569b913b499e57150e7361efc81604c5f2ec512d1b67942682",
+      "records": 2927
     }
   ],
   "evidence": {
@@ -46,7 +46,7 @@
     "shanghanUniqueClauseAnchors": 333,
     "shanghanCoverageOf398": 0.8367,
     "jinguiAnchorPolicy": "chapter_paragraph_only",
-    "runtimeFormulaCount": 588,
+    "runtimeFormulaCount": 587,
     "runtimeRetrievalPolicy": "full_record_scan_no_prebuilt_index",
     "runtimeScannableRecords": 55127
   },
@@ -171,16 +171,16 @@
       "bytes": 212167
     },
     "tcm-classic-text-evidence.jsonl": {
-      "sha256": "aa7cfcfaac63bfffa42ac8d5b1cd94cbf28be0346e7007eff749b891910fb6d9",
-      "bytes": 44405613
+      "sha256": "9ca427324e12f9d10c810975b473363fe198dfb3b7f73626d9c2d4fd44140895",
+      "bytes": 44405602
     },
     "tcm-classic-text-evidence-quarantine.jsonl": {
       "sha256": "2e0022103331b6a8c82f9937461db1f41f255dae5304e0f218798da8bb37a386",
       "bytes": 409353
     },
     "tcm-classic-formula-evidence.json": {
-      "sha256": "698d5709863c1349098e15f839f95ecf6efeb5af489cab7861b73e86d575a754",
-      "bytes": 1060630
+      "sha256": "6f7f30480a0b1c32d6ea18fb056ef7a7aea9a90d8a085f5e2c597948a4d5e636",
+      "bytes": 1060085
     }
   }
 }

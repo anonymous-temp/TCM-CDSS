@@ -552,6 +552,26 @@ def load_name_composition_mismatches() -> dict[tuple[str, str], dict[str, Any]]:
         verdict = compact(entry.get("verdict"))
         if verdict not in {"consistent", "unknown", "mismatched"}:
             raise SystemExit(f"name-composition adjudication has unknown verdict: {entry}")
+        # 医生裁定优先于机器裁定（2026-08-09 中医师逐条核定 109 条 unknown）。
+        # 机器判 unknown 的绝大多数理由是「同名异方，无法确认通行组成」——那正是需要人来定的，
+        # 有了人的裁定就不该再让 unknown 挡着。
+        doctor_verdict = compact(entry.get("doctorVerdict"))
+        if doctor_verdict:
+            if doctor_verdict not in {"consistent", "mismatched"}:
+                raise SystemExit(f"name-composition adjudication has unknown doctorVerdict: {entry}")
+            if doctor_verdict != "mismatched":
+                continue
+            # 医生裁定不看 confidence：人已经逐条给了依据定位与链接。
+            formula_name = compact(entry.get("formulaName"))
+            source = compact(entry.get("source"))
+            reason = compact(entry.get("doctorVerdictText")) or compact(entry.get("reason"))
+            if not (formula_name and source and reason):
+                raise SystemExit(f"doctor-reviewed adjudication row is incomplete: {entry}")
+            key = (formula_name, source)
+            if key in resolved:
+                raise SystemExit(f"name-composition adjudication has duplicate row: {formula_name}@{source}")
+            resolved[key] = {"reason": reason, "recorded": entry.get("recordedIngredients") or [], "by": "doctor"}
+            continue
         if verdict != "mismatched":
             continue
         if compact(entry.get("confidence")) != "high":
@@ -565,7 +585,7 @@ def load_name_composition_mismatches() -> dict[tuple[str, str], dict[str, Any]]:
         key = (formula_name, source)
         if key in resolved:
             raise SystemExit(f"name-composition adjudication has duplicate row: {formula_name}@{source}")
-        resolved[key] = {"reason": reason, "recorded": entry.get("recordedIngredients") or []}
+        resolved[key] = {"reason": reason, "recorded": entry.get("recordedIngredients") or [], "by": "machine"}
     return resolved
 
 
@@ -970,7 +990,12 @@ def load_syndrome_tag_adjudications(governed_formula_names: set[str]) -> dict[st
 SYMPTOM_AXIS_CONCEPT_PREFIX = "symptom_axis_"
 # 检索概念覆盖率闸门。降低=召回维度退化，必须显式改这两个常量并说明理由。
 RETRIEVAL_CONCEPT_FLOOR = 39 + 31  # 人工受治理 39 条 + 词族派生 31 条
-SYMPTOM_TAGGED_FORMULA_FLOOR = 1100
+# 2026-08-09：1100 → 1093。下调 7 是**有意的覆盖率下降**，不是退化——
+# 中医师逐条核定 109 条同名异方后判否 9 条（组成截断/漏味/方名错位/复合条目未拆），
+# 这 9 条整条剔除，其中 7 条带症状标注。剔除的是缺陷数据：例如 春泽汤漏桂枝、
+# 资生丸 18 味只剩 4 味、疟丹挂错方（错挂的那份含巴豆），而它们 8/9 可剂量编译。
+# 留着比少 7 条覆盖危险得多。核定明细见 tcm-formula-name-composition-adjudications.source.json。
+SYMPTOM_TAGGED_FORMULA_FLOOR = 1093
 # 词族派生概念的权重。人工表用 1（泛症状）/2（特异症状）——那是逐条裁定过鉴别力的；
 # 派生条目没有经过这一步，治理层级更低，因此一律取人工表的**下**档 1，不按
 # chiefComplaintAnchor 升到 2。
@@ -1880,6 +1905,24 @@ def main() -> None:
     }
     write_json(MANIFEST_OUTPUT, manifest)
     dropped_mismatch = formula_catalog["summary"].get("nameCompositionMismatchDropped") or []
+    # 被剔除的方带走的人工证候标签裁定。这些是真人逐条做过的工作，随方失效是正确的
+    # （方本身组成错配/截断），但必须看得见——本仓库最怕的就是「人工判断静默失效」。
+    if dropped_mismatch:
+        dropped_names = {key.split("@")[0] for key in dropped_mismatch}
+        orphaned = sorted({
+            compact(row.get("name"))
+            for row in read_json(SYNDROME_TAG_ADJUDICATIONS).get("entries", [])
+            if compact(row.get("name")) in dropped_names
+        })
+        if orphaned:
+            print(json.dumps({
+                "warning": "curated_syndrome_tags_orphaned_by_drop",
+                "count": len(orphaned),
+                "entries": orphaned,
+                "note": "这些方因名实核定被整条剔除，其人工证候标签裁定随之失效。"
+                        "源表里的行仍在（是人工判断的记录），但不再生效。"
+                        "若日后经药师终审恢复该方，这些标签会自动重新生效。",
+            }, ensure_ascii=False))
     if dropped_mismatch:
         print(json.dumps({
             "warning": "entries_dropped_name_composition_mismatch",
