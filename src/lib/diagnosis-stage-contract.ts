@@ -3398,9 +3398,22 @@ function crossStageReasoningIssue(
       candidate.constructionType === "single_herb" ||
       (Array.isArray(candidate.formulaNames) && candidate.formulaNames.length === 0)
     );
+    // 君药必须引用 P1。这是**模型给药味打标签的规范性**，不是用药安全：这张方的逐味药典剂量
+    // 边界、十八反十九畏、特殊人群门禁、高影响方向对立此前都已单独通过；君药指向 P2 而非 P1
+    // 说明模型认为次要病机才是主要矛盾，属推理一致性问题。
+    //
+    // 因此与紧邻的 emperor_therapy_mismatch 同口径：**生成与修复轮里照常报码**（让模型有机会
+    // 按规范重打标签），只有在修复耗尽后的最后一公里（waiveTherapyCoverageAnnotated=true，
+    // 仅透明降级/带批注受理路径会传）才不再阻断。owner doctrine：安全阻断、质量标注。
+    // 实测：695 例全量里它占最后一公里拦截约 15%（59 次降级被拒中 9 次）。
+    //
+    // 只放这一个码。emperor_missing（一味君药都没有）与 emperor_excess（超过 2 味君药）
+    // 仍然任何时候都拦——那是候选结构本身不成立，君臣佐使无从呈现，不是打标签的规范性问题。
     for (const { herb, herbIndex } of emperorHerbs) {
       if (herb.targetKind !== "pathogenesis_node" || String(herb.targetRef || "") !== "P1") {
-        return `candidate_${candidateIndex}_herb_${herbIndex}_emperor_not_primary`;
+        if (!waiveTherapyCoverageAnnotated) {
+          return `candidate_${candidateIndex}_herb_${herbIndex}_emperor_not_primary`;
+        }
       }
     }
     // ── 君药方向：整组判定，不再逐味判定（甲方 2026-08-08 定口径）──────────────

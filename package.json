@@ -101,6 +101,7 @@
     "test:m03-prepare-idempotence": "jiti scripts/test-m03-prepare-idempotence.mjs",
     "test:transparent-declassification": "jiti scripts/test-transparent-declassification.mjs",
     "test:classic-evidence-sanitizer": "node scripts/test-classic-evidence-sanitizer.mjs",
+    "test:formula-name-composition": "node scripts/test-formula-name-composition-adjudication.mjs",
     "test:clinical-four-binding": "jiti scripts/test-clinical-four-governed-binding.mjs",
     "test:chief-complaint-primacy": "jiti scripts/test-chief-complaint-primacy.mjs",
     "test:presentation-contract": "jiti scripts/test-diagnosis-presentation-contract.mjs",

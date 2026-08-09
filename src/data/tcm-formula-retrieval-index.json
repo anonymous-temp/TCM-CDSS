@@ -3,7 +3,7 @@
   "governanceTable": "T8",
   "sourceCatalog": {
     "file": "tcm-formula-governed-catalog.json",
-    "sha256": "687820447acc3c15c5e882a5479c4a0e1241eb45186ee8dd92dd4fb502424a6d"
+    "sha256": "2d92e68f3fea695accd2a89f2419ace7196baf9aa1b8d8850ff27dcb23311d00"
   },
   "conceptSource": {
     "file": "tcm-formula-retrieval-concepts.json",
@@ -4700,7 +4700,6 @@
         "TCM-FORMULA-5A66B61D8399",
         "TCM-FORMULA-259D093AD6D0",
         "TCM-FORMULA-D2960A04D39E",
-        "TCM-FORMULA-42BC80CEDE31",
         "TCM-FORMULA-9F510520E95F",
         "TCM-FORMULA-F4300329D92E",
         "TCM-FORMULA-C3026A8B5928",
@@ -8315,7 +8314,6 @@
         "TCM-FORMULA-5A66B61D8399",
         "TCM-FORMULA-259D093AD6D0",
         "TCM-FORMULA-D2960A04D39E",
-        "TCM-FORMULA-42BC80CEDE31",
         "TCM-FORMULA-9F510520E95F",
         "TCM-FORMULA-F4300329D92E",
         "TCM-FORMULA-C3026A8B5928",
@@ -12386,11 +12384,11 @@
     }
   },
   "summary": {
-    "formulaCount": 2915,
+    "formulaCount": 2914,
     "conceptCount": 70,
     "conceptRelationCount": 2732,
-    "syndromeRelationCount": 3476,
-    "natureRelationCount": 747,
+    "syndromeRelationCount": 3475,
+    "natureRelationCount": 746,
     "locationRelationCount": 849,
     "symptomRelationCount": 2333,
     "diseaseRelationCount": 406,

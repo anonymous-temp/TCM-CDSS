@@ -55,6 +55,13 @@ INGREDIENT_IDENTITY_ADJUDICATIONS = DATA_ROOT / "tcm-formula-ingredient-identity
 INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 154  # 76(B1) + 78(B2)
 # 同名异方变体表(ADJ-HOMONYM-20260725):历史并存的不同方两版并存为不同身份(加味逍遥散模式)。
 HOMONYM_VARIANTS = DATA_ROOT / "tcm-formula-homonym-variants.source.json"
+# 方名与自身记录组成是否自洽的逐条裁定(ADJ-NAME-COMPOSITION-20260809)。
+# 目录里存在名实不符的条目：理气化痰汤《惠直堂经验方》记的是 人参黄芪当归身白芍茯苓白术炙甘草
+# ——纯补益组成，方名却指向理气化痰。这类小条目会在命名层以「完整包含」压过它所属的更大真方
+# （实测：归脾汤类处方被命名为「理气化痰汤加减」，而归脾汤缺远志/龙眼肉共 2 味、
+# 超过减味兜底层「最多缺 1 味」上限，正确方名结构上够不着）。
+# 裁定为 mismatched 的条目在此取消身份资格；unknown 只作为人工复核待办，不改变行为。
+NAME_COMPOSITION_ADJUDICATIONS = DATA_ROOT / "tcm-formula-name-composition-adjudications.source.json"
 FORMULA_RETRIEVAL_INDEX_OUTPUT = DATA_ROOT / "tcm-formula-retrieval-index.json"
 HERB_OUTPUT = DATA_ROOT / "tcm-herb-identity-catalog.json"
 MANIFEST_OUTPUT = DATA_ROOT / "clinical-governance-table-manifest.json"
@@ -527,6 +534,39 @@ def lexicon_terms(file_name: str, list_key: str = "entries") -> list[tuple[str, 
 
 def derived_tag_ids(text: str, lexicon: list[tuple[str, list[str]]]) -> list[str]:
     return sorted({item_id for item_id, terms in lexicon if any(term in text for term in terms)})
+
+
+def load_name_composition_mismatches() -> dict[tuple[str, str], dict[str, Any]]:
+    """(方名, 出处) → 名实不符裁定。只收 verdict=mismatched 且 confidence=high 的行。
+
+    fail-closed 的方向在这里是**反的**，要想清楚：这张表的作用是「取消资格」，
+    所以宁可少收也不能多收——错误地取消一条正当条目的资格，等于凭空少给医生一个方名。
+    因此 unknown / low-confidence 一律不取消资格，只留在源表里当人工复核待办。
+    """
+    payload = read_json(NAME_COMPOSITION_ADJUDICATIONS)
+    entries = payload.get("entries", [])
+    if not entries:
+        raise SystemExit("name-composition adjudication table is empty")
+    resolved: dict[tuple[str, str], dict[str, Any]] = {}
+    for entry in entries:
+        verdict = compact(entry.get("verdict"))
+        if verdict not in {"consistent", "unknown", "mismatched"}:
+            raise SystemExit(f"name-composition adjudication has unknown verdict: {entry}")
+        if verdict != "mismatched":
+            continue
+        if compact(entry.get("confidence")) != "high":
+            # 低置信的 mismatched 不取消资格：取消一条正当条目的代价高于留着一个错名。
+            continue
+        formula_name = compact(entry.get("formulaName"))
+        source = compact(entry.get("source"))
+        reason = compact(entry.get("reason"))
+        if not (formula_name and source and reason):
+            raise SystemExit(f"name-composition adjudication row is incomplete: {entry}")
+        key = (formula_name, source)
+        if key in resolved:
+            raise SystemExit(f"name-composition adjudication has duplicate row: {formula_name}@{source}")
+        resolved[key] = {"reason": reason, "recorded": entry.get("recordedIngredients") or []}
+    return resolved
 
 
 def load_ingredient_identity_adjudications(
@@ -1087,6 +1127,7 @@ def build_formula_catalog(
     }
     adjudicated_tags_by_formula = load_syndrome_tag_adjudications(governed_formula_names)
     identity_adjudications = load_ingredient_identity_adjudications(resolution_index)
+    name_composition_mismatches = load_name_composition_mismatches()
 
     resolved_high_frequency_syndrome_ids: set[str] = set()
     resolved_high_frequency_relations: list[dict[str, Any]] = []
@@ -1345,6 +1386,10 @@ def build_formula_catalog(
         searchable_text = "；".join([name, *item.get("aliases", []), *indications])
         ingredient_links = linked_ingredients(item["ingredients"], resolution_index, name, identity_adjudications)
         identity_blocking_reasons = []
+        # 名实不符：方名与该条目自身记录的组成矛盾。取消身份资格而不是删条目——
+        # 它作为文献证据仍然有效，只是不该把这个方名借给一张处方。
+        if (name, item.get("source") or "") in name_composition_mismatches:
+            identity_blocking_reasons.append("name_composition_mismatch")
         if not item["source"]:
             identity_blocking_reasons.append("missing_standard_source")
         if not item["ingredients"]:

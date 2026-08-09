@@ -40,9 +40,9 @@
     "syndromeTagRouteRejectedCount": 190,
     "syndromeTagCuratedNeutralizedCount": 41,
     "governedFormulaCount": 2937,
-    "prescriptionLockEligibleCount": 2915,
-    "identityLockEligibleCount": 2915,
-    "doseCompilationEligibleCount": 2547,
+    "prescriptionLockEligibleCount": 2914,
+    "identityLockEligibleCount": 2914,
+    "doseCompilationEligibleCount": 2546,
     "symptomTaggedFormulaCount": 1106,
     "diseaseTaggedFormulaCount": 372,
     "syndromeTaggedFormulaCount": 2311,
@@ -199709,13 +199709,15 @@
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
-      "retrievalEligible": true,
-      "identityLockEligible": true,
-      "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "retrievalEligible": false,
+      "identityLockEligible": false,
+      "prescriptionLockEligible": false,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
-      "identityBlockingReasons": [],
+      "identityBlockingReasons": [
+        "name_composition_mismatch"
+      ],
       "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
@@ -199724,7 +199726,9 @@
       "missingDoseBoundaryIngredientNames": [],
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [],
-      "blockingReasons": []
+      "blockingReasons": [
+        "name_composition_mismatch"
+      ]
     },
     {
       "id": "TCM-FORMULA-C4C57D74DDC7",

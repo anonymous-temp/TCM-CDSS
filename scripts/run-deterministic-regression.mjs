@@ -160,6 +160,10 @@ const scripts = [
   // 古籍摘录脱敏：单位与操作词的简繁两侧必须同集。原字符类全是简体，而语料本身是繁体，
   // 实测 2274 条运行期可达记录带着「三兩」这类具体剂量原样进 prompt。
   "test:classic-evidence-sanitizer",
+  // 方名与自身记录组成的名实一致性裁定。目录里名实不符的小条目会在命名层以「完整包含」
+  // 压过它所属的更大真方（归脾汤组成被命名为「理气化痰汤加减」）。反向护栏同样重要：
+  // 取消资格只认 mismatched+high，unknown 一律不动——误取消一条正当条目等于少给医生一个方名。
+  "test:formula-name-composition",
   "test:clinical-polarity",
   "test:negation-scope",
   "test:syndrome-name-standard",
