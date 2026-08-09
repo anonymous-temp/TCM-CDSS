@@ -53,51 +53,46 @@ for (const entry of source.entries) {
 }
 checks += 4;
 
-// ── 取消资格的判据必须是「mismatched + high」，一条都不能多 ────────────────────
-const shouldDisqualify = new Set(
+// ── 剔除集合必须恰好等于「mismatched + high」，一条都不能多、不能少 ──────────────
+// 甲方 2026-08-09 决策：名实不符的条目**整条剔除**（连文献证据资格一并去掉），
+// 不是此前的「只取消身份资格、保留为证据」。
+const shouldDrop = new Set(
   source.entries
     .filter((e) => e.verdict === "mismatched" && e.confidence === "high")
     .map((e) => `${e.formulaName}@${e.source}`),
 );
-const actuallyDisqualified = new Set(
-  catalog.entries
-    .filter((e) => (e.identityBlockingReasons || []).includes("name_composition_mismatch"))
-    .map((e) => `${e.name}@${e.source}`),
-);
+const actuallyDropped = new Set(catalog.summary?.nameCompositionMismatchDropped || []);
 ok(
-  `取消资格集合与裁定一致（应 ${shouldDisqualify.size} 条，实 ${actuallyDisqualified.size} 条）`,
-  shouldDisqualify.size === actuallyDisqualified.size &&
-    [...shouldDisqualify].every((key) => actuallyDisqualified.has(key)),
+  `剔除集合与裁定一致（应 ${shouldDrop.size} 条，实 ${actuallyDropped.size} 条）`,
+  shouldDrop.size === actuallyDropped.size && [...shouldDrop].every((key) => actuallyDropped.has(key)),
 );
 
-// unknown / 非 high 的 mismatched **不得**被取消资格——这是本表的反向护栏。
+// 被剔除的条目必须真的不在目录里了。
+for (const key of shouldDrop) {
+  const [name] = key.split("@");
+  ok(`${name} 已从目录中剔除`, !catalog.entries.some((e) => e.name === name));
+}
+
+// unknown / 非 high 的 mismatched **不得**被剔除——这是本表的反向护栏。
+// 误剔一条正当条目等于凭空少给医生一个方名，代价高于留着一个错名。
 for (const entry of source.entries) {
   if (entry.verdict === "mismatched" && entry.confidence === "high") continue;
   const key = `${entry.formulaName}@${entry.source}`;
-  if (actuallyDisqualified.has(key)) {
-    failures.push(`不该取消资格却被取消: ${key} (verdict=${entry.verdict}, confidence=${entry.confidence})`);
+  if (actuallyDropped.has(key)) {
+    failures.push(`不该剔除却被剔除: ${key} (verdict=${entry.verdict}, confidence=${entry.confidence})`);
+  }
+  // 且必须仍然实际存在于目录里。
+  if (!catalog.entries.some((e) => e.name === entry.formulaName && e.source === entry.source)) {
+    failures.push(`裁定为 ${entry.verdict} 却不在目录里: ${key}`);
   }
 }
-checks += 1;
-
-// ── 被取消资格的条目必须真的退出命名/检索 ──────────────────────────────────────
-for (const e of catalog.entries) {
-  if (!(e.identityBlockingReasons || []).includes("name_composition_mismatch")) continue;
-  ok(`${e.name} identityLockEligible=false`, e.identityLockEligible === false);
-  ok(`${e.name} retrievalEligible=false`, e.retrievalEligible === false);
-  ok(`${e.name} prescriptionLockEligible=false`, e.prescriptionLockEligible === false);
-}
+checks += 2;
 
 // ── 钉住那个触发本表的具体缺陷，防回归 ────────────────────────────────────────
-const trigger = catalog.entries.find((e) => e.name === "理气化痰汤");
-ok("理气化痰汤仍在目录里（取消资格 ≠ 删条目，它作为文献证据仍有效）", Boolean(trigger));
-if (trigger) {
-  ok("理气化痰汤已被取消命名资格", trigger.identityLockEligible === false);
-  ok(
-    "理气化痰汤的取消理由是名实不符",
-    (trigger.identityBlockingReasons || []).includes("name_composition_mismatch"),
-  );
-}
+ok(
+  "理气化痰汤已整条剔除（名实不符：方名理气化痰，组成为纯补益）",
+  !catalog.entries.some((e) => e.name === "理气化痰汤"),
+);
 
 // 正当的小方不得被误伤：四君子汤遮蔽 57 张大方，但它名实相符，必须保留资格。
 const zhengdang = catalog.entries.find((e) => e.name === "四君子汤");
@@ -114,5 +109,5 @@ console.log(
   `[test:formula-name-composition-adjudication] OK — ${checks} 项断言全过；` +
   `裁定 ${source.entries.length} 条（一致 ${source.summary?.consistent ?? "?"} / ` +
   `待复核 ${source.summary?.unknown ?? "?"} / 名实不符 ${source.summary?.mismatched ?? "?"}），` +
-  `实际取消资格 ${actuallyDisqualified.size} 条`,
+  `实际剔除 ${actuallyDropped.size} 条`,
 );

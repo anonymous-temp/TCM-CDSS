@@ -59,7 +59,7 @@ type TextualModificationRule = {
   sourceEvidenceId: string;
   sourceCitation: string;
   evidenceAnchorLevel: "tiaowen" | "chapter_paragraph" | "page_paragraph";
-  tier: "canon" | "common" | "experience";
+  tier: "canon" | "common" | "experience" | "book";
   requiresClinicianReview: true;
 };
 
@@ -90,7 +90,7 @@ export type TextualModificationEvidence = {
   sourceEvidenceId: string;
   sourceCitation: string;
   evidenceAnchorLevel: "tiaowen" | "chapter_paragraph" | "page_paragraph";
-  tier: "canon" | "common" | "experience";
+  tier: "canon" | "common" | "experience" | "book";
   requiresClinicianReview: true;
 };
 

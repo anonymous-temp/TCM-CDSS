@@ -444,7 +444,7 @@ export interface ClinicalReasoningResultV2 {
         anchorLevel: "tiaowen" | "chapter_paragraph" | "page_paragraph";
         clauseNumber?: number;
         excerpt: string;
-        tier: "canon" | "common" | "experience";
+        tier: "canon" | "common" | "experience" | "book";
       }>;
       compositionLogic?: Array<{
         formulaName: string;
@@ -462,7 +462,7 @@ export interface ClinicalReasoningResultV2 {
         sourceEvidenceId: string;
         sourceCitation: string;
         evidenceAnchorLevel: "tiaowen" | "chapter_paragraph" | "page_paragraph";
-        tier: "canon" | "common" | "experience";
+        tier: "canon" | "common" | "experience" | "book";
         requiresClinicianReview: true;
       }>;
       formulaSource: EvidenceRef;

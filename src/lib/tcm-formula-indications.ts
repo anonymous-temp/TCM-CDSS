@@ -457,12 +457,24 @@ function indicationTermMatches(facts: readonly string[]): Map<string, { score: n
   const hits = new Map<string, { score: number; terms: string[] }>();
   if (!merged) return hits;
   const termsById = new Map<string, { term: string; weight: number }[]>();
-  for (const [term, { ids, weight }] of INDICATION_TERM_INDEX) {
-    if (!merged.includes(term)) continue;
-    for (const id of ids) {
+  // 反转循环方向：切病历、查索引，而不是遍历 11.3 万索引词逐个 includes（2026-08-09）。
+  //
+  // **不改任何打分**。这一路的权重尺度上标定着一批治理常数（准入线 2、curatedBoost 2、
+  // SYNDROME_PATH_WEIGHT 3、LOCK_ELIGIBLE_RANK_MULTIPLIER 1.35、coordinationFactor ≤1.75），
+  // 换尺子会让它们全部作废；所以这里只换遍历方式，命中集合与权重逐条不变。
+  //
+  // 等价性不是照抄注释——同文件 :410 早就写过这句声称，但本仓库已经因为「相信未经实测的
+  // 等价性声称」踩过坑。实测（300 例真实归档 M03 产物）：命中集合 0/300 不一致，
+  // 耗时 4.27ms → 0.03ms per case（**128×**）。断言见 scripts/test-formula-symptom-retrieval.mjs。
+  // 成立的前提：索引词就是连续中文串上的 2–4 字滑窗（indicationTerms 与建索引同一个函数），
+  // 因此不可能跨标点，切窗查表与全表 includes 必然同集。
+  for (const term of new Set(indicationTerms(merged))) {
+    const entry = INDICATION_TERM_INDEX.get(term);
+    if (!entry) continue;
+    for (const id of entry.ids) {
       const bucket = termsById.get(id);
-      if (bucket) bucket.push({ term, weight });
-      else termsById.set(id, [{ term, weight }]);
+      if (bucket) bucket.push({ term, weight: entry.weight });
+      else termsById.set(id, [{ term, weight: entry.weight }]);
     }
   }
   // 只给**极大词**计分。索引词是主治原文的 2–4 字滑窗，一句「恶寒发热」会同时产出
@@ -1324,3 +1336,14 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
     },
   );
 }
+
+
+/**
+ * 仅供 scripts/test-*.mjs 与等价性实测使用。导出的是**只读引用**，不提供任何写入口。
+ * 这里要证的是「遍历索引词 includes」与「切病历查索引」命中集合等价——
+ * 该等价性此前只是一句注释，而本仓库已经因为「照抄注释里的等价性声称」踩过坑。
+ */
+export const __retrievalInternalsForTest = {
+  INDICATION_TERM_INDEX,
+  indicationTerms,
+} as const;

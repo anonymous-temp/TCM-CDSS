@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url";
 import {
   retrieveTcmFormulaIndicationCandidates,
 } from "../src/lib/tcm-formula-indications.ts";
+import * as indicationsModule from "../src/lib/tcm-formula-indications.ts";
 import { normalizeCaseStateInput } from "../src/lib/diagnosis-types.ts";
 
 const DATA = path.join(path.dirname(fileURLToPath(import.meta.url)), "../src/data");
@@ -197,3 +198,61 @@ console.log(JSON.stringify({
   symptomOnlyEdges: symptomOnlyPairs.length,
   failures: 0,
 }));
+
+// ── 主治词路：切病历查索引 与 全表 includes 必须命中同集（2026-08-09 迁移 #2）──────
+// 该路原实现是「遍历 11.3 万索引词逐个 merged.includes(term)」，即每次检索十万次子串搜索。
+// 迁移后改为「切病历的 2–4 字滑窗、查索引」。**打分一律不动**——这一路的权重尺度上标定着
+// 准入线 2 / curatedBoost 2 / SYNDROME_PATH_WEIGHT 3 / LOCK_ELIGIBLE_RANK_MULTIPLIER 1.35
+// 等一批治理常数，换尺子会让它们全部作废。
+//
+// 等价性此前只是一句注释。本仓库已经因为「相信未经实测的等价性声称」踩过坑，所以这里逐例实证。
+{
+  const internals = indicationsModule.__retrievalInternalsForTest;
+  assert.ok(internals, "需要 __retrievalInternalsForTest 才能验证等价性");
+  const { INDICATION_TERM_INDEX, indicationTerms } = internals;
+  assert.ok(INDICATION_TERM_INDEX.size > 10000, `索引规模异常: ${INDICATION_TERM_INDEX.size}`);
+
+  const scanHits = (merged) => {
+    const out = new Set();
+    for (const [term] of INDICATION_TERM_INDEX) if (merged.includes(term)) out.add(term);
+    return out;
+  };
+  const lookupHits = (merged) => {
+    const out = new Set();
+    for (const term of indicationTerms(merged)) if (INDICATION_TERM_INDEX.has(term)) out.add(term);
+    return out;
+  };
+
+  // 语料优先用归档真实 M03 产物；取不到时退到内置样例，保证任何机器上都能跑而不是静默跳过。
+  const archived = process.env.M03_PREPARE_CORPUS || "/tmp/p/pairs.json";
+  let samples = [];
+  if (fs.existsSync(archived)) {
+    try {
+      const rows = JSON.parse(fs.readFileSync(archived, "utf8"));
+      for (const row of (Array.isArray(rows) ? rows : []).slice(0, 200)) {
+        const overview = row?.m03?.overview || {};
+        const facts = [overview.primarySyndrome, ...(overview.primarySyndromeBasis || []),
+          overview.overallPathogenesis, row?.m03?.therapy?.overallMethod]
+          .filter((value) => typeof value === "string" && value.trim());
+        if (facts.length) samples.push(facts.join("；"));
+      }
+    } catch { samples = []; }
+  }
+  if (samples.length === 0) {
+    samples = [
+      "恶寒发热；无汗；头身疼痛；风寒束表；辛温解表",
+      "口苦咽干；心烦失眠；肝郁化火；清肝泻火",
+      "神疲乏力；食少便溏；脾气亏虚；健脾益气",
+      "腰膝酸软；五心烦热；肾阴不足；滋阴降火",
+    ];
+  }
+  let mismatched = 0;
+  for (const merged of samples) {
+    const a = scanHits(merged);
+    const b = lookupHits(merged);
+    if (a.size !== b.size || [...a].some((term) => !b.has(term))) mismatched += 1;
+  }
+  assert.equal(mismatched, 0,
+    `切词查表与全表 includes 命中集合不一致 ${mismatched}/${samples.length} 例——迁移 #2 的等价前提已破，必须回退`);
+  console.log(JSON.stringify({ indicationEquivalenceSamples: samples.length, mismatched }));
+}

@@ -39,15 +39,18 @@
   "summary": {
     "syndromeTagRouteRejectedCount": 190,
     "syndromeTagCuratedNeutralizedCount": 41,
-    "governedFormulaCount": 2937,
+    "nameCompositionMismatchDropped": [
+      "理气化痰汤@《惠直堂经验方》"
+    ],
+    "governedFormulaCount": 2936,
     "prescriptionLockEligibleCount": 2914,
     "identityLockEligibleCount": 2914,
     "doseCompilationEligibleCount": 2546,
     "symptomTaggedFormulaCount": 1106,
     "diseaseTaggedFormulaCount": 372,
-    "syndromeTaggedFormulaCount": 2311,
+    "syndromeTaggedFormulaCount": 2310,
     "locationTaggedFormulaCount": 579,
-    "natureTaggedFormulaCount": 617,
+    "natureTaggedFormulaCount": 616,
     "candidateFormulaCount": 0,
     "candidateVariantCount": 0,
     "evidenceAdjudicatedFormulaCount": 8,
@@ -199620,115 +199623,6 @@
       "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [],
       "blockingReasons": []
-    },
-    {
-      "id": "TCM-FORMULA-42BC80CEDE31",
-      "name": "理气化痰汤",
-      "aliases": [],
-      "source": "《惠直堂经验方》",
-      "sourceOriginal": null,
-      "prescriptionOriginal": null,
-      "ingredients": [
-        "人参",
-        "黄芪",
-        "当归身",
-        "白芍",
-        "茯苓",
-        "白术",
-        "炙甘草"
-      ],
-      "dosageForm": null,
-      "sourceClass": "verified_reference_catalog",
-      "sourceCatalog": "project_verified_supplement",
-      "verification": [
-        {
-          "title": "《惠直堂经验方》·理气化痰汤（tcmoc 原文 + v4flash 抽取 + 全文对拍核验）",
-          "url": "urn:tcm-cdss:tcmoc-books:惠直堂经验方:理气化痰汤"
-        }
-      ],
-      "curatedSyndromeTags": [],
-      "ingredientLinks": [
-        {
-          "rawName": "人参",
-          "canonicalName": "人参",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "黄芪",
-          "canonicalName": "黄芪",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "当归身",
-          "canonicalName": "当归",
-          "linkageStatus": "source_backed_clinical_extension",
-          "autoResolvable": true,
-          "medicinalPart": "身"
-        },
-        {
-          "rawName": "白芍",
-          "canonicalName": "白芍",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "茯苓",
-          "canonicalName": "茯苓",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "白术",
-          "canonicalName": "白术",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        },
-        {
-          "rawName": "炙甘草",
-          "canonicalName": "炙甘草",
-          "linkageStatus": "exact_standard_name",
-          "autoResolvable": true
-        }
-      ],
-      "indications": [
-        "无故身倒，肉跳心惊，口不能言，足不能动，痰声如雷，气虚中痰。",
-        "补气健脾化痰，归经于脾肺，治气虚痰盛之证。"
-      ],
-      "syndromeTags": [
-        "TCM-SYNDROME-6C733A6875EB"
-      ],
-      "curatedSyndromeRelations": [],
-      "natureTags": [
-        "qi_deficiency"
-      ],
-      "locationTags": [],
-      "symptomTags": [],
-      "diseaseTags": [],
-      "syndromeTagRejection": "",
-      "tagGovernanceStatus": "governed_source_text_derived_index",
-      "governanceStatus": "project_reference_verified",
-      "retrievalEligible": false,
-      "identityLockEligible": false,
-      "prescriptionLockEligible": false,
-      "doseCompilationEligible": false,
-      "requiresPatientSpecificDoseCompilation": true,
-      "requiresPostPrescriptionAudit": true,
-      "identityBlockingReasons": [
-        "name_composition_mismatch"
-      ],
-      "doseBlockingReasons": [],
-      "controlledToxicIngredientNames": [],
-      "controlledToxicNotice": "",
-      "unresolvedDoseIngredientNames": [],
-      "corruptIngredientNames": [],
-      "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [],
-      "clinicianDoseIngredientNames": [],
-      "blockingReasons": [
-        "name_composition_mismatch"
-      ]
     },
     {
       "id": "TCM-FORMULA-C4C57D74DDC7",

@@ -21,6 +21,10 @@ const source = readFileSync(sourcePath, "utf8");
 const CORPUS_FILES = [
   "../data/tcm-classic-text-evidence.jsonl",
   "../data/tcm-classic-text-evidence-tcmoc.jsonl",
+  // 书籍语料补充（2026-08-09）。新增语料必须同样写成独立字面量 URL——
+  // 这正是本套件存在的原因：循环变量写法会让 Turbopack 把整个循环体编译成同一个资源常量，
+  // 结果是语料进了镜像却从未被读取，且不报错、不降级，只安静地少一批证据。
+  "../data/tcm-classic-text-evidence-books.jsonl",
 ];
 
 // ① 每个语料的 readFileSync 必须直接包住字面量 URL。仅在数组里构造字面量 URL、再把

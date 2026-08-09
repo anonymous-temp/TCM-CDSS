@@ -1375,7 +1375,15 @@ def build_formula_catalog(
     # 但不再生效。每次构建打印出来，避免变成一笔看不见的债——
     # 「源表里有、实际不生效」正是本项目最怕的那种静默分叉。
     neutralized_curated_tags: list[str] = []
+    dropped_name_composition_mismatches: list[str] = []
     for name, item in sorted(governed.items()):
+        # 名实不符的条目**整条剔除**（甲方 2026-08-09 决策）。
+        # 此前的做法是只取消身份资格、保留为文献证据；甲方口径是这类数据错配的条目
+        # 连证据资格一并去掉，避免它再以任何形式参与检索与呈现。
+        # 只对 verdict=mismatched 且 confidence=high 生效，见 load_name_composition_mismatches。
+        if (name, item.get("source") or "") in name_composition_mismatches:
+            dropped_name_composition_mismatches.append(f"{name}@{item.get('source') or ''}")
+            continue
         indication_entry = indications_by_name.get(name, {})
         # 裁定级主治(同名异方基线换版/变体)优先于各来源层——换版后来源层的旧版主治必须让位。
         indications = item.get("adjudicatedIndications") or indication_entry.get("indications") or verified.get(name, {}).get("indications") or item.get("standardIndications") or []
@@ -1386,10 +1394,6 @@ def build_formula_catalog(
         searchable_text = "；".join([name, *item.get("aliases", []), *indications])
         ingredient_links = linked_ingredients(item["ingredients"], resolution_index, name, identity_adjudications)
         identity_blocking_reasons = []
-        # 名实不符：方名与该条目自身记录的组成矛盾。取消身份资格而不是删条目——
-        # 它作为文献证据仍然有效，只是不该把这个方名借给一张处方。
-        if (name, item.get("source") or "") in name_composition_mismatches:
-            identity_blocking_reasons.append("name_composition_mismatch")
         if not item["source"]:
             identity_blocking_reasons.append("missing_standard_source")
         if not item["ingredients"]:
@@ -1660,6 +1664,9 @@ def build_formula_catalog(
         "summary": {
             "syndromeTagRouteRejectedCount": sum(bool(item.get("syndromeTagRejection")) for item in entries),
             "syndromeTagCuratedNeutralizedCount": len(neutralized_curated_tags),
+            # 名实不符被整条剔除的条目。落进 summary 而不只是打印，
+            # 是为了让测试能对「剔除集合 == 裁定集合」做确定性断言。
+            "nameCompositionMismatchDropped": dropped_name_composition_mismatches,
             "governedFormulaCount": len(entries),
             "prescriptionLockEligibleCount": sum(bool(item["prescriptionLockEligible"]) for item in entries),
             "identityLockEligibleCount": sum(bool(item["identityLockEligible"]) for item in entries),
@@ -1872,6 +1879,15 @@ def main() -> None:
         },
     }
     write_json(MANIFEST_OUTPUT, manifest)
+    dropped_mismatch = formula_catalog["summary"].get("nameCompositionMismatchDropped") or []
+    if dropped_mismatch:
+        print(json.dumps({
+            "warning": "entries_dropped_name_composition_mismatch",
+            "count": len(dropped_mismatch),
+            "entries": dropped_mismatch,
+            "note": "方名与自身记录组成矛盾，按甲方 2026-08-09 决策整条剔除（连文献证据资格一并去掉）。"
+                    "裁定见 tcm-formula-name-composition-adjudications.source.json，只对 mismatched+high 生效。",
+        }, ensure_ascii=False))
     neutralized = formula_catalog["summary"]["syndromeTagCuratedNeutralizedCount"]
     if neutralized:
         print(json.dumps({

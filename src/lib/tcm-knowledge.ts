@@ -6,6 +6,8 @@ import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.
 import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
 import type { CaseState } from "./diagnosis-types";
 import { isIdentityIndeterminateHerbName, resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
+import { buildBm25Index } from "./retrieval/bm25";
+import { buildControlledVocabulary } from "./retrieval/cjk-analyzer";
 
 type KnowledgeEntry = {
   type: string;
@@ -663,6 +665,52 @@ export function getTcmKnowledgeStatus() {
   };
 }
 
+/**
+ * 药材知识库检索的 BM25F 索引（惰性、内存态）。
+ *
+ * 迁移边界（2026-08-09，检索栈"安全切片"第一处）：**只改排序，不改准入**。
+ *   · 精确药名命中（extractKnownHerbNames）仍然原样置顶、分数仍是 100——这是高精度路，
+ *     BM25 不参与；
+ *   · BM25F 只决定"其余候选"的先后。准入判据仍是 score>0，与此前 scoreHerb 同语义：
+ *     一个词项都不命中的药材照旧不进结果，"查不到就是查不到"的状态原样保留。
+ *
+ * 选这一处作首个迁移场的理由：searchTcmKnowledge 全仓只被 /api/tcm-knowledge/search 使用
+ * （医生用的只读知识库检索），不进提示词、不进安全门、不参与方剂身份锁与剂量编译。
+ * 628 味药的索引在内存里建，不新增 src/data 产物，因此零镜像体积代价。
+ *
+ * 换掉的旧实现 scoreHerb 是"无 IDF、无长度归一的子串计数"（命中一个 token 加 1 分）。
+ * 实测口径见 src/lib/retrieval/bm25.ts 头注释。
+ */
+let herbSearchIndexCache: ReturnType<typeof buildBm25Index<KnowledgeHerb>> | undefined;
+function herbSearchIndex() {
+  if (herbSearchIndexCache) return herbSearchIndexCache;
+  // 词表用药材正名自身：这批名字正是该语料里最需要整词命中的术语（黄芪不该被切成黄/芪）。
+  const vocabulary = buildControlledVocabulary(data.herbs.map((item) => item.name));
+  herbSearchIndexCache = buildBm25Index<KnowledgeHerb>(
+    data.herbs,
+    [
+      // 权重按"这一段文字有多大程度直接回答检索意图"给：药名 > 功效归类 > 其余条目文本。
+      { name: "name", weight: 6, text: (herb) => herb.name },
+      {
+        name: "category",
+        weight: 3,
+        text: (herb) => herb.entries.map((entry) => [entry.category, entry.primaryCategory, entry.secondaryCategory].filter(Boolean).join(" ")).join(" "),
+      },
+      {
+        name: "body",
+        weight: 1,
+        text: (herb) => herb.entries.map((entry) => [
+          entry.herb, entry.doseText, entry.formula, entry.leftDrug, entry.rightDrug,
+          entry.population, entry.riskLevel, entry.riskName, entry.toxicity,
+          entry.basis, entry.quote, entry.note,
+        ].filter(Boolean).join(" ")).join(" "),
+      },
+    ],
+    { vocabulary },
+  );
+  return herbSearchIndexCache;
+}
+
 export function searchTcmKnowledge(query: string, limit = 10): TcmKnowledgeHit[] {
   const explicitNames = extractKnownHerbNames(query, limit);
   const explicit = explicitNames
@@ -672,13 +720,13 @@ export function searchTcmKnowledge(query: string, limit = 10): TcmKnowledgeHit[]
 
   if (explicit.length >= limit) return explicit.slice(0, limit);
 
-  const scored = data.herbs
-    .filter((item) => !explicitNames.includes(item.name))
-    .map((item) => ({ item, score: scoreHerb(item, query) }))
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, Math.max(0, limit - explicit.length))
-    .map(({ item, score }) => ({ name: item.name, score, entries: pickEntries(item.entries) }));
+  const remaining = Math.max(0, limit - explicit.length);
+  // 多取一些再过滤精确命中，避免精确命中占满 top-N 导致补位不足。
+  const ranked = herbSearchIndex().search(query, remaining + explicitNames.length + 8);
+  const scored = ranked
+    .filter(({ doc }) => !explicitNames.includes(doc.name))
+    .slice(0, remaining)
+    .map(({ doc, score }) => ({ name: doc.name, score: Number(score.toFixed(4)), entries: pickEntries(doc.entries) }));
 
   return [...explicit, ...scored];
 }

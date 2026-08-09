@@ -54,8 +54,8 @@
       "id": "T8",
       "file": "tcm-formula-governed-catalog.json",
       "schemaVersion": "tcm-formula-governed-catalog-v2",
-      "sha256": "2d92e68f3fea695accd2a89f2419ace7196baf9aa1b8d8850ff27dcb23311d00",
-      "recordCount": 2937
+      "sha256": "a30aee5b2dcf03661b93478a54ebbce3f607d1cb82ac226d31b59ff2f9342645",
+      "recordCount": 2936
     },
     {
       "id": "T9",
@@ -96,12 +96,12 @@
       "governanceTable": "T8",
       "file": "tcm-formula-retrieval-index.json",
       "schemaVersion": "tcm-formula-retrieval-index-v2",
-      "sha256": "0d87d01c45d6aa9d0ca1a8ccbc423ac8b0151aa616ddd4085454dc903a9e4344",
+      "sha256": "0bfb4d01781fce3f79041ab5816f321847044b080f13204e27672529af77f3cc",
       "recordCount": 2914
     }
   ],
   "buildSummary": {
-    "formulaGoverned": 2937,
+    "formulaGoverned": 2936,
     "formulaEligible": 2914,
     "formulaDoseCompilationEligible": 2546,
     "formulaCandidatesAwaitingReview": 0,

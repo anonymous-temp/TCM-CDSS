@@ -7,7 +7,7 @@ export type ClassicFormulaEvidence = {
   anchorLevel: "tiaowen" | "chapter_paragraph" | "page_paragraph";
   clauseNumber?: number;
   excerpt: string;
-  tier: "canon" | "common" | "experience";
+  tier: "canon" | "common" | "experience" | "book";
 };
 
 type ClassicEvidenceRecord = {
@@ -20,7 +20,7 @@ type ClassicEvidenceRecord = {
   text: string;
   formulas: string[];
   citation: string;
-  tier: "canon" | "common" | "experience";
+  tier: "canon" | "common" | "experience" | "book";
   safetyClass: "standard" | "restricted" | "quarantine";
 };
 
@@ -103,6 +103,11 @@ let fullClassicEvidenceRecords: ClassicEvidenceRecord[] | undefined;
 const CLASSIC_EVIDENCE_SOURCE_NAMES = [
   "tcm-classic-text-evidence.jsonl",
   "tcm-classic-text-evidence-tcmoc.jsonl",
+  // 书籍语料补充（2026-08-09）。构建期已过三层筛选：对上面两个语料去重（只留 dup<0.1 的
+  // 真新增）、危险内容确定性硬拦、逐条噪声判定；且只保留命中受治理方名的条目
+  // （运行期按方名键控，无方名的条目本就永远查不到）。生成器见
+  // scripts/build-tcm-book-corpus-evidence.mjs。
+  "tcm-classic-text-evidence-books.jsonl",
 ] as const;
 
 /** 每个语料实际加载到的条数；语料缺失是允许的（可选语料），但必须可观测。 */
@@ -148,6 +153,18 @@ function loadFullClassicEvidenceRecords(): ClassicEvidenceRecord[] {
   } catch {
     classicEvidenceLoadCounts.set("tcm-classic-text-evidence-tcmoc.jsonl", 0);
   }
+  try {
+    const raw = readFileSync(
+      new URL("../data/tcm-classic-text-evidence-books.jsonl", import.meta.url),
+      "utf8",
+    );
+    classicEvidenceLoadCounts.set(
+      "tcm-classic-text-evidence-books.jsonl",
+      appendClassicEvidenceRows(records, raw),
+    );
+  } catch {
+    classicEvidenceLoadCounts.set("tcm-classic-text-evidence-books.jsonl", 0);
+  }
   fullClassicEvidenceRecords = records;
   return fullClassicEvidenceRecords;
 }
@@ -170,7 +187,9 @@ export function classicEvidenceForFormulaNames(formulaNames: string[]): ClassicF
   if (names.size === 0) return [];
   const records = loadFullClassicEvidenceRecords();
   const anchorRank = { tiaowen: 0, chapter_paragraph: 1, page_paragraph: 2 } as const;
-  const tierRank = { canon: 0, common: 1, experience: 2 } as const;
+  // book 排在最后：书籍语料是补充来源，任何时候都不得压过受治理经典条文。
+  // 同一张方既有 canon 条文又有 book 条文时，canon 必然先出。
+  const tierRank = { canon: 0, common: 1, experience: 2, book: 3 } as const;
   return records
     .filter((record) =>
       record.safetyClass === "standard" &&
