@@ -14,7 +14,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { affirmedTcmTherapyConcepts, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
+import { affirmedTcmTherapyConcepts, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -445,7 +445,9 @@ export async function prepareDiagnoseStructuredContent(
   return result;
 }
 
-function markTransparentFormulaDeclassification(content: string): string {
+// 导出供 scripts/test-transparent-declassification.mjs 使用：剥离器产出的形态必须与
+// crossStageReasoningIssue 里「已降级自拟」放行口逐字对齐，两边各写各的就会整方作废。
+export function markTransparentFormulaDeclassification(content: string): string {
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
     (match, jsonText: string) => {
@@ -503,9 +505,26 @@ function markTransparentFormulaDeclassification(content: string): string {
           }
         }
 
+        // 「需要剥离」不能只看 formulaNames 非空。模型经常给出经典方名却把 formulaNames 留空、
+        // 甚至整个字段缺失；旧判据认为「没有身份可剥」而原样放过，可合同那一侧的放行口
+        // （isDeclassifiedSelfDevisedCandidate）要求空数组 + self_devised + 自拟方名三者同时成立，
+        // 认不出这个形态 ⇒ mode=single 对不上空 formulaNames ⇒ formula_direction_drift
+        // ⇒ 透明降级被拒 ⇒ 医生拿到 0 味。剥离器与放行口是同一条判据的两半，这里改为
+        // **以放行口的谓词为准**：凡是还不满足它的，一律补成它认得的形态。
+        //
+        // 归档真实产物实测（六味地黄丸加黄柏知母方，同一份 M04 只改身份形态）：
+        //   formulaNames 有值 → 通过；=[] → formula_direction_drift；缺失 → formula_reference_missing。
+        // 线上同期日志：44 次透明降级被拒里 26 次驳回码就是 formula_direction_drift。
+        //
+        // 只在这条**兜底路径**上生效，不放宽任何检查：上面「核心保留、有增减」那一档仍需
+        // verifyFormulaCompilationComponents 实际通过才保留经典方名；到这里意味着身份已经
+        // 无法自证，剥掉一个不能自证的方名并保留已通过全部药味级校验的处方，
+        // 比让医生拿到一页空白更接近「把最好的结果呈现给用户」，也更保守——
+        // 它删除的是一个未经证实的身份声称，不是新增任何声称。
+        const needsDeclassification = !isDeclassifiedSelfDevisedCandidate(candidate);
         parsed.formula!.candidates![0] = {
           ...candidate,
-          ...(hadClassicIdentity ? {
+          ...(needsDeclassification ? {
             name: alreadyModified ? "本例辨证组方加减" : "本例辨证组方",
             formulaNames: [],
             baseFormulas: [],

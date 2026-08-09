@@ -3242,6 +3242,35 @@ export function herbFunctionMatchesKnowledge(name: string, claimedFunction: stri
   return /[\u4e00-\u9fa5]{2,}/.test(claimedFunction) && claimedGroups.length > 0 && claimedGroups.some((group) => group.test(knowledgeText));
 }
 
+/**
+ * 「这个候选已经是剥离过身份的自拟方」——**单一判据**，剥离器与合同放行口共用。
+ *
+ * 此前这条判据在两处各写各的：`markTransparentFormulaDeclassification` 用
+ * 「formulaNames 非空」判断有没有身份要剥，而这里的放行口要求
+ * 「formulaNames 为空 + constructionType=self_devised + 方名逐字命中自拟模板」三者同时成立。
+ * 两边不认同一个东西，于是出现一整类漏网形态：模型给出经典方名却把 formulaNames 留空
+ * （或整个字段缺失）时，剥离器认为「没有身份可剥」而原样放过，放行口又认不出它是自拟，
+ * mode=single 对不上空 formulaNames ⇒ formula_direction_drift ⇒ 降级被拒 ⇒ 整方 0 味。
+ *
+ * 归档真实产物实测（六味地黄丸加黄柏知母方，同一份 M04 只改身份形态）：
+ *   formulaNames 有值 → 通过；formulaNames=[] → formula_direction_drift；
+ *   formulaNames 缺失 → formula_reference_missing。
+ * 线上日志同期 44 次透明降级被拒中，26 次驳回码正是 formula_direction_drift。
+ *
+ * 判据本身不放宽：仍要求三者同时成立。改的是让剥离器**产出**这个形态，而不是让放行口迁就。
+ */
+export function isDeclassifiedSelfDevisedCandidate(
+  candidate: { name?: unknown; formulaNames?: unknown; constructionType?: unknown } | null | undefined,
+): boolean {
+  if (!candidate) return false;
+  // 必须是**空数组**而不是缺失：`formulaNames` 缺失时合同在更前面就判 formula_reference_missing，
+  // 若这里把缺失也当成「已剥离」，剥离器就会放过它，结果还是 0 味。缺失属于要修的形态。
+  const names = candidate.formulaNames;
+  return Array.isArray(names) && names.length === 0 &&
+    candidate.constructionType === "self_devised" &&
+    /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(String(candidate.name || "").trim());
+}
+
 function crossStageReasoningIssue(
   reasoning: M04ReasoningLike,
   prior?: M03ReasoningLike | null,
@@ -3391,10 +3420,7 @@ function crossStageReasoningIssue(
     const candidateFormulaNames = governedFormulaNames(candidate?.formulaNames);
     if (candidateFormulaNames == null) return "formula_reference_missing";
     const candidateName = lockedClinicalText(candidate?.name);
-    const declassifiedSelfDevised = candidateFormulaNames.length === 0 &&
-      candidate?.constructionType === "self_devised" &&
-      /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(String(candidate?.name || "").trim());
-    if (declassifiedSelfDevised) return undefined;
+    if (isDeclassifiedSelfDevisedCandidate(candidate)) return undefined;
     if (candidateFormulaNames.some((name) => !candidateName.includes(lockedClinicalText(name)))) {
       return "formula_reference_display_mismatch";
     }

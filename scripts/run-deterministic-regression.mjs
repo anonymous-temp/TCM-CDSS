@@ -153,6 +153,10 @@ const scripts = [
   // 而「复核看到的字节 == 签名覆盖的字节」这条不变量、以及顺利路径上的 prepare 去重，都压在这句
   // 声称上。此前它没有任何断言：若某段变换不幂等，后果是复核通过之后仍发生临床内容静默改写。
   "test:m03-prepare-idempotence",
+  // 透明降级：剥离器产出的形态必须恰好是合同放行口认得的形态。两处各写各的时，模型给出
+  // 经典方名却把 formulaNames 留空这一整类形态会被判 formula_direction_drift，
+  // 医生拿到 0 味。线上日志实测 44 次降级被拒里 26 次是这个码。
+  "test:transparent-declassification",
   "test:clinical-polarity",
   "test:negation-scope",
   "test:syndrome-name-standard",
