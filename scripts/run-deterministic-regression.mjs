@@ -157,6 +157,9 @@ const scripts = [
   // 经典方名却把 formulaNames 留空这一整类形态会被判 formula_direction_drift，
   // 医生拿到 0 味。线上日志实测 44 次降级被拒里 26 次是这个码。
   "test:transparent-declassification",
+  // 古籍摘录脱敏：单位与操作词的简繁两侧必须同集。原字符类全是简体，而语料本身是繁体，
+  // 实测 2274 条运行期可达记录带着「三兩」这类具体剂量原样进 prompt。
+  "test:classic-evidence-sanitizer",
   "test:clinical-polarity",
   "test:negation-scope",
   "test:syndrome-name-standard",
