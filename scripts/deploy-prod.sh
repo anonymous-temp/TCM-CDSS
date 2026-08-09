@@ -22,6 +22,10 @@ USER="${DEPLOY_USER:-ubuntu}"
 KEY="${DEPLOY_KEY:-$HOME/.ssh/evimed_deploy}"
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/home/ubuntu/tcm-cdss/releases/20260801-vocab-deduction}"
 TAG="${IMAGE_TAG:?IMAGE_TAG 必须显式指定且不可复用——镜像 tag 必须不可变，否则无法证明线上跑的是哪一版}"
+# 保留几个历史 tcm-cdss 镜像用于回滚。3 个 ≈ 3GB，够回滚两版；再多只是占磁盘。
+KEEP_IMAGES="${DEPLOY_KEEP_IMAGES:-3}"
+# 构建前的可用空间下限。一次构建约需 3-4GB，运行时还要写 runtime-data 缓存。
+MIN_FREE_GB="${DEPLOY_MIN_FREE_GB:-12}"
 SSH="ssh -i $KEY -o StrictHostKeyChecking=no -o ConnectTimeout=20"
 
 COMMIT="$(git rev-parse HEAD)"
@@ -38,8 +42,37 @@ SYNC_PATHS=(
 echo "=== sync (commit=${COMMIT:0:12} digest=${DIGEST:0:12}) ==="
 rsync -az --delete -e "$SSH" "${SYNC_PATHS[@]}" "$USER@$HOST:$REMOTE_DIR/"
 
-echo "=== prune (保留 24h 内镜像与运行中容器) ==="
-$SSH "$USER@$HOST" "docker image prune -af --filter 'until=24h' >/dev/null 2>&1 || true; df -h / | tail -1"
+echo "=== prune (保留最近 $KEEP_IMAGES 个 tcm-cdss 镜像 + 运行中容器) ==="
+# `until=24h` 单独用是不够的：一天之内部署多次时，当天的镜像一个都不会被回收。
+# 实测 2026-08-09 一天 5 次部署把根分区吃到 100%，后果不是构建失败那么直白——
+# 容器写不了 /app/runtime-data/controlled-terminology-cache.json，失败被 probeCache 缓存 5 分钟，
+# strict health 返回 503，看起来像上游依赖挂了。所以这里按**保留个数**回收，不按时间。
+#
+# 只回收 tcm-cdss 自己的镜像：同一台机器上还跑着 rxai-offline / evimed-* / searxng，
+# 全局 `docker image prune -a` 会连它们一起清掉。
+$SSH "$USER@$HOST" "
+  set -e
+  running=\$(docker inspect --format '{{.Config.Image}}' tcm-cdss-prod-tcm-cdss-1 2>/dev/null || true)
+  keep=\$(docker images --filter reference='tcm-cdss:*' --format '{{.Repository}}:{{.Tag}}\t{{.CreatedAt}}' \
+    | sort -k2 -r | head -n $KEEP_IMAGES | cut -f1)
+  for img in \$(docker images --filter reference='tcm-cdss:*' --format '{{.Repository}}:{{.Tag}}'); do
+    [ \"\$img\" = \"\$running\" ] && continue
+    echo \"\$keep\" | grep -qx \"\$img\" && continue
+    echo \"  - 回收旧镜像 \$img\"
+    docker rmi \"\$img\" >/dev/null 2>&1 || true
+  done
+  docker image prune -f --filter 'until=24h' >/dev/null 2>&1 || true
+  docker builder prune -af >/dev/null 2>&1 || true
+  df -h / | tail -1
+"
+# 构建前显式校验可用空间。磁盘满导致的故障全都表现为别的东西（500、503、模型超时），
+# 排查成本极高——宁可在这里以一句人话失败。
+AVAIL_GB="$($SSH "$USER@$HOST" "df -BG --output=avail / | tail -1 | tr -dc '0-9'")"
+if [ "${AVAIL_GB:-0}" -lt "$MIN_FREE_GB" ]; then
+  echo "!! 磁盘可用空间仅 ${AVAIL_GB}G，低于 ${MIN_FREE_GB}G 下限；构建会成功但运行时写缓存会失败。" >&2
+  echo "   先在服务器上腾空间（docker system df 看占用大头），不要降低本阈值绕过。" >&2
+  exit 1
+fi
 
 echo "=== build ==="
 $SSH "$USER@$HOST" "cd $REMOTE_DIR && DOCKER_BUILDKIT=1 docker build \
