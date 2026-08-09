@@ -7,7 +7,7 @@
   "sources": [
     {
       "file": "tcm-formula-retrieval-concepts.source.json",
-      "sha256": "e49e5ccd67b3780fd6208a7d7a9155e382a29b7f6ea549790416b9ec707ca2f5"
+      "sha256": "c9e045852abecbf45d345218185d84e13923b00c156c4d44cf9dcf5b4d4cddcf"
     },
     {
       "file": "tcm-symptom-axis-map.source.json",
@@ -460,9 +460,10 @@
       "id": "disease_stroke",
       "domain": "disease",
       "key": "中风",
-      "patientPattern": "中风|脑卒中|偏瘫",
-      "indicationPattern": "中风|脑卒中|偏瘫",
+      "patientPattern": "中风(?![寒湿水冷])|脑卒中|偏瘫",
+      "indicationPattern": "中风(?![寒湿水冷])|脑卒中|偏瘫",
       "weight": 2,
+      "patternNote": "「中风」后接 寒/湿/水/冷 时是「中(zhòng)风寒/风湿」——感受六淫，不是脑卒中。实测误标 4 首：妊娠二月艾汤与妊娠八月芍药汤（原文「妊娠X月中风寒」）、治诸疮中风寒水露方、生附白术汤（治中风湿）。后果是中风病例可能召回妊娠方。不排除 中风邪/中风痰/中风虚/中风血：通关散「治卒中风邪，不省人事，牙关紧闭」正是中风闭证，排掉它才是错的。全目录扫过同类前缀碰撞（外感风/咳嗽痰/呕吐水/心烦热/口干燥），只有中风这一个复合后改变病种归属，其余不动。",
       "origin": "curated"
     },
     {

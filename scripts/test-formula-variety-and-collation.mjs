@@ -158,6 +158,30 @@ for (const name of ["二母散", "当归贝母苦参丸", "千缗汤"]) {
   ok(`${name} 歧义味占比过高，仍整方阻断剂量`, row.doseCompilationEligible === false);
 }
 
+// ── ④' 病种概念的前缀碰撞：中风 ≠ 中(zhòng)风寒 ────────────────────────────
+// 「中风」后接 寒/湿/水/冷 是感受六淫（中风寒 = 中·风寒），不是脑卒中。
+// 本次拆分入库的妊娠二月艾汤、妊娠八月芍药汤原文写「妊娠X月中风寒」，被机器派生打上
+// disease_stroke——后果是中风病例可能召回妊娠方。连带查出两条既有误标（治诸疮中风寒水露方、
+// 生附白术汤「治中风湿」）。
+// 反向同样要钉住：通关散「治卒中风邪，不省人事，牙关紧闭」是中风闭证，排掉它才是错的。
+{
+  const strokeTagged = new Set(catalog.entries
+    .filter((entry) => (entry.diseaseTags || []).includes("disease_stroke")).map((entry) => entry.name));
+  for (const name of ["艾汤〔《外台秘要》卷三十三·妊娠二月〕", "芍药汤〔《外台秘要》卷三十三·妊娠八月〕",
+    "治诸疮中风寒水露方", "生附白术汤"]) {
+    ok(`${name} 不得因「中风寒/中风湿」被判为脑卒中`, !strokeTagged.has(name));
+  }
+  ok("通关散（卒中风邪·中风闭证）仍judged为脑卒中", strokeTagged.has("通关散"));
+  // 兜底：任何「中风」只以 中风寒/湿/水/冷 形式出现的条目都不得带 disease_stroke。
+  const leakedStroke = catalog.entries.filter((entry) => (entry.diseaseTags || []).includes("disease_stroke"))
+    .filter((entry) => {
+      const text = [entry.name, ...(entry.aliases || []), ...(entry.indications || [])].join("；");
+      const hits = text.match(/中风[寒湿水冷]?/g) || [];
+      return hits.length > 0 && hits.every((hit) => hit.length > 2);
+    }).map((entry) => entry.name);
+  ok(`无「只写中风寒/湿/水/冷」却判脑卒中的条目（现 ${leakedStroke.length} 条）`, leakedStroke.length === 0);
+}
+
 // ── ⑤ 目录校勘通道 ──────────────────────────────────────────────────────────
 ok("校勘源表有 adjudicationRef", typeof collation.adjudicationRef === "string" && collation.adjudicationRef.length > 0);
 ok("校勘源表有 sourceRefs", Array.isArray(collation.sourceRefs) && collation.sourceRefs.length > 0);

@@ -3,11 +3,11 @@
   "governanceTable": "T8",
   "sourceCatalog": {
     "file": "tcm-formula-governed-catalog.json",
-    "sha256": "6570bd433eef882bfa0adb495b6335aa68e934c6057ec32169d83c078f9531f9"
+    "sha256": "8063a310b5e39c35be5f23ce374a034cf5b5e01d7b2fc59e900950414e417da7"
   },
   "conceptSource": {
     "file": "tcm-formula-retrieval-concepts.json",
-    "sha256": "df6374c7e034afb4d45975849acb47846058b723b876a305746162e960b932c7"
+    "sha256": "01d405678f2d8ae139a417a90d8b7a2e83373a6f1b74a1e4dfaa68b3e4e43312"
   },
   "curatedRelationSource": {
     "file": "tcm-high-frequency-syndrome-formula-relations.source.json",
@@ -765,7 +765,6 @@
         "TCM-FORMULA-B7520D43B4D8",
         "TCM-FORMULA-4A44E16131DE",
         "TCM-FORMULA-A828DC2F8B69",
-        "TCM-FORMULA-0DEA562AFBEA",
         "TCM-FORMULA-99D9FC73D367",
         "TCM-FORMULA-26789B9EEA1E",
         "TCM-FORMULA-01B9F3968DEF",
@@ -774,7 +773,6 @@
         "TCM-FORMULA-24CAB74170C8",
         "TCM-FORMULA-E7D4299537C1",
         "TCM-FORMULA-C6499FC88B03",
-        "TCM-FORMULA-94C327073382",
         "TCM-FORMULA-B508001F70A0",
         "TCM-FORMULA-03F7D7ADB2AE",
         "TCM-FORMULA-2CE0AC6025BF",
@@ -785,8 +783,6 @@
         "TCM-FORMULA-88F669233172",
         "TCM-FORMULA-BA9E363147A6",
         "TCM-FORMULA-E1728BFC9D11",
-        "TCM-FORMULA-D30110FB502F",
-        "TCM-FORMULA-CFCE48D43713",
         "TCM-FORMULA-014771D405C9",
         "TCM-FORMULA-6EECE1D56972",
         "TCM-FORMULA-907BDD14882E",
@@ -12269,7 +12265,6 @@
         "TCM-FORMULA-0E34B7FA8154",
         "TCM-FORMULA-4A44E16131DE",
         "TCM-FORMULA-A828DC2F8B69",
-        "TCM-FORMULA-0DEA562AFBEA",
         "TCM-FORMULA-99D9FC73D367",
         "TCM-FORMULA-26789B9EEA1E",
         "TCM-FORMULA-01B9F3968DEF",
@@ -12278,7 +12273,6 @@
         "TCM-FORMULA-24CAB74170C8",
         "TCM-FORMULA-E7D4299537C1",
         "TCM-FORMULA-C6499FC88B03",
-        "TCM-FORMULA-94C327073382",
         "TCM-FORMULA-B508001F70A0",
         "TCM-FORMULA-03F7D7ADB2AE",
         "TCM-FORMULA-2CE0AC6025BF",
@@ -12289,8 +12283,6 @@
         "TCM-FORMULA-88F669233172",
         "TCM-FORMULA-BA9E363147A6",
         "TCM-FORMULA-E1728BFC9D11",
-        "TCM-FORMULA-D30110FB502F",
-        "TCM-FORMULA-CFCE48D43713",
         "TCM-FORMULA-014771D405C9",
         "TCM-FORMULA-6EECE1D56972",
         "TCM-FORMULA-907BDD14882E",
@@ -12335,12 +12327,12 @@
   "summary": {
     "formulaCount": 2921,
     "conceptCount": 70,
-    "conceptRelationCount": 2723,
+    "conceptRelationCount": 2719,
     "syndromeRelationCount": 3463,
     "natureRelationCount": 742,
     "locationRelationCount": 836,
     "symptomRelationCount": 2325,
-    "diseaseRelationCount": 403,
+    "diseaseRelationCount": 399,
     "highFrequencySyndromeTargetCount": 77,
     "highFrequencySyndromeSourceResolvedCount": 77,
     "highFrequencySyndromeRuntimeReachableCount": 77,

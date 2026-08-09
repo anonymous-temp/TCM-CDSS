@@ -147,7 +147,7 @@
     "identityLockEligibleCount": 2911,
     "doseCompilationEligibleCount": 2548,
     "symptomTaggedFormulaCount": 1110,
-    "diseaseTaggedFormulaCount": 373,
+    "diseaseTaggedFormulaCount": 369,
     "syndromeTaggedFormulaCount": 2302,
     "locationTaggedFormulaCount": 575,
     "natureTaggedFormulaCount": 617,
@@ -173273,9 +173273,7 @@
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
-      "diseaseTags": [
-        "disease_stroke"
-      ],
+      "diseaseTags": [],
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
@@ -212763,9 +212761,7 @@
         "sweating",
         "symptom_axis_66eea9c2b5"
       ],
-      "diseaseTags": [
-        "disease_stroke"
-      ],
+      "diseaseTags": [],
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
@@ -252186,9 +252182,7 @@
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
-      "diseaseTags": [
-        "disease_stroke"
-      ],
+      "diseaseTags": [],
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
@@ -252875,9 +252869,7 @@
       "natureTags": [],
       "locationTags": [],
       "symptomTags": [],
-      "diseaseTags": [
-        "disease_stroke"
-      ],
+      "diseaseTags": [],
       "syndromeTagRejection": "",
       "tagGovernanceStatus": "governed_source_text_derived_index",
       "governanceStatus": "project_reference_verified",
