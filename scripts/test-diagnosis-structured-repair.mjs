@@ -88,9 +88,18 @@ assert.match(
 // 降级被拒（实测感冒-风寒束表：麻黄汤基准 4/4 达标 + 川芎未剔除 → 降级被拒 → 整方作废）。
 assert.match(
   diagnosisApiSource,
-  /const declassifiedContent = markTransparentFormulaDeclassification\([\s\S]{0,200}?dropUnsupportedM04CandidateHerbs\(authoritativeContent, opts\.structuredPriorReasoning, false\),\s*\n\s*\);/,
+  /const declassifiedContent = markTransparentFormulaDeclassification\(\s*\n\s*dropUnsupportedM04CandidateHerbs\(authoritativeContent, opts\.structuredPriorReasoning, false\),/,
   "透明降级前必须先做单味剔除，且**不套用经典方基准保留数**（方名已剥离，基准不再是约束）——" +
   "否则基准本就不满足的候选会放弃剔除，问题药留在方里、降级验证随即失败，最终仍是 0 味",
+);
+// 剥离器必须拿到 M03 已锁定的方剂方向。缺这个入参时它的第一档（组成可核验为「X 加减」→
+// 保留经典方名）不看 M03 锁的是哪张方，于是保留了一个与锁定方不一致的经典身份，
+// 合同随即判 formula_direction_drift ⇒ 整方作废。线上实测：修掉「formulaNames 为空」那一类后，
+// 剩余 9 次透明降级被拒里仍有 6 次是这个码。
+assert.match(
+  diagnosisApiSource,
+  /markTransparentFormulaDeclassification\(\s*\n\s*dropUnsupportedM04CandidateHerbs\([^)]*\),\s*\n\s*opts\.structuredPriorReasoning,\s*\n\s*\);/,
+  "透明降级必须接收 M03 已锁定方剂（opts.structuredPriorReasoning）——否则会保留与锁定方不一致的经典身份",
 );
 assert.match(
   diagnosisApiSource,

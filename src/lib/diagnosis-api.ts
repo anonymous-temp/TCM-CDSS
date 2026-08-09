@@ -14,7 +14,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { affirmedTcmTherapyConcepts, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
+import { affirmedTcmTherapyConcepts, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -447,7 +447,10 @@ export async function prepareDiagnoseStructuredContent(
 
 // 导出供 scripts/test-transparent-declassification.mjs 使用：剥离器产出的形态必须与
 // crossStageReasoningIssue 里「已降级自拟」放行口逐字对齐，两边各写各的就会整方作废。
-export function markTransparentFormulaDeclassification(content: string): string {
+export function markTransparentFormulaDeclassification(
+  content: string,
+  prior?: ClinicalReasoningResultV2 | null,
+): string {
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
     (match, jsonText: string) => {
@@ -486,7 +489,13 @@ export function markTransparentFormulaDeclassification(content: string): string 
         // 这里因为看见「加减」二字就不再复核,直接抹成「本例辨证组方加减」。
         // 线上实测(人参养荣汤、荞脂丸)输出的正是这个串,与该分支一一对应。
         // 后缀是**结论的表述**,不是「已判定不合格」的标记;复核照跑,不通过再落第三档。
-        if (hadClassicIdentity) {
+        // 「组成能核验为加减」还不够，还必须**与 M03 锁定的是同一张方**。
+        // 此前这一档不看 M03 锁：候选自称的经典身份即便与锁定方不一致也会被保留，
+        // 合同随即判 formula_direction_drift ⇒ 整方作废。修掉「formulaNames 为空」那一类之后，
+        // 线上剩余 9 次降级被拒里仍有 6 次是这个码（实测归档 case-6 构造复现）。
+        // 对齐判据取合同侧同一个导出谓词，不再各写一份——这正是本缺陷类反复出现的原因。
+        const identityMatchesPrior = candidateClassicIdentityMatchesPrior(candidate, prior);
+        if (hadClassicIdentity && identityMatchesPrior) {
           const herbs = (candidate.herbs as Array<Record<string, unknown>> | undefined) || [];
           const asModified = verifyFormulaCompilationComponents(
             classicNames,
@@ -3754,6 +3763,7 @@ async function callPrimaryTextModelStream(
           // 结果依旧 0 味（实测感冒-风寒束表：基准 4/4 达标 + 川芎未剔除 → 降级被拒）。
           const declassifiedContent = markTransparentFormulaDeclassification(
             dropUnsupportedM04CandidateHerbs(authoritativeContent, opts.structuredPriorReasoning, false),
+            opts.structuredPriorReasoning,
           );
           const transparentReasoning = validatedStructuredReasoning(
             declassifiedContent,

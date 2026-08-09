@@ -37,7 +37,7 @@ const jiti = createJiti(import.meta.url, {
 });
 
 const { markTransparentFormulaDeclassification } = await jiti.import("../src/lib/diagnosis-api.ts");
-const { isDeclassifiedSelfDevisedCandidate, m04SemanticIssue } =
+const { isDeclassifiedSelfDevisedCandidate, candidateClassicIdentityMatchesPrior, m04SemanticIssue } =
   await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 
 const START = "<!-- DIAGNOSIS_JSON_START -->";
@@ -152,6 +152,56 @@ if (fs.existsSync(archived)) {
     }
   } else {
     console.log("[test:transparent-declassification] 归档里没有合同本就通过的单方样本，跳过端到端断言");
+  }
+}
+
+// ── 5. 候选自称的经典身份与 M03 锁定不一致时，必须剥离而不是保留 ──────────────
+// 同一缺陷类的另一半：剥离器第一档「组成可核验为加减」原来不看 M03 锁的是哪张方，
+// 于是保留了一个与锁定方不一致的经典身份，合同随即判 formula_direction_drift ⇒ 整方作废。
+// 修掉「formulaNames 为空」那一类之后，线上剩余 9 次降级被拒里仍有 6 次是这个码。
+if (fs.existsSync(archived)) {
+  let rows = [];
+  try { rows = JSON.parse(fs.readFileSync(archived, "utf8")); } catch { rows = []; }
+  const pick = (Array.isArray(rows) ? rows : []).find((row) => {
+    const cand = row?.m04?.formula?.candidates?.[0];
+    return row?.m03?.overview?.formulaSelectionMode === "single" &&
+      Array.isArray(row?.m03?.overview?.recommendedFormulaNames) &&
+      row.m03.overview.recommendedFormulaNames.length === 1 &&
+      Array.isArray(cand?.formulaNames) && cand.formulaNames.length > 0 &&
+      (cand.herbs || []).length >= 4;
+  });
+  if (pick) {
+    const baseCandidate = pick.m04.formula.candidates[0];
+    const mismatchedPrior = {
+      ...pick.m03,
+      overview: { ...pick.m03.overview, recommendedFormulaNames: ["二陈汤"] },
+    };
+    const outMismatched = unwrap(markTransparentFormulaDeclassification(wrap(pick.m04), mismatchedPrior))
+      ?.formula?.candidates?.[0];
+    ok("身份与 M03 锁定不一致时必须剥离", isDeclassifiedSelfDevisedCandidate(outMismatched));
+    ok(
+      "不一致剥离后 formulaNames 清空",
+      Array.isArray(outMismatched?.formulaNames) && outMismatched.formulaNames.length === 0,
+    );
+
+    // 反向：锁定的就是候选自称的那张时，身份**不得**被剥掉。
+    const outAligned = unwrap(markTransparentFormulaDeclassification(wrap(pick.m04), pick.m03))
+      ?.formula?.candidates?.[0];
+    ok(
+      "身份与 M03 锁定一致时不得误剥",
+      Array.isArray(outAligned?.formulaNames) && outAligned.formulaNames.length > 0,
+    );
+
+    // 谓词本身：合同与剥离器共用的那一份必须给出与上面一致的答案。
+    ok("对齐谓词：一致 → true", candidateClassicIdentityMatchesPrior(baseCandidate, pick.m03));
+    ok("对齐谓词：不一致 → false", !candidateClassicIdentityMatchesPrior(baseCandidate, mismatchedPrior));
+    // M03 未建立受治理方名合同时维持既有行为，不因本判据额外剥离。
+    ok(
+      "对齐谓词：M03 无方名合同 → true（维持既有行为）",
+      candidateClassicIdentityMatchesPrior(baseCandidate, { overview: {} }),
+    );
+  } else {
+    console.log("[test:transparent-declassification] 归档里没有单方样本，跳过身份对齐断言");
   }
 }
 

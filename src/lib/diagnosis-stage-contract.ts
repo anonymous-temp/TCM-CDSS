@@ -3271,6 +3271,56 @@ export function isDeclassifiedSelfDevisedCandidate(
     /^(?:本例辨证组方|辨证组方)(?:加减)?$/.test(String(candidate.name || "").trim());
 }
 
+/**
+ * 候选引用的方名是否与 M03 锁定的方向一致——**单一判据**，合同与剥离器共用。
+ *
+ * 抽出来的原因与 isDeclassifiedSelfDevisedCandidate 完全同源：
+ * markTransparentFormulaDeclassification 的第一档（组成可核验为「X 加减」时保留经典方名）
+ * 此前不看 M03 锁的是哪张方。于是候选自称的经典身份即便**与 M03 锁定的不是同一张**也会被保留，
+ * 合同随即判 formula_direction_drift ⇒ 整方作废。实测（归档 case-6，把 M03 锁改成二陈汤、
+ * 候选仍自称六味地黄丸加黄柏知母方加减）：剥离后 formulaNames 原样保留，合同驳回。
+ * 线上日志：修掉「formulaNames 为空」那一类之后，剩余 9 次降级被拒里仍有 6 次是这个码。
+ *
+ * 判据本身不放宽，只是把它变成两处共用的一份，避免第三次出现「两边各写各的」。
+ */
+export function formulaReferenceAlignsWithPrior(
+  candidateFormulaNames: readonly string[],
+  governedPriorNames: readonly string[],
+  governedMode: string | undefined,
+): boolean {
+  if (governedMode === "alternatives") {
+    return candidateFormulaNames.length === 1 && governedPriorNames.includes(candidateFormulaNames[0]);
+  }
+  if (governedMode === "single" || governedMode === "combined") {
+    return candidateFormulaNames.length === governedPriorNames.length &&
+      governedPriorNames.every((name) => candidateFormulaNames.includes(name));
+  }
+  if (governedMode === "self_devised" || governedMode === "none") {
+    return candidateFormulaNames.length === 0;
+  }
+  return false;
+}
+
+/**
+ * 剥离器专用入口：候选**当前自称的经典身份**能否与 M03 锁定对齐。
+ * 归一口径与合同侧逐字一致（同一个 governedFormulaNames + 同一个对齐谓词）。
+ */
+export function candidateClassicIdentityMatchesPrior(
+  candidate: { formulaNames?: unknown } | null | undefined,
+  prior: M03ReasoningLike | null | undefined,
+): boolean {
+  const governedPriorNames = governedFormulaNames(prior?.overview?.recommendedFormulaNames);
+  const governedMode = prior?.overview?.formulaSelectionMode;
+  // M03 没有建立受治理方名合同时，剥离器维持既有行为（不因本判据额外剥离）。
+  if (governedPriorNames == null ||
+    !["single", "combined", "alternatives", "self_devised", "none"].includes(String(governedMode))) {
+    return true;
+  }
+  const candidateFormulaNames = governedFormulaNames(candidate?.formulaNames);
+  if (candidateFormulaNames == null) return false;
+  return formulaReferenceAlignsWithPrior(candidateFormulaNames, governedPriorNames, String(governedMode));
+}
+
 function crossStageReasoningIssue(
   reasoning: M04ReasoningLike,
   prior?: M03ReasoningLike | null,
@@ -3424,14 +3474,9 @@ function crossStageReasoningIssue(
     if (candidateFormulaNames.some((name) => !candidateName.includes(lockedClinicalText(name)))) {
       return "formula_reference_display_mismatch";
     }
-    const aligned = governedMode === "alternatives"
-      ? candidateFormulaNames.length === 1 && governedPriorNames.includes(candidateFormulaNames[0])
-      : governedMode === "single" || governedMode === "combined"
-        ? candidateFormulaNames.length === governedPriorNames.length && governedPriorNames.every((name) => candidateFormulaNames.includes(name))
-        : governedMode === "self_devised" || governedMode === "none"
-          ? candidateFormulaNames.length === 0
-          : false;
-    if (!aligned) return "formula_direction_drift";
+    if (!formulaReferenceAlignsWithPrior(candidateFormulaNames, governedPriorNames, String(governedMode))) {
+      return "formula_direction_drift";
+    }
   } else if (!workbenchEdited) return "formula_reference_contract_missing";
   return undefined;
 }
