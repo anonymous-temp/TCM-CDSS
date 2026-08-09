@@ -2,6 +2,7 @@ import formulaCatalogJson from "../data/tcm-formula-sources.json" with { type: "
 import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.json" with { type: "json" };
 import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
 import coreHerbsJson from "../data/tcm-formula-core-herbs.json" with { type: "json" };
+import herbSubstitutionPolicyJson from "../data/tcm-herb-identity-substitution-policy.source.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
 import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
@@ -84,6 +85,16 @@ type GovernedFormulaCompilationRow = {
   sourceClass: "official_classic_catalog" | "verified_reference_catalog" | "official_local_formula_standard";
   /** T8 已从可编译组成中扣除、转医师单独确定用量并强制审方的味（毒性/管制/无数值边界）。 */
   manualDoseIngredientNames?: string[];
+  /**
+   * 身份核验放行的等价品种（构建期算好，运行时只读）。三个来源在构建期已经合流到这一个字段：
+   * 目录记的就是裸属名 / 裁定证据只到推断级 / 后世版本分叉登记。判据写在
+   * scripts/build-tcm-governance-tables.py 一处，这里不再复算——复算就是「同一判据两处各写各的」。
+   */
+  varietyFlexibleIngredients?: Array<{
+    recordedName: string;
+    acceptedNames: string[];
+    reason: string;
+  }>;
   identityLockEligible: boolean;
   prescriptionLockEligible: boolean;
   doseCompilationEligible: boolean;
@@ -1392,6 +1403,94 @@ function withIdentityCanonicalNames(names: readonly string[], canonical: Readonl
   return names.map((name) => canonical.get(name) || name);
 }
 
+/**
+ * 身份核验专用的药味替代（2026-08-09）。**只改「这张处方是不是 X 方」的判定，不改别的。**
+ *
+ * 为什么不进 HARD_IDENTITY_HERB_ALIASES：那张表是**同药异名**（黄耆=黄芪），进去等于宣称
+ * 党参与人参是同一味药——剂量边界、功效强度、安全判定会一并被带偏。党参与人参是两味药，
+ * 这里只承认「现代临床以党参代人参补气」这一个事实，且只在身份匹配这一步承认。
+ *
+ * 剂量编译、十八反十九畏、特殊人群门禁、管制毒性排除，一律按处方里**实际写的那味药**判——
+ * 本函数不参与那些路径。
+ *
+ * 安全边界：方名含「参」字者一律不适用（独参汤/参附汤 回阳固脱，党参无此力）。
+ * 判据取机械规则而非临床豁免名单，方向上宁可少给一个方名、不可给错一个方名；
+ * 参苓白术散因此被保守误挡，待中医师裁定后再放开。政策与实测依据见
+ * src/data/tcm-herb-identity-substitution-policy.source.json。
+ */
+const HERB_IDENTITY_SUBSTITUTIONS: readonly {
+  prescribed: string;
+  baseline: string;
+  blockedWhenNameContains: string;
+  allowedDespiteBlock: readonly string[];
+}[] = herbSubstitutionPolicyJson.entries.map((entry) => ({
+  prescribed: entry.prescribed,
+  baseline: entry.baseline,
+  blockedWhenNameContains: entry.notApplicableWhenFormulaNameContains,
+  // 机械规则的显式例外，逐条带依据（甲方裁定）。不接受无依据的整体放宽——
+  // 「方名含参字」这条规则会保守误挡补气类方（参苓白术散），放开必须是逐方的临床裁定。
+  allowedDespiteBlock: entry.applicableDespiteNameContains || [],
+}));
+
+/**
+ * 品种等价（2026-08-09 中医师裁定）。**同样只改「这张处方是不是 X 方」，不改别的。**
+ *
+ * 后世同名方既有赤芍本也有白芍本时，两个都算数——犀角地黄汤是标准例：《千金》原文只写
+ * 「芍药」，《保婴撮要》引济生方作赤芍药，《成方切用》《医宗金鉴》又作白芍药。为了单一目录值
+ * 牺牲版本真实性是错的：医生开赤芍本不该被剥掉方名，开白芍本也不该。
+ *
+ * 放行范围**不是全体芍药方**，这一点是本函数的要害：
+ *   · 目录记裸属名（芍药/贝母/皂角）⇒ 放行——品种本来就没定。
+ *   · 裁定品种但证据只到推断级（方义推断/同书平行方）⇒ 放行——不能让一次推断猜错就丢方名。
+ *   · 后世版本分叉登记 ⇒ 放行。
+ *   · 原书或同方异本**明确写出品种**（止痛当归汤「赤芍药」、龙胆汤「赤芍药」、
+ *     四物汤「白芍药」、痛泻要方「白芍（炒）」）⇒ **不放行**。这些方的品种是确定的，
+ *     处方写反了是实质差异，静默接受等于帮着把一个真实的处方错误藏起来
+ *     （实测 B 表：模型 4 次把四物汤写成赤芍、1 次把痛泻要方写成赤芍，都应判错）。
+ * 判据由构建期 varietyFlexibleIngredients 给出，这里不复算。
+ */
+function varietyEquivalenceMap(reference: FormulaCompilationReference): Map<string, string> {
+  const row = governedFormulaCompilationRow(reference.formulaName);
+  const mapping = new Map<string, string>();
+  for (const flexible of row?.varietyFlexibleIngredients || []) {
+    const recorded = normalizeHerbName(flexible.recordedName);
+    if (!recorded) continue;
+    for (const accepted of flexible.acceptedNames) {
+      const normalized = normalizeHerbName(accepted);
+      if (normalized && normalized !== recorded) mapping.set(normalized, recorded);
+    }
+  }
+  return mapping;
+}
+
+function applyIdentitySubstitutions(
+  prescriptionNames: readonly string[],
+  reference: FormulaCompilationReference,
+): string[] {
+  const baselineNames = new Set(reference.ingredients.map(normalizeHerbName));
+  const present = new Set(prescriptionNames.map(normalizeHerbName));
+  const mapping = new Map<string, string>();
+  for (const [prescribed, recorded] of varietyEquivalenceMap(reference)) {
+    // 处方本来就写了目录记的那个品种 ⇒ 不需要等价，也避免把两味压成一味
+    // （赤芍白芍同用的方是存在的，压成一味会让核验少数一味）。
+    if (present.has(recorded)) continue;
+    mapping.set(prescribed, recorded);
+  }
+  for (const rule of HERB_IDENTITY_SUBSTITUTIONS) {
+    // 基准不需要这味药 → 无从替代。
+    if (!baselineNames.has(rule.baseline)) continue;
+    // 处方本来就有基准那味药 → 不需要替代（也避免把两味药压成一味）。
+    if (present.has(rule.baseline)) continue;
+    // 方名含参字这类回阳固脱方，替代不成立。
+    const explicitlyAllowed = rule.allowedDespiteBlock.some((name) => reference.formulaName === name);
+    if (!explicitlyAllowed && rule.blockedWhenNameContains
+      && reference.formulaName.includes(rule.blockedWhenNameContains)) continue;
+    mapping.set(rule.prescribed, rule.baseline);
+  }
+  if (mapping.size === 0) return [...prescriptionNames];
+  return prescriptionNames.map((name) => mapping.get(normalizeHerbName(name)) || name);
+}
+
 function verifyFormulaCompilationComponent(
   reference: FormulaCompilationReference,
   herbs: FormulaHerbInput[],
@@ -1399,9 +1498,12 @@ function verifyFormulaCompilationComponent(
   explicitlyModified: boolean,
 ): FormulaComponentVerification {
   const identityCanonical = identityVerificationCanonicalMap(reference);
-  const herbNames = withIdentityCanonicalNames(
-    herbs.map(formulaHerbIdentityName).filter(Boolean),
-    identityCanonical,
+  const herbNames = applyIdentitySubstitutions(
+    withIdentityCanonicalNames(
+      herbs.map(formulaHerbIdentityName).filter(Boolean),
+      identityCanonical,
+    ),
+    reference,
   );
   const baseAliases = formulaHerbBaseAliases(herbs);
   // 锚点必须与组成、处方两侧过同一张表——否则它不是「更严」，而是**恒假**。

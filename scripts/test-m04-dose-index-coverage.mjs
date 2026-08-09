@@ -123,10 +123,18 @@ assert.ok(
   //   · 朱砂/雄黄/轻粉 有药典数字（0.1-0.5g 等），但条目自带「有毒且不入汤剂」；
   //   · 大蓟炭 有药典 5-10g，但药典给它列的唯一途径是丸散，没有煎服。
   // 两者都该扣除，用剂量数字判会双双误判为「有边界却被扣掉」。
+  //   · 第三类（2026-08-09 新增）：**身份分叉**的味——歧义且落不到唯一规范名上
+  //     （芍药→白芍/赤芍、皂角→大皂角/猪牙皂、贯众→狗脊/绵马贯众、乌头→川乌/草乌）。
+  //     它此前根本没走扣除通道：歧义属名被「药典未收载」豁免表自动收编，直接放行了 93 首方。
+  //     那是个自我授权闭环——豁免表按「哪些名字卡住了方剂」汇总，卡住它的东西自己拿到了豁免。
+  //     现在改走扣除：目录不替医生选品种，扣除该味并要求医生**指定品种**（而不是只定用量），
+  //     且照旧受 ≥3 味 / ≥60% 守卫约束。它同样是构建期证明过的，记在
+  //     varietyUndeterminedIngredients 里，因此计入 provable。
   const wronglyDeducted = catalog.entries.flatMap((entry) => {
     const provable = new Set([
       ...(entry.missingDoseBoundaryIngredientNames || []),
       ...(entry.controlledToxicIngredientNames || []),
+      ...(entry.varietyUndeterminedIngredients || []).map((row) => row.name),
     ]);
     return (entry.manualDoseIngredientNames || [])
       .filter((herb) => !provable.has(herb))

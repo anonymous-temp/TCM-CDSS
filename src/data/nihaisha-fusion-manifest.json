@@ -32,8 +32,8 @@
     },
     {
       "path": "src/data/tcm-formula-governed-catalog.json",
-      "sha256": "06a8b4e38bc4c9fd194edde737980a5adb332e4d2b8f756c66ef0cb60b820b1f",
-      "records": 2933
+      "sha256": "6570bd433eef882bfa0adb495b6335aa68e934c6057ec32169d83c078f9531f9",
+      "records": 2969
     }
   ],
   "evidence": {

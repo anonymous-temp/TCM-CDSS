@@ -100,3 +100,21 @@ export function resolveGovernedTcmHerbIdentity(value: unknown): GovernedHerbIden
 export function isAmbiguousGovernedTcmHerbIdentity(value: unknown): boolean {
   return resolveGovernedTcmHerbIdentity(value).status === "ambiguous";
 }
+
+/**
+ * 身份分叉：知道是一味药，但落不到唯一一个药典规范名上——歧义且有两个以上受控候选品种。
+ *
+ * 与 isAmbiguousGovernedTcmHerbIdentity 的区别很要紧，别用错：
+ * · 芍药→[白芍,赤芍]、皂角→[大皂角,猪牙皂]、贯众→[狗脊,绵马贯众]、青木香→[木香,防己]
+ *   —— 分叉。规范名为空，十八反十九畏、特殊人群门禁、管制毒性排除全按规范名索引，
+ *   这一味对每一道安全检查都是隐形的。
+ * · 白蜜/沙蜜 status 同样是 ambiguous，但已解析到「蜂蜜」，规范名在、安全检查看得见，
+ *   不是分叉。把它们一并当分叉处理只会白挡掉大陷胸丸、猪肤汤，换不来任何安全收益。
+ *
+ * 与构建期 scripts/build-tcm-governance-tables.py 的 is_variety_forked_link 同一判据，
+ * 两侧分叉会让「构建期标可编译、运行时判不可编译」重演。
+ */
+export function isVarietyForkedHerbIdentity(value: unknown): boolean {
+  const resolution = resolveGovernedTcmHerbIdentity(value);
+  return resolution.status === "ambiguous" && resolution.candidates.length >= 2;
+}

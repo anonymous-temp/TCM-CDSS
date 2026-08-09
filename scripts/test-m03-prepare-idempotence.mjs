@@ -116,7 +116,7 @@ for (const item of sample) {
   let first;
   try {
     first = await prepareDiagnoseStructuredContent(content, clinicalContext, [], undefined, undefined);
-  } catch (error) {
+  } catch {
     // prepare 对畸形输入抛错是既有行为（上层 catch 后走降级），不属于幂等性问题。
     continue;
   }

@@ -454,13 +454,19 @@ const FORMULA_NAME_SHAPE = /(?:汤|丸|散|丹|膏|饮|煎|饮子|汁|粥|茶|�
 // （括注尾缀会在 T8 身份归一(剥括注)下让同名列互撞身份）。形状判断与 import 端同口径——
 // 先剥卷次数字再测裸名;入库身份保留数字以区分同名列变体。
 const VOLUME_SUFFIX = /(?:[一二三四五六七八九十百]+|\d+)$/;
+// 出处限定名尾缀（ADJ-COLLATION-20260809）：章节拆分出的子方必须用「方名〔出处·月份/用途〕」
+// 作身份键，否则黄连汤/调中汤/芍药汤/半夏汤/猪肾汤 会与目录里既有的同名方互相覆盖。
+// 这里**剥掉限定名再测形状**，而不是像同名异方变体那样整类豁免——豁免会让这条守卫在
+// 校勘通道上彻底失效，而剥壳之后「黄连汤」「五痔散」仍要各自通过方名形状判定。
+const SOURCE_QUALIFIER_SUFFIX = /〔[^〕]*〕$/;
 const nonFormulaShaped = formulas.entries
   .filter((entry) => entry.sourceClass === "verified_reference_catalog")
   // 同名异方具名变体(柴葛解肌汤（《医学心悟》程氏）等)是人工裁定命名,不是自动抽取,
   // 形状守卫防的是「篇名冒充方名」,裁定变体不在其射程内(其身份由 homonym 通道的
   // fail-closed 校验单独守住:基线必须在册、身份不得碰撞、组成必须不同)。
   .filter((entry) => entry.sourceCatalog !== "adjudicated_homonym_variant")
-  .filter((entry) => !FORMULA_NAME_SHAPE.test(entry.name.replace(VOLUME_SUFFIX, "")))
+  .filter((entry) => !FORMULA_NAME_SHAPE.test(
+    entry.name.replace(SOURCE_QUALIFIER_SUFFIX, "").replace(VOLUME_SUFFIX, "")))
   .map((entry) => entry.name);
 assert.deepEqual(nonFormulaShaped, [],
   `自动抽取的补充方剂名必须是方名形状，命中篇名/病名/症状名：${nonFormulaShaped.slice(0, 10).join("、")}`);
@@ -503,9 +509,19 @@ for (const row of syndromeTagAdjudications.entries) {
     routeRejectedAdjudications += 1;
     assert.match(
       rejection,
-      /^(?:external_route|source_declines_differentiation):/,
+      // collated_chapter：方名是章节题、组成是多方合抄，挂在它身上的证候裁定
+      // 指向的不是任何一张真方，随隔离失效是正确的——但必须带受控理由地失效。
+      /^(?:external_route|source_declines_differentiation|collated_chapter):/,
       `拒收理由必须是受控取值：${row.name}->${rejection}`,
     );
+    if (rejection.startsWith("collated_chapter:")) {
+      // 隔离必须真的落地成资格取消，而不是只挂一个理由字符串。
+      assert.equal(entry.identityLockEligible, false, `${row.name} 标为章节合抄却仍可被身份锁锁定`);
+      assert.ok(
+        (formulas.summary.collatedChapterQuarantined || []).some((key) => key.startsWith(`${row.name}@`)),
+        `${row.name} 标为章节合抄却未进隔离清单`,
+      );
+    }
     // 拒收即彻底：不得留半截标签，否则「拒了但还在池子里」比不拒更危险。
     assert.deepEqual(entry.curatedSyndromeTags, [], `${row.name} 已被途径闸拒收，却仍留有裁定标签`);
     assert.deepEqual(entry.syndromeTags, [], `${row.name} 已被途径闸拒收，却仍在运行时候选池里`);
@@ -1032,4 +1048,6 @@ assert.equal(treatmentProjects.governedTcmTreatmentPlanTemplateForTags("acupunct
     "health-education 幽灵条目必须保持删除状态");
 }
 
-console.log(JSON.stringify({ tables: 12, syndromeTerms: 2060, treatmentTerms: 1276, governedFormulas: formulas.entries.length, syndromeTagAdjudications: syndromeTagAdjudications.entries.length, herbNames: herbs.summary.standardNameCount, outputContracts: 18, failures: 0 }));
+// orphanedByDropAdjudications / routeRejectedAdjudications 都是「人工裁定已失效」的计数。
+// 打进收尾行而不是就地丢弃：静默失效的人工判断是本仓库最怕的一类债。
+console.log(JSON.stringify({ tables: 12, syndromeTerms: 2060, treatmentTerms: 1276, governedFormulas: formulas.entries.length, syndromeTagAdjudications: syndromeTagAdjudications.entries.length, herbNames: herbs.summary.standardNameCount, outputContracts: 18, orphanedByDropAdjudications, routeRejectedAdjudications, failures: 0 }));

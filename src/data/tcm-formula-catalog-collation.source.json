@@ -1,0 +1,1075 @@
+{
+ "schemaVersion": "tcm-formula-catalog-collation-v1",
+ "adjudicationRef": "ADJ-COLLATION-20260809",
+ "note": "目录条目级校勘通道：新增（add）/ 组成重录（rewrite）/ 章节伪方删除（remove）。\n\n【为什么需要这条通道】目录来源三层（经典名方 / SZJG 标准方 / 项目核验补充）都是从外部语料编译的，\n没有「按古籍校勘结论逐条改一条」的入口。此前只有同名异方变体通道（HOMONYM_VARIANTS），\n它要求基线必须在册，加不了全新条目，也删不掉错条目。\n\n【本批处置的缺陷】章节题被抽取程序压成了单方：\n· 妊娠随月养胎及服药方 —— 《外台秘要》卷三十三「妊娠随月数服药及将息法一十九首」整节，\n  按妊娠月份连续记载多首方，被压成 37 味单方，芍药与大麦各出现两次。\n· 治痔疮及谷道痒痛方 —— 《集验方》卷八整节，混合内服、外洗、涂敷等 17 法，\n  被压成 51 味单方，并含「皮/黄/本/虫」等古籍抽取丢字产生的单字残片。\n这两条不能靠「删除重复药名」修复，必须从章节边界重新抽取。\n· 槐角地榆汤 —— 真方，但组成含非药名「炒白芍菜」（「炒白芍药」与后续文字黏连），\n  且漏计原文「上入生地黄水煎服」的生地黄；出处应回归《证治准绳·类方》而非《外科大成》。\n\n【落地口径】\n· properNameInSource=false（原书无专名、据组成或用途拟名）的条目**不得取得方名锁定资格**——\n  拟名不能冒充古方专名去命名医生的处方。它们仍可作为文献证据被检索到。\n· administration=external（洗/涂/纳肛/外敷）同样不取得方名锁定资格：外治法不应命名内服处方。\n· administration=historical_only（钩吻/铅/砷等历史毒物、或药材已不可辨识）连检索资格一并取消，\n  只作为古籍数据留档，不进入任何候选池。\n· 组成只记药名，**不记古方原量**：宋代剂量不可直接换算为现代临床处方，原量保留在\n  recordedComposition 供人工回源，绝不进入剂量编译。\n· 同名子方一律用「方名〔出处·月份/用途〕」作身份键（唯一标识名），\n  避免与目录中既有的黄连汤/调中汤/芍药汤/半夏汤/猪肾汤 互相覆盖。",
+ "sourceRefs": [
+  {
+   "name": "中医师校勘：109 章节型伪方拆分校勘说明",
+   "date": "2026-08-09",
+   "detail": "槐角地榆汤 1 条纠正后保留；妊娠随月养胎及服药方拆为《外台秘要》卷三十三逐月 18 首；治痔疮及谷道痒痛方拆为《集验方》卷八章节内 17 条独立方法；合计 36 条。制法辅料不计入原文药味数。"
+  },
+  {
+   "name": "中医师核定：芪附汤 / 术附汤 / 参附汤 三因自汗三汤",
+   "date": "2026-08-09",
+   "detail": "芪附汤目录缺失应新增；术附汤、参附汤按《古今名医方论》引《三因》自汗方版本独立保存，不得覆盖库中《三因极一病证方论》卷六五味术附汤与《正体类要》参附汤（走同名异方变体通道）。附子不擅补炮制。"
+  },
+  {
+   "name": "《证治准绳》原文（槐角地榆汤）",
+   "url": "https://ctext.org/wiki.pl?chapter=942116&if=en&remap=gb"
+  },
+  {
+   "name": "《外台秘要》卷三十三（妊娠随月数服药及将息法一十九首）",
+   "url": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "name": "《外台秘要方》卷二十六（痔病诸方）",
+   "url": "https://www.shidianguji.com/book/SK1428/chapter/1kf3sleq1jsii"
+  },
+  {
+   "name": "《古今名医方论》卷一·三因三汤",
+   "url": "https://www.zysj.com.cn/lilunshuji/gujinmingyifanglun/159.html"
+  }
+ ],
+ "removals": [
+  {
+   "name": "妊娠随月养胎及服药方",
+   "source": "《外台》卷三十三",
+   "reason": "章节题被压成 37 味单方，跨月合抄且芍药、大麦各重复一次；已按《外台秘要》卷三十三逐月拆为 18 首具名方。",
+   "splitInto": 18
+  },
+  {
+   "name": "治痔疮及谷道痒痛方",
+   "source": "（《外台》卷二十六）",
+   "reason": "章节题被压成 51 味单方，混合内服/外洗/涂敷 17 法并含「皮/黄/本/虫」单字残片；已按《集验方》卷八段落边界拆为 17 条独立方法。",
+   "splitInto": 17
+  }
+ ],
+ "entries": [
+  {
+   "action": "add",
+   "name": "芪附汤〔《古今名医方论》引《三因》·自汗方〕",
+   "displayName": "芪附汤〔《古今名医方论》引《三因》·自汗方〕",
+   "source": "《古今名医方论》卷一",
+   "sourceAttributedTo": "《三因》",
+   "ingredients": [
+    "黄芪",
+    "附子"
+   ],
+   "recordedComposition": "黄芪一两、附子五钱",
+   "sectionBoundary": "《古今名医方论》卷一·三因三汤",
+   "dosageForm": "汤剂",
+   "indications": [
+    "阳虚自汗；喻昌分方定位为卫外之阳不固而自汗。水煎，分三服。"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "",
+   "peonyCollation": "不涉及",
+   "collationNote": "原文未注明附子炮制方法，不得擅补为「炮附子」。直接可核出处为《古今名医方论》卷一；该书标注原始归属《三因》，但《三因极一病证方论》四库本卷十「自汗证治」未直接列出芪附/术附/参附三汤，故不写作「《三因极一病证方论》卷十原方」。《医门法律·中寒门方》逐方复述相同组成并说明三者分别对应卫阳、脾阳、肾阳失固的自汗，形成相互印证。宋代剂量不可直接换算为现代临床处方。",
+   "evidenceUrl": "https://www.zysj.com.cn/lilunshuji/gujinmingyifanglun/159.html"
+  },
+  {
+   "action": "rewrite",
+   "name": "槐角地榆汤",
+   "displayName": "槐角地榆汤〔《证治准绳·类方》痔门〕",
+   "source": "《证治准绳·类方》痔门（四库本总卷三十二）",
+   "ingredients": [
+    "地榆",
+    "槐角",
+    "炒白芍",
+    "焦栀子",
+    "麸炒枳壳",
+    "黄芩",
+    "荆芥",
+    "生地黄"
+   ],
+   "recordedComposition": "地榆、槐角、炒白芍药、焦栀子、炒枳壳、黄芩、荆芥、生地黄（煎时加入）",
+   "sectionBoundary": "痔门·下血不止·槐角地榆汤",
+   "dosageForm": "汤剂",
+   "indications": [
+    "痔漏，脉芤下血者"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "槐角地榆汤（含‘炒白芍菜’的错误记录）",
+   "peonyCollation": "白芍；原文明确作‘白芍药（炒）’",
+   "collationNote": "原文前七味未列剂量；生地黄见于‘上入生地黄水煎服’，应计入完整组成但不得臆造剂量。出处应回归《证治准绳》，不挂《外科大成》。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=942116&if=en&remap=gb",
+   "replaceSourceOf": {
+    "name": "槐角地榆汤",
+    "source": "《外科大成》"
+   },
+   "ingredientParseNote": "两处药名按药典规范名转写，不改校勘结论：①「炒白芍药」→「炒白芍」——原文作「白芍药（炒）」，「白芍药」是「白芍」的古写，医生芍药校勘栏已明确裁为白芍；带「药」字的写法 T9 解析不到，会让整方退回不可编译。②「炒枳壳」→「麸炒枳壳」——原文只写「炒」，麸炒是药典枳壳项下的炒法饮片规格，也是本条在目录里原有的写法；本次校勘针对的是「炒白芍菜」与漏计的生地黄，不动枳壳的炮制记法。"
+  },
+  {
+   "action": "add",
+   "name": "乌雌鸡汤〔《外台秘要》卷三十三·妊娠一月〕",
+   "displayName": "乌雌鸡汤〔《外台秘要》卷三十三·妊娠一月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "乌雌鸡",
+    "茯苓",
+    "吴茱萸",
+    "芍药",
+    "白术",
+    "麦门冬",
+    "人参",
+    "阿胶",
+    "炙甘草",
+    "生姜"
+   ],
+   "recordedComposition": "乌雌鸡一只（治如食法）、茯苓一两、吴茱萸一升、芍药三两、白术三两、麦门冬五合（去心）、人参三两、阿胶二两、炙甘草一两、生姜一两",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠一月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "妊娠一月，寒热惊动、举重腰痛、腹满胞急、卒有所下"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "《外台》原文作‘芍药’；宋本《卫生家宝产科备要》作‘芍药白者’，可映射白芍但原文层保留‘芍药’",
+   "collationNote": "《外台》本茯苓一两；《千金》及宋本转录多作二两，属版本异文，不互相覆盖。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "补胎汤〔《外台秘要》卷三十三·妊娠一月〕",
+   "displayName": "补胎汤〔《外台秘要》卷三十三·妊娠一月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "细辛",
+    "防风",
+    "乌梅",
+    "吴茱萸",
+    "干地黄",
+    "白术",
+    "大麦",
+    "生姜"
+   ],
+   "recordedComposition": "细辛一两、防风二两、乌梅一升、吴茱萸五合、干地黄一两、白术一两、大麦五合、生姜四两",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠一月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "曾伤一月胎者预服"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "《外台》转录作干地黄、白术各一两；《千金》本多作各三两。一方加人参一两属于加方，不并入基本方。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "艾汤〔《外台秘要》卷三十三·妊娠二月〕",
+   "displayName": "艾汤〔《外台秘要》卷三十三·妊娠二月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "丹参",
+    "当归",
+    "人参",
+    "麻黄",
+    "艾叶",
+    "阿胶",
+    "炙甘草",
+    "大枣",
+    "生姜"
+   ],
+   "recordedComposition": "丹参三两、当归二两、人参二两、麻黄二两（去节）、艾叶二两、阿胶二两（炙）、炙甘草一两、大枣十二枚、生姜一两",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠二月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "妊娠二月中风寒、动摇、腰背强痛、卒有所下、乍寒乍热"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "《外台》本名‘艾汤’；《千金》及后世常名‘艾叶汤/鸡艾汤’，且药量存在异文，数据库不得以同名异本覆盖。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "黄连汤〔《外台秘要》卷三十三·妊娠二月〕",
+   "displayName": "黄连汤〔《外台秘要》卷三十三·妊娠二月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "黄连",
+    "人参",
+    "吴茱萸",
+    "生地黄",
+    "生姜"
+   ],
+   "recordedComposition": "黄连一两、人参一两、吴茱萸五合、生地黄五两、生姜三两",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠二月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "曾伤二月胎者预服"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "乌梅一升、当归半两均属一方加味，不并入基本方。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "雄鸡汤〔《外台秘要》卷三十三·妊娠三月〕",
+   "displayName": "雄鸡汤〔《外台秘要》卷三十三·妊娠三月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "雄鸡",
+    "炙甘草",
+    "人参",
+    "茯苓",
+    "阿胶",
+    "黄芩",
+    "白术",
+    "麦门冬",
+    "芍药",
+    "大枣",
+    "生姜"
+   ],
+   "recordedComposition": "雄鸡一只（治如食法）、炙甘草二两、人参二两、茯苓二两、阿胶二两、黄芩一两、白术一两、麦门冬五合（去心）、芍药四两、大枣十二枚、生姜一两",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠三月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "妊娠三月惊恐忧愁、腹满绕脐痛、腰背痛、卒有所下"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "原文仅作‘芍药’，不强改品种",
+   "collationNote": "一方用当归、川芎各二两而不用黄芩、生姜，作为异方保留在备注，不并入基本方。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "茯神汤〔《外台秘要》卷三十三·妊娠三月〕",
+   "displayName": "茯神汤〔《外台秘要》卷三十三·妊娠三月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "茯神",
+    "丹参",
+    "龙骨",
+    "阿胶",
+    "当归",
+    "炙甘草",
+    "人参",
+    "赤小豆",
+    "大枣"
+   ],
+   "recordedComposition": "茯神一两、丹参一两、龙骨一两、阿胶二两、当归二两、炙甘草二两、人参二两、赤小豆二十一粒、大枣十三枚",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠三月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "曾伤三月胎者预服"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "《外台》电子转录作大枣十三枚；《千金》与《卫生家宝产科备要》作二十一枚，列为版本异文。腰痛加桑寄生不并入基本方。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "菊花汤〔《外台秘要》卷三十三·妊娠四月〕",
+   "displayName": "菊花汤〔《外台秘要》卷三十三·妊娠四月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "菊花",
+    "麦门冬",
+    "麻黄",
+    "阿胶",
+    "炙甘草",
+    "当归",
+    "人参",
+    "生姜",
+    "半夏",
+    "大枣"
+   ],
+   "recordedComposition": "菊花如鸡子大一枚、麦门冬一升（去心）、麻黄三两（去节）、阿胶三两（炙）、炙甘草二两、当归二两、人参一两半、生姜五两、半夏二两（洗）、大枣十二枚",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠四月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "妊娠四月寒热、颈项强痛、腰背腹痛、胎上迫胸、卒有所下"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "《外台》本半夏二两；《千金》本多作四两。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "调中汤〔《外台秘要》卷三十三·妊娠四月〕",
+   "displayName": "调中汤〔《外台秘要》卷三十三·妊娠四月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "芍药",
+    "炙甘草",
+    "川芎",
+    "续断",
+    "生李根白皮",
+    "柴胡",
+    "白术",
+    "乌梅",
+    "当归",
+    "生姜",
+    "炙厚朴",
+    "炙枳实"
+   ],
+   "recordedComposition": "芍药四两、炙甘草一两、川芎一两、续断一两、生李根白皮三两、柴胡三两、白术三两、乌梅一升、当归一两半、生姜四两、炙厚朴二两、炙枳实二两",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠四月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "曾伤四月胎者预服"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "《外台》作‘芍药’；《千金》及宋本明确作白芍药，可映射白芍",
+   "collationNote": "《外台》本厚朴、枳实各二两；《千金》本多作各三两。半夏二两为一方，不并入基本方。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "阿胶汤〔《外台秘要》卷三十三·妊娠五月〕",
+   "displayName": "阿胶汤〔《外台秘要》卷三十三·妊娠五月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "阿胶",
+    "人参",
+    "麦门冬",
+    "生姜",
+    "吴茱萸",
+    "旋覆花",
+    "当归",
+    "芍药",
+    "炙甘草",
+    "黄芩"
+   ],
+   "recordedComposition": "阿胶四两（炙）、人参一两、麦门冬一升（去心）、生姜六两、吴茱萸一两、旋覆花一两、当归一两、芍药一两、炙甘草一两、黄芩一两",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠五月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "妊娠五月寒热、头眩呕吐、胎动无常、腹痛欲仆、卒有所下"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "《外台》作‘芍药’；宋本《卫生家宝产科备要》作‘芍药雪白者’，可映射白芍",
+   "collationNote": "《外台》本后六味各一两；《千金》本旋覆花二合、吴茱萸七合、当归芍药甘草黄芩各二两，须作为另一版本保存。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "安中汤〔《外台秘要》卷三十三·妊娠五月〕",
+   "displayName": "安中汤〔《外台秘要》卷三十三·妊娠五月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "炙甘草",
+    "芍药",
+    "当归",
+    "人参",
+    "干地黄",
+    "川芎",
+    "五味子",
+    "麦门冬",
+    "大麻仁",
+    "生姜",
+    "大枣",
+    "黄芩"
+   ],
+   "recordedComposition": "炙甘草三两、芍药三两、当归二两、人参二两、干地黄二两、川芎二两、五味子五合、麦门冬一升（去心）、大麻仁五合、生姜六两、大枣三十五枚、黄芩一两",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠五月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "曾伤五月胎者预服"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "《外台》作‘芍药’；宋本作‘芍药雪白者’，可映射白芍",
+   "collationNote": "",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "麦冬汤〔《外台秘要》卷三十三·妊娠六月〕",
+   "displayName": "麦冬汤〔《外台秘要》卷三十三·妊娠六月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "麦门冬",
+    "炙甘草",
+    "人参",
+    "干地黄",
+    "黄芩",
+    "阿胶",
+    "生姜",
+    "大枣"
+   ],
+   "recordedComposition": "麦门冬一升（去心）、炙甘草一两、人参一两、干地黄三两、黄芩二两、阿胶四两、生姜六两、大枣十五枚",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠六月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "妊娠六月动胎不安、寒热、腹胀体肿、腹痛如欲产、手足烦疼"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "《外台》本题作‘麦冬汤’，后世多题‘麦门冬汤’，以出处限定名消歧。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "柴胡汤〔《外台秘要》卷三十三·妊娠六月〕",
+   "displayName": "柴胡汤〔《外台秘要》卷三十三·妊娠六月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "柴胡",
+    "芍药",
+    "白术",
+    "炙甘草",
+    "麦门冬",
+    "肉苁蓉",
+    "川芎",
+    "干地黄",
+    "生姜",
+    "大枣"
+   ],
+   "recordedComposition": "柴胡四两、芍药二两、白术二两、炙甘草二两、麦门冬三两（去心）、肉苁蓉一两、川芎二两、干地黄五两、生姜六两、大枣三十枚",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠六月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "曾伤六月胎者预服"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "原文‘芍药，一方作紫葳’；宋本注明芍药雪白者，基本方保留芍药并记录异文",
+   "collationNote": "黄芩二两为一方加味，不并入基本方。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "葱白汤〔《外台秘要》卷三十三·妊娠七月〕",
+   "displayName": "葱白汤〔《外台秘要》卷三十三·妊娠七月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "葱白",
+    "半夏",
+    "麦门冬",
+    "生姜",
+    "炙甘草",
+    "当归",
+    "黄芪",
+    "阿胶",
+    "人参",
+    "黄芩",
+    "旋覆花"
+   ],
+   "recordedComposition": "葱白十四枚（长三四寸）、半夏一升（洗）、麦门冬一升（去心）、生姜八两、炙甘草三两、当归三两、黄芪三两、阿胶四两、人参一两半、黄芩一两、旋覆花一把",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠七月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "妊娠七月惊恐摇动、腹痛、手足厥冷、烦热腹满短气、颈项腰背强"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "原合抄条目的单字‘黄’在此恢复为黄芪。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "杏仁汤〔《外台秘要》卷三十三·妊娠七月〕",
+   "displayName": "杏仁汤〔《外台秘要》卷三十三·妊娠七月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "杏仁",
+    "炙甘草",
+    "钟乳",
+    "麦门冬",
+    "吴茱萸",
+    "干姜",
+    "粳米",
+    "紫菀",
+    "五味子"
+   ],
+   "recordedComposition": "杏仁二两（去双仁皮尖）、炙甘草二两、钟乳二两（研）、麦门冬一两（去心）、吴茱萸一两、干姜二两、粳米五合、紫菀一两、五味子三合",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠七月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "曾伤七月胎者预服"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "《外台》转录作麦门冬、吴茱萸各一两；《千金/普济方》有各一升、五味子五合等异文，不能混并。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "芍药汤〔《外台秘要》卷三十三·妊娠八月〕",
+   "displayName": "芍药汤〔《外台秘要》卷三十三·妊娠八月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "芍药",
+    "人参",
+    "当归",
+    "炙甘草",
+    "白术",
+    "炙厚朴",
+    "薤白",
+    "生姜"
+   ],
+   "recordedComposition": "芍药四分〔《千金》作四两〕、人参三两、当归三两、炙甘草三两、白术一两、炙厚朴二两、薤白一升、生姜四两",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠八月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "妊娠八月中风寒、身体尽痛、寒热、胎动不安、腰背冷痛"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "《外台》电子本作‘芍药四分’，不擅改；《千金》作四两，异文并列",
+   "collationNote": "生姜四两据同系《千金》及宋本补足电子转录断行；剂量异文仍明确标注。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "葵子汤〔《外台秘要》卷三十三·妊娠八月〕",
+   "displayName": "葵子汤〔《外台秘要》卷三十三·妊娠八月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "炙甘草",
+    "芍药",
+    "柴胡",
+    "葵子",
+    "白术",
+    "生姜",
+    "厚朴",
+    "大枣"
+   ],
+   "recordedComposition": "炙甘草三两、芍药二两（一方四两）、柴胡三两、葵子一升、白术三两、生姜六两、厚朴二两、大枣二十枚",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠八月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "曾伤八月胎者预服"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "原文作‘芍药’，品种不强定",
+   "collationNote": "厚朴、大枣据同系传本补足电子转录断行；《千金》另有葵子二升、甘草二两等版本异文。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "半夏汤〔《外台秘要》卷三十三·妊娠九月〕",
+   "displayName": "半夏汤〔《外台秘要》卷三十三·妊娠九月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "半夏",
+    "麦门冬",
+    "干姜",
+    "当归",
+    "吴茱萸",
+    "阿胶",
+    "大枣"
+   ],
+   "recordedComposition": "半夏五合（洗）、麦门冬五合（去心）、干姜一两、当归三两、吴茱萸三两、阿胶三两（炙）、大枣十二枚",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠九月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "妊娠九月卒下痢、腹满悬急、胎上冲心、腰背痛、短气"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "猪肾汤〔《外台秘要》卷三十三·妊娠九月〕",
+   "displayName": "猪肾汤〔《外台秘要》卷三十三·妊娠九月〕",
+   "source": "《外台秘要》卷三十三",
+   "ingredients": [
+    "猪肾",
+    "茯苓",
+    "桑寄生",
+    "干姜",
+    "干地黄",
+    "川芎",
+    "白术",
+    "麦门冬",
+    "炮附子",
+    "大豆"
+   ],
+   "recordedComposition": "猪肾一具、茯苓三两、桑寄生三两、干姜三两、干地黄三两、川芎三两、白术四两、麦门冬一升（去心）、炮附子中者一枚、大豆三合",
+   "sectionBoundary": "《外台秘要》卷三十三·妊娠随月数服药及将息法一十九首·妊娠九月",
+   "dosageForm": "汤剂",
+   "indications": [
+    "曾伤九月胎者预服"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "妊娠随月养胎及服药方",
+   "peonyCollation": "不涉及",
+   "collationNote": "十月条仅述五脏六腑俱备、俟时而生，不另造第十九首药方。",
+   "evidenceUrl": "https://ctext.org/wiki.pl?chapter=782690&if=en&remap=gb"
+  },
+  {
+   "action": "add",
+   "name": "五痔辨证用药方〔《外台秘要》卷二十六引《集验》〕",
+   "displayName": "五痔辨证用药方〔《外台秘要》卷二十六引《集验》〕",
+   "source": "《外台秘要》卷二十六引《集验》",
+   "ingredients": [
+    "蛇蜕皮",
+    "鳖甲",
+    "猬皮",
+    "牡猪左悬蹄甲",
+    "露蜂房"
+   ],
+   "recordedComposition": "蛇蜕皮（气痔主药）、鳖甲（牡痔主药）、猬皮（牝痔主药）、牡猪左悬蹄甲（肠痔主药）、露蜂房（脉痔主药）",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·五痔辨证段",
+   "dosageForm": "散剂/外用",
+   "indications": [
+    "五痔分型使用；各等分，随证倍主药"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据原文用途拟名）",
+   "administration": "external",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "原合抄单字‘皮’恢复为猬皮；五味是一个随证加倍的复方框架，不拆成五首单味方。",
+   "evidenceUrl": "https://www.shidianguji.com/book/SK1428/chapter/1kf3sleq1jsii"
+  },
+  {
+   "action": "add",
+   "name": "野葛末方〔《外台秘要》卷二十六引《集验》·原书无专名〕",
+   "displayName": "野葛末方〔《外台秘要》卷二十六引《集验》·原书无专名〕",
+   "source": "《外台秘要》卷二十六引《集验》",
+   "ingredients": [
+    "野葛"
+   ],
+   "recordedComposition": "野葛末",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·又方（野葛）",
+   "dosageForm": "散剂",
+   "indications": [
+    "五痔"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成拟名）",
+   "administration": "historical_only",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "野葛有毒；仅作古籍数据校勘，不作现代临床用药建议。",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9",
+   "ingredientParseNote": "原文「野葛末」，「末」是剂型不是药名",
+   "administrationBasis": "野葛即钩吻，剧毒致死量极低；医生校勘说明明确「仅作古籍数据校勘，不构成现代临床处方」"
+  },
+  {
+   "action": "add",
+   "name": "槐根洗方〔《外台秘要》卷二十六引《集验》·原书无专名〕",
+   "displayName": "槐根洗方〔《外台秘要》卷二十六引《集验》·原书无专名〕",
+   "source": "《外台秘要》卷二十六引《集验》",
+   "ingredients": [
+    "槐根"
+   ],
+   "recordedComposition": "槐根",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·又方（槐根）",
+   "dosageForm": "洗剂",
+   "indications": [
+    "五痔"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成拟名）",
+   "administration": "external",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9"
+  },
+  {
+   "action": "add",
+   "name": "桃根洗方〔《外台秘要》卷二十六引《集验》·原书无专名〕",
+   "displayName": "桃根洗方〔《外台秘要》卷二十六引《集验》·原书无专名〕",
+   "source": "《外台秘要》卷二十六引《集验》",
+   "ingredients": [
+    "桃根"
+   ],
+   "recordedComposition": "桃根",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·又方（桃根）",
+   "dosageForm": "洗剂",
+   "indications": [
+    "五痔"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成拟名）",
+   "administration": "external",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9"
+  },
+  {
+   "action": "add",
+   "name": "枳实蜜丸方〔《证类本草》卷十三·原书无专名〕",
+   "displayName": "枳实蜜丸方〔《证类本草》卷十三·原书无专名〕",
+   "source": "《证类本草》卷十三",
+   "ingredients": [
+    "枳实"
+   ],
+   "recordedComposition": "枳实",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·治五痔不以年月日久新方",
+   "dosageForm": "丸剂",
+   "indications": [
+    "五痔，不论久新"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成拟名）",
+   "administration": "internal",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "炼蜜为丸属于制法辅料，不计药味数。",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9"
+  },
+  {
+   "action": "add",
+   "name": "五痔散〔《外台秘要》卷二十六〕",
+   "displayName": "五痔散〔《外台秘要》卷二十六〕",
+   "source": "《外台秘要》卷二十六引《短剧》",
+   "ingredients": [
+    "赤小豆",
+    "黄芪",
+    "炮附子",
+    "白蔹",
+    "桂心",
+    "芍药",
+    "黄芩"
+   ],
+   "recordedComposition": "赤小豆四分（熬）、黄芪三分、炮附子一分、白蔹一分、桂心一分、芍药二分、黄芩二分",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·五痔散",
+   "dosageForm": "散剂",
+   "indications": [
+    "酒客劳损，下部旁孔出血"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "原文仅作‘芍药’，不强改品种",
+   "collationNote": "原合抄单字‘黄’恢复为黄芪；‘附子（包）’按上下文校为炮附子。",
+   "evidenceUrl": "https://www.shidianguji.com/book/SK1428/chapter/1kf3sleq1jsii"
+  },
+  {
+   "action": "add",
+   "name": "紫参丸〔《外台秘要》卷二十六〕",
+   "displayName": "紫参丸〔《外台秘要》卷二十六〕",
+   "source": "《外台秘要》卷二十六",
+   "ingredients": [
+    "紫参",
+    "秦艽",
+    "乱发灰",
+    "紫菀",
+    "炙厚朴",
+    "藁本",
+    "雷丸",
+    "白芷",
+    "蟅虫",
+    "贯众",
+    "猪后悬蹄甲",
+    "虻虫",
+    "石南"
+   ],
+   "recordedComposition": "紫参一两、秦艽一两、乱发灰一两、紫菀一两、炙厚朴一两、藁本二两、雷丸半升、白芷一两、蟅虫半两（熬）、贯众三两（去毛）、猪后悬蹄甲十四枚（炙）、虻虫半两（去翅足，熬）、石南半两（炙）",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·紫参丸",
+   "dosageForm": "丸剂",
+   "indications": [
+    "五痔清血、肛边痒、脓血、鼠乳；兼脱肛"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "‘浓朴’规范为厚朴；‘本’恢复为藁本；‘虫’恢复为蟅虫（䗪虫，现代常称土鳖虫）。羊髓、猪脂为制丸辅料，不计十三味。",
+   "evidenceUrl": "https://www.shidianguji.com/book/SK1428/chapter/1kf3sleq1jsii"
+  },
+  {
+   "action": "add",
+   "name": "猬皮丸〔《外台秘要》卷二十六〕",
+   "displayName": "猬皮丸〔《外台秘要》卷二十六〕",
+   "source": "《外台秘要》卷二十六",
+   "ingredients": [
+    "槐子",
+    "炮附子",
+    "当归",
+    "连翘",
+    "干地黄",
+    "干姜",
+    "矾石",
+    "续断",
+    "黄芪",
+    "猬皮"
+   ],
+   "recordedComposition": "槐子三两、炮附子二两、当归二两、连翘二两、干地黄五两、干姜二两、矾石二两（烧令汁尽）、续断一两、黄芪一两、猬皮一具（细切，熬）",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·猬皮丸",
+   "dosageForm": "丸剂",
+   "indications": [
+    "痔"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "internal",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "原合抄单字‘黄’恢复为黄芪，单字‘皮’恢复为猬皮。",
+   "evidenceUrl": "https://www.shidianguji.com/book/SK1428/chapter/1kf3sleq1jsii"
+  },
+  {
+   "action": "add",
+   "name": "生槐皮纳肛方〔《外台秘要》卷二十六·原书无专名〕",
+   "displayName": "生槐皮纳肛方〔《外台秘要》卷二十六·原书无专名〕",
+   "source": "《外台秘要》卷二十六",
+   "ingredients": [
+    "生槐皮"
+   ],
+   "recordedComposition": "生槐皮十两（削去黑皮）",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·又方（生槐皮）",
+   "dosageForm": "外用丸/纳肛",
+   "indications": [
+    "痔"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成与用法拟名）",
+   "administration": "external",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9"
+  },
+  {
+   "action": "add",
+   "name": "槐赤鸡散〔《外台秘要》卷二十六·原书无专名〕",
+   "displayName": "槐赤鸡散〔《外台秘要》卷二十六·原书无专名〕",
+   "source": "《外台秘要》卷二十六",
+   "ingredients": [
+    "槐赤鸡"
+   ],
+   "recordedComposition": "槐赤鸡一斤",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·又方（槐赤鸡）",
+   "dosageForm": "散剂",
+   "indications": [
+    "痔"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成与剂型拟名）",
+   "administration": "historical_only",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "‘槐赤鸡’按原文作为一个古药名保留，不误拆为‘槐’与‘赤鸡’。",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9",
+   "administrationBasis": "「槐赤鸡」按原文保留为一个古药名且不可拆，现代无对应可辨识药材"
+  },
+  {
+   "action": "add",
+   "name": "玩月砂乳香散〔《证类本草》卷十七·原书无专名〕",
+   "displayName": "玩月砂乳香散〔《证类本草》卷十七·原书无专名〕",
+   "source": "《证类本草》卷十七",
+   "ingredients": [
+    "玩月砂",
+    "乳香"
+   ],
+   "recordedComposition": "玩月砂二钱（兔粪，慢火熬黄）、乳香半钱",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·治痔疾下血疼痛不止方",
+   "dosageForm": "散剂",
+   "indications": [
+    "痔疾下血、疼痛不止"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成与剂型拟名）",
+   "administration": "internal",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9"
+  },
+  {
+   "action": "add",
+   "name": "洗痔方〔《证类本草》卷十一〕",
+   "displayName": "洗痔方〔《证类本草》卷十一〕",
+   "source": "《证类本草》卷十一",
+   "ingredients": [
+    "连翘",
+    "绿矾",
+    "麝香"
+   ],
+   "recordedComposition": "连翘、绿矾（刀上飞）、麝香",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·洗痔方",
+   "dosageForm": "洗剂兼贴敷",
+   "indications": [
+    "痔"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "external",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "连翘煎汤洗；绿矾入麝香贴。原文未载剂量，不补造。",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9"
+  },
+  {
+   "action": "add",
+   "name": "槐皮膏〔《外台秘要》卷二十六〕",
+   "displayName": "槐皮膏〔《外台秘要》卷二十六〕",
+   "source": "《外台秘要》卷二十六引《短剧》",
+   "ingredients": [
+    "槐皮",
+    "甘草",
+    "当归",
+    "白芷",
+    "陈豉",
+    "桃仁",
+    "赤小豆"
+   ],
+   "recordedComposition": "槐皮五两、甘草二两、当归二两、白芷二两、陈豉五十粒、桃仁五十粒（去皮）、赤小豆二合",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·槐皮膏",
+   "dosageForm": "膏剂/外涂",
+   "indications": [
+    "谷道中痒痛、痔疮"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是",
+   "administration": "external",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "猪脂二升为制膏基质，不计入原文‘上七味’。另有传本将陈豉作楝子，当前按《集验方》汇录文本保留陈豉。",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9"
+  },
+  {
+   "action": "add",
+   "name": "菟丝子鸡子黄涂方〔《医心方》卷七·原书无专名〕",
+   "displayName": "菟丝子鸡子黄涂方〔《医心方》卷七·原书无专名〕",
+   "source": "《医心方》卷七",
+   "ingredients": [
+    "菟丝子",
+    "鸡子黄"
+   ],
+   "recordedComposition": "菟丝子（熬令黄黑）、鸡子黄",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·治谷道赤痛方",
+   "dosageForm": "外涂剂",
+   "indications": [
+    "谷道赤痛"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成与用法拟名）",
+   "administration": "external",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9"
+  },
+  {
+   "action": "add",
+   "name": "杏仁脂涂方〔《医心方》卷七·原书无专名〕",
+   "displayName": "杏仁脂涂方〔《医心方》卷七·原书无专名〕",
+   "source": "《医心方》卷七",
+   "ingredients": [
+    "杏仁"
+   ],
+   "recordedComposition": "杏仁（熬黄，捣作脂）",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·又方（杏仁）",
+   "dosageForm": "外涂剂",
+   "indications": [
+    "谷道赤痛"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成与用法拟名）",
+   "administration": "external",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9",
+   "ingredientParseNote": "原文「杏仁（熬黄，捣作脂）」，「脂」是制法不是第二味药"
+  },
+  {
+   "action": "add",
+   "name": "胡粉雄黄散〔《医心方》卷七·原书无专名〕",
+   "displayName": "胡粉雄黄散〔《医心方》卷七·原书无专名〕",
+   "source": "《医心方》卷七",
+   "ingredients": [
+    "胡粉",
+    "雄黄"
+   ],
+   "recordedComposition": "胡粉、雄黄",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·治虫食下部方",
+   "dosageForm": "外用散剂",
+   "indications": [
+    "虫食下部"
+   ],
+   "properNameInSource": false,
+   "properNameNote": "否（据组成与剂型拟名）",
+   "administration": "historical_only",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "二味等分；含铅/砷类历史药物，仅作古籍数据校勘。",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9",
+   "administrationBasis": "胡粉含铅、雄黄含砷，医生校勘说明明确标注为含铅/砷类历史药物"
+  },
+  {
+   "action": "add",
+   "name": "杏仁汤〔《医心方》卷七·蛲虫〕",
+   "displayName": "杏仁汤〔《医心方》卷七·蛲虫〕",
+   "source": "《医心方》卷七",
+   "ingredients": [
+    "杏仁",
+    "苦酒",
+    "食盐"
+   ],
+   "recordedComposition": "杏仁五十枚、苦酒三升、食盐一合",
+   "sectionBoundary": "《集验方》卷八·治痔疮及谷道痒痛方·治蛲虫杏仁汤方",
+   "dosageForm": "汤剂",
+   "indications": [
+    "蛲虫"
+   ],
+   "properNameInSource": true,
+   "properNameNote": "是（方题作杏仁汤）",
+   "administration": "internal",
+   "replacesEntry": "治痔疮及谷道痒痛方",
+   "peonyCollation": "不涉及",
+   "collationNote": "原电子抽取在‘蛲虫’处失字；本条按《医心方》卷七语境恢复。与妊娠七月‘杏仁汤’必须以出处限定名区分。",
+   "evidenceUrl": "https://zh.wikisource.org/zh-hans/%E9%9B%86%E9%A9%97%E6%96%B9"
+  }
+ ]
+}

@@ -162,3 +162,39 @@ console.log(JSON.stringify({
   semanticLayerCases: 5,
   failures: 0,
 }));
+
+// ── 后置方向（2026-08-09 补齐）────────────────────────────────────────────────
+// 上面钉的是**前置**方向（「无高热，头痛明显」不得把头痛判成否认）。后置方向当时没跟上：
+// 判据是「术语后面紧跟否定词即判已否认」，而中文里否定词否定的是**它后面**的东西。
+//   「发热无汗」  → 无 否定的是汗，发热是阳性主症
+//   「发热无恶寒」→ 同上
+//   「头晕无力」  → 「无力」整个是症状词，根本不是否定词
+// 实测 695 份真实病历：该规则命中 6 次，**全部是误判，零真阳性**；
+// 而合法的清单式后置否定（「发热：无」）在同一语料里出现 0 次。
+// 因此判据加一条「否定词必须收尾（分句末或标点前）」——既消灭全部前向误判，
+// 又保住清单式记录，且顺带补上原本就漏的分隔符形态（「发热：无」旧实现也判不出）。
+//
+// 与前置方向同一条纪律：宁可少判一个「已否认」（退化为「尚未确认」，医生会核实），
+// 不可把病历白纸黑字的阳性主症说成否认——后者是直接的临床事实错误。
+{
+  const { sourceDocumentsNegation } = safety.__negationInternalsForTest;
+  const postfixCases = [
+    ["患者以身面目俱黄，发热无汗，口渴欲饮", "发热", false, "无否定的是汗，发热是主症"],
+    ["精神尚可，发热无恶寒，无黄疸", "发热", false, "无否定的是恶寒"],
+    ["困倦嗜睡、头晕无力2个月", "头晕", false, "无力是症状词，不是否定"],
+    ["发热：无", "发热", true, "清单式记录，真否认"],
+    ["患者发热无。", "发热", true, "分句末收尾，真否认"],
+    ["否认发热", "发热", true, "前置否定，真否认"],
+  ];
+  let postfixFailures = 0;
+  for (const [text, term, expected, why] of postfixCases) {
+    const actual = sourceDocumentsNegation(text, term);
+    if (actual !== expected) {
+      postfixFailures += 1;
+      console.error(`后置否定方向错误：「${text}」${term} → ${actual}，应为 ${expected}（${why}）`);
+    }
+  }
+  assert.equal(postfixFailures, 0, `后置否定方向 ${postfixFailures}/${postfixCases.length} 例不符`);
+  console.log(JSON.stringify({ postfixDirectionCases: postfixCases.length, failures: 0 }));
+}
+

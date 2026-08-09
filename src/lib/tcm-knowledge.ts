@@ -5,7 +5,11 @@ import clinicianDosePolicyJson from "../data/tcm-herb-dose-clinician-policy.sour
 import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.source.json";
 import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
 import type { CaseState } from "./diagnosis-types";
-import { isIdentityIndeterminateHerbName, resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
+import {
+  isIdentityIndeterminateHerbName,
+  isVarietyForkedHerbIdentity,
+  resolveGovernedTcmHerbIdentity,
+} from "./tcm-herb-identity";
 import { buildBm25Index } from "./retrieval/bm25";
 import { buildControlledVocabulary } from "./retrieval/cjk-analyzer";
 
@@ -475,15 +479,31 @@ export function isKnownTcmHerbName(value: string): boolean {
   // 功用、分类与剂量边界。唯独本判定不查 T9，于是同一个药名在「存在性」上答否、在「功用/剂量」
   // 上答有：实测受治理经典方基准组成里 333 个饮片名（覆盖 1644 张可编译方，头部的出现在 80 张
   // 方里）被误报为"知识库未收"，验证器据此驳回、排查时也被它误导。
-  // fail-closed 语义原样保留：T9 只在**人工裁定过且 autoResolvable、非歧义**的行上给出
-  // canonicalName——芍药（白芍/赤芍）、贝母这类多目标名返回 ambiguous、没有 canonicalName，
-  // 这里照样判 false，仍然交给药师确认，不会被本改动放行。
+  // T9 只在**人工裁定过且 autoResolvable、非歧义**的行上给出 canonicalName；
+  // 芍药（白芍/赤芍）、贝母这类多目标名返回 ambiguous、没有 canonicalName，走下面那条分支。
   const governed = resolveGovernedTcmHerbIdentity(normalized);
   const governedName = governed.canonicalName || governed.doseCanonicalName;
   if (governedName && (
     canonicalHerbNameByToken.has(normalizedHerbLookupToken(governedName)) ||
     CONTROLLED_STANDALONE_HERBS.has(normalizedHerbLookupToken(governedName))
   )) return true;
+  // 身份分叉的名字**是药**，只是不知道是哪一味：贯众→狗脊/绵马贯众、皂荚→大皂角/猪牙皂、
+  // 萆薢→粉萆薢/绵萆薢/黄山药、礞石→金礞石/青礞石。它们都收在本仓的《中药学》功效权威表里。
+  //
+  // 存在性必须答**是**。答否不是「更保守」，是把「品种待指定」升级成「这味药不存在」：
+  // M04 会以 herb_*_unknown 驳回**整张**处方，医生写一味贯众就丢掉全部候选方。
+  // 真正的门禁在剂量侧而不是存在性侧——isClinicianDoseHerb 拒绝给分叉名「医师定量」豁免，
+  // 目录侧把它扣进 varietyUndeterminedIngredients 并要求医师指定品种。两个问题分开回答。
+  //
+  // 此前这条路径由末尾的 isClinicianDoseHerb 兜底顺带答是（因为歧义属名被自动收进了豁免表），
+  // 结果就是上面那句注释写着「照样判 false」而实际行为是 true。现在把判据写明，行为不变。
+  if (
+    governed.status === "ambiguous"
+    && governed.candidates.length >= 2
+    && governed.candidates.every((candidate) =>
+      canonicalHerbNameByToken.has(normalizedHerbLookupToken(candidate))
+      || CONTROLLED_STANDALONE_HERBS.has(normalizedHerbLookupToken(candidate)))
+  ) return true;
   // 兜底必须放在最后：所有既有解析路径（受控别名、炮制名剥离、T9 身份）都走完仍未识别时，
   // 才认「由医师确定用量」类成分（琥珀、葱白、粳米、黄丹…）。放在前面会截断正常归一——
   // 实测「艾叶炭」曾因此不再归一到「艾叶」。
@@ -532,36 +552,7 @@ function extractKnownHerbNames(text: string, limit = 24): string[] {
   return unique(direct).slice(0, limit);
 }
 
-function scoreHerb(herb: KnowledgeHerb, query: string): number {
-  const normalized = query.replace(/\s+/g, "");
-  let score = 0;
-  if (normalized.includes(herb.name)) score += 12;
-  for (const entry of herb.entries) {
-    const text = [
-      entry.herb,
-      entry.doseText,
-      entry.category,
-      entry.formula,
-      entry.leftDrug,
-      entry.rightDrug,
-      entry.population,
-      entry.riskLevel,
-      entry.riskName,
-      entry.primaryCategory,
-      entry.secondaryCategory,
-      entry.toxicity,
-      entry.basis,
-      entry.quote,
-      entry.note,
-    ].filter(Boolean).join(" ");
-    if (text && normalized.includes(herb.name)) score += 2;
-    for (const token of query.split(/[，,；;。.\s\n]+/).filter((item) => item.length >= 2)) {
-      if (text.includes(token)) score += 1;
-    }
-  }
-  return score;
-}
-
+// scoreHerb 已被 BM25F 索引取代（见下方 herbSearchIndex 的说明），旧实现删除以免误用。
 function compactEntry(entry: KnowledgeEntry): string {
   if (entry.type === "dose" || entry.type === "curatedDose") {
     const range = entry.doseText || (
@@ -1421,6 +1412,13 @@ export function isClinicianDoseHerb(herb: string): boolean {
   // 注意只在**授予豁免**这一侧拦，不改 clinicianDoseHerbClass 的分类结果——
   // 后者还被用来把管制毒性品种排除在候选之外，那条路径变宽才是真的危险。
   if (isIdentityIndeterminateHerbName(herb)) return false;
+  // 身份分叉的名字同理：知道是药，但不知道是**哪一味**。芍药→白芍/赤芍、皂角→大皂角/猪牙皂、
+  // 贯众→狗脊/绵马贯众、青木香→木香/防己。它们的 canonicalName 为空，十八反十九畏、
+  // 特殊人群门禁、管制毒性排除全按规范名索引——这一味对每一道安全检查都是隐形的，
+  // 却还能拿到「医师定量」豁免通行。与构建期 is_variety_forked_link 同一判据，两侧必须一致：
+  // 实测（2026-08-09 全目录）豁免表里混进 117 处歧义链接，放行了 93 首方。
+  // 注意用的是「分叉」而不是「歧义」：白蜜已解析到蜂蜜，规范名在，不该被这条拦掉。
+  if (isVarietyForkedHerbIdentity(herb)) return false;
   const clinicianClass = clinicianDoseHerbClass(herb);
   return clinicianClass !== undefined && !REGULATORY_BLOCKED_CLASSES.has(clinicianClass);
 }

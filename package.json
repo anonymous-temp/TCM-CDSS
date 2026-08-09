@@ -105,6 +105,8 @@
     "test:formula-name-composition": "node scripts/test-formula-name-composition-adjudication.mjs",
     "test:retrieval-bm25": "jiti scripts/test-retrieval-bm25.mjs",
     "test:book-corpus-evidence": "jiti scripts/test-book-corpus-evidence.mjs",
+    "test:herb-identity-substitution": "jiti scripts/test-herb-identity-substitution.mjs",
+    "test:formula-variety-and-collation": "jiti scripts/test-formula-variety-and-collation.mjs",
     "test:clinical-four-binding": "jiti scripts/test-clinical-four-governed-binding.mjs",
     "test:chief-complaint-primacy": "jiti scripts/test-chief-complaint-primacy.mjs",
     "test:presentation-contract": "jiti scripts/test-diagnosis-presentation-contract.mjs",

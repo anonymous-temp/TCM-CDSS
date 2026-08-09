@@ -425,8 +425,30 @@ function sourceDocumentsNegation(source: string, term: string): boolean {
           const between = before.slice(nearest.index + nearest[0].length);
           if (!NEGATION_SCOPE_BREAK.test(between) && !NON_SYMPTOM_NEGATION_OBJECT.test(between)) return true;
         }
+        // 后置否定（2026-08-09 收窄）。原判据是「术语后面紧跟否定词即判已否认」，
+        // 但中文里否定词否定的是**它后面**的东西，不是前面的。于是
+        //   「发热无汗」  → 无 否定的是汗，发热是阳性主症
+        //   「发热无恶寒」→ 同上
+        //   「头晕无力」  → 「无力」整个是症状词，根本不是否定
+        // 全部被判成「病历已记录否认发热/头晕」——直接把病历白纸黑字的阳性主症说成否认。
+        // 这与 :348 注释记载的前置方向缺陷是同一类（那次修的是「无高热，头痛明显」），
+        // 后置方向当时没跟上。
+        //
+        // 合法的后置否定只有清单式记录：「发热：无」「发热无。」——否定词处在**分句末或标点前**。
+        // 实测 695 份病历：分句末形态 0 例，「否定词后面还跟着字」6 例且全部是误判
+        // （发热无汗 ×3、发热无恶寒 ×1、头晕无力 ×2），无一真阳性。
+        // 因此判据加一条「否定词必须收尾」，既保住清单式记录，又消灭全部前向误判。
         const after = sentence.slice(termIndex + equivalent.length, termIndex + equivalent.length + 10);
-        if (new RegExp(`^(?:均)?(?:未见|未诉|未出现|否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|没有|无)`).test(after)) return true;
+        // 允许术语与否定词之间有分隔符：清单式病历写作「发热：无」「发热 无」。
+        // 这一步之所以安全，正是因为下面的「收尾」判据——「发热，无汗」虽有分隔符，
+        // 但否定词后面还跟着字，仍然不算否定。
+        const postfixNegation = after.match(
+          new RegExp(`^[：:、\\s]?(?:均)?(?:未见|未诉|未出现|否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|没有|无)`),
+        );
+        if (postfixNegation) {
+          const trailing = after.slice(postfixNegation[0].length);
+          if (trailing === "" || /^[，,、：:）)]/.test(trailing)) return true;
+        }
         termIndex = sentence.indexOf(equivalent, termIndex + equivalent.length);
       }
     }
@@ -4591,3 +4613,10 @@ export function markdownNdjsonResponse(markdown: string): Response {
     },
   });
 }
+
+
+/**
+ * 仅供回归套件使用。否定作用域是「病历阳性主症被说成已否认」这类临床事实错误的唯一判据，
+ * 而它此前只有间接覆盖（经 unknownTermNotice 的产物断言）。直接暴露谓词才能逐例钉住方向。
+ */
+export const __negationInternalsForTest = { sourceDocumentsNegation } as const;

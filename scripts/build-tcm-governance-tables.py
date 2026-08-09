@@ -52,9 +52,13 @@ SYNDROME_TAG_ADJUDICATION_FLOOR = 488  # 233(B1) + 255(B2)
 # 不能全局归一：同一个「芍药」在桂枝汤里是白芍、在排脓散里是赤芍，猜错等于开错方向相反的药。
 # 因此这张表是 (方名, 原文药名) → 品种，而不是药名→药名。
 INGREDIENT_IDENTITY_ADJUDICATIONS = DATA_ROOT / "tcm-formula-ingredient-identity-adjudications.source.json"
-INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 154  # 76(B1) + 78(B2)
+INGREDIENT_IDENTITY_ADJUDICATION_FLOOR = 172  # 76(B1) + 78(B2) + 18(B2-芍药 20260809)
 # 同名异方变体表(ADJ-HOMONYM-20260725):历史并存的不同方两版并存为不同身份(加味逍遥散模式)。
 HOMONYM_VARIANTS = DATA_ROOT / "tcm-formula-homonym-variants.source.json"
+# 目录条目级校勘通道(ADJ-COLLATION-20260809):新增 / 组成重录 / 章节伪方删除。
+# 三个来源层都是从外部语料编译的,此前没有「按古籍校勘结论逐条改一条」的入口——
+# 同名异方通道要求基线在册,加不了全新条目(芪附汤),也删不掉错条目(章节题被压成的伪方)。
+CATALOG_COLLATION = DATA_ROOT / "tcm-formula-catalog-collation.source.json"
 # 方名与自身记录组成是否自洽的逐条裁定(ADJ-NAME-COMPOSITION-20260809)。
 # 目录里存在名实不符的条目：理气化痰汤《惠直堂经验方》记的是 人参黄芪当归身白芍茯苓白术炙甘草
 # ——纯补益组成，方名却指向理气化痰。这类小条目会在命名层以「完整包含」压过它所属的更大真方
@@ -632,13 +636,61 @@ def load_name_composition_mismatches() -> dict[tuple[str, str], dict[str, Any]]:
     return resolved
 
 
+# 裁定的证据等级。中医师 2026-08-09 报告的硬要求：「把底本、卷次、原文、标准化药名、
+# 推断等级分列保存，避免把推断值伪装成原文值」。前两级是**原文值**，后两级是**推断值**。
+IDENTITY_ADJUDICATION_TIERS = {
+    "source_text_explicit",      # 原书/源书同方明确写「白芍药/赤芍药」
+    "parallel_edition_explicit", # 可确认的同方异本明确写出品种
+    "same_book_parallel",        # 同书同治法平行方明确，或炮制写法具有较强指向
+    "formula_intent_inference",  # 方义推断
+}
+IDENTITY_ADJUDICATION_INFERRED_TIERS = {"same_book_parallel", "formula_intent_inference"}
+
+
+def identity_adjudication_evidence_tier(entry: dict[str, Any]) -> str:
+    """裁定行的证据等级。**推导只此一处**，测试与下游一律读这个函数的结果。
+
+    批次 1（ADJ-20260725）作者时没有这个字段。不追溯标注、也不默认它们都是原文值：
+    按「evidence 文本里是否字面出现所裁的那个品种名」确定性推导——
+    「《脉因证治》同方明载：升麻、柴胡、白芍…」里有「白芍」⇒ 原文值；
+    「同栝蒌桂枝汤 inheritance」「推断：配伍荆芥薄荷疏风解毒…」里没有 ⇒ 推断值。
+    实测批次 1 的 154 行按此分成 145 原文 / 9 推断，与逐条抽查一致。
+    """
+    declared = compact(entry.get("evidenceTier"))
+    if declared:
+        if declared not in IDENTITY_ADJUDICATION_TIERS:
+            raise SystemExit(f"T8 ingredient identity adjudication has unknown evidenceTier: {declared}")
+        return declared
+    resolved = compact(entry.get("resolvedIngredient"))
+    evidence = f"{compact(entry.get('evidence'))}{compact(entry.get('basis'))}"
+    return "source_text_explicit" if resolved and resolved in evidence else "formula_intent_inference"
+
+
+def variety_candidate_names(raw_name: object, resolution_index: dict[str, dict[str, Any]]) -> list[str]:
+    """歧义属名的受控候选品种集（芍药→[白芍,赤芍]、皂角→[大皂角,猪牙皂]）。
+
+    候选集直接取 T9 解析索引给出的 candidates，**不在这里另写一份属名→品种表**：
+    另写一份就是「同一判据两处各写各的」，T9 增补一个品种时这里会悄悄过时。
+    """
+    row = resolution_index.get(compact(raw_name))
+    if not row:
+        return []
+    return [compact(value) for value in (row.get("candidates") or []) if compact(value)]
+
+
 def load_ingredient_identity_adjudications(
     resolution_index: dict[str, dict[str, Any]],
 ) -> dict[tuple[str, str], dict[str, str]]:
     """(方名, 原文药名) → 裁定品种。每一条都 fail-closed 校验。
 
-    赤芍与白芍功效方向相反（清热凉血 vs 养血敛阴），猜错不是少给剂量而是给反了药。
-    所以这里宁可拒绝入库也不接受任何无法逐条证成的行。
+    赤芍与白芍在现代功效上侧重不同（清热凉血散瘀 vs 养血敛阴柔肝），数据库中必须严格区分，
+    猜错不是少给剂量而是给反了方向。所以这里宁可拒绝入库也不接受任何无法逐条证成的行。
+
+    但「功效方向相反」不宜作为绝对表述（中医师 2026-08-09 报告的更正）：古籍中的裸「芍药」
+    还涉及时代、底本与后世方名演变，不能仅凭现代功效标签倒推为唯一原文。因此本表分两层——
+    **目录值**取裁定品种（剂量才编译得出来），**身份核验**在裁定属推断级时接受两个品种
+    （见 variety_flexible_ingredients）：宁可少给一个方名不可给错一个方名，反过来也不该
+    因为一次方义推断猜错就把医生的方名剥掉。
     """
     payload = read_json(INGREDIENT_IDENTITY_ADJUDICATIONS)
     entries = payload.get("entries", [])
@@ -673,8 +725,159 @@ def load_ingredient_identity_adjudications(
             "resolvedIngredient": resolved_ingredient,
             "evidence": compact(entry.get("evidence")),
             "basis": compact(entry.get("basis")),
+            "evidenceTier": identity_adjudication_evidence_tier(entry),
         }
     return resolved
+
+
+def load_variety_branches() -> dict[str, dict[str, Any]]:
+    """后世版本分叉：同一首方在后世既有赤芍本也有白芍本，两个都算数。
+
+    典型是犀角地黄汤——《千金》原文仅作「芍药」；《保婴撮要》所引济生方作赤芍药；
+    《成方切用》《医宗金鉴》又作白芍药。中医师 2026-08-09 B 表复核结论是
+    「维持目录值不改，按版本分叉登记」：不能用「清热凉血所以必为赤芍」的方义
+    去替代版本事实，也不能为了单一目录值牺牲版本真实性。
+    """
+    payload = read_json(INGREDIENT_IDENTITY_ADJUDICATIONS)
+    branches: dict[str, dict[str, Any]] = {}
+    for entry in payload.get("varietyBranches", []):
+        formula_name = compact(entry.get("formulaName"))
+        recorded = compact(entry.get("recordedVariety"))
+        attested = [compact(value) for value in (entry.get("alsoAttested") or []) if compact(value)]
+        if not (formula_name and recorded and attested):
+            raise SystemExit(f"T8 variety branch row is incomplete: {entry}")
+        if not compact(entry.get("evidence")):
+            raise SystemExit(f"T8 variety branch row lacks evidence: {formula_name}")
+        branches[formula_name] = {
+            "recordedVariety": recorded,
+            "alsoAttested": attested,
+            "evidence": compact(entry.get("evidence")),
+            "basis": compact(entry.get("basis")),
+        }
+    return branches
+
+
+COLLATION_ADMINISTRATIONS = {"internal", "external", "historical_only"}
+
+
+def load_catalog_collation() -> dict[str, Any]:
+    """目录条目级校勘：新增 / 组成重录 / 章节伪方删除（ADJ-COLLATION-20260809）。
+
+    落地口径（每一条都 fail-closed 校验，宁可构建失败也不静默降级）：
+    · properNameInSource=false（原书无专名、据组成或用途拟名）⇒ 不得取得方名锁定资格。
+      拟名不能冒充古方专名去命名医生的处方——这是校勘说明自己写下的原则。
+    · administration=external（洗/涂/纳肛/外敷）⇒ 同样不取得方名锁定资格：
+      外治法不应命名内服处方。
+    · administration=historical_only（钩吻/铅/砷等历史毒物，或药材已不可辨识）
+      ⇒ 连检索资格一并取消，只作古籍数据留档，不进入任何候选池、不进入证据上下文。
+    · 组成只记药名不记古方原量：宋代剂量不可直接换算为现代临床处方，
+      原量留在 recordedComposition 供人工回源，绝不进入剂量编译。
+    """
+    payload = read_json(CATALOG_COLLATION)
+    additions: list[dict[str, Any]] = []
+    rewrites: dict[tuple[str, str], dict[str, Any]] = {}
+    seen_names: set[str] = set()
+    for entry in payload.get("entries", []):
+        name = compact(entry.get("name"))
+        action = compact(entry.get("action"))
+        administration = compact(entry.get("administration"))
+        ingredients = [compact(value) for value in (entry.get("ingredients") or []) if compact(value)]
+        if not (name and ingredients):
+            raise SystemExit(f"T8 catalog collation row is incomplete: {entry}")
+        if action not in {"add", "rewrite"}:
+            raise SystemExit(f"T8 catalog collation row has unknown action: {name}->{action}")
+        if administration not in COLLATION_ADMINISTRATIONS:
+            raise SystemExit(f"T8 catalog collation row has unknown administration: {name}->{administration}")
+        if not compact(entry.get("source")):
+            raise SystemExit(f"T8 catalog collation row lacks a source: {name}")
+        if not compact(entry.get("evidenceUrl")):
+            raise SystemExit(f"T8 catalog collation row lacks an evidence url: {name}")
+        if len(ingredients) != len(set(ingredients)):
+            # 重复药味正是章节合抄的签名。拆出来的子方再出现重复，说明这一条也没拆干净。
+            raise SystemExit(f"T8 catalog collation row has duplicate ingredients: {name}")
+        if name in seen_names:
+            raise SystemExit(f"T8 catalog collation has duplicate row: {name}")
+        seen_names.add(name)
+        record = {
+            **entry,
+            "name": name,
+            "ingredients": ingredients,
+            "identityLockAllowed": bool(entry.get("properNameInSource")) and administration == "internal",
+            "retrievalAllowed": administration != "historical_only",
+        }
+        if action == "add":
+            additions.append(record)
+        else:
+            replaced = entry.get("replaceSourceOf") or {}
+            key = (compact(replaced.get("name")) or name, compact(replaced.get("source")))
+            if not key[1]:
+                raise SystemExit(f"T8 catalog collation rewrite must name the entry it replaces: {name}")
+            rewrites[key] = record
+    removals = {}
+    for entry in payload.get("removals", []):
+        name = compact(entry.get("name"))
+        reason = compact(entry.get("reason"))
+        if not (name and reason):
+            raise SystemExit(f"T8 catalog collation removal is incomplete: {entry}")
+        removals[(name, compact(entry.get("source")))] = reason
+    return {
+        "additions": additions,
+        "rewrites": rewrites,
+        "removals": removals,
+        "adjudicationRef": compact(payload.get("adjudicationRef")),
+    }
+
+
+def resolve_catalog_removals(
+    name_composition_actions: dict[tuple[str, str], dict[str, Any]],
+    name_composition_mismatches: dict[tuple[str, str], dict[str, Any]],
+    collation_removals: dict[tuple[str, str], str],
+) -> dict[tuple[str, str], str]:
+    """把「从目录里去掉一条方」的**全部**决定汇合成一份。
+
+    本仓库最常复发的缺陷形状就是「同一条判据在两处各写各的」。删除判据现在有三个来源
+    （甲方核定表 approvedAction=drop、机器裁定 mismatched+high、本次章节伪方校勘），
+    分散判断迟早会出现「A 表说删、B 表说恢复」而按代码顺序静默决出胜负。
+    这里显式冲突即 fail-closed：恢复与删除撞在同一条上，构建直接失败，由人来裁。
+    """
+    removals: dict[tuple[str, str], str] = {}
+    for key, action in name_composition_actions.items():
+        if action["action"] == "drop":
+            removals[key] = "name_composition_approved_drop"
+    for key in name_composition_mismatches:
+        action = name_composition_actions.get(key)
+        if action and action["action"] == "restore":
+            continue
+        removals.setdefault(key, "name_composition_mismatch_high_confidence")
+    for key, reason in collation_removals.items():
+        action = name_composition_actions.get(key)
+        if action and action["action"] == "restore":
+            raise SystemExit(
+                f"T8 catalog disposition conflict: collation removes {key} but the approved action restores it"
+            )
+        removals[key] = f"collated_chapter_split:{reason}"
+    return removals
+
+
+# 方名是章节题、记录的组成是多方合抄——这样的组成不可能是一张处方。
+# 判据只用**结构**，不做古籍判断：方名不以剂型词收尾、以「方」收尾、带枚举标记（及/并/、/诸），
+# 且组成 ≥8 味。中医师独立核定过的 4 条（治痔疮及谷道痒痛方、妊娠随月养胎及服药方、
+# 治伤寒胸闷、腹满方、治天行诸病方）全部命中本判据，无一漏网。
+# 处置是**取消资格而不是删除**：这 4 条之外的没有逐条回源核过，不能凭结构特征就删掉古籍记录；
+# 但一个 32 味的章节合抄组成绝不能拿去命名或编译剂量——实测其中 10 条此前可剂量编译。
+FORMULA_DOSAGE_FORM_SUFFIX = re.compile(r"(?:汤|丸|散|膏|丹|饮|煎|酒|片|胶囊|颗粒|锭|饼|栓|露|浆|油|汁|茶|锭子)$")
+COLLATED_CHAPTER_ENUMERATION = re.compile(r"[及并、]|诸")
+COLLATED_CHAPTER_MIN_INGREDIENTS = 8
+
+
+def is_collated_chapter_entry(name: str, ingredients: list[object]) -> bool:
+    if FORMULA_DOSAGE_FORM_SUFFIX.search(name or ""):
+        return False
+    if not (name or "").endswith("方"):
+        return False
+    if not COLLATED_CHAPTER_ENUMERATION.search(name):
+        return False
+    return len(ingredients or []) >= COLLATED_CHAPTER_MIN_INGREDIENTS
 
 
 def linked_ingredients(
@@ -917,6 +1120,43 @@ def is_clinician_dose_name(raw: object, names: set[str]) -> bool:
     if is_identity_indeterminate_herb_name(raw):
         return False
     return any(variant in names for variant in name_variants(raw))
+
+
+def is_variety_forked_link(link: dict[str, Any]) -> bool:
+    """身份分叉：知道是一味药，但落不到唯一一个药典规范名上。
+
+    判据取 **canonicalName 为空**，而不是 status=="ambiguous"。两者不等价，差别很要紧：
+    · 芍药→[白芍,赤芍]、皂角→[大皂角,猪牙皂]、贯众→[狗脊,绵马贯众]、青木香→[木香,防己]
+      —— canonicalName 为空。十八反十九畏、特殊人群门禁、管制毒性排除全按规范名索引，
+      这一味对每一道安全检查都是**隐形**的，这才是真正的危险。
+    · 白蜜/沙蜜 status 也是 ambiguous，但已解析到「蜂蜜」，规范名在、安全检查看得见。
+      把它们一并拦下只会白白挡掉大陷胸丸、猪肤汤这类方，挡不出任何安全收益。
+
+    与运行时 isVarietyForkedHerbIdentity 同一判据，两侧必须一致。
+    """
+    return compact(link.get("linkageStatus")) == "ambiguous" and not compact(link.get("canonicalName"))
+
+
+def is_dose_exempt_link(link: dict[str, Any], names: set[str]) -> bool:
+    """「由医师确定用量」豁免的**唯一**判据。所有调用点都走这里。
+
+    豁免的前提是「知道是哪味药、只是没有法定数值边界」。两类名字不满足这个前提：
+    · 单字残片——连是不是药都不知道（已由 is_clinician_dose_name 拦住）；
+    · 歧义属名——知道是药，但不知道是**哪一味**。芍药→白芍/赤芍、皂角→大皂角/猪牙皂、
+      贯众→狗脊/绵马贯众、青木香→木香/防己、红豆→红豆蔻/赤小豆。
+
+    实测（2026-08-09 全目录）：117 处歧义链接同时出现在豁免表里，让 93 首方拿到了
+    doseCompilationEligible=true。成因与残片那一次完全相同——豁免表是按「哪些药名卡住了
+    方剂」自动汇总出来的，歧义属名于是被收成合法豁免成分，反过来放行含歧义味的方，
+    是个自我授权的闭环。更要命的是歧义链接 canonicalName 为空：十八反十九畏、
+    特殊人群门禁、管制毒性排除全都按规范名索引，这一味对每一道安全检查都是**隐形**的。
+
+    去掉豁免不等于整方作废：歧义味改走「扣除 + 品种由医师指定 + 强制审方」通道
+    （见下方 variety_undetermined_ingredients），与毒性/无边界味同一个既有模式。
+    """
+    if is_variety_forked_link(link):
+        return False
+    return is_clinician_dose_name(link.get("rawName"), names)
 
 
 # ── 给药途径闸：外用方不得进入内服候选池 ────────────────────────────────────────
@@ -1195,8 +1435,13 @@ def build_formula_catalog(
     }
     adjudicated_tags_by_formula = load_syndrome_tag_adjudications(governed_formula_names)
     identity_adjudications = load_ingredient_identity_adjudications(resolution_index)
+    variety_branches = load_variety_branches()
     name_composition_mismatches = load_name_composition_mismatches()
     name_composition_actions = load_name_composition_actions()
+    collation = load_catalog_collation()
+    catalog_removals = resolve_catalog_removals(
+        name_composition_actions, name_composition_mismatches, collation["removals"]
+    )
 
     resolved_high_frequency_syndrome_ids: set[str] = set()
     resolved_high_frequency_relations: list[dict[str, Any]] = []
@@ -1409,6 +1654,66 @@ def build_formula_catalog(
         }
         governed_identity_keys.add(vkey)
 
+    # 目录条目级校勘通道(ADJ-COLLATION-20260809)：新增 / 组成重录。
+    # 删除走 catalog_removals（与甲方核定表、机器裁定汇合在 resolve_catalog_removals 一处）。
+    for collated in collation["additions"]:
+        cname = collated["name"]
+        ckey = formula_identity_key(cname)
+        if cname in governed or ckey in governed_identity_keys:
+            raise SystemExit(f"T8 catalog collation addition collides with an existing entry: {cname}")
+        governed[cname] = {
+            "name": cname,
+            "aliases": [],
+            "source": compact(collated.get("source")),
+            "sourceOriginal": compact(collated.get("source")),
+            "prescriptionOriginal": compact(collated.get("recordedComposition")) or None,
+            "ingredients": collated["ingredients"],
+            "dosageForm": compact(collated.get("dosageForm")) or None,
+            "sourceClass": "verified_reference_catalog",
+            "sourceCatalog": "adjudicated_catalog_collation",
+            "adjudicatedIndications": collated.get("indications") or [],
+            "displayName": compact(collated.get("displayName")) or cname,
+            "collationIdentityLockAllowed": collated["identityLockAllowed"],
+            "collationRetrievalAllowed": collated["retrievalAllowed"],
+            "collationAdministration": compact(collated.get("administration")),
+            "verification": [{
+                "title": (
+                    f"目录校勘新增：{compact(collated.get('sectionBoundary'))}"
+                    f"｜{compact(collated.get('collationNote'))}"
+                ),
+                "url": compact(collated.get("evidenceUrl")),
+                "sourceRef": collation["adjudicationRef"],
+            }],
+            "curatedSyndromeTags": [],
+        }
+        governed_identity_keys.add(ckey)
+    applied_rewrites: list[str] = []
+    for (rname, rsource), rewrite in collation["rewrites"].items():
+        target = governed.get(rname)
+        if not target:
+            raise SystemExit(f"T8 catalog collation rewrite target missing from catalog: {rname}")
+        if compact(target.get("source")) != rsource:
+            # 出处对不上说明目录已经变过；静默改写会把校勘结论落到另一条记录上。
+            raise SystemExit(
+                f"T8 catalog collation rewrite target source mismatch: {rname} "
+                f"expected {rsource}, found {compact(target.get('source'))}"
+            )
+        target["ingredients"] = rewrite["ingredients"]
+        target["source"] = compact(rewrite.get("source"))
+        target["sourceOriginal"] = compact(rewrite.get("source"))
+        target["prescriptionOriginal"] = compact(rewrite.get("recordedComposition")) or None
+        target["adjudicatedIndications"] = rewrite.get("indications") or []
+        target["displayName"] = compact(rewrite.get("displayName")) or rname
+        target["collationIdentityLockAllowed"] = rewrite["identityLockAllowed"]
+        target["collationRetrievalAllowed"] = rewrite["retrievalAllowed"]
+        target["collationAdministration"] = compact(rewrite.get("administration"))
+        target.setdefault("verification", []).append({
+            "title": f"目录校勘组成重录：{compact(rewrite.get('collationNote'))}",
+            "url": compact(rewrite.get("evidenceUrl")),
+            "sourceRef": collation["adjudicationRef"],
+        })
+        applied_rewrites.append(f"{rname}@{rsource} → {compact(rewrite.get('source'))}:{len(rewrite['ingredients'])}味")
+
     # fail-closed 覆盖断言：SZJG 标准方与经典名方**必须全量在册**。
     # 项目补充先于标准方占位 + 上限截断 = 标准方被静默挤出（方书二批后实测 406/703 缺失，
     # 右归丸/三仁汤都在其中，检索回归立刻变红）。上限再充裕也只是缓冲，这里才是门禁：
@@ -1445,6 +1750,8 @@ def build_formula_catalog(
     # 「源表里有、实际不生效」正是本项目最怕的那种静默分叉。
     neutralized_curated_tags: list[str] = []
     dropped_name_composition_mismatches: list[str] = []
+    dropped_collated_chapters: list[str] = []
+    quarantined_collated_chapters: list[str] = []
     restored_name_composition: list[str] = []
     renamed_name_composition: list[str] = []
     for name, item in sorted(governed.items()):
@@ -1462,17 +1769,15 @@ def build_formula_catalog(
             # 归档产物里的引用全部悬空——那是比题名不规范严重得多的问题。
             item = {**item, "displayName": approved["displayName"]}
             renamed_name_composition.append(f"{name} → {approved['displayName']}")
-        if approved and approved["action"] == "drop":
-            dropped_name_composition_mismatches.append(f"{name}@{item.get('source') or ''}")
-            continue
-        # 名实不符的条目**整条剔除**（甲方 2026-08-09 决策）。
-        # 此前的做法是只取消身份资格、保留为文献证据；甲方口径是这类数据错配的条目
-        # 连证据资格一并去掉，避免它再以任何形式参与检索与呈现。
-        # 只对 verdict=mismatched 且 confidence=high 生效，见 load_name_composition_mismatches。
-        if (name, item.get("source") or "") in name_composition_mismatches and not (
-            approved and approved["action"] == "restore"
-        ):
-            dropped_name_composition_mismatches.append(f"{name}@{item.get('source') or ''}")
+        # 删除决定统一由 resolve_catalog_removals 汇合（甲方核定表 drop + 机器裁定
+        # mismatched/high + 章节伪方校勘）。此处只执行，不再各自判一遍——
+        # 判据分散在多处正是本仓库最常复发的缺陷形状。
+        removal_reason = catalog_removals.get((name, item.get("source") or ""))
+        if removal_reason:
+            if removal_reason.startswith("collated_chapter_split:"):
+                dropped_collated_chapters.append(f"{name}@{item.get('source') or ''}")
+            else:
+                dropped_name_composition_mismatches.append(f"{name}@{item.get('source') or ''}")
             continue
         indication_entry = indications_by_name.get(name, {})
         # 裁定级主治(同名异方基线换版/变体)优先于各来源层——换版后来源层的旧版主治必须让位。
@@ -1490,12 +1795,25 @@ def build_formula_catalog(
             identity_blocking_reasons.append("missing_standard_ingredients")
         if not indications:
             identity_blocking_reasons.append("missing_governed_indication")
+        # 校勘新增条目的资格闸：拟名不得冒充古方专名去命名处方；外治法不应命名内服处方。
+        if item.get("collationIdentityLockAllowed") is False:
+            identity_blocking_reasons.append("collation_proper_name_or_route_denies_identity_lock")
+        # 章节题被压成的合抄组成不得命名、不得编译剂量（见 is_collated_chapter_entry）。
+        # 中医师已逐条核过的两条走删除；其余只取消资格并进复核队列，等回源拆分。
+        if is_collated_chapter_entry(name, item["ingredients"]):
+            identity_blocking_reasons.append("composition_is_collated_chapter_requires_source_split")
+            quarantined_collated_chapters.append(f"{name}@{item.get('source') or ''}:{len(item['ingredients'])}味")
         dose_blocking_reasons = []
         clinician_dose_names = clinician_dose_ingredient_names()
         # 「由医师确定用量」类成分不参与剂量可编译性判定（见 clinician_dose_ingredient_names）。
+        # 歧义属名不进这一条：它的阻断理由与处置都不同（见下方
+        # ingredient_variety_ambiguous_requires_clinician_selection）。混进来会让
+        # 「品种待指定」被当成「查无此药」，既给错提示，也走不到扣除通道。
         unresolved_ingredients = [
             link["rawName"] for link in ingredient_links
-            if not link.get("autoResolvable") and not is_clinician_dose_name(link.get("rawName"), clinician_dose_names)
+            if not link.get("autoResolvable")
+            and not is_variety_forked_link(link)
+            and not is_dose_exempt_link(link, clinician_dose_names)
         ]
         # 单字药名不是「解析不出剂量」，是**数据缺陷**：源书为 GB18030，古籍生僻字（如黄芪的「耆」）
         # 丢字后只剩单字残留（实测 13 处「黄」、若干「芍」）。把它按普通剂量缺口埋进
@@ -1506,6 +1824,61 @@ def build_formula_catalog(
             link["rawName"] for link in ingredient_links
             if is_identity_indeterminate_herb_name(link.get("rawName"))
         })
+        # 品种未定的味：T9 给出多个候选品种而没有唯一解（芍药→白芍/赤芍）。
+        # 与 unresolved（完全查不到）和 corrupt（单字残片）都不同，独立成一条理由——
+        # 医生要做的动作是**指定品种**，不是补一条剂量、也不是回源修抽取。
+        variety_undetermined_ingredients = [
+            {"name": link["rawName"], "candidates": variety_candidate_names(link["rawName"], resolution_index)}
+            for link in ingredient_links
+            if is_variety_forked_link(link)
+            and not is_identity_indeterminate_herb_name(link.get("rawName"))
+            and len(variety_candidate_names(link.get("rawName"), resolution_index)) >= 2
+        ]
+        variety_undetermined_names = sorted({row["name"] for row in variety_undetermined_ingredients})
+        if variety_undetermined_names:
+            dose_blocking_reasons.append("ingredient_variety_ambiguous_requires_clinician_selection")
+        # 身份核验放行的等价品种。三个来源，都归到同一个字段，运行时只读这一个字段：
+        #   ① 目录记的就是裸属名（芍药）——处方写白芍或赤芍都算命中；
+        #   ② 裁定品种但证据只到**推断级**——推断猜错不该让医生丢一个方名；
+        #   ③ 后世版本分叉登记（犀角地黄汤赤芍本/白芍本并存）。
+        # 只作用于「这张处方是不是 X 方」，不参与剂量编译、十八反十九畏、特殊人群门禁、
+        # 管制毒性排除——那些一律按处方里**实际写的那味药**判。
+        variety_flexible_ingredients = []
+        for link in ingredient_links:
+            raw_name = compact(link.get("rawName"))
+            candidates = variety_candidate_names(raw_name, resolution_index)
+            adjudication = identity_adjudications.get((name, raw_name))
+            if is_variety_forked_link(link) and len(candidates) >= 2:
+                variety_flexible_ingredients.append({
+                    "recordedName": raw_name,
+                    "acceptedNames": sorted({raw_name, *candidates}),
+                    "reason": "catalog_records_bare_genus",
+                })
+            elif adjudication and adjudication["evidenceTier"] in IDENTITY_ADJUDICATION_INFERRED_TIERS and candidates:
+                variety_flexible_ingredients.append({
+                    "recordedName": adjudication["resolvedIngredient"],
+                    # 裁定品种本身必须在互认集合里：贝母的 T9 候选集是[伊贝母,川贝母,平贝母]，
+                    # 裁定结果却可能是候选集之外的浙贝母——漏掉它会让目录值自己不被自己接受。
+                    "acceptedNames": sorted({raw_name, adjudication["resolvedIngredient"], *candidates}),
+                    "reason": f"adjudication_evidence_is_inferential:{adjudication['evidenceTier']}",
+                })
+        branch = variety_branches.get(name)
+        if branch:
+            recorded_present = any(
+                compact(link.get("canonicalName")) == branch["recordedVariety"]
+                or compact(link.get("rawName")) == branch["recordedVariety"]
+                for link in ingredient_links
+            )
+            if not recorded_present:
+                raise SystemExit(
+                    f"T8 variety branch records a variety the catalog entry does not contain: "
+                    f"{name}->{branch['recordedVariety']}"
+                )
+            variety_flexible_ingredients.append({
+                "recordedName": branch["recordedVariety"],
+                "acceptedNames": sorted({branch["recordedVariety"], *branch["alsoAttested"]}),
+                "reason": "later_editions_attest_both_varieties",
+            })
         if unresolved_ingredients:
             dose_blocking_reasons.append("ingredient_identity_requires_resolution")
         # 单字残片独立成一条阻断理由，不并进上面那条：它的处置不是「补一条剂量」，
@@ -1563,10 +1936,16 @@ def build_formula_catalog(
         #     扣完不成方，保持阻断。
         #   · 扣除的味整体进 manualDoseIngredientNames，下游必须显式呈现并转医师/审方，
         #     系统不替它们担保剂量。
+        # 品种未定的味按同一模式扣除：目录不替它选品种，改为「扣除 + 医师指定品种与用量 +
+        # 强制审方」。它不满足上面「只扣身份可解析的味」的条件，所以单列——但同样受
+        # ≥3 味 / ≥60% 的守卫约束：二母散(2味含贝母)、当归贝母苦参丸(3味)、千缗汤(3味含皂角)
+        # 这类**方义就落在歧义味上**的方，扣完不成方，继续整方阻断才是对的。
         deducted_dose_ingredients = sorted({
             link["rawName"] for link in ingredient_links
-            if link.get("autoResolvable")
-            and link["rawName"] in set(missing_dose_boundaries) | set(controlled_toxic_ingredients)
+            if (
+                link.get("autoResolvable")
+                and link["rawName"] in set(missing_dose_boundaries) | set(controlled_toxic_ingredients)
+            ) or link["rawName"] in set(variety_undetermined_names)
         })
         compilable_ingredient_count = len([
             link for link in ingredient_links
@@ -1582,6 +1961,7 @@ def build_formula_catalog(
                 if reason not in {
                     "ingredient_numeric_dose_boundary_missing",
                     "ingredient_controlled_toxic_requires_manual_prescription",
+                    "ingredient_variety_ambiguous_requires_clinician_selection",
                 }
             ]
         else:
@@ -1607,6 +1987,12 @@ def build_formula_catalog(
         # 分别在每扇门加闸就是又一次「同一判据多处各写各的」——实测机器派生那一扇占泄漏的一半以上，
         # 只堵人工门等于堵了一半。
         syndrome_tag_rejection = syndrome_tag_route_rejection("；".join(indications))
+        # 章节合抄条目走同一扇闸，而不是另开一条通道：它的「组成」是多方拼出来的，
+        # 挂在它身上的证候标签指向的不是任何一张真方。实测 7 条隔离条目带着人工证候裁定
+        # （治诸水肿方 22 味、治疥及疠疡风方 31 味…）——那些裁定花在了不存在的方上，
+        # 随隔离失效是正确的，但必须**带理由地**失效并被打印出来，不能悄悄没了。
+        if not syndrome_tag_rejection and "composition_is_collated_chapter_requires_source_split" in identity_blocking_reasons:
+            syndrome_tag_rejection = "collated_chapter:composition_is_multi_formula_collation"
         if syndrome_tag_rejection and (adjudicated_tags_by_formula.get(name) or curated_syndrome_relations
                                        or (item.get("curatedSyndromeTags") or [])):
             neutralized_curated_tags.append(f"{name}({syndrome_tag_rejection})")
@@ -1623,6 +2009,17 @@ def build_formula_catalog(
             if concept.get("domain") == "disease" and re.search(concept["indicationPattern"], searchable_text)
         })
         identity_lock_eligible = not identity_blocking_reasons
+        # 检索资格与方名锁定资格此前是同一个布尔值。校勘通道进来后两者必须分开——
+        # 三类条目的正确处置各不相同，压成一个值必然错一头：
+        #   · 拟名 / 外治法：不能命名医生的处方，但仍是有价值的文献证据 ⇒ 留检索。
+        #   · 章节合抄：记录的「组成」是抽取程序拼出来的，不是任何一张真方；
+        #     喂进 M03/M04 的证据上下文会直接误导模型 ⇒ 取消检索。
+        #   · historical_only（钩吻/铅/砷等历史毒物，或药材已不可辨识）⇒ 只留档，取消检索。
+        retrieval_denied_reasons = {
+            reason for reason in identity_blocking_reasons
+            if reason != "collation_proper_name_or_route_denies_identity_lock"
+        }
+        retrieval_eligible = not retrieval_denied_reasons and item.get("collationRetrievalAllowed", True)
         entries.append({
             "id": indication_entry.get("id") or stable_id("TCM-FORMULA", name, item["source"]),
             **item,
@@ -1645,7 +2042,7 @@ def build_formula_catalog(
             # 题名规范建议（甲方核定表）。只作展示，不改身份键 name——
             # 改身份键会让既有裁定表/别名表/归档产物里的引用全部悬空。
             "displayName": item.get("displayName") or name,
-            "retrievalEligible": identity_lock_eligible,
+            "retrievalEligible": retrieval_eligible,
             "identityLockEligible": identity_lock_eligible,
             "prescriptionLockEligible": identity_lock_eligible,
             "doseCompilationEligible": identity_lock_eligible and not dose_blocking_reasons,
@@ -1662,8 +2059,13 @@ def build_formula_catalog(
             "manualDoseIngredientNames": deducted_dose_ingredients,
             "clinicianDoseIngredientNames": sorted({
                 link["rawName"] for link in ingredient_links
-                if is_clinician_dose_name(link.get("rawName"), clinician_dose_names)
+                if is_dose_exempt_link(link, clinician_dose_names)
             }),
+            # 品种未定的味：知道是药，不知道是哪一味。医生要做的动作是**指定品种**，
+            # 不是「确定用量」——下游据此给出正确提示，不能只显示「用量由医师确定」。
+            "varietyUndeterminedIngredients": variety_undetermined_ingredients,
+            # 身份核验放行的等价品种（只影响「这张处方是不是 X 方」，不影响剂量与安全判定）。
+            "varietyFlexibleIngredients": variety_flexible_ingredients,
             "blockingReasons": identity_blocking_reasons,
         })
 
@@ -1762,6 +2164,14 @@ def build_formula_catalog(
             "nameCompositionMismatchDropped": dropped_name_composition_mismatches,
             "nameCompositionRestored": restored_name_composition,
             "nameCompositionRenamed": renamed_name_composition,
+            # 目录校勘（ADJ-COLLATION-20260809）：删除的章节伪方、重录的条目、
+            # 结构上同类但尚未逐条回源核定因而只取消资格的条目。
+            "collatedChapterDropped": dropped_collated_chapters,
+            "collatedChapterQuarantined": sorted(quarantined_collated_chapters),
+            "collationRewritten": applied_rewrites,
+            "collationAdded": sorted(item["name"] for item in collation["additions"]),
+            "varietyFlexibleFormulaCount": sum(bool(item.get("varietyFlexibleIngredients")) for item in entries),
+            "varietyUndeterminedFormulaCount": sum(bool(item.get("varietyUndeterminedIngredients")) for item in entries),
             "governedFormulaCount": len(entries),
             "prescriptionLockEligibleCount": sum(bool(item["prescriptionLockEligible"]) for item in entries),
             "identityLockEligibleCount": sum(bool(item["identityLockEligible"]) for item in entries),
@@ -2011,6 +2421,26 @@ def main() -> None:
                     "本表只决定组成与题名；剂量边界仍由药典层逐味单独计算，"
                     "毒性/管制药材的自动剂量排除不受影响。",
         }, ensure_ascii=False))
+    collated_dropped = formula_catalog["summary"].get("collatedChapterDropped") or []
+    if collated_dropped:
+        print(json.dumps({
+            "info": "entries_dropped_collated_chapter_split",
+            "count": len(collated_dropped),
+            "entries": collated_dropped,
+            "note": "章节题被抽取程序压成单方，已按中医师校勘结论删除并拆为具名子方。"
+                    "见 tcm-formula-catalog-collation.source.json 的 removals。",
+        }, ensure_ascii=False))
+    quarantined = formula_catalog["summary"].get("collatedChapterQuarantined") or []
+    if quarantined:
+        print(json.dumps({
+            "warning": "entries_quarantined_as_collated_chapter",
+            "count": len(quarantined),
+            "entries": quarantined,
+            "note": "结构上与已核定的章节伪方同类（方名带枚举标记的「…方」且组成≥8味），"
+                    "但未逐条回源核过，因此**只取消方名与剂量资格、不删除**。"
+                    "待中医师按章节边界拆分后回填；在此之前它们不会命名处方、不会编译剂量、"
+                    "也不会作为证据进入 M03/M04 上下文。",
+        }, ensure_ascii=False))
     renamed = formula_catalog["summary"].get("nameCompositionRenamed") or []
     if renamed:
         print(json.dumps({
@@ -2023,8 +2453,9 @@ def main() -> None:
         print(json.dumps({
             "warning": "curated_syndrome_tags_neutralized_by_route_gate",
             "count": neutralized,
-            "note": "这些人工裁定行仍在 source 表里，但因主治写明外用途径或源书自述不辨证而不再生效。"
-                    "留着是人工判断的记录，打印出来是为了不让它变成一笔看不见的债。",
+            "note": "这些人工裁定行仍在 source 表里，但因下列理由之一不再生效："
+                    "主治写明外用途径 / 源书自述不辨证 / 方名是章节题而组成为多方合抄（collated_chapter，"
+                    "标签指向的不是任何一张真方）。留着是人工判断的记录，打印出来是为了不让它变成一笔看不见的债。",
         }, ensure_ascii=False))
     print(json.dumps(manifest["buildSummary"], ensure_ascii=False))
 
