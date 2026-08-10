@@ -89,8 +89,33 @@ export function clinicalEventTemporalScopeAt(
   return resolved ? "historical_resolved" : "historical";
 }
 
+/**
+ * 病历字段标签。它不是临床断言的一部分，但会把断言从分句开头顶开——
+ * NEGATIVE_PREFIX / AFFIRMED_ASSERTION_PREFIX 都锚在 `^`，于是看不到紧随标签之后的「否认/无」。
+ *
+ * 实测（tmp-probe/probe-fieldlabel-polarity.mjs，改之前）：
+ *   「否认胸痛」            → negative，正确
+ *   「现病史：否认胸痛」     → **affirmed**，并作为阳性事实原样返回
+ *   「现病史：无黑便」       → **affirmed**
+ *   「个人史：无吸烟饮酒史」  → **affirmed**
+ *   「既往史：否认高血压病史」 → negative（碰巧被 POSTFIX_NEGATIVE 的「病史…否认」尾式接住）
+ * 也就是说：一个**被否认**的症状，只要前面带字段标签，就会变成阳性事实。方向是不安全的那一侧
+ * ——它会进入方剂召回的 positiveCaseFacts、进入 M03 的既往诊断判定、进入可见的支持依据。
+ * 之所以一直没暴露，是因为「既往史：否认…病史」这种最常见的写法恰好被尾式判据接住了。
+ *
+ * 处理方式与 DISCOURSE_PREFIX 完全一致：**只在判定极性前剥掉，不改变返回给调用方的原文**
+ * （调用方要的是病历里的逐字子串）。
+ */
+export const SECTION_LABEL_PREFIX = /^(?:主诉|现病史|既往史|个人史|家族史|婚育史|月经史|生育史|手术史|外伤史|输血史|过敏史|用药史|药物过敏史|查体|体格检查|专科检查|辅助检查|实验室检查|影像学检查|现症|刻下|刻诊)\s*[：:]\s*/;
+
+/** 剥掉病历字段标签，只留临床断言本身。判据一处，极性层与调用方共用。 */
+export function stripClinicalSectionLabel(clause: string): string {
+  return clause.replace(/^\s+/, "").replace(SECTION_LABEL_PREFIX, "").trim();
+}
+
 export function clinicalClausePolarity(value: string): ClinicalClausePolarity {
   const clause = normalizedClinicalText(value)
+    .replace(SECTION_LABEL_PREFIX, "")
     .replace(DISCOURSE_PREFIX, "")
     .trim();
   if (!clause) return "uncertain";

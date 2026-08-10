@@ -292,6 +292,32 @@ assert.deepEqual(
 );
 assert.deepEqual(affirmedClinicalSourceClauses("否认胸痛，仅诉乏力"), ["诉乏力"], "「仅」后的阳性事实丢失");
 
+// 病历字段标签不得把否认顶出判据视野。
+//
+// NEGATIVE_PREFIX / AFFIRMED_ASSERTION_PREFIX 都锚在 ^，标签一挡就什么也看不见：
+// 「否认胸痛」判 negative，「现病史：否认胸痛」判 **affirmed** 并作为阳性事实原样返回。
+// 方向是不安全的那一侧——一个被否认的症状变成阳性事实，会进方剂召回的 positiveCaseFacts、
+// 进 M03 的既往诊断判定、进可见的支持依据。之所以长期没暴露，是因为最常见的
+// 「既往史：否认…病史」恰好被 POSTFIX_NEGATIVE 的尾式判据接住了。
+for (const label of ["现病史", "既往史", "个人史", "过敏史", "用药史", "查体", "体格检查", "刻下"]) {
+  for (const denial of ["否认胸痛", "无黑便", "未见异常"]) {
+    assert.equal(
+      clinicalClausePolarity(`${label}：${denial}`), "negative",
+      `字段标签「${label}：」把否认「${denial}」顶出了判据视野`,
+    );
+    assert.equal(
+      affirmedClinicalText(`${label}：${denial}`), undefined,
+      `被否认的「${denial}」不得因为前面有「${label}：」就变成阳性事实`,
+    );
+  }
+}
+// 剥标签只作用于判定，不得改写阳性事实的原文——调用方要的是病历逐字子串。
+assert.deepEqual(
+  affirmedClinicalSourceClauses("现病史：反复头痛3天"), ["现病史：反复头痛3天"],
+  "阳性分句必须原样返回，标签只在判定极性时剥掉",
+);
+assert.equal(clinicalClausePolarity("家族史：母亲有糖尿病"), "affirmed", "剥标签不得把阳性句判成否定");
+
 console.log(JSON.stringify({
   cases: cases.length + 20 + 16 + temporalCases.length + hedgedFindings.length + explicitDenials.length * 2 + 4,
   failures: 0,

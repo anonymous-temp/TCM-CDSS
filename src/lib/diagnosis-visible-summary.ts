@@ -5,7 +5,7 @@ import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnow
 import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
 import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesisCells, normalizeFormulaStructureRole } from "./herb-target-contract";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
-import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity } from "./clinical-polarity";
+import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel } from "./clinical-polarity";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { tcmTreatmentAssessmentPositioningForDisplay } from "./tcm-treatment-projects";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
@@ -1758,9 +1758,67 @@ export function declassifyAmbiguousM03WesternPrimary(content: string, clinicalCo
 
 type FormalWesternCriteriaGuard = {
   label: RegExp;
-  established: RegExp;
   criteria: (affirmedClinicalContext: string) => boolean;
 };
+
+/**
+ * 「病历说这个病此前已经被诊断过」——一条判据，四条 guard 共用，且**与语序无关**。
+ *
+ * 【改之前】每条 guard 各带一个 established 正则，四条内容几乎相同，都是
+ * `(?:既往史|既往确诊|既往诊断|已确诊|明确诊断|曾诊断为)[^。；\n]{0,40}<病名>`——
+ * 把引导词**枚举**出来、且要求它出现在病名**前面 40 字以内**。中文病历的写法是开放集合，
+ * 实测漏网（tmp-probe/repro-asthma-label.mjs，primary=支气管哮喘）：
+ *   ·「外院确诊支气管哮喘3年」          ⇒ 降级为「喘息症状」（"确诊"不在枚举里，只有"既往确诊"）
+ *   ·「某三甲医院诊断为支气管哮喘」      ⇒ 降级（"诊断为"不在枚举里，只有"曾诊断为"）
+ *   ·「长期规律吸入布地奈德福莫特罗控制哮喘」⇒ 降级（长期规律 ICS/LABA 本身即已确立诊断）
+ * 越是照着真实病历写，越会被判成"没有既往诊断"。这正是拿枚举做阅读理解。
+ *
+ * 【改之后】判据落到**分句**上：同一个阳性分句里既出现该病名，又出现既往/他处诊断的断言标记，
+ * 前后语序不限。标记本身仍是受控集合，但它断言的是"这句话在陈述一个已成立的诊断"这件通用的事，
+ * 而不是逐个病名去枚举引导词。不收 裸「诊断」——「需完善肺功能诊断」不能算既往诊断。
+ * 分句划分与极性判定复用 clinical-polarity 的既有实现，不在这里另写一套。
+ */
+const ESTABLISHED_DIAGNOSIS_MARKER =
+  /(?:确诊|诊断为|诊断过|已诊断|曾诊断|明确诊断|诊断明确|诊为|病史|既往|已知|外院|他院|上级医院|三甲医院|规律(?:吸入|服用|用药|治疗)|长期(?:吸入|服用|用药|治疗))/;
+
+function hasEstablishedDiagnosis(affirmedContext: string, label: RegExp): boolean {
+  const inClause = new RegExp(label.source, label.flags.replace(/[gy]/g, ""));
+  return affirmedContext
+    .split(/[。；;\n]/)
+    // 字段标签必须先剥掉：「现病史：」自己就含「病史」二字，不剥的话每一句都算既往诊断。
+    // 剥法复用极性层的同一个导出，不在这里另写一份。
+    .map((clause) => stripClinicalSectionLabel(clause))
+    .some((clause) => inClause.test(clause) && ESTABLISHED_DIAGNOSIS_MARKER.test(clause));
+}
+
+/** 病程分期后缀：不改变「是哪个病」，只说处在哪一期。闭集且结构性，不是语义判断。 */
+const DISEASE_STAGE_SUFFIX = /(?:[（(][^）)]{0,20}[）)])?\s*(?:急性发作期|慢性持续期|临床缓解期|急性加重期|发作期|缓解期|稳定期|活动期)?$/;
+
+/**
+ * 这条 guard 说的是不是**这个病本身**。
+ *
+ * 【为什么必须整名判定】label 原先是裸子串匹配（`/(?:支气管)?哮喘/`），于是凡是名字里带
+ * 「哮喘」两个字的病都被按支气管哮喘的判据审。实测（tmp-probe/repro-asthma-label.mjs）：
+ *   · 心源性哮喘（端坐呼吸、粉红色泡沫痰、双下肢水肿、冠心病心梗史、双肺满布湿啰音）
+ *     ⇒ 降级为「喘息症状」，理由是病历没写「吸入沙丁胺醇后明显缓解」。
+ *     急性左心衰是心内科急症，按支气管哮喘的舒张剂反应去审本身就是错的，
+ *     而且降级方向是**不安全**的那一侧：随后 applyDeterministicIcd10Coding 按 primary.name
+ *     编码，HIS 侧拿到的是症状码。
+ *   · 哮喘持续状态 ⇒ 同样降级，且判据在这里是反的——「吸入沙丁胺醇无缓解」恰恰是它的定义
+ *     性特征，病情越重越必然被降级。
+ *   · 咳嗽变异性哮喘（另一诊断实体，判据是激发试验而非舒张剂反应）⇒ 降级为「咳嗽症状」。
+ *   · 慢性阻塞性肺疾病急性加重期 ⇒ 降级为「咳嗽症状」。
+ *
+ * 【判定口径】前缀限定词（心源性/咳嗽变异性/职业性/药物性…）改变的是「哪个病」，
+ * 一旦出现就不属于本 guard；后缀分期词只说「哪一期」，剥掉后仍是同一个病，继续受管。
+ * 认不出的名字 ⇒ **不受管**，交由独立临床复核（它本就负责本表以外的全部疾病）——
+ * 失败方向是「正式病名保留下来、由复核把关」，而不是「急症病名变成症状名」。
+ */
+function guardLabelMatchesWholeName(label: RegExp, name: string): boolean {
+  const stripped = name.trim().replace(DISEASE_STAGE_SUFFIX, "").trim();
+  if (!stripped) return false;
+  return new RegExp(`^(?:${label.source})$`, label.flags.replace(/[gy]/g, "")).test(stripped);
+}
 
 function hasOsaObjectiveEvidence(context: string): boolean {
   for (const match of context.matchAll(/(?:AHI|REI|呼吸暂停低通气指数)\s*[:：=]?\s*(?:≥|>=|＞=)?\s*(\d+(?:\.\d+)?)/gi)) {
@@ -1776,22 +1834,18 @@ function hasOsaObjectiveEvidence(context: string): boolean {
 const FORMAL_WESTERN_CRITERIA_GUARDS: FormalWesternCriteriaGuard[] = [
   {
     label: /慢性支气管炎/,
-    established: /(?:既往史|既往确诊|既往诊断|已确诊|明确诊断|曾诊断为)[^。；\n]{0,30}慢性支气管炎/,
     criteria: (context) => /(?:(?:每年|年均)[^。；\n]{0,24}(?:3|三)(?:个)?月[^。；\n]{0,32}(?:连续|至少)[^。；\n]{0,12}(?:2|两|二)年|(?:连续|至少)[^。；\n]{0,12}(?:2|两|二)年[^。；\n]{0,32}(?:每年|年均)[^。；\n]{0,24}(?:3|三)(?:个)?月)/.test(context),
   },
   {
     label: /(?:慢性阻塞性肺疾病|慢阻肺|\bCOPD\b)/i,
-    established: /(?:既往史|既往确诊|既往诊断|已确诊|明确诊断|曾诊断为)[^。；\n]{0,30}(?:慢性阻塞性肺疾病|慢阻肺|COPD)/i,
     criteria: (context) => /(?:(?:FEV1\s*\/\s*FVC|一秒率)[^。；\n]{0,20}(?:<|＜|低于)\s*(?:0?\.7|70\s*%)|肺功能[^。；\n]{0,40}(?:持续气流受限|阻塞性通气功能障碍|支持慢阻肺|符合慢阻肺))/i.test(context),
   },
   {
     label: /(?:阻塞性睡眠呼吸暂停(?:低通气)?(?:综合征)?|\bOSA(?:HS)?\b)/i,
-    established: /(?:既往史|既往(?:患有|有)?|既往确诊|既往诊断|已确诊|明确诊断|曾诊断为)[^。；\n]{0,40}(?:阻塞性睡眠呼吸暂停(?:低通气)?(?:综合征)?|OSA(?:HS)?)/i,
     criteria: hasOsaObjectiveEvidence,
   },
   {
     label: /(?:支气管)?哮喘/,
-    established: /(?:既往史|既往(?:患有|有)?|既往确诊|既往诊断|已确诊|明确诊断|曾诊断为)[^。；\n]{0,40}(?:支气管)?哮喘/,
     criteria: (context) =>
       /(?:肺功能|支气管舒张试验|支气管激发试验|峰流速|\bPEF\b)[^。；\n]{0,80}(?:阳性|可逆|明显变异|支持哮喘|符合哮喘)/i.test(context) ||
       /(?:吸入|使用|应用)[^。；\n]{0,20}(?:沙丁胺醇|支气管舒张剂|短效β2受体激动剂)[^。；\n]{0,40}(?:明显缓解|明显改善|有效)/i.test(context),
@@ -1820,12 +1874,12 @@ export function declassifyUnmetFormalM03WesternPrimary(content: string, clinical
     if (m03WesternDurationIssue(reasoning, clinicalContext)) {
       return declassifyUnsupportedM03WesternPrimary(content, clinicalContext);
     }
-    const guard = FORMAL_WESTERN_CRITERIA_GUARDS.find((item) => item.label.test(name));
+    const guard = FORMAL_WESTERN_CRITERIA_GUARDS.find((item) => guardLabelMatchesWholeName(item.label, name));
     if (!guard) return content;
     // Only affirmed clauses may satisfy a formal disease criterion. This prevents text such as
     // “否认既往确诊哮喘” or “未见舒张试验阳性” from preserving an unsupported label.
     const affirmedContext = affirmedClinicalText(clinicalContext) || "";
-    if (guard.established.test(affirmedContext) || guard.criteria(affirmedContext)) return content;
+    if (hasEstablishedDiagnosis(affirmedContext, guard.label) || guard.criteria(affirmedContext)) return content;
     return declassifyUnsupportedM03WesternPrimary(content, clinicalContext);
   } catch {
     return content;

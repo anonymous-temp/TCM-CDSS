@@ -1005,6 +1005,64 @@ assert.equal(
   asthmaContent,
   "a documented bronchodilator response preserves an asthma label",
 );
+// ── guard 只管「这个病本身」，不管名字里碰巧带这两个字的别的病 ────────────────
+//
+// label 原先是裸子串（/(?:支气管)?哮喘/），凡名字含「哮喘」的病都被按支气管哮喘的判据审。
+// 实测降级方向是**不安全**的那一侧，且随后 applyDeterministicIcd10Coding 会按症状名编码：
+//   · 心源性哮喘（急性左心衰）——按舒张剂反应去审，本身就是错的病；
+//   · 哮喘持续状态——「吸入沙丁胺醇无缓解」恰是它的定义性特征，病情越重越必然被降级；
+//   · 咳嗽变异性哮喘——另一诊断实体，判据是激发试验而非舒张剂反应。
+// 认不出的病名一律**不受管**，交独立临床复核（它本就负责本表以外的全部疾病）。
+for (const [otherDisease, otherContext] of [
+  ["心源性哮喘", "现病史：夜间不能平卧，端坐呼吸，咳粉红色泡沫痰，双下肢水肿\n既往史：冠心病、心肌梗死5年"],
+  ["哮喘持续状态", "现病史：反复喘息发作，本次持续6小时，吸入沙丁胺醇无缓解，不能平卧讲话"],
+  ["咳嗽变异性哮喘", "现病史：夜间及晨起干咳为主，无喘息，无痰"],
+]) {
+  const other = structuredClone(asthmaReasoning);
+  other.westernDiagnosis.primary.name = otherDisease;
+  const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(other)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  assert.equal(
+    declassifyUnmetFormalM03WesternPrimary(content, otherContext), content,
+    `${otherDisease} is a different disease and must not be judged by the bronchial-asthma criteria`,
+  );
+}
+// 分期后缀只说「哪一期」，剥掉后仍是同一个病 ⇒ 继续受管。
+{
+  const staged = structuredClone(asthmaReasoning);
+  staged.westernDiagnosis.primary.name = "支气管哮喘（急性发作期）";
+  const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(staged)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  assert.match(
+    declassifyUnmetFormalM03WesternPrimary(content, sleepBreathingContext), /喘息症状/,
+    "a stage suffix does not exempt the same disease from its formal criteria",
+  );
+}
+// ── 「既往已确诊」判据与语序无关,不靠枚举引导词 ────────────────────────────
+//
+// 原判据是 (?:既往史|既往确诊|既往诊断|已确诊|明确诊断|曾诊断为) + 病名前 40 字以内,
+// 逐条 guard 各写一份。中文病历写法是开放集合,越照着真实病历写越会被判成"没有既往诊断":
+for (const establishedPhrasing of [
+  "现病史：外院确诊支气管哮喘3年，间断吸入布地奈德",
+  "现病史：某三甲医院诊断为支气管哮喘",
+  "现病史：长期规律吸入布地奈德福莫特罗控制哮喘",
+  "既往史：哮喘病史5年",
+]) {
+  assert.equal(
+    declassifyUnmetFormalM03WesternPrimary(asthmaContent, `${sleepBreathingContext}\n${establishedPhrasing}`),
+    asthmaContent,
+    `an established diagnosis written as "${establishedPhrasing}" preserves the formal label`,
+  );
+}
+// 反向:放宽不得放过「正在考虑」与「已否认」两类。
+assert.match(
+  declassifyUnmetFormalM03WesternPrimary(asthmaContent, `${sleepBreathingContext}\n现病史：本次考虑支气管哮喘，需完善肺功能诊断`),
+  /喘息症状/,
+  "a diagnosis under consideration is not an established diagnosis",
+);
+assert.match(
+  declassifyUnmetFormalM03WesternPrimary(asthmaContent, `${sleepBreathingContext}\n现病史：否认既往确诊哮喘，未行肺功能`),
+  /喘息症状/,
+  "a negated prior diagnosis behind a field label never satisfies the guard",
+);
 const paraphrasedSparseChainContent = groundStructuredPatientFacts(
   `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
     ...mixedPolarityWesternSupport,
