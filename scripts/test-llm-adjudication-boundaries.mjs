@@ -164,6 +164,22 @@ ok("营销词被驳回并回落", BOILERPLATE.test(functionAfter("美容养颜�
   ok("剥名说明仍保留「不代表原方或经典出处」", withName.includes("不代表原方或经典出处"));
   ok("无原方名记录时回落到原有措辞", without.includes("实际组成未沿用原命名经方身份"));
   ok("无原方名记录时不得凭空捏造方名", !without.includes("原锁定"));
+
+  // 候选自身没有任何可记录的方名时（模型自己就写成「本例辨证组方」且 formulaNames 为空，
+  // 这是线上实测的真实形态），必须从 M03 签名结论兜底取锁定方名——否则两页依旧互相矛盾。
+  const { markTransparentFormulaDeclassification } = await jiti.import("../src/lib/diagnosis-api.ts");
+  const bare = `${START}\n${JSON.stringify({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{
+      name: "本例辨证组方", constructionType: "self_devised", formulaNames: [],
+      herbs: [{ name: "荆芥" }, { name: "防风" }, { name: "羌活" }],
+    }] },
+  })}\n${END}`;
+  const prior = { overview: { recommendedFormulaNames: ["麻黄汤"] } };
+  const marked = markTransparentFormulaDeclassification(bare, prior);
+  ok("候选无方名时从 M03 结论兜底取锁定方名", marked.includes("麻黄汤"));
+  const noPrior = markTransparentFormulaDeclassification(bare, null);
+  ok("M03 也没有锁定方名时不得凭空捏造", !noPrior.includes("麻黄汤"));
 }
 
 if (failures.length > 0) {

@@ -545,11 +545,17 @@ export function markTransparentFormulaDeclassification(
           // M04 页给一张不含麻黄的自拟方，两页互相矛盾且医生无从判断系统是换了方向
           // 还是组成没对上——可信度直接归零。呈现见 diagnosis-visible-summary 的
           // 「处方身份说明」。这里只记录，不改变任何门禁判定。
+          // 三个来源按可信度取并集。只看候选自身是不够的：模型有时**自己**就写成
+          // 「本例辨证组方」且 formulaNames 为空（线上实测正是这一形态），此时候选身上
+          // 没有任何可记录的方名，而 M03 明明锁定了麻黄汤——医生看到的两页依旧互相矛盾。
+          // prior 是 M03 的签名结论，锁定方名在它的 overview 里，取它兜底。
           declassifiedFromFormulaNames: [...new Set([
             ...(Array.isArray(candidate.formulaNames) ? candidate.formulaNames : []),
             ...(typeof candidate.name === "string" && candidate.name.trim()
               && !/本例辨证组方/.test(candidate.name) ? [candidate.name.trim()] : []),
-          ].filter((value): value is string => typeof value === "string" && value.trim().length > 0))].slice(0, 4),
+            ...(prior?.overview?.recommendedFormulaNames || []),
+          ].filter((value): value is string => typeof value === "string" && value.trim().length > 0
+            && !/本例辨证组方/.test(value)))].slice(0, 4),
         };
         return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(parsed)}\n<!-- DIAGNOSIS_JSON_END -->`;
       } catch {
