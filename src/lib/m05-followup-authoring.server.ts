@@ -44,6 +44,20 @@ export type AuthoredFollowupContent = {
   efficacyCriteria: string;
   lifestyle: string;
   dimensions: string[];
+  /**
+   * 随访时间轴那张表的「观察指标」。
+   *
+   * 【为什么也得交给模型】这一格原先是 coreFacts 拼出来的：
+   *   `${westernDiagnosis.primary.supportingFacts + primarySyndromeBasis + 主诉}的严重程度、发作频次及对日常功能的影响`
+   * 实测（tmp-probe/repro-m05-indicators.mjs，湿热下注/下尿路感染例）逐字输出：
+   *   「下尿路感染；小便灼热涩痛5天；小便灼热；**苔黄腻**的严重程度、**发作频次**及对日常功能的影响」
+   * ——「下尿路感染」是诊断不是观察指标，「苔黄腻」没有发作频次。而且传不传 authored
+   * 输出**一字不差**：散文那一面已经交给模型了，这张表还是拼串，模型在这里根本没有通道。
+   * 「本例复诊要盯哪几个指标」与「复诊重点评估什么」是同一类判断，没有理由一个交模型一个拼串。
+   *
+   * 空数组 ⇒ 调用方逐字回落今天的 coreMetrics 拼串。
+   */
+  monitoringIndicators: string[];
 };
 
 function clinicalContextForAuthoring(
@@ -66,7 +80,7 @@ function clinicalContextForAuthoring(
 const SYSTEM_PROMPT = [
   "你是中医门诊随访方案的撰写者。根据本例的证候、病机、治法与处方，写出**针对这一例**的随访内容。",
   "只输出 JSON，字段固定为：",
-  '{"reviewFocus":"复诊重点评估什么","efficacyCriteria":"疗效怎么判定算有效","lifestyle":"饮食/作息/情志/活动的调护","dimensions":["从可选复评维度里挑3到4个"]}',
+  '{"reviewFocus":"复诊重点评估什么","efficacyCriteria":"疗效怎么判定算有效","lifestyle":"饮食/作息/情志/活动的调护","dimensions":["从可选复评维度里挑3到4个"],"monitoringIndicators":["随访时间轴表格里逐次记录的观察指标，3到5条短语"]}',
   "",
   "写作要求：",
   "· 必须体现本例证候特点。寒证与湿热证的调护不该相同——寒证忌生冷、湿热忌肥甘厚味、",
@@ -76,7 +90,12 @@ const SYSTEM_PROMPT = [
   "  那是在陈述记录完整性，不是复诊重点。正例：「重点复评恶寒与发热的消长、有无汗出及汗后热退情况、",
   "  头身疼痛程度、舌苔由白转黄与否、脉象由浮紧转浮缓与否」。",
   "· efficacyCriteria 写**达到什么状态算这一轮有效**，同样指向本例主症与舌脉。",
-  "· 每字段 30–120 字，中文，不分条不加标题。",
+  "· 以上三段每段 30–120 字，中文，不分条不加标题。",
+  "· monitoringIndicators 是随访表格里**逐次记录的观察项**，3–5 条，每条一个短语（不超过 24 字）。",
+  "  写病人身上能被观察或测量的东西，不要写诊断名。",
+  "  反例（线上实测出现过，不要这样写）：「下尿路感染」是诊断不是观察项；",
+  "  「苔黄腻的严重程度、发作频次及对日常功能的影响」——舌苔没有发作频次。",
+  "  正例：「排尿灼痛程度与次数」「小便颜色与浑浊度」「有无腰痛或发热」「舌苔黄腻消退情况」。",
   "",
   "严禁：写任何剂量或药量；写让患者自行加减药、换方、停药；引用指南或文献；",
   "承诺疗效或给出预后断言；提及处方之外的药物。这些一经出现，整份输出会被服务端丢弃。",
@@ -152,6 +171,15 @@ export async function authorFollowupClinicalContent(
         .filter((item) => GOVERNED_DIMENSIONS.includes(item as (typeof GOVERNED_DIMENSIONS)[number])))]
       : [];
 
+    // 观察指标逐条过同一套校验（剂量写法 / 引用 / 受治理禁述表），只是长度按短语收窄。
+    // 与三段散文不同，它**不是**采纳与否的门槛：挑不出来就回落 coreMetrics 拼串，
+    // 那只是回到今天的行为，不影响另外三段的正确性。
+    const monitoringIndicators = Array.isArray(parsed.monitoringIndicators)
+      ? [...new Set(parsed.monitoringIndicators
+        .map((item) => validAuthoredText(item, 3, 24))
+        .filter(Boolean))].slice(0, 5)
+      : [];
+
     // 三段临床内容缺任何一段都不采纳：半份模型内容 + 半份模板会读起来自相矛盾
     // （模板那半句「按本例非药物建议安排饮食作息」与模型那半段具体调护并列）。
     if (!reviewFocus || !efficacyCriteria || !lifestyle) return null;
@@ -161,6 +189,7 @@ export async function authorFollowupClinicalContent(
       lifestyle,
       // 维度挑不出来就用全六维——那只是少一层裁剪，不影响正确性。
       dimensions: dimensions.length >= 2 ? dimensions : [...GOVERNED_DIMENSIONS],
+      monitoringIndicators: monitoringIndicators.length >= 2 ? monitoringIndicators : [],
     };
   } catch {
     return null;

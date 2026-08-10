@@ -15,11 +15,39 @@ import {
   rxAuditSubmissionIssue,
 } from "@/lib/rxaudit";
 import { buildDeterministicRiskFollowupPayload, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authorFollowupClinicalContent } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { editedPrescriptionIssueMessage, editedPrescriptionSemanticIssue, hasIncompleteEditedHerb } from "@/lib/prescription-revision";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+
+/**
+ * M05 临床内容在**这条路由上也要由模型撰写**。
+ *
+ * 【为什么】assess 路由已经改成模型撰写，但本路由从不调 authorFollowupClinicalContent，
+ * 拿到的 followup.markdown 是拼串模板。客户端在药味工作台改方复审后，
+ * 把 body.followup 存进 acceptedRevision.followupSection，再用
+ * replaceRiskAssessmentFollowup 写回整段——医生第一次拿到的模型版
+ * 复诊评估重点 / 疗效评价标准 / 生活管理 / 六维裁剪，被模板整段盖掉。
+ * 也就是说：**改一味药，M05 就退回改造前的样子**。
+ *
+ * 失败一律回落：不可用/超时/校验不过返回 null，逐字使用原模板（与 assess 侧同一套兜底）。
+ */
+async function authoredFollowupFor(
+  assessed: Parameters<typeof buildDeterministicRiskFollowupPayload>[0],
+  diagnoseReasoning: ReturnType<typeof diagnoseReasoningFromState>,
+  selectedCandidate: { herbs?: Array<{ name?: string }> } | undefined,
+  signal: AbortSignal | undefined,
+) {
+  return authorFollowupClinicalContent(assessed, {
+    syndrome: diagnoseReasoning?.overview?.primarySyndrome,
+    pathogenesis: diagnoseReasoning?.pathogenesis?.summary,
+    therapy: [diagnoseReasoning?.therapy?.overallPrinciple, diagnoseReasoning?.therapy?.overallMethod]
+      .filter(Boolean).join("；"),
+    herbs: (selectedCandidate?.herbs || []).map((herb) => herb.name).filter((name): name is string => Boolean(name)),
+  }, signal);
+}
 
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
@@ -137,7 +165,10 @@ export async function POST(req: Request) {
       buildLingxiRiskSection(effectiveAudit, patientSex),
     ].filter(Boolean).join("\n\n");
     const assessed = withSafetyGate({ ...caseState, riskAssessment: section, safetyLocked });
-    const followup = buildDeterministicRiskFollowupPayload(assessed);
+    const followup = buildDeterministicRiskFollowupPayload(
+      assessed,
+      await authoredFollowupFor(assessed, diagnoseReasoning, selectedCandidate, req.signal),
+    );
     const correlation = buildRxAuditCorrelationMetadata({
       providerOutcome: providerAudit,
       effectiveOutcome: effectiveAudit,
@@ -189,7 +220,10 @@ export async function POST(req: Request) {
   ].filter(Boolean).join("\n\n");
   const safetyLocked = deriveSafetyLocked(caseState);
   const assessed = withSafetyGate({ ...caseState, riskAssessment: section, safetyLocked });
-  const followup = buildDeterministicRiskFollowupPayload(assessed);
+  const followup = buildDeterministicRiskFollowupPayload(
+    assessed,
+    await authoredFollowupFor(assessed, diagnoseReasoning, selectedCandidate, req.signal),
+  );
   const correlation = buildRxAuditCorrelationMetadata({
     providerOutcome: providerAudit,
     candidateIndex,

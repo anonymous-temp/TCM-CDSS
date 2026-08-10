@@ -339,6 +339,57 @@ ok("营销词被驳回并回落", BOILERPLATE.test(functionAfter("美容养颜�
       "每次眩晕大约持续多久？是数秒、数分钟还是数小时？") === 0);
 }
 
+// ── ⑥ M05 随访时间轴的「观察指标」也归模型，且必须能回落 ────────────────────
+//
+// 散文那一面（复诊评估重点/疗效评价标准/生活管理/六维裁剪）2026-08-10 已交给模型，
+// 但随访时间轴那张表还是 coreFacts 拼串，传不传 authored **一字不差**。实测拼串形态
+// （湿热下注/下尿路感染例）：
+//   「下尿路感染；小便灼热涩痛5天；小便灼热；苔黄腻的严重程度、发作频次及对日常功能的影响」
+// ——「下尿路感染」是诊断不是观察项，「苔黄腻」没有发作频次。
+// 「本例复诊盯哪几个指标」与「复诊重点评估什么」是同一类判断，没理由一个交模型一个拼串。
+{
+  const { buildDeterministicRiskFollowupPayload } = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const state = {
+    id: "m05-indicators", patient: { sex: "女", age: 34 }, chiefComplaint: "小便灼热涩痛5天",
+    symptoms: {}, tongue: "苔黄腻", pulse: "脉滑数", conversation: [], vitals: {}, history: {},
+    riskAssessment: "## 合理用药审方\n**审方结论**：未见确定性高危冲突。",
+    reasoningDiagnose: {
+      schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+      overview: { primarySyndrome: "湿热下注证", primarySyndromeBasis: ["小便灼热", "苔黄腻"] },
+      westernDiagnosis: { primary: { name: "下尿路感染", status: "临床诊断", supportingFacts: ["下尿路感染", "小便灼热涩痛5天"] }, differentials: [] },
+      pathogenesis: { chain: [] }, therapy: { overallMethod: "清热利湿通淋" },
+    },
+    reasoningPrescribe: {
+      schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+      therapy: { overallMethod: "清热利湿通淋" }, nonPharma: { precautions: ["服药期间多饮温水"] },
+      formula: { candidates: [{ name: "八正散加减", therapyMatch: "清热利湿通淋",
+        herbs: [{ name: "车前子", dose: "15g", role: "君", prescriptionRole: "君药", targetPathogenesis: "湿热下注", function: "清热利湿通淋" }],
+        decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2 } }] },
+    },
+  };
+  const indicators = (authored) => buildDeterministicRiskFollowupPayload(state, authored)
+    .timelineItems.map((item) => item.indicators.join("；"));
+  const template = indicators(undefined);
+  const authored = {
+    reviewFocus: "重点复评尿频尿急尿痛的消长、小便颜色与灼热感、有无腰痛发热，舌苔由黄腻转薄白与否",
+    efficacyCriteria: "排尿灼痛基本消失、小便转清、苔腻减退即为本轮有效",
+    lifestyle: "忌辛辣肥甘与饮酒，多饮温水，勿憋尿，注意外阴清洁，避免久坐",
+    dimensions: ["睡眠", "二便", "精神"],
+    monitoringIndicators: ["排尿灼痛程度与次数", "小便颜色与浑浊度", "有无腰痛或发热", "舌苔黄腻消退情况"],
+  };
+  const withModel = indicators(authored);
+  ok("模型给的观察指标进入随访时间轴", withModel.every((row) => row.includes("排尿灼痛程度与次数")));
+  ok("诊断名不再被当成观察指标", withModel.every((row) => !row.includes("下尿路感染")));
+  ok("舌苔不再被安上「发作频次」", withModel.every((row) => !/苔黄腻[^；]*发作频次/.test(row)));
+  // 回落必须逐字等于今天的行为——这一层只增不减。
+  ok("模型没给时逐字回落原拼串",
+    indicators({ ...authored, monitoringIndicators: [] }).join("|") === template.join("|"));
+  ok("authored 整体缺席时逐字回落原拼串", template.join("|") === indicators(null).join("|"));
+  // 安全类固定行不得被模型的指标挤掉。
+  ok("「实际用药与不适反应」始终保留", withModel[0].includes("实际用药与不适反应"));
+  ok("「新发不适或原症加重」始终保留", withModel[1].includes("新发不适或原症加重"));
+}
+
 if (failures.length > 0) {
   console.error("[test:llm-adjudication-boundaries] 失败项：");
   for (const item of failures) console.error("  - " + item);

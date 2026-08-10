@@ -4273,6 +4273,7 @@ export function buildDeterministicRiskFollowupPayload(
   state: CaseState,
   authored?: {
     reviewFocus: string; efficacyCriteria: string; lifestyle: string; dimensions: string[];
+    monitoringIndicators?: string[];
   } | null,
 ): DeterministicRiskFollowupPayload {
   const gate = state.safetyGate || evaluateSafetyGate(state);
@@ -4335,6 +4336,7 @@ export function buildDeterministicRiskFollowupPayload(
     ? `${followup.coreFacts.join("；")}的严重程度、发作频次及对日常功能的影响`
     : "本次主要症状的严重程度、发作频次及对日常功能的影响";
   const efficacyTrigger = "主要症状较首诊无改善或加重，或出现新的伴随症状";
+  const authoredIndicators = (authored?.monitoringIndicators || []).filter((item) => Boolean(item?.trim()));
   const actualRiskIndicators = concreteAuditRiskObservations(riskSource);
   // 随访时间轴只保留两条确定性行（首次复诊 + 治疗期间随时）。原先由 nonPharma.monitoring 派生的
   // 第三类行随字段一并删除：注意事项是自由文本，不再有 timing/metric/trigger 的字段归属，
@@ -4344,7 +4346,14 @@ export function buildDeterministicRiskFollowupPayload(
     {
       time: firstReview,
       action: "完成首次复诊与疗效复评",
-      indicators: uniqueFollowupText([coreMetrics, "舌脉变化", "实际用药与不适反应"], 6),
+      // 观察指标由模型按本例写；模型没给（或校验没过）就逐字回落 coreMetrics 拼串。
+      // 拼串的实测形态：「下尿路感染；小便灼热涩痛5天；苔黄腻的严重程度、发作频次及对日常
+      // 功能的影响」——诊断名当成了观察项，舌苔当成了有发作频次的东西。
+      indicators: uniqueFollowupText(
+        authoredIndicators.length > 0
+          ? [...authoredIndicators, "舌脉变化", "实际用药与不适反应"]
+          : [coreMetrics, "舌脉变化", "实际用药与不适反应"],
+        6),
       triggers: uniqueFollowupText([
         efficacyTrigger,
         ...actualRiskIndicators.map((item) => `出现${item}时提前复诊`),
@@ -4353,7 +4362,11 @@ export function buildDeterministicRiskFollowupPayload(
     {
       time: "治疗期间随时",
       action: "记录症状变化并按触发条件提前复评",
-      indicators: uniqueFollowupText([...followup.coreFacts, "新发不适或原症加重"], 6),
+      indicators: uniqueFollowupText(
+        authoredIndicators.length > 0
+          ? [...authoredIndicators, "新发不适或原症加重"]
+          : [...followup.coreFacts, "新发不适或原症加重"],
+        6),
       triggers: uniqueFollowupText([
         efficacyTrigger,
         "出现急性加重或新的红旗症状时及时就医",
