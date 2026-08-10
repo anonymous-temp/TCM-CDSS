@@ -6,9 +6,9 @@
     "reproductionPolicy": "标准全文和受版权保护定义不写入运行表，只登记定位信息与必要摘要。"
   },
   "summary": {
-    "sourceCount": 30,
+    "sourceCount": 33,
     "regulatoryOrGovernmentCount": 22,
-    "projectSourceCount": 8
+    "projectSourceCount": 9
   },
   "entries": [
     {
@@ -251,6 +251,39 @@
       "accessedAt": "2026-07-23"
     },
     {
+      "id": "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014",
+      "title": "循证针灸临床实践指南：失眠（T/CAAM 011-2014）",
+      "publisher": "中国针灸学会",
+      "sourceType": "society_group_standard",
+      "authorityTier": "professional_society_standard",
+      "locator": "https://www.ndls.org.cn/standard/detail/e02e12e288c96b7f1792b04c8feea9c7",
+      "publishedDate": "2014-05-31",
+      "scope": "失眠的针灸治疗原则、主穴与心脾两虚/心肾不交/心胆气虚/肝火扰神等证型配穴；现行团体标准",
+      "accessedAt": "2026-08-10"
+    },
+    {
+      "id": "SRC-CAAM-DYSMENORRHEA-POINTS",
+      "title": "痛经（中国针灸学会科普条目）",
+      "publisher": "中国针灸学会",
+      "sourceType": "professional_society_clinical_reference",
+      "authorityTier": "professional_society_reference",
+      "locator": "https://www.caam.cn/article/688",
+      "publishedDate": "2024-01-01",
+      "scope": "痛经实证/虚证主穴与寒凝血瘀、气滞血瘀、气血虚弱、肾气亏损证型配穴",
+      "accessedAt": "2026-08-10"
+    },
+    {
+      "id": "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE",
+      "title": "《针灸学》规划教材证型配穴表（多源交叉核对录入）",
+      "publisher": "中医 CDSS 项目治理录入",
+      "sourceType": "textbook_syndrome_point_table",
+      "authorityTier": "project_governed_source",
+      "locator": "src/data/tcm-nondrug-treatment-evidence-catalog.json#planTemplates[].syndromeRefinements",
+      "publishedDate": "2026-08-10",
+      "scope": "感冒/咳嗽/不寐/胃痞胃痛/头痛/痛经/痹证/中风面瘫的证型配穴；仅作医师参考证据，executable=false 边界不变，待权威方案核准后升格",
+      "accessedAt": "2026-08-10"
+    },
+    {
       "id": "SRC-REFERENCE-NISHI-ACUPUNCTURE",
       "title": "nihaisha-nishi-tcm 针灸课程证据索引",
       "publisher": "中医 CDSS 项目",
@@ -268,7 +301,7 @@
       "sourceType": "project_runtime_rule",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-safety.ts",
-      "sha256": "78e1b896d90c92df4fc07934bc836e5db688acfa9fc56f242613efab99f34dfb",
+      "sha256": "aaf2e0f415dc82c4ca7aaf078778155485a99db4dc2c5ba5d1843cbf3e316aaa",
       "scope": "红旗、生命体征和特殊人群的实际运行门禁；外部来源只做类别和阈值复核",
       "accessedAt": "2026-07-22"
     },
@@ -279,7 +312,7 @@
       "sourceType": "project_runtime_contract",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-types.ts",
-      "sha256": "6bbc548c6ac4609549045f94272a75f74db8534548761c9a53236c6fda789abd",
+      "sha256": "5ecf381b493d980a67a5afaca6335d1fd25860f1aa864ddcb202f0336a1c4795",
       "scope": "M01-M05 当前实际字段与输出结构",
       "accessedAt": "2026-07-22"
     },
@@ -290,7 +323,7 @@
       "sourceType": "project_runtime_catalog",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/tcm-treatment-projects.ts",
-      "sha256": "f6e68c5f23660f455f8b07dd63880c68c1b78b59e5a85e7c5251bc8edad8c60a",
+      "sha256": "8900660199a46e4f632f4b427a7dd1ded31eedab475cb9641ef54b95349afaf3",
       "scope": "22类非药物/外治项目的风险、资质、药物审方与适用标签",
       "accessedAt": "2026-07-22"
     },

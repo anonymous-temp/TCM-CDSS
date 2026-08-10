@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { governedHerbSubstitutes, isKnownTcmHerbName, type GovernedHerbSubstitute } from "./tcm-knowledge";
@@ -115,30 +115,169 @@ async function load(): Promise<InventoryFile | null> {
 export type DrugInventoryImportInput = {
   source?: unknown;
   items?: unknown;
+  /**
+   * 分片整批替换。**要么全到齐、要么一条不落地**：分片只写暂存，集齐 total 片后才做一次
+   * 原子替换。没有 part 时行为与此前逐字节相同（单次整批替换）。
+   */
+  part?: unknown;
 };
 
 export type DrugInventoryImportResult =
   | { ok: true; snapshot: DrugInventorySnapshot }
-  | { ok: false; status: 400 | 413; code: string; error: string };
+  | { ok: true; pending: DrugInventoryPartAck }
+  | { ok: false; status: 400 | 409 | 413; code: string; error: string };
+
+export type DrugInventoryPartAck = {
+  importId: string;
+  receivedParts: number[];
+  missingParts: number[];
+  total: number;
+  bufferedItemCount: number;
+  committed: false;
+};
+
+type StagedImport = {
+  importId: string;
+  total: number;
+  source: string;
+  startedAt: string;
+  parts: Record<string, unknown[]>;
+};
+
+const MAX_IMPORT_PARTS = 50;
+const STAGED_IMPORT_TTL_MS = 24 * 60 * 60 * 1000;
+
+function stagedImportPath(importId: string): string {
+  const target = drugInventoryPath();
+  return `${target}.staging-${importId}.json`;
+}
+
+function normalizedImportId(value: unknown): string {
+  const raw = typeof value === "string" ? value.trim() : "";
+  return /^[A-Za-z0-9_-]{6,64}$/.test(raw) ? raw : "";
+}
+
+async function readStagedImport(importId: string): Promise<StagedImport | null> {
+  try {
+    const parsed = JSON.parse(await readFile(stagedImportPath(importId), "utf8")) as Partial<StagedImport>;
+    if (parsed.importId !== importId || !parsed.parts || typeof parsed.parts !== "object") return null;
+    const startedAt = Date.parse(String(parsed.startedAt || ""));
+    // 过期暂存一律当作不存在：一份半年前没传完的分片不该在今天被接上去当成完整库存。
+    if (!Number.isFinite(startedAt) || Date.now() - startedAt > STAGED_IMPORT_TTL_MS) return null;
+    return {
+      importId,
+      total: Number(parsed.total) || 0,
+      source: text(parsed.source),
+      startedAt: String(parsed.startedAt),
+      parts: parsed.parts as Record<string, unknown[]>,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function writeStagedImport(staged: StagedImport): Promise<void> {
+  const target = stagedImportPath(staged.importId);
+  await mkdir(dirname(target), { recursive: true });
+  const tmp = `${target}.${process.pid}.tmp`;
+  await writeFile(tmp, JSON.stringify(staged), "utf8");
+  await rename(tmp, target);
+}
 
 /**
  * 导入院内库存。整批替换，不做增量合并——增量语义要求甲方侧维护删除事件，
  * 而「某药已下架却没推删除」会让系统长期以为它有货，比整批替换危险。
+ *
+ * ## 超限时的正确做法（甲方 2026-08-10 ⑫④）
+ *
+ * 此前超限返回的文案是 `split the import into batches`，而落盘是 :203 的原子 rename
+ * **整批替换**——实测第 1 批 4 味、第 2 批 3 味，落盘只剩第 2 批 3 味。
+ * **系统自己在 413 里教对方把第一批药删光。**
+ *
+ * 现在「分批」是一条真实存在、且安全的通路：带 `part` 的请求只写暂存，
+ * 集齐 total 片后才做一次整批替换；缺片时返回 409 并列出缺哪几片，
+ * 在此之前线上库存一个字节都不动。语义仍然是「整批替换」，只是这一整批分了几次传。
  */
 export async function importDrugInventory(input: DrugInventoryImportInput): Promise<DrugInventoryImportResult> {
   const rawItems = input.items;
   if (!Array.isArray(rawItems)) {
     return { ok: false, status: 400, code: "invalid_inventory_items", error: "items must be an array" };
   }
+  const partInput = input.part && typeof input.part === "object" && !Array.isArray(input.part)
+    ? input.part as Record<string, unknown>
+    : undefined;
+  if (partInput) {
+    const staged = await stageInventoryPart(partInput, rawItems, text(input.source));
+    if (!staged.ok || "pending" in staged) return staged;
+    return commitInventoryItems(staged.items, staged.source);
+  }
   if (rawItems.length > MAX_ITEMS) {
     return {
       ok: false,
       status: 413,
       code: "inventory_too_large",
-      error: `items exceeds the ${MAX_ITEMS} entry limit; split the import into batches`,
+      error: `items exceeds the ${MAX_ITEMS} entry limit. 本接口是整批替换：单次请求直接分成两批会让后一批覆盖前一批。`
+        + ` 请改用分片整批替换——每次请求带 part={importId,index,total}（同一 importId、index 从 0 到 total-1）；`
+        + ` 分片只写暂存，集齐全部分片后系统才做一次原子替换，在此之前线上库存不变。`,
     };
   }
 
+  return commitInventoryItems(rawItems, text(input.source));
+}
+
+async function stageInventoryPart(
+  partInput: Record<string, unknown>,
+  rawItems: unknown[],
+  source: string,
+): Promise<{ ok: true; items: unknown[]; source: string } | { ok: true; pending: DrugInventoryPartAck } | { ok: false; status: 400 | 409 | 413; code: string; error: string }> {
+  const importId = normalizedImportId(partInput.importId);
+  const index = Number(partInput.index);
+  const total = Number(partInput.total);
+  if (!importId) {
+    return { ok: false, status: 400, code: "invalid_import_part_id", error: "part.importId must match [A-Za-z0-9_-]{6,64}" };
+  }
+  if (!Number.isInteger(total) || total < 1 || total > MAX_IMPORT_PARTS) {
+    return { ok: false, status: 400, code: "invalid_import_part_total", error: `part.total must be an integer in 1..${MAX_IMPORT_PARTS}` };
+  }
+  if (!Number.isInteger(index) || index < 0 || index >= total) {
+    return { ok: false, status: 400, code: "invalid_import_part_index", error: "part.index must be an integer in 0..total-1" };
+  }
+  const existing = await readStagedImport(importId);
+  if (existing && existing.total !== total) {
+    return { ok: false, status: 409, code: "import_part_total_conflict", error: `part.total changed mid-import (was ${existing.total})` };
+  }
+  const staged: StagedImport = existing || {
+    importId,
+    total,
+    source,
+    startedAt: new Date().toISOString(),
+    parts: {},
+  };
+  staged.parts[String(index)] = rawItems;
+  if (source) staged.source = source;
+  const bufferedItemCount = Object.values(staged.parts).reduce((sum, part) => sum + part.length, 0);
+  if (bufferedItemCount > MAX_ITEMS) {
+    return {
+      ok: false,
+      status: 413,
+      code: "inventory_too_large",
+      error: `accumulated items across parts exceeds the ${MAX_ITEMS} entry limit; nothing was written`,
+    };
+  }
+  await writeStagedImport(staged);
+  const receivedParts = Object.keys(staged.parts).map(Number).sort((left, right) => left - right);
+  const missingParts = Array.from({ length: total }, (_, position) => position)
+    .filter((position) => !receivedParts.includes(position));
+  if (missingParts.length > 0) {
+    // 缺片就是没到齐，线上库存一个字节都不动——「半批替换」正是本条缺陷的危害本身。
+    return { ok: true, pending: { importId, receivedParts, missingParts, total, bufferedItemCount, committed: false } };
+  }
+  const items = receivedParts.flatMap((position) => staged.parts[String(position)]);
+  await rm(stagedImportPath(importId), { force: true }).catch(() => undefined);
+  return { ok: true, items, source: staged.source };
+}
+
+async function commitInventoryItems(rawItems: unknown[], source: string): Promise<DrugInventoryImportResult> {
   const items: DrugInventoryItem[] = [];
   const unresolved = new Set<string>();
   const ambiguous = new Set<string>();
@@ -191,7 +330,7 @@ export async function importDrugInventory(input: DrugInventoryImportInput): Prom
   const file: InventoryFile = {
     inventoryVersion,
     importedAt,
-    source: text(input.source) || "unspecified",
+    source: source || "unspecified",
     itemCount: items.length,
     availableHerbCount: items.filter((item) => item.kind === "herb" && item.available).length,
     availablePatentCount: items.filter((item) => item.kind === "patent" && item.available).length,

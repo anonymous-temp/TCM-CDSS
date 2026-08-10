@@ -20,6 +20,7 @@ const {
 const {
   compileTcmTreatmentRecommendations,
 } = await import("../src/lib/tcm-treatment-capabilities.server.ts");
+const { normalizeAcupointSiteName } = await import("../src/lib/tcm-acupoints.ts");
 
 const originalSimple = process.env.TCM_CLINIC_TREATMENT_CAPABILITIES;
 const originalJson = process.env.TCM_CLINIC_TREATMENT_CAPABILITIES_JSON;
@@ -77,15 +78,30 @@ const check = (name, fn) => {
   try { fn(); } catch (error) { failures.push({ name, message: String(error?.message || error).slice(0, 600) }); }
 };
 
-/** 目录里所有模板，按「穴位串」反查它属于哪个适应证。 */
-const templateBySites = new Map();
+/**
+ * 目录里所有模板，按「穴位集合」反查它属于哪个适应证。
+ *
+ * 2026-08-10 起产出穴位 = 病种模板主穴（去掉证型 removePoints）+ 证型加减 addPoints，
+ * 因此反查不能再按「穴位串逐字相等」，改为**产出集合必须落在该模板的治理穴位集合之内**。
+ * 归一用目录自带的 normalizeAcupointSiteName，两侧同一口径（去括注、取「或」首项）。
+ */
+const bareSite = (site) => normalizeAcupointSiteName(String(site).replace(/（[^）]*）\s*$/, ""));
+const templateGovernedSites = [];
 for (const project of TCM_TREATMENT_PROJECTS) {
   for (const template of project.planTemplates) {
-    templateBySites.set(`${project.code}|${template.sitesOrPoints.join("")}`, template);
+    const sites = new Set([
+      ...template.sitesOrPoints,
+      ...(template.syndromeRefinements || []).flatMap((refinement) => refinement.addPoints),
+    ].map(bareSite).filter(Boolean));
+    templateGovernedSites.push({ projectCode: project.code, template, sites });
   }
 }
-/** 去掉服务端内联标注「穴名（CODE·经络）」，还原为目录里的原始穴名。 */
-const stripAnnotation = (site) => site.replace(/（[A-Z]{2,3}-?[A-Z]{0,2}\d+[^）]*）$/, "");
+const templateForSites = (projectCode, suggested) => {
+  const produced = suggested.map(bareSite).filter(Boolean);
+  if (produced.length === 0) return undefined;
+  return templateGovernedSites.find((entry) =>
+    entry.projectCode === projectCode && produced.every((site) => entry.sites.has(site)))?.template;
+};
 
 // ── 生产实测 fixa-d1b：头痛为主诉、同一节点内伴失眠 ────────────────────────────
 const headacheWithInsomnia = signedM03({
@@ -117,9 +133,8 @@ check("头痛主诉不得拿到失眠方的穴位（生产 fixa-d1b 针刺=安�
   );
   assert.ok(recommendations.length >= 1, "头痛病例应至少给出一个项目");
   for (const item of recommendations) {
-    if (item.protocolStatus !== "governed_patient_specific_plan") continue;
-    const sites = item.suggestedSitesOrPoints.map(stripAnnotation).join("");
-    const template = templateBySites.get(`${item.projectCode}|${sites}`);
+    if (!["governed_patient_specific_plan", "governed_class_template_not_syndrome_tailored"].includes(item.protocolStatus)) continue;
+    const template = templateForSites(item.projectCode, item.suggestedSitesOrPoints);
     assert.ok(template, `穴位组必须能反查到目录模板：${item.projectCode} → ${item.suggestedSitesOrPoints.join("、")}`);
     assert.equal(
       template.indicationTag,
@@ -154,9 +169,8 @@ check("卡片标注的适应证必须与产出方案的模板同源（A：标注
   ];
   for (const [prior, caseState] of priorsUnderTest) {
     for (const item of compileTcmTreatmentRecommendations([], prior, caseState)) {
-      if (item.protocolStatus !== "governed_patient_specific_plan") continue;
-      const sites = item.suggestedSitesOrPoints.map(stripAnnotation).join("");
-      const template = templateBySites.get(`${item.projectCode}|${sites}`);
+      if (!["governed_patient_specific_plan", "governed_class_template_not_syndrome_tailored"].includes(item.protocolStatus)) continue;
+      const template = templateForSites(item.projectCode, item.suggestedSitesOrPoints);
       assert.ok(template, `穴位组必须能反查到目录模板：${item.projectCode} → ${item.suggestedSitesOrPoints.join("、")}`);
       // 卡片正文引用的适应证名称，必须正是这个模板的适应证；用「模板匹配词出现在正文语境」反证，
       // 避免在测试里另建一张中文标签表。
@@ -296,7 +310,7 @@ check("失眠为主诉时仍应拿到失眠方（反向锁定：修复不得把�
     conversation: [],
   })[0];
   assert.equal(item.protocolStatus, "governed_patient_specific_plan");
-  const template = templateBySites.get(`acupuncture|${item.suggestedSitesOrPoints.map(stripAnnotation).join("")}`);
+  const template = templateForSites("acupuncture", item.suggestedSitesOrPoints);
   assert.ok(template, `穴位组必须能反查到目录模板：${item.suggestedSitesOrPoints.join("、")}`);
   assert.equal(template.indicationTag, "sleep_emotion");
 });

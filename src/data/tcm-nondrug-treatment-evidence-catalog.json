@@ -93,7 +93,114 @@
             "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
             "SRC-SAMR-ACUPUNCTURE-OPS"
           ],
-          "parameterCompleteness": "points_and_government_frequency_reference_governed"
+          "parameterCompleteness": "points_and_government_frequency_reference_governed",
+          "syndromeRefinements": [
+            {
+              "id": "insomnia-heart-spleen-deficiency",
+              "syndromeLabel": "心脾两虚",
+              "syndromeMatchAny": [
+                "心脾两虚",
+                "心脾气血两虚",
+                "气血不足，心神失养"
+              ],
+              "addPoints": [
+                "脾俞",
+                "足三里"
+              ],
+              "sourceRefs": [
+                "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014",
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "insomnia-liver-fire",
+              "syndromeLabel": "肝火扰心",
+              "syndromeMatchAny": [
+                "肝火扰心",
+                "肝火扰神",
+                "肝郁化火",
+                "心肝火旺"
+              ],
+              "addPoints": [
+                "行间",
+                "侠溪"
+              ],
+              "removePoints": [
+                "心俞"
+              ],
+              "sourceRefs": [
+                "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014",
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "insomnia-heart-kidney-disharmony",
+              "syndromeLabel": "心肾不交",
+              "syndromeMatchAny": [
+                "心肾不交",
+                "阴虚火旺",
+                "水火不济"
+              ],
+              "addPoints": [
+                "太溪",
+                "肾俞"
+              ],
+              "sourceRefs": [
+                "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014",
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "insomnia-heart-gallbladder-timidity",
+              "syndromeLabel": "心胆气虚",
+              "syndromeMatchAny": [
+                "心胆气虚",
+                "胆虚"
+              ],
+              "addPoints": [
+                "胆俞"
+              ],
+              "sourceRefs": [
+                "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014",
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "insomnia-phlegm-heat",
+              "syndromeLabel": "痰热内扰",
+              "syndromeMatchAny": [
+                "痰热内扰",
+                "痰热扰心",
+                "痰火扰心"
+              ],
+              "addPoints": [
+                "丰隆",
+                "内庭"
+              ],
+              "removePoints": [
+                "心俞"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "insomnia-spleen-stomach-disharmony",
+              "syndromeLabel": "脾胃不和",
+              "syndromeMatchAny": [
+                "脾胃不和",
+                "胃不和则卧不安",
+                "食滞"
+              ],
+              "addPoints": [
+                "足三里",
+                "公孙"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            }
+          ]
         },
         {
           "id": "acupuncture-influenza-hunan-2025",
@@ -115,7 +222,78 @@
             "SRC-HUNAN-INFLUENZA-TCM-2025",
             "SRC-SAMR-ACUPUNCTURE-OPS"
           ],
-          "parameterCompleteness": "points_frequency_and_duration_governed"
+          "parameterCompleteness": "points_frequency_and_duration_governed",
+          "syndromeRefinements": [
+            {
+              "id": "influenza-wind-cold",
+              "syndromeLabel": "风寒束表",
+              "syndromeMatchAny": [
+                "风寒束表",
+                "风寒犯表",
+                "风寒袭表",
+                "风寒证",
+                "外感风寒"
+              ],
+              "addPoints": [
+                "风门",
+                "肺俞"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "influenza-wind-heat",
+              "syndromeLabel": "风热犯表",
+              "syndromeMatchAny": [
+                "风热犯表",
+                "风热袭表",
+                "风热证",
+                "外感风热",
+                "热毒袭肺"
+              ],
+              "addPoints": [
+                "曲池",
+                "尺泽",
+                "大椎"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "influenza-damp",
+              "syndromeLabel": "夹湿",
+              "syndromeMatchAny": [
+                "湿邪",
+                "夹湿",
+                "暑湿",
+                "寒湿束表"
+              ],
+              "addPoints": [
+                "阴陵泉"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "influenza-deficiency",
+              "syndromeLabel": "体虚感冒",
+              "syndromeMatchAny": [
+                "气虚感冒",
+                "体虚感冒",
+                "肺卫气虚",
+                "正虚"
+              ],
+              "addPoints": [
+                "足三里"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            }
+          ]
         },
         {
           "id": "acupuncture-post-infection-respiratory-rehab",
@@ -138,13 +316,114 @@
             "SRC-BEIJING-COVID-TCM-REHAB-2020",
             "SRC-SAMR-ACUPUNCTURE-OPS"
           ],
-          "parameterCompleteness": "syndrome_points_frequency_and_duration_governed"
+          "parameterCompleteness": "syndrome_points_frequency_and_duration_governed",
+          "syndromeRefinements": [
+            {
+              "id": "cough-wind-cold-lung",
+              "syndromeLabel": "风寒袭肺",
+              "syndromeMatchAny": [
+                "风寒袭肺",
+                "风寒犯肺",
+                "风寒"
+              ],
+              "addPoints": [
+                "风门",
+                "肺俞"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "cough-wind-heat-lung",
+              "syndromeLabel": "风热犯肺",
+              "syndromeMatchAny": [
+                "风热犯肺",
+                "风热袭肺",
+                "风热"
+              ],
+              "addPoints": [
+                "大椎",
+                "曲池"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "cough-phlegm-damp-lung",
+              "syndromeLabel": "痰湿阻肺",
+              "syndromeMatchAny": [
+                "痰湿阻肺",
+                "痰湿蕴肺",
+                "痰浊阻肺"
+              ],
+              "addPoints": [
+                "丰隆",
+                "阴陵泉"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "cough-liver-fire-lung",
+              "syndromeLabel": "肝火灼肺",
+              "syndromeMatchAny": [
+                "肝火灼肺",
+                "肝火犯肺"
+              ],
+              "addPoints": [
+                "行间",
+                "鱼际"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "cough-lung-yin-deficiency",
+              "syndromeLabel": "肺阴亏虚",
+              "syndromeMatchAny": [
+                "肺阴亏虚",
+                "肺胃阴虚",
+                "气阴两伤",
+                "阴虚"
+              ],
+              "addPoints": [
+                "膏肓",
+                "太溪"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "cough-lung-spleen-qi-deficiency",
+              "syndromeLabel": "肺脾气虚",
+              "syndromeMatchAny": [
+                "肺脾气虚",
+                "肺气虚",
+                "脾肺气虚"
+              ],
+              "addPoints": [
+                "气海",
+                "脾俞"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            }
+          ]
         },
         {
           "id": "acupuncture-digestive-common-outpatient",
           "indicationTag": "digestive",
           "matchAny": [
             "痞满",
+            "胃痞",
+            "胃脘痛",
+            "胃痛",
             "功能性消化不良",
             "便秘",
             "泄泻",
@@ -154,7 +433,7 @@
             "中脘",
             "双侧天枢",
             "足三里",
-            "关元（须结合寒热虚实复核）"
+            "内关"
           ],
           "techniqueBoundary": "腹部急痛、腹膜刺激征、消化道出血等先按红旗处置；穴位仅为课程索引与门诊病种频次的组合参考。",
           "scheduleSuggestion": "门诊项目频次参考为每日1次；每次选穴和疗程须根据症状变化复评。",
@@ -163,7 +442,143 @@
             "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
             "SRC-SAMR-ACUPUNCTURE-OPS"
           ],
-          "parameterCompleteness": "supplementary_points_and_government_frequency_reference_governed"
+          "parameterCompleteness": "supplementary_points_and_government_frequency_reference_governed",
+          "syndromeRefinements": [
+            {
+              "id": "digestive-spleen-stomach-deficiency-cold",
+              "syndromeLabel": "脾胃虚寒",
+              "syndromeMatchAny": [
+                "脾胃虚寒",
+                "中焦虚寒",
+                "脾阳不足",
+                "脾阳虚",
+                "胃寒"
+              ],
+              "addPoints": [
+                "关元",
+                "脾俞",
+                "胃俞"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "digestive-damp-heat",
+              "syndromeLabel": "湿热中阻",
+              "syndromeMatchAny": [
+                "湿热中阻",
+                "湿热内蕴",
+                "脾胃湿热",
+                "中焦湿热",
+                "肠腑湿热"
+              ],
+              "addPoints": [
+                "阴陵泉",
+                "内庭"
+              ],
+              "removePoints": [
+                "关元"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "digestive-phlegm-damp",
+              "syndromeLabel": "痰湿中阻",
+              "syndromeMatchAny": [
+                "痰湿中阻",
+                "痰湿内停",
+                "痰饮内停"
+              ],
+              "addPoints": [
+                "丰隆",
+                "阴陵泉"
+              ],
+              "removePoints": [
+                "关元"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "digestive-liver-qi-invading-stomach",
+              "syndromeLabel": "肝气犯胃",
+              "syndromeMatchAny": [
+                "肝气犯胃",
+                "肝胃不和",
+                "肝郁气滞",
+                "肝气郁结"
+              ],
+              "addPoints": [
+                "期门",
+                "太冲"
+              ],
+              "removePoints": [
+                "关元"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "digestive-food-retention",
+              "syndromeLabel": "饮食停滞",
+              "syndromeMatchAny": [
+                "饮食停滞",
+                "食滞胃脘",
+                "食积",
+                "宿食"
+              ],
+              "addPoints": [
+                "梁门",
+                "下脘"
+              ],
+              "removePoints": [
+                "关元"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "digestive-stomach-yin-deficiency",
+              "syndromeLabel": "胃阴不足",
+              "syndromeMatchAny": [
+                "胃阴不足",
+                "胃阴亏虚",
+                "阴虚"
+              ],
+              "addPoints": [
+                "三阴交",
+                "内庭"
+              ],
+              "removePoints": [
+                "关元"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "digestive-blood-stasis",
+              "syndromeLabel": "瘀血停胃",
+              "syndromeMatchAny": [
+                "瘀血停胃",
+                "瘀血阻络",
+                "胃络瘀阻"
+              ],
+              "addPoints": [
+                "膈俞",
+                "三阴交"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            }
+          ]
         },
         {
           "id": "acupuncture-headache-common-outpatient",
@@ -185,7 +600,121 @@
             "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
             "SRC-SAMR-ACUPUNCTURE-OPS"
           ],
-          "parameterCompleteness": "supplementary_points_and_government_frequency_reference_governed"
+          "parameterCompleteness": "supplementary_points_and_government_frequency_reference_governed",
+          "syndromeRefinements": [
+            {
+              "id": "headache-liver-yang",
+              "syndromeLabel": "肝阳上亢",
+              "syndromeMatchAny": [
+                "肝阳上亢",
+                "肝阳化风",
+                "肝火上炎",
+                "肝火"
+              ],
+              "addPoints": [
+                "太冲",
+                "太溪"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "headache-phlegm-turbidity",
+              "syndromeLabel": "痰浊上扰",
+              "syndromeMatchAny": [
+                "痰浊上扰",
+                "痰浊中阻",
+                "痰湿"
+              ],
+              "addPoints": [
+                "中脘",
+                "丰隆"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "headache-blood-stasis",
+              "syndromeLabel": "瘀血阻络",
+              "syndromeMatchAny": [
+                "瘀血阻络",
+                "瘀血头痛",
+                "血瘀"
+              ],
+              "addPoints": [
+                "血海",
+                "膈俞"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "headache-blood-deficiency",
+              "syndromeLabel": "气血亏虚",
+              "syndromeMatchAny": [
+                "血虚",
+                "气血亏虚",
+                "气血不足"
+              ],
+              "addPoints": [
+                "脾俞",
+                "足三里"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "headache-wind-cold",
+              "syndromeLabel": "风寒外袭",
+              "syndromeMatchAny": [
+                "风寒",
+                "外感风寒"
+              ],
+              "addPoints": [
+                "风门",
+                "列缺"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "headache-wind-heat",
+              "syndromeLabel": "风热上扰",
+              "syndromeMatchAny": [
+                "风热",
+                "外感风热"
+              ],
+              "addPoints": [
+                "曲池",
+                "大椎"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "headache-kidney-deficiency",
+              "syndromeLabel": "肾虚",
+              "syndromeMatchAny": [
+                "肾精不足",
+                "肾虚",
+                "髓海不足"
+              ],
+              "addPoints": [
+                "肾俞",
+                "太溪",
+                "悬钟"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            }
+          ]
         },
         {
           "id": "acupuncture-gynecology-common-outpatient",
@@ -207,7 +736,97 @@
             "SRC-ZIBO-TCM-DAY-FREQUENCY-2022",
             "SRC-SAMR-ACUPUNCTURE-OPS"
           ],
-          "parameterCompleteness": "supplementary_points_and_government_frequency_reference_governed"
+          "parameterCompleteness": "supplementary_points_and_government_frequency_reference_governed",
+          "syndromeRefinements": [
+            {
+              "id": "dysmenorrhea-cold-stasis",
+              "syndromeLabel": "寒凝血瘀",
+              "syndromeMatchAny": [
+                "寒凝血瘀",
+                "寒湿凝滞",
+                "胞宫虚寒",
+                "寒凝"
+              ],
+              "addPoints": [
+                "归来",
+                "地机",
+                "中极"
+              ],
+              "sourceRefs": [
+                "SRC-CAAM-DYSMENORRHEA-POINTS",
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "dysmenorrhea-qi-stagnation",
+              "syndromeLabel": "气滞血瘀",
+              "syndromeMatchAny": [
+                "气滞血瘀",
+                "肝郁气滞"
+              ],
+              "addPoints": [
+                "太冲",
+                "次髎"
+              ],
+              "sourceRefs": [
+                "SRC-CAAM-DYSMENORRHEA-POINTS",
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "dysmenorrhea-qi-blood-deficiency",
+              "syndromeLabel": "气血虚弱",
+              "syndromeMatchAny": [
+                "气血虚弱",
+                "气血两虚",
+                "气血不足"
+              ],
+              "addPoints": [
+                "脾俞",
+                "胃俞",
+                "足三里"
+              ],
+              "sourceRefs": [
+                "SRC-CAAM-DYSMENORRHEA-POINTS",
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "dysmenorrhea-kidney-deficiency",
+              "syndromeLabel": "肾气亏损",
+              "syndromeMatchAny": [
+                "肾气亏损",
+                "肝肾亏虚",
+                "肾虚"
+              ],
+              "addPoints": [
+                "太溪",
+                "肾俞"
+              ],
+              "sourceRefs": [
+                "SRC-CAAM-DYSMENORRHEA-POINTS",
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "dysmenorrhea-damp-heat",
+              "syndromeLabel": "湿热蕴结",
+              "syndromeMatchAny": [
+                "湿热蕴结",
+                "湿热下注"
+              ],
+              "addPoints": [
+                "阴陵泉",
+                "次髎"
+              ],
+              "removePoints": [
+                "关元"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            }
+          ]
         },
         {
           "id": "acupuncture-musculoskeletal-common-outpatient",
@@ -231,7 +850,97 @@
             "SRC-SAMR-ACUPUNCTURE-OPS",
             "SRC-REFERENCE-NISHI-ACUPUNCTURE"
           ],
-          "parameterCompleteness": "region_and_government_frequency_reference_governed_exact_points_require_exam"
+          "parameterCompleteness": "region_and_government_frequency_reference_governed_exact_points_require_exam",
+          "syndromeRefinements": [
+            {
+              "id": "bi-cold-damp",
+              "syndromeLabel": "寒湿痹阻",
+              "syndromeMatchAny": [
+                "寒湿",
+                "寒湿痹阻",
+                "痛痹",
+                "着痹",
+                "风寒湿"
+              ],
+              "addPoints": [
+                "肾俞",
+                "关元",
+                "阴陵泉",
+                "足三里"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "bi-damp-heat",
+              "syndromeLabel": "湿热痹阻",
+              "syndromeMatchAny": [
+                "湿热痹阻",
+                "湿热",
+                "热痹"
+              ],
+              "addPoints": [
+                "大椎",
+                "曲池",
+                "阴陵泉"
+              ],
+              "removePoints": [
+                "关元"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "bi-wandering",
+              "syndromeLabel": "风邪偏胜（行痹）",
+              "syndromeMatchAny": [
+                "行痹",
+                "风邪偏胜",
+                "游走"
+              ],
+              "addPoints": [
+                "膈俞",
+                "血海"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "bi-liver-kidney-deficiency",
+              "syndromeLabel": "肝肾亏虚",
+              "syndromeMatchAny": [
+                "肝肾亏虚",
+                "肝肾不足",
+                "肾虚"
+              ],
+              "addPoints": [
+                "肝俞",
+                "肾俞",
+                "太溪"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "bi-blood-stasis",
+              "syndromeLabel": "瘀血阻络",
+              "syndromeMatchAny": [
+                "瘀血阻络",
+                "血瘀"
+              ],
+              "addPoints": [
+                "膈俞",
+                "血海"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            }
+          ]
         },
         {
           "id": "acupuncture-neurologic-rehabilitation-outpatient",
@@ -255,7 +964,118 @@
             "SRC-SAMR-ACUPUNCTURE-OPS",
             "SRC-REFERENCE-NISHI-ACUPUNCTURE"
           ],
-          "parameterCompleteness": "rehabilitation_points_and_government_frequency_reference_governed"
+          "parameterCompleteness": "rehabilitation_points_and_government_frequency_reference_governed",
+          "syndromeRefinements": [
+            {
+              "id": "stroke-liver-yang-surge",
+              "syndromeLabel": "肝阳暴亢",
+              "syndromeMatchAny": [
+                "肝阳暴亢",
+                "肝阳上亢",
+                "风阳上扰"
+              ],
+              "addPoints": [
+                "太冲",
+                "太溪"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "stroke-wind-phlegm",
+              "syndromeLabel": "风痰阻络",
+              "syndromeMatchAny": [
+                "风痰阻络",
+                "风痰"
+              ],
+              "addPoints": [
+                "丰隆",
+                "合谷"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "stroke-phlegm-heat-fu",
+              "syndromeLabel": "痰热腑实",
+              "syndromeMatchAny": [
+                "痰热腑实",
+                "痰热"
+              ],
+              "addPoints": [
+                "曲池",
+                "内庭",
+                "丰隆"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "stroke-qi-deficiency-stasis",
+              "syndromeLabel": "气虚血瘀",
+              "syndromeMatchAny": [
+                "气虚血瘀",
+                "气虚"
+              ],
+              "addPoints": [
+                "气海",
+                "血海"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "stroke-yin-deficiency-wind",
+              "syndromeLabel": "阴虚风动",
+              "syndromeMatchAny": [
+                "阴虚风动",
+                "阴虚阳亢"
+              ],
+              "addPoints": [
+                "太溪",
+                "风池"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "facial-palsy-wind-cold",
+              "syndromeLabel": "风寒外袭",
+              "syndromeMatchAny": [
+                "风寒外袭",
+                "风寒阻络",
+                "风寒"
+              ],
+              "addPoints": [
+                "风池",
+                "风府"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            },
+            {
+              "id": "facial-palsy-wind-heat",
+              "syndromeLabel": "风热侵袭",
+              "syndromeMatchAny": [
+                "风热侵袭",
+                "风热阻络",
+                "风热"
+              ],
+              "addPoints": [
+                "外关",
+                "关冲"
+              ],
+              "sourceRefs": [
+                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            }
+          ]
         }
       ]
     },

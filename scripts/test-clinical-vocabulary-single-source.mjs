@@ -81,6 +81,16 @@ const ALLOWLIST = new Map([
   ["src/lib/result-display-policy.ts", "风险呈现分级的文案模式。"],
   ["src/lib/clinical-governance-tables.ts", "本身即受治理生成物(clinical-governance-static-tables)的读取层,其词表来自生成物;文件内剩余为结构判据。"],
   ["src/lib/followup-safety-net.ts", "随访动作词(复诊/急诊/转诊)。属临床动作而非证候术语;待受治理疗法词表补充动作维度后迁移。"],
+  ["src/lib/clinical-evidence-display.ts",
+    "呈现层的「可鉴别四诊事实」排序启发式。原样迁自 DiagnosisClient.tsx(该文件以「前端呈现文案」豁免在册)——" +
+    "2026-08-10 上提到 lib 是为了让 Markdown 与 HIS 两个出口消费同一个谓词,词表内容一字未改。" +
+    "它**不创造也不判断**任何临床事实:输入只能是已签名载荷里已经选定的事实,输出只是这些事实的排序与去重。" +
+    "漂移的后果止于「哪条依据排在前面」,不改变任何结论。待建呈现层词表来源后与 DiagnosisClient 条目一并迁出。"],
+  ["src/lib/emergency-clearance-contract.ts",
+    "急症排查确认的**客观证据模态词**(心电图/复测/转诊交接…)。与 followup-safety-net 的动作词同类:" +
+    "它判断的是「医生这句留痕有没有指向一件做过的事」,不对患者做任何临床判断,也不参与证候/方药语义。" +
+    "刻意与受治理词表**解耦**的理由与 diagnosis-safety.ts 相同——这是安全边界:该表短于实际时结果偏严" +
+    "(不解除急诊约束),而上游数据变更绝不能让它变松。待与安全词表一并建立带 sourceRef 的独立受治理来源。"],
   ["src/lib/herb-target-contract.ts", "君臣佐使等 schema 枚举字面量,不是可漂移词表。"],
 
   // ── 真正的中医术语层:已确认待迁移,列入下一轮 ──

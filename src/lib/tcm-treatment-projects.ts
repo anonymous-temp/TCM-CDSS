@@ -27,6 +27,39 @@ export const TCM_TREATMENT_INDICATION_TAGS = [
 export type TcmTreatmentProjectCode = typeof TCM_TREATMENT_PROJECT_CODES[number];
 export type TcmTreatmentIndicationTag = typeof TCM_TREATMENT_INDICATION_TAGS[number];
 export type TcmTreatmentProjectRisk = "low" | "moderate" | "specialist";
+/**
+ * 证型加减层（甲方 2026-08-10 ⑪）。
+ *
+ * 本目录此前 25 条 planTemplates 的 matchAny **无一含寒热虚实**，命中判据是病名字符串；
+ * 400 穴目录的 indications 文本里也根本没有性质词，匹配面为零。于是实测结果是：
+ * 甲流「风寒束表」与「风热犯表」、不寐「心脾两虚」与「肝火扰心」、胃痞「湿热中阻」与
+ * 「脾胃虚寒」、右膝痹「寒湿」与「湿热」——四组八例的穴位**逐字相同**，
+ * 而 protocolStatus 八次都写着 governed_patient_specific_plan。
+ *
+ * 加减层不是把病种模板换掉，而是在它之上加一层**二次判据**：
+ * 只有先命中病种模板（matchAny）、再命中本例已签名证候（syndromeMatchAny），
+ * 才算「按本例证型加减过」。两把钥匙缺一，protocolStatus 只能是
+ * governed_class_template_not_syndrome_tailored——命中了标准取穴模板，但没按证型加减。
+ * 这样既不会让「风寒」二字在别的病种上乱命中，也不会再把病种级模板冒充成个体化方案。
+ */
+export type TcmTreatmentSyndromeRefinement = {
+  id: string;
+  /** 医生可读的证型名，进呈现层与 HIS。 */
+  syndromeLabel: string;
+  /** 证型判据：逐字命中**已签名**证候/病机/治法文本才成立，不看病历原文。 */
+  syndromeMatchAny: readonly string[];
+  /** 该证型在主穴之上加的配穴（教材/指南级配穴表）。 */
+  addPoints: readonly string[];
+  /**
+   * 该证型下必须从主穴里剔除的穴位。
+   * 确定性层没有能力判「关元宜不宜湿热」——穴位目录只有 indications 与 operation，
+   * 没有寒热温凉/补泻宜忌属性列。因此闸门做在**证型配穴表**这一层：
+   * 关元只出现在虚寒类加减里，湿热类把它剔除，判据来自权威配穴表而不是我们自造的词表。
+   */
+  removePoints?: readonly string[];
+  sourceRefs: readonly string[];
+};
+
 export type TcmTreatmentPlanTemplate = {
   id: string;
   indicationTag: TcmTreatmentIndicationTag;
@@ -36,6 +69,7 @@ export type TcmTreatmentPlanTemplate = {
   scheduleSuggestion: string;
   sourceRefs: readonly string[];
   parameterCompleteness: string;
+  syndromeRefinements?: readonly TcmTreatmentSyndromeRefinement[];
 };
 
 export type TcmTreatmentProjectDefinition = {
@@ -198,6 +232,33 @@ export function governedTcmTreatmentPlanTemplateForTags(
     if (matched) return matched;
   }
   return undefined;
+}
+
+/**
+ * 在**已命中的病种模板内部**，按已签名证候文本挑证型加减。
+ *
+ * 判据刻意只看已签名的证候/病机/治法文本，不看病历原文：「按本例证型加减」说的是证型，
+ * 病历里出现「淋雨受寒」不等于辨证结论是风寒束表。取不到证型时返回 undefined，
+ * 呈现层据此如实标注「尚未按本例证型加减」——不猜、不外推。
+ *
+ * 同一模板下多条加减同时命中时取匹配词最长的一条（最具体者优先），
+ * 同长时按 id 稳定排序，保证结果可复现、不随目录排列漂移。
+ */
+export function governedTcmTreatmentSyndromeRefinement(
+  template: TcmTreatmentPlanTemplate,
+  signedSyndromeText: string,
+): TcmTreatmentSyndromeRefinement | undefined {
+  const normalized = String(signedSyndromeText || "").normalize("NFKC");
+  if (!normalized.trim()) return undefined;
+  const matched = (template.syndromeRefinements || []).flatMap((refinement) => {
+    const hits = refinement.syndromeMatchAny.filter((term) => normalized.includes(term));
+    return hits.length > 0
+      ? [{ refinement, weight: Math.max(...hits.map((term) => term.length)) }]
+      : [];
+  });
+  if (matched.length === 0) return undefined;
+  return matched.sort((left, right) =>
+    right.weight - left.weight || left.refinement.id.localeCompare(right.refinement.id))[0].refinement;
 }
 
 /**

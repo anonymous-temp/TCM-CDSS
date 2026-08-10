@@ -118,17 +118,29 @@ const prescribeWith = (fn) => `前言\n${START}\n${JSON.stringify({
     { name: "茯苓", role: "臣", targetPathogenesis: "痰湿中阻", function: fn },
   ] }] },
 })}\n${END}\n后语`;
-const functionAfter = (fn) => {
-  const out = applyDeterministicHerbFunctions(prescribeWith(fn));
+const functionAfter = (fn, opts) => {
+  const out = applyDeterministicHerbFunctions(prescribeWith(fn), opts);
   const parsed = JSON.parse(out.slice(out.indexOf(START) + START.length, out.indexOf(END)).trim());
   return String(parsed.formula.candidates[0].herbs[0].function || "");
 };
 const BOILERPLATE = /^(?:君|臣|佐|使|配伍)药，.*需医生结合方义复核$/;
 ok("模型写的、能接地的方义被保留", functionAfter("健脾渗湿，杜生痰之源") === "健脾渗湿，杜生痰之源");
-ok("模型留空时回落服务端文本", BOILERPLATE.test(functionAfter("")));
-// 高影响方向必须有该药 KB 佐证——茯苓不收载清热活血。
-ok("编造高影响方向被驳回并回落", BOILERPLATE.test(functionAfter("清热活血，破血逐瘀")));
-ok("营销词被驳回并回落", BOILERPLATE.test(functionAfter("美容养颜，延年益寿")));
+// ── 甲方 2026-08-10 ⑤：兜底分两段 ──────────────────────────────────────────────
+// 服务端此前在**契约校验之前**就把角色兜底句写进 function，而契约又显式放行该句，
+// 于是 candidate_*_herb_*_function(_ungrounded) 永不触发、那轮修复指导语成了死代码，
+// 医生看到的就是「臣药，本方中的具体配伍作用需医生结合方义复核」这句零内容套话。
+ok("契约前留空不被兜底句顶上（否则修复轮永远不会被唤起）", functionAfter("") === "");
+ok("finalize（修复耗尽）才补兜底句，医生不会看到空栏", BOILERPLATE.test(functionAfter("", { fillRolePlaceholder: true })));
+// 高影响方向必须有该药 KB 佐证——茯苓不收载清热活血。契约前保留原文以便修复轮定位，
+// 但它绝不能活到医生面前：finalize 一定把它换成 KB 对齐串或兜底句。
+ok("编造高影响方向不得活过 finalize", (() => {
+  const finalized = functionAfter("清热活血，破血逐瘀", { fillRolePlaceholder: true });
+  return !/清热活血|破血逐瘀/.test(finalized);
+})());
+ok("营销词不得活过 finalize", (() => {
+  const finalized = functionAfter("美容养颜，延年益寿", { fillRolePlaceholder: true });
+  return !/美容养颜|延年益寿/.test(finalized);
+})());
 // 提示词必须真的向模型要这个字段——否则「交回模型」只是空话。
 {
   const prompts = await import("node:fs").then((fs) =>

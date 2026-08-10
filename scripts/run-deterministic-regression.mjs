@@ -224,6 +224,9 @@ const scripts = [
   "test:phi-clinical-collision",
   "test:output-quality",
   "test:customer-review",
+  // 甲方 2026-08-10 复核清单：急症排查确认的内容判据、symptoms 自由文本、方义占位句与修复轮、
+  // 证型配穴、指南依据回写契约、依据排序三出口同源、加减风险提示、复核措辞拓扑一致、库存分片。
+  "test:customer-review-20260810",
   "test:governed-data-reachability",
   "test:m03-entry",
   "test:m02-contract",

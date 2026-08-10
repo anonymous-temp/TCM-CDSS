@@ -4,6 +4,7 @@ import {
   TCM_TREATMENT_PROJECTS,
   getTcmTreatmentProjectDefinition,
   governedTcmTreatmentPlanTemplateForTags,
+  governedTcmTreatmentSyndromeRefinement,
   isKnownTcmTreatmentProjectCode,
   parseTcmTreatmentCapabilities,
   tcmTreatmentTemplatePointsAreGoverned,
@@ -59,7 +60,11 @@ const INDICATION_PATTERNS: ReadonlyArray<readonly [TcmTreatmentIndicationTag, Re
   ["headache", /头痛|偏头痛|头胀|头部疼痛/],
   ["sleep_emotion", /不寐|失眠|入睡困难|易醒|多梦|焦虑|抑郁|情志|心神|烦躁/],
   ["upper_airway", /鼻鼽|鼻渊|变应性鼻炎|过敏性鼻炎|非变应性鼻炎|鼻塞|鼻痒|喷嚏|清涕|流涕|鼻窍/],
-  ["respiratory", /咳嗽|咳痰|气喘|哮喘|喘鸣|呼呼响|憋醒|活动后喘|上楼喘|劳力性气短|肺气|肺失|支气管|呼吸|胸闷气短/],
+  // 感冒/流感必须在词表里：针刺目录的 acupuncture-influenza-hunan-2025 模板 matchAny 是
+  // 「流感/流行性感冒」，而本词表 respiratory 此前只收咳喘类词——于是一例「流行性感冒 风寒束表、
+  // 恶寒重发热轻、流清涕」只命中 upper_airway（来自「清涕」），upper_airway 没有针刺模板，
+  // 整例落回评估态，流感模板永远够不着。这正是本文件 :146 注释里写过的「两张表各自漂移」。
+  ["respiratory", /感冒|流感|流行性感冒|咳嗽|咳痰|气喘|哮喘|喘鸣|呼呼响|憋醒|活动后喘|上楼喘|劳力性气短|肺气|肺失|支气管|呼吸|胸闷气短/],
   ["digestive", /痞满|胃脘|脘腹|脘胀|上腹(?:部)?胀|饭后(?:不适|胀|饱胀)|餐后不适|早饱|嗳气|打嗝|胃气|胃失(?:和降|通降)|腹胀|腹痛|腹泻|泄泻|便秘|纳差|反酸|烧心|呕吐|恶心|胃肠|脾胃|消化/],
   ["musculoskeletal_pain", /颈肩|颈项|颈部|颈椎|颈肌|脖子|腰腿|腰痛|膝痛|关节|骨关节|肌筋膜|经筋|筋骨|痹阻|痹证|活动受限|疼痛/],
   ["metabolic_rehabilitation", /肥胖|超重|糖尿病|血糖|血脂|代谢|体重|脂肪肝/],
@@ -89,21 +94,10 @@ const PROJECT_TAG_AFFINITY: Readonly<Partial<Record<TcmTreatmentProjectCode, Par
   qigong_daoyin: { respiratory: 100, musculoskeletal_pain: 80, neurologic_rehabilitation: 95, movement_disorder: 100, sleep_emotion: 90, metabolic_rehabilitation: 95 },
 };
 
-const INDICATION_LABEL: Record<TcmTreatmentIndicationTag, string> = {
-  digestive: "脾胃与消化症状",
-  respiratory: "咳喘与呼吸功能",
-  upper_airway: "鼻窍与上气道症状",
-  musculoskeletal_pain: "局部疼痛与活动受限",
-  neurologic_rehabilitation: "神经功能康复",
-  dizziness_balance: "眩晕与平衡功能",
-  movement_disorder: "运动功能障碍",
-  gynecology: "经带与下腹症状",
-  dermatology: "皮肤症状",
-  headache: "头痛症状",
-  sleep_emotion: "睡眠与情志症状",
-  metabolic_rehabilitation: "代谢与体重管理",
-  anorectal: "肛肠局部症状",
-};
+// INDICATION_LABEL（适应证标签 → 症状域显示名）已删除：它唯一的运行时用途就是被治理分支
+// 拿来当作「本例围绕什么」印给医生，而标签的匹配面宽于显示名——「头胀」因此被写成「头痛症状」、
+// 「产后」被写成「经带与下腹症状」（甲方 2026-08-04 / 2026-08-10 ⑪ 两轮同一条）。
+// 现在两个分支一律只引用 indicationEvidenceTerms（病历原文落点）或模板 matchAny 命中的原词。
 
 /**
  * 用 T12 穴位目录（《经络腧穴学》399 穴：361 经穴 + 印堂 + 37 奇穴）标注模板穴位。
@@ -185,7 +179,7 @@ function resolveTreatmentIndication(
 
 /**
  * 该适应证在**本例病历原文**里的落点。评估态卡片只能引用这些落点，不能改口成
- * INDICATION_LABEL 里的症状域名称——后者是标签的显示名，覆盖面窄于标签本身的匹配面，
+ * 适应证标签的症状域显示名——显示名覆盖面窄于标签本身的匹配面，
  * 于是"产后"匹配上 gynecology 之后被显示成"经带与下腹症状"，写出了病历里没有的症状。
  */
 function indicationEvidenceTerms(tag: TcmTreatmentIndicationTag, caseFacts: string): string[] {
@@ -211,12 +205,47 @@ function acupointCaseTerms(clinicalText: string, caseFacts: string, targetPathog
   return [...new Set([...source.matchAll(SYMPTOM_SCAN)].map((match) => match[0]))];
 }
 
+/**
+ * 治理模板穴位的**逐穴触发事实绑定**（甲方 2026-08-10 ⑪）。
+ *
+ * 评估分支早就在做这件事（「合谷（LI4·主治含恶寒、发热）」），治理分支却只印裸穴名，
+ * 于是医生看得到「标准方案」四个字、看不到「凭什么是这几个穴」。同一判据只铺了一处。
+ * 核验不到的穴名保持原样——「哪些是受控穴位」在界面上仍然一眼可分。
+ */
+function annotateGovernedTemplatePoint(
+  projectCode: TcmTreatmentProjectCode,
+  site: string,
+  caseTerms: readonly string[],
+  syndromeLabel?: string,
+): string {
+  // 模板穴名本身可能已带括注（「太阳或率谷（按疼痛部位复核）」）。标注必须**并入同一个括号**，
+  // 否则会印成「太阳或率谷（按疼痛部位复核）（EX-HN5·…）」两组括号。
+  const existingNote = site.match(/（([^）]*)）\s*$/)?.[1] || "";
+  const bareSite = existingNote ? site.slice(0, site.lastIndexOf("（")) : site;
+  const wrap = (parts: readonly string[]) => {
+    const inner = [existingNote, ...parts].filter(Boolean).join("；");
+    return inner ? `${bareSite}（${inner}）` : bareSite;
+  };
+  if (projectCode === "auricular") return wrap(syndromeLabel ? [`${syndromeLabel}加减`] : []);
+  const entry = resolveAcupoint(site);
+  if (!entry) return wrap(syndromeLabel ? [`${syndromeLabel}加减`] : []);
+  const meridian = entry.meridian && entry.meridian !== entry.name ? `·${entry.meridian}` : "";
+  const indicationText = (entry.indications || []).join("；");
+  const matchedTerms = caseTerms.filter((term) => indicationText.includes(term)).slice(0, 3);
+  const trigger = syndromeLabel
+    ? `·${syndromeLabel}加减`
+    : matchedTerms.length > 0 ? `·主治含${matchedTerms.join("、")}` : "";
+  return wrap([`${entry.code}${meridian}${trigger}`]);
+}
+
 function controlledTreatmentPlan(
   projectCode: TcmTreatmentProjectCode,
   tags: ReadonlySet<TcmTreatmentIndicationTag>,
   targetPathogenesis: string,
   clinicalText: string,
   caseFacts: string,
+  /** 已签名的证候/病机/治法文本。证型加减只看它，不看病历原文——见 syndromeRefinements 注释。 */
+  signedSyndromeText: string,
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap"
@@ -229,21 +258,52 @@ function controlledTreatmentPlan(
     // （见 tcmTreatmentTemplatePointsAreGoverned）。它照常呈现，但归到操作边界一行，
     // 不再冒充穴位——医生看到的「常用穴位」必须是穴位。
     const pointsGoverned = tcmTreatmentTemplatePointsAreGoverned(governedTemplate);
+    const refinement = governedTcmTreatmentSyndromeRefinement(governedTemplate, signedSyndromeText);
+    const caseTerms = acupointCaseTerms(clinicalText, caseFacts, targetPathogenesis);
+    const removed = new Set(refinement?.removePoints || []);
+    const basePoints = governedTemplate.sitesOrPoints.filter((site) => !removed.has(site));
+    const points = pointsGoverned
+      ? [
+          ...basePoints.map((site) => annotateGovernedTemplatePoint(projectCode, site, caseTerms)),
+          ...(refinement?.addPoints || [])
+            .filter((site) => !basePoints.includes(site))
+            .map((site) => annotateGovernedTemplatePoint(projectCode, site, caseTerms, refinement?.syndromeLabel)),
+        ]
+      : [];
+    // 「围绕什么」只能引用**病历/已签名结论里真实出现的字**，不能改口成适应证标签的
+    // 症状域显示名——后者覆盖面窄于标签本身的匹配面，于是「头胀」被写成了「头痛症状」
+    //（甲方 2026-08-10 ⑪）。indicationEvidenceTerms 早就为同一个缺陷写好了，
+    // 当初只铺到评估分支，治理分支漏了；又是一次同判据只铺一处。
+    //
+    // 举不出落点时**一个症状域也不说**（与评估分支同口径）：宁可少一句，也不能给一个
+    // 只感冒、无咳嗽的病人写「围绕咳喘与呼吸功能」。退而求其次先用本模板真正命中的
+    // matchAny 原词（如「流行性感冒」），它逐字来自本例文本，仍然是可核对的落点。
+    const evidenceTerms = indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts);
+    const matchedTemplateTerms = governedTemplate.matchAny
+      .filter((term) => clinicalText.normalize("NFKC").includes(term))
+      .slice(0, 3);
+    const groundedTerms = evidenceTerms.length > 0 ? evidenceTerms : matchedTemplateTerms;
+    const focus = groundedTerms.length > 0 ? `围绕本例的「${groundedTerms.join("、")}」` : "";
     return {
       // 甲方评测(2026-08-04) 第 3 条：治疗内容不再内嵌病机原文。
       // 同一个对象已经带 targetPathogenesis 字段，渲染层单独成行；内嵌等于每个项目块把同一句病机
       // 印两遍，N 个项目就是 2N 遍。病机归病机字段，治疗内容只写这个项目本身的边界。
-      treatmentContent: `本例适用标准项目方案，围绕${INDICATION_LABEL[governedTemplate.indicationTag]}由现场医师复核后实施。`,
-      suggestedSitesOrPoints: pointsGoverned
-        ? governedTemplate.sitesOrPoints.map((site) => annotateGovernedAcupoint(projectCode, site))
-        : [],
+      treatmentContent: refinement
+        ? `本例适用标准项目方案，${[focus, `按已签名证候「${refinement.syndromeLabel}」加减取穴`].filter(Boolean).join("并")}，由现场医师复核后实施。`
+        : `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，由现场医师复核后实施；本轮尚未按本例证型加减，请按本例寒热虚实增减。`,
+      suggestedSitesOrPoints: points,
       scheduleSuggestion: governedTemplate.scheduleSuggestion,
       techniqueBoundary: pointsGoverned
         ? governedTemplate.techniqueBoundary
         : [governedTemplate.techniqueBoundary, ...governedTemplate.sitesOrPoints].filter(Boolean).join("；"),
-      protocolSource: governedTemplate.sourceRefs.join("、"),
-      protocolStatus: "governed_patient_specific_plan",
-      protocolGap: undefined,
+      protocolSource: [...new Set([...governedTemplate.sourceRefs, ...(refinement?.sourceRefs || [])])].join("、"),
+      // 只有**两把钥匙都对上**（病种模板 + 本例已签名证型）才算个体化方案。
+      // 此前一律写 governed_patient_specific_plan，而四组八例的穴位逐字相同——
+      // 那个标签说的不是这一次实际发生的事。
+      protocolStatus: refinement
+        ? "governed_patient_specific_plan"
+        : "governed_class_template_not_syndrome_tailored",
+      protocolGap: refinement ? undefined : "syndrome_refinement_not_matched",
     };
   }
 
@@ -748,6 +808,17 @@ export function compileTcmTreatmentRecommendations(
       node.pathogenesis || node.syndromeEvidence || prior.overview.overallPathogenesis,
       treatmentClinicalText(prior, node, caseFacts),
       caseFacts,
+      // 证型加减只读**已签名结论**：证候名、总病机、治法与本节点病机/辨证依据/治法方向。
+      // 病历原文（caseFacts）刻意排除——「淋雨受寒」不等于辨证结论是风寒束表。
+      [
+        prior.overview.primarySyndrome,
+        prior.overview.overallPathogenesis,
+        prior.therapy.overallPrinciple,
+        prior.therapy.overallMethod,
+        node.pathogenesis,
+        node.syndromeEvidence,
+        node.therapyDirection,
+      ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；"),
     );
     return [{
       projectCode: definition.code,

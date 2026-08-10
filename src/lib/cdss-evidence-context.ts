@@ -4,7 +4,7 @@ import { buildExternalEvidenceContext } from "./evimed-guide";
 import { buildFormulaProvenanceContext } from "./tcm-formula-provenance";
 import { buildTcmKnowledgeContext } from "./tcm-knowledge";
 import { sanitizeCustomerEvidenceDocument, sanitizeInlineEvidenceClaims, sanitizeLabeledEvidenceLines } from "./customer-evidence";
-import { buildEvidenceScope, medicineEvidenceBindingValid, medicineProblemMatchesCase, sanitizeEvidenceObject, sourceAllowed, sourceSupportsMedicine, type EvidenceScope } from "./evidence-source-validation";
+import { buildEvidenceScope, governedEvidenceCitation, medicineEvidenceBindingValid, medicineProblemMatchesCase, sanitizeEvidenceObject, sourceAllowed, sourceSupportsMedicine, type EvidenceScope } from "./evidence-source-validation";
 import { buildLocalPatentMedicineContext } from "./local-patent-medicine-candidates";
 import { buildClinicalDecisionCardContext } from "./tcm-clinical-decision-cards";
 import type { AssistedNegationClauses } from "./clinical-polarity";
@@ -60,6 +60,46 @@ export function appendEvidenceContext(prompt: string, evidenceContext: string): 
   return `${prompt}\n\n${evidenceContext}\n\n证据引用强约束：输出中的“证据依据/引用来源/依据”只能引用上方资料中的方括号ID、真实题名、真实URL、真实说明书/药典来源或本地知识库已给出的来源字段。未命中时省略客户正文里的来源字段，结构化 evidence 使用 evidenceLevel=insufficient、source=内部证据缺口；严禁向客户输出“证据不足/待检索/检索失败/未配置”等内部状态，也不得编造指南、文献题名、说明书、批准文号、年份、链接、DOI或不存在的院内规则。`;
 }
 
+/**
+ * 指南/文献依据的**回写契约**（甲方 2026-08-10 ⑩）。
+ *
+ * 检索侧一直是通的：`[EVID-GUIDE-002] 中国咳嗽基层诊疗与管理指南（2024年）（中华医学会
+ * 呼吸病学分会，2024）` 就摆在同一次调用的 prompt 里。缺的是**回写**：模型只会写
+ * `{"evidenceLevel":"model_inference","source":"病例内推理"}`——而那正是提示词模板预填给它的值，
+ * 也正是呈现层 governedGuidelineReferences 第一个排除掉的值。模板在教模型填一个
+ * 呈现层保证会丢掉的东西，于是「指南/文献依据」栏自诞生起产出 0 条。
+ *
+ * 修法照搬已跑通的 EVID-INST 形状：模型只回 evidenceId + 一句 appliesTo，
+ * 服务端在这里按 id 反查条目、渲染题名/机构/年份/URL，然后**删掉模型侧字段**——
+ * 模型无法引入任何新字符串。集外 id 直接丢弃；一条都取不到就不写这一栏
+ *（= 今天的行为），绝不回落到自撰题名。
+ */
+function resolveGovernedGuidelineReferences(payload: Record<string, unknown>, scope: EvidenceScope): void {
+  const western = payload.westernDiagnosis;
+  if (!western || typeof western !== "object" || Array.isArray(western)) return;
+  const primary = (western as { primary?: unknown }).primary;
+  if (!primary || typeof primary !== "object" || Array.isArray(primary)) return;
+  const record = primary as Record<string, unknown>;
+  const claimed = Array.isArray(record.guidelineRefs) ? record.guidelineRefs : [];
+  const resolved: Array<{ evidenceId: string; citation: string; url?: string; appliesTo?: string }> = [];
+  const seen = new Set<string>();
+  for (const entry of claimed) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const item = entry as { evidenceId?: unknown; appliesTo?: unknown };
+    const citation = governedEvidenceCitation(item.evidenceId, scope);
+    if (!citation || seen.has(citation.evidenceId)) continue;
+    seen.add(citation.evidenceId);
+    // appliesTo 是模型唯一能写的字段，且只是「这条支持本例哪一点」的一句话；
+    // 它不承载题名/机构/年份，因此不构成伪造引用的通道。超长即截断。
+    const appliesTo = typeof item.appliesTo === "string" ? item.appliesTo.trim().slice(0, 120) : "";
+    resolved.push({ ...citation, ...(appliesTo ? { appliesTo } : {}) });
+    if (resolved.length >= 3) break;
+  }
+  delete record.guidelineRefs;
+  if (resolved.length > 0) record.guidelineReferences = resolved;
+  else delete record.guidelineReferences;
+}
+
 function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medicineCaseText = ""): string {
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
@@ -75,6 +115,7 @@ function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medic
         };
         const sanitized = sanitizeEvidenceObject(parsed, scope, EVIDENCE_LEVELS);
         if (sanitized && typeof sanitized === "object" && !Array.isArray(sanitized)) {
+          resolveGovernedGuidelineReferences(sanitized as Record<string, unknown>, scope);
           const formula = (sanitized as { formula?: unknown }).formula;
           if (formula && typeof formula === "object" && !Array.isArray(formula)) {
             const record = formula as { patentAndWestern?: unknown };

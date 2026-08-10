@@ -11,19 +11,30 @@ import { drugInventorySnapshot, importDrugInventory } from "@/lib/drug-inventory
  */
 
 // 2 万条药品条目的 JSON 上限。按院内中药饮片 + 中成药常见规模留足余量，
-// 超限明确回 413 并要求分批，而不是截断——截断会让被截掉的药全部变成「缺货」。
+// 超限明确回 413 并给出**分片整批替换**通路，而不是截断——截断会让被截掉的药全部变成「缺货」。
+// 注意「分片」不等于「分批各自落盘」：本接口是整批替换，分片只写暂存，集齐才提交一次
+// （甲方 2026-08-10 ⑫④：旧 413 文案 split into batches 会让第一批被第二批整体覆盖）。
 const MAX_BODY_BYTES = 8_000_000;
 
 export async function POST(req: Request) {
   const parsed = await readJsonBodyWithLimit(req, MAX_BODY_BYTES);
   if (!parsed.ok) return parsed.response;
   const body = parsed.body && typeof parsed.body === "object" && !Array.isArray(parsed.body)
-    ? parsed.body as { source?: unknown; items?: unknown }
+    ? parsed.body as { source?: unknown; items?: unknown; part?: unknown }
     : {};
 
   const result = await importDrugInventory(body);
   if (!result.ok) {
     return Response.json({ error: result.error, code: result.code }, { status: result.status });
+  }
+  if ("pending" in result) {
+    // 202：分片已收下但还没到齐。线上库存此刻**未被改动**，这一点必须显式回给甲方，
+    // 否则「收到 200」会被理解成「这一批已经生效」，正是旧文案造成的误解。
+    return Response.json({
+      ...result.pending,
+      note: `已暂存第 ${result.pending.receivedParts.join("、")} 片，仍缺第 ${result.pending.missingParts.join("、")} 片。`
+        + " 集齐全部分片后系统才会做一次整批替换；在此之前线上库存保持上一版本不变。",
+    }, { status: 202 });
   }
   return Response.json({
     ...result.snapshot,

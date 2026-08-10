@@ -680,15 +680,44 @@ thunderclapEmergency.pulse = "脉来浮而紧";
 const thunderclapGate = evaluateSafetyGate(thunderclapEmergency);
 assert.equal(thunderclapGate.status, "red_flag");
 assert.match(thunderclapGate.redFlagFindings?.[0]?.sourceQuote || "", /最剧烈头痛/);
+const thunderclapAttestations = (thunderclapGate.redFlagFindings || []).map((finding) => ({
+  ruleId: finding.ruleId,
+  message: finding.message,
+  disposition: "excluded_by_objective_workup",
+  basis: "已完成头颅CT与神经系统查体，未见蛛网膜下腔出血或局灶体征",
+}));
 const clearedThunderclap = {
   ...thunderclapEmergency,
   emergencyClearance: {
     redFlagFingerprint: redFlagClearanceFingerprint(thunderclapGate),
     confirmedAt: "2026-07-28T08:00:00.000Z",
     assessmentSummary: "急诊影像及神经系统评估已排除急性神经血管事件",
+    findings: thunderclapAttestations,
     contractSignature: `hmac-sha256:${"a".repeat(64)}`,
   },
 };
+// 甲方 ⑫⑤：内容判据此前只有 assessmentSummary 的字数，一句废话即可清空全部确定性红旗。
+// 安全门这一处与签发端跑同一个导出谓词，因此在这里也必须拦得住。
+assert.equal(
+  evaluateSafetyGate({
+    ...clearedThunderclap,
+    emergencyClearance: { ...clearedThunderclap.emergencyClearance, findings: undefined },
+  }).status,
+  "red_flag",
+  "缺少逐条处置留痕的排查确认不得解除急诊拦截",
+);
+assert.equal(
+  evaluateSafetyGate({
+    ...clearedThunderclap,
+    emergencyClearance: {
+      ...clearedThunderclap.emergencyClearance,
+      assessmentSummary: "今天天气不错今天天气不错今天天气不错",
+      findings: thunderclapAttestations.map((item) => ({ ...item, basis: "今天天气不错今天天气不错" })),
+    },
+  }).status,
+  "red_flag",
+  "客观依据里没有做过的事时，排查确认不得解除急诊拦截",
+);
 const clearedThunderclapGate = evaluateSafetyGate(clearedThunderclap);
 assert.notEqual(clearedThunderclapGate.status, "red_flag", "doctor clearance bound to the current findings should restore the ordinary workflow");
 assert.equal(clearedThunderclapGate.allowDiagnosis, true);

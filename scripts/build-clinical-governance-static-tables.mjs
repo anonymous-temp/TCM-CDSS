@@ -273,6 +273,43 @@ const sources = [
     scope: "肥胖等适应证的穴位埋线项目介绍及两周一次、4至5次的门诊排程参考；必须由专科医生现场评估",
     accessedAt: "2026-07-23",
   },
+  {
+    id: "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014",
+    title: "循证针灸临床实践指南：失眠（T/CAAM 011-2014）",
+    publisher: "中国针灸学会",
+    sourceType: "society_group_standard",
+    authorityTier: "professional_society_standard",
+    locator: "https://www.ndls.org.cn/standard/detail/e02e12e288c96b7f1792b04c8feea9c7",
+    publishedDate: "2014-05-31",
+    scope: "失眠的针灸治疗原则、主穴与心脾两虚/心肾不交/心胆气虚/肝火扰神等证型配穴；现行团体标准",
+    accessedAt: "2026-08-10",
+  },
+  {
+    id: "SRC-CAAM-DYSMENORRHEA-POINTS",
+    title: "痛经（中国针灸学会科普条目）",
+    publisher: "中国针灸学会",
+    sourceType: "professional_society_clinical_reference",
+    authorityTier: "professional_society_reference",
+    locator: "https://www.caam.cn/article/688",
+    publishedDate: "2024-01-01",
+    scope: "痛经实证/虚证主穴与寒凝血瘀、气滞血瘀、气血虚弱、肾气亏损证型配穴",
+    accessedAt: "2026-08-10",
+  },
+  {
+    // 教材级证型配穴表。**authorityTier 如实标为 project_governed_source**：
+    // 内容按公开的《针灸学》规划教材大纲多源交叉核对录入，但本项目没有版次页码级的可核验定位，
+    // 因此它不冒充国标或团体标准。甲方权威方案核准后可升格并替换本条 —— 升格只需改这一条登记，
+    // planTemplates 里的 sourceRefs 引用的是 id，不需要动数据。
+    id: "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE",
+    title: "《针灸学》规划教材证型配穴表（多源交叉核对录入）",
+    publisher: "中医 CDSS 项目治理录入",
+    sourceType: "textbook_syndrome_point_table",
+    authorityTier: "project_governed_source",
+    locator: "src/data/tcm-nondrug-treatment-evidence-catalog.json#planTemplates[].syndromeRefinements",
+    publishedDate: "2026-08-10",
+    scope: "感冒/咳嗽/不寐/胃痞胃痛/头痛/痛经/痹证/中风面瘫的证型配穴；仅作医师参考证据，executable=false 边界不变，待权威方案核准后升格",
+    accessedAt: "2026-08-10",
+  },
   localSource(
     "SRC-REFERENCE-NISHI-ACUPUNCTURE",
     "nihaisha-nishi-tcm 针灸课程证据索引",
@@ -646,6 +683,26 @@ const exactStandard = new Map([
   ["guasha", ["SRC-GBT-21709-22-2013-GUASHA", "SRC-TCM-INFECTION-CONTROL"]],
   ["medicated_bath", ["SRC-GBT-40666-2021-MEDICATED-BATH"]],
 ]);
+/**
+ * 证型配穴表（甲方 2026-08-10 ⑪ 第二步）。
+ *
+ * 录入前的实测状态：25 条 planTemplates 的 matchAny **无一含寒热虚实**，400 穴目录的
+ * indications 里也没有性质词，于是甲流风寒/风热、不寐心脾两虚/肝火扰心、胃痞湿热中阻/脾胃虚寒、
+ * 右膝痹寒湿/湿热——四组八例穴位逐字相同。命中判据当时就是病名字符串。
+ *
+ * 来源分层，如实标注、不混淆权威度：
+ *  · 不寐  → T/CAAM 011-2014《循证针灸临床实践指南：失眠》（中国针灸学会团体标准，现行）
+ *  · 痛经  → 中国针灸学会官网痛经条目
+ *  · 其余  → 《针灸学》规划教材证型配穴表（多源公开交叉核对录入，authorityTier 为
+ *            project_governed_source，**待甲方权威方案核准后升格**）
+ *
+ * 边界一条未动：executable=false，仍是证据层参考；补泻、深度、留针、禁忌由现场医师定。
+ * 这里只把「凭什么是这几个穴」从「病名对上了」补成「病名对上了 + 本例证型对上了」。
+ */
+const TEXTBOOK_SYNDROME_POINTS = "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE";
+const CAAM_INSOMNIA_GUIDE = "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014";
+const CAAM_DYSMENORRHEA = "SRC-CAAM-DYSMENORRHEA-POINTS";
+
 const governedPlanTemplates = new Map([
   ["acupuncture", [
     {
@@ -661,6 +718,14 @@ const governedPlanTemplates = new Map([
       scheduleSuggestion: "门诊项目频次参考为每日1次；实际间隔与疗程由面诊医生按耐受和复评结果确定。",
       sourceRefs: ["SRC-BEIJING-TCM-DOUBLE-HEART", "SRC-ZIBO-TCM-DAY-FREQUENCY-2022", "SRC-SAMR-ACUPUNCTURE-OPS"],
       parameterCompleteness: "points_and_government_frequency_reference_governed",
+      syndromeRefinements: [
+        { id: "insomnia-heart-spleen-deficiency", syndromeLabel: "心脾两虚", syndromeMatchAny: ["心脾两虚", "心脾气血两虚", "气血不足，心神失养"], addPoints: ["脾俞", "足三里"], sourceRefs: [CAAM_INSOMNIA_GUIDE, TEXTBOOK_SYNDROME_POINTS] },
+        { id: "insomnia-liver-fire", syndromeLabel: "肝火扰心", syndromeMatchAny: ["肝火扰心", "肝火扰神", "肝郁化火", "心肝火旺"], addPoints: ["行间", "侠溪"], removePoints: ["心俞"], sourceRefs: [CAAM_INSOMNIA_GUIDE, TEXTBOOK_SYNDROME_POINTS] },
+        { id: "insomnia-heart-kidney-disharmony", syndromeLabel: "心肾不交", syndromeMatchAny: ["心肾不交", "阴虚火旺", "水火不济"], addPoints: ["太溪", "肾俞"], sourceRefs: [CAAM_INSOMNIA_GUIDE, TEXTBOOK_SYNDROME_POINTS] },
+        { id: "insomnia-heart-gallbladder-timidity", syndromeLabel: "心胆气虚", syndromeMatchAny: ["心胆气虚", "胆虚"], addPoints: ["胆俞"], sourceRefs: [CAAM_INSOMNIA_GUIDE, TEXTBOOK_SYNDROME_POINTS] },
+        { id: "insomnia-phlegm-heat", syndromeLabel: "痰热内扰", syndromeMatchAny: ["痰热内扰", "痰热扰心", "痰火扰心"], addPoints: ["丰隆", "内庭"], removePoints: ["心俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "insomnia-spleen-stomach-disharmony", syndromeLabel: "脾胃不和", syndromeMatchAny: ["脾胃不和", "胃不和则卧不安", "食滞"], addPoints: ["足三里", "公孙"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+      ],
     },
     {
       id: "acupuncture-influenza-hunan-2025",
@@ -671,6 +736,12 @@ const governedPlanTemplates = new Map([
       scheduleSuggestion: "每日1次，每次30分钟。",
       sourceRefs: ["SRC-HUNAN-INFLUENZA-TCM-2025", "SRC-SAMR-ACUPUNCTURE-OPS"],
       parameterCompleteness: "points_frequency_and_duration_governed",
+      syndromeRefinements: [
+        { id: "influenza-wind-cold", syndromeLabel: "风寒束表", syndromeMatchAny: ["风寒束表", "风寒犯表", "风寒袭表", "风寒证", "外感风寒"], addPoints: ["风门", "肺俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "influenza-wind-heat", syndromeLabel: "风热犯表", syndromeMatchAny: ["风热犯表", "风热袭表", "风热证", "外感风热", "热毒袭肺"], addPoints: ["曲池", "尺泽", "大椎"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "influenza-damp", syndromeLabel: "夹湿", syndromeMatchAny: ["湿邪", "夹湿", "暑湿", "寒湿束表"], addPoints: ["阴陵泉"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "influenza-deficiency", syndromeLabel: "体虚感冒", syndromeMatchAny: ["气虚感冒", "体虚感冒", "肺卫气虚", "正虚"], addPoints: ["足三里"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+      ],
     },
     {
       id: "acupuncture-post-infection-respiratory-rehab",
@@ -681,16 +752,37 @@ const governedPlanTemplates = new Map([
       scheduleSuggestion: "每日或隔日1次，每次留针10-25分钟。",
       sourceRefs: ["SRC-BEIJING-COVID-TCM-REHAB-2020", "SRC-SAMR-ACUPUNCTURE-OPS"],
       parameterCompleteness: "syndrome_points_frequency_and_duration_governed",
+      syndromeRefinements: [
+        { id: "cough-wind-cold-lung", syndromeLabel: "风寒袭肺", syndromeMatchAny: ["风寒袭肺", "风寒犯肺", "风寒"], addPoints: ["风门", "肺俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "cough-wind-heat-lung", syndromeLabel: "风热犯肺", syndromeMatchAny: ["风热犯肺", "风热袭肺", "风热"], addPoints: ["大椎", "曲池"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "cough-phlegm-damp-lung", syndromeLabel: "痰湿阻肺", syndromeMatchAny: ["痰湿阻肺", "痰湿蕴肺", "痰浊阻肺"], addPoints: ["丰隆", "阴陵泉"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "cough-liver-fire-lung", syndromeLabel: "肝火灼肺", syndromeMatchAny: ["肝火灼肺", "肝火犯肺"], addPoints: ["行间", "鱼际"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "cough-lung-yin-deficiency", syndromeLabel: "肺阴亏虚", syndromeMatchAny: ["肺阴亏虚", "肺胃阴虚", "气阴两伤", "阴虚"], addPoints: ["膏肓", "太溪"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "cough-lung-spleen-qi-deficiency", syndromeLabel: "肺脾气虚", syndromeMatchAny: ["肺脾气虚", "肺气虚", "脾肺气虚"], addPoints: ["气海", "脾俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+      ],
     },
     {
       id: "acupuncture-digestive-common-outpatient",
       indicationTag: "digestive",
-      matchAny: ["痞满", "功能性消化不良", "便秘", "泄泻", "腹胀"],
-      sitesOrPoints: ["中脘", "双侧天枢", "足三里", "关元（须结合寒热虚实复核）"],
+      matchAny: ["痞满", "胃痞", "胃脘痛", "胃痛", "功能性消化不良", "便秘", "泄泻", "腹胀"],
+      // 关元从主穴里**移走**（甲方 2026-08-10 ⑪）。它此前挂着「（须结合寒热虚实复核）」的括注
+      // 出现在每一个消化类病例上——包括湿热中阻例。那句括注等于把系统判不了的事写成一句免责，
+      // 而关元在权威配穴表里本就只属于虚寒类加减。现在它只出现在 脾胃虚寒 那一条 refinement 里，
+      // 湿热类另有 removePoints 显式剔除，闸门落在配穴表而不是我们自造的寒热词表上。
+      sitesOrPoints: ["中脘", "双侧天枢", "足三里", "内关"],
       techniqueBoundary: "腹部急痛、腹膜刺激征、消化道出血等先按红旗处置；穴位仅为课程索引与门诊病种频次的组合参考。",
       scheduleSuggestion: "门诊项目频次参考为每日1次；每次选穴和疗程须根据症状变化复评。",
       sourceRefs: ["SRC-REFERENCE-NISHI-ACUPUNCTURE", "SRC-ZIBO-TCM-DAY-FREQUENCY-2022", "SRC-SAMR-ACUPUNCTURE-OPS"],
       parameterCompleteness: "supplementary_points_and_government_frequency_reference_governed",
+      syndromeRefinements: [
+        { id: "digestive-spleen-stomach-deficiency-cold", syndromeLabel: "脾胃虚寒", syndromeMatchAny: ["脾胃虚寒", "中焦虚寒", "脾阳不足", "脾阳虚", "胃寒"], addPoints: ["关元", "脾俞", "胃俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "digestive-damp-heat", syndromeLabel: "湿热中阻", syndromeMatchAny: ["湿热中阻", "湿热内蕴", "脾胃湿热", "中焦湿热", "肠腑湿热"], addPoints: ["阴陵泉", "内庭"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "digestive-phlegm-damp", syndromeLabel: "痰湿中阻", syndromeMatchAny: ["痰湿中阻", "痰湿内停", "痰饮内停"], addPoints: ["丰隆", "阴陵泉"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "digestive-liver-qi-invading-stomach", syndromeLabel: "肝气犯胃", syndromeMatchAny: ["肝气犯胃", "肝胃不和", "肝郁气滞", "肝气郁结"], addPoints: ["期门", "太冲"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "digestive-food-retention", syndromeLabel: "饮食停滞", syndromeMatchAny: ["饮食停滞", "食滞胃脘", "食积", "宿食"], addPoints: ["梁门", "下脘"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "digestive-stomach-yin-deficiency", syndromeLabel: "胃阴不足", syndromeMatchAny: ["胃阴不足", "胃阴亏虚", "阴虚"], addPoints: ["三阴交", "内庭"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "digestive-blood-stasis", syndromeLabel: "瘀血停胃", syndromeMatchAny: ["瘀血停胃", "瘀血阻络", "胃络瘀阻"], addPoints: ["膈俞", "三阴交"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+      ],
     },
     {
       id: "acupuncture-headache-common-outpatient",
@@ -701,6 +793,15 @@ const governedPlanTemplates = new Map([
       scheduleSuggestion: "门诊项目频次参考为每日1次；急性期与维持期的具体间隔由面诊医生确定。",
       sourceRefs: ["SRC-REFERENCE-NISHI-ACUPUNCTURE", "SRC-ZIBO-TCM-DAY-FREQUENCY-2022", "SRC-SAMR-ACUPUNCTURE-OPS"],
       parameterCompleteness: "supplementary_points_and_government_frequency_reference_governed",
+      syndromeRefinements: [
+        { id: "headache-liver-yang", syndromeLabel: "肝阳上亢", syndromeMatchAny: ["肝阳上亢", "肝阳化风", "肝火上炎", "肝火"], addPoints: ["太冲", "太溪"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "headache-phlegm-turbidity", syndromeLabel: "痰浊上扰", syndromeMatchAny: ["痰浊上扰", "痰浊中阻", "痰湿"], addPoints: ["中脘", "丰隆"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "headache-blood-stasis", syndromeLabel: "瘀血阻络", syndromeMatchAny: ["瘀血阻络", "瘀血头痛", "血瘀"], addPoints: ["血海", "膈俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "headache-blood-deficiency", syndromeLabel: "气血亏虚", syndromeMatchAny: ["血虚", "气血亏虚", "气血不足"], addPoints: ["脾俞", "足三里"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "headache-wind-cold", syndromeLabel: "风寒外袭", syndromeMatchAny: ["风寒", "外感风寒"], addPoints: ["风门", "列缺"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "headache-wind-heat", syndromeLabel: "风热上扰", syndromeMatchAny: ["风热", "外感风热"], addPoints: ["曲池", "大椎"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "headache-kidney-deficiency", syndromeLabel: "肾虚", syndromeMatchAny: ["肾精不足", "肾虚", "髓海不足"], addPoints: ["肾俞", "太溪", "悬钟"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+      ],
     },
     {
       id: "acupuncture-gynecology-common-outpatient",
@@ -711,6 +812,13 @@ const governedPlanTemplates = new Map([
       scheduleSuggestion: "门诊项目频次参考为每日1次；是否围绕经期安排及疗程长度由妇科/针灸医师复评。",
       sourceRefs: ["SRC-REFERENCE-NISHI-ACUPUNCTURE", "SRC-ZIBO-TCM-DAY-FREQUENCY-2022", "SRC-SAMR-ACUPUNCTURE-OPS"],
       parameterCompleteness: "supplementary_points_and_government_frequency_reference_governed",
+      syndromeRefinements: [
+        { id: "dysmenorrhea-cold-stasis", syndromeLabel: "寒凝血瘀", syndromeMatchAny: ["寒凝血瘀", "寒湿凝滞", "胞宫虚寒", "寒凝"], addPoints: ["归来", "地机", "中极"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
+        { id: "dysmenorrhea-qi-stagnation", syndromeLabel: "气滞血瘀", syndromeMatchAny: ["气滞血瘀", "肝郁气滞"], addPoints: ["太冲", "次髎"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
+        { id: "dysmenorrhea-qi-blood-deficiency", syndromeLabel: "气血虚弱", syndromeMatchAny: ["气血虚弱", "气血两虚", "气血不足"], addPoints: ["脾俞", "胃俞", "足三里"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
+        { id: "dysmenorrhea-kidney-deficiency", syndromeLabel: "肾气亏损", syndromeMatchAny: ["肾气亏损", "肝肾亏虚", "肾虚"], addPoints: ["太溪", "肾俞"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
+        { id: "dysmenorrhea-damp-heat", syndromeLabel: "湿热蕴结", syndromeMatchAny: ["湿热蕴结", "湿热下注"], addPoints: ["阴陵泉", "次髎"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+      ],
     },
     {
       id: "acupuncture-musculoskeletal-common-outpatient",
@@ -721,6 +829,15 @@ const governedPlanTemplates = new Map([
       scheduleSuggestion: "门诊项目频次参考为每日1次；每次治疗前复查疼痛、活动度和神经血管状态。",
       sourceRefs: ["SRC-ZIBO-TCM-DAY-FREQUENCY-2022", "SRC-SAMR-ACUPUNCTURE-OPS", "SRC-REFERENCE-NISHI-ACUPUNCTURE"],
       parameterCompleteness: "region_and_government_frequency_reference_governed_exact_points_require_exam",
+      // 痹证配穴表（行痹/痛痹/着痹/热痹）。甲方实测的「右膝痹 寒湿 / 湿热」两侧此前逐字相同，
+      // 差别正落在这四条上：寒湿取温散（肾俞、关元、阴陵泉、足三里），湿热取清泻（大椎、曲池）。
+      syndromeRefinements: [
+        { id: "bi-cold-damp", syndromeLabel: "寒湿痹阻", syndromeMatchAny: ["寒湿", "寒湿痹阻", "痛痹", "着痹", "风寒湿"], addPoints: ["肾俞", "关元", "阴陵泉", "足三里"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "bi-damp-heat", syndromeLabel: "湿热痹阻", syndromeMatchAny: ["湿热痹阻", "湿热", "热痹"], addPoints: ["大椎", "曲池", "阴陵泉"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "bi-wandering", syndromeLabel: "风邪偏胜（行痹）", syndromeMatchAny: ["行痹", "风邪偏胜", "游走"], addPoints: ["膈俞", "血海"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "bi-liver-kidney-deficiency", syndromeLabel: "肝肾亏虚", syndromeMatchAny: ["肝肾亏虚", "肝肾不足", "肾虚"], addPoints: ["肝俞", "肾俞", "太溪"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "bi-blood-stasis", syndromeLabel: "瘀血阻络", syndromeMatchAny: ["瘀血阻络", "血瘀"], addPoints: ["膈俞", "血海"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+      ],
     },
     {
       id: "acupuncture-neurologic-rehabilitation-outpatient",
@@ -731,6 +848,15 @@ const governedPlanTemplates = new Map([
       scheduleSuggestion: "门诊项目频次参考为每日1次；与现代康复训练错峰安排并按功能量表复评。",
       sourceRefs: ["SRC-ZIBO-TCM-DAY-FREQUENCY-2022", "SRC-SAMR-ACUPUNCTURE-OPS", "SRC-REFERENCE-NISHI-ACUPUNCTURE"],
       parameterCompleteness: "rehabilitation_points_and_government_frequency_reference_governed",
+      syndromeRefinements: [
+        { id: "stroke-liver-yang-surge", syndromeLabel: "肝阳暴亢", syndromeMatchAny: ["肝阳暴亢", "肝阳上亢", "风阳上扰"], addPoints: ["太冲", "太溪"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "stroke-wind-phlegm", syndromeLabel: "风痰阻络", syndromeMatchAny: ["风痰阻络", "风痰"], addPoints: ["丰隆", "合谷"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "stroke-phlegm-heat-fu", syndromeLabel: "痰热腑实", syndromeMatchAny: ["痰热腑实", "痰热"], addPoints: ["曲池", "内庭", "丰隆"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "stroke-qi-deficiency-stasis", syndromeLabel: "气虚血瘀", syndromeMatchAny: ["气虚血瘀", "气虚"], addPoints: ["气海", "血海"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "stroke-yin-deficiency-wind", syndromeLabel: "阴虚风动", syndromeMatchAny: ["阴虚风动", "阴虚阳亢"], addPoints: ["太溪", "风池"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "facial-palsy-wind-cold", syndromeLabel: "风寒外袭", syndromeMatchAny: ["风寒外袭", "风寒阻络", "风寒"], addPoints: ["风池", "风府"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "facial-palsy-wind-heat", syndromeLabel: "风热侵袭", syndromeMatchAny: ["风热侵袭", "风热阻络", "风热"], addPoints: ["外关", "关冲"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+      ],
     },
   ]],
   ["moxibustion", [

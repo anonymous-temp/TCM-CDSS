@@ -6,6 +6,7 @@ import { withCanonicalClinicalTerminology } from "./clinical-terminology";
 import { resolveLineageCode } from "./tcm-lineages";
 import { parseClinicalFacts, type ClinicalFacts } from "./clinical-facts";
 import { parseTcmTreatmentCapabilities, TCM_TREATMENT_PROJECT_CODES, type TcmTreatmentProjectCode } from "./tcm-treatment-projects";
+import { normalizeEmergencyClearanceAttestations, type EmergencyClearanceFindingAttestation } from "./emergency-clearance-contract";
 
 export type Phase =
   | "idle"
@@ -171,6 +172,11 @@ export interface CaseState {
     redFlagFingerprint: string;
     confirmedAt: string;
     assessmentSummary: string;
+    /**
+     * 逐条红旗的处置留痕。**没有它就不解除**——见 emergency-clearance-contract.ts：
+     * 这一处的判据此前只有 assessmentSummary 的字数，一句废话即可清空全部确定性红旗。
+     */
+    findings: EmergencyClearanceFindingAttestation[];
     contractSignature: string;
   };
   // 医生导出前对当前风险分级的确认记录。L4/red-flag 只允许 non_dose_risk_report，
@@ -250,6 +256,15 @@ export type ClinicalReviewAttestation = {
   provider?: string;
   model?: string;
   source?: "preferred" | "cross_model_fallback";
+  /**
+   * 这次复核是否真的换了模型身份（甲方 2026-08-10 ⑨）。
+   *
+   * diagnosis-api 一直算着这一位，却**算出来即丢弃**：只进了 /api/model-health 的拓扑遥测，
+   * 呈现层无人读，而医生可见措辞一律无条件写「独立复核」。默认全 V4-Flash 部署下它是 false
+   *（同一模型的第二次无对话状态请求）。写进签名 attestation 之后，三个出口读同一份，
+   * 措辞由 clinical-review-independence 的唯一谓词决定。
+   */
+  independentFromGenerator?: boolean;
   reviewedPayloadHash?: string;
   /**
    * 受理裁决范围（2026-08-03 复盘的根源级工程）：受理时把「豁免了哪些质量码、带了哪些
@@ -357,6 +372,18 @@ export interface ClinicalReasoningResultV2 {
       clinicalRationale?: string;
       limitations: string[];
       suggestedChecks: string[];
+      /**
+       * 指南/文献依据。**服务端按 evidenceId 反查本轮真检索到的条目后写入**，
+       * 模型只提交 {evidenceId, appliesTo}（见 cdss-evidence-context 的
+       * resolveGovernedGuidelineReferences）。题名/机构/年份/URL 一律来自条目字段，
+       * 模型无法引入任何新字符串；取不到就没有这个字段，绝不回落到自撰题名。
+       */
+      guidelineReferences?: Array<{
+        evidenceId: string;
+        citation: string;
+        url?: string;
+        appliesTo?: string;
+      }>;
       evidence: EvidenceRef;
     };
     differentials: Array<{
@@ -581,7 +608,14 @@ export interface ClinicalReasoningResultV2 {
       targetRef: string;
       targetPathogenesis: string;
       assessmentPositioning?: string;
-      protocolStatus: "governed_patient_specific_plan" | "assessment_only_no_patient_specific_protocol";
+      protocolStatus:
+        | "governed_patient_specific_plan"
+        // 命中该病种标准取穴模板，但本例证型未匹配到受治理的证型加减 ⇒ 尚未按证型加减。
+        // 新增第三态的理由见 tcm-treatment-projects.ts 的 syndromeRefinements 注释：
+        // 此前四组八例（风寒/风热、心脾两虚/肝火扰心、湿热中阻/脾胃虚寒、寒湿/湿热）
+        // 穴位逐字相同，却八次都标 governed_patient_specific_plan。
+        | "governed_class_template_not_syndrome_tailored"
+        | "assessment_only_no_patient_specific_protocol";
       protocolGap?: string;
       treatmentContent: string;
       suggestedSitesOrPoints: string[];
@@ -902,7 +936,7 @@ const TcmTreatmentRecommendationSchema = z.object({
   targetRef: z.string().regex(/^P\d{1,2}$/),
   targetPathogenesis: z.string().min(1).max(600),
   assessmentPositioning: z.string().min(1).max(800).optional(),
-  protocolStatus: z.enum(["governed_patient_specific_plan", "assessment_only_no_patient_specific_protocol"]),
+  protocolStatus: z.enum(["governed_patient_specific_plan", "governed_class_template_not_syndrome_tailored", "assessment_only_no_patient_specific_protocol"]),
   protocolGap: z.string().min(1).max(800).optional(),
   treatmentContent: z.string().min(1).max(1200),
   suggestedSitesOrPoints: z.array(z.string().min(1).max(200)).max(12),
@@ -1094,6 +1128,7 @@ const ReasoningV2SchemaBase = z.object({
     provider: z.string().max(100).optional().catch(undefined),
     model: z.string().max(200).optional().catch(undefined),
     source: z.enum(["preferred", "cross_model_fallback"]).optional().catch(undefined),
+    independentFromGenerator: z.boolean().optional().catch(undefined),
     reviewedPayloadHash: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional().catch(undefined),
     // 受理裁决范围：码表为内部驳回码(kebab/snake 短标识),单码长度与数量都设上限,
     // 防止把自由文本塞进签名域。整体非法时按缺省处理(回退重算路径),不作废 attestation。
@@ -1184,6 +1219,13 @@ const ReasoningV2SchemaBase = z.object({
       clinicalRationale: z.string().max(1600).optional().catch(""),
       limitations: z.array(z.string().max(600)).max(12).catch([]),
       suggestedChecks: z.array(z.string().max(600)).max(12).catch([]),
+      // 服务端写入的受治理引用（模型侧 guidelineRefs 在证据清洗阶段即被删除）。
+      guidelineReferences: z.array(z.object({
+        evidenceId: z.string().regex(/^EVID-(?:GUIDE|PAPER)-\d{3}$/),
+        citation: z.string().min(2).max(400),
+        url: z.string().max(600).optional(),
+        appliesTo: z.string().max(200).optional(),
+      })).max(3).optional().catch(undefined),
       evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
     }).catch(DEFAULT_WESTERN_DIAGNOSIS.primary),
     differentials: z.preprocess(
@@ -1893,16 +1935,20 @@ function normalizeEmergencyClearance(value: unknown): CaseState["emergencyCleara
   const confirmedAt = stringValue(raw.confirmedAt, 64);
   const assessmentSummary = stringValue(raw.assessmentSummary, 1_000);
   const contractSignature = stringValue(raw.contractSignature, 96);
+  // 逐条处置留痕缺失或非法 ⇒ 整份凭证判为缺省。这一处的 fail-closed 方向与系统别处相反：
+  // 凭证 = 解除约束，因此「解析不出」只能是「不解除」，不能是「按老形态放行」。
+  const findings = normalizeEmergencyClearanceAttestations(raw.findings);
   if (
     !redFlagFingerprint ||
     !confirmedAt ||
     !assessmentSummary ||
     !contractSignature ||
+    !findings ||
     assessmentSummary.length < 12 ||
     !/^hmac-sha256:[a-f0-9]{64}$/i.test(contractSignature) ||
     !Number.isFinite(Date.parse(confirmedAt))
   ) return undefined;
-  return { redFlagFingerprint, confirmedAt, assessmentSummary, contractSignature };
+  return { redFlagFingerprint, confirmedAt, assessmentSummary, findings, contractSignature };
 }
 
 function normalizeWarningAcknowledgement(value: unknown): CaseState["warningAcknowledgement"] {
@@ -1967,11 +2013,36 @@ function mergeHisVitals(inputVitals: unknown, fields: HisRecordSnapshot["fields"
   return vitals;
 }
 
+/**
+ * symptoms 允许直接给一段自由文本或一组自由文本。
+ *
+ * 对外接口文档 :159 写的就是 `symptoms: string`，示例与另外两处写的是 object，而代码
+ * 只认 object：`recordValue("胸痛伴大汗…")` 返回 `{}`，整段现病史**无声消失**，请求照常 200、
+ * 无任何告警。实测差别不是「少一段文字」而是红旗等级：
+ *   symptoms=object → 红旗「胸痛/胸闷伴大汗、放射痛或气促」
+ *   symptoms=string → 红旗降级为「…即使暂未记录伴随症状…」的弱档
+ * 主诉写得平淡、关键描述全放 symptoms 字符串里时，这条就从「红旗降级」变成「红旗完全漏检」。
+ *
+ * 归一到 presentHistory：它是本仓库现病史的既有键（result-display-policy、
+ * buildEvidenceQuery、临床接地文本都读它），不新造键，也就不需要下游各自适配。
+ * HIS 的 xianbingshi 仍然优先——它是结构化字段、权威度更高；此时自由文本不丢弃，
+ * 而是并入 extraText，绝不出现「因为有更权威的字段，所以把这段扔了」。
+ */
 function mergeHisSymptoms(inputSymptoms: unknown, fields: HisRecordSnapshot["fields"]): Record<string, unknown> {
+  const freeText = typeof inputSymptoms === "string"
+    ? inputSymptoms.trim()
+    : Array.isArray(inputSymptoms)
+      ? inputSymptoms.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+          .map((item) => item.trim()).join("；")
+      : "";
   const symptoms = { ...recordValue(inputSymptoms) };
+  if (freeText) symptoms.presentHistory = freeText.slice(0, 20_000);
+  const carriedFreeText = freeText && fields.xianbingshi && fields.xianbingshi !== freeText ? freeText : "";
   if (fields.xianbingshi) symptoms.presentHistory = fields.xianbingshi;
   if (fields.fuzhuJiancha) symptoms.exams = fields.fuzhuJiancha;
-  if (fields.extraText) symptoms.extraText = fields.extraText;
+  if (fields.extraText || carriedFreeText) {
+    symptoms.extraText = [fields.extraText, carriedFreeText].filter(Boolean).join("\n");
+  }
   if (fields.tcmDetail) symptoms.tcmDetail = fields.tcmDetail;
   return symptoms;
 }

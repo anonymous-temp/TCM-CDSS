@@ -3996,7 +3996,11 @@ for (const herbName of ["三七", "川贝母", "鹿茸"]) {
   );
 }
 for (const herbName of ["朱砂", "芒硝", "雷丸"]) {
-  const prohibited = { ...compiledAnnotatedHerb, formula: { candidates: [{ ...compiledAnnotatedHerb.formula.candidates[0], herbs: [{ ...compiledAnnotatedHerb.formula.candidates[0].herbs[0], name: herbName, decoctionRequirement: null }] }] } };
+  // function 必须换成该药自己的 KB 功用：本用例钉的是「禁止同煎的药不得作为汤剂可执行」，
+  // 而 m04SemanticIssue 命中第一个问题就短路返回。沿用上一味药的方义会让 function_ungrounded
+  // 先触发，把本用例真正要钉的 route_not_decoction 挡在后面。
+  //（换到这一步之前，服务端会在契约前把方义覆写成角色兜底句，掩盖了这一点——正是甲方 ⑤ 的形状。）
+  const prohibited = { ...compiledAnnotatedHerb, formula: { candidates: [{ ...compiledAnnotatedHerb.formula.candidates[0], herbs: [{ ...compiledAnnotatedHerb.formula.candidates[0].herbs[0], name: herbName, function: getTcmHerbFunctionText(herbName).split(/[；;]/)[0], decoctionRequirement: null }] }] } };
   const prohibitedContent = applyDeterministicHerbPrescriptionRoles(
     applyDeterministicHerbFunctions(
       applyDeterministicHerbDecoctionRequirements(

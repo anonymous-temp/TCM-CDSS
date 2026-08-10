@@ -2,9 +2,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V1.3 |
-| 发布日期 | 2026-08-07 |
-| 服务版本 | `tcm-cdss-20260807-external-route-gate-amd64` |
+| 文档版本 | V1.4 |
+| 发布日期 | 2026-08-10 |
+| 服务版本 | `tcm-cdss-20260810-clearance-and-syndrome-points-amd64` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
@@ -27,8 +27,8 @@
       │
       ▼
 M01 病历采集 ──▶ M02 追问生成 ──▶ M03 辨病辨证 ──▶ M04 候选方药 ──▶ M05 风险随访
-   结构化病历      补充信息缺口      诊断与病机        方药与调护        风险与随访
-                （可跳过）
+  舌象图片解析      补充信息缺口      诊断与病机        方药与调护        风险与随访
+   （可跳过）      （可跳过）
       │
       └──▶ 红旗筛查（任意阶段可调）──▶ 命中时经急症排查确认后继续
 ```
@@ -48,7 +48,7 @@ M01 病历采集 ──▶ M02 追问生成 ──▶ M03 辨病辨证 ──▶
 | 序号 | 分组 | 接口名称 | 方法 | 路径 | 主要用途 |
 |---|---|---|---|---|---|
 | 1 | 诊疗流程 | 访问凭证获取 | POST | `/api/auth/access` | 令牌换取访问凭证，每个会话调用一次 |
-| 2 | 诊疗流程 | M01 病历采集 | POST | `/api/diagnosis/collect` | 自由文本病历结构化，支持舌象图片 |
+| 2 | 诊疗流程 | M01 病历采集 | POST | `/api/diagnosis/collect` | 舌象图片解析；**纯文本输入不产出结构化病历**，见 §4.2 |
 | 3 | 诊疗流程 | M02 追问生成 | POST | `/api/diagnosis/question` | 生成信息缺口追问，不阻断流程 |
 | 4 | 诊疗流程 | M03 辨病辨证 | POST | `/api/diagnosis/diagnose` | 西医诊断、中医证候、病机拆解、治则治法 |
 | 5 | 诊疗流程 | M04 候选方药 | POST | `/api/diagnosis/prescribe` | 候选方药、方义、煎服法、随证加减、中成药、健康调护、中医外治 |
@@ -123,7 +123,7 @@ curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
 | R2 | 上一阶段返回的结构化结论必须**原样**合并回 `caseState`，不得改写、精简或重新格式化 | 签名校验失败，返回 `409` |
 | R3 | M03 结论中的签名字段名为 `contractSignature`（非 `signature`） | 取值为空，回传后 `409` |
 | R4 | 查询参数中的中文必须 URL 编码 | 反向代理返回 `400` |
-| R5 | 调用顺序须为 M01→M02→M03→M04→M05，不可跳段 | 跳段调用返回 `409` |
+| R5 | 建议按 M01→M02→M03→M04→M05 顺序调用；**真实门禁只有三道**，不是"任意跳段即 409" | 见下方 R5 说明 |
 
 **R1 示例**
 
@@ -156,7 +156,8 @@ curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
 | `patient.age` | number | 建议 | — | 全阶段 | 影响特殊人群剂量规则与儿科门禁 |
 | `patient.name` | string | 否 | — | — | **提交后恒被服务端清空**（脱敏），不要用它传身份信息 |
 | `chiefComplaint` | string | 是 | — | M01 起 | 缺失时 M03 不进入完整诊断 |
-| `symptoms` / `pastHistory` / `medicationHistory` / `allergyHistory` | string | 建议 | — | M01 起 | 一诉五史。**「未提及」不等于阴性**，不要用空串表达「否认」，应写明「否认…」 |
+| `symptoms` | string \| string[] \| object | 建议 | — | M01 起 | 现病史等症状信息。**三种形态等价**：给字符串或字符串数组时归一到 `symptoms.presentHistory`；给对象时按键原样保留。<br>V1.3 及以前的实现只认 object，字符串会被静默丢成 `{}`（整段现病史消失且请求仍返回 200），**V1.4 已修复**。<br>与 `hisRecord.fields.xianbingshi` 同时存在时以后者为准，自由文本并入 `symptoms.extraText`，不丢字 |
+| `pastHistory` / `medicationHistory` / `allergyHistory` | string | 建议 | — | M01 起 | 五史。**「未提及」不等于阴性**，不要用空串表达「否认」，应写明「否认…」 |
 | `tongue` / `pulse` / `faceNote` | string | 建议 | — | M01 起 | 四诊文本 |
 | `tongueImageDesc` | string | 否 | — | M01 | 舌象图片走 GLM 视觉后回填；无图时可手工录入 |
 | `vitals` | object | 建议 | — | 全阶段 | BP/T/P/R/SpO2，危急阈值由确定性安全门解析 |
@@ -205,6 +206,40 @@ curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
 4. **这是偏好，不是硬性限制。** 系统不会为了凑味数去删药：经典方的原方组成、绑定病机的必需药、
    有安全定性作用的药，都会保留。
 5. 所以**开出来的药味数可能超出所选档位**。这不是参数没生效，是临床必需优先。
+
+#### R5 的真实门禁（V1.4 更正）
+
+V1.3 写的"不可跳段，跳段调用返回 409"与实现不符：M03 在 `phase=idle`、无任何前序产物时
+**直接返回 200**（追问因此是可选的增强，不是前置条件）。实际存在且只存在三道门：
+
+| 门 | 位置 | 触发条件 | 返回 |
+|---|---|---|---|
+| M02 阶段门 | `/api/diagnosis/question` | `caseState.phase ≠ "question"`，或 `questionRounds ≥ 1` | `409` |
+| M04 签名门 | `/api/diagnosis/prescribe` | 缺少有效的 M03 `contractSignature`（未原样回传 R2/R3） | `409` |
+| M05 签名门 | `/api/diagnosis/assess` | 缺少有效的 M03/M04 签名 | `409` |
+
+也就是说：**M01 与 M02 都可以跳过**；M03 之后的两段必须携带上一段的原样签名结论。
+
+---
+
+### 3.11 处置档位 `CDSS_GATE_DISPOSITION`（红旗命中后系统怎么表现）
+
+这一节在 20260803 版写过，V1.3 整段丢失，导致同一份文档在不同环境下"说的和看到的不一样"。
+红旗**检测**在两档下完全相同，差别只在**处置**：
+
+| 档位 | 部署默认 | 红旗命中后的表现 |
+|---|---|---|
+| `advise` | **是**（未设置该环境变量即为本档） | 检测照常、红旗照常输出，**M03/M04 继续生成完整结论与剂量级候选**；可见正文置顶一段确定性安全警示横幅（`<!-- CDSS_SAFETY_ADVISORY -->`），用药风险段把急诊/转诊评估列为第一优先级。`derivePrescriptionPermission` 返回 `full_dose` |
+| `block` | 否（仅用于运维回滚） | 恢复旧的 fail-closed 拦截：M03/M04 只输出风险、处置与建议检查，不生成剂量级候选 |
+
+> 若贵方在测试中看到的是"只输出风险/处置/检查"，说明该环境设置了 `CDSS_GATE_DISPOSITION=block`
+> 或运行的是旧版本。对账前请先核对该环境变量与 §2.1 的服务版本。
+>
+> 逐味硬规则不受档位影响：药典剂量上下限、十八反十九畏、特殊人群禁忌、管制毒性药材扣除、
+> PHI 脱敏在两档下逐字节相同。"不阻断"只作用于**处置**，不作用于**检测**，
+> 也绝不把"未知"当成"无风险"。
+
+---
 
 ### 3.4 响应格式
 
@@ -449,10 +484,14 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/auth/access" \
 
 **出参**：NDJSON 流。
 
-| 输入情况 | 正文内容 |
-|---|---|
-| 纯文本 | 采集确认文本 + 空结构化 JSON |
-| 含舌象图片 | 舌象描述文本，用于回填 `caseState.tongueImageDesc` |
+| 输入情况 | 正文内容 | 是否调用模型 |
+|---|---|---|
+| 纯文本 | 采集确认文本 + **空**结构化 JSON（`{}`） | 否，直接返回确定性 NDJSON |
+| 含舌象图片 | 舌象描述文本，用于回填 `caseState.tongueImageDesc` | 是（GLM 视觉） |
+
+> **M01 不做病历结构化。** 纯文本路径既不调用模型、也不产出结构化字段——
+> 调用方应把病历直接填进 `caseState` 的对应字段（§3.3.1）后进入 M02/M03。
+> V1.3 的流程图把本阶段标成"结构化病历"，与本表自相矛盾，V1.4 已更正。
 
 **错误码**
 
@@ -1154,25 +1193,63 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/red-flags" \
 | 字段 | 中文名 | 类型 | 必填 | 说明 |
 |---|---|---|---|---|
 | `caseState` | 病例状态 | object | 是 | 病例状态，须处于红旗状态 |
-| `assessmentSummary` | 现场评估记录 | string | 是 | 现场评估记录，脱敏后 12–1000 字 |
+| `assessmentSummary` | 现场评估小结 | string | 是 | 现场评估小结，脱敏后 12–1000 字 |
+| `findings` | 逐条处置留痕 | array | **是**（V1.4 新增） | 当前**每一条**红旗的处置记录，与 `caseState.safetyGate.redFlagFindings` 一一对应 |
+| `findings[].ruleId` | 红旗规则号 | string | 是 | 逐字复制自 `redFlagFindings[].ruleId` |
+| `findings[].message` | 红旗原文 | string | 是 | 逐字复制自 `redFlagFindings[].message` |
+| `findings[].disposition` | 处置方式 | enum | 是 | 见下表 |
+| `findings[].basis` | 客观依据 | string | 是 | ≥10 字，且**必须写明做过什么**（检查/复测/转诊交接），见下方判据 |
+
+> ### V1.4 变更：本接口不再是字数校验
+>
+> 这是全系统**唯一**能把确定性阳性红旗整条抹掉的入口（命中后 `redFlags` 清空、
+> `allowDosePrescription` 由 `false` 变 `true`）。V1.3 及以前它的唯一内容判据是
+> `assessmentSummary` 的字数 ≥12——一句无关的话即可签发。
+>
+> V1.4 起三条判据**必须同时成立**，缺一即不签发（凭证 = 解除约束，因此"证明不了"只能是"不解除"）：
+> 1. 当前每一条活动红旗都有且只有一条对应的 `findings` 记录（多一条、少一条都不受理）；
+> 2. `disposition` 取自受控集合，不接受自由文本；
+> 3. `basis` 含**客观证据词**——心电图/CT/MRI/超声/内镜/血常规/粪隐血/复测/复查/查体/
+>    转诊/急诊/会诊/收住院/交接 等指向"做过的事"的词。
+
+**`disposition` 受控取值**
+
+| 取值 | 含义 | `basis` 应写什么 |
+|---|---|---|
+| `excluded_by_objective_workup` | 已完成客观检查并排除 | 做了哪项检查与结果，如「心电图无 ST 段抬高、肌钙蛋白阴性」 |
+| `referred_and_handed_over` | 已转急诊/上级并完成交接 | 转往何处、何时完成交接 |
+| `vital_sign_repeated_and_corrected` | 复测后不成立（测量误差） | 复测方式与复测值 |
+| `record_corrected_not_present` | 病历记录有误，该表现本次不存在 | 哪一句记错了、正确表述是什么 |
 
 **出参**（`200`）
 
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
-| `emergencyClearance.redFlagFingerprint` | 红旗事实指纹 | string | 红旗事实指纹 |
+| `emergencyClearance.redFlagFingerprint` | 红旗事实指纹 | string | 红旗事实指纹；病历红旗变化后凭证自动失效 |
 | `emergencyClearance.confirmedAt` | 确认时间 | string | 确认时间（ISO 8601） |
-| `emergencyClearance.assessmentSummary` | 脱敏评估记录 | string | 脱敏后的评估记录 |
-| `emergencyClearance.contractSignature` | 服务端签名 | string | 服务端签名 |
+| `emergencyClearance.assessmentSummary` | 脱敏评估小结 | string | 脱敏后的评估小结 |
+| `emergencyClearance.findings` | 逐条处置留痕 | array | 脱敏后的逐条留痕，**进签名域**，改一个字即验签失败 |
+| `emergencyClearance.contractSignature` | 服务端签名 | string | `tcm-cdss-emergency-clearance-v2` |
 
 返回对象需整体放入 `caseState.emergencyClearance` 供后续阶段使用。
 
+> **旧凭证不再生效**：签名版本已从 v1 抬到 v2（签名域纳入 `findings`）。
+> 升级前签发、且未带 `findings` 的历史凭证一律验签不过，回到"不解除"——这是有意为之的
+> fail-closed 方向，请在升级窗口内避免复用跨版本的病例快照。
+
 **错误码**
 
-| 状态码 | 触发条件 | 响应体 |
+| 状态码 | `code` | 触发条件 |
 |---|---|---|
-| `400` | 缺 `assessmentSummary` 或长度不足 | `{"error":"caseState and assessmentSummary are required"}` |
-| `409` | 病例不处于红旗状态 | `{"error":"当前病历没有可绑定的急危重症红旗，未生成排查确认。"}` |
+| `400` | `invalid_emergency_clearance_request` | 缺 `caseState` 或 `assessmentSummary` |
+| `400` | `emergency_clearance_assessment_summary_too_short` | 评估小结不足 12 字 |
+| `400` | `emergency_clearance_attestations_missing` | 未提交 `findings` |
+| `400` | `emergency_clearance_attestation_count_mismatch` | 处置记录与活动红旗未逐条对应 |
+| `400` | `emergency_clearance_attestation_finding_unmatched` | 处置记录指向的红旗不在当前安全门内 |
+| `400` | `emergency_clearance_attestation_basis_too_short` | 某条 `basis` 不足 10 字 |
+| `400` | `emergency_clearance_attestation_basis_not_objective` | 某条 `basis` 未写明做过什么 |
+| `409` | `no_active_emergency_finding` | 病例不处于红旗状态 |
+| `503` | `emergency_clearance_signing_unavailable` | 服务端签名密钥未配置 |
 
 ---
 
@@ -1191,9 +1268,20 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/emergency-clearance"
       "symptoms": { "现病史": "2小时前突发胸骨后压榨样疼痛，向左肩放射，伴大汗" },
       "vitals": { "BP": "90/60", "P": "110" }
     },
-    "assessmentSummary": "已完成急诊排查：心电图无ST段抬高，心肌标志物阴性，生命体征平稳，排除急性冠脉综合征。"
+    "assessmentSummary": "已完成急诊排查：心电图无ST段抬高，心肌标志物阴性，生命体征平稳，排除急性冠脉综合征。",
+    "findings": [
+      {
+        "ruleId": "acute-cardiac-event",
+        "message": "胸痛/胸闷伴大汗、放射痛或气促，需排除急性心血管事件",
+        "disposition": "excluded_by_objective_workup",
+        "basis": "心电图无ST段抬高，肌钙蛋白与心肌酶两次复查均阴性"
+      }
+    ]
   }'
 ```
+
+> `ruleId` 与 `message` 请从上一次任意阶段响应里的 `caseState.safetyGate.redFlagFindings[]`
+> 逐字复制；自行改写会命中 `attestation_finding_unmatched`。
 
 **响应示例**
 
@@ -1203,6 +1291,14 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/emergency-clearance"
     "redFlagFingerprint": "sha256:3a7f...",
     "confirmedAt": "2026-08-05T10:23:41.000Z",
     "assessmentSummary": "已完成急诊排查：心电图无ST段抬高，心肌标志物阴性，生命体征平稳，排除急性冠脉综合征。",
+    "findings": [
+      {
+        "ruleId": "acute-cardiac-event",
+        "message": "胸痛/胸闷伴大汗、放射痛或气促，需排除急性心血管事件",
+        "disposition": "excluded_by_objective_workup",
+        "basis": "心电图无ST段抬高，肌钙蛋白与心肌酶两次复查均阴性"
+      }
+    ],
     "contractSignature": "hmac-sha256:9b2e..."
   }
 }
@@ -1287,7 +1383,11 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 | 字段 | 中文名 | 类型 | 必填 | 说明 |
 |---|---|---|---|---|
 | `source` | 来源标识 | string | 否 | 来源标识，如院区名或 HIS 实例名 |
-| `items` | 条目列表 | array | 是 | 药品条目，单次上限 20000 条，超限返回 `413` 并要求分批 |
+| `items` | 条目列表 | array | 是 | 药品条目，单次上限 20000 条；超限返回 `413` 并给出**分片整批替换**通路（见下） |
+| `part` | 分片信息 | object | 否 | 分片整批替换。**不传即单次整批替换，行为与 V1.3 逐字节相同** |
+| `part.importId` | 本次导入批号 | string | 传 `part` 时必填 | `[A-Za-z0-9_-]{6,64}`，同一整批的所有分片必须一致 |
+| `part.index` | 分片序号 | number | 传 `part` 时必填 | 从 `0` 到 `total-1` |
+| `part.total` | 分片总数 | number | 传 `part` 时必填 | 1–50 |
 | `items[].name` | 院内药品名 | string | 是 | 院内药品名 |
 | `items[].kind` | 药品类别 | string | 否 | `herb`（饮片，默认）/ `patent`（中成药） |
 | `items[].available` | 是否有货 | boolean | 否 | 是否有货，**缺省为 `true`**（推过来的即视为在售目录） |
@@ -1296,6 +1396,36 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 
 **语义：整批替换。** 每次导入完全替换上一批，不做增量合并——增量要求调用方维护删除事件，
 而"某药已下架却没推删除"会让系统长期以为它有货，比整批替换危险。
+
+> ### V1.4 更正：超限时**不要**自行分成多次独立请求
+>
+> V1.3 的 `413` 文案写的是 `split the import into batches`，而落盘语义是整批替换——
+> 照着做的结果是**后一批把前一批整体覆盖**（实测：第 1 批 4 味、第 2 批 3 味 → 落盘只剩 3 味）。
+> 系统等于在错误提示里教调用方把第一批药删光。
+>
+> V1.4 提供真正安全的分片通路：带 `part` 的请求**只写暂存**，集齐全部分片后才做一次原子替换。
+>
+> | 情况 | 状态码 | 含义 |
+> |---|---|---|
+> | 分片已收下、仍缺其他分片 | `202` | 返回 `{importId, receivedParts, missingParts, total, bufferedItemCount, committed:false}`；**线上库存此刻未被改动** |
+> | 最后一片到齐 | `200` | 一次性原子替换，返回与单次导入相同的快照 |
+> | `part.total` 中途变更 | `409` | `import_part_total_conflict` |
+> | 累计条目仍超 20000 | `413` | `inventory_too_large`，**不落盘** |
+>
+> 暂存分片 24 小时未集齐即过期作废，不会与新一轮分片拼接。
+
+```bash
+# 分片整批替换：两片合起来才是一整批
+curl -X POST ".../api/drug-inventory" -H "Content-Type: application/json" \
+  -H "x-cdss-api-token: <token>" \
+  -d '{"source":"HIS-A","items":[...4000条...],"part":{"importId":"imp-20260810","index":0,"total":2}}'
+# → 202 {"missingParts":[1],"committed":false}   线上库存仍是上一版本
+
+curl -X POST ".../api/drug-inventory" -H "Content-Type: application/json" \
+  -H "x-cdss-api-token: <token>" \
+  -d '{"source":"HIS-A","items":[...3000条...],"part":{"importId":"imp-20260810","index":1,"total":2}}'
+# → 200 {"itemCount":7000, ...}                  此刻才发生一次原子替换
+```
 
 **出参**
 
@@ -1358,6 +1488,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 西医诊断待查依据 | `westernDiagnosis.primary.suggestedChecks`（建议检查）<br>`westernDiagnosis.primary.limitations`（依据不足之处） |
 | 西医鉴别诊断 | `westernDiagnosis.differentials[]` |
 | ICD-10 编码 | `westernDiagnosis.primary.coding`（可选：仅当匹配到受控医保码时输出） |
+| **指南/文献依据** | `westernDiagnosis.primary.guidelineReferences[]`（V1.4 新增，可选）<br>`{evidenceId, citation, url?, appliesTo?}`。题名/机构/年份/URL 由服务端按 `evidenceId` 反查**本轮真检索到**的证据条目渲染，模型只提交条目号与一句适用说明；**本轮未检索到就不输出该字段**，不会回落到模型自撰题名 |
 | 中医病名 | `overview.tcmDiseaseName` |
 | 中医证候 | `overview.primarySyndrome` |
 | 证候依据 | `overview.primarySyndromeBasis[]` |
@@ -1393,7 +1524,28 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 健康调护 · 情志 | `nonPharma.emotion` |
 | 健康调护 · 注意事项 | `nonPharma.precautions[]` |
 | 中医外治项目 | `nonPharma.tcmTreatments[]` |
-| 中医外治 · 穴位建议 | `nonPharma.tcmTreatments[].suggestedSitesOrPoints[]` |
+| 中医外治 · 穴位建议 | `nonPharma.tcmTreatments[].suggestedSitesOrPoints[]`（每个穴位内联标注国标代码·归经·**本例入选依据**） |
+| 中医外治 · 方案状态 | `nonPharma.tcmTreatments[].protocolStatus`（V1.4 由两态扩为**三态**，见下） |
+| 中医外治 · 方案边界说明 | `nonPharma.tcmTreatments[].protocolGap`（内部状态码）<br>`nonPharma.tcmTreatments[].protocolGapNote`（可选：**仅 HIS 方案出参**，且仅当 `protocolGap` 命中受控映射时输出；同一码的临床语言说明，集成方要直接展示时用它） |
+| 随证加减 · 风险提示 | `formula.modifications[].riskNote`（V1.4 起同时出现在可见正文、结构化载荷与 HIS 三个出口） |
+
+**`protocolStatus` 三态（V1.4）**
+
+| 取值 | 含义 | 医生页面标签 |
+|---|---|---|
+| `governed_patient_specific_plan` | 命中该病种标准取穴模板**且**按本例已签名证候完成了证型加减 | 按证型加减 · 待复核 |
+| `governed_class_template_not_syndrome_tailored` | **V1.4 新增。** 命中该病种标准取穴模板，但本例证候未匹配到受治理的证型加减方案 | 病种模板 · 未按证型加减 |
+| `assessment_only_no_patient_specific_protocol` | 目录中无对应标准方案，仅作现场适应证/禁忌/资质评估 | 仅项目评估 |
+
+> **为什么新增第三态**：V1.3 只有两态，命中病种模板即标为"个体化方案"。实测同一病种的两个
+> 相反证型（风寒/风热、心脾两虚/肝火扰心、湿热中阻/脾胃虚寒、寒湿/湿热）拿到的穴位**逐字相同**，
+> 而状态字段八次都写着"个体化方案"——那个标签说的不是这一次实际发生的事。
+> V1.4 同时补入证型配穴表（来源：T/CAAM 011-2014《循证针灸临床实践指南：失眠》、
+> 中国针灸学会痛经条目、《针灸学》规划教材证型配穴表），命中证型时才给第一态。
+>
+> **集成方需要做的**：把新枚举值纳入解析；按旧逻辑"非 `governed_patient_specific_plan` 即评估态"
+> 处理会把已带治理穴位与频次的第三态误降级。三态的 `suggestedSitesOrPoints` 与
+> `scheduleSuggestion` 完整度约束：前两态都有，第三态**不是**评估态。
 | 流派适配说明 | `lineageAdaptation`（可选：仅当请求指定了流派偏好时输出） |
 
 ### 5.3 风险与随访（M05 响应）
@@ -1894,6 +2046,17 @@ async function callStage(url, headers, body) {
 该接口的字段名与 M03/M04 原始响应**不完全相同**（例如中成药在此为 `prescriptions.patentMedicines`，
 在 M04 原始响应中为 `formula.patentAndWestern`）。请勿混用两套字段命名。
 
+**V1.4 新增出参**
+
+| 字段 | 中文名 | 说明 |
+|---|---|---|
+| `clinicalReviewMethod` | 临床复核方式 | 本次临床复核的**实际拓扑**。`independence` 取 `cross_model`（换了模型身份的独立复核）或 `same_model_second_pass`（同一模型另起一次无生成侧对话状态的请求：复核专用提示词、只增不减风险提示，**不构成跨模型独立复核**）。当前默认部署为后者。`label`/`note` 是与之匹配的中文说明，医生可见正文里的措辞与该字段同源 |
+| `diagnoses.westernDetail.guidelineReferences[]` | 指南/文献依据 | 与 §5.1 同源；可选，仅当本轮 EviMed 检索命中时输出 |
+| `nonPharma.tcmTreatments[].protocolGapNote` | 方案边界说明 | `protocolGap` 内部状态码的临床语言说明；集成方要直接展示时用它，不要自行翻译码值 |
+
+> `diagnoses.western[0].name` 与 `diagnoses.westernDetail.name` V1.4 起统一走同一套诊断名规范化
+> （ICD-10 编码名优先、症状级限定收敛成"X，病因待查"），此前这两处与医生页面可能出现三种写法。
+
 ### A.2 服务健康检查 —— `GET /api/diagnosis/health`
 
 供运维使用。不带参数返回服务状态与当前服务版本标识，可用于核对线上运行版本。
@@ -1907,6 +2070,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V1.4 | 2026-08-10 | **① 文档更正**：R5"不可跳段返回 409"与实现不符，改为如实写出真实存在的三道门（M02 阶段门、M04/M05 签名门）；M01 流程图标签由"结构化病历"更正为"舌象图片解析"，与出参表一致。**② 补回丢失章节**：新增 §3.11 `CDSS_GATE_DISPOSITION` 处置档位（advise 默认 / block 回滚），该语义在 20260803 版写过、V1.3 整段丢失。**③ 行为修复**：`symptoms` 支持字符串与字符串数组（此前被静默丢成 `{}`，导致现病史整段消失与红旗漏检）；急症排查确认由字数校验改为逐条红旗处置留痕契约（签名版本 v1→v2，旧凭证失效）；库存导入新增分片整批替换，`413` 不再建议会导致数据丢失的"分批"。**④ 新增出参**：`guidelineReferences[]`、`protocolStatus` 第三态、`protocolGapNote`、`clinicalReviewMethod`、加减 `riskNote` 补齐到全部出口 | **是（三处）**：<br>① 急症排查确认接口**入参新增必填 `findings`**，旧调用会返回 `400`；<br>② `protocolStatus` **新增枚举值** `governed_class_template_not_syndrome_tailored`，按"非个体化即评估态"的旧解析会误降级；<br>③ 升级前签发的 `emergencyClearance` 凭证一律失效（fail-closed 方向，见 §4.8） |
 | V1.3 | 2026-08-07 | 补齐 NDJSON 四种帧的完整定义（新增 `heartbeat`、`followup_timeline` 两种此前未文档化的帧）与流响应头；明确"首字节前/后失败"的两种错误表现；错误响应体形态与结构化 `code` 速查表；新增 §3.8 调用频率限制、§3.9 超时与重试、§3.10 请求体上限；补失败响应示例；解析示例改为边收边解析并处理分片与截断 | 否。均为既有行为的补充说明，接口本身未变 |
 | V1.2 | 2026-08-07 | 接口按对象分组、字段补中文名、补完整调用示例；新增 CaseState 入参字段表（含 `tcmLineagePreference`、`herbCountPreference`）；流派对外收敛为 5 档 | 否 |
 | V1.1 | 2026-08-06 | 按《核对内容（2026-08-05）》「接口缺失内容」补齐：方义/组成逻辑/方证鉴别/经典条文、剂数与煎服法、随证加减与可替换药味、中成药完整字段、健康调护、中医外治、药品目录下发与院内库存导入 | 否，均为新增出参与新增接口 |
@@ -1915,6 +2079,9 @@ async function callStage(url, headers, body) {
 **版本与兼容策略**
 
 1. 出参字段**只增不删**。新增字段一律可选，老集成忽略即可，不需要同步升级。
+   **例外须显式登记**：V1.4 的三处破坏性变更已在上表"是否影响已完成的集成"列逐条写明，
+   不属于静默上线。枚举字段（如 `protocolStatus`）的新增取值按"可扩展枚举"处理，
+   请用白名单匹配已知值 + 未知值降级展示，不要用"非 A 即 B"的二分逻辑。
 2. 新增 NDJSON 帧类型时不改变既有帧语义。请按 §3.5 的三条解析要求实现，即可自动兼容。
 3. 若确需破坏性变更，会提前在本表登记并单独通知，不会静默上线。
 4. 线上实际运行的服务版本可通过 `GET /api/diagnosis/health` 的版本标识核对，与本文档表头的"服务版本"一致即为对齐。

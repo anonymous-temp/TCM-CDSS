@@ -70,6 +70,19 @@ import {
   sanitizeFreeTextForExternalClinicalService,
   withSafetyGate,
 } from "@/lib/diagnosis-safety";
+import {
+  clinicalEvidenceFingerprint,
+  prioritizeTcmEvidenceForDisplay,
+  prioritizeWesternEvidenceForDisplay,
+} from "@/lib/clinical-evidence-display";
+import {
+  activeEmergencyClearanceFindingsFromGate,
+  emergencyClearanceContractIssue,
+  emergencyClearanceFindingKey,
+  emergencyClearanceIssueMessage,
+  EMERGENCY_CLEARANCE_DISPOSITIONS,
+  type EmergencyClearanceFindingAttestation,
+} from "@/lib/emergency-clearance-contract";
 import { markdownUrlTransform as urlTransform } from "@/lib/safe-url";
 import { isEncryptedSnapshotEnvelope } from "@/lib/encrypted-snapshot";
 import { FORMULA_STRUCTURE_TARGETS, formulaTargetPathogenesisCells, type FormulaStructureRole } from "@/lib/herb-target-contract";
@@ -683,7 +696,6 @@ type PrescriptionCandidate = {
   herbTable?: MarkdownTable;
 };
 
-type FollowupTimelineItem = StructuredFollowupTimelineItem;
 
 function splitMarkdownTableCells(line: string): string[] {
   const trimmed = line.trim();
@@ -4466,83 +4478,14 @@ function shouldRenderEvidenceStatus(evidence?: { evidenceLevel?: string; source?
 //     6 处断言一并移除。
 // 表格内的支持证据/证据依据列不属于本族，仍由 shouldRenderEvidenceStatus 等保留。
 
-const TCM_DISCRIMINATING_EVIDENCE =
-  /(?:舌|苔|脉|痰(?:白|黄|清|稀|稠|黏|粘|泡沫|带血)|(?:白|黄|清|稀|稠|黏|粘|泡沫|带血)[^，,。；;]{0,3}痰|流清涕|流黄涕|鼻涕清|鼻涕黄|无汗|自汗|盗汗|恶寒|寒战|口渴|口不渴|咽痒|咽痛|胸闷|喘鸣|便溏|便秘|尿黄|夜尿|经量|带下|喜按|拒按|刺痛|灼痛|冷痛|浮紧|浮数|弦细|滑数)/;
-const GENERIC_COMPLAINT_WITH_DURATION =
-  /^(?:反复|持续|间断|阵发)?(?:咳嗽|头痛|头晕|失眠|腹痛|腹胀|乏力|心悸|胸闷|纳差|便秘|腹泻|发热|疼痛)(?:伴[^，,。；;]{0,6})?(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半]+)?(?:余)?(?:天|日|周|月|年)?$/;
-const NONDISCRIMINATING_DISPLAY_FACT_PART =
-  /^(?:(?:患者|本例|目前|当前)?(?:一般情况|生命体征)(?:平稳|正常|无异常)|神清|精神可|面色正常|纳可|纳眠可|食欲正常|睡眠正常|二便正常|大小便正常|大便正常|小便正常|饮食睡眠(?:可|正常)|无特殊不适|未见明显异常|不限定)$/;
-
-function clinicalEvidenceFingerprint(value: string): string {
-  return value.normalize("NFKC").replace(/[\s，,。；;：:、+（）()[\]【】"'“”‘’]+/g, "").toLowerCase();
-}
-
-
-function isNondiscriminatingDisplayFact(value: string): boolean {
-  const parts = value.split(/[，,、；;。]+/).map((part) => part.trim()).filter(Boolean);
-  return parts.length > 0 && parts.every((part) => NONDISCRIMINATING_DISPLAY_FACT_PART.test(part));
-}
-
-/**
- * Presentation-only prioritization of facts the signed M03 result already selected.
- * It never creates a new clinical fact: candidates must come from primarySyndromeBasis,
- * grounded symptom clusters, or grounded pathogenesis-chain facts. A generic chief complaint
- * such as “咳嗽3天” remains available only when no more discriminating selected fact exists.
- */
-export function prioritizeTcmEvidenceForDisplay(
-  primaryFacts: readonly string[],
-  alternativeFacts: readonly string[],
-  chiefComplaint: string,
-  limit = 5,
-): string[] {
-  const chiefFingerprint = clinicalEvidenceFingerprint(chiefComplaint);
-  const seen = new Set<string>();
-  const ranked = [...primaryFacts, ...alternativeFacts].flatMap((raw, order) => {
-    const fact = raw.trim();
-    const fingerprint = clinicalEvidenceFingerprint(fact);
-    if (
-      !fact ||
-      !fingerprint ||
-      seen.has(fingerprint) ||
-      !isDisplayableClinicalText(fact) ||
-      isNondiscriminatingDisplayFact(fact)
-    ) return [];
-    seen.add(fingerprint);
-    const isChiefRestatement = Boolean(chiefFingerprint) &&
-      (fingerprint === chiefFingerprint || (fingerprint.length >= 4 && chiefFingerprint === fingerprint.replace(/(?:余)?(?:天|日|周|月|年)$/, "")));
-    const score =
-      (TCM_DISCRIMINATING_EVIDENCE.test(fact) ? 120 : 0) +
-      (/[，,。；;+]/.test(fact) ? 20 : 0) +
-      Math.min(fingerprint.length, 30) -
-      (isChiefRestatement ? 300 : 0) -
-      (GENERIC_COMPLAINT_WITH_DURATION.test(fact) ? 100 : 0);
-    return [{ fact, fingerprint, order, score, isChiefRestatement }];
-  });
-  if (ranked.length === 0) return [];
-  const hasSpecificAlternative = ranked.some((item) => !item.isChiefRestatement && item.score > 0);
-  return ranked
-    .filter((item) => !hasSpecificAlternative || !item.isChiefRestatement)
-    .sort((left, right) => right.score - left.score || left.order - right.order)
-    .slice(0, Math.max(1, limit))
-    .map((item) => item.fact);
-}
-
-export function prioritizeWesternEvidenceForDisplay(facts: readonly string[], limit = 5): string[] {
-  const seen = new Set<string>();
-  return facts.flatMap((raw) => {
-    const fact = raw.trim();
-    const fingerprint = clinicalEvidenceFingerprint(fact);
-    if (
-      !fact ||
-      !fingerprint ||
-      seen.has(fingerprint) ||
-      !isDisplayableClinicalText(fact) ||
-      isNondiscriminatingDisplayFact(fact)
-    ) return [];
-    seen.add(fingerprint);
-    return [fact];
-  }).slice(0, Math.max(1, limit));
-}
+// 展示层依据排序已上提到 @/lib/clinical-evidence-display（甲方 2026-08-10 ②）：
+// 此前整段写在本文件里、只被一张 React 卡片消费，Markdown 与 HIS 两个出口没接。
+// 这里保留同名 re-export，既有 import 路径与回归断言不受影响。
+export {
+  clinicalEvidenceFingerprint,
+  prioritizeTcmEvidenceForDisplay,
+  prioritizeWesternEvidenceForDisplay,
+};
 
 /** 展示层截断：超过 limit 的条目加省略号；完整内容在展开态/下方分析区仍可读。 */
 export function truncateClinicalTextForDisplay(value: string, limit: number): string {
@@ -4719,6 +4662,15 @@ function ResultTabsV2({
     { label: "排除依据", items: westernEvidence.excluding, withSource: true },
     // 待查依据是「尚缺什么 / 下一步查什么」，不是已记录的病历事实，标来源没有意义。
     { label: "待查依据", items: westernEvidence.pending, withSource: false },
+    // 指南/文献依据（甲方 2026-08-10 ⑩）。题名/机构/年份/URL 由服务端按 evidenceId 反查
+    // 本轮真检索到的 EviMed 条目渲染，模型只提交 id + 一句 appliesTo；检索不到就没有这一组。
+    // 标来源没有意义——它本身就是来源。
+    {
+      label: "指南/文献依据",
+      items: (reasoning.westernDiagnosis.primary.guidelineReferences || []).map((entry) =>
+        `${entry.citation}${entry.appliesTo ? `（${entry.appliesTo}）` : ""}`),
+      withSource: false,
+    },
   ].filter((group) => group.items.length > 0);
   // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
   // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
@@ -5377,8 +5329,16 @@ function ResultTabsV2({
               <div key={`${item.projectCode}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold text-gray-950">{item.projectName}</p>
-                  <span className={`rounded px-2 py-0.5 font-medium ${item.protocolStatus === "governed_patient_specific_plan" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                    {item.protocolStatus === "governed_patient_specific_plan" ? "标准方案 · 待复核" : "仅项目评估"}
+                  {/* 三态如实呈现（甲方 2026-08-10 ⑪）。此前只有两态，「命中病种模板」与
+                      「按本例证型加减过」共用「标准方案 · 待复核」这一个绿标——而实测四组八例
+                      （风寒/风热、心脾两虚/肝火扰心、湿热中阻/脾胃虚寒、寒湿/湿热）穴位逐字相同。 */}
+                  <span className={`rounded px-2 py-0.5 font-medium ${
+                    item.protocolStatus === "governed_patient_specific_plan" ? "bg-emerald-50 text-emerald-700"
+                      : item.protocolStatus === "governed_class_template_not_syndrome_tailored" ? "bg-sky-50 text-sky-700"
+                        : "bg-amber-50 text-amber-700"}`}>
+                    {item.protocolStatus === "governed_patient_specific_plan" ? "按证型加减 · 待复核"
+                      : item.protocolStatus === "governed_class_template_not_syndrome_tailored" ? "病种模板 · 未按证型加减"
+                        : "仅项目评估"}
                   </span>
                 </div>
                 {treatmentProjectCells[index].content && (
@@ -5388,10 +5348,13 @@ function ResultTabsV2({
                 {item.suggestedSitesOrPoints.length > 0 && (
                   <p className="mt-1">
                     <span className="font-medium text-gray-900">
-                      {item.protocolStatus === "governed_patient_specific_plan" ? "建议部位/候选穴位：" : "常用穴位（通用参考，未按本例适应证核定）："}
+                      {item.protocolStatus === "governed_patient_specific_plan" ? "按本例证型加减后的候选穴位："
+                        : item.protocolStatus === "governed_class_template_not_syndrome_tailored" ? "该病种标准取穴模板（未按本例证型加减）："
+                          : "常用穴位（通用参考，未按本例适应证核定）："}
                     </span>
                     {joinClinicalClauses(item.suggestedSitesOrPoints, "；")}
-                    {item.protocolStatus !== "governed_patient_specific_plan" && "；具体选穴由现场医师按适应证与禁忌确定"}
+                    {item.protocolStatus === "governed_class_template_not_syndrome_tailored" && "；请医生按本例寒热虚实增减后实施"}
+                    {item.protocolStatus === "assessment_only_no_patient_specific_protocol" && "；具体选穴由现场医师按适应证与禁忌确定"}
                   </p>
                 )}
                 {item.scheduleSuggestion && (
@@ -5477,13 +5440,34 @@ function EmergencyReferralReport({
 }: {
   caseState: CaseState;
   onDownloadReport: () => void;
-  onConfirmEmergencyClearance: (assessmentSummary: string) => Promise<void>;
+  onConfirmEmergencyClearance: (
+    assessmentSummary: string,
+    findings: EmergencyClearanceFindingAttestation[],
+  ) => Promise<void>;
 }) {
   const gate = caseState.safetyGate || evaluateSafetyGate(caseState);
   const presentation = buildEmergencyPresentation(caseState);
   const [assessmentSummary, setAssessmentSummary] = useState("");
   const [isConfirming, setIsConfirming] = useState(false);
-  const canConfirm = assessmentSummary.trim().length >= 12 && !isConfirming;
+  // 逐条处置留痕。判据与服务端签发端共用 emergency-clearance-contract 的同一个导出谓词——
+  // 此前这里与服务端各写一遍 `length >= 12`，而那正是「一句废话清空全部红旗」的入口。
+  const activeFindings = useMemo(() => activeEmergencyClearanceFindingsFromGate(gate), [gate]);
+  const [dispositions, setDispositions] = useState<Record<string, string>>({});
+  const [bases, setBases] = useState<Record<string, string>>({});
+  const attestations = useMemo(() => activeFindings.flatMap((finding) => {
+    const key = emergencyClearanceFindingKey(finding);
+    const disposition = dispositions[key];
+    const basis = (bases[key] || "").trim();
+    return disposition && basis
+      ? [{ ruleId: finding.ruleId, message: finding.message, disposition, basis } as EmergencyClearanceFindingAttestation]
+      : [];
+  }), [activeFindings, dispositions, bases]);
+  const contractIssue = emergencyClearanceContractIssue({
+    activeFindings,
+    attestations: attestations.length === activeFindings.length ? attestations : undefined,
+    assessmentSummary,
+  });
+  const canConfirm = !contractIssue && !isConfirming;
   const missingItems = [...new Set(gate.missingItems)].filter(Boolean);
 
   return (
@@ -5532,8 +5516,45 @@ function EmergencyReferralReport({
       </div>
 
       <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-        <label className="block text-xs font-bold text-sky-950" htmlFor="emergency-clearance-summary">
-          已完成现场急症排查时，请记录评估结果
+        <p className="text-xs font-bold text-sky-950">已完成现场急症排查时，请逐条记录处置方式与客观依据</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-sky-800">
+          下面每一条都是系统确定性判定的急危重线索。解除急诊约束的记录必须写明**做过什么**
+          （心电图、复测血压、已转急诊完成交接…），不能只写一段感受性描述。
+        </p>
+        <div className="mt-3 space-y-3" data-testid="emergency-clearance-findings">
+          {activeFindings.map((finding) => {
+            const key = emergencyClearanceFindingKey(finding);
+            const disposition = dispositions[key] || "";
+            const hint = EMERGENCY_CLEARANCE_DISPOSITIONS.find((item) => item.value === disposition)?.basisHint
+              || "写明做了哪项检查/复测/转诊及其结果";
+            return (
+              <div key={key} className="rounded-lg border border-sky-200 bg-white p-3">
+                <p className="text-xs font-semibold leading-relaxed text-red-900">{finding.message}</p>
+                <select
+                  data-testid={`emergency-clearance-disposition-${finding.ruleId}`}
+                  value={disposition}
+                  onChange={(event) => setDispositions((prev) => ({ ...prev, [key]: event.target.value }))}
+                  className="mt-2 w-full rounded-lg border border-sky-200 bg-white px-2 py-1.5 text-xs font-semibold text-gray-900 outline-none focus:border-sky-400"
+                >
+                  <option value="">请选择本条的处置方式…</option>
+                  {EMERGENCY_CLEARANCE_DISPOSITIONS.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+                <input
+                  data-testid={`emergency-clearance-basis-${finding.ruleId}`}
+                  value={bases[key] || ""}
+                  onChange={(event) => setBases((prev) => ({ ...prev, [key]: event.target.value.slice(0, 500) }))}
+                  maxLength={500}
+                  placeholder={hint}
+                  className="mt-2 w-full rounded-lg border border-sky-200 bg-white px-2 py-1.5 text-xs leading-relaxed text-gray-900 outline-none focus:border-sky-400"
+                />
+              </div>
+            );
+          })}
+        </div>
+        <label className="mt-3 block text-xs font-bold text-sky-950" htmlFor="emergency-clearance-summary">
+          现场评估或急诊排查结果小结
         </label>
         <textarea
           id="emergency-clearance-summary"
@@ -5553,7 +5574,7 @@ function EmergencyReferralReport({
             onClick={async () => {
               setIsConfirming(true);
               try {
-                await onConfirmEmergencyClearance(assessmentSummary.trim());
+                await onConfirmEmergencyClearance(assessmentSummary.trim(), attestations);
               } finally {
                 setIsConfirming(false);
               }
@@ -5572,6 +5593,11 @@ function EmergencyReferralReport({
             下载转诊建议与依据
           </button>
         </div>
+        {contractIssue && (
+          <p data-testid="emergency-clearance-blocked-reason" className="mt-2 text-[11px] font-semibold leading-relaxed text-red-700">
+            {emergencyClearanceIssueMessage(contractIssue)}
+          </p>
+        )}
         <p className="mt-2 text-[11px] leading-relaxed text-sky-800">确认记录只对当前红旗事实有效；病历出现新的急危重线索时会自动重新拦截。</p>
       </div>
 
@@ -5613,7 +5639,7 @@ export function CompactAiSchemeCardFlow({
   onRetry: () => void;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
   onConfirmEncounterScope: () => Promise<void>;
-  onConfirmEmergencyClearance: (assessmentSummary: string) => Promise<void>;
+  onConfirmEmergencyClearance: (assessmentSummary: string, findings: EmergencyClearanceFindingAttestation[]) => Promise<void>;
   onDownloadReport: () => void;
   restoredUnsavedDraft?: WorkbenchUnsavedDraftFlag | null;
   onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
@@ -7553,7 +7579,7 @@ function AiSupportPanel({
   onDownloadReport: () => void;
   onAcceptEditedPrescription: (accepted: AcceptedEditedPrescription) => Promise<void>;
   onConfirmEncounterScope: () => Promise<void>;
-  onConfirmEmergencyClearance: (assessmentSummary: string) => Promise<void>;
+  onConfirmEmergencyClearance: (assessmentSummary: string, findings: EmergencyClearanceFindingAttestation[]) => Promise<void>;
   onRunReasoning: () => void;
   canRunReasoning: boolean;
   submitHint?: string;
@@ -9058,12 +9084,20 @@ export default function DiagnosisPage() {
     }
   }
 
-  async function handleConfirmEmergencyClearance(assessmentSummary: string): Promise<void> {
+  async function handleConfirmEmergencyClearance(
+    assessmentSummary: string,
+    findings: EmergencyClearanceFindingAttestation[],
+  ): Promise<void> {
     if (runningRef.current || isRunning) return;
     const summary = assessmentSummary.trim();
-    if (summary.length < 12) return;
     const currentGate = evaluateSafetyGate(caseState);
     if (currentGate.status !== "red_flag") return;
+    // 前端判据必须与服务端签发端逐字同源；服务端仍会独立重跑一遍（fail-closed 两道）。
+    if (emergencyClearanceContractIssue({
+      activeFindings: activeEmergencyClearanceFindingsFromGate(currentGate),
+      attestations: findings,
+      assessmentSummary: summary,
+    })) return;
 
     setRunning(true);
     beginRunScope();
@@ -9071,7 +9105,7 @@ export default function DiagnosisPage() {
       const response = await fetchWithTimeout(apiUrl("/api/diagnosis/emergency-clearance"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caseState, assessmentSummary: summary }),
+        body: JSON.stringify({ caseState, assessmentSummary: summary, findings }),
       });
       const payload = await response.json().catch(() => null) as {
         emergencyClearance?: CaseState["emergencyClearance"];

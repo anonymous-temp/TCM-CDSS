@@ -1684,7 +1684,24 @@ export function governedHerbSubstitutes(
  *  · 一条都不相关（或库里本就没有功效）时，不写通用套话，改写成绑定该药实际病机节点的
  *    一句话——说不出该药在本方做什么时，至少说清它挂在哪条病机上，交医生判断。
  */
-export function getTcmHerbFunctionDisplayText(herb: string, role = "", target = "", therapy = ""): string {
+/**
+ * @param rolePlaceholderWhenUnaligned 对不上本方治法时是否回落角色兜底句。
+ *
+ * **契约校验之前必须传 false。** 兜底句是服务端造的、内容为零的一句话
+ * （「臣药，本方中的具体配伍作用需医生结合方义复核」），而 diagnosis-stage-contract 的
+ * herbFunctionMatchesKnowledge 又显式放行这句 —— 于是它一旦在校验前写进 herb.function，
+ * `candidate_*_herb_*_function(_ungrounded)` 就永远不会触发，
+ * structured-clinical-repair 里那段「把本方配伍作用写清楚」的修复指导语成了**打不到的死代码**
+ * （甲方 2026-08-10 ⑤ 黄芪：模型没写方义时，医生看到的就是这句套话，而修复轮从未被唤起）。
+ * 兜底句只应该在**修复机会用尽之后**的 finalize 补写，保证输出不空白。
+ */
+export function getTcmHerbFunctionDisplayText(
+  herb: string,
+  role = "",
+  target = "",
+  therapy = "",
+  rolePlaceholderWhenUnaligned = true,
+): string {
   const raw = getTcmHerbFunctionText(herb).trim();
   const clauses = raw
     .split(/[；;，,、]/)
@@ -1725,6 +1742,7 @@ export function getTcmHerbFunctionDisplayText(herb: string, role = "", target = 
     ...(aligned.length > 0 ? aligned : (alignmentText ? [] : clauses)),
   ])];
   if (chosen.length > 0) return chosen.slice(0, 3).join("，");
+  if (!rolePlaceholderWhenUnaligned) return "";
   // 兜底句**不得嵌入病机原文**:病机在药味表里另有独立一列,嵌进来会让同一句病机
   // 在一节里被印 7 遍(实测触发 test:visible-output-hygiene 的重复病机判据),
   // 而这恰恰是甲方 1.1.1 抱怨的同一类冗余。角色 + 需复核声明已足够表达不确定性。

@@ -75,3 +75,8 @@ scripts/tmp-verify/
 # Python 字节码产物（曾误提交进仓库，见 d40072db）
 __pycache__/
 *.pyc
+
+# 一次性复现/排查脚本（与 artifacts、deeptest 同类：调查产出，不是应用源码）
+tmp-probe/
+probe-*.mjs
+tmp-probe-*.mjs

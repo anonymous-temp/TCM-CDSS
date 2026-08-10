@@ -13,8 +13,11 @@ import { isKnownTcmTreatmentProjectCode } from "./tcm-treatment-projects";
 import { lineageLabel } from "./tcm-lineages";
 import { classifyHerbWarning, deriveCaseWarningProfile, warningLevelRank, type ClinicalWarningLevel } from "./clinical-warning-tier";
 import { hasBoundClinicalReviewAttestation } from "./clinical-review-binding";
+import { clinicalReviewIndependenceOf, clinicalReviewLabel, clinicalReviewMethodNote } from "./clinical-review-independence";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS } from "./internal-tag-hygiene";
 import { safeDietAdviceForDisplay } from "./result-display-policy";
+import { tcmTreatmentProtocolGapCopy, westernDiagnosisLabelForDisplay } from "./diagnosis-visible-summary";
+import { prioritizeTcmEvidenceForDisplay, prioritizeWesternEvidenceForDisplay } from "./clinical-evidence-display";
 
 type SchemeStatus = "ready" | "pending" | "limited";
 
@@ -69,6 +72,20 @@ export type HisAiSchemePayload = {
     redFlags: string[];
   };
   safetyGate: SafetyGate;
+  /**
+   * 本次临床复核的**实际拓扑**（甲方 2026-08-10 ⑨）。
+   * cross_model = 换了模型身份的独立复核；same_model_second_pass = 同一模型的第二次
+   * 无对话状态请求（复核专用提示词、只增不减风险提示），不构成跨模型独立复核。
+   * 未记录复核时为 null。
+   */
+  clinicalReviewMethod: {
+    status: "accepted" | "unavailable";
+    independence: "cross_model" | "same_model_second_pass";
+    label: string;
+    note: string;
+    provider?: string;
+    model?: string;
+  } | null;
   prescriptionRevision?: {
     herbHash: string;
     auditedAt: string;
@@ -103,6 +120,12 @@ export type HisAiSchemePayload = {
       supportingFacts: string[];
       limitations: string[];
       suggestedChecks: string[];
+      /**
+       * 指南/文献依据（甲方 2026-08-10 ⑩）。题名/机构/年份/URL 由服务端按 evidenceId
+       * 反查本轮真检索到的 EviMed 条目渲染，模型只提交 id + 一句 appliesTo。
+       * 检索不到就没有这个字段——绝不回落到模型自撰题名。
+       */
+      guidelineReferences?: Array<{ evidenceId: string; citation: string; url?: string; appliesTo?: string }>;
       icd10?: { code: string; display: string; source: string };
     } | null;
   };
@@ -228,8 +251,11 @@ export type HisAiSchemePayload = {
       availability: "clinic_available" | "referral_only";
       targetPathogenesis: string;
       assessmentPositioning?: string;
-      protocolStatus: "governed_patient_specific_plan" | "assessment_only_no_patient_specific_protocol";
+      protocolStatus: "governed_patient_specific_plan" | "governed_class_template_not_syndrome_tailored" | "assessment_only_no_patient_specific_protocol";
+      /** 内部状态码。要展示给人看请用 protocolGapNote。 */
       protocolGap?: string;
+      /** protocolGap 的临床语言说明（受控映射，认不出的码不下发）。 */
+      protocolGapNote?: string;
       treatmentContent: string;
       suggestedSitesOrPoints: string[];
       scheduleSuggestion: string;
@@ -764,9 +790,19 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
   const westernStructuredReference = trustedStructuredEvidenceText(activeReasoning?.westernDiagnosis?.primary?.evidence, evidenceScope);
   const tcmStructuredReference = trustedStructuredEvidenceText(activeReasoning?.overview?.evidence, evidenceScope);
   const herbalStructuredReference = suppressDoseLevelOutputs ? undefined : verifiedFormulaReference(caseState);
-  const westernStructuredFacts = activeReasoning?.westernDiagnosis?.primary?.supportingFacts?.filter(Boolean).join("；");
-  const tcmStructuredFacts = activeReasoning?.pathogenesis?.chain
-    .map((item) => [item.patientFact, item.syndromeEvidence].filter(Boolean).join(" → "))
+  // 依据排序接**同一个**导出谓词（甲方 2026-08-10 ②）：prioritize*ForDisplay 此前只被
+  // 客户端一张 React 卡片消费，Markdown 与 HIS 两个出口各自把原始字段直接写出去，
+  // 于是同一份签名载荷在三个出口不一致——医生页面里被降权的主诉复述，在 HIS 写回里照样出现。
+  const westernStructuredFacts = prioritizeWesternEvidenceForDisplay(
+    activeReasoning?.westernDiagnosis?.primary?.supportingFacts?.filter(Boolean) || [],
+  ).join("；");
+  const hisChiefComplaint = caseState.hisRecord?.fields?.zhushu || caseState.chiefComplaint || "";
+  const tcmStructuredFacts = (activeReasoning?.pathogenesis?.chain || [])
+    .map((item) => [
+      item.patientFact,
+      prioritizeTcmEvidenceForDisplay([item.syndromeEvidence || ""], [], hisChiefComplaint, 2).join("；")
+        || item.syndromeEvidence,
+    ].filter(Boolean).join(" → "))
     .filter(Boolean)
     .join("；");
   const contentMismatch = suppressDoseLevelOutputs ? false : markdownV2HerbMismatch(markdownHerbal, caseState);
@@ -785,6 +821,26 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
       `**质量批注受理**：生成侧已按质量批注受理本候选，涉及缺陷码：${codes.join("、")}。`,
       "对应医生可读批注见处方正文首部；该裁决位于合同签名域内，写回链路只读取、不改写。采纳前请医生结合批注逐项复核；本提示不阻断诊疗流程。",
     ].join("\n");
+  })();
+  /**
+   * 复核方式如实写回（甲方 2026-08-10 ⑨）。
+   *
+   * HIS 与医生页面此前都只看得到「独立复核」四个字，而默认全 V4-Flash 部署下
+   * `independentFromGenerator=false`——同一模型的第二次无对话状态请求。
+   * 这里把拓扑位与它对应的方式说明一并下发，集成方与医生据此判断这道复核的证据强度。
+   */
+  const clinicalReviewMethod = (() => {
+    const attestation = prescribeReasoning?.clinicalReview || diagnoseReasoning?.clinicalReview;
+    if (!attestation) return null;
+    const independence = clinicalReviewIndependenceOf(attestation.independentFromGenerator);
+    return {
+      status: attestation.status,
+      independence,
+      label: clinicalReviewLabel(independence),
+      note: clinicalReviewMethodNote(independence),
+      ...(attestation.provider ? { provider: attestation.provider } : {}),
+      ...(attestation.model ? { model: attestation.model } : {}),
+    };
   })();
   const consistencyRisk = [
     contentMismatch
@@ -893,6 +949,8 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
       redFlags: gate.redFlags,
     },
     safetyGate: gate,
+    // 复核方式（甲方 2026-08-10 ⑨）：拓扑位随签名 attestation 下发，不再无条件写「独立」。
+    clinicalReviewMethod,
     prescriptionRevision: !suppressDoseLevelOutputs && caseState.prescriptionRevision ? {
       herbHash: caseState.prescriptionRevision.herbHash,
       auditedAt: caseState.prescriptionRevision.auditedAt,
@@ -928,7 +986,15 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
       ].filter(Boolean).join("；") || compact(caseState.vitals),
     },
     diagnoses: {
-      western: [item("western-1", extractField(western, ["风险/需排除方向", "西医诊断"]) || "西医诊断", western, {
+      // 诊断名走 westernDiagnosisLabelForDisplay——它自述是「医生可见标签的唯一权威
+      //（Markdown 摘要、客户端诊断卡、HIS 方案共用）」，而这里此前从 Markdown 正文里
+      // extractField 取字符串，绕开了它（甲方 2026-08-10 ③）：ICD-10 规范名不生效、
+      // 「头痛（症状性）」这类非规范括注也不会被收敛成「头痛，病因待查」。
+      // 结构化载荷取不到名字时才回落到 Markdown 抽取，保持既有兼容行为。
+      western: [item("western-1", westernDiagnosisLabelForDisplay(
+        activeReasoning?.westernDiagnosis?.primary?.name,
+        activeReasoning?.westernDiagnosis?.primary?.coding,
+      ) || extractField(western, ["风险/需排除方向", "西医诊断"]) || "西医诊断", western, {
         evidence: westernStructuredFacts,
         reference: westernStructuredReference,
         adoptable: false,
@@ -951,12 +1017,25 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         const primary = activeReasoning?.westernDiagnosis?.primary;
         if (!primary?.name) return null;
         return {
-          name: clean(primary.name),
+          // 同一权威：结构化 westernDetail.name 也必须走 westernDiagnosisLabelForDisplay，
+          // 否则 HIS 的两个字段（diagnoses.western[0].name 与 westernDetail.name）会不一致。
+          name: clean(westernDiagnosisLabelForDisplay(primary.name, primary.coding) || primary.name),
           status: clean(primary.status || ""),
           confidence: clean(primary.confidence || ""),
           supportingFacts: (primary.supportingFacts || []).map((fact) => clean(fact)).filter(Boolean),
           limitations: (primary.limitations || []).map((entry) => clean(entry)).filter(Boolean),
           suggestedChecks: (primary.suggestedChecks || []).map((entry) => clean(entry)).filter(Boolean),
+          // 指南/文献依据（甲方 2026-08-10 ⑩）。题名/机构/年份/URL 全部由服务端按
+          // evidenceId 反查本轮真检索到的条目渲染，模型只提交 id + 一句 appliesTo。
+          // 取不到就没有这个字段，绝不回落到模型自撰题名。
+          ...(primary.guidelineReferences?.length ? {
+            guidelineReferences: primary.guidelineReferences.map((entry) => ({
+              evidenceId: entry.evidenceId,
+              citation: clean(entry.citation),
+              ...(entry.url ? { url: entry.url } : {}),
+              ...(entry.appliesTo ? { appliesTo: clean(entry.appliesTo) } : {}),
+            })),
+          } : {}),
           ...(primary.coding?.code ? {
             icd10: {
               code: clean(primary.coding.code),
@@ -1058,6 +1137,9 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         assessmentPositioning: project.assessmentPositioning,
         protocolStatus: project.protocolStatus,
         protocolGap: project.protocolGap,
+        // protocolGap 是内部状态码；集成方要直接展示时用这一句临床语言，不要自己翻译码值
+        //（Markdown 出口此前把码值原样印给医生看，见 diagnosis-visible-summary 的同名映射）。
+        ...(tcmTreatmentProtocolGapCopy(project.protocolGap || "") ? { protocolGapNote: tcmTreatmentProtocolGapCopy(project.protocolGap || "") } : {}),
         treatmentContent: project.treatmentContent,
         suggestedSitesOrPoints: project.suggestedSitesOrPoints,
         scheduleSuggestion: project.scheduleSuggestion,

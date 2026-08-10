@@ -179,6 +179,39 @@ export function medicineProblemMatchesCase(problem: string, caseText: string): b
   return normalizedProblem.length >= 2 && normalizedCase.includes(normalizedProblem);
 }
 
+/**
+ * 由 evidenceId **反查**本轮真检索到的条目，渲染成一条可核对的引用。
+ *
+ * 这是甲方 2026-08-10 ⑩ 的修法：模型只回 evidenceId 序号 + 一句 appliesTo，
+ * 题名/机构/年份/URL 一律由 id 索引回条目字段渲染，模型无法引入任何新字符串。
+ * 形状照搬已跑通的 EVID-INST 绑定（medicineEvidenceBindingValid）——同一个适配器、
+ * 同一次检索，此前差别只在**说明书那侧有强制绑定契约，指南那侧只有一句「允许引用」**：
+ * 归档 1531 个 json、2280 条 evidence 里 EVID-INST 出现 268 次，
+ * 而「指南/文献依据」栏自诞生起产出 0 条。
+ *
+ * 只认 EVID-GUIDE / EVID-PAPER：OFFICIAL-* 是处方审核规范一类的政策文件，
+ * 能证明审核实践，证明不了某个具体诊断，不该出现在「指南/文献依据」栏。
+ */
+export type GovernedEvidenceCitation = { evidenceId: string; citation: string; url?: string };
+
+export function governedEvidenceCitation(
+  evidenceId: unknown,
+  scope: EvidenceScope,
+): GovernedEvidenceCitation | undefined {
+  const id = typeof evidenceId === "string" ? evidenceId.trim() : "";
+  if (!/^EVID-(?:GUIDE|PAPER)-\d{3}$/.test(id)) return undefined;
+  const record = scope.records.find((candidate) => candidate.ids.has(id));
+  if (!record) return undefined;
+  // 记录行形如：`[EVID-GUIDE-002] 题名（机构，年份）：摘要… URL:https://…`
+  const body = record.text.replace(/^\s*[-*]?\s*\[[A-Z][A-Z0-9_-]*(?:-[A-Z0-9_-]+)+\]\s*/, "").trim();
+  const url = [...record.urls][0];
+  const withoutUrl = body.replace(/\s*URL:\s*https?:\/\/\S+\s*$/i, "").trim();
+  // 摘要不进引用：引用要的是可核对的出处，不是一段可能被模型二次演绎的正文。
+  const citation = withoutUrl.split("：", 1)[0].trim() || withoutUrl;
+  if (citation.length < 2) return undefined;
+  return { evidenceId: id, citation, ...(url ? { url } : {}) };
+}
+
 const INSUFFICIENT_EVIDENCE = {
   evidenceLevel: "insufficient",
   source: "内部证据缺口",

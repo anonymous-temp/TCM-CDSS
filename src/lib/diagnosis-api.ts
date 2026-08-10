@@ -43,6 +43,7 @@ import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy } from "@/lib/tcm-ch
 import { enforceRetrievedM03FormulaSelection } from "@/lib/tcm-formula-indications";
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
 import { dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
+import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
 
 const GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const GLM_VISION_MODEL = process.env.GLM_VISION_MODEL?.trim() || "glm-5v-turbo";
@@ -1860,6 +1861,12 @@ type ClinicalReviewerIdentity = {
   provider: string;
   model: string;
   source: ClinicalReviewModelConfig["source"];
+  /**
+   * 这次复核是否真的换了模型身份（甲方 2026-08-10 ⑨）。此前只进遥测、无人消费，
+   * 而医生可见措辞无条件写「独立复核」。现在它随 attestation 进签名载荷，
+   * 措辞由 clinical-review-independence 的唯一谓词决定。
+   */
+  independentFromGenerator: boolean;
 };
 type ClinicalReviewExecution<T extends ClinicalReviewResult> = T & {
   reviewer?: ClinicalReviewerIdentity;
@@ -1997,7 +2004,7 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
     const remaining = chainDeadline - Date.now();
     if (remaining <= 0 || opts.parentSignal?.aborted) return complete(opts.unavailable, "deadline");
     attemptCount += 1;
-    lastCandidateIdentity = { provider: config.provider, model: config.model, source: config.source };
+    lastCandidateIdentity = { provider: config.provider, model: config.model, source: config.source, independentFromGenerator: config.independentFromGenerator };
     lastResponseContent = "";
     const controller = new AbortController();
     const abortFromParent = () => controller.abort();
@@ -2058,7 +2065,7 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
           return complete(
             review,
             review.status === "accepted" ? "accepted" : "repair",
-            { provider: config.provider, model: config.model, source: config.source },
+            { provider: config.provider, model: config.model, source: config.source, independentFromGenerator: config.independentFromGenerator },
           );
         }
         lastReason = "invalid_contract";
@@ -4447,6 +4454,33 @@ async function callPrimaryTextModelStream(
           }
           if (opts.structuredStage === "diagnose") {
             signedContent = sanitizeDiagnoseStreamingDraft(signedContent);
+          }
+          // ── 复核措辞与实际拓扑对齐（甲方 2026-08-10 ⑨）─────────────────────────────
+          //
+          // `independentFromGenerator` 一直算得很仔细，却算出来即丢弃：只进遥测，
+          // 呈现层无人读，医生看到的措辞一律无条件写「独立复核」。默认全 V4-Flash 部署下
+          // 它是 false——同一模型的第二次无对话状态请求，是有价值的安全环节，但不是「独立」。
+          //
+          // 改写只作用于**可见正文头部**（sentinel 之前），签名载荷逐字节不动；
+          // 且刻意做成一次统一改写而不是逐处传参——这句措辞散落在 m04-repair-policy 的批注、
+          // 复核未完成通知、可见摘要的 resolutionReason 与内部码降级文案里，逐处穿参
+          // 会重演「同一判据多处各写各的」。跨模型拓扑下本改写是零操作。
+          {
+            const attestation = opts.structuredStage === "diagnose"
+              ? m03ClinicalReviewAttestation
+              : opts.structuredStage === "prescribe" ? m04ClinicalReviewAttestation : undefined;
+            const independence = clinicalReviewIndependenceOf(
+              attestation?.independentFromGenerator
+                // 复核未完成时没有 reviewer 身份可读；按**当前配置**的候选链判定，
+                // 仍然不允许缺省成「独立」。
+                ?? (opts.structuredStage
+                  ? clinicalReviewModelCandidates(opts.structuredStage).some((candidate) => candidate.independentFromGenerator)
+                  : undefined),
+            );
+            const sentinelAt = signedContent.indexOf("<!-- DIAGNOSIS_JSON_START -->");
+            signedContent = sentinelAt < 0
+              ? applyClinicalReviewIndependenceWording(signedContent, independence)
+              : `${applyClinicalReviewIndependenceWording(signedContent.slice(0, sentinelAt), independence)}${signedContent.slice(sentinelAt)}`;
           }
           const authoritativeFallbackAccepted = truncated && opts.authoritativeTruncateFallback && transformed.ok;
           // B+C: a contract-passed candidate rejected ONLY by the independent depth reviewer (semantic

@@ -16,6 +16,7 @@ import { clinicalAxisAttributionFromFacts } from "./tcm-syndrome-hypothesis";
 import { classifyWesternDiagnosticEvidence, clinicalFactSourcesFromContext, clinicalFactWithSource } from "./clinical-fact-source";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { safeDietAdviceForDisplay } from "./result-display-policy";
+import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives } from "./internal-tag-hygiene";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
@@ -1270,7 +1271,24 @@ export function applyDeterministicHerbDecoctionRequirements(content: string): st
   }
 }
 
-export function applyDeterministicHerbFunctions(content: string): string {
+/**
+ * @param opts.fillRolePlaceholder 只有 **finalize（修复机会已用尽）** 才可传 true。
+ *
+ * 甲方 2026-08-10 ⑤（黄芪）：本函数此前无条件把 `getTcmHerbFunctionDisplayText` 的结果写回，
+ * 而该函数在「库里有条目但没有一条对得上本方治法」时返回角色兜底句
+ * 「臣药，本方中的具体配伍作用需医生结合方义复核」——**它永远非空**。
+ * 于是模型没写方义（或写得不接地）时，服务端在**契约校验之前**就替它填上了一句合法值，
+ * `candidate_*_herb_*_function(_ungrounded)` 从此不可能触发，
+ * structured-clinical-repair 里那段修复指导语成了永远打不到的死代码。
+ * 医生看到的不是「系统让模型重写了一遍方义」，而是那句零内容套话。
+ *
+ * 现在分两段：契约前只写**KB 对齐串**，对不上就留空 / 留原文，让修复轮真正跑起来；
+ * 角色兜底句移到路由终审之后的 finalize，只负责「不给医生一个空栏」。
+ */
+export function applyDeterministicHerbFunctions(
+  content: string,
+  opts?: { fillRolePlaceholder?: boolean },
+): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -1282,7 +1300,7 @@ export function applyDeterministicHerbFunctions(content: string): string {
       for (const herb of recordList(candidate.herbs)) {
         const name = markdownCell(herb.name);
         if (!name || !isKnownTcmHerbName(name)) continue;
-        const canonicalFunction = getTcmHerbFunctionDisplayText(
+        const alignedFunction = getTcmHerbFunctionDisplayText(
           name,
           markdownCell(herb.role),
           markdownCell(herb.targetPathogenesis),
@@ -1295,6 +1313,8 @@ export function applyDeterministicHerbFunctions(content: string): string {
             markdownCell(recordValue(reasoning.therapy)?.overallPrinciple),
             ...recordList(recordValue(reasoning.therapy)?.subTherapies).map((item) => markdownCell(item.therapy)),
             markdownCell(candidate.therapyMatch)].filter(Boolean).join("；"),
+          // 契约前不许回落角色兜底句——它是本条缺陷的载体，见函数头注释。
+          false,
         ).trim();
         // 服务端在这里的角色是**校验**，不是覆盖。
         //
@@ -1314,7 +1334,21 @@ export function applyDeterministicHerbFunctions(content: string): string {
         if (modelFunction && herbFunctionMatchesKnowledge(
           name, modelFunction, markdownCell(herb.role), markdownCell(herb.targetPathogenesis),
         )) continue;
-        if (canonicalFunction) herb.function = canonicalFunction;
+        if (alignedFunction) {
+          herb.function = alignedFunction;
+          continue;
+        }
+        // KB 对不上本方治法：**契约前保持原样**。空 → candidate_*_herb_*_function，
+        // 有文但不接地 → _function_ungrounded，两者都是 T2 码，先走一轮修复让模型把
+        // 「这味药在本方里做什么」写清楚；修不出来才由 finalize 补角色兜底句。
+        if (opts?.fillRolePlaceholder) {
+          herb.function = getTcmHerbFunctionDisplayText(
+            name,
+            markdownCell(herb.role),
+            markdownCell(herb.targetPathogenesis),
+            "",
+          );
+        }
       }
     }
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
@@ -2213,8 +2247,17 @@ function symptomLevelWesternName(fact: string | undefined, fallback: string): st
  * 服务端此前只认 `X症状` 这一种形态（模型按提示词写「头痛症状」时能转），
  * 模型改用括注写法就整条漏过去。这里按**形态族**收口，而不是逐个字符串补丁。
  */
+/**
+ * 末尾的「病因未明」限定形态族。
+ *
+ * `，病因待查` 也在其中，而它恰恰是本函数**自己产出**的规范写法——收进来是为了让这个转换
+ * **幂等**。不收会出事：一份已经规范化过的 `头痛，病因待查` 再过一次时 qualifier 判空，
+ * 于是走「编码名称替换」分支，`coding.display="头痛"` 是 core 的子串 ⇒ 整条被塌回「头痛」，
+ * 「病因待查」凭空消失，诊断从「病因不明」变成了「已定为头痛」。
+ * HIS 写回接上这个唯一权威后，该形态在同一份载荷上会被求值两次，问题即刻显形。
+ */
 const NON_STANDARD_SYMPTOM_QUALIFIER =
-  /(?:症状|[（(](?:症状性|症状|待查|待因|病因待查|病因待鉴别|病因不明)[）)]|待因)$/u;
+  /(?:症状|[（(](?:症状性|症状|待查|待因|病因待查|病因待鉴别|病因不明)[）)]|待因|[，,]\s*(?:病因待查|病因未明|病因不明))$/u;
 
 /**
  * Keep the signed Western diagnosis label unchanged for review and downstream contracts, while
@@ -2550,6 +2593,26 @@ function syndromeLabelWithNationalStandard(
  * 宁可少一栏，也不让一条编造的指南名出现在医生面前。
  */
 function governedGuidelineReferences(primary: Record<string, unknown> | null | undefined): string[] {
+  // 首选**服务端按 evidenceId 反查渲染**的结构化引用（甲方 2026-08-10 ⑩）。
+  //
+  // 归档量化（1531 个 json、2280 条 evidence）：model_inference 2177 条 = 95.5%，
+  // source 全部是提示词模板里那句「病例内推理」——而下面第一个被排除的就是 model_inference、
+  // 第二个正则第一个词就是「病例内推理」。模板在教模型填一个呈现层保证会丢掉的值，
+  // 于是 grep「指南/文献依据」→ 0 个文件，这一栏自诞生起产出过 0 条。
+  //
+  // 结构化引用里的题名/机构/年份/URL 全部来自本轮真检索到的条目字段（见
+  // cdss-evidence-context.resolveGovernedGuidelineReferences），模型只能写一句 appliesTo，
+  // 因此这里可以直接印，不需要再过一遍反伪造白名单。
+  const structured = recordList(primary?.guidelineReferences)
+    .map((item) => {
+      const citation = markdownCell(item.citation);
+      if (!citation) return "";
+      const appliesTo = markdownCell(item.appliesTo);
+      const url = markdownCell(item.url);
+      return `${citation}${appliesTo ? `（${appliesTo}）` : ""}${url ? ` ${url}` : ""}`;
+    })
+    .filter(Boolean);
+  if (structured.length > 0) return structured;
   const evidence = recordValue(primary?.evidence);
   const level = markdownCell(evidence?.evidenceLevel);
   const source = markdownCell(evidence?.source);
@@ -2586,6 +2649,27 @@ function differentialLine(name: string, item: Record<string, unknown>): string {
     markdownCell(item.nextCheck) ? `建议核实：${markdownCell(item.nextCheck)}` : "",
     source ? `依据：${source}` : "",
   ], "；")}`;
+}
+
+/**
+ * 与该病机同源的症状组事实，作为证候依据排序的备选池。
+ * 判据与客户端卡片同源（clinicalEvidenceFingerprint 双向包含），不新增任何事实。
+ */
+function symptomClusterFacts(pathogenesis: Record<string, unknown> | null | undefined, nodePathogenesis: string): string[] {
+  if (!nodePathogenesis) return [];
+  const target = clinicalEvidenceFingerprint(nodePathogenesis);
+  return recordList(pathogenesis?.symptomClusters)
+    .filter((cluster) => {
+      const mechanism = clinicalEvidenceFingerprint(markdownCell(cluster.mechanism));
+      return Boolean(mechanism) && Boolean(target) && (mechanism.includes(target) || target.includes(mechanism));
+    })
+    .flatMap((cluster) => (Array.isArray(cluster.symptoms) ? cluster.symptoms : []))
+    .filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
+}
+
+/** 病历接地正文的首行即主诉（trustedInputText 以 chiefComplaint 开头）。取不到就空串，排序照常工作。 */
+function groundedChiefComplaint(clinicalContext: string): string {
+  return clinicalContext.split("\n").map((line) => line.trim()).find(Boolean) || "";
 }
 
 function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinicalContext = ""): string {
@@ -2857,7 +2941,18 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
       "|---|---|---|---|",
       // 子病机列：若该节点病机已被总体病机逐字包含，改写为短引用而不是把同一句再抄一遍。
       // 表格不留空单元格——「已含于总体病机」本身就是医生要的信息（这一节点没有额外内容）。
-      ...chain.map((node) => `| ${markdownCell(node.patientFact)} | ${markdownCell(node.syndromeEvidence)} | ${
+      //
+      // 证候依据列接 prioritizeTcmEvidenceForDisplay（甲方 2026-08-10 ②）：该排序此前只被
+      // 客户端一张 React 卡片消费，可见 Markdown 与 HIS 两个出口把原始 syndromeEvidence
+      // 直接印出去，于是同一份签名载荷在三个出口呈现不一致（主诉复述在这里照印、在卡片里被降权）。
+      ...chain.map((node) => `| ${markdownCell(node.patientFact)} | ${
+        markdownCell(prioritizeTcmEvidenceForDisplay(
+          [markdownCell(node.syndromeEvidence)],
+          symptomClusterFacts(pathogenesis, markdownCell(node.pathogenesis)),
+          groundedChiefComplaint(clinicalContext),
+          2,
+        ).join("；") || markdownCell(node.syndromeEvidence))
+      } | ${
         pathogenesisLedger.claim(node.pathogenesis) ? markdownCell(node.pathogenesis) : "同总体病机"
       } | ${markdownCell(node.therapyDirection)} |`),
     );
@@ -3071,6 +3166,11 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
         target ? `对应病机：${modificationPathogenesisLedger.claim(target) ? target : "同上述病机"}` : "",
         markdownCell(item.reason),
         sourceQuote ? `触发依据：${sourceQuote}` : "",
+        // riskNote 是加减行的**合同必填字段**，React 卡片与 HIS 出参都呈现它，
+        // 唯独这条 Markdown 分支从不读它（甲方 2026-08-10 ⑥）：同一份签名载荷，
+        // 三个出口里两个有风险提示、一个没有。加减本身会改变方的构成，
+        // 「这一加会带来什么风险」正是医生采纳前要看的那句。
+        markdownCell(item.riskNote) ? `风险提示：${markdownCell(item.riskNote)}` : "",
       ], "；")}`,
         ...(substitutions.length > 0
           ? [`  - 可替换药味：${substitutions.join("；")}（替代药同样受剂量上限、十八反十九畏与特殊人群规则约束）`]
@@ -3132,6 +3232,8 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
           ? joinClinicalClauses(item.suggestedSitesOrPoints.map(markdownCell), "；")
           : "";
         const hasPatientSpecificProtocol = item.protocolStatus === "governed_patient_specific_plan";
+        const isClassTemplateOnly = item.protocolStatus === "governed_class_template_not_syndrome_tailored";
+        const hasGovernedProtocol = hasPatientSpecificProtocol || isClassTemplateOnly;
         const treatmentContent = markdownCell(item.treatmentContent);
         const target = markdownCell(item.targetPathogenesis);
         // 历史载荷的 treatmentContent 把本块自己的病机原文内嵌在引号里（生成侧已停，见
@@ -3142,13 +3244,21 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
         if (treatmentContent) shownTreatmentContent.add(treatmentContent);
         lines.push(
           `#### ${markdownCell(item.projectName)} · ${availability}`,
-          `- **方案状态**：${hasPatientSpecificProtocol ? "已有对应适应证的标准操作方案，仍须医生复核" : "仅作项目评估，未形成患者级操作方案"}`,
+          // 三态如实呈现（甲方 2026-08-10 ⑪）：此前只有两态，于是「命中病种模板」被写成
+          // 「已有对应适应证的标准操作方案」，医生读不出它有没有按本例证型加减过。
+          `- **方案状态**：${hasPatientSpecificProtocol
+            ? "已按本例证型加减取穴的标准方案，仍须医生复核"
+            : isClassTemplateOnly
+              ? "已命中该病种标准取穴模板，尚未按本例证型加减，须医生按证型增减后实施"
+              : "仅作项目评估，未形成患者级操作方案"}`,
           ...(contentEmbedsTarget ? [] : [`- **治疗内容**：${repeatedContent ? "同上述项目" : treatmentContent}`]),
           `- **对应病机**：${treatmentPathogenesisLedger.claim(target)
             ? target
             : "同上述病机"}`,
-          ...(sites ? [hasPatientSpecificProtocol
-            ? `- **建议部位/候选穴位**：${sites}`
+          ...(sites ? [hasGovernedProtocol
+            ? hasPatientSpecificProtocol
+              ? `- **按本例证型加减后的候选穴位**：${sites}`
+              : `- **该病种标准取穴模板（未按本例证型加减）**：${sites}；请医生按本例寒热虚实增减后实施`
             // 标注必须与选穴依据一致(2026-08-05,甲方 6.1)。
             // 旧标注写死「通用参考，未按本例适应证核定」——那句话本身就是甲方指出的问题:
             // 给的是通用穴位池,不是辨证后的处方。现在选穴按本例主症逐条匹配穴位主治
@@ -3159,7 +3269,13 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
               ? `- **本例主症对应候选穴位（按穴位主治核定）**：${sites}；具体选穴、补泻与操作参数由现场医师按适应证与禁忌确定`
               : `- **常用穴位（通用参考，未按本例适应证核定）**：${sites}；具体选穴由现场医师按适应证与禁忌确定`] : []),
           ...(markdownCell(item.scheduleSuggestion) ? [`- **评估节奏**：${markdownCell(item.scheduleSuggestion)}`] : []),
-          ...(markdownCell(item.protocolGap) ? [`- **未形成方案的原因**：${markdownCell(item.protocolGap)}`] : []),
+          // protocolGap 是**内部状态码**（catalog_indication_mismatch / catalog_protocol_absent /
+          // syndrome_refinement_not_matched），此前被原样印进医生可见正文——医生读到的是
+          // 一个英文下划线标识符。按受控词表翻成临床语言；认不出的码一句都不印，
+          // 绝不把新的内部码泄露给医生（新增码时必须同时在这里登记）。
+          ...(tcmTreatmentProtocolGapCopy(markdownCell(item.protocolGap))
+            ? [`- **方案边界说明**：${tcmTreatmentProtocolGapCopy(markdownCell(item.protocolGap))}`]
+            : []),
           `- **安全边界**：${clinicalSentence([markdownCell(item.techniqueBoundary), markdownCell(materialPositioning), markdownCell(item.operatorRequirement), ...requiredChecks], "；")}`,
           `- **方案依据**：${markdownCell(item.protocolSource)}`,
         );
@@ -3178,6 +3294,15 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
     }
   }
   return `${lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n").trim()}\n\n`;
+}
+
+/** 中医治疗项目 protocolGap 的医生可读文案。受控映射，认不出的码返回空串（不上屏）。
+ *  导出供 HIS 写回同源消费——同一个码在两个出口翻成两种说法，正是本轮反复出现的缺陷形状。 */
+export function tcmTreatmentProtocolGapCopy(gap: string): string {
+  if (gap === "catalog_indication_mismatch") return "本项目目录中暂无与本例适应证对应的标准操作方案，本轮仅作现场评估。";
+  if (gap === "catalog_protocol_absent") return "本项目尚无可下发的患者级操作方案，本轮仅作现场适应证与资质评估。";
+  if (gap === "syndrome_refinement_not_matched") return "已命中该病种标准取穴模板，但本例已签名证候未匹配到受治理的证型加减方案，请医生按本例寒热虚实增减后实施。";
+  return "";
 }
 
 export function synchronizeVisibleClinicalSummary(

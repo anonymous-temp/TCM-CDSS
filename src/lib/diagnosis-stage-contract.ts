@@ -3631,10 +3631,14 @@ export function m04SemanticIssue(
       return `non_pharma_treatment_${index}_plan`;
     }
     const protocolStatus = String(project.protocolStatus || "");
-    if (!["governed_patient_specific_plan", "assessment_only_no_patient_specific_protocol"].includes(protocolStatus)) {
+    if (!["governed_patient_specific_plan", "governed_class_template_not_syndrome_tailored", "assessment_only_no_patient_specific_protocol"].includes(protocolStatus)) {
       return `non_pharma_treatment_${index}_protocol_status`;
     }
-    if (protocolStatus === "governed_patient_specific_plan" &&
+    // 「个体化」的全部门槛此前就是**穴位列表非空 + 频次串非空**——两条都与「是否按本例证型
+    // 加减过」无关，于是病种级模板可以合法地自称个体化方案（甲方 2026-08-10 ⑪）。
+    // 现在这两条完整性要求归两个治理态共同承担，而「是否按证型加减」由 protocolStatus
+    // 本身如实区分，由服务端目录判定、不接受模型自报。
+    if ((protocolStatus === "governed_patient_specific_plan" || protocolStatus === "governed_class_template_not_syndrome_tailored") &&
       ((project.suggestedSitesOrPoints.length === 0 && !tcmTreatmentProjectIsPointFree(String(project.projectCode || ""))) ||
         typeof project.scheduleSuggestion !== "string" || !project.scheduleSuggestion.trim())) {
       return `non_pharma_treatment_${index}_governed_plan_incomplete`;

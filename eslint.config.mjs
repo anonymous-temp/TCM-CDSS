@@ -20,6 +20,12 @@ const eslintConfig = defineConfig([
     "artifacts/**",
     "deeptest/**",
     "test-results/**",
+    // 一次性复现脚本（tmp-probe/、根目录 probe-*.mjs）与上面三者同类：调查产出，不是应用源码。
+    // 它们此前既不在 lint ignore、也不在 gitignore 里，于是残留的排查脚本会让
+    // `npm run verify:release` 的 lint 关卡直接失败——发布闸门被一堆草稿卡住。
+    "tmp-probe/**",
+    "probe-*.mjs",
+    "tmp-probe-*.mjs",
   ]),
 ]);
 

@@ -28,6 +28,7 @@ import { ensureActionableFollowupSafetyNet } from "./followup-safety-net";
 import { buildThreePartLimitedStateCopyForSurface, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { clinicalFieldRequiresExplicitPrescriptionState, clinicalRequiredFieldLabel } from "./clinical-governance-tables";
 import { patientSexAllowsDoseLevelSuggestion } from "./clinical-required-fields";
+import { activeEmergencyClearanceFindingsFromGate, emergencyClearanceContractIssue } from "./emergency-clearance-contract";
 import { sixHealthFollowupTable } from "./tcm-followup-dimensions";
 import redflagTriageLexicon from "../data/redflag-triage-lexicon.json" with { type: "json" };
 
@@ -2879,17 +2880,30 @@ export function redFlagClearanceFingerprint(
   return stableRedFlagHash([...new Set(source)].sort().join("\n"));
 }
 
+/**
+ * 这是全系统唯一一个能把确定性阳性红旗整条抹掉的判定。
+ *
+ * 它此前的**唯一内容判据是 `assessmentSummary.trim().length < 12`** —— 一个字数验证器。
+ * 实测：一句「今天天气不错今天天气不错」即可让 status 由 red_flag 变 ready、
+ * allowDosePrescription 由 false 变 true、redFlags 由「胸痛/胸闷伴大汗、放射痛或气促」变空数组。
+ *
+ * 现在内容判据收敛到 emergency-clearance-contract.ts 的**同一个导出谓词**：签发端
+ * （issueEmergencyClearance）与这一处消费端跑的是同一份判据，不再各写各的。
+ * 重跑而不是只信签名，是因为签名只能证明「这份凭证是我们签的」，证明不了
+ * 「它对得上**此刻**的红旗集合」——后者才是解除约束的前提。
+ */
 function hasCurrentEmergencyClearance(
   state: CaseState,
   gate: Pick<SafetyGate, "redFlags" | "redFlagFindings">,
 ): boolean {
   const clearance = state.emergencyClearance;
-  if (
-    !clearance ||
-    clearance.assessmentSummary.trim().length < 12 ||
-    !Number.isFinite(Date.parse(clearance.confirmedAt))
-  ) return false;
-  return clearance.redFlagFingerprint === redFlagClearanceFingerprint(gate);
+  if (!clearance || !Number.isFinite(Date.parse(clearance.confirmedAt))) return false;
+  if (clearance.redFlagFingerprint !== redFlagClearanceFingerprint(gate)) return false;
+  return emergencyClearanceContractIssue({
+    activeFindings: activeEmergencyClearanceFindingsFromGate(gate),
+    attestations: clearance.findings,
+    assessmentSummary: clearance.assessmentSummary,
+  }) === undefined;
 }
 
 const RED_FLAG_FINDING_RULES: Array<{

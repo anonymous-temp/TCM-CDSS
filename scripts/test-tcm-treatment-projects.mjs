@@ -856,7 +856,7 @@ try {
       // 目录里每个项目一字不差的「仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时
       // 可显示治理过的穴位/部位与频次」，讲的是系统显示规则，不是这位病人的操作边界。
       // 甲方 2026-08-10 明确要求这类系统自述不得出现在医生面前，故评估态置空。
-      if (recommendation.protocolStatus === "governed_patient_specific_plan") {
+      if (["governed_patient_specific_plan", "governed_class_template_not_syndrome_tailored"].includes(recommendation.protocolStatus)) {
         assert.ok(recommendation.techniqueBoundary.length > 10);
       }
       // 内部治理话术一律不得出现在任何医生可见字段上。
@@ -883,7 +883,14 @@ try {
       `至少一个穴位应被 T12 目录核验并标注：${digestive.suggestedSitesOrPoints.join("、")}`,
     );
     assert.match(digestive.scheduleSuggestion, /每日1次/);
-    assert.equal(digestive.protocolStatus, "governed_patient_specific_plan");
+    // 甲方 2026-08-10 ⑪：治理态一分为二。命中病种模板但**本例已签名证候没有对应的证型加减**时，
+    // 只能标 governed_class_template_not_syndrome_tailored——此前一律标「个体化方案」，
+    // 而实测四组八例（风寒/风热、心脾两虚/肝火扰心、湿热中阻/脾胃虚寒、寒湿/湿热）穴位逐字相同。
+    assert.equal(digestive.protocolStatus, "governed_class_template_not_syndrome_tailored");
+    assert.equal(digestive.protocolGap, "syndrome_refinement_not_matched");
+    // 关元只属于虚寒类加减：本夹具证候未命中任何加减，主穴里不得出现它
+    //（此前它带着「（须结合寒热虚实复核）」的括注出现在每一个消化类病例上，包括湿热证）。
+    assert.doesNotMatch(digestive.suggestedSitesOrPoints.join("；"), /关元/);
     assert.equal(digestive.executable, false);
     // 甲方评测(2026-08-03) 9.1：评估态项目也要给医生看得见的常用穴位——聚合该项目全部治理模板的
     // 高频穴位(≤5)作为**通用参考**；protocolStatus 仍为 assessment_only、无 schedule，
@@ -900,13 +907,13 @@ try {
     assert.match(dermatology.protocolGap, /^catalog_(?:indication_mismatch|protocol_absent)$/);
     assert.doesNotMatch(dermatology.protocolGap, /[一-龥]/, "内部状态码不得是中文句子");
     assert.match(sleep.suggestedSitesOrPoints.join("；"), /安眠.*神门.*内关.*心俞/);
-    assert.equal(sleep.protocolStatus, "governed_patient_specific_plan");
+    assert.equal(sleep.protocolStatus, "governed_class_template_not_syndrome_tailored");
     assert.match(sleep.scheduleSuggestion, /每日1次/);
     assert.equal(sleep.executable, false, "governed parameters remain advisory until clinician review");
     assert.match(sleep.protocolSource, /SRC-BEIJING-TCM-DOUBLE-HEART/);
     assert.match(sleep.protocolSource, /SRC-ZIBO-TCM-DAY-FREQUENCY-2022/);
     assert.match(influenza.suggestedSitesOrPoints.join("；"), /列缺.*合谷.*风池.*太阳.*外关/);
-    assert.equal(influenza.protocolStatus, "governed_patient_specific_plan");
+    assert.equal(influenza.protocolStatus, "governed_class_template_not_syndrome_tailored");
     assert.equal(influenza.scheduleSuggestion, "每日1次，每次30分钟。");
     assert.equal(influenza.executable, false, "governed parameters remain advisory until clinician review");
     assert.match(influenza.protocolSource, /SRC-HUNAN-INFLUENZA-TCM-2025/);

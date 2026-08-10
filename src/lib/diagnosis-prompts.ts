@@ -498,6 +498,11 @@ JSON要求：
   exam=检验检查结果（血常规、影像、肺功能）。fact 必须与 supportingFacts 中某一条**逐字相同**，
   不得借此新增病历没有的事实；分不清或漏标的条目由服务端按病历落点兜底，不会报错。
   注意「咽部充血(++)」这类体征即使写在现病史里也是 sign，不是 symptom。
+- westernDiagnosis.primary.guidelineRefs 是**指南/文献依据的唯一入口**，绑定契约与中成药的 EVID-INST 完全一致：
+  只能填上方【外部证据与院内知识支持】里「EviMed 指南/共识检索」「EviMed 文献/全文证据检索」两段真实出现过的
+  方括号 ID（形如 EVID-GUIDE-002、EVID-PAPER-001），**逐字复制，集外即删**；最多 3 条，没有命中就写 []。
+  appliesTo 只写一句「这条支持本例哪一点」。**不要写题名、机构、年份、URL**——题名/机构/年份/URL 由服务端按 ID
+  反查条目字段渲染，你写了也会被丢弃。自撰的指南名会被降级为 insufficient 并整条不显示。
 - westernDiagnosis.primary.supportingFacts 只写与该现代医学主诊断直接相关的当前患者事实。舌象、脉象、证候、病机、治法不是现代医学 supportingFacts；年龄性别、职业、住址和一组无诊断区分力的正常生命体征不得凑数。正常/阴性事实只有在它确实排除关键鉴别或定义病程边界时才保留，并说明其作用。
 - 全部诊断与病机分析必须保持患者原文的事实极性和程度词：不得把“咳嗽声重/轻微/偶有”升级为“咳嗽剧烈/严重/频繁”，不得把阴性枚举中的任一项改写成阳性。患者自诉“恶寒发热”但本次测温正常时，应写“自诉恶寒发热，当前测温未升高”，不得写成“病历已记录客观发热”。
 - westernDiagnosis.primary.name 只能填写一个当前最可能的工作诊断；不得用斜杠、顿号或“或”把多个互斥病因/诊断塞进主诊断。病因证据不足时优先使用与病程及主导症状精确匹配的症状性诊断，把候选病因分别放入 differentials，并通过 status、confidence、limitations 表达不确定性。症状名称不得互相替换：病历写“喘鸣/胸口呼呼响”而未明确气不够用时应写“喘息症状”，不得改写成“呼吸困难/气短”；只有病历明确记录气短、气促或呼吸困难时才使用相应标签。病历以“大便解不出来、排便费劲或数日一次”为主时应写“便秘症状”，伴随腹胀不得反客为主写成“腹胀症状”。不得擅自添加病历没有支持的“恢复期、急性期、术后”等阶段标签。primary.name 必须是**规范诊断名**：症状级工作诊断一律写成“头痛，病因待查”这种“规范症状名，病因待查”的形态，不得写成“头痛（症状性）”“头痛（待查）”“头痛待因”等括注或缩写形态——“（症状性）”在规范用法里是病因学限定（如症状性癫痫），挂在症状名后面反而把“病因不明”说成了“病因已知”。
@@ -536,7 +541,7 @@ JSON要求：
     "evidence": {"evidenceLevel":"model_inference","source":"病例内推理","confidence":"中"}
   },
   "westernDiagnosis": {
-    "primary": {"name":"纯现代医学诊断倾向","status":"考虑","confidence":"中","supportingFacts":["病历中已提供的支持事实"],"supportingFactKinds":[{"fact":"与 supportingFacts 中某条逐字相同","kind":"symptom"}],"clinicalRationale":"事实到诊断倾向的临床推理，不得复述病史","limitations":["当前资料限制"],"suggestedChecks":["用于鉴别或排除的检查"],"evidence":{"evidenceLevel":"model_inference","source":"病例内推理","confidence":"中"}},
+    "primary": {"name":"纯现代医学诊断倾向","status":"考虑","confidence":"中","supportingFacts":["病历中已提供的支持事实"],"supportingFactKinds":[{"fact":"与 supportingFacts 中某条逐字相同","kind":"symptom"}],"clinicalRationale":"事实到诊断倾向的临床推理，不得复述病史","limitations":["当前资料限制"],"suggestedChecks":["用于鉴别或排除的检查"],"guidelineRefs":[{"evidenceId":"EVID-GUIDE-002","appliesTo":"该指南支持本例哪一点（一句话）"}],"evidence":{"evidenceLevel":"model_inference","source":"病例内推理","confidence":"中"}},
     "differentials": [{"name":"需鉴别方向","reason":"为何需要鉴别","distinguishingPoints":"本例支持或不支持该方向的区分要点","nextCheck":"建议检查或复核点"},{"name":"另一个需鉴别方向","reason":"…","distinguishingPoints":"…","nextCheck":"…"}],
     "candidates": [{"name":"与 primary.name 逐字相同","likelihood":"高","keyEvidence":["本例支持它的已记录事实"],"againstEvidence":["本例不支持它的点，可为空"]},{"name":"第二候选诊断","likelihood":"中","keyEvidence":["…"],"againstEvidence":["…"]},{"name":"第三候选诊断","likelihood":"低","keyEvidence":["…"],"againstEvidence":["…"]}]
   },

@@ -95,6 +95,7 @@ try {
     stripInvalidEmergencyClearance,
     verifyEmergencyClearance,
   } = require("../src/lib/emergency-clearance.server.ts");
+  const { activeEmergencyClearanceFindingsFromGate } = require("../src/lib/emergency-clearance-contract.ts");
 
   const caseState = normalizeCaseStateInput({
     id: "case_signature_001",
@@ -187,9 +188,59 @@ try {
   });
   assert.ok(emergencyCase);
   assert.equal(withSafetyGate(emergencyCase).safetyGate?.status, "red_flag");
+  // 逐条处置留痕：清单必须来自当前安全门（与表单、安全门重验同一个投影）。
+  const emergencyGate = withSafetyGate(emergencyCase).safetyGate;
+  const activeFindings = activeEmergencyClearanceFindingsFromGate(emergencyGate);
+  assert.ok(activeFindings.length > 0);
+  const validAttestations = activeFindings.map((finding) => ({
+    ruleId: finding.ruleId,
+    message: finding.message,
+    disposition: "excluded_by_objective_workup",
+    basis: "已完成头颅CT与神经系统查体，未见蛛网膜下腔出血或局灶体征",
+  }));
+
+  // ── 甲方 ⑫⑤ 的复现：内容判据曾经只有 assessmentSummary 的字数 ──────────────
+  // 一句「今天天气不错今天天气不错」即可签发 HMAC 凭证、把确定性红旗整条抹掉。
+  // 现在三条判据必须同时成立，缺一即不解除（凭证 = 解除约束，方向与系统别处相反）。
+  const fillerSummaryOnly = issueEmergencyClearance(
+    emergencyCase,
+    "今天天气不错今天天气不错今天天气不错",
+    undefined,
+  );
+  assert.equal(fillerSummaryOnly.ok, false, "字数达标但无逐条处置留痕，绝不允许签发排查确认");
+  assert.equal(fillerSummaryOnly.ok === false && fillerSummaryOnly.code, "emergency_clearance_attestations_missing");
+
+  const fillerBasis = issueEmergencyClearance(
+    emergencyCase,
+    "今天天气不错今天天气不错今天天气不错",
+    activeFindings.map((finding) => ({
+      ruleId: finding.ruleId,
+      message: finding.message,
+      disposition: "excluded_by_objective_workup",
+      basis: "今天天气不错今天天气不错今天天气不错",
+    })),
+  );
+  assert.equal(fillerBasis.ok, false, "客观依据里没有做过的事，不构成解除急诊约束的凭证");
+  assert.equal(fillerBasis.ok === false && fillerBasis.code, "emergency_clearance_attestation_basis_not_objective");
+
+  const missingOneFinding = activeFindings.length > 1
+    ? issueEmergencyClearance(emergencyCase, "已完成急诊评估", validAttestations.slice(1))
+    : undefined;
+  if (missingOneFinding) {
+    assert.equal(missingOneFinding.ok, false, "漏处置任何一条红旗都不受理");
+  }
+
+  const fabricatedFinding = issueEmergencyClearance(
+    emergencyCase,
+    "已完成急诊影像及神经系统评估，排除急性神经血管事件",
+    validAttestations.map((item) => ({ ...item, message: `${item.message}（伪造）` })),
+  );
+  assert.equal(fabricatedFinding.ok, false, "处置记录对不上当前红旗即不受理");
+
   const issuedClearance = issueEmergencyClearance(
     emergencyCase,
     "测试患者已经急诊影像及神经系统评估，排除急性神经血管事件",
+    validAttestations,
   );
   assert.equal(issuedClearance.ok, true);
   if (!issuedClearance.ok) throw new Error(issuedClearance.error);

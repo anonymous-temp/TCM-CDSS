@@ -7,7 +7,7 @@ import { readCaseStateRequest } from "@/lib/diagnosis-request";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, gateDispositionIsAdvisory, markdownNdjsonResponse, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
-import { synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { applyTcmTreatmentCapabilityPriority } from "@/lib/tcm-treatment-capabilities.server";
 import { m03SafetyContractIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
@@ -287,7 +287,12 @@ export async function POST(req: Request) {
         clinicalGroundingText(safeState),
         declassifiedAccepted,
       );
-      const synchronized = synchronizeVisibleClinicalSummary(enriched, "prescribe");
+      // ⑤ 方义占位句的**唯一**补写点：修复机会到这里已经全部用尽（流层的修复轮、
+      // fixpoint 早退、编排时限都在上游走完了），此刻仍然对不上 KB 的药味才补角色兜底句，
+      // 保证医生看到的不是空栏。放在 issue 计算之后，是为了不让服务端造的合法值再一次
+      // 把 candidate_*_herb_*_function 这条修复通路堵死（那正是本条缺陷的形状）。
+      const finalized = applyDeterministicHerbFunctions(enriched, { fillRolePlaceholder: true });
+      const synchronized = synchronizeVisibleClinicalSummary(finalized, "prescribe");
       if (issue) {
         // Tier-2/3 带批注受理。在此之前，M04 的 60+ 个原因码一律等价于最高危级别：一条建议性
         // 中医治疗项目卡片的字段缺失，与附子超量一样会作废整张已通过剂量、十八反十九畏、
