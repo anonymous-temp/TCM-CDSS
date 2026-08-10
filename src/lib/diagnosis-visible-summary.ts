@@ -1,4 +1,4 @@
-import { discriminatingWesternSupportClauses, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -970,13 +970,35 @@ function decoctionProfileFromSignedTherapy(
  * 命中时不编造病机，改写成明确的待补充说明——让医生知道这一栏没有结论，
  * 而不是把一句病历原文当成病机读下去。
  */
-function pathogenesisRestatesChartFact(value: unknown): boolean {
+/**
+ * 总体病机这一栏该怎么处置：替换 / 加批注 / 原样。
+ *
+ * 【为什么分三档】原实现只有「替换」一档，判据是一张 38 字病机动词表，不含表内字就整段
+ * 换成「现有四诊与病史尚不足以形成可采纳的总体病机」。实测被换掉的全是规范病机表述——
+ * 营卫不和（表里是「失和」不是「不和」）、肝气犯胃、心神不宁、胃气不降、冲任失调、
+ * 肝阳化风、气机升降失常。模型写了教科书级病机，医生读到的是「资料不足」。
+ *
+ * 【三档的依据各不相同】
+ *  · replace —— 只针对**服务端自己生成**的形态：事实模板原样回抛，或逐字复述病历
+ *    （narrativeMostlyCopies，与合同侧 overall_pathogenesis_restates_facts 同一条判据）。
+ *    这两种都能机检，替换是安全的。
+ *  · annotate —— 「这段有没有病机要素」是语义判断，规则做不好。既不装作它合格，
+ *    也不把模型写的东西销毁：原文保留 + 一句明说的服务端提示，最终由医生判断。
+ *  · keep —— 命中受治理病机谓词（NATURE_MECHANISM_PHRASE，与合同侧共用同一导出）。
+ */
+function overallPathogenesisDisposition(
+  value: unknown, facts: readonly string[],
+): "replace" | "annotate" | "keep" {
   const text = typeof value === "string" ? value.trim() : "";
-  if (!text) return false;
-  if (/^(?:病历已记录|病历尚未确认|病历记载|患者诉|患者自述|现病史记录|本例记录)/.test(text)) return true;
-  const MECHANISM = /(?:虚|实|寒|热|火|湿|痰|饮|瘀|滞|郁|亏|损|陷|逆|亢|衰|结|阻|遏|壅|凝|失健|失运|失司|失养|失和|失宣|失降|不固|不化|不通|不濡|上炎|上扰|上逆|下注|内生|内蕴|外袭|外束)/;
-  return !MECHANISM.test(text);
+  if (!text) return "keep";
+  if (/^(?:病历已记录|病历尚未确认|病历记载|患者诉|患者自述|现病史记录|本例记录)/.test(text)) return "replace";
+  if (narrativeMostlyCopies(text, facts)) return "replace";
+  return MECHANISM_PREDICATE.test(text) ? "keep" : "annotate";
 }
+
+const PATHOGENESIS_NOT_ESTABLISHED =
+  "现有四诊与病史尚不足以形成可采纳的总体病机，请补充关键问诊后复核（本栏不采用主诉复述代替病机）。";
+const PATHOGENESIS_NO_MECHANISM_NOTE = "（服务端提示：本栏未见病机要素，请医生核定是否需要补充病机推演）";
 
 /**
  * 中医病名必须是**单一病名**，辨病推理不得是循环套话（2026-08-05，甲方 2.1）。
@@ -1007,7 +1029,11 @@ function diseaseRationaleIsCircular(value: unknown, diseaseName: string): boolea
   if (!text || !diseaseName) return false;
   // 去掉「以X为主要症状」「符合…诊断标准」「故诊断X」这三段模板后还剩多少实质内容。
   const stripped = text
-    .replace(/患者?以[^，,。；;]{1,24}为(?:主要)?症状[，,。；;]?/g, "")
+    // 「以X为主要症状」里的 X 是**辨病依据本身**，只能剥框架、不能连 X 一起剥。
+    // 原实现整段删除，于是「患者以多饮多尿为主要症状，伴形体消瘦，故诊断为消渴」
+    // 剩下「伴形体消瘦」5 字 < 8，被判成同义反复，医生看到的是
+    // 「本次输出未给出「消渴」的实质辨病依据」——而多饮多尿正是消渴的诊断依据。
+    .replace(/患者?以([^，,。；;]{1,24})为(?:主要)?症状/g, "$1")
     .replace(/符合(?:中医)?[^，,。；;]{0,24}诊断标准[，,。；;]?/g, "")
     .replace(/故(?:可)?诊断(?:为)?[^，,。；;]{0,24}[，,。；;]?/g, "")
     .replace(new RegExp(diseaseName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "")
@@ -1044,8 +1070,30 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
           `本次输出未给出「${diseaseName}」的实质辨病依据（原文为同义反复），请医生结合主症与病程形态自行核定病名。`;
       }
     }
-    if (overview && pathogenesisRestatesChartFact(overview.overallPathogenesis)) {
-      overview.overallPathogenesis = "现有四诊与病史尚不足以形成可采纳的总体病机，请补充关键问诊后复核（本栏不采用主诉复述代替病机）。";
+    if (overview) {
+      // 事实面与合同侧 m03SemanticIssue 取材一致，判据也一致。
+      // recordList 只收**对象**数组（它对每一项跑 recordValue），字符串数组会被整个丢成 []。
+      // 这里三个取材有两个是字符串数组，用错就等于事实面全空、判据被架空——
+      // 那样「逐字复述病历」也会一路放行，比原来的字表还松。
+      const stringList = (value: unknown): string[] => (Array.isArray(value)
+        ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+        : []);
+      const pathogenesisFactSurface = [
+        ...stringList(overview.primarySyndromeBasis),
+        ...stringList(recordValue(recordValue(reasoning.westernDiagnosis)?.primary)?.supportingFacts),
+        ...recordList(recordValue(reasoning.pathogenesis)?.chain)
+          .map((item) => String(item.patientFact || "")),
+      ].filter(Boolean);
+      const disposition = overallPathogenesisDisposition(overview.overallPathogenesis, pathogenesisFactSurface);
+      if (disposition === "replace") {
+        overview.overallPathogenesis = PATHOGENESIS_NOT_ESTABLISHED;
+      } else if (disposition === "annotate") {
+        const text = String(overview.overallPathogenesis || "").trim();
+        // 幂等：批注只加一次。
+        if (text && !text.endsWith(PATHOGENESIS_NO_MECHANISM_NOTE)) {
+          overview.overallPathogenesis = `${text}${PATHOGENESIS_NO_MECHANISM_NOTE}`;
+        }
+      }
     }
     const current = typeof therapy.overallPrinciple === "string" ? therapy.overallPrinciple.trim() : "";
     // 只接管占位串与空值；模型自己写出的治则（「标本兼治」「急则治标」）原样保留。
@@ -1491,6 +1539,20 @@ export function alignNormalizedM03TcmDiagnosticRationale(content: string): strin
     const issue = m03SemanticIssue(reasoning);
     if (issue !== "tcm_diagnostic_rationale_missing" && issue !== "tcm_diagnostic_rationale_restatement") return content;
 
+    // 只在模型**确实没写**时才由服务端生成，不再覆盖模型写过的辨证推理。
+    //
+    // 这一段原先在 prepareDiagnoseStructuredContent 里无条件跑，而 prepare 早于契约校验、
+    // 独立复核与修复轮。于是一旦被判 restatement，模型原文就地被模板拼接串顶掉，改写完
+    // issue 变 undefined，修复轮再也不会回头找模型要——模型连一次「按提示自己重写」的
+    // 机会都没有。实测被顶掉的是这样的原文：
+    //   「…思虑劳倦耗伤心肝，肝不藏血则魂不守舍，心血不足则神不安宁，故辨为心肝血虚证。」
+    // 病因—病机—症状因果链三段在输出里全部消失，而病因正是治法与生活调摄的直接依据。
+    // 现在 restatement 交由独立复核给 repair 意见，服务端只补空白。
+    const existingRationale = markdownCell(recordValue(reasoning.overview)?.tcmDiagnosticRationale);
+    if (issue === "tcm_diagnostic_rationale_restatement" && isDisplayableClinicalText(existingRationale)) {
+      return content;
+    }
+
     const overview = recordValue(reasoning.overview);
     const pathogenesis = recordValue(reasoning.pathogenesis);
     const chain = recordList(pathogenesis?.chain);
@@ -1571,6 +1633,15 @@ export function alignNormalizedM03TcmDiagnosticRationale(content: string): strin
   }
 }
 
+/** 服务端自产的鉴别理由回落句。措辞刻意不含「本例／患者」——否则会被自己的接地校验再判一次。 */
+const DIFFERENTIAL_REASON_EMPTY_FALLBACK = "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。";
+const DIFFERENTIAL_REASON_UNGROUNDED_FALLBACK =
+  "该条鉴别理由与病历记录不一致，未予采纳；请医生结合临床表现与相关检查自行判断。";
+const SERVER_AUTHORED_DIFFERENTIAL_REASONS: ReadonlySet<string> = new Set([
+  DIFFERENTIAL_REASON_EMPTY_FALLBACK,
+  DIFFERENTIAL_REASON_UNGROUNDED_FALLBACK,
+]);
+
 export function groundStructuredPatientFacts(content: string, clinicalContext: string): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -1639,18 +1710,45 @@ export function groundStructuredPatientFacts(content: string, clinicalContext: s
       western.differentials = deduplicateWesternDifferentials(western.differentials.flatMap((raw) => {
         const item = recordValue(raw);
         if (!item || typeof item.name !== "string" || !item.name.trim()) return [];
-        // Preserve a model-authored differential reason when it contains an exact chart quote.
-        // Only an ungrounded reason is replaced with a bounded neutral explanation; deterministic
-        // normalization must not erase a clinically useful distinction that already passed grounding.
-        const sourceQuote = typeof item.reason === "string"
-          ? exactClinicalSourceQuotes(item.reason, clinicalContext)[0]
-          : undefined;
-        return [{
-          ...item,
-          reason: sourceQuote
-            ? item.reason
-            : "当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。",
-        }];
+        // 鉴别理由由模型写，确定性层**只校验、不覆盖**。
+        //
+        // 【改之前】判据是「这句里有没有一段病历原文的逐字引用」（exactClinicalSourceQuotes）。
+        // 但鉴别理由的接地对象是**疾病特征**，不是本例病历——「主动脉瓣狭窄同样以劳力性胸闷
+        // 气短为首发表现，需经心脏听诊与超声心动图除外」根本不该含病历原文。于是凡是写得像样
+        // 的都命不中，一律被换成同一句套话。归档实测：24175 条 reason 里 3365 条
+        // 逐字都是「当前资料仅支持列为鉴别方向，需结合临床表现及相关检查复核。」，
+        // 而幸存下来的那些是靠碰巧命中病历子串活下来的，不是因为写得更好。
+        //
+        // 【改之后】只驳回**对本例的虚假断言**：把理由按硬分句切开，只有明确指向本例
+        //（本例／该患者／患者）的分句才过病历极性校验——复用与 supportingFacts 同一个
+        // 导出谓词 isWesternSupportingFactPolarityAligned，不写第二份。
+        // 纯疾病特征描述不是对本例的断言，不受病历极性约束，原样保留。
+        // 全部分句都被驳回时才回落，且回落句必须**如实说明是校验没过**，
+        // 不能伪装成「资料仅支持列为鉴别方向」这种听起来像临床结论的话。
+        const rawReason = typeof item.reason === "string" ? item.reason.trim() : "";
+        // 服务端自产的回落句不再进校验：它是我们自己写的，不是模型对本例的断言。
+        // 不设这道门就会**不幂等**——回落句里带「本例」二字，第二遍 prepare 会把它自己
+        // 的第一分句当成未接地的患者断言删掉（实测 17/120 例，句子每过一遍短一截）。
+        // 而 prepare 的幂等性是「复核看到的字节 == 签名覆盖的字节」这条承重前提。
+        if (SERVER_AUTHORED_DIFFERENTIAL_REASONS.has(rawReason)) return [{ ...item }];
+        const reasonClauses = rawReason.split(/(?<=[。；;])/).map((part) => part.trim()).filter(Boolean);
+        // 指向本例的分句必须**接地**：原来那条「必须含病历原文」的要求本身没错，
+        // 错在它被施加到了整条理由上（疾病特征本来就不该含病历原文）。
+        // 只留给本例断言这一侧，既挡住凭空断言，又放行疾病知识。
+        // 两道都过：极性不得与病历冲突 + 必须能在病历里找到落点。
+        // 实测：病历「否认反酸烧心」，模型写「本例存在明显反酸烧心」⇒ 驳回；
+        //       模型写「但本例否认反酸烧心，可能性较低」⇒ 保留。
+        const keptClauses = reasonClauses.filter((clause) => {
+          if (!/本例|该患者|患者/.test(clause)) return true;
+          if (!isWesternSupportingFactPolarityAligned(clause, clinicalContext)) return false;
+          return Boolean(exactClinicalSourceQuotes(clause, clinicalContext)[0]);
+        });
+        const reason = rawReason.length === 0
+          ? DIFFERENTIAL_REASON_EMPTY_FALLBACK
+          : keptClauses.length === 0
+            ? DIFFERENTIAL_REASON_UNGROUNDED_FALLBACK
+            : keptClauses.join("");
+        return [{ ...item, reason }];
       }));
     }
     const groundedChain = pathogenesis.chain.flatMap((rawNode) => {

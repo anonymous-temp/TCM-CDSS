@@ -154,13 +154,14 @@ const CLINICAL_REASONING_CONNECTOR = /(?:提示|支持|符合|更符合|结合|�
 // downstream fact-reference + novel-concept + not-a-copy checks (tcm_diagnostic_rationale_restatement),
 // so widening this pre-filter cannot let a pure syndrome-name restatement through.
 const TCM_REASONING_CONNECTOR = /(?:提示|支持|符合|更符合|结合|考虑|因此|尚不支持|不足以|倾向于|病程|鉴别|排除|辨为|辨证|辨属|合参|归纳|综合|可见|均为|病机|所致|导致|引起|系因|乃)/;
-const DIAGNOSTIC_INFERENCE_CONCEPTS = [
-  "病程", "急性", "慢性", "时间窗", "严重度", "功能受损", "危险因素", "诊断标准", "鉴别",
-  "排除", "不支持", "不足以", "机制", "病因", "病位", "病性", "证候", "气血", "阴阳", "脏腑",
-  "失养", "失司", "失和", "阻滞", "痹阻", "不通", "郁结", "亏虚", "阴液", "虚热", "痰湿", "湿热", "血瘀", "气滞",
-] as const;
 const WESTERN_EXCLUSION_REASONING = /(?:但|尚不支持|不足以|不支持|排除|鉴别|未见|否认|缺乏|尚未|有待|仍需|需[^。；;\n]{0,12}(?:核实|检查|确认))/;
-export const NATURE_MECHANISM_PHRASE = /(?:失和|失降|失运|失司|不利|不畅|不通|受阻|上逆|不降|不纳|失宣|失肃)/;
+/**
+ * 病机谓词：中医描述「功能失常」的那一类动词短语，是一个**封闭的语法类**，不是症状词表。
+ * 2026-08-10 补齐临床常用而原表漏收的几个——漏收的代价实测是把规范病机判成症状复述：
+ *   营卫不和（原表只有「失和」）、冲任失调、气机升降失常、肝气犯胃、肝阳化风、
+ *   心神不宁、水湿内停、气血两燔。
+ */
+export const NATURE_MECHANISM_PHRASE = /(?:失和|失降|失运|失司|失调|失常|失养|失煦|失聪|失职|失摄|失固|失统|不利|不畅|不通|不降|不纳|不宁|不升|不和|不固|不化|受阻|上逆|上炎|上扰|下注|内停|内生|内蕴|内动|外袭|外束|化风|化火|化燥|耗伤|亏耗|壅滞|痹阻|郁结|犯胃|犯肺|凌心|侮肺|失宣|失肃)/;
 const CLINICAL_NEGATION = /(?:绝非|绝无|毫无|全无|断非|尚无|暂无|没有|阴性|排除|已除外|需除外|未排除|待排除|否认|否定|并非|并无|不认为是|不属|不属于|不存在|不能证实|未能证实|未获证实|未查见|未呈现|未见|未发现|未提示|未观察到|未显示|未证实|尚未证实|未检出|未检测到|未表明|未达到|未成立|未采用|未使用|未选择|未予|未考虑|未支持|未获支持|未得到支持|(?:尚|仍|现有)?不足以(?:支持|证实|形成|判断)|(?:依据|证据)(?:不足|薄弱)[^，,。；;]{0,12}(?:支持|证实)|缺乏[^，,。；;]{0,12}(?:依据|证据|支持)|缺少[^，,。；;]{0,12}(?:依据|证据|支持)|难以|难于|不支持|不符合|不考虑|不宜|不应|不建议|不推荐|不适用|不作为|不选择|不选用|不采取|不施用|不赞成|不认同|反对|非首选|拒用|禁用|禁止|禁忌|忌用|勿用|暂缓(?:治疗|处置|用药)|暂停(?:治疗|处置|用药)|避免|慎用|不可|不予|无需|不需|不主张|暂不|不成立|不采用|不使用|不用|停止(?:治疗|处置|用药)|停用|停服|撤除)/;
 
 export function isAmbiguousM03WesternPrimaryLabel(value: unknown): boolean {
@@ -1499,7 +1500,20 @@ export function narrativeFingerprint(value: unknown): string {
     : "";
 }
 
-function narrativeMostlyCopies(value: unknown, sources: readonly unknown[]): boolean {
+/**
+ * 「这段话是不是在逐字复述病历」——**纯字符串度量**，不猜语义。
+ *
+ * 导出是为了让呈现层用同一条判据。此前呈现层的 pathogenesisRestatesChartFact 自己写了
+ * 一张 38 字的病机动词表（虚|实|寒|热|…|失和|不固|上炎），凡是不含表内字的都判成
+ * 「只是症状复述」。实测被误判为复述的全是**中医规范病机表述**：
+ *   营卫不和（表里是「失和」不是「不和」）、肝气犯胃、心神不宁、胃气不降、
+ *   冲任失调、肝阳化风、气机升降失常
+ * 结果医生看到的是「现有四诊与病史尚不足以形成可采纳的总体病机」——
+ * 模型明明写了教科书级病机，被一张字表判成没写。
+ * 而合同侧（overall_pathogenesis_restates_facts）用的一直是这里的逐字覆盖率，
+ * 同一个判断两处各写各的，答案还相反。
+ */
+export function narrativeMostlyCopies(value: unknown, sources: readonly unknown[]): boolean {
   const narrative = narrativeFingerprint(value);
   if (narrative.length < 4) return false;
   const facts = sources.map(narrativeFingerprint).filter((item) => item.length >= 2);
@@ -1520,11 +1534,6 @@ function rationaleReferencesSupportingFact(rationale: string, facts: readonly st
   });
 }
 
-function rationaleHasNovelDiagnosticConcept(rationale: string, patientFacts: readonly string[]): boolean {
-  return DIAGNOSTIC_INFERENCE_CONCEPTS.some((concept) =>
-    rationale.includes(concept) && !patientFacts.some((fact) => fact.includes(concept)));
-}
-
 export function m03WesternClinicalRationaleIssue(
   reasoning: M03ReasoningLike | null | undefined,
 ): "western_clinical_rationale_missing" | "western_clinical_rationale_restatement" | undefined {
@@ -1539,7 +1548,9 @@ export function m03WesternClinicalRationaleIssue(
   if (
     narrativeMostlyCopies(westernRationale, westernFacts) ||
     !rationaleReferencesSupportingFact(westernRationale, westernFacts) ||
-    !rationaleHasNovelDiagnosticConcept(westernRationale, westernFacts) ||
+    // 同一张 34 词清单在这里也做过判据，一并删除（见中医侧注释）。
+    // 这一侧另有 WESTERN_EXCLUSION_REASONING 要求写出「为何暂不采用更具体标签」，
+    // 那是对推理**结构**的要求，不是对用词的枚举。
     !WESTERN_EXCLUSION_REASONING.test(westernRationale)
   ) {
     return "western_clinical_rationale_restatement";
@@ -1822,13 +1833,25 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
     .map((item) => item.patientFact)
     .filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
   const tcmFacts = syndromeFacts.length > 0 ? syndromeFacts : chainPatientFacts;
+  // 「这段辨证有没有实质推理」交回模型，确定性层只留**可机检**的两条：
+  // 逐字复述病历（narrativeMostlyCopies）与 凭空不引本例事实。
+  //
+  // 删掉的是 rationaleHasNovelDiagnosticConcept —— 一张 34 词硬清单
+  //（病程/病位/病性/气血/证候/失养/痰湿…），不含表内字就判「只是复述」。
+  // 实测它在做语义判断而且做不好：
+  //   「四诊合参：入睡困难、多梦易醒、心悸健忘…思虑劳倦耗伤心肝，肝不藏血则魂不守舍，
+  //     心血不足则神不安宁，故辨为心肝血虚证。」            ⇒ 判为复述
+  //   同一句**只插入「病位在心肝，」六个字**（临床信息量为零）⇒ 通过
+  //   「暗耗营血」改成「暗耗气血」（同义词，「气血」在表里）  ⇒ 通过
+  // 误伤面正好落在教科书写法上：直接写脏腑病机因果链、不写「病位/病性」这类元语言词的
+  // 中医规范表述，一律判复述。而真正的纯复述（「入睡困难，舌淡脉细，辨为心肝血虚证。」）
+  // 仍被 narrativeMostlyCopies 与「不引事实」两条接住，实测不受影响。
   if (
     narrativeMostlyCopies(tcmRationale, tcmFacts) ||
     (
       !rationaleReferencesSupportingFact(tcmRationale, tcmFacts) &&
       !rationaleReferencesChartFact(tcmRationale, clinicalContext)
-    ) ||
-    !rationaleHasNovelDiagnosticConcept(tcmRationale, tcmFacts)
+    )
   ) return "tcm_diagnostic_rationale_restatement";
   const resolutionIssue = m03ResolutionContractIssue(reasoning, clinicalContext);
   if (resolutionIssue) return resolutionIssue;
