@@ -155,6 +155,18 @@ describe("M03 stage scope", () => {
       "clinical scale abbreviations must not be joined into a false gram dose",
     );
     assert.equal(evaluateM03ScopeContract("建议黄芪9 g复核。", chart).doseExpressionPresent, true);
+    // 2026-08-10 线上实测（D01）：M03 的「指南/文献依据」栏开始真的有内容之后，
+    // 「…临床应用指南(2021年)（2022）（支持…」被标点删除压成「…指南2021年2022支持…」，
+    // `2022支` 命中「数字 + 支（安瓿）」⇒ 误判 M03 泄漏剂量。
+    // 与上一条 PHQ-9/GAD-7 同源：跨标点的相邻不成立，标点必须是边界而不是被删掉。
+    assert.equal(
+      evaluateM03ScopeContract(
+        "**指南/文献依据**：中成药治疗功能性消化不良临床应用指南(2021年)（2022）（支持功能性消化不良的诊断思路）",
+        chart,
+      ).doseExpressionPresent,
+      false,
+      "citation year followed by a Chinese unit across a parenthesis must not be joined into a false dose",
+    );
     assert.equal(evaluateM03ScopeContract("## 候选处方\n仅供参考", chart).prescribeStageContentPresent, true);
   });
 });

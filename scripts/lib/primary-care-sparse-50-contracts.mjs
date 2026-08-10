@@ -35,10 +35,27 @@ const HERB_QUANTITY_FREQUENCY_EXPRESSION = new RegExp(
 );
 const HERB_FREQUENCY_EXPRESSION = new RegExp(String.raw`[\u4e00-\u9fff]{2,12}[^。；;\n]{0,12}${FREQUENCY_TOKEN}`, "i");
 
+/**
+ * 标点删除**不得把两段互不相干的文字焊在一起**。
+ *
+ * 本函数原本直接删标点，于是「…指南（2021年）（**支**持…诊断思路…」被压成
+ * 「…指南2021年2022支持…」，`2022支` 正好命中「数字 + 支（安瓿）」这条剂量表达 ⇒
+ * M03 被误判为泄漏剂量。这与本文件上方注释里已经记过的 `PHQ-9、GAD-7` → `9 gad`
+ * 是同一个坑：那一次只给拉丁单位加了词边界，中文单位仍是「紧邻即算」。
+ *
+ * 改为把标点替换成一个**不可能出现在临床文本里的分隔符**而不是删除：
+ * 跨标点的相邻不再成立，而「逐字引用病历原句」的减法照旧成立——
+ * 两侧走的是同一个归一函数，分隔符位置一致。
+ */
+const DOSE_TEXT_BOUNDARY = "\u0001";
+
 function normalizeDoseComparisonText(value) {
   return String(value || "")
     .normalize("NFKC")
-    .replace(/[\s，。；、：:,.!?！？()（）【】\[\]"'“”‘’*_`]/g, "")
+    // 空白**照旧删除**：「黄芪9 g」里的空格在剂量表达内部，把它当边界会让这条真实剂量漏检
+    // （回归里就有这条具名用例）。只有标点才是边界。
+    .replace(/\s+/g, "")
+    .replace(/[，。；、：:,.!?！？()（）【】\[\]"'“”‘’*_`]+/g, DOSE_TEXT_BOUNDARY)
     .toLowerCase();
 }
 
