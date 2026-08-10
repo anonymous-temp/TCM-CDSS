@@ -312,7 +312,9 @@ export interface ClinicalReasoningResultV2 {
       reason: string;
       distinguishingPoints: string;
       nextCheck: string | null;
-    }>;
+          /** 该证候的典型表现（参考知识，非本例断言）。 */
+      typicalManifestation?: string;
+}>;
     /** 病名级鉴别（与相邻中医病名区分；证型鉴别见 tcmDifferentials）。 */
     tcmDiseaseDifferentials?: Array<{
       diseaseName: string;
@@ -785,6 +787,11 @@ const TcmSyndromeDifferentialSchema = z.object({
   syndrome: z.string().min(1).max(300),
   reason: z.string().min(2).max(1000),
   distinguishingPoints: z.string().min(2).max(1000),
+  // 该证候的**典型表现**（甲方 2026-08-10）。医生读鉴别时要先知道「这个证候通常长什么样」，
+  // 才看得懂「本例哪一点对不上」。它是**关于证候的参考知识**，不是对本例的断言——
+  // 与西医鉴别理由里的疾病特征分句同一性质，因此允许模型写，
+  // 但同样不得在其中断言本例的患者事实。
+  typicalManifestation: z.string().max(600).optional().catch(""),
   nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
 });
 
@@ -793,6 +800,8 @@ const TcmDiseaseDifferentialSchema = z.object({
   diseaseName: z.string().min(1).max(300),
   reason: z.string().min(2).max(1000),
   distinguishingPoints: z.string().min(2).max(1000),
+  /** 该病名的典型表现，口径同 TcmSyndromeDifferentialSchema.typicalManifestation。 */
+  typicalManifestation: z.string().max(600).optional().catch(""),
   nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
 });
 

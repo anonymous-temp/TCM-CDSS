@@ -473,6 +473,14 @@ JSON要求：
 - M03 必须利用与本病相关的病程轨迹和安全状态，包括起病时程、稳定/加重/缓解、复发或无新发等已记录事实；它们可进入 westernDiagnosis.supportingFacts 或相应病机节点，不得因只关注证型而遗漏。未记录的轨迹不得补写。
 - 必须逐条区分 current/recent、historical、negated 和 unknown。既往稳定疾病、后遗症、已缓解事件以及“当前稳定/无新发”只能作为背景、限制或鉴别边界；没有本次活动性变化时，不得升级为 westernDiagnosis.primary、主证候、P1 核心病机或主要治疗目标。
 - westernDiagnosis.primary 必须优先解释本次主诉与当前主要功能问题；高血压等共病只有在本次主诉以其为主要评估目标时才可列为主诊断，否则放入鉴别、背景或管理建议。已记录的 SpO2、HbA1c、eGFR 等客观指标必须进入 supportingFacts，不得被舌脉或一般描述挤出。
+- 中医鉴别（tcmDifferentials / tcmDiseaseDifferentials）每一条都要让医生一眼读懂三件事：
+  ① typicalManifestation 写该证候/病名**通常长什么样**（症状 + 舌脉），这是参考知识，
+     不是本例的事实，不得在其中断言本例有或没有某个症状；
+  ② distinguishingPoints 写**本例哪一点对不上，因此可以排除**，要指名本例已记录的表现；
+  ③ nextCheck 写需要做什么才能确认或排除（量表、监测、四诊复核），没有就写 null。
+  参考写法：「肝火扰心证 — 常见：急躁易怒、目赤口苦、便秘尿赤，舌红苔黄脉弦数；
+  本例无热象，可排除」「睡眠呼吸暂停综合征 — 常见：打鼾伴呼吸暂停、日间嗜睡；
+  本例无此表现，建议睡眠监测」。
 - candidate.formulaAnalysis 写**本方的方解**，不是逐味功效的罗列：君药解决本例哪一层病机、
   臣药如何助君或治兼证、佐药为何在此（佐助/佐制/反佐）、使药如何调和或引经，
   以及药对之间的相使、相畏、相恶关系。必须点到本方实际用到的药名（至少 2 味），
@@ -512,8 +520,8 @@ JSON要求：
     "primarySyndromeResolutionReason": "当前工作判断仍受哪些未知信息限制",
     "tcmDiseaseRationale": "辨病推理：主症特征与病程形态如何把本例归入该中医病名，与哪个相邻病名区分",
     "tcmDiagnosticRationale": "辨证推理：在该病名之下，四诊合参如何得出该证型（四诊要点→病机→证型）",
-    "tcmDifferentials": [{"syndrome":"中医鉴别证候","reason":"为何需要鉴别","distinguishingPoints":"本例用于区分主证与该证的要点","nextCheck":"下一步四诊核实项或null"}],
-    "tcmDiseaseDifferentials": [{"diseaseName":"相邻中医病名","reason":"为何需要与该病名鉴别","distinguishingPoints":"本例主症与病程形态上的区分要点","nextCheck":"必要的核实项或null"}],
+    "tcmDifferentials": [{"syndrome":"中医鉴别证候","typicalManifestation":"该证候的常见表现（症状+舌脉）","reason":"为何需要鉴别","distinguishingPoints":"本例哪一点对不上、因此可以排除","nextCheck":"下一步四诊核实项或null"}],
+    "tcmDiseaseDifferentials": [{"diseaseName":"相邻中医病名","typicalManifestation":"该病名的常见表现","reason":"为何需要与该病名鉴别","distinguishingPoints":"本例主症与病程形态上的区分要点","nextCheck":"必要的核实项或null"}],
     "secondarySyndromes": [],
     "overallPathogenesis": "总病机",
     "overallTherapy": "总治法",

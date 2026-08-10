@@ -2559,6 +2559,35 @@ function governedGuidelineReferences(primary: Record<string, unknown> | null | u
   return [source];
 }
 
+/**
+ * 鉴别条目的**受治理出处**。只在该证候/病名能解析到国标条目时才给出，
+ * 解析不到就返回空——引用必须有条目背书，宁可不印，也不让一条编造的书名出现。
+ */
+function governedTermSourceLabel(name: string): string {
+  const standard = resolveNationalStandardTcmSyndromeTerm(name);
+  return standard ? "GB/T 16751.2-2021 中医临床诊疗术语·证候部分" : "";
+}
+
+/**
+ * 一条中医鉴别怎么写给医生看（甲方 2026-08-10 示例格式）。
+ *
+ * 医生读鉴别要按顺序拿到三件事：这个证候/病名**通常长什么样** → **本例哪一点对不上**
+ * → 需要做什么才能确认。原实现只有中间那一件，读者不知道拿什么在跟本例比。
+ * 出处只印**受治理**的来源（国标 GB/T 16751.2-2021 等），取不到就不印——
+ * 引用必须有条目背书，不让模型自己写《中医内科学》第10版。
+ */
+function differentialLine(name: string, item: Record<string, unknown>): string {
+  const typical = markdownCell(item.typicalManifestation);
+  const source = governedTermSourceLabel(name);
+  return `- **${name}**：${clinicalSentence([
+    typical ? `常见：${typical}` : "",
+    markdownCell(item.reason),
+    markdownCell(item.distinguishingPoints) ? `本例区分要点：${markdownCell(item.distinguishingPoints)}` : "",
+    markdownCell(item.nextCheck) ? `建议核实：${markdownCell(item.nextCheck)}` : "",
+    source ? `依据：${source}` : "",
+  ], "；")}`;
+}
+
 function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinicalContext = ""): string {
   const overview = recordValue(reasoning.overview);
   const westernDiagnosis = recordValue(reasoning.westernDiagnosis);
@@ -2735,11 +2764,7 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
     const insertAt = lines.indexOf(pathogenesisHeading);
     lines.splice(insertAt, 0,
       "### 中医辨病鉴别",
-      ...tcmDiseaseDifferentials.map((item) => `- **${markdownCell(item.diseaseName)}**：${clinicalSentence([
-        markdownCell(item.reason),
-        markdownCell(item.distinguishingPoints) ? `区分要点：${markdownCell(item.distinguishingPoints)}` : "",
-        markdownCell(item.nextCheck) ? `建议核实：${markdownCell(item.nextCheck)}` : "",
-      ], "；")}`),
+      ...tcmDiseaseDifferentials.map((item) => differentialLine(markdownCell(item.diseaseName), item)),
       "",
     );
   }
@@ -2759,7 +2784,21 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
   //
   // 只从**可见正文**移除，签名载荷 overview.tcmDifferentials 与 HIS 出参一字不动——
   // 已集成的调用方仍能拿到这份数据，医生页面不再把它当鉴别诊断呈现。
-  void tcmDifferentials;
+  // 2026-08-10 甲方给了新的示例，明确要看到「不寐·肝火扰心证 — 常见…本例无热象可排除」
+  // 这种证候级取舍。它与上面 2.2 那条并不矛盾——2.2 反对的是把证候鉴别**另立一段**
+  // 与辨病鉴别对仗（读者会把两者都当鉴别诊断），并且原话就写着「证候之间的取舍属于辨证
+  // 过程，本就该在辨证段落里交代」。所以这里把它放回**辨证段之内**，标题写「证候取舍」
+  // 而不是「鉴别诊断」，格式与辨病鉴别同源（differentialLine）。
+  if (tcmDifferentials.length > 0) {
+    const insertAt = lines.indexOf(pathogenesisHeading);
+    if (insertAt >= 0) {
+      lines.splice(insertAt, 0,
+        "**证候取舍**：",
+        ...tcmDifferentials.map((item) => differentialLine(markdownCell(item.syndrome), item)),
+        "",
+      );
+    }
+  }
   if (!isDisplayableClinicalText(markdownCell(overview?.overallPathogenesis)) && isDisplayableClinicalText(markdownCell(pathogenesis?.summary))) {
     lines.push(`**病机归纳**：${markdownCell(pathogenesis?.summary)}`);
   }
