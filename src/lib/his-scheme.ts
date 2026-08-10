@@ -118,6 +118,8 @@ export type HisAiSchemePayload = {
       status: string;
       confidence: string;
       supportingFacts: string[];
+      /** 事实到诊断倾向的临床推理。此前只落到服务端 Markdown 一个出口，写回链路取不到。 */
+      clinicalRationale?: string;
       limitations: string[];
       suggestedChecks: string[];
       /**
@@ -127,6 +129,25 @@ export type HisAiSchemePayload = {
        */
       guidelineReferences?: Array<{ evidenceId: string; citation: string; url?: string; appliesTo?: string }>;
       icd10?: { code: string; display: string; source: string };
+    } | null;
+    /**
+     * 中医辨病/辨证的结构化推理（2026-08-10 新增）。
+     *
+     * 与 westernDetail 同构。此前这几项只落到服务端 Markdown 一个出口：
+     * 「辨病推理」「鉴别的典型表现」「被剥离的方名」在写回链路里整段取不到，
+     * 集成方只能从 markdown 卡片里正则抠。与本轮 ②③⑥⑨ 是同一个缺陷形状。
+     */
+    tcmDetail: {
+      tcmDiseaseName?: string;
+      tcmDiseaseRationale?: string;
+      tcmDiagnosticRationale?: string;
+      primarySyndrome: string;
+      primarySyndromeResolution: string;
+      primarySyndromeBasis: string[];
+      syndromeDifferentials: Array<{ syndrome: string; typicalManifestation?: string; reason: string; distinguishingPoints?: string; nextCheck?: string }>;
+      diseaseDifferentials: Array<{ diseaseName: string; typicalManifestation?: string; reason: string; distinguishingPoints?: string; nextCheck?: string }>;
+      /** 模型选过、但因与签名证候无治理目录直接关系而被服务端剥离的方名。可选：未发生剥离时不下发。 */
+      deferredFormulaSelection?: { names: string[]; reason?: string };
     } | null;
   };
   prescriptions: {
@@ -1023,6 +1044,7 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
           status: clean(primary.status || ""),
           confidence: clean(primary.confidence || ""),
           supportingFacts: (primary.supportingFacts || []).map((fact) => clean(fact)).filter(Boolean),
+          ...(primary.clinicalRationale ? { clinicalRationale: clean(primary.clinicalRationale) } : {}),
           limitations: (primary.limitations || []).map((entry) => clean(entry)).filter(Boolean),
           suggestedChecks: (primary.suggestedChecks || []).map((entry) => clean(entry)).filter(Boolean),
           // 指南/文献依据（甲方 2026-08-10 ⑩）。题名/机构/年份/URL 全部由服务端按
@@ -1043,6 +1065,30 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
               source: clean(primary.coding.source),
             },
           } : {}),
+        };
+      })(),
+      tcmDetail: (() => {
+        const overview = activeReasoning?.overview;
+        if (!overview?.primarySyndrome) return null;
+        const differential = (item: { typicalManifestation?: string; reason?: string; distinguishingPoints?: string; nextCheck?: string | null }) => ({
+          ...(item.typicalManifestation ? { typicalManifestation: clean(item.typicalManifestation) } : {}),
+          reason: clean(item.reason || ""),
+          ...(item.distinguishingPoints ? { distinguishingPoints: clean(item.distinguishingPoints) } : {}),
+          ...(item.nextCheck ? { nextCheck: clean(item.nextCheck) } : {}),
+        });
+        const deferred = overview.deferredFormulaSelection;
+        return {
+          ...(overview.tcmDiseaseName ? { tcmDiseaseName: clean(overview.tcmDiseaseName) } : {}),
+          ...(overview.tcmDiseaseRationale ? { tcmDiseaseRationale: clean(overview.tcmDiseaseRationale) } : {}),
+          ...(overview.tcmDiagnosticRationale ? { tcmDiagnosticRationale: clean(overview.tcmDiagnosticRationale) } : {}),
+          primarySyndrome: clean(overview.primarySyndrome),
+          primarySyndromeResolution: clean(overview.primarySyndromeResolution || ""),
+          primarySyndromeBasis: (overview.primarySyndromeBasis || []).map((entry) => clean(entry)).filter(Boolean),
+          syndromeDifferentials: (overview.tcmDifferentials || []).map((item) => ({ syndrome: clean(item.syndrome), ...differential(item) })),
+          diseaseDifferentials: (overview.tcmDiseaseDifferentials || []).map((item) => ({ diseaseName: clean(item.diseaseName), ...differential(item) })),
+          ...(deferred?.names?.length
+            ? { deferredFormulaSelection: { names: deferred.names.map((name) => clean(name)).filter(Boolean), ...(deferred.reason ? { reason: clean(deferred.reason) } : {}) } }
+            : {}),
         };
       })(),
     },

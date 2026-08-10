@@ -4791,7 +4791,10 @@ function ResultTabsV2({
                 {tcmDiseaseDifferentials.map((item, index) => (
                   <p key={`${item.diseaseName}-${index}`} className="rounded-md bg-amber-50 px-2.5 py-2">
                     <span className="font-semibold text-amber-900">鉴别 {item.diseaseName}：</span>
+                    {/* typicalManifestation（该病名通常长什么样）是「鉴别要写全三件事」里的第一件，
+                        此前只落到了服务端 Markdown 一个出口，医生页面读不到——读者不知道拿什么在跟本例比。 */}
                     {clinicalSentence([
+                      item.typicalManifestation ? `常见：${item.typicalManifestation}` : "",
                       item.reason,
                       item.distinguishingPoints ? `区分要点：${item.distinguishingPoints}` : "",
                       item.nextCheck ? `建议核实：${item.nextCheck}` : "",

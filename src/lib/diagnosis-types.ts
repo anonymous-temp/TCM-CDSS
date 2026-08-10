@@ -327,15 +327,21 @@ export interface ClinicalReasoningResultV2 {
       reason: string;
       distinguishingPoints: string;
       nextCheck: string | null;
-          /** 该证候的典型表现（参考知识，非本例断言）。 */
+      /** 该证候的典型表现（参考知识，非本例断言）。 */
       typicalManifestation?: string;
-}>;
+    }>;
     /** 病名级鉴别（与相邻中医病名区分；证型鉴别见 tcmDifferentials）。 */
     tcmDiseaseDifferentials?: Array<{
       diseaseName: string;
       reason: string;
       distinguishingPoints: string;
       nextCheck: string | null;
+      /**
+       * 该病名的典型表现。zod schema（TcmDiseaseDifferentialSchema）一直有这个字段，
+       * **类型里漏了**——于是消费侧（客户端鉴别卡）拿不到它，只有服务端 Markdown 一个出口在印。
+       * 类型与 schema 分叉正是「同一判据两处各写各的」的另一种形态。
+       */
+      typicalManifestation?: string;
     }>;
     secondarySyndromes?: string[];
     overallPathogenesis: string;

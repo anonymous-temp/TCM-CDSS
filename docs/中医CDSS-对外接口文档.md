@@ -2052,6 +2052,8 @@ async function callStage(url, headers, body) {
 |---|---|---|
 | `clinicalReviewMethod` | 临床复核方式 | 本次临床复核的**实际拓扑**。`independence` 取 `cross_model`（换了模型身份的独立复核）或 `same_model_second_pass`（同一模型另起一次无生成侧对话状态的请求：复核专用提示词、只增不减风险提示，**不构成跨模型独立复核**）。当前默认部署为后者。`label`/`note` 是与之匹配的中文说明，医生可见正文里的措辞与该字段同源 |
 | `diagnoses.westernDetail.guidelineReferences[]` | 指南/文献依据 | 与 §5.1 同源；可选，仅当本轮 EviMed 检索命中时输出 |
+| `diagnoses.westernDetail.clinicalRationale` | 西医诊断推理 | 事实到诊断倾向的推理；此前只出现在可见正文，写回链路取不到 |
+| `diagnoses.tcmDetail` | 中医辨病辨证详情 | 与 `westernDetail` 同构的结构化中医推理：病名、辨病推理、辨证推理、证候与依据、证候/病名鉴别（含 `typicalManifestation` 典型表现）、被剥离的方名 `deferredFormulaSelection`（可选：仅当模型选过方而服务端未予锁定时输出）。无中医证候结论时为 `null` |
 | `nonPharma.tcmTreatments[].protocolGapNote` | 方案边界说明 | `protocolGap` 内部状态码的临床语言说明；集成方要直接展示时用它，不要自行翻译码值 |
 
 > `diagnoses.western[0].name` 与 `diagnoses.westernDetail.name` V1.4 起统一走同一套诊断名规范化
