@@ -217,6 +217,58 @@ ok("营销词被驳回并回落", BOILERPLATE.test(functionAfter("美容养颜�
   ok("全部不合格时整份计划仍判空", allBad === null);
 }
 
+// ── ⑦ 症状级主诊断规范化：不得把疾病实体降级、不得按表行序抢主症 ────────────
+// 实测（2026-08-10）三个独立缺陷叠在一起：
+//  A 取值用 governedSymptomLabels.find()，即**表行序**首个命中——腹泻在第 2 行、头痛在第 11 行，
+//    于是「主诉：头痛3天，伴恶心、大便稀」的主诊断被算成「腹泻症状」，
+//    而 supportingFacts 仍是「头痛3天」：一张自相矛盾的诊断卡，错名还带 ICD 编码进 HIS。
+//  B 「是不是症状级」只看末两字，于是「偏头痛」(ICD G43)、「良性阵发性位置性眩晕」(BPPV) 被降级。
+//  C 改写后原标签**凭空消失**——不进鉴别、不写理由，与合法降级通路的做法相反。
+// 且 prepare 每轮修复都重跑，模型改回去还会被改一次，模型赢不了。
+{
+  const { normalizeDiagnoseConfidenceAndLabels } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const payload = (name, facts) => `${START}\n${JSON.stringify({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    westernDiagnosis: {
+      primary: { name, status: "工作诊断", confidence: "中", supportingFacts: facts, clinicalRationale: "依据主诉" },
+      differentials: [],
+    },
+  })}\n${END}`;
+  const normalized = (name, facts, ctx) => {
+    const out = normalizeDiagnoseConfidenceAndLabels(payload(name, facts), ctx);
+    const parsed = JSON.parse(out.slice(out.indexOf(START) + START.length, out.indexOf(END)).trim());
+    return {
+      name: String(parsed.westernDiagnosis.primary.name || ""),
+      differentials: (parsed.westernDiagnosis.differentials || []).length,
+    };
+  };
+  // A：主症由**主诉语序**决定，兼症（伴/并/同时之后）不得抢主症。
+  for (const [name, facts, ctx] of [
+    ["头痛症状", ["头痛3天"], "主诉：头痛3天，伴恶心、大便稀。"],
+    ["心悸症状", ["心悸1月"], "主诉：心悸1月，伴乏力便溏。"],
+    ["头晕症状", ["头晕3天"], "主诉：头晕3天，近来咳嗽。"],
+  ]) {
+    ok(`兼症不得抢主症：${name} + ${ctx.slice(3, 12)}`, normalized(name, facts, ctx).name === name);
+  }
+  // B：疾病实体不得被当成症状级工作诊断降级。它们没有不确定性标记，模型给的是确诊名。
+  for (const [name, facts, ctx] of [
+    ["偏头痛", ["单侧搏动性头痛"], "主诉：反复发作性头痛3年。现病史：单侧搏动性头痛，伴畏光恶心"],
+    ["良性阵发性位置性眩晕", ["Dix-Hallpike阳性"], "主诉：反复发作性眩晕2个月。现病史：起床翻身诱发"],
+    ["慢性胃炎", ["上腹隐痛"], "主诉：上腹隐痛半年。"],
+  ]) {
+    ok(`疾病实体不得降级：${name}`, normalized(name, facts, ctx).name === name);
+  }
+  // 反向：正当的接地纠正必须仍然生效，且原标签必须进鉴别（不得凭空消失）。
+  {
+    const wheeze = normalized("劳力性呼吸困难待查", ["活动后气喘"], "主诉：活动后气喘。现病史：查体闻及喘鸣音");
+    ok("病历记录喘鸣时仍纠正为喘息症状", wheeze.name === "喘息症状");
+    ok("纠正时原标签进鉴别", wheeze.differentials >= 1);
+    const constipation = normalized("腹胀症状", ["肚子胀"], "大便老解不出来，四五天一次，肚子还胀");
+    ok("兼症标签仍被规范为主症（便秘）", constipation.name === "便秘症状");
+    ok("规范时原标签进鉴别", constipation.differentials >= 1);
+  }
+}
+
 if (failures.length > 0) {
   console.error("[test:llm-adjudication-boundaries] 失败项：");
   for (const item of failures) console.error("  - " + item);

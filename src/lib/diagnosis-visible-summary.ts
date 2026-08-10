@@ -1894,9 +1894,12 @@ function chiefComplaintFallbackDiagnosis(clinicalContext: string): { name: strin
   };
 }
 
-function symptomLevelWesternName(fact: string | undefined, fallback: string): string {
-  if (!fact) return fallback;
-  const governedSymptomLabels: ReadonlyArray<{ pattern: RegExp; label: string }> = [
+/**
+ * 症状级标签表。**行序不是临床优先级**，只是作者书写顺序——因此不能用 find() 取首个命中。
+ * 实测（2026-08-10）：`find` 让腹泻（第 2 行）压过头痛（第 11 行），
+ * 「主诉：头痛3天，伴恶心、大便稀」的主诊断被算成「腹泻症状」。
+ */
+const GOVERNED_SYMPTOM_LABELS: ReadonlyArray<{ pattern: RegExp; label: string }> = [
     { pattern: /(?:反酸|烧心|烧灼感)/, label: "反酸烧心症状" },
     { pattern: /(?:腹泻|稀便|拉肚子|便溏|大便稀|稀水样|(?:吃|饭)[^，。；]{0,16}跑厕所)/, label: "腹泻症状" },
     { pattern: /(?:便秘|排便(?:困难|费劲|不畅)|大便[^，。；\n]{0,12}(?:解不出来|拉不出来|排不出来)|(?:三四|四五|五六|好几|\d+)\s*(?:天|日)[^，。；\n]{0,8}(?:一次|才(?:解|拉|排)|不上厕所)|大便干结|便干(?:成)?颗粒|干球状便)/, label: "便秘症状" },
@@ -1915,9 +1918,75 @@ function symptomLevelWesternName(fact: string | undefined, fallback: string): st
     { pattern: /(?:膝痛|膝盖[^，。；]{0,8}痛)/, label: "膝关节疼痛症状" },
     { pattern: /(?:乏力|疲乏|没劲|容易累)/, label: "乏力症状" },
   ];
-  const governed = governedSymptomLabels.find((item) => item.pattern.test(fact));
-  if (governed) return governed.label;
-  return fallback;
+
+/**
+ * 裸症状词集合：标签剥掉「症状/待查」后**恰好**等于其中之一，才算症状级工作诊断。
+ *
+ * 原判据是后缀正则 /(?:…|头痛|眩晕|…)(?:待查)?$/，只看末两字，于是
+ * 「偏头痛」（ICD G43，疾病实体）、「紧张型头痛」（G44.2）、
+ * 「良性阵发性位置性眩晕」（BPPV，Dix-Hallpike 阳性摆在病历里）全被判成症状级并改名。
+ * 改为「整名恰好是裸症状词」：方向上偏向**保留模型写的名字**——
+ * 模型给出的是具体病种时不再被降级，只有它确实只写了一个裸症状词时才进入规范化。
+ */
+const BARE_SYMPTOM_LABELS: ReadonlySet<string> = new Set([
+  "症状", "不适", "咳嗽", "咳痰", "喘息", "喘鸣", "气短", "气促", "呼吸困难",
+  "反酸", "烧心", "腹泻", "便秘", "腹胀", "腹痛", "头痛", "头晕", "眩晕",
+  "心悸", "失眠", "睡眠障碍", "颈部疼痛", "膝关节疼痛", "乏力",
+]);
+
+/** 标签剥掉不确定性后缀后的裸名；用于判定「这是不是只写了一个症状词」。 */
+function bareDiagnosisLabel(value: string): string {
+  return value.trim().replace(/(?:待查|待明确|待鉴别|（病因待查）|\(病因待查\))$/, "").replace(/症状$/, "").trim();
+}
+
+/** 症状词尾缀（原判据，保留）：标签以某个受治理症状词收尾。 */
+const SYMPTOM_WORD_SUFFIX = /(?:症状|不适|咳嗽|咳痰|喘息|喘鸣|气短|气促|呼吸困难|反酸|烧心|腹泻|便秘|腹胀|腹痛|头痛|头晕|眩晕|心悸|失眠|睡眠障碍|颈部疼痛|膝关节疼痛|乏力)(?:待查|待明确|待鉴别)?$/;
+/** 不确定性标记：模型自己声明这还不是确诊。 */
+const WORKING_LABEL_MARKER = /(?:症状|待查|待明确|待鉴别)$/;
+
+/**
+ * 「这个主诊断名是不是症状级工作诊断」。
+ *
+ * 复合判据，两条缺一不可：
+ *  ① 以受治理症状词收尾（原判据，保留——「劳力性呼吸困难待查」在病历只记录喘息时
+ *     应当被纠正为「喘息症状」，那是接地纠正，test:stage-contract 钉着它）；
+ *  ② **且**带不确定性标记（症状/待查/待明确/待鉴别），或整名就是一个裸症状词。
+ *
+ * 加②是因为只用①会把疾病实体一并降级：实测「偏头痛」(ICD G43)、「紧张型头痛」(G44.2)、
+ * 「良性阵发性位置性眩晕」(BPPV，Dix-Hallpike 阳性摆在病历里) 全被改成「头痛症状/头晕症状」，
+ * 原标签还凭空消失。它们都没有不确定性标记——模型给的是确诊名，不该被当成待查症状。
+ */
+function isSymptomLevelWorkingLabel(value: string): boolean {
+  const trimmed = value.trim();
+  if (!SYMPTOM_WORD_SUFFIX.test(trimmed)) return false;
+  if (WORKING_LABEL_MARKER.test(trimmed)) return true;
+  const bare = bareDiagnosisLabel(trimmed);
+  return bare.length > 0 && BARE_SYMPTOM_LABELS.has(bare);
+}
+
+/**
+ * 主诉里占主导的那个症状。
+ *
+ * 按**在主诉文本里出现的位置**取最靠前的一个，并且忽略「伴/兼/并/同时/合并/另有」之后的段落——
+ * 中文病历用这些词明确标记兼症（「反复腹胀2年，伴大便稀溏」里大便稀溏是兼症）。
+ * 原实现按表行序 find()，与病历里谁是主症完全无关。
+ */
+function symptomLevelWesternName(fact: string | undefined, fallback: string): string {
+  if (!fact) return fallback;
+  const governedSymptomLabels = GOVERNED_SYMPTOM_LABELS;
+  // 先只在「兼症标记」之前的主段里找主症；主段找不到再退回全文。
+  const primarySegment = fact.split(/(?:伴(?:有|随)?|兼(?:有|见)?|并(?:有|见)?|同时|合并|另有)/)[0] || fact;
+  const pickEarliest = (text: string) => {
+    let best: { label: string; index: number } | undefined;
+    for (const item of governedSymptomLabels) {
+      const match = text.match(item.pattern);
+      const index = match?.index;
+      if (index == null) continue;
+      if (!best || index < best.index) best = { label: item.label, index };
+    }
+    return best?.label;
+  };
+  return pickEarliest(primarySegment) || pickEarliest(fact) || fallback;
 }
 
 /**
@@ -2083,10 +2152,33 @@ export function normalizeDiagnoseConfidenceAndLabels(content: string, clinicalCo
     const primary = recordValue(western?.primary);
     if (!primary || typeof primary.name !== "string") return content;
     let normalized = primary.name.trim().replace(/待因$/, "（病因待查）");
-    const symptomLevelWorkingLabel = /(?:症状|不适|咳嗽|咳痰|喘息|喘鸣|气短|气促|呼吸困难|反酸|烧心|腹泻|便秘|腹胀|腹痛|头痛|头晕|眩晕|心悸|失眠|睡眠障碍|颈部疼痛|膝关节疼痛|乏力)(?:待查|待明确|待鉴别)?$/;
-    if (!isAmbiguousM03WesternPrimaryLabel(normalized) && symptomLevelWorkingLabel.test(normalized)) {
+    // 症状级工作诊断的规范化。三条边界都是 2026-08-10 实测缺陷的直接产物：
+    //
+    // ① 只在标签**整名恰好是裸症状词**时才进来（见 isBareSymptomLevelLabel）。
+    //    原判据是后缀正则，把「偏头痛」(G43)、「紧张型头痛」(G44.2)、
+    //    「良性阵发性位置性眩晕」(BPPV) 这些疾病实体一并降级成症状。
+    // ② 模型写的症状词**已经出现在主诉里**时，不改。它已经对了，没有可规范化的东西。
+    //    原实现无条件重算，实测「头痛症状」+「主诉：头痛3天，伴恶心、大便稀」→「腹泻症状」，
+    //    而 supportingFacts 仍是「头痛3天」——医生看到一张自相矛盾的诊断卡，
+    //    错名还会带 ICD 编码进 HIS。且 prepare 每轮修复都重跑，模型改回去也会被再改一次，赢不了。
+    // ③ 真的改名时，原标签必须进鉴别并写明理由——合法的降级通路
+    //    （declassifyUnsupportedM03WesternPrimary）就是这么做的，这里原本什么都不留。
+    if (!isAmbiguousM03WesternPrimaryLabel(normalized) && isSymptomLevelWorkingLabel(normalized)) {
       const fallback = chiefComplaintFallbackDiagnosis(clinicalContext);
-      normalized = symptomLevelWesternName(fallback.fact, normalized);
+      // 只按**主诉主症**规范化。「被主诉提到过」不等于「是主症」——
+      // 「大便老解不出来，四五天一次，肚子还胀」里腹胀是兼症，主症是便秘，
+      // test:stage-contract 钉着这一条。判据全部落在 symptomLevelWesternName 的语序取值里。
+      const rewritten = symptomLevelWesternName(fallback.fact, normalized);
+      if (rewritten !== normalized) {
+        const differentials = Array.isArray(western?.differentials) ? western.differentials : [];
+        // 原标签不得凭空消失：进鉴别、写理由，与合法降级通路（declassifyUnsupportedM03WesternPrimary）同口径。
+        differentials.unshift({
+          name: normalized,
+          reason: `模型给出的症状级主诊断「${normalized}」与本次主诉的主症不一致，已按主诉主症规范为「${rewritten}」；原标签保留在鉴别中供医生复核。`,
+        });
+        if (western) western.differentials = differentials;
+      }
+      normalized = rewritten;
     }
     if (normalized === primary.name) return content;
     primary.name = normalized;
