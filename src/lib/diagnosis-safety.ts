@@ -46,6 +46,30 @@ const governedRedFlagCategory = (id: string): GovernedRedFlagCategory => {
 const GOVERNED_CARDIAC_SYMPTOMS = governedRedFlagCategory("cardiac").symptoms;
 const GOVERNED_CARDIAC_PAIN_SYMPTOMS = GOVERNED_CARDIAC_SYMPTOMS.filter((term) => term !== "胸闷");
 const GOVERNED_CARDIAC_COMPANIONS = governedRedFlagCategory("cardiac").dangerCompanions;
+/**
+ * 腹痛的**构词式**表达。词表按「完整词」穷举，而中文把程度词插在部位与「痛」之间就全部失配：
+ * 词表有「上腹痛」「右下腹痛」，但实测「上腹剧痛」「右下腹剧痛」「脘腹剧烈疼痛」「少腹急痛」
+ * 一律**零红旗**——异位妊娠（少腹急痛+停经）、急性胰腺炎（上腹剧痛）、阑尾炎（右下腹剧痛）
+ * 的典型主诉全线漏检，而「突发腹痛」正常命中。这不是缺几个词，是穷举法本身对不上中文构词。
+ *
+ * 改成 部位 × (程度/性质)? × 痛，覆盖插入式表达。仍然只是**症状识别**：
+ * 是否构成红旗照旧由上层的急性起病/程度/腹膜刺激征判据决定，本模式不放宽任何门槛。
+ * 词表里的原有完整词一并保留（心口窝痛、肚子疼这类口语不符合构词式）。
+ */
+const ABDOMINAL_PAIN_COMPOSITION =
+  "(?:全腹|上腹|中上腹|右上腹|左上腹|下腹|右下腹|左下腹|脐周|少腹|小腹|大腹|脘腹|胃脘|腹部|腹)"
+  + "(?:部)?(?:[剧隐胀绞刺闷钝锐灼])?(?:烈|痛|性)?(?:阵发性|阵发|持续性|持续|急|剧烈|剧痛|绞痛)?"
+  + "(?:疼痛|痛|疼)";
+/**
+ * 部位 + **重度性质词** + 痛。这一条单独存在，是因为上面的构词式模式会把程度词
+ * 「吃」进症状匹配里：「右下腹剧痛」整体匹配成一个症状后，重度判据再去找相邻的重度词就找不到了
+ * （实测「突发上腹剧痛，大汗」靠句末的「大汗」过关，而「突发右下腹剧痛」仍然零红旗）。
+ * 症状短语自带重度性质词时，它本身就是重度证据。
+ * 只收真正表示剧烈的性质词——隐痛/胀痛/刺痛不在其列。
+ */
+const ABDOMINAL_SEVERE_PAIN_COMPOSITION =
+  "(?:全腹|上腹|中上腹|右上腹|左上腹|下腹|右下腹|左下腹|脐周|少腹|小腹|大腹|脘腹|胃脘|腹部|腹)"
+  + "(?:部)?(?:剧烈|剧|绞|急|刀割样|撕裂样|针刺样)(?:烈)?(?:疼痛|痛|疼)";
 const GOVERNED_ACUTE_ABDOMEN_SYMPTOMS = governedRedFlagCategory("acute_abdomen").symptoms;
 const GOVERNED_ACUTE_ABDOMEN_COMPANIONS = governedRedFlagCategory("acute_abdomen").dangerCompanions;
 const GOVERNED_PERITONEAL_SIGNS = GOVERNED_ACUTE_ABDOMEN_COMPANIONS.filter((term) =>
@@ -1704,7 +1728,14 @@ function isNegatedAt(text: string, index: number): boolean {
     const afterComma = afterNegation.slice(commaIndex + 1);
     const beforeComma = afterNegation.slice(0, commaIndex);
     const explicitNegativeContinuation = new RegExp(`^(?:也|亦|并|且|均|都)?\\s*(?:否认|不是(?!${DEGREE_AFTER_NEGATOR})|并非(?!${DEGREE_AFTER_NEGATOR})|不曾|无|未见|没有|未诉|未出现|未发生|不伴)`).test(afterComma.trim());
-    const explicitPositiveClause = /^(?:突发|出现|再发|复发|伴|伴有|持续|加重|发作|本次|当前|目前|现在|现|诉|呈|排出|排)/.test(afterComma.trim());
+    const explicitPositiveClause = /^(?:突发|出现|再发|复发|伴|伴有|持续|加重|发作|本次|当前|目前|现在|现|诉|呈|排出|排)/.test(afterComma.trim())
+      // 否认列举的延续项是**裸词**（「否认胸痛，胸闷，气促」）。一旦从句里出现了
+      // 诱发/发作/加重这类动词，它描述的就是一个已经发生的阳性事件，不是继续在否认。
+      // 判据取动词而不是穷举诱因词：诱因的说法无穷（登楼/爬坡/搬重物/情绪激动/餐后/夜间…），
+      // 穷举必漏。实测漏检的是「否认糖尿病，登楼时诱发胸痛，今日新发」——劳力性心绞痛，
+      // 恰恰是最不能漏的那一类；而去掉那句无关的既往史否认后同一主诉正常出红旗。
+      // 「未出现/未发作」这类否定延续由上面的 explicitNegativeContinuation 先行拦住。
+      || /(?:诱发|引发|激发|加剧|发作|出现)/.test(afterComma);
     // Ordinary commas may continue a compact denial list ("否认胸痛，胸闷，气促"). A prior
     // enumeration comma, however, closes that list before the comma ("否认胸痛、气促，晕厥").
     // Concrete actions/counts are handled as positive evidence by hasCommaSeparatedPositiveEvidence.
@@ -1723,7 +1754,18 @@ function isNegatedAt(text: string, index: number): boolean {
     if (!explicitNegativeContinuation && afterComma.trim().length === 0 && beforeComma.trim().length > 0) {
       const afterTerm = text.slice(index, index + 24).replace(/^[^一-龥]*/, "");
       // 跳过被测词本身:词长未知,故取词后 24 字里首个出现的修饰词位置作判据。
-      if (/(?:明显|剧烈|频作|频发|加重|严重|持续|阵发|反复|大量|为主|突出|尤甚|不重|不剧|较轻|轻微)/.test(afterTerm)) {
+      //
+      // 判据分两组，都表示「这是一句阳性断言，不是否认列举的延续项」：
+      //  ① 程度/频次修饰（原有）——「头痛明显」「心悸频作」。
+      //  ② 起病时间限定（2026-08-09 补）——「胸痛今日新发」「气促昨夜突发」。
+      //     缺 ② 的实测后果：「否认糖尿病，胸痛今日新发」**零红旗**，而去掉那句无关的
+      //     「否认糖尿病」后同一主诉正常出红旗——一句与胸痛毫不相干的既往史否认，
+      //     跨过逗号把今日新发的胸痛吃掉了。语序换成「否认糖尿病，今日新发胸痛」则正常，
+      //     因为那条路径由上面第 1723 行的「逗号后紧跟时间词」分支拦住了；
+      //     症状在前、时间限定在后的写法没有任何分支接住。两种写法在门诊都很常见。
+      if (/(?:明显|剧烈|频作|频发|加重|严重|持续|阵发|反复|大量|为主|突出|尤甚|不重|不剧|较轻|轻微)/.test(afterTerm)
+        || /(?:今日|今晨|今早|今天|昨日|昨晚|昨夜|近日|本次|此次|刚刚|刚才|方才)/.test(afterTerm)
+        || /(?:新发|突发|突然|骤然|再发|复发|首次发作)/.test(afterTerm)) {
         return false;
       }
     }
@@ -1912,15 +1954,21 @@ function hasPatternWithoutNegation(text: string, pattern: RegExp): boolean {
   return false;
 }
 
+/** 词表完整词 + 构词式腹痛，合成一条。两个消费点共用，避免只补一处而另一处继续漏。 */
+function abdominalSymptomAlternation(): string {
+  return `${governedTermAlternation(GOVERNED_ACUTE_ABDOMEN_SYMPTOMS)}|${ABDOMINAL_PAIN_COMPOSITION}`;
+}
+
 function hasAbdominalPrioritySignal(text: string): boolean {
   const normalized = normalizeClinicalText(text);
-  for (const term of GOVERNED_ACUTE_ABDOMEN_SYMPTOMS) {
-    let index = normalized.indexOf(term);
-    while (index !== -1) {
-      if (isExcludedClinicalAssertionAt(normalized, index)) {
-        index = normalized.indexOf(term, index + term.length);
-        continue;
-      }
+  // 原实现按词表逐词 indexOf，加不进构词式模式；改为对合成正则做全局匹配，
+  // 否定/既往/排除断言的判定逐个命中位置照旧执行，语义不变。
+  const matcher = new RegExp(abdominalSymptomAlternation(), "g");
+  for (const match of normalized.matchAll(matcher)) {
+    const index = match.index ?? -1;
+    const term = match[0];
+    if (index >= 0) {
+      if (isExcludedClinicalAssertionAt(normalized, index)) continue;
       const affirmed = !isNegatedAt(normalized, index) || hasCommaSeparatedPositiveEvidence(normalized, index, term);
       if (affirmed && !isHistoricalOrResolvedAt(normalized, index, term.length)) {
         const clauseStart = Math.max(
@@ -1939,7 +1987,6 @@ function hasAbdominalPrioritySignal(text: string): boolean {
           /(?:快速|明显|很快|迅速|持续|进行性|越来越)[^，,。；;\n]{0,4}加重|(?:仍|一直|反复)?持续(?:存在|不缓解)?|(?:未|无|没有|尚未)(?:见)?(?:缓解|好转|改善)/.test(localClause);
         if (priority) return true;
       }
-      index = normalized.indexOf(term, index + term.length);
     }
   }
   return false;
@@ -1949,8 +1996,10 @@ function hasAcuteAbdominalSignal(text: string): boolean {
   // 腹膜刺激征的口语表达（“按下去松手更疼”=反跳痛）与“肚子疼”类口语主诉必须覆盖；
   // 松手后“不疼”的否定式描述不命中（间隔字符排除不/无/未）。
   const severe = governedTermAlternation(GOVERNED_SEVERE_TERMS);
-  const symptoms = governedTermAlternation(GOVERNED_ACUTE_ABDOMEN_SYMPTOMS);
+  const symptoms = abdominalSymptomAlternation();
   return hasAnyTerm(text, ["急腹痛", "腹膜刺激征", ...GOVERNED_PERITONEAL_SIGNS]) ||
+    // 症状短语自带重度性质词（上腹剧痛/右下腹剧痛/脘腹剧烈疼痛/少腹急痛/腹部绞痛）
+    hasPatternWithoutNegation(text, new RegExp(ABDOMINAL_SEVERE_PAIN_COMPOSITION)) ||
     hasPatternWithoutNegation(text, new RegExp(
       `(?:${symptoms})[^。；;\\n]{0,16}(?:疼得厉害|痛得厉害|挺不住|无法忍受|明显加重|快速加重|迅速加重|越来越重)|` +
       `(?:疼得厉害|痛得厉害|挺不住|无法忍受|明显加重|快速加重|迅速加重|越来越重)[^。；;\\n]{0,16}(?:${symptoms})`,
@@ -2022,11 +2071,23 @@ function hasRecentPositiveTerm(text: string, terms: string[]): boolean {
   return false;
 }
 
+// 局灶神经缺损词。**中医门诊的中风描述用的是另一套词**，原表只收了西医写法，
+// 于是这个中医 CDSS 认得「口角歪斜」却认不得「口眼歪斜」、认得「肢体无力」却认不得「半身不遂」。
+// 实测（2026-08-09）：「今晨突发口眼歪斜」「今晨突发半身不遂」「今晨突发不省人事」
+// 「今晨突发意识模糊」「今晨突发肢体活动不利」全部**零红旗**，而「今晨突发口角歪斜」正常命中。
+// 同一个卒中病人，医生按中医术语写就没有红旗——这是本层最不该有的漏。
 const FOCAL_NEUROLOGIC_TERMS = [
-  "意识改变", "意识障碍", "意识不清", "神志不清", "言语不清", "口齿不清", "构音不清", "说话含糊", "失语", "不能说话", "不能讲话",
-  "言语理解障碍", "语言理解障碍", "肢体无力", "口角歪斜", "偏盲",
+  "意识改变", "意识障碍", "意识不清", "意识模糊", "神志不清", "神志模糊", "神志昏蒙", "不省人事",
+  "言语不清", "口齿不清", "构音不清", "说话含糊", "失语", "不能说话", "不能讲话",
+  "言语理解障碍", "语言理解障碍", "言语謇涩", "语言謇涩", "舌强语謇",
+  "肢体无力", "肢体活动不利", "肢体不遂", "半身不遂", "偏身不遂", "半身不用",
+  "口角歪斜", "口眼歪斜", "口眼㖞斜", "口舌歪斜", "偏盲",
 ];
-const FOCAL_NEUROLOGIC_PATTERN = /(?:意识改变|意识障碍|意识不清|神志不清|言语不清|口齿不清|构音不清|说话含糊|失语|不能说话|不能讲话|言语理解障碍|语言理解障碍|肢体无力|口角歪斜|偏盲)/;
+// 从数组派生，不再手抄第二份。原实现把同一批词在数组和正则里各写一遍，
+// 加词时只改一处就会静默半失效——本仓库最常复发的缺陷形状。
+const FOCAL_NEUROLOGIC_PATTERN = new RegExp(
+  `(?:${FOCAL_NEUROLOGIC_TERMS.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`,
+);
 const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐|惊厥|癫痫持续状态)/;
 const ACUTE_CONSCIOUSNESS_CHANGE_TERMS = ["昏睡", "嗜睡", "谵妄"];
 
@@ -2639,7 +2700,16 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   // 产科语境的重度高血压阈值独立于通用危急值：妊娠期/产褥期收缩压≥160 或舒张压≥110 即为
   // 重度（子痫前期/子痫谱系），常伴持续头痛、视物异常、右上腹痛。通用 180/120 阈值覆盖不到
   // 这一段（实测产后10天 BP 170/112 + 剧烈头痛 + 视物异常未触发任何确定性红旗）。
-  const obstetricContext = hasPatternWithoutNegation(text, /妊娠|怀孕|孕\d+(?:周|月)|产后|产褥|剖宫产后|顺产后/);
+  // 妊娠判定走**受治理谓词**，不在这里自写第三份正则。
+  // 原来这里是 /妊娠|怀孕|孕\d+(?:周|月)|.../ ——「孕」后必须跟数字，于是门诊最常见的
+  // 「孕妇」「孕晚期」「有身孕」一律判不出。实测：BP 170/112 + 剧烈头痛 + 视物模糊，
+  // 主诉写「孕32周」触发重度子痫前期红旗，写「孕妇」则**零红旗**。同一个病人，换个写法就没了。
+  // assessPregnancyState 已经覆盖这批口语写法，且带否定/既往/备孕的排除（不孕症、否认妊娠、
+  // 既往孕2产1、备孕中全判非阳性），比这里自写的强得多——同一判据不该有两份实现。
+  // 产褥期是**另一个概念**（子痫前期谱系延伸到产后6周），不属于妊娠谓词，单列。
+  const pregnancyStatus = assessPregnancyState(text).status;
+  const obstetricContext = pregnancyStatus === "positive" || pregnancyStatus === "possible"
+    || hasPatternWithoutNegation(text, /产后|产褥|分娩后|坐月子|剖宫产后|顺产后/);
   if (obstetricContext && bp && (bp.systolic >= 160 || bp.diastolic >= 110) &&
       !(bp.systolic >= 180 || bp.diastolic >= 120)) {
     redFlags.push(`妊娠/产褥期血压 ${bp.systolic}/${bp.diastolic}mmHg 达重度高血压标准（≥160/110），需立即按子痫前期/子痫风险急诊评估，尤其伴头痛、视物异常或上腹痛时`);

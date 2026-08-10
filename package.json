@@ -29,6 +29,7 @@
     "regress:live-evidence": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-live-evidence.mjs",
     "test:safety-pediatric": "jiti scripts/test-safety-pediatric-gate.mjs",
     "test:safety-mutations": "jiti scripts/test-safety-mutation-matrix.mjs",
+    "test:redflag-expression-coverage": "jiti scripts/test-redflag-expression-coverage.mjs",
     "test:clinical-facts": "jiti scripts/test-clinical-facts.mjs",
     "test:evidence-sentinel": "jiti scripts/test-evidence-sentinel-safe.mjs",
     "test:evimed-normalization": "jiti scripts/test-evimed-normalization.mjs",

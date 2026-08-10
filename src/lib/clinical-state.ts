@@ -264,6 +264,11 @@ export function assessPregnancyState(text: string): ClinicalStateResult {
       // 「孕期」同理；「孕前」是备孕，归 assessConceptionState 管，不在这里。
       /孕期(?!前|保健|营养|用药|禁忌|检查)/,
       /(?:待|临)产/,
+      // 「早孕」独立成词就是妊娠早期；只排除检验名与症状名。
+      // 缺它的后果实测可见：BP 170/112 + 剧烈头痛，主诉写「孕妇」有重度子痫前期红旗，
+      // 写「早孕」则零红旗（diagnosis-safety.ts 的产科语境判据现已收敛到本谓词）。
+      // 「早孕试验阴性」由下方 negative 侧的 妊娠试验阴性 / HCG阴性 覆盖，不会被这条盖过。
+      /早孕(?!试验|检测|试纸|反应|期?保健)/,
     ],
     possible: [
       /妊娠可能/,
