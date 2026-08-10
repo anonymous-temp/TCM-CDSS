@@ -269,6 +269,42 @@ ok("营销词被驳回并回落", BOILERPLATE.test(functionAfter("美容养颜�
   }
 }
 
+// ── ⑧ 「病历已回答过」不得主语盲、极性盲 ──────────────────────────────────
+// optionAlreadyKnown 原来是整份病历的纯逐字包含，两类相反事实被当成同一件（2026-08-10 实测）：
+//  · 家族史「患者母亲有糖尿病」让「患者**本人**是否诊断过糖尿病」被删；
+//  · 「否认胸痛」让「近一周静息时是否出现过胸痛」被删，理由还写「答案已在病历中明确记录」。
+// 顺带查出极性层的一个缺口：字段标签会挡住否定判定——
+// affirmedClinicalText("现病史：否认胸痛") 原样保留该句，因为「否认」不在分句起始。
+{
+  const { enforceM02UnansweredAxes, ensureQuestionStructuredEnvelope } =
+    await jiti.import("../src/lib/m02-question-contract.ts");
+  const question = (label, recordValue, text) => ({
+    id: "q1", question: text, reason: "决定鉴别方向", targetField: "xianbingshi",
+    decisionBranch: "syndrome", expectedDecisionImpact: "决定是否按此方向处置",
+    informationGain: 0.8, sourceEvidence: [],
+    options: [
+      { id: "a", label, answer: label, kind: "clinical_fact", recordValue },
+      { id: "b", label: "否", answer: "无此表现", kind: "clinical_fact", recordValue: "无此表现" },
+      { id: "u", label: "本次未取得", answer: "本次未取得该信息", kind: "unknown" },
+    ],
+  });
+  const keptCount = (source, q) => {
+    const envelope = ensureQuestionStructuredEnvelope(JSON.stringify({
+      completeness: { level: "B" },
+      m02Plan: { schemaVersion: "tcm-cdss-m02-plan-v1", decision: "ask", rationale: "仍有未决问题", questions: [q] },
+    }), source);
+    return enforceM02UnansweredAxes(envelope, source).includes('"decision":"proceed"') ? 0 : 1;
+  };
+  const diabetes = question("糖尿病", "患者本人既往有2型糖尿病病史", "患者本人既往是否诊断过糖尿病？");
+  ok("家族史不得让本人病史题被删",
+    keptCount("反复口干乏力两月\n家族史：患者母亲有糖尿病。", diabetes) === 1);
+  ok("本人确诊时该题仍应被删（反向不得放宽）",
+    keptCount("反复口干乏力两月\n既往史：患者有糖尿病10年。", diabetes) === 0);
+  ok("病历里的否认不得让新发症状题被删",
+    keptCount("上腹隐痛一周\n现病史：否认胸痛、无黑便。",
+      question("胸痛", "近一周静息胸痛向左肩放射", "近一周静息时是否出现过胸痛并向左肩放射？")) === 1);
+}
+
 if (failures.length > 0) {
   console.error("[test:llm-adjudication-boundaries] 失败项：");
   for (const item of failures) console.error("  - " + item);

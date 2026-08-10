@@ -1,3 +1,5 @@
+import { affirmedClinicalText } from "./clinical-polarity";
+
 type QuestionFallbackCase = {
   patient?: { age?: number | string };
   chiefComplaint?: string;
@@ -530,9 +532,38 @@ function comparable(value: string): string {
 
 const GENERIC_OPTION_WORDS = new Set(["存在异常", "没有异常", "无异常", "有症状", "无症状", "是", "否", "正常", "异常"]);
 
+/**
+ * 「病历里已经有这个答案了」的取材范围。
+ *
+ * 原实现直接拿整份病历做逐字包含，于是两类相反的事实被当成同一件事（2026-08-10 实测）：
+ *  · 主语错位：病历「家族史：患者母亲有糖尿病」，模型问「患者**本人**既往是否诊断过糖尿病？」
+ *    → 判「已知」删题。母亲有和本人有是相反的临床结论。
+ *  · 极性错位：病历「否认胸痛、无黑便」，模型问「近一周静息时是否出现过胸痛并向左肩放射？」
+ *    → 判「已知」删题，删除理由写「答案已在病历中明确记录」——与病历原意正好相反。
+ *
+ * 两条约束都不是新判断，是复用已有的东西：
+ *  · 极性走 clinical-polarity 的 affirmed scope（否认/未见/无 的分句被剥掉，找不到就不算已知）；
+ *  · 主语按**病历分段**排除家族史——那是带标签的字段边界，不是语义推断。
+ */
+const FAMILY_HISTORY_SECTION = /(?:家族史|父亲|母亲|哥哥|姐姐|弟弟|妹妹|外公|外婆|爷爷|奶奶)[^\n。；;]*/g;
+
+/**
+ * 病历字段标签。它们是**结构**不是临床内容，但会挡住极性判定：
+ * 实测 affirmedClinicalText("现病史：否认胸痛") 原样保留该句——
+ * 「现病史:」这个前缀让「否认」不再位于分句起始，否定判据够不着。
+ * 取材时先剥标签，再做极性过滤。
+ */
+const RECORD_FIELD_LABEL = /(?:^|\n)\s*(?:主诉|现病史|既往史|个人史|婚育史|月经史|过敏史|用药史|查体|辅助检查|专科检查|舌象|脉象)\s*[：:]/g;
+
+function alreadyKnownSourceText(sourceText: string): string {
+  const withoutFamilyHistory = String(sourceText || "").replace(FAMILY_HISTORY_SECTION, "");
+  const withoutLabels = withoutFamilyHistory.replace(RECORD_FIELD_LABEL, "\n");
+  return affirmedClinicalText(withoutLabels, "affirmed") || "";
+}
+
 function optionAlreadyKnown(option: M02PlanOption, sourceText: string): boolean {
   if (option.kind !== "clinical_fact" || option.requiresDetail) return false;
-  const source = comparable(sourceText);
+  const source = comparable(alreadyKnownSourceText(sourceText));
   if (!source) return false;
   const candidates = [option.recordValue, option.answer, option.label]
     .filter((value): value is string => Boolean(value?.trim()))
