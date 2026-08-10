@@ -180,17 +180,54 @@ export async function reviewM02QuestionPlan(
 ): Promise<string> {
   const initialPlan = parseM02PlanFromContent(content);
   if (!initialPlan || initialPlan.decision !== "ask" || initialPlan.questions.length === 0) return content;
+  // 确定性判据从「先删」降级为「先提示」。
+  //
+  // 原实现在这里就把题删掉了，独立复核模型只看得到幸存者。可这几条判据判的恰恰是
+  // **语义问题**——「病历是不是已经回答过这道题」「A/B 两个临床选项能不能同时成立」
+  // 「妊娠题该不该占本轮名额」——而它们用的手段是正则与否定词计数。更要紧的是：
+  // 复核模型的状态词汇本来就是 remove_known / remove_duplicate / remove_nonexclusive /
+  // remove_low_priority，**和这几条正则判的是同一件事**。同一判据两处各写各的，
+  // 而其中弱的那一处先执行、且执行的是不可逆的删除。
+  //
+  // 改为：正则结论作为 hint 随题送进复核提示，由模型拍板；模型不可用时（未配置/两次抽样
+  // 都失败/超时）才回落到确定性删除——那一条路径与今天逐字相同，不是放宽。
   const deterministicRemovalIds = initialPlan.questions
     .filter((question) => deterministicRemovalStatus(question, clinicalSource))
     .map((question) => question.id)
     .concat(redundantAcuteAbdomenQuestionIds(initialPlan));
-  const guardedContent = deterministicRemovalIds.length > 0
+  const deterministicSuspicion = new Map(
+    initialPlan.questions.map((question) => [
+      question.id,
+      deterministicRemovalStatus(question, clinicalSource) || undefined,
+    ]).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  );
+  for (const id of redundantAcuteAbdomenQuestionIds(initialPlan)) {
+    if (!deterministicSuspicion.has(id)) deterministicSuspicion.set(id, "remove_duplicate");
+  }
+  // 复核模型可用时，本轮不做确定性删除——把判断权交出去。
+  const reviewerAvailable = Boolean(modelCall || defaultModelCall());
+  const guardedContent = !reviewerAvailable && deterministicRemovalIds.length > 0
     ? removeM02PlanQuestions(
         content,
         deterministicRemovalIds,
         "确定性复核已移除病历已回答或不满足单选互斥要求的候选问题。",
       )
     : content;
+  /**
+   * 计划被删空后的收口：路由始终提供一条服务端自有的趋势/风险兜底问题，
+   * 保证医生仍有**同一次** M02 机会。确定性删除与「模型不可用时回落删除」两条路径
+   * 共用这一个收口——各写一份就会出现「同一份非法计划，谁先拦到就决定问不问」。
+   */
+  const emptyPlanFallback = (afterRemoval: string): string => {
+    const parsedAfter = parseM02PlanFromContent(afterRemoval);
+    if (parsedAfter && parsedAfter.decision === "ask" && parsedAfter.questions.length > 0) return afterRemoval;
+    return parsedAfter?.decision === "proceed" && fallbackContent.trim()
+      ? enforceM02UnansweredAxes(
+          ensureQuestionStructuredEnvelope(fallbackContent, clinicalSource),
+          clinicalSource,
+        )
+      : afterRemoval;
+  };
   const plan = parseM02PlanFromContent(guardedContent);
   if (!plan || plan.decision !== "ask" || plan.questions.length === 0) {
     // Deterministic checks can reject the entire provider plan before the independent reviewer is
@@ -229,8 +266,15 @@ export async function reviewM02QuestionPlan(
       "出现 rewrite_leading 时只做分类，不提供替代文案；服务端会使用中性模板。不要因为病历没写而删除问题，不要判断诊断是否正确。普通非妇产主诉不得用妊娠/备孕问题挤占本轮名额；舌脉、人口学和泛化病程也不得排在尚未知的主诉性质、时序、诱因、伴随风险与现代医学鉴别之前。只有确有删除条件才删除。",
       "严格输出JSON：{\"decisions\":[{\"questionId\":\"q1\",\"status\":\"retain\",\"reason\":\"简短理由\"}]}。每个输入问题必须且只能出现一次。",
       `【已知病历】${clinicalSource.slice(0, 16_000)}`,
+      // 确定性层的怀疑作为**提示**给出，不是结论。模型可以推翻它——正则判「病历已答过」
+      // 靠的是轴向词表逐字命中，判「A/B 不互斥」靠的是数否定词，两者都可能判错。
+      "【确定性层提示】deterministicSuspicion 是服务端正则的初判，仅供参考，不是结论。"
+      + "你可以推翻它：若你认为该题仍有临床价值且病历确实没有回答，照常 retain 并在 reason 里说明。"
+      + "反过来，没有被提示的题若你判定应当删除，也照常给出删除状态。",
       `【结构化问题】${JSON.stringify(plan.questions.map((question) => ({
         questionId: question.id,
+        ...(deterministicSuspicion.has(question.id)
+          ? { deterministicSuspicion: deterministicSuspicion.get(question.id) } : {}),
         question: question.question,
         reason: question.reason,
         expectedDecisionImpact: question.expectedDecisionImpact,
@@ -252,7 +296,17 @@ export async function reviewM02QuestionPlan(
       const parsed = parseReview(attempt.value, questionIds);
       return parsed ? [parsed] : [];
     });
-    if (reviews.length === 0) return deterministicallyNeutralized;
+    if (reviews.length === 0) {
+      // 两次抽样都失败 ⇒ 模型没有给出判断，此时确定性初判重新成为权威，
+      // 行为与改动前逐字相同（fail-closed 到今天）。
+      return emptyPlanFallback(deterministicRemovalIds.length > 0
+        ? removeM02PlanQuestions(
+            deterministicallyNeutralized,
+            deterministicRemovalIds,
+            "确定性复核已移除病历已回答或不满足单选互斥要求的候选问题。",
+          )
+        : deterministicallyNeutralized);
+    }
     const decisions = fuseReviewDecisions(reviews, questionIds);
     const removed = decisions.filter((item) => item.status.startsWith("remove_"));
     const leadingIds = new Set([
