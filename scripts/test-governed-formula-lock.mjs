@@ -137,6 +137,74 @@ const run = (reasoning) => unwrap(ind.enforceRetrievedM03FormulaSelection(wrap(r
   }
 }
 
+// ── 五、治法对齐是**一条判据、三处消费** ────────────────────────────────
+//
+// 上面第 12-14 行那条边界("不在模型选了但没过核验时顶替")当初只堵住了一条路。
+// 系统能把一张方摆到医生面前的路有三条,实测(阳黄例,签名主证「湿热内蕴证」,
+// 治法「清热利湿退黄,通腑泄热」)三条里只有一条有治法对齐这道门:
+//   ① 系统自锁 systemLockable         —— 有;
+//   ② 校验模型自己选的方 allowed 集    —— 没有 ⇒ 模型选导赤散(清心利水养阴)被**原样锁定**;
+//   ③ 修复轮候选 missedLockable…      —— 没有 ⇒ 作废茵陈蒿汤后,把导赤散标成
+//      「已通过正向充分性核验……逐字抄写」喂回模型,反向指挥它改错。
+// 也就是说:删掉对的方(茵陈蒿汤,本例金标准),再把错的方标成已核验推回去。
+const YANGHUANG = {
+  syndrome: "湿热内蕴证",
+  pathogenesis: "湿热蕴结中焦，熏蒸肝胆，胆汁不循常道",
+  therapy: "清热利湿退黄，通腑泄热",
+};
+{
+  // ② 治法方向对立的方,模型自己选也不许锁。
+  const out = run(m03({ ...YANGHUANG, names: ["导赤散"], mode: "single" }));
+  const locked = out?.overview?.recommendedFormulaNames || [];
+  if (locked.includes("导赤散")) {
+    failures.push({
+      case: "治法对立方经模型之手锁定",
+      why: "导赤散功效「清心利水养阴」与签名治法「清热利湿退黄，通腑泄热」无受控治法交集，不得锁定",
+    });
+  }
+
+  // ③ 修复轮候选同样要过这道门,否则等于指挥模型改成错方。
+  const bare = m03({ ...YANGHUANG, names: [], mode: "self_devised" });
+  const repairPicks = ind.missedLockableFormulaCandidates(bare);
+  if (repairPicks.includes("导赤散")) {
+    failures.push({
+      case: "修复轮把治法对立方标成已核验",
+      why: `修复提示词会让模型逐字抄写这些方名，实际候选 ${JSON.stringify(repairPicks)}`,
+    });
+  }
+
+  // 数据缺失不得当成对立:目录里 2367/2910 条可锁方 functions 为空(茵陈蒿汤自己就是),
+  // 若把「抽不出治法词」也判为不一致,挡掉的全是数据缺口而非临床错误。
+  if (!ind.formulaTherapyAlignedWithSigned([], ind.signedTherapyMethodIds(bare))) {
+    failures.push({ case: "治法对齐判据", why: "方剂 functions 为空时必须放行(数据缺口≠临床对立)" });
+  }
+  if (!ind.formulaTherapyAlignedWithSigned(["清热利湿退黄"], new Set())) {
+    failures.push({ case: "治法对齐判据", why: "签名治法抽不出词时必须放行" });
+  }
+}
+{
+  // 作废不得静默:模型原选必须留在签名信封里,否则医生看到一张自拟方,
+  // 既不知道系统本来锁的是什么,也不知道为什么撤——M04 剥名说明的兜底取的正是这里。
+  const out = run(m03({ ...YANGHUANG, names: ["茵陈蒿汤"], mode: "single" }));
+  const deferred = out?.overview?.deferredFormulaSelection;
+  if ((out?.overview?.recommendedFormulaNames || []).length > 0) {
+    failures.push({ case: "作废留痕", why: "留痕不得放宽锁定，names 仍须清空" });
+  }
+  if (out?.overview?.formulaSelectionMode !== "self_devised") {
+    failures.push({ case: "作废留痕", why: `仍须降为自拟方，实际 ${out?.overview?.formulaSelectionMode}` });
+  }
+  if (!deferred || !(deferred.names || []).includes("茵陈蒿汤")) {
+    failures.push({ case: "作废留痕", why: `模型原选未留痕，deferred=${JSON.stringify(deferred)}` });
+  }
+  if (deferred && !deferred.reason) {
+    failures.push({ case: "作废留痕", why: "撤销原因必须写明，否则医生无从判断是临床否决还是目录缺口" });
+  }
+  // 留痕同时止住反向指挥:missedLockable 见到 deferred 即认作「系统自己的处置」而非模型遗漏。
+  if (ind.missedLockableFormulaCandidates(out).length > 0) {
+    failures.push({ case: "作废留痕", why: "已留痕的作废不得再被当成模型遗漏，触发修复轮改方" });
+  }
+}
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ failures }, null, 2));
 }

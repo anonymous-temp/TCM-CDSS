@@ -1146,6 +1146,52 @@ export function namedFormulaPositiveSufficiencyIssue(
  * Returns [] whenever the selection is legitimate: a formula was locked, the server itself
  * deferred the choice pending clinician confirmation, or no sufficient candidate exists.
  */
+/**
+ * 已签名治法的受控治法词 id 集合。取材与 enforceRetrievedM03FormulaSelection 同源
+ * （recommendedFormulaDirection + therapy.overallMethod），因为下面那条对齐判据要三处共用。
+ */
+export function signedTherapyMethodIds(reasoning: unknown): Set<string> {
+  const source = reasoning as {
+    overview?: { recommendedFormulaDirection?: unknown };
+    therapy?: { overallMethod?: unknown };
+  } | null | undefined;
+  return new Set(governedTreatmentMethodsInText([
+    typeof source?.overview?.recommendedFormulaDirection === "string" ? source.overview.recommendedFormulaDirection : "",
+    typeof source?.therapy?.overallMethod === "string" ? source.therapy.overallMethod : "",
+  ].filter(Boolean).join("；")).map((entry) => entry.id));
+}
+
+/**
+ * 「这张方的功效方向与已签名治法是否**明确对立**」——一条判据，三处消费。
+ *
+ * 【为什么必须共用】这条判据原本只写在 systemLockable 那一处（系统自锁支路），注释里点名
+ * 记着它是为哪一例加的：湿热内蕴证（阳黄）召回到导赤散（功效「清心利水养阴」，主治末句恰好
+ * 写着「属湿热内蕴者」故证候标签命中），而本例签名治法是「清热利湿退黄，通腑泄热」。
+ * 但系统能把一张方摆到医生面前的路**有三条**，当时只堵了一条：
+ *   ① 系统自锁（systemLockable）        —— 有这道门
+ *   ② 校验模型自己选的方（allowed 集）   —— 没有
+ *   ③ 修复轮候选（missedLockable…）      —— 没有
+ * 实测（tmp-probe/repro-formula-void.mjs，签名主证「湿热内蕴证」+ 治法「清热利湿退黄，通腑泄热」）：
+ *   · 模型选「茵陈蒿汤」（本例金标准方）⇒ names=[] / self_devised，被作废；
+ *   · 模型选「导赤散」                  ⇒ names=["导赤散"] / single，**原样放行**；
+ *   · 作废之后修复轮告诉模型「以下经典方与本例方证匹配、可锁定且已通过正向充分性核验：
+ *     导赤散、大橘皮汤、柴芩煎」。
+ * 也就是说：删掉对的方，再把错的方标成「已核验」喂回去——恰恰是 ① 处注释声称已经避免的那一例。
+ *
+ * 【判据本身不变，仍然只否决明确对立、不否决数据缺失】目录里 2367/2910 条可锁方 functions 为空
+ * （茵陈蒿汤本身就是其中之一），把「抽不出治法词」也判为不一致会挡掉全部数据缺口而非临床错误。
+ * 所以两侧都抽得出治法词、且交集为空时才否决——它只可能删掉**有据可查地方向相反**的方。
+ */
+export function formulaTherapyAlignedWithSigned(
+  functions: readonly string[] | undefined,
+  signedMethods: ReadonlySet<string>,
+): boolean {
+  if (signedMethods.size === 0) return true;
+  const formulaMethods = governedTreatmentMethodsInText((functions || []).join("；"));
+  if (formulaMethods.length === 0) return true;
+  return formulaMethods.some((method) => signedMethods.has(method.id));
+}
+
 export function missedLockableFormulaCandidates(reasoning: unknown, limit = 3): string[] {
   const overview = (reasoning as {
     overview?: {
@@ -1168,8 +1214,12 @@ export function missedLockableFormulaCandidates(reasoning: unknown, limit = 3): 
   // limited-result path, not to this policy check.
   if (overview.primarySyndromeResolution === "unresolved") return [];
   try {
+    const signedMethods = signedTherapyMethodIds(reasoning);
     return retrieveTcmFormulaCandidatesForReasoning(reasoning as ClinicalReasoningResultV2, 8)
       .filter((entry) => entry.identityLockEligible && entry.positiveSufficiency)
+      // 修复提示词会把这些方名写成「已通过正向充分性核验……逐字抄写」，是三条通路里
+      // 对模型影响最强的一条。治法方向对立的方在这里必须先掉队，否则等于指挥模型改错。
+      .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethods))
       .slice(0, limit)
       .map((entry) => entry.name);
   } catch {
@@ -1221,14 +1271,20 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
             return [];
           }
         })();
-        const reasoningAllowed = reasoningCandidates
-          .flatMap((entry) => [entry.name, ...entry.aliases])
-          .map((entry) => entry.replace(/\s+/g, ""));
         // Pre-generation symptom recall controls what the model sees, but cannot prove a formula is
         // sufficient for the signed syndrome. Final identity locking is therefore based solely on
         // the post-M03 positive-sufficiency set.
         void preGenerationAllowed;
-        const allowed = new Set(reasoningAllowed.filter((name) => lockEligible.has(name)));
+        // 治法对齐从这里就生效，而不是只在下面的系统自锁支路生效。原先「模型选的方」只过
+        // identityLockEligible + positiveSufficiency 两道门，于是签名治法「清热利湿退黄，通腑泄热」
+        // 的阳黄例里，模型选导赤散（清心利水养阴）会被原样锁定并写成「导赤散加减」。
+        // 判据见 formulaTherapyAlignedWithSigned：只否决两侧都抽得出治法词且交集为空的情形。
+        const signedMethodIds = signedTherapyMethodIds(parsed);
+        const allowed = new Set(reasoningCandidates
+          .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethodIds))
+          .flatMap((entry) => [entry.name, ...entry.aliases])
+          .map((entry) => entry.replace(/\s+/g, ""))
+          .filter((name) => lockEligible.has(name)));
         const names = Array.isArray(parsed.overview.recommendedFormulaNames)
           ? parsed.overview.recommendedFormulaNames.filter((name): name is string => typeof name === "string")
           : [];
@@ -1238,33 +1294,14 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
         // + positiveSufficiency（已签名主证候与该方存在受控正向关系）+ lockEligible（目录级可锁）。
         // 也就是说，系统自己提出的方要过的是**和模型提出的方一模一样的那道门**，没有任何放宽。
         //
-        // 系统自主锁定另有一道**比模型提议更严**的门:方剂功效必须与已签名治法有受控治法交集。
-        // 理由是模型至少看着本例病历在选,而系统这一路只凭证候标签反查——形式上核验通过、
-        // 临床上不对证的方由此进入。实测:湿热内蕴证(阳黄)召回到导赤散(功效「清心利水养阴」,
-        // 主治末句恰好写着「属湿热内蕴者」故证候标签命中),而本例签名治法是「清热利湿退黄,
-        // 通腑泄热」。把导赤散挂成阳黄的方名,比输出自拟方更坏——医生会照着抓药。
-        // 治法比对走受控治法词表(1276 条)的包含扫描,不做模糊匹配;无交集即不锁定(fail-closed)。
-        const signedTherapyMethods = new Set(
-          governedTreatmentMethodsInText([
-            parsed.overview.recommendedFormulaDirection,
-            ...(typeof (parsed as { therapy?: { overallMethod?: unknown } }).therapy?.overallMethod === "string"
-              ? [(parsed as { therapy: { overallMethod: string } }).therapy.overallMethod]
-              : []),
-          ].filter((item): item is string => typeof item === "string").join("；"))
-            .map((entry) => entry.id),
-        );
-        // 只否决**明确对立**，不否决数据缺失：目录里相当一部分方 functions 为空（竹叶石膏汤、
-        // 二冬汤），签名侧也有治法词表抽不出的写法（「温肾固冲」抽不出温肾）。若把「抽不出」
-        // 也判为不一致，挡掉的全是数据缺口而不是临床错误——实测会把可锁定率从 80% 打回 60%，
-        // 而真正拦下的错误只有导赤散一例。故：两侧都抽得出治法词、且交集为空时才否决。
-        const therapyAligned = (entry: FormulaIndicationCandidate): boolean => {
-          if (signedTherapyMethods.size === 0) return true;
-          const formulaMethods = governedTreatmentMethodsInText((entry.functions || []).join("；"));
-          if (formulaMethods.length === 0) return true;
-          return formulaMethods.some((method) => signedTherapyMethods.has(method.id));
-        };
+        // 治法对齐这道门原本**只写在这一处**（系统自锁支路），加它的理由记在下面：
+        // 湿热内蕴证(阳黄)召回到导赤散(功效「清心利水养阴」,主治末句恰好写着「属湿热内蕴者」
+        // 故证候标签命中),而本例签名治法是「清热利湿退黄,通腑泄热」。把导赤散挂成阳黄的方名,
+        // 比输出自拟方更坏——医生会照着抓药。
+        // 但系统把方摆到医生面前的路有三条,当时只堵了这一条;判据现已上移为共用导出
+        // formulaTherapyAlignedWithSigned,三处同源(见其注释与实测)。
         const systemLockable = reasoningCandidates
-          .filter((entry) => therapyAligned(entry))
+          .filter((entry) => formulaTherapyAlignedWithSigned(entry.functions, signedMethodIds))
           .map((entry) => entry.name)
           .filter((name) => lockEligible.has(name.replace(/\s+/g, "")));
         // 模型未给方名（自拟）时：若证候级检索找到了满足充分性的受治理经典方，锁定其首选。
@@ -1313,6 +1350,28 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
             names,
             mode: originalMode,
             reason: "semantic_mapping_pending_clinician_confirmation",
+          };
+        } else if (
+          typeof originalDirection === "string" &&
+          (originalMode === "single" || originalMode === "combined" || originalMode === "alternatives")
+        ) {
+          // 作废不等于抹掉。此前只有「术语映射待医生确认」这一种作废会留痕，其余一律**静默**清空——
+          // 医生看到的是一张自拟方，看不到系统本来锁的是什么，也看不到是因为什么被撤。
+          // 实测（阳黄例，签名主证「湿热内蕴证」）：模型选中的是本例金标准方**茵陈蒿汤**，
+          // 只因受治理目录里茵陈蒿汤的 syndromeTags 不含「湿热内蕴」这个 id（是目录数据缺口，
+          // 不是临床错误）而被清空，全链路再无痕迹——M04 的 declassifiedFromFormulaNames 兜底
+          // 取的正是 prior.overview.recommendedFormulaNames，此时已空。
+          //
+          // 留痕不放宽锁定：names/mode 仍然清空、仍走自拟方（fail-closed 不变），
+          // 只是把模型的原选择与撤销原因写进签名信封，供医生复核与 M04 剥名说明使用。
+          // 同时这也止住了修复轮的反向指挥——missedLockableFormulaCandidates 见到
+          // deferredFormulaSelection 即返回 []（那是"系统自己的处置"，不是"模型的遗漏"），
+          // 否则它会接着把治法不对的替代方标成「已通过正向充分性核验」喂回给模型。
+          parsed.overview.deferredFormulaSelection = {
+            direction: originalDirection,
+            names,
+            mode: originalMode,
+            reason: "governed_syndrome_relation_unverified",
           };
         }
         // 模型选了方但没通过核验时：**不用系统的方顶替**，仍走自拟方。
