@@ -64,6 +64,17 @@ const populationForms = Object.fromEntries(
   ]),
 );
 
+// 患者随访/调护文本的禁述词。M05 临床内容交给模型撰写后，「不得变成第二张处方」这条边界
+// 必须可审核——它的失败方向不安全（漏收一个词等于放行，而不是回落模板），不能写在代码里。
+const prohibitionSource = read("tcm-patient-instruction-prohibitions.source.json");
+const patientInstructionProhibitions = Object.fromEntries(
+  Object.entries(prohibitionSource.groups).map(([group, spec]) => [
+    group,
+    [...new Set((spec.terms || []).filter((t) => typeof t === "string" && t.trim()))]
+      .sort((a, b) => b.length - a.length),
+  ]),
+);
+
 const output = {
   schemaVersion: "tcm-cdss-clinical-vocabulary-v1",
   generatedFrom: {
@@ -71,18 +82,22 @@ const output = {
     natures: "tcm-nature-lexicon.json",
     syndromes: "tcm-syndrome-lexicon.json",
     populations: "tcm-population-scope.source.json",
+    patientInstructionProhibitions: "tcm-patient-instruction-prohibitions.source.json",
   },
   counts: {
     locations: locationForms.length,
     natures: natureForms.length,
     syndromeAxes: Object.keys(syndromeAxes).length,
     ...Object.fromEntries(Object.entries(populationForms).map(([k, v]) => [`population_${k}`, v.length])),
+    ...Object.fromEntries(Object.entries(patientInstructionProhibitions).map(([k, v]) => [`prohibition_${k}`, v.length])),
   },
   locations: locationForms,
   natures: natureForms,
   syndromeAxes,
   populations: populationForms,
   populationSourceNote: populationSource.note,
+  patientInstructionProhibitions,
+  patientInstructionProhibitionNote: prohibitionSource.note,
 };
 
 const target = path.join(DATA, "clinical-vocabulary-derived.json");

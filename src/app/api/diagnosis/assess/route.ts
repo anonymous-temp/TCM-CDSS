@@ -18,6 +18,7 @@ import {
 } from "@/lib/rxaudit";
 import { buildRxAuditStatusMarker } from "@/lib/rxaudit-status";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { authorFollowupClinicalContent } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { editedPrescriptionIssueMessage, editedPrescriptionSemanticIssue, hasIncompleteEditedHerb } from "@/lib/prescription-revision";
@@ -118,7 +119,16 @@ export async function POST(req: Request) {
     riskAssessment: postPrescriptionRisk,
     safetyLocked,
   });
-  const followup = buildDeterministicRiskFollowup(assessed);
+  // M05 的临床内容由模型按本例证候撰写；安全总评仍是确定性的（见 buildDeterministicRiskFollowupPayload）。
+  // 不可用/超时/校验不过一律返回 null，逐字回落原模板——这一步只增不减。
+  const authoredFollowup = await authorFollowupClinicalContent(assessed, {
+    syndrome: diagnoseReasoning?.overview?.primarySyndrome,
+    pathogenesis: diagnoseReasoning?.pathogenesis?.summary,
+    therapy: [diagnoseReasoning?.therapy?.overallPrinciple, diagnoseReasoning?.therapy?.overallMethod]
+      .filter(Boolean).join("；"),
+    herbs: (selectedCandidate?.herbs || []).map((herb) => herb.name).filter(Boolean),
+  }, req.signal);
+  const followup = buildDeterministicRiskFollowup(assessed, authoredFollowup);
   recordCdssStageTelemetry({
     stage: "assess",
     outcome: "success",

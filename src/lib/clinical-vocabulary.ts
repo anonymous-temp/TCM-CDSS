@@ -19,6 +19,7 @@ import derived from "../data/clinical-vocabulary-derived.json" with { type: "jso
 
 type LexEntry = { id: string; canonical: string; forms: string[] };
 type Derived = {
+  patientInstructionProhibitions?: Record<string, string[]>;
   locations: Array<LexEntry & { system: string | null }>;
   natures: Array<LexEntry & { kind: string | null }>;
   syndromeAxes: Record<string, { id: string; locations: string[]; natures: string[] }>;
@@ -129,4 +130,23 @@ export function affirmativeNegationFormsIn(text: string): string[] {
 /** 供构建期/测试使用:受治理阴性形式阳性体征词条数。 */
 export function affirmativeNegationFormCount(): number {
   return AFFIRMATIVE_NEGATION_FORMS.size;
+}
+
+/**
+ * 患者随访/调护文本的禁述词命中项（受治理来源：tcm-patient-instruction-prohibitions.source.json）。
+ *
+ * M05 临床内容交给模型撰写后，「不得变成第二张处方」这条边界的失败方向是**不安全**的——
+ * 漏收一个词等于放行模型写出「可自行减量」，而不是像其他兜底那样回落模板。
+ * 所以它不能是代码内手写词表，必须可审核、带依据、能被回归钉住。
+ */
+export function patientInstructionProhibitionsIn(text: string): string[] {
+  const value = String(text || "").replace(/\s+/g, "");
+  if (!value) return [];
+  const groups = VOCAB.patientInstructionProhibitions || {};
+  return [...new Set(Object.values(groups).flat().filter((term) => term && value.includes(term)))];
+}
+
+/** 供回归钉住：受治理禁述词总数（防止源表被清空后本层静默失效）。 */
+export function patientInstructionProhibitionCount(): number {
+  return Object.values(VOCAB.patientInstructionProhibitions || {}).flat().length;
 }

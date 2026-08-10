@@ -4,7 +4,8 @@
   "locations": "tcm-location-lexicon.json",
   "natures": "tcm-nature-lexicon.json",
   "syndromes": "tcm-syndrome-lexicon.json",
-  "populations": "tcm-population-scope.source.json"
+  "populations": "tcm-population-scope.source.json",
+  "patientInstructionProhibitions": "tcm-patient-instruction-prohibitions.source.json"
  },
  "counts": {
   "locations": 36,
@@ -14,7 +15,9 @@
   "population_obstetric": 14,
   "population_pediatric": 8,
   "population_geriatric": 5,
-  "population_broad": 7
+  "population_broad": 7,
+  "prohibition_self_medication_change": 12,
+  "prohibition_prognosis_promise": 7
  },
  "locations": [
   {
@@ -64521,5 +64524,31 @@
    "老少"
   ]
  },
- "populationSourceNote": "人群限定词的**唯一**受治理归属地(2026-08-04 建立)。受治理证候/治则词表按术语分类学组织(病因/脏腑/气血…),不含科别与生理阶段维度,因此人群词无法从它们派生;但这类词此前散落在 src/lib/tcm-formula-axis-score.ts 的 5 个 TS 正则常量里,是典型的「代码内手写词表」——改一处不会全局生效,必然漂移。现集中于此:代码不得再手写人群词,一律经 build:clinical-vocabulary 生成后由 clinical-vocabulary.ts 读取。新增词条必须同时给出 basis(依据)。"
+ "populationSourceNote": "人群限定词的**唯一**受治理归属地(2026-08-04 建立)。受治理证候/治则词表按术语分类学组织(病因/脏腑/气血…),不含科别与生理阶段维度,因此人群词无法从它们派生;但这类词此前散落在 src/lib/tcm-formula-axis-score.ts 的 5 个 TS 正则常量里,是典型的「代码内手写词表」——改一处不会全局生效,必然漂移。现集中于此:代码不得再手写人群词,一律经 build:clinical-vocabulary 生成后由 clinical-vocabulary.ts 读取。新增词条必须同时给出 basis(依据)。",
+ "patientInstructionProhibitions": {
+  "self_medication_change": [
+   "自行调整用量",
+   "自行加药",
+   "自行减药",
+   "自行停药",
+   "加大剂量",
+   "自行服用",
+   "减量至",
+   "改用",
+   "换成",
+   "加服",
+   "另服",
+   "停用"
+  ],
+  "prognosis_promise": [
+   "保证治愈",
+   "一定能好",
+   "永不复发",
+   "无副作用",
+   "绝对安全",
+   "根治",
+   "包治"
+  ]
+ },
+ "patientInstructionProhibitionNote": "模型撰写的患者随访/调护文本里**禁止出现**的表述。\n\n【为什么需要】M05 的临床内容（复诊重点、疗效口径、生活管理）2026-08-10 起交由模型按本例证候撰写——\n一个辨证论治系统给风寒表实与湿热下注的病人发同一份调护本身就是错的。但随访文本直接面向患者，\n它绝不能变成第二张处方：剂量是 M04 与灵犀审方的职责，加减停换药必须由医生做。\n\n【为什么不能写在代码里】代码内手写词表与受治理词表必然漂移（见 clinical-vocabulary.ts 的元问题记录）。\n更要紧的是这一层的**失败方向不安全**：漏收一个词等于放行模型写出「可自行减量」，\n而不是像其他兜底那样回落模板。所以它必须是可审核、带依据、能被回归钉住的受治理来源。\n\n【判据边界】只收「让患者自行改变用药」与「剂量级指示」两类。\n生活调护本身的用词（忌生冷、少肥甘、畅情志）不在其列——那正是要模型写的东西。"
 }

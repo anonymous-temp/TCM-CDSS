@@ -4264,7 +4264,17 @@ export type DeterministicRiskFollowupPayload = {
   timelineItems: StructuredFollowupTimelineItem[];
 };
 
-export function buildDeterministicRiskFollowupPayload(state: CaseState): DeterministicRiskFollowupPayload {
+/**
+ * M05 载荷。**安全结论恒为确定性**（最高提示强度/综合风险判断/评级依据/医生需确认事项
+ * 全部来自灵犀处方后审方，模型碰不到）；authored 只替换临床内容槽位——
+ * 复诊评估重点、疗效评价口径、生活管理、复评维度。authored 为空时逐字回落原模板。
+ */
+export function buildDeterministicRiskFollowupPayload(
+  state: CaseState,
+  authored?: {
+    reviewFocus: string; efficacyCriteria: string; lifestyle: string; dimensions: string[];
+  } | null,
+): DeterministicRiskFollowupPayload {
   const gate = state.safetyGate || evaluateSafetyGate(state);
   const followup = structuredFollowupInputs(state);
   if (gate.status === "red_flag") {
@@ -4369,13 +4379,17 @@ export function buildDeterministicRiskFollowupPayload(state: CaseState): Determi
     "",
     "## 随访管理方案",
     `**首次复诊时间**：${firstReview}`,
-    `**复诊评估重点**：${coreMetrics}；舌脉及本例已记录的客观指标变化；用药执行情况。`,
-    `**疗效评价标准**：以首诊记录为基线，比较${coreMetrics}；同时确认未出现新发不适。`,
+    authored
+      ? `**复诊评估重点**：${authored.reviewFocus}`
+      : `**复诊评估重点**：${coreMetrics}；舌脉及本例已记录的客观指标变化；用药执行情况。`,
+    authored
+      ? `**疗效评价标准**：${authored.efficacyCriteria}`
+      : `**疗效评价标准**：以首诊记录为基线，比较${coreMetrics}；同时确认未出现新发不适。`,
     ...(actualRiskIndicators.length > 0 ? [`**安全性观察**：${actualRiskIndicators.join("；")}。`] : []),
     ...(followup.precautions.length > 0 ? [`**注意事项**：${followup.precautions.join("；")}`] : []),
     `**无效或加重的处置预案**：${efficacyTrigger}时，不自动沿用候选方案，由医生复评诊断、辨证与处方风险，并按实际情况安排检查或转诊。`,
     "",
-    ...sixHealthFollowupTable().split("\n"),
+    ...sixHealthFollowupTable(authored?.dimensions).split("\n"),
     "",
     "## 随访时间轴",
     "| 时间点 | 医生/患者动作 | 观察指标 | 触发处置 |",
@@ -4383,14 +4397,21 @@ export function buildDeterministicRiskFollowupPayload(state: CaseState): Determi
     ...timelineRows.map((row) => `| ${row.map(followupTableCell).join(" | ")} |`),
     "",
     "## 生活管理",
-    "按本例非药物建议安排饮食、作息、情志和活动；不要自行叠加中药或中成药，复诊时携带实际使用的全部药物清单。",
+    // 模型写本例证候该注意什么；固定安全句无论如何都保留——它不是调护建议，是边界声明。
+    ...(authored ? [authored.lifestyle] : []),
+    authored
+      ? "以上调护按本例证候拟定；不要自行叠加中药或中成药，复诊时携带实际使用的全部药物清单。"
+      : "按本例非药物建议安排饮食、作息、情志和活动；不要自行叠加中药或中成药，复诊时携带实际使用的全部药物清单。",
     ].join("\n"),
     timelineItems: normalizedStructuredFollowupItems(timelineItems),
   };
 }
 
-export function buildDeterministicRiskFollowup(state: CaseState): string {
-  const payload = buildDeterministicRiskFollowupPayload(state);
+export function buildDeterministicRiskFollowup(
+  state: CaseState,
+  authored?: Parameters<typeof buildDeterministicRiskFollowupPayload>[1],
+): string {
+  const payload = buildDeterministicRiskFollowupPayload(state, authored);
   return withStructuredFollowupTimeline(payload.markdown, payload.timelineItems);
 }
 
