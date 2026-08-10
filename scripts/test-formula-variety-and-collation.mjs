@@ -203,6 +203,44 @@ for (const name of ["二母散", "当归贝母苦参丸", "千缗汤"]) {
   ok(`带剂型后缀的方名未被病名判据取消（现 ${overreach.length} 条）`, overreach.length === 0);
 }
 
+// ── ④''' 炮制变体：基准记裸名时，处方写标准炮制饮片必须仍认得出 ──────────────
+// 医生与模型写的是「炙甘草」「麸炒白术」「姜半夏」，而目录基准多记裸名。
+// 实测（全目录 1550 首基准含裸名的受治理方，把其中一味改写成标准炮制饮片）：
+// 修复前 729 首（47%）身份核验判否——大黄 161、甘草 137、栀子 24、白芍 17、地黄 16、枳壳 15。
+// 线上端到端可复现：M04 给出「麻黄、桂枝、苦杏仁、炙甘草」——那就是麻黄汤本身——被剥成
+// 「本例辨证组方」；而按组成反查同一张方却正确认出麻黄汤。两条路径各写各的判据。
+{
+  const withProcessing = (formula, swap) => {
+    const row = byName.get(formula);
+    if (!row) return null;
+    return verified(formula, (row.ingredients || []).map((name) =>
+      ({ name: swap[name] || name })), true);
+  };
+  ok("麻黄汤 接受炙甘草", withProcessing("麻黄汤", { 甘草: "炙甘草" }) === true);
+  ok("麻黄汤 接受蜜麻黄", withProcessing("麻黄汤", { 麻黄: "蜜麻黄" }) === true);
+  ok("四君子汤 接受麸炒白术", withProcessing("四君子汤", { 白术: "麸炒白术" }) !== false);
+  // 全类扫描，不是抽样：这类缺陷的特征就是抽样看不出来。
+  const VARIANTS = { 甘草: "炙甘草", 黄芪: "炙黄芪", 白术: "麸炒白术", 枳壳: "麸炒枳壳",
+    半夏: "姜半夏", 麻黄: "蜜麻黄", 白芍: "炒白芍", 栀子: "焦栀子", 地黄: "熟地黄", 大黄: "酒大黄" };
+  let scanned = 0;
+  const broken = [];
+  for (const entry of catalog.entries) {
+    if (!entry.identityLockEligible || !Array.isArray(entry.ingredients)) continue;
+    const hit = entry.ingredients.find((name) => VARIANTS[name]);
+    if (!hit) continue;
+    scanned += 1;
+    const list = entry.ingredients.map((name) => ({ name: name === hit ? VARIANTS[name] : name }));
+    const rows = verifyFormulaCompilationComponents([entry.name], list, false, true);
+    if (!(rows.length > 0 && rows.every((row) => row.verified))) broken.push(`${entry.name}/${hit}`);
+  }
+  ok(`炮制变体全类可认（受测 ${scanned} 首，判否 ${broken.length} 首；修复前 729）`, broken.length === 0);
+  // 反向边界：基准**明确记炮制名**时，剥炮制的放宽不得反过来生效。
+  ok("基准记炮制名者不因本条放宽而改变判据",
+    /!sourceIngredientRequiresProcessingIdentity\(ingredient\)/.test(
+      await import("node:fs").then((fs) =>
+        fs.readFileSync(path.join(repoRoot, "src/lib/tcm-formula-provenance.ts"), "utf8"))));
+}
+
 // ── ⑤ 目录校勘通道 ──────────────────────────────────────────────────────────
 ok("校勘源表有 adjudicationRef", typeof collation.adjudicationRef === "string" && collation.adjudicationRef.length > 0);
 ok("校勘源表有 sourceRefs", Array.isArray(collation.sourceRefs) && collation.sourceRefs.length > 0);

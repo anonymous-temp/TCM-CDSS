@@ -332,6 +332,21 @@ function formulaHerbBaseAliases(herbs: FormulaHerbInput[]): Map<string, string> 
     const exact = formulaHerbIdentityName(herb);
     const base = formulaHerbBaseIdentityName(herb);
     if (exact && base && exact !== base) aliases.set(exact, base);
+    // 炮制前缀写在**药名里**时（{name:"炙甘草", processing:null}），上面那条一个别名都产不出:
+    // exact 与 base 都等于「炙甘草」。而模型与医生恰恰就是这么写的——麻黄汤的甘草通行写作炙甘草。
+    //
+    // 实测后果（全目录 1550 首基准含裸名的受治理方，把其中一味改写成标准炮制饮片）：
+    // **729 首（47%）身份核验判否**，大黄 161、甘草 137、栀子 24、白芍 17、地黄 16、枳壳 15。
+    // 线上端到端可复现：M04 给出 麻黄、桂枝、苦杏仁、炙甘草——那就是麻黄汤本身——被剥名成
+    // 「本例辨证组方」。而**按组成反查同一张方却正确认出麻黄汤**：两条路径对「这是不是麻黄汤」
+    // 各写各的，反查用 compositionIdentityName（剥炮制前缀），正向只看结构化 processing 字段。
+    // 这里收敛到反查用的那个谓词，不再各写一份。
+    //
+    // 放宽只发生在**基准记裸名**这一侧：canMatch 仍要求
+    // !sourceIngredientRequiresProcessingIdentity(ingredient)，基准写「炒牛蒡子」时
+    // 处方给裸「牛蒡子」照旧不算命中。剂量、毒性、煎法一律仍按处方原样的炮制品走。
+    const stripped = compositionIdentityName(exact);
+    if (exact && stripped && stripped !== exact && !aliases.has(exact)) aliases.set(exact, stripped);
   }
   return aliases;
 }
