@@ -182,6 +182,41 @@ ok("营销词被驳回并回落", BOILERPLATE.test(functionAfter("美容养颜�
   ok("M03 也没有锁定方名时不得凭空捏造", !noPrior.includes("麻黄汤"));
 }
 
+// ── ⑥ 规则不得连坐作废模型的整批输出（M02 追问计划）────────────────────────
+// M02 一轮只问 1–2 题，而 parseM02Plan 的循环里到处 `return null`，那是**整份计划**的 null：
+// 第二题任何一处不合格（哪怕只是命中「姓名/天气/身份证」这类低价值词表），
+// 医生就一道追问都拿不到。这是本仓库复发第 7 次的同一形状——单条非法连坐整批。
+{
+  const { parseM02Plan } = await jiti.import("../src/lib/m02-question-contract.ts");
+  const q = (id, question) => ({
+    id, question, reason: "决定湿浊来源判断方向", targetField: "xianbingshi",
+    decisionBranch: "syndrome", expectedDecisionImpact: "决定是否从脾胃论治",
+    informationGain: 0.86, sourceEvidence: ["嘴里发黏"],
+    options: [
+      { id: `${id}-a`, label: "进食后加重", answer: "进食后口中黏腻明显加重", kind: "clinical_fact", recordValue: "进食后口中黏腻明显加重" },
+      { id: `${id}-b`, label: "无明显关系", answer: "与进食无明显关系", kind: "clinical_fact", recordValue: "口中黏腻与进食无明显关系" },
+      { id: `${id}-u`, label: "本次未取得", answer: "本次未取得该信息", kind: "unknown" },
+    ],
+  });
+  const plan = (qs) => ({
+    schemaVersion: "tcm-cdss-m02-plan-v1", decision: "ask",
+    rationale: "仍有可改变处置的未决问题", questions: qs,
+  });
+  const both = parseM02Plan(structuredClone(plan([q("q1", "口中黏腻与进食有无明显关系？"), q("q2", "大便是否黏滞不爽？")])));
+  ok("两题都合格时保留两题", both?.questions.length === 2);
+  const oneBadWord = parseM02Plan(structuredClone(plan([q("q1", "口中黏腻与进食有无明显关系？"), q("q2", "请问您的身份证号是多少？")])));
+  ok("第二题命中低价值词表时**只丢它**，不连坐", oneBadWord?.questions.length === 1);
+  ok("保留下来的是合格那一题", oneBadWord?.questions[0]?.question.includes("口中黏腻"));
+  const oneBadShape = parseM02Plan(structuredClone(plan([
+    q("q1", "口中黏腻与进食有无明显关系？"),
+    { ...q("q2", "大便是否黏滞？"), options: [{ id: "x", label: "A", answer: "是", kind: "clinical_fact", recordValue: "是" }] },
+  ])));
+  ok("第二题结构非法时同样只丢它", oneBadShape?.questions.length === 1);
+  // 反向：一条都不剩时计划仍不可用——这不是放宽，与今天行为一致。
+  const allBad = parseM02Plan(structuredClone(plan([q("q1", "请问天气如何？"), q("q2", "您的手机号？")])));
+  ok("全部不合格时整份计划仍判空", allBad === null);
+}
+
 if (failures.length > 0) {
   console.error("[test:llm-adjudication-boundaries] 失败项：");
   for (const item of failures) console.error("  - " + item);

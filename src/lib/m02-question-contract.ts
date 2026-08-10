@@ -152,7 +152,29 @@ export function parseM02Plan(value: unknown, sourceText = ""): M02Plan | null {
   const questions: M02PlanQuestion[] = [];
   const ids = new Set<string>();
   const normalizedQuestions = new Set<string>();
+  // 逐条隔离，不连坐整份计划。
+  //
+  // 原实现在这个循环里到处 `return null`，而那是**整份计划**的 null：M02 一轮只问 1–2 题，
+  // 第二题任何一处不合格（哪怕只是命中「姓名/天气」这类低价值词表）就让医生一道追问都拿不到。
+  // 这是本仓库复发 7 次的同一形状——单条非法连坐整批（见 test:reasoning-catch-isolation
+  // 记录的前 6 次：子治法 / 外治 / 中成药 / 备选方 …）。
+  // 计划级失败只保留计划级的原因（rationale 缺失、decision 与题数不符、一条都不剩）。
+  const rejectedQuestionIds: string[] = [];
   for (const rawQuestion of root.questions) {
+    const keep = parseOneQuestion(rawQuestion);
+    if (keep) questions.push(keep);
+    else rejectedQuestionIds.push(
+      typeof (rawQuestion as Record<string, unknown> | null)?.id === "string"
+        ? String((rawQuestion as Record<string, unknown>).id) : "(无 id)");
+  }
+  // 一条都不剩时计划不可用——与今天的行为一致，不是新增放宽。
+  if (root.decision === "ask" && questions.length === 0) return null;
+  if (rejectedQuestionIds.length > 0) {
+    console.warn("[tcm-cdss:m02] 逐条隔离丢弃不合格追问", { rejected: rejectedQuestionIds });
+  }
+  return { schemaVersion: "tcm-cdss-m02-plan-v1", decision: root.decision, rationale, questions };
+
+  function parseOneQuestion(rawQuestion: unknown): M02PlanQuestion | null {
     if (!rawQuestion || typeof rawQuestion !== "object") return null;
     const item = rawQuestion as Record<string, unknown>;
     const id = boundedText(item.id, 40);
@@ -233,7 +255,7 @@ export function parseM02Plan(value: unknown, sourceText = ""): M02Plan | null {
       };
       options.splice(unknownIndex >= 0 ? unknownIndex : options.length, 0, otherOption);
     }
-    questions.push({
+    return {
       id,
       question,
       reason,
@@ -243,9 +265,8 @@ export function parseM02Plan(value: unknown, sourceText = ""): M02Plan | null {
       informationGain,
       sourceEvidence: sourceEvidence as string[],
       options,
-    });
+    };
   }
-  return { schemaVersion: "tcm-cdss-m02-plan-v1", decision: root.decision, rationale, questions };
 }
 
 export function parseM02PlanFromContent(content: string): M02Plan | null {
