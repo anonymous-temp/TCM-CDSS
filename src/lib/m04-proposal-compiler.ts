@@ -16,6 +16,7 @@ import {
   highImpactHerbDirectionIssue,
 } from "./diagnosis-stage-contract";
 import { getM03TherapyLock } from "./m03-therapy-lock";
+import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
 
 const evidence = {
@@ -1030,6 +1031,48 @@ export function m04ProposalRegimenShape(value: unknown): { candidate: string; de
   };
 }
 
+/**
+ * 中成药「对应问题」必须是**本例真有的问题**。
+ *
+ * 逐分句核：病历明确否认的分句直接丢弃；既不是已签名结论（主证候/西医主诊断）
+ * 又在病历里找不到落点的分句同样丢弃——那是说明书主治被整段搬过来了。
+ * 全部丢光时回落到已签名结论本身，而不是留一句听起来像临床判断的话。
+ */
+function chartGroundedCorrespondingProblem(
+  value: string,
+  caseState: CaseState | undefined,
+  prior: ClinicalReasoningResultV2,
+): string {
+  const chart = [
+    caseState?.chiefComplaint,
+    ...Object.values(caseState?.symptoms || {}).map((item) => (typeof item === "string" ? item : "")),
+    caseState?.pastHistory, caseState?.tongue, caseState?.pulse,
+  ].filter((item): item is string => typeof item === "string" && Boolean(item.trim())).join("\n");
+  const signed = [
+    prior.overview?.primarySyndrome,
+    prior.overview?.tcmDiseaseName,
+    prior.westernDiagnosis?.primary?.name,
+  ].filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
+  if (!chart.trim()) return value;
+  // 只在病历的**阳性**部分找落点：病历写「否认咽痛」时，「咽痛」不该算本例的问题。
+  // 这里必须用极性层，而不是判分句自身的极性——否定在病历那一侧，不在分句里。
+  const affirmedChart = affirmedClinicalText(chart) || "";
+  const kept = value
+    .split(/[、，,；;]/)
+    .map((clause) => stripClinicalSectionLabel(clause).trim())
+    .filter(Boolean)
+    .filter((clause) => {
+      if (signed.some((item) => clause.includes(item) || item.includes(clause))) return true;
+      // 说明书搬来的症状：病历阳性面里找不到任何 2 字落点即丢弃。
+      for (let index = 0; index + 2 <= clause.length; index += 1) {
+        const token = clause.slice(index, index + 2);
+        if (affirmedChart.includes(token) && !/[的所致者与和及]/.test(token)) return true;
+      }
+      return false;
+    });
+  return kept.length > 0 ? kept.join("、") : (signed[0] || value);
+}
+
 export function compileM04Proposal(
   value: unknown,
   prior: ClinicalReasoningResultV2 | null | undefined,
@@ -1176,7 +1219,16 @@ export function compileM04Proposal(
               : cleanNarrative(item.usageBoundary, "仅作有说明书依据的候选，具体用法须依据完整说明书和医生评估。"),
             course: "本候选不形成疗程医嘱",
             positioning: item.positioning,
-            correspondingProblem: cleanNarrative(item.correspondingProblem, "对应本例现代医学诊断倾向"),
+            // 「对应问题」讲的是**这位病人的问题**，必须对着病历核，不能只对着说明书核。
+            // 原实现只在 evidence-source-validation 里校验它是否落在说明书的适应证段内，
+            // 于是模型把说明书主治整段抄过来也能通过——甲方实测：病人没有黄痰、没有咽痛，
+            // 中成药那一行的「对应问题」却写着「风热犯肺所致咳嗽、咳黄痰、咽痛」。
+            // 说明书核验保留（那是绑定真实条目的凭据），这里再加一道**病历核验**。
+            correspondingProblem: chartGroundedCorrespondingProblem(
+              cleanNarrative(item.correspondingProblem, "对应本例现代医学诊断倾向"),
+              caseState,
+              prior,
+            ),
             evidence: medicineEvidenceFromSource(`[${item.evidenceId}]`),
             relationship: cleanNarrative(item.relationship, "与中药饮片方案的联用或替代关系由医生确定"),
             riskNote: cleanNarrative(item.riskNote, "需复核禁忌、相互作用、重复用药和特殊人群风险"),

@@ -2672,6 +2672,13 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
   // 只有一类有内容时不写分类名，直接写「依据」（甲方示例三：上感只有一条依据）。
   // 指南依据只印**证据层真检索到**的条目：引用必须有 KB 条目背书是本项目铁律，
   // 检索不到就不出这一栏，不让模型自己写《内科学》第10版。
+  // 候选诊断（甲方 2026-08-10「别就一个」）。第 1 条必须与主诊断一致，否则页面上会出现
+  // 两个互相矛盾的「首选」——不一致时直接不呈现这一段，而不是把矛盾摆给医生。
+  const westernCandidates = recordList(westernDiagnosis?.candidates)
+    .filter((item) => isDisplayableClinicalText(markdownCell(item.name)));
+  const primaryName = markdownCell(westernPrimary?.name);
+  const candidatesUsable = westernCandidates.length > 1 && primaryName &&
+    markdownCell(westernCandidates[0].name) === primaryName;
   const guidelineRefs = governedGuidelineReferences(westernPrimary);
   const categorized: Array<[string, readonly string[], boolean]> = [
     ["症状依据", evidence.symptom, true],
@@ -2680,6 +2687,19 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
     ["排除依据", evidence.excluding, true],
     ["指南/文献依据", guidelineRefs, false],
   ].filter((entry) => (entry[1] as readonly string[]).length > 0) as Array<[string, readonly string[], boolean]>;
+  if (candidatesUsable) {
+    lines.push(`**候选诊断（按可能性排序）**：${westernCandidates.map((item, index) => {
+      const facts = (Array.isArray(item.keyEvidence) ? item.keyEvidence : [])
+        .filter((fact): fact is string => typeof fact === "string" && Boolean(fact.trim()));
+      const against = (Array.isArray(item.againstEvidence) ? item.againstEvidence : [])
+        .filter((fact): fact is string => typeof fact === "string" && Boolean(fact.trim()));
+      return clinicalSentence([
+        `${index + 1}. ${markdownCell(item.name)}（可能性${markdownCell(item.likelihood) || "中"}）`,
+        facts.length > 0 ? `支持：${facts.map(markdownCell).join("、")}` : "",
+        against.length > 0 ? `不支持：${against.map(markdownCell).join("、")}` : "",
+      ], "，").replace(/[。]$/, "");
+    }).join("；")}`);
+  }
   if (categorized.length === 1 && categorized[0][0] !== "指南/文献依据") {
     evidenceLine("依据", categorized[0][1], categorized[0][2]);
   } else {

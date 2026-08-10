@@ -473,6 +473,11 @@ JSON要求：
 - M03 必须利用与本病相关的病程轨迹和安全状态，包括起病时程、稳定/加重/缓解、复发或无新发等已记录事实；它们可进入 westernDiagnosis.supportingFacts 或相应病机节点，不得因只关注证型而遗漏。未记录的轨迹不得补写。
 - 必须逐条区分 current/recent、historical、negated 和 unknown。既往稳定疾病、后遗症、已缓解事件以及“当前稳定/无新发”只能作为背景、限制或鉴别边界；没有本次活动性变化时，不得升级为 westernDiagnosis.primary、主证候、P1 核心病机或主要治疗目标。
 - westernDiagnosis.primary 必须优先解释本次主诉与当前主要功能问题；高血压等共病只有在本次主诉以其为主要评估目标时才可列为主诊断，否则放入鉴别、背景或管理建议。已记录的 SpO2、HbA1c、eGFR 等客观指标必须进入 supportingFacts，不得被舌脉或一般描述挤出。
+- westernDiagnosis.candidates 给出**按可能性排序的候选诊断，最多 3 条**，第 1 条的 name
+  必须与 primary.name 逐字相同。它与 differentials 不是一回事：differentials 回答
+  「还需要排除什么」，candidates 回答「按当前资料最可能的是哪几个、各自凭什么」。
+  keyEvidence / againstEvidence 只能引用**本例已记录的事实**，不得写病历没有的表现。
+  确实只能给出一个候选时就只写 1 条，不要为了凑数把不成立的诊断列进来。
 - 中医鉴别（tcmDifferentials / tcmDiseaseDifferentials）每一条都要让医生一眼读懂三件事：
   ① typicalManifestation 写该证候/病名**通常长什么样**（症状 + 舌脉），这是参考知识，
      不是本例的事实，不得在其中断言本例有或没有某个症状；
@@ -532,7 +537,8 @@ JSON要求：
   },
   "westernDiagnosis": {
     "primary": {"name":"纯现代医学诊断倾向","status":"考虑","confidence":"中","supportingFacts":["病历中已提供的支持事实"],"supportingFactKinds":[{"fact":"与 supportingFacts 中某条逐字相同","kind":"symptom"}],"clinicalRationale":"事实到诊断倾向的临床推理，不得复述病史","limitations":["当前资料限制"],"suggestedChecks":["用于鉴别或排除的检查"],"evidence":{"evidenceLevel":"model_inference","source":"病例内推理","confidence":"中"}},
-    "differentials": [{"name":"需鉴别方向","reason":"为何需要鉴别","distinguishingPoints":"本例支持或不支持该方向的区分要点","nextCheck":"建议检查或复核点"}]
+    "differentials": [{"name":"需鉴别方向","reason":"为何需要鉴别","distinguishingPoints":"本例支持或不支持该方向的区分要点","nextCheck":"建议检查或复核点"},{"name":"另一个需鉴别方向","reason":"…","distinguishingPoints":"…","nextCheck":"…"}],
+    "candidates": [{"name":"与 primary.name 逐字相同","likelihood":"高","keyEvidence":["本例支持它的已记录事实"],"againstEvidence":["本例不支持它的点，可为空"]},{"name":"第二候选诊断","likelihood":"中","keyEvidence":["…"],"againstEvidence":["…"]},{"name":"第三候选诊断","likelihood":"低","keyEvidence":["…"],"againstEvidence":["…"]}]
   },
   "pathogenesis": {
     "summary": "病机归纳段落",

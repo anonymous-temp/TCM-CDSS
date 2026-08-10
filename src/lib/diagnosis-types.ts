@@ -1190,6 +1190,28 @@ const ReasoningV2SchemaBase = z.object({
       isolateInvalidItems(WesternDifferentialSchema),
       z.array(WesternDifferentialSchema).max(8),
     ).catch([]),
+    /**
+     * 排序候选诊断（甲方 2026-08-10「西医诊断给 top3，别就一个」）。
+     *
+     * 与 differentials 不是一回事：differentials 回答「还需要排除什么」，
+     * candidates 回答「按当前资料，最可能的是哪几个、各自凭什么」。
+     * 第 1 条必须与 primary.name 一致——否则页面上会出现两个互相矛盾的「首选」。
+     * 缺省为空数组：拿不出第二、第三候选时不硬凑，页面就只显示主诊断。
+     */
+    candidates: z.preprocess(
+      isolateInvalidItems(z.object({
+        name: z.string().min(2).max(300),
+        likelihood: z.preprocess(normalizeClinicalConfidence, z.enum(["高", "中", "低"])),
+        keyEvidence: z.array(z.string().min(1).max(400)).max(6).catch([]),
+        againstEvidence: z.array(z.string().min(1).max(400)).max(6).catch([]),
+      })),
+      z.array(z.object({
+        name: z.string().min(2).max(300),
+        likelihood: z.preprocess(normalizeClinicalConfidence, z.enum(["高", "中", "低"])),
+        keyEvidence: z.array(z.string().min(1).max(400)).max(6).catch([]),
+        againstEvidence: z.array(z.string().min(1).max(400)).max(6).catch([]),
+      })).max(3),
+    ).optional().catch([]),
   }).catch(DEFAULT_WESTERN_DIAGNOSIS),
   pathogenesis: z.object({
     summary: z.string().max(3000).catch(""),

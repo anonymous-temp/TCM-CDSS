@@ -3310,6 +3310,38 @@ const compiledProposalInput = {
   nonPharma: m04.nonPharma,
   overview: { primarySyndrome: "恶意覆盖" },
 };
+// 中成药「对应问题」必须对着**病历**核，不能只对着说明书核（甲方 2026-08-10）。
+// 实测缺陷：病人没有黄痰、明确否认咽痛，中成药那一行的「对应问题」却写着
+// 「风热犯肺所致的咳嗽、咳黄痰、咽痛」——说明书主治被整段搬了过来。
+// evidence-source-validation 只校验它是否落在说明书适应证段内，那一关它是过的。
+{
+  const chartedCase = {
+    id: "patent-problem", phase: "prescribe", patient: { sex: "男", age: 30 },
+    chiefComplaint: "入睡困难3月",
+    symptoms: { present: "入睡困难，多梦易醒，神疲乏力。否认咽痛，无咳痰" },
+    tongue: "舌淡苔白", pulse: "脉细弱", conversation: [], vitals: {},
+  };
+  const polluted = {
+    ...compiledProposalInput,
+    patentAndWestern: [{
+      ...compiledProposalInput.patentAndWestern[0],
+      correspondingProblem: "风热犯肺所致的咳嗽、咳黄痰、咽痛、入睡困难",
+    }],
+  };
+  const compiled = compileM04Proposal(polluted, stable, chartedCase);
+  const problem = compiled?.formula?.patentAndWestern?.[0]?.correspondingProblem || "";
+  assert.ok(problem, "中成药候选必须仍然生成，不能因为清洗把整条候选丢掉");
+  assert.ok(!problem.includes("咳黄痰"), `病历没有的「咳黄痰」不得作为对应问题：${problem}`);
+  assert.ok(!problem.includes("咽痛"), `病历明确否认的「咽痛」不得作为对应问题：${problem}`);
+  assert.ok(problem.includes("入睡困难"), `病历确有的问题必须保留：${problem}`);
+  // 不传 caseState 时逐字不变——这一层只增不减。
+  const withoutChart = compileM04Proposal(polluted, stable);
+  assert.equal(
+    withoutChart?.formula?.patentAndWestern?.[0]?.correspondingProblem,
+    "风热犯肺所致的咳嗽、咳黄痰、咽痛、入睡困难",
+    "无病历可核时保持原样，不猜",
+  );
+}
 const compiledProposal = compileM04Proposal(compiledProposalInput, stable);
 assert.equal(compiledProposal?.overview, stable.overview, "M04 proposal cannot overwrite signed M03 overview");
 assert.equal(compiledProposal?.pathogenesis, stable.pathogenesis, "M04 proposal cannot overwrite signed M03 pathogenesis");
