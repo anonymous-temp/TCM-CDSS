@@ -264,6 +264,27 @@ check("⑩ 模型自撰的题名/集外 id 一律丢弃，且不得回落到自�
   assert.equal(resolved.guidelineReferences[0].appliesTo, "支持本例咳嗽的分层评估口径");
 });
 
+check("⑩ 解析必须幂等，且伪造的 citation 不得存活", () => {
+  // 本转换会在同一份内容上被多次调用（流式草稿、最终输出、截断兜底各一次）。
+  // 第一版只读 guidelineRefs 而无条件删除 guidelineReferences——第二遍会把第一遍的结果删掉，
+  // 正是本轮在修的那一类缺陷，因此单独钉住。
+  const transform = buildEvidenceOutputTransform(GUIDE_CONTEXT);
+  const payload = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    westernDiagnosis: { primary: { name: "急性上呼吸道感染", guidelineRefs: [{ evidenceId: "EVID-GUIDE-002", appliesTo: "分层评估口径" }] } },
+  };
+  const once = readSentinel(transform(wrap(payload)));
+  const twice = readSentinel(transform(transform(wrap(payload))));
+  assert.deepEqual(twice, once, "同一份内容跑两遍必须完全相同");
+  assert.equal(once.westernDiagnosis.primary.guidelineReferences.length, 1);
+
+  const forged = readSentinel(transform(wrap({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    westernDiagnosis: { primary: { name: "x", guidelineReferences: [{ evidenceId: "EVID-GUIDE-002", citation: "《内科学》第10版（伪造）" }] } },
+  }))).westernDiagnosis.primary.guidelineReferences;
+  assert.doesNotMatch(JSON.stringify(forged), /内科学|伪造/, "citation 只能来自服务端按 id 反查的结果");
+});
+
 check("⑩ 指南/文献依据必须真的出现在医生可见正文里（此前该栏产出 0 条）", () => {
   const payload = {
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",

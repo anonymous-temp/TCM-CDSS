@@ -80,7 +80,14 @@ function resolveGovernedGuidelineReferences(payload: Record<string, unknown>, sc
   const primary = (western as { primary?: unknown }).primary;
   if (!primary || typeof primary !== "object" || Array.isArray(primary)) return;
   const record = primary as Record<string, unknown>;
-  const claimed = Array.isArray(record.guidelineRefs) ? record.guidelineRefs : [];
+  // **必须幂等**：本转换会在同一份内容上被多次调用（流式草稿、最终输出、截断兜底各一次）。
+  // 只读 guidelineRefs 而无条件 delete guidelineReferences，会让第二遍把第一遍解析好的引用删掉——
+  // 正是本轮在修的那一类缺陷。因此已解析的条目也参与本轮重解析：它们照样要按 evidenceId
+  // 反查得到、且 citation 必须与服务端此刻渲染的结果逐字一致，伪造插入的条目通不过。
+  const claimed = [
+    ...(Array.isArray(record.guidelineRefs) ? record.guidelineRefs : []),
+    ...(Array.isArray(record.guidelineReferences) ? record.guidelineReferences : []),
+  ];
   const resolved: Array<{ evidenceId: string; citation: string; url?: string; appliesTo?: string }> = [];
   const seen = new Set<string>();
   for (const entry of claimed) {
