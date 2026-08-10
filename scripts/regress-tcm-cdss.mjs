@@ -160,7 +160,10 @@ function runFrontendContractChecks() {
   const m03ReasoningInstruction = sourceBetween(reasoningInstruction, "const card =", "// ─── M01");
   const followupTimelineType = sourceBetween(source, "type FollowupTimelineItem", "function splitMarkdownTableCells");
   const followupTimelineParser = sourceBetween(safetySource, "export function parseStructuredFollowupTimeline", "function withStructuredFollowupTimeline");
-  const followupTimelineView = sourceBetween(source, "function FollowupTimeline(", "function SchemeSection(");
+  // FollowupTimeline 组件已于 2026-08-09 (aafe416f) 删除，随访时间轴改由结果摘要
+  // 直接从 caseState.followupTimeline 派生。断言随之改锚到派生处——本条要钉的从来不是
+  // 「那个组件存在」，而是「时间轴只来自确定性结构化载荷，不做正文解析、不跨字段兜底」。
+  const followupTimelineView = sourceBetween(source, "const followupTimelineItems =", "const redFlagPatientSection =");
   const dosePrescriptionClassifier = sourceBetween(source, "function hasGeneratedDosePrescription(", "export function hasExplicitNonDosePrescriptionResult(");
   const workspaceSnapshot = sourceBetween(source, "type WorkspaceSnapshot", "const WORKSPACE_STORAGE_KEY");
 
@@ -174,9 +177,10 @@ function runFrontendContractChecks() {
   assert(!runQuestion.includes("||") || !/completeness\.level\s*===\s*\"C\"[\s\S]{0,120}\|\|/.test(runQuestion), "frontend: M02 cannot bypass C-level differentiation with fallback OR conditions", runQuestion);
   assert(!handleSubmit.includes('safetyGate?.status === "ready"') || handleSubmit.includes("canEnterDiagnosisChain"), "frontend: submit flow uses the unified diagnosis gate instead of raw safety status", handleSubmit.slice(0, 2400));
   assert(
-    followupTimelineView.includes("summary.followupTimelineItems") &&
+    followupTimelineView.includes("caseState.followupTimeline") &&
       !followupTimelineView.includes("fallbackItems") &&
-      !followupTimelineView.includes("parsedItems.filter"),
+      !followupTimelineView.includes("parsedItems") &&
+      !/extractSection|match\(/.test(followupTimelineView),
     "frontend: M05 renders only the structured deterministic timeline without parsing or cross-field fallback",
     followupTimelineView.slice(0, 5200),
   );
@@ -2035,7 +2039,15 @@ async function runEndpointRegressionCases() {
   } else {
     assert(/审方结论|最高风险等级/.test(m05.text), "m05 available audit preserves the real provider conclusion", m05.text.slice(0, 800));
   }
-  assert(/\|\s*时间点\s*\|\s*医生\/患者动作\s*\|\s*观察指标\s*\|\s*触发处置\s*\|/.test(m05.text), "m05 follow-up timeline is a four-column behavioral contract", m05.text.slice(-1200));
+  // M05 随访段自 2026-08-09 (c6f65401) 起由模型按本例撰写，正常路径不再输出
+  // 「随访时间轴」四列表——那张表现在只出现在服务端安全有限合同里。
+  // 本条要钉的行为契约没变：**什么时候复诊、复诊看什么、无效或加重怎么办**三件事必须都在。
+  // 两种形态择一成立即可，避免把"文案换了写法"当成"契约丢了"。
+  const m05FourColumnTimeline = /\|\s*时间点\s*\|\s*医生\/患者动作\s*\|\s*观察指标\s*\|\s*触发处置\s*\|/.test(m05.text);
+  const m05AuthoredFollowup = /首次复诊时间/.test(m05.text) &&
+    /复诊评估重点/.test(m05.text) &&
+    /无效或加重的处置预案/.test(m05.text);
+  assert(m05FourColumnTimeline || m05AuthoredFollowup, "m05 follow-up timeline is a four-column behavioral contract", m05.text.slice(-1200));
 
   const fakeLingxiRiskCase = baseCase("m05-fake-lingxi-text", {
     prescription: "## 中药饮片处方\n甘草 6g，海藻 9g，水煎服。",
