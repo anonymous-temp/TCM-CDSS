@@ -4383,63 +4383,6 @@ function PrescriptionPlanTabs({ summary }: { summary: DecisionSummary }) {
   );
 }
 
-function FollowupDetail({
-  label,
-  value,
-  tone = "gray",
-}: {
-  label: string;
-  value?: string;
-  tone?: "gray" | "amber" | "blue";
-}) {
-  if (!isDisplayableClinicalText(value)) return null;
-  const toneClass =
-    tone === "amber" ? "bg-amber-50 text-amber-800" :
-    tone === "blue" ? "bg-blue-50 text-blue-800" :
-    "bg-gray-50 text-gray-700";
-  return (
-    <div className={`rounded-lg px-3 py-2 ${toneClass}`}>
-      <p className="text-[11px] font-semibold opacity-70">{label}</p>
-      <p className="mt-1 text-xs leading-relaxed">{value}</p>
-    </div>
-  );
-}
-
-function FollowupTimeline({ summary, reasoning }: { summary: DecisionSummary; reasoning?: ClinicalReasoningResultV2 }) {
-  void reasoning;
-  const displayItems: FollowupTimelineItem[] = summary.followupTimelineItems;
-
-  if (displayItems.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-        本次没有形成可由病例事实支持的随访时间轴，请补充可监测指标后重新评估。
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="relative space-y-4 pl-5 before:absolute before:left-2 before:top-2 before:h-[calc(100%-1rem)] before:w-px before:bg-rose-200">
-        {displayItems.map((item, index) => (
-          <div key={`${item.time}-${item.action}-${index}`} className="relative">
-            <div className="absolute -left-[18px] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-rose-500 shadow-sm" />
-            <div className="rounded-xl border bg-white px-4 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">{item.time || `第${index + 1}项`}</span>
-                <p className="text-sm font-semibold text-gray-900">{item.action || "随访动作待确认"}</p>
-              </div>
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
-                <FollowupDetail label="观察指标" value={joinClinicalClauses(item.indicators, "；")} tone="blue" />
-                <FollowupDetail label="触发处置" value={joinClinicalClauses(item.triggers, "；")} tone="amber" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function SchemeSection({
   id,
   title,
@@ -5453,16 +5396,22 @@ function ResultTabsV2({
                 {item.scheduleSuggestion && (
                   <p className="mt-1"><span className="font-medium text-gray-900">评估节奏：</span>{item.scheduleSuggestion}</p>
                 )}
-                {item.protocolGap && (
-                  <p className="mt-1 rounded-md bg-amber-50 px-2 py-1.5 text-amber-900">
-                    <span className="font-medium">未形成患者级方案：</span>{item.protocolGap}
-                  </p>
-                )}
+                {/* 删掉了三行系统自述（2026-08-10，甲方）：
+                    「未形成患者级方案：目录存在该项目的其他适应证模板，但与本例适应证不符…」
+                    「安全边界：仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示…」
+                    「方案依据：SRC-SAMR-ACUPUNCTURE-OPS、SRC-TCM-INFECTION-CONTROL」
+                    三句讲的都是**系统目录与显示规则**，不是这位病人能不能做这个项目。
+                    第二句的前半是每个项目一字不差的 parameterPolicy（已在服务端停止外发）；
+                    真正属于临床的只有术者资质与必查禁忌，保留并改为按临床口径命名。*/}
                 {tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning) && (
                   <p className="mt-1"><span className="font-medium text-gray-900">项目边界：</span>{tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning)}</p>
                 )}
-                <p className="mt-1 text-amber-800"><span className="font-medium">安全边界：</span>{clinicalSentence([item.techniqueBoundary, item.operatorRequirement, ...item.requiredChecks], "；")}</p>
-                <p className="mt-1 text-[11px] text-gray-500"><span className="font-medium">方案依据：</span>{item.protocolSource}</p>
+                {item.techniqueBoundary && (
+                  <p className="mt-1"><span className="font-medium text-gray-900">操作要点：</span>{item.techniqueBoundary}</p>
+                )}
+                {clinicalSentence([item.operatorRequirement, ...item.requiredChecks], "；") && (
+                  <p className="mt-1 text-amber-800"><span className="font-medium">操作禁忌与资质：</span>{clinicalSentence([item.operatorRequirement, ...item.requiredChecks], "；")}</p>
+                )}
               </div>
             ))}
           </div>
@@ -5514,7 +5463,6 @@ function ResultTabsV2({
               <SummaryLine label="随访安全网" value={reasoning.management.followupSafetyNet} tone="amber" />
             </div>
           )}
-          <FollowupTimeline summary={summary} reasoning={reasoning} />
         </div>
       </SchemeSection>
     </div>
@@ -5748,11 +5696,6 @@ export function CompactAiSchemeCardFlow({
 
       {hasDosePrescription && <AuditReviewSection caseState={caseState} content={summary.medicineRiskSection} />}
 
-      <SchemeSection id="cdss-section-followup" title="风险随访" subtitle="复诊、监测、触发处置">
-        <div className="space-y-3">
-          <FollowupTimeline summary={summary} reasoning={activeReasoning} />
-        </div>
-      </SchemeSection>
     </div>
   );
 }

@@ -852,7 +852,26 @@ try {
     )[0];
     for (const recommendation of [digestive, sleep, influenza, dermatology]) {
       assert.ok(recommendation.treatmentContent.length > 20);
-      assert.ok(recommendation.techniqueBoundary.length > 10);
+      // 操作边界只在**有治理模板**时才有内容可写。评估态原先塞的是 parameterPolicy——
+      // 目录里每个项目一字不差的「仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时
+      // 可显示治理过的穴位/部位与频次」，讲的是系统显示规则，不是这位病人的操作边界。
+      // 甲方 2026-08-10 明确要求这类系统自述不得出现在医生面前，故评估态置空。
+      if (recommendation.protocolStatus === "governed_patient_specific_plan") {
+        assert.ok(recommendation.techniqueBoundary.length > 10);
+      }
+      // 内部治理话术一律不得出现在任何医生可见字段上。
+      for (const [field, value] of Object.entries({
+        treatmentContent: recommendation.treatmentContent,
+        techniqueBoundary: recommendation.techniqueBoundary,
+        scheduleSuggestion: recommendation.scheduleSuggestion,
+        suggestedSitesOrPoints: recommendation.suggestedSitesOrPoints.join("；"),
+      })) {
+        assert.doesNotMatch(
+          String(value || ""),
+          /(?:仅在病例文字命中模板适应证|不得跨适应证套用|目录存在该项目的其他适应证模板|目录中暂无与本例对应|当前目录缺少)/,
+          `${field} 出现了系统自述而非临床内容：${value}`,
+        );
+      }
     }
     // 穴名后内联标注 T12 目录的国标代码与归经（神门→神门（HT7·手少阴心经）），
     // 让 399 穴目录真正到达医生界面；核验不到的穴名保持裸名，二者一眼可分。
@@ -875,7 +894,11 @@ try {
     );
     assert.equal(dermatology.scheduleSuggestion, "");
     assert.equal(dermatology.protocolStatus, "assessment_only_no_patient_specific_protocol");
-    assert.match(dermatology.protocolGap, /不得跨适应证套用|缺少.*标准操作方案/);
+    // protocolGap 2026-08-10 从「给医生看的句子」降级为**内部状态码**：原先两句
+    // （「目录存在该项目的其他适应证模板，但与本例适应证不符…」）讲的是系统目录，
+    // 不是这位病人的临床边界，甲方明确要求不得出现在医生面前。呈现层改看 protocolStatus。
+    assert.match(dermatology.protocolGap, /^catalog_(?:indication_mismatch|protocol_absent)$/);
+    assert.doesNotMatch(dermatology.protocolGap, /[一-龥]/, "内部状态码不得是中文句子");
     assert.match(sleep.suggestedSitesOrPoints.join("；"), /安眠.*神门.*内关.*心俞/);
     assert.equal(sleep.protocolStatus, "governed_patient_specific_plan");
     assert.match(sleep.scheduleSuggestion, /每日1次/);

@@ -248,9 +248,12 @@ function controlledTreatmentPlan(
   }
 
   const sourceRefs = definition?.protocolSourceRefs.filter(Boolean) || [];
+  // protocolGap 只作为**内部状态**保留（呈现层据 protocolStatus 决定怎么说），
+  // 不再写成给医生看的句子。原文两句讲的都是「系统目录里有没有模板」，
+  // 不是这位病人的临床边界；医生读到的是系统自述，而不是本例能不能做这个项目。
   const protocolGap = definition?.patientSpecificParametersAllowed
-    ? `目录存在该项目的其他适应证模板，但与本例适应证不符；不得跨适应证套用穴位、部位、频次或疗程。`
-    : "当前目录缺少与该项目及本例适应证对应的标准操作方案；不得生成患者级穴位、部位、频次或疗程。";
+    ? "catalog_indication_mismatch"
+    : "catalog_protocol_absent";
   // 甲方评测(2026-08-03) 9.1：评估态项目卡也要给医生看得见的常用穴位参考。聚合该项目**全部
   // 治理模板**的高频穴位(top5)作为通用参考——不绑定本例适应证、不给频次疗程、protocolStatus
   // 仍为 assessment_only,呈现层按该状态标注「通用参考,未按本例适应证核定」。空模板项目保持为空。
@@ -291,12 +294,18 @@ function controlledTreatmentPlan(
   // 只讲清这是评估态——fail-closed 优于说一个患者没有的症状。
   const evidenceTerms = tag ? indicationEvidenceTerms(tag, caseFacts) : [];
   return {
+    // 讲本例为什么进评估范围就够了。原文后半句「目录中暂无与本例对应的标准操作方案」是
+    // 系统自述内部状态：医生要知道的是「这个项目现在只做现场评估、不给操作计划」，
+    // 不是「你们的目录里缺模板」。
     treatmentContent: evidenceTerms.length > 0
-      ? `本例的「${evidenceTerms.join("、")}」使该项目进入评估范围；目录中暂无与本例对应的标准操作方案，仅进行现场适应证、禁忌与资质评估，不形成操作计划。`
-      : `目录中暂无与本例对应的该项目标准操作方案；仅就上述病机方向进行现场适应证、禁忌与资质评估，不形成操作计划。`,
+      ? `本例的「${evidenceTerms.join("、")}」使该项目进入评估范围；本轮仅进行现场适应证、禁忌与资质评估，不形成操作计划。`
+      : `就上述病机方向进行现场适应证、禁忌与资质评估，本轮不形成操作计划。`,
     suggestedSitesOrPoints: referenceCommonPoints,
     scheduleSuggestion: "",
-    techniqueBoundary: definition?.parameterPolicy || protocolGap,
+    // parameterPolicy 是**系统显示策略**——目录里 2969 条项目一字不差，与病人无关
+    // （「仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位…」）。
+    // 操作边界这一栏只放真正的操作边界；评估态本来就没有患者级参数可写，留空。
+    techniqueBoundary: "",
     protocolSource: sourceRefs.join("、") || "T12 中医非药物项目治理目录",
     protocolStatus: "assessment_only_no_patient_specific_protocol",
     protocolGap,

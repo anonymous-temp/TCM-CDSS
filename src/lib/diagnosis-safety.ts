@@ -279,6 +279,9 @@ const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
   ["黑便", "大便发黑", "粪便发黑", "排黑色便", "柏油样便"],
   ["便血", "血便", "大便带血", "排便带血", "解血便"],
   ["咯血", "咳血", "咳出血"],
+  // 出血组原先只存在于 NEGATED_HYPONYM_TABLE（第三份表）。并入主表后，
+  // 阳性展开与否定收窄共用同一份数据。
+  ["出血", "流血", "大出血", "大量出血"],
   ["言语不清", "说话不清", "言语含糊", "口齿不清"],
   ["肢体无力", "手脚无力", "单侧无力", "胳膊腿无力", "手臂无力", "上肢无力", "腿无力", "下肢无力"],
   ["放射痛", "疼痛向下肢放射", "疼痛往腿上窜", "痛往腿上窜", "往腿上窜", "向腿部放射", "向下肢放射", "窜到腿上", "串到腿上"],
@@ -297,6 +300,56 @@ const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
   ["腹泻", "泄泻", "拉肚子", "稀便", "大便稀", "便稀", "稀稀的", "水样便", "便溏"],
   ["瘙痒", "痒", "鼻痒", "鼻子痒", "眼痒", "眼睛痒", "鼻眼痒", "鼻子眼睛都痒", "皮肤痒", "皮肤瘙痒"],
 ];
+/**
+ * 下位词：同组里比规范名**更窄**的说法（加了部位、程度或性状限定）。
+ *
+ * 【为什么必须区分】上面那张表被**两个方向**同时消费，而两个方向的正确答案是相反的：
+ *   · 阳性方向（病历里有没有提到这个概念）——展开是对的：「上腹痛」当然能证明「腹痛」。
+ *   · 否定方向（病历是不是否认了这个概念）——展开是错的：「否认上腹痛」**不等于**「否认腹痛」。
+ * 甲方生产实测（tmp-probe/repro-hyponym.mjs 复现）：病历写「否认高热」，医生看到的是
+ * 「病历已记录否认发热」——一个只被否认了 subtype 的症状类，被呈现成整类都排除了。
+ * 同类还有「否认干咳」→「否认咳嗽」、「否认上腹痛」→「否认腹痛」、
+ * 「否认入睡困难」→「否认失眠」，方向全都是不安全的那一侧。
+ *
+ * 更麻烦的是：正确措辞其实早就写好了（unknownTermNotice 会输出
+ * 「病历已记录否认高热，发热的一般情况需医生核实」），但它永远走不到——
+ * sourceDocumentsNegation 先靠同义组把「否认发热」判成已接地，直接返回了。
+ * 这是同一条判据在两处各写各的：一处把高热当发热的同义词，另一处把高热当发热的下位词。
+ *
+ * 【口径】宁可多标。误标成下位词只会让措辞更保守（多一句「需医生核实」），
+ * 漏标才会把「只否认了一个亚型」说成「整类已排除」。
+ */
+const NARROWER_THAN_GROUP_CANONICAL: ReadonlySet<string> = new Set([
+  // 程度限定
+  "高热", "低热", "壮热", "中等度热", "大出血", "大量出血",
+  // 具体病名/性状限定
+  "偏头痛", "干咳", "有痰咳嗽", "咳痰", "水样便",
+  "心前区痛", "胸骨后压榨感", "心跳快", "心跳加速", "心跳乱", "漏跳感",
+  // 部位限定
+  "单侧无力", "上肢无力", "下肢无力", "腿无力", "手臂无力",
+  "小肚子疼", "小肚子痛", "小腹疼", "小腹痛", "下腹疼", "下腹痛",
+  "上腹疼", "上腹痛", "胃疼", "胃痛", "胃脘疼", "胃脘痛",
+  "鼻痒", "鼻子痒", "眼痒", "眼睛痒", "鼻眼痒", "鼻子眼睛都痒", "皮肤痒", "皮肤瘙痒",
+  // 时相限定
+  "入睡困难", "难以入睡", "多梦易醒", "醒后再睡困难", "排便次数减少",
+]);
+
+/** 否定方向可替换的等价说法：只含真同义，绝不含下位词。 */
+function negationGroundingEquivalents(term: string): readonly string[] {
+  if (NARROWER_THAN_GROUP_CANONICAL.has(term)) return [term];
+  const group = POSITIVE_FACT_EQUIVALENT_GROUPS.find((item) => item.includes(term));
+  if (!group) return [term];
+  return group.filter((item) => !NARROWER_THAN_GROUP_CANONICAL.has(item));
+}
+
+/** term 的下位词（用于「只否认了亚型」的如实措辞）。与上面同一张表，不另立第二份。 */
+function groupHyponymsOf(term: string): readonly string[] {
+  if (NARROWER_THAN_GROUP_CANONICAL.has(term)) return [];
+  const group = POSITIVE_FACT_EQUIVALENT_GROUPS.find((item) => item.includes(term));
+  if (!group) return [];
+  return group.filter((item) => NARROWER_THAN_GROUP_CANONICAL.has(item));
+}
+
 const POSITIVE_FACT_EQUIVALENT_PATTERNS: readonly {
   terms: readonly string[];
   patterns: readonly RegExp[];
@@ -402,17 +455,12 @@ function hasImmediateBareNegator(text: string, index: number): boolean {
  * 少数非后缀的临床上下位对（高热/低热→发热）走小表。命中时提示改为
  * 「病历已记录否认<变体>；<term>的一般情况需医生核实」。
  */
-const NEGATED_HYPONYM_TABLE: Record<string, readonly string[]> = {
-  发热: ["高热", "低热", "壮热", "中等度热"],
-  出血: ["大出血", "大量出血"],
-};
-
 function documentedQualifiedDenial(source: string, term: string): string | undefined {
   const normalized = normalizeClinicalText(source);
   const qualifiers = "(?:持续|突发|突然|急性|反复|阵发性?|间断|明显|大量|剧烈|进行性|严重|轻微|最)";
   const candidates = [
     new RegExp(`${qualifiers}{1,3}${term}`, "g"),
-    ...(NEGATED_HYPONYM_TABLE[term] || []).map((variant) => new RegExp(variant, "g")),
+    ...groupHyponymsOf(term).map((variant) => new RegExp(variant, "g")),
   ];
   for (const pattern of candidates) {
     for (const match of normalized.matchAll(pattern)) {
@@ -422,6 +470,60 @@ function documentedQualifiedDenial(source: string, term: string): string | undef
     }
   }
   return undefined;
+}
+
+/** 本次出现是否整个落在某个下位词内部（「出血」落在「大出血」里）。 */
+function occurrenceIsInsideNarrowerTerm(
+  sentence: string, index: number, length: number, term: string,
+): boolean {
+  for (const narrower of groupHyponymsOf(term)) {
+    if (narrower === term || !narrower.includes(term)) continue;
+    let at = sentence.indexOf(narrower);
+    while (at >= 0) {
+      if (at <= index && index + length <= at + narrower.length) return true;
+      at = sentence.indexOf(narrower, at + narrower.length);
+    }
+  }
+  return false;
+}
+
+/**
+ * 「病历确实否认了这一项」该怎么说——一处措辞，所有确认点共用。
+ *
+ * 病历只否认了更窄的变体时，必须**如实说那个变体**，不能把它说成整类已排除。
+ * 甲方实测：病历「否认突发最剧烈头痛」，医生看到「病历已记录否认头痛」——
+ * 而同一行前半句还写着「病历已记录头痛阳性」，自相矛盾。
+ * 返回 undefined 表示病历根本没有否认这一项。
+ */
+function documentedDenialNotices(source: string, terms: readonly string[]): {
+  notices: string[];
+  covered: Set<string>;
+} {
+  const plain: string[] = [];
+  const qualifiedNotices: string[] = [];
+  const covered = new Set<string>();
+  for (const term of terms) {
+    const qualified = documentedQualifiedDenial(source, term);
+    if (qualified) {
+      qualifiedNotices.push(`病历已记录否认${qualified}，${term}的一般情况需医生核实`);
+      covered.add(term);
+      continue;
+    }
+    if (sourceDocumentsNegation(source, term)) {
+      plain.push(term);
+      covered.add(term);
+    }
+  }
+  // 普通否认仍然合并成一句（「病历已记录否认言语不清、肢体无力」）——那是既有措辞，
+  // 拆成逐条会让一行里重复四个字。只有「病历只否认了更窄的变体」这一类必须单列，
+  // 因为它带着各自不同的变体名与核实提示。
+  return {
+    notices: [
+      ...(plain.length > 0 ? [`病历已记录否认${plain.join("、")}`] : []),
+      ...qualifiedNotices,
+    ],
+    covered,
+  };
 }
 
 function unknownTermNotice(source: string, terms: readonly string[]): string {
@@ -436,11 +538,19 @@ function unknownTermNotice(source: string, terms: readonly string[]): string {
 
 function sourceDocumentsNegation(source: string, term: string): boolean {
   const normalized = normalizeClinicalText(source);
-  const equivalents = POSITIVE_FACT_EQUIVALENT_GROUPS.find((group) => group.includes(term)) || [term];
+  // 否定方向只认真同义，不认下位词——「否认高热」不给「否认发热」背书。
+  const equivalents = negationGroundingEquivalents(term);
   for (const sentence of normalized.split(/[。；;\n]+/)) {
     for (const equivalent of equivalents) {
       let termIndex = sentence.indexOf(equivalent);
       while (termIndex >= 0) {
+        // 「大出血」里含着「出血」两个字。若这次出现整个落在某个**下位词**里，
+        // 那么被否认的是那个下位词，不是本词——否则上面的收窄会被子串匹配绕开
+        // （实测：病历「否认大出血」→ 输出「病历已记录否认出血」）。
+        if (occurrenceIsInsideNarrowerTerm(sentence, termIndex, equivalent.length, term)) {
+          termIndex = sentence.indexOf(equivalent, termIndex + equivalent.length);
+          continue;
+        }
         if (!isExcludedClinicalAssertionAt(sentence, termIndex) && hasImmediateBareNegator(sentence, termIndex)) return true;
         const before = sentence.slice(Math.max(0, termIndex - 24), termIndex);
         const negations = Array.from(before.matchAll(new RegExp(CLINICAL_NEGATION_CUE.source, "g")));
@@ -683,12 +793,16 @@ function sanitizeUngroundedNegationText(
     if (/(?:尚未|未)(?:确认|核实)[^。；;]{0,48}是否存在/.test(clause)) {
       const mentioned = CLINICAL_NEGATION_FACT_TERMS.filter((term) => clause.includes(term));
       const documentedPositive = mentioned.filter((term) => sourceDocumentsAffirmation(source, term));
-      const documentedNegative = mentioned.filter((term) => !documentedPositive.includes(term) && sourceDocumentsNegation(source, term));
-      const stillUnknown = mentioned.filter((term) => !documentedPositive.includes(term) && !documentedNegative.includes(term));
-      if (documentedPositive.length > 0 || documentedNegative.length > 0) {
+      // 每个词只出一句。documentedDenialNotice 已经把「只否认了下位词」这种情形
+      // 说成「病历已记录否认<变体>，<term>的一般情况需医生核实」，
+      // 若再让它落进 stillUnknown 走一遍 unknownTermNotice，同一句会印两遍。
+      const denial = documentedDenialNotices(source, mentioned.filter((term) => !documentedPositive.includes(term)));
+      const documentedNegativeNotices = denial.notices;
+      const stillUnknown = mentioned.filter((term) => !documentedPositive.includes(term) && !denial.covered.has(term));
+      if (documentedPositive.length > 0 || documentedNegativeNotices.length > 0) {
         return `${prefix}${[
           documentedPositive.length > 0 ? `病历已记录${documentedPositive.join("、")}阳性` : "",
-          documentedNegative.length > 0 ? `病历已记录否认${documentedNegative.join("、")}` : "",
+          documentedNegativeNotices.join("；"),
           stillUnknown.length > 0 ? unknownTermNotice(source, stillUnknown) : "",
         ].filter(Boolean).join("；")}`;
       }
@@ -703,12 +817,13 @@ function sanitizeUngroundedNegationText(
           !sourceDocumentsAffirmation(source, term),
       );
       if (contradictedPositive.length > 0 || unknown.length > 0) {
-        const supported = CLINICAL_NEGATION_FACT_TERMS.filter(
-          (term) => clause.includes(term) && sourceDocumentsNegation(source, term),
-        );
+        const supportedNotices = documentedDenialNotices(
+          source,
+          CLINICAL_NEGATION_FACT_TERMS.filter((term) => clause.includes(term) && !unknown.includes(term)),
+        ).notices;
         return `${prefix}${[
           contradictedPositive.length > 0 ? `病历已记录${contradictedPositive.join("、")}阳性` : "",
-          supported.length > 0 ? `病历已记录否认${supported.join("、")}` : "",
+          supportedNotices.join("；"),
           unknown.length > 0 ? unknownTermNotice(source, unknown) : "",
         ].filter(Boolean).join("；")}`;
       }
@@ -4373,13 +4488,6 @@ export function buildDeterministicRiskFollowupPayload(
       ], 6),
     },
   );
-  const timelineRows = timelineItems.map((item) => [
-    item.time,
-    item.action,
-    item.indicators.join("；"),
-    item.triggers.join("；"),
-  ]);
-
   return {
     markdown: [
     "## 处方安全总评",
@@ -4404,11 +4512,10 @@ export function buildDeterministicRiskFollowupPayload(
     "",
     ...sixHealthFollowupTable(authored?.dimensions).split("\n"),
     "",
-    "## 随访时间轴",
-    "| 时间点 | 医生/患者动作 | 观察指标 | 触发处置 |",
-    "|------|--------------|---------|---------|",
-    ...timelineRows.map((row) => `| ${row.map(followupTableCell).join(" | ")} |`),
-    "",
+    // 「## 随访时间轴」这张表 2026-08-10 按甲方要求从**医生可见面**移除：随访时间与
+    // 触发条件已经由上面「首次复诊时间 / 复诊评估重点 / 疗效评价标准 / 无效或加重的处置预案」
+    // 逐条讲过，表格是同一批内容换个排版再印一遍。
+    // 结构化 timelineItems 仍随 payload 返回（HIS 出参与 API 消费方读它），只是不再渲染。
     "## 生活管理",
     // 模型写本例证候该注意什么；固定安全句无论如何都保留——它不是调护建议，是边界声明。
     ...(authored ? [authored.lifestyle] : []),
