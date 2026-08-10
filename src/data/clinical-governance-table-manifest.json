@@ -82,13 +82,13 @@
       "id": "T12",
       "file": "tcm-nondrug-treatment-evidence-catalog.json",
       "schemaVersion": "tcm-nondrug-treatment-evidence-catalog-v2",
-      "sha256": "9b0a8834f976281abf907852ad8a43f9edfb8550d7f27bed39303c974786837d",
+      "sha256": "9db9168dd88295763dac5918abdc1b84cd40b168194e35ee8756bf9ae2b4b744",
       "recordCount": 22
     }
   ],
   "sourceRegistry": {
     "file": "clinical-governance-source-registry.json",
-    "sha256": "19cc75373b86137c8c1933cac4af9de487e0617a39b476d6017ff1a431fbfab1",
+    "sha256": "a9c339f70d307d27e6da9a95db5059d50f2aba262e4d336fa24a9fee5386d785",
     "recordCount": 33
   },
   "auxiliaryIndexes": [

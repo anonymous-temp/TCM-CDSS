@@ -125,9 +125,6 @@
                 "行间",
                 "侠溪"
               ],
-              "removePoints": [
-                "心俞"
-              ],
               "sourceRefs": [
                 "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014",
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
@@ -177,9 +174,6 @@
                 "丰隆",
                 "内庭"
               ],
-              "removePoints": [
-                "心俞"
-              ],
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
               ]
@@ -193,8 +187,7 @@
                 "食滞"
               ],
               "addPoints": [
-                "足三里",
-                "公孙"
+                "足三里"
               ],
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
@@ -328,7 +321,7 @@
               ],
               "addPoints": [
                 "风门",
-                "肺俞"
+                "太渊"
               ],
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
@@ -552,6 +545,7 @@
                 "阴虚"
               ],
               "addPoints": [
+                "胃俞",
                 "三阴交",
                 "内庭"
               ],
@@ -707,8 +701,7 @@
               ],
               "addPoints": [
                 "肾俞",
-                "太溪",
-                "悬钟"
+                "太溪"
               ],
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
@@ -818,9 +811,6 @@
               "addPoints": [
                 "阴陵泉",
                 "次髎"
-              ],
-              "removePoints": [
-                "关元"
               ],
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
@@ -1038,38 +1028,6 @@
               "addPoints": [
                 "太溪",
                 "风池"
-              ],
-              "sourceRefs": [
-                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
-              ]
-            },
-            {
-              "id": "facial-palsy-wind-cold",
-              "syndromeLabel": "风寒外袭",
-              "syndromeMatchAny": [
-                "风寒外袭",
-                "风寒阻络",
-                "风寒"
-              ],
-              "addPoints": [
-                "风池",
-                "风府"
-              ],
-              "sourceRefs": [
-                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
-              ]
-            },
-            {
-              "id": "facial-palsy-wind-heat",
-              "syndromeLabel": "风热侵袭",
-              "syndromeMatchAny": [
-                "风热侵袭",
-                "风热阻络",
-                "风热"
-              ],
-              "addPoints": [
-                "外关",
-                "关冲"
               ],
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"

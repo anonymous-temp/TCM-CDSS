@@ -720,11 +720,15 @@ const governedPlanTemplates = new Map([
       parameterCompleteness: "points_and_government_frequency_reference_governed",
       syndromeRefinements: [
         { id: "insomnia-heart-spleen-deficiency", syndromeLabel: "心脾两虚", syndromeMatchAny: ["心脾两虚", "心脾气血两虚", "气血不足，心神失养"], addPoints: ["脾俞", "足三里"], sourceRefs: [CAAM_INSOMNIA_GUIDE, TEXTBOOK_SYNDROME_POINTS] },
-        { id: "insomnia-liver-fire", syndromeLabel: "肝火扰心", syndromeMatchAny: ["肝火扰心", "肝火扰神", "肝郁化火", "心肝火旺"], addPoints: ["行间", "侠溪"], removePoints: ["心俞"], sourceRefs: [CAAM_INSOMNIA_GUIDE, TEXTBOOK_SYNDROME_POINTS] },
+        // removePoints 不设：教材不寐配穴表只讲「加什么」，没有「肝火扰心须去心俞」这条。
+        // 第一版为了让两组结果更不一样而自行加了剔除——那是我方在临床数据上发挥，已按独立复核删除。
+        { id: "insomnia-liver-fire", syndromeLabel: "肝火扰心", syndromeMatchAny: ["肝火扰心", "肝火扰神", "肝郁化火", "心肝火旺"], addPoints: ["行间", "侠溪"], sourceRefs: [CAAM_INSOMNIA_GUIDE, TEXTBOOK_SYNDROME_POINTS] },
         { id: "insomnia-heart-kidney-disharmony", syndromeLabel: "心肾不交", syndromeMatchAny: ["心肾不交", "阴虚火旺", "水火不济"], addPoints: ["太溪", "肾俞"], sourceRefs: [CAAM_INSOMNIA_GUIDE, TEXTBOOK_SYNDROME_POINTS] },
         { id: "insomnia-heart-gallbladder-timidity", syndromeLabel: "心胆气虚", syndromeMatchAny: ["心胆气虚", "胆虚"], addPoints: ["胆俞"], sourceRefs: [CAAM_INSOMNIA_GUIDE, TEXTBOOK_SYNDROME_POINTS] },
-        { id: "insomnia-phlegm-heat", syndromeLabel: "痰热内扰", syndromeMatchAny: ["痰热内扰", "痰热扰心", "痰火扰心"], addPoints: ["丰隆", "内庭"], removePoints: ["心俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "insomnia-spleen-stomach-disharmony", syndromeLabel: "脾胃不和", syndromeMatchAny: ["脾胃不和", "胃不和则卧不安", "食滞"], addPoints: ["足三里", "公孙"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        { id: "insomnia-phlegm-heat", syndromeLabel: "痰热内扰", syndromeMatchAny: ["痰热内扰", "痰热扰心", "痰火扰心"], addPoints: ["丰隆", "内庭"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 独立复核（2026-08-10）纠正：教材不寐「脾胃不和」配的是足三里、内关，不是公孙。
+        // 内关已在主穴里，不重复写进加减（否则医生会以为它是本证型特有的）。
+        { id: "insomnia-spleen-stomach-disharmony", syndromeLabel: "脾胃不和", syndromeMatchAny: ["脾胃不和", "胃不和则卧不安", "食滞"], addPoints: ["足三里"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
       ],
     },
     {
@@ -753,7 +757,8 @@ const governedPlanTemplates = new Map([
       sourceRefs: ["SRC-BEIJING-COVID-TCM-REHAB-2020", "SRC-SAMR-ACUPUNCTURE-OPS"],
       parameterCompleteness: "syndrome_points_frequency_and_duration_governed",
       syndromeRefinements: [
-        { id: "cough-wind-cold-lung", syndromeLabel: "风寒袭肺", syndromeMatchAny: ["风寒袭肺", "风寒犯肺", "风寒"], addPoints: ["风门", "肺俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 教材外感咳嗽「风寒袭肺」配风门、太渊；第一版写成风门、肺俞——肺俞是该证主穴，不是加减。
+        { id: "cough-wind-cold-lung", syndromeLabel: "风寒袭肺", syndromeMatchAny: ["风寒袭肺", "风寒犯肺", "风寒"], addPoints: ["风门", "太渊"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "cough-wind-heat-lung", syndromeLabel: "风热犯肺", syndromeMatchAny: ["风热犯肺", "风热袭肺", "风热"], addPoints: ["大椎", "曲池"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "cough-phlegm-damp-lung", syndromeLabel: "痰湿阻肺", syndromeMatchAny: ["痰湿阻肺", "痰湿蕴肺", "痰浊阻肺"], addPoints: ["丰隆", "阴陵泉"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "cough-liver-fire-lung", syndromeLabel: "肝火灼肺", syndromeMatchAny: ["肝火灼肺", "肝火犯肺"], addPoints: ["行间", "鱼际"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
@@ -780,7 +785,8 @@ const governedPlanTemplates = new Map([
         { id: "digestive-phlegm-damp", syndromeLabel: "痰湿中阻", syndromeMatchAny: ["痰湿中阻", "痰湿内停", "痰饮内停"], addPoints: ["丰隆", "阴陵泉"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "digestive-liver-qi-invading-stomach", syndromeLabel: "肝气犯胃", syndromeMatchAny: ["肝气犯胃", "肝胃不和", "肝郁气滞", "肝气郁结"], addPoints: ["期门", "太冲"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "digestive-food-retention", syndromeLabel: "饮食停滞", syndromeMatchAny: ["饮食停滞", "食滞胃脘", "食积", "宿食"], addPoints: ["梁门", "下脘"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "digestive-stomach-yin-deficiency", syndromeLabel: "胃阴不足", syndromeMatchAny: ["胃阴不足", "胃阴亏虚", "阴虚"], addPoints: ["三阴交", "内庭"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 教材胃痛「胃阴不足」配胃俞、三阴交、内庭；第一版漏了胃俞（独立复核 2026-08-10 指出）。
+        { id: "digestive-stomach-yin-deficiency", syndromeLabel: "胃阴不足", syndromeMatchAny: ["胃阴不足", "胃阴亏虚", "阴虚"], addPoints: ["胃俞", "三阴交", "内庭"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "digestive-blood-stasis", syndromeLabel: "瘀血停胃", syndromeMatchAny: ["瘀血停胃", "瘀血阻络", "胃络瘀阻"], addPoints: ["膈俞", "三阴交"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
       ],
     },
@@ -800,7 +806,9 @@ const governedPlanTemplates = new Map([
         { id: "headache-blood-deficiency", syndromeLabel: "气血亏虚", syndromeMatchAny: ["血虚", "气血亏虚", "气血不足"], addPoints: ["脾俞", "足三里"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "headache-wind-cold", syndromeLabel: "风寒外袭", syndromeMatchAny: ["风寒", "外感风寒"], addPoints: ["风门", "列缺"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "headache-wind-heat", syndromeLabel: "风热上扰", syndromeMatchAny: ["风热", "外感风热"], addPoints: ["曲池", "大椎"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "headache-kidney-deficiency", syndromeLabel: "肾虚", syndromeMatchAny: ["肾精不足", "肾虚", "髓海不足"], addPoints: ["肾俞", "太溪", "悬钟"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 悬钟按独立复核（2026-08-10）删除：它来自眩晕「肾精不足」的配穴，被我方外推到头痛，
+        // 而头痛肾虚的教材配穴只有肾俞、太溪。外推不是来源，删掉。
+        { id: "headache-kidney-deficiency", syndromeLabel: "肾虚", syndromeMatchAny: ["肾精不足", "肾虚", "髓海不足"], addPoints: ["肾俞", "太溪"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
       ],
     },
     {
@@ -817,7 +825,9 @@ const governedPlanTemplates = new Map([
         { id: "dysmenorrhea-qi-stagnation", syndromeLabel: "气滞血瘀", syndromeMatchAny: ["气滞血瘀", "肝郁气滞"], addPoints: ["太冲", "次髎"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
         { id: "dysmenorrhea-qi-blood-deficiency", syndromeLabel: "气血虚弱", syndromeMatchAny: ["气血虚弱", "气血两虚", "气血不足"], addPoints: ["脾俞", "胃俞", "足三里"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
         { id: "dysmenorrhea-kidney-deficiency", syndromeLabel: "肾气亏损", syndromeMatchAny: ["肾气亏损", "肝肾亏虚", "肾虚"], addPoints: ["太溪", "肾俞"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
-        { id: "dysmenorrhea-damp-heat", syndromeLabel: "湿热蕴结", syndromeMatchAny: ["湿热蕴结", "湿热下注"], addPoints: ["阴陵泉", "次髎"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 不设 removePoints：关元是痛经主穴（任脉、调冲任），教材没有「湿热蕴结须去关元」这条。
+        // 消化类模板的关元剔除有教材依据（关元本就只属虚寒类加减），痛经这里没有，不能照搬。
+        { id: "dysmenorrhea-damp-heat", syndromeLabel: "湿热蕴结", syndromeMatchAny: ["湿热蕴结", "湿热下注"], addPoints: ["阴陵泉", "次髎"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
       ],
     },
     {
@@ -854,8 +864,12 @@ const governedPlanTemplates = new Map([
         { id: "stroke-phlegm-heat-fu", syndromeLabel: "痰热腑实", syndromeMatchAny: ["痰热腑实", "痰热"], addPoints: ["曲池", "内庭", "丰隆"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "stroke-qi-deficiency-stasis", syndromeLabel: "气虚血瘀", syndromeMatchAny: ["气虚血瘀", "气虚"], addPoints: ["气海", "血海"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "stroke-yin-deficiency-wind", syndromeLabel: "阴虚风动", syndromeMatchAny: ["阴虚风动", "阴虚阳亢"], addPoints: ["太溪", "风池"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "facial-palsy-wind-cold", syndromeLabel: "风寒外袭", syndromeMatchAny: ["风寒外袭", "风寒阻络", "风寒"], addPoints: ["风池", "风府"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "facial-palsy-wind-heat", syndromeLabel: "风热侵袭", syndromeMatchAny: ["风热侵袭", "风热阻络", "风热"], addPoints: ["外关", "关冲"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 面瘫的「风寒外袭 → 风池、风府」「风热侵袭 → 外关、关冲」**刻意不放在这里**。
+        // 独立复核（2026-08-10）指出：本模板的主穴是中风取穴（百会、曲池、足三里、阳陵泉），
+        // 而面瘫的教材主穴是攒竹、阳白、四白、颧髎、颊车、地仓、合谷、太冲——两套完全不同。
+        // 把面瘫配穴挂到中风主穴上会拼出一张临床上不成立的处方，正是本目录一直防的
+        // 「跨适应证套用」。面瘫因此落到 governed_class_template_not_syndrome_tailored，
+        // 如实标注「尚未按本例证型加减」；补面瘫独立模板需另立一条 planTemplate。
       ],
     },
   ]],
