@@ -32,6 +32,7 @@ import { appendClinicalPresetValue, appendDelimitedValue, detectTonguePulseField
 import { classifyWesternDiagnosticEvidence, clinicalFactSourcesFromCaseState, clinicalFactWithSource } from "@/lib/clinical-fact-source";
 import type { CaseState, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
 import { ageValue, normalizeCaseStateInput, normalizeStructuredFollowupTimeline } from "@/lib/diagnosis-types";
+import { LINEAGE_OPTIONS } from "@/lib/tcm-lineages";
 import {
   saveCase, loadLatestCase, clearCase, clearAllSavedCases, isBrowserCasePersistenceEnabled,
   sanitizeCaseStateForBrowserPersistence, scrubPersistentPhiText,
@@ -5723,6 +5724,7 @@ type HisRecordDraft = {
   tcmTongue: string;
   tcmDetail: string;
   tcmLineagePreference: string;
+  herbCountPreference: string;
   clinicTreatmentCapabilities: string;
   fuzhuJiancha: string;
 };
@@ -6007,6 +6009,7 @@ function createEmptyHisRecordDraft(): HisRecordDraft {
     tcmTongue: "",
     tcmDetail: "",
     tcmLineagePreference: "unrestricted",
+    herbCountPreference: "",
     clinicTreatmentCapabilities: "",
     fuzhuJiancha: "",
   };
@@ -6355,7 +6358,9 @@ function buildHisRecordSnapshot(
       tcmPulse: draft.tcmPulse,
       tcmTongue: draft.tcmTongue,
       tcmDetail: draft.tcmDetail,
-      tcmLineagePreference: "unrestricted",
+      // 原先硬编码 "unrestricted"：draft 里有这个字段、页面上却没有控件，
+      // 而且即使有控件，值也会在这里被丢掉。甲方「流派配置未完成」指的就是这条链路。
+      tcmLineagePreference: draft.tcmLineagePreference || "unrestricted",
       ...(draft.clinicTreatmentCapabilities.trim()
         ? { clinicTreatmentCapabilities: draft.clinicTreatmentCapabilities.trim() }
         : {}),
@@ -6375,9 +6380,22 @@ function hasChiefComplaintInput(draft: HisRecordDraft): boolean {
   return Boolean(draft.zhushu.trim());
 }
 
+/** 页面下拉值 → CaseState 的三档取值。空值表示医生没设偏好。 */
+function normalizeHerbCountDraft(value: string): CaseState["herbCountPreference"] {
+  return value === "within_10" || value === "between_10_15" || value === "at_least_15" ? value : undefined;
+}
+
+const HERB_COUNT_OPTIONS = [
+  { value: "", label: "不限（默认）" },
+  { value: "within_10", label: "10 味以内" },
+  { value: "between_10_15", label: "10–15 味" },
+  { value: "at_least_15", label: "15 味以上" },
+] as const;
+
 function hasAnyDraftInput(draft: HisRecordDraft): boolean {
   return (Object.entries(draft) as Array<[keyof HisRecordDraft, string]>).some(([key, value]) => {
     if (key === "tcmLineagePreference" && value === "unrestricted") return false;
+    if (key === "herbCountPreference" && !value) return false;
     return value.trim().length > 0;
   });
 }
@@ -6453,7 +6471,10 @@ function applyDraftToCaseState(
     pastHistory: draft.jiwangshi.trim() || undefined,
     medicationHistory: draft.medicationHistory.trim() || undefined,
     allergyHistory: draft.allergyHistory.trim() || undefined,
-    tcmLineagePreference: "unrestricted",
+    tcmLineagePreference: draft.tcmLineagePreference || "unrestricted",
+    // 饮片味数是**软偏好**：写进 prompt 供组方参考，绝不参与确定性裁剪
+    //（经典方基准组成、绑定病机的药味、安全所需佐制药一味都不因它删减，见 diagnosis-types.ts）。
+    herbCountPreference: normalizeHerbCountDraft(draft.herbCountPreference),
     clinicTreatmentCapabilities: draft.clinicTreatmentCapabilities.trim()
       ? parseTcmTreatmentCapabilities(draft.clinicTreatmentCapabilities)
       : undefined,
@@ -7457,6 +7478,25 @@ function HisMedicalRecordWorkspace({
             }
           />
           <TextareaCell label="辅助检查" value={draft.fuzhuJiancha} onChange={(value) => update("fuzhuJiancha", value)} placeholder="检验检查结果；没有可不填" testId="aux-exam" />
+          {/* 甲方 11 项需求里的「流派/药味数量配置」：两条链路后端早就通了
+              （tcmLineagePreference 进 prompt 的流派策略，herbCountPreference 进组方提示），
+              但页面上一直没有控件，而且 applyDraftToCaseState 还把流派硬编码成 unrestricted，
+              医生就算选了也会被丢。这里补上控件并接通写回。
+              味数是**软偏好**：不参与任何确定性裁剪，经典方基准组成不因它删减。 */}
+          <SelectCell
+            label="诊疗思路"
+            value={draft.tcmLineagePreference}
+            onChange={(value) => update("tcmLineagePreference", value)}
+            options={LINEAGE_OPTIONS.map((option) => ({ value: option.value, label: option.label }))}
+            testId="lineage-preference"
+          />
+          <SelectCell
+            label="饮片味数"
+            value={draft.herbCountPreference}
+            onChange={(value) => update("herbCountPreference", value)}
+            options={HERB_COUNT_OPTIONS}
+            testId="herb-count-preference"
+          />
         </fieldset>
       </div>
     </section>

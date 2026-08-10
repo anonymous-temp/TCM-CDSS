@@ -26,6 +26,22 @@ function check(name, fn) {
   }
 }
 
+// 甲方 11 项里「流派/药味数量配置」判为未完成——不是后端没做，是**页面上没有控件**，
+// 而且 applyDraftToCaseState 还把流派硬编码成 "unrestricted"，医生就算选了也会被丢。
+// 这条钉的是那两处，避免又退回「后端支持、医生用不上」的状态。
+check("流派与味数在页面上可配置，且 draft 的值真的写回 caseState", () => {
+  const client = readFileSync(`${process.cwd()}/src/app/diagnosis/DiagnosisClient.tsx`, "utf8");
+  assert.match(client, /testId="lineage-preference"/, "缺少诊疗思路（流派）选择控件");
+  assert.match(client, /testId="herb-count-preference"/, "缺少饮片味数选择控件");
+  assert.doesNotMatch(
+    client,
+    /tcmLineagePreference:\s*"unrestricted",\s*\n\s*clinicTreatmentCapabilities: draft\./,
+    "写回 caseState 时不得把流派硬编码成 unrestricted，否则控件形同虚设",
+  );
+  assert.match(client, /herbCountPreference: normalizeHerbCountDraft\(draft\.herbCountPreference\)/,
+    "味数偏好必须从 draft 写回 caseState");
+});
+
 const base = { id: "HCP-1", chiefComplaint: "反复头痛3月", patient: { sex: "女", age: 34 } };
 const normalizedWith = (extra) => normalizeCaseStateInput({ ...base, ...extra });
 
