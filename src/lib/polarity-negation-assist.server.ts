@@ -41,6 +41,16 @@ function enabled(): boolean {
   return process.env.POLARITY_NEGATION_ASSIST !== "false";
 }
 
+/**
+ * 候选 = 分句 + **它所在的原文**。
+ *
+ * 只把孤立分句发给模型是不够的：线上实测，单独一条「无汗」模型答 none，
+ * 而把同一条放进「无汗 / 无胸闷 / 既往无汗证」的对比里就正确答 1——
+ * 「无汗」脱离原文时人也判不了它是四诊指征还是逐项否认，这正是本层要判的东西。
+ * 缺语境会让本层在最需要它的场景（主诉里只有一个受治理词）静默失效。
+ */
+type PolarityCandidate = { clause: string; context: string };
+
 /** 两个方向共用同一份取材范围，避免一侧加了字段另一侧忘了加。 */
 function polarityCandidateSources(caseState: CaseState): string[] {
   return [
@@ -56,21 +66,36 @@ function polarityCandidateSources(caseState: CaseState): string[] {
 }
 
 /** 确定性层判为阳性、但带否定语气词的分句——只有这些需要模型裁决。 */
-export function colloquialNegationCandidates(caseState: CaseState): string[] {
-  const sources = polarityCandidateSources(caseState);
+function collectCandidates(
+  caseState: CaseState,
+  accept: (clause: string) => boolean,
+): PolarityCandidate[] {
   const seen = new Set<string>();
-  for (const source of sources) {
-    for (const raw of source.normalize("NFKC").split(CLAUSE_SPLIT)) {
+  const out: PolarityCandidate[] = [];
+  for (const source of polarityCandidateSources(caseState)) {
+    const normalizedSource = source.normalize("NFKC");
+    for (const raw of normalizedSource.split(CLAUSE_SPLIT)) {
       const clause = raw.trim();
       if (clause.length < 2 || clause.length > 40) continue;
-      if (!COLLOQUIAL_NEGATION_CUE.test(clause)) continue;
-      // 确定性层已经判为否定的分句无需再问；只补它漏掉的。
-      if (clinicalClausePolarity(clause) === "negative") continue;
+      if (!accept(clause) || seen.has(clause)) continue;
       seen.add(clause);
-      if (seen.size >= MAX_CANDIDATES) return [...seen];
+      out.push({ clause, context: normalizedSource.slice(0, 160) });
+      if (out.length >= MAX_CANDIDATES) return out;
     }
   }
-  return [...seen];
+  return out;
+}
+
+/** 确定性层判为阳性、但带否定语气词的分句——只有这些需要模型裁决。 */
+export function colloquialNegationCandidates(caseState: CaseState): string[] {
+  return colloquialNegationCandidatePairs(caseState).map((item) => item.clause);
+}
+
+function colloquialNegationCandidatePairs(caseState: CaseState): PolarityCandidate[] {
+  return collectCandidates(caseState, (clause) =>
+    COLLOQUIAL_NEGATION_CUE.test(clause)
+    // 确定性层已经判为否定的分句无需再问；只补它漏掉的。
+    && clinicalClausePolarity(clause) !== "negative");
 }
 
 /**
@@ -82,20 +107,15 @@ export function colloquialNegationCandidates(caseState: CaseState): string[] {
  * 定义性指征，问题只在于「这一处到底是指征还是患者否认」——那才是交给模型的判断。
  */
 export function affirmativeNegationCandidates(caseState: CaseState): string[] {
-  const seen = new Set<string>();
-  for (const source of polarityCandidateSources(caseState)) {
-    for (const raw of source.normalize("NFKC").split(CLAUSE_SPLIT)) {
-      const clause = raw.trim();
-      if (clause.length < 2 || clause.length > 40) continue;
-      // 只看确定性层判否定的——判阳性的本来就没丢，不需要救。
-      if (clinicalClausePolarity(clause) !== "negative") continue;
-      // 闭集门：分句必须含受治理的阴性形式阳性体征词。
-      if (affirmativeNegationFormsIn(clause).length === 0) continue;
-      seen.add(clause);
-      if (seen.size >= MAX_CANDIDATES) return [...seen];
-    }
-  }
-  return [...seen];
+  return affirmativeNegationCandidatePairs(caseState).map((item) => item.clause);
+}
+
+function affirmativeNegationCandidatePairs(caseState: CaseState): PolarityCandidate[] {
+  return collectCandidates(caseState, (clause) =>
+    // 只看确定性层判否定的——判阳性的本来就没丢，不需要救。
+    clinicalClausePolarity(clause) === "negative"
+    // 闭集门：分句必须含受治理的阴性形式阳性体征词。
+    && affirmativeNegationFormsIn(clause).length > 0);
 }
 
 const AFFIRMATIVE_SYSTEM_PROMPT = [
@@ -147,7 +167,7 @@ export async function assistedAffirmativeClauses(
   if (!enabled() || signal?.aborted) return empty;
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return empty;
-  const candidates = affirmativeNegationCandidates(caseState);
+  const candidates = affirmativeNegationCandidatePairs(caseState);
   if (candidates.length === 0) return empty;
   const picked = await askClauseSelection(candidates, AFFIRMATIVE_SYSTEM_PROMPT, signal);
   // 二次闭集校验：即便模型返回的序号合法，被选中的分句也必须仍然含受治理词。
@@ -162,7 +182,7 @@ export async function assistedNegationClauses(
   caseState: CaseState,
   signal?: AbortSignal,
 ): Promise<AssistedNegationClauses> {
-  const candidates = colloquialNegationCandidates(caseState);
+  const candidates = colloquialNegationCandidatePairs(caseState);
   if (candidates.length === 0) return new Set<string>();
   return askClauseSelection(candidates, SYSTEM_PROMPT, signal);
 }
@@ -179,7 +199,7 @@ export async function assistedNegationClauses(
  *  · 送模型前过 sanitizeFreeTextForModel。
  */
 async function askClauseSelection(
-  candidates: readonly string[],
+  candidates: readonly PolarityCandidate[],
   systemPrompt: string,
   signal?: AbortSignal,
 ): Promise<ReadonlySet<string>> {
@@ -193,8 +213,15 @@ async function askClauseSelection(
   const onParentAbort = () => controller.abort();
   signal?.addEventListener("abort", onParentAbort, { once: true });
   try {
+    // 每条候选都带上它所在的原文。不带语境时模型判不了「无汗」是指征还是否认（实测答 none）。
     const numbered = candidates
-      .map((clause, index) => `${index + 1}. ${sanitizeFreeTextForModel(clause)}`)
+      .map(({ clause, context }, index) => {
+        const safeClause = sanitizeFreeTextForModel(clause);
+        const safeContext = sanitizeFreeTextForModel(context);
+        return safeContext && safeContext !== safeClause
+          ? `${index + 1}. ${safeClause}　（原文：${safeContext}）`
+          : `${index + 1}. ${safeClause}`;
+      })
       .join("\n");
     const client = createTextModelClient(config);
     const response = await client.chat.completions.create({
@@ -214,9 +241,9 @@ async function askClauseSelection(
     if (typeof raw !== "string" || /none/i.test(raw)) return empty;
     const picked = new Set<string>();
     for (const token of raw.match(/\d+/g) || []) {
-      const clause = candidates[Number(token) - 1];
+      const candidate = candidates[Number(token) - 1];
       // 越界或重复的序号直接丢弃：模型返回值只能选中候选，不能引入任何新文本。
-      if (clause) picked.add(clause);
+      if (candidate) picked.add(candidate.clause);
     }
     return picked;
   } catch {
