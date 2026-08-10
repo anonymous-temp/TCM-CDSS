@@ -1697,6 +1697,16 @@ export function groundStructuredPatientFacts(content: string, clinicalContext: s
             // tongue/pulse or mixed polarity can hide a shorter, exact and clinically valid source fact.
             .filter((fact) => !isNondiscriminatingWesternSupportingFact(fact))
             .filter((fact) => isWesternSupportingFactPolarityAligned(fact, clinicalContext))));
+      // 依据分类标注只能贴在**已接地的** supportingFacts 上。模型标了病历没有的条目
+      // （实测：supportingFacts 只有发热咳痰，却标了「胸片示右下肺片状影」），
+      // 呈现层本来就会忽略它，但不清掉就等于把一条编造事实留在了签名载荷里。
+      if (Array.isArray(westernPrimary.supportingFactKinds)) {
+        const groundedSet = new Set(groundedFacts.map((fact) => fact.trim()));
+        westernPrimary.supportingFactKinds = westernPrimary.supportingFactKinds.filter((raw) => {
+          const item = recordValue(raw);
+          return typeof item?.fact === "string" && groundedSet.has(item.fact.trim());
+        });
+      }
       const primaryEvidence = recordValue(westernPrimary.evidence);
       const providerEvidenceSource = markdownCell(primaryEvidence?.source);
       westernPrimary.evidence = {
@@ -2484,6 +2494,25 @@ function syndromeLabelWithNationalStandard(
   return standard ? `${label}（国标对应：${standard}）` : label;
 }
 
+/**
+ * 指南/文献依据：只取**证据层真检索到**的条目。
+ *
+ * 甲方示例里写着《内科学》第10版、《中国成人社区获得性呼吸道感染诊治指南(2024)》这类引用。
+ * 本项目铁律是「引用必须有 KB/证据条目背书」，所以这里不允许模型自己写：
+ * 只有 evidence.evidenceLevel 表明来自外部证据（非 model_inference / 非病例内推理）时，
+ * 才把 evidence.source 作为引用印出来。检索不到就一条不印——
+ * 宁可少一栏，也不让一条编造的指南名出现在医生面前。
+ */
+function governedGuidelineReferences(primary: Record<string, unknown> | null | undefined): string[] {
+  const evidence = recordValue(primary?.evidence);
+  const level = markdownCell(evidence?.evidenceLevel);
+  const source = markdownCell(evidence?.source);
+  if (!source) return [];
+  if (!level || level === "model_inference" || level === "insufficient") return [];
+  if (/^(?:病例内推理|无|暂无|未提供|未检索|待检索|内部证据缺口)$/.test(source)) return [];
+  return [source];
+}
+
 function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinicalContext = ""): string {
   const overview = recordValue(reasoning.overview);
   const westernDiagnosis = recordValue(reasoning.westernDiagnosis);
@@ -2513,7 +2542,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
   // 三类都是对已签名载荷既有字段的重新归类（见 clinical-fact-source.ts），不新增任何推断；
   // 来源取自受治理必填字段矩阵的字段名，标不出来源的条目照常呈现。
   const evidenceSources = clinicalFactSourcesFromContext(clinicalContext);
-  const evidence = classifyWesternDiagnosticEvidence(westernPrimary);
+  const evidence = classifyWesternDiagnosticEvidence(westernPrimary, evidenceSources);
   // 「支持依据」不得沦为病历原文的复印件(2026-08-05)。
   //
   // 甲方实测:该栏输出「大便时溏时泻，迁延反复，稍进油腻食物，则大便次数明显增加，食少，
@@ -2554,7 +2583,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
     return parts.filter((item) => item.length >= 3);
   };
   const evidenceLine = (label: string, values: readonly string[], withSource: boolean) => {
-    const expanded = label === "待查依据"
+    const expanded = label === "指南/文献依据"
       ? values.map((value) => (typeof value === "string" ? trimTruncatedTail(value) : String(value)))
       : values.flatMap((value) => (typeof value === "string" ? splitEnumeratedFacts(value) : [String(value)]))
           .filter((item) => !TONGUE_PULSE_ONLY.test(item));
@@ -2563,10 +2592,24 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
     lines.push(`**${label}**：${joinClinicalClauses(
       items.map((item) => (withSource ? clinicalFactWithSource(item, evidenceSources) : item)), "；")}`);
   };
-  evidenceLine("支持依据", evidence.supporting, true);
-  evidenceLine("排除依据", evidence.excluding, true);
-  // 待查依据是「尚缺什么/下一步查什么」，本身不是病历事实，标来源没有意义。
-  evidenceLine("待查依据", evidence.pending, false);
+  // 依据分类呈现（甲方 2026-08-10）：删掉笼统的「支持依据」与「待查依据」，
+  // 改成「有啥列啥」——症状依据 / 体征依据 / 检查依据 / 排除依据 / 指南依据。
+  // 只有一类有内容时不写分类名，直接写「依据」（甲方示例三：上感只有一条依据）。
+  // 指南依据只印**证据层真检索到**的条目：引用必须有 KB 条目背书是本项目铁律，
+  // 检索不到就不出这一栏，不让模型自己写《内科学》第10版。
+  const guidelineRefs = governedGuidelineReferences(westernPrimary);
+  const categorized: Array<[string, readonly string[], boolean]> = [
+    ["症状依据", evidence.symptom, true],
+    ["体征依据", evidence.sign, true],
+    ["检查依据", evidence.exam, true],
+    ["排除依据", evidence.excluding, true],
+    ["指南/文献依据", guidelineRefs, false],
+  ].filter((entry) => (entry[1] as readonly string[]).length > 0) as Array<[string, readonly string[], boolean]>;
+  if (categorized.length === 1 && categorized[0][0] !== "指南/文献依据") {
+    evidenceLine("依据", categorized[0][1], categorized[0][2]);
+  } else {
+    for (const [label, values, withSource] of categorized) evidenceLine(label, values, withSource);
+  }
   lines.push(
     "",
     overviewHeading,

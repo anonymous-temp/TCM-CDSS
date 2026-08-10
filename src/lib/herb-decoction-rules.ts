@@ -67,6 +67,22 @@ function resolveHerb(value: string): HerbRecord | undefined {
   return governed ? herbByName.get(normalizedName(governed)) : undefined;
 }
 
+/**
+ * 与「同煎」**不相容**的投料方式：这味药不是和其余药一起从头煎到尾的。
+ *
+ * 刻意只收有把握的几条，不做「所有煎法两两互斥」的推广：
+ *  · 久煎 不在其中——它是**时长**限定，附子正是「先煎且久煎」（乌头碱水解），
+ *    误当互斥会把中药煎法里最要紧的一条拆成二选一；
+ *  · 包煎 也不在其中——它是**包裹**方式，与何时投料不矛盾。
+ */
+const TIMINGS_INCOMPATIBLE_WITH_CO_DECOCTION =
+  ["先煎", "后下", "另煎", "另炖", "烊化", "冲服", "兑服"] as const;
+
+function hasSpecificDecoctionTiming(required: ReadonlySet<string>, oneOf: readonly string[][]): boolean {
+  return TIMINGS_INCOMPATIBLE_WITH_CO_DECOCTION.some((timing) =>
+    required.has(timing) || oneOf.some((alternatives) => alternatives.includes(timing)));
+}
+
 export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
   const herb = resolveHerb(value);
   if (!herb) return undefined;
@@ -128,9 +144,17 @@ export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
     }
   }
   for (const method of AUDIT_VERIFIED_METHOD_SUPPLEMENTS[herb.name] || []) required.add(method);
+  // 「捣碎」是**准备**指令，「同煎」是**时机**指令，两者不是一回事。
+  //
+  // 原实现把「捣碎」无条件升级成「捣碎后同煎」，于是已经要求「后下」的药会同时拿到
+  // 两条互斥的时机。甲方实测：苦杏仁 → required=["后下","捣碎后同煎"]，
+  // 医生读到的是「后下」和「同煎」两条相反的煎法指令。
+  // （药典对生苦杏仁的要求是「捣碎、入煎剂后下」——捣碎是准备，后下是时机，不冲突。）
+  //
+  // 「同煎」是默认时机：只有在没有任何特定时机要求时才需要说出来。
   if (required.has("捣碎")) {
     required.delete("捣碎");
-    required.add("捣碎后同煎");
+    required.add(hasSpecificDecoctionTiming(required, oneOf) ? "捣碎" : "捣碎后同煎");
   }
   return required.size || prohibited.size || oneOf.length
     ? { required: [...required], oneOf, prohibited: [...prohibited] }

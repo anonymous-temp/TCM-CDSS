@@ -1158,6 +1158,20 @@ const ReasoningV2SchemaBase = z.object({
       status: z.preprocess(normalizeWesternDiagnosisStatus, z.enum(["考虑", "需排除", "证据有限"])),
       confidence: z.preprocess(normalizeClinicalConfidence, z.enum(["高", "中", "低"])),
       supportingFacts: z.array(z.string().min(1).max(600)).max(12).catch([]),
+      // 依据分类（甲方 2026-08-10）：症状 / 体征 / 检查。由模型标注，因为
+      // 「咽部充血(++)」记在现病史里也仍然是体征——这需要临床理解，不是查字段能定的。
+      // 它**只能给 supportingFacts 里已有的条目贴标签**，标了本例没有的条目会被丢弃，
+      // 所以模型无法借这个字段新增一条依据；没标的按病历落点字段兜底归类。
+      supportingFactKinds: z.preprocess(
+        isolateInvalidItems(z.object({
+          fact: z.string().min(1).max(600),
+          kind: z.enum(["symptom", "sign", "exam"]),
+        })),
+        z.array(z.object({
+          fact: z.string().min(1).max(600),
+          kind: z.enum(["symptom", "sign", "exam"]),
+        })).max(12),
+      ).optional().catch([]),
       clinicalRationale: z.string().max(1600).optional().catch(""),
       limitations: z.array(z.string().max(600)).max(12).catch([]),
       suggestedChecks: z.array(z.string().max(600)).max(12).catch([]),

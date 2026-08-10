@@ -144,13 +144,60 @@ export function clinicalFactSourceLabel(fact: unknown, sources: readonly Clinica
 }
 
 export type ClassifiedDiagnosticEvidence = {
-  /** 支持本诊断成立的肯定性事实。 */
+  /** 支持本诊断成立的肯定性事实（= symptom ∪ sign ∪ exam，保留给既有调用方）。 */
   supporting: string[];
+  /** 患者自述的症状。 */
+  symptom: string[];
+  /** 查体所见的体征（含生命体征）。 */
+  sign: string[];
+  /** 检验检查结果。 */
+  exam: string[];
   /** 用于排除鉴别方向的否定性事实。 */
   excluding: string[];
   /** 尚未取得、需进一步确认的事项（资料限制 + 建议检查）。 */
   pending: string[];
 };
+
+/**
+ * 支持依据的**四分类**（甲方 2026-08-10）：症状依据 / 体征依据 / 排除依据 / 指南依据。
+ *
+ * 甲方原话是把「支持依据」「待查依据」两栏删掉，改成「有啥列啥」的分类呈现，
+ * 并给了三份示例（急性支气管炎写四类、急性咽炎只写两类、上感只写一条「依据」）。
+ *
+ * 【谁来分类】「这条事实是症状还是体征」需要临床理解——咽部充血(++)记在现病史里
+ * 也仍然是体征——所以由模型标注（supportingFactKinds），确定性层只做两件事：
+ *  1) 校验：标注只对**确实存在于 supportingFacts 里**的条目生效，模型无法借此新增事实；
+ *  2) 兜底：模型没标或标了本例没有的条目，按该事实在病历里的**落点字段**归类，
+ *     字段来源本来就是确定性算出来的（clinicalFactSourcesFromContext）。
+ * 「指南依据」不在这里产生——引用必须有 KB/证据层条目背书，呈现层只印真检索到的，
+ * 检索不到就不出这一栏，绝不让模型自己写《内科学》第10版。
+ */
+const FIELD_ID_EVIDENCE_KIND: Readonly<Record<string, "symptom" | "sign" | "exam">> = {
+  chief_complaint: "symptom",
+  present_illness: "symptom",
+  past_history: "symptom",
+  medication_history: "symptom",
+  allergy_history: "symptom",
+  vitals: "sign",
+  tongue: "sign",
+  pulse: "sign",
+  face_and_other_tcm: "sign",
+  auxiliary_examinations: "exam",
+};
+
+function modelDeclaredKinds(value: unknown): Map<string, "symptom" | "sign" | "exam"> {
+  const kinds = new Map<string, "symptom" | "sign" | "exam">();
+  if (!Array.isArray(value)) return kinds;
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const item = raw as { fact?: unknown; kind?: unknown };
+    const fact = typeof item.fact === "string" ? item.fact.trim() : "";
+    const kind = item.kind;
+    if (!fact) continue;
+    if (kind === "symptom" || kind === "sign" || kind === "exam") kinds.set(fact, kind);
+  }
+  return kinds;
+}
 
 function cleanedList(values: unknown): string[] {
   return (Array.isArray(values) ? values : [])
@@ -163,15 +210,36 @@ function cleanedList(values: unknown): string[] {
  * 不做任何关键词猜测；`possible/unknown` 等非明确否定一律留在支持依据，宁可少归一条排除依据，
  * 也不把一条阳性事实误读成排除依据。
  */
-export function classifyWesternDiagnosticEvidence(primary: {
-  supportingFacts?: unknown;
-  limitations?: unknown;
-  suggestedChecks?: unknown;
-} | null | undefined): ClassifiedDiagnosticEvidence {
+export function classifyWesternDiagnosticEvidence(
+  primary: {
+    supportingFacts?: unknown;
+    supportingFactKinds?: unknown;
+    limitations?: unknown;
+    suggestedChecks?: unknown;
+  } | null | undefined,
+  sources: readonly ClinicalFactSource[] = [],
+): ClassifiedDiagnosticEvidence {
   const facts = cleanedList(primary?.supportingFacts);
   const excluding = facts.filter((fact) => clinicalClausePolarity(fact) === "negative");
+  const supporting = facts.filter((fact) => !excluding.includes(fact));
+  const declared = modelDeclaredKinds(primary?.supportingFactKinds);
+  const symptom: string[] = [];
+  const sign: string[] = [];
+  const exam: string[] = [];
+  for (const fact of supporting) {
+    // 模型的标注只在该条事实确实存在时生效——它不能借标注新增一条依据。
+    const kind = declared.get(fact)
+      // 兜底：按这条事实在病历里的落点字段归类。字段来源本身是确定性算出来的。
+      ?? FIELD_ID_EVIDENCE_KIND[sources.find((source) =>
+        source.text.includes(fact) || fact.includes(source.text))?.fieldId || ""]
+      ?? "symptom";
+    (kind === "sign" ? sign : kind === "exam" ? exam : symptom).push(fact);
+  }
   return {
-    supporting: facts.filter((fact) => !excluding.includes(fact)),
+    supporting,
+    symptom,
+    sign,
+    exam,
     excluding,
     pending: [...new Set([...cleanedList(primary?.limitations), ...cleanedList(primary?.suggestedChecks)])],
   };

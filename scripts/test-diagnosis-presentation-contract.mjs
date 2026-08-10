@@ -91,22 +91,46 @@ check(() => {
 });
 check(() => assert.deepEqual(
   classifyWesternDiagnosticEvidence(null),
-  { supporting: [], excluding: [], pending: [] },
-  "空载荷返回三个空类，不抛错",
+  { supporting: [], symptom: [], sign: [], exam: [], excluding: [], pending: [] },
+  "空载荷返回全部空类，不抛错",
 ));
+// 甲方 2026-08-10：支持依据再拆症状/体征/检查。分类由模型标（临床理解），
+// 服务端只做两件事：标注只对已存在的 supportingFacts 生效；没标的按病历落点字段兜底。
+check(() => {
+  const evidence = classifyWesternDiagnosticEvidence({
+    supportingFacts: ["发热38.5℃伴咳嗽咳黄脓痰3天", "咽部充血(++)", "血常规白细胞升高"],
+    supportingFactKinds: [
+      { fact: "咽部充血(++)", kind: "sign" },
+      { fact: "血常规白细胞升高", kind: "exam" },
+      { fact: "胸片示右下肺片状影", kind: "exam" },
+    ],
+  });
+  assert.deepEqual(evidence.symptom, ["发热38.5℃伴咳嗽咳黄脓痰3天"], "没标的默认按症状归类");
+  assert.deepEqual(evidence.sign, ["咽部充血(++)"], "写在现病史里的体征也必须归体征");
+  assert.deepEqual(evidence.exam, ["血常规白细胞升高"], "检查结果单列");
+  assert.ok(!evidence.exam.includes("胸片示右下肺片状影"),
+    "标注不得给 supportingFacts 里没有的条目建条 —— 否则模型能借分类字段新增依据");
+  assert.equal(evidence.symptom.length + evidence.sign.length + evidence.exam.length,
+    evidence.supporting.length, "三类之和必须等于支持依据总数，不得漏项或重复");
+});
 
 const visibleM03 = visibleOf(m03WithChartFacts, "diagnose", CONTEXT);
-for (const label of ["支持依据", "排除依据", "待查依据"]) {
+// 「支持依据」「待查依据」两栏 2026-08-10 按甲方要求删除，改为症状/体征/检查/排除/指南分栏；
+// 只有一类有内容时不写分类名，直接写「依据」。
+for (const label of ["排除依据"]) {
   check(() => assert.ok(visibleM03.includes(`**${label}**`), `西医诊断段必须出现「${label}」`));
 }
 check(() => assert.ok(
-  /\*\*支持依据\*\*：[^\n]*（来源：主诉）/.test(visibleM03),
+  /\*\*(?:症状依据|体征依据|检查依据|依据)\*\*：[^\n]*（来源：主诉）/.test(visibleM03),
   "主诉级事实必须标注来源，而不是裸复述主诉",
 ));
 check(() => assert.ok(
-  /\*\*支持依据\*\*：[^\n]*（来源：现病史）/.test(visibleM03),
+  /\*\*(?:症状依据|体征依据|检查依据|依据)\*\*：[^\n]*（来源：现病史）/.test(visibleM03),
   "现病史级事实必须标注来源",
 ));
+// 分栏后必须仍然逐条可溯源，且不得再出现被删掉的两个栏名。
+check(() => assert.ok(!/\*\*支持依据\*\*/.test(visibleM03), "「支持依据」栏已删除"));
+check(() => assert.ok(!/\*\*待查依据\*\*/.test(visibleM03), "「待查依据」栏已删除"));
 check(() => assert.ok(
   /\*\*排除依据\*\*：[^\n]*（来源：既往史）/.test(visibleM03),
   "否认既往病史的事实来源是既往史",
@@ -116,10 +140,11 @@ check(() => assert.ok(
   !/\*\*待查依据\*\*：[^\n]*（来源：/.test(visibleM03),
   "待查依据不得标事实来源",
 ));
-// fail-open：不传接地正文时三类照常呈现，只是不带来源标注。
+// fail-open：不传接地正文时各类照常呈现，只是不带来源标注。
 check(() => {
   const withoutContext = visibleOf(m03WithChartFacts, "diagnose");
-  assert.ok(withoutContext.includes("**支持依据**"), "无接地正文时三类仍呈现");
+  assert.ok(/\*\*(?:症状依据|体征依据|检查依据|排除依据|依据)\*\*/.test(withoutContext),
+    "无接地正文时依据分类仍呈现");
   assert.ok(!withoutContext.includes("（来源："), "无接地正文时不编造来源");
 });
 // 来源解析：接地正文与病例状态两条路径必须给出同样的字段归属。

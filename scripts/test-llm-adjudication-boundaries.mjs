@@ -390,6 +390,33 @@ ok("营销词被驳回并回落", BOILERPLATE.test(functionAfter("美容养颜�
   ok("「新发不适或原症加重」始终保留", withModel[1].includes("新发不适或原症加重"));
 }
 
+// ── ⑦ 煎法：准备指令不得给一味药挂上第二个投料时机 ────────────────────────
+//
+// 甲方实测：苦杏仁同时印出「后下」与「同煎」两条相反的煎法指令。根因是「捣碎」
+// （准备）被**无条件**升级成「捣碎后同煎」（准备+时机），而时机位上已经有「后下」。
+// 药典对生苦杏仁的要求是「捣碎、入煎剂后下」——捣碎是准备，后下是时机，本不冲突。
+{
+  const { decoctionRuleForHerb } = await jiti.import("../src/lib/herb-decoction-rules.ts");
+  const rule = (name) => decoctionRuleForHerb(name) || { required: [], oneOf: [], prohibited: [] };
+  const flat = (name) => [...rule(name).required, ...rule(name).oneOf.flat()].join("、");
+  for (const name of ["苦杏仁", "燀苦杏仁", "杏仁"]) {
+    ok(`${name} 保留「后下」`, rule(name).required.includes("后下"));
+    ok(`${name} 不再同时要求同煎`, !flat(name).includes("同煎"));
+    ok(`${name} 仍保留「捣碎」这条准备要求`, flat(name).includes("捣碎"));
+  }
+  // 反向：没有特定投料时机时，「同煎」仍要说出来（它是默认时机，但医生需要看到）。
+  ok("无特定时机时仍写「捣碎后同煎」",
+    ["决明子", "牛蒡子", "王不留行"].every((name) => {
+      const text = flat(name);
+      return !text || !text.includes("捣碎") || text.includes("捣碎后同煎") || /先煎|后下|另煎|另炖|烊化|冲服|兑服/.test(text);
+    }));
+  // 附子是这套规则里最要紧的一味：先煎**且**久煎（乌头碱水解），不是二选一。
+  // 我在做上面那条修复时一度把它拆成 oneOf，这条断言就是为了不让那种事再发生。
+  ok("附子必须同时要求先煎与久煎，不得降级为二选一",
+    rule("附子").required.includes("先煎") && rule("附子").required.includes("久煎") &&
+    !rule("附子").oneOf.some((alternatives) => alternatives.includes("先煎")));
+}
+
 if (failures.length > 0) {
   console.error("[test:llm-adjudication-boundaries] 失败项：");
   for (const item of failures) console.error("  - " + item);
