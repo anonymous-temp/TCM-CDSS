@@ -305,6 +305,40 @@ ok("营销词被驳回并回落", BOILERPLATE.test(functionAfter("美容养颜�
       question("胸痛", "近一周静息胸痛向左肩放射", "近一周静息时是否出现过胸痛并向左肩放射？")) === 1);
 }
 
+// ── ⑨ 轴向「已回答」只能看本次病程，不能拿既往史/家族史抵账 ────────────────
+// 原实现拿整份病历与问题做 5 个轴的笛卡尔 some()，两组正则之间没有任何症状/部位/时间尺度的
+// 共同锚点。实测（2026-08-10）：「既往史：高血压病史10年」的时长词压掉「每次眩晕持续多久」；
+// 「既往有胃部隐痛史」的隐痛压掉「本次胸闷程度」。既往史是另一个时间轴，抵不了本次病程。
+{
+  const { enforceM02UnansweredAxes, ensureQuestionStructuredEnvelope } =
+    await jiti.import("../src/lib/m02-question-contract.ts");
+  const durationQuestion = (text) => ({
+    id: "q1", question: text, reason: "决定处置方向", targetField: "xianbingshi",
+    decisionBranch: "syndrome", expectedDecisionImpact: "决定是否按此方向处置",
+    informationGain: 0.8, sourceEvidence: [],
+    options: [
+      { id: "a", label: "数分钟", answer: "每次持续数分钟", kind: "clinical_fact", recordValue: "每次持续数分钟" },
+      { id: "b", label: "数小时", answer: "每次持续数小时", kind: "clinical_fact", recordValue: "每次持续数小时" },
+      { id: "u", label: "本次未取得", answer: "本次未取得该信息", kind: "unknown" },
+    ],
+  });
+  const kept = (source, text) => {
+    const envelope = ensureQuestionStructuredEnvelope(JSON.stringify({
+      completeness: { level: "B" },
+      m02Plan: { schemaVersion: "tcm-cdss-m02-plan-v1", decision: "ask", rationale: "仍有未决问题", questions: [durationQuestion(text)] },
+    }), source);
+    return enforceM02UnansweredAxes(envelope, source).includes('"decision":"proceed"') ? 0 : 1;
+  };
+  ok("既往史里的时长不得抵掉本次发作时长题",
+    kept("反复头晕\n近来反复发作头晕，天旋地转感\n既往史：高血压病史10年",
+      "每次眩晕大约持续多久？是数秒、数分钟还是数小时？") === 1);
+  ok("行内「既往有…」同样不得抵账",
+    kept("胸闷\n活动后胸闷，既往有胃部隐痛史", "本次胸闷发作时程度如何？是轻、中还是重？") === 1);
+  ok("本次病程确已记录时仍应删（反向不得放宽）",
+    kept("头晕\n每次眩晕持续约十分钟，反复发作两周",
+      "每次眩晕大约持续多久？是数秒、数分钟还是数小时？") === 0);
+}
+
 if (failures.length > 0) {
   console.error("[test:llm-adjudication-boundaries] 失败项：");
   for (const item of failures) console.error("  - " + item);

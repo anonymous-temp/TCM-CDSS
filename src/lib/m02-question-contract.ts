@@ -597,6 +597,26 @@ const AXIS_SOURCE_PATTERNS: Record<KnownClinicalAxis, RegExp> = {
  * trigger-specific question (for example, meal-related worsening) into an overall trajectory.
  * Broader paraphrases remain the independent semantic reviewer's responsibility.
  */
+/**
+ * 轴向证据的取材范围：**只看本次病程**。
+ *
+ * 原实现拿整份病历与问题做 5 个轴的笛卡尔 some()，两组正则之间没有任何症状/部位/时间尺度的
+ * 共同锚点。实测三例（2026-08-10）：
+ *  · 「既往史：高血压病史10年」里的时长词，压掉了「每次眩晕大约持续多久？」——
+ *    既往病程与本次发作时长不是一回事；
+ *  · 「既往有胃部隐痛史」里的「隐痛」，压掉了「本次胸闷发作时程度如何？」；
+ *  · 腹部「胀痛」压掉了「本次头痛是哪一种性质？」——头痛性质轴的源模式不含部位限定。
+ * 既往史/家族史属于**另一个时间轴与另一个主语**，不能用来证明本次病程已被记录。
+ */
+const PAST_OR_FAMILY_HISTORY_SECTION = /(?:^|\n)\s*(?:既往史|家族史|个人史|婚育史|手术史|外伤史)\s*[：:][^\n]*/g;
+
+function currentIllnessScopeText(sourceText: string): string {
+  return String(sourceText || "")
+    .replace(PAST_OR_FAMILY_HISTORY_SECTION, "\n")
+    // 行内写法（「既往有胃部隐痛史」）没有字段冒号，按句读切掉该分句。
+    .replace(/[^\n。；;，,]*既往[^\n。；;，,]*/g, "");
+}
+
 function questionAxisAlreadyKnown(question: M02PlanQuestion, sourceText: string): boolean {
   if (!sourceText.trim()) return false;
   const questionText = [
@@ -605,8 +625,9 @@ function questionAxisAlreadyKnown(question: M02PlanQuestion, sourceText: string)
     question.expectedDecisionImpact,
     ...question.options.map((option) => `${option.answer}。${option.recordValue || ""}`),
   ].join("；");
+  const currentScope = currentIllnessScopeText(sourceText);
   return (Object.keys(AXIS_QUESTION_PATTERNS) as KnownClinicalAxis[]).some((axis) =>
-    AXIS_QUESTION_PATTERNS[axis].test(questionText) && AXIS_SOURCE_PATTERNS[axis].test(sourceText));
+    AXIS_QUESTION_PATTERNS[axis].test(questionText) && AXIS_SOURCE_PATTERNS[axis].test(currentScope));
 }
 
 function questionAlreadyAnswered(question: M02PlanQuestion, sourceText: string): boolean {
