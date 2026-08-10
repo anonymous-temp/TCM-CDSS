@@ -401,7 +401,8 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
     "herbs": [
       {"name":"药名","processing":null,"dose":"10g","role":"君","targetKind":"pathogenesis_node","targetRef":"P1","structureRole":null,"function":"该药在本方中承担的具体作用","isToxic":false,"decoctionRequirement":null}
     ],
-    "decoction": {"doseCount":"5剂","dosesPerDay":1,"administrationTimesPerDay":2}
+    "decoction": {"doseCount":"5剂","dosesPerDay":1,"administrationTimesPerDay":2},
+    "formulaAnalysis": "本方方解：君臣佐使如何配伍、为何这样配、有无相使相畏与佐制关系"
   },
   "patentAndWestern": [
     {"type":"中成药","name":"只能逐字选择EVID-INST或LOCAL-INST候选中的药名","specification":"只能复制同一条目的规格；未返回则为null","singleDose":null,"frequency":null,"route":null,"usageBoundary":"候选边界，不形成剂量医嘱","course":null,"positioning":"替代方案","correspondingProblem":"本例当前诊断、证候或症状","evidenceId":"LOCAL-INST-001","evidenceFingerprint":"sha256:逐字复制同一条目指纹","relationship":"与饮片方案不默认联用，由医生择一或评估联用","riskNote":"来自该条目的禁忌、相互作用与特殊人群复核点"}
@@ -472,6 +473,13 @@ JSON要求：
 - M03 必须利用与本病相关的病程轨迹和安全状态，包括起病时程、稳定/加重/缓解、复发或无新发等已记录事实；它们可进入 westernDiagnosis.supportingFacts 或相应病机节点，不得因只关注证型而遗漏。未记录的轨迹不得补写。
 - 必须逐条区分 current/recent、historical、negated 和 unknown。既往稳定疾病、后遗症、已缓解事件以及“当前稳定/无新发”只能作为背景、限制或鉴别边界；没有本次活动性变化时，不得升级为 westernDiagnosis.primary、主证候、P1 核心病机或主要治疗目标。
 - westernDiagnosis.primary 必须优先解释本次主诉与当前主要功能问题；高血压等共病只有在本次主诉以其为主要评估目标时才可列为主诊断，否则放入鉴别、背景或管理建议。已记录的 SpO2、HbA1c、eGFR 等客观指标必须进入 supportingFacts，不得被舌脉或一般描述挤出。
+- candidate.formulaAnalysis 写**本方的方解**，不是逐味功效的罗列：君药解决本例哪一层病机、
+  臣药如何助君或治兼证、佐药为何在此（佐助/佐制/反佐）、使药如何调和或引经，
+  以及药对之间的相使、相畏、相恶关系。必须点到本方实际用到的药名（至少 2 味），
+  不得提到本方没有的药，不得写剂量（剂量在药味表里）。
+  反例（线上实测，不要这样写）：把每味药的通用功效抄一遍拼成一段；
+  或写「君药，本方中的具体配伍作用需医生结合方义复核」这类占位话术。
+  写不出来就留空——服务端会按病机分组生成一版兜底，比一段套话强。
 - westernDiagnosis.primary.supportingFactKinds 给 supportingFacts 逐条分类，医生页面按类分栏呈现：
   symptom=患者自述的症状（发热、咳嗽咳黄脓痰、咽痛）；sign=查体所见的体征（咽部充血(++)、双肺呼吸音粗、体温38.5℃）；
   exam=检验检查结果（血常规、影像、肺功能）。fact 必须与 supportingFacts 中某一条**逐字相同**，

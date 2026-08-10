@@ -5281,7 +5281,7 @@ function ResultTabsV2({
           order={sectionOrder("M04-formula", 2)}
           id="cdss-section-formula-analysis"
           title="方义解析"
-          subtitle="全方结构与配伍思路（逐味意义已并入此段，不再逐行重复）"
+          subtitle="君臣佐使配伍关系与佐制、相使相畏"
           contractIds="M04-formula"
           rendererId="formula-analysis-section"
         >

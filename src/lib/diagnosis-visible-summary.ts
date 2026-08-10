@@ -4,6 +4,8 @@ import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirem
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
 import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
 import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesisCells, normalizeFormulaStructureRole } from "./herb-target-contract";
+// 剂量写法判据复用 M04 那条已导出的，不写第二份。
+import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel } from "./clinical-polarity";
 import { getM03TherapyLock } from "./m03-therapy-lock";
@@ -1347,6 +1349,30 @@ export function applyDeterministicHerbPrescriptionRoles(content: string): string
   }
 }
 
+/**
+ * 方解是不是在讲**本方**。三条都是可机检的形态判据，不猜临床对错——
+ * 「这段方解写得好不好」是模型与独立复核的活，这里只挡三件事：
+ * 讲的不是本方、提到本方没有的药、把剂量写进方解。
+ */
+function formulaAnalysisIsGroundedInCandidate(text: string, candidateHerbs: readonly string[]): boolean {
+  if (text.length < 24 || text.length > 1200) return false;
+  if (PRECAUTION_DOSE_LIKE.test(text)) return false;
+  const own = new Set(candidateHerbs.map((name) => name.replace(/\s+/g, "")));
+  let mentioned = 0;
+  for (const name of own) if (name && text.includes(name)) mentioned += 1;
+  if (mentioned < Math.min(2, own.size)) return false;
+  // 扫出文中所有受治理药名，必须全部属于本方。窗口 2–4 字覆盖绝大多数饮片名。
+  for (let index = 0; index < text.length; index += 1) {
+    for (let width = 4; width >= 2; width -= 1) {
+      const token = text.slice(index, index + width);
+      if (token.length < width) continue;
+      if (own.has(token)) break;
+      if (isKnownTcmHerbName(token)) return false;
+    }
+  }
+  return true;
+}
+
 export function applyDeterministicFormulaAnalysis(content: string): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -1369,7 +1395,27 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
         })),
         markdownCell(candidate.therapyMatch),
       );
-      if (analysis) candidate.formulaAnalysis = analysis;
+      // 方解交给模型写，服务端拼接只作**兜底**。
+      //
+      // 【改之前】提示词里根本没有 formulaAnalysis 这个字段——模型从没被问过方解，
+      // 这一段 100% 是服务端按「病机分组 + 逐味 function」拼出来的。甲方实测的两个症状
+      // （「方解仍是通用功效拼接」「桂枝出现占位复核话术」）都是这么来的：
+      // 逐味 function 取不到本方作用时会回落成「君药，本方中的具体配伍作用需医生结合方义复核」，
+      // 拼进方解就成了医生看到的那句占位话术。
+      // 这与已经修过的逐味方义是同一个形状：服务端拼接冒充临床内容。
+      //
+      // 【改之后】模型写整段方解（君臣佐使如何配伍、为何这样配、相使相畏），
+      // 确定性层只校验三条可机检项，过不了才回落到拼接版：
+      //   · 必须真的在讲**本方**：至少点到本方 2 味药；
+      //   · 不得提到本方没有的药（防止把别的方的方解套过来）；
+      //   · 不得写剂量（剂量在药味表里，方解里出现即越权）。
+      const authored = markdownCell(candidate.formulaAnalysis);
+      const authoredHerbs = herbs.map((herb) => markdownCell(herb.name)).filter(Boolean);
+      if (authored && formulaAnalysisIsGroundedInCandidate(authored, authoredHerbs)) {
+        candidate.formulaAnalysis = authored;
+      } else if (analysis) {
+        candidate.formulaAnalysis = analysis;
+      }
     }
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
   } catch {

@@ -417,6 +417,47 @@ ok("营销词被驳回并回落", BOILERPLATE.test(functionAfter("美容养颜�
     !rule("附子").oneOf.some((alternatives) => alternatives.includes("先煎")));
 }
 
+// ── ⑧ 方解：模型写，服务端拼接只作兜底 ────────────────────────────────────
+//
+// 甲方实测两条症状：「方解仍是通用功效拼接」「桂枝出现占位复核话术」。根因是
+// formulaAnalysis **100% 由服务端拼**（提示词里根本没这个字段），拼料是逐味 function，
+// 而 function 取不到本方作用时会回落成「君药，本方中的具体配伍作用需医生结合方义复核」。
+{
+  const { applyDeterministicFormulaAnalysis } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const analysisAfter = (text) => {
+    const payload = `${START}\n${JSON.stringify({
+      schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+      therapy: { overallMethod: "辛温解表，宣肺平喘" },
+      formula: { candidates: [{ name: "麻黄汤", therapyMatch: "辛温解表", formulaAnalysis: text,
+        herbs: [
+          { name: "麻黄", role: "君", dose: "9g", targetPathogenesis: "风寒束表", function: "发汗解表，宣肺平喘" },
+          { name: "桂枝", role: "臣", dose: "6g", targetPathogenesis: "风寒束表", function: "君药，本方中的具体配伍作用需医生结合方义复核" },
+          { name: "杏仁", role: "佐", dose: "9g", targetPathogenesis: "肺气上逆", function: "降利肺气" },
+          { name: "甘草", role: "使", dose: "3g", targetPathogenesis: "调和诸药", function: "调和诸药" },
+        ] }] },
+    })}\n${END}`;
+    const out = applyDeterministicFormulaAnalysis(payload);
+    return String(JSON.parse(out.slice(out.indexOf(START) + START.length, out.indexOf(END)).trim())
+      .formula.candidates[0].formulaAnalysis || "");
+  };
+  const GOOD = "本方以麻黄为君，开腠发汗、宣肺平喘，直解风寒束表之闭；桂枝为臣，助麻黄透营达卫、解肌发表，二药相须，发汗之力倍增。杏仁为佐，降利肺气，与麻黄一宣一降，复肺之开合。甘草为使，调和诸药并缓麻桂之峻，使汗出而不伤正。";
+  ok("模型写的合格方解原样保留", analysisAfter(GOOD) === GOOD);
+  ok("模型留空时回落到服务端拼接版", analysisAfter("").includes("麻黄"));
+  ok("提到本方没有的药（石膏）被驳回",
+    analysisAfter("本方以麻黄为君，桂枝为臣，另加石膏清泄郁热，共成辛凉之剂。") !== "本方以麻黄为君，桂枝为臣，另加石膏清泄郁热，共成辛凉之剂。");
+  ok("方解里写剂量被驳回",
+    analysisAfter("本方以麻黄9g为君发汗解表，桂枝6g为臣助其发表。").includes("麻黄（君）"));
+  ok("未点到本方药名的通用套话被驳回",
+    analysisAfter("本方配伍严谨，君臣佐使分明，共奏其效，具体配伍作用需医生结合方义复核。").includes("麻黄（君）"));
+  // 提示词必须真的向模型要这个字段，否则「交回模型」又是空话。
+  {
+    const prompts = await import("node:fs").then((fs) =>
+      fs.readFileSync(path.join(repoRoot, "src/lib/diagnosis-prompts.ts"), "utf8"));
+    ok("M04 模板含 formulaAnalysis 字段", /"formulaAnalysis":/.test(prompts));
+    ok("提示词说明方解不是逐味功效罗列", /不是逐味功效的罗列/.test(prompts));
+  }
+}
+
 if (failures.length > 0) {
   console.error("[test:llm-adjudication-boundaries] 失败项：");
   for (const item of failures) console.error("  - " + item);
