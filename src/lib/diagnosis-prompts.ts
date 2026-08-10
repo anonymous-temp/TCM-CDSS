@@ -399,7 +399,7 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
   "candidate": {
     "name": "与M03锁定方名一致的候选方名称",
     "herbs": [
-      {"name":"药名","processing":null,"dose":"10g","role":"君","targetKind":"pathogenesis_node","targetRef":"P1","structureRole":null,"isToxic":false,"decoctionRequirement":null}
+      {"name":"药名","processing":null,"dose":"10g","role":"君","targetKind":"pathogenesis_node","targetRef":"P1","structureRole":null,"function":"该药在本方中承担的具体作用","isToxic":false,"decoctionRequirement":null}
     ],
     "decoction": {"doseCount":"5剂","dosesPerDay":1,"administrationTimesPerDay":2}
   },
@@ -935,6 +935,7 @@ ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 - temper：制约峻烈、缓和药性
 
 M04 提案不允许重写 overview、pathogenesis、therapy 或 lineageAdaptation；服务端将从已签名 M03 原样复制这些字段。若 M03 推荐方向含明确命名方，唯一 candidate.name 和实际 herbs[] 必须承接该方。M03 只给一个命名方时不得扩成合方；给出“或/酌选”等备选时只能选择其中一个，不得夹带未列方。所有实际药味都必须进入唯一候选的 herbs[]。
+每味药的 function 写「这一味在**本方**里做什么」，不是罗列它的全部功效：一句话，10–30 字，用词必须取自该药已收载的功效（服务端按受治理知识库逐条核对，用词超出该药收载功效范围会被驳回并回落到服务端文本），并指向它承担的那条治法方向。反例：茯苓写「利水渗湿，健脾，宁心安神」是罗列全部功效；本方取其健脾渗湿以杜生痰之源时，就写「健脾渗湿，杜生痰之源」。清热/活血/温阳/攻下这类高影响方向只有在该药确实收载该功效时才可写。
 每味药必须引用后附【M04药味可引用病机节点】中的节点或方内结构作用枚举。每个候选必须恰有 1–2 味君药，且这些君药全部直接引用 P1；君/臣药只能使用 pathogenesis_node；佐/使药使用 formula_structure 时必须选择一个结构枚举。臣药的引用节点必须不同于君药，整方药味必须覆盖 M03 各主要治法方向，服务端按 targetRef/structureRole 逐味生成“角色＋治法方向”的治法→药味映射，重复引用会产生重复方义。不得把肝郁、痰湿、血瘀等 M03 未确认病机塞进自由文本；服务端会忽略模型自写 targetPathogenesis，并根据 targetRef/structureRole 生成最终可见内容。
 
 只输出一个 JSON 对象，不要生成哨兵、Markdown 正文、表格或 JSON 之外的任何内容。服务端会把最小提案编译为完整 V2 契约，并在药味剂量校验、方剂出处复核和证据净化后确定性生成医生可见报告。这样可以确保页面、报告、审方与 HIS 使用同一份方名、药味和剂量。

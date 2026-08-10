@@ -422,6 +422,8 @@ export interface ClinicalReasoningResultV2 {
       modificationStatus?: "canonical" | "modified";
       identityDeclassified?: boolean;
       identityDeclassificationReason?: "classic_composition_unverified_after_repair";
+      /** 剥名前 M03 锁定的方名。剥名时必须让医生看到系统原本想开什么，否则两页互相矛盾。 */
+      declassifiedFromFormulaNames?: string[];
       baseFormulas?: Array<{
         name: string;
         source: string;
@@ -957,6 +959,7 @@ const PrescriptionCandidateSchema = z.object({
   modificationStatus: z.enum(["canonical", "modified"]).optional(),
   identityDeclassified: z.boolean().optional().catch(undefined),
   identityDeclassificationReason: z.literal("classic_composition_unverified_after_repair").optional().catch(undefined),
+  declassifiedFromFormulaNames: z.array(z.string().max(120)).max(4).optional().catch(undefined),
   baseFormulas: z.array(z.object({
     name: z.string().max(300).catch(""),
     source: z.string().max(800).catch(""),

@@ -99,6 +99,9 @@
       "治颈项头面白驳及白秃方@《集验方》:9味",
       "治马咋踏及诸马物伤人方@《集验方》:16味"
     ],
+    "diseaseNamedEntriesDisqualified": [
+      "痰饮@《时方妙用》"
+    ],
     "collationRewritten": [
       "槐角地榆汤@《外科大成》 → 《证治准绳·类方》痔门（四库本总卷三十二）:8味"
     ],
@@ -143,9 +146,9 @@
     "varietyFlexibleFormulaCount": 122,
     "varietyUndeterminedFormulaCount": 100,
     "governedFormulaCount": 2969,
-    "prescriptionLockEligibleCount": 2911,
-    "identityLockEligibleCount": 2911,
-    "doseCompilationEligibleCount": 2548,
+    "prescriptionLockEligibleCount": 2910,
+    "identityLockEligibleCount": 2910,
+    "doseCompilationEligibleCount": 2547,
     "symptomTaggedFormulaCount": 1110,
     "diseaseTaggedFormulaCount": 369,
     "syndromeTaggedFormulaCount": 2302,
@@ -216471,12 +216474,14 @@
       "governanceStatus": "project_reference_verified",
       "displayName": "痰饮",
       "retrievalEligible": true,
-      "identityLockEligible": true,
-      "prescriptionLockEligible": true,
-      "doseCompilationEligible": true,
+      "identityLockEligible": false,
+      "prescriptionLockEligible": false,
+      "doseCompilationEligible": false,
       "requiresPatientSpecificDoseCompilation": true,
       "requiresPostPrescriptionAudit": true,
-      "identityBlockingReasons": [],
+      "identityBlockingReasons": [
+        "formula_name_is_governed_disease_or_syndrome_term"
+      ],
       "doseBlockingReasons": [],
       "controlledToxicIngredientNames": [],
       "controlledToxicNotice": "",
@@ -216487,7 +216492,9 @@
       "clinicianDoseIngredientNames": [],
       "varietyUndeterminedIngredients": [],
       "varietyFlexibleIngredients": [],
-      "blockingReasons": []
+      "blockingReasons": [
+        "formula_name_is_governed_disease_or_syndrome_term"
+      ]
     },
     {
       "id": "TCM-FORMULA-256B030FA5FB",

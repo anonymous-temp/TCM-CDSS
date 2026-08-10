@@ -11,6 +11,7 @@ import csv
 import hashlib
 import json
 import re
+from functools import lru_cache
 import unicodedata
 from collections import defaultdict
 from pathlib import Path
@@ -868,6 +869,38 @@ def resolve_catalog_removals(
 FORMULA_DOSAGE_FORM_SUFFIX = re.compile(r"(?:汤|丸|散|膏|丹|饮|煎|酒|片|胶囊|颗粒|锭|饼|栓|露|浆|油|汁|茶|锭子)$")
 COLLATED_CHAPTER_ENUMERATION = re.compile(r"[及并、]|诸")
 COLLATED_CHAPTER_MIN_INGREDIENTS = 8
+
+
+@lru_cache(maxsize=1)
+def governed_disease_and_syndrome_names() -> frozenset[str]:
+    """受治理病名/证候名的规范名集合（只取 canonical，不取别名）。
+
+    别名不取：别名里混着「风热外感」这种既像病名又像证候描述的词，
+    而真方名里也确实存在与别名同形的（如「感冒清热颗粒」不是裸名、不受影响，
+    但收窄到 canonical 才能保证「一个词单独成名时确实是病名」这条判据成立）。
+    """
+    names: set[str] = set()
+    for file_name in ("tcm-disease-lexicon.json", "tcm-syndrome-lexicon.json"):
+        payload = read_json(DATA_ROOT / file_name)
+        for item in [*payload.get("entries", []), *payload.get("clinicalExtensions", [])]:
+            canonical = compact(item.get("canonical"))
+            if len(canonical) >= 2:
+                names.add(canonical)
+    return frozenset(names)
+
+
+def is_disease_name_masquerading_as_formula(name: str) -> bool:
+    """方名字段里存的其实是**病名/证候名**——这样的条目不能拿去命名医生的处方。
+
+    实测：「痰饮」《时方妙用》，组成 陈皮、半夏、茯苓、甘草——那是二陈汤，
+    方名字段存的是它所在章节的病名。它只有 4 味且与二陈汤组成完全相同，
+    于是在命名层与二陈汤等重叠度竞争，医生可能看到「候选方：痰饮」。
+    与章节伪方是同一类抽取错位，只是错的是**方名**这一栏而不是组成那一栏。
+
+    判据要求**整名逐字等于**受治理病名/证候规范名：
+    「痰饮」命中；「痰饮丸」「二陈汤」「感冒清热颗粒」这类带剂型或修饰的一律不命中。
+    """
+    return compact(name) in governed_disease_and_syndrome_names()
 
 
 def is_collated_chapter_entry(name: str, ingredients: list[object]) -> bool:
@@ -1752,6 +1785,7 @@ def build_formula_catalog(
     dropped_name_composition_mismatches: list[str] = []
     dropped_collated_chapters: list[str] = []
     quarantined_collated_chapters: list[str] = []
+    disease_named_entries: list[str] = []
     restored_name_composition: list[str] = []
     renamed_name_composition: list[str] = []
     for name, item in sorted(governed.items()):
@@ -1800,6 +1834,11 @@ def build_formula_catalog(
             identity_blocking_reasons.append("collation_proper_name_or_route_denies_identity_lock")
         # 章节题被压成的合抄组成不得命名、不得编译剂量（见 is_collated_chapter_entry）。
         # 中医师已逐条核过的两条走删除；其余只取消资格并进复核队列，等回源拆分。
+        # 方名字段里存的其实是病名/证候名（痰饮《时方妙用》= 二陈汤的组成）。
+        # 不能拿它去命名医生的处方，但它仍是有价值的文献记录，故只取消命名资格、保留检索。
+        if is_disease_name_masquerading_as_formula(name):
+            identity_blocking_reasons.append("formula_name_is_governed_disease_or_syndrome_term")
+            disease_named_entries.append(f"{name}@{item.get('source') or ''}")
         if is_collated_chapter_entry(name, item["ingredients"]):
             identity_blocking_reasons.append("composition_is_collated_chapter_requires_source_split")
             quarantined_collated_chapters.append(f"{name}@{item.get('source') or ''}:{len(item['ingredients'])}味")
@@ -2017,7 +2056,10 @@ def build_formula_catalog(
         #   · historical_only（钩吻/铅/砷等历史毒物，或药材已不可辨识）⇒ 只留档，取消检索。
         retrieval_denied_reasons = {
             reason for reason in identity_blocking_reasons
-            if reason != "collation_proper_name_or_route_denies_identity_lock"
+            if reason not in {
+                "collation_proper_name_or_route_denies_identity_lock",
+                "formula_name_is_governed_disease_or_syndrome_term",
+            }
         }
         retrieval_eligible = not retrieval_denied_reasons and item.get("collationRetrievalAllowed", True)
         entries.append({
@@ -2168,6 +2210,7 @@ def build_formula_catalog(
             # 结构上同类但尚未逐条回源核定因而只取消资格的条目。
             "collatedChapterDropped": dropped_collated_chapters,
             "collatedChapterQuarantined": sorted(quarantined_collated_chapters),
+            "diseaseNamedEntriesDisqualified": sorted(disease_named_entries),
             "collationRewritten": applied_rewrites,
             "collationAdded": sorted(item["name"] for item in collation["additions"]),
             "varietyFlexibleFormulaCount": sum(bool(item.get("varietyFlexibleIngredients")) for item in entries),

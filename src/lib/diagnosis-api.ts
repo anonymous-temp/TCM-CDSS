@@ -541,6 +541,15 @@ export function markTransparentFormulaDeclassification(
           } : {}),
           identityDeclassified: true,
           identityDeclassificationReason: "classic_composition_unverified_after_repair",
+          // 记下剥名前 M03 锁的是什么。不记的后果实测可见：M03 页写「推荐方：麻黄汤」，
+          // M04 页给一张不含麻黄的自拟方，两页互相矛盾且医生无从判断系统是换了方向
+          // 还是组成没对上——可信度直接归零。呈现见 diagnosis-visible-summary 的
+          // 「处方身份说明」。这里只记录，不改变任何门禁判定。
+          declassifiedFromFormulaNames: [...new Set([
+            ...(Array.isArray(candidate.formulaNames) ? candidate.formulaNames : []),
+            ...(typeof candidate.name === "string" && candidate.name.trim()
+              && !/本例辨证组方/.test(candidate.name) ? [candidate.name.trim()] : []),
+          ].filter((value): value is string => typeof value === "string" && value.trim().length > 0))].slice(0, 4),
         };
         return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(parsed)}\n<!-- DIAGNOSIS_JSON_END -->`;
       } catch {

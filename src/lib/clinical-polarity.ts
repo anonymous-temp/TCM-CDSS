@@ -189,13 +189,50 @@ function polarityInScope(polarity: ClinicalClausePolarity, scope: ClinicalPolari
  *     以免漏掉本该触发的警告；在这里补否定 = 少一条警告，方向恰好相反。
  * 因此增补集在 affirmed_or_uncertain 下被完全忽略。
  */
-export type AssistedNegationClauses = ReadonlySet<string>;
+/**
+ * 双向语义极性裁决（2026-08-10）。原来只有否定方向一个 Set，现在两个方向各一个。
+ *
+ * 为什么需要阳性方向：中医里「无汗」「不渴」「不恶寒」是**证候的定义性指征**，不是
+ * 「没有该症状」。实测风寒表实的教科书主诉「恶寒发热，无汗，头痛，身痛，脉浮紧」，
+ * 召回侧只拿到 3 条事实——无汗、头痛、身痛全被剥掉；而「无汗」恰恰是表实证区别于
+ * 桂枝汤证的眼目。头痛/身痛是被「无汗」的否定作用域顺着逗号带走的。
+ *
+ * 为什么不能用规则解决：同一个「无汗」，在四诊主诉里是阳性体征，在系统回顾式否认
+ * （「无汗出、无心悸、无胸闷」）里是真否定。**规则层没有能区分两者的信号**，
+ * 而把患者的否认读成阳性体征比原缺陷更危险——这条判断本仓库早有定论
+ * （见 clinical-vocabulary.ts 的 affirmativeNegationFormsIn 注释）。所以交给模型，
+ * 但把它关进受治理闭集：只有含 tcm-affirmative-negation-forms.json 里那 68 条词的分句
+ * 才进候选，模型只能返回候选序号、不能引入任何新文本。
+ *
+ * 副作用是正向的：分句被判阳性后 inheritedPolarity 随之变阳性，
+ * 后续的「头痛」「身痛」不再继承否定——一处裁决同时修好被误删的词与被带走的下文。
+ */
+export type AssistedPolarityDecisions = {
+  /** 确定性层判阳性、实为口语否定的分句。 */
+  negated: ReadonlySet<string>;
+  /** 确定性层判否定、实为阴性形式阳性体征的分句（受治理闭集内）。 */
+  affirmed: ReadonlySet<string>;
+};
+
+/** 兼容旧形态：单个 Set 等价于「只有否定方向」。 */
+export type AssistedNegationClauses = ReadonlySet<string> | AssistedPolarityDecisions;
+
+function assistedDirections(value?: AssistedNegationClauses): {
+  negated?: ReadonlySet<string>;
+  affirmed?: ReadonlySet<string>;
+} {
+  if (!value) return {};
+  if (value instanceof Set) return { negated: value as ReadonlySet<string> };
+  const decisions = value as AssistedPolarityDecisions;
+  return { negated: decisions.negated, affirmed: decisions.affirmed };
+}
 
 export function affirmedClinicalText(
   value: string | null | undefined,
   scope: ClinicalPolarityScope = "affirmed",
   assistedNegations?: AssistedNegationClauses,
 ): string | undefined {
+  const assisted = assistedDirections(assistedNegations);
   const normalized = value ? normalizedClinicalText(value) : "";
   if (!normalized) return undefined;
 
@@ -224,9 +261,16 @@ export function affirmedClinicalText(
         !hasIndependentAffirmedAssertion(clause, Boolean(discourseMatch))) {
       polarity = inheritedPolarity;
     }
-    // 语义否定增补：只在证据类 scope 下、确定性层未判为否定时生效，且只能朝否定方向改写。
-    if (scope === "affirmed" && explicitPolarity !== "negative" && assistedNegations?.has(clause)) {
+    // 语义否定增补：只在证据类 scope 下、确定性层未判为否定时生效。
+    if (scope === "affirmed" && explicitPolarity !== "negative" && assisted.negated?.has(clause)) {
       polarity = "negative";
+    }
+    // 语义阳性增补：只在证据类 scope 下生效。候选池在 polarity-negation-assist.server.ts
+    // 里已被限定为「含受治理阴性形式阳性体征词」的分句，模型只能在其中挑选。
+    // 与否定方向一样，**绝不作用于 affirmed_or_uncertain**——审方/方剂禁忌那一侧
+    // 故意保留未消解表述以免漏警告，在那里把否定改成阳性等于凭空造出一条用药依据。
+    if (scope === "affirmed" && assisted.affirmed?.has(clause)) {
+      polarity = "affirmed";
     }
 
     if (polarityInScope(polarity, scope)) {

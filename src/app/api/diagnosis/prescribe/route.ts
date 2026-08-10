@@ -1,6 +1,6 @@
 import { callDiagnosisStream } from "@/lib/diagnosis-api";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
-import { assistedNegationClauses } from "@/lib/polarity-negation-assist.server";
+import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
@@ -172,7 +172,7 @@ export async function POST(req: Request) {
   //
   // 并行结构与 diagnose 对齐：assistedNegations 只被 buildLocalPatentMedicineContext 消费，
   // 而 EviMed 那条慢腿不依赖它。原写法把两者串成一条 then 链，等于让 EviMed 白等 6s。
-  const assistedNegationsPromise = assistedNegationClauses(safeState, req.signal);
+  const assistedNegationsPromise = assistedPolarityDecisions(safeState, req.signal);
   const [medicinePlan, baseEvidenceContext, inventoryContext] = await Promise.all([
     planEvidenceBoundMedicineCandidates(safeState, req.signal),
     assistedNegationsPromise.then((assistedNegations) =>

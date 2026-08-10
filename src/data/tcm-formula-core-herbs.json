@@ -1,7 +1,7 @@
 {
  "schemaVersion": "tcm-formula-core-herbs-v1",
  "generatedFrom": "src/data/tcm-formula-governed-catalog.json",
- "formulaCount": 2911,
+ "formulaCount": 2910,
  "formulas": {
   "《千金》内补散": {
    "core": [],
@@ -27334,20 +27334,6 @@
    ],
    "reasons": {
     "朱砂": "safety_defining"
-   }
-  },
-  "痰饮": {
-   "core": [
-    "半夏",
-    "陈皮"
-   ],
-   "optional": [
-    "甘草",
-    "茯苓"
-   ],
-   "reasons": {
-    "半夏": "safety_defining",
-    "陈皮": "collapses_into:消暑丸"
    }
   },
   "瘿瘤方": {

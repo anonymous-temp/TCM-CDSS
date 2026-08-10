@@ -182,6 +182,27 @@ for (const name of ["二母散", "当归贝母苦参丸", "千缗汤"]) {
   ok(`无「只写中风寒/湿/水/冷」却判脑卒中的条目（现 ${leakedStroke.length} 条）`, leakedStroke.length === 0);
 }
 
+// ── ④'' 方名字段里存的其实是病名/证候名 ────────────────────────────────────
+// 「痰饮」《时方妙用》的组成是 陈皮、半夏、茯苓、甘草——那是二陈汤，方名栏存的是章节病名。
+// 它只有 4 味且与二陈汤组成完全相同，在命名层与二陈汤等重叠度竞争，
+// 医生可能看到「候选方：痰饮」。与章节伪方同类，只是错的是方名那一栏。
+{
+  const diseaseNamed = catalog.summary.diseaseNamedEntriesDisqualified || [];
+  ok("痰饮已取消命名资格", byName.get("痰饮")?.identityLockEligible === false);
+  ok("痰饮仍保留检索（仍是有价值的文献记录）", byName.get("痰饮")?.retrievalEligible === true);
+  ok("痰饮记入取消清单", diseaseNamed.some((key) => key.startsWith("痰饮@")));
+  // 反向：带剂型或修饰的真方名不得被这条误伤。
+  for (const name of ["二陈汤", "银翘散", "四君子汤", "犀角地黄汤"]) {
+    const row = byName.get(name);
+    if (row) ok(`${name} 未被病名判据误伤`, row.identityLockEligible === true);
+  }
+  // 判据必须是**整名逐字等于**受治理病名，不是包含——否则「痰饮丸」这类会被连坐。
+  const overreach = catalog.entries.filter((entry) =>
+    (entry.identityBlockingReasons || []).includes("formula_name_is_governed_disease_or_syndrome_term")
+    && /(?:汤|丸|散|膏|丹|饮子|颗粒|胶囊|片)$/.test(entry.name));
+  ok(`带剂型后缀的方名未被病名判据取消（现 ${overreach.length} 条）`, overreach.length === 0);
+}
+
 // ── ⑤ 目录校勘通道 ──────────────────────────────────────────────────────────
 ok("校勘源表有 adjudicationRef", typeof collation.adjudicationRef === "string" && collation.adjudicationRef.length > 0);
 ok("校勘源表有 sourceRefs", Array.isArray(collation.sourceRefs) && collation.sourceRefs.length > 0);

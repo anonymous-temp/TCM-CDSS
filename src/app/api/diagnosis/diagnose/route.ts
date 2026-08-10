@@ -1,7 +1,7 @@
 import { callDiagnosisStream } from "@/lib/diagnosis-api";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normalization.server";
-import { assistedNegationClauses } from "@/lib/polarity-negation-assist.server";
+import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
   // 两个增补层互不依赖，并发跑；任一不可用都静默退回确定性行为。
   const [formulaRecallHint, assistedNegations] = await Promise.all([
     normalizeCaseTextForFormulaRecall(safeState, req.signal),
-    assistedNegationClauses(safeState, req.signal),
+    assistedPolarityDecisions(safeState, req.signal),
   ]);
   // L1b 只在 L1a 的受控证候 ID 闭集内做最多 +20% 的召回重排；失败、超时或非法输出均返回空集，
   // 下游严格保持 L1a 原顺序。它不写病历、不做诊断、不绕过方名身份锁。

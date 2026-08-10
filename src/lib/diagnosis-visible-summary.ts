@@ -1,4 +1,4 @@
-import { discriminatingWesternSupportClauses, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
+import { discriminatingWesternSupportClauses, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
 import { isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
@@ -1246,6 +1246,24 @@ export function applyDeterministicHerbFunctions(content: string): string {
             ...recordList(recordValue(reasoning.therapy)?.subTherapies).map((item) => markdownCell(item.therapy)),
             markdownCell(candidate.therapyMatch)].filter(Boolean).join("；"),
         ).trim();
+        // 服务端在这里的角色是**校验**，不是覆盖。
+        //
+        // 原实现无条件 `herb.function = canonicalFunction`，而 canonicalFunction 永远非空
+        // （对不上治法时会返回角色兜底句），于是模型写的方义 100% 被丢弃。
+        // 实测（当前代码在 7461 条归档药味行上重放）：35.4% 的行最终印的是
+        // 「君药，本方中的具体配伍作用需医生结合方义复核」这句零内容套话；
+        // 而这 2638 条里 KB 本就没有功效条目的是 **0 条**——全部是「库里有、
+        // 2-gram 逐字对齐没对上本方治法」。挑出该药哪一条功效适用于本方，
+        // 正是模型比逐字对齐强的地方，把这一步交回给它。
+        //
+        // 安全面为零新增：保留模型文本的前提是它通过 herbFunctionMatchesKnowledge——
+        // 与合同侧 candidate_*_herb_*_function_ungrounded 用的是**同一个**导出谓词，
+        // 高影响方向（清热/活血/温阳/攻下）必须有该药 KB 佐证、毒性药必须提毒性。
+        // 过不了就照旧回落 canonicalFunction（先 KB 对齐串、再角色兜底句）。
+        const modelFunction = markdownCell(herb.function);
+        if (modelFunction && herbFunctionMatchesKnowledge(
+          name, modelFunction, markdownCell(herb.role), markdownCell(herb.targetPathogenesis),
+        )) continue;
         if (canonicalFunction) herb.function = canonicalFunction;
       }
     }
@@ -2518,7 +2536,17 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       `## ${markdownCell(candidate.name)}`,
       ...(isSelfDevised ? ["**方案类型**：自拟方"] : isSingleHerb ? ["**方案类型**：单味方案"] : []),
       ...(candidate.identityDeclassified === true ? [
-        "**处方身份说明**：实际组成未沿用原命名经方身份，不代表原方或经典出处；请按当前完整药味与剂量重新审方。",
+        // 把「原本锁的是什么」一并说出来。只写「未沿用原命名经方身份」时，医生看到的是
+        // M03 页推荐麻黄汤、M04 页给一张不含麻黄的自拟方，两页互相矛盾又无从判断原因。
+        // 这里不改任何门禁判定，只是把系统已经知道、却没告诉医生的那半句补上。
+        ...(recordList(candidate.declassifiedFromFormulaNames).length > 0
+          || (Array.isArray(candidate.declassifiedFromFormulaNames)
+            && candidate.declassifiedFromFormulaNames.length > 0)
+          ? [`**处方身份说明**：M03 原锁定「${(candidate.declassifiedFromFormulaNames as string[])
+            .map((value) => markdownCell(value)).filter(Boolean).join("、")}」，`
+            + "但本方实际组成与该方受治理基准不符，已按自拟方呈现，不代表原方或经典出处；"
+            + "如需按原方开具，请补齐缺失药味后重新生成，或按当前完整药味与剂量重新审方。"]
+          : ["**处方身份说明**：实际组成未沿用原命名经方身份，不代表原方或经典出处；请按当前完整药味与剂量重新审方。"]),
       ] : []),
       ...(!isSelfDevised && !isSingleHerb && customerEvidenceDisplayStatus(formulaSource) === "traceable"
         ? [`**方剂出处**：${markdownCell(formulaSource?.source)}`]
