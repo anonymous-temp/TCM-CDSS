@@ -167,6 +167,14 @@ describe("M03 stage scope", () => {
       false,
       "citation year followed by a Chinese unit across a parenthesis must not be joined into a false dose",
     );
+    // 叠词不是剂量：患者原话「身上一片片风疙瘩，起来快消得也快」（K02 实测）。
+    assert.equal(
+      evaluateM03ScopeContract("**依据**：身上一片片风疙瘩，起来快消得也快（来源：主诉）", chart).doseExpressionPresent,
+      false,
+      "reduplicated 片片 is patient wording, not a tablet count",
+    );
+    // 反向护栏：真正的「一片」仍要判为剂量表达。
+    assert.equal(evaluateM03ScopeContract("建议每晚服一片。", chart).doseExpressionPresent, true);
     assert.equal(evaluateM03ScopeContract("## 候选处方\n仅供参考", chart).prescribeStageContentPresent, true);
   });
 });

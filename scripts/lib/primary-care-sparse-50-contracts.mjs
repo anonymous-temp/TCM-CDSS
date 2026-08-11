@@ -25,7 +25,9 @@ const NUMBER_TOKEN = String.raw`(?:[0-9０-９]+(?:[.．][0-9０-９]+)?|[零〇
 // Latin dose units require a token boundary. Without it, punctuation-insensitive comparison can
 // turn clinical scale names such as "PHQ-9、GAD-7" into "9 gad" and misclassify the leading g of
 // GAD as a gram dose. Chinese units intentionally keep their ordinary adjacent-text behaviour.
-const DOSE_UNIT = String.raw`(?:(?:mg|g|mL)(?![A-Za-z])|克|毫克|钱|毫升|剂|片|粒|丸|袋|汤匙|茶匙|滴|支|喷|揿|两(?!个?(?:月|年|周|天|日|小时|分钟)))`;
+// 叠词不是剂量：患者原话「身上**一片片**风疙瘩」里的「一片」被读成 1 片药（K02 实测）。
+// 「片片」是汉语叠词，任何剂量表述都不会写成这样，因此加一条否定前瞻即可，不影响「一片」本身。
+const DOSE_UNIT = String.raw`(?:(?:mg|g|mL)(?![A-Za-z])|克|毫克|钱|毫升|剂|片(?!片)|粒|丸|袋|汤匙|茶匙|滴|支|喷|揿|两(?!个?(?:月|年|周|天|日|小时|分钟)))`;
 const FREQUENCY_TOKEN = String.raw`(?:每日|每天|一日|日服|每次|每服|每晚|每晨|早晚|早中晚|睡前|餐前|餐后|顿服|分\s*[一二两三四五六七八九十0-9０-９]+\s*(?:次|服)|[一二两三四五六七八九十0-9０-９]+\s*次\s*(?:\/\s*日|每日)?)`;
 export const DOSE_EXPRESSION = new RegExp(`${NUMBER_TOKEN}\\s*${DOSE_UNIT}`, "i");
 export const DOSE_FREQUENCY_EXPRESSION = new RegExp(FREQUENCY_TOKEN, "i");
