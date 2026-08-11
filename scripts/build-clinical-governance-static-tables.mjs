@@ -1100,8 +1100,13 @@ const governedPlanTemplates = new Map([
     id: "qigong-post-infection-respiratory-rehab",
     indicationTag: "respiratory",
     matchAny: ["恢复期", "气短", "乏力", "呼吸康复"],
-    sitesOrPoints: ["八段锦、太极拳、五禽戏或六字诀呼吸导引（按体能选择）"],
-    techniqueBoundary: "遵循循序渐进；运动中出现胸痛、明显气促、头晕或血氧下降立即停止并评估。",
+    // 功法名不是穴位（甲方 2026-08-11 线上实测）。此前这里塞着
+    // 「八段锦、太极拳、五禽戏或六字诀呼吸导引」，医生页面把它印在「常用穴位」下面——
+    // 字段语义错了。它当初被塞进来是**被门禁逼的**：下方 siteFreeModalities 只登记了
+    // 食疗/意疗两项，气功导引本无穴位却不在集合内，sitesOrPoints 为空就会 throw。
+    // 现在把功法名归到它真正该在的位置（操作边界），并把气功登记进 siteFreeModalities。
+    sitesOrPoints: [],
+    techniqueBoundary: "功法选择：八段锦、太极拳、五禽戏或六字诀呼吸导引（按体能选择）；遵循循序渐进；运动中出现胸痛、明显气促、头晕或血氧下降立即停止并评估。",
     scheduleSuggestion: "身体活动每日累计不少于30分钟；强度和分段方式按个体体能制定。",
     sourceRefs: ["SRC-BEIJING-COVID-TCM-REHAB-2020"],
     parameterCompleteness: "modality_frequency_and_daily_duration_governed",
@@ -1188,7 +1193,12 @@ const allPlanTemplates = treatmentEntries.flatMap((item) => item.planTemplates.m
 // 食疗/意疗 are governed modalities with no anatomical site and no fixed course; requiring a
 // site or a frequency token would force fabricated parameters, which M04-08 forbids. They still
 // must carry indication scope, an explicit review cadence and a registered source.
-const siteFreeModalities = new Set(["diet_therapy", "mind_therapy"]);
+// 气功导引同属此类：它给的是功法与运动量，没有解剖学取穴点。
+// 2026-08-11 之前它不在这个集合里，于是模板被迫用一句功法名占住 sitesOrPoints 过闸——
+// 门禁把一个字段语义错误逼了出来。运行时的同一判据 tcmTreatmentProjectIsPointFree
+// 是从数据反推的（模板 sitesOrPoints 全空即判 point-free），两处方向相反；
+// 数据改空之后两处自动一致。
+const siteFreeModalities = new Set(["diet_therapy", "mind_therapy", "qigong_daoyin"]);
 if (allPlanTemplates.some((template) =>
   template.matchAny.length === 0 ||
   (!siteFreeModalities.has(template.projectCode) && template.sitesOrPoints.length === 0) ||

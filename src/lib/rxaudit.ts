@@ -44,6 +44,14 @@ export type RxAuditIssue = {
   evidence: Array<{ sourceType?: string; sourceName?: string; quote?: string; ruleName?: string; sourceUrl?: string | null; year?: string | null }>;
   suggestions: string[];
   patientApplicability?: "applicable" | "not_applicable" | "unknown";
+  /**
+   * 本条告警落在**我方有意不提交单次剂量**的中成药/西药上（2026-08-11 线上实测）。
+   *
+   * 打标不删条目：provider 的每一条 issue 与 issueId 原样保留在数组里，
+   * audit_result 与 highest_risk_level 一字不动（本地只能上调不能下调）。
+   * 只是呈现层把它从「合理用药审方」风险表里挪到范围说明，不再与真实配伍/禁忌风险同格。
+   */
+  scope?: "declared_non_dose";
 };
 
 export type RxAuditOutcome =
@@ -1412,6 +1420,57 @@ export function buildUnavailableRxAuditSection(reason: string): string {
   ].join("\n");
 }
 
+/**
+ * 我方**有意不提交单次剂量**的那些行（2026-08-11 线上实测）。
+ *
+ * 系统对中成药/西药明确不下单次剂量——编译器把 singleDose/frequency/route 置空、
+ * course 写死「本候选不形成疗程医嘱」，提交给审方的 item 里干脆没有 single_dose 字段。
+ * 这是有意的 fail-closed 设计（不向审方伪造剂量），提交侧写得清清楚楚。
+ *
+ * 但这条判据此前**只写在提交侧**：灵犀按协议对每条无 single_dose 的 item 回一条
+ * 「未提供可识别的单次剂量」告警，回包路径上没有这条判据的任何副本，于是它和真实的
+ * 配伍禁忌、相互作用同格渲染进风险表，还向下游放大——抬高处方安全总评、被拼进随访触发条件、
+ * 原样写回 HIS。医生看到的是一串必然出现、且我方自己造成的告警。
+ *
+ * 本仓库标志性形状：同一判据两处各写各的。本地 buildAuditInputAdvisories 里早就写着
+ * 「缺剂量只对中药饮片成立」（`if (item.drug_type !== "中药饮片") return []`），
+ * 回包侧却没有。这里把它收敛成导出谓词，提交侧与回包侧共用**同一份事实**：
+ * 行号集合直接读 buildAuditData 已构造好的清单，不重新推导，杜绝漂移。
+ */
+export function declaredNonDoseItemNos(data: Record<string, unknown> | null | undefined): Set<number> {
+  const prescription = data && typeof data === "object" ? (data as { prescription?: unknown }).prescription : undefined;
+  const items = prescription && typeof prescription === "object"
+    ? (prescription as { items?: unknown }).items
+    : undefined;
+  const result = new Set<number>();
+  for (const raw of Array.isArray(items) ? items : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    const drugType = String(item.drug_type || "");
+    if (drugType !== "中成药" && drugType !== "西药") continue;
+    if ("single_dose" in item && String(item.single_dose || "").trim()) continue;
+    const itemNo = Number(item.item_no);
+    if (Number.isInteger(itemNo)) result.add(itemNo);
+  }
+  return result;
+}
+
+/** 剂量缺失类告警的判据。禁忌/相互作用/重复用药一条不动——它们落在同一行上也照常呈现。 */
+const DECLARED_NON_DOSE_ISSUE_TEXT = /未提供.{0,8}单次剂量|无法识别的剂量|剂量适宜性审核/;
+
+export function isDeclaredNonDoseScopeIssue(
+  issue: Pick<RxAuditIssue, "issueType" | "issueId" | "title" | "description" | "relatedItemNos">,
+  nonDoseItemNos: ReadonlySet<number>,
+): boolean {
+  if (nonDoseItemNos.size === 0) return false;
+  const rows = issue.relatedItemNos || [];
+  // 必须**整条**都落在有意不下剂量的行上：一条同时牵涉饮片的告警不得被归入范围说明。
+  if (rows.length === 0 || !rows.every((row) => nonDoseItemNos.has(row))) return false;
+  const looksLikeDoseInput = String(issue.issueType || "").toUpperCase() === "INPUT_QUALITY" ||
+    /RX-INPUT-DOSE/i.test(String(issue.issueId || ""));
+  return looksLikeDoseInput && DECLARED_NON_DOSE_ISSUE_TEXT.test(`${issue.title || ""}；${issue.description || ""}`);
+}
+
 /** Mechanical M04 defects that should be prevented before a candidate reaches the advisory audit. */
 export function isMechanicallyPreventableAuditIssue(
   issue: Pick<RxAuditIssue, "issueType" | "title" | "description">,
@@ -1570,7 +1629,12 @@ export async function auditPrescriptionWithLingxi(
       return { ok: false, source: "unavailable", reason: `rxaudit_business_${parsedRecord.code ?? "error"}`, itemCount: built.itemCount };
     }
     const d = parsedRecord.data as Record<string, unknown>;
-    const issues = dedupeRxAuditIssues(normalizeIssues(d.issues));
+    // 打标而非删除：provider 的每条 issue 与 issueId 原样保留（本地不过滤供方告警），
+    // 只给「落在我方有意不下剂量的行上、且属剂量缺失类」的条目加一个 scope，供呈现层归位。
+    const nonDoseItemNos = declaredNonDoseItemNos(built.data);
+    const issues = dedupeRxAuditIssues(normalizeIssues(d.issues)).map((issue) => (
+      isDeclaredNonDoseScopeIssue(issue, nonDoseItemNos) ? { ...issue, scope: "declared_non_dose" as const } : issue
+    ));
     const malformedIssuesContainer = d.issues != null && !Array.isArray(d.issues);
     const decision = normalizeLingxiDecision({
       auditResult: d.audit_result,
@@ -1724,7 +1788,12 @@ export function normalizeAuditOutcomeForPatient(
 
 export function buildLingxiRiskSection(outcome: Extract<RxAuditOutcome, { ok: true }>, patientSex?: string): string {
   const effective = normalizeAuditOutcomeForPatient(outcome, patientSex);
-  const issues = effective.issues;
+  // 「我方有意不下剂量」造成的告警不与真实用药风险同格（2026-08-11 线上实测）。
+  // 条目本身**不删**——它仍在 outcome.issues 里、仍参与 needManualReview 与结论判定；
+  // 这里只是把它从风险表挪到下面一行范围说明，避免一串必然出现、且由我方设计造成的告警
+  // 挤占真实配伍禁忌的阅读位置，并顺着随访触发条件与 HIS 写回一路放大。
+  const scopeIssues = effective.issues.filter((issue) => issue.scope === "declared_non_dose");
+  const issues = effective.issues.filter((issue) => issue.scope !== "declared_non_dose");
   const auditResult = effective.auditResult;
   const highestRiskLevel = effective.highestRiskLevel;
   const needManualReview = effective.needManualReview;
@@ -1739,13 +1808,22 @@ export function buildLingxiRiskSection(outcome: Extract<RxAuditOutcome, { ok: tr
   if (needManualReview) {
     lines.push("**处置建议**：存在需重点复核的用药问题；该结果仅作提示，不阻断流程，采纳前须由医生/药师复核。");
   }
+  // 范围说明：说清哪几行按设计没有提交单次剂量、因此审方无法完成剂量适宜性审核。
+  // 依据是我方自己的提交清单，属确定性事实，不伪造任何剂量。
+  const scopeNotice = scopeIssues.length > 0
+    ? `**剂量审核范围说明**：本次有 ${scopeIssues.length} 项中成药/西药按设计未提交单次剂量，` +
+      `审方未能完成其剂量适宜性审核（涉及行号：${[...new Set(scopeIssues.flatMap((issue) => issue.relatedItemNos))].sort((a, b) => a - b).join("、") || "-"}）；` +
+      "具体用量请医生按说明书与院内规范确定。该项不代表已发现用药风险。"
+    : "";
   if (issues.length === 0) {
     lines.push(auditResult === "PASS"
       ? "**问题列表**：审方服务未返回明确用药问题；仍需结合医生判断。"
       : "**问题列表**：供应商返回了风险或人工复核结论，但未提供可展示的问题明细；请医生或药师人工复核。"
     );
+    if (scopeNotice) lines.push(scopeNotice);
     return lines.join("\n");
   }
+  if (scopeNotice) lines.push(scopeNotice);
   lines.push("");
   // 首列给医生看的是**审查规则**，不是机器标识。原先第一列直接输出灵犀返回的 issueId（UUID），
   // 一串 e0c4256e-27f5-49a6-… 占据整张临床表格最显眼的位置，而真正有信息量的风险类型被挤到后面。

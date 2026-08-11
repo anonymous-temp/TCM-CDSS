@@ -701,9 +701,21 @@ assert.ok(nondrugTreatments.entries.every((item) => item.executable === false));
 assert.ok(nondrugTreatments.entries.every((item) => item.clinicianReviewRequired));
 assert.ok(nondrugTreatments.entries.every((item) => Boolean(item.coverageDisposition)));
 assert.ok(nondrugTreatments.entries.filter((item) => item.containsMedication).every((item) => item.requiresMedicationAudit));
-// 食疗/意疗 have no anatomical site and no fixed course; demanding either would force fabricated
-// parameters. Every other modality must still carry site, governed frequency and source.
-const siteFreeTreatmentModalities = new Set(["diet_therapy", "mind_therapy"]);
+// 食疗/意疗/气功导引 have no anatomical site and no fixed course; demanding either would force
+// fabricated parameters. Every other modality must still carry site, governed frequency and source.
+//
+// 判据不再在这里手抄一份（2026-08-11）：运行时的 tcmTreatmentProjectIsPointFree 是从数据反推的，
+// 而这张字面量表此前与它方向相反——气功导引本无穴位却不在表内，构建门禁因此**逼出**了一个
+// 字段语义错误（模板拿一句功法名占住 sitesOrPoints，医生页面把「八段锦、太极拳」印在常用穴位下）。
+// 改为直接读运行时谓词，两处不可能再分叉。
+const { tcmTreatmentProjectIsPointFree } = await import("../src/lib/tcm-treatment-projects.ts");
+const siteFreeTreatmentModalities = new Set(
+  nondrugTreatments.entries
+    .filter((item) => tcmTreatmentProjectIsPointFree(item.projectCode))
+    .map((item) => item.projectCode),
+);
+assert.ok(siteFreeTreatmentModalities.has("diet_therapy") && siteFreeTreatmentModalities.has("mind_therapy") &&
+  siteFreeTreatmentModalities.has("qigong_daoyin"), `无穴位项目集合异常：${[...siteFreeTreatmentModalities].join("、")}`);
 assert.ok(nondrugTreatments.entries.flatMap((item) =>
   item.planTemplates.map((template) => ({ projectCode: item.projectCode, ...template }))).every((template) =>
   template.scheduleSuggestion.length > 0 &&

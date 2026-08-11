@@ -2030,10 +2030,8 @@
             "乏力",
             "呼吸康复"
           ],
-          "sitesOrPoints": [
-            "八段锦、太极拳、五禽戏或六字诀呼吸导引（按体能选择）"
-          ],
-          "techniqueBoundary": "遵循循序渐进；运动中出现胸痛、明显气促、头晕或血氧下降立即停止并评估。",
+          "sitesOrPoints": [],
+          "techniqueBoundary": "功法选择：八段锦、太极拳、五禽戏或六字诀呼吸导引（按体能选择）；遵循循序渐进；运动中出现胸痛、明显气促、头晕或血氧下降立即停止并评估。",
           "scheduleSuggestion": "身体活动每日累计不少于30分钟；强度和分段方式按个体体能制定。",
           "sourceRefs": [
             "SRC-BEIJING-COVID-TCM-REHAB-2020"

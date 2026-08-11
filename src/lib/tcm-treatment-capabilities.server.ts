@@ -387,8 +387,12 @@ function controlledTreatmentPlan(
   // 安全边界一条未动:仍是证据层参考,executable=false 不变,补泻深度留针仍由现场医师定。
   // 主症取不到(病历太稀疏)时退回原有的模板高频池——不猜,不外推。
   const caseTerms = acupointCaseTerms(clinicalText, caseFacts, targetPathogenesis);
+  // 先召回一个**更宽的候选池**再重排取 5（2026-08-11）。
+  // 取 5 之后再排序救不回列缺、风池：它们按「主治命中词个数」排不进前 5，
+  // 而它们恰恰是该病种受治理模板里的取穴。放宽的只是**候选池**，入选判据一字未松——
+  // 仍必须是教材主治命中本例已记录症状的穴。
   const indicationMatched = projectUsesMeridianAcupoints(projectCode)
-    ? selectAcupointsForCaseTerms(caseTerms, 5)
+    ? selectAcupointsForCaseTerms(caseTerms, 16)
     : [];
   const referencePointFrequency = new Map<string, number>();
   for (const template of definition?.planTemplates || []) {
@@ -397,8 +401,37 @@ function controlledTreatmentPlan(
       referencePointFrequency.set(point, (referencePointFrequency.get(point) || 0) + 1);
     }
   }
-  const referenceCommonPoints = indicationMatched.length > 0
-    ? indicationMatched.map((item) => `${item.entry.name}（${item.entry.code}·主治含${item.matchedTerms.join("、")}）`)
+  // 关键词召回**与受治理模板取穴取交集后重排**（甲方 2026-08-11 线上实测）。
+  //
+  // 实测：风寒咳嗽给出承灵、孔最、肩中俞，缺列缺、风池。根因是本例根本没走到治理模板——
+  // 针刺唯一含列缺/风池的呼吸类模板 matchAny 只有「流感/流行性感冒」，而运行时词表
+  // INDICATION_PATTERNS.respiratory 早已把「咳嗽/感冒」算作 respiratory，于是落进评估分支；
+  // 评估分支里关键词召回是唯一穴位来源，且无条件盖过模板穴位池。
+  // 而召回只按「本例症状词在主治串里出现的**个数**」排序：承灵命中 3 词压过列缺的 2 词，
+  // 孔最靠「热病无汗」这条**热病**主治在风寒例里入选。
+  //
+  // 修法不新增任何穴位：入选仍必须「教材主治命中本例已记录症状」这一条，
+  // 只是当**该适应证下的受治理模板也收了这个穴**时（两条证据同时成立）排在前面。
+  // 稳定排序，其余次序不动；「主治含X」标注与呈现口径一字未改。
+  // 只取**本适应证**下的受治理模板取穴。用全项目的模板池会把别的病种的穴拉进来——
+  // 实测：咳嗽例里「心俞」因为在不寐模板里、且腧穴主治恰好含「咳嗽」而被排到前面。
+  const governedTagPoints = new Set(
+    (definition?.planTemplates || [])
+      .filter((template) => (!tag || template.indicationTag === tag) && tcmTreatmentTemplatePointsAreGoverned(template))
+      .flatMap((template) => template.sitesOrPoints)
+      .map((point) => point.replace(/（[^）]*）/g, "").trim()),
+  );
+  const rankedIndicationMatched = [...indicationMatched]
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      const leftGoverned = governedTagPoints.has(left.item.entry.name) ? 0 : 1;
+      const rightGoverned = governedTagPoints.has(right.item.entry.name) ? 0 : 1;
+      return leftGoverned - rightGoverned || left.index - right.index;
+    })
+    .map((entry) => entry.item)
+    .slice(0, 5);
+  const referenceCommonPoints = rankedIndicationMatched.length > 0
+    ? rankedIndicationMatched.map((item) => `${item.entry.name}（${item.entry.code}·主治含${item.matchedTerms.join("、")}）`)
     : [...referencePointFrequency.entries()]
       .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
       .slice(0, 5)
