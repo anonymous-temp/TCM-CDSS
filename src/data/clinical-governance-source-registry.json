@@ -6,7 +6,7 @@
     "reproductionPolicy": "标准全文和受版权保护定义不写入运行表，只登记定位信息与必要摘要。"
   },
   "summary": {
-    "sourceCount": 33,
+    "sourceCount": 35,
     "regulatoryOrGovernmentCount": 22,
     "projectSourceCount": 9
   },
@@ -273,6 +273,28 @@
       "accessedAt": "2026-08-10"
     },
     {
+      "id": "SRC-TCM-GASTRALGIA-CONSENSUS-2024",
+      "title": "胃痛中医诊疗专家共识（2024）",
+      "publisher": "中华中医药学会脾胃病分会",
+      "sourceType": "professional_society_expert_consensus",
+      "authorityTier": "professional_society_consensus",
+      "locator": "https://downloads.tcmjc.com/download/pdf?id=12345EEFF2FD4DCFAE5A1ED63461DACA",
+      "publishedDate": "2024-01-01",
+      "scope": "胃痛证型与针灸配穴：胃热加内庭；胃阴不足加三阴交、太溪；血瘀加血海、膈俞",
+      "accessedAt": "2026-08-11"
+    },
+    {
+      "id": "SRC-WFAS-COVID-ACUPUNCTURE-STAGED",
+      "title": "新型冠状病毒肺炎针灸干预分期指导意见（中国针灸学会 / WFAS）",
+      "publisher": "中国针灸学会",
+      "sourceType": "society_staged_intervention_opinion",
+      "authorityTier": "professional_society_reference",
+      "locator": "https://www.acupunctureresearch.org/assets/WFAS-COVID19-1.pdf",
+      "publishedDate": "2020-03-01",
+      "scope": "急性期与恢复期的分期针灸干预原则；恢复期证型不含风热犯肺",
+      "accessedAt": "2026-08-11"
+    },
+    {
       "id": "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE",
       "title": "《针灸学》规划教材证型配穴表（多源交叉核对录入）",
       "publisher": "中医 CDSS 项目治理录入",
@@ -301,7 +323,7 @@
       "sourceType": "project_runtime_rule",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-safety.ts",
-      "sha256": "aaf2e0f415dc82c4ca7aaf078778155485a99db4dc2c5ba5d1843cbf3e316aaa",
+      "sha256": "09be2ea48aa552ce9db5ccc6bd13693f0de1d51d9a29964ec9325a6c43cd2773",
       "scope": "红旗、生命体征和特殊人群的实际运行门禁；外部来源只做类别和阈值复核",
       "accessedAt": "2026-07-22"
     },
@@ -312,7 +334,7 @@
       "sourceType": "project_runtime_contract",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-types.ts",
-      "sha256": "106660ca64655728e841c570a1e07500ec8ccddaacfe69b9ea968243c410b192",
+      "sha256": "0d83136de5a6db986e26d295d148d38da95a18cf16c707a09424c65030685af5",
       "scope": "M01-M05 当前实际字段与输出结构",
       "accessedAt": "2026-07-22"
     },
@@ -323,7 +345,7 @@
       "sourceType": "project_runtime_catalog",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/tcm-treatment-projects.ts",
-      "sha256": "8900660199a46e4f632f4b427a7dd1ded31eedab475cb9641ef54b95349afaf3",
+      "sha256": "c1c76bdb7f46397073daf9e9e93b2577d4ad903a25d0b0549b124096de2dcde7",
       "scope": "22类非药物/外治项目的风险、资质、药物审方与适用标签",
       "accessedAt": "2026-07-22"
     },

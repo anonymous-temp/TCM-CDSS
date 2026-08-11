@@ -262,7 +262,9 @@ function controlledTreatmentPlan(
     // （见 tcmTreatmentTemplatePointsAreGoverned）。它照常呈现，但归到操作边界一行，
     // 不再冒充穴位——医生看到的「常用穴位」必须是穴位。
     const pointsGoverned = tcmTreatmentTemplatePointsAreGoverned(governedTemplate);
-    const matchedRefinement = governedTcmTreatmentSyndromeRefinement(governedTemplate, signedSyndromeText);
+    // caseFacts 是**已确认的阳性**病历事实（affirmedClinicalText 的产物），
+    // 因此「否认恶寒」不会把风寒袭肺的证据门槛顶开——这一点与全仓的极性口径同源。
+    const matchedRefinement = governedTcmTreatmentSyndromeRefinement(governedTemplate, signedSyndromeText, caseFacts);
     // ── 未终审的证型加减不得冒充「按本例证型加减过」（2026-08-11）────────────────────
     //
     // 45 条证型配穴里只有一部分经过逐条复核。未终审的那些此前与已核验条目**待遇完全相同**：

@@ -1134,6 +1134,90 @@ try {
     assert.ok(approved + pending >= 8, `命中样本过小（${approved + pending}），本属性形同虚设`);
   });
 
+  // ── 中医师 2026-08-11 终审结论逐条钉住 ────────────────────────────────────────
+  //
+  // 这 13 条是**临床裁定**，不是工程判断：谁都不该在没有新的临床依据时把它改回去。
+  // 断言写成「穴位集合逐字相等」而不是「包含某穴」，因为删穴（太渊/曲池/中极/次髎/内庭/脾俞）
+  // 与换穴（三阴交→血海）恰恰是本次裁定的实质内容，只查包含关系会让删除被静默撤销。
+  check("中医师终审结论：12 条现行规则的加穴集合逐字固定", () => {
+    const VERDICT = {
+      "insomnia-heart-gallbladder-timidity": ["胆俞"],                    // 保留原样：不默认加丘墟
+      "cough-wind-cold-lung": ["风门"],                                    // 删重复的太渊
+      "cough-lung-spleen-qi-deficiency": ["气海", "关元"],                  // 脾俞 → 关元（北京恢复期方案）
+      "digestive-phlegm-damp": ["丰隆", "阴陵泉"],                          // 保留，收紧触发
+      "digestive-stomach-yin-deficiency": ["胃俞", "三阴交", "太溪"],        // 内庭 → 太溪（2024 胃痛共识）
+      "digestive-blood-stasis": ["膈俞", "血海"],                           // 三阴交 → 血海（2024 胃痛共识）
+      "dysmenorrhea-cold-stasis": ["归来", "地机"],                         // 删中极
+      "dysmenorrhea-damp-heat": ["阴陵泉", "曲池"],                         // 次髎 → 曲池
+      "bi-damp-heat": ["大椎", "曲池", "阴陵泉"],                           // 保留（组合推导）
+      "bi-liver-kidney-deficiency": ["肝俞", "肾俞", "太溪"],               // 保留肝俞 + 证据门槛
+      "bi-blood-stasis": ["膈俞", "血海"],                                  // 保留，不默认加委中/内关
+      "stroke-phlegm-heat-fu": ["内庭", "丰隆"],                            // 删重复的曲池
+    };
+    const byId = new Map();
+    for (const project of TCM_TREATMENT_PROJECTS) {
+      for (const template of project.planTemplates || []) {
+        for (const rule of template.syndromeRefinements || []) byId.set(rule.id, { rule, template });
+      }
+    }
+    for (const [id, expected] of Object.entries(VERDICT)) {
+      const found = byId.get(id);
+      assert.ok(found, `终审保留的规则 ${id} 不在目录里`);
+      assert.deepEqual([...found.rule.addPoints], expected, `${id} 加穴与中医师终审结论不一致`);
+      // 删掉的重复穴不得从别的地方绕回来：加穴与主穴不得有交集。
+      for (const point of found.rule.addPoints) {
+        assert.ok(!found.template.sitesOrPoints.includes(point),
+          `${id} 的加穴「${point}」同时是本方主穴——重复列穴会让医生误以为它是本证特有配穴`);
+      }
+      assert.equal(tcmRefinementAdjudication(id).adjudicationStatus, "approved", `${id} 应已由中医师终审通过`);
+    }
+    // 恢复期·风热犯肺整条退役：大椎、曲池对应急性期，与本模板的恢复期定位不匹配。
+    assert.equal(byId.has("cough-wind-heat-lung"), false,
+      "「恢复期·风热犯肺 → 大椎、曲池」已由中医师裁定整条删除，不得恢复");
+  });
+
+  check("组合推导的条目不得继承来源等级", () => {
+    const combos = [];
+    for (const project of TCM_TREATMENT_PROJECTS) {
+      for (const template of project.planTemplates || []) {
+        for (const rule of template.syndromeRefinements || []) {
+          if (rule.sourceDerivation !== "combination_inference") continue;
+          combos.push(rule.id);
+          const [record] = tcmTreatmentPointProvenance(template, rule).filter((r) => r.role === "syndrome_refinement");
+          assert.ok(record, `${rule.id} 应有证型加穴记录`);
+          assert.equal(record.authorityTier, "project_governed_source",
+            `${rule.id} 是本项目组合推导出来的，不得挂上被引来源的等级——中医师原话「不能写成教材存在一条完全相同的原文」`);
+        }
+      }
+    }
+    assert.ok(combos.length >= 3, `组合推导样本过小（${combos.length}）`);
+  });
+
+  check("带证据门槛的条目：证型对上但无阳性证据时不得自动加穴", () => {
+    configureSimple(["acupuncture"]);
+    const prior = signedM03({
+      tcmDiseaseName: "膝痹", primarySyndrome: "肝肾亏虚证",
+      overallPathogenesis: "肝肾亏虚，筋骨失养", chainPathogenesis: "肝肾亏虚，筋骨失养",
+      therapyDirection: "补益肝肾", westernPrimary: "膝骨关节炎",
+    });
+    // 证候文本本身不含腰膝酸软/久病/劳则加重这类阳性证据，且不提供病历事实 ⇒ 不得命中。
+    const [withoutEvidence] = compileTcmTreatmentRecommendations([{ projectCode: "acupuncture", targetRef: "P1" }], prior);
+    if (withoutEvidence) {
+      assert.notEqual(withoutEvidence.protocolStatus, "governed_patient_specific_plan",
+        "无阳性证据时不得按证型加减——中医师要求肝肾亏虚证据成立才显示肝俞等");
+    }
+    const [withEvidence] = compileTcmTreatmentRecommendations(
+      [{ projectCode: "acupuncture", targetRef: "P1" }],
+      prior,
+      { chiefComplaint: "右膝痛3月", symptoms: { presentHistory: "右膝疼痛3月，腰膝酸软，劳则加重" }, patient: { sex: "男", age: 58 }, safetyGate: { status: "ready" } },
+    );
+    assert.ok(withEvidence, "有阳性证据时应给出方案");
+    assert.equal(withEvidence.protocolStatus, "governed_patient_specific_plan",
+      "腰膝酸软、劳则加重成立时应按证型加减");
+    assert.ok(withEvidence.suggestedSitesOrPoints.some((site) => site.includes("肝俞")),
+      `证据成立时肝俞应出现：${withEvidence.suggestedSitesOrPoints.join("、")}`);
+  });
+
   // 「一条证型加减都没命中」与「命中了但卡在终审」是两回事，出参必须分得开。
   check("未命中任何证型加减时不得写 adjudicationStatus", () => {
     configureSimple(["acupuncture"]);

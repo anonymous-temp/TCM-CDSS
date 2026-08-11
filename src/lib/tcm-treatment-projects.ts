@@ -13,6 +13,9 @@ export const TCM_SOURCE_AUTHORITY_TIERS = [
   "government_primary",
   "government_mirror",
   "professional_society_standard",
+  // 专家共识**不等于**学会团体标准：没有标准编号与复审周期，单独一档。
+  // 中医师 2026-08-11 终审明确要求「政府指导 / 学会标准 / 专家共识 / 组合推导必须如实区分」。
+  "professional_society_consensus",
   "professional_society_reference",
   "project_governed_source",
   "unregistered",
@@ -28,6 +31,7 @@ export const TCM_SOURCE_AUTHORITY_TIER_LABELS: Record<string, string> = {
   government_primary: "政府发布方案",
   government_mirror: "政府方案转载",
   professional_society_standard: "学会标准",
+  professional_society_consensus: "专家共识",
   professional_society_reference: "学会参考条目",
   project_governed_source: "项目治理教材来源",
   unregistered: "来源未登记",
@@ -157,6 +161,23 @@ export type TcmTreatmentSyndromeRefinement = {
    * 关元只出现在虚寒类加减里，湿热类把它剔除，判据来自权威配穴表而不是我们自造的词表。
    */
   removePoints?: readonly string[];
+  /**
+   * 证型之外**还必须成立**的病历证据（中医师 2026-08-11 终审要求）。
+   *
+   * 证型名对上不等于该加减就该自动显示：风寒袭肺要有恶寒/无汗/清涕这类表寒线索，
+   * 痰湿中阻要有苔腻/身重/纳呆，肝肾亏虚要有腰膝酸软/久病/劳则加重。
+   * 判据走**已确认的阳性病历事实**（affirmedClinicalText 的产物），因此「否认恶寒」不会命中。
+   * 不设此字段时行为与原先完全一致。
+   */
+  additionalEvidenceAny?: readonly string[];
+  /**
+   * 这条配穴是**照录**某条来源原文，还是由两条规则**组合推导**出来的。
+   *
+   * 中医师终审的原话：「需要把来源标为『热痹规则＋湿邪配穴的组合推导』，
+   * 不能写成教材存在一条完全相同的原文」。组合推导的条目一律不得升等级，
+   * 其权威等级封顶在 project_governed_source。
+   */
+  sourceDerivation?: "verbatim_source_row" | "combination_inference";
   sourceRefs: readonly string[];
 };
 
@@ -347,14 +368,24 @@ export function governedTcmTreatmentPlanTemplateForTags(
 export function governedTcmTreatmentSyndromeRefinement(
   template: TcmTreatmentPlanTemplate,
   signedSyndromeText: string,
+  /**
+   * 已确认的**阳性**病历事实文本。只有声明了 additionalEvidenceAny 的条目才读它——
+   * 中医师 2026-08-11 终审要求：证型名对上不等于该加减就该自动显示（风寒袭肺要有恶寒/无汗/清涕，
+   * 痰湿中阻要有苔腻/身重/纳呆，肝肾亏虚要有腰膝酸软/久病/劳则加重）。
+   * 传空串时，带证据门槛的条目一律不命中（fail-closed：拿不到证据就不自动加穴）。
+   */
+  affirmedEvidenceText = "",
 ): TcmTreatmentSyndromeRefinement | undefined {
   const normalized = String(signedSyndromeText || "").normalize("NFKC");
   if (!normalized.trim()) return undefined;
+  const evidence = String(affirmedEvidenceText || "").normalize("NFKC");
   const matched = (template.syndromeRefinements || []).flatMap((refinement) => {
     const hits = refinement.syndromeMatchAny.filter((term) => normalized.includes(term));
-    return hits.length > 0
-      ? [{ refinement, weight: Math.max(...hits.map((term) => term.length)) }]
-      : [];
+    if (hits.length === 0) return [];
+    const gate = refinement.additionalEvidenceAny || [];
+    // 证据门槛同时看已签名结论与阳性病历事实：证候文本里写了「恶寒重发热轻」同样算数。
+    if (gate.length > 0 && !gate.some((term) => evidence.includes(term) || normalized.includes(term))) return [];
+    return [{ refinement, weight: Math.max(...hits.map((term) => term.length)) }];
   });
   if (matched.length === 0) return undefined;
   return matched.sort((left, right) =>
@@ -389,7 +420,12 @@ export function tcmTreatmentPointProvenance(
   }));
   if (!refinement) return records;
   const refRefs = [...refinement.sourceRefs];
-  const refTier = highestTcmSourceAuthorityTier(refRefs);
+  // 组合推导的条目**不得继承来源等级**：它引用的来源里没有一条与之逐字相同的原文
+  //（中医师 2026-08-11 终审：「不能写成教材存在一条完全相同的原文」）。
+  // 等级封顶在 project_governed_source，与「本项目自行组合、可核对但非原文照录」如实对应。
+  const refTier = refinement.sourceDerivation === "combination_inference"
+    ? "project_governed_source" as const
+    : highestTcmSourceAuthorityTier(refRefs);
   const adjudication = tcmRefinementAdjudication(refinement.id);
   const pending = new Set(adjudication.pendingPoints);
   // 已在主穴里的穴**不再作为证型加穴**记一条。候选穴位列表早就按这条去重了

@@ -20,12 +20,10 @@
   ],
   "entries": {
     "bi-blood-stasis": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "驳不倒。本仓治理版《经络腧穴学》条目中血海主治仅月经不调/经闭/崩漏与湿疹/风疹，古典摘录全属崩漏血闭，无痹痛或瘀血痛；参考课程索引亦只称其为痛经要穴。所挂教材配穴表的痹证篇本无瘀血阻络证，血海仅见于行痹（治风先治血）；项痹/肩痹/膝痹/腰痛的瘀血证配穴教材口径统一为膈俞（±委中、内关），无一加血海。膈俞可留（血会、大成\"主周痹\"、腰痛篇瘀血加膈俞），血海缺依据，且与 bi-wandering 完全同穴印证系抄录。",
-      "pendingPoints": [
-        "血海"
-      ],
-      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "中医师 2026-08-11 终审：保留原样。保留膈俞、血海，不默认增加委中、内关。与行痹同穴组不是错误：行痹需治血、瘀血阻络需活血通络，两条规则可因不同病机共享穴组。委中按腰背/膝后循经部位触发、内关按上肢或胸闷等兼症触发，均由现场医师个体化选用。"
     },
     "bi-cold-damp": {
       "adjudicationStatus": "approved",
@@ -34,18 +32,16 @@
       "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
     },
     "bi-damp-heat": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "2026-08-10 独立复核判「uncertain」：教材痹证分型中热痹配大椎、曲池，未明确湿热痹阻及阴陵泉，存疑（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
       "pendingPoints": [],
-      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+      "basis": "中医师 2026-08-11 终审：保留原样。「湿热痹阻」作为复合证型成立：大椎、曲池来自热痹，阴陵泉处理湿重，三穴组合符合复合证病机。来源须标为「热痹规则＋湿邪配穴的组合推导」，不得写成教材存在一条完全相同的原文。"
     },
     "bi-liver-kidney-deficiency": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "仅肝俞驳不倒。模板含腰痛/颈椎病，肾虚证成立，且本项目《经络腧穴学》目录中肾俞主治含\"腰痛\"、太溪含\"腰背痛、下肢冷痛\"，这两味可独立坐实；但同目录肝俞主治只有胁痛黄疸/目疾/吐血/癫狂痫，无筋骨关节痛，接到痛证只能靠\"肝主筋\"推演。另四条加减与痹证四证表逐条对得上，唯此条无对应，印证质疑的事实陈述。判据无页码级定位，无法在仓内确认。",
-      "pendingPoints": [
-        "肝俞"
-      ],
-      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "中医师 2026-08-11 终审：保留原样。肝俞保留。它不是因「关节痛」单症状触发，而是针对已成立的肝肾亏虚证调补肝肾、濡养筋骨；不能仅拿单穴主治表是否写有关节痛来否定。规则限定：腰膝酸软、久病、劳则加重及相应舌脉等肝肾亏虚证据成立时才显示。"
     },
     "bi-wandering": {
       "adjudicationStatus": "approved",
@@ -60,12 +56,10 @@
       "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
     },
     "cough-lung-spleen-qi-deficiency": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "驳不倒。教材咳嗽配穴表确无肺脾气虚行（同模板另5条逐条对得上该表），本条却只挂该表为来源。再核本模板自身一级来源《北京市新冠恢复期中医康复指导建议》：肺脾气虚证选穴为太渊、膻中、气海、关元、足三里——含气海（本条反而漏关元），但脾俞不在该证型行内，只见于肺胃阴虚/余邪未尽。故脾俞系哮喘虚证表外推，与本目录删除头痛悬钟时的\"外推不是来源\"同型。修法：气海改挂北京指导建议并补关元，脾俞删除。",
-      "pendingPoints": [
-        "脾俞"
-      ],
-      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "中医师 2026-08-11 终审：按建议修改。脾俞 → 关元。北京市官方恢复期方案对肺脾气虚证列太渊、膻中、气海、关元、足三里；共用主穴已覆盖太渊、足三里与肺俞/膻中，证型增量即气海、关元。脾俞可在明显脾虚、痰瘀阻络时由医生可选，不作本证默认。"
     },
     "cough-lung-yin-deficiency": {
       "adjudicationStatus": "approved",
@@ -80,26 +74,16 @@
       "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
     },
     "cough-wind-cold-lung": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "驳不倒。代码实证：build 脚本 761 行 addPoints:[\"风门\",\"太渊\"]，而同模板 754 行 sitesOrPoints 首位即太渊（无条件主穴，非\"二选一\"），故太渊在所有证型都扎，不构成本证型特有配穴；且 pointProvenance 与 deferredPoints 两条出口均不去重，医生/HIS 会看到它被标为 syndrome_refinement。教材层面：本模板其余加减逐条对应内伤咳嗽配穴，该组主穴即含太渊（肺经原穴、补肺），风寒表证配穴只有风门（或风池）。同一原则项目已在不寐\"脾胃不和\"删内关时执行过（729-731 行注释），此处未一致执行。风门本身成立。",
-      "pendingPoints": [
-        "太渊"
-      ],
-      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
-    },
-    "cough-wind-heat-lung": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "2026-08-10 独立复核判「uncertain」：教材未明确该病种配穴，风热犯肺常规可加大椎曲池（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
       "pendingPoints": [],
-      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+      "basis": "中医师 2026-08-11 终审：按建议修改。删除重复的太渊（只保留在共用主穴）。风门保留，并增加触发条件：明确存在恶寒、无汗、清涕、白稀痰等表寒证据时才自动显示。"
     },
     "digestive-blood-stasis": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "2026-08-10 独立复核判「inconsistent」：瘀血停胃应加膈俞、血海，不是三阴交。（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
-      "pendingPoints": [
-        "三阴交"
-      ],
-      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "中医师 2026-08-11 终审：按建议修改。三阴交 → 血海。规划教材的膈俞、三阴交并非错误，但《胃痛中医诊疗专家共识（2024）》对血瘀胃痛直接给出血海、膈俞，针对性与来源等级更高。"
     },
     "digestive-damp-heat": {
       "adjudicationStatus": "approved",
@@ -120,10 +104,10 @@
       "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
     },
     "digestive-phlegm-damp": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "可驳的只有病种表述：模板首词为痞满/胃痞/功能性消化不良，来源登记 scope 即「胃痞胃痛」，痰湿中阻是痞满正列证型，按胃痛/便秘表查偏窄。但核心指控成立：本模板其余各行（梁门下脘、期门太冲、膈俞三阴交、胃俞三阴交内庭）均能对上胃痛配穴表，唯此行对不上；丰隆+阴陵泉在本文件仅咳嗽痰湿阻肺一行有真实教材出处，用于消化病属跨病种类推。按台账「外推不是来源、只降不升」（悬钟先例）判 pending；降级不损安全，关元剔除仍生效。",
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
       "pendingPoints": [],
-      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+      "basis": "中医师 2026-08-11 终审：保留原样。组合成立，不整条删除；适用范围收紧为「胃痞/脘闷为主，兼苔腻、身重、纳呆等痰湿证据」，不得只因普通胃痛触发。authorityTier 继续标 project_governed_source，不得冒充学会标准原文。"
     },
     "digestive-spleen-stomach-deficiency-cold": {
       "adjudicationStatus": "approved",
@@ -132,22 +116,22 @@
       "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
     },
     "digestive-stomach-yin-deficiency": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "2026-08-10 独立复核判「inconsistent」：胃阴不足应加胃俞、三阴交、内庭，缺胃俞。（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
       "pendingPoints": [],
-      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+      "basis": "中医师 2026-08-11 终审：其他处理。内庭 → 太溪。《胃痛中医诊疗专家共识（2024）》明确区分：胃热加内庭；胃阴不足加三阴交、太溪。内庭只在兼明显胃热时再选，不作本证默认。"
     },
     "dysmenorrhea-cold-stasis": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "2026-08-10 独立复核判「uncertain」：教材未明确寒凝血瘀在关元、血海、三阴交基础上加归来、地机、中极，无法判断。（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
       "pendingPoints": [],
-      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+      "basis": "中医师 2026-08-11 终审：其他处理。加归来、地机成立；删除中极——中极与主穴关元同为下腹任脉近邻穴，系统默认同时给出会造成取穴过密，中极下沉为「痛经通用候选 / 查体后可选」。"
     },
     "dysmenorrhea-damp-heat": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "②可驳：0810 独立复核已就同一问题删除过「湿热蕴结剔关元」（关元系痛经主穴调冲任；RN4 主治含痛经/月经不调、不限寒热、操作为直刺）；消化与痹证模板中关元本就不在主穴内，其 removePoints 只过滤 sitesOrPoints，实为空转，不构成判据；灸法目录无妇科模板，系统不输出温灸。①不可驳：教材痛经配穴表与学会条目（CAAM scope 仅列四证）均无湿热蕴结行，阴陵泉靠「主治含痛经＋利湿」两段外推，sourceRefs 却标教材配穴表；同目录刚以「外推不是来源」删过悬钟，0810 文档亦已把痛经这几条记为待中医师终审的分歧。故整条落 pending。",
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
       "pendingPoints": [],
-      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+      "basis": "中医师 2026-08-11 终审：其他处理。证型规范名改「湿热瘀阻」，不再用「湿热蕴结」作痛经规范主标签。湿热型痛经本身成立，但现有配穴不是同等级指南直接原文：阴陵泉清利湿热、曲池泄热；次髎下沉为痛经通用穴或腰骶坠痛时的对症可选穴。authorityTier 保持 project_governed_source。"
     },
     "dysmenorrhea-kidney-deficiency": {
       "adjudicationStatus": "approved",
@@ -234,12 +218,10 @@
       "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
     },
     "insomnia-heart-gallbladder-timidity": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "甲方点名分歧：来源 A 建议在胆俞之外另加丘墟，教材表未明确；本条终审前不作为患者级方案依据。",
-      "pendingPoints": [
-        "丘墟"
-      ],
-      "basis": "甲方 2026-08-11 点名的来源分歧，终审前保守待定。"
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "中医师 2026-08-11 终审：保留原样。不默认加入丘墟。T/CAAM 011-2014 与规划教材均只支持心俞、胆俞；中华中医药学会科普标准库虽列丘墟，但同时还列肝俞、阳陵泉、大陵，属扩展方案，不宜只抽出丘墟升为系统默认。患者确有胆怯、易惊、触事易恐时，由医生个体化加丘墟。"
     },
     "insomnia-heart-kidney-disharmony": {
       "adjudicationStatus": "approved",
@@ -278,12 +260,10 @@
       "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
     },
     "stroke-phlegm-heat-fu": {
-      "adjudicationStatus": "pending_clinician_review",
-      "conflictNote": "驳不倒。曲池确在本模板主穴内，重复属实。候选穴位列表虽有去重（capabilities.server.ts:289-291 filter !basePoints.includes），但 tcmTreatmentPointProvenance 不去重：HIS 拿到两条「曲池」，一条 base_point/approved/国标，一条 syndrome_refinement/pending/教材+分歧说明；终审台账当前为空，deferredPoints 还把实际已给出的曲池说成「本轮不予应用」。加穴方向确为教材通行（曲池·内庭·丰隆），但这不解决重复。全目录同类重复仅另有 cough-wind-cold-lung 的太渊。",
-      "pendingPoints": [
-        "曲池"
-      ],
-      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "中医师 2026-08-11 终审：按建议修改。删除重复的曲池（继续留在中风后康复共用主穴）。临床上痰热腑实的完整组合仍是曲池、内庭、丰隆，只是数据结构中不能重复记录。"
     },
     "stroke-qi-deficiency-stasis": {
       "adjudicationStatus": "approved",
@@ -302,6 +282,13 @@
       "conflictNote": null,
       "pendingPoints": [],
       "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    }
+  },
+  "retiredRefinements": {
+    "cough-wind-heat-lung": {
+      "retiredAt": "2026-08-11",
+      "verdict": "其他处理（整条删除）",
+      "reason": "删除「恢复期·风热犯肺 → 大椎、曲池」这条自动规则。大椎、曲池对应发热、表热等急性阶段；感染恢复期官方证型集中在肺脾气虚、肺胃阴虚、余邪未尽气阴两伤。若仍有发热、咽痛、黄痰等，应重新评估是否仍属急性期，届时才可用大椎、曲池。删除后本证走第三态（病种模板·未按证型加减），不再返回看似精准但病程阶段不匹配的配穴。"
     }
   }
 }

@@ -296,6 +296,31 @@ const sources = [
     accessedAt: "2026-08-10",
   },
   {
+    id: "SRC-TCM-GASTRALGIA-CONSENSUS-2024",
+    title: "胃痛中医诊疗专家共识（2024）",
+    publisher: "中华中医药学会脾胃病分会",
+    sourceType: "professional_society_expert_consensus",
+    // 专家共识**不等于**学会团体标准：它是一批专家的共识意见，没有标准编号与复审周期。
+    // 单开一档而不是并进 professional_society_standard，是中医师 2026-08-11 终审时明确要求的
+    //「政府指导 / 学会标准 / 专家共识 / 组合推导必须如实区分」。
+    authorityTier: "professional_society_consensus",
+    locator: "https://downloads.tcmjc.com/download/pdf?id=12345EEFF2FD4DCFAE5A1ED63461DACA",
+    publishedDate: "2024-01-01",
+    scope: "胃痛证型与针灸配穴：胃热加内庭；胃阴不足加三阴交、太溪；血瘀加血海、膈俞",
+    accessedAt: "2026-08-11",
+  },
+  {
+    id: "SRC-WFAS-COVID-ACUPUNCTURE-STAGED",
+    title: "新型冠状病毒肺炎针灸干预分期指导意见（中国针灸学会 / WFAS）",
+    publisher: "中国针灸学会",
+    sourceType: "society_staged_intervention_opinion",
+    authorityTier: "professional_society_reference",
+    locator: "https://www.acupunctureresearch.org/assets/WFAS-COVID19-1.pdf",
+    publishedDate: "2020-03-01",
+    scope: "急性期与恢复期的分期针灸干预原则；恢复期证型不含风热犯肺",
+    accessedAt: "2026-08-11",
+  },
+  {
     // 教材级证型配穴表。**authorityTier 如实标为 project_governed_source**：
     // 内容按公开的《针灸学》规划教材大纲多源交叉核对录入，但本项目没有版次页码级的可核验定位，
     // 因此它不冒充国标或团体标准。甲方权威方案核准后可升格并替换本条 —— 升格只需改这一条登记，
@@ -702,6 +727,11 @@ const exactStandard = new Map([
 const TEXTBOOK_SYNDROME_POINTS = "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE";
 const CAAM_INSOMNIA_GUIDE = "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014";
 const CAAM_DYSMENORRHEA = "SRC-CAAM-DYSMENORRHEA-POINTS";
+const GASTRALGIA_CONSENSUS_2024 = "SRC-TCM-GASTRALGIA-CONSENSUS-2024";
+const BEIJING_COVID_REHAB = "SRC-BEIJING-COVID-TCM-REHAB-2020";
+// SRC-WFAS-COVID-ACUPUNCTURE-STAGED 登记在来源表里但不被任何规则引用——它是
+// 「恢复期不应有风热犯肺配穴」这条**删除决定**的依据（见下方 cough-wind-heat-lung 的删除注释）。
+// 删除决定同样需要可追溯的出处，因此来源留在注册表里，不给它一个常量。
 
 const governedPlanTemplates = new Map([
   ["acupuncture", [
@@ -757,13 +787,23 @@ const governedPlanTemplates = new Map([
       sourceRefs: ["SRC-BEIJING-COVID-TCM-REHAB-2020", "SRC-SAMR-ACUPUNCTURE-OPS"],
       parameterCompleteness: "syndrome_points_frequency_and_duration_governed",
       syndromeRefinements: [
-        // 教材外感咳嗽「风寒袭肺」配风门、太渊；第一版写成风门、肺俞——肺俞是该证主穴，不是加减。
-        { id: "cough-wind-cold-lung", syndromeLabel: "风寒袭肺", syndromeMatchAny: ["风寒袭肺", "风寒犯肺", "风寒"], addPoints: ["风门", "太渊"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "cough-wind-heat-lung", syndromeLabel: "风热犯肺", syndromeMatchAny: ["风热犯肺", "风热袭肺", "风热"], addPoints: ["大椎", "曲池"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#2：删掉重复的太渊——它是本方主穴，所有证型都取，
+        // 写进证型加穴会让医生误以为是本证特有配穴。风门保留，但加表寒证据门槛：
+        // 只有病历确有恶寒/无汗/清涕/白稀痰等表寒线索时才自动显示。
+        { id: "cough-wind-cold-lung", syndromeLabel: "风寒袭肺", syndromeMatchAny: ["风寒袭肺", "风寒犯肺", "风寒"], addPoints: ["风门"], additionalEvidenceAny: ["恶寒", "畏寒", "无汗", "清涕", "白稀痰", "痰白稀", "鼻塞流清涕"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#3：**整条删除**。大椎、曲池对应发热/表热等急性阶段，
+        // 而本模板是感染**恢复期**——官方恢复期证型集中在肺脾气虚、肺胃阴虚、余邪未尽气阴两伤。
+        // 若患者仍有发热、咽痛、黄痰，应重新评估是否仍属急性期，届时才谈得上大椎、曲池。
+        // 删除后本证走第三态（病种模板·未按证型加减），不再返回一个看似精准、病程阶段却不匹配的配穴。
+        // 依据：北京市中医管理局恢复期指导建议、中国针灸学会分期干预意见。
         { id: "cough-phlegm-damp-lung", syndromeLabel: "痰湿阻肺", syndromeMatchAny: ["痰湿阻肺", "痰湿蕴肺", "痰浊阻肺"], addPoints: ["丰隆", "阴陵泉"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "cough-liver-fire-lung", syndromeLabel: "肝火灼肺", syndromeMatchAny: ["肝火灼肺", "肝火犯肺"], addPoints: ["行间", "鱼际"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "cough-lung-yin-deficiency", syndromeLabel: "肺阴亏虚", syndromeMatchAny: ["肺阴亏虚", "肺胃阴虚", "气阴两伤", "阴虚"], addPoints: ["膏肓", "太溪"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "cough-lung-spleen-qi-deficiency", syndromeLabel: "肺脾气虚", syndromeMatchAny: ["肺脾气虚", "肺气虚", "脾肺气虚"], addPoints: ["气海", "脾俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#4：脾俞 → 关元。北京市官方恢复期方案对肺脾气虚证列
+        // 太渊、膻中、气海、关元、足三里；本模板主穴已覆盖太渊、足三里与肺俞/膻中，
+        // 因此证型增量恰是气海、关元。脾俞系哮喘虚证表外推，不作本证默认（医生可个体化选用）。
+        // 来源随之改挂北京指导建议——它才是这条的真实出处。
+        { id: "cough-lung-spleen-qi-deficiency", syndromeLabel: "肺脾气虚", syndromeMatchAny: ["肺脾气虚", "肺气虚", "脾肺气虚"], addPoints: ["气海", "关元"], sourceRefs: [BEIJING_COVID_REHAB] },
       ],
     },
     {
@@ -782,12 +822,19 @@ const governedPlanTemplates = new Map([
       syndromeRefinements: [
         { id: "digestive-spleen-stomach-deficiency-cold", syndromeLabel: "脾胃虚寒", syndromeMatchAny: ["脾胃虚寒", "中焦虚寒", "脾阳不足", "脾阳虚", "胃寒"], addPoints: ["关元", "脾俞", "胃俞"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "digestive-damp-heat", syndromeLabel: "湿热中阻", syndromeMatchAny: ["湿热中阻", "湿热内蕴", "脾胃湿热", "中焦湿热", "肠腑湿热"], addPoints: ["阴陵泉", "内庭"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "digestive-phlegm-damp", syndromeLabel: "痰湿中阻", syndromeMatchAny: ["痰湿中阻", "痰湿内停", "痰饮内停"], addPoints: ["丰隆", "阴陵泉"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#5：组合成立、不删；但适用范围收紧为「胃痞/脘闷为主，
+        // 兼苔腻、身重、纳呆等痰湿证据」，不能只因普通胃痛触发。来源如实标为组合推导——
+        // 胃痛配穴表没有一条与之逐字相同的原文，丰隆+阴陵泉的教材原文出处在咳嗽痰湿阻肺。
+        { id: "digestive-phlegm-damp", syndromeLabel: "痰湿中阻", syndromeMatchAny: ["痰湿中阻", "痰湿内停", "痰饮内停"], addPoints: ["丰隆", "阴陵泉"], removePoints: ["关元"], additionalEvidenceAny: ["苔腻", "身重", "纳呆", "脘闷", "痞满", "胸闷", "口黏"], sourceDerivation: "combination_inference", sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "digestive-liver-qi-invading-stomach", syndromeLabel: "肝气犯胃", syndromeMatchAny: ["肝气犯胃", "肝胃不和", "肝郁气滞", "肝气郁结"], addPoints: ["期门", "太冲"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "digestive-food-retention", syndromeLabel: "饮食停滞", syndromeMatchAny: ["饮食停滞", "食滞胃脘", "食积", "宿食"], addPoints: ["梁门", "下脘"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         // 教材胃痛「胃阴不足」配胃俞、三阴交、内庭；第一版漏了胃俞（独立复核 2026-08-10 指出）。
-        { id: "digestive-stomach-yin-deficiency", syndromeLabel: "胃阴不足", syndromeMatchAny: ["胃阴不足", "胃阴亏虚", "阴虚"], addPoints: ["胃俞", "三阴交", "内庭"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "digestive-blood-stasis", syndromeLabel: "瘀血停胃", syndromeMatchAny: ["瘀血停胃", "瘀血阻络", "胃络瘀阻"], addPoints: ["膈俞", "三阴交"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#6：内庭 → 太溪。2024 胃痛专家共识明确区分——
+        // 胃热加内庭；胃阴不足加三阴交、太溪。内庭只在兼明显胃热时再选，不作本证默认。
+        { id: "digestive-stomach-yin-deficiency", syndromeLabel: "胃阴不足", syndromeMatchAny: ["胃阴不足", "胃阴亏虚", "阴虚"], addPoints: ["胃俞", "三阴交", "太溪"], removePoints: ["关元"], sourceRefs: [GASTRALGIA_CONSENSUS_2024, TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#7：三阴交 → 血海。教材的膈俞、三阴交并非错误，
+        // 但 2024 胃痛专家共识对血瘀胃痛直接给出血海、膈俞，针对性与来源等级都更高。
+        { id: "digestive-blood-stasis", syndromeLabel: "瘀血停胃", syndromeMatchAny: ["瘀血停胃", "瘀血阻络", "胃络瘀阻"], addPoints: ["膈俞", "血海"], sourceRefs: [GASTRALGIA_CONSENSUS_2024, TEXTBOOK_SYNDROME_POINTS] },
       ],
     },
     {
@@ -821,13 +868,18 @@ const governedPlanTemplates = new Map([
       sourceRefs: ["SRC-REFERENCE-NISHI-ACUPUNCTURE", "SRC-ZIBO-TCM-DAY-FREQUENCY-2022", "SRC-SAMR-ACUPUNCTURE-OPS"],
       parameterCompleteness: "supplementary_points_and_government_frequency_reference_governed",
       syndromeRefinements: [
-        { id: "dysmenorrhea-cold-stasis", syndromeLabel: "寒凝血瘀", syndromeMatchAny: ["寒凝血瘀", "寒湿凝滞", "胞宫虚寒", "寒凝"], addPoints: ["归来", "地机", "中极"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#8：删中极。归来、地机成立；中极与主穴关元同为下腹任脉近邻穴，
+        // 系统默认同时给出会造成取穴过密。中极下沉为「痛经通用候选 / 查体后可选」，不进默认加穴。
+        { id: "dysmenorrhea-cold-stasis", syndromeLabel: "寒凝血瘀", syndromeMatchAny: ["寒凝血瘀", "寒湿凝滞", "胞宫虚寒", "寒凝"], addPoints: ["归来", "地机"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
         { id: "dysmenorrhea-qi-stagnation", syndromeLabel: "气滞血瘀", syndromeMatchAny: ["气滞血瘀", "肝郁气滞"], addPoints: ["太冲", "次髎"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
         { id: "dysmenorrhea-qi-blood-deficiency", syndromeLabel: "气血虚弱", syndromeMatchAny: ["气血虚弱", "气血两虚", "气血不足"], addPoints: ["脾俞", "胃俞", "足三里"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
         { id: "dysmenorrhea-kidney-deficiency", syndromeLabel: "肾气亏损", syndromeMatchAny: ["肾气亏损", "肝肾亏虚", "肾虚"], addPoints: ["太溪", "肾俞"], sourceRefs: [CAAM_DYSMENORRHEA, TEXTBOOK_SYNDROME_POINTS] },
         // 不设 removePoints：关元是痛经主穴（任脉、调冲任），教材没有「湿热蕴结须去关元」这条。
         // 消化类模板的关元剔除有教材依据（关元本就只属虚寒类加减），痛经这里没有，不能照搬。
-        { id: "dysmenorrhea-damp-heat", syndromeLabel: "湿热蕴结", syndromeMatchAny: ["湿热蕴结", "湿热下注"], addPoints: ["阴陵泉", "次髎"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#9：证型规范名改「湿热瘀阻」（不再用「湿热蕴结」作痛经主标签）；
+        // 次髎 → 曲池：阴陵泉清利湿热、曲池泄热，次髎下沉为痛经通用穴/腰骶坠痛时的对症可选穴。
+        // 该证型本身成立，但现有配穴不是同等级指南的直接原文，故来源标为组合推导。
+        { id: "dysmenorrhea-damp-heat", syndromeLabel: "湿热瘀阻", syndromeMatchAny: ["湿热瘀阻", "湿热蕴结", "湿热下注"], addPoints: ["阴陵泉", "曲池"], sourceDerivation: "combination_inference", sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
       ],
     },
     {
@@ -843,9 +895,18 @@ const governedPlanTemplates = new Map([
       // 差别正落在这四条上：寒湿取温散（肾俞、关元、阴陵泉、足三里），湿热取清泻（大椎、曲池）。
       syndromeRefinements: [
         { id: "bi-cold-damp", syndromeLabel: "寒湿痹阻", syndromeMatchAny: ["寒湿", "寒湿痹阻", "痛痹", "着痹", "风寒湿"], addPoints: ["肾俞", "关元", "阴陵泉", "足三里"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "bi-damp-heat", syndromeLabel: "湿热痹阻", syndromeMatchAny: ["湿热痹阻", "湿热", "热痹"], addPoints: ["大椎", "曲池", "阴陵泉"], removePoints: ["关元"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#10：保留。「湿热痹阻」作为复合证型成立——大椎、曲池来自热痹，
+        // 阴陵泉处理湿重。但来源必须如实标为**组合推导**（热痹规则 + 湿邪配穴），
+        // 不能写成教材里存在一条完全相同的原文。
+        { id: "bi-damp-heat", syndromeLabel: "湿热痹阻", syndromeMatchAny: ["湿热痹阻", "湿热", "热痹"], addPoints: ["大椎", "曲池", "阴陵泉"], removePoints: ["关元"], sourceDerivation: "combination_inference", sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "bi-wandering", syndromeLabel: "风邪偏胜（行痹）", syndromeMatchAny: ["行痹", "风邪偏胜", "游走"], addPoints: ["膈俞", "血海"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "bi-liver-kidney-deficiency", syndromeLabel: "肝肾亏虚", syndromeMatchAny: ["肝肾亏虚", "肝肾不足", "肾虚"], addPoints: ["肝俞", "肾俞", "太溪"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#11：肝俞保留。它不是因「关节痛」这一单症状触发，而是针对
+        // 已成立的肝肾亏虚证调补肝肾、濡养筋骨——不能只拿单穴主治表里有没有写关节痛来否定。
+        // 但规则要限定：腰膝酸软、久病、劳则加重等肝肾亏虚证据成立时才显示。
+        { id: "bi-liver-kidney-deficiency", syndromeLabel: "肝肾亏虚", syndromeMatchAny: ["肝肾亏虚", "肝肾不足", "肾虚"], addPoints: ["肝俞", "肾俞", "太溪"], additionalEvidenceAny: ["腰膝酸软", "腰膝", "久病", "劳则加重", "劳累后加重", "腰酸", "膝软", "五心烦热", "头晕耳鸣"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#12：保留膈俞、血海，不默认加委中、内关。
+        // 与行痹同穴组不是抄录错误——行痹需治风先治血、瘀血阻络需活血通络，两条规则可因不同病机共享穴组。
+        // 委中按腰背/膝后循经部位触发、内关按上肢或胸闷等兼症触发，均属现场医师个体化选用。
         { id: "bi-blood-stasis", syndromeLabel: "瘀血阻络", syndromeMatchAny: ["瘀血阻络", "血瘀"], addPoints: ["膈俞", "血海"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
       ],
     },
@@ -861,7 +922,9 @@ const governedPlanTemplates = new Map([
       syndromeRefinements: [
         { id: "stroke-liver-yang-surge", syndromeLabel: "肝阳暴亢", syndromeMatchAny: ["肝阳暴亢", "肝阳上亢", "风阳上扰"], addPoints: ["太冲", "太溪"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "stroke-wind-phlegm", syndromeLabel: "风痰阻络", syndromeMatchAny: ["风痰阻络", "风痰"], addPoints: ["丰隆", "合谷"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
-        { id: "stroke-phlegm-heat-fu", syndromeLabel: "痰热腑实", syndromeMatchAny: ["痰热腑实", "痰热"], addPoints: ["曲池", "内庭", "丰隆"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+        // 中医师终审（2026-08-11）#13：删掉重复的曲池——它已在本方主穴内，所有证型都取。
+        // 临床上痰热腑实的完整组合仍是曲池、内庭、丰隆，只是数据结构里不能把同一穴记两遍。
+        { id: "stroke-phlegm-heat-fu", syndromeLabel: "痰热腑实", syndromeMatchAny: ["痰热腑实", "痰热"], addPoints: ["内庭", "丰隆"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "stroke-qi-deficiency-stasis", syndromeLabel: "气虚血瘀", syndromeMatchAny: ["气虚血瘀", "气虚"], addPoints: ["气海", "血海"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "stroke-yin-deficiency-wind", syndromeLabel: "阴虚风动", syndromeMatchAny: ["阴虚风动", "阴虚阳亢"], addPoints: ["太溪", "风池"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         // 面瘫的「风寒外袭 → 风池、风府」「风热侵袭 → 外关、关冲」**刻意不放在这里**。

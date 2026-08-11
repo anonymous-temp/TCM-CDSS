@@ -320,24 +320,16 @@
                 "风寒"
               ],
               "addPoints": [
-                "风门",
-                "太渊"
+                "风门"
               ],
-              "sourceRefs": [
-                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
-              ]
-            },
-            {
-              "id": "cough-wind-heat-lung",
-              "syndromeLabel": "风热犯肺",
-              "syndromeMatchAny": [
-                "风热犯肺",
-                "风热袭肺",
-                "风热"
-              ],
-              "addPoints": [
-                "大椎",
-                "曲池"
+              "additionalEvidenceAny": [
+                "恶寒",
+                "畏寒",
+                "无汗",
+                "清涕",
+                "白稀痰",
+                "痰白稀",
+                "鼻塞流清涕"
               ],
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
@@ -401,10 +393,10 @@
               ],
               "addPoints": [
                 "气海",
-                "脾俞"
+                "关元"
               ],
               "sourceRefs": [
-                "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+                "SRC-BEIJING-COVID-TCM-REHAB-2020"
               ]
             }
           ]
@@ -492,6 +484,16 @@
               "removePoints": [
                 "关元"
               ],
+              "additionalEvidenceAny": [
+                "苔腻",
+                "身重",
+                "纳呆",
+                "脘闷",
+                "痞满",
+                "胸闷",
+                "口黏"
+              ],
+              "sourceDerivation": "combination_inference",
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
               ]
@@ -547,12 +549,13 @@
               "addPoints": [
                 "胃俞",
                 "三阴交",
-                "内庭"
+                "太溪"
               ],
               "removePoints": [
                 "关元"
               ],
               "sourceRefs": [
+                "SRC-TCM-GASTRALGIA-CONSENSUS-2024",
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
               ]
             },
@@ -566,9 +569,10 @@
               ],
               "addPoints": [
                 "膈俞",
-                "三阴交"
+                "血海"
               ],
               "sourceRefs": [
+                "SRC-TCM-GASTRALGIA-CONSENSUS-2024",
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
               ]
             }
@@ -742,8 +746,7 @@
               ],
               "addPoints": [
                 "归来",
-                "地机",
-                "中极"
+                "地机"
               ],
               "sourceRefs": [
                 "SRC-CAAM-DYSMENORRHEA-POINTS",
@@ -803,15 +806,17 @@
             },
             {
               "id": "dysmenorrhea-damp-heat",
-              "syndromeLabel": "湿热蕴结",
+              "syndromeLabel": "湿热瘀阻",
               "syndromeMatchAny": [
+                "湿热瘀阻",
                 "湿热蕴结",
                 "湿热下注"
               ],
               "addPoints": [
                 "阴陵泉",
-                "次髎"
+                "曲池"
               ],
+              "sourceDerivation": "combination_inference",
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
               ]
@@ -878,6 +883,7 @@
               "removePoints": [
                 "关元"
               ],
+              "sourceDerivation": "combination_inference",
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
               ]
@@ -910,6 +916,17 @@
                 "肝俞",
                 "肾俞",
                 "太溪"
+              ],
+              "additionalEvidenceAny": [
+                "腰膝酸软",
+                "腰膝",
+                "久病",
+                "劳则加重",
+                "劳累后加重",
+                "腰酸",
+                "膝软",
+                "五心烦热",
+                "头晕耳鸣"
               ],
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
@@ -995,7 +1012,6 @@
                 "痰热"
               ],
               "addPoints": [
-                "曲池",
                 "内庭",
                 "丰隆"
               ],

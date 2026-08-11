@@ -2,9 +2,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V1.6 |
+| 文档版本 | V1.7 |
 | 发布日期 | 2026-08-11 |
-| 服务版本 | `tcm-cdss-20260811-contract-compat-r3-amd64` |
+| 服务版本 | `tcm-cdss-20260811-clinician-verdict-r1-amd64` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
@@ -2103,8 +2103,10 @@ async function callStage(url, headers, body) {
 | `treatments.tcmProjects[].adjudicationStatus` | 证型加减终审状态 | `approved` / `pending_clinician_review`。**未终审时服务端不应用该条加穴**，`suggestedSitesOrPoints` 只是病种标准取穴，`protocolStatus` 同时降为病种模板态 |
 | `treatments.tcmProjects[].deferredSyndromeRefinement` | 未予应用的证型加减 | `{syndromeLabel, deferredPoints, conflictNote}`。命中了本例证型的配穴方案、但因未完成中医师终审而没有应用。如实下发而不是静默隐藏——否则医生会以为系统根本没识别出本例证型 |
 
-> **证型配穴的权威性必须按条看，不能按病种看。** 当前 8 组针刺模板下共 45 条证型加减，
-> 其中 32 条已完成逐条复核（`approved`）、13 条待中医师终审（`pending_clinician_review`）。
+> **证型配穴的权威性必须按条看，不能按病种看。** 当前 8 组针刺模板下共 **44 条**证型加减，
+> **全部已完成中医师终审**（`approved`）。原 45 条中「感染恢复期 · 风热犯肺 → 大椎、曲池」
+> 一条经终审整条删除（该配穴对应发热/表热的急性阶段，与恢复期定位不匹配），
+> 该证型现走第三态，不再返回看似精准、病程阶段却不匹配的配穴。
 > 权威等级同样逐条不同：不寐的「心脾两虚/肝火扰心/心肾不交/心胆气虚」四条有
 > T/CAAM 011-2014 学会标准背书，同病种的「痰热内扰/脾胃不和」只有项目治理教材来源；
 > 痛经同理。**请勿按病种整组采信**，以 `pointProvenance[].authorityTier` 与
@@ -2133,6 +2135,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V1.7 | 2026-08-11 | **中医师终审落库**：原 13 条待终审证型配穴全部裁定完毕并生效。删除重复穴（咳嗽风寒袭肺的太渊、中风痰热腑实的曲池）；整条删除「感染恢复期·风热犯肺→大椎、曲池」（病程阶段不匹配，该证改走第三态）；替换 4 处（肺脾气虚 脾俞→关元、胃阴不足 内庭→太溪、瘀血停胃 三阴交→血海、痛经湿热 次髎→曲池）；寒凝血瘀删中极；痛经证型规范名 `湿热蕴结`→`湿热瘀阻`。新增权威等级档位 `professional_society_consensus`（专家共识），并对**组合推导**的配穴封顶等级为 `project_governed_source`，不继承被引来源等级。三条规则新增病历证据门槛（表寒/痰湿/肝肾亏虚证据成立才自动加穴） | **否。** 出参字段未变；`authorityTier` 新增一个取值 `professional_society_consensus`（按可扩展枚举处理即可），证型配穴内容按临床终审结论更新 |
 | V1.6 | 2026-08-11 | **① V1 契约兼容闭环（勘误 V1.4）**：`protocolStatus` 的第三态此前在 `schemaVersion` 不变的前提下上线，对严格枚举反序列化的集成方是破坏性变更。现改为 **V1 默认只回旧两态**（第三态向保守侧折叠），新增非破坏字段 `tailoringStatus` 承载三态真实值，**V2 显式请求**才开放真三态；同时随文档发布 JSON Schema。**② 证型配穴逐条、逐穴分级**：新增 `pointProvenance[]`（逐穴来源/权威等级/终审状态/分歧说明）、`sourceAuthorityTier`、`adjudicationStatus`、`deferredSyndromeRefinement`。45 条证型加减经逐条复核，32 条已核验、13 条待中医师终审；**未终审条目不再标为患者级个体化方案**，其加穴不予应用（剔除穴仍应用，保守方向） | **否。** V1 出参的枚举取值反而**收窄**回 V1.3 的两态，比 V1.4 更兼容；其余均为新增可选字段。若贵方已按 V1.4 适配了三态，请改用 `?schemaVersion=v2` 保持原行为 |
 | V1.5 | 2026-08-11 | **① 方名可追溯性修复（甲方 0807 起的最大遗留项）**：`formula.candidates[].formulaSource` 此前对 10 类常用经方判为「无出处」，进而把方名改写成「本例辨证组方」——根因是「这张处方是不是 X 方」在系统内有两个互不相识的判据。收敛为一个之后，参苓白术散、四君子汤加减（党参代人参）、异功散加减、五子衍宗丸加减、缩泉丸加味、五磨饮子加减、六神散加减、杏仁煎、四神散加味、调经方加味等均可正常给出方名与出处。同一批归档 M04 重放：医生页面带方名 5/39→15/39。**② 页面与载荷不再各说各的**：方名身份恢复此前发生在可见正文重建之后，导致同一份响应里页面写「自拟方」、签名载荷与 HIS 写经方名；已改为恢复在前、渲染在后。**③ 中医外治项目不再整条丢失**（见上方 A.1 说明）。**④ 新增 HIS 出参** `prescriptions.modifications[].triggerSource`、`diagnoses.terminologyMappings[]`。**⑤ 文档安全**：全部 curl 示例改用 `$TOKEN` 占位，不再内联真实令牌 | **否。** 出参只增不删，字段语义未变。`formulaSource.evidenceLevel` 与 `constructionType` 的**取值分布**会明显变化（更多候选从 `model_inference`/`self_devised` 变为 `kb_entry`/`classic_text`+`single_base`），这是修复结果不是契约变更；若贵方按「方名恒为自拟」做过特殊处理，请撤销 |
 | V1.4 | 2026-08-10 | **① 文档更正**：R5"不可跳段返回 409"与实现不符，改为如实写出真实存在的三道门（M02 阶段门、M04/M05 签名门）；M01 流程图标签由"结构化病历"更正为"舌象图片解析"，与出参表一致。**② 补回丢失章节**：新增 §3.11 `CDSS_GATE_DISPOSITION` 处置档位（advise 默认 / block 回滚），该语义在 20260803 版写过、V1.3 整段丢失。**③ 行为修复**：`symptoms` 支持字符串与字符串数组（此前被静默丢成 `{}`，导致现病史整段消失与红旗漏检）；急症排查确认由字数校验改为逐条红旗处置留痕契约（签名版本 v1→v2，旧凭证失效）；库存导入新增分片整批替换，`413` 不再建议会导致数据丢失的"分批"。**④ 新增出参**：`guidelineReferences[]`、`protocolStatus` 第三态、`protocolGapNote`、`clinicalReviewMethod`、加减 `riskNote` 补齐到全部出口 | **是（三处）**：<br>① 急症排查确认接口**入参新增必填 `findings`**，旧调用会返回 `400`；<br>② `protocolStatus` **新增枚举值** `governed_class_template_not_syndrome_tailored`，按"非个体化即评估态"的旧解析会误降级；<br>③ 升级前签发的 `emergencyClearance` 凭证一律失效（fail-closed 方向，见 §4.8） |
