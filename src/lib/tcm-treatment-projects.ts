@@ -1,4 +1,104 @@
 import tcmNondrugTreatmentJson from "../data/tcm-nondrug-treatment-evidence-catalog.json" with { type: "json" };
+import governanceSourceRegistryJson from "../data/clinical-governance-source-registry.json" with { type: "json" };
+import refinementAdjudicationJson from "../data/tcm-acupoint-syndrome-refinement-adjudications.source.json" with { type: "json" };
+
+/**
+ * 来源权威等级（2026-08-11）。等级本来就登记在受治理来源注册表里，只是从来没有 join 到
+ * 「这一条证型配穴」上——于是对外只能笼统说「不寐与痛经来自权威来源」，而实际情况是
+ * **同一病种下逐条不同**：不寐前 4 条有 T/CAAM 011-2014，「痰热内扰」「脾胃不和」只有教材表。
+ * 排序只用于取一条规则里的**最高**等级，不做任何临床判断。
+ */
+export const TCM_SOURCE_AUTHORITY_TIERS = [
+  "regulatory_primary",
+  "government_primary",
+  "government_mirror",
+  "professional_society_standard",
+  "professional_society_reference",
+  "project_governed_source",
+  "unregistered",
+] as const;
+export type TcmSourceAuthorityTier = (typeof TCM_SOURCE_AUTHORITY_TIERS)[number];
+
+/**
+ * 权威等级的**唯一**中文说法。医生页面、服务端 Markdown 与 HIS 说明共用这一张表——
+ * 同一个等级在三个出口翻成三种说法，正是本仓库反复出现的那个缺陷形状。
+ */
+export const TCM_SOURCE_AUTHORITY_TIER_LABELS: Record<string, string> = {
+  regulatory_primary: "国家标准/规范",
+  government_primary: "政府发布方案",
+  government_mirror: "政府方案转载",
+  professional_society_standard: "学会标准",
+  professional_society_reference: "学会参考条目",
+  project_governed_source: "项目治理教材来源",
+  unregistered: "来源未登记",
+};
+
+const AUTHORITY_TIER_BY_SOURCE_ID = new Map<string, TcmSourceAuthorityTier>(
+  ((governanceSourceRegistryJson as { entries?: Array<{ id?: string; authorityTier?: string }> }).entries || [])
+    .flatMap((entry) => (entry?.id && entry.authorityTier
+      ? [[entry.id, entry.authorityTier as TcmSourceAuthorityTier] as const]
+      : [])),
+);
+
+export function tcmSourceAuthorityTier(sourceId: string): TcmSourceAuthorityTier {
+  return AUTHORITY_TIER_BY_SOURCE_ID.get(String(sourceId || "").trim()) || "unregistered";
+}
+
+/** 一组来源里最高的那一档。空数组按 unregistered 处理（fail-closed 方向：不知道就当没登记）。 */
+export function highestTcmSourceAuthorityTier(sourceIds: readonly string[]): TcmSourceAuthorityTier {
+  let best: TcmSourceAuthorityTier = "unregistered";
+  let bestRank: number = TCM_SOURCE_AUTHORITY_TIERS.length;
+  for (const id of sourceIds) {
+    const tier = tcmSourceAuthorityTier(id);
+    const rank = TCM_SOURCE_AUTHORITY_TIERS.indexOf(tier);
+    if (rank >= 0 && rank < bestRank) { best = tier; bestRank = rank; }
+  }
+  return best;
+}
+
+export type TcmRefinementAdjudicationStatus = "approved" | "pending_clinician_review";
+
+export type TcmRefinementAdjudication = {
+  adjudicationStatus: TcmRefinementAdjudicationStatus;
+  conflictNote: string | null;
+  /** 具体存疑的穴位（可空）。仅用于呈现，不改变「整条不应用加穴」的处置。 */
+  pendingPoints: readonly string[];
+};
+
+const REFINEMENT_ADJUDICATIONS = new Map<string, TcmRefinementAdjudication>(
+  Object.entries(
+    (refinementAdjudicationJson as {
+      entries?: Record<string, { adjudicationStatus?: string; conflictNote?: string | null; pendingPoints?: string[] }>;
+    }).entries || {},
+  ).map(([id, entry]) => [id, {
+    adjudicationStatus: entry?.adjudicationStatus === "approved" ? "approved" : "pending_clinician_review",
+    conflictNote: typeof entry?.conflictNote === "string" && entry.conflictNote.trim() ? entry.conflictNote : null,
+    pendingPoints: Array.isArray(entry?.pendingPoints) ? entry.pendingPoints.filter((p) => typeof p === "string") : [],
+  }]),
+);
+
+/**
+ * 单条证型加减的终审状态。**台账里没有登记的条目一律按未终审处理**——
+ * 方向必须是这一侧：新录进目录、还没进复核的条目不能因为「台账没提到它」就自动获得
+ * 「已核验」身份，那正好是本轮要修的那个缺陷（未终审条目被标成患者级个体化方案）。
+ */
+export function tcmRefinementAdjudication(refinementId: string): TcmRefinementAdjudication {
+  return REFINEMENT_ADJUDICATIONS.get(refinementId) || {
+    adjudicationStatus: "pending_clinician_review",
+    conflictNote: "该证型加减尚未进入逐条终审台账，本轮不作为「按本例证型加减」的依据。",
+    pendingPoints: [],
+  };
+}
+
+/** 逐穴的来源与终审记录。粒度到穴位，因为主穴与加减穴来自**不同**来源。 */
+export type TcmTreatmentPointProvenance = {
+  point: string;
+  role: "base_point" | "syndrome_refinement" | "syndrome_removal";
+  sourceRefs: string[];
+  authorityTier: TcmSourceAuthorityTier;
+  adjudicationStatus: TcmRefinementAdjudicationStatus;
+  conflictNote: string | null;
+};
 
 export const TCM_TREATMENT_PROJECT_CODES = [
   "acupuncture", "moxibustion", "tuina", "cupping", "guasha", "needle_knife",
@@ -259,6 +359,70 @@ export function governedTcmTreatmentSyndromeRefinement(
   if (matched.length === 0) return undefined;
   return matched.sort((left, right) =>
     right.weight - left.weight || left.refinement.id.localeCompare(right.refinement.id))[0].refinement;
+}
+
+/**
+ * 逐穴的来源、权威等级与终审状态（2026-08-11）。
+ *
+ * 此前对外只有一个拼起来的 `protocolSource` 字符串——两三个来源 ID 用「、」连在一起，
+ * 集成方看不出**哪个穴来自哪个来源**、也看不出等级，更看不出有没有分歧。
+ * 而这三件事恰恰决定了对方要不要展示、以什么等级展示、能不能采纳。
+ *
+ * 粒度必须到穴位，因为主穴与加减穴来自不同来源：主穴出自病种模板的 sourceRefs
+ * （多为国标操作规范 / 地方诊疗方案），加减穴出自证型配穴规则的 sourceRefs
+ * （少数有针灸学会标准，多数只有项目治理教材表）。
+ */
+export function tcmTreatmentPointProvenance(
+  template: TcmTreatmentPlanTemplate,
+  refinement: TcmTreatmentSyndromeRefinement | undefined,
+): TcmTreatmentPointProvenance[] {
+  const baseRefs = [...template.sourceRefs];
+  const baseTier = highestTcmSourceAuthorityTier(baseRefs);
+  const records: TcmTreatmentPointProvenance[] = template.sitesOrPoints.map((point) => ({
+    point,
+    role: "base_point" as const,
+    sourceRefs: baseRefs,
+    authorityTier: baseTier,
+    // 主穴属病种模板，不经证型终审台账；它的可用性由模板本身的治理状态决定。
+    adjudicationStatus: "approved" as const,
+    conflictNote: null,
+  }));
+  if (!refinement) return records;
+  const refRefs = [...refinement.sourceRefs];
+  const refTier = highestTcmSourceAuthorityTier(refRefs);
+  const adjudication = tcmRefinementAdjudication(refinement.id);
+  const pending = new Set(adjudication.pendingPoints);
+  // 已在主穴里的穴**不再作为证型加穴**记一条。候选穴位列表早就按这条去重了
+  //（capabilities 层 filter !basePoints.includes），逐穴溯源这一路漏了：
+  // HIS 会拿到两条「太渊」，一条 base_point、一条 syndrome_refinement，
+  // 于是一个所有证型都在扎的主穴被标成了本证型特有配穴——又一次同判据只铺了一处。
+  const basePoints = new Set(template.sitesOrPoints);
+  for (const point of refinement.addPoints) {
+    if (basePoints.has(point)) continue;
+    records.push({
+      point,
+      role: "syndrome_refinement",
+      sourceRefs: refRefs,
+      authorityTier: refTier,
+      adjudicationStatus: adjudication.adjudicationStatus,
+      // 逐穴分歧优先于整条说明：台账点名了哪个穴有分歧，就把说明挂在那个穴上。
+      conflictNote: adjudication.adjudicationStatus === "approved"
+        ? null
+        : (pending.size > 0 && !pending.has(point) ? null : adjudication.conflictNote),
+    });
+  }
+  for (const point of refinement.removePoints || []) {
+    records.push({
+      point,
+      role: "syndrome_removal",
+      sourceRefs: refRefs,
+      authorityTier: refTier,
+      // 剔除是**保守方向**，未终审也照常执行（见 capabilities 层的注释），因此不标 pending。
+      adjudicationStatus: "approved",
+      conflictNote: null,
+    });
+  }
+  return records;
 }
 
 /**

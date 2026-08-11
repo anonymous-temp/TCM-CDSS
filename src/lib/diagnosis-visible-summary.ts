@@ -3303,6 +3303,10 @@ export function tcmTreatmentProtocolGapCopy(gap: string): string {
   if (gap === "catalog_indication_mismatch") return "本项目目录中暂无与本例适应证对应的标准操作方案，本轮仅作现场评估。";
   if (gap === "catalog_protocol_absent") return "本项目尚无可下发的患者级操作方案，本轮仅作现场适应证与资质评估。";
   if (gap === "syndrome_refinement_not_matched") return "已命中该病种标准取穴模板，但本例已签名证候未匹配到受治理的证型加减方案，请医生按本例寒热虚实增减后实施。";
+  // 2026-08-11：命中了证型配穴、但那一条尚未完成中医师终审。与上一条的区别必须说清楚——
+  // 上一条是「没有对应的加减」，这一条是「有，但我们还不敢用」。把两者写成同一句话，
+  // 医生就无从判断是该自己加减、还是该等我们的终审结论。
+  if (gap === "syndrome_refinement_pending_adjudication") return "已命中该病种标准取穴模板与本例证型的配穴方案，但该条配穴尚未完成中医师终审，本轮不予应用；下方仅为病种标准取穴，请医生按本例寒热虚实自行增减。";
   return "";
 }
 

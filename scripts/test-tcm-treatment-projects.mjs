@@ -5,8 +5,13 @@ import { parseEnv } from "node:util";
 const {
   TCM_TREATMENT_PROJECTS,
   TCM_TREATMENT_PROJECT_CODES,
+  TCM_SOURCE_AUTHORITY_TIERS,
+  highestTcmSourceAuthorityTier,
   parseTcmTreatmentCapabilities,
+  tcmRefinementAdjudication,
+  tcmSourceAuthorityTier,
   tcmTreatmentAssessmentPositioningForDisplay,
+  tcmTreatmentPointProvenance,
 } = await import("../src/lib/tcm-treatment-projects.ts");
 const {
   applyTcmTreatmentCapabilityPriority,
@@ -1019,6 +1024,120 @@ try {
     assert.ok(compiledCount >= 20, `编译样本过小（${compiledCount}），本属性形同虚设`);
     assert.deepEqual([...new Set(dropped)], [],
       "服务端编译出的诊疗项目被自家 schema 静默剔除——页面会显示它，签名载荷与 HIS 却收不到");
+  });
+
+  // ── 逐穴来源与权威分级（2026-08-11）────────────────────────────────────────────
+  //
+  // 此前权威性是按**病种**说的：「不寐与痛经来自权威来源，其余为教材来源」。这个粒度不成立——
+  // 同一病种下逐条不同：不寐前 4 条同时有 T/CAAM 011-2014 与教材表，「痰热内扰」「脾胃不和」
+  // 只有教材表。对外按病种概括会让集成方以为整组都有学会标准背书。
+  check("每条证型加减的权威等级按**规则**判定，不按病种判定", () => {
+    const acupuncture = TCM_TREATMENT_PROJECTS.find((project) => project.code === "acupuncture");
+    const insomnia = acupuncture.planTemplates.find((t) => t.id === "acupuncture-insomnia-government-guidance");
+    assert.ok(insomnia, "夹具前提：不寐针刺模板存在");
+    const tierOf = (label) => {
+      const rule = insomnia.syndromeRefinements.find((r) => r.syndromeLabel === label);
+      assert.ok(rule, `不寐模板缺少证型 ${label}`);
+      return highestTcmSourceAuthorityTier(rule.sourceRefs);
+    };
+    for (const label of ["心脾两虚", "肝火扰心", "心肾不交", "心胆气虚"]) {
+      assert.equal(tierOf(label), "professional_society_standard", `${label} 应有学会标准来源`);
+    }
+    for (const label of ["痰热内扰", "脾胃不和"]) {
+      assert.equal(tierOf(label), "project_governed_source",
+        `${label} 只有项目治理教材来源，不得与同病种其他条目一并说成「权威来源」`);
+    }
+  });
+
+  check("目录里用到的每一个来源都在受治理来源注册表里登记了等级", () => {
+    const unregistered = new Set();
+    for (const project of TCM_TREATMENT_PROJECTS) {
+      for (const template of project.planTemplates || []) {
+        for (const ref of [...template.sourceRefs, ...(template.syndromeRefinements || []).flatMap((r) => r.sourceRefs)]) {
+          if (tcmSourceAuthorityTier(ref) === "unregistered") unregistered.add(ref);
+        }
+      }
+    }
+    assert.deepEqual([...unregistered], [],
+      "来源未登记等级时对外只能显示「来源未登记」，等于把分级这件事又做没了");
+    assert.ok(TCM_SOURCE_AUTHORITY_TIERS.includes("project_governed_source"));
+  });
+
+  check("逐穴溯源：主穴与加减穴各自带自己的来源，不共用一个拼接字符串", () => {
+    const acupuncture = TCM_TREATMENT_PROJECTS.find((project) => project.code === "acupuncture");
+    const insomnia = acupuncture.planTemplates.find((t) => t.id === "acupuncture-insomnia-government-guidance");
+    const rule = insomnia.syndromeRefinements.find((r) => r.syndromeLabel === "心脾两虚");
+    const records = tcmTreatmentPointProvenance(insomnia, rule);
+    const base = records.filter((r) => r.role === "base_point");
+    const added = records.filter((r) => r.role === "syndrome_refinement");
+    assert.equal(base.length, insomnia.sitesOrPoints.length, "主穴逐个成条");
+    assert.equal(added.length, rule.addPoints.length, "加减穴逐个成条");
+    assert.deepEqual(base[0].sourceRefs, [...insomnia.sourceRefs], "主穴来源出自病种模板");
+    assert.deepEqual(added[0].sourceRefs, [...rule.sourceRefs], "加减穴来源出自证型规则");
+    assert.notDeepEqual(base[0].sourceRefs, added[0].sourceRefs, "两者本来就不同源——这正是拆到穴位粒度的理由");
+    for (const record of records) {
+      assert.ok(TCM_SOURCE_AUTHORITY_TIERS.includes(record.authorityTier), `等级取值越界：${record.authorityTier}`);
+    }
+  });
+
+  // ── 未终审条目不得冒充患者级个体化方案（2026-08-11）──────────────────────────────
+  //
+  // 判据写成**数据驱动的属性**而不是逐例断言：台账加一条、目录改一条，这里都仍然成立。
+  check("终审台账与运行时处置严格对应：approved 才应用加穴，pending 一律降级", () => {
+    configureSimple(["acupuncture"]);
+    let approved = 0;
+    let pending = 0;
+    const acupuncture = TCM_TREATMENT_PROJECTS.find((project) => project.code === "acupuncture");
+    for (const template of acupuncture.planTemplates) {
+      for (const rule of template.syndromeRefinements || []) {
+        const adjudication = tcmRefinementAdjudication(rule.id);
+        const prior = signedM03({
+          tcmDiseaseName: template.matchAny[0],
+          primarySyndrome: `${rule.syndromeMatchAny[0]}证`,
+          overallPathogenesis: `${template.matchAny[0]}，${rule.syndromeMatchAny[0]}`,
+          chainPathogenesis: `${template.matchAny[0]}，${rule.syndromeMatchAny[0]}`,
+          therapyDirection: "按证型论治",
+          westernPrimary: template.matchAny[0],
+        });
+        const [recommendation] = compileTcmTreatmentRecommendations(
+          [{ projectCode: "acupuncture", targetRef: "P1" }],
+          prior,
+        );
+        if (!recommendation) continue;
+        // 只在确实命中了本条证型加减时断言（命中判据是已签名文本逐字包含）。
+        const matched = recommendation.protocolStatus === "governed_patient_specific_plan" ||
+          recommendation.protocolGap === "syndrome_refinement_pending_adjudication";
+        if (!matched) continue;
+        const points = recommendation.suggestedSitesOrPoints.join("；");
+        if (adjudication.adjudicationStatus === "approved") {
+          approved += 1;
+          assert.equal(recommendation.protocolStatus, "governed_patient_specific_plan", `${rule.id}: 已终审应按证型加减`);
+          assert.equal(recommendation.adjudicationStatus, "approved");
+        } else {
+          pending += 1;
+          assert.equal(recommendation.protocolStatus, "governed_class_template_not_syndrome_tailored",
+            `${rule.id}: 未终审的证型加减不得标成患者级个体化方案`);
+          assert.equal(recommendation.protocolGap, "syndrome_refinement_pending_adjudication");
+          assert.equal(recommendation.adjudicationStatus, "pending_clinician_review");
+          assert.ok(recommendation.deferredSyndromeRefinement, `${rule.id}: 未应用的证型加减必须如实下发，不得静默隐藏`);
+          for (const point of rule.addPoints) {
+            if (template.sitesOrPoints.includes(point)) continue;
+            assert.ok(!points.includes(point), `${rule.id}: 未终审的加穴「${point}」不得出现在候选穴位里`);
+          }
+          // 剔除是**保守方向**：未终审也照常执行，否则「湿热证剔关元」这类安全性剔除会跟着失效。
+          for (const point of rule.removePoints || []) {
+            assert.ok(!points.includes(point), `${rule.id}: 剔除穴「${point}」在未终审时同样必须剔除`);
+          }
+        }
+      }
+    }
+    assert.ok(approved + pending >= 8, `命中样本过小（${approved + pending}），本属性形同虚设`);
+  });
+
+  check("台账未登记的条目按未终审处理（新录入的条目不得自动获得已核验身份）", () => {
+    const unknown = tcmRefinementAdjudication("this-refinement-does-not-exist");
+    assert.equal(unknown.adjudicationStatus, "pending_clinician_review");
+    assert.ok(unknown.conflictNote, "未登记也要给出可展示的说明");
   });
 
   // 页面只能显示载荷里真实存在的内容：非法条目在投影前就被归一剔除，因此不上屏。

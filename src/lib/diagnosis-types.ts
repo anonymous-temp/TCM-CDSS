@@ -622,9 +622,41 @@ export interface ClinicalReasoningResultV2 {
         // 穴位逐字相同，却八次都标 governed_patient_specific_plan。
         | "governed_class_template_not_syndrome_tailored"
         | "assessment_only_no_patient_specific_protocol";
+      /**
+       * protocolStatus 的**非破坏性伴生字段**（2026-08-11）。三态的真实值恒在这里；
+       * HIS 的 V1 兼容投影会把 protocolStatus 折叠回旧两态，tailoringStatus 不折叠。
+       */
+      tailoringStatus?: "syndrome_tailored" | "class_template_only" | "assessment_only";
       protocolGap?: string;
+      /**
+       * 该条证型加减是否已完成中医师终审（2026-08-11）。
+       * pending_clinician_review 时服务端**不应用**该条的加穴、protocolStatus 降为病种模板态；
+       * 剔除穴仍照常应用（保守方向）。未登记进终审台账的条目一律按 pending 处理。
+       */
+      adjudicationStatus?: "approved" | "pending_clinician_review";
+      /** 命中但因未终审而未予应用的证型加减。不隐藏——医生要知道系统看到了什么、为什么没用。 */
+      deferredSyndromeRefinement?: {
+        syndromeLabel: string;
+        deferredPoints: string[];
+        conflictNote: string;
+      };
       treatmentContent: string;
       suggestedSitesOrPoints: string[];
+      /**
+       * 逐穴的来源、权威等级与终审状态（2026-08-11）。
+       * 主穴与加减穴来自**不同**来源，拼成一个 protocolSource 字符串等于把这件事抹平：
+       * 集成方看不出哪个穴来自哪个来源、什么等级、有没有分歧，也就无法决定展示与采纳等级。
+       */
+      pointProvenance?: Array<{
+        point: string;
+        role: "base_point" | "syndrome_refinement" | "syndrome_removal";
+        sourceRefs: string[];
+        authorityTier: string;
+        adjudicationStatus: "approved" | "pending_clinician_review";
+        conflictNote: string | null;
+      }>;
+      /** 本条方案全部来源里的最高权威等级。逐穴等级见 pointProvenance。 */
+      sourceAuthorityTier?: string;
       scheduleSuggestion: string;
       techniqueBoundary: string;
       protocolSource: string;
@@ -943,7 +975,35 @@ const TcmTreatmentRecommendationSchema = z.object({
   targetPathogenesis: z.string().min(1).max(600),
   assessmentPositioning: z.string().min(1).max(800).optional(),
   protocolStatus: z.enum(["governed_patient_specific_plan", "governed_class_template_not_syndrome_tailored", "assessment_only_no_patient_specific_protocol"]),
+  // 新增字段一律 fail-soft：写歪一条不能让整条诊疗项目被逐条隔离机制剔掉——
+  // 那正是本轮刚修完的「一个空字符串让整条项目消失」（见 tcm-treatment-capabilities 注释）。
+  tailoringStatus: z.enum(["syndrome_tailored", "class_template_only", "assessment_only"]).optional().catch(undefined),
   protocolGap: z.string().min(1).max(800).optional(),
+  adjudicationStatus: z.enum(["approved", "pending_clinician_review"]).optional().catch(undefined),
+  deferredSyndromeRefinement: z.object({
+    syndromeLabel: z.string().min(1).max(120),
+    deferredPoints: z.array(z.string().min(1).max(200)).max(12),
+    conflictNote: z.string().min(1).max(800),
+  }).optional().catch(undefined),
+  pointProvenance: z.preprocess(
+    isolateInvalidItems(z.object({
+      point: z.string().min(1).max(200),
+      role: z.enum(["base_point", "syndrome_refinement", "syndrome_removal"]),
+      sourceRefs: z.array(z.string().min(1).max(120)).max(8),
+      authorityTier: z.string().min(1).max(80),
+      adjudicationStatus: z.enum(["approved", "pending_clinician_review"]),
+      conflictNote: z.string().max(800).nullable(),
+    })),
+    z.array(z.object({
+      point: z.string().min(1).max(200),
+      role: z.enum(["base_point", "syndrome_refinement", "syndrome_removal"]),
+      sourceRefs: z.array(z.string().min(1).max(120)).max(8),
+      authorityTier: z.string().min(1).max(80),
+      adjudicationStatus: z.enum(["approved", "pending_clinician_review"]),
+      conflictNote: z.string().max(800).nullable(),
+    })).max(24).optional(),
+  ).catch(undefined),
+  sourceAuthorityTier: z.string().min(1).max(80).optional().catch(undefined),
   treatmentContent: z.string().min(1).max(1200),
   suggestedSitesOrPoints: z.array(z.string().min(1).max(200)).max(12),
   scheduleSuggestion: z.string().max(600),

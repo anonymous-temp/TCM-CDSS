@@ -1,0 +1,307 @@
+{
+  "schemaVersion": "tcm-acupoint-syndrome-refinement-adjudications-v1",
+  "note": "证型配穴规则的**逐条终审台账**（2026-08-11 建）。\n\n【它解决什么】0810 把 45 条证型配穴录进目录时，权威性是按**病种**说的：「不寐与痛经来自权威来源，\n其余为教材来源」。这个粒度不成立——同一个病种下，不寐的前 4 条同时有 T/CAAM 011-2014 与教材表两个来源，\n「痰热内扰」「脾胃不和」两条只有教材表；痛经同理。而且有几条经复核发现与教材配穴表并不一致，\n却仍然和已核验条目一样被标成 governed_patient_specific_plan（患者级个体化方案）。\n\n【它怎么用】adjudicationStatus 只有两个值：\n  approved                  —— 已核验，可作为「按本例证型加减」的依据；\n  pending_clinician_review  —— 未终审。运行时**不应用**该条的加穴（removePoints 仍然应用，\n                               剔除是保守方向），protocolStatus 强制降为\n                               governed_class_template_not_syndrome_tailored，\n                               protocolGap 记 syndrome_refinement_pending_adjudication，\n                               conflictNote 原样下发给医生与 HIS。\n\n【判据来源】本表条目由多视角复核（规划教材配穴表 / 经络腧穴主治 / 禁忌与配伍安全）加对抗性复核产出，\n只做**降级**不做升级：任何一个视角提出、且对抗性复核未能驳倒的质疑，一律记 pending_clinician_review。\n复核不具备新增穴位的权限——它只回答「已录的这条成不成立」。\n最终放行仍以中医师签字终审为准；本表是终审前的保守闸门，不是终审本身。",
+  "sourceRefs": [
+    {
+      "id": "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE",
+      "role": "被复核对象",
+      "note": "《针灸学》规划教材证型配穴表（多源交叉核对录入）"
+    },
+    {
+      "id": "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014",
+      "role": "较高等级来源",
+      "note": "T/CAAM 011-2014《循证针灸临床实践指南：失眠》"
+    },
+    {
+      "id": "SRC-CAAM-DYSMENORRHEA-POINTS",
+      "role": "较高等级来源",
+      "note": "中国针灸学会痛经科普条目"
+    }
+  ],
+  "entries": {
+    "bi-blood-stasis": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "驳不倒。本仓治理版《经络腧穴学》条目中血海主治仅月经不调/经闭/崩漏与湿疹/风疹，古典摘录全属崩漏血闭，无痹痛或瘀血痛；参考课程索引亦只称其为痛经要穴。所挂教材配穴表的痹证篇本无瘀血阻络证，血海仅见于行痹（治风先治血）；项痹/肩痹/膝痹/腰痛的瘀血证配穴教材口径统一为膈俞（±委中、内关），无一加血海。膈俞可留（血会、大成\"主周痹\"、腰痛篇瘀血加膈俞），血海缺依据，且与 bi-wandering 完全同穴印证系抄录。",
+      "pendingPoints": [
+        "血海"
+      ],
+      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+    },
+    "bi-cold-damp": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "bi-damp-heat": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "2026-08-10 独立复核判「uncertain」：教材痹证分型中热痹配大椎、曲池，未明确湿热痹阻及阴陵泉，存疑（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
+      "pendingPoints": [],
+      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+    },
+    "bi-liver-kidney-deficiency": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "仅肝俞驳不倒。模板含腰痛/颈椎病，肾虚证成立，且本项目《经络腧穴学》目录中肾俞主治含\"腰痛\"、太溪含\"腰背痛、下肢冷痛\"，这两味可独立坐实；但同目录肝俞主治只有胁痛黄疸/目疾/吐血/癫狂痫，无筋骨关节痛，接到痛证只能靠\"肝主筋\"推演。另四条加减与痹证四证表逐条对得上，唯此条无对应，印证质疑的事实陈述。判据无页码级定位，无法在仓内确认。",
+      "pendingPoints": [
+        "肝俞"
+      ],
+      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+    },
+    "bi-wandering": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "cough-liver-fire-lung": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "cough-lung-spleen-qi-deficiency": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "驳不倒。教材咳嗽配穴表确无肺脾气虚行（同模板另5条逐条对得上该表），本条却只挂该表为来源。再核本模板自身一级来源《北京市新冠恢复期中医康复指导建议》：肺脾气虚证选穴为太渊、膻中、气海、关元、足三里——含气海（本条反而漏关元），但脾俞不在该证型行内，只见于肺胃阴虚/余邪未尽。故脾俞系哮喘虚证表外推，与本目录删除头痛悬钟时的\"外推不是来源\"同型。修法：气海改挂北京指导建议并补关元，脾俞删除。",
+      "pendingPoints": [
+        "脾俞"
+      ],
+      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+    },
+    "cough-lung-yin-deficiency": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "cough-phlegm-damp-lung": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "cough-wind-cold-lung": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "驳不倒。代码实证：build 脚本 761 行 addPoints:[\"风门\",\"太渊\"]，而同模板 754 行 sitesOrPoints 首位即太渊（无条件主穴，非\"二选一\"），故太渊在所有证型都扎，不构成本证型特有配穴；且 pointProvenance 与 deferredPoints 两条出口均不去重，医生/HIS 会看到它被标为 syndrome_refinement。教材层面：本模板其余加减逐条对应内伤咳嗽配穴，该组主穴即含太渊（肺经原穴、补肺），风寒表证配穴只有风门（或风池）。同一原则项目已在不寐\"脾胃不和\"删内关时执行过（729-731 行注释），此处未一致执行。风门本身成立。",
+      "pendingPoints": [
+        "太渊"
+      ],
+      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+    },
+    "cough-wind-heat-lung": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "2026-08-10 独立复核判「uncertain」：教材未明确该病种配穴，风热犯肺常规可加大椎曲池（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
+      "pendingPoints": [],
+      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+    },
+    "digestive-blood-stasis": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "2026-08-10 独立复核判「inconsistent」：瘀血停胃应加膈俞、血海，不是三阴交。（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
+      "pendingPoints": [
+        "三阴交"
+      ],
+      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+    },
+    "digestive-damp-heat": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "digestive-food-retention": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "digestive-liver-qi-invading-stomach": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "digestive-phlegm-damp": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "可驳的只有病种表述：模板首词为痞满/胃痞/功能性消化不良，来源登记 scope 即「胃痞胃痛」，痰湿中阻是痞满正列证型，按胃痛/便秘表查偏窄。但核心指控成立：本模板其余各行（梁门下脘、期门太冲、膈俞三阴交、胃俞三阴交内庭）均能对上胃痛配穴表，唯此行对不上；丰隆+阴陵泉在本文件仅咳嗽痰湿阻肺一行有真实教材出处，用于消化病属跨病种类推。按台账「外推不是来源、只降不升」（悬钟先例）判 pending；降级不损安全，关元剔除仍生效。",
+      "pendingPoints": [],
+      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+    },
+    "digestive-spleen-stomach-deficiency-cold": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "digestive-stomach-yin-deficiency": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "2026-08-10 独立复核判「inconsistent」：胃阴不足应加胃俞、三阴交、内庭，缺胃俞。（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
+      "pendingPoints": [],
+      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+    },
+    "dysmenorrhea-cold-stasis": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "2026-08-10 独立复核判「uncertain」：教材未明确寒凝血瘀在关元、血海、三阴交基础上加归来、地机、中极，无法判断。（2026-08-11 复核未再提出同一质疑，跨轮取并集，保守保留待终审）",
+      "pendingPoints": [],
+      "basis": "跨轮并集：两轮复核结论不一致时按未终审处理。"
+    },
+    "dysmenorrhea-damp-heat": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "②可驳：0810 独立复核已就同一问题删除过「湿热蕴结剔关元」（关元系痛经主穴调冲任；RN4 主治含痛经/月经不调、不限寒热、操作为直刺）；消化与痹证模板中关元本就不在主穴内，其 removePoints 只过滤 sitesOrPoints，实为空转，不构成判据；灸法目录无妇科模板，系统不输出温灸。①不可驳：教材痛经配穴表与学会条目（CAAM scope 仅列四证）均无湿热蕴结行，阴陵泉靠「主治含痛经＋利湿」两段外推，sourceRefs 却标教材配穴表；同目录刚以「外推不是来源」删过悬钟，0810 文档亦已把痛经这几条记为待中医师终审的分歧。故整条落 pending。",
+      "pendingPoints": [],
+      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+    },
+    "dysmenorrhea-kidney-deficiency": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "dysmenorrhea-qi-blood-deficiency": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "dysmenorrhea-qi-stagnation": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "headache-blood-deficiency": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "headache-blood-stasis": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "headache-kidney-deficiency": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "headache-liver-yang": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "headache-phlegm-turbidity": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "headache-wind-cold": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "headache-wind-heat": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "influenza-damp": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "influenza-deficiency": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "influenza-wind-cold": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "influenza-wind-heat": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "insomnia-heart-gallbladder-timidity": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "甲方点名分歧：来源 A 建议在胆俞之外另加丘墟，教材表未明确；本条终审前不作为患者级方案依据。",
+      "pendingPoints": [
+        "丘墟"
+      ],
+      "basis": "甲方 2026-08-11 点名的来源分歧，终审前保守待定。"
+    },
+    "insomnia-heart-kidney-disharmony": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "insomnia-heart-spleen-deficiency": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "insomnia-liver-fire": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "insomnia-phlegm-heat": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "insomnia-spleen-stomach-disharmony": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "stroke-liver-yang-surge": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "stroke-phlegm-heat-fu": {
+      "adjudicationStatus": "pending_clinician_review",
+      "conflictNote": "驳不倒。曲池确在本模板主穴内，重复属实。候选穴位列表虽有去重（capabilities.server.ts:289-291 filter !basePoints.includes），但 tcmTreatmentPointProvenance 不去重：HIS 拿到两条「曲池」，一条 base_point/approved/国标，一条 syndrome_refinement/pending/教材+分歧说明；终审台账当前为空，deferredPoints 还把实际已给出的曲池说成「本轮不予应用」。加穴方向确为教材通行（曲池·内庭·丰隆），但这不解决重复。全目录同类重复仅另有 cough-wind-cold-lung 的太渊。",
+      "pendingPoints": [
+        "曲池"
+      ],
+      "basis": "2026-08-11 多视角复核提出质疑，对抗性复核未能驳倒。"
+    },
+    "stroke-qi-deficiency-stasis": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "stroke-wind-phlegm": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    },
+    "stroke-yin-deficiency-wind": {
+      "adjudicationStatus": "approved",
+      "conflictNote": null,
+      "pendingPoints": [],
+      "basis": "2026-08-11 三视角复核（规划教材配穴表/经络腧穴主治/禁忌与配伍安全）一致通过。"
+    }
+  }
+}

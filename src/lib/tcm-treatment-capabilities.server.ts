@@ -5,8 +5,11 @@ import {
   getTcmTreatmentProjectDefinition,
   governedTcmTreatmentPlanTemplateForTags,
   governedTcmTreatmentSyndromeRefinement,
+  highestTcmSourceAuthorityTier,
   isKnownTcmTreatmentProjectCode,
   parseTcmTreatmentCapabilities,
+  tcmRefinementAdjudication,
+  tcmTreatmentPointProvenance,
   tcmTreatmentTemplatePointsAreGoverned,
   type TcmTreatmentPlanTemplate,
   type TcmTreatmentProjectCode,
@@ -248,7 +251,8 @@ function controlledTreatmentPlan(
   signedSyndromeText: string,
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
-  "protocolSource" | "protocolStatus" | "protocolGap"
+  "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
+  "pointProvenance" | "sourceAuthorityTier" | "adjudicationStatus" | "deferredSyndromeRefinement"
 > {
   const definition = getTcmTreatmentProjectDefinition(projectCode);
   const { tag, template: governedTemplate } = resolveTreatmentIndication(projectCode, tags, clinicalText);
@@ -258,9 +262,26 @@ function controlledTreatmentPlan(
     // （见 tcmTreatmentTemplatePointsAreGoverned）。它照常呈现，但归到操作边界一行，
     // 不再冒充穴位——医生看到的「常用穴位」必须是穴位。
     const pointsGoverned = tcmTreatmentTemplatePointsAreGoverned(governedTemplate);
-    const refinement = governedTcmTreatmentSyndromeRefinement(governedTemplate, signedSyndromeText);
+    const matchedRefinement = governedTcmTreatmentSyndromeRefinement(governedTemplate, signedSyndromeText);
+    // ── 未终审的证型加减不得冒充「按本例证型加减过」（2026-08-11）────────────────────
+    //
+    // 45 条证型配穴里只有一部分经过逐条复核。未终审的那些此前与已核验条目**待遇完全相同**：
+    // 照样加穴、照样标 governed_patient_specific_plan。这等于把「我们还没核过的东西」
+    // 呈现成「已按本例证型定制的方案」。
+    //
+    // 处置是**非对称**的，方向都取保守侧：
+    //   · 加穴（addPoints）：未终审 ⇒ **不应用**。加一个没核过的穴是往外多给东西，不能做。
+    //   · 剔除（removePoints）：未终审 ⇒ **照常应用**。剔除是往回收（湿热证剔关元这类），
+    //     因为一条规则还没终审就把安全性剔除也一并撤销，反而更危险。
+    //   · protocolStatus 降为病种模板态，protocolGap 记 pending 码，conflictNote 原样下发。
+    const refinementAdjudication = matchedRefinement
+      ? tcmRefinementAdjudication(matchedRefinement.id)
+      : undefined;
+    const refinementApproved = refinementAdjudication?.adjudicationStatus === "approved";
+    const refinement = refinementApproved ? matchedRefinement : undefined;
     const caseTerms = acupointCaseTerms(clinicalText, caseFacts, targetPathogenesis);
-    const removed = new Set(refinement?.removePoints || []);
+    // 剔除按**命中的**那条走，不按终审后的那条走——这是上面第二条的落点。
+    const removed = new Set(matchedRefinement?.removePoints || []);
     const basePoints = governedTemplate.sitesOrPoints.filter((site) => !removed.has(site));
     const points = pointsGoverned
       ? [
@@ -270,6 +291,7 @@ function controlledTreatmentPlan(
             .map((site) => annotateGovernedTemplatePoint(projectCode, site, caseTerms, refinement?.syndromeLabel)),
         ]
       : [];
+    const pointProvenance = tcmTreatmentPointProvenance(governedTemplate, refinement || matchedRefinement);
     // 「围绕什么」只能引用**病历/已签名结论里真实出现的字**，不能改口成适应证标签的
     // 症状域显示名——后者覆盖面窄于标签本身的匹配面，于是「头胀」被写成了「头痛症状」
     //（甲方 2026-08-10 ⑪）。indicationEvidenceTerms 早就为同一个缺陷写好了，
@@ -290,20 +312,45 @@ function controlledTreatmentPlan(
       // 印两遍，N 个项目就是 2N 遍。病机归病机字段，治疗内容只写这个项目本身的边界。
       treatmentContent: refinement
         ? `本例适用标准项目方案，${[focus, `按已签名证候「${refinement.syndromeLabel}」加减取穴`].filter(Boolean).join("并")}，由现场医师复核后实施。`
-        : `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，由现场医师复核后实施；本轮尚未按本例证型加减，请按本例寒热虚实增减。`,
+        : matchedRefinement
+          ? `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，也命中了「${matchedRefinement.syndromeLabel}」的证型配穴，但该条配穴尚未完成中医师终审，本轮**不予应用**，仅呈现病种标准取穴，请按本例寒热虚实自行增减。`
+          : `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，由现场医师复核后实施；本轮尚未按本例证型加减，请按本例寒热虚实增减。`,
       suggestedSitesOrPoints: points,
       scheduleSuggestion: governedTemplate.scheduleSuggestion,
       techniqueBoundary: pointsGoverned
         ? governedTemplate.techniqueBoundary
         : [governedTemplate.techniqueBoundary, ...governedTemplate.sitesOrPoints].filter(Boolean).join("；"),
       protocolSource: [...new Set([...governedTemplate.sourceRefs, ...(refinement?.sourceRefs || [])])].join("、"),
-      // 只有**两把钥匙都对上**（病种模板 + 本例已签名证型）才算个体化方案。
-      // 此前一律写 governed_patient_specific_plan，而四组八例的穴位逐字相同——
+      // 逐穴来源与权威分级（2026-08-11）：protocolSource 那个拼接字符串回答不了
+      // 「哪个穴来自哪个来源、什么等级、有没有分歧」，而这三件事决定集成方怎么展示、能否采纳。
+      pointProvenance,
+      sourceAuthorityTier: highestTcmSourceAuthorityTier(
+        [...governedTemplate.sourceRefs, ...(refinement?.sourceRefs || [])],
+      ),
+      // 只有**两把钥匙都对上**（病种模板 + 本例已签名证型）、且该条证型加减已终审，
+      // 才算个体化方案。此前一律写 governed_patient_specific_plan，而四组八例的穴位逐字相同——
       // 那个标签说的不是这一次实际发生的事。
       protocolStatus: refinement
         ? "governed_patient_specific_plan"
         : "governed_class_template_not_syndrome_tailored",
-      protocolGap: refinement ? undefined : "syndrome_refinement_not_matched",
+      // tailoringStatus 与 protocolStatus 在**同一处**派生，两者永不可能各说各的。
+      // 它存在的唯一理由是 HIS 的 V1 兼容投影会把 protocolStatus 折叠回旧两态，
+      // 而三态的真实值必须有一个不被折叠的落点（见 his-scheme-contract-version）。
+      tailoringStatus: refinement ? "syndrome_tailored" as const : "class_template_only" as const,
+      protocolGap: refinement
+        ? undefined
+        : matchedRefinement
+          ? "syndrome_refinement_pending_adjudication"
+          : "syndrome_refinement_not_matched",
+      adjudicationStatus: refinement ? "approved" as const : "pending_clinician_review" as const,
+      ...(refinement || !matchedRefinement ? {} : {
+        deferredSyndromeRefinement: {
+          syndromeLabel: matchedRefinement.syndromeLabel,
+          deferredPoints: [...matchedRefinement.addPoints],
+          conflictNote: refinementAdjudication?.conflictNote
+            || "该证型加减尚未完成中医师终审，本轮不作为患者级方案的依据。",
+        },
+      }),
     };
   }
 
@@ -375,6 +422,7 @@ function controlledTreatmentPlan(
     techniqueBoundary: "本轮不下发患者级操作参数；具体操作参数与技术细节由现场执业人员按本机构规范、项目资质与患者耐受确定。",
     protocolSource: sourceRefs.join("、") || "T12 中医非药物项目治理目录",
     protocolStatus: "assessment_only_no_patient_specific_protocol",
+    tailoringStatus: "assessment_only" as const,
     protocolGap,
   };
 }

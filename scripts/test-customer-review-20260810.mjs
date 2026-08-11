@@ -188,9 +188,21 @@ for (const [label, left, right, chief, present] of SYNDROME_PAIRS) {
     assert.notDeepEqual(a.suggestedSitesOrPoints, b.suggestedSitesOrPoints,
       `${label} 两个证型的穴位逐字相同：${a.suggestedSitesOrPoints.join("、")}`);
     for (const item of [a, b]) {
-      assert.equal(item.protocolStatus, "governed_patient_specific_plan", `${label} 命中证型加减后必须标为按证型加减`);
-      assert.ok(item.suggestedSitesOrPoints.some((site) => /加减）|加减；/.test(site)),
-        `${label} 至少一个穴位应带证型加减的入选依据：${item.suggestedSitesOrPoints.join("、")}`);
+      // 2026-08-11 收紧：命中证型加减**不再等于**可以标「按证型加减」。
+      // 该条配穴还要通过逐条终审台账（tcm-acupoint-syndrome-refinement-adjudications）。
+      // 未终审时正确行为是降级为病种模板态、不应用加穴、并把未采用的加减如实下发——
+      // 原断言把「命中」直接当成「已按证型定制」，正是本轮要修的那个说法。
+      if (item.adjudicationStatus === "approved") {
+        assert.equal(item.protocolStatus, "governed_patient_specific_plan", `${label} 已终审的证型加减必须标为按证型加减`);
+        assert.ok(item.suggestedSitesOrPoints.some((site) => /加减）|加减；/.test(site)),
+          `${label} 至少一个穴位应带证型加减的入选依据：${item.suggestedSitesOrPoints.join("、")}`);
+      } else {
+        assert.equal(item.protocolStatus, "governed_class_template_not_syndrome_tailored",
+          `${label} 未终审的证型加减不得标成患者级个体化方案`);
+        assert.equal(item.protocolGap, "syndrome_refinement_pending_adjudication");
+        assert.ok(item.deferredSyndromeRefinement,
+          `${label} 未应用的证型加减必须如实下发，否则医生会以为系统没识别出本例证型`);
+      }
     }
   });
 }

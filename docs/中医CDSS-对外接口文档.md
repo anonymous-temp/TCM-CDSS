@@ -2,9 +2,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V1.5 |
+| 文档版本 | V1.6 |
 | 发布日期 | 2026-08-11 |
-| 服务版本 | `tcm-cdss-20260811-traceability-r1-amd64` |
+| 服务版本 | `tcm-cdss-20260811-contract-compat-r1-amd64` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
@@ -1554,6 +1554,33 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 > **集成方需要做的**：把新枚举值纳入解析；按旧逻辑"非 `governed_patient_specific_plan` 即评估态"
 > 处理会把已带治理穴位与频次的第三态误降级。三态的 `suggestedSitesOrPoints` 与
 > `scheduleSuggestion` 完整度约束：前两态都有，第三态**不是**评估态。
+
+> ### ⚠️ V1.5 勘误与兼容修正（2026-08-11）
+>
+> **V1.4 的处理是错的，本版已改正。** 第三态是在 `schemaVersion` 保持
+> `tcm-cdss-his-ai-scheme-v1` 的前提下加进出参的。对使用 Java enum、Kotlin sealed class、
+> TypeScript union 或 Jackson `FAIL_ON_UNKNOWN_PROPERTIES` 反序列化的集成方，
+> 这不是"多一个可忽略的取值"，而是**解析直接抛异常**。在变更记录里登记"这是破坏性变更"
+> 不等于没有破坏它，也不应要求贵方为此临时改代码。
+>
+> **V1.5 起的口径（HIS 方案接口 `/api/diagnosis/his-scheme`）**
+>
+> | 契约版本 | 怎么请求 | `protocolStatus` 取值 | `tailoringStatus` |
+> |---|---|---|---|
+> | **V1（默认，不请求即为此档）** | 无需任何改动 | **只回旧两态**。第三态向下映射为 `assessment_only_no_patient_specific_protocol` | 三态真实值，可忽略 |
+> | **V2（显式请求）** | `?schemaVersion=v2`，或请求头 `x-cdss-his-scheme-version: v2`，或请求体 `hisSchemeVersion: "v2"` | 真三态 | 三态真实值 |
+>
+> · 映射方向是**单向且保守**的：第三态（病种模板未按证型加减）折叠成"尚未形成患者级方案"，
+>   旧集成方按它处理只会更保守，绝不会把未加减的模板当成个体化方案采纳；
+>   反向（评估态 → 患者级方案）在任何版本下都不存在。
+> · `tailoringStatus`（`syndrome_tailored` / `class_template_only` / `assessment_only`）是
+>   **非破坏性新增字段**，两个版本都下发，三态的真实值恒在这里。旧集成方忽略它即可；
+>   要区分"病种模板未加减"与"纯现场评估"的，读它，不必升到 V2。
+> · 版本号拼错或无法识别时**一律回落 V1**，不返回 `400`。
+> · **M04 原始响应（`/api/diagnosis/prescribe` 的结构化载荷）不做折叠**：它的
+>   `protocolStatus` 恒为规范三态。原因是该字段在 M03/M04 的 HMAC 签名域内，
+>   按调用方折叠会导致 M04→M05 的签名校验失败。直接解析 M04 载荷的集成方请按
+>   "可扩展枚举"处理（白名单匹配已知值 + 未知值降级展示），或改读 `tailoringStatus`。
 | 流派适配说明 | `lineageAdaptation`（可选：仅当请求指定了流派偏好时输出） |
 
 ### 5.3 风险与随访（M05 响应）
@@ -2070,6 +2097,19 @@ async function callStage(url, headers, body) {
 |---|---|---|
 | `prescriptions.modifications[].triggerSource` | 加减触发依据 | `{kind, sourceRef, sourceQuote}`，三项齐全才下发，否则为 `null`。`kind` 取 `primary_syndrome_basis` / `pathogenesis_patient_fact` / `western_supporting_fact`，说明这条加减是从证候依据、病机患者事实还是西医支持事实来的；`sourceQuote` 为病历原文逐字引用。此前 HIS 侧只有一句自由文本 `trigger`，无从判断触发来自哪里 |
 | `diagnoses.terminologyMappings[]` | 国标术语归一痕迹 | `{namespace, fieldPath, originalText, canonical, candidateId, status, confidence}`。系统把医生原文归一到国标/受控词表（如「胃痞」→「痞满」）时的逐条记录。`status=suggested` 表示系统建议、医生**尚未确认**；`clinician_confirmed` 表示已确认。此前 HIS 只拿得到归一**之后**的名字，无法回答「这个证候名是医生写的还是系统改的」。内部执行痕迹（模型名、缓存命中）不下发 |
+| `treatments.tcmProjects[].tailoringStatus` | 方案加减状态 | `syndrome_tailored` / `class_template_only` / `assessment_only`。三态的**真实值**，两个契约版本都下发，永不随 `protocolStatus` 折叠。详见上方「V1.5 勘误与兼容修正」 |
+| `treatments.tcmProjects[].pointProvenance[]` | 逐穴来源与权威分级 | `{point, role, sourceRefs, authorityTier, adjudicationStatus, conflictNote}`。`role` 为 `base_point`（病种主穴）/ `syndrome_refinement`（证型加穴）/ `syndrome_removal`（证型剔除穴）。**主穴与加减穴来自不同来源**，此前只有一个拼接的 `protocolSource` 字符串，集成方看不出哪个穴来自哪个来源、什么等级、有没有分歧 |
+| `treatments.tcmProjects[].sourceAuthorityTier` | 本条方案最高权威等级 | 取值：`regulatory_primary`（国家标准/规范）、`government_primary`（政府发布方案）、`government_mirror`、`professional_society_standard`（学会标准）、`professional_society_reference`（学会参考条目）、`project_governed_source`（项目治理教材来源）、`unregistered`。逐穴等级见 `pointProvenance` |
+| `treatments.tcmProjects[].adjudicationStatus` | 证型加减终审状态 | `approved` / `pending_clinician_review`。**未终审时服务端不应用该条加穴**，`suggestedSitesOrPoints` 只是病种标准取穴，`protocolStatus` 同时降为病种模板态 |
+| `treatments.tcmProjects[].deferredSyndromeRefinement` | 未予应用的证型加减 | `{syndromeLabel, deferredPoints, conflictNote}`。命中了本例证型的配穴方案、但因未完成中医师终审而没有应用。如实下发而不是静默隐藏——否则医生会以为系统根本没识别出本例证型 |
+
+> **证型配穴的权威性必须按条看，不能按病种看。** 当前 8 组针刺模板下共 45 条证型加减，
+> 其中 32 条已完成逐条复核（`approved`）、13 条待中医师终审（`pending_clinician_review`）。
+> 权威等级同样逐条不同：不寐的「心脾两虚/肝火扰心/心肾不交/心胆气虚」四条有
+> T/CAAM 011-2014 学会标准背书，同病种的「痰热内扰/脾胃不和」只有项目治理教材来源；
+> 痛经同理。**请勿按病种整组采信**，以 `pointProvenance[].authorityTier` 与
+> `adjudicationStatus` 为准。
+> 完整 JSON Schema 见 `docs/schema/his-ai-scheme-tcm-projects.schema.json`（V1.5 起随文档发布）。
 
 > **同批修复（无出参变化，但影响你看到的值）**：`nonPharma.tcmTreatments` 此前在评估态项目上
 > 会整条丢失（服务端生成的 `techniqueBoundary` 为空串，撞上载荷校验的非空约束被静默剔除），
@@ -2093,6 +2133,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V1.6 | 2026-08-11 | **① V1 契约兼容闭环（勘误 V1.4）**：`protocolStatus` 的第三态此前在 `schemaVersion` 不变的前提下上线，对严格枚举反序列化的集成方是破坏性变更。现改为 **V1 默认只回旧两态**（第三态向保守侧折叠），新增非破坏字段 `tailoringStatus` 承载三态真实值，**V2 显式请求**才开放真三态；同时随文档发布 JSON Schema。**② 证型配穴逐条、逐穴分级**：新增 `pointProvenance[]`（逐穴来源/权威等级/终审状态/分歧说明）、`sourceAuthorityTier`、`adjudicationStatus`、`deferredSyndromeRefinement`。45 条证型加减经逐条复核，32 条已核验、13 条待中医师终审；**未终审条目不再标为患者级个体化方案**，其加穴不予应用（剔除穴仍应用，保守方向） | **否。** V1 出参的枚举取值反而**收窄**回 V1.3 的两态，比 V1.4 更兼容；其余均为新增可选字段。若贵方已按 V1.4 适配了三态，请改用 `?schemaVersion=v2` 保持原行为 |
 | V1.5 | 2026-08-11 | **① 方名可追溯性修复（甲方 0807 起的最大遗留项）**：`formula.candidates[].formulaSource` 此前对 10 类常用经方判为「无出处」，进而把方名改写成「本例辨证组方」——根因是「这张处方是不是 X 方」在系统内有两个互不相识的判据。收敛为一个之后，参苓白术散、四君子汤加减（党参代人参）、异功散加减、五子衍宗丸加减、缩泉丸加味、五磨饮子加减、六神散加减、杏仁煎、四神散加味、调经方加味等均可正常给出方名与出处。同一批归档 M04 重放：医生页面带方名 5/39→15/39。**② 页面与载荷不再各说各的**：方名身份恢复此前发生在可见正文重建之后，导致同一份响应里页面写「自拟方」、签名载荷与 HIS 写经方名；已改为恢复在前、渲染在后。**③ 中医外治项目不再整条丢失**（见上方 A.1 说明）。**④ 新增 HIS 出参** `prescriptions.modifications[].triggerSource`、`diagnoses.terminologyMappings[]`。**⑤ 文档安全**：全部 curl 示例改用 `$TOKEN` 占位，不再内联真实令牌 | **否。** 出参只增不删，字段语义未变。`formulaSource.evidenceLevel` 与 `constructionType` 的**取值分布**会明显变化（更多候选从 `model_inference`/`self_devised` 变为 `kb_entry`/`classic_text`+`single_base`），这是修复结果不是契约变更；若贵方按「方名恒为自拟」做过特殊处理，请撤销 |
 | V1.4 | 2026-08-10 | **① 文档更正**：R5"不可跳段返回 409"与实现不符，改为如实写出真实存在的三道门（M02 阶段门、M04/M05 签名门）；M01 流程图标签由"结构化病历"更正为"舌象图片解析"，与出参表一致。**② 补回丢失章节**：新增 §3.11 `CDSS_GATE_DISPOSITION` 处置档位（advise 默认 / block 回滚），该语义在 20260803 版写过、V1.3 整段丢失。**③ 行为修复**：`symptoms` 支持字符串与字符串数组（此前被静默丢成 `{}`，导致现病史整段消失与红旗漏检）；急症排查确认由字数校验改为逐条红旗处置留痕契约（签名版本 v1→v2，旧凭证失效）；库存导入新增分片整批替换，`413` 不再建议会导致数据丢失的"分批"。**④ 新增出参**：`guidelineReferences[]`、`protocolStatus` 第三态、`protocolGapNote`、`clinicalReviewMethod`、加减 `riskNote` 补齐到全部出口 | **是（三处）**：<br>① 急症排查确认接口**入参新增必填 `findings`**，旧调用会返回 `400`；<br>② `protocolStatus` **新增枚举值** `governed_class_template_not_syndrome_tailored`，按"非个体化即评估态"的旧解析会误降级；<br>③ 升级前签发的 `emergencyClearance` 凭证一律失效（fail-closed 方向，见 §4.8） |
 | V1.3 | 2026-08-07 | 补齐 NDJSON 四种帧的完整定义（新增 `heartbeat`、`followup_timeline` 两种此前未文档化的帧）与流响应头；明确"首字节前/后失败"的两种错误表现；错误响应体形态与结构化 `code` 速查表；新增 §3.8 调用频率限制、§3.9 超时与重试、§3.10 请求体上限；补失败响应示例；解析示例改为边收边解析并处理分片与截断 | 否。均为既有行为的补充说明，接口本身未变 |

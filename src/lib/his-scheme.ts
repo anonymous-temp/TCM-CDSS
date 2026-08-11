@@ -298,12 +298,45 @@ export type HisAiSchemePayload = {
       targetPathogenesis: string;
       assessmentPositioning?: string;
       protocolStatus: "governed_patient_specific_plan" | "governed_class_template_not_syndrome_tailored" | "assessment_only_no_patient_specific_protocol";
+      /**
+       * 方案加减状态的**真实值**（V1.5 新增，非破坏）。
+       * V1 契约下 protocolStatus 会把第三态折叠成 assessment_only_...（见 his-scheme-contract-version），
+       * 这一栏不折叠：要区分「病种模板未按证型加减」与「纯现场评估」，读它。
+       */
+      tailoringStatus?: "syndrome_tailored" | "class_template_only" | "assessment_only";
       /** 内部状态码。要展示给人看请用 protocolGapNote。 */
       protocolGap?: string;
       /** protocolGap 的临床语言说明（受控映射，认不出的码不下发）。 */
       protocolGapNote?: string;
+      /**
+       * 该条证型加减是否已完成中医师终审（V1.5 新增）。
+       * pending_clinician_review 时服务端**没有应用**该条加穴，下方穴位只是病种标准取穴。
+       */
+      adjudicationStatus?: "approved" | "pending_clinician_review";
+      /** 命中但因未终审而未予应用的证型加减。系统看到了什么、为什么没用，如实下发。 */
+      deferredSyndromeRefinement?: { syndromeLabel: string; deferredPoints: string[]; conflictNote: string };
       treatmentContent: string;
       suggestedSitesOrPoints: string[];
+      /**
+       * 逐穴来源与权威分级（V1.5 新增）。
+       *
+       * 此前对外只有 protocolSource 一个拼接字符串（"SRC-A、SRC-B"），集成方看不出
+       * 哪个穴来自哪个来源、什么等级、有没有分歧——而这三件事决定要不要展示、以什么等级展示、
+       * 能不能采纳。主穴与加减穴来自不同来源，因此粒度必须到穴位。
+       * authorityTier 取值见受治理来源注册表：regulatory_primary / government_primary /
+       * government_mirror / professional_society_standard / professional_society_reference /
+       * project_governed_source / unregistered。
+       */
+      pointProvenance?: Array<{
+        point: string;
+        role: "base_point" | "syndrome_refinement" | "syndrome_removal";
+        sourceRefs: string[];
+        authorityTier: string;
+        adjudicationStatus: "approved" | "pending_clinician_review";
+        conflictNote: string | null;
+      }>;
+      /** 本条方案全部来源里的最高权威等级。逐穴等级见 pointProvenance。 */
+      sourceAuthorityTier?: string;
       scheduleSuggestion: string;
       techniqueBoundary: string;
       protocolSource: string;
@@ -1233,7 +1266,27 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         targetPathogenesis: project.targetPathogenesis,
         assessmentPositioning: project.assessmentPositioning,
         protocolStatus: project.protocolStatus,
+        ...(project.tailoringStatus ? { tailoringStatus: project.tailoringStatus } : {}),
         protocolGap: project.protocolGap,
+        ...(project.adjudicationStatus ? { adjudicationStatus: project.adjudicationStatus } : {}),
+        ...(project.deferredSyndromeRefinement ? {
+          deferredSyndromeRefinement: {
+            syndromeLabel: clean(project.deferredSyndromeRefinement.syndromeLabel),
+            deferredPoints: (project.deferredSyndromeRefinement.deferredPoints || []).map((point) => clean(point)).filter(Boolean),
+            conflictNote: clean(project.deferredSyndromeRefinement.conflictNote),
+          },
+        } : {}),
+        ...(project.pointProvenance?.length ? {
+          pointProvenance: project.pointProvenance.map((entry) => ({
+            point: clean(entry.point),
+            role: entry.role,
+            sourceRefs: (entry.sourceRefs || []).map((ref) => clean(ref)).filter(Boolean),
+            authorityTier: entry.authorityTier,
+            adjudicationStatus: entry.adjudicationStatus,
+            conflictNote: entry.conflictNote ? clean(entry.conflictNote) : null,
+          })),
+        } : {}),
+        ...(project.sourceAuthorityTier ? { sourceAuthorityTier: project.sourceAuthorityTier } : {}),
         // protocolGap 是内部状态码；集成方要直接展示时用这一句临床语言，不要自己翻译码值
         //（Markdown 出口此前把码值原样印给医生看，见 diagnosis-visible-summary 的同名映射）。
         ...(tcmTreatmentProtocolGapCopy(project.protocolGap || "") ? { protocolGapNote: tcmTreatmentProtocolGapCopy(project.protocolGap || "") } : {}),

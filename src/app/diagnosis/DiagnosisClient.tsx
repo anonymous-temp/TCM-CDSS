@@ -104,6 +104,7 @@ import {
   type M02TargetField,
 } from "@/lib/m02-question-contract";
 import {
+  TCM_SOURCE_AUTHORITY_TIER_LABELS,
   parseTcmTreatmentCapabilities,
   tcmTreatmentAssessmentPositioningForDisplay,
   type TcmTreatmentProjectCode,
@@ -5357,7 +5358,27 @@ function ResultTabsV2({
                       : item.protocolStatus === "governed_class_template_not_syndrome_tailored" ? "病种模板 · 未按证型加减"
                         : "仅项目评估"}
                   </span>
+                  {/* 来源权威等级（2026-08-11）。此前只有一串 SRC- 码拼在「方案依据」里，
+                      医生看不出这套取穴是国标操作规范、学会标准，还是项目治理的教材表——
+                      而这决定了他要不要照做。等级由受治理来源注册表逐条 join，不是我们现取的说法。 */}
+                  {item.sourceAuthorityTier && (
+                    <span className={`rounded px-2 py-0.5 font-medium ${
+                      item.sourceAuthorityTier === "project_governed_source" || item.sourceAuthorityTier === "unregistered"
+                        ? "bg-gray-100 text-gray-600" : "bg-indigo-50 text-indigo-700"}`}>
+                      {TCM_SOURCE_AUTHORITY_TIER_LABELS[item.sourceAuthorityTier] || item.sourceAuthorityTier}
+                    </span>
+                  )}
                 </div>
+                {/* 命中了证型配穴、但那一条还没过中医师终审：系统看到了什么、为什么没用，如实说。
+                    隐藏它等于让医生以为系统压根没识别出本例证型。 */}
+                {item.deferredSyndromeRefinement && (
+                  <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-amber-900">
+                    <span className="font-medium">待终审的证型配穴：</span>
+                    本例已签名证候命中「{item.deferredSyndromeRefinement.syndromeLabel}」的配穴方案
+                    （{joinClinicalClauses(item.deferredSyndromeRefinement.deferredPoints, "、")}），
+                    但该条尚未完成中医师终审，本轮**未予应用**。{item.deferredSyndromeRefinement.conflictNote}
+                  </p>
+                )}
                 {treatmentProjectCells[index].content && (
                   <p className="mt-2"><span className="font-medium text-gray-900">治疗内容：</span>{treatmentProjectCells[index].content}</p>
                 )}
