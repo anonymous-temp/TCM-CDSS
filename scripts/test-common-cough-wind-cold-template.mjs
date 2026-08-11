@@ -214,6 +214,7 @@ check("逐穴溯源：风池单列为 conditional_point，不与主穴同源同�
 // 进了风寒例。用已命中双钥匙闸门的待签字模板给**本来就够格**的穴排先后，严格优于它，
 // 且不构成"启用未签字模板"——不新增穴、不给频次疗程、protocolStatus 仍是评估态。
 const { selectAcupointsForCaseTerms } = await import("../src/lib/tcm-acupoints.ts");
+const { TcmTreatmentRecommendationSchema: TCM_TREATMENT_ITEM_SCHEMA } = await import("../src/lib/diagnosis-types.ts");
 
 check("未签字期间：重排只改次序、不新增穴，且甲方实测的三个穴不再进前 5", () => {
   const terms = ["咳嗽", "恶寒", "无汗", "鼻塞", "流涕"];
@@ -275,6 +276,39 @@ check("待签字/待终审的说明有唯一投影，且三个出口都在用", 
   // HIS 走结构化字段而不是句子，钉的是"字段有没有透传"。
   const his = readFileSync(fileURLToPath(new URL("../src/lib/his-scheme.ts", import.meta.url)), "utf8");
   assert.ok(/deferredGovernedTemplate:\s*\{/.test(his), "HIS 投影没有透传 deferredGovernedTemplate");
+});
+
+check("deferredGovernedTemplate 写歪不得连坐整条诊疗项目", () => {
+  // 「一个空字符串让整条项目消失」在本仓库复发过 6 次，形态完全相同、只换字段。
+  // 新增字段一律 fail-soft，这条判据按**行为**判：注入一条非法的 deferredGovernedTemplate，
+  // 断言该项目其余字段仍在，而不是整条被隔离掉。
+  const project = {
+    projectCode: "acupuncture",
+    projectName: "针刺",
+    availability: "clinic_available",
+    riskLevel: "moderate",
+    recommendationMode: "clinician_assessment",
+    targetRef: "P1",
+    targetPathogenesis: "风寒袭肺，肺气失宣",
+    protocolStatus: "assessment_only_no_patient_specific_protocol",
+    // 非法：deferredPoints 里混了空串，conflictNote 缺失
+    deferredGovernedTemplate: { templateId: "x", indicationLabel: "y", deferredPoints: [""], conflictNote: "" },
+    treatmentContent: "评估态",
+    suggestedSitesOrPoints: ["列缺"],
+    scheduleSuggestion: "按本机构排程",
+    techniqueBoundary: "由现场医师复核",
+    protocolSource: "SRC-TCM-COUGH-CONSENSUS-2021",
+    operatorRequirement: "具备资质人员",
+    requiredChecks: ["禁忌复核"],
+    containsMedication: false,
+    requiresMedicationAudit: false,
+    executable: false,
+    clinicianReviewRequired: true,
+  };
+  const parsed = TCM_TREATMENT_ITEM_SCHEMA.safeParse(project);
+  assert.ok(parsed.success, `整条项目被非法的 deferredGovernedTemplate 连坐掉了：${parsed.error?.message || ""}`);
+  assert.equal(parsed.data.deferredGovernedTemplate, undefined, "非法条目应被丢弃而不是原样保留");
+  assert.deepEqual(parsed.data.suggestedSitesOrPoints, ["列缺"], "同条项目的其余字段必须原样保留");
 });
 
 if (failures.length > 0) {

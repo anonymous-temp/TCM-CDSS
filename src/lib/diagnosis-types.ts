@@ -982,7 +982,8 @@ const PathogenesisUncertaintySchema = z.object({
  * 紧邻的 precautions 早就为这个风险加了 `.default([]).catch([])` 双保险并写下了注释，
  * 但危险得多的 tcmTreatments 一直没做同样处理——又一次「一个面修了、另一个没修」。
  */
-const TcmTreatmentRecommendationSchema = z.object({
+// 导出供回归按**行为**验证 fail-soft：新增字段写歪不得连坐整条诊疗项目。
+export const TcmTreatmentRecommendationSchema = z.object({
   projectCode: z.enum(TCM_TREATMENT_PROJECT_CODES),
   projectName: z.string().min(1).max(120),
   availability: z.enum(["clinic_available", "referral_only"]),
@@ -997,12 +998,14 @@ const TcmTreatmentRecommendationSchema = z.object({
   tailoringStatus: z.enum(["syndrome_tailored", "class_template_only", "assessment_only"]).optional().catch(undefined),
   protocolGap: z.string().min(1).max(800).optional(),
   adjudicationStatus: z.enum(["approved", "pending_clinician_review"]).optional().catch(undefined),
+  // 与紧邻的 tailoringStatus / adjudicationStatus 同口径 fail-soft：
+  // 这一条写歪不能把整条诊疗项目连坐掉——「一个空字符串让整条项目消失」是本仓库复发过 6 次的形状。
   deferredGovernedTemplate: z.object({
     templateId: z.string().min(1).max(120),
     indicationLabel: z.string().min(1).max(120),
     deferredPoints: z.array(z.string().min(1).max(60)).max(24),
     conflictNote: z.string().min(1).max(800),
-  }).optional(),
+  }).optional().catch(undefined),
   deferredSyndromeRefinement: z.object({
     syndromeLabel: z.string().min(1).max(120),
     deferredPoints: z.array(z.string().min(1).max(200)).max(12),
