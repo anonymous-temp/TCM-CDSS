@@ -40,7 +40,7 @@ export const HEALTH_PUBLIC_REQUIRED_PATHS = [
  */
 export const REDACTED_HEALTH_KEYS: ReadonlySet<string> = new Set([
   // ① 模型身份与调参
-  "model", "models", "provider", "repairModel", "extractor", "reviewer", "adjudicator",
+  "model", "models", "provider", "providerId", "repairModel", "extractor", "reviewer", "adjudicator",
   "modelPlan", "reasoningEffort", "repairReasoningEffort", "thinkingEnabled",
   "maxTokens", "maxPromptChars", "maxOutputChars",
   "structuredRetryTimeoutMs", "structuredRunTimeoutMs", "role",

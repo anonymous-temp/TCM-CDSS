@@ -18,7 +18,7 @@ const {
   publicHealthView,
   healthDiagnosticsRequested,
 } = await import("../src/lib/health-public-view.ts");
-const { getPrimaryTextModelConfig } = await import("../src/lib/text-model.ts");
+const { getPrimaryTextModelConfig, getPublicTextModelStatus } = await import("../src/lib/text-model.ts");
 const { getClinicalFactsModelPlan } = await import("../src/lib/clinical-facts-runtime.ts");
 const { getCdssStageTelemetrySnapshot } = await import("../src/lib/cdss-stage-telemetry.ts");
 
@@ -37,7 +37,7 @@ const check = (name, fn) => {
 const primary = getPrimaryTextModelConfig();
 const clinicalFactsModelPlan = getClinicalFactsModelPlan();
 const providers = {
-  primaryModel: { provider: primary.provider, model: primary.model, configured: primary.configured, role: "primary text reasoning model", maxTokens: 8192, reasoningEffort: "medium", thinkingEnabled: true, structuredRunTimeoutMs: 180000, baseUrl: primary.baseUrl },
+  primaryModel: { ...getPublicTextModelStatus(), role: "primary text reasoning model", maxTokens: 8192, reasoningEffort: "medium", thinkingEnabled: true, structuredRunTimeoutMs: 180000, baseUrl: primary.baseUrl },
   prescribeModel: { provider: primary.provider, model: primary.model, configured: primary.configured, role: "M04 structured prescription model", repairModel: primary.model, repairReasoningEffort: "medium" },
   diagnoseModel: { provider: primary.provider, model: primary.model, configured: primary.configured, role: "M03 structured diagnostic reasoning model", repairModel: primary.model },
   clinicalReviewModel: { provider: primary.provider, model: primary.model, configured: primary.configured, independentFromGenerator: false },
@@ -82,6 +82,7 @@ const collectStrings = (value, keyPath = "") => {
     for (const [key, item] of Object.entries(value)) collectStrings(item, `${keyPath}.${key}`);
   }
 };
+collectStrings(getPublicTextModelStatus());
 collectStrings(providers);
 collectStrings(clinicalFactsModelPlan);
 collectStrings(fullBody.rxAudit);
