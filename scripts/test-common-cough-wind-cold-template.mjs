@@ -208,6 +208,39 @@ check("逐穴溯源：风池单列为 conditional_point，不与主穴同源同�
   assert.equal(new Set(seen).size, seen.length, `逐穴溯源出现重复：${seen.join("、")}`);
 });
 
+// ── 未签字期间：评估态的候选穴位次序也应受益，但**一个穴都不许新增** ──────────
+// 甲方看到的症状是「承灵、孔最、肩中俞」。模板签字前不启用，评估态仍由关键词召回出穴；
+// 但召回按「症状词命中个数」排序，正是那个排法让承灵压过列缺、让「热病无汗」的孔最
+// 进了风寒例。用已命中双钥匙闸门的待签字模板给**本来就够格**的穴排先后，严格优于它，
+// 且不构成"启用未签字模板"——不新增穴、不给频次疗程、protocolStatus 仍是评估态。
+const { selectAcupointsForCaseTerms } = await import("../src/lib/tcm-acupoints.ts");
+
+check("未签字期间：重排只改次序、不新增穴，且甲方实测的三个穴不再进前 5", () => {
+  const terms = ["咳嗽", "恶寒", "无汗", "鼻塞", "流涕"];
+  const pool = selectAcupointsForCaseTerms(terms, 16);
+  const governed = new Set(template.sitesOrPoints);
+  const ranked = [...pool].map((item, index) => ({ item, index }))
+    .sort((left, right) =>
+      (governed.has(left.item.entry.name) ? 0 : 1) - (governed.has(right.item.entry.name) ? 0 : 1)
+      || left.index - right.index)
+    .map((entry) => entry.item).slice(0, 5);
+  const names = ranked.map((item) => item.entry.name);
+
+  // ① 不新增：重排后的每一个穴都必须来自原召回池（判据是"够格"而不是"模板里有"）。
+  const poolNames = new Set(pool.map((item) => item.entry.name));
+  for (const name of names) assert.ok(poolNames.has(name), `${name} 不在关键词召回池里——重排新增了穴`);
+  assert.equal(new Set(names).size, names.length, "重排后出现重复穴");
+
+  // ② 甲方线上实测点名的三个穴不再进前 5。
+  for (const reported of ["承灵", "孔最", "肩中俞"]) {
+    assert.ok(!names.includes(reported), `${reported} 仍在前 5：${names.join("、")}`);
+  }
+  // ③ 共识主穴里凡是够格的都应排上来。
+  for (const expected of ["列缺", "太渊", "肺俞"]) {
+    assert.ok(names.includes(expected), `${expected} 应进入前 5，实际：${names.join("、")}`);
+  }
+});
+
 // ── 「待签字」这件事必须三个出口都到得了 ────────────────────────────────
 // 待终审的证型配穴此前只铺到医生页面与 HIS，服务端 Markdown 一句没有——
 // 又是本仓库那个反复出现的形状。加第三态时一并收口，并在这里钉死。

@@ -477,6 +477,17 @@ function controlledTreatmentPlan(
   const governedTagPoints = new Set(
     (definition?.planTemplates || [])
       .filter((template) => (!tag || template.indicationTag === tag) && tcmTreatmentTemplatePointsAreGoverned(template))
+      // 命中了精确证型闸门但**尚未签字**的模板：它的取穴同样参与排序。
+      //
+      // 这一条刻意只影响**次序**，一个穴都不新增——入选判据仍是「教材主治命中本例已记录症状」。
+      // 理由：闸门是两把钥匙（当前咳嗽事实 + 已签名风寒袭肺）都对上才命中的，
+      // 拿它给**本来就够格**的穴排个先后，严格优于现在这个按「症状词命中个数」的排法
+      //（正是那个排法让承灵压过列缺、让「热病无汗」的孔最进了风寒例）。
+      // 而它不构成"启用未签字模板"：没有新增穴、没有给频次疗程、protocolStatus 仍是评估态，
+      // 待签字这件事另有 deferredGovernedTemplate 如实告知。
+      .concat(precise.deferred && tcmTreatmentTemplatePointsAreGoverned(precise.deferred.template)
+        ? [precise.deferred.template]
+        : [])
       .flatMap((template) => template.sitesOrPoints)
       .map((point) => point.replace(/（[^）]*）/g, "").trim()),
   );
