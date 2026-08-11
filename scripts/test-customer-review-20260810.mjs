@@ -417,6 +417,22 @@ check("审方已核验的煎法补充表覆盖火麻仁与蜂蜜", async () => {
   assert.match(String(requiredDecoctionRequirement("苦杏仁") || ""), /后下/);
 });
 
+check("红旗首屏的处置指令必须带明确紧迫性，不能只写「需先完成」", async () => {
+  const { evaluateSafetyGate } = await load("src/lib/diagnosis-safety.ts");
+  const state = normalizeCaseStateInput({
+    id: "rf", phase: "collect", patient: { sex: "男", age: 58 },
+    chiefComplaint: "胸口突然像石头压着1小时",
+    symptoms: { presentHistory: "胸痛伴大汗，向左肩背放射，伴气促，歇着也不缓" },
+  });
+  const gate = evaluateSafetyGate(state);
+  assert.equal(gate.status, "red_flag");
+  const reason = gate.reasons.join("；");
+  // 50 例基层回归实测（RF02 胸痛）：原文「需先完成急诊或转诊评估」有动作、无时限。
+  // 这句是红旗病例**首屏第一眼**看到的处置指令，不该让医生自己去推断有多急。
+  assert.match(reason, /(?:立即|马上|即刻|立刻|尽快)[^。；\n]{0,40}(?:急诊|120|急救|转诊)/,
+    `红旗处置指令缺少紧迫性副词：${reason}`);
+});
+
 console.log(JSON.stringify({ suite: "customer-review-20260810", checks, failures: failures.length }));
 if (failures.length > 0) {
   console.error(JSON.stringify(failures, null, 2));

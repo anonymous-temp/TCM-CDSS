@@ -176,6 +176,27 @@ describe("M03 stage scope", () => {
     // 反向护栏：真正的「一片」仍要判为剂量表达。
     assert.equal(evaluateM03ScopeContract("建议每晚服一片。", chart).doseExpressionPresent, true);
     assert.equal(evaluateM03ScopeContract("## 候选处方\n仅供参考", chart).prescribeStageContentPresent, true);
+    // 2026-08-10 起 M03 的 westernDiagnosis 自带 candidates（西医给 top3 候选），
+    // 旧判据把裸 `"candidates":` 当成「出现处方结构」⇒ 每个红旗病例的 M03 都被误判夹带处方。
+    const m03WithWesternCandidates = [
+      "<!-- CDSS_SAFETY_ADVISORY -->",
+      "> 红旗提示：胸痛/胸闷伴大汗；当前资料提示急危重症风险，请立即完成急诊或转诊评估。",
+      "<!-- DIAGNOSIS_JSON_START -->",
+      JSON.stringify({ stage: "diagnose", westernDiagnosis: { candidates: [{ name: "胸痛" }] } }),
+      "<!-- DIAGNOSIS_JSON_END -->",
+    ].join("\n");
+    assert.deepEqual(
+      evaluateRedFlagContract(m03WithWesternCandidates, { diagnosisMayContinue: true }).errors,
+      [],
+      "western top-3 candidates in M03 must not be read as a prescription payload",
+    );
+    // 反向护栏：真正的处方载荷仍必须被拦。
+    assert.ok(
+      evaluateRedFlagContract(
+        `${m03WithWesternCandidates}\n<!-- DIAGNOSIS_JSON_START -->${JSON.stringify({ stage: "prescribe", formula: { candidates: [{ herbs: [] }] } })}<!-- DIAGNOSIS_JSON_END -->`,
+        { diagnosisMayContinue: true },
+      ).errors.includes("structured_prescription_present"),
+    );
   });
 });
 

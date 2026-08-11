@@ -3724,7 +3724,10 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
       redFlagFindings,
       advisories,
       semanticTriage,
-      reasons: ["当前资料提示急危重症风险，需先完成急诊或转诊评估。"],
+      // 措辞必须带明确的紧迫性副词：这句是红旗病例**首屏第一眼**看到的处置指令。
+      // 50 例基层回归实测（RF02 胸痛）：原文「需先完成急诊或转诊评估」有动作、无时限，
+      // 与「立即/尽快」这类紧迫性表述隔了一层——红旗首屏不该让医生自己去推断有多急。
+      reasons: ["当前资料提示急危重症风险，请立即完成急诊或转诊评估，不得因继续辨证而延误。"],
     };
   }
 
