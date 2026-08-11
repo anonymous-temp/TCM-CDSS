@@ -4,7 +4,7 @@
 |---|---|
 | 文档版本 | V1.6 |
 | 发布日期 | 2026-08-11 |
-| 服务版本 | `tcm-cdss-20260811-contract-compat-r2-amd64` |
+| 服务版本 | `tcm-cdss-20260811-contract-compat-r3-amd64` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
