@@ -220,6 +220,9 @@ const scripts = [
   "test:syndrome-name-standard",
   "test:formula-name-tiers",
   "test:formula-identity-restore",
+  // 经方可追溯率的三条根因：出处判官与身份判官各写各的、恢复身份不写出处、
+  // 恢复发生在可见正文重建之后（页面说自拟方、载荷说经方名）。50 例实测页面可追溯 5/39。
+  "test:formula-traceability",
   "test:governed-formula-lock",
   "test:phi-clinical-collision",
   "test:output-quality",

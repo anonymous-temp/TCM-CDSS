@@ -556,6 +556,39 @@ describe("M03 canonical and pathogenesis contracts", () => {
     assert.equal(evaluated.ok, false);
     assert.ok(evaluated.errors.includes("therapy_cold_heat_polarity_conflict"));
   });
+
+  // 具名反例：K04（白疕/银屑病）50 例实测原文。证候是血热证、治法清热凉血，完全正确，
+  // 却因病机里写了加重诱因「冬季寒邪外束，热郁更甚」而被判寒热极性冲突。
+  // 诱因不是证候极性——证候名说了算。
+  it("an aggravating cold trigger inside a heat-pattern mechanism is not a polarity conflict", () => {
+    const heatWithColdTrigger = structuredClone(diagnose);
+    heatWithColdTrigger.overview.primarySyndrome = "血热证";
+    heatWithColdTrigger.overview.overallPathogenesis =
+      "血分蕴热，外发肌肤，日久耗伤阴血，肌肤失养，故见红斑、鳞屑；冬季寒邪外束，腠理闭塞，热郁更甚，故冬季加重。";
+    heatWithColdTrigger.pathogenesis.summary = heatWithColdTrigger.overview.overallPathogenesis;
+    heatWithColdTrigger.pathogenesis.chain[0].pathogenesis = heatWithColdTrigger.overview.overallPathogenesis;
+    heatWithColdTrigger.therapy.overallPrinciple = "治病求本";
+    heatWithColdTrigger.therapy.overallMethod = "清热凉血，解毒消斑，润燥止痒";
+    heatWithColdTrigger.pathogenesis.chain[0].therapyDirection = "清热凉血，解毒消斑";
+    const evaluated = evaluatePathogenesisContract(heatWithColdTrigger, testCase);
+    assert.equal(evaluated.errors.includes("therapy_cold_heat_polarity_conflict"), false,
+      `血热证 + 清热凉血不得判寒热冲突，实际：${evaluated.errors.join("、")}`);
+    assert.equal(evaluated.errors.includes("therapy_heat_warm_polarity_conflict"), false);
+  });
+
+  // 证候名不表态、病机两种极性并存 ⇒ 寒热错杂，机械判据不裁定（两条都不报）。
+  it("a mixed cold-heat mechanism without a decisive syndrome name is not adjudicated mechanically", () => {
+    const mixed = structuredClone(diagnose);
+    mixed.overview.primarySyndrome = "脾胃不和证";
+    mixed.overview.overallPathogenesis = "中焦寒湿内停，郁而化热，湿热中阻";
+    mixed.pathogenesis.summary = mixed.overview.overallPathogenesis;
+    mixed.pathogenesis.chain[0].pathogenesis = mixed.overview.overallPathogenesis;
+    mixed.therapy.overallMethod = "辛开苦降，清热化湿，温中散寒";
+    mixed.pathogenesis.chain[0].therapyDirection = "清热化湿";
+    const evaluated = evaluatePathogenesisContract(mixed, testCase);
+    assert.equal(evaluated.errors.includes("therapy_cold_heat_polarity_conflict"), false);
+    assert.equal(evaluated.errors.includes("therapy_heat_warm_polarity_conflict"), false);
+  });
 });
 
 describe("M04 all-candidate contract", () => {

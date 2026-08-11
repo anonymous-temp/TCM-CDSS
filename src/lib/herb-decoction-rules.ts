@@ -32,6 +32,24 @@ const AUDIT_VERIFIED_METHOD_SUPPLEMENTS: Record<string, string[]> = {
   火麻仁: ["包煎"],
   蜂蜜: ["烊化"],
 };
+/**
+ * 「几选一」的受治理煎法（2026-08-11）。与上表同源——审方已核验、历史来源管线缺失——
+ * 区别在于这一类药的正确投料方式**取决于用药目的**，不能压成单一值。
+ *
+ * 大黄是这一类的标准例，也是 50 例实测里最后一条未关闭的「可预防问题」：
+ * 审方原话是「大黄 应先煎、后下或冲服」，而本地知识库只有否定式约束「禁止久煎」，
+ * 于是我方出方时一个字都标不出来，只能等审方回头提。
+ *
+ * 此前的处理是「不补」，理由是取泻下须后下、取清热活血可同煎，一刀切标注会临床出错——
+ * 这个理由对**单值**成立，对 oneOf 不成立：oneOf 表达的正是「这几种都可以、由医师按
+ * 用药目的择一」，既清掉了「未标注」，又没有替医师做选择。列表首项取临床最常用的后下
+ * （取泻下须后下或开水泡服；欲缓下可同煎，但无论何种目的都不可久煎——久煎泻下力大减，
+ * 这一条由既有的 prohibited「禁止久煎」继续承担）。
+ * 判据逐字取自审方引擎的受治理规则，不是本仓库自行裁定的临床结论。
+ */
+const AUDIT_VERIFIED_ONE_OF_SUPPLEMENTS: Record<string, string[][]> = {
+  大黄: [["后下", "先煎", "冲服"]],
+};
 export type DecoctionRule = {
   required: string[];
   oneOf: string[][];
@@ -151,6 +169,7 @@ export function decoctionRuleForHerb(value: string): DecoctionRule | undefined {
     }
   }
   for (const method of AUDIT_VERIFIED_METHOD_SUPPLEMENTS[herb.name] || []) required.add(method);
+  for (const alternatives of AUDIT_VERIFIED_ONE_OF_SUPPLEMENTS[herb.name] || []) addOneOf(alternatives);
   // 「捣碎」是**准备**指令，「同煎」是**时机**指令，两者不是一回事。
   //
   // 原实现把「捣碎」无条件升级成「捣碎后同煎」，于是已经要求「后下」的药会同时拿到

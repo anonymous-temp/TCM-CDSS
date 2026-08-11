@@ -17,9 +17,17 @@ const { applyActionableFollowupSafetyNetContract, isActionableFollowupSafetyNet 
 const { sanitizeUngroundedRedFlagNegations } = await import("../src/lib/diagnosis-safety.ts");
 const { rejectionTier } = await import("../src/lib/diagnosis-rejection-tiers.ts");
 
-assert.equal(requiredDecoctionRequirement("大黄"), "禁止久煎");
+// 2026-08-11：大黄补入受治理 oneOf 煎法（审方原话「应先煎、后下或冲服」）。此前本地只有
+// 否定式约束「禁止久煎」，出方时一个字都标不出来，只能等审方回头提——M05「可预防问题」的最后一条。
+// oneOf 保留了用途相关性（取泻下须后下、欲缓下可同煎），不替医师做单值选择；
+// 「禁止久煎」这条否定约束一字未动，仍然独立生效。
+assert.equal(requiredDecoctionRequirement("大黄"), "后下或先煎或冲服、禁止久煎");
 assert.equal(decoctionRuleSatisfied("大黄", "久煎"), false);
-assert.equal(decoctionRuleSatisfied("大黄", "不宜久煎"), true);
+assert.equal(decoctionRuleSatisfied("大黄", "后下"), true);
+assert.equal(decoctionRuleSatisfied("大黄", "冲服"), true);
+// 只写否定约束、不给任何投料时机 ⇒ 未标注，由 applyDeterministicHerbDecoctionRequirements 补齐。
+assert.equal(decoctionRuleSatisfied("大黄", "不宜久煎"), false);
+assert.equal(decoctionRuleSatisfied("大黄", "后下；不宜久煎"), true);
 assert.equal(decoctionRuleSatisfied("人参", "另煎"), true);
 assert.equal(decoctionRuleSatisfied("人参", "另炖"), true);
 assert.equal(decoctionRuleSatisfied("人参", "冲服"), false);

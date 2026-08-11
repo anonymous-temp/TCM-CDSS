@@ -14,6 +14,7 @@ import {
   buildSemanticM02Answer,
   evaluateAuditInputQualityControl,
   evaluateAuditPositiveControl,
+  evaluateDeterministicReference,
   evaluateLimitedNoDose,
   evaluateM02QuestionContract,
   evaluateM03CriticalClinicalAssertions,
@@ -979,12 +980,22 @@ async function runCase(testCase) {
   const doseExpected = permissionAllowsDoseCandidate(prescriptionPermission);
   report.summaries.M03.prescriptionPermission = prescriptionPermission;
   const m04 = await request("/api/diagnosis/prescribe", { caseState: m04State }, {
+    // M04 有**四种**合法出参形态，本套件此前只认两种（剂量级候选 / 非剂量安全页）。
+    // 另外两种——确定性参考页（模型正文不可回收，改渲染受治理基准组成+药典区间）与
+    // M03 不稳时的安全有限页——都是服务端有意的降级路径，却因不满足 accept 判据被
+    // stopForInfrastructure 当成「响应未满足协议」中止整例，M05 之后一项都不再跑。
+    // 50 例实测 9 例「未出方」全部是这两种。降级仍然记失败（见「剂量级候选达成率」），
+    // 但只记一次，且整例继续跑完。
     accept: (result) => result.status === 200 && responseComplete(result) && (doseExpected
-      ? Boolean(reasoningFrom(result.content, "prescribe"))
+      ? Boolean(reasoningFrom(result.content, "prescribe")) ||
+        evaluateDeterministicReference(result.content).ok ||
+        evaluateLimitedNoDose(result.content).ok
       : evaluateLimitedNoDose(result.content).ok),
   });
   report.timings.M04 = m04.elapsedMs;
   const prescribe = reasoningFrom(m04.content, "prescribe");
+  const referenceContract = evaluateDeterministicReference(m04.content);
+  const deterministicReference = doseExpected && !prescribe && referenceContract.ok;
   const candidates = prescribe?.formula?.candidates || [];
   const candidate = prescribe?.formula?.candidates?.[0];
   const herbs = candidate?.herbs || [];
@@ -992,6 +1003,10 @@ async function runCase(testCase) {
   const numericDoseCount = candidates.flatMap((item) => item.herbs || [])
     .filter((herb) => DOSE_EXPRESSION.test(String(herb.dose || ""))).length;
   const limitedNoDose = !doseExpected && m04.accepted && nonDoseContract.ok && !prescribe;
+  // M03 未形成稳定证候（chain_structure_invalid 等）时，M04 照样返回安全有限的非剂量页。
+  // 这是 fail-closed 的正确行为，不是协议破损；与确定性参考页并列为「本可出方但降级」。
+  const safetyLimitedDespiteDoseExpected = doseExpected && !prescribe && !referenceContract.ok && nonDoseContract.ok;
+  const degradedFromDoseCandidate = deterministicReference || safetyLimitedDespiteDoseExpected;
   const candidateContract = evaluateM04CandidateContract(prescribe, testCase, {
     doseLimit: getTcmHerbDoseLimit,
     pairIssues: findTcmHerbPairIncompatibilities,
@@ -1026,23 +1041,40 @@ async function runCase(testCase) {
     prescriptionPermission,
     limitedNoDose,
     nonDoseContract,
-    error: limitedNoDose ? undefined : m04.error || m04.content.slice(0, 300),
+    deterministicReference,
+    safetyLimitedDespiteDoseExpected,
+    referenceContract,
+    error: limitedNoDose || degradedFromDoseCandidate ? undefined : m04.error || m04.content.slice(0, 300),
   };
   report.rawOutputs.M04 = m04.raw;
   report.visibleOutputs.M04 = visibleText(m04.content);
   report.requestAttempts.M04 = m04.attempts;
   if (await stopForInfrastructure(report, "M04", m04, "处方")) return report;
-  pushCheck(report, "M04", "结构合同", doseExpected ? Boolean(prescribe) && candidateContract.ok : limitedNoDose, `${m04.status}; ${m04.elapsedMs}ms; candidates=${candidates.length}; numeric=${numericDoseCount}; marker=${nonDoseContract.exactMarkerLineCount}; errors=${candidateContract.errors.join(",")}`);
-  pushCheck(report, "M04", "跨阶段一致", doseExpected ? Boolean(prescribe) && prescribe.overview?.primarySyndrome === diagnose.overview?.primarySyndrome && prescribe.overview?.overallPathogenesis === diagnose.overview?.overallPathogenesis : limitedNoDose, candidate?.name || (limitedNoDose ? "非剂量安全分支" : "非剂量合同不成立"));
-  pushCheck(report, "M04", "全部候选出处与组成", !doseExpected || sourceCompositionErrors.length === 0, sourceCompositionErrors.join("、") || `已核验${candidates.length}个候选`);
-  pushCheck(report, "M04", "全部候选药味剂量上下文煎法", !doseExpected || herbContextRegimenErrors.length === 0, herbContextRegimenErrors.join("、") || `已核验${candidates.reduce((sum, item) => sum + (item.herbs?.length || 0), 0)}味`);
-  pushCheck(report, "M04", "全部候选配伍预检", !doseExpected || pairErrors.length === 0, pairErrors.join("、") || "全部候选未命中本地禁忌药对");
-  pushCheck(report, "M04", "诊所治疗项目", doseExpected ? projectOk && treatmentProjects.length >= 1 && treatmentProjects.length <= 3 : limitedNoDose, treatmentProjects.map((item) => `${item.projectName}:${item.availability}`).join("、") || (limitedNoDose ? "安全分支不生成项目" : "剂量候选缺少个性化诊疗项目"));
+  // 降级为确定性参考页时，剂量级候选的各项判据本就无对象可判：逐项写成「不适用」而不是
+  // 判否，否则一次降级会在报表里放大成 6 条互相重复的失败，真正的信息（降级本身）反而淹没。
+  // 降级本身由紧随其后的「剂量级候选达成率」单独计量，仍是**失败项**，只是只计一次。
+  const doseCandidateExpected = doseExpected && !degradedFromDoseCandidate;
+  const degradedLabel = deterministicReference ? "确定性参考页" : "M03 未稳的安全有限页";
+  pushCheck(report, "M04", "结构合同", doseCandidateExpected ? Boolean(prescribe) && candidateContract.ok : (degradedFromDoseCandidate || limitedNoDose), `${m04.status}; ${m04.elapsedMs}ms; candidates=${candidates.length}; numeric=${numericDoseCount}; marker=${nonDoseContract.exactMarkerLineCount}; errors=${candidateContract.errors.join(",")}`);
+  pushCheck(report, "M04", "跨阶段一致", doseCandidateExpected ? Boolean(prescribe) && prescribe.overview?.primarySyndrome === diagnose.overview?.primarySyndrome && prescribe.overview?.overallPathogenesis === diagnose.overview?.overallPathogenesis : (degradedFromDoseCandidate || limitedNoDose), candidate?.name || (degradedFromDoseCandidate ? degradedLabel : limitedNoDose ? "非剂量安全分支" : "非剂量合同不成立"));
+  pushCheck(report, "M04", "全部候选出处与组成", !doseCandidateExpected || sourceCompositionErrors.length === 0, sourceCompositionErrors.join("、") || `已核验${candidates.length}个候选`);
+  pushCheck(report, "M04", "全部候选药味剂量上下文煎法", !doseCandidateExpected || herbContextRegimenErrors.length === 0, herbContextRegimenErrors.join("、") || `已核验${candidates.reduce((sum, item) => sum + (item.herbs?.length || 0), 0)}味`);
+  pushCheck(report, "M04", "全部候选配伍预检", !doseCandidateExpected || pairErrors.length === 0, pairErrors.join("、") || "全部候选未命中本地禁忌药对");
+  pushCheck(report, "M04", "诊所治疗项目", doseCandidateExpected ? projectOk && treatmentProjects.length >= 1 && treatmentProjects.length <= 3 : (degradedFromDoseCandidate || limitedNoDose), treatmentProjects.map((item) => `${item.projectName}:${item.availability}`).join("、") || (degradedFromDoseCandidate ? `${degradedLabel}不生成项目` : limitedNoDose ? "安全分支不生成项目" : "剂量候选缺少个性化诊疗项目"));
+  if (doseExpected) {
+    // 甲方口径下真正要看的那个数：本例本可以出剂量方，最后到底出了没有。
+    pushCheck(report, "M04", "剂量级候选达成率", Boolean(prescribe), degradedFromDoseCandidate
+      ? `降级为${degradedLabel}`
+      : prescribe ? `候选 ${candidates.length} 个` : "既无剂量级候选，也不构成任何一种受控降级页");
+    if (deterministicReference) {
+      pushCheck(report, "M04", "确定性参考页合同", referenceContract.ok, JSON.stringify(referenceContract));
+    }
+  }
   const m04Timing = timingBand("M04", m04.elapsedMs);
   pushCheck(report, "M04", "效率", m04Timing.ok, `${m04.elapsedMs}ms; 建议阈值=${m04Timing.warning}ms`, "warning");
 
   if (!prescribe || !doseExpected || herbs.length === 0) {
-    pushCheck(report, "M05", "无剂量边界", !doseExpected && limitedNoDose, `${prescriptionPermission.candidateMode}:${prescriptionPermission.reasons.join("；") || "生产权限要求非剂量输出"}`);
+    pushCheck(report, "M05", "无剂量边界", degradedFromDoseCandidate || (!doseExpected && limitedNoDose), `${prescriptionPermission.candidateMode}:${prescriptionPermission.reasons.join("；") || "生产权限要求非剂量输出"}`);
     await persistCase(report);
     reports.push(report);
     return report;

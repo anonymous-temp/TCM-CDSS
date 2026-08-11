@@ -328,6 +328,44 @@ export function evaluateLimitedNoDose(content) {
   };
 }
 
+/**
+ * M04 的**第三种**合法出参形态：确定性参考页（2026-08-11 补齐）。
+ *
+ * 模型正文不可回收时，服务端不再给医生一张白纸，而是渲染 M03 已锁定方（或按证候确定性检索到的方）
+ * 的**受治理基准组成 + 药典剂量区间**——不含任何模型生成内容，也不含本例建议量。
+ *
+ * 本套件此前只认两种形态（剂量级候选 / 非剂量安全页），第三种既不满足 accept 判据、
+ * 又被 evaluateLimitedNoDose 判否（它按设计带「10–15g（药典区间）」这类数字），
+ * 于是整例被 stopForInfrastructure 当作「响应未满足协议」中止，M05 及之后一项都不再跑。
+ * 50 例实测 9 例「未出方」里有 7 例就是这个——报表上与真正的失败不可区分。
+ *
+ * 判据不放水，反而更严：每一处剂量数字都必须紧跟「药典区间」，否则说明这一页混进了
+ * 本例建议量——那正是这条降级路径最需要防的事。
+ */
+export function evaluateDeterministicReference(content) {
+  const text = String(content || "");
+  const hasMarker = text.split(/\r?\n/).filter((line) => line.trim() === NON_DOSE_MARKER).length === 1;
+  const hasReasonCode = /<!--\s*CDSS_REASON_CODE:deterministic_reference\s*-->/.test(text);
+  const hasStructuredPrescribe = /DIAGNOSIS_JSON_(?:START|END)/.test(text) ||
+    /"stage"\s*:\s*"prescribe"|"herbs"\s*:/.test(text);
+  const doseCells = text.match(/\d+(?:\.\d+)?\s*[–~-]?\s*\d*(?:\.\d+)?\s*g/g) || [];
+  const unlabelledDoseCells = doseCells.filter((cell) => {
+    const at = text.indexOf(cell);
+    return !text.slice(at, at + cell.length + 12).includes("药典区间");
+  });
+  const hasPharmacopoeiaBoundaryNote = /药典边界而非本例建议量/.test(text);
+  return {
+    ok: hasMarker && hasReasonCode && !hasStructuredPrescribe &&
+      unlabelledDoseCells.length === 0 && hasPharmacopoeiaBoundaryNote,
+    hasMarker,
+    hasReasonCode,
+    hasStructuredPrescribe,
+    doseCellCount: doseCells.length,
+    unlabelledDoseCells: unlabelledDoseCells.slice(0, 5),
+    hasPharmacopoeiaBoundaryNote,
+  };
+}
+
 function regexTest(pattern, value) {
   if (!(pattern instanceof RegExp)) return false;
   pattern.lastIndex = 0;
@@ -667,8 +705,26 @@ export function evaluatePathogenesisContract(diagnose, testCase) {
   const therapyText = [diagnose?.therapy?.overallPrinciple, diagnose?.therapy?.overallMethod, diagnose?.overview?.overallTherapy, ...chain.map((node) => node.therapyDirection)].filter(Boolean).join("；");
   const errors = [];
   const syndromeAndMechanism = [diagnose?.overview?.primarySyndrome, mechanismText].filter(Boolean).join("；");
-  const coldPattern = /寒凝|寒湿|风寒|阳虚|寒邪|寒证/.test(syndromeAndMechanism);
-  const heatPattern = /湿热|痰热|血热|风热|火旺|热毒|热证/.test(syndromeAndMechanism);
+  // 极性判据的**归属**问题（2026-08-11 实测修正）。
+  //
+  // 原判据是「病机文本里出现过寒字家族 ⇒ 本例是寒证」。实测 K04（白疕/银屑病）被它误判：
+  //   证候=血热证；病机=「血分蕴热，外发肌肤…；冬季寒邪外束，腠理闭塞，热郁更甚」
+  //   治法=清热凉血 —— 完全正确，却因病机里出现「寒邪」二字判 therapy_cold_heat_polarity_conflict。
+  // 「寒邪外束」在这里是**加重诱因**，不是本例的证候极性；把诱因当证候，正是这条判据的错。
+  //
+  // 按项目惯例修到整类而不是这一例，两条机械护栏：
+  //  ① 证候名自己说了算：证候名里出现的极性优先于病机行文（血热证 ⇒ 热，寒凝血瘀证 ⇒ 寒）；
+  //  ② 证候名不表态、而病机两种极性都出现时，属寒热错杂/兼夹，机械判据无法裁定，两条都不报。
+  // 真冲突（寒凝血瘀证 + 清热凉血）照旧命中，见 test-primary-care-sparse-50-contracts 的具名用例。
+  const syndromeName = String(diagnose?.overview?.primarySyndrome || "");
+  const COLD_TERMS = /寒凝|寒湿|风寒|阳虚|寒邪|寒证/;
+  const HEAT_TERMS = /湿热|痰热|血热|风热|火旺|热毒|热证/;
+  const syndromeCold = COLD_TERMS.test(syndromeName);
+  const syndromeHeat = HEAT_TERMS.test(syndromeName);
+  const textCold = COLD_TERMS.test(syndromeAndMechanism);
+  const textHeat = HEAT_TERMS.test(syndromeAndMechanism);
+  const coldPattern = syndromeCold || syndromeHeat ? syndromeCold : textCold && !textHeat;
+  const heatPattern = syndromeHeat || syndromeCold ? syndromeHeat : textHeat && !textCold;
   if (coldPattern && /清热|凉血|泻火|辛凉/.test(therapyText)) errors.push("therapy_cold_heat_polarity_conflict");
   if (heatPattern && /温阳|散寒|温经|温肺|辛温/.test(therapyText)) errors.push("therapy_heat_warm_polarity_conflict");
   if (!locations.length || !matchesEvery(expected.locationsAllowed, locationText)) errors.push("locations_allowed_missing");
