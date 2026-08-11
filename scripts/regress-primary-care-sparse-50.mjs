@@ -666,19 +666,34 @@ function evidenceConsistent(evidence) {
   return evidence.evidenceLevel === "insufficient" ? !evidence.source : Boolean(evidence.source);
 }
 
-function auditIssueDrugs(issue, herbs) {
+/**
+ * relatedItemNos 是**审方提交清单**的行号，不是饮片数组的下标（2026-08-11 修正）。
+ *
+ * 提交清单是「饮片 + 中成药 + 西药」按序拼成的，中成药的行号必然大于饮片条数。
+ * 原实现只往 herbs 里查，于是任何针对中成药的问题都查不到药名，被
+ * 「问题等级与药味关联」判为未关联药味——而中成药那两类问题（给药途径未提供、
+ * 未提供可识别单次剂量）恰恰是最常出现的：后者还是我方**有意**不伪造中成药单次剂量
+ * 的直接结果，属正确的 fail-closed 行为。50 例上一轮 8 例失败全在这条。
+ * 这里改成按提交清单查名，判据本身（每个问题必须能指到具体药）一字未放宽。
+ */
+function auditIssueDrugs(issue, submittedItems) {
   const explicit = Array.isArray(issue.involvedDrugs) ? issue.involvedDrugs.map(String) : [];
   const related = Array.isArray(issue.relatedItemNos)
-    ? issue.relatedItemNos.flatMap((itemNo) => Number.isInteger(itemNo) && herbs[itemNo - 1]?.name ? [herbs[itemNo - 1].name] : [])
+    ? issue.relatedItemNos.flatMap((itemNo) => {
+      if (!Number.isInteger(itemNo)) return [];
+      const item = submittedItems[itemNo - 1];
+      const name = typeof item?.drug_name === "string" ? item.drug_name : item?.name;
+      return name ? [String(name)] : [];
+    })
     : [];
   return [...new Set([...explicit, ...related])];
 }
 
-function duplicateAuditIssues(issues, herbs) {
+function duplicateAuditIssues(issues, submittedItems) {
   const seen = new Set();
   const duplicates = [];
   for (const issue of issues) {
-    const objects = auditIssueDrugs(issue, herbs).sort().join("+");
+    const objects = auditIssueDrugs(issue, submittedItems).sort().join("+");
     const mechanism = String(issue.title || issue.description || "").replace(/[\s，。；、：:,.!?！？()（）]/g, "").slice(0, 48);
     const key = `${objects}|${mechanism}|${issue.severity || issue.riskLevel || ""}`;
     if (seen.has(key)) duplicates.push(issue.issueId || issue.title || key);
@@ -1086,16 +1101,26 @@ async function runCase(testCase) {
   });
   report.timings.M05Audit = audit.elapsedMs;
   const issues = Array.isArray(audit.json?.audit?.issues) ? audit.json.audit.issues : [];
+  // 与服务端**同一份**提交清单（饮片 + 中成药 + 西药，按 item_no 顺序），
+  // 这样 relatedItemNos 才查得到中成药那几行。构建失败时退回饮片清单，不让本例整体作废。
+  const submittedAuditItems = (() => {
+    try {
+      const built = buildAuditData(auditState);
+      const list = built?.data?.prescription?.items;
+      if (Array.isArray(list) && list.length > 0) return list;
+    } catch { /* 退回饮片清单 */ }
+    return herbs;
+  })();
   const preventable = issues.filter(isMechanicallyPreventableAuditIssue);
   const invalidIds = issues.filter((issue) => !issue.issueId || issue.issueIdGenerated === true || /^LOCAL-/i.test(String(issue.issueId)));
   const invalidSeverities = issues.filter((issue) => !["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(String(issue.riskLevel || issue.severity || "").toUpperCase()));
-  const unlinkedIssues = issues.filter((issue) => auditIssueDrugs(issue, herbs).length === 0);
-  const duplicates = duplicateAuditIssues(issues, herbs);
+  const unlinkedIssues = issues.filter((issue) => auditIssueDrugs(issue, submittedAuditItems).length === 0);
+  const duplicates = duplicateAuditIssues(issues, submittedAuditItems);
   report.summaries.M05 = {
     source: audit.json?.audit?.source,
     degraded: audit.json?.audit?.degraded,
     issueCount: issues.length,
-    issues: issues.map((issue) => ({ id: issue.issueId, severity: issue.severity || issue.riskLevel, title: issue.title, drugs: auditIssueDrugs(issue, herbs) })),
+    issues: issues.map((issue) => ({ id: issue.issueId, severity: issue.severity || issue.riskLevel, title: issue.title, drugs: auditIssueDrugs(issue, submittedAuditItems) })),
   };
   report.rawOutputs.M05Audit = audit.raw;
   report.visibleOutputs.M05Audit = audit.json;

@@ -2,9 +2,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V1.4 |
+| 文档版本 | V1.5 |
 | 发布日期 | 2026-08-11 |
-| 服务版本 | `tcm-cdss-20260811-pc50-followups-r2-amd64` |
+| 服务版本 | `tcm-cdss-20260811-traceability-r1-amd64` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
@@ -2064,6 +2064,19 @@ async function callStage(url, headers, body) {
 | `diagnoses.tcmDetail` | 中医辨病辨证详情 | 与 `westernDetail` 同构的结构化中医推理：病名、辨病推理、辨证推理、证候与依据、证候/病名鉴别（含 `typicalManifestation` 典型表现）、被剥离的方名 `deferredFormulaSelection`（可选：仅当模型选过方而服务端未予锁定时输出）。无中医证候结论时为 `null` |
 | `nonPharma.tcmTreatments[].protocolGapNote` | 方案边界说明 | `protocolGap` 内部状态码的临床语言说明；集成方要直接展示时用它，不要自行翻译码值 |
 
+**V1.5 新增出参**
+
+| 字段 | 中文名 | 说明 |
+|---|---|---|
+| `prescriptions.modifications[].triggerSource` | 加减触发依据 | `{kind, sourceRef, sourceQuote}`，三项齐全才下发，否则为 `null`。`kind` 取 `primary_syndrome_basis` / `pathogenesis_patient_fact` / `western_supporting_fact`，说明这条加减是从证候依据、病机患者事实还是西医支持事实来的；`sourceQuote` 为病历原文逐字引用。此前 HIS 侧只有一句自由文本 `trigger`，无从判断触发来自哪里 |
+| `diagnoses.terminologyMappings[]` | 国标术语归一痕迹 | `{namespace, fieldPath, originalText, canonical, candidateId, status, confidence}`。系统把医生原文归一到国标/受控词表（如「胃痞」→「痞满」）时的逐条记录。`status=suggested` 表示系统建议、医生**尚未确认**；`clinician_confirmed` 表示已确认。此前 HIS 只拿得到归一**之后**的名字，无法回答「这个证候名是医生写的还是系统改的」。内部执行痕迹（模型名、缓存命中）不下发 |
+
+> **同批修复（无出参变化，但影响你看到的值）**：`nonPharma.tcmTreatments` 此前在评估态项目上
+> 会整条丢失（服务端生成的 `techniqueBoundary` 为空串，撞上载荷校验的非空约束被静默剔除），
+> 表现为「医生页面有三个诊疗项目、HIS 一个都没有」。V1.5 起该字段在评估态写明
+> 「本轮不下发患者级操作参数」，项目正常下发。若贵方此前按「HIS 侧常年为空」做过特殊处理，
+> 请撤销。
+
 > `diagnoses.western[0].name` 与 `diagnoses.westernDetail.name` V1.4 起统一走同一套诊断名规范化
 > （ICD-10 编码名优先、症状级限定收敛成"X，病因待查"），此前这两处与医生页面可能出现三种写法。
 
@@ -2080,6 +2093,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V1.5 | 2026-08-11 | **① 方名可追溯性修复（甲方 0807 起的最大遗留项）**：`formula.candidates[].formulaSource` 此前对 10 类常用经方判为「无出处」，进而把方名改写成「本例辨证组方」——根因是「这张处方是不是 X 方」在系统内有两个互不相识的判据。收敛为一个之后，参苓白术散、四君子汤加减（党参代人参）、异功散加减、五子衍宗丸加减、缩泉丸加味、五磨饮子加减、六神散加减、杏仁煎、四神散加味、调经方加味等均可正常给出方名与出处。同一批归档 M04 重放：医生页面带方名 5/39→15/39。**② 页面与载荷不再各说各的**：方名身份恢复此前发生在可见正文重建之后，导致同一份响应里页面写「自拟方」、签名载荷与 HIS 写经方名；已改为恢复在前、渲染在后。**③ 中医外治项目不再整条丢失**（见上方 A.1 说明）。**④ 新增 HIS 出参** `prescriptions.modifications[].triggerSource`、`diagnoses.terminologyMappings[]`。**⑤ 文档安全**：全部 curl 示例改用 `$TOKEN` 占位，不再内联真实令牌 | **否。** 出参只增不删，字段语义未变。`formulaSource.evidenceLevel` 与 `constructionType` 的**取值分布**会明显变化（更多候选从 `model_inference`/`self_devised` 变为 `kb_entry`/`classic_text`+`single_base`），这是修复结果不是契约变更；若贵方按「方名恒为自拟」做过特殊处理，请撤销 |
 | V1.4 | 2026-08-10 | **① 文档更正**：R5"不可跳段返回 409"与实现不符，改为如实写出真实存在的三道门（M02 阶段门、M04/M05 签名门）；M01 流程图标签由"结构化病历"更正为"舌象图片解析"，与出参表一致。**② 补回丢失章节**：新增 §3.11 `CDSS_GATE_DISPOSITION` 处置档位（advise 默认 / block 回滚），该语义在 20260803 版写过、V1.3 整段丢失。**③ 行为修复**：`symptoms` 支持字符串与字符串数组（此前被静默丢成 `{}`，导致现病史整段消失与红旗漏检）；急症排查确认由字数校验改为逐条红旗处置留痕契约（签名版本 v1→v2，旧凭证失效）；库存导入新增分片整批替换，`413` 不再建议会导致数据丢失的"分批"。**④ 新增出参**：`guidelineReferences[]`、`protocolStatus` 第三态、`protocolGapNote`、`clinicalReviewMethod`、加减 `riskNote` 补齐到全部出口 | **是（三处）**：<br>① 急症排查确认接口**入参新增必填 `findings`**，旧调用会返回 `400`；<br>② `protocolStatus` **新增枚举值** `governed_class_template_not_syndrome_tailored`，按"非个体化即评估态"的旧解析会误降级；<br>③ 升级前签发的 `emergencyClearance` 凭证一律失效（fail-closed 方向，见 §4.8） |
 | V1.3 | 2026-08-07 | 补齐 NDJSON 四种帧的完整定义（新增 `heartbeat`、`followup_timeline` 两种此前未文档化的帧）与流响应头；明确"首字节前/后失败"的两种错误表现；错误响应体形态与结构化 `code` 速查表；新增 §3.8 调用频率限制、§3.9 超时与重试、§3.10 请求体上限；补失败响应示例；解析示例改为边收边解析并处理分片与截断 | 否。均为既有行为的补充说明，接口本身未变 |
 | V1.2 | 2026-08-07 | 接口按对象分组、字段补中文名、补完整调用示例；新增 CaseState 入参字段表（含 `tcmLineagePreference`、`herbCountPreference`）；流派对外收敛为 5 档 | 否 |
