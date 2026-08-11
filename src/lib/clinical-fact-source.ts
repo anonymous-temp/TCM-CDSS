@@ -278,15 +278,38 @@ export function uniqueClinicalFacts(values: readonly string[]): string[] {
  * 这是本仓库反复出现的同一形状——同一个呈现口径在两个出口各写各的。
  * 现在两个出口都调用本函数，分组、标题与「只有一类时写『依据』」的规则只有这一处。
  */
+/**
+ * 指南/文献依据的**唯一**呈现投影（2026-08-11 甲方线上实测：「指南引用要能点开看原文」）。
+ *
+ * 该条目本来就带 url——它由 resolveGovernedGuidelineReferences 从本轮真检索到的条目字段回填，
+ * 模型只能写一句 appliesTo。服务端 Markdown 一直在印这个 url，**医生页面在拼展示串时把它丢了**：
+ * 页面写的是 `${citation}（${appliesTo}）`，没有第三段。于是同一份载荷，一个出口有出处、
+ * 另一个出口没有——与本轮其余几条同形。
+ *
+ * 现在两个出口都从这里取：text 是文字部分，href 是可点击地址（没有就没有，绝不编）。
+ */
+export function guidelineReferenceDisplay(
+  reference: { citation?: unknown; appliesTo?: unknown; url?: unknown },
+): { text: string; href?: string } {
+  const text = (typeof reference.citation === "string" ? reference.citation : "").trim();
+  const appliesTo = (typeof reference.appliesTo === "string" ? reference.appliesTo : "").trim();
+  const url = (typeof reference.url === "string" ? reference.url : "").trim();
+  return {
+    text: `${text}${appliesTo ? `（${appliesTo}）` : ""}`,
+    // 只认 https 绝对地址：相对路径或 http 明文都不做成可点链接，避免把医生点到非预期位置。
+    ...(/^https:\/\//.test(url) ? { href: url } : {}),
+  };
+}
+
 export function westernDiagnosticEvidenceGroups(
   evidence: Pick<ClassifiedDiagnosticEvidence, "symptom" | "sign" | "exam" | "excluding">,
-  guidelineReferences: readonly string[] = [],
-): Array<{ label: string; items: string[]; withSource: boolean }> {
+  guidelineReferences: readonly { text: string; href?: string }[] = [],
+): Array<{ label: string; items: Array<{ text: string; href?: string }>; withSource: boolean }> {
   const groups = [
-    { label: "症状依据", items: [...evidence.symptom], withSource: true },
-    { label: "体征依据", items: [...evidence.sign], withSource: true },
-    { label: "检查依据", items: [...evidence.exam], withSource: true },
-    { label: "排除依据", items: [...evidence.excluding], withSource: true },
+    { label: "症状依据", items: [...evidence.symptom].map((text) => ({ text })), withSource: true },
+    { label: "体征依据", items: [...evidence.sign].map((text) => ({ text })), withSource: true },
+    { label: "检查依据", items: [...evidence.exam].map((text) => ({ text })), withSource: true },
+    { label: "排除依据", items: [...evidence.excluding].map((text) => ({ text })), withSource: true },
     // **不出「待查依据」栏**：甲方 2026-08-10 的原话是「删掉笼统的『支持依据』与『待查依据』，
     // 改成有啥列啥」。服务端 Markdown 当时照做了，医生页面没跟上——这正是本次「支持依据没生效」
     // 的现象来源。`evidence.pending` 仍然计算并去重，供 HIS 的

@@ -13,7 +13,14 @@ import { tcmTreatmentAssessmentPositioningForDisplay } from "./tcm-treatment-pro
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, governedTcmLocationsInText, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 import { clinicalAxisAttributionFromFacts } from "./tcm-syndrome-hypothesis";
-import { classifyWesternDiagnosticEvidence, clinicalFactSourcesFromContext, clinicalFactWithSource, uniqueClinicalFacts, westernDiagnosticEvidenceGroups } from "./clinical-fact-source";
+import {
+  classifyWesternDiagnosticEvidence,
+  clinicalFactSourcesFromContext,
+  clinicalFactWithSource,
+  guidelineReferenceDisplay,
+  uniqueClinicalFacts,
+  westernDiagnosticEvidenceGroups,
+} from "./clinical-fact-source";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { safeDietAdviceForDisplay } from "./result-display-policy";
 import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
@@ -2590,11 +2597,11 @@ function governedGuidelineReferences(primary: Record<string, unknown> | null | u
   // 因此这里可以直接印，不需要再过一遍反伪造白名单。
   const structured = recordList(primary?.guidelineReferences)
     .map((item) => {
-      const citation = markdownCell(item.citation);
-      if (!citation) return "";
-      const appliesTo = markdownCell(item.appliesTo);
-      const url = markdownCell(item.url);
-      return `${citation}${appliesTo ? `（${appliesTo}）` : ""}${url ? ` ${url}` : ""}`;
+      if (!markdownCell(item.citation)) return "";
+      // 文字与地址由 clinical-fact-source 的共享投影产出（页面用的是同一处）；
+      // 这一侧仍拼成一行纯文本，输出与此前逐字相同。
+      const display = guidelineReferenceDisplay(item);
+      return `${display.text}${display.href ? ` ${display.href}` : ""}`;
     })
     .filter(Boolean);
   if (structured.length > 0) return structured;
@@ -2751,7 +2758,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
   const guidelineRefs = governedGuidelineReferences(westernPrimary);
   // 分组与标题走**与医生页面同一个**投影函数（2026-08-11）。此前这里手写一份、页面手写另一份，
   // 结果 0810 的分类改动只落到了这一侧，页面继续显示旧的「支持依据/待查依据」。
-  const categorized = westernDiagnosticEvidenceGroups(evidence, guidelineRefs);
+  const categorized = westernDiagnosticEvidenceGroups(evidence, guidelineRefs.map((text) => ({ text })));
   if (candidatesUsable) {
     lines.push(`**候选诊断（按可能性排序）**：${westernCandidates.map((item, index) => {
       const facts = (Array.isArray(item.keyEvidence) ? item.keyEvidence : [])
@@ -2765,7 +2772,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
       ], "，").replace(/[。]$/, "");
     }).join("；")}`);
   }
-  for (const group of categorized) evidenceLine(group.label, group.items, group.withSource);
+  for (const group of categorized) evidenceLine(group.label, group.items.map((item) => item.text), group.withSource);
   lines.push(
     "",
     overviewHeading,

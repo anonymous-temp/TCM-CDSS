@@ -29,7 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { appendClinicalPresetValue, appendDelimitedValue, detectTonguePulseFieldConflict } from "@/lib/clinical-entry";
-import { classifyWesternDiagnosticEvidence, westernDiagnosticEvidenceGroups, clinicalFactSourcesFromCaseState, clinicalFactWithSource } from "@/lib/clinical-fact-source";
+import { classifyWesternDiagnosticEvidence, westernDiagnosticEvidenceGroups, clinicalFactSourcesFromCaseState, clinicalFactWithSource, guidelineReferenceDisplay } from "@/lib/clinical-fact-source";
 import type { CaseState, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
 import { ageValue, normalizeCaseStateInput, normalizeStructuredFollowupTimeline } from "@/lib/diagnosis-types";
 import { LINEAGE_OPTIONS } from "@/lib/tcm-lineages";
@@ -4702,8 +4702,9 @@ function ResultTabsV2({
   // 折叠只作用于「症状依据」（它是最长的一组、也是甲方 F3 反馈的那一组），其余分组照常全量呈现。
   const westernEvidenceGroups = westernDiagnosticEvidenceGroups(
     { ...westernEvidence, symptom: westernSupportingFactsDisplay },
-    (reasoning.westernDiagnosis.primary.guidelineReferences || []).map((entry) =>
-      `${entry.citation}${entry.appliesTo ? `（${entry.appliesTo}）` : ""}`),
+    // 甲方线上实测：「指南引用要能点开看原文」。url 一直在载荷里、服务端 Markdown 也一直在印，
+    // 只有这里在拼展示串时把第三段丢了——同一份数据两个出口各写各的。现在共用同一个投影。
+    (reasoning.westernDiagnosis.primary.guidelineReferences || []).map(guidelineReferenceDisplay),
   );
   // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
   // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
@@ -4775,10 +4776,22 @@ function ResultTabsV2({
               <div key={group.label} className="mt-2">
                 <p className="text-[11px] font-semibold text-blue-800">{group.label}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {group.items.map((fact, index) => (
-                    <span key={`${fact}-${index}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-blue-900">
-                      {group.withSource ? clinicalFactWithSource(fact, westernFactSources) : fact}
-                    </span>
+                  {group.items.map((item, index) => (
+                    item.href ? (
+                      <a
+                        key={`${item.text}-${index}`}
+                        href={item.href}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-blue-900 underline decoration-blue-300 underline-offset-2 hover:bg-white"
+                      >
+                        {item.text}
+                      </a>
+                    ) : (
+                      <span key={`${item.text}-${index}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px] text-blue-900">
+                        {group.withSource ? clinicalFactWithSource(item.text, westernFactSources) : item.text}
+                      </span>
+                    )
                   ))}
                   {(group.label === "症状依据" || group.label === "依据") && westernFactsCollapsible && (
                     <button
