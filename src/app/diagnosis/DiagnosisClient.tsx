@@ -47,7 +47,7 @@ import {
   prescribeReasoningFromState,
   stripDiagnosisJSON,
 } from "@/lib/diagnosis-parse";
-import { clinicalTextForDisplay, hasExecutableSignedM03, isDisplayableClinicalText } from "@/lib/diagnosis-client-guards";
+import { clinicalTextForDisplay, hasExecutableSignedM03, isDisplayableClinicalText, syndromeDifferentiationState } from "@/lib/diagnosis-client-guards";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { filterModificationsForEditedHerbs, hasIncompleteEditedHerb, synchronizeEditedCandidate } from "@/lib/prescription-revision";
 import { containsUnknownClinicalCue, isUnknownClinicalText, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "@/lib/clinical-state";
@@ -1063,10 +1063,18 @@ export function resolveSufficiencyDisplay(
     };
   }
   if (!context.hasMeasuredVitals) {
+    // 「生命体征未录入」是一条**录入事实**，不是辨证充分度的等级（2026-08-11 线上实测）。
+    //
+    // 此前这一档把 label 改写成「需现场复核」、tone 由绿降黄，却不重新归一 score——
+    // 分数仍停在「辨证充分」的 70–100 档，于是甲方看到「需现场复核」与「综合支撑度 96%」同屏，
+    // 一个说要复核、一个说很充分，医生无从理解。根因是等级槽位（label/tone/score）被
+    // 两套规则各写各的：一套在 differentiationSufficiencyProfile（按辨证充分度归一），
+    // 另一套就在这里（按有没有体征改写）。
+    //
+    // 收敛：等级槽位只由辨证充分度决定，本分支**只追加说明**，不再动 label/tone/score。
+    // 「生命体征未录入」照常显著提示，只是不再冒充一个辨证充分度等级。
     return {
-      score: Math.min(99, base.score),
-      label: base.tone === "green" ? "需现场复核" : base.label,
-      tone: base.tone === "green" ? "yellow" : base.tone,
+      ...base,
       desc: `${UNRECORDED_VITALS_NOTICE}。非高风险病例不因此阻断候选处方生成；${base.desc}`,
     };
   }
@@ -1257,14 +1265,29 @@ function differentiationSufficiencyProfile(caseState: CaseState, summary: Decisi
   // 「当前证候依据不足以形成稳定结论」同屏——采集量与判断量被并排当成同一件事。
   // 采集充分不等于辨证成立；结论未成立时以结论为准。
   const signedDiagnoseReasoning = diagnoseReasoningFromState(caseState);
-  const primarySyndromeUnresolved = Boolean(signedDiagnoseReasoning) &&
-    signedDiagnoseReasoning?.overview.primarySyndromeResolution !== "resolved";
-  if (primarySyndromeUnresolved) {
+  // 三态各自成话（2026-08-11）：此前这里把 `!== "resolved"` 一刀切写成「辨证未成立」，
+  // 把契约里的 bounded（证型**成立**、但可回溯依据有限）也算了进去。
+  // 于是甲方看到「辨证未成立 / 69%」与一张 6 味 7 剂的处方同屏——说法错了，不是门禁放行错了。
+  // 判据收敛在 syndromeDifferentiationState 一处（见该函数注释），本处只负责怎么说。
+  const differentiationState = syndromeDifferentiationState(signedDiagnoseReasoning);
+  if (differentiationState === "not_established") {
     return {
-      score: Math.max(0, Math.min(69, score)),
+      score: Math.max(0, Math.min(39, score)),
       label: "辨证未成立",
       tone: "yellow" as const,
       desc: "信息采集已达标，但本次未能形成稳定的主证候结论；结论区已说明原因与需补充项。",
+      signals,
+    };
+  }
+  if (differentiationState === "bounded") {
+    return {
+      score: Math.max(40, Math.min(69, score)),
+      label: "有界辨证",
+      tone: "yellow" as const,
+      // 原因文字取已签名载荷里服务端写好的那句（「仅有 N 条可逐字回溯的本例依据…」），
+      // 不在客户端另造说法。
+      desc: clinicalTextForDisplay(signedDiagnoseReasoning?.overview.primarySyndromeResolutionReason)
+        || "已形成主证候结论，但可逐字回溯的本例依据有限；候选方案按有限信息生成，采纳前请补齐结论区所列项。",
       signals,
     };
   }

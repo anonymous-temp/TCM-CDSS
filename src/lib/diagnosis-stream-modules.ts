@@ -38,29 +38,48 @@ function text(value: unknown, max: number): string {
  * 每个模块允许进入可见流的结论标题。只读白名单字段，不读整段对象——
  * 这是「不泄漏原始内部字段」这条约束的落点。
  */
+/**
+ * ── 定型前的流里**不推临床结论文本**（2026-08-11 线上实测）────────────────────────
+ *
+ * 甲方实测：流式过程中先显示「辨证 心脾两虚证」，最终结论却是「心神失养证」。
+ * 这不是服务端偷偷改名——这一行推的是**第一稿未校验草稿**：顶层键一闭合就直读
+ * value.primarySyndrome，而定型链全在流结束**之后**（合同校验 → 独立复核 →
+ * 最多 4 轮整份重生成 → 签名）。改写证候名的正是那些重生成轮：复核判
+ * tcm_reasoning_unsupported 时下发「硬性删减」指令，禁用「阴虚/阳虚/气虚/血虚…」这一档
+ * （心脾两虚正命中），并要求退回最小中性病机——「心神失养证」就是它的标准产物。
+ *
+ * 医生在同一屏里先后看到两个不同的证候，无从判断哪个作数。修法不是去改复核链
+ * （那条链是对的），而是**不要把还会被改写的结论当成结论展示**：
+ * 会被修复轮改写的四个模块（西医诊断名、中医辨病辨证、治则治法、方名）一律只推完成信号，
+ * 形状照抄本表原有的 pathogenesis / nonPharma / management 三条。
+ * 甲方「需求2 按模块顺序反馈」照常成立——医生仍然逐模块看到进度，只是不再看到会变的结论。
+ * 定型后的最终结论由签名载荷渲染，一字未动。
+ */
 const MODULE_HEADLINES: ReadonlyMap<string, (value: Record<string, unknown>) => string> = new Map([
   ["westernDiagnosis", (value) => {
     const primary = value.primary as Record<string, unknown> | undefined;
-    return text(primary?.name, 40);
+    return text(primary?.name, 40) ? "已生成，待结构校验与独立复核" : "";
   }],
   ["overview", (value) => {
     const disease = text(value.tcmDiseaseName, 20);
     const syndrome = text(value.primarySyndrome, 30);
-    return [disease && `辨病 ${disease}`, syndrome && `辨证 ${syndrome}`].filter(Boolean).join("／");
+    return disease || syndrome ? "已生成，待结构校验与独立复核" : "";
   }],
   ["pathogenesis", (value) => {
     const chain = Array.isArray(value.chain) ? value.chain.length : 0;
     return chain > 0 ? `已形成 ${chain} 个病机节点` : "";
   }],
-  ["therapy", (value) => text(value.overallMethod, 40) || text(value.overallPrinciple, 40)],
+  ["therapy", (value) => (
+    text(value.overallMethod, 40) || text(value.overallPrinciple, 40) ? "已生成，待结构校验与独立复核" : ""
+  )],
   ["formula", (value) => {
     const candidates = Array.isArray(value.candidates) ? value.candidates : [];
     const first = candidates[0] as Record<string, unknown> | undefined;
     if (!first) return "";
-    const name = text(first.name, 30);
     const herbs = Array.isArray(first.herbs) ? first.herbs.length : 0;
-    // 只报味数，不报药名与剂量：剂量要等审方，药名要等组成核验。
-    return [name, herbs > 0 && `共 ${herbs} 味`].filter(Boolean).join("，");
+    // 只报味数，不报药名与剂量：剂量要等审方，组成要等核验，**方名要等身份恢复与合同终审**——
+    // 方名同样会被下游改写（剥名/恢复身份两条路径都可能改它），与证候名同一类。
+    return herbs > 0 ? `已生成候选，共 ${herbs} 味，待组成核验与审方` : "已生成候选，待组成核验与审方";
   }],
   ["nonPharma", () => "饮食起居、情志与注意事项已生成"],
   ["management", () => "随访安全网已生成"],

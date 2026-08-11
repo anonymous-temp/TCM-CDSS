@@ -246,6 +246,19 @@ const M04ProposalSchema = z.object({
       targetRef: z.string().min(1).max(20),
       structureRole: z.enum(["middle_jiao_support", "harmonize", "guide", "temper"]).nullable().optional().transform((value) => value ?? null),
       isToxic: z.boolean().optional().catch(false),
+      /**
+       * 该药在本方中的作用（2026-08-11 线上实测补回）。
+       *
+       * 提示词模板一直在向模型要这个字段（diagnosis-prompts 的 `"function":"该药在本方中承担的具体作用"`），
+       * 但 schema 从来没有声明它，zod 默认剥掉未声明键——模型写的方义被静默丢弃，
+       * 编译器再无条件覆写成一句「由服务端知识库生成」。医生看到的就是这句零内容自述。
+       * 要了又扔，是这条缺陷的全部成因。
+       *
+       * 补回它**不放宽任何证据边界**：模型文本仍要过 herbFunctionMatchesKnowledge——
+       * 那正是合同层用的同一个导出谓词。最终交付值只有三种：过 KB 谓词的模型文本、
+       * KB 对齐串、或修复耗尽后的受控角色兜底句。反而是今天在交付一句服务端自造、零证据的话。
+       */
+      function: z.string().min(2).max(300).optional(),
       decoctionRequirement: z.preprocess(
         normalizeModelNullableText,
         z.string().max(200).nullable().optional(),
@@ -1115,7 +1128,9 @@ export function compileM04Proposal(
       isToxic: herb.isToxic === true || verification.isToxic,
       prescriptionRole: `${herb.role}药：${intendedTherapy}`,
       targetPathogenesis,
-      function: "由服务端知识库生成",
+      // 不再无条件覆写成自述句：模型给了就用（下游 herbFunctionMatchesKnowledge 会核），
+      // 没给就留空，交给 applyDeterministicHerbFunctions 用 KB 对齐串或受控兜底句补。
+      function: (herb.function || "").trim(),
       evidence,
     };
   });

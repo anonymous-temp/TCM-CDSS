@@ -70,10 +70,22 @@ assert.ok(
   "模块反馈必须按写完顺序推送",
 );
 const noticeText = timeline.map((item) => item.notice).join("\n");
-assert.match(noticeText, /中医辨病辨证：辨病 不寐／辨证 心脾两虚证/);
-assert.match(noticeText, /西医诊断：失眠障碍/);
+// ── 定型前的流里不得出现临床结论文本（2026-08-11 线上实测）───────────────────────
+//
+// 原断言逐字要求进度行写出「辨证 心脾两虚证」「失眠障碍」「补益心脾，养血安神」。
+// 甲方实测证明这恰恰是缺陷：这些是**第一稿未校验草稿**，而合同校验 → 独立复核 →
+// 最多 4 轮重生成全在流结束之后，复核完全可能把「心脾两虚证」改写成「心神失养证」——
+// 医生在同一屏里先后看到两个证候，无从判断哪个作数。
+// 现在这四个模块只推完成信号；「按模块顺序反馈」（需求2）由下面的条数与顺序断言继续保证。
+assert.match(noticeText, /中医辨病辨证：已生成，待结构校验与独立复核/);
+assert.match(noticeText, /西医诊断：已生成，待结构校验与独立复核/);
 assert.match(noticeText, /病机分析：已形成 2 个病机节点/);
-assert.match(noticeText, /治则治法：补益心脾，养血安神/);
+assert.match(noticeText, /治则治法：已生成，待结构校验与独立复核/);
+// 会被修复轮改写的结论文本一个都不许出现在定型前的流里。
+for (const volatileConclusion of ["心脾两虚证", "失眠障碍", "补益心脾", "不寐"]) {
+  assert.ok(!noticeText.includes(volatileConclusion),
+    `定型前的进度行不得出现会被复核改写的结论：${volatileConclusion}`);
+}
 
 // ── 2) 只暴露白名单结论标题，不泄漏内部字段 ──────────────────────────────────
 for (const internalFragment of [
@@ -125,7 +137,8 @@ const m04Payload = JSON.stringify({
   },
 });
 const m04Notice = moduleProgressNotice(m04Payload, "formula") || "";
-assert.match(m04Notice, /归脾汤加减/, "可以报方名");
+// 方名同样会被下游改写（剥名与恢复身份两条路径都可能改它），与证候名同一类，定型前不报。
+assert.ok(!m04Notice.includes("归脾汤"), "定型前不得报方名——方名会被剥名/恢复身份改写");
 assert.match(m04Notice, /共 3 味/, "可以报味数");
 for (const forbidden of ["党参", "12g", "白术", "茯苓"]) {
   assert.ok(!m04Notice.includes(forbidden), `进度行不得出现药名或剂量：${forbidden}（剂量要等审方，组成要等核验）`);

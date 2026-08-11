@@ -961,13 +961,20 @@ assert.equal(requiresLimitedCandidateReview(true, true, "辨证充分"), true);
 assert.equal(requiresLimitedCandidateReview(true, false, "辨证充分"), false);
 assert.equal(requiresLimitedCandidateReview(false, true, "可初步辨证"), false);
 
+// ── 「生命体征未录入」不得占用辨证充分度的等级槽位（2026-08-11 线上实测）──────────
+//
+// 原断言要求这一档把 label 改写成「需现场复核」、tone 降黄、score 夹到 99。
+// 甲方实测证明这套改写正是缺陷来源：score 只夹上限、不重新归一，仍停在「辨证充分」的
+// 70–100 档，于是「需现场复核」与「综合支撑度 96%」同屏——一个说要复核、一个说很充分。
+// 根因是等级槽位被两套规则各写各的（differentiationSufficiencyProfile 一套、这里一套）。
+// 现在等级只由辨证充分度决定，本档只追加说明文字；提示本身一字未少。
 const missingVitals = resolveSufficiencyDisplay(complete, {
   hasMeasuredVitals: false,
   requiresLimitedReview: false,
 });
-assert.equal(missingVitals.score, 99);
-assert.equal(missingVitals.label, "需现场复核");
-assert.equal(missingVitals.tone, "yellow");
+assert.equal(missingVitals.score, complete.score, "体征未录入不得改动辨证充分度分数");
+assert.equal(missingVitals.label, complete.label, "体征未录入不得改写辨证充分度等级标签");
+assert.equal(missingVitals.tone, complete.tone, "体征未录入不得改写等级色标");
 assert.match(missingVitals.desc, /未录入实测生命体征，开方前需现场复核/);
 assert.match(missingVitals.desc, /非高风险病例不因此阻断候选处方生成/);
 

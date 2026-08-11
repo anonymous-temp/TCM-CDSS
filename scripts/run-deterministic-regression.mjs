@@ -127,6 +127,10 @@ const scripts = [
   "test:stage-outcome",
   "test:formula-selection-symmetry",
   "test:herb-name-resolution",
+  // 药味功效串的跨药串味（甲方 2026-08-11 线上实测：石决明被解释成「祛风止痒」）。
+  // 身份目录把石决明与千里光登记成互为别名，上游按别名图把菊科草药的功效整段贴到了鲍鱼壳上。
+  // 这类污染此前完全隐形——功效串是自由文本，没有任何断言看它属不属于这味药。
+  "test:herb-function-contamination",
   "test:herb-breadth-surface",
   "test:m04-dose-index",
   "test:m04-safety-contract",

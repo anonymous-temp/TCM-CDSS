@@ -50,3 +50,32 @@ export function hasExecutableSignedM03(reasoning: SignedM03Like | null | undefin
     typeof reasoning.contractSignature === "string" &&
     M03_SIGNATURE.test(reasoning.contractSignature);
 }
+
+/**
+ * 「本例的证候到底成没成立」——**唯一**判据（2026-08-11 线上实测）。
+ *
+ * 甲方实测：页面写着「辨证未成立／综合支撑度 69%」，系统却照常给出 6 味 7 剂的剂量方。
+ * 排查下来这句话说错了，不是门禁放行错了：契约里 primarySyndromeResolution 有**三态**——
+ *   resolved   证型成立且依据充分；
+ *   bounded    证型**成立**，但可逐字回溯的本例依据有限（服务端会写明还差什么）；
+ *   unresolved 未形成可判断的证型。
+ * 而医生页面把 `!== "resolved"` 一刀切写成「辨证未成立」，把 bounded 这一档也算了进去。
+ * bounded 本来就是「有界但成立」，服务端据此照常出方是对的——错的是页面把它说成没成立，
+ * 于是同一屏出现「未成立」与一张完整处方，医生无从判断该信哪个。
+ *
+ * 收敛为一个导出谓词，页面与任何后续消费者共用；三态各自有各自的说法，不再合并。
+ * **本函数不参与任何门禁**：出不出剂量方由 derivePrescriptionPermission 与安全门决定，
+ * 与这里无关——它只回答「该怎么把这件事说给医生听」。
+ */
+export type SyndromeDifferentiationState = "established" | "bounded" | "not_established";
+
+export function syndromeDifferentiationState(
+  reasoning: { overview?: { primarySyndromeResolution?: unknown } } | null | undefined,
+): SyndromeDifferentiationState | undefined {
+  if (!reasoning) return undefined;
+  const resolution = reasoning.overview?.primarySyndromeResolution;
+  if (resolution === "resolved") return "established";
+  if (resolution === "bounded") return "bounded";
+  if (resolution === "unresolved") return "not_established";
+  return undefined;
+}

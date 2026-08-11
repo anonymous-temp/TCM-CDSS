@@ -388,6 +388,21 @@ const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   远志: "安神益智，交通心肾，祛痰开窍",
   生姜: "解表散寒，温中止呕，温肺止咳，解毒，调和诸药",
   茯神: "宁心安神，利水渗湿",
+  // ── 别名图串味（2026-08-11 线上实测）────────────────────────────────────────
+  //
+  // 甲方实测：平肝潜阳方里，石决明被解释成「祛风止痒」、牛膝被解释成「消肿止痛、排脓止痛」。
+  // 逐条核到编译产物：
+  //   · 石决明的 functionText =「痈肿、清热、明目、祛风止痒、解毒消肿」，与**千里光**首段逐字相同，
+  //     且 primaryCategory 一并变成「清热药」——身份目录里两者互为别名（石决明的本草别名正是
+  //     千里光），上游按别名图把菊科草药的功效整段贴到了鲍鱼壳石决明上。
+  //   · 牛膝的 functionText 是「牛膝」名族三段并集：川牛膝段 + 土牛膝类的清热解毒消肿段 +
+  //     本草段（排脓止痛、痈肿、破癥）——中间两段都不是药典牛膝功用。
+  // 这张受控表正是为「编译产物混入药典外条文」而建（玉竹/柴胡/当归/党参… 已在其中），
+  // 命中即短路，排在整套启发式选句之前，三个出口（配伍意义列、可替换药味差异说明、
+  // herb-function 接口）一次修好。文本为《中国药典》2020 年版一部【功能与主治】原文。
+  石决明: "平肝潜阳，清肝明目",
+  牛膝: "逐瘀通经，补肝肾，强筋骨，利尿通淋，引血下行",
+  川牛膝: "逐瘀通经，通利关节，利尿通淋",
   // The compiled workbook row for 玉竹 is polluted with unrelated 补气/活血 labels.
   // Keep its governed pharmacopoeia identity here so shortlist direction checks do not
   // falsely reject a standard 养阴药 as an unsupported high-impact blood mover.
