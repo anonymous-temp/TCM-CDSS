@@ -225,6 +225,13 @@ assert.equal(
 );
 
 const diagnosisClientSource = fs.readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+// 被剥离的方名必须在医生页面上出现（2026-08-11）。服务端可见摘要 2026-08-10 起已经写这一行，
+// 页面当时没跟上：医生只看到「本例辨证组方」，既不知道系统曾指向哪张方，也无从判断要不要自己采用。
+// 与 ②③⑥⑨ 同形状——同一个字段只接了一个出口。
+assert.match(diagnosisClientSource, /deferredFormulaSelection/,
+  "医生页面必须呈现被剥离的方名（overview.deferredFormulaSelection），不能只写进签名载荷与服务端摘要");
+assert.match(diagnosisClientSource, /待确认方名/,
+  "措辞须与服务端可见摘要同源，明确写「未锁定、由医生判断」，避免被读成推荐");
 assert.doesNotMatch(diagnosisClientSource, /cdss-section-generation-basis|本次生成依据/, "generic generation-basis boilerplate must be removed from the report");
 assert.doesNotMatch(diagnosisClientSource, /Lingxi 建议性复核/, "the report must use the customer-facing reasonable-medication-review name");
 assert.doesNotMatch(diagnosisClientSource, /判断把握度/, "the clinician UI must show rationale and limitations instead of a low-confidence badge");

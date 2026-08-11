@@ -31,6 +31,19 @@ const evidence = { evidenceLevel: "kb_entry", source: "本地方剂知识库", c
 const diagnoseReasoning = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
+  terminologyMappings: [{
+    namespace: "tcm_syndrome",
+    fieldPath: "overview.primarySyndrome",
+    originalText: "气血亏虚证",
+    candidateId: "TCM-SYNDROME-QXLX",
+    canonical: "气血两虚证",
+    resolvedBy: "deepseek_closed_set",
+    status: "suggested",
+    confidence: 0.92,
+    model: "deepseek-v4-flash",
+    consensus: true,
+    cache: "miss",
+  }],
   overview: {
     tcmDiseaseName: "头痛",
     primarySyndrome: "气血两虚证",
@@ -247,6 +260,25 @@ check("I5 随证加减对外输出，含可替换药味及其差异说明", () =
   assert.equal(sub.substitute, "太子参");
   assert.ok(sub.differenceNote.length >= 10,
     "替代药必须给出与原药的差异——只给药名等于让医生自己去查，而差异正是临床上最容易出事的地方");
+  // 2026-08-11：triggerSource 此前只进签名载荷与页面正文，HIS 侧只看得到一句自由文本 trigger，
+  // 无从判断这条加减是从主诉、既往史还是西医支持事实来的。本项目要求每条结论可指回患者事实，
+  // 少接一个出口，这条原则在该出口就不成立。
+  assert.ok(mods[0].triggerSource, "随证加减的触发依据未对外投出");
+  assert.equal(mods[0].triggerSource.kind, "primary_syndrome_basis");
+  assert.equal(mods[0].triggerSource.sourceQuote, "神疲乏力、面色少华");
+});
+
+// —— 2026-08-11：受控术语归一痕迹 ——
+check("受控术语归一痕迹对外输出，含原文、候选 ID 与确认状态", () => {
+  const mappings = scheme.diagnoses.terminologyMappings;
+  assert.ok(Array.isArray(mappings) && mappings.length >= 1, "术语归一痕迹未投出");
+  const syndrome = mappings.find((item) => item.namespace === "tcm_syndrome");
+  assert.ok(syndrome, "证候归一痕迹未投出");
+  assert.equal(syndrome.originalText, "气血亏虚证",
+    "HIS 侧只拿到归一**之后**的名字时，无法回答「这个证候名是医生写的还是系统改的」");
+  assert.equal(syndrome.canonical, "气血两虚证");
+  assert.equal(syndrome.status, "suggested", "未经医生确认的归一必须如实标 suggested");
+  assert.ok(!("model" in syndrome) && !("cache" in syndrome), "内部执行痕迹不得对外下发");
 });
 
 // —— 甲方 I6：中成药完整子字段（字段名按甲方文档口径 patentMedicines） ——

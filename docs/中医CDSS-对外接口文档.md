@@ -106,6 +106,14 @@ curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
 
 未携带或令牌错误返回 `401`。
 
+> **本文档中的所有 curl 示例统一使用 `$TOKEN` 占位**，请先在 shell 中导出真实令牌再执行：
+> ```bash
+> export TOKEN="<贵方接口令牌>"
+> ```
+> V1.4 之前的版本在示例里内联了生产环境的真实令牌。本次（V1.5）已全部改为占位符，
+> 但**旧版本文档与其历史副本仍含明文令牌**；请按贵方安全规范决定是否轮换该令牌，
+> 轮换需同步更新服务端 `CDSS_API_TOKEN` 与全部集成方配置（轮换后旧令牌立即失效）。
+
 ### 3.2 请求头
 
 | 请求头 | 必填 | 值 |
@@ -460,7 +468,7 @@ Content-Type: application/json
 ```bash
 curl -X POST "https://82.156.128.153/tcm-cdss/api/auth/access" \
   -H "Content-Type: application/json" \
-  -d '{"token":"3683a982d3d55f02890827f3fcc7e8cb67ad4640c5b19c8a5cdb6218cc97161e"}'
+  -d "{\"token\":\"$TOKEN\"}"
 ```
 
 **响应示例**
@@ -508,7 +516,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/auth/access" \
 ```bash
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/collect" \
   -H "Content-Type: application/json" \
-  -H "x-cdss-api-token: 3683a982d3d55f02890827f3fcc7e8cb67ad4640c5b19c8a5cdb6218cc97161e" \
+  -H "x-cdss-api-token: $TOKEN" \
   -d '{
     "userInput": "产后2月余，头痛反复发作1月，劳累后加重，伴神疲乏力、心悸失眠、面色少华。舌淡苔薄白，脉细弱。",
     "patientSex": "女"
@@ -570,7 +578,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/collect" \
 ```bash
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
   -H "Content-Type: application/json" \
-  -H "x-cdss-api-token: 3683a982d3d55f02890827f3fcc7e8cb67ad4640c5b19c8a5cdb6218cc97161e" \
+  -H "x-cdss-api-token: $TOKEN" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -731,7 +739,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 ```bash
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
   -H "Content-Type: application/json" \
-  -H "x-cdss-api-token: 3683a982d3d55f02890827f3fcc7e8cb67ad4640c5b19c8a5cdb6218cc97161e" \
+  -H "x-cdss-api-token: $TOKEN" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -1017,7 +1025,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 ```bash
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
   -H "Content-Type: application/json" \
-  -H "x-cdss-api-token: 3683a982d3d55f02890827f3fcc7e8cb67ad4640c5b19c8a5cdb6218cc97161e" \
+  -H "x-cdss-api-token: $TOKEN" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -1104,7 +1112,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
 ```bash
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \
   -H "Content-Type: application/json" \
-  -H "x-cdss-api-token: 3683a982d3d55f02890827f3fcc7e8cb67ad4640c5b19c8a5cdb6218cc97161e" \
+  -H "x-cdss-api-token: $TOKEN" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -1159,7 +1167,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \
 ```bash
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/red-flags" \
   -H "Content-Type: application/json" \
-  -H "x-cdss-api-token: 3683a982d3d55f02890827f3fcc7e8cb67ad4640c5b19c8a5cdb6218cc97161e" \
+  -H "x-cdss-api-token: $TOKEN" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -1259,7 +1267,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/red-flags" \
 ```bash
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/emergency-clearance" \
   -H "Content-Type: application/json" \
-  -H "x-cdss-api-token: 3683a982d3d55f02890827f3fcc7e8cb67ad4640c5b19c8a5cdb6218cc97161e" \
+  -H "x-cdss-api-token: $TOKEN" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",

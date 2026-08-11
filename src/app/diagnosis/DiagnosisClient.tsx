@@ -4633,6 +4633,9 @@ function ResultTabsV2({
   // 证候之间的取舍属于辨证过程，已在「辨证推理」一段交代；签名载荷里的
   // overview.tcmDifferentials 一字不动，已集成的调用方照常可取。
   const tcmDiseaseDifferentials = reasoning.overview.tcmDiseaseDifferentials || [];
+  // 方名只从已签名载荷里逐字取出，不重新检索、不代选（与服务端 deferredFormulaSelectionLines 同源）。
+  const deferredFormulaNames = (reasoning.overview.deferredFormulaSelection?.names || [])
+    .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
   const tcmDifferentials = reasoning.overview.tcmDifferentials || [];
   const tcmDifferentialBoundary = tcmDifferentials.length === 0 &&
     reasoning.overview.primarySyndromeResolution !== "resolved" &&
@@ -4775,6 +4778,17 @@ function ResultTabsV2({
             <p className="mt-1 text-sm font-semibold">辨证：{reasoning.overview.primarySyndrome}</p>
             {reasoning.overview.secondarySyndromes && reasoning.overview.secondarySyndromes.length > 0 && (
               <p className="mt-1">兼证：{joinClinicalClauses(reasoning.overview.secondarySyndromes, "、")}</p>
+            )}
+            {/* 被剥离的方名：服务端可见摘要 2026-08-10 起已经写这一行，医生页面当时没跟上——
+                同一个字段只接了一个出口。剥离本身是对的（方名锁定要求签名证候与该方在治理目录
+                中有直接关系），但医生只看到「本例辨证组方」时，既不知道系统曾指向哪张方，
+                也无从判断要不要自己采用。措辞与服务端摘要同源：明确写「未锁定、由医生判断」。 */}
+            {deferredFormulaNames.length > 0 && (
+              <p data-testid="deferred-formula-selection" className="mt-1 rounded-md bg-amber-100/70 px-2.5 py-2">
+                <span className="font-semibold">待确认方名：</span>
+                本次分析曾指向 {joinClinicalClauses(deferredFormulaNames, "、")}
+                ，因该方在治理目录中与本例签名证候尚无直接对应关系，服务端未予锁定；是否采用由医生结合方证判断。
+              </p>
             )}
           </div>
         </div>

@@ -149,6 +149,23 @@ export type HisAiSchemePayload = {
       /** 模型选过、但因与签名证候无治理目录直接关系而被服务端剥离的方名。可选：未发生剥离时不下发。 */
       deferredFormulaSelection?: { names: string[]; reason?: string };
     } | null;
+    /**
+     * 受控术语归一痕迹（2026-08-11 补进 HIS 出参）。
+     *
+     * 系统把医生原文归一到国标/受控词表（「胃痞」→「痞满」、ICD-10 规范名）时，
+     * 这条轨迹此前只进签名载荷与医生页面。HIS 侧看到的是归一**之后**的名字，
+     * 拿不到原文、候选 ID 与状态，也就无法回答「这个证候名是医生写的还是系统改的、确认了没有」。
+     * status=suggested 表示系统建议、医生尚未确认；clinician_confirmed 表示已确认。
+     */
+    terminologyMappings: Array<{
+      namespace: string;
+      fieldPath: string;
+      originalText: string;
+      canonical: string;
+      candidateId: string;
+      status: "suggested" | "clinician_confirmed";
+      confidence: number;
+    }>;
   };
   prescriptions: {
     herbal: AdoptableItem[];
@@ -220,6 +237,14 @@ export type HisAiSchemePayload = {
      */
     modifications: Array<{
       trigger: string;
+      /**
+       * 触发依据的**可回溯落点**（2026-08-11 补进 HIS 出参）。
+       *
+       * 这一栏此前只进签名载荷与医生页面正文，HIS 侧拿到的 trigger 是一句自由文本，
+       * 集成方无从判断「去年体检血糖偏高」这条触发到底出自主诉、既往史还是西医支持事实。
+       * 本项目的原则是每条结论都要能指回一个患者事实——出口少接一个，这条原则在该出口就不成立。
+       */
+      triggerSource: { kind: string; sourceRef: string; sourceQuote: string } | null;
       targetPathogenesis: string;
       action: string;
       doseOrHandling: string | null;
@@ -717,8 +742,18 @@ function projectModifications(
     const action = clean(typeof entry.action === "string" ? entry.action : "");
     if (!trigger || !action) return [];
     const substitutions = Array.isArray(entry.substitutions) ? entry.substitutions : [];
+    const rawTriggerSource = entry.triggerSource && typeof entry.triggerSource === "object" && !Array.isArray(entry.triggerSource)
+      ? entry.triggerSource as Record<string, unknown>
+      : null;
+    const triggerSourceQuote = clean(typeof rawTriggerSource?.sourceQuote === "string" ? rawTriggerSource.sourceQuote : "");
+    const triggerSourceRef = clean(typeof rawTriggerSource?.sourceRef === "string" ? rawTriggerSource.sourceRef : "");
+    const triggerSourceKind = clean(typeof rawTriggerSource?.kind === "string" ? rawTriggerSource.kind : "");
     return [{
       trigger,
+      // 三项齐全才写回：残缺的溯源比没有溯源更坏——集成方会把它当作已核实的落点。
+      triggerSource: triggerSourceKind && triggerSourceRef && triggerSourceQuote
+        ? { kind: triggerSourceKind, sourceRef: triggerSourceRef, sourceQuote: triggerSourceQuote }
+        : null,
       targetPathogenesis: clean(typeof entry.targetPathogenesis === "string" ? entry.targetPathogenesis : ""),
       action,
       doseOrHandling: typeof entry.doseOrHandling === "string" && entry.doseOrHandling.trim()
@@ -1091,6 +1126,22 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
             : {}),
         };
       })(),
+      // 归一痕迹取自本轮实际生效的那份 reasoning（M04 阶段沿用 M03 的映射）。
+      // 只下发身份与状态字段，不下发 model/cache/resolvedBy 这类内部执行痕迹。
+      terminologyMappings: (activeReasoning?.terminologyMappings || []).flatMap((mapping) => {
+        const originalText = clean(mapping.originalText || "");
+        const canonical = clean(mapping.canonical || "");
+        if (!originalText || !canonical) return [];
+        return [{
+          namespace: mapping.namespace,
+          fieldPath: clean(mapping.fieldPath || ""),
+          originalText,
+          canonical,
+          candidateId: clean(mapping.candidateId || ""),
+          status: mapping.status,
+          confidence: mapping.confidence,
+        }];
+      }),
     },
     prescriptions: {
       herbal: suppressDoseLevelOutputs ? [] : [item("herbal-1", firstLine(herbal) || "中药饮片处方", herbal, {
