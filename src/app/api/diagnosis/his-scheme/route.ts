@@ -22,6 +22,12 @@ import { buildEvidenceScope } from "@/lib/evidence-source-validation";
 import { createHash } from "node:crypto";
 import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { drugAvailabilityProjection } from "@/lib/drug-inventory.server";
+import {
+  canonicalTcmProjectProtocolStatuses,
+  hisSchemeContractVersionFromRequest,
+  projectHisSchemeForContractVersion,
+  type HisSchemeContractVersion,
+} from "@/lib/his-scheme-contract-version";
 
 const EVIDENCE_SCOPE_TTL_MS = 60_000;
 const evidenceScopeCache = new Map<string, { expiresAt: number; scope: ReturnType<typeof buildEvidenceScope> }>();
@@ -48,14 +54,24 @@ async function evidenceScopeForCase(caseState: Parameters<typeof sanitizeCaseSta
  * 只在**投影边界**附加，不进 buildHisAiSchemePayload 的签名域：库存每天变，
  * 若进了临床合同，昨天签发的方案今天就会验签失败。处方内容逐字不变，只多出标注与替代候选。
  */
-async function withDrugAvailability(payload: Awaited<ReturnType<typeof buildHisAiSchemePayload>>) {
+async function withDrugAvailability(
+  payload: Awaited<ReturnType<typeof buildHisAiSchemePayload>>,
+  contractVersion: HisSchemeContractVersion,
+) {
   const availability = await drugAvailabilityProjection(payload.prescriptions.structuredHerbs);
-  return { ...payload, ...availability };
+  // 契约版本投影必须是出参的**最后一步**：折叠 protocolStatus 之后就再也读不到规范三态，
+  // 因此先把规范值取出来交给投影函数（见 his-scheme-contract-version 的说明）。
+  return projectHisSchemeForContractVersion(
+    { ...payload, ...availability },
+    contractVersion,
+    canonicalTcmProjectProtocolStatuses(payload),
+  );
 }
 
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
+  const contractVersion = hisSchemeContractVersionFromRequest(req, parsed.body);
   // Evidence retrieval is independent of the semantic red-flag projection. Run it concurrently so
   // the HIS boundary cannot serially consume the full clinical-facts budget and then the full
   // EviMed budget, which previously exceeded the endpoint's 30s integration SLO under a long batch.
@@ -75,11 +91,11 @@ export async function POST(req: Request) {
       reasoningV2: diagnoseOnlyReasoning,
       prescriptionRevision: undefined,
     };
-    return Response.json(await withDrugAvailability(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise)));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise), contractVersion));
   }
 
   if (!prescribed && !caseState.prescriptionRevision && !caseState.prescription?.trim()) {
-    return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise)));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise), contractVersion));
   }
 
   const validation = validateHisPrescriptionForWriteBack(caseState);
@@ -140,7 +156,7 @@ export async function POST(req: Request) {
       auditedAt,
     });
     return Response.json({
-      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise))),
+      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise), contractVersion)),
       auditCorrelation: correlation,
     });
   }
@@ -187,7 +203,7 @@ export async function POST(req: Request) {
     auditedAt,
   });
   return Response.json({
-    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise))),
+    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise), contractVersion)),
     auditCorrelation: correlation,
   });
 }

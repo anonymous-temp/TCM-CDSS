@@ -40,6 +40,7 @@
     "test:authoritative-his": "jiti scripts/test-authoritative-his.mjs",
     "test:his-section-coupling": "jiti scripts/test-his-section-coupling.mjs",
     "test:his-structured-projection": "jiti scripts/test-his-structured-projection.mjs",
+    "test:his-contract-version": "jiti scripts/test-his-contract-version.mjs",
     "test:herb-substitutes": "jiti scripts/test-herb-substitutes.mjs",
     "test:drug-catalog-sync": "jiti scripts/test-drug-catalog-sync.mjs",
     "test:drug-inventory": "jiti scripts/test-drug-inventory.mjs",

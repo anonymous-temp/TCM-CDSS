@@ -3,7 +3,9 @@ import { stripInvalidEmergencyClearance } from "./emergency-clearance.server";
 import { readJsonBodyWithLimit } from "./http-guard";
 
 export type CaseStateRequestResult =
-  | { ok: true; caseState: CaseState }
+  // body 原样带出：契约版本协商这类**非临床**的请求级选项要在路由里读，
+  // 而重新读一遍 req.body 是不行的（流已被消费）。caseState 仍是唯一的临床入口。
+  | { ok: true; caseState: CaseState; body: unknown }
   | { ok: false; response: Response };
 
 export async function readJsonRequest(
@@ -27,5 +29,5 @@ export async function readCaseStateRequest(req: Request): Promise<CaseStateReque
     return { ok: false, response: Response.json({ error: "caseState must be an object" }, { status: 400 }) };
   }
 
-  return { ok: true, caseState: stripInvalidEmergencyClearance(caseState) };
+  return { ok: true, caseState: stripInvalidEmergencyClearance(caseState), body: parsed.body };
 }

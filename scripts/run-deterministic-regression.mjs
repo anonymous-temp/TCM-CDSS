@@ -219,6 +219,9 @@ const scripts = [
   "test:negation-scope",
   "test:syndrome-name-standard",
   "test:formula-name-tiers",
+  // HIS 契约版本协商：V1 只回旧两态（第三态向保守侧折叠）、tailoringStatus 恒为真实值、
+  // V2 才开放真三态。钉的是「不要求甲方为我们新增的枚举值临时改代码」。
+  "test:his-contract-version",
   "test:formula-identity-restore",
   // 经方可追溯率的三条根因：出处判官与身份判官各写各的、恢复身份不写出处、
   // 恢复发生在可见正文重建之后（页面说自拟方、载荷说经方名）。50 例实测页面可追溯 5/39。
