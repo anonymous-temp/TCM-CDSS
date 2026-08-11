@@ -1105,6 +1105,49 @@ export function withDeterministicFormulaReferences(reasoning: ClinicalReasoningR
  * 任一基准未通过组成核验即不恢复（fail-closed，保持既有 declassify 路径）。
  */
 /**
+ * 方名身份与「方剂出处」的**唯一投影**（2026-08-11）。
+ *
+ * 恢复身份的两条路径此前只写 name / formulaNames / constructionType，不写 formulaSource——
+ * 于是候选顶着「四君子汤加减」，出处栏仍是 model_inference 的「本例证候…结构化匹配」，
+ * 而可见层只在 evidenceLevel 可追溯时才打印「方剂出处」，医生看到的是一个没有出处的经方名。
+ * 授予身份的那次核验手里就攥着 governed catalog 的 source，把它丢掉是没有道理的：
+ * **谁给的身份，谁给出处**。
+ */
+function restoredFormulaSourceProjection(
+  verifications: readonly FormulaComponentVerification[],
+  modificationStatus: "canonical" | "modified",
+): Pick<
+  NonNullable<ClinicalReasoningResultV2["formula"]>["candidates"][number],
+  "formulaSource" | "baseFormulas"
+> | undefined {
+  if (verifications.length === 0 || !verifications.every((item) => item.verified && item.source.trim())) return undefined;
+  return {
+    // 与 enrichReasoning 的出处口径逐字一致：本地方剂目录记 kb_entry，其余记 classic_text；
+    // 只有「未加减 + 全部来自官方经典目录 + 组成逐字一致」才判高置信。
+    formulaSource: {
+      evidenceLevel: verifications.every((item) => item.origin !== "local_formula_catalog")
+        ? "classic_text" as const
+        : "kb_entry" as const,
+      source: verifications.map((item) => `${item.formulaName}：${item.source}`).join("；"),
+      confidence: modificationStatus === "canonical" &&
+        verifications.every((item) => item.origin === "official_classic_catalog" && item.exactComposition)
+        ? "高" as const
+        : "中" as const,
+    },
+    baseFormulas: verifications.map((item) => ({
+      name: item.formulaName,
+      source: item.source,
+      matchedIngredientCount: item.matchedIngredientCount,
+      totalIngredientCount: item.totalIngredientCount,
+      minimumPreservedIngredientCount: item.minimumPreservedIngredientCount,
+      matchedRequiredIngredientCount: item.matchedRequiredIngredientCount,
+      requiredIngredientCount: item.requiredIngredientCount,
+      verificationStatus: "verified_individually" as const,
+    })),
+  };
+}
+
+/**
  * M03 未锁方名时，按**组成**给自拟候选恢复经方身份（甲方 R1「首选经方名」）。
  *
  * 只动被标成自拟的那一档：方名已经写了别的东西就不覆盖——那可能是模型的合方判断或
@@ -1123,14 +1166,24 @@ function restoreFormulaIdentityFromComposition(
     if ((candidate.formulaNames || []).length > 0) return candidate;
     const identified = identifyGovernedFormulaByComposition(candidate.herbs || []);
     if (!identified) return candidate;
+    const modificationStatus = identified.modificationKind === "canonical"
+      ? "canonical" as const
+      : "modified" as const;
     return {
       ...candidate,
       name: identified.displayName,
       formulaNames: [identified.formulaName],
       constructionType: "single_base" as const,
-      modificationStatus: identified.modificationKind === "canonical"
-        ? "canonical" as const
-        : "modified" as const,
+      modificationStatus,
+      ...(restoredFormulaSourceProjection(
+        verifyFormulaCompilationComponents(
+          [identified.formulaName],
+          candidate.herbs || [],
+          false,
+          modificationStatus === "modified",
+        ),
+        modificationStatus,
+      ) || {}),
     };
   });
   return { ...reasoning, formula: { ...reasoning.formula, candidates } };
@@ -1198,12 +1251,14 @@ export function restoreGovernedFormulaIdentity(
     const actualNames = candidate.herbs.map(formulaHerbIdentityName).filter(Boolean);
     const extraHerbs = actualNames.filter((name) => !baselineIdentities.has(normalizeHerbName(name)));
     const restoredName = `${governedNames.join("合")}${extraHerbs.length > 0 ? "加减" : ""}`;
+    const modificationStatus = extraHerbs.length > 0 ? "modified" as const : "canonical" as const;
     return {
       ...candidate,
       name: restoredName,
       formulaNames: [...governedNames],
       constructionType: combined ? "combined" as const : "single_base" as const,
-      modificationStatus: extraHerbs.length > 0 ? "modified" as const : "canonical" as const,
+      modificationStatus,
+      ...(restoredFormulaSourceProjection(verifications, modificationStatus) || {}),
     };
   });
   return { ...reasoning, formula: { ...reasoning.formula, candidates } };
@@ -1375,12 +1430,19 @@ function bestFormulaSourceCandidate(
 export type FormulaComponentVerification = {
   formulaName: string;
   source: string;
+  origin: ResolvedFormulaSource["origin"];
   verified: boolean;
   matchedIngredientCount: number;
   totalIngredientCount: number;
   minimumPreservedIngredientCount: number;
   matchedRequiredIngredientCount: number;
   requiredIngredientCount: number;
+  /**
+   * 处方组成与受治理基准**逐字一致**：命中全部基准药味、没有多余药味，且未借助任何
+   * 炮制别名或身份替代（党参代人参、赤白芍品种等价）。只用于决定方名要不要挂「加减」
+   * 与出处置信度，不参与 verified 判定。
+   */
+  exactComposition: boolean;
 };
 
 /**
@@ -1513,13 +1575,20 @@ function verifyFormulaCompilationComponent(
   explicitlyModified: boolean,
 ): FormulaComponentVerification {
   const identityCanonical = identityVerificationCanonicalMap(reference);
-  const herbNames = applyIdentitySubstitutions(
-    withIdentityCanonicalNames(
-      herbs.map(formulaHerbIdentityName).filter(Boolean),
-      identityCanonical,
-    ),
-    reference,
-  );
+  const rawHerbNames = herbs.map(formulaHerbIdentityName).filter(Boolean);
+  const canonicalHerbNames = withIdentityCanonicalNames(rawHerbNames, identityCanonical);
+  const herbNames = applyIdentitySubstitutions(canonicalHerbNames, reference);
+  // 「逐字一致」必须把身份替代也算进去：党参代人参核验通过，但方名不能因此判 canonical
+  // 而丢掉「加减」，出处置信度也不能升到高——处方里写的确实不是基准那味药。
+  const usedIdentitySubstitution = herbNames.some((name, index) => name !== canonicalHerbNames[index]);
+  // 受控解析表同理：它可以**授予身份**（银翘散基准写「炒牛蒡子」、处方写「牛蒡子」仍是银翘散），
+  // 但不能宣称组成逐字一致。清胃散基准记「当归身」、处方写整当归就是这一档：方名与出处照给，
+  // 但必须挂「加减」、置信度封顶为中，不能让一次药用部位差异被抹平成 canonical 原方。
+  const rawPresent = new Set(rawHerbNames.map(normalizeHerbName).filter(Boolean));
+  const usedIdentityCanonicalization = reference.ingredients.some((ingredient) => {
+    const canonical = identityCanonical.get(ingredient);
+    return Boolean(canonical) && canonical !== ingredient && !rawPresent.has(normalizeHerbName(ingredient));
+  });
   const baseAliases = formulaHerbBaseAliases(herbs);
   // 锚点必须与组成、处方两侧过同一张表——否则它不是「更严」，而是**恒假**。
   //
@@ -1572,12 +1641,18 @@ function verifyFormulaCompilationComponent(
   return {
     formulaName: reference.formulaName,
     source: reference.source,
+    origin: reference.origin,
     verified: Boolean(matched),
     matchedIngredientCount: matched?.overlap || 0,
     totalIngredientCount: reference.ingredients.length,
     minimumPreservedIngredientCount: reference.minimumPreservedIngredientCount,
     matchedRequiredIngredientCount,
     requiredIngredientCount: reference.requiredIngredients.length,
+    exactComposition: Boolean(matched) &&
+      (matched?.f1 ?? 0) >= 0.999 &&
+      !matched?.usedBaseAlias &&
+      !usedIdentitySubstitution &&
+      !usedIdentityCanonicalization,
   };
 }
 
@@ -1592,7 +1667,90 @@ export function verifyFormulaCompilationComponents(
     verifyFormulaCompilationComponent(reference, herbs, combined, explicitlyModified));
 }
 
+/**
+ * 出处解析的**第二判据**：受治理编译目录（2026-08-11）。
+ *
+ * 这是「同一个判据两处各写各的」的又一处，而且是甲方最大遗留项「经方可追溯率」的直接根因。
+ * 同一个问题——「这张处方是不是 X 方」——本仓库有两个互不相识的判官：
+ *
+ *   · 身份判官 verifyFormulaCompilationComponent：读 tcm-formula-governed-catalog，
+ *     两侧过 ingredientLinks 受控解析表，认党参代人参、认赤白芍品种等价；
+ *   · 出处判官 resolveFormulaSources（本函数上游）：读 tcm-formula-sources 的三张目录，
+ *     两张表都没有的方就查不到，也不过身份替代表。
+ *
+ * 50 例基层实测：15 个带方名的候选里 10 个被出处判官判 ∅，而身份判官对这 10 个**全部** verified：
+ *   参苓白术散 10/10《太平惠民和剂局方》、四君子汤加减（党参）4/4、异功散加减（党参）5/5、
+ *   五子衍宗丸加减 5/5、缩泉丸加味 3/3、五磨饮子加减 4/5、六神散加减 6/6、
+ *   杏仁煎 8/8、四神散加味 4/4、调经方加味 3/3。
+ * 后果不是「少一行出处」：enrichReasoning 拿 ∅ 当「这不是经方」，把方名改写成「本例辨证组方」、
+ * constructionType 降为 self_devised。医生页面因此**34/39 例显示自拟方**，其中 10 例是标准经方。
+ * 签名载荷里方名后来又被最后一公里的身份恢复补了回去，于是页面说自拟方、载荷说四君子汤加减——
+ * 同一份响应两个答案，甲方读页面，量出来的可追溯率自然一路走低。
+ *
+ * 补法不放宽任何判据：只在三张目录**查不到**时兜底，且**完全采信身份判官的结论**
+ * （verified 才给出处，未过核验一律不给）。不新增任何目录、不新增任何出处文本，
+ * 出处逐字来自 governed catalog 的 source 字段。
+ *
+ * 只覆盖单方名：合方那一路 resolveFormulaSources 还要按 matchedHerbs 做跨方覆盖率核算，
+ * 而身份判官返回的是替代归一**之后**的药名，两边口径对不齐。合方保持原判据不变。
+ */
+/**
+ * 受治理编译目录里的方名解析。三张名录目录收不全它——实测 2909 个可建基准里有 98 个
+ * （九仙散、人参归脾丸、双解汤、四物五子汤…）名录侧查不到，于是连「这是个方名」都判不出来。
+ * 这里只认 T8 受治理、可锁定的那批（governedFormulaCompilationRow 本身就是这道闸），
+ * 不放宽任何身份口径。
+ */
+function governedCompilationBaseName(candidateName: string): string | undefined {
+  // 受控自拟标签永不进场（目录里没有同名行，这里只是省一次查表并把意图写明）。
+  if (/^(?:本例辨证组方|辨证组方|自拟方?)(?:加减|加味|化裁)?$/.test(candidateName.trim())) return undefined;
+  const cleaned = cleanFormulaDisplayName(candidateName).trim();
+  const stripped = cleaned.replace(/(?:加减|化裁|加味)$/g, "").trim();
+  // 目录里就有这个整名时直接采信：治理目录自己收了「葛根芩连汤合升阳除湿汤」这类合方名、
+  // 也收了「陈达夫经验方」这类以经验方为名的受治理条目，名录侧的合方拆分与自拟词过滤
+  // 会把它们误挡在门外。
+  for (const name of [cleaned, stripped]) {
+    if (name.length >= 3 && governedFormulaCompilationRow(name)) return name;
+  }
+  const direct = candidateBaseFormulaNames(candidateName);
+  return direct.length === 1 ? direct[0] : undefined;
+}
+
+function governedCompilationFormulaSources(
+  candidateName: string,
+  herbs: FormulaHerbInput[],
+): ResolvedFormulaSource[] {
+  const baseName = governedCompilationBaseName(candidateName);
+  if (!baseName) return [];
+  const [reference] = formulaCompilationReferences([baseName]);
+  if (!reference) return [];
+  const verification = verifyFormulaCompilationComponent(
+    reference,
+    herbs,
+    false,
+    /(?:加减|化裁|加味)/.test(candidateName),
+  );
+  if (!verification.verified) return [];
+  return [{
+    formulaName: verification.formulaName,
+    source: verification.source,
+    matchedIngredientCount: verification.matchedIngredientCount,
+    totalIngredientCount: verification.totalIngredientCount,
+    minimumPreservedIngredientCount: verification.minimumPreservedIngredientCount,
+    matchedRequiredIngredientCount: verification.matchedRequiredIngredientCount,
+    requiredIngredientCount: verification.requiredIngredientCount,
+    verificationStatus: "verified_individually",
+    exactComposition: verification.exactComposition,
+    origin: verification.origin,
+  }];
+}
+
 export function resolveFormulaSources(candidateName: string, herbs: FormulaHerbInput[] = []): ResolvedFormulaSource[] {
+  const catalogResolved = resolveFormulaSourcesFromNameCatalogs(candidateName, herbs);
+  if (catalogResolved.length > 0) return catalogResolved;
+  return governedCompilationFormulaSources(candidateName, herbs);
+}
+
+function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: FormulaHerbInput[] = []): ResolvedFormulaSource[] {
   const herbNames = herbs.map(formulaHerbIdentityName).filter(Boolean);
   const baseAliases = formulaHerbBaseAliases(herbs);
   const baseNames = candidateBaseFormulaNames(candidateName);

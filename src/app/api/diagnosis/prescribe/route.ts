@@ -5,7 +5,7 @@ import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, gateDispositionIsAdvisory, markdownNdjsonResponse, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
-import { formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
+import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { applyTcmTreatmentCapabilityPriority } from "@/lib/tcm-treatment-capabilities.server";
@@ -292,7 +292,18 @@ export async function POST(req: Request) {
       // 保证医生看到的不是空栏。放在 issue 计算之后，是为了不让服务端造的合法值再一次
       // 把 candidate_*_herb_*_function 这条修复通路堵死（那正是本条缺陷的形状）。
       const finalized = applyDeterministicHerbFunctions(enriched, { fillRolePlaceholder: true });
-      const synchronized = synchronizeVisibleClinicalSummary(finalized, "prescribe");
+      // 方名身份恢复必须发生在**重建可见正文之前**（2026-08-11）。
+      //
+      // 恢复此前只挂在流层签名前的最后一公里，那时可见正文早已按恢复**之前**的载荷渲染完毕，
+      // 而它只改 sentinel JSON、不碰正文。结果是同一份响应两个答案：医生页面「本例辨证组方 /
+      // 自拟方」，签名载荷与 HIS 方案「四君子汤加减 / single_base」。50 例实测 34/39 例页面
+      // 显示自拟方，其中 10 例载荷里是标准经方——甲方读页面，量出来的方名可追溯率因此长期偏低。
+      //
+      // 位置在合同判定（issue）**之后**：恢复不参与放行判定，判定看的仍是模型原样输出，
+      // 不会因为服务端补了方名而让一张本该被驳回的处方通过。流层最后一公里的那次恢复保留
+      // 不动（幂等：已带 formulaNames 的候选原样返回），继续为不走本路由的分支兜底。
+      const identityRestored = applyRestoredGovernedFormulaIdentity(finalized, signedPriorReasoning);
+      const synchronized = synchronizeVisibleClinicalSummary(identityRestored, "prescribe");
       if (issue) {
         // Tier-2/3 带批注受理。在此之前，M04 的 60+ 个原因码一律等价于最高危级别：一条建议性
         // 中医治疗项目卡片的字段缺失，与附子超量一样会作废整张已通过剂量、十八反十九畏、

@@ -742,8 +742,26 @@ const qingweiWholeDanggui = parsedReasoning(enrichPrescriptionProvenance(render(
   "清胃散加减",
   qingweiReference.ingredients.map((name) => name === "当归身" ? "当归" : name),
 )))));
-assertSafelyDeclassified(qingweiWholeDanggui, qingweiPrior, "whole 当归 must not retain a formula governed by the 当归身 anchor");
-assert.deepEqual(resolveFormulaSources("清胃散", herbs(...qingweiReference.ingredients.map((name) => name === "当归身" ? "当归" : name))), [], "a medicinal-part substitution must not inherit an exact classic formula source");
+// 2026-08-11 口径收敛：药用部位差异不再「整条不给出处」，改为**给身份、不给逐字一致**。
+//
+// 原断言要求整当归代当归身时 resolveFormulaSources 返回 []，方名剥成「本例辨证组方」。
+// 但同一个组成在**身份判官** verifyFormulaCompilationComponent 那里是 verified 的——受治理目录
+// 自己就把「当归身」记为 autoResolvable→「当归」（药典无当归身饮片条目）。两个判官对同一问题
+// 给相反答案的后果实测可见：签名载荷与 HIS 走身份判官显示「清胃散加减」，医生页面走出处判官
+// 显示「自拟方」，同一份响应两个答案。50 例基层实测里这一族让页面可追溯率停在 5/39。
+//
+// 收敛方向取「身份判官」，因为它才是授予方名与合同放行的权威；但受控解析表只授予身份，
+// **不授予 exactComposition**：方名必须挂「加减」、置信度封顶为中，药用部位差异不被抹平。
+// 原断言保护的「不得冒充逐字一致的经典原方」由下面的 exactComposition=false 继续承担；
+// 炮制身份（炙甘草 vs 甘草）与锚点缺失两族一字未放宽，见紧邻的三甲复脉汤与清骨散用例。
+const qingweiWholeDangguiCandidate = qingweiWholeDanggui.formula.candidates[0];
+assert.equal(qingweiWholeDangguiCandidate.name, "清胃散加减", "a medicinal-part substitution keeps the governed identity but must be marked as modified");
+assert.equal(qingweiWholeDangguiCandidate.modificationStatus, "modified", "a medicinal-part substitution can never be a canonical original formula");
+assert.equal(qingweiWholeDangguiCandidate.formulaSource.confidence, "中", "a medicinal-part substitution must never reach high source confidence");
+assert.equal(formulaCompilationContractIssue(qingweiWholeDanggui, qingweiPrior), undefined, "whole 当归 over the 当归身 baseline must stay a usable candidate");
+const qingweiWholeDangguiSources = resolveFormulaSources("清胃散", herbs(...qingweiReference.ingredients.map((name) => name === "当归身" ? "当归" : name)));
+assert.equal(qingweiWholeDangguiSources.length, 1, "a medicinal-part substitution resolves through the governed compilation baseline");
+assert.equal(qingweiWholeDangguiSources[0].exactComposition, false, "a medicinal-part substitution must not inherit an exact classic formula source");
 const sanjiaReference = formulaCompilationReferences(["三甲复脉汤"])[0];
 assert.ok(sanjiaReference.ingredients.includes("炙甘草") && !sanjiaReference.ingredients.includes("甘草"), "formula provenance must preserve processing identity for 炙甘草");
 assert.deepEqual(resolveFormulaSources("三甲复脉汤", herbs(...sanjiaReference.ingredients.map((name) => name === "炙甘草" ? "甘草" : name))), [], "an unlabelled processing substitution must not inherit an exact classic formula source");
