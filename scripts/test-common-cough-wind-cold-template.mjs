@@ -10,8 +10,9 @@
 // 本套件钉住裁定里点名的 7 条回归，再加三条结构性判据：
 //   · 闸门只允许声明在针刺项目内（裁定：「仅限针刺项目内部」）；
 //   · 频次不得照搬流感专项方案的「每日1次、每次30分钟」（裁定点名）；
-//   · **当前**处于 pending_clinician_review ⇒ 模板不启用、本例保持评估态
-//     （中医师原话「签字前保持评估态是正确的」），但待签字的取穴必须如实呈现、不得静默。
+//   · 终审状态决定启不启用：2026-08-11 中医师**已签字**（approved）⇒ 模板启用，
+//     且因为闸门准入条件本身就含"已签名证型"，它算作按本例证型的患者级方案；
+//     未登记进台账的闸门模板一律按未终审处理——不启用，但不静默。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -164,24 +165,57 @@ check("频次不得照搬流感专项方案", () => {
   assert.ok(/留针|疗程/.test(template.scheduleSuggestion), "留针时长与疗程必须交回现场医师");
 });
 
-check("当前未签字 ⇒ 模板不启用、保持评估态，但待签字取穴如实呈现", () => {
+check("已签字 ⇒ 模板启用，且算作按本例证型的患者级方案", () => {
   const adjudication = tcmRefinementAdjudication("common-cough-wind-cold-template");
   assert.equal(
     adjudication.adjudicationStatus,
-    "pending_clinician_review",
-    "中医师尚未签字，台账不得标 approved——签字是数据侧一行的事，不能由实现代劳",
+    "approved",
+    "中医师 2026-08-11 已签字终审；台账必须如实登记",
   );
+  assert.equal(adjudication.conflictNote, null, "已签字条目不应再挂待终审说明");
   const resolved = governedTcmTreatmentPrecisePlanTemplate(
     "acupuncture",
     "咳嗽5天，痰白稀，恶寒无汗，鼻塞流清涕",
     WIND_COLD_SIGNED,
   );
-  assert.equal(resolved.template, undefined, "未签字却把模板启用成了患者级方案");
-  assert.ok(resolved.deferred, "未签字也不能静默——必须把待签字的那条挂出来");
-  assert.equal(resolved.deferred.template.id, "acupuncture-common-cough-wind-cold");
+  assert.ok(resolved.template, "已签字却没启用模板");
+  assert.equal(resolved.template.id, "acupuncture-common-cough-wind-cold");
+  assert.equal(resolved.deferred, undefined, "已启用就不该再挂待签字说明");
+});
+
+// 「个体化方案」在本仓库的定义是三件事同时成立：病种事实 + 本例已签名证型 + 该条已终审。
+// 精确闸门把这三件事写成了模板的准入条件，所以走它进来的模板天然满足定义。
+// 这条判据钉的是**呈现口径**：不加它，本模板因为没有 syndromeRefinements 会被判成
+// 「命中病种模板但未按证型加减」，还会写「请按寒热虚实增减」——而它恰恰是最贴证型的一条。
+check("闸门选中的模板不得被说成「尚未按本例证型加减」", () => {
+  const source = readFileSync(
+    fileURLToPath(new URL("../src/lib/tcm-treatment-capabilities.server.ts", import.meta.url)),
+    "utf8",
+  );
   assert.ok(
-    resolved.deferred.adjudication.conflictNote?.includes("尚未完成中医师签字终审"),
-    "待签字说明必须讲清为什么没用它",
+    /const syndromeTailored = Boolean\(refinement\) \|\| syndromeGatedTemplate/.test(source),
+    "syndromeTailored 必须把闸门选中的模板也算进去",
+  );
+  for (const field of ["protocolStatus: syndromeTailored", "tailoringStatus: syndromeTailored", "protocolGap: syndromeTailored"]) {
+    assert.ok(source.includes(field), `${field} 仍在按 refinement 单独判定——三者必须同一个判据`);
+  }
+});
+
+// 未签字的行为同样必须钉住：签字是数据侧一行的事，可能随时新增下一条待签字模板。
+// 用一条**未登记进台账**的合成模板验证——台账里没有的条目一律按未终审处理，这是既有约定。
+check("未登记进台账的闸门模板：不启用、但不静默", () => {
+  const synthetic = {
+    ...template,
+    id: "synthetic-unregistered-gate",
+    preciseSyndromeGate: { ...template.preciseSyndromeGate, adjudicationId: "synthetic-never-registered" },
+  };
+  const adjudication = tcmRefinementAdjudication("synthetic-never-registered");
+  assert.equal(adjudication.adjudicationStatus, "pending_clinician_review", "未登记条目必须按未终审处理");
+  assert.ok(adjudication.conflictNote, "未终审必须给出说明，不能静默");
+  // 闸门判据本身与终审状态无关：命中照旧成立，启不启用另说。
+  assert.ok(
+    precisePlanTemplateGateMatches(synthetic, "咳嗽5天，恶寒无汗", WIND_COLD_SIGNED),
+    "终审状态不应影响闸门的命中判据",
   );
 });
 
@@ -208,7 +242,9 @@ check("逐穴溯源：风池单列为 conditional_point，不与主穴同源同�
   assert.equal(new Set(seen).size, seen.length, `逐穴溯源出现重复：${seen.join("、")}`);
 });
 
-// ── 未签字期间：评估态的候选穴位次序也应受益，但**一个穴都不许新增** ──────────
+// ── 有待签字闸门模板时：评估态的候选穴位次序也应受益，但**一个穴都不许新增** ──────
+// 本条模板已于 2026-08-11 签字启用，因此这条路径现在由**下一条**待签字模板复用；
+// 判据仍按当时实测的形状钉住，因为它编码的是"重排不得新增穴"这条边界。
 // 甲方看到的症状是「承灵、孔最、肩中俞」。模板签字前不启用，评估态仍由关键词召回出穴；
 // 但召回按「症状词命中个数」排序，正是那个排法让承灵压过列缺、让「热病无汗」的孔最
 // 进了风寒例。用已命中双钥匙闸门的待签字模板给**本来就够格**的穴排先后，严格优于它，
@@ -216,7 +252,7 @@ check("逐穴溯源：风池单列为 conditional_point，不与主穴同源同�
 const { selectAcupointsForCaseTerms } = await import("../src/lib/tcm-acupoints.ts");
 const { TcmTreatmentRecommendationSchema: TCM_TREATMENT_ITEM_SCHEMA } = await import("../src/lib/diagnosis-types.ts");
 
-check("未签字期间：重排只改次序、不新增穴，且甲方实测的三个穴不再进前 5", () => {
+check("待签字闸门模板存在时：重排只改次序、不新增穴（本条现由未来的待签字模板复用）", () => {
   const terms = ["咳嗽", "恶寒", "无汗", "鼻塞", "流涕"];
   const pool = selectAcupointsForCaseTerms(terms, 16);
   const governed = new Set(template.sitesOrPoints);

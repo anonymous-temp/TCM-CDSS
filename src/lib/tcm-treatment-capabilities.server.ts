@@ -354,6 +354,19 @@ function controlledTreatmentPlan(
     // 举不出落点时**一个症状域也不说**（与评估分支同口径）：宁可少一句，也不能给一个
     // 只感冒、无咳嗽的病人写「围绕咳喘与呼吸功能」。退而求其次先用本模板真正命中的
     // matchAny 原词（如「流行性感冒」），它逐字来自本例文本，仍然是可核对的落点。
+    // ── 被精确闸门选中的模板本身就是「按本例证型选的」（2026-08-11 签字生效后才暴露）──────
+    //
+    // 「个体化方案」在本仓库的定义是三件事同时成立：病种事实 + 本例已签名证型 + 该条已终审。
+    // 精确闸门恰恰把这三件事写成了模板的准入条件（requireCurrentFactAny / requireSignedSyndromeAny
+    // / adjudicationId 已 approved），所以走这条路进来的模板**天然满足**定义。
+    //
+    // 不加这一段的话，本模板没有 syndromeRefinements ⇒ matchedRefinement 为空 ⇒
+    // protocolStatus 会被判成「命中病种模板但未按证型加减」，protocolGap 还会写
+    // 「本例已签名证候未匹配到受治理的证型加减方案，请按寒热虚实增减」——
+    // 而它恰恰是目录里最贴本例证型的一条。这句话会让医生以为系统没认出证型。
+    const syndromeGatedTemplate = Boolean(precise.template?.preciseSyndromeGate);
+    const gateLabel = precise.template?.preciseSyndromeGate?.indicationLabel || "";
+    const syndromeTailored = Boolean(refinement) || syndromeGatedTemplate;
     const evidenceTerms = indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts);
     const matchedTemplateTerms = governedTemplate.matchAny
       .filter((term) => clinicalText.normalize("NFKC").includes(term))
@@ -366,6 +379,8 @@ function controlledTreatmentPlan(
       // 印两遍，N 个项目就是 2N 遍。病机归病机字段，治疗内容只写这个项目本身的边界。
       treatmentContent: refinement
         ? `本例适用标准项目方案，${[focus, `按已签名证候「${refinement.syndromeLabel}」加减取穴`].filter(Boolean).join("并")}，由现场医师复核后实施。`
+        : syndromeGatedTemplate
+          ? `本例命中「${gateLabel}」的受治理标准取穴${focus ? `（${focus}）` : ""}——该模板以本例**当前病种事实**与**已签名证型**双重条件准入${conditionalPoints.length > 0 ? `，并按本例症状加用${conditionalPoints.map((item) => item.point).join("、")}` : ""}；补泻、深度、留针与禁忌由现场医师复核后确定。`
         : matchedRefinement
           ? `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，也命中了「${matchedRefinement.syndromeLabel}」的证型配穴，但该条配穴尚未完成中医师终审，本轮**不予应用**，仅呈现病种标准取穴，请按本例寒热虚实自行增减。`
           : `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，由现场医师复核后实施；本轮尚未按本例证型加减，请按本例寒热虚实增减。`,
@@ -390,14 +405,14 @@ function controlledTreatmentPlan(
       // 只有**两把钥匙都对上**（病种模板 + 本例已签名证型）、且该条证型加减已终审，
       // 才算个体化方案。此前一律写 governed_patient_specific_plan，而四组八例的穴位逐字相同——
       // 那个标签说的不是这一次实际发生的事。
-      protocolStatus: refinement
+      protocolStatus: syndromeTailored
         ? "governed_patient_specific_plan"
         : "governed_class_template_not_syndrome_tailored",
       // tailoringStatus 与 protocolStatus 在**同一处**派生，两者永不可能各说各的。
       // 它存在的唯一理由是 HIS 的 V1 兼容投影会把 protocolStatus 折叠回旧两态，
       // 而三态的真实值必须有一个不被折叠的落点（见 his-scheme-contract-version）。
-      tailoringStatus: refinement ? "syndrome_tailored" as const : "class_template_only" as const,
-      protocolGap: refinement
+      tailoringStatus: syndromeTailored ? "syndrome_tailored" as const : "class_template_only" as const,
+      protocolGap: syndromeTailored
         ? undefined
         : matchedRefinement
           ? "syndrome_refinement_pending_adjudication"
