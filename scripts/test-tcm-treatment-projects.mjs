@@ -1134,6 +1134,23 @@ try {
     assert.ok(approved + pending >= 8, `命中样本过小（${approved + pending}），本属性形同虚设`);
   });
 
+  // 「一条证型加减都没命中」与「命中了但卡在终审」是两回事，出参必须分得开。
+  check("未命中任何证型加减时不得写 adjudicationStatus", () => {
+    configureSimple(["acupuncture"]);
+    const prior = signedM03({
+      tcmDiseaseName: "痞满", primarySyndrome: "证候待辨",
+      overallPathogenesis: "中焦气机不利", chainPathogenesis: "中焦气机不利",
+      therapyDirection: "调畅气机", westernPrimary: "功能性消化不良",
+    });
+    const [recommendation] = compileTcmTreatmentRecommendations([{ projectCode: "acupuncture", targetRef: "P1" }], prior);
+    if (!recommendation) return;
+    if (recommendation.protocolGap === "syndrome_refinement_not_matched") {
+      assert.equal(recommendation.adjudicationStatus, undefined,
+        "一条加减都没命中时写 pending，会让集成方以为有条目卡在终审里");
+      assert.equal(recommendation.deferredSyndromeRefinement, undefined);
+    }
+  });
+
   check("台账未登记的条目按未终审处理（新录入的条目不得自动获得已核验身份）", () => {
     const unknown = tcmRefinementAdjudication("this-refinement-does-not-exist");
     assert.equal(unknown.adjudicationStatus, "pending_clinician_review");

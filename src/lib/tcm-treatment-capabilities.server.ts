@@ -342,7 +342,12 @@ function controlledTreatmentPlan(
         : matchedRefinement
           ? "syndrome_refinement_pending_adjudication"
           : "syndrome_refinement_not_matched",
-      adjudicationStatus: refinement ? "approved" as const : "pending_clinician_review" as const,
+      // 只有**命中了**证型加减才谈得上终审状态。一条都没命中时这一栏必须缺省——
+      // 写 pending_clinician_review 会让集成方以为「有一条配穴卡在终审里」，
+      // 而实际情况是本例证候在该病种下根本没有对应的加减规则（protocolGap 已如实区分两者）。
+      ...(matchedRefinement
+        ? { adjudicationStatus: refinement ? "approved" as const : "pending_clinician_review" as const }
+        : {}),
       ...(refinement || !matchedRefinement ? {} : {
         deferredSyndromeRefinement: {
           syndromeLabel: matchedRefinement.syndromeLabel,
