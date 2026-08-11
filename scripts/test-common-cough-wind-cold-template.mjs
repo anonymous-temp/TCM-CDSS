@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 
 const {
   getTcmTreatmentProjectDefinition,
+  governedTcmTreatmentPlanTemplateForTags,
   precisePlanTemplateGateMatches,
   governedTcmTreatmentPrecisePlanTemplate,
   governedTcmTreatmentConditionalPoints,
@@ -276,6 +277,28 @@ check("待签字闸门模板存在时：重排只改次序、不新增穴（本�
   for (const expected of ["列缺", "太渊", "肺俞"]) {
     assert.ok(names.includes(expected), `${expected} 应进入前 5，实际：${names.join("、")}`);
   }
+});
+
+check("带闸门的模板不得从常规按病名通路被选出（后门）", () => {
+  // 2026-08-11 端到端实测抓到的真缺陷：本模板同时也是一条普通 respiratory 模板、
+  // matchAny 是「咳嗽/咳痰/干咳」，于是 governedTcmTreatmentPlanTemplateForTags
+  // 可以不看证型就把它选出来——风热咳嗽与「仅有既往咳嗽」两例都因此拿到了风寒证取穴。
+  // 闸门写了「必须同时命中已签名风寒袭肺」，却还留着一扇不看证型的后门。
+  for (const text of [
+    "咳嗽4天，痰黄黏稠，咽痛口渴",   // 风热
+    "既往慢性咳嗽病史3年，本次鼻塞流清涕",  // 仅既往咳嗽
+    "咳嗽",                          // 裸病名
+  ]) {
+    const selected = governedTcmTreatmentPlanTemplateForTags("acupuncture", text, ["respiratory"]);
+    assert.notEqual(
+      selected?.id,
+      "acupuncture-common-cough-wind-cold",
+      `常规通路绕过闸门选出了带闸门的模板：「${text}」`,
+    );
+  }
+  // 反向护栏：同标签下**不带**闸门的模板仍然照常可选，不能把整个 respiratory 一起挡掉。
+  const influenza = governedTcmTreatmentPlanTemplateForTags("acupuncture", "流行性感冒，恶寒重发热轻", ["respiratory"]);
+  assert.equal(influenza?.id, "acupuncture-influenza-hunan-2025", "不带闸门的模板被误挡");
 });
 
 // ── 「待签字」这件事必须三个出口都到得了 ────────────────────────────────

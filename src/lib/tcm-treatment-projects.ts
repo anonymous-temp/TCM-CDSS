@@ -404,6 +404,16 @@ export function governedTcmTreatmentPlanTemplateForTags(
   // 不能靠削弱这里的判据换取覆盖率。
   for (const tag of orderedIndicationTags) {
     const matched = definition.planTemplates.find((template) =>
+      // 带精确证型闸门的模板**只能**从闸门进（2026-08-11 端到端实测抓到）。
+      //
+      // 它同时也是一条普通的 respiratory 模板、matchAny 是「咳嗽/咳痰/干咳」，
+      // 于是这条按病名匹配的常规通路可以绕过闸门把它选出来——实测风热咳嗽与
+      // 「仅有既往咳嗽」两例都因此拿到了风寒证取穴。那正是中医师裁定明令禁止的扩大适应证：
+      // 闸门写了「必须同时命中已签名风寒袭肺」，却还留着一扇不看证型的后门。
+      //
+      // 判据放在这里而不是给 matchAny 加限定词：matchAny 是**病种**判据，
+      // 它本来就该匹配所有咳嗽；决定"这条模板能不能用"的是闸门，两者不是一回事。
+      !template.preciseSyndromeGate &&
       template.indicationTag === tag &&
       template.matchAny.some((term) => normalized.includes(term)));
     if (matched) return matched;
