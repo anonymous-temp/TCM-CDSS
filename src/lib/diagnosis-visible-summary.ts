@@ -3264,6 +3264,14 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
           ...(tcmTreatmentProtocolGapCopy(markdownCell(item.protocolGap))
             ? [`- **方案边界说明**：${tcmTreatmentProtocolGapCopy(markdownCell(item.protocolGap))}`]
             : []),
+          // 「系统看到了什么、为什么没用」此前只铺到医生页面与 HIS，这一路一句没有——
+          // 医生读 Markdown 版时会以为系统压根没识别出本例证型/病种。三个出口共用同一句话。
+          ...(deferredSyndromeRefinementCopy(item.deferredSyndromeRefinement as never)
+            ? [`- **待终审的证型配穴**：${deferredSyndromeRefinementCopy(item.deferredSyndromeRefinement as never)}`]
+            : []),
+          ...(deferredGovernedTemplateCopy(item.deferredGovernedTemplate as never)
+            ? [`- **待签字的病种标准取穴**：${deferredGovernedTemplateCopy(item.deferredGovernedTemplate as never)}`]
+            : []),
           `- **安全边界**：${clinicalSentence([markdownCell(item.techniqueBoundary), markdownCell(materialPositioning), markdownCell(item.operatorRequirement), ...requiredChecks], "；")}`,
           `- **方案依据**：${markdownCell(item.protocolSource)}`,
         );
@@ -3286,6 +3294,45 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
 
 /** 中医治疗项目 protocolGap 的医生可读文案。受控映射，认不出的码返回空串（不上屏）。
  *  导出供 HIS 写回同源消费——同一个码在两个出口翻成两种说法，正是本轮反复出现的缺陷形状。 */
+/**
+ * 「系统看到了什么、为什么没用」的**唯一**说法（2026-08-11）。
+ *
+ * 待终审的证型配穴此前只铺到了医生页面与 HIS 两个出口，服务端 Markdown 一句没有——
+ * 又是同一形状。加第三态（待签字的病种模板）时一并收口：三个出口共用这两句话。
+ */
+export function deferredSyndromeRefinementCopy(
+  deferred: { syndromeLabel?: unknown; deferredPoints?: unknown; conflictNote?: unknown } | undefined,
+): string {
+  if (!deferred) return "";
+  const label = markdownCell(deferred.syndromeLabel);
+  if (!label) return "";
+  const points = (Array.isArray(deferred.deferredPoints) ? deferred.deferredPoints : [])
+    .map((point) => markdownCell(point)).filter(Boolean);
+  return clinicalSentence([
+    `本例已签名证候命中「${label}」的配穴方案${points.length > 0 ? `（${points.join("、")}）` : ""}，但该条尚未完成中医师终审，本轮未予应用`,
+    markdownCell(deferred.conflictNote),
+  ], "；");
+}
+
+/**
+ * 命中但**尚未中医师签字**的病种标准取穴模板。与上一句的区别必须说清楚：
+ * 上一句是「病种模板能用、这条证型加减不敢用」，这一句是「整条病种模板都还没签字，本例保持评估态」。
+ * 写成同一句话，医生就无从判断眼前这几个穴到底是不是受治理的取穴。
+ */
+export function deferredGovernedTemplateCopy(
+  deferred: { indicationLabel?: unknown; deferredPoints?: unknown; conflictNote?: unknown } | undefined,
+): string {
+  if (!deferred) return "";
+  const label = markdownCell(deferred.indicationLabel);
+  if (!label) return "";
+  const points = (Array.isArray(deferred.deferredPoints) ? deferred.deferredPoints : [])
+    .map((point) => markdownCell(point)).filter(Boolean);
+  return clinicalSentence([
+    `本例已匹配到「${label}」的标准取穴${points.length > 0 ? `（${points.join("、")}）` : ""}，但该模板尚未完成中医师签字终审，本轮不作为患者级方案，本项目仍按评估态呈现`,
+    markdownCell(deferred.conflictNote),
+  ], "；");
+}
+
 export function tcmTreatmentProtocolGapCopy(gap: string): string {
   if (gap === "catalog_indication_mismatch") return "本项目目录中暂无与本例适应证对应的标准操作方案，本轮仅作现场评估。";
   if (gap === "catalog_protocol_absent") return "本项目尚无可下发的患者级操作方案，本轮仅作现场适应证与资质评估。";

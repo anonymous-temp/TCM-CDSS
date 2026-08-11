@@ -23,7 +23,7 @@
     },
     "medicationProjectCount": 5,
     "executableProjectCount": 0,
-    "planTemplateCount": 25,
+    "planTemplateCount": 26,
     "parameterizedProjectCount": 12,
     "governedFrequencyProjectCount": 10,
     "explicitDispositionProjectCount": 22,
@@ -284,6 +284,71 @@
               ],
               "sourceRefs": [
                 "SRC-TCM-ACUPUNCTURE-SYNDROME-POINT-TABLE"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "acupuncture-common-cough-wind-cold",
+          "indicationTag": "respiratory",
+          "matchAny": [
+            "咳嗽",
+            "咳痰",
+            "干咳"
+          ],
+          "sitesOrPoints": [
+            "肺俞",
+            "中府",
+            "列缺",
+            "太渊",
+            "风门",
+            "合谷"
+          ],
+          "techniqueBoundary": "毫针针刺，风寒证以泻法为主并可配合灸法；进针深度、补泻手法、留针时长与禁忌由现场医师复核后确定。适用于成人普通急性/亚急性咳嗽已明确风寒袭肺或风寒束肺者；流感、感染恢复期、风热犯肺与红旗病例不适用。",
+          "scheduleSuggestion": "门诊项目频次参考按本机构针刺排程执行；单次留针时长与疗程由面诊医师按本例耐受和复评结果确定。",
+          "sourceRefs": [
+            "SRC-TCM-COUGH-CONSENSUS-2021",
+            "SRC-SAMR-ACUPUNCTURE-OPS"
+          ],
+          "parameterCompleteness": "points_governed_frequency_reference_by_institution_schedule",
+          "preciseSyndromeGate": {
+            "indicationLabel": "普通咳嗽·风寒袭肺证/风寒束肺证",
+            "requireCurrentFactAny": [
+              "咳嗽",
+              "咳痰",
+              "干咳"
+            ],
+            "requireSignedSyndromeAny": [
+              "风寒袭肺",
+              "风寒束肺"
+            ],
+            "excludeAny": [
+              "流感",
+              "流行性感冒",
+              "恢复期",
+              "风热",
+              "肺脾气虚",
+              "肺胃阴虚",
+              "气阴两伤"
+            ],
+            "adjudicationId": "common-cough-wind-cold-template"
+          },
+          "conditionalPoints": [
+            {
+              "point": "风池",
+              "requireCurrentFactAny": [
+                "鼻塞",
+                "流清涕",
+                "清涕",
+                "流涕",
+                "头痛",
+                "项强",
+                "颈项强",
+                "颈项不适"
+              ],
+              "triggerNote": "鼻窍或头项症状时加用",
+              "sourceRefs": [
+                "SRC-BEIJING-HEALTH-COUGH-GUIDANCE-2024"
               ]
             }
           ]

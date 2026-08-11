@@ -640,6 +640,18 @@ export interface ClinicalReasoningResultV2 {
         deferredPoints: string[];
         conflictNote: string;
       };
+      /**
+       * 命中但**尚未中医师签字**的精确证型标准取穴模板（2026-08-11）。
+       * 未签字时模板整条不启用、本例保持评估态——但不能因此静默：
+       * 医生需要知道系统已经匹配到一条待签字的标准取穴，否则页面上只剩关键词召回的结果，
+       * 看起来就像"系统对这个病种什么都没有"。与 deferredSyndromeRefinement 同源处置。
+       */
+      deferredGovernedTemplate?: {
+        templateId: string;
+        indicationLabel: string;
+        deferredPoints: string[];
+        conflictNote: string;
+      };
       treatmentContent: string;
       suggestedSitesOrPoints: string[];
       /**
@@ -649,7 +661,12 @@ export interface ClinicalReasoningResultV2 {
        */
       pointProvenance?: Array<{
         point: string;
-        role: "base_point" | "syndrome_refinement" | "syndrome_removal";
+        /**
+         * conditional_point：既非主穴也非证型加减，而是本例出现某组**当前症状**时才加的穴
+         * （中医师 2026-08-11 裁定：风寒咳嗽兼鼻窍/头项症状时加风池）。
+         * HIS 的 V1 兼容投影把它折叠回 syndrome_refinement，V2 才开放这个值。
+         */
+        role: "base_point" | "syndrome_refinement" | "syndrome_removal" | "conditional_point";
         sourceRefs: string[];
         authorityTier: string;
         adjudicationStatus: "approved" | "pending_clinician_review";
@@ -980,6 +997,12 @@ const TcmTreatmentRecommendationSchema = z.object({
   tailoringStatus: z.enum(["syndrome_tailored", "class_template_only", "assessment_only"]).optional().catch(undefined),
   protocolGap: z.string().min(1).max(800).optional(),
   adjudicationStatus: z.enum(["approved", "pending_clinician_review"]).optional().catch(undefined),
+  deferredGovernedTemplate: z.object({
+    templateId: z.string().min(1).max(120),
+    indicationLabel: z.string().min(1).max(120),
+    deferredPoints: z.array(z.string().min(1).max(60)).max(24),
+    conflictNote: z.string().min(1).max(800),
+  }).optional(),
   deferredSyndromeRefinement: z.object({
     syndromeLabel: z.string().min(1).max(120),
     deferredPoints: z.array(z.string().min(1).max(200)).max(12),
@@ -988,7 +1011,7 @@ const TcmTreatmentRecommendationSchema = z.object({
   pointProvenance: z.preprocess(
     isolateInvalidItems(z.object({
       point: z.string().min(1).max(200),
-      role: z.enum(["base_point", "syndrome_refinement", "syndrome_removal"]),
+      role: z.enum(["base_point", "syndrome_refinement", "syndrome_removal", "conditional_point"]),
       sourceRefs: z.array(z.string().min(1).max(120)).max(8),
       authorityTier: z.string().min(1).max(80),
       adjudicationStatus: z.enum(["approved", "pending_clinician_review"]),
@@ -996,7 +1019,7 @@ const TcmTreatmentRecommendationSchema = z.object({
     })),
     z.array(z.object({
       point: z.string().min(1).max(200),
-      role: z.enum(["base_point", "syndrome_refinement", "syndrome_removal"]),
+      role: z.enum(["base_point", "syndrome_refinement", "syndrome_removal", "conditional_point"]),
       sourceRefs: z.array(z.string().min(1).max(120)).max(8),
       authorityTier: z.string().min(1).max(80),
       adjudicationStatus: z.enum(["approved", "pending_clinician_review"]),

@@ -104,6 +104,13 @@ const scripts = [
   // 头痛病例写着"围绕头痛症状"却给失眠方的安眠/心俞，产后头痛的灸法写出本例没有的"经带与下腹症状"。
   "test:treatment-indication",
   "test:acupoint-evidence",
+  // 普通咳嗽·风寒袭肺证的精确证型模板闸门（中医师 2026-08-11 裁定稿，待签字）。
+  // 甲方线上实测「风寒咳嗽给出承灵、孔最、肩中俞，缺列缺、风池」的两层根因：
+  // 「流清涕」先命中 upper_airway 抢在 respiratory 前；目录里根本没有普通风寒咳嗽模板。
+  // 裁定不许调全局标签优先级，改为前置闸门（当前咳嗽事实 + 已签名风寒袭肺，显式排除流感/恢复期/风热）。
+  // 套件钉住裁定点名的 7 条回归 + 「闸门仅限针刺项目」「频次不得照搬流感方案」
+  // 「未签字则不启用、保持评估态但不静默」三条结构性判据。
+  "test:common-cough-template",
   "test:modern-case-corpus",
   "test:disease-lexicon",
   "test:runtime-data-presence",

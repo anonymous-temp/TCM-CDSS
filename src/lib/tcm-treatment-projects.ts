@@ -97,7 +97,13 @@ export function tcmRefinementAdjudication(refinementId: string): TcmRefinementAd
 /** 逐穴的来源与终审记录。粒度到穴位，因为主穴与加减穴来自**不同**来源。 */
 export type TcmTreatmentPointProvenance = {
   point: string;
-  role: "base_point" | "syndrome_refinement" | "syndrome_removal";
+  /**
+   * conditional_point（2026-08-11 中医师裁定新增）：既非主穴、也非证型加减，
+   * 而是本例出现某组**当前症状**时才加的穴（风寒咳嗽兼鼻窍/头项症状加风池）。
+   * HIS 的 V1 兼容投影把它折叠回 syndrome_refinement——新增枚举值不得破坏 V1，
+   * 这条教训来自本轮 protocolStatus 第三态（见 his-scheme-contract-version）。
+   */
+  role: "base_point" | "syndrome_refinement" | "syndrome_removal" | "conditional_point";
   sourceRefs: string[];
   authorityTier: TcmSourceAuthorityTier;
   adjudicationStatus: TcmRefinementAdjudicationStatus;
@@ -181,6 +187,54 @@ export type TcmTreatmentSyndromeRefinement = {
   sourceRefs: readonly string[];
 };
 
+/**
+ * 「条件加穴」——不属于主穴、也不属于证型加减，而是**本例出现某组当前症状时才加**的穴。
+ *
+ * 中医师 2026-08-11 对普通风寒咳嗽的裁定里明确要求了这一档：
+ * 「列缺应固定进入普通咳嗽主穴，风池不应对所有风寒咳嗽强制加入，
+ *   而应作为鼻窍、头项症状明显时的条件加穴」。
+ *
+ * 为什么不复用 syndromeRefinements：那一层的判据是**证型**（只读已签名证候文本），
+ * 而且 governedTcmTreatmentSyndromeRefinement 每个模板只返回**一条**最具体的加减——
+ * 把「风寒袭肺加风门合谷」和「有鼻窍/头项症状加风池」写成两条证型加减，
+ * 结构上就只有一条能生效。条件加穴与证型加减是两个正交的维度，因此单开一档。
+ *
+ * 判据刻意走**当前事实**（treatmentCurrentFacts：主诉/现病史/四诊，不含既往史），
+ * 不走 caseFacts：既往有过偏头痛不构成本次加风池的理由。
+ */
+export type TcmTreatmentConditionalPoint = {
+  point: string;
+  /** 本例**当前**事实里命中任一条才加这个穴。 */
+  requireCurrentFactAny: readonly string[];
+  /** 给医生看的触发说明，逐字进穴位标注——医生要能看出这个穴是被什么带进来的。 */
+  triggerNote: string;
+  sourceRefs: readonly string[];
+};
+
+/**
+ * 「精确证型模板优先」闸门（中医师 2026-08-11 裁定的落库方式）。
+ *
+ * 背景：普通风寒咳嗽此前拿不到列缺、风池，根因有两层——
+ *   ① 「流清涕」先命中 upper_airway，抢在 respiratory 前面，于是够不到呼吸类模板；
+ *   ② 目录里根本没有「普通风寒咳嗽」的受治理模板，只有流感专用与恢复期两条。
+ * 裁定明确**不许调整全局 upper_airway / respiratory 优先级**（那会影响所有病例），
+ * 改为给这一条模板单独开一个前置闸门：两把钥匙同时对上才走它，且发生在通用标签排序**之前**。
+ *
+ * 三条边界写在数据里而不是代码里：
+ *   · requireCurrentFactAny —— 必须有**当前**咳嗽事实（既往咳嗽、否认咳嗽都不算）；
+ *   · requireSignedSyndromeAny —— 必须有**已签名**的风寒袭肺/风寒束肺（病历里「淋雨」不算）；
+ *   · excludeAny —— 流感、恢复期、风热等一律排除，绝不扩大既有专项方案的适应证。
+ */
+export type TcmTreatmentPreciseSyndromeGate = {
+  requireCurrentFactAny: readonly string[];
+  requireSignedSyndromeAny: readonly string[];
+  excludeAny: readonly string[];
+  /** 该模板在终审台账里的键。未登记 / 未签字 ⇒ 模板不启用，本例保持评估态。 */
+  adjudicationId: string;
+  /** 医生可读的模板适应证名，进呈现层与 HIS（「普通咳嗽·风寒袭肺证」）。 */
+  indicationLabel: string;
+};
+
 export type TcmTreatmentPlanTemplate = {
   id: string;
   indicationTag: TcmTreatmentIndicationTag;
@@ -191,6 +245,8 @@ export type TcmTreatmentPlanTemplate = {
   sourceRefs: readonly string[];
   parameterCompleteness: string;
   syndromeRefinements?: readonly TcmTreatmentSyndromeRefinement[];
+  conditionalPoints?: readonly TcmTreatmentConditionalPoint[];
+  preciseSyndromeGate?: TcmTreatmentPreciseSyndromeGate;
 };
 
 export type TcmTreatmentProjectDefinition = {
@@ -356,6 +412,100 @@ export function governedTcmTreatmentPlanTemplateForTags(
 }
 
 /**
+ * 「这段文字里**阳性地**提到了这个词吗」——闸门与条件加穴的取词判据。
+ *
+ * 运行时喂进来的当前事实已经过 affirmedClinicalText 阳性化，理论上「无咳嗽」不会留到这里。
+ * 但闸门自己也必须站得住：裸 `includes("咳嗽")` 在「无咳嗽」「否认咳嗽」上同样为真，
+ * 而「把未提及/否认当阳性」是本仓库显式测试过的误报类别（见 clinical-state.ts 的状态词表）。
+ * 判据两层，任何一层失效另一层仍然拦得住。
+ *
+ * 只看紧邻词前、且被标点截断的那一小段：「恶寒无汗，鼻塞」里的「无」属于上一个短句，
+ * 不能算到「鼻塞」头上——否则会把真阳性判成阴性，方向错得更难发现。
+ */
+const NEGATION_MARKERS = /(?:无|未|否认|不|非|没有|排除|阴性)/;
+function containsAffirmedTerm(text: string, term: string): boolean {
+  if (!text || !term) return false;
+  for (let index = text.indexOf(term); index >= 0; index = text.indexOf(term, index + 1)) {
+    const window = text.slice(Math.max(0, index - 4), index).split(/[，,。；;、：:\s]/).pop() || "";
+    if (!NEGATION_MARKERS.test(window)) return true;
+  }
+  return false;
+}
+
+/**
+ * 精确证型模板闸门的**纯判据**：两把钥匙同时对上、且一条排除项都不命中。
+ *
+ * 单独导出是为了让回归能在**不依赖终审状态**的前提下逐条钉住 7 种情形
+ *（风寒咳嗽±鼻窍症状、单纯鼻炎、流感、恢复期、风热、否认/既往咳嗽）——
+ * 终审签字与否是另一件事，由 governedTcmTreatmentPrecisePlanTemplate 决定启不启用。
+ */
+export function precisePlanTemplateGateMatches(
+  template: TcmTreatmentPlanTemplate,
+  /** 本例**当前**事实（treatmentCurrentFacts：主诉/现病史/四诊，已做阳性化，不含既往史）。 */
+  currentFacts: string,
+  /** 已签名的证候/病机/治法文本。 */
+  signedSyndromeText: string,
+): boolean {
+  const gate = template.preciseSyndromeGate;
+  if (!gate) return false;
+  const facts = String(currentFacts || "").normalize("NFKC");
+  const signed = String(signedSyndromeText || "").normalize("NFKC");
+  if (!facts.trim() || !signed.trim()) return false;
+  // 排除优先于命中：任一排除项出现在当前事实**或**已签名结论里都直接出局。
+  // 方向刻意取保守侧——宁可回落评估态，也不把专项方案套到不该套的病程阶段或证型上。
+  if (gate.excludeAny.some((term) => facts.includes(term) || signed.includes(term))) return false;
+  // 命中侧一律走阳性判据；排除侧刻意保持裸 includes——排除是保守方向，
+  // 「排除流感」这类写法把病例挡在门外只是少给一条建议，反向漏放才是危险的。
+  if (!gate.requireCurrentFactAny.some((term) => containsAffirmedTerm(facts, term))) return false;
+  return gate.requireSignedSyndromeAny.some((term) => containsAffirmedTerm(signed, term));
+}
+
+/**
+ * 本项目里是否有一条**精确证型模板**匹配本例，以及它的终审状态。
+ *
+ * 命中但未签字时**不返回可用模板**（`template` 为空），只返回 `deferred`——
+ * 中医师 2026-08-11 的原话是「签字前保持评估态是正确的」。但也不能就此静默：
+ * 医生需要知道系统已经匹配到一条待签字的标准取穴，否则页面上只剩关键词召回的结果，
+ * 看起来就像"系统什么都没有"。这与 deferredSyndromeRefinement 的处置同源。
+ */
+export function governedTcmTreatmentPrecisePlanTemplate(
+  code: TcmTreatmentProjectCode,
+  currentFacts: string,
+  signedSyndromeText: string,
+): {
+  template?: TcmTreatmentPlanTemplate;
+  deferred?: { template: TcmTreatmentPlanTemplate; adjudication: TcmRefinementAdjudication };
+} {
+  const definition = PROJECT_BY_CODE.get(code);
+  if (!definition?.patientSpecificParametersAllowed) return {};
+  const matched = definition.planTemplates
+    .filter((template) => template.preciseSyndromeGate)
+    .filter((template) => precisePlanTemplateGateMatches(template, currentFacts, signedSyndromeText))
+    // 同时命中多条时按 id 稳定排序，结果可复现、不随目录排列漂移。
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const template = matched[0];
+  if (!template) return {};
+  const adjudication = tcmRefinementAdjudication(template.preciseSyndromeGate!.adjudicationId);
+  if (adjudication.adjudicationStatus !== "approved") return { deferred: { template, adjudication } };
+  return { template };
+}
+
+/**
+ * 本例应加的**条件加穴**（当前事实命中触发词的那些）。
+ *
+ * 与证型加减分开算：证型加减看已签名证候且每模板只取一条，条件加穴看当前症状且可多条并存。
+ */
+export function governedTcmTreatmentConditionalPoints(
+  template: TcmTreatmentPlanTemplate,
+  currentFacts: string,
+): TcmTreatmentConditionalPoint[] {
+  const facts = String(currentFacts || "").normalize("NFKC");
+  if (!facts.trim()) return [];
+  return (template.conditionalPoints || [])
+    .filter((entry) => entry.requireCurrentFactAny.some((term) => containsAffirmedTerm(facts, term)));
+}
+
+/**
  * 在**已命中的病种模板内部**，按已签名证候文本挑证型加减。
  *
  * 判据刻意只看已签名的证候/病机/治法文本，不看病历原文：「按本例证型加减」说的是证型，
@@ -406,6 +556,8 @@ export function governedTcmTreatmentSyndromeRefinement(
 export function tcmTreatmentPointProvenance(
   template: TcmTreatmentPlanTemplate,
   refinement: TcmTreatmentSyndromeRefinement | undefined,
+  /** 本例实际触发的条件加穴。不传时行为与此前完全一致。 */
+  conditionalPoints: readonly TcmTreatmentConditionalPoint[] = [],
 ): TcmTreatmentPointProvenance[] {
   const baseRefs = [...template.sourceRefs];
   const baseTier = highestTcmSourceAuthorityTier(baseRefs);
@@ -418,6 +570,20 @@ export function tcmTreatmentPointProvenance(
     adjudicationStatus: "approved" as const,
     conflictNote: null,
   }));
+  // 条件加穴与证型加减正交：无论本例有没有命中证型加减，触发了就要记一条，
+  // 且必须记在**它自己的来源**上——风池来自北京市卫健委健康指导，不是咳嗽共识的主穴行。
+  const basePointNames = new Set(template.sitesOrPoints);
+  for (const conditional of conditionalPoints) {
+    if (basePointNames.has(conditional.point)) continue;
+    records.push({
+      point: conditional.point,
+      role: "conditional_point",
+      sourceRefs: [...conditional.sourceRefs],
+      authorityTier: highestTcmSourceAuthorityTier(conditional.sourceRefs),
+      adjudicationStatus: "approved",
+      conflictNote: null,
+    });
+  }
   if (!refinement) return records;
   const refRefs = [...refinement.sourceRefs];
   // 组合推导的条目**不得继承来源等级**：它引用的来源里没有一条与之逐字相同的原文
@@ -432,7 +598,7 @@ export function tcmTreatmentPointProvenance(
   //（capabilities 层 filter !basePoints.includes），逐穴溯源这一路漏了：
   // HIS 会拿到两条「太渊」，一条 base_point、一条 syndrome_refinement，
   // 于是一个所有证型都在扎的主穴被标成了本证型特有配穴——又一次同判据只铺了一处。
-  const basePoints = new Set(template.sitesOrPoints);
+  const basePoints = new Set([...template.sitesOrPoints, ...conditionalPoints.map((item) => item.point)]);
   for (const point of refinement.addPoints) {
     if (basePoints.has(point)) continue;
     records.push({

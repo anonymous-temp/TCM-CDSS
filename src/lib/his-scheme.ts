@@ -314,6 +314,12 @@ export type HisAiSchemePayload = {
        */
       adjudicationStatus?: "approved" | "pending_clinician_review";
       /** 命中但因未终审而未予应用的证型加减。系统看到了什么、为什么没用，如实下发。 */
+      deferredGovernedTemplate?: {
+        templateId: string;
+        indicationLabel: string;
+        deferredPoints: string[];
+        conflictNote: string;
+      };
       deferredSyndromeRefinement?: { syndromeLabel: string; deferredPoints: string[]; conflictNote: string };
       treatmentContent: string;
       suggestedSitesOrPoints: string[];
@@ -329,7 +335,7 @@ export type HisAiSchemePayload = {
        */
       pointProvenance?: Array<{
         point: string;
-        role: "base_point" | "syndrome_refinement" | "syndrome_removal";
+        role: "base_point" | "syndrome_refinement" | "syndrome_removal" | "conditional_point";
         sourceRefs: string[];
         authorityTier: string;
         adjudicationStatus: "approved" | "pending_clinician_review";
@@ -1269,6 +1275,14 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
         ...(project.tailoringStatus ? { tailoringStatus: project.tailoringStatus } : {}),
         protocolGap: project.protocolGap,
         ...(project.adjudicationStatus ? { adjudicationStatus: project.adjudicationStatus } : {}),
+        ...(project.deferredGovernedTemplate ? {
+          deferredGovernedTemplate: {
+            templateId: clean(project.deferredGovernedTemplate.templateId),
+            indicationLabel: clean(project.deferredGovernedTemplate.indicationLabel),
+            deferredPoints: (project.deferredGovernedTemplate.deferredPoints || []).map((point) => clean(point)).filter(Boolean),
+            conflictNote: clean(project.deferredGovernedTemplate.conflictNote),
+          },
+        } : {}),
         ...(project.deferredSyndromeRefinement ? {
           deferredSyndromeRefinement: {
             syndromeLabel: clean(project.deferredSyndromeRefinement.syndromeLabel),

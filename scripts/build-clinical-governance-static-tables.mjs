@@ -310,6 +310,34 @@ const sources = [
     accessedAt: "2026-08-11",
   },
   {
+    id: "SRC-TCM-COUGH-CONSENSUS-2021",
+    title: "咳嗽中医诊疗专家共识意见（2021）",
+    publisher: "中华中医药学会内科分会肺系病专业委员会",
+    sourceType: "professional_society_expert_consensus",
+    // 与 SRC-TCM-GASTRALGIA-CONSENSUS-2024 同档：专家共识**不等于**学会团体标准，
+    // 没有标准编号与复审周期。中医师 2026-08-11 终审要求四类来源如实区分。
+    authorityTier: "professional_society_consensus",
+    locator: "https://zzyz.cbpt.cnki.net/portal/journal/portal/client/paper/45bad80bedbc2919c094cbc272e4de8c",
+    publishedDate: "2021-01-01",
+    scope: "咳嗽针刺主穴 肺俞、中府、列缺、太渊；风寒袭肺加风门、合谷。共识原文 PDF：https://www.jhxrmyy.com/upfile/202110/2021101249899633.pdf",
+    accessedAt: "2026-08-11",
+  },
+  {
+    id: "SRC-BEIJING-HEALTH-COUGH-GUIDANCE-2024",
+    title: "北京市卫生健康委员会健康科普：外感风寒后咳嗽的穴位调理",
+    publisher: "北京市卫生健康委员会",
+    // sourceType 如实写成**健康科普**而不是诊疗方案：中医师 2026-08-11 的原话是
+    //「它属于政府健康指导，不足以证明风池是所有普通风寒咳嗽的固定主穴」。
+    // authorityTier 仍按发布主体记 government_primary——等级说的是"谁发的"，
+    // 而"能支撑到什么程度"由它在规则里的**位置**表达：风池只作为条件加穴，不进主穴。
+    sourceType: "government_health_education_guidance",
+    authorityTier: "government_primary",
+    locator: "https://wjw.beijing.gov.cn/bmfw_20143/jkzs/jksh/202401/t20240115_3535449.html",
+    publishedDate: "2024-01-15",
+    scope: "外感风寒后咳嗽可选列缺、风门、合谷、风池；面向公众的健康科普，不足以确立风池为固定主穴",
+    accessedAt: "2026-08-11",
+  },
+  {
     id: "SRC-WFAS-COVID-ACUPUNCTURE-STAGED",
     title: "新型冠状病毒肺炎针灸干预分期指导意见（中国针灸学会 / WFAS）",
     publisher: "中国针灸学会",
@@ -729,6 +757,8 @@ const CAAM_INSOMNIA_GUIDE = "SRC-CAAM-EBM-ACUPUNCTURE-INSOMNIA-2014";
 const CAAM_DYSMENORRHEA = "SRC-CAAM-DYSMENORRHEA-POINTS";
 const GASTRALGIA_CONSENSUS_2024 = "SRC-TCM-GASTRALGIA-CONSENSUS-2024";
 const BEIJING_COVID_REHAB = "SRC-BEIJING-COVID-TCM-REHAB-2020";
+const COUGH_CONSENSUS_2021 = "SRC-TCM-COUGH-CONSENSUS-2021";
+const BEIJING_COUGH_GUIDANCE = "SRC-BEIJING-HEALTH-COUGH-GUIDANCE-2024";
 // SRC-WFAS-COVID-ACUPUNCTURE-STAGED 登记在来源表里但不被任何规则引用——它是
 // 「恢复期不应有风热犯肺配穴」这条**删除决定**的依据（见下方 cough-wind-heat-lung 的删除注释）。
 // 删除决定同样需要可追溯的出处，因此来源留在注册表里，不给它一个常量。
@@ -775,6 +805,56 @@ const governedPlanTemplates = new Map([
         { id: "influenza-wind-heat", syndromeLabel: "风热犯表", syndromeMatchAny: ["风热犯表", "风热袭表", "风热证", "外感风热", "热毒袭肺"], addPoints: ["曲池", "尺泽", "大椎"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "influenza-damp", syndromeLabel: "夹湿", syndromeMatchAny: ["湿邪", "夹湿", "暑湿", "寒湿束表"], addPoints: ["阴陵泉"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
         { id: "influenza-deficiency", syndromeLabel: "体虚感冒", syndromeMatchAny: ["气虚感冒", "体虚感冒", "肺卫气虚", "正虚"], addPoints: ["足三里"], sourceRefs: [TEXTBOOK_SYNDROME_POINTS] },
+      ],
+    },
+    {
+      // ── 普通咳嗽·风寒袭肺证/风寒束肺证（中医师 2026-08-11 裁定稿，**待签字**）─────────
+      //
+      // 甲方线上实测：风寒咳嗽给出承灵、孔最、肩中俞，缺列缺、风池。排查后根因是两层：
+      //   ① 「流清涕」先命中 upper_airway，抢在 respiratory 前面；
+      //   ② 目录里根本没有「普通风寒咳嗽」的模板——只有流感专用与感染恢复期两条。
+      // 把流感专用方案套到普通风寒咳嗽上属于扩大适应证，不能自行决定，故按 13 条配穴的同一流程
+      // 出裁定稿。中医师裁定对我方最初设想做了一处修正：
+      //   「列缺应固定进入普通咳嗽主穴，风池不应对所有风寒咳嗽强制加入，
+      //     而应作为鼻窍、头项症状明显时的条件加穴」。
+      //
+      // 主穴与风寒加穴照录《咳嗽中医诊疗专家共识意见（2021）》：
+      // 针刺主穴 肺俞、中府、列缺、太渊，风寒袭肺加风门、合谷。
+      // 本模板整条由 preciseSyndromeGate 锁在「已签名风寒袭肺/风寒束肺」上，
+      // 因此风门、合谷作为本模板的基础取穴成立——模板本身就是风寒证模板。
+      // 风池单列为条件加穴，来源是北京市卫健委健康科普，只支持"可选用"，撑不起固定主穴。
+      //
+      // 不纳入固定穴：孔最、承灵、肩中俞（裁定原文）。孔最靠「热病无汗」这条**热病**主治
+      // 在风寒例里被关键词召回选中，正是本条要替代掉的那类结果。
+      id: "acupuncture-common-cough-wind-cold",
+      indicationTag: "respiratory",
+      matchAny: ["咳嗽", "咳痰", "干咳"],
+      sitesOrPoints: ["肺俞", "中府", "列缺", "太渊", "风门", "合谷"],
+      techniqueBoundary: "毫针针刺，风寒证以泻法为主并可配合灸法；进针深度、补泻手法、留针时长与禁忌由现场医师复核后确定。适用于成人普通急性/亚急性咳嗽已明确风寒袭肺或风寒束肺者；流感、感染恢复期、风热犯肺与红旗病例不适用。",
+      // 频次**不套用**流感专项方案的「每日1次、每次30分钟」（裁定明确点名）。
+      // 走本机构项目排程参考，留针与疗程留给现场医师。
+      scheduleSuggestion: "门诊项目频次参考按本机构针刺排程执行；单次留针时长与疗程由面诊医师按本例耐受和复评结果确定。",
+      sourceRefs: [COUGH_CONSENSUS_2021, "SRC-SAMR-ACUPUNCTURE-OPS"],
+      parameterCompleteness: "points_governed_frequency_reference_by_institution_schedule",
+      preciseSyndromeGate: {
+        indicationLabel: "普通咳嗽·风寒袭肺证/风寒束肺证",
+        // 「当前咳嗽事实」——判据走 treatmentCurrentFacts（主诉/现病史/四诊，已阳性化，不含既往史）。
+        // 于是「否认咳嗽」（阳性化后不留痕）与「既往咳嗽」（不在当前事实里）都不命中。
+        requireCurrentFactAny: ["咳嗽", "咳痰", "干咳"],
+        // 「已签名 M03 的风寒袭肺/风寒束肺」——只读已签名结论，病历里的「淋雨受寒」不算。
+        requireSignedSyndromeAny: ["风寒袭肺", "风寒束肺"],
+        // 裁定的排除范围逐条落库。任一命中即出局，方向取保守侧。
+        excludeAny: ["流感", "流行性感冒", "恢复期", "风热", "肺脾气虚", "肺胃阴虚", "气阴两伤"],
+        adjudicationId: "common-cough-wind-cold-template",
+      },
+      conditionalPoints: [
+        {
+          point: "风池",
+          // 裁定原文：「风池：鼻塞流清涕明显，或兼头痛、项强时加入」。
+          requireCurrentFactAny: ["鼻塞", "流清涕", "清涕", "流涕", "头痛", "项强", "颈项强", "颈项不适"],
+          triggerNote: "鼻窍或头项症状时加用",
+          sourceRefs: [BEIJING_COUGH_GUIDANCE],
+        },
       ],
     },
     {
@@ -1219,6 +1299,61 @@ if (deadTemplates.length > 0) {
     + deadTemplates.map((template) => `${template.projectCode}:${template.id}(${template.indicationTag})`).join("; "),
   );
 }
+// ── 精确证型模板闸门的构建期门禁（中医师 2026-08-11 裁定的三条边界）──────────────
+//
+// 裁定要求「精确模板匹配发生在通用标签排序之前，但**仅限针刺项目内部**」。
+// 这条边界写在代码里会漂——运行时按 preciseSyndromeGate 是否声明来判定，
+// 因此把「只有针刺可以声明」钉在构建期：别的项目哪天加了一条，构建直接失败。
+const gatedTemplates = allPlanTemplates.filter((template) => template.preciseSyndromeGate);
+const nonAcupunctureGated = gatedTemplates.filter((template) => template.projectCode !== "acupuncture");
+if (nonAcupunctureGated.length > 0) {
+  throw new Error(
+    "T12 precise-syndrome gate failed: 精确证型模板只允许声明在针刺项目内 — "
+    + nonAcupunctureGated.map((template) => `${template.projectCode}:${template.id}`).join("; "),
+  );
+}
+for (const template of gatedTemplates) {
+  const gate = template.preciseSyndromeGate;
+  // 四个字段缺一不可：少了 requireSignedSyndromeAny 就成了"按病名直接套方"，
+  // 少了 excludeAny 就会把流感/恢复期一并吞掉，少了 adjudicationId 就没有签字闸门。
+  if (
+    !gate.indicationLabel?.trim() ||
+    !gate.adjudicationId?.trim() ||
+    !(gate.requireCurrentFactAny?.length > 0) ||
+    !(gate.requireSignedSyndromeAny?.length > 0) ||
+    !(gate.excludeAny?.length > 0)
+  ) {
+    throw new Error(`T12 precise-syndrome gate failed: ${template.id} 的闸门字段不完整`);
+  }
+  // 排除范围必须真的排掉既有专项方案的适应证，否则等于把它们的适应证扩大了。
+  for (const required of ["流感", "流行性感冒", "恢复期"]) {
+    if (!gate.excludeAny.includes(required)) {
+      throw new Error(`T12 precise-syndrome gate failed: ${template.id} 的 excludeAny 必须显式排除「${required}」`);
+    }
+  }
+  // 条件加穴不得与主穴重复：重复会让同一个穴在候选列表与逐穴溯源里各出现两次，
+  // 一次 base_point、一次 conditional_point——「固定主穴」被说成"有条件才用"。
+  const base = new Set(template.sitesOrPoints);
+  for (const conditional of template.conditionalPoints || []) {
+    if (base.has(conditional.point)) {
+      throw new Error(`T12 precise-syndrome gate failed: ${template.id} 的条件加穴「${conditional.point}」已在主穴里`);
+    }
+    if (!(conditional.requireCurrentFactAny?.length > 0) || !conditional.triggerNote?.trim() || !(conditional.sourceRefs?.length > 0)) {
+      throw new Error(`T12 precise-syndrome gate failed: ${template.id} 的条件加穴「${conditional.point}」缺触发词/说明/来源`);
+    }
+  }
+}
+// 条件加穴只允许出现在带闸门的模板上：没有闸门的模板是按病名命中的，
+// 在它上面挂"当前症状触发"的穴等于绕开证型判据加穴。
+const conditionalOutsideGate = allPlanTemplates.filter((template) =>
+  (template.conditionalPoints || []).length > 0 && !template.preciseSyndromeGate);
+if (conditionalOutsideGate.length > 0) {
+  throw new Error(
+    "T12 precise-syndrome gate failed: 条件加穴只能声明在带精确证型闸门的模板上 — "
+    + conditionalOutsideGate.map((template) => template.id).join("; "),
+  );
+}
+
 const parameterizedProjects = treatmentEntries.filter((item) => item.patientSpecificParametersAllowed);
 if (allPlanTemplates.length < 18 || parameterizedProjects.length < 10) {
   throw new Error(`T12 coverage gate failed: templates=${allPlanTemplates.length}, parameterizedProjects=${parameterizedProjects.length}`);

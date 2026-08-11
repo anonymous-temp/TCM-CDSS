@@ -723,7 +723,17 @@ assert.ok(nondrugTreatments.entries.flatMap((item) =>
   (siteFreeTreatmentModalities.has(template.projectCode)
     ? template.sitesOrPoints.length === 0
     : template.sitesOrPoints.length > 0 && template.parameterCompleteness.includes("frequency"))));
-assert.equal(nondrugTreatments.entries.find((item) => item.projectCode === "acupuncture")?.planTemplates.length, 8);
+// 8 → 9：中医师 2026-08-11 裁定新增「普通咳嗽·风寒袭肺证」独立模板（见 test:common-cough-template）。
+assert.equal(nondrugTreatments.entries.find((item) => item.projectCode === "acupuncture")?.planTemplates.length, 9);
+// 精确证型闸门与条件加穴的**数据侧**边界（运行时判据在 test:common-cough-template）。
+// 裁定要求「仅限针刺项目内部」，这里按生成产物再核一遍：构建期门禁与产物两处不可能分叉。
+{
+  const gated = nondrugTreatments.entries.flatMap((item) =>
+    item.planTemplates
+      .filter((template) => template.preciseSyndromeGate || (template.conditionalPoints || []).length > 0)
+      .map((template) => `${item.projectCode}:${template.id}`));
+  assert.deepEqual(gated, ["acupuncture:acupuncture-common-cough-wind-cold"], `精确闸门/条件加穴越界：${gated.join("、")}`);
+}
 
 unique(sourceRegistry.entries.map((item) => item.id), "source registry ids");
 const sourceIds = new Set(sourceRegistry.entries.map((item) => item.id));

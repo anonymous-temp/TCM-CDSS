@@ -11,6 +11,8 @@ import {
   tcmRefinementAdjudication,
   tcmTreatmentPointProvenance,
   tcmTreatmentTemplatePointsAreGoverned,
+  governedTcmTreatmentPrecisePlanTemplate,
+  governedTcmTreatmentConditionalPoints,
   type TcmTreatmentPlanTemplate,
   type TcmTreatmentProjectCode,
   type TcmTreatmentIndicationTag,
@@ -220,6 +222,8 @@ function annotateGovernedTemplatePoint(
   site: string,
   caseTerms: readonly string[],
   syndromeLabel?: string,
+  /** 条件加穴的触发说明，逐字进标注（「鼻塞流清涕或头项症状时加用」）。给了它就不再拼「…加减」。 */
+  triggerNote?: string,
 ): string {
   // 模板穴名本身可能已带括注（「太阳或率谷（按疼痛部位复核）」）。标注必须**并入同一个括号**，
   // 否则会印成「太阳或率谷（按疼痛部位复核）（EX-HN5·…）」两组括号。
@@ -229,15 +233,18 @@ function annotateGovernedTemplatePoint(
     const inner = [existingNote, ...parts].filter(Boolean).join("；");
     return inner ? `${bareSite}（${inner}）` : bareSite;
   };
-  if (projectCode === "auricular") return wrap(syndromeLabel ? [`${syndromeLabel}加减`] : []);
+  const bareNote = triggerNote || (syndromeLabel ? `${syndromeLabel}加减` : "");
+  if (projectCode === "auricular") return wrap(bareNote ? [bareNote] : []);
   const entry = resolveAcupoint(site);
-  if (!entry) return wrap(syndromeLabel ? [`${syndromeLabel}加减`] : []);
+  if (!entry) return wrap(bareNote ? [bareNote] : []);
   const meridian = entry.meridian && entry.meridian !== entry.name ? `·${entry.meridian}` : "";
   const indicationText = (entry.indications || []).join("；");
   const matchedTerms = caseTerms.filter((term) => indicationText.includes(term)).slice(0, 3);
-  const trigger = syndromeLabel
-    ? `·${syndromeLabel}加减`
-    : matchedTerms.length > 0 ? `·主治含${matchedTerms.join("、")}` : "";
+  const trigger = triggerNote
+    ? `·${triggerNote}`
+    : syndromeLabel
+      ? `·${syndromeLabel}加减`
+      : matchedTerms.length > 0 ? `·主治含${matchedTerms.join("、")}` : "";
   return wrap([`${entry.code}${meridian}${trigger}`]);
 }
 
@@ -249,13 +256,47 @@ function controlledTreatmentPlan(
   caseFacts: string,
   /** 已签名的证候/病机/治法文本。证型加减只看它，不看病历原文——见 syndromeRefinements 注释。 */
   signedSyndromeText: string,
+  /**
+   * 本例**当前**事实（主诉/现病史/四诊，已阳性化，**不含既往史**）。
+   * 精确证型闸门与条件加穴都只读它：既往咳嗽不构成本次取穴的理由，「否认咳嗽」更不构成。
+   */
+  currentFacts = "",
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
-  "pointProvenance" | "sourceAuthorityTier" | "adjudicationStatus" | "deferredSyndromeRefinement"
+  "pointProvenance" | "sourceAuthorityTier" | "adjudicationStatus" | "deferredSyndromeRefinement" |
+  "deferredGovernedTemplate"
 > {
   const definition = getTcmTreatmentProjectDefinition(projectCode);
-  const { tag, template: governedTemplate } = resolveTreatmentIndication(projectCode, tags, clinicalText);
+  // ── 精确证型模板优先（中医师 2026-08-11 裁定的落库方式）────────────────────────
+  //
+  // 裁定明确**不许**调整全局 upper_airway / respiratory 优先级：那会影响所有病例。
+  // 改为在通用标签排序**之前**先试一道前置闸门，且闸门只对声明了 preciseSyndromeGate 的模板生效
+  //（目前只有针刺的普通风寒咳嗽一条；构建期门禁钉住「只有针刺项目可以声明」）。
+  //
+  // 闸门要两把钥匙同时对上：当前咳嗽事实 + 已签名的风寒袭肺/风寒束肺；
+  // 并显式排除流感、恢复期、风热——绝不把既有专项方案的适应证扩大过去。
+  // 「流清涕」在这里只是**条件加穴**的触发词，不改变整例走哪条模板。
+  const precise = governedTcmTreatmentPrecisePlanTemplate(projectCode, currentFacts, signedSyndromeText);
+  const { tag, template: taggedTemplate } = resolveTreatmentIndication(projectCode, tags, clinicalText);
+  const governedTemplate = precise.template || taggedTemplate;
+  // 命中了精确模板但**还没签字**：模板整条不启用，本例照常走原有路径（多为评估态）——
+  // 中医师原话「签字前保持评估态是正确的」。但不静默：把待签字的那条如实挂出来。
+  const deferredGovernedTemplate = precise.deferred
+    ? {
+      deferredGovernedTemplate: {
+        templateId: precise.deferred.template.id,
+        indicationLabel: precise.deferred.template.preciseSyndromeGate!.indicationLabel,
+        deferredPoints: [
+          ...precise.deferred.template.sitesOrPoints,
+          ...governedTcmTreatmentConditionalPoints(precise.deferred.template, currentFacts)
+            .map((item) => item.point),
+        ],
+        conflictNote: precise.deferred.adjudication.conflictNote
+          || "该病种标准取穴尚未完成中医师签字终审，本轮不作为患者级方案，仅供医生知悉。",
+      },
+    }
+    : {};
   if (governedTemplate) {
     // 甲方评测(2026-08-04) 9.1：只有目录声明**已治理**的取穴才进「候选穴位」栏。
     // 目录里有三条模板把「点哪儿由别处/查体决定」写进了 sitesOrPoints，那是延期说明不是穴位
@@ -285,15 +326,26 @@ function controlledTreatmentPlan(
     // 剔除按**命中的**那条走，不按终审后的那条走——这是上面第二条的落点。
     const removed = new Set(matchedRefinement?.removePoints || []);
     const basePoints = governedTemplate.sitesOrPoints.filter((site) => !removed.has(site));
+    // 条件加穴：本例**当前**症状命中触发词才加（风寒咳嗽兼鼻窍/头项症状加风池）。
+    // 它与证型加减正交——证型加减每模板只取一条最具体的，条件加穴可多条并存，
+    // 所以不能写成第二条证型加减（那样结构上只有一条能生效）。
+    const conditionalPoints = governedTcmTreatmentConditionalPoints(governedTemplate, currentFacts)
+      .filter((item) => !basePoints.includes(item.point));
     const points = pointsGoverned
       ? [
           ...basePoints.map((site) => annotateGovernedTemplatePoint(projectCode, site, caseTerms)),
+          ...conditionalPoints.map((item) =>
+            annotateGovernedTemplatePoint(projectCode, item.point, caseTerms, undefined, item.triggerNote)),
           ...(refinement?.addPoints || [])
-            .filter((site) => !basePoints.includes(site))
+            .filter((site) => !basePoints.includes(site) && !conditionalPoints.some((item) => item.point === site))
             .map((site) => annotateGovernedTemplatePoint(projectCode, site, caseTerms, refinement?.syndromeLabel)),
         ]
       : [];
-    const pointProvenance = tcmTreatmentPointProvenance(governedTemplate, refinement || matchedRefinement);
+    const pointProvenance = tcmTreatmentPointProvenance(
+      governedTemplate,
+      refinement || matchedRefinement,
+      pointsGoverned ? conditionalPoints : [],
+    );
     // 「围绕什么」只能引用**病历/已签名结论里真实出现的字**，不能改口成适应证标签的
     // 症状域显示名——后者覆盖面窄于标签本身的匹配面，于是「头胀」被写成了「头痛症状」
     //（甲方 2026-08-10 ⑪）。indicationEvidenceTerms 早就为同一个缺陷写好了，
@@ -322,13 +374,19 @@ function controlledTreatmentPlan(
       techniqueBoundary: pointsGoverned
         ? governedTemplate.techniqueBoundary
         : [governedTemplate.techniqueBoundary, ...governedTemplate.sitesOrPoints].filter(Boolean).join("；"),
-      protocolSource: [...new Set([...governedTemplate.sourceRefs, ...(refinement?.sourceRefs || [])])].join("、"),
+      protocolSource: [...new Set([
+        ...governedTemplate.sourceRefs,
+        ...(refinement?.sourceRefs || []),
+        ...conditionalPoints.flatMap((item) => item.sourceRefs),
+      ])].join("、"),
       // 逐穴来源与权威分级（2026-08-11）：protocolSource 那个拼接字符串回答不了
       // 「哪个穴来自哪个来源、什么等级、有没有分歧」，而这三件事决定集成方怎么展示、能否采纳。
       pointProvenance,
-      sourceAuthorityTier: highestTcmSourceAuthorityTier(
-        [...governedTemplate.sourceRefs, ...(refinement?.sourceRefs || [])],
-      ),
+      sourceAuthorityTier: highestTcmSourceAuthorityTier([
+        ...governedTemplate.sourceRefs,
+        ...(refinement?.sourceRefs || []),
+        ...conditionalPoints.flatMap((item) => item.sourceRefs),
+      ]),
       // 只有**两把钥匙都对上**（病种模板 + 本例已签名证型）、且该条证型加减已终审，
       // 才算个体化方案。此前一律写 governed_patient_specific_plan，而四组八例的穴位逐字相同——
       // 那个标签说的不是这一次实际发生的事。
@@ -350,6 +408,7 @@ function controlledTreatmentPlan(
       ...(matchedRefinement
         ? { adjudicationStatus: refinement ? "approved" as const : "pending_clinician_review" as const }
         : {}),
+      ...deferredGovernedTemplate,
       ...(refinement || !matchedRefinement ? {} : {
         deferredSyndromeRefinement: {
           syndromeLabel: matchedRefinement.syndromeLabel,
@@ -441,6 +500,7 @@ function controlledTreatmentPlan(
   // 只讲清这是评估态——fail-closed 优于说一个患者没有的症状。
   const evidenceTerms = tag ? indicationEvidenceTerms(tag, caseFacts) : [];
   return {
+    ...deferredGovernedTemplate,
     // 讲本例为什么进评估范围就够了。原文后半句「目录中暂无与本例对应的标准操作方案」是
     // 系统自述内部状态：医生要知道的是「这个项目现在只做现场评估、不给操作计划」，
     // 不是「你们的目录里缺模板」。
@@ -877,6 +937,7 @@ export function compileTcmTreatmentRecommendations(
   const rankedPool = rankedTreatmentCandidates(scope, prior, proposals, false, caseState);
   const proposalPool = rankedPool.some((item) => item.explicit) ? rankedPool : rankedPool.slice(0, 2);
   const caseFacts = treatmentCaseFacts(caseState);
+  const currentFacts = treatmentCurrentFacts(caseState);
   const currentFactFallback = indicationTags(caseFacts);
 
   return proposalPool.flatMap((proposal) => {
@@ -914,6 +975,9 @@ export function compileTcmTreatmentRecommendations(
         node.syndromeEvidence,
         node.therapyDirection,
       ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；"),
+      // 精确证型闸门与条件加穴只读**当前**事实：treatmentCaseFacts 含既往史/用药史/过敏史，
+      // 用它会让「既往咳嗽」把本例带进普通风寒咳嗽模板——中医师裁定里点名要排除这一情形。
+      currentFacts,
     );
     return [{
       projectCode: definition.code,

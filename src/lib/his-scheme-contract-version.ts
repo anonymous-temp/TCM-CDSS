@@ -57,6 +57,22 @@ const V1_PROTOCOL_STATUS: Record<string, string> = {
 };
 
 /**
+ * 逐穴角色的 V1 折叠（2026-08-11）。conditional_point 是本轮新增的第四个值
+ *（既非主穴也非证型加减，而是本例当前症状触发的条件加穴，如风寒咳嗽兼鼻窍症状加风池）。
+ *
+ * 新增枚举值不得破坏 V1——这条教训就是本轮 protocolStatus 第三态的那条：
+ * 我们在自己的载荷里加一个值，对面按旧枚举做 switch 就落到 default。
+ * V1 折叠到 syndrome_refinement（同样是"主穴之外按本例加的穴"，语义最近且不更宽），
+ * V2 才开放真实值。真实值另有非折叠落点：pointProvenance[].conflictNote 与穴位标注里的触发说明。
+ */
+const V1_POINT_PROVENANCE_ROLE: Record<string, string> = {
+  base_point: "base_point",
+  syndrome_refinement: "syndrome_refinement",
+  syndrome_removal: "syndrome_removal",
+  conditional_point: "syndrome_refinement",
+};
+
+/**
  * 从请求里读契约版本。三处都认，优先级 query > header > body；一律缺省 v1。
  * 认不出的值**不报错**——集成方拼错版本号时应当拿到最保守的 V1，而不是 400。
  */
@@ -79,9 +95,10 @@ export function hisSchemeContractVersionFromRequest(
 }
 
 type TcmProject = HisAiSchemePayload["treatments"]["tcmProjects"][number];
-type ProjectedProject = Omit<TcmProject, "protocolStatus"> & {
+type ProjectedProject = Omit<TcmProject, "protocolStatus" | "pointProvenance"> & {
   protocolStatus: string;
   tailoringStatus: TcmTreatmentTailoringStatus;
+  pointProvenance?: Array<Omit<NonNullable<TcmProject["pointProvenance"]>[number], "role"> & { role: string }>;
 };
 
 /**
@@ -103,6 +120,14 @@ export function projectHisSchemeForContractVersion<T extends { schemaVersion: st
       ...project,
       protocolStatus: version === "v1" ? (V1_PROTOCOL_STATUS[canonical] ?? canonical) : canonical,
       tailoringStatus: TAILORING_BY_PROTOCOL_STATUS[canonical] ?? "assessment_only",
+      ...(project.pointProvenance?.length
+        ? {
+          pointProvenance: project.pointProvenance.map((entry) => ({
+            ...entry,
+            role: version === "v1" ? (V1_POINT_PROVENANCE_ROLE[entry.role] ?? entry.role) : entry.role,
+          })),
+        }
+        : {}),
     };
   });
   return {

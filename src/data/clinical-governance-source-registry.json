@@ -6,8 +6,8 @@
     "reproductionPolicy": "标准全文和受版权保护定义不写入运行表，只登记定位信息与必要摘要。"
   },
   "summary": {
-    "sourceCount": 35,
-    "regulatoryOrGovernmentCount": 22,
+    "sourceCount": 37,
+    "regulatoryOrGovernmentCount": 23,
     "projectSourceCount": 9
   },
   "entries": [
@@ -284,6 +284,28 @@
       "accessedAt": "2026-08-11"
     },
     {
+      "id": "SRC-TCM-COUGH-CONSENSUS-2021",
+      "title": "咳嗽中医诊疗专家共识意见（2021）",
+      "publisher": "中华中医药学会内科分会肺系病专业委员会",
+      "sourceType": "professional_society_expert_consensus",
+      "authorityTier": "professional_society_consensus",
+      "locator": "https://zzyz.cbpt.cnki.net/portal/journal/portal/client/paper/45bad80bedbc2919c094cbc272e4de8c",
+      "publishedDate": "2021-01-01",
+      "scope": "咳嗽针刺主穴 肺俞、中府、列缺、太渊；风寒袭肺加风门、合谷。共识原文 PDF：https://www.jhxrmyy.com/upfile/202110/2021101249899633.pdf",
+      "accessedAt": "2026-08-11"
+    },
+    {
+      "id": "SRC-BEIJING-HEALTH-COUGH-GUIDANCE-2024",
+      "title": "北京市卫生健康委员会健康科普：外感风寒后咳嗽的穴位调理",
+      "publisher": "北京市卫生健康委员会",
+      "sourceType": "government_health_education_guidance",
+      "authorityTier": "government_primary",
+      "locator": "https://wjw.beijing.gov.cn/bmfw_20143/jkzs/jksh/202401/t20240115_3535449.html",
+      "publishedDate": "2024-01-15",
+      "scope": "外感风寒后咳嗽可选列缺、风门、合谷、风池；面向公众的健康科普，不足以确立风池为固定主穴",
+      "accessedAt": "2026-08-11"
+    },
+    {
       "id": "SRC-WFAS-COVID-ACUPUNCTURE-STAGED",
       "title": "新型冠状病毒肺炎针灸干预分期指导意见（中国针灸学会 / WFAS）",
       "publisher": "中国针灸学会",
@@ -334,7 +356,7 @@
       "sourceType": "project_runtime_contract",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-types.ts",
-      "sha256": "0d83136de5a6db986e26d295d148d38da95a18cf16c707a09424c65030685af5",
+      "sha256": "edb74afc4befcc3e489118182da7043f9a1ef9888ebb3557c5ceaa6ae28a9ea8",
       "scope": "M01-M05 当前实际字段与输出结构",
       "accessedAt": "2026-07-22"
     },
@@ -345,7 +367,7 @@
       "sourceType": "project_runtime_catalog",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/tcm-treatment-projects.ts",
-      "sha256": "c1c76bdb7f46397073daf9e9e93b2577d4ad903a25d0b0549b124096de2dcde7",
+      "sha256": "f9f9e6a1a433dd600d445268e99b36541e18c314839c2bba75aae0aabacfd185",
       "scope": "22类非药物/外治项目的风险、资质、药物审方与适用标签",
       "accessedAt": "2026-07-22"
     },

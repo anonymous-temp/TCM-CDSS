@@ -116,7 +116,12 @@ import {
   type ClinicalWarningLevel,
   type ClinicalWarningProfile,
 } from "@/lib/clinical-warning-tier";
-import { createPathogenesisNarrativeLedger, westernDiagnosisLabelForDisplay } from "@/lib/diagnosis-visible-summary";
+import {
+  createPathogenesisNarrativeLedger,
+  deferredGovernedTemplateCopy,
+  deferredSyndromeRefinementCopy,
+  westernDiagnosisLabelForDisplay,
+} from "@/lib/diagnosis-visible-summary";
 
 const APP_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const BROWSER_CASE_PERSISTENCE_ENABLED = isBrowserCasePersistenceEnabled();
@@ -5413,12 +5418,19 @@ function ResultTabsV2({
                 </div>
                 {/* 命中了证型配穴、但那一条还没过中医师终审：系统看到了什么、为什么没用，如实说。
                     隐藏它等于让医生以为系统压根没识别出本例证型。 */}
-                {item.deferredSyndromeRefinement && (
+                {deferredSyndromeRefinementCopy(item.deferredSyndromeRefinement) && (
                   <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-amber-900">
                     <span className="font-medium">待终审的证型配穴：</span>
-                    本例已签名证候命中「{item.deferredSyndromeRefinement.syndromeLabel}」的配穴方案
-                    （{joinClinicalClauses(item.deferredSyndromeRefinement.deferredPoints, "、")}），
-                    但该条尚未完成中医师终审，本轮**未予应用**。{item.deferredSyndromeRefinement.conflictNote}
+                    {deferredSyndromeRefinementCopy(item.deferredSyndromeRefinement)}
+                  </p>
+                )}
+                {/* 待**签字**的病种标准取穴：与上一段不是同一件事——上一段是"模板能用、这条加减不敢用"，
+                    这一段是"整条病种模板还没签字，本例保持评估态"。不显示等于让医生以为
+                    系统对这个病种什么都没有，而页面上剩下的只是关键词召回的结果。 */}
+                {deferredGovernedTemplateCopy(item.deferredGovernedTemplate) && (
+                  <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-amber-900">
+                    <span className="font-medium">待中医师签字的病种标准取穴：</span>
+                    {deferredGovernedTemplateCopy(item.deferredGovernedTemplate)}
                   </p>
                 )}
                 {treatmentProjectCells[index].content && (
