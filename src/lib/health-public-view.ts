@@ -50,6 +50,11 @@ export const REDACTED_HEALTH_KEYS: ReadonlySet<string> = new Set([
   "latencyMs", "elapsedMs", "httpStatus", "statusText",
   // ③ 运行期遥测
   "stageTelemetry",
+  // ④ 把实现路线写进枚举值的状态串。受控术语归一的 mode 是
+  //    `deterministic_exact_then_prefilter_then_deepseek_closed_set_consensus`——
+  //    键名不敏感、**值**里带着厂商名。这类串没法靠键名判断，只能整键删掉；
+  //    读方需要的「这层有没有就绪」由同级的 enabled / ready 给出。
+  "mode",
 ]);
 
 /**

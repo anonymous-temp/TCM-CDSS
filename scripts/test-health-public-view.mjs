@@ -60,6 +60,8 @@ const fullBody = {
   snapshotPersistence: { enabled: true, encryptionConfigured: true, ready: true },
   clinicalFacts: { enabled: true, signingConfigured: true, modelPlan: { ...clinicalFactsModelPlan, ready: false }, ready: false },
   stageTelemetry: getCdssStageTelemetrySnapshot(),
+  // 线上实测漏网的一条：键名（mode）无害，值里写着实现路线与厂商。
+  controlledTerminology: { enabled: true, mode: "deterministic_exact_then_prefilter_then_deepseek_closed_set_consensus", ready: true },
   rateLimitIdentity: { trustedProxyConfigured: false, modelBudgetScope: "authenticated_session_or_api_tenant", ready: false },
 };
 
@@ -88,6 +90,7 @@ collectStrings(clinicalFactsModelPlan);
 collectStrings(fullBody.rxAudit);
 collectStrings(fullBody.externalEvidence);
 collectStrings(fullBody.tongueVisionProbe);
+collectStrings(fullBody.controlledTerminology);
 
 check("敏感串样本非空（否则本套件形同虚设）", () => {
   assert.ok(leakCandidates.size >= 3, `采集到的模型/地址串过少：${leakCandidates.size} 个`);
@@ -96,6 +99,12 @@ check("敏感串样本非空（否则本套件形同虚设）", () => {
 check("对外视图不含任何模型身份/厂商/上游地址串", () => {
   const leaked = [...leakCandidates].filter((needle) => publicJson.includes(needle));
   assert.deepEqual(leaked, [], `对外视图仍含内部标识：${leaked.join("、")}`);
+});
+
+check("受控术语的 mode 串（值里带厂商与实现路线）被删，就绪位保留", () => {
+  assert.ok(!("mode" in publicBody.controlledTerminology), "mode 仍在对外视图中");
+  assert.equal(publicBody.controlledTerminology.enabled, true, "就绪位不得被一并删掉");
+  assert.equal(publicBody.controlledTerminology.ready, true);
 });
 
 check("对外视图不含运行期阶段遥测", () => {
