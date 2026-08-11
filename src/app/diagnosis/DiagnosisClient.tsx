@@ -92,6 +92,7 @@ import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { parseClinicalFacts, type ClinicalFacts } from "@/lib/clinical-facts";
 import {
   buildMedicineCandidateEmptyState,
+  buildTieredSuggestedChecks,
   herbCaseMeaning,
   isNonRedundantClinicalRationale,
   resolveAuditReviewPresentation,
@@ -5488,7 +5489,11 @@ function ResultTabsV2({
           {summary.rehabSection && <MarkdownBlock content={compactMarkdown(summary.rehabSection, 1400)} compact />}
           {reasoning.management && (
             <div className="grid gap-2 md:grid-cols-2">
-              <SummaryLine label="需优先补充" value={joinClinicalClauses(reasoning.management.mustCollect || [], "；")} tone="blue" />
+              {/* 甲方线上实测（0811）：基础病史/生命体征/查体都还没有的病例，「需优先补充」里
+                  头颅 CT、经颅多普勒与"问病程"并列，等于把最贵的检查放进了第一步。分级判据
+                  buildTieredSuggestedChecks 早就写好了，只是在 851e4d76（治法词表对账）里被
+                  连带删掉了调用，从此成了死代码——所以线上看到的是模型原样自由文本。 */}
+              <SummaryLine label="需优先补充" value={joinClinicalClauses(buildTieredSuggestedChecks(caseState, reasoning.management.mustCollect || []), "；")} tone="blue" />
               <SummaryLine label="风险复评" value={reasoning.management.redFlagLoop} tone="amber" />
               <SummaryLine label="随访安全网" value={reasoning.management.followupSafetyNet} tone="amber" />
             </div>

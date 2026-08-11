@@ -136,6 +136,8 @@ export function isNonRedundantClinicalRationale(rationale: string, supportingFac
   return hasInferenceLink && copiedLength / reasoning.length < 0.8;
 }
 
+export const TIERED_FIRST_STEP_PREFIX = "先补充病程、诱因、伴随症状及既往史";
+
 export function buildTieredSuggestedChecks(
   context: ClinicalDisplayContext,
   checks: string[],
@@ -145,6 +147,10 @@ export function buildTieredSuggestedChecks(
     .replace(/^[；;，,\s]+|[；;，,\s]+$/g, "")))
     .filter(Boolean);
   if (context.safetyGate?.status === "red_flag") return normalizedChecks;
+  // 已分级过的列表再进来一次必须原样返回。这个函数曾经只在渲染时调用一次，
+  // 但它的产物是可以被再次喂回来的（写回 payload、服务端二次规整都会），
+  // 不做不动点保护就会出现"先补充病程…"被叠加两遍。
+  if (normalizedChecks[0]?.startsWith(TIERED_FIRST_STEP_PREFIX)) return normalizedChecks;
 
   const sparseAssessment = !presentHistory(context) ||
     !hasRecordedVitals(context.vitals) ||
@@ -162,7 +168,7 @@ export function buildTieredSuggestedChecks(
     ? "神经系统查体"
     : "与主诉相关的体格检查";
   return [
-    `先补充病程、诱因、伴随症状及既往史，测量生命体征并完成${examinationFocus}。`,
+    `${TIERED_FIRST_STEP_PREFIX}，测量生命体征并完成${examinationFocus}。`,
     ...(hasAdvancedTesting
       ? [`若补充问诊或${examinationFocus}出现相应指征，再由接诊医生评估针对性影像学检查。`]
       : []),

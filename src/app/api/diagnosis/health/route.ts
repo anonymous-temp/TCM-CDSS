@@ -18,6 +18,7 @@ import {
   probeControlledTerminologyModel,
 } from "@/lib/controlled-semantic-normalization.server";
 import { getSyndromeHypothesisRerankStatus } from "@/lib/syndrome-hypothesis-rerank.server";
+import { healthDiagnosticsRequested, publicHealthView } from "@/lib/health-public-view";
 
 export async function GET(req: Request) {
   const strictProbe = new URL(req.url).searchParams.get("strict") === "1";
@@ -194,5 +195,10 @@ export async function GET(req: Request) {
       ready: controlledTerminologyReady,
     },
   };
-  return Response.json(body, { status: strictProbe && !strictReady ? 503 : 200 });
+  // 对外只给收窄视图；完整视图需同时满足 ?diagnostics=1 与 CDSS_HEALTH_DIAGNOSTICS=true。
+  // no-store：健康体含发布态与探针结论，不应被任何中间缓存留存或跨调用方复用。
+  return Response.json(healthDiagnosticsRequested(req) ? body : publicHealthView(body), {
+    status: strictProbe && !strictReady ? 503 : 200,
+    headers: { "Cache-Control": "no-store, private" },
+  });
 }

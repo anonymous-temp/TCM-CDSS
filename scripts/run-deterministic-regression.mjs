@@ -107,6 +107,14 @@ const scripts = [
   "test:modern-case-corpus",
   "test:disease-lexicon",
   "test:runtime-data-presence",
+  // 甲方线上实测（0811）第 12 条：health 接口把各阶段模型名、厂商、修复轮模型、reasoning_effort、
+  // 超时毫秒数、上游探针原文与阶段遥测整个摊开。对外视图收窄为"只删不改"，
+  // 同时钉住 build.commit / sourceDigest / strictReady 必须存活——它们是部署核验的证据来源。
+  "test:health-public-view",
+  // 甲方线上实测（0811）第 11 条：资料还没录全的病例，「需优先补充」把头颅 CT/经颅多普勒
+  // 与"问病程"并列。分级函数早就写好，调用点在 851e4d76 被连带删掉成了死代码。
+  // 该套件同时钉住「展示策略导出不得无人调用」——这才是它静默失效却全绿的那一层。
+  "test:suggested-check-tiering",
   "test:pregnancy-recall",
   "test:warm-disease-rules",
   "test:clinical-decision-cards",
