@@ -16,6 +16,9 @@ process.env.TCM_CLINIC_TREATMENT_CAPABILITIES = "acupuncture";
 
 const { compileTcmTreatmentRecommendations } =
   await import("../src/lib/tcm-treatment-capabilities.server.ts");
+const { tcmTreatmentTailoringPresentation } = await import("../src/lib/diagnosis-visible-summary.ts");
+const { readFileSync } = await import("node:fs");
+const { fileURLToPath } = await import("node:url");
 
 const failures = [];
 const check = (name, fn) => {
@@ -138,6 +141,37 @@ check("⑤ 流感：不得命中本模板（既有流感专项方案的适应证
   }
 });
 
+// 对抗性复核（2026-08-11）抓到的一条：patient-specific 这一档三处措辞一律写「按证型加减」，
+// 而「加减」断言的是**在基础方上做过增删**这个动作。证型专用模板整条按证型选中、没有加减穴，
+// 写成加减就是告诉医生系统做过一件它没做的事。
+check("证型专用模板不得被说成「按证型加减」，而证型加减仍照旧", () => {
+  const item = compile(
+    caseStateFor("咳嗽5天", "5天前受凉后咳嗽，痰白清稀，恶寒无汗，鼻塞流清涕。"),
+    WIND_COLD,
+  );
+  const presentation = tcmTreatmentTailoringPresentation(item);
+  for (const text of [presentation.status, presentation.pointsLabel, presentation.badge]) {
+    assert.ok(!/加减/.test(text), `证型专用模板被说成了加减：${text}`);
+    assert.ok(/证型专用/.test(text), `措辞未说清这是证型专用方案：${text}`);
+  }
+  assert.ok(/条件加穴/.test(presentation.pointsLabel), "本例触发了风池，标题应说明含条件加穴");
+
+  // 反向护栏：真正做过证型加减的方案，措辞一个字都不能变。
+  const refined = tcmTreatmentTailoringPresentation({
+    protocolStatus: "governed_patient_specific_plan",
+    pointProvenance: [{ role: "base_point" }, { role: "syndrome_refinement" }],
+  });
+  assert.equal(refined.badge, "按证型加减 · 待复核");
+  assert.equal(refined.pointsLabel, "按本例证型加减后的候选穴位");
+
+  // 三个出口共用同一处投影：出口自己按 protocolStatus 现拼措辞，正是分叉的起点。
+  for (const outlet of ["src/lib/diagnosis-visible-summary.ts", "src/app/diagnosis/DiagnosisClient.tsx"]) {
+    const source = readFileSync(fileURLToPath(new URL(`../${outlet}`, import.meta.url)), "utf8");
+    assert.ok(source.includes("tcmTreatmentTailoringPresentation"), `${outlet} 未使用共享投影`);
+    assert.ok(!source.includes("按本例证型加减后的候选穴位："), `${outlet} 仍在自拼加减措辞`);
+  }
+});
+
 check("⑥ 红旗病例：整条不返回治疗建议（不依赖本模板的排除项）", () => {
   const caseState = {
     ...caseStateFor("咳嗽伴咯血1天", "咳嗽伴咯血，胸痛气促。"),
@@ -155,4 +189,4 @@ if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "cough-template-end-to-end", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "cough-template-end-to-end", checks: 6, failures: 0 }));
+console.log(JSON.stringify({ suite: "cough-template-end-to-end", checks: 7, failures: 0 }));

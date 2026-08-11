@@ -3234,18 +3234,14 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
           `#### ${markdownCell(item.projectName)} · ${availability}`,
           // 三态如实呈现（甲方 2026-08-10 ⑪）：此前只有两态，于是「命中病种模板」被写成
           // 「已有对应适应证的标准操作方案」，医生读不出它有没有按本例证型加减过。
-          `- **方案状态**：${hasPatientSpecificProtocol
-            ? "已按本例证型加减取穴的标准方案，仍须医生复核"
-            : isClassTemplateOnly
-              ? "已命中该病种标准取穴模板，尚未按本例证型加减，须医生按证型增减后实施"
-              : "仅作项目评估，未形成患者级操作方案"}`,
+          `- **方案状态**：${tcmTreatmentTailoringPresentation(item).status}`,
           ...(contentEmbedsTarget ? [] : [`- **治疗内容**：${repeatedContent ? "同上述项目" : treatmentContent}`]),
           `- **对应病机**：${treatmentPathogenesisLedger.claim(target)
             ? target
             : "同上述病机"}`,
           ...(sites ? [hasGovernedProtocol
             ? hasPatientSpecificProtocol
-              ? `- **按本例证型加减后的候选穴位**：${sites}`
+              ? `- **${tcmTreatmentTailoringPresentation(item).pointsLabel}**：${sites}`
               : `- **该病种标准取穴模板（未按本例证型加减）**：${sites}；请医生按本例寒热虚实增减后实施`
             // 标注必须与选穴依据一致(2026-08-05,甲方 6.1)。
             // 旧标注写死「通用参考，未按本例适应证核定」——那句话本身就是甲方指出的问题:
@@ -3331,6 +3327,56 @@ export function deferredGovernedTemplateCopy(
     `本例已匹配到「${label}」的标准取穴${points.length > 0 ? `（${points.join("、")}）` : ""}，但该模板尚未完成中医师签字终审，本轮不作为患者级方案，本项目仍按评估态呈现`,
     markdownCell(deferred.conflictNote),
   ], "；");
+}
+
+/**
+ * 治疗方案的「加减状态」说法——**唯一**一处（2026-08-11 对抗性复核抓到）。
+ *
+ * 缺陷：patient-specific 这一档的三处措辞（Markdown 方案状态、Markdown 穴位标题、页面徽标与穴位标题）
+ * 一律写「按证型加减」，而「加减」断言的是**在基础方上做过增删**这个动作。
+ * 新增的证型专用模板（精确闸门选中）根本没有加减穴——它是整条按证型选的方案，
+ * 于是页面告诉医生"系统在基础方上增删过"，而实际没有。产出侧自己的 treatmentContent 说的是
+ * 「以本例当前病种事实与已签名证型双重条件准入」，同一个状态三处三种说法，其中两处断言了没发生的事。
+ *
+ * 区分判据不引入新枚举值（新增枚举破坏 V1 是本轮已经吃过的亏），而是读**已有的**逐穴溯源：
+ * 有 syndrome_refinement 角色 ⇒ 确实做过证型加减；没有 ⇒ 是证型专用模板选中。
+ * 三个出口共用这一处，不可能再各说各的。
+ */
+export function tcmTreatmentTailoringPresentation(item: {
+  protocolStatus?: unknown;
+  pointProvenance?: ReadonlyArray<{ role?: unknown }> | null;
+}): { status: string; pointsLabel: string; badge: string } {
+  const status = markdownCell(item.protocolStatus);
+  const roles = (Array.isArray(item.pointProvenance) ? item.pointProvenance : []).map((entry) => markdownCell(entry?.role));
+  if (status === "governed_patient_specific_plan") {
+    const refined = roles.includes("syndrome_refinement") || roles.includes("syndrome_removal");
+    const conditional = roles.includes("conditional_point");
+    if (refined) {
+      return {
+        status: "已按本例证型加减取穴的标准方案，仍须医生复核",
+        pointsLabel: "按本例证型加减后的候选穴位",
+        badge: "按证型加减 · 待复核",
+      };
+    }
+    // 证型专用模板：整条方案按本例已签名证型选定，没有在基础方上增删。
+    return {
+      status: `本例证型专用的标准取穴方案${conditional ? "（含按本例症状触发的条件加穴）" : ""}，仍须医生复核`,
+      pointsLabel: `本例证型专用标准取穴${conditional ? "（含条件加穴）" : ""}`,
+      badge: "证型专用方案 · 待复核",
+    };
+  }
+  if (status === "governed_class_template_not_syndrome_tailored") {
+    return {
+      status: "已命中该病种标准取穴模板，尚未按本例证型加减，须医生按证型增减后实施",
+      pointsLabel: "该病种标准取穴模板（未按本例证型加减）",
+      badge: "病种模板 · 未按证型加减",
+    };
+  }
+  return {
+    status: "仅作项目评估，未形成患者级操作方案",
+    pointsLabel: "常用穴位（通用参考，未按本例适应证核定）",
+    badge: "仅项目评估",
+  };
 }
 
 export function tcmTreatmentProtocolGapCopy(gap: string): string {

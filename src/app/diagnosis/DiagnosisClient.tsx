@@ -120,6 +120,7 @@ import {
   createPathogenesisNarrativeLedger,
   deferredGovernedTemplateCopy,
   deferredSyndromeRefinementCopy,
+  tcmTreatmentTailoringPresentation,
   westernDiagnosisLabelForDisplay,
 } from "@/lib/diagnosis-visible-summary";
 
@@ -5401,9 +5402,10 @@ function ResultTabsV2({
                     item.protocolStatus === "governed_patient_specific_plan" ? "bg-emerald-50 text-emerald-700"
                       : item.protocolStatus === "governed_class_template_not_syndrome_tailored" ? "bg-sky-50 text-sky-700"
                         : "bg-amber-50 text-amber-700"}`}>
-                    {item.protocolStatus === "governed_patient_specific_plan" ? "按证型加减 · 待复核"
-                      : item.protocolStatus === "governed_class_template_not_syndrome_tailored" ? "病种模板 · 未按证型加减"
-                        : "仅项目评估"}
+                    {/* 「按证型加减」断言的是**在基础方上做过增删**这个动作。证型专用模板
+                        （精确闸门整条按证型选中）没有加减穴，写成加减就是说了一件没发生的事。
+                        判据与服务端 Markdown 共用 tcmTreatmentTailoringPresentation 一处。 */}
+                    {tcmTreatmentTailoringPresentation(item).badge}
                   </span>
                   {/* 来源权威等级（2026-08-11）。此前只有一串 SRC- 码拼在「方案依据」里，
                       医生看不出这套取穴是国标操作规范、学会标准，还是项目治理的教材表——
@@ -5440,9 +5442,7 @@ function ResultTabsV2({
                 {item.suggestedSitesOrPoints.length > 0 && (
                   <p className="mt-1">
                     <span className="font-medium text-gray-900">
-                      {item.protocolStatus === "governed_patient_specific_plan" ? "按本例证型加减后的候选穴位："
-                        : item.protocolStatus === "governed_class_template_not_syndrome_tailored" ? "该病种标准取穴模板（未按本例证型加减）："
-                          : "常用穴位（通用参考，未按本例适应证核定）："}
+                      {`${tcmTreatmentTailoringPresentation(item).pointsLabel}：`}
                     </span>
                     {joinClinicalClauses(item.suggestedSitesOrPoints, "；")}
                     {item.protocolStatus === "governed_class_template_not_syndrome_tailored" && "；请医生按本例寒热虚实增减后实施"}
