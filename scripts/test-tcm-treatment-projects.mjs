@@ -14,7 +14,8 @@ const {
   compileTcmTreatmentRecommendations,
   getTcmTreatmentProjectStatus,
 } = await import("../src/lib/tcm-treatment-capabilities.server.ts");
-const { normalizeCaseStateInput } = await import("../src/lib/diagnosis-types.ts");
+const { normalizeCaseStateInput, normalizeReasoningV2 } = await import("../src/lib/diagnosis-types.ts");
+const { synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
 const { sanitizeCaseStateForModel } = await import("../src/lib/diagnosis-safety.ts");
 
 const originalSimple = process.env.TCM_CLINIC_TREATMENT_CAPABILITIES;
@@ -980,6 +981,60 @@ try {
       [{ projectCode: "tuina", targetRef: "P9" }],
       priors.kneeOsteoarthritis,
     ), []);
+  });
+
+  // ── 我方自己编译出来的项目，必须活得过我方自己的 schema（2026-08-11）───────────────
+  //
+  // 这是本轮实测里最隐蔽的一条。评估态项目的 techniqueBoundary 写空串，而
+  // TcmTreatmentRecommendationSchema 该字段是 min(1)：逐条隔离机制把它整条剔除，
+  // 且**只在签名前的归一那一步剔**——可见正文在归一之前就渲染完了。后果是
+  // 医生页面印着三个诊疗项目，签名载荷、HIS 方案与结构化卡片一个都没有，全程零信号。
+  // 50 例实测：30 例页面有项目，载荷只有 14 例；甲方看到的「中医外治项目为空」就是这个。
+  //
+  // 判据写成全项目全分支的属性，而不是给 techniqueBoundary 补一条断言——同一形状的
+  // 下一个空字段（scheduleSuggestion、protocolSource…）必须在这里就红，而不是又上线一轮。
+  check("every compiled treatment project survives its own payload schema", () => {
+    configureSimple([...TCM_TREATMENT_PROJECT_CODES]);
+    const dropped = [];
+    let compiledCount = 0;
+    for (const [label, prior] of Object.entries(priors)) {
+      for (const projectCode of TCM_TREATMENT_PROJECT_CODES) {
+        const recommendations = compileTcmTreatmentRecommendations([{ projectCode, targetRef: "P1" }], prior);
+        for (const item of recommendations) {
+          compiledCount += 1;
+          const normalized = normalizeReasoningV2({
+            ...prior,
+            stage: "prescribe",
+            nonPharma: { diet: "", lifestyle: "", emotion: "", acupointCare: null, tcmTreatments: [item], precautions: [] },
+          });
+          if ((normalized.nonPharma?.tcmTreatments || []).length !== 1) {
+            const empties = Object.entries(item)
+              .filter(([, value]) => typeof value === "string" && value.trim() === "")
+              .map(([key]) => key);
+            dropped.push(`${label}/${item.projectCode}/${item.protocolStatus}${empties.length ? `（空字段：${empties.join("、")}）` : ""}`);
+          }
+        }
+      }
+    }
+    assert.ok(compiledCount >= 20, `编译样本过小（${compiledCount}），本属性形同虚设`);
+    assert.deepEqual([...new Set(dropped)], [],
+      "服务端编译出的诊疗项目被自家 schema 静默剔除——页面会显示它，签名载荷与 HIS 却收不到");
+  });
+
+  // 页面只能显示载荷里真实存在的内容：非法条目在投影前就被归一剔除，因此不上屏。
+  check("the visible summary never renders a project the normalized payload drops", () => {
+    configureSimple(["acupuncture"]);
+    const [valid] = compileTcmTreatmentRecommendations([{ projectCode: "acupuncture", targetRef: "P1" }], priors.pain);
+    assert.ok(valid, "夹具需要一条可编译的针刺项目");
+    const broken = { ...valid, projectName: "被剔除项目", techniqueBoundary: "" };
+    const content = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
+      ...priors.pain,
+      stage: "prescribe",
+      nonPharma: { diet: "", lifestyle: "", emotion: "", acupointCare: null, tcmTreatments: [broken], precautions: [] },
+    })}\n<!-- DIAGNOSIS_JSON_END -->`;
+    const synchronized = synchronizeVisibleClinicalSummary(content, "prescribe");
+    const visible = synchronized.split("<!-- DIAGNOSIS_JSON_START -->")[0];
+    assert.equal(visible.includes("被剔除项目"), false, "载荷归一会剔除的条目不得出现在医生页面上");
   });
 } finally {
   restore();

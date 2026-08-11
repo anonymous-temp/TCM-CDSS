@@ -47,10 +47,16 @@ const medicineContent = [
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "prescribe",
     formula: {
+      // 夹具补齐为 schema 完整条目（2026-08-11）。此前只写了证据相关字段，缺
+      // type/specification/usageBoundary/course/positioning/relationship/riskNote，
+      // 是一条 PatentAndWesternSchema 判否、逐条隔离必然剔除的候选——它当年能出现在
+      // 医生页面上，只是因为可见正文读的是**归一之前**的原始载荷。
+      // 现在投影前先归一（页面只显示载荷里真实存在的内容），这条不完整夹具会一并消失，
+      // 而那正是线上应有的行为。本套件要验的是**证据净化**，不是 schema 容忍度，故补全夹具。
       patentAndWestern: [
-        { name: "伪来源药物", evidence: { evidenceLevel: "guideline", source: "https://evil.com/fabricated" } },
-        { name: "借用通用政策的药物", evidence: { evidenceLevel: "guideline", source: "[OFFICIAL-RX-REVIEW]" } },
-        { name: "已核验候选", correspondingProblem: "失眠", evidenceId: "EVID-INST-001", evidenceFingerprint: `sha256:${"1".repeat(64)}`, recommendationMode: "candidate_review", evidence: { evidenceLevel: "instruction", source: "[EVID-INST-001]" } },
+        { name: "伪来源药物", type: "中成药", specification: null, usageBoundary: "遵医嘱", course: "3日", positioning: "需医生评估", correspondingProblem: "失眠", relationship: "不与饮片默认联用", riskNote: "需复核", evidence: { evidenceLevel: "guideline", source: "https://evil.com/fabricated" } },
+        { name: "借用通用政策的药物", type: "中成药", specification: null, usageBoundary: "遵医嘱", course: "3日", positioning: "需医生评估", correspondingProblem: "失眠", relationship: "不与饮片默认联用", riskNote: "需复核", evidence: { evidenceLevel: "guideline", source: "[OFFICIAL-RX-REVIEW]" } },
+        { name: "已核验候选", type: "中成药", specification: null, usageBoundary: "遵说明书", course: "7日", positioning: "替代方案", correspondingProblem: "失眠", relationship: "与饮片方案不默认联用", riskNote: "服药期间忌浓茶", evidenceId: "EVID-INST-001", evidenceFingerprint: `sha256:${"1".repeat(64)}`, recommendationMode: "candidate_review", evidence: { evidenceLevel: "instruction", source: "[EVID-INST-001]" } },
       ],
     },
   }),

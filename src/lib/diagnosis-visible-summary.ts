@@ -18,6 +18,7 @@ import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinical
 import { safeDietAdviceForDisplay } from "./result-display-policy";
 import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives } from "./internal-tag-hygiene";
+import { normalizeReasoningV2 } from "./diagnosis-types";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -3305,6 +3306,21 @@ export function tcmTreatmentProtocolGapCopy(gap: string): string {
   return "";
 }
 
+/**
+ * 投影前把载荷过一遍 schema 归一。签名前 attachClinicalReviewAttestation 用的就是这一份归一结果，
+ * 提前到这里等于让「页面看到的」与「载荷里存着的」出自同一次归一。
+ * 归一抛错时返回原对象：宁可保留一次未归一的呈现，也不能让整页 M03/M04 消失。
+ */
+function normalizedReasoningForProjection(parsed: Record<string, unknown>): Record<string, unknown> {
+  try {
+    // safeParse 失败时返回 undefined（不是抛错），这一分支必须显式接住：
+    // 拿 undefined 去投影会把整页 M03/M04 变成空壳。
+    return (normalizeReasoningV2(parsed) as unknown as Record<string, unknown> | undefined) ?? parsed;
+  } catch {
+    return parsed;
+  }
+}
+
 export function synchronizeVisibleClinicalSummary(
   content: string,
   expectedStage: "diagnose" | "prescribe",
@@ -3330,9 +3346,21 @@ export function synchronizeVisibleClinicalSummary(
     // evidenceLevel / warningLevel / nodeId…）在 MACHINE_VALUED_KEYS 里显式豁免，合同校验与
     // 签名载荷不受影响（本函数在 applyDiagnose/PrescribeContractSignature 之前运行）。
     const reasoning = sanitizeReasoningNarratives(parsed);
+    // ─── 页面必须渲染**最终载荷会留下的那份**，不是它的更宽松版本（2026-08-11）────────
+    //
+    // 投影此前读原始 JSON，而签名前的 attachClinicalReviewAttestation 用 schema 归一后的结果
+    // 重写 sentinel（逐条隔离会剔掉任一非法条目）。两者之间没有任何一致性约束，于是
+    // 「页面有、载荷无」成为一个完全静默的缺陷类：
+    //   实测 50 例 M04 中医治疗项目——30 例页面印出三个项目，签名载荷里只有 14 例有。
+    //   根因是评估态项目的 techniqueBoundary 写空串，撞上 schema 的 min(1) 被整条剔除；
+    //   医生看到项目、HIS 与结构化卡片一个都收不到，且没有任何日志或原因码。
+    // 修法只改**投影的输入**，不改 sentinel：sentinel 仍按既有口径原样保留（净化未改动即
+    // 逐字节不动，这条由 test:stream-safety 钉着），归一只决定页面显示什么。
+    // 归一失败时回落到原载荷（fail-open），不因一次 schema 抖动清空整页。
+    const projected = sanitizeReasoningNarratives(normalizedReasoningForProjection(reasoning));
     const visible = expectedStage === "diagnose"
-      ? visibleDiagnoseFromReasoning(reasoning, clinicalContext)
-      : visiblePrescribeFromReasoning(reasoning);
+      ? visibleDiagnoseFromReasoning(projected, clinicalContext)
+      : visiblePrescribeFromReasoning(projected);
     const sanitizedSentinel = JSON.stringify(reasoning) === JSON.stringify(parsed)
       ? content.slice(start)
       : `${START_MARKER}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;

@@ -364,8 +364,15 @@ function controlledTreatmentPlan(
     scheduleSuggestion: "",
     // parameterPolicy 是**系统显示策略**——目录里 2969 条项目一字不差，与病人无关
     // （「仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示治理过的穴位…」）。
-    // 操作边界这一栏只放真正的操作边界；评估态本来就没有患者级参数可写，留空。
-    techniqueBoundary: "",
+    // 操作边界这一栏只放真正的操作边界；评估态没有患者级参数可写。
+    //
+    // 但**不能留空**（2026-08-11）。留空看似最保守，实际后果是整条项目从签名载荷里消失：
+    // TcmTreatmentRecommendationSchema 的 techniqueBoundary 是 min(1)，逐条隔离机制把这条
+    // 判为非法、整条剔除，而可见正文在**归一之前**就已按原始载荷渲染完毕。于是医生页面
+    // 印着三个诊疗项目，签名载荷与 HIS 方案里一个都没有。50 例实测：30 例页面有项目，
+    // 载荷只有 14 例——评估态项目 100% 掉在这一条上，而且全程零信号。
+    // 这里写的是这一档**真实存在的**操作边界（本轮不下发参数），不是为过 schema 编的占位句。
+    techniqueBoundary: "本轮不下发患者级操作参数；具体操作参数与技术细节由现场执业人员按本机构规范、项目资质与患者耐受确定。",
     protocolSource: sourceRefs.join("、") || "T12 中医非药物项目治理目录",
     protocolStatus: "assessment_only_no_patient_specific_protocol",
     protocolGap,
