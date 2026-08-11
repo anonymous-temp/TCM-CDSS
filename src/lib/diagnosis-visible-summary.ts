@@ -13,7 +13,7 @@ import { tcmTreatmentAssessmentPositioningForDisplay } from "./tcm-treatment-pro
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, governedTcmLocationsInText, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 import { clinicalAxisAttributionFromFacts } from "./tcm-syndrome-hypothesis";
-import { classifyWesternDiagnosticEvidence, clinicalFactSourcesFromContext, clinicalFactWithSource } from "./clinical-fact-source";
+import { classifyWesternDiagnosticEvidence, clinicalFactSourcesFromContext, clinicalFactWithSource, uniqueClinicalFacts, westernDiagnosticEvidenceGroups } from "./clinical-fact-source";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { safeDietAdviceForDisplay } from "./result-display-policy";
 import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
@@ -2087,22 +2087,6 @@ function stripClinicalTransportPrefix(value: string): string {
     .join("；");
 }
 
-function uniqueClinicalFacts(values: string[]): string[] {
-  const result: Array<{ key: string; value: string }> = [];
-  for (const value of values) {
-    const key = value.normalize("NFKC").replace(/[\s，,。；;：:、()（）【】\[\]]+/g, "");
-    if (!key || result.some((item) => item.key === key || item.key.includes(key))) continue;
-    // Prefer the complete exact chart sentence when an earlier item is only a substring. This
-    // removes redundant provider-split fragments without merging two source clauses or changing
-    // their polarity.
-    for (let index = result.length - 1; index >= 0; index -= 1) {
-      if (key.includes(result[index].key)) result.splice(index, 1);
-    }
-    result.push({ key, value });
-  }
-  return result.map((item) => item.value);
-}
-
 function boundedClinicalFacts(values: string[], maxItems = 12, maxChars = 2_400): string[] {
   const result: string[] = [];
   let usedChars = 0;
@@ -2765,13 +2749,9 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
   const candidatesUsable = westernCandidates.length > 1 && primaryName &&
     markdownCell(westernCandidates[0].name) === primaryName;
   const guidelineRefs = governedGuidelineReferences(westernPrimary);
-  const categorized: Array<[string, readonly string[], boolean]> = [
-    ["症状依据", evidence.symptom, true],
-    ["体征依据", evidence.sign, true],
-    ["检查依据", evidence.exam, true],
-    ["排除依据", evidence.excluding, true],
-    ["指南/文献依据", guidelineRefs, false],
-  ].filter((entry) => (entry[1] as readonly string[]).length > 0) as Array<[string, readonly string[], boolean]>;
+  // 分组与标题走**与医生页面同一个**投影函数（2026-08-11）。此前这里手写一份、页面手写另一份，
+  // 结果 0810 的分类改动只落到了这一侧，页面继续显示旧的「支持依据/待查依据」。
+  const categorized = westernDiagnosticEvidenceGroups(evidence, guidelineRefs);
   if (candidatesUsable) {
     lines.push(`**候选诊断（按可能性排序）**：${westernCandidates.map((item, index) => {
       const facts = (Array.isArray(item.keyEvidence) ? item.keyEvidence : [])
@@ -2785,11 +2765,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
       ], "，").replace(/[。]$/, "");
     }).join("；")}`);
   }
-  if (categorized.length === 1 && categorized[0][0] !== "指南/文献依据") {
-    evidenceLine("依据", categorized[0][1], categorized[0][2]);
-  } else {
-    for (const [label, values, withSource] of categorized) evidenceLine(label, values, withSource);
-  }
+  for (const group of categorized) evidenceLine(group.label, group.items, group.withSource);
   lines.push(
     "",
     overviewHeading,
@@ -2838,11 +2814,15 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
   // 卡片回答「是什么证」，两个分段各自回答「为什么是这个病名/这个证型」，与客户端诊断卡同构。
   const tcmDiseaseName = markdownCell(overview?.tcmDiseaseName);
   const tcmDiseaseDifferentials = recordList(overview?.tcmDiseaseDifferentials);
-  if (isDisplayableClinicalText(tcmDiseaseName) || tcmDiseaseDifferentials.length > 0) {
+  // 服务端结构化正文**始终**带病名：0805 需求3 要求诊断出三个（西医 / 中医辨病 / 中医辨证），
+  // HIS 写回与导出链路读的就是这一份。医生屏幕上要不要显示是另一件事，由
+  // TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN 在客户端两个出口统一决定（见该常量注释）。
+  const showTcmDiseaseName = isDisplayableClinicalText(tcmDiseaseName);
+  if (showTcmDiseaseName || tcmDiseaseDifferentials.length > 0) {
     const insertAt = lines.indexOf(pathogenesisHeading);
     lines.splice(insertAt, 0,
       "### 中医辨病",
-      ...(isDisplayableClinicalText(tcmDiseaseName) ? [`**中医病名**：${tcmDiseaseName}`] : []),
+      ...(showTcmDiseaseName ? [`**中医病名**：${tcmDiseaseName}`] : []),
       ...(isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseRationale))
         ? [`**辨病推理**：${markdownCell(overview?.tcmDiseaseRationale)}`]
         : []),

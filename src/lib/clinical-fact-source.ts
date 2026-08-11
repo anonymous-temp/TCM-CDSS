@@ -241,8 +241,64 @@ export function classifyWesternDiagnosticEvidence(
     sign,
     exam,
     excluding,
-    pending: [...new Set([...cleanedList(primary?.limitations), ...cleanedList(primary?.suggestedChecks)])],
+    pending: uniqueClinicalFacts([...cleanedList(primary?.limitations), ...cleanedList(primary?.suggestedChecks)]),
   };
+}
+
+/**
+ * 病历事实去重：剥掉标点后按**包含关系**折叠，保留信息更全的那一条。
+ *
+ * 本函数原先私有在 diagnosis-visible-summary 里，只服务于服务端 Markdown。
+ * 2026-08-11 线上实测暴露出「待查依据」同时出现
+ *   · 未提供血常规、CRP等炎症指标   ← limitations
+ *   · 血常规、CRP等炎症指标         ← suggestedChecks
+ * 两条讲同一件事——因为那一路只用 `new Set` 去重，而 Set 只认逐字节相等。
+ * 判据本来就有、而且就在同一个仓库里，只是没接到这一路上；移到这里导出，两侧共用同一个。
+ * 不新增任何语义猜测：只做标点归一 + 包含判定，不合并两个不同的临床子句、不改极性。
+ */
+export function uniqueClinicalFacts(values: readonly string[]): string[] {
+  const result: Array<{ key: string; value: string }> = [];
+  for (const value of values) {
+    const key = value.normalize("NFKC").replace(/[\s，,。；;：:、()（）【】\[\]]+/g, "");
+    if (!key || result.some((item) => item.key === key || item.key.includes(key))) continue;
+    for (let index = result.length - 1; index >= 0; index -= 1) {
+      if (key.includes(result[index].key)) result.splice(index, 1);
+    }
+    result.push({ key, value });
+  }
+  return result.map((item) => item.value);
+}
+
+/**
+ * 西医诊断依据的**唯一**分组投影（2026-08-11）。
+ *
+ * 甲方 2026-08-10 要求把笼统的「支持依据 / 待查依据」改成「有啥列啥」的分类呈现，
+ * 这个改动当时只落到了服务端 Markdown（diagnosis-visible-summary），**医生页面没跟上**：
+ * 页面继续渲染「支持依据 / 排除依据 / 待查依据」三组，而甲方读的正是页面。
+ * 这是本仓库反复出现的同一形状——同一个呈现口径在两个出口各写各的。
+ * 现在两个出口都调用本函数，分组、标题与「只有一类时写『依据』」的规则只有这一处。
+ */
+export function westernDiagnosticEvidenceGroups(
+  evidence: Pick<ClassifiedDiagnosticEvidence, "symptom" | "sign" | "exam" | "excluding">,
+  guidelineReferences: readonly string[] = [],
+): Array<{ label: string; items: string[]; withSource: boolean }> {
+  const groups = [
+    { label: "症状依据", items: [...evidence.symptom], withSource: true },
+    { label: "体征依据", items: [...evidence.sign], withSource: true },
+    { label: "检查依据", items: [...evidence.exam], withSource: true },
+    { label: "排除依据", items: [...evidence.excluding], withSource: true },
+    // **不出「待查依据」栏**：甲方 2026-08-10 的原话是「删掉笼统的『支持依据』与『待查依据』，
+    // 改成有啥列啥」。服务端 Markdown 当时照做了，医生页面没跟上——这正是本次「支持依据没生效」
+    // 的现象来源。`evidence.pending` 仍然计算并去重，供 HIS 的
+    // westernDetail.limitations / suggestedChecks 两个**分列**字段与结构化载荷使用；
+    // 只是不再在医生页面上占一栏笼统的「待查」。
+    // 指南/文献依据本身就是来源，不再标来源。
+    { label: "指南/文献依据", items: [...guidelineReferences], withSource: false },
+  ].filter((group) => group.items.length > 0);
+  // 只有一类支持性依据时不写分类名，直接写「依据」（甲方示例三：上感只有一条依据）。
+  const supportive = groups.filter((group) => group.withSource);
+  if (supportive.length === 1 && groups.length === 1) return [{ ...supportive[0], label: "依据" }];
+  return groups;
 }
 
 /** 依据条目 + 来源标注的呈现文本（无来源时原样返回）。 */

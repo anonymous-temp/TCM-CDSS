@@ -219,3 +219,21 @@ export function buildThreePartLimitedStateCopyForSurface(
   }
   return buildThreePartLimitedStateCopy(input);
 }
+
+/**
+ * 中医病名要不要出现在**医生屏幕**上——唯一开关（2026-08-11 线上实测）。
+ *
+ * 甲方线上实测：「风寒咳嗽仍输出中医病名与辨病推理，且本地代码一处删除、一处重新渲染」。
+ * 属实，而且矛盾一直是绿灯——因为两条**方向相反的甲方要求各自有测试钉着**，
+ * 且钉的是不同函数，谁也没碰到谁：
+ *   · test-diagnosis-presentation-contract：服务端正文「病名移入独立的辨病段」「病名本身不得丢失」（0805 需求3）
+ *   · test-diagnosis-display-consistency：客户端 strip「必须删掉病名行」（更早的口径）
+ * 于是生产上：服务端写出病名 → 报告 Markdown 把它删掉 → 结构化卡片又显示一遍。
+ *
+ * 收敛口径（两条要求各自成立的部分都保住）：
+ *   · **医生屏幕**（报告 Markdown + 结构化卡片）由本开关统一决定，缺省 false ⇒ 不展示；
+ *   · **服务端结构化正文、签名载荷、HIS 写回**始终保留 tcmDiseaseName 与辨病推理——
+ *     0805 需求3 要的是「诊断出三个」，集成方与导出链路照常拿得到。
+ * 关掉一个显示开关，不能连带把集成方的字段抽走。
+ */
+export const TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN = false;

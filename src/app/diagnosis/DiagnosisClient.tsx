@@ -29,7 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { appendClinicalPresetValue, appendDelimitedValue, detectTonguePulseFieldConflict } from "@/lib/clinical-entry";
-import { classifyWesternDiagnosticEvidence, clinicalFactSourcesFromCaseState, clinicalFactWithSource } from "@/lib/clinical-fact-source";
+import { classifyWesternDiagnosticEvidence, westernDiagnosticEvidenceGroups, clinicalFactSourcesFromCaseState, clinicalFactWithSource } from "@/lib/clinical-fact-source";
 import type { CaseState, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
 import { ageValue, normalizeCaseStateInput, normalizeStructuredFollowupTimeline } from "@/lib/diagnosis-types";
 import { LINEAGE_OPTIONS } from "@/lib/tcm-lineages";
@@ -54,7 +54,7 @@ import { containsUnknownClinicalCue, isUnknownClinicalText, PULSE_FORCE_PATTERN_
 import { inspectionLexiconGroups, inspectionLexiconNormal, type InspectionField } from "@/lib/tcm-inspection-lexicon";
 import { computeTongueRoiCrop, detectTongueRoi } from "@/lib/tongue-image-roi";
 import { customerEvidenceDisplayStatus, sanitizeCustomerEvidenceNarrative, sanitizeLabeledEvidenceLines } from "@/lib/customer-evidence";
-import { clinicalOutputLabel, clinicalOutputRendererId, clinicalOutputSurface, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "@/lib/clinical-output-authority";
+import { TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN, clinicalOutputLabel, clinicalOutputRendererId, clinicalOutputSurface, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "@/lib/clinical-output-authority";
 import {
   buildDeterministicRiskFollowupPayload,
   buildSafetyLimitedPrescription,
@@ -575,6 +575,9 @@ function sanitizeCustomerEvidenceSurface(text: string): string {
  * card, so remove only the labeled disease-name row from customer-visible Markdown.
  */
 export function stripTcmDiseaseNameForCustomer(text: string): string {
+  // 与服务端渲染、结构化卡片共用同一个开关（2026-08-11）。此前这里无条件删除，
+  // 而另外两个出口无条件渲染——同一份内容在报告里没有、在页面上有，正是甲方看到的自相矛盾。
+  if (TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN) return text;
   return text
     .replace(/^(#{1,6}\s*.*)中医病名与证候诊断(.*)$/gm, "$1中医证候诊断$2")
     .replace(/^\s*(?:[-*]\s*)?(?:\*\*)?(?:中医)?病名(?:\*\*)?\s*[：:].*(?:\n|$)/gm, "")
@@ -4613,8 +4616,13 @@ function ResultTabsV2({
   // 需求3：诊断分三段各带推理——西医诊断（含 ICD-10）、中医辨病、中医辨证。
   // 辨病与辨证此前共用 tcmDiagnosticRationale，界面上也只显示证型：医生看到「心脾两虚证」
   // 却读不到中医病名，更读不到为什么把这组表现归入该病名而不是相邻病名。
-  const tcmDiseaseName = (reasoning.overview.tcmDiseaseName || "").trim();
-  const tcmDiseaseRationale = isDisplayableClinicalText(reasoning.overview.tcmDiseaseRationale || "")
+  // 病名是否上屏走**与服务端同一个开关**（2026-08-11）。此前这里无条件渲染，
+  // 而同一份内容在报告 Markdown 里被 stripTcmDiseaseNameForCustomer 删掉——
+  // 一处删除、一处重新渲染，甲方在页面上看到病名、在报告里看不到。
+  const tcmDiseaseName = TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN
+    ? (reasoning.overview.tcmDiseaseName || "").trim()
+    : "";
+  const tcmDiseaseRationale = TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN && isDisplayableClinicalText(reasoning.overview.tcmDiseaseRationale || "")
     ? reasoning.overview.tcmDiseaseRationale || ""
     : "";
   const tcmRationale = isDisplayableClinicalText(reasoning.overview.tcmDiagnosticRationale || "") &&
@@ -4648,7 +4656,7 @@ function ResultTabsV2({
     ...(reasoning.pathogenesis?.chain || []).flatMap((step) => [step.patientFact, step.syndromeEvidence]),
   ].filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
   // 甲方评测(2026-08-04) 1.1.1：西医诊断下方不再是一串主诉/现病史复述，改为
-  // 支持依据 / 排除依据 / 待查依据三类，每条标注它来自病历的哪个字段。
+  // 分类依据（症状/体征/检查/排除/待查/指南），每条标注它来自病历的哪个字段。
   // 三类与来源都由确定性层从已签名载荷与病例状态派生（clinical-fact-source.ts），此处只负责呈现。
   const westernEvidence = classifyWesternDiagnosticEvidence(reasoning.westernDiagnosis.primary);
   const westernFactSources = clinicalFactSourcesFromCaseState(caseState);
@@ -4661,21 +4669,18 @@ function ResultTabsV2({
     : westernSupportingFactsAll.slice(0, 4).map((fact) => truncateClinicalTextForDisplay(fact, 60));
   const westernFactsCollapsible = westernSupportingFactsAll.length > 4 ||
     westernSupportingFactsAll.slice(0, 4).some((fact) => fact.trim().length > 60);
-  const westernEvidenceGroups: Array<{ label: string; items: string[]; withSource: boolean }> = [
-    { label: "支持依据", items: westernSupportingFactsDisplay, withSource: true },
-    { label: "排除依据", items: westernEvidence.excluding, withSource: true },
-    // 待查依据是「尚缺什么 / 下一步查什么」，不是已记录的病历事实，标来源没有意义。
-    { label: "待查依据", items: westernEvidence.pending, withSource: false },
-    // 指南/文献依据（甲方 2026-08-10 ⑩）。题名/机构/年份/URL 由服务端按 evidenceId 反查
-    // 本轮真检索到的 EviMed 条目渲染，模型只提交 id + 一句 appliesTo；检索不到就没有这一组。
-    // 标来源没有意义——它本身就是来源。
-    {
-      label: "指南/文献依据",
-      items: (reasoning.westernDiagnosis.primary.guidelineReferences || []).map((entry) =>
-        `${entry.citation}${entry.appliesTo ? `（${entry.appliesTo}）` : ""}`),
-      withSource: false,
-    },
-  ].filter((group) => group.items.length > 0);
+  // 分组与标题走**服务端同一个投影函数**（2026-08-11）。
+  //
+  // 甲方 2026-08-10 要求把笼统的「支持依据 / 待查依据」改成分类呈现，那次只改了服务端 Markdown，
+  // 这个页面继续渲染旧的三组——而甲方读的正是页面，于是线上实测「支持依据没生效」。
+  // 与本轮 ②③⑥⑨ 完全同形：同一个呈现口径在两个出口各写各的。现在只有 clinical-fact-source 一处。
+  //
+  // 折叠只作用于「症状依据」（它是最长的一组、也是甲方 F3 反馈的那一组），其余分组照常全量呈现。
+  const westernEvidenceGroups = westernDiagnosticEvidenceGroups(
+    { ...westernEvidence, symptom: westernSupportingFactsDisplay },
+    (reasoning.westernDiagnosis.primary.guidelineReferences || []).map((entry) =>
+      `${entry.citation}${entry.appliesTo ? `（${entry.appliesTo}）` : ""}`),
+  );
   // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
   // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
   const failedStage = caseState.phase === "error" && caseState.lastError ? caseState.lastError.phase : undefined;
@@ -4751,7 +4756,7 @@ function ResultTabsV2({
                       {group.withSource ? clinicalFactWithSource(fact, westernFactSources) : fact}
                     </span>
                   ))}
-                  {group.label === "支持依据" && westernFactsCollapsible && (
+                  {(group.label === "症状依据" || group.label === "依据") && westernFactsCollapsible && (
                     <button
                       type="button"
                       onClick={() => setWesternFactsExpanded((value) => !value)}
