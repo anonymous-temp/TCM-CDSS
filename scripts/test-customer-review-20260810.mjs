@@ -391,6 +391,32 @@ await check("⑫④ 分片导入不得让前一批被后一批覆盖", async () 
   assert.match(over.error, /part=/, "必须给出真实可用的分片整批替换通路");
 });
 
+// ── 50 例基层回归线上实测追加的两条（2026-08-11）────────────────────────────────
+check("审方提交中成药必须带确定性推导的给药途径，且外用药绝不报成口服", async () => {
+  const { oralRouteForAuditedMedicine } = await load("src/lib/rxaudit.ts");
+  // 实测：中成药一律不带 route_name 提交 ⇒ 审方每味回「给药途径未提供」ROUTE_MISMATCH，
+  // 一个含 2 味中成药的病例固定多出 2 条人工复核告警。饮片那一侧早就写死了 route_name:"口服"。
+  for (const oral of ["少腹逐瘀丸", "七味解痛口服液", "藿香正气软胶囊", "小柴胡颗粒"]) {
+    assert.equal(oralRouteForAuditedMedicine(oral), true, `${oral} 应按说明书 usage 判为口服`);
+  }
+  // 判据必须读说明书 usage 原文，不能按剂型后缀猜：第一版按「散」猜，把吹敷患处的
+  // 冰硼散判成了口服——把外用药报成口服比不报途径危险得多。
+  for (const external of ["冰硼散", "麝香壮骨膏", "痔疮栓", "云南白药气雾剂"]) {
+    assert.equal(oralRouteForAuditedMedicine(external), false, `${external} 是外用，不得报成口服`);
+  }
+  assert.equal(oralRouteForAuditedMedicine("受控目录里不存在的药"), false, "查不到条目即不写途径（fail-closed）");
+});
+
+check("审方已核验的煎法补充表覆盖火麻仁与蜂蜜", async () => {
+  const { requiredDecoctionRequirement } = await load("src/lib/herb-decoction-rules.ts");
+  // 实测：审方分别提「火麻仁 应包煎」「蜂蜜 应烊化」，而本地知识库这两味没有煎法字段，
+  // 于是我方无法在出方时先标注，只能等审方回头提——M05「可预防问题」正是拦这个形态。
+  assert.match(String(requiredDecoctionRequirement("火麻仁") || ""), /包煎/);
+  assert.match(String(requiredDecoctionRequirement("蜂蜜") || ""), /烊化/);
+  // 既有条目不得被这次补充改动
+  assert.match(String(requiredDecoctionRequirement("苦杏仁") || ""), /后下/);
+});
+
 console.log(JSON.stringify({ suite: "customer-review-20260810", checks, failures: failures.length }));
 if (failures.length > 0) {
   console.error(JSON.stringify(failures, null, 2));

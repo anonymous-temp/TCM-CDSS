@@ -27,6 +27,7 @@ import {
 } from "./medication-event-extractor";
 import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit } from "./tcm-knowledge";
 import { matchesPopulationScope } from "./clinical-vocabulary";
+import { findLocalPatentMedicineEntry } from "./local-patent-medicine-candidates";
 
 export type { RxAuditResultCode, RxAuditRiskLevel } from "./rxaudit-normalize";
 
@@ -543,6 +544,25 @@ function parseDoseText(dose: string | null | undefined): { value?: number; unit?
     : { text };
 }
 
+/**
+ * 给药途径的确定性推导：**读受治理说明书条目的 usage 原文**，不靠药名猜剂型。
+ *
+ * 第一版按剂型后缀猜（片/胶囊/颗粒/丸/…/散），实测把**冰硼散**判成了口服——
+ * 冰硼散是吹敷患处的外用散。把外用药报成口服，比不报途径危险得多，正是这条推导
+ * 一开始就写明要避免的事。改为只认说明书 usage 里写明的口服，且 usage 一旦出现
+ * 外用类字样即整条不认；查不到条目也不认（fail-closed：宁可让审方照常提人工复核）。
+ */
+const ORAL_USAGE = /口服|温开水送服|开水冲服|含化|嚼服|吞服|饭前服|饭后服/;
+const NON_ORAL_USAGE = /外用|贴于|敷于|涂于|吹敷|含漱|滴眼|滴鼻|滴耳|塞入|纳肛|灌肠|注射|静脉|肌内|喷于|洗患处/;
+
+export function oralRouteForAuditedMedicine(name: string): boolean {
+  const entry = findLocalPatentMedicineEntry(String(name || ""));
+  const usage = String(entry?.usage || "");
+  if (!usage.trim()) return false;
+  if (NON_ORAL_USAGE.test(usage)) return false;
+  return ORAL_USAGE.test(usage);
+}
+
 function buildAuditItemsFromStructuredHerbs(state: CaseState, candidateIndex?: number): Array<Record<string, unknown>> {
   const candidate = candidateFromState(state, candidateIndex);
   if (!candidate) return [];
@@ -575,6 +595,7 @@ function buildAuditItemsFromStructuredHerbs(state: CaseState, candidateIndex?: n
         ...(herb.isToxic != null ? { is_toxic_herb: herb.isToxic } : {}),
       };
     });
+
   const medicineItems = (state.reasoningPrescribe?.formula?.patentAndWestern || [])
     .filter((item) => item?.name?.trim() && (item.type === "中成药" || item.type === "西药"))
     .slice(0, Math.max(0, 50 - herbItems.length))
@@ -584,7 +605,22 @@ function buildAuditItemsFromStructuredHerbs(state: CaseState, candidateIndex?: n
       drug_type: item.type,
       ...(item.specification?.trim() ? { specification: item.specification.trim() } : {}),
       ...(item.frequency?.trim() ? { frequency_name: item.frequency.trim() } : {}),
-      ...(item.route?.trim() ? { route_name: item.route.trim() } : {}),
+      // 给药途径：模型给了就用模型的；没给就按**剂型**确定性推导，只认口服剂型。
+      //
+      // 2026-08-10 50 例基层回归实测：中成药一律不带 route_name 提交，审方每味都回
+      // 「给药途径未提供，缺少可审核的 routeName」→ ROUTE_MISMATCH / MANUAL_REVIEW。
+      // 一个含 2 味中成药的病例固定多出 2 条人工复核告警，全是我方没说的信息造成的。
+      // 上面 buildAuditItemsFromHerbs 早就为饮片写死了 route_name:"口服"，中成药这一侧漏了——
+      // 又一次同一判据只铺了一处。
+      //
+      // 给药途径不是剂量：补它不违反「不向审方接口伪造单次剂量」那条边界（review_requirement
+      // 里那句声明原样保留）。推导不出口服剂型时**不写**，让审方照常提人工复核——
+      // 外用/注射剂型冒充口服比不写危险得多。
+      ...(item.route?.trim()
+        ? { route_name: item.route.trim() }
+        : oralRouteForAuditedMedicine(item.name)
+          ? { route_name: "口服" }
+          : {}),
       ...(item.course?.trim() ? { course_text: item.course.trim() } : {}),
       review_requirement: [
         item.usageBoundary?.trim(),
