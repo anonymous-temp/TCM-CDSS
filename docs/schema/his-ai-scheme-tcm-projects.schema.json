@@ -2,27 +2,43 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://82.156.128.153/tcm-cdss/schema/his-ai-scheme-tcm-projects.schema.json",
   "title": "HIS AI 诊疗支持方案 · 中医外治项目（treatments.tcmProjects[]）",
-  "description": "V1.5 起随接口文档一并发布，供集成方做严格反序列化校验。\n\n本文件同时给出 V1 与 V2 两个契约版本的枚举取值：\n· V1（默认）：protocolStatus 只有旧两态；服务端把第三态 governed_class_template_not_syndrome_tailored 折叠为 assessment_only_no_patient_specific_protocol。\n· V2（?schemaVersion=v2 / x-cdss-his-scheme-version: v2 / body.hisSchemeVersion=v2）：protocolStatus 开放真三态。\n· tailoringStatus 为非破坏性新增字段，两版都下发，恒为三态真实值。",
+  "description": "V1.5 起随接口文档一并发布，供集成方做严格反序列化校验。\n\n本文件同时给出 V1 与 V2 两个契约版本的枚举取值：\n· V1（默认）：protocolStatus 只有旧两态；服务端把第三态 governed_class_template_not_syndrome_tailored 折叠为 assessment_only_no_patient_specific_protocol。\n· V2（?schemaVersion=v2 / x-cdss-his-scheme-version: v2 / body.hisSchemeVersion=v2）：protocolStatus 开放真三态。\n· tailoringStatus 为非破坏性新增字段，两版都下发，恒为三态真实值。\n· pointProvenance[].role 同理：V2 开放 conditional_point（条件加穴），V1 折叠为 syndrome_refinement。",
   "type": "object",
-  "required": ["schemaVersion", "treatments"],
+  "required": [
+    "schemaVersion",
+    "treatments"
+  ],
   "properties": {
     "schemaVersion": {
-      "enum": ["tcm-cdss-his-ai-scheme-v1", "tcm-cdss-his-ai-scheme-v2"]
+      "enum": [
+        "tcm-cdss-his-ai-scheme-v1",
+        "tcm-cdss-his-ai-scheme-v2"
+      ]
     },
     "treatments": {
       "type": "object",
-      "required": ["tcmProjects"],
+      "required": [
+        "tcmProjects"
+      ],
       "properties": {
         "tcmProjects": {
           "type": "array",
-          "items": { "$ref": "#/$defs/tcmProject" }
+          "items": {
+            "$ref": "#/$defs/tcmProject"
+          }
         }
       }
     }
   },
   "allOf": [
     {
-      "if": { "properties": { "schemaVersion": { "const": "tcm-cdss-his-ai-scheme-v1" } } },
+      "if": {
+        "properties": {
+          "schemaVersion": {
+            "const": "tcm-cdss-his-ai-scheme-v1"
+          }
+        }
+      },
       "then": {
         "properties": {
           "treatments": {
@@ -36,6 +52,22 @@
                         "governed_patient_specific_plan",
                         "assessment_only_no_patient_specific_protocol"
                       ]
+                    },
+                    "pointProvenance": {
+                      "description": "V1 下 conditional_point 已由服务端折叠为 syndrome_refinement；要拿真实角色请用 ?schemaVersion=v2。",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "enum": [
+                              "base_point",
+                              "syndrome_refinement",
+                              "syndrome_removal"
+                            ]
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -61,23 +93,52 @@
     },
     "adjudicationStatus": {
       "description": "该条证型加减是否已完成中医师终审。pending_clinician_review 时服务端未应用该条加穴，suggestedSitesOrPoints 只是病种标准取穴。",
-      "enum": ["approved", "pending_clinician_review"]
+      "enum": [
+        "approved",
+        "pending_clinician_review"
+      ]
     },
     "tcmProject": {
       "type": "object",
       "required": [
-        "projectCode", "projectName", "availability", "targetPathogenesis",
-        "protocolStatus", "treatmentContent", "suggestedSitesOrPoints",
-        "scheduleSuggestion", "techniqueBoundary", "protocolSource",
-        "operatorRequirement", "requiredChecks", "riskLevel", "recommendationMode",
-        "containsMedication", "requiresMedicationAudit", "adoptable", "clinicianReviewRequired"
+        "projectCode",
+        "projectName",
+        "availability",
+        "targetPathogenesis",
+        "protocolStatus",
+        "treatmentContent",
+        "suggestedSitesOrPoints",
+        "scheduleSuggestion",
+        "techniqueBoundary",
+        "protocolSource",
+        "operatorRequirement",
+        "requiredChecks",
+        "riskLevel",
+        "recommendationMode",
+        "containsMedication",
+        "requiresMedicationAudit",
+        "adoptable",
+        "clinicianReviewRequired"
       ],
       "properties": {
-        "projectCode": { "type": "string" },
-        "projectName": { "type": "string" },
-        "availability": { "enum": ["clinic_available", "referral_only"] },
-        "targetPathogenesis": { "type": "string" },
-        "assessmentPositioning": { "type": "string" },
+        "projectCode": {
+          "type": "string"
+        },
+        "projectName": {
+          "type": "string"
+        },
+        "availability": {
+          "enum": [
+            "clinic_available",
+            "referral_only"
+          ]
+        },
+        "targetPathogenesis": {
+          "type": "string"
+        },
+        "assessmentPositioning": {
+          "type": "string"
+        },
         "protocolStatus": {
           "enum": [
             "governed_patient_specific_plan",
@@ -87,59 +148,176 @@
         },
         "tailoringStatus": {
           "description": "V1.5 新增，非破坏。三态真实值，永不随 protocolStatus 折叠。",
-          "enum": ["syndrome_tailored", "class_template_only", "assessment_only"]
+          "enum": [
+            "syndrome_tailored",
+            "class_template_only",
+            "assessment_only"
+          ]
         },
         "protocolGap": {
           "description": "内部状态码；要展示给人看请用 protocolGapNote。",
           "type": "string"
         },
-        "protocolGapNote": { "type": "string" },
-        "adjudicationStatus": { "$ref": "#/$defs/adjudicationStatus" },
+        "protocolGapNote": {
+          "type": "string"
+        },
+        "adjudicationStatus": {
+          "$ref": "#/$defs/adjudicationStatus"
+        },
         "deferredSyndromeRefinement": {
           "description": "V1.5 新增。命中本例证型的配穴方案、但因未完成中医师终审而未予应用；如实下发，不静默隐藏。",
           "type": "object",
-          "required": ["syndromeLabel", "deferredPoints", "conflictNote"],
+          "required": [
+            "syndromeLabel",
+            "deferredPoints",
+            "conflictNote"
+          ],
           "properties": {
-            "syndromeLabel": { "type": "string" },
-            "deferredPoints": { "type": "array", "items": { "type": "string" } },
-            "conflictNote": { "type": "string" }
+            "syndromeLabel": {
+              "type": "string"
+            },
+            "deferredPoints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "conflictNote": {
+              "type": "string"
+            }
           }
         },
-        "treatmentContent": { "type": "string" },
-        "suggestedSitesOrPoints": { "type": "array", "items": { "type": "string" } },
+        "deferredGovernedTemplate": {
+          "description": "V1.8 新增。本例已匹配到一条受治理的病种标准取穴模板，但该模板尚未完成中医师签字终审，因此整条不启用、本项目仍按评估态呈现。仅作知悉用途，不得当作可执行取穴。",
+          "type": "object",
+          "required": [
+            "templateId",
+            "indicationLabel",
+            "deferredPoints",
+            "conflictNote"
+          ],
+          "properties": {
+            "templateId": {
+              "type": "string"
+            },
+            "indicationLabel": {
+              "type": "string"
+            },
+            "deferredPoints": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "conflictNote": {
+              "type": "string"
+            }
+          }
+        },
+        "treatmentContent": {
+          "type": "string"
+        },
+        "suggestedSitesOrPoints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "pointProvenance": {
           "description": "V1.5 新增。逐穴的来源、权威等级与终审状态。主穴与加减穴来自不同来源，因此粒度到穴位。",
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["point", "role", "sourceRefs", "authorityTier", "adjudicationStatus", "conflictNote"],
+            "required": [
+              "point",
+              "role",
+              "sourceRefs",
+              "authorityTier",
+              "adjudicationStatus",
+              "conflictNote"
+            ],
             "properties": {
-              "point": { "type": "string" },
-              "role": { "enum": ["base_point", "syndrome_refinement", "syndrome_removal"] },
-              "sourceRefs": { "type": "array", "items": { "type": "string" } },
-              "authorityTier": { "$ref": "#/$defs/authorityTier" },
-              "adjudicationStatus": { "$ref": "#/$defs/adjudicationStatus" },
-              "conflictNote": { "type": ["string", "null"] }
+              "point": {
+                "type": "string"
+              },
+              "role": {
+                "description": "conditional_point 为 V1.8 新增：既非主穴也非证型加减，而是本例出现某组当前症状时才加的穴（风寒咳嗽兼鼻窍或头项症状加风池）。V1 下服务端把它折叠为 syndrome_refinement，因此 V1 校验只需认前三个值。",
+                "enum": [
+                  "base_point",
+                  "syndrome_refinement",
+                  "syndrome_removal",
+                  "conditional_point"
+                ]
+              },
+              "sourceRefs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "authorityTier": {
+                "$ref": "#/$defs/authorityTier"
+              },
+              "adjudicationStatus": {
+                "$ref": "#/$defs/adjudicationStatus"
+              },
+              "conflictNote": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           }
         },
-        "sourceAuthorityTier": { "$ref": "#/$defs/authorityTier" },
-        "scheduleSuggestion": { "type": "string" },
-        "techniqueBoundary": { "type": "string" },
-        "protocolSource": { "type": "string" },
-        "operatorRequirement": { "type": "string" },
-        "requiredChecks": { "type": "array", "items": { "type": "string" } },
-        "riskLevel": { "enum": ["low", "moderate", "specialist"] },
-        "recommendationMode": {
-          "enum": ["clinician_assessment", "referral_assessment", "specialist_assessment_only"]
+        "sourceAuthorityTier": {
+          "$ref": "#/$defs/authorityTier"
         },
-        "containsMedication": { "type": "boolean" },
-        "requiresMedicationAudit": { "type": "boolean" },
+        "scheduleSuggestion": {
+          "type": "string"
+        },
+        "techniqueBoundary": {
+          "type": "string"
+        },
+        "protocolSource": {
+          "type": "string"
+        },
+        "operatorRequirement": {
+          "type": "string"
+        },
+        "requiredChecks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "riskLevel": {
+          "enum": [
+            "low",
+            "moderate",
+            "specialist"
+          ]
+        },
+        "recommendationMode": {
+          "enum": [
+            "clinician_assessment",
+            "referral_assessment",
+            "specialist_assessment_only"
+          ]
+        },
+        "containsMedication": {
+          "type": "boolean"
+        },
+        "requiresMedicationAudit": {
+          "type": "boolean"
+        },
         "adoptable": {
           "description": "中医外治项目恒为 false：本系统只做项目评估，不下发可直接采纳的患者级操作方案。",
           "const": false
         },
-        "clinicianReviewRequired": { "const": true }
+        "clinicianReviewRequired": {
+          "const": true
+        }
       }
     }
   }

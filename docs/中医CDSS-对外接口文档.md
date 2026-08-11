@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V1.7 |
+| 文档版本 | V1.8 |
 | 发布日期 | 2026-08-11 |
 | 服务版本 | `tcm-cdss-20260811-clinician-verdict-r1-amd64` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
@@ -2098,9 +2098,10 @@ async function callStage(url, headers, body) {
 | `prescriptions.modifications[].triggerSource` | 加减触发依据 | `{kind, sourceRef, sourceQuote}`，三项齐全才下发，否则为 `null`。`kind` 取 `primary_syndrome_basis` / `pathogenesis_patient_fact` / `western_supporting_fact`，说明这条加减是从证候依据、病机患者事实还是西医支持事实来的；`sourceQuote` 为病历原文逐字引用。此前 HIS 侧只有一句自由文本 `trigger`，无从判断触发来自哪里 |
 | `diagnoses.terminologyMappings[]` | 国标术语归一痕迹 | `{namespace, fieldPath, originalText, canonical, candidateId, status, confidence}`。系统把医生原文归一到国标/受控词表（如「胃痞」→「痞满」）时的逐条记录。`status=suggested` 表示系统建议、医生**尚未确认**；`clinician_confirmed` 表示已确认。此前 HIS 只拿得到归一**之后**的名字，无法回答「这个证候名是医生写的还是系统改的」。内部执行痕迹（模型名、缓存命中）不下发 |
 | `treatments.tcmProjects[].tailoringStatus` | 方案加减状态 | `syndrome_tailored` / `class_template_only` / `assessment_only`。三态的**真实值**，两个契约版本都下发，永不随 `protocolStatus` 折叠。详见上方「V1.5 勘误与兼容修正」 |
-| `treatments.tcmProjects[].pointProvenance[]` | 逐穴来源与权威分级 | `{point, role, sourceRefs, authorityTier, adjudicationStatus, conflictNote}`。`role` 为 `base_point`（病种主穴）/ `syndrome_refinement`（证型加穴）/ `syndrome_removal`（证型剔除穴）。**主穴与加减穴来自不同来源**，此前只有一个拼接的 `protocolSource` 字符串，集成方看不出哪个穴来自哪个来源、什么等级、有没有分歧 |
+| `treatments.tcmProjects[].pointProvenance[]` | 逐穴来源与权威分级 | `{point, role, sourceRefs, authorityTier, adjudicationStatus, conflictNote}`。`role` 为 `base_point`（病种主穴）/ `syndrome_refinement`（证型加穴）/ `syndrome_removal`（证型剔除穴）/ `conditional_point`（**条件加穴**，V1.8 新增：既非主穴也非证型加减，而是本例出现某组当前症状时才加的穴，如风寒咳嗽兼鼻窍或头项症状时加风池）。**`conditional_point` 只在 `?schemaVersion=v2` 下出现**；V1 把它折叠为 `syndrome_refinement`，因此按 V1 严格枚举反序列化的集成方不受影响。**主穴与加减穴来自不同来源**，此前只有一个拼接的 `protocolSource` 字符串，集成方看不出哪个穴来自哪个来源、什么等级、有没有分歧 |
 | `treatments.tcmProjects[].sourceAuthorityTier` | 本条方案最高权威等级 | 取值：`regulatory_primary`（国家标准/规范）、`government_primary`（政府发布方案）、`government_mirror`、`professional_society_standard`（学会标准）、`professional_society_reference`（学会参考条目）、`project_governed_source`（项目治理教材来源）、`unregistered`。逐穴等级见 `pointProvenance` |
 | `treatments.tcmProjects[].adjudicationStatus` | 证型加减终审状态 | `approved` / `pending_clinician_review`。**未终审时服务端不应用该条加穴**，`suggestedSitesOrPoints` 只是病种标准取穴，`protocolStatus` 同时降为病种模板态 |
+| `treatments.tcmProjects[].deferredGovernedTemplate` | 待签字的病种标准取穴 | `{templateId, indicationLabel, deferredPoints, conflictNote}`。本例已匹配到一条**受治理的病种标准取穴模板**，但该模板尚未完成中医师签字终审，因此本轮**整条不启用**，该项目仍按评估态（`assessment_only_no_patient_specific_protocol`）呈现。字段只作知悉用途，**不得当作可执行取穴**。与下一行的区别：下一行是「病种模板能用、这一条证型加减不敢用」，本行是「整条病种模板都还没签字」 |
 | `treatments.tcmProjects[].deferredSyndromeRefinement` | 未予应用的证型加减 | `{syndromeLabel, deferredPoints, conflictNote}`。命中了本例证型的配穴方案、但因未完成中医师终审而没有应用。如实下发而不是静默隐藏——否则医生会以为系统根本没识别出本例证型 |
 
 > **证型配穴的权威性必须按条看，不能按病种看。** 当前 8 组针刺模板下共 **44 条**证型加减，
@@ -2135,6 +2136,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V1.8 | 2026-08-11 | **普通咳嗽·风寒袭肺证独立取穴模板（中医师裁定，待签字）**：此前针刺目录只有「流感专项」与「感染恢复期」两条呼吸类模板，普通风寒咳嗽落回评估态并由关键词召回给出取穴（实测出现承灵、孔最、肩中俞）。按《咳嗽中医诊疗专家共识意见（2021）》建独立模板：主穴 肺俞、中府、列缺、太渊，风寒加穴 风门、合谷；风池按中医师裁定**只作条件加穴**（鼻窍或头项症状明显时加入），不进固定主穴。模板由「当前咳嗽事实 + 已签名风寒袭肺/风寒束肺」双钥匙闸门锁定，显式排除流感、感染恢复期、风热与恢复期证型，**不改变全局适应证标签优先级**。**当前该模板处于 `pending_clinician_review`，整条不启用、本例保持评估态**，仅通过新增字段 `deferredGovernedTemplate` 如实告知。另新增逐穴角色 `conditional_point`（V2 才出现，V1 折叠为 `syndrome_refinement`） | **否。** V1 出参枚举取值不变（新角色在 V1 下折叠）；`deferredGovernedTemplate` 为新增可选字段。签字生效后该项目的 `protocolStatus` 会从评估态升为病种模板态，届时另行通知 |
 | V1.7 | 2026-08-11 | **中医师终审落库**：原 13 条待终审证型配穴全部裁定完毕并生效。删除重复穴（咳嗽风寒袭肺的太渊、中风痰热腑实的曲池）；整条删除「感染恢复期·风热犯肺→大椎、曲池」（病程阶段不匹配，该证改走第三态）；替换 4 处（肺脾气虚 脾俞→关元、胃阴不足 内庭→太溪、瘀血停胃 三阴交→血海、痛经湿热 次髎→曲池）；寒凝血瘀删中极；痛经证型规范名 `湿热蕴结`→`湿热瘀阻`。新增权威等级档位 `professional_society_consensus`（专家共识），并对**组合推导**的配穴封顶等级为 `project_governed_source`，不继承被引来源等级。三条规则新增病历证据门槛（表寒/痰湿/肝肾亏虚证据成立才自动加穴） | **否。** 出参字段未变；`authorityTier` 新增一个取值 `professional_society_consensus`（按可扩展枚举处理即可），证型配穴内容按临床终审结论更新 |
 | V1.6 | 2026-08-11 | **① V1 契约兼容闭环（勘误 V1.4）**：`protocolStatus` 的第三态此前在 `schemaVersion` 不变的前提下上线，对严格枚举反序列化的集成方是破坏性变更。现改为 **V1 默认只回旧两态**（第三态向保守侧折叠），新增非破坏字段 `tailoringStatus` 承载三态真实值，**V2 显式请求**才开放真三态；同时随文档发布 JSON Schema。**② 证型配穴逐条、逐穴分级**：新增 `pointProvenance[]`（逐穴来源/权威等级/终审状态/分歧说明）、`sourceAuthorityTier`、`adjudicationStatus`、`deferredSyndromeRefinement`。45 条证型加减经逐条复核，32 条已核验、13 条待中医师终审；**未终审条目不再标为患者级个体化方案**，其加穴不予应用（剔除穴仍应用，保守方向） | **否。** V1 出参的枚举取值反而**收窄**回 V1.3 的两态，比 V1.4 更兼容；其余均为新增可选字段。若贵方已按 V1.4 适配了三态，请改用 `?schemaVersion=v2` 保持原行为 |
 | V1.5 | 2026-08-11 | **① 方名可追溯性修复（甲方 0807 起的最大遗留项）**：`formula.candidates[].formulaSource` 此前对 10 类常用经方判为「无出处」，进而把方名改写成「本例辨证组方」——根因是「这张处方是不是 X 方」在系统内有两个互不相识的判据。收敛为一个之后，参苓白术散、四君子汤加减（党参代人参）、异功散加减、五子衍宗丸加减、缩泉丸加味、五磨饮子加减、六神散加减、杏仁煎、四神散加味、调经方加味等均可正常给出方名与出处。同一批归档 M04 重放：医生页面带方名 5/39→15/39。**② 页面与载荷不再各说各的**：方名身份恢复此前发生在可见正文重建之后，导致同一份响应里页面写「自拟方」、签名载荷与 HIS 写经方名；已改为恢复在前、渲染在后。**③ 中医外治项目不再整条丢失**（见上方 A.1 说明）。**④ 新增 HIS 出参** `prescriptions.modifications[].triggerSource`、`diagnoses.terminologyMappings[]`。**⑤ 文档安全**：全部 curl 示例改用 `$TOKEN` 占位，不再内联真实令牌 | **否。** 出参只增不删，字段语义未变。`formulaSource.evidenceLevel` 与 `constructionType` 的**取值分布**会明显变化（更多候选从 `model_inference`/`self_devised` 变为 `kb_entry`/`classic_text`+`single_base`），这是修复结果不是契约变更；若贵方按「方名恒为自拟」做过特殊处理，请撤销 |

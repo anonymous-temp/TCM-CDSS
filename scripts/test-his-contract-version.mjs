@@ -106,8 +106,36 @@ check("没有诊疗项目时不产出空的 treatments 结构", () => {
   assert.equal(out.treatments, undefined);
 });
 
+// 逐穴角色的新增值同样不得破坏 V1（2026-08-11）。conditional_point 是本轮新增的第四个值，
+// 与 protocolStatus 第三态是**同一类风险**：我们在自己的载荷里加一个枚举值，
+// 对面按旧枚举做严格反序列化就落到 default 或直接报错。上一次这么干过一回，这次先折叠再上线。
+check("V1 把 conditional_point 折叠回 syndrome_refinement，V2 给真实值", () => {
+  const payload = {
+    schemaVersion: "tcm-cdss-his-ai-scheme-v2",
+    treatments: {
+      tcmProjects: [{
+        protocolStatus: "assessment_only_no_patient_specific_protocol",
+        pointProvenance: [
+          { point: "列缺", role: "base_point", sourceRefs: ["SRC-TCM-COUGH-CONSENSUS-2021"], authorityTier: "professional_society_consensus", adjudicationStatus: "approved", conflictNote: null },
+          { point: "风池", role: "conditional_point", sourceRefs: ["SRC-BEIJING-HEALTH-COUGH-GUIDANCE-2024"], authorityTier: "government_primary", adjudicationStatus: "approved", conflictNote: null },
+        ],
+      }],
+    },
+  };
+  const canonical = canonicalTcmProjectProtocolStatuses(payload);
+  const v1 = projectHisSchemeForContractVersion(payload, "v1", canonical);
+  const v2 = projectHisSchemeForContractVersion(payload, "v2", canonical);
+  const roles = (projected) => projected.treatments.tcmProjects[0].pointProvenance.map((entry) => entry.role);
+  assert.deepEqual(roles(v1), ["base_point", "syndrome_refinement"], "V1 仍出现了新枚举值");
+  assert.deepEqual(roles(v2), ["base_point", "conditional_point"], "V2 必须给真实角色");
+  // 折叠只动 role，其余字段逐字不变——否则集成方拿到的来源与等级就不是同一件东西了。
+  const v1Point = v1.treatments.tcmProjects[0].pointProvenance[1];
+  assert.deepEqual(v1Point.sourceRefs, ["SRC-BEIJING-HEALTH-COUGH-GUIDANCE-2024"]);
+  assert.equal(v1Point.authorityTier, "government_primary");
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "his-contract-version", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "his-contract-version", checks: 7, failures: 0 }));
+console.log(JSON.stringify({ suite: "his-contract-version", checks: 8, failures: 0 }));
