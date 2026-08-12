@@ -356,7 +356,7 @@
       "sourceType": "project_runtime_contract",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-types.ts",
-      "sha256": "edb74afc4befcc3e489118182da7043f9a1ef9888ebb3557c5ceaa6ae28a9ea8",
+      "sha256": "29ccd20df34c3ea527846b53f2b50a5e3ae87fdb1dfd35a60980c865dc211183",
       "scope": "M01-M05 当前实际字段与输出结构",
       "accessedAt": "2026-07-22"
     },
@@ -367,7 +367,7 @@
       "sourceType": "project_runtime_catalog",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/tcm-treatment-projects.ts",
-      "sha256": "f9f9e6a1a433dd600d445268e99b36541e18c314839c2bba75aae0aabacfd185",
+      "sha256": "5062e93441e7857f6f4004bf4c315bfa3a009ed0311de83585c3eaefb100176b",
       "scope": "22类非药物/外治项目的风险、资质、药物审方与适用标签",
       "accessedAt": "2026-07-22"
     },

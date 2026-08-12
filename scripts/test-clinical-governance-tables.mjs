@@ -16,6 +16,7 @@ for (const table of manifest.tables) {
   assert.ok(table.recordCount > 0, `${table.id} must not be empty`);
 }
 assert.equal(manifest.sourceRegistry.sha256, sha256(manifest.sourceRegistry.file), "source registry manifest hash drift");
+
 assert.equal(manifest.auxiliaryIndexes.length, 1);
 assert.equal(manifest.auxiliaryIndexes[0].sha256, sha256(manifest.auxiliaryIndexes[0].file), "T8 retrieval index manifest hash drift");
 
@@ -736,6 +737,22 @@ assert.equal(nondrugTreatments.entries.find((item) => item.projectCode === "acup
 }
 
 unique(sourceRegistry.entries.map((item) => item.id), "source registry ids");
+// 注册表里 locator 指向**本仓库文件**的来源条目，其 sha256 必须与该文件当前内容一致
+// （2026-08-11 对抗性复核）。这些指纹的全部意义是「本表描述的是哪一版运行时契约与项目目录」；
+// 此前只比 manifest→文件（两者同批提交必然一致），从不比 entry.sha256→真实文件，
+// 于是改了 src/lib 却没重跑生成器时，指纹会静默停在旧版本上——实测确实分叉了两条。
+{
+  const drifted = [];
+  for (const entry of sourceRegistry.entries || []) {
+    const locator = String(entry?.locator || "");
+    if (!entry?.sha256 || !/^src\//.test(locator)) continue;
+    const actual = createHash("sha256")
+      .update(readFileSync(new URL(`../${locator}`, import.meta.url)))
+      .digest("hex");
+    if (actual !== entry.sha256) drifted.push(`${entry.id}: 表内 ${String(entry.sha256).slice(0, 8)}… 实际 ${actual.slice(0, 8)}…`);
+  }
+  assert.deepEqual(drifted, [], `来源注册表指纹与真实文件分叉（改了 src 却没重跑生成器）：\n  ${drifted.join("\n  ")}`);
+}
 const sourceIds = new Set(sourceRegistry.entries.map((item) => item.id));
 const assertSourceRefs = (refs, label) => refs.forEach((ref) => assert.ok(sourceIds.has(ref), `${label} unknown source ${ref}`));
 const collectSourceRefs = (value, refs = new Set()) => {

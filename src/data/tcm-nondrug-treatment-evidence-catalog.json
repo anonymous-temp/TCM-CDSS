@@ -331,6 +331,7 @@
               "肺胃阴虚",
               "气阴两伤"
             ],
+            "minAgeYears": 18,
             "adjudicationId": "common-cough-wind-cold-template"
           },
           "conditionalPoints": [

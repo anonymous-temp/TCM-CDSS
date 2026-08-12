@@ -845,6 +845,11 @@ const governedPlanTemplates = new Map([
         requireSignedSyndromeAny: ["风寒袭肺", "风寒束肺"],
         // 裁定的排除范围逐条落库。任一命中即出局，方向取保守侧。
         excludeAny: ["流感", "流行性感冒", "恢复期", "风热", "肺脾气虚", "肺胃阴虚", "气阴两伤"],
+        // 裁定的适用范围原文是「**成人**普通急性/亚急性咳嗽」，模板 techniqueBoundary 也这么写。
+        // 闸门此前没有年龄判据，实测 8 个月婴儿同样拿到六穴患者级方案——
+        // 其中中府（LU1）、肺俞（BL13）在小儿身上正是气胸风险穴。
+        // 年龄取不到时一律不启用：拿不到年龄就不能证明是成人。
+        minAgeYears: 18,
         adjudicationId: "common-cough-wind-cold-template",
       },
       conditionalPoints: [
@@ -1324,6 +1329,11 @@ for (const template of gatedTemplates) {
     !(gate.excludeAny?.length > 0)
   ) {
     throw new Error(`T12 precise-syndrome gate failed: ${template.id} 的闸门字段不完整`);
+  }
+  // 操作边界里写了适用人群的，闸门必须有对应的门禁——否则就是「说一套、放行另一套」。
+  // 2026-08-11：模板写着「适用于成人」，闸门却没有年龄判据，婴儿照样拿到患者级方案。
+  if (/适用于成人|成人普通/.test(template.techniqueBoundary || "") && typeof gate.minAgeYears !== "number") {
+    throw new Error(`T12 precise-syndrome gate failed: ${template.id} 的操作边界声称适用于成人，闸门却没有 minAgeYears`);
   }
   // 排除范围必须真的排掉既有专项方案的适应证，否则等于把它们的适应证扩大了。
   for (const required of ["流感", "流行性感冒", "恢复期"]) {

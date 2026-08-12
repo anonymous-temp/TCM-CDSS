@@ -51,12 +51,15 @@ const signedPrior = (syndrome, pathogenesis, therapy) => ({
   },
 });
 
-const caseStateFor = (chiefComplaint, presentHistory, pastHistory = "") => ({
+const caseStateFor = (chiefComplaint, presentHistory, pastHistory = "", extra = {}) => ({
   chiefComplaint,
   symptoms: { presentHistory },
   pastHistory,
+  // 裁定适用范围是成人；不给年龄的病例一律不启用（见 minAgeYears 的 fail-closed 方向）。
+  patient: { age: 42, sex: "男" },
   clinicTreatmentCapabilities: ["acupuncture"],
   safetyGate: { status: "ready" },
+  ...extra,
 });
 
 const compile = (caseState, prior) =>
@@ -172,6 +175,103 @@ check("证型专用模板不得被说成「按证型加减」，而证型加减�
   }
 });
 
+// ── 2026-08-11 对抗性复核确认的 6 条闸门缺陷，逐条按其原始触发输入钉住 ──────────
+check("复核①：已签名结论以「鉴别 / 病机演变」口吻提到风寒袭肺，不得开闸", () => {
+  for (const [syndrome, evidence] of [
+    ["痰湿蕴肺证", "痰多色白黏腻、舌苔白腻；本证与风寒袭肺证鉴别要点在于痰多黏腻、病程较长"],
+    ["痰湿蕴肺证", "初起风寒袭肺，失于宣散，日久聚湿生痰，痰湿蕴肺，肺失宣降"],
+    ["寒饮伏肺证", "素有伏饮，复因风寒袭肺引动"],
+    ["痰热壅肺证", "风寒袭肺入里化热"],
+  ]) {
+    const prior = signedPrior(syndrome, evidence, "宣肺化痰");
+    const item = compile(caseStateFor("咳嗽反复2月", "咳嗽2月，痰多色白黏腻，胸闷纳呆，舌苔白腻。"), prior);
+    if (!item) continue;
+    const points = bare(item.suggestedSitesOrPoints);
+    assert.ok(
+      !(points.includes("中府") && points.includes("风门")),
+      `「${syndrome}」拿到了风寒模板取穴：${points.join("、")}`,
+    );
+    assert.notEqual(item.protocolStatus, "governed_patient_specific_plan", `「${syndrome}」不该形成患者级方案`);
+  }
+});
+
+check("复核②：「发病以来无明显发热及咳嗽」——跨字否定必须拦住", () => {
+  for (const history of [
+    "3天前受凉起病，鼻塞流清涕，发病以来无明显发热及咳嗽。",
+    "患者近期无明显发热及咳嗽，仅鼻塞流清涕。",
+  ]) {
+    const item = compile(caseStateFor("鼻塞流清涕3天", history), WIND_COLD);
+    if (!item) continue;
+    const points = bare(item.suggestedSitesOrPoints);
+    assert.ok(!points.includes("中府"), `病历写着「无…咳嗽」却拿到咳嗽方案：${points.join("、")}`);
+    assert.notEqual(item.protocolStatus, "governed_patient_specific_plan");
+  }
+});
+
+check("复核③：裁定适用范围是成人——婴幼儿与年龄缺失一律不启用", () => {
+  for (const age of ["8个月", "4岁", 4, undefined]) {
+    const caseState = caseStateFor("咳嗽3天", "3天前受凉后咳嗽，痰白清稀，恶寒无汗。", "", {
+      patient: age === undefined ? {} : { age },
+    });
+    const item = compile(caseState, WIND_COLD);
+    if (!item) continue;
+    const points = bare(item.suggestedSitesOrPoints);
+    assert.ok(
+      !(points.includes("中府") && points.includes("肺俞")),
+      `年龄=${age} 拿到了成人方案（中府/肺俞在小儿是气胸风险穴）：${points.join("、")}`,
+    );
+    assert.notEqual(item.protocolStatus, "governed_patient_specific_plan", `年龄=${age} 不该形成患者级方案`);
+  }
+  // 成人照常启用——收紧不得把正当病例一并挡掉。
+  const adult = compile(caseStateFor("咳嗽3天", "3天前受凉后咳嗽，痰白清稀，恶寒无汗。"), WIND_COLD);
+  assert.equal(adult.protocolStatus, "governed_patient_specific_plan", "成人病例被误挡");
+});
+
+check("复核④：「甲型流感病毒抗原阴性」不得把病例送进流感专项方案", () => {
+  const item = compile(
+    caseStateFor("咳嗽5天", "5天前受凉后出现咳嗽，痰白清稀，恶寒无汗。甲型流感病毒抗原阴性。"),
+    WIND_COLD,
+  );
+  assert.ok(item, "针刺项目应仍在结果里");
+  assert.ok(
+    !/每次\s*30\s*分钟/.test(item.scheduleSuggestion),
+    `一个阴性结果换来了流感专项排程：${item.scheduleSuggestion}`,
+  );
+  const points = bare(item.suggestedSitesOrPoints);
+  assert.ok(!(points.includes("太阳") && points.includes("外关")), `拿到了流感取穴：${points.join("、")}`);
+});
+
+check("复核⑤：闸门不得压过本节点的适应证——颈痛节点不得发肺系取穴", () => {
+  const prior = signedPrior("风寒袭肺证", "风寒袭肺，肺气失宣", "疏风散寒");
+  prior.pathogenesis.chain.push({
+    nodeId: "P2",
+    patientFact: "颈项疼痛活动受限2周",
+    syndromeEvidence: "颈项经筋痹阻",
+    pathogenesis: "颈项经筋痹阻，气血不通",
+    therapyDirection: "通经活络止痛",
+  });
+  const items = compileTcmTreatmentRecommendations(
+    [{ projectCode: "acupuncture", targetRef: "P2" }],
+    prior,
+    caseStateFor("咳嗽5天，颈项疼痛2周", "5天前受凉后咳嗽，痰白清稀，恶寒无汗；颈项疼痛活动受限2周。"),
+  );
+  const item = items.find((entry) => entry.projectCode === "acupuncture");
+  if (item) {
+    assert.ok(/颈项/.test(item.targetPathogenesis), "本条卡片应打在颈痛节点上");
+    const points = bare(item.suggestedSitesOrPoints);
+    assert.ok(!points.includes("中府"), `颈痛节点发出了肺系取穴：${points.join("、")}`);
+  }
+});
+
+check("复核⑥：写在现病史里的既往描述不得触发条件加穴", () => {
+  const item = compile(
+    caseStateFor("咳嗽5天", "5天前受凉后咳嗽，痰白清稀，恶寒无汗，无鼻塞流涕；既往有偏头痛史。"),
+    WIND_COLD,
+  );
+  const points = bare(item.suggestedSitesOrPoints);
+  assert.ok(!points.includes("风池"), `既往偏头痛史把风池带出来了：${points.join("、")}`);
+});
+
 check("⑥ 红旗病例：整条不返回治疗建议（不依赖本模板的排除项）", () => {
   const caseState = {
     ...caseStateFor("咳嗽伴咯血1天", "咳嗽伴咯血，胸痛气促。"),
@@ -189,4 +289,4 @@ if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "cough-template-end-to-end", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "cough-template-end-to-end", checks: 7, failures: 0 }));
+console.log(JSON.stringify({ suite: "cough-template-end-to-end", checks: 13, failures: 0 }));

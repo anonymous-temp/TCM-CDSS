@@ -72,7 +72,10 @@ check("风池是条件加穴而非主穴，且来源如实挂在政府健康指�
 
 // ── 裁定点名的 7 条回归 ──────────────────────────────────────────────────
 const WIND_COLD_SIGNED = "风寒袭肺，肺气失宣；治以疏风散寒、宣肺止咳";
-const gateHits = (currentFacts, signed) => precisePlanTemplateGateMatches(template, currentFacts, signed);
+// 闸门第四个参数是年龄：裁定适用范围是成人，取不到年龄一律不启用（见 minAgeYears）。
+const ADULT = 42;
+const gateHits = (currentFacts, signed, age = ADULT) =>
+  precisePlanTemplateGateMatches(template, currentFacts, signed, age);
 
 check("① 风寒咳嗽 + 鼻塞流清涕：命中，且必须含列缺、风门、合谷、风池", () => {
   const facts = "咳嗽5天，痰白稀，恶寒无汗，鼻塞流清涕";
@@ -145,6 +148,73 @@ check("⑦ 否认咳嗽 / 仅有既往咳嗽：不得命中", () => {
   );
 });
 
+// ── 2026-08-11 对抗性复核确认的闸门缺陷（纯判据侧）──────────────────────────
+check("复核：适用范围「成人」必须落成闸门判据，年龄缺失取保守侧", () => {
+  assert.equal(template.preciseSyndromeGate.minAgeYears, 18, "裁定写「成人」，闸门必须有年龄下限");
+  const facts = "咳嗽5天，痰白稀，恶寒无汗";
+  assert.ok(gateHits(facts, WIND_COLD_SIGNED, 42), "成人应命中");
+  // 直接调真实函数，避开 helper 的默认值——「年龄缺失」这一档正是要测没有默认值时的行为。
+  for (const age of [0.67, 4, 17, undefined, NaN, "42"]) {
+    assert.ok(
+      !precisePlanTemplateGateMatches(template, facts, WIND_COLD_SIGNED, age),
+      `年龄=${age} 不应命中（拿不到年龄就不能证明是成人）`,
+    );
+  }
+});
+
+check("复核：鉴别语与病机演变不得当作已签名结论", () => {
+  const facts = "咳嗽5天，痰白稀";
+  for (const signed of [
+    "肺气虚证；与风寒袭肺不同",
+    "痰湿蕴肺证；本证与风寒袭肺证鉴别要点在于痰多黏腻",
+    "痰湿蕴肺证；初起风寒袭肺，日久聚湿生痰",
+    "痰热壅肺证；风寒袭肺入里化热",
+    "排除风寒袭肺",
+    "非风寒袭肺",
+  ]) {
+    assert.ok(!gateHits(facts, signed), `「${signed}」不应开闸`);
+  }
+  assert.ok(gateHits(facts, "风寒袭肺证"), "结论性证候名必须照常开闸");
+});
+
+check("复核：否定跟在词后面也算否定（抗原阴性）", () => {
+  const selected = governedTcmTreatmentPlanTemplateForTags(
+    "acupuncture",
+    "咳嗽5天，痰白清稀，恶寒无汗。甲型流感病毒抗原阴性。",
+    ["respiratory"],
+  );
+  assert.notEqual(selected?.id, "acupuncture-influenza-hunan-2025", "一个阴性结果不得换来流感专项方案");
+});
+
+check("复核：条件加穴不得被现病史里的既往描述带出", () => {
+  const conditional = governedTcmTreatmentConditionalPoints(
+    template,
+    "咳嗽5天，痰白清稀，恶寒无汗，无鼻塞流涕；既往有偏头痛史",
+  ).map((item) => item.point);
+  assert.deepEqual(conditional, [], `既往偏头痛史触发了条件加穴：${conditional.join("、")}`);
+});
+
+check("复核：主穴等级按**取穴依据**算，不继承纯操作规范的国标", () => {
+  const provenance = tcmTreatmentPointProvenance(template, undefined, []);
+  for (const entry of provenance) {
+    assert.equal(
+      entry.authorityTier,
+      "professional_society_consensus",
+      `${entry.point} 报了 ${entry.authorityTier}——GB/T 针刺操作规范规定的是怎么扎，一个穴位都没规定`,
+    );
+  }
+  // 整条方案的最高等级仍可含操作规范（安全边界确实由它背书），这两者是不同的问题。
+  assert.ok(template.sourceRefs.includes("SRC-SAMR-ACUPUNCTURE-OPS"), "操作规范仍应挂在模板来源上");
+});
+
+check("复核：条件加穴的触发说明必须写在不被 V1 折叠的字段上", () => {
+  const conditional = governedTcmTreatmentConditionalPoints(template, "咳嗽，鼻塞流清涕");
+  const fengchi = tcmTreatmentPointProvenance(template, undefined, conditional)
+    .find((entry) => entry.point === "风池");
+  assert.ok(fengchi.conflictNote, "V1 折叠后 role 已说不清它是什么，说明必须另有落点");
+  assert.ok(/条件加穴/.test(fengchi.conflictNote), `说明未讲清是条件加穴：${fengchi.conflictNote}`);
+});
+
 // ── 结构性判据 ──────────────────────────────────────────────────────────
 check("闸门只允许声明在针刺项目内（裁定：仅限针刺项目内部）", () => {
   const offenders = [];
@@ -178,6 +248,7 @@ check("已签字 ⇒ 模板启用，且算作按本例证型的患者级方案",
     "acupuncture",
     "咳嗽5天，痰白稀，恶寒无汗，鼻塞流清涕",
     WIND_COLD_SIGNED,
+    ADULT,
   );
   assert.ok(resolved.template, "已签字却没启用模板");
   assert.equal(resolved.template.id, "acupuncture-common-cough-wind-cold");
@@ -215,7 +286,7 @@ check("未登记进台账的闸门模板：不启用、但不静默", () => {
   assert.ok(adjudication.conflictNote, "未终审必须给出说明，不能静默");
   // 闸门判据本身与终审状态无关：命中照旧成立，启不启用另说。
   assert.ok(
-    precisePlanTemplateGateMatches(synthetic, "咳嗽5天，恶寒无汗", WIND_COLD_SIGNED),
+    precisePlanTemplateGateMatches(synthetic, "咳嗽5天，恶寒无汗", WIND_COLD_SIGNED, ADULT),
     "终审状态不应影响闸门的命中判据",
   );
 });

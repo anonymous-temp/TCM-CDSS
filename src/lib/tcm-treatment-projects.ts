@@ -229,6 +229,13 @@ export type TcmTreatmentPreciseSyndromeGate = {
   requireCurrentFactAny: readonly string[];
   requireSignedSyndromeAny: readonly string[];
   excludeAny: readonly string[];
+  /**
+   * 适用年龄下限（岁）。中医师签字裁定的适用范围原文是「**成人**」，而模板自己的
+   * techniqueBoundary 也写着成人——闸门此前没有任何年龄判据，实测 8 个月婴儿同样拿到
+   * 六穴患者级方案，其中中府（LU1）、肺俞（BL13）在小儿身上正是气胸风险穴。
+   * **年龄取不到时一律不启用**：拿不到年龄就不能证明是成人，方向必须取保守侧。
+   */
+  minAgeYears?: number;
   /** 该模板在终审台账里的键。未登记 / 未签字 ⇒ 模板不启用，本例保持评估态。 */
   adjudicationId: string;
   /** 医生可读的模板适应证名，进呈现层与 HIS（「普通咳嗽·风寒袭肺证」）。 */
@@ -415,7 +422,10 @@ export function governedTcmTreatmentPlanTemplateForTags(
       // 它本来就该匹配所有咳嗽；决定"这条模板能不能用"的是闸门，两者不是一回事。
       !template.preciseSyndromeGate &&
       template.indicationTag === tag &&
-      template.matchAny.some((term) => normalized.includes(term)));
+      // 走同一个阳性判据而不是裸 includes：实测「甲型流感病毒抗原**阴性**」里的「流感」
+      // 会把病例送进流感专项模板，拿到列缺/合谷/风池/太阳/外关与「每日1次、每次30分钟」——
+      // 一个阴性结果反而换来了专项取穴。不新造第三个判官，复用闸门那一个。
+      template.matchAny.some((term) => containsAffirmedTerm(normalized, term)));
     if (matched) return matched;
   }
   return undefined;
@@ -432,12 +442,59 @@ export function governedTcmTreatmentPlanTemplateForTags(
  * 只看紧邻词前、且被标点截断的那一小段：「恶寒无汗，鼻塞」里的「无」属于上一个短句，
  * 不能算到「鼻塞」头上——否则会把真阳性判成阴性，方向错得更难发现。
  */
-const NEGATION_MARKERS = /(?:无|未|否认|不|非|没有|排除|阴性)/;
+const NEGATION_MARKERS = /(?:无|未|否认|不|非|没有|排除|阴性|已除外)/;
+/**
+ * 否定也可以跟在词**后面**：「甲型流感病毒抗原阴性」「胸片未见异常」。
+ * 只看词前会把一个阴性结果读成阳性事实——实测它把病例送进了流感专项方案，
+ * 拿到列缺/合谷/风池/太阳/外关与「每日1次、每次30分钟」，比不命中更糟。
+ */
+const NEGATION_SUFFIX = /(?:阴性|未见|未检出|未发现|已排除|已除外|除外|不支持|不考虑|正常)/;
+/** 非肯定角色的上下文：证型名出现在鉴别、病机演变、对比里，不等于本例的**结论**。 */
+const NON_ASSERTIVE_CONTEXT = /(?:^与|需与|应与|与之|鉴别|相鉴别|不同|区别|相似|类似|初起|日久|入里|化热|转化|演变|继而|进而|逐渐|排除|除外)/;
+
+/** 把一段文字切成分句。否定的作用域到分句为止——跨分句不生效。 */
+function clinicalClauses(text: string): string[] {
+  return text.split(/[，,。；;、：:\n]/).map((part) => part.trim()).filter(Boolean);
+}
+
 function containsAffirmedTerm(text: string, term: string): boolean {
   if (!text || !term) return false;
-  for (let index = text.indexOf(term); index >= 0; index = text.indexOf(term, index + 1)) {
-    const window = text.slice(Math.max(0, index - 4), index).split(/[，,。；;、：:\s]/).pop() || "";
-    if (!NEGATION_MARKERS.test(window)) return true;
+  // 作用域是**整个分句**，不是紧邻词前的固定窗口（2026-08-11 对抗性复核）。
+  // 原实现只回看 4 个字符，于是「无·明·显·发·热·及·咳嗽」中间隔了 5 个字，
+  // 窗口取到「显发热及」，一个否定标记都不命中——病历写着「无…咳嗽」却被读成有咳嗽，
+  // 而那正是中医师裁定明列要排除的「单纯鼻炎无咳嗽」。
+  // 分句边界仍然保留：「恶寒无汗，咳嗽痰白稀」里的「无」属上一分句，不能算到「咳嗽」头上。
+  for (const clause of clinicalClauses(text)) {
+    const index = clause.indexOf(term);
+    if (index < 0) continue;
+    if (NEGATION_MARKERS.test(clause.slice(0, index))) continue;
+    if (NEGATION_SUFFIX.test(clause.slice(index + term.length))) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 证型名在这段已签名文本里是不是以**结论**身份出现的。
+ *
+ * 2026-08-11 对抗性复核抓到：中医常用的排除性写法「本证与风寒袭肺证鉴别要点在于…」
+ * 与病机演变写法「初起风寒袭肺，日久聚湿生痰，痰湿蕴肺」都不含任何否定词，
+ * 于是闸门把**一次鉴别诊断/一段病机溯源**读成了「本例已签名证型」——
+ * 痰湿蕴肺证患者因此拿到风寒六穴，还标成患者级方案。
+ *
+ * 两道收紧，方向都取保守侧：
+ *   ① 调用方只把**结论性字段**（主证候名）喂进来，不喂叙述性的病机/辨证依据/治法方向；
+ *   ② 即便在结论字段里，出现在鉴别/演变语境中的也不算——宁可少开闸，不可开错闸。
+ */
+function containsConcludedSyndromeTerm(text: string, term: string): boolean {
+  if (!text || !term) return false;
+  for (const clause of clinicalClauses(text)) {
+    const index = clause.indexOf(term);
+    if (index < 0) continue;
+    if (NEGATION_MARKERS.test(clause.slice(0, index))) continue;
+    if (NEGATION_SUFFIX.test(clause.slice(index + term.length))) continue;
+    if (NON_ASSERTIVE_CONTEXT.test(clause)) continue;
+    return true;
   }
   return false;
 }
@@ -453,11 +510,20 @@ export function precisePlanTemplateGateMatches(
   template: TcmTreatmentPlanTemplate,
   /** 本例**当前**事实（treatmentCurrentFacts：主诉/现病史/四诊，已做阳性化，不含既往史）。 */
   currentFacts: string,
-  /** 已签名的证候/病机/治法文本。 */
+  /**
+   * 已签名证候的**结论性**文本（主证候名）。刻意不含病机链/辨证依据/治法方向这些叙述性字段——
+   * 「本证与风寒袭肺证鉴别要点在于…」「初起风寒袭肺，日久痰湿蕴肺」都会把闸门骗开。
+   */
   signedSyndromeText: string,
+  /** 本例年龄（岁）。取不到传 undefined，带年龄下限的模板一律不启用。 */
+  patientAgeYears?: number,
 ): boolean {
   const gate = template.preciseSyndromeGate;
   if (!gate) return false;
+  if (typeof gate.minAgeYears === "number") {
+    if (typeof patientAgeYears !== "number" || !Number.isFinite(patientAgeYears)) return false;
+    if (patientAgeYears < gate.minAgeYears) return false;
+  }
   const facts = String(currentFacts || "").normalize("NFKC");
   const signed = String(signedSyndromeText || "").normalize("NFKC");
   if (!facts.trim() || !signed.trim()) return false;
@@ -467,7 +533,7 @@ export function precisePlanTemplateGateMatches(
   // 命中侧一律走阳性判据；排除侧刻意保持裸 includes——排除是保守方向，
   // 「排除流感」这类写法把病例挡在门外只是少给一条建议，反向漏放才是危险的。
   if (!gate.requireCurrentFactAny.some((term) => containsAffirmedTerm(facts, term))) return false;
-  return gate.requireSignedSyndromeAny.some((term) => containsAffirmedTerm(signed, term));
+  return gate.requireSignedSyndromeAny.some((term) => containsConcludedSyndromeTerm(signed, term));
 }
 
 /**
@@ -482,6 +548,7 @@ export function governedTcmTreatmentPrecisePlanTemplate(
   code: TcmTreatmentProjectCode,
   currentFacts: string,
   signedSyndromeText: string,
+  patientAgeYears?: number,
 ): {
   template?: TcmTreatmentPlanTemplate;
   deferred?: { template: TcmTreatmentPlanTemplate; adjudication: TcmRefinementAdjudication };
@@ -490,7 +557,7 @@ export function governedTcmTreatmentPrecisePlanTemplate(
   if (!definition?.patientSpecificParametersAllowed) return {};
   const matched = definition.planTemplates
     .filter((template) => template.preciseSyndromeGate)
-    .filter((template) => precisePlanTemplateGateMatches(template, currentFacts, signedSyndromeText))
+    .filter((template) => precisePlanTemplateGateMatches(template, currentFacts, signedSyndromeText, patientAgeYears))
     // 同时命中多条时按 id 稳定排序，结果可复现、不随目录排列漂移。
     .sort((left, right) => left.id.localeCompare(right.id));
   const template = matched[0];
@@ -511,8 +578,13 @@ export function governedTcmTreatmentConditionalPoints(
 ): TcmTreatmentConditionalPoint[] {
   const facts = String(currentFacts || "").normalize("NFKC");
   if (!facts.trim()) return [];
+  // 既往描述写在现病史里也不算数（「…无鼻塞流涕；既往有偏头痛史」不应加风池）：
+  // 条件加穴的触发词必须是**本次**症状，标注上写的也正是"本例症状触发"。
+  const currentClauses = clinicalClauses(facts)
+    .filter((clause) => !/(?:既往|曾经|曾有|此前|过去|多年前|病史)/.test(clause))
+    .join("，");
   return (template.conditionalPoints || [])
-    .filter((entry) => entry.requireCurrentFactAny.some((term) => containsAffirmedTerm(facts, term)));
+    .filter((entry) => entry.requireCurrentFactAny.some((term) => containsAffirmedTerm(currentClauses, term)));
 }
 
 /**
@@ -563,6 +635,26 @@ export function governedTcmTreatmentSyndromeRefinement(
  * （多为国标操作规范 / 地方诊疗方案），加减穴出自证型配穴规则的 sourceRefs
  * （少数有针灸学会标准，多数只有项目治理教材表）。
  */
+/**
+ * **只管操作、不管取穴**的来源。这些进 protocolSource 与整条方案的最高等级没问题
+ * （安全边界确实由它们背书），但**不能**用来给某个穴位的"凭什么取这个穴"定级。
+ *
+ * 2026-08-11 对抗性复核：普通风寒咳嗽六个主穴全部报 regulatory_primary（国家标准/规范），
+ * 而它们唯一的取穴依据是 2021 咳嗽专家共识——国标 GB/T 针刺操作规范规定的是进针、
+ * 补泻、深度与感染控制，一个穴位都没规定。集成方按 authorityTier 决定采纳等级，
+ * 这是实打实的过度声称。
+ */
+const TECHNIQUE_ONLY_SOURCE_IDS = new Set([
+  "SRC-SAMR-ACUPUNCTURE-OPS",
+  "SRC-TCM-INFECTION-CONTROL",
+]);
+
+/** 取穴依据的等级：把纯操作规范类来源排掉再算；全被排掉时回落到原集合（不凭空降级）。 */
+function pointSelectionAuthorityTier(sourceRefs: readonly string[]): TcmSourceAuthorityTier {
+  const selection = sourceRefs.filter((ref) => !TECHNIQUE_ONLY_SOURCE_IDS.has(ref));
+  return highestTcmSourceAuthorityTier(selection.length > 0 ? selection : sourceRefs);
+}
+
 export function tcmTreatmentPointProvenance(
   template: TcmTreatmentPlanTemplate,
   refinement: TcmTreatmentSyndromeRefinement | undefined,
@@ -570,7 +662,7 @@ export function tcmTreatmentPointProvenance(
   conditionalPoints: readonly TcmTreatmentConditionalPoint[] = [],
 ): TcmTreatmentPointProvenance[] {
   const baseRefs = [...template.sourceRefs];
-  const baseTier = highestTcmSourceAuthorityTier(baseRefs);
+  const baseTier = pointSelectionAuthorityTier(baseRefs);
   const records: TcmTreatmentPointProvenance[] = template.sitesOrPoints.map((point) => ({
     point,
     role: "base_point" as const,
@@ -589,9 +681,12 @@ export function tcmTreatmentPointProvenance(
       point: conditional.point,
       role: "conditional_point",
       sourceRefs: [...conditional.sourceRefs],
-      authorityTier: highestTcmSourceAuthorityTier(conditional.sourceRefs),
+      authorityTier: pointSelectionAuthorityTier(conditional.sourceRefs),
       adjudicationStatus: "approved",
-      conflictNote: null,
+      // V1 兼容投影会把 conditional_point 折叠成 syndrome_refinement（新增枚举不得破坏 V1）。
+      // 折叠之后 role 已经说不清它是什么了，所以触发说明必须写在**不被折叠**的字段上，
+      // 否则 V1 侧会把"本例症状触发的条件加穴"读成"按证型加减新增的穴"。
+      conflictNote: `条件加穴：${conditional.triggerNote}。非证型加减穴，按本例当前症状触发。`,
     });
   }
   if (!refinement) return records;
@@ -601,7 +696,7 @@ export function tcmTreatmentPointProvenance(
   // 等级封顶在 project_governed_source，与「本项目自行组合、可核对但非原文照录」如实对应。
   const refTier = refinement.sourceDerivation === "combination_inference"
     ? "project_governed_source" as const
-    : highestTcmSourceAuthorityTier(refRefs);
+    : pointSelectionAuthorityTier(refRefs);
   const adjudication = tcmRefinementAdjudication(refinement.id);
   const pending = new Set(adjudication.pendingPoints);
   // 已在主穴里的穴**不再作为证型加穴**记一条。候选穴位列表早就按这条去重了

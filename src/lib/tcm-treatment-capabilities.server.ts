@@ -261,6 +261,15 @@ function controlledTreatmentPlan(
    * 精确证型闸门与条件加穴都只读它：既往咳嗽不构成本次取穴的理由，「否认咳嗽」更不构成。
    */
   currentFacts = "",
+  /**
+   * 已签名证候的**结论性**文本（主证候名）。与上面那个 signedSyndromeText 是**两个不同的东西**：
+   * 那个是给证型加减用的全量叙述（含病机链、辨证依据、治法方向），
+   * 这个只给精确闸门用。2026-08-11 对抗性复核实测：把全量叙述喂进闸门，
+   * 「本证与风寒袭肺证鉴别要点在于…」与「初起风寒袭肺，日久痰湿蕴肺」都会把它骗开。
+   */
+  signedSyndromeConclusion = "",
+  /** 本例年龄（岁）。带年龄下限的模板取不到年龄一律不启用。 */
+  patientAgeYears?: number,
 ): Pick<TreatmentRecommendation,
   "treatmentContent" | "suggestedSitesOrPoints" | "scheduleSuggestion" | "techniqueBoundary" |
   "protocolSource" | "protocolStatus" | "protocolGap" | "tailoringStatus" |
@@ -277,9 +286,18 @@ function controlledTreatmentPlan(
   // 闸门要两把钥匙同时对上：当前咳嗽事实 + 已签名的风寒袭肺/风寒束肺；
   // 并显式排除流感、恢复期、风热——绝不把既有专项方案的适应证扩大过去。
   // 「流清涕」在这里只是**条件加穴**的触发词，不改变整例走哪条模板。
-  const precise = governedTcmTreatmentPrecisePlanTemplate(projectCode, currentFacts, signedSyndromeText);
+  const precise = governedTcmTreatmentPrecisePlanTemplate(
+    projectCode,
+    currentFacts,
+    signedSyndromeConclusion,
+    patientAgeYears,
+  );
   const { tag, template: taggedTemplate } = resolveTreatmentIndication(projectCode, tags, clinicalText);
-  const governedTemplate = precise.template || taggedTemplate;
+  // 闸门只在**本节点自己的适应证**里生效。此前它无条件压过按病机节点解析出的模板，
+  // 于是「咳嗽 + 颈项痹阻」两节点的病例里，打在颈痛节点上的针刺卡发出的是肺系取穴——
+  // 卡片说的病机与卡片给的方案又分叉了，正是 test:treatment-indication 那一整类。
+  const preciseFitsNode = Boolean(precise.template && tags.has(precise.template.indicationTag));
+  const governedTemplate = (preciseFitsNode ? precise.template : undefined) || taggedTemplate;
   // 命中了精确模板但**还没签字**：模板整条不启用，本例照常走原有路径（多为评估态）——
   // 中医师原话「签字前保持评估态是正确的」。但不静默：把待签字的那条如实挂出来。
   const deferredGovernedTemplate = precise.deferred
@@ -364,8 +382,8 @@ function controlledTreatmentPlan(
     // protocolStatus 会被判成「命中病种模板但未按证型加减」，protocolGap 还会写
     // 「本例已签名证候未匹配到受治理的证型加减方案，请按寒热虚实增减」——
     // 而它恰恰是目录里最贴本例证型的一条。这句话会让医生以为系统没认出证型。
-    const syndromeGatedTemplate = Boolean(precise.template?.preciseSyndromeGate);
-    const gateLabel = precise.template?.preciseSyndromeGate?.indicationLabel || "";
+    const syndromeGatedTemplate = preciseFitsNode && Boolean(precise.template?.preciseSyndromeGate);
+    const gateLabel = (preciseFitsNode ? precise.template?.preciseSyndromeGate?.indicationLabel : "") || "";
     const syndromeTailored = Boolean(refinement) || syndromeGatedTemplate;
     const evidenceTerms = indicationEvidenceTerms(governedTemplate.indicationTag, caseFacts);
     const matchedTemplateTerms = governedTemplate.matchAny
@@ -491,6 +509,10 @@ function controlledTreatmentPlan(
   // 实测：咳嗽例里「心俞」因为在不寐模板里、且腧穴主治恰好含「咳嗽」而被排到前面。
   const governedTagPoints = new Set(
     (definition?.planTemplates || [])
+      // 带闸门却**没通过闸门**的模板，它的穴位一个都不参与排序：闸门没过就是不适用，
+      // 让它的穴位在评估态里被优先呈现等于从后门把它端上来——实测 8 个月婴儿因此
+      // 在「常用穴位」里拿到中府、肺俞（小儿气胸风险穴）。
+      .filter((template) => !template.preciseSyndromeGate)
       .filter((template) => (!tag || template.indicationTag === tag) && tcmTreatmentTemplatePointsAreGoverned(template))
       // 命中了精确证型闸门但**尚未签字**的模板：它的取穴同样参与排序。
       //
@@ -1004,6 +1026,9 @@ export function compileTcmTreatmentRecommendations(
       // 精确证型闸门与条件加穴只读**当前**事实：treatmentCaseFacts 含既往史/用药史/过敏史，
       // 用它会让「既往咳嗽」把本例带进普通风寒咳嗽模板——中医师裁定里点名要排除这一情形。
       currentFacts,
+      // 闸门的第二把钥匙只认**结论性**证候名，不认病机链/辨证依据/治法方向这些叙述文本。
+      prior.overview.primarySyndrome || "",
+      treatmentPatientAgeYears(caseState),
     );
     return [{
       projectCode: definition.code,

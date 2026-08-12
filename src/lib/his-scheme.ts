@@ -314,12 +314,18 @@ export type HisAiSchemePayload = {
        */
       adjudicationStatus?: "approved" | "pending_clinician_review";
       /** 命中但因未终审而未予应用的证型加减。系统看到了什么、为什么没用，如实下发。 */
+      /**
+       * 待**签字**的病种标准取穴模板：整条模板未启用、本项目仍是评估态。
+       * 与下面的 deferredSyndromeRefinement 是两个必须分清的概念——
+       * 后者是「病种模板能用、这一条证型加减不敢用」。
+       */
       deferredGovernedTemplate?: {
         templateId: string;
         indicationLabel: string;
         deferredPoints: string[];
         conflictNote: string;
       };
+      /** 命中本例证型的配穴方案但未完成终审，因而未予应用；病种模板本身照常可用。 */
       deferredSyndromeRefinement?: { syndromeLabel: string; deferredPoints: string[]; conflictNote: string };
       treatmentContent: string;
       suggestedSitesOrPoints: string[];

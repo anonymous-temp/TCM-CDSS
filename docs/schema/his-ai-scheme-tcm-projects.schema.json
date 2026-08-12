@@ -80,12 +80,13 @@
   ],
   "$defs": {
     "authorityTier": {
-      "description": "受治理来源注册表登记的权威等级，由高到低。",
+      "description": "受治理来源注册表登记的权威等级，由高到低。 professional_society_consensus（专家共识）自 V1.7 起真实出现在出参里（如引用 2024 胃痛共识的证型配穴）；此前漏登记在本 Schema 中，按严格校验会拒真实载荷。",
       "enum": [
         "regulatory_primary",
         "government_primary",
         "government_mirror",
         "professional_society_standard",
+        "professional_society_consensus",
         "professional_society_reference",
         "project_governed_source",
         "unregistered"
