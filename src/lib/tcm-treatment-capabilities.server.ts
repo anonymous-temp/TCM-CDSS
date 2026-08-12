@@ -993,16 +993,50 @@ export function compileTcmTreatmentRecommendations(
   // 而是"别把已经算好的、有人签过字的方案扔掉"。仍受下面的名额与档次排序约束。
   const signedSyndromeText = prior.overview.primarySyndrome || "";
   const patientAgeYears = treatmentPatientAgeYears(caseState);
-  const gateOpenedCodes = new Set(
-    rankedPool
-      .filter((item) => Boolean(
-        governedTcmTreatmentPrecisePlanTemplate(item.projectCode, currentFacts, signedSyndromeText, patientAgeYears).template,
-      ))
-      .map((item) => item.projectCode),
-  );
-  const proposalPool = rankedPool.some((item) => item.explicit)
+  const gateTagByCode = new Map<TcmTreatmentProjectCode, string>();
+  for (const item of rankedPool) {
+    if (gateTagByCode.has(item.projectCode)) continue;
+    const template = governedTcmTreatmentPrecisePlanTemplate(
+      item.projectCode, currentFacts, signedSyndromeText, patientAgeYears,
+    ).template;
+    if (template) gateTagByCode.set(item.projectCode, template.indicationTag);
+  }
+  const gateOpenedCodes = new Set(gateTagByCode.keys());
+  const widenedPool = rankedPool.some((item) => item.explicit)
     ? rankedPool
     : [...rankedPool.slice(0, 2), ...rankedPool.filter((item) => gateOpenedCodes.has(item.projectCode))];
+  // ── 签字方案必须落到与它适应证相符的那个病机节点上（2026-08-12 线上抓到）─────────
+  //
+  // rankedPool 里同一个项目对**每个**病机节点各有一条候选，按适应证亲和度排序；
+  // 下面的 flatMap 按 projectCode 去重，只留分最高的那条。于是当 M03 写出两个节点时：
+  //   P1 风寒犯肺，肺气失宣，上逆为咳    ← 呼吸
+  //   P2 风寒束表，卫阳被遏，经气不利    ← 表证/经气
+  // 亲和度把针刺打在 P2 上，而模板 indicationTag=respiratory 与 P2 不符，
+  // governedTcmTreatmentPlanTemplate 里的 preciseFitsNode 判 false，
+  // **那条已签字的取穴方案被整条丢弃**、退回泛化召回（承灵/孔最/肩中俞）。
+  // 实测：M03 写一个节点时必成，写两个节点时必败——甲方两次反馈的正是后一种。
+  //
+  // 修法只在**同一个项目内部**换掉 targetRef，不动任何跨项目的次序与分数：
+  // 闸门已开的项目，改用「节点标签含模板适应证」的那条候选。找不到相符节点时不做任何事
+  // （维持原状、照旧走评估态），绝不把方案硬挂到一个对不上的节点上。
+  const nodeTagsOf = (targetRef: string) => {
+    const node = nodeById.get(targetRef);
+    return node ? nodeIndicationTags(prior, node, currentFactFallback) : new Set<string>();
+  };
+  // **模型显式提名的节点不动**：它是一次临床选择——「这一针要治他的颈痛」——
+  // 不是排序副产物。咳嗽合并颈项痹阻的病例里，模型把针刺提名到颈痛节点是对的，
+  // 此时既有的 preciseFitsNode 正好挡住「颈痛卡片发出肺系取穴」，那条保护必须保留。
+  // 只有在没人显式选过节点、由亲和度自己挑的时候，才把它纠到模板适应证相符的那个节点。
+  const preferredRefByCode = new Map<TcmTreatmentProjectCode, string>();
+  for (const [code, tag] of gateTagByCode) {
+    if (widenedPool.some((item) => item.projectCode === code && item.explicit)) continue;
+    const fitting = widenedPool.find((item) => item.projectCode === code && nodeTagsOf(item.targetRef).has(tag));
+    if (fitting) preferredRefByCode.set(code, fitting.targetRef);
+  }
+  const proposalPool = widenedPool.filter((item) => {
+    const preferred = preferredRefByCode.get(item.projectCode);
+    return preferred === undefined || item.targetRef === preferred;
+  });
 
   const compiled = proposalPool.flatMap((proposal) => {
     if (seen.has(proposal.projectCode)) return [];

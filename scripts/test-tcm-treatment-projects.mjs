@@ -1395,6 +1395,70 @@ check("⑬ 名额有限时，给不出方案的项目不得挤掉已签字的患
   );
 });
 
+// ── 甲方 2026-08-12 二次线上实测：同一病历，产出率只有 4/6 ────────────────────────
+//
+// 抓到失败那次的载荷才看清：M03 把病机写成**两个节点**时必败，写成一个节点时必成。
+//   P1 风寒犯肺，肺气失宣，上逆为咳    ← 呼吸
+//   P2 风寒束表，卫阳被遏，经气不利    ← 表证/经气
+// rankedPool 里同一项目对每个节点各有一条候选，按适应证亲和度取分最高的那条；
+// 亲和度把针刺打在 P2 上，而模板 indicationTag=respiratory 与 P2 不符，
+// preciseFitsNode 判 false，于是那条**已签字**的取穴方案被整条丢弃、退回泛化召回。
+// 判据：闸门已开的项目必须落到与模板适应证相符的那个节点上。
+check("⑮ M03 写出多个病机节点时，签字方案不得因挂错节点而丢失", () => {
+  configureProduction();
+  const twoNodes = signedM03({
+    tcmDiseaseName: "咳嗽",
+    primarySyndrome: "风寒袭肺证",
+    overallPathogenesis: "风寒外袭，肺卫失宣",
+    chainPathogenesis: "风寒犯肺，肺气失宣，上逆为咳。",
+    therapyDirection: "疏风散寒，宣肺止咳",
+    westernPrimary: "急性上呼吸道感染",
+  });
+  // 两个节点的内容照抄 2026-08-12 线上抓到的那份失败载荷（/tmp/fail-m03.json）：
+  // P1 的 syndromeEvidence 是舌脉、patientFact 是主诉；P2 的 patientFact 是「恶寒无汗」、
+  // 治法写「通利鼻窍」。正是这组内容让亲和度把针刺打到 P2 上。
+  twoNodes.pathogenesis.chain[0] = {
+    ...twoNodes.pathogenesis.chain[0],
+    nodeId: "P1",
+    patientFact: "咳嗽3天",
+    syndromeEvidence: "舌淡红，苔薄白",
+    pathogenesis: "风寒犯肺，肺气失宣，上逆为咳。",
+    therapyDirection: "疏风散寒，宣肺止咳",
+  };
+  twoNodes.pathogenesis.chain.push({
+    ...twoNodes.pathogenesis.chain[0],
+    nodeId: "P2",
+    patientFact: "恶寒无汗",
+    syndromeEvidence: "脉浮紧",
+    pathogenesis: "风寒束表，卫阳被遏，经气不利。",
+    therapyDirection: "解表散寒，通利鼻窍",
+  });
+  const caseState = {
+    patient: { sex: "男", age: 42 },
+    chiefComplaint: "咳嗽3天",
+    symptoms: { general: "3天前受凉后出现咳嗽，咳白色稀薄痰，鼻塞流清涕，恶寒无汗，头身酸痛。" },
+    tongue: "舌淡红，苔薄白",
+    pulse: "脉浮紧",
+    reasoningDiagnose: twoNodes,
+  };
+  const out = compileTcmTreatmentRecommendations([], twoNodes, caseState);
+  const acu = out.find((item) => item.projectCode === "acupuncture");
+  assert.ok(acu, `多节点时签字方案不得消失：${out.map((i) => i.projectCode).join("、")}`);
+  assert.equal(
+    acu.protocolStatus,
+    "governed_patient_specific_plan",
+    `签字方案被挂到了对不上的节点上（targetRef=${acu.targetRef}）：${JSON.stringify(acu.suggestedSitesOrPoints)}`,
+  );
+  assert.equal(acu.targetRef, "P1", "针刺的取穴方案必须挂在呼吸方向的病机节点上");
+  for (const point of ["列缺", "肺俞", "中府"]) {
+    assert.ok(acu.suggestedSitesOrPoints.some((item) => item.includes(point)), `缺穴「${point}」：${acu.suggestedSitesOrPoints.join("、")}`);
+  }
+  // 泛化召回的那几个穴不得再出现在针刺项目里。
+  for (const generic of ["承灵", "孔最", "肩中俞"]) {
+    assert.ok(!acu.suggestedSitesOrPoints.some((item) => item.includes(generic)), `签字方案里混入了泛化召回穴「${generic}」`);
+  }
+});
+
 check("⑭ 闸门一把钥匙都不许放松：证型不符或年龄不足时不得出现签字方案", () => {
   configureProduction();
   const base = {
