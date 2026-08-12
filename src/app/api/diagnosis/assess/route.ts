@@ -1,5 +1,12 @@
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
-import { buildDeterministicRiskFollowup, deriveSafetyLocked, markdownNdjsonResponse, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import {
+  buildDeterministicRiskFollowup,
+  deriveFirstReviewTiming,
+  deriveSafetyLocked,
+  markdownNdjsonResponse,
+  sanitizeUngroundedRedFlagNegations,
+  withSafetyGate,
+} from "@/lib/diagnosis-safety";
 import {
   applyRxAuditInputAdvisories,
   buildAuditInputAdvisories,
@@ -127,6 +134,9 @@ export async function POST(req: Request) {
     therapy: [diagnoseReasoning?.therapy?.overallPrinciple, diagnoseReasoning?.therapy?.overallMethod]
       .filter(Boolean).join("；"),
     herbs: (selectedCandidate?.herbs || []).map((herb) => herb.name).filter(Boolean),
+    // 时间轴第一条的时间点必须与正文「首次复诊时间」同源，否则表与正文各说各的。
+    // 这里把处方煎服法定出来的那个值交给模型当硬约束，服务端再校验一次。
+    firstReviewTiming: deriveFirstReviewTiming(assessed, false),
   }, req.signal);
   const followup = buildDeterministicRiskFollowup(assessed, authoredFollowup);
   recordCdssStageTelemetry({

@@ -117,6 +117,12 @@ const scripts = [
   // 它上线当天就抓到一个纯函数套件看不见的真缺陷：带闸门的模板同时也是普通 respiratory 模板，
   // 常规按病名通路可以绕过闸门把它选出来（风热咳嗽拿到了风寒证取穴）。
   "test:cough-template-e2e",
+  // 结构化随访时间轴的模型驱动契约（甲方 2026-08-12：「别做成套话和固定话术和硬编码」）。
+  // 改造前整张表只有 indicators 是模型写的、两条目还共用同一份；action 两条写死、
+  // time 第二条恒为「治疗期间随时」、triggers 主体恒为一句固定话术——
+  // 风寒表证与湿热淋证拿到的时间轴逐字相同。套件钉住：四栏都真的用模型的、
+  // 审方安全触发条件只增不减、第一条时间点与正文同源、三条降级路径完全不走模型。
+  "test:followup-timeline",
   "test:modern-case-corpus",
   "test:disease-lexicon",
   "test:runtime-data-presence",

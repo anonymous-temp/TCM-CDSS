@@ -58,7 +58,42 @@ export type AuthoredFollowupContent = {
    * 空数组 ⇒ 调用方逐字回落今天的 coreMetrics 拼串。
    */
   monitoringIndicators: string[];
+  /**
+   * 结构化随访时间轴条目（2026-08-12）。
+   *
+   * 此前这张表**只有 indicators 一栏是模型写的**，而且两条目共用同一份：
+   *   · action 是两条写死的字符串（「完成首次复诊与疗效复评」「记录症状变化并按触发条件提前复评」）；
+   *   · time 第二条恒为「治疗期间随时」；
+   *   · triggers 主体恒为「主要症状较首诊无改善或加重，或出现新的伴随症状」。
+   * 一个风寒表证与一个湿热淋证拿到的时间轴逐字相同——这不是随访方案，是排版。
+   *
+   * 现在整条由模型按本例撰写。三条边界不变：
+   *   ① 第一条的时间点**必须**等于处方煎服法确定的首次复诊时间（否则表与正文各说各的）；
+   *   ② 审方得出的安全触发条件**只增不减**地并进第一条（模型删不掉安全项）；
+   *   ③ 红旗 / 无结构化剂量 / 硬剂量边界三条降级路径**完全不走模型**。
+   * 空数组 ⇒ 调用方逐字回落今天的两条模板。
+   */
+  timeline: AuthoredTimelineItem[];
 };
+
+export type AuthoredTimelineItem = {
+  time: string;
+  action: string;
+  indicators: string[];
+  triggers: string[];
+};
+
+/**
+ * 旧模板里那几句话本身就是「套话」的定义。模型如果原样吐回来，等于没写——
+ * 逐条列出来拒掉，比在提示词里说「不要写套话」有用：后者不可验证。
+ */
+const TEMPLATE_BOILERPLATE = [
+  "完成首次复诊与疗效复评",
+  "记录症状变化并按触发条件提前复评",
+  "主要症状较首诊无改善或加重，或出现新的伴随症状",
+  "治疗期间随时",
+  "新发不适或原症加重",
+];
 
 function clinicalContextForAuthoring(
   state: CaseState,
@@ -66,6 +101,7 @@ function clinicalContextForAuthoring(
   pathogenesis: string,
   therapy: string,
   herbs: readonly string[],
+  firstReviewTiming: string,
 ): string {
   return [
     `主诉：${sanitizeFreeTextForModel(state.chiefComplaint || "")}`,
@@ -74,13 +110,14 @@ function clinicalContextForAuthoring(
     therapy ? `治法：${sanitizeFreeTextForModel(therapy)}` : "",
     herbs.length > 0 ? `处方药味：${herbs.map((herb) => sanitizeFreeTextForModel(herb)).join("、")}` : "",
     `可选复评维度（只能从中挑选，不得新增）：${GOVERNED_DIMENSIONS.join("、")}`,
+    firstReviewTiming ? `首次复诊时间（由处方煎服法确定，时间轴第一条必须原样使用）：${firstReviewTiming}` : "",
   ].filter(Boolean).join("\n");
 }
 
 const SYSTEM_PROMPT = [
   "你是中医门诊随访方案的撰写者。根据本例的证候、病机、治法与处方，写出**针对这一例**的随访内容。",
   "只输出 JSON，字段固定为：",
-  '{"reviewFocus":"复诊重点评估什么","efficacyCriteria":"疗效怎么判定算有效","lifestyle":"饮食/作息/情志/活动的调护","dimensions":["从可选复评维度里挑3到4个"],"monitoringIndicators":["随访时间轴表格里逐次记录的观察指标，3到5条短语"]}',
+  '{"reviewFocus":"复诊重点评估什么","efficacyCriteria":"疗效怎么判定算有效","lifestyle":"饮食/作息/情志/活动的调护","dimensions":["从可选复评维度里挑3到4个"],"monitoringIndicators":["随访时间轴表格里逐次记录的观察指标，3到5条短语"],"timeline":[{"time":"时间点","action":"这个时间点要做什么","indicators":["这个时间点要看的观察项"],"triggers":["出现什么就提前复诊"]}]}',
   "",
   "写作要求：",
   "· 必须体现本例证候特点。寒证与湿热证的调护不该相同——寒证忌生冷、湿热忌肥甘厚味、",
@@ -96,6 +133,18 @@ const SYSTEM_PROMPT = [
   "  反例（线上实测出现过，不要这样写）：「下尿路感染」是诊断不是观察项；",
   "  「苔黄腻的严重程度、发作频次及对日常功能的影响」——舌苔没有发作频次。",
   "  正例：「排尿灼痛程度与次数」「小便颜色与浑浊度」「有无腰痛或发热」「舌苔黄腻消退情况」。",
+  "",
+    "· timeline 是**本例的**随访时间轴，2–4 条，按时间先后排列。每条四栏：",
+  "  time＝时间点（如「服药3天」「一周后」「疗程结束时」），第一条必须原样使用上面给出的首次复诊时间；",
+  "  action＝这个时间点具体要做什么（复诊查体？线上问诊？调方？停药观察？），写本例真正该做的动作；",
+  "  indicators＝这个时间点要看的观察项（不同时间点看的东西应当不同，早期看表证消长、后期看正气恢复）；",
+  "  triggers＝出现什么情况就不等到这个时间点、提前来诊。",
+  "  **每条的 action 与 triggers 必须因本例而异**。反例（这是旧模板的原话，写出来整份会被丢弃）：",
+  "  「完成首次复诊与疗效复评」「记录症状变化并按触发条件提前复评」",
+  "  「主要症状较首诊无改善或加重，或出现新的伴随症状」——这几句放在任何病人身上都成立，等于没写。",
+  "  正例（风寒袭肺咳嗽）：time「服药3天」action「电话或线上复诊，确认恶寒是否已解、咳嗽是否转为松畅」",
+  "  triggers「出现高热、气促、痰转黄稠或胸痛」。",
+  "· 不得写具体日期（如「8月15日」）——只写相对时间点。",
   "",
   "严禁：写任何剂量或药量；写让患者自行加减药、换方、停药；引用指南或文献；",
   "承诺疗效或给出预后断言；提及处方之外的药物。这些一经出现，整份输出会被服务端丢弃。",
@@ -119,6 +168,8 @@ export async function authorFollowupClinicalContent(
     pathogenesis?: string;
     therapy?: string;
     herbs?: readonly string[];
+    /** 处方煎服法确定的首次复诊时间。时间轴第一条必须与它逐字相同，否则表与正文会各说各的。 */
+    firstReviewTiming?: string;
   },
   signal?: AbortSignal,
 ): Promise<AuthoredFollowupContent | null> {
@@ -139,7 +190,7 @@ export async function authorFollowupClinicalContent(
     const response = await client.chat.completions.create({
       model: config.model,
       temperature: 0.2,
-      max_tokens: 900,
+      max_tokens: 1500,
       response_format: { type: "json_object" },
       ...(isDeepseekModel(config.model) ? {
         reasoning_effort: "low" as const,
@@ -153,6 +204,7 @@ export async function authorFollowupClinicalContent(
             state, syndrome,
             String(input.pathogenesis || ""), String(input.therapy || ""),
             (input.herbs || []).slice(0, 30),
+            String(input.firstReviewTiming || ""),
           ),
         },
       ],
@@ -180,6 +232,35 @@ export async function authorFollowupClinicalContent(
         .filter(Boolean))].slice(0, 5)
       : [];
 
+    // ── 时间轴逐条校验 ──────────────────────────────────────────────────
+    // 判据与三段散文同源（剂量写法 / 引用 / 受治理禁述表），另加三条这一栏特有的：
+    // 不得原样吐回旧模板套话、不得写具体日期、第一条时间点必须等于处方定的首次复诊时间。
+    const firstReviewTiming = String(input.firstReviewTiming || "").trim();
+    const timeline: AuthoredTimelineItem[] = (Array.isArray(parsed.timeline) ? parsed.timeline : [])
+      .slice(0, 4)
+      .map((raw, index) => {
+        const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+        const time = validAuthoredText(item.time, 2, 24);
+        const action = validAuthoredText(item.action, 6, 60);
+        const indicators = (Array.isArray(item.indicators) ? item.indicators : [])
+          .map((entry) => validAuthoredText(entry, 3, 28)).filter(Boolean).slice(0, 5);
+        const triggers = (Array.isArray(item.triggers) ? item.triggers : [])
+          .map((entry) => validAuthoredText(entry, 4, 40)).filter(Boolean).slice(0, 4);
+        if (!time || !action || indicators.length === 0 || triggers.length === 0) return null;
+        // 具体日期一律不要：本层拿不到就诊日，写出来的日期必然是编的。
+        if (/\d{1,2}\s*月\s*\d{1,2}\s*[日号]|\d{4}\s*[-/年]/.test(time)) return null;
+        // 套话原样吐回等于没写。
+        if ([time, action, ...triggers].some((text) => TEMPLATE_BOILERPLATE.includes(text))) return null;
+        // 第一条必须与处方煎服法确定的首次复诊时间逐字相同——否则时间轴与正文
+        //「首次复诊时间」一行各说各的，正是本仓库反复出现的那个形状。
+        if (index === 0 && firstReviewTiming && time !== firstReviewTiming) return null;
+        return { time, action, indicators, triggers };
+      })
+      .filter((item): item is AuthoredTimelineItem => item !== null);
+    // 时间点重复的时间轴不是时间轴。
+    const uniqueTimes = new Set(timeline.map((item) => item.time));
+    const usableTimeline = timeline.length >= 2 && uniqueTimes.size === timeline.length ? timeline : [];
+
     // 三段临床内容缺任何一段都不采纳：半份模型内容 + 半份模板会读起来自相矛盾
     // （模板那半句「按本例非药物建议安排饮食作息」与模型那半段具体调护并列）。
     if (!reviewFocus || !efficacyCriteria || !lifestyle) return null;
@@ -190,6 +271,8 @@ export async function authorFollowupClinicalContent(
       // 维度挑不出来就用全六维——那只是少一层裁剪，不影响正确性。
       dimensions: dimensions.length >= 2 ? dimensions : [...GOVERNED_DIMENSIONS],
       monitoringIndicators: monitoringIndicators.length >= 2 ? monitoringIndicators : [],
+      // 时间轴与三段散文各自独立：时间轴没写好只回落这一栏，不牵连另外三段。
+      timeline: usableTimeline,
     };
   } catch {
     return null;

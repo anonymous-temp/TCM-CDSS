@@ -4406,6 +4406,7 @@ export function buildDeterministicRiskFollowupPayload(
   authored?: {
     reviewFocus: string; efficacyCriteria: string; lifestyle: string; dimensions: string[];
     monitoringIndicators?: string[];
+    timeline?: Array<{ time: string; action: string; indicators: string[]; triggers: string[] }>;
   } | null,
 ): DeterministicRiskFollowupPayload {
   const gate = state.safetyGate || evaluateSafetyGate(state);
@@ -4473,38 +4474,56 @@ export function buildDeterministicRiskFollowupPayload(
   // 随访时间轴只保留两条确定性行（首次复诊 + 治疗期间随时）。原先由 nonPharma.monitoring 派生的
   // 第三类行随字段一并删除：注意事项是自由文本，不再有 timing/metric/trigger 的字段归属，
   // 硬塞进结构化时间轴只会重新制造那套语义合同。它改由下方 `**注意事项**` 只读行呈现。
-  const timelineItems: StructuredFollowupTimelineItem[] = [];
-  timelineItems.push(
-    {
-      time: firstReview,
-      action: "完成首次复诊与疗效复评",
-      // 观察指标由模型按本例写；模型没给（或校验没过）就逐字回落 coreMetrics 拼串。
-      // 拼串的实测形态：「下尿路感染；小便灼热涩痛5天；苔黄腻的严重程度、发作频次及对日常
-      // 功能的影响」——诊断名当成了观察项，舌苔当成了有发作频次的东西。
-      indicators: uniqueFollowupText(
-        authoredIndicators.length > 0
-          ? [...authoredIndicators, "舌脉变化", "实际用药与不适反应"]
-          : [coreMetrics, "舌脉变化", "实际用药与不适反应"],
+  // ── 随访时间轴：整条由模型按本例撰写，安全项只增不减地并进去 ────────────────────
+  //
+  // 2026-08-12 之前这张表只有 indicators 是模型写的，且两条目共用同一份；
+  // action 两条写死、time 第二条恒为「治疗期间随时」、triggers 主体恒为一句固定话术。
+  // 一个风寒表证与一个湿热淋证拿到的时间轴逐字相同——那不是随访方案，是排版。
+  //
+  // 三条边界（模型碰不到）：
+  //   ① 第一条的时间点强制等于处方煎服法定的 firstReview，与正文「首次复诊时间」同源；
+  //   ② 审方得出的安全触发条件（concreteAuditRiskObservations）**并进第一条**，
+  //      模型给什么都不能把它挤掉——这与临床事实回补层「只可追加」同一方向；
+  //   ③ 红旗 / 无结构化剂量 / 硬剂量边界三条降级路径在上面就 return 了，根本不到这里。
+  const safetyTriggers = actualRiskIndicators.map((item) => `出现${item}时提前复诊`);
+  const authoredTimeline = (authored?.timeline || []).filter((item) => item?.time && item?.action);
+  const timelineItems: StructuredFollowupTimelineItem[] = authoredTimeline.length >= 2
+    ? authoredTimeline.map((item, index) => ({
+      time: index === 0 ? firstReview : item.time,
+      action: item.action,
+      indicators: uniqueFollowupText(item.indicators, 6),
+      triggers: uniqueFollowupText(
+        index === 0 ? [...item.triggers, ...safetyTriggers] : item.triggers,
         6),
-      triggers: uniqueFollowupText([
-        efficacyTrigger,
-        ...actualRiskIndicators.map((item) => `出现${item}时提前复诊`),
-      ], 6),
-    },
-    {
-      time: "治疗期间随时",
-      action: "记录症状变化并按触发条件提前复评",
-      indicators: uniqueFollowupText(
-        authoredIndicators.length > 0
-          ? [...authoredIndicators, "新发不适或原症加重"]
-          : [...followup.coreFacts, "新发不适或原症加重"],
-        6),
-      triggers: uniqueFollowupText([
-        efficacyTrigger,
-        "出现急性加重或新的红旗症状时及时就医",
-      ], 6),
-    },
-  );
+    }))
+    : [
+      {
+        time: firstReview,
+        action: "完成首次复诊与疗效复评",
+        // 观察指标由模型按本例写；模型没给（或校验没过）就逐字回落 coreMetrics 拼串。
+        // 拼串的实测形态：「下尿路感染；小便灼热涩痛5天；苔黄腻的严重程度、发作频次及对日常
+        // 功能的影响」——诊断名当成了观察项，舌苔当成了有发作频次的东西。
+        indicators: uniqueFollowupText(
+          authoredIndicators.length > 0
+            ? [...authoredIndicators, "舌脉变化", "实际用药与不适反应"]
+            : [coreMetrics, "舌脉变化", "实际用药与不适反应"],
+          6),
+        triggers: uniqueFollowupText([efficacyTrigger, ...safetyTriggers], 6),
+      },
+      {
+        time: "治疗期间随时",
+        action: "记录症状变化并按触发条件提前复评",
+        indicators: uniqueFollowupText(
+          authoredIndicators.length > 0
+            ? [...authoredIndicators, "新发不适或原症加重"]
+            : [...followup.coreFacts, "新发不适或原症加重"],
+          6),
+        triggers: uniqueFollowupText([
+          efficacyTrigger,
+          "出现急性加重或新的红旗症状时及时就医",
+        ], 6),
+      },
+    ];
   return {
     markdown: [
     "## 处方安全总评",
