@@ -230,6 +230,74 @@ function cleanedList(values: unknown): string[] {
  * 不做任何关键词猜测；`possible/unknown` 等非明确否定一律留在支持依据，宁可少归一条排除依据，
  * 也不把一条阳性事实误读成排除依据。
  */
+/**
+ * 同一临床事件的**不同粒度**折叠（2026-08-12 甲方要求「合并，保留详细的那条」）。
+ *
+ * 实测形态：症状依据里同时列着
+ *   · 突发剧烈头痛伴呕吐1小时（来源：主诉）
+ *   · 1小时前活动中突然出现从未有过的最剧烈爆炸样头痛，数秒达峰，伴恶心、呕吐2次及颈项僵硬（来源：现病史）
+ * 这是同一次发作的两种写法。既有的 uniqueClinicalFacts 按**包含关系**折叠，两条措辞不同、
+ * 互不包含，折不掉。
+ *
+ * 判据刻意**不引入症状词表**——仓库里没有通用症状词表（红旗词表只有 115 条、
+ * 连「头痛/发热/咳嗽」都不收），手写一份会被 test:clinical-vocabulary 判为新增代码内词表，
+ * 而且那正是「靠枚举自然语言」的老路。改用两条与病历结构本身有关的事实：
+ *   ① **主诉按定义就是现病史的浓缩**——两条分别来自这两个字段时，天然是同一事件的粗细两版；
+ *   ② 二字片段重叠——「剧烈/头痛/呕吐/小时」同时出现，才认为讲的是同一件事。
+ * 取不到来源字段时（离线调用）只靠 ②，且把门槛提高，宁可不折。
+ *
+ * 折叠方向恒为**保留更长的那条**：短的那条的信息是长条的子集，反过来不成立。
+ */
+/**
+ * 二字片段：只取**两个字都是汉字**的片段。
+ *
+ * 这里刻意不列停用词——列一份「的了及并以在中后前时」就是代码内手写词表，
+ * test:clinical-vocabulary 会判红，而且那正是「靠枚举自然语言」的老路（本仓库的既定禁忌）。
+ * 判据改成纯结构的：跨数字与标点的片段（「吐1」「1小」）本来就不该算语义重叠，
+ * 数值是否一致另有 numericTokensCovered 单独把关。
+ * 虚词片段偶尔会被算进来，但下游要求 2–3 个片段同时命中，单个虚词撑不起一次误折。
+ */
+const CJK_CHAR = /[\u4e00-\u9fff]/;
+
+function meaningfulBigrams(text: string): Set<string> {
+  const normalized = text.normalize("NFKC");
+  const grams = new Set<string>();
+  for (let index = 0; index + 2 <= normalized.length; index += 1) {
+    const gram = normalized.slice(index, index + 2);
+    if (!CJK_CHAR.test(gram[0]) || !CJK_CHAR.test(gram[1])) continue;
+    grams.add(gram);
+  }
+  return grams;
+}
+
+/** 短条里出现的数值/计量必须在长条里也有，否则折叠会丢掉一个具体数（如「38.5℃」）。 */
+function numericTokensCovered(shorter: string, longer: string): boolean {
+  const tokens = shorter.match(/\d+(?:\.\d+)?/g) || [];
+  return tokens.every((token) => longer.includes(token));
+}
+
+function fieldIdOfFact(fact: string, sources: readonly ClinicalFactSource[]): string {
+  return sources.find((source) => source.text.includes(fact) || fact.includes(source.text))?.fieldId || "";
+}
+
+function foldSameClinicalEvent(facts: readonly string[], sources: readonly ClinicalFactSource[]): string[] {
+  const kept: string[] = [];
+  for (const fact of [...facts].sort((left, right) => right.length - left.length)) {
+    const duplicate = kept.some((existing) => {
+      if (existing.length < fact.length * 1.3) return false;
+      if (!numericTokensCovered(fact, existing)) return false;
+      const shared = [...meaningfulBigrams(fact)].filter((gram) => existing.includes(gram));
+      const fields = [fieldIdOfFact(fact, sources), fieldIdOfFact(existing, sources)].sort().join("|");
+      // 主诉 × 现病史：天然是同一事件的粗细两版，两个共同片段即可判同。
+      const chiefAndPresent = fields === "chief_complaint|present_illness";
+      return shared.length >= (chiefAndPresent ? 2 : 3);
+    });
+    if (!duplicate) kept.push(fact);
+  }
+  // 折叠只做去重，不改原有顺序。
+  return facts.filter((fact) => kept.includes(fact));
+}
+
 export function classifyWesternDiagnosticEvidence(
   primary: {
     supportingFacts?: unknown;
@@ -257,10 +325,11 @@ export function classifyWesternDiagnosticEvidence(
   }
   return {
     supporting,
-    symptom,
-    sign,
-    exam,
-    excluding,
+    // 逐组折叠：同一事件的粗细两版只留详细的那条。跨组不折——那是分类问题不是重复问题。
+    symptom: foldSameClinicalEvent(symptom, sources),
+    sign: foldSameClinicalEvent(sign, sources),
+    exam: foldSameClinicalEvent(exam, sources),
+    excluding: foldSameClinicalEvent(excluding, sources),
     pending: uniqueClinicalFacts([...cleanedList(primary?.limitations), ...cleanedList(primary?.suggestedChecks)]),
   };
 }

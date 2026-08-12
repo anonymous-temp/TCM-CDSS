@@ -62,6 +62,41 @@ check("② 病历传输格式的段落标题不得被当成依据内容", () => 
   }
 });
 
+// ── 同一临床事件的不同粒度必须合并，保留详细的那条（甲方 2026-08-12 裁定「合并」）──────
+const SOURCES = [
+  { fieldId: "chief_complaint", text: "突发剧烈头痛伴呕吐1小时", label: "主诉" },
+  { fieldId: "present_illness", text: "1小时前活动中突然出现从未有过的最剧烈爆炸样头痛，数秒达峰，伴恶心、呕吐2次及颈项僵硬", label: "现病史" },
+];
+const classify = (facts, kinds = [], sources = []) => classifyWesternDiagnosticEvidence(
+  { supportingFacts: facts, supportingFactKinds: kinds, limitations: [], suggestedChecks: [] },
+  sources,
+);
+
+check("④ 主诉与现病史讲同一件事时合并，保留详细的那条", () => {
+  const evidence = classify(REPORTED.supportingFacts, REPORTED.supportingFactKinds, SOURCES);
+  assert.ok(
+    !evidence.symptom.includes("突发剧烈头痛伴呕吐1小时"),
+    `主诉那条应被合并掉：${evidence.symptom.join(" | ")}`,
+  );
+  assert.ok(
+    evidence.symptom.some((item) => item.includes("爆炸样头痛") && item.includes("颈项僵硬")),
+    `应保留信息更全的现病史那条：${evidence.symptom.join(" | ")}`,
+  );
+  assert.ok(evidence.symptom.includes("畏光"), "其余依据不得被连坐折掉");
+});
+
+check("⑤ 合并的三条反向护栏：数值丢失 / 不同事件 / 字面巧合", () => {
+  // ① 短条带着长条没有的具体数值——折掉会丢信息，必须保留两条。
+  const numeric = classify(["发热38.5℃", "发热3天，最高体温39℃伴畏寒"]);
+  assert.equal(numeric.symptom.length, 2, `丢了具体体温：${numeric.symptom.join(" | ")}`);
+  // ② 不同事件不得合并。
+  const distinct = classify(["头痛3天", "腹痛加重伴腹泻4次"]);
+  assert.equal(distinct.symptom.length, 2, `不同事件被合并了：${distinct.symptom.join(" | ")}`);
+  // ③ 字面巧合不得合并：「恶心」与「恶寒、心悸」共用两个字，但不是同一件事。
+  const coincidence = classify(["恶心", "恶寒、心悸、乏力明显"]);
+  assert.equal(coincidence.symptom.length, 2, `字面巧合被当成了同一事件：${coincidence.symptom.join(" | ")}`);
+});
+
 // ── 「它为什么没被发现」这一层 ──────────────────────────────────────────────
 // 分类在 clinical-fact-source 里算得完全正确，是**页面**拿另一份列表把 symptom 覆盖掉了。
 // 判据落在源码上：出口不得把全量支持依据当成某一个分组塞进投影。
@@ -84,4 +119,4 @@ if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "western-evidence-grouping", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "western-evidence-grouping", checks: 3, failures: 0 }));
+console.log(JSON.stringify({ suite: "western-evidence-grouping", checks: 5, failures: 0 }));
