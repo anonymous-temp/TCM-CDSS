@@ -23,6 +23,12 @@ const check = (name, fn) => {
   try { fn(); } catch (error) { failures.push({ name, message: error?.message || String(error) }); }
 };
 
+// 生成器往文件头盖了一枚 `源码版本：<git HEAD 短哈希>` 的溯源戳。它与文档内容无关，
+// 却会随**任何**提交改变——本套件第一版拿它一起比对，结果是「每提交一次就红一次」。
+// 一道在与被保护对象无关的原因上常态化报红的闸门，只会被绕过或删掉，比没有还糟。
+// 因此比对前把这一戳归一化：判据回到「技术内容是不是源文档的当前产物」。
+const normalizeVersionStamp = (text) => text.replace(/源码版本：`[^`]*`/g, "源码版本：`<stamp>`");
+
 check("飞书导入版是源文档的当前产物（改了源必须重跑生成器）", () => {
   const before = readFileSync(ARTIFACT, "utf8");
   // 生成器就地覆盖产物；先备份，跑完立刻还原，避免本套件自己改动仓库。
@@ -32,13 +38,23 @@ check("飞书导入版是源文档的当前产物（改了源必须重跑生成�
     execFileSync("node", ["scripts/build-feishu-doc.mjs"], { cwd: repo, stdio: "pipe" });
     const after = readFileSync(ARTIFACT, "utf8");
     assert.equal(
-      after,
-      before,
+      normalizeVersionStamp(after),
+      normalizeVersionStamp(before),
       "飞书导入版与源文档不同步——改了 docs/中医CDSS-对外接口文档.md 后请重跑 node scripts/build-feishu-doc.mjs",
     );
   } finally {
     writeFileSync(ARTIFACT, readFileSync(backup, "utf8"));
   }
+});
+
+// 归一化只能免掉溯源戳这一处，不能顺手把正文也免掉——否则闸门就空了。
+check("归一化不得掩盖正文差异（本套件的自检）", () => {
+  const sample = "源码版本：`abc1234`\n| timelineItems[].indicators | 观察项 |";
+  assert.equal(
+    normalizeVersionStamp(sample),
+    "源码版本：`<stamp>`\n| timelineItems[].indicators | 观察项 |",
+    "归一化越界：除溯源戳外的任何字符都不得被改写",
+  );
 });
 
 // 这一次的具体字段另钉一条：甲方逐字核对的就是它。
@@ -63,4 +79,4 @@ if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "delivery-doc-freshness", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "delivery-doc-freshness", checks: 2, failures: 0 }));
+console.log(JSON.stringify({ suite: "delivery-doc-freshness", checks: 3, failures: 0 }));
