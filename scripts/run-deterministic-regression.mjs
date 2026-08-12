@@ -128,6 +128,11 @@ const scripts = [
   // 传输格式的段落标题当成了依据内容。前者根因是医生页面拿**全量**支持依据覆盖了 symptom 分组——
   // 分类在服务端算得完全正确，是出口又一次各写各的。判据含源码级守卫，防同形复发。
   "test:western-evidence-grouping",
+  // 交付副本与源文档同步（甲方对接人 2026-08-12 连续两轮复核暴露）：
+  // 接口文档已按新字段改好，但甲方读的是**飞书导入版**——那是生成器产物，
+  // 我改完源文档没重跑生成器，于是对方看到的一直是旧字段，而我这边「文件明明改了」。
+  // 判据不是"字段对不对"，是"产物是不是源文档的当前产物"：重跑生成器逐字节比对。
+  "test:delivery-doc-freshness",
   "test:modern-case-corpus",
   "test:disease-lexicon",
   "test:runtime-data-presence",
