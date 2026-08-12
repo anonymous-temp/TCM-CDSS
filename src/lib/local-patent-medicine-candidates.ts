@@ -1,7 +1,8 @@
 import localMedicineIndex from "../data/local-patent-medicine-index.json" with { type: "json" };
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
-import { affirmativeNegationFormsIn } from "./clinical-vocabulary";
+import { affirmativeNegationFormsIn, governedSyndromeLabelAxes } from "./clinical-vocabulary";
+import { buildFormulaAxisProfile, scoreFormulaAxes } from "./tcm-formula-axis-score";
 import { formulaCounterEvidence } from "./formula-discrimination-guard";
 import { matchingMedicineClinicalConcepts } from "./medicine-clinical-concepts";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
@@ -130,6 +131,49 @@ function positiveCaseFacts(caseState: CaseState, assistedNegations?: AssistedNeg
     .filter((value): value is string => Boolean(value)))];
 }
 
+/**
+ * 中成药与已签名证候的**寒热方向对立**（甲方 2026-08-12 线上实测）。
+ *
+ * 实测形态：42 岁男性、已签名「风寒袭肺证」，候选 10 条里 6 条是清热方向——
+ * 泻白糖浆（宣肺清热）排第 1、九味双解口服液（解表清热）、克感利咽口服液（疏风清热）、
+ * 凉解感冒合剂（辛凉解表）、十味龙胆花胶囊（清热化痰）、儿感清口服液（解表清热）。
+ * 候选链此前只有三道过滤——临床概念命中、体质虚证前提、经方鉴别反证——**没有任何一道看寒热方向**。
+ * 而寒热对立的判据仓库里早就有（formula-syndrome-consistency 的 guard 模式），
+ * 只接了汤方通路，从没被中成药通路调用过：又一次同一判据只接了一个出口。
+ *
+ * 判据取**治法段**而不是整段说明书：说明书的形状恒为「<治法>。用于<症状罗列>」，
+ * 而症状段几乎必然同时含寒与热（「恶寒发热」四个字里两侧都有），整段取轴一律解成
+ * 寒热混合、方向随即弃权——实测 10 条无一能判。切分点是说明书自身的结构（「用于/主治/
+ * 适用于」），不是词表；轴的解析与对立判定全部复用既有的受治理内核，不新写任何规则。
+ *
+ * 三种情形一律**弃权**（不排除）：没有已签名证候、证候解不出轴、治法段解不出方向。
+ * 数据缺口绝不当成「方向相反」——排除权只在方向确实对立时行使。
+ */
+function patentMedicineThermalOpposition(indication: string, signedSyndrome: string): boolean {
+  const syndrome = String(signedSyndrome || "").trim();
+  const text = String(indication || "").trim();
+  if (!syndrome || !text) return false;
+  const caseAxes = governedSyndromeLabelAxes(syndrome);
+  if (caseAxes.natures.length === 0) return false;
+  const treatmentPrincipleClause = text.split(/用于|主治|适用于/)[0] || "";
+  const medicineAxes = governedSyndromeLabelAxes(treatmentPrincipleClause);
+  if (medicineAxes.natures.length === 0) return false;
+  const profile = buildFormulaAxisProfile({
+    natureTags: medicineAxes.natures,
+    locationTags: medicineAxes.locations,
+    syndromeTags: [],
+    indications: [text],
+  });
+  // 治法段本身就寒热并列（「解表散寒…清热」这类）时 thermal 为 null，属于解不出方向，弃权。
+  if (profile.axisless || !profile.thermal) return false;
+  const breakdown = scoreFormulaAxes(
+    profile,
+    { locations: new Set(caseAxes.locations), natures: new Set(caseAxes.natures) },
+    { mode: "guard" },
+  );
+  return Boolean(breakdown.nature.thermalOpposition && breakdown.nature.caseThermal && breakdown.nature.formulaThermal);
+}
+
 export function retrieveLocalPatentMedicineCandidates(
   caseState: CaseState,
   limit = 10,
@@ -206,6 +250,9 @@ export function retrieveLocalPatentMedicineCandidates(
       if (!classicName) return true;
       return !formulaCounterEvidence(classicName, counterEvidenceText);
     })
+    // 第四道：寒热方向对立即排除（见 patentMedicineThermalOpposition）。与上一道同一口径——
+    // 候选表的职责是只放该放的；这不中断任何流程，只是不把一个方向相反的选项摆在医生面前。
+    .filter((entry) => !patentMedicineThermalOpposition(entry.indication, reasoning?.overview?.primarySyndrome || ""))
     .sort((left, right) =>
       right.score - left.score ||
       right.matchedConcepts.length - left.matchedConcepts.length ||

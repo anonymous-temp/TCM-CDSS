@@ -114,6 +114,72 @@ assert.equal(
   "不载明适应证的条目无法证明某药对某问题适用",
 );
 
+// ── 4) 寒热方向对立必须排除（甲方 2026-08-12 线上实测）───────────────────────────
+//
+// 实测：42 岁男性、已签名「风寒袭肺证」，候选 10 条里 6 条是清热方向——
+// 泻白糖浆（宣肺清热）还排第 1，另有九味双解口服液、克感利咽口服液、凉解感冒合剂、
+// 十味龙胆花胶囊、儿感清口服液。候选链此前三道过滤（临床概念命中 / 体质虚证前提 /
+// 经方鉴别反证）**没有一道看寒热方向**，而这个判据仓库里早就有（formula-syndrome-consistency
+// 的 guard 内核），只接了汤方通路——又一次同一判据只接了一个出口。
+//
+// 注：甲方点名的「云实感冒合剂」其说明书原文是「解表散寒…用于风寒感冒」，对风寒表证是**对证的**，
+// 不该被排除；真正该排除的是上面那 6 条清热方。本用例两个方向都钉。
+const windColdCough = {
+  id: "patent_thermal", phase: "prescribe",
+  patient: { sex: "男", age: 42 },
+  chiefComplaint: "咳嗽3天",
+  symptoms: { "现病史": "3天前受凉后出现咳嗽，咳白色稀薄痰，鼻塞流清涕，恶寒无汗，头身酸痛。" },
+  tongue: "舌淡红，苔薄白", pulse: "脉浮紧", faceNote: "神清",
+  vitals: {}, pastHistory: "", medicationHistory: "", allergyHistory: "", conversation: [],
+  reasoningDiagnose: {
+    overview: { primarySyndrome: "风寒袭肺证", primarySyndromeBasis: ["恶寒无汗", "痰白稀", "脉浮紧"] },
+    westernDiagnosis: { primary: { name: "急性上呼吸道感染", supportingFacts: ["咳嗽3天"] } },
+    terminologyMappings: [],
+  },
+};
+const coldCandidates = retrieveLocalPatentMedicineCandidates(windColdCough, 10);
+assert.ok(coldCandidates.length > 0, "风寒袭肺证必须能召回中成药候选");
+for (const heatMedicine of ["泻白糖浆", "九味双解口服液", "克感利咽口服液", "凉解感冒合剂", "十味龙胆花胶囊"]) {
+  assert.ok(
+    !coldCandidates.some((item) => item.name === heatMedicine),
+    `风寒证不得推荐清热方「${heatMedicine}」：${coldCandidates.map((item) => item.name).join("、")}`,
+  );
+}
+// 对证的散寒方必须留下——排除权只能行使在方向相反的候选上。
+assert.ok(
+  coldCandidates.some((item) => item.name === "云实感冒合剂"),
+  `散寒方不得被误排除：${coldCandidates.map((item) => item.name).join("、")}`,
+);
+
+// 反向：同一条判据在风热证上必须反过来——散寒方出局、清热方留下。
+const windHeatCough = {
+  ...windColdCough,
+  reasoningDiagnose: {
+    ...windColdCough.reasoningDiagnose,
+    overview: { primarySyndrome: "风热犯肺证", primarySyndromeBasis: ["咽痛", "痰黄", "脉浮数"] },
+  },
+};
+const heatCandidates = retrieveLocalPatentMedicineCandidates(windHeatCough, 10);
+assert.ok(
+  !heatCandidates.some((item) => item.name === "云实感冒合剂"),
+  `风热证不得推荐散寒方：${heatCandidates.map((item) => item.name).join("、")}`,
+);
+assert.ok(
+  heatCandidates.some((item) => ["泻白糖浆", "凉解感冒合剂", "克感利咽口服液"].includes(item.name)),
+  `风热证应保留清热方：${heatCandidates.map((item) => item.name).join("、")}`,
+);
+
+// 弃权边界：拿不到已签名证候时一条都不许排除——数据缺口绝不当成「方向相反」。
+const unsigned = {
+  ...windColdCough,
+  reasoningDiagnose: { ...windColdCough.reasoningDiagnose, overview: { primarySyndrome: "", primarySyndromeBasis: [] } },
+};
+assert.equal(
+  retrieveLocalPatentMedicineCandidates(unsigned, 10).length,
+  10,
+  "没有已签名证候时寒热过滤必须整条弃权",
+);
+
 console.log(JSON.stringify({
   suite: "patent-medicine-ranking",
   topCandidate: candidates[0].name,

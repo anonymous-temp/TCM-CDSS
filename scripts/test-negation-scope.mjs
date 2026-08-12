@@ -198,3 +198,56 @@ console.log(JSON.stringify({
   console.log(JSON.stringify({ postfixDirectionCases: postfixCases.length, failures: 0 }));
 }
 
+// ── 局灶神经缺损：同义组此前只服务阳性方向（甲方 2026-08-12）────────────────────
+//
+// 实测：风寒感冒病例病历写着「否认意识异常」，随访仍印「意识改变是否存在尚未确认」。
+// 根因是 FOCAL_NEUROLOGIC_TERMS（阳性方向的红旗召回词表）与 POSITIVE_FACT_EQUIVALENT_GROUPS
+// （否定方向的同义组）是两份数据：前者认得「意识异常/意识障碍/神志不清」，后者一条都没有，
+// 于是同一个词表认得「突发意识模糊」是红旗，却认不出「否认意识异常」已经否掉了「意识改变」。
+// 现在两个方向共用同一份按概念分组的数据。
+{
+  const { sourceDocumentsNegation } = safety.__negationInternalsForTest;
+  const focalCases = [
+    ["否认意识异常。", "意识改变", true, "甲方实测原句"],
+    ["否认意识障碍。", "意识改变", true, "意识障碍是规范同义写法"],
+    ["否认神志异常。", "意识改变", true, "中医病历常用神志系表述"],
+    ["否认不省人事。", "意识改变", true, "中医写法同样要认"],
+    ["否认半身不遂。", "肢体无力", true, "中医中风描述与西医写法同组"],
+    ["否认失语。", "言语不清", true, "同一概念的不同写法"],
+    ["否认口眼歪斜。", "口角歪斜", true, "同上"],
+    ["否认上肢无力。", "肢体无力", false, "只否认了部位限定的下位词，不得判整类"],
+    ["否认头痛。", "意识改变", false, "不相干的否认不得跨概念生效"],
+    ["突发意识模糊。", "意识改变", false, "阳性记录绝不能被读成否认"],
+  ];
+  let focalFailures = 0;
+  for (const [text, term, expected, why] of focalCases) {
+    const actual = sourceDocumentsNegation(text, term);
+    if (actual !== expected) {
+      focalFailures += 1;
+      console.error(`局灶神经缺损同义组方向错误：「${text}」${term} → ${actual}，应为 ${expected}（${why}）`);
+    }
+  }
+  assert.equal(focalFailures, 0, `局灶神经缺损同义组 ${focalFailures}/${focalCases.length} 例不符`);
+
+  // 净化器必须两种语序都认。原判据要求「尚未确认」出现在「是否存在」之前，
+  // 于是只纠正得了系统自己生成的那种写法；甲方引的是主语在前的那一种。
+  const caseState = {
+    id: "neg_focal", phase: "assess", patient: { sex: "男", age: 35 },
+    chiefComplaint: "咳嗽3天",
+    symptoms: { general: "3天前受凉后咳嗽，咳白稀痰，恶寒无汗。否认意识异常、肢体无力。" },
+    tongue: "舌淡红苔薄白", pulse: "脉浮紧", faceNote: "神清",
+    pastHistory: "既往体健。", medicationHistory: "无。", allergyHistory: "否认过敏。",
+    vitals: { t: "36.6" }, conversation: [], questionRounds: 1, maxQuestionRounds: 1,
+    diagnosis: "", prescription: "", riskAssessment: "",
+  };
+  for (const wording of ["病历尚未确认意识改变是否存在。", "意识改变是否存在尚未确认。"]) {
+    const cleaned = safety.sanitizeUngroundedRedFlagNegations(`## 随访\n${wording}`, caseState);
+    assert.match(cleaned, /病历已记录否认意识改变/, `两种语序都必须被纠正，实际：${cleaned.split("\n")[1]}`);
+    assert.doesNotMatch(cleaned, /意识改变是否存在尚未确认/, `已否认的事实不得仍写成待确认：${cleaned.split("\n")[1]}`);
+  }
+  // 反向：病历真的没提到的事项，措辞必须保持「尚未确认」，不得凭空说成已否认。
+  const unrecorded = safety.sanitizeUngroundedRedFlagNegations("## 随访\n胸痛是否存在尚未确认。", caseState);
+  assert.match(unrecorded, /胸痛[^\n]*尚未确认|尚未确认[^\n]*胸痛/, `未记录的事项不得被说成已否认：${unrecorded.split("\n")[1]}`);
+
+  console.log(JSON.stringify({ focalNeurologicNegationCases: focalCases.length, failures: 0 }));
+}
