@@ -12,6 +12,8 @@
 //   ③ 第一条时间点强制等于处方煎服法定的首次复诊时间，表与正文不得各说各的；
 //   ④ 红旗 / 无结构化剂量 / 硬剂量边界三条降级路径**完全不走模型**。
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const {
   buildDeterministicRiskFollowupPayload,
@@ -290,8 +292,32 @@ check("⑬ 审方安全触发条件的措辞必须读得通", () => {
   }
 });
 
+// 文档与实现同源（2026-08-12 甲方对接人核对时抓到）：我上一轮只改了 M05 字段表一处，
+// **漏了「字段位置索引」那一张**，于是同一份文档里两处对同一个字段各说各的。
+// 判据按**全文扫描**写：除勘误说明外，文档里不得再出现 timelineItems[].indication 的字段定义。
+check("⑭ 接口文档里不得再有 timelineItems[].indication 的字段定义", () => {
+  const docPath = fileURLToPath(new URL("../docs/中医CDSS-对外接口文档.md", import.meta.url));
+  const doc = readFileSync(docPath, "utf8");
+  const offending = doc.split("\n")
+    .map((line, index) => ({ line, no: index + 1 }))
+    .filter((row) => /timelineItems\[\]\.indication(?!s)/.test(row.line))
+    // 勘误段落是**故意**提到旧字段名的，它正是在告诉集成方那个字段从未存在。
+    .filter((row) => !/勘误|从未存在|V2\.0 \|/.test(row.line));
+  assert.deepEqual(
+    offending.map((row) => `第${row.no}行`),
+    [],
+    `文档仍在把 indication 当成字段定义：${offending.map((row) => row.line.trim()).join(" / ")}`,
+  );
+  // 正向：两个真实字段必须在文档里出现过。
+  for (const field of ["timelineItems[].indicators", "timelineItems[].triggers"]) {
+    assert.ok(doc.includes(field), `文档缺少字段定义 ${field}`);
+  }
+  // 它是**响应**帧不是入参——对接人核对时明确提出过这一点。
+  assert.ok(/响应.{0,12}帧|响应流内的结构化帧/.test(doc), "文档未说明这是响应帧而非请求入参");
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "followup-timeline-authoring", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 13, failures: 0 }));
+console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 14, failures: 0 }));

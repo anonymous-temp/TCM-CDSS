@@ -1085,7 +1085,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
 | 3 | 审方范围、录入质量提示、用药风险分级 |
 | 4 | 随访计划 |
 
-流中另有一帧结构化随访时间轴：
+流中另有一帧结构化随访时间轴。**它是响应流内的结构化帧，不是请求入参**：
 
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
@@ -1097,7 +1097,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
 | `timelineItems[].triggers` | 提前复诊触发条件 | string[] | 出现什么就不等到这个时间点、提前来诊。**第一条必定并入处方后审方得出的安全触发条件**，模型内容不能把它挤掉 |
 
 > **V2.0 勘误：`indication` 字段从未存在。** V1.3 起文档把触发指征写成
-> `timelineItems[].indication`（单数 string），而实现自始至终产出的是
+> 单数 string 的 `indication`，而实现自始至终产出的是
 > `indicators[]`（观察项）与 `triggers[]`（触发条件）两个数组。
 > 照旧文档取 `indication` 只会得到 `undefined`。本版按实现更正，**出参未变**。
 
@@ -1602,14 +1602,15 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 ### 5.3 风险与随访（M05 响应）
 
 M05 响应为 Markdown 文本流，不采用结构化字段，内容依次为：审方范围、录入质量提示、
-用药风险分级、随访计划。流中另含一帧结构化随访时间轴：
+用药风险分级、随访计划。流中另含一帧结构化随访时间轴（**响应**帧，非入参）：
 
 | 内容 | 字段路径 |
 |---|---|
-| 随访时间轴 | `timelineItems[]`（帧标识 `type: "followup_timeline"`） |
+| 随访时间轴 | `timelineItems[]`（**响应**流内结构化帧，帧标识 `type: "followup_timeline"`；不是请求入参） |
 | 随访时间点 | `timelineItems[].time` |
 | 随访动作 | `timelineItems[].action` |
-| 触发指征 | `timelineItems[].indication` |
+| 观察项 | `timelineItems[].indicators`（string[]） |
+| 提前复诊触发条件 | `timelineItems[].triggers`（string[]） |
 
 详见 §4.6。
 

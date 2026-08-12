@@ -4694,11 +4694,15 @@ function ResultTabsV2({
     westernEvidence.supporting,
     Math.max(1, westernEvidence.supporting.length),
   );
-  const westernSupportingFactsDisplay = westernFactsExpanded
-    ? westernSupportingFactsAll
-    : westernSupportingFactsAll.slice(0, 4).map((fact) => truncateClinicalTextForDisplay(fact, 60));
-  const westernFactsCollapsible = westernSupportingFactsAll.length > 4 ||
-    westernSupportingFactsAll.slice(0, 4).some((fact) => fact.trim().length > 60);
+  // 折叠只作用于**症状依据**这一组：它是最长的一组，也是甲方 F3 反馈的那一组。
+  // 体征/检查/排除各自照常全量呈现，且不再被这一组重复印一遍。
+  const westernSymptomFactsAll = westernSupportingFactsAll
+    .filter((fact) => westernEvidence.symptom.some((item) => item === fact || item.includes(fact) || fact.includes(item)));
+  const westernSymptomFactsDisplay = westernFactsExpanded
+    ? westernSymptomFactsAll
+    : westernSymptomFactsAll.slice(0, 4).map((fact) => truncateClinicalTextForDisplay(fact, 60));
+  const westernFactsCollapsible = westernSymptomFactsAll.length > 4 ||
+    westernSymptomFactsAll.slice(0, 4).some((fact) => fact.trim().length > 60);
   // 分组与标题走**服务端同一个投影函数**（2026-08-11）。
   //
   // 甲方 2026-08-10 要求把笼统的「支持依据 / 待查依据」改成分类呈现，那次只改了服务端 Markdown，
@@ -4707,7 +4711,12 @@ function ResultTabsV2({
   //
   // 折叠只作用于「症状依据」（它是最长的一组、也是甲方 F3 反馈的那一组），其余分组照常全量呈现。
   const westernEvidenceGroups = westernDiagnosticEvidenceGroups(
-    { ...westernEvidence, symptom: westernSupportingFactsDisplay },
+    // 「症状依据」必须是**分类后的**症状子集，不能拿全量支持依据顶上。
+    // 2026-08-12 甲方线上实测：「神清，表情痛苦」同时出现在症状依据与体征依据——
+    // 根因就在这里：westernSupportingFactsAll 是全部支持依据（含体征、检查），
+    // 被当成 symptom 传进来，于是每一条体征依据都被印两遍。
+    // 折叠/截断仍然只作用在症状那一组（下面的展开按钮也只挂在它上面）。
+    { ...westernEvidence, symptom: westernSymptomFactsDisplay },
     // 甲方线上实测：「指南引用要能点开看原文」。url 一直在载荷里、服务端 Markdown 也一直在印，
     // 只有这里在拼展示串时把第三段丢了——同一份数据两个出口各写各的。现在共用同一个投影。
     (reasoning.westernDiagnosis.primary.guidelineReferences || []).map(guidelineReferenceDisplay),
@@ -4806,7 +4815,7 @@ function ResultTabsV2({
                       aria-expanded={westernFactsExpanded}
                       className="rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                     >
-                      {westernFactsExpanded ? "收起依据" : `展开全部依据（${westernSupportingFactsAll.length}）`}
+                      {westernFactsExpanded ? "收起依据" : `展开全部依据（${westernSymptomFactsAll.length}）`}
                     </button>
                   )}
                 </div>

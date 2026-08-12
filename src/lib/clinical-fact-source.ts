@@ -199,9 +199,29 @@ function modelDeclaredKinds(value: unknown): Map<string, "symptom" | "sign" | "e
   return kinds;
 }
 
+/**
+ * 病历**传输格式**的段落标题（「其他四诊/问诊补充：」「现病史：」…）不是依据内容。
+ *
+ * 2026-08-12 甲方线上实测：症状依据里出现「其他四诊/问诊补充：畏光」——
+ * 真正的依据只有「畏光」两个字，前面那截是我方喂给模型的字段标题，模型顺手抄了回来。
+ * 这些标题由 diagnosis-safety 的 trustedInputText 逐行写出，TRANSPORT_PREFIX_FIELD_IDS
+ * 已经把同一组标题登记在案；这里复用它，不另写第二份词表。
+ */
+function strippedTransportPrefix(value: string): string {
+  let text = value.trim();
+  for (let round = 0; round < 3; round += 1) {
+    const before = text;
+    for (const [pattern] of TRANSPORT_PREFIX_FIELD_IDS) text = text.replace(pattern, "").trim();
+    // 复合标题（「其他四诊/问诊补充：」）：斜杠拼起来的两截各自都在表里，逐段剥。
+    text = text.replace(/^(?:[^：:\s]{2,10}\/)+(?=[^：:\s]{2,10}[：:])/, "").trim();
+    if (text === before) break;
+  }
+  return text || value.trim();
+}
+
 function cleanedList(values: unknown): string[] {
   return (Array.isArray(values) ? values : [])
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .map((item) => (typeof item === "string" ? strippedTransportPrefix(item) : ""))
     .filter(Boolean);
 }
 
