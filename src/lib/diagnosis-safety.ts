@@ -4587,7 +4587,16 @@ export function buildDeterministicRiskFollowupPayload(
   //   ② 审方得出的安全触发条件（concreteAuditRiskObservations）**并进第一条**，
   //      模型给什么都不能把它挤掉——这与临床事实回补层「只可追加」同一方向；
   //   ③ 红旗 / 无结构化剂量 / 硬剂量边界三条降级路径在上面就 return 了，根本不到这里。
-  const safetyTriggers = actualRiskIndicators.map((item) => `出现${item}时提前复诊`);
+  // 审方短语自带句号/已经是完整条件句时，不要再套「出现…时提前复诊」——
+  // 线上实测产出「出现抗凝者增加出血风险。时提前复诊」，医生读到的是一句病句。
+  const safetyTriggers = actualRiskIndicators.map((item) => {
+    const phrase = item.replace(/[。.；;，,]+$/g, "").trim();
+    if (!phrase) return "";
+    // 已经以动词/条件开头的（「服药后出现…」「用药期间…」）原样保留，只补上复诊动作。
+    return /^(?:服药|用药|治疗|出现|如出现|若出现)/.test(phrase)
+      ? `${phrase}时提前复诊`
+      : `出现${phrase}时提前复诊`;
+  }).filter(Boolean);
   const authoredTimeline = (authored?.timeline || []).filter((item) => item?.time && item?.action);
   const timelineItems: StructuredFollowupTimelineItem[] = authoredTimeline.length >= 2
     ? authoredTimeline.map((item, index) => ({

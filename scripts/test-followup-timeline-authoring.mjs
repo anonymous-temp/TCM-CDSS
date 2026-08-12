@@ -107,7 +107,8 @@ check("③ 审方安全触发条件只增不减地并进第一条", () => {
   const first = payload.timelineItems[0];
   assert.ok(first.triggers.includes("自觉好转即可"), "模型给的 trigger 应保留");
   // 安全触发条件来自审方文本；有则必须并进来，模型给什么都挤不掉。
-  const safety = first.triggers.filter((item) => /^出现.+时提前复诊$/.test(item));
+  // 措辞有两种合法形态：「出现X时提前复诊」与「服药后出现X…时提前复诊」（审方短语自带主语时）。
+  const safety = first.triggers.filter((item) => /时提前复诊$/.test(item));
   assert.ok(safety.length > 0, `审方安全触发条件被模型挤掉了：${first.triggers.join("；")}`);
 });
 
@@ -274,8 +275,23 @@ check("⑫ 审方里的数据/审核完整性条目不得变成患者触发条�
   );
 });
 
+check("⑬ 审方安全触发条件的措辞必须读得通", () => {
+  const state = doseCase();
+  state.riskAssessment = [
+    "## 处方安全总评",
+    "规则审查 ／ 强提示 ／ 出血风险 ／ 3 ／ 抗凝治疗者合用活血化瘀药增加出血风险。",
+    "规则审查 ／ 强提示 ／ 毒性中药 ／ 4 ／ 服药期间出现口唇麻木需立即停药就诊",
+  ].join("\n");
+  const payload = buildDeterministicRiskFollowupPayload(state, null);
+  const triggers = payload.timelineItems.flatMap((item) => item.triggers);
+  for (const item of triggers) {
+    assert.ok(!/[。.；;，,]时提前复诊/.test(item), `措辞病句（标点前置）：${item}`);
+    assert.ok(!/^出现(?:服药|用药|治疗|出现)/.test(item), `措辞病句（动词重复）：${item}`);
+  }
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "followup-timeline-authoring", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 12, failures: 0 }));
+console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 13, failures: 0 }));
