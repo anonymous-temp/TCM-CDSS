@@ -176,8 +176,88 @@ check("⑦ 医生页面必须把 sources 传进分类，否则字段兜底整个
   );
 });
 
+// ── ⑧ 无标题的裸行不得压过带标题的行 ────────────────────────────────────────────
+// 上一条修完后再实测，载荷分组已对，但服务端 Markdown 那一屏仍写着
+//   **症状依据**：…；高血压病史5年，规律服药（来源：现病史）；178/102mmHg（来源：现病史）
+// 根因：trustedInputText 把 hisRecord.fields 的值**不带标题**拼进接地正文，
+// clinicalFactSourcesFromContext 把每一条无标题的行断言成「现病史」，而归属判定先到先得，
+// 裸行排在带 `既往史：` 的行前面。归属是「猜」出来的却与「读」出来的同权——把未知当已知。
+const { clinicalFactSourcesFromContext, clinicalFactSourcesFromCaseState, clinicalFactSourceLabel } =
+  await import("../src/lib/clinical-fact-source.ts");
+
+check("⑧ 无标题裸行只是兜底，不得压过带字段标题的行", () => {
+  // 线上接地正文的真实形状：hisRecord 裸值在前，带标题的临床录入字段在后。
+  const context = [
+    "突发剧烈头痛伴呕吐1小时",
+    "高血压病史5年，规律服药",
+    "178/102mmHg",
+    "既往史：高血压病史5年，规律服药",
+    "生命体征：178/102mmHg",
+  ].join("\n");
+  const sources = clinicalFactSourcesFromContext(context);
+  assert.equal(clinicalFactSourceLabel("高血压病史5年，规律服药", sources), "既往史");
+  assert.equal(clinicalFactSourceLabel("178/102mmHg", sources), "生命体征");
+  // 首行无标题时恒为主诉，这是契约位置不是猜测，不受影响。
+  assert.equal(clinicalFactSourceLabel("突发剧烈头痛伴呕吐1小时", sources), "主诉");
+  // 真·无标题的行仍照旧兜底到现病史（基层/兼容调用方不带标签，不能因此不标来源）。
+  const bare = clinicalFactSourcesFromContext("主诉一句\n畏光");
+  assert.equal(clinicalFactSourceLabel("畏光", bare), "现病史");
+
+  // 分类与来源标注必须给出同一个答案——它们此前是两份各写各的判据。
+  const evidence = classify(
+    ["高血压病史5年，规律服药", "178/102mmHg"],
+    [],
+    sources,
+  );
+  assert.ok(evidence.history.includes("高血压病史5年，规律服药"), `分类与来源标注不一致：${JSON.stringify(evidence)}`);
+  assert.ok(evidence.sign.includes("178/102mmHg"), `分类与来源标注不一致：${JSON.stringify(evidence)}`);
+});
+
+check("⑨ HIS 直传（无顶层字段、正文全是裸行）也要认得出字段", () => {
+  // 这一路正文里一条带标题的行都没有，只能靠受治理字段路径读病例状态。
+  const caseState = {
+    chiefComplaint: "突发剧烈头痛伴呕吐1小时",
+    hisRecord: {
+      fields: {
+        zhushu: "突发剧烈头痛伴呕吐1小时",
+        jiwangshi: "高血压病史5年，规律服药",
+        yongyaoshi: "氨氯地平 5mg 每日一次",
+      },
+    },
+    vitals: { bp: "178/102mmHg" },
+  };
+  const sources = [
+    ...clinicalFactSourcesFromCaseState(caseState),
+    ...clinicalFactSourcesFromContext("突发剧烈头痛伴呕吐1小时\n高血压病史5年，规律服药\n氨氯地平 5mg 每日一次\n178/102mmHg"),
+  ];
+  assert.equal(clinicalFactSourceLabel("高血压病史5年，规律服药", sources), "既往史");
+  // 「当前用药」是受治理矩阵里 medication_history 的中文名，不在本文件写死显示名。
+  assert.equal(clinicalFactSourceLabel("氨氯地平 5mg 每日一次", sources), "当前用药");
+  assert.equal(clinicalFactSourceLabel("178/102mmHg", sources), "生命体征");
+});
+
+// 服务端出口必须真的拿到病例状态那一路——上一条只证明函数对，不证明出口接了。
+check("⑩ 服务端 Markdown 出口必须合并病例状态来源，不能只读接地正文", () => {
+  const server = readFileSync(
+    fileURLToPath(new URL("../src/lib/diagnosis-visible-summary.ts", import.meta.url)),
+    "utf8",
+  );
+  assert.ok(
+    /clinicalFactSourcesFromCaseState\(caseState\)/.test(server),
+    "服务端出口没有合并 clinicalFactSourcesFromCaseState——HIS 直传的字段又会被猜成现病史",
+  );
+  const route = readFileSync(
+    fileURLToPath(new URL("../src/app/api/diagnosis/diagnose/route.ts", import.meta.url)),
+    "utf8",
+  );
+  assert.ok(
+    /structuredCaseState:\s*safeState/.test(route),
+    "M03 路由没有把脱敏病例状态传下去，上面那一路拿到的是 null",
+  );
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "western-evidence-grouping", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "western-evidence-grouping", checks: 7, failures: 0 }));
+console.log(JSON.stringify({ suite: "western-evidence-grouping", checks: 10, failures: 0 }));

@@ -2487,7 +2487,7 @@ async function callPrimaryTextModelStream(
         try {
           let transformed = await preparedDiagnoseContent(content);
           transformed = applyDeterministicFormulaReferences(transformed);
-          transformed = synchronizeVisibleClinicalSummary(transformed, "diagnose", opts.structuredClinicalContext || "");
+          transformed = synchronizeVisibleClinicalSummary(transformed, "diagnose", opts.structuredClinicalContext || "", opts.structuredCaseState);
           if (opts.outputTransform) transformed = opts.outputTransform(transformed);
           const reasoning = validatedStructuredReasoning(
             transformed,
@@ -4037,7 +4037,7 @@ async function callPrimaryTextModelStream(
           if (opts.structuredStage === "diagnose") {
             authoritativeContent = applyDeterministicTreatmentPrinciple(authoritativeContent);
           }
-          authoritativeContent = synchronizeVisibleClinicalSummary(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext || "");
+          authoritativeContent = synchronizeVisibleClinicalSummary(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext || "", opts.structuredCaseState);
           if (opts.structuredStage === "prescribe" && !validatedStructuredReasoning(
             authoritativeContent,
             opts.structuredStage,

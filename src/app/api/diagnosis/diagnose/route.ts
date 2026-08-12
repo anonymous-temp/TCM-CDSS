@@ -152,6 +152,9 @@ export async function POST(req: Request) {
     // Structured retries and independent review are external model calls. Keep their grounding
     // context on the same deidentified DTO as the primary generation request.
     structuredClinicalContext: clinicalGroundingText(safeState),
+    // 事实来源归属要读**受治理字段路径**，光靠接地正文的行结构不够：HIS 直传的字段在正文里
+    // 是不带标题的裸行，会被一律猜成「现病史」（2026-08-12 线上实测）。与上一行同一份脱敏 DTO。
+    structuredCaseState: safeState,
     structuredPatientAge: authoritativePatientAgeYears(gated),
     // 这里不再预算「生成前短名单」：enforceRetrievedM03FormulaSelection 明确 `void` 掉了它
     // （方名锁定只认签名证候的 positiveSufficiency，症状召回证明不了充分性）。原先这一行是一次

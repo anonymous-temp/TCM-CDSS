@@ -32,6 +32,18 @@ export type ClinicalFactSource = {
   label: string;
   /** 该来源在病历接地正文里的原文。 */
   text: string;
+  /**
+   * 这条归属是**读出来的**还是**猜出来的**。
+   *
+   * `labeled` —— 行首带受治理字段标题（`既往史：`…），或按契约恒为主诉的首行；
+   * `guessed` —— 无标题的行，只能落到「现病史」这个兜底。
+   *
+   * 两者绝不同权：HIS 直传时 trustedInputText 把 hisRecord.fields 的值**不带标题**
+   * 拼进正文（diagnosis-safety.ts:172），同一条既往史于是既以裸行出现、又以
+   * `既往史：…` 出现；先到先得就会把它判成现病史——线上实测「高血压病史5年，规律服药
+   * （来源：现病史）」正是这么来的。带标题的那条永远优先。
+   */
+  derivation: "labeled" | "guessed";
 };
 
 /**
@@ -65,19 +77,20 @@ function labelFor(fieldId: string): string {
 export function clinicalFactSourcesFromContext(clinicalContext: string): ClinicalFactSource[] {
   const lines = (clinicalContext || "").split("\n").map((line) => line.trim()).filter(Boolean);
   const sources: ClinicalFactSource[] = [];
-  const push = (fieldId: string, text: string) => {
+  const push = (fieldId: string, text: string, derivation: ClinicalFactSource["derivation"]) => {
     const label = labelFor(fieldId);
     if (!label || !text) return;
-    sources.push({ fieldId, label, text });
+    sources.push({ fieldId, label, text, derivation });
   };
   lines.forEach((line, index) => {
     const matched = TRANSPORT_PREFIX_FIELD_IDS.find(([pattern]) => pattern.test(line));
     if (matched) {
-      push(matched[1], line.replace(matched[0], "").trim());
+      push(matched[1], line.replace(matched[0], "").trim(), "labeled");
       return;
     }
-    // 首行无标签时恒为主诉（clinicalGroundingText 把 state.chiefComplaint 放在最前且不带标签）。
-    push(index === 0 ? "chief_complaint" : "present_illness", line);
+    // 首行无标签时恒为主诉（clinicalGroundingText 把 state.chiefComplaint 放在最前且不带标签）——
+    // 这是契约位置，不是猜测。其余无标签行只能落到现病史兜底，标成 guessed（见 derivation 注释）。
+    push(index === 0 ? "chief_complaint" : "present_illness", line, index === 0 ? "labeled" : "guessed");
   });
   return sources;
 }
@@ -106,11 +119,11 @@ function valueAtPath(root: unknown, path: string): unknown {
  */
 export function clinicalFactSourcesFromCaseState(caseState: unknown): ClinicalFactSource[] {
   const sources: ClinicalFactSource[] = [];
-  const push = (fieldId: string, value: unknown) => {
+  const push = (fieldId: string, value: unknown, derivation: ClinicalFactSource["derivation"] = "labeled") => {
     const text = typeof value === "string" ? value.trim() : "";
     const label = labelFor(fieldId);
     if (!text || !label) return;
-    sources.push({ fieldId, label, text });
+    sources.push({ fieldId, label, text, derivation });
   };
   for (const [fieldId, paths] of CASE_STATE_FIELD_PATHS) {
     for (const path of paths) push(fieldId, valueAtPath(caseState, path));
@@ -119,28 +132,50 @@ export function clinicalFactSourcesFromCaseState(caseState: unknown): ClinicalFa
   if (symptoms && typeof symptoms === "object" && !Array.isArray(symptoms)) {
     for (const [key, value] of Object.entries(symptoms as Record<string, unknown>)) {
       const matched = CASE_STATE_FIELD_PATHS.find(([fieldId]) => labelFor(fieldId) === key.trim());
-      push(matched ? matched[0] : "present_illness", value);
+      // 键名对上受治理字段名才算读出来的；对不上时归现病史同样是兜底猜测。
+      push(matched ? matched[0] : "present_illness", value, matched ? "labeled" : "guessed");
     }
   }
   const vitals = valueAtPath(caseState, "vitals");
   if (vitals && typeof vitals === "object" && !Array.isArray(vitals)) {
     for (const [key, value] of Object.entries(vitals as Record<string, unknown>)) {
       push("vitals", typeof value === "string" ? `${key}:${value}` : value);
+      // HIS 直传的生命体征在正文里是裸值（「178/102mmHg」），载荷里的依据也常常只写裸值，
+      // 带 `bp:` 前缀的那条包含不住它——再登记一条裸值来源，否则生命体征认不出字段。
+      if (typeof value === "string" && value.trim()) push("vitals", value);
     }
   }
   return sources;
 }
 
 /**
- * 一条依据的来源字段名。逐字包含即归属；同时命中多个来源时取**最短**的那条原文——
- * 最短即最贴合，避免整段现病史把一条主诉级事实吸走。认不出返回空串（不标注）。
+ * 一条依据来自病历的哪个字段——**全仓库唯一**的判据。
+ *
+ * 此前这个问题有两份各写各的答案：`clinicalFactSourceLabel` 取最短原文（用于「（来源：XX）」
+ * 标注），`classifyWesternDiagnosticEvidence` 内部另用 `find()` 取第一条（用于症状/体征分组）。
+ * 于是同一条事实可以一边标着「来源：既往史」、一边被分进「症状依据」。收敛成一个导出谓词。
+ *
+ * 优先级：
+ *  1) **读出来的**（labeled）压过**猜出来的**（guessed）——见 derivation 注释；
+ *  2) 同档内取**最短**的那条原文：最短即最贴合，避免整段现病史把一条主诉级事实吸走。
+ * 认不出返回 null（不标注、不分类，由调用方各自兜底）。
  */
-export function clinicalFactSourceLabel(fact: unknown, sources: readonly ClinicalFactSource[]): string {
+export function resolveClinicalFactSource(
+  fact: unknown,
+  sources: readonly ClinicalFactSource[],
+): ClinicalFactSource | null {
   const text = typeof fact === "string" ? fact.trim() : "";
-  if (!text) return "";
+  if (!text) return null;
   const hits = sources.filter((source) => source.text.includes(text) || text.includes(source.text));
-  if (hits.length === 0) return "";
-  return hits.reduce((best, item) => (item.text.length < best.text.length ? item : best)).label;
+  if (hits.length === 0) return null;
+  const labeled = hits.filter((source) => source.derivation === "labeled");
+  const pool = labeled.length > 0 ? labeled : hits;
+  return pool.reduce((best, item) => (item.text.length < best.text.length ? item : best));
+}
+
+/** 一条依据的来源字段中文名。认不出返回空串（不标注）。 */
+export function clinicalFactSourceLabel(fact: unknown, sources: readonly ClinicalFactSource[]): string {
+  return resolveClinicalFactSource(fact, sources)?.label || "";
 }
 
 export type ClassifiedDiagnosticEvidence = {
@@ -296,7 +331,7 @@ function numericTokensCovered(shorter: string, longer: string): boolean {
 }
 
 function fieldIdOfFact(fact: string, sources: readonly ClinicalFactSource[]): string {
-  return sources.find((source) => source.text.includes(fact) || fact.includes(source.text))?.fieldId || "";
+  return resolveClinicalFactSource(fact, sources)?.fieldId || "";
 }
 
 function foldSameClinicalEvent(facts: readonly string[], sources: readonly ClinicalFactSource[]): string[] {

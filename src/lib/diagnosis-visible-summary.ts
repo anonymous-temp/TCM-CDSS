@@ -15,6 +15,7 @@ import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, governedTcmLocationsI
 import { clinicalAxisAttributionFromFacts } from "./tcm-syndrome-hypothesis";
 import {
   classifyWesternDiagnosticEvidence,
+  clinicalFactSourcesFromCaseState,
   clinicalFactSourcesFromContext,
   clinicalFactWithSource,
   guidelineReferenceDisplay,
@@ -2664,7 +2665,7 @@ function groundedChiefComplaint(clinicalContext: string): string {
   return clinicalContext.split("\n").map((line) => line.trim()).find(Boolean) || "";
 }
 
-function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinicalContext = ""): string {
+function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinicalContext = "", caseState: unknown = null): string {
   const overview = recordValue(reasoning.overview);
   const westernDiagnosis = recordValue(reasoning.westernDiagnosis);
   const westernPrimary = recordValue(westernDiagnosis?.primary);
@@ -2692,7 +2693,17 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
   // 甲方评测(2026-08-04) 1.1.1：诊断依据分「支持/排除/待查」三类并标注事实来源。
   // 三类都是对已签名载荷既有字段的重新归类（见 clinical-fact-source.ts），不新增任何推断；
   // 来源取自受治理必填字段矩阵的字段名，标不出来源的条目照常呈现。
-  const evidenceSources = clinicalFactSourcesFromContext(clinicalContext);
+  // 两路来源合并，医生页面与本出口从此同源（2026-08-12 线上实测）。
+  //
+  // 只读接地正文是不够的：HIS 直传时 trustedInputText 把 hisRecord.fields 的值**不带标题**
+  // 拼进正文（diagnosis-safety.ts:172），无标题的行只能落到「现病史」兜底，于是既往史与
+  // 生命体征被印成「（来源：现病史）」并因此被分进「症状依据」。
+  // 病例状态那一路直接读受治理字段路径，是**读出来的**归属；正文那一路留作兜底。
+  // 谁优先不在这里判——统一交给 resolveClinicalFactSource（labeled 压过 guessed）。
+  const evidenceSources = [
+    ...clinicalFactSourcesFromCaseState(caseState),
+    ...clinicalFactSourcesFromContext(clinicalContext),
+  ];
   const evidence = classifyWesternDiagnosticEvidence(westernPrimary, evidenceSources);
   // 「支持依据」不得沦为病历原文的复印件(2026-08-05)。
   //
@@ -3413,6 +3424,12 @@ export function synchronizeVisibleClinicalSummary(
    * 载荷本身不携带这一信息。缺省为空串——不传时三分类照常呈现，只是不带来源标注（fail-open）。
    */
   clinicalContext = "",
+  /**
+   * 已脱敏的病例状态。同样只用于事实来源归属：接地正文里 HIS 直传的字段是**不带标题**的裸行，
+   * 光靠行结构会把既往史/用药史/生命体征一律猜成现病史（2026-08-12 线上实测）。
+   * 不传时退回只读正文的旧行为（fail-open）。
+   */
+  caseState: unknown = null,
 ): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -3443,7 +3460,7 @@ export function synchronizeVisibleClinicalSummary(
     // 归一失败时回落到原载荷（fail-open），不因一次 schema 抖动清空整页。
     const projected = sanitizeReasoningNarratives(normalizedReasoningForProjection(reasoning));
     const visible = expectedStage === "diagnose"
-      ? visibleDiagnoseFromReasoning(projected, clinicalContext)
+      ? visibleDiagnoseFromReasoning(projected, clinicalContext, caseState)
       : visiblePrescribeFromReasoning(projected);
     const sanitizedSentinel = JSON.stringify(reasoning) === JSON.stringify(parsed)
       ? content.slice(start)
