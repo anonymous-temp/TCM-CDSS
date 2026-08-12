@@ -196,7 +196,16 @@ const sparseHeadacheChecks = buildTieredSuggestedChecks({
   symptoms: {},
   safetyGate: { status: "ready" },
 }, ["头颅CT或MRI平扫+增强", "经颅多普勒", "血常规、肝肾功能"]);
-assert.match(sparseHeadacheChecks.join("；"), /先补充病程.*生命体征.*神经系统查体/);
+// 首步措辞现在按**本例真正缺的项**拼（甲方 2026-08-12：已提供的字段不得再被要求补充）。
+// 本 fixture 现病史/生命体征/年龄全缺，三项都该点名；断言改为逐项检查，不再匹配旧的固定话术。
+for (const missing of ["现病史", "年龄", "测量生命体征", "神经系统查体"]) {
+  assert.match(sparseHeadacheChecks.join("；"), new RegExp(missing), `资料全缺时应点名「${missing}」`);
+}
+assert.doesNotMatch(
+  sparseHeadacheChecks.join("；"),
+  /先补充病程、诱因、伴随症状及既往史/,
+  "旧的固定话术不得回归：它点名的四项与触发判据是两个不相交的集合",
+);
 assert.match(sparseHeadacheChecks.join("；"), /补充问诊或神经系统查体出现相应指征/);
 assert.doesNotMatch(sparseHeadacheChecks.join("；"), /CT|MRI|经颅多普勒/, "sparse non-red-flag cases must not present a routine advanced-imaging shopping list");
 assert.match(sparseHeadacheChecks.join("；"), /血常规、肝肾功能/, "grounded non-advanced checks survive sparse-case tiering");
@@ -373,8 +382,15 @@ assert.equal(
 );
 assert.equal(
   scrubInternalVocabularyFromVisibleText("流派偏好：经方思路；证候锚点：恶寒；红旗门控优先；药味由服务端中药知识库生成。"),
-  "流派偏好：经方思路；证候依据：恶寒；风险筛查规则优先；药味由中药知识库生成。",
+  // 甲方 2026-08-12：「知识库」本身就是内部口径词，不得上屏。此前净化器把
+  // 「服务端中药知识库」归一成「中药知识库」——归一到了一个同样不该给医生看的词。
+  "流派偏好：经方思路；证候依据：恶寒；风险筛查规则优先；药味由标准药材资料生成。",
   "all streamed clinician-facing surfaces must scrub the whole internal-vocabulary class",
+);
+assert.doesNotMatch(
+  scrubInternalVocabularyFromVisibleText("本方与该方受治理基准不符；取自本地方剂知识库。"),
+  /知识库|受治理/,
+  "净化器必须把「知识库」「受治理」整类词都清掉，而不是归一到另一个内部词",
 );
 
 const sourceLevelResolutionBoundary = sanitizeOptionalPathogenesisClassifications([
@@ -733,8 +749,56 @@ const thunderclapPresentation = buildEmergencyPresentation({
 assert.equal(thunderclapPresentation.pageTitle, "急诊转诊建议");
 assert.match(thunderclapPresentation.eventTitle, /雷击样头痛/);
 assert.ok(thunderclapPresentation.evidenceChips.some((item) => /最剧烈头痛/.test(item)));
-assert.ok(thunderclapPresentation.evidenceChips.includes("恶心"));
-assert.ok(thunderclapPresentation.evidenceChips.includes("呕吐"));
+// 此处原先断言 chips 里有**独立的**「恶心」「呕吐」两枚——那正是甲方 2026-08-12 反馈的缺陷：
+// 旧实现用一条手写自然语言正则从原话里抠关键词片段，抠到片段就丢掉完整原话。
+// 现在一枚 chip = 规则匹配到的原话的一个分句，「恶心呕吐」留在它所在的那句话里，
+// 定性信息（性状、达峰时间、脑膜刺激征）不会因为不在词表里而消失。
+assert.ok(
+  thunderclapPresentation.evidenceChips.some((item) => item.includes("恶心") && item.includes("呕吐")),
+  `恶心呕吐必须随原话呈现：${JSON.stringify(thunderclapPresentation.evidenceChips)}`,
+);
+
+// 甲方 2026-08-12 线上实测原例：chips 只出「恶心、呕吐」，最关键的三条一条都没印。
+const sahPresentation = buildEmergencyPresentation({
+  ...rareOccupationCase,
+  chiefComplaint: "突发剧烈头痛伴呕吐1小时",
+  safetyGate: {
+    status: "red_flag",
+    allowDiagnosis: true,
+    allowDosePrescription: false,
+    action: "refer_or_emergency",
+    redFlags: ["突发剧烈头痛、意识或神经功能异常，需优先排除神经系统急症"],
+    redFlagFindings: [{
+      ruleId: "acute-neurologic-event",
+      severity: "emergency",
+      sourceQuote: "突发剧烈头痛伴呕吐1小时",
+      ruleExplanation: "急性意识、发作性事件或局灶神经异常需优先排除神经急症。",
+      message: "突发剧烈头痛、意识或神经功能异常，需优先排除神经系统急症",
+    }],
+    semanticTriage: {
+      evidence: [{
+        // 病历原话：注意是「突然」不是「突发」、「爆裂样」不是「爆炸样」，
+        // 且性状与达峰时间在头痛之后另起分句——旧正则整条头痛支路因此不命中。
+        evidenceQuotes: ["1小时前活动中突然出现剧烈头痛，呈爆裂样，数秒内达高峰，伴喷射性呕吐2次，颈项僵硬"],
+        sourceQuote: "突发剧烈头痛伴呕吐1小时",
+        escalationRationale: "雷击样头痛伴脑膜刺激征",
+      }],
+    },
+    reasons: ["优先急诊评估"],
+    missingItems: [],
+  },
+});
+for (const required of ["爆裂样", "数秒内达高峰", "颈项僵硬"]) {
+  assert.ok(
+    sahPresentation.evidenceChips.some((item) => item.includes(required)),
+    `红旗触发证据漏掉了定性事实「${required}」：${JSON.stringify(sahPresentation.evidenceChips)}`,
+  );
+}
+// 反向：证据只能是规则匹配到的原话，不得凭空多出病历里没有的字。
+const sahSource = "1小时前活动中突然出现剧烈头痛，呈爆裂样，数秒内达高峰，伴喷射性呕吐2次，颈项僵硬。突发剧烈头痛伴呕吐1小时";
+for (const chip of sahPresentation.evidenceChips) {
+  assert.ok(sahSource.includes(chip), `chip 不是病历原话的子串：${chip}`);
+}
 assert.match(diagnosisClientSource, /!isActiveRedFlag && \(/, "ordinary completion banner must be suppressed on emergency referral pages");
 assert.match(diagnosisClientSource, /data-testid="confirm-emergency-clearance"/);
 assert.match(diagnosisClientSource, /下载转诊建议与依据/);

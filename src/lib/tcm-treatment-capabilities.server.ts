@@ -983,12 +983,28 @@ export function compileTcmTreatmentRecommendations(
   }));
   const seen = new Set<TcmTreatmentProjectCode>();
   const rankedPool = rankedTreatmentCandidates(scope, prior, proposals, false, caseState);
-  const proposalPool = rankedPool.some((item) => item.explicit) ? rankedPool : rankedPool.slice(0, 2);
   const caseFacts = treatmentCaseFacts(caseState);
   const currentFacts = treatmentCurrentFacts(caseState);
   const currentFactFallback = indicationTags(caseFacts);
+  // 模型一条都不提名时只取前 2 名——但排名是按适应证亲和度算的，与「本例有没有已签字的
+  // 患者级方案」无关。实测普通风寒咳嗽：针刺排第 4，于是那条中医师已签字、已按本例证型
+  // 加减的取穴方案（肺俞/中府/列缺/太渊/风门/合谷 + 条件加穴风池）连被编译的机会都没有。
+  // 已经命中签字精确证型闸门的项目一律进池：它不是"多推荐一个项目"，
+  // 而是"别把已经算好的、有人签过字的方案扔掉"。仍受下面的名额与档次排序约束。
+  const signedSyndromeText = prior.overview.primarySyndrome || "";
+  const patientAgeYears = treatmentPatientAgeYears(caseState);
+  const gateOpenedCodes = new Set(
+    rankedPool
+      .filter((item) => Boolean(
+        governedTcmTreatmentPrecisePlanTemplate(item.projectCode, currentFacts, signedSyndromeText, patientAgeYears).template,
+      ))
+      .map((item) => item.projectCode),
+  );
+  const proposalPool = rankedPool.some((item) => item.explicit)
+    ? rankedPool
+    : [...rankedPool.slice(0, 2), ...rankedPool.filter((item) => gateOpenedCodes.has(item.projectCode))];
 
-  return proposalPool.flatMap((proposal) => {
+  const compiled = proposalPool.flatMap((proposal) => {
     if (seen.has(proposal.projectCode)) return [];
     const capability = capabilityByCode.get(proposal.projectCode);
     const definition = getTcmTreatmentProjectDefinition(proposal.projectCode);
@@ -1052,7 +1068,37 @@ export function compileTcmTreatmentRecommendations(
       executable: false,
       clinicianReviewRequired: true as const,
     }];
-  }).slice(0, 3);
+  });
+  // ── 名额只有 3 个：给不出方案的项目不得把给得出方案的挤掉（甲方 2026-08-12）────────
+  //
+  // 实测（42 岁男性，普通风寒咳嗽，已签名「风寒袭肺证」）：页面上三个项目是
+  // 气功导引（穴位为空）、灸法（泛化召回 承灵/孔最/肩中俞）、拔罐（病种模板未按证型加减），
+  // 唯独没有针刺——而针刺排第 4，被这里的截断切掉了。它是本例**唯一**一个
+  // governed_patient_specific_plan：中医师已签字、已按本例证型加减，取穴为
+  // 肺俞、中府、列缺、太渊、风门、合谷（甲方点名要的列缺就在其中）。
+  //
+  // 根因是排序只按适应证亲和度分数，完全不看「这个项目对本例究竟能不能给出方案」。
+  // 于是一个连一个穴位都给不出的评估态项目，把唯一能给出完整签字取穴方案的项目挤出了名额。
+  //
+  // 修法不新增任何项目、不放宽任何闸门、不改亲和度分数，**也不改次序口径**：
+  // 成熟度只决定「谁占得到这 3 个名额」（已签字的患者级方案 > 病种标准模板 > 仅评估），
+  // 名额内的先后仍由适应证亲和度控制——那是既有的、有测试钉着的原则
+  //（test:tcm-treatment-projects「clinical fit ranks ahead of clinic display priority」）。
+  // 所以这不是"把针刺特殊照顾"，而是"名额优先给能拿出东西的那个"，对全部病种一视同仁。
+  const PROTOCOL_MATURITY: Readonly<Record<string, number>> = {
+    governed_patient_specific_plan: 0,
+    governed_class_template_not_syndrome_tailored: 1,
+  };
+  const maturityOf = (status: unknown) => PROTOCOL_MATURITY[String(status || "")] ?? 2;
+  const selected = new Set(
+    compiled
+      .map((item, index) => ({ item, index }))
+      .sort((left, right) =>
+        maturityOf(left.item.protocolStatus) - maturityOf(right.item.protocolStatus) || left.index - right.index)
+      .slice(0, 3)
+      .map((entry) => entry.index),
+  );
+  return compiled.filter((_, index) => selected.has(index));
 }
 
 export function applyTcmTreatmentCapabilityPriority(

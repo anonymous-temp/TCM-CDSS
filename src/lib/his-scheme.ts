@@ -15,7 +15,7 @@ import { classifyHerbWarning, deriveCaseWarningProfile, warningLevelRank, type C
 import { hasBoundClinicalReviewAttestation } from "./clinical-review-binding";
 import { clinicalReviewIndependenceOf, clinicalReviewLabel, clinicalReviewMethodNote } from "./clinical-review-independence";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS } from "./internal-tag-hygiene";
-import { safeDietAdviceForDisplay } from "./result-display-policy";
+import { safeDietAdviceForDisplay, GOVERNED_FORMULA_DATA_LABEL } from "./result-display-policy";
 import { tcmTreatmentProtocolGapCopy, westernDiagnosisLabelForDisplay } from "./diagnosis-visible-summary";
 import { prioritizeTcmEvidenceForDisplay, prioritizeWesternEvidenceForDisplay } from "./clinical-evidence-display";
 
@@ -565,7 +565,7 @@ function structuredEvidenceReferences(caseState: CaseState, scope?: EvidenceScop
     for (const formula of resolveFormulaSources(candidate.name, candidate.herbs)) {
       const title = `${formula.formulaName}：${formula.source}`;
       const key = `${title}|`;
-      if (!refs.has(key)) refs.set(key, { source: "本地方剂知识库", title });
+      if (!refs.has(key)) refs.set(key, { source: GOVERNED_FORMULA_DATA_LABEL, title });
     }
   }
   return [...refs.values()].slice(0, 20);

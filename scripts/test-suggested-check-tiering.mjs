@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const policy = await import("../src/lib/result-display-policy.ts");
-const { buildTieredSuggestedChecks, TIERED_FIRST_STEP_PREFIX } = policy;
+const { buildTieredSuggestedChecks, isTieredFirstStep } = policy;
 
 const failures = [];
 const check = (name, fn) => {
@@ -37,7 +37,7 @@ const modelChecks = [
 
 check("资料稀疏时：影像降为『有指征再评估』，不与问诊查体并列", () => {
   const tiered = buildTieredSuggestedChecks(sparseHeadache, modelChecks);
-  assert.ok(tiered[0].startsWith(TIERED_FIRST_STEP_PREFIX), `第一步应是问诊+查体，实际：${tiered[0]}`);
+  assert.ok(isTieredFirstStep(tiered[0]), `第一步应是问诊+查体，实际：${tiered[0]}`);
   assert.ok(tiered[0].includes("神经系统查体"), "头痛主诉的查体重点应落到神经系统");
   assert.ok(
     tiered.some((item) => /出现相应指征.*影像学检查/.test(item)),
@@ -55,7 +55,7 @@ check("红旗病例豁免：不得因为资料稀疏而延后检查", () => {
     modelChecks,
   );
   assert.ok(tiered.some((item) => item.includes("头颅 CT")), "红旗病例的影像检查必须原样保留");
-  assert.ok(!tiered[0].startsWith(TIERED_FIRST_STEP_PREFIX), "红旗病例不应被改写成先问诊");
+  assert.ok(!isTieredFirstStep(tiered[0]), "红旗病例不应被改写成先问诊");
 });
 
 check("资料充分时不改写模型判断", () => {
@@ -67,7 +67,42 @@ check("资料充分时不改写模型判断", () => {
   };
   const tiered = buildTieredSuggestedChecks(complete, modelChecks);
   assert.ok(tiered.some((item) => item.includes("头颅 CT")), "资料充分时不得下调模型给出的检查");
-  assert.ok(!tiered[0].startsWith(TIERED_FIRST_STEP_PREFIX), "资料充分时不应插入补录首步");
+  assert.ok(!isTieredFirstStep(tiered[0]), "资料充分时不应插入补录首步");
+});
+
+// ── 甲方 2026-08-12 线上实测：无效追问 ────────────────────────────────────────
+// 病历已提供病程、诱因、伴随症状与既往史，这一栏仍打印
+// 「先补充病程、诱因、伴随症状及既往史，测量生命体征并完成神经系统查体。」
+// 根因：这句话是写死的固定常量，与触发它的三项判据是两个**不相交的集合**——
+// 既往史从头到尾没被读过，病程/诱因/伴随症状只是「现病史非空」的粗粒度代理。
+check("⑦ 只缺一项时不得点名已经提供的字段", () => {
+  const onlyAgeMissing = {
+    chiefComplaint: "头痛 3 天",
+    vitals: { bp: "128/82", t: "36.6" },
+    pastHistory: "高血压病史 5 年，规律服药。",
+    symptoms: { presentHistory: "3 天前受凉后出现搏动性头痛，伴畏光，无发热无外伤。" },
+  };
+  const tiered = buildTieredSuggestedChecks(onlyAgeMissing, modelChecks);
+  assert.ok(isTieredFirstStep(tiered[0]), `年龄缺失仍应插入补录首步，实际：${tiered[0]}`);
+  for (const provided of ["病程", "诱因", "伴随症状", "既往史", "现病史"]) {
+    assert.ok(!tiered[0].includes(provided), `已经提供的「${provided}」不得再被要求补充：${tiered[0]}`);
+  }
+  assert.ok(!tiered[0].includes("测量生命体征"), `生命体征已记录，不该再要求测量：${tiered[0]}`);
+  assert.ok(tiered[0].includes("年龄"), `真正缺的年龄必须点名：${tiered[0]}`);
+});
+
+// HIS 直传：生命体征在 hisRecord.fields 而不是 context.vitals。
+// 原判据只看 context.vitals，会把「已经量过」误判成「没量」，于是照样要求测量。
+check("⑧ HIS 直传的生命体征也算已记录", () => {
+  const hisVitals = {
+    chiefComplaint: "头痛 3 天",
+    patient: { age: 46, sex: "女" },
+    symptoms: { presentHistory: "3 天前受凉后出现搏动性头痛。" },
+    hisRecord: { fields: { vitalsBP: "128/82mmHg", vitalsT: "36.6" } },
+  };
+  const tiered = buildTieredSuggestedChecks(hisVitals, modelChecks);
+  assert.ok(!isTieredFirstStep(tiered[0]), `资料其实齐备，不应插入补录首步：${tiered[0]}`);
+  assert.ok(tiered.some((item) => item.includes("头颅 CT")), "资料齐备时不得下调模型给出的检查");
 });
 
 check("不动点：分级结果再进一次原样返回", () => {
@@ -123,4 +158,4 @@ if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "suggested-check-tiering", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "suggested-check-tiering", checks: 5, failures: 0 }));
+console.log(JSON.stringify({ suite: "suggested-check-tiering", checks: 7, failures: 0 }));

@@ -29,7 +29,7 @@ import {
   X,
 } from "lucide-react";
 import { appendClinicalPresetValue, appendDelimitedValue, detectTonguePulseFieldConflict } from "@/lib/clinical-entry";
-import { classifyWesternDiagnosticEvidence, westernDiagnosticEvidenceGroups, clinicalFactSourcesFromCaseState, clinicalFactWithSource, guidelineReferenceDisplay } from "@/lib/clinical-fact-source";
+import { classifyWesternDiagnosticEvidence, westernDiagnosticEvidenceGroups, clinicalFactSourcesFromCaseState, clinicalFactWithSource, guidelineReferenceDisplay, uniqueClinicalFacts } from "@/lib/clinical-fact-source";
 import type { CaseState, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
 import { ageValue, normalizeCaseStateInput, normalizeStructuredFollowupTimeline } from "@/lib/diagnosis-types";
 import { LINEAGE_OPTIONS } from "@/lib/tcm-lineages";
@@ -97,6 +97,8 @@ import {
   isNonRedundantClinicalRationale,
   resolveAuditReviewPresentation,
   safeDietAdviceForDisplay,
+  doseSourceLabelForDisplay,
+  GOVERNED_HERB_DATA_LABEL,
 } from "@/lib/result-display-policy";
 import {
   isCompoundAffirmativeQuestionOption,
@@ -964,16 +966,29 @@ export function buildEmergencyPresentation(caseState: CaseState): EmergencyPrese
     semanticEvidence?.sourceQuote,
     finding?.sourceQuote,
   ].filter((value): value is string => Boolean(value?.trim()));
-  const focusedEvidence = rawEvidence.flatMap((value) =>
-    value.match(/突发[^，。；\n]{0,20}(?:最剧烈|爆炸样|雷击样)[^，。；\n]{0,12}头痛|(?:恶心|呕吐)|胸(?:痛|闷)|大汗|呼吸困难|意识(?:障碍|不清)|偏瘫|抽搐/g) || [],
-  );
-  const evidenceChips = [...new Set([
-    ...(focusedEvidence.length > 0
-      ? focusedEvidence
-      : [...(semanticEvidence?.evidenceQuotes || []), ...rawEvidence]),
-  ]
-    .map((value) => value.trim().replace(/^[“”"'「」]+|[“”"'「」]+$/g, ""))
-    .filter((value) => value.length <= 120))].slice(0, 8);
+  // 红旗触发证据 = 规则/语义分诊**实际匹配到的原话**，按分句切开，一句一枚。
+  //
+  // 此前这里挂着一条手写自然语言正则，从原话里抠关键词片段：
+  //   /突发…(?:最剧烈|爆炸样|雷击样)…头痛|(?:恶心|呕吐)|胸(?:痛|闷)|大汗|…/g
+  // 甲方 2026-08-12 线上实测（52岁男性，「1小时前活动中突然出现剧烈头痛，呈爆裂样，
+  // 数秒内达高峰，伴喷射性呕吐2次，颈项僵硬」）只印出「恶心、呕吐」两枚——
+  //   · 「突然」不是「突发」、「爆裂样」不是「爆炸样」，且性状词在头痛之后另起一个分句，
+  //     那条头痛支路整条不命中；
+  //   · 「颈项僵硬」「数秒达峰」这两条最关键的脑膜刺激征/雷击样特征根本不在表里；
+  //   · 而只要**任意一个**片段命中（这里是「呕吐」），下面的分支就整体丢弃完整原话。
+  // 于是医生看到的证据恰好少了定性的那几条，同一屏下方的组合判断却识别正确——
+  // 同一份证据两套判据，其中一套是靠枚举自然语言，这在本仓库是明令禁止的形态。
+  //
+  // 判据换成纯结构的：按分句切分 + 按包含关系去重（uniqueClinicalFacts，与西医依据同一个）。
+  // 一个字都不新增、一个字都不丢，医生看到的就是规则匹配到的原话。
+  const evidenceChips = uniqueClinicalFacts(
+    rawEvidence.flatMap((value) => value
+      .normalize("NFKC")
+      .split(/[，,。．；;\n]+/)
+      .map((clause) => clause.trim().replace(/^[“”"'「」]+|[“”"'「」]+$/g, ""))
+      // 一字残片（切分留下的「等」「及」）不成其为证据；两字起（「大汗」「呕血」）都要保留。
+      .filter((clause) => clause.length >= 2)),
+  ).map((value) => truncateClinicalTextForDisplay(value, 60)).slice(0, 8);
   const ruleId = finding?.ruleId || "";
 
   if (ruleId === "acute-neurologic-event" || /头痛|神经/.test(gate.redFlags.join("；"))) {
@@ -3458,7 +3473,7 @@ function HerbModificationWorkbench({
         });
         if (results.some((result) => result.status === "found")) {
           setAuditStatus("dirty");
-          setAuditMessage("药味功效已由中药知识库补全，请重新获取审方提示后再标记为编辑后候选方案。");
+          setAuditMessage(`药味功效已按${GOVERNED_HERB_DATA_LABEL}补全，请重新获取审方提示后再标记为编辑后候选方案。`);
           setFinalReady(false);
           setAcceptedRevision(null);
         }
@@ -3863,9 +3878,9 @@ function HerbModificationWorkbench({
                 placeholder={herbFunctionLookupStatus[herb.name.trim()] === "loading"
                   ? "正在查询规范功效"
                   : herbFunctionLookupStatus[herb.name.trim()] === "not_found" || herbFunctionLookupStatus[herb.name.trim()] === "error"
-                    ? "未从知识库补全功效"
+                    ? "未补全功效"
                     : "选择药味与病机后自动生成"}
-                title="依据当前病机与中药知识库生成"
+                title={`依据当前病机与${GOVERNED_HERB_DATA_LABEL}生成`}
               />
               <input
                 aria-label={`炮制${index + 1}`}
@@ -3899,7 +3914,7 @@ function HerbModificationWorkbench({
 
       {herbFunctionLookupInProgress && (
         <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-800">
-          正在依据中药知识库补全药味功效，完成后可继续审方。
+          正在按{GOVERNED_HERB_DATA_LABEL}补全药味功效，完成后可继续审方。
         </p>
       )}
       {herbFunctionLookupProblemNames.length > 0 && (
@@ -5255,7 +5270,7 @@ function ResultTabsV2({
                       {(warning.level !== "L0" || herb.isToxic || herb.decoctionRequirement) && (
                         <div className="mt-2 rounded-lg bg-gray-50 p-2 text-[11px] text-gray-600">
                           {warning.level !== "L0" && <p><span className="font-semibold text-gray-700">分级理由：</span>{warning.reasons.join("；")}</p>}
-                          {herb.doseSource && <p><span className="font-semibold text-gray-700">剂量来源：</span>{herb.doseSource === "governed_boundary" ? "受治理知识库边界校验" : herb.doseSource === "classical_source" ? "经典来源原方量" : "未形成可执行来源"}</p>}
+                          {herb.doseSource && <p><span className="font-semibold text-gray-700">剂量来源：</span>{doseSourceLabelForDisplay(herb.doseSource)}</p>}
                           {herb.isToxic && <p><span className="font-semibold text-gray-700">药味注意：</span>毒性/峻烈药需严守炮制剂量。</p>}
                           {herb.decoctionRequirement && <p><span className="font-semibold text-gray-700">特殊煎法：</span>{herb.decoctionRequirement}</p>}
                         </div>

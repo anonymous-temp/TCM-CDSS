@@ -227,6 +227,24 @@ const configureSimple = (codes) => {
   delete process.env.TCM_CLINIC_TREATMENT_CAPABILITIES_JSON;
   process.env.TCM_CLINIC_TREATMENT_CAPABILITIES = codes.join(",");
 };
+// 生产环境的能力配置（2026-08-12 实测取自 .env.prod.runtime）：8 项，各带显式 priority。
+// 与 configureSimple 的区别是 priority 不按数组下标推导——排序结果因此与线上一致。
+const configureProduction = () => {
+  delete process.env.TCM_CLINIC_TREATMENT_CAPABILITIES;
+  process.env.TCM_CLINIC_TREATMENT_CAPABILITIES_JSON = JSON.stringify({
+    schemaVersion: "tcm-cdss-clinic-treatment-capabilities-v1",
+    items: [
+      { projectCode: "acupuncture", deliveryMode: "onsite", priority: 10 },
+      { projectCode: "moxibustion", deliveryMode: "onsite", priority: 20 },
+      { projectCode: "tuina", deliveryMode: "onsite", priority: 30 },
+      { projectCode: "cupping", deliveryMode: "onsite", priority: 40 },
+      { projectCode: "guasha", deliveryMode: "onsite", priority: 50 },
+      { projectCode: "auricular", deliveryMode: "onsite", priority: 60 },
+      { projectCode: "diet_therapy", deliveryMode: "onsite", priority: 70 },
+      { projectCode: "qigong_daoyin", deliveryMode: "onsite", priority: 80 },
+    ],
+  });
+};
 const clearConfiguration = () => {
   delete process.env.TCM_CLINIC_TREATMENT_CAPABILITIES;
   delete process.env.TCM_CLINIC_TREATMENT_CAPABILITIES_JSON;
@@ -1308,5 +1326,117 @@ try {
   assert.deepEqual(sleepGaps, [],
     `睡眠类模板缺少最常见的「入睡困难」写法，医生按常规录入将拿不到该项目的建议：${sleepGaps.join("、")}`);
 }
+
+// ── 甲方 2026-08-12 线上实测：普通风寒咳嗽拿不到针刺方案 ────────────────────────
+//
+// 现象：页面上三个项目是 气功导引（穴位为空）、灸法（承灵/孔最/肩中俞 泛化召回）、拔罐，
+// 唯独没有针刺，缺列缺与风池。
+//
+// 根因**不是**闸门没开、也不是模型没提名（实测显式提名针刺同样不出现）：
+// 针刺在候选里排第 4，被编译末尾的 `.slice(0, 3)` 切掉了——而它是本例唯一一个
+// governed_patient_specific_plan。排序只看适应证亲和度，完全不看「这个项目对本例
+// 究竟能不能给出方案」，于是连一个穴位都给不出的评估态项目把它挤出了名额。
+//
+// 判据：名额有限时，能给出方案的档次必须优先；闸门本身一把钥匙都不许放松。
+check("⑬ 名额有限时，给不出方案的项目不得挤掉已签字的患者级方案", () => {
+  // 用**生产同形**的配置（8 项，acupuncture priority 10 最高）。configureSimple 会按数组下标
+  // 重新赋 priority，排序随之改变，测不出线上那个形态——线上针刺排第 4 正是被亲和度压下去的。
+  configureProduction();
+  const windColdCough = signedM03({
+    tcmDiseaseName: "咳嗽",
+    primarySyndrome: "风寒袭肺证",
+    overallPathogenesis: "风寒外袭，肺卫失宣",
+    chainPathogenesis: "风寒外袭，肺卫失宣，肺气上逆而咳嗽",
+    therapyDirection: "疏风散寒，宣肺止咳",
+    westernPrimary: "急性上呼吸道感染",
+  });
+  const caseState = {
+    patient: { sex: "男", age: 42 },
+    chiefComplaint: "咳嗽3天",
+    symptoms: { general: "3天前受凉后出现咳嗽，咳白色稀薄痰，鼻塞流清涕，恶寒无汗，头身酸痛。" },
+    tongue: "舌淡红，苔薄白",
+    pulse: "脉浮紧",
+    reasoningDiagnose: windColdCough,
+  };
+
+  // 模型一条都不提名时也必须拿得到——此前只取排名前 2，针刺排第 4 连编译机会都没有。
+  const unproposed = compileTcmTreatmentRecommendations([], windColdCough, caseState);
+  const acu = unproposed.find((item) => item.projectCode === "acupuncture");
+  assert.ok(acu, `模型未提名时仍应给出已签字的针刺方案，实际：${unproposed.map((i) => i.projectCode).join("、")}`);
+  assert.equal(acu.protocolStatus, "governed_patient_specific_plan");
+  for (const point of ["肺俞", "中府", "列缺", "太渊", "风门", "合谷"]) {
+    assert.ok(
+      acu.suggestedSitesOrPoints.some((item) => item.includes(point)),
+      `签字模板取穴缺「${point}」：${acu.suggestedSitesOrPoints.join("、")}`,
+    );
+  }
+  // 风池是条件加穴：本例有鼻塞流清涕，应触发。
+  assert.ok(
+    acu.suggestedSitesOrPoints.some((item) => item.includes("风池")),
+    `鼻窍症状成立时应加风池：${acu.suggestedSitesOrPoints.join("、")}`,
+  );
+
+  // 模型提名了另外三个项目时，签字方案同样不得被挤掉。
+  const proposed = compileTcmTreatmentRecommendations(
+    [{ projectCode: "qigong_daoyin", targetRef: "P1" }, { projectCode: "moxibustion", targetRef: "P1" }, { projectCode: "cupping", targetRef: "P1" }],
+    windColdCough,
+    caseState,
+  );
+  // 判据是**在场**，不是次序：成熟度只决定谁占得到 3 个名额，名额内的先后仍由适应证亲和度
+  // 控制（既有原则，见「clinical fit ranks ahead of clinic display priority」）。
+  const proposedAcu = proposed.find((item) => item.projectCode === "acupuncture");
+  assert.ok(proposedAcu, `模型提名了别的项目时，签字方案不得被挤掉：${proposed.map((i) => i.projectCode).join("、")}`);
+  assert.equal(proposedAcu.protocolStatus, "governed_patient_specific_plan");
+  assert.ok(proposed.length <= 3, "名额上限仍是 3");
+  // 被它挤掉的必须是**给不出方案的**那个：气功导引在本例连一个穴位都没有。
+  assert.ok(
+    !proposed.some((item) => item.projectCode === "qigong_daoyin"),
+    `名额应让给能给出方案的项目：${JSON.stringify(proposed.map((i) => [i.projectCode, i.protocolStatus]))}`,
+  );
+});
+
+check("⑭ 闸门一把钥匙都不许放松：证型不符或年龄不足时不得出现签字方案", () => {
+  configureProduction();
+  const base = {
+    patient: { sex: "男", age: 42 },
+    chiefComplaint: "咳嗽3天",
+    symptoms: { general: "3天前受凉后出现咳嗽，咳白色稀薄痰，鼻塞流清涕，恶寒无汗。" },
+  };
+  const windHeat = signedM03({
+    tcmDiseaseName: "咳嗽",
+    primarySyndrome: "风热犯肺证",
+    overallPathogenesis: "风热袭肺",
+    chainPathogenesis: "风热袭肺，肺失清肃",
+    therapyDirection: "疏风清热",
+    westernPrimary: "急性上呼吸道感染",
+  });
+  const heatOut = compileTcmTreatmentRecommendations([], windHeat, { ...base, reasoningDiagnose: windHeat });
+  assert.ok(
+    !heatOut.some((item) => item.protocolStatus === "governed_patient_specific_plan"),
+    `风热犯肺不得命中风寒袭肺的签字模板：${JSON.stringify(heatOut.map((i) => [i.projectCode, i.protocolStatus]))}`,
+  );
+
+  const windCold = signedM03({
+    tcmDiseaseName: "咳嗽",
+    primarySyndrome: "风寒袭肺证",
+    overallPathogenesis: "风寒外袭，肺卫失宣",
+    chainPathogenesis: "风寒外袭，肺卫失宣",
+    therapyDirection: "疏风散寒",
+    westernPrimary: "急性上呼吸道感染",
+  });
+  // 该模板 minAgeYears=18。8 个月婴儿绝不能拿到成人取穴（中府/肺俞在小儿有气胸风险）。
+  const infantOut = compileTcmTreatmentRecommendations([], windCold, {
+    ...base,
+    patient: { sex: "男", age: 0.7 },
+    reasoningDiagnose: windCold,
+  });
+  assert.ok(
+    !infantOut.some((item) => item.protocolStatus === "governed_patient_specific_plan"),
+    `未达年龄下限不得启用该模板：${JSON.stringify(infantOut.map((i) => [i.projectCode, i.protocolStatus]))}`,
+  );
+  for (const item of infantOut) {
+    assert.ok(!item.suggestedSitesOrPoints.some((point) => /中府/.test(point)), `婴儿病例出现了气胸风险穴：${item.suggestedSitesOrPoints.join("、")}`);
+  }
+});
 
 console.log(JSON.stringify({ cases, acupointBindingChecks: 3, failures: 0 }));

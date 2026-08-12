@@ -286,6 +286,9 @@ const scripts = [
   "test:prescription-permission",
   "test:primary-care-50-contracts",
   "test:diagnosis-display",
+  // 甲方 2026-08-12：页面把内部口径词（知识库/受治理）印给了医生。
+  // 判据落在源码字符串字面量上，扫医生页面/服务端 Markdown/HIS 三个出口，不是抽样看输出。
+  "test:doctor-vocabulary",
   // 渲染层卫生（甲方评测 2026-08-04 呈现层四条）。其余套件断言的是 lib 层函数的返回值，
   // 这一套把归档的真实 M03/M04 产出重新投影、用 react-dom/server 渲染成静态 HTML，
   // 再对**医生实际看到的文本**断言：内部工程记号、方义解析长度、病机节内不重复、旧组件零残留。

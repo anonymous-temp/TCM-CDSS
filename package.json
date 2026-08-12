@@ -97,6 +97,7 @@
     "test:prescription-permission": "jiti scripts/test-prescription-permission.mjs",
     "test:primary-care-50-contracts": "node --test scripts/test-primary-care-sparse-50-contracts.mjs",
     "test:diagnosis-display": "jiti scripts/test-diagnosis-display-consistency.mjs",
+    "test:doctor-vocabulary": "jiti scripts/test-doctor-facing-vocabulary.mjs",
     "test:visible-output-hygiene": "node scripts/test-visible-output-hygiene.mjs",
     "test:icd10-coding": "jiti scripts/test-icd10-diagnosis-coding.mjs",
     "test:reasoning-signature": "node scripts/test-reasoning-contract-signature.mjs",
