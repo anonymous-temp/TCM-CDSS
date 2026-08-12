@@ -11,7 +11,8 @@
 // 判据落在**源码的字符串字面量**上，而不是某一次输出的抽样：注释先剥掉（注释里必须
 // 能自由讨论内部机制，那正是本仓库的记录方式），剩下的引号内文本一个都不许带这些词。
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // 顶层 await import：与其余套件同一写法，交给 jiti 解析 TS 与无扩展名的相对导入。
@@ -22,13 +23,31 @@ const check = (name, fn) => {
   try { fn(); } catch (error) { failures.push({ name, message: error?.message || String(error) }); }
 };
 
-// 会被渲染给医生/患者看的三个出口。
-const DOCTOR_FACING_SOURCES = [
-  "src/app/diagnosis/DiagnosisClient.tsx",
-  "src/lib/diagnosis-visible-summary.ts",
-  "src/lib/his-scheme.ts",
-  "src/lib/result-display-policy.ts",
-];
+// 判据的范围本身错过一次（2026-08-12 部署后线上实测）：上一版只列了 4 个「我认为是出口」的
+// 文件，于是 m04-proposal-compiler 写进 verificationReasons 的
+// 「受治理剂量边界 2-10g 已用于生成后校验」照样印到了医生面前，闸门全绿。
+// 判据改成**扫全部应用源码**，再显式豁免「这份字符串是喂给模型的提示词，不是给人看的」。
+// 豁免必须逐个文件写清理由——新文件默认被扫到，红了就得有人做一次分类，
+// 而不是像上一版那样默认漏掉。
+const SCAN_ROOTS = ["src/lib", "src/app"];
+
+/**
+ * 提示词专用模块：这些文件里的中文串是发给模型的指令与上下文，医生看不到。
+ * 内部口径词在这里是**必要的**——它正是在告诉模型「这条数据的治理边界是什么」。
+ */
+const PROMPT_ONLY_FILES = new Set([
+  "src/lib/diagnosis-prompts.ts",                        // M01–M05 提示词本体
+  "src/lib/structured-clinical-repair.ts",               // 修复轮指导语
+  "src/lib/m04-clinical-review.ts",                      // 复核提示词
+  "src/lib/controlled-semantic-normalization.server.ts", // 术语归一提示词
+  "src/lib/drug-inventory.server.ts",                    // 院内库存提示词上下文
+  "src/lib/tcm-clinical-decision-cards.ts",              // 决策卡片提示词上下文
+  "src/lib/diagnosis-api.ts",                            // 结构化合同提示词
+  "src/lib/cdss-evidence-context.ts",                    // 证据上下文提示词
+  "src/lib/syndrome-hypothesis-rerank.server.ts",        // 证候候选重排提示词
+  // 内部口径词**检测器**：它必须含有这些词才能把它们从可见正文里找出来。
+  "src/lib/m03-therapy-lock.ts",
+]);
 
 // 内部口径词。这些是我们自己的实现语汇，医生不需要、也不该在结论里读到。
 const INTERNAL_VOCABULARY = /知识库|受治理|闭集|受控词表|\bKB\b/;
@@ -54,10 +73,27 @@ function stringLiteralsOf(source) {
   return literals;
 }
 
+function sourceFilesUnder(rootRelative) {
+  const root = fileURLToPath(new URL(`../${rootRelative}`, import.meta.url));
+  const found = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) { walk(full); continue; }
+      if (/\.tsx?$/.test(entry.name)) found.push(full);
+    }
+  };
+  walk(root);
+  return found;
+}
+
 check("① 医生可见文案里不得出现内部口径词", () => {
+  const repoRoot = fileURLToPath(new URL("..", import.meta.url));
   const offenders = [];
-  for (const relative of DOCTOR_FACING_SOURCES) {
-    const source = readFileSync(fileURLToPath(new URL(`../${relative}`, import.meta.url)), "utf8");
+  for (const absolute of SCAN_ROOTS.flatMap(sourceFilesUnder)) {
+    const relative = absolute.slice(repoRoot.length).replace(/\\/g, "/");
+    if (PROMPT_ONLY_FILES.has(relative)) continue;
+    const source = readFileSync(absolute, "utf8");
     for (const literal of stringLiteralsOf(source)) {
       // 只看含中文的文案串：import 路径、CSS 类名、枚举值不是给医生读的。
       if (!/[一-鿿]/.test(literal)) continue;

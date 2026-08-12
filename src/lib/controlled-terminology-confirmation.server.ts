@@ -127,7 +127,7 @@ export function confirmControlledTerminologyMapping(
             system: "ICD-10",
             code: selected.candidateId,
             display: selected.canonical,
-            source: "医生确认的 DeepSeek 闭集受控术语映射",
+            source: "医生确认的标准术语对照",
           },
         },
       },

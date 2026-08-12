@@ -203,7 +203,7 @@ export async function POST(req: Request) {
     prompt += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请照常生成候选，并在适用边界中显式提示“本次就诊目标需医生确认后方可采纳”。";
   }
   if (noExecutableFormulaPath && advisoryDisposition) {
-    prompt += `\n\n【方名剂量基准缺失】推荐方 ${unavailableFormulaNames.join("、")} 在本地受治理知识库暂无可执行的逐味剂量基准。请按已锁定证候与治法自拟组方（constructionType=self_devised，不得沿用该方名身份），方名方向已另行保留给医生参考。`;
+    prompt += `\n\n【方名剂量基准缺失】推荐方 ${unavailableFormulaNames.join("、")} 在本地标准剂量资料中暂无可执行的逐味剂量基准。请按已锁定证候与治法自拟组方（constructionType=self_devised，不得沿用该方名身份），方名方向已另行保留给医生参考。`;
   }
   const truncationGate: SafetyGate = {
     status: "needs_information",

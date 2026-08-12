@@ -991,7 +991,7 @@ export function retrieveTcmFormulaCandidatesForReasoning(
             ? `方剂主治与主证候精确关系:${governedTcmTermLabelById(primarySyndromeId!) || primarySyndromeId}`
             : `方剂主治与主证候表↔肺卫外感风证受控相容:${governedTcmTermLabelById(primarySyndromeId!) || primarySyndromeId}`
         : directPrimarySyndromeMatch && !primarySyndromeIdentityConfirmed
-          ? `闭集语义映射仅用于召回，主证候“${reasoning.overview.primarySyndrome}”映射到“${semanticPrimaryMapping?.canonical || primarySyndromeId}”尚待医生确认`
+          ? `标准术语对照仅用于召回，主证候“${reasoning.overview.primarySyndrome}”映射到“${semanticPrimaryMapping?.canonical || primarySyndromeId}”尚待医生确认`
         : directPrimarySyndromeMatch && curatedPrimaryRelation
           ? `证候关系存在，但已签名治法未命中:${curatedPrimaryRelation.therapyTerms.join("、")}`
           : "仅病性、病位、症状或鉴别证候相关，缺少主证候正向充分性",

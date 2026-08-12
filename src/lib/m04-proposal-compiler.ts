@@ -40,7 +40,7 @@ function compileHerbVerification(name: string): {
       verificationReasons: [
         identity.status === "ambiguous"
           ? `药味身份存在多个候选：${identity.candidates.join("、") || "待药师核定"}`
-          : "药味身份尚未进入受治理标准名目录",
+          : "药味身份尚未进入标准名目录",
       ],
       isToxic: false,
     };
@@ -67,7 +67,7 @@ function compileHerbVerification(name: string): {
       verificationReasons: [
         doseLimit?.sourceConflict
           ? "剂量边界存在分用途冲突，当前数值不能标为已核验"
-          : "本地受治理知识库尚无完整数值型内服剂量边界",
+          : "标准药材资料尚无完整数值型内服剂量边界",
       ],
       isToxic: false,
     };
@@ -76,7 +76,8 @@ function compileHerbVerification(name: string): {
   return {
     verificationTier: "verified",
     doseSource: "governed_boundary",
-    verificationReasons: [`受治理剂量边界 ${doseLimit.min}-${doseLimit.max}g 已用于生成后校验`],
+    // 医生看得到这一条，不能写内部口径词（甲方 2026-08-12）。
+    verificationReasons: [`剂量已按 ${doseLimit.min}-${doseLimit.max}g 的标准区间完成规则校验`],
     isToxic: false,
   };
 }
@@ -317,7 +318,7 @@ const M04ProposalSchema = z.object({
       context.addIssue({
         code: "custom",
         path: ["candidate", "herbs", index, "name"],
-        message: `药味与第${firstIndex + 1}行属于同一知识库规范身份（含别名或同源炮制品），必须合并为一个明确剂量；当前协议未提供并列炮制品的结构化理由字段`,
+        message: `药味与第${firstIndex + 1}行属于同一标准规范身份（含别名或同源炮制品），必须合并为一个明确剂量；当前协议未提供并列炮制品的结构化理由字段`,
       });
     } else {
       seenHerbs.set(key, index);
@@ -569,7 +570,7 @@ const MODIFICATION_DROP_MESSAGES: Readonly<Record<ModificationDropCode, string>>
   malformed: "条目缺少触发事实、病机引用、动作、药名或理由",
   contains_unaudited_dose: "条件性加减夹带了未经审方的具体剂量",
   trigger_not_current_fact: "触发条件不能回溯到本次病历已确认的当前事实",
-  unknown_herb: "该药味不在中药知识库收录范围",
+  unknown_herb: "该药味不在标准药材资料的收录范围",
   invalid_target: "所引病机不属于本次已确认的病机",
   action_conflicts_with_candidate: "增减动作与当前处方药味状态冲突",
   bounded_limit: "超过单次最多展示 4 条随症加减的安全边界",

@@ -590,9 +590,9 @@ function compactEntry(entry: KnowledgeEntry): string {
     return `煎服法：建议${entry.allowedMethod || "常规复核"}；错误方法：${entry.wrongMethods || "无"}；动作：${entry.action || "医生复核"}；依据：${entry.basis || "药典/院内规则"}`;
   }
   if (entry.type === "herbRisk") {
-    return `功效/风险：${entry.riskName || entry.riskCode || "风险待核验"}；类别：${[entry.primaryCategory, entry.secondaryCategory].filter(Boolean).join("/")}；毒性：${entry.toxicity || "未标注"}；妊娠：${entry.pregnancyRule || "未标注"}；哺乳：${entry.lactationRule || "未标注"}；依据：${entry.basis || "知识库"}`;
+    return `功效/风险：${entry.riskName || entry.riskCode || "风险待核验"}；类别：${[entry.primaryCategory, entry.secondaryCategory].filter(Boolean).join("/")}；毒性：${entry.toxicity || "未标注"}；妊娠：${entry.pregnancyRule || "未标注"}；哺乳：${entry.lactationRule || "未标注"}；依据：${entry.basis || "标准药材资料"}`;
   }
-  return `${entry.type}：${entry.basis || "知识库记录"}`;
+  return `${entry.type}：${entry.basis || "标准药材资料记录"}`;
 }
 
 function pickEntries(entries: KnowledgeEntry[], max = 6): KnowledgeEntry[] {
@@ -924,8 +924,8 @@ export function buildTcmKnowledgeContext(caseState: CaseState, stage: "diagnose"
   const labThresholds = searchLabThresholds(text);
   const sections: string[] = [];
 
-  sections.push("## 院内合理用药/中医药知识库支持");
-  sections.push(`知识库版本：${data.schemaVersion}；生成时间：${data.generatedAt}；饮片条目：${data.summary.herbCount}。`);
+  sections.push("## 院内合理用药/中药标准资料支持");
+  sections.push(`资料版本：${data.schemaVersion}；生成时间：${data.generatedAt}；饮片条目：${data.summary.herbCount}。`);
   sections.push("使用边界：以下内容仅作为证据与风险提示素材，不替代医生审方；不得输出“硬拦截/自动通过”。");
   sections.push("药典版本边界：本地剂量规则含2020版历史基线；2025年10月1日起处方采纳必须以《中华人民共和国药典》2025年版、现行说明书及院内药事规则复核，历史基线不得表述为现行药典核验结论。");
   sections.push(`全局规则：${data.globalRules.join(" ")}`);
@@ -1662,10 +1662,10 @@ export function governedHerbSubstitutes(
       differenceNote: [
         sourceFunctionText
           ? `${canonical}功效：${clip(sourceFunctionText, sourceBudget)}`
-          : `${canonical}在知识库中无功效条目`,
+          : `${canonical}在标准药材资料中无功效条目`,
         candidateFunctionText
           ? `${candidate}功效：${clip(candidateFunctionText, Math.max(20, candidateBudget))}`
-          : `${candidate}在知识库中无功效条目`,
+          : `${candidate}在标准药材资料中无功效条目`,
         CLOSING,
       ].join("；"),
     };
@@ -1836,7 +1836,7 @@ export function getTcmHerbGenerationSafetyProfile(herb: string): TcmHerbGenerati
           action: normalizedSafetySeverity(entry.pregnancySeverity || entry.pregnancyRule) === "HIGH"
             ? "生成期不得形成剂量候选"
             : "医生/药师复核",
-          basis: entry.basis || "中药风险知识库",
+          basis: entry.basis || "中药风险标准资料",
         });
       }
       if (entry.lactationRule && !/^(?:非哺乳期核心规则|一般不因类别禁用)/.test(entry.lactationRule)) {
@@ -1847,7 +1847,7 @@ export function getTcmHerbGenerationSafetyProfile(herb: string): TcmHerbGenerati
           action: normalizedSafetySeverity(entry.lactationSeverity || entry.lactationRule) === "HIGH"
             ? "生成期不得形成剂量候选"
             : "医生/药师复核",
-          basis: entry.basis || "中药风险知识库",
+          basis: entry.basis || "中药风险标准资料",
         });
       }
     }

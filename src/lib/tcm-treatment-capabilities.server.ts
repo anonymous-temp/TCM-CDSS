@@ -398,7 +398,7 @@ function controlledTreatmentPlan(
       treatmentContent: refinement
         ? `本例适用标准项目方案，${[focus, `按已签名证候「${refinement.syndromeLabel}」加减取穴`].filter(Boolean).join("并")}，由现场医师复核后实施。`
         : syndromeGatedTemplate
-          ? `本例命中「${gateLabel}」的受治理标准取穴${focus ? `（${focus}）` : ""}——该模板以本例**当前病种事实**与**已签名证型**双重条件准入${conditionalPoints.length > 0 ? `，并按本例症状加用${conditionalPoints.map((item) => item.point).join("、")}` : ""}；补泻、深度、留针与禁忌由现场医师复核后确定。`
+          ? `本例命中「${gateLabel}」的标准取穴${focus ? `（${focus}）` : ""}——该模板以本例**当前病种事实**与**已签名证型**双重条件准入${conditionalPoints.length > 0 ? `，并按本例症状加用${conditionalPoints.map((item) => item.point).join("、")}` : ""}；补泻、深度、留针与禁忌由现场医师复核后确定。`
         : matchedRefinement
           ? `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，也命中了「${matchedRefinement.syndromeLabel}」的证型配穴，但该条配穴尚未完成中医师终审，本轮**不予应用**，仅呈现病种标准取穴，请按本例寒热虚实自行增减。`
           : `本例命中该病种标准取穴模板${focus ? `（${focus}）` : ""}，由现场医师复核后实施；本轮尚未按本例证型加减，请按本例寒热虚实增减。`,

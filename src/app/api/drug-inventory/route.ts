@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     // 归一不到与歧义的药名如实回报，供甲方补映射。静默吞掉会让这些药永远处于「缺货」，
     // 而甲方无从知道是自己没推还是我们没认出来。
     note: result.snapshot.unresolvedNames.length > 0 || result.snapshot.ambiguousNames.length > 0
-      ? "部分院内药名未能归一到受治理正名（unresolvedNames）或存在多个候选（ambiguousNames）。"
+      ? "部分院内药名未能归一到标准正名（unresolvedNames）或存在多个候选（ambiguousNames）。"
         + "系统不会替这些名字自动择一；它们不参与正名级匹配，请补充映射后重新导入。"
       : undefined,
   });

@@ -116,8 +116,8 @@ export function counterEvidenceNotice(items: readonly FormulaCounterEvidence[]):
   if (items.length === 0) return undefined;
   const lines = items.map((item) =>
     `${item.formulaName}：本例出现「${item.matchedAgainstTerms.join("、")}」，` +
-    `属该方鉴别点（${item.discriminators.join("；") || "受治理鉴别图"}）的**对立侧**特征`);
-  return `⚠️ **方剂鉴别反证**：${lines.join("；")}。依据为本地受治理方剂鉴别图的确定性比对，` +
+    `属该方鉴别点（${item.discriminators.join("；") || "标准方剂鉴别对照"}）的**对立侧**特征`);
+  return `⚠️ **方剂鉴别反证**：${lines.join("；")}。依据为本地标准方剂鉴别对照的确定性比对，` +
     `不代表一定错误（可能存在兼夹或先后缓急的考量），但请医生确认后再采纳。`;
 }
 

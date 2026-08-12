@@ -14,7 +14,7 @@ export type EvidenceLevelValue = typeof EVIDENCE_LEVELS[number];
 
 export const EVIDENCE_LEVEL_LABELS: Record<EvidenceLevelValue, string> = {
   deterministic_rule: "确定性规则",
-  kb_entry: "知识库",
+  kb_entry: "标准资料",
   guideline: "指南/共识",
   instruction: "说明书",
   drug_label: "药品标签",
