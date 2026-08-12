@@ -4688,8 +4688,12 @@ function ResultTabsV2({
   // 甲方评测(2026-08-04) 1.1.1：西医诊断下方不再是一串主诉/现病史复述，改为
   // 分类依据（症状/体征/检查/排除/待查/指南），每条标注它来自病历的哪个字段。
   // 三类与来源都由确定性层从已签名载荷与病例状态派生（clinical-fact-source.ts），此处只负责呈现。
-  const westernEvidence = classifyWesternDiagnosticEvidence(reasoning.westernDiagnosis.primary);
   const westernFactSources = clinicalFactSourcesFromCaseState(caseState);
+  // sources 必须传：分类的第二把判据是「这条事实落在病历的哪个字段」，不传等于把字段兜底
+  // 整个关掉，凡是模型没标注的条目一律掉进「症状依据」——线上实测里生命体征、既往史、
+  // 用药史因此都被印成症状。服务端 Markdown 一直传着（diagnosis-visible-summary.ts:2696），
+  // 只有这个出口没传：又一次「同一判据两处各写各的」。
+  const westernEvidence = classifyWesternDiagnosticEvidence(reasoning.westernDiagnosis.primary, westernFactSources);
   const westernSupportingFactsAll = prioritizeWesternEvidenceForDisplay(
     westernEvidence.supporting,
     Math.max(1, westernEvidence.supporting.length),

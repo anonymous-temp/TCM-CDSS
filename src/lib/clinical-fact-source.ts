@@ -152,6 +152,8 @@ export type ClassifiedDiagnosticEvidence = {
   sign: string[];
   /** 检验检查结果。 */
   exam: string[];
+  /** 既往史 / 用药史 / 过敏史——支持本诊断、但不是现症也不是查体所见的病史事实。 */
+  history: string[];
   /** 用于排除鉴别方向的否定性事实。 */
   excluding: string[];
   /** 尚未取得、需进一步确认的事项（资料限制 + 建议检查）。 */
@@ -172,12 +174,14 @@ export type ClassifiedDiagnosticEvidence = {
  * 「指南依据」不在这里产生——引用必须有 KB/证据层条目背书，呈现层只印真检索到的，
  * 检索不到就不出这一栏，绝不让模型自己写《内科学》第10版。
  */
-const FIELD_ID_EVIDENCE_KIND: Readonly<Record<string, "symptom" | "sign" | "exam">> = {
+type EvidenceKind = "symptom" | "sign" | "exam" | "history";
+
+const FIELD_ID_EVIDENCE_KIND: Readonly<Record<string, EvidenceKind>> = {
   chief_complaint: "symptom",
   present_illness: "symptom",
-  past_history: "symptom",
-  medication_history: "symptom",
-  allergy_history: "symptom",
+  past_history: "history",
+  medication_history: "history",
+  allergy_history: "history",
   vitals: "sign",
   tongue: "sign",
   pulse: "sign",
@@ -185,8 +189,23 @@ const FIELD_ID_EVIDENCE_KIND: Readonly<Record<string, "symptom" | "sign" | "exam
   auxiliary_examinations: "exam",
 };
 
-function modelDeclaredKinds(value: unknown): Map<string, "symptom" | "sign" | "exam"> {
-  const kinds = new Map<string, "symptom" | "sign" | "exam">();
+/**
+ * 这三个字段的落点**就是**分类结论，模型标注不得覆盖。
+ *
+ * 2026-08-12 线上实测（52 岁男性突发剧烈头痛）：症状依据里印着
+ *   · 高血压病史5年，规律服药   ← 既往史
+ *   · 氨氯地平 5mg 每日一次      ← 用药史
+ * 两条都不是症状。根因是上表把这三个字段一律映射成 symptom，而它只是「模型没标时」的兜底，
+ * 模型标了 symptom 时更是直接照收。
+ *
+ * 为什么这三个字段可以由字段终局判定、而现病史不行：既往史/用药史/过敏史按字段定义记录的
+ * 就是**此次发病之前**的事实，不可能是现症或本次查体所见；现病史里则确实可以记下体征
+ * （「咽部充血(++)」写在现病史里仍是体征），所以那边继续以模型标注优先。
+ */
+const FIELD_DEFINITIVE_KINDS: ReadonlySet<string> = new Set(["past_history", "medication_history", "allergy_history"]);
+
+function modelDeclaredKinds(value: unknown): Map<string, EvidenceKind> {
+  const kinds = new Map<string, EvidenceKind>();
   if (!Array.isArray(value)) return kinds;
   for (const raw of value) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
@@ -311,24 +330,25 @@ export function classifyWesternDiagnosticEvidence(
   const excluding = facts.filter((fact) => clinicalClausePolarity(fact) === "negative");
   const supporting = facts.filter((fact) => !excluding.includes(fact));
   const declared = modelDeclaredKinds(primary?.supportingFactKinds);
-  const symptom: string[] = [];
-  const sign: string[] = [];
-  const exam: string[] = [];
+  const buckets: Record<EvidenceKind, string[]> = { symptom: [], sign: [], exam: [], history: [] };
   for (const fact of supporting) {
-    // 模型的标注只在该条事实确实存在时生效——它不能借标注新增一条依据。
-    const kind = declared.get(fact)
-      // 兜底：按这条事实在病历里的落点字段归类。字段来源本身是确定性算出来的。
-      ?? FIELD_ID_EVIDENCE_KIND[sources.find((source) =>
-        source.text.includes(fact) || fact.includes(source.text))?.fieldId || ""]
-      ?? "symptom";
-    (kind === "sign" ? sign : kind === "exam" ? exam : symptom).push(fact);
+    const fieldId = fieldIdOfFact(fact, sources);
+    const fieldKind = FIELD_ID_EVIDENCE_KIND[fieldId];
+    const kind: EvidenceKind = FIELD_DEFINITIVE_KINDS.has(fieldId)
+      // 既往史/用药史/过敏史：字段即结论，模型标注不参与（见 FIELD_DEFINITIVE_KINDS）。
+      ? fieldKind
+      // 其余字段：模型标注优先（它能认出记在现病史里的体征），标注只在该条事实
+      // 确实存在时生效——模型不能借标注新增一条依据；没标则按落点字段兜底。
+      : declared.get(fact) ?? fieldKind ?? "symptom";
+    buckets[kind].push(fact);
   }
   return {
     supporting,
     // 逐组折叠：同一事件的粗细两版只留详细的那条。跨组不折——那是分类问题不是重复问题。
-    symptom: foldSameClinicalEvent(symptom, sources),
-    sign: foldSameClinicalEvent(sign, sources),
-    exam: foldSameClinicalEvent(exam, sources),
+    symptom: foldSameClinicalEvent(buckets.symptom, sources),
+    sign: foldSameClinicalEvent(buckets.sign, sources),
+    exam: foldSameClinicalEvent(buckets.exam, sources),
+    history: foldSameClinicalEvent(buckets.history, sources),
     excluding: foldSameClinicalEvent(excluding, sources),
     pending: uniqueClinicalFacts([...cleanedList(primary?.limitations), ...cleanedList(primary?.suggestedChecks)]),
   };
@@ -391,13 +411,18 @@ export function guidelineReferenceDisplay(
 }
 
 export function westernDiagnosticEvidenceGroups(
-  evidence: Pick<ClassifiedDiagnosticEvidence, "symptom" | "sign" | "exam" | "excluding">,
+  evidence: Pick<ClassifiedDiagnosticEvidence, "symptom" | "sign" | "exam" | "excluding"> &
+    Partial<Pick<ClassifiedDiagnosticEvidence, "history">>,
   guidelineReferences: readonly { text: string; href?: string }[] = [],
 ): Array<{ label: string; items: Array<{ text: string; href?: string }>; withSource: boolean }> {
   const groups = [
     { label: "症状依据", items: [...evidence.symptom].map((text) => ({ text })), withSource: true },
     { label: "体征依据", items: [...evidence.sign].map((text) => ({ text })), withSource: true },
     { label: "检查依据", items: [...evidence.exam].map((text) => ({ text })), withSource: true },
+    // 病史依据（2026-08-12 线上实测补）：既往史/用药史/过敏史此前被并进「症状依据」，
+    // 于是「氨氯地平 5mg 每日一次」被印成一条症状。甲方 0810 的口径是「有啥列啥」，
+    // 这一栏只在确有病史类支持依据时出现，不占空栏。
+    { label: "病史依据", items: [...(evidence.history || [])].map((text) => ({ text })), withSource: true },
     { label: "排除依据", items: [...evidence.excluding].map((text) => ({ text })), withSource: true },
     // **不出「待查依据」栏**：甲方 2026-08-10 的原话是「删掉笼统的『支持依据』与『待查依据』，
     // 改成有啥列啥」。服务端 Markdown 当时照做了，医生页面没跟上——这正是本次「支持依据没生效」

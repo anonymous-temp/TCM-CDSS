@@ -115,8 +115,69 @@ check("③ 医生页面不得用全量支持依据覆盖某一个分组", () => 
   );
 });
 
+// ── ⑥⑦ 2026-08-12 线上实测（52 岁男性突发剧烈头痛）新抓到的两条 ────────────────
+// 症状依据里印着「高血压病史5年，规律服药」与「氨氯地平 5mg 每日一次」——一条既往史、
+// 一条用药史，都不是症状。根因是字段映射表把这三个病史字段一律映射成 symptom。
+const HISTORY_SOURCES = [
+  { fieldId: "chief_complaint", text: "突发剧烈头痛伴呕吐1小时", label: "主诉" },
+  { fieldId: "past_history", text: "高血压病史5年，规律服药", label: "既往史" },
+  { fieldId: "medication_history", text: "氨氯地平 5mg 每日一次", label: "用药史" },
+  { fieldId: "allergy_history", text: "青霉素过敏", label: "过敏史" },
+  { fieldId: "vitals", text: "178/102mmHg", label: "生命体征" },
+];
+const HISTORY_FACTS = ["突发剧烈头痛伴呕吐1小时", "高血压病史5年，规律服药", "氨氯地平 5mg 每日一次", "青霉素过敏", "178/102mmHg"];
+
+check("⑥ 既往史/用药史/过敏史归病史依据，且模型标注不得把它们改回症状", () => {
+  const evidence = classify(HISTORY_FACTS, [], HISTORY_SOURCES);
+  assert.deepEqual(evidence.symptom, ["突发剧烈头痛伴呕吐1小时"], `症状依据混入了非症状：${evidence.symptom.join(" | ")}`);
+  assert.deepEqual(
+    evidence.history,
+    ["高血压病史5年，规律服药", "氨氯地平 5mg 每日一次", "青霉素过敏"],
+    `病史依据不完整：${evidence.history.join(" | ")}`,
+  );
+  assert.deepEqual(evidence.sign, ["178/102mmHg"], `生命体征应在体征依据：${evidence.sign.join(" | ")}`);
+
+  // 模型把用药史标成 symptom 也不算数——这三个字段的落点即结论。
+  const misdeclared = classify(HISTORY_FACTS, HISTORY_FACTS.map((fact) => ({ fact, kind: "symptom" })), HISTORY_SOURCES);
+  assert.ok(
+    misdeclared.history.includes("氨氯地平 5mg 每日一次"),
+    `模型标注覆盖了病史字段：${misdeclared.symptom.join(" | ")}`,
+  );
+
+  // 「有啥列啥」：没有病史类依据时不出这一栏。
+  const noHistory = classify(["突发剧烈头痛伴呕吐1小时"], [], HISTORY_SOURCES);
+  assert.ok(
+    !westernDiagnosticEvidenceGroups(noHistory, []).some((group) => group.label === "病史依据"),
+    "无病史依据时不得占一个空栏",
+  );
+});
+
+// 这一条才是它躲过上一轮的原因：分类的第二把判据（落点字段）需要 sources，
+// 而医生页面调用时根本没传——字段兜底在那个出口上是死的，凡模型没标的都掉进症状依据。
+check("⑦ 医生页面必须把 sources 传进分类，否则字段兜底整个失效", () => {
+  const source = readFileSync(
+    fileURLToPath(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url)),
+    "utf8",
+  );
+  const call = source.match(/classifyWesternDiagnosticEvidence\(([^;]*?)\)\s*;/);
+  assert.ok(call, "页面没有调用 classifyWesternDiagnosticEvidence");
+  assert.ok(
+    /,/.test(call[1]) && /[Ss]ources/.test(call[1]),
+    `页面调用未传 sources，字段兜底失效：classifyWesternDiagnosticEvidence(${call[1]})`,
+  );
+  // 同一判据的两个出口必须都传：服务端 Markdown 一直传着，别把它改回去。
+  const server = readFileSync(
+    fileURLToPath(new URL("../src/lib/diagnosis-visible-summary.ts", import.meta.url)),
+    "utf8",
+  );
+  assert.ok(
+    /classifyWesternDiagnosticEvidence\([^)]*,[^)]*[Ss]ources[^)]*\)/.test(server),
+    "服务端 Markdown 调用也必须传 sources",
+  );
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "western-evidence-grouping", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "western-evidence-grouping", checks: 5, failures: 0 }));
+console.log(JSON.stringify({ suite: "western-evidence-grouping", checks: 7, failures: 0 }));

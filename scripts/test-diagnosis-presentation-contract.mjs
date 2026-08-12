@@ -91,7 +91,8 @@ check(() => {
 });
 check(() => assert.deepEqual(
   classifyWesternDiagnosticEvidence(null),
-  { supporting: [], symptom: [], sign: [], exam: [], excluding: [], pending: [] },
+  // history 是 2026-08-12 新增的第四个支持类（既往史/用药史/过敏史）。
+  { supporting: [], symptom: [], sign: [], exam: [], history: [], excluding: [], pending: [] },
   "空载荷返回全部空类，不抛错",
 ));
 // 甲方 2026-08-10：支持依据再拆症状/体征/检查。分类由模型标（临床理解），
