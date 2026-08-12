@@ -930,7 +930,58 @@ function sanitizePatientApplicableText(value: string, state: CaseState): string 
  * absence-of-data into “患者否认”. Keep this as a deterministic customer-output guard in
  * addition to the prompt contract because fabricated negative history can suppress follow-up.
  */
+/**
+ * 随访时间轴 sentinel 的**结构化**净化（2026-08-12 线上实测）。
+ *
+ * 实测缺陷：随访时间轴帧对一整类病例静默消失。根因是净化器把 sentinel 里的 JSON
+ * 当散文逐字改写——`"time":"服药3天后复诊"` 被改成 `"time":病历已记录咳嗽阳性` 并截断整个数组，
+ * 下游 JSON.parse 落进 catch 返回 []，帧根本不发。没有报错、没有降级提示，
+ * 集成方只会看到「有时有、有时没有」。
+ *
+ * 修法**不是**把 sentinel 整段跳过净化——时间轴里的观察项与触发条件同样是临床文本，
+ * 同样要接受未接地否定的净化（第一版这么写，当场被 test:clinical-grounding 抓到：
+ * 它连 M03 的 DIAGNOSIS_JSON sentinel 一起放行了，而那一段本来就该被净化）。
+ * 改为**逐字段**净化：解析 → 每个字符串值单独过净化器 → 重新序列化。
+ * 接地覆盖一点没丢，JSON 结构也不会再被打碎。
+ *
+ * 其余 sentinel（M03/M04 契约）的处理**一字未改**，仍按散文整体净化。
+ */
+function sanitizeFollowupTimelineSentinel(content: string, sanitize: (segment: string) => string): string {
+  const start = content.indexOf(FOLLOWUP_TIMELINE_START);
+  if (start < 0) return sanitize(content);
+  const end = content.indexOf(FOLLOWUP_TIMELINE_END, start + FOLLOWUP_TIMELINE_START.length);
+  if (end < 0) return sanitize(content);
+  const payload = content.slice(start + FOLLOWUP_TIMELINE_START.length, end).trim();
+  let sanitizedPayload = payload;
+  try {
+    const parsed = JSON.parse(payload);
+    if (Array.isArray(parsed)) {
+      sanitizedPayload = JSON.stringify(parsed.map((item) => ({
+        ...item,
+        time: sanitize(String(item?.time ?? "")),
+        action: sanitize(String(item?.action ?? "")),
+        indicators: (Array.isArray(item?.indicators) ? item.indicators : []).map((entry: unknown) => sanitize(String(entry ?? ""))),
+        triggers: (Array.isArray(item?.triggers) ? item.triggers : []).map((entry: unknown) => sanitize(String(entry ?? ""))),
+      })));
+    }
+  } catch {
+    // 解析不了就原样保留：净化一段坏 JSON 只会让它更坏。
+    sanitizedPayload = payload;
+  }
+  return [
+    sanitize(content.slice(0, start)),
+    FOLLOWUP_TIMELINE_START,
+    sanitizedPayload,
+    FOLLOWUP_TIMELINE_END,
+    sanitize(content.slice(end + FOLLOWUP_TIMELINE_END.length)),
+  ].join("\n");
+}
+
 export function sanitizeUngroundedRedFlagNegations(content: string, state: CaseState): string {
+  return sanitizeFollowupTimelineSentinel(content, (segment) => sanitizeUngroundedRedFlagNegationsInProse(segment, state));
+}
+
+function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseState): string {
   // 接地语料而非安全语料：这里判断的是「病历里有没有记录过这个症状」。用安全语料会把医生
   // 已录入、只是恰好没出现在 HIS/对话里的症状判成未知，从而凭空写出「病历尚未确认X是否存在」。
   // 见 clinicalGroundingText 的说明；红旗判定不走这条路径。

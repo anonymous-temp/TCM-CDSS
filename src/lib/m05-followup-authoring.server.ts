@@ -235,10 +235,9 @@ export async function authorFollowupClinicalContent(
     // ── 时间轴逐条校验 ──────────────────────────────────────────────────
     // 判据与三段散文同源（剂量写法 / 引用 / 受治理禁述表），另加三条这一栏特有的：
     // 不得原样吐回旧模板套话、不得写具体日期、第一条时间点必须等于处方定的首次复诊时间。
-    const firstReviewTiming = String(input.firstReviewTiming || "").trim();
     const timeline: AuthoredTimelineItem[] = (Array.isArray(parsed.timeline) ? parsed.timeline : [])
       .slice(0, 4)
-      .map((raw, index) => {
+      .map((raw) => {
         const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
         const time = validAuthoredText(item.time, 2, 24);
         const action = validAuthoredText(item.action, 6, 60);
@@ -251,9 +250,12 @@ export async function authorFollowupClinicalContent(
         if (/\d{1,2}\s*月\s*\d{1,2}\s*[日号]|\d{4}\s*[-/年]/.test(time)) return null;
         // 套话原样吐回等于没写。
         if ([time, action, ...triggers].some((text) => TEMPLATE_BOILERPLATE.includes(text))) return null;
-        // 第一条必须与处方煎服法确定的首次复诊时间逐字相同——否则时间轴与正文
-        //「首次复诊时间」一行各说各的，正是本仓库反复出现的那个形状。
-        if (index === 0 && firstReviewTiming && time !== firstReviewTiming) return null;
+        // 第一条的时间点由**服务端强制覆盖**成处方煎服法定的那个值（见 diagnosis-safety
+        // 的 timelineItems 构造），所以这里不再要求模型逐字复述它——
+        // 2026-08-12 线上实测：那个值可以长达 25 字（「完成5剂（5日）后复诊；出现不适或
+        // 症状加重时提前复诊」），既超过本栏长度上限、模型也几乎必然改写，
+        // 结果第一条恒被判废、整条时间轴回落模板。要求模型复述一个服务端反正会覆盖的值，
+        // 是给自己设了一道只会误伤的闸。
         return { time, action, indicators, triggers };
       })
       .filter((item): item is AuthoredTimelineItem => item !== null);

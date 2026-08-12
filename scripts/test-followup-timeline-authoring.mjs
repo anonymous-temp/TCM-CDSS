@@ -17,6 +17,7 @@ const {
   buildDeterministicRiskFollowupPayload,
   parseStructuredFollowupTimeline,
   buildDeterministicRiskFollowup,
+  sanitizeUngroundedRedFlagNegations,
 } = await import("../src/lib/diagnosis-safety.ts");
 
 const failures = [];
@@ -149,8 +150,33 @@ check("⑥ 时间轴仍随 NDJSON 帧下发，字段就是 time/action/indicator
   );
 });
 
+// 2026-08-12 线上实测抓到的既有缺陷：随访时间轴帧对一整类病例**静默消失**。
+// 根因是 assess 路由在发帧前先过 sanitizeUngroundedRedFlagNegations，而那个净化器
+// 把 sentinel 里的 JSON 也当散文改写了——实测 `"time":"服药3天后复诊"` 被改成
+// `"time":病历已记录咳嗽阳性` 并截断整个数组，下游 JSON.parse 落进 catch 返回 []。
+// 没有报错、没有降级提示，集成方只会看到「有时有、有时没有」。
+check("⑦ 结构化 sentinel 对文本净化器免疫，且散文侧净化照常生效", () => {
+  const state = doseCase();
+  state.symptoms.presentHistory += "否认发热、咯血、胸痛、气促、盗汗和体重下降。";
+  const markdown = buildDeterministicRiskFollowup(state, AUTHORED);
+  assert.equal(parseStructuredFollowupTimeline(markdown).length, 2, "净化前就该有两条");
+  const sanitized = sanitizeUngroundedRedFlagNegations(markdown, state);
+  assert.equal(
+    parseStructuredFollowupTimeline(sanitized).length,
+    2,
+    "净化器改写了 sentinel 里的 JSON——时间轴帧会静默消失",
+  );
+  // 反向护栏：不能因为保护 sentinel 就把散文那一面也一并放过。
+  const prose = "**待核实信息**：病历尚未确认咯血是否存在。";
+  assert.notEqual(
+    sanitizeUngroundedRedFlagNegations(prose, state),
+    prose,
+    "散文侧的未接地否定没有被净化——保护范围放太宽了",
+  );
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "followup-timeline-authoring", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 6, failures: 0 }));
+console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 7, failures: 0 }));

@@ -161,8 +161,24 @@ const assessState = {
 const assess = await post("/api/diagnosis/assess", assessState);
 const assessStream = consumeNdjson(assess.raw);
 const timeline = assessStream.timelineItems;
-invariant(timeline.some((item) => /首次复诊/.test(item.action)), "follow-up journey omitted the first-review node", timeline);
-invariant(timeline.some((item) => /治疗期间随时/.test(item.time)), "follow-up journey omitted the early-reassessment node", timeline);
+// 时间轴自 2026-08-12 起由模型按本例撰写，**不再**有固定的 action/time 字符串可断言
+// （原来这两条钉的正是「完成首次复诊与疗效复评」「治疗期间随时」那套套话）。
+// 改断言结构不变量：至少两条、时间点互不相同、四栏齐备、第一条带触发条件。
+invariant(timeline.length >= 2, "follow-up timeline should carry at least two nodes", timeline);
+invariant(
+  new Set(timeline.map((item) => item.time)).size === timeline.length,
+  "follow-up timeline repeated a time point",
+  timeline,
+);
+for (const item of timeline) {
+  invariant(
+    Boolean(item.time?.trim()) && Boolean(item.action?.trim()) &&
+      Array.isArray(item.indicators) && item.indicators.length > 0 &&
+      Array.isArray(item.triggers) && item.triggers.length > 0,
+    "follow-up timeline node is missing one of time/action/indicators/triggers",
+    item,
+  );
+}
 invariant(!/采纳候选前|完成针对性安全复核/.test(JSON.stringify(timeline)), "follow-up journey exposed the removed generic review node", timeline);
 
 console.log(JSON.stringify({
