@@ -316,8 +316,40 @@ check("⑭ 接口文档里不得再有 timelineItems[].indication 的字段定�
   assert.ok(/响应.{0,12}帧|响应流内的结构化帧/.test(doc), "文档未说明这是响应帧而非请求入参");
 });
 
+// 单独说明文档（发给集成方）与接口文档必须**同一套字段**。这次分叉就是两处各改各的：
+// 说明文档写 indicators/triggers，接口文档的字段位置索引还写 indication。
+check("⑮ 单独说明文档与接口文档字段一致", () => {
+  const standalone = readFileSync(
+    fileURLToPath(new URL("../docs/结构化随访时间轴-followup_timeline-说明.md", import.meta.url)),
+    "utf8",
+  );
+  const api = readFileSync(fileURLToPath(new URL("../docs/中医CDSS-对外接口文档.md", import.meta.url)), "utf8");
+  for (const field of ["timelineItems[].time", "timelineItems[].action", "timelineItems[].indicators", "timelineItems[].triggers"]) {
+    assert.ok(standalone.includes(field), `说明文档缺字段 ${field}`);
+    assert.ok(api.includes(field), `接口文档缺字段 ${field}`);
+  }
+  assert.ok(!/timelineItems\[\]\.indication(?!s)/.test(standalone), "说明文档出现了不存在的 indication 字段");
+  // 两份文档的示例必须都是可解析的 JSON，且字段集与实现一致。
+  for (const [name, doc] of [["说明文档", standalone], ["接口文档", api]]) {
+    const blocks = [...doc.matchAll(/```json\n([\s\S]*?)```/g)]
+      .map((match) => match[1])
+      .filter((block) => block.includes('"followup_timeline"'));
+    assert.ok(blocks.length > 0, `${name}缺少 followup_timeline 示例`);
+    for (const block of blocks) {
+      const parsed = JSON.parse(block);
+      for (const item of parsed.timelineItems) {
+        assert.deepEqual(
+          Object.keys(item).sort(),
+          ["action", "indicators", "time", "triggers"],
+          `${name}的示例字段集与实现不一致：${JSON.stringify(item).slice(0, 120)}`,
+        );
+      }
+    }
+  }
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "followup-timeline-authoring", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 14, failures: 0 }));
+console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 15, failures: 0 }));
