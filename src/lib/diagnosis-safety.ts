@@ -951,28 +951,20 @@ function sanitizeFollowupTimelineSentinel(content: string, sanitize: (segment: s
   if (start < 0) return sanitize(content);
   const end = content.indexOf(FOLLOWUP_TIMELINE_END, start + FOLLOWUP_TIMELINE_START.length);
   if (end < 0) return sanitize(content);
-  const payload = content.slice(start + FOLLOWUP_TIMELINE_START.length, end).trim();
-  let sanitizedPayload = payload;
-  try {
-    const parsed = JSON.parse(payload);
-    if (Array.isArray(parsed)) {
-      sanitizedPayload = JSON.stringify(parsed.map((item) => ({
-        ...item,
-        time: sanitize(String(item?.time ?? "")),
-        action: sanitize(String(item?.action ?? "")),
-        indicators: (Array.isArray(item?.indicators) ? item.indicators : []).map((entry: unknown) => sanitize(String(entry ?? ""))),
-        triggers: (Array.isArray(item?.triggers) ? item.triggers : []).map((entry: unknown) => sanitize(String(entry ?? ""))),
-      })));
-    }
-  } catch {
-    // 解析不了就原样保留：净化一段坏 JSON 只会让它更坏。
-    sanitizedPayload = payload;
-  }
+  // 时间轴整段**不做接地净化**，原样保留。
+  //
+  // 接地净化管的是「模型有没有断言一件病历里没有的事」——它会把未接地的症状提及改写成
+  // 「病历尚未确认X是否存在」。可是随访时间轴通篇是**前瞻性**内容：
+  // 触发条件按定义就指向病人**现在还没有**的症状（「出现高热、腰痛加剧就提前来诊」），
+  // 观察项与随访动作同理指向将来。对它做接地净化，产出的是
+  // 「触发条件：病历尚未确认发热、腹痛是否存在」——本地实测（真实医案）出现 3 次，
+  // 等于告诉医生「记录不全时提前复诊」。
+  //
+  // 只跳过这一个 sentinel：M03 的 DIAGNOSIS_JSON 是**对当前病历的断言**，必须照常净化
+  //（第一版一并跳过，当场被 test:clinical-grounding 抓到）。
   return [
     sanitize(content.slice(0, start)),
-    FOLLOWUP_TIMELINE_START,
-    sanitizedPayload,
-    FOLLOWUP_TIMELINE_END,
+    content.slice(start, end + FOLLOWUP_TIMELINE_END.length),
     sanitize(content.slice(end + FOLLOWUP_TIMELINE_END.length)),
   ].join("\n");
 }
@@ -4427,6 +4419,53 @@ function withStructuredFollowupTimeline(markdown: string, items: StructuredFollo
   ].join("\n");
 }
 
+/**
+ * 从审方文本里抽出**可读的风险观察项**（2026-08-12 线上实测重写）。
+ *
+ * 实测缺陷：原实现按行取整段，于是审方表格的**整行原文**被当成观察项，外面再套上
+ * 「出现X时提前复诊」，直接摆在随访时间轴第一条上给医生看。实测产出：
+ *   「出现规则审查 ／ 强提示 ／ 医师处方权限需确认 ／ 3 ／ 苦杏仁(捣碎) 药品主数据标注为
+ *     毒性药品,当前医生权限标识为 未提供。 ／ 毒性药品处方权(主数据/官方管制目录) ／
+ *     请确认开方医师权限… ／ f6a08f3d-83d9-40a9-ae76-c1c6206d5301时提前复诊」
+ * 里面有规则名、等级、序号、处置建议、UUID——唯独不是一个「观察什么」。
+ * 还有一条把整段**范围说明**（「中成药/西药候选已按药品身份及联用边界提交…」）也套了进去。
+ *
+ * 改为结构化抽取：审方行是 `／` 或 `|` 分隔的多格，只取**风险描述**那一格
+ * （含临床风险词、且不是规则名/等级/处置建议/标识符）。取不到就**这一条不生成**——
+ * 宁可少一条触发条件，也不能把一段乱码摆给医生当随访依据。
+ */
+const AUDIT_FIELD_SEPARATOR = /\s*(?:／|\/|\|)\s*/;
+const AUDIT_RISK_TERMS = /(禁忌|慎用|相互作用|过敏|超量|超过|肝肾|妊娠|哺乳|出血|毒性|有毒|重复用药|心悸|血压|嗜睡|成瘾|依赖)/;
+/** 不是「观察什么」的格：规则名、提示等级、处置建议、纯标识符、范围说明。 */
+const AUDIT_NON_OBSERVATION = /^(?:规则审查|给药途径审查|剂量审查|配伍审查|适应证审查|强提示|一般提示|说明性提示|信息不足提示|\d+|[0-9a-f]{8}-[0-9a-f-]{20,}|请[^，,。]{0,40}$|范围说明[:：])/;
+/**
+ * 审核/数据完整性类条目**不是患者能"出现"的事**。
+ * 「未找到药品主数据」「未提供可识别的单次剂量」「关键安全审核项目暂未得到可核验结果」
+ * 说的是我方或药师要补的动作，写成「出现…时提前复诊」是让病人去处理我们的数据缺口。
+ * 本地实测（真实医案）这三种形态都出现过。
+ */
+// 只认「缺失/无法」这一类动词，不认名词。「主数据」两种语境都出现——
+// 「**未找到**药品主数据」是覆盖缺口，「药品**主数据标注为**毒性药品」是真实临床风险，
+// 按名词过滤会把后者一并误杀（实测如此）。
+const AUDIT_DATA_COVERAGE = /(未找到|未提供|未识别|暂不能|暂未|无法完成|无法识别|未得到|重新审方|重新审核)/;
+
+function auditRiskObservationFromLine(line: string): string {
+  const cells = line.split(AUDIT_FIELD_SEPARATOR).map((cell) => cell.trim()).filter(Boolean);
+  const candidates = (cells.length > 1 ? cells : [line])
+    .filter((cell) => !AUDIT_NON_OBSERVATION.test(cell))
+    .filter((cell) => cell.length >= 6 && cell.length <= 60)
+    .filter((cell) => AUDIT_RISK_TERMS.test(cell))
+    .filter((cell) => !AUDIT_DATA_COVERAGE.test(cell))
+    // 逗号拼起来的标签串（「抗凝,蒲黄 活血化瘀,出血」）不是一句能读的观察项。
+    .filter((cell) => {
+      const tokens = cell.split(/[，,、]/).map((token) => token.trim()).filter(Boolean);
+      return tokens.length <= 2 || tokens.filter((token) => token.length >= 6).length >= tokens.length / 2;
+    })
+    // 处置建议（「请…」「建议…」「应…」）是给医生的动作，不是给患者的观察项。
+    .filter((cell) => !/^(?:请|建议|应|须|需)/.test(cell));
+  return candidates[0] || "";
+}
+
 function concreteAuditRiskObservations(value: string): string[] {
   return uniqueFollowupText(value
     .split(/\n+/)
@@ -4439,7 +4478,19 @@ function concreteAuditRiskObservations(value: string): string[] {
       line.length >= 4 &&
       /(禁忌|慎用|相互作用|过敏|超量|剂量|肝肾|妊娠|哺乳|出血|毒性|重复用药|强提示|一般提示)/.test(line) &&
       !/(?:未见明确|未识别|未发现|暂无|无明确).{0,12}(?:风险|冲突|问题)/.test(line) &&
-      !/(?:处方可作为候选方案|结合过敏史|现用药|特殊人群状态和院内规则完成复核)/.test(line)), 4);
+      !/(?:处方可作为候选方案|结合过敏史|现用药|特殊人群状态和院内规则完成复核)/.test(line))
+    .map(auditRiskObservationFromLine)
+    .filter(Boolean), 4);
+}
+
+/**
+ * 触发条件必须是**会发生在病人身上的事**。「病历尚未确认发热是否存在」是记录完整性陈述，
+ * 病人不可能"出现"它；摆在 triggers 里等于告诉医生「记录不全时提前复诊」。
+ * 2026-08-12 线上实测在湿热淋证例的第 2、3 条上各出现一次。
+ */
+const NON_TRIGGER_RECORD_STATEMENT = /(?:病历(?:已|尚未|未)|尚未确认|未记录|记录完整性|资料未|信息未)/;
+function usableFollowupTriggers(values: readonly string[]): string[] {
+  return values.filter((value) => value && !NON_TRIGGER_RECORD_STATEMENT.test(value));
 }
 
 export type DeterministicRiskFollowupPayload = {
@@ -4544,7 +4595,7 @@ export function buildDeterministicRiskFollowupPayload(
       action: item.action,
       indicators: uniqueFollowupText(item.indicators, 6),
       triggers: uniqueFollowupText(
-        index === 0 ? [...item.triggers, ...safetyTriggers] : item.triggers,
+        usableFollowupTriggers(index === 0 ? [...item.triggers, ...safetyTriggers] : item.triggers),
         6),
     }))
     : [
@@ -4559,7 +4610,7 @@ export function buildDeterministicRiskFollowupPayload(
             ? [...authoredIndicators, "舌脉变化", "实际用药与不适反应"]
             : [coreMetrics, "舌脉变化", "实际用药与不适反应"],
           6),
-        triggers: uniqueFollowupText([efficacyTrigger, ...safetyTriggers], 6),
+        triggers: uniqueFollowupText(usableFollowupTriggers([efficacyTrigger, ...safetyTriggers]), 6),
       },
       {
         time: "治疗期间随时",

@@ -175,8 +175,107 @@ check("⑦ 结构化 sentinel 对文本净化器免疫，且散文侧净化照�
   );
 });
 
+// ── 2026-08-12 线上实测（真实病历）抓到的三条 ────────────────────────────────
+check("⑧ 审方风险行必须结构化抽取，不得把整行原文摆给医生当触发条件", () => {
+  const state = doseCase();
+  // 线上实测的真实审方行形态：多格、含规则名/等级/序号/处置建议/UUID。
+  state.riskAssessment = [
+    "## 处方安全总评",
+    "规则审查 ／ 强提示 ／ 医师处方权限需确认 ／ 3 ／ 苦杏仁(捣碎) 药品主数据标注为毒性药品,当前医生权限标识为 未提供。 ／ 毒性药品处方权(主数据/官方管制目录) ／ 请确认开方医师权限;权限不足时改由有权限医师开具或调整药品。 ／ f6a08f3d-83d9-40a9-ae76-c1c6206d5301",
+    "*范围说明：中成药/西药候选已按药品身份及联用边界提交；但未伪造单次剂量；剂量与具体用法仍需医生/药师人工确认。",
+  ].join("\n");
+  const payload = buildDeterministicRiskFollowupPayload(state, null);
+  const triggers = payload.timelineItems.flatMap((item) => item.triggers);
+  for (const noise of ["／", "f6a08f3d", "规则审查", "范围说明", "请确认开方医师权限"]) {
+    assert.ok(
+      !triggers.some((item) => item.includes(noise)),
+      `审方原文噪声「${noise}」被摆进了触发条件：${triggers.join(" | ")}`,
+    );
+  }
+  // 抽得出风险描述就该留一条可读的；抽不出宁可不生成，也不摆乱码。
+  for (const item of triggers) assert.ok(item.length <= 80, `触发条件过长，八成是整行原文：${item}`);
+});
+
+check("⑨ 记录完整性陈述不得当作触发条件", () => {
+  const authored = {
+    ...AUTHORED,
+    timeline: [
+      { ...AUTHORED.timeline[0], triggers: ["出现高热或气促", "病历尚未确认发热是否存在"] },
+      { ...AUTHORED.timeline[1], triggers: ["病历尚未确认发热是否存在"] },
+    ],
+  };
+  const payload = buildDeterministicRiskFollowupPayload(doseCase(), authored);
+  const triggers = payload.timelineItems.flatMap((item) => item.triggers);
+  assert.ok(triggers.includes("出现高热或气促"), "真实触发条件应保留");
+  assert.ok(
+    !triggers.some((item) => /尚未确认|病历/.test(item)),
+    `记录完整性陈述被当成了触发条件——病人不可能"出现"它：${triggers.join(" | ")}`,
+  );
+});
+
+check("⑩ 首次复诊时间再长也不得让整条时间轴回落", () => {
+  // 线上实测的强提示分支：firstReview = 「调整处方后当日复核；若采纳，1-3天内随访」23 字带分号。
+  const state = doseCase();
+  state.riskAssessment = "## 处方安全总评\n| 强提示 | 苦杏仁 | 有小毒，需复核剂量与炮制 |";
+  const payload = buildDeterministicRiskFollowupPayload(state, AUTHORED);
+  assert.equal(payload.timelineItems.length, 2, "强提示分支下时间轴不应缩水");
+  assert.ok(
+    payload.timelineItems[0].time.length > 10,
+    "第一条应采用强提示分支的长时间点，而不是被判废后回落",
+  );
+  assert.notEqual(
+    payload.timelineItems[1].action,
+    "记录症状变化并按触发条件提前复评",
+    "第二条回落成了模板套话——说明整条时间轴被判废了",
+  );
+});
+
+// 本地实测（真实医案）第三轮抓到的两条 ──────────────────────────────────────
+check("⑪ 时间轴是前瞻性内容，不得被接地净化改写成「病历尚未确认…」", () => {
+  const state = doseCase();
+  const authored = {
+    ...AUTHORED,
+    // 触发条件按定义就指向病人**现在还没有**的症状——这正是接地净化会改写的形态。
+    timeline: [
+      { ...AUTHORED.timeline[0], triggers: ["出现高热、腰痛加剧或肉眼血尿"] },
+      { ...AUTHORED.timeline[1], triggers: ["出现头晕、乏力等贫血症状"] },
+    ],
+  };
+  const markdown = buildDeterministicRiskFollowup(state, authored);
+  const parsed = parseStructuredFollowupTimeline(sanitizeUngroundedRedFlagNegations(markdown, state));
+  const triggers = parsed.flatMap((item) => item.triggers);
+  assert.ok(triggers.includes("出现高热、腰痛加剧或肉眼血尿"), `触发条件被改写了：${triggers.join(" | ")}`);
+  assert.ok(
+    !triggers.some((item) => /尚未确认|病历/.test(item)),
+    `接地净化把前瞻性触发条件改成了记录完整性陈述：${triggers.join(" | ")}`,
+  );
+});
+
+check("⑫ 审方里的数据/审核完整性条目不得变成患者触发条件", () => {
+  const state = doseCase();
+  state.riskAssessment = [
+    "## 处方安全总评",
+    "剂量审查 ／ 一般提示 ／ 处方信息需复核 ／ 10 ／ 大黄䗪虫丸 未提供可识别的单次剂量,当前无法完成剂量适宜性审核。 ／ 请补充数值型单次剂量后重新审方。",
+    "规则审查 ／ 一般提示 ／ 处方需重新审核 ／ - ／ 未找到与处方名称和编码一致的药品主数据,相关成分、相互作用暂不能可靠核验。",
+    "规则审查 ／ 强提示 ／ 毒性中药 ／ 3 ／ 蒺藜 药品主数据标注为毒性药品,需复核剂量与炮制。",
+  ].join("\n");
+  const payload = buildDeterministicRiskFollowupPayload(state, null);
+  const triggers = payload.timelineItems.flatMap((item) => item.triggers);
+  for (const coverage of ["未提供", "未找到", "无法完成", "重新审方"]) {
+    assert.ok(
+      !triggers.some((item) => item.includes(coverage)),
+      `数据完整性条目被写成了患者触发条件（「${coverage}」）：${triggers.join(" | ")}`,
+    );
+  }
+  // 真正的临床风险仍要保留。
+  assert.ok(
+    triggers.some((item) => /毒性|蒺藜/.test(item)),
+    `真实临床风险被一并过滤掉了：${triggers.join(" | ")}`,
+  );
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "followup-timeline-authoring", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 7, failures: 0 }));
+console.log(JSON.stringify({ suite: "followup-timeline-authoring", checks: 12, failures: 0 }));

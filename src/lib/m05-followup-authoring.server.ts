@@ -110,7 +110,11 @@ function clinicalContextForAuthoring(
     therapy ? `治法：${sanitizeFreeTextForModel(therapy)}` : "",
     herbs.length > 0 ? `处方药味：${herbs.map((herb) => sanitizeFreeTextForModel(herb)).join("、")}` : "",
     `可选复评维度（只能从中挑选，不得新增）：${GOVERNED_DIMENSIONS.join("、")}`,
-    firstReviewTiming ? `首次复诊时间（由处方煎服法确定，时间轴第一条必须原样使用）：${firstReviewTiming}` : "",
+    // 只作**上下文**给模型参考后续节点怎么排；第一条的 time 由服务端填入，
+    // 不要求模型复述它——2026-08-12 线上实测：这个值可长达 25 字且含分号
+    //（「完成5剂（5日）后复诊；出现不适或症状加重时提前复诊」），
+    // 要求复述的结果是第一条恒被判废、整条时间轴回落模板。
+    firstReviewTiming ? `首次复诊时间（系统已定，第一条 time 由系统填入，你不必复述）：${firstReviewTiming}` : "",
   ].filter(Boolean).join("\n");
 }
 
@@ -135,10 +139,11 @@ const SYSTEM_PROMPT = [
   "  正例：「排尿灼痛程度与次数」「小便颜色与浑浊度」「有无腰痛或发热」「舌苔黄腻消退情况」。",
   "",
     "· timeline 是**本例的**随访时间轴，2–4 条，按时间先后排列。每条四栏：",
-  "  time＝时间点（如「服药3天」「一周后」「疗程结束时」），第一条必须原样使用上面给出的首次复诊时间；",
+  "  time＝时间点（如「服药3天」「一周后」「疗程结束时」）。**第一条固定是首次复诊，time 写「首次复诊」即可**，",
+  "  系统会替换成上面给出的实际时间；第二条起按本例病程自己排，不得与第一条撞车；",
   "  action＝这个时间点具体要做什么（复诊查体？线上问诊？调方？停药观察？），写本例真正该做的动作；",
   "  indicators＝这个时间点要看的观察项（不同时间点看的东西应当不同，早期看表证消长、后期看正气恢复）；",
-  "  triggers＝出现什么情况就不等到这个时间点、提前来诊。",
+  "  triggers＝出现什么情况就不等到这个时间点、提前来诊。indicators 与 triggers 都写成**字符串数组**。",
   "  **每条的 action 与 triggers 必须因本例而异**。反例（这是旧模板的原话，写出来整份会被丢弃）：",
   "  「完成首次复诊与疗效复评」「记录症状变化并按触发条件提前复评」",
   "  「主要症状较首诊无改善或加重，或出现新的伴随症状」——这几句放在任何病人身上都成立，等于没写。",
@@ -149,6 +154,26 @@ const SYSTEM_PROMPT = [
   "严禁：写任何剂量或药量；写让患者自行加减药、换方、停药；引用指南或文献；",
   "承诺疗效或给出预后断言；提及处方之外的药物。这些一经出现，整份输出会被服务端丢弃。",
 ].join("\n");
+
+/**
+ * 观察项/触发条件既可能是数组，也可能是模型顺手写成的**一句话**。
+ *
+ * 2026-08-12 本地实测（真实医案）：模型稳定返回
+ * `"triggers":"服药后出现发热、腰痛、血尿或症状加重，立即提前就诊。"` 这样的字符串，
+ * 而校验写死 `Array.isArray(...) ? ... : []` ⇒ 判空 ⇒ 整条时间轴废掉 ⇒ 全部回落模板。
+ * 模型给的内容本身是对的，是解析太死。两种形态都收：字符串按顿号/分号/逗号切成短语。
+ * 这与仓库既有口径一致（symptoms 也支持字符串与数组两种形态）。
+ */
+function authoredPhraseList(value: unknown, min: number, max: number, limit: number): string[] {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[、；;，,]|(?<=[。.])/)
+      : [];
+  return [...new Set(raw
+    .map((entry) => validAuthoredText(entry, min, max))
+    .filter(Boolean))].slice(0, limit);
+}
 
 function validAuthoredText(value: unknown, min = 10, max = 200): string {
   const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -226,11 +251,7 @@ export async function authorFollowupClinicalContent(
     // 观察指标逐条过同一套校验（剂量写法 / 引用 / 受治理禁述表），只是长度按短语收窄。
     // 与三段散文不同，它**不是**采纳与否的门槛：挑不出来就回落 coreMetrics 拼串，
     // 那只是回到今天的行为，不影响另外三段的正确性。
-    const monitoringIndicators = Array.isArray(parsed.monitoringIndicators)
-      ? [...new Set(parsed.monitoringIndicators
-        .map((item) => validAuthoredText(item, 3, 24))
-        .filter(Boolean))].slice(0, 5)
-      : [];
+    const monitoringIndicators = authoredPhraseList(parsed.monitoringIndicators, 3, 24, 5);
 
     // ── 时间轴逐条校验 ──────────────────────────────────────────────────
     // 判据与三段散文同源（剂量写法 / 引用 / 受治理禁述表），另加三条这一栏特有的：
@@ -239,12 +260,12 @@ export async function authorFollowupClinicalContent(
       .slice(0, 4)
       .map((raw) => {
         const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-        const time = validAuthoredText(item.time, 2, 24);
+        // 上限放宽到 40：时间点写法本来就可以带条件（「完成5剂后复诊」「疗程结束后一周」），
+        // 24 字这道卡本身就是上一版整条回落的直接原因之一。
+        const time = validAuthoredText(item.time, 2, 40);
         const action = validAuthoredText(item.action, 6, 60);
-        const indicators = (Array.isArray(item.indicators) ? item.indicators : [])
-          .map((entry) => validAuthoredText(entry, 3, 28)).filter(Boolean).slice(0, 5);
-        const triggers = (Array.isArray(item.triggers) ? item.triggers : [])
-          .map((entry) => validAuthoredText(entry, 4, 40)).filter(Boolean).slice(0, 4);
+        const indicators = authoredPhraseList(item.indicators, 3, 28, 5);
+        const triggers = authoredPhraseList(item.triggers, 4, 40, 4);
         if (!time || !action || indicators.length === 0 || triggers.length === 0) return null;
         // 具体日期一律不要：本层拿不到就诊日，写出来的日期必然是编的。
         if (/\d{1,2}\s*月\s*\d{1,2}\s*[日号]|\d{4}\s*[-/年]/.test(time)) return null;
