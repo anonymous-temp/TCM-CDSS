@@ -66,6 +66,7 @@ const ACCEPTABLE_M04_THERAPY_FAMILIES: readonly RegExp[] = [
   /^transparent_therapy_(?:coverage|herb_support|herb_knowledge_missing)$/,
   /^herb_\d+_emperor_(?:therapy_mismatch|knowledge_missing)$/,
   /^pathogenesis_node_uncovered_[A-Za-z0-9]+$/,
+  /^therapy_direction_uncovered_[a-z_]+$/,
 ];
 
 export function isAcceptableM04TherapyIssue(therapyIssue: string | undefined): boolean {
@@ -143,6 +144,15 @@ export function m04TherapyIssueQualityAnnotation(therapyIssue: string | undefine
   }
   if (/^herb_\d+_emperor_therapy_mismatch$/.test(core)) {
     return "本次候选方药的逐味剂量边界、配伍禁忌与特殊人群门禁均已通过安全核验；但君药的功效方向未能被系统自动对应到主病机治法，君药的选取请医生按辨证结论确认后再采纳。";
+  }
+  const uncoveredDirection = /^therapy_direction_uncovered_([a-z_]+)$/.exec(core);
+  if (uncoveredDirection) {
+    // 方向名用受控中文映射，医生页面不出现内部枚举值。
+    const labels: Record<string, string> = { heat_clear: "清热", yang_warm: "温阳/温里", blood_move: "活血", purge: "泻下", orifice_open: "开窍", mass_soften: "软坚" };
+    const label = labels[uncoveredDirection[1]] || "该";
+    return `本次候选方药的逐味剂量边界、配伍禁忌、特殊人群与高影响方向门禁均已通过安全核验；`
+      + `但已锁定治法中的「${label}」方向在主方药味中未见系统可自动核验的承接药味，`
+      + `是否加入相应药味请医生结合方义判断后再采纳。`;
   }
   if (/^pathogenesis_node_uncovered_[A-Za-z0-9]+$/.test(core)) {
     return "本次候选方药的逐味剂量边界、配伍禁忌与特殊人群门禁均已通过安全核验；但 M03 辨证提出的个别病机方向本次未见对应药味，是否补充针对性药味请医生判断后再采纳。";

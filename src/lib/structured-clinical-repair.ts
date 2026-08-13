@@ -393,6 +393,18 @@ export function buildM04ClinicalRepairHint(reason = ""): string {
       "最多三项，没有合适项目时输出空数组。不得为凑数量提交目录外项目，也不得自造项目代码。",
     ].join("\n");
   }
+  const uncoveredTherapyDirection = /^m04_(?:candidate_\d+_)?therapy_direction_uncovered_([a-z_]+)$/.exec(reason);
+  if (uncoveredTherapyDirection) {
+    const labels: Record<string, string> = { heat_clear: "清热", yang_warm: "温阳/温里", blood_move: "活血", purge: "泻下", orifice_open: "开窍", mass_soften: "软坚" };
+    const label = labels[uncoveredTherapyDirection[1]] || uncoveredTherapyDirection[1];
+    return [
+      `M03 已签名治法里的「${label}」方向，本方主方药味中没有任何一味承担——检索该方向的药味功用时一味都没命中。`,
+      `请在主方中补入一味功能明确属于「${label}」方向的药味（targetKind=pathogenesis_node，targetRef 指向对应病机节点），`
+      + `或说明该方向为何不需单独用药。**放进随证加减不算**：加减是按兼症触发的可选项，不承担主病机方向。`,
+      `不要靠改写 M03 的治法文字来消除本提示——M03 已签名，改了不会生效；也不要仅调整已有药味的 targetRef 标签，`
+      + `标签不改变药味本身的功效方向。其余药味、剂量与 M03 字段保持不变。`,
+    ].join("\n");
+  }
   if (/^m04_pathogenesis_node_uncovered_/.test(reason)) {
     const node = reason.replace(/^m04_pathogenesis_node_uncovered_/, "");
     return [

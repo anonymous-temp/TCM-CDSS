@@ -3836,6 +3836,10 @@ export function m04SemanticIssue(
   if (priorReasoning && !waiveTherapyCoverageAnnotated) {
     const coverageIssue = m03NodeCoverageIssue(reasoning, priorReasoning);
     if (coverageIssue) return coverageIssue;
+    // 逐方向覆盖排在节点覆盖之后：两者都是 T2，但节点覆盖是既有判据、先跑保持行为不变；
+    // 本条补的是「节点都被引用了，可主治法方向仍无药承接」那一类（甲方寒凝血瘀痛经）。
+    const [uncoveredDirection] = uncoveredPrimaryTherapyDirections(reasoning, priorReasoning);
+    if (uncoveredDirection) return `therapy_direction_uncovered_${uncoveredDirection}`;
   }
   return undefined;
 }
@@ -3856,6 +3860,63 @@ export function m04SemanticIssue(
  * 「M03 提出的某个病机方向本次没有对应药味」——静默不覆盖比明确降级更危险，因为医生看不到缺口
  * 就不会去补。只检查声明了 therapyDirection 的节点：没有治法方向的节点本就不要求药味承接。
  */
+/**
+ * 已签名主治法里，**没有任何药味承接**的高影响方向（甲方 2026-08-13 寒凝血瘀痛经）。
+ *
+ * 缺陷形态：M03 签名治法「温经散寒，活血化瘀，止痛」，主方只有当归/川芎/延胡索/白芍/甘草
+ * ——全部落在活血一侧，承担寒凝主病机的温经散寒药一味没有（艾叶只出现在可选加减里）。
+ * 而既有的 transparentFormulaTherapyIssue 用的是**覆盖比例阈值**（coveredRequired/coverageRequired
+ * < 0.5 才驳回），本例 {yang_warm, blood_move} 覆盖 1 条恰好 0.50、不小于 0.5 ⇒ 放行。
+ * 也就是说：**在治法里多写一条方中已经做到的「活血化瘀」，就把「温经散寒」缺药这件事稀释掉了**。
+ * 中医治法几乎总是 2–4 条并列，所以这道门在真实分布上几乎恒不触发。
+ *
+ * 判据从「比例」改成「逐方向」，但刻意只报 HIGH_IMPACT_THERAPY_CONCEPTS 内的方向
+ * （清热/温阳/活血/泻下/开窍/软坚）：这些方向的药侧词表命中率有 test:therapy-vocabulary
+ * 的 95% 下限钉着，而长尾方向的词表缺口会把「能力边界」误报成「临床错误」——那正是本仓库
+ * 反复付过代价的形态。非高影响方向继续走原比例阈值，一行未动。
+ *
+ * 承接判定与同文件既有口径**完全同源**，不新写一份：
+ *  · 药味功用命中该方向（herbTherapyConcepts），或
+ *  · 该药属 M03 锁定经典方的法定组成（基准方豁免；六味地黄丸「三补三泻」式结构不得误伤）。
+ * 只看 targetKind ≠ formula_structure 的治疗药味，佐使调和药不计入。
+ *
+ * 分级为 T2 带批注受理（见 diagnosis-rejection-tiers 与 m04-repair-policy）：方向缺药不影响
+ * 这张方能不能安全服用，但医生必须看得到缺口——静默不覆盖比明确标注更危险。
+ */
+export function uncoveredPrimaryTherapyDirections(
+  reasoning: M04ReasoningLike | null | undefined,
+  prior: M03ReasoningLike | null | undefined,
+): string[] {
+  const candidate = reasoning?.formula?.candidates?.[0];
+  if (!candidate || !prior) return [];
+  // 方向集只取**已签名总治法**（therapy.overallMethod），不取逐节点 therapyDirection。
+  // 逐节点方向本就由 m03NodeCoverageIssue 逐一要求被引用，这里再判一次是重复；更重要的是
+  // 节点治法常含更细的修饰语，实测「调畅头部气血，清利头目」里的「清利」被抽成 heat_clear，
+  // 而该例（川芎君 + 酸枣仁臣的中性眩晕形态）临床上并不需要一味清热药——按节点取会误报整类。
+  // 总治法是「这张方整体要交付什么」的签名结论，正是本判据该问的东西。
+  const required = [...affirmedTcmTherapyConcepts(String(prior.therapy?.overallMethod || ""))]
+    .filter((concept) => HIGH_IMPACT_THERAPY_CONCEPTS.has(concept));
+  if (required.length === 0) return [];
+  const therapeuticHerbs = (candidate.herbs || []).filter((herb) => herb.targetKind !== "formula_structure");
+  if (therapeuticHerbs.length === 0) return [];
+  const herbConcepts = therapeuticHerbs.map((herb) => herbTherapyConcepts(String(herb.name || "")));
+  // 基准方豁免与 transparentFormulaTherapyIssue 同源：方剂与证候的对齐已由 M03 正向充分性
+  // 核验完成，不重复要求其法定组成的功用词再命中治法词表。
+  const baselineFormulaNames = [...new Set([
+    ...(governedFormulaNames(candidate.formulaNames) || []),
+    ...(governedFormulaNames(prior.overview?.recommendedFormulaNames) || []),
+  ])];
+  const baselineIdentities = new Set(
+    executableFormulaCompilationReferences(baselineFormulaNames)
+      .flatMap((reference) => reference.ingredients)
+      .map((name) => canonicalTcmHerbIdentity(name)),
+  );
+  const baselineCovers = therapeuticHerbs.some((herb) =>
+    baselineIdentities.has(canonicalTcmHerbIdentity(String(herb.name || ""))));
+  return required.filter((concept) =>
+    !herbConcepts.some((concepts) => concepts.has(concept)) && !baselineCovers);
+}
+
 export function m03NodeCoverageIssue(
   reasoning: M04ReasoningLike | null | undefined,
   priorReasoning: M03ReasoningLike | null | undefined,

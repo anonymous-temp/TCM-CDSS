@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
-const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SafetyContractIssue, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, priorDocumentedFactConcepts, stableM03SyndromeLabel, transparentFormulaTherapyIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SafetyContractIssue, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, uncoveredPrimaryTherapyDirections, priorDocumentedFactConcepts, stableM03SyndromeLabel, transparentFormulaTherapyIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
 const { getM03TherapyLock } = await import("../src/lib/m03-therapy-lock.ts");
 const { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } = await import("../src/lib/m04-repair-policy.ts");
 const { editedPrescriptionSemanticIssue } = await import("../src/lib/prescription-revision.ts");
@@ -2596,6 +2597,79 @@ assert.match(
   /emperor_therapy_mismatch/,
   "an exterior-release emperor still fails the head qi-blood alignment (fail-closed kept)",
 );
+// ── 逐方向治法覆盖（甲方 2026-08-13 寒凝血瘀痛经）─────────────────────────────────
+//
+// 缺陷：M03 签名治法「温经散寒，活血化瘀，止痛」，主方当归/川芎/延胡索/白芍/甘草 全落在活血
+// 一侧，承担寒凝主病机的温经散寒药一味没有（艾叶只在可选加减里）。既有覆盖判据是**比例阈值**
+// （coveredRequired/coverageRequired < 0.5 才驳回），本例 2 条治法覆盖 1 条恰好 0.50 ⇒ 放行——
+// 也就是「在治法里多写一条方中已经做到的活血化瘀，就把温经散寒缺药这件事稀释掉了」。
+// 中医治法几乎总是 2–4 条并列，所以那道门在真实分布上几乎恒不触发。
+//
+// 方向集只取**已签名总治法**：逐节点 therapyDirection 由 m03NodeCoverageIssue 单独管，
+// 且节点治法常含更细修饰语（实测「清利头目」被抽成 heat_clear，会把中性眩晕形态整类误报）。
+{
+  const coldStasisPrior = {
+    ...stable,
+    overview: { ...stable.overview, primarySyndrome: "寒凝血瘀证", overallPathogenesis: "寒凝胞宫，血行不畅",
+      primarySyndromeBasis: ["经行冷痛，得热痛减"], recommendedFormulaDirection: "按已锁定病机与治法辨证组方",
+      recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "经行冷痛", syndromeEvidence: "得热痛减",
+      pathogenesis: "寒凝胞宫", therapyDirection: "温经散寒" }] },
+    therapy: { overallPrinciple: "标本兼治", overallMethod: "温经散寒，活血化瘀，止痛" },
+  };
+  const bloodOnly = [
+    { name: "当归", dose: "10g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1",
+      function: "补血活血，调经止痛；补血药", targetPathogenesis: "寒凝胞宫", decoctionRequirement: "" },
+    { name: "川芎", dose: "10g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P1",
+      function: "活血行气，祛风止痛；活血化瘀药；活血止痛药", targetPathogenesis: "寒凝胞宫", decoctionRequirement: "" },
+    { name: "延胡索", dose: "10g", role: "佐", targetKind: "pathogenesis_node", targetRef: "P1",
+      function: "活血，行气，止痛；活血化瘀药；活血止痛药", targetPathogenesis: "寒凝胞宫", decoctionRequirement: "" },
+  ];
+  assert.deepEqual(
+    uncoveredPrimaryTherapyDirections({ formula: { candidates: [{ herbs: bloodOnly }] } }, coldStasisPrior),
+    ["yang_warm"],
+    "治法写了温经散寒而方中无温里药时，必须逐方向报出——比例阈值会被并列的活血化瘀稀释掉",
+  );
+  // 补一味温里药即闭环。
+  const withWarming = [...bloodOnly, { name: "艾叶", dose: "6g", role: "臣", targetKind: "pathogenesis_node",
+    targetRef: "P1", function: "温经止血，散寒止痛；温里药", targetPathogenesis: "寒凝胞宫", decoctionRequirement: "" }];
+  assert.deepEqual(
+    uncoveredPrimaryTherapyDirections({ formula: { candidates: [{ herbs: withWarming }] } }, coldStasisPrior),
+    [],
+    "补入温里药后该方向必须判为已覆盖",
+  );
+  // 反向护栏一：总治法里没有高影响方向时整条不适用（不得对普通治法制造噪音）。
+  assert.deepEqual(
+    uncoveredPrimaryTherapyDirections({ formula: { candidates: [{ herbs: bloodOnly }] } },
+      { ...coldStasisPrior, therapy: { overallPrinciple: "标本兼治", overallMethod: "健脾益气，调和营卫" } }),
+    [],
+    "总治法无高影响方向时不得报缺口",
+  );
+  // 走**接线**而不是只打谓词：只断言谓词的话，把 m04SemanticIssue 里那两行删掉也不会红
+  // （第一版正是如此，负向自检发现的）。
+  // 这里用源码级断言而不是端到端载荷：m04SemanticIssue 前面还有跨阶段锁定字段、君臣结构、
+  // 治法对齐等十余道门，任何一道未满足都会先返回别的码，端到端夹具因此屡屡测不到本判据
+  // ——那样的断言看着更"真"，实际是空转。源码断言守住的正是我真正在意的失败模式：接线被删。
+  {
+    const contractSource = readFileSync(new URL("../src/lib/diagnosis-stage-contract.ts", import.meta.url), "utf8");
+    const t2Start = contractSource.indexOf("const coverageIssue = m03NodeCoverageIssue(reasoning, priorReasoning);");
+    assert.ok(t2Start > 0, "找不到 T2 覆盖段——结构变了，本判据需要跟着搬家");
+    const t2Block = contractSource.slice(t2Start, t2Start + 900);
+    assert.match(
+      t2Block,
+      /uncoveredPrimaryTherapyDirections\(reasoning, priorReasoning\)/,
+      "逐方向覆盖必须接在 m04SemanticIssue 的 T2 段内——只有谓词没有接线时医生仍看不到缺口",
+    );
+    assert.match(t2Block, /therapy_direction_uncovered_/, "接线必须发射 therapy_direction_uncovered_ 码族");
+  }
+  // 反向护栏二：分级必须是 T2，未登记的码默认 T1 会把它变成硬拦、整方 0 味。
+  assert.equal(
+    // 实际发射形态是 m04_<码>：T2 段返回裸码，调用方加 m04_ 前缀（与 pathogenesis_node_uncovered 同）。
+    rejectionTier("m04_therapy_direction_uncovered_yang_warm"), "T2",
+    "逐方向覆盖码必须登记为 T2；未登记默认 T1 会让它变成硬拦，与「质量问题标注、安全问题阻断」相悖",
+  );
+}
+
 const highImpactModification = {
   ...m04,
   formula: {
