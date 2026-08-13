@@ -4,7 +4,7 @@ import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
 import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
 import { prescriptionRegimenContractIssue, prescriptionRegimenIssue } from "./prescription-regimen-contract";
-import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
+import { executableFormulaCompilationReferences, isCompositionRestoredGovernedIdentity } from "./tcm-formula-provenance";
 import { TCM_TREATMENT_PROJECT_CODES, tcmTreatmentProjectIsPointFree } from "./tcm-treatment-projects";
 import { getM03TherapyLock, isExecutableM03TherapyText } from "./m03-therapy-lock";
 import { isActionableFollowupSafetyNet } from "./followup-safety-net";
@@ -3522,6 +3522,13 @@ function crossStageReasoningIssue(
       return "formula_reference_display_mismatch";
     }
     if (!formulaReferenceAlignsWithPrior(candidateFormulaNames, governedPriorNames, String(governedMode))) {
+      // M03 未锁定任何方名时，服务端会按组成确定性反查补回身份（方名可追溯，restoreGovernedFormulaIdentity
+      // 的「形态三」）。合同必须认得**自己这一侧生产出来的形态**，否则就是服务端生产了一个
+      // 自己禁止的东西，把一张已通过全部安全校验的处方整方作废（甲方 2026-08-13 P0，实证见谓词注释）。
+      // 判据独立重跑同一条组成反查、不信任任何标记字段，与两个产地共用——不再各写一份。
+      if (isCompositionRestoredGovernedIdentity(candidate, governedPriorNames, String(governedMode))) {
+        return undefined;
+      }
       return "formula_direction_drift";
     }
   } else if (!workbenchEdited) return "formula_reference_contract_missing";

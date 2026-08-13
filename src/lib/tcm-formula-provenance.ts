@@ -940,7 +940,12 @@ export function formulaCompilationContractIssue(
   const mode = prior.overview.formulaSelectionMode || "none";
   const candidateNames = candidate.formulaNames || [];
   if (mode === "none" || mode === "self_devised") {
-    return candidateNames.length === 0 ? undefined : "formula_direction_drift";
+    if (candidateNames.length === 0) return undefined;
+    // 服务端自己按组成反查补回的身份必须被自己认得（见 isCompositionRestoredGovernedIdentity）。
+    // 这是 formula_direction_drift 的**第二个产地**，与 diagnosis-stage-contract 那处共用同一谓词——
+    // 同一条判据两处各写各的，正是本仓库反复付代价的形状。
+    if (isCompositionRestoredGovernedIdentity(candidate, governedNames, mode)) return undefined;
+    return "formula_direction_drift";
   }
   const references = formulaCompilationReferences(governedNames);
   if (references.length !== governedNames.length) return "formula_reference_ambiguous";
@@ -1187,6 +1192,53 @@ function restoreFormulaIdentityFromComposition(
     };
   });
   return { ...reasoning, formula: { ...reasoning.formula, candidates } };
+}
+
+/**
+ * 候选自称的经典身份，是不是**服务端按组成确定性反查补回**的那一个（甲方 2026-08-13 P0 根因）。
+ *
+ * 缺陷形态（生产日志 + 本地循环复现各一次实证）：M03 未锁定任何方名（模型选的养胃增液汤
+ * 因受控证候关系未核实被撤，mode=self_devised、recommendedFormulaNames=[]），M04 组出 8 味、
+ * 逐味剂量/配伍/君臣/特殊人群全部通过；随后 wrapStructuredJsonObject 对**每一版 M04 响应**
+ * 都会跑 restoreGovernedFormulaIdentity 的「形态三」——按组成反查补回身份（方名可追溯特性，
+ * 把加减方识别从 3.7% 提到 74% 的那条），于是候选变成
+ *   name=养胃增液汤加减  formulaNames=[养胃增液汤]  constructionType=single_base
+ * 而合同规定 mode=self_devised 时 formulaNames **必须为空** ⇒ formula_direction_drift
+ * ⇒ 整方作废 ⇒ 医生拿到药典区间参考页。
+ *
+ * 也就是说：**服务端生产了一个自己的合同禁止的形态**，两条受治理判据方向相反，
+ * 输的是整张已通过全部安全校验的处方。是否触发取决于模型这一版药味能否反查成方——
+ * 这正是甲方所说「不稳定」的来源（同一病例 8 次复现里 2 次失败）。
+ *
+ * 判据刻意**不信任任何标记字段**：模型的 JSON 会被解析合入，它同样能写出
+ * identityRestoredFromComposition 之类的标记。这里改为让合同**独立重跑同一条组成反查**——
+ * 与 isDeclassifiedSelfDevisedCandidate 认得服务端自己的剥名产物完全同构：
+ * 靠结构性事实，不靠自述。
+ *
+ * 三处收紧，缺一不可：
+ *  1) 只在 M03 **没有锁定任何方名**且 mode ∈ {self_devised, none} 时成立——这正是恢复器
+ *     「形态三」的进场条件；M03 锁了方名时一律不走本路径（那是原有的对齐判据的地盘）。
+ *  2) 候选只声明**一个**方名，且该方名必须与组成反查的结果**逐字相同**；模型随便写一个
+ *     方名而组成对不上，反查结果不同即不成立。
+ *  3) 反查用的是 identifyGovernedFormulaByComposition 本身（比正向 80% 覆盖线严格得多），
+ *     不新增任何放宽。
+ */
+export function isCompositionRestoredGovernedIdentity(
+  candidate: { formulaNames?: unknown; herbs?: unknown } | null | undefined,
+  governedPriorNames: readonly string[] | null | undefined,
+  governedMode: string | undefined,
+): boolean {
+  if (!candidate) return false;
+  if ((governedPriorNames?.length ?? 0) > 0) return false;
+  if (governedMode !== "self_devised" && governedMode !== "none") return false;
+  const names = Array.isArray(candidate.formulaNames)
+    ? candidate.formulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+    : [];
+  if (names.length !== 1) return false;
+  const herbs = Array.isArray(candidate.herbs) ? candidate.herbs as FormulaHerbInput[] : [];
+  if (herbs.length === 0) return false;
+  const identified = identifyGovernedFormulaByComposition(herbs);
+  return Boolean(identified && identified.formulaName === names[0].trim());
 }
 
 export function restoreGovernedFormulaIdentity(

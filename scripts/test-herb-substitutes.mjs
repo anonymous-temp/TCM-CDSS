@@ -13,10 +13,8 @@ import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
 const {
   governedHerbSubstitutes,
-  getTcmHerbFunctionCategories,
   getTcmHerbDoseLimit,
   clinicianDoseHerbClass,
-  getTcmHerbGenerationSafetyProfile,
   findTcmHerbPairIncompatibilities,
 } = await jiti.import("../src/lib/tcm-knowledge.ts");
 

@@ -39,6 +39,8 @@ const jiti = createJiti(import.meta.url, {
 const { markTransparentFormulaDeclassification } = await jiti.import("../src/lib/diagnosis-api.ts");
 const { isDeclassifiedSelfDevisedCandidate, candidateClassicIdentityMatchesPrior, m04SemanticIssue } =
   await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+const { identifyGovernedFormulaByComposition, isCompositionRestoredGovernedIdentity, formulaCompilationContractIssue } =
+  await jiti.import("../src/lib/tcm-formula-provenance.ts");
 
 const START = "<!-- DIAGNOSIS_JSON_START -->";
 const END = "<!-- DIAGNOSIS_JSON_END -->";
@@ -202,6 +204,99 @@ if (fs.existsSync(archived)) {
     );
   } else {
     console.log("[test:transparent-declassification] 归档里没有单方样本，跳过身份对齐断言");
+  }
+}
+
+// ── 服务端按组成反查补回的身份，合同必须认得自己人（甲方 2026-08-13 P0）────────────────
+//
+// 缺陷实证（生产日志 + 本地 8 次循环复现 2 次）：M03 未锁定任何方名（模型选的养胃增液汤因
+// 受控证候关系未核实被撤，mode=self_devised、names=[]），M04 组出 8 味、全部安全校验通过；
+// 随后 wrapStructuredJsonObject 对每一版 M04 响应都会跑 restoreGovernedFormulaIdentity 的
+// 「形态三」按组成反查补回身份（方名可追溯特性），候选变成
+//   name=养胃增液汤加减 formulaNames=[养胃增液汤] constructionType=single_base
+// 而合同规定 self_devised ⇒ formulaNames 必须为空 ⇒ formula_direction_drift ⇒ 整方作废。
+// **服务端生产了一个自己的合同禁止的形态**，两条受治理判据方向相反，输的是整张处方。
+//
+// 判据独立重跑组成反查、不信任任何标记字段（模型的 JSON 同样能写标记）。本节钉的是
+// 「认得自己人」与「不放行冒名者」两侧，缺一即回到旧缺陷或引入新的冒名通道。
+{
+  const restoredHerbs = ["干石斛", "北沙参", "玉竹", "乌梅肉", "白芍", "甘草", "麦冬", "生地黄"]
+    .map((name) => ({ name, dose: "10g" }));
+  const identified = identifyGovernedFormulaByComposition(restoredHerbs);
+  ok("组成反查能识别出受治理方（夹具前提）", Boolean(identified));
+  if (identified) {
+    ok(
+      "服务端反查产物：M03 未锁方名时合同必须放行",
+      isCompositionRestoredGovernedIdentity(
+        { formulaNames: [identified.formulaName], herbs: restoredHerbs }, [], "self_devised",
+      ),
+    );
+    ok(
+      "冒名者：方名与组成反查结果不一致时仍判漂移",
+      !isCompositionRestoredGovernedIdentity(
+        { formulaNames: ["麻黄汤"], herbs: restoredHerbs }, [], "self_devised",
+      ),
+    );
+    ok(
+      "声明多个方名时不成立（反查只产出单一身份）",
+      !isCompositionRestoredGovernedIdentity(
+        { formulaNames: [identified.formulaName, "麦门冬汤"], herbs: restoredHerbs }, [], "self_devised",
+      ),
+    );
+    ok(
+      "无药味时不成立（无组成即无可核验事实）",
+      !isCompositionRestoredGovernedIdentity(
+        { formulaNames: [identified.formulaName], herbs: [] }, [], "self_devised",
+      ),
+    );
+    ok(
+      "M03 已锁定方名时本路径整条不适用（交回原对齐判据）",
+      !isCompositionRestoredGovernedIdentity(
+        { formulaNames: [identified.formulaName], herbs: restoredHerbs }, [identified.formulaName], "single",
+      ),
+    );
+    // 端到端：**差分**断言，打的是漂移码的产地 formulaCompilationContractIssue 本身
+    // （m04SemanticIssue 前置条件太多，用它会先撞别的码而变成空转——第一版正是如此，
+    // 负向自检没变红才发现）。两份载荷只差 formulaNames 一个字段：
+    // 服务端反查产物必须放行，模型冒名必须仍判漂移。
+    const priorSelfDevised = {
+      schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+      overview: {
+        primarySyndrome: "胃阴虚证", overallPathogenesis: "胃阴亏虚，胃失濡养",
+        recommendedFormulaNames: [], formulaSelectionMode: "self_devised",
+        recommendedFormulaDirection: "按已锁定病机与治法辨证组方",
+      },
+      pathogenesis: { summary: "胃阴亏虚", chain: [] },
+      therapy: { overallPrinciple: "滋脾养胃", overallMethod: "滋脾养胃，佐以助运", subTherapies: [] },
+    };
+    const restoredReasoning = {
+      schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+      overview: {
+        primarySyndrome: "胃阴虚证", overallPathogenesis: "胃阴亏虚，胃失濡养",
+        recommendedFormulaDirection: "按已锁定病机与治法辨证组方",
+      },
+      therapy: { overallPrinciple: "滋脾养胃", overallMethod: "滋脾养胃，佐以助运", subTherapies: [] },
+      pathogenesis: { summary: "胃阴亏虚", chain: [] },
+      formula: {
+        candidates: [{
+          name: identified.displayName, formulaNames: [identified.formulaName],
+          constructionType: "single_base", modificationStatus: "modified",
+          herbs: restoredHerbs, decoction: {},
+        }],
+        modifications: [], patentAndWestern: [],
+      },
+    };
+    const restoredIssue = formulaCompilationContractIssue(restoredReasoning, priorSelfDevised);
+    ok(
+      `服务端反查产物必须放行（实际 ${restoredIssue || "通过"}）`,
+      restoredIssue !== "formula_direction_drift",
+    );
+    const bogusReasoning = JSON.parse(JSON.stringify(restoredReasoning));
+    bogusReasoning.formula.candidates[0].formulaNames = ["麻黄汤"];
+    ok(
+      "模型冒名（组成对不上）必须仍判 formula_direction_drift",
+      formulaCompilationContractIssue(bogusReasoning, priorSelfDevised) === "formula_direction_drift",
+    );
   }
 }
 
