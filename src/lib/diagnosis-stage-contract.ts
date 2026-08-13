@@ -114,6 +114,17 @@ export function governedSyndromeNameAcceptable(value: string): boolean {
       .some((part) => Boolean(canonicalTcmSyndromeTerm(part)));
   };
 
+  // 并列段里解析得出任何受治理证候 ⇒ 放行，**必须先于病名前缀剥离判**（2026-08-13 线上实测）。
+  //
+  // 本函数的注释从第一版就承诺「心脾两虚,气血不足 都算」，但 carriesSyndrome 此前只作用于
+  // 剥掉病名前缀后的 remainder，从未对原串调用——承诺的行为没有实现。线上被它咬到的形态：
+  // 「心阳不振，水气凌心」（两段都是 GB/T 16751.2 标准证候）被驳回，因为 isGovernedTcmDiseaseName
+  // 是包含式匹配，前缀「心阳不振，水气」**尾部撞上病名「水气」**即被当成病名前缀，
+  // 剩下的「凌心」解析不出证候 ⇒ 整串误判成「病名+病机」缺陷形态 ⇒ 修复轮空转、
+  // 方名锁定被搁置、M04 只能出药典区间参考页。
+  // 先查并列段不放宽任何东西：病名+病机串（头痛，气血失和）没有任何一段是证候，照旧走下面驳回。
+  if (carriesSyndrome(raw)) return true;
+
   // 逐一试遍所有能构成病名的前缀长度,任一剥法能剩下证候即放行。
   //
   // 不能「取最长病名前缀后只试一次」:isGovernedTcmDiseaseName 是包含式匹配,

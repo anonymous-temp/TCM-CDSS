@@ -205,6 +205,58 @@ const YANGHUANG = {
   }
 }
 
+// ── 五、复合证候的确定性归一压过「等术语确认」(2026-08-13 线上实测：心悸案) ────────
+//
+// 主证候「心阳不振，水气凌心」首段可被 canonicalPrimarySyndromeId 确定性解析(与授予
+// primarySyndromeIdentityConfirmed 的是同一个解析器)。此时即使语义映射层留下了 suggested
+// 条目，撤销原因也必须是 governed_syndrome_relation_unverified(真实原因：受控关系缺口)，
+// 不得写成 semantic_mapping_pending_clinician_confirmation——那会让医生等待一个不影响
+// 正向充分性输入的确认。反向护栏：主证候真正无法归一时，原因必须仍是等确认。
+{
+  const suggestedMapping = [{
+    namespace: "tcm_syndrome",
+    fieldPath: "overview.primarySyndrome",
+    status: "suggested",
+    original: "心阳不振，水气凌心",
+    canonical: "水气凌心",
+  }];
+  const base = m03({
+    syndrome: "心阳不振，水气凌心",
+    pathogenesis: "心阳不振，水饮内停，上凌于心",
+    therapy: "温通心阳，化气行水",
+    names: ["某某未收载经验方"],
+    mode: "single",
+  });
+  const out = run({ ...base, terminologyMappings: suggestedMapping });
+  const reason = out?.overview?.deferredFormulaSelection?.reason;
+  if (reason !== "governed_syndrome_relation_unverified") {
+    failures.push({
+      case: "复合证候可确定性归一",
+      why: `撤销原因应为 governed_syndrome_relation_unverified(真实原因)，实际 ${reason}——` +
+        "医生会被引导去等待一个不改变结果的术语确认",
+    });
+  }
+  if ((out?.overview?.recommendedFormulaNames || []).length > 0) {
+    failures.push({ case: "复合证候可确定性归一", why: "未核验的模型选择仍不得保留(本节不放宽任何锁定纪律)" });
+  }
+
+  const unresolvable = m03({
+    syndrome: "身体机能紊乱状态",
+    pathogenesis: "机能紊乱",
+    therapy: "调和",
+    names: ["某某未收载经验方"],
+    mode: "single",
+  });
+  const out2 = run({ ...unresolvable, terminologyMappings: [{ ...suggestedMapping[0], original: "身体机能紊乱状态" }] });
+  const reason2 = out2?.overview?.deferredFormulaSelection?.reason;
+  if (reason2 !== "semantic_mapping_pending_clinician_confirmation") {
+    failures.push({
+      case: "主证候确实无法归一",
+      why: `此时等术语确认才是真原因，实际 ${reason2}——守卫不得把真需要确认的情形也改写掉`,
+    });
+  }
+}
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ failures }, null, 2));
 }
