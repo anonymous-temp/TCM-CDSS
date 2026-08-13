@@ -10,6 +10,16 @@ const scripts = [
   "test:rxaudit-sex-applicability",
   "test:safety-pediatric",
   "test:safety-mutations",
+  // 上消化道警示征象：吞咽/进食梗阻、恶性肿瘤病史伴消化道症状、不明原因消瘦。
+  // 钉 2026-08-13 鲁棒性压测实测的漏检——胃癌术后进食困难10月余加重7天，redFlags 为空、
+  // 按普通「胃气壅滞」出方。根因是 M02 逐条追问这些征象、确定性门一条都接不住。
+  // 套件里那条「M02 问句点名的征象必须接得住」的断言是防漂移的根，别删。
+  "test:gi-alarm-features",
+  // 口语化表述的确定性红旗覆盖。2026-08-13 鲁棒性专项实测：19 条口语急症表述里 13 条零红旗。
+  // 本轮修掉并钉住时间窗最紧的两类——急性卒中口语（线上确定性与语义层双 0）与消化道出血口语。
+  // 里面那条「服用铁剂后大便发黑，无头晕乏力」的反例钉的是另一个真误报：
+  // 严重度伴随症被整句否认，判据却当阳性证据用。
+  "test:colloquial-redflag",
   "test:clinical-facts",
   "test:evidence-sentinel",
   "test:evimed-normalization",

@@ -77,6 +77,38 @@ const GOVERNED_PERITONEAL_SIGNS = GOVERNED_ACUTE_ABDOMEN_COMPANIONS.filter((term
   ["反跳痛", "松手更疼", "板状腹", "腹肌紧张"].includes(term));
 const GOVERNED_ACUTE_ONSET_TERMS = redflagTriageLexicon.dimensions.acuteOnset;
 const GOVERNED_SEVERE_TERMS = redflagTriageLexicon.dimensions.severe;
+/**
+ * 上消化道**警示征象**（alarm features）。与 gi_bleed 的区别：出血是「已经在出」，
+ * 警示征象是「可能有占位/梗阻/复发」——两者的处置优先级同样高，但此前只有前者有规则。
+ *
+ * 【为什么补这一类】线上实测（胃癌术后、进食困难 10 月余加重 7 天、呕吐黏液、病理示腺癌浸润）：
+ * safetyGate.redFlags = []、advisories = []，M03 按普通「胃气壅滞」出方，M05 只给「一般提示」。
+ * 查因发现「吞咽困难」在本文件里**只**出现在上气道水肿（过敏性喉头水肿）规则内、作为气道功能线索；
+ * 「恶性肿瘤 / 肿瘤 / 癌症 / 化疗 / 放疗」在本文件中一次都没出现过。
+ *
+ * 而 m02-question-contract.ts 的上消化道追问原文是
+ * 「是否出现吞咽困难或进行性卡顿、呕血或黑便、持续呕吐或不明原因体重下降？」——
+ * 追问层把这些当警示征象逐条问，确定性门却没有任何一条能接住医生的「是」。
+ * 又是同一判据两处各写各的：一处问、一处不认。本次把词表收敛到受治理表的 gi_alarm 类，
+ * 两处同源（test:safety-mutations 里有一条断言钉住 M02 问句里的每个征象词都在本类词表内）。
+ */
+const GOVERNED_GI_ALARM = governedRedFlagCategory("gi_alarm");
+/**
+ * 判据用到的每一份词表都从受治理表的 detection 节读。
+ * 第一版把词表抄在代码里、只在表上留了一份「装饰性副本」——那正是本次要修的那种缺陷本身
+ * （lint 报出未使用的常量时才发现）。词表只允许有一个来源。
+ */
+const GI_ALARM_DETECTION = (GOVERNED_GI_ALARM as unknown as {
+  detection: {
+    progressionCues: string[];
+    gastrointestinalMalignancy: string[];
+    malignancyGeneric: string[];
+    currentDigestiveSymptoms: string[];
+    alarmDigestiveFindings: string[];
+    unexplainedWeightLossCues: string[];
+    weightLossTerms: string[];
+  };
+}).detection;
 
 function governedTermAlternation(terms: string[]): string {
   return [...terms]
@@ -298,11 +330,20 @@ const CLINICAL_NEGATION_FACT_TERMS = [...new Set([...RED_FLAG_NEGATION_TERMS, ..
 // 「意识改变是否存在尚未确认」。分组后两个方向共用同一份数据，不再手抄第二份。
 const FOCAL_NEUROLOGIC_CONCEPT_GROUPS: readonly (readonly string[])[] = [
   ["意识改变", "意识异常", "意识障碍", "意识不清", "意识模糊", "神志不清", "神志异常", "神志模糊", "神志昏蒙", "不省人事"],
-  ["言语不清", "说话不清", "言语含糊", "口齿不清", "构音不清", "说话含糊", "失语", "不能说话", "不能讲话",
+  // 2026-08-13 鲁棒性压测把这一组又推进了一层：**医生按患者口语原样录入**时仍然全线漏检。
+  // 实测原句「说话说不清楚，嘴角歪了，一侧手脚没劲，1小时前突然出现」——
+  // 线上确定性红旗 0 条、模型语义提示也 0 条，status 只到 needs_information。
+  // 这是全系统时间窗最紧的一类急症（溶栓窗），却是零提示。
+  // 逐词看漏因很具体：词表有「说话不清」，而口语是「说话说不清楚」（「说话不清」并不连续出现）；
+  // 有「口角歪斜」而口语是「嘴角歪了」；有「单侧无力/肢体无力」而口语是「一侧手脚没劲」。
+  // 补的是同一批概念的口语面孔，不新增概念、不放宽任何急性/否定判定。
+  ["言语不清", "说话不清", "说不清话", "说话说不清", "说话说不清楚", "话说不清", "说话费劲", "说话吐字不清",
+    "言语含糊", "口齿不清", "构音不清", "说话含糊", "失语", "不能说话", "不能讲话",
     "言语理解障碍", "语言理解障碍", "言语謇涩", "语言謇涩", "舌强语謇"],
   ["肢体无力", "手脚无力", "单侧无力", "胳膊腿无力", "手臂无力", "上肢无力", "腿无力", "下肢无力",
+    "手脚没劲", "胳膊没劲", "腿没劲", "半边没劲", "半边身子没劲", "一侧没劲", "抬不起胳膊", "抬不起腿",
     "肢体活动不利", "肢体不遂", "半身不遂", "偏身不遂", "半身不用"],
-  ["口角歪斜", "口眼歪斜", "口眼㖞斜", "口舌歪斜"],
+  ["口角歪斜", "口眼歪斜", "口眼㖞斜", "口舌歪斜", "嘴角歪", "嘴歪", "嘴巴歪", "脸歪", "面部歪斜"],
   ["偏盲"],
 ];
 const FOCAL_NEUROLOGIC_TERMS = [...new Set(FOCAL_NEUROLOGIC_CONCEPT_GROUPS.flat())];
@@ -315,7 +356,11 @@ const POSITIVE_FACT_EQUIVALENT_GROUPS: readonly (readonly string[])[] = [
   // "吐血"). Without an explicit concept group, the output scrubber can incorrectly weaken a
   // documented denial into "尚未确认呕血" after the clinical review has already accepted it.
   ["呕血", "吐血", "吐过血", "呕出鲜血", "吐出鲜血", "呕咖啡色液体", "吐咖啡色液体"],
-  ["黑便", "大便发黑", "粪便发黑", "排黑色便", "柏油样便"],
+  // clinical-facts.ts 的 OVERT_GI_BLEED_LANGUAGE 早就收了「又黑又亮/黑得发亮/黑亮便/大便像柏油」
+  // 这批口语，承重的确定性层反而没有——实测「拉的大便又黑又亮，人发晕」确定性红旗 0 条。
+  // 两层的词表必须同源，否则模型层一停，最口语的那批写法就全裸奔。
+  ["黑便", "大便发黑", "粪便发黑", "排黑色便", "柏油样便", "又黑又亮", "黑得发亮", "黑亮便",
+    "大便像柏油", "大便如柏油", "拉柏油样便"],
   ["便血", "血便", "大便带血", "排便带血", "解血便"],
   ["咯血", "咳血", "咳出血"],
   // 出血组原先只存在于 NEGATED_HYPONYM_TABLE（第三份表）。并入主表后，
@@ -2154,6 +2199,27 @@ function hasPatternWithoutNegation(text: string, pattern: RegExp): boolean {
   return false;
 }
 
+/**
+ * 「患者本人的既往事实」判据：只排除**否定**与**非本人主语**，不排除历史性。
+ *
+ * hasPatternWithoutNegation 会把 isHistoricalOrResolvedAt 判为历史的命中一并丢掉——
+ * 对症状是对的（「既往有胸痛」不是当前红旗），对**恶性肿瘤病史**恰恰相反：
+ * 「食管癌术后放化疗」本身就是历史陈述，而这正是风险所在。实测中把肿瘤史写进既往史或现病史，
+ * 两种写法都判不出来，整条分支是死的。
+ *
+ * 「否认肿瘤病史」仍然不算，「母亲患胃癌」（非本人）仍然不算。
+ */
+function hasPatientHistoryTermWithoutNegation(text: string, pattern: RegExp): boolean {
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  for (const match of text.matchAll(new RegExp(pattern.source, flags))) {
+    const index = match.index ?? -1;
+    if (index < 0) continue;
+    if (isExcludedClinicalAssertionAt(text, index)) continue;
+    if (!isNegatedAt(text, index) || hasCommaSeparatedPositiveEvidence(text, index, match[0])) return true;
+  }
+  return false;
+}
+
 /** 词表完整词 + 构词式腹痛，合成一条。两个消费点共用，避免只补一处而另一处继续漏。 */
 function abdominalSymptomAlternation(): string {
   return `${governedTermAlternation(GOVERNED_ACUTE_ABDOMEN_SYMPTOMS)}|${ABDOMINAL_PAIN_COMPOSITION}`;
@@ -2209,6 +2275,102 @@ function hasAcuteAbdominalSignal(text: string): boolean {
       `(?:${severe})[^。；;\\n]{0,12}(?:${symptoms}|全腹[^。；;\\n]{0,4}痛)|` +
       `(?:${symptoms}|全腹[^。；;\\n]{0,4}痛)[^。；;\\n无未不否没]{0,12}(?:${severe})`,
     ));
+}
+
+/**
+ * 上消化道警示征象的**单一判据**。四条分支，分别对应不同的临床成立方式：
+ *
+ *  A 梗阻类征象本身即警示：吞咽困难/咽下困难/进食梗阻/哽噎/噎膈。指南口径下，
+ *    新发吞咽困难本身就是内镜指征，不需要额外伴随条件。
+ *  B 「进食困难」单独出现太松（牙痛、口腔溃疡都能写成进食困难），要求同句带进展或病程线索。
+ *  C 恶性肿瘤病史 + 当前消化道症状：这是本次实测漏掉的那一条。癌症术后放化疗患者出现新发或
+ *    加重的消化道症状，首先要排除的是复发与吻合口梗阻，不是辨证开方。
+ *    肿瘤词表用**具体病种**而不是裸「癌」字，避免「癌胚抗原」这类检验名误命中。
+ *  D 不明原因/进行性体重下降：单独的「消瘦」是中医常用描述，必须带「不明原因/进行性/具体数值」。
+ *
+ * 四条一律走 hasPatternWithoutNegation：甲方 P0 病例原文写的是「无呕血黑便，无消瘦，无吞咽困难」，
+ * 把否定式读成阳性会把整个普通门诊病例打成红旗——那正是本仓库反复付过代价的误报形态。
+ */
+function hasUpperGiAlarmFeatureSignal(text: string): boolean {
+  // A
+  if (hasPatternWithoutNegation(text, new RegExp(governedTermAlternation(GOVERNED_GI_ALARM.symptoms)))) return true;
+  // B
+  const progression = `${governedTermAlternation(GI_ALARM_DETECTION.progressionCues)}|\\d+\\s*(?:个)?(?:月|年|周)`;
+  if (hasPatternWithoutNegation(text, new RegExp(
+    `进食困难[^。；;\\n]{0,20}(?:${progression})|(?:${progression})[^。；;\\n]{0,20}进食困难`,
+  ))) return true;
+  // C：恶性肿瘤病史分两档，避免「任何癌症幸存者 + 任何腹胀 = 永久红旗」这类噪声。
+  //   · 消化道本身的恶性肿瘤 + **任何**当前消化道症状 ⇒ 触发。
+  //     食管癌术后新发上腹胀满要先排除复发与吻合口狭窄，这一档不该再加门槛。
+  //   · 其他部位恶性肿瘤 + **警示级**消化道表现（梗阻/进食困难/呕吐/消瘦/包块/黑便）⇒ 触发。
+  //     实测促成这一档的病例：子宫内膜癌术后 + 肠梗阻史 + 胃胀痛1周。
+  //     若不分档，十年前的乳腺癌幸存者偶发腹胀也会永远挂着红旗，医生很快就会不再看红旗。
+  // 「任意癌」这一档不进词表而写成词法守卫：病种白名单必然漏（第一版就漏了子宫内膜癌），
+  // 而裸「癌」会被「癌胚抗原」「防癌体检」误命中，两头都要挡住。词表管的是词，
+  // (?<![防抗致])癌(?!胚|抗原) 管的是构词，两者性质不同，不该混进同一张表。
+  const CANCER = `${governedTermAlternation(GI_ALARM_DETECTION.malignancyGeneric)}|(?<![防抗致])癌(?!胚|抗原)`;
+  const GI_CANCER = governedTermAlternation(GI_ALARM_DETECTION.gastrointestinalMalignancy);
+  const digestive = governedTermAlternation(GI_ALARM_DETECTION.currentDigestiveSymptoms);
+  const alarmDigestive = governedTermAlternation(GI_ALARM_DETECTION.alarmDigestiveFindings);
+  if (hasPatientHistoryTermWithoutNegation(text, new RegExp(GI_CANCER))
+    && hasPatternWithoutNegation(text, new RegExp(digestive))) return true;
+  if (hasPatientHistoryTermWithoutNegation(text, new RegExp(CANCER))
+    && hasPatientHistoryTermWithoutNegation(text, new RegExp(alarmDigestive))) return true;
+  // D
+  const weightLossCue = governedTermAlternation(GI_ALARM_DETECTION.unexplainedWeightLossCues);
+  const weightLoss = governedTermAlternation(GI_ALARM_DETECTION.weightLossTerms);
+  if (hasPatternWithoutNegation(text, new RegExp(
+    `(?:${weightLossCue})[^。；;\\n]{0,8}(?:${weightLoss})`
+    + `|(?:${weightLoss})[^。；;\\n]{0,10}\\d+\\s*(?:kg|公斤|斤|千克)`,
+  ))) return true;
+  return false;
+}
+
+/**
+ * 咖啡样呕吐物的**构词式**判据。与 ABDOMINAL_PAIN_COMPOSITION 是同一类修法：
+ * 词表按完整词穷举，中文换个说法就全部失配。
+ *
+ * 【实测】线上鲁棒性压测的真实妊娠剧吐病案原文写「吐出咖啡色黏液」「吐出咖啡色液体」，
+ * 确定性层 redFlags **为 0**——词表里只有「咖啡样呕吐物」「呕咖啡样物」两个完整词。
+ * 该例最终能出红旗，靠的是模型语义回补层。但那一层按设计**只能追加**、且依赖模型可用：
+ * 2026-08-12 主模型账户欠费停摆 8 小时，同样这份病历会一条红旗都没有。
+ * 承重的必须是确定性层。
+ *
+ * 更直白的证据是同一文件内部就自相矛盾：否定扫描的同义词组（本文件 334 行附近）早已列出
+ * 「呕咖啡色液体」「吐咖啡色液体」——**否定侧认得这个说法，阳性侧不认得**。
+ * 又是同一判据两处各写各的。
+ *
+ * 两条分支，都刻意限定在**同一分句内**（字符类排除逗号）：
+ *  · 呕/吐 + 咖啡色|咖啡样：覆盖「吐出咖啡色黏液」「呕吐物呈咖啡色」；
+ *  · 咖啡色|咖啡样 + 呕吐物|胃内容物：名词自带呕吐语义，不需要动词。
+ * 跨逗号会把「呕吐3天，阴道流出咖啡色分泌物」读成上消化道出血——旧血性阴道分泌物同样写咖啡色，
+ * 那是产科线索不是消化道出血，判错方向比漏判更糟。
+ */
+const COFFEE_GROUND_EMESIS_COMPOSITION =
+  "(?:呕|吐)[^，,。；;\\n]{0,8}咖啡(?:色|样)"
+  + "|咖啡(?:色|样)[^，,。；;\\n]{0,6}(?:呕吐物|胃内容物)";
+
+function hasCoffeeGroundEmesis(text: string): boolean {
+  return hasPatternWithoutNegation(text, new RegExp(COFFEE_GROUND_EMESIS_COMPOSITION));
+}
+
+/**
+ * 按概念取同义词组：给一个代表词（如「黑便」），拿回该概念的**全部**写法。
+ * 检出口一律走这里，杜绝「词在 POSITIVE_FACT_EQUIVALENT_GROUPS 里、检出口却另抄一份短表」。
+ */
+function conceptGroupTerms(representative: string): string[] {
+  const group = POSITIVE_FACT_EQUIVALENT_GROUPS.find((item) => item.includes(representative));
+  return group ? [...group] : [representative];
+}
+
+/** 消化道出血三个概念（呕血/黑便/便血）的全部写法。 */
+function giBleedConceptTerms(): string[] {
+  return [...conceptGroupTerms("呕血"), ...conceptGroupTerms("黑便"), ...conceptGroupTerms("便血")];
+}
+
+/** 同上，合并成正则交替式。 */
+function giBleedConceptAlternation(): string {
+  return governedTermAlternation(giBleedConceptTerms());
 }
 
 function clinicalClauseBounds(text: string, index: number): { start: number; end: number } {
@@ -2845,18 +3007,79 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const cardiacClearanceApplies = cardiacCleared && !activeCardiacAfterClearance;
   const acuteAbdominalSignal = hasAcuteAbdominalSignal(text);
   const anaphylacticAirwaySignal = hasAnaphylacticAirwayEmergency(text);
+  // 出血词一律从概念分组取，不再在这里手抄第二份完整词表。
+  // 手抄那份只有「黑便/柏油样便」这类书面语，于是「拉的大便又黑又亮，人发晕」确定性红旗为 0；
+  // 而同一批口语在 POSITIVE_FACT_EQUIVALENT_GROUPS 与 clinical-facts 里明明都收着——
+  // 词在库里，检出口读不到，是本轮反复出现的同一种缺陷。
+  const bleedTerms = giBleedConceptAlternation();
   const recurrentGiBleedingSignal = text
     .split(/[，,。；;\n]+/)
     .some((clause) => hasPatternWithoutNegation(
       clause,
-      /(?:再次|再发|复发)[^。；;\n]{0,12}(?:呕血|吐血|黑便|柏油样便|便血)/,
+      new RegExp(`(?:再次|再发|复发)[^。；;\\n]{0,12}(?:${bleedTerms})`),
     ));
   const combinedUpperAndLowerGiBleedingSignal =
-    hasAnyTerm(text, ["呕血", "吐血"]) && hasAnyTerm(text, ["黑便", "柏油样便", "便血"]);
+    hasAnyTerm(text, [...conceptGroupTerms("呕血")]) && hasAnyTerm(text, [...conceptGroupTerms("黑便"), ...conceptGroupTerms("便血")]);
+  // 伴随症词表**保持原样**，不加「没力气/人发晕/脸色发白」这类口语面孔。
+  //
+  // 我一度按「口语与书面语同权」把它们加了进去，闸门当场红：
+  // test-clinical-facts 有一条刻意的断言——「老人家最近大便发黑好几天了，人也没力气」
+  // 在模型不可用时**只能形成非阻断提示，不得取得硬红旗门权**。
+  // 那不是漏检，是 T6 的既定边界（gi_bleed 的 hardGateRequires 要求
+  // active_or_recurrent_bleeding_with_severity_evidence），口语档由 narrativeFallbackAdvisories 承接。
+  // 也就是说我原先「口语消化道出血确定性层零检出」的判断读窄了：确定性层是covered 的，
+  // 只是按设计走提示档而非硬门档。真正的缺口只在**词表没收「又黑又亮」这批口语**，
+  // 那一条已在概念分组里补齐——提示档因此覆盖到了，硬门边界一寸未动。
+  const bleedSeverityCompanion = "[2-9]\\s*次|两次|三次|大量|反复|多次|再次|再发|复发|喷射|不止"
+    + "|头晕|乏力|晕厥|黑矇|意识改变|冷汗|心悸|面色苍白";
+  // 严重度伴随症必须**自身是阳性**。原实现把出血词与伴随症拼成一条正则，
+  // 否定判定只落在出血词的位置上，于是「服用铁剂后大便发黑，无头晕乏力，复查便潜血阴性」
+  // 照样判成活动性出血——伴随症被整句否认了，判据却读成阳性证据。
+  // 这类误报的代价不是多一条提示：医生一旦发现红旗会对着「无头晕乏力」乱响，就会开始忽略红旗。
+  // 判定形状与原实现**逐字一致**（出血词 + 20 字窗 + 伴随症拼成一条正则，整段过否定扫描），
+  // 只多加一道减法：段内的伴随症本身若被否定，这一段不算严重度证据。
+  //
+  // 为什么必须保持原形状：共享否定作用域的逃生门 hasCommaSeparatedPositiveEvidence 是拿
+  // **整段**来判「否认」辖不辖到这一项的——「否认腹痛，黑便伴头晕」正是靠段尾的「头晕」
+  // 判出「否认」只辖腹痛。改成先找出血词再找伴随症、只把出血词传进逃生门，这条既有断言当场变红。
+  const bleedSeverityAffirmed = (() => {
+    const combined = new RegExp(
+      `(?:${bleedTerms})[^。；;\\n]{0,20}(?:${bleedSeverityCompanion})`, "g",
+    );
+    const companionMatcher = new RegExp(bleedSeverityCompanion, "g");
+    for (const match of text.matchAll(combined)) {
+      const start = match.index ?? -1;
+      if (start < 0) continue;
+      if (isExcludedClinicalAssertionAt(text, start)) continue;
+      if (isNegatedAt(text, start) && !hasCommaSeparatedPositiveEvidence(text, start, match[0])) continue;
+      if (isHistoricalOrResolvedAt(text, start, match[0].length)) continue;
+      // 「服用铁剂后大便发黑，无头晕乏力，复查便潜血阴性」——伴随症整句被否认，
+      // 原实现照样判成活动性出血。红旗对着「无头晕乏力」乱响，医生很快就会不再看红旗。
+      //
+      // 判据是**紧邻否定**，不是 isNegatedAt：后者按共享作用域判，
+      // 在「否认腹痛，黑便伴头晕」里会把「头晕」也算进「否认」的辖域（实测把这条既有断言打红），
+      // 而那句里「否认」明明只辖腹痛。只看伴随症所在的那一个逗号分段里有没有否定词，
+      // 就能把这两句分开：前者分段是「无头晕乏力」，后者是「黑便伴头晕」。
+      const affirmedCompanion = [...match[0].matchAll(companionMatcher)].some((companion) => {
+        const at = start + (companion.index ?? 0);
+        const segmentStart = Math.max(
+          ...["，", ",", "。", "；", ";", "\n", "、"].map((mark) => text.lastIndexOf(mark, at - 1)),
+          start - 1,
+        ) + 1;
+        return !/(?:否认|无|未见|未|没有|不伴|排除)/.test(text.slice(segmentStart, at));
+      });
+      if (!affirmedCompanion) continue;
+      return true;
+    }
+    return false;
+  })();
   const activeGiBleedingSignal =
     recurrentGiBleedingSignal || combinedUpperAndLowerGiBleedingSignal ||
-    hasAnyTerm(text, ["呕咖啡样物", "咖啡样呕吐物"]) ||
-    hasPatternWithoutNegation(text, /(?:大量|反复|多次|再次|再发|复发|喷射|不止|持续出血)[^。；;\n]{0,16}(?:呕血|吐血|黑便|柏油样便|便血)|(?:呕血|吐血|黑便|柏油样便|便血)[^。；;\n]{0,20}(?:[2-9]\s*次|两次|三次|大量|反复|多次|再次|再发|复发|喷射|不止|头晕|乏力|晕厥|黑矇|意识改变|冷汗|心悸|面色苍白)/);
+    hasCoffeeGroundEmesis(text) || bleedSeverityAffirmed ||
+    // 「大量/反复/喷射…」是修饰出血词本身的限定语，仍走原口径。
+    hasPatternWithoutNegation(text, new RegExp(
+      `(?:大量|反复|多次|再次|再发|复发|喷射|不止|持续出血)[^。；;\\n]{0,16}(?:${bleedTerms})`,
+    ));
   const activeObstetricHemorrhageSignal =
     hasPatternWithoutNegation(text, /(?:孕|妊娠|怀孕)[^。；;\n]{0,40}(?:大量|大出血|持续|反复|鲜红色|血块|浸湿)[^。；;\n]{0,12}(?:阴道)?(?:出血|流血)/) ||
     hasPatternWithoutNegation(text, /(?:阴道)?(?:出血|流血)[^。；;\n]{0,30}(?:大量|大出血|持续|反复|鲜红色|血块|浸湿)[^。；;\n]{0,30}(?:孕|妊娠|怀孕)/);
@@ -2880,6 +3103,11 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   }
   if (activeGiBleedingSignal) {
     redFlags.push("当前呕血、咖啡样呕吐物、黑便或便血提示活动性消化道出血风险，需立即评估循环状态并急诊处置");
+  }
+  // 上气道水肿场景下的「吞咽困难」已由过敏红旗完整承接，不再重复成第二条告警；
+  // 出血已单独成条时也不叠加——同一事件两条告警会让医生开始忽略告警本身。
+  if (hasUpperGiAlarmFeatureSignal(text) && !anaphylacticAirwaySignal) {
+    redFlags.push("上消化道警示征象（吞咽/进食梗阻、恶性肿瘤病史伴消化道症状、或不明原因体重下降）已出现，需优先安排内镜或影像评估以排除梗阻、复发与占位，再评估处方");
   }
   if (activeObstetricHemorrhageSignal) {
     redFlags.push("妊娠期活动性大量阴道出血提示产科急症，需立即转产科急诊评估");
@@ -3003,7 +3231,7 @@ const RED_FLAG_FINDING_RULES: Array<{
   { id: "acute-cardiac-event", message: /心血管|冠脉|胸痛|胸闷/, source: /胸痛|胸闷|胸口|胸前|胸骨后|心口|心前区/, explanation: "急性或伴危险表现的胸部症状需先排除时间敏感性心血管事件。" },
   { id: "acute-neurologic-event", message: /神经系统|神经功能|头痛/, source: /头痛|意识障碍|意识不清|神志不清|昏迷|昏睡|嗜睡|谵妄|呼之不应|抽搐|惊厥|无力|偏瘫|说不出话/, explanation: "急性意识、发作性事件或局灶神经异常需优先排除神经急症。" },
   { id: "acute-abdomen-emergency", message: /急腹症|剧烈腹痛|腹痛\/腹胀/, source: /腹痛|腹胀|胃痛|胃脘痛|肚子疼|右下腹痛|上腹痛|心口窝痛|胃部疼痛|反跳痛|松手更疼|板状腹|腹肌紧张/, explanation: "剧烈腹痛或腹膜刺激征达到急腹症硬门槛；单纯突发、尚无重症表现者进入优先评估而非自动急诊定级。" },
-  { id: "active-gi-bleeding", message: /消化道出血/, source: /呕血|吐血|黑便|柏油样便|便血|咖啡样/, explanation: "活动性消化道出血表现需立即评估失血量和循环状态。" },
+  { id: "active-gi-bleeding", message: /消化道出血/, source: /呕血|吐血|黑便|柏油样便|便血|咖啡(?:色|样)/, explanation: "活动性消化道出血表现需立即评估失血量和循环状态。" },
   { id: "acute-respiratory-event", message: /呼吸循环急症|缺氧/, source: /呼吸困难|气促|喘憋|端坐呼吸|不能平卧|无法平卧|喘不上气|发紫/, explanation: "静息或快速加重的呼吸困难及缺氧表现需立即评估。" },
   { id: "tcm-critical-pattern", message: /危重中医证候术语/, source: /戴阳证|阴盛格阳|脉微欲绝/, explanation: "病历明确记录当前危重证候术语；该术语只触发现代急症核实，不直接授权任何课程方药或操作。" },
 ];
@@ -3066,7 +3294,7 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
   ) {
     addAdvisory("neuro", "意识水平改变、抽搐或局灶神经功能异常需优先复核起病时间、当前意识、发作持续时间及卒中/癫痫等急症风险");
   }
-  if (hasAnyTerm(text, ["呕血", "吐血", "黑便", "大便发黑", "粪便发黑", "排黑色便", "柏油样便", "便血"])) {
+  if (hasAnyTerm(text, giBleedConceptTerms()) || hasCoffeeGroundEmesis(text)) {
     addAdvisory("gi_bleed", "消化道出血相关表现需优先复核出血量、持续性、循环状态及血红蛋白");
   }
   if (hasAnyTerm(text, ["咯血", "阴道流血", "外伤出血", "出血不止", "大量出血"])) {
@@ -3325,7 +3553,7 @@ function missingVitalsForHighRiskPresentation(state: CaseState): string[] {
   const text = structuredCaseText(state);
   const hasRespiratoryRisk = hasAnyTerm(text, ["呼吸困难", "气促", "喘憋", "端坐呼吸"]);
   const hasAcuteAbdominalRisk = hasAcuteAbdominalSignal(text);
-  const hasBleedingRisk = hasAnyTerm(text, ["呕血", "吐血", "黑便", "大便发黑", "粪便发黑", "排黑色便", "柏油样便", "便血", "咯血", "阴道流血", "外伤出血", "出血不止", "大量出血"]);
+  const hasBleedingRisk = hasAnyTerm(text, [...giBleedConceptTerms(), "咯血", "阴道流血", "外伤出血", "出血不止", "大量出血"]) || hasCoffeeGroundEmesis(text);
   const hasOtherHighRiskPresentation =
     hasAnyTerm(text, ["胸痛", "胸闷", "心前区痛", "晕厥", "黑矇", "意识丧失", "寒战", "高热", "意识改变", "言语不清", "肢体无力"]) ||
     hasBleedingRisk ||
