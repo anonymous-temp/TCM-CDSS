@@ -3,6 +3,7 @@ import modernCaseFormulaIndexJson from "../data/tcm-modern-case-formula-index.js
 import retrievalConceptJson from "../data/tcm-formula-retrieval-concepts.json" with { type: "json" };
 import retrievalIndexJson from "../data/tcm-formula-retrieval-index.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { applyLineageAffinityPresentationOrder, type FormulaLineageAffinity } from "./tcm-formula-lineage-affinity";
 import { affirmedClinicalText, type AssistedNegationClauses } from "./clinical-polarity";
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, canonicalTcmSyndromeTerm, formulaMatchSyndromeCompatible, governedSyndromeFeatureMatch, governedTcmTermLabelById, governedTreatmentMethodsInText, matchCompatibleGovernedSyndromeIds } from "./clinical-governance-tables";
 import {
@@ -1014,8 +1015,10 @@ export function retrieveTcmFormulaCandidatesForReasoning(
 function renderFormulaCandidates(
   candidates: readonly FormulaIndicationCandidate[],
   phaseLabel: "M03病例事实" | "M03签名证候/病机",
+  lineageAffinityByName?: Map<string, FormulaLineageAffinity>,
 ): string[] {
   return candidates.map((candidate) => {
+    const lineageAffinity = lineageAffinityByName?.get(candidate.name);
     const curatedSyndromeIds = new Set(candidate.curatedSyndromeTags);
     const governedRelations = [
       ...candidate.syndromeTags.flatMap((id) => {
@@ -1040,6 +1043,10 @@ function renderFormulaCandidates(
       // 人群轴冲突按规则「降权并保留标注」：候选不淘汰，但医生与模型必须看得到冲突事实。
       ...((candidate.axisScoreBreakdown?.population.conflicts.length || 0) > 0
         ? [`  人群轴提示：${candidate.axisScoreBreakdown!.population.conflicts.join("；")}（已在排序中降权，保留供鉴别核对）`]
+        : []),
+      // 流派取向标注只出现在「医师已终审 + 命中本例流派偏好」的候选上；未终审条目零痕迹。
+      ...(lineageAffinity
+        ? [`  流派取向：${lineageAffinity.lineageLabelText}（出自${lineageAffinity.book}，医师已终审；仅影响展示顺序，不影响准入与锁定）`]
         : []),
       // identityLockEligible 只说明「治理层允许锁定」，不代表本方真能锁上：身份锁要求主证候直接
       // 关联（positiveSufficiency 需 directPrimarySyndromeMatch），而无 syndromeTags 的方剂在任何
@@ -1072,13 +1079,19 @@ export function buildTcmFormulaIndicationContext(
   if (candidates.length === 0) {
     return "【M03经典方检索】本例当前阳性事实未命中受控经典方主治索引；可按已锁定病机与治法形成自拟方向，但必须说明未采用经典方是因受控目录无匹配结果。";
   }
+  // 流派偏好只重排展示顺序（同一正向充分性×可编译层内、医师已终审条目才生效）；
+  // 召回集合、准入分与后续锁定判据均不读该偏好。
+  const lineagePresentation = applyLineageAffinityPresentationOrder(candidates, caseState.tcmLineagePreference);
   // 选择规则前置。原实现把它放在 5 条候选之后，模型要先读完 5 遍「仅作检索关联」「候选不是自动
   // 推荐」才知道该拿这些候选做什么；加上 M03 提示词全局 100+ 条禁令，净效果是模型学到「保守、别
   // 下结论」，对方证 8/8 吻合、排名第一的候选仍写自拟。规则改为先说「怎么选」，再列候选。
   return [
     "【M03经典方检索（受控目录）】",
     "选择规则：以下候选已按本例阳性事实召回并排序。逐条核对方证眼目后，从“治理状态=可锁定”的条目中选出 1–3 个方证整体匹配的方名，逐字写入 overview.recommendedFormulaNames（不得改写、不得加书名号），formulaSelectionMode 相应填 single/combined/alternatives，recommendedFormulaDirection 直接写出方名。确有匹配却留空改自拟会被服务端确定性驳回并要求重做：自拟方没有出处可考，临床上比承接经典方更难辩护。只有当每一条都与本例方证不符时才写“按已锁定病机与治法辨证组方”，并说明是哪条方证眼目不满足。标记为仅检索参考的条目只能用于鉴别，不得锁定；也不得使用候选以外的未受控命名方。方名锁定不等于剂量已定——剂量由 M04 独立编译并经处方后审方。",
-    ...renderFormulaCandidates(candidates, "M03病例事实"),
+    ...(lineagePresentation.applied
+      ? ["流派偏好排序说明：带「流派取向」标注的候选按医师已终审的流派归属做了有限的展示顺序调整；方证核对、正向充分性与锁定纪律不因此放宽。"]
+      : []),
+    ...renderFormulaCandidates(lineagePresentation.ordered, "M03病例事实", lineagePresentation.affinityByName),
   ].join("\n");
 }
 
@@ -1090,15 +1103,22 @@ export function buildTcmFormulaIndicationContext(
 export function buildTcmFormulaReasoningContext(
   reasoning: FormulaReasoningProjection | undefined,
   limit = 5,
+  lineagePreference?: string,
 ): string {
   if (!reasoning) return "【M03后方剂精确检索】无已签名结构化辨证结果，未执行证候/病机召回。";
   const candidates = retrieveTcmFormulaCandidatesForReasoning(reasoning, limit);
   if (candidates.length === 0) {
     return "【M03后方剂精确检索】已签名证候/病机未命中 T8 受控关系；M04 只能承接 M03 的自拟方向，不得临时附会命名方。";
   }
+  // 展示顺序可按已终审流派取向有限调整；systemLockable 自动锁方读的是
+  // retrieveTcmFormulaCandidatesForReasoning 的原始返回序，与此处无关。
+  const lineagePresentation = applyLineageAffinityPresentationOrder(candidates, lineagePreference);
   return [
     "【M03后方剂精确检索（T1/T3/T4 → T8；只核对既有选择）】",
-    ...renderFormulaCandidates(candidates, "M03签名证候/病机"),
+    ...(lineagePresentation.applied
+      ? ["流派偏好排序说明：带「流派取向」标注的候选按医师已终审的流派归属做了有限的展示顺序调整；承接纪律与正向充分性判据不因此放宽。"]
+      : []),
+    ...renderFormulaCandidates(lineagePresentation.ordered, "M03签名证候/病机", lineagePresentation.affinityByName),
     "承接纪律：只有“命名方正向充分性=通过”的条目才可承接 M03 方名；病性/病位粗粒度命中只能用于鉴别。M04 不得新增、替换或合并 M03 未锁定的方名。若已锁定方未通过正向充分性，必须停止沿用该方名并交回临床复核。",
   ].join("\n");
 }
@@ -1331,10 +1351,17 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
           return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(parsed, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
         }
         if (names.every((name) => allowed.has(name.replace(/\s+/g, "")))) return match;
+        // 「等医生确认术语」只有在主证候**确实无法确定性归一**时才是真原因（2026-08-13 线上实测）。
+        // 复合证候「心阳不振，水气凌心」首段可被 canonicalPrimarySyndromeId 确定性解析——
+        // 与授予 primarySyndromeIdentityConfirmed 的是同一个解析器，单一判据不许在这里另写一份——
+        // 此时语义映射建议只是冗余通道，医生确认它不会改变正向充分性的输入。若仍把撤销原因写成
+        // semantic_mapping_pending，医生会等待一个不影响结果的确认；真实原因（受控关系缺口）
+        // 反而被掩盖。故确定性可归一时一律走下方 governed_syndrome_relation_unverified 留痕分支。
         const primarySyndromeAwaitingConfirmation = (parsed.terminologyMappings || []).some((item) =>
           item.namespace === "tcm_syndrome" &&
           item.fieldPath === "overview.primarySyndrome" &&
-          item.status === "suggested");
+          item.status === "suggested") &&
+          canonicalPrimarySyndromeId((parsed.overview as { primarySyndrome?: unknown }).primarySyndrome) == null;
         const originalMode = parsed.overview.formulaSelectionMode;
         const originalDirection = parsed.overview.recommendedFormulaDirection;
         if (

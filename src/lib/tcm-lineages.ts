@@ -6,6 +6,10 @@
 // 因此删掉的「时方/验方」档在能力上由默认档覆盖，不是能力缺口。
 // 删掉的 8 张（时方验方/脾胃/孟河/岭南/海派/院内优先/攻邪/寒凉）连同其问诊策略一并移除，
 // 不留"仍可解析但不对外"的暗档——留着就会变成文档与实现各说各的。
+// 带 .ts 后缀：本模块被 test:lineage-governance 以 node --experimental-strip-types 直载，
+// 该加载器不解析无后缀说明符（同 evidence-source-validation.ts 的先例）。
+import { SAFETY_DEFERENCE_TEXT } from "./cdss-vocab.ts";
+
 export type LineageGroup = "default" | "classic" | "school";
 
 export type LineageCardNature = "academic_lineage" | "source_preference" | "operational";
@@ -400,4 +404,62 @@ export function lineageLabel(codeOrLegacy?: string): string {
 export function getLineageQuestionStrategy(codeOrLegacy?: string): LineageQuestionStrategy {
   const card = getLineageCard(codeOrLegacy);
   return LINEAGE_QUESTION_STRATEGIES[card.code] || LINEAGE_QUESTION_STRATEGIES.unrestricted;
+}
+
+/**
+ * 流派适配记录的「可展示」判据——Markdown 摘要、医生页面、HIS 方案三个出口共用的唯一实现
+ * （甲方基线 §10.2 要求报告说明流派特征；同一判据两处各写各的是本仓库头号缺陷形状，故收敛于此）。
+ *
+ * 返回 null 表示三个出口都不出现该段：未选具体流派（unrestricted）、模型未产出、
+ * 或产出内容为空壳（无适配说明且无受影响决策）。safetyBoundary 永不为空——
+ * 模型没写就用 SAFETY_DEFERENCE_TEXT 固定词条，流派段永远带着安全让位声明出现。
+ */
+export interface LineageAdaptationDisplay {
+  label: string;
+  applicability: "适用" | "部分适用" | "不适用";
+  reason?: string;
+  influencedDecisions: Array<{ aspect: string; detail: string }>;
+  alternativeDirection?: string;
+  safetyBoundary: string;
+}
+
+export function displayableLineageAdaptation(adaptation: unknown): LineageAdaptationDisplay | null {
+  if (!adaptation || typeof adaptation !== "object") return null;
+  const record = adaptation as Record<string, unknown>;
+  const lineageCode = typeof record.lineageCode === "string" ? record.lineageCode.trim() : "";
+  if (!lineageCode || lineageCode === "unrestricted") return null;
+  const label = typeof record.label === "string" && record.label.trim()
+    ? record.label.trim()
+    : lineageLabel(lineageCode);
+  if (!label) return null;
+  const reason = typeof record.applicabilityReason === "string" ? record.applicabilityReason.trim() : "";
+  const influencedDecisions = (Array.isArray(record.influencedDecisions) ? record.influencedDecisions : [])
+    .flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const aspect = typeof (item as Record<string, unknown>).aspect === "string"
+        ? ((item as Record<string, unknown>).aspect as string).trim()
+        : "";
+      const detail = typeof (item as Record<string, unknown>).detail === "string"
+        ? ((item as Record<string, unknown>).detail as string).trim()
+        : "";
+      return aspect && detail ? [{ aspect, detail }] : [];
+    });
+  if (!reason && influencedDecisions.length === 0) return null;
+  const applicable = record.applicable === "applicable"
+    ? "适用"
+    : record.applicable === "not-applicable"
+      ? "不适用"
+      : "部分适用";
+  const alternativeDirection = typeof record.alternativeDirection === "string" && record.alternativeDirection.trim()
+    ? record.alternativeDirection.trim()
+    : undefined;
+  const safetyDeference = typeof record.safetyDeference === "string" ? record.safetyDeference.trim() : "";
+  return {
+    label,
+    applicability: applicable,
+    reason: reason || undefined,
+    influencedDecisions,
+    alternativeDirection: applicable === "不适用" ? alternativeDirection : undefined,
+    safetyBoundary: safetyDeference || SAFETY_DEFERENCE_TEXT,
+  };
 }

@@ -23,6 +23,7 @@ import {
   westernDiagnosticEvidenceGroups,
 } from "./clinical-fact-source";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
+import { displayableLineageAdaptation } from "./tcm-lineages";
 import { safeDietAdviceForDisplay, GOVERNED_HERB_DATA_LABEL } from "./result-display-policy";
 import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives } from "./internal-tag-hygiene";
@@ -2972,6 +2973,21 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
       ...subTherapies.map((item) => `| ${markdownCell(item.therapy)} | ${
         pathogenesisLedger.claim(item.targetPathogenesis) ? markdownCell(item.targetPathogenesis) : "同上述病机"
       } |`),
+    );
+  }
+  // 流派适配记录（甲方基线 §10.2：报告须简洁说明采用了哪些流派特征）。
+  // 可展示判据与医生页面、HIS 共用同一实现 displayableLineageAdaptation：
+  // 未选具体流派 / 空壳内容一律不出现；安全让位声明永远随段落出现。
+  const lineageDisplay = displayableLineageAdaptation(reasoning.lineageAdaptation);
+  if (lineageDisplay) {
+    lines.push(
+      "",
+      `## ${clinicalOutputLabel("M03-M04-lineage", "流派适配记录")}`,
+      `**诊疗思路**：${markdownCell(lineageDisplay.label)}（本例${lineageDisplay.applicability}）`,
+      ...(lineageDisplay.reason ? [`**适配说明**：${markdownCell(lineageDisplay.reason)}`] : []),
+      ...lineageDisplay.influencedDecisions.map((item) => `- **${markdownCell(item.aspect)}**：${markdownCell(item.detail)}`),
+      ...(lineageDisplay.alternativeDirection ? [`**替代方向**：${markdownCell(lineageDisplay.alternativeDirection)}`] : []),
+      `**安全边界**：${markdownCell(lineageDisplay.safetyBoundary)}`,
     );
   }
   if (uncertainties.length > 0) {

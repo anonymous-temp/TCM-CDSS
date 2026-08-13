@@ -632,7 +632,10 @@ const outputContracts = [
   // 可开的治疗项目，两类内容的决策权重也被拉平。
   ["M03-M04-tcm-treatment", "diagnose|prescribe", "reasoningV2.nonPharma.tcmTreatments", "中医治疗项目", "nullable", "pathogenesis_target_and_protocol_source", "visible", "tcm-treatment-section"],
   ["M03-M04-nonpharma", "diagnose|prescribe", "reasoningV2.nonPharma", "健康调护与注意事项", "nullable", "pathogenesis_target_and_protocol_source", "visible", "followup-care-section"],
-  ["M03-M04-lineage", "diagnose|prescribe", "reasoningV2.lineageAdaptation", "流派适配记录", "nullable", "applicability_reason_and_safety_deference", "internal_only", null],
+  // 2026-08-13 由 internal_only 翻为 visible：甲方需求基线 §10.2 明确要求「报告：简洁说明
+  // 采用了哪些流派特征」，此前该契约登记为永不渲染，模型写的 lineageAdaptation 只进 JSON 出参。
+  // 渲染守卫在消费侧：lineageCode=unrestricted 或内容为空时三个出口都不出现该段。
+  ["M03-M04-lineage", "diagnose|prescribe", "reasoningV2.lineageAdaptation", "流派适配记录", "nullable", "applicability_reason_and_safety_deference", "visible", "lineage-adaptation-section"],
   ["M03-M04-management", "diagnose|prescribe", "reasoningV2.management", "管理与安全网", "nullable", "red_flag_loop_and_followup_trigger", "visible", "followup-care-section"],
   ["M05-assessment", "assess", "deterministic assessment markdown", "风险与随访汇总", "required", "structured_post_prescription_audit", "visible", "audit-followup-section"],
   // 「健康宣教 / management.healthEducation」已于 2026-08-06 删除：它是一条**幽灵契约**。

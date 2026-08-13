@@ -32,7 +32,7 @@ import { appendClinicalPresetValue, appendDelimitedValue, detectTonguePulseField
 import { classifyWesternDiagnosticEvidence, westernDiagnosticEvidenceGroups, clinicalFactSourcesFromCaseState, clinicalFactWithSource, guidelineReferenceDisplay, uniqueClinicalFacts } from "@/lib/clinical-fact-source";
 import type { CaseState, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
 import { ageValue, normalizeCaseStateInput, normalizeStructuredFollowupTimeline } from "@/lib/diagnosis-types";
-import { LINEAGE_OPTIONS } from "@/lib/tcm-lineages";
+import { LINEAGE_OPTIONS, displayableLineageAdaptation } from "@/lib/tcm-lineages";
 import {
   saveCase, loadLatestCase, clearCase, clearAllSavedCases, isBrowserCasePersistenceEnabled,
   sanitizeCaseStateForBrowserPersistence, scrubPersistentPhiText,
@@ -5153,6 +5153,45 @@ function ResultTabsV2({
           })()}
         </div>
       </SchemeSection>
+
+      {(() => {
+        // 流派适配记录：可展示判据与 Markdown 摘要、HIS 方案共用 displayableLineageAdaptation
+        //（未选具体流派或内容为空壳时三个出口一致不出现）。
+        const lineageDisplay = displayableLineageAdaptation(reasoning.lineageAdaptation);
+        if (!lineageDisplay) return null;
+        return (
+          <SchemeSection
+            order={sectionOrder("M03-M04-lineage")}
+            id="cdss-section-lineage"
+            title="流派适配记录"
+            subtitle="所选诊疗思路对本例判断的影响"
+            contractIds="M03-M04-lineage"
+            rendererId="lineage-adaptation-section"
+          >
+            <div className="space-y-2" data-testid="lineage-adaptation-card">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700">{lineageDisplay.label}</span>
+                <span className="text-xs text-gray-600">本例{lineageDisplay.applicability}</span>
+              </div>
+              {lineageDisplay.reason && <p className="text-xs leading-relaxed text-gray-700">{lineageDisplay.reason}</p>}
+              {lineageDisplay.influencedDecisions.length > 0 && (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {lineageDisplay.influencedDecisions.map((item, index) => (
+                    <div key={`${item.aspect}-${index}`} className="rounded-lg border bg-gray-50 p-3 text-xs leading-relaxed text-gray-700">
+                      <p className="font-semibold text-gray-950">{item.aspect}</p>
+                      <p className="mt-1">{item.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {lineageDisplay.alternativeDirection && (
+                <p className="text-xs leading-relaxed text-gray-700"><span className="font-semibold">替代方向：</span>{lineageDisplay.alternativeDirection}</p>
+              )}
+              <p className="text-[11px] text-gray-500">{lineageDisplay.safetyBoundary}</p>
+            </div>
+          </SchemeSection>
+        );
+      })()}
 
       {prescribeStageFailed && onRetry && (
         <SchemeSection order={sectionOrder("M04-formula")} id="cdss-section-prescription" title="候选方药" subtitle="本阶段未完成" contractIds="M04-formula" rendererId="formula-section">

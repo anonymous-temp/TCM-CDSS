@@ -1,0 +1,403 @@
+{
+  "schemaVersion": "tcm-formula-lineage-affinity-v1",
+  "generatedAt": "2026-08-13",
+  "derivation": "受治理方剂目录 source 书名 × tcm-lineages 流派卡 representativeWorks 机械推导；经方/温病四书按规则级终审，景岳全书/丹溪心法按逐首终审（治疗取向不等于著作归属，实例：保阴煎、玉女煎、柴胡疏肝散均出《景岳全书》）",
+  "boundaries": [
+    "未终审（pending_clinician_review）条目零影响：不加分、不标注、不出现在任何输出",
+    "加分只作用于候选展示顺序（提示词候选块），不参与准入判定、不参与 systemLockable 自动锁方、不改变剂量/禁忌/审方任何校验",
+    "同一正向充分性×剂量可编译层内才可重排，加分不得使候选跨层上移"
+  ],
+  "bookRules": [
+    {
+      "book": "伤寒论",
+      "lineageCode": "classical-formula",
+      "confirmationMode": "rule",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "金匮要略",
+      "lineageCode": "classical-formula",
+      "confirmationMode": "rule",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "温热论",
+      "lineageCode": "warm-disease",
+      "confirmationMode": "rule",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "湿热病篇",
+      "lineageCode": "warm-disease",
+      "confirmationMode": "rule",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "温病条辨",
+      "lineageCode": "warm-disease",
+      "confirmationMode": "rule",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "温热经纬",
+      "lineageCode": "warm-disease",
+      "confirmationMode": "rule",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "格致余论",
+      "lineageCode": "nourish-yin-danxi",
+      "confirmationMode": "per_formula",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "丹溪心法",
+      "lineageCode": "nourish-yin-danxi",
+      "confirmationMode": "per_formula",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "景岳全书",
+      "lineageCode": "warm-tonify-yang",
+      "confirmationMode": "per_formula",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "医理真传",
+      "lineageCode": "warm-tonify-yang",
+      "confirmationMode": "per_formula",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    },
+    {
+      "book": "医法圆通",
+      "lineageCode": "warm-tonify-yang",
+      "confirmationMode": "per_formula",
+      "adjudicationStatus": "pending_clinician_review",
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+    }
+  ],
+  "formulaAdjudications": [
+    {
+      "formulaName": "丹溪治湿痰方",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "二妙丸",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "二妙散",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "保和丸",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "加味二妙散",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "咳血方",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "大安丸",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "大补阴丸",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "左金丸",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "痛泻要方",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "礞石滚痰丸",
+      "source": "《丹溪心法附余》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "紫金锭",
+      "source": "《丹溪心法附余》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "胃苓汤",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "萆薢分清散",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "虎潜丸",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "越鞠丸",
+      "source": "《丹溪心法》",
+      "lineageCode": "nourish-yin-danxi",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "七福饮",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "举元煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "人参健脾丸（汤）",
+      "source": "《景岳全书》《证治准绳·类方》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "人参归脾丸",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "何人饮",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "保阴煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "八珍益母汤",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "六味回阳饮",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "加减一阴煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "化阴煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "右归丸",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "右归饮",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "四味回阳饮",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "固阴煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "大营煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "大补元煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "小营煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "左归丸",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "归肾丸",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "暖肝煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "柴胡疏肝散",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "栀子金花丸",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "桑白皮汤",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "桔梗杏仁煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "正柴胡饮",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "毓麟珠",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "泰山磐石散",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "济川煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "独参汤",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "玉女煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "胎元饮",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "脱花煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "茜根散",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "解肝煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "通瘀煎",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    },
+    {
+      "formulaName": "黎峒丸",
+      "source": "《景岳全书》",
+      "lineageCode": "warm-tonify-yang",
+      "status": "pending_clinician_review"
+    }
+  ]
+}

@@ -650,9 +650,12 @@ assert.deepEqual(requiredFields.governance.implementationDrift, []);
 // 契约总数 18→19、可见数 15→16，内部契约数不变。
 // 2026-08-06 又减 1：health-education 幽灵契约（声明 visible 但字段根本不存在）已从生成器删除，
 // 于是总数回到 18、可见数回到 15。详见文件末尾「T11 不得再出现幽灵契约」那段逐条核对。
+// 2026-08-13：M03-M04-lineage 由 internal_only 翻为 visible（甲方基线 §10.2 要求报告说明
+// 流派特征；此前模型写的 lineageAdaptation 只进 JSON 出参，报告/页面/HIS 一处都不渲染）。
+// 内部 3→2、可见 15→16，总数不变；渲染守卫（unrestricted/空壳不出现）钉在 test:lineage-affinity。
 assert.equal(outputContracts.entries.length, 18);
-assert.equal(outputContracts.summary.internalContractCount, 3);
-assert.equal(outputContracts.summary.visibleContractCount, 15);
+assert.equal(outputContracts.summary.internalContractCount, 2);
+assert.equal(outputContracts.summary.visibleContractCount, 16);
 assert.ok(
   outputContracts.entries.some((item) => item.id === "M03-M04-tcm-treatment" && item.visibility === "visible"),
   "中医治疗项目必须是独立的可见输出契约",
@@ -665,7 +668,9 @@ assert.ok(
     "中医治疗项目必须排在健康调护之前",
   );
 }
-assert.equal(outputContracts.entries.find((item) => item.id === "M03-M04-lineage")?.visibility, "internal_only");
+// 2026-08-13 翻转：流派适配记录成为可见契约（带 rendererId），三出口渲染与空壳守卫见 test:lineage-affinity。
+assert.equal(outputContracts.entries.find((item) => item.id === "M03-M04-lineage")?.visibility, "visible");
+assert.equal(outputContracts.entries.find((item) => item.id === "M03-M04-lineage")?.rendererId, "lineage-adaptation-section");
 assert.equal(outputContracts.entries.find((item) => item.id === "M03-western")?.evidenceBinding, "supporting_facts_only");
 assert.equal(outputContracts.surfaces.length, 7);
 assert.deepEqual(outputContracts.limitedStateCopy.requiredParts, ["knownFacts", "unavailableConclusion", "nextAction"]);

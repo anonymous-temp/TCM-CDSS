@@ -10,7 +10,7 @@ import { resolveFormulaSources } from "./tcm-formula-provenance";
 import { sourceAllowed, type EvidenceScope } from "./evidence-source-validation";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
 import { isKnownTcmTreatmentProjectCode } from "./tcm-treatment-projects";
-import { lineageLabel } from "./tcm-lineages";
+import { displayableLineageAdaptation, lineageLabel } from "./tcm-lineages";
 import { classifyHerbWarning, deriveCaseWarningProfile, warningLevelRank, type ClinicalWarningLevel } from "./clinical-warning-tier";
 import { hasBoundClinicalReviewAttestation } from "./clinical-review-binding";
 import { clinicalReviewIndependenceOf, clinicalReviewLabel, clinicalReviewMethodNote } from "./clinical-review-independence";
@@ -100,6 +100,18 @@ export type HisAiSchemePayload = {
     medicationHistory?: string;
     tcmFourDiagnosis?: string;
     tcmLineagePreference?: string;
+    /**
+     * 流派适配记录（甲方基线 §10.2「报告须简洁说明采用了哪些流派特征」）。
+     * 仅当医生选择了具体流派且模型产出了非空适配内容时下发；unrestricted 或空内容一律缺省。
+     * 新增可选字段，V1/V2 契约均非破坏。
+     */
+    tcmLineageAdaptation?: {
+      label: string;
+      applicability: "适用" | "部分适用" | "不适用";
+      reason?: string;
+      influencedDecisions: Array<{ aspect: string; detail: string }>;
+      safetyBoundary: string;
+    };
     vitals?: string;
   };
   diagnoses: {
@@ -1078,6 +1090,18 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
       tcmLineagePreference: caseState.tcmLineagePreference
         ? lineageLabel(caseState.tcmLineagePreference)
         : undefined,
+      // 适配记录直接读签名载荷的结构化字段（displayableLineageAdaptation 是三出口共用判据），
+      // 不走 Markdown 切段——unrestricted 或空壳内容时字段整体缺省，V1/V2 契约均非破坏。
+      tcmLineageAdaptation: (() => {
+        const display = displayableLineageAdaptation(activeReasoning?.lineageAdaptation);
+        return display ? {
+          label: display.label,
+          applicability: display.applicability,
+          ...(display.reason ? { reason: display.reason } : {}),
+          influencedDecisions: display.influencedDecisions,
+          safetyBoundary: display.safetyBoundary,
+        } : undefined;
+      })(),
       vitals: [
         caseState.hisRecord?.fields?.vitalsT,
         caseState.hisRecord?.fields?.vitalsP,
