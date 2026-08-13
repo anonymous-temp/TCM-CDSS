@@ -69,6 +69,7 @@ import {
   reconcileRestoredCaseState,
   sanitizeFreeTextForExternalClinicalService,
   withSafetyGate,
+  redFlagRuleIdForMessage,
 } from "@/lib/diagnosis-safety";
 import {
   clinicalEvidenceFingerprint,
@@ -989,9 +990,13 @@ export function buildEmergencyPresentation(caseState: CaseState): EmergencyPrese
       // 一字残片（切分留下的「等」「及」）不成其为证据；两字起（「大汗」「呕血」）都要保留。
       .filter((clause) => clause.length >= 2)),
   ).map((value) => truncateClinicalTextForDisplay(value, 60)).slice(0, 8);
-  const ruleId = finding?.ruleId || "";
+  // 该显示哪张急诊卡片，只问规则表——此前这里自带 `/心血管|冠脉|胸痛|胸闷/`
+  // 与 `/头痛|神经/` 两份关键词表，与 diagnosis-safety 的 RED_FLAG_FINDING_RULES.message
+  // 是同一判据的第二份抄写：那边加一条规则，这边不会知道。
+  // 没有 finding 时（只拿到提示语）用同一张表反查规则 id，认不出就走通用急症措辞。
+  const ruleId = finding?.ruleId || redFlagRuleIdForMessage(gate.redFlags.join("；"));
 
-  if (ruleId === "acute-neurologic-event" || /头痛|神经/.test(gate.redFlags.join("；"))) {
+  if (ruleId === "acute-neurologic-event") {
     return {
       pageTitle: "急诊转诊建议",
       eventTitle: "疑似急性神经血管事件（雷击样头痛）",
@@ -1006,7 +1011,7 @@ export function buildEmergencyPresentation(caseState: CaseState): EmergencyPrese
       ],
     };
   }
-  if (ruleId === "acute-cardiac-event" || /心血管|冠脉|胸痛|胸闷/.test(gate.redFlags.join("；"))) {
+  if (ruleId === "acute-cardiac-event") {
     return {
       pageTitle: "急诊转诊建议",
       eventTitle: "疑似急性心血管事件",

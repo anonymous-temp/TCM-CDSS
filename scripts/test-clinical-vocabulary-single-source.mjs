@@ -102,6 +102,24 @@ const ALLOWLIST = new Map([
   ["src/lib/tcm-classic-inference.ts", "TODO-迁移:与 tcm-formula-contraindications 同源的古方主治状态词表(两处重复正是漂移风险的证据),应一并并入受治理症状词表。"],
   ["src/lib/tcm-classic-evidence.server.ts", "经典方运行时同名药材消歧串(百合|合欢),是解析消歧不是临床判断词表。"],
   ["src/lib/tcm-followup-dimensions.ts", "六维随访问句模板(睡眠/食欲/大便…),是**问诊文案**不是判断词表:它只用于生成给医生看的随访问题,不参与任何语义匹配。"],
+
+  // ── 2026-08-12 打开内联正则检测后新增的一批。逐条读过内容后按性质登记 ──────────────
+  // 这批与上面几类同源，只是此前写成内联表达式、A/B 两条判据都看不见。
+  ["src/lib/clinical-fact-source.ts",
+    "病历**传输格式**的段落标题前缀（`现病史：`『舌象：』…）。它判的是「这一行有没有字段标题」，" +
+    "不是临床语义；同一组标题由 diagnosis-safety 的 trustedInputText 逐行写出，两处同源维护。"],
+  ["src/lib/clinical-terminology.ts", "诊断名的**修饰语**前缀（慢性/急性/原发性/一期…）与病名归一形态判据，属术语规范化层，不判临床事实。"],
+  ["src/lib/diagnosis-stream-safety.ts", "流式净化的**剂量与煎服法字面形态**锚点（数值+单位、水煎服/冲服），是文本形态判据。"],
+  ["src/lib/evimed-guide.ts", "外部证据接口的**返回体结构**锚点（批准文号形态、占位题名、章节标题）。方名串用于定位检索结果段落，不做临床判断。"],
+  ["src/lib/formula-discrimination-guard.ts", "方名**后缀**剥离（加减/加味/化裁），是方名归一不是证候判断。"],
+  ["src/lib/formula-syndrome-consistency.ts", "同上：方名后缀剥离，供受治理目录查名。"],
+  ["src/lib/icd10-diagnosis-coding.server.ts", "诊断文本的**前后缀**清洗（『西医诊断：』前缀、『待排』后缀），编码前的字符串归一。"],
+  ["src/lib/m02-question-review.server.ts", "追问复核的**语法**判据（存在/否认/是否…），语言学层，与 clinical-polarity 同类。"],
+  ["src/lib/m04-deterministic-fallback.ts", "兜底文案里的妊娠人群与『依据不足』占位判据，人群词应随受治理人群表迁移（与 clinical-entry 同批 TODO）。"],
+  ["src/lib/medicine-candidate-planner.server.ts", "中成药**剂型后缀**（片/胶囊/颗粒…），与 local-patent-medicine-candidates 同一条 TODO：应从受治理目录 dosageForm 派生。"],
+  ["src/lib/phi-sanitizer.ts", "PHI 去标识的**职业类别**词。它服务于脱敏而非临床判断；表短于实际时结果偏严（多脱敏一点），方向安全。"],
+  ["src/lib/prescription-regimen-contract.ts", "服法与复诊节点的**数量/时间字面形态**（每日N剂、第N天复诊），结构解析。"],
+  ["src/lib/tcm-acupoints.ts", "特定穴类别名（五输穴/合穴/输穴…）——腧穴目录自带的分类字段取值，属目录结构不是判断词表。"],
 ]);
 
 function walk(dir, out = []) {
@@ -125,6 +143,38 @@ const VOCAB_ARRAY = new RegExp(
   "m",
 );
 
+// C: 内联正则 —— 不写成 const、直接嵌在表达式里的中文候选表（2026-08-12）。
+//
+// 甲方线上实测①：红旗证据 chips 只印「恶心、呕吐」，漏掉「爆裂样」「数秒达峰」「颈项僵硬」。
+// 那条判据是写在 `value.match(/突发…(?:最剧烈|爆炸样|雷击样)…头痛|(?:恶心|呕吐)|…/g)` 里的
+// **内联**正则——A 判据要求 `const X = /…/` 的模块级常量形态，看不见它。
+// 手写词表的危害与它写成什么形态无关，判据不该被形态绕开。
+const INLINE_VOCAB_REGEX = new RegExp(
+  `(?:^|[=(,:!&|?[{;]|=>|\\breturn\\b|\\.(?:test|match|replace|replaceAll|split|search|exec)\\()\\s*` +
+  `(/(?![*/])(?:[^/\\\\\\n]|\\\\.)*[${CJK}](?:[^/\\\\\\n]|\\\\.)*/[gimsuy]*)`,
+  "g",
+);
+const INLINE_ALTERNATION = new RegExp(`[${CJK}][^|/\\n]*\\|[^|/\\n]*[${CJK}][^|/\\n]*\\|[^|/\\n]*[${CJK}]`);
+
+function strippedComments(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .map((line) => line.replace(/(^|[^:"'`\\])\/\/.*$/, "$1"))
+    .join("\n");
+}
+
+function inlineVocabularyHits(source) {
+  const found = [];
+  const text = strippedComments(source);
+  INLINE_VOCAB_REGEX.lastIndex = 0;
+  let match;
+  while ((match = INLINE_VOCAB_REGEX.exec(text))) {
+    if (INLINE_ALTERNATION.test(match[1])) found.push(match[1].slice(0, 120));
+  }
+  return found;
+}
+
 const offenders = [];
 for (const root of ROOTS) {
   if (!fs.existsSync(root)) continue;
@@ -134,8 +184,11 @@ for (const root of ROOTS) {
     const source = fs.readFileSync(file, "utf8");
     const hitRegex = VOCAB_REGEX.test(source);
     const hitArray = VOCAB_ARRAY.test(source);
+    const inline = inlineVocabularyHits(source);
     if (hitRegex || hitArray) {
       offenders.push({ rel, form: hitRegex ? "regex-vocabulary" : "array-vocabulary" });
+    } else if (inline.length > 0) {
+      offenders.push({ rel, form: `inline-regex-vocabulary ×${inline.length}：${inline[0]}` });
     }
   }
 }
@@ -145,6 +198,52 @@ assert.deepEqual(
   `发现新增的代码内手写临床词表(必须改走受治理来源):\n${offenders.map((o) => `  ${o.rel} [${o.form}]`).join("\n")}\n` +
   `修法:把词表放进 src/data/*.source.json(带 basis 与 sourceRef),在 scripts/build-clinical-vocabulary.mjs 里生成,` +
   `运行时经 src/lib/clinical-vocabulary.ts 读取。若确实无法归入受治理来源,在本文件 ALLOWLIST 登记并写明原因与迁移计划。`,
+);
+
+// ── 安全呈现面：不受任何豁免（2026-08-12）──────────────────────────────────────
+//
+// 上面那张 ALLOWLIST 把 DiagnosisClient.tsx 整个文件以「前端呈现文案」为由豁免了。
+// 但甲方①那条正则**不是文案**，它是一道决定「医生看不看得到某条红旗证据」的临床筛选器：
+// 病历写「突然出现剧烈头痛，呈爆裂样…颈项僵硬」，它只印出「恶心、呕吐」，
+// 而且一旦命中任意片段就整体丢弃完整原话。危害发生在**急诊转诊卡片**这一屏上。
+//
+// 所以在按文件的判据之外，另立一条按**函数**的判据：决定红旗/急症证据呈现内容的这几个
+// 构建函数，函数体内一个中文候选正则都不许有。豁免表管不到这里——文件可以因为满是文案
+// 而被豁免，但这几个函数不行。
+const SAFETY_PRESENTATION_BUILDERS = [
+  ["src/app/diagnosis/DiagnosisClient.tsx", "buildEmergencyPresentation"],
+];
+
+function functionBodyOf(source, name) {
+  const start = source.search(new RegExp(`(?:export\\s+)?function\\s+${name}\\s*\\(`));
+  if (start < 0) return null;
+  const open = source.indexOf("{", start);
+  if (open < 0) return null;
+  let depth = 0;
+  for (let index = open; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(open, index + 1);
+    }
+  }
+  return null;
+}
+
+const safetyOffenders = [];
+for (const [rel, name] of SAFETY_PRESENTATION_BUILDERS) {
+  const source = strippedComments(fs.readFileSync(path.join(process.cwd(), rel), "utf8"));
+  const body = functionBodyOf(source, name);
+  assert.ok(body, `找不到安全呈现面构建函数 ${rel}#${name}——它被改名或删除了，本条判据会静默失效`);
+  for (const hit of inlineVocabularyHits(body)) safetyOffenders.push(`${rel}#${name}：${hit}`);
+  // 模块级常量形态同样不许（把词表挪到函数外再引进来，等于换个地方写）。
+  if (VOCAB_REGEX.test(body) || VOCAB_ARRAY.test(body)) safetyOffenders.push(`${rel}#${name}：模块级形态的候选表`);
+}
+assert.deepEqual(
+  safetyOffenders, [],
+  `安全呈现面里出现了手写中文候选表——医生看到哪条红旗证据不得由关键词表决定：\n  ${safetyOffenders.join("\n  ")}\n` +
+  `红旗证据应原样呈现规则/语义分诊**实际匹配到的原话**（按分句切分即可），不做关键词抽取。`,
 );
 
 // 生成物自检:任一维度塌成 0 说明生成器或上游词表坏了,不能静默通过。

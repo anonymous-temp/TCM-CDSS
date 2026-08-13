@@ -2964,6 +2964,14 @@ function hasCurrentEmergencyClearance(
   }) === undefined;
 }
 
+/**
+ * 红旗规则表。`message` 是这条规则**自己**产出的提示语形态，`source` 是它在病历里认的词。
+ *
+ * 2026-08-12：呈现层此前把 `message` 的模式又抄了一份（医生页面用
+ * `/心血管|冠脉|胸痛|胸闷/` 判断该显示哪张急诊卡片）。同一判据两处各写各的，
+ * 表这边加一条、页面那边不知道。现在从这里导出 redFlagRuleIdForMessage，
+ * 呈现层只问「这句提示语属于哪条规则」，不再自带词表。
+ */
 const RED_FLAG_FINDING_RULES: Array<{
   id: string;
   message: RegExp;
@@ -2979,6 +2987,16 @@ const RED_FLAG_FINDING_RULES: Array<{
   { id: "acute-respiratory-event", message: /呼吸循环急症|缺氧/, source: /呼吸困难|气促|喘憋|端坐呼吸|不能平卧|无法平卧|喘不上气|发紫/, explanation: "静息或快速加重的呼吸困难及缺氧表现需立即评估。" },
   { id: "tcm-critical-pattern", message: /危重中医证候术语/, source: /戴阳证|阴盛格阳|脉微欲绝/, explanation: "病历明确记录当前危重证候术语；该术语只触发现代急症核实，不直接授权任何课程方药或操作。" },
 ];
+
+/**
+ * 一句红旗提示语属于哪条规则。呈现层据此决定显示哪张急诊卡片，不得再自带关键词表。
+ * 认不出返回空串——调用方应回落到通用急症措辞，而不是猜一个专科方向。
+ */
+export function redFlagRuleIdForMessage(message: string): string {
+  const text = String(message || "");
+  if (!text.trim()) return "";
+  return RED_FLAG_FINDING_RULES.find((rule) => rule.message.test(text))?.id || "";
+}
 
 function programmaticRedFlagFindings(
   state: CaseState,
