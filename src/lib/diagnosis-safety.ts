@@ -168,6 +168,27 @@ function isKnownPulseClinicalText(value: unknown): boolean {
   return !isUnknownClinicalFieldText(value, "pulse");
 }
 
+/**
+ * 舌象/脉象**是否真的取得**——单一导出谓词（甲方 2026-08-13 P2 雷击样头痛）。
+ *
+ * 此前有两份各写各的：
+ *   · 充实度那一处：`isKnownTongueClinicalText(权威栏) || (已上传舌照 && isKnownTongueClinicalText(图描述))`
+ *     ——图描述可以救场；
+ *   · 必查项那一处：`isKnownTongueClinicalText(权威栏 || 图描述)` ——**字符串短路**：
+ *     舌象栏写了「舌象待核实」这种非空但不可用的文本时，`||` 直接返回它，图描述根本没机会参与。
+ * 同一件事两个答案，正是本仓库头号缺陷形状。这里按**图描述可救场**的口径收敛（较宽的那一侧），
+ * 因为它才是临床事实：舌照已上传且描述可用时，舌象就是取得了。
+ */
+export function hasObtainedTongueFinding(state: CaseState): boolean {
+  const authoritative = authoritativeFieldOrFallback(state, "tcmTongue", state.tongue);
+  if (isKnownTongueClinicalText(authoritative)) return true;
+  return Boolean(state.hisRecord?.tongueImageUploaded && isKnownTongueClinicalText(state.tongueImageDesc));
+}
+
+export function hasObtainedPulseFinding(state: CaseState): boolean {
+  return isKnownPulseClinicalText(authoritativeFieldOrFallback(state, "tcmPulse", state.pulse));
+}
+
 export function trustedInputText(state: CaseState): string {
   const hisFieldText = Object.values(state.hisRecord?.fields || {})
     .map((value) => stringifyClinicalValue(value))
@@ -1663,9 +1684,8 @@ export function deriveOperationalCompleteness(state: CaseState): Completeness {
   const presentHistoryText = authoritativeFieldOrFallback(state, "xianbingshi", symptomsFieldText(state, "presentHistory"));
   const hasChief = isKnownClinicalText(chiefText);
   const hasVitals = hasRequiredVitals(state);
-  const hasTongue = isKnownTongueClinicalText(authoritativeFieldOrFallback(state, "tcmTongue", state.tongue)) ||
-    Boolean(state.hisRecord?.tongueImageUploaded && isKnownTongueClinicalText(state.tongueImageDesc));
-  const hasPulse = isKnownPulseClinicalText(authoritativeFieldOrFallback(state, "tcmPulse", state.pulse));
+  const hasTongue = hasObtainedTongueFinding(state);
+  const hasPulse = hasObtainedPulseFinding(state);
   const hasPresentHistory = hasSubstantivePresentHistory(presentHistoryText);
   const hasTcmDetail = isKnownClinicalText(authoritativeFieldOrFallback(state, "tcmDetail", symptomsFieldText(state, "tcmDetail"))) ||
     isKnownClinicalText(authoritativeFieldOrFallback(state, "tcmFace", state.faceNote));
@@ -3727,10 +3747,10 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   if (highRiskMissingVitals.length > 0) {
     addMissing("high_risk_missing_vitals", `高风险主诉需补充生命体征（${highRiskMissingVitals.join("、")}）`);
   }
-  const authoritativeTongue = authoritativeFieldOrFallback(state, "tcmTongue", state.tongue);
-  const visionTongue = state.hisRecord?.tongueImageUploaded ? state.tongueImageDesc : undefined;
-  if (!isKnownTongueClinicalText(authoritativeTongue || visionTongue)) addMissing("tongue_unknown", "舌象");
-  if (!isKnownPulseClinicalText(authoritativeFieldOrFallback(state, "tcmPulse", state.pulse))) addMissing("pulse_unknown", "脉象");
+  // 与充实度那一处共用同一谓词（此前这里是 `权威栏 || 图描述` 的字符串短路，
+  // 舌象栏写「舌象待核实」时图描述救不了场，两处对同一份病历给出不同答案）。
+  if (!hasObtainedTongueFinding(state)) addMissing("tongue_unknown", "舌象");
+  if (!hasObtainedPulseFinding(state)) addMissing("pulse_unknown", "脉象");
   if ((age != null && age < 18) || (age == null && hasQualitativePediatricContext(state))) {
     if (!hasNumericPediatricWeight(text)) addMissing("pediatric_weight_unknown", "儿童体重数值");
     // The current deterministic knowledge base has adult per-herb ranges only. Recording weight is
