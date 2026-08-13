@@ -733,7 +733,7 @@ export function structuredClinicalRepairHint(
   if (reason === "m03_western_primary_duration_mismatch") {
     return [
       "westernDiagnosis.primary 的时程标签与病历明确记录的当前病程冲突：不足4周的当前腹泻不能写成慢性腹泻或功能性腹泻。",
-      "只修正西医诊断标签：primary 改为与当前症状和病程一致的症状性工作诊断（如腹泻〔病因待查〕，结构化字段中写作“腹泻（病因待查）”），status/confidence 保持保守；尚未满足时程和排除条件的慢性/功能性疾病只能移入 differentials 并写明待随访条件。不得使用“待因”等非规范缩写。",
+      "只修正西医诊断标签：primary 改为与当前症状和病程一致的症状性工作诊断（如“腹泻，病因待查”——与 diagnosis-prompts 的 primary.name 规范同一形态：用逗号连接，**不得**写成“腹泻（病因待查）”这种括注形态，那正是该规范明令禁止的写法；两处此前各写各的，是同一判据的第二实现），status/confidence 保持保守；尚未满足时程和排除条件的慢性/功能性疾病只能移入 differentials 并写明待随访条件。不得使用“待因”等非规范缩写。",
       "保持已通过校验的患者事实、中医证候、病机链和治法不变；不得延长病程、补造检查结果或把阴性事实改写成阳性。",
     ].join("\n");
   }

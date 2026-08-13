@@ -401,3 +401,43 @@ check(() => {
 });
 
 console.log(`diagnosis-presentation-contract: ${checks} checks passed`);
+
+// ── 「，病因待查」后缀的形态与适用范围必须两处同源（甲方 2026-08-13 双膝红肿热痛）──────
+//
+// 缺陷两条：
+//  ① 提示词只规定了症状级工作诊断写成「规范症状名，病因待查」，却没禁止把该后缀挂在
+//     **已点名病因的病种名**后面。线上因此出现「急性痛风性关节炎，病因待查」——既已指名痛风，
+//     又声称病因待查，标签自相矛盾；甲方同时指出该例并无血尿酸/结晶/痛风石等客观依据。
+//  ② structured-clinical-repair 的修复引导写的是括注形态「腹泻（病因待查）」，
+//     而 diagnosis-prompts 明令禁止括注形态——同一条判据的第二实现，方向相反。
+{
+  const promptSrc = fs.readFileSync(new URL("../src/lib/diagnosis-prompts.ts", import.meta.url), "utf8");
+  const repairSrc = fs.readFileSync(new URL("../src/lib/structured-clinical-repair.ts", import.meta.url), "utf8");
+  const reviewSrc = fs.readFileSync(new URL("../src/lib/m03-diagnostic-review.ts", import.meta.url), "utf8");
+  check(() => {
+    assert.ok(
+      /病因待查[^。]*只能[^。]*症状级或症候群级/.test(promptSrc),
+      "primary.name 规范里缺少「该后缀只能用于症状级/症候群级名称」这条限定",
+    );
+    assert.ok(promptSrc.includes("急性痛风性关节炎，病因待查"), "缺少甲方实测原串作为反例");
+  });
+  check(() => {
+    // 判据要区分「教它这么写」与「禁止这么写」：括注串现在作为反例出现在引导里，
+    // 单纯 grep 该串会把正确的禁令也判成缺陷（第一版正是如此）。
+    assert.ok(
+      !/(?:写作|应写成|改为)“腹泻（病因待查）”/.test(repairSrc),
+      "修复引导仍在**教**括注形态——提示词明令禁止，两处判据分叉",
+    );
+    assert.ok(/不得[^。]*写成“腹泻（病因待查）”/.test(repairSrc), "修复引导必须显式禁止括注形态");
+    assert.ok(/“腹泻，病因待查”/.test(repairSrc), "修复引导应给出与提示词一致的逗号形态");
+  });
+  check(() => {
+    for (const anchor of ["血尿酸", "尿酸盐结晶", "双能CT", "痛风石", "化脓性关节炎"]) {
+      assert.ok(reviewSrc.includes(anchor), `风湿科校准缺少客观依据锚点：${anchor}`);
+    }
+    assert.ok(
+      /痛风性关节炎[^"]*只能进 differentials/.test(reviewSrc),
+      "缺少「缺客观依据时痛风只能进 differentials」这条硬要求",
+    );
+  });
+}
