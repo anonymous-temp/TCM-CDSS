@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > **Next.js 16 — read before writing framework code.** Per AGENTS.md, this is not the Next.js in your training data. The bundled docs are the source of truth: `node_modules/next/dist/docs/` (e.g. `01-app/01-getting-started/16-proxy.md`, `01-app/04-glossary.md`). The most consequential rename here: **there is no `middleware.ts`** — request gating lives in `src/proxy.ts`, which exports `proxy()` + `config.matcher`.
 >
-> **Where AGENTS.md has drifted, this file wins** (both are in your context, so the contradictions are visible): AGENTS.md still says the M03/M04 orchestration deadlines are "各 120s" — the code says **M03 180s / M04 120s**. It also still says `npm run typecheck` is plain `tsc`; it needs the `NODE_OPTIONS=--max-old-space-size=8192` the npm script sets.
+> **Where AGENTS.md and this file disagree, this file wins.** (The two known 2026-08 drifts — M03/M04 deadline values and the `typecheck` NODE_OPTIONS requirement — were fixed in AGENTS.md on 2026-08-13; if you spot a new contradiction, fix AGENTS.md rather than working around it.)
 
 ## What this is
 

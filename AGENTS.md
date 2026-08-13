@@ -27,7 +27,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 npm run dev                 # 开发服务器（Turbopack）；根路径 → /diagnosis；登录页 /login
 npm run build && npm start  # standalone 生产构建 + 启动
 npm run lint                # eslint（eslint-config-next）
-npm run typecheck           # tsc --noEmit —— 改动 src/lib 后必跑
+npm run typecheck           # tsc --noEmit（npm 脚本自带 NODE_OPTIONS=--max-old-space-size=8192，裸跑 tsc 会 OOM）—— 改动 src/lib 后必跑
 npm run verify:release      # 发布前总闸：typecheck + lint + test:deterministic + build
 
 # 知识库构建（生成物，见下文"知识库"一节）
@@ -85,13 +85,13 @@ npm run build:tcm-formula-sources    # python3 脚本
 
 - **分阶段模型配置**（见 `.env.example`）：M03/M04、独立临床复核（`PRIMARY_CLINICAL_REVIEW_MODEL`）、临床事实抽取（`CLINICAL_FACTS_MODEL`）可独立配置；`reasoning_effort` / `thinking_enabled` 也是分阶段环境变量。
   - **实际不存在 `PRIMARY_COLLECT_MODEL` / `PRIMARY_QUESTION_MODEL`**：M01 文本路径根本不调模型（无舌象图时 collect 路由直接返回确定性 NDJSON），M02 只能跟随 `OPENAI_MODEL`。
-  - **"独立复核"在默认全 V4-Flash 配置下不是跨模型**：候选链去重后只剩一个模型身份，`independentFromGenerator=false`，实际是对同一模型的第二次无对话状态请求。跨模型拓扑（`PRIMARY_CLINICAL_REVIEW_PROVIDER` ≠ primary）在 `src/` 里是直接判 unconfigured 的死路径。
-  - **M04 修复轮的 `reasoning_effort` 硬编码 `"medium"`**，没有环境变量可改；`PRIMARY_PRESCRIBE_REASONING_EFFORT` 只作用于首轮。
+  - **"独立复核"在默认全 V4-Flash 配置下不是跨模型**：候选链去重后只剩一个模型身份，`independentFromGenerator=false`，实际是对同一模型的第二次无对话状态请求。跨厂商拓扑只有一条实现路径：`PRIMARY_CLINICAL_REVIEW_PROVIDER=bailian-qwen` + `BAILIAN_QWEN_API_KEY/BASE_URL/MODEL`（其余取值一律 fail-closed 判 unconfigured）；该路径已实现但截至 2026-08-13 从未在生产启用或实测过。旧的 `PRIMARY_CLINICAL_REVIEW_API_URL/KEY/ALLOWED_HOSTS` 与 `CLINICAL_FACTS_REPAIR_MODEL` 是代码不读的死配置，已从 `.env.example`/compose 清除。
+  - **M04 修复轮的 `reasoning_effort` 默认 `"medium"`，可用 `PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT` 覆盖**（M03 修复轮对应 `PRIMARY_DIAGNOSE_REPAIR_REASONING_EFFORT`，默认 low）；`PRIMARY_PRESCRIBE_REASONING_EFFORT` 只作用于首轮。
 - **NDJSON 流式契约**（所有后端与确定性响应共享）：每块 `{"content":"…"}\n`，以 `{"content":"[END]"}\n` 结束；错误为 `{"error":"…"}\n`。任何新增流水线环节都必须说这套契约；`markdownNdjsonResponse()` 把确定性 Markdown 包装进去。
 - **关键陷阱**：流只返回 `reasoning_content` 而无 `content` 视为错误（"模型仅返回推理过程"），`model-health?check=1` 校验的是最终内容。
 - 超时按流强制：连接 90s / 空闲 60s / 总计 180s，带上游 `AbortController` 取消与 5s 客户端心跳。
 - Provider 配置在 `src/lib/text-model.ts`（`AI_TEXT_PROVIDER`）—— 用 `getPrimaryTextModelConfig()` 读取。
-- M03/M04 编排各有一道总时限门禁（`M03_ORCHESTRATION_DEADLINE_MS` / `M04_ORCHESTRATION_DEADLINE_MS`，默认各 120s，钳制 60–180s）：超时或同一修复提示重复注入（fixpoint）会提前走向既有的签名有限/非剂量合同，而不是无限烧模型轮次。
+- M03/M04 编排各有一道总时限门禁（`M03_ORCHESTRATION_DEADLINE_MS` / `M04_ORCHESTRATION_DEADLINE_MS`，默认 **M03 180s / M04 120s**——两者不同，钳制 60–180s）：超时或同一修复提示重复注入（fixpoint）会提前走向既有的签名有限/非剂量合同，而不是无限烧模型轮次。
 
 ### 确定性安全层是承重墙 —— `src/lib/diagnosis-safety.ts`
 

@@ -80,3 +80,6 @@ __pycache__/
 tmp-probe/
 probe-*.mjs
 tmp-probe-*.mjs
+
+# Claude Code 本机设置（每台机器各不相同，不入库）
+.claude/settings.local.json

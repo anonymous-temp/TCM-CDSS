@@ -98,7 +98,7 @@ const ALLOWLIST = new Map([
   ["src/lib/local-patent-medicine-candidates.ts", "TODO-迁移:中成药剂型后缀(片/胶囊/颗粒…)。应从受治理中成药目录的 dosageForm 字段派生。"],
   ["src/lib/tcm-formula-contraindications.ts", "TODO-迁移:TCM_AFFIRMED_STATE_TERMS(小便不利/饥而不欲食…)是古方主治状态词,应并入受治理证候/症状词表。"],
   ["src/lib/tcm-seasonal-care.ts", "二十四节气边界表(小寒/大寒/立春…)是历法常量,不随临床数据变化;其病性词已从 nature 词表读取(见 GOVERNED_NATURE_ENTRIES)。"],
-  ["src/lib/tcm-constants.ts", "TODO-迁移:TONGUE_TAGS 等四诊标签闭集。舌象/脉象词应从受治理四诊词表派生(当前受治理词表未覆盖四诊维度,需先补来源)。"],
+  // tcm-constants.ts 已于 2026-08-13 删除（全仓零引用的死模块，TONGUE_TAGS 等从未被消费）。
   ["src/lib/tcm-classic-inference.ts", "TODO-迁移:与 tcm-formula-contraindications 同源的古方主治状态词表(两处重复正是漂移风险的证据),应一并并入受治理症状词表。"],
   ["src/lib/tcm-classic-evidence.server.ts", "经典方运行时同名药材消歧串(百合|合欢),是解析消歧不是临床判断词表。"],
   ["src/lib/tcm-followup-dimensions.ts", "六维随访问句模板(睡眠/食欲/大便…),是**问诊文案**不是判断词表:它只用于生成给医生看的随访问题,不参与任何语义匹配。"],
