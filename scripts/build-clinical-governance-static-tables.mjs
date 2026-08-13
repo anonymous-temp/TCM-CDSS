@@ -1038,7 +1038,7 @@ const governedPlanTemplates = new Map([
     {
       id: "moxibustion-post-infection-respiratory-rehab",
       indicationTag: "respiratory",
-      matchAny: ["恢复期", "畏寒", "肺脾气虚"],
+      matchAny: ["恢复期", "肺脾气虚"],  // 裸「畏寒」被风寒表证必然命中，同上收窄
       sitesOrPoints: ["膀胱经大杼至肾俞区域（现场定位）"],
       techniqueBoundary: "仅适用于恢复期且无皮肤破损、感觉障碍或热损伤高风险者；距离和热度由医师控制。",
       scheduleSuggestion: "隔日1次，每次约30分钟。",
@@ -1049,7 +1049,13 @@ const governedPlanTemplates = new Map([
   ["tuina", [{
     id: "tuina-post-infection-respiratory-rehab",
     indicationTag: "respiratory",
-    matchAny: ["恢复期", "咳嗽", "乏力"],
+    // 2026-08-13 甲方线上实测：普通「感染后咳嗽」病例继承了本条新冠恢复期方案。
+    // 根因不在治理来源——SRC-BEIJING-COVID-TCM-REHAB-2020 在注册表里 scope 明写「恢复期」——
+    // 而在派生模板把命中词放宽成了裸症状词（咳嗽/乏力/喘/便秘/气短/畏寒），任何呼吸道主诉
+    // 都能命中，等于把恢复期方案发给急性期患者。收窄到与同源针刺兄弟条（本文件内
+    // acupuncture-post-infection-respiratory-rehab）同一口径：只认「恢复期」与三个恢复期证型。
+    // 中医师资料包（20260813·附带裁定）就同类形状独立裁定过：「禁止子串命中共用模板」。
+    matchAny: ["恢复期", "肺脾气虚", "肺胃阴虚", "气阴两伤"],
     sitesOrPoints: ["咳嗽：天突、膻中、内关", "乏力：双侧膀胱经大杼至肾俞"],
     techniqueBoundary: "仅用于恢复期经穴推拿；胸痛、呼吸困难、低氧或急性发热先行急症评估。",
     scheduleSuggestion: "咳嗽点按每日1次；乏力背部经穴点按隔日1次。",
@@ -1070,7 +1076,13 @@ const governedPlanTemplates = new Map([
     {
       id: "cupping-post-infection-respiratory-rehab",
       indicationTag: "respiratory",
-      matchAny: ["恢复期", "咳嗽", "乏力"],
+      // 2026-08-13 甲方线上实测：普通「感染后咳嗽」病例继承了本条新冠恢复期方案。
+      // 根因不在治理来源——SRC-BEIJING-COVID-TCM-REHAB-2020 在注册表里 scope 明写「恢复期」——
+      // 而在派生模板把命中词放宽成了裸症状词（咳嗽/乏力/喘/便秘/气短/畏寒），任何呼吸道主诉
+      // 都能命中，等于把恢复期方案发给急性期患者。收窄到与同源针刺兄弟条（本文件内
+      // acupuncture-post-infection-respiratory-rehab）同一口径：只认「恢复期」与三个恢复期证型。
+      // 中医师资料包（20260813·附带裁定）就同类形状独立裁定过：「禁止子串命中共用模板」。
+      matchAny: ["恢复期", "肺脾气虚", "肺胃阴虚", "气阴两伤"],
       sitesOrPoints: ["双侧风门", "肺俞", "膈俞", "气海俞", "足三里（按症状选择）"],
       techniqueBoundary: "根据咳嗽、乏力选穴；出血风险、皮肤破损、感觉障碍或感染时不实施。",
       scheduleSuggestion: "每周2-3次，每次留罐5-10分钟。",
@@ -1101,7 +1113,13 @@ const governedPlanTemplates = new Map([
   ["auricular", [{
     id: "auricular-post-infection-respiratory-rehab",
     indicationTag: "respiratory",
-    matchAny: ["恢复期", "咳嗽", "喘", "便秘"],
+    // 2026-08-13 甲方线上实测：普通「感染后咳嗽」病例继承了本条新冠恢复期方案。
+    // 根因不在治理来源——SRC-BEIJING-COVID-TCM-REHAB-2020 在注册表里 scope 明写「恢复期」——
+    // 而在派生模板把命中词放宽成了裸症状词（咳嗽/乏力/喘/便秘/气短/畏寒），任何呼吸道主诉
+    // 都能命中，等于把恢复期方案发给急性期患者。收窄到与同源针刺兄弟条（本文件内
+    // acupuncture-post-infection-respiratory-rehab）同一口径：只认「恢复期」与三个恢复期证型。
+    // 中医师资料包（20260813·附带裁定）就同类形状独立裁定过：「禁止子串命中共用模板」。
+    matchAny: ["恢复期", "肺脾气虚", "肺胃阴虚", "气阴两伤"],
     sitesOrPoints: ["肺", "平喘", "神门", "大肠", "内分泌（按症状选择）"],
     techniqueBoundary: "皮肤破溃、过敏或瘢痕体质禁用；仅显示按压和更换频次，不输出侵入性埋针步骤。",
     scheduleSuggestion: "每日按压，每次1-2分钟；每3天更换。",
@@ -1187,7 +1205,13 @@ const governedPlanTemplates = new Map([
   ["qigong_daoyin", [{
     id: "qigong-post-infection-respiratory-rehab",
     indicationTag: "respiratory",
-    matchAny: ["恢复期", "气短", "乏力", "呼吸康复"],
+    // 2026-08-13 甲方线上实测：普通「感染后咳嗽」病例继承了本条新冠恢复期方案。
+    // 根因不在治理来源——SRC-BEIJING-COVID-TCM-REHAB-2020 在注册表里 scope 明写「恢复期」——
+    // 而在派生模板把命中词放宽成了裸症状词（咳嗽/乏力/喘/便秘/气短/畏寒），任何呼吸道主诉
+    // 都能命中，等于把恢复期方案发给急性期患者。收窄到与同源针刺兄弟条（本文件内
+    // acupuncture-post-infection-respiratory-rehab）同一口径：只认「恢复期」与三个恢复期证型。
+    // 中医师资料包（20260813·附带裁定）就同类形状独立裁定过：「禁止子串命中共用模板」。
+    matchAny: ["恢复期", "肺脾气虚", "肺胃阴虚", "气阴两伤"],
     // 功法名不是穴位（甲方 2026-08-11 线上实测）。此前这里塞着
     // 「八段锦、太极拳、五禽戏或六字诀呼吸导引」，医生页面把它印在「常用穴位」下面——
     // 字段语义错了。它当初被塞进来是**被门禁逼的**：下方 siteFreeModalities 只登记了

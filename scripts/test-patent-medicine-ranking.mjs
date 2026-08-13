@@ -180,6 +180,50 @@ assert.equal(
   "没有已签名证候时寒热过滤必须整条弃权",
 );
 
+// ── 说明书自陈排除（甲方 2026-08-13 线上实测）────────────────────────────────
+//
+// 白痰、遇冷加重、无热象的风寒例，候选里出现九味双解口服液，而它 precaution 第 3 条原文
+// 就是「风寒感冒者不适用九味双解口服液」——候选与自身风险说明互相打架。禁忌/注意两栏
+// 一直在中成药索引里逐条入库，运行时从来没有任何一处读它做判断。
+//
+// 判据只比**单一寒热极性**：受治理词表里 `风寒感冒` 这类病名式条目的 natures 是脏的
+// （实测 cold+heat+phlegm+wind，`风热感冒` 也带 cold），按轴取交集会把风热病例也误排。
+// 因此两侧都必须解出单一极性，解不出或两极并存一律弃权。
+{
+  // 夹具必须用**线上真实写法**「风寒束表证」：上一道寒热过滤在它上面弃权
+  //（受治理词表给它的 natures 是 cold+heat 混合），所以这一节才真正在测新判据。
+  // 用「风寒袭肺证」写夹具的话，第四道过滤本来就拦住了，本节会变成空转——
+  // 撤掉新判据也不红，那种测试比没有更坏。
+  const windColdSurfaceForm = {
+    ...windColdCough,
+    reasoningDiagnose: {
+      ...windColdCough.reasoningDiagnose,
+      overview: { primarySyndrome: "风寒束表证", primarySyndromeBasis: ["恶寒无汗", "痰白稀", "脉浮紧"] },
+    },
+  };
+  const signed = retrieveLocalPatentMedicineCandidates(windColdSurfaceForm, 20);
+  assert.ok(
+    !signed.some((item) => item.name.includes("九味双解")),
+    `说明书写明「风寒感冒者不适用」的药不得出现在风寒例候选里：${signed.map((i) => i.name).join("、")}`,
+  );
+  // 反向护栏一：风热例不得因为同一句话被误排——该句排的是风寒，不是风热。
+  const heatSigned = retrieveLocalPatentMedicineCandidates(windHeatCough, 20);
+  assert.ok(
+    heatSigned.length > 0,
+    `风热例候选不得被说明书排除清空：${heatSigned.map((i) => i.name).join("、")}`,
+  );
+  // 反向护栏二：没有已签名证候时整条判据弃权（与第四道同一纪律）。
+  const unsignedSurface = {
+    ...windColdSurfaceForm,
+    reasoningDiagnose: { ...windColdSurfaceForm.reasoningDiagnose, overview: { primarySyndrome: "", primarySyndromeBasis: [] } },
+  };
+  assert.equal(
+    retrieveLocalPatentMedicineCandidates(unsignedSurface, 10).length,
+    10,
+    "没有已签名证候时说明书排除必须整条弃权",
+  );
+}
+
 console.log(JSON.stringify({
   suite: "patent-medicine-ranking",
   topCandidate: candidates[0].name,

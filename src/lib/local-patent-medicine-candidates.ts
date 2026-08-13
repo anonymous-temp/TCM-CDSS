@@ -149,6 +149,64 @@ function positiveCaseFacts(caseState: CaseState, assistedNegations?: AssistedNeg
  * 三种情形一律**弃权**（不排除）：没有已签名证候、证候解不出轴、治法段解不出方向。
  * 数据缺口绝不当成「方向相反」——排除权只在方向确实对立时行使。
  */
+/**
+ * 说明书**自己写明**不适用于本例证型时排除（甲方 2026-08-13 线上实测）。
+ *
+ * 实测形态：白痰、遇冷加重、无热象的风寒例，候选里出现九味双解口服液，而它自己的
+ * precaution 第 3 条原文就是「风寒感冒者不适用九味双解口服液」——候选与自身风险说明打架。
+ * 数据一直都在（中成药索引的 contraindication / precaution 两栏是逐条抓取入库的），
+ * 运行时从来没有任何一处读它做过判断：又一次「受治理数据已在仓库、运行时从未读它」。
+ *
+ * 与第四道（寒热方向对立）的分工：那道是从治法段**推导**方向，本道只认说明书里的
+ * **显式排除句**，不做任何推导——因此它能覆盖第四道弃权的情形（如整段治法解不出轴），
+ * 也不会引入新的误判来源。
+ *
+ * 判据只比**单一寒热极性**，两侧都解不出单一极性就弃权。为什么不比整个病性轴集合：
+ * 受治理证候词表里 `风寒感冒` 这类**病名式**条目的 natures 是脏的——实测解出
+ * ["cold","heat","phlegm","wind"]（`风热感冒` 同样带 cold）。按轴取交集会把风热病例
+ * 也判成命中「风寒感冒者不适用」而误排，那比原缺陷更坏。极性取法：在词里找**能被受治理
+ * 词表解析、且寒热只占一极**的最短片段（`风寒感冒` 内的 `风寒` ⇒ cold）。不写任何手工词表。
+ *
+ * 四处收紧，确保只在证据确凿时行使排除权：
+ *  1) 句式必须是「<证型>者 + 不适用/禁服/禁用/忌服/不宜服用」这种**指名排除**；
+ *     「慎用 / 在医师指导下服用」一律不算——那是用药提醒，不是排除。
+ *  2) 被排除词必须解出**单一**寒热极性；解不出或寒热并存 ⇒ 弃权。
+ *  3) 本例已签名证候同样必须解出单一寒热极性；否则弃权。
+ *  4) 两侧极性**相同**才排除。「风寒感冒者不适用」× 已签名「风寒袭肺证」⇒ 同为寒 ⇒ 排除；
+ *     × 已签名「风热犯肺证」⇒ 一寒一热 ⇒ 不排除。数据缺口绝不当成排除依据。
+ */
+function unambiguousThermalPole(label: string): "cold" | "heat" | undefined {
+  const text = String(label || "").trim();
+  if (!text) return undefined;
+  const poles = new Set<"cold" | "heat">();
+  // 在标签内找能被受治理词表解析的片段，只采信寒热单极的那些。短片段优先命中
+  // （`风寒感冒` 里的 `风寒` 是干净的 cold；整串是脏的 cold+heat，因此被跳过）。
+  for (let start = 0; start < text.length; start += 1) {
+    for (let end = start + 2; end <= Math.min(text.length, start + 6); end += 1) {
+      const natures = governedSyndromeLabelAxes(text.slice(start, end)).natures;
+      if (natures.length === 0) continue;
+      const cold = natures.includes("cold");
+      const heat = natures.includes("heat");
+      if (cold !== heat) poles.add(cold ? "cold" : "heat");
+    }
+  }
+  return poles.size === 1 ? [...poles][0] : undefined;
+}
+
+function patentMedicineLabelExcludesSyndrome(labelWarnings: string, signedSyndrome: string): boolean {
+  const warnings = String(labelWarnings || "").trim();
+  if (!warnings) return false;
+  const casePole = unambiguousThermalPole(signedSyndrome);
+  if (!casePole) return false;
+  // 句式锚点是**说明书自身的结构**（「…者不适用/禁服」），不是临床词表：被排除的证型名
+  // 一律交给受治理词表解析，本正则不判断任何临床语义。
+  const EXPLICIT_EXCLUSION = /([^；;。,，\d.]{2,12}?)者(?:不适用|禁服|禁用|忌服|不宜服用)/g;
+  for (const match of warnings.matchAll(EXPLICIT_EXCLUSION)) {
+    if (unambiguousThermalPole(match[1]) === casePole) return true;
+  }
+  return false;
+}
+
 function patentMedicineThermalOpposition(indication: string, signedSyndrome: string): boolean {
   const syndrome = String(signedSyndrome || "").trim();
   const text = String(indication || "").trim();
@@ -253,6 +311,11 @@ export function retrieveLocalPatentMedicineCandidates(
     // 第四道：寒热方向对立即排除（见 patentMedicineThermalOpposition）。与上一道同一口径——
     // 候选表的职责是只放该放的；这不中断任何流程，只是不把一个方向相反的选项摆在医生面前。
     .filter((entry) => !patentMedicineThermalOpposition(entry.indication, reasoning?.overview?.primarySyndrome || ""))
+    // 第五道：说明书**自己写明**排除本例证型时排除（见 patentMedicineLabelExcludesSyndrome）。
+    .filter((entry) => !patentMedicineLabelExcludesSyndrome(
+      [entry.contraindication, entry.precaution].filter(Boolean).join("；"),
+      reasoning?.overview?.primarySyndrome || "",
+    ))
     .sort((left, right) =>
       right.score - left.score ||
       right.matchedConcepts.length - left.matchedConcepts.length ||

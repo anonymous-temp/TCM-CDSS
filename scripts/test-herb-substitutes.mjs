@@ -7,6 +7,7 @@
 // 安全立场：替代药**绝不能由模型提名**——那等于让模型开药。候选完全由受治理数据推导，
 // 并逐条过硬边界。以下每一条断言删掉都会让系统获得"凭同类就换药"的能力。
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
@@ -28,55 +29,65 @@ function check(name, fn) {
   }
 }
 
-check("SUB-01 常用补气药能给出同向替代", () => {
-  const subs = governedHerbSubstitutes("党参", ["黄芪", "当归", "白术", "茯苓"]);
-  assert.ok(subs.length > 0, "党参未给出任何替代候选");
-  for (const sub of subs) {
-    assert.equal(sub.replaces, "党参");
-    assert.ok(sub.rationale.includes("补气药"), `替代理由未点明同属分类：${sub.rationale}`);
-    assert.ok(sub.differenceNote.includes("系统不裁定二者等效"),
-      "差异说明必须明写系统不裁定等效——等效判断权在医师");
-    assert.ok(sub.differenceNote.includes("重新审方"), "差异说明必须要求重新审方");
+// ── 2026-08-13 甲方裁定后改判：候选来源从「教材功效归类表笛卡尔推导」换成受治理临床替代裁定表 ──
+//
+// 甲方线上实测：医生界面出现 薄荷→升麻/大豆黄卷、杜仲→冬虫夏草/巴戟天、紫苏叶→白芷、
+// 车前子→川木通。功效分类近似 ≠ 本例可替换，杜仲→冬虫夏草尤其不该出现在医生界面。
+// 甲方要求「取消自动展示的类别级替换，只有存在明确方义、适应证和剂量依据的替代关系才展示」。
+//
+// 原 SUB-01/02/03/10 四条钉的是那套推导的内部性质（同类锚定、最具体分类、风险不升级、
+// 全库遍历字数）。推导删除后它们钉的东西已不存在——**留着会逼后人把缺陷改回来**，故改判为
+// 钉新契约：空表即不展示；安全过滤链不得因表空而被顺手删掉；签字后才可能出现候选。
+check("SUB-01 未签字裁定表 ⇒ 一条替代都不给（甲方要求的默认值，不是功能缺失）", () => {
+  for (const [herb, prescription] of [
+    ["党参", ["黄芪", "当归", "白术", "茯苓"]],
+    ["半夏", ["陈皮", "茯苓"]],
+    ["川芎", ["当归", "白芍"]],
+    ["薄荷", ["金银花", "连翘"]],
+    ["杜仲", ["续断", "桑寄生"]],
+    ["紫苏叶", ["荆芥", "防风"]],
+    ["车前子", ["茯苓", "泽泻"]],
+  ]) {
+    const subs = governedHerbSubstitutes(herb, prescription);
+    assert.deepEqual(
+      subs, [],
+      `${herb} 在裁定表为空时仍给出替代 ${JSON.stringify(subs.map((s) => s.substitute))}——` +
+      "类别级推导必须已经删除，甲方点名的四组误推（薄荷→升麻、杜仲→冬虫夏草…）正出自它",
+    );
   }
 });
 
-// 本条对应实现过程中真实发生过的一次临床错误：分类数组的顺序**不保证**由具体到宽泛
-// （三七是 ["化瘀止血药","止血药"] 具体在前，半夏却是 ["化痰止咳平喘药","温化寒痰药"] 宽泛在前）。
-// 按数组第一项取锚点，半夏（温化寒痰）会落到宽泛的「化痰止咳平喘药」，
-// 于是把**清化热痰**的前胡当成同向替代——寒热方向正好相反。
-check("SUB-02 锚定最具体分类：温化寒痰药不得被清化热痰药替代", () => {
-  const subs = governedHerbSubstitutes("半夏", ["陈皮", "茯苓"]);
-  assert.ok(subs.length > 0, "半夏未给出替代候选");
-  for (const sub of subs) {
-    const categories = getTcmHerbFunctionCategories(sub.substitute);
-    assert.ok(categories.includes("温化寒痰药"),
-      `${sub.substitute} 不属温化寒痰药（分类=${JSON.stringify(categories)}），寒热方向与半夏相反`);
-    assert.ok(!categories.includes("清化热痰药"),
-      `${sub.substitute} 属清化热痰药，与半夏温化寒痰方向相反`);
-  }
+check("SUB-02 候选来源必须是受治理裁定表，且只认已签字条目", () => {
+  const source = readFileSync(new URL("../src/lib/tcm-knowledge.ts", import.meta.url), "utf8");
+  const start = source.indexOf("export function governedHerbSubstitutes(");
+  assert.ok(start > 0, "找不到 governedHerbSubstitutes——函数改名时本判据必须跟着改");
+  const body = source.slice(start, source.indexOf("\n}", start));
+  assert.ok(
+    body.includes("CLINICAL_SUBSTITUTION_BY_HERB"),
+    "候选来源必须取自受治理临床替代裁定表",
+  );
+  assert.ok(
+    !/herbsByFunctionCategory/.test(source),
+    "教材功效归类表的替代推导索引必须已整体删除，否则随时会被接回去",
+  );
+  assert.ok(
+    /status !== "clinician_approved"/.test(source),
+    "裁定表必须只认 clinician_approved 条目——未签字不得展示",
+  );
 });
 
-// 同一功效分类只保证方向大致相同，不保证力度与禁忌相同。
-// 川芎与三棱同属「活血化瘀药 + 活血止痛药」两个分类，但受治理风险档差一整档：
-//   川芎 BLOOD_STASIS 活血化瘀 / 孕期 MEDIUM；三棱 BLOOD_BREAKING 破血逐瘀 / 孕期 HIGH。
-check("SUB-03 风险不得升级：活血止痛药不得被破血逐瘀药替代", () => {
-  const subs = governedHerbSubstitutes("川芎", ["当归", "白芍"]);
-  assert.ok(subs.length > 0, "川芎未给出替代候选");
-  const names = subs.map((sub) => sub.substitute);
-  for (const breaking of ["三棱", "莪术", "水蛭", "虻虫"]) {
-    assert.ok(!names.includes(breaking),
-      `破血逐瘀药 ${breaking} 被当成川芎的同向替代，等于把破血之力与妊娠高风险凭空引入本例`);
-  }
-  const source = getTcmHerbGenerationSafetyProfile("川芎");
-  for (const sub of subs) {
-    const safety = getTcmHerbGenerationSafetyProfile(sub.substitute);
-    assert.ok(!(safety.isToxic && !source.isToxic), `${sub.substitute} 有毒而川芎无毒，不得作为替代`);
-    for (const rule of safety.populationRules) {
-      const sourceRule = source.populationRules.find((entry) => entry.population === rule.population);
-      const rank = { LOW: 1, MEDIUM: 2, HIGH: 3 };
-      assert.ok(rank[rule.severity] <= (sourceRule ? rank[sourceRule.severity] : 0),
-        `${sub.substitute} 在「${rule.population}」上的风险档（${rule.severity}）高于川芎，不得作为替代`);
-    }
+check("SUB-03 安全过滤链不得因裁定表为空而被删（签字后即刻生效）", () => {
+  const source = readFileSync(new URL("../src/lib/tcm-knowledge.ts", import.meta.url), "utf8");
+  const start = source.indexOf("export function governedHerbSubstitutes(");
+  const body = source.slice(start, source.indexOf("\n}", start));
+  for (const [guard, why] of [
+    ["clinicianDoseHerbClass", "「由医师确定用量」/管制毒性/法律禁用三类必须出局"],
+    ["getTcmHerbDoseLimit", "替代药必须有药典数值剂量边界且无分用途冲突"],
+    ["findTcmHerbPairIncompatibilities", "替代药与现方全部药味及被替换药都不得构成十八反十九畏"],
+    ["governedRiskCodes", "替代药不得引入原药没有的风险码"],
+    ["SAFETY_SEVERITY_RANK", "同一人群的风险档位不得高于原药"],
+  ]) {
+    assert.ok(body.includes(guard), `安全过滤缺失：${guard} —— ${why}`);
   }
 });
 
@@ -128,28 +139,16 @@ check("SUB-08 未知药与无功效分类的药返回空数组，不臆造", () 
 // 输出契约里 substitutions 是 .max(4).optional().catch(undefined)，字段长度上限 400。
 // 超一个字，**整条数组被静默丢弃**——表现成「功能又没了」而不是报错，正是最难查的那种退化。
 // 全库遍历，确保没有任何一味药能拼出超长文本。
-check("SUB-10 全库遍历：rationale/differenceNote 不得超出输出契约 400 字上限", () => {
-  const { getTcmKnowledgeStatus } = {};
-  void getTcmKnowledgeStatus;
-  let checked = 0;
-  let longest = 0;
-  for (const herb of ["党参", "川芎", "半夏", "酸枣仁", "黄芪", "白术", "茯苓", "当归", "甘草",
-    "陈皮", "柴胡", "白芍", "熟地黄", "丹参", "麻黄", "桂枝", "生姜", "大枣", "人参", "附子",
-    "金银花", "连翘", "薄荷", "荆芥", "桔梗", "牛蒡子", "淡竹叶", "石膏", "知母", "黄连"]) {
-    for (const sub of governedHerbSubstitutes(herb, [], 4)) {
-      checked += 1;
-      longest = Math.max(longest, sub.differenceNote.length, sub.rationale.length);
-      assert.ok(sub.rationale.length <= 400,
-        `${herb}→${sub.substitute} rationale ${sub.rationale.length} 字超上限，整条 substitutions 会被静默丢弃`);
-      assert.ok(sub.differenceNote.length <= 400,
-        `${herb}→${sub.substitute} differenceNote ${sub.differenceNote.length} 字超上限，整条 substitutions 会被静默丢弃`);
-      assert.ok(sub.differenceNote.includes("系统不裁定二者等效"),
-        `${herb}→${sub.substitute} 截断后丢失了免责结语`);
-    }
-  }
-  assert.ok(checked > 20, `覆盖样本过少（${checked}）`);
+check("SUB-10 输出契约字数上限的守卫保留（裁定表签字后重新生效）", () => {
+  // 原判据全库遍历所有类别推导结果，检查 rationale/differenceNote ≤400 字。
+  // 推导删除后覆盖样本恒为 0，遍历断言会变成空转；改为钉住**截断逻辑仍在**，
+  // 等中医师签字后该逻辑立刻对真实条目生效（超一个字整条 substitutions 会被 schema 静默丢弃）。
+  const source = readFileSync(new URL("../src/lib/tcm-knowledge.ts", import.meta.url), "utf8");
+  const start = source.indexOf("export function governedHerbSubstitutes(");
+  const body = source.slice(start, source.indexOf("\n}", start));
+  assert.ok(/NOTE_LIMIT\s*=\s*400/.test(body), "400 字预算常量必须保留");
+  assert.ok(body.includes("clip("), "截断函数必须仍被使用");
 });
-
 check("SUB-09 条数上限受控", () => {
   assert.ok(governedHerbSubstitutes("党参", [], 1).length <= 1);
   assert.ok(governedHerbSubstitutes("党参", [], 2).length <= 2);

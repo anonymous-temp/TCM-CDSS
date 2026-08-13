@@ -4,6 +4,7 @@ import doseWebSupplementsJson from "../data/tcm-herb-dose-web-supplements.source
 import clinicianDosePolicyJson from "../data/tcm-herb-dose-clinician-policy.source.json";
 import controlledToxicPolicyJson from "../data/tcm-controlled-toxic-herb-policy.source.json";
 import functionSupplementsJson from "../data/tcm-herb-function-supplements.source.json";
+import clinicalSubstitutionJson from "../data/tcm-herb-clinical-substitution-adjudications.source.json";
 import type { CaseState } from "./diagnosis-types";
 import {
   isIdentityIndeterminateHerbName,
@@ -1532,19 +1533,32 @@ export function getTcmHerbFunctionCategories(herb: string): string[] {
 }
 
 /** 功效分类 → 药味的反向索引（由正向表一次性派生，不新增数据）。 */
-const herbsByFunctionCategory: ReadonlyMap<string, readonly string[]> = (() => {
-  const index = new Map<string, string[]>();
-  for (const [herb, categories] of Object.entries(herbFunctionCategories.categories as Record<string, string[]>)) {
-    for (const category of categories) {
-      const bucket = index.get(category);
-      if (bucket) bucket.push(herb);
-      else index.set(category, [herb]);
-    }
+
+/**
+ * 医生界面「可替换药味」的唯一候选来源：受治理临床替代裁定表。
+ * 只收 status === "clinician_approved" 的条目——未签字条目一律不进（表为空即不展示，
+ * 这是甲方 2026-08-13 明确要求的默认值）。详见该 source.json 的 note / boundary。
+ */
+type ClinicalSubstitutionEntry = {
+  replaces?: unknown;
+  substitute?: unknown;
+  basis?: unknown;
+  status?: unknown;
+};
+const CLINICAL_SUBSTITUTION_BY_HERB = new Map<string, string[]>();
+const CLINICAL_SUBSTITUTION_BASIS = new Map<string, string>();
+for (const raw of ((clinicalSubstitutionJson as { entries?: unknown }).entries as ClinicalSubstitutionEntry[] | undefined) || []) {
+  if (!raw || raw.status !== "clinician_approved") continue;
+  const replaces = typeof raw.replaces === "string" ? raw.replaces.trim() : "";
+  const substitute = typeof raw.substitute === "string" ? raw.substitute.trim() : "";
+  if (!replaces || !substitute) continue;
+  const bucket = CLINICAL_SUBSTITUTION_BY_HERB.get(replaces);
+  if (bucket) bucket.push(substitute);
+  else CLINICAL_SUBSTITUTION_BY_HERB.set(replaces, [substitute]);
+  if (typeof raw.basis === "string" && raw.basis.trim()) {
+    CLINICAL_SUBSTITUTION_BASIS.set(`${replaces}→${substitute}`, raw.basis.trim());
   }
-  // 稳定排序：同一输入必须得到同一批替代药，否则同一病例两次请求给出不同建议。
-  for (const bucket of index.values()) bucket.sort();
-  return index;
-})();
+}
 
 /**
  * 药味的受治理风险码（BLOOD_BREAKING / TOXIC_REGULATORY / SPECIAL_POPULATION_HIGH_RISK 等）。
@@ -1584,18 +1598,16 @@ export function governedHerbSubstitutes(
 ): GovernedHerbSubstitute[] {
   const canonical = canonicalKnowledgeHerbName(herb);
   if (!canonical || !isKnownTcmHerbName(canonical)) return [];
-  const categories = getTcmHerbFunctionCategories(canonical);
-  if (categories.length === 0) return [];
-  // 必须锚在**最具体**的那一档功效分类上，而不是数组第一项——分类表的顺序并不保证由specific到broad
-  // （三七是 ["化瘀止血药","止血药"] 具体在前，半夏却是 ["化痰止咳平喘药","温化寒痰药"] 宽泛在前）。
-  // 按第一项取会出临床错误：半夏（温化寒痰）落到宽泛的「化痰止咳平喘药」，就会把清化热痰的前胡
-  // 当成同向替代——寒热方向正好相反。用类目规模作为具体度的确定性代理：成员越少越具体。
-  const anchorCategory = [...categories].sort((left, right) => {
-    const sizeGap = (herbsByFunctionCategory.get(left)?.length ?? Number.MAX_SAFE_INTEGER)
-      - (herbsByFunctionCategory.get(right)?.length ?? Number.MAX_SAFE_INTEGER);
-    return sizeGap !== 0 ? sizeGap : left.localeCompare(right);
-  })[0];
-  const sourceCategories = new Set(categories);
+  // 候选来源自 2026-08-13 起改为**受治理临床替代裁定表**，不再从教材功效归类表笛卡尔推导。
+  //
+  // 甲方线上实测：医生界面出现 薄荷→升麻/大豆黄卷、杜仲→冬虫夏草/巴戟天、紫苏叶→白芷、
+  // 车前子→川木通。这些只是功效大类近似，不等于本例可直接替换（杜仲→冬虫夏草尤其不该
+  // 出现在医生界面）。下面那一整套安全过滤（剂量边界/毒性/十八反十九畏/风险不升级）
+  // 全部保留且照旧执行——它们过滤的是「这条替代安不安全」，从来没有、也无法回答
+  // 「这条替代在临床上成不成立」。后者只能由中医师逐条裁定，这就是新表的职责。
+  // 表为空即不展示任何替代：这是正确默认值，不是功能缺失（甲方明确要求取消类别级展示）。
+  const adjudicated = CLINICAL_SUBSTITUTION_BY_HERB.get(canonical) || [];
+  if (adjudicated.length === 0) return [];
   const inPrescription = new Set(prescriptionHerbs.map(canonicalKnowledgeHerbName).filter(Boolean));
   // 十八反十九畏的比对基准是「现方 + 被替换药」的全集：替代药与其中任何一味冲突都不能给。
   const compatibilityBase = [...inPrescription, canonical];
@@ -1604,7 +1616,7 @@ export function governedHerbSubstitutes(
   const sourceSafety = getTcmHerbGenerationSafetyProfile(canonical);
   const sourceRiskCodes = governedRiskCodes(canonical);
 
-  const ranked = (herbsByFunctionCategory.get(anchorCategory) || [])
+  const ranked = adjudicated
     .filter((candidate) => candidate !== canonical)
     .filter((candidate) => !inPrescription.has(candidate))
     .filter((candidate) => isKnownTcmHerbName(candidate))
@@ -1644,13 +1656,7 @@ export function governedHerbSubstitutes(
       }
       return true;
     })
-    .sort((left, right) => {
-      // 共享功效分类越多越接近；同分时按名称稳定排序，保证同一病例两次请求结果一致。
-      const shared = (name: string) =>
-        getTcmHerbFunctionCategories(name).filter((category) => sourceCategories.has(category)).length;
-      const gap = shared(right) - shared(left);
-      return gap !== 0 ? gap : left.localeCompare(right);
-    })
+    // 裁定表内的顺序即中医师给的优先次序；同名稳定排序只为保证同一病例两次请求结果一致。
     .slice(0, Math.max(0, limit));
 
   // 输出契约把 substitutions 定为 rationale/differenceNote 各 ≤400 字且整条 .catch(undefined)——
@@ -1673,8 +1679,11 @@ export function governedHerbSubstitutes(
     return {
       replaces: canonical,
       substitute: candidate,
+      // 理由取**中医师裁定表里写的那一条**，不再由服务端按「同属某功效大类」拼一句——
+      // 那句话正是把分类近似说成可替换的地方。
       rationale: clip(
-        `与${canonical}同属「${anchorCategory}」，可在${canonical}缺货、患者不耐受或属特殊人群禁用时作同向替代候选。`,
+        CLINICAL_SUBSTITUTION_BASIS.get(`${canonical}→${candidate}`)
+          || `${canonical}→${candidate} 的替代关系已经中医师核定；本条未附具体理由，请结合本例证候判断。`,
         NOTE_LIMIT,
       ),
       differenceNote: [

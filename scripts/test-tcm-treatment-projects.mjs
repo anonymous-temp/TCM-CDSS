@@ -1388,11 +1388,29 @@ check("⑬ 名额有限时，给不出方案的项目不得挤掉已签字的患
   assert.ok(proposedAcu, `模型提名了别的项目时，签字方案不得被挤掉：${proposed.map((i) => i.projectCode).join("、")}`);
   assert.equal(proposedAcu.protocolStatus, "governed_patient_specific_plan");
   assert.ok(proposed.length <= 3, "名额上限仍是 3");
-  // 被它挤掉的必须是**给不出方案的**那个：气功导引在本例连一个穴位都没有。
+  // 2026-08-13 甲方线上实测后改判：本例是**急性**风寒咳嗽（受凉 3 天、恶寒无汗、清涕稀白痰），
+  // 不是感染恢复期。此前气功/艾灸能给出「方案」，靠的是新冠恢复期模板
+  //（SRC-BEIJING-COVID-TCM-REHAB-2020 派生）把命中词放宽成裸「咳嗽/乏力/畏寒/气短」——
+  // 急性期病人因此拿到恢复期方案，正是甲方报的适应证扩张。命中词收窄后它们如实降为评估态。
+  //
+  // 于是原断言（「气功不得占名额」）钉的其实是那条越界行为的副产品：气功当时之所以让位，
+  // 是因为艾灸/拔罐用同一张越界模板抢到了更高成熟度。收窄后可给出签字方案的只剩针刺一项，
+  // 剩余名额由评估态项目如实占用——这是诚实结果，不是退化。
+  // 判据因此改为钉**真正要守的那两件事**：签字方案必须在场且成熟度最高；
+  // 急性期病例不得出现任何恢复期派生模板。
+  const acuIndex = proposed.findIndex((item) => item.projectCode === "acupuncture");
   assert.ok(
-    !proposed.some((item) => item.projectCode === "qigong_daoyin"),
-    `名额应让给能给出方案的项目：${JSON.stringify(proposed.map((i) => [i.projectCode, i.protocolStatus]))}`,
+    proposed.every((item, index) =>
+      index === acuIndex || item.protocolStatus !== "governed_patient_specific_plan" || index > acuIndex),
+    `签字方案必须排在非签字项目之前：${JSON.stringify(proposed.map((i) => [i.projectCode, i.protocolStatus]))}`,
   );
+  for (const item of proposed) {
+    assert.ok(
+      !/post-infection-respiratory-rehab/.test(item.protocolSource || "") &&
+      !/恢复期/.test(item.treatmentContent || ""),
+      `急性风寒咳嗽不得继承感染恢复期模板：${item.projectCode} / ${item.protocolSource || ""}`,
+    );
+  }
 });
 
 // ── 甲方 2026-08-12 二次线上实测：同一病历，产出率只有 4/6 ────────────────────────

@@ -13,14 +13,22 @@
       "lineageCode": "classical-formula",
       "confirmationMode": "rule",
       "adjudicationStatus": "pending_clinician_review",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+      "researchRecommendation": "adopt",
+      "researchCoveredFormulas": 57,
+      "recommendationBasis": "出处为《伤寒论》或《金匮要略》，按狭义经方口径归入经方思路。",
+      "evidenceLevel": "A-规则级：著作归属"
     },
     {
       "book": "金匮要略",
       "lineageCode": "classical-formula",
       "confirmationMode": "rule",
       "adjudicationStatus": "pending_clinician_review",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+      "researchRecommendation": "adopt",
+      "researchCoveredFormulas": 53,
+      "recommendationBasis": "出处为《伤寒论》或《金匮要略》，按狭义经方口径归入经方思路。",
+      "evidenceLevel": "A-规则级：著作归属"
     },
     {
       "book": "温热论",
@@ -41,14 +49,22 @@
       "lineageCode": "warm-disease",
       "confirmationMode": "rule",
       "adjudicationStatus": "pending_clinician_review",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+      "researchRecommendation": "adopt",
+      "researchCoveredFormulas": 24,
+      "recommendationBasis": "出处为温病学派核心著作，归入温病思路。",
+      "evidenceLevel": "A-规则级：著作归属"
     },
     {
       "book": "温热经纬",
       "lineageCode": "warm-disease",
       "confirmationMode": "rule",
       "adjudicationStatus": "pending_clinician_review",
-      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
+      "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三",
+      "researchRecommendation": "adopt",
+      "researchCoveredFormulas": 3,
+      "recommendationBasis": "出处为温病学派核心著作，归入温病思路。",
+      "evidenceLevel": "A-规则级：著作归属"
     },
     {
       "book": "格致余论",
@@ -91,313 +107,528 @@
       "formulaName": "丹溪治湿痰方",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：豁痰除湿、活血调经、痰湿阻滞，月经不调",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "二妙丸",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：燥湿清热、用于湿热下注，足膝红肿热痛，下肢丹毒，白带，阴囊湿痒",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "二妙散",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清热燥湿、湿热下注，筋骨疼痛，脚膝无力，或足膝红肿热痛或下部湿疮，以及湿热带下，淋浊等症",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "保和丸",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：消食和胃、食积停滞，胸脘痞满，腹胀时痛，嗳腐吞酸，恶食或呕吐泄泻，脉滑，舌苔厚腻或黄",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "加味二妙散",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清热燥湿、通利筋脉、湿热浸淫证",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "咳血方",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清肝宁肺、凉血止血、肝火犯肺之咳血证",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "大安丸",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：消食和胃健脾、食积。脾虚食滞不化",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "大补阴丸",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：滋阴降火、肝肾阴虚，由虚生热，骨蒸潮热，盗汗，足膝疼热舌红少苔，尺脉数而有力",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "左金丸",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：清泻肝火、降逆止呕、肝火犯胃，胁肋及脘腹胀痛，呕吐口苦，吞酸嘈杂嗳气，口干，舌红苔黄，脉弦数",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "痛泻要方",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：补脾柔肝、祛湿止泻、肝旺脾虚，肠鸣腹痛，大便泄泻，泻必腹痛，舌苔薄白，脉两关不调，弦而缓",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "礞石滚痰丸",
       "source": "《丹溪心法附余》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：泻火逐痰、实热老痰证",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "紫金锭",
       "source": "《丹溪心法附余》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：化痰开窍、辟秽解毒、消肿止痛、中暑时疫；外敷疔疮肿毒，虫咬损伤，无名肿毒，以及痄腮、丹毒、喉风等",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "胃苓汤",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：祛湿和胃、行气利水、夏秋之间，脾胃伤冷，水谷不分，泄泻如水，以及水肿、腹胀、小便不利者",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "萆薢分清散",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "虽载于《丹溪心法》或附余，但核心为消食、健脾、温肾、祛湿、逐痰或解毒，不宜按‘滋阴/丹溪’加权：温肾缩尿、分清化浊、下焦虚寒之膏淋、白浊",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "虎潜丸",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：滋阴降火、强筋壮骨、精血不足，虚火亢盛，筋骨痿弱，腿足消瘦，步履乏力，精元不固，尺脉虚浮洪数，久不生育",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "越鞠丸",
       "source": "《丹溪心法》",
       "lineageCode": "nourish-yin-danxi",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "体现丹溪滋阴降火、湿热/痰火、郁证等学术取向：行气解郁、气、血、痰、火、湿、食等郁，胸膈痞闷，脘腹胀痛，吞酸呕吐，饮食不化",
+      "evidenceLevel": "B-学术史资料+逐方功效主治",
+      "evidenceUrl": "https://www.cntcm.com.cn/content/202306/21/c225799.html；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "七福饮",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：收复神气、安神魂、敛心气、气血俱虚而心脾为甚者",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "举元煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气摄血、升阳举陷、气虚下陷，血崩血脱，亡阳垂危等证",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "人参健脾丸（汤）",
       "source": "《景岳全书》《证治准绳·类方》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：健脾益气、和胃止泻、脾胃虚弱引起的饮食不化，倒饱嘈杂，恶心呕吐，腹痛便溏，不思饮食，体弱倦怠",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "人参归脾丸",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气补血、健脾养心、用于气血不足，心悸，失眠，食少乏力，面色萎黄，月经量少，色淡",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "何人饮",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气养血、扶正截疟、疟疾久发不止，气血两虚，寒热时作，稍劳即发，面色萎黄，倦怠乏力，食少自汗，形体消瘦，舌淡，脉缓大而虚者",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "保阴煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：养阴清热、凉血止血、阴虚血热之带下淋浊，血崩便血，月经提前",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "八珍益母汤",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气血、调月经、月经量少，色淡，经期错后",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "六味回阳饮",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气回阳、养血救脱、阴阳将脱",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "加减一阴煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：滋阴养血清热、阴血不足之虚热",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "化阴煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：滋肾养阴、水亏阴涸，阳火有余，小便癃闭，淋浊疼痛",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "右归丸",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肾阳、填精益髓、肾阳不足，命门火衰，神疲气怯，畏寒肢冷，阳痿遗精，不能生育，腰膝酸软，小便自遗，肢节痹痛，周身浮肿，或火不能生土，脾胃虚寒，饮食少进，或呕恶膨胀，或翻胃噎膈，或",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "右归饮",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肾阳、肾阳不足，阳衰阴胜，腰膝酸痛，神疲乏力，畏寒肢冷，咳喘，泄泻，脉弱，以及产妇虚火不归元而发热者",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "四味回阳饮",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气、回阳、救脱、元阳虚脱，危在顷刻者",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "固阴煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补益肝肾、固涩滑脱、肝肾亏虚之遗泄，崩带，经多，胎动，产后恶露不止，妇人阴挺",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "大营煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温经扶阳、养血填精、真阴精血亏损，以及妇人经迟血少，腰膝筋骨疼痛，阳痿",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "大补元煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：救本培元、大补气血、气血大亏，精神失守之危剧病证",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "小营煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：养血、活血、调经、阴虚血少，头晕心悸，面色萎黄，脉象细弱，妇女月经后期，量少色淡，小腹虚痛",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "左归丸",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：滋阴补肾、填精益髓、真阴肾水不足，不能滋养营卫，渐至衰弱，或虚热往来，自汗盗汗，或遗淋不禁，或眼花耳聋，或口燥舌干，或腰酸腿软",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "归肾丸",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：滋阴养血、填精益髓、肾水不足，腰酸脚软，精亏血少，头晕耳鸣；肾阴不足，精衰血少，腰酸脚软，形容憔悴，阳痿遗精",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "暖肝煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肝肾、行气止痛、肝肾阴寒，小腹疼痛，疝气",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "柴胡疏肝散",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：疏肝行气、活血止痛、胁肋疼痛，寒热往来",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "栀子金花丸",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清热泻火、凉血解毒、肺胃热盛，口舌生疮，牙龈肿痛，目赤眩晕，咽喉肿痛，大便秘结",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "桑白皮汤",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清火涤痰、止咳平喘、痰热壅肺，顿咳痉咳期",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "桔梗杏仁煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：润肺止咳、咳嗽吐脓，痰中带血，或胸膈隐痛，将成肺痈者",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "正柴胡饮",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：解表散寒、解热止痛、外感风寒，发热恶寒，头疼身痛，痎疟初起",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "毓麟珠",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补益气血、温养肝肾、强固冲任、调经助孕、妇人气血不足，肝肾两虚，月经不调，或后错色淡，或量少腹痛，或淋沥不断，腰膝酸软，小腹冷痛，性欲减退，身体瘦弱，久不受孕等",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "泰山磐石散",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气健脾、养血安胎、气血虚弱，胎动不安，堕胎，滑胎",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "济川煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温肾益精、润肠通便、老年肾虚，大便秘结，小便清长，腰酸足软，背冷畏寒",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "独参汤",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：大补元气、诸虚气弱危急者",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "玉女煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清胃热、滋肾阴、水亏火盛，六脉浮洪滑大，少阴不足，阳明有余，烦热干渴，头痛牙疼，失血",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "胎元饮",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "adopt",
+      "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补肾固胎、妇人冲任不足，胎元不安不固",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "脱花煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：祛瘀下胎、胎漏、胎动不安、堕胎等辨证属瘀血阻滞者",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "茜根散",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：滋阴降火、宁络止血、阴虚火旺证，症见鼻衄不止，心神烦闷",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "解肝煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：疏肝理气、化湿畅中、暴怒伤肝，气逆胀满者",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "通瘀煎",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：活血祛瘀、行气止痛、妇人气滞血瘀，经脉不利，痛极拒按",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     },
     {
       "formulaName": "黎峒丸",
       "source": "《景岳全书》",
       "lineageCode": "warm-tonify-yang",
-      "status": "pending_clinician_review"
+      "status": "pending_clinician_review",
+      "researchRecommendation": "reject",
+      "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：续筋接骨、疏风活络、金疮跌仆伤，痈疽疮痛，疯犬咬伤，蜂蛇蝎毒",
+      "evidenceLevel": "B-学派课程+逐方功效主治",
+      "evidenceUrl": "https://higher.smartedu.cn/course/671ad50b16d8a05eedca4325；https://amr.sz.gov.cn/attachment/1/1620/1620360/9772233.pdf"
     }
-  ]
+  ],
+  "researchPackage": {
+    "file": "中医师核定全网资料包-20260813.xlsx",
+    "sheet": "流派204",
+    "boundary": "本工作簿自述为医生签字前的研究建议；researchRecommendation 只是建议，adjudicationStatus/status 仍为 pending_clinician_review，运行时零影响。",
+    "perFormulaAdopt": 30,
+    "perFormulaReject": 22
+  }
 }
