@@ -661,13 +661,31 @@ function formatHighRiskPairIndex(): string {
   return HIGH_RISK_PAIR_RULES.map((rule) => `${rule.leftDrug}-${rule.rightDrug}`).join("、");
 }
 
+/**
+ * 库状态。**不得携带药典版本口径**（2026-08-13 甲方线上实测）。
+ *
+ * 此前这里硬编码两句：`localPharmacopoeiaBasis: "2020版历史规则基线"` 与
+ * `requiredCurrentPharmacopoeia: "2025版"`。两句都必须去掉，理由不同：
+ *
+ *  · `requiredCurrentPharmacopoeia: "2025版"` 是一句**没有任何实现兑现的要求声明**——
+ *    全仓没有一处读它做判断，而甲方已确定的口径是「2020版即可」。它挂在对外接口上，
+ *    会让集成方以为系统要求 2025 版药典，与实际口径直接冲突。这是「幽灵契约」形态：
+ *    声明一个不存在的要求，比不声明更坏。故删除，而不是把值改成 "2020版"。
+ *  · `localPharmacopoeiaBasis` 是真实的内部实现基线，但属于「知识库口径」——
+ *    按甲方要求知识库相关表述一律不对外。需要溯源时看 schemaVersion + generatedAt，
+ *    这两项已能唯一确定这份构建产物。
+ *
+ * 为什么在**产地**删，而不是往 REDACTED_HEALTH_KEYS 里加两个键：本函数有**两个对外出口**——
+ * `/api/diagnosis/health`（经 publicHealthView 裁剪）与 `/api/tcm-knowledge/search`
+ * （POST 与 GET 共三处，status 原样回传、**不经任何裁剪**）。只登记健康视图的删除键，
+ * 等于又一次「只堵一个出口」——正是 2026-08-12 禁词闸门被线上打脸的同一形状。
+ * 第三个消费方 drug-catalog.ts 只读 schemaVersion/generatedAt，不受影响。
+ */
 export function getTcmKnowledgeStatus() {
   return {
     schemaVersion: data.schemaVersion,
     generatedAt: data.generatedAt,
     summary: data.summary,
-    localPharmacopoeiaBasis: "2020版历史规则基线",
-    requiredCurrentPharmacopoeia: "2025版",
   };
 }
 

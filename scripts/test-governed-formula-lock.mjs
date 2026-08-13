@@ -21,10 +21,12 @@
 // 锁定走的必须是与校验模型选择**同一道门**(identityLockEligible + positiveSufficiency
 // + 目录级 lockEligible),任何放宽都会让不对证的方挂上方名,临床上比自拟方更坏。
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
 const ind = await jiti.import("../src/lib/tcm-formula-indications.ts");
+const types = await jiti.import("../src/lib/diagnosis-types.ts");
 
 const wrap = (reasoning) =>
   `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
@@ -254,6 +256,97 @@ const YANGHUANG = {
       case: "主证候确实无法归一",
       why: `此时等术语确认才是真原因，实际 ${reason2}——守卫不得把真需要确认的情形也改写掉`,
     });
+  }
+}
+
+// ── 六、留痕的 reason 取值必须能过 ReasoningV2Schema（写入端 ↔ schema 耦合）─────────
+//
+// 2026-08-13 甲方 P0 追查发现：本模块写 `system_retrieved_governed_lock` 与
+// `governed_syndrome_relation_unverified`，而 diagnosis-types 的 zod 枚举只收另外两个值，
+// 于是 `.catch(undefined)` 在归一时**整条 deferredFormulaSelection 丢弃**——
+// 2026-08 那轮「作废不等于抹掉」的留痕从未到达任何一个出口（医生页/Markdown/HIS 全取不到），
+// 而内部指标按载荷统计，所以长期无人察觉。这是本仓库记录在案的「zod schema 与类型分叉」形状。
+//
+// 本判据把两端焊死：从**源码里抽出写入端实际使用的取值**，逐个真跑 schema。
+// 任何一端单独改动都会让这里红。
+{
+  const ind_src = readFileSync(new URL("../src/lib/tcm-formula-indications.ts", import.meta.url), "utf8");
+  const writtenReasons = [...ind_src.matchAll(/reason:\s*"([a-z_]+)"/g)].map((m) => m[1]);
+  const unique = [...new Set(writtenReasons)];
+  if (unique.length < 3) {
+    failures.push({ case: "留痕取值抽取", why: `只抽到 ${unique.length} 个 reason 取值，正则或写入端结构已变` });
+  }
+  for (const reason of unique) {
+    // 载荷必须**整体合法**：overview 带 .catch(DEFAULT_OVERVIEW)，任一顶层必填缺失都会
+    // 让整段 overview 回落、deferred 一并消失——那时红的是夹具而不是产品，会误导后人。
+    const payload = {
+      schemaVersion: "tcm-cdss-reasoning-v2",
+      stage: "diagnose",
+      overview: {
+        primarySyndrome: "胃阴虚证",
+        overallPathogenesis: "胃阴亏虚，胃失濡养",
+        overallTherapy: "养阴益胃",
+        recommendedFormulaDirection: "按已锁定病机与治法辨证组方",
+        recommendedFormulaNames: [],
+        formulaSelectionMode: "self_devised",
+        deferredFormulaSelection: { direction: "益胃汤加减", names: ["益胃汤"], mode: "single", reason },
+        evidence: { evidenceLevel: "model_inference", source: "病例内推理", confidence: "中" },
+      },
+      pathogenesis: { summary: "胃阴亏虚", chain: [] },
+      therapy: { overallPrinciple: "养阴益胃", overallMethod: "养阴益胃", subTherapies: [] },
+      formula: null,
+      nonPharma: null,
+      management: null,
+      lineageAdaptation: null,
+    };
+    const parsed = types.ReasoningV2Schema.safeParse(payload);
+    if (!parsed.success) {
+      failures.push({
+        case: "留痕过 schema（夹具）",
+        why: `夹具本身过不了 schema（${JSON.stringify(parsed.error.issues[0]?.path)}）——先修夹具再判断产品`,
+      });
+      continue;
+    }
+    const kept = parsed.data?.overview?.deferredFormulaSelection;
+    if (!kept) {
+      failures.push({
+        case: "留痕过 schema",
+        why: `reason="${reason}" 是写入端实际使用的取值，却过不了 ReasoningV2Schema——` +
+          `归一时整条 deferredFormulaSelection 会被静默丢弃，医生页/Markdown/HIS 一个都取不到。` +
+          `请把该取值补进 diagnosis-types.ts 的 zod 枚举与 TS 联合类型（两处都要）。`,
+      });
+    }
+  }
+}
+
+// ── 七、撤销留痕不得因 formulaSelectionMode 写歪而丢失 ──────────────────────────
+//
+// 线上 P0 形态：模型给了方名却把 mode 写成 self_devised，撤销分支的 mode 白名单不命中，
+// 于是**方名被清空、零留痕**（names=[]、self_devised、无 deferredFormulaSelection）。
+// mode 只是留痕的呈现形态，撤销行为本身与它无关——按被撤方名个数保守推导即可。
+for (const mode of ["single", "combined", "alternatives", "self_devised", "none", "", undefined]) {
+  const base = m03({
+    syndrome: "胃阴虚证",
+    pathogenesis: "胃阴亏虚，胃失濡养",
+    therapy: "养阴益胃，生津润燥",
+    names: ["某某未收载经验方"],
+    mode: "single",
+  });
+  base.overview.formulaSelectionMode = mode;
+  const out = run(base);
+  const deferred = out?.overview?.deferredFormulaSelection;
+  if (!deferred || !(deferred.names || []).includes("某某未收载经验方")) {
+    failures.push({
+      case: `撤销留痕 mode=${String(mode)}`,
+      why: `mode 写成 ${String(mode)} 时撤销未留痕（deferred=${JSON.stringify(deferred)}）——` +
+        "医生看到自拟方却不知道系统撤了什么、为什么撤；这正是线上 P0 的形态",
+    });
+  }
+  if (deferred && !["single", "combined", "alternatives"].includes(deferred.mode)) {
+    failures.push({ case: `撤销留痕 mode=${String(mode)}`, why: `留痕 mode 取值 ${deferred.mode} 不在契约枚举内，会被 schema 丢弃` });
+  }
+  if ((out?.overview?.recommendedFormulaNames || []).length > 0) {
+    failures.push({ case: `撤销留痕 mode=${String(mode)}`, why: "未核验方名仍不得保留（本节只补留痕，不放宽锁定纪律）" });
   }
 }
 

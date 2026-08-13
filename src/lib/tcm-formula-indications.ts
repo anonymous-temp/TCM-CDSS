@@ -1364,24 +1364,30 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
           canonicalPrimarySyndromeId((parsed.overview as { primarySyndrome?: unknown }).primarySyndrome) == null;
         const originalMode = parsed.overview.formulaSelectionMode;
         const originalDirection = parsed.overview.recommendedFormulaDirection;
-        if (
-          primarySyndromeAwaitingConfirmation &&
-          typeof originalDirection === "string" &&
-          (originalMode === "single" || originalMode === "combined" || originalMode === "alternatives")
-        ) {
+        // 留痕的 mode 只能取 single/combined/alternatives（契约枚举）。模型把 mode 写成
+        // self_devised/none/空/缺失却又给了方名时，此前**整条留痕分支都不进**——方名被清空、
+        // 零痕迹，医生看到一张自拟方，看不到系统撤了什么、为什么撤（2026-08-13 甲方 P0 实证：
+        // 线上正是 names=[]、self_devised、无 deferredFormulaSelection 这一形态）。
+        // 「作废不等于抹掉」这条纪律不该因为 mode 字段写歪就失效：mode 只是留痕的呈现形态，
+        // 按被撤方名个数保守推导即可，撤销行为本身与它无关。
+        const tracedMode: "single" | "combined" | "alternatives" =
+          originalMode === "combined" || originalMode === "alternatives"
+            ? originalMode
+            : names.length > 1 ? "alternatives" : "single";
+        const tracedDirection = typeof originalDirection === "string" && originalDirection.trim()
+          ? originalDirection
+          : names.join("、");
+        if (primarySyndromeAwaitingConfirmation) {
           // Keep the model's exact pre-confirmation choice inside the signed M03 envelope. A later
           // clinician confirmation may restore only these names, and only after positive
           // sufficiency is recomputed against the confirmed governed syndrome.
           parsed.overview.deferredFormulaSelection = {
-            direction: originalDirection,
+            direction: tracedDirection,
             names,
-            mode: originalMode,
+            mode: tracedMode,
             reason: "semantic_mapping_pending_clinician_confirmation",
           };
-        } else if (
-          typeof originalDirection === "string" &&
-          (originalMode === "single" || originalMode === "combined" || originalMode === "alternatives")
-        ) {
+        } else {
           // 作废不等于抹掉。此前只有「术语映射待医生确认」这一种作废会留痕，其余一律**静默**清空——
           // 医生看到的是一张自拟方，看不到系统本来锁的是什么，也看不到是因为什么被撤。
           // 实测（阳黄例，签名主证「湿热内蕴证」）：模型选中的是本例金标准方**茵陈蒿汤**，
@@ -1395,9 +1401,9 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
           // deferredFormulaSelection 即返回 []（那是"系统自己的处置"，不是"模型的遗漏"），
           // 否则它会接着把治法不对的替代方标成「已通过正向充分性核验」喂回给模型。
           parsed.overview.deferredFormulaSelection = {
-            direction: originalDirection,
+            direction: tracedDirection,
             names,
-            mode: originalMode,
+            mode: tracedMode,
             reason: "governed_syndrome_relation_unverified",
           };
         }

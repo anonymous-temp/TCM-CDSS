@@ -21,6 +21,7 @@ const {
 const { getPrimaryTextModelConfig, getPublicTextModelStatus } = await import("../src/lib/text-model.ts");
 const { getClinicalFactsModelPlan } = await import("../src/lib/clinical-facts-runtime.ts");
 const { getCdssStageTelemetrySnapshot } = await import("../src/lib/cdss-stage-telemetry.ts");
+const { getTcmKnowledgeStatus } = await import("../src/lib/tcm-knowledge.ts");
 
 const failures = [];
 const check = (name, fn) => {
@@ -191,6 +192,29 @@ check("完整视图需同时满足查询参数与服务端开关", () => {
     if (original === undefined) delete process.env.CDSS_HEALTH_DIAGNOSTICS;
     else process.env.CDSS_HEALTH_DIAGNOSTICS = original;
   }
+});
+
+// ── ④ 库状态不得携带药典版本口径，且判据钉在**产地**而不是某一个出口 ──────────
+//
+// 2026-08-13 甲方线上实测：/health?strict=1 返回 localPharmacopoeiaBasis「2020版历史规则基线」
+// 与 requiredCurrentPharmacopoeia「2025版」。后者尤其有害——全仓没有一处读它做判断，
+// 而已确定口径是「2020版即可」，挂在对外接口上会让集成方以为系统要求 2025 版。
+//
+// 本判据故意打 getTcmKnowledgeStatus() 本身而不是打 publicHealthView 的输出：该函数有
+// **两个对外出口**（/api/diagnosis/health 经裁剪、/api/tcm-knowledge/search 原样回传），
+// 只断言健康视图等于只验一个出口——那正是禁词闸门 2026-08-12 被线上打脸的同一形状。
+check("库状态在产地即不含药典版本口径（覆盖 health 与 KB 检索两个出口）", () => {
+  const status = getTcmKnowledgeStatus();
+  const serialized = JSON.stringify(status);
+  for (const banned of ["Pharmacopoeia", "药典", "2020版", "2025版", "规则基线"]) {
+    assert.ok(
+      !serialized.includes(banned),
+      `库状态里出现「${banned}」：该 payload 会原样出现在 /api/tcm-knowledge/search 的响应里（不经任何裁剪），` +
+      `往 REDACTED_HEALTH_KEYS 加键堵不住它。请在 getTcmKnowledgeStatus() 产地删除。`,
+    );
+  }
+  // 反向护栏：溯源字段必须活着，否则「删干净了」会连可追溯性一起删掉。
+  assert.ok(status.schemaVersion && status.generatedAt, "schemaVersion/generatedAt 是构建溯源，不得一并删除");
 });
 
 if (failures.length > 0) {

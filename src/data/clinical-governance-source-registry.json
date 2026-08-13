@@ -356,7 +356,7 @@
       "sourceType": "project_runtime_contract",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-types.ts",
-      "sha256": "29ccd20df34c3ea527846b53f2b50a5e3ae87fdb1dfd35a60980c865dc211183",
+      "sha256": "3460457b7a5d06fd8d69580ec42b8a1c7db13b793989492ce6eaf0b78cc790eb",
       "scope": "M01-M05 当前实际字段与输出结构",
       "accessedAt": "2026-07-22"
     },

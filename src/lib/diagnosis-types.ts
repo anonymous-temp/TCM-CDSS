@@ -354,12 +354,26 @@ export interface ClinicalReasoningResultV2 {
       names: string[];
       mode: "single" | "combined" | "alternatives";
       /**
+       * ★ 这份取值集合必须与 tcm-formula-indications.ts 写入端**逐字一致**。
+       * 2026-08-13 甲方 P0 追查发现二者早已分叉：代码写 `system_retrieved_governed_lock` 与
+       * `governed_syndrome_relation_unverified`，而枚举只收另外两个值，于是归一时
+       * `.catch(undefined)` 把**整条 deferredFormulaSelection 静默丢弃**——
+       * 2026-08 那轮「作废不等于抹掉」的留痕从未到达任何一个出口（医生页/Markdown/HIS 全取不到），
+       * 而内部指标按载荷统计，所以长期无人察觉。这是本仓库记录在案的「zod schema 与类型分叉」形状。
+       * test:governed-formula-lock 现从写入端源码抽取取值逐个真跑 schema，改一边就红。
+       *
        * semantic_mapping_pending_clinician_confirmation: 模型选了方名但证候映射待医生确认。
-       * system_retrieved_pending_clinician_selection: 模型未给方名(自拟)或所给方名未通过充分性,
-       *   服务端用**已签名证候**做确定性二次检索,把找到的受治理经典方作为参考呈现给医生。
-       *   两者都**不是锁定**:不进 recommendedFormulaNames、不参与 M04 编译、由医生决定是否采用。
+       * system_retrieved_pending_clinician_selection: 服务端二次检索到的参考方（历史取值，保留兼容）。
+       * system_retrieved_governed_lock: 模型未给方名时服务端按已签名证候反查受控目录**锁定**首选，
+       *   候选全表写入本字段留痕，医生可改选。
+       * governed_syndrome_relation_unverified: 模型给了方名但未过正向充分性核验，方名被撤销；
+       *   原选择写入本字段留痕（撤销不放宽，仍走自拟方）。
        */
-      reason: "semantic_mapping_pending_clinician_confirmation" | "system_retrieved_pending_clinician_selection";
+      reason:
+        | "semantic_mapping_pending_clinician_confirmation"
+        | "system_retrieved_pending_clinician_selection"
+        | "system_retrieved_governed_lock"
+        | "governed_syndrome_relation_unverified";
     };
     evidence: EvidenceRef;
   };
@@ -1273,7 +1287,14 @@ const ReasoningV2SchemaBase = z.object({
       direction: z.string().min(1).max(1200),
       names: z.array(z.string().min(1).max(300)).min(1).max(4),
       mode: z.enum(["single", "combined", "alternatives"]),
-      reason: z.enum(["semantic_mapping_pending_clinician_confirmation", "system_retrieved_pending_clinician_selection"]),
+      // 取值集合必须与 tcm-formula-indications.ts 写入端逐字一致；缺任一取值会让整条
+      // deferredFormulaSelection 在归一时被 .catch(undefined) 静默丢弃（2026-08-13 实证）。
+      reason: z.enum([
+        "semantic_mapping_pending_clinician_confirmation",
+        "system_retrieved_pending_clinician_selection",
+        "system_retrieved_governed_lock",
+        "governed_syndrome_relation_unverified",
+      ]),
     }).optional().catch(undefined),
     evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
   }).catch(DEFAULT_OVERVIEW),
