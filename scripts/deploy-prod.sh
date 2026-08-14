@@ -19,7 +19,7 @@ set -euo pipefail
 
 HOST="${DEPLOY_HOST:-82.156.128.153}"
 USER="${DEPLOY_USER:-ubuntu}"
-KEY="${DEPLOY_KEY:-$HOME/.ssh/evimed_deploy}"
+KEY="${DEPLOY_KEY:-$HOME/.ssh/tcm_cdss_deploy_ed25519}"
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/home/ubuntu/tcm-cdss/releases/20260801-vocab-deduction}"
 TAG="${IMAGE_TAG:?IMAGE_TAG 必须显式指定且不可复用——镜像 tag 必须不可变，否则无法证明线上跑的是哪一版}"
 # 保留几个历史 tcm-cdss 镜像用于回滚。3 个 ≈ 3GB，够回滚两版；再多只是占磁盘。

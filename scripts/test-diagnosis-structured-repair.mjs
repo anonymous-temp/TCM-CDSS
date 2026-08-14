@@ -179,7 +179,7 @@ assert.match(
   /candidate\.decoction 必须是单个对象[\s\S]{0,500}?doseCount[\s\S]{0,250}?dosesPerDay[\s\S]{0,250}?administrationTimesPerDay[\s\S]{0,300}?三者都不得省略/,
   "the targeted M04 repair prompt must preserve every required regimen dimension",
 );
-assert.equal(shouldRunTargetedStructuredRetry("prescribe", "m04_candidate_0_high_risk_pair_incompatibility"), false, "high-risk pair conflicts remain fail-closed instead of entering automatic repair");
+assert.equal(shouldRunTargetedStructuredRetry("prescribe", "m04_candidate_0_high_risk_pair_incompatibility"), true, "high-risk pair conflicts receive one bounded repair attempt and remain fail-closed unless the repaired candidate passes the full safety contract");
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "json_invalid"), true);
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "sentinel_count_0_1"), true);
 assert.equal(shouldRunTargetedStructuredRetry("prescribe", "structured_resolver_rejected"), true);

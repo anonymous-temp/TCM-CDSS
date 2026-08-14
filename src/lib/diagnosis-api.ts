@@ -144,6 +144,9 @@ const PRIMARY_TEXT_MAX_PROMPT_CHARS = (() => {
   const value = Number(process.env.PRIMARY_TEXT_MAX_PROMPT_CHARS || 60_000);
   return Number.isFinite(value) && value >= 10_000 && value <= 120_000 ? Math.round(value) : 60_000;
 })();
+export function primaryTextMaxPromptChars(): number {
+  return PRIMARY_TEXT_MAX_PROMPT_CHARS;
+}
 const PRIMARY_TEXT_MAX_OUTPUT_CHARS = (() => {
   const value = Number(process.env.PRIMARY_TEXT_MAX_OUTPUT_CHARS || 80_000);
   return Number.isFinite(value) && value >= 20_000 && value <= 160_000 ? Math.round(value) : 80_000;
@@ -976,7 +979,10 @@ function validatedStructuredReasoning(
 }
 
 function isM04AuditAdvisoryReason(reason: string): boolean {
-  return /^m04_candidate_\d+_(?:high_risk_pair_incompatibility|herb_\d+_unsupported_high_impact_[a-z0-9_]+)$/i.test(reason);
+  // 十八反等 HIGH 药对是确定性 T1 禁忌，必须在生成层修复或回落非剂量页；
+  // 不能因为后面还有审方接口就先把冲突剂量展示给医生。只保留“功效词表未自动覆盖”
+  // 这个可由医生/药师复核的质量类通道。
+  return /^m04_candidate_\d+_herb_\d+_unsupported_high_impact_[a-z0-9_]+$/i.test(reason);
 }
 
 function wrapPrescribeJsonObject(

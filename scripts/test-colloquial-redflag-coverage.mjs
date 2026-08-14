@@ -74,6 +74,8 @@ for (const text of STROKE_PHRASINGS) {
 const STROKE_NOT_ACUTE = [
   "脑梗死后遗留左侧肢体无力3年，本次因失眠就诊",
   "中风后遗症，遗留口角歪斜和言语不清，病情稳定2年",
+  "急诊脑CT示脑梗死。经治疗后遗留右半身无力、行动不灵活、语言不利6个月",
+  "双手指及右耳垂反复红肿麻木10年，每年冬季发作，受热后瘙痒",
 ];
 for (const text of STROKE_NOT_ACUTE) {
   const flags = redFlagsFor(text);

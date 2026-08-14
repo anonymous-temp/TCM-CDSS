@@ -1,10 +1,10 @@
-import { callDiagnosisStream } from "@/lib/diagnosis-api";
+import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCaseStateRequest } from "@/lib/diagnosis-request";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, gateDispositionIsAdvisory, markdownNdjsonResponse, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, gateDispositionIsAdvisory, markdownNdjsonResponse, mergePrescriptionReviewItems, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -21,6 +21,7 @@ import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
 import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
+import { compactEvidenceContextForPrompt } from "@/lib/prompt-budget";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
 function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReasoningV2>): string | undefined {
@@ -71,15 +72,11 @@ export async function POST(req: Request) {
   const gated = withSafetyGate(caseState);
   const permission = derivePrescriptionPermission(gated);
   const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready" || permission.candidateMode === "limited_dose";
-  // 红旗/完整度处置（甲方决策：不阻断临床流程）。检测照常；advise 模式下 M04 照常生成
-  // 剂量级候选，可见正文置顶确定性安全警示横幅（红旗内容 + 审方提示），红旗同步写进提示词
-  // 让用药风险段优先急诊指引。缺主诉（permission=blocked 且无主诉）仍然拦——没有主诉连
-  // 辨证对象都不存在，不属于「有结果可给」的范畴。CDSS_GATE_DISPOSITION=block 切回旧行为。
+  // advise 只改变“已检出红旗”的呈现方式，不能覆盖处方权限层的 non_dose_only / blocked。
+  // 后两者包含儿科体重缺失、妊娠状态未核实、语义筛查不可用等独立硬边界；若因有主诉就
+  // 放行剂量，会把 fail-closed 权限降成一条可见提示。此处始终返回非剂量建议。
   const advisoryDisposition = gateDispositionIsAdvisory();
-  if (
-    (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked") &&
-    (!advisoryDisposition || !(gated.chiefComplaint || gated.hisRecord?.fields?.zhushu || "").trim())
-  ) {
+  if (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked") {
     const gate: SafetyGate = {
       status: gated.safetyGate?.status || "needs_information",
       allowDiagnosis: true,
@@ -99,7 +96,7 @@ export async function POST(req: Request) {
   // 的实现），若仍以 non_dose_only 为条件，红旗病例的 M04 反而成了唯一没有警示的输出。
   // 直接读安全门状态——它是检测层的原始信号，与处置档位无关。
   const advisorySafetyNotes = advisoryDisposition &&
-    (gated.safetyGate?.status === "red_flag" || permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked")
+    gated.safetyGate?.status === "red_flag"
     ? (permission.reasons.length > 0 ? permission.reasons : ["当前病例存在未解除的安全或信息完整性提示"])
     : [];
   // An attested "unclear" encounter scope means the reviewed semantic pre-check could not prove
@@ -182,28 +179,46 @@ export async function POST(req: Request) {
     buildDrugInventoryPromptContext(),
   ]);
   const evidenceContext = [baseEvidenceContext, medicinePlan.evidenceContext].filter(Boolean).join("\n\n");
-  let prompt = appendEvidenceContext(buildPrescribePrompt(safeState), evidenceContext);
-  if (inventoryContext) prompt += `\n\n${inventoryContext}`;
+  const basePrompt = buildPrescribePrompt(safeState);
+  const promptSuffixes = inventoryContext ? [inventoryContext] : [];
+  const reviewItems = mergePrescriptionReviewItems(permission.reasons, gated.safetyGate?.missingItems);
+  const reviewItemsText = reviewItems.join("、") || "部分病历信息";
   const informationNotice = limitedInformation
     ? [
         "## 信息完整性边界",
-        `本候选方药仅依据已经提供的信息生成；正式采纳前需确认：${permission.reasons.join("、") || gated.safetyGate?.missingItems.join("、") || "部分病历信息"}。这些未知项不影响医生审阅候选方案，但不会被视为已核实事实。`,
+        `本候选方药仅依据已经提供的信息生成；正式采纳前需确认：${reviewItemsText}。这些未知项不影响医生审阅候选方案，但不会被视为已核实事实。`,
       ].join("\n")
     : "";
   if (limitedInformation) {
-    prompt += `\n\n【有限信息候选】当前待复核：${permission.reasons.join("、") || gated.safetyGate?.missingItems.join("、") || "部分病历信息"}。请基于已知证候、病机和治法生成医生审阅用候选方案，并把相关未知项或阳性风险写入适用边界；不得臆造患者事实，也不得仅因缺项或风险提示拒绝生成。`;
+    promptSuffixes.push(`【有限信息候选】当前待复核：${reviewItemsText}。请基于已知证候、病机和治法生成医生审阅用候选方案，并把相关未知项或阳性风险写入适用边界；不得臆造患者事实，也不得仅因缺项或风险提示拒绝生成。`);
   }
   if (signedPriorReasoning.clinicalReview?.status !== "accepted") {
-    prompt += "\n\n【辨证复核状态】M03 独立复核本轮未完成，但其结构、病历接地、极性与安全边界已通过确定性核验。可继续生成有界候选；必须在适用边界中提示复核状态，不得把未完成复核写成已经通过，也不得因此拒绝生成。";
+    promptSuffixes.push("【辨证复核状态】M03 独立复核本轮未完成，但其结构、病历接地、极性与安全边界已通过确定性核验。可继续生成有界候选；必须在适用边界中提示复核状态，不得把未完成复核写成已经通过，也不得因此拒绝生成。");
   }
   if (advisorySafetyNotes.length > 0) {
-    prompt += `\n\n【急危重线索并存】服务器确定性判定本例存在未解除的安全提示：${advisorySafetyNotes.join("；")}。请照常生成剂量级候选方药；在用药风险提示中把急诊/转诊评估列为第一优先级，剂量取保守区间下段，不得因安全提示拒绝生成，也不得淡化提示。`;
+    promptSuffixes.push(`【急危重线索并存】服务器确定性判定本例存在未解除的安全提示：${advisorySafetyNotes.join("；")}。请照常生成剂量级候选方药；在用药风险提示中把急诊/转诊评估列为第一优先级，剂量取保守区间下段，不得因安全提示拒绝生成，也不得淡化提示。`);
   }
   if (hasUnconfirmedUnclearEncounterScope(gated) && advisoryDisposition) {
-    prompt += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请照常生成候选，并在适用边界中显式提示“本次就诊目标需医生确认后方可采纳”。";
+    promptSuffixes.push("【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请照常生成候选，并在适用边界中显式提示“本次就诊目标需医生确认后方可采纳”。");
   }
   if (noExecutableFormulaPath && advisoryDisposition) {
-    prompt += `\n\n【方名剂量基准缺失】推荐方 ${unavailableFormulaNames.join("、")} 在本地标准剂量资料中暂无可执行的逐味剂量基准。请按已锁定证候与治法自拟组方（constructionType=self_devised，不得沿用该方名身份），方名方向已另行保留给医生参考。`;
+    promptSuffixes.push(`【方名剂量基准缺失】推荐方 ${unavailableFormulaNames.join("、")} 在本地标准剂量资料中暂无可执行的逐味剂量基准。请按已锁定证候与治法自拟组方（constructionType=self_devised，不得沿用该方名身份），方名方向已另行保留给医生参考。`);
+  }
+  const promptSuffix = promptSuffixes.map((value) => `\n\n${value}`).join("");
+  const emptyEvidencePromptLength = appendEvidenceContext(basePrompt, "").length + promptSuffix.length;
+  const evidenceBudget = Math.max(0, primaryTextMaxPromptChars() - emptyEvidencePromptLength);
+  const boundedEvidence = compactEvidenceContextForPrompt(evidenceContext, evidenceBudget);
+  const prompt = appendEvidenceContext(basePrompt, boundedEvidence.text) + promptSuffix;
+  if (boundedEvidence.truncated) {
+    console.warn("[tcm-cdss:prescribe] evidence context compacted to fit prompt budget", {
+      basePromptChars: basePrompt.length,
+      evidenceContextChars: evidenceContext.length,
+      retainedEvidenceChars: boundedEvidence.text.length,
+      omittedEvidenceChars: boundedEvidence.omittedChars,
+      inventoryContextChars: inventoryContext.length,
+      promptChars: prompt.length,
+      maxPromptChars: primaryTextMaxPromptChars(),
+    });
   }
   const truncationGate: SafetyGate = {
     status: "needs_information",
@@ -225,7 +240,7 @@ export async function POST(req: Request) {
     ],
   );
   const evidenceOutputTransform = buildEvidenceOutputTransform(
-    evidenceContext,
+    boundedEvidence.text,
     (content) => {
       const sanitized = sanitizeUngroundedRedFlagNegations(enforceReviewedPrescriptionOutput(content), safeState);
       return advisoryBanner ? `${advisoryBanner}${sanitized}` : sanitized;
@@ -241,7 +256,7 @@ export async function POST(req: Request) {
     structuredStage: "prescribe",
     // M04 repair/review must never receive raw HIS identifiers.
     structuredClinicalContext,
-    structuredReviewEvidenceContext: evidenceContext,
+    structuredReviewEvidenceContext: boundedEvidence.text,
     structuredPatientAge: authoritativePatientAgeYears(gated),
     structuredCaseState: safeState,
     structuredMedicineCandidates: medicinePlan.candidates,
@@ -275,7 +290,19 @@ export async function POST(req: Request) {
       const declassificationTherapyIssue = declassifiedAccepted
         ? transparentFormulaTherapyIssue(reasoning, signedPriorReasoning, true)
         : undefined;
-      const issue = formulaCompilationContractIssue(reasoning, signedPriorReasoning, false, true) || declassificationTherapyIssue || m04SemanticIssue(
+      // 最终出口必须每次先完整重跑 T1 安全底线。之前只在全量语义合同“已经有 issue”
+      // 的分支内才算 safetyIssue；若全量口径把审方风险当作 advisory，十八反会返回
+      // undefined 并绕过整个安全分支。安全底线不能依赖另一个质量问题先触发。
+      const safetyIssue = m04SafetyContractIssue(
+        reasoning,
+        signedPriorReasoning,
+        isKnownTcmHerbName,
+        false,
+        false,
+        clinicalGroundingText(safeState),
+        declassifiedAccepted,
+      ) || "";
+      const issue = safetyIssue || formulaCompilationContractIssue(reasoning, signedPriorReasoning, false, true) || declassificationTherapyIssue || m04SemanticIssue(
         reasoning,
         "",
         signedPriorReasoning,
@@ -314,15 +341,6 @@ export async function POST(req: Request) {
         // （nonPharma.tcmTreatments 的 15 个字段检查排在剂量、配伍禁忌与特殊人群之前）。
         // 拿到一个 T2 码只证明排在它前面的检查通过了，后面的 T1 检查根本没有执行。
         // shouldAcceptWithQualityAnnotation 在 safetyIssue 缺省时判为不可受理，双重 fail-closed。
-        const safetyIssue = m04SafetyContractIssue(
-          reasoning,
-          signedPriorReasoning,
-          isKnownTcmHerbName,
-          false,
-          false,
-          clinicalGroundingText(safeState),
-          declassifiedAccepted,
-        ) || "";
         const rejectionReason = `m04_${issue}`;
         const annotation = (shouldAcceptWithQualityAnnotation({
           rejectionReason,

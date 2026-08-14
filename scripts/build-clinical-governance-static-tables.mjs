@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createJiti } from "jiti";
@@ -11,6 +11,14 @@ const projectRoot = dirname(scriptDir);
 const dataRoot = join(projectRoot, "src/data");
 const jiti = createJiti(import.meta.url, { alias: { "@": join(projectRoot, "src") } });
 const { TCM_TREATMENT_PROJECTS } = await jiti.import("../src/lib/tcm-treatment-projects.ts");
+const existingSourceRegistry = (() => {
+  try {
+    const parsed = JSON.parse(readFileSync(join(dataRoot, "clinical-governance-source-registry.json"), "utf8"));
+    return new Map((parsed.entries || []).map((entry) => [entry.id, entry]));
+  } catch {
+    return new Map();
+  }
+})();
 
 const writeJson = (name, value) => writeFileSync(
   join(dataRoot, name),
@@ -20,6 +28,13 @@ const writeJson = (name, value) => writeFileSync(
 
 const localSource = (id, title, file, sourceType, scope) => {
   const absolute = join(projectRoot, file);
+  const pinned = existingSourceRegistry.get(id);
+  const sha256 = existsSync(absolute)
+    ? createHash("sha256").update(readFileSync(absolute)).digest("hex")
+    : pinned?.sha256;
+  if (!sha256) {
+    throw new Error(`无法生成来源 ${id}：缺少本地文件 ${file}，且现有受治理注册表没有可保留的 sha256`);
+  }
   return {
     id,
     title,
@@ -27,7 +42,7 @@ const localSource = (id, title, file, sourceType, scope) => {
     sourceType,
     authorityTier: "project_governed_source",
     locator: file,
-    sha256: createHash("sha256").update(readFileSync(absolute)).digest("hex"),
+    sha256,
     scope,
     accessedAt: "2026-07-22",
   };
@@ -1429,6 +1444,35 @@ writeJson("tcm-nondrug-treatment-evidence-catalog.json", {
   },
   entries: treatmentEntries,
 });
+
+// 这四份静态表由本脚本直接重建，manifest 也必须在同一次命令内同步。此前只有后续的
+// Python 全量构建器会刷新 manifest；fresh clone 缺少被 gitignore 的外部药学资产时无法运行
+// 那一步，于是即使只改项目内的确定性安全规则，也会留下 registry/manifest 指纹分叉。
+const manifestName = "clinical-governance-table-manifest.json";
+const manifestPath = join(dataRoot, manifestName);
+if (existsSync(manifestPath)) {
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const regeneratedTables = new Map([
+    ["clinical-required-field-matrix.json", requiredFields.length],
+    ["clinical-output-contract-registry.json", outputContracts.length],
+    ["tcm-nondrug-treatment-evidence-catalog.json", treatmentEntries.length],
+  ]);
+  for (const table of manifest.tables || []) {
+    if (!regeneratedTables.has(table.file)) continue;
+    const tablePath = join(dataRoot, table.file);
+    const payload = JSON.parse(readFileSync(tablePath, "utf8"));
+    table.schemaVersion = payload.schemaVersion;
+    table.sha256 = createHash("sha256").update(readFileSync(tablePath)).digest("hex");
+    table.recordCount = regeneratedTables.get(table.file);
+  }
+  const sourceRegistryPath = join(dataRoot, "clinical-governance-source-registry.json");
+  manifest.sourceRegistry = {
+    file: "clinical-governance-source-registry.json",
+    sha256: createHash("sha256").update(readFileSync(sourceRegistryPath)).digest("hex"),
+    recordCount: sources.length,
+  };
+  writeJson(manifestName, manifest);
+}
 
 console.log(JSON.stringify({
   sources: sources.length,

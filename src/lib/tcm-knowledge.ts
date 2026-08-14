@@ -1505,7 +1505,12 @@ const FUNCTION_SUPPLEMENT_BY_NAME: ReadonlyMap<string, string> = new Map(
 
 function withFunctionSupplement(canonical: string, text: string): string {
   const supplement = FUNCTION_SUPPLEMENT_BY_NAME.get(canonical);
-  if (!supplement || text.includes(supplement)) return text;
+  if (!supplement) return text;
+  // 分类标签常是功效词加一个“药”字（猪苓：补充“利水渗湿”，分类“利水渗湿药”）。
+  // 用 includes 会把这类子串误判为“正文已存在”，导致补充表明明有数据、运行时仍只剩分类标签。
+  // 这里只把完整的分号分句视为已存在；分类标签与功效正文语义不同，不能互相抵消。
+  const existingClauses = text.split(/[；;]/).map((item) => item.trim()).filter(Boolean);
+  if (existingClauses.includes(supplement)) return text;
   return text ? `${text}；${supplement}` : supplement;
 }
 

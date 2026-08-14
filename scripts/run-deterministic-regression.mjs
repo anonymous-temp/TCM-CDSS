@@ -25,6 +25,9 @@ const scripts = [
   // 里面那条「服用铁剂后大便发黑，无头晕乏力」的反例钉的是另一个真误报：
   // 严重度伴随症被整句否认，判据却当阳性证据用。
   "test:colloquial-redflag",
+  // 77 案预检实测：阴道出血21天、量多、血色素66g/L，因词序不是「阴道大量出血」而零红旗。
+  // 钉住阴道出血 × 量多/持续/重度贫血/循环灌注组合，并守住否定、旧史、少量点滴的反例。
+  "test:major-vaginal-bleeding",
   "test:clinical-facts",
   "test:evidence-sentinel",
   "test:evimed-normalization",
@@ -155,6 +158,7 @@ const scripts = [
   // 我改完源文档没重跑生成器，于是对方看到的一直是旧字段，而我这边「文件明明改了」。
   // 判据不是"字段对不对"，是"产物是不是源文档的当前产物"：重跑生成器逐字节比对。
   "test:delivery-doc-freshness",
+  "test:prompt-evidence-budget",
   "test:modern-case-corpus",
   "test:disease-lexicon",
   "test:runtime-data-presence",
@@ -194,6 +198,12 @@ const scripts = [
   // 身份目录把石决明与千里光登记成互为别名，上游按别名图把菊科草药的功效整段贴到了鲍鱼壳上。
   // 这类污染此前完全隐形——功效串是自由文本，没有任何断言看它属不属于这味药。
   "test:herb-function-contamination",
+  // 国家药典委员会 2020 版一部功效正文治理批次：84 味逐条带词条 id、原文和来源 URL。
+  // 离线闸门钉住“只取功能段、不跨身份分叉、受控治法可重算”，并直测僵蚕/地龙不再落方义占位。
+  "test:chp-herb-functions",
+  // 77 条回归病案从忽略目录迁入受治理源：20 条保留公开网页出处，57 条来自已签 replay 池。
+  // 套件钉住数量、来源锚、PHI/金标准泄漏边界、病种多样性、三条真实红旗与确定性层一致。
+  "test:robustness-cases",
   "test:herb-breadth-surface",
   "test:m04-dose-index",
   "test:m04-safety-contract",

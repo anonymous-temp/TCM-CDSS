@@ -88,6 +88,7 @@ const positiveScenarios = [
   "突发失语，不能说话。",
   "今晨出现言语理解障碍。",
   "突发右侧偏盲。",
+  "右眼视力骤降3天。",
   "脑卒中后半年病情稳定，右侧肢体无力今晨突然加重。",
   "脑卒中后半年病情稳定，言语不清今日再发。",
   "三年前曾短暂口角歪斜，已完成治疗；今天再次出现言语不清。",
@@ -161,6 +162,7 @@ const negativeScenarios = [
   "脑梗死恢复期半年，右侧肢体无力持续存在但康复稳定，近期无加重。",
   "否认单侧肢体麻木、复视、视力骤降、行走不稳或口齿不清。",
   "糖尿病多年，双足麻木3个月，症状对称且稳定，无突发无力或言语异常。",
+  "糖尿病视力模糊2年，近期稳定，无视力骤降。",
   "TIA后半年，左侧肢体无力已恢复，目前稳定，无再发。",
   "腹痛不是很重，仍持续存在。",
   "健康宣教：若出现胸痛、呼吸困难应立即急诊；患者目前无上述不适。",
@@ -740,6 +742,8 @@ const postStrokeResidualScenarios = [
   "既往脑梗，遗留右侧肢体无力。",
   "数年前脑出血，遗留言语不清，目前交流可。",
   "脑卒中后遗留左侧肢体麻木，可扶行。",
+  "急诊脑CT示脑梗死。经治疗后遗留右半身无力、行动不灵活、语言不利6个月。",
+  "半年前起病时行走不稳，头颅影像示脑梗死。经治疗后遗留右半身无力6个月。",
 ];
 for (const scenario of postStrokeResidualScenarios) {
   for (const variant of variants(scenario)) {
@@ -765,6 +769,7 @@ const oldStrokeNewAcuteScenarios = [
   "中风后遗留左侧肢体无力，今日突然加重。",
   "数年前脑出血，刚刚出现口角歪斜。",
   "脑卒中后遗留左侧肢体麻木，昨日加重。",
+  "右侧肢体麻木2年，今日突然明显加重并言语不清。",
 ];
 for (const scenario of oldStrokeNewAcuteScenarios) {
   for (const variant of variants(scenario)) {
@@ -774,6 +779,37 @@ for (const scenario of oldStrokeNewAcuteScenarios) {
       assert.match(gate.redFlags.join("、"), /神经系统急症/, `${placement}: ${variant}`);
       cases += 1;
     }
+  }
+}
+
+// 慢性末梢/局限感觉异常不是局灶性卒中红旗；突发单侧肢体感觉缺损仍必须命中。
+const chronicPeripheralSensoryScenarios = [
+  "双手指及右耳垂反复红肿麻木10年，每年冬季发作，受热后瘙痒。",
+  "糖尿病多年，双足麻木3个月，症状对称且稳定。",
+  "右手指麻木反复2年，无新发无力、言语异常。",
+  "右侧手指麻木反复发作10余年，每年冬季发作。",
+];
+for (const scenario of chronicPeripheralSensoryScenarios) {
+  for (const variant of variants(scenario)) {
+    for (const placement of ["chief", "history", "conversation"]) {
+      const gate = evaluateSafetyGate(stateWith(variant, placement));
+      assert.doesNotMatch(gate.redFlags.join("、"), /神经系统急症/, `${placement}: ${variant}`);
+      cases += 1;
+    }
+  }
+}
+
+for (const scenario of [
+  "今晨突发右侧肢体麻木并感觉减退。",
+  "右手指麻木反复2年，今晨突发右侧肢体无力并言语不清。",
+]) {
+  for (const placement of ["chief", "history", "conversation"]) {
+    assert.match(
+      evaluateSafetyGate(stateWith(scenario, placement)).redFlags.join("、"),
+      /神经系统急症/,
+      `${placement}: ${scenario}`,
+    );
+    cases += 1;
   }
 }
 

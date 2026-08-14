@@ -9,8 +9,11 @@ import { buildFormulaRuleAssets } from "./ingest/formula-rule-parser.mjs";
 import { compileFormulaMentionMatcher } from "./lib/formula-mention-hits.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const nishiRoot = resolve(root, "参考/nihaisha-nishi-tcm-main");
-const stableRoot = resolve(root, "参考/nihaixia-StableV2026.5.23");
+// The reference packs are intentionally excluded from Git because of their size/licensing.
+// Allow a fresh application clone to rebuild tracked derivatives from an explicitly supplied,
+// hash-verifiable source checkout instead of requiring an untracked directory inside the repo.
+const nishiRoot = resolve(process.env.NIHAISHA_NISHI_SOURCE_ROOT || resolve(root, "参考/nihaisha-nishi-tcm-main"));
+const stableRoot = resolve(process.env.NIHAIXIA_STABLE_SOURCE_ROOT || resolve(root, "参考/nihaixia-StableV2026.5.23"));
 const sourceCardsPath = resolve(nishiRoot, "references/pdf-evidence/evidence-cards.jsonl");
 const sourceManifestPath = resolve(nishiRoot, "references/pdf-evidence/source-manifest.json");
 const formulaPatternsPath = resolve(nishiRoot, "references/formula-patterns.md");

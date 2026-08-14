@@ -105,7 +105,10 @@ check(() => {
 // ─────────────────────────────────────────────────────────────────────────────
 // ③ 端到端：完整 M03 语义合同上的命中与放行
 // ─────────────────────────────────────────────────────────────────────────────
-const CUSTOMER_FIELDS = JSON.parse(fs.readFileSync("artifacts/customer-cases-gold/case-3.json", "utf8")).fields;
+const CUSTOMER_FIELDS = JSON.parse(fs.readFileSync(
+  "scripts/fixtures/postpartum-headache-case.json",
+  "utf8",
+)).fields;
 const customerContext = [
   `主诉：${CUSTOMER_FIELDS["主诉"]}`,
   `现病史：${CUSTOMER_FIELDS["现病史"]}`,

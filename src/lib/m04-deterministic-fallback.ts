@@ -1,9 +1,9 @@
-import { NON_DOSE_PRESCRIPTION_MARKER } from "@/lib/diagnosis-safety";
+import { NON_DOSE_PRESCRIPTION_MARKER } from "./diagnosis-safety";
 import type { CaseState } from "./diagnosis-types";
 import { cdssReasonCodeMarker } from "./cdss-reason-codes";
 import { executableFormulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
 import { retrieveTcmFormulaCandidatesForReasoning } from "./tcm-formula-indications";
-import { getTcmHerbDoseLimit } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, getTcmHerbDoseLimit } from "./tcm-knowledge";
 import { requiredDecoctionRequirement } from "./herb-decoction-rules";
 
 type PriorReasoningLike = {
@@ -89,8 +89,12 @@ export function buildDeterministicFormulaReferenceFallback(
 
   const sections = references.map((reference) => {
     const rows = reference.ingredients.map((name, index) => {
+      const clinicianClass = clinicianDoseHerbClass(name);
+      const regulatoryBlocked = clinicianClass === "controlled_or_toxic" || clinicianClass === "endangered_or_banned";
       const limit = getTcmHerbDoseLimit(name);
-      const range = limit?.min != null && limit?.max != null ? `${limit.min}–${limit.max}g（药典区间）` : "由医师确定";
+      const range = regulatoryBlocked
+        ? "受监管限制，不展示剂量"
+        : limit?.min != null && limit?.max != null ? `${limit.min}–${limit.max}g（药典区间）` : "由医师确定";
       const decoction = requiredDecoctionRequirement(name) || "";
       return `| ${index + 1} | ${name} | ${range} | ${decoction} |`;
     });

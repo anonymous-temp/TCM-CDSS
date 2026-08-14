@@ -611,6 +611,12 @@ assert.ok(huapiFormula, "化痞消积膏必须保留在受控目录");
 assert.equal(huapiFormula.ingredients.includes("穿山甲"), true, "OCR 断行后遗漏的山甲必须回补");
 assert.equal(huapiFormula.ingredients.includes("片脑"), true, "OCR 断行后遗漏的片脑必须回补");
 assert.equal(huapiFormula.doseCompilationEligible, false, "组成回补不得绕开穿山甲等身份/监管门禁");
+const antelopeFormula = formulas.entries.find((item) => item.name === "羚羊角汤");
+assert.ok(antelopeFormula, "羚羊角汤必须保留为方剂证据记录");
+assert.equal(antelopeFormula.doseCompilationEligible, false,
+  "羚羊角虽有药典剂量，定点使用限制仍必须阻断自动剂量编译");
+assert.ok((antelopeFormula.endangeredOrBannedIngredientNames || []).includes("羚羊角片"));
+assert.ok((antelopeFormula.doseBlockingReasons || []).includes("ingredient_endangered_or_banned_requires_legal_eligibility"));
 for (const name of ["龙胆泻肝汤", "丹栀逍遥散", "天麻钩藤饮", "六味地黄丸", "桂枝汤", "银翘散", "补中益气汤"]) {
   assert.equal(formulas.entries.find((item) => item.name === name)?.identityLockEligible, true, `${name} identity must be lockable`);
 }

@@ -1,0 +1,13 @@
+{
+  "fixtureId": "postpartum-headache-no-phi-v1",
+  "provenance": "De-identified regression fixture distilled from the historical customer case used by the governed M03 tests.",
+  "fields": {
+    "主诉": "产后2月余，头痛反复发作1月",
+    "现病史": "产后2月余，近1月头痛反复，劳累后加重，伴头晕、心悸、失眠、神疲乏力、面色少华",
+    "既往史": "否认高血压、糖尿病病史",
+    "问诊补充": "头痛隐隐，时发时止，遇疲劳、遇风加重；小便清长，大便稀溏；无恶寒发热，无喷射性呕吐、意识改变或局灶神经症状",
+    "面象": "面色少华",
+    "舌象": "舌淡苔薄白",
+    "脉象": "脉细弱"
+  }
+}

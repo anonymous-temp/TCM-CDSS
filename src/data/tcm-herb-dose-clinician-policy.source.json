@@ -19,7 +19,7 @@
     },
     "endangered_or_banned": {
       "decision": "block_regulatory",
-      "rationale": "《野生动物保护法》与相关公告禁用或严格管制的动物药（犀角、虎骨、穿山甲、麝香、熊胆、玳瑁）。法律禁用不是数据缺口，系统不得为其编制用量，应由医师改用合法替代品。",
+      "rationale": "《野生动物保护法》与相关公告禁用或严格管制的动物药（犀角、虎骨、穿山甲、羚羊角、麝香、熊胆、玳瑁）。法律禁用或定点使用限制不是数据缺口，系统不得为其编制用量，应由医师改用合法替代品或按法定定点资质单独处理。",
       "prescriptionLabel": "含禁用/严管动物药，本方仅供文献参考，临床须由医师改用合法替代品",
       "blocksDoseCompilation": true,
       "verificationTier": "toxic_regulated"
@@ -3993,6 +3993,10 @@
       {
         "name": "麝香",
         "blockedFormulaCount": 97
+      },
+      {
+        "name": "羚羊角",
+        "blockedFormulaCount": 17
       },
       {
         "name": "穿山甲",

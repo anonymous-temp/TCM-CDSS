@@ -1,7 +1,7 @@
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
 import { PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "./clinical-state";
 import tcmKnowledgeIdentitySource from "../data/tcm-knowledge.json";
-import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, getTcmHerbFunctionCategories, getTcmHerbFunctionDisplayText, getTcmHerbFunctionText, getTcmHerbGenerationSafetyProfile, getTcmHerbGovernedHighImpactConcepts, getTcmHerbRiskProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { formulaStructureTarget } from "./herb-target-contract";
 import { prescriptionRegimenContractIssue, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { executableFormulaCompilationReferences, isCompositionRestoredGovernedIdentity } from "./tcm-formula-provenance";
@@ -3155,6 +3155,8 @@ function doseInGrams(dose: string): number | undefined {
 function dosePassesSafetySanityCeiling(name: string, dose: string): boolean {
   const grams = doseInGrams(dose);
   if (grams == null) return false;
+  const regulatoryClass = clinicianDoseHerbClass(name);
+  if (regulatoryClass === "controlled_or_toxic" || regulatoryClass === "endangered_or_banned") return false;
   const limit = getTcmHerbDoseLimit(name);
   if (!Number.isFinite(grams) || grams <= 0 || grams > 500) return false;
   const historicalMax = limit?.max;
@@ -3169,6 +3171,8 @@ function dosePassesSafetySanityCeiling(name: string, dose: string): boolean {
 
 function doseWithinConservativeModelLimit(name: string, dose: string, decoctionMethod: string): boolean {
   const grams = doseInGrams(dose);
+  const regulatoryClass = clinicianDoseHerbClass(name);
+  if (regulatoryClass === "controlled_or_toxic" || regulatoryClass === "endangered_or_banned") return false;
   const limit = getTcmHerbDoseLimit(name);
   // 「由医师确定用量」类成分（无法定数值边界）：系统不比对边界，因为根本没有边界可比。
   // 它们照旧要求写出一个可解析的数值剂量（不接受空值或占位），并在 HIS 载荷里按类别标注
@@ -3765,6 +3769,8 @@ export function m04SemanticIssue(
       if (typeof herb.name !== "string" || !herb.name.trim()) return `candidate_${candidateIndex}_herb_${herbIndex}_name`;
       if (isKnownHerbName && !isKnownHerbName(herb.name.trim())) return `candidate_${candidateIndex}_herb_${herbIndex}_unknown`;
       if (typeof herb.dose !== "string" || !normalizeComparableDose(herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose`;
+      const decoctionRule = decoctionRuleForHerb(herb.name);
+      if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
       if (!dosePassesSafetySanityCeiling(herb.name.trim(), herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_sanity_ceiling`;
       if (!trustedWorkbenchEdit && !doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""))) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_outside_conservative_range`;
       if (typeof herb.role !== "string" || !herb.role.trim()) return `candidate_${candidateIndex}_herb_${herbIndex}_role`;
@@ -3773,8 +3779,6 @@ export function m04SemanticIssue(
       if (typeof herb.function !== "string" || !herb.function.trim()) return `candidate_${candidateIndex}_herb_${herbIndex}_function`;
       if (!herbFunctionMatchesKnowledge(herb.name.trim(), herb.function.trim(), String(herb.role || ""), String(herb.targetPathogenesis || ""))) return `candidate_${candidateIndex}_herb_${herbIndex}_function_ungrounded`;
       const declaredMethod = String(herb.decoctionRequirement || "");
-      const decoctionRule = decoctionRuleForHerb(herb.name);
-      if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
       if (!decoctionRuleSatisfied(herb.name, declaredMethod)) {
         return `candidate_${candidateIndex}_herb_${herbIndex}_decoction_missing_required`;
       }
@@ -4059,13 +4063,16 @@ export function m04SafetyContractIssue(
       if (typeof herb.name !== "string" || !herb.name.trim()) return `candidate_${candidateIndex}_herb_${herbIndex}_name`;
       if (isKnownHerbName && !isKnownHerbName(herb.name.trim())) return `candidate_${candidateIndex}_herb_${herbIndex}_unknown`;
       if (typeof herb.dose !== "string" || !normalizeComparableDose(herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose`;
+      // Prefer the actionable administration-route error when an otherwise recognised medicine
+      // is categorically forbidden from sharing a decoction. Regulatory dose locks still apply to
+      // every other controlled/endangered medicine below.
+      const decoctionRule = decoctionRuleForHerb(herb.name);
+      if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
       if (!dosePassesSafetySanityCeiling(herb.name.trim(), herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_sanity_ceiling`;
       if (!trustedWorkbenchEdit && !doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""))) {
         return `candidate_${candidateIndex}_herb_${herbIndex}_dose_outside_conservative_range`;
       }
       // 特殊煎法是毒性与刺激性药味安全控制的一部分，不是叙述性字段。
-      const decoctionRule = decoctionRuleForHerb(herb.name);
-      if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
       if (!decoctionRuleSatisfied(herb.name, String(herb.decoctionRequirement || ""))) {
         return `candidate_${candidateIndex}_herb_${herbIndex}_decoction_missing_required`;
       }

@@ -16,6 +16,7 @@
     "build:clinical-governance-static-tables": "jiti scripts/build-clinical-governance-static-tables.mjs",
     "build:clinical-vocabulary": "node scripts/build-clinical-vocabulary.mjs",
     "build:clinical-decision-cards": "node scripts/build-clinical-decision-cards.mjs",
+    "build:robustness-cases": "node scripts/build-robustness-case-corpus.mjs --apply",
     "import:tcm-standard-terminology": "python3 scripts/import-tcm-standard-terminology.py",
     "build:tcm-governance-tables": "npm run build:clinical-governance-static-tables && python3 scripts/build-tcm-governance-tables.py",
     "build:tcm-inspection-lexicon": "node scripts/build-tcm-inspection-lexicon.mjs",
@@ -33,6 +34,7 @@
     "test:herb-pair-tiering": "node scripts/test-herb-pair-tiering.mjs",
     "test:colloquial-redflag": "node scripts/test-colloquial-redflag-coverage.mjs",
     "test:redflag-expression-coverage": "jiti scripts/test-redflag-expression-coverage.mjs",
+    "test:major-vaginal-bleeding": "jiti scripts/test-major-vaginal-bleeding.mjs",
     "test:llm-adjudication-boundaries": "jiti scripts/test-llm-adjudication-boundaries.mjs",
     "test:clinical-facts": "jiti scripts/test-clinical-facts.mjs",
     "test:evidence-sentinel": "jiti scripts/test-evidence-sentinel-safe.mjs",
@@ -78,6 +80,10 @@
     "test:stage-outcome": "node scripts/test-stage-outcome.mjs",
     "test:herb-name-resolution": "jiti scripts/test-herb-name-resolution.mjs",
     "test:herb-function-contamination": "jiti scripts/test-herb-function-cross-contamination.mjs",
+    "test:chp-herb-functions": "jiti scripts/test-chp-herb-function-supplements.mjs",
+    "test:robustness-cases": "jiti scripts/test-robustness-case-corpus.mjs",
+    "verify:chp-herb-functions-live": "node scripts/collect-chp-herb-functions.mjs",
+    "regress:robustness-live": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-robustness-live.mjs",
     "test:herb-breadth-surface": "jiti scripts/test-herb-breadth-surface.mjs",
     "test:formula-selection-symmetry": "jiti scripts/test-formula-selection-symmetry.mjs",
     "test:m04-dose-index": "jiti scripts/test-m04-dose-index-coverage.mjs",
@@ -184,7 +190,8 @@
     "test:cough-template-e2e": "jiti scripts/test-cough-template-end-to-end.mjs",
     "test:followup-timeline": "jiti scripts/test-followup-timeline-authoring.mjs",
     "test:western-evidence-grouping": "jiti scripts/test-western-evidence-grouping.mjs",
-    "test:delivery-doc-freshness": "jiti scripts/test-delivery-doc-freshness.mjs"
+    "test:delivery-doc-freshness": "jiti scripts/test-delivery-doc-freshness.mjs",
+    "test:prompt-evidence-budget": "jiti scripts/test-prompt-evidence-budget.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

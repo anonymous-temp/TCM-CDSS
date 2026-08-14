@@ -10,8 +10,7 @@
 // 重跑一次生成器，与仓库里的产物逐字节比对。任何文档改动没同步到交付副本都会红。
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdtempSync, copyFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,21 +28,26 @@ const check = (name, fn) => {
 // 因此比对前把这一戳归一化：判据回到「技术内容是不是源文档的当前产物」。
 const normalizeVersionStamp = (text) => text.replace(/源码版本：`[^`]*`/g, "源码版本：`<stamp>`");
 
-check("飞书导入版是源文档的当前产物（改了源必须重跑生成器）", () => {
-  const before = readFileSync(ARTIFACT, "utf8");
-  // 生成器就地覆盖产物；先备份，跑完立刻还原，避免本套件自己改动仓库。
-  const backup = join(mkdtempSync(join(tmpdir(), "feishu-")), "backup.md");
-  copyFileSync(ARTIFACT, backup);
+let generatedArtifact = "";
+check("飞书导入版可由 fresh clone 重建，已有产物必须与源文档同步", () => {
+  const hadArtifact = existsSync(ARTIFACT);
+  const before = hadArtifact ? readFileSync(ARTIFACT, "utf8") : "";
+  // artifacts/ 按设计不入 Git，fresh clone 上不应因为本机交付产物不存在而失败。
+  // 无论是否已有产物都跑生成器；若已有产物，仍逐字节校验其内容新鲜度。
   try {
     execFileSync("node", ["scripts/build-feishu-doc.mjs"], { cwd: repo, stdio: "pipe" });
     const after = readFileSync(ARTIFACT, "utf8");
-    assert.equal(
-      normalizeVersionStamp(after),
-      normalizeVersionStamp(before),
-      "飞书导入版与源文档不同步——改了 docs/中医CDSS-对外接口文档.md 后请重跑 node scripts/build-feishu-doc.mjs",
-    );
+    generatedArtifact = after;
+    if (hadArtifact) {
+      assert.equal(
+        normalizeVersionStamp(after),
+        normalizeVersionStamp(before),
+        "飞书导入版与源文档不同步——改了 docs/中医CDSS-对外接口文档.md 后请重跑 node scripts/build-feishu-doc.mjs",
+      );
+    }
   } finally {
-    writeFileSync(ARTIFACT, readFileSync(backup, "utf8"));
+    if (hadArtifact) writeFileSync(ARTIFACT, before);
+    else if (existsSync(ARTIFACT)) unlinkSync(ARTIFACT);
   }
 });
 
@@ -59,7 +63,8 @@ check("归一化不得掩盖正文差异（本套件的自检）", () => {
 
 // 这一次的具体字段另钉一条：甲方逐字核对的就是它。
 check("交付副本里不得再有 timelineItems[].indication 的字段定义", () => {
-  const artifact = readFileSync(ARTIFACT, "utf8");
+  const artifact = generatedArtifact;
+  assert.ok(artifact, "未获取飞书导入版生成结果");
   const offending = artifact.split("\n")
     .map((line, index) => ({ line, no: index + 1 }))
     .filter((row) => /timelineItems\[\]\.indication(?!s)/.test(row.line))

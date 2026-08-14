@@ -4,7 +4,7 @@ import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.jso
 import coreHerbsJson from "../data/tcm-formula-core-herbs.json" with { type: "json" };
 import herbSubstitutionPolicyJson from "../data/tcm-herb-identity-substitution-policy.source.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
-import { getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
+import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import {
   compositionLogicForFormulaNames,
@@ -902,6 +902,8 @@ export function executableFormulaCompilationReferences(names: string[]): Formula
     const governed = governedFormulaCompilationRow(reference.formulaName);
     if (!governed?.doseCompilationEligible) return false;
     return reference.ingredients.every((name) => {
+    const clinicianClass = clinicianDoseHerbClass(name);
+    if (clinicianClass === "controlled_or_toxic" || clinicianClass === "endangered_or_banned") return false;
     // 「由医师确定用量」类成分不阻断整方编译（甲方决策：降低门禁、审方兜底）。
     // 它们在处方里按类别标注核验级别，用量由医师确定；系统不替它们担保剂量。
     if (isClinicianDoseHerb(name)) return true;

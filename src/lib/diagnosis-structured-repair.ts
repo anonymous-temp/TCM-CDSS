@@ -19,6 +19,7 @@ export function shouldRunTargetedStructuredRetry(stage: "diagnose" | "prescribe"
   if (stage === "prescribe") {
     return /^(?:json_invalid|sentinel_count_\d+_\d+|structured_resolver_rejected)$/.test(reason) ||
       /(?:formula_reference|formula_direction|formula_compilation|formula_component_\d+_unverified|m04_proposal|m04_(?:clinical|formula_composition|herb_plan|dose_rationale|patient_context)_semantic_review)/.test(reason) ||
+      /^m04_candidate_\d+_high_risk_pair_incompatibility$/.test(reason) ||
       /^m04_candidate_\d+_(?:emperor_(?:missing|excess)|herb_\d+_(?:emperor_(?:not_primary|knowledge_missing|therapy_mismatch)|unknown|dose_outside_conservative_range|special_population_high_risk_[a-z0-9_]+|unsupported_high_impact_[a-z0-9_]+))$/.test(reason) ||
       /^m04_modification_\d+_herb_\d+_unsupported_high_impact_[a-z0-9_]+$/.test(reason);
   }

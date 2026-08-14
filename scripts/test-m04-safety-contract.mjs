@@ -20,6 +20,8 @@ import assert from "node:assert/strict";
 import { m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
 import { rejectionTier, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "../src/lib/diagnosis-rejection-tiers.ts";
 import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
+import { mergePrescriptionReviewItems } from "../src/lib/diagnosis-safety.ts";
+import { readFileSync } from "node:fs";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -131,6 +133,12 @@ const shortCircuitMask = (reasoning) => {
 };
 
 const DANGEROUS_DEFECTS = [
+  ["严管动物药（羚羊角）", (r) => {
+    r.formula.candidates[0].herbs[0] = {
+      ...r.formula.candidates[0].herbs[0], name: "羚羊角", dose: "1g",
+      prescriptionRole: "平肝息风", function: "平肝息风，清肝明目，散血解毒",
+    };
+  }],
   ["十八反药对（甘草+甘遂）", (r) => {
     r.formula.candidates[0].herbs.push({
       name: "甘遂", dose: "1g", role: "佐", prescriptionRole: "泻水逐饮", targetKind: "pathogenesis_node",
@@ -215,6 +223,28 @@ assert.equal(rejectionTier("m04_candidate_0_high_risk_pair_incompatibility"), "T
 assert.equal(rejectionTier("m04_candidate_0_herb_1_decoction_missing_required"), "T1", "特殊煎法永远是 T1");
 assert.equal(rejectionTier("m04_candidate_0_name"), "T2");
 assert.equal(rejectionTier("m04_visible_extra_herb_rows"), "T3");
+
+// 路由最后一公里不得把安全重算挂在“先有其他 issue”的分支内。这次真实回归里
+// 甘草+海藻的全量合同因 advisory 口径返回 undefined，导致原本已存在的 T1 函数根本没被调用。
+const prescribeRouteSource = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
+const finalSafetyIndex = prescribeRouteSource.indexOf("const safetyIssue = m04SafetyContractIssue(");
+const finalIssueIndex = prescribeRouteSource.indexOf("const issue = safetyIssue || formulaCompilationContractIssue");
+assert.ok(finalSafetyIndex >= 0 && finalIssueIndex > finalSafetyIndex,
+  "M04 最终出口必须先无条件重跑 safetyIssue，再进入质量合同分级");
+
+const diagnosisApiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
+const advisoryPredicate = diagnosisApiSource.match(/function isM04AuditAdvisoryReason[\s\S]*?\n\}/)?.[0] || "";
+assert.doesNotMatch(advisoryPredicate, /high_risk_pair_incompatibility/,
+  "十八反药对不得进入后置审方 advisory 放行通道");
+
+assert.deepEqual(
+  mergePrescriptionReviewItems(
+    ["过敏史", "当前用药"],
+    ["当前用药", "语义红旗筛查未完成（模型超时）"],
+  ),
+  ["过敏史", "当前用药", "语义红旗筛查未完成（模型超时）"],
+  "M04 信息完整性边界必须合并权限原因和安全门缺项，且保持稳定去重",
+);
 
 console.log(JSON.stringify({
   suite: "m04-safety-contract",

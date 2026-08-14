@@ -23,6 +23,7 @@ const {
 } = await import("../src/lib/tcm-formula-indications.ts");
 const { highImpactHerbDirectionIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
 const { getTcmHerbFunctionText } = await import("../src/lib/tcm-knowledge.ts");
+const { buildDeterministicFormulaReferenceFallback } = await import("../src/lib/m04-deterministic-fallback.ts");
 
 const herbs = (...names) => names.map((name) => ({ name }));
 const formulaCatalog = JSON.parse(readFileSync(new URL("../src/data/tcm-formula-sources.json", import.meta.url), "utf8"));
@@ -1182,6 +1183,18 @@ console.log(JSON.stringify({ cases: 328, classicEvidencePerCandidate: classicEvi
   assert.equal(clinicianDoseHerbClass("雄黄"), "controlled_or_toxic");
   assert.equal(clinicianDoseHerbClass("麝香"), "endangered_or_banned");
   assert.equal(clinicianDoseHerbClass("犀角"), "endangered_or_banned");
+  assert.equal(clinicianDoseHerbClass("羚羊角"), "endangered_or_banned",
+    "羚羊角虽有药典剂量，仍仅限定点医院依法使用，不得掉出监管轴");
+  assert.equal(executableFormulaCompilationReferences(["羚羊角汤"]).length, 0,
+    "药典数值边界不得覆盖羚羊角的定点使用监管限制");
+  assert.ok(formulaNamesWithoutExecutableDoseCompilation(["羚羊角汤"]).includes("羚羊角汤"),
+    "含羚羊角的锁定方必须降级为不可自动编译剂量");
+  const antelopeFallback = buildDeterministicFormulaReferenceFallback(
+    { patient: { age: 80 }, chiefComplaint: "视力骤降", conversation: [] },
+    { overview: { recommendedFormulaNames: ["羚羊角汤"], primarySyndrome: "肝阳上亢证" }, therapy: { overallMethod: "平肝潜阳" } },
+  ) || "";
+  assert.doesNotMatch(antelopeFallback, /\|\s*羚羊角(?:片)?\s*\|[^\n]*\d+(?:\.\d+)?[–-]\d+(?:\.\d+)?g/,
+    "确定性兜底页不得把羚羊角药典区间呈现成可参考定量");
   assert.equal(clinicianDoseHerbClass("龙骨"), "pharmacopoeia_not_listed");
   assert.equal(clinicianDoseHerbClass("粳米"), "food_or_vehicle");
   // 有法定药典边界的常用药不得被误归入豁免层——那会让它们的剂量校验被跳过。

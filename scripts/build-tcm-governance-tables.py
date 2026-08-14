@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import os
 import re
 from functools import lru_cache
 import unicodedata
@@ -20,7 +21,11 @@ from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_ROOT = PROJECT_ROOT / "src/data"
-HERB_MAPPING_SOURCE = PROJECT_ROOT / "药学基础数据/重点整理数据表/中药饮片标准名别名炮制品映射表.csv"
+HERB_MAPPING_SOURCE_REF = "药学基础数据/重点整理数据表/中药饮片标准名别名炮制品映射表.csv"
+HERB_MAPPING_SOURCE = Path(os.environ.get(
+    "TCM_HERB_MAPPING_SOURCE",
+    PROJECT_ROOT / HERB_MAPPING_SOURCE_REF,
+))
 FORMULA_SOURCE = DATA_ROOT / "tcm-formula-sources.json"
 FORMULA_INDICATIONS = DATA_ROOT / "tcm-formula-indications.json"
 VERIFIED_FORMULAS = DATA_ROOT / "tcm-verified-formula-supplements.json"
@@ -495,7 +500,9 @@ def build_herb_catalog() -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     payload = {
         "schemaVersion": "tcm-herb-identity-catalog-v2",
         "source": {
-            "file": str(HERB_MAPPING_SOURCE.relative_to(PROJECT_ROOT)),
+            # Keep the governed locator portable even when a clean worktree supplies the same
+            # source through TCM_HERB_MAPPING_SOURCE from the sibling data repository.
+            "file": HERB_MAPPING_SOURCE_REF,
             "sha256": sha256(HERB_MAPPING_SOURCE),
             "rowCount": len(rows),
         },
@@ -1101,6 +1108,26 @@ def clinician_dose_ingredient_names() -> set[str]:
             if compacted:
                 names.add(compacted)
     return names
+
+
+def endangered_or_banned_ingredient_names() -> set[str]:
+    """依法禁用或限定资质使用的药材；有药典剂量也不得取得自动剂量编译资格。"""
+    policy = read_json(CLINICIAN_DOSE_POLICY)
+    return {
+        compact(item.get("name"))
+        for item in ((policy.get("ingredients") or {}).get("endangered_or_banned") or [])
+        if compact(item.get("name"))
+    }
+
+
+def controlled_or_toxic_clinician_ingredient_names() -> set[str]:
+    """运行时剂量政策补充识别的管制/毒性药名（含炮制变体的基名）。"""
+    policy = read_json(CLINICIAN_DOSE_POLICY)
+    return {
+        compact(item.get("name"))
+        for item in ((policy.get("ingredients") or {}).get("controlled_or_toxic") or [])
+        if compact(item.get("name"))
+    }
 
 
 CLINICIAN_DOSE_AFFIX = re.compile(
@@ -1788,6 +1815,9 @@ def build_formula_catalog(
     disease_named_entries: list[str] = []
     restored_name_composition: list[str] = []
     renamed_name_composition: list[str] = []
+    clinician_dose_names = clinician_dose_ingredient_names()
+    endangered_or_banned_names = endangered_or_banned_ingredient_names()
+    controlled_or_toxic_clinician_names = controlled_or_toxic_clinician_ingredient_names()
     for name, item in sorted(governed.items()):
         # 甲方核定表落地（2026-08-09）：恢复组成 / 剔除 / 题名规范。
         # 恢复优先于剔除——医生给出了通行组成的，救回来比剔掉更有价值
@@ -1843,7 +1873,6 @@ def build_formula_catalog(
             identity_blocking_reasons.append("composition_is_collated_chapter_requires_source_split")
             quarantined_collated_chapters.append(f"{name}@{item.get('source') or ''}:{len(item['ingredients'])}味")
         dose_blocking_reasons = []
-        clinician_dose_names = clinician_dose_ingredient_names()
         # 「由医师确定用量」类成分不参与剂量可编译性判定（见 clinician_dose_ingredient_names）。
         # 歧义属名不进这一条：它的阻断理由与处置都不同（见下方
         # ingredient_variety_ambiguous_requires_clinician_selection）。混进来会让
@@ -1951,7 +1980,15 @@ def build_formula_catalog(
             link["rawName"]
             for link in ingredient_links
             if link.get("autoResolvable")
-            and compact(link.get("doseCanonicalName") or link.get("canonicalName")) in controlled_toxic_names
+            and (
+                compact(link.get("doseCanonicalName") or link.get("canonicalName")) in controlled_toxic_names
+                or any(
+                    variant in controlled_or_toxic_clinician_names
+                    for variant in name_variants(
+                        link.get("rawName"), link.get("canonicalName"), link.get("doseCanonicalName"),
+                    )
+                )
+            )
         })
         # 管制品种不再阻断整方编译（甲方 2026-08-01 决策：降低门禁、审方兜底），但**必须**
         # 在载荷里保持独立可见：下游据此把该药味标为 toxic_regulated、提升告警级别，
@@ -1960,6 +1997,21 @@ def build_formula_catalog(
         # 这不是「算不出剂量」而是「系统没有资格做」，审方兜底替代不了处方权。
         if controlled_toxic_ingredients:
             dose_blocking_reasons.append("ingredient_controlled_toxic_requires_manual_prescription")
+        endangered_or_banned_ingredients = sorted({
+            link["rawName"]
+            for link in ingredient_links
+            if link.get("autoResolvable")
+            and any(
+                variant in endangered_or_banned_names
+                for variant in name_variants(
+                    link.get("rawName"), link.get("canonicalName"), link.get("doseCanonicalName"),
+                )
+            )
+        })
+        if endangered_or_banned_ingredients:
+            # 法律禁用或定点资质限制不是“该味由医生补量”就能解除的数据缺口；不进入下面的
+            # 扣除豁免分支，整方保持不可自动编译剂量。
+            dose_blocking_reasons.append("ingredient_endangered_or_banned_requires_legal_eligibility")
 
         # ── 毒性/管制味不作废整方，改为「扣除该味 + 其余正常编译 + 医师单独处理 + 强制审方」──
         # 原口径把「方里有一味系统不敢定量」等同于「这张方不能用」。代价是 521/2915 张受治理方
@@ -2093,6 +2145,7 @@ def build_formula_catalog(
             "identityBlockingReasons": identity_blocking_reasons,
             "doseBlockingReasons": dose_blocking_reasons,
             "controlledToxicIngredientNames": controlled_toxic_ingredients,
+            "endangeredOrBannedIngredientNames": endangered_or_banned_ingredients,
             "controlledToxicNotice": controlled_toxic_notice,
             "unresolvedDoseIngredientNames": unresolved_ingredients,
             "corruptIngredientNames": corrupt_ingredient_names,

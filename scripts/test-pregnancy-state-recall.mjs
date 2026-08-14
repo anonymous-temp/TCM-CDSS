@@ -41,6 +41,16 @@ for (const text of ["停经45天，验孕棒两条杠", "疑似妊娠", "不能�
   assert.equal(statusOf(assessPregnancyState(text)), "possible", `可疑妊娠必须落闸：${text}`);
 }
 
+// 单纯闭经是“状态待核实”，不是当前妊娠的阳性证据；否则闭经/高泌乳素病例会整类误降级。
+for (const text of [
+  "停经7个月，B超示子宫内膜5mm，E2偏低、PRL升高",
+  "闭经半年，妊娠状态尚未核实",
+]) {
+  const status = statusOf(assessPregnancyState(text));
+  assert.notEqual(status, "positive", `闭经本身不得推断当前妊娠：${text}`);
+  assert.notEqual(status, "possible", `无验孕证据的闭经不得升级为可疑妊娠：${text}`);
+}
+
 // 明确否认必须是 negative——不得因为补了口语阳性写法而把否认盖过去。
 for (const text of ["未孕", "未怀孕", "否认妊娠", "HCG阴性", "妊娠试验阴性"]) {
   assert.equal(statusOf(assessPregnancyState(text)), "negative", `明确否认不得被阳性词表盖过：${text}`);

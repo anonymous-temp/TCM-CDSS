@@ -77,6 +77,15 @@ const GOVERNED_PERITONEAL_SIGNS = GOVERNED_ACUTE_ABDOMEN_COMPANIONS.filter((term
   ["反跳痛", "松手更疼", "板状腹", "腹肌紧张"].includes(term));
 const GOVERNED_ACUTE_ONSET_TERMS = redflagTriageLexicon.dimensions.acuteOnset;
 const GOVERNED_SEVERE_TERMS = redflagTriageLexicon.dimensions.severe;
+const GOVERNED_BLEEDING = governedRedFlagCategory("bleeding");
+const GOVERNED_MAJOR_VAGINAL_BLEEDING_TERMS = GOVERNED_BLEEDING.symptoms
+  .filter((term) => /阴道/.test(term));
+const GOVERNED_VAGINAL_BLEEDING_TERMS = GOVERNED_MAJOR_VAGINAL_BLEEDING_TERMS
+  .flatMap((term) => {
+    const base = term.replace(/大量/g, "");
+    return [base, base.replace(/出血/g, "流血")];
+  });
+const GOVERNED_BLEEDING_COMPANIONS = GOVERNED_BLEEDING.dangerCompanions;
 /**
  * 上消化道**警示征象**（alarm features）。与 gi_bleed 的区别：出血是「已经在出」，
  * 警示征象是「可能有占位/梗阻/复发」——两者的处置优先级同样高，但此前只有前者有规则。
@@ -2448,11 +2457,17 @@ const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐|惊
 const ACUTE_CONSCIOUSNESS_CHANGE_TERMS = ["昏睡", "嗜睡", "谵妄"];
 
 function hasAcuteExtendedStrokeWarning(text: string): boolean {
-  const acuteCue = /(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\s*(?:\d+|[一二两三四五六七八九十几两]+)\s*(?:分钟|小时|天|日)|本次|当前|目前|新发|突发|突然|再发|复发)/;
-  const extendedSign = /(?:(?:左|右|单|一|偏)侧|半身|偏身)[^。；;\n]{0,8}(?:麻木|感觉减退|感觉丧失|偏盲)|视物重影|复视|突然失明|视力骤降|视野缺损|偏盲|行走不稳|站立不稳|共济失调/;
-  const acuteExtended = new RegExp(`${acuteCue.source}.{0,24}${extendedSign.source}`);
+  const acuteCue = /(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\s*(?:\d+|[一二两三四五六七八九十几两]+)\s*(?:分钟|小时|天|日)|本次|当前|目前|新发|突发|突然|再发|(?<!反)复发)/;
+  const cueRequiredSign = /(?:(?:左|右|单|一|偏)侧|半身|偏身)[^。；;\n]{0,8}(?:麻木|感觉减退|感觉丧失|偏盲)|视物重影|复视|视野缺损|偏盲|行走不稳|站立不稳|共济失调/;
+  const selfAcuteVisualSign = /突然失明|视力骤降/;
+  // extendedSign 自身含顶层 `|`；拼接时必须整体分组。未分组会让急性前缀只约束第一支，
+  // 后面的“行走不稳/复视/共济失调”无论持续多久都直接命中红旗。
+  // “突然失明/视力骤降”本身已编码急性变化，不再额外要求第二个急性前缀。
+  const acuteExtended = new RegExp(`${acuteCue.source}.{0,24}(?:${cueRequiredSign.source})`);
   const posteriorCombination = new RegExp(`${acuteCue.source}.{0,24}(?:眩晕|头晕).{0,20}(?:复视|视物重影|行走不稳|站立不稳|共济失调|吞咽困难|构音不清)|${acuteCue.source}.{0,24}(?:复视|视物重影|行走不稳|站立不稳|共济失调).{0,20}(?:眩晕|头晕)`);
-  return hasPatternWithoutNegation(text, acuteExtended) || hasPatternWithoutNegation(text, posteriorCombination);
+  return hasPatternWithoutNegation(text, selfAcuteVisualSign) ||
+    hasPatternWithoutNegation(text, acuteExtended) ||
+    hasPatternWithoutNegation(text, posteriorCombination);
 }
 
 function hasStablePostAcuteNeurologicContext(text: string): boolean {
@@ -2460,14 +2475,17 @@ function hasStablePostAcuteNeurologicContext(text: string): boolean {
   const hasEstablishedNeurologicEvent =
     /(?:脑梗死|脑卒中|中风|脑出血|TIA|短暂性脑缺血发作|颅脑损伤|神经损伤)[^。；;\n]{0,28}(?:后|恢复期|康复期|后遗)/i.test(normalized) ||
     /(?:脑梗死|脑卒中|脑出血|中风|TIA|短暂性脑缺血发作)(?:恢复期|康复期|后遗症)/i.test(normalized) ||
-    /(?:脑梗死|脑卒中|中风|脑出血|TIA|短暂性脑缺血发作)[^。；;\n]{0,32}(?:遗留|残留)[^。；;\n]{0,20}(?:无力|麻木|言语不清|口角歪斜|步态异常)/i.test(normalized);
+    /(?:脑梗死|脑卒中|中风|脑出血|TIA|短暂性脑缺血发作)[^。；;\n]{0,32}(?:遗留|残留)[^。；;\n]{0,20}(?:无力|麻木|言语不清|口角歪斜|步态异常)/i.test(normalized) ||
+    // 病案常把确诊与结局拆成相邻两句：“脑 CT 示脑梗死。经治疗后遗留……”。
+    // 句号不能让同一次事件的明确治疗后遗症重新变成“当前起病不明”的急症。
+    /(?:脑梗死|脑卒中|中风|脑出血|TIA|短暂性脑缺血发作)[^。；;\n]{0,16}[。；;]\s*(?:经|已)?(?:抢救|治疗|手术|康复|出院)[^。；;\n]{0,16}(?:后)?(?:后遗|遗留|残留)/i.test(normalized);
   const hasNonAcuteCourse =
     /(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:周|个月|月|年)/.test(normalized);
   const hasCurrentStability =
     /(?:出院后|治疗后|恢复期|康复期|目前|当前|近(?:期|来|\d+个月|[一二两三四五六七八九十]+个月))[^。；;\n]{0,40}(?:病情稳定|稳定|逐渐改善|逐步恢复|无新发|未再发|无再发|无加重)/.test(normalized) ||
     /(?:病情稳定|恢复平稳|康复调理)[^。；;\n]{0,36}(?:无新发|未再发|无再发|无加重)?/.test(normalized);
   const explicitResidualBaseline = /(?:后遗|遗留|残留)[^。；;\n]{0,28}(?:无力|麻木|言语不清|口角歪斜|步态异常)/.test(normalized);
-  const acuteChange = /(?:刚刚|刚才|今日|今天|今晨|新发|突发|突然|再发|复发|快速加重|明显加重|恶化)[^。；;\n]{0,28}(?:无力|麻木|言语不清|口角歪斜|步态异常)|(?:无力|麻木|言语不清|口角歪斜|步态异常)[^。；;\n]{0,20}(?:新发|再发|加重|恶化)/.test(normalized);
+  const acuteChange = /(?:刚刚|刚才|今日|今天|今晨|新发|突发|突然|再发|(?<!反)复发|快速加重|明显加重|恶化)[^。；;\n]{0,28}(?:无力|麻木|言语不清|口角歪斜|步态异常)|(?:无力|麻木|言语不清|口角歪斜|步态异常)[^。；;\n]{0,20}(?:新发|再发|加重|恶化)/.test(normalized);
   return hasEstablishedNeurologicEvent && hasNonAcuteCourse && (hasCurrentStability || (explicitResidualBaseline && !acuteChange));
 }
 
@@ -2478,7 +2496,9 @@ const NEURO_EVENT_ANCHOR_SOURCE = String.raw`(?:脑梗(?:死|塞)?|脑卒中|卒
 const NEURO_RESIDUAL_MARKER_SOURCE = String.raw`(?:后遗(?:症)?(?:期)?|后遗症|遗留|残留|残存|陈旧(?:性)?|恢复期|康复期)`;
 const NEURO_RESIDUAL_MARKER_PATTERN = new RegExp(NEURO_RESIDUAL_MARKER_SOURCE);
 const NEURO_ACUTE_ONSET_CUE_SOURCE = String.raw`(?:刚刚|刚才|方才|今(?:日|天|晨|早|晚)|昨日|昨晚|昨夜|现在|目前|当前|本次|近日|近期|近(?:\d+|[一二两三四五六七八九十]+)\s*(?:小时|天|日|周)|新发|突发|突然|急性)`;
-const NEURO_ACUTE_CHANGE_CUE_SOURCE = String.raw`(?:再发|复发|又发|加重|恶化|进展)`;
+// “反复发作”包含连续子串“复发”，但表达的是慢性反复而不是“本次复发”。
+// 复发必须排除前一字为“反”，否则冻疮/癫痫等多年反复病程会被误点燃为急性卒中。
+const NEURO_ACUTE_CHANGE_CUE_SOURCE = String.raw`(?:再发|(?<!反)复发|又发|加重|恶化|进展)`;
 const NEURO_ACUTE_ANY_CUE_PATTERN = new RegExp(`${NEURO_ACUTE_ONSET_CUE_SOURCE}|${NEURO_ACUTE_CHANGE_CUE_SOURCE}`, "g");
 const NEURO_ACUTE_CHANGE_ONLY_PATTERN = new RegExp(`^(?:${NEURO_ACUTE_CHANGE_CUE_SOURCE})$`);
 const NEURO_HISTORICAL_ANCHOR_PATTERN = /(?:既往|曾经|曾|当时|陈旧|多年前|数年前|(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:年|个月|月|周|天|日)前)/;
@@ -2563,6 +2583,18 @@ function neuroResidualFramingAt(text: string, index: number, matchText: string):
   if (anchoredResidual) return true;
   const { start } = clinicalSubClauseBoundsAt(text, index, matchText.length);
   return NEURO_RESIDUAL_MARKER_PATTERN.test(text.slice(start, index));
+}
+
+// 局限于指趾/耳垂等末梢部位、并有数月数年反复病程的麻木，常见于冻疮、周围神经病等
+// 门诊场景，不能仅因前文恰有“右侧”二字就提升成卒中红旗。该豁免同时要求“慢性/反复”
+// 与“末梢/对称/局限分布”两类证据；任何附着的突发、新发、加重线索仍由上游优先报警。
+function sensoryDeficitIsChronicPeripheralAt(text: string, index: number, matchText: string): boolean {
+  const windowStart = Math.max(0, index - 96);
+  const windowEnd = Math.min(text.length, index + matchText.length + 64);
+  const windowText = text.slice(windowStart, windowEnd);
+  const chronicCourse = /(?:反复|间断|每年|多年|数年|长期|持续)[^。；;\n]{0,24}(?:(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:余|多)?(?:个月|月|年)|发作|存在)|(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:余|多)?(?:个月|月|年)(?:来|以上)?/.test(windowText);
+  const peripheralDistribution = /(?:双(?:手|足|侧手|侧足)|手指|脚趾|指趾|耳垂|末梢|对称|局部)/.test(windowText);
+  return chronicCourse && peripheralDistribution;
 }
 
 function hasOnlyStableResidualNeurologicDeficit(text: string): boolean {
@@ -2739,7 +2771,8 @@ function hasNeurologicEmergencySignal(text: string): boolean {
   // 与局灶缺损同一判别口径：陈旧/残留框架下的慢性感觉缺损不报急症；附着急性变化线索时仍报。
   const activeUnilateralSensoryDeficit = unilateralSensoryMatch != null &&
     (neuroAcuteChangeAttachedAt(normalized, unilateralSensoryMatch.index, unilateralSensoryMatch.text) ||
-      !neuroResidualFramingAt(normalized, unilateralSensoryMatch.index, unilateralSensoryMatch.text));
+      (!neuroResidualFramingAt(normalized, unilateralSensoryMatch.index, unilateralSensoryMatch.text) &&
+        !sensoryDeficitIsChronicPeripheralAt(normalized, unilateralSensoryMatch.index, unilateralSensoryMatch.text)));
   if (stablePostAcuteCourse) {
     const acuteCueBeforeDeficit = new RegExp(`(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\\s*(?:\\d+|[一二两三四五六七八九十几两]+)\\s*(?:小时|天|日)|本次|当前|目前|新发|突发|突然|再发|复发|快速加重|明显加重).{0,20}(?:出现|发生|再发|复发|加重)?[^。；;\\n]{0,8}${FOCAL_NEUROLOGIC_PATTERN.source}`);
     const acuteCueAfterDeficit = new RegExp(`${FOCAL_NEUROLOGIC_PATTERN.source}[^。；;\\n]{0,20}(?:(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|本次|当前|目前)(?:突然)?(?:出现|发生|再发|复发|加重|恶化)|(?<!无)(?<!未)(?:新发|突发|突然|再发|复发|快速加重|明显加重|恶化))`);
@@ -3083,6 +3116,38 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const activeObstetricHemorrhageSignal =
     hasPatternWithoutNegation(text, /(?:孕|妊娠|怀孕)[^。；;\n]{0,40}(?:大量|大出血|持续|反复|鲜红色|血块|浸湿)[^。；;\n]{0,12}(?:阴道)?(?:出血|流血)/) ||
     hasPatternWithoutNegation(text, /(?:阴道)?(?:出血|流血)[^。；;\n]{0,30}(?:大量|大出血|持续|反复|鲜红色|血块|浸湿)[^。；;\n]{0,30}(?:孕|妊娠|怀孕)/);
+  // 非妊娠活动性大量阴道出血同样属于 bleeding 硬门。旧实现只有产科分支，且只认连续短语
+  // 「阴道大量出血」；真实病案常写成「阴道出血21天，量多」「阴道流血不止，面色苍白」，
+  // 甚至已经给出血色素 66g/L。三个信号都在病例里时，旧门仍然红旗为零。
+  //
+  // 症状词从受治理 bleeding 类的「阴道大量出血」派生（只去掉程度词），严重度仍需独立满足：
+  // 明确量多/持续/反复/血块，或循环灌注表现，或血红蛋白/血色素 <=70g/L。少量点滴、
+  // 已止旧史与否定表述不能取得硬门权。
+  const vaginalBleedingPattern = GOVERNED_VAGINAL_BLEEDING_TERMS.join("|") || "阴道(?:出血|流血)";
+  const governedMajorVaginalBleedingPattern = GOVERNED_MAJOR_VAGINAL_BLEEDING_TERMS.join("|");
+  const governedMajorVaginalBleedingAffirmed = governedMajorVaginalBleedingPattern
+    ? hasPatternWithoutNegation(text, new RegExp(`(?:${governedMajorVaginalBleedingPattern})`))
+    : false;
+  const vaginalBleedingAffirmed = governedMajorVaginalBleedingAffirmed ||
+    hasPatternWithoutNegation(text, new RegExp(`(?:${vaginalBleedingPattern})`));
+  const majorBleedingSeverity = [
+    ...GOVERNED_SEVERE_TERMS,
+    "量多", "大出血", "持续", "反复", "不止", "鲜红", "血块", "浸湿",
+  ].join("|");
+  const severityNearVaginalBleeding =
+    hasPatternWithoutNegation(text, new RegExp(
+      `(?:${vaginalBleedingPattern})[^。；;\\n]{0,40}(?:${majorBleedingSeverity})`,
+    )) ||
+    hasPatternWithoutNegation(text, new RegExp(
+      `(?:${majorBleedingSeverity})[^。；;\\n]{0,20}(?:${vaginalBleedingPattern})`,
+    ));
+  const criticalHemoglobin = [...text.matchAll(
+    /(?:血红蛋白|血色素|HGB|Hb(?!A1c))\s*[:：]?\s*(\d+(?:\.\d+)?)\s*(?:g\s*\/\s*L|g\/L)?/gi,
+  )].some((match) => Number(match[1]) > 0 && Number(match[1]) <= 70);
+  const bleedingCompanionAffirmed = GOVERNED_BLEEDING_COMPANIONS.some((term) =>
+    hasPatternWithoutNegation(text, new RegExp(term)));
+  const activeMajorVaginalBleedingSignal = vaginalBleedingAffirmed &&
+    (governedMajorVaginalBleedingAffirmed || severityNearVaginalBleeding || criticalHemoglobin || bleedingCompanionAffirmed);
   const cardiacRiskFlagged = !cardiacClearanceApplies && (acuteChestPainSignal || (chestPainSignal && cardiacCompanion) || acuteChestTightnessSignal || (chestTightnessSignal && cardiacCompanion));
   const reportableCardiacRisk = cardiacRiskFlagged;
   if (reportableCardiacRisk) {
@@ -3111,6 +3176,9 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   }
   if (activeObstetricHemorrhageSignal) {
     redFlags.push("妊娠期活动性大量阴道出血提示产科急症，需立即转产科急诊评估");
+  }
+  if (activeMajorVaginalBleedingSignal && !activeObstetricHemorrhageSignal) {
+    redFlags.push("活动性大量阴道出血伴持续/反复、重度贫血或循环灌注风险，需立即评估失血量与循环状态并急诊处置");
   }
   const acuteRespiratorySignal =
     hasAnyTerm(text, ["端坐呼吸", "不能平卧", "无法平卧", "喘不上气", "口唇发紫", "嘴唇发紫"]) ||
@@ -3232,6 +3300,7 @@ const RED_FLAG_FINDING_RULES: Array<{
   { id: "acute-neurologic-event", message: /神经系统|神经功能|头痛/, source: /头痛|意识障碍|意识不清|神志不清|昏迷|昏睡|嗜睡|谵妄|呼之不应|抽搐|惊厥|无力|偏瘫|说不出话/, explanation: "急性意识、发作性事件或局灶神经异常需优先排除神经急症。" },
   { id: "acute-abdomen-emergency", message: /急腹症|剧烈腹痛|腹痛\/腹胀/, source: /腹痛|腹胀|胃痛|胃脘痛|肚子疼|右下腹痛|上腹痛|心口窝痛|胃部疼痛|反跳痛|松手更疼|板状腹|腹肌紧张/, explanation: "剧烈腹痛或腹膜刺激征达到急腹症硬门槛；单纯突发、尚无重症表现者进入优先评估而非自动急诊定级。" },
   { id: "active-gi-bleeding", message: /消化道出血/, source: /呕血|吐血|黑便|柏油样便|便血|咖啡(?:色|样)/, explanation: "活动性消化道出血表现需立即评估失血量和循环状态。" },
+  { id: "active-major-bleeding", message: /活动性大量阴道出血/, source: /阴道(?:出血|流血)|血红蛋白|血色素|HGB|Hb/i, explanation: "活动性大量阴道出血伴持续、重度贫血或循环灌注表现，达到非产科大出血硬门槛。" },
   { id: "acute-respiratory-event", message: /呼吸循环急症|缺氧/, source: /呼吸困难|气促|喘憋|端坐呼吸|不能平卧|无法平卧|喘不上气|发紫/, explanation: "静息或快速加重的呼吸困难及缺氧表现需立即评估。" },
   { id: "tcm-critical-pattern", message: /危重中医证候术语/, source: /戴阳证|阴盛格阳|脉微欲绝/, explanation: "病历明确记录当前危重证候术语；该术语只触发现代急症核实，不直接授权任何课程方药或操作。" },
 ];
@@ -3808,18 +3877,8 @@ export function derivePrescriptionPermission(state: CaseState): PrescriptionPerm
     return { candidateMode: "blocked", formalAdoption: "blocked", reasons: ["缺少主诉"] };
   }
   if (gate.status === "red_flag") {
-    // advise 档（默认）：红旗不改变候选权限，只改变呈现——警示置顶、正式采纳仍须医生
-    // 逐条确认。block 档保留旧的非剂量降级（浏览器端 process.env 无该变量 ⇒ 恒为 advise，
-    // 与服务端默认一致）。
-    if (gateDispositionIsAdvisory()) {
-      return {
-        candidateMode: "full_dose",
-        formalAdoption: "eligible_after_doctor_confirmation",
-        reasons: gate.redFlags && gate.redFlags.length > 0
-          ? [...gate.redFlags]
-          : ["当前存在急危重分流提示"],
-      };
-    }
+    // advisory-only 指系统不替医生下最终诊断，不等于允许绕开确定性安全层。未解除急症风险时
+    // 仍可给 M03 分析与急诊建议，但 M04 只能给非剂量内容；警示横幅不能替代剂量权限。
     return {
       candidateMode: "non_dose_only",
       formalAdoption: "blocked",
@@ -3896,6 +3955,21 @@ export function derivePrescriptionPermission(state: CaseState): PrescriptionPerm
     formalAdoption: "eligible_after_doctor_confirmation",
     reasons: gate.advisories || [],
   };
+}
+
+/**
+ * Keep every doctor-actionable prescription boundary visible. Permission reasons and safety-gate
+ * missing items overlap frequently, but neither list is a substitute for the other.
+ */
+export function mergePrescriptionReviewItems(
+  permissionReasons: readonly string[] = [],
+  safetyMissingItems: readonly string[] = [],
+): string[] {
+  return Array.from(new Set(
+    [...permissionReasons, ...safetyMissingItems]
+      .map((item) => item.trim())
+      .filter(Boolean),
+  ));
 }
 
 export function evaluateSafetyGate(state: CaseState): SafetyGate {
