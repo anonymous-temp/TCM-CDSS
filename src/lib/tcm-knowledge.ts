@@ -619,12 +619,28 @@ export type TcmHerbPairIncompatibility = {
   basis: string;
 };
 
-function highRiskPairRules(): TcmHerbPairIncompatibility[] {
+/**
+ * 配伍规则全集（十八反 HIGH 130 条 + 十九畏 MEDIUM 28 条）。
+ *
+ * 【为什么要按档拆开，而不是一把放开】
+ * 原实现在这里硬过滤 `severity !== "HIGH"`，于是**十九畏整整 28 条对所有消费方不可见**：
+ * 丁香×郁金、人参×五灵脂、肉桂×赤石脂 这些门诊真会碰到的组合，审方、方前预检、
+ * 页面展示三处一律不提。数据本身没问题——构建产物里 28 条齐全、别名已展开
+ *（丁香/母丁香、人参/红参、肉桂/官桂、巴豆/巴豆霜、硫黄/硫磺、芒硝/玄明粉/朴硝/牙硝、
+ * 川乌/制川乌/草乌/制草乌/乌头），名称 100% 可解析。缺的只是让它们通过这道过滤。
+ *
+ * 但**不能**把十九畏并进 findTcmHerbPairIncompatibilities：那个函数同时喂着
+ * diagnosis-stage-contract 的 candidate_N_high_risk_pair_incompatibility 驳回码，
+ * 并进去就等于把十九畏变成整方作废的硬拦。十九畏在传统上是「相畏」而非「相反」，
+ * 强度本就低一档，源表给的正是 MEDIUM——按「安全问题阻断、质量问题标注」的既定准则，
+ * 它该走提示档。所以：硬门口径一字不动，另开一个 cautions 口给提示类出口用。
+ */
+function herbPairIncompatibilityRules(): TcmHerbPairIncompatibility[] {
   const seen = new Set<string>();
   const rules: TcmHerbPairIncompatibility[] = [];
   for (const herb of data.herbs) {
     for (const entry of herb.entries) {
-      if (entry.type !== "incompatibility" || entry.severity !== "HIGH" || !entry.leftDrug || !entry.rightDrug) continue;
+      if (entry.type !== "incompatibility" || !entry.leftDrug || !entry.rightDrug) continue;
       const leftDrug = canonicalKnowledgeHerbName(entry.leftDrug);
       const rightDrug = canonicalKnowledgeHerbName(entry.rightDrug);
       const key = [leftDrug, rightDrug].sort().join("|");
@@ -634,7 +650,7 @@ function highRiskPairRules(): TcmHerbPairIncompatibility[] {
         leftDrug,
         rightDrug,
         category: entry.category || "高风险配伍",
-        severity: entry.severity,
+        severity: entry.severity || "MEDIUM",
         basis: entry.basis || "本地结构化配伍规则",
       });
     }
@@ -642,19 +658,35 @@ function highRiskPairRules(): TcmHerbPairIncompatibility[] {
   return rules;
 }
 
-const HIGH_RISK_PAIR_RULES = highRiskPairRules();
+const ALL_PAIR_RULES = herbPairIncompatibilityRules();
+/** 硬门档：仅十八反等 HIGH。这一档的口径与放开十九畏之前**逐字一致**。 */
+const HIGH_RISK_PAIR_RULES = ALL_PAIR_RULES.filter((rule) => rule.severity === "HIGH");
+/** 提示档：十九畏等非 HIGH。只进提示类出口，永不产生驳回码。 */
+const CAUTION_PAIR_RULES = ALL_PAIR_RULES.filter((rule) => rule.severity !== "HIGH");
 
-export function findTcmHerbPairIncompatibilities(herbs: readonly string[]): TcmHerbPairIncompatibility[] {
+function matchPairs(rules: readonly TcmHerbPairIncompatibility[], herbs: readonly string[]): TcmHerbPairIncompatibility[] {
   const selected = new Set(herbs.map(canonicalKnowledgeHerbName).filter(Boolean));
-  return HIGH_RISK_PAIR_RULES.filter((rule) => selected.has(rule.leftDrug) && selected.has(rule.rightDrug));
+  return rules.filter((rule) => selected.has(rule.leftDrug) && selected.has(rule.rightDrug));
+}
+
+/** 硬门档命中（十八反）。消费方含契约驳回码，行为不得放宽。 */
+export function findTcmHerbPairIncompatibilities(herbs: readonly string[]): TcmHerbPairIncompatibility[] {
+  return matchPairs(HIGH_RISK_PAIR_RULES, herbs);
+}
+
+/** 提示档命中（十九畏）。只允许进审方提示、方前预检、页面展示与替代药筛选。 */
+export function findTcmHerbPairCautions(herbs: readonly string[]): TcmHerbPairIncompatibility[] {
+  return matchPairs(CAUTION_PAIR_RULES, herbs);
 }
 
 export function buildTcmHerbPairAdvisory(herbs: readonly string[]): string {
   const conflicts = findTcmHerbPairIncompatibilities(herbs);
-  if (conflicts.length === 0) return "";
+  const cautions = findTcmHerbPairCautions(herbs);
+  if (conflicts.length === 0 && cautions.length === 0) return "";
   return [
     "## 生成前配伍预检提示",
     ...conflicts.map((item) => `- **${item.leftDrug}—${item.rightDrug}**：命中${item.category || "高风险配伍"}；依据：${item.basis || "本地结构化配伍规则"}。请医生或药师重点复核，本提示不阻断诊疗流程。`),
+    ...cautions.map((item) => `- **${item.leftDrug}—${item.rightDrug}**：命中${item.category || "配伍相畏"}（提示档，强度低于十八反）；依据：${item.basis || "本地结构化配伍规则"}。请医生或药师确认是否确需同用，本提示不阻断诊疗流程。`),
   ].join("\n");
 }
 
@@ -1611,7 +1643,10 @@ export function governedHerbSubstitutes(
   const inPrescription = new Set(prescriptionHerbs.map(canonicalKnowledgeHerbName).filter(Boolean));
   // 十八反十九畏的比对基准是「现方 + 被替换药」的全集：替代药与其中任何一味冲突都不能给。
   const compatibilityBase = [...inPrescription, canonical];
-  const baseConflicts = findTcmHerbPairIncompatibilities(compatibilityBase).length;
+  // 替代药筛选是**选择**而非阻断，因此十八反与十九畏同权：换上去的药不得比原方多出任何一档配伍问题。
+  const pairIssueCount = (names: readonly string[]) =>
+    findTcmHerbPairIncompatibilities(names).length + findTcmHerbPairCautions(names).length;
+  const baseConflicts = pairIssueCount(compatibilityBase);
   const sourceFunctionText = getTcmHerbFunctionText(canonical);
   const sourceSafety = getTcmHerbGenerationSafetyProfile(canonical);
   const sourceRiskCodes = governedRiskCodes(canonical);
@@ -1627,7 +1662,7 @@ export function governedHerbSubstitutes(
       return Boolean(doseLimit) && !doseLimit?.sourceConflict;
     })
     .filter((candidate) =>
-      findTcmHerbPairIncompatibilities([...compatibilityBase, candidate]).length <= baseConflicts)
+      pairIssueCount([...compatibilityBase, candidate]) <= baseConflicts)
     // 风险不得升级（这条守卫是本函数的临床安全核心，删它等于让系统凭"同类"就换药）。
     //
     // 「同一功效分类」只保证方向大致相同，**不保证力度与禁忌相同**。实测反例：川芎与三棱同属

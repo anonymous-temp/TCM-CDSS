@@ -23,18 +23,22 @@ npm run verify:release      # THE release gate: typecheck + lint + test:determin
 npm run build:tcm-knowledge # regenerate src/data/tcm-knowledge.json (needs external CSVs, see below)
 # Pure unit tests — no server needed; they exercise the deterministic safety/facts/contract layer.
 # All live under scripts/test-*.mjs via jiti (TS imports) or node --test / --experimental-strip-types.
-npm run test:deterministic        # chains all 89 deterministic suites in order; the default pre-change gate (~minutes)
+npm run test:deterministic        # chains all 126 deterministic suites in order; the default pre-change gate (~minutes)
 npm run test:safety-mutations     # ONE suite — this is how you run a single test
 npx jiti scripts/test-safety-mutation-matrix.mjs   # same suite, bypassing npm (faster iteration)
 npm run test:clinical-facts       # clinical-facts.ts additive backstop + schema rejects
 npm run test:stage-contract       # M03/M04 structured-stream contracts + sentinel boundaries
 npm run test:rxaudit-contract     # rxaudit normalize/payload contract
 npm run test:stream-safety        # diagnosis-structured-repair (sentinel-aware repair)
+npm run test:gi-alarm-features    # 上消化道警示征象 + 咖啡样呕吐物构词式；含一条 M02↔安全门防漂移断言
+npm run test:colloquial-redflag   # 口语化表述的红旗覆盖（卒中口语走硬门 / 出血口语走提示档）
 # Live HTTP regressions — REQUIRES A RUNNING SERVER and matching CDSS_API_TOKEN.
 npm run regress:tcm-cdss    # golden-case regression harness (100+ requests, see below)
+npm run regress:robustness  # 真实公开医案压测；断点续跑，REEVALUATE=1 可离线重评已落盘结果
+npm run regress:incompatibility  # 药味工作台改方后重新审方：十八反类别展开 / 超药典上限 / 阴性对照
 ```
 
-There is **no jest/vitest/playwright config**, but the deterministic layer has a real unit-test suite: **90 scripts under `scripts/test-*.mjs`, wired to 88 `test:*` npm scripts**, that import `src/lib/*.ts` directly (via `jiti`, or `node --test` / `--experimental-strip-types`) and assert with `node:assert`. They need no server. **There is no name filter and no watch mode** — a single suite is just its own npm script (`npm run test:<name>`), which is what you should run while iterating; save the full chain for the end.
+There is **no jest/vitest/playwright config**, but the deterministic layer has a real unit-test suite: **92 scripts under `scripts/test-*.mjs`, wired to 129 `test:*` npm scripts (126 in the gate registry)**, that import `src/lib/*.ts` directly (via `jiti`, or `node --test` / `--experimental-strip-types`) and assert with `node:assert`. They need no server. **There is no name filter and no watch mode** — a single suite is just its own npm script (`npm run test:<name>`), which is what you should run while iterating; save the full chain for the end.
 
 `npm run test:deterministic` (`scripts/run-deterministic-regression.mjs`) chains **every** `test:*` script except itself — the array in that file is the registry, so **a new `test:*` npm script is not in the gate until you add it there**. It spawns each via `npm run`, fails fast on the first non-zero exit, and scrubs inherited `RXAI_AUDIT_*` env vars so a stray shell override can't leak into a child suite. Its per-entry comments are the best available changelog of which customer defect each suite pins — read them before deleting or weakening an assertion.
 

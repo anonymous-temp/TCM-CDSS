@@ -25,7 +25,7 @@ import {
   medicationSemanticConsistencyReasons,
   type MedicationSemanticExtraction,
 } from "./medication-event-extractor";
-import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit } from "./tcm-knowledge";
+import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit } from "./tcm-knowledge";
 import { matchesPopulationScope } from "./clinical-vocabulary";
 import { findLocalPatentMedicineEntry } from "./local-patent-medicine-candidates";
 
@@ -1196,14 +1196,26 @@ function localPairItemNos(state: CaseState, candidateIndex: number | undefined, 
 export function buildLocalHighRiskHerbPairIssues(state: CaseState, candidateIndex?: number): RxAuditIssue[] {
   const candidate = candidateFromState(state, candidateIndex);
   if (!candidate) return [];
-  return findTcmHerbPairIncompatibilities(candidate.herbs.map((herb) => herb.name)).map((conflict) => ({
+  const herbNames = candidate.herbs.map((herb) => herb.name);
+  // 十九畏走**提示档**：与十八反同样逐条报出来，但 riskLevel 为 MEDIUM，
+  // 且不进 diagnosis-stage-contract 的驳回码路径（那条路只读 findTcmHerbPairIncompatibilities）。
+  // 放开前它们 28 条对所有出口都不可见——丁香×郁金、人参×五灵脂这类门诊组合一句提示都没有。
+  const tiered = [
+    ...findTcmHerbPairIncompatibilities(herbNames).map((conflict) => ({ conflict, high: true })),
+    ...findTcmHerbPairCautions(herbNames).map((conflict) => ({ conflict, high: false })),
+  ];
+  return tiered.map(({ conflict, high }) => ({
     issueId: stableAuditIssueId(["local-tcm-herb-pair", conflict.leftDrug, conflict.rightDrug]),
     issueIdGenerated: true,
-    riskLevel: "HIGH",
+    riskLevel: high ? "HIGH" : "MEDIUM",
     ruleLevel: "LOCAL_DETERMINISTIC",
     issueType: "TCM_HERB_PAIR_INCOMPATIBILITY",
-    title: `${conflict.leftDrug}—${conflict.rightDrug}高风险配伍`,
-    description: `命中${conflict.category || "高风险配伍"}，请医生或药师重点复核。`,
+    title: high
+      ? `${conflict.leftDrug}—${conflict.rightDrug}高风险配伍`
+      : `${conflict.leftDrug}—${conflict.rightDrug}配伍相畏`,
+    description: high
+      ? `命中${conflict.category || "高风险配伍"}，请医生或药师重点复核。`
+      : `命中${conflict.category || "配伍相畏"}（强度低于十八反），请医生或药师确认是否确需同用。`,
     action: "MANUAL_REVIEW",
     relatedItemNos: localPairItemNos(state, candidateIndex, conflict.leftDrug, conflict.rightDrug),
     evidence: [{
@@ -1223,7 +1235,7 @@ export function buildLocalHighRiskHerbPairSection(state: CaseState, candidateInd
     "## 生成前配伍预检提示",
     ...issues.map((issue) => {
       const basis = issue.evidence[0]?.quote || "本地结构化配伍规则";
-      return `- **${issue.title.replace(/高风险配伍$/, "")}**：${issue.description}依据：${basis}。本提示不阻断诊疗流程。`;
+      return `- **${issue.title.replace(/(?:高风险配伍|配伍相畏)$/, "")}**：${issue.description}依据：${basis}。本提示不阻断诊疗流程。`;
     }),
   ].join("\n");
 }
