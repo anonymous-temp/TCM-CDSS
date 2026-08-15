@@ -703,6 +703,7 @@ const {
   CLINICAL_FACTS_ATTESTATION_VERSION,
   CLINICAL_FACTS_CACHE_TTL_MS,
   CLINICAL_FACTS_EMPTY_CACHE_TTL_MS,
+  CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS,
   CLINICAL_FACTS_EXTRACTOR_VERSION,
   CLINICAL_FACTS_PROMPT_VERSION,
   callClinicalFactsPhaseWithRetry,
@@ -1053,6 +1054,15 @@ try {
   Date.now = realDateNow;
 }
 const emptyExpiryCalls = { count: 0 };
+const signedChainReuseCalls = { count: 0 };
+const signedChainReuse = await maybeAttachClinicalFactsBackstop(expiredEmptyState, async (_system, _user, _signal, phase) => {
+  if (phase === "extract") signedChainReuseCalls.count += 1;
+  return JSON.stringify({ redFlags: [] });
+}, undefined, { cacheTtlOverrideMs: CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS });
+ok(
+  "缓存生命周期: 已签名结构化链可在普通空结果 TTL 后复用同一指纹事实",
+  signedChainReuseCalls.count === 0 && signedChainReuse.clinicalFacts?.resultSource === "cache",
+);
 await maybeAttachClinicalFactsBackstop(expiredEmptyState, async (_system, _user, _signal, phase) => {
   if (phase === "extract") emptyExpiryCalls.count += 1;
   return JSON.stringify({ redFlags: [] });

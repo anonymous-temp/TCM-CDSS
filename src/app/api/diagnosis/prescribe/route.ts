@@ -15,7 +15,7 @@ import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-safety";
 import type { SafetyGate } from "@/lib/diagnosis-types";
 import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignature } from "@/lib/reasoning-contract-signature";
-import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS, hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
 import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
 import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
@@ -72,7 +72,12 @@ export async function POST(req: Request) {
   const deterministicGate = withSafetyGate(parsed.caseState);
   const caseState = deterministicGate.safetyGate?.status === "red_flag"
     ? parsed.caseState
-    : await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal);
+    // The M03 signature above binds this exact record. Reusing its signed semantic pre-check for
+    // the bounded M03→M04 chain avoids turning an unchanged 150s-old empty result into two fresh
+    // model calls just because M03 itself legitimately consumed the 180s orchestration budget.
+    : await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal, {
+        cacheTtlOverrideMs: CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS,
+      });
   const gated = withSafetyGate(caseState);
   const permission = derivePrescriptionPermission(gated);
   const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready" || permission.candidateMode === "limited_dose";

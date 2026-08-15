@@ -25,6 +25,11 @@ export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from 
 
 export const CLINICAL_FACTS_ATTESTATION_VERSION = "tcm-cdss-clinical-facts-attestation-v7";
 export const CLINICAL_FACTS_CACHE_TTL_MS = 5 * 60_000;
+// A signed M03 may legitimately consume the full 180s orchestration budget, and one bounded M04
+// regeneration can extend the same unchanged chain beyond the ordinary semantic cache TTL. Routes
+// may opt into this ceiling only after they have verified the stage signature that binds the exact
+// case state. The normal red-flag/question/diagnose cache policy remains unchanged.
+export const CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS = 10 * 60_000;
 /**
  * 空红旗结果的短 TTL。2026-08-08 由 30s 抬到 150s，理由与边界如下——
  *
@@ -391,6 +396,7 @@ function signClinicalFacts(facts: NonNullable<CaseState["clinicalFacts"]>): stri
 export function hasValidClinicalFactsAttestation(
   facts: CaseState["clinicalFacts"],
   nowMs = Date.now(),
+  cacheTtlOverrideMs?: number,
 ): boolean {
   const key = attestationKey();
   if (!facts?.attestation || key.length < 16) return false;
@@ -404,9 +410,12 @@ export function hasValidClinicalFactsAttestation(
   if (!Number.isFinite(extractedAtMs)) return false;
   const ageMs = nowMs - extractedAtMs;
   if (ageMs < -CLINICAL_FACTS_FUTURE_SKEW_MS) return false;
-  const ttlMs = facts.redFlags.length === 0
+  const defaultTtlMs = facts.redFlags.length === 0
     ? CLINICAL_FACTS_EMPTY_CACHE_TTL_MS
     : CLINICAL_FACTS_CACHE_TTL_MS;
+  const ttlMs = Number.isFinite(cacheTtlOverrideMs) && Number(cacheTtlOverrideMs) > defaultTtlMs
+    ? Math.min(Number(cacheTtlOverrideMs), CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS)
+    : defaultTtlMs;
   if (ageMs > ttlMs) return false;
   const expected = signClinicalFacts({ ...facts, attestation: undefined });
   if (!expected || expected.length !== facts.attestation.length) return false;
@@ -440,6 +449,7 @@ export async function maybeAttachClinicalFactsBackstop(
   state: CaseState,
   llmCall: FactsLlmCall = REAL_FACTS_LLM_CALL,
   signal?: AbortSignal,
+  options?: { cacheTtlOverrideMs?: number },
 ): Promise<CaseState> {
   const withoutStaleFacts = { ...state, clinicalFacts: undefined };
   if (!isClinicalFactsBackstopEnabled()) {
@@ -460,7 +470,11 @@ export async function maybeAttachClinicalFactsBackstop(
   const sourceProjection = projectClinicalFactsSource(fullText);
   const text = sourceProjection.text;
   const sourceFingerprint = createHash("sha256").update(fullText).digest("hex").slice(0, 32);
-  if (state.clinicalFacts?.sourceFingerprint === sourceFingerprint && hasValidClinicalFactsAttestation(state.clinicalFacts)) {
+  if (state.clinicalFacts?.sourceFingerprint === sourceFingerprint && hasValidClinicalFactsAttestation(
+    state.clinicalFacts,
+    Date.now(),
+    options?.cacheTtlOverrideMs,
+  )) {
     return {
       ...state,
       clinicalFacts: { ...state.clinicalFacts, resultSource: "cache" },
