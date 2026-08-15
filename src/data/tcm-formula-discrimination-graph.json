@@ -12,33 +12,49 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "太阳中风",
             "有汗",
             "恶风",
-            "脉缓",
-            "解肌调营卫"
+            "脉缓"
           ],
           "againstTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
+            "脉紧"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳中风"
+          ],
+          "supportTermsTherapyStatements": [
+            "解肌调营卫"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "againstTermsTherapyStatements": [
             "发阳宣肺"
           ]
         },
         "to": {
           "supportTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
-            "发阳宣肺"
+            "脉紧"
           ],
           "againstTerms": [
-            "太阳中风",
             "有汗",
             "恶风",
-            "脉缓",
+            "脉缓"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "supportTermsTherapyStatements": [
+            "发阳宣肺"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳中风"
+          ],
+          "againstTermsTherapyStatements": [
             "解肌调营卫"
           ]
         }
@@ -60,16 +76,20 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
-            "发阳宣肺"
+            "脉紧"
           ],
           "againstTerms": [
             "表寒里热",
             "无汗烦躁",
             "体痛"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "supportTermsTherapyStatements": [
+            "发阳宣肺"
           ]
         },
         "to": {
@@ -79,10 +99,14 @@
             "体痛"
           ],
           "againstTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
+            "脉紧"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "againstTermsTherapyStatements": [
             "发阳宣肺"
           ]
         }
@@ -104,12 +128,15 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "太阳中风兼项背强"
+            "项背强"
           ],
           "againstTerms": [
             "项背强几几",
             "无汗",
             "恶风"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳中风"
           ]
         },
         "to": {
@@ -119,7 +146,10 @@
             "恶风"
           ],
           "againstTerms": [
-            "太阳中风兼项背强"
+            "项背强"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳中风"
           ]
         }
       },
@@ -538,14 +568,17 @@
             "阳气伤"
           ],
           "againstTerms": [
-            "少阴病心中烦",
+            "心中烦",
             "不得卧",
             "偏阴虚火扰"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阴病"
           ]
         },
         "to": {
           "supportTerms": [
-            "少阴病心中烦",
+            "心中烦",
             "不得卧",
             "偏阴虚火扰"
           ],
@@ -553,6 +586,9 @@
             "发汗太过",
             "昼日烦躁不得眠",
             "阳气伤"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阴病"
           ]
         }
       },
@@ -573,13 +609,16 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "少阳病往来寒热",
+            "往来寒热",
             "胸胁苦满",
             "妇人热入血室"
           ],
           "againstTerms": [
             "往来寒热但无恶心",
             "皮下邪气未透"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阳病"
           ]
         },
         "to": {
@@ -588,9 +627,12 @@
             "皮下邪气未透"
           ],
           "againstTerms": [
-            "少阳病往来寒热",
+            "往来寒热",
             "胸胁苦满",
             "妇人热入血室"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阳病"
           ]
         }
       },
@@ -614,23 +656,31 @@
             "发汗后津血亏虚而身疼痛"
           ],
           "againstTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
+            "脉紧"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "againstTermsTherapyStatements": [
             "发阳宣肺"
           ]
         },
         "to": {
           "supportTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
-            "发阳宣肺"
+            "脉紧"
           ],
           "againstTerms": [
             "发汗后津血亏虚而身疼痛"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "supportTermsTherapyStatements": [
+            "发阳宣肺"
           ]
         }
       },
@@ -986,20 +1036,32 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "少阴病得二三日"
+            "病程二三日"
           ],
           "againstTerms": [
-            "少阴病初得兼表",
+            "初得兼表",
             "脉沉微细"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阴病"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阴病"
           ]
         },
         "to": {
           "supportTerms": [
-            "少阴病初得兼表",
+            "初得兼表",
             "脉沉微细"
           ],
           "againstTerms": [
-            "少阴病得二三日"
+            "病程二三日"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阴病"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阴病"
           ]
         }
       },
@@ -1023,7 +1085,7 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "少阴病心中烦",
+            "心中烦",
             "不得卧",
             "偏阴虚火扰"
           ],
@@ -1032,6 +1094,9 @@
             "少阴里寒极盛",
             "下利清谷",
             "四肢厥冷"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阴病"
           ]
         },
         "to": {
@@ -1042,9 +1107,12 @@
             "四肢厥冷"
           ],
           "againstTerms": [
-            "少阴病心中烦",
+            "心中烦",
             "不得卧",
             "偏阴虚火扰"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阴病"
           ]
         }
       },
@@ -1099,25 +1167,39 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "太阳中风",
             "有汗",
             "恶风",
-            "脉缓",
-            "解肌调营卫"
+            "脉缓"
           ],
           "againstTerms": [
-            "太阳中风兼项背强"
+            "项背强"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳中风"
+          ],
+          "supportTermsTherapyStatements": [
+            "解肌调营卫"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳中风"
           ]
         },
         "to": {
           "supportTerms": [
-            "太阳中风兼项背强"
+            "项背强"
           ],
           "againstTerms": [
-            "太阳中风",
             "有汗",
             "恶风",
-            "脉缓",
+            "脉缓"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳中风"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳中风"
+          ],
+          "againstTermsTherapyStatements": [
             "解肌调营卫"
           ]
         }
@@ -1140,12 +1222,15 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "太阳中风兼项背强"
+            "项背强"
           ],
           "againstTerms": [
             "发汗太过",
             "汗漏不止",
             "阳虚不能固表"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳中风"
           ]
         },
         "to": {
@@ -1155,7 +1240,10 @@
             "阳虚不能固表"
           ],
           "againstTerms": [
-            "太阳中风兼项背强"
+            "项背强"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳中风"
           ]
         }
       },
@@ -1265,24 +1353,32 @@
             "皮下邪气未透"
           ],
           "againstTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
+            "脉紧"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "againstTermsTherapyStatements": [
             "发阳宣肺"
           ]
         },
         "to": {
           "supportTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
-            "发阳宣肺"
+            "脉紧"
           ],
           "againstTerms": [
             "往来寒热但无恶心",
             "皮下邪气未透"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "supportTermsTherapyStatements": [
+            "发阳宣肺"
           ]
         }
       },
@@ -1304,16 +1400,20 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
-            "发阳宣肺"
+            "脉紧"
           ],
           "againstTerms": [
             "项背强几几",
             "无汗",
             "恶风"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "supportTermsTherapyStatements": [
+            "发阳宣肺"
           ]
         },
         "to": {
@@ -1323,10 +1423,14 @@
             "恶风"
           ],
           "againstTerms": [
-            "太阳伤寒",
             "无汗",
             "体痛",
-            "脉紧",
+            "脉紧"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阳伤寒"
+          ],
+          "againstTermsTherapyStatements": [
             "发阳宣肺"
           ]
         }
@@ -1514,19 +1618,23 @@
             "阳气伤"
           ],
           "againstTerms": [
-            "发汗伤心阳",
             "心下悸"
+          ],
+          "againstTermsTherapyStatements": [
+            "发汗伤心阳"
           ]
         },
         "to": {
           "supportTerms": [
-            "发汗伤心阳",
             "心下悸"
           ],
           "againstTerms": [
             "发汗太过",
             "昼日烦躁不得眠",
             "阳气伤"
+          ],
+          "supportTermsTherapyStatements": [
+            "发汗伤心阳"
           ]
         }
       },
@@ -1548,11 +1656,13 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "发汗伤心阳",
             "心下悸"
           ],
           "againstTerms": [
             "发汗后津血亏虚而身疼痛"
+          ],
+          "supportTermsTherapyStatements": [
+            "发汗伤心阳"
           ]
         },
         "to": {
@@ -1560,8 +1670,10 @@
             "发汗后津血亏虚而身疼痛"
           ],
           "againstTerms": [
-            "发汗伤心阳",
             "心下悸"
+          ],
+          "againstTermsTherapyStatements": [
+            "发汗伤心阳"
           ]
         }
       },
@@ -1858,12 +1970,15 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "少阳病往来寒热",
+            "往来寒热",
             "胸胁苦满",
             "妇人热入血室"
           ],
           "againstTerms": [
             "一半太阳一半少阳"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阳病"
           ]
         },
         "to": {
@@ -1871,9 +1986,12 @@
             "一半太阳一半少阳"
           ],
           "againstTerms": [
-            "少阳病往来寒热",
+            "往来寒热",
             "胸胁苦满",
             "妇人热入血室"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阳病"
           ]
         }
       },
@@ -2607,11 +2725,14 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "太阴病腹满时痛"
+            "腹满时痛"
           ],
           "againstTerms": [
             "太阴兼实积",
             "腹满痛较重"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "太阴病"
           ]
         },
         "to": {
@@ -2620,7 +2741,10 @@
             "腹满痛较重"
           ],
           "againstTerms": [
-            "太阴病腹满时痛"
+            "腹满时痛"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "太阴病"
           ]
         }
       },
@@ -2691,13 +2815,16 @@
             "四肢厥冷"
           ],
           "againstTerms": [
-            "少阴病初得兼表",
+            "初得兼表",
             "脉沉微细"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阴病"
           ]
         },
         "to": {
           "supportTerms": [
-            "少阴病初得兼表",
+            "初得兼表",
             "脉沉微细"
           ],
           "againstTerms": [
@@ -2705,6 +2832,9 @@
             "少阴里寒极盛",
             "下利清谷",
             "四肢厥冷"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阴病"
           ]
         }
       },
@@ -2729,22 +2859,34 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "少阴病得二三日"
+            "病程二三日"
           ],
           "againstTerms": [
-            "少阴病心中烦",
+            "心中烦",
             "不得卧",
             "偏阴虚火扰"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阴病"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阴病"
           ]
         },
         "to": {
           "supportTerms": [
-            "少阴病心中烦",
+            "心中烦",
             "不得卧",
             "偏阴虚火扰"
           ],
           "againstTerms": [
-            "少阴病得二三日"
+            "病程二三日"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阴病"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阴病"
           ]
         }
       },
@@ -2768,13 +2910,16 @@
       "sides": {
         "from": {
           "supportTerms": [
-            "少阴病心中烦",
+            "心中烦",
             "不得卧",
             "偏阴虚火扰"
           ],
           "againstTerms": [
             "少阴下利便脓血",
             "涩剂"
+          ],
+          "supportTermsDiagnosticLabels": [
+            "少阴病"
           ]
         },
         "to": {
@@ -2783,9 +2928,12 @@
             "涩剂"
           ],
           "againstTerms": [
-            "少阴病心中烦",
+            "心中烦",
             "不得卧",
             "偏阴虚火扰"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "少阴病"
           ]
         }
       },
@@ -4955,8 +5103,12 @@
           "againstTerms": [
             "恶寒发热",
             "头痛",
-            "肠鸣泄泻伴表证",
-            "无表证之腹胀"
+            "肠鸣泄泻",
+            "腹胀"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "表证",
+            "无表证"
           ]
         },
         "to": {
@@ -4970,7 +5122,10 @@
           "againstTerms": [
             "无恶寒发热",
             "纯腹胀噫气",
-            "不能食而无表证"
+            "不能食"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "无表证"
           ]
         }
       },
@@ -6140,7 +6295,10 @@
           "againstTerms": [
             "无大热渴饮",
             "无头剧痛",
-            "纯出血无气分证"
+            "出血"
+          ],
+          "againstTermsDiagnosticLabels": [
+            "无气分证"
           ]
         },
         "to": {
@@ -6915,16 +7073,20 @@
       "sixChannelSection": "太阳病方证",
       "pattern": "太阳中风，有汗、恶风、脉缓；解肌调营卫",
       "supportTerms": [
-        "太阳中风",
         "有汗",
         "恶风",
-        "脉缓",
-        "解肌调营卫"
+        "脉缓"
       ],
       "discriminator": "与麻黄汤分水岭是有汗/无汗；酒客、吐家、胸满需慎",
       "safetyClass": "standard",
       "sourceRefs": [
         "formula-patterns.md:17"
+      ],
+      "diagnosticLabelTerms": [
+        "太阳中风"
+      ],
+      "therapyStatementTerms": [
+        "解肌调营卫"
       ]
     },
     {
@@ -6934,12 +7096,15 @@
       "sixChannelSection": "太阳病方证",
       "pattern": "太阳中风兼项背强、面部中风方向",
       "supportTerms": [
-        "太阳中风兼项背强"
+        "项背强"
       ],
       "discriminator": "葛根上行至项背；有汗用桂枝加葛根，无汗偏葛根汤",
       "safetyClass": "standard",
       "sourceRefs": [
         "formula-patterns.md:18"
+      ],
+      "diagnosticLabelTerms": [
+        "太阳中风"
       ]
     },
     {
@@ -6999,16 +7164,20 @@
       "sixChannelSection": "太阳病方证",
       "pattern": "太阳伤寒，无汗、体痛、脉紧；发阳宣肺",
       "supportTerms": [
-        "太阳伤寒",
         "无汗",
         "体痛",
-        "脉紧",
-        "发阳宣肺"
+        "脉紧"
       ],
       "discriminator": "发汗前必须看尺脉与津液；咽干、淋家、疮家禁汗",
       "safetyClass": "standard",
       "sourceRefs": [
         "formula-patterns.md:22"
+      ],
+      "diagnosticLabelTerms": [
+        "太阳伤寒"
+      ],
+      "therapyStatementTerms": [
+        "发阳宣肺"
       ]
     },
     {
@@ -7104,13 +7273,15 @@
       "sixChannelSection": "太阳病方证",
       "pattern": "发汗伤心阳，心下悸",
       "supportTerms": [
-        "发汗伤心阳",
         "心下悸"
       ],
       "discriminator": "桂枝降冲逆，炙甘草补中强心",
       "safetyClass": "standard",
       "sourceRefs": [
         "formula-patterns.md:28"
+      ],
+      "therapyStatementTerms": [
+        "发汗伤心阳"
       ]
     },
     {
@@ -7287,7 +7458,7 @@
       "sixChannelSection": "少阳与变证方证",
       "pattern": "少阳病往来寒热、胸胁苦满；妇人热入血室",
       "supportTerms": [
-        "少阳病往来寒热",
+        "往来寒热",
         "胸胁苦满",
         "妇人热入血室"
       ],
@@ -7295,6 +7466,9 @@
       "safetyClass": "standard",
       "sourceRefs": [
         "formula-patterns.md:44"
+      ],
+      "diagnosticLabelTerms": [
+        "少阳病"
       ]
     },
     {
@@ -7662,12 +7836,15 @@
       "sixChannelSection": "三阴病方证",
       "pattern": "太阴病腹满时痛",
       "supportTerms": [
-        "太阴病腹满时痛"
+        "腹满时痛"
       ],
       "discriminator": "偏虚寒腹痛，不是阳明实满",
       "safetyClass": "standard",
       "sourceRefs": [
         "formula-patterns.md:75"
+      ],
+      "diagnosticLabelTerms": [
+        "太阴病"
       ]
     },
     {
@@ -7711,13 +7888,16 @@
       "sixChannelSection": "三阴病方证",
       "pattern": "少阴病初得兼表，脉沉微细",
       "supportTerms": [
-        "少阴病初得兼表",
+        "初得兼表",
         "脉沉微细"
       ],
       "discriminator": "少阴外感特殊方，高风险，非普通发汗",
       "safetyClass": "restricted",
       "sourceRefs": [
         "formula-patterns.md:78"
+      ],
+      "diagnosticLabelTerms": [
+        "少阴病"
       ]
     },
     {
@@ -7727,12 +7907,15 @@
       "sixChannelSection": "三阴病方证",
       "pattern": "少阴病得二三日，微发汗方向",
       "supportTerms": [
-        "少阴病得二三日"
+        "病程二三日"
       ],
       "discriminator": "与麻黄附子细辛汤轻重不同",
       "safetyClass": "restricted",
       "sourceRefs": [
         "formula-patterns.md:79"
+      ],
+      "diagnosticLabelTerms": [
+        "少阴病"
       ]
     },
     {
@@ -7742,7 +7925,7 @@
       "sixChannelSection": "三阴病方证",
       "pattern": "少阴病心中烦、不得卧，偏阴虚火扰",
       "supportTerms": [
-        "少阴病心中烦",
+        "心中烦",
         "不得卧",
         "偏阴虚火扰"
       ],
@@ -7750,6 +7933,9 @@
       "safetyClass": "standard",
       "sourceRefs": [
         "formula-patterns.md:80"
+      ],
+      "diagnosticLabelTerms": [
+        "少阴病"
       ]
     },
     {
@@ -10113,5 +10299,11 @@
         "ADJ-20260727-T14-GRAPH-EXPANSION"
       ]
     }
-  ]
+  ],
+  "termRoleGovernance": {
+    "source": "tcm-formula-term-roles.source.json",
+    "schemaVersion": "tcm-formula-term-roles-v1",
+    "governedTermCount": 15,
+    "note": "诊断标签与治法/病机表述已移出 supportTerms/againstTerms 评分位，另存于 diagnosticLabelTerms / therapyStatementTerms 供 M03 后一致性复核与病机链验证使用。"
+  }
 }

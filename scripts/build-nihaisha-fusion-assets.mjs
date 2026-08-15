@@ -218,6 +218,72 @@ if (existsSync(graphExtensionsPath)) {
     edgeIds.add(id);
   }
 }
+
+// ── 词位分离：只有「接诊时医生能观察到的事实」才留在评分位 ─────────────────────
+//
+// evaluateFormulaCandidates 按 supportTerms 命中计分，而图里混着三类词：
+// 患者可观察事实（无汗/身痛/脉紧）、诊断标签（太阳伤寒）、治法或病机表述（解肌调营卫）。
+// 后两类进评分位会造成**自证加分**——2026-08-15 实测：病历里写上「太阳伤寒」，
+// 麻黄汤从第 6 名 score=1 跳到第 1 名 score=2。医生写了证名，系统就给对应方加分，是真循环。
+//
+// 判据刻意不是「像不像治法」而是「能不能观察到」：「发汗后腹胀满」「发汗太过」看着像治法词，
+// 实为坏病病程的可观察事实（厚朴生姜半夏甘草人参汤、桂枝甘草汤的原始指征），
+// 因此**不在受治理表内、照常参与评分**。
+//
+// 复合词拆而不删：「少阳病往来寒热」= 少阳病（结论）+ 往来寒热（可观察），
+// 整词删掉会连可观察部分一起丢，所以按 observableRemainder 拆开并回填。
+{
+  const rolesPath = resolve(root, "src/data/tcm-formula-term-roles.source.json");
+  if (existsSync(rolesPath)) {
+    const roles = JSON.parse(readFileSync(rolesPath, "utf8"));
+    const byTerm = new Map((roles.entries || []).map((entry) => [entry.term, entry]));
+    const partition = (terms) => {
+      const observable = [];
+      const diagnosticLabels = [];
+      const therapyStatements = [];
+      for (const term of terms || []) {
+        const entry = byTerm.get(term);
+        if (!entry) { observable.push(term); continue; }
+        if (entry.role === "therapy_statement" || entry.role === "pathogenesis_statement") {
+          therapyStatements.push(term);
+          continue;
+        }
+        // diagnostic_label 与 compound：标签部分移出，可观察余部并回评分位
+        diagnosticLabels.push(entry.diagnosticLabel || term);
+        if (entry.observableRemainder) observable.push(entry.observableRemainder);
+      }
+      const dedupe = (items) => [...new Set(items.filter(Boolean))];
+      return {
+        observable: dedupe(observable),
+        diagnosticLabels: dedupe(diagnosticLabels),
+        therapyStatements: dedupe(therapyStatements),
+      };
+    };
+    for (const node of formulaDiscriminationGraph.nodes) {
+      const split = partition(node.supportTerms);
+      node.supportTerms = split.observable;
+      if (split.diagnosticLabels.length) node.diagnosticLabelTerms = split.diagnosticLabels;
+      if (split.therapyStatements.length) node.therapyStatementTerms = split.therapyStatements;
+    }
+    for (const edge of formulaDiscriminationGraph.edges) {
+      for (const side of Object.values(edge.sides || {})) {
+        for (const key of ["supportTerms", "againstTerms"]) {
+          const split = partition(side[key]);
+          side[key] = split.observable;
+          if (split.diagnosticLabels.length) side[`${key}DiagnosticLabels`] = split.diagnosticLabels;
+          if (split.therapyStatements.length) side[`${key}TherapyStatements`] = split.therapyStatements;
+        }
+      }
+    }
+    formulaDiscriminationGraph.termRoleGovernance = {
+      source: "tcm-formula-term-roles.source.json",
+      schemaVersion: roles.schemaVersion,
+      governedTermCount: byTerm.size,
+      note: "诊断标签与治法/病机表述已移出 supportTerms/againstTerms 评分位，"
+        + "另存于 diagnosticLabelTerms / therapyStatementTerms 供 M03 后一致性复核与病机链验证使用。",
+    };
+  }
+}
 const differentiationRules = buildDiagnosticRuleAsset({
   seed: differentiationRulesSeed,
   symptomMarkdown: symptomIndexMarkdown,

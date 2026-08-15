@@ -1,0 +1,112 @@
+{
+  "schemaVersion": "tcm-formula-term-roles-v1",
+  "note": "方证鉴别图里的词，按**接诊时医生能不能观察到**分位。\n\n【为什么需要这张表】evaluateFormulaCandidates 按 supportTerms 命中计分，而图里混着三类词：\n患者可观察事实（无汗、身痛、脉紧）、诊断标签（太阳伤寒）、治法/病机表述（解肌调营卫）。\n后两类进评分位会造成**自证加分**——2026-08-15 实测：病历里写上「太阳伤寒」，\n麻黄汤从第 6 名 score=1 跳到第 1 名 score=2。医生写了证名，系统就给对应方加分，是真循环。\n\n【判据不是「像不像治法」，是「接诊时能不能观察到」】\n这条区分很要紧：「发汗后腹胀满」「发汗太过」「发汗后脐下悸」看着像治法词，实际是**坏病病程的\n可观察事实**，正是《伤寒论》里厚朴生姜半夏甘草人参汤、桂枝甘草汤的原始指征——实测\n「发汗后腹胀满，纳呆」命中该方第 1 名，命中的就是这个词。按「像不像治法」剔会丢真信号。\n因此本表**不收**这类词。\n\n【移出不等于删除】三类词按用途各有其位：\n· 患者可观察事实 → M02/M03 前的候选评分；\n· 诊断标签 → M03 之后的一致性复核（模型说了太阳伤寒，去查无汗是不是阳性）；\n· 治法/病机表述 → 病机—治法—方剂链验证。\n\n【复合词要拆不要删】多数污染词是「结论 + 可观察」捆在一起（少阳病往来寒热 =\n少阳病 + 往来寒热）。整词删掉会连可观察部分一起丢，所以逐条给出 observableRemainder，\n由生成期拆分：标签部分进 diagnosticLabelTerms，可观察部分并回 supportTerms（去重）。",
+  "boundary": "本表只决定**某个词能不能参与候选评分**，不决定任何安全结论。剂量边界、配伍禁忌、特殊人群门禁、处方后审方一条不减。",
+  "governance": {
+    "status": "project_derived_pending_clinician_review",
+    "reviewNote": "分位由本轮实测缺陷推导，**未经中医师终审**。终审前只作用于候选排序（advisory），不驱动任何硬判据。",
+    "measuredDefect": "自证加分：病历含「太阳伤寒」时麻黄汤 rank 6→1、score 1→2（2026-08-15 实测）"
+  },
+  "entries": [
+    {
+      "term": "太阳中风",
+      "role": "diagnostic_label",
+      "observableRemainder": null,
+      "rationale": "六经病名，是辨证结论本身。医生写在病历里即代表已下判断，不能反过来给桂枝汤加分。"
+    },
+    {
+      "term": "太阳伤寒",
+      "role": "diagnostic_label",
+      "observableRemainder": null,
+      "rationale": "同上。本轮自证加分的实测触发词。"
+    },
+    {
+      "term": "太阳中风兼项背强",
+      "role": "compound",
+      "diagnosticLabel": "太阳中风",
+      "observableRemainder": "项背强",
+      "rationale": "「项背强」是可观察体征（葛根汤/桂枝加葛根汤的关键分叉），保留进评分；「太阳中风」是结论，移出。"
+    },
+    {
+      "term": "少阳病往来寒热",
+      "role": "compound",
+      "diagnosticLabel": "少阳病",
+      "observableRemainder": "往来寒热",
+      "rationale": "「往来寒热」是可观察热型，且图中已单独存在，拆分后去重即可。"
+    },
+    {
+      "term": "太阴病腹满时痛",
+      "role": "compound",
+      "diagnosticLabel": "太阴病",
+      "observableRemainder": "腹满时痛",
+      "rationale": "「腹满时痛」可观察；「太阴病」是结论。"
+    },
+    {
+      "term": "少阴病心中烦",
+      "role": "compound",
+      "diagnosticLabel": "少阴病",
+      "observableRemainder": "心中烦",
+      "rationale": "「心中烦」是患者主诉，图中已单独存在。"
+    },
+    {
+      "term": "少阴病初得兼表",
+      "role": "compound",
+      "diagnosticLabel": "少阴病",
+      "observableRemainder": "初得兼表",
+      "rationale": "「初得」是病程信息（可观察）；「兼表」严格说仍带判断色彩，但它描述的是当前是否仍有表证表现，接诊可查，故保留待中医师终审时再定。"
+    },
+    {
+      "term": "少阴病得二三日",
+      "role": "compound",
+      "diagnosticLabel": "少阴病",
+      "observableRemainder": "病程二三日",
+      "rationale": "病程天数是可观察事实，且是麻黄附子甘草汤与麻黄附子细辛汤的分叉依据。"
+    },
+    {
+      "term": "不能食而无表证",
+      "role": "compound",
+      "diagnosticLabel": "无表证",
+      "observableRemainder": "不能食",
+      "rationale": "「不能食」可观察；「无表证」是排除性结论。"
+    },
+    {
+      "term": "无表证之腹胀",
+      "role": "compound",
+      "diagnosticLabel": "无表证",
+      "observableRemainder": "腹胀",
+      "rationale": "同上。"
+    },
+    {
+      "term": "纯出血无气分证",
+      "role": "compound",
+      "diagnosticLabel": "无气分证",
+      "observableRemainder": "出血",
+      "rationale": "「出血」可观察，图中已单独存在；「无气分证」是卫气营血框架下的结论。"
+    },
+    {
+      "term": "肠鸣泄泻伴表证",
+      "role": "compound",
+      "diagnosticLabel": "表证",
+      "observableRemainder": "肠鸣泄泻",
+      "rationale": "「肠鸣泄泻」可观察，图中已单独存在；「表证」是八纲结论。"
+    },
+    {
+      "term": "发阳宣肺",
+      "role": "therapy_statement",
+      "observableRemainder": null,
+      "rationale": "治法主张，不是患者身上的事实。属于病机—治法—方剂链验证位。"
+    },
+    {
+      "term": "解肌调营卫",
+      "role": "therapy_statement",
+      "observableRemainder": null,
+      "rationale": "同上。"
+    },
+    {
+      "term": "发汗伤心阳",
+      "role": "pathogenesis_statement",
+      "observableRemainder": null,
+      "rationale": "病机结论（误汗导致心阳受损），不是可观察事实。注意与「发汗后脐下悸」「发汗后腹胀满」区分——后两者是坏病病程的可观察表现，**不在本表内、照常参与评分**。"
+    }
+  ]
+}
