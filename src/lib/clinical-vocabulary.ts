@@ -31,6 +31,14 @@ const VOCAB = derived as unknown as Derived;
 const AFFIRMATIVE_NEGATION_FORMS = new Set(
   ((affirmativeNegation as { terms?: Array<{ term: string }> }).terms || []).map((row) => row.term),
 );
+const SYNDROME_AXIS_FORMS = Object.keys(VOCAB.syndromeAxes);
+const SYNDROME_AXIS_FORM_ORDER = new Map(SYNDROME_AXIS_FORMS.map((form, index) => [form, index]));
+const SYNDROME_AXIS_MAX_FORM_LENGTH = SYNDROME_AXIS_FORMS.reduce(
+  (maximum, form) => Math.max(maximum, form.length),
+  0,
+);
+const SYNDROME_LABEL_AXES_CACHE_LIMIT = 4096;
+const syndromeLabelAxesCache = new Map<string, { locations: string[]; natures: string[] }>();
 
 export type PopulationScopeGroup = "maternal" | "obstetric" | "pediatric" | "geriatric" | "broad";
 
@@ -69,25 +77,41 @@ export function governedSyndromeLabelAxes(label: string): { locations: string[];
   if (!value) return { locations: [], natures: [] };
   const exact = VOCAB.syndromeAxes[value];
   if (exact) return { locations: [...exact.locations], natures: [...exact.natures] };
+  const cached = syndromeLabelAxesCache.get(value);
+  if (cached) return { locations: [...cached.locations], natures: [...cached.natures] };
   // 包含匹配必须取**最长命中**,不能合并全部命中:「脾胃虚寒证」同时包含「虚寒」「脾胃」
   // 以及一堆更短的证候写法,全合并会把寒热虚实两侧的轴一起塞进来,方向判定随即弃权——
   // 实测因此漏掉「白虎汤(大寒) × 脾胃虚寒证」这种最典型的方向对立。最大匹配是词法层的
-  // 常规做法:最长的那条写法才是这个标签真正对应的证候。
-  let bestLength = 0;
+  // 常规做法:最长的那条写法才是这个标签真正对应的证候。这里按标签子串查哈希表,避免在
+  // 每个候选方上全量扫描数千条证候轴；同长度命中仍按生成物原顺序合并，保持既有结果顺序。
   const locations = new Set<string>();
   const natures = new Set<string>();
-  for (const [form, axes] of Object.entries(VOCAB.syndromeAxes)) {
-    if (form.length < 2 || form.length < bestLength || !value.includes(form)) continue;
-    if (form.length > bestLength) {
-      bestLength = form.length;
-      locations.clear();
-      natures.clear();
+  for (let length = Math.min(value.length, SYNDROME_AXIS_MAX_FORM_LENGTH); length >= 2; length -= 1) {
+    const matchedForms = new Set<string>();
+    for (let start = 0; start + length <= value.length; start += 1) {
+      const form = value.slice(start, start + length);
+      if (VOCAB.syndromeAxes[form]) matchedForms.add(form);
     }
-    for (const id of axes.locations) locations.add(id);
-    for (const id of axes.natures) natures.add(id);
+    if (matchedForms.size === 0) continue;
+    const orderedForms = [...matchedForms].sort(
+      (left, right) => (SYNDROME_AXIS_FORM_ORDER.get(left) ?? 0) - (SYNDROME_AXIS_FORM_ORDER.get(right) ?? 0),
+    );
+    for (const form of orderedForms) {
+      const axes = VOCAB.syndromeAxes[form];
+      for (const id of axes.locations) locations.add(id);
+      for (const id of axes.natures) natures.add(id);
+    }
+    break;
   }
-  if (locations.size > 0 || natures.size > 0) return { locations: [...locations], natures: [...natures] };
-  return { locations: governedLocationIdsIn(value), natures: governedNatureIdsIn(value) };
+  const resolved = locations.size > 0 || natures.size > 0
+    ? { locations: [...locations], natures: [...natures] }
+    : { locations: governedLocationIdsIn(value), natures: governedNatureIdsIn(value) };
+  if (syndromeLabelAxesCache.size >= SYNDROME_LABEL_AXES_CACHE_LIMIT) {
+    const oldest = syndromeLabelAxesCache.keys().next().value;
+    if (typeof oldest === "string") syndromeLabelAxesCache.delete(oldest);
+  }
+  syndromeLabelAxesCache.set(value, resolved);
+  return { locations: [...resolved.locations], natures: [...resolved.natures] };
 }
 
 /** 文本是否命中某人群限定组。词表来自 tcm-population-scope.source.json(唯一归属地)。 */

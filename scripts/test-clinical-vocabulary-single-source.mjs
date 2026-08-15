@@ -267,4 +267,57 @@ assert.ok(maternal.size > obstetric.length, "宽口径必须真包含严格口�
 const axes = vocab.governedSyndromeLabelAxes("心脾两虚证");
 assert.ok(axes.locations.length + axes.natures.length > 0, "常见复合证候必须能分解出轴");
 
+// 性能守卫 + 行为 oracle：线上候选方循环曾在每次调用时扫描 5k+ syndromeAxes，单核长期满载。
+// 生产实现必须按短标签枚举子串查表；以下暴力算法只留在测试里，逐项证明优化前后最长命中语义一致。
+const clinicalVocabularySource = fs.readFileSync(path.join(process.cwd(), "src/lib/clinical-vocabulary.ts"), "utf8");
+const axesFunctionBody = functionBodyOf(clinicalVocabularySource, "governedSyndromeLabelAxes");
+assert.ok(axesFunctionBody, "找不到 governedSyndromeLabelAxes，性能守卫会静默失效");
+assert.doesNotMatch(
+  axesFunctionBody,
+  /Object\.entries\(VOCAB\.syndromeAxes\)/,
+  "governedSyndromeLabelAxes 不得在请求热路径全量扫描 syndromeAxes",
+);
+
+const derivedVocabulary = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "src/data/clinical-vocabulary-derived.json"), "utf8"),
+);
+function bruteSyndromeLabelAxes(label) {
+  const value = String(label || "").trim();
+  if (!value) return { locations: [], natures: [] };
+  const exact = derivedVocabulary.syndromeAxes[value];
+  if (exact) return { locations: [...exact.locations], natures: [...exact.natures] };
+  let bestLength = 0;
+  const locations = new Set();
+  const natures = new Set();
+  for (const [form, candidateAxes] of Object.entries(derivedVocabulary.syndromeAxes)) {
+    if (form.length < 2 || form.length < bestLength || !value.includes(form)) continue;
+    if (form.length > bestLength) {
+      bestLength = form.length;
+      locations.clear();
+      natures.clear();
+    }
+    for (const id of candidateAxes.locations) locations.add(id);
+    for (const id of candidateAxes.natures) natures.add(id);
+  }
+  if (locations.size > 0 || natures.size > 0) return { locations: [...locations], natures: [...natures] };
+  return { locations: vocab.governedLocationIdsIn(value), natures: vocab.governedNatureIdsIn(value) };
+}
+
+const syndromeForms = Object.keys(derivedVocabulary.syndromeAxes);
+const sampleStep = Math.max(1, Math.floor(syndromeForms.length / 128));
+const sampledForms = syndromeForms.filter((_, index) => index % sampleStep === 0).slice(0, 128);
+const oracleLabels = ["", "unmapped-label"];
+for (let index = 0; index < sampledForms.length; index += 1) {
+  const form = sampledForms[index];
+  const peer = sampledForms[(index * 37 + 11) % sampledForms.length];
+  oracleLabels.push(form, `prefix-${form}-suffix`, `prefix-${form}-middle-${peer}-suffix`);
+}
+for (const label of oracleLabels) {
+  assert.deepEqual(
+    vocab.governedSyndromeLabelAxes(label),
+    bruteSyndromeLabelAxes(label),
+    `优化后的证候轴最长匹配必须与旧算法一致：${label}`,
+  );
+}
+
 console.log(JSON.stringify({ scannedRoots: ROOTS, allowlisted: ALLOWLIST.size, offenders: offenders.length, ...counts }));
