@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import path, { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
+import { gapEchoed, shouldRetryM04Attempt } from "./lib/robustness-live-assertions.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
@@ -55,6 +56,10 @@ const CONCURRENCY = Number(process.env.PROBE_CONCURRENCY || 3);
 const RATE_LIMIT = Number(process.env.PROBE_RATE_LIMIT || 55); // 线上 60/10min，留 5 次余量
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const TIMEOUT_MS = Number(process.env.LIVE_MODEL_TIMEOUT_MS || 300_000);
+const configuredM04MaxAttempts = Number(process.env.M04_MAX_ATTEMPTS || 2);
+const M04_MAX_ATTEMPTS = Number.isFinite(configuredM04MaxAttempts)
+  ? Math.max(1, Math.min(3, Math.trunc(configuredM04MaxAttempts)))
+  : 2;
 const ONLY = (process.env.ONLY || "").split(",").map((s) => s.trim()).filter(Boolean);
 
 const REPLACE_MARKER = "<<<CDSS_STREAM_FINAL>>>";
@@ -245,14 +250,6 @@ function countVisibleDoses(herbs, visibleText) {
   return { shown, total: herbs.length };
 }
 
-// 安全门列出的未核实项，是否逐条在处方正文里被说出来。括注（如「（备孕）」）只是同一项的细分，
-// 按主标签匹配即可。没有未核实项时视为已满足。
-function gapEchoed(missingItems, visibleText) {
-  const labels = [...new Set((missingItems || []).map((item) => String(item).split("（")[0].trim()).filter(Boolean))];
-  if (!labels.length) return true;
-  return labels.every((label) => visibleText.includes(label));
-}
-
 const PREGNANCY_FORBIDDEN = [
   "麝香", "水蛭", "虻虫", "斑蝥", "商陆", "甘遂", "大戟", "芫花", "牵牛子", "巴豆",
   "三棱", "莪术", "马钱子", "川乌", "草乌", "附子", "雄黄", "轻粉", "干漆", "皂角刺",
@@ -406,13 +403,50 @@ async function runCase(c) {
   r.m04Attempted = Boolean(m03);
   if (m03) {
     const prescribeState = { ...working, phase: "prescribe", diagnosis: m03Stream.content, reasoningDiagnose: m03, reasoningV2: m03 };
-    const m04Res = await post("/api/diagnosis/prescribe", prescribeState);
-    const m04Stream = consume(m04Res.raw);
-    const m04 = reasoning(m04Stream.content);
+    r.m04Attempts = [];
+    let finalM04Attempt;
+    for (let attempt = 1; attempt <= M04_MAX_ATTEMPTS; attempt += 1) {
+      const response = await post("/api/diagnosis/prescribe", prescribeState);
+      const stream = consume(response.raw);
+      const contract = reasoning(stream.content);
+      const truncated = stream.content.includes("[TRUNCATED]");
+      const attemptResult = {
+        attempt,
+        response,
+        stream,
+        contract,
+        truncated,
+      };
+      r.m04Attempts.push({
+        attempt,
+        status: response.status,
+        ms: response.ms,
+        transport: response.transport,
+        errorFrame: stream.errorFrame,
+        sawEnd: stream.sawEnd,
+        contract: Boolean(contract),
+        truncated,
+      });
+      rawParts.push(`\n\n===== M04 可见正文（尝试 ${attempt}）=====\n${visibleOnly(stream.content)}`);
+      finalM04Attempt = attemptResult;
+      if (!shouldRetryM04Attempt({
+        expectation: c.expectation,
+        status: response.status,
+        transport: response.transport,
+        errorFrame: stream.errorFrame,
+        sawEnd: stream.sawEnd,
+        content: stream.content,
+        contract,
+      })) break;
+    }
+
+    const { response: m04Res, stream: m04Stream, contract: m04, truncated: m04Truncated } = finalM04Attempt;
     r.stages.m04 = { status: m04Res.status, ms: m04Res.ms, errorFrame: m04Stream.errorFrame, sawEnd: m04Stream.sawEnd, transport: m04Res.transport };
     r.m04Contract = Boolean(m04);
+    r.m04RecoveredAfterRetry = r.m04Attempts.length > 1 && m04Res.status === 200 && !m04Res.transport
+      && !m04Stream.errorFrame && m04Stream.sawEnd && !m04Truncated && Boolean(m04);
     r.advisoryBanner.m04 = m04Stream.content.includes(ADVISORY_MARKER);
-    if (m04Stream.content.includes("[TRUNCATED]")) r.truncated.push("M04");
+    if (m04Truncated) r.truncated.push("M04");
     const candidate = m04?.formula?.candidates?.[0];
     r.m04 = {
       candidateName: candidate?.name,
@@ -429,8 +463,6 @@ async function runCase(c) {
     // 剂量到底有没有真的摆到医生面前——只读契约会把这个问题整个漏掉。
     r.visibleDose = countVisibleDoses(candidate?.herbs || [], m04Visible);
     r.gapEchoedInM04 = gapEchoed(r.gate.missingItems, m04Visible);
-    rawParts.push(`\n\n===== M04 可见正文 =====\n${m04Visible}`);
-
     if (m04) {
       const assessState = { ...prescribeState, phase: "assess", prescription: m04Stream.content, reasoningPrescribe: m04, reasoningV2: m04 };
       const riskRes = await post("/api/diagnosis/post-prescription-risk", assessState);
@@ -471,7 +503,8 @@ if (process.env.REEVALUATE === "1") {
     const rawPath = join(OUT_DIR, "raw", `${r.id}.md`);
     if (existsSync(rawPath) && r.m04?.herbs?.length) {
       const raw = readFileSync(rawPath, "utf8");
-      const start = raw.indexOf("===== M04 可见正文 =====");
+      const m04Headers = [...raw.matchAll(/===== M04 可见正文(?:（尝试 \d+）)? =====/g)];
+      const start = m04Headers.at(-1)?.index ?? -1;
       const end = start >= 0 ? raw.indexOf("\n\n=====", start + 10) : -1;
       const m04Visible = start >= 0 ? raw.slice(start, end > start ? end : undefined) : "";
       const herbs = r.m04.herbs.map((line) => {
@@ -527,6 +560,11 @@ const summary = {
   fail: results.filter((r) => r.verdict && !r.verdict.pass).length,
   harnessErrors: results.filter((r) => r.harnessError).length,
   byExpectation: {},
+  m04Recovery: {
+    attemptedMultiple: results.filter((r) => (r.m04Attempts?.length || 0) > 1).length,
+    recovered: results.filter((r) => r.m04RecoveredAfterRetry).length,
+    unrecovered: results.filter((r) => (r.m04Attempts?.length || 0) > 1 && !r.m04RecoveredAfterRetry).length,
+  },
   allProblems: {},
   failures: results.filter((r) => r.verdict && !r.verdict.pass)
     .map((r) => ({ id: r.id, expectation: r.expectation, problems: r.verdict.problems })),

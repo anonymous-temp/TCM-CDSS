@@ -82,6 +82,7 @@
     "test:herb-function-contamination": "jiti scripts/test-herb-function-cross-contamination.mjs",
     "test:chp-herb-functions": "jiti scripts/test-chp-herb-function-supplements.mjs",
     "test:robustness-cases": "jiti scripts/test-robustness-case-corpus.mjs",
+    "test:robustness-live-assertions": "node scripts/test-robustness-live-assertions.mjs",
     "verify:chp-herb-functions-live": "node scripts/collect-chp-herb-functions.mjs",
     "regress:robustness-live": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-robustness-live.mjs",
     "test:herb-breadth-surface": "jiti scripts/test-herb-breadth-surface.mjs",

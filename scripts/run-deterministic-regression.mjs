@@ -204,6 +204,9 @@ const scripts = [
   // 77 条回归病案从忽略目录迁入受治理源：20 条保留公开网页出处，57 条来自已签 replay 池。
   // 套件钉住数量、来源锚、PHI/金标准泄漏边界、病种多样性、三条真实红旗与确定性层一致。
   "test:robustness-cases",
+  // 线上回归判据本身也是发布资产：请求级语义筛查超时不能冒充患者缺口；患者事实缺口仍须逐项
+  // 回显。M04 只对传输/截断/无契约类失败做有上限、有留痕的恢复，不重试安全降级路径。
+  "test:robustness-live-assertions",
   "test:herb-breadth-surface",
   "test:m04-dose-index",
   "test:m04-safety-contract",
