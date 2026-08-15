@@ -2737,6 +2737,22 @@ async function callPrimaryTextModelStream(
           ? undefined
           : m04ClinicalReviewSemanticHash(opts.structuredPriorReasoning, reasoning);
         m04ReviewedReasoning = review.status === "repair" ? undefined : reasoning;
+        // A composition-only rejection is a dispute about the claimed classic-formula identity,
+        // not a request to redraw every herb and dose. Regenerating the full prescription here can
+        // consume the entire M04 wall-clock budget (production public-091/public-092) even though
+        // the existing transparent path already has the conservative deterministic remedy: remove
+        // the unverified identity, re-run every hard prescription contract, then review the changed
+        // self-devised candidate again. Mark the model loop exhausted so that path runs immediately.
+        // Other review issues still retain their bounded provider repair opportunity.
+        if (review.status === "repair" && review.issueCode === "formula_composition_mismatch") {
+          if (!m04RepairLoopEarlyExit) {
+            console.warn("[tcm-cdss:model] M04 classic composition review routed to deterministic identity declassification", {
+              stage: "prescribe",
+              issueCode: review.issueCode,
+            });
+          }
+          m04RepairLoopEarlyExit = true;
+        }
       };
       const reviewTrackedM04Candidate = async (
         reasoning: ClinicalReasoningResultV2,
@@ -3275,7 +3291,15 @@ async function callPrimaryTextModelStream(
             reason: pendingRejectionReason,
           });
         }
-        if (structuredSentinelIncomplete && retryableStructuredTerminal && opts.structuredStage && !pendingRepairIsFixpoint && !m03OrchestrationDeadlineGate() && !m04OrchestrationDeadlineGate()) {
+        if (
+          structuredSentinelIncomplete &&
+          retryableStructuredTerminal &&
+          opts.structuredStage &&
+          !pendingRepairIsFixpoint &&
+          !m04RepairLoopEarlyExit &&
+          !m03OrchestrationDeadlineGate() &&
+          !m04OrchestrationDeadlineGate()
+        ) {
           const rejectionReason = pendingRejectionReason as string;
           noteContractRepair(rejectionReason, pendingReviewDriven);
           console.warn("[tcm-cdss:model] structured response rejected; retrying full response", {
@@ -3491,6 +3515,7 @@ async function callPrimaryTextModelStream(
             }
             if (!reviewedAdvisoryM04Accepted) {
               let targetedM04Retry = opts.structuredStage === "prescribe" && shouldRunTargetedStructuredRetry("prescribe", retryRejectionReason);
+              if (targetedM04Retry && m04RepairLoopEarlyExit) targetedM04Retry = false;
               if (targetedM04Retry && m04SameGuidanceFixpoint(retryRejectionReason, m04ClinicalRepairGuidanceText)) {
                 targetedM04Retry = false;
                 noteM04RepairLoopFixpoint(retryRejectionReason);

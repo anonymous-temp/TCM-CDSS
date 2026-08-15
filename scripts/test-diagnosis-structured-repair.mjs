@@ -35,6 +35,21 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
+  /review\.status === "repair" && review\.issueCode === "formula_composition_mismatch"[\s\S]{0,700}?m04RepairLoopEarlyExit = true;/,
+  "a composition-only M04 review must select deterministic identity declassification instead of redrawing the whole prescription",
+);
+assert.match(
+  diagnosisApiSource,
+  /structuredSentinelIncomplete &&[\s\S]{0,250}?retryableStructuredTerminal &&[\s\S]{0,250}?!m04RepairLoopEarlyExit &&[\s\S]{0,250}?!m04OrchestrationDeadlineGate\(\)/,
+  "the first full-response repair must stop once deterministic M04 identity declassification has been selected",
+);
+assert.match(
+  diagnosisApiSource,
+  /if \(targetedM04Retry && m04RepairLoopEarlyExit\) targetedM04Retry = false;/,
+  "a composition rejection after one completed repair must not launch another full M04 redraw",
+);
+assert.match(
+  diagnosisApiSource,
   /lastRejectionReason:\s*opts\.structuredStage === "diagnose"/,
   "every completed M03 orchestration logs its final rejection code without patient content",
 );
