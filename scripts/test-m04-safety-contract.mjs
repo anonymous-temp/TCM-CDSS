@@ -517,6 +517,35 @@ console.log(JSON.stringify({
   assert.deepEqual(namesOf(dropUnsupportedM04CandidateHerbs(envelope, prior, false)),
     ["麻黄", "荆芥", "防风"],
     "透明降级路径不套用基准保留数，方向未成立的前胡必须被剔除，保留其余合格药味");
+  const priorHeat = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { primarySyndrome: "肝胃郁热证", recommendedFormulaNames: ["左金丸"], formulaSelectionMode: "single" },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "口苦反酸", syndromeEvidence: "舌红苔黄", pathogenesis: "肝火犯胃", therapyDirection: "清肝泻火，和胃降逆" }] },
+    therapy: { overallPrinciple: "清肝泻火，和胃降逆", overallMethod: "清热泻火" },
+  };
+  const leftJinHerbs = [
+    herb("黄连", "君", "清热泻火"), herb("吴茱萸", "佐", "温中散寒"), herb("栀子", "臣", "清热泻火"),
+  ];
+  const leftJinEnvelope = `${S}\n${JSON.stringify({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{ name: "左金丸", formulaNames: ["左金丸"], herbs: leftJinHerbs }] },
+  })}\n${E}`;
+  assert.deepEqual(namesOf(dropUnsupportedM04CandidateHerbs(leftJinEnvelope, priorHeat, true)),
+    ["黄连", "吴茱萸", "栀子"],
+    "仍保留经典身份时基准药味不能被单味剔除，组成争议交给身份修复");
+  assert.deepEqual(namesOf(dropUnsupportedM04CandidateHerbs(leftJinEnvelope, priorHeat, false)),
+    ["黄连", "吴茱萸", "栀子"],
+    "调用方关闭基准保留数也不能越过候选仍明确保留的合法经典身份");
+  const declassifiedLeftJinEnvelope = `${S}\n${JSON.stringify({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
+    formula: { candidates: [{
+      name: "本例辨证组方", formulaNames: [], constructionType: "self_devised", identityDeclassified: true,
+      herbs: leftJinHerbs,
+    }] },
+  })}\n${E}`;
+  assert.deepEqual(namesOf(dropUnsupportedM04CandidateHerbs(declassifiedLeftJinEnvelope, priorHeat, false)),
+    ["黄连", "栀子"],
+    "经典身份即将透明降级时，方向对立的基准药味也必须剔除，不能在自拟方里继续享受基准豁免");
   // 降级路径也不得把方剔空。
   const allBad = `${S}\n${JSON.stringify({
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",

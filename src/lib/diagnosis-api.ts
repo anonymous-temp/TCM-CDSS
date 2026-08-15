@@ -3923,9 +3923,13 @@ async function callPrimaryTextModelStream(
           // finalizeM04CandidateContent 里。不先剔除，方向未成立的那一味仍在方中，
           // transparentFormulaTherapyIssue 必然非空，降级随即被拒——两个修复各自正确却没串起来，
           // 结果依旧 0 味（实测感冒-风寒束表：基准 4/4 达标 + 川芎未剔除 → 降级被拒）。
-          const declassifiedContent = markTransparentFormulaDeclassification(
-            dropUnsupportedM04CandidateHerbs(authoritativeContent, opts.structuredPriorReasoning, false),
+          const declassifiedContent = dropUnsupportedM04CandidateHerbs(
+            markTransparentFormulaDeclassification(
+              authoritativeContent,
+              opts.structuredPriorReasoning,
+            ),
             opts.structuredPriorReasoning,
+            false,
           );
           const transparentReasoning = validatedStructuredReasoning(
             declassifiedContent,

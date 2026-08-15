@@ -101,6 +101,10 @@ export function dropUnsupportedM04CandidateHerbs(
     const candidate = recordValue(candidates[0]);
     const herbs = candidate?.herbs;
     if (!candidate || !Array.isArray(herbs) || herbs.length === 0) return content;
+    const candidateStillClaimsClassicIdentity = candidate.identityDeclassified !== true &&
+      candidate.constructionType !== "self_devised" &&
+      Array.isArray(candidate.formulaNames) &&
+      candidate.formulaNames.some((name) => typeof name === "string" && Boolean(name.trim()));
 
     const lockedNames = [
       ...(Array.isArray(candidate.formulaNames) ? candidate.formulaNames : []),
@@ -121,7 +125,14 @@ export function dropUnsupportedM04CandidateHerbs(
       if (!herb) return true;
       const name = typeof herb.name === "string" ? herb.name.trim() : "";
       if (!name) return true;
-      if (baselineIdentities.has(canonicalTcmHerbIdentity(name))) return true;
+      // A baseline ingredient is protected only while the candidate still retains that classic
+      // identity. The transparent path first makes the identity decision, then calls this function
+      // with `false`: a verified classic/modified identity remains protected, while a truly
+      // declassified self-devised candidate no longer grants direction immunity to former baseline
+      // herbs (production modern-16911: 左金丸 identity removed, but 吴茱萸 remained in a pure
+      // heat-clearing plan and the final safety-floor check correctly rejected it).
+      if ((enforceBaselineFloor || candidateStillClaimsClassicIdentity) &&
+        baselineIdentities.has(canonicalTcmHerbIdentity(name))) return true;
       // 与门禁同一入口、同一入参形态：拼接功用串再判会落到 function 分支，与门禁读
       // prescriptionRole/targetPathogenesis 的口径不一致，导致「该剔的没剔、门禁照旧驳回」。
       const directionIssue = m04HerbDirectionIssue(
