@@ -15,6 +15,18 @@ export function isM03WesternSupportContractReason(reason: string): boolean {
   return M03_WESTERN_SUPPORT_CONTRACT_REASONS.has(reason);
 }
 
+/**
+ * Final M04 validation must reuse the same safety-floor scope that admitted a transparent
+ * formula-identity declassification. An accepted reviewer may produce no quality annotation, so
+ * annotation presence alone cannot prove which validation scope was used earlier in the pipeline.
+ */
+export function shouldUseM04FinalizeSafetyFloor(
+  transparentDeclassificationAccepted: boolean,
+  transparentQualityAnnotationPresent: boolean,
+): boolean {
+  return transparentDeclassificationAccepted || transparentQualityAnnotationPresent;
+}
+
 export function shouldRunTargetedStructuredRetry(stage: "diagnose" | "prescribe", reason: string): boolean {
   if (stage === "prescribe") {
     return /^(?:json_invalid|sentinel_count_\d+_\d+|structured_resolver_rejected)$/.test(reason) ||

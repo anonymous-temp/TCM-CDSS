@@ -11,7 +11,7 @@
 
 import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isDeepseekModel, getBailianQwenConfig } from "@/lib/text-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
-import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } from "@/lib/diagnosis-structured-repair";
+import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
 import { affirmedTcmTherapyConcepts, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
@@ -4196,9 +4196,13 @@ async function callPrimaryTextModelStream(
               true,
               transparentFormulaDeclassificationAccepted,
               advisoryM04RiskAccepted,
-              // 校验作用域必须与受理时一致：受理时豁免了治法覆盖阈值，finalize 再用全口径
-              // 校验同一份内容，就会把刚受理的候选重新判死——又一个「分叉复发」点。
-              m04TransparentQualityAnnotation !== undefined,
+              // 校验作用域必须与受理时一致：透明降级受理时已经用安全底线口径完整复验，
+              // finalize 再用全口径会把刚受理的候选重新判死。不能只看批注是否存在——独立
+              // 复核直接 accepted 时没有批注，但仍然是同一条透明降级受理路径（public-091）。
+              shouldUseM04FinalizeSafetyFloor(
+                transparentFormulaDeclassificationAccepted,
+                m04TransparentQualityAnnotation !== undefined,
+              ),
             )) {
             console.warn("[tcm-cdss:model] finalized structured response rejected", {
               stage: opts.structuredStage,

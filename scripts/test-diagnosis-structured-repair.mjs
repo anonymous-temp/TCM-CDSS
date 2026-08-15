@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const { enforceStructuredStageOwnership, isM03WesternSupportContractReason, repairCompletedStructuredSentinel, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry } = await import("../src/lib/diagnosis-structured-repair.ts");
+const { enforceStructuredStageOwnership, isM03WesternSupportContractReason, repairCompletedStructuredSentinel, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } = await import("../src/lib/diagnosis-structured-repair.ts");
 const { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
 const { parseOpenAICompatCompletionPayload } = await import("../src/lib/openai-compatible-response.ts");
 const { buildM03DiagnosticReviewPrompt, parseM03DiagnosticReview } = await import("../src/lib/m03-diagnostic-review.ts");
@@ -47,6 +47,13 @@ assert.match(
   diagnosisApiSource,
   /if \(targetedM04Retry && m04RepairLoopEarlyExit\) targetedM04Retry = false;/,
   "a composition rejection after one completed repair must not launch another full M04 redraw",
+);
+assert.equal(shouldUseM04FinalizeSafetyFloor(false, false), false, "ordinary M04 output keeps the full final contract");
+assert.equal(shouldUseM04FinalizeSafetyFloor(false, true), true, "quality-annotated acceptance keeps its safety-floor scope");
+assert.equal(
+  shouldUseM04FinalizeSafetyFloor(true, false),
+  true,
+  "an accepted transparent declassification must keep its safety-floor scope even when review produced no annotation",
 );
 assert.match(
   diagnosisApiSource,
