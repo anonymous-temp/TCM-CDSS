@@ -307,6 +307,9 @@ const scripts = [
   // 线上回归判据本身也是发布资产：请求级语义筛查超时不能冒充患者缺口；患者事实缺口仍须逐项
   // 回显。M04 只对传输/截断/无契约类失败做有上限、有留痕的恢复，不重试安全降级路径。
   "test:robustness-live-assertions",
+  // TCMEval-SDT 四任务评测适配器：固定官方数据提交和哈希，金标准只在生成后评分，
+  // 生产 M03 请求不得携带十选项或答案；同时逐式复现论文 Task 1/2/3/4 与总权重。
+  "test:tcmeval-sdt",
   "test:herb-breadth-surface",
   "test:m04-dose-index",
   "test:m04-safety-contract",
