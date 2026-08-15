@@ -19,7 +19,21 @@ set -euo pipefail
 
 HOST="${DEPLOY_HOST:-82.156.128.153}"
 USER="${DEPLOY_USER:-ubuntu}"
-KEY="${DEPLOY_KEY:-$HOME/.ssh/tcm_cdss_deploy_ed25519}"
+# 部署密钥：显式 DEPLOY_KEY 优先，否则在候选里挑**本机真实存在**的那一把。
+# 硬编码单一路径作默认值在多端协同下必断——2026-08-16 实测：一端把默认从 evimed_deploy
+# 改成 tcm_cdss_deploy_ed25519，另一端立刻 Permission denied(publickey)，DEPLOY_EXIT=255，
+# 因为那把钥匙只在改动方机器上。候选顺序不代表优先级，只代表历史先后。
+KEY="${DEPLOY_KEY:-}"
+if [ -z "$KEY" ]; then
+  for candidate in "$HOME/.ssh/tcm_cdss_deploy_ed25519" "$HOME/.ssh/evimed_deploy"; do
+    if [ -f "$candidate" ]; then KEY="$candidate"; break; fi
+  done
+fi
+if [ -z "$KEY" ] || [ ! -f "$KEY" ]; then
+  echo "找不到可用的部署密钥。显式指定：DEPLOY_KEY=/path/to/key IMAGE_TAG=... ./scripts/deploy-prod.sh" >&2
+  exit 1
+fi
+echo "=== 部署密钥：$KEY ==="
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/home/ubuntu/tcm-cdss/releases/20260801-vocab-deduction}"
 TAG="${IMAGE_TAG:?IMAGE_TAG 必须显式指定且不可复用——镜像 tag 必须不可变，否则无法证明线上跑的是哪一版}"
 # 保留几个历史 tcm-cdss 镜像用于回滚。3 个 ≈ 3GB，够回滚两版；再多只是占磁盘。
