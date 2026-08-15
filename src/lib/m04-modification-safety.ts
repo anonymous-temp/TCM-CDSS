@@ -67,7 +67,8 @@ export function dropUnsupportedM04ModificationDirections(
  *
  * 四条剔除边界，缺一不可（不满足即原样返回，回到既有驳回行为，安全面一条未放宽）：
  *   1) 只剔除高影响方向未成立的药味——判定完全复用 highImpactHerbDirectionIssue，与门禁同一口径；
- *   2) **君药不剔除**：君药决定全方走向，其方向未成立属 emperor_therapy_mismatch，必须重选而非删除；
+ *   2) **唯一合格君药不剔除**：君药决定全方走向。只有模型给出两味君药、其中一味方向不成立，
+ *      且删除后仍有另一味直接承接 P1 的合格君药时，才剔除坏的非基准君药；否则必须重选；
  *   3) **基准组成不剔除**：锁定经典方的法定组成本就享受身份豁免，不会走到这里；显式排除以防
  *      别名/饮片名解析差异误删基准药；
  *   4) 剔除后必须仍剩至少一味治疗性药味，且每个锁定基准的保留数仍达标——否则剔除会把一张
@@ -109,17 +110,30 @@ export function dropUnsupportedM04CandidateHerbs(
     const baselineIdentities = new Set(
       baselines.flatMap((reference) => reference.ingredients).map((name) => canonicalTcmHerbIdentity(name)),
     );
+    const supportedPrimaryEmperorCount = herbs.filter((value) => {
+      const herb = recordValue(value);
+      return herb?.role === "君" && herb.targetKind === "pathogenesis_node" && herb.targetRef === "P1" &&
+        !m04HerbDirectionIssue(herb as Parameters<typeof m04HerbDirectionIssue>[0], prior);
+    }).length;
 
     const retained = herbs.filter((value) => {
       const herb = recordValue(value);
       if (!herb) return true;
       const name = typeof herb.name === "string" ? herb.name.trim() : "";
       if (!name) return true;
-      if (herb.role === "君") return true;
       if (baselineIdentities.has(canonicalTcmHerbIdentity(name))) return true;
       // 与门禁同一入口、同一入参形态：拼接功用串再判会落到 function 分支，与门禁读
       // prescriptionRole/targetPathogenesis 的口径不一致，导致「该剔的没剔、门禁照旧驳回」。
-      return !m04HerbDirectionIssue(herb as Parameters<typeof m04HerbDirectionIssue>[0], prior);
+      const directionIssue = m04HerbDirectionIssue(
+        herb as Parameters<typeof m04HerbDirectionIssue>[0],
+        prior,
+      );
+      if (!directionIssue) return true;
+      // A malformed extra emperor must not make a fully supported P1 emperor and every safe herb
+      // disappear with it. This is deletion-only and the complete emperor/coverage contract runs
+      // again after the transform. With no supported P1 emperor, preserve the row and fail closed.
+      if (herb.role === "君") return supportedPrimaryEmperorCount === 0;
+      return false;
     });
     if (retained.length === herbs.length) return content;
 

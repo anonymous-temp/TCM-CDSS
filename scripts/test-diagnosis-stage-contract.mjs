@@ -3855,6 +3855,32 @@ assert.equal(m04ProposalIssueCode(wrappedScalarRegimenProposal, heatQiPrior), un
 const compiledWrappedRegimen = compileM04Proposal(wrappedScalarRegimenProposal, heatQiPrior);
 assert.equal(compiledWrappedRegimen?.formula?.candidates?.[0]?.decoction?.doseCount, "5剂");
 assert.equal(compiledWrappedRegimen?.formula?.candidates?.[0]?.therapyMatch, heatQiPrior.therapy.overallMethod || heatQiPrior.therapy.overallPrinciple, "M03 owns therapyMatch and prefers its concrete treatment method");
+const optionalNarrativeObjectProposal = {
+  ...wrappedScalarRegimenProposal,
+  candidate: {
+    ...wrappedScalarRegimenProposal.candidate,
+    therapyMatch: { treatment: "模型自由文本", basis: "模型自由文本" },
+    applicable: { condition: "模型自由文本", reason: "模型自由文本" },
+    notApplicable: { condition: "模型自由文本", reason: "模型自由文本" },
+    formulaAnalysis: { principle: "模型自由文本", composition: "模型自由文本" },
+  },
+};
+assert.equal(
+  m04ProposalIssueCode(optionalNarrativeObjectProposal, heatQiPrior),
+  undefined,
+  "malformed optional narrative objects are omitted instead of invalidating a dose-safe proposal",
+);
+const compiledOptionalNarrativeObject = compileM04Proposal(optionalNarrativeObjectProposal, heatQiPrior);
+assert.equal(
+  compiledOptionalNarrativeObject?.formula?.candidates?.[0]?.therapyMatch,
+  heatQiPrior.therapy.overallMethod || heatQiPrior.therapy.overallPrinciple,
+  "the signed M03 therapy lock replaces an ambiguous provider narrative object",
+);
+assert.match(
+  compiledOptionalNarrativeObject?.formula?.candidates?.[0]?.notApplicable || "",
+  /证候|病机|安全边界/,
+  "the server supplies a governed not-applicable boundary after dropping an ambiguous optional object",
+);
 const conflictingLegacyMethodPrior = {
   ...heatQiPrior,
   therapy: { ...heatQiPrior.therapy, overallMethod: "与锁定治法冲突的旧字段" },

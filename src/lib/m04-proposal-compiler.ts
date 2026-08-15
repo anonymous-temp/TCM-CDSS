@@ -859,6 +859,17 @@ function normalizeM04ProposalInput(
   const proposedName = unwrapSingleText(candidate.name ?? candidate.formulaName ?? candidate["方名"]);
   const lockedName = trustedCandidateName(prior, proposedName);
   if (lockedName || proposedName) candidate.name = lockedName || proposedName;
+  // These four fields are optional narrative explanations. Providers occasionally return an
+  // object such as `{ condition, reason }` instead of the requested string. Rejecting the entire
+  // dose candidate for that presentation drift spends every repair round on a field the server
+  // can already derive deterministically from signed M03. Preserve an unambiguous scalar wrapper;
+  // otherwise omit only the malformed optional narrative so compileM04Proposal uses its governed
+  // fallback. Herb identity, dose, role, target and regimen fields remain fail-closed below.
+  for (const field of ["therapyMatch", "applicable", "notApplicable", "formulaAnalysis"] as const) {
+    const normalized = unwrapSingleText(candidate[field]);
+    if (normalized) candidate[field] = normalized;
+    else if (candidate[field] != null) delete candidate[field];
+  }
   candidate.herbs = normalizeEmperorCardinality(
     normalizeHerbs(candidate.herbs ?? candidate.medicines ?? candidate["药味"]),
   );

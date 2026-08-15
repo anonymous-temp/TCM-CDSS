@@ -12,6 +12,17 @@ const { getTcmHerbFunctionDisplayText } = await import("../src/lib/tcm-knowledge
 const { buildM04ClinicalRepairHint, m04CandidateHerbsFromRepairPayload, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
 const { dropUnsupportedM04ModificationDirections } = await import("../src/lib/m04-modification-safety.ts");
 const diagnosisApiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+const prescribeRouteSource = readFileSync(new URL("../src/app/api/diagnosis/prescribe/route.ts", import.meta.url), "utf8");
+assert.match(
+  prescribeRouteSource,
+  /const orchestrationStartedAt = Date\.now\(\);[\s\S]*structuredOrchestrationStartedAt: orchestrationStartedAt/,
+  "M04 must carry its route-entry wall clock into stream orchestration so the browser receives a bounded result",
+);
+assert.match(
+  diagnosisApiSource,
+  /const requestedOrchestrationStartedAt = opts\.structuredOrchestrationStartedAt;[\s\S]{0,500}?const requestStartedAt = Number\.isFinite/,
+  "the stream deadline must include route preparation time instead of resetting immediately before provider fetch",
+);
 assert.match(
   diagnosisApiSource,
   /lastRejectionReason:\s*opts\.structuredStage === "diagnose"/,

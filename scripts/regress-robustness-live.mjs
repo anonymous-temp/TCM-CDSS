@@ -18,7 +18,12 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import path, { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
-import { gapEchoed, shouldRetryM04Attempt } from "./lib/robustness-live-assertions.mjs";
+import {
+  gapEchoed,
+  m03ContractSupportsPrescription,
+  shouldRetryM03Attempt,
+  shouldRetryM04Attempt,
+} from "./lib/robustness-live-assertions.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
@@ -55,7 +60,13 @@ const OUT_DIR = process.env.OUT_DIR || "artifacts/robustness-run";
 const CONCURRENCY = Number(process.env.PROBE_CONCURRENCY || 3);
 const RATE_LIMIT = Number(process.env.PROBE_RATE_LIMIT || 55); // 线上 60/10min，留 5 次余量
 const RATE_WINDOW_MS = 10 * 60 * 1000;
-const TIMEOUT_MS = Number(process.env.LIVE_MODEL_TIMEOUT_MS || 300_000);
+// Match the real browser consumer. A probe that waits longer than the UI can report an API pass
+// for a response no doctor can actually receive (observed M04 responses at 270s versus UI 210s).
+const TIMEOUT_MS = Number(process.env.LIVE_MODEL_TIMEOUT_MS || 210_000);
+const configuredM03MaxAttempts = Number(process.env.M03_MAX_ATTEMPTS || 2);
+const M03_MAX_ATTEMPTS = Number.isFinite(configuredM03MaxAttempts)
+  ? Math.max(1, Math.min(3, Math.trunc(configuredM03MaxAttempts)))
+  : 2;
 const configuredM04MaxAttempts = Number(process.env.M04_MAX_ATTEMPTS || 2);
 const M04_MAX_ATTEMPTS = Number.isFinite(configuredM04MaxAttempts)
   ? Math.max(1, Math.min(3, Math.trunc(configuredM04MaxAttempts)))
@@ -266,6 +277,9 @@ function evaluate(c, r) {
     if (res.status === 200 && res.sawEnd === false) problems.push(`T:${stage} 流未以 [END] 收尾`);
   }
   if (r.stages.m03?.status === 200 && !r.m03Contract) problems.push("T:M03 无合法结构化契约");
+  if (c.expectation === "should_prescribe" && r.m03SupportsPrescription === false) {
+    problems.push("T:M03 未形成可执行辨证合同");
+  }
   // 权限层主动降级时，M04 的合法响应就是确定性非剂量 Markdown，不带处方 JSON sentinel。
   // 普通应出方案病例，或页面已经出现任何具体剂量时，结构化契约仍是硬要求。
   if (r.m04Attempted && r.stages.m04?.status === 200 && !r.m04Contract &&
@@ -380,13 +394,44 @@ async function runCase(c) {
     completeness: gateBody?.completeness?.level,
   };
 
-  const m03Res = await post("/api/diagnosis/diagnose", { ...working, phase: "diagnose" });
-  const m03Stream = consume(m03Res.raw);
-  const m03 = reasoning(m03Stream.content);
+  r.m03Attempts = [];
+  let finalM03Attempt;
+  for (let attempt = 1; attempt <= M03_MAX_ATTEMPTS; attempt += 1) {
+    const response = await post("/api/diagnosis/diagnose", { ...working, phase: "diagnose" });
+    const stream = consume(response.raw);
+    const contract = reasoning(stream.content);
+    const truncated = stream.content.includes("[TRUNCATED]");
+    finalM03Attempt = { response, stream, contract, truncated };
+    r.m03Attempts.push({
+      attempt,
+      status: response.status,
+      ms: response.ms,
+      transport: response.transport,
+      errorFrame: stream.errorFrame,
+      sawEnd: stream.sawEnd,
+      contract: Boolean(contract),
+      supportsPrescription: m03ContractSupportsPrescription(contract),
+      truncated,
+    });
+    rawParts.push(`\n\n===== M03 可见正文（尝试 ${attempt}）=====\n${visibleOnly(stream.content)}`);
+    if (!shouldRetryM03Attempt({
+      expectation: c.expectation,
+      status: response.status,
+      transport: response.transport,
+      errorFrame: stream.errorFrame,
+      sawEnd: stream.sawEnd,
+      content: stream.content,
+      contract,
+    })) break;
+  }
+  const { response: m03Res, stream: m03Stream, contract: m03, truncated: m03Truncated } = finalM03Attempt;
   r.stages.m03 = { status: m03Res.status, ms: m03Res.ms, errorFrame: m03Stream.errorFrame, sawEnd: m03Stream.sawEnd, transport: m03Res.transport };
   r.m03Contract = Boolean(m03);
+  r.m03SupportsPrescription = m03ContractSupportsPrescription(m03);
+  r.m03RecoveredAfterRetry = r.m03Attempts.length > 1 && r.m03SupportsPrescription &&
+    m03Res.status === 200 && !m03Res.transport && !m03Stream.errorFrame && m03Stream.sawEnd && !m03Truncated;
   r.advisoryBanner = { m03: m03Stream.content.includes(ADVISORY_MARKER) };
-  if (m03Stream.content.includes("[TRUNCATED]")) r.truncated.push("M03");
+  if (m03Truncated) r.truncated.push("M03");
   r.m03 = {
     primarySyndrome: m03?.overview?.primarySyndrome,
     westernPrimary: m03?.overview?.westernDiagnosis?.primary?.name || m03?.overview?.westernDiagnosis?.primary,
@@ -398,7 +443,6 @@ async function runCase(c) {
   };
   r.m03VisibleTail = visibleOnly(m03Stream.content).replace(/\s+/g, " ").slice(-300);
   rawParts.push(`\n\n===== 安全门 =====\n${JSON.stringify(r.gate, null, 1)}`);
-  rawParts.push(`\n\n===== M03 可见正文 =====\n${visibleOnly(m03Stream.content)}`);
 
   r.m04Attempted = Boolean(m03);
   if (m03) {
@@ -431,6 +475,7 @@ async function runCase(c) {
       finalM04Attempt = attemptResult;
       if (!shouldRetryM04Attempt({
         expectation: c.expectation,
+        m03SupportsPrescription: r.m03SupportsPrescription,
         status: response.status,
         transport: response.transport,
         errorFrame: stream.errorFrame,
@@ -560,6 +605,11 @@ const summary = {
   fail: results.filter((r) => r.verdict && !r.verdict.pass).length,
   harnessErrors: results.filter((r) => r.harnessError).length,
   byExpectation: {},
+  m03Recovery: {
+    attemptedMultiple: results.filter((r) => (r.m03Attempts?.length || 0) > 1).length,
+    recovered: results.filter((r) => r.m03RecoveredAfterRetry).length,
+    unrecovered: results.filter((r) => (r.m03Attempts?.length || 0) > 1 && !r.m03RecoveredAfterRetry).length,
+  },
   m04Recovery: {
     attemptedMultiple: results.filter((r) => (r.m04Attempts?.length || 0) > 1).length,
     recovered: results.filter((r) => r.m04RecoveredAfterRetry).length,

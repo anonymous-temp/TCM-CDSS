@@ -384,6 +384,13 @@ type StreamSafetyOptions = {
   prescribeSignatureContext?: PrescribeContractSignatureContext;
   requestSignal?: AbortSignal;
   /**
+   * Route-entry wall-clock for structured orchestration. Prompt/evidence preparation happens
+   * before this stream helper; without carrying its start time, a nominal 180s M04 deadline can
+   * become 250-300s and exceed the browser's 210s total timeout before a fail-closed fallback is
+   * delivered. Only server routes set this value.
+   */
+  structuredOrchestrationStartedAt?: number;
+  /**
    * 「同一病例 + 同一份已签名 M03」的重试身份（见 m04-retry-policy）。医生点「重新生成候选方药」
    * 时前端原样重发同一份 caseState，服务端据此认出这是第几次尝试；缺失时行为与今天完全一致。
    */
@@ -2282,7 +2289,12 @@ async function callPrimaryTextModelStream(
   }
 
   const upstreamController = new AbortController();
-  const requestStartedAt = Date.now();
+  const streamStartedAt = Date.now();
+  const requestedOrchestrationStartedAt = opts.structuredOrchestrationStartedAt;
+  const requestStartedAt = Number.isFinite(requestedOrchestrationStartedAt) &&
+      Number(requestedOrchestrationStartedAt) > 0 && Number(requestedOrchestrationStartedAt) <= streamStartedAt
+    ? Number(requestedOrchestrationStartedAt)
+    : streamStartedAt;
   const structuredRunDeadline = requestStartedAt + STRUCTURED_RUN_TOTAL_TIMEOUT_MS;
   const orchestrationDeadline = opts.structuredStage === "diagnose"
     ? requestStartedAt + M03_ORCHESTRATION_DEADLINE_MS

@@ -426,6 +426,13 @@ console.log(JSON.stringify({
   );
   assert.deepEqual(
     retainedNames(dropUnsupportedM04CandidateHerbs(wrapHerbs([
+      ...baseline, herbRow("大黄", "君", "泻下攻积"),
+    ]), priorMahuang)),
+    ["麻黄", "桂枝", "杏仁", "甘草"],
+    "已有合格 P1 君药时，方向未成立的额外非基准君药必须被单味剔除",
+  );
+  assert.deepEqual(
+    retainedNames(dropUnsupportedM04CandidateHerbs(wrapHerbs([
       herbRow("麻黄", "君", "发汗解表"), herbRow("川芎", "臣", "活血行气"), herbRow("大黄", "佐", "泻下"),
     ]), priorMahuang)).length,
     3,

@@ -33,6 +33,10 @@ function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReaso
 }
 
 export async function POST(req: Request) {
+  // The browser gives the complete request 210s. Start the server's 180s M04 orchestration clock
+  // before clinical-fact/evidence preparation so the stream can still deliver its fail-closed
+  // fallback inside that browser margin instead of being cut off as an HTTP 0 abort.
+  const orchestrationStartedAt = Date.now();
   const parsed = await readCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   const signedPriorReasoning = diagnoseReasoningFromState(parsed.caseState);
@@ -249,6 +253,7 @@ export async function POST(req: Request) {
   );
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
+    structuredOrchestrationStartedAt: orchestrationStartedAt,
     // 模型输出彻底不可回收时：M03 已锁定可编译方 → 确定性渲染「基准组成+药典区间」参考页
     // （不经模型、非剂量、医师定量），医生不再拿到空白页；未锁方/不可编译 → 原安全有限文案。
     truncateFallback: buildDeterministicFormulaReferenceFallback(gated, signedPriorReasoning)
