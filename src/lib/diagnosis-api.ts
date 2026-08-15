@@ -31,7 +31,7 @@ import { cancelResponseBody } from "@/lib/http-response-lifecycle";
 import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
 import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
-import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
+import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
 import { recordCdssClinicalReviewTelemetry, recordCdssStageTelemetry, type CdssClinicalReviewOutcome, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
 import { createHash } from "node:crypto";
@@ -2217,8 +2217,19 @@ async function reviewM04ClinicalPlan(
     parentSignal,
     generatorModel,
   });
-  if (!m04ClinicalReviewNeedsAdjudication(first) || parentSignal?.aborted || absoluteDeadline <= Date.now()) {
-    return first;
+  const scopedFirstReview = constrainM04ClinicalReviewScope(first, priorReasoning, reasoning);
+  const scopedFirst: ClinicalReviewExecution<M04ClinicalReview> = scopedFirstReview === first
+    ? first
+    : {
+        ...scopedFirstReview,
+        reviewer: first.reviewer,
+        execution: first.execution ? { ...first.execution, reason: "accepted" } : undefined,
+      };
+  if (scopedFirstReview !== first) {
+    console.warn("[tcm-cdss:model] ignored out-of-scope classic composition review for self-devised M04 candidate");
+  }
+  if (!m04ClinicalReviewNeedsAdjudication(scopedFirst) || parentSignal?.aborted || absoluteDeadline <= Date.now()) {
+    return scopedFirst;
   }
   const adjudicated = await runIndependentClinicalReview<M04ClinicalReview>({
     stage: "prescribe",
@@ -2228,7 +2239,7 @@ async function reviewM04ClinicalPlan(
       priorReasoning,
       reasoning,
       evidenceContext,
-      first,
+      scopedFirst,
     ),
     parse: parseM04ClinicalReview,
     unavailable: { status: "unavailable", issueCode: "review_unavailable" },
@@ -2236,20 +2247,20 @@ async function reviewM04ClinicalPlan(
     parentSignal,
     // Force the candidate chain onto a model different from the first reviewer whenever both
     // configured stage models are available.
-    generatorModel: first.reviewer?.model,
+    generatorModel: scopedFirst.reviewer?.model,
   });
   const execution = {
-    durationMs: (first.execution?.durationMs || 0) + (adjudicated.execution?.durationMs || 0),
-    attemptCount: (first.execution?.attemptCount || 0) + (adjudicated.execution?.attemptCount || 0),
+    durationMs: (scopedFirst.execution?.durationMs || 0) + (adjudicated.execution?.durationMs || 0),
+    attemptCount: (scopedFirst.execution?.attemptCount || 0) + (adjudicated.execution?.attemptCount || 0),
     reason: adjudicated.status === "accepted"
       ? "accepted" as const
       : adjudicated.status === "repair"
         ? "repair" as const
-        : first.execution?.reason || "repair" as const,
+        : scopedFirst.execution?.reason || "repair" as const,
   };
   if (adjudicated.status === "accepted") return { ...adjudicated, execution };
   if (adjudicated.status === "repair") return { ...adjudicated, execution };
-  return { ...first, execution };
+  return { ...scopedFirst, execution };
 }
 
 async function callPrimaryTextModelStream(

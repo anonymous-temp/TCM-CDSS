@@ -294,6 +294,7 @@ export function buildM04ClinicalReviewPrompt(
     "再逐味核对药物方向是否服务于 M03 的主证、病机节点和治法。不得用患者未提供、明确否认、仅在不确定项或条件句中出现的症状来证明药物必要性。明显偏离时返回 herb_plan_mismatch。",
     "重点复核君臣佐使层级，而不是只看药味是否常见：君药必须直接承担 P1 核心病机和总治法的中心作用，不能把山药、甘草等通用补益/调和药跨病种机械设为君药；自拟方若角色层级与核心治法不一致，返回 herb_plan_mismatch。待复核投影中的 targetPathogenesis、function 与 prescriptionRole 是服务端依据受控病机节点和药味知识库生成的逐味解释，必须与药名、role、targetRef 一并审查，不能因投影缺少自由文本解释而推定角色不成立。1–2 味并列君药均为合法结构：当一味或两味君药已直接覆盖 P1 中心治法时必须接受，不得仅因存在另一种同样合理的君药选择、偏好单君药或偏好其他层级而要求 repair。",
     "命名方优先由方证和受控方剂目录决定；自拟方必须说明为何命名方不适配，并维持可解释的药组层级。不得为了规避组成核验把一个实质上的经典方随意改称自拟方。",
+    "formula_composition_mismatch 只适用于 M03 或 M04 明确声称了命名方身份的候选。若 M03 为 self_devised/none，且候选 constructionType=self_devised、formulaNames 为空、方名为‘本例辨证组方/自拟方’，不得仅因若干药味与某经典方重合而强加经典方身份或返回组成不符；此时应按逐味方向与角色判断 herb_plan_mismatch，均无明显问题则 accepted。",
     "西药/中成药候选必须逐项绑定本轮 EVID-INST 或 LOCAL-INST 的药名、条目ID与sha256指纹，且说明书适应证须覆盖本例当前阳性问题；集外药名、错配指纹或把说明书未返回的用法剂量补出来均返回 patient_context_mismatch。西药在本版本只能是无剂量的 discussion_only，中成药在说明书摘要没有完整用法时也不得生成剂量。",
     "复核随症加减是否只服务于本次病历已明确记录的当前伴随症状：trigger 必须能逐字回溯到已签名 M03 的 primarySyndromeBasis、pathogenesis.chain.patientFact 或 westernDiagnosis.supportingFacts；不得把当前处方药重复写成 add，也不得预设‘若出现、复诊时出现、接诊时核实’的未来症状。modifications 空数组是合法的保守方案，不得仅因没有加减而要求 repair。",
     "结合年龄、性别/生理状态、过敏史、现用药、生命体征和已知检查等已提供信息，检查剂量及配伍是否存在需要重新生成而非仅靠常规审方提示解决的临床不合理。剂量选择与证候强度明显不相称时返回 dose_rationale_concern；处方依赖未成立或相反的患者事实时返回 patient_context_mismatch。",
@@ -314,6 +315,42 @@ export function m04ClinicalReviewNeedsAdjudication(review: M04ClinicalReview): b
   return review.status === "repair" &&
     review.issueCode === "herb_plan_mismatch" &&
     review.repairFocus === "emperor_role";
+}
+
+/**
+ * The reviewer may only raise a classic-formula composition objection when either M03 or the M04
+ * candidate actually claims a named-formula identity. A fully self-devised candidate has no
+ * classic core-composition contract to mismatch; its individual herbs, roles, directions, doses
+ * and patient dependencies remain governed by the other review issues and deterministic T1 gates.
+ */
+export function constrainM04ClinicalReviewScope(
+  review: M04ClinicalReview,
+  priorReasoning: unknown,
+  reasoning: unknown,
+): M04ClinicalReview {
+  if (review.status !== "repair" || review.issueCode !== "formula_composition_mismatch") return review;
+  const payload = buildM04ClinicalReviewPayload(priorReasoning, reasoning);
+  const priorOverview = record(payload.prior.overview);
+  const priorFormulaNames = Array.isArray(priorOverview?.recommendedFormulaNames)
+    ? priorOverview.recommendedFormulaNames.filter((value) => typeof value === "string" && value.trim())
+    : [];
+  const priorMode = String(priorOverview?.formulaSelectionMode || "none");
+  const priorClaimsNamedFormula = priorFormulaNames.length > 0 && !["none", "self_devised"].includes(priorMode);
+  const formula = record(payload.candidate.formula);
+  const candidates = Array.isArray(formula?.candidates) ? formula.candidates : [];
+  const candidateClaimsNamedFormula = candidates.some((value) => {
+    const candidate = record(value);
+    const formulaNames = Array.isArray(candidate?.formulaNames)
+      ? candidate.formulaNames.filter((name) => typeof name === "string" && name.trim())
+      : [];
+    const name = typeof candidate?.name === "string" ? candidate.name.trim() : "";
+    const explicitlySelfDevised = candidate?.constructionType === "self_devised" || candidate?.identityDeclassified === true;
+    const genericSelfDevisedName = /^(?:本例辨证组方|自拟方)(?:加减)?$/.test(name);
+    return formulaNames.length > 0 || (!explicitlySelfDevised && !genericSelfDevisedName);
+  });
+  return !priorClaimsNamedFormula && candidates.length > 0 && !candidateClaimsNamedFormula
+    ? { status: "accepted", issueCode: "none" }
+    : review;
 }
 
 export function buildM04ClinicalReviewAdjudicationPrompt(

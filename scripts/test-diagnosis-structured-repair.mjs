@@ -5,7 +5,7 @@ const { enforceStructuredStageOwnership, isM03WesternSupportContractReason, repa
 const { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
 const { parseOpenAICompatCompletionPayload } = await import("../src/lib/openai-compatible-response.ts");
 const { buildM03DiagnosticReviewPrompt, parseM03DiagnosticReview } = await import("../src/lib/m03-diagnostic-review.ts");
-const { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, m04ClinicalRepairGuidance, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
+const { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
 const { enforceReviewedPrescriptionOutput } = await import("../src/lib/prescription-output-safety.ts");
 const { normalizeClinicalConfidence, normalizePrescriptionRole, normalizeReasoningV2, normalizeWesternDiagnosisStatus } = await import("../src/lib/diagnosis-types.ts");
 const { getTcmHerbFunctionDisplayText } = await import("../src/lib/tcm-knowledge.ts");
@@ -327,6 +327,36 @@ assert.match(m03ReviewPrompt, /病程阈值[\s\S]*必备核心症状[\s\S]*症�
 assert.match(m03ReviewPrompt, /患者事实边界：稀便半个月，无腹痛[\s\S]*本轮可用证据[\s\S]*绝不能当作患者事实[\s\S]*EVID-GUIDE-001/);
 assert.deepEqual(parseM04ClinicalReview('{"status":"accepted","issueCode":"none"}'), { status: "accepted", issueCode: "none" });
 assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"herb_plan_mismatch"}'), { status: "repair", issueCode: "herb_plan_mismatch" });
+const classicCompositionReview = {
+  status: "repair",
+  issueCode: "formula_composition_mismatch",
+  repairFocus: "formula_core_composition",
+  candidateIndex: 0,
+  implicatedHerbs: [],
+};
+assert.deepEqual(
+  constrainM04ClinicalReviewScope(
+    classicCompositionReview,
+    { overview: { recommendedFormulaNames: [], formulaSelectionMode: "self_devised" } },
+    { formula: { candidates: [{ name: "本例辨证组方", formulaNames: [], constructionType: "self_devised", herbs: [] }] } },
+  ),
+  { status: "accepted", issueCode: "none" },
+  "a reviewer cannot impose a classic-formula composition contract on a fully self-devised M03/M04 chain",
+);
+assert.deepEqual(
+  constrainM04ClinicalReviewScope(
+    classicCompositionReview,
+    { overview: { recommendedFormulaNames: ["痛泻要方"], formulaSelectionMode: "single" } },
+    { formula: { candidates: [{ name: "痛泻要方加减", formulaNames: ["痛泻要方"], constructionType: "single_base", herbs: [] }] } },
+  ),
+  classicCompositionReview,
+  "a named-formula composition concern remains blocking and repairable",
+);
+assert.match(
+  buildM04ClinicalReviewPrompt("", { overview: { formulaSelectionMode: "self_devised" } }, { formula: { candidates: [] } }),
+  /formula_composition_mismatch 只适用于 M03 或 M04 明确声称了命名方身份/,
+  "the reviewer prompt must preserve the same issue-domain boundary enforced by the server",
+);
 const focusedM04Repair = parseM04ClinicalReview('{"status":"repair","issueCode":"herb_plan_mismatch","repairFocus":"emperor_role","candidateIndex":0,"implicatedHerbs":["山药","山药","不存在药"]}');
 assert.deepEqual(focusedM04Repair, {
   status: "repair",
