@@ -25,6 +25,16 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
+  /let forceCloseAtAbsoluteDeadline = \(\) => upstreamController\.abort\(\);[\s\S]{0,300}?\(\) => forceCloseAtAbsoluteDeadline\(\)/,
+  "the absolute timer must own a client-stream close hook instead of only aborting the current upstream adapter",
+);
+assert.match(
+  diagnosisApiSource,
+  /forceCloseAtAbsoluteDeadline = \(\) => \{[\s\S]{0,2500}?orchestration_deadline_truncated[\s\S]{0,1500}?enqueueClient\("\[END\]"\);\s*\n\s*closeClientStream\(\);/,
+  "a structured-stage deadline must emit a fail-closed fallback and a complete NDJSON terminal even when an upstream abort is observed late",
+);
+assert.match(
+  diagnosisApiSource,
   /lastRejectionReason:\s*opts\.structuredStage === "diagnose"/,
   "every completed M03 orchestration logs its final rejection code without patient content",
 );

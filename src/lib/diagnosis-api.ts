@@ -2302,8 +2302,13 @@ async function callPrimaryTextModelStream(
       ? requestStartedAt + M04_ORCHESTRATION_DEADLINE_MS
       : structuredRunDeadline;
   const absoluteRunDeadline = Math.min(structuredRunDeadline, orchestrationDeadline);
+  // Aborting the current upstream request is necessary but not sufficient: a provider/reviewer
+  // adapter can observe AbortSignal late and keep this ReadableStream open past the browser's
+  // request budget. The stream start callback replaces this placeholder with a fail-closed
+  // structured fallback that terminates the client contract at the same absolute deadline.
+  let forceCloseAtAbsoluteDeadline = () => upstreamController.abort();
   const absoluteDeadlineAbortTimer = setTimeout(
-    () => upstreamController.abort(),
+    () => forceCloseAtAbsoluteDeadline(),
     Math.max(1, absoluteRunDeadline - Date.now()),
   );
   const abortFromRequest = () => upstreamController.abort();
@@ -2848,6 +2853,52 @@ async function callPrimaryTextModelStream(
         clearTimeout(absoluteDeadlineAbortTimer);
         opts.requestSignal?.removeEventListener("abort", abortFromRequest);
         ctrl.close();
+      };
+      forceCloseAtAbsoluteDeadline = () => {
+        if (clientStreamClosed) return;
+        upstreamController.abort();
+        if (!opts.structuredStage) return;
+
+        // Keep the same deterministic, non-dose fallback semantics as the ordinary catch path,
+        // while closing independently of whichever provider/reviewer promise is still pending.
+        if (opts.structuredStage === "diagnose") m03OrchestrationDeadlineGate();
+        if (opts.structuredStage === "prescribe") m04OrchestrationDeadlineGate();
+        console.warn("[tcm-cdss:model] absolute structured deadline reached; closing client stream with safe fallback", {
+          stage: opts.structuredStage,
+          elapsedMs: Date.now() - requestStartedAt,
+          deadlineMs: absoluteRunDeadline - requestStartedAt,
+        });
+
+        if (opts.authoritativeTruncateFallback && opts.truncateFallback) {
+          stageOutcome = "fallback";
+          stageReasonCode = "orchestration_deadline_signed_limited_fallback";
+          enqueueClient(`${STREAM_REPLACE_MARKER}${opts.truncateFallback}`);
+        } else if (opts.truncateFallback) {
+          stageOutcome = "provider_error";
+          stageReasonCode = "orchestration_deadline_truncated";
+          let safeFallback = upstreamAwareTruncateFallback() || opts.truncateFallback;
+          try {
+            safeFallback = opts.outputTransform ? opts.outputTransform(safeFallback) : safeFallback;
+          } catch {
+            // The caller-owned deterministic fallback is already fail-closed. A presentation
+            // transform must not prevent the absolute deadline from closing the NDJSON stream.
+          }
+          if (opts.structuredStage === "prescribe") {
+            safeFallback = [
+              safeFallback,
+              "",
+              "## 候选方药生成状态",
+              "本阶段生成超过安全时限。本次未展示不完整的药味与剂量；已完成的辨病辨证仍然保留，可重新生成候选方药。",
+            ].join("\n\n");
+          }
+          enqueueClient(`${STREAM_REPLACE_MARKER}${safeFallback}\n\n[TRUNCATED]\n`);
+        } else {
+          stageOutcome = "provider_error";
+          stageReasonCode = "orchestration_deadline";
+          enqError(ctrl, new Error("本阶段生成超过安全时限，请重试"));
+        }
+        enqueueClient("[END]");
+        closeClientStream();
       };
       try {
         if (bufferedClinicalStage) {
