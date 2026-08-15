@@ -3839,6 +3839,23 @@ export function gateDispositionIsAdvisory(): boolean {
   return (process.env.CDSS_GATE_DISPOSITION || "advise").trim().toLowerCase() !== "block";
 }
 
+/**
+ * 红旗病例的**剂量授权**开关，与 CDSS_GATE_DISPOSITION 分开成两轴。
+ *
+ * 【为什么必须分开】CDSS_GATE_DISPOSITION 管的是**流程与呈现**：命中红旗后还给不给 M03
+ * 分析、要不要把警示置顶。剂量授权是另一回事——它决定 M04 能不能印出具体克数。
+ * 把两者绑在一个开关上，正是此前那个缺陷的来源：为了「不阻断流程」而放行剂量，
+ * 顺带把儿科体重缺失、妊娠阳性这些与红旗无关的硬边界一起放行了。
+ *
+ * 默认 withhold：红旗未解除时不给剂量级候选，与 2026-08-15 起的线上行为一致。
+ * allow 是**运维回退档**：切回「红旗也照常出剂量方、由医生按警示自行裁量」的旧行为，
+ * 不需要改代码或重新构建。回退后独立硬边界（儿科/妊娠/语义筛查/高危剂量）依然拦截——
+ * 这一条不受本开关影响，也不该受。
+ */
+export function redFlagDoseAuthorizationAllowed(): boolean {
+  return (process.env.CDSS_REDFLAG_DOSE_AUTHORIZATION || "withhold").trim().toLowerCase() === "allow";
+}
+
 /** 集成方用于识别「本响应携带未解除安全警示」的稳定标记（见对外接口文档）。 */
 export const SAFETY_ADVISORY_MARKER = "<!-- CDSS_SAFETY_ADVISORY -->";
 
@@ -3876,15 +3893,19 @@ export function derivePrescriptionPermission(state: CaseState): PrescriptionPerm
   if (!chiefComplaint) {
     return { candidateMode: "blocked", formalAdoption: "blocked", reasons: ["缺少主诉"] };
   }
-  if (gate.status === "red_flag") {
-    // advisory-only 指系统不替医生下最终诊断，不等于允许绕开确定性安全层。未解除急症风险时
-    // 仍可给 M03 分析与急诊建议，但 M04 只能给非剂量内容；警示横幅不能替代剂量权限。
+  // 红旗**不再提前返回**。原先两版都在这里 return，于是儿科体重缺失、妊娠阳性、
+  // 语义筛查不可用这几道与红旗无关的独立硬边界根本轮不到评估：
+  //   · 旧版 advise 档直接给 full_dose ⇒ 红旗儿科病例反而拿到了完整剂量方；
+  //   · 新版无条件 non_dose_only ⇒ 结论碰巧安全，但开关失效、且掩盖了上面那个排序缺陷。
+  // 现在只在函数末尾按各自理由汇总，红旗只决定「要不要收回剂量授权」这一件事。
+  if (gate.status === "red_flag" && !redFlagDoseAuthorizationAllowed()) {
+    const redFlagReasons = gate.redFlags && gate.redFlags.length > 0
+      ? [...gate.redFlags]
+      : ["当前存在急危重分流提示"];
     return {
       candidateMode: "non_dose_only",
       formalAdoption: "blocked",
-      reasons: gate.redFlags && gate.redFlags.length > 0
-        ? [...gate.redFlags]
-        : ["当前存在急危重分流提示"],
+      reasons: Array.from(new Set([...redFlagReasons, ...highRiskDoseBoundaryReasons(state)])),
     };
   }
 

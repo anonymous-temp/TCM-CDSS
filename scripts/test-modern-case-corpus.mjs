@@ -2,7 +2,8 @@
 // 钉住的:封套评测语义(evaluationOnly/runtimeRetrievalAllowed=false)、全部 replayEligible=false、
 // caseId 唯一、sourceRef 行锚可回指、无出生日期泄漏、与抽取产物行数自洽(verified 行 == 语料案数)。
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { hasLocalArtifact } from "./lib/local-artifacts.mjs";
 
 const corpus = JSON.parse(readFileSync(new URL("../src/data/tcm-modern-case-eval-corpus.json", import.meta.url)));
 
@@ -14,7 +15,7 @@ const corpus = JSON.parse(readFileSync(new URL("../src/data/tcm-modern-case-eval
 // 因此把「与抽取产物对拍」的行锚集合固化进语料封套（corpus.sourceExtraction.verifiedLines），
 // 本机有产物时额外校验封套与产物一致——两边都钉住，干净环境也不放空。
 const extractedPath = new URL("../artifacts/medical-records-extract/cases-extracted.jsonl", import.meta.url);
-const extracted = existsSync(extractedPath)
+const extracted = hasLocalArtifact(extractedPath)
   ? readFileSync(extractedPath, "utf-8").split("\n").map((l) => l.trim()).filter(Boolean).map((l) => JSON.parse(l))
   : null;
 

@@ -11,6 +11,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { hasLocalArtifact } from "./lib/local-artifacts.mjs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,7 +31,7 @@ const normalizeVersionStamp = (text) => text.replace(/源码版本：`[^`]*`/g, 
 
 let generatedArtifact = "";
 check("飞书导入版可由 fresh clone 重建，已有产物必须与源文档同步", () => {
-  const hadArtifact = existsSync(ARTIFACT);
+  const hadArtifact = hasLocalArtifact(ARTIFACT);
   const before = hadArtifact ? readFileSync(ARTIFACT, "utf8") : "";
   // artifacts/ 按设计不入 Git，fresh clone 上不应因为本机交付产物不存在而失败。
   // 无论是否已有产物都跑生成器；若已有产物，仍逐字节校验其内容新鲜度。

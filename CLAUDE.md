@@ -19,11 +19,15 @@ npm run dev                 # next dev (Turbopack); root → /diagnosis; login a
 npm run build && npm start  # standalone production build + serve
 npm run lint                # eslint --max-warnings=0 — warnings fail, treat them as errors
 npm run typecheck           # tsc --noEmit — run this after edits to src/lib
-npm run verify:release      # THE release gate: typecheck + lint + test:deterministic + build
+npm run verify:release      # THE release gate: typecheck + lint + test:deterministic + test:deterministic:fresh + build
 npm run build:tcm-knowledge # regenerate src/data/tcm-knowledge.json (needs external CSVs, see below)
 # Pure unit tests — no server needed; they exercise the deterministic safety/facts/contract layer.
 # All live under scripts/test-*.mjs via jiti (TS imports) or node --test / --experimental-strip-types.
-npm run test:deterministic        # chains all 126 deterministic suites in order; the default pre-change gate (~minutes)
+npm run test:deterministic        # chains all deterministic suites in order; the default pre-change gate (~minutes)
+npm run test:deterministic:fresh  # 同一套闸门，但屏蔽本机 artifacts/（CDSS_IGNORE_LOCAL_ARTIFACTS=1）
+                                  # 几条套件会「本机若有归档则一并扫描」，于是同一提交可能
+                                  # fresh clone 绿、留有归档的机器红。2026-08-15 实测踩过一次
+                                  # 并带着红上线，故 verify:release 两态各跑一次。
 npm run test:safety-mutations     # ONE suite — this is how you run a single test
 npx jiti scripts/test-safety-mutation-matrix.mjs   # same suite, bypassing npm (faster iteration)
 npm run test:clinical-facts       # clinical-facts.ts additive backstop + schema rejects
@@ -93,7 +97,7 @@ It fires 100+ requests, asserts on red-flag handling, negated history, safety-ne
 
 The model never decides safety. Stage routes call `withSafetyGate(caseState)` first; the gate deterministically parses vitals (BP/T/P/R/SpO2 with critical thresholds) and text for red flags and sets `allowDiagnosis` / `allowDosePrescription`.
 
-**Disposition doctrine (owner decision 2026-08-01): detection never blocks.** `CDSS_GATE_DISPOSITION` defaults to `advise`: red flags / completeness / encounter-scope hits still run and are fully surfaced, but the routes proceed to full M03/M04 generation with a deterministic safety-advisory banner (`<!-- CDSS_SAFETY_ADVISORY -->`, built server-side from the gate result) prepended to the visible output. Same doctrine at the last mile of M03/M04 contracts: after repair exhaustion, quality-class findings become annotations (`m04-repair-policy.ts` is the single authority), and a non-dose/blank page is only allowed when there is genuinely nothing to show (no chief complaint, no signed M03, truncated output with no salvageable candidate). `block` restores the old fail-closed interception for ops rollback; the unit suites that exercise gate mechanics pin that mode explicitly. Per-herb hard rules (pharmacopoeia dose bounds, 十八反十九畏 as repair drivers, regulatory herb exclusion from auto-dose, PHI sanitization) are unchanged — "never block" governs disposition, not detection, and never silently treats "unknown" as "no risk".
+**Disposition doctrine (owner decision 2026-08-01): detection never blocks.** `CDSS_GATE_DISPOSITION` defaults to `advise`: red flags / completeness / encounter-scope hits still run and are fully surfaced, but the routes proceed to full M03/M04 generation with a deterministic safety-advisory banner (`<!-- CDSS_SAFETY_ADVISORY -->`, built server-side from the gate result) prepended to the visible output. Same doctrine at the last mile of M03/M04 contracts: after repair exhaustion, quality-class findings become annotations (`m04-repair-policy.ts` is the single authority), and a non-dose/blank page is only allowed when there is genuinely nothing to show (no chief complaint, no signed M03, truncated output with no salvageable candidate). `block` restores the old fail-closed interception for ops rollback; the unit suites that exercise gate mechanics pin that mode explicitly. **剂量授权是另一根轴（2026-08-15 拆开）**：`CDSS_REDFLAG_DOSE_AUTHORIZATION` 默认 `withhold` —— 红旗未解除时 M04 只给非剂量内容；`allow` 是运维回退档，切回「红旗也照常出剂量方」。拆开的原因是实测缺陷：两轴绑在一个开关上时，为了「不阻断流程」而放行剂量会顺带放行儿科体重、妊娠阳性这些**与红旗无关**的独立硬边界（旧 advise 档下 6 岁儿童 + 红旗实测给出 `full_dose`）。独立硬边界不受任何一个开关影响；`test:redflag-dose-authorization` 两头都钉。 Per-herb hard rules (pharmacopoeia dose bounds, 十八反十九畏 as repair drivers, regulatory herb exclusion from auto-dose, PHI sanitization) are unchanged — "never block" governs disposition, not detection, and never silently treats "unknown" as "no risk".
 
 - Always run `sanitizeCaseStateForModel` / `sanitizeFreeTextForModel` before sending case data to a model.
 - Clinical facts use a status vocabulary (`positive/possible/negative/historical/unknown`) in `src/lib/clinical-state.ts`. **Do not treat "未提及/unknown" as negative** — generic "过敏史/用药史未提及" pollution is an explicitly tested false-positive class in the regression suite. When you fix one such false positive, extend coverage to the whole class, not just the one case.

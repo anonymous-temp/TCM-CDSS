@@ -23,6 +23,7 @@
 // 反例（不得误伤）与 fail-open 边界（词表没收录时整条检查跳过）。
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { hasLocalArtifact } from "./lib/local-artifacts.mjs";
 
 const { discriminatingWesternSupportClauses, isNondiscriminatingWesternSupportingFact, m03SemanticIssue } =
   await import("../src/lib/diagnosis-stage-contract.ts");
@@ -534,7 +535,11 @@ const CUSTOMER_RUNS = [
 ];
 let reproduced = 0;
 for (const [run, path] of CUSTOMER_RUNS) {
-  if (!fs.existsSync(path)) continue;
+  // 只有 artifacts/ 下的**可选本机归档**受 CDSS_IGNORE_LOCAL_ARTIFACTS 屏蔽；
+  // 已提交进仓库的 scripts/fixtures/ 夹具任何时候都要读，否则 fresh 态复现样本为 0，
+  // 本节的「复现样本不足」断言会红——这条断言刚好抓住了第一版把两者一锅端的改动。
+  const optional = path.startsWith("artifacts/");
+  if (optional ? !hasLocalArtifact(path) : !fs.existsSync(path)) continue;
   const payload = JSON.parse(fs.readFileSync(path, "utf8"));
   const reasoning = payload.stages?.diagnose?.reasoning || (payload.stage === "diagnose" ? payload : undefined);
   if (!reasoning) continue;

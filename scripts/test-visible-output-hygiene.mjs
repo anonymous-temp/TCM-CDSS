@@ -31,6 +31,7 @@
 // 证明这张网**确实会响**，而不是「语料恰好干净所以全绿」。
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { hasLocalArtifact } from "./lib/local-artifacts.mjs";
 import path from "node:path";
 import { createJiti } from "jiti";
 
@@ -468,7 +469,7 @@ check("H/内部记号规则表非空且每条规则都有 id", () => {
 //    不能让「没扫」看起来像「扫过且干净」。
 // ─────────────────────────────────────────────────────────────────────────────
 let sweep = { ran: false, files: 0, stages: 0, dirty: [] };
-if (fs.existsSync("artifacts")) {
+if (hasLocalArtifact("artifacts")) {
   const archives = [];
   for (const dir of fs.readdirSync("artifacts")) {
     const full = path.join("artifacts", dir);
