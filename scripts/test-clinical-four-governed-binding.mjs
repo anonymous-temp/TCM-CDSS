@@ -314,15 +314,25 @@ const CUSTOMER_CASE = JSON.parse(fs.readFileSync(
   "utf8",
 ));
 const CUSTOMER_FIELDS = CUSTOMER_CASE.fields;
-const customerContext = [
-  `主诉：${CUSTOMER_FIELDS["主诉"]}`,
-  `现病史：${CUSTOMER_FIELDS["现病史"]}`,
-  `既往史：${CUSTOMER_FIELDS["既往史"]}`,
-  `问诊补充：${CUSTOMER_FIELDS["问诊补充"]}`,
-  `面象：${CUSTOMER_FIELDS["面象"]}`,
-  `舌象：${CUSTOMER_FIELDS["舌象"]}`,
-  `脉象：${CUSTOMER_FIELDS["脉象"]}`,
-].join("\n");
+/**
+ * 病历字段 → 判据入参上下文。必须逐份构造：`m03SemanticIssue` 会先校验产出里的患者事实
+ * 在上下文里有没有出处，**上下文与产出必须来自同一份病例**。
+ *
+ * 拿一份病例的上下文去判另一份的产出，先撞上的是 patient_fact_ungrounded_*，
+ * 而不是本节想钉的 location_chief_symptom_anchor_missing——判据没坏，是喂错了料。
+ */
+function customerContextFromFields(fields) {
+  return [
+    `主诉：${fields["主诉"] ?? ""}`,
+    `现病史：${fields["现病史"] ?? ""}`,
+    `既往史：${fields["既往史"] ?? ""}`,
+    `问诊补充：${fields["问诊补充"] ?? ""}`,
+    `面象：${fields["面象"] ?? ""}`,
+    `舌象：${fields["舌象"] ?? ""}`,
+    `脉象：${fields["脉象"] ?? ""}`,
+  ].join("\n");
+}
+const customerContext = customerContextFromFields(CUSTOMER_FIELDS);
 
 // 一份四条全部满足的产后血虚头痛 M03：主病位含脑、病名鉴别到位、治法方向全部有节点承接。
 const compliant = {
@@ -529,7 +539,13 @@ for (const [run, path] of CUSTOMER_RUNS) {
   const reasoning = payload.stages?.diagnose?.reasoning || (payload.stage === "diagnose" ? payload : undefined);
   if (!reasoning) continue;
   reproduced += 1;
-  const issue = m03SemanticIssue(reasoning, customerContext);
+  // 每份归档自带 fields，用它自己的上下文判它自己的产出。
+  // 原来全部共用committed夹具的上下文：fresh clone 上只跑到那一份、恰好自洽所以绿；
+  // 任何还留着 artifacts 历史归档的机器上，五份旧产出被拿新病例的上下文去judge，
+  // 一律先撞 patient_fact_ungrounded 而红。绿或红取决于本机有没有那个目录——
+  // 这类环境相关的判据比直接写错更难查，因为两边都"跑过测试"。
+  const runContext = payload.fields ? customerContextFromFields(payload.fields) : customerContext;
+  const issue = m03SemanticIssue(reasoning, runContext);
   check(() => assert.notEqual(
     issue,
     undefined,
