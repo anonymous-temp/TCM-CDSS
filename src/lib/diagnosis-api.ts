@@ -44,6 +44,7 @@ import { enforceRetrievedM03FormulaSelection } from "@/lib/tcm-formula-indicatio
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
 import { dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
+import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
 
 const GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const GLM_VISION_MODEL = process.env.GLM_VISION_MODEL?.trim() || "glm-5v-turbo";
@@ -58,6 +59,16 @@ const GLM_VISION_TOTAL_TIMEOUT_MS = (() => {
 // comfortably below the 15s client/test liveness boundary so scheduling and
 // network overhead cannot create a false "stalled" window.
 const CLIENT_HEARTBEAT_INTERVAL_MS = 5_000;
+// One structured stage fans out internally (M03 western/TCM halves, terminology consensus,
+// clinical review and bounded repair). Letting two HTTP stages fan out at once overloaded the
+// configured production gateway: both public-091 and public-092 then reached the browser's 210s
+// budget with incomplete M04 streams. Keep requests parallel at the HTTP layer, but serialize this
+// expensive provider topology per process; queued clients continue receiving NDJSON heartbeats.
+const PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY = (() => {
+  const value = Number(process.env.PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY || 1);
+  return Number.isFinite(value) && value >= 1 && value <= 4 ? Math.trunc(value) : 1;
+})();
+const primaryStructuredStageCapacity = createAbortableCapacityGate(PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY);
 const STRUCTURED_RETRY_TOTAL_TIMEOUT_MS = (() => {
   const value = Number(process.env.STRUCTURED_RETRY_TOTAL_TIMEOUT_MS || 90_000);
   return Number.isFinite(value) && value >= 30_000 && value <= 120_000 ? Math.round(value) : 90_000;
@@ -2325,12 +2336,9 @@ async function callPrimaryTextModelStream(
   const abortFromRequest = () => upstreamController.abort();
   if (opts.requestSignal?.aborted) upstreamController.abort();
   else opts.requestSignal?.addEventListener("abort", abortFromRequest, { once: true });
-  // 并行 M03 的西医半在主流建立前就发出，与中医半全程重叠；helper 自身永不抛出。
-  const m03WesternHalfPromise = m03ParallelHalves
-    ? collectM03ParallelWesternHalf(m03ParallelHalves.western, kind, upstreamController.signal, absoluteRunDeadline)
-    : undefined;
   let stopClientHeartbeat: () => void = () => {};
   let clientStreamClosed = false;
+  let releaseStructuredStageCapacity = () => {};
   const stream = new ReadableStream({
     async start(ctrl) {
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
@@ -2343,6 +2351,7 @@ async function callPrimaryTextModelStream(
       let reasoningChars = 0;
       let finishReason: string | null = null;
       let structuredRetryCount = 0;
+      let m03WesternHalfPromise: ReturnType<typeof collectM03ParallelWesternHalf> | undefined;
       /**
        * 「同一条确定性合同拒绝码只修一次」的账本。
        *
@@ -2876,6 +2885,7 @@ async function callPrimaryTextModelStream(
           finishReason: finishReason || "unknown",
         });
         clientStreamClosed = true;
+        releaseStructuredStageCapacity();
         stopHeartbeat();
         clearTimeout(absoluteDeadlineAbortTimer);
         opts.requestSignal?.removeEventListener("abort", abortFromRequest);
@@ -2949,6 +2959,31 @@ async function callPrimaryTextModelStream(
             stopHeartbeat();
           }
         }, CLIENT_HEARTBEAT_INTERVAL_MS);
+        if (opts.structuredStage) {
+          const capacityWaitStartedAt = Date.now();
+          releaseStructuredStageCapacity = await primaryStructuredStageCapacity.acquire({
+            signal: upstreamController.signal,
+            deadline: absoluteRunDeadline,
+          });
+          if (clientStreamClosed) {
+            releaseStructuredStageCapacity();
+            return;
+          }
+          const capacityWaitMs = Date.now() - capacityWaitStartedAt;
+          if (capacityWaitMs > 0) {
+            console.info("[tcm-cdss:timing] structured_stage_capacity", {
+              stage: opts.structuredStage,
+              waitMs: capacityWaitMs,
+              limit: PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY,
+            });
+          }
+        }
+        // Start the M03 western half only after this stage owns provider capacity. Starting it at
+        // callDiagnosisStream entry let queued stages bypass the gate and recreate the same fan-out
+        // overload through their supposedly parallel helper.
+        m03WesternHalfPromise = m03ParallelHalves
+          ? collectM03ParallelWesternHalf(m03ParallelHalves.western, kind, upstreamController.signal, absoluteRunDeadline)
+          : undefined;
         const upstreamRequest: RequestInit = {
           method: "POST",
           headers: {
@@ -4774,6 +4809,7 @@ async function callPrimaryTextModelStream(
     },
     cancel() {
       clientStreamClosed = true;
+      releaseStructuredStageCapacity();
       stopClientHeartbeat();
       clearTimeout(absoluteDeadlineAbortTimer);
       upstreamController.abort();

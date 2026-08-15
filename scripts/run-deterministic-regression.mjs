@@ -220,6 +220,11 @@ const scripts = [
   "test:clinical-entry",
   "test:clinical-terminology",
   "test:controlled-semantic-normalization",
+  // 单个 M03/M04 阶段内部会扇出主生成、双腿术语共识与临床复核。线上两案并发时，两个阶段
+  // 同时扇出使 provider 长时间无响应，public-091/public-092 的 M04 均越过医生端 210s 预算。
+  // HTTP 请求仍可并行并持续收到心跳，但昂贵阶段按 FIFO 容量闸排队；取消/截止必须移出队列，
+  // 正常完成与 fail-closed 完成都必须幂等释放，避免一个断开的请求永久堵住后续病例。
+  "test:abortable-capacity-gate",
   "test:clinical-governance-tables",
   // 单字残片（古籍抽取丢字/古文简写）不得拿到剂量豁免、不得被猜成真药、不得让整方可编译剂量。
   // 起因是豁免表按「哪些名字卡住了方剂」自动汇总，把 40 个残片收成了合法豁免成分，

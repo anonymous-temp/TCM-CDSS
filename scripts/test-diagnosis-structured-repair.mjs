@@ -50,6 +50,21 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
+  /primaryStructuredStageCapacity\.acquire\(\{\s*\n\s*signal: upstreamController\.signal,\s*\n\s*deadline: absoluteRunDeadline,/,
+  "parallel HTTP cases must queue their internally fanned-out M03/M04 stages inside the same wall-clock deadline",
+);
+assert.match(
+  diagnosisApiSource,
+  /releaseStructuredStageCapacity = await primaryStructuredStageCapacity\.acquire\([\s\S]{0,900}?m03WesternHalfPromise = m03ParallelHalves[\s\S]{0,300}?collectM03ParallelWesternHalf/,
+  "the parallel M03 western helper must start only after the stage owns provider capacity",
+);
+assert.match(
+  diagnosisApiSource,
+  /clientStreamClosed = true;\s*\n\s*releaseStructuredStageCapacity\(\);[\s\S]{0,150}?stopHeartbeat\(\);/,
+  "every normal/fail-closed structured stream completion must release its provider-capacity lease",
+);
+assert.match(
+  diagnosisApiSource,
   /lastRejectionReason:\s*opts\.structuredStage === "diagnose"/,
   "every completed M03 orchestration logs its final rejection code without patient content",
 );

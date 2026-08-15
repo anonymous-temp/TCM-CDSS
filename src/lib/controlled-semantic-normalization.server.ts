@@ -58,7 +58,8 @@ type JsonRecord = Record<string, unknown>;
 // 失败方向与直觉相反：越完整的诊断越拿不到国标名。上限一致性由 test:guard-symmetry 钉住。
 const MAX_TARGETS_PER_CALL = 20;
 const MAX_CACHE_ENTRIES = 4_000;
-const MODEL_TIMEOUT_MS = 25_000;
+const CONSENSUS_TOTAL_TIMEOUT_MS = 25_000;
+const CONSENSUS_ATTEMPT_TIMEOUT_MS = 12_000;
 
 // 消极共识短 TTL 缓存：模型**有响应但未达共识/弃权**的目标，在 TTL 内不再重复发起闭集调用。
 // 同一 M03 请求会跑两遍 prepare（梯子预处理 + 复核前 finalize），修复轮还会再来一遍——
@@ -360,6 +361,7 @@ function semanticPrompt(targets: readonly ControlledSemanticTarget[]): string {
 async function callClosedSetModel(
   targets: readonly ControlledSemanticTarget[],
   signal?: AbortSignal,
+  timeoutMs = CONSENSUS_ATTEMPT_TIMEOUT_MS,
 ): Promise<ControlledSemanticDecision[]> {
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return [];
@@ -367,7 +369,7 @@ async function callClosedSetModel(
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   signal?.addEventListener("abort", onAbort, { once: true });
-  const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
   try {
     const completion = await client.chat.completions.create({
       model: config.model,
@@ -396,17 +398,27 @@ async function callClosedSetModel(
   }
 }
 
-async function callClosedSetModelWithOneRetry(
+async function callClosedSetConsensusWithRecovery(
   targets: readonly ControlledSemanticTarget[],
   signal?: AbortSignal,
-): Promise<ControlledSemanticDecision[]> {
-  const first = await callClosedSetModel(targets, signal);
-  if (first.length > 0 || signal?.aborted) return first;
-  // DeepSeek-compatible gateways can occasionally return an empty final-content frame even when
-  // the transport succeeded. Preserve the two-invocation consensus requirement, but give each
-  // empty leg one bounded retry instead of turning a transient empty frame into systematic recall
-  // loss. Candidate-set validation remains identical on the retry.
-  return callClosedSetModel(targets, signal);
+): Promise<[ControlledSemanticDecision[], ControlledSemanticDecision[]]> {
+  const deadline = Date.now() + CONSENSUS_TOTAL_TIMEOUT_MS;
+  const runLeg = () => callClosedSetModel(
+    targets,
+    signal,
+    Math.min(CONSENSUS_ATTEMPT_TIMEOUT_MS, Math.max(1, deadline - Date.now())),
+  );
+  let [first, second] = await Promise.all([runLeg(), runLeg()]);
+  // Consensus is impossible when both independent legs are empty. Retrying both simultaneously
+  // doubled optional terminology traffic exactly when the provider was already congested, and let
+  // a non-safety annotation consume ~50s before M04. When exactly one leg succeeded, retry only the
+  // missing leg and only inside the shared 25s budget; the two-invocation consensus rule is intact.
+  if (signal?.aborted || (first.length === 0) === (second.length === 0) || Date.now() >= deadline) {
+    return [first, second];
+  }
+  if (first.length === 0) first = await runLeg();
+  else second = await runLeg();
+  return [first, second];
 }
 
 function replaceSentinelJson(content: string, transform: (value: JsonRecord) => JsonRecord): string {
@@ -480,10 +492,7 @@ export async function annotateM03ControlledTerminology(
     candidateFingerprint(target),
   ));
   if (modelMisses.length > 0 && !signal?.aborted) {
-    const [first, second] = await Promise.all([
-      callClosedSetModelWithOneRetry(modelMisses, signal),
-      callClosedSetModelWithOneRetry(modelMisses, signal),
-    ]);
+    const [first, second] = await callClosedSetConsensusWithRecovery(modelMisses, signal);
     const firstByKey = new Map(first.map((item) => [item.key, item]));
     const secondByKey = new Map(second.map((item) => [item.key, item]));
     const minimumConfidence = Math.min(0.99, Math.max(0.5,
@@ -545,10 +554,7 @@ async function runProbe() {
   if (!config.configured) return { ok: false, reason: "not_configured" as const, model: getPublicTextModelStatus(config) };
   const target = makeTarget("probe", "tcm_syndrome", "probe", "痰热扰神证", 12);
   if (!target) return { ok: false, reason: "candidate_prefilter_unavailable" as const, model: getPublicTextModelStatus(config) };
-  const [first, second] = await Promise.all([
-    callClosedSetModelWithOneRetry([target]),
-    callClosedSetModelWithOneRetry([target]),
-  ]);
+  const [first, second] = await callClosedSetConsensusWithRecovery([target]);
   const accepted = validatedConsensusDecision(
     target,
     first.find((item) => item.key === "probe"),

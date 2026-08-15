@@ -99,6 +99,7 @@
     "test:clinical-entry": "jiti scripts/test-clinical-entry.mjs",
     "test:clinical-terminology": "jiti scripts/test-clinical-terminology.mjs",
     "test:controlled-semantic-normalization": "jiti scripts/test-controlled-semantic-normalization.mjs",
+    "test:abortable-capacity-gate": "jiti scripts/test-abortable-capacity-gate.mjs",
     "test:clinical-governance-tables": "jiti scripts/test-clinical-governance-tables.mjs",
     "test:herb-name-identity": "jiti scripts/test-herb-name-identity.mjs",
     "test:therapy-phrasing": "jiti scripts/test-therapy-phrasing.mjs",
