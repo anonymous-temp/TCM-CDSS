@@ -9,7 +9,7 @@ const { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, 
 const { enforceReviewedPrescriptionOutput } = await import("../src/lib/prescription-output-safety.ts");
 const { normalizeClinicalConfidence, normalizePrescriptionRole, normalizeReasoningV2, normalizeWesternDiagnosisStatus } = await import("../src/lib/diagnosis-types.ts");
 const { getTcmHerbFunctionDisplayText } = await import("../src/lib/tcm-knowledge.ts");
-const { buildM04ClinicalRepairHint, m04CandidateHerbsFromRepairPayload, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
+const { buildM04ClinicalRepairHint, m04CandidateHerbsFromRepairPayload, m04DoseRepairHerbIndex, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
 const { dropUnsupportedM04ModificationDirections } = await import("../src/lib/m04-modification-safety.ts");
 const diagnosisApiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
 const prescribeRouteSource = readFileSync(new URL("../src/app/api/diagnosis/prescribe/route.ts", import.meta.url), "utf8");
@@ -276,6 +276,10 @@ const rejectedDoseProposal = {
   modifications: [],
   nonPharma: { diet: "清淡饮食", lifestyle: "规律作息", emotion: "调畅情志", acupointCare: null, tcmTreatments: [], monitoring: [] },
 };
+assert.equal(m04DoseRepairHerbIndex("m04_candidate_0_herb_3_dose_outside_conservative_range"), 3);
+assert.equal(m04DoseRepairHerbIndex("m04_candidate_0_herb_3_dose_sanity_ceiling"), 3);
+assert.equal(m04DoseRepairHerbIndex("m04_candidate_1_herb_3_dose_sanity_ceiling"), undefined, "only the compiled primary candidate is eligible for field stabilization");
+assert.equal(m04DoseRepairHerbIndex("m04_candidate_0_herb_3_unknown"), undefined);
 const driftingDoseRepair = structuredClone(rejectedDoseProposal);
 driftingDoseRepair.candidate.herbs[0].dose = "5g";
 driftingDoseRepair.candidate.herbs[1].dose = "9g";
@@ -290,6 +294,14 @@ assert.equal(stabilizedDoseRepair.candidate.herbs[0].dose, "5g", "the model-sele
 assert.equal(stabilizedDoseRepair.candidate.herbs[1].dose, "2g", "another herb dose cannot drift during a dose-only repair");
 assert.equal(stabilizedDoseRepair.candidate.herbs[2].role, "使", "roles cannot drift during a dose-only repair");
 assert.equal(stabilizedDoseRepair.candidate.decoction.doseCount, "5剂", "regimen fields cannot drift during a dose-only repair");
+const stabilizedSanityCeilingRepair = JSON.parse(stabilizeM04DoseOnlyRepair(
+  JSON.stringify(rejectedDoseProposal),
+  JSON.stringify(driftingDoseRepair),
+  "m04_candidate_0_herb_0_dose_sanity_ceiling",
+));
+assert.equal(stabilizedSanityCeilingRepair.candidate.herbs[0].dose, "5g", "sanity-ceiling repair keeps only the corrected target dose");
+assert.equal(stabilizedSanityCeilingRepair.candidate.herbs[1].dose, "2g", "sanity-ceiling repair cannot redraw another herb");
+assert.equal(stabilizedSanityCeilingRepair.candidate.name, rejectedDoseProposal.candidate.name, "sanity-ceiling repair cannot redraw formula identity");
 assert.equal(stabilizeM04DoseOnlyRepair(
   JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", formula: { candidates: [{ herbs: repairHerbs }] } }),
   JSON.stringify(driftingDoseRepair),

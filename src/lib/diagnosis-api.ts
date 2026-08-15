@@ -36,7 +36,7 @@ import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } 
 import { recordCdssClinicalReviewTelemetry, recordCdssStageTelemetry, type CdssClinicalReviewOutcome, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
 import { createHash } from "node:crypto";
 import { requiredDecoctionRequirement } from "@/lib/herb-decoction-rules";
-import { m04CandidateHerbsFromRepairPayload, m04KnowledgeShortlistFromPrompt, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } from "@/lib/structured-clinical-repair";
+import { m04CandidateHerbsFromRepairPayload, m04DoseRepairHerbIndex, m04KnowledgeShortlistFromPrompt, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } from "@/lib/structured-clinical-repair";
 import { missedLockableFormulaCandidates } from "@/lib/tcm-formula-indications";
 import { governedTcmDiseaseNeighbors } from "@/lib/clinical-terminology";
 import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy } from "@/lib/tcm-chief-complaint-anchor";
@@ -1430,13 +1430,13 @@ async function retryCompletePrimaryResponse(
     // 保守剂量越界：原因代码只带药味序号，模型不知道该味的本地保守边界，实测会反复取同一
     // 临床惯用高量（如矿物贝壳类 30g）。从被拒 JSON 取出药名并附确定性的 KB 剂量边界。
     let doseBoundaryHint = "";
-    const doseOutOfRangeMatch = structuredStage === "prescribe" && rejectedJson
-      ? (rejectionReason || "").match(/^m04_candidate_\d+_herb_(\d+)_dose_outside_conservative_range$/)
-      : null;
-    if (doseOutOfRangeMatch) {
+    const doseRepairHerbIndex = structuredStage === "prescribe" && rejectedJson
+      ? m04DoseRepairHerbIndex(rejectionReason || "")
+      : undefined;
+    if (doseRepairHerbIndex != null) {
       try {
         const rejectedReasoning = JSON.parse(rejectedJson);
-        const herbName = m04CandidateHerbsFromRepairPayload(rejectedReasoning)[Number(doseOutOfRangeMatch[1])]?.name;
+        const herbName = m04CandidateHerbsFromRepairPayload(rejectedReasoning)[doseRepairHerbIndex]?.name;
         const limit = typeof herbName === "string" && herbName.trim() ? getTcmHerbDoseLimit(herbName.trim()) : null;
         if (herbName && limit?.min != null && limit.max != null) {
           doseBoundaryHint = `⚠️ 剂量边界：${String(herbName).trim()} 的服务端保守常用量区间为 ${limit.min}–${limit.max}g。只把该味剂量调整到该区间内（优先中低段），其余已通过校验的药味、剂量与组成保持不变。`;

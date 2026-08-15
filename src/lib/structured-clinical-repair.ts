@@ -57,6 +57,16 @@ function candidateHerbContainer(value: unknown): M04RepairHerb[] | undefined {
   return undefined;
 }
 
+/** One governed selector shared by repair prompting and post-model field stabilization. */
+export function m04DoseRepairHerbIndex(rejectionReason: string): number | undefined {
+  const match = rejectionReason.match(
+    /^m04_candidate_0_herb_(\d+)_dose_(?:outside_conservative_range|sanity_ceiling)$/,
+  );
+  if (!match) return undefined;
+  const index = Number(match[1]);
+  return Number.isSafeInteger(index) && index >= 0 ? index : undefined;
+}
+
 /**
  * A dose-only repair must not redraw the rest of an already valid M04 proposal. Providers often
  * fix the named dose but also perturb another herb, role or regimen field, turning one bounded
@@ -72,8 +82,8 @@ export function stabilizeM04DoseOnlyRepair(
   repairedJson: string,
   rejectionReason = "",
 ): string | undefined {
-  const match = rejectionReason.match(/^m04_candidate_0_herb_(\d+)_dose_outside_conservative_range$/);
-  if (!match) return undefined;
+  const targetIndex = m04DoseRepairHerbIndex(rejectionReason);
+  if (targetIndex == null) return undefined;
   try {
     const rejected = JSON.parse(rejectedJson) as Record<string, unknown>;
     const repaired = JSON.parse(repairedJson) as Record<string, unknown>;
@@ -82,7 +92,6 @@ export function stabilizeM04DoseOnlyRepair(
     }
     const rejectedHerbs = candidateHerbContainer(rejected);
     const repairedHerbs = candidateHerbContainer(repaired);
-    const targetIndex = Number(match[1]);
     const target = rejectedHerbs?.[targetIndex];
     const targetName = typeof target?.name === "string" ? target.name.trim() : "";
     if (!targetName || !rejectedHerbs || !repairedHerbs) return undefined;
