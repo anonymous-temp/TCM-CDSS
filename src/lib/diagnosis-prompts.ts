@@ -459,7 +459,7 @@ overview.tcmDiagnosticRationale 只写**辨证**：在已确定的中医病名�
 therapy.overallPrinciple 必须写治则层原则（如正治、反治、治病求本、急则治标、缓则治本、扶正祛邪、标本缓急或三因制宜），overallMethod 才写疏肝、清热、健脾、化痰、安神等具体治法；不得把具体治法冒充治则，也不得两栏同句复写。subTherapies 必须逐项对应病机节点：只有一个病机节点时，唯一子治法可以与完整的 overallMethod 相同；有多个子病机时至少形成两个可区分的分治方向，各 therapy 与 targetPathogenesis 不得整行复制组合后的 overallMethod，也不得在多行中重复。
 **主症优先**：主诉主症是全案锚点，兼症不得反客为主。承接主诉主症的那个病机节点，其治法方向必须写在 overallMethod / overview.overallTherapy 的**最前面**，并作为 subTherapies 的首条、priority 写“主要”；兼症（伴随症状）对应的方向保留在其后，可用“兼以/佐以”表明主次。选方同样以主症为准：recommendedFormulaDirection 与 recommendedFormulaNames 应优先选用**主治该主症**的方，不得因兼症齐全就滑向以兼症为主治的方——例如主诉为头痛、兼见心悸失眠时，治法须以针对头痛的方向居首、安神次之，选方不得默认落到以心悸健忘失眠为主治的方。
 
-M03 的证候、病位和病性必须显式标注 resolution：resolved=现有资料可以稳定支持；bounded=可以形成有边界的工作判断但仍有关键未知；unresolved=现有资料连有意义的工作判断都不能支持。基层稀疏病例通常应在诚实降置信后给出 bounded 工作判断并继续流程，不得仅因缺少舌脉、生命体征或某一兼症就写 unresolved。resolved 必须提供逐字可回溯的患者事实依据；bounded/unresolved 必须填写 resolutionReason，并把未知项及影响写入 pathogenesis.uncertainties。primarySyndromeBasis 只能逐字摘录病例或医生补充中的短句，不得改写；模型不得把 resolution 当作流程放行或安全裁决。
+M03 的证候、病位和病性必须显式标注 resolution：resolved=现有资料可以稳定支持；bounded=可以形成有边界的工作判断但仍有关键未知；unresolved=现有资料连有意义的工作判断都不能支持。基层稀疏病例通常应在诚实降置信后给出 bounded 工作判断并继续流程，不得仅因缺少舌脉、生命体征或某一兼症就写 unresolved。resolved 必须提供逐字可回溯的患者事实依据；bounded/unresolved 必须填写 resolutionReason，并把未知项及影响写入 pathogenesis.uncertainties。**证候、病位、病性是三个独立判断，必须各自按本轴证据强度定档，不得三个一起填同一个值。**实测曾出现三轴逐例同值（190 例全 bounded），那是把三个判断当成一个开关，不是临床结论。四诊齐备、关键鉴别点已明确、且每一轴都能逐字摘出支持事实时，就应当填 resolved——resolved 不是「绝对确定」，而是「以现有资料可以稳定支持、且依据可逐条回溯」；只有本轴仍缺关键信息时才填 bounded。填 resolved 时，locationDifferentiation.details 必须逐个病位给出依据，natureDifferentiation.basis 必须非空且逐字可回溯——这两条由服务端校验，写了 resolved 却给不出逐轴依据会被驳回重写。primarySyndromeBasis 只能逐字摘录病例或医生补充中的短句，不得改写；模型不得把 resolution 当作流程放行或安全裁决。
 
 JSON要求：
 - 必须是合法 JSON，不要代码块，不要注释，不要尾逗号。
@@ -525,7 +525,7 @@ JSON要求：
   "overview": {
     "tcmDiseaseName": "规范中医病名",
     "primarySyndrome": "主证候",
-    "primarySyndromeResolution": "bounded",
+    "primarySyndromeResolution": "resolved | bounded | unresolved（三选一，按本例证据实际强度填，不要照抄本示例）",
     "primarySyndromeBasis": ["从病历逐字摘录的支持事实"],
     "primarySyndromeResolutionReason": "当前工作判断仍受哪些未知信息限制",
     "tcmDiseaseRationale": "辨病推理：主症特征与病程形态如何把本例归入该中医病名，与哪个相邻病名区分",
@@ -547,8 +547,8 @@ JSON要求：
   },
   "pathogenesis": {
     "summary": "病机归纳段落",
-    "locationDifferentiation": {"items":["病位1"],"details":[{"location":"病位1","basis":"本例已提供的症状、舌脉或病史依据 → 病位归属"}],"resolution":"bounded","resolutionReason":"病位工作判断的资料边界","evidence":{"evidenceLevel":"model_inference","source":"本例四诊与病史推断","confidence":"中"}},
-    "natureDifferentiation": {"items":["病性1"],"rootDeficiency":["本虚病性"],"branchExcess":["标实病性"],"basis":"本例支持本虚或标实判断的患者事实","resolution":"bounded","resolutionReason":"病性工作判断的资料边界","evidence":{"evidenceLevel":"model_inference","source":"本例四诊与病史推断","confidence":"中"}},
+    "locationDifferentiation": {"items":["病位1"],"details":[{"location":"病位1","basis":"本例已提供的症状、舌脉或病史依据 → 病位归属"}],"resolution":"resolved | bounded | unresolved（按本例病位证据实际强度填）","resolutionReason":"bounded/unresolved 时必填：病位判断仍受哪些未知限制","evidence":{"evidenceLevel":"model_inference","source":"本例四诊与病史推断","confidence":"中"}},
+    "natureDifferentiation": {"items":["病性1"],"rootDeficiency":["本虚病性"],"branchExcess":["标实病性"],"basis":"本例支持本虚或标实判断的患者事实","resolution":"resolved | bounded | unresolved（按本例病性证据实际强度填）","resolutionReason":"bounded/unresolved 时必填：病性判断仍受哪些未知限制","evidence":{"evidenceLevel":"model_inference","source":"本例四诊与病史推断","confidence":"中"}},
     "symptomClusters": [{"symptoms":["病历原文症状1","病历原文症状2"],"mechanism":"该症状组合共同指向的病机"}],
     "caseRelationship": {"rootPattern":"全案核心证候或病机","mainManifestation":"规范中医病名或主要表现","relationship":"核心病机如何导致主要表现"},
     "chain": [

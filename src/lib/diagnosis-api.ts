@@ -20,6 +20,7 @@ import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClin
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { parseOpenAICompatCompletionPayload } from "@/lib/openai-compatible-response";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
+import { clinicalReviewUnavailableReason } from "@/lib/clinical-review-binding";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
 import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenShape, type EvidenceBoundMedicineProposal } from "@/lib/m04-proposal-compiler";
 import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.server";
@@ -1903,8 +1904,19 @@ function clinicalReviewAttestation(
   reasoning: unknown,
 ): ClinicalReviewAttestation {
   const reviewedPayloadHash = clinicalReviewPayloadHash(reasoning);
+  const status = review.status === "accepted" ? "accepted" : "unavailable";
+  // 原因码必须随 attestation 一起走。此前只取 status 就返回，execution.reason 算出来即丢弃——
+  // 与本文件里 independentFromGenerator 曾经的毛病同形（见 ClinicalReviewerIdentity 注释）。
+  // 实测后果：194 例里 18 例 unavailable，attestation 只有 status，
+  // 无法区分超时/HTTP 错/契约不合法/未配置，降级项无从归因、重试策略无从设计。
+  const unavailableReason = clinicalReviewUnavailableReason(status, review.execution?.reason);
   return {
-    status: review.status === "accepted" ? "accepted" : "unavailable",
+    status,
+    ...(unavailableReason ? { unavailableReason } : {}),
+    ...(review.execution ? {
+      attemptCount: review.execution.attemptCount,
+      durationMs: review.execution.durationMs,
+    } : {}),
     ...(review.reviewer ? review.reviewer : {}),
     ...(reviewedPayloadHash ? { reviewedPayloadHash } : {}),
   };

@@ -253,6 +253,23 @@ export type ClinicalResolution = "resolved" | "bounded" | "unresolved";
 
 export type ClinicalReviewAttestation = {
   status: "accepted" | "unavailable";
+  /**
+   * 复核不可用的**原因码**。与 independentFromGenerator 曾经的毛病一模一样：
+   * diagnosis-api 的 ClinicalReviewExecutionMeta.reason 一直算着这一位（not_configured /
+   * deadline / invalid_contract / http_error / transport_error），但 clinicalReviewAttestation()
+   * 只取 status 就返回，**算出来即丢弃**。
+   *
+   * 后果在 TCMEval-SDT 194 例实测里显形：18 例 status=unavailable（均分 13.48%，
+   * accepted 组 20.34%），attestation 里只有 status 与 reviewedPayloadHash，
+   * 无法区分这 18 例是超时、HTTP 错、契约不合法还是压根没配置——
+   * 「必须列为生产降级项」这句话没有原因码就无从下手，重试策略也无从设计。
+   *
+   * accepted 时不写本字段（原因码只描述不可用）。
+   */
+  unavailableReason?: "not_configured" | "deadline" | "invalid_contract" | "http_error" | "transport_error";
+  /** 本次复核实际用掉的毫秒数与尝试次数，用于把「超时」与「上游报错」分开定位。 */
+  attemptCount?: number;
+  durationMs?: number;
   provider?: string;
   model?: string;
   source?: "preferred" | "cross_model_fallback";
@@ -1231,6 +1248,13 @@ const ReasoningV2SchemaBase = z.object({
   contractSignature: z.string().max(160).optional().catch(undefined),
   clinicalReview: z.object({
     status: z.enum(["accepted", "unavailable"]),
+    // 不可用原因码与耗时随 attestation 一起进契约。少了它，18 例降级只知道「不可用」，
+    // 不知道是超时还是上游报错——归因与重试策略都无从谈起（TCMEval-SDT 194 例实测）。
+    unavailableReason: z.enum([
+      "not_configured", "deadline", "invalid_contract", "http_error", "transport_error",
+    ]).optional().catch(undefined),
+    attemptCount: z.number().int().min(0).max(20).optional().catch(undefined),
+    durationMs: z.number().int().min(0).max(600_000).optional().catch(undefined),
     provider: z.string().max(100).optional().catch(undefined),
     model: z.string().max(200).optional().catch(undefined),
     source: z.enum(["preferred", "cross_model_fallback"]).optional().catch(undefined),

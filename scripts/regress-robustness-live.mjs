@@ -436,7 +436,11 @@ async function runCase(c) {
     primarySyndrome: m03?.overview?.primarySyndrome,
     westernPrimary: m03?.overview?.westernDiagnosis?.primary?.name || m03?.overview?.westernDiagnosis?.primary,
     differentials: (m03?.overview?.westernDiagnosis?.differentials || []).map((d) => d?.name || d).slice(0, 6),
-    resolution: m03?.overview?.syndromeResolution || m03?.overview?.resolution,
+    // 字段名是 primarySyndromeResolution。原来读 syndromeResolution/resolution 两个都不存在，
+    // 于是这一列一直是 undefined——探针自己把要观测的东西丢了，归档里全是 None。
+    resolution: m03?.overview?.primarySyndromeResolution,
+    locationResolution: m03?.pathogenesis?.locationDifferentiation?.resolution,
+    natureResolution: m03?.pathogenesis?.natureDifferentiation?.resolution,
     overallMethod: m03?.therapy?.overallMethod,
     recommendedFormulaNames: m03?.overview?.recommendedFormulaNames,
     formulaSelectionMode: m03?.overview?.formulaSelectionMode,

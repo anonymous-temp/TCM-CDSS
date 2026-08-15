@@ -25,6 +25,11 @@ const scripts = [
   // 同时钉反向边界：「发汗后腹胀满」是坏病病程的可观察事实（该方原始指征），不得按
   // 「像不像治法」误剔；复合词「少阳病往来寒热」必须拆而不删，可观察余部要回填评分位。
   "test:formula-term-roles",
+  // 复核不可用原因码。钉 TCMEval-SDT 194 例实测：18 例 unavailable（均分 13.48% vs
+  // accepted 组 20.34%），attestation 里只有 status 与 reviewedPayloadHash，无原因码，
+  // 无法区分超时/上游报错/契约不合法/未配置。根因是 execution.reason 算出来即丢弃——
+  // 与同文件 independentFromGenerator 曾经的毛病同形，同一个函数第二次。
+  "test:clinical-review-reason",
   // 十八反(HIGH,硬门档) / 十九畏(MEDIUM,提示档) 分档。钉 2026-08-13 实测：
   // highRiskPairRules() 里一行 severity!=="HIGH" 把十九畏 28 条对所有出口隐藏了
   // （数据本身齐全、别名已展开、药名 100% 可解析）。放开时必须保持硬门口径逐字不变——
