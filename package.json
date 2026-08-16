@@ -207,7 +207,8 @@
     "regress:tcmeval-sdt": "node scripts/regress-tcmeval-sdt.mjs",
     "test:clinician-herb-adjudications": "jiti scripts/test-clinician-herb-adjudications.mjs",
     "test:cross-provider-facts-decoupling": "jiti scripts/test-cross-provider-facts-decoupling.mjs",
-    "test:chain-incomplete-repair-targeting": "jiti scripts/test-chain-incomplete-repair-targeting.mjs"
+    "test:chain-incomplete-repair-targeting": "jiti scripts/test-chain-incomplete-repair-targeting.mjs",
+    "test:duplicated-safety-predicates": "jiti scripts/test-duplicated-safety-predicates.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

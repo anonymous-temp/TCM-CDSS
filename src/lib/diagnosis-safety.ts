@@ -2816,7 +2816,14 @@ function cardiacMentionIsChronicStableAt(text: string, index: number, matchText:
 function hasChronicStableExertionalCardiacOnly(text: string): boolean {
   const normalized = normalizeClinicalText(text);
   let sawMention = false;
-  for (const term of ["胸痛", "心前区痛", "胸闷"]) {
+  // 受治理 cardiac.symptoms 共 6 条，此前这里只手抄了 3 条（缺 胸口压迫 / 胸骨后压榨感 / 胸口疼）。
+  // 本函数的契约是「**所有**心血管提及都是慢性稳定」才降级，只巡查一半词表会两头出错：
+  //  · 漏检向：病历同时写「胸痛3年劳累诱发（慢性稳定）」与「今日胸骨后压榨感（急性）」时，
+  //    循环只看到胸痛、判定全部慢性稳定 ⇒ 降级生效，而那个急性症状**从未被检查过**；
+  //  · 误报向：纯口语「胸口疼3年、劳累诱发、休息缓解」不在枚举内 ⇒ sawMention 恒假 ⇒
+  //    不降级，稳定性心绞痛病人每次复诊都弹红旗。
+  // 收敛成读受治理表，两头同时修正。
+  for (const term of GOVERNED_CARDIAC_SYMPTOMS) {
     let index = normalized.indexOf(term);
     while (index >= 0) {
       if (!isExcludedClinicalAssertionAt(normalized, index) && !isNegatedAt(normalized, index)) {

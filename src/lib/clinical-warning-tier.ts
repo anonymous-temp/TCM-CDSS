@@ -60,6 +60,19 @@ export function warningLevelRank(level: ClinicalWarningLevel): number {
   return WARNING_RANK[level];
 }
 
+/**
+ * L4 确定性阻断的**单一判据**。
+ *
+ * 此前药味级与病例级各写一条正则，只差 `严禁|禁止使用` 两个词——而这两个词恰恰是
+ * 最直白的禁用表述。实测同一句风险语：
+ *   「本品严禁与含乌头类药材同用」 药味级 L4（阻断） / 病例级 **L0（常规信息，仅展示）**
+ *   「禁止使用于孕妇」             药味级 L4         / 病例级 **L0**
+ *   「配伍禁忌：十八反」「风险等级 CRITICAL」两级一致（L4/L4）
+ * 差 4 个档位：一条明确的禁用语在病例级被当成常规信息。
+ * 两条正则是包含关系（病例级 ⊂ 药味级），收敛到药味级那份，方向只增不减。
+ */
+const L4_DETERMINISTIC_BLOCKING = /(?:十八反|十九畏|配伍禁忌|绝对禁忌|严禁|禁止使用|审方结论.{0,12}(?:BLOCK|阻断)|风险等级.{0,8}CRITICAL)/i;
+
 export function classifyHerbWarning(input: {
   drug?: string;
   dose?: string;
@@ -74,10 +87,7 @@ export function classifyHerbWarning(input: {
   const safety = input.safety?.trim() || "";
   const combined = [drug, dose, evidence, safety].filter(Boolean).join("；");
 
-  const blocking = activeRiskLine(
-    combined,
-    /(?:十八反|十九畏|配伍禁忌|绝对禁忌|严禁|禁止使用|审方结论.{0,12}(?:BLOCK|阻断)|风险等级.{0,8}CRITICAL)/i,
-  );
+  const blocking = activeRiskLine(combined, L4_DETERMINISTIC_BLOCKING);
   if (blocking) {
     return profile("L4", [`${drug}命中确定性禁忌或阻断规则`, blocking], false);
   }
@@ -139,10 +149,7 @@ export function deriveCaseWarningProfile(caseState: CaseState): ClinicalWarningP
   const revision = caseState.prescriptionRevision;
   const combined = [caseState.prescription, caseState.riskAssessment].filter(Boolean).join("\n");
 
-  const blockingLine = activeRiskLine(
-    combined,
-    /(?:十八反|十九畏|配伍禁忌|绝对禁忌|审方结论.{0,12}(?:BLOCK|阻断)|风险等级.{0,8}CRITICAL)/i,
-  );
+  const blockingLine = activeRiskLine(combined, L4_DETERMINISTIC_BLOCKING);
   if (revision?.auditResult === "BLOCK" || revision?.highestRiskLevel === "CRITICAL" || blockingLine) {
     return profile("L4", uniqueReasons([
       revision?.auditResult === "BLOCK" ? "处方审方结论为阻断" : undefined,
