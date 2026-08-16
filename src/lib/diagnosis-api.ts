@@ -1624,10 +1624,28 @@ async function retryCompletePrimaryResponse(
     const governedAnchorCandidates = structuredStage === "diagnose"
       ? m03GovernedRepairCandidates(rejectionReason || "", rejectedJson, clinicalContext)
       : [];
+    // chain_incomplete 的节点级明细。四项标志位早就逐节点算着，此前只进日志——
+    // 模型看不到「哪个节点哪一项没过」，只能整条链重写、反复以同样方式失败（实测 6 轮不收敛）。
+    // 只列字段名与节点序号，不回显 patientFact 原文（病历文本，与 patient_fact_ungrounded 同口径）。
+    const chainNodeIssues = structuredStage === "diagnose" && /chain_incomplete/.test(rejectionReason || "")
+      ? (() => {
+        const parsedForChain = m03ReasoningFromStructuredContent(rejectedJson);
+        return m03ChainNodeDiagnostics(parsedForChain).flatMap((node, index) => {
+          const failed = [
+            !node.patientFactStable ? "patientFact 含待辨/资料不足类措辞或过短" : "",
+            !node.syndromeEvidenceStable ? "syndromeEvidence 含待辨/资料不足类措辞或过短" : "",
+            !node.pathogenesisAnchored ? "pathogenesis 未命中任何受控病机锚点" : "",
+            !node.therapyAnchored ? "therapyDirection 未命中任何受控治法锚点" : "",
+          ].filter(Boolean);
+          return failed.length ? [`P${index + 1}: ${failed.join("、")}`] : [];
+        });
+      })()
+      : [];
     const clinicalRepairHint = structuredClinicalRepairHint(
       structuredStage,
       rejectionReason,
       governedAnchorCandidates.length > 0 ? governedAnchorCandidates : missedLockableNames,
+      chainNodeIssues,
     );
     const governedM04HerbShortlist = structuredStage === "prescribe"
       ? m04KnowledgeShortlistFromPrompt(prompt)

@@ -206,7 +206,8 @@
     "test:sanitizer-contract-preservation": "jiti scripts/test-sanitizer-contract-preservation.mjs",
     "regress:tcmeval-sdt": "node scripts/regress-tcmeval-sdt.mjs",
     "test:clinician-herb-adjudications": "jiti scripts/test-clinician-herb-adjudications.mjs",
-    "test:cross-provider-facts-decoupling": "jiti scripts/test-cross-provider-facts-decoupling.mjs"
+    "test:cross-provider-facts-decoupling": "jiti scripts/test-cross-provider-facts-decoupling.mjs",
+    "test:chain-incomplete-repair-targeting": "jiti scripts/test-chain-incomplete-repair-targeting.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

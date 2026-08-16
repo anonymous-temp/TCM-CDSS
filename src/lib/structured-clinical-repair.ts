@@ -454,6 +454,21 @@ export function structuredClinicalRepairHint(
    * 把证候级候选逐字带进修复提示，模型才可能照做。
    */
   contextualCandidates: readonly string[] = [],
+  /**
+   * chain_incomplete 的**节点级明细**，与 contextualCandidates 同一条 doctrine：
+   * 修复提示不指出「哪个节点的哪一项没过」，就是一条不可执行的指令。
+   *
+   * 实证（2026-08-16 气滞胁痛案，线上 6/6 稳定复现）：日志逐轮打
+   *   finalized M03 rejected { reason: 'm03_chain_incomplete' } × 6 轮不收敛
+   * 而 m03ChainNodeDiagnostics **早就逐节点算出了四项标志位**，只进服务端日志、
+   * 不进修复提示词。模型每轮把整条链重写一遍，却不知道卡在哪，于是反复以同样方式失败，
+   * 直到编排时限或 fixpoint 早退，终点是「当前证候依据不足以形成稳定结论」空白页。
+   * 又一次「算出来即丢弃」。
+   *
+   * **只带字段名与标志位，绝不带 patientFact 原文**——那是病历文本，与
+   * patient_fact_ungrounded 同一口径，不入日志也不入提示词回显。
+   */
+  chainNodeIssues: readonly string[] = [],
 ): string {
   if (stage === "prescribe") return buildM04ClinicalRepairHint(reason);
   if (stage !== "diagnose") return "";
@@ -830,6 +845,10 @@ export function structuredClinicalRepairHint(
       "本例资料有限，但有限不等于不能形成最小临床判断。请把所有“待辨、未明、无法明确、资料不足、需补充”等不确定表述移到 pathogenesis.uncertainties，不能留在 overview、westernDiagnosis.primary、pathogenesis.chain 或 therapy 的核心字段中。",
       "至少保留一条完全闭合的病机链：patientFact 必须从“患者事实边界”逐字复制一段完整的当前阳性原文，不能缩写或同义改写；syndromeEvidence 只引用同一事实；pathogenesis 给出与该事实相称的最小、保守病机（可用“失养、失和、失司、受扰”等中性机制，不得擅自锁定寒热痰瘀虚实）；therapyDirection 给出与该最小病机一致、且不含具体药物剂量的治法方向。",
       "主证候可停留在症状层疾病加保守病机倾向，西医诊断可写症状综合征并把 status 降为“证据有限”；不得为了通过校验编造舌脉、伴随症状、病因或检查结果。",
+      // 节点级明细：不说清哪一项没过，上面那段就只是「什么叫合格」的复述，模型无从定位。
+      ...(chainNodeIssues.length > 0
+        ? [`服务端逐节点校验结果（只列未通过项，字段名即修复目标）：${chainNodeIssues.join("；")}。请**只修这些项**，其余节点与字段逐字保留，不要整条链重写。`]
+        : []),
     ].join("\n");
   }
   if (!decision) return "";

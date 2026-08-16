@@ -318,9 +318,29 @@ function hasNegatedClinicalTerm(value: string, pattern: RegExp): boolean {
   return clinicalClauses(value).some((clause) => isNegatedClinicalClause(clause) && pattern.test(clause));
 }
 
+/**
+ * 「痛无定处」「走窜不定」「游走不定」「痛处不定」是**气滞证的主症描述**（痛处游走不固定），
+ * 不是不确定性对冲词。但 UNSTABLE_REASONING_MARKER 的
+ *   (?:暂|尚|仍)?(?:不|未|无)(?:能|可|足以)?(?:…|定|…)
+ * 分支会把「无…定」「不定」当成「无法确定」，于是这几个词被读成「模型说不确定」。
+ *
+ * 【实证代价】2026-08-16 气滞胁痛案线上 6/6 稳定复现：
+ *   finalized M03 rejected { reason: 'm03_chain_incomplete' } × 6 轮不收敛
+ * 模型写进 patientFact 的是**病历原文**「胁肋胀痛，痛无定处，走窜不定」，
+ * 判据把原文本身判为不稳定 ⇒ chain_incomplete ⇒ 重写 ⇒ 还是原文 ⇒ 再判不稳定……
+ * 怎么改都过不了，终点是「当前证候依据不足以形成稳定结论」空白页。
+ * **整个气滞证类别的病机链都可能因此建不起来。**
+ *
+ * 只豁免这四类固定搭配，不动其余任何一条——「证候待定」「病位未能确定」「尚不能明确」
+ * 等真对冲词判定逐字不变（本文件对应套件逐条钉住）。
+ */
+const CLINICAL_UNFIXED_LOCATION_IDIOM = /(?:痛|疼)?(?:无定处|不定处)|(?:走窜|游走|窜行|攻窜)(?:不定|无定)|痛处不定|部位不定/g;
+
 export function isUnstableM03CoreText(value: unknown): boolean {
   if (typeof value !== "string" || !value.trim()) return true;
-  const normalized = value.trim().replace(/^[：:；;，,。.!！?？\s]+/, "");
+  const normalized = value.trim().replace(/^[：:；;，,。.!！?？\s]+/, "")
+    // 先把气滞主症的固定搭配遮蔽掉再判对冲词，避免临床体征被读成不确定表述。
+    .replace(CLINICAL_UNFIXED_LOCATION_IDIOM, "痛处游走");
   const markerIndex = normalized.search(UNSTABLE_REASONING_MARKER);
   if (markerIndex < 0) return concreteClinicalAnchor(normalized).length < 2;
   const prefix = normalized.slice(0, markerIndex);

@@ -88,6 +88,16 @@ const scripts = [
   // 容器进入 health: starting 并重启。两个本该独立的能力被一行做成了互斥。
   // 保留 fail-closed 默认（不静默回落主模型），显式设 CLINICAL_FACTS_REVIEW_MODEL 才放行。
   "test:cross-provider-facts-decoupling",
+  // T8′②b①：m03_chain_incomplete 六轮不收敛。两条独立缺陷叠在一起：
+  //  ①【真根因】UNSTABLE_REASONING_MARKER 的「(不|未|无)…定」分支把气滞主症
+  //     「痛无定处」「走窜不定」读成「无法确定」。模型写进 patientFact 的是病历原文，
+  //     判据把原文判为不稳定 ⇒ chain_incomplete ⇒ 重写 ⇒ 还是原文 ⇒ 再判，怎么改都过不了。
+  //     整个气滞证类别的病机链都可能因此建不起来。只豁免这四类固定搭配，真对冲词判定不变。
+  //  ②【使它无法自愈】驳回码只回笼统的 chain_incomplete，而 m03ChainNodeDiagnostics
+  //     早就逐节点算着四项标志位、只进日志不进修复提示词——模型不知道卡在哪，只能整条重写。
+  //     与 contextualCandidates 同一条 doctrine：不指出目标的修复指令是不可执行的。
+  //     明细只带字段名与节点序号，绝不回显 patientFact 原文。
+  "test:chain-incomplete-repair-targeting",
   // 77 案预检实测：阴道出血21天、量多、血色素66g/L，因词序不是「阴道大量出血」而零红旗。
   // 钉住阴道出血 × 量多/持续/重度贫血/循环灌注组合，并守住否定、旧史、少量点滴的反例。
   "test:major-vaginal-bleeding",
