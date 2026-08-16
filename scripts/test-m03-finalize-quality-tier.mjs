@@ -10,13 +10,20 @@
  * （客户输出变换之前）。变换之后的 finalize 校验直接 `truncated = true` 走兜底，
  * 完全不查分档表。于是 T2 只要拖到 finalize 才暴露，声称的「带批注放行」就不存在。
  *
- * 【线上实证】2026-08-16 表里·阳明气分热盛案（25s）生产容器日志：
+ * 【机制缺口是真的，但当初据以立论的那个病例是误读——两件事都记下来】
+ * 立论时引的是 2026-08-16 表里·阳明气分热盛案（25s）：
  *   finalized M03 rejected { reason: 'm03_primary_syndrome_name_nonstandard' }
  *   stage_result { outcome:'fallback', reviewStatus:'accepted', reviewAttemptCount:2 }
- * 复核已跑两轮并通过、病机治法俱在，只因证候名写法不合国标，整页清空成
- * 「当前证候依据不足以形成稳定结论」——而且对外还记成「复核不可用」。
+ * 当时读成「复核已通过、只因证候名不合国标就整页清空」。**这是错的。**
+ * 加了 skipped 诊断日志后线上复测四次，逐次都是：
+ *   payloadParsed: true, safetyIssue: 'overall_pathogenesis_unstable',
+ *   draftLength: 6730~7002, hasAnnotationCopy: true
+ * 真正拦住它的是 overall_pathogenesis_unstable（T1 绝对核），按安全档丢弃**本就正确**。
  *
- * 这是本仓头号缺陷形状的又一例：**同一个修复只做了一半**（分档改了，第二个消费点没跟上）。
+ * 所以本套件钉两件事：
+ *  ①（机制）分档判据必须在两道校验点都被读到——缺口真实存在，只是那个病例不是它的例子；
+ *  ②（诊断）拒绝日志必须同时报出**管事的**那个码，否则会像当初那样把排查带偏一整轮。
+ * 第②条是从第①条的误判里长出来的，别把它当附带项删掉。
  *
  * 【为什么用源码级断言】受理与否取决于编排运行时的一长串状态（变换结果、复核 attestation、
  * 修复轮计数），没有可导出的纯函数能表达。这里断言的是**两道校验点都调用了同一个判据**，
@@ -126,6 +133,32 @@ const api = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8"
     typeof qualityAnnotationCopy("primary_syndrome_name_nonstandard") === "string"
     && qualityAnnotationCopy("primary_syndrome_name_nonstandard").length > 4,
     "T2 码必须有面向医生的批注文案",
+  );
+}
+
+// ── 4. 拒绝日志必须同时报出**管事的**那个码 ────────────────────────────────
+// 【为什么单钉这条】同一份草稿有两个校验器：structuredRejectionReason 走文档质量口径，
+// m03SafetyContractIssue 走硬安全口径，两者可以对同一份内容给出完全不同的「问题是什么」。
+// 此前只有前者进日志。
+//
+// 实测代价（2026-08-16，本仓自己的排查过程）：
+//   日志：finalized M03 rejected { reason: 'm03_primary_syndrome_name_nonstandard' }  ← T2 质量档
+//   实况：safetyIssue: 'overall_pathogenesis_unstable'                                 ← T1 安全档（绝对核）
+// 照着日志判断成「T2 被错误硬拦」，改了 finalize 的质量档受理——而真正拦住它的是 T1，
+// 按安全档丢弃本就是正确行为。**报出来的码把排查系统性带偏了一整轮。**
+{
+  assert.ok(
+    /governingSafetyCode: finalizedGoverningSafetyCode/.test(api),
+    "finalized M03 rejected 必须同时报出管事的硬安全码——只报文档质量码会把排查带偏（本仓已实测踩过）",
+  );
+  assert.ok(
+    /m03SafetyContractIssue\(parsed, opts\.structuredClinicalContext \|\| "", isSafetyRejection\)/.test(api),
+    "管事的码必须由 m03SafetyContractIssue 现算，不得另抄一份判据",
+  );
+  // 载荷解析不出时也要有明确取值，不能静默留空——留空会被读成「没有安全问题」
+  assert.ok(
+    /\(payload_unparsed\)/.test(api) && /\(none\)/.test(api),
+    "解析不出与确无安全问题必须是两个可区分的取值，不得都留空",
   );
 }
 

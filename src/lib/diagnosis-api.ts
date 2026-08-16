@@ -4355,9 +4355,24 @@ async function callPrimaryTextModelStream(
               finishReason,
               opts.structuredClinicalContext,
             );
+            // **同一份内容有两个校验器，报出来的那个不一定是管事的那个。**
+            // structuredRejectionReason 走文档质量口径，m03SafetyContractIssue 走硬安全口径；
+            // 两者对同一份草稿可以给出完全不同的「问题是什么」，而此前只有前者进日志。
+            //
+            // 实测代价（2026-08-16）：日志报 m03_primary_syndrome_name_nonstandard（T2 质量档），
+            // 于是判断成「T2 被错误硬拦」并去改 finalize 的质量档受理；加了诊断日志才看到
+            // 真正拦住它的是 overall_pathogenesis_unstable（T1 安全档，属绝对核）——
+            // 按安全档丢弃本就是正确行为，白改一轮。
+            // 治法：管事的那个必须和报出来的那个一起进日志。
+            const finalizedGoverningSafetyCode = (() => {
+              const parsed = m03ReasoningFromStructuredContent(transformed.content);
+              if (!parsed) return "(payload_unparsed)";
+              return m03SafetyContractIssue(parsed, opts.structuredClinicalContext || "", isSafetyRejection) || "(none)";
+            })();
             console.warn("[tcm-cdss:model] finalized M03 rejected", {
               stage: "diagnose",
               reason: finalizedM03RejectionReason,
+              governingSafetyCode: finalizedGoverningSafetyCode,
               diagnostic: structuredRejectionDiagnostic(
                 transformed.content,
                 finalizedM03RejectionReason,
