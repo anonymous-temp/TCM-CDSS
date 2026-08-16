@@ -203,7 +203,9 @@
     "test:colloquial-redflag-parity": "jiti scripts/test-colloquial-redflag-parity.mjs",
     "regress:counterfactual-btr": "node scripts/regress-counterfactual-btr.mjs",
     "test:m03-finalize-quality-tier": "jiti scripts/test-m03-finalize-quality-tier.mjs",
-    "test:sanitizer-contract-preservation": "jiti scripts/test-sanitizer-contract-preservation.mjs"
+    "test:sanitizer-contract-preservation": "jiti scripts/test-sanitizer-contract-preservation.mjs",
+    "regress:tcmeval-sdt": "node scripts/regress-tcmeval-sdt.mjs",
+    "test:clinician-herb-adjudications": "jiti scripts/test-clinician-herb-adjudications.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

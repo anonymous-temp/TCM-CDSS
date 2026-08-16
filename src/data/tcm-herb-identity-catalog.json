@@ -7,8 +7,8 @@
   },
   "supplementSource": {
     "file": "tcm-herb-identity-supplements.json",
-    "sha256": "b6aa5383afd7cb812ff6ed7ae1b35eac9481d2562d3e81c254e7935909447c0f",
-    "rowCount": 377
+    "sha256": "8b6e36372ab08a180ac5ba6102c96ffafe15601096761375a0b0e61357ce741e",
+    "rowCount": 381
   },
   "governance": {
     "status": "generated_mapping_plus_source_backed_clinical_extensions",
@@ -17,13 +17,13 @@
     "scopeNote": "联网检索可用于收集权威来源和完成知识治理，但不能替代真实处方依法依规的审核职责；多目标别名保持 fail-closed。"
   },
   "summary": {
-    "standardNameCount": 628,
-    "ambiguousInputCount": 501,
+    "standardNameCount": 631,
+    "ambiguousInputCount": 499,
     "resolutionStatusCounts": {
-      "ambiguous": 501,
+      "ambiguous": 499,
       "exact_standard_name": 616,
-      "source_backed_clinical_extension": 374,
-      "source_backed_preparation_form": 124,
+      "source_backed_clinical_extension": 378,
+      "source_backed_preparation_form": 125,
       "unique_high_confidence": 74,
       "unique_source_backed": 4703
     }
@@ -4996,6 +4996,18 @@
       ]
     },
     {
+      "standardName": "六神曲",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "关黄柏",
       "inChp2020": true,
       "chpEntryId": "225",
@@ -5152,6 +5164,18 @@
           "mappingAction": "归一到standard_name",
           "note": ""
         }
+      ]
+    },
+    {
+      "standardName": "冬葵子",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ]
     },
     {
@@ -52208,6 +52232,18 @@
       ]
     },
     {
+      "standardName": "败酱草",
+      "inChp2020": false,
+      "chpEntryId": null,
+      "riskTags": [],
+      "variants": [],
+      "catalogStatus": "project_clinical_extension_not_pharmacopoeia_entry",
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    {
       "standardName": "贯叶金丝桃",
       "inChp2020": true,
       "chpEntryId": "358",
@@ -67987,13 +68023,14 @@
       "autoResolvable": true
     },
     "冬葵子": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "冬葵果",
-        "苘麻子"
+      "canonicalName": "冬葵子",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
       ],
-      "autoResolvable": false
+      "medicinalPart": "成熟种子"
     },
     "冬葵果": {
       "canonicalName": "冬葵果",
@@ -90509,13 +90546,13 @@
       "autoResolvable": true
     },
     "败酱草": {
-      "canonicalName": null,
-      "status": "ambiguous",
-      "candidates": [
-        "小蓟",
-        "菥蓂"
-      ],
-      "autoResolvable": false
+      "canonicalName": "败酱草",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
     },
     "败龟版": {
       "canonicalName": "龟甲",
@@ -100669,6 +100706,24 @@
       ],
       "doseCanonicalName": "花椒"
     },
+    "神曲": {
+      "canonicalName": "六神曲",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
+    "牙硝": {
+      "canonicalName": "芒硝",
+      "status": "source_backed_clinical_extension",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011",
+        "SRC-NMPA-CHP-2025-INDEX"
+      ]
+    },
     "制南星": {
       "canonicalName": "天南星",
       "status": "source_backed_preparation_form",
@@ -101733,6 +101788,15 @@
     },
     "麸炒白术": {
       "canonicalName": "白术",
+      "status": "source_backed_preparation_form",
+      "autoResolvable": true,
+      "sourceRefs": [
+        "SRC-SZJG-TCM-FORMULA-2011"
+      ],
+      "preparation": "麸炒"
+    },
+    "麸炒神曲": {
+      "canonicalName": "六神曲",
       "status": "source_backed_preparation_form",
       "autoResolvable": true,
       "sourceRefs": [
@@ -106395,24 +106459,6 @@
       "candidates": [
         "南五味子",
         "土木香"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
-      "id": "TCM-HERB-IDENTITY-REVIEW-96448870468C",
-      "inputName": "冬葵子",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "冬葵果",
-        "苘麻子"
       ],
       "serviceLevel": {
         "triageBusinessDays": 1,
@@ -112397,24 +112443,6 @@
         "伊贝母",
         "川贝母",
         "平贝母"
-      ],
-      "serviceLevel": {
-        "triageBusinessDays": 1,
-        "adjudicationBusinessDays": 5
-      },
-      "requiredEvidence": [
-        "authoritative_source_locator",
-        "HIS_local_code_or_dispensing_identity_when_available"
-      ],
-      "reviewPolicy": "两名获机构授权的临床知识治理人员独立一致；涉及真实处方调剂时仍按机构处方审核职责执行。"
-    },
-    {
-      "id": "TCM-HERB-IDENTITY-REVIEW-80B8CF78F3DF",
-      "inputName": "败酱草",
-      "status": "awaiting_evidence_adjudication",
-      "candidates": [
-        "小蓟",
-        "菥蓂"
       ],
       "serviceLevel": {
         "triageBusinessDays": 1,

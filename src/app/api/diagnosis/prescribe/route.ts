@@ -129,7 +129,17 @@ export async function POST(req: Request) {
   // 随访表述），在这里用无谓词严格口径复检会把**完全正常的签名 M03**再判死，M04 直接拒绝
   // 出方（实测 28 例新病历中 3 例：证型病机俱全却收到「缺少有效的西医诊断」0 味页）。
   // 这是「一处受理、他处复判」同一结构分叉的又一处；受理与复检必须同口径。
-  if (m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)) {
+  // 判据算出的是**具体哪一条合同不满足**，此前只当布尔用：不进日志、不进原因码，
+  // 医生看到的永远是同一句「缺少有效的西医诊断…」，服务端也无从归因。
+  // 与本仓 finalized M03 rejected 只报文档质量码、不报管事的安全码是同一种毛病
+  // （2026-08-16 已修那一处，这一处是同族第二处）。现在把码打出来。
+  const priorM03SafetyIssue = m03SafetyContractIssue(
+    signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection);
+  if (priorM03SafetyIssue) {
+    console.warn("[tcm-cdss:model] M04 refused: signed M03 failed safety contract recheck", {
+      stage: "prescribe",
+      issue: priorM03SafetyIssue,
+    });
     const gate: SafetyGate = {
       status: "needs_information",
       allowDiagnosis: false,

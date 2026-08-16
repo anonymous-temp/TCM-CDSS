@@ -23,7 +23,7 @@
     },
     {
       "file": "tcm-herb-identity-catalog.json",
-      "sha256": "75cb6a5451d1afe74a23b25541756ebb192fabbbe4c06559d3de2f151201ba92"
+      "sha256": "6aa117327b04f8f3c612a6e7a36e6f2a2581d14f3559eb66310a2078cf25d1c1"
     },
     {
       "sourceRef": "SRC-SZJG-TCM-FORMULA-2011",
@@ -143,8 +143,8 @@
       "麦冬汤〔《外台秘要》卷三十三·妊娠六月〕",
       "黄连汤〔《外台秘要》卷三十三·妊娠二月〕"
     ],
-    "varietyFlexibleFormulaCount": 122,
-    "varietyUndeterminedFormulaCount": 100,
+    "varietyFlexibleFormulaCount": 117,
+    "varietyUndeterminedFormulaCount": 95,
     "governedFormulaCount": 2969,
     "prescriptionLockEligibleCount": 2910,
     "identityLockEligibleCount": 2910,
@@ -851,8 +851,9 @@
       "ingredientLinks": [
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "附子",
@@ -4617,8 +4618,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -10344,8 +10346,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "川芎",
@@ -31873,8 +31876,9 @@
       "ingredientLinks": [
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "茯神",
@@ -41837,8 +41841,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -42607,13 +42612,10 @@
       "ingredientLinks": [
         {
           "rawName": "冬葵子",
-          "canonicalName": null,
-          "linkageStatus": "ambiguous",
-          "autoResolvable": false,
-          "candidates": [
-            "冬葵果",
-            "苘麻子"
-          ]
+          "canonicalName": "冬葵子",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "成熟种子"
         },
         {
           "rawName": "柴胡",
@@ -42675,30 +42677,12 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
         "冬葵子"
       ],
-      "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [
-        {
-          "name": "冬葵子",
-          "candidates": [
-            "冬葵果",
-            "苘麻子"
-          ]
-        }
-      ],
-      "varietyFlexibleIngredients": [
-        {
-          "recordedName": "冬葵子",
-          "acceptedNames": [
-            "冬葵子",
-            "冬葵果",
-            "苘麻子"
-          ],
-          "reason": "catalog_records_bare_genus"
-        }
-      ],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
       "blockingReasons": []
     },
     {
@@ -48947,8 +48931,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "麦芽",
@@ -49060,8 +49045,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "炒苍术",
@@ -52399,8 +52385,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "君子",
@@ -56142,8 +56129,9 @@
       "ingredientLinks": [
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "辰砂",
@@ -58220,8 +58208,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "白术",
@@ -62507,8 +62496,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "砂仁",
@@ -65760,8 +65750,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "橘红",
@@ -66590,8 +66581,9 @@
       "ingredientLinks": [
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "山楂",
@@ -83071,8 +83063,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "熟地黄",
@@ -109591,8 +109584,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "山楂",
@@ -132520,8 +132514,9 @@
       "ingredientLinks": [
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "苍术",
@@ -132598,8 +132593,9 @@
       "ingredientLinks": [
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "白术",
@@ -132682,8 +132678,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "甘草",
@@ -134285,8 +134282,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "大麦",
@@ -153738,8 +153736,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -154576,8 +154575,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -157381,8 +157381,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "甘草",
@@ -159667,8 +159668,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -177524,8 +177526,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "甘草",
@@ -184144,8 +184147,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "麦芽",
@@ -185490,8 +185494,10 @@
         },
         {
           "rawName": "麸炒神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "麸炒"
         }
       ],
       "indications": [
@@ -190145,8 +190151,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "橘皮",
@@ -193678,13 +193685,10 @@
         },
         {
           "rawName": "冬葵子",
-          "canonicalName": null,
-          "linkageStatus": "ambiguous",
-          "autoResolvable": false,
-          "candidates": [
-            "冬葵果",
-            "苘麻子"
-          ]
+          "canonicalName": "冬葵子",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "成熟种子"
         },
         {
           "rawName": "石苇",
@@ -193746,32 +193750,13 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [
-        "冬葵子"
-      ],
+      "manualDoseIngredientNames": [],
       "clinicianDoseIngredientNames": [
+        "冬葵子",
         "榆白皮"
       ],
-      "varietyUndeterminedIngredients": [
-        {
-          "name": "冬葵子",
-          "candidates": [
-            "冬葵果",
-            "苘麻子"
-          ]
-        }
-      ],
-      "varietyFlexibleIngredients": [
-        {
-          "recordedName": "冬葵子",
-          "acceptedNames": [
-            "冬葵子",
-            "冬葵果",
-            "苘麻子"
-          ],
-          "reason": "catalog_records_bare_genus"
-        }
-      ],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
       "blockingReasons": []
     },
     {
@@ -196634,8 +196619,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "黄连",
@@ -200079,8 +200065,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "苍术",
@@ -203138,8 +203125,9 @@
         },
         {
           "rawName": "牙硝",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "芒硝",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "牵牛",
@@ -209084,8 +209072,9 @@
         },
         {
           "rawName": "牙硝",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "芒硝",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "大黄",
@@ -220826,8 +220815,9 @@
       "ingredientLinks": [
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "白术",
@@ -230587,13 +230577,10 @@
         },
         {
           "rawName": "冬葵子",
-          "canonicalName": null,
-          "linkageStatus": "ambiguous",
-          "autoResolvable": false,
-          "candidates": [
-            "冬葵果",
-            "苘麻子"
-          ]
+          "canonicalName": "冬葵子",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "成熟种子"
         },
         {
           "rawName": "瞿麦",
@@ -230646,30 +230633,12 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
         "冬葵子"
       ],
-      "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [
-        {
-          "name": "冬葵子",
-          "candidates": [
-            "冬葵果",
-            "苘麻子"
-          ]
-        }
-      ],
-      "varietyFlexibleIngredients": [
-        {
-          "recordedName": "冬葵子",
-          "acceptedNames": [
-            "冬葵子",
-            "冬葵果",
-            "苘麻子"
-          ],
-          "reason": "catalog_records_bare_genus"
-        }
-      ],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
       "blockingReasons": []
     },
     {
@@ -232882,8 +232851,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         }
       ],
       "indications": [
@@ -236305,8 +236275,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "桑白皮",
@@ -236522,13 +236493,10 @@
         },
         {
           "rawName": "冬葵子",
-          "canonicalName": null,
-          "linkageStatus": "ambiguous",
-          "autoResolvable": false,
-          "candidates": [
-            "冬葵果",
-            "苘麻子"
-          ]
+          "canonicalName": "冬葵子",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true,
+          "medicinalPart": "成熟种子"
         },
         {
           "rawName": "腻粉",
@@ -236590,32 +236558,14 @@
         "腻粉"
       ],
       "manualDoseIngredientNames": [
-        "冬葵子",
         "腻粉"
       ],
       "clinicianDoseIngredientNames": [
+        "冬葵子",
         "琥珀"
       ],
-      "varietyUndeterminedIngredients": [
-        {
-          "name": "冬葵子",
-          "candidates": [
-            "冬葵果",
-            "苘麻子"
-          ]
-        }
-      ],
-      "varietyFlexibleIngredients": [
-        {
-          "recordedName": "冬葵子",
-          "acceptedNames": [
-            "冬葵子",
-            "冬葵果",
-            "苘麻子"
-          ],
-          "reason": "catalog_records_bare_genus"
-        }
-      ],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
       "blockingReasons": []
     },
     {
@@ -242047,8 +241997,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "木通",
@@ -249656,8 +249607,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "麦芽",
@@ -259260,8 +259212,10 @@
         },
         {
           "rawName": "麸炒神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "麸炒"
         }
       ],
       "indications": [
@@ -266807,8 +266761,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "麦芽",
@@ -268301,8 +268256,10 @@
         },
         {
           "rawName": "麸炒神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_preparation_form",
+          "autoResolvable": true,
+          "preparation": "麸炒"
         },
         {
           "rawName": "泽泻",
@@ -271715,8 +271672,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "乌药",
@@ -287378,8 +287336,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "薏苡仁",
@@ -312838,8 +312797,9 @@
         },
         {
           "rawName": "牙硝",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "芒硝",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "天竺黄",
@@ -317925,8 +317885,9 @@
         },
         {
           "rawName": "神曲",
-          "canonicalName": null,
-          "linkageStatus": "unmapped"
+          "canonicalName": "六神曲",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "砂仁",
@@ -320402,13 +320363,9 @@
         },
         {
           "rawName": "败酱草",
-          "canonicalName": null,
-          "linkageStatus": "ambiguous",
-          "autoResolvable": false,
-          "candidates": [
-            "小蓟",
-            "菥蓂"
-          ]
+          "canonicalName": "败酱草",
+          "linkageStatus": "source_backed_clinical_extension",
+          "autoResolvable": true
         },
         {
           "rawName": "燀桃仁",
@@ -320462,30 +320419,12 @@
       "unresolvedDoseIngredientNames": [],
       "corruptIngredientNames": [],
       "missingDoseBoundaryIngredientNames": [],
-      "manualDoseIngredientNames": [
+      "manualDoseIngredientNames": [],
+      "clinicianDoseIngredientNames": [
         "败酱草"
       ],
-      "clinicianDoseIngredientNames": [],
-      "varietyUndeterminedIngredients": [
-        {
-          "name": "败酱草",
-          "candidates": [
-            "小蓟",
-            "菥蓂"
-          ]
-        }
-      ],
-      "varietyFlexibleIngredients": [
-        {
-          "recordedName": "败酱草",
-          "acceptedNames": [
-            "小蓟",
-            "菥蓂",
-            "败酱草"
-          ],
-          "reason": "catalog_records_bare_genus"
-        }
-      ],
+      "varietyUndeterminedIngredients": [],
+      "varietyFlexibleIngredients": [],
       "blockingReasons": []
     },
     {
@@ -337600,8 +337539,9 @@
             },
             {
               "rawName": "神曲",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "六神曲",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "麦芽",
@@ -341144,8 +341084,9 @@
             },
             {
               "rawName": "神曲",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "六神曲",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "木香",
@@ -341728,8 +341669,9 @@
             },
             {
               "rawName": "神曲",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "六神曲",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "使君子肉",
@@ -342489,8 +342431,9 @@
             },
             {
               "rawName": "神曲",
-              "canonicalName": null,
-              "linkageStatus": "unmapped"
+              "canonicalName": "六神曲",
+              "linkageStatus": "source_backed_clinical_extension",
+              "autoResolvable": true
             },
             {
               "rawName": "黄连",

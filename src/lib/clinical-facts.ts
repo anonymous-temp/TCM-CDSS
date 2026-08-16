@@ -24,6 +24,14 @@ export const BACKSTOP_RED_FLAG_CATEGORIES = {
   syncope: "晕厥/黑矇/意识丧失",
   neuro: "急性神经功能异常（剧烈头痛/意识改变/言语不清/肢体无力）",
   gi_bleed: "消化道出血（呕血/黑便/便血）",
+  // 受治理词表 redflag-triage-lexicon.json 有 18 类，本表此前只有 17 类，**唯独少 gi_alarm**。
+  // 后果不是少一个标签：buildClinicalFactsExtractionPrompt 用本表生成「类目键只能取以下之一」，
+  // 同一段提示词却把全部 18 类的受治理规则（含 gi_alarm）喂给模型——
+  // 模型看得到规则、选不了键；就算硬选，解析处 `!(category in BACKSTOP_RED_FLAG_CATEGORIES)`
+  // 会静默丢弃。于是**整个上消化道警示征象类别在语义回补层结构性失明**，
+  // 而语义层的全部意义正是接住确定性层漏掉的口语表述。
+  // （2026-08-16：确定性层与词表已加 gi_alarm，本表没跟上——同一修复只做了一半。）
+  gi_alarm: "上消化道警示征象（吞咽/进食梗阻、恶性肿瘤病史伴消化道症状、不明原因消瘦）",
   bleeding: "其他急性出血（咯血/阴道流血/外伤出血/出血不止）",
   acute_abdomen: "急腹症（急性剧烈腹痛/腹胀）",
   respiratory: "急性呼吸困难/端坐呼吸",
@@ -46,6 +54,7 @@ const RED_FLAG_MESSAGE: Record<BackstopRedFlagCategory, string> = {
   syncope: "AI语义分诊提示：当前信息支持意识丧失相关红旗，需立即评估循环及神经系统急症",
   neuro: "AI语义分诊提示：当前信息支持急性神经功能异常红旗，需立即完成卒中等急症评估",
   gi_bleed: "AI语义分诊提示：当前信息支持消化道出血红旗，需立即评估出血严重度",
+  gi_alarm: "AI语义分诊提示：当前信息支持上消化道警示征象，需优先安排内镜或专科评估以排除恶性梗阻",
   bleeding: "AI语义分诊提示：当前信息支持急性出血红旗，需立即评估出血与循环状态",
   acute_abdomen: "AI语义分诊提示：当前信息支持急腹症红旗，需立即完成腹部急症评估",
   respiratory: "AI语义分诊提示：当前信息支持急性呼吸受损红旗，需立即评估呼吸与循环",
@@ -66,6 +75,7 @@ const TRIAGE_ADVISORY_MESSAGE: Record<BackstopRedFlagCategory, string> = {
   syncope: "意识丧失或黑矇相关表现需优先复核",
   neuro: "神经系统相关表现需优先复核",
   gi_bleed: "消化道出血相关表现需优先复核",
+  gi_alarm: "上消化道警示征象需优先复核",
   bleeding: "出血相关表现需优先复核",
   acute_abdomen: "腹部急症相关表现需优先复核",
   respiratory: "呼吸相关表现需优先复核",
@@ -117,6 +127,10 @@ const CATEGORY_EMERGENCY_BASES: Record<BackstopRedFlagCategory, ReadonlySet<Tria
   syncope: new Set(["time_sensitive_cardiovascular_event", "acute_neurologic_deficit", "shock_or_anaphylaxis", "other_immediate_threat"]),
   neuro: new Set(["acute_neurologic_deficit", "other_immediate_threat"]),
   gi_bleed: new Set(["major_active_bleeding", "shock_or_anaphylaxis", "other_immediate_threat"]),
+  // 与 gi_bleed 刻意不同：警示征象本身是**限时排查恶性梗阻**，不是即刻威胁生命。
+  // 只有合并活动性出血或循环失代偿时才升到 emergency；单纯吞咽梗阻/消瘦走提示与优先转诊，
+  // 不占用急诊通道。放宽到 other_immediate_threat 会让每一个进食困难病人都弹急诊。
+  gi_alarm: new Set(["major_active_bleeding", "shock_or_anaphylaxis"]),
   bleeding: new Set(["major_active_bleeding", "shock_or_anaphylaxis", "other_immediate_threat"]),
   acute_abdomen: new Set(["shock_or_anaphylaxis", "other_immediate_threat"]),
   respiratory: new Set(["airway_breathing_failure", "shock_or_anaphylaxis", "other_immediate_threat"]),
@@ -988,6 +1002,9 @@ const CATEGORY_DEDUP_KEYWORDS: Record<BackstopRedFlagCategory, RegExp> = {
   syncope: /晕厥|黑矇|意识丧失/,
   neuro: /神经系统|剧烈头痛|意识改变|言语不清|肢体无力/,
   gi_bleed: /消化道出血|呕血|黑便|便血/,
+  // 去重关键词刻意与 gi_bleed 不重叠：两类同现时（胃癌术后 + 黑便）必须各自保留一条，
+  // 一条是出血处置、一条是恶性梗阻排查，合并会丢掉后者。
+  gi_alarm: /上消化道警示|吞咽困难|进食梗阻|噎膈|恶性梗阻|不明原因消瘦/,
   bleeding: /咯血|阴道流血|外伤出血|出血不止|急性出血/,
   acute_abdomen: /急腹症|腹痛|腹胀/,
   respiratory: /呼吸困难|端坐呼吸|呼吸循环/,

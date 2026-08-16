@@ -128,7 +128,23 @@ BASE_URL=… CDSS_API_TOKEN=… npm run regress:prod-smoke
 - `verify:deployed-image` recomputes the digest locally and compares. **Non-zero exit means the deploy failed, including "couldn't prove it"** — don't debug source until it's zero.
 - `scripts/deploy-prod.sh` carries five hard-won constraints in its header comment (whitelist rsync — the repo root holds 4.6GB of data assets and blacklisting took two hours per sync; `--env-file` not `source`; prune before build; explicit `-p tcm-cdss-prod`; never `| tail` away an exit code). Read them before editing it. It lives in the repo precisely because a `/tmp` copy was once lost.
 
-### Conventions & gotchas
+### 本机执行纪律（2026-08-16 实测，各栽过 ≥2 次）
+
+- **改了 `src/lib/diagnosis-safety.ts` / `diagnosis-types.ts` 之后，生成器和闸门必须一起发。**
+  这两个文件的摘要在受治理来源注册表里，不重跑
+  `build-clinical-governance-static-tables.mjs` + `build-tcm-governance-tables.py`，
+  `test:clinical-governance-tables` 必红（「表内 … 实际 …」指纹分叉）。同一天栽两次。
+- **闸门不能与工作流/dev server 并发。** 6G 内存，`test:deterministic` 自带
+  `--max-old-space-size=8192`；并发时闸门进程被内存回收直接杀掉，**日志为空、无退出码**——
+  这与「跑完了但没写标记」长得一模一样，别把它当成绿。判别：`ps` 里进程没了且日志 0 行 ⇒ 被杀。
+- **源码级断言必须自带越界守卫。** 用 `indexOf("};")` 切对象字面量会切过头到下一张表，
+  于是「从第一张表里删一项」照样能在第二张表里找到，断言静默空转。
+  本仓多个对象以 `} as const;` 结尾。可靠信号是**去重后数量变少**，加一条 Set 大小断言。
+- **每条新断言都要跑反证。** 今天 3 条断言写完是绿的、反证一跑才发现抓不住；
+  另有 3 次「照推断直接改」全部改错（判分器关键词、sentinel 丢失、finalize 硬拦 T2）。
+  这个代码库判据链很长，读代码形成的直觉可靠度低——以日志与实测数字为准。
+
+## Conventions & gotchas
 
 - **Imports:** `@/*` → `src/*` (tsconfig paths). Match the existing thin-route / logic-in-`lib` split; keep routes validating + streaming only.
 - **`src/lib/*.server.ts` is a real boundary, not a suffix.** ~14 modules (`emergency-clearance.server.ts`, `m02-answer-interpreter.server.ts`, `icd10-diagnosis-coding.server.ts`, `tcm-classic-evidence.server.ts`, …) are server-only — they read env/secrets, call models, or load governed data. `DiagnosisClient.tsx` is a client component; keep it out of these. New server-only logic gets the suffix.

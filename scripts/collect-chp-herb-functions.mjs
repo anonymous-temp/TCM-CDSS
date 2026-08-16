@@ -91,6 +91,22 @@ function functionParagraph(html) {
   return match ? plainText(match[1]) : "";
 }
 
+/**
+ * 该词条**根本没有**「功能与主治」段时，要说清楚是这个，而不是笼统报「切不开」。
+ *
+ * 中医师终审（2026-08-16）纠正了本脚本的一处误报：虫白蜡与颠茄草被拒时报的是
+ * 「无法可靠分离功能段与主治段」，医生核对药典后指出这两条**压根没有功能与主治**，
+ * 只有「用途」——虫白蜡「作为赋形剂，制丸、片的润滑剂」、颠茄草「抗胆碱药」。
+ * 逐条核验属实：虫白蜡段落为 性状/检查/用途/贮藏，颠茄草为 性状/鉴别/检查/含量测定/用途/贮藏。
+ *
+ * 差别不是措辞：报「切不开」会让人去改切分逻辑，而正确处置是**这味药不该进中医功效表**
+ * （辅料属性、现代药理分类各有各的字段）。报错的原因码把判断成本转嫁给了下游——
+ * 与本仓 finalized M03 rejected 只报文档质量码、不报管事的安全码是同一种毛病。
+ */
+function documentedSectionTitles(html) {
+  return [...String(html || "").matchAll(/<b>【([^】]+)】<\/b>/g)].map((m) => m[1]);
+}
+
 // 功能段与主治段的分界词不止「用于」。药典对**外用药**写的是「外治」，
 // 例如煅石膏：「收湿，生肌，敛疮，止血。外治溃疡不敛，湿疹瘙痒，水火烫伤，外伤出血。」
 // 第一版只切「。用于」，于是煅石膏整段主治混进了功效字段——
@@ -143,6 +159,19 @@ async function fetchOfficial(item) {
         rejected: {
           herb: item.herb.name,
           why: `药典词条标题不一致：${String(detail.title || "")}`,
+          apiUrl,
+        },
+      };
+    }
+    const sections = documentedSectionTitles(detail.htmlContent);
+    if (!sections.includes("功能与主治")) {
+      const nonTcm = ["用途", "药理作用", "适应症", "适应证", "类别"].filter((t) => sections.includes(t));
+      return {
+        rejected: {
+          herb: item.herb.name,
+          why: `药典该词条无【功能与主治】段${nonTcm.length ? `，仅有【${nonTcm.join("】【")}】` : ""}`
+            + "——非中医功效数据，不应进入功效补充表（辅料属性/现代药理分类另存其他字段）",
+          sections,
           apiUrl,
         },
       };

@@ -172,6 +172,44 @@ for (const [label, complaint] of COFFEE_MUST_NOT_FIRE) {
   assert.ok(!bleedFires({ complaint }), `不得触发消化道出血红旗：${label}｜${complaint}`);
 }
 
+// ── 语义回补层必须也认得 gi_alarm ──────────────────────────────────────────
+// 【钉的是什么】受治理词表有 18 类，clinical-facts 的 BACKSTOP_RED_FLAG_CATEGORIES 此前只有 17 类，
+// 唯独缺 gi_alarm。后果不是少一个标签：
+//  · buildClinicalFactsExtractionPrompt 用该表生成「类目键只能取以下之一」；
+//  · 同一段提示词却把全部 18 类的受治理规则（含 gi_alarm）喂给模型；
+//  · 模型看得到规则、选不了键；硬选也会在解析处被 `!(category in ...)` 静默丢弃。
+// 于是整个上消化道警示征象类别在**语义回补层结构性失明**——而该层的全部意义
+// 正是接住确定性层漏不到的口语表述（主模型欠费停摆那 8 小时靠的就是确定性层，
+// 反过来口语表述靠的就是这一层）。
+// 2026-08-16：确定性层与词表当天已加 gi_alarm，本表没跟上，同一修复只做了一半。
+{
+  const factsSource = readFileSync(path.join(repoRoot, "src/lib/clinical-facts.ts"), "utf8");
+  const start = factsSource.indexOf("export const BACKSTOP_RED_FLAG_CATEGORIES");
+  assert.ok(start >= 0, "找不到 BACKSTOP_RED_FLAG_CATEGORIES 声明");
+  // 该对象以 `} as const;` 结尾，不是 `};`——按 `};` 切会一路切进 RED_FLAG_MESSAGE。
+  const body = factsSource.slice(start, factsSource.indexOf("\n} as const;", start));
+  const codeCategories = [...body.matchAll(/^\s*([a-z_]+):/gm)].map((m) => m[1]);
+  // 守卫：切片一旦越界，会把紧随其后的 RED_FLAG_MESSAGE 一并算进来，
+  // 于是「从第一张表里删掉一类」照样能在第二张表里找到，整条断言变成空转。
+  // 首版就是这么写的，反证当场发现它抓不住——去重后数量翻倍是唯一可靠的越界信号。
+  assert.equal(
+    new Set(codeCategories).size, codeCategories.length,
+    `切片越界：类目出现重复，说明切到了下一张表。实得 ${codeCategories.length} 项／去重后 ${new Set(codeCategories).size} 项`,
+  );
+  const lexiconCategories = lexicon.categoryRules.map((rule) => rule.id);
+  const missing = lexiconCategories.filter((id) => !codeCategories.includes(id));
+  assert.deepEqual(
+    missing, [],
+    `受治理词表里的每一类都必须在语义回补层的类目表里；缺失：${JSON.stringify(missing)}。`
+    + "缺一类不是少一个标签——模型会被喂到该类的受治理规则却选不了它的键，"
+    + "返回值随后被静默丢弃，该类别在语义层整类失明。",
+  );
+  assert.ok(
+    codeCategories.includes("gi_alarm"),
+    "gi_alarm 必须在语义回补层类目表内（2026-08-16 确定性层已加，本表曾漏）",
+  );
+}
+
 console.log("test-gi-alarm-features: OK", {
   alarmMustFire: MUST_FIRE.length,
   alarmMustNotFire: MUST_NOT_FIRE.length,

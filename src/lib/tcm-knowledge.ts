@@ -1514,8 +1514,49 @@ function withFunctionSupplement(canonical: string, text: string): string {
   return text ? `${text}；${supplement}` : supplement;
 }
 
+/**
+ * 只有**分类标签**（以「药」结尾的章节名）而无功效正文时，等于方义栏永远是兜底句。
+ * 判据与 build/collect 侧一致：去掉以「药」结尾的词后还剩几条。
+ */
+function hasRealFunctionText(value: string): boolean {
+  return String(value || "").trim().split(/[；;，,、]/).map((item) => item.trim())
+    .filter(Boolean).filter((item) => !/药$/.test(item)).length > 0;
+}
+
+/**
+ * 炮制前缀。带前缀的名字**一律不做别名回退**——中医师终审 2026-08-16 第 3 条：
+ * 「来源明确区分生品、炒品、焦品功效时，应使用『药材规范名 + 炮制规格』的独立身份，
+ *   不能以原药材总述覆盖全部炮制品」。
+ * 药典对麦芽就分列三条：生麦芽健脾和胃疏肝行气 / 炒麦芽行气消食回乳 / 焦麦芽消食化滞。
+ * 不能靠身份目录的 mappingType 来判——实测**目录把「炒麦芽」标成了 ALIAS_OR_SYNONYM**
+ * （麦芽的同义词），照它回退就会把炮制品塌缩成原药材，正是这条规则要防的事。
+ * 因此这里用词法守卫，独立于（可能标错的）目录分类。
+ */
+const HERB_PROCESSING_PREFIX = /^(?:蜜炙|麸炒|土炒|盐炒|酒炒|醋炒|姜炒|清炒|炒|焦|煅|炙|制|法|生|鲜|煨|烫|酒|醋|盐|姜)/;
+
 export function getTcmHerbFunctionText(herb: string): string {
+  // 炮制规格必须先按**原名**查一次补充表，再谈归一。
+  //
+  // 中医师终审 2026-08-16 第 3 条：生/炒/焦为同一基原下的独立规格身份，
+  // 药典分列「生麦芽健脾和胃疏肝行气 / 炒麦芽行气消食回乳 / 焦麦芽消食化滞」。
+  // 而 canonicalKnowledgeHerbName 末尾会剥炮制前缀，那张前缀表里**有「生」没有「焦」**，
+  // 于是同为炮制品的三味走了三条不同路径：
+  //   炒麦芽 → 自身是知识库条目，直接命中，拿到自己的补充条目 ✓
+  //   焦麦芽 → 「焦」不在剥离表内，未被剥，拿到自己的补充条目 ✓
+  //   生麦芽 → 「生」在剥离表内，被剥成麦芽，拿到**麦芽总述** ✗
+  // 这不是三条规则，是同一条规则被三种巧合分别放过或击中。
+  // 补充表既然按规格名逐条裁定，就必须在归一之前按原名生效。
+  const rawName = String(herb || "").trim();
   const canonical = canonicalKnowledgeHerbName(herb);
+  // **只在归一会把它重定向到别的名字时**才让规格名覆盖。
+  //
+  // 第一版写成「原名有补充条目就直接返回补充」，闸门当场抓出连带损伤：
+  // 薄荷本身有补充条目（疏散风热，清利头目，利咽，透疹，疏肝行气），提前返回把它
+  // **自己的功效正文整段丢掉**，于是声明的「解表」接不上地，M04 判
+  // candidate_0_herb_1_function_ungrounded。把「补充」写成了「替换」。
+  // 原名即正名时照常走下面的原路径——那条路本来就会用 withFunctionSupplement 追加补充。
+  const specSupplement = rawName !== canonical ? FUNCTION_SUPPLEMENT_BY_NAME.get(rawName) : undefined;
+  if (specSupplement) return specSupplement;
   const herbData = data.herbs.find((item) => item.name === canonical || item.aliases.includes(canonical));
   const extracted = (herbData?.entries || [])
     .map((entry) => entry.functionText)
@@ -1525,6 +1566,24 @@ export function getTcmHerbFunctionText(herb: string): string {
   const categories = categoryIndex[canonical] || [];
   const controlled = CONTROLLED_HERB_FUNCTION_TEXT[canonical];
   if (controlled) return withFunctionSupplement(canonical, [controlled, ...categories.slice(0, 2)].filter(Boolean).join("；"));
+
+  // 别名回退（2026-08-16）。「代赭石」「朴硝」等异名在知识库里**各自是一条独立条目**，
+  // 只带分类标签而无功效正文；canonicalKnowledgeHerbName 的直接命中先返回它自己，
+  // 受治理身份目录里明明登记着 代赭石→赭石、朴硝→芒硝 的 ALIAS_OR_SYNONYM 却走不到。
+  // 又一次「数据在仓库里、运行时不读」。
+  //
+  // 三条守卫，缺一不可：
+  //  · 仅在本名**确无**功效正文时回退——有正文的一律以本名为准，不被同义名覆盖；
+  //  · 带炮制前缀的名字一律不回退（见 HERB_PROCESSING_PREFIX 注释）；
+  //  · 只认受治理身份解析给出的 canonicalName（歧义名如芍药/贝母不给 canonicalName，
+  //    因此仍然解析不出、仍交人工，不被本改动放行）。
+  if (!hasRealFunctionText(extracted) && !HERB_PROCESSING_PREFIX.test(String(herb || "").trim())) {
+    const governedAlias = resolveGovernedTcmHerbIdentity(herb).canonicalName;
+    if (governedAlias && governedAlias !== canonical) {
+      const aliasText = getTcmHerbFunctionText(governedAlias);
+      if (hasRealFunctionText(aliasText)) return aliasText;
+    }
+  }
 
   const categoryConcepts: Array<[RegExp, RegExp]> = [
     [/补气|补虚/, /大补元气|补中益气|健脾益气|补气|益气|固表|升阳/],

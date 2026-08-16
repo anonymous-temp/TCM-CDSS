@@ -2950,6 +2950,83 @@
       "chpQuote": "收敛止血。用于吐血，衄血，尿血，便血，崩漏。",
       "reviewBatch": "CHP2020-FUNCTION-20260816-B2",
       "corpusUseCount": 0
+    },
+    {
+      "herb": "制草乌",
+      "supplement": "祛风除湿，温经止痛",
+      "missingConcept": "damp_resolve",
+      "basis": "《中华人民共和国药典》2020年版一部「制草乌」【功能与主治】：同草乌；「草乌」【功能与主治】：祛风除湿，温经止痛。中医师终审 2026-08-16：交叉引用可展开**功效指向**，但毒性、剂量、煎法、禁忌不得随功效继承——药典载草乌「有大毒」、制草乌「有毒」，用量 1.5～3g，宜先煎久煎，须保留制草乌自己的安全数据。",
+      "sourceUrl": "https://ydz.chp.org.cn/",
+      "sourceName": "国家药典委员会药典在线 + 中医师终审",
+      "reviewBatch": "CLINICIAN-REVIEW-20260816",
+      "corpusUseCount": 11,
+      "clinicianNote": "功效可继承，安全属性不可继承。上线前须确认制草乌有独立的『有毒/1.5～3g/先煎久煎』规则，不依赖生草乌的字面拦截。"
+    },
+    {
+      "herb": "六神曲",
+      "supplement": "健脾和胃，消食调中",
+      "missingConcept": "spleen_support",
+      "basis": "《重庆市中药饮片炮制规范》DB50/YP068—2022「六神曲」【功能与主治】：健脾和胃，消食调中。该规范注明原标准来源为《卫生部药品标准·中药成方制剂》第十九册。中医师终审 2026-08-16：2020年版《中国药典》一部未单列六神曲，采用可在线复核的省级正式炮制规范。",
+      "sourceUrl": "https://yaojianju.cq.gov.cn/zwgk_n2104/zfxxgkml/zcwjn2104/qtwjn2104/202212/P020221222416305078178.pdf",
+      "sourceName": "重庆市药品监督管理局《重庆市中药饮片炮制规范》DB50/YP068—2022 + 中医师终审",
+      "reviewBatch": "CLINICIAN-REVIEW-20260816",
+      "corpusUseCount": 407,
+      "clinicianNote": "规范名为『六神曲』，语料中的『神曲』须走受治理别名映射，不得模糊字符串合并。炒神曲/焦神曲无独立依据时不得自动合并功效。"
+    },
+    {
+      "herb": "炒麦芽",
+      "supplement": "行气消食，回乳",
+      "missingConcept": "qi_regulate",
+      "basis": "《中华人民共和国药典》2020年版一部「麦芽」【功能与主治】分列三种炮制规格：生麦芽健脾和胃，疏肝行气；炒麦芽行气消食回乳；焦麦芽消食化滞。中医师终审 2026-08-16：炮制规格功效已由药典明确区分，不得以麦芽总述覆盖；本条在不改原意前提下加分隔标点以便受控概念解析。",
+      "sourceUrl": "https://ydz.chp.org.cn/",
+      "sourceName": "国家药典委员会药典在线 + 中医师终审",
+      "reviewBatch": "CLINICIAN-REVIEW-20260816",
+      "corpusUseCount": 411,
+      "clinicianNote": "炮制规格独立建模。上线前须确认炒麦芽命中本条，不回退到生麦芽或麦芽总述。"
+    },
+    {
+      "herb": "败酱草",
+      "supplement": "清热解毒，祛瘀排脓，利湿",
+      "missingConcept": "heat_clear",
+      "basis": "中国医药信息查询平台「败酱草」（经国家中医药管理局名词术语成果转化与规范推广项目审核认证）：败酱科黄花败酱或白花败酱干燥全草，清热解毒、祛瘀排脓、利湿。中医师终审 2026-08-16 裁定为独立规范实体，否决到小蓟/菥蓂的候选映射。",
+      "sourceUrl": "https://www.dayi.org.cn/cmedical/300138.html",
+      "sourceName": "中国医药信息查询平台 + 中医师终审",
+      "reviewBatch": "CLINICIAN-REVIEW-20260816",
+      "corpusUseCount": 309,
+      "clinicianNote": "独立实体。原目录把它同时挂到小蓟、菥蓂是本地别名汇总造成的假歧义。"
+    },
+    {
+      "herb": "冬葵子",
+      "supplement": "利尿通淋，下乳，润肠",
+      "missingConcept": "damp_resolve",
+      "basis": "中国医药信息查询平台「冬葵子」：锦葵科冬葵 Malva verticillata 成熟种子，利尿通淋、下乳、润肠。中医师终审 2026-08-16：与冬葵果（同植物干燥成熟果实，清热利尿、消肿）为不同药用部位，功效正文不同，不得自动替换；与苘麻子非同种，明确排除。",
+      "sourceUrl": "https://www.dayi.org.cn/cmedical/300605.html",
+      "sourceName": "中国医药信息查询平台 + 中医师终审",
+      "reviewBatch": "CLINICIAN-REVIEW-20260816",
+      "corpusUseCount": 32,
+      "clinicianNote": "保留历史药名。机构若以冬葵果调剂，须另建机构替代关系，不入全国通用同义词表。"
+    },
+    {
+      "herb": "生麦芽",
+      "supplement": "健脾和胃，疏肝行气",
+      "missingConcept": "spleen_support",
+      "basis": "《中华人民共和国药典》2020年版一部「麦芽」【功能与主治】分列：生麦芽健脾和胃，疏肝行气；炒麦芽行气消食回乳；焦麦芽消食化滞。中医师终审 2026-08-16：生麦芽不得继续显示麦芽总述，也不得与炒麦芽共享功效正文。",
+      "sourceUrl": "https://ydz.chp.org.cn/",
+      "sourceName": "国家药典委员会药典在线 + 中医师终审",
+      "reviewBatch": "CLINICIAN-REVIEW-20260816",
+      "corpusUseCount": 0,
+      "clinicianNote": "生/炒/焦为同一基原下的独立规格身份。"
+    },
+    {
+      "herb": "焦麦芽",
+      "supplement": "消食化滞",
+      "missingConcept": "food_resolve",
+      "basis": "《中华人民共和国药典》2020年版一部「麦芽」【功能与主治】：焦麦芽消食化滞。中医师终审 2026-08-16 虽未要求本轮新增，但明确『不可错误继承其他规格』——留空会让它沿麦芽总述或炒麦芽功效错误继承，故一并单列。",
+      "sourceUrl": "https://ydz.chp.org.cn/",
+      "sourceName": "国家药典委员会药典在线 + 中医师终审",
+      "reviewBatch": "CLINICIAN-REVIEW-20260816",
+      "corpusUseCount": 0,
+      "clinicianNote": "核定书未点名要求，但按『三规格独立』口径补齐，防止错误继承。"
     }
   ]
 }

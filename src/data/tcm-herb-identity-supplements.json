@@ -2833,6 +2833,31 @@
       "autoResolvable": true,
       "note": "中医师裁定(2026-07-26):椒红即花椒去目红皮，即药典花椒，基原一致。",
       "batch": "ADJ-20260726-DOSE-BLOCKING"
+    },
+    {
+      "inputName": "神曲",
+      "canonicalName": "六神曲",
+      "autoResolvable": true,
+      "basis": "中医师终审 2026-08-16：规范名为六神曲（《重庆市中药饮片炮制规范》DB50/YP068—2022），语料中的『神曲』须走受治理别名映射，不得模糊字符串合并。炒神曲/焦神曲在无独立依据时不得自动合并功效。 该名在受治理 resolutionIndex 中原为未登记（null），非 ambiguous——补入不覆盖任何既有歧义裁定。"
+    },
+    {
+      "inputName": "牙硝",
+      "canonicalName": "芒硝",
+      "autoResolvable": true,
+      "basis": "异名（同朴硝）。库内正名『芒硝』已有功效正文。 该名在受治理 resolutionIndex 中原为未登记（null），非 ambiguous——补入不覆盖任何既有歧义裁定。"
+    },
+    {
+      "inputName": "败酱草",
+      "canonicalName": "败酱草",
+      "autoResolvable": true,
+      "basis": "中医师终审 2026-08-16：败酱草为败酱科黄花败酱 Patrinia scabiosifolia 或白花败酱 P. villosa 干燥全草（中国医药信息查询平台，经国家中医药管理局名词术语成果转化与规范推广项目审核认证），独立规范实体。**否决**原自动候选『小蓟』（菊科刺儿菜 Cirsium setosum，凉血止血散瘀解毒消痈）与『菥蓂』（十字花科 Thlaspi arvense，清肝明目和中利湿解毒消肿）——三者科属、基原、功效均不同，原歧义是本地别名汇总造成的**假歧义**，不是可二选一的真实同义关系。"
+    },
+    {
+      "inputName": "冬葵子",
+      "canonicalName": "冬葵子",
+      "autoResolvable": true,
+      "medicinalPart": "成熟种子",
+      "basis": "中医师终审 2026-08-16：冬葵子为锦葵科冬葵 Malva verticillata 成熟种子，保留独立历史药名实体。**否决**候选『苘麻子』（苘麻 Abutilon theophrasti，连植物种都不同）。『冬葵果』为同一植物的干燥成熟果实，属**同植物不同药用部位**，功效正文亦不同（清热利尿，消肿），仅标记为相关项，**不得自动替换**。若某机构实际以冬葵果调剂冬葵子，须另建机构药品码 + 调剂规范 + 药师确认的机构替代关系，不写进全国通用同义词表。"
     }
   ]
 }
