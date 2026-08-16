@@ -188,7 +188,12 @@ async function runArm(pairId, armName, arm, rep) {
   const response = await post("/api/diagnosis/diagnose", caseState);
   const { content, errorFrame, sawEnd } = consume(response.raw);
   const reasoning = reasoningOf(content);
-  const scored = scoreArm(reasoning, arm);
+  // 传输失败不是产品行为。首轮把一次 `fetch failed`（status 0，11 秒）记成了 no_syndrome，
+  // 等于把探针自己的网络抖动算进产品失败——与判分器用完整词穷举那次同一类错误：
+  // **仪器把自身的失败算到被测对象头上**。这类记录一律不进基础准确率与 BTR 的分母。
+  const scored = response.status !== 200
+    ? { verdict: "transport_failed", syndromeText: "" }
+    : scoreArm(reasoning, arm);
   const record = {
     pairId, arm: armName, rep,
     status: response.status, ms: response.ms, sawEnd, errorFrame,
@@ -214,7 +219,12 @@ if (RESCORE) {
         const file = path.join(OUT_DIR, `${pair.id}__${armName}__r${rep}.json`);
         if (!existsSync(file)) continue;
         const record = JSON.parse(readFileSync(file, "utf8"));
-        const rescored = { ...record, ...scoreArm({ overview: { primarySyndrome: record.syndromeText } }, arm) };
+        // 重评必须和首评走同一条判据。第一版只从落盘文本重算、没看 status，
+        // 于是传输失败在重评里又变回了产品失败——同一判据两处各写各的，本仓头号毛病，
+        // 这次犯在探针自己身上。
+        const rescored = { ...record, ...(record.status !== 200
+          ? { verdict: "transport_failed", syndromeText: "" }
+          : scoreArm({ overview: { primarySyndrome: record.syndromeText } }, arm)) };
         rescored.syndromeText = record.syndromeText;
         writeFileSync(file, JSON.stringify(rescored, null, 2), "utf8");
         results.push(rescored);
@@ -250,6 +260,12 @@ for (const [key, arms] of byPairRep) {
   const pairId = key.split("#")[0];
   perPair[pairId] ||= { baseCorrect: 0, flipWrongGivenBaseCorrect: 0, reps: 0, flipVerdicts: [] };
   perPair[pairId].reps += 1;
+  // 任一臂传输失败，这一 rep 整体作废——半条数据比没有数据更危险
+  if (arms.base?.verdict === "transport_failed" || arms.flipped?.verdict === "transport_failed") {
+    perPair[pairId].discardedTransport = (perPair[pairId].discardedTransport || 0) + 1;
+    perPair[pairId].reps -= 1;
+    continue;
+  }
   const isBaseCorrect = arms.base?.verdict === "correct";
   if (isBaseCorrect) {
     baseCorrect += 1;
