@@ -60,6 +60,12 @@ const scripts = [
   // 对照集里那 10 条常规主诉是本套件的另一半：躺不平/垫高枕头/冒虚汗/没精神/摔倒在地/
   // 不吃不喝都是常规门诊写法，直觉加词会把整类抬成红旗，删这些反例等于放开误报。
   "test:colloquial-redflag-parity",
+  // 质量分档表必须在**两道校验点**都被读到。此前 shouldAcceptWithQualityAnnotation
+  // 全文件只调用一次（编排校验、客户输出变换之前），变换之后的 finalize 校验直接走兜底、
+  // 不查分档表——于是 T2 只要拖到 finalize 才暴露，分档表注释里声称的「带批注放行」就不存在。
+  // 线上实证：一份复核已通过（reviewStatus=accepted, 2 轮）、病机治法俱在的 M03，
+  // 只因证候名写法不合国标（primary_syndrome_name_nonstandard，T2）被整页清空。
+  "test:m03-finalize-quality-tier",
   // 77 案预检实测：阴道出血21天、量多、血色素66g/L，因词序不是「阴道大量出血」而零红旗。
   // 钉住阴道出血 × 量多/持续/重度贫血/循环灌注组合，并守住否定、旧史、少量点滴的反例。
   "test:major-vaginal-bleeding",

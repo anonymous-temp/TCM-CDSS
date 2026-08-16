@@ -201,7 +201,8 @@
     "test:delivery-doc-freshness": "jiti scripts/test-delivery-doc-freshness.mjs",
     "test:prompt-evidence-budget": "jiti scripts/test-prompt-evidence-budget.mjs",
     "test:colloquial-redflag-parity": "jiti scripts/test-colloquial-redflag-parity.mjs",
-    "regress:counterfactual-btr": "node scripts/regress-counterfactual-btr.mjs"
+    "regress:counterfactual-btr": "node scripts/regress-counterfactual-btr.mjs",
+    "test:m03-finalize-quality-tier": "jiti scripts/test-m03-finalize-quality-tier.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

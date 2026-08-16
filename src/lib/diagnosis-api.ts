@@ -4456,6 +4456,47 @@ async function callPrimaryTextModelStream(
                 });
               }
             }
+            // 分档表在 finalize 这道校验上此前**根本没被读过**。
+            //
+            // shouldAcceptWithQualityAnnotation 全文件只在编排那道校验（客户输出变换之前）
+            // 调用一次；变换之后的这道校验直接 truncated = true 走兜底。于是一个 T2 质量类
+            // 问题只要拖到 finalize 才暴露，就没有「带批注放行」这条路，整份 M03 作废。
+            //
+            // 这正是 diagnosis-rejection-tiers 里那条注释声称已经修掉的行为：
+            //   「此前它落在默认 T1，也就是安全级硬拦截——修复轮耗尽后整份 M03 作废，
+            //     医生连病机治法都拿不到。改为 T2 后仍先走修复轮按规范重述，
+            //     只有修不出来才带批注放行。」
+            // 分档确实改成了 T2，但只在第一道校验点生效，这一道没跟上——同一个修复只做了一半。
+            //
+            // 线上实证（2026-08-16 表里·阳明气分热盛案，25s）：
+            //   finalized M03 rejected { reason: 'm03_primary_syndrome_name_nonstandard' }
+            //   stage_result { outcome:'fallback', reviewStatus:'accepted', reviewAttemptCount:2 }
+            // 复核已通过、病机治法俱在，只因证候名写法不合国标就整页清空。
+            //
+            // 受理条件与 4144 处**逐条相同**，不放宽任何一条：硬安全合同必须无问题、
+            // 必须是 T2 质量档、草稿必须够实。
+            if (!transformedM03 && transformed.ok) {
+              const finalizeTierReasoning = m03ReasoningFromStructuredContent(transformed.content);
+              const finalizeSafetyIssue = finalizeTierReasoning
+                ? (m03SafetyContractIssue(finalizeTierReasoning, opts.structuredClinicalContext || "", isSafetyRejection) || "")
+                : "safety_contract_unvalidated";
+              if (finalizeTierReasoning && shouldAcceptWithQualityAnnotation({
+                rejectionReason: finalizedM03RejectionReason,
+                safetyIssue: finalizeSafetyIssue,
+                visibleDraftLength: m03CandidateSubstanceLength(transformed.content, finalizeTierReasoning),
+              }) && qualityAnnotationCopy(finalizedM03RejectionReason)) {
+                transformedM03 = finalizeTierReasoning;
+                m03QualityAcceptedReason = finalizedM03RejectionReason;
+                m03AcceptanceScope = {
+                  waivedIssueCodes: [finalizedM03RejectionReason],
+                  qualityAnnotationCodes: [finalizedM03RejectionReason],
+                };
+                console.warn("[tcm-cdss:model] M03 quality-tier acceptance at finalization", {
+                  stage: "diagnose",
+                  reason: finalizedM03RejectionReason,
+                });
+              }
+            }
             if (!transformedM03) {
               truncated = true;
               transformed = transformTruncateFallback();
