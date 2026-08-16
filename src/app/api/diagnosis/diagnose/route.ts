@@ -14,6 +14,13 @@ import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothe
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
+  // 浏览器给整个请求 210s。服务端 180s 的 M03 编排时钟必须起在**临床事实准备之前**，
+  // 否则 maybeAttachClinicalFactsBackstop 的模型调用不计入预算，总耗时会变成
+  // 「事实准备 + 180s」而冲出浏览器余量，流被切成 HTTP 0 而不是送出 fail-closed 兜底。
+  // 实测（TCMEval-SDT 194 例）：病例4 209.5s、病例148 202.0s 双双越过 180s 时限，
+  // 且两例复核都 unavailable。M04 路由早已这么做（prescribe/route.ts 顶部），
+  // M03 一直漏传——同一处修复只做了一半。
+  const orchestrationStartedAt = Date.now();
   // Deterministic hard red flags must reach emergency guidance without waiting on a semantic model.
   // For all remaining cases, the additive semantic fact layer stays enabled and can identify
   // colloquial risks that are not covered by the conservative deterministic lower bound.
@@ -149,6 +156,8 @@ export async function POST(req: Request) {
     truncateFallback: signedLimitedDiagnosis(truncatedGate),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",
+    // 与 M04 同口径：时钟起在临床事实准备之前，否则那段模型调用不计入 180s 预算。
+    structuredOrchestrationStartedAt: orchestrationStartedAt,
     // Structured retries and independent review are external model calls. Keep their grounding
     // context on the same deidentified DTO as the primary generation request.
     structuredClinicalContext: clinicalGroundingText(safeState),
