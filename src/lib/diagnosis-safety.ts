@@ -998,9 +998,14 @@ function sanitizeUngroundedNegationText(
   const scoped = value.replace(/[，,](?=(?:但|而|仍|却|同时|另有|随后|继而|突发|新发|出现|伴有))/g, "；");
   let sanitized = scoped.split("\n").map((line) => {
     if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
-      return line.split("|").map((cell) => cell.replace(/[^。；;]+/g, sanitizeClause)).join("|");
+      return line.split("|").map((cell) => cell.replace(/[^。；;，]+/g, sanitizeClause)).join("|");
     }
-    return line.replace(/[^。；;]+/g, sanitizeClause);
+    // 子句边界必须含逗号。只按句号/分号切时，「热邪炽盛，未见黑便，未见呕血，热盛迫津」
+    // 是**一个**子句，否定分支命中后整句被术语列表替换，「热邪炽盛」「热盛迫津」一并丢失——
+    // 净化器越权删掉了它本不该动的、已接地的临床结论。
+    // 含逗号后同一输入变为：「热邪炽盛，病历尚未确认黑便是否存在，病历尚未确认呕血是否存在，热盛迫津」
+    // 未接地否定照样被净化（安全要求不变），真实病机保住。
+    return line.replace(/[^。；;，]+/g, sanitizeClause);
   }).join("\n");
   sanitized = reconcileSyntheticPolarityContradictions(sanitized, source);
   if (!sourceHasKnownTongue(source)) {
