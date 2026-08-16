@@ -161,6 +161,12 @@ export async function POST(req: Request) {
     // 合同修复耗尽后的兜底：复核**没有启动**（生成方合同始终不合法，没有东西可供复核），
     // 不是复核尝试过并失败。这两件事此前都写 unavailable，重试策略会对着前者空转。
     truncateFallback: signedLimitedDiagnosis(truncatedGate, "not_attempted_no_valid_draft"),
+    // 时限触发是另一回事：复核可能已经启动并被切断，所以标 deadline 而不是「没有合法草稿」。
+    // 焊死在一个预渲染字符串上会让这两类共用一个原因码——本轮刚修掉的混淆，低一层的同款。
+    deadlineFallback: signedLimitedDiagnosis(truncatedGate, "deadline"),
+    // 复核通过、却被受控证候词表等下游校验驳回：不能记成「复核不可用」——
+    // 线上实测这一例 reviewStatus=accepted、reviewAttemptCount=2，冤枉复核会让归因跑偏。
+    reviewAcceptedButRejectedFallback: signedLimitedDiagnosis(truncatedGate, "accepted_but_draft_rejected_downstream"),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",
     // 与 M04 同口径：时钟起在临床事实准备之前，否则那段模型调用不计入 180s 预算。

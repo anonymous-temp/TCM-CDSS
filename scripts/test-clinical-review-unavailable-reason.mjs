@@ -141,13 +141,43 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
     /signedLimitedDiagnosis\(upstreamGate, "not_attempted_upstream_down"\)/.test(route),
     "上游不可用的降级页必须标注「复核未启动·上游不可用」——与「无合法草稿」是两种不同处置",
   );
+  // 时限兜底必须是**独立的一页**，不能与合同校验失败共用。
+  // 焊死在一个预渲染字符串上，超时也会被标成「没有合法草稿」——本轮修掉的混淆的低一层同款。
+  assert.ok(
+    /deadlineFallback: signedLimitedDiagnosis\(truncatedGate, "deadline"\)/.test(route),
+    "编排时限兜底必须单独标 deadline：时限触发时复核可能已启动并被切断，与「压根没启动」处置不同",
+  );
+  // 复核 accepted 却被下游驳回，必须与「复核未启动」分开。
+  // 线上日志实测：finalized M03 rejected {reason:'m03_primary_syndrome_name_nonstandard'}
+  // 同一次 stage_result 是 {outcome:'fallback', reviewStatus:'accepted', reviewAttemptCount:2}
+  // ——复核跑了两轮并通过，随后受控证候词表判名称不规范，整份结果连同 accepted 的 attestation
+  // 一起被丢弃并对外记成「复核不可用」。冤枉复核会把归因引向「复核可用性」，
+  // 而真正该修的是证候名归一。
+  assert.ok(
+    /reviewAcceptedButRejectedFallback: signedLimitedDiagnosis\(truncatedGate, "accepted_but_draft_rejected_downstream"\)/.test(route),
+    "复核通过但被下游驳回时必须单独标注，不得记成复核不可用",
+  );
+  const api = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
+  assert.ok(
+    /m03ClinicalReviewAttestation\?\.status === "accepted" && opts\.reviewAcceptedButRejectedFallback/.test(api),
+    "兜底选页必须看复核实际状态——accepted 时不能再用默认页",
+  );
+  assert.ok(
+    /deadlineFallback\?:\s*string;/.test(api),
+    "StreamSafetyOptions 必须有独立的 deadlineFallback",
+  );
+  assert.ok(
+    /const deadlineFallbackPage = opts\.deadlineFallback \|\| opts\.truncateFallback;/.test(api),
+    "时限分支必须优先用 deadlineFallback（缺省回落 truncateFallback 以保持既有行为）",
+  );
 
   // 两个新码必须能穿过契约
   const exported = path.join(repoRoot, "docs/evaluations/TCMEval-SDT-194-reasoning-vs-gold-20260816.jsonl");
   const rows = readFileSync(exported, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
   const realReasoning = (rows.slice(1).find((item) => item?.productionResult?.reasoning?.formula !== undefined)
     || rows.slice(1)[0]).productionResult.reasoning;
-  for (const code of ["not_attempted_no_valid_draft", "not_attempted_upstream_down"]) {
+  for (const code of ["not_attempted_no_valid_draft", "not_attempted_upstream_down",
+    "accepted_but_draft_rejected_downstream"]) {
     const parsed = ReasoningV2Schema.safeParse({
       ...realReasoning,
       clinicalReview: { status: "unavailable", unavailableReason: code },

@@ -376,6 +376,28 @@ type PromptKind = "collect" | "question" | "markdown";
 type StreamSafetyOptions = {
   truncateFallback?: string;
   /**
+   * 「复核已通过、但下游另一道校验驳回了这份草稿」时专用的兜底页。
+   *
+   * 线上实测（2026-08-16）：一例走兜底的病案日志是
+   *   finalized M03 rejected { reason: 'm03_primary_syndrome_name_nonstandard' }
+   *   stage_result { outcome: 'fallback', reviewStatus: 'accepted', reviewAttemptCount: 2 }
+   * ——复核**跑了两轮并且通过了**，随后受控证候词表校验判名称不规范，整份结果连同那份
+   * accepted 的 attestation 一起被丢弃，对外记成「复核不可用」。
+   * 这既冤枉了复核，也把归因引向错误方向：该修的是证候名归一，不是复核可用性。
+   * 未提供时回落到 truncateFallback。
+   */
+  reviewAcceptedButRejectedFallback?: string;
+  /**
+   * 编排总时限触发时专用的兜底页。
+   *
+   * 与 truncateFallback 分开，是因为**兜底原因不同，复核 attestation 的原因码就该不同**：
+   * 时限触发时复核可能已经启动并被切断（`deadline`），而合同校验失败时复核压根没启动
+   * （`not_attempted_no_valid_draft`）。共用一份预渲染字符串会把两者标成同一个码——
+   * 那正是本轮刚修掉的那类混淆，只是低一层。
+   * 未提供时回落到 truncateFallback（行为与此前一致）。
+   */
+  deadlineFallback?: string;
+  /**
    * The truncate fallback is a complete, server-owned contract that has already been signed.
    * It must bypass presentation transforms and must not be labelled as a truncated model draft.
    * This is intentionally limited to fail-closed M03 responses that cannot authorize dosing.
@@ -2918,14 +2940,18 @@ async function callPrimaryTextModelStream(
           deadlineMs: absoluteRunDeadline - requestStartedAt,
         });
 
-        if (opts.authoritativeTruncateFallback && opts.truncateFallback) {
+        // 时限分支一律优先用 deadlineFallback：它的 attestation 标的是 deadline，
+        // 而不是「没有合法草稿」——两者对应完全不同的处置（重试 vs 修合同校验）。
+        const deadlineFallbackPage = opts.deadlineFallback || opts.truncateFallback;
+        if (opts.authoritativeTruncateFallback && deadlineFallbackPage) {
           stageOutcome = "fallback";
           stageReasonCode = "orchestration_deadline_signed_limited_fallback";
-          enqueueClient(`${STREAM_REPLACE_MARKER}${opts.truncateFallback}`);
-        } else if (opts.truncateFallback) {
+          enqueueClient(`${STREAM_REPLACE_MARKER}${deadlineFallbackPage}`);
+        } else if (deadlineFallbackPage) {
           stageOutcome = "provider_error";
           stageReasonCode = "orchestration_deadline_truncated";
-          let safeFallback = upstreamAwareTruncateFallback() || opts.truncateFallback;
+          let safeFallback = (repairFailedOnTransport ? opts.upstreamUnavailableFallback : undefined)
+            || deadlineFallbackPage;
           try {
             safeFallback = opts.outputTransform ? opts.outputTransform(safeFallback) : safeFallback;
           } catch {
@@ -4263,10 +4289,20 @@ async function callPrimaryTextModelStream(
             return { content: upstreamAwareTruncateFallback() || "", ok: false };
           }
         };
+        // 兜底页按**为什么兜底**选，不是一页通吃：
+        //  · 复核已 accepted 却被下游校验驳回 ⇒ 不能记成「复核不可用/未启动」（实测冤枉过一次）
+        //  · 传输类失败 ⇒ 上游不可用页
+        //  · 其余（合同始终不合法、复核未启动）⇒ 默认页
+        const reasonAwareTruncateFallback = (): string | undefined => {
+          if (m03ClinicalReviewAttestation?.status === "accepted" && opts.reviewAcceptedButRejectedFallback) {
+            return opts.reviewAcceptedButRejectedFallback;
+          }
+          return upstreamAwareTruncateFallback();
+        };
         const transformTruncateFallback = (): { content: string; ok: boolean } => (
           opts.authoritativeTruncateFallback
-            ? { content: upstreamAwareTruncateFallback() || "", ok: true }
-            : transformOutput(upstreamAwareTruncateFallback() || "")
+            ? { content: reasonAwareTruncateFallback() || "", ok: true }
+            : transformOutput(reasonAwareTruncateFallback() || "")
         );
         const visibleIncompleteContent = (fallbackContent: string, mode: "truncated" | "semantic_review" = "truncated"): string => {
           if (opts.structuredStage !== "diagnose") return fallbackContent;

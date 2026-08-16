@@ -276,7 +276,8 @@ export type ClinicalReviewAttestation = {
    * 与本码所指的**生成方**合同不合法是两件事，共用一个词又是一次混淆。
    */
   unavailableReason?: "not_configured" | "deadline" | "invalid_contract" | "http_error" | "transport_error"
-    | "not_attempted_no_valid_draft" | "not_attempted_upstream_down";
+    | "not_attempted_no_valid_draft" | "not_attempted_upstream_down"
+    | "accepted_but_draft_rejected_downstream";
   /** 本次复核实际用掉的毫秒数与尝试次数，用于把「超时」与「上游报错」分开定位。 */
   attemptCount?: number;
   durationMs?: number;
@@ -1264,6 +1265,8 @@ const ReasoningV2SchemaBase = z.object({
       "not_configured", "deadline", "invalid_contract", "http_error", "transport_error",
       // 「没启动」与「启动了但失败」必须分开——见 ClinicalReviewAttestation.unavailableReason 注释
       "not_attempted_no_valid_draft", "not_attempted_upstream_down",
+      // 复核通过、却被下游另一道校验驳回——冤枉复核会把归因引向错误方向
+      "accepted_but_draft_rejected_downstream",
     ]).optional().catch(undefined),
     attemptCount: z.number().int().min(0).max(20).optional().catch(undefined),
     durationMs: z.number().int().min(0).max(600_000).optional().catch(undefined),
