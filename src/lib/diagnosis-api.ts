@@ -14,7 +14,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { affirmedTcmTherapyConcepts, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue,} from "@/lib/diagnosis-stage-contract";
+import { affirmedTcmTherapyConcepts, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -4364,15 +4364,31 @@ async function callPrimaryTextModelStream(
             // 真正拦住它的是 overall_pathogenesis_unstable（T1 安全档，属绝对核）——
             // 按安全档丢弃本就是正确行为，白改一轮。
             // 治法：管事的那个必须和报出来的那个一起进日志。
-            const finalizedGoverningSafetyCode = (() => {
-              const parsed = m03ReasoningFromStructuredContent(transformed.content);
+            const safetyCodeOf = (content: string): string => {
+              const parsed = m03ReasoningFromStructuredContent(content);
               if (!parsed) return "(payload_unparsed)";
               return m03SafetyContractIssue(parsed, opts.structuredClinicalContext || "", isSafetyRejection) || "(none)";
-            })();
+            };
+            const finalizedGoverningSafetyCode = safetyCodeOf(transformed.content);
+            // 变换前后各算一次。两者不同 ⇒ **客户输出变换把一份已通过的合同弄坏了**，
+            // 那是比「finalize 才发现」严重得多的缺陷；两者相同 ⇒ 编排阶段本就该报却没报。
+            // 不猜，让线上一次说清。
+            const preTransformSafetyCode = safetyCodeOf(authoritativeContent);
+            // 具体坏在哪个字段：空值与占位串是两种成因，处置完全不同。只记结构特征，不记临床文本。
+            const preParsed = m03ReasoningFromStructuredContent(authoritativeContent);
+            const postParsed = m03ReasoningFromStructuredContent(transformed.content);
+            const pathogenesisShape = {
+              preLength: (preParsed?.overview?.overallPathogenesis || "").trim().length,
+              postLength: (postParsed?.overview?.overallPathogenesis || "").trim().length,
+              preUnstable: isUnstableM03CoreText(preParsed?.overview?.overallPathogenesis),
+              postUnstable: isUnstableM03CoreText(postParsed?.overview?.overallPathogenesis),
+            };
             console.warn("[tcm-cdss:model] finalized M03 rejected", {
               stage: "diagnose",
               reason: finalizedM03RejectionReason,
               governingSafetyCode: finalizedGoverningSafetyCode,
+              preTransformSafetyCode,
+              pathogenesisShape,
               diagnostic: structuredRejectionDiagnostic(
                 transformed.content,
                 finalizedM03RejectionReason,
