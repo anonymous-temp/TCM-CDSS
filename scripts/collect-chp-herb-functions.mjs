@@ -91,9 +91,15 @@ function functionParagraph(html) {
   return match ? plainText(match[1]) : "";
 }
 
+// 功能段与主治段的分界词不止「用于」。药典对**外用药**写的是「外治」，
+// 例如煅石膏：「收湿，生肌，敛疮，止血。外治溃疡不敛，湿疹瘙痒，水火烫伤，外伤出血。」
+// 第一版只切「。用于」，于是煅石膏整段主治混进了功效字段——
+// 按完整词穷举、换个说法就漏，与本仓红旗词表反复犯的是同一种毛病。
+const INDICATION_SECTION_CUES = "用于|外治|外用于|用治|主治|治疗|适用于";
+
 function functionOnly(paragraph) {
   return String(paragraph || "")
-    .split(/。\s*用于/)[0]
+    .split(new RegExp(`。\\s*(?:${INDICATION_SECTION_CUES})`))[0]
     .replace(/[。；;，,、\s]+$/g, "")
     .trim();
 }
@@ -146,7 +152,7 @@ async function fetchOfficial(item) {
     if (!chpQuote || !supplement || chpQuote === supplement) {
       return { rejected: { herb: item.herb.name, why: "无法可靠分离功能段与主治段", apiUrl } };
     }
-    if (/用于|主治|治疗|适用于/.test(supplement)) {
+    if (new RegExp(INDICATION_SECTION_CUES).test(supplement)) {
       return { rejected: { herb: item.herb.name, why: "功能文本混入主治语义", apiUrl } };
     }
     const concepts = [...affirmedTcmTherapyConcepts(supplement)];
