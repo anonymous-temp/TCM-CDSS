@@ -30,6 +30,11 @@ const scripts = [
   // 无法区分超时/上游报错/契约不合法/未配置。根因是 execution.reason 算出来即丢弃——
   // 与同文件 independentFromGenerator 曾经的毛病同形，同一个函数第二次。
   "test:clinical-review-reason",
+  // 主证串分段归位。钉 194 例实测：157/194 把多段塞进 primarySyndrome、184/194 兼证为空。
+  // 关键是别按逗号一拆了之——用国标词表逐段判定后，83 例是真并列证候（该外移到兼证），
+  // 69 例是证候+病机结果（该进病机链），直觉修法会把后者做错。
+  // 另钉一条已知局限：措辞变体（痰湿上蒙 vs 痰蒙清窍证）会被误归病机——宁可少认不可多认。
+  "test:primary-syndrome-segmentation",
   // 十八反(HIGH,硬门档) / 十九畏(MEDIUM,提示档) 分档。钉 2026-08-13 实测：
   // highRiskPairRules() 里一行 severity!=="HIGH" 把十九畏 28 条对所有出口隐藏了
   // （数据本身齐全、别名已展开、药名 100% 可解析）。放开时必须保持硬门口径逐字不变——

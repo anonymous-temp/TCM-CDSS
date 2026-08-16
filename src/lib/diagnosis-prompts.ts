@@ -450,7 +450,7 @@ ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真
 
 ## V2结构化临床数据（唯一输出）
 只输出一个合法 JSON 对象，不要输出 Markdown、sentinel、代码围栏、解释或第二份结果。医生可见报告由服务端从这个通过校验的对象确定性渲染。该 JSON 不包含、也不得填写任何安全裁决字段；红旗、处方放行、审方和写回权限由系统确定性规则独立计算。
-overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesis、overview.overallTherapy、therapy.overallPrinciple 和 therapy.overallMethod 应在当前已知资料范围内给出最佳临床工作判断，不得为了显得完整而补写患者没有提供的表现。tcmDiseaseName 是规范中医病名，只有当前资料支持病名倾向时填写（如符合不寐病范畴时写“不寐”）；短期“睡不好”等孤立症状不得自动升级为病名。primarySyndrome 是证型，二者不得混写。overallPathogenesis 必须解释阳性事实经何种功能失常或气血津液变化形成当前证候，不能复制主诉或把症状串联后改名为病机。overallPrinciple 是治则，overallMethod/overview.overallTherapy 是具体治法，治则与治法不得复写成同一句。overview.secondarySyndromes 只填写本例已有事实支持的兼证，没有可靠兼证时输出空数组。
+overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesis、overview.overallTherapy、therapy.overallPrinciple 和 therapy.overallMethod 应在当前已知资料范围内给出最佳临床工作判断，不得为了显得完整而补写患者没有提供的表现。tcmDiseaseName 是规范中医病名，只有当前资料支持病名倾向时填写（如符合不寐病范畴时写“不寐”）；短期“睡不好”等孤立症状不得自动升级为病名。primarySyndrome 是证型，二者不得混写。overallPathogenesis 必须解释阳性事实经何种功能失常或气血津液变化形成当前证候，不能复制主诉或把症状串联后改名为病机。overallPrinciple 是治则，overallMethod/overview.overallTherapy 是具体治法，治则与治法不得复写成同一句。**overview.primarySyndrome 只写一个证候**，不要把并列证候和病机结果全塞进这一个字段。实测 194 例里 157 例是多段串写，其中 83 例是真的并列证候（如「湿热蕴结，气滞血瘀」），69 例是把病机结果当证候写（如「痰湿上蒙，清阳不展」的『清阳不展』、「肝胃郁热，胃失和降」的『胃失和降』）。这三样各有其位：本例最主要的那个证候写 primarySyndrome；同时成立的其他证候逐个写进 overview.secondarySyndromes（**这是数组，有就填，不要习惯性留空**——实测 94.7% 的病例它是空的，而同期 82.6% 的病例把多个证候挤在主证里，两个数字合起来说明兼证不是没有，是没写到该写的地方）；病机结果（胃失和降、清阳不展、筋脉失养、气化不利这类）写进 overview.overallPathogenesis 与 pathogenesis.chain，不要写进证候名。确实只有单一证候、没有可靠兼证时，secondarySyndromes 才输出空数组。
 westernDiagnosis.primary.name 必须是纯现代医学诊断或症状级工作诊断，不得夹带“痰湿型、肝火型、气虚证”等中医证型后缀。supportingFacts 负责逐项列事实；clinicalRationale 不得逐项串联或复制 supportingFacts，也不得整句复述现病史。它必须用1–2句完成“已记录事实中的病程/表现模式 → 当前工作诊断 → 尚缺哪类病因判别信息、因此为何暂不采用更具体病因标签”的推理链。可采用“已记录的〔症状概念〕及〔病程/模式〕支持将〔primary.name〕作为当前工作判断；但尚未取得〔具体判别信息〕，因此暂不采用更具体病因标签”的结构；方括号内容只能来自本例已记录事实、limitations 或 differentials，没有具体病因候选时写“具体病因”而不得臆造疾病。westernDiagnosis.differentials 每项必须写真正的鉴别理由和能区分主诊断的要点，不能只罗列病史；每项 name 只能写一个疾病/症状方向，多个候选必须拆成多项，不得用“或/斜杠/顿号/可能”合并命名。
 诊断分三段呈现，各自给出自己的推理过程，都不得复述病历：西医诊断（westernDiagnosis.primary，服务端另行关联 ICD-10 编码）、中医辨病（overview.tcmDiseaseName + tcmDiseaseRationale）、中医辨证（overview.primarySyndrome + tcmDiagnosticRationale）。
 overview.tcmDiseaseRationale 只写**辨病**：这组表现为什么归入该中医病名范畴，而不是相邻病名。依据是主症特征、病程形态与病位层次——例如以入睡困难与睡眠维持障碍为主、病程逾月且非情志抑郁为主导，故归入不寐而非郁病或心悸。用1–2句写成“主症与病程形态 → 病名归属 → 与哪个相邻病名区分”，不要在这里写证型、病机或治法。资料稀疏到只能形成症状层工作病名时，写明是按主诉直接对应的症状层病名，并说明尚缺哪类信息才能升级为传统病名。
@@ -532,7 +532,7 @@ JSON要求：
     "tcmDiagnosticRationale": "辨证推理：在该病名之下，四诊合参如何得出该证型（四诊要点→病机→证型）",
     "tcmDifferentials": [{"syndrome":"中医鉴别证候","typicalManifestation":"该证候的常见表现（症状+舌脉）","reason":"为何需要鉴别","distinguishingPoints":"本例哪一点对不上、因此可以排除","nextCheck":"下一步四诊核实项或null"}],
     "tcmDiseaseDifferentials": [{"diseaseName":"相邻中医病名","typicalManifestation":"该病名的常见表现","reason":"为何需要与该病名鉴别","distinguishingPoints":"本例主症与病程形态上的区分要点","nextCheck":"必要的核实项或null"}],
-    "secondarySyndromes": [],
+    "secondarySyndromes": ["同时成立的其他证候（有几个写几个）；确无兼证才留空数组"],
     "overallPathogenesis": "总病机",
     "overallTherapy": "总治法",
     "recommendedFormulaDirection": "推荐主方或方义方向",

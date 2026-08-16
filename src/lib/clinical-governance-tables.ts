@@ -704,3 +704,47 @@ export const CLINICAL_GOVERNANCE_TABLES = {
   nondrugTreatment: tcmNondrugTreatmentJson,
   terminologyExtensions: tcmClinicalTerminologyExtensionsJson,
 } as const;
+
+/**
+ * 主证串的**分段归位**：哪些段是并列证候、哪些段是病机结果。
+ *
+ * 【为什么需要它】TCMEval-SDT 194 例实测：157 例（80.9%）把多段内容塞进 primarySyndrome，
+ * 同时 184 例（94.8%）secondarySyndromes 为空。两个数字合起来说明兼证不是没有，
+ * 是没写到该写的地方。
+ *
+ * 但**不能按逗号一拆了之**——用国标证候词表逐段判定后，157 例分成两类：
+ *  · 83 例是真并列证候（「湿热蕴结，气滞血瘀」两段都能解析）⇒ 该进 secondarySyndromes；
+ *  · 69 例是证候 + 病机结果（「痰湿上蒙，清阳不展」只有前段能解析）⇒ 后段该进病机链，
+ *    塞进兼证是错的。
+ * 高频解析不出的段几乎全是病机短语（胃失和降 5×、心神失养 4×、肺失宣降 3×、筋脉失养、气化不利…），
+ * 不是词表缺证候名——这一点单独查证过，`governedSyndromeNameAcceptable` 对 194 例判不合格 0 例。
+ *
+ * 本谓词只做**归类**，不做改写：证候身份是签名结论的核心，服务端擅自改写等于替医生下诊断。
+ */
+export type PrimarySyndromeSegmentation = {
+  /** 能解析为受治理证候的段（第一段为主证，其余为应当外移的并列证候）。 */
+  syndromeSegments: string[];
+  /** 解析不出受治理证候的段——多为病机结果，应写入病机链而非证候名。 */
+  pathogenesisSegments: string[];
+  /** 主证串是否夹带了本该外移的内容。 */
+  hasMisplacedSegments: boolean;
+};
+
+export function segmentPrimarySyndrome(value: unknown): PrimarySyndromeSegmentation {
+  const raw = typeof value === "string" ? value.trim() : "";
+  const segments = raw.split(/[，,、；;]/).map((item) => item.trim()).filter(Boolean);
+  const syndromeSegments: string[] = [];
+  const pathogenesisSegments: string[] = [];
+  for (const segment of segments) {
+    // 「兼X」「夹X」是并列证候的口语前缀，判定时剥掉再查表，但归类结果保留原文。
+    const stripped = segment.replace(/^(?:兼(?:有|夹)?|夹|并|合并)/, "").trim() || segment;
+    const resolved = canonicalTcmSyndromeTerm(stripped) || canonicalTcmSyndromeTerm(`${stripped}证`);
+    if (resolved) syndromeSegments.push(segment);
+    else pathogenesisSegments.push(segment);
+  }
+  return {
+    syndromeSegments,
+    pathogenesisSegments,
+    hasMisplacedSegments: syndromeSegments.length > 1 || pathogenesisSegments.length > 0,
+  };
+}

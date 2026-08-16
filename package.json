@@ -34,6 +34,7 @@
     "test:redflag-dose-authorization": "node scripts/test-redflag-dose-authorization.mjs",
     "test:formula-term-roles": "node scripts/test-formula-term-roles.mjs",
     "test:clinical-review-reason": "node scripts/test-clinical-review-unavailable-reason.mjs",
+    "test:primary-syndrome-segmentation": "node scripts/test-primary-syndrome-segmentation.mjs",
     "test:herb-pair-tiering": "node scripts/test-herb-pair-tiering.mjs",
     "test:colloquial-redflag": "node scripts/test-colloquial-redflag-coverage.mjs",
     "test:redflag-expression-coverage": "jiti scripts/test-redflag-expression-coverage.mjs",
