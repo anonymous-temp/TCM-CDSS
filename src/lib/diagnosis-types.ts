@@ -266,7 +266,17 @@ export type ClinicalReviewAttestation = {
    *
    * accepted 时不写本字段（原因码只描述不可用）。
    */
-  unavailableReason?: "not_configured" | "deadline" | "invalid_contract" | "http_error" | "transport_error";
+  /**
+   * 不可用原因码。`not_attempted_no_valid_draft` 与其余五个不是一回事：
+   * 前者是**复核压根没启动**——生成方的结构化合同修复耗尽后始终不合法，没有东西可供复核；
+   * 后五个都是复核**尝试过并失败**。把两者都标成 unavailable 而不区分，会让重试与
+   * 跨提供方兜底对着前者空转（重试一百次也没用，要修的是合同校验）。
+   *
+   * 注意不能沿用 invalid_contract：那个码在复核语境里指**复核方**返回的合同不合法，
+   * 与本码所指的**生成方**合同不合法是两件事，共用一个词又是一次混淆。
+   */
+  unavailableReason?: "not_configured" | "deadline" | "invalid_contract" | "http_error" | "transport_error"
+    | "not_attempted_no_valid_draft" | "not_attempted_upstream_down";
   /** 本次复核实际用掉的毫秒数与尝试次数，用于把「超时」与「上游报错」分开定位。 */
   attemptCount?: number;
   durationMs?: number;
@@ -1252,6 +1262,8 @@ const ReasoningV2SchemaBase = z.object({
     // 不知道是超时还是上游报错——归因与重试策略都无从谈起（TCMEval-SDT 194 例实测）。
     unavailableReason: z.enum([
       "not_configured", "deadline", "invalid_contract", "http_error", "transport_error",
+      // 「没启动」与「启动了但失败」必须分开——见 ClinicalReviewAttestation.unavailableReason 注释
+      "not_attempted_no_valid_draft", "not_attempted_upstream_down",
     ]).optional().catch(undefined),
     attemptCount: z.number().int().min(0).max(20).optional().catch(undefined),
     durationMs: z.number().int().min(0).max(600_000).optional().catch(undefined),

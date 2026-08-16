@@ -1,4 +1,4 @@
-import type { CaseState, ClinicalReasoningResultV2, Completeness, HisRecordSnapshot, SafetyGate, SafetyMissingItemCode, StructuredFollowupTimelineItem } from "./diagnosis-types";
+import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation, Completeness, HisRecordSnapshot, SafetyGate, SafetyMissingItemCode, StructuredFollowupTimelineItem } from "./diagnosis-types";
 import { cdssReasonCodeMarker, type CdssDegradeReasonCode } from "./cdss-reason-codes";
 import { sectionTitleGroup } from "./cdss-vocab";
 import {
@@ -4485,6 +4485,17 @@ export function buildSafetyLimitedDiagnosis(state: CaseState, gate: SafetyGate):
 export function buildSafetyLimitedDiagnosisReasoning(
   state: CaseState,
   gate: SafetyGate,
+  /**
+   * 复核为何不可用。**这条路径此前根本不写 clinicalReview**，由签名层补一个裸的
+   * `{status:"unavailable"}`，于是原因码在「复核确实不可用」的那条路上恰好缺席——
+   * 194 例实测 18 例 unavailable 里有 4 例走这里，而那 4 例正是完全 unresolved 的最坏情形。
+   *
+   * 同一个区分在本仓已经做过一半：diagnose 路由 2026-08-04 把「上游服务故障」与
+   * 「临床证据不足」在**医生可见文案**上拆开了（上游 503 期间 10 例有 9 例被写成
+   * 「证候依据不足」，医生以为病历不够去补录）。拆的是 presentation 层，
+   * attestation 层两者仍旧都写 unavailable——这里补上。
+   */
+  reviewUnavailableReason?: ClinicalReviewAttestation["unavailableReason"],
 ): ClinicalReasoningResultV2 {
   const redFlag = gate.status === "red_flag";
   const evidence = {
@@ -4509,6 +4520,9 @@ export function buildSafetyLimitedDiagnosisReasoning(
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "diagnose",
     completeness: state.completeness,
+    ...(reviewUnavailableReason
+      ? { clinicalReview: { status: "unavailable" as const, unavailableReason: reviewUnavailableReason } }
+      : {}),
     overview: {
       primarySyndrome: redFlag ? "急症处置优先，中医证候暂缓" : "当前证候依据不足以形成稳定结论",
       primarySyndromeResolution: "unresolved",

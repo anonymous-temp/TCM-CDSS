@@ -36,11 +36,16 @@ export async function POST(req: Request) {
     return markdownNdjsonResponse(buildSafetyLimitedDiagnosis(gated, gated.safetyGate!));
   }
 
-  const signedLimitedDiagnosis = (gate: NonNullable<typeof gated.safetyGate>) => renderSafetyLimitedDiagnosisContract(
+  // 第三参是**复核不可用原因码**。不传时 attestation 仍是裸的 {status:"unavailable"}——
+  // 那正是 194 例里 4 例最坏情形（完全 unresolved）拿不到原因码的原因。
+  const signedLimitedDiagnosis = (
+    gate: NonNullable<typeof gated.safetyGate>,
+    reviewUnavailableReason?: Parameters<typeof buildSafetyLimitedDiagnosisReasoning>[2],
+  ) => renderSafetyLimitedDiagnosisContract(
     gated,
     gate,
     signDiagnoseReasoning(
-      buildSafetyLimitedDiagnosisReasoning(gated, gate),
+      buildSafetyLimitedDiagnosisReasoning(gated, gate, reviewUnavailableReason),
       buildDiagnoseContractSignatureContext(gated),
     ),
   );
@@ -141,7 +146,7 @@ export async function POST(req: Request) {
   };
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
-    upstreamUnavailableFallback: `${cdssReasonCodeMarker("upstream_model_unavailable")}\n${signedLimitedDiagnosis(upstreamGate)}`,
+    upstreamUnavailableFallback: `${cdssReasonCodeMarker("upstream_model_unavailable")}\n${signedLimitedDiagnosis(upstreamGate, "not_attempted_upstream_down")}`,
     // M03 两半并行生成（时间专项）：两半共用上面这份完整提示词做前缀（provider 前缀缓存三方
     // 共享），只在末尾各加一段分工限制。修复轮与所有降级路径仍以完整 prompt 为准。
     // M03_PARALLEL_GENERATION=false 一键回退单发全量生成。
@@ -153,7 +158,9 @@ export async function POST(req: Request) {
           },
         }
       : {}),
-    truncateFallback: signedLimitedDiagnosis(truncatedGate),
+    // 合同修复耗尽后的兜底：复核**没有启动**（生成方合同始终不合法，没有东西可供复核），
+    // 不是复核尝试过并失败。这两件事此前都写 unavailable，重试策略会对着前者空转。
+    truncateFallback: signedLimitedDiagnosis(truncatedGate, "not_attempted_no_valid_draft"),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",
     // 与 M04 同口径：时钟起在临床事实准备之前，否则那段模型调用不计入 180s 预算。

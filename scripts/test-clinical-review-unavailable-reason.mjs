@@ -113,6 +113,76 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
   }
 }
 
+// ── 6. 确定性兜底路径也必须带原因码，且必须与「尝试过并失败」区分开 ────────────
+// 【为什么单列】首轮修复只覆盖了 clinicalReviewAttestation()（复核跑了但失败）。
+// 194 例 18 例 unavailable 里，14 例走那条路、**4 例走确定性兜底**——而那 4 例正是
+// 「完全 unresolved」的最坏情形（病例 4/35/148/250）。兜底路径根本不写 clinicalReview，
+// 由签名层补一个裸的 {status:"unavailable"}，于是原因码在最需要它的地方缺席。
+//
+// 【为什么要新码而不复用 invalid_contract】兜底时复核**压根没启动**：生成方的结构化合同
+// 修复耗尽后始终不合法，没有东西可供复核。而 invalid_contract 在复核语境里指**复核方**
+// 返回的合同不合法。两者共用一个词，重试与跨提供方兜底就会对着「没东西可审」空转。
+//
+// 【旁证：同一个区分本仓已经做过一半】diagnose 路由 2026-08-04 的注释记着，上游 503 期间
+// 甲方 10 例有 9 例被写成「当前证候依据不足」，医生以为病历不够去补录。那次把「服务故障」
+// 与「证据不足」在**医生可见文案**上拆开了，但 attestation 层两者仍旧都写 unavailable。
+{
+  const safety = readFileSync(path.join(repoRoot, "src/lib/diagnosis-safety.ts"), "utf8");
+  assert.ok(
+    /reviewUnavailableReason\?:\s*ClinicalReviewAttestation\["unavailableReason"\]/.test(safety),
+    "buildSafetyLimitedDiagnosisReasoning 必须能接收复核不可用原因码",
+  );
+  const route = readFileSync(path.join(repoRoot, "src/app/api/diagnosis/diagnose/route.ts"), "utf8");
+  assert.ok(
+    /truncateFallback: signedLimitedDiagnosis\(truncatedGate, "not_attempted_no_valid_draft"\)/.test(route),
+    "合同修复耗尽的兜底必须标注「复核未启动·无合法草稿」，而不是裸 unavailable",
+  );
+  assert.ok(
+    /signedLimitedDiagnosis\(upstreamGate, "not_attempted_upstream_down"\)/.test(route),
+    "上游不可用的降级页必须标注「复核未启动·上游不可用」——与「无合法草稿」是两种不同处置",
+  );
+
+  // 两个新码必须能穿过契约
+  const exported = path.join(repoRoot, "docs/evaluations/TCMEval-SDT-194-reasoning-vs-gold-20260816.jsonl");
+  const rows = readFileSync(exported, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+  const realReasoning = (rows.slice(1).find((item) => item?.productionResult?.reasoning?.formula !== undefined)
+    || rows.slice(1)[0]).productionResult.reasoning;
+  for (const code of ["not_attempted_no_valid_draft", "not_attempted_upstream_down"]) {
+    const parsed = ReasoningV2Schema.safeParse({
+      ...realReasoning,
+      clinicalReview: { status: "unavailable", unavailableReason: code },
+    });
+    assert.ok(parsed.success, `契约必须接受「未启动」码 ${code}`);
+    assert.equal(parsed.data.clinicalReview.unavailableReason, code, `${code} 必须原样穿过契约`);
+  }
+
+  // 「未启动」不得由 clinicalReviewUnavailableReason 产出——那个谓词只描述**跑过并失败**的执行元信息。
+  // 混进去会让「没东西可审」被当成「审了但失败」，重试策略据此空转。
+  for (const code of ["not_attempted_no_valid_draft", "not_attempted_upstream_down"]) {
+    assert.equal(
+      clinicalReviewUnavailableReason("unavailable", code), undefined,
+      `${code} 不是复核执行失败原因，不得由执行元信息映射产出`,
+    );
+  }
+}
+
+// ── 7. 基线对照：18 例里走兜底与走正常路径的分布钉在案 ────────────────────
+{
+  const exported = path.join(repoRoot, "docs/evaluations/TCMEval-SDT-194-reasoning-vs-gold-20260816.jsonl");
+  if (existsSync(exported)) {
+    const rows = readFileSync(exported, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
+    const unavailable = rows.slice(1).filter((item) =>
+      (item?.productionResult?.reasoning?.clinicalReview || {}).status === "unavailable");
+    const fallback = unavailable.filter((item) => {
+      const primary = item.productionResult.reasoning?.overview?.primarySyndrome || "";
+      return primary.includes("依据不足以形成稳定结论") || primary.includes("急症处置优先");
+    });
+    assert.equal(fallback.length, 4, `基线：18 例 unavailable 中应有 4 例走确定性兜底，实得 ${fallback.length}`);
+    assert.equal(unavailable.length - fallback.length, 14,
+      "其余 14 例走正常路径（复核跑了但失败）——首轮修复只覆盖这 14 例");
+  }
+}
+
 console.log("test-clinical-review-unavailable-reason: OK", {
   failureReasons: FAILURES.length,
   contractRoundTrip: true,

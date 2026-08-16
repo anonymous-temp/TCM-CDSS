@@ -1,0 +1,268 @@
+{
+  "schemaVersion": "tcm-counterfactual-baseline-v1",
+  "governance": {
+    "purpose": "T2′ 反事实基线：单轴翻转的最小对，用于测量 BTR（基础病例答对前提下反事实答错的条件概率）。",
+    "whyConstructedNotSampled": "反事实病例的正确答案不可能来自标注。任何标注集只标了原始病例的证型；把舌红苔黄翻成舌淡苔白之后，那条翻转病例的金标准在任何数据集里都不存在，只能推导。既然两条路都要推导，就直接用**鉴别点定义**构造最小对——让翻转的那一轴恰好是两个证型的鉴别依据，正确答案由定义给出。这样同时避开了 L2 封存集的污染风险（本表不取用任何 L2 病例）。",
+    "whatCountsAsSingleVariable": "翻转的是**一条辨证轴**（寒热 / 虚实 / 阴阳 / 表里 / 气血），不是一个字。只改一个字（比如只翻舌象、其余仍是寒象）会让正确答案变得含糊，测出来的是标注歧义不是模型稳健性。翻转时主诉、性别年龄、病程长度、就诊场景一律逐字保持不变——变的只有该轴的四诊证据组。",
+    "axisSelectionBasis": "五轴不是随便挑的，对准 TCMEval-SDT 194 例实测暴露的收敛缺陷：正确候选已经出现在鉴别诊断里却没被选中——热证 25 例遗漏中 21 例在鉴别里、阴虚 21 例中 13 例、寒证 16 例中 10 例。即『不是想不出，是选错了』。BTR 正是量化这件事的指标。",
+    "groundTruthBasis": "每对的两个证型取自《中医内科学》与 GB/T 16751.2 证候分类中互为鉴别的一组，鉴别依据逐条列在 discriminator 字段里。不引用具体页码——本仓既有版权纪律是国标定义只存 SHA-256 不复制原文。",
+    "notForRuleWriting": "本表是**对照基线**。按 v2 §六的纪律，基线一旦作为对照发布，其病例不得再用于定位缺陷，否则改动前后的对照本身被污染。要修缺陷请另取病例。",
+    "layer": "constructed-baseline",
+    "layerNote": "既不是 L1 也不是 L2：它不来自任何外部数据集，是按鉴别点合成的。因此不参与 L2→L1 单向流动登记，但同样受『不得据此改规则』约束。",
+    "scoringMustBeConceptual": "期望/禁止一律用**概念正则**（expectedPattern / forbiddenPattern），完整词列表只作文档。首跑就是被自己的完整词表坑了一次：系统答「肾阴亏虚，虚火内扰」——临床完全正确，但期望词写的是「肾阴虚」，而「肾阴亏虚」里『阴』后面跟的是『亏』不是『虚』，子串对不上，3 次被误判为答错，基础准确率被自己的仪器压低。这与本仓红旗词表反复犯的是同一种毛病（按完整词穷举，换个说法就整条失配）——**测量仪器同样会犯**，而且更隐蔽，因为它错的方向是让产品看起来更差，不容易引起怀疑。"
+  },
+  "pairs": [
+    {
+      "id": "cf-cold-heat-gastric",
+      "axis": "寒热",
+      "flipDescription": "同一胃脘痛主诉，寒象证据组整体翻为热象证据组",
+      "discriminator": "疼痛性质（冷痛/灼痛）、喜恶（喜温喜按/拒按喜冷）、口渴（口淡不渴/口干喜冷饮）、舌（淡苔白/红苔黄）、脉（沉迟/滑数）",
+      "base": {
+        "chiefComplaint": "胃脘部疼痛反复发作2年，近1周加重",
+        "symptoms": "胃脘冷痛，喜温喜按，得温则减，遇寒加重，泛吐清水，口淡不渴，纳少，倦怠乏力，手足不温，大便溏薄",
+        "tongue": "舌质淡，苔白滑",
+        "pulse": "脉沉迟无力",
+        "expectedSyndromeKeywords": [
+          "脾胃虚寒",
+          "胃寒",
+          "中焦虚寒",
+          "脾阳虚"
+        ],
+        "expectedNature": "寒",
+        "forbiddenSyndromeKeywords": [
+          "胃热",
+          "胃火",
+          "郁热",
+          "湿热"
+        ],
+        "expectedPattern": "(?:脾胃|中焦|胃|脾)?(?:虚寒|阳虚|寒(?:凝|盛|滞)?)",
+        "forbiddenPattern": "(?:胃|肝胃|中焦)?(?:郁?热|火|湿热)",
+        "keywordsAreDocumentationOnly": true
+      },
+      "flipped": {
+        "chiefComplaint": "胃脘部疼痛反复发作2年，近1周加重",
+        "symptoms": "胃脘灼痛，拒按，得凉稍减，遇热加重，泛吐酸水，口干口苦喜冷饮，消谷善饥，心烦易怒，大便干结",
+        "tongue": "舌质红，苔黄",
+        "pulse": "脉弦滑数",
+        "expectedSyndromeKeywords": [
+          "胃热",
+          "胃火",
+          "肝胃郁热",
+          "胃脘郁热",
+          "肝火犯胃"
+        ],
+        "expectedNature": "热",
+        "forbiddenSyndromeKeywords": [
+          "虚寒",
+          "胃寒",
+          "脾阳虚",
+          "中焦虚寒"
+        ],
+        "expectedPattern": "(?:胃|肝胃|中焦)?(?:郁热|实热|胃火|肝火|热盛|火旺)",
+        "forbiddenPattern": "(?:虚寒|阳虚|寒凝|中焦虚寒)",
+        "keywordsAreDocumentationOnly": true
+      }
+    },
+    {
+      "id": "cf-deficiency-excess-diarrhea",
+      "axis": "虚实",
+      "flipDescription": "同一泄泻主诉，虚证证据组整体翻为实证（湿热）证据组",
+      "discriminator": "起病与病程（久泻反复/骤起）、泻后感受（泻后神疲/泻后痛减不爽）、腹痛拒喜按、粪质与气味、舌苔（白/黄腻）、脉（细弱/滑数）",
+      "base": {
+        "chiefComplaint": "大便溏泄反复发作3年余",
+        "symptoms": "大便时溏时泻，稍进油腻或劳累即发，完谷不化，脘腹隐痛喜按，泻后神疲乏力，面色萎黄，食少纳呆，肢倦懒言",
+        "tongue": "舌质淡，苔白",
+        "pulse": "脉细弱",
+        "expectedSyndromeKeywords": [
+          "脾虚",
+          "脾胃虚弱",
+          "脾气虚",
+          "脾虚湿盛"
+        ],
+        "expectedNature": "虚",
+        "forbiddenSyndromeKeywords": [
+          "湿热",
+          "实热",
+          "食滞",
+          "热结"
+        ],
+        "expectedPattern": "脾(?:气|胃)?(?:虚|亏虚|不足|虚弱)|中气(?:下陷|不足)",
+        "forbiddenPattern": "湿热|实热|食滞|热结|积滞",
+        "keywordsAreDocumentationOnly": true
+      },
+      "flipped": {
+        "chiefComplaint": "大便溏泄骤起3天",
+        "symptoms": "腹痛即泻，泻下急迫，粪色黄褐而臭，肛门灼热，泻后痛势不减，脘闷不舒，烦热口渴，小便短黄",
+        "tongue": "舌质红，苔黄腻",
+        "pulse": "脉滑数",
+        "expectedSyndromeKeywords": [
+          "湿热",
+          "大肠湿热",
+          "肠道湿热",
+          "湿热蕴结"
+        ],
+        "expectedNature": "实",
+        "forbiddenSyndromeKeywords": [
+          "脾虚",
+          "脾气虚",
+          "虚寒",
+          "阳虚"
+        ],
+        "expectedPattern": "湿热|(?:大)?肠道?湿热|湿热(?:蕴结|下注|内蕴)",
+        "forbiddenPattern": "脾(?:气)?虚(?!湿)|虚寒|阳虚",
+        "keywordsAreDocumentationOnly": true
+      }
+    },
+    {
+      "id": "cf-yin-yang-lumbar",
+      "axis": "阴虚阳虚",
+      "flipDescription": "同一腰膝酸软主诉，肾阴虚证据组整体翻为肾阳虚证据组",
+      "discriminator": "寒热感（五心烦热潮热/畏寒肢冷）、汗（盗汗/自汗）、小便（短黄/清长夜频）、舌（红少苔/淡胖有齿痕）、脉（细数/沉迟无力）",
+      "base": {
+        "chiefComplaint": "腰膝酸软伴头晕耳鸣1年余",
+        "symptoms": "腰膝酸软，头晕耳鸣，失眠多梦，五心烦热，午后潮热，盗汗，口燥咽干，小便短黄，形体消瘦",
+        "tongue": "舌质红，少苔",
+        "pulse": "脉细数",
+        "expectedSyndromeKeywords": [
+          "肾阴虚",
+          "阴虚",
+          "肝肾阴虚",
+          "阴虚火旺"
+        ],
+        "expectedNature": "虚热",
+        "forbiddenSyndromeKeywords": [
+          "肾阳虚",
+          "阳虚",
+          "命门火衰",
+          "脾肾阳虚"
+        ],
+        "expectedPattern": "(?:肾|肝肾)?阴(?:虚|亏虚|亏损|不足|液亏)|虚火|阴虚(?:火旺|internal)?",
+        "forbiddenPattern": "(?:肾|脾肾)?阳(?:虚|衰|亏虚|不足)|命门火衰",
+        "keywordsAreDocumentationOnly": true
+      },
+      "flipped": {
+        "chiefComplaint": "腰膝酸软伴头晕耳鸣1年余",
+        "symptoms": "腰膝酸软冷痛，头晕耳鸣，畏寒肢冷，尤以下肢为甚，精神萎靡，面色㿠白，自汗，小便清长夜尿频多，大便溏薄",
+        "tongue": "舌质淡胖，边有齿痕，苔白",
+        "pulse": "脉沉迟无力",
+        "expectedSyndromeKeywords": [
+          "肾阳虚",
+          "阳虚",
+          "命门火衰",
+          "脾肾阳虚",
+          "肾气虚"
+        ],
+        "expectedNature": "虚寒",
+        "forbiddenSyndromeKeywords": [
+          "肾阴虚",
+          "阴虚火旺",
+          "虚火",
+          "阴虚内热"
+        ],
+        "expectedPattern": "(?:肾|脾肾)?阳(?:虚|衰|亏虚|不足)|命门火衰|肾气(?:虚|不固)",
+        "forbiddenPattern": "阴(?:虚|亏虚|不足)|虚火(?:上炎|内扰)?|阴虚火旺",
+        "keywordsAreDocumentationOnly": true
+      }
+    },
+    {
+      "id": "cf-exterior-interior-fever",
+      "axis": "表里",
+      "flipDescription": "同一发热主诉，表证证据组整体翻为里热证据组",
+      "discriminator": "恶寒与否（恶寒发热并见/但热不寒反恶热）、汗、脉位（浮/洪大）、有无表证兼症（鼻塞头身疼痛）、口渴程度",
+      "base": {
+        "chiefComplaint": "发热1天",
+        "symptoms": "发热恶寒，恶寒重发热轻，无汗，头痛身痛，鼻塞流清涕，咽痒咳嗽，口不渴",
+        "tongue": "舌苔薄白",
+        "pulse": "脉浮紧",
+        "expectedSyndromeKeywords": [
+          "风寒",
+          "表寒",
+          "风寒束表",
+          "外感风寒",
+          "太阳"
+        ],
+        "expectedNature": "表寒",
+        "forbiddenSyndromeKeywords": [
+          "里热",
+          "阳明",
+          "气分",
+          "热盛"
+        ],
+        "expectedPattern": "风寒|表寒|寒(?:邪)?(?:束|袭|客)表|太阳(?:伤寒|表实|病)?",
+        "forbiddenPattern": "里热|阳明|气分|热盛|实热",
+        "keywordsAreDocumentationOnly": true
+      },
+      "flipped": {
+        "chiefComplaint": "发热3天",
+        "symptoms": "壮热不恶寒反恶热，大汗出，大渴引饮，喜冷饮，面赤心烦，气粗，无鼻塞流涕，无头身疼痛",
+        "tongue": "舌质红，苔黄燥",
+        "pulse": "脉洪大",
+        "expectedSyndromeKeywords": [
+          "里热",
+          "阳明",
+          "气分热盛",
+          "热盛",
+          "实热"
+        ],
+        "expectedNature": "里热",
+        "forbiddenSyndromeKeywords": [
+          "风寒",
+          "表寒",
+          "表证",
+          "风寒束表"
+        ],
+        "expectedPattern": "里热|阳明(?:经|气分|热)?|气分(?:热盛)?|热(?:盛|炽)|实热|白虎",
+        "forbiddenPattern": "风寒|表寒|表证|寒邪束表",
+        "keywordsAreDocumentationOnly": true
+      }
+    },
+    {
+      "id": "cf-qi-blood-hypochondriac",
+      "axis": "气滞血瘀",
+      "flipDescription": "同一胁痛主诉，气滞证据组整体翻为血瘀证据组",
+      "discriminator": "痛性（胀痛走窜/刺痛固定）、与情志关系、昼夜规律（血瘀夜甚）、舌（薄白/紫暗瘀斑）、脉（弦/涩）",
+      "base": {
+        "chiefComplaint": "右胁部疼痛反复发作半年",
+        "symptoms": "胁肋胀痛，痛无定处，走窜不定，每因情志不遂而加重，胸闷善太息，嗳气则舒，纳呆腹胀",
+        "tongue": "舌质淡红，苔薄白",
+        "pulse": "脉弦",
+        "expectedSyndromeKeywords": [
+          "气滞",
+          "肝郁",
+          "肝气郁结",
+          "肝郁气滞"
+        ],
+        "expectedNature": "气滞",
+        "forbiddenSyndromeKeywords": [
+          "血瘀",
+          "瘀血",
+          "瘀阻"
+        ],
+        "expectedPattern": "(?:肝)?(?:气滞|郁气滞|气郁|郁结)|肝郁",
+        "forbiddenPattern": "血瘀|瘀血|瘀(?:阻|滞)",
+        "keywordsAreDocumentationOnly": true
+      },
+      "flipped": {
+        "chiefComplaint": "右胁部疼痛反复发作半年",
+        "symptoms": "胁肋刺痛，痛处固定不移，拒按，入夜尤甚，面色晦暗，口唇紫暗，胁下可触及痞块",
+        "tongue": "舌质紫暗，边有瘀斑，苔薄白",
+        "pulse": "脉沉涩",
+        "expectedSyndromeKeywords": [
+          "血瘀",
+          "瘀血",
+          "瘀血阻络",
+          "血瘀阻滞"
+        ],
+        "expectedNature": "血瘀",
+        "forbiddenSyndromeKeywords": [
+          "气滞",
+          "肝郁气滞",
+          "肝气郁结"
+        ],
+        "expectedPattern": "血瘀|瘀血|瘀(?:血)?(?:阻(?:络|滞)?|内停)",
+        "forbiddenPattern": "(?:肝)?气滞(?!血瘀)|肝气郁结(?!.*瘀)",
+        "keywordsAreDocumentationOnly": true
+      }
+    }
+  ]
+}
