@@ -13,7 +13,7 @@ import {
   PULSE_QUALITY_PATTERN_SOURCE,
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
-import { generalizeOccupation, scrubQuasiIdentifierText } from "./phi-sanitizer";
+import { generalizeOccupation, scrubQuasiIdentifierText, scrubRecordHeaderName } from "./phi-sanitizer";
 import { determineCompletenessLevel } from "./diagnosis-parse";
 import {
   additiveRedFlagsFromFacts,
@@ -5397,6 +5397,7 @@ function limitModelTextHeadTail(value: string, max: number): string {
 }
 
 function scrubPhi(text: string, patientName = ""): string {
+  text = scrubRecordHeaderName(text, "[已脱敏]");
   let next = text;
   if (patientName) next = next.replaceAll(patientName, "[已脱敏]");
   return scrubQuasiIdentifierText(next
@@ -5430,10 +5431,16 @@ function scrubPhi(text: string, patientName = ""): string {
     // 高置信形态一条未动:显式姓名标签、某字名、姓氏+人口学邻接(，男/女/NN岁)、电话/证件/地址。
     // 真实姓名的叙述形态(「张三昨夜失眠」)不带临床标签前缀,仍然照常脱敏(见 test:clinical-grounding)。
     .replace(/(^|[，,。\s]|[；;](?!\s*$)|(?<!(?:主诉|现病史|既往史|个人史|家族史|婚育史|月经史|过敏史|用药史|四诊|望诊|闻诊|问诊|切诊|症见|刻下|查体|体格检查|舌象|脉象|舌|脉|辅助检查|检查|诊断|治法|治则)\s*)[:：]|患者|家属|联系人|陪同者|监护人)((?:欧阳|司马|上官|诸葛|[赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊胡凌霍虞万支柯昝管卢莫经房裘缪干解应宗丁宣贲邓郁单杭洪包左石崔吉龚程邢裴陆荣翁荀羊惠甄曲封芮储靳汲邴糜松井段富巫乌焦巴弓牧隗山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘厉戎祖武符刘景詹束龙叶幸司韶黎乔苍双闻莘党翟谭贡劳姬申扶堵冉宰郦雍却璩桑桂濮牛寿通边扈燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终暨居衡步都耿满弘匡国文寇广禄阙东欧沃利蔚越夔隆师巩厍聂晁勾敖融冷辛阚那简饶空曾沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公]))[\u4e00-\u9fa5]{1,2}(?=(?:近|昨|今|因|诉|称|反映|表示|出现|发生|患|有|于|睡|入睡|失眠|头痛|头晕|胸痛|腹痛|发热|咳嗽|心悸|就诊|来诊))/g, (_match, prefix: string) => `${prefix}[已脱敏]`)
-    .replace(/^([\u4e00-\u9fa5]{2,4})(?=[，,；。\s]*(?:男|女|\d{1,3}\s*岁))/g,
-      // 通用指代词不是姓名:「患者，女，36岁」里的「患者」被整体抹成脱敏标记,
-      // 线上 20 例语料有 12 例命中。它不携带任何身份信息,抹掉只制造噪声。
-      (match: string) => (/^(?:患者|病人|患儿|本例|该例|受试者|就诊者|老人|婴儿|幼儿|产妇|孕妇)$/.test(match) ? match : "[已脱敏]"))
+    // 病历抬头姓名改走**共享**判据（phi-sanitizer.scrubRecordHeaderName）。
+    // 原先只有「句首 2-4 字 + 性别/年龄」一个上下文条件，靠一份「不该脱敏的词」黑名单兜底
+    // （患者/病人/患儿/本例…，注释记着「线上 20 例语料有 12 例命中」）。黑名单挡不住临床措辞：
+    //   「反复咳嗽，男，45岁」→「[已脱敏]，男，45岁」  主诉开头没了
+    //   「初诊，女，32岁」「既往体健，男，60岁」同样被吃；「患者男，45岁」连「男」都被吃
+    //   （「患者男」是 3 字，不等于黑名单里的「患者」）
+    // 这是**送模型路径上的临床信息丢失**，不是显示问题。
+    // 共享判据改用「姓氏枚举 ∩ 上下文」正向交集：认得出姓名（含复姓「欧阳明月」，
+    // 单字姓枚举覆盖不到），又不误伤临床措辞。实测 6 条非姓名抬头全部保留。
+    // 保留原脱敏标记 [已脱敏]，避免无谓改动既有签名载荷。
     .replace(/\b1[3-9]\d{9}\b/g, "[手机号已脱敏]")
     .replace(/\b0\d{2,3}-?\d{7,8}\b/g, "[电话已脱敏]")
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[邮箱已脱敏]")

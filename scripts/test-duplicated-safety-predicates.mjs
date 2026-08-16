@@ -121,6 +121,48 @@ for (const line of NEGATED_LINES) {
   );
 }
 
+// ── 5. PHI 抬头姓名：两侧必须走同一判据，且不得误伤临床措辞 ────────────────
+// 【背景】服务端 scrubPhi 与浏览器 scrubPersistentPhiText 各自在共享的
+// scrubQuasiIdentifierText 之上叠了一套自己的姓名规则：服务端走上下文模式、
+// 浏览器走百家姓枚举。行为实测（2026-08-16）：
+//   「张伟，男，45岁」「欧阳明月，女，32岁」 服务端脱敏 / 浏览器**留存**
+//     ——浏览器保护的是 localStorage 里的静态 PHI，而这正是标准 HIS 抬头格式。
+// 而服务端那条只有「句首 2-4 字 + 性别/年龄」一个条件，靠「不该脱敏的词」黑名单兜底
+// （患者/病人/患儿/本例…），黑名单挡不住临床措辞，实测把主诉开头整段吃掉：
+//   「反复咳嗽，男，45岁」→「[已脱敏]，男，45岁」；「患者男，45岁」连「男」都被吃。
+//   这是**送模型路径上的临床信息丢失**，不是显示问题。
+// 【修法】共享 scrubRecordHeaderName 取「姓氏枚举 ∩ 上下文」正向交集，两侧共用。
+{
+  const { scrubRecordHeaderName } = await jiti.import("../src/lib/phi-sanitizer.ts");
+  // 姓名必须脱敏（含复姓——单字姓枚举覆盖不到，两侧原本都漏）
+  for (const [input, name] of [["张伟，男，45岁，主诉胃脘痛3天", "张伟"],
+    ["欧阳明月，女，32岁，头痛", "欧阳明月"], ["李娜，女，28岁", "李娜"]]) {
+    const out = scrubRecordHeaderName(input);
+    assert.ok(!out.includes(name), `抬头姓名必须脱敏：「${input}」实得 ${out}`);
+  }
+  // 临床措辞必须逐字保留——这一半和上一半同等重要，缺了就会把主诉吃掉
+  for (const input of ["反复咳嗽，男，45岁", "患者男，45岁，主诉胃脘痛", "初诊，女，32岁",
+    "复诊 男 50岁", "既往体健，男，60岁", "胃脘痛3天，男，45岁"]) {
+    assert.equal(
+      scrubRecordHeaderName(input), input,
+      `非姓名抬头必须逐字保留：「${input}」——误吃它等于在送模型路径上丢临床信息`,
+    );
+  }
+  // 两侧必须共用同一判据，不得再各写一份
+  const safety = readFileSync(path.join(repoRoot, "src/lib/diagnosis-safety.ts"), "utf8");
+  const engine = readFileSync(path.join(repoRoot, "src/lib/diagnosis-engine.ts"), "utf8");
+  for (const [label, src] of [["服务端", safety], ["浏览器", engine]]) {
+    assert.ok(
+      /scrubRecordHeaderName\(/.test(src),
+      `${label}必须调用共享的 scrubRecordHeaderName`,
+    );
+  }
+  assert.ok(
+    !/\^\(\[\\u4e00-\\u9fa5\]\{2,4\}\)\(\?=\[，,；。/.test(safety),
+    "服务端不得再保留自己那份句首姓名正则——它没有姓氏正向判定，会吃掉临床措辞",
+  );
+}
+
 console.log("test-duplicated-safety-predicates: OK", {
   blockingLines: BLOCKING_LINES.length,
   negatedControls: NEGATED_LINES.length,
