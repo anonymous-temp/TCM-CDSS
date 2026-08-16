@@ -205,7 +205,8 @@
     "test:m03-finalize-quality-tier": "jiti scripts/test-m03-finalize-quality-tier.mjs",
     "test:sanitizer-contract-preservation": "jiti scripts/test-sanitizer-contract-preservation.mjs",
     "regress:tcmeval-sdt": "node scripts/regress-tcmeval-sdt.mjs",
-    "test:clinician-herb-adjudications": "jiti scripts/test-clinician-herb-adjudications.mjs"
+    "test:clinician-herb-adjudications": "jiti scripts/test-clinician-herb-adjudications.mjs",
+    "test:cross-provider-facts-decoupling": "jiti scripts/test-cross-provider-facts-decoupling.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

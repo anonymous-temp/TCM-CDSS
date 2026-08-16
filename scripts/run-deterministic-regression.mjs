@@ -80,6 +80,14 @@ const scripts = [
   // 否则「生」被前缀剥离表剥掉、退回麦芽总述（「焦」不在该表内所以侥幸没错，是巧合不是规则）。
   // 反向断言：未经裁定的歧义名（芍药/贝母）不得被顺手放开。
   "test:clinician-herb-adjudications",
+  // 跨厂商 M03/M04 复核 与 临床事实复核相位必须独立。线上实证（2026-08-16）：
+  // 把 PRIMARY_CLINICAL_REVIEW_PROVIDER 设成 bailian-qwen 后跨厂商复核确实生效
+  // （independentFromGenerator=true），但 independentFactsReviewModel 把同一变量
+  // 一并当成本相位开关、直接判 unconfigured，三相位 AND 出 ok=false，
+  // health?strict=1 塌成 strictReady=false——而 Docker healthcheck 打的正是那个口，
+  // 容器进入 health: starting 并重启。两个本该独立的能力被一行做成了互斥。
+  // 保留 fail-closed 默认（不静默回落主模型），显式设 CLINICAL_FACTS_REVIEW_MODEL 才放行。
+  "test:cross-provider-facts-decoupling",
   // 77 案预检实测：阴道出血21天、量多、血色素66g/L，因词序不是「阴道大量出血」而零红旗。
   // 钉住阴道出血 × 量多/持续/重度贫血/循环灌注组合，并守住否定、旧史、少量点滴的反例。
   "test:major-vaginal-bleeding",
