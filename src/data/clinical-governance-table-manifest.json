@@ -40,7 +40,7 @@
       "id": "T6",
       "file": "redflag-triage-lexicon.json",
       "schemaVersion": "redflag-triage-lexicon-v2",
-      "sha256": "99f0ddb6945c70a28464bd9755a640605c4f43be25a643a135b529c541e64708",
+      "sha256": "2b33159effae6c44500f5992f435a647bd20911ae3645e5ab12b5ced9914fabd",
       "recordCount": 18
     },
     {
@@ -88,7 +88,7 @@
   ],
   "sourceRegistry": {
     "file": "clinical-governance-source-registry.json",
-    "sha256": "c2e26d237cebbe9756575223552108f853f5b919b0882058cddcfca441b554a1",
+    "sha256": "1e78667c660db3dc106e9aecf98065e2a43d15a199e79562e8243c52cd5ec1f8",
     "recordCount": 37
   },
   "auxiliaryIndexes": [

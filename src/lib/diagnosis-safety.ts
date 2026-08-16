@@ -119,6 +119,56 @@ const GI_ALARM_DETECTION = (GOVERNED_GI_ALARM as unknown as {
   };
 }).detection;
 
+/**
+ * 口语面孔一律从受治理表的 detection 节读，代码里不再抄第二份。
+ *
+ * 2026-08-16 实测的六类零检出（心血管/神经/呼吸/晕厥/儿科/中毒）是同一个根因：
+ * 词表按完整书面词穷举，医生按患者原话录入就整条失配。逐类标定后，六类**都有一个
+ * 同义且已经命中的书面兄弟**——所以补的是同一概念的说法，不是新开档位：
+ *   · 「心前区闷得慌2小时」硬红旗 ✓ ／「心前区发闷2小时」0 ✗——只差一个同义动词
+ *   · 「突发复视、步态不稳」硬红旗 ✓ ／「看东西成双影，走路发飘」0 ✗
+ *   · 「喘不上气，不能平卧」硬红旗 ✓ ／「喘得厉害，晚上躺不平」0 ✗
+ *   · 「晕厥发作」提示 ✓ ／「眼前一黑就倒了」0 ✗
+ *   · 「患儿精神萎靡」提示 ✓ ／「孩子精神很差」0 ✗
+ *   · 「有机磷农药中毒」提示 ✓ ／「误喝了敌敌畏」0 ✗
+ * 硬门档位一律沿用兄弟词的档位，不因为是口语就抬高或压低。
+ *
+ * **不是所有口语词都能直接加**。实测 8 条常规门诊主诉（腰痛夜间躺不平、颈椎病垫高枕头、
+ * 更年期冒虚汗、失眠白天没精神、老人摔倒在地、小儿厌食不吃不喝…）当前全是 0 红旗 0 提示，
+ * 而它们恰好含有最直觉的那批口语词。所以词表里同时记了 excludedTerms 与排除理由，
+ * 端坐呼吸更是只作构词式（口语词必须与呼吸线索同句）。
+ */
+function governedDetectionNode<T>(id: string): T {
+  return (governedRedFlagCategory(id) as unknown as { detection: T }).detection;
+}
+
+const CARDIAC_DETECTION = governedDetectionNode<{ colloquialPressureVerbs: string[] }>("cardiac");
+const NEURO_DETECTION = governedDetectionNode<{ colloquialFocalSigns: string[] }>("neuro");
+const RESPIRATORY_DETECTION = governedDetectionNode<{
+  colloquialSymptoms: string[];
+  orthopneaColloquial: string[];
+  orthopneaBreathingCues: string[];
+}>("respiratory");
+const SYNCOPE_DETECTION = governedDetectionNode<{ colloquialSymptoms: string[] }>("syncope");
+const PEDIATRIC_DETECTION = governedDetectionNode<{ colloquialCriticalSigns: string[] }>("pediatric_critical");
+const POISONING_DETECTION = governedDetectionNode<{
+  colloquialSymptoms: string[];
+  colloquialCompanions: string[];
+}>("poisoning");
+
+/**
+ * 端坐呼吸的口语只在**与呼吸线索同句**时成立。
+ * 「腰痛3年，夜间躺不平，翻身困难」「颈椎病，睡觉需垫高枕头」都是常规主诉，
+ * 把「躺不平/垫高枕头」当独立症状词会把这两类整体抬成硬红旗——实测基线是 0。
+ */
+function hasColloquialOrthopnea(text: string): boolean {
+  const anchor = governedTermAlternation(RESPIRATORY_DETECTION.orthopneaColloquial);
+  const cue = governedTermAlternation(RESPIRATORY_DETECTION.orthopneaBreathingCues);
+  return text
+    .split(/[。；;\n]+/)
+    .some((clause) => new RegExp(anchor).test(clause) && new RegExp(cue).test(clause));
+}
+
 function governedTermAlternation(terms: string[]): string {
   return [...terms]
     .sort((left, right) => right.length - left.length)
@@ -2456,17 +2506,47 @@ const FOCAL_NEUROLOGIC_PATTERN = new RegExp(
 const CATASTROPHIC_NEUROLOGIC_EVENT_PATTERN = /(?:昏迷|呼之不应|抽搐|惊厥|癫痫持续状态)/;
 const ACUTE_CONSCIOUSNESS_CHANGE_TERMS = ["昏睡", "嗜睡", "谵妄"];
 
+/**
+ * 「急性线索**跟在体征后面**」的写法。
+ *
+ * 中文病历里「复视、行走不稳，今天突然出现」「嘴角歪了……1小时前突然开始」是常见语序，
+ * 而原判据只认线索在前，于是同一份事实换个语序就零红旗——**书面语与口语一起漏**
+ * （实测：「今天突然出现复视、行走不稳」红旗 1；「复视、行走不稳，今天突然出现」红旗 0）。
+ *
+ * 这套写法本仓早就有一份，写在 stablePostAcuteCourse 分支里的 acuteCueAfterDeficit，
+ * 只是被关在那个分支内、且只覆盖 FOCAL_NEUROLOGIC_PATTERN。提成共享常量供两处使用，
+ * 不再各写各的。
+ *
+ * 弱线索必须带动词才算：「本次/当前/目前」单独出现不构成急性——
+ * 「脑梗死后遗留左侧肢体无力3年，**本次**因失眠就诊」是残留基线复诊，不是新发卒中。
+ * 强线索（新发/突发/突然/快速加重/恶化）可单独成立，但保留 无/未 的否定回看。
+ */
+const TRAILING_ACUTE_NEURO_CUE =
+  "(?:(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|本次|当前|目前)(?:突然)?(?:出现|发生|再发|复发|加重|恶化)"
+  // 「反复发作」里含「复发」——substring 陷阱。前向 acuteCue 早就带着 (?<!反) 这个回看，
+  // 而被提取的这份（原残留分支）没有：在那个分支里它撞不上，合并后就撞上了。
+  // 实测「右侧手指麻木反复发作10余年，每年冬季发作」被判成神经系统急症，由既有套件当场抓出。
+  + "|(?<!无)(?<!未)(?:新发|突发|突然|再发|(?<!反)复发|快速加重|明显加重|恶化))";
+
 function hasAcuteExtendedStrokeWarning(text: string): boolean {
   const acuteCue = /(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\s*(?:\d+|[一二两三四五六七八九十几两]+)\s*(?:分钟|小时|天|日)|本次|当前|目前|新发|突发|突然|再发|(?<!反)复发)/;
-  const cueRequiredSign = /(?:(?:左|右|单|一|偏)侧|半身|偏身)[^。；;\n]{0,8}(?:麻木|感觉减退|感觉丧失|偏盲)|视物重影|复视|视野缺损|偏盲|行走不稳|站立不稳|共济失调/;
+  const cueRequiredSign = new RegExp(
+    "(?:(?:左|右|单|一|偏)侧|半身|偏身)[^。；;\\n]{0,8}(?:麻木|感觉减退|感觉丧失|偏盲)"
+    + `|视物重影|复视|视野缺损|偏盲|行走不稳|站立不稳|共济失调|${governedTermAlternation(NEURO_DETECTION.colloquialFocalSigns)}`,
+  );
   const selfAcuteVisualSign = /突然失明|视力骤降/;
   // extendedSign 自身含顶层 `|`；拼接时必须整体分组。未分组会让急性前缀只约束第一支，
   // 后面的“行走不稳/复视/共济失调”无论持续多久都直接命中红旗。
   // “突然失明/视力骤降”本身已编码急性变化，不再额外要求第二个急性前缀。
   const acuteExtended = new RegExp(`${acuteCue.source}.{0,24}(?:${cueRequiredSign.source})`);
   const posteriorCombination = new RegExp(`${acuteCue.source}.{0,24}(?:眩晕|头晕).{0,20}(?:复视|视物重影|行走不稳|站立不稳|共济失调|吞咽困难|构音不清)|${acuteCue.source}.{0,24}(?:复视|视物重影|行走不稳|站立不稳|共济失调).{0,20}(?:眩晕|头晕)`);
+  // 后置语序：体征在前、急性线索在后。同句内（不跨 。；;）且间隔不超过 20 字。
+  const acuteExtendedTrailing = new RegExp(
+    `(?:${cueRequiredSign.source})[^。；;\\n]{0,20}${TRAILING_ACUTE_NEURO_CUE}`,
+  );
   return hasPatternWithoutNegation(text, selfAcuteVisualSign) ||
     hasPatternWithoutNegation(text, acuteExtended) ||
+    hasPatternWithoutNegation(text, acuteExtendedTrailing) ||
     hasPatternWithoutNegation(text, posteriorCombination);
 }
 
@@ -2775,7 +2855,7 @@ function hasNeurologicEmergencySignal(text: string): boolean {
         !sensoryDeficitIsChronicPeripheralAt(normalized, unilateralSensoryMatch.index, unilateralSensoryMatch.text)));
   if (stablePostAcuteCourse) {
     const acuteCueBeforeDeficit = new RegExp(`(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|近\\s*(?:\\d+|[一二两三四五六七八九十几两]+)\\s*(?:小时|天|日)|本次|当前|目前|新发|突发|突然|再发|复发|快速加重|明显加重).{0,20}(?:出现|发生|再发|复发|加重)?[^。；;\\n]{0,8}${FOCAL_NEUROLOGIC_PATTERN.source}`);
-    const acuteCueAfterDeficit = new RegExp(`${FOCAL_NEUROLOGIC_PATTERN.source}[^。；;\\n]{0,20}(?:(?:刚刚|刚才|方才|今日|今天|今晨|昨日起|本次|当前|目前)(?:突然)?(?:出现|发生|再发|复发|加重|恶化)|(?<!无)(?<!未)(?:新发|突发|突然|再发|复发|快速加重|明显加重|恶化))`);
+    const acuteCueAfterDeficit = new RegExp(`${FOCAL_NEUROLOGIC_PATTERN.source}[^。；;\\n]{0,20}${TRAILING_ACUTE_NEURO_CUE}`);
     return extendedStrokeWarning || hasPatternWithoutNegation(text, acuteCueBeforeDeficit) || hasPatternWithoutNegation(text, acuteCueAfterDeficit) ||
       hasPatternWithoutNegation(text, new RegExp(`(?:病情|康复)(?:原本|曾经|一直)?稳定[^。；;\\n]{0,30}(?:但|然而|现|目前|当前)[^。；;\\n]{0,12}${FOCAL_NEUROLOGIC_PATTERN.source}[^。；;\\n]{0,8}(?:加重|恶化|再发|复发)`));
   }
@@ -3019,7 +3099,10 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
 
   const colloquialChestPressureSignal = hasPatternWithoutNegation(
     text,
-    /(?:胸口|胸前|胸部|胸骨后|心口|心前区).{0,10}(?:(?:像|跟|如同).{0,5})?(?:石头|重物|东西)?(?:压着|压住|压得|压迫|发紧|勒紧|箍紧|堵得慌|闷得慌)/,
+    new RegExp(
+      "(?:胸口|胸前|胸部|胸骨后|心口|心前区).{0,10}(?:(?:像|跟|如同).{0,5})?(?:石头|重物|东西)?"
+      + `(?:压着|压住|压得|压迫|发紧|勒紧|箍紧|堵得慌|闷得慌|${governedTermAlternation(CARDIAC_DETECTION.colloquialPressureVerbs)})`,
+    ),
   );
   const chestPainSignal = hasAnyTerm(text, GOVERNED_CARDIAC_PAIN_SYMPTOMS) || colloquialChestPressureSignal;
   const chestTightnessSignal = hasAnyTerm(text, ["胸闷"]);
@@ -3181,7 +3264,9 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
     redFlags.push("活动性大量阴道出血伴持续/反复、重度贫血或循环灌注风险，需立即评估失血量与循环状态并急诊处置");
   }
   const acuteRespiratorySignal =
-    hasAnyTerm(text, ["端坐呼吸", "不能平卧", "无法平卧", "喘不上气", "口唇发紫", "嘴唇发紫"]) ||
+    hasAnyTerm(text, ["端坐呼吸", "不能平卧", "无法平卧", "喘不上气", "口唇发紫", "嘴唇发紫",
+      ...RESPIRATORY_DETECTION.colloquialSymptoms]) ||
+    hasColloquialOrthopnea(text) ||
     hasPatternWithoutNegation(text, /(?:说|讲)(?:半句|一句|几句话).{0,12}(?:停|歇|喘)|(?:静息|坐着不动).{0,8}(?:呼吸困难|气促|喘憋)/);
   // 胸痛/胸闷伴气促时，心血管红旗文案已经完整承接呼吸循环风险；避免同一事件重复成两条告警。
   if (acuteRespiratorySignal && !reportableCardiacRisk && !anaphylacticAirwaySignal) {
@@ -3353,7 +3438,7 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
   const addAdvisory = (category: BackstopRedFlagCategory, message: string) => {
     if (!semanticCategories.has(category)) advisories.push(message);
   };
-  if (hasAnyTerm(text, ["晕厥", "黑矇", "意识丧失"])) {
+  if (hasAnyTerm(text, [...governedRedFlagCategory("syncope").symptoms, ...SYNCOPE_DETECTION.colloquialSymptoms])) {
     addAdvisory("syncope", "晕厥、黑矇或意识丧失相关信息需优先复核当前状态、诱因、伤情及心电风险");
   }
   if (
@@ -3375,10 +3460,13 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
   if (hasAbdominalPrioritySignal(text)) {
     addAdvisory("acute_abdomen", "持续或进行性腹痛/腹胀需优先复核严重度、腹膜刺激征、呕吐、排气排便及循环状态");
   }
-  if (hasAnyTerm(text, ["呼吸困难", "气促", "喘憋"])) {
+  if (hasAnyTerm(text, ["呼吸困难", "气促", "喘憋", ...RESPIRATORY_DETECTION.colloquialSymptoms])
+    || hasColloquialOrthopnea(text)) {
     addAdvisory("respiratory", "呼吸困难或气促相关表现需优先复核静息严重度、说话能力、血氧及循环状态");
   }
-  if (hasAnyTerm(text, ["误服", "过量服用", "整瓶", "整盒", "中毒", "农药", "毒物"])) {
+  // 这里原本是一份行内字面量，与词表 poisoning.symptoms 各写各的且已分叉
+  // （代码多出「过量服用/整瓶/整盒/毒物」，词表多出「农药暴露」）。四个词已收进词表，此处只读词表。
+  if (hasAnyTerm(text, [...governedRedFlagCategory("poisoning").symptoms, ...POISONING_DETECTION.colloquialSymptoms])) {
     addAdvisory("poisoning", "可疑中毒或药物过量需立即核实物质、剂量、时间、意识及呼吸循环状态");
   }
   const glucose = text.match(/(?:血糖|GLU)\s*[:：]?\s*(\d+(?:\.\d+)?)/i)?.[1];
@@ -3395,7 +3483,7 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
   if (hasAnyTerm(text, ["风团", "荨麻疹", "脸肿", "喉紧", "喉头肿胀", "声音嘶哑"])) {
     addAdvisory("anaphylaxis", "严重过敏或气道受累线索需立即复核气道、呼吸和循环");
   }
-  if (hasAnyTerm(text, ["发绀", "精神萎靡", "反应差"]) && hasQualitativePediatricContext(state)) {
+  if (hasAnyTerm(text, ["发绀", "精神萎靡", "反应差", ...PEDIATRIC_DETECTION.colloquialCriticalSigns]) && isPediatricPatient(state)) {
     addAdvisory("pediatric_critical", "儿童全身危重表现需立即复核呼吸、循环、意识及脱水状态");
   }
   return Array.from(new Set(advisories));
@@ -3598,6 +3686,30 @@ function hasQualitativePediatricContext(state: CaseState): boolean {
     .some((clause) => /^(?:(?:患者|病人)\s*(?:为|系|是)?\s*)?(?:一名|一位|该名|这个)?\s*(?:患儿|儿童患者|儿童|未成年人|新生儿|婴儿|婴幼儿|乳儿|幼儿|宝宝|小孩|孩子|少年|学龄前儿童|小学生|中学生|男童|女童)/.test(clause));
 }
 
+/**
+ * 「这份病历是不是儿童病例」的**单一判据**。
+ *
+ * 之前全仓有四处各自判断，三处（剂量降级理由、处方许可、缺口清单）写的是
+ *   `(age != null && age < 18) || (age == null && hasQualitativePediatricContext(state))`
+ * 而**儿童危重提示那一处只写了后半截**——结构化年龄那一分支漏了。
+ * 于是 `patient.age = 4` 且主诉「口唇发紫、精神很差」的患儿，只要自由文本
+ * 没在分句开头写出「患儿/孩子」，就一条儿童危重提示都拿不到（实测 0 条）。
+ *
+ * 漏得这么隐蔽有两层原因，缺一不可：
+ *  ① `hasQualitativePediatricContext` 的结构化分支只读 `hisRecord.fields.age` 与
+ *     `patient.sex`，**`patient.age` 根本不在读取列表里**（它本就只负责"没有数字年龄"的场合）；
+ *  ② 它的文本分支要求儿童词出现在**分句开头**，所以「4岁患儿精神萎靡」也不算。
+ * 两条叠加，四处里唯独安全提示那处退化成"只认写法不认年龄"。
+ *
+ * 收敛成一个谓词而不是在第四处补个 if：本仓头号缺陷形状就是同一判据多处各写各的，
+ * 补 if 只是把四处变五处。
+ */
+export function isPediatricPatient(state: CaseState): boolean {
+  const age = numberFromClinicalText(patientAgeText(state));
+  if (age != null) return age < 18;
+  return hasQualitativePediatricContext(state);
+}
+
 function hasExplicitPregnancyStatus(text: string): boolean {
   return isKnownClinicalState(assessPregnancyState(text));
 }
@@ -3744,9 +3856,8 @@ export function hardDoseSafetyBoundaryReasons(state: CaseState): string[] {
   const gate = evaluateSafetyGate(state);
   if (gate.status === "red_flag") return gate.redFlags.length > 0 ? gate.redFlags : ["命中急危重红旗"];
   const text = structuredCaseText(state);
-  const age = numberFromClinicalText(patientAgeText(state));
   const reasons: string[] = [];
-  if ((age != null && age < 18) || (age == null && hasQualitativePediatricContext(state))) {
+  if (isPediatricPatient(state)) {
     reasons.push("儿童病例当前未配置可验证的个体化剂量规则");
   }
   if (hasPositivePregnancyOrLactationRisk(text)) {
@@ -3927,8 +4038,7 @@ export function derivePrescriptionPermission(state: CaseState): PrescriptionPerm
   }
 
   const text = structuredCaseText(state);
-  const age = numberFromClinicalText(patientAgeText(state));
-  const pediatric = (age != null && age < 18) || (age == null && hasQualitativePediatricContext(state));
+  const pediatric = isPediatricPatient(state);
   const positivePregnancyOrLactation = hasPositivePregnancyOrLactationRisk(text);
   const highRiskReasons = highRiskDoseBoundaryReasons(state);
   const nonDoseReasons = [
@@ -4074,7 +4184,7 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   // 舌象栏写「舌象待核实」时图描述救不了场，两处对同一份病历给出不同答案）。
   if (!hasObtainedTongueFinding(state)) addMissing("tongue_unknown", "舌象");
   if (!hasObtainedPulseFinding(state)) addMissing("pulse_unknown", "脉象");
-  if ((age != null && age < 18) || (age == null && hasQualitativePediatricContext(state))) {
+  if (isPediatricPatient(state)) {
     if (!hasNumericPediatricWeight(text)) addMissing("pediatric_weight_unknown", "儿童体重数值");
     // The current deterministic knowledge base has adult per-herb ranges only. Recording weight is
     // necessary clinical context but cannot be treated as a pediatric dose algorithm.

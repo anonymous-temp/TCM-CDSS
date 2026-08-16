@@ -19,9 +19,14 @@ const repoRoot = path.resolve(here, "..");
 const knowledgePath = path.join(repoRoot, "src/data/tcm-knowledge.json");
 const corpusPath = path.join(repoRoot, "src/data/tcm-modern-case-eval-corpus.json");
 const targetPath = path.join(repoRoot, "src/data/tcm-herb-function-supplements.source.json");
-const BATCH_ID = "CHP2020-FUNCTION-20260814";
+// 批次参数化。**默认行为不变**：不传 CHP_BATCH_ID 时仍是对首批 84 味做在线逐条复核，
+// 既有的幂等保证（重复执行不会追加第二批）原样保留。
+// 传 CHP_BATCH_ID=<新批次号> 才会挑选下一批缺口药味——这样补第二批不必改代码，
+// 也不会因为改了常量就把首批的复核路径弄丢。
+const BATCH_ID = process.env.CHP_BATCH_ID || "CHP2020-FUNCTION-20260814";
 const REGRESSION_BATCH_ID = "CHP2020-FUNCTION-REGRESSION-20260814";
-const BATCH_SIZE = 84;
+// 批量大小随批次走：首批是历史约定的 84，新批默认取当前全部可抓缺口（由 CHP_BATCH_SIZE 覆盖）。
+const BATCH_SIZE = Number(process.env.CHP_BATCH_SIZE || (process.env.CHP_BATCH_ID ? 0 : 84));
 const APPLY = process.argv.includes("--apply");
 
 const jiti = createJiti(import.meta.url, {
@@ -180,10 +185,17 @@ async function worker() {
 }
 await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
-const accepted = results.flatMap((result) => result?.accepted ? [result.accepted] : []).slice(0, BATCH_SIZE);
+const allAccepted = results.flatMap((result) => result?.accepted ? [result.accepted] : []);
+const accepted = BATCH_SIZE > 0 ? allAccepted.slice(0, BATCH_SIZE) : allAccepted;
 const rejected = results.flatMap((result) => result?.rejected ? [result.rejected] : []);
-if (accepted.length !== BATCH_SIZE) {
+// 首批沿用"必须凑满 84 味"的硬约束（它锁的是那批已落库数据的完整性）。
+// 新批次不设下限：逐味 fail-closed 校验本来就会刷掉一部分，凑不满不是错误，
+// 硬要凑满反而会诱使放宽校验——那才是真问题。被刷掉的一律打印原因。
+if (BATCH_SIZE > 0 && accepted.length !== BATCH_SIZE) {
   throw new Error(`药典功效批次不足 ${BATCH_SIZE} 味：仅 ${accepted.length} 味通过 fail-closed 校验`);
+}
+if (BATCH_SIZE === 0 && accepted.length === 0) {
+  throw new Error(`新批次一味都没通过 fail-closed 校验（候选 ${candidates.length} 味）——先看拒绝原因，不要放宽校验`);
 }
 
 if (existingBatch.length > 0) {
