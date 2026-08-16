@@ -4495,6 +4495,20 @@ async function callPrimaryTextModelStream(
                   stage: "diagnose",
                   reason: finalizedM03RejectionReason,
                 });
+              } else {
+                // 受理没走成时必须说清**卡在哪一条**，否则只能靠猜。
+                // 首版实测就吃了这个亏：线上触发条件出现 1 次、受理 0 次，
+                // 而日志只说「rejected」，分不清是取不到载荷、安全档拦住、还是草稿太短。
+                console.warn("[tcm-cdss:model] M03 finalization quality-tier acceptance skipped", {
+                  stage: "diagnose",
+                  reason: finalizedM03RejectionReason,
+                  payloadParsed: Boolean(finalizeTierReasoning),
+                  safetyIssue: finalizeSafetyIssue || "(none)",
+                  draftLength: finalizeTierReasoning
+                    ? m03CandidateSubstanceLength(transformed.content, finalizeTierReasoning)
+                    : -1,
+                  hasAnnotationCopy: Boolean(qualityAnnotationCopy(finalizedM03RejectionReason)),
+                });
               }
             }
             if (!transformedM03) {
