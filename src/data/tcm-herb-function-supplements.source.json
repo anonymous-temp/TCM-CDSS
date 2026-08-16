@@ -3027,6 +3027,17 @@
       "reviewBatch": "CLINICIAN-REVIEW-20260816",
       "corpusUseCount": 0,
       "clinicianNote": "核定书未点名要求，但按『三规格独立』口径补齐，防止错误继承。"
+    },
+    {
+      "herb": "藏菖蒲",
+      "supplement": "温胃，止痛",
+      "missingConcept": "yang_warm",
+      "basis": "《中华人民共和国药典》2020年版一部「藏菖蒲」【功能与主治】：温胃，消炎止痛。中医师终审 2026-08-16：「温胃」「止痛」可无损提取；「消炎」属现代医学表述，按 fail-closed 省略，不猜测替换。2026-08-16 工程侧联网核验后为受控治法词表补入「温胃/暖胃 → yang_warm」：温里回阳法含温中祛寒，温中祛寒即治疗中焦虚寒之法，胃中虚寒亦以温中祛寒治之（中医百科·温里回阳法）；温胃法（温胃散寒）适用胃寒证，常用吴茱萸汤、良附丸。",
+      "sourceUrl": "https://ydz.chp.org.cn/",
+      "sourceName": "国家药典委员会药典在线 + 中医师终审 + 治法归属联网核验",
+      "reviewBatch": "CLINICIAN-REVIEW-20260816",
+      "corpusUseCount": 0,
+      "clinicianNote": "保守截取，「消炎」有意不映射。收词爆炸半径实测为 0 味新增匹配。"
     }
   ]
 }
