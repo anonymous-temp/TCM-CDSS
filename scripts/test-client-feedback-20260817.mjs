@@ -32,7 +32,11 @@ const {
 } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const { enrichReasoning, resolveFormulaSources } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const { compileTcmTreatmentRecommendations } = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
-const { isNondiscriminatingWesternSupportingFact, m03KeySyndromeDiscriminatorIssue } =
+const {
+  isNondiscriminatingWesternSupportingFact,
+  m03KeySyndromeDiscriminatorIssue,
+  projectM03KeySyndromeDiscriminators,
+} =
   await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { rejectionTier } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
 
@@ -202,6 +206,28 @@ const mahuangHerbs = [
     },
   }, clinicalContext);
   assert.equal(repaired, undefined);
+
+  // 线上两轮模型修复仍可能漏填同一事实。服务端只投影病历中逐字存在的鉴别点，
+  // 不改主证名/病机/治法；投影后必须通过同一道合同，避免安全降级成空结果。
+  const projected = projectM03KeySyndromeDiscriminators({
+    overview: {
+      primarySyndrome: "风寒束表证",
+      primarySyndromeBasis: ["恶寒重发热轻", "鼻塞流清涕"],
+      tcmDiagnosticRationale: "恶寒重发热轻、鼻塞流清涕，故辨为风寒束表证。",
+    },
+    pathogenesis: {
+      chain: [{ nodeId: "P1", patientFact: "恶寒重发热轻", syndromeEvidence: "鼻塞流清涕", pathogenesis: "风寒束表，卫阳被遏", therapyDirection: "辛温解表" }],
+    },
+  }, clinicalContext);
+  assert.deepEqual(projected.overview.primarySyndromeBasis, ["恶寒重发热轻", "鼻塞流清涕", "无汗", "脉浮紧"]);
+  assert.match(projected.overview.tcmDiagnosticRationale, /无汗.*脉浮紧/s);
+  assert.match(projected.pathogenesis.chain[0].syndromeEvidence, /无汗.*脉浮紧/s);
+  assert.equal(m03KeySyndromeDiscriminatorIssue(projected, clinicalContext), undefined);
+
+  const diagnosisApi = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
+  const projectionAt = diagnosisApi.indexOf("projectM03KeySyndromeDiscriminators(parsed, clinicalContext)");
+  const groundingAt = diagnosisApi.indexOf("groundStructuredPatientFacts(discriminatorProjected, clinicalContext)");
+  assert.ok(projectionAt >= 0 && groundingAt > projectionAt, "M03 真实准备链必须先投影关键鉴别事实，再做病历接地复核");
 }
 
 // 8. 「精神饮食尚可、二便调」是一般状态，不得给急性上呼吸道感染凑支持依据。

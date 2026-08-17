@@ -1216,7 +1216,7 @@ export function m03KeySyndromeDiscriminatorIssue(
   const syndrome = String(reasoning.overview?.primarySyndrome || "");
   if (!/(?:风寒(?:束表|犯表|袭表)|太阳伤寒)/.test(syndrome)) return undefined;
   const required: RegExp[] = [];
-  if (contextAffirmsTerm(clinicalContext, /无汗/)) required.push(/无汗/);
+  if (contextRecordsNoSweat(clinicalContext)) required.push(/无汗/);
   else if (contextAffirmsTerm(clinicalContext, /自汗|汗出/)) required.push(/自汗|汗出/);
   if (contextAffirmsTerm(clinicalContext, /脉(?:象[:：]?)?浮紧|脉浮而紧/)) {
     required.push(/脉(?:象[:：]?)?浮紧|脉浮而紧/);
@@ -1231,6 +1231,63 @@ export function m03KeySyndromeDiscriminatorIssue(
   return required.every((pattern) => pattern.test(basis) && pattern.test(rationale) && pattern.test(chain))
     ? undefined
     : "chain_key_discriminator_missing";
+}
+
+function contextRecordsNoSweat(value: string): boolean {
+  return value.split(/[。；;\n]+/).some((clause) =>
+    /无汗/.test(clause) && !/(?:否认|不伴|未见|未诉|并无|没有)\s*无汗/.test(clause));
+}
+
+/**
+ * 把病历中逐字存在、且会改变表实/表虚方向的鉴别点投影到模型已经形成的风寒表证结构中。
+ *
+ * 这不是服务端补诊断：主证名、病机和治法一字不改，只把「无汗/自汗、脉浮紧」这些原始事实
+ * 补进三个证据出口。线上两轮定向模型修复仍连续漏填同一事实时，继续依赖第三轮模型只会把
+ * 可用病例降级成空结果；确定性投影让合同核对的是同一份病历事实，并保持未记录即绝不追加。
+ */
+export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
+  reasoning: T,
+  clinicalContext: string,
+): T {
+  if (!reasoning || !clinicalContext) return reasoning;
+  const syndrome = String(reasoning.overview?.primarySyndrome || "");
+  if (!/(?:风寒(?:束表|犯表|袭表)|太阳伤寒)/.test(syndrome)) return reasoning;
+
+  const required: string[] = [];
+  if (contextRecordsNoSweat(clinicalContext)) required.push("无汗");
+  else if (contextAffirmsTerm(clinicalContext, /自汗/)) required.push("自汗");
+  else if (contextAffirmsTerm(clinicalContext, /汗出/)) required.push("汗出");
+  if (contextAffirmsTerm(clinicalContext, /脉(?:象[:：]?)?浮紧|脉浮而紧/)) required.push("脉浮紧");
+  if (required.length === 0 || !reasoning.overview) return reasoning;
+
+  const projected = structuredClone(reasoning) as T;
+  const overview = projected.overview;
+  if (!overview) return reasoning;
+  const basis = nonEmptyStringList(overview.primarySyndromeBasis);
+  overview.primarySyndromeBasis = [...basis, ...required.filter((term) => !basis.some((item) => item.includes(term)))];
+
+  const rationale = typeof overview.tcmDiagnosticRationale === "string"
+    ? overview.tcmDiagnosticRationale.trim()
+    : "";
+  const rationaleMissing = required.filter((term) => !rationale.includes(term));
+  if (rationaleMissing.length > 0) {
+    overview.tcmDiagnosticRationale = [
+      rationale,
+      `辨证采用病历已记录的关键鉴别事实：${rationaleMissing.join("、")}。`,
+    ].filter(Boolean).join("");
+  }
+
+  const chain = projected.pathogenesis?.chain || [];
+  const target = chain.find((item) =>
+    /风寒|表|卫/.test(`${String(item.pathogenesis || "")}；${String(item.therapyDirection || "")}`)) || chain[0];
+  if (target) {
+    const evidence = typeof target.syndromeEvidence === "string" ? target.syndromeEvidence.trim() : "";
+    target.syndromeEvidence = [
+      evidence,
+      ...required.filter((term) => !evidence.includes(term)),
+    ].filter(Boolean).join("；");
+  }
+  return projected;
 }
 
 /** Validate uncertainty state and source grounding without deciding clinical semantics locally. */
