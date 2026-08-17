@@ -213,11 +213,24 @@ const mahuangHerbs = [
   assert.doesNotMatch(shenlingAnalysis, /现有受控信息未形成|不强行判定|不作无依据推定/,
     "没有实际药对关系时直接不写，不向医生展示系统自述式空项");
 
+  const sparseMahuangAnalysis = buildFormulaAnalysis([
+    { name: "麻黄", role: "君", function: "发汗解表，宣肺平喘", targetPathogenesis: "风寒束表" },
+    { name: "桂枝", role: "臣", function: "解肌发表，温通营卫", targetPathogenesis: "风寒束表" },
+    { name: "苦杏仁", role: "佐", function: "", targetPathogenesis: "肺气失宣" },
+    { name: "炙甘草", role: "使", function: "", targetPathogenesis: "调和诸药，协调药性" },
+  ], "辛温解表，宣肺平喘");
+  assert.match(sparseMahuangAnalysis, /苦杏仁.*降肺气/s,
+    "知识库功用缺失时也必须写出受治理的本方作用，不能退回角色套话");
+  assert.doesNotMatch(sparseMahuangAnalysis, /承担本方的核心治疗作用|协同君药|兼顾兼夹病机|参与本方配伍/,
+    "君臣佐使通用角色说明不是方解，任何药味都不得用它占位");
+
   const diagnosisClient = readFileSync(path.join(repoRoot, "src/app/diagnosis/DiagnosisClient.tsx"), "utf8");
   assert.match(diagnosisClient, /<MarkdownBlock\s+content=\{firstCandidate\.formulaAnalysis\}/,
     "历史方义即使仍含 Markdown，也必须经过 Markdown 渲染，不能把星号和短横线原样上屏");
   assert.doesNotMatch(diagnosisClient, /whitespace-pre-line[\s\S]{0,300}\{firstCandidate\.formulaAnalysis\}/,
     "方义不得继续走纯文本 whitespace-pre-line 裸渲染");
+  assert.match(diagnosisClient, /title="方义解析"\s+subtitle="各药在方中作用与配伍关系"/,
+    "方义副标题必须与甲方实际口径一致，不强行承诺每方都有佐制、相畏等关系");
 }
 
 // 5. 本例是感冒·风寒束表，不满足已治理的「普通咳嗽·风寒袭肺」模板；评估态宁可不列穴，
