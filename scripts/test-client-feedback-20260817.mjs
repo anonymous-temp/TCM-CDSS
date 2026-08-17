@@ -179,6 +179,13 @@ const mahuangHerbs = [
   const placeholderRebuilt = unwrap(applyDeterministicFormulaAnalysis(wrap(placeholderAuthored))).formula.candidates[0].formulaAnalysis;
   assert.doesNotMatch(placeholderRebuilt, /具体配伍作用.*复核/);
   assert.match(placeholderRebuilt, /麻黄.*为君.*桂枝.*为臣.*杏仁.*为佐.*甘草.*为使/s);
+
+  const partialAuthored = structuredClone(enriched);
+  partialAuthored.formula.candidates[0].formulaAnalysis =
+    "方中麻黄为君，桂枝为臣；桂枝助麻黄解肌发表，麻黄与桂枝相须为用，以增强发汗散寒之力。";
+  const partialRebuilt = unwrap(applyDeterministicFormulaAnalysis(wrap(partialAuthored))).formula.candidates[0].formulaAnalysis;
+  assert.match(partialRebuilt, /麻黄.*桂枝.*杏仁.*甘草/s,
+    "模型方解遗漏半数实际药味时必须重建，不能只解释君臣两味就上屏");
 }
 
 // 4.1 甲方 2026-08-05 第 7.1 条给出的目标是连贯方解，不是 Markdown 病机标题与逐味功效清单。
