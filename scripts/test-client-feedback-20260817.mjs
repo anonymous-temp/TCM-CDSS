@@ -201,6 +201,8 @@ const mahuangHerbs = [
     "方义结构字段必须是连续自然段，不得把 Markdown 标题或列表交给医生页面");
   assert.match(shenlingAnalysis, /人参.*白术.*砂仁.*桔梗.*炙甘草/s,
     "方解必须覆盖本方各层关键药味及其方中作用");
+  assert.doesNotMatch(shenlingAnalysis, /消暑|益肾涩精|利咽/,
+    "方义只保留与本方病机和治法有关的作用，不罗列白扁豆、莲子、桔梗的其他通用功效");
   assert.doesNotMatch(shenlingAnalysis, /现有受控信息未形成|不强行判定|不作无依据推定/,
     "没有实际药对关系时直接不写，不向医生展示系统自述式空项");
 
