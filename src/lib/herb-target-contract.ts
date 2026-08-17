@@ -152,6 +152,28 @@ function cleanTherapyMatchText(value: string): string {
 }
 
 /**
+ * 从药典/知识库的多项通用功效里只取与本方病机和治法最贴近的一项。
+ * 评分只比较受控文本自身的汉字重合与二字术语重合，不生成新的医学结论。
+ */
+function formulaRelevantFunctionText(value: string, clinicalContext: string): string {
+  const parts = cleanHerbFunctionText(value).split(/[，,]/).map((item) => item.trim()).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || "";
+  const context = clinicalContext.replace(/[\s，,。；;：:、（）()[\]「」“”]/g, "");
+  const score = (part: string): number => {
+    const compact = part.replace(/\s+/g, "");
+    let valueScore = context.includes(compact) ? 12 : 0;
+    for (const char of new Set(compact)) if (context.includes(char)) valueScore += 1;
+    for (let index = 0; index < compact.length - 1; index += 1) {
+      if (context.includes(compact.slice(index, index + 2))) valueScore += 4;
+    }
+    return valueScore;
+  };
+  return parts
+    .map((part, index) => ({ part, index, score: score(part) }))
+    .sort((left, right) => right.score - left.score || left.index - right.index)[0]?.part || parts[0];
+}
+
+/**
  * 方义解析的长度预算（甲方评测 2026-08-04 第 2 条「方义解析仍然冗长」的可断言上界）。
  *
  * 逐味成句是甲方上一轮明确要求的粒度（「要写清楚药是在这个方子里干了啥起了啥作用」），
@@ -214,11 +236,15 @@ export function formulaAnalysisCharBudget(herbCount: number): number {
  * 并给出了麻黄汤连续自然段示例。因此这里不再生成 Markdown 病机标题或逐味列表。
  */
 export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], therapyMatch = ""): string {
+  const cleanedTherapyMatch = cleanTherapyMatchText(analysisText(therapyMatch));
   const rows = herbs
     .map((herb) => ({
       name: analysisText(herb.name),
       role: analysisText(herb.role),
-      fn: cleanHerbFunctionText(analysisText(herb.function)),
+      fn: formulaRelevantFunctionText(
+        analysisText(herb.function),
+        `${analysisText(herb.targetPathogenesis)}；${cleanedTherapyMatch}`,
+      ),
       target: analysisText(herb.targetPathogenesis),
       quote: cleanTargetQuoteText(analysisText(herb.targetPathogenesis)),
     }))
@@ -291,7 +317,6 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
   }
   if (jiegeng && baizhu && fuling) pairSentences.push(`${jiegeng}宣肺利气、载药上行，使脾气得健而肺气得宣。`);
 
-  const cleanedTherapyMatch = cleanTherapyMatchText(analysisText(therapyMatch));
   const conclusion = cleanedTherapyMatch ? `诸药合用，共奏${cleanedTherapyMatch}之效。` : "";
   return [...roleSentences, ...pairSentences, conclusion].filter(Boolean).join("");
 }
