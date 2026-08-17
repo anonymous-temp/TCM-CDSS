@@ -227,9 +227,10 @@ assert.equal(rejectionTier("m04_visible_extra_herb_rows"), "T3");
 // 路由最后一公里不得把安全重算挂在“先有其他 issue”的分支内。这次真实回归里
 // 甘草+海藻的全量合同因 advisory 口径返回 undefined，导致原本已存在的 T1 函数根本没被调用。
 const prescribeRouteSource = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
-const finalSafetyIndex = prescribeRouteSource.indexOf("const safetyIssue = m04SafetyContractIssue(");
+const finalSafetyIndex = prescribeRouteSource.indexOf("const detectedSafetyIssue = m04SafetyContractIssue(");
+const deferredLabelIndex = prescribeRouteSource.indexOf("const safetyIssue = isM04FinalizerDeferredLabelIssue(detectedSafetyIssue)");
 const finalIssueIndex = prescribeRouteSource.indexOf("const issue = safetyIssue || formulaCompilationContractIssue");
-assert.ok(finalSafetyIndex >= 0 && finalIssueIndex > finalSafetyIndex,
+assert.ok(finalSafetyIndex >= 0 && deferredLabelIndex > finalSafetyIndex && finalIssueIndex > deferredLabelIndex,
   "M04 最终出口必须先无条件重跑 safetyIssue，再进入质量合同分级");
 
 const diagnosisApiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");

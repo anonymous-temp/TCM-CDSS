@@ -10,7 +10,7 @@ import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.serve
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { applyTcmTreatmentCapabilityPriority } from "@/lib/tcm-treatment-capabilities.server";
 import { m03SafetyContractIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue } from "@/lib/diagnosis-stage-contract";
-import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
+import { isM04FinalizerDeferredLabelIssue, isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { enforceReviewedPrescriptionOutput } from "@/lib/prescription-output-safety";
 import type { SafetyGate } from "@/lib/diagnosis-types";
@@ -313,7 +313,7 @@ export async function POST(req: Request) {
       // 最终出口必须每次先完整重跑 T1 安全底线。之前只在全量语义合同“已经有 issue”
       // 的分支内才算 safetyIssue；若全量口径把审方风险当作 advisory，十八反会返回
       // undefined 并绕过整个安全分支。安全底线不能依赖另一个质量问题先触发。
-      const safetyIssue = m04SafetyContractIssue(
+      const detectedSafetyIssue = m04SafetyContractIssue(
         reasoning,
         signedPriorReasoning,
         isKnownTcmHerbName,
@@ -322,6 +322,10 @@ export async function POST(req: Request) {
         clinicalGroundingText(safeState),
         declassifiedAccepted,
       ) || "";
+      // 核心结构化编排器仍会在初次生成与修复轮严格驳回君药标签不一致；outputTransform 同时
+      // 也是修复耗尽后终审，不能在核心已按质量项受理后再次把同一码升级成剂量安全 T1。
+      // 真正的药物安全码不匹配本谓词，继续逐字硬拦。
+      const safetyIssue = isM04FinalizerDeferredLabelIssue(detectedSafetyIssue) ? "" : detectedSafetyIssue;
       const issue = safetyIssue || formulaCompilationContractIssue(reasoning, signedPriorReasoning, false, true) || declassificationTherapyIssue || m04SemanticIssue(
         reasoning,
         "",

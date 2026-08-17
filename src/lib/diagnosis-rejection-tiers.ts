@@ -212,6 +212,17 @@ export function isSafetyRejection(reason: string): boolean {
   return rejectionTier(reason) === "T1";
 }
 
+/**
+ * 路由 outputTransform 会在结构化编排器的严格修复之前和修复耗尽后的终审各执行一次。
+ * 君药指向非 P1 / 君药功效词表未对上 P1 由核心编排器在前一阶段严格驳回促修；若核心随后按
+ * “安全底线已过、标签一致性带批注”受理，路由不得再把同一码当剂量安全问题作废整方。
+ * 这里只延期这两个标签一致性码；剂量、配伍、特殊人群、方向对立等任何其他码仍为 T1。
+ */
+export function isM04FinalizerDeferredLabelIssue(reason: string): boolean {
+  const code = typeof reason === "string" ? reason.trim().replace(/^m04_/, "") : "";
+  return /^candidate_\d+_herb_\d+_emperor_(?:not_primary|therapy_mismatch)$/.test(code);
+}
+
 /** 可带批注受理时返回批注档位；T1 返回 undefined。 */
 export function qualityAnnotationTier(reason: string): "T2" | "T3" | undefined {
   const tier = rejectionTier(reason);

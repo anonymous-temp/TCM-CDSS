@@ -21,7 +21,7 @@ const jiti = createJiti(import.meta.url, {
   },
 });
 
-const { rejectionTier, isSafetyRejection, qualityAnnotationTier, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
+const { rejectionTier, isSafetyRejection, isM04FinalizerDeferredLabelIssue, qualityAnnotationTier, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
 const { m03SafetyContractIssue } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 
 // 1. Default-deny: anything not explicitly listed is T1, including future/unknown codes, transport
@@ -39,6 +39,23 @@ for (const unknown of [
   assert.equal(rejectionTier(unknown), "T1", `${unknown} 必须默认按 T1 处理（default-deny）`);
   assert.equal(isSafetyRejection(unknown), true, `${unknown} 必须被视为安全承重`);
   assert.equal(qualityAnnotationTier(unknown), undefined, `${unknown} 不得获得质量批注受理`);
+}
+
+// 1b. 路由终审只把“君药标签一致性”交回核心编排器的修复耗尽裁决；真实药物安全码不延期。
+for (const labelIssue of [
+  "candidate_0_herb_0_emperor_not_primary",
+  "m04_candidate_2_herb_3_emperor_therapy_mismatch",
+]) {
+  assert.equal(isM04FinalizerDeferredLabelIssue(labelIssue), true, `${labelIssue} 应由核心编排器先严格促修、终审不重复作废`);
+}
+for (const blockingIssue of [
+  "m04_candidate_0_herb_0_dose_above_max",
+  "m04_candidate_0_pair_incompatibility",
+  "m04_candidate_0_herb_0_unsupported_high_impact_yang_warm",
+  "m04_candidate_0_emperor_missing",
+  "m04_candidate_0_emperor_excess",
+]) {
+  assert.equal(isM04FinalizerDeferredLabelIssue(blockingIssue), false, `${blockingIssue} 必须继续由路由终审硬拦`);
 }
 
 // 2. Evidence-list and resolution-depth findings are quality issues. They downgrade the affected
