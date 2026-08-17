@@ -2996,9 +2996,7 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
           groundedChiefComplaint(clinicalContext),
           2,
         ).join("；") || markdownCell(node.syndromeEvidence))
-      } | ${
-        pathogenesisLedger.claim(node.pathogenesis) ? markdownCell(node.pathogenesis) : "同总体病机"
-      } | ${markdownCell(node.therapyDirection)} |`),
+      } | ${markdownCell(node.pathogenesis)} | ${markdownCell(node.therapyDirection)} |`),
     );
   }
   lines.push(
@@ -3012,11 +3010,8 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
       "",
       "| 分治方向 | 对应病机 |",
       "|---|---|",
-      // 分治方向表的「对应病机」列与上方子病机表逐字相同的比例实测 18%。命中即改短引用：
-      // 本表的信息量在于治法拆分，病机原文已在上一节完整呈现过。
-      ...subTherapies.map((item) => `| ${markdownCell(item.therapy)} | ${
-        pathogenesisLedger.claim(item.targetPathogenesis) ? markdownCell(item.targetPathogenesis) : "同上述病机"
-      } |`),
+      // 医生必须能在每个分治方向旁直接读到真实病机，不使用跨段占位。
+      ...subTherapies.map((item) => `| ${markdownCell(item.therapy)} | ${markdownCell(item.targetPathogenesis)} |`),
     );
   }
   // 流派适配记录（甲方基线 §10.2：报告须简洁说明采用了哪些流派特征）。
@@ -3207,12 +3202,12 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
     }
   }
   if (modifications.length > 0) {
-    // 多条加减常挂在同一个病机上；同一本账本，本节内的病机原文只写一次。
     const modificationPathogenesisLedger = createPathogenesisNarrativeLedger();
     lines.push("", "## 随证加减建议", ...modifications.map((item) => {
       const triggerSource = recordValue(item.triggerSource);
       const sourceQuote = markdownCell(triggerSource?.sourceQuote);
       const target = markdownCell(item.targetPathogenesis);
+      const displayedTarget = modificationPathogenesisLedger.claim(target) ? target : "";
       // 可替换药味另起一行呈现（甲方接口需求）。缺货/过敏/特殊人群禁用时医生要有备选，
       // 而「替代品与原药差异在哪」是临床最容易出事的地方，必须与药名同时给出。
       const substitutions = recordList(item.substitutions)
@@ -3222,7 +3217,7 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
         .filter(Boolean);
       return [`- **${markdownCell(item.trigger)}**：${clinicalSentence([
         markdownCell(item.action),
-        target ? `对应病机：${modificationPathogenesisLedger.claim(target) ? target : "同上述病机"}` : "",
+        displayedTarget ? `对应病机：${displayedTarget}` : "",
         markdownCell(item.reason),
         sourceQuote ? `触发依据：${sourceQuote}` : "",
         // riskNote 是加减行的**合同必填字段**，React 卡片与 HIS 出参都呈现它，
@@ -3272,13 +3267,7 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
     const treatmentProjects = recordList(nonPharma.tcmTreatments);
     if (treatmentProjects.length > 0) {
       lines.push("", "### 中医治疗项目");
-      // 多个项目通常挂在同一个病机节点上（本例三项全部指向同一句病机）。逐块重印一遍，
-      // 医生就要把同一句读三遍——接入同一本去重账本，首个项目写全文，其后写短引用。
-      //
-      // 「治疗内容」也走同一本账本，而且**先于**「对应病机」登记：历史载荷里 treatmentContent
-      // 把病机原文内嵌在引号里（生成侧已在 tcm-treatment-capabilities.server.ts 停掉，但归档载荷
-      // 与既有快照仍是旧形态），先登记长句，紧随其后的病机行就会自动收敛成短引用。
-      // 同时，多个项目的 treatmentContent 常是逐字相同的目录级套话，重复行同样收敛。
+      // 重复的目录级治疗内容直接省略；对应病机则逐项写明真实文本，不用“同上述”占位。
       const treatmentPathogenesisLedger = createPathogenesisNarrativeLedger();
       const shownTreatmentContent = new Set<string>();
       for (const item of treatmentProjects) {
@@ -3295,6 +3284,7 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
         const hasGovernedProtocol = hasPatientSpecificProtocol || isClassTemplateOnly;
         const treatmentContent = markdownCell(item.treatmentContent);
         const target = markdownCell(item.targetPathogenesis);
+        const displayedTarget = treatmentPathogenesisLedger.claim(target) ? target : "";
         // 历史载荷的 treatmentContent 把本块自己的病机原文内嵌在引号里（生成侧已停，见
         // tcm-treatment-capabilities.server.ts），此时这行相对「方案状态 + 对应病机」两行不再携带
         // 新信息，整行省略而不是把同一句病机在同一张卡片里印两遍。新载荷不内嵌，照常呈现。
@@ -3306,10 +3296,8 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
           // 三态如实呈现（甲方 2026-08-10 ⑪）：此前只有两态，于是「命中病种模板」被写成
           // 「已有对应适应证的标准操作方案」，医生读不出它有没有按本例证型加减过。
           `- **方案状态**：${tcmTreatmentTailoringPresentation(item).status}`,
-          ...(contentEmbedsTarget ? [] : [`- **治疗内容**：${repeatedContent ? "同上述项目" : treatmentContent}`]),
-          `- **对应病机**：${treatmentPathogenesisLedger.claim(target)
-            ? target
-            : "同上述病机"}`,
+          ...(contentEmbedsTarget || repeatedContent ? [] : [`- **治疗内容**：${treatmentContent}`]),
+          ...(displayedTarget ? [`- **对应病机**：${displayedTarget}`] : []),
           ...(sites ? [hasGovernedProtocol
             ? hasPatientSpecificProtocol
               ? `- **${tcmTreatmentTailoringPresentation(item).pointsLabel}**：${sites}`

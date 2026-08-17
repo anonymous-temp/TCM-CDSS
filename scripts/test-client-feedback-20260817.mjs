@@ -283,12 +283,15 @@ const mahuangHerbs = [
     "M03 医生可见输出净化后必须再次清理总体病机与病机联系中的事实状态模板",
   );
   const diagnosisClient = readFileSync(path.join(repoRoot, "src/app/diagnosis/DiagnosisClient.tsx"), "utf8");
-  assert.doesNotMatch(diagnosisClient, /对应病机：同上述病机推理/);
+  assert.doesNotMatch(diagnosisClient, /同上述(?:病机|项目)|同总体病机/);
   assert.doesNotMatch(diagnosisClient, /SummaryLine label="联用\/替代关系"/);
   assert.match(diagnosisClient, /const pathogenesisDisplay = step\.pathogenesis/,
     "每个子病机必须显示自己的病机演变，不得因去重把子病机2留空");
   assert.match(diagnosisClient, /!\["症状依据", "体征依据", "依据"\]\.includes\(group\.label\)/,
     "医生页面必须删除症状依据和体征依据分组");
+  const visibleSummary = readFileSync(path.join(repoRoot, "src/lib/diagnosis-visible-summary.ts"), "utf8");
+  assert.doesNotMatch(visibleSummary, /同上述(?:病机|项目)|同总体病机/,
+    "医生可见 Markdown 也不得用跨段占位替代真实病机或治疗内容");
 }
 
 // 8. 「精神饮食尚可、二便调」是一般状态，不得给急性上呼吸道感染凑支持依据。

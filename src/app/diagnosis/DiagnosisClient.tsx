@@ -4634,6 +4634,10 @@ function ResultTabsV2({
   // （见 diagnosis-visible-summary 的同名处理）。账本在组件体内新建、随渲染顺序消费；
   // 不得提升到模块作用域——跨次渲染累积会把首次出现也判成重复，页面上就再没有病机原文了。
   const modificationLedger = createPathogenesisNarrativeLedger();
+  const modificationCells = (formula?.modifications || []).map((item) => ({
+    target: modificationLedger.claim(item.targetPathogenesis) ? item.targetPathogenesis : "",
+    reason: item.reason || "",
+  }));
   const treatmentProjectLedger = createPathogenesisNarrativeLedger();
   const shownTreatmentContent = new Set<string>();
   const treatmentProjectCells = (reasoning.nonPharma?.tcmTreatments || []).map((item) => {
@@ -4645,8 +4649,9 @@ function ResultTabsV2({
     const repeatedContent = Boolean(content) && shownTreatmentContent.has(content);
     if (content) shownTreatmentContent.add(content);
     return {
-      content: contentEmbedsTarget ? "" : (repeatedContent ? "同上述项目" : content),
-      target: treatmentProjectLedger.claim(target) ? target : "同上述病机",
+      // 重复内容直接省略；不要用跨段短引用让医生来回寻找上文。
+      content: contentEmbedsTarget || repeatedContent ? "" : content,
+      target: treatmentProjectLedger.claim(target) ? target : "",
     };
   });
   const hasExplicitNonDoseResult = hasExplicitNonDosePrescriptionResult(caseState, Boolean(firstCandidate));
@@ -5307,15 +5312,22 @@ function ResultTabsV2({
                   {/* 多条加减常挂在同一个病机上；与服务端 Markdown 共用同一本去重账本，
                       本节内的病机原文只完整写一次（甲方评测 2026-08-04 第 3 条）。 */}
                   <div className="mt-2 space-y-2">
-                    {(formula.modifications || []).map((item, index) => (
+                    {(formula.modifications || []).map((item, index) => {
+                      const cell = modificationCells[index];
+                      return (
                       <div key={`${item.trigger}-${index}`} className="rounded-lg border bg-white p-3 text-xs leading-relaxed text-gray-700">
                         <p><span className="font-semibold text-gray-950">{item.trigger}：</span>{item.action}{item.doseOrHandling ? `（${item.doseOrHandling}）` : ""}</p>
-                        <p className="mt-1"><span className="font-semibold text-gray-900">对应病机：</span>{clinicalSentence([modificationLedger.claim(item.targetPathogenesis) ? item.targetPathogenesis : "同上述病机", item.reason], "；")}</p>
+                        {cell.target && (
+                          <p className="mt-1"><span className="font-semibold text-gray-900">对应病机：</span>{clinicalSentence([cell.target, cell.reason], "；")}</p>
+                        )}
+                        {!cell.target && cell.reason && (
+                          <p className="mt-1"><span className="font-semibold text-gray-900">加减理由：</span>{cell.reason}</p>
+                        )}
                         {/* 甲方 UI 决策：不再逐条渲染「触发依据」（整段现病史原文逐条重复）与
                             「采用前」（每条同一句审方套话）——加减依据已并入对应病机行，
                             重新审方的要求由本节副标题一次性说明。 */}
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </div>
               ) : null}
@@ -5472,7 +5484,9 @@ function ResultTabsV2({
                 {treatmentProjectCells[index].content && (
                   <p className="mt-2"><span className="font-medium text-gray-900">治疗内容：</span>{treatmentProjectCells[index].content}</p>
                 )}
-                <p className="mt-2"><span className="font-medium text-gray-900">对应病机：</span>{treatmentProjectCells[index].target}</p>
+                {treatmentProjectCells[index].target && (
+                  <p className="mt-2"><span className="font-medium text-gray-900">对应病机：</span>{treatmentProjectCells[index].target}</p>
+                )}
                 {item.suggestedSitesOrPoints.length > 0 && (
                   <p className="mt-1">
                     <span className="font-medium text-gray-900">
