@@ -158,6 +158,7 @@
     "regress:customer-cases": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-customer-test-cases.mjs",
     "regress:tcm-cdss": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-tcm-cdss.mjs",
     "regress:customer-review-20260810": "node scripts/regress-customer-review-20260810-live.mjs",
+    "regress:client-feedback-20260817": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-client-feedback-20260817-live.mjs",
     "regress:prod-auth-surface": "node scripts/regress-prod-auth-surface.mjs",
     "regress:quality-flow": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-quality-flow.mjs",
     "regress:quality-deep": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-quality-deep.mjs",
