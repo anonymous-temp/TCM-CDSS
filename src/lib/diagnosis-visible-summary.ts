@@ -1446,7 +1446,8 @@ function formulaAnalysisIsGroundedInCandidate(text: string, candidateHerbs: read
   const own = new Set(candidateHerbs.map((name) => name.replace(/\s+/g, "")));
   let mentioned = 0;
   for (const name of own) if (name && text.includes(name)) mentioned += 1;
-  if (mentioned < Math.min(2, own.size)) return false;
+  const requiredCoverage = Math.max(2, Math.ceil(own.size * 0.8));
+  if (mentioned < Math.min(requiredCoverage, own.size)) return false;
   // 扫出文中所有受治理药名，必须全部属于本方。窗口 2–4 字覆盖绝大多数饮片名。
   for (let index = 0; index < text.length; index += 1) {
     for (let width = 4; width >= 2; width -= 1) {
