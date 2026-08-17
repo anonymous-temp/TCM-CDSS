@@ -4266,7 +4266,6 @@ function MedicinePlanCards({ section, nonDrugSection }: { section?: string; nonD
           const position = getTableCell(table, row, ["用药定位"]);
           const issue = getTableCell(table, row, ["对应问题"]);
           const evidence = getTableCell(table, row, ["证据依据", "依据"]);
-          const relation = getTableCell(table, row, ["联用/替代关系", "联用", "替代"]);
           const risk = getTableCell(table, row, ["风险提示"]);
 
           return (
@@ -4280,7 +4279,6 @@ function MedicinePlanCards({ section, nonDrugSection }: { section?: string; nonD
                   </div>
                   <p className="mt-1 text-xs text-gray-500">{[spec, usage, course].filter(Boolean).join(" · ")}</p>
                 </div>
-                {relation && <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">{relation}</span>}
               </div>
               <div className="mt-3 grid gap-2 text-xs leading-relaxed text-gray-700 md:grid-cols-2">
                 {position && <p><span className="font-semibold text-gray-900">存在意义：</span>{position}</p>}
@@ -4336,7 +4334,7 @@ function StructuredMedicinePlanCards({ candidates }: {
               {item.recommendationMode === "discussion_only" ? "仅供讨论" : "候选需复核"}
             </span>
           </div>
-          {/* 甲方 UI 决策：展示医生实际要看的主信息——适应症、用法用量、风险提示、联用关系；
+          {/* 甲方 UI 决策：展示医生实际要看的主信息——适应症、用法用量、风险提示；
               「候选定位/使用边界」类定位话术与「外部参考资料核验」块不再呈现。
               用法用量来自结构化字段（途径/单次量/频次/疗程），缺项自然省略。 */}
           <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -4349,7 +4347,6 @@ function StructuredMedicinePlanCards({ candidates }: {
               tone="blue"
             />
             <SummaryLine label="风险提示" value={item.riskNote} tone="amber" />
-            <SummaryLine label="联用/替代关系" value={item.relationship} tone="gray" />
           </div>
         </div>
       ))}
@@ -4626,7 +4623,6 @@ function ResultTabsV2({
   void HerbModificationWorkbench;
   // F3（甲方反馈：西医支持依据罗列病历、冗余）：默认只展示前 4 条且每条约 60 字截断，
   // 展开后显示全部完整内容。仅展示层状态，不改结构化载荷。Hook 须在下方 early return 之前调用。
-  const [westernFactsExpanded, setWesternFactsExpanded] = useState(false);
   const reasoning = mergeReasoningStages(diagnoseReasoningFromState(caseState), prescribeReasoningFromState(caseState)) || caseState.reasoningV2;
   if (!reasoning) return null;
 
@@ -4714,19 +4710,6 @@ function ResultTabsV2({
   // 用药史因此都被印成症状。服务端 Markdown 一直传着（diagnosis-visible-summary.ts:2696），
   // 只有这个出口没传：又一次「同一判据两处各写各的」。
   const westernEvidence = classifyWesternDiagnosticEvidence(reasoning.westernDiagnosis.primary, westernFactSources);
-  const westernSupportingFactsAll = prioritizeWesternEvidenceForDisplay(
-    westernEvidence.supporting,
-    Math.max(1, westernEvidence.supporting.length),
-  );
-  // 折叠只作用于**症状依据**这一组：它是最长的一组，也是甲方 F3 反馈的那一组。
-  // 体征/检查/排除各自照常全量呈现，且不再被这一组重复印一遍。
-  const westernSymptomFactsAll = westernSupportingFactsAll
-    .filter((fact) => westernEvidence.symptom.some((item) => item === fact || item.includes(fact) || fact.includes(item)));
-  const westernSymptomFactsDisplay = westernFactsExpanded
-    ? westernSymptomFactsAll
-    : westernSymptomFactsAll.slice(0, 4).map((fact) => truncateClinicalTextForDisplay(fact, 60));
-  const westernFactsCollapsible = westernSymptomFactsAll.length > 4 ||
-    westernSymptomFactsAll.slice(0, 4).some((fact) => fact.trim().length > 60);
   // 分组与标题走**服务端同一个投影函数**（2026-08-11）。
   //
   // 甲方 2026-08-10 要求把笼统的「支持依据 / 待查依据」改成分类呈现，那次只改了服务端 Markdown，
@@ -4740,11 +4723,11 @@ function ResultTabsV2({
     // 根因就在这里：westernSupportingFactsAll 是全部支持依据（含体征、检查），
     // 被当成 symptom 传进来，于是每一条体征依据都被印两遍。
     // 折叠/截断仍然只作用在症状那一组（下面的展开按钮也只挂在它上面）。
-    { ...westernEvidence, symptom: westernSymptomFactsDisplay },
+    westernEvidence,
     // 甲方线上实测：「指南引用要能点开看原文」。url 一直在载荷里、服务端 Markdown 也一直在印，
     // 只有这里在拼展示串时把第三段丢了——同一份数据两个出口各写各的。现在共用同一个投影。
     (reasoning.westernDiagnosis.primary.guidelineReferences || []).map(guidelineReferenceDisplay),
-  );
+  ).filter((group) => !["症状依据", "体征依据", "依据"].includes(group.label));
   // When the chain stopped at prescribe/assess, the failed stage keeps its own section with the
   // actual failure reason and an in-panel retry; downstream sections must not pretend to have run.
   const failedStage = caseState.phase === "error" && caseState.lastError ? caseState.lastError.phase : undefined;
@@ -4832,16 +4815,6 @@ function ResultTabsV2({
                       </span>
                     )
                   ))}
-                  {(group.label === "症状依据" || group.label === "依据") && westernFactsCollapsible && (
-                    <button
-                      type="button"
-                      onClick={() => setWesternFactsExpanded((value) => !value)}
-                      aria-expanded={westernFactsExpanded}
-                      className="rounded-md border border-blue-200 bg-white px-2 py-1 text-[11px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
-                    >
-                      {westernFactsExpanded ? "收起依据" : `展开全部依据（${westernSymptomFactsAll.length}）`}
-                    </button>
-                  )}
                 </div>
               </div>
             ))}
@@ -5064,7 +5037,7 @@ function ResultTabsV2({
                   <p className="text-[11px] font-bold text-gray-500">子病机与对应治法</p>
                   {chain.map((step, index) => {
                     // 与上方同一本账本：本区里已完整呈现过的病机不再重复，只保留节点特有的部分。
-                    const pathogenesisDisplay = pathogenesisLedger.claim(step.pathogenesis) ? step.pathogenesis : "";
+                    const pathogenesisDisplay = step.pathogenesis;
                     const relatedClusterFacts = symptomClusters
                       .filter((cluster) => {
                         const mechanism = clinicalEvidenceFingerprint(cluster.mechanism);
@@ -5130,27 +5103,16 @@ function ResultTabsV2({
             <SummaryLine label="治则" value={reasoning.therapy.overallPrinciple || summary.treatmentPrinciple} tone="green" />
             <SummaryLine label="总治法" value={reasoning.therapy.overallMethod || reasoning.overview.overallTherapy} tone="blue" />
           </div>
-          {reasoning.therapy.subTherapies.length > 0 && (() => {
-            // 甲方评测(2026-08-04) 第 3 条「病机内容仍存在重复」在**客户端**的最后一处来源：
-            // 本卡片的「对应病机」与上方病机推理区的子病机卡片逐字相同（实测 1340 份归档产出中
-            // 占 18%），医生在同一页把同一句病机读两遍。子病机卡片已有去重（pathogenesisDisplay），
-            // 唯独这里没有。改为共用服务端同一份去重账本，两条渲染路径不再各写一套判据。
-            const ledger = createPathogenesisNarrativeLedger();
-            ledger.claim(reasoning.overview.overallPathogenesis);
-            for (const step of reasoning.pathogenesis?.chain || []) ledger.claim(step.pathogenesis);
-            return (
+          {reasoning.therapy.subTherapies.length > 0 && (
               <div className="grid gap-2 md:grid-cols-2">
                 {reasoning.therapy.subTherapies.map((item, index) => (
                   <div key={`${item.therapy}-${index}`} className="rounded-lg border bg-gray-50 p-3 text-xs leading-relaxed text-gray-700">
                     <p className="font-semibold text-gray-950">{item.priority === "主要" ? "主要治法" : "兼顾治法"}：{item.therapy}</p>
-                    {ledger.claim(item.targetPathogenesis)
-                      ? <p className="mt-1">对应病机：{item.targetPathogenesis}</p>
-                      : <p className="mt-1 text-gray-500">对应病机：同上述病机推理</p>}
+                    {isDisplayableClinicalText(item.targetPathogenesis) && <p className="mt-1">对应病机：{item.targetPathogenesis}</p>}
                   </div>
                 ))}
               </div>
-            );
-          })()}
+          )}
         </div>
       </SchemeSection>
 

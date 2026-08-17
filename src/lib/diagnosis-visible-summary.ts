@@ -1495,16 +1495,14 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
       const authoredHerbs = herbs.map((herb) => markdownCell(herb.name)).filter(Boolean);
       if (authored && formulaAnalysisIsGroundedInCandidate(authored, authoredHerbs)) {
         candidate.formulaAnalysis = authored;
-      } else if (recordList(candidate.compositionLogic).some((item) =>
-        isDisplayableClinicalText(markdownCell(item.summary)))) {
-        // 已锁经典方优先采用受治理组成逻辑。它描述的是本方配伍关系，强于逐味功效拼接，
-        // 也不会把「需医生结合方义复核」占位句重新拼回医生页面。
-        candidate.formulaAnalysis = recordList(candidate.compositionLogic)
-          .map((item) => markdownCell(item.summary))
-          .filter(isDisplayableClinicalText)
-          .join("；");
       } else if (analysis) {
         candidate.formulaAnalysis = analysis;
+      } else {
+        const compositionAnalysis = recordList(candidate.compositionLogic)
+          .map((item) => markdownCell(item.summary))
+          .filter(isDisplayableClinicalText)
+          .filter((value) => !/(?:受控目录组成|目录来源|方证定位|进入处方编译|逐项核对患者事实)/.test(value));
+        if (compositionAnalysis.length > 0) candidate.formulaAnalysis = compositionAnalysis.join("；");
       }
     }
     return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
@@ -2303,10 +2301,10 @@ const NON_STANDARD_SYMPTOM_QUALIFIER =
  * Keep the signed Western diagnosis label unchanged for review and downstream contracts, while
  * presenting governed symptom-level labels as an explicit working diagnosis to clinicians.
  *
- * 甲方评测(2026-08-04) 1.1.2：统一为规范诊断名；病因不足时用「X，病因待查」。
- * 两步都在这里完成，它是医生可见标签的唯一权威（Markdown 摘要、客户端诊断卡、HIS 方案共用）：
+ * 医生可见标签只显示规范诊断核心名；不确定性由 status/confidence/limitations 表达，
+ * 不再给每个症状级标签统一追加「病因待查」。它是医生可见标签的唯一权威：
  *   1) 有 ICD-10 编码时以**编码名称**为规范诊断名（编码由服务端确定性关联，不是模型措辞）；
- *   2) 症状级限定统一收敛成「，病因待查」——甲方指定的形态，不再用括注。
+ *   2) 症状性/待查等限定从展示名剥离，签名载荷仍保留原始不确定性语义。
  * 签名载荷里的 primary.name 原样保留，复核与下游契约不变。
  */
 export function westernDiagnosisLabelForDisplay(value: unknown, coding?: unknown): string {
@@ -2320,7 +2318,7 @@ export function westernDiagnosisLabelForDisplay(value: unknown, coding?: unknown
   const standardCore = codingDisplay && (codingDisplay === core || core.includes(codingDisplay))
     ? codingDisplay
     : core;
-  return qualifier ? `${standardCore}，病因待查` : standardCore;
+  return standardCore;
 }
 
 function documentedMaterialFacts(clinicalContext: string): string[] {
@@ -3243,12 +3241,12 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
     lines.push(
       "",
       `## ${clinicalOutputLabel("M04-patent-western", "中成药/西药候选")}`,
-      "| 类型 | 药品 | 规格 | 建议层级 | 用药定位 | 对应问题 | 参考文献 | 联用/替代关系 | 风险提示 |",
-      "|---|---|---|---|---|---|---|---|---|",
+      "| 类型 | 药品 | 规格 | 建议层级 | 用药定位 | 对应问题 | 参考文献 | 风险提示 |",
+      "|---|---|---|---|---|---|---|---|",
       ...patentAndWestern.map((item) => {
         const itemEvidence = recordValue(item.evidence);
         const level = item.recommendationMode === "discussion_only" ? "仅供讨论（无剂量）" : "说明书绑定候选（无剂量）";
-        return `| ${markdownCell(item.type)} | ${markdownCell(item.name)} | ${markdownCell(item.specification) || "—"} | ${level} | ${markdownCell(item.positioning)} | ${markdownCell(item.correspondingProblem)} | ${markdownCell(itemEvidence?.source)} | ${markdownCell(item.relationship)} | ${markdownCell(item.riskNote)} |`;
+        return `| ${markdownCell(item.type)} | ${markdownCell(item.name)} | ${markdownCell(item.specification) || "—"} | ${level} | ${markdownCell(item.positioning)} | ${markdownCell(item.correspondingProblem)} | ${markdownCell(itemEvidence?.source)} | ${markdownCell(item.riskNote)} |`;
       }),
     );
   } else if (medicineCandidateStatus?.status === "no_evidence_match" && isDisplayableClinicalText(markdownCell(medicineCandidateStatus.reason))) {

@@ -340,7 +340,7 @@ check("② Markdown 的证候依据必须走与卡片同一个排序谓词", () 
 
 // ── ③ 西医诊断标签的唯一权威 ───────────────────────────────────────────────────
 check("③ 非规范括注写法必须被同一个权威收敛（HIS 与页面同口径）", () => {
-  assert.equal(westernDiagnosisLabelForDisplay("头痛（症状性）"), "头痛，病因待查");
+  assert.equal(westernDiagnosisLabelForDisplay("头痛（症状性）"), "头痛");
   assert.equal(
     westernDiagnosisLabelForDisplay("急性上呼吸道感染", { system: "ICD-10", code: "J06.900", display: "急性上呼吸道感染" }),
     "急性上呼吸道感染",

@@ -159,6 +159,15 @@ const mahuangHerbs = [
   const analyzed = unwrap(applyDeterministicFormulaAnalysis(wrap(enriched))).formula.candidates[0].formulaAnalysis;
   assert.doesNotMatch(analyzed, /具体配伍作用需医生结合方义复核/);
   assert.match(analyzed, /麻黄.*桂枝.*杏仁.*甘草/s);
+  const metadataOnly = structuredClone(enriched);
+  metadataOnly.formula.candidates[0].formulaAnalysis = "";
+  metadataOnly.formula.candidates[0].compositionLogic = [{
+    formulaName: "麻黄汤",
+    summary: "受控目录组成：麻黄、桂枝、杏仁、甘草。目录来源为《伤寒论》；方证定位为太阳伤寒，仍须逐项核对患者事实后才能进入处方编译。",
+  }];
+  const rebuilt = unwrap(applyDeterministicFormulaAnalysis(wrap(metadataOnly))).formula.candidates[0].formulaAnalysis;
+  assert.doesNotMatch(rebuilt, /受控目录组成|目录来源|方证定位|进入处方编译/);
+  assert.match(rebuilt, /麻黄.*桂枝.*杏仁.*甘草/s, "目录治理元数据不得再冒充方义，应回落到逐味君臣佐使分析");
 }
 
 // 5. 本例是感冒·风寒束表，不满足已治理的「普通咳嗽·风寒袭肺」模板；评估态宁可不列穴，
@@ -273,6 +282,13 @@ const mahuangHerbs = [
     /transformOutput[\s\S]*applyDeterministicTreatmentPrinciple\([\s\S]*applyM03KeySyndromeDiscriminatorsToContent/,
     "M03 医生可见输出净化后必须再次清理总体病机与病机联系中的事实状态模板",
   );
+  const diagnosisClient = readFileSync(path.join(repoRoot, "src/app/diagnosis/DiagnosisClient.tsx"), "utf8");
+  assert.doesNotMatch(diagnosisClient, /对应病机：同上述病机推理/);
+  assert.doesNotMatch(diagnosisClient, /SummaryLine label="联用\/替代关系"/);
+  assert.match(diagnosisClient, /const pathogenesisDisplay = step\.pathogenesis/,
+    "每个子病机必须显示自己的病机演变，不得因去重把子病机2留空");
+  assert.match(diagnosisClient, /!\["症状依据", "体征依据", "依据"\]\.includes\(group\.label\)/,
+    "医生页面必须删除症状依据和体征依据分组");
 }
 
 // 8. 「精神饮食尚可、二便调」是一般状态，不得给急性上呼吸道感染凑支持依据。

@@ -205,7 +205,7 @@ const scheme = buildScheme();
 check("I2 西医待查依据：limitations 与 suggestedChecks 分列且非空", () => {
   const detail = scheme.diagnoses.westernDetail;
   assert.ok(detail, "diagnoses.westernDetail 缺失");
-  assert.equal(detail.name, "头痛，病因待查");
+  assert.equal(detail.name, "头痛");
   assert.equal(detail.status, "考虑", "status 必须对外给出，否则 HIS 无法区分「考虑」与「需排除」");
   assert.ok(detail.limitations.length >= 2, "资料限制未投出");
   assert.ok(detail.suggestedChecks.length >= 2, "建议检查未投出");
@@ -215,7 +215,7 @@ check("I2 西医待查依据：limitations 与 suggestedChecks 分列且非空",
 
 // —— 甲方 I2.4 根因：诊断三卡的 markdown 内容不得为空 ——
 check("I2.4 诊断三卡内容非空（标题改名不得让 HIS 卡片恒空）", () => {
-  assert.ok(scheme.diagnoses.western[0].content.includes("头痛，病因待查"),
+  assert.ok(scheme.diagnoses.western[0].content.includes("头痛"),
     `西医诊断卡为空或未含主诊断名：${JSON.stringify(scheme.diagnoses.western[0].content)}`);
   assert.ok(scheme.diagnoses.tcmPatterns[0].content.includes("气血两虚证"),
     `中医证候卡为空：${JSON.stringify(scheme.diagnoses.tcmPatterns[0].content)}`);

@@ -165,15 +165,15 @@ check(() => {
 // 1.1.2 诊断名规范化：非规范括注后缀一律收敛为「X，病因待查」
 // ─────────────────────────────────────────────────────────────────────────────
 for (const [raw, expected] of [
-  ["头痛（症状性）", "头痛，病因待查"],   // ← 生产实测原文
-  ["头痛(症状性)", "头痛，病因待查"],
-  ["头痛症状", "头痛，病因待查"],
-  ["头痛（待查）", "头痛，病因待查"],
-  ["头痛（病因待查）", "头痛，病因待查"],
-  ["头痛（病因待鉴别）", "头痛，病因待查"],
-  ["头痛待因", "头痛，病因待查"],
-  ["尿路感染（症状性）", "尿路感染，病因待查"],
-  ["三叉神经痛（症状性）", "三叉神经痛，病因待查"],
+  ["头痛（症状性）", "头痛"],
+  ["头痛(症状性)", "头痛"],
+  ["头痛症状", "头痛"],
+  ["头痛（待查）", "头痛"],
+  ["头痛（病因待查）", "头痛"],
+  ["头痛（病因待鉴别）", "头痛"],
+  ["头痛待因", "头痛"],
+  ["尿路感染（症状性）", "尿路感染"],
+  ["三叉神经痛（症状性）", "三叉神经痛"],
 ]) {
   check(() => assert.equal(westernDiagnosisLabelForDisplay(raw), expected, `${raw} → ${expected}`));
 }
@@ -186,7 +186,7 @@ check(() => assert.equal(westernDiagnosisLabelForDisplay(null), "", "非字符�
 // 有 ICD-10 编码时以编码名称为规范诊断名（编码由服务端确定性关联，不是模型措辞）。
 check(() => assert.equal(
   westernDiagnosisLabelForDisplay("头痛（症状性）", { code: "R51.x00", display: "头痛" }),
-  "头痛，病因待查",
+  "头痛",
 ));
 // 编码歧义（编码名称与本标签核心不同）时不得改写诊断。
 check(() => assert.equal(
@@ -198,7 +198,7 @@ check(() => {
   const withNonStandard = structuredClone(M03);
   withNonStandard.westernDiagnosis.primary.name = "头痛（症状性）";
   const visible = visibleOf(withNonStandard, "diagnose", CONTEXT);
-  assert.ok(visible.includes("**诊断倾向**：头痛，病因待查"), "医生可见行必须是规范形态");
+  assert.ok(visible.includes("**诊断倾向**：头痛"), "医生可见行必须只显示诊断核心名");
   assert.ok(!visible.includes("（症状性）"), "「（症状性）」不得出现在医生可见正文");
 });
 

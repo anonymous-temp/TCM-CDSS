@@ -109,9 +109,10 @@ check("③ 医生页面不得用全量支持依据覆盖某一个分组", () => 
     !/symptom:\s*westernSupportingFactsDisplay/.test(source),
     "页面又把全量支持依据当成「症状依据」传进分组投影了——每条体征依据都会被印两遍",
   );
+  assert.ok(!source.includes("westernSymptomFactsDisplay"), "医生页不再渲染症状依据折叠列表");
   assert.ok(
-    /symptom:\s*westernSymptomFactsDisplay/.test(source),
-    "「症状依据」必须来自分类后的症状子集",
+    source.includes('.filter((group) => !["症状依据", "体征依据", "依据"].includes(group.label))'),
+    "医生页必须删除症状依据与体征依据分组，仅保留检查/排除/指南等必要信息",
   );
 });
 
