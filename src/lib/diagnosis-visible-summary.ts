@@ -2867,7 +2867,7 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
     ? deferred.names.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];
   if (names.length === 0) return [];
-  return [`**未锁定经典方方向**：本次分析曾检索到 ${names.map(markdownCell).join("、")}，但该方与本例签名证候尚无受治理的直接对应关系，因此未予锁定为候选处方；仅供医生进行方证鉴别。`];
+  return [`**未锁定经典方方向**：本次分析曾检索到 ${names.map(markdownCell).join("、")}，但该方与本例签名证候尚无可核验的直接对应关系，因此未予锁定为候选处方；仅供医生进行方证鉴别。`];
 }
 
   // 甲方评测(2026-08-03)要求鉴别诊断给到病名级：辨病鉴别(相邻中医病名)在前、证候鉴别在后，
