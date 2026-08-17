@@ -3454,7 +3454,11 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
     addAdvisory("syncope", "晕厥、黑矇或意识丧失相关信息需优先复核当前状态、诱因、伤情及心电风险");
   }
   if (
-    hasAnyTerm(text, [...FOCAL_NEUROLOGIC_TERMS, "昏迷", "昏睡", "嗜睡", "谵妄", "呼之不应", "抽搐", "惊厥"]) &&
+    hasAnyTerm(text, [
+      ...governedRedFlagCategory("neuro").symptoms,
+      ...FOCAL_NEUROLOGIC_TERMS,
+      "昏迷", "昏睡", "嗜睡", "谵妄", "呼之不应", "抽搐", "惊厥",
+    ]) &&
     !hasStablePostAcuteNeurologicContext(text) &&
     !hasOnlyStableResidualNeurologicDeficit(text)
   ) {
@@ -3466,7 +3470,13 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
   if (hasAnyTerm(text, ["咯血", "阴道流血", "外伤出血", "出血不止", "大量出血"])) {
     addAdvisory("bleeding", "出血相关表现需优先复核出血量、活动性及循环状态");
   }
-  if (hasAnyTerm(text, ["寒战"]) && (hasAnyTerm(text, ["高热", "发热"]) || (parseContextualTemperature(text) ?? 0) >= 38.5)) {
+  // sepsis.qualifiers = ['current','severe']：高热/寒战/感染单独出现在门诊过于常见，仍按合取，
+  // 这与 acute_abdomen 的「腹痛须带急性/严重限定」是同一条治理口径（见词表 governance.scopeNote：
+  // 不得做无差别笛卡尔积）。但「脓毒症」是**诊断级结论词**——与 shock 类目的「休克」同性质，
+  // 写进病历时本身就是结论，不应再要求叠加寒战+发热。受治理表没有「结论词」这个字段，
+  // 故在此显式二分而不是整表并入；同类判断另见本函数产科分支。
+  if ((hasAnyTerm(text, ["寒战"]) && (hasAnyTerm(text, ["高热", "发热"]) || (parseContextualTemperature(text) ?? 0) >= 38.5))
+    || hasAnyTerm(text, ["脓毒症"])) {
     addAdvisory("sepsis", "发热伴寒战需优先复核意识、循环、感染灶及脓毒症风险");
   }
   if (hasAbdominalPrioritySignal(text)) {
@@ -3482,20 +3492,36 @@ export function narrativeFallbackAdvisories(state: CaseState): string[] {
     addAdvisory("poisoning", "可疑中毒或药物过量需立即核实物质、剂量、时间、意识及呼吸循环状态");
   }
   const glucose = text.match(/(?:血糖|GLU)\s*[:：]?\s*(\d+(?:\.\d+)?)/i)?.[1];
-  if ((glucose != null && Number(glucose) < 3) || hasAnyTerm(text, ["严重低血糖", "低血糖昏迷"])) {
+  if ((glucose != null && Number(glucose) < 3)
+    || hasAnyTerm(text, [...governedRedFlagCategory("metabolic").symptoms, "低血糖昏迷"])) {
     addAdvisory("metabolic", "严重低血糖或代谢异常线索需立即复测，并优先评估意识与循环状态");
   }
-  if (hasAnyTerm(text, ["妊娠", "怀孕", "孕早期", "早孕"]) &&
-      hasAnyTerm(text, ["腹痛", "阴道流血", "头晕", "晕厥"])) {
-    addAdvisory("obstetric", "妊娠相关腹痛、出血或循环症状需优先排除产科急症");
+  // 产科是本函数里唯一不能整表并入的一类：受治理 obstetric.symptoms 中
+  // 「妊娠出血」「孕期阴道出血」**自带妊娠限定**，可独立成立；「剧烈下腹痛」不带——
+  // 整表并入会把非孕患者的剧烈下腹痛判成产科急症（它已由 acute_abdomen 承接）。
+  // 故按「是否自带妊娠限定」二分：自带的独立成立，不自带的仍与妊娠上下文合取。
+  {
+    const obstetric = governedRedFlagCategory("obstetric");
+    const pregnancyQualified = obstetric.symptoms.filter((term) => /妊娠|孕|产/.test(term));
+    const needsPregnancyContext = obstetric.symptoms.filter((term) => !/妊娠|孕|产/.test(term));
+    if (
+      hasAnyTerm(text, pregnancyQualified) ||
+      (hasAnyTerm(text, ["妊娠", "怀孕", "孕早期", "早孕", "孕期"]) &&
+        hasAnyTerm(text, ["腹痛", "阴道流血", "头晕", "晕厥", ...needsPregnancyContext, ...obstetric.dangerCompanions]))
+    ) {
+      addAdvisory("obstetric", "妊娠相关腹痛、出血或循环症状需优先排除产科急症");
+    }
   }
-  if (hasAnyTerm(text, ["全身冰冷", "四肢冰冷", "少尿", "无尿", "意识模糊"])) {
+  if (hasAnyTerm(text, [...governedRedFlagCategory("shock").symptoms,
+    "全身冰冷", "四肢冰冷", "少尿", "无尿", "意识模糊"])) {
     addAdvisory("shock", "循环灌注异常线索需立即复核血压、意识、尿量及末梢循环");
   }
-  if (hasAnyTerm(text, ["风团", "荨麻疹", "脸肿", "喉紧", "喉头肿胀", "声音嘶哑"])) {
+  if (hasAnyTerm(text, [...governedRedFlagCategory("anaphylaxis").symptoms,
+    "风团", "荨麻疹", "脸肿", "喉紧", "喉头肿胀", "声音嘶哑"])) {
     addAdvisory("anaphylaxis", "严重过敏或气道受累线索需立即复核气道、呼吸和循环");
   }
-  if (hasAnyTerm(text, ["发绀", "精神萎靡", "反应差", ...PEDIATRIC_DETECTION.colloquialCriticalSigns]) && isPediatricPatient(state)) {
+  if (hasAnyTerm(text, [...governedRedFlagCategory("pediatric_critical").symptoms,
+    "发绀", "精神萎靡", "反应差", ...PEDIATRIC_DETECTION.colloquialCriticalSigns]) && isPediatricPatient(state)) {
     addAdvisory("pediatric_critical", "儿童全身危重表现需立即复核呼吸、循环、意识及脱水状态");
   }
   return Array.from(new Set(advisories));
