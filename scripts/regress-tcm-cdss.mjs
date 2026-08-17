@@ -74,6 +74,13 @@ function assert(condition, message, details) {
   }
 }
 
+// 源码级断言按**折叠空白后**比对：调用被格式化成多行时，逐字匹配会给出与语义无关的失败。
+// 2026-08-17 实测：prescribe 路由里 m03SafetyContractIssue(...) 被换行成两行，
+// 于是「stage contract」与「M04 route」两条长期报红——语义完全正确，红的只是排版。
+// 黄金基线红成噪声比它漏检更危险：本轮排查时，这两条差点被算成新引入的回归。
+const collapse = (text) => String(text || "").replace(/\s+/g, "");
+const codeIncludes = (haystack, needle) => collapse(haystack).includes(collapse(needle));
+
 function sourceBetween(source, startMarker, endMarker) {
   const start = source.indexOf(startMarker);
   if (start < 0) return "";
@@ -268,7 +275,7 @@ function runFrontendContractChecks() {
 
   // 22f5d000 起 prescribe 路由复检必须带 isSafetyRejection 分级谓词（第7处受理/复检分叉的修复）；
   // 钉住带谓词的调用形态，防止有人把复检退回无谓词的全量拒绝口径。
-  assert(source.includes("hasExecutableM03Diagnosis") && !prescribeRoute.includes("hasActionableM03Diagnosis") && prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && limitedOutputHelpers.includes("isLimitedDiagnosisText"), "stage contract: current cases use signed structured M03 truth, while text detection is legacy-only", `${limitedOutputHelpers}\n${prescribeRoute.slice(0, 5000)}`);
+  assert(source.includes("hasExecutableM03Diagnosis") && !prescribeRoute.includes("hasActionableM03Diagnosis") && prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && codeIncludes(prescribeRoute, "m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && limitedOutputHelpers.includes("isLimitedDiagnosisText"), "stage contract: current cases use signed structured M03 truth, while text detection is legacy-only", `${limitedOutputHelpers}\n${prescribeRoute.slice(0, 5000)}`);
   assert(["建议", "补充", "补齐", "完善", "再", "处方", "证候锚点", "病机链"].every((token) => limitedOutputHelpers.includes(token)), "shared: limited M03 helper covers non-fixed information-insufficient phrasing variants", limitedOutputHelpers);
   const completeConclusionIndex = limitedOutputHelpers.indexOf("完整候选方案");
   const broadLimitedPhraseIndex = limitedOutputHelpers.indexOf("建议(?:先)?(?:补充|补齐|完善)");
@@ -426,7 +433,7 @@ function runFrontendContractChecks() {
     "model prompt: M03 and M04 each emit one JSON object while M04 remains an actionable minimal proposal for server compilation",
     `${m03ReasoningInstruction}\n${m04ProposalInstruction}`,
   );
-  assert(prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && prescribeRoute.includes("m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && !prescribeRoute.includes("hasActionableM03Diagnosis"), "M04 route: verifies the server-signed, patient-grounded structured M03 contract before dose-level prescribing", prescribeRoute.slice(0, 5600));
+  assert(prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && codeIncludes(prescribeRoute, "m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && !prescribeRoute.includes("hasActionableM03Diagnosis"), "M04 route: verifies the server-signed, patient-grounded structured M03 contract before dose-level prescribing", prescribeRoute.slice(0, 5600));
   assert(
     reasoningContractSignatureSource.includes('DIAGNOSE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m03-signature-v4"') &&
       reasoningContractSignatureSource.includes("clinicalInputHash") &&
