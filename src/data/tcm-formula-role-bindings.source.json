@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "tcm-formula-role-bindings-v1",
+  "governance": {
+    "scope": "仅对已锁定且来源一致的经典方恢复受治理君臣佐使与本方配伍作用；不用于自拟方，不改变剂量与安全门禁。",
+    "source": "经典方原典及甲方中医师复核"
+  },
+  "entries": [
+    {
+      "formulaName": "麻黄汤",
+      "source": "《伤寒论》",
+      "basis": "《伤寒明理论》载麻黄为君、桂枝为臣，甘草与杏仁为佐使；甲方8.5/8.11要求方义说明各药在本方中的实际配伍作用。",
+      "herbs": [
+        {
+          "acceptedNames": ["麻黄"],
+          "role": "君",
+          "prescriptionRole": "发汗解表，宣肺平喘，直治风寒表实",
+          "function": "发汗解表，宣肺平喘"
+        },
+        {
+          "acceptedNames": ["桂枝"],
+          "role": "臣",
+          "prescriptionRole": "助麻黄发汗解肌，温通营卫",
+          "function": "助麻黄发汗解肌，温通营卫"
+        },
+        {
+          "acceptedNames": ["杏仁", "苦杏仁"],
+          "role": "佐",
+          "prescriptionRole": "降肺气，助麻黄平喘",
+          "function": "降肺气，助麻黄平喘"
+        },
+        {
+          "acceptedNames": ["甘草", "炙甘草"],
+          "role": "使",
+          "prescriptionRole": "调和诸药，缓和麻桂发汗峻烈之性",
+          "function": "调和诸药，缓和麻桂发汗峻烈之性"
+        }
+      ]
+    }
+  ]
+}

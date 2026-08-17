@@ -79,7 +79,7 @@ for (const phrase of [
     ...out.pathogenesis.chain.map((item) => item.pathogenesis),
   ];
   assert.ok(clinicalMechanisms.every((value) => !/病历已记录/.test(value)), JSON.stringify(clinicalMechanisms));
-  assert.notMatch(out.therapy.overallPrinciple, /^(?:正治法?|治疗本病)$/u, "治则不得只给空泛类别");
+  assert.doesNotMatch(out.therapy.overallPrinciple, /^(?:正治法?|治疗本病)$/u, "治则不得只给空泛类别");
 }
 
 const mahuangHerbs = [
@@ -110,6 +110,9 @@ const mahuangHerbs = [
     formula: {
       candidates: [{
         name: "麻黄汤加减",
+        therapyMatch: "辛温解表，宣肺散寒",
+        applicable: "风寒束表证",
+        notApplicable: "风热、表虚自汗者不适用",
         herbs: structuredClone(mahuangHerbs),
         formulaAnalysis: "",
         compositionLogic: [{ formulaName: "麻黄汤", summary: "麻黄发汗解表为君，桂枝助麻黄解肌为臣，杏仁降肺气为佐，甘草调和并缓和峻烈为使。", tier: "common", sourceRefs: ["test"] }],

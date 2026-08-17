@@ -1014,6 +1014,19 @@ const PATHOGENESIS_NOT_ESTABLISHED =
 const PATHOGENESIS_NO_MECHANISM_NOTE = "（服务端提示：本栏未见病机要素，请医生核定是否需要补充病机推演）";
 
 /**
+ * 临床事实状态模板只能用于事实展示，不能混入病机结论。
+ * 保留同句中已经成立的病机，只切掉「病历已记录…阳性/阴性」这一事实尾巴。
+ */
+function stripEmbeddedClinicalFactStatus(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/(?:[，,；;]\s*)?病历已记录[^。；;\n]{1,120}(?:阳性|阴性)(?=[。；;\n]|$)[。；;]?/g, "")
+    .replace(/[，,；;。]+\s*$/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/**
  * 中医病名必须是**单一病名**，辨病推理不得是循环套话（2026-08-05，甲方 2.1）。
  *
  * 甲方实测输出：病名写成「头痛/头风病」，推理写成
@@ -1083,6 +1096,24 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
           `本次输出未给出「${diseaseName}」的实质辨病依据（原文为同义反复），请医生结合主症与病程形态自行核定病名。`;
       }
     }
+    const pathogenesis = recordValue(reasoning.pathogenesis);
+    if (overview && typeof overview.overallPathogenesis === "string") {
+      overview.overallPathogenesis = stripEmbeddedClinicalFactStatus(overview.overallPathogenesis);
+    }
+    if (pathogenesis) {
+      if (typeof pathogenesis.summary === "string") {
+        pathogenesis.summary = stripEmbeddedClinicalFactStatus(pathogenesis.summary);
+      }
+      const relationship = recordValue(pathogenesis.caseRelationship);
+      if (relationship && typeof relationship.relationship === "string") {
+        relationship.relationship = stripEmbeddedClinicalFactStatus(relationship.relationship);
+      }
+      for (const node of recordList(pathogenesis.chain)) {
+        if (typeof node.pathogenesis === "string") {
+          node.pathogenesis = stripEmbeddedClinicalFactStatus(node.pathogenesis);
+        }
+      }
+    }
     if (overview) {
       // 事实面与合同侧 m03SemanticIssue 取材一致，判据也一致。
       // recordList 只收**对象**数组（它对每一项跑 recordValue），字符串数组会被整个丢成 []。
@@ -1109,10 +1140,11 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
       }
     }
     const current = typeof therapy.overallPrinciple === "string" ? therapy.overallPrinciple.trim() : "";
-    // 只接管占位串与空值；模型自己写出的治则（「标本兼治」「急则治标」）原样保留。
-    if (current && !/^(?:暂不锁定剂量级治法|暂不锁定|待定|由服务端生成)$/.test(current)) return content;
+    // 只接管占位串、空值与无本例信息的泛化类别；模型自己写出的实质治则原样保留。
+    if (current && !/^(?:暂不锁定剂量级治法|暂不锁定|待定|由服务端生成|正治法?|反治法?|治疗本病)$/.test(current)) {
+      return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+    }
 
-    const pathogenesis = recordValue(reasoning.pathogenesis);
     const nature = recordValue(pathogenesis?.natureDifferentiation);
     const list = (value: unknown): string[] => (Array.isArray(value)
       ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
@@ -1125,7 +1157,13 @@ export function applyDeterministicTreatmentPrinciple(content: string): string {
     const hasDeficiency = root.length > 0 || items.some((item) => DEFICIENCY.test(item));
     const hasExcess = branch.length > 0 || items.some((item) => EXCESS.test(item) && !DEFICIENCY.test(item));
 
-    const principle = hasDeficiency && hasExcess
+    const hasCold = items.some((item) => /寒/.test(item)) && !items.some((item) => /热|火/.test(item));
+    const hasHeat = items.some((item) => /热|火/.test(item)) && !items.some((item) => /寒/.test(item));
+    const principle = hasCold
+      ? "寒者热之，温散祛邪"
+      : hasHeat
+        ? "热者寒之，清解祛邪"
+        : hasDeficiency && hasExcess
       ? "标本兼治，扶正祛邪"
       : hasDeficiency
         ? "扶正补虚，固本培元"
@@ -1457,6 +1495,14 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
       const authoredHerbs = herbs.map((herb) => markdownCell(herb.name)).filter(Boolean);
       if (authored && formulaAnalysisIsGroundedInCandidate(authored, authoredHerbs)) {
         candidate.formulaAnalysis = authored;
+      } else if (recordList(candidate.compositionLogic).some((item) =>
+        isDisplayableClinicalText(markdownCell(item.summary)))) {
+        // 已锁经典方优先采用受治理组成逻辑。它描述的是本方配伍关系，强于逐味功效拼接，
+        // 也不会把「需医生结合方义复核」占位句重新拼回医生页面。
+        candidate.formulaAnalysis = recordList(candidate.compositionLogic)
+          .map((item) => markdownCell(item.summary))
+          .filter(isDisplayableClinicalText)
+          .join("；");
       } else if (analysis) {
         candidate.formulaAnalysis = analysis;
       }
@@ -2821,7 +2867,7 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
     ? deferred.names.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
     : [];
   if (names.length === 0) return [];
-  return [`**待确认方名**：本次分析曾指向 ${names.map(markdownCell).join("、")}，因该方在治理目录中与本例签名证候尚无直接对应关系，服务端未予锁定；是否采用由医生结合方证判断。`];
+  return [`**未锁定经典方方向**：本次分析曾检索到 ${names.map(markdownCell).join("、")}，但该方与本例签名证候尚无受治理的直接对应关系，因此未予锁定为候选处方；仅供医生进行方证鉴别。`];
 }
 
   // 甲方评测(2026-08-03)要求鉴别诊断给到病名级：辨病鉴别(相邻中医病名)在前、证候鉴别在后，

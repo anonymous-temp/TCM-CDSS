@@ -1,5 +1,5 @@
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
-import { resolveAcupoint, selectAcupointsForCaseTerms } from "./tcm-acupoints";
+import { resolveAcupoint } from "./tcm-acupoints";
 import {
   TCM_TREATMENT_PROJECTS,
   getTcmTreatmentProjectDefinition,
@@ -122,14 +122,6 @@ const PROJECT_TAG_AFFINITY: Readonly<Partial<Record<TcmTreatmentProjectCode, Par
  * （生产实测 fixa-d1/d1b：耳穴方案里出现「神门（HT7·手少阴心经）」）。
  * 只对经穴体系的项目做标注；耳穴保持裸名，与"核验不到即保持原样"的既有约定一致。
  */
-function annotateGovernedAcupoint(projectCode: TcmTreatmentProjectCode, site: string): string {
-  if (projectCode === "auricular") return site;
-  const entry = resolveAcupoint(site);
-  if (!entry) return site;
-  const meridian = entry.meridian && entry.meridian !== entry.name ? `·${entry.meridian}` : "";
-  return `${site}（${entry.code}${meridian}）`;
-}
-
 /**
  * 本项目在本例上可成立的适应证，按**与本例的相关度**排序。
  * 排序只用于在同一个项目内部挑一个适应证；目录里的 indicationTags 仍是资格边界。
@@ -192,11 +184,6 @@ function indicationEvidenceTerms(tag: TcmTreatmentIndicationTag, caseFacts: stri
   if (!pattern || !caseFacts) return [];
   const scan = new RegExp(pattern.source, `${pattern.flags.replace(/g/g, "")}g`);
   return [...new Set([...caseFacts.matchAll(scan)].map((match) => match[0]).filter(Boolean))].slice(0, 3);
-}
-
-/** 经络腧穴类项目才按穴位主治选穴；耳穴、推拿、拔罐等自成定位体系，不套用经穴目录。 */
-function projectUsesMeridianAcupoints(projectCode: TcmTreatmentProjectCode): boolean {
-  return projectCode === "acupuncture" || projectCode === "moxibustion" || projectCode === "acupoint_application";
 }
 
 /**
@@ -478,71 +465,11 @@ function controlledTreatmentPlan(
   //
   // 安全边界一条未动:仍是证据层参考,executable=false 不变,补泻深度留针仍由现场医师定。
   // 主症取不到(病历太稀疏)时退回原有的模板高频池——不猜,不外推。
-  const caseTerms = acupointCaseTerms(clinicalText, caseFacts, targetPathogenesis);
-  // 先召回一个**更宽的候选池**再重排取 5（2026-08-11）。
-  // 取 5 之后再排序救不回列缺、风池：它们按「主治命中词个数」排不进前 5，
-  // 而它们恰恰是该病种受治理模板里的取穴。放宽的只是**候选池**，入选判据一字未松——
-  // 仍必须是教材主治命中本例已记录症状的穴。
-  const indicationMatched = projectUsesMeridianAcupoints(projectCode)
-    ? selectAcupointsForCaseTerms(caseTerms, 16)
-    : [];
-  const referencePointFrequency = new Map<string, number>();
-  for (const template of definition?.planTemplates || []) {
-    if (!tcmTreatmentTemplatePointsAreGoverned(template)) continue;
-    for (const point of template.sitesOrPoints) {
-      referencePointFrequency.set(point, (referencePointFrequency.get(point) || 0) + 1);
-    }
-  }
-  // 关键词召回**与受治理模板取穴取交集后重排**（甲方 2026-08-11 线上实测）。
-  //
-  // 实测：风寒咳嗽给出承灵、孔最、肩中俞，缺列缺、风池。根因是本例根本没走到治理模板——
-  // 针刺唯一含列缺/风池的呼吸类模板 matchAny 只有「流感/流行性感冒」，而运行时词表
-  // INDICATION_PATTERNS.respiratory 早已把「咳嗽/感冒」算作 respiratory，于是落进评估分支；
-  // 评估分支里关键词召回是唯一穴位来源，且无条件盖过模板穴位池。
-  // 而召回只按「本例症状词在主治串里出现的**个数**」排序：承灵命中 3 词压过列缺的 2 词，
-  // 孔最靠「热病无汗」这条**热病**主治在风寒例里入选。
-  //
-  // 修法不新增任何穴位：入选仍必须「教材主治命中本例已记录症状」这一条，
-  // 只是当**该适应证下的受治理模板也收了这个穴**时（两条证据同时成立）排在前面。
-  // 稳定排序，其余次序不动；「主治含X」标注与呈现口径一字未改。
-  // 只取**本适应证**下的受治理模板取穴。用全项目的模板池会把别的病种的穴拉进来——
-  // 实测：咳嗽例里「心俞」因为在不寐模板里、且腧穴主治恰好含「咳嗽」而被排到前面。
-  const governedTagPoints = new Set(
-    (definition?.planTemplates || [])
-      // 带闸门却**没通过闸门**的模板，它的穴位一个都不参与排序：闸门没过就是不适用，
-      // 让它的穴位在评估态里被优先呈现等于从后门把它端上来——实测 8 个月婴儿因此
-      // 在「常用穴位」里拿到中府、肺俞（小儿气胸风险穴）。
-      .filter((template) => !template.preciseSyndromeGate)
-      .filter((template) => (!tag || template.indicationTag === tag) && tcmTreatmentTemplatePointsAreGoverned(template))
-      // 命中了精确证型闸门但**尚未签字**的模板：它的取穴同样参与排序。
-      //
-      // 这一条刻意只影响**次序**，一个穴都不新增——入选判据仍是「教材主治命中本例已记录症状」。
-      // 理由：闸门是两把钥匙（当前咳嗽事实 + 已签名风寒袭肺）都对上才命中的，
-      // 拿它给**本来就够格**的穴排个先后，严格优于现在这个按「症状词命中个数」的排法
-      //（正是那个排法让承灵压过列缺、让「热病无汗」的孔最进了风寒例）。
-      // 而它不构成"启用未签字模板"：没有新增穴、没有给频次疗程、protocolStatus 仍是评估态，
-      // 待签字这件事另有 deferredGovernedTemplate 如实告知。
-      .concat(precise.deferred && tcmTreatmentTemplatePointsAreGoverned(precise.deferred.template)
-        ? [precise.deferred.template]
-        : [])
-      .flatMap((template) => template.sitesOrPoints)
-      .map((point) => point.replace(/（[^）]*）/g, "").trim()),
-  );
-  const rankedIndicationMatched = [...indicationMatched]
-    .map((item, index) => ({ item, index }))
-    .sort((left, right) => {
-      const leftGoverned = governedTagPoints.has(left.item.entry.name) ? 0 : 1;
-      const rightGoverned = governedTagPoints.has(right.item.entry.name) ? 0 : 1;
-      return leftGoverned - rightGoverned || left.index - right.index;
-    })
-    .map((entry) => entry.item)
-    .slice(0, 5);
-  const referenceCommonPoints = rankedIndicationMatched.length > 0
-    ? rankedIndicationMatched.map((item) => `${item.entry.name}（${item.entry.code}·主治含${item.matchedTerms.join("、")}）`)
-    : [...referencePointFrequency.entries()]
-      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-      .slice(0, 5)
-      .map(([point]) => annotateGovernedAcupoint(projectCode, point));
+  // 评估态没有与本例匹配且已终审的患者级模板，就不展示任何具体穴位。
+  // 过去用关键词从400穴目录拼 top5，甲方同一风寒感冒病例反复得到肩中俞、涌泉、大杼；
+  // 这些穴虽各自“主治含发热/咳嗽”，却没有本例证型级方案依据。宁可留空并要求现场辨证，
+  // 也不把未治理的关键词结果包装成临床推荐。
+  const referenceCommonPoints: string[] = [];
   // 评估态 = 目录里没有与本例对应的标准方案。此时能证明的只有「病历里的哪句话把这个项目
   // 带进候选」，不能改口成症状域名称。举不出病历落点（标签只来自模型行文）时一句都不说，
   // 只讲清这是评估态——fail-closed 优于说一个患者没有的症状。

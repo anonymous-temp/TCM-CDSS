@@ -3,6 +3,7 @@ import verifiedSupplementJson from "../data/tcm-verified-formula-supplements.jso
 import governedFormulaCatalogJson from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
 import coreHerbsJson from "../data/tcm-formula-core-herbs.json" with { type: "json" };
 import herbSubstitutionPolicyJson from "../data/tcm-herb-identity-substitution-policy.source.json" with { type: "json" };
+import formulaRoleBindingsJson from "../data/tcm-formula-role-bindings.source.json" with { type: "json" };
 import type { CaseState, ClinicalReasoningResultV2, EvidenceRef } from "./diagnosis-types";
 import { clinicianDoseHerbClass, getTcmHerbDoseLimit, getTcmHerbGenerationSafetyProfile, isKnownTcmHerbName, isClinicianDoseHerb } from "./tcm-knowledge";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
@@ -68,6 +69,43 @@ export type FormulaCompilationReference = {
 
 const catalog = formulaCatalogJson as FormulaCatalog;
 const verifiedSupplements = verifiedSupplementJson as VerifiedFormulaSupplements;
+
+type FormulaRoleBinding = {
+  formulaName: string;
+  source: string;
+  herbs: Array<{
+    acceptedNames: string[];
+    role: "君" | "臣" | "佐" | "使";
+    prescriptionRole: string;
+    function: string;
+  }>;
+};
+
+const FORMULA_ROLE_BINDINGS = formulaRoleBindingsJson.entries as readonly FormulaRoleBinding[];
+
+function governedFormulaRoleHerbs(
+  candidate: ClinicalReasoningResultV2["formula"] extends infer F
+    ? F extends { candidates: Array<infer C> } ? C : never
+    : never,
+  sources: readonly ResolvedFormulaSource[],
+) {
+  if (sources.length !== 1) return candidate.herbs;
+  const source = sources[0];
+  const binding = FORMULA_ROLE_BINDINGS.find((item) =>
+    item.formulaName === source.formulaName && item.source === source.source);
+  if (!binding) return candidate.herbs;
+  return candidate.herbs.map((herb) => {
+    const identity = resolveGovernedTcmHerbIdentity(herb.name);
+    const names = new Set([herb.name, identity.canonicalName, identity.suggestedCanonicalName].filter(Boolean));
+    const governed = binding.herbs.find((item) => item.acceptedNames.some((name) => names.has(name)));
+    return governed ? {
+      ...herb,
+      role: governed.role,
+      prescriptionRole: governed.prescriptionRole,
+      function: governed.function,
+    } : herb;
+  });
+}
 
 type GovernedFormulaCompilationRow = {
   name: string;
@@ -1815,6 +1853,16 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
   const explicitlyModified = /(?:加减|化裁|加味)/.test(candidateName);
   const sourceHint = candidateName.match(/《([^》]{2,80})》/)?.[1]?.replace(/[。；;，,\s]+$/g, "") || "";
   for (const normalizedName of baseNames) {
+    const formulaAliases = new Map(baseAliases);
+    const governedRow = governedFormulaCompilationRow(normalizedName);
+    if (!combined) {
+      for (const link of governedRow?.ingredientLinks || []) {
+        if (!link.autoResolvable || !link.canonicalName) continue;
+        const canonical = normalizeHerbName(link.canonicalName);
+        const recorded = normalizeHerbName(link.rawName);
+        if (canonical && recorded && canonical !== recorded) formulaAliases.set(canonical, recorded);
+      }
+    }
     const candidates: FormulaSourceCandidate[] = [];
     const official = normalizedOfficialClassics.get(normalizedName);
     if (official) {
@@ -1838,13 +1886,13 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
       variant,
       origin: "local_formula_catalog",
     }));
-    const matched = bestFormulaSourceCandidate(candidates, herbNames, combined, explicitlyModified, sourceHint, false, baseAliases) ||
+    const matched = bestFormulaSourceCandidate(candidates, herbNames, combined, explicitlyModified, sourceHint, false, formulaAliases) ||
       (!explicitlyModified
-        ? bestFormulaSourceCandidate(candidates, herbNames, combined, true, sourceHint, true, baseAliases)
+        ? bestFormulaSourceCandidate(candidates, herbNames, combined, true, sourceHint, true, formulaAliases)
         : undefined);
     if (!matched) return [];
     const normalizedHerbs = new Set(herbNames.map(normalizeHerbName).filter(Boolean));
-    const normalizedBaseAliases = new Set(baseAliases.values());
+    const normalizedBaseAliases = new Set(formulaAliases.values());
     const normalizedIngredients = matched.candidate.variant.ingredients.map(normalizeHerbName).filter(Boolean);
     const requiredIngredients = requiredFormulaAnchors(
       matched.candidate.formulaName,
@@ -1938,6 +1986,7 @@ export function enrichReasoning(
       : "canonical" as const;
     const explicitIdentityNames = explicitFormulaIdentityNames([candidate.name, ...(candidate.formulaNames || [])]);
     const resolvedFormulaNames = sources.map((item) => item.formulaName);
+    const governedHerbs = governedFormulaRoleHerbs(candidate, sources);
     return {
       ...candidate,
       name: verifiedName,
@@ -1993,7 +2042,7 @@ export function enrichReasoning(
               : "中" as const,
           }
         : professionalModelInferenceEvidence(undefined),
-      herbs: candidate.herbs.map((herb, herbIndex) => ({
+      herbs: governedHerbs.map((herb, herbIndex) => ({
         ...herb,
         isToxic: herbSafetyProfiles[herbIndex]?.isToxic === true,
         ...(/酸枣仁/.test(herb.name) && /先煎/.test(herb.decoctionRequirement || "")

@@ -239,7 +239,7 @@ const diagnosisClientSource = fs.readFileSync(new URL("../src/app/diagnosis/Diag
 // 与 ②③⑥⑨ 同形状——同一个字段只接了一个出口。
 assert.match(diagnosisClientSource, /deferredFormulaSelection/,
   "医生页面必须呈现被剥离的方名（overview.deferredFormulaSelection），不能只写进签名载荷与服务端摘要");
-assert.match(diagnosisClientSource, /待确认方名/,
+assert.match(diagnosisClientSource, /未锁定经典方方向/,
   "措辞须与服务端可见摘要同源，明确写「未锁定、由医生判断」，避免被读成推荐");
 assert.doesNotMatch(diagnosisClientSource, /cdss-section-generation-basis|本次生成依据/, "generic generation-basis boilerplate must be removed from the report");
 assert.doesNotMatch(diagnosisClientSource, /Lingxi 建议性复核/, "the report must use the customer-facing reasonable-medication-review name");
@@ -1337,7 +1337,7 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
     `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
     "diagnose",
   );
-  assert.match(visible, /待确认方名/, "被剥离的方名必须出现在医生可见摘要里");
+  assert.match(visible, /未锁定经典方方向/, "被剥离的方名必须出现在医生可见摘要里");
   assert.match(visible, /麻黄汤/, "必须逐字给出模型原本选的方名");
   assert.match(visible, /未予锁定|由医生/, "措辞必须说明它未被锁定、由医生判断，不能读成推荐");
   // 没有被剥离选择时不得凭空生成这一行。
@@ -1348,7 +1348,7 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
       `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(withoutDeferred)}\n<!-- DIAGNOSIS_JSON_END -->`,
       "diagnose",
     ),
-    /待确认方名/,
+    /未锁定经典方方向/,
     "没有被剥离的选择时不得输出该行",
   );
 }

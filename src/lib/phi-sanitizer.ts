@@ -74,14 +74,22 @@ const CHINESE_COMPOUND_SURNAME = /(?:欧阳|司马|上官|夏侯|诸葛|东方|�
  * 收敛成共享导出后两侧共用，不再各写各的。
  */
 const SUBJECT_PREFIXED_NAME = new RegExp(
-  `(本例|该患者|病例|病人|患儿)\\s*(?:${CHINESE_COMPOUND_SURNAME.source}|${CHINESE_SURNAME.source})`
-  + "[\\u4e00-\\u9fa5]{1,2}?"
+  `(本例|该患者|病例|病人|患儿)\\s*((?:${CHINESE_COMPOUND_SURNAME.source}|${CHINESE_SURNAME.source})`
+  + "[\\u4e00-\\u9fa5]{1,2}?)"
   + "(?=(?:既往|曾经|曾有|近|昨|今|因|诉|称|反映|表示|出现|发生|患|有|于|睡|入睡|失眠|头痛|头晕|胸痛|腹痛|发热|咳嗽|心悸|就诊|来诊|男|女|\\d{1,3}\\s*岁))",
   "g",
 );
 
+const CLINICAL_TEMPORAL_PHRASE = /^于(?:夜间|夜里|昨夜|晨起|清晨|凌晨|今日|今晨|今夜|午后|下午|傍晚)$/;
+
+/** 姓氏字形与常见时相短语重叠时，临床时相优先保留，不把「于夜间」当作姓名。 */
+export function isClinicalTemporalPhrase(value: unknown): boolean {
+  return typeof value === "string" && CLINICAL_TEMPORAL_PHRASE.test(value.trim());
+}
+
 export function scrubSubjectPrefixedName(text: string, marker = "[姓名已脱敏]"): string {
-  return String(text || "").replace(SUBJECT_PREFIXED_NAME, `$1${marker}`);
+  return String(text || "").replace(SUBJECT_PREFIXED_NAME, (match, prefix: string, candidate: string) =>
+    isClinicalTemporalPhrase(candidate) ? match : `${prefix}${marker}`);
 }
 
 /**

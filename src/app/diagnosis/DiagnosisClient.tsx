@@ -4867,9 +4867,9 @@ function ResultTabsV2({
                 也无从判断要不要自己采用。措辞与服务端摘要同源：明确写「未锁定、由医生判断」。 */}
             {deferredFormulaNames.length > 0 && (
               <p data-testid="deferred-formula-selection" className="mt-1 rounded-md bg-amber-100/70 px-2.5 py-2">
-                <span className="font-semibold">待确认方名：</span>
-                本次分析曾指向 {joinClinicalClauses(deferredFormulaNames, "、")}
-                ，因该方在治理目录中与本例签名证候尚无直接对应关系，服务端未予锁定；是否采用由医生结合方证判断。
+                <span className="font-semibold">未锁定经典方方向：</span>
+                本次分析曾检索到 {joinClinicalClauses(deferredFormulaNames, "、")}
+                ，但该方与本例签名证候尚无受治理的直接对应关系，因此未予锁定为候选处方；仅供医生进行方证鉴别。
               </p>
             )}
           </div>

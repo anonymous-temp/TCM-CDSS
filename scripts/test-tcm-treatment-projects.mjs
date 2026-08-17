@@ -916,13 +916,9 @@ try {
     //（此前它带着「（须结合寒热虚实复核）」的括注出现在每一个消化类病例上，包括湿热证）。
     assert.doesNotMatch(digestive.suggestedSitesOrPoints.join("；"), /关元/);
     assert.equal(digestive.executable, false);
-    // 甲方评测(2026-08-03) 9.1：评估态项目也要给医生看得见的常用穴位——聚合该项目全部治理模板的
-    // 高频穴位(≤5)作为**通用参考**；protocolStatus 仍为 assessment_only、无 schedule，
-    // 呈现层按该状态标注「未按本例适应证核定」。治理边界(不生成患者级操作方案)不变。
-    assert.ok(
-      dermatology.suggestedSitesOrPoints.length > 0 && dermatology.suggestedSitesOrPoints.length <= 5,
-      `评估态针刺项目应给出≤5个通用参考穴位：${dermatology.suggestedSitesOrPoints.join("、")}`,
-    );
+    // 甲方 2026-08-11 复测证明「通用参考穴位」仍会把肩中俞、涌泉、大杼等关键词结果
+    // 端到不匹配的病例。评估态没有患者级受治理模板时只说明现场评估边界，不展示具体穴位。
+    assert.deepEqual(dermatology.suggestedSitesOrPoints, []);
     assert.equal(dermatology.scheduleSuggestion, "");
     assert.equal(dermatology.protocolStatus, "assessment_only_no_patient_specific_protocol");
     // protocolGap 2026-08-10 从「给医生看的句子」降级为**内部状态码**：原先两句
