@@ -1556,8 +1556,24 @@ export async function extractClinicalFacts(
       encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
       reviewStatus: "checked",
     };
-    } catch {
+    } catch (error) {
       if (signal?.aborted) return null;
+      // 裸 catch{} 会把失败原因连同错误对象一起吞掉，只剩 reviewStatus:"unavailable"——
+      // 与 2026-08-16 已修的 M03 复核 attestation 同一形状（那处注释写着「算出来即丢弃」）。
+      // 「不可用」这三个字对运维毫无可操作性：不知道是未配置、超时、鉴权失败还是上游报错，
+      // 有限重试与跨提供方兜底都无从设计。这里只**分类记录**，不改变任何门控行为
+      // （仍然照旧 fail-closed 到 unavailable），也不回显任何临床文本。
+      const message = String(error instanceof Error ? error.message : error || "");
+      const reason = /not_configured/.test(message) ? "not_configured"
+        : /(?:http_|status code )401|unauthor/i.test(message) ? "unauthorized"
+        : /abort|timeout/i.test(message) ? "timeout"
+        : /(?:http_|status code )\d{3}/.test(message) ? "http_error"
+        : "transport_or_unknown";
+      console.warn("[tcm-cdss:facts] clinical-facts review attempt failed", {
+        attempt: reviewAttempt,
+        reason,
+        willRetry: reviewAttempt !== 2,
+      });
       if (reviewAttempt === 2) return { ...grounded, reviewStatus: "unavailable" };
     }
   }
