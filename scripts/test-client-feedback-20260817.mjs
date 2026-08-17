@@ -32,6 +32,8 @@ const {
 } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const { enrichReasoning, resolveFormulaSources } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const { compileTcmTreatmentRecommendations } = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
+const { isNondiscriminatingWesternSupportingFact, m03KeySyndromeDiscriminatorIssue } =
+  await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 
 const S = "<!-- DIAGNOSIS_JSON_START -->";
 const E = "<!-- DIAGNOSIS_JSON_END -->";
@@ -167,6 +169,38 @@ const mahuangHerbs = [
   const summary = readFileSync(path.join(repoRoot, "src/lib/diagnosis-visible-summary.ts"), "utf8");
   assert.doesNotMatch(`${client}\n${summary}`, /待确认方名/);
   assert.match(`${client}\n${summary}`, /未锁定经典方方向/);
+}
+
+// 7. 风寒表实已记录的无汗、脉浮紧属于麻黄汤/桂枝汤分叉；不能只写「发热阳性」就让复核通过。
+{
+  const clinicalContext = "淋雨后恶寒重、发热轻，鼻塞流清涕，稍有咳嗽，无汗；舌淡红苔薄白，脉浮紧。";
+  const issue = m03KeySyndromeDiscriminatorIssue({
+    overview: {
+      primarySyndrome: "风寒束表证",
+      primarySyndromeBasis: ["恶寒发热", "鼻塞流清涕", "舌淡红苔薄白"],
+      tcmDiagnosticRationale: "病历已记录发热阳性，为风寒外束之象；舌淡红苔薄白，无热象，故辨为风寒束表证。",
+    },
+    pathogenesis: {
+      chain: [{ patientFact: "恶寒发热", syndromeEvidence: "鼻塞流清涕", pathogenesis: "风寒束表", therapyDirection: "辛温解表" }],
+    },
+  }, clinicalContext);
+  assert.equal(issue, "chain_key_discriminator_missing");
+  const repaired = m03KeySyndromeDiscriminatorIssue({
+    overview: {
+      primarySyndrome: "风寒束表证",
+      primarySyndromeBasis: ["恶寒重发热轻", "无汗", "脉浮紧"],
+      tcmDiagnosticRationale: "恶寒重发热轻、无汗、脉浮紧共同支持风寒束表偏表实，故以辛温发汗为主要方向。",
+    },
+    pathogenesis: {
+      chain: [{ patientFact: "恶寒重发热轻，无汗", syndromeEvidence: "脉浮紧", pathogenesis: "风寒束表，卫阳被遏", therapyDirection: "辛温发汗解表" }],
+    },
+  }, clinicalContext);
+  assert.equal(repaired, undefined);
+}
+
+// 8. 「精神饮食尚可、二便调」是一般状态，不得给急性上呼吸道感染凑支持依据。
+for (const fact of ["精神饮食尚可", "二便调", "精神可，二便调", "纳眠可"]) {
+  assert.equal(isNondiscriminatingWesternSupportingFact(fact), true, `无鉴别力依据未被过滤：${fact}`);
 }
 
 console.log(JSON.stringify({ suite: "client-feedback-20260817", failures: 0 }));
