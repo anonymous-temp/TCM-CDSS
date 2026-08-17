@@ -1097,10 +1097,14 @@ export function discriminatingWesternSupportClauses(value: string): string[] {
 
 export function isNondiscriminatingWesternSupportingFact(value: string): boolean {
   const fact = value.trim();
+  const genericNormalClauses = fact.split(/[，,、；;。]+/).map((item) => item.trim()).filter(Boolean);
+  const genericNormalStatus = genericNormalClauses.length > 0 && genericNormalClauses.every((clause) =>
+    /^(?:精神(?:状态)?(?:尚可|可|正常)|饮食(?:尚可|可|正常)|精神饮食尚可|纳(?:食)?可|纳眠可|二便(?:调|尚调|正常)|大小便正常)$/.test(clause));
   return TCM_ONLY_WESTERN_SUPPORT.test(fact) ||
     isDemographicWesternSupportFact(fact) ||
     isNormalVitalWesternSupportFact(fact) ||
-    isCareProcessNarrativeFact(fact);
+    isCareProcessNarrativeFact(fact) ||
+    genericNormalStatus;
 }
 
 /**
@@ -1193,6 +1197,42 @@ export function describeM03WesternSupportConflict(reasoning: M03ReasoningLike, c
   return undefined;
 }
 
+/**
+ * 已记录且会改变方证方向的鉴别点，必须同时进入主证依据、辨证推理和病机链。
+ * 甲方风寒表实病例在 a816e78 中只写「发热阳性」也被跨模型复核 accepted，漏掉无汗与脉浮紧；
+ * 这两项恰是麻黄汤/桂枝汤以及表实/表虚的分水岭，不能只留在原始病历里。
+ */
+export function m03KeySyndromeDiscriminatorIssue(
+  reasoning: M03ReasoningLike | null | undefined,
+  clinicalContext: string,
+): "chain_key_discriminator_missing" | undefined {
+  if (!reasoning || !clinicalContext) return undefined;
+  const basisItems = nonEmptyStringList(reasoning.overview?.primarySyndromeBasis);
+  const basisSweating = basisItems.flatMap((item) => item.match(/无汗|自汗/g) || []);
+  if (basisSweating.some((term) => !(reasoning.pathogenesis?.chain || []).some((item) =>
+    [item.patientFact, item.syndromeEvidence].some((value) => typeof value === "string" && value.includes(term))))) {
+    return "chain_key_discriminator_missing";
+  }
+  const syndrome = String(reasoning.overview?.primarySyndrome || "");
+  if (!/(?:风寒(?:束表|犯表|袭表)|太阳伤寒)/.test(syndrome)) return undefined;
+  const required: RegExp[] = [];
+  if (contextAffirmsTerm(clinicalContext, /无汗/)) required.push(/无汗/);
+  else if (contextAffirmsTerm(clinicalContext, /自汗|汗出/)) required.push(/自汗|汗出/);
+  if (contextAffirmsTerm(clinicalContext, /脉(?:象[:：]?)?浮紧|脉浮而紧/)) {
+    required.push(/脉(?:象[:：]?)?浮紧|脉浮而紧/);
+  }
+  if (required.length === 0) return undefined;
+  const basis = basisItems.join("；");
+  const rationale = String(reasoning.overview?.tcmDiagnosticRationale || "");
+  const chain = (reasoning.pathogenesis?.chain || [])
+    .flatMap((item) => [item.patientFact, item.syndromeEvidence])
+    .filter((value): value is string => typeof value === "string")
+    .join("；");
+  return required.every((pattern) => pattern.test(basis) && pattern.test(rationale) && pattern.test(chain))
+    ? undefined
+    : "chain_key_discriminator_missing";
+}
+
 /** Validate uncertainty state and source grounding without deciding clinical semantics locally. */
 function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext: string): string | undefined {
   const overview = reasoning.overview;
@@ -1206,17 +1246,8 @@ function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext
   if (clinicalContext && symptomClusterFacts.some((fact) => !isGenericPatientEvidencePolarityAligned(fact, clinicalContext))) {
     return "symptom_cluster_polarity";
   }
-  const keySweatingDiscriminators = syndromeBasis.flatMap((basis) =>
-    basis.match(/无汗|自汗/g) || []);
-  if (
-    keySweatingDiscriminators.length > 0 &&
-    !keySweatingDiscriminators.every((term) =>
-      (reasoning.pathogenesis?.chain || []).some((item) =>
-        [item.patientFact, item.syndromeEvidence].some((value) =>
-          typeof value === "string" && value.includes(term))))
-  ) {
-    return "chain_key_discriminator_missing";
-  }
+  const discriminatorIssue = m03KeySyndromeDiscriminatorIssue(reasoning, clinicalContext);
+  if (discriminatorIssue) return discriminatorIssue;
   const explicitSyndromeResolution = clinicalResolution(overview?.primarySyndromeResolution);
   const syndromeResolution = explicitSyndromeResolution || (syndrome ? "bounded" : "unresolved");
   // A bounded/resolved primary syndrome is a clinical conclusion, not a place to append

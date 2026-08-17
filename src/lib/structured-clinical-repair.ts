@@ -720,9 +720,9 @@ export function structuredClinicalRepairHint(
   }
   if (reason === "m03_chain_key_discriminator_missing") {
     return [
-      "overview.primarySyndromeBasis 已选择了会改变表实/表虚或卫表固摄判断的无汗/自汗鉴别点，但病机链没有承接。",
-      "保持患者事实、主证候和已通过字段不变；把 primarySyndromeBasis 中已有的“无汗/自汗”逐字绑定到最相关的 pathogenesis.chain 节点 patientFact 或 syndromeEvidence，并使该节点病机、治法与之相称。",
-      "不得新增病历未记录的汗出表现，也不得把阴性事实反写为阳性；若该词不应作为主证依据，则从 primarySyndromeBasis 删除而不是补造病机。",
+      "病历已记录会改变表实/表虚或卫表固摄判断的无汗/自汗、脉浮紧等关键鉴别点，但主证依据、辨证推理或病机链没有完整承接。",
+      "保持患者事实、主证候和已通过字段不变；把病历中已有的关键鉴别点逐字写入 primarySyndromeBasis、tcmDiagnosticRationale 及最相关的 pathogenesis.chain 节点 patientFact 或 syndromeEvidence，并使病机、治法与之相称。",
+      "不得新增病历未记录的汗出表现，也不得把阴性事实反写为阳性；本例已经明确记录的鉴别点不得通过删除字段规避。",
     ].join("\n");
   }
   if (/^m03_(?:primary_syndrome_basis|symptom_cluster)_polarity$/.test(reason)) {
