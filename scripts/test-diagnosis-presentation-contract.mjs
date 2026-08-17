@@ -299,16 +299,13 @@ const analysis = buildFormulaAnalysis(
   })),
   candidate.therapyMatch,
 );
-check(() => assert.ok(analysis.includes("\n- "), "逐味行必须是真的 Markdown 列表行"));
+check(() => assert.ok(analysis.startsWith("方中"), "方义必须以连续临床叙述起笔"));
+check(() => assert.doesNotMatch(analysis, /\*\*|(?:^|\n)\s*[-#]\s/m,
+  "方义结构字段不得含 Markdown 标题或列表符号"));
 check(() => assert.ok(
   analysis.includes("不荣则痛"),
   "病机短引用不得被词内的「则」截断——生产实测被砍成「清窍失养，不荣」",
 ));
-check(() => {
-  const groups = analysis.split("\n").filter((line) => /^\*\*.+\*\*$/.test(line));
-  assert.ok(groups.length >= 2, "病机作分组标题呈现");
-  assert.equal(new Set(groups).size, groups.length, "同一条病机只作一次标题，不逐味重复");
-});
 for (const boilerplate of ["为本方治疗支点", "同承接上述", "承接次级病机", "协同君药同治"]) {
   check(() => assert.ok(
     !analysis.includes(boilerplate),
@@ -321,13 +318,13 @@ check(() => {
   assert.ok(analysis.length < candidate.formulaAnalysis.length,
     `必须短于生产原文（原 ${candidate.formulaAnalysis.length} 字，现 ${analysis.length} 字）`);
 });
-// 逐味粒度不得因为压缩而丢失：每一味药都必须仍有自己的一行。
+// 逐味粒度不得因为改为自然段而丢失：每一味药仍须在方中作用叙述里出现。
 check(() => {
   for (const herb of candidate.herbs) {
-    assert.ok(analysis.includes(`- ${herb.name}（`), `${herb.name} 必须仍有独立一行`);
+    assert.ok(analysis.includes(herb.name), `${herb.name} 必须仍出现在方义自然段中`);
   }
 });
-// 7.1 的另一半：渲染口。方义是段落不是表格单元格，换行必须活着到医生页面上。
+// 7.1 的另一半：下载报告里的方义自然段必须原样保留，不得被表格单元格清洗器压坏。
 check(() => {
   const payload = structuredClone(M04);
   payload.formula.candidates[0].formulaAnalysis = analysis;

@@ -160,8 +160,10 @@ const mahuangHerbs = [
   const analyzed = unwrap(applyDeterministicFormulaAnalysis(wrap(enriched))).formula.candidates[0].formulaAnalysis;
   assert.doesNotMatch(analyzed, /具体配伍作用需医生结合方义复核/);
   assert.match(analyzed, /麻黄.*桂枝.*杏仁.*甘草/s);
-  assert.match(analyzed, /配伍关系.*相使.*佐制.*相畏\/相恶/s,
-    "方义不能只列君臣佐使，必须明确呈现配伍、佐制及七情关系边界");
+  assert.match(analyzed, /麻黄.*为君.*桂枝.*为臣.*杏仁.*为佐.*甘草.*为使/s,
+    "方义须把君臣佐使自然写进本方配伍叙述");
+  assert.doesNotMatch(analyzed, /\*\*|(?:^|\n)\s*[-#]\s/m,
+    "方义不得继续生成 Markdown 病机标题与逐味列表");
   const metadataOnly = structuredClone(enriched);
   metadataOnly.formula.candidates[0].formulaAnalysis = "";
   metadataOnly.formula.candidates[0].compositionLogic = [{
@@ -176,7 +178,7 @@ const mahuangHerbs = [
     "麻黄与桂枝为君臣，杏仁为佐，甘草为使；具体配伍作用需医生结合方义复核。";
   const placeholderRebuilt = unwrap(applyDeterministicFormulaAnalysis(wrap(placeholderAuthored))).formula.candidates[0].formulaAnalysis;
   assert.doesNotMatch(placeholderRebuilt, /具体配伍作用.*复核/);
-  assert.match(placeholderRebuilt, /配伍关系.*相使.*佐制.*相畏\/相恶/s);
+  assert.match(placeholderRebuilt, /麻黄.*为君.*桂枝.*为臣.*杏仁.*为佐.*甘草.*为使/s);
 }
 
 // 4.1 甲方 2026-08-05 第 7.1 条给出的目标是连贯方解，不是 Markdown 病机标题与逐味功效清单。

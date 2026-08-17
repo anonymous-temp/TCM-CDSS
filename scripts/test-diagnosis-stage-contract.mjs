@@ -3271,24 +3271,16 @@ assert.match(finalizedServerOwnedM04.formula.candidates[0].decoction.method, /�
 // 「同承接上述病机」），以及与药味表「对应病机」列重复的整句病机引用。
 {
   const analysis = finalizedServerOwnedM04.formula.candidates[0].formulaAnalysis;
-  assert.match(analysis, /围绕.+组方/, "开头必须说明本方围绕哪条治法组方");
-  assert.match(analysis, /-\s*人参（君）：[^\n]+/, "每味药必须独立成列表行并写出它自己的功用");
-  assert.match(analysis, /-\s*川芎（[^）]+）：[^\n]+/, "同方内其余药味同样逐味成行，不得被并入角色组");
-  assert.ok(
-    analysis.split("\n").some((line) => /^\*\*.+\*\*$/.test(line.trim())),
-    "承接的病机必须作为分组标题呈现，而不是消失",
-  );
-  assert.equal(
-    analysis.split("\n").filter((line) => line.trim().startsWith("- ")).length,
-    finalizedServerOwnedM04.formula.candidates[0].herbs.length,
-    "方义行数必须与药味数一致——按角色分组会把多味药压成一行",
-  );
+  assert.match(analysis, /^方中/, "方义必须以本方药味配伍的连续临床叙述起笔");
+  assert.match(analysis, /人参.*为君/s, "君药必须写明在本方中的作用");
+  assert.match(analysis, /川芎.*为臣/s, "臣药必须写明在本方中的作用");
+  assert.doesNotMatch(analysis, /\*\*|(?:^|\n)\s*[-#]\s/m,
+    "方义不得包含会在医生页面裸露的 Markdown 标题或列表符号");
   assert.doesNotMatch(analysis, /；[一-龥]{1,8}药[」；]/, "功用文本不得携带药类归类尾巴(检索索引不是医生要读的方义)");
   assert.doesNotMatch(analysis, /的[;；]|围绕「[^」]*的」/, "治法方向串必须剥掉受控词表的「…的」后缀与分号连接");
-  const groupHeadings = analysis.split("\n").filter((line) => /^\*\*.+\*\*$/.test(line.trim()));
-  assert.equal(new Set(groupHeadings).size, groupHeadings.length, "同一条病机原文不得重复成组");
-  assert.ok(groupHeadings.length <= new Set(finalizedServerOwnedM04.formula.candidates[0].herbs.map((herb) => herb.targetPathogenesis)).size,
-    "分组数不得超过实际病机条数");
+  for (const herb of finalizedServerOwnedM04.formula.candidates[0].herbs) {
+    assert.match(analysis, new RegExp(herb.name), `${herb.name} 必须保留在方义自然段中`);
+  }
   for (const boilerplate of ["为本方治疗支点", "同承接上述", "承接次级病机", "协同君药同治"]) {
     assert.ok(!analysis.includes(boilerplate),
       `「${boilerplate}」对每张方逐字相同、不携带本例信息，已移除（甲方 2026-08-04 第 7.2 条）`);
