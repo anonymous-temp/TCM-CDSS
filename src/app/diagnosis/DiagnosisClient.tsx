@@ -5346,7 +5346,7 @@ function ResultTabsV2({
           order={sectionOrder("M04-formula", 2)}
           id="cdss-section-formula-analysis"
           title="方义解析"
-          subtitle="君臣佐使配伍关系与佐制、相使相畏"
+          subtitle="各药在方中作用与配伍关系"
           contractIds="M04-formula"
           rendererId="formula-analysis-section"
         >

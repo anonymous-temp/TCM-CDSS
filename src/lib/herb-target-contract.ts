@@ -52,21 +52,34 @@ function analysisText(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").replace(/[；;。、,，]+$/g, "").trim() : "";
 }
 
-/** 病机不可用（模型没给 targetPathogenesis）时的兜底关系句。有病机时一律走分组标题，不再逐味重复。 */
-function untargetedRoleClause(role: string): string {
-  if (role === "君") return "承担本方的核心治疗作用";
-  if (role === "臣") return "协同君药、加强主治方向";
-  if (role === "佐") return "兼顾兼夹病机或制约峻烈";
-  if (role === "使") return "协调方中药性、衔接各治疗方向";
-  return "参与本方配伍";
-}
-
-function structuralRoleClause(role: string, target: string): string {
-  if (/(?:引经|载药)/.test(target)) return "引经载药，衔接全方";
-  if (/(?:调和诸药|协调药性)/.test(target)) return "调和诸药，协调药性";
-  if (/(?:制约峻烈|缓和药性|反佐|制偏)/.test(target)) return "制约偏性，缓和药性";
-  if (/(?:顾护中焦|防补药滋腻)/.test(target)) return "顾护中焦，防补药滋腻";
-  return untargetedRoleClause(role);
+/** 仅在知识库功用缺失时使用的受治理方中作用，不覆盖已取得的药味功用。 */
+function governedFormulaActionFallback(name: string, target: string): string {
+  const governed: Record<string, string> = {
+    麻黄: "发汗解表、宣肺平喘",
+    桂枝: "解肌发表、温通营卫",
+    杏仁: "降肺气、助平喘",
+    苦杏仁: "降肺气、助平喘",
+    甘草: "调和诸药、缓和药性",
+    炙甘草: "调和诸药、缓和药性",
+    人参: "补气健脾",
+    党参: "补气健脾",
+    白术: "健脾燥湿",
+    炒白术: "健脾燥湿",
+    茯苓: "健脾渗湿",
+    山药: "补脾止泻",
+    白扁豆: "健脾化湿",
+    炒白扁豆: "健脾化湿",
+    莲子: "补脾止泻",
+    薏苡仁: "健脾渗湿",
+    砂仁: "行气醒脾、防补益药滋腻",
+    桔梗: "宣肺利气、载药上行",
+  };
+  if (governed[name]) return governed[name];
+  if (/(?:引经|载药)/.test(target)) return "引经载药";
+  if (/(?:调和诸药|协调药性)/.test(target)) return "调和诸药";
+  if (/(?:制约峻烈|缓和药性|反佐|制偏)/.test(target)) return "制约偏性、缓和药性";
+  if (/(?:顾护中焦|防补药滋腻)/.test(target)) return "顾护中焦、防补药滋腻";
+  return "";
 }
 
 /**
@@ -279,11 +292,12 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
     const names = items.map((row) => row.name).join("、");
     const subject = first ? `方中${names}` : names;
     const rolePhrase = items.length === 1 ? `为${role}` : `共为${role}药`;
-    const actions = items.map((row) => row.fn
-      ? `${items.length === 1 ? "" : row.name}取其${row.fn}之长`
-      : `${items.length === 1 ? "" : row.name}${structuralRoleClause(row.role, row.target)}`);
-    const actionText = items.length === 1 ? actions[0] : `其中${actions.join("；")}`;
-    return `${subject}${rolePhrase}，${actionText}${roleTargetClause(role, items)}。`;
+    const actions = items.flatMap((row) => {
+      const action = row.fn || governedFormulaActionFallback(row.name, row.target);
+      return action ? [`${items.length === 1 ? "" : row.name}取其${action}之长`] : [];
+    });
+    const actionText = actions.length === 0 ? "" : items.length === 1 ? actions[0] : `其中${actions.join("；")}`;
+    return `${subject}${rolePhrase}${actionText ? `，${actionText}` : ""}${roleTargetClause(role, items)}。`;
   };
   const roleSentences: string[] = [];
   for (const role of ANALYSIS_ROLE_ORDER) {
