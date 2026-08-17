@@ -43,6 +43,7 @@ const {
 } =
   await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { rejectionTier } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
+const { buildFormulaAnalysis } = await jiti.import("../src/lib/herb-target-contract.ts");
 
 const S = "<!-- DIAGNOSIS_JSON_START -->";
 const E = "<!-- DIAGNOSIS_JSON_END -->";
@@ -176,6 +177,36 @@ const mahuangHerbs = [
   const placeholderRebuilt = unwrap(applyDeterministicFormulaAnalysis(wrap(placeholderAuthored))).formula.candidates[0].formulaAnalysis;
   assert.doesNotMatch(placeholderRebuilt, /具体配伍作用.*复核/);
   assert.match(placeholderRebuilt, /配伍关系.*相使.*佐制.*相畏\/相恶/s);
+}
+
+// 4.1 甲方 2026-08-05 第 7.1 条给出的目标是连贯方解，不是 Markdown 病机标题与逐味功效清单。
+{
+  const shenlingAnalysis = buildFormulaAnalysis([
+    { name: "人参", role: "君", function: "大补元气，补脾益肺", targetPathogenesis: "脾胃虚弱，运化失健" },
+    { name: "白术", role: "君", function: "健脾益气，燥湿利水", targetPathogenesis: "脾胃虚弱，运化失健" },
+    { name: "茯苓", role: "臣", function: "利水渗湿，健脾", targetPathogenesis: "脾虚湿盛" },
+    { name: "山药", role: "臣", function: "补脾养胃，生津益肺", targetPathogenesis: "脾胃虚弱，运化失健" },
+    { name: "白扁豆", role: "佐", function: "健脾化湿，和中消暑", targetPathogenesis: "脾虚湿盛" },
+    { name: "莲子", role: "佐", function: "补脾止泻，益肾涩精", targetPathogenesis: "脾虚湿盛" },
+    { name: "薏苡仁", role: "佐", function: "利水渗湿，健脾止泻", targetPathogenesis: "脾虚湿盛" },
+    { name: "砂仁", role: "佐", function: "化湿行气，温中止泻", targetPathogenesis: "补益药滋腻，气机不畅" },
+    { name: "桔梗", role: "使", function: "宣肺，利咽", targetPathogenesis: "引经载药，宣肺利气" },
+    { name: "炙甘草", role: "使", function: "补脾和胃，调和诸药", targetPathogenesis: "调和诸药，协调药性" },
+  ], "健脾益气，渗湿止泻");
+  assert.match(shenlingAnalysis, /^方中/,
+    "方义应直接进入本方配伍叙述，不使用系统式‘本方共N味、分层组方’开场");
+  assert.doesNotMatch(shenlingAnalysis, /\*\*|(?:^|\n)\s*[-#]\s/m,
+    "方义结构字段必须是连续自然段，不得把 Markdown 标题或列表交给医生页面");
+  assert.match(shenlingAnalysis, /人参.*白术.*砂仁.*桔梗.*炙甘草/s,
+    "方解必须覆盖本方各层关键药味及其方中作用");
+  assert.doesNotMatch(shenlingAnalysis, /现有受控信息未形成|不强行判定|不作无依据推定/,
+    "没有实际药对关系时直接不写，不向医生展示系统自述式空项");
+
+  const diagnosisClient = readFileSync(path.join(repoRoot, "src/app/diagnosis/DiagnosisClient.tsx"), "utf8");
+  assert.match(diagnosisClient, /<MarkdownBlock\s+content=\{firstCandidate\.formulaAnalysis\}/,
+    "历史方义即使仍含 Markdown，也必须经过 Markdown 渲染，不能把星号和短横线原样上屏");
+  assert.doesNotMatch(diagnosisClient, /whitespace-pre-line[\s\S]{0,300}\{firstCandidate\.formulaAnalysis\}/,
+    "方义不得继续走纯文本 whitespace-pre-line 裸渲染");
 }
 
 // 5. 本例是感冒·风寒束表，不满足已治理的「普通咳嗽·风寒袭肺」模板；评估态宁可不列穴，
