@@ -37,6 +37,7 @@ const {
   discriminatingWesternSupportClauses,
   isNondiscriminatingWesternSupportingFact,
   m03KeySyndromeDiscriminatorIssue,
+  m04HerbDirectionIssue,
   projectM03KeySyndromeDiscriminators,
 } =
   await jiti.import("../src/lib/diagnosis-stage-contract.ts");
@@ -149,6 +150,11 @@ const mahuangHerbs = [
     structureRole: "harmonize",
     targetPathogenesis: "调和诸药，协调药性",
   });
+  assert.equal(m04HerbDirectionIssue(harmonizer, {
+    overview: { primarySyndrome: "风寒束表证", overallPathogenesis: "风寒外束，肺气失宣" },
+    pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "风寒外束，肺气失宣", therapyDirection: "辛温解表，宣肺散寒" }] },
+    therapy: { overallPrinciple: "寒者热之，温散祛邪", overallMethod: "辛温解表，宣肺散寒" },
+  }), undefined, "经典方中概念为空的调和使药不得因药材次要功效被误判成清热方向冲突");
   const analyzed = unwrap(applyDeterministicFormulaAnalysis(wrap(enriched))).formula.candidates[0].formulaAnalysis;
   assert.doesNotMatch(analyzed, /具体配伍作用需医生结合方义复核/);
   assert.match(analyzed, /麻黄.*桂枝.*杏仁.*甘草/s);
@@ -260,6 +266,11 @@ const mahuangHerbs = [
     diagnosisApi,
     /transformOutput[\s\S]*applyM03KeySyndromeDiscriminatorsToContent\([\s\S]*opts\.structuredClinicalContext/,
     "M03 医生可见输出净化后必须再次投影病历原文，再执行最终合同",
+  );
+  assert.match(
+    diagnosisApi,
+    /transformOutput[\s\S]*applyDeterministicTreatmentPrinciple\([\s\S]*applyM03KeySyndromeDiscriminatorsToContent/,
+    "M03 医生可见输出净化后必须再次清理总体病机与病机联系中的事实状态模板",
   );
 }
 

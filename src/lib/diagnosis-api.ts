@@ -4305,15 +4305,18 @@ async function callPrimaryTextModelStream(
                   alignNormalizedM03WesternClinicalRationale(transformed),
                 )
               : transformed;
+            const clinicallyClean = opts.structuredStage === "diagnose"
+              ? applyDeterministicTreatmentPrinciple(aligned)
+              : aligned;
             return {
               // 客户输出净化会重建/删减事实字段；关键方证原文必须在它之后再投影一次，
               // 随即由下方 finalized contract 对这组最终字节完整复验。
               content: opts.structuredStage === "diagnose"
                 ? applyM03KeySyndromeDiscriminatorsToContent(
-                    aligned,
+                    clinicallyClean,
                     opts.structuredClinicalContext || "",
                   )
-                : aligned,
+                : clinicallyClean,
               ok: true,
             };
           } catch (error) {
