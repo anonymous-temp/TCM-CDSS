@@ -57,7 +57,8 @@ const T2_M03: ReadonlySet<string> = new Set([
   "primary_syndrome_basis_polarity",
   "primary_syndrome_resolution_reason_missing",
   "symptom_cluster_polarity",
-  "chain_key_discriminator_missing",
+  // chain_key_discriminator_missing 不在质量白名单：无汗/自汗、脉浮紧等是
+  // 表实/表虚与麻黄汤/桂枝汤的分叉证据，缺失会改变证候和处方方向，必须按默认 T1 修复。
   "location_resolved_without_basis",
   "location_resolved_basis_ungrounded",
   "location_resolution_reason_missing",

@@ -34,6 +34,7 @@ const { enrichReasoning, resolveFormulaSources } = await jiti.import("../src/lib
 const { compileTcmTreatmentRecommendations } = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
 const { isNondiscriminatingWesternSupportingFact, m03KeySyndromeDiscriminatorIssue } =
   await jiti.import("../src/lib/diagnosis-stage-contract.ts");
+const { rejectionTier } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
 
 const S = "<!-- DIAGNOSIS_JSON_START -->";
 const E = "<!-- DIAGNOSIS_JSON_END -->";
@@ -185,6 +186,11 @@ const mahuangHerbs = [
     },
   }, clinicalContext);
   assert.equal(issue, "chain_key_discriminator_missing");
+  assert.equal(
+    rejectionTier(issue),
+    "T1",
+    "会改变表实/表虚和麻黄汤/桂枝汤方向的关键鉴别点缺失必须触发线上修复，不得带批注放行",
+  );
   const repaired = m03KeySyndromeDiscriminatorIssue({
     overview: {
       primarySyndrome: "风寒束表证",
