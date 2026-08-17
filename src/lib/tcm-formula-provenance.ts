@@ -1427,19 +1427,30 @@ function bestFormulaSourceCandidate(
   sourceHint = "",
   inferredAdditionsOnly = false,
   baseIdentityByExact: ReadonlyMap<string, string> = new Map(),
+  governedSourceIdentity?: {
+    source: string;
+    aliases: ReadonlyMap<string, string>;
+  },
 ): { candidate: FormulaSourceCandidate; overlap: number; f1: number; matchedHerbs: string[]; usedBaseAlias: boolean } | undefined {
   const normalizedHerbs = [...new Set(herbs.map(normalizeHerbName).filter(Boolean))];
   if (normalizedHerbs.length === 0) return undefined;
   const ranked = candidates
     .map((candidate) => {
       const variant = candidate.variant;
+      // Ingredient-link adjudications belong to one governed formula source, not to every
+      // homonymous formula in the large name catalog. For example, the governed 四神散 records
+      // 芍药 as 白芍 for 《三因极一病证方论》; granting that alias to the different
+      // 《苏沈良方》 homonym makes the less appropriate source win by catalog precedence.
+      const candidateIdentityByExact = governedSourceIdentity?.source === variant.source
+        ? governedSourceIdentity.aliases
+        : baseIdentityByExact;
       const normalizedFormulaIdentity = normalizeFormulaName(candidate.formulaName);
       const ingredients = [...new Set(variant.ingredients.map(normalizeHerbName).filter((ingredient) =>
         ingredient && ingredient !== normalizedFormulaIdentity
       ))];
       const ingredientOwner = new Array<number>(ingredients.length).fill(-1);
       const canMatch = (herb: string, ingredient: string) => ingredient === herb || (
-        baseIdentityByExact.get(herb) === ingredient && !sourceIngredientRequiresProcessingIdentity(ingredient)
+        candidateIdentityByExact.get(herb) === ingredient && !sourceIngredientRequiresProcessingIdentity(ingredient)
       );
       const assign = (herbIndex: number, seen: boolean[]): boolean => {
         for (let ingredientIndex = 0; ingredientIndex < ingredients.length; ingredientIndex += 1) {
@@ -1886,13 +1897,36 @@ function resolveFormulaSourcesFromNameCatalogs(candidateName: string, herbs: For
       variant,
       origin: "local_formula_catalog",
     }));
-    const matched = bestFormulaSourceCandidate(candidates, herbNames, combined, explicitlyModified, sourceHint, false, formulaAliases) ||
+    const governedSourceIdentity = governedRow
+      ? { source: governedRow.source, aliases: formulaAliases }
+      : undefined;
+    const matched = bestFormulaSourceCandidate(
+      candidates,
+      herbNames,
+      combined,
+      explicitlyModified,
+      sourceHint,
+      false,
+      baseAliases,
+      governedSourceIdentity,
+    ) ||
       (!explicitlyModified
-        ? bestFormulaSourceCandidate(candidates, herbNames, combined, true, sourceHint, true, formulaAliases)
+        ? bestFormulaSourceCandidate(
+          candidates,
+          herbNames,
+          combined,
+          true,
+          sourceHint,
+          true,
+          baseAliases,
+          governedSourceIdentity,
+        )
         : undefined);
     if (!matched) return [];
     const normalizedHerbs = new Set(herbNames.map(normalizeHerbName).filter(Boolean));
-    const normalizedBaseAliases = new Set(formulaAliases.values());
+    const normalizedBaseAliases = new Set(
+      (matched.candidate.variant.source === governedSourceIdentity?.source ? formulaAliases : baseAliases).values(),
+    );
     const normalizedIngredients = matched.candidate.variant.ingredients.map(normalizeHerbName).filter(Boolean);
     const requiredIngredients = requiredFormulaAnchors(
       matched.candidate.formulaName,
