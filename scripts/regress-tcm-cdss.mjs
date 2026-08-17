@@ -321,7 +321,7 @@ function runFrontendContractChecks() {
       prescribeRoute.includes("clinicalGroundingText(safeState)") &&
       prescribeRoute.includes("structuredClinicalContext,") &&
       diagnoseRoute.includes("structuredReviewEvidenceContext: evidenceContext") &&
-      prescribeRoute.includes("structuredReviewEvidenceContext: evidenceContext"),
+      prescribeRoute.includes("structuredReviewEvidenceContext: boundedEvidence.text"),
     "privacy and grounding: M03/M04 repair/review receive deidentified patient facts while evidence travels in a separate non-patient channel",
     `${diagnoseRoute}\n${prescribeRoute}`,
   );
@@ -1231,7 +1231,7 @@ const redFlags = [
   ["negated-chest-then-worsening-tightness", "否认胸痛，胸闷持续加重。", "red_flag", "高风险", PRESCRIPTION_ONLY_GATE],
   ["negated-abdominal-then-tarry-stool", "否认腹痛，柏油样便伴乏力。", "red_flag", "高风险", PRESCRIPTION_ONLY_GATE],
   ["negated-chest-then-severe-headache", "否认胸痛，突发剧烈头痛。", "red_flag", "高风险"],
-  ["negated-dizziness-then-severe-headache", "否认头晕，剧烈头痛。", "needs_information", "需关注", { expectedAdvisory: "神经系统", ...PRESCRIPTION_ONLY_GATE }],
+  ["negated-dizziness-then-severe-headache", "否认头晕，剧烈头痛。", "ready", "需关注", { expectedAdvisory: "局灶神经功能异常" }],
   ["negated-vomiting-then-worsening-abdominal-pain", "否认呕吐，腹痛持续加重。", "red_flag", "高风险", PRESCRIPTION_ONLY_GATE],
   ["negated-nausea-then-worsening-distension", "否认恶心，腹胀持续加重。", "red_flag", "高风险", PRESCRIPTION_ONLY_GATE],
   ["negated-chest-then-acute-abdominal-pain", "否认胸痛，突发剧烈腹痛。", "red_flag", "高风险"],
@@ -1645,7 +1645,7 @@ cases.push(expected("redflag-suppresses-stale-dose-level-his-output", baseCase("
     highestRiskLevel: "INFO",
     auditAvailable: true,
   },
-}), "red_flag", "高风险", { expectedAdvisoryRedFlagDoseRetention: true }));
+}), "red_flag", "高风险", { expectedRedFlagDoseWithheld: true }));
 
 const pollutionCases = [
   ["pollution-symptoms", { symptoms: { note: "AI误写突发剧烈胸痛伴大汗" } }, "ready", "低风险"],
@@ -1720,16 +1720,15 @@ async function runHisSchemeCases() {
       const riskSignals = [...(payload?.safetyGate?.redFlags || []), ...(payload?.safetyGate?.advisories || [])];
       assert(riskSignals.some((item) => String(item).includes(c.expectedRiskSignal)), `${c.name}: expected risk signal ${c.expectedRiskSignal}`, payload?.safetyGate);
     }
-    if (c.expectedAdvisoryRedFlagDoseRetention) {
-      // 甲方处置学说（advise，2026-08-01）：红旗**不删除**已生成内容，改为置顶分级警示 +
-      // 逐项确认门。检测与呈现照旧，采纳被 L3 确认链约束，陈旧 PASS 审方不得转化为放行。
-      assert((payload?.prescriptions?.herbal || []).length > 0, `${c.name}: advise mode retains the herbal candidate for the doctor`, payload?.prescriptions);
+    if (c.expectedRedFlagDoseWithheld) {
+      // 2026-08-15 后红旗展示与剂量权限分离：advise 模式保留临床分析，但陈旧剂量处方
+      // fail-closed 扣住，不能再凭历史 PASS 或确认框恢复成可采纳项目。
+      assert((payload?.prescriptions?.herbal || []).length === 0 && (payload?.prescriptions?.structuredHerbs || []).length === 0, `${c.name}: red flag withholds stale dose-level herbal content`, payload?.prescriptions);
       const advisoryProfile = payload?.warningProfile || {};
       assert(["L3", "L4"].includes(advisoryProfile.level) && Array.isArray(advisoryProfile.reasons) && advisoryProfile.reasons.some((reason) => /急危重|急诊|心血管|胸痛/.test(String(reason))), `${c.name}: red-flag reasons stay visible in the warning profile`, advisoryProfile);
       assert(payload?.reviewRequired === true, `${c.name}: red flag keeps mandatory review`, payload);
       assert(payload?.auditStatus !== "pass", `${c.name}: stale PASS audit revision must not surface as a passing audit`, { auditStatus: payload?.auditStatus, revision: payload?.prescriptionRevision });
-      assert(payload?.writeBackPolicy?.warningConfirmationMode === "checkbox_and_reason" || payload?.writeBackPolicy?.warningConfirmationMode === "blocked", `${c.name}: adoption requires reasoned confirmation under red flag`, payload?.writeBackPolicy);
-      assert(payload?.writeBackPolicy?.warningAcknowledgementRequired === true && payload?.writeBackPolicy?.overrideReasonRequired === true, `${c.name}: red-flag adoption cannot skip acknowledgement or reason`, payload?.writeBackPolicy);
+      assert(payload?.writeBackPolicy?.allowSingleItemAdoption === false && payload?.writeBackPolicy?.allowOneClickAdoption === false, `${c.name}: red-flag dose withholding cannot be overridden into adoption`, payload?.writeBackPolicy);
     }
     if (c.expectedLineage) {
       assert(String(payload?.aiMedicalRecord?.tcmLineagePreference || "").includes(c.expectedLineage), `${c.name}: expected lineage preference`, payload?.aiMedicalRecord);
@@ -1743,9 +1742,6 @@ async function runHisSchemeCases() {
       assert(payload?.status === "ready", `${c.name}: expected ready HIS payload before adoption`, payload);
       assert(payload?.writeBackPolicy?.allowSingleItemAdoption === true, `${c.name}: single item adoption follows unlocked ready status`, payload?.writeBackPolicy);
       assert(payload?.prescriptions?.herbal?.[0]?.adoptable === true && !payload?.prescriptions?.herbal?.[0]?.blockedReason, `${c.name}: adoptable herbal item does not carry a contradictory blocked reason`, payload?.prescriptions?.herbal?.[0]);
-    } else if (c.expectedAdvisoryRedFlagDoseRetention) {
-      // advise 红旗：结果照常就绪，单项采纳保留但被 L3 确认链约束（上方专用断言已核验）。
-      assert(payload?.status === "ready" && payload?.writeBackPolicy?.allowSingleItemAdoption === true, `${c.name}: advise red flag keeps confirmed single-item adoption`, payload?.writeBackPolicy);
     } else {
       assert(payload?.status !== "ready", `${c.name}: fixture does not authorize an adoptable ready payload`, payload);
       assert(payload?.writeBackPolicy?.allowSingleItemAdoption === false, `${c.name}: no single item adoption`, payload?.writeBackPolicy);
@@ -1767,7 +1763,7 @@ async function runHisSchemeCases() {
       assert(adoptableItems.some((item) => item.id === "herbal-1"), `${c.name}: audited structured herbal item is adoptable`, adoptableItems);
       assert(!adoptableItems.some((item) => item.id === "medicine-1"), `${c.name}: empty western/patent placeholder is not adoptable`, adoptableItems);
     }
-    if ((c.gate !== "ready" || c.label !== "低风险" || c.expectNoAdoption) && !c.expectedAdvisoryRedFlagDoseRetention) {
+    if (c.gate !== "ready" || c.label !== "低风险" || c.expectNoAdoption) {
       assert(payload?.writeBackPolicy?.allowSingleItemAdoption === false, `${c.name}: limited or non-low-risk disables single adoption`, payload?.writeBackPolicy);
       assert(payload?.writeBackPolicy?.allowOneClickAdoption === false, `${c.name}: limited or non-low-risk disables one-click adoption`, payload?.writeBackPolicy);
       const adoptableItems = [
@@ -2171,25 +2167,25 @@ async function runKnowledgeCalls() {
       strictHealth.json?.controlledTerminology,
     );
   }
-  const expectedPrimaryModel = process.env.EXPECTED_PRIMARY_MODEL?.trim();
-  const expectedReasoningEffort = process.env.EXPECTED_REASONING_EFFORT || "low";
   const primaryModel = health.json?.providers?.primaryModel;
   assert(
-    expectedPrimaryModel
-      ? primaryModel?.model === expectedPrimaryModel
-      : primaryModel?.configured === true && /^deepseek-v4-(?:flash|pro)$/.test(primaryModel?.model || ""),
-    expectedPrimaryModel ? `health model ${expectedPrimaryModel}` : "health primary model is an explicitly configured DeepSeek V4 stage model",
+    primaryModel?.configured === true && primaryModel?.transportAllowed === true,
+    "health reports the primary provider as configured and transport-allowed",
     primaryModel,
   );
   assert(
-    health.json?.providers?.diagnoseModel?.model === "deepseek-v4-flash" &&
-      health.json?.providers?.prescribeModel?.repairModel === "deepseek-v4-flash",
-    "health pins M03 and bounded M04 repair to the approved DeepSeek V4 Flash release",
+    health.json?.providers?.diagnoseModel?.configured === true &&
+      health.json?.providers?.prescribeModel?.configured === true,
+    "health reports M03 and M04 providers configured without exposing internal model identities",
     health.json?.providers,
   );
-  assert(health.json?.providers?.primaryModel?.reasoningEffort === expectedReasoningEffort, `health reasoning effort ${expectedReasoningEffort}`, health.json?.providers?.primaryModel);
-  const expectedThinkingEnabled = process.env.EXPECTED_THINKING_ENABLED === "true";
-  assert(health.json?.providers?.primaryModel?.thinkingEnabled === expectedThinkingEnabled, `health reports DeepSeek thinking configuration=${expectedThinkingEnabled}`, health.json?.providers?.primaryModel);
+  assert(
+    !Object.hasOwn(primaryModel || {}, "model") &&
+      !Object.hasOwn(primaryModel || {}, "reasoningEffort") &&
+      !Object.hasOwn(primaryModel || {}, "thinkingEnabled"),
+    "public health omits model identity, reasoning effort, and thinking configuration",
+    primaryModel,
+  );
   assert((health.json?.knowledge?.summary?.herbCount || 0) >= 600, "knowledge herb count >=600", health.json?.knowledge);
   assert((health.json?.formulaKnowledge?.sourceRowCount || 0) === 84294 && (health.json?.formulaKnowledge?.formulaNameCount || 0) >= 40000 && health.json?.formulaKnowledge?.officialClassicFormulaCount === 200, "formula provenance catalogs are loaded", health.json?.formulaKnowledge);
   const evidenceKinds = new Set((health.json?.externalEvidence?.sources || []).map((source) => source?.kind));
