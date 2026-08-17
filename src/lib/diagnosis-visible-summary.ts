@@ -2312,6 +2312,9 @@ const NON_STANDARD_SYMPTOM_QUALIFIER =
 export function westernDiagnosisLabelForDisplay(value: unknown, coding?: unknown): string {
   const label = typeof value === "string" ? value.trim() : "";
   if (!label) return "";
+  if (/^症状性(?:诊断|问题)[，,]\s*病因待(?:临床)?鉴别$/.test(label)) {
+    return "当前未形成可复核的西医工作诊断";
+  }
   const codingDisplay = markdownCell(recordValue(coding)?.display);
   const qualifier = label.match(NON_STANDARD_SYMPTOM_QUALIFIER)?.[0] || "";
   const core = qualifier ? label.slice(0, label.length - qualifier.length).trim() : label;

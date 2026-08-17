@@ -183,6 +183,13 @@ for (const intact of ["社区获得性肺炎", "2型糖尿病", "原发性高血
 }
 check(() => assert.equal(westernDiagnosisLabelForDisplay(""), "", "空标签返回空"));
 check(() => assert.equal(westernDiagnosisLabelForDisplay(null), "", "非字符串返回空"));
+for (const fallback of ["症状性诊断，病因待临床鉴别", "症状性问题，病因待临床鉴别"]) {
+  check(() => assert.equal(
+    westernDiagnosisLabelForDisplay(fallback),
+    "当前未形成可复核的西医工作诊断",
+    `${fallback} 是失败兜底状态，不得伪装成诊断名`,
+  ));
+}
 // 有 ICD-10 编码时以编码名称为规范诊断名（编码由服务端确定性关联，不是模型措辞）。
 check(() => assert.equal(
   westernDiagnosisLabelForDisplay("头痛（症状性）", { code: "R51.x00", display: "头痛" }),

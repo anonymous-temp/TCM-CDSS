@@ -373,6 +373,7 @@ const {
 // 「头痛（症状性）」这一族括注写法一并收口——完整族断言见 test:presentation-contract。
 assert.equal(westernDiagnosisLabelForDisplay("头痛症状"), "头痛");
 assert.equal(westernDiagnosisLabelForDisplay("头痛（症状性）"), "头痛");
+assert.equal(westernDiagnosisLabelForDisplay("症状性问题，病因待临床鉴别"), "当前未形成可复核的西医工作诊断");
 assert.equal(westernDiagnosisLabelForDisplay("偏头痛"), "偏头痛", "established disease labels must not be rewritten as symptom-level diagnoses");
 
 assert.equal(
