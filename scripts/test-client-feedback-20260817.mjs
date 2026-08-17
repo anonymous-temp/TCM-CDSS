@@ -219,15 +219,15 @@ const mahuangHerbs = [
       chain: [{ nodeId: "P1", patientFact: "恶寒重发热轻", syndromeEvidence: "鼻塞流清涕", pathogenesis: "风寒束表，卫阳被遏", therapyDirection: "辛温解表" }],
     },
   }, clinicalContext);
-  assert.deepEqual(projected.overview.primarySyndromeBasis, ["恶寒重发热轻", "鼻塞流清涕", "无汗", "脉浮紧"]);
+  assert.match(projected.overview.primarySyndromeBasis.slice(2).join("；"), /无汗.*脉浮紧/s);
   assert.match(projected.overview.tcmDiagnosticRationale, /无汗.*脉浮紧/s);
   assert.match(projected.pathogenesis.chain[0].syndromeEvidence, /无汗.*脉浮紧/s);
   assert.equal(m03KeySyndromeDiscriminatorIssue(projected, clinicalContext), undefined);
 
   const diagnosisApi = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
-  const projectionAt = diagnosisApi.indexOf("projectM03KeySyndromeDiscriminators(parsed, clinicalContext)");
-  const groundingAt = diagnosisApi.indexOf("groundStructuredPatientFacts(discriminatorProjected, clinicalContext)");
-  assert.ok(projectionAt >= 0 && groundingAt > projectionAt, "M03 真实准备链必须先投影关键鉴别事实，再做病历接地复核");
+  const groundingAt = diagnosisApi.indexOf("groundStructuredPatientFacts(content, clinicalContext)");
+  const projectionAt = diagnosisApi.indexOf("projectKeyDiscriminators(grounded)");
+  assert.ok(groundingAt >= 0 && projectionAt > groundingAt, "M03 真实准备链必须先完成病历接地，再投影已确认的完整原句");
 }
 
 // 8. 「精神饮食尚可、二便调」是一般状态，不得给急性上呼吸道感染凑支持依据。

@@ -464,7 +464,7 @@ export async function prepareDiagnoseStructuredContent(
     phaseStartedAt = Date.now();
     return value;
   };
-  const discriminatorProjected = phase("key_discriminators", content.replace(
+  const projectKeyDiscriminators = (source: string): string => source.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
     (match, jsonText: string) => {
       try {
@@ -476,15 +476,15 @@ export async function prepareDiagnoseStructuredContent(
         return match;
       }
     },
-  ));
+  );
   // The pathogenesis chain is a clinical conclusion and must come from the model plus semantic
   // review. Never synthesize it from a chief complaint and another model-generated conclusion.
-  // The discriminator projection above only repeats verbatim chart facts inside an existing model
-  // conclusion; grounding immediately rechecks those facts before any contract can accept them.
-  const grounded = phase("grounding", groundStructuredPatientFacts(discriminatorProjected, clinicalContext));
+  const grounded = phase("grounding", groundStructuredPatientFacts(content, clinicalContext));
+  const discriminatorProjected = phase("key_discriminators", projectKeyDiscriminators(grounded));
   // 必须排在 grounding 之后:grounding 才会丢掉未回溯节点并把 nodeId 重排为 P1..Pn,
   // 在此之前判断“逐字重复”用的是尚未落地的文本。
-  const deduplicated = phase("dedup", normalizeM03StructuralDuplicates(grounded));
+  // 鉴别事实投影使用的是 grounding 已确认过的临床原文片段，之后仍须通过全量语义/T1 合同。
+  const deduplicated = phase("dedup", normalizeM03StructuralDuplicates(discriminatorProjected));
   const classified = phase("classify", sanitizeOptionalPathogenesisClassifications(deduplicated, clinicalContext));
   const rationaleBound = phase("rationale_boundary", normalizeM03TcmRationaleEvidenceBoundary(classified));
   const projected = phase("summary_projection", normalizeM03PathogenesisSummaryProjection(rationaleBound));
@@ -498,7 +498,11 @@ export async function prepareDiagnoseStructuredContent(
   const tcmRationaleAligned = phase("tcm_rationale", alignNormalizedM03TcmDiagnosticRationale(westernRationaleAligned));
   const principleBound = phase("treatment_principle", applyDeterministicTreatmentPrinciple(tcmRationaleAligned));
   const qualityBounded = phase("quality_boundaries", applyM03AdvisoryQualityBoundaries(principleBound, clinicalContext));
-  const result = phase("safety_net_icd10", applyDeterministicIcd10Coding(applyActionableFollowupSafetyNetContract(qualityBounded)));
+  const safetyNetBounded = phase("safety_net_icd10", applyDeterministicIcd10Coding(applyActionableFollowupSafetyNetContract(qualityBounded)));
+  // Terminology annotation may rebuild primarySyndromeBasis from its own projection. Reapply the
+  // same exact chart quotes at the final preparation boundary so all three evidence exits remain
+  // aligned when the strict contract runs immediately afterwards.
+  const result = phase("final_key_discriminators", projectKeyDiscriminators(safetyNetBounded));
   if (Object.keys(phaseDurations).length > 0) {
     console.info("[tcm-cdss:timing] m03_prepare_phases", phaseDurations);
   }

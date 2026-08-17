@@ -1260,11 +1260,26 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
   if (contextAffirmsTerm(clinicalContext, /脉(?:象[:：]?)?浮紧|脉浮而紧/)) required.push("脉浮紧");
   if (required.length === 0 || !reasoning.overview) return reasoning;
 
+  const sourceSegments = clinicalContext
+    .split(/[；;\n]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const sourceQuotes = [...new Set(required.map((term) => sourceSegments
+    .filter((segment) => segment.includes(term))
+    .sort((left, right) => {
+      const rightCoverage = required.filter((candidate) => right.includes(candidate)).length;
+      const leftCoverage = required.filter((candidate) => left.includes(candidate)).length;
+      return rightCoverage - leftCoverage || left.length - right.length;
+    })[0] || term))];
+
   const projected = structuredClone(reasoning) as T;
   const overview = projected.overview;
   if (!overview) return reasoning;
   const basis = nonEmptyStringList(overview.primarySyndromeBasis);
-  overview.primarySyndromeBasis = [...basis, ...required.filter((term) => !basis.some((item) => item.includes(term)))];
+  overview.primarySyndromeBasis = [
+    ...basis,
+    ...sourceQuotes.filter((quote) => !basis.some((item) => item.includes(quote))),
+  ];
 
   const rationale = typeof overview.tcmDiagnosticRationale === "string"
     ? overview.tcmDiagnosticRationale.trim()
@@ -1273,7 +1288,7 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
   if (rationaleMissing.length > 0) {
     overview.tcmDiagnosticRationale = [
       rationale,
-      `辨证采用病历已记录的关键鉴别事实：${rationaleMissing.join("、")}。`,
+      `辨证采用病历原文中的关键鉴别事实：${sourceQuotes.join("；")}。`,
     ].filter(Boolean).join("");
   }
 
@@ -1284,7 +1299,7 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
     const evidence = typeof target.syndromeEvidence === "string" ? target.syndromeEvidence.trim() : "";
     target.syndromeEvidence = [
       evidence,
-      ...required.filter((term) => !evidence.includes(term)),
+      ...sourceQuotes.filter((quote) => !evidence.includes(quote)),
     ].filter(Boolean).join("；");
   }
   return projected;
