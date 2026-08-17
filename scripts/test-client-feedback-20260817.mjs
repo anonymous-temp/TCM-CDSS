@@ -32,6 +32,7 @@ const {
 } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const { enrichReasoning, resolveFormulaSources } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const { compileTcmTreatmentRecommendations } = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
+const { dropUnsupportedM04ModificationDirections } = await jiti.import("../src/lib/m04-modification-safety.ts");
 const {
   applyM03KeySyndromeDiscriminatorsToContent,
   discriminatingWesternSupportClauses,
@@ -283,5 +284,31 @@ assert.deepEqual(
   ["睡眠欠佳"],
   "一般状态与真实症状混在同一句时必须逐分句剥离，不能整句进入西医依据",
 );
+
+// 9. 急性外感数日内的短期眠差随外邪而来，不得机械加安神药；真实咳嗽兼症加减仍保留。
+{
+  const prior = {
+    schemaVersion: "tcm-cdss-reasoning-v2",
+    stage: "diagnose",
+    overview: {
+      primarySyndrome: "风寒束表证",
+      primarySyndromeBasis: ["恶寒发热、鼻塞流涕2+天", "无汗", "脉浮紧"],
+      overallPathogenesis: "风寒外束，肺气失宣",
+    },
+    pathogenesis: {
+      chain: [{ nodeId: "P1", patientFact: "恶寒发热、鼻塞流涕2+天", syndromeEvidence: "无汗、脉浮紧", pathogenesis: "风寒外束，肺气失宣", therapyDirection: "辛温解表，宣肺散寒" }],
+    },
+    therapy: { overallPrinciple: "寒者热之，温散祛邪", overallMethod: "辛温解表，宣肺散寒" },
+  };
+  const next = unwrap(dropUnsupportedM04ModificationDirections(wrap({
+    schemaVersion: "tcm-cdss-reasoning-v2",
+    stage: "prescribe",
+    formula: { modifications: [
+      { trigger: "睡眠欠佳", action: "加酸枣仁", reason: "安神助眠", targetPathogenesis: "风寒外束" },
+      { trigger: "稍有咳嗽", action: "加紫菀", reason: "宣肺止咳", targetPathogenesis: "肺气失宣" },
+    ] },
+  }), prior));
+  assert.deepEqual(next.formula.modifications.map((item) => item.trigger), ["稍有咳嗽"]);
+}
 
 console.log(JSON.stringify({ suite: "client-feedback-20260817", failures: 0 }));

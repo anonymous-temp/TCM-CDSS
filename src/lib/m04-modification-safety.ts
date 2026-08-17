@@ -5,11 +5,33 @@ import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
 const MODIFICATION_ADDITION = /(?:^|时|则|可|建议)(?:加入|加用|新增|加)([\u4e00-\u9fa5]{1,8})/;
+const TRANSIENT_SLEEP_TRIGGER = /(?:睡眠欠佳|睡眠不佳|眠差|失眠|入睡困难|夜寐不安|多梦易醒)/;
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : undefined;
+}
+
+function isTransientAcuteExteriorSleepModification(
+  modification: Record<string, unknown>,
+  prior: ClinicalReasoningResultV2,
+): boolean {
+  const trigger = typeof modification.trigger === "string" ? modification.trigger.trim() : "";
+  if (!TRANSIENT_SLEEP_TRIGGER.test(trigger)) return false;
+  const syndrome = String(prior.overview?.primarySyndrome || "");
+  if (!/(?:风寒|风热)(?:束表|犯表|袭表)|太阳伤寒/.test(syndrome)) return false;
+  const factText = [
+    ...(prior.overview?.primarySyndromeBasis || []),
+    ...(prior.pathogenesis?.chain || []).flatMap((node) => [node.patientFact, node.syndromeEvidence]),
+    ...(prior.westernDiagnosis?.primary?.supportingFacts || []),
+  ].filter((value): value is string => typeof value === "string").join("；");
+  if (!/(?:半日|[1-7一二三四五六七两]\+?\s*(?:天|日))/.test(factText)) return false;
+  // 睡眠本身有月/年级病程或长期反复时是独立治疗目标，不按急性外感伴随表现删除。
+  const chronicSleep = new RegExp(
+    `(?:${TRANSIENT_SLEEP_TRIGGER.source})[^。；]{0,16}(?:月|年|长期|反复)|(?:月|年|长期|反复)[^。；]{0,16}(?:${TRANSIENT_SLEEP_TRIGGER.source})`,
+  );
+  return !chronicSleep.test(factText);
 }
 
 /**
@@ -37,6 +59,7 @@ export function dropUnsupportedM04ModificationDirections(
     const retained = modifications.filter((value) => {
       const modification = recordValue(value);
       if (!modification) return true;
+      if (isTransientAcuteExteriorSleepModification(modification, prior)) return false;
       const action = typeof modification.action === "string" ? modification.action.trim().replace(/\s/g, "") : "";
       const addition = action.match(MODIFICATION_ADDITION);
       if (!addition) return true;
