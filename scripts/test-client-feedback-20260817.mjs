@@ -33,6 +33,7 @@ const {
 const { enrichReasoning, resolveFormulaSources } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const { compileTcmTreatmentRecommendations } = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
 const {
+  applyM03KeySyndromeDiscriminatorsToContent,
   isNondiscriminatingWesternSupportingFact,
   m03KeySyndromeDiscriminatorIssue,
   projectM03KeySyndromeDiscriminators,
@@ -223,11 +224,25 @@ const mahuangHerbs = [
   assert.match(projected.overview.tcmDiagnosticRationale, /无汗.*脉浮紧/s);
   assert.match(projected.pathogenesis.chain[0].syndromeEvidence, /无汗.*脉浮紧/s);
   assert.equal(m03KeySyndromeDiscriminatorIssue(projected, clinicalContext), undefined);
+  const projectedContent = unwrap(applyM03KeySyndromeDiscriminatorsToContent(wrap({
+    schemaVersion: "tcm-cdss-reasoning-v2",
+    stage: "diagnose",
+    ...projected,
+  }), clinicalContext));
+  assert.match(projectedContent.overview.primarySyndromeBasis.join("；"), /无汗.*脉浮紧/s);
+  assert.equal(m03KeySyndromeDiscriminatorIssue(projectedContent, clinicalContext), undefined);
 
   const diagnosisApi = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
-  const groundingAt = diagnosisApi.indexOf("groundStructuredPatientFacts(content, clinicalContext)");
-  const projectionAt = diagnosisApi.indexOf("projectKeyDiscriminators(grounded)");
-  assert.ok(groundingAt >= 0 && projectionAt > groundingAt, "M03 真实准备链必须先完成病历接地，再投影已确认的完整原句");
+  assert.match(
+    diagnosisApi,
+    /groundStructuredPatientFacts\(content, clinicalContext\)[\s\S]{0,500}applyM03KeySyndromeDiscriminatorsToContent\(grounded, clinicalContext\)/,
+    "M03 真实准备链必须先完成病历接地，再投影已确认的完整原句",
+  );
+  assert.match(
+    diagnosisApi,
+    /transformOutput[\s\S]*applyM03KeySyndromeDiscriminatorsToContent\([\s\S]*opts\.structuredClinicalContext/,
+    "M03 医生可见输出净化后必须再次投影病历原文，再执行最终合同",
+  );
 }
 
 // 8. 「精神饮食尚可、二便调」是一般状态，不得给急性上呼吸道感染凑支持依据。

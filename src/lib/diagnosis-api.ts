@@ -14,7 +14,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { affirmedTcmTherapyConcepts, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText, projectM03KeySyndromeDiscriminators,} from "@/lib/diagnosis-stage-contract";
+import { affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
 import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -464,23 +464,13 @@ export async function prepareDiagnoseStructuredContent(
     phaseStartedAt = Date.now();
     return value;
   };
-  const projectKeyDiscriminators = (source: string): string => source.replace(
-    /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
-    (match, jsonText: string) => {
-      try {
-        const parsed = JSON.parse(jsonText);
-        if (parsed?.stage !== "diagnose") return match;
-        const projected = projectM03KeySyndromeDiscriminators(parsed, clinicalContext);
-        return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(projected)}\n<!-- DIAGNOSIS_JSON_END -->`;
-      } catch {
-        return match;
-      }
-    },
-  );
   // The pathogenesis chain is a clinical conclusion and must come from the model plus semantic
   // review. Never synthesize it from a chief complaint and another model-generated conclusion.
   const grounded = phase("grounding", groundStructuredPatientFacts(content, clinicalContext));
-  const discriminatorProjected = phase("key_discriminators", projectKeyDiscriminators(grounded));
+  const discriminatorProjected = phase(
+    "key_discriminators",
+    applyM03KeySyndromeDiscriminatorsToContent(grounded, clinicalContext),
+  );
   // 必须排在 grounding 之后:grounding 才会丢掉未回溯节点并把 nodeId 重排为 P1..Pn,
   // 在此之前判断“逐字重复”用的是尚未落地的文本。
   // 鉴别事实投影使用的是 grounding 已确认过的临床原文片段，之后仍须通过全量语义/T1 合同。
@@ -502,7 +492,10 @@ export async function prepareDiagnoseStructuredContent(
   // Terminology annotation may rebuild primarySyndromeBasis from its own projection. Reapply the
   // same exact chart quotes at the final preparation boundary so all three evidence exits remain
   // aligned when the strict contract runs immediately afterwards.
-  const result = phase("final_key_discriminators", projectKeyDiscriminators(safetyNetBounded));
+  const result = phase(
+    "final_key_discriminators",
+    applyM03KeySyndromeDiscriminatorsToContent(safetyNetBounded, clinicalContext),
+  );
   if (Object.keys(phaseDurations).length > 0) {
     console.info("[tcm-cdss:timing] m03_prepare_phases", phaseDurations);
   }
@@ -4307,12 +4300,20 @@ async function callPrimaryTextModelStream(
             // projection from the final surviving fact + already-reviewed diagnosis label, then
             // run the full contract and attestation rebind below. No diagnosis or patient fact is
             // added here.
+            const aligned = opts.structuredStage === "diagnose"
+              ? alignNormalizedM03TcmDiagnosticRationale(
+                  alignNormalizedM03WesternClinicalRationale(transformed),
+                )
+              : transformed;
             return {
+              // 客户输出净化会重建/删减事实字段；关键方证原文必须在它之后再投影一次，
+              // 随即由下方 finalized contract 对这组最终字节完整复验。
               content: opts.structuredStage === "diagnose"
-                ? alignNormalizedM03TcmDiagnosticRationale(
-                    alignNormalizedM03WesternClinicalRationale(transformed),
+                ? applyM03KeySyndromeDiscriminatorsToContent(
+                    aligned,
+                    opts.structuredClinicalContext || "",
                   )
-                : transformed,
+                : aligned,
               ok: true,
             };
           } catch (error) {

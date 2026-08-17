@@ -1305,6 +1305,26 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
   return projected;
 }
 
+/** 对 sentinel 内的 M03 载荷应用关键鉴别事实投影；非法/非 M03 内容原样返回。 */
+export function applyM03KeySyndromeDiscriminatorsToContent(
+  content: string,
+  clinicalContext: string,
+): string {
+  return content.replace(
+    /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
+    (match, jsonText: string) => {
+      try {
+        const parsed = JSON.parse(jsonText);
+        if (parsed?.stage !== "diagnose") return match;
+        const projected = projectM03KeySyndromeDiscriminators(parsed, clinicalContext);
+        return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(projected)}\n<!-- DIAGNOSIS_JSON_END -->`;
+      } catch {
+        return match;
+      }
+    },
+  );
+}
+
 /** Validate uncertainty state and source grounding without deciding clinical semantics locally. */
 function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext: string): string | undefined {
   const overview = reasoning.overview;
