@@ -13,7 +13,7 @@ import {
   PULSE_QUALITY_PATTERN_SOURCE,
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
-import { generalizeOccupation, scrubQuasiIdentifierText, scrubRecordHeaderName } from "./phi-sanitizer";
+import { generalizeOccupation, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
 import { determineCompletenessLevel } from "./diagnosis-parse";
 import {
   additiveRedFlagsFromFacts,
@@ -5424,6 +5424,11 @@ function limitModelTextHeadTail(value: string, max: number): string {
 
 function scrubPhi(text: string, patientName = ""): string {
   text = scrubRecordHeaderName(text, "[已脱敏]");
+  // 「本例赵敏既往有高血压」这条原是行内正则、且没有姓氏正向判定，实测吃掉临床文本
+  // （本例患儿 / 该患者既往 / 病人自诉）。收敛到共享谓词，见 phi-sanitizer 注释。
+  text = scrubSubjectPrefixedName(text, "[已脱敏]");
+  // 「家属王强代述病情」同理：原行内规则无姓氏判定，误吃「患者自诉头痛」的同时漏掉「代述/签字」。
+  text = scrubRelationPrefixedName(text, "[已脱敏]");
   let next = text;
   if (patientName) next = next.replaceAll(patientName, "[已脱敏]");
   return scrubQuasiIdentifierText(next
@@ -5438,12 +5443,9 @@ function scrubPhi(text: string, patientName = ""): string {
     .replace(/(^|[；;。\n]\s*)([A-Z][A-Za-z'-]{1,30}(?:\s+[A-Z][A-Za-z'-]{1,30}){1,3})(?=\s*(?:昨夜|今日|今晨|近日|近\d|来诊|就诊|入院|出院|自述|反映|称|表示|出现|发生|患|失眠|头痛|头晕|胸痛|腹痛|发热|咳嗽|心悸))/g, "$1[已脱敏]")
     .replace(/(^|[；;。\n]\s*)([A-Z][A-Za-z'-]{1,30}(?:\s+[A-Z][A-Za-z'-]{1,30}){1,3})(?=\s*[\u4e00-\u9fa5])/g, "$1[已脱敏]")
     .replace(/姓名\s*[:：]?\s*[^，；。\n]+/g, "姓名：[已脱敏]")
-    .replace(/(?:患者|家属|联系人|陪同者|监护人|医生|医师)\s*[:：]?\s*[\u4e00-\u9fa5]{2,4}(?=[，,；。\s]|反映|诉|称|表示|告知|建议|记录)/g, (match) => {
-      const label = match.match(/^(患者|家属|联系人|陪同者|监护人|医生|医师)/)?.[1] || "人员";
-      return `${label}[已脱敏]`;
-    })
-    .replace(/患者\s*[\u4e00-\u9fa5]{2,4}(?=[，,；。\s]|男|女|\d{1,3}\s*岁)/g, "患者[已脱敏]")
-    .replace(/(本例|该患者|病例|病人|患儿)\s*[\u4e00-\u9fa5]{2,4}?(?=(?:既往|曾经|曾有|近|昨|今|因|诉|称|反映|表示|出现|发生|患|有|于|睡|入睡|失眠|头痛|头晕|胸痛|腹痛|发热|咳嗽|心悸|就诊|来诊|男|女|\d{1,3}\s*岁))/g, "$1[已脱敏]")
+
+
+
     // 临床字段标签之后的词不是姓名(2026-08-05)。
     //
     // 本分支按「姓氏字 + 1–2 字 + 叙述动词」判姓名。中文病历里这个形态与临床术语大面积撞车:

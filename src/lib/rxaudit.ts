@@ -15,7 +15,7 @@ import { diagnoseReasoningFromState, parseReasoningV2, prescribeReasoningFromSta
 import { ageValue, type CaseState } from "./diagnosis-types";
 import { normalizeLingxiDecision, normalizeRiskLevel, type RxAuditResultCode, type RxAuditRiskLevel } from "./rxaudit-normalize";
 import { prescriptionRegimenFromDecoction, prescriptionRegimenSummary } from "./prescription-regimen-contract";
-import { affirmedAllergyText, affirmedClinicalText, affirmedCurrentMedicationText, clinicalClausePolarity, medicationContinuationOnly, medicationNameFromEventText } from "./clinical-polarity";
+import { affirmedAllergyText, affirmedClinicalText, affirmedCurrentMedicationText, canonicalMedicationIdentity, clinicalClausePolarity, medicationContinuationOnly, medicationNameFromEventText } from "./clinical-polarity";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "./http-response-limit";
 import { cancelResponseBody } from "./http-response-lifecycle";
 import {
@@ -360,23 +360,13 @@ export function buildMedicationExtractionContext(state: CaseState): MedicationEx
   };
 }
 
+// 剂型后缀表与受控别名表原本在此另抄一份，且缺「混悬滴剂」「胶囊剂」——
+// 见 clinical-polarity 中 MEDICATION_DOSAGE_FORM_SUFFIXES 的注释：那处分叉让
+// 「现服布洛芬混悬滴剂，布洛芬已停用」这种真实矛盾静默通过了状态冲突判据。
+// 此处只保留本模块特有的前置归一（NFKC + 空身份回落原文），身份规则一律走共享谓词。
 function normalizedMedicationIdentity(value: string): string {
-  let identity = medicationNameFromEventText(value) || value;
-  identity = identity.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-  const dosageForms = ["缓释胶囊", "肠溶胶囊", "软胶囊", "薄膜衣片", "糖衣片", "泡腾片", "口腔崩解片", "缓释片", "控释片", "肠溶片", "分散片", "咀嚼片", "舌下片", "胶囊", "片剂", "颗粒剂", "片", "颗粒"];
-  let previous = "";
-  while (identity && identity !== previous) {
-    previous = identity;
-    const suffix = dosageForms.find((item) => identity.endsWith(item) && identity.length > item.length + 1);
-    if (suffix) identity = identity.slice(0, -suffix.length);
-  }
-  const controlledAliases: Record<string, string> = {
-    盐酸二甲双胍: "二甲双胍",
-    华法林钠: "华法林",
-    硫酸氢氯吡格雷: "氯吡格雷",
-    枸橼酸西地那非: "西地那非",
-  };
-  return controlledAliases[identity] || identity;
+  const raw = medicationNameFromEventText(value) || value;
+  return canonicalMedicationIdentity(raw.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""));
 }
 
 /** Conservative source-side candidates used only to detect an incomplete model extraction. */

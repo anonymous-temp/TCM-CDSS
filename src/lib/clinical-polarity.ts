@@ -378,24 +378,46 @@ export function medicationNameFromEventText(value: string): string {
   return MEDICATION_REFERENT.test(result) ? "" : result;
 }
 
-function medicationEventIdentity(value: string): string {
-  let identity = medicationNameFromEventText(value)
-    .replace(/[^\p{L}\p{N}]+/gu, "")
-    .toLowerCase();
-  const dosageForms = ["缓释胶囊", "肠溶胶囊", "软胶囊", "薄膜衣片", "糖衣片", "泡腾片", "口腔崩解片", "缓释片", "控释片", "肠溶片", "分散片", "咀嚼片", "舌下片", "混悬滴剂", "胶囊", "片剂", "颗粒剂", "胶囊剂", "片", "颗粒"];
+/**
+ * 剂型后缀与受控别名：药名身份归一的**唯一**来源。
+ *
+ * 这两张表原本在本文件与 rxaudit.ts 各写一份（连 controlledAliases 都逐字重复），
+ * 且已分叉——rxaudit 那份缺「混悬滴剂」「胶囊剂」。实测（2026-08-17）该分叉是 fail-open：
+ * 身份归一喂 verifyMedicationSemanticCoverage 的**同药状态冲突**判据，剥不掉后缀就被当成两个药，
+ *   「现服阿莫西林胶囊，阿莫西林已停用」   → medication_status_conflict ✓
+ *   「现服布洛芬混悬滴剂，布洛芬已停用」   → **静默通过** ✗
+ * 后者是真实矛盾、本该转人工复核。混悬滴剂正是儿科布洛芬/对乙酰氨基酚的标准剂型。
+ * 顺序有意义：长后缀必须排在短后缀之前（缓释胶囊 先于 胶囊），剥离循环跑到不动点为止。
+ */
+export const MEDICATION_DOSAGE_FORM_SUFFIXES = [
+  "缓释胶囊", "肠溶胶囊", "软胶囊", "薄膜衣片", "糖衣片", "泡腾片", "口腔崩解片",
+  "缓释片", "控释片", "肠溶片", "分散片", "咀嚼片", "舌下片", "混悬滴剂",
+  "胶囊", "片剂", "颗粒剂", "胶囊剂", "片", "颗粒",
+];
+
+const MEDICATION_CONTROLLED_ALIASES: Record<string, string> = {
+  盐酸二甲双胍: "二甲双胍",
+  华法林钠: "华法林",
+  硫酸氢氯吡格雷: "氯吡格雷",
+  枸橼酸西地那非: "西地那非",
+};
+
+/** 剥掉剂型后缀并落到受控别名。调用方各自负责大小写/NFKC 等前置归一。 */
+export function canonicalMedicationIdentity(value: string): string {
+  let identity = value;
   let previous = "";
   while (identity && identity !== previous) {
     previous = identity;
-    const suffix = dosageForms.find((item) => identity.endsWith(item) && identity.length > item.length + 1);
+    const suffix = MEDICATION_DOSAGE_FORM_SUFFIXES.find(
+      (item) => identity.endsWith(item) && identity.length > item.length + 1);
     if (suffix) identity = identity.slice(0, -suffix.length);
   }
-  const controlledAliases: Record<string, string> = {
-    盐酸二甲双胍: "二甲双胍",
-    华法林钠: "华法林",
-    硫酸氢氯吡格雷: "氯吡格雷",
-    枸橼酸西地那非: "西地那非",
-  };
-  return controlledAliases[identity] || identity;
+  return MEDICATION_CONTROLLED_ALIASES[identity] || identity;
+}
+
+function medicationEventIdentity(value: string): string {
+  return canonicalMedicationIdentity(
+    medicationNameFromEventText(value).replace(/[^\p{L}\p{N}]+/gu, "").toLowerCase());
 }
 
 function sameMedicationIdentity(left: string, right: string): boolean {

@@ -5,7 +5,7 @@ import { extractDiagnosisJSON, stripDiagnosisJSON, parseCompleteness } from "./d
 import { isUnknownClinicalFieldText, isUnknownClinicalText } from "./clinical-state";
 import { safeHttpUrl } from "./safe-url";
 import { STREAM_REPLACE_MARKER } from "./diagnosis-stream-protocol";
-import { dateOnly, generalizeOccupation, scrubQuasiIdentifierText, scrubRecordHeaderName } from "./phi-sanitizer";
+import { dateOnly, generalizeOccupation, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
 
 const LS_PREFIX = "diagnosis_case_";
 const MAX_CONVERSATION = 10;
@@ -48,7 +48,8 @@ export function scrubPersistentPhiText(text: string, explicitNames: string[] = [
   // 此前本函数走百家姓枚举、服务端 scrubPhi 走上下文模式，两套各写各的，实测浏览器侧漏：
   //   「张伟，男，45岁」「欧阳明月，女，32岁」「本例赵敏既往有高血压」服务端脱敏、本侧留存。
   // 本侧保护的是 localStorage 里的静态 PHI，而「姓名，男，NN岁」正是标准 HIS 抬头格式。
-  let next = scrubRecordHeaderName(text);
+  // 本侧原本**完全没有**主语前缀姓名这条规则：「本例赵敏既往有高血压」在 localStorage 里原样留存。
+  let next = scrubRelationPrefixedName(scrubSubjectPrefixedName(scrubRecordHeaderName(text)));
   for (const name of explicitNames) {
     const cleaned = name.trim();
     if (cleaned) next = next.replaceAll(cleaned, "[姓名已脱敏]");

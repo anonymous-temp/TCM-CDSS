@@ -148,15 +148,67 @@ for (const line of NEGATED_LINES) {
       `非姓名抬头必须逐字保留：「${input}」——误吃它等于在送模型路径上丢临床信息`,
     );
   }
+  // 中点姓名：外籍译名与维吾尔/藏/蒙姓名的标准写法，百家姓枚举对它们结构上无效，
+  // 实测（2026-08-17）两侧都留存。中点在本领域高频（书名与朝代作者引注、目录点线），
+  // 但从不出现在「抬头 + 性别/年龄」位置——该正则对仓内 74 个数据文件、8 万余处中点误报 0。
+  const { scrubSubjectPrefixedName, scrubRelationPrefixedName } = await jiti.import("../src/lib/phi-sanitizer.ts");
+  for (const [input, name] of [["麦克·约翰逊，男，50岁，主诉咳嗽", "麦克·约翰逊"],
+    ["玛丽·史密斯，女，32岁，头痛", "玛丽·史密斯"],
+    ["阿依古丽·买买提，女，28岁", "阿依古丽·买买提"]]) {
+    assert.ok(
+      !scrubRecordHeaderName(input).includes(name),
+      `中点姓名必须脱敏：「${input}」实得 ${scrubRecordHeaderName(input)}`,
+    );
+  }
+
+  // 主语前缀（本例X）：原服务端规则无姓氏判定，在**送模型路径**上吃掉临床文本。
+  // 「既往」被吃会把 historical 读成 positive——本系统整套临床状态词汇建立在这个区分上。
+  assert.ok(
+    !scrubSubjectPrefixedName("本例赵敏既往有高血压").includes("赵敏"),
+    "主语前缀后的姓名必须脱敏：「本例赵敏既往有高血压」",
+  );
+  for (const input of ["本例患者既往有高血压", "本例患儿出现发热", "该患者既往有糖尿病",
+    "病人自诉头痛3天", "本例舌红苔黄，脉弦数"]) {
+    assert.equal(
+      scrubSubjectPrefixedName(input), input,
+      `主语前缀后的临床措辞必须逐字保留：「${input}」——`
+      + "「患儿」被吃丢的是儿科信号，「既往」被吃会把既往史读成现症",
+    );
+  }
+
+  // 关系前缀（家属X）：原规则两个方向都错——误吃主诉、又漏掉「代述/签字」。
+  for (const [input, name] of [["家属王强代述病情", "王强"], ["监护人张伟签字", "张伟"],
+    ["患者李娜诉头痛", "李娜"], ["家属王强反映病情", "王强"]]) {
+    assert.ok(
+      !scrubRelationPrefixedName(input).includes(name),
+      `关系前缀后的姓名必须脱敏：「${input}」实得 ${scrubRelationPrefixedName(input)}`,
+    );
+  }
+  for (const input of ["家属代述，患者昨夜失眠", "患者自诉头痛，家属补充夜间加重",
+    "家属陪同就诊", "患者否认过敏史", "医生建议复查", "监护人签字确认", "家属诉患者食欲差"]) {
+    assert.equal(
+      scrubRelationPrefixedName(input), input,
+      `关系前缀后的临床措辞必须逐字保留：「${input}」——`
+      + "「患者自诉头痛，…」曾被整段吃成「患者[已脱敏]，…」，主诉在送模型前就没了",
+    );
+  }
+
   // 两侧必须共用同一判据，不得再各写一份
   const safety = readFileSync(path.join(repoRoot, "src/lib/diagnosis-safety.ts"), "utf8");
   const engine = readFileSync(path.join(repoRoot, "src/lib/diagnosis-engine.ts"), "utf8");
   for (const [label, src] of [["服务端", safety], ["浏览器", engine]]) {
-    assert.ok(
-      /scrubRecordHeaderName\(/.test(src),
-      `${label}必须调用共享的 scrubRecordHeaderName`,
-    );
+    for (const shared of ["scrubRecordHeaderName", "scrubSubjectPrefixedName", "scrubRelationPrefixedName"]) {
+      assert.ok(
+        new RegExp(`${shared}\\(`).test(src),
+        `${label}必须调用共享的 ${shared}——四条姓名规则两侧各写各的是本缺口的成因`,
+      );
+    }
   }
+  // 行内副本不得复活
+  assert.ok(
+    !/\(本例\|该患者\|病例\|病人\|患儿\)\\s\*\[\\u4e00-\\u9fa5\]\{2,4\}/.test(safety),
+    "服务端不得再保留行内的主语前缀姓名正则——它没有姓氏正向判定，会吃掉「患儿」「既往」",
+  );
   assert.ok(
     !/\^\(\[\\u4e00-\\u9fa5\]\{2,4\}\)\(\?=\[，,；。/.test(safety),
     "服务端不得再保留自己那份句首姓名正则——它没有姓氏正向判定，会吃掉临床措辞",
