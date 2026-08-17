@@ -1020,7 +1020,7 @@ const PATHOGENESIS_NO_MECHANISM_NOTE = "（服务端提示：本栏未见病机�
 function stripEmbeddedClinicalFactStatus(value: unknown): string {
   if (typeof value !== "string") return "";
   return value
-    .replace(/(?:[，,；;]\s*)?病历已记录[^。；;\n]{1,120}(?:阳性|阴性)(?=[。；;\n]|$)[。；;]?/g, "")
+    .replace(/(?:[，,；;]\s*)?病历已记录[^。；;\n]{1,160}(?=[。；;\n]|$)[。；;]?/g, "")
     .replace(/[，,；;。]+\s*$/g, "")
     .replace(/\s{2,}/g, " ")
     .trim();

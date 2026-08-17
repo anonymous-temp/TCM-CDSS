@@ -70,7 +70,7 @@ for (const phrase of [
     westernDiagnosis: { primary: { supportingFacts: ["恶寒发热"] }, differentials: [] },
     pathogenesis: {
       summary: "风寒外袭，卫阳被遏，肺气失宣，病历已记录发热、咳嗽阳性",
-      caseRelationship: { rootPattern: "风寒束表", mainManifestation: "感冒", relationship: "风寒束表，病历已记录发热阳性" },
+      caseRelationship: { rootPattern: "风寒束表", mainManifestation: "感冒", relationship: "风寒束表，卫阳被遏，肺气失宣，病历已记录恶寒重发热轻、无汗、脉浮紧" },
       locationDifferentiation: { items: ["肺", "表"], details: [] },
       natureDifferentiation: { items: ["风寒"], rootDeficiency: [], branchExcess: ["风寒"] },
       chain: [{ nodeId: "P1", patientFact: "恶寒发热", syndromeEvidence: "无汗、脉浮紧", pathogenesis: "风寒束表，病历已记录发热阳性", therapyDirection: "辛温解表" }],
