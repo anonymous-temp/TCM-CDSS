@@ -203,29 +203,15 @@ export function formulaTargetPathogenesisCells(targets: readonly unknown[]): str
 }
 
 export function formulaAnalysisCharBudget(herbCount: number): number {
-  // 甲方评测(2026-08-04) 7.2「方解过于冗长」后的重算预算。
-  // 逐味行不再各背一句关系模板（病机只在分组标题上写一次），每行收敛到
-  //   药名 ≤6 ＋ 角色括号 3 ＋ 功用 ≤15 ＋ 标点 ≈ 26 字；
-  // 分组标题最多与药味数同阶，按每味 ≤14 字摊销（标题 ≤ TARGET_QUOTE_MAX_CHARS + 「**」）。
-  // 头部一行仍 ≤ 80 字。旧预算 80+56N 是逐味模板句时代的上界，留着等于允许它长回去。
+  // 连续方解仍按药味数线性给预算：每味只保留 1–2 项与本方有关的作用，
+  // 君臣佐使按角色合句，实际命中的药对关系只补一遍。
   return 80 + 40 * Math.max(0, herbCount);
 }
 
 /**
- * 返回按**病机分组**的方义段落；herbs 为空时返回空串（调用方自行决定占位文案）。
- *
- * 甲方评测(2026-08-04) 7.1「方解格式不正确」/ 7.2「方解过于冗长」的根修。
- * 生产实测那一段（归脾汤 9 味）长这样：
- *   `- **黄芪**（君）：以「补气升阳，固表止汗」直接承接核心病机「产后气血亏虚，清窍失养，不荣」，为本方治疗支点。`
- *   `- **当归**（君）：以「补血活血，调经止痛」同承接上述核心病机，为本方治疗支点。`
- *   …（其余 7 行同构）
- * 三处冗余叠加：① 每行都拖一句「为本方治疗支点 / 同承接上述病机」这类**对每张方逐字相同**的
- * 关系模板；② 「同承接上述病机」要求读者回头找「上述」是哪一条；③ 病机原文其实已经在药味表的
- * 「对应病机」列印过一遍。而真正携带本例信息的只有两样：这味药**是什么功用**、它**归在哪条病机下**。
- *
- * 因此改为分组呈现：病机作组标题只写一次，组内逐味只写「药名（角色）：功用」。
- * 逐味粒度（甲方上一轮要求的「写清楚这味药在方子里干了啥」）完全保留——角色括号本身就是关系，
- * 组标题本身就是「承接哪条病机」，两者都不需要再用一句话复述。
+ * 返回医生可读的连续方解；herbs 为空时返回空串。
+ * 甲方 2026-08-05 第 7.1 条要求分析药物在本方中的作用，而不是罗列全部功效，
+ * 并给出了麻黄汤连续自然段示例。因此这里不再生成 Markdown 病机标题或逐味列表。
  */
 export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], therapyMatch = ""): string {
   const rows = herbs
@@ -233,8 +219,6 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
       name: analysisText(herb.name),
       role: analysisText(herb.role),
       fn: cleanHerbFunctionText(analysisText(herb.function)),
-      // target 用于**分组判等**（保持原文，两条不同病机不会因取主干而误并成一组）；
-      // quote 是实际印在组标题上的短引用。
       target: analysisText(herb.targetPathogenesis),
       quote: cleanTargetQuoteText(analysisText(herb.targetPathogenesis)),
     }))
@@ -244,69 +228,70 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
     const index = ANALYSIS_ROLE_ORDER.indexOf(role as typeof ANALYSIS_ROLE_ORDER[number]);
     return index < 0 ? ANALYSIS_ROLE_ORDER.length : index;
   };
-  // 组序按「组内最高角色」定：君药所在的病机组排最前，其后臣、佐，方内结构作用（使）殿后，
-  // 与医生按君臣佐使读方的顺序一致。组内仍按君臣佐使排列。
-  const groupOrder: string[] = [];
-  for (const row of [...rows].sort((left, right) => roleRank(left.role) - roleRank(right.role))) {
-    if (row.target && !groupOrder.includes(row.target)) groupOrder.push(row.target);
-  }
-  const groupRank = (target: string): number => {
-    const index = groupOrder.indexOf(target);
-    return index < 0 ? groupOrder.length : index;
+  const ordered = [...rows].sort((left, right) => roleRank(left.role) - roleRank(right.role));
+  const roleRows = (role: string) => ordered.filter((row) => row.role === role);
+  const shownTargets = new Set<string>();
+  const targetText = (items: typeof ordered): string => {
+    const fresh = [...new Set(items.map((row) => row.quote).filter(Boolean))]
+      .filter((target) => !/(?:补益药滋腻|引经载药|调和诸药|协调药性|顾护中焦|制约峻烈)/.test(target))
+      .filter((target) => !shownTargets.has(target))
+      .slice(0, 2);
+    fresh.forEach((target) => shownTargets.add(target));
+    return fresh.join("，兼顾");
   };
-  const ordered = [...rows].sort((left, right) =>
-    groupRank(left.target) - groupRank(right.target) || roleRank(left.role) - roleRank(right.role));
-  const herbLine = (row: typeof ordered[number]): string => {
-    const roleLabel = row.role ? `（${row.role}）` : "";
-    if (row.fn) return `- ${row.name}${roleLabel}：${row.fn}`;
-    // 功用缺失时才退回角色关系句——否则这一行会只剩一个药名，读不出任何东西。
-    return `- ${row.name}${roleLabel}：${structuralRoleClause(row.role, row.target)}`;
+  const roleTargetClause = (role: string, items: typeof ordered): string => {
+    const target = targetText(items);
+    if (!target) return "";
+    if (role === "君") return `，直治${target}`;
+    if (role === "臣") return `，助君药并兼治${target}`;
+    if (role === "佐") return `，佐助主治并兼顾${target}`;
+    if (role === "使") return "";
+    return `，共同作用于${target}`;
   };
-  const body: string[] = [];
-  let currentTarget: string | undefined;
-  for (const row of ordered) {
-    if (row.target !== currentTarget) {
-      currentTarget = row.target;
-      if (body.length > 0) body.push("");
-      // 病机缺失的一组不写空标题：这些药味直接列在末尾，各自带角色关系句。
-      if (row.quote) body.push(`**${row.quote}**`);
-    }
-    body.push(herbLine(row));
+  const roleSentence = (role: string, items: typeof ordered, first: boolean): string => {
+    if (items.length === 0) return "";
+    const names = items.map((row) => row.name).join("、");
+    const subject = first ? `方中${names}` : names;
+    const rolePhrase = items.length === 1 ? `为${role}` : `共为${role}药`;
+    const actions = items.map((row) => row.fn
+      ? `${items.length === 1 ? "" : row.name}取其${row.fn}之长`
+      : `${items.length === 1 ? "" : row.name}${structuralRoleClause(row.role, row.target)}`);
+    const actionText = items.length === 1 ? actions[0] : `其中${actions.join("；")}`;
+    return `${subject}${rolePhrase}，${actionText}${roleTargetClause(role, items)}。`;
+  };
+  const roleSentences: string[] = [];
+  for (const role of ANALYSIS_ROLE_ORDER) {
+    const sentence = roleSentence(role, roleRows(role), roleSentences.length === 0);
+    if (sentence) roleSentences.push(sentence);
   }
+  const unclassified = ordered.filter((row) => !ANALYSIS_ROLE_ORDER.includes(row.role as typeof ANALYSIS_ROLE_ORDER[number]));
+  if (unclassified.length > 0) roleSentences.push(roleSentence("配伍药", unclassified, roleSentences.length === 0));
+
+  const names = new Set(ordered.map((row) => row.name));
+  const findName = (...candidates: string[]): string => candidates.find((name) => names.has(name)) || "";
+  const pairSentences: string[] = [];
+  const mahuang = findName("麻黄");
+  const guizhi = findName("桂枝");
+  const xingren = findName("苦杏仁", "杏仁");
+  const gancao = findName("炙甘草", "甘草");
+  if (mahuang && guizhi) pairSentences.push(`${mahuang}与${guizhi}相须为用，${guizhi}助${mahuang}解肌发表，以增强发汗散寒之力。`);
+  if (mahuang && xingren) pairSentences.push(`${mahuang}与${xingren}相伍，一宣一降，以复肺气宣降。`);
+  if (mahuang && guizhi && gancao) pairSentences.push(`${gancao}调和诸药，并缓和${mahuang}、${guizhi}发汗之峻，防止汗出太过。`);
+
+  const renshen = findName("人参", "党参");
+  const baizhu = findName("白术", "炒白术");
+  const fuling = findName("茯苓");
+  const sharen = findName("砂仁");
+  const jiegeng = findName("桔梗");
+  if (renshen && baizhu) pairSentences.push(`${renshen}与${baizhu}相伍，一补一健，共扶脾气以助运化。`);
+  if (baizhu && fuling) pairSentences.push(`${baizhu}与${fuling}相伍，健脾与渗湿并举，使湿去而运化复。`);
+  const tonics = ordered.filter((row) => /^(?:君|臣)$/.test(row.role) && /(?:补|滋|养|健脾|益气)/.test(row.fn));
+  if (sharen && tonics.length > 0) {
+    pairSentences.push(`${sharen}行气醒脾，既助中焦运化，又可防${tonics.slice(0, 2).map((row) => row.name).join("、")}等补益药滋腻碍胃。`);
+  }
+  if (jiegeng && baizhu && fuling) pairSentences.push(`${jiegeng}宣肺利气、载药上行，使脾气得健而肺气得宣。`);
+
   const cleanedTherapyMatch = cleanTherapyMatchText(analysisText(therapyMatch));
-  const head = cleanedTherapyMatch
-    ? `本方共${rows.length}味，围绕「${cleanedTherapyMatch}」分层组方：`
-    : `本方共${rows.length}味，按已锁定病机与治法分层组方：`;
-
-  // 方义不能停在角色清单：把可由本方结构确定的药对关系单列出来。相畏/相恶需要专门的
-  // 受控药对证据，现有数据未给出时明确不判定，绝不为了填满栏目编造七情关系。
-  const grouped = new Map<string, typeof ordered>();
-  for (const row of ordered) {
-    if (!row.target) continue;
-    grouped.set(row.target, [...(grouped.get(row.target) || []), row]);
-  }
-  const synergisticGroup = [...grouped.values()].find((items) =>
-    items.length >= 2 && items.some((left) => items.some((right) => left.role !== right.role)));
-  const synergisticPair = synergisticGroup
-    ? [synergisticGroup[0], synergisticGroup.find((item) => item.role !== synergisticGroup[0].role) || synergisticGroup[1]]
-    : undefined;
-  const synergyLine = synergisticPair
-    ? `相使：${synergisticPair[0].name}与${synergisticPair[1].name}功用同向，一主一辅加强同一病机层的治法。`
-    : "相使：现有受控信息未形成可核验的相使药对，不强行判定。";
-
-  const tonics = ordered.filter((row) => /^(?:君|臣)$/.test(row.role) && /(?:补|滋|养)/.test(row.fn));
-  const regulator = ordered.find((row) => /^(?:佐|使)$/.test(row.role) && /(?:行气|理气|消食|和中|健胃|醒脾)/.test(row.fn));
-  const harmonizer = ordered.find((row) => /(?:调和诸药|缓和药性|制约峻烈|防补药滋腻)/.test(`${row.fn}；${row.target}`));
-  const temperingLine = regulator && tonics.length > 0
-    ? `佐制：${regulator.name}以「${regulator.fn}」佐制${tonics.slice(0, 2).map((row) => row.name).join("、")}等补益药可能的滋腻壅滞。`
-    : harmonizer
-      ? `佐制：${harmonizer.name}用于${structuralRoleClause(harmonizer.role, harmonizer.target)}，缓和全方药性。`
-      : "佐制：现有受控信息未形成可核验的独立佐制关系，不强行判定。";
-  const relationshipLines = [
-    "配伍关系：",
-    synergyLine,
-    temperingLine,
-    "相畏/相恶：受控配伍资料未识别到本方需单独声明的药对，不作无依据推定。",
-  ];
-  return [head, "", ...body, "", ...relationshipLines].join("\n");
+  const conclusion = cleanedTherapyMatch ? `诸药合用，共奏${cleanedTherapyMatch}之效。` : "";
+  return [...roleSentences, ...pairSentences, conclusion].filter(Boolean).join("");
 }

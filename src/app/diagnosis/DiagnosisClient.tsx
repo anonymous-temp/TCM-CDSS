@@ -5350,14 +5350,10 @@ function ResultTabsV2({
           contractIds="M04-formula"
           rendererId="formula-analysis-section"
         >
-          {/*
-            7.1「方解格式不正确」：方义解析是一段带分组标题与逐味列表的多行文本
-            （buildFormulaAnalysis 用 \n 分行）。直接放进 div 时 HTML 会把换行折成空格，
-            整段塌成一行——与 Markdown 侧误用 markdownCell 是同一个病的两个现场。
-            whitespace-pre-line 保留换行、折叠多余空格，无需引入 Markdown 渲染器。
-          */}
-          <div className="whitespace-pre-line rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-relaxed text-blue-950">
-            {firstCandidate.formulaAnalysis}
+          {/* 新结果是连续自然段；历史快照可能仍含 Markdown 标题/列表，统一经过 MarkdownBlock，
+              防止星号与短横线作为原始语法直接暴露给医生。 */}
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm leading-relaxed text-blue-950">
+            <MarkdownBlock content={firstCandidate.formulaAnalysis} compact />
           </div>
         </SchemeSection>
       )}

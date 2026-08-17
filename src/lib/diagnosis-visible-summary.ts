@@ -1440,7 +1440,9 @@ function formulaAnalysisIsGroundedInCandidate(text: string, candidateHerbs: read
   if (text.length < 24 || text.length > 1200) return false;
   if (PRECAUTION_DOSE_LIKE.test(text)) return false;
   if (/(?:具体配伍作用|具体作用).*(?:结合方义|复核)|同上述|参见前文/.test(text)) return false;
-  if (!/(?:相须|相使|佐制|反佐|相畏|相恶|一宣一降|缓[^。；]{0,8}峻)/.test(text)) return false;
+  if (/\*\*|(?:^|\s)[#*-]\s/.test(text)) return false;
+  if (!/(?:(?:为|作)[君臣佐使]|君药|臣药|佐药|使药)/.test(text)) return false;
+  if (!/(?:助|协同|相伍|相须|相使|一宣一降|调和|缓[^。；]{0,8}峻|佐制|反佐)/.test(text)) return false;
   const own = new Set(candidateHerbs.map((name) => name.replace(/\s+/g, "")));
   let mentioned = 0;
   for (const name of own) if (name && text.includes(name)) mentioned += 1;
@@ -1479,7 +1481,7 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
         })),
         markdownCell(candidate.therapyMatch),
       );
-      // 方解交给模型写，服务端拼接只作**兜底**。
+      // 方解交给模型写，服务端连续自然段只作**兜底**。
       //
       // 【改之前】提示词里根本没有 formulaAnalysis 这个字段——模型从没被问过方解，
       // 这一段 100% 是服务端按「病机分组 + 逐味 function」拼出来的。甲方实测的两个症状
@@ -1488,11 +1490,12 @@ export function applyDeterministicFormulaAnalysis(content: string): string {
       // 拼进方解就成了医生看到的那句占位话术。
       // 这与已经修过的逐味方义是同一个形状：服务端拼接冒充临床内容。
       //
-      // 【改之后】模型写整段方解（君臣佐使如何配伍、为何这样配、相使相畏），
+      // 【改之后】模型写整段方解（君臣佐使如何配伍、为何这样配），
       // 确定性层只校验三条可机检项，过不了才回落到拼接版：
       //   · 必须真的在讲**本方**：至少点到本方 2 味药；
       //   · 不得提到本方没有的药（防止把别的方的方解套过来）；
-      //   · 不得写剂量（剂量在药味表里，方解里出现即越权）。
+      //   · 不得写剂量（剂量在药味表里，方解里出现即越权）；
+      //   · 必须是连续自然段，不接受 Markdown 标题或列表。
       const authored = markdownCell(candidate.formulaAnalysis);
       const authoredHerbs = herbs.map((herb) => markdownCell(herb.name)).filter(Boolean);
       if (authored && formulaAnalysisIsGroundedInCandidate(authored, authoredHerbs)) {
