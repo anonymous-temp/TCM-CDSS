@@ -1439,6 +1439,8 @@ export function applyDeterministicHerbPrescriptionRoles(content: string): string
 function formulaAnalysisIsGroundedInCandidate(text: string, candidateHerbs: readonly string[]): boolean {
   if (text.length < 24 || text.length > 1200) return false;
   if (PRECAUTION_DOSE_LIKE.test(text)) return false;
+  if (/(?:具体配伍作用|具体作用).*(?:结合方义|复核)|同上述|参见前文/.test(text)) return false;
+  if (!/(?:相须|相使|佐制|反佐|相畏|相恶|一宣一降|缓[^。；]{0,8}峻)/.test(text)) return false;
   const own = new Set(candidateHerbs.map((name) => name.replace(/\s+/g, "")));
   let mentioned = 0;
   for (const name of own) if (name && text.includes(name)) mentioned += 1;

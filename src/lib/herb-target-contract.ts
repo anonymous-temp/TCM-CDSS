@@ -61,6 +61,14 @@ function untargetedRoleClause(role: string): string {
   return "参与本方配伍";
 }
 
+function structuralRoleClause(role: string, target: string): string {
+  if (/(?:引经|载药)/.test(target)) return "引经载药，衔接全方";
+  if (/(?:调和诸药|协调药性)/.test(target)) return "调和诸药，协调药性";
+  if (/(?:制约峻烈|缓和药性|反佐|制偏)/.test(target)) return "制约偏性，缓和药性";
+  if (/(?:顾护中焦|防补药滋腻)/.test(target)) return "顾护中焦，防补药滋腻";
+  return untargetedRoleClause(role);
+}
+
 /**
  * 甲方评测(2026-08-03) 7.1/7.2 的三类呈现根修：
  *  · 功用文本剥掉「；清热药；清热凉血药」这类**药类归类尾巴**并限长——归类是检索索引，
@@ -80,7 +88,8 @@ function untargetedRoleClause(role: string): string {
  *  3. 去掉互为子串的近义项，避免同一句里把同一个功效说两遍。
  */
 function cleanHerbFunctionText(value: string): string {
-  const segments = value.split(/[；;]/).map((segment) => segment.trim()).filter(Boolean);
+  const segments = value.split(/[；;]/).map((segment) => segment.trim()).filter(Boolean)
+    .filter((segment) => !/(?:具体配伍作用|具体作用).*(?:结合方义|复核)|本方中的具体配伍作用/.test(segment));
   const functional = segments.filter((segment) => !/^[一-龥]{1,8}药$/.test(segment));
   if (functional.length === 0) return "";
   const core = functional[0].split(/[，,]/).map((item) => item.trim()).filter(Boolean);
@@ -251,7 +260,7 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
     const roleLabel = row.role ? `（${row.role}）` : "";
     if (row.fn) return `- ${row.name}${roleLabel}：${row.fn}`;
     // 功用缺失时才退回角色关系句——否则这一行会只剩一个药名，读不出任何东西。
-    return `- ${row.name}${roleLabel}：${untargetedRoleClause(row.role)}`;
+    return `- ${row.name}${roleLabel}：${structuralRoleClause(row.role, row.target)}`;
   };
   const body: string[] = [];
   let currentTarget: string | undefined;
@@ -268,5 +277,36 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
   const head = cleanedTherapyMatch
     ? `本方共${rows.length}味，围绕「${cleanedTherapyMatch}」分层组方：`
     : `本方共${rows.length}味，按已锁定病机与治法分层组方：`;
-  return [head, "", ...body].join("\n");
+
+  // 方义不能停在角色清单：把可由本方结构确定的药对关系单列出来。相畏/相恶需要专门的
+  // 受控药对证据，现有数据未给出时明确不判定，绝不为了填满栏目编造七情关系。
+  const grouped = new Map<string, typeof ordered>();
+  for (const row of ordered) {
+    if (!row.target) continue;
+    grouped.set(row.target, [...(grouped.get(row.target) || []), row]);
+  }
+  const synergisticGroup = [...grouped.values()].find((items) =>
+    items.length >= 2 && items.some((left) => items.some((right) => left.role !== right.role)));
+  const synergisticPair = synergisticGroup
+    ? [synergisticGroup[0], synergisticGroup.find((item) => item.role !== synergisticGroup[0].role) || synergisticGroup[1]]
+    : undefined;
+  const synergyLine = synergisticPair
+    ? `相使：${synergisticPair[0].name}与${synergisticPair[1].name}功用同向，一主一辅加强同一病机层的治法。`
+    : "相使：现有受控信息未形成可核验的相使药对，不强行判定。";
+
+  const tonics = ordered.filter((row) => /^(?:君|臣)$/.test(row.role) && /(?:补|滋|养)/.test(row.fn));
+  const regulator = ordered.find((row) => /^(?:佐|使)$/.test(row.role) && /(?:行气|理气|消食|和中|健胃|醒脾)/.test(row.fn));
+  const harmonizer = ordered.find((row) => /(?:调和诸药|缓和药性|制约峻烈|防补药滋腻)/.test(`${row.fn}；${row.target}`));
+  const temperingLine = regulator && tonics.length > 0
+    ? `佐制：${regulator.name}以「${regulator.fn}」佐制${tonics.slice(0, 2).map((row) => row.name).join("、")}等补益药可能的滋腻壅滞。`
+    : harmonizer
+      ? `佐制：${harmonizer.name}用于${structuralRoleClause(harmonizer.role, harmonizer.target)}，缓和全方药性。`
+      : "佐制：现有受控信息未形成可核验的独立佐制关系，不强行判定。";
+  const relationshipLines = [
+    "配伍关系：",
+    synergyLine,
+    temperingLine,
+    "相畏/相恶：受控配伍资料未识别到本方需单独声明的药对，不作无依据推定。",
+  ];
+  return [head, "", ...body, "", ...relationshipLines].join("\n");
 }

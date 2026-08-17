@@ -159,6 +159,8 @@ const mahuangHerbs = [
   const analyzed = unwrap(applyDeterministicFormulaAnalysis(wrap(enriched))).formula.candidates[0].formulaAnalysis;
   assert.doesNotMatch(analyzed, /具体配伍作用需医生结合方义复核/);
   assert.match(analyzed, /麻黄.*桂枝.*杏仁.*甘草/s);
+  assert.match(analyzed, /配伍关系.*相使.*佐制.*相畏\/相恶/s,
+    "方义不能只列君臣佐使，必须明确呈现配伍、佐制及七情关系边界");
   const metadataOnly = structuredClone(enriched);
   metadataOnly.formula.candidates[0].formulaAnalysis = "";
   metadataOnly.formula.candidates[0].compositionLogic = [{
@@ -168,6 +170,12 @@ const mahuangHerbs = [
   const rebuilt = unwrap(applyDeterministicFormulaAnalysis(wrap(metadataOnly))).formula.candidates[0].formulaAnalysis;
   assert.doesNotMatch(rebuilt, /受控目录组成|目录来源|方证定位|进入处方编译/);
   assert.match(rebuilt, /麻黄.*桂枝.*杏仁.*甘草/s, "目录治理元数据不得再冒充方义，应回落到逐味君臣佐使分析");
+  const placeholderAuthored = structuredClone(enriched);
+  placeholderAuthored.formula.candidates[0].formulaAnalysis =
+    "麻黄与桂枝为君臣，杏仁为佐，甘草为使；具体配伍作用需医生结合方义复核。";
+  const placeholderRebuilt = unwrap(applyDeterministicFormulaAnalysis(wrap(placeholderAuthored))).formula.candidates[0].formulaAnalysis;
+  assert.doesNotMatch(placeholderRebuilt, /具体配伍作用.*复核/);
+  assert.match(placeholderRebuilt, /配伍关系.*相使.*佐制.*相畏\/相恶/s);
 }
 
 // 5. 本例是感冒·风寒束表，不满足已治理的「普通咳嗽·风寒袭肺」模板；评估态宁可不列穴，
