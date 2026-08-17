@@ -32,7 +32,11 @@
           "acceptedNames": ["甘草", "炙甘草"],
           "role": "使",
           "prescriptionRole": "调和诸药，缓和麻桂发汗峻烈之性",
-          "function": "调和诸药，缓和麻桂发汗峻烈之性"
+          "function": "调和诸药，缓和麻桂发汗峻烈之性",
+          "targetKind": "formula_structure",
+          "targetRef": "FORMULA_STRUCTURE",
+          "structureRole": "harmonize",
+          "targetPathogenesis": "调和诸药，协调药性"
         }
       ]
     }

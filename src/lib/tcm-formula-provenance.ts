@@ -78,6 +78,10 @@ type FormulaRoleBinding = {
     role: "君" | "臣" | "佐" | "使";
     prescriptionRole: string;
     function: string;
+    targetKind?: "pathogenesis_node" | "formula_structure";
+    targetRef?: string;
+    structureRole?: "middle_jiao_support" | "harmonize" | "guide" | "temper" | null;
+    targetPathogenesis?: string;
   }>;
 };
 
@@ -103,6 +107,10 @@ function governedFormulaRoleHerbs(
       role: governed.role,
       prescriptionRole: governed.prescriptionRole,
       function: governed.function,
+      ...(governed.targetKind ? { targetKind: governed.targetKind } : {}),
+      ...(governed.targetRef ? { targetRef: governed.targetRef } : {}),
+      ...(governed.structureRole !== undefined ? { structureRole: governed.structureRole } : {}),
+      ...(governed.targetPathogenesis ? { targetPathogenesis: governed.targetPathogenesis } : {}),
     } : herb;
   });
 }

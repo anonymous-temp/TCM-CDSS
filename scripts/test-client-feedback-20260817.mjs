@@ -34,6 +34,7 @@ const { enrichReasoning, resolveFormulaSources } = await jiti.import("../src/lib
 const { compileTcmTreatmentRecommendations } = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
 const {
   applyM03KeySyndromeDiscriminatorsToContent,
+  discriminatingWesternSupportClauses,
   isNondiscriminatingWesternSupportingFact,
   m03KeySyndromeDiscriminatorIssue,
   projectM03KeySyndromeDiscriminators,
@@ -136,6 +137,18 @@ const mahuangHerbs = [
   assert.deepEqual(Object.fromEntries(candidate.herbs.map((herb) => [herb.name, herb.role])), {
     麻黄: "君", 桂枝: "臣", 苦杏仁: "佐", 甘草: "使",
   });
+  const harmonizer = candidate.herbs.find((herb) => herb.name === "甘草");
+  assert.deepEqual({
+    targetKind: harmonizer.targetKind,
+    targetRef: harmonizer.targetRef,
+    structureRole: harmonizer.structureRole,
+    targetPathogenesis: harmonizer.targetPathogenesis,
+  }, {
+    targetKind: "formula_structure",
+    targetRef: "FORMULA_STRUCTURE",
+    structureRole: "harmonize",
+    targetPathogenesis: "调和诸药，协调药性",
+  });
   const analyzed = unwrap(applyDeterministicFormulaAnalysis(wrap(enriched))).formula.candidates[0].formulaAnalysis;
   assert.doesNotMatch(analyzed, /具体配伍作用需医生结合方义复核/);
   assert.match(analyzed, /麻黄.*桂枝.*杏仁.*甘草/s);
@@ -228,8 +241,13 @@ const mahuangHerbs = [
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "diagnose",
     ...projected,
+    overview: {
+      ...projected.overview,
+      tcmDiagnosticRationale: "病历已记录发热阳性，为风寒外束之象；无汗、脉浮紧支持风寒束表证。",
+    },
   }), clinicalContext));
   assert.match(projectedContent.overview.primarySyndromeBasis.join("；"), /无汗.*脉浮紧/s);
+  assert.doesNotMatch(projectedContent.overview.tcmDiagnosticRationale, /病历已记录|阳性|。。/);
   assert.equal(m03KeySyndromeDiscriminatorIssue(projectedContent, clinicalContext), undefined);
 
   const diagnosisApi = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
@@ -249,5 +267,10 @@ const mahuangHerbs = [
 for (const fact of ["精神饮食尚可", "二便调", "精神可，二便调", "纳眠可"]) {
   assert.equal(isNondiscriminatingWesternSupportingFact(fact), true, `无鉴别力依据未被过滤：${fact}`);
 }
+assert.deepEqual(
+  discriminatingWesternSupportClauses("精神饮食尚可，二便调，睡眠欠佳"),
+  ["睡眠欠佳"],
+  "一般状态与真实症状混在同一句时必须逐分句剥离，不能整句进入西医依据",
+);
 
 console.log(JSON.stringify({ suite: "client-feedback-20260817", failures: 0 }));

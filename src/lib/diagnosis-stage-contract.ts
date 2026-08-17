@@ -1087,19 +1087,25 @@ function isCareProcessNarrativeFact(value: string): boolean {
 export function discriminatingWesternSupportClauses(value: string): string[] {
   const fact = (value || "").trim();
   if (!fact) return [];
-  if (!CARE_PROCESS_NARRATIVE.test(fact)) return [fact];
   const clauses = fact.split(/[，,、；;。]+/).map((clause) => clause.trim()).filter(Boolean);
-  if (clauses.length <= 1) return isCareProcessNarrativeFact(fact) ? [] : [fact];
-  const kept = clauses.filter((clause) => !isCareProcessNarrativeFact(clause));
-  // 没有任何分句是**纯**就诊经过时不拆：这条依据只是措辞里带了个就诊词，粒度应保持原样。
+  const containsExcludedClause = clauses.some((clause) =>
+    isCareProcessNarrativeFact(clause) || isGenericNormalWesternClause(clause));
+  if (clauses.length <= 1) return containsExcludedClause ? [] : [fact];
+  if (!containsExcludedClause) return [fact];
+  const kept = clauses.filter((clause) =>
+    !isCareProcessNarrativeFact(clause) && !isGenericNormalWesternClause(clause));
+  // 混合句只剥离纯就诊经过与一般状态分句，保留同一句中的真实症状原文。
   return kept.length === clauses.length ? [fact] : kept;
+}
+
+function isGenericNormalWesternClause(value: string): boolean {
+  return /^(?:精神(?:状态)?(?:尚可|可|正常)|饮食(?:尚可|可|正常)|精神饮食尚可|纳(?:食)?可|纳眠可|二便(?:调|尚调|正常)|大小便正常)$/.test(value.trim());
 }
 
 export function isNondiscriminatingWesternSupportingFact(value: string): boolean {
   const fact = value.trim();
   const genericNormalClauses = fact.split(/[，,、；;。]+/).map((item) => item.trim()).filter(Boolean);
-  const genericNormalStatus = genericNormalClauses.length > 0 && genericNormalClauses.every((clause) =>
-    /^(?:精神(?:状态)?(?:尚可|可|正常)|饮食(?:尚可|可|正常)|精神饮食尚可|纳(?:食)?可|纳眠可|二便(?:调|尚调|正常)|大小便正常)$/.test(clause));
+  const genericNormalStatus = genericNormalClauses.length > 0 && genericNormalClauses.every(isGenericNormalWesternClause);
   return TCM_ONLY_WESTERN_SUPPORT.test(fact) ||
     isDemographicWesternSupportFact(fact) ||
     isNormalVitalWesternSupportFact(fact) ||
@@ -1283,12 +1289,21 @@ export function projectM03KeySyndromeDiscriminators<T extends M03ReasoningLike>(
 
   const rationale = typeof overview.tcmDiagnosticRationale === "string"
     ? overview.tcmDiagnosticRationale.trim()
+      .replace(/病历已记录([^，,。；;\n]{1,80})阳性/g, "$1")
+      .replace(/病历已记录([^，,。；;\n]{1,80})阴性/g, "未见$1")
+      .replace(/病历已记录/g, "")
+      .replace(/。{2,}/g, "。")
     : "";
+  overview.tcmDiagnosticRationale = rationale;
   const rationaleMissing = required.filter((term) => !rationale.includes(term));
   if (rationaleMissing.length > 0) {
+    const sourceWording = sourceQuotes
+      .map((quote) => quote.replace(/[。；;，,\s]+$/g, ""))
+      .filter(Boolean)
+      .join("；");
     overview.tcmDiagnosticRationale = [
       rationale,
-      `辨证采用病历原文中的关键鉴别事实：${sourceQuotes.join("；")}。`,
+      `辨证采用病历原文中的关键鉴别事实：${sourceWording}。`,
     ].filter(Boolean).join("");
   }
 
