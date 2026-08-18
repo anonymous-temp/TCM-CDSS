@@ -130,7 +130,7 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
 }
 
 {
-  const result = buildClinicianTreatmentProjects(nonPharma({
+  const source = nonPharma({
     treatments: [
       project("qigong_daoyin", {
         projectName: "气功导引疗法",
@@ -145,8 +145,14 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
         scheduleSuggestion: "每周3次。",
       }),
     ],
-  }));
+  });
+  const result = buildClinicianTreatmentProjects(source);
   assert.deepEqual(result, [], "评估态项目不得以治理说明卡的形式展示");
+  assert.equal(source.tcmTreatments[0].protocolStatus, "assessment_only_no_patient_specific_protocol",
+    "医生端隐藏评估态卡片不得删除后台真实状态");
+  assert.equal(source.tcmTreatments[0].protocolSource, "SRC-TEST", "后台来源字段必须保留");
+  assert.deepEqual(source.tcmTreatments[0].requiredChecks, ["核对禁忌"], "后台必查项必须保留");
+  assert.equal(source.tcmTreatments[0].clinicianReviewRequired, true, "后台复核合同必须保留");
 }
 
 {
@@ -162,5 +168,20 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
   assert.deepEqual(Object.keys(result[0]).sort(), ["content", "projectCode", "schedule", "sitesOrPoints", "title"], "医生端 DTO 不得携带后台治理字段");
   assert.doesNotMatch(JSON.stringify(result), INTERNAL_TERMS);
 }
+
+{
+  const result = buildClinicianTreatmentProjects(nonPharma({
+    treatments: [project("tuina", {
+      projectName: "推拿",
+      treatmentContent: "本例进入项目评估，由现场医师复核后实施。",
+      suggestedSitesOrPoints: ["中脘"],
+      scheduleSuggestion: "每日1次，7日后复评。",
+    })],
+  }));
+  assert.deepEqual(result, [], "通用项目内容仍是治理话术时整卡拒绝，不做字符串修补");
+}
+
+assert.deepEqual(buildClinicianTreatmentProjects(null), [], "空 nonPharma 不渲染模块");
+assert.deepEqual(buildClinicianTreatmentProjects(undefined), [], "缺失 nonPharma 不渲染模块");
 
 console.log("tcm treatment clinician view tests passed");
