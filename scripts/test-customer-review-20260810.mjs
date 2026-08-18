@@ -315,6 +315,33 @@ check("⑩ 自动补位必须排除与患者年龄不符的人群指南", () => 
   assert.equal(resolved[0].evidenceId, "EVID-GUIDE-002", "成人病例不得自动引用儿童专病共识");
 });
 
+check("⑩ 模型不得跳过通用指南改绑更窄且病例未证实的病因共识", () => {
+  const context = [
+    "[EVID-GUIDE-001] 咳嗽的诊断与治疗指南（呼吸病学分会，2021）：咳嗽分层评估。",
+    "[EVID-GUIDE-002] 新型冠状病毒感染咳嗽诊疗共识（呼吸病学分会，2023）：新冠感染相关咳嗽。",
+  ].join("\n");
+  const transform = buildEvidenceOutputTransform(context, undefined, {
+    id: "generic-cough",
+    phase: "diagnose",
+    patient: { sex: "女", age: 36 },
+    chiefComplaint: "感冒后干咳4周",
+    symptoms: { presentHistory: "未记录新冠感染证据" },
+    conversation: [],
+  });
+  const payload = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    westernDiagnosis: { primary: {
+      name: "亚急性咳嗽，病因待查",
+      supportingFacts: ["干咳4周"],
+      guidelineRefs: [{ evidenceId: "EVID-GUIDE-002", appliesTo: "病毒感染后持续性咳嗽" }],
+    } },
+  };
+  const resolved = readSentinel(transform(wrap(payload))).westernDiagnosis.primary.guidelineReferences;
+  assert.equal(resolved.length, 1, "诊断终稿只保留检索排序首位且人群适用的一条依据");
+  assert.equal(resolved[0].evidenceId, "EVID-GUIDE-001");
+  assert.doesNotMatch(JSON.stringify(resolved), /新型冠状病毒|病毒感染后/);
+});
+
 check("⑩ 解析必须幂等，且伪造的 citation 不得存活", () => {
   // 本转换会在同一份内容上被多次调用（流式草稿、最终输出、截断兜底各一次）。
   // 第一版只读 guidelineRefs 而无条件删除 guidelineReferences——第二遍会把第一遍的结果删掉，
