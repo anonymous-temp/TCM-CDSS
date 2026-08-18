@@ -248,6 +248,15 @@ export async function POST(req: Request) {
     redFlags: [],
     reasons: ["模型处方输出被截断、结构化结果未闭合或未通过处方合同校验，服务端已阻断不可采纳的药味与剂量。"],
   };
+  const upstreamUnavailableGate: SafetyGate = {
+    status: "needs_information",
+    allowDiagnosis: true,
+    allowDosePrescription: false,
+    action: "complete_before_prescription",
+    missingItems: ["模型服务恢复后重新生成候选方药"],
+    redFlags: [],
+    reasons: ["模型推理服务暂时不可用（上游错误、限流或超时），本轮未完成候选方药生成。这不是处方合同或病历信息不足；已录入内容与辨病辨证结论无需修改，请稍后重新生成。"],
+  };
   const advisoryBanner = buildSafetyAdvisoryBanner(
     advisorySafetyNotes.length > 0 ? gated.safetyGate : undefined,
     [
@@ -268,6 +277,10 @@ export async function POST(req: Request) {
   );
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
+    upstreamUnavailableFallback: buildSafetyLimitedPrescription(
+      upstreamUnavailableGate,
+      "upstream_model_unavailable",
+    ),
     structuredOrchestrationStartedAt: orchestrationStartedAt,
     // 模型输出彻底不可回收时：M03 已锁定可编译方 → 确定性渲染「基准组成+药典区间」参考页
     // （不经模型、非剂量、医师定量），医生不再拿到空白页；未锁方/不可编译 → 原安全有限文案。
