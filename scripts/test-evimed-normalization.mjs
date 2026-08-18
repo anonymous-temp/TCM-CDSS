@@ -7,7 +7,7 @@ process.env.EVIMED_LITERATURE_API_URL = "";
 process.env.EVIMED_INSTRUCTION_API_KEY = "";
 process.env.EVIMED_LITERATURE_API_KEY = "";
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
-const { buildEvidenceQuery, constrainExternalEvidenceResults, formatInstructionEvidenceRecord, getEvimedEvidenceStatus, normalizeExternalEvidenceResponse } = await jiti.import("../src/lib/evimed-guide.ts");
+const { buildEvidenceFallbackQueries, buildEvidenceQuery, constrainExternalEvidenceResults, formatInstructionEvidenceRecord, getEvimedEvidenceStatus, normalizeExternalEvidenceResponse } = await jiti.import("../src/lib/evimed-guide.ts");
 const { buildEvidenceScope, medicineEvidenceBindingValid, medicineProblemMatchesCase } = await jiti.import("../src/lib/evidence-source-validation.ts");
 
 const status = getEvimedEvidenceStatus();
@@ -81,5 +81,21 @@ assert.match(query, /头晕|头晕伴恶心/);
 assert.doesNotMatch(query, /张三|SECRET-7788|A-12345678/);
 assert.match(query.slice(0, 80), /诊断.*指南.*共识/, "检索意图必须放在 200 字截断之前，不能被长病史挤掉");
 assert.ok(query.indexOf("诊断") < query.indexOf("头晕伴恶心"), "指南检索意图必须先于展开病史");
+
+const coughFallbacks = buildEvidenceFallbackQueries({
+  patient: {},
+  chiefComplaint: "感冒后干咳、咽痒4周",
+  symptoms: { presentHistory: "少痰，无发热或气促" },
+  conversation: [],
+}, "diagnose", "guide");
+assert.ok(coughFallbacks.some((item) => /^咳嗽\s+诊断 指南 共识/.test(item)), "口语干咳必须能收敛到受治理的咳嗽检索词");
+
+const refluxFallbacks = buildEvidenceFallbackQueries({
+  patient: {},
+  chiefComplaint: "反酸、嗳气反复1年",
+  symptoms: { presentHistory: "餐后及辛辣油腻后加重" },
+  conversation: [],
+}, "diagnose", "guide");
+assert.ok(refluxFallbacks.some((item) => /^胃食管反流\s+诊断 指南 共识/.test(item)), "反酸嗳气必须能收敛到受治理的胃食管反流检索词");
 
 console.log(JSON.stringify({ cases: 28, failures: 0 }));
