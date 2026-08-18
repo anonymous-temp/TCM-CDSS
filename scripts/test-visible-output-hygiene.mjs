@@ -455,7 +455,7 @@ assert.ok(INJECTION_BASE, "缺少注入用基线 fixture");
   const desiredHeadingAt = projectedPrescribeMarkdown.indexOf("### 中医非药物方案");
   const legacyHeadingAt = projectedPrescribeMarkdown.indexOf("### 中医治疗项目");
   const markdownTreatmentStart = desiredHeadingAt >= 0 ? desiredHeadingAt : legacyHeadingAt;
-  const nextMarkdownSection = projectedPrescribeMarkdown.slice(markdownTreatmentStart + 4).search(/\n#{2,4}\s+/);
+  const nextMarkdownSection = projectedPrescribeMarkdown.slice(markdownTreatmentStart + 4).search(/\n##\s+/);
   const markdownTreatmentText = projectedPrescribeMarkdown.slice(
     markdownTreatmentStart,
     nextMarkdownSection >= 0 ? markdownTreatmentStart + 4 + nextMarkdownSection : undefined,

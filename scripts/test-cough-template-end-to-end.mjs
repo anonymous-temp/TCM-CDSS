@@ -167,10 +167,10 @@ check("证型专用模板不得被说成「按证型加减」，而证型加减�
   assert.equal(refined.badge, "按证型加减 · 待复核");
   assert.equal(refined.pointsLabel, "按本例证型加减后的候选穴位");
 
-  // 三个出口共用同一处投影：出口自己按 protocolStatus 现拼措辞，正是分叉的起点。
+  // 后台状态投影仍供 HIS/审计消费；两个医生可见出口只消费最小临床投影，不能再展开状态措辞。
   for (const outlet of ["src/lib/diagnosis-visible-summary.ts", "src/app/diagnosis/DiagnosisClient.tsx"]) {
     const source = readFileSync(fileURLToPath(new URL(`../${outlet}`, import.meta.url)), "utf8");
-    assert.ok(source.includes("tcmTreatmentTailoringPresentation"), `${outlet} 未使用共享投影`);
+    assert.ok(source.includes("buildClinicianTreatmentProjects"), `${outlet} 未使用医生端共享投影`);
     assert.ok(!source.includes("按本例证型加减后的候选穴位："), `${outlet} 仍在自拼加减措辞`);
   }
 });

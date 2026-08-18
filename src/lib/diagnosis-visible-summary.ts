@@ -9,7 +9,7 @@ import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel } from "./clinical-polarity";
 import { getM03TherapyLock } from "./m03-therapy-lock";
-import { tcmTreatmentAssessmentPositioningForDisplay } from "./tcm-treatment-projects";
+import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
 import { canonicalTcmLocationTerm, canonicalTcmNatureTerm, governedTcmLocationsInText, resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
 import { clinicalAxisAttributionFromFacts } from "./tcm-syndrome-hypothesis";
@@ -3257,6 +3257,10 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
     lines.push("", `## ${clinicalOutputLabel("M04-patent-western", "中成药/西药候选")}`, markdownCell(medicineCandidateStatus.reason));
   }
   if (nonPharma) {
+    const clinicianTreatmentProjects = buildClinicianTreatmentProjects(
+      normalizeReasoningV2(reasoning)?.nonPharma,
+    );
+    const hasDietTherapyProject = clinicianTreatmentProjects.some((item) => item.projectCode === "diet_therapy");
     lines.push("", `## ${clinicalOutputLabel("M03-M04-nonpharma", "非药物调护与中医项目")}`);
     for (const [label, key] of [["饮食", "diet"], ["起居", "lifestyle"], ["情志", "emotion"], ["穴位保健", "acupointCare"]] as const) {
       // 饮食一栏必须过食疗净化再印（甲方 2026-08-05 衍生条目）。
@@ -3271,73 +3275,19 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       const raw = key === "diet"
         ? safeDietAdviceForDisplay(String(nonPharma[key] ?? ""), {})
         : nonPharma[key];
+      if (key === "diet" && hasDietTherapyProject) continue;
       if (isDisplayableClinicalText(markdownCell(raw))) lines.push(`- **${label}**：${markdownCell(raw)}`);
     }
-    const treatmentProjects = recordList(nonPharma.tcmTreatments);
-    if (treatmentProjects.length > 0) {
-      lines.push("", "### 中医治疗项目");
-      // 重复的目录级治疗内容直接省略；对应病机则逐项写明真实文本，不用“同上述”占位。
-      const treatmentPathogenesisLedger = createPathogenesisNarrativeLedger();
-      const shownTreatmentContent = new Set<string>();
-      for (const item of treatmentProjects) {
-        const availability = item.availability === "clinic_available" ? "本机构可开展" : "转介评估";
-        const requiredChecks = Array.isArray(item.requiredChecks)
-          ? item.requiredChecks.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map(markdownCell)
-          : [];
-        const materialPositioning = tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning);
-        const sites = Array.isArray(item.suggestedSitesOrPoints)
-          ? joinClinicalClauses(item.suggestedSitesOrPoints.map(markdownCell), "；")
-          : "";
-        const hasPatientSpecificProtocol = item.protocolStatus === "governed_patient_specific_plan";
-        const isClassTemplateOnly = item.protocolStatus === "governed_class_template_not_syndrome_tailored";
-        const hasGovernedProtocol = hasPatientSpecificProtocol || isClassTemplateOnly;
-        const treatmentContent = markdownCell(item.treatmentContent);
-        const target = markdownCell(item.targetPathogenesis);
-        const displayedTarget = treatmentPathogenesisLedger.claim(target) ? target : "";
-        // 历史载荷的 treatmentContent 把本块自己的病机原文内嵌在引号里（生成侧已停，见
-        // tcm-treatment-capabilities.server.ts），此时这行相对「方案状态 + 对应病机」两行不再携带
-        // 新信息，整行省略而不是把同一句病机在同一张卡片里印两遍。新载荷不内嵌，照常呈现。
-        const contentEmbedsTarget = Boolean(treatmentContent) && Boolean(target) && treatmentContent.includes(target);
-        const repeatedContent = Boolean(treatmentContent) && shownTreatmentContent.has(treatmentContent);
-        if (treatmentContent) shownTreatmentContent.add(treatmentContent);
+    if (clinicianTreatmentProjects.length > 0) {
+      lines.push("", "### 中医非药物方案");
+      for (const item of clinicianTreatmentProjects) {
         lines.push(
-          `#### ${markdownCell(item.projectName)} · ${availability}`,
-          // 三态如实呈现（甲方 2026-08-10 ⑪）：此前只有两态，于是「命中病种模板」被写成
-          // 「已有对应适应证的标准操作方案」，医生读不出它有没有按本例证型加减过。
-          `- **方案状态**：${tcmTreatmentTailoringPresentation(item).status}`,
-          ...(contentEmbedsTarget || repeatedContent ? [] : [`- **治疗内容**：${treatmentContent}`]),
-          ...(displayedTarget ? [`- **对应病机**：${displayedTarget}`] : []),
-          ...(sites ? [hasGovernedProtocol
-            ? hasPatientSpecificProtocol
-              ? `- **${tcmTreatmentTailoringPresentation(item).pointsLabel}**：${sites}`
-              : `- **该病种标准取穴模板（未按本例证型加减）**：${sites}；请医生按本例寒热虚实增减后实施`
-            // 标注必须与选穴依据一致(2026-08-05,甲方 6.1)。
-            // 旧标注写死「通用参考，未按本例适应证核定」——那句话本身就是甲方指出的问题:
-            // 给的是通用穴位池,不是辨证后的处方。现在选穴按本例主症逐条匹配穴位主治
-            // (见 selectAcupointsForCaseTerms),入选穴位自带「主治含X」的入选依据,
-            // 标注随之改口;取不到主症而退回模板高频池时,旧标注照常出现——
-            // 标注说的必须是这一次实际发生的事,不能写死成其中一种。
-            : /主治含/.test(sites)
-              ? `- **本例主症对应候选穴位（按穴位主治核定）**：${sites}；具体选穴、补泻与操作参数由现场医师按适应证与禁忌确定`
-              : `- **常用穴位（通用参考，未按本例适应证核定）**：${sites}；具体选穴由现场医师按适应证与禁忌确定`] : []),
-          ...(markdownCell(item.scheduleSuggestion) ? [`- **评估节奏**：${markdownCell(item.scheduleSuggestion)}`] : []),
-          // protocolGap 是**内部状态码**（catalog_indication_mismatch / catalog_protocol_absent /
-          // syndrome_refinement_not_matched），此前被原样印进医生可见正文——医生读到的是
-          // 一个英文下划线标识符。按受控词表翻成临床语言；认不出的码一句都不印，
-          // 绝不把新的内部码泄露给医生（新增码时必须同时在这里登记）。
-          ...(tcmTreatmentProtocolGapCopy(markdownCell(item.protocolGap))
-            ? [`- **方案边界说明**：${tcmTreatmentProtocolGapCopy(markdownCell(item.protocolGap))}`]
+          `#### ${markdownCell(item.title)}`,
+          `- **核心内容**：${markdownCell(item.content)}`,
+          ...(item.sitesOrPoints && item.sitesOrPoints.length > 0
+            ? [`- **穴位/部位**：${joinClinicalClauses(item.sitesOrPoints.map(markdownCell), "；")}`]
             : []),
-          // 「系统看到了什么、为什么没用」此前只铺到医生页面与 HIS，这一路一句没有——
-          // 医生读 Markdown 版时会以为系统压根没识别出本例证型/病种。三个出口共用同一句话。
-          ...(deferredSyndromeRefinementCopy(item.deferredSyndromeRefinement as never)
-            ? [`- **待终审的证型配穴**：${deferredSyndromeRefinementCopy(item.deferredSyndromeRefinement as never)}`]
-            : []),
-          ...(deferredGovernedTemplateCopy(item.deferredGovernedTemplate as never)
-            ? [`- **待签字的病种标准取穴**：${deferredGovernedTemplateCopy(item.deferredGovernedTemplate as never)}`]
-            : []),
-          `- **安全边界**：${clinicalSentence([markdownCell(item.techniqueBoundary), markdownCell(materialPositioning), markdownCell(item.operatorRequirement), ...requiredChecks], "；")}`,
-          `- **方案依据**：${markdownCell(item.protocolSource)}`,
+          ...(item.schedule ? [`- **频次/复评**：${markdownCell(item.schedule)}`] : []),
         );
       }
     }
