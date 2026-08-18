@@ -98,4 +98,35 @@ const refluxFallbacks = buildEvidenceFallbackQueries({
 }, "diagnose", "guide");
 assert.ok(refluxFallbacks.some((item) => /^胃食管反流\s+诊断 指南 共识/.test(item)), "反酸嗳气必须能收敛到受治理的胃食管反流检索词");
 
-console.log(JSON.stringify({ cases: 28, failures: 0 }));
+const governedDiagnosisFallbackCases = [
+  ["带下量多，色黄质稠如豆渣，阴部瘙痒", "阴道炎"],
+  ["月经淋漓不断半月", "异常子宫出血"],
+  ["周身红色皮疹融合成片，瘙痒剧烈", "荨麻疹"],
+  ["左小腿红肿发热疼痛两天", "皮肤软组织感染"],
+  ["右胸背起疱疹伴疼痛三个月", "带状疱疹后神经痛"],
+  ["面部痤疮两个月，红色丘疹有触痛", "寻常痤疮"],
+  ["仆倒、肢体抽搐、双目上瞪，牙关紧闭", "癫痫"],
+  ["闭经三个月", "闭经"],
+  ["受凉后尿痛、尿频一周", "尿路感染"],
+  ["红斑丘疹水疱伴剧烈瘙痒渗液", "湿疹"],
+  ["持续多汗半年", "多汗症"],
+  ["左颈项痛和肩背疼痛两个多月", "颈痛"],
+  ["大便带血持续一个月", "下消化道出血"],
+  ["产后乳汁量少四日", "泌乳不足"],
+  ["双下肢紧缩麻木十天", "下肢感觉异常"],
+  ["带下过少并阴道干涩", "阴道干涩"],
+  ["呃逆一年余，逆气上冲，气冲有声", "呃逆"],
+  ["面部扁平丘疹反复发作一年", "面部丘疹"],
+  ["半年来一直气逆", "嗳气"],
+];
+for (const [chiefComplaint, expected] of governedDiagnosisFallbackCases) {
+  const fallbacks = buildEvidenceFallbackQueries({
+    patient: {}, chiefComplaint, symptoms: {}, conversation: [],
+  }, "diagnose", "guide");
+  assert.ok(
+    fallbacks.some((item) => item.startsWith(`${expected} 诊断 指南 共识`)),
+    `口语主诉必须能收敛到诊断证据检索词：${chiefComplaint} -> ${expected}`,
+  );
+}
+
+console.log(JSON.stringify({ cases: 28 + governedDiagnosisFallbackCases.length, failures: 0 }));

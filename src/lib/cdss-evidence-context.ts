@@ -11,6 +11,7 @@ import type { AssistedNegationClauses } from "./clinical-polarity";
 import { matchesPopulationScope } from "./clinical-vocabulary";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 import { recordCdssKnowledgeTrace } from "./cdss-knowledge-telemetry";
+import { localDiagnosticReferenceContext } from "./diagnostic-reference-catalog";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
 
@@ -44,6 +45,13 @@ export async function buildCdssEvidenceContext(
   // 且每行都带 CLINICAL_DECISION_CARD_LINE_MARKER —— buildEvidenceScope 逐行跳过这些行，
   // 卡片里的题名/年份/URL 都进不了可引用白名单。M05 是确定性汇总，不注入。
   const clinicalDecisionCardContext = stage === "assess" ? "" : buildClinicalDecisionCardContext(caseState);
+  const localDiagnosticReferences = stage === "diagnose"
+    ? localDiagnosticReferenceContext([
+        caseState.chiefComplaint,
+        ...Object.values(caseState.symptoms || {}).map((value) => String(value ?? "")),
+        caseState.hisRecord?.fields.xianbingshi,
+      ].filter(Boolean).join("；"))
+    : "";
 
   return [
     "【外部证据与院内知识支持】",
@@ -55,6 +63,7 @@ export async function buildCdssEvidenceContext(
     formulaProvenanceContext,
     localPatentMedicineContext,
     externalEvidenceContext,
+    localDiagnosticReferences,
     clinicalDecisionCardContext,
   ].join("\n\n");
 }
@@ -142,8 +151,11 @@ function preferredDiagnosticCitation(
         else if (evidenceRecord.text.includes(anchor)) relevance = Math.max(relevance, 20);
       }
       if (relevance === 0) return [];
+      // 9xx 是逐条联网核验并在本地冻结的症状层诊断依据；只在病例命中对应模式时进入 scope。
+      // 它们优先于供应商偶发返回的窄病因/窄部位文献（如“卒中后呃逆”用于普通呃逆）。
+      const curatedPriority = /^EVID-(?:GUIDE|PAPER)-9\d{2}$/.test(evidenceId) ? 100 : 0;
       const sourcePriority = evidenceId.startsWith("EVID-GUIDE-") ? 10 : 0;
-      return [{ citation, score: relevance + sourcePriority, recordIndex }];
+      return [{ citation, score: relevance + sourcePriority + curatedPriority, recordIndex }];
     }));
   candidates.sort((left, right) => right.score - left.score || left.recordIndex - right.recordIndex);
   return candidates[0]?.citation;

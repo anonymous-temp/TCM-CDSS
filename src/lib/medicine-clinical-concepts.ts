@@ -52,6 +52,28 @@ export const MEDICINE_CLINICAL_CONCEPTS: readonly MedicineClinicalConcept[] = [
   { key: "牙龈肿痛", axis: "problem", casePattern: /牙龈肿痛|牙痛|牙龈炎/, indicationPattern: /牙龈肿痛|牙痛|牙龈炎/, weight: 3 },
   { key: "耳鸣", axis: "problem", casePattern: /耳鸣|听力下降/, indicationPattern: /耳鸣|听力下降|耳聋/, weight: 3 },
   { key: "乏力", axis: "problem", casePattern: /乏力|神疲|倦怠|疲倦/, indicationPattern: /乏力|神疲|倦怠|疲倦|气虚/, weight: 2 },
+  // 诊断证据检索用的精确问题词放在宽泛症状之后；buildEvidenceFallbackQueries 倒序消费，
+  // 因而先查最终更可能采用的现代医学问题，避免“皮疹/月经不调/麻木”等宽词抢占前两次检索。
+  // 同一表也服务药品说明书匹配，所以 indicationPattern 仍保持同病种闭合，不以症状跨病种召回药品。
+  { key: "阴道炎", axis: "problem", casePattern: /阴道炎|带下.{0,16}(?:豆渣|腥臭|瘙痒)|阴部瘙痒.{0,12}带下/, indicationPattern: /阴道炎|阴道感染/, weight: 3 },
+  { key: "异常子宫出血", axis: "problem", casePattern: /异常子宫出血|月经淋漓|阴道不规则流血|人流术后.{0,12}流血/, indicationPattern: /异常子宫出血|阴道不规则流血|崩漏/, weight: 3 },
+  { key: "荨麻疹", axis: "problem", casePattern: /荨麻疹|风团|周身.{0,12}皮疹.{0,12}瘙痒|皮疹.{0,12}融合成片/, indicationPattern: /荨麻疹|风团/, weight: 3 },
+  { key: "皮肤软组织感染", axis: "problem", casePattern: /皮肤软组织感染|软组织感染|小腿.{0,12}红肿.{0,12}(?:发热|疼痛)|局部红肿热痛/, indicationPattern: /皮肤软组织感染|软组织感染|蜂窝织炎/, weight: 3 },
+  { key: "带状疱疹后神经痛", axis: "problem", casePattern: /带状疱疹后神经痛|(?:胸背|腰背).{0,8}疱疹.{0,12}疼痛|疱疹伴疼痛.{0,8}(?:月|周)/, indicationPattern: /带状疱疹后神经痛|疱疹后神经痛/, weight: 3 },
+  { key: "寻常痤疮", axis: "problem", casePattern: /寻常痤疮|面部痤疮|面部.{0,12}红色丘疹.{0,8}触痛/, indicationPattern: /寻常痤疮|痤疮/, weight: 3 },
+  { key: "癫痫", axis: "problem", casePattern: /癫痫|仆倒.{0,12}抽搐|抽搐.{0,12}牙关紧闭/, indicationPattern: /癫痫|癫痫发作/, weight: 3 },
+  { key: "闭经", axis: "problem", casePattern: /闭经|月经.{0,8}(?:未至|不来).{0,8}(?:月|天)/, indicationPattern: /闭经|继发性闭经/, weight: 3 },
+  { key: "尿路感染", axis: "problem", casePattern: /尿路感染|尿痛.{0,8}尿频|尿频.{0,8}尿痛/, indicationPattern: /尿路感染|膀胱炎/, weight: 3 },
+  { key: "湿疹", axis: "problem", casePattern: /湿疹|红斑.{0,8}丘疹.{0,8}水疱.{0,12}瘙痒|瘙痒.{0,8}渗液/, indicationPattern: /湿疹|皮炎/, weight: 3 },
+  { key: "多汗症", axis: "problem", casePattern: /多汗症|持续多汗|汗出过多/, indicationPattern: /多汗症|多汗/, weight: 3 },
+  { key: "颈痛", axis: "problem", casePattern: /颈痛|颈肩痛|颈项痛|肩背疼痛/, indicationPattern: /颈痛|颈肩痛|颈项痛/, weight: 3 },
+  { key: "下消化道出血", axis: "problem", casePattern: /下消化道出血|便血|大便带血/, indicationPattern: /下消化道出血|便血/, weight: 3 },
+  { key: "泌乳不足", axis: "problem", casePattern: /泌乳不足|乳汁分泌不足|乳汁量少|乳量少/, indicationPattern: /泌乳不足|乳汁分泌不足|缺乳/, weight: 3 },
+  { key: "下肢感觉异常", axis: "problem", casePattern: /下肢.{0,12}(?:麻木|感觉异常|紧缩)|四肢.{0,8}麻木/, indicationPattern: /下肢感觉异常|肢体麻木/, weight: 3 },
+  { key: "阴道干涩", axis: "problem", casePattern: /阴道干涩|带下过少/, indicationPattern: /阴道干涩|阴道萎缩|泌尿生殖综合征/, weight: 3 },
+  { key: "呃逆", axis: "problem", casePattern: /呃逆|气冲有声|逆气上冲/, indicationPattern: /呃逆|顽固性呃逆/, weight: 3 },
+  { key: "面部丘疹", axis: "problem", casePattern: /面部丘疹|面部.{0,8}扁平丘疹/, indicationPattern: /面部丘疹|丘疹性皮肤病/, weight: 3 },
+  { key: "嗳气", axis: "problem", casePattern: /嗳气|气逆/, indicationPattern: /嗳气|胃气上逆/, weight: 3 },
 ] as const;
 
 function medicineConceptGovernedId(index: number): string {

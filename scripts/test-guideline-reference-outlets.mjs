@@ -13,6 +13,10 @@ import { fileURLToPath } from "node:url";
 
 const { guidelineReferenceDisplay, westernDiagnosticEvidenceGroups } =
   await import("../src/lib/clinical-fact-source.ts");
+const { localDiagnosticReferenceContext } =
+  await import("../src/lib/diagnostic-reference-catalog.ts");
+const { buildEvidenceOutputTransform } =
+  await import("../src/lib/cdss-evidence-context.ts");
 
 const failures = [];
 const check = (name, fn) => {
@@ -81,8 +85,49 @@ check("两个出口都不再自拼指南展示串", () => {
   }
 });
 
+check("症状性诊断长尾只注入真实且问题匹配的本地权威依据", () => {
+  const cases = [
+    ["双下肢紧缩麻木十天", "EVID-GUIDE-901", "aan.com"],
+    ["产后乳汁量少四日", "EVID-GUIDE-902", "acog.org"],
+    ["带下过少并阴道干涩", "EVID-GUIDE-903", "acog.org"],
+    ["呃逆一年余，逆气上冲，气冲有声", "EVID-PAPER-904", "pubmed.ncbi.nlm.nih.gov"],
+    ["面部扁平丘疹反复发作一年", "EVID-PAPER-905", "pubmed.ncbi.nlm.nih.gov"],
+    ["癫痫反复发作并伴仆倒抽搐", "EVID-GUIDE-906", "nice.org.uk"],
+    ["受凉后尿痛尿频一周", "EVID-GUIDE-907", "uroweb.org"],
+    ["持续多汗半年", "EVID-GUIDE-908", "jstage.jst.go.jp"],
+  ];
+  for (const [clinicalText, evidenceId, host] of cases) {
+    const context = localDiagnosticReferenceContext(clinicalText);
+    assert.match(context, new RegExp(`\\[${evidenceId}\\]`), `${clinicalText} 缺少受治理依据 ${evidenceId}`);
+    assert.match(context, new RegExp(`https://[^\\s]*${host.replaceAll(".", "\\.")}/`), `${evidenceId} 缺少真实可点击出处`);
+    const caseState = { patient: {}, chiefComplaint: clinicalText, symptoms: {}, conversation: [] };
+    const diagnosisName = ({
+      "EVID-GUIDE-901": "下肢感觉异常",
+      "EVID-GUIDE-902": "产后乳汁分泌不足",
+      "EVID-GUIDE-903": "阴道干涩",
+      "EVID-PAPER-904": "呃逆",
+      "EVID-PAPER-905": "面部丘疹",
+      "EVID-GUIDE-906": "癫痫",
+      "EVID-GUIDE-907": "尿路感染",
+      "EVID-GUIDE-908": "多汗症",
+    })[evidenceId];
+    const payload = {
+      schemaVersion: "tcm-cdss-reasoning-v2",
+      stage: "diagnose",
+      westernDiagnosis: { primary: { name: diagnosisName } },
+      overview: { primarySyndrome: "待辨" },
+    };
+    const transformed = buildEvidenceOutputTransform(context, undefined, caseState)(
+      `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(payload)}\n<!-- DIAGNOSIS_JSON_END -->`,
+    );
+    const parsed = JSON.parse(transformed.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+    assert.equal(parsed.westernDiagnosis.primary.guidelineReferences?.[0]?.evidenceId, evidenceId, `${evidenceId} 未进入最终诊断引用`);
+  }
+  assert.equal(localDiagnosticReferenceContext("普通感冒伴流清涕"), "", "无匹配问题不得注入通用文献凑数");
+});
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "guideline-reference-outlets", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "guideline-reference-outlets", checks: 5, failures: 0 }));
+console.log(JSON.stringify({ suite: "guideline-reference-outlets", checks: 6, failures: 0 }));
