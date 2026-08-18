@@ -47,6 +47,11 @@ for (const [name, code, display] of [
     `${name} 必须降为规范症状编码，不能显示一个无 ICD 的混合标签`,
   );
 }
+assert.equal(resolveIcd10Diagnosis("胃食管反流症状", "证据有限")?.code, "R12.x00x002",
+  "证据有限仍可编码已记录的规范症状");
+assert.equal(resolveIcd10Diagnosis("反酸", "证据有限")?.code, "R12.x00x002");
+assert.equal(resolveIcd10Diagnosis("胃食管反流病", "证据有限"), undefined,
+  "证据有限不得把疾病倾向升级成 K21 正式疾病编码");
 
 const raw = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
   westernDiagnosis: { primary: { name: "原发性高血压", status: "考虑", coding: { system: "ICD-10", code: "Z99", display: "模型伪造", source: "模型" } } },
@@ -68,4 +73,4 @@ assert.equal(refluxPayload.westernDiagnosis.primary.coding.code, "R12.x00x002");
 assert.equal(refluxPayload.westernDiagnosis.differentials[0].name, "胃食管反流病",
   "疾病实体继续保留在鉴别诊断，不因症状编码而消失");
 
-console.log(JSON.stringify({ cases: 19, failures: 0 }));
+console.log(JSON.stringify({ cases: 22, failures: 0 }));
