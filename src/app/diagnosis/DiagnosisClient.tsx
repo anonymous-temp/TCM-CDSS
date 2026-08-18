@@ -108,11 +108,10 @@ import {
   type M02TargetField,
 } from "@/lib/m02-question-contract";
 import {
-  TCM_SOURCE_AUTHORITY_TIER_LABELS,
   parseTcmTreatmentCapabilities,
-  tcmTreatmentAssessmentPositioningForDisplay,
   type TcmTreatmentProjectCode,
 } from "@/lib/tcm-treatment-projects";
+import { buildClinicianTreatmentProjects } from "@/lib/tcm-treatment-clinician-view";
 import {
   classifyHerbWarning,
   deriveCaseWarningProfile,
@@ -121,9 +120,6 @@ import {
 } from "@/lib/clinical-warning-tier";
 import {
   createPathogenesisNarrativeLedger,
-  deferredGovernedTemplateCopy,
-  deferredSyndromeRefinementCopy,
-  tcmTreatmentTailoringPresentation,
   westernDiagnosisLabelForDisplay,
 } from "@/lib/diagnosis-visible-summary";
 
@@ -4630,30 +4626,15 @@ function ResultTabsV2({
   const firstCandidate = formula?.candidates?.[0];
   const firstCandidateWarnings = firstCandidate?.herbs.map(structuredHerbWarningProfile) || [];
   const firstCandidateTargetCells = formulaTargetPathogenesisCells(firstCandidate?.herbs.map((herb) => herb.targetPathogenesis) || []);
-  // 随证加减与中医治疗项目两节各自持一本去重账本，判据与服务端 Markdown 完全一致
-  // （见 diagnosis-visible-summary 的同名处理）。账本在组件体内新建、随渲染顺序消费；
-  // 不得提升到模块作用域——跨次渲染累积会把首次出现也判成重复，页面上就再没有病机原文了。
   const modificationLedger = createPathogenesisNarrativeLedger();
   const modificationCells = (formula?.modifications || []).map((item) => ({
     target: modificationLedger.claim(item.targetPathogenesis) ? item.targetPathogenesis : "",
     reason: item.reason || "",
   }));
-  const treatmentProjectLedger = createPathogenesisNarrativeLedger();
-  const shownTreatmentContent = new Set<string>();
-  const treatmentProjectCells = (reasoning.nonPharma?.tcmTreatments || []).map((item) => {
-    const content = item.treatmentContent || "";
-    const target = item.targetPathogenesis || "";
-    // 历史载荷的 treatmentContent 内嵌本块自己的病机原文（生成侧已停）；此时这行相对
-    // 「方案状态 + 对应病机」不再携带新信息，整行不渲染，而不是把同一句病机在同一张卡片里印两遍。
-    const contentEmbedsTarget = Boolean(content) && Boolean(target) && content.includes(target);
-    const repeatedContent = Boolean(content) && shownTreatmentContent.has(content);
-    if (content) shownTreatmentContent.add(content);
-    return {
-      // 重复内容直接省略；不要用跨段短引用让医生来回寻找上文。
-      content: contentEmbedsTarget || repeatedContent ? "" : content,
-      target: treatmentProjectLedger.claim(target) ? target : "",
-    };
-  });
+  // 后台治理对象保留完整；医生页面只消费最小投影。缺具体内容、穴位或频次的项目直接不成卡，
+  // 不再把模板状态、来源、资质或安全闸门当成“内容”回退显示。
+  const clinicianTreatmentProjects = buildClinicianTreatmentProjects(reasoning.nonPharma);
+  const hasDietTherapyProject = clinicianTreatmentProjects.some((item) => item.projectCode === "diet_therapy");
   const hasExplicitNonDoseResult = hasExplicitNonDosePrescriptionResult(caseState, Boolean(firstCandidate));
   // The server remains the enforcement point (attestation + fingerprint); this only mirrors the
   // visible state so the doctor gets an explicit confirmation action instead of a dead end.
@@ -5420,97 +5401,24 @@ function ResultTabsV2({
         </SchemeSection>
       )}
 
-      {/* 需求9：中医治疗项目独立成模块，排在健康调护之前。它是本机构目录里可开展的治疗项目
-          （带操作方案、部位穴位、术者资质与必查项），与饮食起居情志这类生活方式建议不是
-          同一类决策；嵌在调护文字里会让医生需要翻找，两类内容的权重也被拉平。 */}
-      {reasoning.nonPharma && reasoning.nonPharma.tcmTreatments.length > 0 && (
+      {clinicianTreatmentProjects.length > 0 && (
         <SchemeSection
           order={sectionOrder("M03-M04-tcm-treatment")}
           id="cdss-section-tcm-treatment"
-          title="中医治疗项目"
-          subtitle="本机构可开展项目、对应病机与操作安全边界"
+          title="中医非药物方案"
           contractIds="M03-M04-tcm-treatment"
           rendererId="tcm-treatment-section"
         >
           <div className="grid gap-2 sm:grid-cols-2">
-            {reasoning.nonPharma.tcmTreatments.map((item, index) => (
+            {clinicianTreatmentProjects.map((item, index) => (
               <div key={`${item.projectCode}-${index}`} className="rounded-lg border border-gray-200 bg-white p-3 text-xs leading-relaxed text-gray-700">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-semibold text-gray-950">{item.projectName}</p>
-                  {/* 三态如实呈现（甲方 2026-08-10 ⑪）。此前只有两态，「命中病种模板」与
-                      「按本例证型加减过」共用「标准方案 · 待复核」这一个绿标——而实测四组八例
-                      （风寒/风热、心脾两虚/肝火扰心、湿热中阻/脾胃虚寒、寒湿/湿热）穴位逐字相同。 */}
-                  <span className={`rounded px-2 py-0.5 font-medium ${
-                    item.protocolStatus === "governed_patient_specific_plan" ? "bg-emerald-50 text-emerald-700"
-                      : item.protocolStatus === "governed_class_template_not_syndrome_tailored" ? "bg-sky-50 text-sky-700"
-                        : "bg-amber-50 text-amber-700"}`}>
-                    {/* 「按证型加减」断言的是**在基础方上做过增删**这个动作。证型专用模板
-                        （精确闸门整条按证型选中）没有加减穴，写成加减就是说了一件没发生的事。
-                        判据与服务端 Markdown 共用 tcmTreatmentTailoringPresentation 一处。 */}
-                    {tcmTreatmentTailoringPresentation(item).badge}
-                  </span>
-                  {/* 来源权威等级（2026-08-11）。此前只有一串 SRC- 码拼在「方案依据」里，
-                      医生看不出这套取穴是国标操作规范、学会标准，还是项目治理的教材表——
-                      而这决定了他要不要照做。等级由受治理来源注册表逐条 join，不是我们现取的说法。 */}
-                  {item.sourceAuthorityTier && (
-                    <span className={`rounded px-2 py-0.5 font-medium ${
-                      item.sourceAuthorityTier === "project_governed_source" || item.sourceAuthorityTier === "unregistered"
-                        ? "bg-gray-100 text-gray-600" : "bg-indigo-50 text-indigo-700"}`}>
-                      {TCM_SOURCE_AUTHORITY_TIER_LABELS[item.sourceAuthorityTier] || item.sourceAuthorityTier}
-                    </span>
-                  )}
-                </div>
-                {/* 命中了证型配穴、但那一条还没过中医师终审：系统看到了什么、为什么没用，如实说。
-                    隐藏它等于让医生以为系统压根没识别出本例证型。 */}
-                {deferredSyndromeRefinementCopy(item.deferredSyndromeRefinement) && (
-                  <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-amber-900">
-                    <span className="font-medium">待终审的证型配穴：</span>
-                    {deferredSyndromeRefinementCopy(item.deferredSyndromeRefinement)}
-                  </p>
+                <p className="font-semibold text-gray-950">{item.title}</p>
+                <p className="mt-2"><span className="font-medium text-gray-900">核心内容：</span>{item.content}</p>
+                {item.sitesOrPoints && item.sitesOrPoints.length > 0 && (
+                  <p className="mt-1"><span className="font-medium text-gray-900">穴位/部位：</span>{joinClinicalClauses(item.sitesOrPoints, "；")}</p>
                 )}
-                {/* 待**签字**的病种标准取穴：与上一段不是同一件事——上一段是"模板能用、这条加减不敢用"，
-                    这一段是"整条病种模板还没签字，本例保持评估态"。不显示等于让医生以为
-                    系统对这个病种什么都没有，而页面上剩下的只是关键词召回的结果。 */}
-                {deferredGovernedTemplateCopy(item.deferredGovernedTemplate) && (
-                  <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-2 text-amber-900">
-                    <span className="font-medium">待中医师签字的病种标准取穴：</span>
-                    {deferredGovernedTemplateCopy(item.deferredGovernedTemplate)}
-                  </p>
-                )}
-                {treatmentProjectCells[index].content && (
-                  <p className="mt-2"><span className="font-medium text-gray-900">治疗内容：</span>{treatmentProjectCells[index].content}</p>
-                )}
-                {treatmentProjectCells[index].target && (
-                  <p className="mt-2"><span className="font-medium text-gray-900">对应病机：</span>{treatmentProjectCells[index].target}</p>
-                )}
-                {item.suggestedSitesOrPoints.length > 0 && (
-                  <p className="mt-1">
-                    <span className="font-medium text-gray-900">
-                      {`${tcmTreatmentTailoringPresentation(item).pointsLabel}：`}
-                    </span>
-                    {joinClinicalClauses(item.suggestedSitesOrPoints, "；")}
-                    {item.protocolStatus === "governed_class_template_not_syndrome_tailored" && "；请医生按本例寒热虚实增减后实施"}
-                    {item.protocolStatus === "assessment_only_no_patient_specific_protocol" && "；具体选穴由现场医师按适应证与禁忌确定"}
-                  </p>
-                )}
-                {item.scheduleSuggestion && (
-                  <p className="mt-1"><span className="font-medium text-gray-900">评估节奏：</span>{item.scheduleSuggestion}</p>
-                )}
-                {/* 删掉了三行系统自述（2026-08-10，甲方）：
-                    「未形成患者级方案：目录存在该项目的其他适应证模板，但与本例适应证不符…」
-                    「安全边界：仅在病例文字命中模板适应证且通过红旗、资质和禁忌复核时可显示…」
-                    「方案依据：SRC-SAMR-ACUPUNCTURE-OPS、SRC-TCM-INFECTION-CONTROL」
-                    三句讲的都是**系统目录与显示规则**，不是这位病人能不能做这个项目。
-                    第二句的前半是每个项目一字不差的 parameterPolicy（已在服务端停止外发）；
-                    真正属于临床的只有术者资质与必查禁忌，保留并改为按临床口径命名。*/}
-                {tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning) && (
-                  <p className="mt-1"><span className="font-medium text-gray-900">项目边界：</span>{tcmTreatmentAssessmentPositioningForDisplay(item.assessmentPositioning)}</p>
-                )}
-                {item.techniqueBoundary && (
-                  <p className="mt-1"><span className="font-medium text-gray-900">操作要点：</span>{item.techniqueBoundary}</p>
-                )}
-                {clinicalSentence([item.operatorRequirement, ...item.requiredChecks], "；") && (
-                  <p className="mt-1 text-amber-800"><span className="font-medium">操作禁忌与资质：</span>{clinicalSentence([item.operatorRequirement, ...item.requiredChecks], "；")}</p>
+                {item.schedule && (
+                  <p className="mt-1"><span className="font-medium text-gray-900">频次/复评：</span>{item.schedule}</p>
                 )}
               </div>
             ))}
@@ -5529,7 +5437,9 @@ function ResultTabsV2({
         <div className="space-y-3">
           {reasoning.nonPharma ? (
             <div className="grid gap-2">
-              <SummaryLine label="饮食调养" value={safeDietAdviceForDisplay(reasoning.nonPharma.diet, caseState)} tone="green" />
+              {!hasDietTherapyProject && (
+                <SummaryLine label="饮食调养" value={safeDietAdviceForDisplay(reasoning.nonPharma.diet, caseState)} tone="green" />
+              )}
               <SummaryLine label="生活方式" value={reasoning.nonPharma.lifestyle} tone="blue" />
               <SummaryLine label="情志调护" value={reasoning.nonPharma.emotion} tone="amber" />
               {reasoning.nonPharma.acupointCare && <SummaryLine label="穴位/外治" value={reasoning.nonPharma.acupointCare} tone="blue" />}
