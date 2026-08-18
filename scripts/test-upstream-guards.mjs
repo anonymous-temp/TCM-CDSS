@@ -117,8 +117,8 @@ const expectedModelMatrix = {
   PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL: "qwen3.7-plus",
   PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL: "qwen3.7-plus",
   CLINICAL_FACTS_MODEL: "qwen3.7-flash",
-  CLINICAL_FACTS_REVIEW_MODEL: "qwen3.7-plus",
-  CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.8-max",
+  CLINICAL_FACTS_REVIEW_MODEL: "qwen3.8-max",
+  CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.7-plus",
   CONTROLLED_TERMINOLOGY_MODEL: "qwen3.7-flash",
 };
 assert.match(composeSource, /AI_TEXT_PROVIDER: \$\{AI_TEXT_PROVIDER:-bailian-qwen\}/);
