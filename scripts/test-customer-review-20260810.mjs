@@ -342,6 +342,24 @@ check("⑩ 模型不得跳过通用指南改绑更窄且病例未证实的病因
   assert.doesNotMatch(JSON.stringify(resolved), /新型冠状病毒|病毒感染后/);
 });
 
+check("⑩ 真实但与主诊断无关的检索结果不得为了填栏被强行引用", () => {
+  const unrelated = "[EVID-GUIDE-001] 肿瘤患者食欲下降的营养诊疗专家共识（肿瘤营养学组，2022）：肿瘤恶液质营养管理。";
+  const transform = buildEvidenceOutputTransform(unrelated, undefined, {
+    id: "reflux-with-unrelated-hit",
+    phase: "diagnose",
+    patient: { sex: "女", age: 78 },
+    chiefComplaint: "反酸、嗳气反复1年",
+    symptoms: { presentHistory: "餐后加重" },
+    conversation: [],
+  });
+  const payload = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    westernDiagnosis: { primary: { name: "反酸", supportingFacts: ["反酸、嗳气"] } },
+  };
+  const primary = readSentinel(transform(wrap(payload))).westernDiagnosis.primary;
+  assert.equal(primary.guidelineReferences, undefined, "无主诊断相关性时宁可不展示，也不能塞无关真文献");
+});
+
 check("⑩ 解析必须幂等，且伪造的 citation 不得存活", () => {
   // 本转换会在同一份内容上被多次调用（流式草稿、最终输出、截断兜底各一次）。
   // 第一版只读 guidelineRefs 而无条件删除 guidelineReferences——第二遍会把第一遍的结果删掉，
