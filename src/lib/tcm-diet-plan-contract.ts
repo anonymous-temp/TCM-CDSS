@@ -38,3 +38,17 @@ export function isConcreteClinicianDietPlan(value: unknown): boolean {
   const diet = cleanText(value);
   return hasConcreteDietAction(diet) && hasConcreteFoodExample(diet);
 }
+
+const DETERMINISTIC_ORDINARY_MEAL_EXAMPLE =
+  "三餐定时、每餐七八分饱；例如米饭或面食搭配清淡烹调的当季蔬菜；减少辛辣油炸食物和夜宵。";
+
+/**
+ * 非药物调护是建议性内容，不能因为模型少写一个餐食示例而连坐作废已经通过安全核验的处方。
+ * 保留模型给出的病例相关内容，仅在其不满足医生端最小可执行合同时追加普通膳食示例。
+ * 兜底不宣称治疗作用，也不引入药食两用食材、功能性食物或剂量。
+ */
+export function ensureConcreteClinicianDietPlan(value: unknown): string {
+  const diet = cleanText(value);
+  if (isConcreteClinicianDietPlan(diet)) return diet;
+  return [diet, DETERMINISTIC_ORDINARY_MEAL_EXAMPLE].filter(Boolean).join(" ");
+}

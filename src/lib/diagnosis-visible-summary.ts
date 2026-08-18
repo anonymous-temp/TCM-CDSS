@@ -26,7 +26,7 @@ import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinical
 import { displayableLineageAdaptation } from "./tcm-lineages";
 import { safeDietAdviceForDisplay, GOVERNED_HERB_DATA_LABEL } from "./result-display-policy";
 import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
-import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives } from "./internal-tag-hygiene";
+import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives, stripInternalEngineeringTags } from "./internal-tag-hygiene";
 import { normalizeReasoningV2 } from "./diagnosis-types";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
@@ -3540,7 +3540,9 @@ function scrubVisibleMarkdownHead(head: string): string {
   // 4. Remaining embedded internal reason codes degrade to a generic doctor-facing marker.
   text = text.replace(INTERNAL_EMBEDDED_CODE, (token) =>
     token.startsWith("m03_") || token.startsWith("m04_") ? "独立临床复核" : "系统内部校验");
-  return sanitizeAuthoritativeClinicalOutput(text);
+  // 最后对整段可见正文做形态级清洗，覆盖嵌在临床句子中的裸枚举
+  // （例如「…；unrestricted（来源：现病史）；…」）。结构化 sentinel 不经过这里。
+  return sanitizeAuthoritativeClinicalOutput(stripInternalEngineeringTags(text));
 }
 
 /**

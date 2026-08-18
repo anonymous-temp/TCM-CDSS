@@ -245,6 +245,9 @@ export function findInternalEngineeringTags(text: string): string[] {
 function tidyClinicalPunctuation(text: string): string {
   return text
     .replace(/[（(]\s*[）)]/g, "")
+    // 整个事实值被清掉后不能留下「（来源：现病史）」这种无主语来源壳。
+    // 只处理被分号/行边界包围的独立来源短语，不动正常事实后的来源标注。
+    .replace(/(?:^|[；;])\s*[（(]来源\s*[：:][^）)]*[）)]\s*(?=[；;。]|$)/gm, "")
     .replace(/「\s*」/g, "")
     .replace(/\s{2,}/g, " ")
     .replace(/([，,；;、])\s*(?=[，,；;、。.])/g, "")

@@ -18,6 +18,7 @@ import {
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
+import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 
 const evidence = {
   evidenceLevel: "model_inference" as const,
@@ -960,6 +961,9 @@ function normalizeM04ProposalInput(
           : deterministicPrecautions(prior);
         return {
         ...rawNonPharma,
+        // 食疗文字属于建议质量，不拥有对整张已通过剂量/配伍/特殊人群门禁处方的一票否决权。
+        // 模型未给出普通餐食示例时只补齐这一段，候选药味和 M03 锁定结论保持不变。
+        diet: ensureConcreteClinicianDietPlan(rawNonPharma.diet),
         acupointCare: null,
         // These are optional recommendations chosen from a server-owned catalog. Extra, repeated,
         // or malformed model rows must not invalidate an otherwise usable prescription.

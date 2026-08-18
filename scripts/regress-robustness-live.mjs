@@ -164,7 +164,6 @@ function buildCaseState(c) {
     jiancha: c.labs || "",
     vitalsT: c.vitalsT || "", vitalsP: c.vitalsP || "",
     vitalsR: c.vitalsR || "", vitalsBP: c.vitalsBP || "",
-    tcmLineagePreference: "unrestricted",
   };
   const vitals = [
     c.vitalsT ? `T${c.vitalsT}` : "", c.vitalsP ? `P${c.vitalsP}` : "",

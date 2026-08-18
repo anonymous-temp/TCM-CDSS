@@ -832,6 +832,11 @@ assert.doesNotMatch(scrubbedDraft, /m03_[a-z0-9_]+|signed_limited_fallback/);
 assert.match(scrubbedDraft, /独立临床复核/);
 assert.match(scrubbedDraft, /系统内部校验/);
 assert.match(scrubbedDraft, /## 辨病辨证草稿/, "clinical headings survive the scrubber");
+assert.equal(
+  scrubInternalVocabularyFromVisibleText("**依据**：白天嗜睡（来源：主诉）；unrestricted（来源：现病史）；食后腹胀（来源：现病史）"),
+  "**依据**：白天嗜睡（来源：主诉）；食后腹胀（来源：现病史）",
+  "a bare internal lineage enum embedded in a clinical evidence line must not reach the clinician",
+);
 const scrubberStructuredTail = `<!-- DIAGNOSIS_JSON_START -->\n{"overview":{"primarySyndromeResolution":"bounded","lineageCode":"unrestricted"}}\n<!-- DIAGNOSIS_JSON_END -->`;
 const scrubbedWithSentinel = scrubInternalVocabularyFromVisibleText(`**把握度**：bounded\n${scrubberStructuredTail}`);
 assert.equal(

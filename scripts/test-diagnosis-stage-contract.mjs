@@ -12,6 +12,7 @@ const { enrichReasoning } = await import("../src/lib/tcm-formula-provenance.ts")
 const { buildPrescribePrompt } = await import("../src/lib/diagnosis-prompts.ts");
 const { normalizeModelNullableText, normalizePrescriptionRole } = await import("../src/lib/diagnosis-types.ts");
 const { compileM04JsonObjectContent, compileM04Proposal, m04ProposalIssueCode } = await import("../src/lib/m04-proposal-compiler.ts");
+const { isConcreteClinicianDietPlan } = await import("../src/lib/tcm-diet-plan-contract.ts");
 const { sanitizeDiagnoseStreamingDraft } = await import("../src/lib/diagnosis-stream-safety.ts");
 const { buildM04ClinicalReviewPayload, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, m04ClinicalReviewSemanticHash, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
 const { applyActionableFollowupSafetyNetContract, isActionableFollowupSafetyNet } = await import("../src/lib/followup-safety-net.ts");
@@ -3439,6 +3440,18 @@ const compiledProposalInput = {
 const compiledProposal = compileM04Proposal(compiledProposalInput, stable);
 assert.equal(compiledProposal?.overview, stable.overview, "M04 proposal cannot overwrite signed M03 overview");
 assert.equal(compiledProposal?.pathogenesis, stable.pathogenesis, "M04 proposal cannot overwrite signed M03 pathogenesis");
+const genericDietProposalInput = structuredClone(compiledProposalInput);
+genericDietProposalInput.nonPharma.diet = "饮食清淡，避免辛辣油腻。";
+const compiledGenericDietProposal = compileM04Proposal(genericDietProposalInput, stable);
+assert.ok(
+  isConcreteClinicianDietPlan(compiledGenericDietProposal?.nonPharma?.diet),
+  "a non-actionable diet paragraph is completed deterministically instead of invalidating an otherwise safe M04 candidate",
+);
+assert.match(
+  compiledGenericDietProposal?.nonPharma?.diet || "",
+  /米饭|面食|蔬菜/,
+  "the deterministic completion gives the clinician at least one concrete ordinary meal example",
+);
 assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].processing, "炒");
 assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].role, "君");
 assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].decoctionRequirement, "捣碎、同煎");
