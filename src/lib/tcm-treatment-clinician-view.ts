@@ -103,23 +103,15 @@ function isSafeProjection(project: ClinicianTreatmentProject): boolean {
 
 function projectTreatment(
   item: TreatmentRecommendation,
-  diet: string,
 ): ClinicianTreatmentProject | null {
   if (item.protocolStatus === "assessment_only_no_patient_specific_protocol") return null;
+  if (item.projectCode === "diet_therapy") return null;
 
   const sitesOrPoints = cleanList(item.suggestedSitesOrPoints);
   const schedule = cleanText(item.scheduleSuggestion);
   let projected: ClinicianTreatmentProject | null = null;
 
-  if (item.projectCode === "diet_therapy") {
-    if (!hasConcreteDietAction(diet) || !hasConcreteFoodExample(diet)) return null;
-    projected = {
-      projectCode: item.projectCode,
-      title: "食疗与饮食",
-      content: diet,
-      ...(hasActionableSchedule(item.projectCode, schedule) ? { schedule } : {}),
-    };
-  } else if (item.projectCode === "auricular") {
+  if (item.projectCode === "auricular") {
     if (sitesOrPoints.length === 0 || !hasActionableSchedule(item.projectCode, schedule)) return null;
     projected = {
       projectCode: item.projectCode,
@@ -168,8 +160,19 @@ export function buildClinicianTreatmentProjects(
 ): ClinicianTreatmentProject[] {
   if (!nonPharma) return [];
   const diet = cleanText(safeDietAdviceForDisplay(nonPharma.diet, {}));
-  return nonPharma.tcmTreatments.flatMap((item) => {
-    const projected = projectTreatment(item, diet);
+  const dietRecommendation = nonPharma.tcmTreatments.find((item) => item.projectCode === "diet_therapy");
+  const dietSchedule = cleanText(dietRecommendation?.scheduleSuggestion);
+  const dietProject: ClinicianTreatmentProject | null = hasConcreteDietAction(diet) && hasConcreteFoodExample(diet)
+    ? {
+        projectCode: "diet_therapy",
+        title: "食疗与饮食",
+        content: diet,
+        ...(dietSchedule && !containsInternalGovernanceText(dietSchedule) ? { schedule: dietSchedule } : {}),
+      }
+    : null;
+  const treatmentProjects = nonPharma.tcmTreatments.flatMap((item) => {
+    const projected = projectTreatment(item);
     return projected ? [projected] : [];
   });
+  return [...(dietProject && isSafeProjection(dietProject) ? [dietProject] : []), ...treatmentProjects];
 }
