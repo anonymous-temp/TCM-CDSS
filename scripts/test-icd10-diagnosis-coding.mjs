@@ -35,6 +35,18 @@ assert.deepEqual(
   { code: resolveIcd10Diagnosis("COPD")?.code, mapping: resolveIcd10Diagnosis("COPD")?.mapping },
   { code: "J44.900", mapping: "governed_alias" },
 );
+for (const [name, code, display] of [
+  ["胃食管反流症状", "R12.x00x002", "反酸"],
+  ["反酸烧心症状", "R12.x00x002", "反酸"],
+  ["嗳气症状", "R14.x00x002", "嗳气"],
+]) {
+  const coding = resolveIcd10Diagnosis(name);
+  assert.deepEqual(
+    { code: coding?.code, display: coding?.display, mapping: coding?.mapping },
+    { code, display, mapping: "governed_alias" },
+    `${name} 必须降为规范症状编码，不能显示一个无 ICD 的混合标签`,
+  );
+}
 
 const raw = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
   westernDiagnosis: { primary: { name: "原发性高血压", status: "考虑", coding: { system: "ICD-10", code: "Z99", display: "模型伪造", source: "模型" } } },
@@ -43,4 +55,17 @@ const transformed = applyDeterministicIcd10Coding(raw);
 assert.match(transformed, /"code":"I10\.x09"/);
 assert.doesNotMatch(transformed, /Z99|模型伪造/);
 
-console.log(JSON.stringify({ cases: 14, failures: 0 }));
+const refluxSymptomRaw = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
+  westernDiagnosis: { primary: { name: "胃食管反流症状", status: "考虑" }, differentials: [{ name: "胃食管反流病" }] },
+})}\n<!-- DIAGNOSIS_JSON_END -->`;
+const refluxSymptomTransformed = applyDeterministicIcd10Coding(refluxSymptomRaw);
+const refluxPayload = JSON.parse(refluxSymptomTransformed
+  .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+  .split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(refluxPayload.westernDiagnosis.primary.name, "反酸",
+  "症状层主诊断名必须与 ICD 编码名称一致");
+assert.equal(refluxPayload.westernDiagnosis.primary.coding.code, "R12.x00x002");
+assert.equal(refluxPayload.westernDiagnosis.differentials[0].name, "胃食管反流病",
+  "疾病实体继续保留在鉴别诊断，不因症状编码而消失");
+
+console.log(JSON.stringify({ cases: 19, failures: 0 }));
