@@ -19,6 +19,7 @@
 //   D. 账本身份 = 同病例 + 同一份已签名 M03；换病例或换签名即另一次诊疗，不继承失败；
 //   E. 与既有 m04-repair-policy 的受理判定联通：repairExhausted 到达方式扩一种，安全前提一条不减。
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 const {
   m04AttemptKey,
@@ -86,6 +87,13 @@ check("D 账本身份 = 同病例 + 同一份已签名 M03；任一变化即另�
   recordM04AttemptOutcome(undefined, "contract_rejected");
   assert.equal(priorM04ContractRejections(undefined), 0);
   assert.equal(m04RetryPolicyForAttempt(priorM04ContractRejections(undefined)).samplingTemperature, 0);
+});
+
+check("D7 M04 上游传输失败必须使用专用降级页，不得误报为合同截断", () => {
+  const source = readFileSync(new URL("../src/app/api/diagnosis/prescribe/route.ts", import.meta.url), "utf8");
+  assert.match(source, /upstreamUnavailableFallback:/);
+  assert.match(source, /模型推理服务暂时不可用/);
+  assert.match(source, /不是处方合同或病历信息不足/);
 });
 
 check("D 账本条目过期后回落到首轮行为（fail-safe：丢账本 = 退回今天的行为，不放宽任何判定）", () => {
