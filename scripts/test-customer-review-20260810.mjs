@@ -256,6 +256,16 @@ check("⑩ 模型只回 evidenceId，题名/机构/年份/URL 由服务端反查
   assert.equal(governedEvidenceCitation("EVID-GUIDE-999", scope), undefined, "集外 id 必须取不到");
 });
 
+check("⑩ 指南题名自身含冒号时不得在疾病名之前截断", () => {
+  const scope = buildEvidenceScope(
+    "[EVID-GUIDE-009] 2024 拉丁美洲共识：胃食管反流病的诊断（拉丁美洲胃肠病学组，2024）：诊断路径摘要。",
+  );
+  const citation = governedEvidenceCitation("EVID-GUIDE-009", scope);
+  assert.ok(citation);
+  assert.match(citation.citation, /胃食管反流病的诊断/);
+  assert.doesNotMatch(citation.citation, /诊断路径摘要/);
+});
+
 check("⑩ 模型自撰的题名/集外 id 一律丢弃，且不得回落到自撰题名", () => {
   const transform = buildEvidenceOutputTransform(GUIDE_CONTEXT);
   const payload = {
