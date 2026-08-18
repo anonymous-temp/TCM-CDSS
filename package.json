@@ -72,6 +72,7 @@
     "test:snapshot-auth-binding": "jiti scripts/test-snapshot-auth-binding.mjs",
     "test:lineage-governance": "node --experimental-strip-types scripts/test-tcm-lineages.mjs",
     "test:tcm-treatments": "jiti scripts/test-tcm-treatment-projects.mjs",
+    "test:tcm-treatment-clinician-view": "jiti scripts/test-tcm-treatment-clinician-view.mjs",
     "test:customer-evidence": "node --experimental-strip-types scripts/test-customer-evidence.mjs",
     "test:stage-contract": "jiti scripts/test-diagnosis-stage-contract.mjs",
     "test:m03-parallel-merge": "jiti scripts/test-m03-parallel-merge.mjs",
