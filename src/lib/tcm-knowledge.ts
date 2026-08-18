@@ -792,7 +792,7 @@ function searchPatentRisks(query: string, limit = 5): PatentRisk[] {
   const text = query.replace(/\s+/g, "");
   return data.patentRisks.filter((item) =>
     [item.productOrGroup, item.matchedHisDrugs, item.keyRiskFields, item.triggerCondition]
-      .some((field) => field && text.includes(field.split(/[；;]/)[0]))
+      .some((field) => field && tokenIncludedPositive(field, text))
   ).slice(0, limit);
 }
 
@@ -847,7 +847,7 @@ function searchLabThresholds(query: string, limit = 8): LabThreshold[] {
   const text = query.replace(/\s+/g, "");
   return (data.labThresholds || []).filter((item) =>
     [item.lab, item.condition, item.drugOrClass, item.representativeDrugs, item.missingLabPolicy]
-      .some((field) => field && tokenIncluded(field, text))
+      .some((field) => field && tokenIncludedPositive(field, text))
   ).slice(0, limit);
 }
 
@@ -1018,10 +1018,9 @@ export function buildTcmKnowledgeContext(caseState: CaseState, stage: "diagnose"
     }
   }
 
-  if (labThresholds.length > 0 || stage === "assess") {
+  if (labThresholds.length > 0) {
     sections.push("实验室/检查阈值规则：");
-    const rules = labThresholds.length > 0 ? labThresholds : (data.labThresholds || []).slice(0, 6);
-    for (const item of rules) {
+    for (const item of labThresholds) {
       sections.push(`- ${item.condition}（${item.lab} ${item.operator} ${item.thresholdValue}${item.thresholdUnit}）：涉及${item.drugOrClass}，强度${item.severity}；缺失策略：${item.missingLabPolicy}；动作：${item.action}；依据：${item.sourceIds}`);
     }
   }
