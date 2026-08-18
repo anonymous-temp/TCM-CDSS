@@ -457,17 +457,24 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
       ? triageBasis as TriageBasis
       : undefined;
     if (!parsedUrgency || !parsedTriageBasis) continue;
+    // Qwen 等模型会在正确判断 urgent 时沿用 emergency 的 basis（例如黑便稳定但写
+    // major_active_bleeding）。urgency 已经限制了处置权限；把 basis 单调收敛为 urgent_review
+    // 比整条丢弃更安全，也避免语义层因一个枚举配对错误完全 unavailable。
+    const normalizedTriageBasis = status === "positive" && parsedUrgency === "urgent" &&
+      EMERGENCY_TRIAGE_BASES.has(parsedTriageBasis)
+      ? "urgent_review" as const
+      : parsedTriageBasis;
     const dispositionContractSatisfied = parsedUrgency === "emergency"
-      ? status === "positive" && EMERGENCY_TRIAGE_BASES.has(parsedTriageBasis) &&
-        CATEGORY_EMERGENCY_BASES[category as BackstopRedFlagCategory].has(parsedTriageBasis)
+      ? status === "positive" && EMERGENCY_TRIAGE_BASES.has(normalizedTriageBasis) &&
+        CATEGORY_EMERGENCY_BASES[category as BackstopRedFlagCategory].has(normalizedTriageBasis)
       : parsedUrgency === "urgent"
-        ? status === "positive" && parsedTriageBasis === "urgent_review"
+        ? status === "positive" && normalizedTriageBasis === "urgent_review"
         : parsedUrgency === "clarify"
-          ? (status === "positive" || status === "possible") && parsedTriageBasis === "clarification_needed"
+          ? (status === "positive" || status === "possible") && normalizedTriageBasis === "clarification_needed"
           : (status === "positive" || status === "negative" || status === "historical" || status === "unknown") &&
-            parsedTriageBasis === "routine_care";
+            normalizedTriageBasis === "routine_care";
     const subjectContractSatisfied = subject !== "uncertain" || (
-      parsedUrgency === "clarify" && parsedTriageBasis === "clarification_needed"
+      parsedUrgency === "clarify" && normalizedTriageBasis === "clarification_needed"
     );
     if (!dispositionContractSatisfied || !subjectContractSatisfied) continue;
     const parsedEscalationQuotes = Array.isArray(escalationEvidenceQuotes)
@@ -486,7 +493,7 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
       : quote.trim();
     const evidenceFloorSatisfied = parsedUrgency !== "emergency" || emergencyEvidenceFloorSatisfied(
       category as BackstopRedFlagCategory,
-      parsedTriageBasis,
+      normalizedTriageBasis,
       evidenceFloorText,
     );
     redFlags.push({
@@ -497,7 +504,7 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
       // supports the prompt's urgent tier. Preserve the grounded finding and fail closed for formal
       // prescription, but cap it at urgent so the independent reviewer can still correct it.
       urgency: evidenceFloorSatisfied ? parsedUrgency : "urgent",
-      triageBasis: evidenceFloorSatisfied ? parsedTriageBasis : "urgent_review",
+      triageBasis: evidenceFloorSatisfied ? normalizedTriageBasis : "urgent_review",
       quote: quote.trim().slice(0, 200),
       ...(validEscalation ? {
         escalationRationale: parsedEscalationRationale,
@@ -724,10 +731,15 @@ export function groundClinicalFacts(facts: ClinicalFacts, sourceText: string): C
     }
     return finding;
   });
+  const groundedAffirmedSymptoms = facts.affirmedSymptoms?.filter((item) =>
+    item.quote.length >= 2 &&
+    sourceText.includes(item.quote) &&
+    hasCurrentQuoteOccurrence(sourceText, item.quote, false));
   return {
     ...facts,
     encounterScope,
     redFlags: groundedRedFlags,
+    ...(facts.affirmedSymptoms ? { affirmedSymptoms: groundedAffirmedSymptoms } : {}),
   };
 }
 
