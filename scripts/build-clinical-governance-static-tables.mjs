@@ -641,11 +641,11 @@ const outputContracts = [
   ["M04-patent-western", "prescribe", "reasoningV2.formula.patentAndWestern", "中成药/西药候选", "nullable", "evidence_id_fingerprint_and_risk_note", "visible", "medicine-section"],
   ["M04-modifications", "prescribe", "reasoningV2.formula.modifications", "加减规则", "optional", "trigger_target_and_evidence_ref", "visible", "formula-modification-list"],
   ["M04-decoction", "prescribe", "reasoningV2.formula.candidates[].decoction", "煎服与复评节点", "required_when_formula_exists", "candidate_formula_binding", "visible", "decoction-panel"],
-  // 需求9：中医治疗项目从「非药物调护」内部抽出，成为独立模块，排在健康调护之前。
+  // 中医非药物方案从「非药物调护」内部抽出，成为独立模块，排在健康调护之前。
   // 它与饮食/起居/情志不是同一类东西——前者是受控目录里的可开展治疗项目（有操作方案、
   // 部位穴位、术者资质与必查项），后者是生活方式建议。嵌在一起时医生要在调护文字里翻找
   // 可开的治疗项目，两类内容的决策权重也被拉平。
-  ["M03-M04-tcm-treatment", "diagnose|prescribe", "reasoningV2.nonPharma.tcmTreatments", "中医治疗项目", "nullable", "pathogenesis_target_and_protocol_source", "visible", "tcm-treatment-section"],
+  ["M03-M04-tcm-treatment", "diagnose|prescribe", "reasoningV2.nonPharma.tcmTreatments", "中医非药物方案", "nullable", "pathogenesis_target_and_protocol_source", "visible", "tcm-treatment-section"],
   ["M03-M04-nonpharma", "diagnose|prescribe", "reasoningV2.nonPharma", "健康调护与注意事项", "nullable", "pathogenesis_target_and_protocol_source", "visible", "followup-care-section"],
   // 2026-08-13 由 internal_only 翻为 visible：甲方需求基线 §10.2 明确要求「报告：简洁说明
   // 采用了哪些流派特征」，此前该契约登记为永不渲染，模型写的 lineageAdaptation 只进 JSON 出参。

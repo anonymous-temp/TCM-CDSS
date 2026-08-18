@@ -652,7 +652,7 @@ assert.deepEqual(requiredFields.governance.universalMinimum, ["chief_complaint",
 assert.equal(requiredFields.entries.find((item) => item.id === "sex")?.stagePolicy.collect, "required");
 assert.equal(requiredFields.entries.find((item) => item.id === "allergy_history")?.unknownPolicy, "unknown_never_no_allergy");
 assert.deepEqual(requiredFields.governance.implementationDrift, []);
-// 需求9 新增可见契约 M03-M04-tcm-treatment（中医治疗项目从非药物调护里抽出成独立模块）：
+// 可见契约 M03-M04-tcm-treatment（中医非药物方案从非药物调护里抽出成独立模块）：
 // 契约总数 18→19、可见数 15→16，内部契约数不变。
 // 2026-08-06 又减 1：health-education 幽灵契约（声明 visible 但字段根本不存在）已从生成器删除，
 // 于是总数回到 18、可见数回到 15。详见文件末尾「T11 不得再出现幽灵契约」那段逐条核对。
@@ -664,14 +664,14 @@ assert.equal(outputContracts.summary.internalContractCount, 2);
 assert.equal(outputContracts.summary.visibleContractCount, 16);
 assert.ok(
   outputContracts.entries.some((item) => item.id === "M03-M04-tcm-treatment" && item.visibility === "visible"),
-  "中医治疗项目必须是独立的可见输出契约",
+  "中医非药物方案必须是独立的可见输出契约",
 );
 {
   const order = outputContracts.surfaces.find((item) => item.id === "comprehensive_clinical_scheme")?.sectionOrder || [];
   assert.ok(
     order.indexOf("M03-M04-tcm-treatment") >= 0 &&
     order.indexOf("M03-M04-tcm-treatment") < order.indexOf("M03-M04-nonpharma"),
-    "中医治疗项目必须排在健康调护之前",
+    "中医非药物方案必须排在健康调护之前",
   );
 }
 // 2026-08-13 翻转：流派适配记录成为可见契约（带 rendererId），三出口渲染与空壳守卫见 test:lineage-affinity。

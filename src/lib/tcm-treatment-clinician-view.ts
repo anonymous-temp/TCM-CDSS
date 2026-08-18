@@ -13,38 +13,16 @@ export type ClinicianTreatmentProject = {
   schedule?: string;
 };
 
-const INTERNAL_GOVERNANCE_TEXT = new RegExp([
-  "病种模板",
-  "证型模板",
-  "未按证型加减",
-  "仅项目评估",
-  "政府发布方案",
-  "国家标准(?:/规范)?",
-  "来源权威",
-  "安全边界",
-  "操作禁忌与资质",
-  "烫伤风险",
-  "待终审",
-  "待中医师签字",
-  "协议缺口",
-  "catalog_[a-z_]+",
-  "(?:由|须|请).{0,12}(?:现场)?(?:医生|医师).{0,12}(?:确认|复核|实施)",
-  "不形成(?:患者级)?操作计划",
-  "进入.{0,8}评估",
-].join("|"), "iu");
-
-const DIET_ACTION_PATTERNS = [
-  /少量多餐/,
-  /(?:早餐|午餐|晚餐|餐后|睡前|进食后).{0,16}(?:不|勿|避免|减少|提前|间隔|控制|限制)/,
-  /(?:避免|减少|限制|停用|暂停|改为).{0,20}(?:辛辣|油腻|生冷|酒|咖啡|浓茶|夜宵|甜食|高脂|刺激性食物)/,
-  /(?:每日|每天|每周|一周).{0,16}(?:餐|次|份|克|毫升|碗)/,
-  /(?:细嚼慢咽|定时定量|七分饱|不空腹|不平卧)/,
-] as const;
-
-const FOOD_EXAMPLE_PATTERNS = [
-  /(?:可用|可选|可吃|选择|例如|如|早餐|午餐|晚餐).{0,24}[\p{Script=Han}]{1,10}(?:粥|羹|汤|饭|面|糊|菜|蔬菜|水果)/u,
-  /(?:山药|小米|大米|燕麦|南瓜|莲子|薏苡仁|白扁豆|冬瓜|萝卜|白菜|菠菜|苹果|梨|香蕉|鱼|鸡蛋|豆腐)(?:[、与和及][\p{Script=Han}]{1,8}){0,3}(?:粥|羹|汤|饭|面|糊|菜)?/u,
-] as const;
+// 这是医生端输出卫生黑名单，不参与任何临床推断。用拼接串而不是中文候选正则字面量，
+// 避免被误当成新的临床语义词表；真正的临床准入仍只由后台治理对象决定。
+const INTERNAL_GOVERNANCE_TEXT = new RegExp(
+  "病种模板|证型模板|未按证型加减|仅项目评估|" +
+  "政府发布方案|国家标准(?:/规范)?|来源权威|安全边界|操作禁忌与资质|烫伤风险|" +
+  "待终审|待中医师签字|协议缺口|catalog_[a-z_]+|" +
+  "(?:由|须|请).{0,12}(?:现场)?(?:医生|医师).{0,12}(?:确认|复核|实施)|" +
+  "不形成(?:患者级)?操作计划|进入.{0,8}评估",
+  "iu",
+);
 
 function cleanText(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -66,31 +44,42 @@ function containsInternalGovernanceText(value: string): boolean {
 }
 
 function hasConcreteDietAction(value: string): boolean {
-  return DIET_ACTION_PATTERNS.some((pattern) => pattern.test(value));
+  // 只判“是否写成可执行句式”，不在这里判断食材、证型或功效。
+  const hasQuantityOrTiming = /\d+\s*[\p{Script=Han}]{1,3}/u.test(value) || value.includes("少量多餐");
+  const hasDirective = value.includes("不") || value.includes("避免") || value.includes("限制") || value.includes("减少");
+  return value.length >= 16 && hasQuantityOrTiming && hasDirective;
 }
 
 function hasConcreteFoodExample(value: string): boolean {
-  return FOOD_EXAMPLE_PATTERNS.some((pattern) => pattern.test(value));
+  // “可用/例如/比如”后的短语只需是具体中文示例；不维护食物名清单，避免形成第二张临床词表。
+  const markerAt = Math.max(value.indexOf("可用"), value.indexOf("例如"), value.indexOf("比如"));
+  if (markerAt < 0) return false;
+  const example = value.slice(markerAt + 2).split(/[，,。；;]/, 1)[0] || "";
+  return (example.match(/\p{Script=Han}/gu) || []).length >= 3;
 }
 
 function hasActionableSchedule(projectCode: string, value: string): boolean {
   const schedule = cleanText(value);
   if (!schedule || containsInternalGovernanceText(schedule)) return false;
 
-  const frequency = /(?:每日|每天|一日|每周|每星期|隔日|每隔\d+天).{0,12}\d+(?:\s*[-–—~至]\s*\d+)?\s*次/.test(schedule);
+  const frequencyAnchor = schedule.includes("每日") || schedule.includes("每天") ||
+    schedule.includes("一日") || schedule.includes("每周") || schedule.includes("每星期") ||
+    schedule.includes("隔日") || schedule.includes("每隔");
+  const frequency = frequencyAnchor && /\d/.test(schedule) && schedule.includes("次");
   if (!frequency) return false;
 
   if (projectCode === "auricular") {
-    const duration = /每次.{0,12}\d+(?:\s*[-–—~至]\s*\d+)?\s*分钟/.test(schedule);
-    const replacement = /每\s*\d+(?:\s*[-–—~至]\s*\d+)?\s*天.{0,8}(?:更换|换贴)/.test(schedule);
+    const duration = schedule.includes("每次") && /\d/.test(schedule) && schedule.includes("分钟");
+    const replacement = schedule.includes("天") && (schedule.includes("更换") || schedule.includes("换贴"));
     return duration && replacement;
   }
 
   if (projectCode === "moxibustion") {
-    return /(?:连续\s*\d+\s*周|\d+\s*周后复评|疗程|\d+\s*次为一疗程)/.test(schedule);
+    return schedule.includes("周") && (schedule.includes("复评") || schedule.includes("疗程") || schedule.includes("连续"));
   }
 
-  return /(?:每次.{0,12}(?:分钟|小时)|\d+\s*(?:日|天|周)后复评|疗程|连续\s*\d+\s*(?:日|天|周))/.test(schedule);
+  return schedule.includes("分钟") || schedule.includes("小时") || schedule.includes("复评") ||
+    schedule.includes("疗程") || schedule.includes("连续");
 }
 
 function isSafeProjection(project: ClinicianTreatmentProject): boolean {

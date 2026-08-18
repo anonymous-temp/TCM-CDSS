@@ -254,7 +254,7 @@
       "id": "M03-M04-tcm-treatment",
       "stage": "diagnose|prescribe",
       "path": "reasoningV2.nonPharma.tcmTreatments",
-      "label": "中医治疗项目",
+      "label": "中医非药物方案",
       "requiredStatus": "nullable",
       "evidenceBinding": "pathogenesis_target_and_protocol_source",
       "visibility": "visible",

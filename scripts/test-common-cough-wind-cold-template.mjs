@@ -372,38 +372,23 @@ check("带闸门的模板不得从常规按病名通路被选出（后门）", (
   assert.equal(influenza?.id, "acupuncture-influenza-hunan-2025", "不带闸门的模板被误挡");
 });
 
-// ── 「待签字」这件事必须三个出口都到得了 ────────────────────────────────
-// 待终审的证型配穴此前只铺到医生页面与 HIS，服务端 Markdown 一句没有——
-// 又是本仓库那个反复出现的形状。加第三态时一并收口，并在这里钉死。
-const {
-  deferredGovernedTemplateCopy,
-  deferredSyndromeRefinementCopy,
-} = await import("../src/lib/diagnosis-visible-summary.ts");
-
-check("待签字/待终审的说明有唯一投影，且三个出口都在用", () => {
-  const copy = deferredGovernedTemplateCopy({
-    indicationLabel: "普通咳嗽·风寒袭肺证/风寒束肺证",
-    deferredPoints: ["肺俞", "中府", "列缺", "太渊", "风门", "合谷", "风池"],
-    conflictNote: "尚未完成中医师签字终审。",
-  });
-  assert.ok(copy.includes("普通咳嗽·风寒袭肺证"), "必须说清是哪个病种模板在等签字");
-  assert.ok(copy.includes("列缺") && copy.includes("风池"), "待签字的取穴必须逐条列出，不能只说一句「有待终审项」");
-  assert.ok(/评估态/.test(copy), "必须说清本轮仍按评估态呈现——否则医生会以为这些穴已经是受治理方案");
-  assert.equal(deferredGovernedTemplateCopy(undefined), "", "没有待签字项时不得凭空印一句");
-  assert.ok(deferredSyndromeRefinementCopy({ syndromeLabel: "风寒袭肺", deferredPoints: ["风门"], conflictNote: "x" })
-    .includes("未予应用"), "证型配穴那一句的语义不得被本轮改动带偏");
-
-  const outlets = [
+// ── 待签字/待终审只留后台结构化字段，医生端不得再解释治理过程 ──────────────────
+check("待签字/待终审保留在 HIS，两个医生可见出口只用最小临床投影", () => {
+  for (const [file, label] of [
     ["src/lib/diagnosis-visible-summary.ts", "服务端 Markdown"],
     ["src/app/diagnosis/DiagnosisClient.tsx", "医生页面"],
-  ];
-  for (const [file, label] of outlets) {
+  ]) {
     const source = readFileSync(fileURLToPath(new URL(`../${file}`, import.meta.url)), "utf8");
-    for (const fn of ["deferredGovernedTemplateCopy", "deferredSyndromeRefinementCopy"]) {
-      assert.ok(source.includes(fn), `${label} 没有使用共享投影 ${fn}`);
-    }
+    assert.ok(source.includes("buildClinicianTreatmentProjects"), `${label} 没有使用医生端最小投影`);
   }
-  // HIS 走结构化字段而不是句子，钉的是"字段有没有透传"。
+  const client = readFileSync(fileURLToPath(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url)), "utf8");
+  const treatmentStart = client.indexOf('id="cdss-section-tcm-treatment"');
+  const treatmentEnd = client.indexOf("<SchemeSection", treatmentStart + 1);
+  const treatmentSection = client.slice(treatmentStart, treatmentEnd);
+  assert.ok(!/deferredGovernedTemplate|deferredSyndromeRefinement/.test(treatmentSection),
+    "医生页面仍在展示待签字/待终审治理过程");
+
+  // HIS 走结构化字段而不是医生端句子，钉的是字段有没有透传。
   const his = readFileSync(fileURLToPath(new URL("../src/lib/his-scheme.ts", import.meta.url)), "utf8");
   assert.ok(/deferredGovernedTemplate:\s*\{/.test(his), "HIS 投影没有透传 deferredGovernedTemplate");
 });
