@@ -21,6 +21,7 @@ import { createJiti } from "jiti";
 import {
   gapEchoed,
   m03ContractSupportsPrescription,
+  shouldRetryRedFlagsAttempt,
   shouldRetryM03Attempt,
   shouldRetryM04Attempt,
 } from "./lib/robustness-live-assertions.mjs";
@@ -70,6 +71,10 @@ const M03_MAX_ATTEMPTS = Number.isFinite(configuredM03MaxAttempts)
 const configuredM04MaxAttempts = Number(process.env.M04_MAX_ATTEMPTS || 2);
 const M04_MAX_ATTEMPTS = Number.isFinite(configuredM04MaxAttempts)
   ? Math.max(1, Math.min(3, Math.trunc(configuredM04MaxAttempts)))
+  : 2;
+const configuredRedFlagMaxAttempts = Number(process.env.REDFLAG_MAX_ATTEMPTS || 2);
+const REDFLAG_MAX_ATTEMPTS = Number.isFinite(configuredRedFlagMaxAttempts)
+  ? Math.max(1, Math.min(3, Math.trunc(configuredRedFlagMaxAttempts)))
   : 2;
 const ONLY = (process.env.ONLY || "").split(",").map((s) => s.trim()).filter(Boolean);
 
@@ -378,10 +383,28 @@ async function runCase(c) {
   const rawParts = [`# ${c.id}（${c.expectation}）\n来源：${c.sourceUrl || "—"}\n压测意图：${c.robustnessNote || "—"}`];
 
   let working = state;
-  const pre = await post("/api/diagnosis/red-flags", working);
-  r.stages.redFlags = { status: pre.status, ms: pre.ms, transport: pre.transport };
+  r.redFlagAttempts = [];
+  let pre;
   let gateBody = {};
-  try { gateBody = JSON.parse(pre.raw); } catch { gateBody = {}; }
+  for (let attempt = 1; attempt <= REDFLAG_MAX_ATTEMPTS; attempt += 1) {
+    pre = await post("/api/diagnosis/red-flags", working);
+    try { gateBody = JSON.parse(pre.raw); } catch { gateBody = {}; }
+    const missingItems = gateBody?.safetyGate?.missingItems || [];
+    r.redFlagAttempts.push({
+      attempt,
+      status: pre.status,
+      ms: pre.ms,
+      transport: pre.transport,
+      semanticUnavailable: missingItems.some((item) => /^语义红旗筛查未完成/.test(String(item))),
+    });
+    if (!shouldRetryRedFlagsAttempt({
+      expectation: c.expectation,
+      status: pre.status,
+      transport: pre.transport,
+      missingItems,
+    })) break;
+  }
+  r.stages.redFlags = { status: pre.status, ms: pre.ms, transport: pre.transport };
   if (gateBody.clinicalFacts) working = { ...working, clinicalFacts: gateBody.clinicalFacts };
   r.gate = {
     status: gateBody?.safetyGate?.status,
@@ -612,6 +635,11 @@ const summary = {
     attemptedMultiple: results.filter((r) => (r.m03Attempts?.length || 0) > 1).length,
     recovered: results.filter((r) => r.m03RecoveredAfterRetry).length,
     unrecovered: results.filter((r) => (r.m03Attempts?.length || 0) > 1 && !r.m03RecoveredAfterRetry).length,
+  },
+  redFlagRecovery: {
+    attemptedMultiple: results.filter((r) => (r.redFlagAttempts?.length || 0) > 1).length,
+    recovered: results.filter((r) => (r.redFlagAttempts?.length || 0) > 1 && !r.redFlagAttempts.at(-1)?.semanticUnavailable).length,
+    unrecovered: results.filter((r) => (r.redFlagAttempts?.length || 0) > 1 && r.redFlagAttempts.at(-1)?.semanticUnavailable).length,
   },
   m04Recovery: {
     attemptedMultiple: results.filter((r) => (r.m04Attempts?.length || 0) > 1).length,

@@ -4,6 +4,7 @@ import {
   gapEchoed,
   m03ContractSupportsPrescription,
   persistentPrescriptionGapLabels,
+  shouldRetryRedFlagsAttempt,
   shouldRetryM03Attempt,
   shouldRetryM04Attempt,
 } from "./lib/robustness-live-assertions.mjs";
@@ -25,6 +26,33 @@ test("处方缺口回显忽略上一个请求的一次性语义筛查超时", ()
     gapEchoed(missingItems, "正式采纳前需确认：过敏史、当前用药、妊娠/哺乳/备孕状态。"),
     true,
   );
+});
+
+test("应出方案病例的瞬时语义筛查失败重试上游红旗阶段", () => {
+  assert.equal(shouldRetryRedFlagsAttempt({
+    expectation: "should_prescribe",
+    status: 200,
+    transport: "",
+    missingItems: ["语义红旗筛查未完成（模型输出无效）"],
+  }), true);
+  assert.equal(shouldRetryRedFlagsAttempt({
+    expectation: "should_prescribe",
+    status: 200,
+    transport: "",
+    missingItems: ["过敏史（明确有/无及过敏原/反应）"],
+  }), false);
+  assert.equal(shouldRetryRedFlagsAttempt({
+    expectation: "should_not_prescribe_redflag",
+    status: 200,
+    transport: "",
+    missingItems: ["语义红旗筛查未完成（模型超时）"],
+  }), false);
+  assert.equal(shouldRetryRedFlagsAttempt({
+    expectation: "should_prescribe",
+    status: 503,
+    transport: "",
+    missingItems: [],
+  }), true);
 });
 
 test("应出方案病例会有限重试无效 M03，但不重试安全降级类别", () => {

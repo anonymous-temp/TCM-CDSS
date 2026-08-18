@@ -11,7 +11,7 @@
 
 import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, getBailianQwenConfig, textModelRequestTuning } from "@/lib/text-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
-import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
+import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
 import { affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
@@ -2630,6 +2630,12 @@ async function callPrimaryTextModelStream(
         // 同一条不变量的另一半：方向未成立的**实际加味**按单味剔除，不让单味缺陷放大成整方作废。
         // 必须排在独立复核与签名之前——复核看到的、签名绑定的都必须是剔除后的最终候选。
         finalized = dropUnsupportedM04CandidateHerbs(finalized, opts.structuredPriorReasoning);
+        // overview/pathogenesis/therapy 等字段归 M03 所有。最终展示和证据变换前逐字回绑，
+        // 既不放宽漂移门禁，也不让一个展示变换把已合法处方变成 pathogenesis_drift。
+        finalized = enforceM04PriorStageOwnership(
+          finalized,
+          opts.structuredPriorReasoning as unknown as Record<string, unknown> | undefined,
+        );
         if (!opts.outputTransform) return finalized;
         try {
           return opts.outputTransform(finalized);

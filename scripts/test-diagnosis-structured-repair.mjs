@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const { enforceStructuredStageOwnership, isM03WesternSupportContractReason, repairCompletedStructuredSentinel, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } = await import("../src/lib/diagnosis-structured-repair.ts");
+const { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, isM03WesternSupportContractReason, repairCompletedStructuredSentinel, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } = await import("../src/lib/diagnosis-structured-repair.ts");
 const { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
 const { parseOpenAICompatCompletionPayload } = await import("../src/lib/openai-compatible-response.ts");
 const { buildM03DiagnosticReviewPrompt, parseM03DiagnosticReview } = await import("../src/lib/m03-diagnostic-review.ts");
@@ -553,6 +553,34 @@ const m03WithUnauthorizedFormula = `${startMarker}\n${JSON.stringify({ ...valid,
 const ownedM03 = enforceStructuredStageOwnership(m03WithUnauthorizedFormula, "diagnose");
 assert.equal(JSON.parse(ownedM03.split(startMarker)[1].split(endMarker)[0].trim()).formula, null);
 assert.equal(enforceStructuredStageOwnership(m03WithUnauthorizedFormula, "prescribe"), m03WithUnauthorizedFormula);
+
+const priorOwnedSections = {
+  stage: "diagnose",
+  completeness: { level: "C" },
+  overview: { primarySyndrome: "寒凝肝脉证", overallPathogenesis: "寒凝肝脉，经脉拘急" },
+  westernDiagnosis: { primary: { name: "腹股沟痛" } },
+  pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "寒凝肝脉，经脉拘急" }] },
+  therapy: { overallPrinciple: "温散寒邪", overallMethod: "暖肝散寒，理气止痛" },
+  lineageAdaptation: null,
+  management: { mustCollect: [], followupSafetyNet: "症状加重时复诊" },
+};
+const driftedM04 = `${startMarker}\n${JSON.stringify({
+  stage: "prescribe",
+  completeness: { level: "A" },
+  overview: { primarySyndrome: "脾肾阳虚证", overallPathogenesis: "脾肾阳虚" },
+  westernDiagnosis: { primary: { name: "其他诊断" } },
+  pathogenesis: { chain: [{ nodeId: "P9", pathogenesis: "其他病机" }] },
+  therapy: { overallPrinciple: "补益", overallMethod: "温补脾肾" },
+  lineageAdaptation: { lineageCode: "fake" },
+  management: { mustCollect: ["被改写"] },
+  formula: { candidates: [{ name: "本例辨证组方" }] },
+})}\n${endMarker}`;
+const reboundM04Text = enforceM04PriorStageOwnership(driftedM04, priorOwnedSections);
+const reboundM04 = JSON.parse(reboundM04Text.split(startMarker)[1].split(endMarker)[0].trim());
+for (const key of ["completeness", "overview", "westernDiagnosis", "pathogenesis", "therapy", "lineageAdaptation", "management"]) {
+  assert.deepEqual(reboundM04[key], priorOwnedSections[key], `M04 must restore the signed M03-owned ${key} section byte-semantically`);
+}
+assert.deepEqual(reboundM04.formula, { candidates: [{ name: "本例辨证组方" }] }, "M04-owned formula content survives the ownership rebind");
 const syncReasoning = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",

@@ -161,6 +161,42 @@ export function enforceStructuredStageOwnership(
   }
 }
 
+const M03_OWNED_M04_SECTIONS = [
+  "completeness",
+  "overview",
+  "westernDiagnosis",
+  "pathogenesis",
+  "therapy",
+  "lineageAdaptation",
+  "management",
+] as const;
+
+/**
+ * M04 may only author prescription fields. Rebind every diagnosis-owned section to the exact
+ * signed M03 value immediately before final M04 validation so a renderer/evidence transform cannot
+ * turn a clinically valid proposal into `pathogenesis_drift` (or silently alter the diagnosis).
+ */
+export function enforceM04PriorStageOwnership(
+  content: string,
+  prior: Record<string, unknown> | null | undefined,
+): string {
+  if (!prior) return content;
+  const start = content.lastIndexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  try {
+    const parsed = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    if (!parsed || typeof parsed !== "object" || parsed.stage !== "prescribe") return content;
+    for (const key of M03_OWNED_M04_SECTIONS) {
+      if (Object.prototype.hasOwnProperty.call(prior, key)) parsed[key] = prior[key];
+      else delete parsed[key];
+    }
+    return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(parsed, null, 2)}\n${content.slice(end)}`;
+  } catch {
+    return content;
+  }
+}
+
 function repairMissingStructuredStartSentinel(
   content: string,
   expectedStage: "diagnose" | "prescribe",

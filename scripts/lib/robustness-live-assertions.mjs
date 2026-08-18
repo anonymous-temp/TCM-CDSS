@@ -19,6 +19,15 @@ export function gapEchoed(missingItems, visibleText) {
   return labels.every((label) => String(visibleText || "").includes(label));
 }
 
+export function shouldRetryRedFlagsAttempt({ expectation, status, transport, missingItems }) {
+  if (expectation !== "should_prescribe") return false;
+  if (transport || status === 0) return true;
+  if ([408, 425, 429, 500, 502, 503, 504].includes(status)) return true;
+  if (status !== 200) return false;
+  return (missingItems || []).some((item) =>
+    REQUEST_LOCAL_GAP_PATTERNS.some((pattern) => pattern.test(String(item).trim())));
+}
+
 export function m03ContractSupportsPrescription(contract) {
   if (!contract || typeof contract !== "object" || contract.stage !== "diagnose") return false;
   const unresolved = contract.overview?.primarySyndromeResolution === "unresolved";
