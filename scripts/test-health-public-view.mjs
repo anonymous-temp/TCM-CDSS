@@ -32,6 +32,13 @@ const check = (name, fn) => {
   }
 };
 
+check("strict 健康探针必须有认证身份限流，不能无限烧六路上游", () => {
+  const source = readFileSync(new URL("../src/app/api/diagnosis/health/route.ts", import.meta.url), "utf8");
+  assert.match(source, /getCdssAuthenticatedRateLimitKey/);
+  assert.match(source, /strict_health_rate_limited/);
+  assert.match(source, /"Retry-After"/);
+});
+
 // diagnosis-api.ts 用了 `@/lib/…` 别名，jiti 无别名解析、导不进来（全仓只有它这么写）。
 // 因此这里用同一批**真实**配置值自建 providers 分支，键名与 getDiagnosisProviderStatus() 一致；
 // 形状漂移由下面的「源码键名扫描」这条独立判据兜住，不依赖本 fixture 手工同步。
