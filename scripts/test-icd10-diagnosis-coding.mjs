@@ -77,4 +77,36 @@ assert.equal(refluxPayload.westernDiagnosis.primary.coding.code, "R12.x00x002");
 assert.equal(refluxPayload.westernDiagnosis.differentials[0].name, "胃食管反流病",
   "疾病实体继续保留在鉴别诊断，不因症状编码而消失");
 
-console.log(JSON.stringify({ cases: 24, failures: 0 }));
+const refluxDiseasePendingRaw = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
+  westernDiagnosis: {
+    primary: {
+      name: "胃食管反流病，病因待查",
+      status: "考虑",
+      supportingFacts: ["反酸、嗳气反复1年余", "餐后反酸加重"],
+      clinicalRationale: "当前症状支持胃食管反流病工作判断，但尚无胃镜或反流监测依据。",
+      limitations: ["未提供胃镜、24小时食管pH监测"],
+      suggestedChecks: ["胃镜检查"],
+    },
+    differentials: [{ name: "慢性胃炎", reason: "胃脘隐痛", distinguishingPoints: "待胃镜鉴别", nextCheck: "胃镜" }],
+  },
+})}\n<!-- DIAGNOSIS_JSON_END -->`;
+const refluxDiseasePendingTransformed = applyDeterministicIcd10Coding(refluxDiseasePendingRaw);
+const refluxDiseasePendingPayload = JSON.parse(refluxDiseasePendingTransformed
+  .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+  .split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(refluxDiseasePendingPayload.westernDiagnosis.primary.name, "反酸",
+  "疾病名同时声称病因待查且只有反酸症状依据时，必须降为可编码的症状级工作诊断");
+assert.equal(refluxDiseasePendingPayload.westernDiagnosis.primary.coding.code, "R12.x00x002");
+assert.ok(refluxDiseasePendingPayload.westernDiagnosis.differentials.some((item) => item.name === "胃食管反流病"),
+  "降级时必须把胃食管反流病保留到鉴别诊断，不能静默删除疾病方向");
+
+const refluxDeniedRaw = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
+  westernDiagnosis: { primary: { name: "胃食管反流病，病因待查", status: "考虑", supportingFacts: ["否认反酸、烧心"] }, differentials: [] },
+})}\n<!-- DIAGNOSIS_JSON_END -->`;
+const refluxDeniedPayload = JSON.parse(applyDeterministicIcd10Coding(refluxDeniedRaw)
+  .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+  .split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.notEqual(refluxDeniedPayload.westernDiagnosis.primary.name, "反酸",
+  "否定式反酸不得被确定性层制造成阳性症状诊断");
+
+console.log(JSON.stringify({ cases: 29, failures: 0 }));
