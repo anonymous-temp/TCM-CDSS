@@ -1384,10 +1384,11 @@ export async function extractClinicalFacts(
   }
   if (!options.independentReview) return { ...grounded, reviewStatus: "skipped" };
   // A reviewer response can be non-empty yet still violate the findingId/grounding contract. Give
-  // that independent phase one bounded fresh attempt using the exact same grounded first pass.
+  // that independent phase up to two bounded fresh attempts using the exact same grounded first pass.
   // The original findings stay fixed across attempts, so a malformed response can neither erase a
-  // stricter disposition nor trigger a new extractor run with an easier baseline.
-  for (let reviewAttempt = 1; reviewAttempt <= 2; reviewAttempt += 1) {
+  // stricter disposition nor trigger a new extractor run with an easier baseline. The outer clinical-
+  // facts total AbortSignal still owns the hard time budget, so a third attempt cannot overrun the stage.
+  for (let reviewAttempt = 1; reviewAttempt <= 3; reviewAttempt += 1) {
     try {
       const reviewedRaw = await llmCall(
       CLINICAL_FACTS_REVIEW_SYSTEM_PROMPT,
@@ -1585,13 +1586,14 @@ export async function extractClinicalFacts(
         : /(?:http_|status code )401|unauthor/i.test(message) ? "unauthorized"
         : /abort|timeout/i.test(message) ? "timeout"
         : /(?:http_|status code )\d{3}/.test(message) ? "http_error"
+        : /schema|grounding|decision|finding/.test(message) ? "invalid_contract"
         : "transport_or_unknown";
       console.warn("[tcm-cdss:facts] clinical-facts review attempt failed", {
         attempt: reviewAttempt,
         reason,
-        willRetry: reviewAttempt !== 2,
+        willRetry: reviewAttempt !== 3,
       });
-      if (reviewAttempt === 2) return { ...grounded, reviewStatus: "unavailable" };
+      if (reviewAttempt === 3) return { ...grounded, reviewStatus: "unavailable" };
     }
   }
   return { ...grounded, reviewStatus: "unavailable" };
