@@ -18,6 +18,12 @@ export type Icd10DiagnosisCoding = {
 const SOURCE = "ICD-10医保2.0版-中英对应-20220426";
 const entries = (icdIndex as { entries?: IcdEntry[] }).entries || [];
 const levelPriority: Record<IcdEntry["level"], number> = { diagnosis: 0, subcategory: 1, category: 2 };
+const GOVERNED_SYMPTOM_ALIASES: Readonly<Record<string, string>> = {
+  胃食管反流症状: "R12.x00x002",
+  反流症状: "R12.x00x002",
+  反酸烧心症状: "R12.x00x002",
+  嗳气症状: "R14.x00x002",
+};
 const GOVERNED_CLINICAL_ALIASES: Readonly<Record<string, string>> = {
   copd: "J44.900",
   慢性咳嗽: "R05.x00",
@@ -28,6 +34,7 @@ const GOVERNED_CLINICAL_ALIASES: Readonly<Record<string, string>> = {
   慢性失眠障碍: "G47.000",
   失眠障碍: "G47.000",
   便秘症状: "K59.000",
+  ...GOVERNED_SYMPTOM_ALIASES,
 };
 const entryByCode = new Map(entries.map((entry) => [entry.code, entry]));
 
@@ -115,8 +122,16 @@ export function applyDeterministicIcd10Coding(content: string): string {
         };
         const primary = parsed.westernDiagnosis?.primary;
         if (!primary || typeof primary.name !== "string") return match;
+        const normalizedPrimaryName = normalizeDiagnosisName(primary.name);
         const coding = resolveIcd10Diagnosis(primary.name, String(primary.status || ""));
-        if (coding) primary.coding = coding;
+        if (coding) {
+          primary.coding = coding;
+          // “胃食管反流症状”这类疾病名+症状后缀不是规范诊断名。映射到受治理症状码时，
+          // 主诊断名同步改为编码名称；疾病实体继续由既有 differentials 承载。
+          if (coding.mapping === "governed_alias" && Object.hasOwn(GOVERNED_SYMPTOM_ALIASES, normalizedPrimaryName)) {
+            primary.name = coding.display;
+          }
+        }
         else delete primary.coding;
         return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(parsed)}\n<!-- DIAGNOSIS_JSON_END -->`;
       } catch {
