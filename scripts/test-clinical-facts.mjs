@@ -621,6 +621,19 @@ const recoveredInvalidReviewContract = await extractClinicalFacts("右边脑袋�
 }, undefined, { independentReview: true, allowDispositionReductions: true });
 ok("extractor: 非空但违反findingId合同的独立复核可在相同首轮事实上一轮受限重试恢复",
   invalidReviewContractAttempts === 2 && recoveredInvalidReviewContract?.reviewStatus === "checked" && recoveredInvalidReviewContract.redFlags.length === 1);
+
+let twiceInvalidReviewAttempts = 0;
+const recoveredTwiceInvalidReview = await extractClinicalFacts("手划伤后渗血半小时还没完全停，出血量说不清。", async (_system, _user, _signal, phase) => {
+  if (phase !== "review") return JSON.stringify({ redFlags: [{ category: "bleeding", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "手划伤后渗血半小时还没完全停" }] });
+  twiceInvalidReviewAttempts += 1;
+  if (twiceInvalidReviewAttempts < 3) return JSON.stringify({ redFlags: [] });
+  return JSON.stringify({
+    redFlags: [{ findingId: "rf-1", category: "bleeding", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "手划伤后渗血半小时还没完全停" }],
+    reviews: [{ findingId: "rf-1", decision: "confirm" }],
+  });
+}, undefined, { independentReview: true, allowDispositionReductions: true });
+ok("extractor: Qwen 连续两次复核合同抖动后允许第三次受总时限约束的恢复",
+  twiceInvalidReviewAttempts === 3 && recoveredTwiceInvalidReview?.reviewStatus === "checked");
 const omittedByReviewer = await extractClinicalFacts("胸痛没有缓解，已持续30分钟。", async (_system, _user, _signal, phase) => phase === "review"
   ? JSON.stringify({ redFlags: [] })
   : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] }), undefined, { independentReview: true, allowDispositionReductions: true });
