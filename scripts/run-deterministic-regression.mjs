@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 const scripts = [
   "test:rxaudit-contract",
   "test:rxaudit-payload",
+  "test:rxaudit-cache",
   "test:rxaudit-routes",
   // 审方风险的性别适用性裁剪（甲方生产实测 2026-08-04 缺陷2）。风险的适用人群几乎都是析取枚举
   // （出血倾向/月经期/抗凝状态、儿童/孕妇/经期妇女/年老体弱者），而下游只有一道按整格判定的

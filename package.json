@@ -24,6 +24,7 @@
     "build:book-corpus-evidence": "node scripts/build-tcm-book-corpus-evidence.mjs",
     "test:rxaudit-contract": "jiti scripts/test-rxaudit-normalize.mjs",
     "test:rxaudit-payload": "jiti scripts/test-rxaudit-payload.mjs",
+    "test:rxaudit-cache": "jiti scripts/test-rxaudit-cache.mjs",
     "test:rxaudit-routes": "jiti scripts/test-rxaudit-routes.mjs",
     "regress:live-rxaudit": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-live-rxaudit.mjs",
     "regress:live-medication-events": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-live-medication-events.mjs",
