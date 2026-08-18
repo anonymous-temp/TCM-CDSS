@@ -207,7 +207,13 @@ export function governedEvidenceCitation(
   const url = [...record.urls][0];
   const withoutUrl = body.replace(/\s*URL:\s*https?:\/\/\S+\s*$/i, "").trim();
   // 摘要不进引用：引用要的是可核对的出处，不是一段可能被模型二次演绎的正文。
-  const citation = withoutUrl.split("：", 1)[0].trim() || withoutUrl;
+  // 格式化记录是“题名（机构，年份）：摘要”。题名自身也可能含冒号，例如
+  // “2024 拉丁美洲共识：胃食管反流病的诊断”；按第一个冒号切会只剩国家/共识名，
+  // 丢掉真正的疾病主题。优先切在元数据右括号后的摘要分隔符，取不到才回退旧格式。
+  const metadataEnd = withoutUrl.search(/）(?=：|$)/);
+  const citation = (metadataEnd >= 0
+    ? withoutUrl.slice(0, metadataEnd + 1)
+    : withoutUrl.split("：", 1)[0]).trim() || withoutUrl;
   if (citation.length < 2) return undefined;
   return { evidenceId: id, citation, ...(url ? { url } : {}) };
 }
