@@ -67,6 +67,19 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
 
 {
   const result = buildClinicianTreatmentProjects(nonPharma({
+    diet: "饮食宜清淡易消化，可适当食用山药、小米粥，避免辛辣、油腻食物。",
+    treatments: [project("diet_therapy", {
+      projectName: "食疗法",
+      scheduleSuggestion: "随三餐日常调整，2周后复评。",
+    })],
+  }));
+  assert.equal(result.length, 1, "已有具体食物示例和明确取舍行为时，不应因没有数字而隐藏食疗卡");
+  assert.match(result[0].content, /山药/);
+  assert.match(result[0].content, /小米粥/);
+}
+
+{
+  const result = buildClinicianTreatmentProjects(nonPharma({
     treatments: [project("auricular", {
       projectName: "耳穴",
       suggestedSitesOrPoints: ["脾", "胃", "神门", "交感", "胃"],
