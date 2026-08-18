@@ -109,6 +109,7 @@ check("症状性诊断长尾只注入真实且问题匹配的本地权威依据"
     ["胃胀一年多，晨起欲呕", "EVID-GUIDE-920", "pubmed.ncbi.nlm.nih.gov"],
     ["颈部红肿，上有小水疱并瘙痒", "EVID-GUIDE-921", "dermnetnz.org"],
     ["便中带血半年", "EVID-GUIDE-922", "cmab.yiigle.com"],
+    ["求嗣两年未孕", "EVID-GUIDE-923", "who.int"],
   ];
   for (const [clinicalText, evidenceId, host] of cases) {
     const context = localDiagnosticReferenceContext(clinicalText);
@@ -138,6 +139,7 @@ check("症状性诊断长尾只注入真实且问题匹配的本地权威依据"
       "EVID-GUIDE-920": "功能性消化不良",
       "EVID-GUIDE-921": "急性皮炎",
       "EVID-GUIDE-922": "便血",
+      "EVID-GUIDE-923": "不孕症",
     })[evidenceId];
     const payload = {
       schemaVersion: "tcm-cdss-reasoning-v2",
