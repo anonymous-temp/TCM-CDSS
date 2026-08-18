@@ -45,7 +45,7 @@ for (const flashAssistPath of [
   const flashAssistSource = readFileSync(new URL(flashAssistPath, import.meta.url), "utf8");
   assert.match(
     flashAssistSource,
-    /reasoning_effort:\s*"low"[\s\S]{0,100}thinking:\s*\{\s*type:\s*"disabled"/,
+    /textModelRequestTuning\([^)]*\{\s*reasoningEffort:\s*"low",\s*thinkingEnabled:\s*false\s*\}\)/,
     `${flashAssistPath} must disable extended thinking so its bounded output budget reaches final content`,
   );
 }
@@ -106,26 +106,30 @@ assert.match(
   /^CDSS_MODEL_RATE_LIMIT_PER_10_MIN=60$/m,
   "the deployable environment template must document the production model rate limit",
 );
-for (const modelVariable of [
-  "OPENAI_MODEL",
-  "PRIMARY_DIAGNOSE_MODEL",
-  "PRIMARY_DIAGNOSE_REPAIR_MODEL",
-  "PRIMARY_PRESCRIBE_MODEL",
-  "PRIMARY_PRESCRIBE_REPAIR_MODEL",
-  "PRIMARY_CLINICAL_REVIEW_MODEL",
-  "PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL",
-  "PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL",
-  "CLINICAL_FACTS_MODEL",
-  // CLINICAL_FACTS_REPAIR_MODEL 已于 2026-08-13 从 compose/.env.example 删除：
-  // 代码从未读过它（修复相位经 CLINICAL_FACTS_MODEL 回落），钉它等于把死配置焊死在容器契约里。
-  "CLINICAL_FACTS_REVIEW_MODEL",
-  "CLINICAL_FACTS_ADJUDICATION_MODEL",
-]) {
+const expectedModelMatrix = {
+  OPENAI_MODEL: "deepseek-v4-flash",
+  BAILIAN_QWEN_MODEL: "qwen3.7-plus",
+  PRIMARY_DIAGNOSE_MODEL: "qwen3.7-plus",
+  PRIMARY_DIAGNOSE_REPAIR_MODEL: "qwen3.8-max",
+  PRIMARY_PRESCRIBE_MODEL: "qwen3.7-plus",
+  PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
+  PRIMARY_CLINICAL_REVIEW_MODEL: "qwen3.8-max",
+  PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL: "qwen3.7-plus",
+  PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL: "qwen3.7-plus",
+  CLINICAL_FACTS_MODEL: "qwen3.7-flash",
+  CLINICAL_FACTS_REVIEW_MODEL: "qwen3.7-plus",
+  CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.8-max",
+  CONTROLLED_TERMINOLOGY_MODEL: "qwen3.7-flash",
+};
+assert.match(composeSource, /AI_TEXT_PROVIDER: \$\{AI_TEXT_PROVIDER:-bailian-qwen\}/);
+assert.match(envExampleSource, /^AI_TEXT_PROVIDER=bailian-qwen$/m);
+for (const [modelVariable, expectedModel] of Object.entries(expectedModelMatrix)) {
   assert.match(
     composeSource,
-    new RegExp(`${modelVariable}: \\$\\{${modelVariable}:-deepseek-v4-flash\\}`),
-    `${modelVariable} must be pinned to DeepSeek V4 Flash in the production container contract`,
+    new RegExp(`${modelVariable}: \\$\\{${modelVariable}:-${expectedModel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\}`),
+    `${modelVariable} must use the approved production model matrix`,
   );
+  assert.match(envExampleSource, new RegExp(`^${modelVariable}=${expectedModel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
 }
 for (const bailianVariable of [
   "BAILIAN_QWEN_API_KEY",
@@ -143,6 +147,10 @@ for (const bailianVariable of [
     `${bailianVariable} must be documented in the deployable environment template`,
   );
 }
+assert.match(composeSource, /BAILIAN_QWEN_API_KEY: \$\{BAILIAN_QWEN_API_KEY:\?set BAILIAN_QWEN_API_KEY\}/,
+  "Qwen-default production must fail startup when the Bailian key is absent");
+assert.match(composeSource, /CDSS_TEXT_MODEL_ALLOWED_HOSTS: \$\{CDSS_TEXT_MODEL_ALLOWED_HOSTS:-\}/);
+assert.match(envExampleSource, /^CDSS_TEXT_MODEL_ALLOWED_HOSTS=$/m);
 
 const originalGlmKey = process.env.GLM_API_KEY;
 const originalGlmVisionEnabled = process.env.GLM_VISION_ENABLED;
@@ -163,7 +171,8 @@ if (originalGlmVisionEnabled == null) delete process.env.GLM_VISION_ENABLED;
 else process.env.GLM_VISION_ENABLED = originalGlmVisionEnabled;
 
 const modelEnv = Object.fromEntries([
-  "AI_TEXT_PROVIDER", "AI_PROVIDER", "OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL", "CDSS_DEEPSEEK_ALLOWED_HOSTS",
+  "AI_TEXT_PROVIDER", "AI_PROVIDER", "OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL", "CDSS_DEEPSEEK_ALLOWED_HOSTS", "CDSS_TEXT_MODEL_ALLOWED_HOSTS",
+  "BAILIAN_QWEN_API_KEY", "BAILIAN_QWEN_BASE_URL", "BAILIAN_QWEN_MODEL",
 ].map((key) => [key, process.env[key]]));
 process.env.OPENAI_API_KEY = "test-key";
 process.env.OPENAI_BASE_URL = "https://api.deepseek.com";
@@ -175,6 +184,13 @@ assert.equal(getPrimaryTextModelConfig().disabledReason, "vendor_policy", "non-D
 process.env.OPENAI_MODEL = "deepseek-v4-flash";
 process.env.OPENAI_BASE_URL = "https://unapproved.example.com/v1";
 assert.equal(getPrimaryTextModelConfig().disabledReason, "vendor_policy", "unapproved text endpoint must be rejected");
+process.env.AI_TEXT_PROVIDER = "bailian-qwen";
+process.env.BAILIAN_QWEN_API_KEY = "test-qwen-key";
+process.env.BAILIAN_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+process.env.BAILIAN_QWEN_MODEL = "qwen3.7-plus";
+assert.equal(getPrimaryTextModelConfig().configured, true, "approved Qwen text route should be configured");
+process.env.BAILIAN_QWEN_MODEL = "glm-5.1";
+assert.equal(getPrimaryTextModelConfig().disabledReason, "vendor_policy", "non-Qwen model must be rejected on Bailian route");
 for (const [key, value] of Object.entries(modelEnv)) {
   if (value == null) delete process.env[key];
   else process.env[key] = value;
