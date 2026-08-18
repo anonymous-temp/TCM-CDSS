@@ -43,19 +43,34 @@ function containsInternalGovernanceText(value: string): boolean {
   return INTERNAL_GOVERNANCE_TEXT.test(value);
 }
 
+function foodExampleAfterMarker(value: string): string {
+  let markerAt = -1;
+  let markerLength = 0;
+  const keepFirst = (at: number, length: number) => {
+    if (at >= 0 && (markerAt < 0 || at < markerAt)) {
+      markerAt = at;
+      markerLength = length;
+    }
+  };
+  keepFirst(value.indexOf("可适当食用"), 5);
+  keepFirst(value.indexOf("可用"), 2);
+  keepFirst(value.indexOf("例如"), 2);
+  keepFirst(value.indexOf("比如"), 2);
+  if (markerAt < 0) return "";
+  return value.slice(markerAt + markerLength).split(/[，,。；;]/, 1)[0] || "";
+}
+
+function hasConcreteFoodExample(value: string): boolean {
+  // 举例引导词后的短语只需是具体中文示例；不维护食物名清单，避免形成第二张临床词表。
+  const example = foodExampleAfterMarker(value);
+  return (example.match(/\p{Script=Han}/gu) || []).length >= 3;
+}
+
 function hasConcreteDietAction(value: string): boolean {
   // 只判“是否写成可执行句式”，不在这里判断食材、证型或功效。
   const hasQuantityOrTiming = /\d+\s*[\p{Script=Han}]{1,3}/u.test(value) || value.includes("少量多餐");
   const hasDirective = value.includes("不") || value.includes("避免") || value.includes("限制") || value.includes("减少");
-  return value.length >= 16 && hasQuantityOrTiming && hasDirective;
-}
-
-function hasConcreteFoodExample(value: string): boolean {
-  // “可用/例如/比如”后的短语只需是具体中文示例；不维护食物名清单，避免形成第二张临床词表。
-  const markerAt = Math.max(value.indexOf("可用"), value.indexOf("例如"), value.indexOf("比如"));
-  if (markerAt < 0) return false;
-  const example = value.slice(markerAt + 2).split(/[，,。；;]/, 1)[0] || "";
-  return (example.match(/\p{Script=Han}/gu) || []).length >= 3;
+  return value.length >= 16 && hasDirective && (hasQuantityOrTiming || hasConcreteFoodExample(value));
 }
 
 function hasActionableSchedule(projectCode: string, value: string): boolean {
