@@ -12,6 +12,7 @@ import {
   probeClinicalFactsModels,
 } from "@/lib/clinical-facts-runtime";
 import { getCdssStageTelemetrySnapshot } from "@/lib/cdss-stage-telemetry";
+import { getCdssKnowledgeTelemetrySnapshot } from "@/lib/cdss-knowledge-telemetry";
 import { cdssRateLimitIdentityConfigured } from "@/lib/cdss-auth";
 import {
   getControlledTerminologyNormalizationStatus,
@@ -184,6 +185,7 @@ export async function GET(req: Request) {
       ready: clinicalFactsReady,
     },
     stageTelemetry: getCdssStageTelemetrySnapshot(),
+    knowledgeTelemetry: getCdssKnowledgeTelemetrySnapshot(),
     rateLimitIdentity: {
       trustedProxyConfigured: rateLimitIdentityReady,
       modelBudgetScope: "authenticated_session_or_api_tenant",

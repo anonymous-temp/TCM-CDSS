@@ -10,6 +10,7 @@ import { buildClinicalDecisionCardContext } from "./tcm-clinical-decision-cards"
 import type { AssistedNegationClauses } from "./clinical-polarity";
 import { matchesPopulationScope } from "./clinical-vocabulary";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
+import { recordCdssKnowledgeTrace } from "./cdss-knowledge-telemetry";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
 
@@ -337,6 +338,7 @@ export function buildEvidenceOutputTransform(
   medicineCaseState?: CaseState,
 ): (content: string) => string {
   const scope = buildEvidenceScope(evidenceContext);
+  let knowledgeTraceRecorded = false;
   const medicineCaseText = medicineCaseState ? [
     medicineCaseState.chiefComplaint,
     ...Object.entries(medicineCaseState.symptoms || {}).map(([key, value]) => `${key}：${String(value ?? "")}`),
@@ -347,8 +349,16 @@ export function buildEvidenceOutputTransform(
   ].filter((value): value is string => typeof value === "string" && Boolean(value.trim())).join("；") : "";
   return (content: string) => {
     const transformed = priorTransform ? priorTransform(content) : content;
-    return hideCustomerEvidencePlaceholders(
+    const finalContent = hideCustomerEvidencePlaceholders(
       sanitizeSentinelJsonBlocks(sanitizeMarkdownEvidenceClaims(transformed, scope), scope, medicineCaseText, medicineCaseState),
     );
+    if (!knowledgeTraceRecorded && /"contractSignature"\s*:\s*"hmac-sha256:/.test(finalContent)) {
+      const stage = finalContent.match(/"stage"\s*:\s*"(diagnose|prescribe|assess)"/)?.[1];
+      if (stage === "diagnose" || stage === "prescribe" || stage === "assess") {
+        recordCdssKnowledgeTrace({ stage, evidenceContext, finalContent });
+        knowledgeTraceRecorded = true;
+      }
+    }
+    return finalContent;
   };
 }
