@@ -140,6 +140,7 @@ function preferredDiagnosticCitation(
         if (titleIndex >= 0) relevance = Math.max(relevance, 100 - Math.min(60, titleIndex));
         else if (evidenceRecord.text.includes(anchor)) relevance = Math.max(relevance, 20);
       }
+      if (relevance === 0) return [];
       const sourcePriority = evidenceId.startsWith("EVID-GUIDE-") ? 10 : 0;
       return [{ citation, score: relevance + sourcePriority, recordIndex }];
     }));

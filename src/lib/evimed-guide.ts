@@ -595,7 +595,12 @@ async function buildSingleEvidenceSection(
   };
   let result = await fetchExternalEvidence(kind, query, options);
   let usedQuery = query;
-  if (result.ok && result.reason === "no_hits" && kind !== "instruction") {
+  // M03 不能只看“长病历查询是否有任何命中”：反酸病例的长查询曾只命中肿瘤食欲下降共识，
+  // 因为它抓住了伴随的“食欲下降”。诊断阶段始终优先尝试受治理的当前问题查询；
+  // 它有命中就取代长查询，无命中才保留长查询结果。其他阶段仍只在 no_hits 时回退。
+  const shouldTryProblemFallback = kind !== "instruction" &&
+    (stage === "diagnose" || (result.ok && result.reason === "no_hits"));
+  if (shouldTryProblemFallback) {
     for (const fallbackQuery of buildEvidenceFallbackQueries(caseState, stage, kind).slice(0, 2)) {
       if (!fallbackQuery || fallbackQuery === query) continue;
       const fallback = await fetchExternalEvidence(kind, fallbackQuery, options);
