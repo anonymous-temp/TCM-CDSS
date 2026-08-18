@@ -46,6 +46,58 @@ const LOCAL_DIAGNOSTIC_REFERENCES: readonly DiagnosticReferenceEntry[] = [
     problemKey: "盆腔炎",
     record: "[EVID-GUIDE-909] Pelvic Inflammatory Disease (PID) - STI Treatment Guidelines（U.S. Centers for Disease Control and Prevention，2021）：盆腔炎诊断需结合盆腔/下腹症状、妇科查体、下生殖道炎症证据及必要的影像或病原学评估，并注意排除其他病因。 URL:https://www.cdc.gov/std/treatment-guidelines/pid.htm",
   },
+  {
+    problemKey: "多关节疼痛",
+    record: "[EVID-PAPER-910] Polyarticular Joint Pain in Adults: Evaluation and Differential Diagnosis（American Family Physician，2023，PMID:36689970）：多关节疼痛需先区分关节内外、炎症性与非炎症性模式，再按受累分布、滑膜炎和系统表现选择实验室与影像检查。 URL:https://pubmed.ncbi.nlm.nih.gov/36689970/",
+  },
+  {
+    problemKey: "白带异常",
+    record: "[EVID-GUIDE-911] Diseases Characterized by Vulvovaginal Itching, Burning, Irritation, Odor or Discharge（U.S. Centers for Disease Control and Prevention，2021）：白带异常仅凭病史不足以确定病因，应结合查体、阴道pH、显微检查或适当的病原学检测鉴别。 URL:https://www.cdc.gov/std/treatment-guidelines/vaginal-discharge.htm",
+  },
+  {
+    problemKey: "唇炎",
+    record: "[EVID-PAPER-912] Cheilitis: A Diagnostic Algorithm and Review of Underlying Etiologies（Dermatitis，2024，PMID:38422211，DOI:10.1089/derm.2023.0276）：唇炎需结合病程、接触物、日晒、感染、营养与系统性疾病线索进行病因分类。 URL:https://pubmed.ncbi.nlm.nih.gov/38422211/",
+  },
+  {
+    problemKey: "冻疮",
+    record: "[EVID-GUIDE-913] Chilblains (Pernio)（DermNet，2021）：冻疮通常依据寒冷暴露后的肢端红肿、痒痛及季节性临床诊断，必要时排查结缔组织病等继发原因。 URL:https://dermnetnz.org/topics/chilblains",
+  },
+  {
+    problemKey: "背部感觉异常",
+    record: "[EVID-PAPER-914] Notalgia Paresthetica: An Updated Review of Pathophysiology, Diagnosis, and Treatment Approaches（Current Pain and Headache Reports，2025，PMID:40397314，DOI:10.1007/s11916-025-01402-2）：慢性局限性背部感觉异常需结合分布、神经系统查体及脊神经受压等病因进行鉴别。 URL:https://pubmed.ncbi.nlm.nih.gov/40397314/",
+  },
+  {
+    problemKey: "睑缘炎",
+    record: "[EVID-GUIDE-915] Blepharitis Preferred Practice Pattern（American Academy of Ophthalmology，2024）：睑缘炎以病史和眼睑/睑缘检查为主要诊断依据，反复或重症时可根据表现选择培养等检查。 URL:https://eyewiki.aao.org/Blepharitis",
+  },
+  {
+    problemKey: "慢性肝损伤",
+    record: "[EVID-GUIDE-916] ACG Clinical Guideline: Evaluation of Abnormal Liver Chemistries（American College of Gastroenterology，2017，PMID:27995906，DOI:10.1038/ajg.2016.517）：慢性肝损伤或肝功能异常需按肝细胞型、胆汁淤积型及胆红素异常模式分层，并结合病毒性、代谢性、自身免疫性、药物性等病因评估。 URL:https://pubmed.ncbi.nlm.nih.gov/27995906/",
+  },
+  {
+    problemKey: "咳嗽",
+    record: "[EVID-GUIDE-917] ERS guidelines on the diagnosis and treatment of chronic cough in adults and children（European Respiratory Society，2020，PMID:31515408，DOI:10.1183/13993003.01136-2019）：咳嗽诊断应结合病程、危险信号、肺部及上气道/反流等可治疗病因分层评估。 URL:https://pubmed.ncbi.nlm.nih.gov/31515408/",
+  },
+  {
+    problemKey: "银屑病",
+    record: "[EVID-GUIDE-918] Psoriasis: assessment and management（NICE CG153，2012，2017年更新）：银屑病需评估皮损形态与范围、严重度、特殊部位、银屑病关节炎及相关共病；诊断不确定时转皮肤专科。 URL:https://www.nice.org.uk/guidance/cg153",
+  },
+  {
+    problemKey: "甲状腺结节",
+    record: "[EVID-GUIDE-919] 2015 American Thyroid Association Management Guidelines for Adult Patients with Thyroid Nodules and Differentiated Thyroid Cancer（American Thyroid Association，2016，PMID:26462967，DOI:10.1089/thy.2015.0020）：甲状腺结节应结合超声风险特征、大小及临床因素决定随访或细针穿刺评估。 URL:https://pubmed.ncbi.nlm.nih.gov/26462967/",
+  },
+  {
+    problemKey: "功能性消化不良",
+    record: "[EVID-GUIDE-920] ACG and CAG Clinical Guideline: Management of Dyspepsia（American College of Gastroenterology / Canadian Association of Gastroenterology，2017，PMID:28631728）：消化不良诊断需结合年龄、报警特征、幽门螺杆菌与必要的内镜评估，并在排除结构性病变后考虑功能性消化不良。 URL:https://pubmed.ncbi.nlm.nih.gov/28631728/",
+  },
+  {
+    problemKey: "急性皮炎",
+    record: "[EVID-GUIDE-921] Contact dermatitis（DermNet）：急性皮炎出现红斑、水疱和瘙痒时，需结合接触史、分布形态和必要的斑贴试验鉴别刺激性、过敏性及其他湿疹样皮炎。 URL:https://dermnetnz.org/topics/contact-dermatitis",
+  },
+  {
+    problemKey: "下消化道出血",
+    record: "[EVID-GUIDE-922] 下消化道出血诊治指南（2020）（中华医学会消化内镜学分会结直肠学组、中国医师协会消化医师分会结直肠学组、国家消化系统疾病临床医学研究中心）：便血或疑似下消化道出血需结合血流动力学、病史、查体、实验室检查及内镜/影像定位分层评估。 URL:https://cmab.yiigle.com/uploads/guide_html/%E4%B8%8B%E6%B6%88%E5%8C%96%E9%81%93%E5%87%BA%E8%A1%80%E8%AF%8A%E6%B2%BB%E6%8C%87%E5%8D%97%282020%29%20-%20%E4%B8%AD%E5%8D%8E%E6%B6%88%E5%8C%96%E5%86%85%E9%95%9C%E6%9D%82%E5%BF%97.html",
+  },
 ] as const;
 
 export function localDiagnosticReferenceContext(clinicalText: string): string {
