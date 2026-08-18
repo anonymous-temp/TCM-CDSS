@@ -217,10 +217,13 @@ const mahuangHerbs = [
     { name: "麻黄", role: "君", function: "发汗解表，宣肺平喘", targetPathogenesis: "风寒束表" },
     { name: "桂枝", role: "臣", function: "解肌发表，温通营卫", targetPathogenesis: "风寒束表" },
     { name: "苦杏仁", role: "佐", function: "", targetPathogenesis: "肺气失宣" },
+    { name: "旋覆花", role: "佐", function: "", targetPathogenesis: "胃气上逆" },
     { name: "炙甘草", role: "使", function: "", targetPathogenesis: "调和诸药，协调药性" },
   ], "辛温解表，宣肺平喘");
   assert.match(sparseMahuangAnalysis, /苦杏仁.*降肺气/s,
     "知识库功用缺失时也必须写出受治理的本方作用，不能退回角色套话");
+  assert.match(sparseMahuangAnalysis, /旋覆花.*承接胃气上逆/s,
+    "无受治理功用兜底的药味必须改用已锁定病机说明方中作用，不能只列药名");
   assert.doesNotMatch(sparseMahuangAnalysis, /承担本方的核心治疗作用|协同君药|兼顾兼夹病机|参与本方配伍/,
     "君臣佐使通用角色说明不是方解，任何药味都不得用它占位");
 
