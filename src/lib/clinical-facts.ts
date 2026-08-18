@@ -189,6 +189,10 @@ const GOVERNED_NEURO_RULE = (() => {
   return rule as GovernedRedFlagCategoryRule & { benignDowngrade: { benignSymptoms: string[]; dangerExclusions: string[] } };
 })();
 const NEURO_ACUTE_ONSET_MARKERS = (redFlagTriageJson.dimensions?.acuteOnset as string[] | undefined) ?? [];
+const GOVERNED_SEVERE_MARKERS = (redFlagTriageJson.dimensions?.severe as string[] | undefined) ?? [];
+// 构词式守卫（冻结令允许的 lexical 例外）：只识别“程度副词/补语 + 重度形容词”的语法形状，
+// 不枚举任何疾病或症状。它只阻止普通头痛降噪，不直接赋予 urgent/emergency 权限。
+const EXPLICIT_SEVERITY_CONSTRUCTION = /(?:得|很|非常|特别|十分)(?:厉害|严重|难忍)/;
 
 function containsAnyGovernedTerm(value: string, terms: readonly string[]): boolean {
   return terms.some((term) => value.includes(term));
@@ -233,6 +237,7 @@ function isBenignHeadSymptomNeuroFinding(finding: RedFlagFinding, sourceText: st
     ...GOVERNED_NEURO_RULE.symptoms,
     ...GOVERNED_NEURO_RULE.dangerCompanions,
     ...NEURO_ACUTE_ONSET_MARKERS,
+    ...GOVERNED_SEVERE_MARKERS,
     ...dangerExclusions,
   ];
   let offset = sourceText.indexOf(finding.quote);
@@ -243,7 +248,7 @@ function isBenignHeadSymptomNeuroFinding(finding: RedFlagFinding, sourceText: st
     while (sentenceEnd < sourceText.length && !MAJOR_CLAUSE_BOUNDARY.test(sourceText[sentenceEnd])) sentenceEnd += 1;
     const sentence = sourceText.slice(sentenceStart, sentenceEnd);
     const hasBenignHeadSymptom = containsAnyGovernedTerm(sentence, benignSymptoms);
-    const hasBlockingTerm = containsAnyGovernedTerm(sentence, blockingTerms);
+    const hasBlockingTerm = containsAnyGovernedTerm(sentence, blockingTerms) || EXPLICIT_SEVERITY_CONSTRUCTION.test(sentence);
     if (hasBenignHeadSymptom && !hasBlockingTerm) return true;
     offset = sourceText.indexOf(finding.quote, offset + finding.quote.length);
   }
