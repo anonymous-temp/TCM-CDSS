@@ -2003,7 +2003,7 @@ const m04 = {
     modifications: [],
   },
   nonPharma: {
-    diet: "晚餐清淡，避免睡前浓茶咖啡",
+    diet: "晚餐清淡，避免睡前浓茶咖啡；可用小米粥作为晚餐主食，每周3次。",
     lifestyle: "固定作息并减少睡前屏幕刺激",
     emotion: "记录情绪波动并配合放松训练",
     acupointCare: "可按揉神门、内关",

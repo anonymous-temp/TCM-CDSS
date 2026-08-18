@@ -6,6 +6,7 @@ import { formulaStructureTarget } from "./herb-target-contract";
 import { prescriptionRegimenContractIssue, prescriptionRegimenIssue } from "./prescription-regimen-contract";
 import { executableFormulaCompilationReferences, isCompositionRestoredGovernedIdentity } from "./tcm-formula-provenance";
 import { TCM_TREATMENT_PROJECT_CODES, tcmTreatmentProjectIsPointFree } from "./tcm-treatment-projects";
+import { isConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
 import { getM03TherapyLock, isExecutableM03TherapyText } from "./m03-therapy-lock";
 import { isActionableFollowupSafetyNet } from "./followup-safety-net";
 import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName, westernDifferentialIdentity } from "./clinical-terminology";
@@ -3798,6 +3799,7 @@ export function m04SemanticIssue(
     typeof nonPharma.lifestyle !== "string" || !nonPharma.lifestyle.trim() ||
     typeof nonPharma.emotion !== "string" || !nonPharma.emotion.trim()
   ) return "non_pharma_incomplete";
+  if (!isConcreteClinicianDietPlan(nonPharma.diet)) return "non_pharma_diet_not_actionable";
   const treatmentProjects = Array.isArray(nonPharma.tcmTreatments) ? nonPharma.tcmTreatments : [];
   const treatmentNodeIds = new Set((priorReasoning?.pathogenesis?.chain || [])
     .map((node, index) => String(node.nodeId || `P${index + 1}`)));

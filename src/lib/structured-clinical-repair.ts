@@ -154,7 +154,7 @@ export function buildM04ClinicalRepairHint(reason = ""): string {
       "没有知识覆盖的药味直接删除或换成同治法的已收载药味；不得靠修改 function、targetPathogenesis 或新增患者事实伪造覆盖。无法满足时输出受限非剂量说明，不得给出不可核验处方。",
     ].join("\n");
   }
-  if (/^m04_non_pharma_(?:incomplete|treatment_count)$/.test(reason)) {
+  if (/^m04_non_pharma_(?:incomplete|diet_not_actionable|treatment_count)$/.test(reason)) {
     return [
       "非药物调护合同不完整或项目数超限。",
       "保持候选方和 M03 不变，只重写 nonPharma：diet、lifestyle、emotion 必须是非空字符串并写成与本例证候对应的可执行专业建议；diet 必须同时给出明确饮食行为和至少一项具体普通食物或餐食示例，示例不宣称治疗功效并避开病历已知限制；precautions 是可选的注意事项字符串数组，留空也能通过；tcmTreatments 最多三项，超出时按与 P1/P2 的相关性保留前三项。",

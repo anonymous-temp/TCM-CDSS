@@ -74,6 +74,7 @@ const M04_REASON_CODES = new Set([
   "formula_reference_display_mismatch",
   "formula_reference_missing",
   "non_pharma_incomplete",
+  "non_pharma_diet_not_actionable",
   "non_pharma_treatment_count",
   "transparent_therapy_contract_missing",
   "transparent_therapy_coverage",

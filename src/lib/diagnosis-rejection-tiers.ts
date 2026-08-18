@@ -151,6 +151,7 @@ const T2_M04_PATTERNS: readonly RegExp[] = [
   // 建议性内容：非药物调护三段与中医治疗项目卡片。项目卡片的 12 个字段本就由服务端按目录生成，
   // 模型只提交 projectCode 与 targetRef——拿服务端自己生成的字段驳回模型的处方没有意义。
   /^non_pharma_incomplete$/,
+  /^non_pharma_diet_not_actionable$/,
   /^non_pharma_treatment_count$/,
   /^non_pharma_treatment_\d+_(?:code|incomplete|positioning|target_ref|checks|plan|protocol_status|governed_plan_incomplete|assessment_parameters|availability|risk|mode|execution_boundary|specialist_mode)$/,
   // 随症加减的措辞与接地。真正承重的三类（夹带剂量、未收载药味、方向未成立的高影响药味）

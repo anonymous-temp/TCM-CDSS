@@ -58,7 +58,7 @@ const BASELINE = {
   stage: "prescribe",
   overview: { primarySyndrome: "脾胃虚弱证", overallPathogenesis: "脾胃虚弱，运化无力" },
   therapy: { overallPrinciple: "虚则补之", overallMethod: "健脾益气，化湿和中" },
-  nonPharma: { diet: "清淡饮食", lifestyle: "规律作息", emotion: "调畅情志", precautions: ["服药期间忌生冷"], tcmTreatments: [] },
+  nonPharma: { diet: "少量多餐，避免辛辣油腻；可用山药小米粥作为早餐，每周3次。", lifestyle: "规律作息", emotion: "调畅情志", precautions: ["服药期间忌生冷"], tcmTreatments: [] },
   formula: {
     modifications: [],
     candidates: [{
