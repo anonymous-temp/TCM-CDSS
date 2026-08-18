@@ -1,4 +1,4 @@
-import type { CaseState } from "./diagnosis-types";
+import { ageValue, type CaseState } from "./diagnosis-types";
 import { EVIDENCE_LEVELS } from "./cdss-vocab";
 import { buildExternalEvidenceContext } from "./evimed-guide";
 import { buildFormulaProvenanceContext } from "./tcm-formula-provenance";
@@ -8,6 +8,7 @@ import { buildEvidenceScope, governedEvidenceCitation, medicineEvidenceBindingVa
 import { buildLocalPatentMedicineContext } from "./local-patent-medicine-candidates";
 import { buildClinicalDecisionCardContext } from "./tcm-clinical-decision-cards";
 import type { AssistedNegationClauses } from "./clinical-polarity";
+import { matchesPopulationScope } from "./clinical-vocabulary";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
 
@@ -71,10 +72,41 @@ export function appendEvidenceContext(prompt: string, evidenceContext: string): 
  *
  * 修法照搬已跑通的 EVID-INST 形状：模型只回 evidenceId + 一句 appliesTo，
  * 服务端在这里按 id 反查条目、渲染题名/机构/年份/URL，然后**删掉模型侧字段**——
- * 模型无法引入任何新字符串。集外 id 直接丢弃；一条都取不到就不写这一栏
- *（= 今天的行为），绝不回落到自撰题名。
+ * 模型无法引入任何新字符串。集外 id 直接丢弃；M03 模型漏填时只从本轮真实 scope
+ * 里补入首条人群适用的指南/文献，没有真实条目仍保持空，绝不回落到自撰题名。
  */
-function resolveGovernedGuidelineReferences(payload: Record<string, unknown>, scope: EvidenceScope): void {
+function diagnosticReferenceAppliesToPatient(
+  evidenceId: string,
+  scope: EvidenceScope,
+  caseState?: CaseState,
+): boolean {
+  if (!caseState) return true;
+  const evidenceRecord = scope.records.find((candidate) => candidate.ids.has(evidenceId));
+  if (!evidenceRecord) return false;
+  const age = ageValue(caseState.patient.age);
+  const spansBroadPopulation = matchesPopulationScope(evidenceRecord.text, "broad");
+  if (age != null && age >= 18 && matchesPopulationScope(evidenceRecord.text, "pediatric") && !spansBroadPopulation) return false;
+  if (age != null && age < 18 && matchesPopulationScope(evidenceRecord.text, "geriatric") && !spansBroadPopulation) return false;
+  const patientText = [
+    caseState.patient.sex,
+    caseState.pastHistory,
+    caseState.hisRecord?.fields.jiwangshi,
+  ].filter(Boolean).join("；");
+  const reproductiveScopeExcluded = caseState.patient.sex === "男" ||
+    (age != null && age >= 60) ||
+    /绝经|否认妊娠|无妊娠|不可能妊娠/.test(patientText);
+  if (reproductiveScopeExcluded && (
+    matchesPopulationScope(evidenceRecord.text, "maternal") ||
+    matchesPopulationScope(evidenceRecord.text, "obstetric")
+  )) return false;
+  return true;
+}
+
+function resolveGovernedGuidelineReferences(
+  payload: Record<string, unknown>,
+  scope: EvidenceScope,
+  caseState?: CaseState,
+): void {
   const western = payload.westernDiagnosis;
   if (!western || typeof western !== "object" || Array.isArray(western)) return;
   const primary = (western as { primary?: unknown }).primary;
@@ -94,7 +126,7 @@ function resolveGovernedGuidelineReferences(payload: Record<string, unknown>, sc
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const item = entry as { evidenceId?: unknown; appliesTo?: unknown };
     const citation = governedEvidenceCitation(item.evidenceId, scope);
-    if (!citation || seen.has(citation.evidenceId)) continue;
+    if (!citation || seen.has(citation.evidenceId) || !diagnosticReferenceAppliesToPatient(citation.evidenceId, scope, caseState)) continue;
     seen.add(citation.evidenceId);
     // appliesTo 是模型唯一能写的字段，且只是「这条支持本例哪一点」的一句话；
     // 它不承载题名/机构/年份，因此不构成伪造引用的通道。超长即截断。
@@ -102,12 +134,28 @@ function resolveGovernedGuidelineReferences(payload: Record<string, unknown>, sc
     resolved.push({ ...citation, ...(appliesTo ? { appliesTo } : {}) });
     if (resolved.length >= 3) break;
   }
+  // 甲方要求诊断终稿必须携带本轮参考的指南/共识或文献依据。此前即使检索命中，
+  // 最终是否展示仍取决于模型主动回填 guidelineRefs；模型漏填时整栏静默为空。
+  // 这里只在 M03 且本轮 scope 中确有可反查的 EVID-GUIDE/EVID-PAPER 时补首条，
+  // 题名、年份和 URL 仍全部来自服务端检索记录；没有真实记录就保持空，绝不自造。
+  if (resolved.length === 0 && payload.stage === "diagnose") {
+    for (const pattern of [/^EVID-GUIDE-\d{3}$/, /^EVID-PAPER-\d{3}$/]) {
+      const evidenceId = scope.records
+        .flatMap((evidenceRecord) => [...evidenceRecord.ids])
+        .find((candidate) => pattern.test(candidate) && diagnosticReferenceAppliesToPatient(candidate, scope, caseState));
+      const citation = governedEvidenceCitation(evidenceId, scope);
+      if (citation) {
+        resolved.push(citation);
+        break;
+      }
+    }
+  }
   delete record.guidelineRefs;
   if (resolved.length > 0) record.guidelineReferences = resolved;
   else delete record.guidelineReferences;
 }
 
-function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medicineCaseText = ""): string {
+function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medicineCaseText = "", medicineCaseState?: CaseState): string {
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
     (match, jsonText: string) => {
@@ -122,7 +170,7 @@ function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medic
         };
         const sanitized = sanitizeEvidenceObject(parsed, scope, EVIDENCE_LEVELS);
         if (sanitized && typeof sanitized === "object" && !Array.isArray(sanitized)) {
-          resolveGovernedGuidelineReferences(sanitized as Record<string, unknown>, scope);
+          resolveGovernedGuidelineReferences(sanitized as Record<string, unknown>, scope, medicineCaseState);
           const formula = (sanitized as { formula?: unknown }).formula;
           if (formula && typeof formula === "object" && !Array.isArray(formula)) {
             const record = formula as { patentAndWestern?: unknown };
@@ -256,7 +304,7 @@ export function buildEvidenceOutputTransform(
   return (content: string) => {
     const transformed = priorTransform ? priorTransform(content) : content;
     return hideCustomerEvidencePlaceholders(
-      sanitizeSentinelJsonBlocks(sanitizeMarkdownEvidenceClaims(transformed, scope), scope, medicineCaseText),
+      sanitizeSentinelJsonBlocks(sanitizeMarkdownEvidenceClaims(transformed, scope), scope, medicineCaseText, medicineCaseState),
     );
   };
 }

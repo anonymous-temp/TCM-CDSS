@@ -16,8 +16,8 @@
     },
     "pediatric": {
       "label": "儿科人群",
-      "basis": "迁移自 tcm-formula-axis-score.ts PEDIATRIC_RE",
-      "terms": ["小儿", "婴儿", "婴孩", "幼儿", "新生儿", "胎怯", "疳积", "解颅"]
+      "basis": "迁移自 tcm-formula-axis-score.ts PEDIATRIC_RE；补入现代指南、专家共识及临床文献最常用的人群名称‘儿童’，用于人群适用性核对",
+      "terms": ["儿童", "小儿", "婴儿", "婴孩", "幼儿", "新生儿", "胎怯", "疳积", "解颅"]
     },
     "geriatric": {
       "label": "老年人群",

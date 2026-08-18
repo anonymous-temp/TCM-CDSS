@@ -4,6 +4,7 @@ import { sanitizeFreeTextForExternalClinicalService } from "./diagnosis-safety";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "./http-response-limit";
 import { cancelResponseBody } from "./http-response-lifecycle";
 import { createHash } from "node:crypto";
+import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 
 const EVIMED_BASE_URL = (process.env.EVIMED_EVIDENCE_BASE_URL || "https://www.evimed.com/api-evimed").trim().replace(/\/$/, "");
 const GUIDE_API_URL = process.env.EVIMED_GUIDE_API_URL ||
@@ -385,10 +386,10 @@ function extractPrescriptionTerms(caseState: CaseState): string {
   return matches;
 }
 
-export function buildEvidenceQuery(caseState: CaseState, stage: "diagnose" | "prescribe" | "assess", kind: EvidenceSourceKind): string {
+function evidenceSymptomTerms(caseState: CaseState): string {
   const hisFields = caseState.hisRecord?.fields;
   const symptomRecord = caseState.symptoms && typeof caseState.symptoms === "object" ? caseState.symptoms : {};
-  const symptomTerms = [
+  return [
     hisFields?.zhushu || caseState.chiefComplaint,
     hisFields?.xianbingshi || stringifyClinicalValue(symptomRecord.presentHistory),
     hisFields?.tcmDetail || stringifyClinicalValue(symptomRecord.tcmDetail),
@@ -397,17 +398,48 @@ export function buildEvidenceQuery(caseState: CaseState, stage: "diagnose" | "pr
     caseState.diagnosis?.match(/现代医学风险\/需排除方向[\s\S]{0,240}/)?.[0],
     caseState.diagnosis?.match(/中医证候诊断[\s\S]{0,220}/)?.[0],
   ].filter(Boolean).join(" ");
+}
 
+function evidenceQuerySuffix(caseState: CaseState, stage: "diagnose" | "prescribe" | "assess", kind: EvidenceSourceKind): string {
   const prescriptionTerms = extractPrescriptionTerms(caseState);
   const suffixMap: Record<EvidenceSourceKind, string> = {
     guide: stage === "diagnose" ? "诊断 指南 共识 鉴别诊断" : stage === "prescribe" ? "治疗 用药 指南 共识 中医" : "随访 风险 转诊 用药安全 指南",
     instruction: `${prescriptionTerms} 中成药 西药 说明书 适应证 禁忌 用法用量`,
     literature: stage === "diagnose" ? "诊断 临床研究 系统评价 文献 证据" : stage === "prescribe" ? `${prescriptionTerms} 治疗 临床研究 文献 系统评价 中医` : "随访 安全性 不良反应 文献 证据",
   };
+  return suffixMap[kind];
+}
 
-  const explicitNames = [caseState.patient.name, hisFields?.patientName]
+function evidenceQueryExplicitNames(caseState: CaseState): string[] {
+  const hisFields = caseState.hisRecord?.fields;
+  return [caseState.patient.name, hisFields?.patientName]
     .filter((value): value is string => Boolean(value?.trim()));
-  return scrubQuery(`${symptomTerms} ${suffixMap[kind]}`, explicitNames);
+}
+
+export function buildEvidenceQuery(caseState: CaseState, stage: "diagnose" | "prescribe" | "assess", kind: EvidenceSourceKind): string {
+  const symptomTerms = evidenceSymptomTerms(caseState);
+  const suffix = evidenceQuerySuffix(caseState, stage, kind);
+
+  // 检索意图必须放在病例叙述之前：scrubQuery 最终按 200 字截断，长现病史置前会把
+  // “诊断 指南 共识”或“说明书 适应证”整个挤掉。线上咳嗽例因此 guide=0，健康探针却绿。
+  // 先放任务词，再补病例事实，既保留临床主题，也保证供应商看到检索类型。
+  return scrubQuery(`${suffix} ${symptomTerms}`, evidenceQueryExplicitNames(caseState));
+}
+
+export function buildEvidenceFallbackQueries(
+  caseState: CaseState,
+  stage: "diagnose" | "prescribe" | "assess",
+  kind: EvidenceSourceKind,
+): string[] {
+  if (kind === "instruction") return [];
+  const caseText = evidenceSymptomTerms(caseState);
+  const suffix = evidenceQuerySuffix(caseState, stage, kind);
+  const explicitNames = evidenceQueryExplicitNames(caseState);
+  // 受治理问题表按“宽泛主诉 → 更具体问题”组织；倒序让更具体的当前问题先检索。
+  // 例如“感冒后干咳”同时命中感冒与咳嗽，先查咳嗽才能避免把胃肠型感冒共识置顶。
+  return [...new Set(matchingMedicineClinicalProblemTerms(caseText).reverse()
+    .map((term) => scrubQuery(`${term} ${suffix}`, explicitNames))
+    .filter(Boolean))];
 }
 
 export function buildGuideQuery(caseState: CaseState, stage: "diagnose" | "prescribe" | "assess"): string {
@@ -557,15 +589,29 @@ async function buildSingleEvidenceSection(
   stage: "diagnose" | "prescribe" | "assess",
 ): Promise<string> {
   const query = buildEvidenceQuery(caseState, stage, kind);
-  const result = await fetchExternalEvidence(kind, query, {
+  const options = {
     count: kind === "guide" || kind === "literature" ? 5 : 6,
     startYear: kind === "guide" || kind === "literature" ? 2018 : undefined,
-  });
+  };
+  let result = await fetchExternalEvidence(kind, query, options);
+  let usedQuery = query;
+  if (result.ok && result.reason === "no_hits" && kind !== "instruction") {
+    for (const fallbackQuery of buildEvidenceFallbackQueries(caseState, stage, kind).slice(0, 2)) {
+      if (!fallbackQuery || fallbackQuery === query) continue;
+      const fallback = await fetchExternalEvidence(kind, fallbackQuery, options);
+      if (fallback.list.length > 0) {
+        result = fallback;
+        usedQuery = fallbackQuery;
+        break;
+      }
+      if (!fallback.ok || fallback.reason !== "no_hits") break;
+    }
+  }
   const items = result.list;
   const config = SOURCE_CONFIG[kind];
   const lines = [
     `## ${config.label}`,
-    `检索词：${query || "未生成"}`,
+    `检索词：${usedQuery || "未生成"}`,
     `用途：${config.requiredFor}`,
   ];
 

@@ -13,7 +13,7 @@
   "syndromeAxes": 5091,
   "population_maternal": 23,
   "population_obstetric": 14,
-  "population_pediatric": 8,
+  "population_pediatric": 9,
   "population_geriatric": 5,
   "population_broad": 7,
   "prohibition_self_medication_change": 12,
@@ -64499,6 +64499,7 @@
   ],
   "pediatric": [
    "新生儿",
+   "儿童",
    "小儿",
    "婴儿",
    "婴孩",

@@ -200,6 +200,7 @@ export async function POST(req: Request) {
         );
         return banner ? `${banner}${sanitized}` : sanitized;
       },
+      safeState,
     ),
   });
 }

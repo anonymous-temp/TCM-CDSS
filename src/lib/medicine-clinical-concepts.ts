@@ -38,6 +38,7 @@ export const MEDICINE_CLINICAL_CONCEPTS: readonly MedicineClinicalConcept[] = [
   { key: "腹胀", axis: "problem", casePattern: /腹胀|脘腹胀|痞满/, indicationPattern: /腹胀|脘腹胀|痞满/, weight: 2 },
   { key: "食少纳差", axis: "problem", casePattern: /纳差|食少|食欲不振|食欲下降|消化不良/, indicationPattern: /纳差|食少|食欲不振|消化不良|不思饮食/, weight: 2 },
   { key: "恶心呕吐", axis: "problem", casePattern: /恶心|呕吐|呕逆|干呕/, indicationPattern: /恶心|呕吐|呕逆|干呕/, weight: 2 },
+  { key: "胃食管反流", axis: "problem", casePattern: /胃食管反流|反酸|泛酸|烧心|嗳气/, indicationPattern: /胃食管反流|反酸|泛酸|烧心|嗳气/, weight: 3 },
   { key: "腹泻", axis: "problem", casePattern: /腹泻|泄泻|便溏|大便稀/, indicationPattern: /腹泻|泄泻|便溏|大便稀/, weight: 3 },
   { key: "便秘", axis: "problem", casePattern: /便秘|大便干|排便困难/, indicationPattern: /便秘|大便干|排便困难/, weight: 3 },
   { key: "痔", axis: "problem", casePattern: /痔疮|内痔|外痔|便血/, indicationPattern: /痔疮|内痔|外痔|便血/, weight: 2 },
@@ -71,4 +72,10 @@ export function matchingMedicineClinicalConcepts(
 export function medicineClinicalConceptsMatch(left: string, right: string): boolean {
   return MEDICINE_CLINICAL_CONCEPTS.some((concept) =>
     concept.casePattern.test(left) && (concept.casePattern.test(right) || concept.indicationPattern.test(right)));
+}
+
+export function matchingMedicineClinicalProblemTerms(caseText: string): string[] {
+  return MEDICINE_CLINICAL_CONCEPTS
+    .filter((concept) => concept.axis === "problem" && concept.casePattern.test(caseText))
+    .map((concept) => concept.key);
 }
