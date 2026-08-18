@@ -379,6 +379,20 @@ ok("schema: emergency 类目与处置依据不匹配时整份拒绝", (() => {
   }] }));
   return r === null;
 })());
+
+ok("schema: positive urgent 携带 emergency basis 时单调归一为 urgent_review", (() => {
+  const parsed = parseClinicalFacts(JSON.stringify({ redFlags: [{
+    category: "gi_bleed",
+    subject: "patient",
+    status: "positive",
+    urgency: "urgent",
+    triageBasis: "major_active_bleeding",
+    quote: "这三天大便发黑",
+  }] }));
+  return parsed?.redFlags.length === 1 &&
+    parsed.redFlags[0].urgency === "urgent" &&
+    parsed.redFlags[0].triageBasis === "urgent_review";
+})());
 ok("schema: subject 缺失或非法时整份输出无效", (() => {
   const missing = parseClinicalFacts(JSON.stringify({ redFlags: [{
     category: "poisoning", status: "positive", urgency: "emergency",
@@ -407,6 +421,20 @@ ok("grounding: positive 短 quote 落在显式否定分句时被丢弃", (() => 
 ok("grounding: positive quote 落在既往且已缓解语境时被丢弃", (() => {
   const facts = { redFlags: [{ category: "gi_bleed", subject: "patient", status: "positive", quote: "黑便" }] };
   return groundClinicalFacts(facts, "既往曾有黑便，现已消失，今日无再发。").redFlags.length === 0;
+})());
+
+ok("grounding: affirmedSymptoms 只保留当前肯定且逐字接地的症状", (() => {
+  const source = "这三天大便发黑，目前没有头晕、气促或活动性呕血";
+  const facts = {
+    redFlags: [],
+    affirmedSymptoms: [
+      { term: "黑便", quote: "大便发黑" },
+      { term: "无头晕", quote: "目前没有头晕" },
+      { term: "无气促", quote: "没有...气促" },
+    ],
+  };
+  const grounded = groundClinicalFacts(facts, source);
+  return grounded.affirmedSymptoms?.length === 1 && grounded.affirmedSymptoms[0].term === "黑便";
 })());
 ok("grounding: 程度否定不等于症状阴性", (() => {
   const facts = { redFlags: [{ category: "acute_abdomen", subject: "patient", status: "positive", quote: "腹痛" }] };
