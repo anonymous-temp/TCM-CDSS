@@ -129,6 +129,7 @@
     "test:reasoning-signature": "node scripts/test-reasoning-contract-signature.mjs",
     "test:model-rate-limit": "node scripts/test-proxy-model-rate-limit.mjs",
     "test:stage-telemetry": "jiti scripts/test-cdss-stage-telemetry.mjs",
+    "test:knowledge-telemetry": "jiti scripts/test-knowledge-telemetry.mjs",
     "test:m03-clinical-review": "jiti scripts/test-m03-diagnostic-review.mjs",
     "test:m03-prepare-idempotence": "jiti scripts/test-m03-prepare-idempotence.mjs",
     "test:transparent-declassification": "jiti scripts/test-transparent-declassification.mjs",

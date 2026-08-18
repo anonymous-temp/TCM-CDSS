@@ -448,6 +448,7 @@ const scripts = [
   "test:reasoning-signature",
   "test:model-rate-limit",
   "test:stage-telemetry",
+  "test:knowledge-telemetry",
   "test:m03-clinical-review",
   // 甲方 2026-08 复测「临床四条」：西医依据混入就诊经过 / 病名鉴别缺失 / 病位缺主症锚 /
   // 治法方向无病例绑定。四条都锁在受治理数据上（GB/T 15657 病名编码、症状—病位映射、
