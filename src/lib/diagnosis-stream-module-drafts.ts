@@ -11,7 +11,19 @@ const MODULE_BY_KEY = {
   therapy: "m03.therapy",
 } as const satisfies Record<string, M03DraftModule>;
 
-const FORBIDDEN_DRAFT_CONTENT = /(?:\d+(?:\.\d+)?\s*(?:mg|g|ml|mL|克|毫克|毫升|片|粒|丸|袋|支)|\b(?:bid|tid|qid|qd)\b|DOI|PMID|https?:\/\/|参考文献|指南引用|审方结论|安全总评|红旗结论|contractSignature|attestation|reasonCode)/i;
+const LATIN_DOSE_OR_FREQUENCY = /(?:\d+(?:\.\d+)?\s*(?:mg|g|ml|mL)|\b(?:bid|tid|qid|qd)\b)/i;
+const CJK_MASS_OR_VOLUME_DOSE = /\d+(?:\.\d+)?\s*毫?[克升]/;
+const CJK_DOSAGE_FORM_DOSE = /\d+(?:\.\d+)?\s*[\u7247\u7c92\u4e38\u888b\u652f]/;
+const REFERENCE_OR_INTERNAL_PROTOCOL = /(?:DOI|PMID|https?:\/\/|参考文献|指南引用|contractSignature|attestation|reasonCode)/i;
+const VERDICT_TERMS = ["审方结论", "安全总评", "红旗结论"] as const;
+
+function containsForbiddenDraftContent(content: string): boolean {
+  return LATIN_DOSE_OR_FREQUENCY.test(content) ||
+    CJK_MASS_OR_VOLUME_DOSE.test(content) ||
+    CJK_DOSAGE_FORM_DOSE.test(content) ||
+    REFERENCE_OR_INTERNAL_PROTOCOL.test(content) ||
+    VERDICT_TERMS.some((term) => content.includes(term));
+}
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -153,7 +165,7 @@ export function m03ModuleDraftFrame(partial: string, key: string): StreamModuleD
   const projected = RENDERER_BY_KEY[typedKey](parsed);
   if (!projected) return undefined;
   const content = scrubInternalVocabularyFromVisibleText(projected).trim();
-  if (!content || FORBIDDEN_DRAFT_CONTENT.test(content)) return undefined;
+  if (!content || containsForbiddenDraftContent(content)) return undefined;
   return {
     type: "module_draft",
     module: MODULE_BY_KEY[typedKey],
