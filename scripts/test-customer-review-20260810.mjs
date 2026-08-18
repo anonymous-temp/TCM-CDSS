@@ -293,6 +293,28 @@ check("⑩ 模型漏填 evidenceId 时，M03 必须从本轮真实检索结果�
   assert.equal(failClosed.guidelineReferences, undefined, "本轮没有真实检索条目时不得补造引用");
 });
 
+check("⑩ 自动补位必须排除与患者年龄不符的人群指南", () => {
+  const context = [
+    "[EVID-GUIDE-001] 中国儿童慢性湿性咳嗽诊疗共识（儿科学组，2023）：儿童湿性咳嗽。",
+    "[EVID-GUIDE-002] 咳嗽的诊断与治疗指南（呼吸病学分会，2021）：成人与儿童咳嗽分层评估。",
+  ].join("\n");
+  const transform = buildEvidenceOutputTransform(context, undefined, {
+    id: "adult-cough",
+    phase: "diagnose",
+    patient: { sex: "女", age: 36 },
+    chiefComplaint: "干咳、咽痒4周",
+    symptoms: { presentHistory: "少痰，无发热或气促" },
+    conversation: [],
+  });
+  const payload = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    westernDiagnosis: { primary: { name: "感染后咳嗽", supportingFacts: ["干咳4周"], guidelineRefs: [] } },
+  };
+  const resolved = readSentinel(transform(wrap(payload))).westernDiagnosis.primary.guidelineReferences;
+  assert.equal(resolved.length, 1);
+  assert.equal(resolved[0].evidenceId, "EVID-GUIDE-002", "成人病例不得自动引用儿童专病共识");
+});
+
 check("⑩ 解析必须幂等，且伪造的 citation 不得存活", () => {
   // 本转换会在同一份内容上被多次调用（流式草稿、最终输出、截断兜底各一次）。
   // 第一版只读 guidelineRefs 而无条件删除 guidelineReferences——第二遍会把第一遍的结果删掉，
