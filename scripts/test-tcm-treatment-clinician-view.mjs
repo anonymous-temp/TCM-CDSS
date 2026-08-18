@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 const { buildClinicianTreatmentProjects } = await import("../src/lib/tcm-treatment-clinician-view.ts");
 
@@ -184,6 +185,21 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
 
 {
   const result = buildClinicianTreatmentProjects(nonPharma({
+    treatments: [project("acupuncture", {
+      projectName: "针刺疗法",
+      treatmentContent: "本例命中该病种标准取穴模板，由现场医师复核后实施；本轮尚未按本例证型加减。",
+      suggestedSitesOrPoints: ["中脘", "双侧天枢", "足三里", "内关"],
+      scheduleSuggestion: "每日1次；每次选穴和疗程根据症状变化复评。",
+    })],
+  }));
+  assert.equal(result.length, 1, "已有明确穴位和排程的针刺项目不应被治理套话连坐隐藏");
+  assert.equal(result[0].title, "针刺疗法");
+  assert.deepEqual(result[0].sitesOrPoints, ["中脘", "双侧天枢", "足三里", "内关"]);
+  assert.doesNotMatch(JSON.stringify(result[0]), INTERNAL_TERMS);
+}
+
+{
+  const result = buildClinicianTreatmentProjects(nonPharma({
     treatments: [project("tuina", {
       projectName: "推拿",
       treatmentContent: "本例进入项目评估，由现场医师复核后实施。",
@@ -196,5 +212,14 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
 
 assert.deepEqual(buildClinicianTreatmentProjects(null), [], "空 nonPharma 不渲染模块");
 assert.deepEqual(buildClinicianTreatmentProjects(undefined), [], "缺失 nonPharma 不渲染模块");
+
+{
+  const prompt = readFileSync("src/lib/diagnosis-prompts.ts", "utf8");
+  const repair = readFileSync("src/lib/structured-clinical-repair.ts", "utf8");
+  assert.match(prompt, /diet[^\n]*至少[^\n]*(?:普通食物|餐食示例)/,
+    "M04 首轮合同必须要求具体普通食物/餐食示例，不能只要求泛化饮食建议");
+  assert.match(repair, /diet[^\n]*(?:普通食物|餐食示例)/,
+    "M04 修复轮必须保留具体食物示例要求，不能修复后又退回空泛 diet");
+}
 
 console.log("tcm treatment clinician view tests passed");
