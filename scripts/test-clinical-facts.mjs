@@ -1374,6 +1374,11 @@ ok("prompt: 提取与复核提示含发热分诊 ≥40℃/受损 原则线", (()
   ok("neuro cap: 头晕伴复视（后循环）保留", shown("头晕伴复视、行走不稳", "clarify") === true);
   ok("neuro cap: 头痛伴言语不清（T6症状）保留", shown("头痛，言语不清", "clarify") === true);
   ok("neuro cap: 突发头晕（急性起病）保留", shown("突发头晕", "clarify") === true);
+  ok("neuro cap: 明确重度程度修饰阻止普通头痛降噪", [
+    "头痛得厉害",
+    "头痛很严重",
+    "头痛十分难忍",
+  ].every((quote) => shown(quote, "clarify") === true));
   ok("neuro cap: 头晕伴构音不清/吞咽困难 保留", shown("头晕，构音不清，饮水呛咳", "clarify") === true);
   ok("neuro cap: 头痛伴喷射性呕吐 保留", shown("头痛，喷射性呕吐", "clarify") === true);
   // 单调性：cap 绝不作用于 emergency/urgent（即便普通头晕词也不得因 cap 被抹除）
