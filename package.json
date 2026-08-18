@@ -103,6 +103,7 @@
     "test:rejection-tiers": "jiti scripts/test-rejection-tiers.mjs",
     "test:stream-safety": "jiti scripts/test-diagnosis-structured-repair.mjs",
     "test:stream-modules": "jiti scripts/test-stream-modules.mjs",
+    "test:stream-module-frames": "jiti scripts/test-stream-module-frames.mjs",
     "test:recorded-fact-visibility": "jiti scripts/test-recorded-fact-visibility.mjs",
     "test:clinical-grounding": "jiti scripts/test-clinical-grounding.mjs",
     "test:inspection-lexicon": "jiti scripts/test-inspection-lexicon.mjs",

@@ -321,6 +321,7 @@ const scripts = [
   "test:rejection-tiers",
   "test:stream-safety",
   "test:stream-modules",
+  "test:stream-module-frames",
   "test:recorded-fact-visibility",
   "test:clinical-grounding",
   "test:inspection-lexicon",
