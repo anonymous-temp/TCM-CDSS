@@ -9,6 +9,8 @@ const {
   ensureSingleRoundQuestionContract,
   m02QuestionRationaleNeedsNeutralization,
   neutralizeM02PlanQuestionRationales,
+  getM02MinimumInformationGain,
+  parseM02Plan,
   parseM02PlanFromContent,
 } = jiti("../src/lib/m02-question-contract.ts");
 const { applyUserAnswer } = jiti("../src/lib/diagnosis-engine.ts");
@@ -106,6 +108,29 @@ const typedPlan = {
     ],
   }],
 };
+assert.equal(getM02MinimumInformationGain("0.2"), 0.6, "过低阈值回落默认值");
+assert.equal(getM02MinimumInformationGain("0.6"), 0.6);
+assert.equal(getM02MinimumInformationGain("0.9"), 0.9);
+assert.equal(getM02MinimumInformationGain("0.95"), 0.6, "过高阈值回落默认值");
+
+const lowGainPlan = structuredClone(typedPlan);
+lowGainPlan.questions[0].informationGain = 0.59;
+const lowGainParsed = parseM02Plan(lowGainPlan, "这阵子嘴里发黏，到了下午脑袋发沉");
+assert.equal(lowGainParsed?.decision, "proceed", "全部低于阈值时不追问、不凑数");
+assert.deepEqual(lowGainParsed?.questions, []);
+
+const mixedGainPlan = structuredClone(typedPlan);
+mixedGainPlan.questions.push({
+  ...structuredClone(typedPlan.questions[0]),
+  id: "q2",
+  question: "目前是否出现进行性加重并影响进食？",
+  informationGain: 0.92,
+  sourceEvidence: [],
+});
+mixedGainPlan.questions[0].informationGain = 0.4;
+const mixedGainParsed = parseM02Plan(mixedGainPlan, "这阵子嘴里发黏，到了下午脑袋发沉");
+assert.equal(mixedGainParsed?.decision, "ask");
+assert.deepEqual(mixedGainParsed?.questions.map((item) => item.id), ["q2"], "只保留超过阈值的高价值问题");
 const typedContent = `${oneHighValue}\n\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ completeness: { level: "B" }, m02Plan: typedPlan })}\n<!-- DIAGNOSIS_JSON_END -->`;
 const groundedTyped = ensureQuestionStructuredEnvelope(typedContent, "这阵子嘴里发黏，到了下午脑袋发沉");
 assert.equal(parseM02PlanFromContent(groundedTyped)?.questions[0]?.targetField, "xianbingshi", "typed plan is the authoritative target-field contract");
