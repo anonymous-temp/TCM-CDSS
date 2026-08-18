@@ -28,6 +28,7 @@ import {
 import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit } from "./tcm-knowledge";
 import { matchesPopulationScope } from "./clinical-vocabulary";
 import { findLocalPatentMedicineEntry } from "./local-patent-medicine-candidates";
+import { prescriptionVersionPayload } from "./prescription-version";
 
 export type { RxAuditResultCode, RxAuditRiskLevel } from "./rxaudit-normalize";
 
@@ -1292,7 +1293,79 @@ export type BoundedRxAuditRun = {
   providerAudit: RxAuditOutcome;
   timeoutMs: number;
   timedOut: boolean;
+  cacheStatus: "hit" | "miss" | "bypass";
 };
+
+const DEFAULT_RXAUDIT_CACHE_TTL_MS = 90_000;
+const MIN_RXAUDIT_CACHE_TTL_MS = 60_000;
+const MAX_RXAUDIT_CACHE_TTL_MS = 120_000;
+const RXAUDIT_CACHE_MAX_ENTRIES = 128;
+const RXAUDIT_RESULT_STORE = Symbol.for("tcm-cdss.rxaudit-result-cache.v1");
+type CachedRxAuditRun = Omit<BoundedRxAuditRun, "cacheStatus">;
+type RxAuditResultCacheEntry = { value: CachedRxAuditRun; at: number };
+
+export function getRxAuditCacheTtlMs(value: unknown = process.env.RXAI_AUDIT_CACHE_TTL_MS): number {
+  if (value == null || (typeof value === "string" && !value.trim())) return DEFAULT_RXAUDIT_CACHE_TTL_MS;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= MIN_RXAUDIT_CACHE_TTL_MS && parsed <= MAX_RXAUDIT_CACHE_TTL_MS
+    ? parsed
+    : DEFAULT_RXAUDIT_CACHE_TTL_MS;
+}
+
+function rxAuditResultCache(): Map<string, RxAuditResultCacheEntry> {
+  const host = globalThis as unknown as Record<symbol, Map<string, RxAuditResultCacheEntry> | undefined>;
+  const existing = host[RXAUDIT_RESULT_STORE];
+  if (existing) return existing;
+  const created = new Map<string, RxAuditResultCacheEntry>();
+  host[RXAUDIT_RESULT_STORE] = created;
+  return created;
+}
+
+function rxAuditResultCacheKey(state: CaseState, candidateIndex?: number): string {
+  const resolvedIndex = resolveRxAuditCandidateIndex(state, candidateIndex);
+  const reasoning = prescribeReasoningFromState(state) || state.reasoningV2;
+  if (resolvedIndex == null || !reasoning) return "";
+  const payload = prescriptionVersionPayload(reasoning, resolvedIndex, state);
+  const auditData = buildAuditData(state, resolvedIndex)?.data;
+  return payload && auditData
+    ? createHash("sha256").update(`${payload}\u0000${JSON.stringify(auditData)}`).digest("hex")
+    : "";
+}
+
+function cloneCachedRxAuditRun(value: CachedRxAuditRun): CachedRxAuditRun {
+  return structuredClone(value);
+}
+
+function cachedRxAuditRun(key: string, now = Date.now()): CachedRxAuditRun | undefined {
+  if (!key) return undefined;
+  const store = rxAuditResultCache();
+  const entry = store.get(key);
+  if (!entry) return undefined;
+  if (now - entry.at > getRxAuditCacheTtlMs()) {
+    store.delete(key);
+    return undefined;
+  }
+  return cloneCachedRxAuditRun(entry.value);
+}
+
+function storeRxAuditRun(key: string, value: CachedRxAuditRun, now = Date.now()): void {
+  if (!key || !value.providerAudit.ok || value.providerAudit.degraded || value.timedOut) return;
+  const store = rxAuditResultCache();
+  store.set(key, { value: cloneCachedRxAuditRun(value), at: now });
+  const ttl = getRxAuditCacheTtlMs();
+  for (const [entryKey, entry] of store) {
+    if (now - entry.at > ttl) store.delete(entryKey);
+  }
+  while (store.size > RXAUDIT_CACHE_MAX_ENTRIES) {
+    const oldest = store.keys().next();
+    if (oldest.done) break;
+    store.delete(oldest.value);
+  }
+}
+
+export function resetRxAuditResultCache(): void {
+  rxAuditResultCache().clear();
+}
 
 function unavailableMedicationExtraction(reason: string): MedicationSemanticExtraction {
   return {
@@ -1324,6 +1397,7 @@ export async function runBoundedRxAudit(
       },
       timeoutMs,
       timedOut: false,
+      cacheStatus: "bypass",
     };
   }
   const itemCount = buildAuditData(state, candidateIndex)?.itemCount ?? 0;
@@ -1333,6 +1407,7 @@ export async function runBoundedRxAudit(
       providerAudit: { ok: false, source: "unavailable", reason: "no_prescription_items", itemCount: 0 },
       timeoutMs,
       timedOut: false,
+      cacheStatus: "bypass",
     };
   }
   if (requestSignal?.aborted) {
@@ -1341,6 +1416,7 @@ export async function runBoundedRxAudit(
       providerAudit: { ok: false, source: "unavailable", reason: "rxaudit_request_aborted", itemCount },
       timeoutMs,
       timedOut: false,
+      cacheStatus: "bypass",
     };
   }
   const config = getRxAuditConfig();
@@ -1351,7 +1427,14 @@ export async function runBoundedRxAudit(
       providerAudit: { ok: false, source: "unavailable", reason, itemCount },
       timeoutMs,
       timedOut: false,
+      cacheStatus: "bypass",
     };
+  }
+  const cacheKey = rxAuditResultCacheKey(state, candidateIndex);
+  const cached = cachedRxAuditRun(cacheKey);
+  if (cached) {
+    console.info("[tcm-cdss:timing] rxaudit_cache", { status: "hit", ttlMs: getRxAuditCacheTtlMs() });
+    return { ...cached, cacheStatus: "hit" };
   }
   const controller = new AbortController();
   let timedOut = false;
@@ -1374,6 +1457,7 @@ export async function runBoundedRxAudit(
         providerAudit: { ok: false, source: "unavailable", reason, itemCount },
         timeoutMs,
         timedOut,
+        cacheStatus: "miss",
       };
     }
     const providerAudit = await auditPrescriptionWithLingxi(
@@ -1389,9 +1473,15 @@ export async function runBoundedRxAudit(
         providerAudit: { ok: false, source: "unavailable", reason: "rxaudit_total_timeout", itemCount },
         timeoutMs,
         timedOut: true,
+        cacheStatus: "miss",
       };
     }
-    return { medicationExtraction, providerAudit, timeoutMs, timedOut: false };
+    const completed: CachedRxAuditRun = { medicationExtraction, providerAudit, timeoutMs, timedOut: false };
+    storeRxAuditRun(cacheKey, completed);
+    if (providerAudit.ok && !providerAudit.degraded) {
+      console.info("[tcm-cdss:timing] rxaudit_cache", { status: "stored", ttlMs: getRxAuditCacheTtlMs() });
+    }
+    return { ...completed, cacheStatus: "miss" };
   } finally {
     clearTimeout(timeout);
     requestSignal?.removeEventListener("abort", abortFromRequest);

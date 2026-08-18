@@ -79,6 +79,8 @@ try {
   const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": "/dev/null" } });
   const { POST: assessPost } = await jiti.import("../src/app/api/diagnosis/assess/route.ts");
   const { POST: postRiskPost } = await jiti.import("../src/app/api/diagnosis/post-prescription-risk/route.ts");
+  const { resetRxAuditResultCache } = await jiti.import("../src/lib/rxaudit.ts");
+  resetRxAuditResultCache();
   const {
     buildDiagnoseContractSignatureContext,
     buildPrescribeContractSignatureContext,
@@ -134,8 +136,8 @@ try {
   assert.equal(postRiskResponse.status, 200);
   const postRisk = await postRiskResponse.json();
   assert.ok(postRisk.audit.inputAdvisories.some((item) => item.code === "medication_semantics_unavailable"));
-  assert.equal(postRisk.audit.auditId, "AUDIT-ROUTE-2");
-  assert.equal(postRisk.audit.traceId, "TRACE-ROUTE-2");
+  assert.equal(postRisk.audit.auditId, "AUDIT-ROUTE-1");
+  assert.equal(postRisk.audit.traceId, "TRACE-ROUTE-1");
   assert.equal(postRisk.audit.candidateIndex, 0);
   assert.equal(postRisk.audit.correlation.providerAuditResult, "PASS");
   assert.equal(postRisk.audit.correlation.effectiveAuditResult, "MANUAL_REVIEW");
@@ -147,7 +149,7 @@ try {
     Array.isArray(item.triggers)));
   assert.doesNotMatch(postRisk.followup, /FOLLOWUP_TIMELINE_JSON/, "JSON route must return timeline as a typed field, not a Markdown sentinel");
 
-  assert.equal(capturedAuditBodies.length, 2);
+  assert.equal(capturedAuditBodies.length, 1, "assess 与 post-prescription-risk 必须复用同一完整处方版本的成功审方结果");
   for (const headers of capturedAuditHeaders) {
     assert.equal(headers.get("x-api-key"), "route-contract-token", "LingXi requests authenticate with the live X-API-Key contract");
     assert.equal(headers.get("authorization"), null, "the retired Bearer contract must not be sent in place of X-API-Key");
@@ -189,6 +191,7 @@ try {
   };
 
   providerMode = "degraded";
+  resetRxAuditResultCache();
   const degradedAssessResponse = await assessPost(request("/api/diagnosis/assess"));
   assert.equal(degradedAssessResponse.status, 200);
   const degradedAssessText = await degradedAssessResponse.text();
@@ -217,6 +220,7 @@ try {
   process.env.RXAI_AUDIT_TOTAL_TIMEOUT_MS = "1000";
   process.env.RXAI_AUDIT_ATTEMPT_TIMEOUT_MS = "30000";
   providerMode = "timeout";
+  resetRxAuditResultCache();
   const timeoutStartedAt = Date.now();
   const timedOutPostResponse = await postRiskPost(request("/api/diagnosis/post-prescription-risk"));
   const timeoutElapsedMs = Date.now() - timeoutStartedAt;
@@ -237,6 +241,12 @@ try {
 
   console.log(JSON.stringify({ cases: 19, failures: 0 }));
 } finally {
+  try {
+    const { resetRxAuditResultCache } = await createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } }).import("../src/lib/rxaudit.ts");
+    resetRxAuditResultCache();
+  } catch {
+    // Test cleanup must not mask the original assertion.
+  }
   globalThis.fetch = originalFetch;
   if (preExistingRxAuditTotalTimeout == null) delete process.env.RXAI_AUDIT_TOTAL_TIMEOUT_MS;
   else process.env.RXAI_AUDIT_TOTAL_TIMEOUT_MS = preExistingRxAuditTotalTimeout;
