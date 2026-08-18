@@ -85,6 +85,13 @@ try {
   assert.equal(changedDose.cacheStatus, "miss");
   assert.equal(providerCalls, 2, "剂量变化必须换缓存键并重新审方");
 
+  const changedVitals = await runBoundedRxAudit({
+    ...auditState("cache-same"),
+    vitals: { BP: "186/112mmHg", P: "108次/分" },
+  }, 0);
+  assert.equal(changedVitals.cacheStatus, "miss");
+  assert.equal(providerCalls, 3, "审方会发送的患者上下文变化必须换缓存键，不能只哈希药味");
+
   providerMode = "failure";
   const failedOnce = await runBoundedRxAudit(auditState("cache-failure"), 0);
   const failedTwice = await runBoundedRxAudit(auditState("cache-failure"), 0);
@@ -92,7 +99,7 @@ try {
   assert.equal(failedTwice.providerAudit.ok, false);
   assert.equal(failedOnce.cacheStatus, "miss");
   assert.equal(failedTwice.cacheStatus, "miss");
-  assert.equal(providerCalls, 4, "失败、降级和不可用结果不得进入成功缓存");
+  assert.equal(providerCalls, 5, "失败、降级和不可用结果不得进入成功缓存");
 } finally {
   globalThis.fetch = originalFetch;
   resetRxAuditResultCache();
