@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
@@ -70,6 +71,29 @@ try {
     { enable_thinking: true },
   );
   assert.deepEqual(textModelRequestTuning("glm-5", { reasoningEffort: "low", thinkingEnabled: false }), {});
+
+  const tuningCallers = [
+    "src/lib/clinical-facts-runtime.ts",
+    "src/lib/controlled-semantic-normalization.server.ts",
+    "src/lib/formula-recall-normalization.server.ts",
+    "src/lib/polarity-negation-assist.server.ts",
+    "src/lib/syndrome-hypothesis-rerank.server.ts",
+    "src/lib/m02-answer-interpreter.server.ts",
+    "src/lib/m02-question-review.server.ts",
+    "src/lib/m05-followup-authoring.server.ts",
+    "src/lib/medicine-candidate-planner.server.ts",
+  ];
+  for (const file of tuningCallers) {
+    const source = readFileSync(file, "utf8");
+    assert.ok(source.includes("textModelRequestTuning"), `${file} must use the shared text-model tuning helper`);
+    assert.doesNotMatch(source, /reasoning_effort\s*:|thinking\s*:\s*\{|enable_thinking\s*:/,
+      `${file} still writes provider-private request fields inline`);
+  }
+  const diagnosisSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
+  const textModelSection = diagnosisSource.slice(0, diagnosisSource.indexOf("function buildGlmContent"));
+  assert.ok(textModelSection.includes("textModelRequestTuning"), "diagnosis-api text stages must use shared request tuning");
+  assert.doesNotMatch(textModelSection, /reasoning_effort\s*:|thinking\s*:\s*\{|enable_thinking\s*:/,
+    "diagnosis-api text stages still write provider-private request fields inline");
 } finally {
   for (const [key, value] of Object.entries(originalEnv)) {
     if (value == null) delete process.env[key];
