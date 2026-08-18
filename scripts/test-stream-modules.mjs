@@ -249,12 +249,27 @@ const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.met
 assert.match(
   apiSource,
   /const bufferedClinicalStage = opts\.structuredStage != null/,
-  "结构化阶段必须仍然缓冲：按模块反馈只加进度行，不得改回流式输出临床正文",
+  "结构化阶段必须仍然缓冲：模块草稿是独立辅助帧，权威终稿不得改回原始正文直出",
 );
 assert.match(
   apiSource,
-  /不\*\*推第二份临床正文/,
-  "这条约束的理由必须留在代码里，否则下一个人会把临床正文加回流式输出",
+  /enqModuleDraft\(ctrl, parsed\)/,
+  "模块草稿必须走独立 NDJSON 帧，不能伪装成普通 content",
+);
+assert.match(
+  apiSource,
+  /newM03ModuleDraftFrames\(/,
+  "服务端必须调用片段合同投影器，而不是直出模型原始 JSON",
+);
+assert.match(
+  apiSource,
+  /m03WesternHalfPromise\?\.then/s,
+  "并行西医半完成时必须能在整份 M03 终稿之前发出西医模块",
+);
+assert.match(
+  apiSource,
+  /opts\.structuredStage === "diagnose"[\s\S]{0,500}newM03ModuleDraftFrames/,
+  "临床草稿帧本包只能在 M03 分支发出，M04 药味剂量继续保持缓冲",
 );
 
 console.log(JSON.stringify({
