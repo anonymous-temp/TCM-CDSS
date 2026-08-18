@@ -215,6 +215,9 @@ const doseBearingPathogenesis = JSON.stringify({
 });
 assert.equal(m03ModuleDraftFrame(doseBearingPathogenesis, "pathogenesis"), undefined, "含药物剂量的草稿不得上流");
 
+const chineseDoseBearingPathogenesis = doseBearingPathogenesis.replace("12g", "12克");
+assert.equal(m03ModuleDraftFrame(chineseDoseBearingPathogenesis, "pathogenesis"), undefined, "中文剂量单位同样不得上流");
+
 const verdictBearingOverview = JSON.stringify({
   overview: { primarySyndrome: "安全总评通过", primarySyndromeBasis: ["入睡困难"] },
 });

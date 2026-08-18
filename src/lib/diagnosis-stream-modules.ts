@@ -160,7 +160,8 @@ export function completedTopLevelKeys(partial: string): string[] {
 }
 
 /** 取某个顶层键的值文本（已闭合时），用于抽取结论标题。 */
-function topLevelValueJson(partial: string, key: string): string | undefined {
+export function completedTopLevelValueJson(partial: string, key: string): string | undefined {
+  if (!completedTopLevelKeys(partial).includes(key)) return undefined;
   const marker = `"${key}"`;
   const keyIndex = partial.indexOf(marker);
   if (keyIndex < 0) return undefined;
@@ -200,7 +201,7 @@ export function moduleProgressNotice(partial: string, key: string): string | und
   const label = MODULE_LABELS.get(key);
   const headline = MODULE_HEADLINES.get(key);
   if (!label || !headline) return undefined;
-  const valueJson = topLevelValueJson(partial, key);
+  const valueJson = completedTopLevelValueJson(partial, key);
   if (!valueJson) return undefined;
   let parsed: unknown;
   try {
