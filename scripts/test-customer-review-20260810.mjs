@@ -317,8 +317,8 @@ check("⑩ 自动补位必须排除与患者年龄不符的人群指南", () => 
 
 check("⑩ 模型不得跳过通用指南改绑更窄且病例未证实的病因共识", () => {
   const context = [
-    "[EVID-GUIDE-001] 咳嗽的诊断与治疗指南（呼吸病学分会，2021）：咳嗽分层评估。",
-    "[EVID-GUIDE-002] 新型冠状病毒感染咳嗽诊疗共识（呼吸病学分会，2023）：新冠感染相关咳嗽。",
+    "[EVID-GUIDE-001] 新型冠状病毒感染咳嗽诊疗共识（呼吸病学分会，2023）：新冠感染相关咳嗽。",
+    "[EVID-GUIDE-002] 咳嗽的诊断与治疗指南（呼吸病学分会，2021）：咳嗽分层评估。",
   ].join("\n");
   const transform = buildEvidenceOutputTransform(context, undefined, {
     id: "generic-cough",
@@ -338,7 +338,7 @@ check("⑩ 模型不得跳过通用指南改绑更窄且病例未证实的病因
   };
   const resolved = readSentinel(transform(wrap(payload))).westernDiagnosis.primary.guidelineReferences;
   assert.equal(resolved.length, 1, "诊断终稿只保留检索排序首位且人群适用的一条依据");
-  assert.equal(resolved[0].evidenceId, "EVID-GUIDE-001");
+  assert.equal(resolved[0].evidenceId, "EVID-GUIDE-002");
   assert.doesNotMatch(JSON.stringify(resolved), /新型冠状病毒|病毒感染后/);
 });
 
