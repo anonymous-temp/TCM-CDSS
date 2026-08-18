@@ -11,7 +11,7 @@
 // 本套件双向钉：既要认出口语写法（漏 = 危险），也不许把备孕/不孕/避孕/孕前/否认妊娠
 // 读成当前妊娠（误 = 无谓降级，且会侵蚀医生对系统的信任）。
 import assert from "node:assert/strict";
-import { assessPregnancyState, assessLactationState } from "../src/lib/clinical-state.ts";
+import { assessConceptionState, assessPregnancyState, assessLactationState } from "../src/lib/clinical-state.ts";
 
 const statusOf = (result) => (typeof result === "string" ? result : result?.status);
 
@@ -70,6 +70,50 @@ for (const text of ["哺乳期", "正在哺乳", "母乳喂养中"]) {
 for (const text of ["已断奶", "未哺乳"]) {
   assert.notEqual(statusOf(assessLactationState(text)), "positive", `不得读成正在哺乳：${text}`);
 }
+
+// 甲方 2026-08-18 反流同例：一个「无」统领并列的妊娠/哺乳/备孕三项。
+// 旧实现按“最后出现的候选状态获胜”，把末尾「备孕可能」单独读成 possible，直接锁死 M04。
+const coordinatedNegative = "已绝经28年，无妊娠、哺乳或备孕可能";
+assert.equal(statusOf(assessPregnancyState(coordinatedNegative)), "negative", "并列否定必须覆盖妊娠");
+assert.equal(statusOf(assessLactationState(coordinatedNegative)), "negative", "并列否定必须覆盖哺乳");
+assert.equal(statusOf(assessConceptionState(coordinatedNegative)), "negative", "并列否定必须覆盖备孕可能，不得被末尾 possible 翻转");
+
+const { evaluateSafetyGate, hardDoseSafetyBoundaryReasons } = await import("../src/lib/diagnosis-safety.ts");
+const safetyCase = (age, pastHistory = "") => ({
+  id: `pregnancy-screen-${age}`,
+  phase: "diagnose",
+  patient: { sex: "女", age },
+  chiefComplaint: "反酸、嗳气反复1年余",
+  symptoms: { presentHistory: "反酸、嗳气，餐后加重" },
+  tongue: "舌淡，苔白腻",
+  pulse: "脉细缓",
+  pastHistory,
+  allergyHistory: "否认食物及药物过敏史",
+  medicationHistory: "未使用药物",
+  conversation: [],
+  questionRounds: 1,
+  maxQuestionRounds: 1,
+});
+
+const elderlyUnknownGate = evaluateSafetyGate(safetyCase(78));
+assert.ok(
+  !(elderlyUnknownGate.missingItemCodes || []).some((code) => ["pregnancy_unknown", "lactation_unknown", "conception_unknown"].includes(code)),
+  `78岁女性不得再追问妊娠/哺乳/备孕：${JSON.stringify(elderlyUnknownGate.missingItems)}`,
+);
+const youngerUnknownGate = evaluateSafetyGate(safetyCase(38));
+assert.ok(
+  (youngerUnknownGate.missingItemCodes || []).includes("pregnancy_unknown"),
+  "生育年龄女性未记录状态时仍须保持 fail-closed 筛查",
+);
+assert.deepEqual(
+  hardDoseSafetyBoundaryReasons(safetyCase(78, coordinatedNegative)).filter((item) => /妊娠|哺乳|备孕/.test(item)),
+  [],
+  "78岁且明确并列否定不得形成特殊人群硬边界",
+);
+assert.ok(
+  hardDoseSafetyBoundaryReasons(safetyCase(78, "患者自述已妊娠8周")).some((item) => /妊娠|哺乳|备孕/.test(item)),
+  "高龄字段不得覆盖明确阳性妊娠事实",
+);
 
 // ─── 妊娠状态必须真的门控到非药物治疗项目 ───
 // 识别对了但没人用，等于没识别。此前 tcmTreatmentProjectExclusionReason 的全部禁忌只有
