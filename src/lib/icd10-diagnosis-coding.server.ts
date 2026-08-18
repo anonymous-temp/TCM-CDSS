@@ -78,20 +78,24 @@ function lookupKeys(name: string): string[] {
 }
 
 export function resolveIcd10Diagnosis(name: string, status: string = "考虑"): Icd10DiagnosisCoding | undefined {
-  if (status !== "考虑" || /(?:症状性诊断|病因待|急危重症风险|无法形成|待临床鉴别)/.test(name)) return undefined;
+  const limitedEvidence = status === "证据有限";
+  if ((status !== "考虑" && !limitedEvidence) || /(?:症状性诊断|病因待|急危重症风险|无法形成|待临床鉴别)/.test(name)) return undefined;
+  const normalized = normalizeDiagnosisName(name);
+  const limitedStatusAllows = (entry: IcdEntry): boolean =>
+    !limitedEvidence || entry.code.startsWith("R") || normalized.endsWith("症状");
   for (const key of lookupKeys(name)) {
     const match = uniqueBestEntry(byAlias.get(key) || []);
-    if (match) {
+    if (match && limitedStatusAllows(match)) {
       return { system: "ICD-10", code: match.code, display: match.name, source: SOURCE, mapping: "exact_alias" };
     }
   }
-  const normalized = normalizeDiagnosisName(name);
   const governedCode = Object.entries(GOVERNED_CLINICAL_ALIASES)
     .find(([alias]) => normalized === alias || normalized.startsWith(alias))?.[1];
   const governed = governedCode ? entryByCode.get(governedCode) : undefined;
-  if (governed) {
+  if (governed && limitedStatusAllows(governed)) {
     return { system: "ICD-10", code: governed.code, display: governed.name, source: SOURCE, mapping: "governed_alias" };
   }
+  if (limitedEvidence) return undefined;
   const fuzzySubcategories = entries.filter((entry) =>
     entry.level === "subcategory" &&
     [entry.name, ...entry.aliases].some((alias) => {
