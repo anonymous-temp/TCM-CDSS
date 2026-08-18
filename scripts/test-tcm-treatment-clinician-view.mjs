@@ -81,6 +81,16 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
 
 {
   const result = buildClinicianTreatmentProjects(nonPharma({
+    diet: "少量多餐，晚餐后3小时内不平卧；可用山药小米粥，每周3次。",
+    treatments: [],
+  }));
+  assert.equal(result.length, 1, "具体 diet 不得因模型未把 diet_therapy 塞进三个项目名额而消失");
+  assert.equal(result[0].projectCode, "diet_therapy");
+  assert.equal(result[0].title, "食疗与饮食");
+}
+
+{
+  const result = buildClinicianTreatmentProjects(nonPharma({
     treatments: [project("auricular", {
       projectName: "耳穴",
       suggestedSitesOrPoints: ["脾", "胃", "神门", "交感", "胃"],
