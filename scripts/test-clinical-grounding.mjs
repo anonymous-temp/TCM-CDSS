@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 const {
   detectProgrammaticRedFlags,
@@ -8,6 +9,7 @@ const {
   sanitizeUngroundedRedFlagNegations,
   sanitizeFreeTextForModel,
   deriveFirstReviewTiming,
+  hasStrongPrescriptionRisk,
   reconcileRestoredCaseState,
   sanitizeCaseStateForModel,
   sanitizeFreeTextForExternalClinicalService,
@@ -1495,6 +1497,17 @@ const followUpState = {
 };
 assert.equal(deriveFirstReviewTiming(followUpState, false), "5日复诊");
 assert.match(deriveFirstReviewTiming(followUpState, true), /1-3天/);
+const strongRiskFollowupState = {
+  ...followUpState,
+  riskAssessment: "## 合理用药审方\n**最高提示强度**：强提示\n**审方结论**：需调整后复核",
+};
+assert.equal(hasStrongPrescriptionRisk(strongRiskFollowupState), true);
+assert.match(deriveFirstReviewTiming(strongRiskFollowupState, hasStrongPrescriptionRisk(strongRiskFollowupState)), /当日复核/);
+for (const route of ["assess", "post-prescription-risk"]) {
+  const source = readFileSync(new URL(`../src/app/api/diagnosis/${route}/route.ts`, import.meta.url), "utf8");
+  assert.match(source, /hasStrongPrescriptionRisk\(assessed\)/, `${route} 的模型作文时间必须与最终强提示同源`);
+  assert.doesNotMatch(source, /deriveFirstReviewTiming\(assessed, false\)/);
+}
 
 const partialStream = `${JSON.stringify({ content: "随访".repeat(120) })}\n`;
 await assert.rejects(
