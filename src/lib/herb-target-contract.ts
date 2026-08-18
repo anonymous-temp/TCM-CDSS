@@ -294,7 +294,15 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
     const rolePhrase = items.length === 1 ? `为${role}` : `共为${role}药`;
     const actions = items.flatMap((row) => {
       const action = row.fn || governedFormulaActionFallback(row.name, row.target);
-      return action ? [`${items.length === 1 ? "" : row.name}取其${action}之长`] : [];
+      if (action) return [`${items.length === 1 ? "" : row.name}取其${action}之长`];
+      if (!row.quote) return [];
+      // 功用证据暂缺时只说明这味药承接哪条已锁定病机，不编造药典功效；同时登记病机，
+      // 避免 roleTargetClause 在同一句末尾再重复一遍。
+      const firstForTarget = !shownTargets.has(row.quote);
+      shownTargets.add(row.quote);
+      return [firstForTarget
+        ? `${items.length === 1 ? "" : row.name}用以承接${row.quote}`
+        : `${items.length === 1 ? "" : row.name}配合方中药味承接该病机`];
     });
     const actionText = actions.length === 0 ? "" : items.length === 1 ? actions[0] : `其中${actions.join("；")}`;
     return `${subject}${rolePhrase}${actionText ? `，${actionText}` : ""}${roleTargetClause(role, items)}。`;
