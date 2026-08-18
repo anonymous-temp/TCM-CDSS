@@ -21,6 +21,10 @@ import {
   moduleProgressNotice,
   newModuleNotices,
 } from "../src/lib/diagnosis-stream-modules.ts";
+import {
+  m03ModuleDraftFrame,
+  newM03ModuleDraftFrames,
+} from "../src/lib/diagnosis-stream-module-drafts.ts";
 
 const M03_PAYLOAD = {
   schemaVersion: "tcm-cdss-reasoning-v2",
@@ -36,8 +40,22 @@ const M03_PAYLOAD = {
     primary: { name: "失眠障碍", supportingFacts: ["入睡困难3月余"], clinicalRationale: "病程符合慢性失眠" },
     differentials: [],
   },
-  pathogenesis: { summary: "心脾两虚，心神失养", chain: [{ nodeId: "P1" }, { nodeId: "P2" }], uncertainties: [] },
-  therapy: { overallPrinciple: "虚则补之", overallMethod: "补益心脾，养血安神" },
+  pathogenesis: {
+    summary: "心脾两虚，心神失养",
+    chain: [
+      { nodeId: "P1", patientFact: "入睡困难3月余", syndromeEvidence: "入睡困难", pathogenesis: "心血不足，心神失养", therapyDirection: "养血安神" },
+      { nodeId: "P2", patientFact: "面色萎黄", syndromeEvidence: "面色萎黄", pathogenesis: "脾气不足，化源不充", therapyDirection: "健脾益气" },
+    ],
+    uncertainties: [],
+  },
+  therapy: {
+    overallPrinciple: "虚则补之",
+    overallMethod: "补益心脾，养血安神",
+    subTherapies: [
+      { targetPathogenesis: "心血不足，心神失养", method: "养血安神", priority: "primary" },
+      { targetPathogenesis: "脾气不足，化源不充", method: "健脾益气", priority: "secondary" },
+    ],
+  },
   formula: null,
   nonPharma: { diet: "清淡饮食", lifestyle: "规律作息", emotion: "调畅情志" },
   management: { followupSafetyNet: "症状加重时复诊" },
@@ -144,14 +162,86 @@ for (const forbidden of ["党参", "12g", "白术", "茯苓"]) {
   assert.ok(!m04Notice.includes(forbidden), `进度行不得出现药名或剂量：${forbidden}（剂量要等审方，组成要等核验）`);
 }
 
-// ── 5) 截断的 JSON 不得误报未写完的模块 ──────────────────────────────────────
+// ── 5) 通过片段合同后才产生类型化临床草稿帧 ────────────────────────────────
+const draftFrames = newM03ModuleDraftFrames(serialized, new Set());
+assert.deepEqual(
+  draftFrames.map((frame) => frame.module),
+  ["m03.syndrome", "m03.western", "m03.pathogenesis", "m03.therapy"],
+  "M03 草稿帧必须按顶层模块闭合顺序产生，UI 再按固定临床顺序展示",
+);
+const draftText = draftFrames.map((frame) => frame.content).join("\n");
+assert.ok(draftFrames.every((frame) => frame.type === "module_draft" && frame.revision === 1));
+assert.match(draftText, /生成中 · 未定稿/);
+assert.match(draftText, /心脾两虚证/);
+assert.match(draftText, /失眠障碍/);
+assert.match(draftText, /心血不足，心神失养/);
+assert.match(draftText, /补益心脾，养血安神/);
+for (const forbidden of [
+  "primarySyndromeResolutionReason",
+  "clinicalRationale",
+  "guidelineReferences",
+  "evidence",
+  "DOI",
+  "PMID",
+  "http://",
+  "审方结论",
+  "contractSignature",
+  "attestation",
+  "reasonCode",
+]) {
+  assert.ok(!draftText.includes(forbidden), `模块草稿不得泄漏禁区内容：${forbidden}`);
+}
+
+const invalidWestern = JSON.stringify({
+  westernDiagnosis: { primary: { name: "失眠障碍", supportingFacts: [] }, differentials: [] },
+});
+assert.equal(m03ModuleDraftFrame(invalidWestern, "westernDiagnosis"), undefined, "西医片段缺少支持事实不得上流");
+
+const invalidPathogenesis = JSON.stringify({
+  pathogenesis: { summary: "心神失养", chain: [], uncertainties: [] },
+});
+assert.equal(m03ModuleDraftFrame(invalidPathogenesis, "pathogenesis"), undefined, "空病机链不得上流");
+
+const doseBearingPathogenesis = JSON.stringify({
+  pathogenesis: {
+    summary: "心神失养",
+    chain: [{
+      patientFact: "曾服酸枣仁12g",
+      syndromeEvidence: "入睡困难",
+      pathogenesis: "心神失养",
+      therapyDirection: "养血安神",
+    }],
+  },
+});
+assert.equal(m03ModuleDraftFrame(doseBearingPathogenesis, "pathogenesis"), undefined, "含药物剂量的草稿不得上流");
+
+const verdictBearingOverview = JSON.stringify({
+  overview: { primarySyndrome: "安全总评通过", primarySyndromeBasis: ["入睡困难"] },
+});
+assert.equal(m03ModuleDraftFrame(verdictBearingOverview, "overview"), undefined, "含安全 verdict 的草稿不得上流");
+
+const referenceBearingWestern = JSON.stringify({
+  westernDiagnosis: {
+    primary: {
+      name: "失眠障碍",
+      supportingFacts: ["入睡困难3月余"],
+      guidelineReferences: [{ citation: "伪造指南 DOI:10.1/example", url: "http://example.com" }],
+    },
+    differentials: [],
+  },
+});
+const referenceSafeFrame = m03ModuleDraftFrame(referenceBearingWestern, "westernDiagnosis");
+assert.ok(referenceSafeFrame, "引用字段应被白名单投影丢弃，不应连坐合法西医片段");
+assert.ok(!/DOI|http:\/\//.test(referenceSafeFrame.content), "引用与 URL 不得进入草稿帧");
+
+// ── 6) 截断的 JSON 不得误报未写完的模块 ──────────────────────────────────────
 const truncated = serialized.slice(0, serialized.indexOf('"pathogenesis"') + 30);
 assert.ok(
   !completedTopLevelKeys(truncated).includes("pathogenesis"),
   "值尚未闭合的模块不得被判为已写完",
 );
 
-// ── 6) 既有决策仍然成立：结构化阶段仍是缓冲的，完整正文只出一次 ──────────────
+// ── 7) 结构化阶段仍是缓冲的，权威正文只出一次 ──────────────────────────────
 const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
 assert.match(
   apiSource,
