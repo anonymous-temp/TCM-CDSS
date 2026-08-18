@@ -328,7 +328,7 @@ try {
     },
     formula: null,
     nonPharma: {
-      diet: "规律饮食",
+      diet: "少量多餐，避免辛辣油腻；可用山药小米粥作为早餐，每周3次。",
       lifestyle: "固定作息",
       emotion: "减少过度思虑",
       acupointCare: "内关、神门按揉",
