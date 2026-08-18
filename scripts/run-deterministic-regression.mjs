@@ -134,6 +134,8 @@ const scripts = [
   "test:local-patent-medicines",
   "test:patent-medicine-ranking",
   "test:upstream-guards",
+  // 主文本模型支持 DeepSeek/Qwen 双家族，但端点、凭据和厂商私有参数必须由单一策略层塑形。
+  "test:text-model-tuning",
   "test:authoritative-his",
   // HIS 分节标题咬合（甲方 2026-08-05 核对件多条「无此模块」的共同根因）。可见正文标题由受治理
   // 输出契约登记表驱动，HIS 投影却按另一份手工词表整行精确匹配抓取；「模块改名」一次就让

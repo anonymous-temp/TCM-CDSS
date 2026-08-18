@@ -47,6 +47,7 @@
     "test:patent-medicine-ranking": "jiti scripts/test-patent-medicine-ranking.mjs",
     "test:local-patent-medicines": "jiti scripts/test-local-patent-medicine.mjs",
     "test:upstream-guards": "jiti scripts/test-upstream-guards.mjs",
+    "test:text-model-tuning": "jiti scripts/test-text-model-request-tuning.mjs",
     "test:authoritative-his": "jiti scripts/test-authoritative-his.mjs",
     "test:his-section-coupling": "jiti scripts/test-his-section-coupling.mjs",
     "test:lineage-affinity": "jiti scripts/test-lineage-affinity.mjs",
