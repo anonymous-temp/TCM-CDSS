@@ -86,7 +86,7 @@ async function waitForFullResult(page) {
   // authoritative replacement a long-tail request. Keep the release journey strict about
   // visible streaming while allowing the completed M05 handoff enough time to arrive.
   // 合理用药审查在无具体风险时应完全隐藏，不能把该可选区域当作完成信号。
-  await page.getByText("健康调护与随访", { exact: true }).waitFor({ state: "visible", timeout: 120_000 });
+  await page.locator("#cdss-section-followup").waitFor({ state: "visible", timeout: 120_000 });
   await screenshot(page, "m05-complete");
 }
 
@@ -128,8 +128,11 @@ try {
 
   const questionTitle = page.getByText("需补充的信息", { exact: true });
   await Promise.race([
-    questionTitle.waitFor({ state: "visible", timeout: 45_000 }),
-    page.getByTestId("ai-report-v2").waitFor({ state: "visible", timeout: 45_000 }),
+    questionTitle.waitFor({ state: "visible", timeout: 90_000 }),
+    // M02 已改为非阻断并行增强：生成追问后会立即续跑 M03，追问卡不再作为流程门禁。
+    // 因此首个可见进展也可能是 M03 流式预览，而不是「需补充的信息」卡片。
+    page.getByTestId("streaming-preview-card").waitFor({ state: "visible", timeout: 90_000 }),
+    page.getByTestId("ai-report-v2").waitFor({ state: "visible", timeout: 90_000 }),
   ]);
 
   if (await questionTitle.isVisible().catch(() => false)) {
@@ -161,6 +164,24 @@ try {
   check("推理阶段有流式内容或已快速完成", ["streaming", "result"].includes(streamingOrResult));
   await screenshot(page, "reasoning-progress");
   await waitForFullResult(page);
+
+  const treatmentSection = page.locator("#cdss-section-tcm-treatment");
+  const treatmentSectionCount = await treatmentSection.count();
+  check("中医非药物方案不渲染空模块", treatmentSectionCount <= 1, `count=${treatmentSectionCount}`);
+  if (treatmentSectionCount === 1) {
+    const treatmentText = await treatmentSection.innerText();
+    check("中医非药物方案使用医生端标题", /中医非药物方案/.test(treatmentText), treatmentText.slice(0, 600));
+    check(
+      "中医非药物方案不泄漏模板和安全治理话术",
+      !/病种模板|未按证型加减|仅项目评估|政府发布方案|国家标准|规范|现场医师|来源|资质|安全边界|烫伤风险|待终审|catalog_/.test(treatmentText),
+      treatmentText.slice(0, 900),
+    );
+    check("中医非药物方案每张卡都有核心内容", /核心内容：/.test(treatmentText), treatmentText.slice(0, 600));
+    if (/耳穴压豆|灸法/.test(treatmentText)) {
+      check("耳穴或灸法同时给出穴位与频次", /穴位\/部位：/.test(treatmentText) && /频次\/复评：/.test(treatmentText), treatmentText.slice(0, 900));
+    }
+    await screenshot(page, "tcm-nondrug-treatment");
+  }
 
   const prescriptionText = await page.locator("#cdss-section-prescription").innerText();
   check("候选方药不混入审方状态套话", !/候选方药状态|审方提示|需调整后复核|有限候选|流派适配说明|服务端知识契约/.test(prescriptionText), prescriptionText.slice(0, 500));
