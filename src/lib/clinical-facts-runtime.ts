@@ -1,6 +1,6 @@
 import type { CaseState } from "./diagnosis-types";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { getPrimaryTextModelConfig, createTextModelClient, isDeepseekModel } from "./text-model";
+import { getPrimaryTextModelConfig, createTextModelClient, isApprovedTextModel, textModelRequestTuning } from "./text-model";
 import {
   CLINICAL_FACTS_EXTRACTOR_VERSION,
   CLINICAL_FACTS_PROMPT_VERSION,
@@ -106,7 +106,7 @@ function primaryFactsPhaseModel(model: string): ClinicalFactsPhaseModel {
     model,
     apiKey: primary.apiKey,
     endpoint,
-    configured: Boolean(primary.configured && primary.apiKey && isDeepseekModel(model) && endpointAllowed(endpoint)),
+    configured: Boolean(primary.configured && primary.apiKey && isApprovedTextModel(model) && endpointAllowed(endpoint)),
     source: "primary",
   };
 }
@@ -303,10 +303,7 @@ async function callFactsPhaseModel(
         temperature: 0,
         max_tokens: 1800,
         response_format: { type: "json_object" },
-        ...(isDeepseekModel(config.model) ? {
-          reasoning_effort: "low",
-          thinking: { type: "disabled" },
-        } : {}),
+        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
       }),
       signal: phaseSignal,
     });
@@ -328,10 +325,7 @@ async function callFactsPhaseModel(
       // spend the whole output budget on hidden reasoning and leave an empty/partial final object.
       max_tokens: 1800,
       response_format: { type: "json_object" },
-      ...(isDeepseekModel(config.model) ? {
-        reasoning_effort: "low" as const,
-        thinking: { type: "disabled" as const },
-      } : {}),
+      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
     },
     { timeout: clinicalFactsPhaseTimeoutMs(), signal: phaseSignal },
   );

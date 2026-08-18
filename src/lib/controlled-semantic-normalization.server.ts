@@ -25,7 +25,7 @@ import {
   createTextModelClient,
   getControlledTerminologyModelConfig,
   getPublicTextModelStatus,
-  isDeepseekModel,
+  textModelRequestTuning,
 } from "./text-model";
 
 type CanonicalRow = { id: string; canonical: string; aliases?: string[]; termClass?: string };
@@ -383,10 +383,7 @@ async function callClosedSetModel(
       // 闭集映射是微型 JSON 合同。V4 Flash 不显式禁用思考时会先烧推理预算，单次调用被
       // 25s 超时打满、重试再烧一轮——实测占掉 M03 合并后 60s+ 且常空手而归（其它轻量语义层
       // 全部带此参数，唯独这里漏了）。禁用后单次应回到秒级。
-      ...(isDeepseekModel(config.model) ? {
-        reasoning_effort: "low" as const,
-        thinking: { type: "disabled" as const },
-      } : {}),
+      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
       response_format: { type: "json_object" },
     }, { signal: controller.signal });
     return parseDecisionPayload(completion.choices[0]?.message?.content, targets);

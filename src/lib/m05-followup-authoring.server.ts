@@ -5,7 +5,7 @@ import { SIX_HEALTH_FOLLOWUP_DIMENSIONS } from "./tcm-followup-dimensions";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { sanitizeFreeTextForModel } from "./diagnosis-safety";
-import { createTextModelClient, getControlledTerminologyModelConfig, isDeepseekModel } from "./text-model";
+import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 
 /**
  * M05 临床内容的作者是模型，不是模板。
@@ -217,10 +217,7 @@ export async function authorFollowupClinicalContent(
       temperature: 0.2,
       max_tokens: 1500,
       response_format: { type: "json_object" },
-      ...(isDeepseekModel(config.model) ? {
-        reasoning_effort: "low" as const,
-        thinking: { type: "disabled" as const },
-      } : {}),
+      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {

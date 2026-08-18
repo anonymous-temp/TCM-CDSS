@@ -13,7 +13,7 @@ import {
 import {
   createTextModelClient,
   getPrimaryTextModelConfig,
-  isDeepseekModel,
+  textModelRequestTuning,
 } from "./text-model";
 
 export const M02_ANSWER_INTERPRETATION_SCHEMA_VERSION = "tcm-cdss-m02-answer-interpretation-v1" as const;
@@ -254,10 +254,7 @@ function primaryModelCall(): M02AnswerInterpreterModelCall | null {
       temperature: 0,
       max_tokens: 1_200,
       response_format: { type: "json_object" },
-      ...(isDeepseekModel(config.model) ? {
-        reasoning_effort: "low" as const,
-        thinking: { type: "disabled" as const },
-      } : {}),
+      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
     }, { signal });
     return completion.choices[0]?.message?.content || "";
   };

@@ -11,7 +11,7 @@ import {
   parseClosedSetSyndromeHypothesisRerank,
   type SyndromeHypothesisRerankDecision,
 } from "./tcm-syndrome-hypothesis";
-import { createTextModelClient, getControlledTerminologyModelConfig, isDeepseekModel } from "./text-model";
+import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 
 const RERANK_TIMEOUT_MS = 6_000;
 const MAX_FACT_CHARS = 600;
@@ -68,10 +68,7 @@ export async function rerankSyndromeHypothesesForFormulaRecall(
       max_tokens: 500,
       stream: false,
       response_format: { type: "json_object" },
-      ...(isDeepseekModel(config.model) ? {
-        reasoning_effort: "low" as const,
-        thinking: { type: "disabled" as const },
-      } : {}),
+      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
       messages: [
         {
           role: "system",

@@ -16,7 +16,7 @@ import {
   type LocalPatentMedicineCandidate,
 } from "./local-patent-medicine-candidates";
 import type { EvidenceBoundMedicineProposal } from "./m04-proposal-compiler";
-import { createTextModelClient, getPrimaryTextModelConfig, isDeepseekModel } from "./text-model";
+import { createTextModelClient, getPrimaryTextModelConfig, isApprovedTextModel, textModelRequestTuning } from "./text-model";
 
 const PlannerSchema = z.object({
   localEvidenceIds: z.array(z.string().regex(/^LOCAL-INST-\d{3}$/)).max(2).default([]),
@@ -157,7 +157,7 @@ async function runPlannerModel(
   requestSignal?: AbortSignal,
 ): Promise<PlannerSelection | undefined> {
   const config = getPrimaryTextModelConfig();
-  if (!config.configured || !isDeepseekModel(config.model)) return undefined;
+  if (!config.configured || !isApprovedTextModel(config.model)) return undefined;
   const controller = new AbortController();
   const abortFromRequest = () => controller.abort();
   if (requestSignal?.aborted) controller.abort();
@@ -180,7 +180,7 @@ async function runPlannerModel(
       temperature: 0,
       max_tokens: 900,
       response_format: { type: "json_object" },
-      reasoning_effort: "low",
+      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
       messages: [
         {
           role: "system",

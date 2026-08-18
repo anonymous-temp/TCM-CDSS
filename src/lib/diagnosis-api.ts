@@ -9,7 +9,7 @@
 //
 // Both backends return NDJSON: {"content":"..."}\n per chunk, end with {"content":"[END]"}\n
 
-import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isDeepseekModel, getBailianQwenConfig } from "@/lib/text-model";
+import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, getBailianQwenConfig, textModelRequestTuning } from "@/lib/text-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
@@ -756,7 +756,7 @@ function preferredClinicalReviewModelConfig(
     model,
     apiKey,
     endpoint: chatCompletionsUrl(baseUrl),
-    configured: Boolean(apiKey && baseUrl && model) && isDeepseekModel(model)
+    configured: Boolean(apiKey && baseUrl && model) && isApprovedTextModel(model)
       && validClinicalReviewEndpoint(chatCompletionsUrl(baseUrl)),
     // The reviewer is always a fresh request with a dedicated review-only system prompt and no
     // generator conversation state. `independentFromGenerator` separately records whether that
@@ -789,7 +789,7 @@ export function clinicalReviewModelCandidates(
     model: fallbackModel,
     apiKey: primary.apiKey,
     endpoint: chatCompletionsUrl(primary.baseUrl),
-    configured: Boolean(primary.apiKey && primary.baseUrl && fallbackModel && isDeepseekModel(fallbackModel))
+    configured: Boolean(primary.apiKey && primary.baseUrl && fallbackModel && isApprovedTextModel(fallbackModel))
       && validClinicalReviewEndpoint(chatCompletionsUrl(primary.baseUrl)),
     independentInvocation: true,
     independentFromGenerator: fallbackModel !== generatorModel,
@@ -833,7 +833,7 @@ async function probeClinicalReviewCandidate(config: ClinicalReviewModelConfig): 
         max_tokens: 300,
         temperature: 0,
         response_format: { type: "json_object" },
-        ...(isDeepseekModel(config.model) ? { reasoning_effort: "low", thinking: { type: "disabled" } } : {}),
+        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
       }),
     }, controller, Date.now() + timeoutMs);
     if (!response.ok) {
@@ -1420,8 +1420,8 @@ async function retryCompletePrimaryResponse(
 > {
   const config = getPrimaryTextModelConfig();
   const retryModel = modelForStructuredRepair(config.model, structuredStage);
-  if (!config.configured || !isDeepseekModel(retryModel)) {
-    return { ok: false, reason: "deepseek_text_policy" };
+  if (!config.configured || !isApprovedTextModel(retryModel)) {
+    return { ok: false, reason: "text_model_vendor_policy" };
   }
   const repairRoundStartedAt = Date.now();
   const controller = new AbortController();
@@ -1754,12 +1754,10 @@ async function retryCompletePrimaryResponse(
         ),
         temperature: structuredStage ? structuredSamplingTemperature : PRIMARY_TEXT_TEMPERATURE,
         ...(structuredStage ? { response_format: { type: "json_object" } } : {}),
-        ...(isDeepseekModel(retryModel)
-          ? {
-              thinking: { type: thinkingEnabledForStructuredStage(structuredStage) ? "enabled" : "disabled" },
-              reasoning_effort: reasoningEffortForStructuredRepair(structuredStage),
-            }
-          : {}),
+        ...textModelRequestTuning(retryModel, {
+          thinkingEnabled: thinkingEnabledForStructuredStage(structuredStage),
+          reasoningEffort: reasoningEffortForStructuredRepair(structuredStage),
+        }),
       }),
     }, controller);
     if (!response.ok) {
@@ -1828,7 +1826,7 @@ async function collectM03ParallelWesternHalf(
   const startedAt = Date.now();
   const finish = (result: { ok: true; content: string } | { ok: false; reason: string }): M03ParallelHalfResult =>
     ({ ...result, durationMs: Date.now() - startedAt });
-  if (!config.configured || !isDeepseekModel(model)) return finish({ ok: false, reason: "deepseek_text_policy" });
+  if (!config.configured || !isApprovedTextModel(model)) return finish({ ok: false, reason: "text_model_vendor_policy" });
   const attemptOnce = async (): Promise<{ ok: true; content: string } | { ok: false; reason: string }> => {
     const controller = new AbortController();
     const abortFromParent = () => controller.abort();
@@ -1854,8 +1852,10 @@ async function collectM03ParallelWesternHalf(
           max_tokens: maxTokensForStructuredStage("diagnose"),
           temperature: 0,
           response_format: { type: "json_object" },
-          thinking: { type: thinkingEnabledForStructuredStage("diagnose") ? "enabled" : "disabled" },
-          reasoning_effort: reasoningEffortForStructuredStage("diagnose"),
+          ...textModelRequestTuning(model, {
+            thinkingEnabled: thinkingEnabledForStructuredStage("diagnose"),
+            reasoningEffort: reasoningEffortForStructuredStage("diagnose"),
+          }),
         }),
       }, controller);
       if (!response.ok) {
@@ -2127,10 +2127,10 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
           max_tokens: 800,
           temperature: 0,
           response_format: { type: "json_object" },
-          ...(isDeepseekModel(model) ? {
-            reasoning_effort: PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT,
-            thinking: { type: "disabled" },
-          } : {}),
+          ...textModelRequestTuning(model, {
+            reasoningEffort: PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT,
+            thinkingEnabled: false,
+          }),
         }),
       }, controller, chainDeadline);
       if (!response.ok) {
@@ -2349,8 +2349,8 @@ async function callPrimaryTextModelStream(
   if (!config.configured) {
     return errResponse(500, getTextModelMissingMessage(config));
   }
-  if (!isDeepseekModel(model)) {
-    return errResponse(500, "文本临床推理阶段仅允许使用 DeepSeek 模型");
+  if (!isApprovedTextModel(model)) {
+    return errResponse(500, "文本临床推理阶段仅允许使用已批准模型");
   }
   const m03ParallelHalves = opts.structuredStage === "diagnose" ? opts.m03ParallelHalfPrompts : undefined;
   // 「重新生成候选方药」不能是同一张彩票（见 m04-retry-policy 的生产实证：同一病例第二次返回
@@ -2851,7 +2851,7 @@ async function callPrimaryTextModelStream(
       /** 修复轮是否死于**传输类**失败(provider 503/超时/网络)而非内容问题。 */
       let repairFailedOnTransport = false;
       const noteRepairOutcome = (result: { ok: boolean; reason?: string; status?: number }) => {
-        repairFailedOnTransport = !result.ok && ["retry_network_error", "retry_timeout_or_cancelled", "retry_http_error", "retry_empty_content", "retry_budget_exhausted", "deepseek_text_policy"].includes(result.reason || "");
+        repairFailedOnTransport = !result.ok && ["retry_network_error", "retry_timeout_or_cancelled", "retry_http_error", "retry_empty_content", "retry_budget_exhausted", "text_model_vendor_policy"].includes(result.reason || "");
       };
       /** 传输类失败改用「服务暂时不可用」专用页,否则用既有的内容类降级页。 */
       const upstreamAwareTruncateFallback = (): string | undefined =>
@@ -3071,12 +3071,10 @@ async function callPrimaryTextModelStream(
               ? m04Retry.samplingTemperature
               : kind === "question" ? 0 : PRIMARY_TEXT_TEMPERATURE,
             ...(opts.structuredStage || kind === "question" ? { response_format: { type: "json_object" } } : {}),
-            ...(isDeepseekModel(model)
-              ? {
-                  thinking: { type: thinkingEnabledForStructuredStage(opts.structuredStage) ? "enabled" : "disabled" },
-                  reasoning_effort: reasoningEffortForStructuredStage(opts.structuredStage),
-                }
-              : {}),
+            ...textModelRequestTuning(model, {
+              thinkingEnabled: thinkingEnabledForStructuredStage(opts.structuredStage),
+              reasoningEffort: reasoningEffortForStructuredStage(opts.structuredStage),
+            }),
           }),
         };
         let res: Response | undefined;
