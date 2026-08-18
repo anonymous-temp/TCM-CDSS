@@ -3695,9 +3695,12 @@ function pregnancyScreenRequired(state: CaseState): boolean {
   const sex = patientSexText(state);
   if (!/女/.test(sex)) return false;
   const text = normalizeClinicalText(trustedInputText(state));
-  const physiologicallyNotAtRisk = /(绝经|停经)\s*(?:已|约)?\s*(?:1[2-9]|[2-9]\d)\s*(?:个月|月)|绝经后|双侧卵巢切除|子宫全切(?:除)?|无子宫/.test(text);
-  // Age alone cannot establish reproductive potential. Without explicit physiologic status, screen
-  // every female patient fail-closed, including adolescents and older adults whose menopause is unknown.
+  const age = authoritativePatientAgeYears(state);
+  const physiologicallyNotAtRisk =
+    /(绝经|停经)\s*(?:已|约)?\s*(?:1[2-9]|[2-9]\d)\s*(?:个月|月)|绝经\s*(?:已|约)?\s*[1-9]\d*\s*年|绝经后|双侧卵巢切除|子宫全切(?:除)?|无子宫/.test(text) ||
+    // 年龄仅关闭“未知状态必须追问”，绝不覆盖下游已记录的阳性妊娠/哺乳/备孕硬边界。
+    // 60 岁以下继续 fail-closed；60 岁及以上不再生成无临床价值的常规生殖状态追问。
+    (age != null && age >= 60);
   return !physiologicallyNotAtRisk;
 }
 

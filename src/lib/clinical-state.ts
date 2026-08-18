@@ -168,7 +168,13 @@ function isHistoricalContext(text: string, index: number, matchText: string): bo
 
 function isNegatedPositiveContext(text: string, index: number): boolean {
   const before = text.slice(Math.max(0, index - 10), index);
-  return /(否认|无|没有|未|非|不在|停止|已停止)$/.test(before);
+  if (/(否认|无|没有|未|非|不在|停止|已停止)$/.test(before)) return true;
+  // 一个否定词可以统领并列的生理状态：「无妊娠、哺乳或备孕可能」。旧实现只看命中词
+  // 前 10 字是否**紧邻**否定词，于是末尾「备孕可能」被单独收成 possible，并按“最后陈述获胜”
+  // 覆盖前面的 negative。这里只允许妊娠/哺乳/备孕同轴词和并列连接符出现在否定词与命中词之间；
+  // 「无腹痛，计划妊娠」等跨轴或另起分句的真正阳性不受影响。
+  const clause = clauseBefore(text, index);
+  return /(?:否认|无|没有|未)(?:(?:妊娠|怀孕|哺乳|备孕|妊娠计划|生育计划)[、和与或及/]*)*$/.test(clause);
 }
 
 function collectMatches(
