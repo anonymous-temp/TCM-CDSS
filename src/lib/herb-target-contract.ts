@@ -48,6 +48,16 @@ export type FormulaAnalysisHerb = {
 
 const ANALYSIS_ROLE_ORDER = ["君", "臣", "佐", "使"] as const;
 
+const FORMULA_TARGET_BINDING_RULES: ReadonlyArray<{ action: RegExp; target: RegExp }> = [
+  { action: /(?:健脾|补脾|益气|补气|健运|渗湿|燥湿)/, target: /(?:脾虚|脾胃虚|运化|水谷|湿盛|湿困)/ },
+  { action: /(?:理气|行气|和胃|降逆|止呕|制酸|开胃)/, target: /(?:胃失和降|胃气|气机上逆|反酸|嗳气|呕逆)/ },
+  { action: /(?:宣肺|降肺|平喘|止咳|化痰)/, target: /(?:肺气|肺失宣降|咳|喘|痰)/ },
+  { action: /(?:养血|补血|安神|养心|宁心)/, target: /(?:血虚|心神|神失所养|失眠|心悸)/ },
+  { action: /(?:滋阴|养阴|清虚热)/, target: /(?:阴虚|津亏|虚热)/ },
+  { action: /(?:活血|化瘀|通络)/, target: /(?:血瘀|络阻|瘀阻)/ },
+  { action: /(?:解表|发汗|散寒|祛风)/, target: /(?:风寒|外束|肌表|营卫)/ },
+];
+
 function analysisText(value: unknown): string {
   return typeof value === "string" ? value.replace(/\s+/g, " ").replace(/[；;。、,，]+$/g, "").trim() : "";
 }
@@ -269,12 +279,29 @@ export function buildFormulaAnalysis(herbs: readonly FormulaAnalysisHerb[], ther
   };
   const ordered = [...rows].sort((left, right) => roleRank(left.role) - roleRank(right.role));
   const roleRows = (role: string) => ordered.filter((row) => row.role === role);
+  const allTargets = [...new Set(ordered.map((row) => row.quote).filter(Boolean))]
+    .filter((target) => !/(?:补益药滋腻|引经载药|调和诸药|协调药性|顾护中焦|制约峻烈)/.test(target));
   const shownTargets = new Set<string>();
   const targetText = (items: typeof ordered): string => {
-    const fresh = [...new Set(items.map((row) => row.quote).filter(Boolean))]
-      .filter((target) => !/(?:补益药滋腻|引经载药|调和诸药|协调药性|顾护中焦|制约峻烈)/.test(target))
+    const actionContext = items.map((row) => row.fn).filter(Boolean).join("，");
+    const ownTargets = new Set(items.map((row) => row.quote).filter(Boolean));
+    const score = (target: string): number => {
+      let value = ownTargets.has(target) ? 5 : 0;
+      for (const rule of FORMULA_TARGET_BINDING_RULES) {
+        if (rule.action.test(actionContext) && rule.target.test(target)) value += 30;
+      }
+      for (const char of new Set(actionContext)) if (target.includes(char)) value += 1;
+      for (let index = 0; index < actionContext.length - 1; index += 1) {
+        if (target.includes(actionContext.slice(index, index + 2))) value += 3;
+      }
+      return value;
+    };
+    const fresh = allTargets
       .filter((target) => !shownTargets.has(target))
-      .slice(0, 2);
+      .map((target, index) => ({ target, index, score: score(target) }))
+      .sort((left, right) => right.score - left.score || left.index - right.index)
+      .slice(0, 1)
+      .map((item) => item.target);
     fresh.forEach((target) => shownTargets.add(target));
     return fresh.join("，兼顾");
   };
