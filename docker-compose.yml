@@ -47,6 +47,7 @@ services:
       CLINICAL_FACTS_MODEL: ${CLINICAL_FACTS_MODEL:-qwen3.7-flash}
       CLINICAL_FACTS_REVIEW_MODEL: ${CLINICAL_FACTS_REVIEW_MODEL:-qwen3.7-plus}
       CLINICAL_FACTS_ADJUDICATION_MODEL: ${CLINICAL_FACTS_ADJUDICATION_MODEL:-qwen3.8-max}
+      M02_MIN_INFORMATION_GAIN: ${M02_MIN_INFORMATION_GAIN:-0.6}
       # GOV-08 explicit exception: independent closed-set terminology classification, never a
       # fallback clinical reasoner. The persistent cache turns accepted variants into a stable,
       # deterministic path after the first two-call consensus.

@@ -114,6 +114,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 ## 开发约定与注意事项
 
 - **导入别名**：`@/*` → `src/*`（tsconfig paths）。保持"薄路由 / 逻辑在 lib"的既有分层。
+- **开放语言检测冻结令**：口语红旗、否定极性、就诊范围、症状确认和术语归一出现新漏检/误报时，默认产出必须是“受治理类目样例 + 整类 parity 回归（含反例）+ 归因记录”，并优先迭代语义层 prompt；禁止用一条新的表面形正则修一个说法。只有数值阈值、有限闭集和构词式词法守卫可以新增确定性正则，且提交说明必须写明所属例外。
 - **一切 fail-closed、证据绑定**：不要新增会输出剂量级处方、指南/DOI 引用或风险结论、却没有确定性规则或 KB 条目支撑的模型调用。
 - **`NEXT_PUBLIC_BASE_PATH`** 支持子路径挂载，贯穿 `next.config.ts`、`cdss-auth.ts`、`proxy.ts` —— 构造 URL/重定向时必须尊重它。
 - 新请求体走 `readJsonBodyWithLimit` / `readCaseStateRequest`（`src/lib/http-guard.ts`、`diagnosis-request.ts`）做大小上限与 413/400 处理 —— 复用它们。

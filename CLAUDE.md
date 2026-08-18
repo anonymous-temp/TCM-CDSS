@@ -147,6 +147,7 @@ BASE_URL=… CDSS_API_TOKEN=… npm run regress:prod-smoke
 ## Conventions & gotchas
 
 - **Imports:** `@/*` → `src/*` (tsconfig paths). Match the existing thin-route / logic-in-`lib` split; keep routes validating + streaming only.
+- **Open-language detection freeze:** for colloquial red flags, polarity/negation, encounter scope, symptom confirmation, and terminology normalization, a new miss or false positive must produce a governed category example, class-level parity regression with negative controls, and a layer-attribution note. Iterate the semantic prompt by default; do not add a one-phrase surface regex. Deterministic regex additions are limited to numeric thresholds, finite closed sets, and morphological/lexical guards, and the commit must name the applicable exception.
 - **`src/lib/*.server.ts` is a real boundary, not a suffix.** ~14 modules (`emergency-clearance.server.ts`, `m02-answer-interpreter.server.ts`, `icd10-diagnosis-coding.server.ts`, `tcm-classic-evidence.server.ts`, …) are server-only — they read env/secrets, call models, or load governed data. `DiagnosisClient.tsx` is a client component; keep it out of these. New server-only logic gets the suffix.
 - **Everything is fail-closed and evidence-bound.** Don't add model calls that emit dose-level prescriptions, guideline/DOI citations, or risk verdicts without a deterministic rule or KB entry behind them.
 - **`NEXT_PUBLIC_BASE_PATH`** lets the app mount under a sub-path; it's threaded through `next.config.ts`, `cdss-auth.ts` and `proxy.ts` — respect it when building URLs/redirects.

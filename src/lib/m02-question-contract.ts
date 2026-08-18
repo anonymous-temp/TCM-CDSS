@@ -74,6 +74,14 @@ const LOW_VALUE_QUESTION = /(姓名|联系方式|手机号|身份证|职业|住�
 const GENERIC_DETAIL_ONLY_OPTION = /^(?:(?:存在|出现|有)(?:异常|表现|情况|症状)[，,；;\s]*)?(?:请)?(?:补充|填写|记录)(?:实际|具体)?(?:异常|表现|情况|症状|信息)?[。.]?$|^(?:存在|出现|有)(?:异常|表现|情况|症状)[。.]?$/;
 const M02_DECISION_BRANCHES = new Set<M02DecisionBranch>(["triage", "differential", "syndrome", "treatment_safety"]);
 const M02_TARGET_FIELD_SET = new Set<string>(M02_TARGET_FIELDS);
+const DEFAULT_M02_MIN_INFORMATION_GAIN = 0.6;
+
+export function getM02MinimumInformationGain(value: unknown = process.env.M02_MIN_INFORMATION_GAIN): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0.3 && parsed <= 0.9
+    ? parsed
+    : DEFAULT_M02_MIN_INFORMATION_GAIN;
+}
 const LEADING_M02_RATIONALE = new RegExp([
   "(?:紧急|立即|尽快|积极)(?:处理|治疗|用药|干预)",
   "(?:滋阴|温阳|清热|泻火|活血|化瘀|攻下|化痰|祛湿|补气|养血|安神|通络|解表)(?:治疗|治法|法|用药)?",
@@ -174,7 +182,28 @@ export function parseM02Plan(value: unknown, sourceText = ""): M02Plan | null {
   if (rejectedQuestionIds.length > 0) {
     console.warn("[tcm-cdss:m02] 逐条隔离丢弃不合格追问", { rejected: rejectedQuestionIds });
   }
-  return { schemaVersion: "tcm-cdss-m02-plan-v1", decision: root.decision, rationale, questions };
+  const minimumInformationGain = getM02MinimumInformationGain();
+  const valuableQuestions = questions.filter((question) => question.informationGain >= minimumInformationGain);
+  if (valuableQuestions.length < questions.length) {
+    console.info("[tcm-cdss:m02] 低信息增益追问已跳过", {
+      threshold: minimumInformationGain,
+      dropped: questions.length - valuableQuestions.length,
+    });
+  }
+  if (root.decision === "ask" && valuableQuestions.length === 0) {
+    return {
+      schemaVersion: "tcm-cdss-m02-plan-v1",
+      decision: "proceed",
+      rationale: `候选追问的预期信息增益均低于 ${minimumInformationGain.toFixed(2)}，按现有信息继续辨病辨证。`,
+      questions: [],
+    };
+  }
+  return {
+    schemaVersion: "tcm-cdss-m02-plan-v1",
+    decision: root.decision,
+    rationale,
+    questions: valuableQuestions,
+  };
 
   function parseOneQuestion(rawQuestion: unknown): M02PlanQuestion | null {
     if (!rawQuestion || typeof rawQuestion !== "object") return null;
