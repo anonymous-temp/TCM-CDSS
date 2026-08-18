@@ -213,6 +213,17 @@ const mahuangHerbs = [
   assert.doesNotMatch(shenlingAnalysis, /现有受控信息未形成|不强行判定|不作无依据推定/,
     "没有实际药对关系时直接不写，不向医生展示系统自述式空项");
 
+  const swappedTargetAnalysis = buildFormulaAnalysis([
+    { name: "党参", role: "君", function: "健脾益气", targetPathogenesis: "胃失和降，气机上逆" },
+    { name: "白术", role: "君", function: "健脾益气", targetPathogenesis: "胃失和降，气机上逆" },
+    { name: "茯苓", role: "臣", function: "健脾渗湿", targetPathogenesis: "脾虚失运，水谷不化" },
+    { name: "陈皮", role: "臣", function: "理气和胃", targetPathogenesis: "脾虚失运，水谷不化" },
+  ], "健脾益气，和胃降逆");
+  assert.match(swappedTargetAnalysis, /党参、白术.*直治脾虚失运，水谷不化/s,
+    "方义应按药味功用重新选择最相关病机，不能照抄错位的逐味 targetPathogenesis");
+  assert.match(swappedTargetAnalysis, /陈皮.*胃失和降，气机上逆/s,
+    "理气和胃药应承接胃失和降方向，而不是被整组写成只治脾虚");
+
   const sparseMahuangAnalysis = buildFormulaAnalysis([
     { name: "麻黄", role: "君", function: "发汗解表，宣肺平喘", targetPathogenesis: "风寒束表" },
     { name: "桂枝", role: "臣", function: "解肌发表，温通营卫", targetPathogenesis: "风寒束表" },
