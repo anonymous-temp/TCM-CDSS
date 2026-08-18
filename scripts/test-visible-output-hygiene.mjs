@@ -391,6 +391,86 @@ check("E/ICD-10 编码在投影后逐字保留", () => {
 const INJECTION_BASE = fixtures.find((item) => item.fixtureId === "pathogenesis-repetition");
 assert.ok(INJECTION_BASE, "缺少注入用基线 fixture");
 
+// 甲方 2026-08-18 医生端治疗项目实测：把完整后台治理对象注入真实归档病例，断言的不是
+// 某个净化函数，而是 ResultTabsV2 最终 DOM 中这一个模块的实际文字。
+{
+  const base = doctorVisibleSurfaces(INJECTION_BASE).caseState;
+  const prescribe = structuredClone(base.reasoningPrescribe);
+  const treatment = (projectCode, overrides = {}) => ({
+    projectCode,
+    projectName: projectCode,
+    availability: "clinic_available",
+    riskLevel: "low",
+    recommendationMode: "clinician_assessment",
+    targetRef: "P1",
+    targetPathogenesis: "脾虚失运，胃气上逆",
+    protocolStatus: "governed_patient_specific_plan",
+    treatmentContent: "本例命中标准项目方案，由现场医师复核后实施。",
+    suggestedSitesOrPoints: [],
+    scheduleSuggestion: "",
+    techniqueBoundary: "由现场医师确认安全边界后实施。",
+    protocolSource: "SRC-NATIONAL-TEST",
+    sourceAuthorityTier: "national_standard",
+    operatorRequirement: "由受训人员操作",
+    requiredChecks: ["确认资质与操作禁忌"],
+    containsMedication: false,
+    requiresMedicationAudit: false,
+    executable: false,
+    clinicianReviewRequired: true,
+    ...overrides,
+  });
+  prescribe.nonPharma = {
+    diet: "少量多餐，晚餐后3小时内不平卧；可用山药小米粥，每周3次。",
+    lifestyle: "规律作息",
+    emotion: "保持情绪平稳",
+    acupointCare: null,
+    precautions: [],
+    tcmTreatments: [
+      treatment("diet_therapy", { projectName: "食疗法", scheduleSuggestion: "每周3次，2周后复评。" }),
+      treatment("auricular", {
+        projectName: "耳穴",
+        suggestedSitesOrPoints: ["脾", "胃", "神门", "交感"],
+        scheduleSuggestion: "每日按压3-5次，每次1-2分钟；每3-5天更换一次。",
+      }),
+      treatment("moxibustion", {
+        projectName: "灸法",
+        suggestedSitesOrPoints: ["中脘", "足三里"],
+        scheduleSuggestion: "每周3次，连续2周后复评。",
+      }),
+      treatment("qigong_daoyin", {
+        projectName: "气功导引疗法",
+        protocolStatus: "assessment_only_no_patient_specific_protocol",
+        treatmentContent: "本例仅进入项目评估，不形成操作计划。",
+      }),
+    ],
+  };
+  const caseState = {
+    ...base,
+    reasoningPrescribe: prescribe,
+    reasoningV2: mergeReasoningStages(base.reasoningDiagnose, prescribe),
+  };
+  const html = renderResultAreaHtml(caseState);
+  const start = html.indexOf('id="cdss-section-tcm-treatment"');
+  const end = html.indexOf("<details", start + 1);
+  const treatmentText = visibleTextFromHtml(html.slice(start, end > start ? end : undefined));
+
+  check("J/医生端中医非药物方案只显示具体内容", () => {
+    assert.ok(treatmentText.includes("中医非药物方案"), treatmentText);
+    for (const expected of [
+      "食疗与饮食", "少量多餐", "山药小米粥",
+      "耳穴压豆", "脾", "胃", "神门", "交感", "每日按压3-5次",
+      "灸法", "中脘", "足三里", "每周3次",
+    ]) {
+      assert.ok(treatmentText.includes(expected), `医生端方案缺少具体内容「${expected}」：${treatmentText}`);
+    }
+    assert.ok(!treatmentText.includes("气功导引疗法"), "只有评估说明的项目必须整卡隐藏");
+  });
+  check("J/医生端中医非药物方案无后台治理话术", () => {
+    const forbidden = /病种模板|未按证型加减|仅项目评估|标准项目方案|政府发布方案|国家标准|规范|现场医师|来源|资质|安全边界|烫伤风险|待终审|不形成操作计划/;
+    assert.doesNotMatch(treatmentText, forbidden, treatmentText);
+  });
+}
+
 /** 把一段文本注入到真实载荷的叙述性字段里，再走完整投影链。 */
 function injectIntoDiagnoseNarrative(fixture, injected) {
   const raw = fixture.stages.diagnose.visible;

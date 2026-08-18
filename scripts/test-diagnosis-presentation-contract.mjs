@@ -404,6 +404,29 @@ check(() => {
     "签名载荷里的 tcmDifferentials 仍应被读取用于边界提示，不得连字段一起删掉");
 });
 
+// 甲方 2026-08-18：中医治疗项目页面不得再展开后台治理对象。页面只消费共享医生端投影，
+// 否则模板状态、来源等级、资质与安全门一旦新增字段，又会被 JSX 顺手印回医生端。
+check(() => {
+  const clientSource = fs.readFileSync(
+    new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+  assert.ok(clientSource.includes("buildClinicianTreatmentProjects"),
+    "医生页面必须消费共享的中医非药物方案投影");
+  assert.ok(clientSource.includes('title="中医非药物方案"'),
+    "医生端模块标题应改为「中医非药物方案」");
+  const sectionStart = clientSource.indexOf('id="cdss-section-tcm-treatment"');
+  const sectionEnd = clientSource.indexOf("<SchemeSection", sectionStart + 1);
+  assert.ok(sectionStart >= 0 && sectionEnd > sectionStart, "找不到中医非药物方案渲染区");
+  const section = clientSource.slice(sectionStart, sectionEnd);
+  for (const forbidden of [
+    "tcmTreatmentTailoringPresentation", "sourceAuthorityTier", "deferredSyndromeRefinement",
+    "deferredGovernedTemplate", "protocolGap", "techniqueBoundary", "operatorRequirement", "requiredChecks",
+  ]) {
+    assert.ok(!section.includes(forbidden), `医生端治疗模块仍直接渲染后台治理字段：${forbidden}`);
+  }
+  assert.ok(!/安全边界|本机构可开展|资质/.test(section),
+    "医生端治疗模块的标题或副标题仍在解释内部治理/责任边界");
+});
+
 console.log(`diagnosis-presentation-contract: ${checks} checks passed`);
 
 // ── 「，病因待查」后缀的形态与适用范围必须两处同源（甲方 2026-08-13 双膝红肿热痛）──────
