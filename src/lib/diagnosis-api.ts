@@ -15,7 +15,7 @@ import { enforceStructuredStageOwnership, resolveCompletedStructuredResponse, sh
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
 import { affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
-import { STREAM_REPLACE_MARKER } from "@/lib/diagnosis-stream-protocol";
+import { parseStreamModuleDraftFrame, STREAM_REPLACE_MARKER, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { parseOpenAICompatCompletionPayload } from "@/lib/openai-compatible-response";
@@ -26,6 +26,7 @@ import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenSh
 import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.server";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
+import { newM03ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
 import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
@@ -237,6 +238,10 @@ const enc = new TextEncoder();
 
 function enq(ctrl: ReadableStreamDefaultController, content: string) {
   ctrl.enqueue(enc.encode(JSON.stringify({ content }) + "\n"));
+}
+
+function enqModuleDraft(ctrl: ReadableStreamDefaultController, frame: StreamModuleDraftFrame) {
+  ctrl.enqueue(enc.encode(`${JSON.stringify(frame)}\n`));
 }
 
 function enqHeartbeat(ctrl: ReadableStreamDefaultController, status: string, processedChars: number) {
@@ -2863,6 +2868,7 @@ async function callPrimaryTextModelStream(
       let diagnosePreviewClosed = false;
       // 需求2 的按模块流式反馈状态：已上流的顶层模块，以及上次扫描时的内容长度（用于节流）。
       const emittedModuleKeys = new Set<string>();
+      const emittedM03DraftKeys = new Set<string>();
       let moduleScanCursor = 0;
       // All structured stages are buffered. Streaming a second, provisional representation before
       // the authoritative JSON is validated caused visible/structured drift and could expose raw
@@ -2895,6 +2901,19 @@ async function callPrimaryTextModelStream(
         // JSON tail stays byte-exact, so the NDJSON contract and structured parsing are unaffected.
         const visible = opts.structuredStage === "diagnose" ? sanitizeDiagnoseStreamingDraft(content) : content;
         enq(ctrl, scrubInternalVocabularyFromVisibleText(visible));
+      };
+      const enqueueModuleDraft = (frame: StreamModuleDraftFrame) => {
+        if (clientStreamClosed) return;
+        const parsed = parseStreamModuleDraftFrame(frame);
+        if (!parsed) return;
+        enqModuleDraft(ctrl, parsed);
+      };
+      const enqueueM03ModuleDrafts = (partial: string) => {
+        if (opts.structuredStage === "diagnose") {
+          for (const frame of newM03ModuleDraftFrames(partial, emittedM03DraftKeys)) {
+            enqueueModuleDraft(frame);
+          }
+        }
       };
       const enqueueHeartbeat = (status: string, processedChars: number) => {
         if (clientStreamClosed) return;
@@ -3052,6 +3071,10 @@ async function callPrimaryTextModelStream(
         m03WesternHalfPromise = m03ParallelHalves
           ? collectM03ParallelWesternHalf(m03ParallelHalves.western, kind, upstreamController.signal, absoluteRunDeadline)
           : undefined;
+        void m03WesternHalfPromise?.then((westernHalf) => {
+          if (!westernHalf.ok || clientStreamClosed || upstreamController.signal.aborted) return;
+          enqueueM03ModuleDrafts(westernHalf.content);
+        }).catch(() => undefined);
         const upstreamRequest: RequestInit = {
           method: "POST",
           headers: {
@@ -3151,6 +3174,7 @@ async function callPrimaryTextModelStream(
                   // 只在内容显著增长后再扫一次。
                   if (accumulatedContent.length - moduleScanCursor >= 200) {
                     moduleScanCursor = accumulatedContent.length;
+                    enqueueM03ModuleDrafts(accumulatedContent);
                     for (const notice of newModuleNotices(accumulatedContent, emittedModuleKeys)) {
                       enqueueClient(`\n${sanitizeDiagnoseStreamingDraft(notice)}`);
                     }
@@ -3237,6 +3261,7 @@ async function callPrimaryTextModelStream(
           });
           if (mergedParallel) {
             accumulatedContent = mergedParallel;
+            enqueueM03ModuleDrafts(accumulatedContent);
             // 西医半模块此刻才在合并文本里闭合，补推其结论标题行，医生看到全部模块落地。
             for (const notice of newModuleNotices(accumulatedContent, emittedModuleKeys)) {
               enqueueClient(`\n${sanitizeDiagnoseStreamingDraft(notice)}`);
