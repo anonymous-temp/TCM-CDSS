@@ -134,20 +134,28 @@ function resolveGovernedGuidelineReferences(
     resolved.push({ ...citation, ...(appliesTo ? { appliesTo } : {}) });
     if (resolved.length >= 3) break;
   }
-  // 甲方要求诊断终稿必须携带本轮参考的指南/共识或文献依据。此前即使检索命中，
-  // 最终是否展示仍取决于模型主动回填 guidelineRefs；模型漏填时整栏静默为空。
-  // 这里只在 M03 且本轮 scope 中确有可反查的 EVID-GUIDE/EVID-PAPER 时补首条，
-  // 题名、年份和 URL 仍全部来自服务端检索记录；没有真实记录就保持空，绝不自造。
-  if (resolved.length === 0 && payload.stage === "diagnose") {
+  // 甲方要求诊断终稿必须携带本轮参考的指南/共识或文献依据。M03 统一采用服务端
+  // 检索排序中首条人群适用的 GUIDE（没有才用 PAPER），而不是让模型任意跳到更窄病因。
+  // 模型只在恰好选中同一条时贡献 appliesTo；题名、年份、URL 与排序权均不交给模型。
+  // 没有真实检索记录就保持空，绝不自造。
+  if (payload.stage === "diagnose") {
+    let authoritative: ReturnType<typeof governedEvidenceCitation>;
     for (const pattern of [/^EVID-GUIDE-\d{3}$/, /^EVID-PAPER-\d{3}$/]) {
       const evidenceId = scope.records
         .flatMap((evidenceRecord) => [...evidenceRecord.ids])
         .find((candidate) => pattern.test(candidate) && diagnosticReferenceAppliesToPatient(candidate, scope, caseState));
       const citation = governedEvidenceCitation(evidenceId, scope);
       if (citation) {
-        resolved.push(citation);
+        authoritative = citation;
         break;
       }
+    }
+    if (authoritative) {
+      const sameClaim = resolved.find((item) => item.evidenceId === authoritative?.evidenceId);
+      resolved.splice(0, resolved.length, {
+        ...authoritative,
+        ...(sameClaim?.appliesTo ? { appliesTo: sameClaim.appliesTo } : {}),
+      });
     }
   }
   delete record.guidelineRefs;
