@@ -590,7 +590,7 @@ async function buildSingleEvidenceSection(
 ): Promise<string> {
   const query = buildEvidenceQuery(caseState, stage, kind);
   const options = {
-    count: kind === "guide" || kind === "literature" ? 5 : 6,
+    count: kind === "guide" ? 8 : kind === "literature" ? 5 : 6,
     startYear: kind === "guide" || kind === "literature" ? 2018 : undefined,
   };
   let result = await fetchExternalEvidence(kind, query, options);
@@ -620,7 +620,9 @@ async function buildSingleEvidenceSection(
   }
 
   lines.push("命中证据摘要（仅引用下列真实题名、机构、年份和URL；不得编造未列出的资料；引用时使用方括号ID）：");
-  items.slice(0, kind === "literature" ? 5 : kind === "instruction" ? 6 : 3).forEach((item, index) => {
+  // 指南取回窗口大于最终展示窗口：供应商的前 1–3 条常是儿童/病因专病共识，通用指南
+  // 常落在第 4–5 条。保留 5 条给服务端做相关性与人群排序，终稿仍只下发唯一首选引用。
+  items.slice(0, kind === "literature" ? 5 : kind === "instruction" ? 6 : 5).forEach((item, index) => {
     const evidenceId = `${config.idPrefix}-${String(index + 1).padStart(3, "0")}`;
     if (kind === "instruction") {
       lines.push(formatInstructionEvidenceRecord(item, evidenceId));
