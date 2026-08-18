@@ -13,7 +13,7 @@ import {
 } from "@/lib/clinical-facts-runtime";
 import { getCdssStageTelemetrySnapshot } from "@/lib/cdss-stage-telemetry";
 import { getCdssKnowledgeTelemetrySnapshot } from "@/lib/cdss-knowledge-telemetry";
-import { cdssRateLimitIdentityConfigured } from "@/lib/cdss-auth";
+import { cdssRateLimitIdentityConfigured, getCdssAuthenticatedRateLimitKey } from "@/lib/cdss-auth";
 import {
   getControlledTerminologyNormalizationStatus,
   probeControlledTerminologyModel,
@@ -21,8 +21,56 @@ import {
 import { getSyndromeHypothesisRerankStatus } from "@/lib/syndrome-hypothesis-rerank.server";
 import { healthDiagnosticsRequested, publicHealthView } from "@/lib/health-public-view";
 
+const STRICT_HEALTH_RATE_LIMIT_STORE = Symbol.for("tcm-cdss.strict-health-rate-limit.v1");
+const STRICT_HEALTH_RATE_LIMIT_WINDOW_MS = 10 * 60_000;
+type StrictHealthBucket = { startedAt: number; count: number };
+
+function strictHealthRateLimit(): number {
+  const parsed = Number(process.env.CDSS_STRICT_HEALTH_RATE_LIMIT_PER_10_MIN ?? 60);
+  return Number.isInteger(parsed) && parsed >= 20 && parsed <= 600 ? parsed : 60;
+}
+
+async function strictHealthRateLimitResponse(req: Request): Promise<Response | undefined> {
+  const root = globalThis as typeof globalThis & {
+    [STRICT_HEALTH_RATE_LIMIT_STORE]?: Map<string, StrictHealthBucket>;
+  };
+  const buckets = root[STRICT_HEALTH_RATE_LIMIT_STORE] || new Map<string, StrictHealthBucket>();
+  root[STRICT_HEALTH_RATE_LIMIT_STORE] = buckets;
+  const key = await getCdssAuthenticatedRateLimitKey(req);
+  const now = Date.now();
+  const current = buckets.get(key);
+  const bucket = !current || now - current.startedAt >= STRICT_HEALTH_RATE_LIMIT_WINDOW_MS
+    ? { startedAt: now, count: 0 }
+    : current;
+  const limit = strictHealthRateLimit();
+  if (bucket.count >= limit) {
+    const retryAfter = Math.max(1, Math.ceil((bucket.startedAt + STRICT_HEALTH_RATE_LIMIT_WINDOW_MS - now) / 1000));
+    return Response.json({ error: "严格健康探针调用过于频繁。", code: "strict_health_rate_limited" }, {
+      status: 429,
+      headers: {
+        "Cache-Control": "no-store, private",
+        "Retry-After": String(retryAfter),
+        "X-RateLimit-Limit": String(limit),
+        "X-RateLimit-Remaining": "0",
+      },
+    });
+  }
+  bucket.count += 1;
+  buckets.set(key, bucket);
+  if (buckets.size > 256) {
+    for (const [bucketKey, value] of buckets) {
+      if (now - value.startedAt >= STRICT_HEALTH_RATE_LIMIT_WINDOW_MS || buckets.size > 256) buckets.delete(bucketKey);
+    }
+  }
+  return undefined;
+}
+
 export async function GET(req: Request) {
   const strictProbe = new URL(req.url).searchParams.get("strict") === "1";
+  if (strictProbe) {
+    const limited = await strictHealthRateLimitResponse(req);
+    if (limited) return limited;
+  }
   const providers = getDiagnosisProviderStatus();
   const externalEvidence = getEvimedEvidenceStatus();
   const [externalEvidenceProbe, clinicalReviewProbe, clinicalFactsModelProbe, tongueVisionProbe, rxAuditProbe, controlledTerminologyProbe] = strictProbe
