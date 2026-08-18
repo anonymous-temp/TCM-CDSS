@@ -78,9 +78,9 @@ function auditControlReasoning(control, signedDiagnoseReasoning) {
       modifications: [],
     },
     nonPharma: {
-      diet: "不适用",
-      lifestyle: "不适用",
-      emotion: "不适用",
+      diet: "少量多餐，避免辛辣油腻；可用山药小米粥作为早餐，每周3次。",
+      lifestyle: "保持规律作息",
+      emotion: "记录情绪变化",
       acupointCare: null,
       monitoring: [{ metric: control.chiefComplaint, timing: "本次", trigger: "若审方命中预期问题则必须人工复核" }],
     },
