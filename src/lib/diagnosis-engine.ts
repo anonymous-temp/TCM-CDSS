@@ -4,7 +4,11 @@ import { ageValue, createInitialCaseState, normalizeCaseStateInput } from "./dia
 import { extractDiagnosisJSON, stripDiagnosisJSON, parseCompleteness } from "./diagnosis-parse";
 import { isUnknownClinicalFieldText, isUnknownClinicalText } from "./clinical-state";
 import { safeHttpUrl } from "./safe-url";
-import { STREAM_REPLACE_MARKER } from "./diagnosis-stream-protocol";
+import {
+  parseStreamModuleDraftFrame,
+  STREAM_REPLACE_MARKER,
+  type StreamModuleDraftFrame,
+} from "./diagnosis-stream-protocol";
 import { dateOnly, generalizeOccupation, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
 
 const LS_PREFIX = "diagnosis_case_";
@@ -19,6 +23,7 @@ type StreamConsumeOptions = {
   idleTimeoutMs?: number;
   totalTimeoutMs?: number;
   abortSignal?: AbortSignal;
+  onModuleDraft?: (frame: StreamModuleDraftFrame) => void;
 };
 
 // ─── Persistence ─────────────────────────────────────────────────────────────
@@ -555,6 +560,14 @@ export async function consumeMarkdownStreamWithMetadata(
             markValidFrame();
             const visible = filterStreamingText(accumulated);
             onChunk([visible, chunk.status.trim()].filter(Boolean).join("\n\n"));
+          } else if (chunk.type === "module_draft") {
+            const moduleDraft = parseStreamModuleDraftFrame(chunk);
+            if (moduleDraft) {
+              markValidFrame();
+              opts?.onModuleDraft?.(moduleDraft);
+            } else {
+              malformedLines += 1;
+            }
           } else if (chunk.type === "followup_timeline") {
             const parsedTimeline = parseTypedFollowupTimeline(chunk.timelineItems);
             if (parsedTimeline) {
@@ -598,6 +611,14 @@ export async function consumeMarkdownStreamWithMetadata(
           markValidFrame();
           const visible = filterStreamingText(accumulated);
           onChunk([visible, chunk.status.trim()].filter(Boolean).join("\n\n"));
+        } else if (chunk.type === "module_draft") {
+          const moduleDraft = parseStreamModuleDraftFrame(chunk);
+          if (moduleDraft) {
+            markValidFrame();
+            opts?.onModuleDraft?.(moduleDraft);
+          } else {
+            malformedLines += 1;
+          }
         } else if (chunk.type === "followup_timeline") {
           const parsedTimeline = parseTypedFollowupTimeline(chunk.timelineItems);
           if (parsedTimeline) {
