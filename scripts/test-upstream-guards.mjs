@@ -132,7 +132,6 @@ for (const [modelVariable, expectedModel] of Object.entries(expectedModelMatrix)
   assert.match(envExampleSource, new RegExp(`^${modelVariable}=${expectedModel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
 }
 for (const bailianVariable of [
-  "BAILIAN_QWEN_API_KEY",
   "BAILIAN_QWEN_BASE_URL",
   "BAILIAN_QWEN_MODEL",
 ]) {
@@ -147,6 +146,7 @@ for (const bailianVariable of [
     `${bailianVariable} must be documented in the deployable environment template`,
   );
 }
+assert.match(envExampleSource, /^BAILIAN_QWEN_API_KEY=$/m);
 assert.match(composeSource, /BAILIAN_QWEN_API_KEY: \$\{BAILIAN_QWEN_API_KEY:\?set BAILIAN_QWEN_API_KEY\}/,
   "Qwen-default production must fail startup when the Bailian key is absent");
 assert.match(composeSource, /CDSS_TEXT_MODEL_ALLOWED_HOSTS: \$\{CDSS_TEXT_MODEL_ALLOWED_HOSTS:-\}/);
