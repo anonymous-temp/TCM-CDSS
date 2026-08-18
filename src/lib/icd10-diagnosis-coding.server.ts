@@ -1,4 +1,5 @@
 import icdIndex from "../data/icd10-diagnosis-index.json" with { type: "json" };
+import { clinicalClausePolarity } from "./clinical-polarity";
 
 type IcdEntry = {
   code: string;
@@ -124,12 +125,53 @@ export function applyDeterministicIcd10Coding(content: string): string {
     (match, jsonText: string) => {
       try {
         const parsed = JSON.parse(jsonText) as {
-          westernDiagnosis?: { primary?: { name?: unknown; status?: unknown; coding?: unknown } };
+          westernDiagnosis?: {
+            primary?: {
+              name?: unknown;
+              status?: unknown;
+              coding?: unknown;
+              supportingFacts?: unknown;
+              clinicalRationale?: unknown;
+              limitations?: unknown;
+              suggestedChecks?: unknown;
+            };
+            differentials?: unknown;
+          };
         };
         const primary = parsed.westernDiagnosis?.primary;
         if (!primary || typeof primary.name !== "string") return match;
-        const normalizedPrimaryName = normalizeDiagnosisName(primary.name);
-        const coding = resolveIcd10Diagnosis(primary.name, String(primary.status || ""));
+        const supportingFacts = Array.isArray(primary.supportingFacts)
+          ? primary.supportingFacts.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+          : [];
+        const unresolvedRefluxDisease =
+          normalizeDiagnosisName(primary.name) === "胃食管反流病" &&
+          /(?:病因待查|病因待鉴别|病因未明)/.test(primary.name) &&
+          supportingFacts.some((fact) => fact.includes("反酸") && clinicalClausePolarity(fact) === "affirmed");
+        if (unresolvedRefluxDisease) {
+          const limitations = Array.isArray(primary.limitations)
+            ? primary.limitations.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+            : [];
+          const suggestedChecks = Array.isArray(primary.suggestedChecks)
+            ? primary.suggestedChecks.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+            : [];
+          const differentials = Array.isArray(parsed.westernDiagnosis?.differentials)
+            ? parsed.westernDiagnosis.differentials.filter((value): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value)))
+            : [];
+          if (!differentials.some((item) => normalizeDiagnosisName(String(item.name || "")) === "胃食管反流病")) {
+            differentials.unshift({
+              name: "胃食管反流病",
+              reason: typeof primary.clinicalRationale === "string" ? primary.clinicalRationale : "需结合客观检查确认疾病诊断",
+              distinguishingPoints: limitations.join("；") || "当前只有症状依据，尚缺疾病级客观依据",
+              nextCheck: suggestedChecks[0] || null,
+            });
+          }
+          parsed.westernDiagnosis!.differentials = differentials;
+          primary.name = "反酸";
+          primary.clinicalRationale = "本例已记录反酸及相关消化道症状；在缺少疾病级客观检查依据时，本轮以反酸作为症状级工作诊断，胃食管反流病保留在鉴别诊断中。";
+        }
+        const primaryName = String(primary.name || "");
+        const normalizedPrimaryName = normalizeDiagnosisName(primaryName);
+        const coding = resolveIcd10Diagnosis(primaryName, String(primary.status || ""));
         if (coding) {
           primary.coding = coding;
           // “胃食管反流症状”这类疾病名+症状后缀不是规范诊断名。映射到受治理症状码时，
