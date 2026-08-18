@@ -42,6 +42,10 @@ const LOCAL_DIAGNOSTIC_REFERENCES: readonly DiagnosticReferenceEntry[] = [
     problemKey: "多汗症",
     record: "[EVID-GUIDE-908] 原发性局所多汗症诊疗指南2023年改订版（日本皮肤科学会，2023，DOI:10.14924/dermatol.133.157）：多汗症需结合病程、分布、睡眠期变化、发作频率及继发病因进行分类与诊断。 URL:https://www.jstage.jst.go.jp/article/dermatol/133/2/133_157/_article/-char/ja/",
   },
+  {
+    problemKey: "盆腔炎",
+    record: "[EVID-GUIDE-909] Pelvic Inflammatory Disease (PID) - STI Treatment Guidelines（U.S. Centers for Disease Control and Prevention，2021）：盆腔炎诊断需结合盆腔/下腹症状、妇科查体、下生殖道炎症证据及必要的影像或病原学评估，并注意排除其他病因。 URL:https://www.cdc.gov/std/treatment-guidelines/pid.htm",
+  },
 ] as const;
 
 export function localDiagnosticReferenceContext(clinicalText: string): string {

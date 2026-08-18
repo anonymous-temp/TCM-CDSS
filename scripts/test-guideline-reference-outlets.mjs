@@ -95,6 +95,7 @@ check("症状性诊断长尾只注入真实且问题匹配的本地权威依据"
     ["癫痫反复发作并伴仆倒抽搐", "EVID-GUIDE-906", "nice.org.uk"],
     ["受凉后尿痛尿频一周", "EVID-GUIDE-907", "uroweb.org"],
     ["持续多汗半年", "EVID-GUIDE-908", "jstage.jst.go.jp"],
+    ["外院检查为慢性盆腔炎", "EVID-GUIDE-909", "cdc.gov"],
   ];
   for (const [clinicalText, evidenceId, host] of cases) {
     const context = localDiagnosticReferenceContext(clinicalText);
@@ -110,6 +111,7 @@ check("症状性诊断长尾只注入真实且问题匹配的本地权威依据"
       "EVID-GUIDE-906": "癫痫",
       "EVID-GUIDE-907": "尿路感染",
       "EVID-GUIDE-908": "多汗症",
+      "EVID-GUIDE-909": "慢性盆腔炎",
     })[evidenceId];
     const payload = {
       schemaVersion: "tcm-cdss-reasoning-v2",
