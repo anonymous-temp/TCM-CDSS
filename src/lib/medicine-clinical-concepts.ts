@@ -75,7 +75,7 @@ export const MEDICINE_CLINICAL_CONCEPTS: readonly MedicineClinicalConcept[] = [
   { key: "面部丘疹", axis: "problem", casePattern: /面部丘疹|面部.{0,8}扁平丘疹/, indicationPattern: /面部丘疹|丘疹性皮肤病/, weight: 3 },
   { key: "嗳气", axis: "problem", casePattern: /嗳气|气逆/, indicationPattern: /嗳气|胃气上逆/, weight: 3 },
   { key: "盆腔炎", axis: "problem", casePattern: /盆腔炎|盆腔炎症性疾病/, indicationPattern: /盆腔炎|盆腔炎症性疾病/, weight: 3 },
-  { key: "不孕症", axis: "problem", casePattern: /不孕症|未孕|求嗣/, indicationPattern: /不孕症|不孕不育/, weight: 3 },
+  { key: "不孕症", axis: "problem", casePattern: /不孕症|不孕|未孕|求嗣/, indicationPattern: /不孕症|不孕不育/, weight: 3 },
   { key: "嗜睡", axis: "problem", casePattern: /嗜睡|多寐|白天容易入睡|昏昏欲睡/, indicationPattern: /嗜睡|日间嗜睡|睡眠过多/, weight: 3 },
   { key: "多关节疼痛", axis: "problem", casePattern: /多关节疼痛|四肢.{0,16}关节.{0,16}(?:红肿热痛|疼痛|晨僵)/, indicationPattern: /多关节疼痛|多关节炎|关节痛/, weight: 3 },
   { key: "斑秃", axis: "problem", casePattern: /斑秃|片状脱发|头发呈片状脱落/, indicationPattern: /斑秃|片状脱发/, weight: 3 },
