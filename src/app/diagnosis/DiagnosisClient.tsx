@@ -90,6 +90,11 @@ import { FORMULA_STRUCTURE_TARGETS, formulaTargetPathogenesisCells, type Formula
 import { parseRxAuditStatusMarker, stripRxAuditStatusMarker } from "@/lib/rxaudit-status";
 import { buildSeasonalCare } from "@/lib/tcm-seasonal-care";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
+import {
+  M03_DRAFT_MODULES,
+  type M03DraftModule,
+  type StreamModuleDraftFrame,
+} from "@/lib/diagnosis-stream-protocol";
 import { parseClinicalFacts, type ClinicalFacts } from "@/lib/clinical-facts";
 import {
   buildMedicineCandidateEmptyState,
@@ -5780,6 +5785,7 @@ export function CompactAiSchemeCardFlow({
 // ─── Streaming text state per phase ──────────────────────────────────────────
 
 type StreamingState = Partial<Record<Phase, string>>;
+type ModuleDraftState = Partial<Record<M03DraftModule, StreamModuleDraftFrame>>;
 
 type HisRecordDraft = {
   patientName: string;
@@ -7586,6 +7592,7 @@ function AiSupportPanel({
   isCancelling,
   runningElapsedSeconds,
   currentStreaming,
+  moduleDrafts,
   visibleConversation,
   hasUnsubmittedRecordChange,
   selectedQuestionOptions,
@@ -7614,6 +7621,7 @@ function AiSupportPanel({
   isCancelling: boolean;
   runningElapsedSeconds: number;
   currentStreaming: string;
+  moduleDrafts: ModuleDraftState;
   visibleConversation: CaseState["conversation"];
   hasUnsubmittedRecordChange: boolean;
   selectedQuestionOptions: Record<string, QuestionOptionSelection>;
@@ -7820,6 +7828,7 @@ function AiSupportPanel({
               phase={caseState.phase}
               isRedFlag={isActiveRedFlag}
               content={currentStreaming}
+              moduleDrafts={moduleDrafts}
               runningElapsedSeconds={runningElapsedSeconds}
               canCancelRun={canCancelRun}
               isCancelling={isCancelling}
@@ -7957,6 +7966,7 @@ function StreamingPreviewCard({
   phase,
   isRedFlag,
   content,
+  moduleDrafts,
   runningElapsedSeconds,
   canCancelRun,
   isCancelling,
@@ -7965,6 +7975,7 @@ function StreamingPreviewCard({
   phase: Phase;
   isRedFlag: boolean;
   content: string;
+  moduleDrafts: ModuleDraftState;
   runningElapsedSeconds: number;
   canCancelRun: boolean;
   isCancelling: boolean;
@@ -7976,6 +7987,9 @@ function StreamingPreviewCard({
   // M03/M04 在完成前只有进度行；但流末尾会用最终正文整体替换一次，此时必须立刻切回文档式渲染，
   // 否则临床结论会被排成进度条目。用是否出现 Markdown 结构判定，判错时退回既有渲染。
   const progressLines = safePreview.split("\n").map((line) => line.trim()).filter(Boolean);
+  const orderedDrafts = phase === "diagnose" && !/^#\s+中医辅助诊疗报告/m.test(safePreview)
+    ? M03_DRAFT_MODULES.flatMap((module) => moduleDrafts[module] ? [moduleDrafts[module]] : [])
+    : [];
   const showProgressLog = phase !== "assess" &&
     progressLines.length > 0 &&
     !/^\s{0,3}(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|>|\||```)/m.test(safePreview);
@@ -8031,6 +8045,22 @@ function StreamingPreviewCard({
           <MarkdownBlock content={compactMarkdown(safePreview, 2600)} compact />
         </div>
       )}
+      {orderedDrafts.length > 0 && (
+        <div data-testid="streaming-module-drafts" className="mt-3 space-y-2">
+          {orderedDrafts.map((draft) => (
+            <section
+              key={`${draft.module}-${draft.revision}`}
+              data-testid={`streaming-module-${draft.module}`}
+              className="rounded-lg border border-amber-200 bg-amber-50/70 p-3"
+            >
+              <div className="mb-2 inline-flex items-center rounded-full border border-amber-300 bg-white px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                生成中 · 未定稿
+              </div>
+              <MarkdownBlock content={compactMarkdown(draft.content, 2600)} compact />
+            </section>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -8049,6 +8079,7 @@ export default function DiagnosisPage() {
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [runCancelRequested, setRunCancelRequested] = useState(false);
   const [streaming, setStreaming] = useState<StreamingState>({});
+  const [moduleDrafts, setModuleDrafts] = useState<ModuleDraftState>({});
   const [workspaceRestored, setWorkspaceRestored] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [tongueImage, setTongueImage] = useState<string | null>(null);
@@ -8080,6 +8111,7 @@ export default function DiagnosisPage() {
 
   useEffect(() => {
     activeCaseIdRef.current = caseState.id;
+    setModuleDrafts({});
   }, [caseState.id]);
 
   useEffect(() => {
@@ -8201,6 +8233,7 @@ export default function DiagnosisPage() {
 
   const handleCancelRun = useCallback(() => {
     if (!runningRef.current || !isRunning || runCancelRequested) return;
+    setModuleDrafts({});
     if (abortDiagnosisRun(activeRunAbortController)) setRunCancelRequested(true);
   }, [isRunning, runCancelRequested]);
 
@@ -8261,6 +8294,7 @@ export default function DiagnosisPage() {
 
     if (needsDiagnose) {
       try {
+        setModuleDrafts({});
         setStreamingForPhase("diagnose", "");
         const res3 = await fetchWithTimeout(apiUrl("/api/diagnosis/diagnose"), {
           method: "POST",
@@ -8268,7 +8302,16 @@ export default function DiagnosisPage() {
           body: JSON.stringify({ caseState: current }),
         });
         if (!res3.ok) throw new Error(await readErrorMessage(res3, `辨病辨证生成失败 (${res3.status})`));
-        const rawDiagnosis = await consumeMarkdownStream(res3, (t) => setStreamingForPhase("diagnose", t), streamConsumeOptions());
+        const rawDiagnosis = await consumeMarkdownStream(res3, (t) => setStreamingForPhase("diagnose", t), {
+          ...streamConsumeOptions(),
+          onModuleDraft: (frame) => setModuleDrafts((previous) => {
+            const currentDraft = previous[frame.module];
+            return currentDraft && currentDraft.revision >= frame.revision
+              ? previous
+              : { ...previous, [frame.module]: frame };
+          }),
+        });
+        setModuleDrafts({});
         const diagnosisTruncated =
           rawDiagnosis.includes("[TRUNCATED]") ||
           !rawDiagnosis.includes("<!-- DIAGNOSIS_JSON_START -->") ||
@@ -8304,6 +8347,7 @@ export default function DiagnosisPage() {
         // only for legacy snapshots and must not reclassify this newly validated response.
         persistState(current);
       } catch (e) {
+        setModuleDrafts({});
         persistState(setError(current, normalizeRequestError(e, "辨病辨证失败")));
         return;
       }
@@ -9398,6 +9442,7 @@ export default function DiagnosisPage() {
             isCancelling={runCancelRequested}
             runningElapsedSeconds={runningElapsedSeconds}
             currentStreaming={currentStreaming}
+            moduleDrafts={moduleDrafts}
             visibleConversation={visibleConversation}
             hasUnsubmittedRecordChange={hasUnsubmittedRecordChange}
             selectedQuestionOptions={selectedQuestionOptions}

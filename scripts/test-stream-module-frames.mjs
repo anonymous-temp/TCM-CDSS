@@ -72,7 +72,7 @@ for (const malformedModuleFrame of [
 const clientSource = readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
 assert.match(clientSource, /data-testid="streaming-module-drafts"/, "页面必须有独立模块草稿容器");
 assert.match(clientSource, /data-testid=\{`streaming-module-\$\{draft\.module\}`\}/, "每个模块必须有稳定测试标识");
-assert.match(clientSource, /M03_DRAFT_MODULES[\s\S]{0,300}map\(/, "模块卡必须按共享临床顺序渲染");
+assert.match(clientSource, /M03_DRAFT_MODULES\.flatMap\(/, "模块卡必须按共享临床顺序渲染");
 assert.match(clientSource, /onModuleDraft:\s*\(frame\)/, "M03 客户端必须消费独立模块帧");
 assert.match(clientSource, /setModuleDrafts\(\{\}\)/, "开始、结束与取消路径必须能清空请求级草稿");
 assert.match(clientSource, /生成中 · 未定稿/, "模块卡必须明确标注未定稿");
