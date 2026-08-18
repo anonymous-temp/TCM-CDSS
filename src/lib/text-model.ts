@@ -15,7 +15,7 @@ export type TextModelConfig = {
 };
 
 const DEFAULT_BAILIAN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const DEFAULT_QWEN_MODEL = "qwen-plus";
+const DEFAULT_QWEN_MODEL = "qwen3.7-plus";
 const TEXT_MODEL_HEALTH_TIMEOUT_MS = 120_000;
 
 function cleanBaseUrl(value: string): string {
@@ -44,6 +44,26 @@ function firstEnv(names: string[]): { name: string; value: string } {
   return { name: names[0], value: "" };
 }
 
+function configuredAllowedHosts(): string[] {
+  return [process.env.CDSS_TEXT_MODEL_ALLOWED_HOSTS, process.env.CDSS_DEEPSEEK_ALLOWED_HOSTS]
+    .flatMap((value) => String(value || "").split(","))
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function endpointHostAllowed(baseUrl: string, defaultHosts: readonly string[]): boolean {
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    return new Set([...defaultHosts, ...configuredAllowedHosts()]).has(hostname);
+  } catch {
+    return false;
+  }
+}
+
+function modelAllowedForProvider(provider: TextModelProvider, model: string): boolean {
+  return provider === "bailian-qwen" ? isQwenModel(model) : isDeepseekModel(model);
+}
+
 export function getBailianQwenConfig(): TextModelConfig {
   const key = firstEnv(["BAILIAN_QWEN_API_KEY", "DASHSCOPE_API_KEY", "QWEN_API_KEY"]);
   const baseUrl = firstEnv(["BAILIAN_QWEN_BASE_URL", "DASHSCOPE_BASE_URL", "QWEN_BASE_URL"]);
@@ -51,15 +71,24 @@ export function getBailianQwenConfig(): TextModelConfig {
 
   const resolvedBaseUrl = cleanBaseUrl(baseUrl.value || DEFAULT_BAILIAN_BASE_URL);
   const transportAllowed = endpointTransportAllowed(resolvedBaseUrl);
+  const resolvedModel = model.value || DEFAULT_QWEN_MODEL;
+  const vendorAllowed = endpointHostAllowed(resolvedBaseUrl, ["dashscope.aliyuncs.com"]) &&
+    modelAllowedForProvider("bailian-qwen", resolvedModel);
   return {
     provider: "bailian-qwen",
     providerLabel: "Alibaba Cloud Bailian Qwen",
     apiKey: key.value,
     baseUrl: resolvedBaseUrl,
-    model: model.value || DEFAULT_QWEN_MODEL,
-    configured: Boolean(key.value) && transportAllowed,
+    model: resolvedModel,
+    configured: Boolean(key.value) && transportAllowed && vendorAllowed,
     transportAllowed,
-    disabledReason: !key.value ? "missing_api_key" : !transportAllowed ? "insecure_transport" : undefined,
+    disabledReason: !key.value
+      ? "missing_api_key"
+      : !transportAllowed
+        ? "insecure_transport"
+        : !vendorAllowed
+          ? "vendor_policy"
+          : undefined,
     keyVariable: key.name,
   };
 }
@@ -72,19 +101,7 @@ function getOpenAICompatibleConfig(): TextModelConfig {
   const resolvedBaseUrl = cleanBaseUrl(baseUrl.value || "https://api.deepseek.com");
   const transportAllowed = endpointTransportAllowed(resolvedBaseUrl);
   const resolvedModel = model.value || "deepseek-v4-flash";
-  const allowedHosts = new Set([
-    "api.deepseek.com",
-    ...(process.env.CDSS_DEEPSEEK_ALLOWED_HOSTS || "")
-      .split(",")
-      .map((host) => host.trim().toLowerCase())
-      .filter(Boolean),
-  ]);
-  let deepseekEndpointAllowed = false;
-  try {
-    deepseekEndpointAllowed = allowedHosts.has(new URL(resolvedBaseUrl).hostname.toLowerCase());
-  } catch {
-    deepseekEndpointAllowed = false;
-  }
+  const deepseekEndpointAllowed = endpointHostAllowed(resolvedBaseUrl, ["api.deepseek.com"]);
   const vendorAllowed = deepseekEndpointAllowed && isDeepseekModel(resolvedModel);
   return {
     provider: "openai-compatible",
@@ -106,9 +123,10 @@ function getOpenAICompatibleConfig(): TextModelConfig {
 }
 
 export function getPrimaryTextModelConfig(): TextModelConfig {
-  const config = getOpenAICompatibleConfig();
   const provider = (process.env.AI_TEXT_PROVIDER || process.env.AI_PROVIDER || "openai-compatible").toLowerCase();
-  if (provider === "openai-compatible" || provider === "deepseek") return config;
+  if (provider === "openai-compatible" || provider === "deepseek") return getOpenAICompatibleConfig();
+  if (provider === "bailian-qwen" || provider === "bailian" || provider === "qwen") return getBailianQwenConfig();
+  const config = getOpenAICompatibleConfig();
   return { ...config, configured: false, disabledReason: "vendor_policy" };
 }
 
@@ -117,9 +135,9 @@ export function getPrimaryTextModelConfig(): TextModelConfig {
  * fallback for M01-M04 clinical generation. Its model identity is separately visible in health.
  */
 export function getControlledTerminologyModelConfig(): TextModelConfig {
-  const primary = getOpenAICompatibleConfig();
-  const model = process.env.CONTROLLED_TERMINOLOGY_MODEL?.trim() || "deepseek-v4-flash";
-  const modelAllowed = isDeepseekModel(model);
+  const primary = getPrimaryTextModelConfig();
+  const model = process.env.CONTROLLED_TERMINOLOGY_MODEL?.trim() || primary.model;
+  const modelAllowed = modelAllowedForProvider(primary.provider, model);
   return {
     ...primary,
     model,
@@ -137,7 +155,7 @@ export function createTextModelClient(config = getPrimaryTextModelConfig()): Ope
 
 export function getTextModelMissingMessage(config = getPrimaryTextModelConfig()): string {
   if (config.disabledReason === "vendor_policy") {
-    return "文本临床推理仅允许使用已批准的 DeepSeek 模型与端点";
+    return "文本临床推理仅允许使用已批准的模型与端点";
   }
   if (!config.transportAllowed) {
     return `${config.providerLabel} base URL must use HTTPS in production`;
@@ -161,6 +179,32 @@ export function getPublicTextModelStatus(config = getPrimaryTextModelConfig()) {
 
 export function isDeepseekModel(model: string): boolean {
   return model.toLowerCase().startsWith("deepseek");
+}
+
+export function isQwenModel(model: string): boolean {
+  return model.trim().toLowerCase().startsWith("qwen");
+}
+
+export function isApprovedTextModel(model: string): boolean {
+  return isDeepseekModel(model) || isQwenModel(model);
+}
+
+export function textModelRequestTuning(
+  model: string,
+  options: { reasoningEffort?: string; thinkingEnabled?: boolean },
+): Record<string, unknown> {
+  if (isDeepseekModel(model)) {
+    return {
+      ...(options.reasoningEffort ? { reasoning_effort: options.reasoningEffort } : {}),
+      ...(options.thinkingEnabled == null
+        ? {}
+        : { thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" } }),
+    };
+  }
+  if (isQwenModel(model)) {
+    return options.thinkingEnabled == null ? {} : { enable_thinking: options.thinkingEnabled };
+  }
+  return {};
 }
 
 export async function runTextModelHealthCheck() {
@@ -191,6 +235,7 @@ export async function runTextModelHealthCheck() {
         max_tokens: 256,
         temperature: 0,
         stream: true,
+        ...textModelRequestTuning(config.model, { thinkingEnabled: false }),
       }, { signal: controller.signal });
       for await (const chunk of stream) {
         const choice = chunk.choices[0];
