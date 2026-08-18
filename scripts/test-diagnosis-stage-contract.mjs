@@ -2056,6 +2056,20 @@ assert.match(generationSafetyPrompt, /生成前逐味安全边界/);
 assert.match(generationSafetyPrompt, /毒性=/);
 assert.match(generationSafetyPrompt, /孕期\/妊娠=(?:LOW|MEDIUM|HIGH)/);
 const ordinaryTreatmentWithoutPositioning = structuredClone(m04);
+const nonActionableDiet = structuredClone(m04);
+nonActionableDiet.nonPharma.diet = "饮食清淡，避免辛辣油腻。";
+assert.equal(
+  m04SemanticIssue(nonActionableDiet, "", stable),
+  "non_pharma_diet_not_actionable",
+  "M04 diet 缺少具体普通食物/餐食示例时必须进入有限修复，不能靠呈现层静默隐藏",
+);
+const actionableDiet = structuredClone(m04);
+actionableDiet.nonPharma.diet = "少量多餐，餐后3小时内不平卧；可用山药小米粥，每周3次。";
+assert.notEqual(
+  m04SemanticIssue(actionableDiet, "", stable),
+  "non_pharma_diet_not_actionable",
+  "具体饮食行为与餐食示例齐全时不得误驳回",
+);
 ordinaryTreatmentWithoutPositioning.nonPharma.tcmTreatments = [{
   projectCode: "acupuncture",
   targetRef: "P1",
