@@ -56,7 +56,7 @@ export const MEDICINE_CLINICAL_CONCEPTS: readonly MedicineClinicalConcept[] = [
   // 因而先查最终更可能采用的现代医学问题，避免“皮疹/月经不调/麻木”等宽词抢占前两次检索。
   // 同一表也服务药品说明书匹配，所以 indicationPattern 仍保持同病种闭合，不以症状跨病种召回药品。
   { key: "阴道炎", axis: "problem", casePattern: /阴道炎|带下.{0,16}(?:豆渣|腥臭|瘙痒)|阴部瘙痒.{0,12}带下/, indicationPattern: /阴道炎|阴道感染/, weight: 3 },
-  { key: "异常子宫出血", axis: "problem", casePattern: /异常子宫出血|月经淋漓|阴道不规则流血|人流术后.{0,12}流血/, indicationPattern: /异常子宫出血|阴道不规则流血|崩漏/, weight: 3 },
+  { key: "异常子宫出血", axis: "problem", casePattern: /异常子宫出血|月经淋漓|阴道不规则流血|人流术后.{0,12}流血|月经.{0,12}量(?:逐渐)?减少|月经周期(?:1\d|20)天/, indicationPattern: /异常子宫出血|阴道不规则流血|崩漏/, weight: 3 },
   { key: "荨麻疹", axis: "problem", casePattern: /荨麻疹|风团|周身.{0,12}皮疹.{0,12}瘙痒|皮疹.{0,12}融合成片/, indicationPattern: /荨麻疹|风团/, weight: 3 },
   { key: "皮肤软组织感染", axis: "problem", casePattern: /皮肤软组织感染|软组织感染|小腿.{0,12}红肿.{0,12}(?:发热|疼痛)|局部红肿热痛/, indicationPattern: /皮肤软组织感染|软组织感染|蜂窝织炎/, weight: 3 },
   { key: "带状疱疹后神经痛", axis: "problem", casePattern: /带状疱疹后神经痛|(?:胸背|腰背).{0,8}疱疹.{0,12}疼痛|疱疹伴疼痛.{0,8}(?:月|周)/, indicationPattern: /带状疱疹后神经痛|疱疹后神经痛/, weight: 3 },
@@ -74,6 +74,7 @@ export const MEDICINE_CLINICAL_CONCEPTS: readonly MedicineClinicalConcept[] = [
   { key: "呃逆", axis: "problem", casePattern: /呃逆|气冲有声|逆气上冲/, indicationPattern: /呃逆|顽固性呃逆/, weight: 3 },
   { key: "面部丘疹", axis: "problem", casePattern: /面部丘疹|面部.{0,8}扁平丘疹/, indicationPattern: /面部丘疹|丘疹性皮肤病/, weight: 3 },
   { key: "嗳气", axis: "problem", casePattern: /嗳气|气逆/, indicationPattern: /嗳气|胃气上逆/, weight: 3 },
+  { key: "盆腔炎", axis: "problem", casePattern: /盆腔炎|盆腔炎症性疾病/, indicationPattern: /盆腔炎|盆腔炎症性疾病/, weight: 3 },
 ] as const;
 
 function medicineConceptGovernedId(index: number): string {
