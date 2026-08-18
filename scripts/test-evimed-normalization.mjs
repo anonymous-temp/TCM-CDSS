@@ -79,5 +79,7 @@ const query = buildEvidenceQuery({
 }, "diagnose", "guide");
 assert.match(query, /头晕|头晕伴恶心/);
 assert.doesNotMatch(query, /张三|SECRET-7788|A-12345678/);
+assert.match(query.slice(0, 80), /诊断.*指南.*共识/, "检索意图必须放在 200 字截断之前，不能被长病史挤掉");
+assert.ok(query.indexOf("诊断") < query.indexOf("头晕伴恶心"), "指南检索意图必须先于展开病史");
 
 console.log(JSON.stringify({ cases: 28, failures: 0 }));

@@ -276,6 +276,23 @@ check("⑩ 模型自撰的题名/集外 id 一律丢弃，且不得回落到自�
   assert.equal(resolved.guidelineReferences[0].appliesTo, "支持本例咳嗽的分层评估口径");
 });
 
+check("⑩ 模型漏填 evidenceId 时，M03 必须从本轮真实检索结果确定性补入首条依据", () => {
+  const transform = buildEvidenceOutputTransform(GUIDE_CONTEXT);
+  const payload = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    westernDiagnosis: { primary: { name: "咳嗽", guidelineRefs: [] } },
+  };
+  const resolved = readSentinel(transform(wrap(payload))).westernDiagnosis.primary;
+  assert.equal(resolved.guidelineReferences.length, 1, "模型漏填不能再让整栏静默为空");
+  assert.equal(resolved.guidelineReferences[0].evidenceId, "EVID-GUIDE-002");
+  assert.match(resolved.guidelineReferences[0].citation, /中国咳嗽基层诊疗与管理指南/);
+  assert.equal(resolved.guidelineReferences[0].url, "https://www.evimed.com/guide/002");
+
+  const noRetrievedEvidence = buildEvidenceOutputTransform("无 EVID-GUIDE 或 EVID-PAPER 条目");
+  const failClosed = readSentinel(noRetrievedEvidence(wrap(payload))).westernDiagnosis.primary;
+  assert.equal(failClosed.guidelineReferences, undefined, "本轮没有真实检索条目时不得补造引用");
+});
+
 check("⑩ 解析必须幂等，且伪造的 citation 不得存活", () => {
   // 本转换会在同一份内容上被多次调用（流式草稿、最终输出、截断兜底各一次）。
   // 第一版只读 guidelineRefs 而无条件删除 guidelineReferences——第二遍会把第一遍的结果删掉，
