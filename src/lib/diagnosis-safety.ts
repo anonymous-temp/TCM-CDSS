@@ -4816,6 +4816,14 @@ function riskReviewSource(state: CaseState): string {
   ].filter(Boolean).join("\n");
 }
 
+/** Strong-risk ownership shared by M05 authoring inputs and the deterministic final timeline. */
+export function hasStrongPrescriptionRisk(state: CaseState): boolean {
+  return hasCurrentRiskLine(
+    riskReviewSource(state),
+    /(强提示|(?<!最)高风险|禁用|十八反|十九畏|超出知识库上限|确定性处方风险复核未完成|审方未完成|不能等同为无风险)/,
+  );
+}
+
 export function deriveFirstReviewTiming(state: CaseState, hasStrongRisk: boolean): string {
   if (hasStrongRisk) return "调整处方后当日复核；若采纳，1-3天内随访";
   const candidate = state.reasoningPrescribe?.formula?.candidates?.[0] ||
@@ -5093,10 +5101,7 @@ export function buildDeterministicRiskFollowupPayload(
   const missingAdvisory = gate.missingItems.length > 0 ? gate.missingItems.join("、") : "";
   const riskSource = riskReviewSource(state);
   // 审方结论只影响提示强度和医生复核动作，不参与硬安全门控。
-  const hasStrongRisk = hasCurrentRiskLine(
-    riskSource,
-    /(强提示|(?<!最)高风险|禁用|十八反|十九畏|超出知识库上限|确定性处方风险复核未完成|审方未完成|不能等同为无风险)/,
-  );
+  const hasStrongRisk = hasStrongPrescriptionRisk(state);
   // NOTE: pure evidence-provenance tokens ("待检索"/"证据不足") are intentionally NOT here — every
   // model-inference prescription cites them, so scanning for them mislabels benign cases as 中风险.
   const hasReviewRisk = Boolean(missingAdvisory) || hasCurrentRiskLine(riskSource, /(一般提示|需复核|慎用|相互作用|过敏|特殊人群|信息不足提示|待补充信息后再评估|用药史|当前用药)/);

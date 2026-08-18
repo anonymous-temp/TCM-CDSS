@@ -14,7 +14,7 @@ import {
   runBoundedRxAudit,
   rxAuditSubmissionIssue,
 } from "@/lib/rxaudit";
-import { buildDeterministicRiskFollowupPayload, deriveFirstReviewTiming, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
+import { buildDeterministicRiskFollowupPayload, deriveFirstReviewTiming, deriveSafetyLocked, hasStrongPrescriptionRisk, withSafetyGate } from "@/lib/diagnosis-safety";
 import { authorFollowupClinicalContent } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { editedPrescriptionIssueMessage, editedPrescriptionSemanticIssue, hasIncompleteEditedHerb } from "@/lib/prescription-revision";
@@ -47,7 +47,7 @@ async function authoredFollowupFor(
       .filter(Boolean).join("；"),
     herbs: (selectedCandidate?.herbs || []).map((herb) => herb.name).filter((name): name is string => Boolean(name)),
     // 与 assess 侧同一个值：时间轴第一条必须与正文「首次复诊时间」同源。
-    firstReviewTiming: deriveFirstReviewTiming(assessed, false),
+    firstReviewTiming: deriveFirstReviewTiming(assessed, hasStrongPrescriptionRisk(assessed)),
   }, signal);
 }
 
