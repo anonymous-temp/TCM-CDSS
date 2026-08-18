@@ -94,6 +94,14 @@ try {
   assert.ok(textModelSection.includes("textModelRequestTuning"), "diagnosis-api text stages must use shared request tuning");
   assert.doesNotMatch(textModelSection, /reasoning_effort\s*:|thinking\s*:\s*\{|enable_thinking\s*:/,
     "diagnosis-api text stages still write provider-private request fields inline");
+
+  const probeSource = readFileSync("scripts/probe-qwen-model-matrix.mjs", "utf8");
+  for (const model of ["qwen3.7-plus", "qwen3.7-flash", "qwen3.8-max"]) {
+    assert.ok(probeSource.includes(model), `matrix probe must exercise ${model}`);
+  }
+  assert.doesNotMatch(probeSource, /console\.(?:log|error)\([^\n]*(?:API_KEY|apiKey|authorization)/i,
+    "matrix probe must never print credentials or authorization headers");
+  assert.ok(probeSource.includes("criticalFallback"), "matrix probe must report the Max-to-Plus fallback result");
 } finally {
   for (const [key, value] of Object.entries(originalEnv)) {
     if (value == null) delete process.env[key];
