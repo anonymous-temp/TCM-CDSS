@@ -75,6 +75,7 @@ export const MEDICINE_CLINICAL_CONCEPTS: readonly MedicineClinicalConcept[] = [
   { key: "面部丘疹", axis: "problem", casePattern: /面部丘疹|面部.{0,8}扁平丘疹/, indicationPattern: /面部丘疹|丘疹性皮肤病/, weight: 3 },
   { key: "嗳气", axis: "problem", casePattern: /嗳气|气逆/, indicationPattern: /嗳气|胃气上逆/, weight: 3 },
   { key: "盆腔炎", axis: "problem", casePattern: /盆腔炎|盆腔炎症性疾病/, indicationPattern: /盆腔炎|盆腔炎症性疾病/, weight: 3 },
+  { key: "不孕症", axis: "problem", casePattern: /不孕症|未孕|求嗣/, indicationPattern: /不孕症|不孕不育/, weight: 3 },
 ] as const;
 
 function medicineConceptGovernedId(index: number): string {
