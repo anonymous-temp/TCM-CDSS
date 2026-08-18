@@ -50,6 +50,10 @@ for (const [name, code, display] of [
 assert.equal(resolveIcd10Diagnosis("胃食管反流症状", "证据有限")?.code, "R12.x00x002",
   "证据有限仍可编码已记录的规范症状");
 assert.equal(resolveIcd10Diagnosis("反酸", "证据有限")?.code, "R12.x00x002");
+assert.equal(resolveIcd10Diagnosis("胃食管反流症状，病因待查", "考虑")?.code, "R12.x00x002",
+  "病因待查后缀不得阻断症状编码");
+assert.equal(resolveIcd10Diagnosis("胃食管反流病，病因待查", "考虑"), undefined,
+  "病因待查的疾病名不得借症状编码规则升级为 K21");
 assert.equal(resolveIcd10Diagnosis("胃食管反流病", "证据有限"), undefined,
   "证据有限不得把疾病倾向升级成 K21 正式疾病编码");
 
@@ -61,7 +65,7 @@ assert.match(transformed, /"code":"I10\.x09"/);
 assert.doesNotMatch(transformed, /Z99|模型伪造/);
 
 const refluxSymptomRaw = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
-  westernDiagnosis: { primary: { name: "胃食管反流症状", status: "考虑" }, differentials: [{ name: "胃食管反流病" }] },
+  westernDiagnosis: { primary: { name: "胃食管反流症状，病因待查", status: "考虑" }, differentials: [{ name: "胃食管反流病" }] },
 })}\n<!-- DIAGNOSIS_JSON_END -->`;
 const refluxSymptomTransformed = applyDeterministicIcd10Coding(refluxSymptomRaw);
 const refluxPayload = JSON.parse(refluxSymptomTransformed
@@ -73,4 +77,4 @@ assert.equal(refluxPayload.westernDiagnosis.primary.coding.code, "R12.x00x002");
 assert.equal(refluxPayload.westernDiagnosis.differentials[0].name, "胃食管反流病",
   "疾病实体继续保留在鉴别诊断，不因症状编码而消失");
 
-console.log(JSON.stringify({ cases: 22, failures: 0 }));
+console.log(JSON.stringify({ cases: 24, failures: 0 }));
