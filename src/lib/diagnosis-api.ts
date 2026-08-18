@@ -1675,7 +1675,7 @@ async function retryCompletePrimaryResponse(
           "candidate.decoction 必须是单个对象，并同时包含 doseCount（格式严格为1–30整数加“剂”的纯字符串，如\"5剂\"）、dosesPerDay（1–3整数）和 administrationTimesPerDay（1–6整数且不得小于 dosesPerDay）；三者都不得省略、输出 null、数组或包装对象，doseCount 必须能被 dosesPerDay 整除，course 和复诊节点由服务端统一生成。",
           "经典方/合方服从服务端基础方组成；自拟复方在有依据的前提下应给出完整君臣佐使层次，常见规模8–14味（不少于4味，明确单味方案可为1味），每增加一味都必须同时绑定真实 targetRef 或受控 structureRole、在服务端药味知识库有功能收载、且其收载方向与本例某条已锁定治法方向一致，不得为凑数量增药，也不得加入与任何锁定治法方向无关的药味。每味药 name 必须是纯字符串，dose 必须是带单位的字符串（如10g），role 只能填君/臣/佐/使中的一个字；整个 candidate.herbs 必须恰有 1–2 味君药，且每味君药都必须 targetKind=pathogenesis_node、targetRef=P1。targetKind=pathogenesis_node 时 structureRole 必须为 null；只有 targetKind=formula_structure 时才可填写受控 structureRole。",
           "顶层还必须包含 patentAndWestern 数组、modifications 数组以及完整 nonPharma 对象；patentAndWestern 只能选择已注入的 EVID-INST 或 LOCAL-INST 说明书条目并逐字回填 evidenceId/evidenceFingerprint，西药一律不填剂量，中成药在条目没有完整用法字段时也不猜剂量。modifications 仅允许0-4条无剂量条件性加减，包含 trigger/targetRef/actionType/herbName/reason。",
-          "nonPharma 的 diet、lifestyle、emotion 必须是非空字符串，acupointCare 固定为 null，tcmTreatments 只能包含受控 projectCode 和有效 targetRef 且最多3项，precautions 是0–6条纯字符串注意事项，允许为空数组。不要保留或输出 reasoning-v2 的 overview、pathogenesis、therapy、formula 等字段，也不要重写 M03 字段。",
+          "nonPharma 的 diet、lifestyle、emotion 必须是非空字符串；diet 必须同时包含明确饮食行为和至少一项具体普通食物或餐食示例，示例不宣称治疗功效并避开病历已知限制；acupointCare 固定为 null，tcmTreatments 只能包含受控 projectCode 和有效 targetRef 且最多3项，precautions 是0–6条纯字符串注意事项，允许为空数组。不要保留或输出 reasoning-v2 的 overview、pathogenesis、therapy、formula 等字段，也不要重写 M03 字段。",
         ].join("\n")
       : "";
     const repairFieldRule = structuredStage === "prescribe"

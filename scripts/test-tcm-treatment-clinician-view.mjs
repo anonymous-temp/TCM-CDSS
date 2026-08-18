@@ -207,7 +207,9 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
       scheduleSuggestion: "每日1次，7日后复评。",
     })],
   }));
-  assert.deepEqual(result, [], "通用项目内容仍是治理话术时整卡拒绝，不做字符串修补");
+  assert.equal(result.length, 1, "通用穴位项目有明确部位和排程时，应忽略治理套话并保留结构化方案");
+  assert.equal(result[0].content, "按所列穴位/部位进行推拿");
+  assert.doesNotMatch(JSON.stringify(result[0]), INTERNAL_TERMS);
 }
 
 assert.deepEqual(buildClinicianTreatmentProjects(null), [], "空 nonPharma 不渲染模块");

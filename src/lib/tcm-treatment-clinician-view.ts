@@ -138,12 +138,22 @@ function projectTreatment(
       schedule,
     };
   } else {
-    const content = cleanText(item.treatmentContent);
-    if (!content || containsInternalGovernanceText(content) || !hasActionableSchedule(item.projectCode, schedule)) return null;
-    if (!tcmTreatmentProjectIsPointFree(item.projectCode) && sitesOrPoints.length === 0) return null;
+    const title = cleanText(item.projectName);
+    const pointFree = tcmTreatmentProjectIsPointFree(item.projectCode);
+    const sourceContent = cleanText(item.treatmentContent);
+    if (!title || !hasActionableSchedule(item.projectCode, schedule)) return null;
+    if (!pointFree && sitesOrPoints.length === 0) return null;
+    // 对已有明确穴位/部位和排程的项目，动作本身由受控 projectName + 结构化点位确定。
+    // 原 treatmentContent 即使只是模板/复核说明，也不能连坐删除这些真正有用的信息。
+    const content = pointFree
+      ? sourceContent
+      : containsInternalGovernanceText(sourceContent) || !sourceContent
+        ? `按所列穴位/部位进行${title}`
+        : sourceContent;
+    if (!content || containsInternalGovernanceText(content)) return null;
     projected = {
       projectCode: item.projectCode,
-      title: cleanText(item.projectName),
+      title,
       content,
       ...(sitesOrPoints.length > 0 ? { sitesOrPoints } : {}),
       schedule,

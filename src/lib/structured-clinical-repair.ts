@@ -157,7 +157,7 @@ export function buildM04ClinicalRepairHint(reason = ""): string {
   if (/^m04_non_pharma_(?:incomplete|treatment_count)$/.test(reason)) {
     return [
       "非药物调护合同不完整或项目数超限。",
-      "保持候选方和 M03 不变，只重写 nonPharma：diet、lifestyle、emotion 必须是非空字符串并写成与本例证候对应的可执行专业建议；precautions 是可选的注意事项字符串数组，留空也能通过；tcmTreatments 最多三项，超出时按与 P1/P2 的相关性保留前三项。",
+      "保持候选方和 M03 不变，只重写 nonPharma：diet、lifestyle、emotion 必须是非空字符串并写成与本例证候对应的可执行专业建议；diet 必须同时给出明确饮食行为和至少一项具体普通食物或餐食示例，示例不宣称治疗功效并避开病历已知限制；precautions 是可选的注意事项字符串数组，留空也能通过；tcmTreatments 最多三项，超出时按与 P1/P2 的相关性保留前三项。",
       "每个保留项目仍必须使用受控 projectCode、有效 targetRef 和完整的评估/操作边界；不要用空串、占位语或额外项目绕过字段要求。",
     ].join("\n");
   }
