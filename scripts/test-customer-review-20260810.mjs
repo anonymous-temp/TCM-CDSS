@@ -333,7 +333,7 @@ check("⑩ 模型不得跳过通用指南改绑更窄且病例未证实的病因
     westernDiagnosis: { primary: {
       name: "亚急性咳嗽，病因待查",
       supportingFacts: ["干咳4周"],
-      guidelineRefs: [{ evidenceId: "EVID-GUIDE-002", appliesTo: "病毒感染后持续性咳嗽" }],
+      guidelineRefs: [{ evidenceId: "EVID-GUIDE-001", appliesTo: "病毒感染后持续性咳嗽" }],
     } },
   };
   const resolved = readSentinel(transform(wrap(payload))).westernDiagnosis.primary.guidelineReferences;

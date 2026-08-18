@@ -9,6 +9,7 @@ import { buildLocalPatentMedicineContext } from "./local-patent-medicine-candida
 import { buildClinicalDecisionCardContext } from "./tcm-clinical-decision-cards";
 import type { AssistedNegationClauses } from "./clinical-polarity";
 import { matchesPopulationScope } from "./clinical-vocabulary";
+import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
 
@@ -102,6 +103,50 @@ function diagnosticReferenceAppliesToPatient(
   return true;
 }
 
+function diagnosticReferenceAnchors(payload: Record<string, unknown>, caseState?: CaseState): string[] {
+  const western = payload.westernDiagnosis;
+  const primary = western && typeof western === "object" && !Array.isArray(western)
+    ? (western as { primary?: unknown }).primary
+    : undefined;
+  const primaryName = primary && typeof primary === "object" && !Array.isArray(primary)
+    ? String((primary as { name?: unknown }).name || "").trim()
+    : "";
+  const normalizedPrimary = primaryName
+    .replace(/[，,（(]?(?:病因待查|待查|症状性)[）)]?$/g, "")
+    .replace(/^(?:急性|亚急性|慢性|反复性)/, "")
+    .trim();
+  const caseText = [primaryName, caseState?.chiefComplaint].filter(Boolean).join("；");
+  return [...new Set([
+    normalizedPrimary,
+    ...matchingMedicineClinicalProblemTerms(caseText),
+  ].map((item) => item.trim()).filter((item) => item.length >= 2))];
+}
+
+function preferredDiagnosticCitation(
+  payload: Record<string, unknown>,
+  scope: EvidenceScope,
+  caseState?: CaseState,
+): ReturnType<typeof governedEvidenceCitation> {
+  const anchors = diagnosticReferenceAnchors(payload, caseState);
+  const candidates = scope.records.flatMap((evidenceRecord, recordIndex) =>
+    [...evidenceRecord.ids].flatMap((evidenceId) => {
+      if (!/^EVID-(?:GUIDE|PAPER)-\d{3}$/.test(evidenceId) ||
+        !diagnosticReferenceAppliesToPatient(evidenceId, scope, caseState)) return [];
+      const citation = governedEvidenceCitation(evidenceId, scope);
+      if (!citation) return [];
+      let relevance = 0;
+      for (const anchor of anchors) {
+        const titleIndex = citation.citation.indexOf(anchor);
+        if (titleIndex >= 0) relevance = Math.max(relevance, 100 - Math.min(60, titleIndex));
+        else if (evidenceRecord.text.includes(anchor)) relevance = Math.max(relevance, 20);
+      }
+      const sourcePriority = evidenceId.startsWith("EVID-GUIDE-") ? 10 : 0;
+      return [{ citation, score: relevance + sourcePriority, recordIndex }];
+    }));
+  candidates.sort((left, right) => right.score - left.score || left.recordIndex - right.recordIndex);
+  return candidates[0]?.citation;
+}
+
 function resolveGovernedGuidelineReferences(
   payload: Record<string, unknown>,
   scope: EvidenceScope,
@@ -139,17 +184,7 @@ function resolveGovernedGuidelineReferences(
   // 模型只在恰好选中同一条时贡献 appliesTo；题名、年份、URL 与排序权均不交给模型。
   // 没有真实检索记录就保持空，绝不自造。
   if (payload.stage === "diagnose") {
-    let authoritative: ReturnType<typeof governedEvidenceCitation>;
-    for (const pattern of [/^EVID-GUIDE-\d{3}$/, /^EVID-PAPER-\d{3}$/]) {
-      const evidenceId = scope.records
-        .flatMap((evidenceRecord) => [...evidenceRecord.ids])
-        .find((candidate) => pattern.test(candidate) && diagnosticReferenceAppliesToPatient(candidate, scope, caseState));
-      const citation = governedEvidenceCitation(evidenceId, scope);
-      if (citation) {
-        authoritative = citation;
-        break;
-      }
-    }
+    const authoritative = preferredDiagnosticCitation(payload, scope, caseState);
     if (authoritative) {
       const sameClaim = resolved.find((item) => item.evidenceId === authoritative?.evidenceId);
       resolved.splice(0, resolved.length, {
