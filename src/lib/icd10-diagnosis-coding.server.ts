@@ -42,7 +42,7 @@ function normalizeDiagnosisName(value: string): string {
   return value
     .normalize("NFKC")
     .replace(/^(?:西医诊断|初步诊断|临床诊断|考虑|疑似|可能)\s*[：:]?/g, "")
-    .replace(/(?:可能|待排|待明确|待鉴别|倾向)$/g, "")
+    .replace(/[，,]?(?:病因待查|病因待鉴别|病因未明|可能|待排|待明确|待鉴别|倾向)$/g, "")
     .replace(/[\s\-—_，,。；;：:（）()\[\]［］【】“”"'‘’/\\]/g, "")
     .toLowerCase();
 }
@@ -79,10 +79,12 @@ function lookupKeys(name: string): string[] {
 
 export function resolveIcd10Diagnosis(name: string, status: string = "考虑"): Icd10DiagnosisCoding | undefined {
   const limitedEvidence = status === "证据有限";
-  if ((status !== "考虑" && !limitedEvidence) || /(?:症状性诊断|病因待|急危重症风险|无法形成|待临床鉴别)/.test(name)) return undefined;
+  const causeUnresolved = /(?:病因待查|病因待鉴别|病因未明)/.test(name);
+  if ((status !== "考虑" && !limitedEvidence) || /(?:症状性诊断|急危重症风险|无法形成|待临床鉴别)/.test(name)) return undefined;
+  const symptomOnlyBoundary = limitedEvidence || causeUnresolved;
   const normalized = normalizeDiagnosisName(name);
   const limitedStatusAllows = (entry: IcdEntry): boolean =>
-    !limitedEvidence || entry.code.startsWith("R") || normalized.endsWith("症状");
+    !symptomOnlyBoundary || entry.code.startsWith("R") || normalized.endsWith("症状");
   for (const key of lookupKeys(name)) {
     const match = uniqueBestEntry(byAlias.get(key) || []);
     if (match && limitedStatusAllows(match)) {
@@ -95,7 +97,7 @@ export function resolveIcd10Diagnosis(name: string, status: string = "考虑"): 
   if (governed && limitedStatusAllows(governed)) {
     return { system: "ICD-10", code: governed.code, display: governed.name, source: SOURCE, mapping: "governed_alias" };
   }
-  if (limitedEvidence) return undefined;
+  if (symptomOnlyBoundary) return undefined;
   const fuzzySubcategories = entries.filter((entry) =>
     entry.level === "subcategory" &&
     [entry.name, ...entry.aliases].some((alias) => {
