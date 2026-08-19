@@ -9,6 +9,7 @@ import {
   buildRxAuditCorrelationMetadata,
   dedupeRxAuditIssues,
   getRxAuditAttemptTimeoutMs,
+  getRxAuditConfig,
   getRxAuditTimeoutMs,
   mergeLocalHighRiskHerbPairIssues,
   normalizeAuditOutcomeForPatient,
@@ -44,6 +45,26 @@ assert.equal(getRxAuditTimeoutMs("1000"), 1000);
 assert.equal(getRxAuditTimeoutMs("30000"), 30000);
 assert.equal(getRxAuditAttemptTimeoutMs("1000"), 1000);
 assert.equal(getRxAuditAttemptTimeoutMs("30000"), 30000);
+
+// Customer-scoped CDSS inventory/auth context is not the same identity domain as the
+// provider-issued LingXi audit tenant. Passing a customer id through the clinical state must
+// never replace the X-Tenant-Id authorized for the provider API key.
+{
+  const previousTenant = process.env.RXAI_AUDIT_TENANT_ID;
+  const previousSystemCode = process.env.RXAI_AUDIT_SYSTEM_CODE;
+  process.env.RXAI_AUDIT_TENANT_ID = "PROVIDER_AUTHORIZED_TENANT";
+  process.env.RXAI_AUDIT_SYSTEM_CODE = "PROVIDER_AUTHORIZED_SYSTEM";
+  try {
+    const config = getRxAuditConfig("customer-a");
+    assert.equal(config.tenantId, "PROVIDER_AUTHORIZED_TENANT");
+    assert.equal(config.systemCode, "PROVIDER_AUTHORIZED_SYSTEM");
+  } finally {
+    if (previousTenant == null) delete process.env.RXAI_AUDIT_TENANT_ID;
+    else process.env.RXAI_AUDIT_TENANT_ID = previousTenant;
+    if (previousSystemCode == null) delete process.env.RXAI_AUDIT_SYSTEM_CODE;
+    else process.env.RXAI_AUDIT_SYSTEM_CODE = previousSystemCode;
+  }
+}
 
 const duplicateIssues = dedupeRxAuditIssues([
   {
