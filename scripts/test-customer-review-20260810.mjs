@@ -371,6 +371,26 @@ check("⑩ 真实但与主诊断无关的检索结果不得为了填栏被强行
   assert.equal(primary.guidelineReferences, undefined, "无主诊断相关性时宁可不展示，也不能塞无关真文献");
 });
 
+check("⑩ 中医共识不得进入西医诊断参考文献栏，命中中医病名时应留在中医辨病依据", () => {
+  const tcmOnly = "[EVID-GUIDE-001] 嗳气中医诊疗专家共识（中华中医药学会脾胃病分会，2024）：中医辨病涉及嗳气、反酸。";
+  const transform = buildEvidenceOutputTransform(tcmOnly, undefined, {
+    id: "reflux-tcm-domain-separation",
+    phase: "diagnose",
+    patient: { sex: "女", age: 78 },
+    chiefComplaint: "反酸、嗳气反复1年",
+    symptoms: { presentHistory: "餐后加重" },
+    conversation: [],
+  });
+  const payload = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "嗳气", primarySyndrome: "脾胃虚弱证" },
+    westernDiagnosis: { primary: { name: "反酸", supportingFacts: ["反酸、嗳气反复1年"] } },
+  };
+  const parsed = readSentinel(transform(wrap(payload)));
+  assert.equal(parsed.westernDiagnosis.primary.guidelineReferences, undefined, "中医共识不能替西医工作诊断背书");
+  assert.equal(parsed.overview.tcmDiseaseReferences?.[0]?.evidenceId, "EVID-GUIDE-001", "中医共识应绑定到中医辨病依据");
+});
+
 check("⑩ 解析必须幂等，且伪造的 citation 不得存活", () => {
   // 本转换会在同一份内容上被多次调用（流式草稿、最终输出、截断兜底各一次）。
   // 第一版只读 guidelineRefs 而无条件删除 guidelineReferences——第二遍会把第一遍的结果删掉，
