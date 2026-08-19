@@ -51,6 +51,7 @@ const { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf, cl
 const { importDrugInventory, drugInventorySnapshot, resetDrugInventoryCacheForTests } =
   await load("src/lib/drug-inventory.server.ts");
 const { prioritizeTcmEvidenceForDisplay } = await load("src/lib/clinical-evidence-display.ts");
+const CUSTOMER_ID = "test-hospital";
 
 const failures = [];
 let checks = 0;
@@ -475,22 +476,22 @@ check("⑨ 同模型第二次请求不得被称作「独立复核」", () => {
 await check("⑫④ 分片导入不得让前一批被后一批覆盖", async () => {
   const batch1 = ["麻黄", "桂枝", "杏仁", "甘草"].map((name) => ({ name, kind: "herb" }));
   const batch2 = ["柴胡", "黄芩", "半夏"].map((name) => ({ name, kind: "herb" }));
-  await importDrugInventory({ source: "t", items: batch1 });
+  await importDrugInventory(CUSTOMER_ID, { source: "t", items: batch1 });
   resetDrugInventoryCacheForTests();
-  const baseline = (await drugInventorySnapshot()).itemCount;
+  const baseline = (await drugInventorySnapshot(CUSTOMER_ID)).itemCount;
   assert.equal(baseline, 4);
 
-  const first = await importDrugInventory({ source: "t", items: batch1, part: { importId: "imp-20260810", index: 0, total: 2 } });
+  const first = await importDrugInventory(CUSTOMER_ID, { source: "t", items: batch1, part: { importId: "imp-20260810", index: 0, total: 2 } });
   assert.ok(first.ok && "pending" in first, "缺片时必须返回待补状态而不是提交");
   resetDrugInventoryCacheForTests();
-  assert.equal((await drugInventorySnapshot()).itemCount, baseline, "缺片期间线上库存一个字节都不许动");
+  assert.equal((await drugInventorySnapshot(CUSTOMER_ID)).itemCount, baseline, "缺片期间线上库存一个字节都不许动");
 
-  const second = await importDrugInventory({ source: "t", items: batch2, part: { importId: "imp-20260810", index: 1, total: 2 } });
+  const second = await importDrugInventory(CUSTOMER_ID, { source: "t", items: batch2, part: { importId: "imp-20260810", index: 1, total: 2 } });
   assert.ok(second.ok && "snapshot" in second, "集齐后才提交");
   resetDrugInventoryCacheForTests();
-  assert.equal((await drugInventorySnapshot()).itemCount, 7, "两片合起来是一整批，一味不丢");
+  assert.equal((await drugInventorySnapshot(CUSTOMER_ID)).itemCount, 7, "两片合起来是一整批，一味不丢");
 
-  const over = await importDrugInventory({ items: Array.from({ length: 20_001 }, (_, index) => ({ name: `药${index}`, kind: "herb" })) });
+  const over = await importDrugInventory(CUSTOMER_ID, { items: Array.from({ length: 20_001 }, (_, index) => ({ name: `药${index}`, kind: "herb" })) });
   assert.equal(over.ok, false);
   assert.doesNotMatch(over.error, /split the import into batches/,
     "413 文案不得再教对方分批——落盘是整批替换，分批会让第一批被删光");

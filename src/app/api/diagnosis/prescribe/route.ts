@@ -18,6 +18,7 @@ import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignatur
 import { CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS, hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
 import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
+import { requireCustomerContext } from "@/lib/customer-context";
 import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
@@ -39,6 +40,9 @@ export async function POST(req: Request) {
   const orchestrationStartedAt = Date.now();
   const parsed = await readCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
+  const customer = await requireCustomerContext(req, parsed.caseState);
+  if (!customer.ok) return customer.response;
+  parsed.caseState.customerId = customer.context.customerId;
   const signedPriorReasoning = diagnoseReasoningFromState(parsed.caseState);
   if (!signedPriorReasoning || !verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)) {
     return Response.json({ error: "辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。" }, { status: 409 });
@@ -195,7 +199,7 @@ export async function POST(req: Request) {
       buildCdssEvidenceContext(safeState, "prescribe", assistedNegations)),
     // 院内库存可得性（甲方 2026-08-05 入站药品同步）。未导入库存时返回空串，
     // 提示词与导入前逐字节相同——可得性不是安全控制，缺数据不得改变链路行为。
-    buildDrugInventoryPromptContext(),
+    buildDrugInventoryPromptContext(customer.context.customerId),
   ]);
   const evidenceContext = [baseEvidenceContext, medicinePlan.evidenceContext].filter(Boolean).join("\n\n");
   const basePrompt = buildPrescribePrompt(safeState);

@@ -22,6 +22,7 @@ import { buildEvidenceScope } from "@/lib/evidence-source-validation";
 import { createHash } from "node:crypto";
 import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { drugAvailabilityProjection } from "@/lib/drug-inventory.server";
+import { requireCustomerContext } from "@/lib/customer-context";
 import {
   canonicalTcmProjectProtocolStatuses,
   hisSchemeContractVersionFromRequest,
@@ -57,8 +58,9 @@ async function evidenceScopeForCase(caseState: Parameters<typeof sanitizeCaseSta
 async function withDrugAvailability(
   payload: Awaited<ReturnType<typeof buildHisAiSchemePayload>>,
   contractVersion: HisSchemeContractVersion,
+  customerId: string,
 ) {
-  const availability = await drugAvailabilityProjection(payload.prescriptions.structuredHerbs);
+  const availability = await drugAvailabilityProjection(payload.prescriptions.structuredHerbs, customerId);
   // 契约版本投影必须是出参的**最后一步**：折叠 protocolStatus 之后就再也读不到规范三态，
   // 因此先把规范值取出来交给投影函数（见 his-scheme-contract-version 的说明）。
   return projectHisSchemeForContractVersion(
@@ -71,6 +73,9 @@ async function withDrugAvailability(
 export async function POST(req: Request) {
   const parsed = await readCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
+  const customer = await requireCustomerContext(req, parsed.caseState);
+  if (!customer.ok) return customer.response;
+  parsed.caseState.customerId = customer.context.customerId;
   const contractVersion = hisSchemeContractVersionFromRequest(req, parsed.body);
   // Evidence retrieval is independent of the semantic red-flag projection. Run it concurrently so
   // the HIS boundary cannot serially consume the full clinical-facts budget and then the full
@@ -91,11 +96,11 @@ export async function POST(req: Request) {
       reasoningV2: diagnoseOnlyReasoning,
       prescriptionRevision: undefined,
     };
-    return Response.json(await withDrugAvailability(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise), contractVersion));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise), contractVersion, customer.context.customerId));
   }
 
   if (!prescribed && !caseState.prescriptionRevision && !caseState.prescription?.trim()) {
-    return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise), contractVersion));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise), contractVersion, customer.context.customerId));
   }
 
   const validation = validateHisPrescriptionForWriteBack(caseState);
@@ -156,7 +161,7 @@ export async function POST(req: Request) {
       auditedAt,
     });
     return Response.json({
-      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise), contractVersion)),
+      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise), contractVersion, customer.context.customerId)),
       auditCorrelation: correlation,
     });
   }
@@ -203,7 +208,7 @@ export async function POST(req: Request) {
     auditedAt,
   });
   return Response.json({
-    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise), contractVersion)),
+    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise), contractVersion, customer.context.customerId)),
     auditCorrelation: correlation,
   });
 }

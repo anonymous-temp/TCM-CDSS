@@ -25,6 +25,8 @@ const jiti = createJiti(import.meta.url, {
 });
 const inv = await jiti.import("../src/lib/drug-inventory.server.ts");
 const route = await jiti.import("../src/app/api/drug-inventory/route.ts");
+const CUSTOMER_ID = "test-hospital";
+const customerHeaders = { "x-cdss-customer-id": CUSTOMER_ID };
 
 const failures = [];
 async function check(name, fn) {
@@ -37,21 +39,21 @@ async function check(name, fn) {
 
 const post = (body) => route.POST(new Request("http://localhost:3000/api/drug-inventory", {
   method: "POST",
-  headers: { "content-type": "application/json" },
+  headers: { "content-type": "application/json", ...customerHeaders },
   body: JSON.stringify(body),
 }));
 
 // —— 未导入库存时，行为必须与接库存前完全一致 ——
 await check("INV-01 未导入库存：可得性全 unknown，不阻断任何链路", async () => {
   inv.resetDrugInventoryCacheForTests();
-  const view = await inv.herbAvailabilityView();
+  const view = await inv.herbAvailabilityView(CUSTOMER_ID);
   assert.equal(view.inventoryLoaded, false);
   assert.equal(view.statusOf("黄芪"), "unknown", "未导入库存时不得判任何药为缺货");
-  assert.deepEqual(await inv.outOfStockAdvice(["黄芪", "当归"]), [],
+  assert.deepEqual(await inv.outOfStockAdvice(["黄芪", "当归"], CUSTOMER_ID), [],
     "未导入库存时不得产生缺货建议");
-  assert.equal(await inv.buildDrugInventoryPromptContext(), "",
+  assert.equal(await inv.buildDrugInventoryPromptContext(CUSTOMER_ID), "",
     "未导入库存时提示词必须与接入前逐字节相同");
-  const status = await (await route.GET()).json();
+  const status = await (await route.GET(new Request("http://localhost:3000/api/drug-inventory", { headers: customerHeaders }))).json();
   assert.equal(status.inventoryLoaded, false);
 });
 
@@ -81,14 +83,14 @@ await check("INV-02 导入落盘并可跨进程重读（重启不丢）", async 
   assert.ok(body.inventoryVersion, "缺库存版本");
   // 清进程内缓存后重读，模拟重启
   inv.resetDrugInventoryCacheForTests();
-  const reloaded = await inv.drugInventorySnapshot();
+  const reloaded = await inv.drugInventorySnapshot(CUSTOMER_ID);
   assert.equal(reloaded.inventoryVersion, body.inventoryVersion, "重启后库存版本必须一致");
   assert.equal(reloaded.itemCount, 10);
 });
 
 await check("INV-03 可得性判定：有货/缺货/院内目录外", async () => {
   inv.resetDrugInventoryCacheForTests();
-  const view = await inv.herbAvailabilityView();
+  const view = await inv.herbAvailabilityView(CUSTOMER_ID);
   assert.equal(view.inventoryLoaded, true);
   assert.equal(view.statusOf("黄芪"), "in_stock");
   assert.equal(view.statusOf("人参"), "out_of_stock", "院内目录里标记不可用的药必须判缺货");
@@ -101,7 +103,7 @@ await check("INV-03 可得性判定：有货/缺货/院内目录外", async () =
 await check("INV-04 缺货药不得从处方中删除，只能标注 + 给替代", async () => {
   inv.resetDrugInventoryCacheForTests();
   const prescription = ["黄芪", "人参", "当归", "白术"];
-  const advice = await inv.outOfStockAdvice(prescription);
+  const advice = await inv.outOfStockAdvice(prescription, CUSTOMER_ID);
   assert.equal(advice.length, 1, "应且只应报出人参一味缺货");
   assert.equal(advice[0].herb, "人参");
   assert.equal(advice[0].availability, "out_of_stock");
@@ -116,8 +118,8 @@ await check("INV-04 缺货药不得从处方中删除，只能标注 + 给替代
 
 await check("INV-05 替代候选必须先过安全边界、再按库存过滤（顺序不可反）", async () => {
   inv.resetDrugInventoryCacheForTests();
-  const view = await inv.herbAvailabilityView();
-  const advice = await inv.outOfStockAdvice(["黄芪", "人参", "当归", "白术"]);
+  const view = await inv.herbAvailabilityView(CUSTOMER_ID);
+  const advice = await inv.outOfStockAdvice(["黄芪", "人参", "当归", "白术"], CUSTOMER_ID);
   for (const sub of advice[0].substitutes) {
     assert.equal(view.statusOf(sub.substitute), "in_stock",
       `替代候选 ${sub.substitute} 不在院内库存里，给了也开不出来`);
@@ -128,7 +130,7 @@ await check("INV-05 替代候选必须先过安全边界、再按库存过滤（
 
 await check("INV-06 提示词是软偏好，必须明写「临床必须时不得迁就库存」", async () => {
   inv.resetDrugInventoryCacheForTests();
-  const context = await inv.buildDrugInventoryPromptContext();
+  const context = await inv.buildDrugInventoryPromptContext(CUSTOMER_ID);
   assert.ok(context.includes("黄芪"), "有货清单未进提示词");
   assert.ok(!context.includes("人参"), "缺货药不得出现在有货清单里");
   assert.ok(/不得为迁就库存/.test(context),
@@ -167,11 +169,11 @@ await check("INV-08 归一不到正名的院内药名如实回报，不静默吞
 await check("INV-09 整批替换语义：重新导入后旧条目不残留", async () => {
   await post({ source: "第一批", items: [{ name: "黄芪", kind: "herb", available: true }] });
   inv.resetDrugInventoryCacheForTests();
-  let view = await inv.herbAvailabilityView();
+  let view = await inv.herbAvailabilityView(CUSTOMER_ID);
   assert.equal(view.statusOf("黄芪"), "in_stock");
   await post({ source: "第二批", items: [{ name: "当归", kind: "herb", available: true }] });
   inv.resetDrugInventoryCacheForTests();
-  view = await inv.herbAvailabilityView();
+  view = await inv.herbAvailabilityView(CUSTOMER_ID);
   assert.equal(view.statusOf("当归"), "in_stock");
   assert.equal(view.statusOf("黄芪"), "out_of_stock",
     "整批替换后旧批次药味不得残留为有货——残留会让已下架的药长期被当成有货");
@@ -190,7 +192,7 @@ await check("INV-11 HIS 投影带可得性，但处方药味逐字不变", async
   await post(HOSPITAL_STOCK);
   inv.resetDrugInventoryCacheForTests();
   const herbs = [{ name: "黄芪" }, { name: "人参" }, { name: "当归" }];
-  const projection = await inv.drugAvailabilityProjection(herbs);
+  const projection = await inv.drugAvailabilityProjection(herbs, CUSTOMER_ID);
   assert.equal(projection.inventory.loaded, true);
   assert.deepEqual(projection.herbAvailability.map((item) => item.name), ["黄芪", "人参", "当归"],
     "投影不得增删或重排处方药味");

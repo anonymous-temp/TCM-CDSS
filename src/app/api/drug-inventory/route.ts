@@ -1,5 +1,6 @@
 import { readJsonBodyWithLimit } from "@/lib/http-guard";
 import { drugInventorySnapshot, importDrugInventory } from "@/lib/drug-inventory.server";
+import { requireCustomerContext } from "@/lib/customer-context";
 
 /**
  * 院内药品库存导入（甲方 2026-08-05「药品同步接口」入站方向）。
@@ -17,13 +18,15 @@ import { drugInventorySnapshot, importDrugInventory } from "@/lib/drug-inventory
 const MAX_BODY_BYTES = 8_000_000;
 
 export async function POST(req: Request) {
+  const customer = await requireCustomerContext(req);
+  if (!customer.ok) return customer.response;
   const parsed = await readJsonBodyWithLimit(req, MAX_BODY_BYTES);
   if (!parsed.ok) return parsed.response;
   const body = parsed.body && typeof parsed.body === "object" && !Array.isArray(parsed.body)
     ? parsed.body as { source?: unknown; items?: unknown; part?: unknown }
     : {};
 
-  const result = await importDrugInventory(body);
+  const result = await importDrugInventory(customer.context.customerId, body);
   if (!result.ok) {
     return Response.json({ error: result.error, code: result.code }, { status: result.status });
   }
@@ -47,8 +50,10 @@ export async function POST(req: Request) {
   });
 }
 
-export async function GET() {
-  const snapshot = await drugInventorySnapshot();
+export async function GET(req: Request) {
+  const customer = await requireCustomerContext(req);
+  if (!customer.ok) return customer.response;
+  const snapshot = await drugInventorySnapshot(customer.context.customerId);
   if (!snapshot) {
     return Response.json({
       inventoryLoaded: false,

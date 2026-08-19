@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { parseCustomerId } from "./customer-id";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { governedHerbSubstitutes, isKnownTcmHerbName, type GovernedHerbSubstitute } from "./tcm-knowledge";
 
@@ -67,12 +68,23 @@ type InventoryFile = DrugInventorySnapshot & { items: DrugInventoryItem[] };
 const MAX_ITEMS = 20_000;
 const MAX_UNRESOLVED_REPORTED = 200;
 
-let cache: InventoryFile | null = null;
-let cacheLoaded = false;
+const cacheByCustomer = new Map<string, InventoryFile | null>();
+const loadedCustomers = new Set<string>();
 
-export function drugInventoryPath(): string {
+function validCustomerId(customerId: string): string {
+  const valid = parseCustomerId(customerId);
+  if (!valid) throw new Error("invalid customerId for drug inventory");
+  return valid;
+}
+
+export function drugInventoryPath(customerIdInput: string): string {
+  const customerId = validCustomerId(customerIdInput);
   const configured = process.env.CDSS_DRUG_INVENTORY_PATH?.trim();
-  return configured ? resolve(configured) : resolve(process.cwd(), "artifacts/runtime/drug-inventory.json");
+  const root = configured
+    ? resolve(configured.endsWith(".json") ? `${configured}.d` : configured)
+    : resolve(process.cwd(), "artifacts/runtime/drug-inventory");
+  const customerHash = createHash("sha256").update(customerId).digest("hex").slice(0, 32);
+  return resolve(root, `${customerHash}.json`);
 }
 
 function text(value: unknown): string {
@@ -80,21 +92,27 @@ function text(value: unknown): string {
 }
 
 /** 测试用：清掉进程内缓存，强制下次从磁盘重读。 */
-export function resetDrugInventoryCacheForTests(): void {
-  cache = null;
-  cacheLoaded = false;
+export function resetDrugInventoryCacheForTests(customerId?: string): void {
+  if (customerId) {
+    cacheByCustomer.delete(validCustomerId(customerId));
+    loadedCustomers.delete(validCustomerId(customerId));
+    return;
+  }
+  cacheByCustomer.clear();
+  loadedCustomers.clear();
 }
 
-async function load(): Promise<InventoryFile | null> {
-  if (cacheLoaded) return cache;
-  cacheLoaded = true;
+async function load(customerIdInput: string): Promise<InventoryFile | null> {
+  const customerId = validCustomerId(customerIdInput);
+  if (loadedCustomers.has(customerId)) return cacheByCustomer.get(customerId) || null;
+  loadedCustomers.add(customerId);
   try {
-    const parsed = JSON.parse(await readFile(drugInventoryPath(), "utf8")) as Partial<InventoryFile>;
+    const parsed = JSON.parse(await readFile(drugInventoryPath(customerId), "utf8")) as Partial<InventoryFile>;
     if (!Array.isArray(parsed.items) || typeof parsed.inventoryVersion !== "string") {
-      cache = null;
-      return cache;
+      cacheByCustomer.set(customerId, null);
+      return null;
     }
-    cache = {
+    const loaded: InventoryFile = {
       inventoryVersion: parsed.inventoryVersion,
       importedAt: text(parsed.importedAt),
       source: text(parsed.source),
@@ -105,11 +123,13 @@ async function load(): Promise<InventoryFile | null> {
       ambiguousNames: Array.isArray(parsed.ambiguousNames) ? parsed.ambiguousNames : [],
       items: parsed.items,
     };
+    cacheByCustomer.set(customerId, loaded);
+    return loaded;
   } catch {
     // 文件不存在 / 解析失败一律当作「未导入库存」，绝不抛错阻断开方链路。
-    cache = null;
+    cacheByCustomer.set(customerId, null);
+    return null;
   }
-  return cache;
 }
 
 export type DrugInventoryImportInput = {
@@ -147,8 +167,8 @@ type StagedImport = {
 const MAX_IMPORT_PARTS = 50;
 const STAGED_IMPORT_TTL_MS = 24 * 60 * 60 * 1000;
 
-function stagedImportPath(importId: string): string {
-  const target = drugInventoryPath();
+function stagedImportPath(customerId: string, importId: string): string {
+  const target = drugInventoryPath(customerId);
   return `${target}.staging-${importId}.json`;
 }
 
@@ -157,9 +177,9 @@ function normalizedImportId(value: unknown): string {
   return /^[A-Za-z0-9_-]{6,64}$/.test(raw) ? raw : "";
 }
 
-async function readStagedImport(importId: string): Promise<StagedImport | null> {
+async function readStagedImport(customerId: string, importId: string): Promise<StagedImport | null> {
   try {
-    const parsed = JSON.parse(await readFile(stagedImportPath(importId), "utf8")) as Partial<StagedImport>;
+    const parsed = JSON.parse(await readFile(stagedImportPath(customerId, importId), "utf8")) as Partial<StagedImport>;
     if (parsed.importId !== importId || !parsed.parts || typeof parsed.parts !== "object") return null;
     const startedAt = Date.parse(String(parsed.startedAt || ""));
     // 过期暂存一律当作不存在：一份半年前没传完的分片不该在今天被接上去当成完整库存。
@@ -176,8 +196,8 @@ async function readStagedImport(importId: string): Promise<StagedImport | null> 
   }
 }
 
-async function writeStagedImport(staged: StagedImport): Promise<void> {
-  const target = stagedImportPath(staged.importId);
+async function writeStagedImport(customerId: string, staged: StagedImport): Promise<void> {
+  const target = stagedImportPath(customerId, staged.importId);
   await mkdir(dirname(target), { recursive: true });
   const tmp = `${target}.${process.pid}.tmp`;
   await writeFile(tmp, JSON.stringify(staged), "utf8");
@@ -198,7 +218,11 @@ async function writeStagedImport(staged: StagedImport): Promise<void> {
  * 集齐 total 片后才做一次整批替换；缺片时返回 409 并列出缺哪几片，
  * 在此之前线上库存一个字节都不动。语义仍然是「整批替换」，只是这一整批分了几次传。
  */
-export async function importDrugInventory(input: DrugInventoryImportInput): Promise<DrugInventoryImportResult> {
+export async function importDrugInventory(
+  customerIdInput: string,
+  input: DrugInventoryImportInput,
+): Promise<DrugInventoryImportResult> {
+  const customerId = validCustomerId(customerIdInput);
   const rawItems = input.items;
   if (!Array.isArray(rawItems)) {
     return { ok: false, status: 400, code: "invalid_inventory_items", error: "items must be an array" };
@@ -207,9 +231,9 @@ export async function importDrugInventory(input: DrugInventoryImportInput): Prom
     ? input.part as Record<string, unknown>
     : undefined;
   if (partInput) {
-    const staged = await stageInventoryPart(partInput, rawItems, text(input.source));
+    const staged = await stageInventoryPart(customerId, partInput, rawItems, text(input.source));
     if (!staged.ok || "pending" in staged) return staged;
-    return commitInventoryItems(staged.items, staged.source);
+    return commitInventoryItems(customerId, staged.items, staged.source);
   }
   if (rawItems.length > MAX_ITEMS) {
     return {
@@ -222,10 +246,11 @@ export async function importDrugInventory(input: DrugInventoryImportInput): Prom
     };
   }
 
-  return commitInventoryItems(rawItems, text(input.source));
+  return commitInventoryItems(customerId, rawItems, text(input.source));
 }
 
 async function stageInventoryPart(
+  customerId: string,
   partInput: Record<string, unknown>,
   rawItems: unknown[],
   source: string,
@@ -242,7 +267,7 @@ async function stageInventoryPart(
   if (!Number.isInteger(index) || index < 0 || index >= total) {
     return { ok: false, status: 400, code: "invalid_import_part_index", error: "part.index must be an integer in 0..total-1" };
   }
-  const existing = await readStagedImport(importId);
+  const existing = await readStagedImport(customerId, importId);
   if (existing && existing.total !== total) {
     return { ok: false, status: 409, code: "import_part_total_conflict", error: `part.total changed mid-import (was ${existing.total})` };
   }
@@ -264,7 +289,7 @@ async function stageInventoryPart(
       error: `accumulated items across parts exceeds the ${MAX_ITEMS} entry limit; nothing was written`,
     };
   }
-  await writeStagedImport(staged);
+  await writeStagedImport(customerId, staged);
   const receivedParts = Object.keys(staged.parts).map(Number).sort((left, right) => left - right);
   const missingParts = Array.from({ length: total }, (_, position) => position)
     .filter((position) => !receivedParts.includes(position));
@@ -273,11 +298,15 @@ async function stageInventoryPart(
     return { ok: true, pending: { importId, receivedParts, missingParts, total, bufferedItemCount, committed: false } };
   }
   const items = receivedParts.flatMap((position) => staged.parts[String(position)]);
-  await rm(stagedImportPath(importId), { force: true }).catch(() => undefined);
+  await rm(stagedImportPath(customerId, importId), { force: true }).catch(() => undefined);
   return { ok: true, items, source: staged.source };
 }
 
-async function commitInventoryItems(rawItems: unknown[], source: string): Promise<DrugInventoryImportResult> {
+async function commitInventoryItems(
+  customerId: string,
+  rawItems: unknown[],
+  source: string,
+): Promise<DrugInventoryImportResult> {
   const items: DrugInventoryItem[] = [];
   const unresolved = new Set<string>();
   const ambiguous = new Set<string>();
@@ -339,22 +368,22 @@ async function commitInventoryItems(rawItems: unknown[], source: string): Promis
     items,
   };
 
-  const target = drugInventoryPath();
+  const target = drugInventoryPath(customerId);
   await mkdir(dirname(target), { recursive: true });
   // 原子替换：半截文件被读成空库存会让整院所有药味变「缺货」，后果远重于一次写失败。
   const staging = `${target}.${process.pid}.tmp`;
   await writeFile(staging, JSON.stringify(file), "utf8");
   await rename(staging, target);
 
-  cache = file;
-  cacheLoaded = true;
+  cacheByCustomer.set(customerId, file);
+  loadedCustomers.add(customerId);
   const { items: _items, ...snapshot } = file;
   void _items;
   return { ok: true, snapshot };
 }
 
-export async function drugInventorySnapshot(): Promise<DrugInventorySnapshot | null> {
-  const file = await load();
+export async function drugInventorySnapshot(customerId: string): Promise<DrugInventorySnapshot | null> {
+  const file = await load(customerId);
   if (!file) return null;
   const { items: _items, ...snapshot } = file;
   void _items;
@@ -378,8 +407,8 @@ const EMPTY_VIEW: HerbAvailabilityView = {
   statusOf: () => "unknown",
 };
 
-export async function herbAvailabilityView(): Promise<HerbAvailabilityView> {
-  const file = await load();
+export async function herbAvailabilityView(customerId: string): Promise<HerbAvailabilityView> {
+  const file = await load(customerId);
   if (!file) return EMPTY_VIEW;
   const availableCanonical = new Set<string>();
   const availableRaw = new Set<string>();
@@ -423,8 +452,8 @@ const PROMPT_SHORTLIST_LIMIT = 600;
  * 若写成「只能从清单里选」，遇到院内没有麻黄的风寒表实证，模型就会去凑一个次优方，
  * 而医生看不出这是被库存扭曲过的推荐——那比直接告诉他「本方需要麻黄、院内暂无」危险得多。
  */
-export async function buildDrugInventoryPromptContext(): Promise<string> {
-  const view = await herbAvailabilityView();
+export async function buildDrugInventoryPromptContext(customerId: string): Promise<string> {
+  const view = await herbAvailabilityView(customerId);
   if (!view.inventoryLoaded || view.availableHerbNames.length === 0) return "";
   const listed = view.availableHerbNames.slice(0, PROMPT_SHORTLIST_LIMIT);
   const truncated = view.availableHerbNames.length > listed.length;
@@ -467,8 +496,9 @@ export type DrugAvailabilityProjection = {
  */
 export async function drugAvailabilityProjection(
   structuredHerbs: ReadonlyArray<{ name?: unknown }>,
+  customerId: string,
 ): Promise<DrugAvailabilityProjection> {
-  const view = await herbAvailabilityView();
+  const view = await herbAvailabilityView(customerId);
   const names = structuredHerbs
     .map((herb) => text(herb?.name))
     .filter(Boolean);
@@ -490,14 +520,15 @@ export async function drugAvailabilityProjection(
       note: "可得性为院内库存标注，不参与临床合同签名；缺货药味未从处方中删除，替代候选仅供医师选择。",
     },
     herbAvailability: names.map((name) => ({ name, availability: view.statusOf(name) })),
-    outOfStock: await outOfStockAdvice(names),
+    outOfStock: await outOfStockAdvice(names, customerId),
   };
 }
 
 export async function outOfStockAdvice(
   prescriptionHerbs: readonly string[],
+  customerId: string,
 ): Promise<OutOfStockHerbAdvice[]> {
-  const view = await herbAvailabilityView();
+  const view = await herbAvailabilityView(customerId);
   if (!view.inventoryLoaded) return [];
   const advice: OutOfStockHerbAdvice[] = [];
   for (const herb of prescriptionHerbs) {
