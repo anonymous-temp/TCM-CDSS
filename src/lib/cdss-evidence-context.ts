@@ -285,6 +285,22 @@ function resolveGovernedGuidelineReferences(
   }
 }
 
+function restoreSignedM03ClinicalSections(
+  payload: Record<string, unknown>,
+  caseState?: CaseState,
+): void {
+  if (payload.stage !== "prescribe") return;
+  const prior = caseState?.reasoningDiagnose;
+  if (!prior || prior.stage !== "diagnose") return;
+  // M04 is allowed to add formula, non-pharmacological care and management content. The M03
+  // diagnosis, TCM disease/syndrome, pathogenesis and therapy are signed inputs to that stage and
+  // must remain byte-for-byte stable. Restoring from the trusted case state also prevents a reused
+  // stage-local evidence id from rebinding an M03 citation to a different M04 retrieval record.
+  for (const key of ["overview", "westernDiagnosis", "pathogenesis", "therapy"] as const) {
+    payload[key] = structuredClone(prior[key]);
+  }
+}
+
 function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medicineCaseText = "", medicineCaseState?: CaseState): string {
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
@@ -349,6 +365,7 @@ function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medic
         // this pass only hides the internal source of an insufficient evidence object.
         const customerSafe = hideInternalEvidenceSources(sanitized);
         if (customerSafe && typeof customerSafe === "object" && !Array.isArray(customerSafe)) {
+          restoreSignedM03ClinicalSections(customerSafe as Record<string, unknown>, medicineCaseState);
           const formula = (customerSafe as { formula?: { modifications?: unknown } }).formula;
           if (formula && Array.isArray(formula.modifications)) {
             // Optional IF-THEN modifications must never invalidate a complete core candidate after
