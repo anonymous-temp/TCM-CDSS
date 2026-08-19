@@ -400,7 +400,7 @@ check("⑩ M04 不得用同号新检索条目改写已签名 M03 诊断与文献
       supportingFacts: ["反酸、嗳气反复1年"],
       guidelineReferences: [{
         evidenceId: "EVID-GUIDE-924",
-        citation: "Katz PO, Dunbar KB, Schnoll-Sussman F, et al. ACG Clinical Guideline for the Diagnosis and Management of Gastroesophageal Reflux Disease. Am J Gastroenterol. 2022;117(1):27-56. PMID:34807007. DOI:10.14309/ajg.0000000000001538",
+        citation: "Katz PO, et al. ACG Clinical Guideline for the Diagnosis and Management of Gastroesophageal Reflux Disease. Am J Gastroenterol. 2022;117(1):27-56. PMID:34807007. DOI:10.14309/ajg.0000000000001538",
         url: "https://pubmed.ncbi.nlm.nih.gov/34807007/",
       }],
     }, differentials: [] },
