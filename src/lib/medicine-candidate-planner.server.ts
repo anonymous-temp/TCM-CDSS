@@ -16,6 +16,7 @@ import {
   type LocalPatentMedicineCandidate,
 } from "./local-patent-medicine-candidates";
 import type { EvidenceBoundMedicineProposal } from "./m04-proposal-compiler";
+import { parseMedicationLabelUsage } from "./medication-label-usage";
 import { createTextModelClient, getPrimaryTextModelConfig, isApprovedTextModel, textModelRequestTuning } from "./text-model";
 
 const PlannerSchema = z.object({
@@ -92,15 +93,17 @@ function localCandidateToProposal(candidate: LocalPatentMedicineCandidate): Evid
     candidate.pregnancyLactation,
     candidate.interaction,
   ].filter(Boolean).join("；"), 800) || "采用前核对完整说明书禁忌、注意事项、特殊人群和相互作用。";
+  const labelUsage = parseMedicationLabelUsage(candidate.usage);
   return {
     type: "中成药",
     name: candidate.name,
     specification: compact(candidate.specification, 300) || null,
-    singleDose: null,
-    frequency: null,
-    route: null,
-    usageBoundary: "仅作与本例当前阳性问题匹配的说明书候选；具体用法须核对完整说明书并由医生决定。",
-    course: null,
+    singleDose: labelUsage.singleDose || null,
+    frequency: labelUsage.frequency || null,
+    route: labelUsage.route || null,
+    administrationTiming: labelUsage.administrationTiming || null,
+    usageBoundary: "说明书用法字段已与本候选的说明书条目及指纹绑定。",
+    course: labelUsage.course || null,
     positioning: "需医生评估",
     correspondingProblem: problem,
     evidenceId: candidate.id,
@@ -121,15 +124,17 @@ function externalCandidateToProposal(
     item.specialPopulation,
     item.interaction,
   ].filter(Boolean).join("；"), 800) || "采用前核对完整说明书禁忌、注意事项、特殊人群和相互作用。";
+  const labelUsage = parseMedicationLabelUsage(item.usage);
   return {
     type: "西药",
     name: compact(item.medicineName || item.title, 300),
     specification: compact(item.specification, 300) || null,
-    singleDose: null,
-    frequency: null,
-    route: null,
-    usageBoundary: "仅供与接诊医生讨论，不构成处方、剂量或疗程医嘱。",
-    course: null,
+    singleDose: labelUsage.singleDose || null,
+    frequency: labelUsage.frequency || null,
+    route: labelUsage.route || null,
+    administrationTiming: labelUsage.administrationTiming || null,
+    usageBoundary: "说明书用法字段已与本候选的说明书条目及指纹绑定；本候选仍为医生讨论项。",
+    course: labelUsage.course || null,
     positioning: "需医生评估",
     correspondingProblem: compact(correspondingProblem, 120),
     evidenceId,

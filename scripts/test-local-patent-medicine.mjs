@@ -70,12 +70,18 @@ assert.ok(
 
 const deterministicPlan = await planEvidenceBoundMedicineCandidates(insomnia);
 assert.ok(deterministicPlan.candidates.length > 0, "a strong local instruction match must survive planner unavailability");
-assert.ok(deterministicPlan.candidates.every((candidate) =>
-  candidate.type === "中成药" &&
-  candidate.evidenceId.startsWith("LOCAL-INST-") &&
-  candidate.singleDose == null &&
-  candidate.frequency == null &&
-  candidate.course == null), "the server-owned fallback may expose evidence-bound candidates but must never invent an executable regimen");
+const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
+const { parseMedicationLabelUsage } = await jiti.import("../src/lib/medication-label-usage.ts");
+assert.ok(deterministicPlan.candidates.every((candidate) => {
+  const entry = findLocalPatentMedicineEntry(candidate.name);
+  const expected = parseMedicationLabelUsage(entry?.usage || "");
+  return candidate.type === "中成药" &&
+    candidate.evidenceId.startsWith("LOCAL-INST-") &&
+    candidate.singleDose === (expected.singleDose || null) &&
+    candidate.frequency === (expected.frequency || null) &&
+    candidate.route === (expected.route || null) &&
+    candidate.course === (expected.course || null);
+}), "server-owned candidates must expose only usage fields parsed from the same bound label entry");
 
 const deniedPlan = await planEvidenceBoundMedicineCandidates(denied);
 assert.equal(deniedPlan.candidates.length, 0, "negated indications must remain empty even when the planner is unavailable");

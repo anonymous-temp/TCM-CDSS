@@ -4344,7 +4344,7 @@ function StructuredMedicinePlanCards({ candidates, caseState }: {
             <SummaryLine label="适应症（本例对应问题）" value={item.correspondingProblem} tone="green" />
             <SummaryLine
               label="用法用量"
-              value={[item.route, item.singleDose, item.frequency, item.course]
+              value={[item.route, item.singleDose, item.frequency, item.administrationTiming, item.course]
                 .filter((part): part is string => typeof part === "string" && Boolean(part.trim()))
                 .join("，")}
               tone="blue"

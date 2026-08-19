@@ -3279,13 +3279,20 @@ function visiblePrescribeFromReasoning(
     lines.push(
       "",
       `## ${clinicalOutputLabel("M04-patent-western", "中成药/西药候选")}`,
-      "| 类型 | 药品 | 规格 | 建议层级 | 用药定位 | 对应问题 | 参考文献 | 风险提示 |",
-      "|---|---|---|---|---|---|---|---|",
+      "| 类型 | 药品 | 规格 | 建议层级 | 说明书用法 | 用药定位 | 对应问题 | 参考文献 | 风险提示 |",
+      "|---|---|---|---|---|---|---|---|---|",
       ...patentAndWestern.map((item) => {
         const itemEvidence = recordValue(item.evidence);
         const level = item.recommendationMode === "discussion_only" ? "仅供讨论（无剂量）" : "说明书绑定候选（无剂量）";
         const visibleRisk = clinicianVisibleMedicationRiskNote(markdownCell(item.riskNote), caseState);
-        return `| ${markdownCell(item.type)} | ${markdownCell(item.name)} | ${markdownCell(item.specification) || "—"} | ${level} | ${markdownCell(item.positioning)} | ${markdownCell(item.correspondingProblem)} | ${markdownCell(itemEvidence?.source)} | ${markdownCell(visibleRisk)} |`;
+        const labelUsage = clinicalSentence([
+          markdownCell(item.route),
+          markdownCell(item.singleDose),
+          markdownCell(item.frequency),
+          markdownCell(item.administrationTiming),
+          markdownCell(item.course),
+        ], "，");
+        return `| ${markdownCell(item.type)} | ${markdownCell(item.name)} | ${markdownCell(item.specification) || "—"} | ${level} | ${markdownCell(labelUsage) || "—"} | ${markdownCell(item.positioning)} | ${markdownCell(item.correspondingProblem)} | ${markdownCell(itemEvidence?.source)} | ${markdownCell(visibleRisk)} |`;
       }),
     );
   } else if (medicineCandidateStatus?.status === "no_evidence_match" && isDisplayableClinicalText(markdownCell(medicineCandidateStatus.reason))) {

@@ -405,7 +405,7 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
     "formulaAnalysis": "本方方解：君臣佐使如何配伍、为何这样配、有无相使相畏与佐制关系"
   },
   "patentAndWestern": [
-    {"type":"中成药","name":"只能逐字选择EVID-INST或LOCAL-INST候选中的药名","specification":"只能复制同一条目的规格；未返回则为null","singleDose":null,"frequency":null,"route":null,"usageBoundary":"候选边界，不形成剂量医嘱","course":null,"positioning":"替代方案","correspondingProblem":"本例当前诊断、证候或症状","evidenceId":"LOCAL-INST-001","evidenceFingerprint":"sha256:逐字复制同一条目指纹","relationship":"与饮片方案不默认联用，由医生择一或评估联用","riskNote":"来自该条目的禁忌、相互作用与特殊人群复核点"}
+    {"type":"中成药","name":"只能逐字选择EVID-INST或LOCAL-INST候选中的药名","specification":"只能复制同一条目的规格；未返回则为null","singleDose":null,"frequency":null,"route":null,"administrationTiming":null,"usageBoundary":"只能复制同一说明书条目的用法边界","course":null,"positioning":"替代方案","correspondingProblem":"本例当前诊断、证候或症状","evidenceId":"LOCAL-INST-001","evidenceFingerprint":"sha256:逐字复制同一条目指纹","relationship":"与饮片方案不默认联用，由医生择一或评估联用","riskNote":"来自该条目的禁忌、相互作用与特殊人群复核点"}
   ],
   "modifications": [
     {"trigger":"逐字引用本次病历已记录的当前伴随症状","targetRef":"P1","actionType":"add","herbName":"知识库已收载药味","reason":"与该病机节点对应的加减理由","substitutions":[{"replaces":"上面这味药","substitute":"同向可替代药味","rationale":"为何可以替代(功效方向一致)","differenceNote":"与原药的差异与选用注意"}]}
@@ -435,7 +435,7 @@ ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真
 - 治法→药味映射：每味药必须经 targetRef/structureRole 绑定到它实际落实的治法方向，候选药味集合必须覆盖 M03 therapy.subTherapies 中每个“主要”治法方向（至少一味药的功能与之对应）；不得出现治法要求活血化瘀而方中无活血药、治法要求解表而方中无解表药这类治法与药味漂移。
 - 不得在提案中重写 M03 证候、病机、治法、流派信息、方剂出处、药味功用、方义、适用边界或证据字段；这些全部由服务端生成。唯一例外：形成自拟方时，可在 candidate.applicable 中用一句话说明已注入的经典名方候选未覆盖本例哪个病机/治法维度（不得罗列被排除方名、不得写《》出处），作为自拟方的组方依据。
 - patentAndWestern 只能从证据上下文中【EviMed 说明书检索】或【本地中成药说明书检索】实际返回的 EVID-INST / LOCAL-INST 条目中选择；药名、evidenceId、evidenceFingerprint 必须逐字绑定同一条目，集外药名、错配ID或错配指纹会被服务端删除。每项必须说明与本例当前诊断/证候/阳性症状的匹配点、联用或替代定位，以及该条目已返回的禁忌、相互作用和特殊人群边界；没有合格条目时输出空数组，服务端会显示具体缺失原因。
-- 当前版本所有西药仅为 discussion_only：不得输出单次剂量、频次、途径或疗程医嘱。中成药可形成说明书绑定的候选，但当检索摘要没有完整用法用量字段时同样不得猜剂量；singleDose/frequency/route/course 均填 null。specification 只可逐字复制同一条目，条目未返回则填 null。不得用“按说明书”之类套话伪装成已经取得的剂量依据。
+- 西药仍标记为 discussion_only，中成药标记为 candidate_review；该定位不影响说明书信息的如实展示。singleDose/frequency/route/administrationTiming/course 只能逐字复制同一 EVID-INST / LOCAL-INST 条目已返回的说明书用法字段，未返回的字段填 null，绝不得猜测。specification 同样只可复制同一条目。不得用“按说明书”“遵医嘱”“本候选不形成疗程医嘱”等套话替代已经取得或实际缺失的字段。
 - modifications 是给接诊医生的**随证加减建议**：针对本次病历已记录、但主方未直接针对的兼症，提示可以加哪味药或减哪味药。它是决策支持，不是让医生自己去改方——因此**只要存在合格兼症就必须给出建议，不要图省事输出空数组**。
 - 判断合格兼症的方法：逐条读 primarySyndromeBasis、pathogenesis.chain.patientFact 与 westernDiagnosis.primary.supportingFacts 中已记录的当前表现，找出主方君臣佐使未直接针对的那些（例如主方主攻心脾两虚，而病历还记录了脘腹胀满、大便偏干或咽干）。每条这样的兼症都值得一条加减建议。通常能给出1–3条；确实每条已记录表现都已被主方药味直接覆盖时，才输出空数组。
 - trigger 必须逐字引用上述来源中的**已记录当前表现**，不得写“若出现、复诊时出现、接诊时核实、症状变化时”等假设句，也不得为了凑加减而编造病历没有的症状。加减针对的是已经存在但主方覆盖不足的兼症，不是预设未来可能出现的新症状。

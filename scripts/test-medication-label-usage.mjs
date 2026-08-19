@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
@@ -20,5 +21,9 @@ assert.deepEqual(
 assert.equal(parseMedicationLabelUsage("口服，每日2次").course, undefined);
 assert.equal(parseMedicationLabelUsage("口服，一次1袋，一日2次，疗程7日").course, "疗程7日");
 assert.deepEqual(parseMedicationLabelUsage(""), {});
+const compilerSource = readFileSync(new URL("../src/lib/m04-proposal-compiler.ts", import.meta.url), "utf8");
+const clientSource = readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+assert.doesNotMatch(compilerSource, /course:\s*["']本候选不形成疗程医嘱/);
+assert.match(clientSource, /item\.administrationTiming/);
 
-console.log(JSON.stringify({ suite: "medication-label-usage", cases: 5, failures: 0 }));
+console.log(JSON.stringify({ suite: "medication-label-usage", cases: 7, failures: 0 }));

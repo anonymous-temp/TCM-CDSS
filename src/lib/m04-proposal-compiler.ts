@@ -221,6 +221,7 @@ const PatentAndWesternProposalSchema = z.object({
   singleDose: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable().optional()).transform((value) => value ?? null),
   frequency: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable().optional()).transform((value) => value ?? null),
   route: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable().optional()).transform((value) => value ?? null),
+  administrationTiming: z.preprocess(normalizeModelNullableText, z.string().max(300).nullable().optional()).transform((value) => value ?? null),
   usageBoundary: z.string().min(1).max(800),
   course: z.preprocess(normalizeModelNullableText, z.string().max(500).nullable().optional()).transform((value) => value ?? null),
   positioning: z.enum(["联合治疗", "替代方案", "短期对症", "需医生评估"]),
@@ -1242,13 +1243,14 @@ export function compileM04Proposal(
             // EviMed's current instruction summary may not return a complete executable regimen.
             // Keep both categories non-dose until every regimen field can be bound to the same
             // fingerprint; western medicines are explicitly discussion-only in this release.
-            singleDose: undefined,
-            frequency: undefined,
-            route: undefined,
+            singleDose: item.singleDose || undefined,
+            frequency: item.frequency || undefined,
+            route: item.route || undefined,
+            administrationTiming: item.administrationTiming || undefined,
             usageBoundary: item.type === "西药"
               ? "仅供与接诊医生讨论，不构成处方或剂量建议。"
               : cleanNarrative(item.usageBoundary, "仅作有说明书依据的候选，具体用法须依据完整说明书和医生评估。"),
-            course: "本候选不形成疗程医嘱",
+            course: item.course || undefined,
             positioning: item.positioning,
             // 「对应问题」讲的是**这位病人的问题**，必须对着病历核，不能只对着说明书核。
             // 原实现只在 evidence-source-validation 里校验它是否落在说明书的适应证段内，

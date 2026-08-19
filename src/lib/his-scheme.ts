@@ -280,8 +280,9 @@ export type HisAiSchemePayload = {
       singleDose: string | null;
       frequency: string | null;
       route: string | null;
+      administrationTiming: string | null;
       usageBoundary: string;
-      course: string;
+      course: string | null;
       positioning: string;
       correspondingProblem: string;
       relationship: string;
@@ -854,6 +855,7 @@ function projectPatentMedicines(
     const singleDose = text("singleDose");
     const frequency = text("frequency");
     const route = text("route");
+    const administrationTiming = text("administrationTiming");
     return [{
       type,
       name,
@@ -861,8 +863,9 @@ function projectPatentMedicines(
       singleDose,
       frequency,
       route,
+      administrationTiming,
       usageBoundary: clean(typeof entry.usageBoundary === "string" ? entry.usageBoundary : ""),
-      course: clean(typeof entry.course === "string" ? entry.course : ""),
+      course: text("course"),
       positioning: clean(typeof entry.positioning === "string" ? entry.positioning : ""),
       correspondingProblem: clean(typeof entry.correspondingProblem === "string" ? entry.correspondingProblem : ""),
       relationship: clean(typeof entry.relationship === "string" ? entry.relationship : ""),
