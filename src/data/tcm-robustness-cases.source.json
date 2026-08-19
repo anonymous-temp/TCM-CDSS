@@ -82,8 +82,8 @@
       "allergyHistory": "",
       "medicationHistory": "",
       "labs": "",
-      "expectation": "should_prescribe",
-      "robustnessNote": "公开门诊病案；验证完整流程、结构化合同、药名/剂量/方义与审方出口"
+      "expectation": "should_downgrade_incomplete",
+      "robustnessNote": "儿童、妊娠、哺乳或备孕等特殊人群存在剂量硬边界，应稳定降级为非剂量分析"
     },
     {
       "id": "public-083",
@@ -216,7 +216,7 @@
       "medicationHistory": "",
       "labs": "",
       "expectation": "should_downgrade_incomplete",
-      "robustnessNote": "儿童病例缺体重与可验证个体化剂量规则，应稳定降级为非剂量分析"
+      "robustnessNote": "儿童、妊娠、哺乳或备孕等特殊人群存在剂量硬边界，应稳定降级为非剂量分析"
     },
     {
       "id": "public-090",
@@ -235,7 +235,7 @@
       "medicationHistory": "",
       "labs": "",
       "expectation": "should_downgrade_incomplete",
-      "robustnessNote": "儿童病例缺体重与可验证个体化剂量规则，应稳定降级为非剂量分析"
+      "robustnessNote": "儿童、妊娠、哺乳或备孕等特殊人群存在剂量硬边界，应稳定降级为非剂量分析"
     },
     {
       "id": "public-091",
@@ -292,7 +292,7 @@
       "medicationHistory": "",
       "labs": "",
       "expectation": "should_downgrade_incomplete",
-      "robustnessNote": "儿童病例缺体重与可验证个体化剂量规则，应稳定降级为非剂量分析"
+      "robustnessNote": "儿童、妊娠、哺乳或备孕等特殊人群存在剂量硬边界，应稳定降级为非剂量分析"
     },
     {
       "id": "public-094",

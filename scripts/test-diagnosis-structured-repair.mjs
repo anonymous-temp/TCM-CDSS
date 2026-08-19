@@ -586,6 +586,11 @@ assert.match(
   /const finalStageOwned = opts\.structuredStage === "prescribe"[\s\S]{0,500}?enforceM04PriorStageOwnership\([\s\S]{0,500}?const identityRestored = opts\.structuredStage === "prescribe"/,
   "M04 must rebind signed M03-owned sections again at the final pre-signature boundary",
 );
+assert.match(
+  diagnosisApiSource,
+  /const transformed = opts\.outputTransform[\s\S]{0,1200}?const stageOwned = opts\.structuredStage === "prescribe"[\s\S]{0,500}?enforceM04PriorStageOwnership\([\s\S]{0,1200}?const aligned = opts\.structuredStage === "diagnose"/,
+  "M04 must rebind M03-owned sections immediately after the last customer-output transform and before final contract validation",
+);
 const syncReasoning = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",

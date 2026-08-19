@@ -64,7 +64,13 @@ for (const text of ["备孕中", "不孕症3年", "长期避孕", "孕前检查�
 }
 
 // 哺乳同为剂量门控输入，同样不能只认书面语。
-for (const text of ["哺乳期", "正在哺乳", "母乳喂养中"]) {
+for (const text of [
+  "哺乳期",
+  "正在哺乳",
+  "母乳喂养中",
+  "剖宫产术后第4天，双乳柔软，泌乳畅，乳量少，婴儿需添加奶粉喂养",
+  "产后5天乳汁量少，正在混合喂养",
+]) {
   assert.equal(statusOf(assessLactationState(text)), "positive", `哺乳识别漏判同样放行剂量级处方：${text}`);
 }
 for (const text of ["已断奶", "未哺乳"]) {
@@ -104,6 +110,29 @@ const youngerUnknownGate = evaluateSafetyGate(safetyCase(38));
 assert.ok(
   (youngerUnknownGate.missingItemCodes || []).includes("pregnancy_unknown"),
   "生育年龄女性未记录状态时仍须保持 fail-closed 筛查",
+);
+const postpartumState = {
+  ...safetyCase(32),
+  chiefComplaint: "产后乳汁量少4日",
+  symptoms: {
+    presentHistory: "剖宫产术后第4天，双乳柔软，泌乳畅，乳量少，婴儿需添加奶粉喂养；术中出血约300mL；已输液500mL；血红蛋白122g/L。",
+  },
+  pastHistory: "",
+  allergyHistory: "",
+  medicationHistory: "",
+};
+const postpartumGate = evaluateSafetyGate(postpartumState);
+assert.ok(
+  !(postpartumGate.missingItemCodes || []).includes("medication_details"),
+  `血红蛋白 g/L 化验值不得被当成未写清的药物剂量：${JSON.stringify(postpartumGate.missingItems)}`,
+);
+assert.ok(
+  !(postpartumGate.missingItemCodes || []).includes("lactation_unknown"),
+  `产后泌乳事实必须识别为当前哺乳状态：${JSON.stringify(postpartumGate.missingItems)}`,
+);
+assert.ok(
+  hardDoseSafetyBoundaryReasons(postpartumState).some((item) => /哺乳/.test(item)),
+  "产后第4天且泌乳中的病例必须保持哺乳期剂量硬边界",
 );
 assert.deepEqual(
   hardDoseSafetyBoundaryReasons(safetyCase(78, coordinatedNegative)).filter((item) => /妊娠|哺乳|备孕/.test(item)),

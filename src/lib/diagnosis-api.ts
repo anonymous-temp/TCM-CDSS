@@ -4323,6 +4323,17 @@ async function callPrimaryTextModelStream(
         const transformOutput = (content: string): { content: string; ok: boolean } => {
           try {
             const transformed = opts.outputTransform ? opts.outputTransform(content) : content;
+            // The route-owned customer projection may rebuild the sentinel JSON after the M04
+            // candidate has already been normalized. M03-owned sections are immutable at M04;
+            // restore them immediately after that last transform, before the final contract is
+            // validated. Rebinding only at the later signature boundary is too late: the validator
+            // has already rejected the otherwise valid proposal as pathogenesis_drift.
+            const stageOwned = opts.structuredStage === "prescribe"
+              ? enforceM04PriorStageOwnership(
+                  transformed,
+                  opts.structuredPriorReasoning as unknown as Record<string, unknown> | undefined,
+                )
+              : transformed;
             // The route-owned final sanitizer can legitimately remove or rewrite an ungrounded
             // negative clause after the candidate has already been normalized. That may leave
             // clinicalRationale pointing at a supporting fact which no longer survives in the
@@ -4333,9 +4344,9 @@ async function callPrimaryTextModelStream(
             // added here.
             const aligned = opts.structuredStage === "diagnose"
               ? alignNormalizedM03TcmDiagnosticRationale(
-                  alignNormalizedM03WesternClinicalRationale(transformed),
+                  alignNormalizedM03WesternClinicalRationale(stageOwned),
                 )
-              : transformed;
+              : stageOwned;
             const clinicallyClean = opts.structuredStage === "diagnose"
               ? applyDeterministicTreatmentPrinciple(aligned)
               : aligned;

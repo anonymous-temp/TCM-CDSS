@@ -26,7 +26,7 @@ const jiti = createJiti(import.meta.url, {
     "server-only": path.join(repoRoot, "node_modules/next/dist/compiled/server-only/empty.js"),
   },
 });
-const { withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const { hardDoseSafetyBoundaryReasons, withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
 
 const publicCases = JSON.parse(readFileSync(publicCasesPath, "utf8")).cases || [];
 const modernCorpus = JSON.parse(readFileSync(modernCorpusPath, "utf8"));
@@ -68,12 +68,22 @@ function expectationForFixture(item) {
       caseId: `fixture-${item.id}`,
       updatedAt: "2026-08-14T00:00:00.000Z",
       tongueImageUploaded: false,
-      fields: { zhushu: item.chiefComplaint, xianbingshi: text, tcmTongue: item.tongue, tcmPulse: item.pulse },
+      // HIS snapshot存在时人口学字段是权威源；若生成器漏写 sex/age，安全层会按设计拒绝
+      // 回退到顶层兼容 DTO，并可能把“16岁月经初潮”误读成当前年龄。在线回归请求本来就
+      // 包含这两个字段，离线期望生成必须与真实请求保持同构。
+      fields: {
+        zhushu: item.chiefComplaint,
+        sex: item.sex,
+        age: item.age,
+        xianbingshi: text,
+        tcmTongue: item.tongue,
+        tcmPulse: item.pulse,
+      },
       rawText: text,
     },
   });
   if (gated.safetyGate.redFlags.length > 0) return "should_not_prescribe_redflag";
-  if (age != null && age < 18) return "should_downgrade_incomplete";
+  if (hardDoseSafetyBoundaryReasons(gated).length > 0) return "should_downgrade_incomplete";
   return "should_prescribe";
 }
 
@@ -102,7 +112,7 @@ const publicFixture = publicCases.map((item) => {
     robustnessNote: expectation === "should_not_prescribe_redflag"
       ? "当前病案的活动性急危重线索必须由确定性安全层前置留痕"
       : expectation === "should_downgrade_incomplete"
-        ? "儿童病例缺体重与可验证个体化剂量规则，应稳定降级为非剂量分析"
+        ? "儿童、妊娠、哺乳或备孕等特殊人群存在剂量硬边界，应稳定降级为非剂量分析"
         : "公开门诊病案；验证完整流程、结构化合同、药名/剂量/方义与审方出口",
   };
 });

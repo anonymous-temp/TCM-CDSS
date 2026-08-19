@@ -24,8 +24,8 @@ assert.equal(modernCases.length, 57);
 assert.equal(new Set(modernCases.map((item) => item.category)).size, 57,
   "现代病案应按病种轮转，不能被单一高频病种占满");
 assert.equal(corpus.cases.filter((item) => item.expectation === "should_not_prescribe_redflag").length, 7);
-assert.equal(corpus.cases.filter((item) => item.expectation === "should_prescribe").length, 66);
-assert.equal(corpus.cases.filter((item) => item.expectation === "should_downgrade_incomplete").length, 4);
+assert.equal(corpus.cases.filter((item) => item.expectation === "should_prescribe").length, 65);
+assert.equal(corpus.cases.filter((item) => item.expectation === "should_downgrade_incomplete").length, 5);
 
 const forbiddenLeakageKeys = ["formula", "expectedFormula", "expectedFormulaNames", "syndrome", "treatmentPrinciple"];
 const dob = /出生日期|出生于\s*\d{4}|\d{4}\s*年\s*\d{1,2}\s*月\s*\d{1,2}\s*日\s*出生/;
@@ -54,7 +54,7 @@ const jiti = createJiti(import.meta.url, {
     "server-only": path.join(repoRoot, "node_modules/next/dist/compiled/server-only/empty.js"),
   },
 });
-const { withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const { hardDoseSafetyBoundaryReasons, withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
 for (const item of corpus.cases.filter((entry) => entry.expectation === "should_not_prescribe_redflag")) {
   const text = `${item.chiefComplaint}。${item.presentIllness}`;
   const state = withSafetyGate({
@@ -91,7 +91,20 @@ for (const item of corpus.cases.filter((entry) => entry.expectation === "should_
 
 for (const item of corpus.cases.filter((entry) => entry.expectation === "should_downgrade_incomplete")) {
   const age = Number(String(item.age || "").replace(/[^\d.]/g, ""));
-  assert.ok(age > 0 && age < 18, `${item.id} 信息不足降级标签应由儿科剂量规则缺口驱动`);
+  const boundaryReasons = hardDoseSafetyBoundaryReasons({
+    id: `fixture-${item.id}`,
+    phase: "diagnose",
+    patient: { sex: item.sex, ...(age > 0 ? { age } : {}) },
+    chiefComplaint: item.chiefComplaint,
+    symptoms: { general: item.presentIllness, tcmFourExams: item.fourExamDetail },
+    tongue: item.tongue,
+    pulse: item.pulse,
+    pastHistory: item.pastHistory,
+    medicationHistory: item.medicationHistory,
+    allergyHistory: item.allergyHistory,
+    conversation: [],
+  });
+  assert.ok(boundaryReasons.length > 0, `${item.id} 信息不足降级标签必须由真实剂量硬边界驱动`);
 }
 
 const reproducibility = spawnSync(process.execPath, ["scripts/build-robustness-case-corpus.mjs", "--check"], {
@@ -106,5 +119,5 @@ console.log(JSON.stringify({
   publicCases: publicCases.length,
   governedModernCases: modernCases.length,
   redFlagCases: 7,
-  incompleteCases: 4,
+  incompleteCases: 5,
 }));
