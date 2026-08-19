@@ -2671,6 +2671,13 @@ function governedGuidelineReferences(primary: Record<string, unknown> | null | u
   return [source];
 }
 
+function structuredCitationTexts(value: unknown): string[] {
+  return recordList(value).flatMap((item) => {
+    const display = guidelineReferenceDisplay(item);
+    return display.text ? [`${display.text}${display.href ? ` ${display.href}` : ""}`] : [];
+  });
+}
+
 /**
  * 鉴别条目的**受治理出处**。只在该证候/病名能解析到国标条目时才给出，
  * 解析不到就返回空——引用必须有条目背书，宁可不印，也不让一条编造的书名出现。
@@ -2840,13 +2847,35 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
     }).join("；")}`);
   }
   for (const group of categorized) evidenceLine(group.label, group.items.map((item) => item.text), group.withSource);
+  const westernDifferentials = recordList(westernDiagnosis?.differentials)
+    .filter((item) => isDisplayableClinicalText(markdownCell(item.name)));
+  if (westernDifferentials.length > 0) {
+    lines.push("", "### 西医鉴别诊断");
+    for (const item of westernDifferentials) {
+      lines.push(`- **${markdownCell(item.name)}**：${clinicalSentence([
+        markdownCell(item.distinguishingPoints) ? `鉴别要点：${markdownCell(item.distinguishingPoints)}` : markdownCell(item.reason),
+        markdownCell(item.nextCheck) ? `建议检查：${markdownCell(item.nextCheck)}` : "",
+      ], "；")}`);
+      const references = structuredCitationTexts(item.guidelineReferences);
+      if (references.length > 0) lines.push(`  - **参考文献**：${references.join("；")}`);
+    }
+  }
   lines.push(
     "",
     overviewHeading,
     // 甲方评测(2026-08-04) 1.2.1「中医诊断卡只保留证候结论，病名与病史复述移除」：
     // 中医病名与它的归属推理一并移到下方「中医辨病鉴别」段（辨病是独立的一段判断，
     // 与证候结论不该挤在同一张卡里）。字段本身不变，签名载荷与 HIS 方案照常携带 tcmDiseaseName。
-    `**证型**：${syndromeLabelWithNationalStandard(reasoning, "overview.primarySyndrome", overview?.primarySyndrome)}`,
+    ...(isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseName))
+      ? [`**辨病**：${markdownCell(overview?.tcmDiseaseName)}`]
+      : []),
+    ...(structuredCitationTexts(overview?.tcmDiseaseReferences).length > 0
+      ? [`**中医辨病依据**：${structuredCitationTexts(overview?.tcmDiseaseReferences).join("；")}`]
+      : []),
+    `**辨证**：${syndromeLabelWithNationalStandard(reasoning, "overview.primarySyndrome", overview?.primarySyndrome)}`,
+    ...(structuredCitationTexts(overview?.tcmSyndromeReferences).length > 0
+      ? [`**中医辨证依据**：${structuredCitationTexts(overview?.tcmSyndromeReferences).join("；")}`]
+      : []),
     // 服务端把模型选的方名剥离进 deferredFormulaSelection 之后，必须告诉医生它被剥离了。
     //
     // 剥离本身是对的：方名锁定要求签名证候与该方在治理目录中有直接关系，关系不成立就不该锁。

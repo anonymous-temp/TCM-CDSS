@@ -210,12 +210,12 @@ check(() => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1.2.1 中医诊断卡只保留证候结论
+// 2026-08-19 最新甲方口径：诊断卡同时给出辨病与辨证结论
 // ─────────────────────────────────────────────────────────────────────────────
 check(() => {
   const overviewBlock = visibleM03.split("## 中医诊断概览")[1].split("###")[0];
-  assert.ok(overviewBlock.includes("**证型**"), "证候结论必须保留在概览卡里");
-  assert.ok(!overviewBlock.includes("**中医病名**"), "病名不再挤在证候卡里");
+  assert.ok(overviewBlock.includes("**辨病**"), "辨病结论必须出现在概览卡里");
+  assert.ok(overviewBlock.includes("**辨证**"), "辨证结论必须出现在概览卡里");
   assert.ok(!overviewBlock.includes(M03.overview.primarySyndromeBasis[0]),
     "主诉原句（病史复述）不得出现在证候卡里");
 });

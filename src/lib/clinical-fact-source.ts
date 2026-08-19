@@ -436,10 +436,10 @@ export function guidelineReferenceDisplay(
   reference: { citation?: unknown; appliesTo?: unknown; url?: unknown },
 ): { text: string; href?: string } {
   const text = (typeof reference.citation === "string" ? reference.citation : "").trim();
-  const appliesTo = (typeof reference.appliesTo === "string" ? reference.appliesTo : "").trim();
   const url = (typeof reference.url === "string" ? reference.url : "").trim();
   return {
-    text: `${text}${appliesTo ? `（${appliesTo}）` : ""}`,
+    // 参考文献区只呈现标准引用；appliesTo 继续保留在后台载荷供审计，不混入题名。
+    text,
     // 只认 https 绝对地址：相对路径或 http 明文都不做成可点链接，避免把医生点到非预期位置。
     ...(/^https:\/\//.test(url) ? { href: url } : {}),
   };

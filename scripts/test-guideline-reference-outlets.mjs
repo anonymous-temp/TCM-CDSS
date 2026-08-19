@@ -35,7 +35,7 @@ const REFERENCE = {
 
 check("带 url 的条目：文字与地址分开给出，地址原样保留", () => {
   const display = guidelineReferenceDisplay(REFERENCE);
-  assert.equal(display.text, `${REFERENCE.citation}（${REFERENCE.appliesTo}）`);
+  assert.equal(display.text, REFERENCE.citation);
   assert.equal(display.href, REFERENCE.url, "url 必须原样透传，不得改写或截断");
 });
 

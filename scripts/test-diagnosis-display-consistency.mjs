@@ -49,18 +49,19 @@ assert.equal(
     "风寒束表，肺气失宣。",
   ].join("\n")),
   [
-    "## 中医证候诊断",
+    "## 中医病名与证候诊断",
+    "**中医病名**：咳嗽病",
     "**证型**：风寒袭肺",
     "",
     "## 病机分析",
     "风寒束表，肺气失宣。",
   ].join("\n"),
-  "customer-visible diagnosis output must omit the TCM disease-name row while preserving syndrome and pathogenesis",
+  "customer-visible diagnosis output must preserve both the TCM disease and syndrome results",
 );
 assert.equal(
   stripTcmDiseaseNameForCustomer("| 中医病名 | 咳嗽病 |\n| 证型 | 风寒袭肺 |"),
-  "| 证型 | 风寒袭肺 |",
-  "table-shaped TCM disease-name rows must also be removed from customer-visible exports",
+  "| 中医病名 | 咳嗽病 |\n| 证型 | 风寒袭肺 |",
+  "table-shaped TCM disease and syndrome rows must both remain visible",
 );
 assert.equal(
   stripWesternAnalysisForCustomer([
@@ -1473,8 +1474,8 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
       `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(payload)}\n<!-- DIAGNOSIS_JSON_END -->`,
       "diagnose",
     );
-    const line = /^\*\*证型\*\*：.*$/m.exec(rendered);
-    assert.ok(line, "M03 结论区必须始终渲染证型行");
+    const line = /^\*\*辨证\*\*：.*$/m.exec(rendered);
+    assert.ok(line, "M03 结论区必须始终渲染辨证行");
     return line[0];
   };
   const renderedStandardName = (line) => {
@@ -1500,13 +1501,13 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
   const aliasLine = syndromeLine(diagnosePayload());
   assert.equal(
     aliasLine,
-    "**证型**：外感风寒证（国标对应：风寒外袭证）",
+    "**辨证**：外感风寒证（国标对应：风寒外袭证）",
     "词表别名命中时必须并列显示国标证候名",
   );
 
   // (2) 系统证候本身就是国标规范名（仅「证/型」后缀差异）→ 双显没有信息量，不得出现括号。
   const canonicalLine = syndromeLine(diagnosePayload({ overview: { primarySyndrome: "瘀血阻络证" } }));
-  assert.equal(canonicalLine, "**证型**：瘀血阻络证", "已是国标规范名时不得重复标注");
+  assert.equal(canonicalLine, "**辨证**：瘀血阻络证", "已是国标规范名时不得重复标注");
   assert.doesNotMatch(canonicalLine, /国标对应/, "同名重复标注属于噪声");
 
   // (2b) 医生**确认之后**的状态：存的是去后缀 canonical，与国标原文差一个「证」字。
@@ -1518,13 +1519,13 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
   const confirmedCanonicalLine = syndromeLine(diagnosePayload({ overview: { primarySyndrome: "湿热困脾" } }));
   assert.equal(
     confirmedCanonicalLine,
-    "**证型**：湿热困脾（国标对应：湿热困脾证）",
+    "**辨证**：湿热困脾（国标对应：湿热困脾证）",
     "医生确认归一后仍须并列国标证候名——canonical 是去后缀内部名，不是国标原文用词",
   );
 
   // (3) 词表未收录且无受控映射轨迹 → 绝不臆造国标名。
   const unmappedLine = syndromeLine(diagnosePayload({ overview: { primarySyndrome: "外感风寒，兼夹食积" } }));
-  assert.equal(unmappedLine, "**证型**：外感风寒，兼夹食积", "映射不到时必须原样显示，不得出现括号");
+  assert.equal(unmappedLine, "**辨证**：外感风寒，兼夹食积", "映射不到时必须原样显示，不得出现括号");
   assert.doesNotMatch(unmappedLine, /国标对应/, "无受控映射时不得凭空生成国标名");
 
   // (4) 复用既有 terminologyMappings 闭集映射轨迹（本项目唯一的证候语义映射通路）。
@@ -1534,7 +1535,7 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
   }));
   assert.equal(
     mappedLine,
-    "**证型**：外感风寒，兼夹食积（国标对应：伤食兼夹证）",
+    "**辨证**：外感风寒，兼夹食积（国标对应：伤食兼夹证）",
     "词表外写法必须复用受控术语映射轨迹完成双显",
   );
 
@@ -1567,7 +1568,7 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
       overview: { primarySyndrome: "外感风寒，兼夹食积" },
       terminologyMappings: [item],
     }));
-    assert.equal(line, "**证型**：外感风寒，兼夹食积", `${label}：不得渲染括号`);
+    assert.equal(line, "**辨证**：外感风寒，兼夹食积", `${label}：不得渲染括号`);
   }
 
   // (7) 同类覆盖：证候别名不是孤例，整类别名写法都应双显到各自国标条目。
@@ -1577,7 +1578,7 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
     ["外感风寒", "风寒外袭证"],
   ]) {
     const line = syndromeLine(diagnosePayload({ overview: { primarySyndrome: systemSyndrome } }));
-    assert.equal(line, `**证型**：${systemSyndrome}（国标对应：${expected}）`, `${systemSyndrome} 应双显国标名`);
+    assert.equal(line, `**辨证**：${systemSyndrome}（国标对应：${expected}）`, `${systemSyndrome} 应双显国标名`);
     assert.ok(nationalStandardTerms.has(expected), `${expected} 必须是词表内的国标名`);
   }
 }

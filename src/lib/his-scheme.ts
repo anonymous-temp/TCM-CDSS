@@ -1,6 +1,6 @@
 import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, isNonDosePrescriptionText, withSafetyGate } from "./diagnosis-safety";
 import { sectionTitleGroup } from "./cdss-vocab";
-import type { CaseState, SafetyGate } from "./diagnosis-types";
+import type { CaseState, ClinicalCitation, SafetyGate } from "./diagnosis-types";
 import { extractPrescribedHerbs, getTcmHerbDoseLimit, clinicianDoseHerbClass } from "./tcm-knowledge";
 import { diagnoseReasoningFromState, mergeReasoningStages, prescribeReasoningFromState } from "./diagnosis-parse";
 import { isValidEditedHerbDose } from "./prescription-revision";
@@ -153,6 +153,8 @@ export type HisAiSchemePayload = {
       tcmDiseaseName?: string;
       tcmDiseaseRationale?: string;
       tcmDiagnosticRationale?: string;
+      tcmDiseaseReferences: ClinicalCitation[];
+      tcmSyndromeReferences: ClinicalCitation[];
       primarySyndrome: string;
       primarySyndromeResolution: string;
       primarySyndromeBasis: string[];
@@ -1181,10 +1183,21 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
           ...(item.nextCheck ? { nextCheck: clean(item.nextCheck) } : {}),
         });
         const deferred = overview.deferredFormulaSelection;
+        const citations = (items: readonly ClinicalCitation[] | undefined): ClinicalCitation[] =>
+          (items || []).map((item) => ({
+            evidenceId: clean(item.evidenceId),
+            citation: clean(item.citation),
+            sourceType: item.sourceType,
+            ...(item.url ? { url: clean(item.url) } : {}),
+            ...(item.doi ? { doi: clean(item.doi) } : {}),
+            ...(item.pmid ? { pmid: clean(item.pmid) } : {}),
+          })).filter((item) => Boolean(item.evidenceId && item.citation));
         return {
           ...(overview.tcmDiseaseName ? { tcmDiseaseName: clean(overview.tcmDiseaseName) } : {}),
           ...(overview.tcmDiseaseRationale ? { tcmDiseaseRationale: clean(overview.tcmDiseaseRationale) } : {}),
           ...(overview.tcmDiagnosticRationale ? { tcmDiagnosticRationale: clean(overview.tcmDiagnosticRationale) } : {}),
+          tcmDiseaseReferences: citations(overview.tcmDiseaseReferences),
+          tcmSyndromeReferences: citations(overview.tcmSyndromeReferences),
           primarySyndrome: clean(overview.primarySyndrome),
           primarySyndromeResolution: clean(overview.primarySyndromeResolution || ""),
           primarySyndromeBasis: (overview.primarySyndromeBasis || []).map((entry) => clean(entry)).filter(Boolean),

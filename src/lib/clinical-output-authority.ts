@@ -236,4 +236,4 @@ export function buildThreePartLimitedStateCopyForSurface(
  *     0805 需求3 要的是「诊断出三个」，集成方与导出链路照常拿得到。
  * 关掉一个显示开关，不能连带把集成方的字段抽走。
  */
-export const TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN = false;
+export const TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN = true;

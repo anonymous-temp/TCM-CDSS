@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { appendClinicalPresetValue, appendDelimitedValue, detectTonguePulseFieldConflict } from "@/lib/clinical-entry";
 import { classifyWesternDiagnosticEvidence, westernDiagnosticEvidenceGroups, clinicalFactSourcesFromCaseState, clinicalFactWithSource, guidelineReferenceDisplay, uniqueClinicalFacts } from "@/lib/clinical-fact-source";
-import type { CaseState, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
+import type { CaseState, ClinicalCitation, ClinicalReasoningResultV2, HisRecordSnapshot, Phase, SafetyGate, StructuredFollowupTimelineItem } from "@/lib/diagnosis-types";
 import { ageValue, normalizeCaseStateInput, normalizeStructuredFollowupTimeline } from "@/lib/diagnosis-types";
 import { LINEAGE_OPTIONS, displayableLineageAdaptation } from "@/lib/tcm-lineages";
 import {
@@ -4517,6 +4517,42 @@ function SummaryLine({ label, value, tone = "gray" }: { label: string; value?: s
   );
 }
 
+function ClinicalCitationLinks({
+  label,
+  citations,
+}: {
+  label: string;
+  citations?: ReadonlyArray<Pick<ClinicalCitation, "evidenceId" | "citation" | "url"> & { appliesTo?: string }>;
+}) {
+  const visible = (citations || []).flatMap((citation) => {
+    const display = guidelineReferenceDisplay(citation);
+    return display.text ? [{ ...display, evidenceId: citation.evidenceId }] : [];
+  });
+  if (visible.length === 0) return null;
+  return (
+    <div className="mt-2">
+      <p className="text-[11px] font-semibold">{label}</p>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {visible.map((citation) => citation.href ? (
+          <a
+            key={`${citation.evidenceId}-${citation.text}`}
+            href={citation.href}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="rounded-md bg-white/80 px-2 py-1 text-[11px] underline decoration-current/30 underline-offset-2"
+          >
+            {citation.text}
+          </a>
+        ) : (
+          <span key={`${citation.evidenceId}-${citation.text}`} className="rounded-md bg-white/80 px-2 py-1 text-[11px]">
+            {citation.text}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function shouldRenderEvidenceStatus(evidence?: { evidenceLevel?: string; source?: string; confidence?: string }): boolean {
   return customerEvidenceDisplayStatus(evidence) === "traceable";
 }
@@ -4685,6 +4721,7 @@ function ResultTabsV2({
   // 证候之间的取舍属于辨证过程，已在「辨证推理」一段交代；签名载荷里的
   // overview.tcmDifferentials 一字不动，已集成的调用方照常可取。
   const tcmDiseaseDifferentials = reasoning.overview.tcmDiseaseDifferentials || [];
+  const westernDifferentials = reasoning.westernDiagnosis.differentials || [];
   // 方名只从已签名载荷里逐字取出，不重新检索、不代选（与服务端 deferredFormulaSelectionLines 同源）。
   const deferredFormulaNames = (reasoning.overview.deferredFormulaSelection?.names || [])
     .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
@@ -4827,10 +4864,13 @@ function ResultTabsV2({
                   指出的「病史复述」。它在辨证推理句里作为四诊要点出现即可，不该单列一行。
               字段本身不变：tcmDiseaseName 仍在签名载荷、HIS 方案与下方分析区中呈现。
             */}
-            <p className="mt-1 text-sm font-semibold">辨证：{reasoning.overview.primarySyndrome}</p>
+            {tcmDiseaseName && <p className="mt-1 text-sm font-semibold">辨病：{tcmDiseaseName}</p>}
+            <ClinicalCitationLinks label="中医辨病依据" citations={reasoning.overview.tcmDiseaseReferences} />
+            <p className="mt-2 text-sm font-semibold">辨证：{reasoning.overview.primarySyndrome}</p>
             {reasoning.overview.secondarySyndromes && reasoning.overview.secondarySyndromes.length > 0 && (
               <p className="mt-1">兼证：{joinClinicalClauses(reasoning.overview.secondarySyndromes, "、")}</p>
             )}
+            <ClinicalCitationLinks label="中医辨证依据" citations={reasoning.overview.tcmSyndromeReferences} />
             {/* 被剥离的方名：服务端可见摘要 2026-08-10 起已经写这一行，医生页面当时没跟上——
                 同一个字段只接了一个出口。剥离本身是对的（方名锁定要求签名证候与该方在治理目录
                 中有直接关系），但医生只看到「本例辨证组方」时，既不知道系统曾指向哪张方，
@@ -4844,6 +4884,23 @@ function ResultTabsV2({
             )}
           </div>
         </div>
+        {westernDifferentials.length > 0 && (
+          <div data-testid="western-differentials" className="mt-3 rounded-lg border border-blue-100 bg-white p-3 text-xs leading-relaxed text-gray-700">
+            <p className="font-bold text-blue-800">西医鉴别诊断</p>
+            <div className="mt-2 grid gap-2 lg:grid-cols-2 xl:grid-cols-1">
+              {westernDifferentials.map((item, index) => (
+                <div key={`${item.name}-${index}`} className="rounded-md bg-blue-50 px-2.5 py-2">
+                  <p><span className="font-semibold text-blue-900">{item.name}</span></p>
+                  {isDisplayableClinicalText(item.distinguishingPoints || item.reason) && (
+                    <p className="mt-1"><span className="font-semibold">鉴别要点：</span>{item.distinguishingPoints || item.reason}</p>
+                  )}
+                  {item.nextCheck && <p className="mt-1"><span className="font-semibold">建议检查：</span>{item.nextCheck}</p>}
+                  <ClinicalCitationLinks label="参考文献" citations={item.guidelineReferences} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {(tcmDiseaseName || tcmDiseaseRationale || tcmRationale || tcmDiseaseDifferentials.length > 0 || tcmDifferentialBoundary) && (
           <div className="mt-3 rounded-lg border border-amber-100 bg-white p-3 text-xs leading-relaxed text-gray-700">
             <p className="font-bold text-amber-800">中医辨病辨证分析</p>
