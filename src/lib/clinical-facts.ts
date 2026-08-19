@@ -1588,9 +1588,14 @@ export async function extractClinicalFacts(
         : /(?:http_|status code )\d{3}/.test(message) ? "http_error"
         : /schema|grounding|decision|finding/.test(message) ? "invalid_contract"
         : "transport_or_unknown";
+      // 仅记录本模块自己定义的有限错误码，绝不记录模型原文或患者文本。此前所有结构失败
+      // 都被压成 invalid_contract，线上只能知道“坏了”却不知道是缺 findingId、缺 review
+      // decision、还是试图静默降级，无法在不放宽安全门的前提下做类别修复。
+      const contractCode = /^clinical_facts_[a-z0-9_]+$/.test(message) ? message : undefined;
       console.warn("[tcm-cdss:facts] clinical-facts review attempt failed", {
         attempt: reviewAttempt,
         reason,
+        ...(contractCode ? { contractCode } : {}),
         willRetry: reviewAttempt !== 3,
       });
       if (reviewAttempt === 3) return { ...grounded, reviewStatus: "unavailable" };
