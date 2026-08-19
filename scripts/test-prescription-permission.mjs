@@ -6,6 +6,7 @@ import { createJiti } from "jiti";
 // 作为运维回退开关——因此这里显式切到 block 档来测机制本身；advise 档的默认性与横幅行为
 // 由下方独立断言与 50 例在线回归覆盖。必须在 import diagnosis-safety 之前设置。
 process.env.CDSS_GATE_DISPOSITION = "block";
+const TEST_CUSTOMER_ID = "test-hospital";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": "/dev/null" } });
 const {
@@ -23,6 +24,7 @@ const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts"
 
 const base = {
   id: "permission-case",
+  customerId: TEST_CUSTOMER_ID,
   phase: "done",
   patient: { sex: "男", age: 42 },
   chiefComplaint: "入睡困难伴多梦2个月",
@@ -288,6 +290,7 @@ const scopeControl = {
   herbs: [{ name: "黄芪", dose: "15g" }, { name: "酸枣仁", dose: "15g" }],
 };
 const unsignedScopeState = buildAuditPositiveControlState(scopeControl);
+unsignedScopeState.customerId = TEST_CUSTOMER_ID;
 const unsignedScopeDiagnose = {
   ...unsignedScopeState.reasoningPrescribe,
   stage: "diagnose",
@@ -303,6 +306,7 @@ const unsignedScopeDiagnose = {
 };
 const signedScopeDiagnose = signDiagnoseReasoning(unsignedScopeDiagnose, buildDiagnoseContractSignatureContext(unsignedScopeState));
 const builtScopeState = buildAuditPositiveControlState(scopeControl, signedScopeDiagnose);
+builtScopeState.customerId = TEST_CUSTOMER_ID;
 // 路由会再次 normalizeCaseStateInput；先做一次 JSON 归一化再挂载语义事实，保证指纹命中缓存、
 // 路由内的语义回填不再发起任何模型调用。
 const roundTrippedScopeState = normalizeCaseStateInput(JSON.parse(JSON.stringify(builtScopeState)));
@@ -320,7 +324,7 @@ assert.equal(fingerprintOf(reparsedUnclearState), unclearScopeState.clinicalFact
 
 const routeRequest = (path, state) => new Request(`http://localhost${path}`, {
   method: "POST",
-  headers: { "content-type": "application/json" },
+  headers: { "content-type": "application/json", "x-cdss-customer-id": TEST_CUSTOMER_ID },
   body: JSON.stringify({ caseState: state }),
 });
 

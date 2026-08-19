@@ -10,12 +10,18 @@
 // 本轮最大的一个缺陷（HIS 诊断三卡内容恒空）恰恰是「夹具能过、真实产物过不了」造成的，
 // 用夹具再测一遍等于重复同一个盲区。
 //
-// 用法：BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=xxx node scripts/regress-online-inventory.mjs
+// 用法：BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=xxx CDSS_CUSTOMER_ID=xxx node scripts/regress-online-inventory.mjs
 import { randomUUID } from "node:crypto";
 
 const BASE_URL = (process.env.BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || "";
-const HEADERS = { "Content-Type": "application/json", ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}) };
+const CUSTOMER_ID = process.env.CDSS_CUSTOMER_ID || "";
+if (!CUSTOMER_ID) throw new Error("CDSS_CUSTOMER_ID required");
+const HEADERS = {
+  "Content-Type": "application/json",
+  "x-cdss-customer-id": CUSTOMER_ID,
+  ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}),
+};
 
 const failures = [];
 const notes = [];

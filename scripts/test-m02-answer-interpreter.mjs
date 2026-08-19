@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, {
+  alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  },
+});
 const {
   M02_ANSWER_INTERPRETATION_SCHEMA_VERSION,
   interpretM02Answer,
@@ -11,6 +16,7 @@ const { POST } = jiti("../src/app/api/diagnosis/question/interpret/route.ts");
 
 const caseState = {
   id: "m02-answer-test",
+  customerId: "test-hospital",
   phase: "question",
   patient: { age: 42 },
   chiefComplaint: "反复皮疹，拟核实过敏史和当前用药",
@@ -169,7 +175,7 @@ assert.ok(wrongQuestion.reasons.includes("question_not_in_plan"));
 
 const invalidRouteResponse = await POST(new Request("http://localhost/api/diagnosis/question/interpret", {
   method: "POST",
-  headers: { "content-type": "application/json" },
+  headers: { "content-type": "application/json", "x-cdss-customer-id": "test-hospital" },
   body: JSON.stringify({ caseState, m02Plan: { ...plan, questions: [] }, answer: "没有" }),
 }));
 assert.equal(invalidRouteResponse.status, 422, "route rejects an invalid plan before any model call");

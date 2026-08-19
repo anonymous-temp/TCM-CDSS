@@ -13,7 +13,7 @@
 //     探针自带滚动窗口令牌桶（默认留 5 次余量），撞 429 时按 Retry-After 退避重试，
 //     绝不因为压测把真实用户挤掉。
 //
-//   CASES_FILE=… OUT_DIR=… BASE_URL=… CDSS_API_TOKEN=… npm run regress:robustness-live
+//   CASES_FILE=… OUT_DIR=… BASE_URL=… CDSS_API_TOKEN=… CDSS_CUSTOMER_ID=… npm run regress:robustness-live
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import path, { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,6 +56,8 @@ function herbFunctionIsDataGap(herb) {
 
 const BASE_URL = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || "";
+const CUSTOMER_ID = process.env.CDSS_CUSTOMER_ID || "";
+if (!CUSTOMER_ID) throw new Error("CDSS_CUSTOMER_ID required");
 const CASES_FILE = process.env.CASES_FILE || "src/data/tcm-robustness-cases.source.json";
 const OUT_DIR = process.env.OUT_DIR || "artifacts/robustness-run";
 const CONCURRENCY = Number(process.env.PROBE_CONCURRENCY || 3);
@@ -138,7 +140,11 @@ async function post(path, caseState, attempt = 0) {
   try {
     const response = await fetch(`${BASE_URL}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}) },
+      headers: {
+        "Content-Type": "application/json",
+        "x-cdss-customer-id": CUSTOMER_ID,
+        ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}),
+      },
       body: JSON.stringify({ caseState }),
       signal: controller.signal,
     });

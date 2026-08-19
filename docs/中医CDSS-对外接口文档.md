@@ -2,9 +2,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.2 |
-| 发布日期 | 2026-08-13 |
-| 服务版本 | `tcm-cdss-20260813-lineage-hardcase-r1` |
+| 文档版本 | V2.3 |
+| 发布日期 | 2026-08-19 |
+| 服务版本 | `tcm-cdss-20260819-multitenant-diagnostic-evidence-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
@@ -71,17 +71,21 @@ M01 病历采集 ──▶ M02 追问生成 ──▶ M03 辨病辨证 ──▶
 ```bash
 BASE="https://82.156.128.153/tcm-cdss"
 TOKEN="<接口令牌>"
+CUSTOMER_ID="<客户唯一标识>"
 
 # ① 连通性与版本核对：确认所连服务与本文档表头的「服务版本」一致
 curl -s "$BASE/api/diagnosis/health" -H "x-cdss-api-token: $TOKEN"
 
 # ② 鉴权校验：令牌正确返回 {"ok":true}，错误返回 401
 curl -s -X POST "$BASE/api/auth/access" \
-  -H "Content-Type: application/json" -d "{\"token\":\"$TOKEN\"}"
+  -H "Content-Type: application/json" \
+  -d "{\"token\":\"$TOKEN\",\"customerId\":\"$CUSTOMER_ID\"}"
 
 # ③ 业务路由连通性：库存查询不经模型、不计入调用频率限制，响应即时，
 #    适合作为首个业务接口冒烟（未导入库存时返回 inventoryLoaded=false，属正常）
-curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
+curl -s "$BASE/api/drug-inventory" \
+  -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID"
 ```
 
 三步都通过后，再按 §6.1 的完整链路示例接入 M01–M05。
@@ -97,7 +101,7 @@ curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
 
 ### 3.1 鉴权
 
-所有接口均需鉴权。请求头二选一：
+所有接口均需鉴权。访问令牌请求头二选一：
 
 | 方式 | 请求头 |
 |---|---|
@@ -106,9 +110,19 @@ curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
 
 未携带或令牌错误返回 `401`。
 
+除健康检查外，病例、诊断、处方、审方、HIS 打包、快照和药品库存接口还必须绑定客户上下文：
+
+| 调用方式 | 客户标识传递方式 |
+|---|---|
+| 服务端/API 对接 | 请求头 `x-cdss-customer-id: <客户唯一标识>` |
+| 浏览器登录 | `/api/auth/access` 请求体同时提交 `{token, customerId}`，成功后由服务端签发 httpOnly 客户上下文 Cookie |
+
+`customerId` 仅接受 6–64 位 ASCII 字母、数字、下划线或连字符。客户标识参与病例签名、快照 AAD、限流、库存路径和审方租户头；跨客户复用病例状态会返回 `409 customer_context_mismatch`，不会读取或回落到其他客户库存。
+
 > **本文档中的所有 curl 示例统一使用 `$TOKEN` 占位**，请先在 shell 中导出真实令牌再执行：
 > ```bash
 > export TOKEN="<贵方接口令牌>"
+> export CUSTOMER_ID="<客户唯一标识>"
 > ```
 > V1.4 之前的版本在示例里内联了生产环境的真实令牌。本次（V1.5）已全部改为占位符，
 > 但**旧版本文档与其历史副本仍含明文令牌**；请按贵方安全规范决定是否轮换该令牌，
@@ -120,10 +134,11 @@ curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
 |---|---|---|
 | `Content-Type` | 是 | `application/json` |
 | `x-cdss-api-token` | 是 | 接口访问令牌 |
+| `x-cdss-customer-id` | 临床与药品接口是 | 6–64 位客户唯一标识；同一次就诊全流程保持不变 |
 
 ### 3.3 参数传递要求
 
-**以下五条为强制要求，不满足将导致接口报错或链路中断。**
+**以下六条为强制要求，不满足将导致接口报错或链路中断。**
 
 | 编号 | 要求 | 不满足的后果 |
 |---|---|---|
@@ -132,6 +147,7 @@ curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
 | R3 | M03 结论中的签名字段名为 `contractSignature`（非 `signature`） | 取值为空，回传后 `409` |
 | R4 | 查询参数中的中文必须 URL 编码 | 反向代理返回 `400` |
 | R5 | 建议按 M01→M02→M03→M04→M05 顺序调用；**真实门禁只有三道**，不是"任意跳段即 409" | 见下方 R5 说明 |
+| R6 | 所有临床、审方、HIS、快照和库存请求携带同一个 `x-cdss-customer-id`；`caseState.customerId` 若已存在必须与请求头一致 | 缺失返回 `400 customer_id_required`；不一致返回 `409 customer_context_mismatch` |
 
 **R1 示例**
 
@@ -159,6 +175,7 @@ curl -s "$BASE/api/drug-inventory" -H "x-cdss-api-token: $TOKEN"
 | 字段路径 | 类型 | 必填 | 取值 | 作用阶段 | 说明 |
 |---|---|---|---|---|---|
 | `id` | string | 是 | — | 全阶段 | 同一次就诊全程不变（R1）。缺省时服务端自动生成，将导致 M04 返回 `409` |
+| `customerId` | string | 建议回传 | 与请求头一致 | 全阶段 | 服务端按请求头写入病例状态并纳入签名；调用方不得跨客户改写或复用 |
 | `phase` | enum | 建议 | `idle`/`collect`/`question`/`diagnose`/`prescribe`/`assess`/`done`/`error` | 全阶段 | **枚举外的值会让整个 caseState 被拒**（400），不是被忽略。M02 要求 `phase="question"` |
 | `patient.sex` | string | 建议 | 男/女 | 全阶段 | `hisRecord.fields.sex` 优先 |
 | `patient.age` | number | 建议 | — | 全阶段 | 影响特殊人群剂量规则与儿科门禁 |
@@ -517,6 +534,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/auth/access" \
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/collect" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "userInput": "产后2月余，头痛反复发作1月，劳累后加重，伴神疲乏力、心悸失眠、面色少华。舌淡苔薄白，脉细弱。",
     "patientSex": "女"
@@ -579,6 +597,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/collect" \
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -656,7 +675,9 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
 | `tcmDiseaseName` | 中医病名 | string | — |
+| `tcmDiseaseReferences` | 辨病循证依据 | array | 服务端受治理标准引用；当前绑定 GB/T 15657-2021《中医病证分类与代码》 |
 | `primarySyndrome` | 主证候 | string | 采用 GB/T 16751 国标证候名，不含病机描述 |
+| `tcmSyndromeReferences` | 辨证循证依据 | array | 服务端受治理标准引用；当前绑定 GB/T 16751.2-2021《中医临床诊疗术语 第2部分：证候》 |
 | `primarySyndromeBasis` | 主证候依据 | array | 逐条来自病历的事实 |
 | `primarySyndromeResolution` | 证候确定程度 | string | `resolved` 已确定 / `bounded` 有界 / `unresolved` 未确定 |
 | `tcmDiseaseRationale` | 辨病依据 | string | 不得复述结论本身 |
@@ -692,7 +713,8 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 | `clinicalRationale` | 推理说明 | string | 事实到诊断倾向的推理，不复述病史 |
 | `coding` | ICD-10 编码 | object | `{system, code, display, source}`，服务端确定性编码。可选：仅当匹配到受控医保码时输出 |
 
-`westernDiagnosis.differentials[]` 西医鉴别诊断：`{name, reason, distinguishingPoints, nextCheck}`
+`westernDiagnosis.differentials[]` 西医鉴别诊断：`{name, reason, distinguishingPoints, nextCheck, guidelineReferences?}`。
+其中 `reason`、`distinguishingPoints`、`nextCheck` 为临床鉴别内容；`guidelineReferences[]` 只承载标准参考文献条目，页面不会把模型思考过程混入参考文献栏。该字段仅在本轮受治理证据检索命中并完成绑定时输出。
 
 **病机 `pathogenesis`**
 
@@ -740,6 +762,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -957,8 +980,9 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `singleDose` | 单次剂量 | string / null | **西药一律不下发**；中成药仅在说明书条目本身给全时填写，缺项即为 `null`，不作猜测 |
 | `frequency` | 用药频次 | string / null | 同 `singleDose`：说明书未给全即为 `null` |
 | `route` | 给药途径 | string / null | 同 `singleDose`：说明书未给全即为 `null` |
+| `administrationTiming` | 服药时机 | string / null | 仅从说明书用法用量原文解析；原文未载时不展示 |
 | `usageBoundary` | 适用边界 | string | 适用范围与服药注意 |
-| `course` | 疗程 | string | — |
+| `course` | 疗程 | string / null | 仅从说明书原文解析；原文未载时字段为空且页面省略，不再输出“本候选不形成疗程医嘱”等占位文案 |
 | `positioning` | 定位 | string | `联合治疗` / `替代方案` / `短期对症` / `需医生评估` |
 | `correspondingProblem` | 对应本例问题 | string | — |
 | `relationship` | 与饮片方的关系 | string | 是否可叠加 |
@@ -1026,6 +1050,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -1130,6 +1155,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -1231,6 +1257,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/red-flags" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -1331,6 +1358,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/red-flags" \
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/emergency-clearance" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "caseState": {
       "id": "OPD-20260805-000123",
@@ -1558,10 +1586,13 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 西医诊断依据 | `westernDiagnosis.primary.supportingFacts` |
 | 西医诊断待查依据 | `westernDiagnosis.primary.suggestedChecks`（建议检查）<br>`westernDiagnosis.primary.limitations`（依据不足之处） |
 | 西医鉴别诊断 | `westernDiagnosis.differentials[]` |
+| 西医鉴别诊断参考文献 | `westernDiagnosis.differentials[].guidelineReferences[]`（可选：仅当本轮受治理证据检索命中并绑定到该鉴别项时输出） |
 | ICD-10 编码 | `westernDiagnosis.primary.coding`（可选：仅当匹配到受控医保码时输出） |
 | **指南/文献依据** | `westernDiagnosis.primary.guidelineReferences[]`（V1.4 新增，可选）<br>`{evidenceId, citation, url?, appliesTo?}`。题名/机构/年份/URL 由服务端按 `evidenceId` 反查**本轮真检索到**的证据条目渲染，模型只提交条目号与一句适用说明；**本轮未检索到就不输出该字段**，不会回落到模型自撰题名 |
 | 中医病名 | `overview.tcmDiseaseName` |
+| 中医辨病循证依据 | `overview.tcmDiseaseReferences[]`（受治理标准引用） |
 | 中医证候 | `overview.primarySyndrome` |
+| 中医辨证循证依据 | `overview.tcmSyndromeReferences[]`（受治理标准引用） |
 | 证候依据 | `overview.primarySyndromeBasis[]` |
 | 中医病名鉴别 | `overview.tcmDiseaseDifferentials[]` |
 | 中医证候鉴别 | `overview.tcmDifferentials[]` |
@@ -1590,6 +1621,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 随证加减 | `formula.modifications[]` |
 | 可替换药味 | `formula.modifications[].substitutions[]`（可选，见下方说明） |
 | 中成药与西药候选 | `formula.patentAndWestern[]` |
+| 中成药说明书用法 | `formula.patentAndWestern[].route`、`singleDose`、`frequency`、`administrationTiming`、`course`（均以说明书原文为准，缺项省略） |
 | 健康调护 · 饮食 | `nonPharma.diet` |
 | 健康调护 · 起居 | `nonPharma.lifestyle` |
 | 健康调护 · 情志 | `nonPharma.emotion` |
@@ -1686,6 +1718,7 @@ M05 响应为 Markdown 文本流，不采用结构化字段，内容依次为：
 ```bash
 BASE="https://82.156.128.153/tcm-cdss"
 TOKEN="<接口令牌>"
+CUSTOMER_ID="<客户唯一标识>"
 CASE_ID="OPD-20260807-000123"
 ```
 
@@ -1695,6 +1728,7 @@ CASE_ID="OPD-20260807-000123"
 curl -N -X POST "$BASE/api/diagnosis/diagnose" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "caseState": {
       "id": "'"$CASE_ID"'",
@@ -1830,6 +1864,7 @@ curl -N -X POST "$BASE/api/diagnosis/diagnose" \
 curl -N -X POST "$BASE/api/diagnosis/prescribe" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "caseState": {
       "id": "'"$CASE_ID"'",
@@ -1981,7 +2016,6 @@ curl -N -X POST "$BASE/api/diagnosis/prescribe" \
         "evidenceFingerprint": "sha256:1b8f9a574bca8eb451cf5655664a01408b20e08cfcd3db9a82d5e1dfc75b3ce9",
         "recommendationMode": "candidate_review",
         "usageBoundary": "作为饮片煎剂的替代或序贯方案，需在医生指导下使用；哺乳期用药需权衡利弊。",
-        "course": "本候选不形成疗程医嘱",
         "positioning": "替代方案",
         "correspondingProblem": "心脾两虚、气血不足所致的产后头痛、心悸失眠、神疲乏力",
         "evidence": {
@@ -2046,6 +2080,7 @@ curl -N -X POST "$BASE/api/diagnosis/prescribe" \
 curl -N -X POST "$BASE/api/diagnosis/assess" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: $TOKEN" \
+  -H "x-cdss-customer-id: $CUSTOMER_ID" \
   -d '{
     "caseState": {
       "id": "'"$CASE_ID"'",
@@ -2200,6 +2235,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.3 | 2026-08-19 | **① 客户药品库全链路隔离。** 临床、审方、HIS、快照与库存接口新增必填请求头 `x-cdss-customer-id`；浏览器登录请求体新增 `customerId` 并签发客户上下文 Cookie。客户标识进入病例签名、快照 AAD、限流、库存文件和审方租户头；不同客户的饮片、中成药和西药库存独立，M04 只保留当前客户有货候选。**② M03 补齐中医辨病与辨证的循证依据**：`overview.tcmDiseaseReferences[]`、`overview.tcmSyndromeReferences[]`；西医鉴别项新增可选 `guidelineReferences[]`，参考文献栏只显示标准引用，不混入模型思考过程。**③ 中成药用法按说明书展示**：新增 `administrationTiming`，`route`、`singleDose`、`frequency`、`course` 均只在说明书原文存在时输出；删除“本候选不形成疗程医嘱”占位文案 | **是（一处）**：临床、审方、HIS、快照和库存调用必须提供客户标识。未适配调用返回 `400 customer_id_required`；同一病例跨客户调用返回 `409 customer_context_mismatch`。新增诊断与用药字段均向后兼容 |
 | V2.2 | 2026-08-13 | **① 流派功能补齐「报告说明」与「排序影响」两层。** 此前 `lineageAdaptation` 只存在于 JSON 出参，报告/页面/HIS 一处都不渲染。现在：选择了具体流派（非「不限定」）且模型产出非空适配内容时，可见正文与医生页面新增 **「流派适配记录」** 段（诊疗思路、本例适用性、适配说明、受影响决策、安全边界——安全让位声明恒随段落出现）；HIS 出参 `aiMedicalRecord` 新增**可选**字段 `tcmLineageAdaptation`（`label` / `applicability`（适用/部分适用/不适用）/ `reason` / `influencedDecisions[]{aspect,detail}` / `safetyBoundary`）。同时上线流派对候选方**展示顺序**的有限影响机制：方剂出处书名→流派映射逐条带中医师终审状态，**未签字条目零影响（当前全部待签，故本版行为无任何变化）**；签字后也只在已通过全部安全与证据准入的候选池内做封顶加分的展示排序，不参与准入、不参与系统自动锁方、不改变剂量/禁忌/审方任何校验。**② M03 复合证候两处判据修复（线上心悸案实测）。** 「心阳不振，水气凌心」这类**并列国标证候**此前被误判为「病名+病机」缺陷形态（病名前缀包含式匹配被「水气」截胡），导致修复轮空转、方名锁定被搁置；已修。主证候可确定性归一时，方名撤销原因不再误写为「等术语确认」（`semantic_mapping_pending_clinician_confirmation`），改为如实的 `governed_syndrome_relation_unverified`——医生不再被引导等待一个不改变结果的确认 | **否。** 新增字段均为可选（缺省即不下发），V1/V2 契约不破坏；`deferredFormulaSelection.reason` 枚举集合未变，仅取值分布更准确。集成方若想使用流派适配内容，按可选字段读取即可 |
 | V2.1 | 2026-08-12 | **西医诊断依据的分类与事实来源更正（呈现层，出参字段未变）。** 线上实测发现三处错分：**①** 既往史 / 用药史 / 过敏史此前被并入「症状依据」，于是「高血压病史5年，规律服药」「氨氯地平 5mg 每日一次」被印成症状。现新增第五个分栏 **「病史依据」**，这三个字段的落点即结论、模型标注不得覆盖（现病史里记录的体征仍由模型判定，不变）。**②** 事实来源标注把 HIS 直传字段一律标成「（来源：现病史）」——接地正文里 HIS 字段是不带标题的裸行，解析时被兜底猜成现病史。现区分「读出来的」与「猜出来的」归属，前者优先，并改为直接读受治理字段路径。**③** 主诉与现病史描述同一临床事件时合并，保留信息更全的那条 | **否。** `westernDiagnosis.primary.supportingFacts` 字段与取值不变，仍是未分类的事实数组，HIS 出参亦不变。仅**医生页面与可见正文**的分栏与来源标注发生变化：新增「病史依据」一栏（无内容时不出现），来源标注可能从「现病史」变为「既往史 / 当前用药 / 生命体征」等更准确的字段名 |
 | V2.0 | 2026-08-12 | **① 随访时间轴改为模型驱动。** 此前该结构里只有观察项是按本例生成的、且两条目共用同一份；时间点第二条恒为「治疗期间随时」、随访动作是两条写死的字符串、触发条件主体是一句固定话术——不同证型的病例拿到的时间轴逐字相同。现由 M05 撰写层按本例证候/病机/治法/处方整条生成（2–4 条，时间点各异、动作与触发条件因例而异）。**三条边界不变**：第一条时间点恒等于正文「首次复诊时间」；处方后审方得出的安全触发条件**只增不减**并入第一条；红旗 / 无结构化剂量 / 硬剂量边界三条降级路径完全不走模型、保持确定性。模型不可用或校验不通过时逐字回落原模板。**② 勘误 `timelineItems[].indication`**：该字段从未存在，实现产出的是 `indicators[]` 与 `triggers[]`，本版按实现更正 | **否。** 出参字段集未变（`indication` 从未真实存在，取它一直是 `undefined`）。**内容分布会变**：时间点不再固定为两条、不再出现「治疗期间随时」这一固定值；若贵方按固定字符串匹配过时间轴行，请改为按数组遍历 |

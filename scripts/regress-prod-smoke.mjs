@@ -16,13 +16,19 @@
 //   · 主症必须影响选方(治法→选方传导,见 tcm-formula-indications 的召回文本注释)。
 //
 // 用法:
-//   BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=xxx npm run regress:prod-smoke
+//   BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=xxx CDSS_CUSTOMER_ID=xxx npm run regress:prod-smoke
 // 退出码 0 = 全部通过;非 0 = 有失败(逐条打印)。
 import { randomUUID } from "node:crypto";
 
 const BASE_URL = (process.env.BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || "";
-const HEADERS = { "Content-Type": "application/json", ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}) };
+const CUSTOMER_ID = process.env.CDSS_CUSTOMER_ID || "";
+if (!CUSTOMER_ID) throw new Error("CDSS_CUSTOMER_ID required");
+const HEADERS = {
+  "Content-Type": "application/json",
+  "x-cdss-customer-id": CUSTOMER_ID,
+  ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}),
+};
 
 const failures = [];
 const check = (name, ok, detail) => {
@@ -60,6 +66,7 @@ async function callStage(path, caseState) {
 const CASE_ID = `prod-smoke-${randomUUID()}`;
 const baseCase = {
   id: CASE_ID,
+  customerId: CUSTOMER_ID,
   patient: { sex: "女", age: 28 },
   chiefComplaint: "产后2月余，头痛反复发作1月",
   symptoms: {

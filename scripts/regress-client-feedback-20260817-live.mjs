@@ -4,11 +4,14 @@ import path from "node:path";
 
 const BASE_URL = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || "";
+const CUSTOMER_ID = process.env.CDSS_CUSTOMER_ID || "";
 const OUT = process.env.OUT || "artifacts/client-feedback-20260817-live.json";
 if (!TOKEN) throw new Error("CDSS_API_TOKEN required");
+if (!CUSTOMER_ID) throw new Error("CDSS_CUSTOMER_ID required");
 
 const caseState = {
   id: `client-feedback-20260817-${Date.now()}`,
+  customerId: CUSTOMER_ID,
   phase: "diagnose",
   patient: { sex: "女", age: 24 },
   chiefComplaint: "恶寒发热、鼻塞流涕2+天",
@@ -57,7 +60,11 @@ async function call(stage, state) {
   const startedAt = Date.now();
   const response = await fetch(`${BASE_URL}/api/diagnosis/${stage}`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-cdss-api-token": TOKEN },
+    headers: {
+      "content-type": "application/json",
+      "x-cdss-api-token": TOKEN,
+      "x-cdss-customer-id": CUSTOMER_ID,
+    },
     body: JSON.stringify({ caseState: state }),
     signal: AbortSignal.timeout(220_000),
   });

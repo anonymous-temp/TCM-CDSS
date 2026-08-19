@@ -1514,11 +1514,10 @@ export function buildUnavailableRxAuditSection(reason: string): string {
 }
 
 /**
- * 我方**有意不提交单次剂量**的那些行（2026-08-11 线上实测）。
+ * 说明书没有给出可核验单次剂量、因此我方不提交单次剂量的那些行。
  *
- * 系统对中成药/西药明确不下单次剂量——编译器把 singleDose/frequency/route 置空、
- * course 写死「本候选不形成疗程医嘱」，提交给审方的 item 里干脆没有 single_dose 字段。
- * 这是有意的 fail-closed 设计（不向审方伪造剂量），提交侧写得清清楚楚。
+ * 系统只逐字采用同一说明书条目中真实存在的 singleDose/frequency/route/course；
+ * 说明书缺项时不猜测，提交给审方的 item 里也不伪造 single_dose 字段。
  *
  * 但这条判据此前**只写在提交侧**：灵犀按协议对每条无 single_dose 的 item 回一条
  * 「未提供可识别的单次剂量」告警，回包路径上没有这条判据的任何副本，于是它和真实的

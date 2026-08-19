@@ -25,6 +25,7 @@ const BASE_PATH = new URL(BASE_URL).pathname.replace(/\/$/, "") === "/" ? "" : n
 const MIN_CALLS = Number(process.env.MIN_CALLS || 100);
 const CALL_TIMEOUT_MS = Number(process.env.CALL_TIMEOUT_MS || 30000);
 const CDSS_API_TOKEN = process.env.CDSS_API_TOKEN || "";
+const CDSS_CUSTOMER_ID = process.env.CDSS_CUSTOMER_ID || "regression-customer";
 const PROGRESS = process.env.PROGRESS === "1";
 const STATIC_ONLY = process.env.STATIC_ONLY === "1";
 const COMPACT_FAILURES = process.env.COMPACT_FAILURES === "1";
@@ -52,6 +53,12 @@ function escapeRegExp(value) {
 
 function hasCookieAttribute(setCookie, name, value) {
   return new RegExp(`(?:^|;\\s*)${escapeRegExp(name)}=${escapeRegExp(value)}(?:;|$)`, "i").test(setCookie);
+}
+
+function cookieHeaderFromSetCookie(setCookie) {
+  return [...String(setCookie || "").matchAll(/(?:^|,\s*)([^=;,\s]+=[^;,]+)/g)]
+    .map((match) => match[1])
+    .join("; ");
 }
 
 function sanitizeFailureDetails(value) {
@@ -362,7 +369,7 @@ function runFrontendContractChecks() {
       diagnosisApiSource.includes('process.env.PRIMARY_PRESCRIBE_REPAIR_MODEL?.trim()') &&
       diagnosisApiSource.includes('process.env.PRIMARY_DIAGNOSE_MODEL?.trim()') &&
       diagnosisApiSource.includes('String(process.env.PRIMARY_PRESCRIBE_REASONING_EFFORT || "medium")') &&
-      diagnosisApiSource.includes('reasoning_effort: reasoningEffortForStructuredRepair(structuredStage)') &&
+      diagnosisApiSource.includes('reasoningEffort: reasoningEffortForStructuredRepair(structuredStage)') &&
       diagnosisApiSource.includes("先不重不漏地输出所选基准 ingredients 的全部药味") &&
       promptSource.includes("minimumPreservedIngredientCount") &&
       promptSource.includes("组成身份下限"),
@@ -500,12 +507,12 @@ function runFrontendContractChecks() {
   assert(formulaProvenanceSource.includes('constructionType') && formulaProvenanceSource.includes('"combined" as const') && formulaProvenanceSource.includes('"self_devised" as const'), "formula provenance: candidates are classified as base, combined, self-devised, or single-herb", formulaProvenanceSource.slice(6500, 9000));
   assert(prescribeRoute.includes("applyTcmTreatmentCapabilityPriority(evidenceOutputTransform(content)") && prescribeRoute.includes("enrichPrescriptionProvenance(sanitized, clinicalGroundingText(safeState))"), "M04: evidence is sanitized and treatment capabilities are canonicalized before verified local formula provenance is added", prescribeRoute.slice(-2200));
   assert(
-    diagnosisVisibleSummarySource.includes("Array.isArray(item.requiredChecks)") &&
-      diagnosisVisibleSummarySource.includes("tcmTreatmentAssessmentPositioningForDisplay") &&
+    diagnosisVisibleSummarySource.includes("buildClinicianTreatmentProjects") &&
+      !diagnosisVisibleSummarySource.includes("Array.isArray(item.requiredChecks)") &&
       hisSchemeSource.includes("operatorRequirement: project.operatorRequirement") &&
       hisSchemeSource.includes("requiredChecks: project.requiredChecks") &&
       hisSchemeSource.includes("requiresMedicationAudit: project.requiresMedicationAudit"),
-    "treatment projects: generic positioning is omitted while operator requirements, checks, risk mode, and medication-audit boundary survive report and HIS export",
+    "treatment projects: clinician output contains only actionable content while governance checks remain available in HIS export",
     `${diagnosisVisibleSummarySource.slice(23800, 26000)}\n${hisSchemeSource.slice(-5200)}`,
   );
   assert(
@@ -532,7 +539,7 @@ function runFrontendContractChecks() {
   assert(evidenceSourceValidationSource.includes('line.includes("[OFFICIAL-CHP-2025]")') && evidenceContextSource.includes("不得用该通用ID证明具体药味、剂量、炮制或禁忌"), "evidence: a generic 2025 pharmacopoeia homepage cannot substantiate a concrete herb, dose, processing, or contraindication", `${evidenceSourceValidationSource}\n${evidenceContextSource.slice(0, 1800)}`);
   assert(evidenceContextSource.includes("sanitizeLabeledEvidenceLines") && customerEvidenceSource.includes("INTERNAL_PLACEHOLDER") && customerEvidenceSource.includes("!sourceAllowed(source)"), "evidence: labeled placeholders and unknown titles are removed as whole customer-facing fields", `${customerEvidenceSource}\n${evidenceContextSource.slice(4300, 7000)}`);
   assert(engineSource.includes("sanitizeCaseStateForBrowserPersistence") && engineSource.includes("scrubPersistentPhiText") && source.includes("sanitizeRecordDraftForBrowserPersistence") && source.includes('apiUrl("/api/diagnosis/snapshot")') && sourceBetween(source, "async function loadWorkspaceSnapshot", "function recoverInterruptedRun").includes("clearAllSavedCases()") && snapshotRouteSource.includes('createCipheriv("aes-256-gcm"') && snapshotRouteSource.includes("cipher.setAAD") && snapshotRouteSource.includes("readLimitedJson") && snapshotRouteSource.includes("reader.cancel()"), "persistence: browser stores only a server-authenticated AES-GCM envelope, clears every legacy plaintext case key, and limits request bytes before JSON parsing", `${engineSource.slice(0, 3600)}\n${sourceBetween(source, "function sanitizeRecordDraftForBrowserPersistence", "function recoverInterruptedRun")}\n${snapshotRouteSource}`);
-  assert(snapshotRouteSource.includes('process.env.CASE_SNAPSHOT_ENCRYPTION_KEY || ""') && !snapshotRouteSource.includes("process.env.CDSS_API_TOKEN") && snapshotRouteSource.includes("authorizeSnapshot(req, key)") && snapshotRouteSource.includes("isValidCdssUiCookieValue") && snapshotRouteSource.includes("stableSnapshotScope(key, expectedToken)") && snapshotRouteSource.includes("snapshotAad(body.binding, authorization.scope)") && source.includes("workspaceSnapshotBinding"), "persistence: snapshot encryption uses a dedicated key, validates the current session, and binds envelopes to the browser workspace plus a stable server access scope", `${snapshotRouteSource}\n${sourceBetween(source, "function workspaceSnapshotBinding", "function sanitizeRecordDraftForBrowserPersistence")}`);
+  assert(snapshotRouteSource.includes('process.env.CASE_SNAPSHOT_ENCRYPTION_KEY || ""') && !snapshotRouteSource.includes("process.env.CDSS_API_TOKEN") && snapshotRouteSource.includes("authorizeSnapshot(req, key)") && snapshotRouteSource.includes("isValidCdssUiCookieValue") && snapshotRouteSource.includes("stableSnapshotScope(key, expectedToken)") && snapshotRouteSource.includes("customer.context.customerHash") && snapshotRouteSource.includes("snapshotAad(body.binding, tenantScope)") && source.includes("workspaceSnapshotBinding"), "persistence: snapshot encryption uses a dedicated key, validates the current session, and binds envelopes to the browser workspace, access scope, and customer", `${snapshotRouteSource}\n${sourceBetween(source, "function workspaceSnapshotBinding", "function sanitizeRecordDraftForBrowserPersistence")}`);
   assert(healthRouteSource.includes("snapshotPersistenceReady") && healthRouteSource.includes("snapshot_encryption_key_not_configured") && healthRouteSource.includes("&& snapshotPersistenceReady") && healthRouteSource.includes("snapshotPersistence:"), "persistence: enabled autosave without its dedicated encryption key fails strict readiness and is visible in health", healthRouteSource);
   assert(sourceBetween(engineSource, "export function sanitizeCaseStateForBrowserPersistence", "export function saveCase").includes("skipDifferentiationGate: undefined") && workspaceSnapshot.includes("selectedQuestionOptions"), "persistence: one-time skip intent is stripped while clinical chip selections survive a safe browser restore", `${engineSource.slice(700, 3000)}\n${workspaceSnapshot}`);
   assert(source.includes("recoverInterruptedRun") && source.includes("页面刷新或关闭中断") && workspaceSnapshot.includes("runningPhase?: Phase") && sourceBetween(source, "function recoverInterruptedRun", "function clearWorkspaceSnapshot").includes('state.phase === "question" ? undefined'), "frontend: only an in-flight M01-M05 stage becomes retryable after refresh while a stable M02 question state remains answerable", `${workspaceSnapshot}\n${sourceBetween(source, "function recoverInterruptedRun", "function clearWorkspaceSnapshot")}`);
@@ -562,7 +569,7 @@ function runFrontendContractChecks() {
   const streamingSanitizer = sourceBetween(source, "function sanitizeStreamingPreview", "function StreamingPreviewCard");
   assert(streamingSanitizer.includes("Preserve the candidate structure") && streamingSanitizer.includes("用法用量待最终核验") && !streamingSanitizer.includes("本阶段完成后展示"), "frontend: M04 streaming preserves medicine names and section structure while masking only unfinished dose fragments", streamingSanitizer);
   assert(envExample.includes("OPENAI_MODEL=deepseek-v4-flash") && envExample.includes("PRIMARY_TEXT_REASONING_EFFORT=low") && composeFile.includes("OPENAI_MODEL:-deepseek-v4-flash") && composeFile.includes("PRIMARY_TEXT_REASONING_EFFORT:-low"), "deploy: every text phase defaults to deepseek-v4-flash with a bounded reasoning effort", `${envExample}\n${composeFile}`);
-  assert(envExample.includes("PRIMARY_CLINICAL_REVIEW_PROVIDER=primary") && envExample.includes("PRIMARY_CLINICAL_REVIEW_MODEL=deepseek-v4-flash") && envExample.includes("PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT=low") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_PROVIDER:-primary") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_MODEL:-deepseek-v4-flash") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_TIMEOUT_MS:-30000"), "deploy: all clinical text review defaults to the primary DeepSeek provider with an explicit bounded timeout", `${envExample}\n${composeFile}`);
+  assert(envExample.includes("AI_TEXT_PROVIDER=bailian-qwen") && envExample.includes("BAILIAN_QWEN_MODEL=qwen3.7-plus") && envExample.includes("PRIMARY_CLINICAL_REVIEW_PROVIDER=primary") && envExample.includes("PRIMARY_CLINICAL_REVIEW_MODEL=qwen3.8-max") && envExample.includes("PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT=low") && composeFile.includes("AI_TEXT_PROVIDER:-bailian-qwen") && composeFile.includes("BAILIAN_QWEN_MODEL:-qwen3.7-plus") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_PROVIDER:-primary") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_MODEL:-qwen3.8-max") && composeFile.includes("PRIMARY_CLINICAL_REVIEW_TIMEOUT_MS:-30000"), "deploy: generation defaults to Qwen 3.7 Plus and bounded clinical review to Qwen 3.8 Max", `${envExample}\n${composeFile}`);
   assert(envExample.includes("GLM_VISION_ENABLED=true") && envExample.includes("GLM_VISION_MODEL=glm-5v-turbo") && composeFile.includes("GLM_VISION_ENABLED:-true") && composeFile.includes("GLM_VISION_MODEL:-glm-5v-turbo"), "deploy: GLM-5V tongue-image vision is enabled by default and remains isolated from text reasoning", `${envExample}\n${composeFile}`);
   assert(envExample.includes("SYNDROME_HYPOTHESIS_RERANK=true") && composeFile.includes("SYNDROME_HYPOTHESIS_RERANK:-true"), "deploy: L1b closed-set syndrome-hypothesis reranking is enabled in the release contract", `${envExample}\n${composeFile}`);
   assert(envExample.includes("NEXT_PUBLIC_BASE_PATH=/tcm-cdss") && composeFile.includes("NEXT_PUBLIC_BASE_PATH:-/tcm-cdss") && dockerfile.includes('ARG NEXT_PUBLIC_BASE_PATH="/tcm-cdss"'), "deploy: production image and runtime share the /tcm-cdss build-time base path", `${envExample}\n${dockerfile}\n${composeFile}`);
@@ -715,6 +722,7 @@ async function request(method, path, body, opts = {}) {
   const authHeaders = {
     ...(REGRESSION_REAL_IP ? { "x-real-ip": REGRESSION_REAL_IP } : {}),
     ...(CDSS_API_TOKEN && !opts.skipToken ? { "x-cdss-api-token": CDSS_API_TOKEN } : {}),
+    ...(!opts.skipCustomer ? { "x-cdss-customer-id": CDSS_CUSTOMER_ID } : {}),
   };
   let res;
   let text = "";
@@ -993,6 +1001,7 @@ function baseCase(id, overrides = {}) {
   const age = hasOverride("age") ? overrides.age : Number.parseInt(String(fields.age || "45"), 10);
   const caseState = {
     id,
+    customerId: CDSS_CUSTOMER_ID,
     phase: "done",
     patient: { sex, age },
     chiefComplaint: hasOverride("chiefComplaint") ? overrides.chiefComplaint : fields.zhushu || "入睡困难2月",
@@ -2264,13 +2273,27 @@ async function runKnowledgeCalls() {
 	      status: wrongLogin.status,
 	      text: wrongLogin.text.slice(0, 120),
 	    });
+	    const missingCustomerLogin = await request("POST", "/api/auth/access", { token: CDSS_API_TOKEN }, {
+	      skipToken: true,
+	      skipCustomer: true,
+	    });
+	    assert(missingCustomerLogin.status === 400 && missingCustomerLogin.json?.code === "invalid_customer_id", "login API requires customer context", {
+	      status: missingCustomerLogin.status,
+	      text: missingCustomerLogin.text.slice(0, 120),
+	    });
 
-	    const login = await request("POST", "/api/auth/access", { token: CDSS_API_TOKEN }, { skipToken: true });
+	    const login = await request("POST", "/api/auth/access", {
+	      token: CDSS_API_TOKEN,
+	      customerId: CDSS_CUSTOMER_ID,
+	    }, { skipToken: true, skipCustomer: true });
 	    assert(login.status === 200, "login API accepts configured token", {
 	      status: login.status,
 	      text: login.text.slice(0, 120),
 	    });
 	    assert(/tcm_cdss_ui_access=/.test(login.setCookie), "login API sets UI access cookie", {
+	      setCookie: login.setCookie,
+	    });
+	    assert(/tcm_cdss_customer_context=/.test(login.setCookie), "login API binds the UI session to a customer", {
 	      setCookie: login.setCookie,
 	    });
 	    assert(/HttpOnly/i.test(login.setCookie), "login UI cookie is HttpOnly", { setCookie: login.setCookie });
@@ -2280,7 +2303,7 @@ async function runKnowledgeCalls() {
 	      setCookie: login.setCookie,
 	      expectedPath: BASE_PATH || "/",
 	    });
-	    const loginCookie = login.setCookie.split(";")[0];
+	    const loginCookie = cookieHeaderFromSetCookie(login.setCookie);
 	    if (loginCookie) {
 	      const loginCookiePage = await request("GET", "/diagnosis", undefined, {
 	        skipToken: true,
@@ -2292,8 +2315,12 @@ async function runKnowledgeCalls() {
 	      });
 	    }
 
-	    const httpsLogin = await request("POST", "/api/auth/access", { token: CDSS_API_TOKEN }, {
+	    const httpsLogin = await request("POST", "/api/auth/access", {
+	      token: CDSS_API_TOKEN,
+	      customerId: CDSS_CUSTOMER_ID,
+	    }, {
 	      skipToken: true,
+	      skipCustomer: true,
 	      headers: { "x-forwarded-proto": "https" },
 	    });
 		    const expectSecureCookie = EXPECT_SECURE_COOKIE === "1" || (EXPECT_SECURE_COOKIE !== "0" && (
@@ -2327,7 +2354,7 @@ async function runKnowledgeCalls() {
     assert(/Max-Age=43200/i.test(bootstrappedPage.setCookie), "token bootstrap UI cookie has bounded Max-Age", {
       setCookie: bootstrappedPage.setCookie,
     });
-	    const uiCookie = bootstrappedPage.setCookie.split(";")[0];
+	    const uiCookie = loginCookie;
 	    if (uiCookie) {
 	      const cookieOnlyHealth = await request("GET", "/api/diagnosis/health", undefined, {
 	        skipToken: true,

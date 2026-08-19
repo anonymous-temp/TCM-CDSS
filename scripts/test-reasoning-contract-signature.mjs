@@ -14,6 +14,7 @@ const previousTsLoader = Module._extensions[".ts"];
 const previousModuleLoad = Module._load;
 const previousResolveFilename = Module._resolveFilename;
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const TEST_CUSTOMER_ID = "test-hospital";
 
 process.env.REASONING_CONTRACT_SIGNING_KEY = "test-only-m03-signature-key-0123456789abcdef";
 process.env.CDSS_CLINICAL_FACTS_BACKSTOP = "true";
@@ -99,6 +100,7 @@ try {
 
   const caseState = normalizeCaseStateInput({
     id: "case_signature_001",
+    customerId: TEST_CUSTOMER_ID,
     phase: "diagnose",
     patient: { name: "不进入签名明文", sex: "男", age: 52, occupation: "教师" },
     chiefComplaint: "入睡困难伴心悸三个月",
@@ -771,7 +773,7 @@ try {
   const { POST: assessPost } = require("../src/app/api/diagnosis/assess/route.ts");
   const routeRequest = (path, routeCaseState) => new Request(`http://localhost${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-cdss-customer-id": TEST_CUSTOMER_ID },
     body: JSON.stringify({ caseState: routeCaseState }),
   });
 

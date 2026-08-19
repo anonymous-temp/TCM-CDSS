@@ -60,12 +60,16 @@ const CONDITIONAL = new Map([
   ["formula.patentAndWestern[].singleDose", "西药一律不下发；中成药仅说明书给全时填写"],
   ["formula.patentAndWestern[].frequency", "同 singleDose"],
   ["formula.patentAndWestern[].route", "同 singleDose"],
+  ["formula.patentAndWestern[].administrationTiming", "仅当说明书原文载明服药时机时输出"],
   ["formula.modifications[].doseOrHandling", "恒为 null，加减不下发剂量"],
   ["pathogenesis.uncertainties[]", "无待复核项时为空数组"],
   ["overview.secondarySyndromes", "无兼证时为空数组"],
   // 2026-08-10 ⑩：指南/文献依据由服务端按 evidenceId 反查**本轮真检索到**的条目渲染，
   // 本轮 EviMed 未命中就整条不输出——这正是"宁可少一栏，也不让一条编造的指南名出现"的行为。
   ["westernDiagnosis.primary.guidelineReferences[]", "仅当本轮 EviMed 指南/文献检索命中、且模型引用了其条目号时输出"],
+  ["westernDiagnosis.differentials[].guidelineReferences[]", "仅当本轮受治理证据命中并绑定到对应鉴别诊断时输出"],
+  ["overview.tcmDiseaseReferences[]", "仅在形成中医病名时由服务端绑定受治理辨病标准"],
+  ["overview.tcmSyndromeReferences[]", "仅在形成中医证候时由服务端绑定受治理辨证标准"],
   // 2026-08-10 ⑪：protocolGapNote 只在 protocolGap 命中受控映射时下发（HIS 方案出参，
   // 非 M04 原始响应字段；此处登记是为了让文档路径校验通过）。
   ["nonPharma.tcmTreatments[].protocolGapNote", "仅 HIS 方案出参；且仅当 protocolGap 命中受控映射时输出"],

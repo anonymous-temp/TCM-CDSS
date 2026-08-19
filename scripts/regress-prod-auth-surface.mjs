@@ -8,7 +8,7 @@
  * 本探针不触发任何模型调用，因此不占用 CDSS_MODEL_RATE_LIMIT_PER_10_MIN 配额。
  *
  * 用法：
- *   BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=<prod-token> node scripts/regress-prod-auth-surface.mjs
+ *   BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=<prod-token> CDSS_CUSTOMER_ID=<customer> node scripts/regress-prod-auth-surface.mjs
  *
  * 注意两个限流桶会**把你自己锁掉 10 分钟**（登录桶 8 次失败、API 令牌桶 20 次失败各一个）。
  * 想连跑或与其他探针串跑时加 SKIP_BRUTEFORCE=1 跳过这两段；单跑时不加，
@@ -19,6 +19,8 @@
 // 因此不占用 CDSS_MODEL_RATE_LIMIT_PER_10_MIN 的配额。
 const BASE = (process.env.BASE_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || "";
+const CUSTOMER_ID = process.env.CDSS_CUSTOMER_ID || "";
+if (!CUSTOMER_ID) throw new Error("CDSS_CUSTOMER_ID required");
 const failures = []; let checks = 0;
 const ok = (name, cond, detail) => { checks += 1; if (!cond) failures.push({ name, detail }); };
 const get = async (path, init = {}) => {
@@ -39,9 +41,10 @@ for (const [label, path] of [["health", "/api/diagnosis/health"], ["snapshot", "
 {
   const wrong = await fetch(`${BASE}/api/auth/access`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: "wrong-token-xyz" }) });
   ok("登录接口拒绝错误令牌", wrong.status === 401, `status=${wrong.status}`);
-  const good = await fetch(`${BASE}/api/auth/access`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: TOKEN }) });
+  const good = await fetch(`${BASE}/api/auth/access`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: TOKEN, customerId: CUSTOMER_ID }) });
   const cookie = good.headers.get("set-cookie") || "";
   ok("登录接口下发 UI 凭证 cookie", good.status === 200 && /tcm_cdss_ui_access=/.test(cookie), `status=${good.status} cookie=${cookie.slice(0, 60)}`);
+  ok("登录接口下发客户上下文 cookie", /tcm_cdss_customer_context=/.test(cookie), cookie.slice(0, 160));
   ok("cookie 为 HttpOnly", /HttpOnly/i.test(cookie), cookie.slice(0, 160));
   ok("cookie 为 SameSite=Lax", /SameSite=Lax/i.test(cookie), cookie.slice(0, 160));
   ok("cookie 有有限 Max-Age", /Max-Age=\d+/i.test(cookie), cookie.slice(0, 160));
