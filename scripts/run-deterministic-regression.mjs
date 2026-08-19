@@ -274,6 +274,7 @@ const scripts = [
   // 医生页面拼展示串时丢了第三段——同一份数据两个出口各写各的。判据钉在共享投影上，
   // 并禁止出口自拼 `${entry.citation}（…）`：那正是分叉的起点。
   "test:guideline-reference-outlets",
+  "test:diagnostic-citation-contract",
   "test:health-public-view",
   // 甲方线上实测（0811）第 11 条：资料还没录全的病例，「需优先补充」把头颅 CT/经颅多普勒
   // 与"问病程"并列。分级函数早就写好，调用点在 851e4d76 被连带删掉成了死代码。
