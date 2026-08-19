@@ -150,7 +150,7 @@ function preferredDiagnosticCitationForAnchors(
       if (!/^EVID-(?:GUIDE|PAPER)-\d{3}$/.test(evidenceId) ||
         !diagnosticReferenceAppliesToPatient(evidenceId, scope, caseState)) return [];
       const citation = governedEvidenceCitation(evidenceId, scope);
-      if (!citation) return [];
+      if (!citation || !westernDiagnosticEvidenceApplies(evidenceId, scope)) return [];
       let relevance = 0;
       for (const anchor of anchors) {
         const titleIndex = citation.citation.indexOf(anchor);
@@ -172,11 +172,51 @@ function citationSourceType(evidenceId: string): "guideline" | "literature" {
   return evidenceId.startsWith("EVID-PAPER-") ? "literature" : "guideline";
 }
 
+function diagnosticEvidenceRecord(evidenceId: string, scope: EvidenceScope) {
+  return scope.records.find((candidate) => candidate.ids.has(evidenceId));
+}
+
+function tcmDiagnosticEvidenceApplies(evidenceId: string, scope: EvidenceScope): boolean {
+  const record = diagnosticEvidenceRecord(evidenceId, scope);
+  return Boolean(record && /(?:中医|中西医结合|中药|针灸|经方)/.test(record.text));
+}
+
+function westernDiagnosticEvidenceApplies(evidenceId: string, scope: EvidenceScope): boolean {
+  return !tcmDiagnosticEvidenceApplies(evidenceId, scope);
+}
+
+function resolveGovernedTcmDiseaseReferences(
+  payload: Record<string, unknown>,
+  scope: EvidenceScope,
+  caseState?: CaseState,
+): void {
+  const overview = payload.overview;
+  if (!overview || typeof overview !== "object" || Array.isArray(overview)) return;
+  const record = overview as Record<string, unknown>;
+  const diseaseName = typeof record.tcmDiseaseName === "string" ? record.tcmDiseaseName.trim() : "";
+  if (!diseaseName) return;
+  const citation = scope.records.flatMap((evidenceRecord, recordIndex) =>
+    [...evidenceRecord.ids].flatMap((evidenceId) => {
+      if (!/^EVID-(?:GUIDE|PAPER)-\d{3}$/.test(evidenceId) ||
+        !tcmDiagnosticEvidenceApplies(evidenceId, scope) ||
+        !diagnosticReferenceAppliesToPatient(evidenceId, scope, caseState)) return [];
+      const governed = governedEvidenceCitation(evidenceId, scope);
+      if (!governed || !evidenceRecord.text.includes(diseaseName)) return [];
+      const titleMatch = governed.citation.includes(diseaseName) ? 100 : 0;
+      return [{ governed, score: titleMatch + 10, recordIndex }];
+    }))
+    .sort((left, right) => right.score - left.score || left.recordIndex - right.recordIndex)[0]?.governed;
+  record.tcmDiseaseReferences = citation
+    ? [{ ...citation, sourceType: citationSourceType(citation.evidenceId) }]
+    : [];
+}
+
 function resolveGovernedGuidelineReferences(
   payload: Record<string, unknown>,
   scope: EvidenceScope,
   caseState?: CaseState,
 ): void {
+  resolveGovernedTcmDiseaseReferences(payload, scope, caseState);
   const western = payload.westernDiagnosis;
   if (!western || typeof western !== "object" || Array.isArray(western)) return;
   const primary = (western as { primary?: unknown }).primary;
@@ -196,7 +236,9 @@ function resolveGovernedGuidelineReferences(
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const item = entry as { evidenceId?: unknown; appliesTo?: unknown };
     const citation = governedEvidenceCitation(item.evidenceId, scope);
-    if (!citation || seen.has(citation.evidenceId) || !diagnosticReferenceAppliesToPatient(citation.evidenceId, scope, caseState)) continue;
+    if (!citation || seen.has(citation.evidenceId) ||
+      !diagnosticReferenceAppliesToPatient(citation.evidenceId, scope, caseState) ||
+      !westernDiagnosticEvidenceApplies(citation.evidenceId, scope)) continue;
     seen.add(citation.evidenceId);
     // appliesTo 是模型唯一能写的字段，且只是「这条支持本例哪一点」的一句话；
     // 它不承载题名/机构/年份，因此不构成伪造引用的通道。超长即截断。

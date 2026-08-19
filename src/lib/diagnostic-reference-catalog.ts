@@ -102,6 +102,10 @@ const LOCAL_DIAGNOSTIC_REFERENCES: readonly DiagnosticReferenceEntry[] = [
     problemKey: "不孕症",
     record: "[EVID-GUIDE-923] Guideline for the prevention, diagnosis and treatment of infertility（World Health Organization，2025，ISBN:978-92-4-011577-4）：不孕症通常指规律无保护性生活12个月或以上未获得妊娠；诊断需按双方病史、年龄、排卵、输卵管/子宫及男性因素逐步评估。 URL:https://www.who.int/publications/i/item/9789240115774",
   },
+  {
+    problemKey: "胃食管反流",
+    record: "[EVID-GUIDE-924] Katz PO, Dunbar KB, Schnoll-Sussman F, et al. ACG Clinical Guideline for the Diagnosis and Management of Gastroesophageal Reflux Disease. Am J Gastroenterol. 2022;117(1):27-56. PMID:34807007. DOI:10.14309/ajg.0000000000001538：反酸、烧心等典型反流症状需结合报警特征及必要的内镜或反流监测进行诊断分层。 URL:https://pubmed.ncbi.nlm.nih.gov/34807007/",
+  },
 ] as const;
 
 export function localDiagnosticReferenceContext(clinicalText: string): string {

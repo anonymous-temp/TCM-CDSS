@@ -91,10 +91,16 @@ export function applyGovernedTcmDiagnosticCitations(content: string): string {
             Array.isArray(item?.guidelineReferences) ? item.guidelineReferences : [])
         : []),
     ];
+    const existingTcmDiseaseReferences = Array.isArray(parsed.overview.tcmDiseaseReferences)
+      ? parsed.overview.tcmDiseaseReferences
+      : [];
     const diseaseStandards = tcmDiseaseStandardCitations(parsed.overview.tcmDiseaseName);
     parsed.overview.tcmDiseaseReferences = diseaseStandards.length > 0
       ? diseaseStandards
-      : governedExtensionDiseaseCitations(parsed.overview.tcmDiseaseName, availableGuidelineReferences);
+      : governedExtensionDiseaseCitations(parsed.overview.tcmDiseaseName, [
+          ...existingTcmDiseaseReferences,
+          ...availableGuidelineReferences,
+        ]);
     parsed.overview.tcmSyndromeReferences = tcmSyndromeStandardCitations(parsed.overview.primarySyndrome);
     return `${content.slice(0, start)}${START_MARKER}\n${JSON.stringify(parsed, null, 2)}\n${content.slice(end)}`;
   } catch {
