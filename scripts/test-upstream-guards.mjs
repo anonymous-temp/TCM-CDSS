@@ -109,9 +109,9 @@ assert.match(
 const expectedModelMatrix = {
   OPENAI_MODEL: "deepseek-v4-flash",
   BAILIAN_QWEN_MODEL: "qwen3.7-plus",
-  PRIMARY_DIAGNOSE_MODEL: "qwen3.7-plus",
+  PRIMARY_DIAGNOSE_MODEL: "qwen3.7-flash",
   PRIMARY_DIAGNOSE_REPAIR_MODEL: "qwen3.8-max",
-  PRIMARY_PRESCRIBE_MODEL: "qwen3.7-plus",
+  PRIMARY_PRESCRIBE_MODEL: "qwen3.8-max",
   PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
   PRIMARY_CLINICAL_REVIEW_MODEL: "qwen3.8-max",
   PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL: "qwen3.7-plus",
