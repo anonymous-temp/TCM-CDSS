@@ -581,6 +581,11 @@ for (const key of ["completeness", "overview", "westernDiagnosis", "pathogenesis
   assert.deepEqual(reboundM04[key], priorOwnedSections[key], `M04 must restore the signed M03-owned ${key} section byte-semantically`);
 }
 assert.deepEqual(reboundM04.formula, { candidates: [{ name: "本例辨证组方" }] }, "M04-owned formula content survives the ownership rebind");
+assert.match(
+  diagnosisApiSource,
+  /const finalStageOwned = opts\.structuredStage === "prescribe"[\s\S]{0,500}?enforceM04PriorStageOwnership\([\s\S]{0,500}?const identityRestored = opts\.structuredStage === "prescribe"/,
+  "M04 must rebind signed M03-owned sections again at the final pre-signature boundary",
+);
 const syncReasoning = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
