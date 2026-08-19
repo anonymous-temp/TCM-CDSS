@@ -205,6 +205,7 @@
     "test:suggested-check-tiering": "jiti scripts/test-suggested-check-tiering.mjs",
     "test:guideline-reference-outlets": "jiti scripts/test-guideline-reference-outlets.mjs",
     "test:diagnostic-citation-contract": "jiti scripts/test-diagnostic-citation-contract.mjs",
+    "test:tcm-diagnostic-citations": "jiti scripts/test-tcm-diagnostic-citations.mjs",
     "test:patient-relevant-medication-risk": "jiti scripts/test-patient-relevant-medication-risk.mjs",
     "test:common-cough-template": "jiti scripts/test-common-cough-wind-cold-template.mjs",
     "test:cough-template-e2e": "jiti scripts/test-cough-template-end-to-end.mjs",
