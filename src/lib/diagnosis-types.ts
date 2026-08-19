@@ -123,6 +123,15 @@ export type StructuredFollowupTimelineItem = {
   triggers: string[];
 };
 
+export type ClinicalCitation = {
+  evidenceId: string;
+  citation: string;
+  url?: string;
+  doi?: string;
+  pmid?: string;
+  sourceType: "standard" | "guideline" | "consensus" | "literature";
+};
+
 export interface CaseState {
   id: string;
   phase: Phase;
@@ -350,6 +359,8 @@ export interface ClinicalReasoningResultV2 {
     // 辨病另起 tcmDiseaseRationale。
     tcmDiseaseRationale?: string;
     tcmDiagnosticRationale?: string;
+    tcmDiseaseReferences?: ClinicalCitation[];
+    tcmSyndromeReferences?: ClinicalCitation[];
     tcmDifferentials?: Array<{
       syndrome: string;
       reason: string;
@@ -439,6 +450,7 @@ export interface ClinicalReasoningResultV2 {
       reason: string;
       distinguishingPoints?: string;
       nextCheck: string | null;
+      guidelineReferences?: ClinicalCitation[];
     }>;
   };
   pathogenesis: {
@@ -594,8 +606,9 @@ export interface ClinicalReasoningResultV2 {
       singleDose?: string;
       frequency?: string;
       route?: string;
+      administrationTiming?: string;
       usageBoundary: string;
-      course: string;
+      course?: string;
       positioning: "联合治疗" | "替代方案" | "短期对症" | "需医生评估";
       correspondingProblem: string;
       evidence: EvidenceRef;
@@ -811,6 +824,15 @@ const EvidenceRefSchema = z.object({
   confidence: z.preprocess(normalizeClinicalConfidence, z.enum(["高", "中", "低"])).optional().catch(undefined),
 });
 
+const ClinicalCitationSchema = z.object({
+  evidenceId: z.string().min(3).max(80),
+  citation: z.string().min(3).max(600),
+  url: z.string().max(600).optional().catch(undefined),
+  doi: z.string().max(120).optional().catch(undefined),
+  pmid: z.string().max(32).optional().catch(undefined),
+  sourceType: z.enum(["standard", "guideline", "consensus", "literature"]),
+});
+
 export function normalizePrescriptionRole(value: unknown): unknown {
   const text = Array.isArray(value) && value.every((item) => typeof item === "string")
     ? value.join("")
@@ -942,6 +964,10 @@ const WesternDifferentialSchema = z.object({
   reason: z.string().max(1000),
   distinguishingPoints: z.string().max(1000).optional().catch(""),
   nextCheck: z.preprocess(normalizeModelNullableText, z.string().max(600).nullable()),
+  guidelineReferences: z.preprocess(
+    isolateInvalidItems(ClinicalCitationSchema),
+    z.array(ClinicalCitationSchema).max(3).optional(),
+  ).catch([]),
 });
 
 /** 单条分治法。提出为具名 schema，供 subTherapies 的逐条隔离预处理复用同一判据。 */
@@ -1108,8 +1134,10 @@ const PatentAndWesternSchema = z.object({
   singleDose: z.string().max(300).optional(),
   frequency: z.string().max(300).optional(),
   route: z.string().max(300).optional(),
+  administrationTiming: z.string().max(300).optional(),
   usageBoundary: z.string().max(800),
-  course: z.string().max(500),
+  course: z.preprocess(normalizeModelNullableText, z.string().max(500).nullable())
+    .transform((value) => value ?? undefined),
   positioning: z.enum(["联合治疗", "替代方案", "短期对症", "需医生评估"]),
   correspondingProblem: z.string().max(800),
   evidence: EvidenceRefSchema.catch(INSUFFICIENT_EVIDENCE_REF),
@@ -1303,6 +1331,14 @@ const ReasoningV2SchemaBase = z.object({
     primarySyndromeResolutionReason: z.string().min(1).max(800).optional().catch(undefined),
     tcmDiseaseRationale: z.string().max(1200).optional().catch(""),
     tcmDiagnosticRationale: z.string().max(1600).optional().catch(""),
+    tcmDiseaseReferences: z.preprocess(
+      isolateInvalidItems(ClinicalCitationSchema),
+      z.array(ClinicalCitationSchema).max(4).optional(),
+    ).catch([]),
+    tcmSyndromeReferences: z.preprocess(
+      isolateInvalidItems(ClinicalCitationSchema),
+      z.array(ClinicalCitationSchema).max(4).optional(),
+    ).catch([]),
     tcmDifferentials: z.preprocess(
       isolateInvalidItems(TcmSyndromeDifferentialSchema),
       z.array(TcmSyndromeDifferentialSchema).max(6).optional(),
