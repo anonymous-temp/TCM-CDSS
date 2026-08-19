@@ -29,6 +29,7 @@ const { sanitizeFreeTextForModel } = await jiti.import("../src/lib/diagnosis-saf
 const {
   applyDeterministicFormulaAnalysis,
   applyDeterministicTreatmentPrinciple,
+  synchronizeVisibleClinicalSummary,
 } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const { enrichReasoning, resolveFormulaSources } = await jiti.import("../src/lib/tcm-formula-provenance.ts");
 const { compileTcmTreatmentRecommendations } = await jiti.import("../src/lib/tcm-treatment-capabilities.server.ts");
@@ -186,6 +187,15 @@ const mahuangHerbs = [
   const partialRebuilt = unwrap(applyDeterministicFormulaAnalysis(wrap(partialAuthored))).formula.candidates[0].formulaAnalysis;
   assert.match(partialRebuilt, /麻黄.*桂枝.*杏仁.*甘草/s,
     "模型方解遗漏半数实际药味时必须重建，不能只解释君臣两味就上屏");
+
+  const visible = synchronizeVisibleClinicalSummary(wrap(enriched), "prescribe");
+  assert.match(visible, /### 方义分析/);
+  assert.doesNotMatch(visible, /### 组成逻辑|受控目录组成|标准目录组成|目录来源|进入处方编译/,
+    "内部组成治理元数据不得进入医生页面、Markdown 下载或导出正文");
+  assert.doesNotMatch(visible, /### 方证鉴别路径|当前状态：(?:confirmed|absent|unknown)/,
+    "后台方证判别状态不得作为工程状态码展示给医生");
+  assert.doesNotMatch(visible, /### 条文加减复核线索|未自动应用/,
+    "未采纳的内部规则线索不得占据医生主报告");
 }
 
 // 4.1 甲方 2026-08-05 第 7.1 条给出的目标是连贯方解，不是 Markdown 病机标题与逐味功效清单。
