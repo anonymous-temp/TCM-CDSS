@@ -49,7 +49,7 @@ const { buildFormulaAnalysis } = await jiti.import("../src/lib/herb-target-contr
 const prescribeRouteSource = readFileSync(path.join(repoRoot, "src/app/api/diagnosis/prescribe/route.ts"), "utf8");
 assert.match(
   prescribeRouteSource,
-  /synchronizeVisibleClinicalSummary\(identityRestored,\s*"prescribe",\s*clinicalGroundingText\(safeState\),\s*safeState\)/,
+  /synchronizeVisibleClinicalSummary\(\s*identityRestored,\s*"prescribe",\s*clinicalGroundingText\(safeState\),\s*safeState,/,
   "M04 最终可见正文必须携带病例状态，否则老年/绝经等人群过滤只在 React 卡片生效，下载与 API 会重新泄漏妊娠条款",
 );
 

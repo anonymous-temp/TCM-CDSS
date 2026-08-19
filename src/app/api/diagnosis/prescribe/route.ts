@@ -367,7 +367,12 @@ export async function POST(req: Request) {
       // 不会因为服务端补了方名而让一张本该被驳回的处方通过。流层最后一公里的那次恢复保留
       // 不动（幂等：已带 formulaNames 的候选原样返回），继续为不走本路由的分支兜底。
       const identityRestored = applyRestoredGovernedFormulaIdentity(finalized, signedPriorReasoning);
-      const synchronized = synchronizeVisibleClinicalSummary(identityRestored, "prescribe");
+      const synchronized = synchronizeVisibleClinicalSummary(
+        identityRestored,
+        "prescribe",
+        clinicalGroundingText(safeState),
+        safeState,
+      );
       if (issue) {
         // Tier-2/3 带批注受理。在此之前，M04 的 60+ 个原因码一律等价于最高危级别：一条建议性
         // 中医治疗项目卡片的字段缺失，与附子超量一样会作废整张已通过剂量、十八反十九畏、
