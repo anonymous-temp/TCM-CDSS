@@ -5,7 +5,7 @@ const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` 
 const { buildEvidenceOutputTransform } = await jiti.import("../src/lib/cdss-evidence-context.ts");
 
 const context = [
-  "[EVID-GUIDE-001] ACG Clinical Guideline for the Diagnosis and Management of Gastroesophageal Reflux Disease（American College of Gastroenterology，2022，PMID:34807007）：诊断与鉴别摘要。 URL:https://pubmed.ncbi.nlm.nih.gov/34807007/",
+  "[EVID-GUIDE-001] ACG Clinical Guideline for the Diagnosis and Management of Gastroesophageal Reflux Disease（American College of Gastroenterology，2022，PMID:34807007）：胃食管反流病诊断与鉴别摘要。 URL:https://pubmed.ncbi.nlm.nih.gov/34807007/",
   "[EVID-PAPER-002] Functional Dyspepsia: Evaluation and Management（American Family Physician，2020，PMID:31939638）：功能性消化不良鉴别摘要。 URL:https://pubmed.ncbi.nlm.nih.gov/31939638/",
 ].join("\n");
 const caseState = {

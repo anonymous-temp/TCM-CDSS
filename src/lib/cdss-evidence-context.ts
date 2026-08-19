@@ -137,7 +137,14 @@ function preferredDiagnosticCitation(
   scope: EvidenceScope,
   caseState?: CaseState,
 ): ReturnType<typeof governedEvidenceCitation> {
-  const anchors = diagnosticReferenceAnchors(payload, caseState);
+  return preferredDiagnosticCitationForAnchors(diagnosticReferenceAnchors(payload, caseState), scope, caseState);
+}
+
+function preferredDiagnosticCitationForAnchors(
+  anchors: readonly string[],
+  scope: EvidenceScope,
+  caseState?: CaseState,
+): ReturnType<typeof governedEvidenceCitation> {
   const candidates = scope.records.flatMap((evidenceRecord, recordIndex) =>
     [...evidenceRecord.ids].flatMap((evidenceId) => {
       if (!/^EVID-(?:GUIDE|PAPER)-\d{3}$/.test(evidenceId) ||
@@ -159,6 +166,10 @@ function preferredDiagnosticCitation(
     }));
   candidates.sort((left, right) => right.score - left.score || left.recordIndex - right.recordIndex);
   return candidates[0]?.citation;
+}
+
+function citationSourceType(evidenceId: string): "guideline" | "literature" {
+  return evidenceId.startsWith("EVID-PAPER-") ? "literature" : "guideline";
 }
 
 function resolveGovernedGuidelineReferences(
@@ -210,6 +221,26 @@ function resolveGovernedGuidelineReferences(
   delete record.guidelineRefs;
   if (resolved.length > 0) record.guidelineReferences = resolved;
   else delete record.guidelineReferences;
+
+  const differentials = (western as { differentials?: unknown }).differentials;
+  if (!Array.isArray(differentials)) return;
+  for (const differential of differentials) {
+    if (!differential || typeof differential !== "object" || Array.isArray(differential)) continue;
+    const item = differential as Record<string, unknown>;
+    const name = typeof item.name === "string" ? item.name.trim() : "";
+    if (!name) {
+      delete item.guidelineReferences;
+      continue;
+    }
+    const anchors = [...new Set([
+      name,
+      ...matchingMedicineClinicalProblemTerms(name),
+    ].map((value) => value.trim()).filter((value) => value.length >= 2))];
+    const citation = preferredDiagnosticCitationForAnchors(anchors, scope, caseState);
+    item.guidelineReferences = citation
+      ? [{ ...citation, sourceType: citationSourceType(citation.evidenceId) }]
+      : [];
+  }
 }
 
 function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medicineCaseText = "", medicineCaseState?: CaseState): string {
