@@ -14,6 +14,8 @@ for (const key of [
 process.env.RXAI_AUDIT_ENABLED = "true";
 process.env.RXAI_AUDIT_BASE_URL = "http://127.0.0.1:18092";
 process.env.RXAI_AUDIT_TOKEN = "route-contract-token";
+process.env.RXAI_AUDIT_TENANT_ID = "PROVIDER_TEST_TENANT";
+process.env.RXAI_AUDIT_SYSTEM_CODE = "PROVIDER_TEST_SYSTEM";
 process.env.RXAI_AUDIT_ALLOW_INSECURE_HTTP = "true";
 process.env.RXAI_AUDIT_RETRY_ATTEMPTS = "0";
 // Pin the unified/attempt timeouts for the PASS and degraded phases so an inherited shell
@@ -156,7 +158,8 @@ try {
   for (const headers of capturedAuditHeaders) {
     assert.equal(headers.get("x-api-key"), "route-contract-token", "LingXi requests authenticate with the live X-API-Key contract");
     assert.equal(headers.get("authorization"), null, "the retired Bearer contract must not be sent in place of X-API-Key");
-    assert.equal(headers.get("x-tenant-id"), customerId);
+    assert.equal(headers.get("x-tenant-id"), "PROVIDER_TEST_TENANT", "CDSS customer scope must not replace the provider-authorized audit tenant");
+    assert.notEqual(headers.get("x-tenant-id"), customerId);
   }
   for (const body of capturedAuditBodies) {
     assert.deepEqual(body.data.prescription.patient.current_medications, [
