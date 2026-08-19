@@ -127,6 +127,7 @@ import {
   createPathogenesisNarrativeLedger,
   westernDiagnosisLabelForDisplay,
 } from "@/lib/diagnosis-visible-summary";
+import { clinicianVisibleMedicationRiskNote } from "@/lib/patient-relevant-medication-risk";
 
 const APP_BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const BROWSER_CASE_PERSISTENCE_ENABLED = isBrowserCasePersistenceEnabled();
@@ -4313,8 +4314,9 @@ function isCompleteStructuredMedicineCandidate(
     shouldRenderEvidenceStatus(item.evidence);
 }
 
-function StructuredMedicinePlanCards({ candidates }: {
+function StructuredMedicinePlanCards({ candidates, caseState }: {
   candidates: NonNullable<StructuredFormula["patentAndWestern"]>;
+  caseState: CaseState;
 }) {
   const visible = candidates.filter(isCompleteStructuredMedicineCandidate);
   if (visible.length === 0) return null;
@@ -4347,7 +4349,11 @@ function StructuredMedicinePlanCards({ candidates }: {
                 .join("，")}
               tone="blue"
             />
-            <SummaryLine label="风险提示" value={item.riskNote} tone="amber" />
+            <SummaryLine
+              label="风险提示"
+              value={clinicianVisibleMedicationRiskNote(item.riskNote, caseState)}
+              tone="amber"
+            />
           </div>
         </div>
       ))}
@@ -5386,7 +5392,7 @@ function ResultTabsV2({
       )}
 
       {hasMedicineCandidates && <SchemeSection order={sectionOrder("M04-patent-western", 1)} id="cdss-section-medicine" title={clinicalOutputLabel("M04-patent-western", "中成药/西药候选")} subtitle="基于西医诊断与证据的独立候选方案" contractIds="M04-patent-western" rendererId="medicine-section">
-        <StructuredMedicinePlanCards candidates={medicineCandidates} />
+        <StructuredMedicinePlanCards candidates={medicineCandidates} caseState={caseState} />
       </SchemeSection>}
       {!hasMedicineCandidates && caseState.phase !== "diagnose" && caseState.phase !== "prescribe" && (
         <SchemeSection order={sectionOrder("M04-patent-western", 1)} id="cdss-section-medicine" title="中成药候选" subtitle="本地证型检索结果；西药需外部说明书证据" contractIds="M04-patent-western" rendererId="medicine-section">

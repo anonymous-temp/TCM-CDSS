@@ -24,6 +24,8 @@ import {
 } from "./clinical-fact-source";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { displayableLineageAdaptation } from "./tcm-lineages";
+import { clinicianVisibleMedicationRiskNote } from "./patient-relevant-medication-risk";
+import type { CaseState } from "./diagnosis-types";
 import { safeDietAdviceForDisplay, GOVERNED_HERB_DATA_LABEL } from "./result-display-policy";
 import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives, stripInternalEngineeringTags } from "./internal-tag-hygiene";
@@ -3053,7 +3055,10 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
   return `${lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n").trim()}\n\n`;
 }
 
-function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): string {
+function visiblePrescribeFromReasoning(
+  reasoning: Record<string, unknown>,
+  caseState: Partial<CaseState> | null = null,
+): string {
   const formula = recordValue(reasoning.formula);
   const candidate = recordList(formula?.candidates)[0];
   const decoction = recordValue(candidate?.decoction);
@@ -3250,7 +3255,8 @@ function visiblePrescribeFromReasoning(reasoning: Record<string, unknown>): stri
       ...patentAndWestern.map((item) => {
         const itemEvidence = recordValue(item.evidence);
         const level = item.recommendationMode === "discussion_only" ? "仅供讨论（无剂量）" : "说明书绑定候选（无剂量）";
-        return `| ${markdownCell(item.type)} | ${markdownCell(item.name)} | ${markdownCell(item.specification) || "—"} | ${level} | ${markdownCell(item.positioning)} | ${markdownCell(item.correspondingProblem)} | ${markdownCell(itemEvidence?.source)} | ${markdownCell(item.riskNote)} |`;
+        const visibleRisk = clinicianVisibleMedicationRiskNote(markdownCell(item.riskNote), caseState);
+        return `| ${markdownCell(item.type)} | ${markdownCell(item.name)} | ${markdownCell(item.specification) || "—"} | ${level} | ${markdownCell(item.positioning)} | ${markdownCell(item.correspondingProblem)} | ${markdownCell(itemEvidence?.source)} | ${markdownCell(visibleRisk)} |`;
       }),
     );
   } else if (medicineCandidateStatus?.status === "no_evidence_match" && isDisplayableClinicalText(markdownCell(medicineCandidateStatus.reason))) {
@@ -3468,7 +3474,7 @@ export function synchronizeVisibleClinicalSummary(
     const projected = sanitizeReasoningNarratives(normalizedReasoningForProjection(reasoning));
     const visible = expectedStage === "diagnose"
       ? visibleDiagnoseFromReasoning(projected, clinicalContext, caseState)
-      : visiblePrescribeFromReasoning(projected);
+      : visiblePrescribeFromReasoning(projected, caseState as Partial<CaseState> | null);
     const sanitizedSentinel = JSON.stringify(reasoning) === JSON.stringify(parsed)
       ? content.slice(start)
       : `${START_MARKER}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;

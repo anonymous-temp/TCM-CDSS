@@ -59,8 +59,12 @@ const male = state({ sex: "男", age: 45, pastHistory: "既往体健。" });
 assert.equal(reproductiveMedicationRiskApplies(male), false, "男性不展示妊娠哺乳说明书条款");
 assert.doesNotMatch(clinicianVisibleMedicationRiskNote(labelRisk, male), /孕妇|妊娠|哺乳/);
 
+const unknownSex = state({ sex: "其他或未明确", age: 78, pastHistory: "既往体健。" });
+assert.equal(reproductiveMedicationRiskApplies(unknownSex), true, "性别未明确时不得仅凭年龄隐藏生育相关条款");
+assert.equal(clinicianVisibleMedicationRiskNote(labelRisk, unknownSex), labelRisk);
+
 const source = { riskNote: labelRisk };
 clinicianVisibleMedicationRiskNote(source.riskNote, elderly);
 assert.equal(source.riskNote, labelRisk, "医生可见投影不得修改签名载荷或后台审方原文");
 
-console.log(JSON.stringify({ suite: "patient-relevant-medication-risk", cases: 6, failures: 0 }));
+console.log(JSON.stringify({ suite: "patient-relevant-medication-risk", cases: 7, failures: 0 }));

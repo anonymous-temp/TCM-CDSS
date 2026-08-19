@@ -280,6 +280,7 @@ const scripts = [
   // 该套件同时钉住「展示策略导出不得无人调用」——这才是它静默失效却全绿的那一层。
   "test:suggested-check-tiering",
   "test:pregnancy-recall",
+  "test:patient-relevant-medication-risk",
   "test:warm-disease-rules",
   "test:clinical-decision-cards",
   "test:customer-evidence",
