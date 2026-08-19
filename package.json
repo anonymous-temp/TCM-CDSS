@@ -209,6 +209,7 @@
     "test:western-differential-citations": "jiti scripts/test-western-differential-citations.mjs",
     "test:diagnosis-citation-presentation": "jiti scripts/test-diagnosis-citation-presentation.mjs",
     "test:medication-label-usage": "jiti scripts/test-medication-label-usage.mjs",
+    "test:customer-context": "jiti scripts/test-customer-context.mjs",
     "test:patient-relevant-medication-risk": "jiti scripts/test-patient-relevant-medication-risk.mjs",
     "test:common-cough-template": "jiti scripts/test-common-cough-wind-cold-template.mjs",
     "test:cough-template-e2e": "jiti scripts/test-cough-template-end-to-end.mjs",
