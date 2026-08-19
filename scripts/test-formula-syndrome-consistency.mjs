@@ -26,6 +26,8 @@ check("寒热对立:温中方 × 实热证", () => {
 check("方证相符不得报冲突", () => {
   assert.deepEqual(formulaSyndromeConflicts(["归脾汤"], "心脾两虚证"), []);
   assert.deepEqual(formulaSyndromeConflicts(["麻黄汤"], "风寒束表证"), []);
+  assert.deepEqual(formulaSyndromeConflicts(["参苓白术散"], "脾胃虚弱，湿浊中阻证"), [],
+    "脾胃虚弱夹湿与参苓白术散相符，不得因并列证候轴噪声误报寒热对立");
 });
 
 // FSC-03 数据缺口必须弃权,绝不因标注缺失驳回(目录 20% 无证候标注、80% 无病位病性)
