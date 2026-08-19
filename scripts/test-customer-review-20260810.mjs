@@ -391,6 +391,46 @@ check("⑩ 中医共识不得进入西医诊断参考文献栏，命中中医病
   assert.equal(parsed.overview.tcmDiseaseReferences?.[0]?.evidenceId, "EVID-GUIDE-001", "中医共识应绑定到中医辨病依据");
 });
 
+check("⑩ M04 不得用同号新检索条目改写已签名 M03 诊断与文献", () => {
+  const signedM03 = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { tcmDiseaseName: "吐酸", primarySyndrome: "脾胃虚弱证" },
+    westernDiagnosis: { primary: {
+      name: "反酸",
+      supportingFacts: ["反酸、嗳气反复1年"],
+      guidelineReferences: [{
+        evidenceId: "EVID-GUIDE-924",
+        citation: "Katz PO, Dunbar KB, Schnoll-Sussman F, et al. ACG Clinical Guideline for the Diagnosis and Management of Gastroesophageal Reflux Disease. Am J Gastroenterol. 2022;117(1):27-56. PMID:34807007. DOI:10.14309/ajg.0000000000001538",
+        url: "https://pubmed.ncbi.nlm.nih.gov/34807007/",
+      }],
+    }, differentials: [] },
+    pathogenesis: { summary: "胃失和降", chain: [{ nodeId: "P1", patientFact: "反酸", syndromeEvidence: "反酸", pathogenesis: "胃失和降", therapyDirection: "和胃降逆" }] },
+    therapy: { overallPrinciple: "标本兼治", overallMethod: "健脾和胃，降逆止酸", subTherapies: [] },
+  };
+  const m04ScopeWithCollidingId = "[EVID-GUIDE-924] 基于AGREEⅡ的中医药治疗心血管病指南/共识质量评价（中西医结合心脑血管病杂志，2020）：心血管病指南质量。 URL:https://example.test/collision";
+  const state = {
+    id: "cross-stage-citation",
+    phase: "prescribe",
+    patient: { sex: "女", age: 78 },
+    chiefComplaint: "反酸、嗳气反复1年",
+    symptoms: {}, conversation: [],
+    reasoningDiagnose: signedM03,
+  };
+  const m04Payload = {
+    ...structuredClone(signedM03),
+    stage: "prescribe",
+    westernDiagnosis: { primary: { name: "胃食管反流病", guidelineReferences: [{ evidenceId: "EVID-GUIDE-924" }] }, differentials: [] },
+    formula: { candidates: [] },
+  };
+  const transformed = buildEvidenceOutputTransform(m04ScopeWithCollidingId, undefined, state)(wrap(m04Payload));
+  const parsed = readSentinel(transformed);
+  assert.deepEqual(parsed.westernDiagnosis, signedM03.westernDiagnosis, "M04 必须逐字复用已签名 M03 西医诊断与参考文献");
+  assert.deepEqual(parsed.overview, signedM03.overview, "M04 不得改写已签名 M03 辨病辨证");
+  assert.deepEqual(parsed.pathogenesis, signedM03.pathogenesis, "M04 不得改写已签名 M03 病机");
+  assert.deepEqual(parsed.therapy, signedM03.therapy, "M04 不得改写已签名 M03 治则治法");
+  assert.doesNotMatch(JSON.stringify(parsed.westernDiagnosis), /心血管|中西医结合|collision/);
+});
+
 check("⑩ 解析必须幂等，且伪造的 citation 不得存活", () => {
   // 本转换会在同一份内容上被多次调用（流式草稿、最终输出、截断兜底各一次）。
   // 第一版只读 guidelineRefs 而无条件删除 guidelineReferences——第二遍会把第一遍的结果删掉，
