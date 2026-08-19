@@ -101,6 +101,8 @@ try {
     herbs: [{ name: "黄芪", dose: "15g" }, { name: "酸枣仁", dose: "15g" }],
   };
   const unsignedState = buildAuditPositiveControlState(control);
+  const customerId = "test-hospital";
+  unsignedState.customerId = customerId;
   const prescribeReasoning = unsignedState.reasoningPrescribe;
   const unsignedDiagnose = {
     ...prescribeReasoning,
@@ -116,10 +118,11 @@ try {
   };
   const signedDiagnose = signDiagnoseReasoning(unsignedDiagnose, buildDiagnoseContractSignatureContext(unsignedState));
   const caseState = buildAuditPositiveControlState(control, signedDiagnose);
+  caseState.customerId = customerId;
   assert.equal(verifyDiagnoseReasoningSignature(signedDiagnose, caseState), true, "signed route fixture must bind to the exact final clinical input");
   const request = (path, requestCaseState = caseState) => new Request(`http://localhost${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-cdss-customer-id": customerId },
     body: JSON.stringify({ caseState: requestCaseState }),
   });
 
@@ -153,7 +156,7 @@ try {
   for (const headers of capturedAuditHeaders) {
     assert.equal(headers.get("x-api-key"), "route-contract-token", "LingXi requests authenticate with the live X-API-Key contract");
     assert.equal(headers.get("authorization"), null, "the retired Bearer contract must not be sent in place of X-API-Key");
-    assert.equal(headers.get("x-tenant-id"), "EH_INTERNET_HOSPITAL");
+    assert.equal(headers.get("x-tenant-id"), customerId);
   }
   for (const body of capturedAuditBodies) {
     assert.deepEqual(body.data.prescription.patient.current_medications, [

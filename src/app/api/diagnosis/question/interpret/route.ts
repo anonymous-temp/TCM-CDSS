@@ -5,6 +5,7 @@ import {
   type M02AnswerInterpretationFailureCode,
 } from "@/lib/m02-answer-interpreter.server";
 import { parseM02Plan } from "@/lib/m02-question-contract";
+import { requireCustomerContext } from "@/lib/customer-context";
 
 export const runtime = "nodejs";
 
@@ -48,6 +49,9 @@ export async function POST(req: Request) {
 
   const caseState = normalizeCaseStateInput(body.caseState);
   if (!caseState) return typedFailure("invalid_case_state", "caseState 无效。", 400);
+  const customer = await requireCustomerContext(req, caseState);
+  if (!customer.ok) return customer.response;
+  caseState.customerId = customer.context.customerId;
 
   const plan = parseM02Plan(body.m02Plan);
   if (!plan || plan.decision !== "ask" || plan.questions.length === 0) {

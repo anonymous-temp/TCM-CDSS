@@ -9,6 +9,7 @@ import {
   isValidCdssUiCookieValue,
   sameSecret,
 } from "@/lib/cdss-auth";
+import { requireCustomerContext } from "@/lib/customer-context";
 
 export const runtime = "nodejs";
 
@@ -118,6 +119,8 @@ async function readLimitedJson(req: Request): Promise<{ value?: unknown; tooLarg
 }
 
 export async function POST(req: Request) {
+  const customer = await requireCustomerContext(req);
+  if (!customer.ok) return customer.response;
   const key = encryptionKey();
   if (!key) return jsonResponse({ ok: false, error: "病例快照加密密钥未配置" }, 503);
   const authorization = await authorizeSnapshot(req, key);
@@ -130,7 +133,10 @@ export async function POST(req: Request) {
   if (!body || (body.action !== "encrypt" && body.action !== "decrypt")) {
     return jsonResponse({ ok: false, error: "无效的病例快照请求" }, 400);
   }
-  const aad = snapshotAad(body.binding, authorization.scope);
+  const tenantScope = createHmac("sha256", authorization.scope)
+    .update(customer.context.customerHash)
+    .digest();
+  const aad = snapshotAad(body.binding, tenantScope);
   if (!aad) return jsonResponse({ ok: false, error: "病例快照缺少有效的工作区绑定" }, 400);
 
   if (body.action === "encrypt") {

@@ -1,5 +1,5 @@
 import { buildHisAiSchemePayload } from "@/lib/his-scheme";
-import { readCaseStateRequest } from "@/lib/diagnosis-request";
+import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import {
   applyRxAuditInputAdvisories,
   buildAuditInputAdvisories,
@@ -22,7 +22,6 @@ import { buildEvidenceScope } from "@/lib/evidence-source-validation";
 import { createHash } from "node:crypto";
 import { hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { drugAvailabilityProjection } from "@/lib/drug-inventory.server";
-import { requireCustomerContext } from "@/lib/customer-context";
 import {
   canonicalTcmProjectProtocolStatuses,
   hisSchemeContractVersionFromRequest,
@@ -71,11 +70,8 @@ async function withDrugAvailability(
 }
 
 export async function POST(req: Request) {
-  const parsed = await readCaseStateRequest(req);
+  const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
-  const customer = await requireCustomerContext(req, parsed.caseState);
-  if (!customer.ok) return customer.response;
-  parsed.caseState.customerId = customer.context.customerId;
   const contractVersion = hisSchemeContractVersionFromRequest(req, parsed.body);
   // Evidence retrieval is independent of the semantic red-flag projection. Run it concurrently so
   // the HIS boundary cannot serially consume the full clinical-facts budget and then the full
@@ -96,11 +92,11 @@ export async function POST(req: Request) {
       reasoningV2: diagnoseOnlyReasoning,
       prescriptionRevision: undefined,
     };
-    return Response.json(await withDrugAvailability(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise), contractVersion, customer.context.customerId));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload(doseSuppressedState, await evidenceScopePromise), contractVersion, parsed.customer.customerId));
   }
 
   if (!prescribed && !caseState.prescriptionRevision && !caseState.prescription?.trim()) {
-    return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise), contractVersion, customer.context.customerId));
+    return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise), contractVersion, parsed.customer.customerId));
   }
 
   const validation = validateHisPrescriptionForWriteBack(caseState);
@@ -161,7 +157,7 @@ export async function POST(req: Request) {
       auditedAt,
     });
     return Response.json({
-      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise), contractVersion, customer.context.customerId)),
+      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise), contractVersion, parsed.customer.customerId)),
       auditCorrelation: correlation,
     });
   }
@@ -208,7 +204,7 @@ export async function POST(req: Request) {
     auditedAt,
   });
   return Response.json({
-    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise), contractVersion, customer.context.customerId)),
+    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise), contractVersion, parsed.customer.customerId)),
     auditCorrelation: correlation,
   });
 }

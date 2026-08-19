@@ -3,7 +3,7 @@ import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTra
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
-import { readCaseStateRequest } from "@/lib/diagnosis-request";
+import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, gateDispositionIsAdvisory, markdownNdjsonResponse, mergePrescriptionReviewItems, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
@@ -18,7 +18,6 @@ import { buildPrescribeContractSignatureContext, verifyDiagnoseReasoningSignatur
 import { CLINICAL_FACTS_SIGNED_CHAIN_CACHE_TTL_MS, hasUnconfirmedUnclearEncounterScope, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { planEvidenceBoundMedicineCandidates } from "@/lib/medicine-candidate-planner.server";
 import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
-import { requireCustomerContext } from "@/lib/customer-context";
 import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
@@ -38,11 +37,8 @@ export async function POST(req: Request) {
   // before clinical-fact/evidence preparation so the stream can still deliver its fail-closed
   // fallback inside that browser margin instead of being cut off as an HTTP 0 abort.
   const orchestrationStartedAt = Date.now();
-  const parsed = await readCaseStateRequest(req);
+  const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
-  const customer = await requireCustomerContext(req, parsed.caseState);
-  if (!customer.ok) return customer.response;
-  parsed.caseState.customerId = customer.context.customerId;
   const signedPriorReasoning = diagnoseReasoningFromState(parsed.caseState);
   if (!signedPriorReasoning || !verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)) {
     return Response.json({ error: "辨病辨证结果缺少有效签名，请重新生成辨病辨证后再进入候选方药。" }, { status: 409 });
@@ -194,12 +190,12 @@ export async function POST(req: Request) {
   // 而 EviMed 那条慢腿不依赖它。原写法把两者串成一条 then 链，等于让 EviMed 白等 6s。
   const assistedNegationsPromise = assistedPolarityDecisions(safeState, req.signal);
   const [medicinePlan, baseEvidenceContext, inventoryContext] = await Promise.all([
-    planEvidenceBoundMedicineCandidates(safeState, customer.context.customerId, req.signal),
+    planEvidenceBoundMedicineCandidates(safeState, parsed.customer.customerId, req.signal),
     assistedNegationsPromise.then((assistedNegations) =>
       buildCdssEvidenceContext(safeState, "prescribe", assistedNegations)),
     // 院内库存可得性（甲方 2026-08-05 入站药品同步）。未导入库存时返回空串，
     // 提示词与导入前逐字节相同——可得性不是安全控制，缺数据不得改变链路行为。
-    buildDrugInventoryPromptContext(customer.context.customerId),
+    buildDrugInventoryPromptContext(parsed.customer.customerId),
   ]);
   const evidenceContext = [baseEvidenceContext, medicinePlan.evidenceContext].filter(Boolean).join("\n\n");
   const basePrompt = buildPrescribePrompt(safeState);

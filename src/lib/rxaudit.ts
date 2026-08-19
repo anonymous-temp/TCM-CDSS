@@ -18,6 +18,7 @@ import { prescriptionRegimenFromDecoction, prescriptionRegimenSummary } from "./
 import { affirmedAllergyText, affirmedClinicalText, affirmedCurrentMedicationText, canonicalMedicationIdentity, clinicalClausePolarity, medicationContinuationOnly, medicationNameFromEventText } from "./clinical-polarity";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "./http-response-limit";
 import { cancelResponseBody } from "./http-response-lifecycle";
+import { parseCustomerId } from "./customer-id";
 import {
   currentMedicationSummaryFromSemanticExtraction,
   currentMedicationsFromSemanticExtraction,
@@ -165,12 +166,12 @@ function insecureHttpHostAllowed(value: string): boolean {
   }
 }
 
-export function getRxAuditConfig() {
+export function getRxAuditConfig(customerIdInput?: string) {
   const baseUrl = (process.env.RXAI_AUDIT_BASE_URL || DEFAULT_BASE_URL).trim().replace(/\/$/, "");
   // Current LingXi contract authenticates with X-API-Key. Keep RXAI_AUDIT_TOKEN as a
   // backward-compatible configuration alias so existing deployments do not lose their key.
   const token = (process.env.RXAI_AUDIT_API_KEY || process.env.RXAI_AUDIT_TOKEN || "").trim();
-  const tenantId = (process.env.RXAI_AUDIT_TENANT_ID || DEFAULT_TENANT).trim();
+  const tenantId = parseCustomerId(customerIdInput) || (process.env.RXAI_AUDIT_TENANT_ID || DEFAULT_TENANT).trim();
   const systemCode = (process.env.RXAI_AUDIT_SYSTEM_CODE || tenantId).trim();
   const configured = Boolean(token && baseUrl);
   const allowInsecureHttp = process.env.RXAI_AUDIT_ALLOW_INSECURE_HTTP === "true";
@@ -1419,7 +1420,7 @@ export async function runBoundedRxAudit(
       cacheStatus: "bypass",
     };
   }
-  const config = getRxAuditConfig();
+  const config = getRxAuditConfig(state.customerId);
   if (!config.enabled || !config.configured || !config.transportAllowed) {
     const reason = config.disabledReason || "rxaudit_not_configured";
     return {
@@ -1600,7 +1601,7 @@ export async function auditPrescriptionWithLingxi(
   if (!built) return { ok: false, source: "unavailable", reason: "no_prescription_items", itemCount: 0 };
   const requestTimeoutMs = getRxAuditAttemptTimeoutMs();
 
-  const cfg = getRxAuditConfig();
+  const cfg = getRxAuditConfig(state.customerId);
   if (!cfg.enabled || !cfg.configured || !cfg.transportAllowed) {
     return { ok: false, source: "unavailable", reason: cfg.disabledReason || "rxaudit_not_configured", itemCount: built.itemCount };
   }

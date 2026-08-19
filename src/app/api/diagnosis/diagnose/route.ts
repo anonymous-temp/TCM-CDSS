@@ -3,7 +3,7 @@ import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTra
 import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normalization.server";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
-import { readCaseStateRequest } from "@/lib/diagnosis-request";
+import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
@@ -12,7 +12,7 @@ import { cdssReasonCodeMarker } from "@/lib/cdss-reason-codes";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 
 export async function POST(req: Request) {
-  const parsed = await readCaseStateRequest(req);
+  const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   // 浏览器给整个请求 210s。服务端 180s 的 M03 编排时钟必须起在**临床事实准备之前**，
   // 否则 maybeAttachClinicalFactsBackstop 的模型调用不计入预算，总耗时会变成

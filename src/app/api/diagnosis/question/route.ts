@@ -5,13 +5,13 @@ import {
   enforceM02UnansweredAxes,
   ensureQuestionStructuredEnvelope,
 } from "@/lib/m02-question-contract";
-import { readCaseStateRequest } from "@/lib/diagnosis-request";
+import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { markdownNdjsonResponse, sanitizeCaseStateForModel, trustedInputText } from "@/lib/diagnosis-safety";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { reviewM02QuestionPlan } from "@/lib/m02-question-review.server";
 
 export async function POST(req: Request) {
-  const parsed = await readCaseStateRequest(req);
+  const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   if (!(parsed.caseState.chiefComplaint || parsed.caseState.hisRecord?.fields.zhushu || "").trim()) {
     return Response.json({ error: "请先填写主诉，再生成本轮关键追问。" }, { status: 422 });

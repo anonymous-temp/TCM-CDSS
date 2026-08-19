@@ -1,4 +1,4 @@
-import { readCaseStateRequest } from "@/lib/diagnosis-request";
+import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import {
   buildDeterministicRiskFollowup,
   deriveFirstReviewTiming,
@@ -35,7 +35,7 @@ import { recordCdssStageTelemetry } from "@/lib/cdss-stage-telemetry";
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
-  const parsed = await readCaseStateRequest(req);
+  const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   const caseState = await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal);
   const gated = withSafetyGate(caseState);

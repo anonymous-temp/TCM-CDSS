@@ -1,6 +1,7 @@
 import { normalizeCaseStateInput, type CaseState } from "./diagnosis-types";
 import { stripInvalidEmergencyClearance } from "./emergency-clearance.server";
 import { readJsonBodyWithLimit } from "./http-guard";
+import { requireCustomerContext, type CustomerContext } from "./customer-context";
 
 export type CaseStateRequestResult =
   // body 原样带出：契约版本协商这类**非临床**的请求级选项要在路由里读，
@@ -30,4 +31,19 @@ export async function readCaseStateRequest(req: Request): Promise<CaseStateReque
   }
 
   return { ok: true, caseState: stripInvalidEmergencyClearance(caseState), body: parsed.body };
+}
+
+export type CustomerBoundCaseStateRequestResult =
+  | { ok: true; caseState: CaseState; body: unknown; customer: CustomerContext }
+  | { ok: false; response: Response };
+
+export async function readCustomerBoundCaseStateRequest(
+  req: Request,
+): Promise<CustomerBoundCaseStateRequestResult> {
+  const parsed = await readCaseStateRequest(req);
+  if (!parsed.ok) return parsed;
+  const customer = await requireCustomerContext(req, parsed.caseState);
+  if (!customer.ok) return customer;
+  parsed.caseState.customerId = customer.context.customerId;
+  return { ...parsed, customer: customer.context };
 }

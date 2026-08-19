@@ -1,6 +1,7 @@
 import { confirmControlledTerminologyMapping } from "@/lib/controlled-terminology-confirmation.server";
 import { readJsonRequest } from "@/lib/diagnosis-request";
 import { normalizeCaseStateInput } from "@/lib/diagnosis-types";
+import { requireCustomerContext } from "@/lib/customer-context";
 
 export async function POST(req: Request) {
   const parsed = await readJsonRequest(req);
@@ -25,6 +26,9 @@ export async function POST(req: Request) {
       code: "invalid_terminology_confirmation_request",
     }, { status: 400 });
   }
+  const customer = await requireCustomerContext(req, caseState);
+  if (!customer.ok) return customer.response;
+  caseState.customerId = customer.context.customerId;
   if (mapping.namespace !== "tcm_syndrome" && mapping.namespace !== "icd10") {
     return Response.json({
       error: "This terminology namespace cannot be confirmed through this endpoint",

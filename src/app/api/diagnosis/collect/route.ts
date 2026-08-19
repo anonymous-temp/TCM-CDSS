@@ -3,6 +3,7 @@ import { buildTongueVisionPrompt } from "@/lib/diagnosis-prompts";
 import { readJsonRequest } from "@/lib/diagnosis-request";
 import { markdownNdjsonResponse } from "@/lib/diagnosis-safety";
 import { validateCollectRequiredFields } from "@/lib/clinical-required-fields";
+import { requireCustomerContext } from "@/lib/customer-context";
 
 const MAX_IMAGE_SIZE = 5_600_000; // ~4MB binary as base64
 const MAX_USER_INPUT_CHARS = 12000;
@@ -29,6 +30,8 @@ function isValidTongueImageDataUrl(value: string): boolean {
 }
 
 export async function POST(req: Request) {
+  const customer = await requireCustomerContext(req);
+  if (!customer.ok) return customer.response;
   const parsed = await readJsonRequest(req, { maxBytes: MAX_IMAGE_SIZE + MAX_USER_INPUT_CHARS + 2048 });
   if (!parsed.ok) return parsed.response;
   const body = parsed.body && typeof parsed.body === "object" ? parsed.body as { userInput?: unknown; patientSex?: unknown; tongueImage?: unknown; tongueImageConsent?: unknown } : {};

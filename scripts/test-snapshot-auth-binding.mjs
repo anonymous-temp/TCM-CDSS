@@ -9,7 +9,10 @@ const accessTokenA = "snapshot-test-access-token-a-not-for-production";
 const accessTokenB = "snapshot-test-access-token-b-not-for-production";
 process.env.CDSS_API_TOKEN = accessTokenA;
 
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, { alias: {
+  "@": `${process.cwd()}/src`,
+  "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+} });
 const { POST } = await jiti.import("../src/app/api/diagnosis/snapshot/route.ts");
 const {
   CDSS_UI_COOKIE,
@@ -34,6 +37,7 @@ async function test(name, run) {
 
 function snapshotRequest(body, auth = {}) {
   const headers = new Headers({ "content-type": "application/json" });
+  headers.set("x-cdss-customer-id", auth.customerId || "snapshot-customer-a");
   if (auth.cookie) headers.set("cookie", `${CDSS_UI_COOKIE}=${auth.cookie}`);
   if (auth.token) headers.set("x-cdss-api-token", auth.token);
   return new Request("http://localhost/api/diagnosis/snapshot", {

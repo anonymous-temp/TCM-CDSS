@@ -3509,7 +3509,8 @@ assert.ok(
   (fallbackPrecautionsProposal?.nonPharma.precautions || []).length > 0,
   "the server supplies deterministic precautions when every submitted row is dropped",
 );
-assert.equal(compiledProposal?.formula?.patentAndWestern[0].route, undefined, "instruction-bound medicine candidates remain non-dose when a complete regimen was not server-bound");
+assert.equal(compiledProposal?.formula?.patentAndWestern[0].route, "口服", "instruction-bound usage fields must survive from the same evidence fingerprint");
+assert.equal(compiledProposal?.formula?.patentAndWestern[0].course, "5日", "an explicit label course must survive; absent course remains omitted");
 assert.equal(compiledProposal?.formula?.patentAndWestern[0].recommendationMode, "candidate_review");
 assert.equal(compiledProposal?.formula?.patentAndWestern[0].evidenceId, "EVID-INST-001");
 const clinicalReviewPayload = buildM04ClinicalReviewPayload(

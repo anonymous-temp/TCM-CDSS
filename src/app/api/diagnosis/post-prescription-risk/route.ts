@@ -1,4 +1,4 @@
-import { readCaseStateRequest } from "@/lib/diagnosis-request";
+import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import {
   applyRxAuditInputAdvisories,
   buildAuditInputAdvisories,
@@ -52,7 +52,7 @@ async function authoredFollowupFor(
 }
 
 export async function POST(req: Request) {
-  const parsed = await readCaseStateRequest(req);
+  const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal));
   const diagnoseReasoning = diagnoseReasoningFromState(caseState);

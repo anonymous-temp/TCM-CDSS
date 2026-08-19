@@ -1,9 +1,9 @@
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
-import { readCaseStateRequest } from "@/lib/diagnosis-request";
+import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { evaluateSafetyGate, hasDeterministicCriticalVitalRedFlag, withSafetyGate } from "@/lib/diagnosis-safety";
 
 export async function POST(req: Request) {
-  const parsed = await readCaseStateRequest(req);
+  const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
 
   const startedAt = Date.now();
