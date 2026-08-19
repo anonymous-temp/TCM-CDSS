@@ -114,6 +114,14 @@ check("③ 医生页面不得用全量支持依据覆盖某一个分组", () => 
     source.includes('.filter((group) => !["症状依据", "体征依据", "依据"].includes(group.label))'),
     "医生页必须删除症状依据与体征依据分组，仅保留检查/排除/指南等必要信息",
   );
+  const server = readFileSync(
+    fileURLToPath(new URL("../src/lib/diagnosis-visible-summary.ts", import.meta.url)),
+    "utf8",
+  );
+  assert.ok(
+    server.includes('.filter((group) => !["症状依据", "体征依据", "依据"].includes(group.label))'),
+    "服务端 Markdown/下载报告也必须删除症状依据与体征依据分组",
+  );
 });
 
 // ── ⑥⑦ 2026-08-12 线上实测（52 岁男性突发剧烈头痛）新抓到的两条 ────────────────

@@ -7,6 +7,7 @@ const {
   tcmDiseaseStandardCitations,
   tcmSyndromeStandardCitations,
 } = await jiti.import("../src/lib/tcm-diagnostic-citations.ts");
+const { buildEvidenceOutputTransform } = await jiti.import("../src/lib/cdss-evidence-context.ts");
 
 assert.deepEqual(
   tcmDiseaseStandardCitations("吐酸").map((item) => item.evidenceId),
@@ -44,6 +45,19 @@ const parsed = JSON.parse(transformed.match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*
 assert.equal(parsed.overview.tcmDiseaseReferences[0].sourceType, "standard");
 assert.equal(parsed.overview.tcmSyndromeReferences[0].sourceType, "standard");
 assert.equal(applyGovernedTcmDiagnosticCitations(transformed), transformed, "citation projection must be idempotent");
+
+const evidencePass = buildEvidenceOutputTransform(
+  "[EVID-GUIDE-001] 普通西医诊断指南（测试机构，2026）：仅用于验证证据净化边界。",
+  undefined,
+  { id: "tcm-standard-preservation", phase: "diagnose", patient: {}, chiefComplaint: "胃脘隐痛", symptoms: {}, conversation: [] },
+)(transformed);
+const evidencePassParsed = JSON.parse(evidencePass
+  .match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "{}");
+assert.deepEqual(
+  evidencePassParsed.overview.tcmDiseaseReferences?.map((item) => item.evidenceId),
+  ["STD-GBT-15657-2021"],
+  "证据输出投影不得把服务端绑定的中医病名国标依据清空",
+);
 
 const extensionReasoning = {
   schemaVersion: "tcm-cdss-reasoning-v2",
