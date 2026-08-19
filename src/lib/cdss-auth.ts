@@ -1,5 +1,9 @@
+import { CUSTOMER_ID_HEADER, parseCustomerId } from "./customer-id";
+
 export const CDSS_UI_COOKIE = "tcm_cdss_ui_access";
 export const CDSS_UI_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 12;
+export const CDSS_CUSTOMER_COOKIE = "tcm_cdss_customer_context";
+export const CDSS_CUSTOMER_COOKIE_MAX_AGE_SECONDS = CDSS_UI_COOKIE_MAX_AGE_SECONDS;
 export const CDSS_RATE_LIMIT_COOKIE = "tcm_cdss_rate_limit_client";
 export const CDSS_RATE_LIMIT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 12;
 
@@ -86,6 +90,42 @@ export async function cdssUiCookieValue(token = getCdssAccessToken(), now = Date
   return `${payload}.${await hmacHex(payload, token)}`;
 }
 
+export async function cdssCustomerCookieValue(
+  customerIdInput: string,
+  token = getCdssAccessToken(),
+  now = Date.now(),
+): Promise<string> {
+  const customerId = parseCustomerId(customerIdInput);
+  if (!customerId || token.length < 16) throw new Error("Cannot create customer cookie without valid customer context");
+  const expiresAt = Math.floor(now / 1000) + CDSS_CUSTOMER_COOKIE_MAX_AGE_SECONDS;
+  const nonceBytes = new Uint8Array(16);
+  crypto.getRandomValues(nonceBytes);
+  const nonce = Array.from(nonceBytes).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  const payload = `customer.v1.${expiresAt}.${customerId}.${nonce}`;
+  return `v1.${expiresAt}.${customerId}.${nonce}.${await hmacHex(payload, token)}`;
+}
+
+export async function customerIdFromCdssCustomerCookieValue(
+  value: string,
+  token = getCdssAccessToken(),
+  now = Date.now(),
+): Promise<string | undefined> {
+  const match = value.match(/^v1\.(\d{10})\.([A-Za-z0-9_-]{6,64})\.([a-f0-9]{32})\.([a-f0-9]{64})$/);
+  if (!match || token.length < 16) return undefined;
+  const expiresAt = Number(match[1]);
+  const nowSeconds = Math.floor(now / 1000);
+  const customerId = parseCustomerId(match[2]);
+  if (!customerId || !Number.isFinite(expiresAt) || expiresAt <= nowSeconds ||
+      expiresAt > nowSeconds + CDSS_CUSTOMER_COOKIE_MAX_AGE_SECONDS + 60) return undefined;
+  const expected = await hmacHex(`customer.v1.${expiresAt}.${customerId}.${match[3]}`, token);
+  return sameSecret(match[4], expected) ? customerId : undefined;
+}
+
+export async function customerIdFromCdssRequestCookie(req: Request): Promise<string | undefined> {
+  const value = requestCookie(req, CDSS_CUSTOMER_COOKIE);
+  return value ? customerIdFromCdssCustomerCookieValue(value) : undefined;
+}
+
 export async function isValidCdssUiCookieValue(
   value: string,
   token = getCdssAccessToken(),
@@ -167,10 +207,12 @@ export async function getCdssRateLimitIdentity(req: Request): Promise<CdssRateLi
 export async function getCdssAuthenticatedRateLimitKey(req: Request): Promise<string> {
   const expected = getCdssAccessToken();
   const supplied = req.headers.get("x-cdss-api-token") || bearerToken(req.headers.get("authorization"));
-  if (sameSecret(supplied, expected)) return `tenant:${await stableIdentityHash(supplied)}`;
+  const customerId = parseCustomerId(req.headers.get(CUSTOMER_ID_HEADER)) || await customerIdFromCdssRequestCookie(req);
+  const customerScope = customerId ? await stableIdentityHash(customerId) : "customer-missing";
+  if (sameSecret(supplied, expected)) return `tenant:${await stableIdentityHash(supplied)}:${customerScope}`;
   const uiCookie = requestCookie(req, CDSS_UI_COOKIE);
   if (uiCookie && await isValidCdssUiCookieValue(uiCookie, expected)) {
-    return `session:${await stableIdentityHash(uiCookie)}`;
+    return `session:${await stableIdentityHash(uiCookie)}:${customerScope}`;
   }
   return (await getCdssRateLimitIdentity(req)).key;
 }

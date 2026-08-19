@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { CaseState } from "./diagnosis-types";
 import { CUSTOMER_ID_HEADER, parseCustomerId } from "./customer-id";
+import { customerIdFromCdssRequestCookie } from "./cdss-auth";
 
 export type CustomerContext = Readonly<{
   customerId: string;
@@ -22,7 +23,9 @@ export async function requireCustomerContext(
   req: Request,
   caseState?: Pick<CaseState, "customerId"> | null,
 ): Promise<CustomerContextResult> {
-  const supplied = req.headers.get(CUSTOMER_ID_HEADER)?.trim() || "";
+  const suppliedHeader = req.headers.get(CUSTOMER_ID_HEADER)?.trim() || "";
+  const cookieCustomerId = suppliedHeader ? undefined : await customerIdFromCdssRequestCookie(req);
+  const supplied = suppliedHeader || cookieCustomerId || "";
   if (!supplied) {
     return {
       ok: false,
@@ -42,5 +45,9 @@ export async function requireCustomerContext(
       response: Response.json({ error: "customer context does not match case", code: "customer_context_mismatch" }, { status: 409 }),
     };
   }
-  return { ok: true, context: { customerId, customerHash: customerIdHash(customerId), source: "header" } };
+  return { ok: true, context: {
+    customerId,
+    customerHash: customerIdHash(customerId),
+    source: suppliedHeader ? "header" : "cookie",
+  } };
 }

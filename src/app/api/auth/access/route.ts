@@ -3,6 +3,9 @@ import {
   CDSS_UI_COOKIE,
   CDSS_UI_COOKIE_MAX_AGE_SECONDS,
   cdssUiCookieValue,
+  CDSS_CUSTOMER_COOKIE,
+  CDSS_CUSTOMER_COOKIE_MAX_AGE_SECONDS,
+  cdssCustomerCookieValue,
   CDSS_RATE_LIMIT_COOKIE,
   CDSS_RATE_LIMIT_COOKIE_MAX_AGE_SECONDS,
   getCdssAccessToken,
@@ -13,6 +16,7 @@ import {
   sameSecret,
 } from "@/lib/cdss-auth";
 import { readJsonBodyWithLimit } from "@/lib/http-guard";
+import { parseCustomerId } from "@/lib/customer-id";
 
 export const dynamic = "force-dynamic";
 
@@ -99,7 +103,7 @@ export async function POST(req: Request) {
 
   const parsed = await readJsonBodyWithLimit(req, MAX_LOGIN_BODY_BYTES);
   if (!parsed.ok) return parsed.response;
-  const body = parsed.body && typeof parsed.body === "object" ? parsed.body as { token?: unknown } : {};
+  const body = parsed.body && typeof parsed.body === "object" ? parsed.body as { token?: unknown; customerId?: unknown } : {};
   const token = typeof body?.token === "string" ? body.token.trim().slice(0, MAX_LOGIN_TOKEN_CHARS) : "";
   if (!sameSecret(token, expectedToken)) {
     const nextBucket = recordFailedAttempt(key, now);
@@ -109,14 +113,29 @@ export async function POST(req: Request) {
     return finalize(NextResponse.json({ ok: false, error: "访问口令不正确" }, { status: 401 }));
   }
 
+  const customerId = parseCustomerId(body.customerId);
+  if (!customerId) {
+    return finalize(NextResponse.json(
+      { ok: false, error: "客户标识格式不正确", code: "invalid_customer_id" },
+      { status: 400 },
+    ));
+  }
+
   loginAttempts.delete(key);
-  const response = NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true, customerId });
   response.cookies.set(CDSS_UI_COOKIE, await cdssUiCookieValue(expectedToken), {
     httpOnly: true,
     sameSite: "lax",
     secure: isHttpsRequest(req),
     path: getCdssCookiePath(),
     maxAge: CDSS_UI_COOKIE_MAX_AGE_SECONDS,
+  });
+  response.cookies.set(CDSS_CUSTOMER_COOKIE, await cdssCustomerCookieValue(customerId, expectedToken), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isHttpsRequest(req),
+    path: getCdssCookiePath(),
+    maxAge: CDSS_CUSTOMER_COOKIE_MAX_AGE_SECONDS,
   });
   return finalize(response);
 }

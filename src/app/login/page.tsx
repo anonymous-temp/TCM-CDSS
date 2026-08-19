@@ -5,6 +5,7 @@ import { LockKeyhole, Loader2, Stethoscope } from "lucide-react";
 
 const APP_BASE_PATH = normalizeBasePath(process.env.NEXT_PUBLIC_BASE_PATH || "");
 const MAX_TOKEN_CHARS = 512;
+const MAX_CUSTOMER_ID_CHARS = 64;
 const LOGIN_REQUEST_TIMEOUT_MS = 15_000;
 
 function normalizeBasePath(value: string): string {
@@ -46,13 +47,15 @@ function getInitialError(): string {
 
 export default function LoginPage() {
   const [token, setToken] = useState("");
+  const [customerId, setCustomerId] = useState("");
   const [error, setError] = useState(getInitialError);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = token.trim();
-    if (!trimmed || isSubmitting) return;
+    const trimmedCustomerId = customerId.trim();
+    if (!trimmed || !trimmedCustomerId || isSubmitting) return;
 
     setIsSubmitting(true);
     setError("");
@@ -62,7 +65,7 @@ export default function LoginPage() {
       const res = await fetch(appUrl("/api/auth/access"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: trimmed }),
+        body: JSON.stringify({ token: trimmed, customerId: trimmedCustomerId }),
         signal: controller.signal,
       });
       const body = await res.json().catch(() => null) as { error?: string } | null;
@@ -106,6 +109,19 @@ export default function LoginPage() {
             type="text"
             value="cdss-access"
           />
+          <label className="block text-[13px] font-semibold text-gray-700" htmlFor="cdss-customer-id">
+            客户标识
+          </label>
+          <input
+            id="cdss-customer-id"
+            type="text"
+            autoComplete="organization"
+            value={customerId}
+            onChange={(event) => setCustomerId(event.target.value.slice(0, MAX_CUSTOMER_ID_CHARS))}
+            maxLength={MAX_CUSTOMER_ID_CHARS}
+            className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-medium outline-none placeholder:text-gray-300 focus:border-teal-300 focus:bg-white"
+            placeholder="x-cdss-customer-id"
+          />
           <label className="block text-[13px] font-semibold text-gray-700" htmlFor="cdss-token">
             访问口令
           </label>
@@ -129,7 +145,7 @@ export default function LoginPage() {
           )}
           <button
             type="submit"
-            disabled={!token.trim() || isSubmitting}
+            disabled={!token.trim() || !customerId.trim() || isSubmitting}
             className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-teal-600 px-4 text-[13px] font-bold text-white transition-colors hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
