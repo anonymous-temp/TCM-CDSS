@@ -2560,11 +2560,11 @@ function canonicalHerbTable(candidate: Record<string, unknown>): string {
       ? rawHerb as Record<string, unknown>
       : {};
     const processing = joinClinicalClauses([markdownCell(herb.processing), markdownCell(herb.decoctionRequirement)], "；") || "饮片";
-    return `| ${index + 1} | ${markdownCell(herb.name)} | ${processing} | ${markdownCell(herb.dose)} | ${markdownCell(herb.role)} | ${markdownCell(herb.prescriptionRole)} | ${markdownCell(targetCells[index])} | ${markdownCell(herb.function)} |`;
+    return `| ${index + 1} | ${markdownCell(herb.name)} | ${processing} | ${markdownCell(herb.dose)} | ${markdownCell(herb.role)} | ${markdownCell(herb.prescriptionRole)} | ${markdownCell(targetCells[index])} |`;
   });
   return [
-    "| 序号 | 药名 | 炮制/煎服要求 | 剂量 | 君臣佐使 | 处方角色 | 对应病机/证候/症状 | 配伍意义 |",
-    "|---|---|---|---|---|---|---|---|",
+    "| 序号 | 药名 | 炮制/煎服要求 | 剂量 | 君臣佐使 | 处方角色 | 对应病机/证候/症状 |",
+    "|---|---|---|---|---|---|---|",
     ...rows,
   ].join("\n");
 }
@@ -2832,7 +2832,8 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
   const guidelineRefs = governedGuidelineReferences(westernPrimary);
   // 分组与标题走**与医生页面同一个**投影函数（2026-08-11）。此前这里手写一份、页面手写另一份，
   // 结果 0810 的分类改动只落到了这一侧，页面继续显示旧的「支持依据/待查依据」。
-  const categorized = westernDiagnosticEvidenceGroups(evidence, guidelineRefs.map((text) => ({ text })));
+  const categorized = westernDiagnosticEvidenceGroups(evidence, guidelineRefs.map((text) => ({ text })))
+    .filter((group) => !["症状依据", "体征依据", "依据"].includes(group.label));
   if (candidatesUsable) {
     lines.push(`**候选诊断（按可能性排序）**：${westernCandidates.map((item, index) => {
       const facts = (Array.isArray(item.keyEvidence) ? item.keyEvidence : [])

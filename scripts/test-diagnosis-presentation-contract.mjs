@@ -116,18 +116,14 @@ check(() => {
 });
 
 const visibleM03 = visibleOf(m03WithChartFacts, "diagnose", CONTEXT);
-// 「支持依据」「待查依据」两栏 2026-08-10 按甲方要求删除，改为症状/体征/检查/排除/指南分栏；
-// 只有一类有内容时不写分类名，直接写「依据」。
+// 甲方后续明确要求医生页面与下载报告都删除「症状依据/体征依据」；患者事实继续进入
+// 结构化推理与诊断说明，但不再重复成两个冗长折叠栏。仅保留检查、排除与指南文献。
 for (const label of ["排除依据"]) {
   check(() => assert.ok(visibleM03.includes(`**${label}**`), `西医诊断段必须出现「${label}」`));
 }
 check(() => assert.ok(
-  /\*\*(?:症状依据|体征依据|检查依据|依据)\*\*：[^\n]*（来源：主诉）/.test(visibleM03),
-  "主诉级事实必须标注来源，而不是裸复述主诉",
-));
-check(() => assert.ok(
-  /\*\*(?:症状依据|体征依据|检查依据|依据)\*\*：[^\n]*（来源：现病史）/.test(visibleM03),
-  "现病史级事实必须标注来源",
+  !/\*\*(?:症状依据|体征依据|依据)\*\*/.test(visibleM03),
+  "医生正文不得继续显示症状依据或体征依据分组",
 ));
 // 分栏后必须仍然逐条可溯源，且不得再出现被删掉的两个栏名。
 check(() => assert.ok(!/\*\*支持依据\*\*/.test(visibleM03), "「支持依据」栏已删除"));
@@ -141,11 +137,12 @@ check(() => assert.ok(
   !/\*\*待查依据\*\*：[^\n]*（来源：/.test(visibleM03),
   "待查依据不得标事实来源",
 ));
-// fail-open：不传接地正文时各类照常呈现，只是不带来源标注。
+// 不传接地正文时也不得恢复已删除的症状/体征分组。
 check(() => {
   const withoutContext = visibleOf(m03WithChartFacts, "diagnose");
-  assert.ok(/\*\*(?:症状依据|体征依据|检查依据|排除依据|依据)\*\*/.test(withoutContext),
-    "无接地正文时依据分类仍呈现");
+  assert.ok(/\*\*(?:检查依据|排除依据)\*\*/.test(withoutContext),
+    "无接地正文时已有的检查或排除依据仍呈现");
+  assert.ok(!/\*\*(?:症状依据|体征依据|依据)\*\*/.test(withoutContext));
   assert.ok(!withoutContext.includes("（来源："), "无接地正文时不编造来源");
 });
 // 来源解析：接地正文与病例状态两条路径必须给出同样的字段归属。

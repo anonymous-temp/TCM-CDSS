@@ -12,6 +12,7 @@ import { matchesPopulationScope } from "./clinical-vocabulary";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
 import { recordCdssKnowledgeTrace } from "./cdss-knowledge-telemetry";
 import { localDiagnosticReferenceContext } from "./diagnostic-reference-catalog";
+import { tcmDiseaseStandardCitations } from "./tcm-diagnostic-citations";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
 
@@ -195,6 +196,14 @@ function resolveGovernedTcmDiseaseReferences(
   const record = overview as Record<string, unknown>;
   const diseaseName = typeof record.tcmDiseaseName === "string" ? record.tcmDiseaseName.trim() : "";
   if (!diseaseName) return;
+  const standardCitations = tcmDiseaseStandardCitations(diseaseName);
+  if (standardCitations.length > 0) {
+    // This citation is server-owned and deterministically derived from the governed disease
+    // lexicon. Reassert it here so a later EviMed scope projection cannot replace it with an empty
+    // extension-only lookup result.
+    record.tcmDiseaseReferences = standardCitations;
+    return;
+  }
   const citation = scope.records.flatMap((evidenceRecord, recordIndex) =>
     [...evidenceRecord.ids].flatMap((evidenceId) => {
       if (!/^EVID-(?:GUIDE|PAPER)-\d{3}$/.test(evidenceId) ||

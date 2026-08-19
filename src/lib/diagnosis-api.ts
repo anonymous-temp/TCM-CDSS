@@ -4765,9 +4765,15 @@ async function callPrimaryTextModelStream(
           // 选择同一套 verifyFormulaCompilationComponents),只是保证它不再被下游覆盖。
           // 幂等:已带引用的候选原样返回;核验不过的候选原样返回,自拟方路径完全不变。
           // 放在签名前,签名覆盖的就是恢复后的内容,契约链完整。
-          const identityRestored = opts.structuredStage === "prescribe"
-            ? applyRestoredGovernedFormulaIdentity(transformed.content, opts.structuredPriorReasoning)
+          const finalStageOwned = opts.structuredStage === "prescribe"
+            ? enforceM04PriorStageOwnership(
+                transformed.content,
+                opts.structuredPriorReasoning as unknown as Record<string, unknown> | undefined,
+              )
             : transformed.content;
+          const identityRestored = opts.structuredStage === "prescribe"
+            ? applyRestoredGovernedFormulaIdentity(finalStageOwned, opts.structuredPriorReasoning)
+            : finalStageOwned;
           let signedContent = opts.structuredStage === "diagnose"
             ? attachClinicalReviewAttestation(identityRestored, m03AttestationWithScope)
             : opts.structuredStage === "prescribe"
