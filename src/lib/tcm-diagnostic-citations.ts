@@ -26,9 +26,16 @@ export function tcmDiseaseStandardCitations(value: unknown): ClinicalCitation[] 
 }
 
 export function tcmSyndromeStandardCitations(value: unknown): ClinicalCitation[] {
-  return resolveNationalStandardTcmSyndromeTerm(value)
-    ? [{ ...SYNDROME_STANDARD_CITATION }]
-    : [];
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return [];
+  const segments = text
+    .split(/[，,、；;+/]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const allSegmentsGoverned = segments.length > 0 && segments.every((item) =>
+    Boolean(resolveNationalStandardTcmSyndromeTerm(item)),
+  );
+  return allSegmentsGoverned ? [{ ...SYNDROME_STANDARD_CITATION }] : [];
 }
 
 export function applyGovernedTcmDiagnosticCitations(content: string): string {

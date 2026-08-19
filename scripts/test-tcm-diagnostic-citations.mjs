@@ -16,6 +16,16 @@ assert.deepEqual(
   tcmSyndromeStandardCitations("脾胃虚弱证").map((item) => item.evidenceId),
   ["STD-GBT-16751-2-2021"],
 );
+assert.deepEqual(
+  tcmSyndromeStandardCitations("脾胃虚弱，湿浊中阻").map((item) => item.evidenceId),
+  ["STD-GBT-16751-2-2021"],
+  "并列的国标证候应绑定同一证候术语标准",
+);
+assert.deepEqual(
+  tcmSyndromeStandardCitations("脾胃虚弱，项目扩展未核验证候"),
+  [],
+  "并列项中任一条未进入国标词表时不得借另一条冒领标准引用",
+);
 assert.deepEqual(tcmSyndromeStandardCitations("项目扩展未核验证候"), []);
 
 const reasoning = {
