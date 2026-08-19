@@ -40,7 +40,15 @@ const SYNDROME_AXIS_MAX_FORM_LENGTH = SYNDROME_AXIS_FORMS.reduce(
 const SYNDROME_LABEL_AXES_CACHE_LIMIT = 4096;
 const syndromeLabelAxesCache = new Map<string, { locations: string[]; natures: string[] }>();
 
-export type PopulationScopeGroup = "maternal" | "obstetric" | "pediatric" | "geriatric" | "broad";
+export type PopulationScopeGroup =
+  | "maternal"
+  | "obstetric"
+  | "pediatric"
+  | "geriatric"
+  | "broad"
+  | "reproductive_label"
+  | "reproductive_exclusion"
+  | "medication_label_retained";
 
 /** 生成物自检:任一维度为空说明生成器或上游词表出了问题,宁可显式失败也不静默降级。 */
 export function clinicalVocabularyCounts(): Record<string, number> {

@@ -4,6 +4,7 @@ import {
   assessPregnancyState,
   isPositiveOrPossibleClinicalState,
 } from "./clinical-state";
+import { populationScopeForms } from "./clinical-vocabulary";
 import { ageValue, type CaseState } from "./diagnosis-types";
 
 type MedicationRiskCaseContext = Partial<Pick<
@@ -20,11 +21,25 @@ type MedicationRiskCaseContext = Partial<Pick<
   | "hisRecord"
 >>;
 
-const REPRODUCTIVE_TERM = /孕妇|妊娠|孕期|哺乳|乳母|备孕|生育计划/;
-const REPRODUCTIVE_PREFIX = /^(?:孕妇|妊娠|孕期|哺乳|乳母|备孕|生育计划)/;
-const RETAINED_POPULATION_TERM = /儿童|小儿|婴幼儿|经期|月经期|老年|年老|肝功能|肾功能|过敏|糖尿病|高血压/;
-const PHYSIOLOGICALLY_OUT_OF_SCOPE =
-  /(?:已|自然)?绝经(?:后|[^。；\n]{0,12}\d+\s*(?:年|个月|月))|双侧卵巢切除|子宫全切(?:除)?|无子宫/;
+const REPRODUCTIVE_FORMS = populationScopeForms("reproductive_label");
+const REPRODUCTIVE_EXCLUSION_FORMS = populationScopeForms("reproductive_exclusion");
+const RETAINED_POPULATION_FORMS = [
+  ...populationScopeForms("pediatric"),
+  ...populationScopeForms("geriatric"),
+  ...populationScopeForms("medication_label_retained"),
+];
+const REPRODUCTIVE_LIST_MEMBER = new RegExp(
+  `(?:${REPRODUCTIVE_FORMS.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?:\\s*[、和与及或/]\\s*)?`,
+  "g",
+);
+
+function includesAny(value: string, forms: readonly string[]): boolean {
+  return forms.some((form) => value.includes(form));
+}
+
+function startsWithAny(value: string, forms: readonly string[]): boolean {
+  return forms.some((form) => value.startsWith(form));
+}
 
 function contextText(state?: MedicationRiskCaseContext | null): string {
   if (!state) return "";
@@ -70,32 +85,32 @@ export function reproductiveMedicationRiskApplies(
   if (!/女/.test(sex)) return true;
 
   const age = ageValue(state.hisRecord?.fields?.age) ?? ageValue(state.patient?.age);
-  return !((age != null && age >= 60) || PHYSIOLOGICALLY_OUT_OF_SCOPE.test(text));
+  return !((age != null && age >= 60) || includesAny(text, REPRODUCTIVE_EXCLUSION_FORMS));
 }
 
 function scrubMixedPopulationClause(clause: string): string {
   return clause
-    .replace(/(?:妊娠期妇女|孕期妇女|哺乳期妇女|备孕妇女|孕妇|乳母)(?:\s*[、和与及或/]\s*)?/g, "")
+    .replace(REPRODUCTIVE_LIST_MEMBER, "")
     .replace(/^[\s、，,和与及或/]+/, "")
     .replace(/[、，,和与及或/]+(?=[。！？!?]?$)/, "")
     .trim();
 }
 
 function sanitizeRiskAtom(atom: string): string {
-  if (!REPRODUCTIVE_TERM.test(atom)) return atom.trim();
+  if (!includesAny(atom, REPRODUCTIVE_FORMS)) return atom.trim();
   const retained: string[] = [];
   for (const part of atom.split(/[，,]/)) {
     const trimmed = part.trim();
     if (!trimmed) continue;
-    if (!REPRODUCTIVE_TERM.test(trimmed)) {
+    if (!includesAny(trimmed, REPRODUCTIVE_FORMS)) {
       retained.push(trimmed);
       continue;
     }
     const withoutNumbering = trimmed.replace(/^\d{1,3}[.．、]\s*/, "");
-    if (REPRODUCTIVE_PREFIX.test(withoutNumbering)) continue;
-    if (!RETAINED_POPULATION_TERM.test(withoutNumbering)) continue;
+    if (startsWithAny(withoutNumbering, REPRODUCTIVE_FORMS)) continue;
+    if (!includesAny(withoutNumbering, RETAINED_POPULATION_FORMS)) continue;
     const scrubbed = scrubMixedPopulationClause(trimmed);
-    if (scrubbed && !REPRODUCTIVE_TERM.test(scrubbed)) retained.push(scrubbed);
+    if (scrubbed && !includesAny(scrubbed, REPRODUCTIVE_FORMS)) retained.push(scrubbed);
   }
   return retained.join("，");
 }

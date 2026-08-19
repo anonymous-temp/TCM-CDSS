@@ -16,6 +16,9 @@
   "population_pediatric": 9,
   "population_geriatric": 5,
   "population_broad": 7,
+  "population_reproductive_label": 11,
+  "population_reproductive_exclusion": 7,
+  "population_medication_label_retained": 7,
   "prohibition_self_medication_change": 12,
   "prohibition_prognosis_promise": 7
  },
@@ -64523,6 +64526,37 @@
    "男女",
    "老幼",
    "老少"
+  ],
+  "reproductive_label": [
+   "妊娠期妇女",
+   "哺乳期妇女",
+   "孕期妇女",
+   "备孕妇女",
+   "生育计划",
+   "妊娠",
+   "孕妇",
+   "孕期",
+   "哺乳",
+   "乳母",
+   "备孕"
+  ],
+  "reproductive_exclusion": [
+   "双侧卵巢切除",
+   "子宫全切除",
+   "自然绝经",
+   "子宫全切",
+   "已绝经",
+   "绝经后",
+   "无子宫"
+  ],
+  "medication_label_retained": [
+   "月经期",
+   "肝功能",
+   "肾功能",
+   "糖尿病",
+   "高血压",
+   "经期",
+   "过敏"
   ]
  },
  "populationSourceNote": "人群限定词的**唯一**受治理归属地(2026-08-04 建立)。受治理证候/治则词表按术语分类学组织(病因/脏腑/气血…),不含科别与生理阶段维度,因此人群词无法从它们派生;但这类词此前散落在 src/lib/tcm-formula-axis-score.ts 的 5 个 TS 正则常量里,是典型的「代码内手写词表」——改一处不会全局生效,必然漂移。现集中于此:代码不得再手写人群词,一律经 build:clinical-vocabulary 生成后由 clinical-vocabulary.ts 读取。新增词条必须同时给出 basis(依据)。",
