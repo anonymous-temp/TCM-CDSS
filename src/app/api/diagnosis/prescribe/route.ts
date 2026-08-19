@@ -194,7 +194,7 @@ export async function POST(req: Request) {
   // 而 EviMed 那条慢腿不依赖它。原写法把两者串成一条 then 链，等于让 EviMed 白等 6s。
   const assistedNegationsPromise = assistedPolarityDecisions(safeState, req.signal);
   const [medicinePlan, baseEvidenceContext, inventoryContext] = await Promise.all([
-    planEvidenceBoundMedicineCandidates(safeState, req.signal),
+    planEvidenceBoundMedicineCandidates(safeState, customer.context.customerId, req.signal),
     assistedNegationsPromise.then((assistedNegations) =>
       buildCdssEvidenceContext(safeState, "prescribe", assistedNegations)),
     // 院内库存可得性（甲方 2026-08-05 入站药品同步）。未导入库存时返回空串，

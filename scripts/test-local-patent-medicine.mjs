@@ -3,7 +3,10 @@ import { createJiti } from "jiti";
 
 process.env.AI_TEXT_PROVIDER = "openai";
 process.env.OPENAI_API_KEY = "";
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, { alias: {
+  "@": `${process.cwd()}/src`,
+  "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+} });
 const {
   buildLocalPatentMedicineContext,
   retrieveLocalPatentMedicineCandidates,

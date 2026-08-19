@@ -37,7 +37,7 @@ import { governedHerbSubstitutes, isKnownTcmHerbName, type GovernedHerbSubstitut
  * ——空库存会让整院所有药味变成「缺货」，是比写失败严重得多的故障。
  */
 
-export type DrugInventoryItemKind = "herb" | "patent";
+export type DrugInventoryItemKind = "herb" | "patent" | "western";
 
 export type DrugInventoryItem = {
   /** 院内药品名（原样保留，用于回显与对账）。 */
@@ -57,6 +57,7 @@ export type DrugInventorySnapshot = {
   itemCount: number;
   availableHerbCount: number;
   availablePatentCount: number;
+  availableWesternCount: number;
   /** 归一不到受治理正名的院内药名，如实回报供甲方补映射，不静默丢弃。 */
   unresolvedNames: string[];
   /** 归一后存在多个候选、系统拒绝自动择一的院内药名。 */
@@ -119,6 +120,7 @@ async function load(customerIdInput: string): Promise<InventoryFile | null> {
       itemCount: parsed.items.length,
       availableHerbCount: parsed.items.filter((item) => item.kind === "herb" && item.available).length,
       availablePatentCount: parsed.items.filter((item) => item.kind === "patent" && item.available).length,
+      availableWesternCount: parsed.items.filter((item) => item.kind === "western" && item.available).length,
       unresolvedNames: Array.isArray(parsed.unresolvedNames) ? parsed.unresolvedNames : [],
       ambiguousNames: Array.isArray(parsed.ambiguousNames) ? parsed.ambiguousNames : [],
       items: parsed.items,
@@ -317,7 +319,7 @@ async function commitInventoryItems(
     const entry = raw as Record<string, unknown>;
     const name = text(entry.name);
     if (!name || name.length > 120) continue;
-    const kind: DrugInventoryItemKind = entry.kind === "patent" ? "patent" : "herb";
+    const kind: DrugInventoryItemKind = entry.kind === "western" ? "western" : entry.kind === "patent" ? "patent" : "herb";
     // available 缺省为 true：甲方推过来的就是院内在售目录，缺字段不应被当成缺货。
     const available = entry.available === undefined ? true : entry.available === true;
     const dedupeKey = `${kind}:${name}`;
@@ -363,6 +365,7 @@ async function commitInventoryItems(
     itemCount: items.length,
     availableHerbCount: items.filter((item) => item.kind === "herb" && item.available).length,
     availablePatentCount: items.filter((item) => item.kind === "patent" && item.available).length,
+    availableWesternCount: items.filter((item) => item.kind === "western" && item.available).length,
     unresolvedNames: [...unresolved].sort().slice(0, MAX_UNRESOLVED_REPORTED),
     ambiguousNames: [...ambiguous].sort().slice(0, MAX_UNRESOLVED_REPORTED),
     items,
@@ -391,6 +394,32 @@ export async function drugInventorySnapshot(customerId: string): Promise<DrugInv
 }
 
 export type HerbAvailability = "in_stock" | "out_of_stock" | "unknown";
+export type MedicineAvailability = HerbAvailability;
+
+export type MedicineAvailabilityView = {
+  inventoryLoaded: boolean;
+  inventoryVersion: string;
+  statusOf: (name: string, kind: "patent" | "western") => MedicineAvailability;
+};
+
+export async function medicineAvailabilityView(customerId: string): Promise<MedicineAvailabilityView> {
+  const file = await load(customerId);
+  if (!file) return { inventoryLoaded: false, inventoryVersion: "", statusOf: () => "unknown" };
+  const normalized = (value: string) => value.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+  const byKind = new Map<string, boolean>();
+  for (const item of file.items) {
+    if (item.kind !== "patent" && item.kind !== "western") continue;
+    byKind.set(`${item.kind}:${normalized(item.name)}`, item.available);
+  }
+  return {
+    inventoryLoaded: true,
+    inventoryVersion: file.inventoryVersion,
+    statusOf(name, kind) {
+      const available = byKind.get(`${kind}:${normalized(name)}`);
+      return available === true ? "in_stock" : "out_of_stock";
+    },
+  };
+}
 
 export type HerbAvailabilityView = {
   /** 未导入库存时为 false —— 调用方据此完全跳过可得性呈现。 */

@@ -17,6 +17,7 @@ import {
 } from "./local-patent-medicine-candidates";
 import type { EvidenceBoundMedicineProposal } from "./m04-proposal-compiler";
 import { parseMedicationLabelUsage } from "./medication-label-usage";
+import { medicineAvailabilityView } from "./drug-inventory.server";
 import { createTextModelClient, getPrimaryTextModelConfig, isApprovedTextModel, textModelRequestTuning } from "./text-model";
 
 const PlannerSchema = z.object({
@@ -253,9 +254,14 @@ async function resolveWesternCandidate(
 
 export async function planEvidenceBoundMedicineCandidates(
   caseState: CaseState,
-  requestSignal?: AbortSignal,
+  customerIdOrSignal?: string | AbortSignal,
+  explicitRequestSignal?: AbortSignal,
 ): Promise<MedicineCandidatePlan> {
-  const localCandidates = retrieveLocalPatentMedicineCandidates(caseState, 10);
+  const customerId = typeof customerIdOrSignal === "string" ? customerIdOrSignal : undefined;
+  const requestSignal = typeof customerIdOrSignal === "string" ? explicitRequestSignal : customerIdOrSignal;
+  const medicineAvailability = customerId ? await medicineAvailabilityView(customerId) : undefined;
+  const localCandidates = retrieveLocalPatentMedicineCandidates(caseState, 10)
+    .filter((item) => !medicineAvailability || medicineAvailability.statusOf(item.name, "patent") === "in_stock");
   const selection = await runPlannerModel(caseState, localCandidates, requestSignal);
   const selectedLocalIds = selection?.localEvidenceIds.length
     ? selection.localEvidenceIds
@@ -271,7 +277,8 @@ export async function planEvidenceBoundMedicineCandidates(
   const resolvedWestern = selection
     ? await Promise.all(selection.westernMedicines.map((item, index) => resolveWesternCandidate(item, index, caseText)))
     : [];
-  const western = resolvedWestern.filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const western = resolvedWestern.filter((item): item is NonNullable<typeof item> =>
+    Boolean(item) && (!medicineAvailability || medicineAvailability.statusOf(item?.candidate.name || "", "western") === "in_stock"));
   const candidates = [...selectedLocal, ...western.map((item) => item.candidate)].slice(0, 5);
   const evidenceContext = western.length > 0
     ? [
