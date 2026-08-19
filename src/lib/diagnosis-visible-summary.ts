@@ -3092,10 +3092,7 @@ function visiblePrescribeFromReasoning(
   const candidate = recordList(formula?.candidates)[0];
   const decoction = recordValue(candidate?.decoction);
   const formulaSource = recordValue(candidate?.formulaSource);
-  const discriminationPath = recordList(candidate?.discriminationPath);
   const classicEvidence = recordList(candidate?.classicEvidence);
-  const compositionLogic = recordList(candidate?.compositionLogic);
-  const textualModifications = recordList(candidate?.textualModifications);
   const patentAndWestern = recordList(formula?.patentAndWestern).filter((item) => {
     const evidence = recordValue(item.evidence);
     return [item.name, item.correspondingProblem, item.evidenceId, item.evidenceFingerprint]
@@ -3171,29 +3168,10 @@ function visiblePrescribeFromReasoning(
       "### 方义分析",
       markdownBlock(candidate.formulaAnalysis),
     );
-    if (compositionLogic.length > 0) {
-      lines.push(
-        "",
-        "### 组成逻辑",
-        // tier/anchorLevel 是内部枚举（canon/common/experience、tiaowen/…）。此前直接 `${}` 进
-        // 医生可见 Markdown，医生页面上就出现「（canon）」这种工程记号——与 L0/L1/L3 同一类问题。
-        // 统一走 internal-tag-hygiene 的标签表，枚举→中文；未收录的取值整段省略而不是打印原码。
-        ...compositionLogic.map((item) =>
-          `- **${markdownCell(item.formulaName)}**：${markdownCell(item.summary)}${
-            classicTierLabel(item.tier) ? `（${classicTierLabel(item.tier)}）` : ""}`),
-      );
-    }
-    if (discriminationPath.length > 0) {
-      lines.push(
-        "",
-        "### 方证鉴别路径",
-        ...discriminationPath.map((item) =>
-          `- 与 **${markdownCell(item.againstFormula)}** 鉴别：${clinicalSentence([
-            markdownCell(item.question),
-            markdownCell(item.status) ? `当前状态：${markdownCell(item.status)}` : "",
-          ], "；")}`),
-      );
-    }
+    // compositionLogic / discriminationPath / textualModifications remain in the signed
+    // structured payload and HIS projection for auditability. They are implementation and
+    // governance metadata, not clinician-facing prose; the doctor report presents the finalized
+    // natural-language formula analysis and verified source instead.
     if (classicEvidence.length > 0) {
       lines.push(
         "",
@@ -3204,23 +3182,6 @@ function visiblePrescribeFromReasoning(
             classicTierLabel(item.tier),
           ].filter(Boolean), "；");
           return `- ${markdownCell(item.citation)}${qualifiers ? `（${qualifiers}）` : ""}`;
-        }),
-      );
-    }
-    if (textualModifications.length > 0) {
-      lines.push(
-        "",
-        "### 条文加减复核线索（未自动应用）",
-        ...textualModifications.map((item) => {
-          const addHerbs = joinClinicalClauses(semanticItems(item.addHerbs), "、") || "无";
-          const removeHerbs = joinClinicalClauses(semanticItems(item.removeHerbs), "、") || "无";
-          const resultingFormula = clinicalClauseText(markdownCell(item.resultingFormula));
-          return `- **${markdownCell(item.ruleId)}**：${clinicalSentence([
-            `当前阳性触发 ${joinClinicalClauses(semanticItems(item.matchedTriggers), "、")}`,
-            resultingFormula ? `参考结果方 ${resultingFormula}` : "",
-            `加 ${addHerbs}，去 ${removeHerbs}`,
-            `证据 ${markdownCell(item.sourceCitation)}`,
-          ], "；")}须由医生复核，不会自动改写本处方。`;
         }),
       );
     }
