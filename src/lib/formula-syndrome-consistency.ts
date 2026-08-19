@@ -1,5 +1,5 @@
 import governedCatalog from "../data/tcm-formula-governed-catalog.json" with { type: "json" };
-import { governedSyndromeLabelAxes } from "./clinical-vocabulary";
+import { governedNatureIdsIn, governedSyndromeLabelAxes } from "./clinical-vocabulary";
 import { buildFormulaAxisProfile, scoreFormulaAxes } from "./tcm-formula-axis-score";
 
 /**
@@ -45,6 +45,19 @@ function catalogEntryFor(name: string): CatalogEntry | undefined {
   return BY_NAME.get(key) || BY_NAME.get(String(name || "").replace(/\s+/g, ""));
 }
 
+function compoundSyndromeAxes(label: string): { locations: string[]; natures: string[] } {
+  const segments = label.split(/[，,、；;+/]/).map((item) => item.trim()).filter(Boolean);
+  if (segments.length <= 1) return governedSyndromeLabelAxes(label);
+  const locations = new Set<string>();
+  const natures = new Set<string>();
+  for (const segment of segments) {
+    const axes = governedSyndromeLabelAxes(segment);
+    for (const value of axes.locations) locations.add(value);
+    for (const value of axes.natures) natures.add(value);
+  }
+  return { locations: [...locations], natures: [...natures] };
+}
+
 export type FormulaSyndromeConflict = {
   formulaName: string;
   /** thermal = 寒热对立;deficiency_excess = 虚实对立。 */
@@ -62,7 +75,11 @@ export function formulaSyndromeConflicts(
 ): FormulaSyndromeConflict[] {
   const syndrome = String(primarySyndrome || "").trim();
   if (!syndrome || formulaNames.length === 0) return [];
-  const axes = governedSyndromeLabelAxes(syndrome);
+  // Compound labels such as “脾胃虚弱，湿浊中阻” intentionally express root deficiency plus
+  // branch excess. Resolving only the longest substring drops the first half and turns a mixed
+  // pattern into pure excess. Union each governed segment before applying the unambiguous-axis
+  // rule so mixed directions correctly abstain instead of generating a false conflict.
+  const axes = compoundSyndromeAxes(syndrome);
   if (axes.locations.length === 0 && axes.natures.length === 0) return [];
 
   const conflicts: FormulaSyndromeConflict[] = [];
@@ -78,7 +95,18 @@ export function formulaSyndromeConflicts(
     if (profile.axisless) continue;
     // guard 模式:只做方向对立判定,不计匹配加分。
     const breakdown = scoreFormulaAxes(profile, { locations: new Set(axes.locations), natures: new Set(axes.natures) }, { mode: "guard" });
-    if (breakdown.nature.thermalOpposition && breakdown.nature.caseThermal && breakdown.nature.formulaThermal) {
+    // A thermal warning is high-salience and must be explicit in the signed syndrome label. Some
+    // broad source lexicon entries carry mixed contextual axes (for example 湿浊中阻 includes a
+    // historical heat tag even when the actual label says neither 寒 nor 热). Use the centralized
+    // lexical nature vocabulary as a second key so those inherited axes cannot create a false
+    // opposite-direction warning.
+    const explicitThermal = scoreFormulaAxes(
+      profile,
+      { locations: new Set(), natures: new Set(governedNatureIdsIn(syndrome)) },
+      { mode: "guard" },
+    ).nature.caseThermal;
+    if (breakdown.nature.thermalOpposition && breakdown.nature.caseThermal && breakdown.nature.formulaThermal &&
+      explicitThermal === breakdown.nature.caseThermal) {
       conflicts.push({
         formulaName: name,
         axis: "thermal",
