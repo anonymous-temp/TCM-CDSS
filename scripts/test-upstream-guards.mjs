@@ -20,7 +20,7 @@ const { POST: collectPost } = await jiti.import("../src/app/api/diagnosis/collec
 
 const collectRequest = (body) => new Request("http://localhost/api/diagnosis/collect", {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", "x-cdss-customer-id": "test-hospital" },
   body: JSON.stringify(body),
 });
 const oversizedCollect = await collectPost(collectRequest({ userInput: "失眠".repeat(7000) }));

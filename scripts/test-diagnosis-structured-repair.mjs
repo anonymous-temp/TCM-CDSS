@@ -619,7 +619,7 @@ const driftedVisible = [
   endMarker,
 ].join("\n");
 const synchronizedVisible = synchronizeVisibleClinicalSummary(driftedVisible, "diagnose");
-assert.match(synchronizedVisible, /\*\*证型\*\*：心脾两虚证/);
+assert.match(synchronizedVisible, /\*\*辨证\*\*：心脾两虚证/);
 assert.match(synchronizedVisible, /\*\*总体病机\*\*：脾气虚弱，心血不足，心神失养/);
 assert.match(synchronizedVisible, /\*\*总治法\*\*：健脾益气，养血安神/);
 assert.equal(synchronizedVisible.slice(synchronizedVisible.indexOf(startMarker)), driftedVisible.slice(driftedVisible.indexOf(startMarker)));

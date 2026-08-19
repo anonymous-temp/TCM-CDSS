@@ -30,10 +30,10 @@ function isValidTongueImageDataUrl(value: string): boolean {
 }
 
 export async function POST(req: Request) {
-  const customer = await requireCustomerContext(req);
-  if (!customer.ok) return customer.response;
   const parsed = await readJsonRequest(req, { maxBytes: MAX_IMAGE_SIZE + MAX_USER_INPUT_CHARS + 2048 });
   if (!parsed.ok) return parsed.response;
+  const customer = await requireCustomerContext(req);
+  if (!customer.ok) return customer.response;
   const body = parsed.body && typeof parsed.body === "object" ? parsed.body as { userInput?: unknown; patientSex?: unknown; tongueImage?: unknown; tongueImageConsent?: unknown } : {};
   const userInput = typeof body.userInput === "string" ? body.userInput : "";
   const tongueImage = typeof body.tongueImage === "string" ? body.tongueImage : "";
