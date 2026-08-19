@@ -1,0 +1,53 @@
+import { resolveNationalStandardTcmSyndromeTerm } from "./clinical-governance-tables";
+import { resolveTcmDiseaseName } from "./clinical-terminology";
+import type { ClinicalCitation } from "./diagnosis-types";
+
+const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
+const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
+
+const DISEASE_STANDARD_CITATION: ClinicalCitation = {
+  evidenceId: "STD-GBT-15657-2021",
+  citation: "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+  sourceType: "standard",
+};
+
+const SYNDROME_STANDARD_CITATION: ClinicalCitation = {
+  evidenceId: "STD-GBT-16751-2-2021",
+  citation: "国家市场监督管理总局, 国家标准化管理委员会. 中医临床诊疗术语 第2部分: 证候: GB/T 16751.2-2021[S]. 2021.",
+  sourceType: "standard",
+};
+
+export function tcmDiseaseStandardCitations(value: unknown): ClinicalCitation[] {
+  const resolved = resolveTcmDiseaseName(value);
+  if (!resolved || (resolved.status !== "standard" && resolved.status !== "standard_alias")) {
+    return [];
+  }
+  return [{ ...DISEASE_STANDARD_CITATION }];
+}
+
+export function tcmSyndromeStandardCitations(value: unknown): ClinicalCitation[] {
+  return resolveNationalStandardTcmSyndromeTerm(value)
+    ? [{ ...SYNDROME_STANDARD_CITATION }]
+    : [];
+}
+
+export function applyGovernedTcmDiagnosticCitations(content: string): string {
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  try {
+    const parsed = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as {
+      schemaVersion?: unknown;
+      stage?: unknown;
+      overview?: Record<string, unknown>;
+    };
+    if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2" || parsed.stage !== "diagnose" || !parsed.overview) {
+      return content;
+    }
+    parsed.overview.tcmDiseaseReferences = tcmDiseaseStandardCitations(parsed.overview.tcmDiseaseName);
+    parsed.overview.tcmSyndromeReferences = tcmSyndromeStandardCitations(parsed.overview.primarySyndrome);
+    return `${content.slice(0, start)}${START_MARKER}\n${JSON.stringify(parsed, null, 2)}\n${content.slice(end)}`;
+  } catch {
+    return content;
+  }
+}

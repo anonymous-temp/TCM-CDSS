@@ -43,6 +43,7 @@ import { missedLockableFormulaCandidates } from "@/lib/tcm-formula-indications";
 import { governedTcmDiseaseNeighbors } from "@/lib/clinical-terminology";
 import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy } from "@/lib/tcm-chief-complaint-anchor";
 import { enforceRetrievedM03FormulaSelection } from "@/lib/tcm-formula-indications";
+import { applyGovernedTcmDiagnosticCitations } from "@/lib/tcm-diagnostic-citations";
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
 import { dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
@@ -494,12 +495,13 @@ export async function prepareDiagnoseStructuredContent(
   const principleBound = phase("treatment_principle", applyDeterministicTreatmentPrinciple(tcmRationaleAligned));
   const qualityBounded = phase("quality_boundaries", applyM03AdvisoryQualityBoundaries(principleBound, clinicalContext));
   const safetyNetBounded = phase("safety_net_icd10", applyDeterministicIcd10Coding(applyActionableFollowupSafetyNetContract(qualityBounded)));
+  const diagnosticCitationsBound = phase("tcm_diagnostic_citations", applyGovernedTcmDiagnosticCitations(safetyNetBounded));
   // Terminology annotation may rebuild primarySyndromeBasis from its own projection. Reapply the
   // same exact chart quotes at the final preparation boundary so all three evidence exits remain
   // aligned when the strict contract runs immediately afterwards.
   const result = phase(
     "final_key_discriminators",
-    applyM03KeySyndromeDiscriminatorsToContent(safetyNetBounded, clinicalContext),
+    applyM03KeySyndromeDiscriminatorsToContent(diagnosticCitationsBound, clinicalContext),
   );
   if (Object.keys(phaseDurations).length > 0) {
     console.info("[tcm-cdss:timing] m03_prepare_phases", phaseDurations);
