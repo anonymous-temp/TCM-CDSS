@@ -5038,8 +5038,11 @@ function concreteAuditRiskObservations(value: string): string[] {
  * 2026-08-12 线上实测在湿热淋证例的第 2、3 条上各出现一次。
  */
 const NON_TRIGGER_RECORD_STATEMENT = /(?:病历(?:已|尚未|未)|尚未确认|未记录|记录完整性|资料未|信息未)/;
+export function isRecordCompletenessStatement(value: string): boolean {
+  return NON_TRIGGER_RECORD_STATEMENT.test(String(value || ""));
+}
 function usableFollowupTriggers(values: readonly string[]): string[] {
-  return values.filter((value) => value && !NON_TRIGGER_RECORD_STATEMENT.test(value));
+  return values.filter((value) => value && !isRecordCompletenessStatement(value));
 }
 
 export type DeterministicRiskFollowupPayload = {

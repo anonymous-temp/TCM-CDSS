@@ -6,6 +6,7 @@ import {
 } from "./clinical-state";
 import { populationScopeForms } from "./clinical-vocabulary";
 import { ageValue, type CaseState } from "./diagnosis-types";
+import { isRecordCompletenessStatement } from "./diagnosis-safety";
 
 type MedicationRiskCaseContext = Partial<Pick<
   CaseState,
@@ -115,13 +116,6 @@ function sanitizeRiskAtom(atom: string): string {
   return retained.join("，");
 }
 
-function isRecordCompletenessAtom(atom: string): boolean {
-  const text = atom.trim();
-  return /(?:病历|资料|记录).{0,8}(?:尚未确认|未确认|未记录).{0,36}(?:是否存在|是否有|情况)/.test(text) ||
-    /(?:尚未确认|未确认|未记录).{0,36}(?:是否存在|是否有)/.test(text) ||
-    /(?:是否存在|是否有).{0,20}(?:尚未确认|未确认|未记录)/.test(text);
-}
-
 /**
  * Patient-facing projection only. The signed candidate and full label/audit payload stay unchanged.
  */
@@ -136,7 +130,7 @@ export function clinicianVisibleMedicationRiskNote(
     .split(/[；;\n]+/)
     .map((atom) => atom.trim())
     .filter(Boolean);
-  const patientRelevantAtoms = atoms.filter((atom) => !isRecordCompletenessAtom(atom));
+  const patientRelevantAtoms = atoms.filter((atom) => !isRecordCompletenessStatement(atom));
   if (patientRelevantAtoms.length === atoms.length && reproductiveMedicationRiskApplies(state)) return source;
   return patientRelevantAtoms
     .map((atom) => reproductiveMedicationRiskApplies(state) ? atom : sanitizeRiskAtom(atom))
