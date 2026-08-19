@@ -45,4 +45,43 @@ assert.equal(parsed.overview.tcmDiseaseReferences[0].sourceType, "standard");
 assert.equal(parsed.overview.tcmSyndromeReferences[0].sourceType, "standard");
 assert.equal(applyGovernedTcmDiagnosticCitations(transformed), transformed, "citation projection must be idempotent");
 
+const extensionReasoning = {
+  schemaVersion: "tcm-cdss-reasoning-v2",
+  stage: "diagnose",
+  overview: { tcmDiseaseName: "嗳气", primarySyndrome: "脾胃虚弱，湿浊中阻" },
+  westernDiagnosis: {
+    primary: {
+      guidelineReferences: [{
+        evidenceId: "EVID-GUIDE-BELCHING",
+        citation: "嗳气中医诊疗专家共识（2023）（中华中医药学会脾胃病分会，2024）",
+        sourceType: "guideline",
+      }],
+    },
+  },
+};
+const extensionContent = [
+  "# 诊断",
+  "<!-- DIAGNOSIS_JSON_START -->",
+  JSON.stringify(extensionReasoning),
+  "<!-- DIAGNOSIS_JSON_END -->",
+].join("\n");
+const extensionParsed = JSON.parse(applyGovernedTcmDiagnosticCitations(extensionContent)
+  .match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "{}");
+assert.deepEqual(
+  extensionParsed.overview.tcmDiseaseReferences.map((item) => item.evidenceId),
+  ["EVID-GUIDE-BELCHING"],
+  "教材扩展病名只可复用题名明确命中该病名的本轮受治理指南",
+);
+assert.deepEqual(
+  extensionParsed.overview.tcmSyndromeReferences.map((item) => item.evidenceId),
+  ["STD-GBT-16751-2-2021"],
+);
+
+const unrelatedExtension = JSON.parse(JSON.stringify(extensionReasoning));
+unrelatedExtension.westernDiagnosis.primary.guidelineReferences[0].citation = "失眠障碍诊疗指南（2025）";
+const unrelatedContent = extensionContent.replace(JSON.stringify(extensionReasoning), JSON.stringify(unrelatedExtension));
+const unrelatedParsed = JSON.parse(applyGovernedTcmDiagnosticCitations(unrelatedContent)
+  .match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "{}");
+assert.deepEqual(unrelatedParsed.overview.tcmDiseaseReferences, [], "不相关指南不得替扩展病名背书");
+
 console.log(JSON.stringify({ suite: "tcm-diagnostic-citations", standards: 2, failures: 0 }));
