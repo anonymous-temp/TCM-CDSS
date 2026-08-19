@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, { alias: {
+  "@": `${process.cwd()}/src`,
+  "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+} });
 const { parseCustomerId } = await jiti.import("../src/lib/customer-id.ts");
 const { requireCustomerContext } = await jiti.import("../src/lib/customer-context.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");

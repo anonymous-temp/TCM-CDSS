@@ -7,6 +7,7 @@ import { resolveLineageCode } from "./tcm-lineages";
 import { parseClinicalFacts, type ClinicalFacts } from "./clinical-facts";
 import { parseTcmTreatmentCapabilities, TCM_TREATMENT_PROJECT_CODES, type TcmTreatmentProjectCode } from "./tcm-treatment-projects";
 import { normalizeEmergencyClearanceAttestations, type EmergencyClearanceFindingAttestation } from "./emergency-clearance-contract";
+import { parseCustomerId } from "./customer-id";
 
 export type Phase =
   | "idle"
@@ -134,6 +135,7 @@ export type ClinicalCitation = {
 
 export interface CaseState {
   id: string;
+  customerId?: string;
   phase: Phase;
 
   // M01 四诊信息
@@ -1773,6 +1775,7 @@ const SafetyGateInputSchema = z.object({
 
 const CaseStateInputSchema = z.object({
   id: z.unknown().optional(),
+  customerId: z.unknown().optional(),
   phase: PhaseSchema.optional(),
   patient: z.unknown().optional(),
   chiefComplaint: z.unknown().optional(),
@@ -2286,6 +2289,7 @@ export function normalizeCaseStateInput(value: unknown): CaseState | null {
   return {
     ...base,
     id,
+    customerId: parseCustomerId(input.customerId),
     phase: input.phase || base.phase,
     patient: {
       name: undefined,

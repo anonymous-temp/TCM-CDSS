@@ -25,6 +25,7 @@ export type DiagnoseContractSignatureContext = Readonly<{
   contractVersion: typeof DIAGNOSE_CONTRACT_SIGNATURE_VERSION;
   caseId: string;
   encounterId: string;
+  customerId?: string;
   clinicalInputHash: `sha256:${string}`;
 }>;
 
@@ -32,6 +33,7 @@ export type PrescribeContractSignatureContext = Readonly<{
   contractVersion: typeof PRESCRIBE_CONTRACT_SIGNATURE_VERSION;
   caseId: string;
   encounterId: string;
+  customerId?: string;
   clinicalInputHash: `sha256:${string}`;
   diagnoseContractHash: `sha256:${string}`;
 }>;
@@ -124,6 +126,7 @@ export function buildDiagnoseContractSignatureContext(caseState: CaseState): Dia
     contractVersion: DIAGNOSE_CONTRACT_SIGNATURE_VERSION,
     caseId,
     encounterId,
+    ...(normalized.customerId ? { customerId: normalized.customerId } : {}),
     clinicalInputHash,
   };
 }
@@ -140,6 +143,7 @@ export function buildPrescribeContractSignatureContext(caseState: CaseState): Pr
     contractVersion: PRESCRIBE_CONTRACT_SIGNATURE_VERSION,
     caseId: diagnoseContext.caseId,
     encounterId: diagnoseContext.encounterId,
+    ...(diagnoseContext.customerId ? { customerId: diagnoseContext.customerId } : {}),
     clinicalInputHash: diagnoseContext.clinicalInputHash,
     diagnoseContractHash: sha256Canonical({
       reasoning: diagnose,
