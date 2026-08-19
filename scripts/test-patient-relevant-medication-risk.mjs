@@ -67,4 +67,11 @@ const source = { riskNote: labelRisk };
 clinicianVisibleMedicationRiskNote(source.riskNote, elderly);
 assert.equal(source.riskNote, labelRisk, "医生可见投影不得修改签名载荷或后台审方原文");
 
-console.log(JSON.stringify({ suite: "patient-relevant-medication-risk", cases: 7, failures: 0 }));
+const recordCompletenessNoise = "病历尚未确认发热是否存在；忌辛辣、生冷、油腻食物；如正在使用其他药物，请核对相互作用";
+const patientRelevantOnly = clinicianVisibleMedicationRiskNote(recordCompletenessNoise, adult);
+assert.doesNotMatch(patientRelevantOnly, /病历尚未确认|是否存在/, "药品卡片不得把记录完整性陈述当成患者风险展示");
+assert.match(patientRelevantOnly, /忌辛辣、生冷、油腻食物/);
+assert.match(patientRelevantOnly, /相互作用/);
+assert.equal(clinicianVisibleMedicationRiskNote("病历尚未确认发热是否存在", adult), "", "只有记录完整性噪声时应省略风险栏而不是输出占位");
+
+console.log(JSON.stringify({ suite: "patient-relevant-medication-risk", cases: 8, failures: 0 }));
