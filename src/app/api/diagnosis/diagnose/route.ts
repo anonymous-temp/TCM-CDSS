@@ -123,6 +123,12 @@ export async function POST(req: Request) {
   if (encounterScope?.status === "unclear" && hasValidClinicalFactsAttestation(gated.clinicalFacts)) {
     prompt += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请在 uncertainties 与 management.mustCollect 中显式记录“本次就诊目标需医生确认”，不得据此臆造当前治疗目标或直接给出剂量级结论。";
   }
+  const initialSafetyBanner = buildSafetyAdvisoryBanner(
+    redFlagAnalysis ? gated.safetyGate : undefined,
+    historicalOnlyEncounter
+      ? [`本次记录以既往、已缓解或稳定背景为主（原文：“${encounterScope?.quote || ""}”），本次活动性诊疗目标需医生确认。`]
+      : [],
+  );
   const truncatedGate = {
     status: "needs_information" as const,
     allowDiagnosis: false,
@@ -146,6 +152,7 @@ export async function POST(req: Request) {
   };
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
+    initialVisiblePrefix: initialSafetyBanner || undefined,
     upstreamUnavailableFallback: `${cdssReasonCodeMarker("upstream_model_unavailable")}\n${signedLimitedDiagnosis(upstreamGate, "not_attempted_upstream_down")}`,
     // M03 两半并行生成（时间专项）：两半共用上面这份完整提示词做前缀（provider 前缀缓存三方
     // 共享），只在末尾各加一段分工限制。修复轮与所有降级路径仍以完整 prompt 为准。
@@ -192,13 +199,7 @@ export async function POST(req: Request) {
         const sanitized = sanitizeUngroundedRedFlagNegations(content, safeState);
         // 警示横幅在最终可见正文最前（sentinel 与签名载荷不受影响）：红旗/既往背景等
         // 确定性判定必须比任何模型内容先被医生看到。
-        const banner = buildSafetyAdvisoryBanner(
-          redFlagAnalysis ? gated.safetyGate : undefined,
-          historicalOnlyEncounter
-            ? [`本次记录以既往、已缓解或稳定背景为主（原文：“${encounterScope?.quote || ""}”），本次活动性诊疗目标需医生确认。`]
-            : [],
-        );
-        return banner ? `${banner}${sanitized}` : sanitized;
+        return initialSafetyBanner ? `${initialSafetyBanner}${sanitized}` : sanitized;
       },
       safeState,
     ),

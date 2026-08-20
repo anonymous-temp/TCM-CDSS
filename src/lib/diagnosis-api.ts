@@ -410,6 +410,8 @@ type StreamSafetyOptions = {
    */
   authoritativeTruncateFallback?: boolean;
   streamErrorFallback?: string;
+  /** Server-owned content that must be visible before any progress or provisional module frame. */
+  initialVisiblePrefix?: string;
   outputTransform?: (content: string) => string;
   finalOutputTransform?: (content: string) => Promise<string>;
   structuredStage?: "diagnose" | "prescribe";
@@ -3033,6 +3035,9 @@ async function callPrimaryTextModelStream(
         closeClientStream();
       };
       try {
+        if (opts.initialVisiblePrefix) {
+          enqueueClient(opts.initialVisiblePrefix);
+        }
         if (bufferedClinicalStage) {
           enqueueClient(progressMessages[0]);
           progressIndex = 1;
