@@ -41,6 +41,21 @@ assert.doesNotMatch(elderlyVisible, /孕妇|妊娠|哺乳|备孕|乳母/, "78岁
 assert.match(elderlyVisible, /忌生冷油腻食物/, "过滤生育条款时不得误删普通用药注意事项");
 assert.match(elderlyVisible, /年老体弱者应在医师指导下服用/, "混合特殊人群条款必须保留老年患者相关内容");
 assert.match(elderlyVisible, /药物相互作用/, "相互作用提示必须保留");
+assert.equal(
+  clinicianVisibleMedicationRiskNote("孕妇及肝肾功能不全者禁用", elderly),
+  "肝肾功能不全者禁用",
+  "去除孕妇人群后必须保留同句的肝肾功能不全禁忌",
+);
+assert.equal(
+  clinicianVisibleMedicationRiskNote("孕妇、儿童及年老体弱者应在医师指导下服用", elderly),
+  "儿童及年老体弱者应在医师指导下服用",
+  "混合人群条款不得连坐删除儿童及年老体弱者提示",
+);
+assert.equal(
+  clinicianVisibleMedicationRiskNote("孕妇禁用", elderly),
+  "",
+  "纯生育相关禁忌对明确绝经患者应隐藏",
+);
 
 const menopausal = state({ age: 58, pastHistory: "已绝经5年。" });
 assert.equal(reproductiveMedicationRiskApplies(menopausal), false, "明确绝经状态应关闭无关生育条款展示");

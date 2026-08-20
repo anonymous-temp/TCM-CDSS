@@ -34,8 +34,13 @@ resetDrugInventoryCacheForTests();
 
 const a = await planEvidenceBoundMedicineCandidates(caseState, "hospital-A");
 const b = await planEvidenceBoundMedicineCandidates(caseState, "hospital-B");
+const customerWithoutInventory = await planEvidenceBoundMedicineCandidates(caseState, "hospital-without-inventory");
 assert.ok(a.candidates.some((item) => item.name === first.name));
 assert.ok(!b.candidates.some((item) => item.name === first.name));
 assert.doesNotMatch(JSON.stringify(b), /A-GOODS-ID/);
+assert.ok(
+  customerWithoutInventory.candidates.some((item) => item.name === first.name),
+  "客户尚未导入库存时应保留受治理候选，不得把 unknown 误判成非本院药",
+);
 
 console.log(JSON.stringify({ suite: "customer-medicine-candidates", candidate: first.name, failures: 0 }));
