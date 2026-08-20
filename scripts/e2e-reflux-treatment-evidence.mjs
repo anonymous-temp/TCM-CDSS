@@ -7,6 +7,7 @@ const { chromium } = require("playwright");
 
 const BASE_URL = (process.env.BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || "";
+const CUSTOMER_ID = process.env.CDSS_CUSTOMER_ID || "";
 const OUTPUT_DIR = resolve(process.env.E2E_OUTPUT_DIR || "artifacts/811-evidence/reflux-treatment");
 const CHROMIUM_EXECUTABLE_PATH = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?.trim() || undefined;
 mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -32,6 +33,8 @@ async function screenshot(page, name, locator) {
 async function loginIfRequired(page) {
   if (!/\/login(?:\?|$)/.test(page.url())) return;
   if (!TOKEN) throw new Error("CDSS_API_TOKEN is required for the authenticated browser journey");
+  if (!CUSTOMER_ID) throw new Error("CDSS_CUSTOMER_ID is required for the authenticated browser journey");
+  await page.getByLabel("客户标识").fill(CUSTOMER_ID);
   await page.getByLabel("访问口令").fill(TOKEN);
   await page.getByRole("button", { name: "进入系统" }).click();
   await page.waitForURL(/\/diagnosis(?:\?|$)/, { timeout: 30_000 });
