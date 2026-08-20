@@ -60,6 +60,22 @@ for (const text of ["孕妇，剧烈头痛，视物模糊", "孕晚期，剧烈�
 for (const text of ["不孕症3年，头痛", "备孕中，头痛", "否认妊娠，头痛", "既往孕2产1，头痛", "孕前咨询，头痛"]) {
   ok(`非妊娠语境不得触发产科红旗：${text}`, !hasFlagMatching(text, "妊娠/产褥期血压", SEVERE_BP));
 }
+ok(
+  "孕妇 185/118 必须进入产科重度高血压红旗",
+  hasFlagMatching("孕32周，头痛", "妊娠/产褥期血压 185/118mmHg", { vitals: { bloodPressure: "185/118" } }),
+);
+ok(
+  "非妊娠 185/118 必须进入通用重度高血压红旗",
+  hasFlagMatching("头痛3天", "血压 185/118mmHg", { vitals: { bloodPressure: "185/118" } }),
+);
+ok(
+  "同次记录先正常后重度高血压必须取异常值",
+  hasFlagMatching("先测120/80，复测185/118mmHg", "185/118mmHg"),
+);
+ok(
+  "呼吸 8次/分必须进入呼吸抑制红旗",
+  hasFlagMatching("嗜睡", "呼吸 8次/分异常", { vitals: { R: "8次/分" } }),
+);
 // 谓词本身的边界（安全层现在直接依赖它，它错了安全层就跟着错）。
 for (const [text, expected] of [["早孕", "positive"], ["宫内早孕", "positive"], ["孕妇", "positive"],
   ["早孕试验阴性", "unknown"], ["早孕反应明显", "unknown"], ["不孕症3年", "unknown"], ["备孕中", "unknown"],

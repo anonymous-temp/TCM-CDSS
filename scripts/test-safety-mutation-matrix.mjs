@@ -1076,6 +1076,15 @@ console.log(JSON.stringify({ cases, failures: 0 }));
   assert.ok((ob?.redFlags||[]).some((f) => /160\/110|子痫/.test(f)), "红旗文案必须写明产科阈值依据");
   const nonOb = mk("头痛3天。血压170/112mmHg", { bloodPressure: "170/112mmHg" }).safetyGate;
   assert.notEqual(nonOb?.status, "red_flag", "非产科 170/112 不得被产科阈值误伤");
+  const pregnantCritical = mk("孕32周，头痛。血压185/118mmHg", { bloodPressure: "185/118mmHg" }).safetyGate;
+  assert.equal(pregnantCritical?.status, "red_flag", "孕妇 185/118 必须触发重度高血压红旗");
+  assert.ok((pregnantCritical?.redFlags || []).some((flag) => /妊娠\/产褥期血压 185\/118/.test(flag)));
+  const generalCritical = mk("头痛3天。血压185/118mmHg", { bloodPressure: "185/118mmHg" }).safetyGate;
+  assert.equal(generalCritical?.status, "red_flag", "非妊娠 185/118 必须触发通用重度高血压红旗");
+  const repeatedCritical = mk("先测血压120/80mmHg，复测185/118mmHg").safetyGate;
+  assert.ok((repeatedCritical?.redFlags || []).some((flag) => /185\/118/.test(flag)), "复测重度高血压不得被首个正常值遮蔽");
+  const respiratoryDepression = mk("嗜睡，呼吸8次/分", { R: "8次/分" }).safetyGate;
+  assert.ok((respiratoryDepression?.redFlags || []).some((flag) => /呼吸 8次\/分异常/.test(flag)), "R=8 必须触发呼吸抑制红旗");
   // 类3: 已复核语义急症必须升级顶层门禁(状态一致性); 未复核保持展示级。
   const facts = { redFlags: [{ category: "obstetric", subject: "patient", status: "positive", urgency: "emergency",
     triageBasis: "time_sensitive_cardiovascular_event", quote: "产后10天，持续剧烈头痛，视物异常" }],

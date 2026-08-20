@@ -608,6 +608,15 @@ const independentlyReviewed = await extractClinicalFacts("胸痛没有缓解，�
 }, undefined, { independentReview: true });
 ok("extractor: 独立LLM复核可纠正首轮处置层级且仍受逐字引用契约约束",
   independentReviewCalls === 2 && independentlyReviewed?.reviewStatus === "checked" && independentlyReviewed.redFlags[0]?.urgency === "emergency");
+const affirmedSymptomOmittedByReviewer = await extractClinicalFacts("双下肢散在瘀斑。", async (_system, _user, _signal, phase) => phase === "review"
+  ? JSON.stringify({ redFlags: [], reviews: [] })
+  : JSON.stringify({ redFlags: [], affirmedSymptoms: [{ term: "瘀斑", quote: "双下肢散在瘀斑" }] }), undefined, { independentReview: true });
+ok(
+  "extractor: 复核省略 affirmedSymptoms 时不得擦除首轮已接地阳性症状",
+  affirmedSymptomOmittedByReviewer?.reviewStatus === "checked" &&
+    affirmedSymptomOmittedByReviewer.affirmedSymptoms?.[0]?.term === "瘀斑" &&
+    affirmedSymptomOmittedByReviewer.affirmedSymptoms?.[0]?.quote === "双下肢散在瘀斑",
+);
 let invalidReviewContractAttempts = 0;
 const recoveredInvalidReviewContract = await extractClinicalFacts("右边脑袋一跳一跳地疼。", async (_system, _user, _signal, phase) => {
   if (phase !== "review") return JSON.stringify({ redFlags: [{ category: "neuro", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "右边脑袋一跳一跳地疼" }] });
