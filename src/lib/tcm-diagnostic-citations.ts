@@ -25,33 +25,6 @@ export function tcmDiseaseStandardCitations(value: unknown): ClinicalCitation[] 
   return [{ ...DISEASE_STANDARD_CITATION }];
 }
 
-function citationKey(value: unknown): string {
-  return typeof value === "string"
-    ? value.normalize("NFKC").replace(/[\s，,。；;：:、（）()《》\[\]]+/g, "")
-    : "";
-}
-
-function governedExtensionDiseaseCitations(
-  value: unknown,
-  references: readonly unknown[],
-): ClinicalCitation[] {
-  const resolved = resolveTcmDiseaseName(value);
-  if (!resolved || resolved.status !== "extension") return [];
-  const diseaseKey = citationKey(resolved.canonical);
-  if (!diseaseKey) return [];
-  const seen = new Set<string>();
-  return references.flatMap((raw) => {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
-    const item = raw as Partial<ClinicalCitation>;
-    const evidenceId = typeof item.evidenceId === "string" ? item.evidenceId.trim() : "";
-    const citation = typeof item.citation === "string" ? item.citation.trim() : "";
-    if (!evidenceId || !citation || seen.has(evidenceId) || !citationKey(citation).includes(diseaseKey)) return [];
-    if (item.sourceType !== "guideline" && item.sourceType !== "consensus") return [];
-    seen.add(evidenceId);
-    return [{ ...item, evidenceId, citation } as ClinicalCitation];
-  });
-}
-
 export function tcmSyndromeStandardCitations(value: unknown): ClinicalCitation[] {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return [];
@@ -74,33 +47,14 @@ export function applyGovernedTcmDiagnosticCitations(content: string): string {
       schemaVersion?: unknown;
       stage?: unknown;
       overview?: Record<string, unknown>;
-      westernDiagnosis?: {
-        primary?: { guidelineReferences?: unknown[] };
-        differentials?: Array<{ guidelineReferences?: unknown[] }>;
-      };
     };
     if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2" || parsed.stage !== "diagnose" || !parsed.overview) {
       return content;
     }
-    const availableGuidelineReferences = [
-      ...(Array.isArray(parsed.westernDiagnosis?.primary?.guidelineReferences)
-        ? parsed.westernDiagnosis.primary.guidelineReferences
-        : []),
-      ...(Array.isArray(parsed.westernDiagnosis?.differentials)
-        ? parsed.westernDiagnosis.differentials.flatMap((item) =>
-            Array.isArray(item?.guidelineReferences) ? item.guidelineReferences : [])
-        : []),
-    ];
-    const existingTcmDiseaseReferences = Array.isArray(parsed.overview.tcmDiseaseReferences)
-      ? parsed.overview.tcmDiseaseReferences
-      : [];
     const diseaseStandards = tcmDiseaseStandardCitations(parsed.overview.tcmDiseaseName);
     parsed.overview.tcmDiseaseReferences = diseaseStandards.length > 0
       ? diseaseStandards
-      : governedExtensionDiseaseCitations(parsed.overview.tcmDiseaseName, [
-          ...existingTcmDiseaseReferences,
-          ...availableGuidelineReferences,
-        ]);
+      : [];
     parsed.overview.tcmSyndromeReferences = tcmSyndromeStandardCitations(parsed.overview.primarySyndrome);
     return `${content.slice(0, start)}${START_MARKER}\n${JSON.stringify(parsed, null, 2)}\n${content.slice(end)}`;
   } catch {
