@@ -8,7 +8,7 @@ import { customerIdFromCdssRequestCookie } from "./cdss-auth";
 export type CustomerContext = Readonly<{
   customerId: string;
   customerHash: string;
-  source: "header" | "cookie";
+  source: "header" | "cookie" | "default";
 }>;
 
 export type CustomerContextResult =
@@ -38,7 +38,15 @@ export async function requireCustomerContext(
       response: Response.json({ error: "customer identity sources do not match", code: "customer_context_mismatch" }, { status: 409 }),
     };
   }
-  const customerId = headerCustomerId || cookieCustomerId;
+  const defaultCustomerInput = process.env.CDSS_DEFAULT_CUSTOMER_ID?.trim() || "";
+  const defaultCustomerId = defaultCustomerInput ? parseCustomerId(defaultCustomerInput) : undefined;
+  if (!headerCustomerId && !cookieCustomerId && defaultCustomerInput && !defaultCustomerId) {
+    return {
+      ok: false,
+      response: Response.json({ error: "invalid default customer context", code: "invalid_default_customer_id" }, { status: 400 }),
+    };
+  }
+  const customerId = headerCustomerId || cookieCustomerId || defaultCustomerId;
   if (!customerId) {
     return {
       ok: false,
@@ -54,6 +62,6 @@ export async function requireCustomerContext(
   return { ok: true, context: {
     customerId,
     customerHash: customerIdHash(customerId),
-    source: headerCustomerId ? "header" : "cookie",
+    source: headerCustomerId ? "header" : cookieCustomerId ? "cookie" : "default",
   } };
 }

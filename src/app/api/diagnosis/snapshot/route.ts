@@ -82,6 +82,25 @@ function snapshotAad(binding: unknown, authScope: Buffer): Buffer | undefined {
   ]);
 }
 
+function decryptSnapshotEnvelope(
+  envelope: EncryptedSnapshotEnvelope,
+  key: Buffer,
+  aad: Buffer,
+): unknown {
+  const iv = Buffer.from(envelope.iv, "base64");
+  const authTag = Buffer.from(envelope.authTag, "base64");
+  if (iv.byteLength !== 12 || authTag.byteLength !== 16) throw new Error("invalid_envelope_lengths");
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAAD(aad);
+  decipher.setAuthTag(authTag);
+  const plaintext = Buffer.concat([
+    decipher.update(Buffer.from(envelope.ciphertext, "base64")),
+    decipher.final(),
+  ]);
+  if (plaintext.byteLength > MAX_SNAPSHOT_BYTES) throw new Error("snapshot_too_large");
+  return JSON.parse(plaintext.toString("utf8"));
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
@@ -136,18 +155,18 @@ export async function POST(req: Request) {
   const tenantScope = createHmac("sha256", authorization.scope)
     .update(customer.context.customerHash)
     .digest();
-  const aad = snapshotAad(body.binding, tenantScope);
-  if (!aad) return jsonResponse({ ok: false, error: "病例快照缺少有效的工作区绑定" }, 400);
+  const tenantAad = snapshotAad(body.binding, tenantScope);
+  if (!tenantAad) return jsonResponse({ ok: false, error: "病例快照缺少有效的工作区绑定" }, 400);
 
   if (body.action === "encrypt") {
     const plaintext = Buffer.from(JSON.stringify(body.payload ?? null), "utf8");
     if (plaintext.byteLength > MAX_SNAPSHOT_BYTES) return jsonResponse({ ok: false, error: "病例快照超过大小限制" }, 413);
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", key, iv);
-    cipher.setAAD(aad);
+    cipher.setAAD(tenantAad);
     const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
     const envelope: EncryptedSnapshotEnvelope = {
-      schemaVersion: "tcm-cdss-encrypted-snapshot-v1",
+      schemaVersion: "tcm-cdss-encrypted-snapshot-v2",
       algorithm: "A256GCM",
       iv: iv.toString("base64"),
       ciphertext: ciphertext.toString("base64"),
@@ -161,18 +180,27 @@ export async function POST(req: Request) {
     return jsonResponse({ ok: false, error: "无效的加密病例快照" }, 400);
   }
   try {
-    const iv = Buffer.from(body.envelope.iv, "base64");
-    const authTag = Buffer.from(body.envelope.authTag, "base64");
-    if (iv.byteLength !== 12 || authTag.byteLength !== 16) throw new Error("invalid_envelope_lengths");
-    const decipher = createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAAD(aad);
-    decipher.setAuthTag(authTag);
-    const plaintext = Buffer.concat([
-      decipher.update(Buffer.from(body.envelope.ciphertext, "base64")),
-      decipher.final(),
-    ]);
-    if (plaintext.byteLength > MAX_SNAPSHOT_BYTES) throw new Error("snapshot_too_large");
-    return jsonResponse({ ok: true, payload: JSON.parse(plaintext.toString("utf8")) });
+    if (body.envelope.schemaVersion === "tcm-cdss-encrypted-snapshot-v2") {
+      return jsonResponse({ ok: true, payload: decryptSnapshotEnvelope(body.envelope, key, tenantAad) });
+    }
+    try {
+      return jsonResponse({
+        ok: true,
+        payload: decryptSnapshotEnvelope(body.envelope, key, tenantAad),
+        legacyEnvelope: true,
+      });
+    } catch {
+      // Pre-tenant v1 snapshots were bound to the stable authenticated access scope only. The
+      // fallback is deliberately restricted to v1 envelopes; a v2 tenant-bound envelope can never
+      // escape into this branch after a customer mismatch or authentication failure.
+      const legacyAad = snapshotAad(body.binding, authorization.scope);
+      if (!legacyAad) throw new Error("invalid_legacy_aad");
+      return jsonResponse({
+        ok: true,
+        payload: decryptSnapshotEnvelope(body.envelope, key, legacyAad),
+        legacyEnvelope: true,
+      });
+    }
   } catch {
     return jsonResponse({ ok: false, error: "病例快照校验失败，已拒绝恢复" }, 400);
   }

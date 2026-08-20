@@ -20,6 +20,7 @@ import {
 } from "@/lib/controlled-semantic-normalization.server";
 import { getSyndromeHypothesisRerankStatus } from "@/lib/syndrome-hypothesis-rerank.server";
 import { healthDiagnosticsRequested, publicHealthView } from "@/lib/health-public-view";
+import { parseCustomerId } from "@/lib/customer-id";
 
 const STRICT_HEALTH_RATE_LIMIT_STORE = Symbol.for("tcm-cdss.strict-health-rate-limit.v1");
 const STRICT_HEALTH_RATE_LIMIT_WINDOW_MS = 10 * 60_000;
@@ -101,6 +102,7 @@ export async function GET(req: Request) {
   const clinicalFactsReady = clinicalFactsEnabled && clinicalFactsSigningConfigured &&
     clinicalFactsModelPlanReady && clinicalFactsModelsAvailable;
   const rateLimitIdentityReady = cdssRateLimitIdentityConfigured();
+  const defaultCustomerConfigured = Boolean(parseCustomerId(process.env.CDSS_DEFAULT_CUSTOMER_ID));
   const controlledTerminology = getControlledTerminologyNormalizationStatus();
   const controlledTerminologyReady = controlledTerminology.enabled &&
     controlledTerminology.model.configured &&
@@ -236,8 +238,11 @@ export async function GET(req: Request) {
     knowledgeTelemetry: getCdssKnowledgeTelemetrySnapshot(),
     rateLimitIdentity: {
       trustedProxyConfigured: rateLimitIdentityReady,
-      modelBudgetScope: "authenticated_session_or_api_tenant",
+      modelBudgetScope: "authenticated_session_or_api_tenant_and_customer",
       ready: rateLimitIdentityReady,
+    },
+    customerContext: {
+      defaultCustomerConfigured,
     },
     controlledTerminology: {
       ...controlledTerminology,

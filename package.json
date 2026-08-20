@@ -215,6 +215,7 @@
     "test:customer-medicine-candidates": "jiti scripts/test-customer-medicine-candidates.mjs",
     "test:customer-route-propagation": "node scripts/test-customer-route-propagation.mjs",
     "test:inventory-customer-migration": "node scripts/test-inventory-customer-migration.mjs",
+    "migrate:drug-inventory-customer": "node scripts/migrate-drug-inventory-to-customer.mjs",
     "test:patient-relevant-medication-risk": "jiti scripts/test-patient-relevant-medication-risk.mjs",
     "test:common-cough-template": "jiti scripts/test-common-cough-wind-cold-template.mjs",
     "test:cough-template-e2e": "jiti scripts/test-cough-template-end-to-end.mjs",

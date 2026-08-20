@@ -70,7 +70,7 @@ const fullBody = {
   stageTelemetry: getCdssStageTelemetrySnapshot(),
   // 线上实测漏网的一条：键名（mode）无害，值里写着实现路线与厂商。
   controlledTerminology: { enabled: true, mode: "deterministic_exact_then_prefilter_then_deepseek_closed_set_consensus", ready: true },
-  rateLimitIdentity: { trustedProxyConfigured: false, modelBudgetScope: "authenticated_session_or_api_tenant", ready: false },
+  rateLimitIdentity: { trustedProxyConfigured: false, modelBudgetScope: "authenticated_session_or_api_tenant_and_customer", ready: false },
 };
 
 const publicBody = publicHealthView(fullBody);
