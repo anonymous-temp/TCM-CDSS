@@ -79,6 +79,16 @@ assert.match(clientSource, /生成中 · 未定稿/, "模块卡必须明确标�
 assert.doesNotMatch(clientSource, /saveCase\([^)]*moduleDrafts/, "模块草稿不得进入病例持久化");
 assert.doesNotMatch(clientSource, /caseState\s*:\s*\{[^}]*moduleDrafts/s, "模块草稿不得混入 CaseState 或快照请求体");
 
+const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+const prefixIndex = apiSource.indexOf("enqueueClient(opts.initialVisiblePrefix)");
+const progressIndex = apiSource.indexOf("enqueueClient(progressMessages[0])");
+assert.ok(prefixIndex >= 0, "流式选项必须支持服务器确定性首屏前缀");
+assert.ok(progressIndex >= 0 && prefixIndex < progressIndex, "安全横幅必须在第一条进度或模块状态之前入流");
+
+const routeSource = readFileSync(new URL("../src/app/api/diagnosis/diagnose/route.ts", import.meta.url), "utf8");
+assert.match(routeSource, /initialVisiblePrefix:\s*initialSafetyBanner/, "M03 路由必须把确定性安全横幅传入首屏通道");
+assert.match(routeSource, /return initialSafetyBanner \? `\$\{initialSafetyBanner\}\$\{sanitized\}` : sanitized/, "终稿必须复用同一横幅，不能另算一份发生漂移");
+
 console.log(JSON.stringify({
   suite: "stream-module-frames",
   modules: M03_DRAFT_MODULES.length,
