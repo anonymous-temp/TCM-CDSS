@@ -83,8 +83,8 @@ const extensionParsed = JSON.parse(applyGovernedTcmDiagnosticCitations(extension
   .match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "{}");
 assert.deepEqual(
   extensionParsed.overview.tcmDiseaseReferences.map((item) => item.evidenceId),
-  ["EVID-GUIDE-BELCHING"],
-  "教材扩展病名只可复用题名明确命中该病名的本轮受治理指南",
+  [],
+  "早期投影不得复用模型自带的扩展病名引用，即使题名看似命中",
 );
 assert.deepEqual(
   extensionParsed.overview.tcmSyndromeReferences.map((item) => item.evidenceId),
@@ -97,5 +97,24 @@ const unrelatedContent = extensionContent.replace(JSON.stringify(extensionReason
 const unrelatedParsed = JSON.parse(applyGovernedTcmDiagnosticCitations(unrelatedContent)
   .match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "{}");
 assert.deepEqual(unrelatedParsed.overview.tcmDiseaseReferences, [], "不相关指南不得替扩展病名背书");
+
+const governedExtensionEvidence = [
+  "- [EVID-GUIDE-901] 嗳气中医诊疗专家共识（中华中医药学会脾胃病分会，2024）：中医病名与诊断相关内容。 URL:https://example.test/evid-guide-901",
+].join("\n");
+const governedExtensionOutput = buildEvidenceOutputTransform(
+  governedExtensionEvidence,
+)(applyGovernedTcmDiagnosticCitations(extensionContent));
+const governedExtensionParsed = JSON.parse(governedExtensionOutput
+  .match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "{}");
+assert.deepEqual(
+  governedExtensionParsed.overview.tcmDiseaseReferences,
+  [{
+    evidenceId: "EVID-GUIDE-901",
+    citation: "嗳气中医诊疗专家共识（中华中医药学会脾胃病分会，2024）",
+    url: "https://example.test/evid-guide-901",
+    sourceType: "guideline",
+  }],
+  "扩展病名引用只能由服务端证据 scope 按 evidenceId 反查绑定",
+);
 
 console.log(JSON.stringify({ suite: "tcm-diagnostic-citations", standards: 2, failures: 0 }));
