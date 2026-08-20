@@ -6,10 +6,17 @@ import { createJiti } from "jiti";
 process.env.CDSS_REQUIRE_API_AUTH = "true";
 process.env.CDSS_API_TOKEN = "test-tenant-token-at-least-32-characters";
 process.env.CDSS_MODEL_RATE_LIMIT_PER_10_MIN = "10";
+process.env.CDSS_API_CLIENT_ID = "his-integrator";
+process.env.CDSS_API_CUSTOMER_IDS = "hospital-A_01,hospital-B_02";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
 const { proxy } = jiti("../src/proxy.ts");
-const { cdssRateLimitIdentityConfigured, cdssRequestOrigin, getCdssRateLimitIdentity } = jiti("../src/lib/cdss-auth.ts");
+const {
+  cdssRateLimitIdentityConfigured,
+  cdssRequestOrigin,
+  getCdssAuthenticatedRateLimitKey,
+  getCdssRateLimitIdentity,
+} = jiti("../src/lib/cdss-auth.ts");
 
 function request(path, token = process.env.CDSS_API_TOKEN, customerId = "hospital-A_01") {
   return new NextRequest(`https://cdss.example${path}`, {
@@ -38,6 +45,22 @@ const otherCustomerFirstRequest = await proxy(request(
   "hospital-B_02",
 ));
 assert.notEqual(otherCustomerFirstRequest.status, 429, "客户 A 耗尽模型预算不得连坐客户 B 的首个请求");
+
+const unauthorizedCustomerKeyC = await getCdssAuthenticatedRateLimitKey(request(
+  "/api/diagnosis/diagnose",
+  process.env.CDSS_API_TOKEN,
+  "hospital-C_03",
+));
+const unauthorizedCustomerKeyD = await getCdssAuthenticatedRateLimitKey(request(
+  "/api/diagnosis/diagnose",
+  process.env.CDSS_API_TOKEN,
+  "hospital-D_04",
+));
+assert.equal(
+  unauthorizedCustomerKeyC,
+  unauthorizedCustomerKeyD,
+  "任意未授权客户头不得制造无限数量的模型限流桶",
+);
 
 // 判据是**调用链会不会发起模型调用**，不是「主输出是否确定性」。这四条路由的主输出都确定性，
 // 但都先走 maybeAttachClinicalFactsBackstop（assess:31 / red-flags:21 /

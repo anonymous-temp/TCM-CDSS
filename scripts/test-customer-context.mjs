@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
 process.env.CDSS_API_TOKEN = "test-customer-context-token-at-least-32-characters";
+process.env.CDSS_API_CLIENT_ID = "his-integrator";
+process.env.CDSS_API_CUSTOMER_IDS = "hospital-A_01,hospital-B_02,hospital-default";
+delete process.env.CDSS_DEFAULT_CUSTOMER_ID;
 
 const jiti = createJiti(import.meta.url, { alias: {
   "@": `${process.cwd()}/src`,
@@ -30,7 +33,8 @@ assert.equal(defaulted.context.source, "default");
 process.env.CDSS_DEFAULT_CUSTOMER_ID = "bad/default";
 const invalidDefault = await requireCustomerContext(new Request("http://localhost/api/diagnosis/prescribe"));
 assert.equal(invalidDefault.ok, false);
-assert.equal(invalidDefault.response.status, 400, "非法默认客户配置不得放行请求");
+assert.equal(invalidDefault.response.status, 503, "非法默认客户配置不得放行请求");
+assert.equal((await invalidDefault.response.json()).code, "customer_authorization_not_configured");
 delete process.env.CDSS_DEFAULT_CUSTOMER_ID;
 
 const request = new Request("http://localhost/api/diagnosis/prescribe", {
@@ -40,6 +44,14 @@ const valid = await requireCustomerContext(request);
 assert.equal(valid.ok, true);
 assert.equal(valid.context.customerId, "hospital-A_01");
 assert.match(valid.context.customerHash, /^[a-f0-9]{32}$/);
+assert.equal(valid.context.clientId, "his-integrator");
+
+const forbidden = await requireCustomerContext(new Request("http://localhost/api/diagnosis/prescribe", {
+  headers: { "x-cdss-customer-id": "hospital-C_03" },
+}));
+assert.equal(forbidden.ok, false);
+assert.equal(forbidden.response.status, 403);
+assert.equal((await forbidden.response.json()).code, "customer_forbidden");
 
 const mismatch = await requireCustomerContext(request, { customerId: "hospital-B_02" });
 assert.equal(mismatch.ok, false);
