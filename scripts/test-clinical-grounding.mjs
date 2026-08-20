@@ -469,8 +469,12 @@ const severeHypertensionWithoutTargetOrganSymptoms = stateFromRecord("当前收�
   zhushu: "复诊",
   vitalsDetail: "当前收缩压190mmHg，舒张压122mmHg",
 });
-assert.doesNotMatch(detectProgrammaticRedFlags(severeHypertensionWithoutTargetOrganSymptoms).join("\n"), /血压|危急值/);
-assert.match(measuredVitalAdvisories(severeHypertensionWithoutTargetOrganSymptoms).join("\n"), /血压 190\/122mmHg|立即规范复测/);
+const severeHypertensionFlags = detectProgrammaticRedFlags(severeHypertensionWithoutTargetOrganSymptoms).join("\n");
+assert.match(severeHypertensionFlags, /血压 190\/122mmHg.*规范复测.*评估急性靶器官损害/);
+assert.doesNotMatch(severeHypertensionFlags, /已发生(?:卒中|心肌梗死|高血压脑病)|确诊.*靶器官损害/,
+  "重度血压必须进入安全路径，但无症状时不得臆造已经发生具体靶器官事件");
+assert.doesNotMatch(measuredVitalAdvisories(severeHypertensionWithoutTargetOrganSymptoms).join("\n"), /190\/122/,
+  "已进入确定性红旗的同一血压不得再重复成第二条普通 advisory");
 assert.match(detectProgrammaticRedFlags(stateFromRecord("指脉氧89%。", {
   zhushu: "复诊",
   vitalsDetail: "指脉氧89%",
@@ -1503,9 +1507,12 @@ const strongRiskFollowupState = {
 };
 assert.equal(hasStrongPrescriptionRisk(strongRiskFollowupState), true);
 assert.match(deriveFirstReviewTiming(strongRiskFollowupState, hasStrongPrescriptionRisk(strongRiskFollowupState)), /当日复核/);
-for (const route of ["assess", "post-prescription-risk"]) {
+const followupAuthoringSource = readFileSync(new URL("../src/lib/m05-followup-authoring.server.ts", import.meta.url), "utf8");
+assert.match(followupAuthoringSource, /deriveFirstReviewTiming\(state, hasStrongPrescriptionRisk\(state\)\)/,
+  "共享 M05 作者的首次复诊时间必须与最终强提示同源");
+for (const route of ["assess", "post-prescription-risk", "his-scheme"]) {
   const source = readFileSync(new URL(`../src/app/api/diagnosis/${route}/route.ts`, import.meta.url), "utf8");
-  assert.match(source, /hasStrongPrescriptionRisk\(assessed\)/, `${route} 的模型作文时间必须与最终强提示同源`);
+  assert.match(source, /authorFollowupForCase/, `${route} 必须消费共享 M05 作者`);
   assert.doesNotMatch(source, /deriveFirstReviewTiming\(assessed, false\)/);
 }
 
