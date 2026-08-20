@@ -213,6 +213,7 @@
     "test:customer-authorization": "jiti scripts/test-customer-authorization.mjs",
     "test:customer-auth-binding": "jiti scripts/test-customer-auth-binding.mjs",
     "test:multitenant-drug-inventory": "jiti scripts/test-multitenant-drug-inventory.mjs",
+    "test:drug-inventory-concurrency": "jiti scripts/test-drug-inventory-concurrency.mjs",
     "test:customer-medicine-candidates": "jiti scripts/test-customer-medicine-candidates.mjs",
     "test:customer-route-propagation": "node scripts/test-customer-route-propagation.mjs",
     "test:inventory-customer-migration": "node scripts/test-inventory-customer-migration.mjs",
