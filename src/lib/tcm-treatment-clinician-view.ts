@@ -12,13 +12,15 @@ export type ClinicianTreatmentProject = {
   content: string;
   sitesOrPoints?: string[];
   schedule?: string;
+  precautions?: string[];
+  implementationRequirement?: string;
 };
 
 // 这是医生端输出卫生黑名单，不参与任何临床推断。用拼接串而不是中文候选正则字面量，
 // 避免被误当成新的临床语义词表；真正的临床准入仍只由后台治理对象决定。
 const INTERNAL_GOVERNANCE_TEXT = new RegExp(
   "病种模板|证型模板|未按证型加减|仅项目评估|" +
-  "政府发布方案|国家标准(?:/规范)?|来源权威|安全边界|操作禁忌与资质|烫伤风险|" +
+  "政府发布方案|国家标准(?:/规范)?|来源权威|安全边界|操作禁忌与资质|" +
   "待终审|待中医师签字|协议缺口|catalog_[a-z_]+|" +
   "(?:由|须|请).{0,12}(?:现场)?(?:医生|医师).{0,12}(?:确认|复核|实施)|" +
   "不形成(?:患者级)?操作计划|进入.{0,8}评估",
@@ -44,6 +46,35 @@ function containsInternalGovernanceText(value: string): boolean {
   return INTERNAL_GOVERNANCE_TEXT.test(value);
 }
 
+const NON_ACTIONABLE_PRECAUTION = /^(?:(?:核对|确认|排除)(?:相关)?(?:资质|禁忌|操作禁忌|风险|资质与操作禁忌)|操作前评估)$/;
+
+function cleanedPrecautions(item: TreatmentRecommendation): string[] {
+  return cleanList([
+    ...(Array.isArray(item.requiredChecks) ? item.requiredChecks : []),
+    ...cleanText(item.techniqueBoundary).split(/[。；;\n]+/),
+  ]).filter((value) =>
+    !containsInternalGovernanceText(value) && !NON_ACTIONABLE_PRECAUTION.test(value));
+}
+
+function cleanedOperatorRequirement(item: TreatmentRecommendation): string | undefined {
+  const value = cleanText(item.operatorRequirement);
+  return value && !containsInternalGovernanceText(value) ? value : undefined;
+}
+
+function attachSafeImplementationFields(
+  projected: ClinicianTreatmentProject,
+  item?: TreatmentRecommendation,
+): ClinicianTreatmentProject {
+  if (!item) return projected;
+  const precautions = cleanedPrecautions(item);
+  const implementationRequirement = cleanedOperatorRequirement(item);
+  return {
+    ...projected,
+    ...(precautions.length > 0 ? { precautions } : {}),
+    ...(implementationRequirement ? { implementationRequirement } : {}),
+  };
+}
+
 function hasActionableSchedule(projectCode: string, value: string): boolean {
   const schedule = cleanText(value);
   if (!schedule || containsInternalGovernanceText(schedule)) return false;
@@ -52,7 +83,8 @@ function hasActionableSchedule(projectCode: string, value: string): boolean {
     schedule.includes("一日") || schedule.includes("每周") || schedule.includes("每星期") ||
     schedule.includes("隔日") || schedule.includes("每隔");
   const frequency = frequencyAnchor && /\d/.test(schedule) && schedule.includes("次");
-  if (!frequency) return false;
+  const dailyCumulativeDuration = /(?:每日|每天)[^。；;]{0,16}(?:累计|不少于)[^。；;]{0,8}\d[^。；;]{0,6}(?:分钟|小时)/.test(schedule);
+  if (!frequency && !dailyCumulativeDuration) return false;
 
   if (projectCode === "auricular") {
     const duration = schedule.includes("每次") && /\d/.test(schedule) && schedule.includes("分钟");
@@ -60,12 +92,7 @@ function hasActionableSchedule(projectCode: string, value: string): boolean {
     return duration && replacement;
   }
 
-  if (projectCode === "moxibustion") {
-    return schedule.includes("周") && (schedule.includes("复评") || schedule.includes("疗程") || schedule.includes("连续"));
-  }
-
-  return schedule.includes("分钟") || schedule.includes("小时") || schedule.includes("复评") ||
-    schedule.includes("疗程") || schedule.includes("连续");
+  return true;
 }
 
 function isSafeProjection(project: ClinicianTreatmentProject): boolean {
@@ -123,7 +150,8 @@ function projectTreatment(
     };
   }
 
-  return projected.title && isSafeProjection(projected) ? projected : null;
+  const safeProjected = attachSafeImplementationFields(projected, item);
+  return safeProjected.title && isSafeProjection(safeProjected) ? safeProjected : null;
 }
 
 export function buildClinicianTreatmentProjects(
@@ -134,12 +162,12 @@ export function buildClinicianTreatmentProjects(
   const dietRecommendation = nonPharma.tcmTreatments.find((item) => item.projectCode === "diet_therapy");
   const dietSchedule = cleanText(dietRecommendation?.scheduleSuggestion);
   const dietProject: ClinicianTreatmentProject | null = isConcreteClinicianDietPlan(diet)
-    ? {
+    ? attachSafeImplementationFields({
         projectCode: "diet_therapy",
         title: "食疗与饮食",
         content: diet,
         ...(dietSchedule && !containsInternalGovernanceText(dietSchedule) ? { schedule: dietSchedule } : {}),
-      }
+      }, dietRecommendation)
     : null;
   const treatmentProjects = nonPharma.tcmTreatments.flatMap((item) => {
     const projected = projectTreatment(item);

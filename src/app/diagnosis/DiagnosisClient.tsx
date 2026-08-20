@@ -5488,6 +5488,12 @@ function ResultTabsV2({
                 {item.schedule && (
                   <p className="mt-1"><span className="font-medium text-gray-900">频次/复评：</span>{item.schedule}</p>
                 )}
+                {item.precautions && item.precautions.length > 0 && (
+                  <p className="mt-1"><span className="font-medium text-gray-900">注意事项：</span>{joinClinicalClauses(item.precautions, "；")}</p>
+                )}
+                {item.implementationRequirement && (
+                  <p className="mt-1"><span className="font-medium text-gray-900">实施要求：</span>{item.implementationRequirement}</p>
+                )}
               </div>
             ))}
           </div>
