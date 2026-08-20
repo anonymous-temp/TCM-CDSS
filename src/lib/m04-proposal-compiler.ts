@@ -19,6 +19,7 @@ import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
 import type { CaseState } from "./diagnosis-types";
 import { ensureConcreteClinicianDietPlan } from "./tcm-diet-plan-contract";
+import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 
 const evidence = {
   evidenceLevel: "model_inference" as const,
@@ -127,6 +128,12 @@ export const PRECAUTION_DOSE_LIKE = /\d+(?:\.\d+)?\s*(?:g|克|mg|毫克|ml|毫�
 // 原实现只列了裸占位词，而它们全部短于下面 6 字的长度下限、且长度检查先行，
 // 于是这条正则实际上永远命中不到——一条给人以安全感的死规则。前缀分支把它救活。
 const PRECAUTION_PLACEHOLDER = /^(?:注意事项|风险提示|注意|提示|其他)?[：:，,、]?\s*(?:待检索|待确认|待补充|待评估|待完善|证据不足|遵医嘱|按说明书|无特殊|暂无|不适用|无)[。.]?$/;
+// nonPharma.precautions has no evidence-id field. It may tell the clinician what to observe and
+// when to seek care, but it cannot create a new drug-drug interaction interval, label a reaction as
+// harmless/expected, or direct a patient-level dose change. Those claims belong to the retrieved
+// label and RxAudit channels; accepting them here would turn unbound model prose into medication
+// instructions. Drop the optional row and keep the audited core prescription.
+const UNBOUND_MEDICATION_INSTRUCTION = /(?:与[^。；]{1,40}(?:同服|合用)[^。；]{0,20}(?:间隔|错开)[^。；]{0,12}\d+(?:\.\d+)?\s*(?:小时|分钟)|(?:间隔|错开)[^。；]{0,12}\d+(?:\.\d+)?\s*(?:小时|分钟)[^。；]{0,40}(?:同服|合用)|(?:属|属于|系)[^。；]{0,20}(?:正常|调整|适应)(?:反应|现象)|(?:应|可|建议)?(?:自行)?(?:减量|减药|暂停(?:用药|服药)|停药)(?:或|并|后|，|。|；|$))/;
 
 function normalizedPrecautionKey(value: string): string {
   return value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]“”"']+/g, "");
@@ -143,6 +150,8 @@ function normalizeSubmittedPrecautions(value: unknown): string[] {
     if (text.length < 6 || text.length > 200) continue;
     if (PRECAUTION_DOSE_LIKE.test(text)) continue;
     if (PRECAUTION_PLACEHOLDER.test(text)) continue;
+    if (patientInstructionProhibitionsIn(text).length > 0) continue;
+    if (UNBOUND_MEDICATION_INSTRUCTION.test(text)) continue;
     const key = normalizedPrecautionKey(text);
     if (!key || seen.has(key)) continue;
     seen.add(key);

@@ -424,7 +424,7 @@ function reasoningV2Instruction(stage: "diagnose" | "prescribe", caseState: Case
 ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真正采用的药味。经典方/合方按服务端给出的基础方组成编译；自拟复方在有依据的前提下应给出完整的君臣佐使层次，常见规模为 8–14 味（不少于4味，明确的单味方案可为1味）。每增加一味都必须同时满足三条：绑定一个真实病机节点 targetRef 或受控 formula_structure 角色、在服务端药味知识库有功能收载、其收载方向与本例某条已锁定治法方向一致；三条任一不满足即不得加入。不得为凑数量增药，不得加入与任何锁定治法方向无关的药味，所有条件性加减不得写在表外。
 - dose 必须是单一数值加单位（如10g），不得用范围、片、枚、酌量或待确认。
 - modifications[].substitutions 是 0–2 条可替换药味说明（甲方需求）。只在该加味确有同向替代时给出：缺货、过敏或特殊人群禁用时医生需要备选。每条必须写清 replaces（被替代药）、substitute（替代药，须为知识库已收载药味）、rationale（为何同向可替代）与 differenceNote（与原药的临床差异与选用注意）——只给名字等于让医生自己去查，而差异恰恰是最容易出事的地方。没有可靠替代就输出空数组，不得为凑字段编造。替代药受全部安全边界约束，不得用于绕开剂量上限、十八反十九畏或特殊人群禁忌。
-- nonPharma.precautions 是 0–6 条注意事项，每条写成一句完整、专业、可直接给医生看的中文（20–80字），自己把“要观察什么 / 多久 / 出现什么情况怎么处理”在同一句里说清楚，不要拆成 metric/timing/trigger 这类多字段，也不要写成表格。可写：本例已记录症状的变化与复诊时机、服药期间可能出现的不适与停药就医边界、与其他中西药或食物同用的核对要求、需要立即就医的表现。不得出现克数、片数、毫升等剂量，不得编造病历没有的症状；没有可写的就输出空数组，服务端会补充通用安全注意事项。
+- nonPharma.precautions 是 0–6 条注意事项，每条写成一句完整、专业、可直接给医生看的中文（20–80字），自己把“要观察什么 / 多久 / 出现什么情况怎么处理”在同一句里说清楚，不要拆成 metric/timing/trigger 这类多字段，也不要写成表格。可写：本例已记录症状的变化与复诊时机、服药期间可能出现的不适与停药就医边界、与其他中西药或食物同用的核对要求、需要立即就医的表现。不得出现克数、片数、毫升等剂量；不得自行声称某不适是正常/调整反应，不得提出具体药物间隔时长或让患者自行减量、加药、换药、停药；不得编造病历没有的症状。没有可写的就输出空数组，服务端会补充通用安全注意事项。
 - candidate.decoction 必须是单个对象，并同时包含：doseCount（总剂数，1–30整数加“剂”）、dosesPerDay（每日剂数，1–3整数）、administrationTimesPerDay（每日分服次数，1–6整数且不得小于每日剂数）。三者不得省略、写成自由文本或由服务端猜测；总剂数必须能被每日剂数整除，疗程和复诊节点由服务端按这三项统一生成。
 - role 只能是君/臣/佐/使中的一个值，processing 和 decoctionRequirement 只能是字符串或 null。
 - 君臣药只能引用 targetKind=pathogenesis_node 与有效 P1/P2...；佐使药若只承担方内结构作用，可引用 targetKind=formula_structure、targetRef=FORMULA_STRUCTURE，并将 structureRole 限于 middle_jiao_support/harmonize/guide/temper。
