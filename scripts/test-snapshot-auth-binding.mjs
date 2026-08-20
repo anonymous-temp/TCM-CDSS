@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import { createJiti } from "jiti";
 
 process.env.NODE_ENV = "production";
@@ -56,6 +57,36 @@ function parsed(text) {
   return JSON.parse(text);
 }
 
+function preTenantV1Envelope(value, binding, accessToken) {
+  const key = createHash("sha256").update(process.env.CASE_SNAPSHOT_ENCRYPTION_KEY).digest();
+  const scopeKey = createHmac("sha256", key).update("tcm-cdss-snapshot-scope-key-v1").digest();
+  const authScope = createHmac("sha256", scopeKey)
+    .update("tcm-cdss-snapshot-access-token-v1")
+    .update("\0")
+    .update(accessToken)
+    .digest();
+  const bindingHash = createHash("sha256").update(binding.toLowerCase()).digest();
+  const aad = Buffer.concat([
+    Buffer.from("tcm-cdss-workspace-v2", "utf8"),
+    Buffer.from([0]),
+    bindingHash,
+    Buffer.from([0]),
+    authScope,
+  ]);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  cipher.setAAD(aad);
+  const ciphertext = Buffer.concat([cipher.update(Buffer.from(JSON.stringify(value), "utf8")), cipher.final()]);
+  return {
+    schemaVersion: "tcm-cdss-encrypted-snapshot-v1",
+    algorithm: "A256GCM",
+    iv: iv.toString("base64"),
+    ciphertext: ciphertext.toString("base64"),
+    authTag: cipher.getAuthTag().toString("base64"),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 const cookieA1 = await cdssUiCookieValue(accessTokenA, Date.now());
 const cookieA2 = await cdssUiCookieValue(accessTokenA, Date.now() + 1_000);
 assert.notEqual(cookieA1, cookieA2, "test setup must use distinct login cookies");
@@ -69,8 +100,29 @@ await test("encrypts without exposing credentials or plaintext", async () => {
   assert.equal(result.text.includes(payload.marker), false);
   envelopeA = parsed(result.text).envelope;
   assert.ok(envelopeA);
+  assert.equal(envelopeA.schemaVersion, "tcm-cdss-encrypted-snapshot-v2", "新保存必须写 v2 租户绑定信封");
 });
 assert.ok(envelopeA, "snapshot A fixture must be created before isolation checks");
+
+await test("restores a pre-tenant v1 envelope and marks it for v2 rewrite", async () => {
+  const legacyPayload = { patientId: "legacy-pre-tenant", marker: "legacy-recovered" };
+  const legacyEnvelope = preTenantV1Envelope(legacyPayload, bindingA, accessTokenA);
+  const result = await callSnapshot(
+    { action: "decrypt", binding: bindingA, envelope: legacyEnvelope },
+    { cookie: cookieA1, customerId: "snapshot-customer-a" },
+  );
+  assert.equal(result.response.status, 200);
+  assert.deepEqual(parsed(result.text).payload, legacyPayload);
+  assert.equal(parsed(result.text).legacyEnvelope, true);
+});
+
+await test("never applies the v1 fallback to a v2 envelope from another customer", async () => {
+  const result = await callSnapshot(
+    { action: "decrypt", binding: bindingA, envelope: envelopeA },
+    { cookie: cookieA1, customerId: "snapshot-customer-b" },
+  );
+  assert.equal(result.response.status, 400);
+});
 
 await test("restores after a new login cookie is issued", async () => {
   const result = await callSnapshot({ action: "decrypt", binding: bindingA, envelope: envelopeA }, { cookie: cookieA2 });

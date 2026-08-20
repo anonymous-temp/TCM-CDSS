@@ -22,6 +22,17 @@ assert.equal(missing.ok, false);
 assert.equal(missing.response.status, 400);
 assert.equal((await missing.response.json()).code, "customer_id_required");
 
+process.env.CDSS_DEFAULT_CUSTOMER_ID = "hospital-default";
+const defaulted = await requireCustomerContext(new Request("http://localhost/api/diagnosis/prescribe"));
+assert.equal(defaulted.ok, true, "过渡期无头部调用方应绑定到显式配置的默认客户");
+assert.equal(defaulted.context.customerId, "hospital-default");
+assert.equal(defaulted.context.source, "default");
+process.env.CDSS_DEFAULT_CUSTOMER_ID = "bad/default";
+const invalidDefault = await requireCustomerContext(new Request("http://localhost/api/diagnosis/prescribe"));
+assert.equal(invalidDefault.ok, false);
+assert.equal(invalidDefault.response.status, 400, "非法默认客户配置不得放行请求");
+delete process.env.CDSS_DEFAULT_CUSTOMER_ID;
+
 const request = new Request("http://localhost/api/diagnosis/prescribe", {
   headers: { "x-cdss-customer-id": "hospital-A_01" },
 });
