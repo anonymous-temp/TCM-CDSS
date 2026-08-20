@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
+process.env.CDSS_API_TOKEN = "test-customer-context-token-at-least-32-characters";
+
 const jiti = createJiti(import.meta.url, { alias: {
   "@": `${process.cwd()}/src`,
   "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
 } });
 const { parseCustomerId } = await jiti.import("../src/lib/customer-id.ts");
 const { requireCustomerContext } = await jiti.import("../src/lib/customer-context.ts");
+const { CDSS_CUSTOMER_COOKIE, cdssCustomerCookieValue } = await jiti.import("../src/lib/cdss-auth.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
 
 assert.equal(parseCustomerId("hospital-A_01"), "hospital-A_01");
@@ -31,6 +34,17 @@ const mismatch = await requireCustomerContext(request, { customerId: "hospital-B
 assert.equal(mismatch.ok, false);
 assert.equal(mismatch.response.status, 409);
 assert.equal((await mismatch.response.json()).code, "customer_context_mismatch");
+
+const customerACookie = await cdssCustomerCookieValue("hospital-A_01");
+const conflictingIdentitySources = await requireCustomerContext(new Request("http://localhost/api/diagnosis/prescribe", {
+  headers: {
+    "x-cdss-customer-id": "hospital-B_02",
+    cookie: `${CDSS_CUSTOMER_COOKIE}=${customerACookie}`,
+  },
+}));
+assert.equal(conflictingIdentitySources.ok, false, "已签名客户 cookie 不得被另一个请求头静默覆盖");
+assert.equal(conflictingIdentitySources.response.status, 409);
+assert.equal((await conflictingIdentitySources.response.json()).code, "customer_context_mismatch");
 
 const normalized = normalizeCaseStateInput({
   id: "tenant-case",

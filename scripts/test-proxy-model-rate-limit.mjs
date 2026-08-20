@@ -11,12 +11,13 @@ const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` 
 const { proxy } = jiti("../src/proxy.ts");
 const { cdssRateLimitIdentityConfigured, cdssRequestOrigin, getCdssRateLimitIdentity } = jiti("../src/lib/cdss-auth.ts");
 
-function request(path, token = process.env.CDSS_API_TOKEN) {
+function request(path, token = process.env.CDSS_API_TOKEN, customerId = "hospital-A_01") {
   return new NextRequest(`https://cdss.example${path}`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-cdss-api-token": token,
+      "x-cdss-customer-id": customerId,
     },
   });
 }
@@ -30,6 +31,13 @@ assert.equal(limited.status, 429);
 assert.ok(Number(limited.headers.get("retry-after")) > 0);
 assert.equal(limited.headers.get("x-ratelimit-limit"), "10");
 assert.equal(limited.headers.get("x-ratelimit-remaining"), "0");
+
+const otherCustomerFirstRequest = await proxy(request(
+  "/api/diagnosis/diagnose",
+  process.env.CDSS_API_TOKEN,
+  "hospital-B_02",
+));
+assert.notEqual(otherCustomerFirstRequest.status, 429, "客户 A 耗尽模型预算不得连坐客户 B 的首个请求");
 
 // 判据是**调用链会不会发起模型调用**，不是「主输出是否确定性」。这四条路由的主输出都确定性，
 // 但都先走 maybeAttachClinicalFactsBackstop（assess:31 / red-flags:21 /
