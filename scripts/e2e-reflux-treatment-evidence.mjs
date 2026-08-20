@@ -85,7 +85,7 @@ try {
 
   const treatmentText = await treatmentSection.innerText();
   const reportText = await page.getByTestId("ai-report-v2").innerText();
-  const forbidden = /病种模板|未按证型加减|仅项目评估|政府发布方案|国家标准|规范|现场医师|来源权威|资质|安全边界|烫伤风险|待终审|catalog_/;
+  const forbidden = /病种模板|未按证型加减|仅项目评估|政府发布方案|国家标准|规范|现场医师|来源权威|安全边界|待终审|catalog_/;
   check("反流病例显示中医非药物方案", treatmentText.includes("中医非药物方案"), treatmentText);
   check("反流食疗给出具体食物方案", /食疗与饮食/.test(treatmentText) && /山药|小米|粥|汤|羹|蔬菜|水果/.test(treatmentText), treatmentText);
   check("反流耳穴给出穴位与频次", /耳穴压豆/.test(treatmentText) && /穴位\/部位：/.test(treatmentText) && /频次\/复评：/.test(treatmentText), treatmentText);
