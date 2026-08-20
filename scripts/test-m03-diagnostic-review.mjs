@@ -485,6 +485,20 @@ try {
   assert.equal(crossPreferred.configured, true, "qwen 配置齐全时复核拓扑可用");
   assert.equal(crossPreferred.independentFromGenerator, true, "跨供应商复核必须是不同模型身份");
   assert.equal(crossPreferred.endpoint.includes("dashscope.aliyuncs.com"), true);
+  const sameQwenPrimary = {
+    provider: "bailian-qwen",
+    apiKey: "test-qwen-key",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model: "qwen3-32b",
+    configured: true,
+  };
+  const sameQwenPreferred = clinicalReviewModelCandidates("diagnose", sameQwenPrimary, "qwen3-32b")[0];
+  assert.equal(sameQwenPreferred.model, "qwen3-32b");
+  assert.equal(
+    sameQwenPreferred.independentFromGenerator,
+    false,
+    "the Bailian selector must not claim cross-model independence when primary and reviewer are the same Qwen identity",
+  );
   // 同链回退候选仍是同供应商身份(供拓扑失败时 fail-closed 回退,不是无复核)
   assert.ok(crossCandidates.length >= 1);
   process.env.BAILIAN_QWEN_API_KEY = "";

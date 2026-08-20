@@ -38,6 +38,18 @@ try {
   assert.equal(config.configured, true);
   assert.equal(config.model, "deepseek-v4-flash");
 
+  // The generic OpenAI-compatible topology may point at DashScope. Model family and endpoint must
+  // still be paired correctly, but a Qwen model must not be rejected merely because the provider
+  // selector is protocol-oriented rather than vendor-oriented.
+  process.env.AI_TEXT_PROVIDER = "openai-compatible";
+  process.env.OPENAI_API_KEY = "qwen-compatible-test-key";
+  process.env.OPENAI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+  process.env.OPENAI_MODEL = "qwen3.8-max";
+  config = getPrimaryTextModelConfig();
+  assert.equal(config.provider, "openai-compatible");
+  assert.equal(config.configured, true, "OpenAI-compatible Qwen on the approved DashScope endpoint must be supported");
+  assert.equal(config.model, "qwen3.8-max");
+
   process.env.AI_TEXT_PROVIDER = "bailian-qwen";
   process.env.BAILIAN_QWEN_API_KEY = "qwen-test-key";
   process.env.BAILIAN_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
@@ -69,6 +81,16 @@ try {
   assert.deepEqual(
     textModelRequestTuning("qwen3.8-max", { reasoningEffort: "high", thinkingEnabled: true }),
     { enable_thinking: true },
+  );
+  assert.deepEqual(
+    textModelRequestTuning("qwen3.8-max", {}),
+    { enable_thinking: false },
+    "omitting thinkingEnabled must explicitly disable Qwen thinking",
+  );
+  assert.deepEqual(
+    textModelRequestTuning("deepseek-v4-flash", {}),
+    { thinking: { type: "disabled" } },
+    "omitting thinkingEnabled must explicitly disable DeepSeek thinking",
   );
   assert.deepEqual(textModelRequestTuning("glm-5", { reasoningEffort: "low", thinkingEnabled: false }), {});
 
