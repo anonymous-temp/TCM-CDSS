@@ -64,6 +64,11 @@ function modelAllowedForProvider(provider: TextModelProvider, model: string): bo
   return provider === "bailian-qwen" ? isQwenModel(model) : isDeepseekModel(model);
 }
 
+function sameModelFamily(left: string, right: string): boolean {
+  return (isQwenModel(left) && isQwenModel(right)) ||
+    (isDeepseekModel(left) && isDeepseekModel(right));
+}
+
 export function getBailianQwenConfig(): TextModelConfig {
   const key = firstEnv(["BAILIAN_QWEN_API_KEY", "DASHSCOPE_API_KEY", "QWEN_API_KEY"]);
   const baseUrl = firstEnv(["BAILIAN_QWEN_BASE_URL", "DASHSCOPE_BASE_URL", "QWEN_BASE_URL"]);
@@ -101,11 +106,17 @@ function getOpenAICompatibleConfig(): TextModelConfig {
   const resolvedBaseUrl = cleanBaseUrl(baseUrl.value || "https://api.deepseek.com");
   const transportAllowed = endpointTransportAllowed(resolvedBaseUrl);
   const resolvedModel = model.value || "deepseek-v4-flash";
-  const deepseekEndpointAllowed = endpointHostAllowed(resolvedBaseUrl, ["api.deepseek.com"]);
-  const vendorAllowed = deepseekEndpointAllowed && isDeepseekModel(resolvedModel);
+  // `openai-compatible` describes the wire protocol, not a vendor identity. Keep model and endpoint
+  // paired so a Qwen model can use the approved DashScope endpoint without weakening the host gate,
+  // while a DeepSeek model remains confined to its own approved endpoint family.
+  const qwenCompatible = isQwenModel(resolvedModel) &&
+    endpointHostAllowed(resolvedBaseUrl, ["dashscope.aliyuncs.com"]);
+  const deepseekCompatible = isDeepseekModel(resolvedModel) &&
+    endpointHostAllowed(resolvedBaseUrl, ["api.deepseek.com"]);
+  const vendorAllowed = qwenCompatible || deepseekCompatible;
   return {
     provider: "openai-compatible",
-    providerLabel: "DeepSeek",
+    providerLabel: qwenCompatible ? "OpenAI-compatible Qwen" : "DeepSeek",
     apiKey: key.value,
     baseUrl: resolvedBaseUrl,
     model: resolvedModel,
@@ -137,7 +148,7 @@ export function getPrimaryTextModelConfig(): TextModelConfig {
 export function getControlledTerminologyModelConfig(): TextModelConfig {
   const primary = getPrimaryTextModelConfig();
   const model = process.env.CONTROLLED_TERMINOLOGY_MODEL?.trim() || primary.model;
-  const modelAllowed = modelAllowedForProvider(primary.provider, model);
+  const modelAllowed = sameModelFamily(primary.model, model);
   return {
     ...primary,
     model,
@@ -193,16 +204,15 @@ export function textModelRequestTuning(
   model: string,
   options: { reasoningEffort?: string; thinkingEnabled?: boolean },
 ): Record<string, unknown> {
+  const thinkingEnabled = options.thinkingEnabled ?? false;
   if (isDeepseekModel(model)) {
     return {
       ...(options.reasoningEffort ? { reasoning_effort: options.reasoningEffort } : {}),
-      ...(options.thinkingEnabled == null
-        ? {}
-        : { thinking: { type: options.thinkingEnabled ? "enabled" : "disabled" } }),
+      thinking: { type: thinkingEnabled ? "enabled" : "disabled" },
     };
   }
   if (isQwenModel(model)) {
-    return options.thinkingEnabled == null ? {} : { enable_thinking: options.thinkingEnabled };
+    return { enable_thinking: thinkingEnabled };
   }
   return {};
 }

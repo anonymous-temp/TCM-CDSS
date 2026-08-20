@@ -738,7 +738,7 @@ function preferredClinicalReviewModelConfig(
         endpoint,
         configured: qwen.configured && Boolean(model) && validClinicalReviewEndpoint(endpoint),
         independentInvocation: true,
-        independentFromGenerator: true,
+        independentFromGenerator: model !== generatorModel || endpoint !== chatCompletionsUrl(primary.baseUrl),
         source: "preferred",
       };
     }
@@ -5334,6 +5334,8 @@ export function getDiagnosisProviderStatus() {
   const diagnoseClinicalReview = clinicalReviewModelCandidates("diagnose", reviewPrimary);
   const prescribeClinicalReview = clinicalReviewModelCandidates("prescribe", reviewPrimary);
   const preferredClinicalReview = diagnoseClinicalReview[0] || prescribeClinicalReview[0];
+  const preferredDiagnoseReview = diagnoseClinicalReview[0];
+  const preferredPrescribeReview = prescribeClinicalReview[0];
   return {
     primaryModel: {
       ...primary,
@@ -5375,8 +5377,10 @@ export function getDiagnosisProviderStatus() {
       role: "independent M03/M04 clinical reviewer",
       independentInvocation: diagnoseClinicalReview.some((item) => item.independentInvocation)
         && prescribeClinicalReview.some((item) => item.independentInvocation),
-      independentFromPrimary: diagnoseClinicalReview.some((item) => item.independentFromGenerator)
-        && prescribeClinicalReview.some((item) => item.independentFromGenerator),
+      independentFromPrimary: Boolean(
+        preferredDiagnoseReview?.independentFromGenerator &&
+        preferredPrescribeReview?.independentFromGenerator,
+      ),
       candidates: {
         diagnose: diagnoseClinicalReview.map(({ provider, model, source, independentInvocation, independentFromGenerator }) => ({ provider, model, source, independentInvocation, independentFromGenerator })),
         prescribe: prescribeClinicalReview.map(({ provider, model, source, independentInvocation, independentFromGenerator }) => ({ provider, model, source, independentInvocation, independentFromGenerator })),
