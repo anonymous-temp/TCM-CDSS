@@ -5,6 +5,12 @@ import { evaluateAuditInputQualityControl, evaluateAuditPositiveControl } from "
 
 const BASE_URL = (process.env.BASE_URL || process.env.TCM_CDSS_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || process.env.TCM_CDSS_API_TOKEN || "";
+const CUSTOMER_ID = process.env.CDSS_CUSTOMER_ID || "";
+const REQUEST_HEADERS = {
+  "Content-Type": "application/json",
+  ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}),
+  ...(CUSTOMER_ID ? { "x-cdss-customer-id": CUSTOMER_ID } : {}),
+};
 const CONTROL_FILTER = new Set((process.env.M05_CONTROL_IDS || "").split(",").map((item) => item.trim()).filter(Boolean));
 const selectedControls = M05_PRESCRIPTION_MUTATION_CONTROLS.filter((control) => CONTROL_FILTER.size === 0 || CONTROL_FILTER.has(control.id));
 const unknownControlIds = [...CONTROL_FILTER].filter((id) => !M05_PRESCRIPTION_MUTATION_CONTROLS.some((control) => control.id === id));
@@ -62,10 +68,7 @@ for (const control of selectedControls) {
   const controlState = signedControlState(control);
   const response = await fetch(`${BASE_URL}/api/diagnosis/post-prescription-risk`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}),
-    },
+    headers: REQUEST_HEADERS,
     body: JSON.stringify({ caseState: controlState }),
   });
   const raw = await response.text();
@@ -75,7 +78,9 @@ for (const control of selectedControls) {
   } catch {
     body = null;
   }
-  if (!response.ok || !body?.audit) {
+  const expectedFailClosedInputQuality = control.controlLayer === "input_quality" &&
+    response.status === 422 && body?.code === "rxaudit_herb_dose_incomplete" && Boolean(body?.audit);
+  if ((!response.ok && !expectedFailClosedInputQuality) || !body?.audit) {
     reports.push({
       id: control.id,
       mutation: control.mutation,
@@ -91,10 +96,7 @@ for (const control of selectedControls) {
   if (control.controlLayer === "input_quality") {
     const assessResponse = await fetch(`${BASE_URL}/api/diagnosis/assess`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}),
-      },
+      headers: REQUEST_HEADERS,
       body: JSON.stringify({ caseState: controlState }),
     });
     const assessText = await assessResponse.text();
