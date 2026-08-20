@@ -1338,10 +1338,10 @@ function criticalInvertedBloodPressure(text: string): { first: number; second: n
     const { first, second } = measurement;
     if (!Number.isFinite(first) || !Number.isFinite(second) || first > second) continue;
     if (isExcludedClinicalAssertionAt(normalized, measurement.index) || isHistoricalOrResolvedAt(normalized, measurement.index)) continue;
-    // Only an extreme value is eligible for the deterministic emergency fast path. Severe but
-    // non-extreme hypertension requires repeat measurement plus symptom/target-organ assessment;
-    // that contextual triage belongs to the semantic layer.
-    if (Math.max(first, second) >= 220 || Math.min(first, second) >= 130 || Math.min(first, second) <= 45) {
+    // A value at or above the severe hypertension boundary must enter the deterministic safety
+    // path even when the two components appear reversed. The message still requires normalized
+    // repeat measurement and target-organ assessment; the parser never silently swaps the values.
+    if (Math.max(first, second) >= 180 || Math.min(first, second) >= 120 || Math.min(first, second) <= 45) {
       return { first, second };
     }
   }
@@ -1349,7 +1349,7 @@ function criticalInvertedBloodPressure(text: string): { first: number; second: n
 }
 
 function bloodPressureIsCritical(bp: { systolic: number; diastolic: number } | null): boolean {
-  return Boolean(bp && (bp.systolic >= 220 || bp.diastolic >= 130 || bp.systolic <= 80 || bp.diastolic <= 45));
+  return Boolean(bp && (bp.systolic >= 180 || bp.diastolic >= 120 || bp.systolic <= 80 || bp.diastolic <= 45));
 }
 
 // Accepts "38.9℃", "38.9度", the Chinese decimal idiom "38度9" (=38.9), and full-width input.
@@ -1648,7 +1648,7 @@ export function currentVitalMeasurements(state: CaseState): CurrentVitalMeasurem
     respiration: preferAbnormalNumber(
       parseContextualRespiration(structuredText),
       parseContextualRespiration(narrativeText),
-      (value) => value >= 25 || value < 8,
+      (value) => value >= 25 || value <= 8,
     ),
     spo2: preferAbnormalNumber(
       parseContextualSpo2(structuredText),
@@ -3297,12 +3297,14 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   const pregnancyStatus = assessPregnancyState(text).status;
   const obstetricContext = pregnancyStatus === "positive" || pregnancyStatus === "possible"
     || hasPatternWithoutNegation(text, /产后|产褥|分娩后|坐月子|剖宫产后|顺产后/);
-  if (obstetricContext && bp && (bp.systolic >= 160 || bp.diastolic >= 110) &&
-      !(bp.systolic >= 180 || bp.diastolic >= 120)) {
+  const obstetricSevereHypertension = Boolean(
+    obstetricContext && bp && (bp.systolic >= 160 || bp.diastolic >= 110),
+  );
+  if (obstetricSevereHypertension && bp) {
     redFlags.push(`妊娠/产褥期血压 ${bp.systolic}/${bp.diastolic}mmHg 达重度高血压标准（≥160/110），需立即按子痫前期/子痫风险急诊评估，尤其伴头痛、视物异常或上腹痛时`);
   }
   const criticalBp = bp && bloodPressureIsCritical(bp) ? bp : null;
-  if (criticalBp) {
+  if (criticalBp && !obstetricSevereHypertension) {
     redFlags.push(criticalBp.systolic >= 180 || criticalBp.diastolic >= 120
       ? `血压 ${criticalBp.systolic}/${criticalBp.diastolic}mmHg 达重度高血压警戒值，需立即规范复测并评估急性靶器官损害；如伴胸痛、神经功能异常或呼吸困难应急诊处理`
       : `血压 ${criticalBp.systolic}/${criticalBp.diastolic}mmHg 达低血压/休克风险警戒值，需立即复测并评估循环灌注`);
@@ -3316,7 +3318,7 @@ export function detectProgrammaticRedFlags(state: CaseState): string[] {
   if (pulse != null && (pulse >= 150 || pulse < 40)) {
     redFlags.push(`心率/脉搏 ${pulse}次/分异常，需先评估心血管风险`);
   }
-  if (respiration != null && (respiration >= 35 || respiration < 8)) {
+  if (respiration != null && (respiration >= 35 || respiration <= 8)) {
     redFlags.push(`呼吸 ${respiration}次/分异常，需先评估呼吸循环风险`);
   }
   if (spo2 != null && spo2 <= 89) {

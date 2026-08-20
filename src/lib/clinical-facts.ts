@@ -1199,6 +1199,22 @@ function mergeGroundedFindings(...groups: readonly RedFlagFinding[][]): RedFlagF
   return merged;
 }
 
+function mergeGroundedAffirmedSymptoms(
+  ...groups: ReadonlyArray<readonly AffirmedSymptom[] | undefined>
+): AffirmedSymptom[] {
+  const merged: AffirmedSymptom[] = [];
+  const seen = new Set<string>();
+  const normalize = (value: string) => value.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
+  for (const symptom of groups.flatMap((group) => group || [])) {
+    const key = `${normalize(symptom.term)}\u0000${normalize(symptom.quote)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(symptom);
+    if (merged.length >= 40) break;
+  }
+  return merged;
+}
+
 function mergeReviewedEncounterScope(
   initial: ClinicalFacts["encounterScope"],
   reviewed: ClinicalFacts["encounterScope"],
@@ -1287,6 +1303,10 @@ function resolveReviewedDisposition(
     rejectedReductionIds.has(`rf-${index + 1}`));
   return {
     redFlags: mergeGroundedFindings(acceptedReviewed, conservativeFallbacks),
+    affirmedSymptoms: mergeGroundedAffirmedSymptoms(
+      grounded.affirmedSymptoms,
+      reviewedGrounded.affirmedSymptoms,
+    ),
     encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
     reviewStatus: "checked",
   };
@@ -1411,6 +1431,10 @@ export async function extractClinicalFacts(
     if (monotonicReview) {
       return {
         redFlags: mergeGroundedFindings(reviewedGrounded.redFlags, grounded.redFlags),
+        affirmedSymptoms: mergeGroundedAffirmedSymptoms(
+          grounded.affirmedSymptoms,
+          reviewedGrounded.affirmedSymptoms,
+        ),
         encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
         reviewStatus: "checked",
       };
@@ -1421,6 +1445,10 @@ export async function extractClinicalFacts(
     if (!options.allowDispositionReductions) {
       return {
         redFlags: mergeGroundedFindings(grounded.redFlags, reviewedGrounded.redFlags),
+        affirmedSymptoms: mergeGroundedAffirmedSymptoms(
+          grounded.affirmedSymptoms,
+          reviewedGrounded.affirmedSymptoms,
+        ),
         encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
         reviewStatus: "checked",
       };
@@ -1571,6 +1599,10 @@ export async function extractClinicalFacts(
     }
     return {
       ...reviewedGrounded,
+      affirmedSymptoms: mergeGroundedAffirmedSymptoms(
+        grounded.affirmedSymptoms,
+        reviewedGrounded.affirmedSymptoms,
+      ),
       encounterScope: mergeReviewedEncounterScope(grounded.encounterScope, reviewedGrounded.encounterScope),
       reviewStatus: "checked",
     };
