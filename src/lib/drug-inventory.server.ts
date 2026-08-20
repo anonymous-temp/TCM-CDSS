@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { parseCustomerId } from "./customer-id";
@@ -72,9 +72,17 @@ type InventoryFile = DrugInventorySnapshot & { items: DrugInventoryItem[] };
 
 const MAX_ITEMS = 20_000;
 const MAX_UNRESOLVED_REPORTED = 200;
+export const DRUG_INVENTORY_CACHE_MAX_CUSTOMERS = 500;
+export const DRUG_INVENTORY_CACHE_IDLE_TTL_MS = 30 * 60 * 1_000;
 
-const cacheByCustomer = new Map<string, InventoryFile | null>();
-const loadedCustomers = new Set<string>();
+type InventoryCacheEntry = {
+  value: InventoryFile | null;
+  lastAccessedAt: number;
+};
+
+const cacheByCustomer = new Map<string, InventoryCacheEntry>();
+const inventoryCommitLocks = new Map<string, Promise<void>>();
+const stagedImportLocks = new Map<string, Promise<void>>();
 
 function validCustomerId(customerId: string): string {
   const valid = parseCustomerId(customerId);
@@ -100,17 +108,76 @@ function text(value: unknown): string {
 export function resetDrugInventoryCacheForTests(customerId?: string): void {
   if (customerId) {
     cacheByCustomer.delete(validCustomerId(customerId));
-    loadedCustomers.delete(validCustomerId(customerId));
     return;
   }
   cacheByCustomer.clear();
-  loadedCustomers.clear();
+}
+
+export function drugInventoryCacheSizeForTests(): number {
+  return cacheByCustomer.size;
+}
+
+export function isDrugInventoryCustomerCachedForTests(customerId: string): boolean {
+  return cacheByCustomer.has(validCustomerId(customerId));
+}
+
+function pruneInventoryCache(now: number): void {
+  for (const [customerId, entry] of cacheByCustomer) {
+    if (now - entry.lastAccessedAt > DRUG_INVENTORY_CACHE_IDLE_TTL_MS) {
+      cacheByCustomer.delete(customerId);
+    }
+  }
+}
+
+function readInventoryCache(customerId: string): { hit: boolean; value: InventoryFile | null } {
+  const now = Date.now();
+  pruneInventoryCache(now);
+  const entry = cacheByCustomer.get(customerId);
+  if (!entry) return { hit: false, value: null };
+  entry.lastAccessedAt = now;
+  // Refresh Map insertion order so the first entry remains the least recently used one.
+  cacheByCustomer.delete(customerId);
+  cacheByCustomer.set(customerId, entry);
+  return { hit: true, value: entry.value };
+}
+
+function writeInventoryCache(customerId: string, value: InventoryFile | null): void {
+  const now = Date.now();
+  pruneInventoryCache(now);
+  cacheByCustomer.delete(customerId);
+  while (cacheByCustomer.size >= DRUG_INVENTORY_CACHE_MAX_CUSTOMERS) {
+    const oldestCustomerId = cacheByCustomer.keys().next().value as string | undefined;
+    if (!oldestCustomerId) break;
+    cacheByCustomer.delete(oldestCustomerId);
+  }
+  cacheByCustomer.set(customerId, { value, lastAccessedAt: now });
+}
+
+async function withSerializedLock<T>(
+  locks: Map<string, Promise<void>>,
+  key: string,
+  task: () => Promise<T>,
+): Promise<T> {
+  const previous = locks.get(key) || Promise.resolve();
+  let release: (() => void) | undefined;
+  const currentTurn = new Promise<void>((resolveTurn) => {
+    release = resolveTurn;
+  });
+  const tail = previous.catch(() => undefined).then(() => currentTurn);
+  locks.set(key, tail);
+  await previous.catch(() => undefined);
+  try {
+    return await task();
+  } finally {
+    release?.();
+    if (locks.get(key) === tail) locks.delete(key);
+  }
 }
 
 async function load(customerIdInput: string): Promise<InventoryFile | null> {
   const customerId = validCustomerId(customerIdInput);
-  if (loadedCustomers.has(customerId)) return cacheByCustomer.get(customerId) || null;
-  loadedCustomers.add(customerId);
+  const cached = readInventoryCache(customerId);
+  if (cached.hit) return cached.value;
   try {
     const parsed = JSON.parse(await readFile(drugInventoryPath(customerId), "utf8")) as Partial<InventoryFile>;
     const fileCustomerId = parseCustomerId(parsed.customerId);
@@ -126,7 +193,7 @@ async function load(customerIdInput: string): Promise<InventoryFile | null> {
             ? "customer_mismatch"
             : "invalid_payload",
       });
-      cacheByCustomer.set(customerId, null);
+      writeInventoryCache(customerId, null);
       return null;
     }
     const loaded: InventoryFile = {
@@ -143,11 +210,11 @@ async function load(customerIdInput: string): Promise<InventoryFile | null> {
       ambiguousNames: Array.isArray(parsed.ambiguousNames) ? parsed.ambiguousNames : [],
       items: parsed.items,
     };
-    cacheByCustomer.set(customerId, loaded);
+    writeInventoryCache(customerId, loaded);
     return loaded;
   } catch {
     // 文件不存在 / 解析失败一律当作「未导入库存」，绝不抛错阻断开方链路。
-    cacheByCustomer.set(customerId, null);
+    writeInventoryCache(customerId, null);
     return null;
   }
 }
@@ -219,9 +286,13 @@ async function readStagedImport(customerId: string, importId: string): Promise<S
 async function writeStagedImport(customerId: string, staged: StagedImport): Promise<void> {
   const target = stagedImportPath(customerId, staged.importId);
   await mkdir(dirname(target), { recursive: true });
-  const tmp = `${target}.${process.pid}.tmp`;
-  await writeFile(tmp, JSON.stringify(staged), "utf8");
-  await rename(tmp, target);
+  const tmp = `${target}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(tmp, JSON.stringify(staged), "utf8");
+    await rename(tmp, target);
+  } finally {
+    await rm(tmp, { force: true }).catch(() => undefined);
+  }
 }
 
 /**
@@ -251,9 +322,16 @@ export async function importDrugInventory(
     ? input.part as Record<string, unknown>
     : undefined;
   if (partInput) {
-    const staged = await stageInventoryPart(customerId, partInput, rawItems, text(input.source));
-    if (!staged.ok || "pending" in staged) return staged;
-    return commitInventoryItems(customerId, staged.items, staged.source);
+    const importId = normalizedImportId(partInput.importId) || "invalid-import-id";
+    return withSerializedLock(stagedImportLocks, `${customerId}:${importId}`, async () => {
+      const staged = await stageInventoryPart(customerId, partInput, rawItems, text(input.source));
+      if (!staged.ok || "pending" in staged) return staged;
+      return withSerializedLock(
+        inventoryCommitLocks,
+        customerId,
+        () => commitInventoryItems(customerId, staged.items, staged.source),
+      );
+    });
   }
   if (rawItems.length > MAX_ITEMS) {
     return {
@@ -266,7 +344,11 @@ export async function importDrugInventory(
     };
   }
 
-  return commitInventoryItems(customerId, rawItems, text(input.source));
+  return withSerializedLock(
+    inventoryCommitLocks,
+    customerId,
+    () => commitInventoryItems(customerId, rawItems, text(input.source)),
+  );
 }
 
 async function stageInventoryPart(
@@ -399,12 +481,15 @@ async function commitInventoryItems(
   const target = drugInventoryPath(customerId);
   await mkdir(dirname(target), { recursive: true });
   // 原子替换：半截文件被读成空库存会让整院所有药味变「缺货」，后果远重于一次写失败。
-  const staging = `${target}.${process.pid}.tmp`;
-  await writeFile(staging, JSON.stringify(file), "utf8");
-  await rename(staging, target);
+  const staging = `${target}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(staging, JSON.stringify(file), "utf8");
+    await rename(staging, target);
+  } finally {
+    await rm(staging, { force: true }).catch(() => undefined);
+  }
 
-  cacheByCustomer.set(customerId, file);
-  loadedCustomers.add(customerId);
+  writeInventoryCache(customerId, file);
   const { items: _items, ...snapshot } = file;
   void _items;
   return { ok: true, snapshot };
