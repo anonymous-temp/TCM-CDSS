@@ -119,6 +119,15 @@ const ALLOWLIST = new Map([
   ["src/lib/medicine-candidate-planner.server.ts", "中成药**剂型后缀**（片/胶囊/颗粒…），与 local-patent-medicine-candidates 同一条 TODO：应从受治理目录 dosageForm 派生。"],
   ["src/lib/phi-sanitizer.ts", "PHI 去标识的**职业类别**词。它服务于脱敏而非临床判断；表短于实际时结果偏严（多脱敏一点），方向安全。"],
   ["src/lib/prescription-regimen-contract.ts", "服法与复诊节点的**数量/时间字面形态**（每日N剂、第N天复诊），结构解析。"],
+  ["src/lib/medication-label-usage.ts",
+    "说明书『用法用量』的**给药途径与频次格式解析**（外用/滴眼/每N小时一次等）。输出必须逐字来自同一说明书原文，" +
+    "不判断患者适应性、证候或药物选择；与 prescription-regimen-contract、diagnosis-stream-safety 同属文本结构锚点。"],
+  ["src/lib/patient-relevant-medication-risk.ts",
+    "说明书特殊人群条款删除不适用成员后，对『禁用/慎用/医师指导下使用』这种**失去主语的动作残句**做格式清理。" +
+    "患者生育状态与人群词均来自受治理 clinical-state/clinical-vocabulary，本正则不判定任何人群或风险。"],
+  ["src/lib/tcm-treatment-clinician-view.ts",
+    "医生端中医项目 DTO 的**排程数字格式与后台治理话术净化**。临床项目准入、穴位和禁忌仍来自受治理项目对象；" +
+    "这些表达式只决定完整结构化内容如何呈现，不创造诊断、治法或项目推荐。"],
   ["src/lib/tcm-acupoints.ts", "特定穴类别名（五输穴/合穴/输穴…）——腧穴目录自带的分类字段取值，属目录结构不是判断词表。"],
 ]);
 
