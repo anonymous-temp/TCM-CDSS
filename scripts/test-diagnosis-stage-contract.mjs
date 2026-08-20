@@ -3473,6 +3473,8 @@ dirtyPrecautionsProposalInput.nonPharma.precautions = [
   "短",                                   // 过短，丢弃
   "服药期间每次加服黄连6g",                  // 含剂量级文字：自由文本不得成为绕过药味工作台与审方的剂量通道
   "注意事项待补充",                          // 占位语
+  "与苯磺酸氨氯地平同服时建议间隔2小时以上，避免影响吸收。", // 无说明书/审方绑定的具体相互作用与间隔，丢弃
+  "老年患者服药初期腹胀属气机调整反应，持续时应减量或暂停并咨询医师。", // 模型自判正常反应并指导减停药，丢弃
   "服药期间忌浓茶、咖啡与酒",                 // 合格，保留
   "服药期间忌浓茶、咖啡与酒。",               // 归一化后重复，丢弃
 ];
@@ -3495,6 +3497,16 @@ assert.equal(
   keptPrecautions.some((item) => /待补充/.test(item)),
   false,
   "placeholder precautions are dropped rather than shown to the clinician",
+);
+assert.equal(
+  keptPrecautions.some((item) => /氨氯地平|间隔2小时|影响吸收/.test(item)),
+  false,
+  "unverified drug-spacing and interaction claims are dropped from free-text precautions",
+);
+assert.equal(
+  keptPrecautions.some((item) => /气机调整反应|减量|暂停/.test(item)),
+  false,
+  "model-authored normal-reaction labels and self-directed dose changes are dropped",
 );
 assert.equal(
   keptPrecautions.filter((item) => /忌浓茶/.test(item)).length,
