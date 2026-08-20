@@ -50,7 +50,11 @@ export type DrugInventoryItem = {
   goodsId?: string;
 };
 
+export const DRUG_INVENTORY_SCHEMA_VERSION = "tcm-cdss-drug-inventory-v2" as const;
+
 export type DrugInventorySnapshot = {
+  schemaVersion: typeof DRUG_INVENTORY_SCHEMA_VERSION;
+  customerId: string;
   inventoryVersion: string;
   importedAt: string;
   source: string;
@@ -109,11 +113,25 @@ async function load(customerIdInput: string): Promise<InventoryFile | null> {
   loadedCustomers.add(customerId);
   try {
     const parsed = JSON.parse(await readFile(drugInventoryPath(customerId), "utf8")) as Partial<InventoryFile>;
-    if (!Array.isArray(parsed.items) || typeof parsed.inventoryVersion !== "string") {
+    const fileCustomerId = parseCustomerId(parsed.customerId);
+    if (parsed.schemaVersion !== DRUG_INVENTORY_SCHEMA_VERSION ||
+        fileCustomerId !== customerId ||
+        !Array.isArray(parsed.items) ||
+        typeof parsed.inventoryVersion !== "string") {
+      console.warn("drug_inventory_file_rejected", {
+        customerHash: createHash("sha256").update(customerId).digest("hex").slice(0, 32),
+        reason: parsed.schemaVersion !== DRUG_INVENTORY_SCHEMA_VERSION
+          ? "invalid_schema"
+          : fileCustomerId !== customerId
+            ? "customer_mismatch"
+            : "invalid_payload",
+      });
       cacheByCustomer.set(customerId, null);
       return null;
     }
     const loaded: InventoryFile = {
+      schemaVersion: DRUG_INVENTORY_SCHEMA_VERSION,
+      customerId,
       inventoryVersion: parsed.inventoryVersion,
       importedAt: text(parsed.importedAt),
       source: text(parsed.source),
@@ -354,11 +372,18 @@ async function commitInventoryItems(
 
   const importedAt = new Date().toISOString();
   const inventoryVersion = createHash("sha256")
-    .update(items.map((item) => `${item.kind}:${item.name}:${item.canonicalName}:${item.available}`).sort().join("\n"))
+    .update(JSON.stringify({
+      schemaVersion: DRUG_INVENTORY_SCHEMA_VERSION,
+      customerId,
+      items: [...items].sort((left, right) =>
+        `${left.kind}:${left.name}`.localeCompare(`${right.kind}:${right.name}`, "zh-CN")),
+    }))
     .digest("hex")
     .slice(0, 32);
 
   const file: InventoryFile = {
+    schemaVersion: DRUG_INVENTORY_SCHEMA_VERSION,
+    customerId,
     inventoryVersion,
     importedAt,
     source: source || "unspecified",

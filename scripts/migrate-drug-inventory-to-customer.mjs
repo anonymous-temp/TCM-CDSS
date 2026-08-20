@@ -7,6 +7,49 @@ import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
 const { parseCustomerId } = await jiti.import("../src/lib/customer-id.ts");
+const INVENTORY_SCHEMA_VERSION = "tcm-cdss-drug-inventory-v2";
+
+function migratedInventory(content, customerId) {
+  const parsed = JSON.parse(content);
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.items)) {
+    throw new Error("source inventory must contain an items array");
+  }
+  const items = parsed.items;
+  const inventoryVersion = createHash("sha256")
+    .update(JSON.stringify({
+      schemaVersion: INVENTORY_SCHEMA_VERSION,
+      customerId,
+      items: [...items].sort((left, right) =>
+        `${left?.kind || "herb"}:${left?.name || ""}`.localeCompare(
+          `${right?.kind || "herb"}:${right?.name || ""}`,
+          "zh-CN",
+        )),
+    }))
+    .digest("hex")
+    .slice(0, 32);
+  const available = (kind) => items.filter((item) =>
+    item && typeof item === "object" &&
+    (item.kind || "herb") === kind &&
+    item.available !== false).length;
+  return {
+    schemaVersion: INVENTORY_SCHEMA_VERSION,
+    customerId,
+    inventoryVersion,
+    importedAt: typeof parsed.importedAt === "string" && parsed.importedAt.trim()
+      ? parsed.importedAt.trim()
+      : new Date().toISOString(),
+    source: typeof parsed.source === "string" && parsed.source.trim()
+      ? parsed.source.trim()
+      : "legacy-inventory-migration",
+    itemCount: items.length,
+    availableHerbCount: available("herb"),
+    availablePatentCount: available("patent"),
+    availableWesternCount: available("western"),
+    unresolvedNames: Array.isArray(parsed.unresolvedNames) ? parsed.unresolvedNames : [],
+    ambiguousNames: Array.isArray(parsed.ambiguousNames) ? parsed.ambiguousNames : [],
+    items,
+  };
+}
 
 export async function migrateInventoryToCustomer({ source, root, customerId }) {
   const validCustomerId = parseCustomerId(customerId);
@@ -14,7 +57,7 @@ export async function migrateInventoryToCustomer({ source, root, customerId }) {
   const sourcePath = resolve(source);
   const rootPath = resolve(root);
   const content = await readFile(sourcePath, "utf8");
-  JSON.parse(content);
+  const migrated = migratedInventory(content, validCustomerId);
   const customerHash = createHash("sha256").update(validCustomerId).digest("hex").slice(0, 32);
   const target = join(rootPath, `${customerHash}.json`);
   await mkdir(dirname(target), { recursive: true });
@@ -27,7 +70,7 @@ export async function migrateInventoryToCustomer({ source, root, customerId }) {
   const backup = `${sourcePath}.pre-tenant-backup`;
   await copyFile(sourcePath, backup, constants.COPYFILE_EXCL);
   const temporary = `${target}.${process.pid}.tmp`;
-  await writeFile(temporary, content, { encoding: "utf8", flag: "wx" });
+  await writeFile(temporary, JSON.stringify(migrated), { encoding: "utf8", flag: "wx" });
   await rename(temporary, target);
   return { source: sourcePath, backup, target, customerHash };
 }
