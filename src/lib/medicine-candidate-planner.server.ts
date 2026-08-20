@@ -260,8 +260,10 @@ export async function planEvidenceBoundMedicineCandidates(
   const customerId = typeof customerIdOrSignal === "string" ? customerIdOrSignal : undefined;
   const requestSignal = typeof customerIdOrSignal === "string" ? explicitRequestSignal : customerIdOrSignal;
   const medicineAvailability = customerId ? await medicineAvailabilityView(customerId) : undefined;
+  const inCustomerInventory = (name: string, kind: "patent" | "western") =>
+    !medicineAvailability?.inventoryLoaded || medicineAvailability.statusOf(name, kind) === "in_stock";
   const localCandidates = retrieveLocalPatentMedicineCandidates(caseState, 10)
-    .filter((item) => !medicineAvailability || medicineAvailability.statusOf(item.name, "patent") === "in_stock");
+    .filter((item) => inCustomerInventory(item.name, "patent"));
   const selection = await runPlannerModel(caseState, localCandidates, requestSignal);
   const selectedLocalIds = selection?.localEvidenceIds.length
     ? selection.localEvidenceIds
@@ -278,7 +280,7 @@ export async function planEvidenceBoundMedicineCandidates(
     ? await Promise.all(selection.westernMedicines.map((item, index) => resolveWesternCandidate(item, index, caseText)))
     : [];
   const western = resolvedWestern.filter((item): item is NonNullable<typeof item> =>
-    Boolean(item) && (!medicineAvailability || medicineAvailability.statusOf(item?.candidate.name || "", "western") === "in_stock"));
+    Boolean(item) && inCustomerInventory(item?.candidate.name || "", "western"));
   const candidates = [...selectedLocal, ...western.map((item) => item.candidate)].slice(0, 5);
   const evidenceContext = western.length > 0
     ? [

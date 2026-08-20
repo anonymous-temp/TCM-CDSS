@@ -24,22 +24,16 @@ type MedicationRiskCaseContext = Partial<Pick<
 
 const REPRODUCTIVE_FORMS = populationScopeForms("reproductive_label");
 const REPRODUCTIVE_EXCLUSION_FORMS = populationScopeForms("reproductive_exclusion");
-const RETAINED_POPULATION_FORMS = [
-  ...populationScopeForms("pediatric"),
-  ...populationScopeForms("geriatric"),
-  ...populationScopeForms("medication_label_retained"),
-];
 const REPRODUCTIVE_LIST_MEMBER = new RegExp(
-  `(?:${REPRODUCTIVE_FORMS.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?:\\s*[、和与及或/]\\s*)?`,
+  `(?:${[...REPRODUCTIVE_FORMS]
+    .sort((left, right) => right.length - left.length)
+    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|")})(?:期)?(?:前\\s*\\d+\\s*个月)?(?:\\s*[、和与及或/]\\s*)?`,
   "g",
 );
 
 function includesAny(value: string, forms: readonly string[]): boolean {
   return forms.some((form) => value.includes(form));
-}
-
-function startsWithAny(value: string, forms: readonly string[]): boolean {
-  return forms.some((form) => value.startsWith(form));
 }
 
 function contextText(state?: MedicationRiskCaseContext | null): string {
@@ -99,21 +93,13 @@ function scrubMixedPopulationClause(clause: string): string {
 
 function sanitizeRiskAtom(atom: string): string {
   if (!includesAny(atom, REPRODUCTIVE_FORMS)) return atom.trim();
-  const retained: string[] = [];
-  for (const part of atom.split(/[，,]/)) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    if (!includesAny(trimmed, REPRODUCTIVE_FORMS)) {
-      retained.push(trimmed);
-      continue;
-    }
-    const withoutNumbering = trimmed.replace(/^\d{1,3}[.．、]\s*/, "");
-    if (startsWithAny(withoutNumbering, REPRODUCTIVE_FORMS)) continue;
-    if (!includesAny(withoutNumbering, RETAINED_POPULATION_FORMS)) continue;
-    const scrubbed = scrubMixedPopulationClause(trimmed);
-    if (scrubbed && !includesAny(scrubbed, REPRODUCTIVE_FORMS)) retained.push(scrubbed);
-  }
-  return retained.join("，");
+  const scrubbed = scrubMixedPopulationClause(atom);
+  const actionOnly = scrubbed
+    .replace(/^\d{1,3}[.．、]\s*/, "")
+    .replace(/[。.!！]\s*$/, "")
+    .trim();
+  if (/^(?:慎用|禁用|忌服|应在医师指导下(?:使用|服用))$/.test(actionOnly)) return "";
+  return scrubbed;
 }
 
 /**
