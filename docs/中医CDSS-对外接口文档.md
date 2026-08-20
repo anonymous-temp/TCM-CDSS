@@ -117,16 +117,14 @@ curl -s "$BASE/api/drug-inventory" \
 | 服务端/API 对接 | 请求头 `x-cdss-customer-id: <客户唯一标识>` |
 | 浏览器登录 | `/api/auth/access` 请求体同时提交 `{token, customerId}`，成功后由服务端签发 httpOnly 客户上下文 Cookie |
 
-`customerId` 仅接受 6–64 位 ASCII 字母、数字、下划线或连字符。客户标识参与病例签名、快照 AAD、限流、库存路径和审方租户头；跨客户复用病例状态会返回 `409 customer_context_mismatch`，不会读取或回落到其他客户库存。
+`customerId` 仅接受 6–64 位 ASCII 字母、数字、下划线或连字符，并且必须属于该固定接口令牌的预授权客户白名单。未知或未授权客户统一返回 `403 customer_forbidden`，不区分“不存在”和“无权访问”，避免枚举客户。客户标识参与病例签名、快照 AAD、限流、库存路径和审方租户头；跨客户复用病例状态会返回 `409 customer_context_mismatch`，不会读取或回落到其他客户库存。
 
 > **本文档中的所有 curl 示例统一使用 `$TOKEN` 占位**，请先在 shell 中导出真实令牌再执行：
 > ```bash
 > export TOKEN="<贵方接口令牌>"
 > export CUSTOMER_ID="<客户唯一标识>"
 > ```
-> V1.4 之前的版本在示例里内联了生产环境的真实令牌。本次（V1.5）已全部改为占位符，
-> 但**旧版本文档与其历史副本仍含明文令牌**；请按贵方安全规范决定是否轮换该令牌，
-> 轮换需同步更新服务端 `CDSS_API_TOKEN` 与全部集成方配置（轮换后旧令牌立即失效）。
+> V1.4 之前的版本在示例里内联过生产令牌，现行文档已全部改为占位符。既定交付令牌在版本升级中保持不变，只能存放在受保护运行时配置中，不得复制到源码、文档、日志或工单；历史副本应限制访问并按双方既定安全流程处置。
 
 ### 3.2 请求头
 
@@ -147,7 +145,7 @@ curl -s "$BASE/api/drug-inventory" \
 | R3 | M03 结论中的签名字段名为 `contractSignature`（非 `signature`） | 取值为空，回传后 `409` |
 | R4 | 查询参数中的中文必须 URL 编码 | 反向代理返回 `400` |
 | R5 | 建议按 M01→M02→M03→M04→M05 顺序调用；**真实门禁只有三道**，不是"任意跳段即 409" | 见下方 R5 说明 |
-| R6 | 所有临床、审方、HIS、快照和库存请求携带同一个 `x-cdss-customer-id`；`caseState.customerId` 若已存在必须与请求头一致 | 缺失返回 `400 customer_id_required`；不一致返回 `409 customer_context_mismatch` |
+| R6 | 所有临床、审方、HIS、快照和库存请求携带同一个、且已获固定 Token 授权的 `x-cdss-customer-id`；`caseState.customerId` 若已存在必须与请求头一致 | 缺失返回 `400 customer_id_required`；未授权返回 `403 customer_forbidden`；不一致返回 `409 customer_context_mismatch`；服务端授权配置未就绪返回 `503 customer_authorization_not_configured` |
 
 **R1 示例**
 
@@ -341,8 +339,9 @@ M01–M05 的正文中嵌有结构化 JSON，位于以下两个标记之间：
 |---|---|---|---|
 | `400` | 请求参数不合法（JSON 非法、枚举越界、必填缺失） | 否 | 检查必填字段与参数格式；原样重试仍会失败 |
 | `401` | 鉴权失败 | 否 | 检查令牌 |
+| `403` | 固定 Token 未获当前客户授权 | 否 | 检查 `x-cdss-customer-id` 是否在双方确认的客户白名单内 |
 | `409` | 流程状态或签名不满足前置条件 | 否 | 见 §3.3 强制要求；须回到上一阶段重新取结论 |
-| `413` | 请求体超出上限 | 否 | 见 §3.10；分批或压缩后重试 |
+| `413` | 请求体超出上限 | 否 | 见 §3.10；库存使用 §4.10 的分片整批替换，禁止拆成多次独立整批请求 |
 | `422` | 业务前置条件不满足（内容合法但当前状态下不可执行） | 否 | 见各接口说明与 `code` |
 | `429` | 触发调用频率限制 | **是** | 按 `Retry-After` 秒数退避后重试，见 §3.8 |
 | `503` | 依赖未就绪或服务暂不可用 | **是** | 指数退避后重试 |
@@ -353,6 +352,11 @@ M01–M05 的正文中嵌有结构化 JSON，位于以下两个标记之间：
 | `code` | 状态码 | 触发条件 |
 |---|---|---|
 | `required_field_missing` | `400` | 必填字段缺失 |
+| `customer_id_required` | `400` | 客户绑定接口未提供客户上下文 |
+| `invalid_customer_id` | `400` | 客户标识格式非法 |
+| `customer_forbidden` | `403` | 客户不存在或固定 Token 未获授权（两种情况统一响应） |
+| `customer_context_mismatch` | `409` | 请求头、签名 Cookie 或病例中的客户标识不一致 |
+| `customer_authorization_not_configured` | `503` | 服务端客户授权白名单缺失或非法 |
 | `invalid_m03_signature` | `409` | M03 结论被改写或未原样回传（R2/R3） |
 | `invalid_m04_signature` | `409` | M04 结论被改写或未原样回传（R2） |
 | `invalid_candidate_index` | `422` | 指定的候选方序号不存在 |
@@ -1517,11 +1521,13 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 # 分片整批替换：两片合起来才是一整批
 curl -X POST ".../api/drug-inventory" -H "Content-Type: application/json" \
   -H "x-cdss-api-token: <token>" \
+  -H "x-cdss-customer-id: <customerId>" \
   -d '{"source":"HIS-A","items":[...4000条...],"part":{"importId":"imp-20260810","index":0,"total":2}}'
 # → 202 {"missingParts":[1],"committed":false}   线上库存仍是上一版本
 
 curl -X POST ".../api/drug-inventory" -H "Content-Type: application/json" \
   -H "x-cdss-api-token: <token>" \
+  -H "x-cdss-customer-id: <customerId>" \
   -d '{"source":"HIS-A","items":[...3000条...],"part":{"importId":"imp-20260810","index":1,"total":2}}'
 # → 200 {"itemCount":7000, ...}                  此刻才发生一次原子替换
 ```
@@ -1530,6 +1536,7 @@ curl -X POST ".../api/drug-inventory" -H "Content-Type: application/json" \
 
 | 字段 | 中文名 | 说明 |
 |---|---|---|
+| `schemaVersion` / `customerId` | 库存结构版本 / 客户标识 | 新写入固定为 `tcm-cdss-drug-inventory-v2`；客户标识同时通过响应头 `x-cdss-customer-id` 返回 |
 | `inventoryVersion` | — | 库存版本（内容指纹） |
 | `importedAt` / `source` / `itemCount` | 导入时间 / 来源 / 条目数 |
 | `availableHerbCount` / `availablePatentCount` | 有货饮片数 / 有货中成药数 |
@@ -1547,7 +1554,7 @@ curl -X POST ".../api/drug-inventory" -H "Content-Type: application/json" \
 > 库存**不进临床合同签名域**：库存每天都在变，若纳入签名，昨天签发的方案今天就会验签失败。
 
 **部署要求**：容器需配置 `CDSS_DRUG_INVENTORY_PATH` 指向持久卷（compose 默认
-`/app/runtime-data/drug-inventory.json`，已挂载 `tcm-cdss-runtime` 卷）。未指向持久卷时
+`/app/runtime-data/drug-inventory`，已挂载 `tcm-cdss-runtime` 卷）。未指向持久卷时
 每次发布后库存归零。
 
 **调用示例**
@@ -1556,6 +1563,7 @@ curl -X POST ".../api/drug-inventory" -H "Content-Type: application/json" \
 curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
   -H "Content-Type: application/json" \
   -H "x-cdss-api-token: <token>" \
+  -H "x-cdss-customer-id: <customerId>" \
   -d '{
     "source": "好医生HIS-XX院区",
     "items": [
@@ -2227,6 +2235,7 @@ async function callStage(url, headers, body) {
 供运维使用。不带参数返回服务状态与当前服务版本标识，可用于核对线上运行版本。
 
 `?strict=1` 会对模型、证据检索、审方、术语库等依赖执行真实探测，任一项未就绪返回 `503`。
+客户授权配置也属于严格发布闸门：响应只包含 `configured/valid/clientConfigured/customerCount/ready`，不返回客户标识列表。
 该模式会产生真实的上游调用，**不适用于高频轮询**。
 
 ---
@@ -2235,6 +2244,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.4 | 2026-08-21 | **固定 Token 多租户授权加固。** 同一既定接口 Token 只允许访问 `CDSS_API_CUSTOMER_IDS` 中预授权的客户；未知/未授权客户统一 `403 customer_forbidden`，登录接口也不会为其签发客户 Cookie。库存文件升级为带 `schemaVersion/customerId` 的 v2 并做读取归属复核；同客户导入串行、不同客户独立，缓存增加容量与空闲淘汰。所有 API 响应增加 `private, no-store` 与租户鉴权 `Vary`，库存成功响应返回经验证的 `x-cdss-customer-id`。严格健康检查纳入授权配置但不回显白名单。 | **是（配置项）**：部署必须新增 `CDSS_API_CLIENT_ID` 与 `CDSS_API_CUSTOMER_IDS`；既定 `CDSS_API_TOKEN` 不变。原已接入客户加入白名单后请求格式无需变化；未授权客户从此前可能被接受改为 403。旧库存需按部署手册显式迁移为 v2 |
 | V2.3 | 2026-08-19 | **① 客户药品库全链路隔离。** 临床、审方、HIS、快照与库存接口新增必填请求头 `x-cdss-customer-id`；浏览器登录请求体新增 `customerId` 并签发客户上下文 Cookie。客户标识进入病例签名、快照 AAD、限流、库存文件和审方租户头；不同客户的饮片、中成药和西药库存独立，M04 只保留当前客户有货候选。**② M03 补齐中医辨病与辨证的循证依据**：`overview.tcmDiseaseReferences[]`、`overview.tcmSyndromeReferences[]`；西医鉴别项新增可选 `guidelineReferences[]`，参考文献栏只显示标准引用，不混入模型思考过程。**③ 中成药用法按说明书展示**：新增 `administrationTiming`，`route`、`singleDose`、`frequency`、`course` 均只在说明书原文存在时输出；删除“本候选不形成疗程医嘱”占位文案 | **是（一处）**：临床、审方、HIS、快照和库存调用必须提供客户标识。未适配调用返回 `400 customer_id_required`；同一病例跨客户调用返回 `409 customer_context_mismatch`。新增诊断与用药字段均向后兼容 |
 | V2.2 | 2026-08-13 | **① 流派功能补齐「报告说明」与「排序影响」两层。** 此前 `lineageAdaptation` 只存在于 JSON 出参，报告/页面/HIS 一处都不渲染。现在：选择了具体流派（非「不限定」）且模型产出非空适配内容时，可见正文与医生页面新增 **「流派适配记录」** 段（诊疗思路、本例适用性、适配说明、受影响决策、安全边界——安全让位声明恒随段落出现）；HIS 出参 `aiMedicalRecord` 新增**可选**字段 `tcmLineageAdaptation`（`label` / `applicability`（适用/部分适用/不适用）/ `reason` / `influencedDecisions[]{aspect,detail}` / `safetyBoundary`）。同时上线流派对候选方**展示顺序**的有限影响机制：方剂出处书名→流派映射逐条带中医师终审状态，**未签字条目零影响（当前全部待签，故本版行为无任何变化）**；签字后也只在已通过全部安全与证据准入的候选池内做封顶加分的展示排序，不参与准入、不参与系统自动锁方、不改变剂量/禁忌/审方任何校验。**② M03 复合证候两处判据修复（线上心悸案实测）。** 「心阳不振，水气凌心」这类**并列国标证候**此前被误判为「病名+病机」缺陷形态（病名前缀包含式匹配被「水气」截胡），导致修复轮空转、方名锁定被搁置；已修。主证候可确定性归一时，方名撤销原因不再误写为「等术语确认」（`semantic_mapping_pending_clinician_confirmation`），改为如实的 `governed_syndrome_relation_unverified`——医生不再被引导等待一个不改变结果的确认 | **否。** 新增字段均为可选（缺省即不下发），V1/V2 契约不破坏；`deferredFormulaSelection.reason` 枚举集合未变，仅取值分布更准确。集成方若想使用流派适配内容，按可选字段读取即可 |
 | V2.1 | 2026-08-12 | **西医诊断依据的分类与事实来源更正（呈现层，出参字段未变）。** 线上实测发现三处错分：**①** 既往史 / 用药史 / 过敏史此前被并入「症状依据」，于是「高血压病史5年，规律服药」「氨氯地平 5mg 每日一次」被印成症状。现新增第五个分栏 **「病史依据」**，这三个字段的落点即结论、模型标注不得覆盖（现病史里记录的体征仍由模型判定，不变）。**②** 事实来源标注把 HIS 直传字段一律标成「（来源：现病史）」——接地正文里 HIS 字段是不带标题的裸行，解析时被兜底猜成现病史。现区分「读出来的」与「猜出来的」归属，前者优先，并改为直接读受治理字段路径。**③** 主诉与现病史描述同一临床事件时合并，保留信息更全的那条 | **否。** `westernDiagnosis.primary.supportingFacts` 字段与取值不变，仍是未分类的事实数组，HIS 出参亦不变。仅**医生页面与可见正文**的分栏与来源标注发生变化：新增「病史依据」一栏（无内容时不出现），来源标注可能从「现病史」变为「既往史 / 当前用药 / 生命体征」等更准确的字段名 |

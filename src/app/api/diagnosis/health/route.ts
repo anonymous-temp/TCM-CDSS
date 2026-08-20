@@ -21,6 +21,7 @@ import {
 import { getSyndromeHypothesisRerankStatus } from "@/lib/syndrome-hypothesis-rerank.server";
 import { healthDiagnosticsRequested, publicHealthView } from "@/lib/health-public-view";
 import { parseCustomerId } from "@/lib/customer-id";
+import { getCustomerAuthorizationStatus } from "@/lib/customer-authorization";
 
 const STRICT_HEALTH_RATE_LIMIT_STORE = Symbol.for("tcm-cdss.strict-health-rate-limit.v1");
 const STRICT_HEALTH_RATE_LIMIT_WINDOW_MS = 10 * 60_000;
@@ -102,6 +103,7 @@ export async function GET(req: Request) {
   const clinicalFactsReady = clinicalFactsEnabled && clinicalFactsSigningConfigured &&
     clinicalFactsModelPlanReady && clinicalFactsModelsAvailable;
   const rateLimitIdentityReady = cdssRateLimitIdentityConfigured();
+  const customerAuthorization = getCustomerAuthorizationStatus();
   const defaultCustomerConfigured = Boolean(parseCustomerId(process.env.CDSS_DEFAULT_CUSTOMER_ID));
   const controlledTerminology = getControlledTerminologyNormalizationStatus();
   const controlledTerminologyReady = controlledTerminology.enabled &&
@@ -153,6 +155,7 @@ export async function GET(req: Request) {
     ...(strictProbe && !clinicalFactsModelsAvailable ? ["clinical_facts_model_chain_unavailable"] : []),
     ...(!tcmTreatmentProjects.configurationValid ? [`tcm_treatment_capabilities_${tcmTreatmentProjects.reason || "invalid"}`] : []),
     ...(!rateLimitIdentityReady ? ["trusted_proxy_rate_limit_identity_not_configured"] : []),
+    ...(!customerAuthorization.ready ? ["customer_authorization_not_configured"] : []),
     ...(!controlledTerminology.enabled ? ["controlled_terminology_normalization_disabled"] : []),
     ...(!controlledTerminology.model.configured ? ["controlled_terminology_model_not_configured"] : []),
     ...(strictProbe && controlledTerminology.enabled && !controlledTerminologyProbe?.ok
@@ -163,7 +166,7 @@ export async function GET(req: Request) {
   ];
   // RxAudit remains advisory for an individual clinical decision, but a release advertised as the
   // complete M01-M05 product is not healthy when its configured audit sidecar is unreachable.
-  const strictReady = providers.primaryModel.configured && clinicalReviewConfigured && clinicalReviewAvailable && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && controlledTerminologyReady && syndromeHypothesisRerankReady;
+  const strictReady = providers.primaryModel.configured && clinicalReviewConfigured && clinicalReviewAvailable && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && customerAuthorization.ready && controlledTerminologyReady && syndromeHypothesisRerankReady;
 
   const body = {
     module: "tcm-cdss",
@@ -241,6 +244,7 @@ export async function GET(req: Request) {
       modelBudgetScope: "authenticated_session_or_api_tenant_and_customer",
       ready: rateLimitIdentityReady,
     },
+    customerAuthorization,
     customerContext: {
       defaultCustomerConfigured,
     },
