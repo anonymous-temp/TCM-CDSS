@@ -133,7 +133,7 @@ const PRECAUTION_PLACEHOLDER = /^(?:注意事项|风险提示|注意|提示|其�
 // harmless/expected, or direct a patient-level dose change. Those claims belong to the retrieved
 // label and RxAudit channels; accepting them here would turn unbound model prose into medication
 // instructions. Drop the optional row and keep the audited core prescription.
-const UNBOUND_MEDICATION_INSTRUCTION = /(?:与[^。；]{1,40}(?:同服|合用)[^。；]{0,20}(?:间隔|错开)[^。；]{0,12}\d+(?:\.\d+)?\s*(?:小时|分钟)|(?:间隔|错开)[^。；]{0,12}\d+(?:\.\d+)?\s*(?:小时|分钟)[^。；]{0,40}(?:同服|合用)|(?:属|属于|系)[^。；]{0,20}(?:正常|调整|适应)(?:反应|现象)|(?:应|可|建议)?(?:自行)?(?:减量|减药|暂停(?:用药|服药)|停药)(?:或|并|后|，|。|；|$))/;
+const UNBOUND_MEDICATION_INSTRUCTION = /(?:(?:间隔|错开)[^。；]{0,16}(?:至少|约)?\s*\d+(?:\.\d+)?(?:\s*[～~—-]\s*\d+(?:\.\d+)?)?\s*(?:小时|分钟)|(?:属|属于|系)[^。；]{0,20}(?:正常|调整|适应)(?:反应|现象)|(?:应|可|建议)?(?:自行)?(?:减量|减药|暂停(?:用药|服药)|停药)(?:或|并|后|，|。|；|$))/;
 
 function normalizedPrecautionKey(value: string): string {
   return value.normalize("NFKC").replace(/[\s，,。；;：:、（）()【】\[\]“”"']+/g, "");
