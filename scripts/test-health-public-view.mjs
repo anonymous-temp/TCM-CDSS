@@ -11,6 +11,7 @@
 // 健康体的形状会随依赖增减而漂移，写死路径等于每加一个依赖就要记得回来补一行，漏补是静默的。
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createJiti } from "jiti";
 
 const {
   HEALTH_PUBLIC_REQUIRED_PATHS,
@@ -22,6 +23,11 @@ const { getPrimaryTextModelConfig, getPublicTextModelStatus } = await import("..
 const { getClinicalFactsModelPlan } = await import("../src/lib/clinical-facts-runtime.ts");
 const { getCdssStageTelemetrySnapshot } = await import("../src/lib/cdss-stage-telemetry.ts");
 const { getTcmKnowledgeStatus } = await import("../src/lib/tcm-knowledge.ts");
+const jiti = createJiti(import.meta.url, { alias: {
+  "@": `${process.cwd()}/src`,
+  "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+} });
+const { getCustomerAuthorizationStatus } = await jiti.import("../src/lib/customer-authorization.ts");
 
 const failures = [];
 const check = (name, fn) => {
@@ -37,6 +43,35 @@ check("strict 健康探针必须有认证身份限流，不能无限烧六路上
   assert.match(source, /getCdssAuthenticatedRateLimitKey/);
   assert.match(source, /strict_health_rate_limited/);
   assert.match(source, /"Retry-After"/);
+});
+
+check("strict 健康闸门必须包含不泄露白名单的客户授权状态", () => {
+  const originalClientId = process.env.CDSS_API_CLIENT_ID;
+  const originalCustomerIds = process.env.CDSS_API_CUSTOMER_IDS;
+  const originalDefaultCustomerId = process.env.CDSS_DEFAULT_CUSTOMER_ID;
+  try {
+    process.env.CDSS_API_CLIENT_ID = "his-integrator";
+    process.env.CDSS_API_CUSTOMER_IDS = "hospital-A,hospital-B";
+    delete process.env.CDSS_DEFAULT_CUSTOMER_ID;
+    const status = getCustomerAuthorizationStatus();
+    assert.deepEqual(Object.keys(status).sort(), [
+      "clientConfigured", "configured", "customerCount", "ready", "valid",
+    ]);
+    assert.equal(status.ready, true);
+    assert.equal(JSON.stringify(status).includes("hospital-A"), false, "健康状态不得返回授权客户列表");
+
+    const source = readFileSync(new URL("../src/app/api/diagnosis/health/route.ts", import.meta.url), "utf8");
+    assert.match(source, /getCustomerAuthorizationStatus/);
+    assert.match(source, /customer_authorization_not_configured/);
+    assert.match(source, /strictReady[\s\S]*customerAuthorization\.ready/);
+  } finally {
+    if (originalClientId === undefined) delete process.env.CDSS_API_CLIENT_ID;
+    else process.env.CDSS_API_CLIENT_ID = originalClientId;
+    if (originalCustomerIds === undefined) delete process.env.CDSS_API_CUSTOMER_IDS;
+    else process.env.CDSS_API_CUSTOMER_IDS = originalCustomerIds;
+    if (originalDefaultCustomerId === undefined) delete process.env.CDSS_DEFAULT_CUSTOMER_ID;
+    else process.env.CDSS_DEFAULT_CUSTOMER_ID = originalDefaultCustomerId;
+  }
 });
 
 // diagnosis-api.ts 用了 `@/lib/…` 别名，jiti 无别名解析、导不进来（全仓只有它这么写）。
