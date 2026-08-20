@@ -82,6 +82,21 @@ function isApiRequest(req: NextRequest): boolean {
   return pathWithoutBasePath(req.nextUrl.pathname).startsWith("/api/");
 }
 
+function withApiIsolationHeaders(req: NextRequest, response: NextResponse): NextResponse {
+  if (!isApiRequest(req)) return response;
+  response.headers.set("Cache-Control", "private, no-store");
+  const vary = new Map<string, string>();
+  for (const name of (response.headers.get("Vary") || "").split(",")) {
+    const normalized = name.trim();
+    if (normalized) vary.set(normalized.toLowerCase(), normalized);
+  }
+  for (const name of ["x-cdss-customer-id", "x-cdss-api-token", "authorization"]) {
+    vary.set(name, name);
+  }
+  response.headers.set("Vary", [...vary.values()].join(", "));
+  return response;
+}
+
 function isAuthAccessRequest(req: NextRequest): boolean {
   return pathWithoutBasePath(req.nextUrl.pathname) === "/api/auth/access";
 }
@@ -215,17 +230,18 @@ function recordApiAuthFailure(key: string, now: number): ApiAuthAttemptBucket {
 }
 
 export async function proxy(req: NextRequest) {
-  if (isAuthAccessRequest(req)) return NextResponse.next();
-  if (!isCdssAuthRequired()) return NextResponse.next();
+  const finalizeApi = (response: NextResponse) => withApiIsolationHeaders(req, response);
+  if (isAuthAccessRequest(req)) return finalizeApi(NextResponse.next());
+  if (!isCdssAuthRequired()) return finalizeApi(NextResponse.next());
   const token = getCdssAccessToken();
   if (token.length < 16) {
     if (!isApiRequest(req)) {
       return NextResponse.redirect(appUrl("/login?error=not_configured", req));
     }
-    return NextResponse.json(
+    return finalizeApi(NextResponse.json(
       { error: "CDSS_API_TOKEN must be configured with at least 16 characters before exposing API endpoints" },
       { status: 503 },
-    );
+    ));
   }
 
   const tokenAuthenticated = sameSecret(suppliedToken(req), token);
@@ -258,28 +274,28 @@ export async function proxy(req: NextRequest) {
     const now = Date.now();
     const bucket = getApiAuthAttemptBucket(key, now);
     if (bucket.lockedUntil && bucket.lockedUntil > now) {
-      return attachRateLimitClientCookie(apiAuthRateLimitResponse(bucket, now), identity.cookieToSet, req);
+      return finalizeApi(attachRateLimitClientCookie(apiAuthRateLimitResponse(bucket, now), identity.cookieToSet, req));
     }
     const nextBucket = recordApiAuthFailure(key, now);
     if (nextBucket.lockedUntil && nextBucket.lockedUntil > now) {
-      return attachRateLimitClientCookie(apiAuthRateLimitResponse(nextBucket, now), identity.cookieToSet, req);
+      return finalizeApi(attachRateLimitClientCookie(apiAuthRateLimitResponse(nextBucket, now), identity.cookieToSet, req));
     }
-    return attachRateLimitClientCookie(
+    return finalizeApi(attachRateLimitClientCookie(
       NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
       identity.cookieToSet,
       req,
-    );
+    ));
   }
 
   if (!tokenAuthenticated && uiAuthenticated) {
     const csrfResponse = apiCookieCsrfResponse(req);
-    if (csrfResponse) return csrfResponse;
+    if (csrfResponse) return finalizeApi(csrfResponse);
   }
 
   const modelLimited = await modelRateLimitResponse(req);
-  if (modelLimited) return modelLimited;
+  if (modelLimited) return finalizeApi(modelLimited);
 
-  return NextResponse.next();
+  return finalizeApi(NextResponse.next());
 }
 
 export const config = {

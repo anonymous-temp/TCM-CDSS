@@ -1,6 +1,7 @@
 import { readJsonBodyWithLimit } from "@/lib/http-guard";
 import { drugInventorySnapshot, importDrugInventory } from "@/lib/drug-inventory.server";
 import { requireCustomerContext } from "@/lib/customer-context";
+import { CUSTOMER_ID_HEADER } from "@/lib/customer-id";
 
 /**
  * 院内药品库存导入（甲方 2026-08-05「药品同步接口」入站方向）。
@@ -16,6 +17,16 @@ import { requireCustomerContext } from "@/lib/customer-context";
 // 注意「分片」不等于「分批各自落盘」：本接口是整批替换，分片只写暂存，集齐才提交一次
 // （甲方 2026-08-10 ⑫④：旧 413 文案 split into batches 会让第一批被第二批整体覆盖）。
 const MAX_BODY_BYTES = 8_000_000;
+
+function customerJsonResponse(
+  customerId: string,
+  body: unknown,
+  init?: ResponseInit,
+): Response {
+  const headers = new Headers(init?.headers);
+  headers.set(CUSTOMER_ID_HEADER, customerId);
+  return Response.json(body, { ...init, headers });
+}
 
 export async function POST(req: Request) {
   const customer = await requireCustomerContext(req);
@@ -33,13 +44,13 @@ export async function POST(req: Request) {
   if ("pending" in result) {
     // 202：分片已收下但还没到齐。线上库存此刻**未被改动**，这一点必须显式回给甲方，
     // 否则「收到 200」会被理解成「这一批已经生效」，正是旧文案造成的误解。
-    return Response.json({
+    return customerJsonResponse(customer.context.customerId, {
       ...result.pending,
       note: `已暂存第 ${result.pending.receivedParts.join("、")} 片，仍缺第 ${result.pending.missingParts.join("、")} 片。`
         + " 集齐全部分片后系统才会做一次整批替换；在此之前线上库存保持上一版本不变。",
     }, { status: 202 });
   }
-  return Response.json({
+  return customerJsonResponse(customer.context.customerId, {
     ...result.snapshot,
     // 归一不到与歧义的药名如实回报，供甲方补映射。静默吞掉会让这些药永远处于「缺货」，
     // 而甲方无从知道是自己没推还是我们没认出来。
@@ -55,11 +66,11 @@ export async function GET(req: Request) {
   if (!customer.ok) return customer.response;
   const snapshot = await drugInventorySnapshot(customer.context.customerId);
   if (!snapshot) {
-    return Response.json({
+    return customerJsonResponse(customer.context.customerId, {
       inventoryLoaded: false,
       // 未导入不是错误状态：可得性不是安全控制，缺库存数据时链路行为与导入前完全一致。
       note: "尚未导入院内库存。当前所有药味的可得性标为 unknown，开方链路行为与未接库存时一致。",
     });
   }
-  return Response.json({ inventoryLoaded: true, ...snapshot });
+  return customerJsonResponse(customer.context.customerId, { inventoryLoaded: true, ...snapshot });
 }
