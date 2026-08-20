@@ -5,6 +5,8 @@ import { createJiti } from "jiti";
 process.env.NODE_ENV = "production";
 process.env.CDSS_REQUIRE_API_AUTH = "true";
 process.env.CASE_SNAPSHOT_ENCRYPTION_KEY = "snapshot-test-encryption-key-not-for-production";
+process.env.CDSS_API_CLIENT_ID = "snapshot-test-client";
+process.env.CDSS_API_CUSTOMER_IDS = "snapshot-customer-a,snapshot-customer-b";
 
 const accessTokenA = "snapshot-test-access-token-a-not-for-production";
 const accessTokenB = "snapshot-test-access-token-b-not-for-production";
