@@ -49,4 +49,11 @@ const cliSecond = spawnSync(process.execPath, cliArgs, { cwd: process.cwd(), enc
 assert.notEqual(cliSecond.status, 0, "重复迁移不得覆盖已存在的客户目标文件");
 assert.match(cliSecond.stderr, /target already exists/);
 
+const migrationSource = readFileSync(
+  join(process.cwd(), "scripts/migrate-drug-inventory-to-customer.mjs"),
+  "utf8",
+);
+assert.match(migrationSource, /randomUUID\(\)/, "迁移临时文件名必须抗并发碰撞");
+assert.doesNotMatch(migrationSource, /process\.pid/, "迁移不得只用进程号命名临时文件");
+
 console.log(JSON.stringify({ suite: "inventory-customer-migration", failures: 0 }));

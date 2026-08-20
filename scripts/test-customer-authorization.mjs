@@ -106,5 +106,10 @@ assert.deepEqual(authorizeCustomerId("hospital-A", false), {
   clientId: "local-development",
   customerId: "hospital-A",
 });
+assert.deepEqual(authorizeCustomerId("../../other", false), {
+  ok: false,
+  status: 403,
+  code: "customer_forbidden",
+});
 
 console.log(JSON.stringify({ suite: "customer-authorization", configurations: 12, failures: 0 }));
