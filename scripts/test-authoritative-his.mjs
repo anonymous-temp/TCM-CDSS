@@ -83,6 +83,12 @@ const schemeWithStructuredHerb = buildHisAiSchemePayload({
   medicationHistory: "否认当前用药",
   tongue: "舌淡苔薄白",
   pulse: "脉细弱",
+  vitals: {
+    bloodPressure: "118/72mmHg",
+    pulse: "76次/分",
+    temperature: "36.6℃",
+    respiration: "18次/分",
+  },
   questionRounds: 1,
   reasoningPrescribe: {
     schemaVersion: "tcm-cdss-reasoning-v2",
