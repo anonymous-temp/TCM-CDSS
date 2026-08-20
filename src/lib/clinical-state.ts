@@ -46,7 +46,7 @@ const CONCRETE_TONGUE_PATTERN = new RegExp([
   "苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)",
 ].join("|"));
 const CONCRETE_PULSE_PATTERN = new RegExp(
-  `(?:^|[，,。；;：:\\s])(?:(?:脉象|脉来|脉)(?:为|见|呈|偏)?\\s*)?(?:${PULSE_QUALITY_PATTERN_SOURCE})(?:(?:而|兼|且|、|\\/|\\s)*(?:${PULSE_QUALITY_PATTERN_SOURCE})){0,3}(?:脉)?` +
+  `(?:^|[，,。；;：:\\s])(?:(?:脉象|脉来|脉)(?:为|见|呈|偏)?\\s*)?(?:${PULSE_QUALITY_PATTERN_SOURCE})(?:脉)?(?:(?:而|兼|且|和|与|、|\\/|\\s)*(?:${PULSE_QUALITY_PATTERN_SOURCE})(?:脉)?){0,3}` +
   // 右边界要求整段必须在标点或结尾处收住。少了这一组，「脉细弦无力」这种最常见的写法里，
   // 多写出来的「无力」反而让整个脉象判为**未记录**——信息越全，接地越差，方向是反的。
   // 实测后果：医生录入「脉细弦无力」，输出里回给他「脉象待核实」，辨证依据写成
