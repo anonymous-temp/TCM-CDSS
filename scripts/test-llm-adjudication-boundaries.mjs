@@ -21,6 +21,7 @@
  *  · 模型不可用/超时/解析失败一律回落到今天的确定性行为。
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
@@ -38,6 +39,20 @@ const { affirmativeNegationCandidates, colloquialNegationCandidates } =
   await jiti.import("../src/lib/polarity-negation-assist.server.ts");
 const { affirmedClinicalText } = await jiti.import("../src/lib/clinical-polarity.ts");
 const { positiveCaseFacts } = await jiti.import("../src/lib/tcm-formula-indications.ts");
+
+// M05 的患者级撰写必须只有一个入口，三个出口都消费它；安全 verdict 仍由各路由随后调用
+// buildDeterministicRiskFollowup(Payload) 合并，不能进入模型作者的返回合同。
+{
+  const authoringSource = readFileSync(path.join(repoRoot, "src/lib/m05-followup-authoring.server.ts"), "utf8");
+  assert.match(authoringSource, /export async function authorFollowupForCase\(/, "缺少三出口共享的 M05 患者级撰写入口");
+  assert.doesNotMatch(authoringSource.slice(authoringSource.indexOf("export type AuthoredFollowupContent"), authoringSource.indexOf("};", authoringSource.indexOf("export type AuthoredFollowupContent")) + 2), /auditResult|highestRiskLevel|safetyLocked|riskVerdict/, "模型撰写合同不得包含确定性风险 verdict");
+  for (const route of ["assess", "post-prescription-risk", "his-scheme"]) {
+    const source = readFileSync(path.join(repoRoot, `src/app/api/diagnosis/${route}/route.ts`), "utf8");
+    assert.match(source, /authorFollowupForCase/, `${route} 未消费共享 M05 患者级撰写入口`);
+  }
+  const hisSource = readFileSync(path.join(repoRoot, "src/app/api/diagnosis/his-scheme/route.ts"), "utf8");
+  assert.ok((hisSource.match(/authorFollowupForCase\(/g) || []).length >= 2, "HIS 的审方成功与不可用分支都必须生成患者级随访");
+}
 const { affirmativeNegationFormsIn, affirmativeNegationFormCount } =
   await jiti.import("../src/lib/clinical-vocabulary.ts");
 const { applyDeterministicHerbFunctions } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");

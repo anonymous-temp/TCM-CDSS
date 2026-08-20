@@ -354,6 +354,21 @@ check("I7 食疗净化必须覆盖服务端可见正文，不只是客户端与 
   assert.ok(/不要把食疗替代诊疗或药物/.test(visible), "净化后必须给出安全兜底表述");
 });
 
+check("M05 患者级撰写结果进入 HIS followup 条目而不是固定模板", () => {
+  const patientLevelFollowup = "重点复评头痛发作频次、起身时头晕与面色恢复情况，并核对舌淡苔薄白是否改善。";
+  const authored = buildScheme({
+    riskAssessment: [
+      "## 处方安全总评",
+      "**最高提示强度**：低",
+      "",
+      "## 随访管理方案",
+      patientLevelFollowup,
+    ].join("\n"),
+  });
+  assert.ok(authored.followup[0].content.includes(patientLevelFollowup), authored.followup[0].content);
+  assert.ok(authored.riskTips[0].content.includes("最高提示强度"), "确定性风险结论应留在 riskTips，不得混入模型作者合同");
+});
+
 // —— 甲方 I4 + M5.3：剂数与煎服法细节 ——
 check("I4 煎服法细节结构化，且不与 regimen 合同字段混淆", () => {
   const detail = scheme.prescriptions.decoctionDetail;
