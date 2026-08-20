@@ -77,10 +77,18 @@ export function authorizeCustomerId(
   customerId: string,
   required: boolean,
 ): CustomerAuthorizationDecision {
+  const normalizedCustomerId = parseCustomerId(customerId);
+  if (!normalizedCustomerId || normalizedCustomerId !== customerId) {
+    return { ok: false, status: 403, code: "customer_forbidden" };
+  }
   const configuration = parseCustomerAuthorization();
   if (!configuration.status.ready) {
     if (!required && configuration.entirelyUnconfigured) {
-      return { ok: true, clientId: LOCAL_DEVELOPMENT_CLIENT_ID, customerId };
+      return {
+        ok: true,
+        clientId: LOCAL_DEVELOPMENT_CLIENT_ID,
+        customerId: normalizedCustomerId,
+      };
     }
     return {
       ok: false,
@@ -88,8 +96,12 @@ export function authorizeCustomerId(
       code: "customer_authorization_not_configured",
     };
   }
-  if (!configuration.allowedCustomerIds.has(customerId)) {
+  if (!configuration.allowedCustomerIds.has(normalizedCustomerId)) {
     return { ok: false, status: 403, code: "customer_forbidden" };
   }
-  return { ok: true, clientId: configuration.clientId, customerId };
+  return {
+    ok: true,
+    clientId: configuration.clientId,
+    customerId: normalizedCustomerId,
+  };
 }

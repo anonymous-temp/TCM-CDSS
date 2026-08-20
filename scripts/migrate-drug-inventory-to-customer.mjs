@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createJiti } from "jiti";
@@ -69,9 +69,13 @@ export async function migrateInventoryToCustomer({ source, root, customerId }) {
   }
   const backup = `${sourcePath}.pre-tenant-backup`;
   await copyFile(sourcePath, backup, constants.COPYFILE_EXCL);
-  const temporary = `${target}.${process.pid}.tmp`;
-  await writeFile(temporary, JSON.stringify(migrated), { encoding: "utf8", flag: "wx" });
-  await rename(temporary, target);
+  const temporary = `${target}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify(migrated), { encoding: "utf8", flag: "wx" });
+    await rename(temporary, target);
+  } finally {
+    await rm(temporary, { force: true });
+  }
   return { source: sourcePath, backup, target, customerHash };
 }
 
