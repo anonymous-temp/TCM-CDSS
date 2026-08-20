@@ -90,21 +90,6 @@ function isModelInvocationRequest(req: NextRequest): boolean {
   return req.method.toUpperCase() === "POST" && MODEL_API_PATHS.has(pathWithoutBasePath(req.nextUrl.pathname));
 }
 
-async function stableIdentityHash(value: string): Promise<string> {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest).slice(0, 12), (item) => item.toString(16).padStart(2, "0")).join("");
-}
-
-async function modelRateLimitIdentity(req: NextRequest, tokenAuthenticated: boolean, uiAuthenticated: boolean): Promise<string> {
-  const uiCookie = uiAuthenticated ? req.cookies.get(CDSS_UI_COOKIE)?.value || "" : "";
-  if (uiCookie) return `session:${await stableIdentityHash(uiCookie)}`;
-  if (tokenAuthenticated) return `tenant:${await stableIdentityHash(suppliedToken(req))}`;
-  // This branch is unreachable after authentication, but keeping a non-network fallback prevents a
-  // future caller from reintroducing the old shared literal "direct" bucket.
-  return getCdssAuthenticatedRateLimitKey(req);
-}
-
 function attachRateLimitClientCookie(response: NextResponse, value: string | undefined, req: NextRequest): NextResponse {
   if (!value) return response;
   response.cookies.set(CDSS_RATE_LIMIT_COOKIE, value, {
@@ -119,15 +104,13 @@ function attachRateLimitClientCookie(response: NextResponse, value: string | und
 
 async function modelRateLimitResponse(
   req: NextRequest,
-  tokenAuthenticated: boolean,
-  uiAuthenticated: boolean,
 ): Promise<NextResponse | null> {
   if (!isModelInvocationRequest(req)) return null;
   const now = Date.now();
   if (modelUsage.size > 5_000) {
     for (const [key, bucket] of modelUsage) if (bucket.resetAt <= now) modelUsage.delete(key);
   }
-  const key = await modelRateLimitIdentity(req, tokenAuthenticated, uiAuthenticated);
+  const key = await getCdssAuthenticatedRateLimitKey(req);
   const current = modelUsage.get(key);
   const bucket = !current || current.resetAt <= now
     ? { requests: 0, resetAt: now + MODEL_RATE_LIMIT_WINDOW_MS }
@@ -293,7 +276,7 @@ export async function proxy(req: NextRequest) {
     if (csrfResponse) return csrfResponse;
   }
 
-  const modelLimited = await modelRateLimitResponse(req, tokenAuthenticated, uiAuthenticated);
+  const modelLimited = await modelRateLimitResponse(req);
   if (modelLimited) return modelLimited;
 
   return NextResponse.next();
