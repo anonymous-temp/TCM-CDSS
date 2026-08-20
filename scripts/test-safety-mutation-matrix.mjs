@@ -446,6 +446,22 @@ for (const { vitals, expected } of criticalStructuredBloodPressures) {
 for (const { vitals, expected } of [
   { vitals: { systolicBP: "190", diastolicBP: "122" }, expected: "190/122" },
   { vitals: { SBP: 181, DBP: 80 }, expected: "181/80" },
+]) {
+  const state = {
+    ...semanticReadyBase,
+    vitals,
+    clinicalFacts: checkedEmptyFacts,
+  };
+  const normalizedState = normalizeCaseStateInput(state);
+  assert.ok(normalizedState, `${expected}: severe structured BP must normalize`);
+  const gate = evaluateSafetyGate(normalizedState);
+  assert.equal(gate.status, "red_flag", `${expected}: BP >=180/120 must enter the deterministic safety path`);
+  assert.equal(hasDeterministicCriticalVitalRedFlag(normalizedState), true, `${expected}: severe BP must be eligible for the deterministic fast path`);
+  assert.match(gate.redFlags.join("、"), new RegExp(expected.replace("/", "\\/")), `${expected}: red flag must retain the measured pair`);
+  cases += 1;
+}
+
+for (const { vitals, expected } of [
   { vitals: { sbp: "118mmHg", dbp: "48 mmHg" }, expected: "118/48" },
   { vitals: { systolic: 85, diastolic: 55 }, expected: "85/55" },
 ]) {
@@ -457,7 +473,7 @@ for (const { vitals, expected } of [
   const normalizedState = normalizeCaseStateInput(state);
   assert.ok(normalizedState, `${expected}: severe structured BP must normalize`);
   const gate = evaluateSafetyGate(normalizedState);
-  assert.notEqual(gate.status, "red_flag", `${expected}: a severe BP value alone is not proof of an emergency`);
+  assert.notEqual(gate.status, "red_flag", `${expected}: a noncritical BP value alone is not proof of an emergency`);
   assert.equal(hasDeterministicCriticalVitalRedFlag(normalizedState), false, `${expected}: semantic triage must assess symptom context`);
   assert.match(measuredVitalAdvisories(normalizedState).join("、"), new RegExp(expected.replace("/", "\\/")), `${expected}: urgent repeat-measurement advisory is retained`);
   cases += 1;
