@@ -14,7 +14,7 @@ import {
   runBoundedRxAudit,
 } from "@/lib/rxaudit";
 import { buildDeterministicRiskFollowup, buildForcedIncompleteRiskFollowup, derivePrescriptionPermission, deriveSafetyLocked, sanitizeCaseStateForModel, withSafetyGate } from "@/lib/diagnosis-safety";
-import { prescribeReasoningFromState } from "@/lib/diagnosis-parse";
+import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { validateHisPrescriptionForWriteBack } from "@/lib/his-prescription-validation";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { buildCdssEvidenceContext } from "@/lib/cdss-evidence-context";
@@ -28,6 +28,7 @@ import {
   projectHisSchemeForContractVersion,
   type HisSchemeContractVersion,
 } from "@/lib/his-scheme-contract-version";
+import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 
 const EVIDENCE_SCOPE_TTL_MS = 60_000;
 const evidenceScopeCache = new Map<string, { expiresAt: number; scope: ReturnType<typeof buildEvidenceScope> }>();
@@ -79,6 +80,7 @@ export async function POST(req: Request) {
   const evidenceScopePromise = evidenceScopeForCase(parsed.caseState)
     .catch(() => buildEvidenceScope(""));
   const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal));
+  const diagnoseReasoning = diagnoseReasoningFromState(caseState);
   const prescribed = prescribeReasoningFromState(caseState);
   const permission = derivePrescriptionPermission(caseState);
   // An attested "unclear" encounter scope without a doctor confirmation bound to the current
@@ -108,6 +110,7 @@ export async function POST(req: Request) {
     }, { status: validation.status });
   }
   const { candidateIndex } = validation;
+  const selectedCandidate = validation.prescribed.formula?.candidates[candidateIndex];
   const herbHash = await computePrescriptionVersionHash(validation.prescribed, candidateIndex, caseState);
   if (!herbHash) {
     return Response.json({
@@ -131,7 +134,12 @@ export async function POST(req: Request) {
     ].filter(Boolean).join("\n\n");
     const assessed = withSafetyGate({ ...caseState, riskAssessment: auditSection, safetyLocked: deriveSafetyLocked(caseState) });
     const forcedIncomplete = caseState.skipDifferentiationGate === true && (assessed.completeness.level !== "C" || assessed.safetyGate?.status !== "ready");
-    const followup = forcedIncomplete ? buildForcedIncompleteRiskFollowup(assessed) : buildDeterministicRiskFollowup(assessed);
+    const authoredFollowup = forcedIncomplete
+      ? null
+      : await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal);
+    const followup = forcedIncomplete
+      ? buildForcedIncompleteRiskFollowup(assessed)
+      : buildDeterministicRiskFollowup(assessed, authoredFollowup);
     const advisoryState = {
       ...caseState,
       safetyLocked: deriveSafetyLocked(caseState),
@@ -175,7 +183,12 @@ export async function POST(req: Request) {
   ].filter(Boolean).join("\n\n");
   const assessed = withSafetyGate({ ...caseState, riskAssessment: auditSection, safetyLocked: deriveSafetyLocked(caseState) });
   const forcedIncomplete = caseState.skipDifferentiationGate === true && (assessed.completeness.level !== "C" || assessed.safetyGate?.status !== "ready");
-  const followup = forcedIncomplete ? buildForcedIncompleteRiskFollowup(assessed) : buildDeterministicRiskFollowup(assessed);
+  const authoredFollowup = forcedIncomplete
+    ? null
+    : await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal);
+  const followup = forcedIncomplete
+    ? buildForcedIncompleteRiskFollowup(assessed)
+    : buildDeterministicRiskFollowup(assessed, authoredFollowup);
   const auditedState = {
     ...caseState,
     riskAssessment: [auditSection, followup].join("\n\n"),

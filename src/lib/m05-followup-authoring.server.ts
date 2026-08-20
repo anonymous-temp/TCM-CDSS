@@ -1,10 +1,10 @@
 import "server-only";
 
-import type { CaseState } from "./diagnosis-types";
+import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { SIX_HEALTH_FOLLOWUP_DIMENSIONS } from "./tcm-followup-dimensions";
 import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
-import { sanitizeFreeTextForModel } from "./diagnosis-safety";
+import { deriveFirstReviewTiming, hasStrongPrescriptionRisk, sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 
 /**
@@ -300,4 +300,27 @@ export async function authorFollowupClinicalContent(
     clearTimeout(timer);
     signal?.removeEventListener("abort", onParentAbort);
   }
+}
+
+/**
+ * Shared M05 patient-level authoring boundary for assess, post-prescription review and HIS.
+ * The helper only prepares clinical context. Deterministic risk verdicts remain owned by
+ * buildDeterministicRiskFollowup(Payload) in each outlet after this function returns.
+ */
+export async function authorFollowupForCase(
+  state: CaseState,
+  diagnoseReasoning: ClinicalReasoningResultV2 | null | undefined,
+  selectedCandidate: { herbs?: ReadonlyArray<{ name?: string | null }> } | null | undefined,
+  signal?: AbortSignal,
+): Promise<AuthoredFollowupContent | null> {
+  return authorFollowupClinicalContent(state, {
+    syndrome: diagnoseReasoning?.overview?.primarySyndrome,
+    pathogenesis: diagnoseReasoning?.pathogenesis?.summary,
+    therapy: [diagnoseReasoning?.therapy?.overallPrinciple, diagnoseReasoning?.therapy?.overallMethod]
+      .filter(Boolean).join("；"),
+    herbs: (selectedCandidate?.herbs || [])
+      .map((herb) => herb.name)
+      .filter((name): name is string => typeof name === "string" && Boolean(name.trim())),
+    firstReviewTiming: deriveFirstReviewTiming(state, hasStrongPrescriptionRisk(state)),
+  }, signal);
 }

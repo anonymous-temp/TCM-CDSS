@@ -1,8 +1,6 @@
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import {
   buildDeterministicRiskFollowup,
-  deriveFirstReviewTiming,
-  hasStrongPrescriptionRisk,
   deriveSafetyLocked,
   markdownNdjsonResponse,
   sanitizeUngroundedRedFlagNegations,
@@ -26,7 +24,7 @@ import {
 } from "@/lib/rxaudit";
 import { buildRxAuditStatusMarker } from "@/lib/rxaudit-status";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
-import { authorFollowupClinicalContent } from "@/lib/m05-followup-authoring.server";
+import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { editedPrescriptionIssueMessage, editedPrescriptionSemanticIssue, hasIncompleteEditedHerb } from "@/lib/prescription-revision";
@@ -129,16 +127,12 @@ export async function POST(req: Request) {
   });
   // M05 的临床内容由模型按本例证候撰写；安全总评仍是确定性的（见 buildDeterministicRiskFollowupPayload）。
   // 不可用/超时/校验不过一律返回 null，逐字回落原模板——这一步只增不减。
-  const authoredFollowup = await authorFollowupClinicalContent(assessed, {
-    syndrome: diagnoseReasoning?.overview?.primarySyndrome,
-    pathogenesis: diagnoseReasoning?.pathogenesis?.summary,
-    therapy: [diagnoseReasoning?.therapy?.overallPrinciple, diagnoseReasoning?.therapy?.overallMethod]
-      .filter(Boolean).join("；"),
-    herbs: (selectedCandidate?.herbs || []).map((herb) => herb.name).filter(Boolean),
-    // 时间轴第一条的时间点必须与正文「首次复诊时间」同源，否则表与正文各说各的。
-    // 这里把处方煎服法定出来的那个值交给模型当硬约束，服务端再校验一次。
-    firstReviewTiming: deriveFirstReviewTiming(assessed, hasStrongPrescriptionRisk(assessed)),
-  }, req.signal);
+  const authoredFollowup = await authorFollowupForCase(
+    assessed,
+    diagnoseReasoning,
+    selectedCandidate,
+    req.signal,
+  );
   const followup = buildDeterministicRiskFollowup(assessed, authoredFollowup);
   recordCdssStageTelemetry({
     stage: "assess",
