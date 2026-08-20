@@ -96,6 +96,11 @@ try {
   check("每张可见方案都有核心内容", (await treatmentSection.getByText("核心内容：", { exact: true }).count()) >= 1, treatmentText);
   check("反流工作诊断带规范 ICD 编码", /反酸/.test(reportText) && /R12/.test(reportText), reportText.slice(0, 1000));
   check("78岁女性不出现妊娠哺乳未知提示", !/妊娠状态未知|确认是否妊娠或哺乳/.test(reportText), reportText.slice(-1500));
+  check(
+    "注意事项不含无证据药物间隔、正常反应定性或自行减停药",
+    !/气机调整反应|间隔\s*2\s*小时|影响降压药吸收|(?:应|可|建议)?减量或暂停|自行(?:减量|停药)/.test(reportText),
+    reportText.slice(-2200),
+  );
 
   await screenshot(page, "03-reflux-treatment-desktop", treatmentSection);
   await screenshot(page, "04-reflux-result-desktop");
