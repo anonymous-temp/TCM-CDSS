@@ -14,7 +14,14 @@ writeFileSync(source, JSON.stringify(file));
 await assert.rejects(() => migrateInventoryToCustomer({ source, root, customerId: "bad/id" }), /invalid customer id/);
 const result = await migrateInventoryToCustomer({ source, root, customerId: "hospital-A" });
 assert.equal(existsSync(`${source}.pre-tenant-backup`), true);
-assert.deepEqual(JSON.parse(readFileSync(result.target, "utf8")), file);
+assert.deepEqual(JSON.parse(readFileSync(source, "utf8")), file, "迁移不得改写旧源文件");
+assert.deepEqual(JSON.parse(readFileSync(`${source}.pre-tenant-backup`, "utf8")), file, "备份必须逐字保留旧库存");
+const migrated = JSON.parse(readFileSync(result.target, "utf8"));
+assert.equal(migrated.schemaVersion, "tcm-cdss-drug-inventory-v2");
+assert.equal(migrated.customerId, "hospital-A");
+assert.equal(migrated.itemCount, 1);
+assert.deepEqual(migrated.items, file.items);
+assert.notEqual(migrated.inventoryVersion, file.inventoryVersion, "v2 版本必须绑定客户身份并重新计算");
 await assert.rejects(() => migrateInventoryToCustomer({ source, root, customerId: "hospital-A" }), /target already exists/);
 
 const packageJson = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
