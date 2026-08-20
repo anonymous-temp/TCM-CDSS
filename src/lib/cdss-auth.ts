@@ -1,4 +1,5 @@
 import { CUSTOMER_ID_HEADER, parseCustomerId } from "./customer-id";
+import { authorizeCustomerId } from "./customer-authorization";
 
 export const CDSS_UI_COOKIE = "tcm_cdss_ui_access";
 export const CDSS_UI_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 12;
@@ -208,11 +209,21 @@ export async function getCdssAuthenticatedRateLimitKey(req: Request): Promise<st
   const expected = getCdssAccessToken();
   const supplied = req.headers.get("x-cdss-api-token") || bearerToken(req.headers.get("authorization"));
   const customerId = parseCustomerId(req.headers.get(CUSTOMER_ID_HEADER)) || await customerIdFromCdssRequestCookie(req);
-  const customerScope = customerId ? await stableIdentityHash(customerId) : "customer-missing";
-  if (sameSecret(supplied, expected)) return `tenant:${await stableIdentityHash(supplied)}:${customerScope}`;
+  const customerAuthorization = customerId
+    ? authorizeCustomerId(customerId, isCdssAuthRequired())
+    : undefined;
+  const customerScope = customerAuthorization?.ok
+    ? await stableIdentityHash(customerAuthorization.customerId)
+    : customerId
+      ? "customer-unauthorized"
+      : "customer-missing";
+  const clientScope = customerAuthorization?.ok
+    ? await stableIdentityHash(customerAuthorization.clientId)
+    : "client-unconfigured";
+  if (sameSecret(supplied, expected)) return `tenant:${clientScope}:${customerScope}`;
   const uiCookie = requestCookie(req, CDSS_UI_COOKIE);
   if (uiCookie && await isValidCdssUiCookieValue(uiCookie, expected)) {
-    return `session:${await stableIdentityHash(uiCookie)}:${customerScope}`;
+    return `session:${await stableIdentityHash(uiCookie)}:${clientScope}:${customerScope}`;
   }
   return (await getCdssRateLimitIdentity(req)).key;
 }

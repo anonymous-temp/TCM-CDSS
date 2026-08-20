@@ -17,6 +17,7 @@ import {
 } from "@/lib/cdss-auth";
 import { readJsonBodyWithLimit } from "@/lib/http-guard";
 import { parseCustomerId } from "@/lib/customer-id";
+import { authorizeCustomerId } from "@/lib/customer-authorization";
 
 export const dynamic = "force-dynamic";
 
@@ -120,9 +121,22 @@ export async function POST(req: Request) {
       { status: 400 },
     ));
   }
+  const customerAuthorization = authorizeCustomerId(customerId, true);
+  if (!customerAuthorization.ok) {
+    return finalize(NextResponse.json(
+      {
+        ok: false,
+        error: customerAuthorization.code === "customer_forbidden"
+          ? "客户标识未获授权"
+          : "客户授权配置未就绪",
+        code: customerAuthorization.code,
+      },
+      { status: customerAuthorization.status },
+    ));
+  }
 
   loginAttempts.delete(key);
-  const response = NextResponse.json({ ok: true, customerId });
+  const response = NextResponse.json({ ok: true, customerId: customerAuthorization.customerId });
   response.cookies.set(CDSS_UI_COOKIE, await cdssUiCookieValue(expectedToken), {
     httpOnly: true,
     sameSite: "lax",
@@ -130,7 +144,7 @@ export async function POST(req: Request) {
     path: getCdssCookiePath(),
     maxAge: CDSS_UI_COOKIE_MAX_AGE_SECONDS,
   });
-  response.cookies.set(CDSS_CUSTOMER_COOKIE, await cdssCustomerCookieValue(customerId, expectedToken), {
+  response.cookies.set(CDSS_CUSTOMER_COOKIE, await cdssCustomerCookieValue(customerAuthorization.customerId, expectedToken), {
     httpOnly: true,
     sameSite: "lax",
     secure: isHttpsRequest(req),

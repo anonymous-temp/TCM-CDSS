@@ -9,7 +9,10 @@ process.env.CDSS_MODEL_RATE_LIMIT_PER_10_MIN = "10";
 process.env.CDSS_API_CLIENT_ID = "his-integrator";
 process.env.CDSS_API_CUSTOMER_IDS = "hospital-A_01,hospital-B_02";
 
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, { alias: {
+  "@": `${process.cwd()}/src`,
+  "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+} });
 const { proxy } = jiti("../src/proxy.ts");
 const {
   cdssRateLimitIdentityConfigured,
