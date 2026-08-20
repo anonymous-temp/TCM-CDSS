@@ -216,6 +216,7 @@
     "test:drug-inventory-concurrency": "jiti scripts/test-drug-inventory-concurrency.mjs",
     "test:customer-medicine-candidates": "jiti scripts/test-customer-medicine-candidates.mjs",
     "test:customer-route-propagation": "node scripts/test-customer-route-propagation.mjs",
+    "test:api-tenant-response-headers": "jiti scripts/test-api-tenant-response-headers.mjs",
     "test:inventory-customer-migration": "node scripts/test-inventory-customer-migration.mjs",
     "migrate:drug-inventory-customer": "node scripts/migrate-drug-inventory-to-customer.mjs",
     "test:patient-relevant-medication-risk": "jiti scripts/test-patient-relevant-medication-risk.mjs",

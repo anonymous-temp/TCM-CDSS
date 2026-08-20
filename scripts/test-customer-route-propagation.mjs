@@ -1,20 +1,29 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
+import { createJiti } from "jiti";
 
-const customerBoundRoutes = [
-  "src/app/api/diagnosis/collect/route.ts",
-  "src/app/api/diagnosis/question/route.ts",
-  "src/app/api/diagnosis/question/interpret/route.ts",
-  "src/app/api/diagnosis/diagnose/route.ts",
-  "src/app/api/diagnosis/prescribe/route.ts",
-  "src/app/api/diagnosis/assess/route.ts",
-  "src/app/api/diagnosis/post-prescription-risk/route.ts",
-  "src/app/api/diagnosis/red-flags/route.ts",
-  "src/app/api/diagnosis/his-scheme/route.ts",
-  "src/app/api/diagnosis/emergency-clearance/route.ts",
-  "src/app/api/diagnosis/terminology/confirm/route.ts",
-  "src/app/api/diagnosis/snapshot/route.ts",
-];
+const jiti = createJiti(import.meta.url);
+const { GLOBAL_API_ROUTES, CUSTOMER_BOUND_API_ROUTES } = await jiti.import("../src/lib/api-route-classification.ts");
+
+function routeFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return routeFiles(path);
+    return entry.name === "route.ts" ? [relative(process.cwd(), path)] : [];
+  });
+}
+
+const globalRoutes = [...GLOBAL_API_ROUTES];
+const customerBoundRoutes = [...CUSTOMER_BOUND_API_ROUTES];
+const overlap = globalRoutes.filter((file) => customerBoundRoutes.includes(file));
+assert.deepEqual(overlap, [], "API 路由不得同时被归类为全局与客户绑定");
+assert.deepEqual(
+  [...new Set([...globalRoutes, ...customerBoundRoutes])].sort(),
+  routeFiles(join(process.cwd(), "src/app/api")).sort(),
+  "新增 API 路由必须显式归入全局或客户绑定清单",
+);
+
 for (const file of customerBoundRoutes) {
   const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
   assert.match(source, /requireCustomerContext|readCustomerBoundCaseStateRequest/, `${file} 未绑定客户上下文`);
@@ -24,4 +33,9 @@ const requestSource = readFileSync(new URL("../src/lib/diagnosis-request.ts", im
 assert.match(requestSource, /export async function readCustomerBoundCaseStateRequest/);
 assert.match(requestSource, /caseState\.customerId\s*=\s*customer\.context\.customerId/);
 
-console.log(JSON.stringify({ suite: "customer-route-propagation", routes: customerBoundRoutes.length, failures: 0 }));
+console.log(JSON.stringify({
+  suite: "customer-route-propagation",
+  routes: customerBoundRoutes.length,
+  globalRoutes: globalRoutes.length,
+  failures: 0,
+}));
