@@ -1063,7 +1063,7 @@ console.log(JSON.stringify({ cases, failures: 0 }));
 
 // ─── 共享否定枚举作用域 + 语义急症升级 + 产科血压阈值(甲方生产实测三类) ────────────
 {
-  const { withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const { currentVitalMeasurements, withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
   const mk = (raw, vitals = {}, facts) => withSafetyGate({
     id: "cls-probe", phase: "collect", patient: { sex: "女", age: "45" }, chiefComplaint: "胃胀2周",
     hisRecord: { source: "manual", encounterId: "cls", rawText: raw, fields: { zhushu: "胃胀2周" } },
@@ -1099,6 +1099,8 @@ console.log(JSON.stringify({ cases, failures: 0 }));
   assert.equal(generalCritical?.status, "red_flag", "非妊娠 185/118 必须触发通用重度高血压红旗");
   const repeatedCritical = mk("先测血压120/80mmHg，复测185/118mmHg").safetyGate;
   assert.ok((repeatedCritical?.redFlags || []).some((flag) => /185\/118/.test(flag)), "复测重度高血压不得被首个正常值遮蔽");
+  const repeatedMeasurements = currentVitalMeasurements(mk("先测血压120/80mmHg，复测185/118mmHg"));
+  assert.deepEqual(repeatedMeasurements.bloodPressure, { systolic: 185, diastolic: 118 }, "生命体征投影本身必须选择后续异常值，不只是在红旗文案里碰巧命中");
   const respiratoryDepression = mk("嗜睡，呼吸8次/分", { R: "8次/分" }).safetyGate;
   assert.ok((respiratoryDepression?.redFlags || []).some((flag) => /呼吸 8次\/分异常/.test(flag)), "R=8 必须触发呼吸抑制红旗");
   // 类3: 已复核语义急症必须升级顶层门禁(状态一致性); 未复核保持展示级。

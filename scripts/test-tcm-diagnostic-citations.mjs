@@ -98,6 +98,14 @@ const unrelatedParsed = JSON.parse(applyGovernedTcmDiagnosticCitations(unrelated
   .match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "{}");
 assert.deepEqual(unrelatedParsed.overview.tcmDiseaseReferences, [], "不相关指南不得替扩展病名背书");
 
+const finalScopeRejectsFabricatedExtension = JSON.parse(buildEvidenceOutputTransform("")(extensionContent)
+  .match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "{}");
+assert.deepEqual(
+  finalScopeRejectsFabricatedExtension.overview.tcmDiseaseReferences,
+  [],
+  "即使绕过早期投影，终稿证据 scope 仍必须清除模型自撰的中医辨病引用",
+);
+
 const governedExtensionEvidence = [
   "- [EVID-GUIDE-901] 嗳气中医诊疗专家共识（中华中医药学会脾胃病分会，2024）：中医病名与诊断相关内容。 URL:https://example.test/evid-guide-901",
 ].join("\n");

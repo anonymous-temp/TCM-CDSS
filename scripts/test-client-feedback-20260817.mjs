@@ -99,6 +99,10 @@ for (const phrase of [
     ...out.pathogenesis.chain.map((item) => item.pathogenesis),
   ];
   assert.ok(clinicalMechanisms.every((value) => !/病历已记录/.test(value)), JSON.stringify(clinicalMechanisms));
+  assert.match(out.overview.overallPathogenesis, /风寒外袭.*卫阳被遏.*肺气失宣/s,
+    "清理‘病历已记录’状态词时不得吞掉同句逗号后的病机演变");
+  assert.equal(out.therapy.overallMethod, "辛温解表，宣肺散寒",
+    "事实状态清理不得改写同一 sentinel 内的治法文本");
   assert.doesNotMatch(out.therapy.overallPrinciple, /^(?:正治法?|治疗本病)$/u, "治则不得只给空泛类别");
 }
 
