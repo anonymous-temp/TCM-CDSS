@@ -435,7 +435,9 @@ assert.ok(INJECTION_BASE, "缺少注入用基线 fixture");
       treatment("moxibustion", {
         projectName: "灸法",
         suggestedSitesOrPoints: ["中脘", "足三里"],
-        scheduleSuggestion: "每周3次，连续2周后复评。",
+        scheduleSuggestion: "每日1次，每次30分钟。",
+        requiredChecks: ["感觉障碍", "糖尿病足", "皮损和烫伤风险"],
+        operatorRequirement: "由受训人员操作",
       }),
     ],
   };
@@ -466,14 +468,15 @@ assert.ok(INJECTION_BASE, "缺少注入用基线 fixture");
     for (const expected of [
       "食疗与饮食", "少量多餐", "山药小米粥",
       "耳穴压豆", "脾", "胃", "神门", "交感", "每日按压3-5次",
-      "灸法", "中脘", "足三里", "每周3次",
+      "灸法", "中脘", "足三里", "每日1次", "每次30分钟",
+      "注意事项", "感觉障碍", "糖尿病足", "皮损和烫伤风险", "实施要求", "由受训人员操作",
     ]) {
       assert.ok(treatmentText.includes(expected), `医生端方案缺少具体内容「${expected}」：${treatmentText}`);
     }
     assert.ok(!treatmentText.includes("气功导引疗法"), "只有评估说明的项目必须整卡隐藏");
   });
   check("J/医生端中医非药物方案无后台治理话术", () => {
-    const forbidden = /病种模板|未按证型加减|仅项目评估|标准项目方案|政府发布方案|国家标准|规范|现场医师|来源|资质|安全边界|烫伤风险|待终审|不形成操作计划/;
+    const forbidden = /病种模板|未按证型加减|仅项目评估|标准项目方案|政府发布方案|国家标准|规范|现场医师|来源|安全边界|待终审|不形成操作计划/;
     assert.doesNotMatch(treatmentText, forbidden, treatmentText);
   });
   check("J/服务端 Markdown 与页面共用中医非药物方案投影", () => {
@@ -482,12 +485,13 @@ assert.ok(INJECTION_BASE, "缺少注入用基线 fixture");
     for (const expected of [
       "食疗与饮食", "少量多餐", "山药小米粥",
       "耳穴压豆", "脾", "胃", "神门", "交感", "每日按压3-5次",
-      "灸法", "中脘", "足三里", "每周3次",
+      "灸法", "中脘", "足三里", "每日1次", "每次30分钟",
+      "注意事项", "感觉障碍", "糖尿病足", "皮损和烫伤风险", "实施要求", "由受训人员操作",
     ]) {
       assert.ok(markdownTreatmentText.includes(expected), `Markdown 方案缺少「${expected}」：${markdownTreatmentText}`);
     }
     assert.ok(!markdownTreatmentText.includes("气功导引疗法"), "Markdown 不得显示只有评估说明的项目");
-    const forbidden = /病种模板|未按证型加减|仅项目评估|标准项目方案|政府发布方案|国家标准|规范|现场医师|来源|资质|安全边界|烫伤风险|待终审|不形成操作计划/;
+    const forbidden = /病种模板|未按证型加减|仅项目评估|标准项目方案|政府发布方案|国家标准|规范|现场医师|来源|安全边界|待终审|不形成操作计划/;
     assert.doesNotMatch(markdownTreatmentText, forbidden, markdownTreatmentText);
   });
 }

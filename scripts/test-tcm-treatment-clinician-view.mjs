@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 const { buildClinicianTreatmentProjects } = await import("../src/lib/tcm-treatment-clinician-view.ts");
 
-const INTERNAL_TERMS = /病种模板|未按证型加减|仅项目评估|政府发布方案|国家标准|规范|现场医师|资质|安全边界|烫伤风险|待终审|协议缺口|catalog_/;
+const INTERNAL_TERMS = /病种模板|未按证型加减|仅项目评估|政府发布方案|国家标准|规范|现场医师|安全边界|待终审|协议缺口|catalog_/;
 
 function project(projectCode, overrides = {}) {
   return {
@@ -189,8 +189,58 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
     })],
   }));
   assert.equal(result.length, 1, "其他项目有具体操作、部位和频次时可以显示");
-  assert.deepEqual(Object.keys(result[0]).sort(), ["content", "projectCode", "schedule", "sitesOrPoints", "title"], "医生端 DTO 不得携带后台治理字段");
+  assert.deepEqual(Object.keys(result[0]).sort(), ["content", "operatorRequirement", "projectCode", "schedule", "sitesOrPoints", "title"], "医生端 DTO 只能携带净化后的临床字段");
   assert.doesNotMatch(JSON.stringify(result), INTERNAL_TERMS);
+}
+
+for (const [label, item] of [
+  ["灸法每日目录排程", project("moxibustion", {
+    projectName: "灸法",
+    suggestedSitesOrPoints: ["中脘", "足三里"],
+    scheduleSuggestion: "每日1次，每次30分钟",
+  })],
+  ["拔罐隔日目录排程", project("cupping", {
+    projectName: "拔罐",
+    suggestedSitesOrPoints: ["背俞穴区"],
+    scheduleSuggestion: "隔日1次，每次约30分钟",
+  })],
+  ["推拿点按目录排程", project("tuina", {
+    projectName: "推拿",
+    treatmentContent: "按揉肺俞、列缺",
+    suggestedSitesOrPoints: ["肺俞", "列缺"],
+    scheduleSuggestion: "咳嗽点按每日1次",
+  })],
+  ["导引每周目录排程", project("qigong_daoyin", {
+    projectName: "气功导引",
+    treatmentContent: "练习八段锦",
+    scheduleSuggestion: "每周2次",
+  })],
+  ["导引每日累计目录排程", project("qigong_daoyin", {
+    projectName: "气功导引",
+    treatmentContent: "进行舒缓身体活动",
+    scheduleSuggestion: "身体活动每日累计不少于30分钟",
+  })],
+]) {
+  const result = buildClinicianTreatmentProjects(nonPharma({ treatments: [item] }));
+  assert.equal(result.length, 1, `${label}必须保留为医生可见卡片`);
+  assert.equal(result[0].schedule, item.scheduleSuggestion);
+}
+
+{
+  const result = buildClinicianTreatmentProjects(nonPharma({
+    treatments: [project("moxibustion", {
+      projectName: "灸法",
+      suggestedSitesOrPoints: ["中脘", "足三里"],
+      scheduleSuggestion: "每日1次，每次30分钟",
+      techniqueBoundary: "由现场医师确认热证、皮肤感觉和烫伤风险后实施。",
+      requiredChecks: ["感觉障碍", "糖尿病足", "皮损和烫伤风险"],
+      operatorRequirement: "由受训人员操作",
+    })],
+  }));
+  assert.equal(result.length, 1);
+  assert.deepEqual(result[0].precautions, ["感觉障碍", "糖尿病足", "皮损和烫伤风险"]);
+  assert.equal(result[0].operatorRequirement, "由受训人员操作");
+  assert.doesNotMatch(JSON.stringify(result[0]), /现场医师|政府发布方案|SRC-TEST|protocolStatus|安全边界/);
 }
 
 {
