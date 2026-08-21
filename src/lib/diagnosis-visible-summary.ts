@@ -3292,10 +3292,6 @@ function visiblePrescribeFromReasoning(
             ? [`- **穴位/部位**：${joinClinicalClauses(item.sitesOrPoints.map(markdownCell), "；")}`]
             : []),
           ...(item.schedule ? [`- **频次/复评**：${markdownCell(item.schedule)}`] : []),
-          ...(item.precautions && item.precautions.length > 0
-            ? [`- **注意事项**：${joinClinicalClauses(item.precautions.map(markdownCell), "；")}`]
-            : []),
-          ...(item.implementationRequirement ? [`- **实施要求**：${markdownCell(item.implementationRequirement)}`] : []),
         );
       }
     }

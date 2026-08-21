@@ -4707,7 +4707,7 @@ export function buildSafetyLimitedPrescription(gate: SafetyGate, reasonCode?: Cd
     `${NON_DOSE_PRESCRIPTION_DECLARATIONS[0]}。请先完成急诊/转诊评估，或补充会直接影响用药安全的信息后重新分析。`,
     "",
     "## 西药/中成药方案",
-    "现有资料尚不足以支持联用、替代或对症用药方案。",
+    "现有资料尚不足以形成可核验的西药或中成药候选。",
     "",
     "## 用药风险提示",
     `- **提示强度**：${gate.status === "red_flag" ? "强提示" : "待补充信息后再评估"}`,

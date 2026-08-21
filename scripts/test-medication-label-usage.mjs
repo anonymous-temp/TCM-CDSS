@@ -41,6 +41,14 @@ const nonOralCases = [
   ["灌肠剂", "灌肠，一次20毫升，每日1次。", { route: "灌肠", singleDose: "一次20毫升", frequency: "每日1次" }],
   ["颗粒剂", "开水冲服，一次1袋，一日2次。", { route: "开水冲服", singleDose: "一次1袋", frequency: "一日2次" }],
   ["胶剂", "烊化兑服，3～9克。", { route: "烊化兑服", singleDose: "3～9克" }],
+  ["饭后口服", "饭后口服，一次3丸，一日3次。", { route: "口服", singleDose: "一次3丸", frequency: "一日3次", administrationTiming: "饭后口服" }],
+  ["温开水送服", "温开水送服，一次5粒，一日3次。", { route: "温开水送服", singleDose: "一次5粒", frequency: "一日3次" }],
+  ["贴患处", "贴患处。", { route: "贴患处" }],
+  ["涂于面部", "涂于面部及患处，一日2次。", { route: "涂于面部及患处", frequency: "一日2次" }],
+  ["滴于眼睑", "滴于眼睑内，一次1～2滴，一日3次。", { route: "滴于眼睑内", singleDose: "一次1～2滴", frequency: "一日3次" }],
+  ["溶解后服用", "温开水溶解后服用，一次1袋，一日2次。", { route: "服用", singleDose: "一次1袋", frequency: "一日2次" }],
+  ["含片省略服字", "每0.5～1小时含一片。", { route: "含" }],
+  ["每日服", "每日服1～2次。", { route: "服", frequency: "每日服1～2次" }],
 ];
 
 function assertSourceBound(label, source, usage) {
@@ -59,9 +67,40 @@ for (const [label, source, expected] of nonOralCases) {
   assert.deepEqual(parsedUsage, expected, label);
   assertSourceBound(label, source, parsedUsage);
 }
+
+const catalog = JSON.parse(readFileSync(new URL("../src/data/local-patent-medicine-index.json", import.meta.url), "utf8"));
+const labeledEntries = catalog.entries.filter((entry) => typeof entry.usage === "string" && entry.usage.trim());
+const parsedEntries = labeledEntries.map((entry) => ({
+  name: entry.name,
+  usage: entry.usage,
+  parsed: parseMedicationLabelUsage(entry.usage),
+}));
+for (const entry of parsedEntries) {
+  if (!entry.parsed.route) continue;
+  assertSourceBound(entry.name, entry.usage, entry.parsed);
+}
+const routeMissing = parsedEntries.filter((entry) => !entry.parsed.route);
+assert.ok(
+  routeMissing.length <= 30,
+  `说明书有用法原文但未抽取给药途径的条目仍过多：${routeMissing.length}\n${routeMissing.slice(0, 30).map((entry) => `${entry.name}: ${entry.usage}`).join("\n")}`,
+);
+const explicitRouteMarker = /口服|冲服|送服|泡服|煎服|调服|嚼服|含服|含化|吞服|兑服|服用|饮服|冲饮|代茶饮|贴|涂|敷|擦|搽|喷|滴|塞|纳肛|阴道|肛门|直肠|吸入|灌洗|坐浴|熏洗/;
+assert.deepEqual(
+  routeMissing.filter((entry) => explicitRouteMarker.test(entry.usage)),
+  [],
+  "仍含明确给药动作的说明书不得静默缺失 route",
+);
+assert.equal(parseMedicationLabelUsage("一次2.5g，一日3次。").route, undefined,
+  "说明书未写明给药途径时不得根据剂型或剂量臆造 route");
 const compilerSource = readFileSync(new URL("../src/lib/m04-proposal-compiler.ts", import.meta.url), "utf8");
 const clientSource = readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
 assert.doesNotMatch(compilerSource, /course:\s*["']本候选不形成疗程医嘱/);
 assert.match(clientSource, /item\.administrationTiming/);
 
-console.log(JSON.stringify({ suite: "medication-label-usage", cases: 17, failures: 0 }));
+console.log(JSON.stringify({
+  suite: "medication-label-usage",
+  catalogUsageEntries: parsedEntries.length,
+  routeParsed: parsedEntries.length - routeMissing.length,
+  routeMissingWithoutExplicitInstruction: routeMissing.length,
+  failures: 0,
+}));

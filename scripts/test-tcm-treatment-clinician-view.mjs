@@ -189,7 +189,7 @@ function nonPharma({ diet = "", treatments = [] } = {}) {
     })],
   }));
   assert.equal(result.length, 1, "其他项目有具体操作、部位和频次时可以显示");
-  assert.deepEqual(Object.keys(result[0]).sort(), ["content", "implementationRequirement", "projectCode", "schedule", "sitesOrPoints", "title"], "医生端 DTO 只能携带净化后的临床字段");
+  assert.deepEqual(Object.keys(result[0]).sort(), ["content", "projectCode", "schedule", "sitesOrPoints", "title"], "医生端 DTO 只能携带核心可执行字段");
   assert.doesNotMatch(JSON.stringify(result), INTERNAL_TERMS);
 }
 
@@ -238,9 +238,18 @@ for (const [label, item] of [
     })],
   }));
   assert.equal(result.length, 1);
-  assert.deepEqual(result[0].precautions, ["感觉障碍", "糖尿病足", "皮损和烫伤风险"]);
-  assert.equal(result[0].implementationRequirement, "由受训人员操作");
-  assert.doesNotMatch(JSON.stringify(result[0]), /现场医师|政府发布方案|SRC-TEST|protocolStatus|安全边界/);
+  assert.deepEqual(result[0], {
+    projectCode: "moxibustion",
+    title: "灸法",
+    content: "按所列穴位进行灸法调护",
+    sitesOrPoints: ["中脘", "足三里"],
+    schedule: "每日1次，每次30分钟",
+  });
+  assert.doesNotMatch(
+    JSON.stringify(result[0]),
+    /现场医师|政府发布方案|SRC-TEST|protocolStatus|安全边界|烫伤风险|糖尿病足|受训人员|资质|注意事项|实施要求/,
+    "医生端最小投影不得重新携带后台安全闸门、操作资质或责任转移话术",
+  );
 }
 
 {

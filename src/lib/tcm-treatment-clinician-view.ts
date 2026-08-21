@@ -12,8 +12,6 @@ export type ClinicianTreatmentProject = {
   content: string;
   sitesOrPoints?: string[];
   schedule?: string;
-  precautions?: string[];
-  implementationRequirement?: string;
 };
 
 // 这是医生端输出卫生黑名单，不参与任何临床推断。用拼接串而不是中文候选正则字面量，
@@ -44,35 +42,6 @@ function cleanList(values: readonly unknown[] | undefined): string[] {
 
 function containsInternalGovernanceText(value: string): boolean {
   return INTERNAL_GOVERNANCE_TEXT.test(value);
-}
-
-const NON_ACTIONABLE_PRECAUTION = /^(?:(?:核对|确认|排除)(?:相关)?(?:资质|禁忌|操作禁忌|风险|资质与操作禁忌)|操作前评估)$/;
-
-function cleanedPrecautions(item: TreatmentRecommendation): string[] {
-  return cleanList([
-    ...(Array.isArray(item.requiredChecks) ? item.requiredChecks : []),
-    ...cleanText(item.techniqueBoundary).split(/[。；;\n]+/),
-  ]).filter((value) =>
-    !containsInternalGovernanceText(value) && !NON_ACTIONABLE_PRECAUTION.test(value));
-}
-
-function cleanedOperatorRequirement(item: TreatmentRecommendation): string | undefined {
-  const value = cleanText(item.operatorRequirement);
-  return value && !containsInternalGovernanceText(value) ? value : undefined;
-}
-
-function attachSafeImplementationFields(
-  projected: ClinicianTreatmentProject,
-  item?: TreatmentRecommendation,
-): ClinicianTreatmentProject {
-  if (!item) return projected;
-  const precautions = cleanedPrecautions(item);
-  const implementationRequirement = cleanedOperatorRequirement(item);
-  return {
-    ...projected,
-    ...(precautions.length > 0 ? { precautions } : {}),
-    ...(implementationRequirement ? { implementationRequirement } : {}),
-  };
 }
 
 function hasActionableSchedule(projectCode: string, value: string): boolean {
@@ -150,8 +119,7 @@ function projectTreatment(
     };
   }
 
-  const safeProjected = attachSafeImplementationFields(projected, item);
-  return safeProjected.title && isSafeProjection(safeProjected) ? safeProjected : null;
+  return projected.title && isSafeProjection(projected) ? projected : null;
 }
 
 export function buildClinicianTreatmentProjects(
@@ -162,12 +130,12 @@ export function buildClinicianTreatmentProjects(
   const dietRecommendation = nonPharma.tcmTreatments.find((item) => item.projectCode === "diet_therapy");
   const dietSchedule = cleanText(dietRecommendation?.scheduleSuggestion);
   const dietProject: ClinicianTreatmentProject | null = isConcreteClinicianDietPlan(diet)
-    ? attachSafeImplementationFields({
+    ? {
         projectCode: "diet_therapy",
         title: "食疗与饮食",
         content: diet,
         ...(dietSchedule && !containsInternalGovernanceText(dietSchedule) ? { schedule: dietSchedule } : {}),
-      }, dietRecommendation)
+      }
     : null;
   const treatmentProjects = nonPharma.tcmTreatments.flatMap((item) => {
     const projected = projectTreatment(item);

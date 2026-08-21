@@ -385,6 +385,12 @@ const mahuangHerbs = [
   const diagnosisClient = readFileSync(path.join(repoRoot, "src/app/diagnosis/DiagnosisClient.tsx"), "utf8");
   assert.doesNotMatch(diagnosisClient, /同上述(?:病机|项目)|同总体病机/);
   assert.doesNotMatch(diagnosisClient, /SummaryLine label="联用\/替代关系"/);
+  assert.doesNotMatch(diagnosisClient, /desc:\s*["']联用、替代或对症方案["']/,
+    "西药/中成药兼容页签不得重新显示甲方已删除的联用/替代关系");
+  assert.doesNotMatch(diagnosisClient, /item\.implementationRequirement/,
+    "医生页面不得读取后台操作资质字段");
+  assert.doesNotMatch(diagnosisClient, /item\.precautions/,
+    "中医治疗项目卡不得读取后台安全边界字段；健康调护注意事项走 nonPharma.precautions 独立出口");
   assert.match(diagnosisClient, /const pathogenesisDisplay = step\.pathogenesis/,
     "每个子病机必须显示自己的病机演变，不得因去重把子病机2留空");
   assert.match(diagnosisClient, /!\["症状依据", "体征依据", "依据"\]\.includes\(group\.label\)/,
@@ -392,6 +398,13 @@ const mahuangHerbs = [
   const visibleSummary = readFileSync(path.join(repoRoot, "src/lib/diagnosis-visible-summary.ts"), "utf8");
   assert.doesNotMatch(visibleSummary, /同上述(?:病机|项目)|同总体病机/,
     "医生可见 Markdown 也不得用跨段占位替代真实病机或治疗内容");
+  assert.doesNotMatch(visibleSummary, /item\.implementationRequirement/,
+    "下载/API 可见 Markdown 不得读取后台操作资质字段");
+  assert.doesNotMatch(visibleSummary, /item\.precautions/,
+    "下载/API 中医治疗项目不得读取后台安全边界字段");
+  const diagnosisSafety = readFileSync(path.join(repoRoot, "src/lib/diagnosis-safety.ts"), "utf8");
+  assert.doesNotMatch(diagnosisSafety, /现有资料尚不足以支持联用、替代或对症用药方案/,
+    "非剂量降级页不得重新显示联用/替代关系");
 }
 
 // 8. 「精神饮食尚可、二便调」是一般状态，不得给急性上呼吸道感染凑支持依据。

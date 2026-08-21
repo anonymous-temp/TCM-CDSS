@@ -4402,7 +4402,7 @@ function PrescriptionPlanTabs({ summary }: { summary: DecisionSummary }) {
 
   const tabs: Array<{ id: "herbal" | "medicine"; label: string; desc: string }> = [
     { id: "herbal", label: "中药饮片处方", desc: "候选处方、剂量、角色、证据" },
-    { id: "medicine", label: "西药/中成药", desc: "联用、替代或对症方案" },
+    { id: "medicine", label: "西药/中成药", desc: "说明书适应症、用法与风险" },
   ];
 
   return (
@@ -5487,12 +5487,6 @@ function ResultTabsV2({
                 )}
                 {item.schedule && (
                   <p className="mt-1"><span className="font-medium text-gray-900">频次/复评：</span>{item.schedule}</p>
-                )}
-                {item.precautions && item.precautions.length > 0 && (
-                  <p className="mt-1"><span className="font-medium text-gray-900">注意事项：</span>{joinClinicalClauses(item.precautions, "；")}</p>
-                )}
-                {item.implementationRequirement && (
-                  <p className="mt-1"><span className="font-medium text-gray-900">实施要求：</span>{item.implementationRequirement}</p>
                 )}
               </div>
             ))}
