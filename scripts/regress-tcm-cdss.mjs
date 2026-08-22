@@ -893,9 +893,9 @@ function reasoningV2WithHerbs(herbs) {
       modifications: [],
     },
     nonPharma: {
-      diet: "饮食清淡规律",
-      lifestyle: "规律作息",
-      emotion: "保持情绪稳定",
+      diet: "晚餐七分饱，睡前3小时避免进食辛辣、油腻及含咖啡因食物；例如早餐可用小米粥配水煮蛋，每日记录执行情况",
+      lifestyle: "固定23:00前上床，晨起时间保持一致，午后不补觉，连续执行5日后复评入睡时间",
+      emotion: "睡前进行10分钟缓慢腹式呼吸，记录当晚紧张程度及入睡时间",
       acupointCare: null,
       monitoring: [{ metric: "入睡困难", timing: "每日", trigger: "入睡困难持续加重时复诊" }],
     },
@@ -1240,7 +1240,7 @@ const redFlags = [
   ["negated-chest-then-worsening-tightness", "否认胸痛，胸闷持续加重。", "red_flag", "高风险", PRESCRIPTION_ONLY_GATE],
   ["negated-abdominal-then-tarry-stool", "否认腹痛，柏油样便伴乏力。", "red_flag", "高风险", PRESCRIPTION_ONLY_GATE],
   ["negated-chest-then-severe-headache", "否认胸痛，突发剧烈头痛。", "red_flag", "高风险"],
-  ["negated-dizziness-then-severe-headache", "否认头晕，剧烈头痛。", "ready", "需关注", { expectedAdvisory: "局灶神经功能异常" }],
+  ["negated-dizziness-then-severe-headache", "否认头晕，剧烈头痛。", "needs_information", "需关注", { expectedAdvisory: "神经系统相关表现", ...PRESCRIPTION_ONLY_GATE }],
   ["negated-vomiting-then-worsening-abdominal-pain", "否认呕吐，腹痛持续加重。", "red_flag", "高风险", PRESCRIPTION_ONLY_GATE],
   ["negated-nausea-then-worsening-distension", "否认恶心，腹胀持续加重。", "red_flag", "高风险", PRESCRIPTION_ONLY_GATE],
   ["negated-chest-then-acute-abdominal-pain", "否认胸痛，突发剧烈腹痛。", "red_flag", "高风险"],
@@ -1262,7 +1262,7 @@ redFlags.forEach(([name, rawText, gate, label, extra, caseOverrides]) => {
 [
   ["single-syncope-advisory", "否认胸痛，但晕厥一次，目前意识清楚。", {}, "needs_information", "意识丧失"],
   ["hemoptysis-50ml-advisory", "咯血半日，量约50ml，目前无活动性大出血或呼吸困难。", {}, "needs_information", "出血"],
-  ["hypertensive-advisory", "血压190/122mmHg，头胀明显，未诉胸痛、气促或神经功能异常。", { vitalsBP: "190/122mmHg" }, "needs_information", "血压"],
+  ["hypertensive-advisory", "血压190/122mmHg，头胀明显，未诉胸痛、气促或神经功能异常。", { vitalsBP: "190/122mmHg" }, "red_flag", "血压", { allowedLabels: ["高风险"], expectedRiskSignal: "血压" }],
   ["high-fever-advisory", "体温39.5℃，寒战，但神志清楚、呼吸平稳。", { vitalsT: "39.5℃" }, "needs_information", "体温"],
   ["tachycardia-advisory", "心率132次/分，胸闷，无晕厥或呼吸困难。", { vitalsP: "132次/分" }, "needs_information", "心率"],
   ["bradycardia-advisory", "心率45次/分，头晕，无晕厥或胸痛。", { vitalsP: "45次/分" }, "needs_information", "心率"],
@@ -1584,7 +1584,7 @@ cases.push(expected("raw-only-child-without-weight", baseCase("raw-only-child-wi
 const vitalRedFlagBoundaryCases = [
   expected("advisory-respiration-25", baseCase("advisory-respiration-25", { fields: { vitalsR: "25次/分" }, rawText: "呼吸25次/分，无气促，血氧正常。" }), "ready", "需关注", { expectedAdvisory: "呼吸" }),
   expected("advisory-sbp-90", baseCase("advisory-sbp-90", { fields: { vitalsBP: "90/60mmHg" }, rawText: "血压90/60mmHg，无头晕、冷汗或意识改变。" }), "ready", "需关注", { expectedAdvisory: "血压" }),
-  expected("advisory-low-temp-35-5", baseCase("advisory-low-temp-35-5", { fields: { vitalsT: "35.5℃" }, rawText: "体温35.5℃，无寒战、意识改变或暴露史。" }), "ready", "需关注", { expectedAdvisory: "体温" }),
+  expected("advisory-low-temp-35-5", baseCase("advisory-low-temp-35-5", { fields: { vitalsT: "35.5℃" }, rawText: "体温35.5℃，无寒战、意识改变或暴露史。" }), "needs_information", "需关注", { expectedAdvisory: "体温", ...PRESCRIPTION_ONLY_GATE }),
   expected("advisory-spo2-91", baseCase("advisory-spo2-91", { fields: { vitalsDetail: "SpO2 91%" }, rawText: "SpO2 91%，无明显呼吸困难，复测待完成。" }), "needs_information", "需关注", { expectedAdvisory: "血氧", ...PRESCRIPTION_ONLY_GATE }),
 ];
 cases.push(...vitalRedFlagBoundaryCases);
@@ -2209,7 +2209,7 @@ async function runKnowledgeCalls() {
   };
   const snapshotBinding = "ab".repeat(32);
   const encryptedSnapshot = await request("POST", "/api/diagnosis/snapshot", { action: "encrypt", payload: snapshotPayload, binding: snapshotBinding });
-  assert(encryptedSnapshot.status === 200 && encryptedSnapshot.json?.envelope?.schemaVersion === "tcm-cdss-encrypted-snapshot-v1", "snapshot API returns an encrypted envelope", encryptedSnapshot.json);
+  assert(encryptedSnapshot.status === 200 && encryptedSnapshot.json?.envelope?.schemaVersion === "tcm-cdss-encrypted-snapshot-v2", "snapshot API returns a tenant-bound encrypted envelope", encryptedSnapshot.json);
   assert(!encryptedSnapshot.text.includes("PHI_MARKER_失眠两周"), "encrypted snapshot response contains no plaintext clinical data", encryptedSnapshot.text.slice(0, 800));
   const decryptedSnapshot = await request("POST", "/api/diagnosis/snapshot", { action: "decrypt", envelope: encryptedSnapshot.json?.envelope, binding: snapshotBinding });
   assert(decryptedSnapshot.status === 200 && decryptedSnapshot.json?.payload?.caseState?.chiefComplaint === "PHI_MARKER_失眠两周", "encrypted snapshot round-trips only through the authenticated server", decryptedSnapshot.json);
