@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NODE_OPTIONS=--max-old-space-size=6144 next build",
+    "build": "NODE_OPTIONS=--max-old-space-size=6144 next build --webpack",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit",
     "build:tcm-knowledge": "node scripts/build-tcm-knowledge.mjs",
     "build:tcm-herb-functions": "python3 scripts/build-tcm-herb-function-categories.py",

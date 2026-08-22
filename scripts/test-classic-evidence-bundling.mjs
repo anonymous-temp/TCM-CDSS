@@ -78,17 +78,27 @@ if (present.length === CORPUS_FILES.length) {
 }
 
 // ⑥ 若存在构建产物，直接校验编译后的资源引用数——这是唯一能验证真实产物的检查。
+// Turbopack 用 `.R(<asset id>)`，Webpack 则生成 `static/media/<name>.<hash>.jsonl`。
+// 两种都是 Next.js 16 的正式产物形式；闸门必须校验资源可达性，不能绑定某一构建器的内部编号。
 const chunkDir = new URL("../.next/server/chunks/", import.meta.url);
 if (existsSync(chunkDir)) {
-  const chunk = readdirSync(chunkDir)
+  const chunks = readdirSync(chunkDir)
     .filter((name) => name.endsWith(".js"))
     .map((name) => ({ name, text: readFileSync(new URL(name, chunkDir), "utf8") }))
-    .find((item) => item.text.includes("tcm-classic-text-evidence"));
-  if (chunk) {
-    const assetIds = new Set([...chunk.text.matchAll(/\.R\((\d+)\)/g)].map((match) => match[1]));
-    assert.ok(assetIds.size >= CORPUS_FILES.length,
-      `构建产物只引用了 ${assetIds.size} 个语料资源，应为 ${CORPUS_FILES.length} 个——` +
-      `多个语料被折叠成一个（chunk: ${chunk.name}）`);
+    .filter((item) => item.text.includes("tcm-classic-text-evidence"));
+  if (chunks.length > 0) {
+    const combined = chunks.map((item) => item.text).join("\n");
+    const webpackAssets = new Set(
+      [...combined.matchAll(/static\/media\/(tcm-classic-text-evidence(?:-tcmoc|-books)?\.[a-z0-9]+\.jsonl)/g)]
+        .map((match) => match[1]),
+    );
+    const turbopackAssetIds = new Set(
+      [...combined.matchAll(/\.R\((\d+)\)/g)].map((match) => match[1]),
+    );
+    const referencedAssetCount = Math.max(webpackAssets.size, turbopackAssetIds.size);
+    assert.ok(referencedAssetCount >= CORPUS_FILES.length,
+      `构建产物只引用了 ${referencedAssetCount} 个语料资源，应为 ${CORPUS_FILES.length} 个——` +
+      `多个语料被折叠成一个（chunks: ${chunks.map((item) => item.name).join(", ")}）`);
   }
 }
 
