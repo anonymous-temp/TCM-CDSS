@@ -8,6 +8,13 @@ export type TransparentFormulaFallbackInput = {
   strictFormulaIssue?: string;
   therapyIssue?: string;
   requestAborted: boolean;
+  /**
+   * M03 has signed a named-formula selection and every selected formula has an executable,
+   * server-governed compilation baseline. In that case M04 may repair the composition or fall
+   * back to the non-dose governed reference, but it must not silently replace the signed formula
+   * with an unrelated executable self-devised prescription.
+   */
+  governedFormulaLockRequired?: boolean;
 };
 
 export type M04RepairState = {
@@ -80,6 +87,11 @@ export function isAcceptableM04TherapyIssue(therapyIssue: string | undefined): b
 }
 
 export function canAcceptTransparentFormulaFallback(input: TransparentFormulaFallbackInput): boolean {
+  // A governed M03 lock is a cross-stage clinical contract, not a display preference. Accepting a
+  // self-devised executable candidate here makes the same encounter say “use formula X” in M03 and
+  // “use unrelated herbs Y” in M04. The caller only sets this flag when every selected formula has
+  // a complete executable baseline; unavailable baselines retain the existing advisory path.
+  if (input.governedFormulaLockRequired) return false;
   // 「完成一轮修复」与「修复已被证明无效」是同一个前提的两种到达方式。此前只认前者，于是
   // fixpoint 早退（同一提示重复注入）反而拿不到降级资格：fixpoint 的语义正是「再修也是同一张
   // 失败彩票」，却因为跳过了那一轮而不算「完成」，整方随即作废。实测胃痛-肝气犯胃：

@@ -4076,6 +4076,18 @@ async function callPrimaryTextModelStream(
             strictFormulaIssue,
             therapyIssue,
             requestAborted: m04RepairState.requestAborted || upstreamController.signal.aborted || opts.requestSignal?.aborted === true,
+            // If M03 signed a named selection and every selected name has an executable governed
+            // baseline, transparent declassification would contradict the signed diagnosis. Keep
+            // repair bounded; on exhaustion the existing deterministic non-dose reference is the
+            // safe fallback. Baseline-unavailable/advisory paths deliberately remain unchanged.
+            governedFormulaLockRequired: (() => {
+              const names = (opts.structuredPriorReasoning?.overview?.recommendedFormulaNames || [])
+                .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
+              const mode = opts.structuredPriorReasoning?.overview?.formulaSelectionMode || "none";
+              return ["single", "combined", "alternatives"].includes(mode) &&
+                names.length > 0 &&
+                executableFormulaCompilationReferences(names).length === names.length;
+            })(),
           };
           if (!transparentReasoning || !canAcceptTransparentFormulaFallback(transparentFallbackInput)) {
             // 降级是 0 味与可用处方之间的最后一道分岔，此前它被拒时完全不可见——只能看到最终
