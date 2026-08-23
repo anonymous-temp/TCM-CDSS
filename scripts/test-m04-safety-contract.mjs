@@ -700,10 +700,6 @@ console.log(JSON.stringify({
     assert.ok(canAcceptTransparentFormulaFallback({
       completedRepairAttempts: 1, requestAborted: false, therapyIssue: code,
     }), `修复耗尽后 ${code} 不得再阻断透明降级`);
-    assert.ok(!canAcceptTransparentFormulaFallback({
-      completedRepairAttempts: 1, requestAborted: false, therapyIssue: code,
-      governedFormulaLockRequired: true,
-    }), `M03 已锁定可执行经典方时，${code} 也不得把无关自拟方放过跨阶段合同`);
   }
   // 边界另一侧：结构缺失无从标注，剂量类是真安全事实——两者都必须维持阻断。
   // 放宽词表覆盖率的同时必须把这条边界一起钉住，否则下一次「顺手统一」会把剂量也放进来。

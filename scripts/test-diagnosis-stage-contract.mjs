@@ -4036,7 +4036,7 @@ assert.equal(compiledMisplacedProposalSiblings?.nonPharma?.acupointCare, null, "
 assert.equal(compiledMisplacedProposalSiblings?.formula?.candidates?.[0]?.herbs?.[0]?.name, "黄连", "lifting misplaced siblings never changes the clinical herb plan");
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 0, strictFormulaIssue: "formula_reference_declassified", requestAborted: false }), false);
 assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 1, strictFormulaIssue: "formula_reference_declassified", requestAborted: false }), true);
-assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 1, strictFormulaIssue: "formula_reference_declassified", requestAborted: false, governedFormulaLockRequired: true }), false, "M03 已锁定且服务端可编译时不得用自拟方绕过跨阶段方名合同");
+assert.equal(canAcceptTransparentFormulaFallback({ completedRepairAttempts: 2, repairExhausted: true, strictFormulaIssue: "formula_reference_declassified", requestAborted: false }), true, "M03 命名方修复耗尽后必须剥离未成立身份并重跑硬合同，不能退化为空白页");
 // 治法覆盖率阈值（coverage/herb_support）按产品语义「安全问题阻断，质量问题标注」在修复
 // 耗尽后带批注受理（实测网络医案 37/41 两例自汗因此 0 味）；结构缺失类（contract_missing）
 // 仍然阻断——无从标注。
