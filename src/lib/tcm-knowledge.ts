@@ -378,6 +378,12 @@ const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   白术: "健脾益气，燥湿利水，止汗，安胎",
   龙眼肉: "补益心脾，养血安神",
   木香: "行气止痛，健脾消食",
+  // The compiled source joins an unrelated historical sentence ("清利头目，养血，利五脏")
+  // and classifies 桔梗 as 清化热痰药. That turns a standard messenger herb in 参苓白术散 into
+  // an unsupported heat-clearing medicine and rejects the whole prescription. Keep the 2020
+  // Chinese Pharmacopoeia function sentence here; formula-specific 载药上行 remains in the
+  // separate role contract and is not invented as a general pharmacopoeia action.
+  桔梗: "宣肺，利咽，祛痰，排脓",
   // The generated source currently exposes only broad category labels for 柴胡. Keep the
   // pharmacopoeia function sentence in the governed layer so prompt shortlists, deterministic
   // direction validation, independent clinical review and the doctor-facing table all see the
@@ -462,6 +468,12 @@ const CONTROLLED_HERB_FUNCTION_TEXT: Record<string, string> = {
   淡豆豉: "解表，除烦，宣发郁热",
   藿香: "芳香化浊，和中止呕，发表解暑",
   广藿香: "芳香化浊，和中止呕，发表解暑",
+};
+// Exact replacements are reserved for source classifications that are clinically wrong, not for
+// adding a secondary action. They replace (rather than union with) the generated categories so a
+// polluted source label cannot continue to drive safety decisions through the risk-profile tail.
+const CONTROLLED_HERB_FUNCTION_CATEGORY_REPLACEMENTS: Record<string, string[]> = {
+  桔梗: ["化痰止咳平喘药"],
 };
 const CONTROLLED_HERB_FUNCTION_CATEGORIES: Record<string, string[]> = {
   麦冬: ["补虚药", "补阴药"],
@@ -1562,7 +1574,7 @@ export function getTcmHerbFunctionText(herb: string): string {
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
     .join("；");
   const categoryIndex = herbFunctionCategories.categories as Record<string, string[]>;
-  const categories = categoryIndex[canonical] || [];
+  const categories = CONTROLLED_HERB_FUNCTION_CATEGORY_REPLACEMENTS[canonical] || categoryIndex[canonical] || [];
   const controlled = CONTROLLED_HERB_FUNCTION_TEXT[canonical];
   if (controlled) return withFunctionSupplement(canonical, [controlled, ...categories.slice(0, 2)].filter(Boolean).join("；"));
 
@@ -1624,6 +1636,8 @@ export function getTcmHerbFunctionText(herb: string): string {
 export function getTcmHerbFunctionCategories(herb: string): string[] {
   const canonical = canonicalKnowledgeHerbName(herb);
   const categoryIndex = herbFunctionCategories.categories as Record<string, string[]>;
+  const replacement = CONTROLLED_HERB_FUNCTION_CATEGORY_REPLACEMENTS[canonical];
+  if (replacement) return [...new Set(replacement)];
   return [...new Set([...(categoryIndex[canonical] || []), ...(CONTROLLED_HERB_FUNCTION_CATEGORIES[canonical] || [])])];
 }
 
@@ -1894,6 +1908,15 @@ export function getTcmHerbFunctionDisplayText(
 export function getTcmHerbRiskProfile(herb: string): string {
   const canonical = canonicalKnowledgeHerbName(herb);
   const herbData = data.herbs.find((item) => item.name === canonical || item.aliases.includes(canonical));
+  const categoryReplacement = CONTROLLED_HERB_FUNCTION_CATEGORY_REPLACEMENTS[canonical];
+  if (categoryReplacement) {
+    return [
+      ...(herbData?.entries || []).flatMap((entry) => [entry.riskCode, entry.riskName, entry.toxicity]),
+      ...categoryReplacement,
+    ]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .join("；");
+  }
   return (herbData?.entries || [])
     .flatMap((entry) => [entry.riskCode, entry.riskName, entry.primaryCategory, entry.secondaryCategory, entry.toxicity])
     .filter((value): value is string => typeof value === "string" && value.trim().length > 0)

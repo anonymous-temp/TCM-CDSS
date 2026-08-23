@@ -4650,6 +4650,9 @@ console.log(JSON.stringify({ cases: 382, failures: 0 }));
     /unsupported_high_impact_yang_warm/, "清热证里的温阳药照旧驳回");
   assert.match(highImpactHerbDirectionIssue("黄连", "清热燥湿", priorOf("畏寒肢冷，脘腹冷痛", "温阳散寒")) || "",
     /unsupported_high_impact_heat_clear/, "温阳证里的清热药照旧驳回");
+  const spleenDeficiency = priorOf("食少便溏，胸脘痞塞，舌苔白腻", "健脾益气，渗湿止泻");
+  assert.equal(highImpactHerbDirectionIssue("桔梗", "宣肺利气、载药上行", spleenDeficiency), undefined,
+    "参苓白术散中的桔梗不得因污染的清化热痰分类被误判为清热药");
   // 特异性收窄：泛见舌脉不得支撑高影响方向。
   assert.match(highImpactHerbDirectionIssue("附子", "温阳散寒", priorOf("入睡困难，舌淡脉细", "养血安神")) || "",
     /unsupported_high_impact_yang_warm/, "舌淡脉细是血虚舌脉，不得支撑温阳方向");

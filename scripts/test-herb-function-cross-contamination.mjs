@@ -15,7 +15,7 @@ import { readFileSync } from "node:fs";
 
 const knowledge = JSON.parse(readFileSync(new URL("../src/data/tcm-knowledge.json", import.meta.url), "utf8"));
 const identity = JSON.parse(readFileSync(new URL("../src/data/tcm-herb-identity-catalog.json", import.meta.url), "utf8"));
-const { getTcmHerbFunctionText } = await import("../src/lib/tcm-knowledge.ts");
+const { getTcmHerbFunctionCategories, getTcmHerbFunctionText, getTcmHerbRiskProfile } = await import("../src/lib/tcm-knowledge.ts");
 
 /**
  * 已登记的可共享功效串。每条必须写明**为什么**两味药可以共享同一段功效文本，
@@ -85,6 +85,7 @@ for (const [herb, mustInclude, mustNotInclude] of [
   ["石决明", ["平肝潜阳", "清肝明目"], ["祛风止痒", "解毒消肿"]],
   ["牛膝", ["逐瘀通经", "引血下行"], ["排脓止痛", "消肿解毒"]],
   ["川牛膝", ["逐瘀通经", "通利关节"], ["排脓止痛"]],
+  ["桔梗", ["宣肺", "利咽", "祛痰", "排脓"], ["清利头目", "养血", "补血气"]],
 ]) {
   const text = getTcmHerbFunctionText(herb) || "";
   for (const fragment of mustInclude) {
@@ -94,6 +95,11 @@ for (const [herb, mustInclude, mustNotInclude] of [
     assert.ok(!text.includes(fragment), `${herb} 的功效不得含借自别味药的「${fragment}」，实际：${text}`);
   }
 }
+
+assert.deepEqual(getTcmHerbFunctionCategories("桔梗"), ["化痰止咳平喘药"],
+  "桔梗不得继续继承生成库里错误的清化热痰分类");
+assert.doesNotMatch(getTcmHerbRiskProfile("桔梗"), /清化热痰|清热药/,
+  "风险画像尾部不得把已纠正的错误分类重新注入方向门禁");
 
 console.log(JSON.stringify({
   suite: "herb-function-cross-contamination",
