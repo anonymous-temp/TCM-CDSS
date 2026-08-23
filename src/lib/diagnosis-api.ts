@@ -975,6 +975,7 @@ function validatedStructuredReasoning(
   allowTransparentFormulaDeclassification = false,
   auditedClinicalRisksAreAdvisory = false,
   waiveM04TherapyCoverageAnnotated = false,
+  acceptM04QualityTierAfterRepair = false,
 ) {
   const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
   const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
@@ -1016,17 +1017,33 @@ function validatedStructuredReasoning(
           clinicalContext,
           true,
         )) return undefined;
-      } else if (m04SemanticIssue(
-        enrichedReasoning,
-        visibleContent,
-        priorReasoning,
-        isKnownTcmHerbName,
-        serverOwnsDecoctionMethod,
-        serverOwnsDecoctionMethod,
-        false,
-        auditedClinicalRisksAreAdvisory,
-        clinicalContext,
-      )) return undefined;
+      } else {
+        const semanticIssue = m04SemanticIssue(
+          enrichedReasoning,
+          visibleContent,
+          priorReasoning,
+          isKnownTcmHerbName,
+          serverOwnsDecoctionMethod,
+          serverOwnsDecoctionMethod,
+          false,
+          auditedClinicalRisksAreAdvisory,
+          clinicalContext,
+        );
+        if (semanticIssue) {
+          // 首轮仍按完整合同严格促修。只有已经完成至少一轮模型修复的调用点会打开
+          // acceptM04QualityTierAfterRepair；此时也只允许分档表明确登记的 T2/T3 说明项，
+          // 并在放行前独立重跑完整 T1 硬门。未知码默认 T1，不可能从这里穿透。
+          if (!acceptM04QualityTierAfterRepair || isSafetyRejection(`m04_${semanticIssue}`)) return undefined;
+          if (m04SafetyContractIssue(
+            enrichedReasoning,
+            priorReasoning,
+            isKnownTcmHerbName,
+            false,
+            false,
+            clinicalContext,
+          )) return undefined;
+        }
+      }
       if (formulaCompilationContractIssue(
         enrichedReasoning,
         priorReasoning,
@@ -3347,6 +3364,21 @@ async function callPrimaryTextModelStream(
           }
         }
         let advisoryM04RiskAccepted = false;
+        // 仅记录修复完成后、通过完整 T1 硬门的 M04 文档质量受理。该状态写入签名域内的
+        // acceptanceScope，并让最后一公里沿用同一安全口径；不把内部质量批注显示给医生。
+        let m04QualityTierAcceptedAfterRepair = false;
+        const noteM04QualityTierAcceptance = (reason: string | undefined) => {
+          if (!reason || !qualityAnnotationCopy(reason)) return;
+          m04QualityTierAcceptedAfterRepair = true;
+          m04AcceptanceScope = {
+            waivedIssueCodes: [...new Set([...(m04AcceptanceScope?.waivedIssueCodes || []), reason])],
+            qualityAnnotationCodes: [...new Set([...(m04AcceptanceScope?.qualityAnnotationCodes || []), reason])],
+          };
+          console.warn("[tcm-cdss:model] M04 quality-tier acceptance after repair", {
+            stage: "prescribe",
+            reason,
+          });
+        };
         /** 修复轮耗尽后按质量批注受理透明降级候选时，给医生的批注文案。 */
         let m04TransparentQualityAnnotation: string | undefined;
         /** M03 finalize 复核意见按质量批注受理时的批注文案（同一条最后一公里策略）。 */
@@ -3536,8 +3568,27 @@ async function callPrimaryTextModelStream(
           if (resolvedRetryContent && opts.structuredStage === "prescribe") {
             resolvedRetryContent = finalizeM04CandidateContent(resolvedRetryContent);
           }
+          const retriedStrictRejectionReason = resolvedRetryContent && opts.structuredStage === "prescribe"
+            ? structuredRejectionReason(
+                resolvedRetryContent,
+                "prescribe",
+                retry.ok ? retry.finishReason : null,
+                opts.structuredClinicalContext,
+                opts.structuredPriorReasoning,
+              )
+            : undefined;
           let retriedReasoning = resolvedRetryContent
-            ? validatedStructuredReasoning(resolvedRetryContent, opts.structuredStage, opts.structuredClinicalContext, opts.structuredPriorReasoning, true)
+            ? validatedStructuredReasoning(
+                resolvedRetryContent,
+                opts.structuredStage,
+                opts.structuredClinicalContext,
+                opts.structuredPriorReasoning,
+                true,
+                false,
+                false,
+                false,
+                opts.structuredStage === "prescribe",
+              )
             : undefined;
           let retriedDiagnosticReviewRejected = false;
           let retriedM04ClinicalReviewRejected = false;
@@ -3584,6 +3635,9 @@ async function callPrimaryTextModelStream(
             }
           }
           if (resolvedRetryContent && retriedReasoning) {
+            if (opts.structuredStage === "prescribe") {
+              noteM04QualityTierAcceptance(retriedStrictRejectionReason);
+            }
             authoritativeContent = resolvedRetryContent;
             if (opts.structuredStage === "diagnose" && retry.ok) m03GeneratorModel = retry.model;
             if (opts.structuredStage === "prescribe" && retry.ok) m04GeneratorModel = retry.model;
@@ -3742,8 +3796,27 @@ async function callPrimaryTextModelStream(
               if (secondResolved && opts.structuredStage === "prescribe") {
                 secondResolved = finalizeM04CandidateContent(secondResolved);
               }
+              const secondStrictRejectionReason = secondResolved && opts.structuredStage === "prescribe"
+                ? structuredRejectionReason(
+                    secondResolved,
+                    "prescribe",
+                    secondRetry.ok ? secondRetry.finishReason : null,
+                    opts.structuredClinicalContext,
+                    opts.structuredPriorReasoning,
+                  )
+                : undefined;
               let secondReasoning = secondResolved
-                ? validatedStructuredReasoning(secondResolved, opts.structuredStage, opts.structuredClinicalContext, opts.structuredPriorReasoning, true)
+                ? validatedStructuredReasoning(
+                    secondResolved,
+                    opts.structuredStage,
+                    opts.structuredClinicalContext,
+                    opts.structuredPriorReasoning,
+                    true,
+                    false,
+                    false,
+                    false,
+                    opts.structuredStage === "prescribe",
+                  )
                 : undefined;
               let secondDiagnosticReviewRejected = false;
               let secondM04ClinicalReviewRejected = false;
@@ -3790,6 +3863,9 @@ async function callPrimaryTextModelStream(
                 }
               }
               if (secondResolved && secondReasoning) {
+                if (opts.structuredStage === "prescribe") {
+                  noteM04QualityTierAcceptance(secondStrictRejectionReason);
+                }
                 authoritativeContent = secondResolved;
                 if (opts.structuredStage === "diagnose" && secondRetry.ok) m03GeneratorModel = secondRetry.model;
                 if (opts.structuredStage === "prescribe" && secondRetry.ok) m04GeneratorModel = secondRetry.model;
@@ -4322,6 +4398,7 @@ async function callPrimaryTextModelStream(
               shouldUseM04FinalizeSafetyFloor(
                 transparentFormulaDeclassificationAccepted,
                 m04TransparentQualityAnnotation !== undefined,
+                m04QualityTierAcceptedAfterRepair,
               ),
             )) {
             console.warn("[tcm-cdss:model] finalized structured response rejected", {

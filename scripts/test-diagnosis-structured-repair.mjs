@@ -55,6 +55,11 @@ assert.equal(
   true,
   "an accepted transparent declassification must keep its safety-floor scope even when review produced no annotation",
 );
+assert.equal(
+  shouldUseM04FinalizeSafetyFloor(false, false, true),
+  true,
+  "a quality-tier M04 accepted after repair must keep the same T1 safety-floor scope at finalization",
+);
 assert.match(
   diagnosisApiSource,
   /primaryStructuredStageCapacity\.acquire\(\{\s*\n\s*signal: upstreamController\.signal,\s*\n\s*deadline: absoluteRunDeadline,/,

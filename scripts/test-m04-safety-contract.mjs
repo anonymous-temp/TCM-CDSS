@@ -234,6 +234,21 @@ assert.ok(finalSafetyIndex >= 0 && deferredLabelIndex > finalSafetyIndex && fina
   "M04 最终出口必须先无条件重跑 safetyIssue，再进入质量合同分级");
 
 const diagnosisApiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
+assert.match(
+  diagnosisApiSource,
+  /acceptM04QualityTierAfterRepair[\s\S]*?isSafetyRejection\(`m04_\$\{semanticIssue\}`\)[\s\S]*?m04SafetyContractIssue\(/,
+  "M04 修复后质量档受理必须先 default-deny 分档，再完整重跑 T1 硬门",
+);
+assert.match(
+  diagnosisApiSource,
+  /noteM04QualityTierAcceptance\(retriedStrictRejectionReason\)/,
+  "第一轮 M04 修复结果必须接入质量档收敛，不能因方义说明项把整张安全处方清空",
+);
+assert.match(
+  diagnosisApiSource,
+  /shouldUseM04FinalizeSafetyFloor\([\s\S]*?m04QualityTierAcceptedAfterRepair/,
+  "修复后受理与最终复验必须使用同一安全口径",
+);
 const advisoryPredicate = diagnosisApiSource.match(/function isM04AuditAdvisoryReason[\s\S]*?\n\}/)?.[0] || "";
 assert.doesNotMatch(advisoryPredicate, /high_risk_pair_incompatibility/,
   "十八反药对不得进入后置审方 advisory 放行通道");

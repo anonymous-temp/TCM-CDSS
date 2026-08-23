@@ -23,8 +23,9 @@ export function isM03WesternSupportContractReason(reason: string): boolean {
 export function shouldUseM04FinalizeSafetyFloor(
   transparentDeclassificationAccepted: boolean,
   transparentQualityAnnotationPresent: boolean,
+  qualityTierAcceptedAfterRepair = false,
 ): boolean {
-  return transparentDeclassificationAccepted || transparentQualityAnnotationPresent;
+  return transparentDeclassificationAccepted || transparentQualityAnnotationPresent || qualityTierAcceptedAfterRepair;
 }
 
 export function shouldRunTargetedStructuredRetry(stage: "diagnose" | "prescribe", reason: string): boolean {
