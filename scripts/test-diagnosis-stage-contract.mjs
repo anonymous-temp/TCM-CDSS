@@ -3920,6 +3920,33 @@ assert.match(
   /证候|病机|安全边界/,
   "the server supplies a governed not-applicable boundary after dropping an ambiguous optional object",
 );
+const wrongVersionMinimalRepairProposal = {
+  ...optionalNarrativeObjectProposal,
+  schemaVersion: "tcm-cdss-reasoning-v2",
+  candidate: {
+    ...optionalNarrativeObjectProposal.candidate,
+    decoction: {
+      doseCount: "5剂",
+      dosesPerDay: 1,
+      administrationTimesPerDay: 2,
+    },
+  },
+};
+assert.equal(
+  m04ProposalIssueCode(wrongVersionMinimalRepairProposal, heatQiPrior),
+  undefined,
+  "a minimal M04 repair with a stale reasoning-v2 version scalar is canonicalized",
+);
+assert.equal(
+  compileM04Proposal(wrongVersionMinimalRepairProposal, heatQiPrior)?.formula?.candidates?.[0]?.decoction?.course,
+  "5日",
+  "the stale-version minimal repair still receives the deterministic redundant-course derivation",
+);
+assert.equal(
+  compileM04Proposal({ ...wrongVersionMinimalRepairProposal, stage: "prescribe" }, heatQiPrior),
+  undefined,
+  "a wrong-version object carrying any full-reasoning field is not treated as a minimal M04 proposal",
+);
 const conflictingLegacyMethodPrior = {
   ...heatQiPrior,
   therapy: { ...heatQiPrior.therapy, overallMethod: "与锁定治法冲突的旧字段" },

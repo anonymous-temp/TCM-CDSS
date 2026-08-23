@@ -832,7 +832,27 @@ function normalizeM04ProposalInput(
   prior?: ClinicalReasoningResultV2 | null,
 ): unknown {
   if (!isRecord(value)) return value;
-  if (value.schemaVersion != null && value.schemaVersion !== "tcm-cdss-m04-proposal-v1") return value;
+  if (value.schemaVersion != null && value.schemaVersion !== "tcm-cdss-m04-proposal-v1") {
+    // A targeted M04 repair can preserve the preceding response's reasoning-v2 version string
+    // while still returning only the minimal proposal envelope. The server compiler owns the
+    // final V2 object, so that scalar envelope drift is safe to canonicalize only when none of the
+    // full-reasoning fields are present. A genuine V2 object (or any object trying to rewrite
+    // M03-owned diagnosis/pathogenesis/therapy/formula state) remains rejected below instead of
+    // being silently projected into a prescription.
+    const fullReasoningKeys = [
+      "stage",
+      "overview",
+      "westernDiagnosis",
+      "pathogenesis",
+      "therapy",
+      "formula",
+      "lineageAdaptation",
+      "management",
+      "terminologyMappings",
+      "contractSignature",
+    ] as const;
+    if (fullReasoningKeys.some((key) => value[key] != null)) return value;
+  }
 
   let rawCandidate = value.candidate;
   if (rawCandidate == null && Array.isArray(value.candidates) && value.candidates.length === 1) {
