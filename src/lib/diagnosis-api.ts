@@ -30,7 +30,7 @@ import { newM03ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
 import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
-import { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
+import { advanceM04RepairState, canAcceptRepeatedUnlocalizedM04PatientContextReview, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
 import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
@@ -3855,7 +3855,55 @@ async function callPrimaryTextModelStream(
                 ));
                 trackM04ReviewResult(review, secondReasoning);
                 m04ClinicalReviewStatus = review.status;
-                if (review.status === "repair") {
+                const enrichedSecondReasoning = enrichReasoning(secondReasoning).reasoning;
+                const repeatedUnlocalizedPatientContextReviewAccepted =
+                  canAcceptRepeatedUnlocalizedM04PatientContextReview({
+                    review,
+                    previousReviewReason: m04LastRepairTriggerReason,
+                    completedRepairAttempts: m04RepairState.completedAttempts,
+                    hardSafetyIssue: m04SafetyContractIssue(
+                      enrichedSecondReasoning,
+                      opts.structuredPriorReasoning,
+                      isKnownTcmHerbName,
+                      false,
+                      false,
+                      opts.structuredClinicalContext || "",
+                    ),
+                    formulaCompilationIssue: formulaCompilationContractIssue(
+                      enrichedSecondReasoning,
+                      opts.structuredPriorReasoning,
+                      false,
+                      false,
+                    ),
+                    requestAborted: upstreamController.signal.aborted || opts.requestSignal?.aborted === true,
+                  });
+                if (repeatedUnlocalizedPatientContextReviewAccepted) {
+                  // The reviewer disposition remains in the signed acceptance scope, while the
+                  // physician-facing result contains only the clinical plan. Mark the resolved
+                  // attestation accepted so finalization can safely rebind the same reviewed plan
+                  // instead of launching a third stochastic review or showing an internal gate.
+                  m04AcceptanceScope = appendAnnotationCode(m04AcceptanceScope, review.issueCode);
+                  const resolvedReview: ClinicalReviewExecution<M04ClinicalReview> = {
+                    status: "accepted",
+                    issueCode: "none",
+                    ...(review.reviewer ? { reviewer: review.reviewer } : {}),
+                    ...(review.execution ? { execution: review.execution } : {}),
+                  };
+                  m04ClinicalReviewStatus = "accepted";
+                  m04ClinicalReviewReason = undefined;
+                  m04ClinicalRepairGuidanceText = "";
+                  m04ClinicalReviewAttestation = clinicalReviewAttestation(resolvedReview, secondReasoning);
+                  m04ReviewedSemanticHash = m04ClinicalReviewSemanticHash(
+                    opts.structuredPriorReasoning,
+                    secondReasoning,
+                  );
+                  m04ReviewedReasoning = secondReasoning;
+                  console.warn("[tcm-cdss:model] repeated unlocalized M04 patient-context review resolved after hard-contract revalidation", {
+                    stage: "prescribe",
+                    issueCode: review.issueCode,
+                    completedRepairAttempts: m04RepairState.completedAttempts,
+                  });
+                } else if (review.status === "repair") {
                   secondReasoning = undefined;
                   secondM04ClinicalReviewRejected = true;
                 } else if (review.status === "unavailable") {

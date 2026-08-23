@@ -576,7 +576,10 @@ console.log(JSON.stringify({
 // 透明降级块内、块外的入口守卫、finalize 阶段的最后一次复核（后者会把刚刚受理的降级候选
 // 重新判死——实测网络医案 3，郁证-天王补心丹）。现在只有一处实现，这里钉住它的取值。
 {
-  const { m04FinalReviewQualityAnnotation } = await import("../src/lib/m04-repair-policy.ts");
+  const {
+    canAcceptRepeatedUnlocalizedM04PatientContextReview,
+    m04FinalReviewQualityAnnotation,
+  } = await import("../src/lib/m04-repair-policy.ts");
   // 受理：这三项在确定性层都有对应检查且已经跑过（方剂基准组成、君臣结构与病机引用、
   // 妊娠哺乳儿科门禁 + 十八反十九畏 + 逐味剂量上限）。复核在其上给的是质量意见。
   for (const issueCode of ["formula_composition_mismatch", "herb_plan_mismatch", "patient_context_mismatch"]) {
@@ -603,6 +606,43 @@ console.log(JSON.stringify({
   for (const status of ["accepted", "unavailable"]) {
     assert.equal(m04FinalReviewQualityAnnotation({ status, issueCode: "herb_plan_mismatch" }), undefined,
       `status=${status} 不应产生质量批注`);
+  }
+
+  const safeRepeatedPatientContextReview = {
+    review: {
+      status: "repair",
+      issueCode: "patient_context_mismatch",
+      repairFocus: "patient_dependency",
+      implicatedHerbs: [],
+    },
+    previousReviewReason: "m04_patient_context_semantic_review",
+    completedRepairAttempts: 2,
+    hardSafetyIssue: undefined,
+    formulaCompilationIssue: undefined,
+    requestAborted: false,
+  };
+  assert.equal(
+    canAcceptRepeatedUnlocalizedM04PatientContextReview(safeRepeatedPatientContextReview),
+    true,
+    "同一无药味定位的患者前提意见连续两轮且硬合同全过时应当收敛",
+  );
+  for (const unsafeVariant of [
+    { completedRepairAttempts: 1 },
+    { previousReviewReason: "m04_herb_plan_semantic_review" },
+    { hardSafetyIssue: "candidate_0_herb_0_dose_outside_conservative_range" },
+    { formulaCompilationIssue: "candidate_0_formula_core_missing" },
+    { requestAborted: true },
+    { review: { ...safeRepeatedPatientContextReview.review, implicatedHerbs: ["麻黄"] } },
+    { review: { ...safeRepeatedPatientContextReview.review, issueCode: "dose_rationale_concern", repairFocus: "dose_strength" } },
+  ]) {
+    assert.equal(
+      canAcceptRepeatedUnlocalizedM04PatientContextReview({
+        ...safeRepeatedPatientContextReview,
+        ...unsafeVariant,
+      }),
+      false,
+      `必须 fail-closed: ${JSON.stringify(unsafeVariant)}`,
+    );
   }
 }
 

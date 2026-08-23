@@ -211,6 +211,42 @@ export function m04FinalReviewQualityAnnotation(review: { status?: string; issue
 }
 
 /**
+ * A patient-context review remains actionable for one bounded repair round. If the repaired
+ * candidate is rejected again with the same issue but the reviewer still cannot identify a single
+ * implicated herb, repeating the same instruction has no executable target. At that point the
+ * caller may resolve the review as a quality-only fixpoint, but only after independently re-running
+ * the complete deterministic prescription safety and formula-compilation contracts.
+ *
+ * This is intentionally narrower than `m04FinalReviewQualityAnnotation`: dose, composition and
+ * herb-plan opinions never enter this path, a newly introduced issue code defaults to denial, and
+ * an aborted request can never be converted into acceptance.
+ */
+export function canAcceptRepeatedUnlocalizedM04PatientContextReview(input: {
+  review: {
+    status?: string;
+    issueCode?: string;
+    repairFocus?: string;
+    implicatedHerbs?: string[];
+  };
+  previousReviewReason?: string;
+  completedRepairAttempts: number;
+  hardSafetyIssue?: string;
+  formulaCompilationIssue?: string;
+  requestAborted: boolean;
+}): boolean {
+  const { review } = input;
+  return !input.requestAborted &&
+    input.completedRepairAttempts >= 2 &&
+    input.previousReviewReason === "m04_patient_context_semantic_review" &&
+    review.status === "repair" &&
+    review.issueCode === "patient_context_mismatch" &&
+    review.repairFocus === "patient_dependency" &&
+    (!review.implicatedHerbs || review.implicatedHerbs.length === 0) &&
+    !input.hardSafetyIssue &&
+    !input.formulaCompilationIssue;
+}
+
+/**
  * M03 侧的同一条最后一公里策略：finalize 阶段的独立复核跑在全部修复轮之后，它给出的
  * repair 已无承接者，唯一的效果是把一份**确定性接地合同已通过**的辨证判成空白，随后
  * M04 直接 409/降级，整个后台 agent 流程在此卡死（实测网络医案 10/13/24「内伤发热」类）。
