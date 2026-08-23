@@ -212,16 +212,16 @@ export function m04FinalReviewQualityAnnotation(review: { status?: string; issue
 
 /**
  * A patient-context review remains actionable for one bounded repair round. If the repaired
- * candidate is rejected again with the same issue but the reviewer still cannot identify a single
- * implicated herb, repeating the same instruction has no executable target. At that point the
- * caller may resolve the review as a quality-only fixpoint, but only after independently re-running
- * the complete deterministic prescription safety and formula-compilation contracts.
+ * candidate is rejected again with the same issue and its complete clinical-decision fingerprint
+ * is byte-for-byte unchanged, repeating the same instruction has reached a semantic fixpoint. At
+ * that point the caller may resolve the review as quality-only, but only after independently
+ * re-running the complete deterministic prescription safety and formula-compilation contracts.
  *
  * This is intentionally narrower than `m04FinalReviewQualityAnnotation`: dose, composition and
  * herb-plan opinions never enter this path, a newly introduced issue code defaults to denial, and
  * an aborted request can never be converted into acceptance.
  */
-export function canAcceptRepeatedUnlocalizedM04PatientContextReview(input: {
+export function canAcceptRepeatedM04PatientContextReviewFixpoint(input: {
   review: {
     status?: string;
     issueCode?: string;
@@ -230,6 +230,7 @@ export function canAcceptRepeatedUnlocalizedM04PatientContextReview(input: {
   };
   previousReviewReason?: string;
   completedRepairAttempts: number;
+  semanticPayloadUnchanged: boolean;
   hardSafetyIssue?: string;
   formulaCompilationIssue?: string;
   requestAborted: boolean;
@@ -237,11 +238,11 @@ export function canAcceptRepeatedUnlocalizedM04PatientContextReview(input: {
   const { review } = input;
   return !input.requestAborted &&
     input.completedRepairAttempts >= 2 &&
+    input.semanticPayloadUnchanged &&
     input.previousReviewReason === "m04_patient_context_semantic_review" &&
     review.status === "repair" &&
     review.issueCode === "patient_context_mismatch" &&
     review.repairFocus === "patient_dependency" &&
-    (!review.implicatedHerbs || review.implicatedHerbs.length === 0) &&
     !input.hardSafetyIssue &&
     !input.formulaCompilationIssue;
 }

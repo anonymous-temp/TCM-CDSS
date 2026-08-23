@@ -577,7 +577,7 @@ console.log(JSON.stringify({
 // 重新判死——实测网络医案 3，郁证-天王补心丹）。现在只有一处实现，这里钉住它的取值。
 {
   const {
-    canAcceptRepeatedUnlocalizedM04PatientContextReview,
+    canAcceptRepeatedM04PatientContextReviewFixpoint,
     m04FinalReviewQualityAnnotation,
   } = await import("../src/lib/m04-repair-policy.ts");
   // 受理：这三项在确定性层都有对应检查且已经跑过（方剂基准组成、君臣结构与病机引用、
@@ -617,26 +617,27 @@ console.log(JSON.stringify({
     },
     previousReviewReason: "m04_patient_context_semantic_review",
     completedRepairAttempts: 2,
+    semanticPayloadUnchanged: true,
     hardSafetyIssue: undefined,
     formulaCompilationIssue: undefined,
     requestAborted: false,
   };
   assert.equal(
-    canAcceptRepeatedUnlocalizedM04PatientContextReview(safeRepeatedPatientContextReview),
+    canAcceptRepeatedM04PatientContextReviewFixpoint(safeRepeatedPatientContextReview),
     true,
-    "同一无药味定位的患者前提意见连续两轮且硬合同全过时应当收敛",
+    "同一患者前提意见连续两轮、临床语义指纹未变且硬合同全过时应当收敛",
   );
   for (const unsafeVariant of [
     { completedRepairAttempts: 1 },
+    { semanticPayloadUnchanged: false },
     { previousReviewReason: "m04_herb_plan_semantic_review" },
     { hardSafetyIssue: "candidate_0_herb_0_dose_outside_conservative_range" },
     { formulaCompilationIssue: "candidate_0_formula_core_missing" },
     { requestAborted: true },
-    { review: { ...safeRepeatedPatientContextReview.review, implicatedHerbs: ["麻黄"] } },
     { review: { ...safeRepeatedPatientContextReview.review, issueCode: "dose_rationale_concern", repairFocus: "dose_strength" } },
   ]) {
     assert.equal(
-      canAcceptRepeatedUnlocalizedM04PatientContextReview({
+      canAcceptRepeatedM04PatientContextReviewFixpoint({
         ...safeRepeatedPatientContextReview,
         ...unsafeVariant,
       }),
