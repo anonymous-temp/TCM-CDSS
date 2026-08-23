@@ -246,9 +246,14 @@ const M04ProposalSchema = z.object({
   schemaVersion: z.literal("tcm-cdss-m04-proposal-v1"),
   candidate: z.object({
     name: z.string().min(1).max(300),
-    therapyMatch: z.string().min(1).max(1200).optional(),
-    applicable: z.string().min(1).max(1200).optional(),
-    notApplicable: z.string().min(1).max(1200).optional(),
+    // Optional prose is owned by the server in the compiled result. Keep the normalization at the
+    // field boundary as well as in normalizeM04ProposalInput: targeted repair responses have been
+    // observed reaching this schema with object-shaped prose even though every clinical field was
+    // otherwise valid. An unambiguous scalar wrapper is kept; ambiguous prose is omitted. Core
+    // herb, dose, role, target and regimen fields remain strict and cannot use this path.
+    therapyMatch: z.preprocess(unwrapSingleText, z.string().min(1).max(1200).optional()),
+    applicable: z.preprocess(unwrapSingleText, z.string().min(1).max(1200).optional()),
+    notApplicable: z.preprocess(unwrapSingleText, z.string().min(1).max(1200).optional()),
     herbs: z.array(z.object({
       name: z.string().min(1).max(120),
       processing: z.preprocess(normalizeModelNullableText, z.string().max(120).nullable()),
@@ -276,7 +281,7 @@ const M04ProposalSchema = z.object({
         z.string().max(200).nullable().optional(),
       ).transform((value) => value ?? undefined),
     })).min(1).max(50),
-    formulaAnalysis: z.string().min(1).max(4000).optional(),
+    formulaAnalysis: z.preprocess(unwrapSingleText, z.string().min(1).max(4000).optional()),
     decoction: z.object({
       doseCount: z.string().min(1).max(120).refine((value) => controlledDoseCount(value) != null),
       dosesPerDay: z.number().int().min(1).max(3),

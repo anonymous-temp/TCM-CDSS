@@ -211,17 +211,19 @@ export function m04FinalReviewQualityAnnotation(review: { status?: string; issue
 }
 
 /**
- * A patient-context review remains actionable for one bounded repair round. If the repaired
- * candidate is rejected again with the same issue and its complete clinical-decision fingerprint
- * is byte-for-byte unchanged, repeating the same instruction has reached a semantic fixpoint. At
- * that point the caller may resolve the review as quality-only, but only after independently
- * re-running the complete deterministic prescription safety and formula-compilation contracts.
+ * A patient-context review remains actionable for one bounded repair round. If the reviewer
+ * returns the same patient-dependency issue after both bounded repairs, there is no repair round
+ * left to execute. The latest candidate may legitimately differ because it attempted to remove
+ * that dependency; byte equality with the preceding candidate is therefore not a safety
+ * invariant. At that point the caller may resolve the repeated review as quality-only, but only
+ * after independently re-running the complete deterministic prescription safety and
+ * formula-compilation contracts on the latest candidate.
  *
  * This is intentionally narrower than `m04FinalReviewQualityAnnotation`: dose, composition and
  * herb-plan opinions never enter this path, a newly introduced issue code defaults to denial, and
  * an aborted request can never be converted into acceptance.
  */
-export function canAcceptRepeatedM04PatientContextReviewFixpoint(input: {
+export function canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion(input: {
   review: {
     status?: string;
     issueCode?: string;
@@ -230,7 +232,6 @@ export function canAcceptRepeatedM04PatientContextReviewFixpoint(input: {
   };
   previousReviewReason?: string;
   completedRepairAttempts: number;
-  semanticPayloadUnchanged: boolean;
   hardSafetyIssue?: string;
   formulaCompilationIssue?: string;
   requestAborted: boolean;
@@ -238,7 +239,6 @@ export function canAcceptRepeatedM04PatientContextReviewFixpoint(input: {
   const { review } = input;
   return !input.requestAborted &&
     input.completedRepairAttempts >= 2 &&
-    input.semanticPayloadUnchanged &&
     input.previousReviewReason === "m04_patient_context_semantic_review" &&
     review.status === "repair" &&
     review.issueCode === "patient_context_mismatch" &&

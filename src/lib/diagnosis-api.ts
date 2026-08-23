@@ -30,7 +30,7 @@ import { newM03ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
 import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
-import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewFixpoint, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
+import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
 import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
@@ -2510,7 +2510,6 @@ async function callPrimaryTextModelStream(
       };
       let m03ReviewedReasoning: unknown;
       let m04ReviewedSemanticHash: string | undefined;
-      let m04LastRejectedReviewSemanticHash: string | undefined;
       let m04ReviewedReasoning: unknown;
       let m03GeneratorModel = model;
       let m04GeneratorModel = model;
@@ -2843,7 +2842,6 @@ async function callPrimaryTextModelStream(
         m04ReviewedSemanticHash = review.status === "repair"
           ? undefined
           : semanticHash;
-        if (review.status === "repair") m04LastRejectedReviewSemanticHash = semanticHash;
         m04ReviewedReasoning = review.status === "repair" ? undefined : reasoning;
         // A composition-only rejection is a dispute about the claimed classic-formula identity,
         // not a request to redraw every herb and dose. Regenerating the full prescription here can
@@ -3847,7 +3845,6 @@ async function callPrimaryTextModelStream(
                   console.warn("[tcm-cdss:model] M03 clinical review unavailable after targeted repair; marking output for doctor review");
                 }
               } else if (secondReasoning && opts.structuredStage === "prescribe") {
-                const previousRejectedReviewSemanticHash = m04LastRejectedReviewSemanticHash;
                 const review = observeClinicalReview(await reviewM04ClinicalPlan(
                   secondReasoning,
                   opts.structuredPriorReasoning,
@@ -3860,18 +3857,11 @@ async function callPrimaryTextModelStream(
                 trackM04ReviewResult(review, secondReasoning);
                 m04ClinicalReviewStatus = review.status;
                 const enrichedSecondReasoning = enrichReasoning(secondReasoning).reasoning;
-                const repeatedPatientContextReviewFixpointAccepted =
-                  canAcceptRepeatedM04PatientContextReviewFixpoint({
+                const repeatedPatientContextReviewAcceptedAfterRepairExhaustion =
+                  canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion({
                     review,
                     previousReviewReason: m04LastRepairTriggerReason,
                     completedRepairAttempts: m04RepairState.completedAttempts,
-                    semanticPayloadUnchanged: Boolean(
-                      previousRejectedReviewSemanticHash &&
-                      previousRejectedReviewSemanticHash === m04ClinicalReviewSemanticHash(
-                        opts.structuredPriorReasoning,
-                        secondReasoning,
-                      )
-                    ),
                     hardSafetyIssue: m04SafetyContractIssue(
                       enrichedSecondReasoning,
                       opts.structuredPriorReasoning,
@@ -3888,7 +3878,7 @@ async function callPrimaryTextModelStream(
                     ),
                     requestAborted: upstreamController.signal.aborted || opts.requestSignal?.aborted === true,
                   });
-                if (repeatedPatientContextReviewFixpointAccepted) {
+                if (repeatedPatientContextReviewAcceptedAfterRepairExhaustion) {
                   // The reviewer disposition remains in the signed acceptance scope, while the
                   // physician-facing result contains only the clinical plan. Mark the resolved
                   // attestation accepted so finalization can safely rebind the same reviewed plan
@@ -3909,7 +3899,7 @@ async function callPrimaryTextModelStream(
                     secondReasoning,
                   );
                   m04ReviewedReasoning = secondReasoning;
-                  console.warn("[tcm-cdss:model] repeated unchanged M04 patient-context review resolved after hard-contract revalidation", {
+                  console.warn("[tcm-cdss:model] repeated M04 patient-context review resolved after repair exhaustion and hard-contract revalidation", {
                     stage: "prescribe",
                     issueCode: review.issueCode,
                     completedRepairAttempts: m04RepairState.completedAttempts,
