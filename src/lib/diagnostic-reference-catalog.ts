@@ -106,6 +106,10 @@ const LOCAL_DIAGNOSTIC_REFERENCES: readonly DiagnosticReferenceEntry[] = [
     problemKey: "胃食管反流",
     record: "[EVID-GUIDE-924] Katz PO, et al. ACG Clinical Guideline for the Diagnosis and Management of Gastroesophageal Reflux Disease. Am J Gastroenterol. 2022;117(1):27-56. PMID:34807007. DOI:10.14309/ajg.0000000000001538：反酸、烧心等典型反流症状需结合报警特征及必要的内镜或反流监测进行诊断分层。 URL:https://pubmed.ncbi.nlm.nih.gov/34807007/",
   },
+  {
+    problemKey: "感冒",
+    record: "[EVID-GUIDE-925] 中华医学会，中华医学会杂志社，中华医学会全科医学分会，等. 急性上呼吸道感染基层诊疗指南（2018年）[J]. 中华全科医师杂志，2019，18(5):422-426. DOI:10.3760/cma.j.issn.1671-7368.2019.05.005：急性上呼吸道感染可结合受凉等诱因、鼻咽部卡他或炎症症状与体征作出临床诊断，并与流感、过敏性鼻炎等鉴别。 URL:https://seleguide.yiigle.com/uploads/guide_html/%E6%80%A5%E6%80%A7%E4%B8%8A%E5%91%BC%E5%90%B8%E9%81%93%E6%84%9F%E6%9F%93%E5%9F%BA%E5%B1%82%E8%AF%8A%E7%96%97%E6%8C%87%E5%8D%97%EF%BC%882018%E5%B9%B4%EF%BC%89.html",
+  },
 ] as const;
 
 export function localDiagnosticReferenceContext(clinicalText: string): string {

@@ -111,6 +111,7 @@ check("症状性诊断长尾只注入真实且问题匹配的本地权威依据"
     ["便中带血半年", "EVID-GUIDE-922", "cmab.yiigle.com"],
     ["求嗣两年未孕", "EVID-GUIDE-923", "who.int"],
     ["反酸烧心餐后加重一年", "EVID-GUIDE-924", "pubmed.ncbi.nlm.nih.gov"],
+    ["受凉后恶寒发热、鼻塞流清涕两天", "EVID-GUIDE-925", "yiigle.com"],
   ];
   for (const [clinicalText, evidenceId, host] of cases) {
     const context = localDiagnosticReferenceContext(clinicalText);
@@ -142,6 +143,7 @@ check("症状性诊断长尾只注入真实且问题匹配的本地权威依据"
       "EVID-GUIDE-922": "便血",
       "EVID-GUIDE-923": "不孕症",
       "EVID-GUIDE-924": "反酸",
+      "EVID-GUIDE-925": "急性上呼吸道感染",
     })[evidenceId];
     const payload = {
       schemaVersion: "tcm-cdss-reasoning-v2",
@@ -155,7 +157,7 @@ check("症状性诊断长尾只注入真实且问题匹配的本地权威依据"
     const parsed = JSON.parse(transformed.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
     assert.equal(parsed.westernDiagnosis.primary.guidelineReferences?.[0]?.evidenceId, evidenceId, `${evidenceId} 未进入最终诊断引用`);
   }
-  assert.equal(localDiagnosticReferenceContext("普通感冒伴流清涕"), "", "无匹配问题不得注入通用文献凑数");
+  assert.equal(localDiagnosticReferenceContext("精神尚可，要求健康咨询"), "", "无匹配问题不得注入通用文献凑数");
 });
 
 if (failures.length > 0) {

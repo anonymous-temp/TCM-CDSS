@@ -98,8 +98,15 @@ if (m03.reasoning) {
     ...(r.pathogenesis?.chain || []).map((item) => item.pathogenesis)].filter(Boolean);
   check("病机无事实状态模板", mechanisms.every((text) => !/病历已记录/.test(text)), mechanisms.join("｜"));
   check("治则有本例信息", !/^(?:正治法?|反治法?|治疗本病)$/.test(r.therapy?.overallPrinciple || ""), r.therapy?.overallPrinciple);
-  check("西医依据无一般状态填充", !(r.westernDiagnosis?.primary?.supportingFacts || []).some((fact) => /精神饮食尚可|二便调/.test(fact)),
-    (r.westernDiagnosis?.primary?.supportingFacts || []).join("｜"));
+  const westernPrimary = r.westernDiagnosis?.primary;
+  check("西医依据无一般状态填充", !(westernPrimary?.supportingFacts || []).some((fact) => /精神饮食尚可|二便调/.test(fact)),
+    (westernPrimary?.supportingFacts || []).join("｜"));
+  check("西医主诊断使用规范 ICD 名称", westernPrimary?.name === "急性上呼吸道感染" && westernPrimary?.coding?.code === "J06.900",
+    JSON.stringify({ name: westernPrimary?.name, coding: westernPrimary?.coding }));
+  const diagnosisReference = westernPrimary?.guidelineReferences?.[0];
+  check("西医主诊断引用匹配的标准文献", diagnosisReference?.evidenceId === "EVID-GUIDE-925" &&
+    /急性上呼吸道感染基层诊疗指南/.test(diagnosisReference?.citation || "") &&
+    /^https:\/\//.test(diagnosisReference?.url || ""), JSON.stringify(diagnosisReference));
 }
 
 if (m04.reasoning) {

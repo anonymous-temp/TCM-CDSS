@@ -37,6 +37,13 @@ const GOVERNED_CLINICAL_ALIASES: Readonly<Record<string, string>> = {
   便秘症状: "K59.000",
   ...GOVERNED_SYMPTOM_ALIASES,
 };
+// These labels already denote an etiologically unspecified ICD entity. Appending “病因待查” does
+// not make them safer; it makes the clinician-facing diagnosis self-contradictory and prevents the
+// exact payer-code match. Keep this list narrow and code-backed: disease-specific labels such as
+// gout or GERD are intentionally absent and therefore remain fail-closed when similarly qualified.
+const GOVERNED_REDUNDANT_CAUSE_QUALIFIER_CODES: Readonly<Record<string, string>> = {
+  急性上呼吸道感染: "J06.900",
+};
 const entryByCode = new Map(entries.map((entry) => [entry.code, entry]));
 
 function normalizeDiagnosisName(value: string): string {
@@ -82,10 +89,15 @@ export function resolveIcd10Diagnosis(name: string, status: string = "考虑"): 
   const limitedEvidence = status === "证据有限";
   const causeUnresolved = /(?:病因待查|病因待鉴别|病因未明)/.test(name);
   if ((status !== "考虑" && !limitedEvidence) || /(?:症状性诊断|急危重症风险|无法形成|待临床鉴别)/.test(name)) return undefined;
-  const symptomOnlyBoundary = limitedEvidence || causeUnresolved;
   const normalized = normalizeDiagnosisName(name);
+  const redundantCauseQualifierCode = causeUnresolved
+    ? Object.entries(GOVERNED_REDUNDANT_CAUSE_QUALIFIER_CODES)
+        .find(([canonicalName]) => normalizeDiagnosisName(canonicalName) === normalized)?.[1]
+    : undefined;
+  const symptomOnlyBoundary = limitedEvidence || (causeUnresolved && !redundantCauseQualifierCode);
   const limitedStatusAllows = (entry: IcdEntry): boolean =>
-    !symptomOnlyBoundary || entry.code.startsWith("R") || normalized.endsWith("症状");
+    (!symptomOnlyBoundary || entry.code.startsWith("R") || normalized.endsWith("症状")) &&
+    (!redundantCauseQualifierCode || entry.code === redundantCauseQualifierCode);
   for (const key of lookupKeys(name)) {
     const match = uniqueBestEntry(byAlias.get(key) || []);
     if (match && limitedStatusAllows(match)) {
@@ -98,7 +110,7 @@ export function resolveIcd10Diagnosis(name: string, status: string = "考虑"): 
   if (governed && limitedStatusAllows(governed)) {
     return { system: "ICD-10", code: governed.code, display: governed.name, source: SOURCE, mapping: "governed_alias" };
   }
-  if (symptomOnlyBoundary) return undefined;
+  if (symptomOnlyBoundary || causeUnresolved) return undefined;
   const fuzzySubcategories = entries.filter((entry) =>
     entry.level === "subcategory" &&
     [entry.name, ...entry.aliases].some((alias) => {
@@ -178,6 +190,16 @@ export function applyDeterministicIcd10Coding(content: string): string {
           // 主诊断名同步改为编码名称；疾病实体继续由既有 differentials 承载。
           if (coding.mapping === "governed_alias" && Object.hasOwn(GOVERNED_SYMPTOM_ALIASES, normalizedPrimaryName)) {
             primary.name = coding.display;
+          }
+          const redundantCauseQualifierCode = /(?:病因待查|病因待鉴别|病因未明)/.test(primaryName)
+            ? Object.entries(GOVERNED_REDUNDANT_CAUSE_QUALIFIER_CODES)
+                .find(([canonicalName]) => normalizeDiagnosisName(canonicalName) === normalizedPrimaryName)?.[1]
+            : undefined;
+          if (redundantCauseQualifierCode === coding.code) {
+            primary.name = coding.display;
+            if (typeof primary.clinicalRationale === "string") {
+              primary.clinicalRationale = primary.clinicalRationale.replaceAll(primaryName, coding.display);
+            }
           }
         }
         else delete primary.coding;

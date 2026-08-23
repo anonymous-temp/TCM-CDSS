@@ -56,6 +56,10 @@ assert.equal(resolveIcd10Diagnosis("胃食管反流病，病因待查", "考虑"
   "病因待查的疾病名不得借症状编码规则升级为 K21");
 assert.equal(resolveIcd10Diagnosis("胃食管反流病", "证据有限"), undefined,
   "证据有限不得把疾病倾向升级成 K21 正式疾病编码");
+assert.equal(resolveIcd10Diagnosis("急性上呼吸道感染，病因待查", "考虑")?.code, "J06.900",
+  "病原未分型不应阻断本就未特指病原的急性上呼吸道感染编码");
+assert.equal(resolveIcd10Diagnosis("急性痛风性关节炎，病因待查", "考虑"), undefined,
+  "具体病因疾病不得借急性上呼吸道感染的受控例外获得正式编码");
 
 const raw = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
   westernDiagnosis: { primary: { name: "原发性高血压", status: "考虑", coding: { system: "ICD-10", code: "Z99", display: "模型伪造", source: "模型" } } },
@@ -109,4 +113,19 @@ const refluxDeniedPayload = JSON.parse(applyDeterministicIcd10Coding(refluxDenie
 assert.notEqual(refluxDeniedPayload.westernDiagnosis.primary.name, "反酸",
   "否定式反酸不得被确定性层制造成阳性症状诊断");
 
-console.log(JSON.stringify({ cases: 29, failures: 0 }));
+const uriPendingRaw = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
+  westernDiagnosis: { primary: {
+    name: "急性上呼吸道感染，病因待查",
+    status: "考虑",
+    clinicalRationale: "当前症状支持急性上呼吸道感染，病因待查；尚未取得具体病原学证据。",
+  } },
+})}\n<!-- DIAGNOSIS_JSON_END -->`;
+const uriPendingPayload = JSON.parse(applyDeterministicIcd10Coding(uriPendingRaw)
+  .split("<!-- DIAGNOSIS_JSON_START -->")[1]
+  .split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+assert.equal(uriPendingPayload.westernDiagnosis.primary.name, "急性上呼吸道感染");
+assert.equal(uriPendingPayload.westernDiagnosis.primary.coding.code, "J06.900");
+assert.doesNotMatch(uriPendingPayload.westernDiagnosis.primary.clinicalRationale, /病因待查/,
+  "规范主诊断后，诊断依据不得继续复述被删除的自相矛盾标签");
+
+console.log(JSON.stringify({ cases: 34, failures: 0 }));
