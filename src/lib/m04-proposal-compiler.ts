@@ -840,7 +840,6 @@ function normalizeM04ProposalInput(
     // M03-owned diagnosis/pathogenesis/therapy/formula state) remains rejected below instead of
     // being silently projected into a prescription.
     const fullReasoningKeys = [
-      "stage",
       "overview",
       "westernDiagnosis",
       "pathogenesis",
@@ -851,7 +850,11 @@ function normalizeM04ProposalInput(
       "terminologyMappings",
       "contractSignature",
     ] as const;
-    if (fullReasoningKeys.some((key) => value[key] != null)) return value;
+    // `stage: "prescribe"` is another redundant envelope scalar that a targeted repair may retain.
+    // It cannot rewrite any signed M03 decision because this compiler rebuilds the final V2 object
+    // from `prior`; reject every other stage and every actual full-reasoning section below.
+    if ((value.stage != null && value.stage !== "prescribe") ||
+      fullReasoningKeys.some((key) => value[key] != null)) return value;
   }
 
   let rawCandidate = value.candidate;

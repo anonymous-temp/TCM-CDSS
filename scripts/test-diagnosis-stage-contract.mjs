@@ -3943,9 +3943,19 @@ assert.equal(
   "the stale-version minimal repair still receives the deterministic redundant-course derivation",
 );
 assert.equal(
-  compileM04Proposal({ ...wrongVersionMinimalRepairProposal, stage: "prescribe" }, heatQiPrior),
+  compileM04Proposal({ ...wrongVersionMinimalRepairProposal, stage: "prescribe" }, heatQiPrior)?.formula?.candidates?.[0]?.decoction?.course,
+  "5日",
+  "a targeted M04 repair may retain the redundant prescribe-stage scalar without bypassing proposal compilation",
+);
+assert.equal(
+  compileM04Proposal({ ...wrongVersionMinimalRepairProposal, stage: "diagnose" }, heatQiPrior),
   undefined,
-  "a wrong-version object carrying any full-reasoning field is not treated as a minimal M04 proposal",
+  "a diagnose-stage object cannot enter the M04 proposal compiler",
+);
+assert.equal(
+  compileM04Proposal({ ...wrongVersionMinimalRepairProposal, overview: { primarySyndrome: "模型改写" } }, heatQiPrior),
+  undefined,
+  "a wrong-version object carrying an M03-owned reasoning section is not treated as a minimal M04 proposal",
 );
 const conflictingLegacyMethodPrior = {
   ...heatQiPrior,

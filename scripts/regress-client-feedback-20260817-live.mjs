@@ -112,10 +112,14 @@ if (m03.reasoning) {
 if (m04.reasoning) {
   const candidate = m04.reasoning.formula?.candidates?.[0];
   const roles = Object.fromEntries((candidate?.herbs || []).map((herb) => [herb.name, herb.role]));
+  const almondNames = ["苦杏仁", "杏仁"].filter((name) => Object.hasOwn(roles, name));
+  const licoriceNames = ["炙甘草", "甘草"].filter((name) => Object.hasOwn(roles, name));
   const base = candidate?.baseFormulas?.[0];
   check("首选麻黄汤", /麻黄汤/.test(candidate?.name || ""), candidate?.name);
   check("麻黄汤来源为伤寒论四味", base?.source === "《伤寒论》" && base?.totalIngredientCount === 4, JSON.stringify(base));
-  check("麻黄汤角色正确", roles.麻黄 === "君" && roles.桂枝 === "臣" && roles.苦杏仁 === "佐" && roles.甘草 === "使", JSON.stringify(roles));
+  check("麻黄汤角色正确", roles.麻黄 === "君" && roles.桂枝 === "臣" &&
+    almondNames.length === 1 && roles[almondNames[0]] === "佐" &&
+    licoriceNames.length === 1 && roles[licoriceNames[0]] === "使", JSON.stringify(roles));
   check("方义无占位", !/具体配伍作用需医生结合方义复核/.test(candidate?.formulaAnalysis || ""), candidate?.formulaAnalysis);
   check("解表剂武火短煎", /武火急煎/.test(candidate?.decoction?.method || "") && candidate?.decoction?.firstDecoctionMinutes <= 15, candidate?.decoction?.method);
   const acupuncture = (m04.reasoning.nonPharma?.tcmTreatments || []).find((item) => item.projectCode === "acupuncture");
