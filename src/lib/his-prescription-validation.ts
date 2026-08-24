@@ -29,6 +29,28 @@ type ValidationSuccess = {
 
 export type HisPrescriptionValidationResult = ValidationFailure | ValidationSuccess;
 
+export function isLimitedM03NotPrescribable(
+  diagnoseReasoning: ClinicalReasoningResultV2 | undefined,
+): boolean {
+  return diagnoseReasoning?.overview.primarySyndromeResolution === "unresolved" &&
+    diagnoseReasoning.pathogenesis.chain.length === 0;
+}
+
+export function isTrustedHisWorkbenchEdit(
+  caseState: CaseState,
+  prescribed = prescribeReasoningFromState(caseState),
+): boolean {
+  if (!prescribed?.formula) return false;
+  const candidateIndex = caseState.prescriptionRevision?.candidateIndex ?? 0;
+  const candidate = Number.isSafeInteger(candidateIndex) && candidateIndex >= 0
+    ? prescribed.formula.candidates[candidateIndex]
+    : undefined;
+  return caseState.prescriptionRevision?.source === "herb_workbench" &&
+    candidate?.constructionType === "self_devised" &&
+    candidate.modificationStatus === "modified" &&
+    /医生编辑版/.test(candidate.name);
+}
+
 function invalidPrescription(issue: string): ValidationFailure {
   return {
     ok: false,
@@ -63,9 +85,7 @@ export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPr
   // Mirror the M04-route predicate: a signed M03 with no syndrome resolution and no pathogenesis
   // chain is a server-owned limited contract. It can never authorize dose generation, so a
   // client-claimed herb_workbench revision must not turn it into a dose-level HIS payload.
-  if (diagnoseReasoning &&
-    diagnoseReasoning.overview.primarySyndromeResolution === "unresolved" &&
-    diagnoseReasoning.pathogenesis.chain.length === 0) {
+  if (isLimitedM03NotPrescribable(diagnoseReasoning)) {
     return {
       ok: false,
       status: 409,
@@ -87,10 +107,7 @@ export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPr
     };
   }
 
-  const trustedWorkbenchEdit = caseState.prescriptionRevision?.source === "herb_workbench" &&
-    candidate.constructionType === "self_devised" &&
-    candidate.modificationStatus === "modified" &&
-    /医生编辑版/.test(candidate.name);
+  const trustedWorkbenchEdit = isTrustedHisWorkbenchEdit(caseState, prescribed);
   if (!trustedWorkbenchEdit && !verifyPrescribeReasoningSignature(prescribed, caseState)) {
     return {
       ok: false,

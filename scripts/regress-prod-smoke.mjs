@@ -29,6 +29,10 @@ const HEADERS = {
   "x-cdss-customer-id": CUSTOMER_ID,
   ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}),
 };
+const FIRST_CONTENT_SLO_MS = Number(process.env.PROD_SMOKE_FIRST_CONTENT_SLO_MS || 5_000);
+const M03_COMPLETION_SLO_MS = Number(process.env.PROD_SMOKE_M03_COMPLETION_SLO_MS || 60_000);
+const M04_COMPLETION_SLO_MS = Number(process.env.PROD_SMOKE_M04_COMPLETION_SLO_MS || 90_000);
+const PROD_SMOKE_SAMPLES = Math.max(1, Math.min(20, Number.parseInt(process.env.PROD_SMOKE_SAMPLES || "5", 10) || 5));
 
 const failures = [];
 const check = (name, ok, detail) => {
@@ -38,13 +42,47 @@ const check = (name, ok, detail) => {
 
 /** 调用一个阶段路由,返回 { status, markdown, structured }。NDJSON 契约见接口文档 §3。 */
 async function callStage(path, caseState) {
+  const startedAt = Date.now();
   const response = await fetch(`${BASE_URL}/api/diagnosis/${path}`, {
     method: "POST",
     headers: HEADERS,
     body: JSON.stringify({ caseState }),
   });
-  const raw = await response.text();
-  if (!response.ok) return { status: response.status, error: raw.slice(0, 200) };
+  const responseHeaderMs = Date.now() - startedAt;
+  let raw = "";
+  let firstContentMs = null;
+  let modelFirstContentMs = null;
+  let pending = "";
+  if (response.body) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const text = decoder.decode(value, { stream: true });
+      raw += text;
+      pending += text;
+      const lines = pending.split("\n");
+      pending = lines.pop() || "";
+      for (const line of lines) {
+        try {
+          const chunk = JSON.parse(line);
+          if (firstContentMs == null && typeof chunk.content === "string" && chunk.content && chunk.content !== "[END]") {
+            firstContentMs = Date.now() - startedAt;
+          }
+          if (modelFirstContentMs == null && chunk.type === "heartbeat" &&
+              chunk.status === "模型已开始返回临床正文" && Number(chunk.processedChars) > 0) {
+            modelFirstContentMs = Date.now() - startedAt;
+          }
+        } catch { /* 等待完整 NDJSON 行 */ }
+      }
+    }
+    raw += decoder.decode();
+  } else {
+    raw = await response.text();
+  }
+  const durationMs = Date.now() - startedAt;
+  if (!response.ok) return { status: response.status, error: raw.slice(0, 200), responseHeaderMs, firstContentMs, modelFirstContentMs, durationMs };
   let markdown = "";
   for (const line of raw.split("\n")) {
     if (!line.trim()) continue;
@@ -57,82 +95,144 @@ async function callStage(path, caseState) {
   const match = markdown.match(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/);
   let structured = null;
   if (match) { try { structured = JSON.parse(match[1].trim()); } catch { /* 保持 null,由断言报告 */ } }
-  return { status: 200, markdown, structured };
+  return { status: 200, markdown, structured, responseHeaderMs, firstContentMs, modelFirstContentMs, durationMs };
 }
-
-// 甲方评测原始病例。选它是因为它同时压住四条已验收能力:病名鉴别(头痛需与眩晕/真头痛鉴别)、
-// 病位(须含头部而非只有心脾)、治法(不得只写养心安神)、以及主症是否影响选方。
-// caseState.id 必须稳定且全程一致——缺它 M04 恒 409,见接口文档 §9.2。
-const CASE_ID = `prod-smoke-${randomUUID()}`;
-const baseCase = {
-  id: CASE_ID,
-  customerId: CUSTOMER_ID,
-  patient: { sex: "女", age: 28 },
-  chiefComplaint: "产后2月余，头痛反复发作1月",
-  symptoms: {
-    现病史: "产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华",
-    既往史: "否认高血压、糖尿病病史",
-  },
-  tongue: "舌淡苔薄白",
-  pulse: "脉细弱",
-  conversation: [],
-  vitals: {},
-};
 
 /** 内部工程标签:内部分级枚举等绝不能出现在医生可见正文里。 */
 const INTERNAL_TAG = /(?:^|[\s（(【|])L[0-4](?:$|[\s）)】|，,。；;])/;
 
-console.log(`[prod-smoke] ${BASE_URL} case=${CASE_ID}`);
-
-// ── M03 辨病辨证 ──────────────────────────────────────────────
-const m03 = await callStage("diagnose", baseCase);
-check("M03 返回 200", m03.status === 200, m03.error);
-if (m03.status !== 200) {
-  console.error(JSON.stringify({ stage: "M03", failures }, null, 2));
-  process.exit(1);
+function percentile95(values) {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  return sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)];
 }
-const r3 = m03.structured;
-check("M03 结构化结论可解析", Boolean(r3), "sentinel 区块缺失或 JSON 非法");
-check("M03 带合同签名", Boolean(r3?.contractSignature), "contractSignature 缺失");
-check("M03 主证非空", Boolean(r3?.overview?.primarySyndrome), r3?.overview?.primarySyndrome);
 
-// 甲方已验收能力,不得退化
-const differentials = r3?.overview?.tcmDiseaseDifferentials || [];
-check("病名鉴别非空（辨病再辨证）", differentials.length > 0, JSON.stringify(differentials).slice(0, 120));
-const locations = r3?.pathogenesis?.locationDifferentiation?.items || [];
-check("病位含头部（主症所在）", locations.some((item) => /头|脑|清窍/.test(String(item))), JSON.stringify(locations));
-const therapyText = `${r3?.therapy?.overallPrinciple || ""}｜${r3?.therapy?.overallMethod || ""}`;
-check("治法非空", therapyText.replace("｜", "").trim().length > 0, therapyText);
-check("M03 正文无工程标签泄漏", !INTERNAL_TAG.test(m03.markdown), m03.markdown.match(INTERNAL_TAG)?.[0]);
+// 甲方评测原始病例。每个样本使用独立、稳定贯穿 M03→M04 的 caseState.id，既测真实签名链，
+// 也让完成时延的 P95 来自多次完整临床编排，而不是单次请求或健康探针。
+const samples = [];
+let signedM03Count = 0;
+let signedM03WithNonEmptyPrescription = 0;
+for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
+  const caseId = `prod-smoke-${randomUUID()}`;
+  const label = `样本${sampleIndex + 1}`;
+  const baseCase = {
+    id: caseId,
+    customerId: CUSTOMER_ID,
+    patient: { sex: "女", age: 28 },
+    chiefComplaint: "产后2月余，头痛反复发作1月",
+    symptoms: {
+      现病史: "产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华",
+      既往史: "否认高血压、糖尿病病史",
+    },
+    tongue: "舌淡苔薄白",
+    pulse: "脉细弱",
+    conversation: [],
+    vitals: {},
+  };
+  console.log(`[prod-smoke] ${BASE_URL} sample=${sampleIndex + 1}/${PROD_SMOKE_SAMPLES} case=${caseId}`);
 
-// ── M04 候选方药 ──────────────────────────────────────────────
-// 关键:把 M03 的签名结论**原样**合并回 caseState。改动任一字段都会导致验签失败(409)。
-const m04 = await callStage("prescribe", { ...baseCase, reasoningDiagnose: r3 });
-check("M04 返回 200（签名链走通）", m04.status === 200, m04.error);
+  const m03 = await callStage("diagnose", baseCase);
+  check(`${label} M03 返回 200`, m03.status === 200, m03.error);
+  if (m03.status !== 200) {
+    samples.push({ caseId, m03: { status: m03.status, timing: m03 } });
+    continue;
+  }
+  const r3 = m03.structured;
+  check(`${label} M03 结构化结论可解析`, Boolean(r3), "sentinel 区块缺失或 JSON 非法");
+  check(`${label} M03 带合同签名`, Boolean(r3?.contractSignature), "contractSignature 缺失");
+  check(`${label} M03 主证非空`, Boolean(r3?.overview?.primarySyndrome), r3?.overview?.primarySyndrome);
+  check(`${label} M03 正文无工程标签泄漏`, !INTERNAL_TAG.test(m03.markdown), m03.markdown.match(INTERNAL_TAG)?.[0]);
 
-let candidate = null;
-if (m04.status === 200) {
-  const r4 = m04.structured;
-  candidate = r4?.formula?.candidates?.[0] || null;
-  check("M04 给出候选方", Boolean(candidate?.name), JSON.stringify(r4?.formula || {}).slice(0, 120));
-  check("候选方含药味", (candidate?.herbs?.length || 0) > 0, `herbs=${candidate?.herbs?.length}`);
-  check("M04 正文无工程标签泄漏", !INTERNAL_TAG.test(m04.markdown), m04.markdown.match(INTERNAL_TAG)?.[0]);
-  // 病机重复:同一句「对应病机」逐味重印曾达 15 次/整页 19 次。阈值取 8——
-  // 正常方 8–14 味,合理呈现是按节点归并而非逐味重复。
-  const repeats = (m04.markdown.match(/对应病机/g) || []).length;
-  check("方义无逐味重复病机", repeats <= 8, `出现 ${repeats} 次`);
+  const differentials = r3?.overview?.tcmDiseaseDifferentials || [];
+  const locations = r3?.pathogenesis?.locationDifferentiation?.items || [];
+  const therapyText = `${r3?.therapy?.overallPrinciple || ""}｜${r3?.therapy?.overallMethod || ""}`;
+  check(`${label} 病名鉴别非空（辨病再辨证）`, differentials.length > 0, JSON.stringify(differentials).slice(0, 120));
+  check(`${label} 病位含头部（主症所在）`, locations.some((item) => /头|脑|清窍/.test(String(item))), JSON.stringify(locations));
+  check(`${label} 治法非空`, therapyText.replace("｜", "").trim().length > 0, therapyText);
+  if (r3?.contractSignature) signedM03Count += 1;
+
+  const m04 = await callStage("prescribe", { ...baseCase, reasoningDiagnose: r3 });
+  check(`${label} M04 返回 200（签名链走通）`, m04.status === 200, m04.error);
+  let candidate = null;
+  if (m04.status === 200) {
+    const r4 = m04.structured;
+    candidate = r4?.formula?.candidates?.[0] || null;
+    const herbCount = candidate?.herbs?.length || 0;
+    check(`${label} M04 给出候选方`, Boolean(candidate?.name), JSON.stringify(r4?.formula || {}).slice(0, 120));
+    check(`${label} 候选方含药味`, herbCount > 0, `herbs=${herbCount}`);
+    if (r3?.contractSignature && herbCount > 0) signedM03WithNonEmptyPrescription += 1;
+    check(`${label} M04 正文无工程标签泄漏`, !INTERNAL_TAG.test(m04.markdown), m04.markdown.match(INTERNAL_TAG)?.[0]);
+    const repeats = (m04.markdown.match(/对应病机/g) || []).length;
+    check(`${label} 方义无逐味重复病机`, repeats <= 8, `出现 ${repeats} 次`);
+  }
+  samples.push({
+    caseId,
+    m03: {
+      timing: {
+        uiFirstContentMs: m03.firstContentMs,
+        modelFirstContentMs: m03.modelFirstContentMs,
+        durationMs: m03.durationMs,
+      },
+      primarySyndrome: r3?.overview?.primarySyndrome,
+      diseaseDifferentials: differentials.map((item) => item?.diseaseName).filter(Boolean),
+      locations,
+      therapy: therapyText,
+    },
+    m04: candidate ? {
+      timing: {
+        uiFirstContentMs: m04.firstContentMs,
+        modelFirstContentMs: m04.modelFirstContentMs,
+        durationMs: m04.durationMs,
+      },
+      name: candidate.name,
+      herbCount: candidate.herbs?.length,
+      herbs: (candidate.herbs || []).map((herb) => herb.name),
+    } : { timing: { modelFirstContentMs: m04.modelFirstContentMs, durationMs: m04.durationMs } },
+  });
 }
+
+const m03ModelFirst = samples.flatMap((sample) => Number.isFinite(sample.m03?.timing?.modelFirstContentMs)
+  ? [sample.m03.timing.modelFirstContentMs]
+  : []);
+const m03Durations = samples.flatMap((sample) => Number.isFinite(sample.m03?.timing?.durationMs)
+  ? [sample.m03.timing.durationMs]
+  : []);
+const m04ModelFirst = samples.flatMap((sample) => Number.isFinite(sample.m04?.timing?.modelFirstContentMs)
+  ? [sample.m04.timing.modelFirstContentMs]
+  : []);
+const m04Durations = samples.flatMap((sample) => Number.isFinite(sample.m04?.timing?.durationMs)
+  ? [sample.m04.timing.durationMs]
+  : []);
+check("全部 M03 都上报真实模型首字", m03ModelFirst.length === PROD_SMOKE_SAMPLES,
+  `observed=${m03ModelFirst.length}/${PROD_SMOKE_SAMPLES}`);
+check("全部 M04 都上报真实模型首字", m04ModelFirst.length === PROD_SMOKE_SAMPLES,
+  `observed=${m04ModelFirst.length}/${PROD_SMOKE_SAMPLES}`);
+check("真实模型首字均 < 5s",
+  [...m03ModelFirst, ...m04ModelFirst].length === PROD_SMOKE_SAMPLES * 2 &&
+    [...m03ModelFirst, ...m04ModelFirst].every((value) => value < FIRST_CONTENT_SLO_MS),
+  `max=${Math.max(0, ...m03ModelFirst, ...m04ModelFirst)}ms, budget=${FIRST_CONTENT_SLO_MS}ms`);
+check("M03 完成 P95 < 60s", m03Durations.length === PROD_SMOKE_SAMPLES &&
+  percentile95(m03Durations) < M03_COMPLETION_SLO_MS,
+`p95=${percentile95(m03Durations)}ms, samples=${m03Durations.length}, budget=${M03_COMPLETION_SLO_MS}ms`);
+check("M04 完成 P95 < 90s", m04Durations.length === PROD_SMOKE_SAMPLES &&
+  percentile95(m04Durations) < M04_COMPLETION_SLO_MS,
+`p95=${percentile95(m04Durations)}ms, samples=${m04Durations.length}, budget=${M04_COMPLETION_SLO_MS}ms`);
+check("M03 已签名时处方非空率 = 100%", signedM03Count === PROD_SMOKE_SAMPLES &&
+  signedM03WithNonEmptyPrescription === signedM03Count,
+  `nonEmpty=${signedM03WithNonEmptyPrescription}/${signedM03Count}`);
 
 const summary = {
   baseUrl: BASE_URL,
-  caseId: CASE_ID,
-  m03: {
-    primarySyndrome: r3?.overview?.primarySyndrome,
-    diseaseDifferentials: differentials.map((item) => item?.diseaseName).filter(Boolean),
-    locations,
-    therapy: therapyText,
+  sampleCount: PROD_SMOKE_SAMPLES,
+  slo: {
+    modelFirstContentMaxMs: Math.max(0, ...m03ModelFirst, ...m04ModelFirst),
+    m03CompletionP95Ms: percentile95(m03Durations),
+    m04CompletionP95Ms: percentile95(m04Durations),
+    signedM03PrescriptionNonEmptyRate: signedM03Count
+      ? signedM03WithNonEmptyPrescription / signedM03Count
+      : 0,
   },
-  m04: candidate ? { name: candidate.name, herbCount: candidate.herbs?.length, herbs: (candidate.herbs || []).map((h) => h.name) } : null,
+  samples,
   checks: { failed: failures.length },
   failures,
 };

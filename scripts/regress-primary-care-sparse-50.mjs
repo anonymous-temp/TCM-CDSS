@@ -300,7 +300,7 @@ function m03SignatureClinicalInputSnapshot(caseState) {
 }
 
 function verifyM03ContractSignature(reasoning, currentCaseState) {
-  const version = "tcm-cdss-m03-signature-v4";
+  const version = "tcm-cdss-m03-signature-v5";
   const signingKey = process.env.REASONING_CONTRACT_SIGNING_KEY || "";
   const normalizedReasoning = normalizeReasoningV2(reasoning);
   const normalizedCaseState = normalizeCaseStateInput(currentCaseState);
@@ -328,7 +328,7 @@ function verifyM03ContractSignature(reasoning, currentCaseState) {
 }
 
 function evaluateM03SignatureContract(diagnose, caseState) {
-  const formatOk = diagnose?.contractSignatureVersion === "tcm-cdss-m03-signature-v4" &&
+  const formatOk = diagnose?.contractSignatureVersion === "tcm-cdss-m03-signature-v5" &&
     /^hmac-sha256:[a-f0-9]{64}$/i.test(String(diagnose?.contractSignature || ""));
   let verified = false;
   if (formatOk) {

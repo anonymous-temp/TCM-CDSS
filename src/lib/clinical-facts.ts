@@ -327,6 +327,8 @@ export type ClinicalFacts = {
   promptVersion?: string;
   extractedAt?: string;
   modelTrace?: ClinicalFactsModelTrace;
+  /** SHA-256 binding of the authenticated API client and customer; never contains raw IDs. */
+  customerBindingHash?: string;
   attestation?: string;
 };
 
@@ -612,6 +614,10 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
         ...(typeof separateInvocationAdjudication === "boolean" ? { separateInvocationAdjudication } : {}),
       }
     : undefined;
+  const customerBindingHash = typeof (root as { customerBindingHash?: unknown }).customerBindingHash === "string" &&
+    /^[a-f0-9]{64}$/.test((root as { customerBindingHash: string }).customerBindingHash)
+    ? (root as { customerBindingHash: string }).customerBindingHash
+    : undefined;
   const attestation = typeof (root as { attestation?: unknown }).attestation === "string" && /^hmac-sha256:[a-f0-9]{64}$/.test((root as { attestation: string }).attestation)
     ? (root as { attestation: string }).attestation
     : undefined;
@@ -648,6 +654,7 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
     promptVersion,
     extractedAt,
     modelTrace,
+    customerBindingHash,
     attestation,
   };
 }

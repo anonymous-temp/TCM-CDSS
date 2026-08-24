@@ -80,7 +80,15 @@ try {
   );
   assert.deepEqual(
     textModelRequestTuning("qwen3.8-max", { reasoningEffort: "high", thinkingEnabled: true }),
-    { enable_thinking: true },
+    { enable_thinking: true, reasoning_effort: "xhigh" },
+  );
+  assert.deepEqual(
+    textModelRequestTuning("qwen3.8-max", { reasoningEffort: "medium", thinkingEnabled: true }),
+    { enable_thinking: true, reasoning_effort: "medium" },
+  );
+  assert.deepEqual(
+    textModelRequestTuning("qwen3.7-plus", { reasoningEffort: "medium", thinkingEnabled: true }),
+    { enable_thinking: true, thinking_budget: 4096 },
   );
   assert.deepEqual(
     textModelRequestTuning("qwen3.8-max", {}),

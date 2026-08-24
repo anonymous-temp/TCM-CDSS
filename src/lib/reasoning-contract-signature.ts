@@ -9,23 +9,22 @@ import {
   type ClinicalReasoningResultV2,
 } from "./diagnosis-types";
 import { sanitizeCaseStateForBrowserPersistence } from "./diagnosis-engine";
+import { authorizeCustomerId } from "./customer-authorization";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
-export const DIAGNOSE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m03-signature-v4" as const;
-// v2：M04 nonPharma 的 monitoring(metric/timing/trigger) 三元组已替换为自由文本 precautions。
-// 签名覆盖整个 normalize 后对象，字段集变化会让在途快照（浏览器 localStorage / 加密快照里已存在的
-// prescribe reasoning）HMAC 不符。显式升版本号，让失效表现为可解释的「合同版本不匹配」而不是
-// 难以定位的签名不符；两种情况都仍然 fail-closed 转人工复核，安全语义不变。
-// M03 侧无此风险：M03 提示词模板固定输出 "nonPharma": null，签名载荷不变，
-// DIAGNOSE_CONTRACT_SIGNATURE_VERSION 无需变动。
-export const PRESCRIBE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m04-signature-v2" as const;
+export const DIAGNOSE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m03-signature-v5" as const;
+// M03 v5 / M04 v3：签名域新增已授权 clientId + customerId。旧版本没有租户绑定，
+// 同一签名病例可在另一租户上下文重放；显式升版本后，所有旧凭证均 fail-closed 失效。
+// M04 v3 继续继承 v2 对完整 normalize 后对象（含 nonPharma precautions）的覆盖。
+export const PRESCRIBE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m04-signature-v3" as const;
 
 export type DiagnoseContractSignatureContext = Readonly<{
   contractVersion: typeof DIAGNOSE_CONTRACT_SIGNATURE_VERSION;
   caseId: string;
   encounterId: string;
   customerId?: string;
+  clientId?: string;
   clinicalInputHash: `sha256:${string}`;
 }>;
 
@@ -34,6 +33,7 @@ export type PrescribeContractSignatureContext = Readonly<{
   caseId: string;
   encounterId: string;
   customerId?: string;
+  clientId?: string;
   clinicalInputHash: `sha256:${string}`;
   diagnoseContractHash: `sha256:${string}`;
 }>;
@@ -122,11 +122,19 @@ export function buildDiagnoseContractSignatureContext(caseState: CaseState): Dia
   const clinicalInputHash = `sha256:${createHash("sha256")
     .update(JSON.stringify(canonicalize(clinicalInputSnapshot(deidentified))))
     .digest("hex")}` as const;
+  const tenantBinding = normalized.customerId
+    ? authorizeCustomerId(normalized.customerId, false)
+    : undefined;
+  if (normalized.customerId && !tenantBinding?.ok) {
+    throw new Error("Cannot sign M03 without an authorized customer binding");
+  }
   return {
     contractVersion: DIAGNOSE_CONTRACT_SIGNATURE_VERSION,
     caseId,
     encounterId,
-    ...(normalized.customerId ? { customerId: normalized.customerId } : {}),
+    ...(tenantBinding?.ok
+      ? { customerId: tenantBinding.customerId, clientId: tenantBinding.clientId }
+      : {}),
     clinicalInputHash,
   };
 }
@@ -143,7 +151,9 @@ export function buildPrescribeContractSignatureContext(caseState: CaseState): Pr
     contractVersion: PRESCRIBE_CONTRACT_SIGNATURE_VERSION,
     caseId: diagnoseContext.caseId,
     encounterId: diagnoseContext.encounterId,
-    ...(diagnoseContext.customerId ? { customerId: diagnoseContext.customerId } : {}),
+    ...(diagnoseContext.customerId && diagnoseContext.clientId
+      ? { customerId: diagnoseContext.customerId, clientId: diagnoseContext.clientId }
+      : {}),
     clinicalInputHash: diagnoseContext.clinicalInputHash,
     diagnoseContractHash: sha256Canonical({
       reasoning: diagnose,
@@ -153,14 +163,20 @@ export function buildPrescribeContractSignatureContext(caseState: CaseState): Pr
 }
 
 function validContext(context: DiagnoseContractSignatureContext): boolean {
+  const tenantBindingValid = context.customerId === undefined && context.clientId === undefined ||
+    Boolean(context.customerId?.trim() && context.clientId?.trim());
   return context.contractVersion === DIAGNOSE_CONTRACT_SIGNATURE_VERSION &&
+    tenantBindingValid &&
     context.caseId.trim().length > 0 &&
     context.encounterId.trim().length > 0 &&
     /^sha256:[a-f0-9]{64}$/.test(context.clinicalInputHash);
 }
 
 function validPrescribeContext(context: PrescribeContractSignatureContext): boolean {
+  const tenantBindingValid = context.customerId === undefined && context.clientId === undefined ||
+    Boolean(context.customerId?.trim() && context.clientId?.trim());
   return context.contractVersion === PRESCRIBE_CONTRACT_SIGNATURE_VERSION &&
+    tenantBindingValid &&
     context.caseId.trim().length > 0 &&
     context.encounterId.trim().length > 0 &&
     /^sha256:[a-f0-9]{64}$/.test(context.clinicalInputHash) &&
@@ -176,6 +192,9 @@ function contractPayload(
     binding: {
       caseId: context.caseId,
       encounterId: context.encounterId,
+      ...(context.customerId && context.clientId
+        ? { customerId: context.customerId, clientId: context.clientId }
+        : {}),
       clinicalInputHash: context.clinicalInputHash,
     },
     // Sign the complete Zod-normalized M03 contract. This intentionally includes fields that M04
@@ -266,6 +285,9 @@ function prescribeSignatureFor(
     binding: {
       caseId: context.caseId,
       encounterId: context.encounterId,
+      ...(context.customerId && context.clientId
+        ? { customerId: context.customerId, clientId: context.clientId }
+        : {}),
       clinicalInputHash: context.clinicalInputHash,
       diagnoseContractHash: context.diagnoseContractHash,
     },

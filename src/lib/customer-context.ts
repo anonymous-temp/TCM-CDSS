@@ -4,13 +4,14 @@ import { createHash } from "node:crypto";
 import type { CaseState } from "./diagnosis-types";
 import { CUSTOMER_ID_HEADER, parseCustomerId } from "./customer-id";
 import { customerIdFromCdssRequestCookie, isCdssAuthRequired } from "./cdss-auth";
-import { authorizeCustomerId } from "./customer-authorization";
+import { authorizeCustomerId, provisionCustomerId } from "./customer-authorization";
 
 export type CustomerContext = Readonly<{
   clientId: string;
   customerId: string;
   customerHash: string;
   source: "header" | "cookie" | "default";
+  provisioned?: boolean;
 }>;
 
 export type CustomerContextResult =
@@ -24,6 +25,12 @@ export function customerIdHash(customerId: string): string {
 export async function requireCustomerContext(
   req: Request,
   caseState?: Pick<CaseState, "customerId"> | null,
+  options?: {
+    allowJitProvisioning?: boolean;
+    forceJitRegistration?: boolean;
+    idempotencyKey?: string;
+    requestId?: string;
+  },
 ): Promise<CustomerContextResult> {
   const suppliedHeader = req.headers.get(CUSTOMER_ID_HEADER)?.trim() || "";
   const headerCustomerId = suppliedHeader ? parseCustomerId(suppliedHeader) : undefined;
@@ -58,7 +65,30 @@ export async function requireCustomerContext(
       response: Response.json({ error: "x-cdss-customer-id required", code: "customer_id_required" }, { status: 400 }),
     };
   }
-  const authorization = authorizeCustomerId(customerId, isCdssAuthRequired());
+  let authorization = authorizeCustomerId(customerId, isCdssAuthRequired());
+  let provisioned = false;
+  const shouldProvision = options?.allowJitProvisioning && (
+    !authorization.ok && authorization.code === "customer_forbidden" ||
+    authorization.ok && options.forceJitRegistration
+  );
+  if (shouldProvision) {
+    const registration = await provisionCustomerId(
+      customerId,
+      options.idempotencyKey || "",
+      options.requestId,
+    );
+    if (!registration.ok) {
+      return {
+        ok: false,
+        response: Response.json(
+          { error: registration.error, code: registration.code },
+          { status: registration.status },
+        ),
+      };
+    }
+    provisioned = registration.created;
+    authorization = authorizeCustomerId(customerId, isCdssAuthRequired());
+  }
   if (!authorization.ok) {
     return {
       ok: false,
@@ -84,5 +114,6 @@ export async function requireCustomerContext(
     customerId,
     customerHash: customerIdHash(customerId),
     source: headerCustomerId ? "header" : cookieCustomerId ? "cookie" : "default",
+    ...(provisioned ? { provisioned: true } : {}),
   } };
 }

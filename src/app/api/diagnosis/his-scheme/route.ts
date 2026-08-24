@@ -15,7 +15,11 @@ import {
 } from "@/lib/rxaudit";
 import { buildDeterministicRiskFollowup, buildForcedIncompleteRiskFollowup, derivePrescriptionPermission, deriveSafetyLocked, sanitizeCaseStateForModel, withSafetyGate } from "@/lib/diagnosis-safety";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
-import { validateHisPrescriptionForWriteBack } from "@/lib/his-prescription-validation";
+import {
+  isLimitedM03NotPrescribable,
+  isTrustedHisWorkbenchEdit,
+  validateHisPrescriptionForWriteBack,
+} from "@/lib/his-prescription-validation";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { buildCdssEvidenceContext } from "@/lib/cdss-evidence-context";
 import { buildEvidenceScope } from "@/lib/evidence-source-validation";
@@ -29,6 +33,10 @@ import {
   type HisSchemeContractVersion,
 } from "@/lib/his-scheme-contract-version";
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
+import {
+  verifyDiagnoseReasoningSignature,
+  verifyPrescribeReasoningSignature,
+} from "@/lib/reasoning-contract-signature";
 
 const EVIDENCE_SCOPE_TTL_MS = 60_000;
 const evidenceScopeCache = new Map<string, { expiresAt: number; scope: ReturnType<typeof buildEvidenceScope> }>();
@@ -74,12 +82,70 @@ export async function POST(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
   const contractVersion = hisSchemeContractVersionFromRequest(req, parsed.body);
+  // A supplied prescription must at least carry a current tenant-bound M03 chain. Validate that
+  // root immediately, before clinical-fact extraction, evidence retrieval or RxAudit can make an
+  // upstream call. A present M04 signature is also checked here; an unsigned draft may still be
+  // projected as diagnose-only for unresolved encounters, but an invalid/cross-tenant signed M04
+  // is an explicit replay signal and must be rejected before any upstream work.
+  let preflightCaseState = parsed.caseState;
+  const initialPrescribed = prescribeReasoningFromState(preflightCaseState);
+  const initialDiagnose = diagnoseReasoningFromState(preflightCaseState);
+  if (initialDiagnose && !verifyDiagnoseReasoningSignature(initialDiagnose, preflightCaseState)) {
+    return Response.json({
+      error: "当前辨病辨证结果已失效，请重新生成后再生成 HIS 方案。",
+      code: "invalid_m03_signature",
+    }, { status: 409 });
+  }
+  if (initialPrescribed) {
+    if (!verifyDiagnoseReasoningSignature(initialDiagnose, preflightCaseState)) {
+      return Response.json({
+        error: "当前辨病辨证结果已失效，请重新生成后再生成 HIS 方案。",
+        code: "invalid_m03_signature",
+      }, { status: 409 });
+    }
+    if (isLimitedM03NotPrescribable(initialDiagnose)) {
+      return Response.json({
+        error: "本次辨病辨证仅形成有限结果，尚未形成可采纳的证候与病机链，不能生成剂量级 HIS 方案；请补充会影响辨证或用药的患者信息后重新分析。",
+        code: "limited_m03_not_prescribable",
+      }, { status: 409 });
+    }
+    const trustedWorkbenchEdit = isTrustedHisWorkbenchEdit(preflightCaseState, initialPrescribed);
+    if (!trustedWorkbenchEdit && !verifyPrescribeReasoningSignature(initialPrescribed, preflightCaseState)) {
+      // An unsigned draft may only survive as diagnose-only output when a deterministic gate has
+      // already disabled dosing. Strip every prescription projection before evidence/facts work;
+      // signed-but-invalid material is always an explicit integrity/replay failure.
+      const permission = derivePrescriptionPermission(withSafetyGate(preflightCaseState));
+      const doseAlreadySuppressed = permission.candidateMode === "non_dose_only" ||
+        permission.candidateMode === "blocked" || hasUnconfirmedUnclearEncounterScope(preflightCaseState);
+      if (initialPrescribed.contractSignature || !doseAlreadySuppressed) {
+        return Response.json({
+          error: "当前候选处方签名已失效，请重新生成后再生成 HIS 方案。",
+          code: "invalid_m04_signature",
+        }, { status: 409 });
+      }
+      preflightCaseState = {
+        ...preflightCaseState,
+        prescription: "",
+        reasoningPrescribe: undefined,
+        reasoningV2: initialDiagnose,
+        prescriptionRevision: undefined,
+      };
+    }
+  }
+  const hasLegacyPrescription = typeof preflightCaseState.prescription === "string" &&
+    preflightCaseState.prescription.trim().length > 0;
+  if (!initialPrescribed && (hasLegacyPrescription || preflightCaseState.prescriptionRevision)) {
+    return Response.json({
+      error: "缺少有效的结构化候选处方，已拒绝生成可写回 HIS 的方案。",
+      code: "missing_structured_prescription",
+    }, { status: 422 });
+  }
   // Evidence retrieval is independent of the semantic red-flag projection. Run it concurrently so
   // the HIS boundary cannot serially consume the full clinical-facts budget and then the full
   // EviMed budget, which previously exceeded the endpoint's 30s integration SLO under a long batch.
-  const evidenceScopePromise = evidenceScopeForCase(parsed.caseState)
+  const evidenceScopePromise = evidenceScopeForCase(preflightCaseState)
     .catch(() => buildEvidenceScope(""));
-  const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal));
+  const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(preflightCaseState, undefined, req.signal));
   const diagnoseReasoning = diagnoseReasoningFromState(caseState);
   const prescribed = prescribeReasoningFromState(caseState);
   const permission = derivePrescriptionPermission(caseState);

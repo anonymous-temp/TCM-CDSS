@@ -18,7 +18,7 @@ import { affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent,
 import { parseStreamModuleDraftFrame, STREAM_REPLACE_MARKER, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
-import { parseOpenAICompatCompletionPayload } from "@/lib/openai-compatible-response";
+import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
 import { clinicalReviewUnavailableReason } from "@/lib/clinical-review-binding";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
@@ -48,6 +48,7 @@ import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-norm
 import { dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
+import { responseFormatForTask } from "@/lib/model-response-format";
 
 const GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const GLM_VISION_MODEL = process.env.GLM_VISION_MODEL?.trim() || "glm-5v-turbo";
@@ -64,17 +65,24 @@ const GLM_VISION_TOTAL_TIMEOUT_MS = (() => {
 const CLIENT_HEARTBEAT_INTERVAL_MS = 5_000;
 // One structured stage fans out internally (M03 western/TCM halves, terminology consensus,
 // clinical review and bounded repair). Letting two HTTP stages fan out at once overloaded the
-// configured production gateway: both public-091 and public-092 then reached the browser's 210s
-// budget with incomplete M04 streams. Keep requests parallel at the HTTP layer, but serialize this
-// expensive provider topology per process; queued clients continue receiving NDJSON heartbeats.
+// configured production gateway. The reviewed default admits three stages, while the tenant-aware
+// gate below prevents one hospital from monopolizing the queue.
 const PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY = (() => {
-  const value = Number(process.env.PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY || 1);
-  return Number.isFinite(value) && value >= 1 && value <= 4 ? Math.trunc(value) : 1;
+  const value = Number(process.env.PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY || 3);
+  return Number.isFinite(value) && value >= 1 && value <= 4 ? Math.trunc(value) : 3;
 })();
 const primaryStructuredStageCapacity = createAbortableCapacityGate(PRIMARY_STRUCTURED_STAGE_MAX_CONCURRENCY);
+const PRIMARY_STRUCTURED_STAGE_QUEUE_TIMEOUT_MS = (() => {
+  const value = Number(process.env.PRIMARY_STRUCTURED_STAGE_QUEUE_TIMEOUT_MS || 25_000);
+  return Number.isFinite(value) && value >= 5_000 && value <= 120_000 ? Math.round(value) : 25_000;
+})();
 const STRUCTURED_RETRY_TOTAL_TIMEOUT_MS = (() => {
   const value = Number(process.env.STRUCTURED_RETRY_TOTAL_TIMEOUT_MS || 90_000);
   return Number.isFinite(value) && value >= 30_000 && value <= 120_000 ? Math.round(value) : 90_000;
+})();
+const STRUCTURED_QUALITY_REPAIR_ROUNDS = (() => {
+  const value = Number(process.env.STRUCTURED_QUALITY_REPAIR_ROUNDS || 0);
+  return Number.isFinite(value) && value >= 0 && value <= 2 ? Math.trunc(value) : 0;
 })();
 const STRUCTURED_RUN_TOTAL_TIMEOUT_MS = (() => {
   const value = Number(process.env.STRUCTURED_RUN_TOTAL_TIMEOUT_MS || 180_000);
@@ -375,10 +383,18 @@ type OpenAICompatChunk = {
     delta?: { content?: string | null; reasoning_content?: string | null };
     finish_reason?: string | null;
   }>;
+  usage?: CompatUsage;
 };
 
 type DiagnosisBackend = "deepseek" | "glm" | "openai";
 type PromptKind = "collect" | "question" | "markdown";
+
+function recordModelUsage(stage: string, model: string, payload: unknown): void {
+  const usage = modelUsageSnapshot(payload);
+  if (!usage) return;
+  console.info("[tcm-cdss:telemetry] model_usage", { stage, model, ...usage });
+}
+
 type StreamSafetyOptions = {
   truncateFallback?: string;
   /**
@@ -415,6 +431,8 @@ type StreamSafetyOptions = {
   outputTransform?: (content: string) => string;
   finalOutputTransform?: (content: string) => Promise<string>;
   structuredStage?: "diagnose" | "prescribe";
+  /** Hashed tenant identity used only for fair queue scheduling; never a raw customer identifier. */
+  structuredQueueKey?: string;
   structuredClinicalContext?: string;
   structuredAllowedM03FormulaNames?: string[];
   structuredReviewEvidenceContext?: string;
@@ -841,7 +859,7 @@ async function probeClinicalReviewCandidate(config: ClinicalReviewModelConfig): 
         stream: false,
         max_tokens: 300,
         temperature: 0,
-        response_format: { type: "json_object" },
+        response_format: responseFormatForTask(config.model, "m03_review"),
         ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
       }),
     }, controller, Date.now() + timeoutMs);
@@ -851,6 +869,7 @@ async function probeClinicalReviewCandidate(config: ClinicalReviewModelConfig): 
       return { ok: false, reason: `http_${status}` };
     }
     const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, 8_000));
+    recordModelUsage("clinical_review_probe", config.model, result);
     const parsed = parseM03DiagnosticReview(result?.choices?.[0]?.message?.content || "");
     return parsed.status === "accepted"
       ? { ok: true, reason: "ok" }
@@ -1779,7 +1798,14 @@ async function retryCompletePrimaryResponse(
           Math.min(Math.round(maxTokensForStructuredStage(structuredStage) * 1.5), 32_000),
         ),
         temperature: structuredStage ? structuredSamplingTemperature : PRIMARY_TEXT_TEMPERATURE,
-        ...(structuredStage ? { response_format: { type: "json_object" } } : {}),
+        ...(structuredStage ? {
+          response_format: responseFormatForTask(
+            retryModel,
+            structuredStage === "prescribe"
+              ? "m04_proposal"
+              : regenerateTcmHalfOnly ? "m03_tcm" : "m03_full",
+          ),
+        } : {}),
         ...textModelRequestTuning(retryModel, {
           thinkingEnabled: thinkingEnabledForStructuredStage(structuredStage),
           reasoningEffort: reasoningEffortForStructuredRepair(structuredStage),
@@ -1791,6 +1817,7 @@ async function retryCompletePrimaryResponse(
       return { ok: false, reason: "retry_http_error", status: response.status };
     }
     const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, PRIMARY_TEXT_MAX_OUTPUT_CHARS * 4 + 65_536));
+    recordModelUsage(`${structuredStage || "structured"}_repair`, retryModel, result);
     const choice = result?.choices?.[0];
     const content = choice?.message?.content || "";
     if (!result) return { ok: false, reason: "retry_invalid_json" };
@@ -1877,7 +1904,7 @@ async function collectM03ParallelWesternHalf(
           stream: false,
           max_tokens: maxTokensForStructuredStage("diagnose"),
           temperature: 0,
-          response_format: { type: "json_object" },
+          response_format: responseFormatForTask(model, "m03_western"),
           ...textModelRequestTuning(model, {
             thinkingEnabled: thinkingEnabledForStructuredStage("diagnose"),
             reasoningEffort: reasoningEffortForStructuredStage("diagnose"),
@@ -1889,6 +1916,7 @@ async function collectM03ParallelWesternHalf(
         return { ok: false, reason: `http_${response.status}` };
       }
       const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, PRIMARY_TEXT_MAX_OUTPUT_CHARS * 4 + 65_536));
+      recordModelUsage("m03_western", model, result);
       const content = result?.choices?.[0]?.message?.content || "";
       if (!result) return { ok: false, reason: "invalid_json" };
       if (!content) return { ok: false, reason: "empty_content" };
@@ -2152,7 +2180,7 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
           // leave content empty with finish_reason=length.
           max_tokens: 800,
           temperature: 0,
-          response_format: { type: "json_object" },
+          response_format: responseFormatForTask(model, opts.stage === "diagnose" ? "m03_review" : "m04_review"),
           ...textModelRequestTuning(model, {
             reasoningEffort: PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT,
             thinkingEnabled: false,
@@ -2171,6 +2199,7 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
         await cancelResponseBody(response);
       } else {
         const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, 20_000));
+        recordModelUsage(`${opts.stage}_clinical_review`, model, result);
         const choice = result?.choices?.[0];
         const content = choice?.message?.content || "";
         lastResponseContent = content;
@@ -2407,22 +2436,30 @@ async function callPrimaryTextModelStream(
       Number(requestedOrchestrationStartedAt) > 0 && Number(requestedOrchestrationStartedAt) <= streamStartedAt
     ? Number(requestedOrchestrationStartedAt)
     : streamStartedAt;
+  // Clinical-facts/evidence preparation before this function remains part of the orchestration
+  // budget. Only time spent waiting for the shared provider-capacity queue is excluded below.
+  let effectiveOrchestrationStartedAt = requestStartedAt;
   const structuredRunDeadline = requestStartedAt + STRUCTURED_RUN_TOTAL_TIMEOUT_MS;
   const orchestrationDeadline = opts.structuredStage === "diagnose"
     ? requestStartedAt + M03_ORCHESTRATION_DEADLINE_MS
     : opts.structuredStage === "prescribe"
       ? requestStartedAt + M04_ORCHESTRATION_DEADLINE_MS
       : structuredRunDeadline;
-  const absoluteRunDeadline = Math.min(structuredRunDeadline, orchestrationDeadline);
+  let absoluteRunDeadline = Math.min(structuredRunDeadline, orchestrationDeadline);
   // Aborting the current upstream request is necessary but not sufficient: a provider/reviewer
   // adapter can observe AbortSignal late and keep this ReadableStream open past the browser's
   // request budget. The stream start callback replaces this placeholder with a fail-closed
   // structured fallback that terminates the client contract at the same absolute deadline.
   let forceCloseAtAbsoluteDeadline = () => upstreamController.abort();
-  const absoluteDeadlineAbortTimer = setTimeout(
-    () => forceCloseAtAbsoluteDeadline(),
-    Math.max(1, absoluteRunDeadline - Date.now()),
-  );
+  let absoluteDeadlineAbortTimer: ReturnType<typeof setTimeout> | undefined;
+  const armAbsoluteDeadline = () => {
+    if (absoluteDeadlineAbortTimer) clearTimeout(absoluteDeadlineAbortTimer);
+    absoluteDeadlineAbortTimer = setTimeout(
+      () => forceCloseAtAbsoluteDeadline(),
+      Math.max(1, absoluteRunDeadline - Date.now()),
+    );
+  };
+  if (!opts.structuredStage) armAbsoluteDeadline();
   const abortFromRequest = () => upstreamController.abort();
   if (opts.requestSignal?.aborted) upstreamController.abort();
   else opts.requestSignal?.addEventListener("abort", abortFromRequest, { once: true });
@@ -2433,14 +2470,21 @@ async function callPrimaryTextModelStream(
     async start(ctrl) {
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       const dec = new TextDecoder();
-      const deadline = Math.min(Date.now() + STREAM_TOTAL_TIMEOUT_MS, absoluteRunDeadline);
+      let deadline = Math.min(Date.now() + STREAM_TOTAL_TIMEOUT_MS, absoluteRunDeadline);
       let buf = "";
       let malformedChunks = 0;
       let providerDone = false;
       let contentChars = 0;
       let reasoningChars = 0;
       let finishReason: string | null = null;
+      let usageRecorded = false;
       let structuredRetryCount = 0;
+      let structuredQualityRepairCount = 0;
+      const qualityRepairAvailable = (reason: string | undefined): boolean =>
+        !reason || !qualityAnnotationCopy(reason) || structuredQualityRepairCount < STRUCTURED_QUALITY_REPAIR_ROUNDS;
+      const noteQualityRepair = (reason: string | undefined) => {
+        if (reason && qualityAnnotationCopy(reason)) structuredQualityRepairCount += 1;
+      };
       let m03WesternHalfPromise: ReturnType<typeof collectM03ParallelWesternHalf> | undefined;
       /**
        * 「同一条确定性合同拒绝码只修一次」的账本。
@@ -2574,11 +2618,11 @@ async function callPrimaryTextModelStream(
       let m03DeadlineExceeded = false;
       const m03OrchestrationDeadlineGate = (): boolean => {
         if (opts.structuredStage !== "diagnose") return false;
-        if (!m03OrchestrationDeadlineExpired(requestStartedAt, Date.now())) return false;
+        if (!m03OrchestrationDeadlineExpired(effectiveOrchestrationStartedAt, Date.now())) return false;
         if (!m03DeadlineExceeded) {
           m03DeadlineExceeded = true;
           console.warn("[tcm-cdss:model] M03 orchestration deadline reached; routing to signed limited fallback", {
-            elapsedMs: Date.now() - requestStartedAt,
+            elapsedMs: Date.now() - effectiveOrchestrationStartedAt,
             deadlineMs: M03_ORCHESTRATION_DEADLINE_MS,
             // Final rejection code carried into the empty fallback. This is the H1-vs-H2 signal for a
             // sparse case that collapses to empty: a grounding-family code (patient_fact_ungrounded_*)
@@ -2671,11 +2715,11 @@ async function callPrimaryTextModelStream(
       let m04DeadlineExceeded = false;
       const m04OrchestrationDeadlineGate = (): boolean => {
         if (opts.structuredStage !== "prescribe") return false;
-        if (!m04OrchestrationDeadlineExpired(requestStartedAt, Date.now())) return false;
+        if (!m04OrchestrationDeadlineExpired(effectiveOrchestrationStartedAt, Date.now())) return false;
         if (!m04DeadlineExceeded) {
           m04DeadlineExceeded = true;
           console.warn("[tcm-cdss:model] M04 orchestration deadline reached; routing to non-dose contract", {
-            elapsedMs: Date.now() - requestStartedAt,
+            elapsedMs: Date.now() - effectiveOrchestrationStartedAt,
             deadlineMs: M04_ORCHESTRATION_DEADLINE_MS,
           });
         }
@@ -2998,7 +3042,7 @@ async function callPrimaryTextModelStream(
         clientStreamClosed = true;
         releaseStructuredStageCapacity();
         stopHeartbeat();
-        clearTimeout(absoluteDeadlineAbortTimer);
+        if (absoluteDeadlineAbortTimer) clearTimeout(absoluteDeadlineAbortTimer);
         opts.requestSignal?.removeEventListener("abort", abortFromRequest);
         ctrl.close();
       };
@@ -3079,15 +3123,27 @@ async function callPrimaryTextModelStream(
         }, CLIENT_HEARTBEAT_INTERVAL_MS);
         if (opts.structuredStage) {
           const capacityWaitStartedAt = Date.now();
+          const capacitySnapshot = primaryStructuredStageCapacity.snapshot();
+          if (capacitySnapshot.active >= capacitySnapshot.limit) {
+            enqueueHeartbeat(`模型队列等待中，前方约 ${capacitySnapshot.queued + 1} 个任务`, 0);
+          }
           releaseStructuredStageCapacity = await primaryStructuredStageCapacity.acquire({
             signal: upstreamController.signal,
-            deadline: absoluteRunDeadline,
+            deadline: Date.now() + PRIMARY_STRUCTURED_STAGE_QUEUE_TIMEOUT_MS,
+            fairnessKey: opts.structuredQueueKey,
           });
           if (clientStreamClosed) {
             releaseStructuredStageCapacity();
             return;
           }
           const capacityWaitMs = Date.now() - capacityWaitStartedAt;
+          // Queueing is admission control, not model orchestration. Preserve the stage's full
+          // clinical budget after admission while the outer client request remains bounded by the
+          // reviewed 25s default queue ceiling plus the existing 180s stage ceiling.
+          absoluteRunDeadline += capacityWaitMs;
+          effectiveOrchestrationStartedAt += capacityWaitMs;
+          deadline = Math.min(Date.now() + STREAM_TOTAL_TIMEOUT_MS, absoluteRunDeadline);
+          armAbsoluteDeadline();
           if (capacityWaitMs > 0) {
             console.info("[tcm-cdss:timing] structured_stage_capacity", {
               stage: opts.structuredStage,
@@ -3120,11 +3176,21 @@ async function callPrimaryTextModelStream(
               { role: "user", content: m03ParallelHalves ? m03ParallelHalves.tcm : prompt },
             ],
             stream: true,
+            stream_options: { include_usage: true },
             max_tokens: kind === "question" ? Math.min(3_000, maxTokensForStructuredStage(opts.structuredStage)) : maxTokensForStructuredStage(opts.structuredStage),
             temperature: opts.structuredStage
               ? m04Retry.samplingTemperature
               : kind === "question" ? 0 : PRIMARY_TEXT_TEMPERATURE,
-            ...(opts.structuredStage || kind === "question" ? { response_format: { type: "json_object" } } : {}),
+            ...(opts.structuredStage
+              ? {
+                  response_format: responseFormatForTask(
+                    model,
+                    opts.structuredStage === "prescribe"
+                      ? "m04_proposal"
+                      : m03ParallelHalves ? "m03_tcm" : "m03_full",
+                  ),
+                }
+              : kind === "question" ? { response_format: { type: "json_object" } } : {}),
             ...textModelRequestTuning(model, {
               thinkingEnabled: thinkingEnabledForStructuredStage(opts.structuredStage),
               reasoningEffort: reasoningEffortForStructuredStage(opts.structuredStage),
@@ -3175,6 +3241,10 @@ async function callPrimaryTextModelStream(
             if (obj.error?.message) {
               throw new Error(`Primary text model stream error: ${obj.error.message}`);
             }
+            if (obj.usage && !usageRecorded) {
+              recordModelUsage(opts.structuredStage || kind, model, obj);
+              usageRecorded = true;
+            }
             const choice = obj.choices?.[0];
             if (choice?.finish_reason) finishReason = choice.finish_reason;
             const delta = choice?.delta?.content;
@@ -3183,8 +3253,15 @@ async function callPrimaryTextModelStream(
             if (delta != null && typeof delta !== "string") throw new Error("Primary text model returned invalid content");
             if (reasoning) reasoningChars += reasoning.length;
             if (delta) {
+              const firstModelContent = contentChars === 0;
               contentChars += delta.length;
               accumulatedContent += delta;
+              if (firstModelContent) {
+                // This heartbeat is a transport-safe timing marker, not clinical content. The
+                // production smoke harness uses it to measure actual provider first-content time;
+                // the server-owned initial banner/queue heartbeat must not satisfy that SLO.
+                enqueueHeartbeat("模型已开始返回临床正文", contentChars + reasoningChars);
+              }
               if (accumulatedContent.length > PRIMARY_TEXT_MAX_OUTPUT_CHARS) {
                 upstreamController.abort();
                 throw new Error("模型输出超过本阶段安全预算，请精简病例后重试");
@@ -3457,6 +3534,7 @@ async function callPrimaryTextModelStream(
         const pendingReviewDriven = (opts.structuredStage === "diagnose" && m03DiagnosticReviewStatus === "repair") ||
           (opts.structuredStage === "prescribe" && initialM04ClinicalReviewRejected);
         const pendingRepairIsFixpoint = isRepeatedContractRepair(pendingRejectionReason, pendingReviewDriven);
+        const pendingQualityRepairUnavailable = !qualityRepairAvailable(pendingRejectionReason);
         if (pendingRepairIsFixpoint) {
           console.warn("[tcm-cdss:model] identical contract rejection repeated; skipping repair round", {
             stage: opts.structuredStage,
@@ -3468,12 +3546,14 @@ async function callPrimaryTextModelStream(
           retryableStructuredTerminal &&
           opts.structuredStage &&
           !pendingRepairIsFixpoint &&
+          !pendingQualityRepairUnavailable &&
           !m04RepairLoopEarlyExit &&
           !m03OrchestrationDeadlineGate() &&
           !m04OrchestrationDeadlineGate()
         ) {
           const rejectionReason = pendingRejectionReason as string;
           noteContractRepair(rejectionReason, pendingReviewDriven);
+          noteQualityRepair(rejectionReason);
           console.warn("[tcm-cdss:model] structured response rejected; retrying full response", {
             stage: opts.structuredStage,
             reason: rejectionReason,
@@ -3716,6 +3796,10 @@ async function callPrimaryTextModelStream(
               }
               if (targetedM04Retry && m04OrchestrationDeadlineGate()) targetedM04Retry = false;
               let targetedM03Retry = opts.structuredStage === "diagnose" && shouldRunTargetedStructuredRetry("diagnose", retryRejectionReason);
+              if (!qualityRepairAvailable(retryRejectionReason)) {
+                targetedM04Retry = false;
+                targetedM03Retry = false;
+              }
               if (targetedM03Retry && (
                 m03IdenticalGuidanceFixpoint(retryRejectionReason) ||
                 (m03CurrentRejection?.quarantineShape === true &&
@@ -3745,6 +3829,7 @@ async function callPrimaryTextModelStream(
               }
               if (targetedM04Retry || targetedM03Retry) {
               noteContractRepair(retryRejectionReason, targetedReviewDriven);
+              noteQualityRepair(retryRejectionReason);
               enqueueClient(targetedM04Retry
                 ? "\n\n正在复核候选方药、治法与方剂组成的一致性，请稍候…"
                 : "\n\n正在复核辨病辨证与已录入病历的一致性，请稍候…");
@@ -4618,6 +4703,7 @@ async function callPrimaryTextModelStream(
             // review and the same finalization transform before it can replace the fallback.
             if (
               shouldRunTargetedStructuredRetry("diagnose", finalizedM03RejectionReason) &&
+              qualityRepairAvailable(finalizedM03RejectionReason) &&
               m03LastRepairTriggerReason !== finalizedM03RejectionReason &&
               !clientStreamClosed &&
               !upstreamController.signal.aborted &&
@@ -4627,6 +4713,7 @@ async function callPrimaryTextModelStream(
               enqueueClient("\n\n正在按最新校验结果收束辨病辨证依据，请稍候…");
               structuredRetryCount += 1;
               m03LastRepairTriggerReason = finalizedM03RejectionReason;
+              noteQualityRepair(finalizedM03RejectionReason);
               const finalizedRetry = await retryCompletePrimaryResponseWithTransientRecovery(
                 prompt,
                 kind,

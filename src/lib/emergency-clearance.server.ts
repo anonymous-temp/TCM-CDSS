@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { CaseState } from "./diagnosis-types";
+import { authorizeCustomerId } from "./customer-authorization";
 import {
   evaluateSafetyGate,
   redFlagClearanceFingerprint,
@@ -14,25 +15,35 @@ import {
 } from "./emergency-clearance-contract";
 
 /**
- * v2：签名域纳入逐条处置留痕（findings）。
+ * v3：在 v2 的逐条处置留痕（findings）基础上，签名域新增已授权
+ * clientId + customerId，阻断跨租户重放。
  *
- * 版本号必须随之抬升——v1 的载荷不含 findings，若沿用同一版本号，一份 v1 老凭证会在
- * 「findings 缺省」的形态下继续通过签名校验，而**签发端**新增的内容契约就被绕开了。
+ * 版本号必须随之抬升——旧载荷没有完整的租户与内容绑定，若沿用同一版本号，老凭证会
+ * 继续通过签名校验，而**签发端**新增的租户边界就被绕开了。
  * 抬版本 = 老凭证一律验签不过 = 回到「不解除」，与本处 fail-closed 方向一致。
  */
-export const EMERGENCY_CLEARANCE_SIGNATURE_VERSION = "tcm-cdss-emergency-clearance-v2" as const;
+export const EMERGENCY_CLEARANCE_SIGNATURE_VERSION = "tcm-cdss-emergency-clearance-v3" as const;
 
 function signingKey(): string {
   return process.env.REASONING_CONTRACT_SIGNING_KEY?.trim() || "";
 }
 
 function signaturePayload(
-  caseState: Pick<CaseState, "id">,
+  caseState: Pick<CaseState, "id" | "customerId">,
   clearance: Omit<NonNullable<CaseState["emergencyClearance"]>, "contractSignature">,
 ): string {
+  const tenantBinding = caseState.customerId
+    ? authorizeCustomerId(caseState.customerId, false)
+    : undefined;
+  if (caseState.customerId && !tenantBinding?.ok) {
+    throw new Error("Cannot bind emergency clearance to an unauthorized customer");
+  }
   return JSON.stringify({
     version: EMERGENCY_CLEARANCE_SIGNATURE_VERSION,
     caseId: caseState.id,
+    ...(tenantBinding?.ok
+      ? { customerId: tenantBinding.customerId, clientId: tenantBinding.clientId }
+      : {}),
     redFlagFingerprint: clearance.redFlagFingerprint,
     confirmedAt: clearance.confirmedAt,
     assessmentSummary: clearance.assessmentSummary,
@@ -59,12 +70,17 @@ export function verifyEmergencyClearance(
 ): clearance is NonNullable<CaseState["emergencyClearance"]> {
   if (!clearance || !/^hmac-sha256:[a-f0-9]{64}$/i.test(clearance.contractSignature)) return false;
   if (!Array.isArray(clearance.findings) || clearance.findings.length === 0) return false;
-  const expected = signPayload(signaturePayload(caseState, {
-    redFlagFingerprint: clearance.redFlagFingerprint,
-    confirmedAt: clearance.confirmedAt,
-    assessmentSummary: clearance.assessmentSummary,
-    findings: clearance.findings,
-  }));
+  let expected: string | undefined;
+  try {
+    expected = signPayload(signaturePayload(caseState, {
+      redFlagFingerprint: clearance.redFlagFingerprint,
+      confirmedAt: clearance.confirmedAt,
+      assessmentSummary: clearance.assessmentSummary,
+      findings: clearance.findings,
+    }));
+  } catch {
+    return false;
+  }
   if (!expected) return false;
   const actualBytes = Buffer.from(clearance.contractSignature);
   const expectedBytes = Buffer.from(expected);
@@ -129,7 +145,12 @@ export function issueEmergencyClearance(
     assessmentSummary: sanitizedSummary,
     findings: normalizedFindings as EmergencyClearanceFindingAttestation[],
   };
-  const contractSignature = signPayload(signaturePayload(caseState, unsignedClearance));
+  let contractSignature: string | undefined;
+  try {
+    contractSignature = signPayload(signaturePayload(caseState, unsignedClearance));
+  } catch {
+    contractSignature = undefined;
+  }
   if (!contractSignature) {
     return {
       ok: false,

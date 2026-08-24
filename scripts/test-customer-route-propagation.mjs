@@ -31,7 +31,9 @@ for (const file of customerBoundRoutes) {
 
 const requestSource = readFileSync(new URL("../src/lib/diagnosis-request.ts", import.meta.url), "utf8");
 assert.match(requestSource, /export async function readCustomerBoundCaseStateRequest/);
-assert.match(requestSource, /caseState\.customerId\s*=\s*customer\.context\.customerId/);
+assert.match(requestSource, /customerId:\s*customer\.context\.customerId/);
+assert.match(requestSource, /clinicalFactsTenantBindingMatches\([\s\S]*customer\.context\.customerId/,
+  "tenant-bound clinical-facts attestations must be checked after authenticated customer binding");
 
 console.log(JSON.stringify({
   suite: "customer-route-propagation",

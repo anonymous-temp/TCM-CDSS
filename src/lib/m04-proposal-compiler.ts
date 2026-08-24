@@ -242,7 +242,7 @@ const PatentAndWesternProposalSchema = z.object({
   riskNote: z.string().min(1).max(1000),
 });
 
-const M04ProposalSchema = z.object({
+export const M04ProposalSchema = z.object({
   schemaVersion: z.literal("tcm-cdss-m04-proposal-v1"),
   candidate: z.object({
     name: z.string().min(1).max(300),
@@ -776,6 +776,9 @@ function normalizeHerb(
   }
   const decoctionRequirement = unwrapSingleText(herb.decoctionRequirement ?? herb["煎法"]);
   if (decoctionRequirement) herb.decoctionRequirement = decoctionRequirement;
+  const herbFunction = unwrapSingleText(herb.function ?? herb["功用"] ?? herb["作用"]);
+  if (herbFunction) herb.function = herbFunction;
+  else delete herb.function;
   const rawTargetKind = unwrapSingleText(herb.targetKind ?? herb["靶点类型"]);
   if (rawTargetKind) {
     const compactTargetKind = rawTargetKind.toLowerCase().replace(/[\s_-]/g, "");
@@ -979,7 +982,9 @@ function normalizeM04ProposalInput(
         if (!isRecord(raw)) return [];
         if (![raw.name, raw.evidenceId, raw.evidenceFingerprint, raw.correspondingProblem]
           .every(concreteMedicationValue)) return [];
-        const parsed = PatentAndWesternProposalSchema.safeParse(raw);
+        const normalizedRaw = { ...raw };
+        if (normalizedRaw.evidenceSource == null) delete normalizedRaw.evidenceSource;
+        const parsed = PatentAndWesternProposalSchema.safeParse(normalizedRaw);
         return parsed.success ? [parsed.data] : [];
       }).slice(0, 6)
     : [];

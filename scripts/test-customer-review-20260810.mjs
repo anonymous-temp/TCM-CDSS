@@ -161,7 +161,7 @@ check("⑤ 模型写的接地方义仍原样保留（不得被服务端覆写）
 // ── ⑪ 证型不同 ⇒ 穴位必须不同；标签必须诚实 ──────────────────────────────────
 const signedPrior = ({ disease, syndrome, pathogenesis, therapy, fact, evidence }) => ({
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
-  contractSignatureVersion: "tcm-cdss-m03-signature-v4", contractSignature: `hmac-sha256:${"a".repeat(64)}`,
+  contractSignatureVersion: "tcm-cdss-m03-signature-v5", contractSignature: `hmac-sha256:${"a".repeat(64)}`,
   overview: { tcmDiseaseName: disease, primarySyndrome: syndrome, primarySyndromeResolution: "resolved", primarySyndromeBasis: [], overallPathogenesis: pathogenesis },
   westernDiagnosis: { primary: { name: disease, supportingFacts: [] } },
   therapy: { overallPrinciple: therapy, overallMethod: therapy, subTherapies: [] },

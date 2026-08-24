@@ -35,24 +35,30 @@ export async function POST(req: Request) {
   const startedAt = Date.now();
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
-  const caseState = await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal);
-  const gated = withSafetyGate(caseState);
-  const diagnoseReasoning = diagnoseReasoningFromState(gated);
-  const prescribed = prescribeReasoningFromState(gated);
-  const workbenchRevision = gated.prescriptionRevision?.source === "herb_workbench";
+  // Signature verification is the first trust-boundary operation after tenant binding. In
+  // particular, a cross-tenant replay must return 409 before semantic fact extraction or any other
+  // paid upstream call. Clinical facts are not part of the signed clinical-input snapshot, so the
+  // later additive backstop cannot change this decision.
+  const initialDiagnoseReasoning = diagnoseReasoningFromState(parsed.caseState);
+  const initialPrescribed = prescribeReasoningFromState(parsed.caseState);
+  const workbenchRevision = parsed.caseState.prescriptionRevision?.source === "herb_workbench";
   if (workbenchRevision) {
-    if (!verifyDiagnoseReasoningSignature(diagnoseReasoning, gated)) {
+    if (!verifyDiagnoseReasoningSignature(initialDiagnoseReasoning, parsed.caseState)) {
       return Response.json({
         error: "辨病辨证结果签名已失效，请重新生成后再评估。",
         code: "invalid_m03_signature",
       }, { status: 409 });
     }
-  } else if (!verifyPrescribeReasoningSignature(prescribed, gated)) {
+  } else if (!verifyPrescribeReasoningSignature(initialPrescribed, parsed.caseState)) {
     return Response.json({
       error: "当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。",
       code: "invalid_m04_signature",
     }, { status: 409 });
   }
+  const caseState = await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal);
+  const gated = withSafetyGate(caseState);
+  const diagnoseReasoning = diagnoseReasoningFromState(gated);
+  const prescribed = prescribeReasoningFromState(gated);
   const explicitCandidateIndex = gated.prescriptionRevision?.candidateIndex;
   const candidateIndex = explicitCandidateIndex ?? resolveRxAuditCandidateIndex(gated);
   const selectedCandidate = candidateIndex == null ? undefined : prescribed?.formula?.candidates[candidateIndex];

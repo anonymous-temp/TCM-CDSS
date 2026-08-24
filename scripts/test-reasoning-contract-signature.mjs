@@ -87,7 +87,10 @@ try {
   const { normalizeCaseStateInput, normalizeReasoningV2 } = require("../src/lib/diagnosis-types.ts");
   const { sanitizeCaseStateForBrowserPersistence } = require("../src/lib/diagnosis-engine.ts");
   const { withSafetyGate } = require("../src/lib/diagnosis-safety.ts");
-  const { maybeAttachClinicalFactsBackstop } = require("../src/lib/clinical-facts-runtime.ts");
+  const {
+    hasValidClinicalFactsAttestation,
+    maybeAttachClinicalFactsBackstop,
+  } = require("../src/lib/clinical-facts-runtime.ts");
   const { hasExecutableSignedM03 } = require("../src/lib/diagnosis-client-guards.ts");
   const { editedPrescriptionSemanticIssue, synchronizeEditedCandidate } = require("../src/lib/prescription-revision.ts");
   const { confirmControlledTerminologyMapping } = require("../src/lib/controlled-terminology-confirmation.server.ts");
@@ -158,6 +161,7 @@ try {
 
   const emergencyCase = normalizeCaseStateInput({
     id: "case_emergency_clearance_001",
+    customerId: TEST_CUSTOMER_ID,
     phase: "diagnose",
     patient: { name: "测试患者", sex: "女", age: 36 },
     chiefComplaint: "突发人生最剧烈头痛伴恶心呕吐",
@@ -248,6 +252,15 @@ try {
   if (!issuedClearance.ok) throw new Error(issuedClearance.error);
   assert.doesNotMatch(issuedClearance.clearance.assessmentSummary, /测试患者/);
   assert.equal(verifyEmergencyClearance({ ...emergencyCase, emergencyClearance: issuedClearance.clearance }), true);
+  assert.equal(
+    verifyEmergencyClearance({
+      ...emergencyCase,
+      customerId: "other-hospital",
+      emergencyClearance: issuedClearance.clearance,
+    }),
+    false,
+    "急症解除凭证不得跨客户重放",
+  );
   const normalizedEmergencyCase = normalizeCaseStateInput({
     ...emergencyCase,
     emergencyClearance: issuedClearance.clearance,
@@ -495,6 +508,12 @@ try {
   check("cross-encounter replay rejects", () => {
     const replayed = clone(caseState);
     replayed.hisRecord.caseId = "encounter_signature_002";
+    assert.equal(verifyDiagnoseReasoningSignature(signed, replayed), false);
+  });
+
+  check("cross-customer replay rejects before upstream use", () => {
+    const replayed = clone(caseState);
+    replayed.customerId = "other-hospital";
     assert.equal(verifyDiagnoseReasoningSignature(signed, replayed), false);
   });
 
@@ -765,16 +784,50 @@ try {
     caseState,
     async () => JSON.stringify({ redFlags: [] }),
   );
+  check("clinical facts attestation is tenant bound", () => {
+    assert.equal(
+      hasValidClinicalFactsAttestation(routeBaseCase.clinicalFacts, Date.now(), undefined, TEST_CUSTOMER_ID),
+      true,
+    );
+    assert.equal(
+      hasValidClinicalFactsAttestation(routeBaseCase.clinicalFacts, Date.now(), undefined, "other-hospital"),
+      false,
+    );
+  });
   assert.equal(routeBaseCase.clinicalFacts?.semanticStatus, "checked");
   assert.equal(routeBaseCase.clinicalFacts?.resultSource, "fresh");
   assert.match(routeBaseCase.clinicalFacts?.attestation || "", /^hmac-sha256:[a-f0-9]{64}$/);
   const { POST: prescribePost } = require("../src/app/api/diagnosis/prescribe/route.ts");
   const { POST: postPrescriptionRisk } = require("../src/app/api/diagnosis/post-prescription-risk/route.ts");
   const { POST: assessPost } = require("../src/app/api/diagnosis/assess/route.ts");
-  const routeRequest = (path, routeCaseState) => new Request(`http://localhost${path}`, {
+  const { POST: hisSchemePost } = require("../src/app/api/diagnosis/his-scheme/route.ts");
+  const routeRequest = (path, routeCaseState, customerId = TEST_CUSTOMER_ID) => new Request(`http://localhost${path}`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-cdss-customer-id": TEST_CUSTOMER_ID },
+    headers: { "content-type": "application/json", "x-cdss-customer-id": customerId },
     body: JSON.stringify({ caseState: routeCaseState }),
+  });
+
+  await checkAsync("prescribe route rejects cross-customer M03 before any upstream call", async () => {
+    const replayed = clone(routeBaseCase);
+    replayed.customerId = "other-hospital";
+    replayed.reasoningDiagnose = clone(signed);
+    let upstreamCalls = 0;
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      throw new Error("cross-customer replay reached upstream");
+    };
+    try {
+      const response = await prescribePost(routeRequest(
+        "/api/diagnosis/prescribe",
+        replayed,
+        "other-hospital",
+      ));
+      assert.equal(response.status, 409);
+      assert.equal(upstreamCalls, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
   });
 
   await checkAsync("prescribe route rejects a correctly signed but clinically ungrounded M03", async () => {
@@ -841,6 +894,194 @@ try {
     routeCase.reasoningV2 = clone(signedPrescribe);
     return routeCase;
   };
+
+  await checkAsync("M04 trust-boundary routes reject cross-customer replay before any upstream call", async () => {
+    const replayed = buildSignedNormalRouteCase();
+    replayed.customerId = "other-hospital";
+    let upstreamCalls = 0;
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      throw new Error("cross-customer replay reached upstream");
+    };
+    try {
+      for (const route of [
+        { path: "/api/diagnosis/post-prescription-risk", post: postPrescriptionRisk },
+        { path: "/api/diagnosis/assess", post: assessPost },
+        { path: "/api/diagnosis/his-scheme", post: hisSchemePost },
+      ]) {
+        const response = await route.post(routeRequest(route.path, replayed, "other-hospital"));
+        assert.equal(response.status, 409, `${route.path} must reject replay`);
+      }
+      assert.equal(upstreamCalls, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  await checkAsync("HIS rejects a foreign signed M03-only projection before any upstream call", async () => {
+    const foreignCase = clone(routeBaseCase);
+    foreignCase.customerId = "other-hospital";
+    const foreignM03 = signDiagnoseReasoning(
+      reasoning,
+      buildDiagnoseContractSignatureContext(foreignCase),
+    );
+    const currentCase = clone(routeBaseCase);
+    currentCase.reasoningDiagnose = foreignM03;
+    let upstreamCalls = 0;
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      throw new Error("foreign M03-only projection reached upstream");
+    };
+    try {
+      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", currentCase));
+      assert.equal(response.status, 409);
+      assert.equal((await response.json()).code, "invalid_m03_signature");
+      assert.equal(upstreamCalls, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  await checkAsync("HIS rejects an unsigned M03-only projection before any upstream call", async () => {
+    const currentCase = clone(routeBaseCase);
+    currentCase.reasoningDiagnose = clone(signed);
+    delete currentCase.reasoningDiagnose.contractSignature;
+    delete currentCase.reasoningDiagnose.contractSignatureVersion;
+    let upstreamCalls = 0;
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      throw new Error("unsigned M03-only projection reached upstream");
+    };
+    try {
+      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", currentCase));
+      assert.equal(response.status, 409);
+      assert.equal((await response.json()).code, "invalid_m03_signature");
+      assert.equal(upstreamCalls, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  await checkAsync("HIS rejects a foreign signed M04 mixed with a valid local M03 before upstream", async () => {
+    const foreignCase = clone(routeBaseCase);
+    foreignCase.customerId = "other-hospital";
+    foreignCase.reasoningDiagnose = signDiagnoseReasoning(
+      reasoning,
+      buildDiagnoseContractSignatureContext(foreignCase),
+    );
+    const foreignM04 = signPrescribeReasoning(
+      prescribeReasoning,
+      buildPrescribeContractSignatureContext(foreignCase),
+    );
+    const mixedCase = buildSignedNormalRouteCase();
+    mixedCase.reasoningPrescribe = foreignM04;
+    mixedCase.reasoningV2 = clone(foreignM04);
+    let upstreamCalls = 0;
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      throw new Error("foreign M04 projection reached upstream");
+    };
+    try {
+      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", mixedCase));
+      assert.equal(response.status, 409);
+      assert.equal((await response.json()).code, "invalid_m04_signature");
+      assert.equal(upstreamCalls, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  await checkAsync("HIS rejects an unsigned dose-capable M04 before any upstream call", async () => {
+    const unsignedCase = buildSignedNormalRouteCase();
+    delete unsignedCase.reasoningPrescribe.contractSignature;
+    delete unsignedCase.reasoningPrescribe.contractSignatureVersion;
+    unsignedCase.reasoningV2 = clone(unsignedCase.reasoningPrescribe);
+    let upstreamCalls = 0;
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      throw new Error("unsigned M04 projection reached upstream");
+    };
+    try {
+      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", unsignedCase));
+      assert.equal(response.status, 409);
+      assert.equal((await response.json()).code, "invalid_m04_signature");
+      assert.equal(upstreamCalls, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  await checkAsync("HIS rejects legacy or orphaned prescription material before any upstream call", async () => {
+    const previousFetch = globalThis.fetch;
+    let upstreamCalls = 0;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      throw new Error("unstructured prescription material reached upstream");
+    };
+    try {
+      const probes = [
+        {
+          ...clone(routeBaseCase),
+          reasoningDiagnose: clone(signed),
+          prescription: "旧版处方文本",
+        },
+        {
+          ...clone(routeBaseCase),
+          reasoningDiagnose: clone(signed),
+          prescriptionRevision: {
+            source: "herb_workbench",
+            candidateIndex: 0,
+            herbHash: "orphaned-revision",
+            auditedAt: "2026-07-13T00:00:00.000Z",
+            auditResult: "PASS",
+            highestRiskLevel: "INFO",
+          },
+        },
+      ];
+      for (const probe of probes) {
+        const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", probe));
+        assert.equal(response.status, 422);
+        assert.equal((await response.json()).code, "missing_structured_prescription");
+      }
+      assert.equal(upstreamCalls, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
+  await checkAsync("HIS rejects an untrusted workbench claim before any upstream call", async () => {
+    const routeCase = buildSignedNormalRouteCase();
+    delete routeCase.reasoningPrescribe.contractSignature;
+    delete routeCase.reasoningPrescribe.contractSignatureVersion;
+    routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
+    routeCase.prescriptionRevision = {
+      source: "herb_workbench",
+      candidateIndex: 0,
+      herbHash: "untrusted-workbench-claim",
+      auditedAt: "2026-07-13T00:00:00.000Z",
+      auditResult: "PASS",
+      highestRiskLevel: "INFO",
+    };
+    const previousFetch = globalThis.fetch;
+    let upstreamCalls = 0;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      throw new Error("untrusted workbench claim reached upstream");
+    };
+    try {
+      const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase));
+      assert.equal(response.status, 409);
+      assert.equal((await response.json()).code, "invalid_m04_signature");
+      assert.equal(upstreamCalls, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
 
   for (const route of signatureProtectedRoutes) {
     await checkAsync(`${route.name} route rejects unsigned normal M04`, async () => {

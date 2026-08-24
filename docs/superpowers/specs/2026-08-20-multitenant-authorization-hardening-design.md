@@ -8,6 +8,10 @@
 - 明确约束：既定客户接口 Token 不轮换、不写入源码、文档或日志。
 - 设计原则：复用当前客户上下文、库存隔离、签名、快照和限流实现，只补真实缺口，不另建租户平台。
 
+> **2026-08-24 验收变更**：真实接口验收证明“未知客户首次库存 POST 必须成功登记”属于交付范围，
+> 因而下文原定“暂缓”的方案 B 已改为受限 JIT：仅固定 Token 下、仅带幂等键的库存 POST 或显式
+> register 路由可创建客户；GET 与临床路由仍不自动创建。登记有持久化、配额、冲突检测和租户审计。
+
 ## 2. 当前能力与真实缺口
 
 当前代码已经具备：
@@ -32,9 +36,11 @@
 
 部署环境配置一个非敏感 `clientId` 和多个允许的 `customerId`。所有业务代码从共享授权模块取得可信上下文。该方案与当前单实例、文件库存和固定 Token 交付方式一致，改动最小，能够立即阻止任意客户 ID 越权。
 
-### 方案 B：JIT 自动注册与动态注册表（暂缓）
+### 方案 B：受限 JIT 自动注册与动态注册表（验收后选定补充）
 
-首次库存 POST 自动创建租户，需要注册表、状态机、幂等、抢注处理、恢复任务、配额和告警。它适用于开放式 SaaS 开户，但甲方当前目标是已知客户的独立药品库，首期投入和运维风险明显过高。
+首次库存 POST 或 `/api/customers/register` 在固定调用方范围内创建租户。实现采用原子 JSON 注册表、
+`provisioning → active/failed` 状态机、不可改绑的 `Idempotency-Key`、调用方总配额和激活前 pending 审计意图；active 落盘后再追加 accepted 完成事件，
+审计不可用时客户保持非激活并 fail-closed，不提供开放式自助开户、删除或管理后台。
 
 ### 方案 C：每客户独立 Token（拒绝）
 
@@ -47,6 +53,10 @@
 ```text
 CDSS_API_CLIENT_ID=his-integrator
 CDSS_API_CUSTOMER_IDS=hospital-A,hospital-B
+CDSS_CUSTOMER_JIT_ENABLED=true
+CDSS_CUSTOMER_JIT_MAX_CUSTOMERS=100
+CDSS_CUSTOMER_REGISTRY_PATH=/app/runtime-data/customer-registry.json
+CDSS_TENANT_AUDIT_PATH=/app/runtime-data/tenant-audit.ndjson
 ```
 
 规则：
@@ -148,6 +158,8 @@ type CustomerContext = Readonly<{
 8. M04/HIS/签名/快照现有租户回归继续通过。
 9. 新增未分类 API 路由时分类测试失败。
 10. 响应缓存头和库存客户响应头符合合同。
+11. 未知客户 GET/临床请求仍为 403；首次库存 POST 缺幂等键为 400，带键登记并导入。
+12. 幂等键跨客户复用为 409；达到客户配额为 429；登记和库存审计只能由本客户查询。
 
 完成后运行相关测试、普通/clean-env 确定性总回归、typecheck、lint、build、依赖审计和生产前严格健康检查。
 
@@ -166,7 +178,6 @@ type CustomerContext = Readonly<{
 
 ## 11. 明确不做
 
-- JIT 自动注册、动态租户注册表和 `/api/customers/register`。
 - 租户管理后台、客户选择列表接口和在线停用/删除功能。
 - PostgreSQL、Redis、对象存储、分布式锁或多实例迁移。
 - Prometheus 指标系统、告警平台或独立审计数据库。

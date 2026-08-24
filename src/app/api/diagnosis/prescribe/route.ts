@@ -287,6 +287,7 @@ export async function POST(req: Request) {
     truncateFallback: buildDeterministicFormulaReferenceFallback(gated, signedPriorReasoning)
       ?? buildSafetyLimitedPrescription(truncationGate, "m04_truncated_no_candidate"),
     structuredStage: "prescribe",
+    structuredQueueKey: parsed.customer.customerHash,
     // M04 repair/review must never receive raw HIS identifiers.
     structuredClinicalContext,
     structuredReviewEvidenceContext: boundedEvidence.text,

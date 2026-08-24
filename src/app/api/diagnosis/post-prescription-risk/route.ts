@@ -25,21 +25,26 @@ import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 export async function POST(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
   if (!parsed.ok) return parsed.response;
-  const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal));
-  const diagnoseReasoning = diagnoseReasoningFromState(caseState);
-  if (caseState.prescriptionRevision?.source === "herb_workbench" && !verifyDiagnoseReasoningSignature(diagnoseReasoning, caseState)) {
+  // Reject stale/cross-tenant contracts before semantic backstop or RxAudit can make an upstream
+  // request. The additive facts layer does not participate in the clinical contract signature.
+  const initialDiagnoseReasoning = diagnoseReasoningFromState(parsed.caseState);
+  const initialPrescribed = prescribeReasoningFromState(parsed.caseState);
+  const workbenchRevision = parsed.caseState.prescriptionRevision?.source === "herb_workbench";
+  if (workbenchRevision && !verifyDiagnoseReasoningSignature(initialDiagnoseReasoning, parsed.caseState)) {
     return Response.json({
       error: "辨病辨证结果签名已失效，请重新生成辨证后再调整药味。",
       code: "invalid_m03_signature",
     }, { status: 409 });
   }
-  const prescribed = prescribeReasoningFromState(caseState);
-  if (caseState.prescriptionRevision?.source !== "herb_workbench" && !verifyPrescribeReasoningSignature(prescribed, caseState)) {
+  if (!workbenchRevision && !verifyPrescribeReasoningSignature(initialPrescribed, parsed.caseState)) {
     return Response.json({
       error: "当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再审方。",
       code: "invalid_m04_signature",
     }, { status: 409 });
   }
+  const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal));
+  const diagnoseReasoning = diagnoseReasoningFromState(caseState);
+  const prescribed = prescribeReasoningFromState(caseState);
   const explicitCandidateIndex = caseState.prescriptionRevision?.candidateIndex;
   const resolvedCandidateIndex = explicitCandidateIndex ?? resolveRxAuditCandidateIndex(caseState);
   const candidateIndex = resolvedCandidateIndex ?? 0;

@@ -341,7 +341,7 @@ export interface ClinicalReasoningResultV2 {
   // 只登记当前在用的版本号（历史版本不保留）。M04 升到 v2 是因为 nonPharma 的 monitoring 三元组
   // 已换成自由文本 precautions，签名载荷字段集随之变化；在途快照会因版本不匹配确定性失效并
   // fail-closed 转人工复核，而不是表现为难以解释的 HMAC 不符。
-  contractSignatureVersion?: "tcm-cdss-m03-signature-v4" | "tcm-cdss-m04-signature-v2";
+  contractSignatureVersion?: "tcm-cdss-m03-signature-v5" | "tcm-cdss-m04-signature-v3";
   contractSignature?: string;
   clinicalReview?: ClinicalReviewAttestation;
   terminologyMappings?: ControlledTerminologyMappingTrace[];
@@ -1285,7 +1285,7 @@ const DEFAULT_WESTERN_DIAGNOSIS: ClinicalReasoningResultV2["westernDiagnosis"] =
 const ReasoningV2SchemaBase = z.object({
   schemaVersion: z.literal("tcm-cdss-reasoning-v2"),
   stage: z.enum(["diagnose", "prescribe"]),
-  contractSignatureVersion: z.enum(["tcm-cdss-m03-signature-v4", "tcm-cdss-m04-signature-v2"]).optional().catch(undefined),
+  contractSignatureVersion: z.enum(["tcm-cdss-m03-signature-v5", "tcm-cdss-m04-signature-v3"]).optional().catch(undefined),
   contractSignature: z.string().max(160).optional().catch(undefined),
   clinicalReview: z.object({
     status: z.enum(["accepted", "unavailable"]),

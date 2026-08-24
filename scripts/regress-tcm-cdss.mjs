@@ -442,12 +442,12 @@ function runFrontendContractChecks() {
   );
   assert(prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") && codeIncludes(prescribeRoute, "m03SafetyContractIssue(signedPriorReasoning, clinicalGroundingText(gated), isSafetyRejection)") && !prescribeRoute.includes("hasActionableM03Diagnosis"), "M04 route: verifies the server-signed, patient-grounded structured M03 contract before dose-level prescribing", prescribeRoute.slice(0, 5600));
   assert(
-    reasoningContractSignatureSource.includes('DIAGNOSE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m03-signature-v4"') &&
+    reasoningContractSignatureSource.includes('DIAGNOSE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m03-signature-v5"') &&
       reasoningContractSignatureSource.includes("clinicalInputHash") &&
       reasoningContractSignatureSource.includes("clinicalInputSnapshot(deidentified)") &&
       reasoningContractSignatureSource.includes("sanitizeCaseStateForBrowserPersistence(normalized)") &&
       reasoningContractSignatureSource.includes("reasoning,") &&
-      diagnosisTypesSource.includes('z.enum(["tcm-cdss-m03-signature-v4", "tcm-cdss-m04-signature-v2"])'),
+      diagnosisTypesSource.includes('z.enum(["tcm-cdss-m03-signature-v5", "tcm-cdss-m04-signature-v3"])'),
     "M03 signature: complete normalized reasoning, de-identified clinical snapshot, and explicit contract version share one HMAC payload",
     `${reasoningContractSignatureSource}\n${diagnosisTypesSource.slice(10000, 13500)}`,
   );
@@ -466,7 +466,7 @@ function runFrontendContractChecks() {
     `${diagnoseRoute}\n${diagnosisApiSource.slice(-3600)}\n${prescribeRoute.slice(0, 1800)}\n${postPrescriptionRiskRoute.slice(0, 1200)}\n${hisPrescriptionValidationSource.slice(0, 2200)}`,
   );
   assert(
-    reasoningContractSignatureSource.includes('PRESCRIBE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m04-signature-v2"') &&
+    reasoningContractSignatureSource.includes('PRESCRIBE_CONTRACT_SIGNATURE_VERSION = "tcm-cdss-m04-signature-v3"') &&
       reasoningContractSignatureSource.includes("diagnoseContractHash") &&
       reasoningContractSignatureSource.includes("bindClinicalReviewAttestation") &&
       prescribeRoute.includes("buildPrescribeContractSignatureContext(trustedGated)") &&

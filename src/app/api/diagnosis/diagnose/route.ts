@@ -59,7 +59,7 @@ export async function POST(req: Request) {
   const encounterScope = gated.clinicalFacts?.encounterScope;
   const historicalOnlyEncounter = encounterScope?.status === "historical_or_stable_only" &&
     encounterScope.reviewAgreement === "agreed" &&
-    hasValidClinicalFactsAttestation(gated.clinicalFacts);
+    hasValidClinicalFactsAttestation(gated.clinicalFacts, Date.now(), undefined, gated.customerId);
   if (historicalOnlyEncounter && !gateDispositionIsAdvisory()) {
     return markdownNdjsonResponse(signedLimitedDiagnosis({
       status: "needs_information",
@@ -120,7 +120,12 @@ export async function POST(req: Request) {
   }
   // Attested "unclear" scope does not short-circuit M03; the model keeps reasoning but must make
   // the unconfirmed visit target explicit so the downstream dose gate stays evidence-bound.
-  if (encounterScope?.status === "unclear" && hasValidClinicalFactsAttestation(gated.clinicalFacts)) {
+  if (encounterScope?.status === "unclear" && hasValidClinicalFactsAttestation(
+    gated.clinicalFacts,
+    Date.now(),
+    undefined,
+    gated.customerId,
+  )) {
     prompt += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请在 uncertainties 与 management.mustCollect 中显式记录“本次就诊目标需医生确认”，不得据此臆造当前治疗目标或直接给出剂量级结论。";
   }
   const initialSafetyBanner = buildSafetyAdvisoryBanner(
@@ -176,6 +181,7 @@ export async function POST(req: Request) {
     reviewAcceptedButRejectedFallback: signedLimitedDiagnosis(truncatedGate, "accepted_but_draft_rejected_downstream"),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",
+    structuredQueueKey: parsed.customer.customerHash,
     // 与 M04 同口径：时钟起在临床事实准备之前，否则那段模型调用不计入 180s 预算。
     structuredOrchestrationStartedAt: orchestrationStartedAt,
     // Structured retries and independent review are external model calls. Keep their grounding

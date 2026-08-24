@@ -31,7 +31,7 @@ const check = (name, fn) => {
 
 const signedPrior = (syndrome, pathogenesis, therapy) => ({
   stage: "diagnose",
-  contractSignatureVersion: "tcm-cdss-m03-signature-v4",
+  contractSignatureVersion: "tcm-cdss-m03-signature-v5",
   contractSignature: `hmac-sha256:${"a".repeat(64)}`,
   overview: {
     primarySyndrome: syndrome,

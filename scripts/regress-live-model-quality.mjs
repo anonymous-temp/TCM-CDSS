@@ -212,7 +212,7 @@ if (M03_CACHE_PATH && !cachedM03) {
 const m03Stream = consumeNdjson(m03Raw, { requireReplacement: true });
 const m03 = extractReasoning(m03Stream.content, "diagnose");
 assert(/^hmac-sha256:[a-f0-9]{64}$/.test(m03.contractSignature || ""), "M03 lacks a server contract signature");
-assert(m03.contractSignatureVersion === "tcm-cdss-m03-signature-v4", "M03 signature contract version is stale", m03.contractSignatureVersion);
+assert(m03.contractSignatureVersion === "tcm-cdss-m03-signature-v5", "M03 signature contract version is stale", m03.contractSignatureVersion);
 assert(m03.overview?.primarySyndrome && m03.overview?.overallPathogenesis && m03.overview?.overallTherapy, "M03 lacks syndrome/pathogenesis/therapy anchors", m03.overview);
 assert(Array.isArray(m03.pathogenesis?.chain) && m03.pathogenesis.chain.length > 0, "M03 lacks a pathogenesis chain");
 assert(m03.pathogenesis.chain.every((node, index) => node.nodeId === `P${index + 1}`), "M03 pathogenesis nodes lack deterministic identifiers", m03.pathogenesis.chain);

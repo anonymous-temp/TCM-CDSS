@@ -46,7 +46,7 @@ export function hasExecutableSignedM03(reasoning: SignedM03Like | null | undefin
   return reasoning?.schemaVersion === "tcm-cdss-reasoning-v2" &&
     reasoning.stage === "diagnose" &&
     reasoning.formula == null &&
-    reasoning.contractSignatureVersion === "tcm-cdss-m03-signature-v4" &&
+    reasoning.contractSignatureVersion === "tcm-cdss-m03-signature-v5" &&
     typeof reasoning.contractSignature === "string" &&
     M03_SIGNATURE.test(reasoning.contractSignature);
 }

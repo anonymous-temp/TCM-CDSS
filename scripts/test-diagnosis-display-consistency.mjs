@@ -663,7 +663,7 @@ assert.match(sparseDiagnosePrompt, /没有具体病因候选时写“具体病�
 const stableM03 = {
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
-  contractSignatureVersion: "tcm-cdss-m03-signature-v4",
+  contractSignatureVersion: "tcm-cdss-m03-signature-v5",
   contractSignature: `hmac-sha256:${"a".repeat(64)}`,
   overview: { primarySyndrome: "心肝血虚证", overallPathogenesis: "血不养心，心神失舍" },
   westernDiagnosis: {

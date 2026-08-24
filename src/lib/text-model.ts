@@ -212,7 +212,20 @@ export function textModelRequestTuning(
     };
   }
   if (isQwenModel(model)) {
-    return { enable_thinking: thinkingEnabled };
+    if (!thinkingEnabled) return { enable_thinking: false };
+    const effort = String(options.reasoningEffort || "medium").trim().toLowerCase();
+    if (/^qwen3\.8-max(?:$|[-_])/i.test(model.trim())) {
+      const reasoningEffort = effort === "low" ? "low" : effort === "medium" ? "medium" : "xhigh";
+      return { enable_thinking: true, reasoning_effort: reasoningEffort };
+    }
+    const thinkingBudget = effort === "low"
+      ? 2_048
+      : effort === "high"
+        ? 8_192
+        : effort === "xhigh" || effort === "max"
+          ? 16_384
+          : 4_096;
+    return { enable_thinking: true, thinking_budget: thinkingBudget };
   }
   return {};
 }
@@ -245,6 +258,7 @@ export async function runTextModelHealthCheck() {
         max_tokens: 256,
         temperature: 0,
         stream: true,
+        stream_options: { include_usage: true },
         ...textModelRequestTuning(config.model, { thinkingEnabled: false }),
       }, { signal: controller.signal });
       for await (const chunk of stream) {

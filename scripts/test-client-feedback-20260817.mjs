@@ -277,7 +277,7 @@ const mahuangHerbs = [
   const prior = {
     schemaVersion: "tcm-cdss-reasoning-v2",
     stage: "diagnose",
-    contractSignatureVersion: "tcm-cdss-m03-signature-v4",
+    contractSignatureVersion: "tcm-cdss-m03-signature-v5",
     contractSignature: `hmac-sha256:${"a".repeat(64)}`,
     overview: { primarySyndrome: "风寒束表证", overallPathogenesis: "风寒束表，肺气失宣" },
     westernDiagnosis: { primary: { name: "急性上呼吸道感染", supportingFacts: [] }, differentials: [] },

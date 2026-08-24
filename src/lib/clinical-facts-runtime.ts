@@ -10,6 +10,7 @@ import {
   type FactsLlmCall,
 } from "./clinical-facts";
 import { sanitizeCaseStateForModel, trustedInputText } from "./diagnosis-safety";
+import { parseCustomerId } from "./customer-id";
 
 export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from "./clinical-facts";
 
@@ -23,7 +24,7 @@ export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from 
  * 允许 M03 继续分析的同时阻断静默处方升级。
  */
 
-export const CLINICAL_FACTS_ATTESTATION_VERSION = "tcm-cdss-clinical-facts-attestation-v7";
+export const CLINICAL_FACTS_ATTESTATION_VERSION = "tcm-cdss-clinical-facts-attestation-v8";
 export const CLINICAL_FACTS_CACHE_TTL_MS = 5 * 60_000;
 // A signed M03 may legitimately consume the full 180s orchestration budget, and one bounded M04
 // regeneration can extend the same unchanged chain beyond the ordinary semantic cache TTL. Routes
@@ -385,6 +386,7 @@ function attestationPayload(facts: NonNullable<CaseState["clinicalFacts"]>): str
     promptVersion: facts.promptVersion || "",
     extractedAt: facts.extractedAt || "",
     modelTrace: facts.modelTrace,
+    customerBindingHash: facts.customerBindingHash || "",
     sourceFingerprint: facts.sourceFingerprint || "",
     sourceCoverage: facts.sourceCoverage || "",
     sourceCharCount: facts.sourceCharCount || 0,
@@ -393,6 +395,31 @@ function attestationPayload(facts: NonNullable<CaseState["clinicalFacts"]>): str
     encounterScope: facts.encounterScope,
     redFlags: facts.redFlags,
   });
+}
+
+function clinicalFactsCustomerBindingHash(customerId?: string): string | undefined {
+  if (!customerId) return undefined;
+  const normalizedCustomerId = parseCustomerId(customerId);
+  const configuredClientId = process.env.CDSS_API_CLIENT_ID?.trim() || "local-development";
+  if (normalizedCustomerId !== customerId || !/^[A-Za-z0-9_-]{3,64}$/.test(configuredClientId)) {
+    return undefined;
+  }
+  return createHash("sha256")
+    // clientId is non-secret deployment identity. Customer authorization itself remains owned by
+    // requireCustomerContext; this low-level attestation module deliberately avoids importing the
+    // server-only registry so it remains usable in pure schema/safety tests.
+    .update(`${configuredClientId}\0${normalizedCustomerId}`)
+    .digest("hex");
+}
+
+export function clinicalFactsTenantBindingMatches(
+  facts: CaseState["clinicalFacts"],
+  customerId?: string,
+): boolean {
+  const expected = clinicalFactsCustomerBindingHash(customerId);
+  return expected === undefined
+    ? facts?.customerBindingHash === undefined
+    : facts?.customerBindingHash === expected;
 }
 
 function signClinicalFacts(facts: NonNullable<CaseState["clinicalFacts"]>): string | undefined {
@@ -405,6 +432,7 @@ export function hasValidClinicalFactsAttestation(
   facts: CaseState["clinicalFacts"],
   nowMs = Date.now(),
   cacheTtlOverrideMs?: number,
+  customerId?: string,
 ): boolean {
   const key = attestationKey();
   if (!facts?.attestation || key.length < 16) return false;
@@ -414,6 +442,7 @@ export function hasValidClinicalFactsAttestation(
   if (facts.attestationVersion !== CLINICAL_FACTS_ATTESTATION_VERSION) return false;
   if (facts.extractorVersion !== CLINICAL_FACTS_EXTRACTOR_VERSION) return false;
   if (facts.promptVersion !== CLINICAL_FACTS_PROMPT_VERSION) return false;
+  if (!clinicalFactsTenantBindingMatches(facts, customerId)) return false;
   const extractedAtMs = facts.extractedAt ? Date.parse(facts.extractedAt) : Number.NaN;
   if (!Number.isFinite(extractedAtMs)) return false;
   const ageMs = nowMs - extractedAtMs;
@@ -446,7 +475,7 @@ export function isClinicalFactsBackstopEnabled(): boolean {
  */
 export function hasUnconfirmedUnclearEncounterScope(state: CaseState): boolean {
   const facts = state.clinicalFacts;
-  if (!hasValidClinicalFactsAttestation(facts)) return false;
+  if (!hasValidClinicalFactsAttestation(facts, Date.now(), undefined, state.customerId)) return false;
   if (facts?.encounterScope?.status !== "unclear") return false;
   const sourceFingerprint = facts.sourceFingerprint;
   if (!sourceFingerprint) return false;
@@ -482,6 +511,7 @@ export async function maybeAttachClinicalFactsBackstop(
     state.clinicalFacts,
     Date.now(),
     options?.cacheTtlOverrideMs,
+    state.customerId,
   )) {
     return {
       ...state,
@@ -545,6 +575,7 @@ export async function maybeAttachClinicalFactsBackstop(
         separateInvocationAdjudication: plan.separateInvocationAdjudication,
       };
     })(),
+    customerBindingHash: clinicalFactsCustomerBindingHash(state.customerId),
     sourceFingerprint,
     sourceCoverage: sourceProjection.coverage,
     sourceCharCount: fullText.length,
@@ -557,7 +588,9 @@ export async function maybeAttachClinicalFactsBackstop(
     extractedAt: new Date(Date.now()).toISOString(),
     attestation: undefined,
   };
-  const attestation = unsignedFacts.reviewStatus === "checked" && unsignedFacts.sourceCoverage === "full"
+  const tenantBindingAvailable = !state.customerId || Boolean(unsignedFacts.customerBindingHash);
+  const attestation = unsignedFacts.reviewStatus === "checked" && unsignedFacts.sourceCoverage === "full" &&
+    tenantBindingAvailable
     ? signClinicalFacts(unsignedFacts)
     : undefined;
   if (unsignedFacts.reviewStatus === "checked" && unsignedFacts.sourceCoverage === "full" && !attestation) {

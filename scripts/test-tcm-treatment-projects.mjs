@@ -46,7 +46,7 @@ const signedM03 = ({
 } = {}) => ({
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
-  contractSignatureVersion: "tcm-cdss-m03-signature-v4",
+  contractSignatureVersion: "tcm-cdss-m03-signature-v5",
   contractSignature: signature,
   overview: {
     tcmDiseaseName,

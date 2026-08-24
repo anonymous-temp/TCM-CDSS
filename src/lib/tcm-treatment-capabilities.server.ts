@@ -748,7 +748,7 @@ function rankedTreatmentCandidates(
 function isTrustedM03(prior: ClinicalReasoningResultV2 | null | undefined): prior is ClinicalReasoningResultV2 {
   return Boolean(
     prior && prior.stage === "diagnose" &&
-    prior.contractSignatureVersion === "tcm-cdss-m03-signature-v4" &&
+    prior.contractSignatureVersion === "tcm-cdss-m03-signature-v5" &&
     /^hmac-sha256:[a-f0-9]{64}$/i.test(String(prior.contractSignature || "")),
   );
 }

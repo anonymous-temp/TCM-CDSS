@@ -1,6 +1,15 @@
 import "server-only";
 
 import { parseCustomerId } from "./customer-id";
+import {
+  customerJitRegistrationEnabled,
+  customerRegistryAvailable,
+  registerCustomerForClient,
+  registeredCustomerIdsForClient,
+  registeredCustomerForClient,
+  type RegisterCustomerResult,
+} from "./customer-registry.server";
+import { recordTenantAuditEvent, tenantAuditCustomerHash } from "./tenant-audit.server";
 
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{3,64}$/;
 const MAX_AUTHORIZED_CUSTOMERS = 1_000;
@@ -30,12 +39,14 @@ function parseCustomerAuthorization(): ParsedCustomerAuthorization {
   const rawClientId = process.env.CDSS_API_CLIENT_ID?.trim() || "";
   const rawCustomerIds = process.env.CDSS_API_CUSTOMER_IDS?.trim() || "";
   const rawDefaultCustomerId = process.env.CDSS_DEFAULT_CUSTOMER_ID?.trim() || "";
-  const configured = rawCustomerIds.length > 0;
+  const jitEnabled = customerJitRegistrationEnabled();
+  const registryAvailable = !jitEnabled || customerRegistryAvailable();
+  const configured = rawCustomerIds.length > 0 || jitEnabled;
   const clientConfigured = CLIENT_ID_PATTERN.test(rawClientId);
 
-  const entries = configured ? rawCustomerIds.split(",").map((entry) => entry.trim()) : [];
+  const entries = rawCustomerIds ? rawCustomerIds.split(",").map((entry) => entry.trim()) : [];
   const parsedEntries = entries.map((entry) => parseCustomerId(entry));
-  const customerListValid = configured &&
+  const customerListValid = (rawCustomerIds.length > 0 || jitEnabled) &&
     entries.length <= MAX_AUTHORIZED_CUSTOMERS &&
     entries.every((entry) => entry.length > 0) &&
     parsedEntries.every((entry): entry is string => Boolean(entry)) &&
@@ -43,14 +54,22 @@ function parseCustomerAuthorization(): ParsedCustomerAuthorization {
   const allowedCustomerIds = new Set(customerListValid ? parsedEntries as string[] : []);
   const defaultCustomerId = rawDefaultCustomerId ? parseCustomerId(rawDefaultCustomerId) : undefined;
   const defaultCustomerValid = !rawDefaultCustomerId || Boolean(
-    defaultCustomerId && allowedCustomerIds.has(defaultCustomerId),
+    defaultCustomerId && (
+      allowedCustomerIds.has(defaultCustomerId) ||
+      clientConfigured && registeredCustomerForClient(rawClientId, defaultCustomerId)
+    ),
   );
-  const valid = customerListValid && defaultCustomerValid;
+  const valid = customerListValid && defaultCustomerValid && registryAvailable;
+  const registeredCustomerIds = clientConfigured
+    ? registeredCustomerIdsForClient(rawClientId)
+    : [];
   const status = {
     configured,
     valid,
     clientConfigured,
-    customerCount: customerListValid ? allowedCustomerIds.size : 0,
+    customerCount: customerListValid
+      ? new Set([...allowedCustomerIds, ...(registeredCustomerIds || [])]).size
+      : 0,
     ready: configured && valid && clientConfigured,
   } satisfies CustomerAuthorizationStatus;
 
@@ -58,7 +77,7 @@ function parseCustomerAuthorization(): ParsedCustomerAuthorization {
     status,
     clientId: clientConfigured ? rawClientId : "",
     allowedCustomerIds,
-    entirelyUnconfigured: !rawClientId && !rawCustomerIds && !rawDefaultCustomerId,
+    entirelyUnconfigured: !rawClientId && !rawCustomerIds && !rawDefaultCustomerId && !jitEnabled,
   };
 }
 
@@ -96,7 +115,8 @@ export function authorizeCustomerId(
       code: "customer_authorization_not_configured",
     };
   }
-  if (!configuration.allowedCustomerIds.has(normalizedCustomerId)) {
+  if (!configuration.allowedCustomerIds.has(normalizedCustomerId) &&
+      !registeredCustomerForClient(configuration.clientId, normalizedCustomerId)) {
     return { ok: false, status: 403, code: "customer_forbidden" };
   }
   return {
@@ -104,4 +124,76 @@ export function authorizeCustomerId(
     clientId: configuration.clientId,
     customerId: normalizedCustomerId,
   };
+}
+
+export async function provisionCustomerId(
+  customerId: string,
+  idempotencyKey: string,
+  requestId?: string,
+): Promise<RegisterCustomerResult> {
+  const normalizedCustomerId = parseCustomerId(customerId);
+  const configuration = parseCustomerAuthorization();
+  if (!normalizedCustomerId || normalizedCustomerId !== customerId || !configuration.status.ready) {
+    return {
+      ok: false,
+      status: 503,
+      code: "customer_registry_unavailable",
+      error: "customer authorization is not configured",
+    };
+  }
+  const customerHash = tenantAuditCustomerHash(configuration.clientId, normalizedCustomerId);
+  let activationAudited = false;
+  const result = await registerCustomerForClient({
+    clientId: configuration.clientId,
+    customerId: normalizedCustomerId,
+    idempotencyKey,
+    staticCustomerIds: [...configuration.allowedCustomerIds],
+    beforeActivate: async (customer) => {
+      await recordTenantAuditEvent({
+        event: "customer_registration",
+        clientId: configuration.clientId,
+        customerHash,
+        outcome: "pending",
+        code: customer.authorizationSource === "static" ? "static_binding_started" : "provisioning_started",
+        requestId,
+      });
+      activationAudited = true;
+    },
+  });
+  if (activationAudited) {
+    try {
+      await recordTenantAuditEvent({
+        event: "customer_registration",
+        clientId: configuration.clientId,
+        customerHash,
+        outcome: result.ok ? "accepted" : "failed",
+        code: result.ok ? (result.created ? "created" : "already_active") : result.code,
+        requestId,
+      });
+    } catch {
+      console.error("[tcm-cdss:audit] customer registration completion pending", {
+        clientId: configuration.clientId,
+        customerHash,
+        outcome: result.ok ? "accepted" : "failed",
+      });
+    }
+  } else {
+    try {
+      await recordTenantAuditEvent({
+        event: "customer_registration",
+        clientId: configuration.clientId,
+        customerHash,
+        outcome: result.ok ? "accepted" : "rejected",
+        code: result.ok ? (result.created ? "created" : "already_active") : result.code,
+        requestId,
+      });
+    } catch {
+      console.error("[tcm-cdss:audit] customer registration audit unavailable", {
+        clientId: configuration.clientId,
+        customerHash,
+        outcome: result.ok ? "accepted" : "rejected",
+      });
+    }
+  }
+  return result;
 }

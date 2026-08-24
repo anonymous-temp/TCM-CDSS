@@ -1,7 +1,12 @@
+import { randomUUID } from "node:crypto";
 import { readJsonBodyWithLimit } from "@/lib/http-guard";
 import { drugInventorySnapshot, importDrugInventory } from "@/lib/drug-inventory.server";
 import { requireCustomerContext } from "@/lib/customer-context";
 import { CUSTOMER_ID_HEADER } from "@/lib/customer-id";
+import {
+  recordTenantAuditEvent,
+  tenantAuditCustomerHash,
+} from "@/lib/tenant-audit.server";
 
 /**
  * 院内药品库存导入（甲方 2026-08-05「药品同步接口」入站方向）。
@@ -28,30 +33,104 @@ function customerJsonResponse(
   return Response.json(body, { ...init, headers });
 }
 
+async function tryRecordInventoryAudit(
+  event: Parameters<typeof recordTenantAuditEvent>[0],
+): Promise<boolean> {
+  try {
+    await recordTenantAuditEvent(event);
+    return true;
+  } catch {
+    console.error("[tcm-cdss:audit] inventory audit completion pending", {
+      clientId: event.clientId,
+      customerHash: event.customerHash,
+      operationId: event.operationId,
+      outcome: event.outcome,
+    });
+    return false;
+  }
+}
+
 export async function POST(req: Request) {
-  const customer = await requireCustomerContext(req);
-  if (!customer.ok) return customer.response;
+  const idempotencyKey = req.headers.get("idempotency-key")?.trim() || "";
+  const requestId = req.headers.get("x-request-id")?.trim() || undefined;
   const parsed = await readJsonBodyWithLimit(req, MAX_BODY_BYTES);
   if (!parsed.ok) return parsed.response;
   const body = parsed.body && typeof parsed.body === "object" && !Array.isArray(parsed.body)
     ? parsed.body as { source?: unknown; items?: unknown; part?: unknown }
     : {};
+  const customer = await requireCustomerContext(req, undefined, {
+    allowJitProvisioning: true,
+    idempotencyKey,
+    requestId,
+  });
+  if (!customer.ok) return customer.response;
+  const auditCustomerHash = tenantAuditCustomerHash(
+    customer.context.clientId,
+    customer.context.customerId,
+  );
+  const operationId = randomUUID();
+  const intentRecorded = await tryRecordInventoryAudit({
+    event: "inventory_import",
+    clientId: customer.context.clientId,
+    customerHash: auditCustomerHash,
+    outcome: "pending",
+    code: "inventory_import_started",
+    requestId,
+    operationId,
+  });
+  if (!intentRecorded) {
+    return customerJsonResponse(customer.context.customerId, {
+      error: "tenant audit is unavailable; inventory was not changed",
+      code: "tenant_audit_unavailable",
+    }, { status: 503 });
+  }
 
   const result = await importDrugInventory(customer.context.customerId, body);
   if (!result.ok) {
+    await tryRecordInventoryAudit({
+      event: "inventory_import",
+      clientId: customer.context.clientId,
+      customerHash: auditCustomerHash,
+      outcome: "rejected",
+      code: result.code,
+      requestId,
+      operationId,
+    });
     return Response.json({ error: result.error, code: result.code }, { status: result.status });
   }
   if ("pending" in result) {
+    const auditFinalized = await tryRecordInventoryAudit({
+      event: "inventory_import",
+      clientId: customer.context.clientId,
+      customerHash: auditCustomerHash,
+      outcome: "pending",
+      code: "inventory_part_staged",
+      requestId,
+      operationId,
+      itemCount: result.pending.bufferedItemCount,
+    });
     // 202：分片已收下但还没到齐。线上库存此刻**未被改动**，这一点必须显式回给甲方，
     // 否则「收到 200」会被理解成「这一批已经生效」，正是旧文案造成的误解。
     return customerJsonResponse(customer.context.customerId, {
       ...result.pending,
+      ...(!auditFinalized ? { auditStatus: "pending_reconciliation" } : {}),
       note: `已暂存第 ${result.pending.receivedParts.join("、")} 片，仍缺第 ${result.pending.missingParts.join("、")} 片。`
         + " 集齐全部分片后系统才会做一次整批替换；在此之前线上库存保持上一版本不变。",
     }, { status: 202 });
   }
+  const auditFinalized = await tryRecordInventoryAudit({
+    event: "inventory_import",
+    clientId: customer.context.clientId,
+    customerHash: auditCustomerHash,
+    outcome: "accepted",
+    requestId,
+    operationId,
+    itemCount: result.snapshot.itemCount,
+    inventoryVersion: result.snapshot.inventoryVersion,
+  });
   return customerJsonResponse(customer.context.customerId, {
     ...result.snapshot,
+    ...(!auditFinalized ? { auditStatus: "pending_reconciliation" } : {}),
     // 归一不到与歧义的药名如实回报，供甲方补映射。静默吞掉会让这些药永远处于「缺货」，
     // 而甲方无从知道是自己没推还是我们没认出来。
     note: result.snapshot.unresolvedNames.length > 0 || result.snapshot.ambiguousNames.length > 0
@@ -65,6 +144,16 @@ export async function GET(req: Request) {
   const customer = await requireCustomerContext(req);
   if (!customer.ok) return customer.response;
   const snapshot = await drugInventorySnapshot(customer.context.customerId);
+  await recordTenantAuditEvent({
+    event: "inventory_read",
+    clientId: customer.context.clientId,
+    customerHash: tenantAuditCustomerHash(customer.context.clientId, customer.context.customerId),
+    outcome: "accepted",
+    requestId: req.headers.get("x-request-id")?.trim() || undefined,
+    ...(snapshot
+      ? { itemCount: snapshot.itemCount, inventoryVersion: snapshot.inventoryVersion }
+      : {}),
+  });
   if (!snapshot) {
     return customerJsonResponse(customer.context.customerId, {
       inventoryLoaded: false,

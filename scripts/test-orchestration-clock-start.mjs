@@ -75,6 +75,12 @@ for (const route of ROUTES) {
   assert.ok(m03 && m04, "应能读到两个编排时限的默认值");
   assert.equal(Number(m03[1].replace(/_/g, "")), 180_000, "M03 编排时限默认值应为 180s");
   assert.equal(Number(m04[1].replace(/_/g, "")), 120_000, "M04 编排时限默认值应为 120s");
+  assert.match(api, /effectiveOrchestrationStartedAt\s*\+=\s*capacityWaitMs/,
+    "共享容量队列等待时间必须从临床编排时钟中扣除");
+  assert.match(api, /m03OrchestrationDeadlineExpired\(effectiveOrchestrationStartedAt,\s*Date\.now\(\)\)/,
+    "M03 门禁必须使用扣除排队后的有效时钟");
+  assert.match(api, /m04OrchestrationDeadlineExpired\(effectiveOrchestrationStartedAt,\s*Date\.now\(\)\)/,
+    "M04 门禁必须使用扣除排队后的有效时钟");
 }
 
 console.log("test-orchestration-clock-start: OK", { routes: ROUTES.length });

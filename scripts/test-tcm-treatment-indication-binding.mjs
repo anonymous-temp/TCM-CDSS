@@ -41,7 +41,7 @@ const signature = `hmac-sha256:${"a".repeat(64)}`;
 const signedM03 = ({ tcmDiseaseName, primarySyndrome, overallPathogenesis, therapyDirection, westernPrimary, chain }) => ({
   schemaVersion: "tcm-cdss-reasoning-v2",
   stage: "diagnose",
-  contractSignatureVersion: "tcm-cdss-m03-signature-v4",
+  contractSignatureVersion: "tcm-cdss-m03-signature-v5",
   contractSignature: signature,
   overview: {
     tcmDiseaseName,

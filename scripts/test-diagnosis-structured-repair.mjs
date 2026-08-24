@@ -62,12 +62,17 @@ assert.equal(
 );
 assert.match(
   diagnosisApiSource,
-  /primaryStructuredStageCapacity\.acquire\(\{\s*\n\s*signal: upstreamController\.signal,\s*\n\s*deadline: absoluteRunDeadline,/,
-  "parallel HTTP cases must queue their internally fanned-out M03/M04 stages inside the same wall-clock deadline",
+  /primaryStructuredStageCapacity\.acquire\(\{\s*\n\s*signal: upstreamController\.signal,\s*\n\s*deadline: Date\.now\(\) \+ PRIMARY_STRUCTURED_STAGE_QUEUE_TIMEOUT_MS,/,
+  "parallel HTTP cases must use the separately bounded queue deadline",
 );
 assert.match(
   diagnosisApiSource,
-  /releaseStructuredStageCapacity = await primaryStructuredStageCapacity\.acquire\([\s\S]{0,900}?m03WesternHalfPromise = m03ParallelHalves[\s\S]{0,300}?collectM03ParallelWesternHalf/,
+  /const capacityWaitMs = Date\.now\(\) - capacityWaitStartedAt;[\s\S]{0,500}?absoluteRunDeadline \+= capacityWaitMs;[\s\S]{0,250}?armAbsoluteDeadline\(\);/,
+  "queue wait must not consume the admitted stage's clinical orchestration budget",
+);
+assert.match(
+  diagnosisApiSource,
+  /releaseStructuredStageCapacity = await primaryStructuredStageCapacity\.acquire\([\s\S]{0,1800}?m03WesternHalfPromise = m03ParallelHalves[\s\S]{0,300}?collectM03ParallelWesternHalf/,
   "the parallel M03 western helper must start only after the stage owns provider capacity",
 );
 assert.match(
