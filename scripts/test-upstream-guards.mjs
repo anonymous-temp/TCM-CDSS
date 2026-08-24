@@ -12,7 +12,8 @@ const jiti = createJiti(import.meta.url, {
 });
 const { UpstreamResponseTooLargeError, readResponseTextLimited } = await jiti.import("../src/lib/http-response-limit.ts");
 const { cancelResponseBody } = await jiti.import("../src/lib/http-response-lifecycle.ts");
-const { callDiagnosisStream, isTongueVisionConfigured, isTongueVisionEnabled, readProviderChunk } =
+const { callDiagnosisStream, fetchWithConnectTimeout, isTongueVisionConfigured, isTongueVisionEnabled,
+  modelForInitialConnectAttempt, readProviderChunk } =
   await jiti.import("../src/lib/diagnosis-api.ts");
 const { buildTongueVisionPrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
 const { getPrimaryTextModelConfig } = await jiti.import("../src/lib/text-model.ts");
@@ -112,6 +113,7 @@ const expectedModelMatrix = {
   PRIMARY_DIAGNOSE_MODEL: "qwen3.7-flash",
   PRIMARY_DIAGNOSE_REPAIR_MODEL: "qwen3.8-max",
   PRIMARY_PRESCRIBE_MODEL: "qwen3.8-max",
+  PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL: "qwen3.7-plus",
   PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
   PRIMARY_CLINICAL_REVIEW_MODEL: "qwen3.8-max",
   PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL: "qwen3.7-plus",
@@ -121,6 +123,8 @@ const expectedModelMatrix = {
   CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.7-plus",
   CONTROLLED_TERMINOLOGY_MODEL: "qwen3.7-flash",
 };
+assert.match(composeSource, /STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS: \$\{STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS:-25000\}/);
+assert.match(envExampleSource, /^STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS=25000$/m);
 assert.match(composeSource, /AI_TEXT_PROVIDER: \$\{AI_TEXT_PROVIDER:-bailian-qwen\}/);
 assert.match(envExampleSource, /^AI_TEXT_PROVIDER=bailian-qwen$/m);
 for (const [modelVariable, expectedModel] of Object.entries(expectedModelMatrix)) {
@@ -194,6 +198,59 @@ assert.equal(getPrimaryTextModelConfig().disabledReason, "vendor_policy", "non-Q
 for (const [key, value] of Object.entries(modelEnv)) {
   if (value == null) delete process.env[key];
   else process.env[key] = value;
+}
+
+// A per-attempt timeout must never poison the shared parent signal. The second attempt therefore
+// remains usable, while explicit stage cancellation still propagates into each child attempt.
+{
+  const originalFetch = globalThis.fetch;
+  const parent = new AbortController();
+  let calls = 0;
+  try {
+    globalThis.fetch = async (_url, init) => {
+      calls += 1;
+      if (calls === 1) {
+        return await new Promise((_resolve, reject) => {
+          init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+        });
+      }
+      return new Response("ok", { status: 200 });
+    };
+    await assert.rejects(
+      () => fetchWithConnectTimeout("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {}, parent, Date.now() + 500, 15),
+      /模型连接超时/,
+    );
+    assert.equal(parent.signal.aborted, false, "one connect timeout must not abort the stage parent");
+    const recovered = await fetchWithConnectTimeout(
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {}, parent, Date.now() + 500, 100,
+    );
+    assert.equal(recovered.status, 200, "the bounded second connection attempt must remain usable");
+
+    globalThis.fetch = async (_url, init) => await new Promise((_resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+    });
+    const cancelledParent = new AbortController();
+    const pending = fetchWithConnectTimeout(
+      "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {}, cancelledParent, Date.now() + 500, 400,
+    );
+    cancelledParent.abort(new DOMException("client cancelled", "AbortError"));
+    await assert.rejects(pending, /client cancelled|aborted/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+{
+  const previousFallback = process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL;
+  process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL = "qwen3.7-plus";
+  assert.equal(modelForInitialConnectAttempt("qwen3.8-max", "prescribe", 0), "qwen3.8-max");
+  assert.equal(modelForInitialConnectAttempt("qwen3.8-max", "prescribe", 1), "qwen3.7-plus");
+  assert.equal(modelForInitialConnectAttempt("qwen3.8-max", "diagnose", 1), "qwen3.8-max");
+  process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL = "deepseek-v4-flash";
+  assert.equal(modelForInitialConnectAttempt("qwen3.8-max", "prescribe", 1), "qwen3.8-max",
+    "transport fallback must not cross the approved vendor/model family boundary");
+  if (previousFallback == null) delete process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL;
+  else process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL = previousFallback;
 }
 
 process.env.RXAI_AUDIT_ENABLED = "true";

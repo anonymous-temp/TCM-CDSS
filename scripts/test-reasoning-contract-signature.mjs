@@ -701,6 +701,33 @@ try {
     );
   });
 
+  check("transport fallback provenance is normalized, signed, and tamper evident", () => {
+    const withFallback = clone(prescribeReasoning);
+    withFallback.clinicalReview = {
+      status: "accepted",
+      provider: "review-provider",
+      model: "qwen3.8-max",
+      source: "preferred",
+      generationFallback: {
+        reason: "connect_timeout",
+        fromModel: "qwen3.8-max",
+        toModel: "qwen3.7-plus",
+        attempt: 2,
+      },
+    };
+    const normalized = normalizeReasoningV2(withFallback);
+    assert.deepEqual(normalized.clinicalReview.generationFallback, withFallback.clinicalReview.generationFallback);
+    const signedWithFallback = signPrescribeReasoning(normalized, prescribeContext);
+    assert.equal(verifyPrescribeReasoningSignature(signedWithFallback, prescribeCase), true);
+    const tamperedFallback = clone(signedWithFallback);
+    tamperedFallback.clinicalReview.generationFallback.toModel = "qwen3.8-max";
+    assert.equal(
+      verifyPrescribeReasoningSignature(tamperedFallback, prescribeCase),
+      false,
+      "fallback model provenance is part of the signed clinical contract",
+    );
+  });
+
   check("reviewer repair quality attestation is preserved and tamper evident", () => {
     const withQualityReview = clone(prescribeReasoning);
     withQualityReview.clinicalReview = {

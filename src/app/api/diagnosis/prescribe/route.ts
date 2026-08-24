@@ -22,7 +22,7 @@ import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
 import { compactEvidenceContextForPrompt } from "@/lib/prompt-budget";
-import { dropUnsupportedM04CandidateHerbs } from "@/lib/m04-modification-safety";
+import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
 function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReasoningV2>): string | undefined {
@@ -317,7 +317,7 @@ export async function POST(req: Request) {
       // 剔除看不到这些新增知识，额外坏味会一直潜伏到最终 T1 合同才把整方清空。对同一最终字节
       // 再做一次只减不增的剔除：唯一君药、经典方基准或删除后结构不成立时函数原样返回，随后
       // 现有安全合同继续 fail-closed；成功剔除时独立复核、审方与签名都消费剔除后的候选。
-      const directionPruned = dropUnsupportedM04CandidateHerbs(enriched, signedPriorReasoning);
+      const directionPruned = declassifyAndDropOpposingM04CandidateHerbs(enriched, signedPriorReasoning);
       const reasoning = parseReasoningV2(directionPruned);
       // The stream layer has already exhausted formula-composition repair before allowing a
       // transparent self-devised fallback. Keep that safe fallback usable here while all other
@@ -325,7 +325,7 @@ export async function POST(req: Request) {
       // 降级候选（identityDeclassified）在流层已按「安全底线合同 + 带批注受理」验收过；
       // 路由终审必须用**同一口径**复验，否则这里的全量质量口径会把刚受理的候选再判死——
       // 这是同一结构性问题的第 5 处复发点（finalized_prescription_transparent_therapy_*）。
-      // 非降级候选保持全量口径不变。
+      // 无论是否降级，最终出口都用同一 T1 口径；差别只在方名身份合同是否允许透明降级。
       const declassifiedAccepted = Boolean(reasoning?.formula?.candidates?.[0]?.identityDeclassified);
       const declassificationTherapyIssue = declassifiedAccepted
         ? transparentFormulaTherapyIssue(reasoning, signedPriorReasoning, true)
@@ -340,7 +340,9 @@ export async function POST(req: Request) {
         false,
         false,
         clinicalGroundingText(safeState),
-        declassifiedAccepted,
+        // 对所有候选统一按「词表能力边界可批注、真实方向对立仍阻断」口径重跑 T1。
+        // 该参数不会豁免寒热对立；它只移除 unsupportedHighImpactHerbIssue 的 vocab 分支。
+        true,
       ) || "";
       // 核心结构化编排器仍会在初次生成与修复轮严格驳回君药标签不一致；outputTransform 同时
       // 也是修复耗尽后终审，不能在核心已按质量项受理后再次把同一码升级成剂量安全 T1。

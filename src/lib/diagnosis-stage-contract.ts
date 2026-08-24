@@ -2882,6 +2882,27 @@ export function m04HerbDirectionIssue(
 }
 
 /**
+ * The deletion-only path may remove a herb only when its governed identity is directly opposite
+ * to the signed M03 therapy. A mere vocabulary miss is an explainable capability boundary: retain
+ * the herb, run every dose/interaction/population contract, and bind the quality annotation.
+ * `waiveVocabUnsupportedAnnotated=true` is the single source of truth for that distinction.
+ */
+export function m04HerbOpposingDirectionIssue(
+  herb: HighImpactHerbLike,
+  prior: M03ReasoningLike | null | undefined,
+  allowGovernedFormulaBaseline = false,
+  selectedFormulaNames: readonly string[] = [],
+): string | undefined {
+  return unsupportedHighImpactHerbIssue(
+    [herb],
+    prior,
+    allowGovernedFormulaBaseline,
+    selectedFormulaNames,
+    true,
+  );
+}
+
+/**
  * 药味「身份级」高影响方向 = 功能分类 ∪ 风险画像 ∪ 受治理高影响映射。
  *
  * 与 herbHighImpactConcepts 的关键区别：**不看合并功用文本里顺带提到的次要功效**。
@@ -4039,7 +4060,7 @@ export function m04SemanticIssue(
         function: [modification.reason, modification.targetPathogenesis]
           .filter((value): value is string => typeof value === "string")
           .join("；"),
-      }], priorReasoning);
+      }], priorReasoning, false, [], waiveTherapyCoverageAnnotated);
       if (highImpactIssue) return `modification_${modificationIndex}_${highImpactIssue}`;
     }
   }

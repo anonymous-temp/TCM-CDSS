@@ -302,13 +302,13 @@ const finalIssueIndex = prescribeRouteSource.indexOf("const issue = safetyIssue 
 assert.ok(finalSafetyIndex >= 0 && deferredLabelIndex > finalSafetyIndex && finalIssueIndex > deferredLabelIndex,
   "M04 最终出口必须先无条件重跑 safetyIssue，再进入质量合同分级");
 const provenanceEnrichmentIndex = prescribeRouteSource.indexOf("const enriched = enrichPrescriptionProvenance(");
-const postEnrichmentPruneIndex = prescribeRouteSource.indexOf("const directionPruned = dropUnsupportedM04CandidateHerbs(enriched");
+const postEnrichmentPruneIndex = prescribeRouteSource.indexOf("const directionPruned = declassifyAndDropOpposingM04CandidateHerbs(enriched");
 const postEnrichmentParseIndex = prescribeRouteSource.indexOf("const reasoning = parseReasoningV2(directionPruned)");
 assert.ok(
   provenanceEnrichmentIndex >= 0 &&
   postEnrichmentPruneIndex > provenanceEnrichmentIndex &&
   postEnrichmentParseIndex > postEnrichmentPruneIndex,
-  "M04 必须在药味知识补齐后再做 deletion-only 方向剔除，并让最终合同消费剔除后的字节",
+  "M04 必须在药味知识补齐后先去方名、再做 deletion-only 方向剔除，并让最终合同消费剔除后的字节",
 );
 
 const diagnosisApiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
@@ -494,12 +494,56 @@ console.log(JSON.stringify({
   );
 }
 
-// 单味缺陷不得放大成整方作废：方向未成立的**实际加味**按单味确定性剔除。
-// 与既有 dropUnsupportedM04ModificationDirections（加减建议侧）同构，补齐类的另一半。
-// 实测（甲方 10 例，flash 生产构建）两例同类 0 味：麻黄汤基准 4/4 达标却多出川芎（blood_move）、
-// 清胃散基准 4/5 达标却多出大黄（purge），修复轮未删该味，最终 fixpoint 退化非剂量输出。
+// 多角色药必须把“词表没有证明用途”与“身份方向直接对立”拆开。升麻在补益病例中带有
+// 药典清热解毒记载，只能形成待核对批注，不能静默删除；干姜进入纯清热病例则是真对立。
 {
-  const { dropUnsupportedM04CandidateHerbs } = await import("../src/lib/m04-modification-safety.ts");
+  const {
+    m04HerbDirectionIssue,
+    m04HerbOpposingDirectionIssue,
+  } = await import("../src/lib/diagnosis-stage-contract.ts");
+  const priorTonify = {
+    stage: "diagnose",
+    overview: { primarySyndrome: "气虚下陷证", overallPathogenesis: "中气不足，清阳下陷" },
+    pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "中气下陷", therapyDirection: "补中益气，升阳举陷" }] },
+    therapy: { overallPrinciple: "补中益气，升阳举陷", overallMethod: "益气升提" },
+  };
+  const shengma = {
+    name: "升麻", prescriptionRole: "升阳举陷", targetPathogenesis: "中气下陷",
+  };
+  assert.match(
+    m04HerbDirectionIssue(shengma, priorTonify) || "",
+    /unsupported_high_impact_heat_clear/,
+    "严格能力审计仍应看见升麻药典多角色中的清热方向，供签名批注",
+  );
+  assert.equal(
+    m04HerbOpposingDirectionIssue(shengma, priorTonify),
+    undefined,
+    "补中升提与清热并不直接对立，升麻不得被 deletion-only 静默删除",
+  );
+
+  const priorHeat = {
+    stage: "diagnose",
+    overview: { primarySyndrome: "胃火炽盛证", overallPathogenesis: "胃火内炽" },
+    pathogenesis: { chain: [{ nodeId: "P1", pathogenesis: "胃火内炽", therapyDirection: "清热泻火" }] },
+    therapy: { overallPrinciple: "清热泻火", overallMethod: "苦寒清热" },
+  };
+  assert.match(
+    m04HerbOpposingDirectionIssue(
+      { name: "干姜", prescriptionRole: "温中散寒", targetPathogenesis: "中焦虚寒" },
+      priorHeat,
+    ) || "",
+    /unsupported_high_impact_yang_warm/,
+    "温热身份进入纯清热锁定治法仍须作为 T1 方向对立阻断",
+  );
+}
+
+// 删除只属于真·方向对立。词表未能证明某味服务于已锁定治法，是能力边界：保留药味、重跑
+// 全部硬合同并绑定批注；把这类也删除会把“看得见的待核对”变成静默劣方。
+{
+  const {
+    declassifyAndDropOpposingM04CandidateHerbs,
+    dropUnsupportedM04CandidateHerbs,
+  } = await import("../src/lib/m04-modification-safety.ts");
   const S = "<!-- DIAGNOSIS_JSON_START -->", E = "<!-- DIAGNOSIS_JSON_END -->";
   const priorMahuang = {
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
@@ -522,8 +566,8 @@ console.log(JSON.stringify({
   ];
   assert.deepEqual(
     retainedNames(dropUnsupportedM04CandidateHerbs(wrapHerbs([...baseline, herbRow("川芎", "佐", "活血行气")]), priorMahuang)),
-    ["麻黄", "桂枝", "杏仁", "甘草"],
-    "方向未成立的非君非基准加味必须被单味剔除，保留完全合格的基准组成",
+    ["麻黄", "桂枝", "杏仁", "甘草", "川芎"],
+    "词表未成立但不对立的加味必须保留，交由签名批注与医生复核",
   );
   assert.deepEqual(
     retainedNames(dropUnsupportedM04CandidateHerbs(wrapHerbs(baseline), priorMahuang)),
@@ -543,8 +587,18 @@ console.log(JSON.stringify({
       ...baseline, herbRow("大黄", "君", "泻下攻积"),
     ]), priorMahuang)),
     ["麻黄", "桂枝", "杏仁", "甘草"],
-    "已有合格 P1 君药时，方向未成立的额外非基准君药必须被单味剔除",
+    "大黄身份含苦寒清热、与辛温解表直接对立，且已有合格君药时必须删除后全链复验",
   );
+  const productionPruned = JSON.parse(
+    declassifyAndDropOpposingM04CandidateHerbs(
+      wrapHerbs([...baseline, herbRow("大黄", "君", "泻下攻积")]),
+      priorMahuang,
+    ).split(S)[1].split(E)[0],
+  ).formula.candidates[0];
+  assert.deepEqual(productionPruned.herbs.map((herb) => herb.name), ["麻黄", "桂枝", "杏仁", "甘草"]);
+  assert.deepEqual(productionPruned.formulaNames, [], "删真对立药之前必须先移除原方名身份");
+  assert.equal(productionPruned.constructionType, "self_devised");
+  assert.equal(productionPruned.identityDeclassificationReason, "opposing_direction_pruned");
   assert.deepEqual(
     retainedNames(dropUnsupportedM04CandidateHerbs(wrapHerbs([
       herbRow("麻黄", "君", "发汗解表"), herbRow("川芎", "臣", "活血行气"), herbRow("大黄", "佐", "泻下"),
@@ -580,9 +634,7 @@ console.log(JSON.stringify({
 }
 
 // 单味缺陷不得放大成整方作废：方向未成立的**实际加味**按单味确定性剔除。
-// 与 dropUnsupportedM04ModificationDirections（加减建议侧）是同一条不变量的两半。
-// 实测（甲方 10 例 flash 生产构建）两例同类 0 味：麻黄汤基准 4/4 达标 + 川芎(blood_move)、
-// 清胃散基准 4/5 达标 + 大黄(purge)，修复轮未删该味，fixpoint 后整方退化为非剂量。
+// 同一边界必须对所有 finalize 入口一致：词表未成立保留，寒热真对立才删除。
 {
   const { dropUnsupportedM04CandidateHerbs } = await import("../src/lib/m04-modification-safety.ts");
   const S = "<!-- DIAGNOSIS_JSON_START -->", E = "<!-- DIAGNOSIS_JSON_END -->";
@@ -602,8 +654,8 @@ console.log(JSON.stringify({
 
   assert.deepEqual(
     herbsAfter(dropUnsupportedM04CandidateHerbs(envelope([...base, herb("川芎", "佐", "活血行气")]), priorMahuang)),
-    ["麻黄", "桂枝", "杏仁", "甘草"],
-    "方向未成立的非基准加味必须按单味剔除，保留合格的基准组成",
+    ["麻黄", "桂枝", "杏仁", "甘草", "川芎"],
+    "词表未成立但不对立的非基准加味不得被静默删除",
   );
   assert.deepEqual(
     herbsAfter(dropUnsupportedM04CandidateHerbs(envelope(base), priorMahuang)),
@@ -632,7 +684,10 @@ console.log(JSON.stringify({
 // 透明降级路径：方名已被确定性剥离，基准不再是约束 —— 继续套用会让「基准本就不满足」的候选
 // 放弃剔除，问题药留在方里、降级验证随即失败，最终仍是 0 味（实测感冒-风寒束表：前胡）。
 {
-  const { dropUnsupportedM04CandidateHerbs } = await import("../src/lib/m04-modification-safety.ts");
+  const {
+    declassifyAndDropOpposingM04CandidateHerbs,
+    dropUnsupportedM04CandidateHerbs,
+  } = await import("../src/lib/m04-modification-safety.ts");
   const S = "<!-- DIAGNOSIS_JSON_START -->", E = "<!-- DIAGNOSIS_JSON_END -->";
   const prior = {
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
@@ -655,7 +710,7 @@ console.log(JSON.stringify({
     "仍声称经典方身份时，基准保留数不满足则放弃剔除（回到既有驳回行为）");
   assert.deepEqual(namesOf(dropUnsupportedM04CandidateHerbs(envelope, prior, false)),
     ["麻黄", "荆芥", "防风"],
-    "透明降级路径不套用基准保留数，方向未成立的前胡必须被剔除，保留其余合格药味");
+    "前胡清热方向与已锁定辛温治法直接对立，去方名后必须删除并全链复验");
   const priorHeat = {
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
     overview: { primarySyndrome: "肝胃郁热证", recommendedFormulaNames: ["左金丸"], formulaSelectionMode: "single" },
@@ -675,6 +730,11 @@ console.log(JSON.stringify({
   assert.deepEqual(namesOf(dropUnsupportedM04CandidateHerbs(leftJinEnvelope, priorHeat, false)),
     ["黄连", "吴茱萸", "栀子"],
     "调用方关闭基准保留数也不能越过候选仍明确保留的合法经典身份");
+  assert.equal(
+    declassifyAndDropOpposingM04CandidateHerbs(leftJinEnvelope, priorHeat),
+    leftJinEnvelope,
+    "合法经典方的受治理反佐药不是额外坏味；没有非基准真对立加味时不得剥方名或删基准",
+  );
   const declassifiedLeftJinEnvelope = `${S}\n${JSON.stringify({
     schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
     formula: { candidates: [{

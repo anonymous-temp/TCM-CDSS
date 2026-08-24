@@ -348,7 +348,16 @@ export function constrainM04ClinicalReviewScope(
     const genericSelfDevisedName = /^(?:本例辨证组方|自拟方)(?:加减)?$/.test(name);
     return formulaNames.length > 0 || (!explicitlySelfDevised && !genericSelfDevisedName);
   });
-  return !priorClaimsNamedFormula && candidates.length > 0 && !candidateClaimsNamedFormula
+  const candidateExplicitlyDeclassified = candidates.length > 0 && candidates.every((value) => {
+    const candidate = record(value);
+    return candidate?.identityDeclassified === true && candidate?.constructionType === "self_devised";
+  });
+  // Once the server has explicitly removed an unverified classic identity, composition mismatch is
+  // no longer an actionable review coordinate even if M03 still records the original recommendation.
+  // The reviewer must use herb_plan/dose/patient issues against the actual self-devised candidate;
+  // otherwise the same already-removed label can trigger an endless full-prescription redraw.
+  return ((!priorClaimsNamedFormula && candidates.length > 0 && !candidateClaimsNamedFormula) ||
+      (candidateExplicitlyDeclassified && !candidateClaimsNamedFormula))
     ? { status: "accepted", issueCode: "none" }
     : review;
 }

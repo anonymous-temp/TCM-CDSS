@@ -313,6 +313,17 @@ export type ClinicalReviewAttestation = {
   independentFromGenerator?: boolean;
   reviewedPayloadHash?: string;
   /**
+   * Signed transport provenance for a bounded initial-generation fallback. This records no patient
+   * content: it proves which approved model produced the reviewed payload and why the primary
+   * connection was abandoned, without confusing transport recovery with a clinical repair round.
+   */
+  generationFallback?: {
+    reason: "connect_timeout" | "retryable_http" | "transport_error";
+    fromModel: string;
+    toModel: string;
+    attempt: 2;
+  };
+  /**
    * 受理裁决范围（2026-08-03 复盘的根源级工程）：受理时把「豁免了哪些质量码、带了哪些
    * 批注码」一并写进 attestation。attestation 位于合同签名域内（HMAC 只排除 contractSignature
    * 本身），下游各层（M04 路由终审、HIS 写回）在载荷哈希匹配时**读取**这份签名过的裁决,
@@ -519,7 +530,7 @@ export interface ClinicalReasoningResultV2 {
       constructionType?: "single_base" | "combined" | "self_devised" | "single_herb";
       modificationStatus?: "canonical" | "modified";
       identityDeclassified?: boolean;
-      identityDeclassificationReason?: "classic_composition_unverified_after_repair";
+      identityDeclassificationReason?: "classic_composition_unverified_after_repair" | "opposing_direction_pruned";
       /** 剥名前 M03 锁定的方名。剥名时必须让医生看到系统原本想开什么，否则两页互相矛盾。 */
       declassifiedFromFormulaNames?: string[];
       baseFormulas?: Array<{
@@ -1172,7 +1183,10 @@ const PrescriptionCandidateSchema = z.object({
   constructionType: z.enum(["single_base", "combined", "self_devised", "single_herb"]).optional(),
   modificationStatus: z.enum(["canonical", "modified"]).optional(),
   identityDeclassified: z.boolean().optional().catch(undefined),
-  identityDeclassificationReason: z.literal("classic_composition_unverified_after_repair").optional().catch(undefined),
+  identityDeclassificationReason: z.enum([
+    "classic_composition_unverified_after_repair",
+    "opposing_direction_pruned",
+  ]).optional().catch(undefined),
   declassifiedFromFormulaNames: z.array(z.string().max(120)).max(4).optional().catch(undefined),
   baseFormulas: z.array(z.object({
     name: z.string().max(300).catch(""),
@@ -1314,6 +1328,12 @@ const ReasoningV2SchemaBase = z.object({
     source: z.enum(["preferred", "cross_model_fallback"]).optional().catch(undefined),
     independentFromGenerator: z.boolean().optional().catch(undefined),
     reviewedPayloadHash: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional().catch(undefined),
+    generationFallback: z.object({
+      reason: z.enum(["connect_timeout", "retryable_http", "transport_error"]),
+      fromModel: z.string().min(1).max(200),
+      toModel: z.string().min(1).max(200),
+      attempt: z.literal(2),
+    }).optional().catch(undefined),
     // 受理裁决范围：码表为内部驳回码(kebab/snake 短标识),单码长度与数量都设上限,
     // 防止把自由文本塞进签名域。整体非法时按缺省处理(回退重算路径),不作废 attestation。
     acceptanceScope: z.object({

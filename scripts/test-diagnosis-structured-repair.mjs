@@ -159,13 +159,13 @@ assert.match(
   /const retryableStructuredTerminal = finishReason === "stop" \|\| finishReason === "length";[\s\S]*structuredSentinelIncomplete && retryableStructuredTerminal/,
   "a max-token length terminal must enter the same bounded structured retry as a normal stop",
 );
-// 单味剔除必须先于透明降级判定。两者各自正确却不串联时依旧 0 味：降级分支读原始
+// 单味剔除必须先完成身份降级再进入透明降级判定。两者各自正确却不串联时依旧 0 味：降级分支读原始
 // authoritativeContent，方向未成立的那一味仍在方中，transparentFormulaTherapyIssue 必然非空、
 // 降级被拒（实测感冒-风寒束表：麻黄汤基准 4/4 达标 + 川芎未剔除 → 降级被拒 → 整方作废）。
 assert.match(
   diagnosisApiSource,
-  /const declassifiedContent = dropUnsupportedM04CandidateHerbs\(\s*\n\s*markTransparentFormulaDeclassification\(\s*\n\s*authoritativeContent,\s*\n\s*opts\.structuredPriorReasoning,\s*\n\s*\),\s*\n\s*opts\.structuredPriorReasoning,\s*\n\s*false,/,
-  "透明降级必须先完成方名身份裁决，再做单味剔除，且对真正的自拟方**不套用经典方基准保留数**——" +
+  /const declassifiedContent = declassifyAndDropOpposingM04CandidateHerbs\(\s*\n\s*markTransparentFormulaDeclassification\(\s*\n\s*authoritativeContent,\s*\n\s*opts\.structuredPriorReasoning,\s*\n\s*\),\s*\n\s*opts\.structuredPriorReasoning,/,
+  "透明降级必须先完成方名身份裁决，再只剔除真实方向对立药，且对自拟方不套用经典方基准保留数——" +
   "否则基准本就不满足的候选会放弃剔除，问题药留在方里、降级验证随即失败，最终仍是 0 味",
 );
 // 剥离器必须拿到 M03 已锁定的方剂方向。缺这个入参时它的第一档（组成可核验为「X 加减」→
@@ -179,8 +179,8 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /finalized = dropUnsupportedM04CandidateHerbs\(finalized, opts\.structuredPriorReasoning\);/,
-  "正常 finalize 链路同样要做单味剔除——两条路径共用同一条不变量",
+  /finalized = declassifyAndDropOpposingM04CandidateHerbs\(finalized, opts\.structuredPriorReasoning\);/,
+  "正常 finalize 链路同样必须先去方名再剔除真对立药——两条路径共用同一条不变量",
 );
 assert.match(
   diagnosisApiSource,
@@ -189,7 +189,7 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /immediateM04Declassification\?\.reasoning[\s\S]{0,2200}?reviewTrackedM04Candidate\(structuredReasoning, m04GeneratorModel, "for initial candidate"\)/,
+  /immediateM04Declassification\?\.reasoning[\s\S]{0,4000}?reviewTrackedM04Candidate\(structuredReasoning, m04GeneratorModel, "for initial candidate"\)/,
   "即时身份剥离只能省掉提供商重写，剥离后的准确字节仍须进入首轮独立临床复核",
 );
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "sentinel_count_0_0"), true);
@@ -428,6 +428,18 @@ assert.deepEqual(
   ),
   classicCompositionReview,
   "a named-formula composition concern remains blocking and repairable",
+);
+assert.deepEqual(
+  constrainM04ClinicalReviewScope(
+    classicCompositionReview,
+    { overview: { recommendedFormulaNames: ["痛泻要方"], formulaSelectionMode: "single" } },
+    { formula: { candidates: [{
+      name: "本例辨证组方", formulaNames: [], constructionType: "self_devised",
+      identityDeclassified: true, herbs: [],
+    }] } },
+  ),
+  { status: "accepted", issueCode: "none" },
+  "after the server removes a named identity, a reviewer cannot resurrect the removed composition contract through M03",
 );
 assert.match(
   buildM04ClinicalReviewPrompt("", { overview: { formulaSelectionMode: "self_devised" } }, { formula: { candidates: [] } }),

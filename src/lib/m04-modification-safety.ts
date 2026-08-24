@@ -1,4 +1,4 @@
-import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, highImpactHerbDirectionIssue, m04HerbDirectionIssue } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04HerbOpposingDirectionIssue } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 
@@ -73,7 +73,7 @@ export function dropUnsupportedM04ModificationDirections(
       const declaredDirection = [modification.reason, modification.targetPathogenesis]
         .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
         .join("；");
-      return !highImpactHerbDirectionIssue(addition[1], declaredDirection, prior);
+      return !m04HerbOpposingDirectionIssue({ name: addition[1], function: declaredDirection }, prior);
     });
     if (retained.length === modifications.length) return content;
     formula.modifications = retained;
@@ -81,6 +81,84 @@ export function dropUnsupportedM04ModificationDirections(
   } catch {
     return content;
   }
+}
+
+function forceDirectionPruningDeclassification(
+  content: string,
+  prior: ClinicalReasoningResultV2 | null | undefined,
+): string {
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return content;
+  try {
+    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    const formula = recordValue(reasoning.formula);
+    const candidates = formula?.candidates;
+    if (!formula || !Array.isArray(candidates) || candidates.length !== 1) return content;
+    const candidate = recordValue(candidates[0]);
+    if (!candidate) return content;
+    if (candidate.identityDeclassified === true && candidate.constructionType === "self_devised") return content;
+    const priorNames = Array.isArray(prior?.overview?.recommendedFormulaNames)
+      ? prior.overview.recommendedFormulaNames
+      : [];
+    const originalNames = [
+      ...(Array.isArray(candidate.formulaNames) ? candidate.formulaNames : []),
+      ...(typeof candidate.name === "string" && !/本例辨证组方/.test(candidate.name) ? [candidate.name] : []),
+      ...priorNames,
+    ].filter((value): value is string => typeof value === "string" && Boolean(value.trim()));
+    const hadModifiedLabel = typeof candidate.name === "string" && /(?:加减|化裁|加味)/.test(candidate.name);
+    formula.candidates = [{
+      ...candidate,
+      name: hadModifiedLabel ? "本例辨证组方加减" : "本例辨证组方",
+      formulaNames: [],
+      baseFormulas: [],
+      constructionType: "self_devised",
+      identityDeclassified: true,
+      identityDeclassificationReason: "opposing_direction_pruned",
+      declassifiedFromFormulaNames: [...new Set(originalNames.map((value) => value.trim()))].slice(0, 4),
+    }];
+    return `${content.slice(0, start + START_MARKER.length)}\n${JSON.stringify(reasoning, null, 2)}\n${content.slice(end)}`;
+  } catch {
+    return content;
+  }
+}
+
+function hasExplicitSelfDevisedDeclassification(content: string): boolean {
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0) return false;
+  try {
+    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    const formula = recordValue(reasoning.formula);
+    const candidates = formula?.candidates;
+    const candidate = Array.isArray(candidates) && candidates.length === 1 ? recordValue(candidates[0]) : undefined;
+    return candidate?.identityDeclassified === true && candidate?.constructionType === "self_devised";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A true opposing-direction deletion changes the claimed formula composition. Remove the named
+ * identity first, then delete, and keep the original bytes unless the deletion can complete without
+ * emptying the therapeutic plan. This makes the ordering an invariant at every caller instead of a
+ * convention that can be skipped by one finalizer.
+ */
+export function declassifyAndDropOpposingM04CandidateHerbs(
+  content: string,
+  prior: ClinicalReasoningResultV2 | null | undefined,
+): string {
+  if (hasExplicitSelfDevisedDeclassification(content)) {
+    return dropUnsupportedM04CandidateHerbs(content, prior, false);
+  }
+  // A governed classic baseline may intentionally contain a controlled counter-direction herb
+  // (for example 左金丸中的吴茱萸). First ask the existing named-identity predicate whether a
+  // removable *non-baseline* opposing addition exists. If not, do not declassify the formula at all.
+  const prunableWhileNamed = dropUnsupportedM04CandidateHerbs(content, prior, true);
+  if (prunableWhileNamed === content) return content;
+  const declassified = forceDirectionPruningDeclassification(content, prior);
+  const pruned = dropUnsupportedM04CandidateHerbs(declassified, prior, false);
+  return pruned === declassified ? content : pruned;
 }
 
 /**
@@ -96,7 +174,7 @@ export function dropUnsupportedM04ModificationDirections(
  * 两例修复轮都没删该味，最终 fixpoint 退化成非剂量输出。
  *
  * 四条剔除边界，缺一不可（不满足即原样返回，回到既有驳回行为，安全面一条未放宽）：
- *   1) 只剔除高影响方向未成立的药味——判定完全复用 highImpactHerbDirectionIssue，与门禁同一口径；
+ *   1) 只剔除与 M03 锁定治法直接对立的药味——词表未成立只批注、不删药；
  *   2) **唯一合格君药不剔除**：君药决定全方走向。只有模型给出两味君药、其中一味方向不成立，
  *      且删除后仍有另一味直接承接 P1 的合格君药时，才剔除坏的非基准君药；否则必须重选；
  *   3) **基准组成不剔除**：锁定经典方的法定组成本就享受身份豁免，不会走到这里；显式排除以防
@@ -147,7 +225,7 @@ export function dropUnsupportedM04CandidateHerbs(
     const supportedPrimaryEmperorCount = herbs.filter((value) => {
       const herb = recordValue(value);
       return herb?.role === "君" && herb.targetKind === "pathogenesis_node" && herb.targetRef === "P1" &&
-        !m04HerbDirectionIssue(herb as Parameters<typeof m04HerbDirectionIssue>[0], prior);
+        !m04HerbOpposingDirectionIssue(herb as Parameters<typeof m04HerbOpposingDirectionIssue>[0], prior);
     }).length;
 
     const retained = herbs.filter((value) => {
@@ -165,8 +243,8 @@ export function dropUnsupportedM04CandidateHerbs(
         baselineIdentities.has(canonicalTcmHerbIdentity(name))) return true;
       // 与门禁同一入口、同一入参形态：拼接功用串再判会落到 function 分支，与门禁读
       // prescriptionRole/targetPathogenesis 的口径不一致，导致「该剔的没剔、门禁照旧驳回」。
-      const directionIssue = m04HerbDirectionIssue(
-        herb as Parameters<typeof m04HerbDirectionIssue>[0],
+      const directionIssue = m04HerbOpposingDirectionIssue(
+        herb as Parameters<typeof m04HerbOpposingDirectionIssue>[0],
         prior,
       );
       if (!directionIssue) return true;

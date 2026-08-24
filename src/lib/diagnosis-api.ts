@@ -9,7 +9,7 @@
 //
 // Both backends return NDJSON: {"content":"..."}\n per chunk, end with {"content":"[END]"}\n
 
-import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, getBailianQwenConfig, textModelRequestTuning } from "@/lib/text-model";
+import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, isQwenModel, getBailianQwenConfig, textModelRequestTuning } from "@/lib/text-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
@@ -45,7 +45,7 @@ import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy } from "@/lib/tcm-ch
 import { enforceRetrievedM03FormulaSelection } from "@/lib/tcm-formula-indications";
 import { applyGovernedTcmDiagnosticCitations } from "@/lib/tcm-diagnostic-citations";
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
-import { dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
+import { declassifyAndDropOpposingM04CandidateHerbs, dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
 import { responseFormatForTask } from "@/lib/model-response-format";
@@ -53,6 +53,10 @@ import { responseFormatForTask } from "@/lib/model-response-format";
 const GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const GLM_VISION_MODEL = process.env.GLM_VISION_MODEL?.trim() || "glm-5v-turbo";
 const PROVIDER_CONNECT_TIMEOUT_MS = 90_000;
+const STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS = (() => {
+  const value = Number(process.env.STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS || 25_000);
+  return Number.isFinite(value) && value >= 5_000 && value <= 60_000 ? Math.round(value) : 25_000;
+})();
 const STREAM_IDLE_TIMEOUT_MS = 60_000;
 const STREAM_TOTAL_TIMEOUT_MS = 180_000;
 const GLM_VISION_TOTAL_TIMEOUT_MS = (() => {
@@ -314,24 +318,39 @@ function enqError(ctrl: ReadableStreamDefaultController, error: unknown) {
   ctrl.enqueue(enc.encode(JSON.stringify({ error: publicModelErrorMessage(error) }) + "\n"));
 }
 
-async function fetchWithConnectTimeout(
+export async function fetchWithConnectTimeout(
   url: string,
   init: RequestInit,
-  controller = new AbortController(),
+  parentController = new AbortController(),
   absoluteDeadline?: number,
+  connectTimeoutMs = PROVIDER_CONNECT_TIMEOUT_MS,
 ): Promise<Response> {
-  const remaining = absoluteDeadline == null ? PROVIDER_CONNECT_TIMEOUT_MS : absoluteDeadline - Date.now();
+  const remaining = absoluteDeadline == null ? connectTimeoutMs : absoluteDeadline - Date.now();
   if (remaining <= 0) throw new Error("模型请求总时长超时，请稍后重试");
-  const timeout = setTimeout(() => controller.abort(), Math.min(PROVIDER_CONNECT_TIMEOUT_MS, remaining));
+  // A connection deadline belongs to one transport attempt, not to the whole clinical stage.
+  // Aborting the shared parent here made every later retry inherit an already-aborted signal, so
+  // the apparent two-attempt loop had only one usable attempt. Each call now owns a child signal;
+  // browser cancellation / orchestration expiry still propagates downward, while a local connect
+  // timeout leaves the parent alive for the bounded fallback attempt.
+  const attemptController = new AbortController();
+  let timedOut = false;
+  const abortFromParent = () => attemptController.abort(parentController.signal.reason);
+  if (parentController.signal.aborted) abortFromParent();
+  else parentController.signal.addEventListener("abort", abortFromParent, { once: true });
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    attemptController.abort();
+  }, Math.min(connectTimeoutMs, remaining));
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    return await fetch(url, { ...init, signal: attemptController.signal });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
+    if (timedOut && error instanceof DOMException && error.name === "AbortError") {
       throw new Error("模型连接超时，推理模型尚未开始返回流式内容，请稍后重试");
     }
     throw error;
   } finally {
     clearTimeout(timeout);
+    parentController.signal.removeEventListener("abort", abortFromParent);
   }
 }
 
@@ -659,6 +678,23 @@ function modelForStructuredStage(defaultModel: string, stage?: "diagnose" | "pre
   // 不拖慢 collect/question。缺省沿用全局模型。
   if (stage === "diagnose") return process.env.PRIMARY_DIAGNOSE_MODEL?.trim() || defaultModel;
   return defaultModel;
+}
+
+/**
+ * A transport fallback changes latency/capacity only; it is never a clinical repair model.
+ * Keep it in the same approved vendor family so credentials and endpoint policy remain unchanged.
+ */
+export function modelForInitialConnectAttempt(
+  primaryModel: string,
+  stage: "diagnose" | "prescribe" | undefined,
+  attempt: number,
+): string {
+  if (attempt <= 0 || stage !== "prescribe") return primaryModel;
+  const configured = process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL?.trim();
+  const fallback = configured || (isQwenModel(primaryModel) ? "qwen3.7-plus" : primaryModel);
+  if (!isApprovedTextModel(fallback)) return primaryModel;
+  const sameFamily = isQwenModel(primaryModel) === isQwenModel(fallback);
+  return sameFamily ? fallback : primaryModel;
 }
 
 export function modelForStructuredRepair(defaultModel: string, stage?: "diagnose" | "prescribe"): string {
@@ -2607,6 +2643,8 @@ async function callPrimaryTextModelStream(
       // (签名域内),下游读取而非重判。安全层码(T1)由受理策略保证永不入 waived。
       let m03AcceptanceScope: NonNullable<ClinicalReviewAttestation["acceptanceScope"]> | undefined;
       let m04AcceptanceScope: NonNullable<ClinicalReviewAttestation["acceptanceScope"]> | undefined;
+      let m04DirectionPruneQualityAnnotation: string | undefined;
+      let m04TransparentQualityAnnotation: string | undefined;
       const appendAnnotationCode = (
         scope: NonNullable<ClinicalReviewAttestation["acceptanceScope"]> | undefined,
         code: string | undefined,
@@ -2623,6 +2661,7 @@ async function callPrimaryTextModelStream(
       let m04ReviewedReasoning: unknown;
       let m03GeneratorModel = model;
       let m04GeneratorModel = model;
+      let generationFallback: NonNullable<ClinicalReviewAttestation["generationFallback"]> | undefined;
       let clinicalReviewAttemptCount = 0;
       let clinicalReviewDurationMs = 0;
       let clinicalReviewRebindCount = 0;
@@ -2772,7 +2811,9 @@ async function callPrimaryTextModelStream(
         finalized = dropUnsupportedM04ModificationDirections(finalized, opts.structuredPriorReasoning);
         // 同一条不变量的另一半：方向未成立的**实际加味**按单味剔除，不让单味缺陷放大成整方作废。
         // 必须排在独立复核与签名之前——复核看到的、签名绑定的都必须是剔除后的最终候选。
-        finalized = dropUnsupportedM04CandidateHerbs(finalized, opts.structuredPriorReasoning);
+        const beforeDirectionPrune = finalized;
+        finalized = declassifyAndDropOpposingM04CandidateHerbs(finalized, opts.structuredPriorReasoning);
+        lastM04CandidateDirectionPruned = finalized !== beforeDirectionPrune;
         // overview/pathogenesis/therapy 等字段归 M03 所有。最终展示和证据变换前逐字回绑，
         // 既不放宽漂移门禁，也不让一个展示变换把已合法处方变成 pathogenesis_drift。
         finalized = enforceM04PriorStageOwnership(
@@ -2781,10 +2822,38 @@ async function callPrimaryTextModelStream(
         );
         if (!opts.outputTransform) return finalized;
         try {
-          return opts.outputTransform(finalized);
+          const output = opts.outputTransform(finalized);
+          lastM04CandidateDirectionPruned = lastM04CandidateDirectionPruned ||
+            /"identityDeclassificationReason"\s*:\s*"opposing_direction_pruned"/.test(output);
+          return output;
         } catch {
           return finalized;
         }
+      };
+      let lastM04CandidateDirectionPruned = false;
+      const noteM04PostPruneQualityBoundary = (
+        content: string,
+        candidateFinishReason: string | null | undefined,
+      ) => {
+        if (!lastM04CandidateDirectionPruned || !opts.structuredPriorReasoning) return;
+        const strictReason = structuredRejectionReason(
+          content,
+          "prescribe",
+          candidateFinishReason || null,
+          opts.structuredClinicalContext,
+          opts.structuredPriorReasoning,
+        );
+        const annotation = m04TherapyIssueQualityAnnotation(strictReason);
+        if (!annotation) return;
+        m04DirectionPruneQualityAnnotation = annotation;
+        m04TransparentQualityAnnotation = [...new Set([
+          m04TransparentQualityAnnotation,
+          annotation,
+        ].filter(Boolean))].join("\n\n") || undefined;
+        m04AcceptanceScope = {
+          waivedIssueCodes: [...new Set([...(m04AcceptanceScope?.waivedIssueCodes || []), strictReason])],
+          qualityAnnotationCodes: [...new Set([...(m04AcceptanceScope?.qualityAnnotationCodes || []), strictReason])],
+        };
       };
       /**
        * A candidate whose only strict defect is an unprovable classic-formula identity does not
@@ -3341,14 +3410,14 @@ async function callPrimaryTextModelStream(
           if (!westernHalf.ok || clientStreamClosed || upstreamController.signal.aborted) return;
           enqueueM03ModuleDrafts(westernHalf.content);
         }).catch(() => undefined);
-        const upstreamRequest: RequestInit = {
+        const upstreamRequestForModel = (requestModel: string): RequestInit => ({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
-            model,
+            model: requestModel,
             messages: [
               { role: "system", content: cdssSystemPrompt(kind) },
               // 并行 M03 时主流式请求承担中医半（体量大、模块进度多）；修复轮仍用完整 prompt。
@@ -3363,42 +3432,65 @@ async function callPrimaryTextModelStream(
             ...(opts.structuredStage
               ? {
                   response_format: responseFormatForTask(
-                    model,
+                    requestModel,
                     opts.structuredStage === "prescribe"
                       ? "m04_proposal"
                       : m03ParallelHalves ? "m03_tcm" : "m03_full",
                   ),
                 }
               : kind === "question" ? { response_format: { type: "json_object" } } : {}),
-            ...textModelRequestTuning(model, {
+            ...textModelRequestTuning(requestModel, {
               thinkingEnabled: thinkingEnabledForStructuredStage(opts.structuredStage),
               reasoningEffort: reasoningEffortForStructuredStage(opts.structuredStage),
             }),
           }),
-        };
+        });
         let res: Response | undefined;
         let connectionError: unknown;
+        let initialResponseModel = model;
+        let retryReason: NonNullable<ClinicalReviewAttestation["generationFallback"]>["reason"] = "transport_error";
         for (let attempt = 0; attempt < 2; attempt += 1) {
+          const attemptModel = modelForInitialConnectAttempt(model, opts.structuredStage, attempt);
           try {
             const candidate = await fetchWithConnectTimeout(
               chatCompletionsUrl(baseUrl),
-              upstreamRequest,
+              upstreamRequestForModel(attemptModel),
               upstreamController,
               absoluteRunDeadline,
+              opts.structuredStage ? STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS : PROVIDER_CONNECT_TIMEOUT_MS,
             );
             if (attempt === 0 && (candidate.status === 408 || candidate.status === 429 || candidate.status >= 500)) {
+              retryReason = "retryable_http";
               await candidate.body?.cancel().catch(() => undefined);
               await new Promise((resolve) => setTimeout(resolve, 500));
               continue;
             }
             res = candidate;
+            initialResponseModel = attemptModel;
+            if (attempt > 0 && attemptModel !== model) {
+              generationFallback = {
+                reason: retryReason,
+                fromModel: model,
+                toModel: attemptModel,
+                attempt: 2,
+              };
+              console.warn("[tcm-cdss:model] initial generation transport fallback selected", {
+                stage: opts.structuredStage || "unstructured",
+                reason: retryReason,
+                fromModel: model,
+                toModel: attemptModel,
+              });
+            }
             break;
           } catch (error) {
             connectionError = error;
             if (attempt > 0 || upstreamController.signal.aborted || Date.now() + 500 >= absoluteRunDeadline) throw error;
+            retryReason = error instanceof Error && /连接超时/.test(error.message)
+              ? "connect_timeout"
+              : "transport_error";
             console.warn("[tcm-cdss:model] initial provider connection retry", {
               stage: opts.structuredStage || "unstructured",
-              reason: "network_before_stream",
+              reason: retryReason,
             });
             await new Promise((resolve) => setTimeout(resolve, 500));
           }
@@ -3409,6 +3501,8 @@ async function callPrimaryTextModelStream(
           throw new Error(`Primary text model API error: ${res.status}`);
         }
         if (!res.body) throw new Error("Primary text model API returned empty stream");
+        if (opts.structuredStage === "diagnose") m03GeneratorModel = initialResponseModel;
+        if (opts.structuredStage === "prescribe") m04GeneratorModel = initialResponseModel;
         reader = res.body.getReader();
         const handleProviderData = (data: string) => {
           if (data === "[DONE]") {
@@ -3421,7 +3515,7 @@ async function callPrimaryTextModelStream(
               throw new Error(`Primary text model stream error: ${obj.error.message}`);
             }
             if (obj.usage && !usageRecorded) {
-              recordModelUsage(opts.structuredStage || kind, model, obj);
+              recordModelUsage(opts.structuredStage || kind, initialResponseModel, obj);
               usageRecorded = true;
             }
             const choice = obj.choices?.[0];
@@ -3614,9 +3708,21 @@ async function callPrimaryTextModelStream(
         }
         let structuredReasoning = immediateM04Declassification?.reasoning || (
           sentinelStarted && sentinelClosed && opts.structuredStage
-            ? validatedStructuredReasoning(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext, opts.structuredPriorReasoning, true)
+            ? validatedStructuredReasoning(
+                authoritativeContent,
+                opts.structuredStage,
+                opts.structuredClinicalContext,
+                opts.structuredPriorReasoning,
+                true,
+                false,
+                false,
+                opts.structuredStage === "prescribe" && lastM04CandidateDirectionPruned,
+              )
             : undefined
         );
+        if (structuredReasoning && opts.structuredStage === "prescribe") {
+          noteM04PostPruneQualityBoundary(authoritativeContent, finishReason);
+        }
         m03LadderCheckpoint("validated");
         let initialM04ClinicalReviewRejected = false;
         let initialM04ReviewQualityAnnotation: string | undefined;
@@ -3666,7 +3772,11 @@ async function callPrimaryTextModelStream(
           });
         };
         /** 修复轮耗尽后按质量批注受理透明降级候选时，给医生的批注文案。 */
-        let m04TransparentQualityAnnotation: string | undefined = initialM04ReviewQualityAnnotation;
+        m04TransparentQualityAnnotation = [...new Set([
+          m04TransparentQualityAnnotation,
+          m04DirectionPruneQualityAnnotation,
+          initialM04ReviewQualityAnnotation,
+        ].filter(Boolean))].join("\n\n") || undefined;
         /** M03 finalize 复核意见按质量批注受理时的批注文案（同一条最后一公里策略）。 */
         let m03FinalReviewAnnotation: string | undefined;
         if (!structuredReasoning && !initialM04ClinicalReviewRejected && finishReason === "stop" && opts.structuredStage === "prescribe" && sentinelStarted && sentinelClosed) {
@@ -3685,10 +3795,25 @@ async function callPrimaryTextModelStream(
               opts.structuredPriorReasoning,
               true,
               false,
+              false,
+              // Re-evaluate with the shared capability-boundary predicate: vocabulary misses are
+              // annotated, while a real opposing direction remains a hard safety rejection.
               true,
             );
             advisoryM04RiskAccepted = Boolean(structuredReasoning);
             if (structuredReasoning) {
+              const annotation = m04TherapyIssueQualityAnnotation(initialM04Reason);
+              m04TransparentQualityAnnotation = annotation || m04TransparentQualityAnnotation;
+              m04AcceptanceScope = {
+                waivedIssueCodes: [...new Set([
+                  ...(m04AcceptanceScope?.waivedIssueCodes || []),
+                  initialM04Reason,
+                ])],
+                qualityAnnotationCodes: [...new Set([
+                  ...(m04AcceptanceScope?.qualityAnnotationCodes || []),
+                  ...(annotation ? [initialM04Reason] : []),
+                ])],
+              };
               console.warn("[tcm-cdss:model] M04 clinical risk delegated to advisory audit", {
                 reason: initialM04Reason,
               });
@@ -3911,10 +4036,13 @@ async function callPrimaryTextModelStream(
                 true,
                 false,
                 false,
-                false,
+                opts.structuredStage === "prescribe" && lastM04CandidateDirectionPruned,
                 opts.structuredStage === "prescribe",
               )
             : undefined;
+          if (retriedReasoning && resolvedRetryContent && opts.structuredStage === "prescribe") {
+            noteM04PostPruneQualityBoundary(resolvedRetryContent, retry.ok ? retry.finishReason : null);
+          }
           let retriedDiagnosticReviewRejected = false;
           let retriedM04ClinicalReviewRejected = false;
           if (retriedReasoning && opts.structuredStage === "diagnose") {
@@ -4146,10 +4274,13 @@ async function callPrimaryTextModelStream(
                     true,
                     false,
                     false,
-                    false,
+                    opts.structuredStage === "prescribe" && lastM04CandidateDirectionPruned,
                     opts.structuredStage === "prescribe",
                   )
                 : undefined;
+              if (secondReasoning && secondResolved && opts.structuredStage === "prescribe") {
+                noteM04PostPruneQualityBoundary(secondResolved, secondRetry.ok ? secondRetry.finishReason : null);
+              }
               let secondDiagnosticReviewRejected = false;
               let secondM04ClinicalReviewRejected = false;
               if (secondReasoning && opts.structuredStage === "diagnose") {
@@ -4479,13 +4610,12 @@ async function callPrimaryTextModelStream(
           // finalizeM04CandidateContent 里。不先剔除，方向未成立的那一味仍在方中，
           // transparentFormulaTherapyIssue 必然非空，降级随即被拒——两个修复各自正确却没串起来，
           // 结果依旧 0 味（实测感冒-风寒束表：基准 4/4 达标 + 川芎未剔除 → 降级被拒）。
-          const declassifiedContent = dropUnsupportedM04CandidateHerbs(
+          const declassifiedContent = declassifyAndDropOpposingM04CandidateHerbs(
             markTransparentFormulaDeclassification(
               authoritativeContent,
               opts.structuredPriorReasoning,
             ),
             opts.structuredPriorReasoning,
-            false,
           );
           const transparentReasoning = validatedStructuredReasoning(
             declassifiedContent,
@@ -5251,11 +5381,19 @@ async function callPrimaryTextModelStream(
           if (clinicalReviewUnavailableFallback) {
             transformed = transformTruncateFallback();
           }
-          const m03AttestationWithScope = m03ClinicalReviewAttestation && m03AcceptanceScope
-            ? { ...m03ClinicalReviewAttestation, acceptanceScope: m03AcceptanceScope }
+          const m03AttestationWithScope = m03ClinicalReviewAttestation && (m03AcceptanceScope || generationFallback)
+            ? {
+                ...m03ClinicalReviewAttestation,
+                ...(m03AcceptanceScope ? { acceptanceScope: m03AcceptanceScope } : {}),
+                ...(generationFallback ? { generationFallback } : {}),
+              }
             : m03ClinicalReviewAttestation;
-          const m04AttestationWithScope = m04ClinicalReviewAttestation && m04AcceptanceScope
-            ? { ...m04ClinicalReviewAttestation, acceptanceScope: m04AcceptanceScope }
+          const m04AttestationWithScope = m04ClinicalReviewAttestation && (m04AcceptanceScope || generationFallback)
+            ? {
+                ...m04ClinicalReviewAttestation,
+                ...(m04AcceptanceScope ? { acceptanceScope: m04AcceptanceScope } : {}),
+                ...(generationFallback ? { generationFallback } : {}),
+              }
             : m04ClinicalReviewAttestation;
           // 方名身份的**最后一公里恢复**(2026-08-05)。
           //

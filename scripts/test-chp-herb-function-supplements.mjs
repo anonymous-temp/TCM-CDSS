@@ -70,6 +70,21 @@ const byHerb = new Map(batch.map((entry) => [entry.herb, entry]));
 assert.equal(byHerb.get("僵蚕")?.supplement, "息风止痉，祛风止痛，化痰散结");
 assert.equal(byHerb.get("地龙")?.supplement, "清热定惊，通络，平喘，利尿");
 
+const multiroleBatch = (source.entries || []).filter(
+  (entry) => entry.reviewBatch === "CHP2020-FUNCTION-MULTIROLE-20260824",
+);
+assert.deepEqual(multiroleBatch.map((entry) => entry.herb), ["葛根", "升麻"]);
+for (const entry of multiroleBatch) {
+  assert.equal(entry.sourceName, "国家药典委员会药典在线");
+  assert.equal(entry.sourceUrl, `https://ydz.chp.org.cn/#/item?bookId=1&entryId=${entry.chpEntryId}`);
+  assert.ok(entry.chpQuote.startsWith(`${entry.supplement}。`));
+  for (const clause of entry.supplement.split("，")) {
+    assert.match(getTcmHerbFunctionText(entry.herb), new RegExp(clause));
+  }
+}
+assert.equal(multiroleBatch.find((entry) => entry.herb === "升麻")?.chpEntryId, 107);
+assert.equal(multiroleBatch.find((entry) => entry.herb === "葛根")?.chpEntryId, 527);
+
 const jiangcanDisplay = getTcmHerbFunctionDisplayText("炒僵蚕", "臣", "肝风夹痰", "息风止痉");
 const dilongDisplay = getTcmHerbFunctionDisplayText("地龙", "佐", "络脉阻滞", "清热通络");
 assert.doesNotMatch(jiangcanDisplay, /具体配伍作用需医生结合方义复核/);

@@ -2485,12 +2485,12 @@ assert.equal(
 );
 const chestBiWrongEmperorM04 = structuredClone(chestBiM04);
 chestBiWrongEmperorM04.formula.candidates[0].herbs[0] = {
-  name: "葛根", dose: "12g", role: "君", prescriptionRole: "解肌", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "胸膺脉气失调", function: "发散风热药；解表药", decoctionRequirement: "",
+  name: "薄荷", dose: "6g", role: "君", prescriptionRole: "疏散风热", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "胸膺脉气失调", function: "疏散风热，清利头目；发散风热药；解表药", decoctionRequirement: "",
 };
 assert.match(
   m04SemanticIssue(chestBiWrongEmperorM04, "", chestBiPrior) || "",
   /emperor_therapy_mismatch/,
-  "an exterior-release emperor with no qi/blood-moving action still fails the 胸痹 emperor alignment (fail-closed kept)",
+  "an exterior-release emperor with no qi/blood-moving action still fails the 胸痹 emperor alignment (fail-closed kept; 葛根 is no longer a valid negative control after official 通经活络 supplementation)",
 );
 const launderingM04 = structuredClone(liverStomachHeatM04);
 launderingM04.formula.candidates[0].herbs.push(
@@ -2611,12 +2611,12 @@ assert.equal(
 );
 const headQiBloodWrongM04 = structuredClone(headQiBloodM04);
 headQiBloodWrongM04.formula.candidates[0].herbs[0] = {
-  name: "葛根", dose: "12g", role: "君", prescriptionRole: "解肌", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "头部气血失调", function: "发散风热药；解表药", decoctionRequirement: "",
+  name: "荆芥", dose: "6g", role: "君", prescriptionRole: "祛风解表", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "头部气血失调", function: "解表散风，透疹，消疮；解表药", decoctionRequirement: "",
 };
 assert.match(
   m04SemanticIssue(headQiBloodWrongM04, "", headQiBloodPrior) || "",
   /emperor_therapy_mismatch/,
-  "an exterior-release emperor still fails the head qi-blood alignment (fail-closed kept)",
+  "an exterior-release emperor still fails the head qi-blood alignment (fail-closed kept; 葛根 now carries official 通经活络 evidence)",
 );
 // ── 逐方向治法覆盖（甲方 2026-08-13 寒凝血瘀痛经）─────────────────────────────────
 //
