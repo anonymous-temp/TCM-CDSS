@@ -701,6 +701,35 @@ try {
     );
   });
 
+  check("reviewer repair quality attestation is preserved and tamper evident", () => {
+    const withQualityReview = clone(prescribeReasoning);
+    withQualityReview.clinicalReview = {
+      status: "accepted",
+      reviewDecision: "repair",
+      reviewIssueCode: "herb_plan_mismatch",
+      provider: "review-provider",
+      model: "independent-review-model",
+      source: "preferred",
+      acceptanceScope: {
+        waivedIssueCodes: [],
+        qualityAnnotationCodes: ["herb_plan_mismatch"],
+      },
+    };
+    const normalized = normalizeReasoningV2(withQualityReview);
+    assert.equal(normalized.clinicalReview.reviewDecision, "repair");
+    assert.equal(normalized.clinicalReview.reviewIssueCode, "herb_plan_mismatch");
+    const signedQualityReview = signPrescribeReasoning(normalized, prescribeContext);
+    assert.equal(verifyPrescribeReasoningSignature(signedQualityReview, prescribeCase), true);
+    for (const mutate of [
+      (value) => { value.clinicalReview.reviewDecision = "accepted"; },
+      (value) => { value.clinicalReview.reviewIssueCode = "dose_rationale_concern"; },
+    ]) {
+      const tampered = clone(signedQualityReview);
+      mutate(tampered);
+      assert.equal(verifyPrescribeReasoningSignature(tampered, prescribeCase), false);
+    }
+  });
+
   check("M04 cross-case replay rejects", () => {
     assert.equal(verifyPrescribeReasoningSignature(signedPrescribe, { ...prescribeCase, id: "case_signature_m04_replay" }), false);
   });

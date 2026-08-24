@@ -136,6 +136,44 @@ function reasoningHalfSchema(keys: readonly string[]): JsonSchema {
   };
 }
 
+/**
+ * C+ready M03 generation must return at least one clinical chain node. Keep this constraint on the
+ * provider response schema rather than the shared Zod model: deterministic limited fallbacks
+ * intentionally carry an empty chain, while model-generated full/TMC halves never may.
+ */
+function requireGeneratedM03Chain(schema: JsonSchema): JsonSchema {
+  const properties = schema.properties && typeof schema.properties === "object" && !Array.isArray(schema.properties)
+    ? schema.properties as Record<string, unknown>
+    : undefined;
+  const pathogenesis = properties?.pathogenesis && typeof properties.pathogenesis === "object" && !Array.isArray(properties.pathogenesis)
+    ? properties.pathogenesis as JsonSchema
+    : undefined;
+  const pathogenesisProperties = pathogenesis?.properties && typeof pathogenesis.properties === "object" && !Array.isArray(pathogenesis.properties)
+    ? pathogenesis.properties as Record<string, unknown>
+    : undefined;
+  const chain = pathogenesisProperties?.chain && typeof pathogenesisProperties.chain === "object" && !Array.isArray(pathogenesisProperties.chain)
+    ? pathogenesisProperties.chain as JsonSchema
+    : undefined;
+  if (!properties || !pathogenesis || !pathogenesisProperties || !chain) return schema;
+  const chainWithoutDefault = { ...chain };
+  const pathogenesisWithoutDefault = { ...pathogenesis };
+  delete chainWithoutDefault.default;
+  delete pathogenesisWithoutDefault.default;
+  return {
+    ...schema,
+    properties: {
+      ...properties,
+      pathogenesis: {
+        ...pathogenesisWithoutDefault,
+        properties: {
+          ...pathogenesisProperties,
+          chain: { ...chainWithoutDefault, minItems: 1 },
+        },
+      },
+    },
+  };
+}
+
 const M03_REVIEW_SCHEMA: JsonSchema = {
   type: "object",
   properties: {
@@ -174,16 +212,16 @@ const M04_REVIEW_SCHEMA: JsonSchema = {
 };
 
 function schemaForTask(task: StructuredOutputTask): JsonSchema {
-  if (task === "m03_full") return fullReasoningSchema();
+  if (task === "m03_full") return requireGeneratedM03Chain(fullReasoningSchema());
   if (task === "m04_proposal") return m04ProposalJsonSchema();
   if (task === "m03_review") return M03_REVIEW_SCHEMA;
   if (task === "m04_review") return M04_REVIEW_SCHEMA;
   if (task === "m03_western") {
     return reasoningHalfSchema(["schemaVersion", "stage", "westernDiagnosis", "management"]);
   }
-  return reasoningHalfSchema([
+  return requireGeneratedM03Chain(reasoningHalfSchema([
     "schemaVersion", "stage", "overview", "pathogenesis", "therapy", "formula", "nonPharma", "lineageAdaptation",
-  ]);
+  ]));
 }
 
 export function responseFormatForTask(model: string, task: StructuredOutputTask): Record<string, unknown> {

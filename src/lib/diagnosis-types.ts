@@ -265,6 +265,13 @@ export type ClinicalResolution = "resolved" | "bounded" | "unresolved";
 export type ClinicalReviewAttestation = {
   status: "accepted" | "unavailable";
   /**
+   * Raw independent-review decision. `status=accepted` is the release attestation after the
+   * deterministic safety layer has arbitrated an allowlisted quality-only `repair` opinion; this
+   * field prevents that arbitration from being misrepresented as reviewer agreement.
+   */
+  reviewDecision?: "accepted" | "repair";
+  reviewIssueCode?: string;
+  /**
    * 复核不可用的**原因码**。与 independentFromGenerator 曾经的毛病一模一样：
    * diagnosis-api 的 ClinicalReviewExecutionMeta.reason 一直算着这一位（not_configured /
    * deadline / invalid_contract / http_error / transport_error），但 clinicalReviewAttestation()
@@ -1289,6 +1296,8 @@ const ReasoningV2SchemaBase = z.object({
   contractSignature: z.string().max(160).optional().catch(undefined),
   clinicalReview: z.object({
     status: z.enum(["accepted", "unavailable"]),
+    reviewDecision: z.enum(["accepted", "repair"]).optional().catch(undefined),
+    reviewIssueCode: z.string().regex(/^[a-z0-9_]{1,80}$/).optional().catch(undefined),
     // 不可用原因码与耗时随 attestation 一起进契约。少了它，18 例降级只知道「不可用」，
     // 不知道是超时还是上游报错——归因与重试策略都无从谈起（TCMEval-SDT 194 例实测）。
     unavailableReason: z.enum([

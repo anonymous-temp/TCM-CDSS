@@ -473,6 +473,13 @@ export function structuredClinicalRepairHint(
 ): string {
   if (stage === "prescribe") return buildM04ClinicalRepairHint(reason);
   if (stage !== "diagnose") return "";
+  if (reason === "m03_chain_empty") {
+    return [
+      "上一候选的 pathogenesis.chain 在服务端事实接地后变成空数组：原节点的 patientFact 或 syndromeEvidence 至少有一列不是病历中的逐字连续原文。",
+      "必须重建至少 1 个完整节点。每个节点的 patientFact 和 syndromeEvidence 都要各自从患者事实边界中逐字复制一段连续原文；不得改写、摘要、拼接两句，不得加“患者”等原文没有的前缀。两列可引用同一段原文，但不能把 pathogenesis 的推理句填进证据列。",
+      "pathogenesis 只写由该原文支持的最浅病机，therapyDirection 只写与该病机对应的治法；其余已通过的诊断、证候和管理字段保持不变。",
+    ].join("\n");
+  }
   if (/^m03_(?:formula_not_null|dose_level_content)$/.test(reason)) {
     return [
       "M03 只负责辨病辨证、病机与治法方向，不得提前输出方剂对象、药味、剂量、剂数或服法。",

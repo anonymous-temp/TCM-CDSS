@@ -205,6 +205,47 @@ export function m04FinalReviewQualityAnnotation(review: { status?: string; issue
 }
 
 /**
+ * Quality opinions that never justify a provider rewrite.
+ *
+ * Keep this deliberately narrower than `m04FinalReviewQualityAnnotation`: a dose-strength or
+ * patient-dependency opinion can expose risk that deterministic upper/lower bounds cannot prove
+ * away, so those paths retain their fail-closed repair/fallback behavior. The only zero-rewrite
+ * shape is an otherwise safe herb-direction preference; the caller still re-runs the complete
+ * deterministic M04 safety and formula contracts before attaching the signed annotation.
+ */
+export function m04ZeroProviderRepairQualityAnnotation(review: {
+  status?: string;
+  issueCode?: string;
+  repairFocus?: string;
+}): string | undefined {
+  if (review.status !== "repair" ||
+      review.issueCode !== "herb_plan_mismatch" ||
+      review.repairFocus !== "herb_direction") return undefined;
+  return m04FinalReviewQualityAnnotation(review);
+}
+
+/**
+ * A provider-repair exhaustion claim is valid only for the reviewer issue that actually triggered
+ * a completed repair in this request. A global/cross-request exhaustion flag or an unrelated
+ * contract fixpoint cannot authorize a new reviewer concern. Dose and patient-dependency opinions
+ * use their dedicated fail-closed policies and never enter this quality-only path.
+ */
+export function m04ProviderRepairExhaustedQualityAnnotation(input: {
+  review: { status?: string; issueCode?: string; repairFocus?: string };
+  previousReviewReason?: string;
+  previousReviewFocus?: string;
+  completedRepairAttemptsForIssue: number;
+}): string | undefined {
+  if (input.completedRepairAttemptsForIssue < 1 ||
+      input.previousReviewReason !== "m04_herb_plan_semantic_review" ||
+      input.review.status !== "repair" ||
+      input.review.issueCode !== "herb_plan_mismatch" ||
+      !input.previousReviewFocus ||
+      input.previousReviewFocus !== input.review.repairFocus) return undefined;
+  return m04FinalReviewQualityAnnotation(input.review);
+}
+
+/**
  * A patient-context review remains actionable for one bounded repair round. If the reviewer
  * returns the same patient-dependency issue after both bounded repairs, there is no repair round
  * left to execute. The latest candidate may legitimately differ because it attempted to remove

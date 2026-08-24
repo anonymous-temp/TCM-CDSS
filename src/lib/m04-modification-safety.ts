@@ -1,4 +1,4 @@
-import { canonicalTcmHerbIdentity, highImpactHerbDirectionIssue, m04HerbDirectionIssue } from "./diagnosis-stage-contract";
+import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, highImpactHerbDirectionIssue, m04HerbDirectionIssue } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 
@@ -60,6 +60,13 @@ export function dropUnsupportedM04ModificationDirections(
       const modification = recordValue(value);
       if (!modification) return true;
       if (isTransientAcuteExteriorSleepModification(modification, prior)) return false;
+      // Conditional rows are optional advice, not part of the audited current-dose candidate.
+      // A trigger that is not already present in signed M03 cannot be made true by wording; drop
+      // that row before review instead of spending a model round repairing non-clinical metadata.
+      // Dose-bearing/unknown-herb/high-impact additions remain governed by the existing hard
+      // contract below and are never made acceptable by this deletion-only transform.
+      const trigger = typeof modification.trigger === "string" ? modification.trigger.trim() : "";
+      if (!trigger || !finalModificationTriggerGrounded(trigger, prior)) return false;
       const action = typeof modification.action === "string" ? modification.action.trim().replace(/\s/g, "") : "";
       const addition = action.match(MODIFICATION_ADDITION);
       if (!addition) return true;

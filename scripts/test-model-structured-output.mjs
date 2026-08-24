@@ -37,6 +37,13 @@ for (const model of ["qwen3.7-plus", "qwen3.7-max", "qwen3.8-max"]) {
     assert.equal(format.json_schema.name, task);
     assert.equal(format.json_schema.schema.type, "object");
     assertStrictObjects(format.json_schema.schema);
+    if (task === "m03_full" || task === "m03_tcm") {
+      assert.equal(
+        format.json_schema.schema.properties.pathogenesis.properties.chain.minItems,
+        1,
+        `${model}/${task} must constrain generated M03 to a non-empty pathogenesis chain`,
+      );
+    }
   }
 }
 assert.deepEqual(responseFormatForTask("qwen3.7-flash", "m03_full"), { type: "json_object" });

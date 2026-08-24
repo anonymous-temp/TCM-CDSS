@@ -10,6 +10,14 @@ const { enforceReviewedPrescriptionOutput } = await import("../src/lib/prescript
 const { normalizeClinicalConfidence, normalizePrescriptionRole, normalizeReasoningV2, normalizeWesternDiagnosisStatus } = await import("../src/lib/diagnosis-types.ts");
 const { getTcmHerbFunctionDisplayText } = await import("../src/lib/tcm-knowledge.ts");
 const { buildM04ClinicalRepairHint, m04CandidateHerbsFromRepairPayload, m04DoseRepairHerbIndex, stabilizeM04DoseOnlyRepair, structuredClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
+
+const chainEmptyHint = structuredClinicalRepairHint("diagnose", "m03_chain_empty");
+assert.match(chainEmptyHint, /patientFact 或 syndromeEvidence/,
+  "chain-empty repair must identify the two independently grounded evidence columns");
+assert.match(chainEmptyHint, /至少 1 个完整节点/,
+  "chain-empty repair must require a non-empty replacement chain");
+assert.match(chainEmptyHint, /逐字复制一段连续原文/,
+  "chain-empty repair must explain the exact contiguous quote contract");
 const { dropUnsupportedM04ModificationDirections } = await import("../src/lib/m04-modification-safety.ts");
 const diagnosisApiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
 const prescribeRouteSource = readFileSync(new URL("../src/app/api/diagnosis/prescribe/route.ts", import.meta.url), "utf8");
@@ -173,6 +181,16 @@ assert.match(
   diagnosisApiSource,
   /finalized = dropUnsupportedM04CandidateHerbs\(finalized, opts\.structuredPriorReasoning\);/,
   "正常 finalize 链路同样要做单味剔除——两条路径共用同一条不变量",
+);
+assert.match(
+  diagnosisApiSource,
+  /immediatelyDeclassifyM04IdentityOnly[\s\S]{0,2600}?markTransparentFormulaDeclassification[\s\S]{0,900}?validatedStructuredReasoning\([\s\S]{0,500}?true,\s*true,\s*false,\s*false,\s*false/,
+  "无法证明的经典方身份应在 provider 修复前确定性剥离，但剥离后必须通过不豁免的完整 M04 合同",
+);
+assert.match(
+  diagnosisApiSource,
+  /immediateM04Declassification\?\.reasoning[\s\S]{0,2200}?reviewTrackedM04Candidate\(structuredReasoning, m04GeneratorModel, "for initial candidate"\)/,
+  "即时身份剥离只能省掉提供商重写，剥离后的准确字节仍须进入首轮独立临床复核",
 );
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "sentinel_count_0_0"), true);
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "json_invalid"), true);
@@ -344,8 +362,8 @@ const sanitizedModifications = JSON.parse(
 ).formula.modifications;
 assert.deepEqual(
   sanitizedModifications.map((item) => item.action),
-  ["加桃仁", "减川芎"],
-  "every unsupported high-impact optional addition is removed while aligned additions and non-add actions remain",
+  [],
+  "future/visit-time triggers not present in signed M03 are removed regardless of action; no optional row may invent its own condition",
 );
 assert.equal(
   dropUnsupportedM04ModificationDirections("no structured content", modificationPrior),

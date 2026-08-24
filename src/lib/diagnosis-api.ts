@@ -30,7 +30,7 @@ import { newM03ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
 import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
-import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
+import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
 import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
@@ -2059,7 +2059,32 @@ function clinicalReviewAttestation(
   const unavailableReason = clinicalReviewUnavailableReason(status, review.execution?.reason);
   return {
     status,
+    ...(status === "accepted" ? { reviewDecision: "accepted" as const } : {}),
     ...(unavailableReason ? { unavailableReason } : {}),
+    ...(review.execution ? {
+      attemptCount: review.execution.attemptCount,
+      durationMs: review.execution.durationMs,
+    } : {}),
+    ...(review.reviewer ? review.reviewer : {}),
+    ...(reviewedPayloadHash ? { reviewedPayloadHash } : {}),
+  };
+}
+
+/**
+ * Preserve the reviewer's real `repair` decision while recording the server release attestation.
+ * This is used only after the complete deterministic M04 safety and formula contracts prove that
+ * the opinion is quality-only. It must never be used for dose, interaction, population or genuine
+ * direction-conflict failures.
+ */
+function clinicalReviewQualityAttestation(
+  review: ClinicalReviewExecution<M04ClinicalReview> & { status: "repair" },
+  reasoning: unknown,
+): ClinicalReviewAttestation {
+  const reviewedPayloadHash = clinicalReviewPayloadHash(reasoning);
+  return {
+    status: "accepted",
+    reviewDecision: "repair",
+    reviewIssueCode: review.issueCode,
     ...(review.execution ? {
       attemptCount: review.execution.attemptCount,
       durationMs: review.execution.durationMs,
@@ -2545,11 +2570,10 @@ async function callPrimaryTextModelStream(
        * m03SafetyContractIssue / m04SafetyContractIssue 这道 T1 硬门，再决定是带批注受理
        * 还是降级。复核驱动的拒绝码不进这个账本，它们的「同码不同子型仍算新信息」语义保持不变。
        */
-      // 上限 2 而不是 1：合同拒绝码对应的修复提示虽是 (阶段, 原因码) 的纯函数，但生成本身有
-      // 随机性，重抽一次的成功率并不低——实测同一例月经先期病例，chain_incomplete 首轮修复
-      // 即通过的跑次存在；收成 1 次后它连续三跑都塌到安全有限页。2 次保住了时限上界
-      // （此前同码可跨多个重试阶段无限重注入），也保留一次真实的重抽机会。
-      const CONTRACT_REPAIR_MAX_PER_REASON = 2;
+      // 初始生成后只允许同一确定性缺陷再生成一次。第二次仍返回同形拒绝码时，
+      // 它已经证明不是缺少一次采样机会；继续重掷只会花掉整个编排时限。出口仍重跑安全合同，
+      // T1 失败走既有 fail-closed，T2/T3 按零质量修复预算进批注。
+      const CONTRACT_REPAIR_MAX_PER_REASON = 1;
       const contractRepairedReasons = new Map<string, number>();
       const isRepeatedContractRepair = (reason: string | undefined, reviewDriven: boolean): boolean =>
         Boolean(reason) && !reviewDriven &&
@@ -2573,6 +2597,7 @@ async function callPrimaryTextModelStream(
       let m03QuarantineLoopEarlyExit = false;
       let m04ClinicalReviewStatus: M04ClinicalReview["status"] | "not_run" = "not_run";
       let m04ClinicalReviewReason: string | undefined;
+      let m04ClinicalReviewFocus: string | undefined;
       let m04ClinicalRepairGuidanceText = "";
       let m03ClinicalReviewer = "none";
       let m04ClinicalReviewer = "none";
@@ -2761,6 +2786,49 @@ async function callPrimaryTextModelStream(
           return finalized;
         }
       };
+      /**
+       * A candidate whose only strict defect is an unprovable classic-formula identity does not
+       * need a 40–60s provider rewrite to delete that claim. Deterministically remove the identity,
+       * then require the resulting self-devised candidate to pass the complete non-waived M04
+       * semantic, dose, interaction, population, direction and cross-stage contracts. The exact
+       * transformed bytes still go through independent review and signing below. Any residual
+       * defect returns undefined and keeps the existing repair/fail-closed path.
+       */
+      const immediatelyDeclassifyM04IdentityOnly = (content: string): {
+        content: string;
+        reasoning: ClinicalReasoningResultV2;
+        originalReason: string;
+        identityRemoved: boolean;
+      } | undefined => {
+        if (opts.structuredStage !== "prescribe" || finishReason !== "stop" || !opts.structuredPriorReasoning) return undefined;
+        const originalReason = structuredRejectionReason(
+          content,
+          "prescribe",
+          finishReason,
+          opts.structuredClinicalContext,
+          opts.structuredPriorReasoning,
+        );
+        if (!/^m04_formula_(?:reference_declassified|compilation_composition_drift)$/.test(originalReason)) return undefined;
+        const transformed = dropUnsupportedM04CandidateHerbs(
+          markTransparentFormulaDeclassification(content, opts.structuredPriorReasoning),
+          opts.structuredPriorReasoning,
+          false,
+        );
+        const reasoning = validatedStructuredReasoning(
+          transformed,
+          "prescribe",
+          opts.structuredClinicalContext,
+          opts.structuredPriorReasoning,
+          true,
+          true,
+          false,
+          false,
+          false,
+        );
+        if (!reasoning) return undefined;
+        const identityRemoved = reasoning.formula?.candidates?.[0]?.identityDeclassified === true;
+        return { content: transformed, reasoning, originalReason, identityRemoved };
+      };
       // M04 orchestration bounding. Repair hints are derived deterministically from the rejection
       // reason, so a reason that repeats the immediately preceding repair-triggering reason is a
       // byte-identical re-draw of the same failed lottery; the deadline caps the total extra
@@ -2779,6 +2847,7 @@ async function callPrimaryTextModelStream(
         return true;
       };
       let m04LastRepairTriggerReason: string | undefined;
+      let m04LastRepairFocus: string | undefined;
       let m04LastInjectedGuidance = "";
       let m04RepairLoopEarlyExit = false;
       const noteM04RepairLoopFixpoint = (rejectionReason: string) => {
@@ -2933,6 +3002,7 @@ async function callPrimaryTextModelStream(
         const semanticHash = m04ClinicalReviewSemanticHash(opts.structuredPriorReasoning, reasoning);
         m04ClinicalReviewStatus = review.status;
         m04ClinicalReviewReason = m04SemanticReviewReason(review);
+        m04ClinicalReviewFocus = review.status === "repair" ? review.repairFocus : undefined;
         m04ClinicalRepairGuidanceText = m04ClinicalRepairGuidance(review, reasoning);
         m04ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
         m04ClinicalReviewAttestation = review.status === "repair" ? undefined : clinicalReviewAttestation(review, reasoning);
@@ -2977,7 +3047,63 @@ async function callPrimaryTextModelStream(
         }
         return review;
       };
+      const acceptM04QualityReviewWithoutProviderRepair = (
+        review: ClinicalReviewExecution<M04ClinicalReview>,
+        reasoning: ClinicalReasoningResultV2,
+        requestedAnnotation = m04ZeroProviderRepairQualityAnnotation(review),
+      ): string | undefined => {
+        if (review.status !== "repair") return undefined;
+        const annotation = requestedAnnotation;
+        if (!annotation) return undefined;
+        const enriched = enrichReasoning(reasoning).reasoning;
+        // Zero quality-repair budget never means zero safety checks. The waiver flag removes only
+        // knowledge-coverage/plan-quality findings; true direction opposition, unsafe dose,
+        // interaction, special-population, decoction and cross-stage failures remain blocking.
+        const hardSafetyIssue = m04SafetyContractIssue(
+          enriched,
+          opts.structuredPriorReasoning,
+          isKnownTcmHerbName,
+          false,
+          false,
+          opts.structuredClinicalContext || "",
+          true,
+        );
+        const allowDeclassifiedIdentity = reasoning.formula?.candidates?.[0]?.identityDeclassified === true;
+        const formulaIssue = formulaCompilationContractIssue(
+          enriched,
+          opts.structuredPriorReasoning,
+          false,
+          allowDeclassifiedIdentity,
+        );
+        if (hardSafetyIssue || formulaIssue) return undefined;
+        m04ClinicalReviewAttestation = clinicalReviewQualityAttestation(review, reasoning);
+        m04ReviewedSemanticHash = m04ClinicalReviewSemanticHash(opts.structuredPriorReasoning, reasoning);
+        m04ReviewedReasoning = reasoning;
+        m04ClinicalReviewStatus = "accepted";
+        m04AcceptanceScope = appendAnnotationCode(m04AcceptanceScope, review.issueCode);
+        console.warn("[tcm-cdss:model] M04 independent quality opinion attested without provider repair", {
+          stage: "prescribe",
+          issueCode: review.issueCode,
+        });
+        return annotation;
+      };
       let m04RepairState = initialM04RepairState();
+      const completedM04ProviderRepairsByIssue = new Map<string, number>();
+      const m04ProviderRepairIssueKey = (reason: string | undefined, focus: string | undefined): string | undefined =>
+        reason && focus ? `${reason}:${focus}` : undefined;
+      const noteCompletedM04ProviderRepair = (
+        reason: string | undefined,
+        focus: string | undefined,
+        result: { ok: boolean; finishReason?: string | null },
+      ) => {
+        const key = m04ProviderRepairIssueKey(reason, focus);
+        if (!key || !result.ok || result.finishReason !== "stop") return;
+        completedM04ProviderRepairsByIssue.set(key, (completedM04ProviderRepairsByIssue.get(key) || 0) + 1);
+      };
+      const completedM04ProviderRepairCount = (reason: string | undefined, focus: string | undefined): number => {
+        const key = m04ProviderRepairIssueKey(reason, focus);
+        return key ? completedM04ProviderRepairsByIssue.get(key) || 0 : 0;
+      };
       /** 修复轮是否死于**传输类**失败(provider 503/超时/网络)而非内容问题。 */
       let repairFailedOnTransport = false;
       const noteRepairOutcome = (result: { ok: boolean; reason?: string; status?: number }) => {
@@ -3463,11 +3589,37 @@ async function callPrimaryTextModelStream(
         m03LadderCheckpoint("prepared");
         const sentinelStarted = authoritativeContent.includes(startMarker);
         const sentinelClosed = authoritativeContent.includes(endMarker);
-        let structuredReasoning = sentinelStarted && sentinelClosed && opts.structuredStage
-          ? validatedStructuredReasoning(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext, opts.structuredPriorReasoning, true)
+        const immediateM04Declassification = sentinelStarted && sentinelClosed
+          ? immediatelyDeclassifyM04IdentityOnly(authoritativeContent)
           : undefined;
+        if (immediateM04Declassification) {
+          authoritativeContent = immediateM04Declassification.content;
+          if (immediateM04Declassification.identityRemoved) {
+            m04AcceptanceScope = {
+              waivedIssueCodes: [...new Set([
+                ...(m04AcceptanceScope?.waivedIssueCodes || []),
+                immediateM04Declassification.originalReason,
+              ])],
+              qualityAnnotationCodes: [...new Set([
+                ...(m04AcceptanceScope?.qualityAnnotationCodes || []),
+                immediateM04Declassification.originalReason,
+              ])],
+            };
+          }
+          console.warn("[tcm-cdss:model] M04 unprovable classic identity removed before provider repair", {
+            stage: "prescribe",
+            reason: immediateM04Declassification.originalReason,
+            identityRemoved: immediateM04Declassification.identityRemoved,
+          });
+        }
+        let structuredReasoning = immediateM04Declassification?.reasoning || (
+          sentinelStarted && sentinelClosed && opts.structuredStage
+            ? validatedStructuredReasoning(authoritativeContent, opts.structuredStage, opts.structuredClinicalContext, opts.structuredPriorReasoning, true)
+            : undefined
+        );
         m03LadderCheckpoint("validated");
         let initialM04ClinicalReviewRejected = false;
+        let initialM04ReviewQualityAnnotation: string | undefined;
         if (structuredReasoning && opts.structuredStage === "diagnose") {
           const reviewed = await reviewM03Candidate(authoritativeContent, structuredReasoning, m03GeneratorModel);
           m03LadderCheckpoint("initial_review_done");
@@ -3490,8 +3642,11 @@ async function callPrimaryTextModelStream(
           const review = await reviewTrackedM04Candidate(structuredReasoning, m04GeneratorModel, "for initial candidate");
           m04ClinicalReviewStatus = review.status;
           if (review.status === "repair") {
-            structuredReasoning = undefined;
-            initialM04ClinicalReviewRejected = true;
+            initialM04ReviewQualityAnnotation = acceptM04QualityReviewWithoutProviderRepair(review, structuredReasoning);
+            if (!initialM04ReviewQualityAnnotation) {
+              structuredReasoning = undefined;
+              initialM04ClinicalReviewRejected = true;
+            }
           }
         }
         let advisoryM04RiskAccepted = false;
@@ -3511,7 +3666,7 @@ async function callPrimaryTextModelStream(
           });
         };
         /** 修复轮耗尽后按质量批注受理透明降级候选时，给医生的批注文案。 */
-        let m04TransparentQualityAnnotation: string | undefined;
+        let m04TransparentQualityAnnotation: string | undefined = initialM04ReviewQualityAnnotation;
         /** M03 finalize 复核意见按质量批注受理时的批注文案（同一条最后一公里策略）。 */
         let m03FinalReviewAnnotation: string | undefined;
         if (!structuredReasoning && !initialM04ClinicalReviewRejected && finishReason === "stop" && opts.structuredStage === "prescribe" && sentinelStarted && sentinelClosed) {
@@ -3550,12 +3705,16 @@ async function callPrimaryTextModelStream(
           advisoryM04RiskAccepted &&
           opts.structuredStage === "prescribe"
         ) {
-              const review = await reviewTrackedM04Candidate(structuredReasoning, m04GeneratorModel, "for advisory candidate");
-              m04ClinicalReviewStatus = review.status;
-              if (review.status === "repair") {
-            structuredReasoning = undefined;
-            advisoryM04RiskAccepted = false;
-            initialM04ClinicalReviewRejected = true;
+          const review = await reviewTrackedM04Candidate(structuredReasoning, m04GeneratorModel, "for advisory candidate");
+          m04ClinicalReviewStatus = review.status;
+          if (review.status === "repair") {
+            initialM04ReviewQualityAnnotation = acceptM04QualityReviewWithoutProviderRepair(review, structuredReasoning);
+            m04TransparentQualityAnnotation = initialM04ReviewQualityAnnotation;
+            if (!initialM04ReviewQualityAnnotation) {
+              structuredReasoning = undefined;
+              advisoryM04RiskAccepted = false;
+              initialM04ClinicalReviewRejected = true;
+            }
           }
         }
         // M03/M04 are only complete when the provider explicitly reports a normal stop and the
@@ -3690,6 +3849,7 @@ async function callPrimaryTextModelStream(
             m03LastInjectedGuidance = m03DiagnosticRepairGuidance;
           } else if (opts.structuredStage === "prescribe") {
             m04LastRepairTriggerReason = rejectionReason;
+            m04LastRepairFocus = m04ClinicalReviewFocus;
             m04LastInjectedGuidance = m04ClinicalRepairGuidanceText;
           }
           const retry = await retryCompletePrimaryResponseWithTransientRecovery(
@@ -3708,6 +3868,7 @@ async function callPrimaryTextModelStream(
           );
           noteRepairOutcome(retry);
           if (opts.structuredStage === "prescribe") {
+            noteCompletedM04ProviderRepair(rejectionReason, m04LastRepairFocus, retry);
             m04RepairState = advanceM04RepairState(m04RepairState, {
               ok: retry.ok,
               finishReason: retry.ok ? retry.finishReason : null,
@@ -3923,6 +4084,7 @@ async function callPrimaryTextModelStream(
               }
               if (targetedM04Retry) {
                 m04LastRepairTriggerReason = retryRejectionReason;
+                m04LastRepairFocus = m04ClinicalReviewFocus;
                 m04LastInjectedGuidance = m04ClinicalRepairGuidanceText;
               }
               const secondRetry = await retryCompletePrimaryResponseWithTransientRecovery(
@@ -3941,6 +4103,7 @@ async function callPrimaryTextModelStream(
               );
               noteRepairOutcome(secondRetry);
               if (opts.structuredStage === "prescribe") {
+                noteCompletedM04ProviderRepair(retryRejectionReason, m04LastRepairFocus, secondRetry);
                 m04RepairState = advanceM04RepairState(m04RepairState, {
                   ok: secondRetry.ok,
                   finishReason: secondRetry.ok ? secondRetry.finishReason : null,
@@ -4029,7 +4192,10 @@ async function callPrimaryTextModelStream(
                   canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion({
                     review,
                     previousReviewReason: m04LastRepairTriggerReason,
-                    completedRepairAttempts: m04RepairState.completedAttempts,
+                    completedRepairAttempts: completedM04ProviderRepairCount(
+                      "m04_patient_context_semantic_review",
+                      review.status === "repair" ? review.repairFocus : undefined,
+                    ),
                     hardSafetyIssue: m04SafetyContractIssue(
                       enrichedSecondReasoning,
                       opts.structuredPriorReasoning,
@@ -4046,22 +4212,15 @@ async function callPrimaryTextModelStream(
                     ),
                     requestAborted: upstreamController.signal.aborted || opts.requestSignal?.aborted === true,
                   });
-                if (repeatedPatientContextReviewAcceptedAfterRepairExhaustion) {
+                if (repeatedPatientContextReviewAcceptedAfterRepairExhaustion && review.status === "repair") {
                   // The reviewer disposition remains in the signed acceptance scope, while the
-                  // physician-facing result contains only the clinical plan. Mark the resolved
-                  // attestation accepted so finalization can safely rebind the same reviewed plan
-                  // instead of launching a third stochastic review or showing an internal gate.
+                  // physician-facing result contains only the clinical plan. Release acceptance
+                  // is server arbitration after two completed repairs, not reviewer agreement.
                   m04AcceptanceScope = appendAnnotationCode(m04AcceptanceScope, review.issueCode);
-                  const resolvedReview: ClinicalReviewExecution<M04ClinicalReview> = {
-                    status: "accepted",
-                    issueCode: "none",
-                    ...(review.reviewer ? { reviewer: review.reviewer } : {}),
-                    ...(review.execution ? { execution: review.execution } : {}),
-                  };
                   m04ClinicalReviewStatus = "accepted";
                   m04ClinicalReviewReason = undefined;
                   m04ClinicalRepairGuidanceText = "";
-                  m04ClinicalReviewAttestation = clinicalReviewAttestation(resolvedReview, secondReasoning);
+                  m04ClinicalReviewAttestation = clinicalReviewQualityAttestation(review, secondReasoning);
                   m04ReviewedSemanticHash = m04ClinicalReviewSemanticHash(
                     opts.structuredPriorReasoning,
                     secondReasoning,
@@ -4417,7 +4576,23 @@ async function callPrimaryTextModelStream(
             // 核验、带批注的可执行处方，而不是一页「未形成处方」。
             // 实测（网络医案 14，头痛-肝胃郁热）：左金丸候选被 declassify 后，复核以
             // herb_plan_mismatch 判 repair，fixpoint 早退 → 整方 0 味。
-            const transparentReviewAnnotation = m04FinalReviewQualityAnnotation(transparentReview);
+            const transparentReviewCandidateAnnotation = m04ZeroProviderRepairQualityAnnotation(transparentReview) ||
+              m04ProviderRepairExhaustedQualityAnnotation({
+                review: transparentReview,
+                previousReviewReason: m04LastRepairTriggerReason,
+                previousReviewFocus: m04LastRepairFocus,
+                completedRepairAttemptsForIssue: completedM04ProviderRepairCount(
+                  m04SemanticReviewReason(transparentReview),
+                  transparentReview.status === "repair" ? transparentReview.repairFocus : undefined,
+                ),
+              });
+            const transparentReviewAnnotation = transparentReviewCandidateAnnotation
+              ? acceptM04QualityReviewWithoutProviderRepair(
+                  transparentReview,
+                  transparentReasoning,
+                  transparentReviewCandidateAnnotation,
+                )
+              : undefined;
             const transparentReviewQualityOnly = Boolean(transparentReviewAnnotation);
             if (transparentReview.status === "repair") {
               console.warn("[tcm-cdss:model] transparent formula fallback rejected by clinical review", {
@@ -4525,13 +4700,6 @@ async function callPrimaryTextModelStream(
             m03DeadlineExceeded,
           });
         }
-        // 「修复确实已经无路可走」：fixpoint 早退 / 编排超时 / 修复轮已经用过一轮 /
-        // 已按透明降级受理。finalize 阶段的复核在这之后才跑，届时任何 repair 意见都
-        // 没有承接者，只能决定「出方」还是「0 味」。
-        const repairRoundsExhausted = opts.structuredStage === "prescribe" && (
-          m04RepairLoopEarlyExit || m04DeadlineExceeded || m04Retry.repairExhaustedOnEntry ||
-          transparentFormulaDeclassificationAccepted || m04RepairState.completedAttempts >= 1
-        );
         let truncated = finishReason !== "stop" || structuredSentinelIncomplete;
         if (!truncated && opts.structuredStage) {
           // Duplicate presentation fields are synchronized only after the untouched provider
@@ -4788,6 +4956,7 @@ async function callPrimaryTextModelStream(
               shouldRunTargetedStructuredRetry("diagnose", finalizedM03RejectionReason) &&
               qualityRepairAvailable(finalizedM03RejectionReason) &&
               m03LastRepairTriggerReason !== finalizedM03RejectionReason &&
+              !isRepeatedContractRepair(finalizedM03RejectionReason, false) &&
               !clientStreamClosed &&
               !upstreamController.signal.aborted &&
               Date.now() < absoluteRunDeadline &&
@@ -4796,6 +4965,7 @@ async function callPrimaryTextModelStream(
               enqueueClient("\n\n正在按最新校验结果收束辨病辨证依据，请稍候…");
               structuredRetryCount += 1;
               m03LastRepairTriggerReason = finalizedM03RejectionReason;
+              noteContractRepair(finalizedM03RejectionReason, false);
               noteQualityRepair(finalizedM03RejectionReason);
               const finalizedRetry = await retryCompletePrimaryResponseWithTransientRecovery(
                 prompt,
@@ -5043,12 +5213,28 @@ async function callPrimaryTextModelStream(
                 // fail-closed; otherwise no real attestation exists and the signer would mislabel
                 // the result as review unavailable. Only repaired/declassified paths that do not
                 // already carry a quality-tier waiver may use the bounded final-review policy.
-                const finalReviewAnnotation = repairRoundsExhausted && !m04QualityTierAcceptedAfterRepair
-                  ? m04FinalReviewQualityAnnotation(review)
+                const finalReviewCandidateAnnotation = m04ZeroProviderRepairQualityAnnotation(review) || (
+                  !m04QualityTierAcceptedAfterRepair
+                    ? m04ProviderRepairExhaustedQualityAnnotation({
+                        review,
+                        previousReviewReason: m04LastRepairTriggerReason,
+                        previousReviewFocus: m04LastRepairFocus,
+                        completedRepairAttemptsForIssue: completedM04ProviderRepairCount(
+                          m04SemanticReviewReason(review),
+                          review.status === "repair" ? review.repairFocus : undefined,
+                        ),
+                      })
+                    : undefined
+                );
+                const finalReviewAnnotation = finalReviewCandidateAnnotation
+                  ? acceptM04QualityReviewWithoutProviderRepair(
+                      review,
+                      finalReasoning,
+                      finalReviewCandidateAnnotation,
+                    )
                   : undefined;
                 if (review.status === "repair" && finalReviewAnnotation) {
                   m04TransparentQualityAnnotation = m04TransparentQualityAnnotation || finalReviewAnnotation;
-                  m04AcceptanceScope = appendAnnotationCode(m04AcceptanceScope, review.issueCode);
                   console.warn("[tcm-cdss:model] final M04 review repair accepted with quality annotation", {
                     stage: "prescribe",
                     issueCode: review.issueCode,

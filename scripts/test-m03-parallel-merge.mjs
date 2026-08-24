@@ -46,6 +46,8 @@ check("中医半后缀声明自己的字段并显式豁免另一半", () => {
   assert.match(suffix, /并行分工·中医半/);
   assert.match(suffix, /overview、pathogenesis、therapy、formula、nonPharma、lineageAdaptation/);
   assert.match(suffix, /westernDiagnosis 与 management 由并行进程负责/);
+  assert.match(suffix, /pathogenesis\.chain 必须至少有 1 个完整节点/);
+  assert.match(suffix, /patientFact 和 syndromeEvidence 都必须各自.*逐字复制一段连续原文/);
 });
 
 // ── 合并语义 ──────────────────────────────────────────────────────────────────

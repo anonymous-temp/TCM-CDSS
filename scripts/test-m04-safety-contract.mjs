@@ -20,6 +20,7 @@ import assert from "node:assert/strict";
 import { m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
 import { rejectionTier, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "../src/lib/diagnosis-rejection-tiers.ts";
 import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
+import { m04ProviderRepairExhaustedQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "../src/lib/m04-repair-policy.ts";
 import { mergePrescriptionReviewItems } from "../src/lib/diagnosis-safety.ts";
 import { readFileSync } from "node:fs";
 
@@ -88,6 +89,74 @@ const contract = (reasoning, context = CLINICAL_CONTEXT) =>
 
 assert.equal(safety(BASELINE), undefined, "baseline must pass the T1 hard gate");
 assert.equal(contract(BASELINE), undefined, "baseline must pass the full contract");
+
+assert.ok(
+  m04ZeroProviderRepairQualityAnnotation({
+    status: "repair",
+    issueCode: "herb_plan_mismatch",
+    repairFocus: "herb_direction",
+  }),
+  "an otherwise safe herb-direction quality opinion is annotated without a provider rewrite",
+);
+for (const review of [
+  { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "emperor_role" },
+  { status: "repair", issueCode: "formula_composition_mismatch", repairFocus: "formula_core_composition" },
+  { status: "repair", issueCode: "dose_rationale_concern", repairFocus: "dose_strength" },
+  { status: "repair", issueCode: "patient_context_mismatch", repairFocus: "patient_dependency" },
+]) {
+  assert.equal(
+    m04ZeroProviderRepairQualityAnnotation(review),
+    undefined,
+    `zero-rewrite quality policy must fail closed for ${review.issueCode}/${review.repairFocus}`,
+  );
+}
+assert.ok(
+  m04ProviderRepairExhaustedQualityAnnotation({
+    review: { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "herb_direction" },
+    previousReviewReason: "m04_herb_plan_semantic_review",
+    previousReviewFocus: "herb_direction",
+    completedRepairAttemptsForIssue: 1,
+  }),
+  "a completed provider repair may resolve only the same herb-plan quality opinion",
+);
+for (const input of [
+  {
+    review: { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "modification_logic" },
+    previousReviewReason: "m04_herb_plan_semantic_review",
+    previousReviewFocus: "emperor_role",
+    completedRepairAttemptsForIssue: 1,
+  },
+  {
+    review: { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "herb_direction" },
+    previousReviewReason: "m04_formula_composition_semantic_review",
+    previousReviewFocus: "formula_core_composition",
+    completedRepairAttemptsForIssue: 1,
+  },
+  {
+    review: { status: "repair", issueCode: "dose_rationale_concern", repairFocus: "dose_strength" },
+    previousReviewReason: "m04_dose_rationale_semantic_review",
+    previousReviewFocus: "dose_strength",
+    completedRepairAttemptsForIssue: 1,
+  },
+  {
+    review: { status: "repair", issueCode: "patient_context_mismatch", repairFocus: "patient_dependency" },
+    previousReviewReason: "m04_patient_context_semantic_review",
+    previousReviewFocus: "patient_dependency",
+    completedRepairAttemptsForIssue: 2,
+  },
+  {
+    review: { status: "repair", issueCode: "formula_composition_mismatch", repairFocus: "formula_core_composition" },
+    previousReviewReason: "m04_formula_composition_semantic_review",
+    previousReviewFocus: "formula_core_composition",
+    completedRepairAttemptsForIssue: 1,
+  },
+]) {
+  assert.equal(
+    m04ProviderRepairExhaustedQualityAnnotation(input),
+    undefined,
+    `provider-repair quality policy must not reuse unrelated/global exhaustion for ${input.review.issueCode}`,
+  );
+}
 
 // ── 建议性缺陷：必须被判为可受理（这正是本次改动要拿回来的东西）──────────────────
 /** 每项注入一个**只影响说明或建议内容**的缺陷，安全面完全不动。 */
@@ -258,18 +327,20 @@ assert.match(
   /pendingQualityRepairUnavailable[\s\S]{0,1200}?validatedStructuredReasoning\([\s\S]{0,700}?true,\s*\/\/ acceptM04QualityTierAfterRepair[\s\S]{0,350}?structuredSentinelIncomplete = false;[\s\S]{0,250}?noteM04QualityTierAcceptance\(pendingRejectionReason\)/,
   "质量修复预算为 0 时，首轮 M04 的已登记 T2/T3 项也必须在完整重跑 T1 硬门后进入带范围受理，不能清空安全处方",
 );
-const repairRoundsStart = diagnosisApiSource.indexOf("const repairRoundsExhausted");
-const repairRoundsEnd = diagnosisApiSource.indexOf("let truncated", repairRoundsStart);
-assert.ok(repairRoundsStart >= 0 && repairRoundsEnd > repairRoundsStart, "必须能定位 M04 修复耗尽判据");
+assert.match(
+  diagnosisApiSource,
+  /const finalReviewCandidateAnnotation = m04ZeroProviderRepairQualityAnnotation\(review\)[\s\S]{0,1000}?acceptM04QualityReviewWithoutProviderRepair\([\s\S]{0,300}?finalReviewCandidateAnnotation/,
+  "终审质量受理必须复用完整 T1/方剂合同与真实 reviewDecision=repair attestation，不能只写批注后伪装 unavailable",
+);
 assert.doesNotMatch(
-  diagnosisApiSource.slice(repairRoundsStart, repairRoundsEnd),
-  /m04QualityTierAcceptedAfterRepair/,
-  "质量修复预算耗尽不得伪装成独立临床复核也已耗尽；终审返回 repair 时必须继续 fail-closed",
+  diagnosisApiSource,
+  /repairExhaustedOnEntry[\s\S]{0,800}?m04FinalReviewQualityAnnotation\(review\)/,
+  "历史 attempt key 不能授权本轮首次出现的 dose/patient/formula reviewer repair",
 );
 assert.match(
   diagnosisApiSource,
-  /const finalReviewAnnotation = repairRoundsExhausted && !m04QualityTierAcceptedAfterRepair\s*\n\s*\? m04FinalReviewQualityAnnotation\(review\)/,
-  "即使跨请求状态已标记 repairExhaustedOnEntry，零预算质量档候选的终审 repair 也不得带批注放行",
+  /repeatedPatientContextReviewAcceptedAfterRepairExhaustion[\s\S]{0,1400}?clinicalReviewQualityAttestation\(review, secondReasoning\)/,
+  "患者依赖两轮修复后的服务端受理必须保留 reviewer 的真实 repair 决定",
 );
 assert.match(
   diagnosisApiSource,
@@ -483,6 +554,31 @@ console.log(JSON.stringify({
   );
 }
 
+// 未在已签名 M03 中成立的“若出现 X 则加减”是可选建议行，不是当前剂量处方。
+// 按同一接地谓词确定性删除，避免为一条未成立的自由文本花一整轮模型修复。
+{
+  const { dropUnsupportedM04ModificationDirections } = await import("../src/lib/m04-modification-safety.ts");
+  const S = "<!-- DIAGNOSIS_JSON_START -->", E = "<!-- DIAGNOSIS_JSON_END -->";
+  const prior = {
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+    overview: { primarySyndromeBasis: ["头痛反复发作1月"] },
+    westernDiagnosis: { primary: { supportingFacts: ["头痛反复发作1月"] } },
+    pathogenesis: { chain: [{ nodeId: "P1", patientFact: "头痛反复发作1月" }] },
+  };
+  const wrap = (modifications) => `${S}\n${JSON.stringify({
+    schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { modifications },
+  })}\n${E}`;
+  const modifications = [
+    { trigger: "头痛反复发作1月", targetPathogenesis: "P1", action: "调整已用药味", reason: "本例已记录" },
+    { trigger: "若以后出现口渴", targetPathogenesis: "P1", action: "调整已用药味", reason: "未在本例成立" },
+  ];
+  const pruned = JSON.parse(
+    dropUnsupportedM04ModificationDirections(wrap(modifications), prior).split(S)[1].split(E)[0],
+  ).formula.modifications;
+  assert.deepEqual(pruned.map((item) => item.trigger), ["头痛反复发作1月"],
+    "只保留已在签名 M03 成立的条件性加减触发项");
+}
+
 // 单味缺陷不得放大成整方作废：方向未成立的**实际加味**按单味确定性剔除。
 // 与 dropUnsupportedM04ModificationDirections（加减建议侧）是同一条不变量的两半。
 // 实测（甲方 10 例 flash 生产构建）两例同类 0 味：麻黄汤基准 4/4 达标 + 川芎(blood_move)、
@@ -603,10 +699,10 @@ console.log(JSON.stringify({
 // 透明降级块内、块外的入口守卫、finalize 阶段的最后一次复核（后者会把刚刚受理的降级候选
 // 重新判死——实测网络医案 3，郁证-天王补心丹）。现在只有一处实现，这里钉住它的取值。
 {
-  const {
+const {
     canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion,
     m04FinalReviewQualityAnnotation,
-  } = await import("../src/lib/m04-repair-policy.ts");
+} = await import("../src/lib/m04-repair-policy.ts");
   // 受理：这三项在确定性层都有对应检查且已经跑过（方剂基准组成、君臣结构与病机引用、
   // 妊娠哺乳儿科门禁 + 十八反十九畏 + 逐味剂量上限）。复核在其上给的是质量意见。
   for (const issueCode of ["formula_composition_mismatch", "herb_plan_mismatch", "patient_context_mismatch"]) {

@@ -126,14 +126,19 @@ console.log(JSON.stringify({ suite: "stage-outcome", assertions: 24, failures: 0
   const source = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
   assert.match(source, /const contractRepairedReasons = new Map<string, number>\(\)/,
     "合同拒绝码账本必须存在——否则纯合同码的重试没有任何定点检测");
-  assert.match(source, /CONTRACT_REPAIR_MAX_PER_REASON = 2/,
-    "同码修复上限必须是 2：1 次会把随机性叙述缺陷（chain_incomplete）逼进安全有限页，无上限则回到无界重注入");
+  assert.match(source, /CONTRACT_REPAIR_MAX_PER_REASON = 1/,
+    "初始生成后同形合同缺陷只允许一次重生；第二次同形失败必须立即收敛，不得再掷骰子");
   assert.match(source, /isRepeatedContractRepair/, "重试门必须查询该账本");
-  // 三处重试入口都要接上，漏一处就等于账本形同虚设。
+  // 四处重试入口都要接上，漏一处就等于账本形同虚设。
   const gates = source.match(/isRepeatedContractRepair\(/g) || [];
-  assert.ok(gates.length >= 3, `只有 ${gates.length} 处重试门接了定点检测，应覆盖全部合同驱动入口`);
+  assert.ok(gates.length >= 4, `只有 ${gates.length} 处重试门接了定点检测，应覆盖全部合同驱动入口`);
   const notes = source.match(/noteContractRepair\(/g) || [];
-  assert.ok(notes.length >= 3, `只有 ${notes.length} 处记录了已修原因码，记录与查询必须成对`);
+  assert.ok(notes.length >= 4, `只有 ${notes.length} 处记录了已修原因码，记录与查询必须成对`);
+  assert.match(
+    source,
+    /shouldRunTargetedStructuredRetry\("diagnose", finalizedM03RejectionReason\)[\s\S]{0,350}?!isRepeatedContractRepair\(finalizedM03RejectionReason, false\)[\s\S]{0,650}?noteContractRepair\(finalizedM03RejectionReason, false\)/,
+    "finalize 后的 M03 重试入口也必须先查同码账本并在 provider 调用前登记",
+  );
   // 复核驱动的拒绝码不进账本：同一个宽泛码带不同子型仍算新信息，这条既有语义不得被改掉。
   assert.match(source, /!reviewDriven/, "复核驱动的拒绝码必须排除在账本之外");
   // 提前收敛不得绕过 T1 硬门：终态出口仍须重跑安全合同再决定受理或降级。

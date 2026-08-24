@@ -2362,7 +2362,7 @@ function normalizedModificationTrigger(value: string): string {
     .trim();
 }
 
-function finalModificationTriggerGrounded(trigger: string, prior?: M03ReasoningLike | null): boolean {
+export function finalModificationTriggerGrounded(trigger: string, prior?: M03ReasoningLike | null): boolean {
   if (!prior) return false;
   if (/(?:^|[，,；;])\s*(?:若|如|当|一旦)|复诊时|接诊时核实|症状变化时|出现时|加重时|未缓解时|以后出现/.test(trigger)) return false;
   const normalizedTrigger = normalizedModificationTrigger(trigger);

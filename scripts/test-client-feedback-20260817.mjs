@@ -417,7 +417,8 @@ assert.deepEqual(
   "一般状态与真实症状混在同一句时必须逐分句剥离，不能整句进入西医依据",
 );
 
-// 9. 急性外感数日内的短期眠差随外邪而来，不得机械加安神药；真实咳嗽兼症加减仍保留。
+// 9. 急性外感数日内的短期眠差随外邪而来，不得机械加安神药；
+// 即使病历原文曾有咳嗽，只要已签名 M03 未将它收入最终证据，M04 也不得重新引入对应加减。
 {
   const prior = {
     schemaVersion: "tcm-cdss-reasoning-v2",
@@ -440,7 +441,7 @@ assert.deepEqual(
       { trigger: "稍有咳嗽", action: "加紫菀", reason: "宣肺止咳", targetPathogenesis: "肺气失宣" },
     ] },
   }), prior));
-  assert.deepEqual(next.formula.modifications.map((item) => item.trigger), ["稍有咳嗽"]);
+  assert.deepEqual(next.formula.modifications.map((item) => item.trigger), []);
 }
 
 console.log(JSON.stringify({ suite: "client-feedback-20260817", failures: 0 }));

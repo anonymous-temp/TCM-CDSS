@@ -468,7 +468,7 @@ JSON要求：
 - overview.recommendedFormulaNames 与 formulaSelectionMode 是本例方名锁定的机器读取字段，必须认真填写：当上方【M03经典方检索】短名单中存在与本例证候-病机匹配的经典方时，recommendedFormulaNames 必须从短名单中逐字抄写 1–3 个最匹配方名（不得改写、不得自造、不得留空），formulaSelectionMode 对应填 single（主方明确）、combined（明确合方）或 alternatives（多候选并列待医生选择）；仅当短名单中确实没有方证匹配的条目时，recommendedFormulaNames 才允许留空并填 self_devised。不得把未收载方伪装成经典方，也不得在短名单有匹配方时仍默认自拟。
 - overview.recommendedFormulaDirection 必须经典方优先：方证匹配时优先选用有出处可考的经典名方（本地方剂目录收载的古代经典名方、核验补充方或组成一致的地方目录方），并直接写出方名（如“血府逐瘀汤加减”）；确无方证匹配的经典方时才按已锁定病机与治法自拟，自拟时只写“按已锁定病机与治法辨证组方”，不得罗列被排除的方名、书名或文献。
 - M03 pathogenesis.chain[].therapyDirection 必须逐节点具体且互不重复，不得给所有节点复写同一句治法；M04 将按各节点治法方向确定性生成君臣佐使方义，重复句式会直接造成方义重复。
-- M03 pathogenesis.chain[].patientFact 必须从患者临床资料或医生最新补充中逐字摘录一个短句；不得总结、改写、拼接或补出病历没有的事实。不确定内容只写入 uncertainties。每个保留节点必须完整填写 patientFact、syndromeEvidence、pathogenesis 和 therapyDirection；空节点不得输出。
+- M03 pathogenesis.chain 必须至少有 1 个完整节点。每个节点的 patientFact 和 syndromeEvidence 都必须各自从患者临床资料或医生最新补充中逐字摘录一段连续原文；两列可以引用同一段原文，但都不得总结、改写、拼接或补出病历没有的事实。pathogenesis 和 therapyDirection 才写推理与治法；不确定内容只写入 uncertainties。每个保留节点必须完整填写这四项；空节点不得输出。
 - 病机中的病因、诱因、脏腑归属和传变路径也必须受患者事实约束，不能因为某种症状“常见于”某证就补写。本例只有反酸、烧心、腹胀等表现时，最多形成“胃失和降、气机不畅”等症状直接支持的有限结论；没有情绪相关加重、胸胁或乳房胀痛、善太息、月经相关变化、脉弦等依据，不得推出肝气郁结/肝郁犯胃。食积、外感、痰湿、血瘀、寒热虚实等其他方向同理：没有对应阳性事实就降为中性功能性病机，并把待核实方向放入 uncertainties，不得写进主证、病机链或治法。
 - M03 必须利用与本病相关的病程轨迹和安全状态，包括起病时程、稳定/加重/缓解、复发或无新发等已记录事实；它们可进入 westernDiagnosis.supportingFacts 或相应病机节点，不得因只关注证型而遗漏。未记录的轨迹不得补写。
 - 必须逐条区分 current/recent、historical、negated 和 unknown。既往稳定疾病、后遗症、已缓解事件以及“当前稳定/无新发”只能作为背景、限制或鉴别边界；没有本次活动性变化时，不得升级为 westernDiagnosis.primary、主证候、P1 核心病机或主要治疗目标。
@@ -513,7 +513,7 @@ JSON要求：
 - M03 locationDifferentiation.details 按实际涉及病位逐项填写 location + basis，basis 用不超过60字的“患者事实 → 归属理由”提炼，禁止复制整段现病史；没有患者依据的病位不要列。若 primarySyndrome、overallPathogenesis 或 pathogenesis.chain 已明确写出心、肝、脾、肺、肾、胃、经络等受控病位，locationDifferentiation.items 必须同步列出相应病位，不能一边使用病位推理一边显示病位为空。natureDifferentiation.items 直接填写气虚、血虚、气滞、痰湿等病性；rootDeficiency/branchExcess 只供全案虚实关系归纳，不得把“本虚/标实”本身当作病性名称。病位或病性有合理临床归纳但缺少可逐字引用的直接依据时，保留模型归纳并标记 bounded，不得用关键词表删除；真正合理性由独立临床模型复核。
 - M03 pathogenesis.caseRelationship 用全案层级区分本证与主要表现：rootPattern 写核心证候或病机，mainManifestation 写主要中医病名/症状表现，relationship 解释二者关系。逐节点 biaoBen 已废弃，不得输出；pathogenesisType 只在时序或传变关系有明确意义时填写，不为凑标签强制填写。
 - M03 symptomClusters 用 0–6 组“患者症状组合 → 共同机制”归纳病机，每组 symptoms 只能取自病历同极性的已知表现；单个孤立症状或无法形成共同机制时可输出空数组。
-- M03 pathogenesis.chain[].patientFact 与 syndromeEvidence 只能引用病历实际记录、且**极性一致**的患者表现：**严禁写入病历已明确否认或根本未提及的症状/体征**。例如病历写“无自汗/否认盗汗/无明显寒热”，则 patientFact 和 syndromeEvidence 中都不得出现“自汗/盗汗/寒热”等被否认词，也不得因某证型的典型表现（如气虚多自汗、阴虚多盗汗）而把本例并未记录的表现当作患者事实或证候证据。证型典型表现若本例缺失，只能写入 pathogenesis.uncertainties。
+- M03 pathogenesis.chain[].patientFact 与 syndromeEvidence 只能引用病历实际记录、且**极性一致**的患者表现，并且两列都要各自能在病历中找到逐字连续原文：**严禁写入病历已明确否认或根本未提及的症状/体征**。例如病历写“无自汗/否认盗汗/无明显寒热”，则 patientFact 和 syndromeEvidence 中都不得出现“自汗/盗汗/寒热”等被否认词，也不得因某证型的典型表现（如气虚多自汗、阴虚多盗汗）而把本例并未记录的表现当作患者事实或证候证据。证型典型表现若本例缺失，只能写入 pathogenesis.uncertainties。
 - primarySyndromeBasis 已选入会直接改变表实/表虚或卫表固摄判断的“无汗/自汗”时，至少一个 pathogenesis.chain 节点的 patientFact 或 syndromeEvidence 必须逐字绑定该鉴别点；不得只在总览列出、却让下游病机和治法完全看不见它。盗汗等伴随表现是否进入主链由全案病机决定，不得一律强制占用主链节点。
 - evidenceLevel 只能使用 ${EVIDENCE_LEVELS.join("/")}。model_inference 仅表示病例内推理，不是“参考依据”；只有实际命中的指南、说明书、药品标签、文献、经典出处或知识库记录才可作为医生可见参考文献。
 - westernDiagnosis.primary.suggestedChecks 必须分层：先列与主诉直接相关的补充问诊、生命体征和查体；只有病例已有红旗、神经系统异常或明确鉴别指征时，才列具体 CT/MRI/增强扫描、经颅多普勒或成套实验室检查。资料稀疏且未见红旗时不得输出无差别的高级检查清单，只能写明出现何种阳性事实后再评估相应检查。
