@@ -3535,6 +3535,36 @@ async function callPrimaryTextModelStream(
           (opts.structuredStage === "prescribe" && initialM04ClinicalReviewRejected);
         const pendingRepairIsFixpoint = isRepeatedContractRepair(pendingRejectionReason, pendingReviewDriven);
         const pendingQualityRepairUnavailable = !qualityRepairAvailable(pendingRejectionReason);
+        // 质量修复预算可以显式设为 0（生产默认值），此时已登记的 T2/T3 说明项不应把一张
+        // 安全处方清成 0 味。这里不按拒绝码直接放行：validatedStructuredReasoning 会先用
+        // default-deny tier 表确认它不是 T1，再完整重跑剂量、配伍、特殊人群、方向与跨阶段
+        // 漂移等 T1 硬门。通过后仍进入正常 finalize、独立临床复核、attestation 与签名链。
+        if (
+          structuredSentinelIncomplete &&
+          finishReason === "stop" &&
+          opts.structuredStage === "prescribe" &&
+          !initialM04ClinicalReviewRejected &&
+          pendingQualityRepairUnavailable &&
+          pendingRejectionReason != null &&
+          qualityAnnotationCopy(pendingRejectionReason)
+        ) {
+          const qualityTierReasoning = validatedStructuredReasoning(
+            authoritativeContent,
+            "prescribe",
+            opts.structuredClinicalContext,
+            opts.structuredPriorReasoning,
+            true,
+            false,
+            false,
+            false,
+            true, // acceptM04QualityTierAfterRepair
+          );
+          if (qualityTierReasoning) {
+            structuredReasoning = qualityTierReasoning;
+            structuredSentinelIncomplete = false;
+            noteM04QualityTierAcceptance(pendingRejectionReason);
+          }
+        }
         if (pendingRepairIsFixpoint) {
           console.warn("[tcm-cdss:model] identical contract rejection repeated; skipping repair round", {
             stage: opts.structuredStage,
@@ -4954,7 +4984,13 @@ async function callPrimaryTextModelStream(
                 // 更糟的是它会把上面刚刚**带批注受理**的透明降级候选重新判死（实测网络医案 3，
                 // 郁证-天王补心丹：降级已受理，随后这里以 herb_plan_mismatch 作废整方）。
                 // 因此这里与降级块共用同一条分流规则；无路可修时按意见性质受理或作废。
-                const finalReviewAnnotation = repairRoundsExhausted
+                // A T2/T3 provider draft accepted solely because its quality-repair budget is
+                // unavailable has not repaired an independent reviewer rejection. Even if an
+                // earlier request left repairExhaustedOnEntry=true, that reviewer repair must stay
+                // fail-closed; otherwise no real attestation exists and the signer would mislabel
+                // the result as review unavailable. Only repaired/declassified paths that do not
+                // already carry a quality-tier waiver may use the bounded final-review policy.
+                const finalReviewAnnotation = repairRoundsExhausted && !m04QualityTierAcceptedAfterRepair
                   ? m04FinalReviewQualityAnnotation(review)
                   : undefined;
                 if (review.status === "repair" && finalReviewAnnotation) {

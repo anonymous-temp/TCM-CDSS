@@ -246,6 +246,24 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
+  /pendingQualityRepairUnavailable[\s\S]{0,1200}?validatedStructuredReasoning\([\s\S]{0,700}?true,\s*\/\/ acceptM04QualityTierAfterRepair[\s\S]{0,350}?structuredSentinelIncomplete = false;[\s\S]{0,250}?noteM04QualityTierAcceptance\(pendingRejectionReason\)/,
+  "质量修复预算为 0 时，首轮 M04 的已登记 T2/T3 项也必须在完整重跑 T1 硬门后进入带范围受理，不能清空安全处方",
+);
+const repairRoundsStart = diagnosisApiSource.indexOf("const repairRoundsExhausted");
+const repairRoundsEnd = diagnosisApiSource.indexOf("let truncated", repairRoundsStart);
+assert.ok(repairRoundsStart >= 0 && repairRoundsEnd > repairRoundsStart, "必须能定位 M04 修复耗尽判据");
+assert.doesNotMatch(
+  diagnosisApiSource.slice(repairRoundsStart, repairRoundsEnd),
+  /m04QualityTierAcceptedAfterRepair/,
+  "质量修复预算耗尽不得伪装成独立临床复核也已耗尽；终审返回 repair 时必须继续 fail-closed",
+);
+assert.match(
+  diagnosisApiSource,
+  /const finalReviewAnnotation = repairRoundsExhausted && !m04QualityTierAcceptedAfterRepair\s*\n\s*\? m04FinalReviewQualityAnnotation\(review\)/,
+  "即使跨请求状态已标记 repairExhaustedOnEntry，零预算质量档候选的终审 repair 也不得带批注放行",
+);
+assert.match(
+  diagnosisApiSource,
   /shouldUseM04FinalizeSafetyFloor\([\s\S]*?m04QualityTierAcceptedAfterRepair/,
   "修复后受理与最终复验必须使用同一安全口径",
 );
