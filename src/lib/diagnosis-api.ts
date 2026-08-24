@@ -14,9 +14,9 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
+import { affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03PreservedParallelHalfIssue, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
 import { parseStreamModuleDraftFrame, STREAM_REPLACE_MARKER, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
-import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
@@ -689,6 +689,24 @@ export function shouldRegenerateM03ClinicalRepair(
   return stage === "diagnose" &&
     rejectionReason === "m03_tcm_reasoning_semantic_review" &&
     clinicalReviewGuidance.includes("独立复核的受控定位标签");
+}
+
+/**
+ * M03 并行生成已把中医与西医字段的所有权分开。`chain_empty` 只是中医半的硬合同
+ * 缺口；若还让模型重写整份 M03，它会重复生成已合格的 westernDiagnosis/management，
+ * 实测单轮约 75s，两轮直接耗尽 180s 编排时限。这里只决定“重生成中医半”；
+ * 合并后仍会重跑全量事实接地、T1 合同、独立复核与签名，不合成任何服务端临床结论。
+ */
+export function shouldRepairM03TcmHalfOnly(
+  stage: "diagnose" | "prescribe" | undefined,
+  rejectionReason: string,
+  halfPromptsAvailable: boolean,
+  regenerateFromFacts: boolean,
+  preservedHalfValidated: boolean,
+): boolean {
+  return stage === "diagnose" && halfPromptsAvailable && preservedHalfValidated && (
+    regenerateFromFacts || rejectionReason === "m03_chain_empty"
+  );
 }
 
 /**
@@ -1741,20 +1759,39 @@ async function retryCompletePrimaryResponse(
       rejectionReason,
       clinicalReviewGuidance,
     );
+    const rejectedM03Reasoning = structuredStage === "diagnose" && rejectedJson
+      ? m03ReasoningFromStructuredContent(wrapDiagnoseJsonObject(rejectedJson, "diagnose"))
+      : undefined;
+    const preservedM03HalfValidated = Boolean(rejectedM03Reasoning) &&
+      m03PreservedParallelHalfIssue(rejectedM03Reasoning, clinicalContext) == null;
     // 并行 M03 的复核重生成只重跑中医半：触发该路径的拒绝码（m03_tcm_reasoning_semantic_review）
-    // 按构造只针对中医推理，已通过结构校验的西医半从被拒 JSON 原样保留、合并复用。
+    // 按构造只针对中医推理；旧候选的西医半与 management 还必须独立通过自身合同，不能用
+    // 首个 rejectionReason 推断它们合格（chain_empty 在全合同里排在 Western 检查之前）。
     // 输出体量从整份载荷降到中医半，重生成轮从 ~55s 降到与首轮并行段同量级。
-    const regenerateTcmHalfOnly = regenerateM03FromFacts && structuredStage === "diagnose" && Boolean(m03HalfPrompts);
-    const repairPrompt = regenerateM03FromFacts
+    const regenerateTcmHalfOnly = shouldRepairM03TcmHalfOnly(
+      structuredStage,
+      rejectionReason || "",
+      Boolean(m03HalfPrompts),
+      regenerateM03FromFacts,
+      preservedM03HalfValidated,
+    );
+    const repairPrompt = regenerateTcmHalfOnly
       ? [
-          regenerateTcmHalfOnly ? m03HalfPrompts!.tcm : prompt,
-          regenerateTcmHalfOnly
+          m03HalfPrompts!.tcm,
+          regenerateM03FromFacts
             ? "【M03独立复核后重新生成·中医半】上一候选的中医推理超出患者事实边界。完全丢弃上一候选的中医半，不要沿用其证型、病位病性、病机、治法或方名；从患者事实重新生成中医半 JSON（顶层仍只含 schemaVersion、stage、overview、pathogenesis、therapy、formula、nonPharma、lineageAdaptation；westernDiagnosis 与 management 由服务端保留，不得输出）。"
-            : "【M03独立复核后重新生成】上一候选的中医推理超出患者事实边界。完全丢弃上一候选，不要沿用其证型、病位病性、病机、治法或方名；从患者事实重新生成一份完整的 diagnose JSON 对象。",
+            : "【M03硬合同修复·中医半】上一候选在患者事实接地后 pathogenesis.chain 为空。丢弃上一候选的中医半，从患者事实重新生成中医半 JSON；westernDiagnosis 与 management 已通过独立生成并由服务端保留，不得输出。",
           boundedReviewGuidance,
-          regenerateTcmHalfOnly
-            ? "患者事实边界中每一项会改变辨证深度或随访的当前阳性事实，都必须进入 primarySyndromeBasis、pathogenesis.chain.patientFact 或 uncertainties 至少一处；只使用原文直接支持的最浅结论。"
-            : "患者事实边界中的每一项会改变诊断、风险、辨证深度或随访的当前阳性事实，都必须进入 westernDiagnosis 依据/鉴别、primarySyndromeBasis、pathogenesis.chain.patientFact 或 uncertainties 至少一处；只使用原文直接支持的最浅结论。",
+          clinicalRepairHint,
+          "患者事实边界中每一项会改变辨证深度或随访的当前阳性事实，都必须进入 primarySyndromeBasis、pathogenesis.chain.patientFact 或 uncertainties 至少一处；只使用原文直接支持的最浅结论。",
+          "只输出一个完整合法 JSON 对象，不要输出 sentinel、正文、代码围栏或额外说明。",
+        ].filter(Boolean).join("\n\n")
+      : regenerateM03FromFacts
+      ? [
+          prompt,
+          "【M03独立复核后重新生成】上一候选的中医推理超出患者事实边界。完全丢弃上一候选，不要沿用其证型、病位病性、病机、治法或方名；从患者事实重新生成一份完整的 diagnose JSON 对象。",
+          boundedReviewGuidance,
+          "患者事实边界中的每一项会改变诊断、风险、辨证深度或随访的当前阳性事实，都必须进入 westernDiagnosis 依据/鉴别、primarySyndromeBasis、pathogenesis.chain.patientFact 或 uncertainties 至少一处；只使用原文直接支持的最浅结论。",
           "只输出一个完整合法 JSON 对象，不要输出 sentinel、正文、代码围栏或额外说明。",
         ].filter(Boolean).join("\n\n")
       : rejectedJson
@@ -2670,6 +2707,18 @@ async function callPrimaryTextModelStream(
           transformed = applyDeterministicFormulaReferences(transformed);
           transformed = synchronizeVisibleClinicalSummary(transformed, "diagnose", opts.structuredClinicalContext || "", opts.structuredCaseState);
           if (opts.outputTransform) transformed = opts.outputTransform(transformed);
+          const governedDifferentials = applyGovernedM03DiseaseDifferentialBoundary(
+            transformed,
+            opts.structuredCaseState,
+          );
+          if (governedDifferentials !== transformed) {
+            transformed = synchronizeVisibleClinicalSummary(
+              governedDifferentials,
+              "diagnose",
+              opts.structuredClinicalContext || "",
+              opts.structuredCaseState,
+            );
+          }
           const reasoning = validatedStructuredReasoning(
             transformed,
             "diagnose",

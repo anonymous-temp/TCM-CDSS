@@ -1,6 +1,14 @@
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
-import { evaluateSafetyGate, hasDeterministicCriticalVitalRedFlag, withSafetyGate } from "@/lib/diagnosis-safety";
+import { derivePrescriptionPermission, evaluateSafetyGate, hasDeterministicCriticalVitalRedFlag, withSafetyGate } from "@/lib/diagnosis-safety";
+
+function prescriptionPermissionView(state: ReturnType<typeof withSafetyGate>) {
+  const permission = derivePrescriptionPermission(state);
+  return {
+    candidateMode: permission.candidateMode,
+    formalAdoption: permission.formalAdoption,
+  };
+}
 
 export async function POST(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
@@ -15,6 +23,8 @@ export async function POST(req: Request) {
       semanticStatus: "skipped_deterministic_critical_vital",
       clinicalFacts: parsed.caseState.clinicalFacts || null,
       safetyGate: deterministicGate,
+      operationalCompleteness: deterministic.completeness,
+      prescriptionPermission: prescriptionPermissionView(deterministic),
       latencyMs: Date.now() - startedAt,
     });
   }
@@ -27,6 +37,8 @@ export async function POST(req: Request) {
     semanticStatus: enriched.clinicalFacts?.semanticStatus || "unavailable",
     clinicalFacts: enriched.clinicalFacts || null,
     safetyGate: gated.safetyGate,
+    operationalCompleteness: gated.completeness,
+    prescriptionPermission: prescriptionPermissionView(gated),
     latencyMs: Date.now() - startedAt,
   });
 }

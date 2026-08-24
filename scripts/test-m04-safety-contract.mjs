@@ -232,6 +232,15 @@ const deferredLabelIndex = prescribeRouteSource.indexOf("const safetyIssue = isM
 const finalIssueIndex = prescribeRouteSource.indexOf("const issue = safetyIssue || formulaCompilationContractIssue");
 assert.ok(finalSafetyIndex >= 0 && deferredLabelIndex > finalSafetyIndex && finalIssueIndex > deferredLabelIndex,
   "M04 最终出口必须先无条件重跑 safetyIssue，再进入质量合同分级");
+const provenanceEnrichmentIndex = prescribeRouteSource.indexOf("const enriched = enrichPrescriptionProvenance(");
+const postEnrichmentPruneIndex = prescribeRouteSource.indexOf("const directionPruned = dropUnsupportedM04CandidateHerbs(enriched");
+const postEnrichmentParseIndex = prescribeRouteSource.indexOf("const reasoning = parseReasoningV2(directionPruned)");
+assert.ok(
+  provenanceEnrichmentIndex >= 0 &&
+  postEnrichmentPruneIndex > provenanceEnrichmentIndex &&
+  postEnrichmentParseIndex > postEnrichmentPruneIndex,
+  "M04 必须在药味知识补齐后再做 deletion-only 方向剔除，并让最终合同消费剔除后的字节",
+);
 
 const diagnosisApiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
 assert.match(

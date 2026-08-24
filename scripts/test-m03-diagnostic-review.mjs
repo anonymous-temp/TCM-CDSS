@@ -20,6 +20,7 @@ import {
   preflightM03DiagnosticReview,
 } from "../src/lib/m03-diagnostic-review.ts";
 import { canRebindM04ClinicalReview, m04ClinicalReviewDiffPaths } from "../src/lib/m04-clinical-review.ts";
+import { m03PreservedParallelHalfIssue } from "../src/lib/diagnosis-stage-contract.ts";
 
 const evidence = { evidenceLevel: "model_inference", source: "本例四诊资料", confidence: "中" };
 const reviewed = {
@@ -373,7 +374,7 @@ const jiti = createJiti(import.meta.url, {
     "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
   },
 });
-const { callDiagnosisStream, clinicalReviewModelCandidates, clinicalReviewRetryPlan, m03ReviewCanDowngradeToAdvisory, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
+const { callDiagnosisStream, clinicalReviewModelCandidates, clinicalReviewRetryPlan, m03ReviewCanDowngradeToAdvisory, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRepairM03TcmHalfOnly, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
 assert.deepEqual(clinicalReviewRetryPlan(0, 30_000, 35_000), { attemptCount: 0, chainBudgetMs: 35_000 });
 assert.deepEqual(clinicalReviewRetryPlan(2, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 35_000 });
 assert.deepEqual(clinicalReviewRetryPlan(1, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 50_000 }, "one independent reviewer gets one bounded transient retry");
@@ -381,6 +382,23 @@ assert.deepEqual(clinicalReviewRetryPlan(1, 45_000, 35_000), { attemptCount: 2, 
 assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签：phlegm_damp_overreach"), true, "TCM semantic overreach is regenerated from patient facts instead of editing the biased candidate");
 assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_primary_diagnosis_semantic_review", "独立复核的受控定位标签"), false, "western label repair retains its field-targeted path");
 assert.equal(shouldRegenerateM03ClinicalRepair("prescribe", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签"), false, "M04 repair behavior is unchanged");
+assert.equal(m03PreservedParallelHalfIssue(reviewed, reviewedClinicalContext), undefined,
+  "the owner-scoped validator accepts a complete Western/management half independently of the TCM chain");
+assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_chain_empty", true, false, true), true,
+  "a chain-only hard-contract gap regenerates only the TCM half when parallel ownership is available");
+assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_chain_empty", false, false, true), false,
+  "single-shot deployments retain the existing full M03 repair fallback");
+assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_tcm_reasoning_semantic_review", true, true, true), true,
+  "review-driven TCM regeneration continues to use the TCM half");
+assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_western_support_empty", true, false, true), false,
+  "a Western-half contract gap must never be routed to the TCM-only repair");
+const chainAndWesternGap = structuredClone(reviewed);
+chainAndWesternGap.pathogenesis.chain = [];
+chainAndWesternGap.westernDiagnosis.primary.supportingFacts = [];
+assert.equal(m03PreservedParallelHalfIssue(chainAndWesternGap, reviewedClinicalContext), "western_support_empty",
+  "the preserved-half validator exposes a Western gap hidden behind the full contract's earlier chain_empty result");
+assert.equal(shouldRepairM03TcmHalfOnly("diagnose", "m03_chain_empty", true, false, false), false,
+  "chain_empty plus any preserved-half gap must use the existing full M03 repair");
 assert.equal(
   m03ReviewCanDowngradeToAdvisory(
     { status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: "phlegm_damp_overreach" },
@@ -778,6 +796,36 @@ const parseSentinelReasoning = (content) => JSON.parse(
     content.indexOf("<!-- DIAGNOSIS_JSON_END -->"),
   ).trim(),
 );
+const { applyGovernedM03DiseaseDifferentialBoundary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+const governedDifferentialState = {
+  completeness: { level: "C" },
+  safetyGate: { status: "ready" },
+};
+const emptyDiseaseDifferentialReasoning = structuredClone(reviewed);
+emptyDiseaseDifferentialReasoning.overview.tcmDiseaseDifferentials = [];
+const emptyDiseaseDifferentialContent = `## 辨病辨证\n\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(emptyDiseaseDifferentialReasoning, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const completedDiseaseDifferentialContent = applyGovernedM03DiseaseDifferentialBoundary(
+  emptyDiseaseDifferentialContent,
+  governedDifferentialState,
+);
+const completedDiseaseDifferentialReasoning = parseSentinelReasoning(completedDiseaseDifferentialContent);
+assert.ok(completedDiseaseDifferentialReasoning.overview.tcmDiseaseDifferentials.length > 0);
+assert.equal(
+  canRebindM03DiagnosticReview(emptyDiseaseDifferentialReasoning, completedDiseaseDifferentialReasoning),
+  false,
+  "adding governed disease differentials is a review-owned clinical mutation and cannot reuse the old review",
+);
+const idempotentDiseaseDifferentialContent = applyGovernedM03DiseaseDifferentialBoundary(
+  completedDiseaseDifferentialContent,
+  governedDifferentialState,
+);
+const idempotentDiseaseDifferentialReasoning = parseSentinelReasoning(idempotentDiseaseDifferentialContent);
+assert.equal(idempotentDiseaseDifferentialContent, completedDiseaseDifferentialContent);
+assert.equal(
+  canRebindM03DiagnosticReview(completedDiseaseDifferentialReasoning, idempotentDiseaseDifferentialReasoning),
+  true,
+  "the reviewer-consumed completion must be an emission-time semantic fixed point",
+);
 assert.equal(
   canRebindM03DiagnosticReview(parseSentinelReasoning(finalizedOnce), parseSentinelReasoning(finalizedTwice)),
   true,
@@ -878,4 +926,4 @@ assert.deepEqual(
   [],
 );
 
-console.log(JSON.stringify({ cases: 105, failures: 0 }));
+console.log(JSON.stringify({ cases: 116, failures: 0 }));

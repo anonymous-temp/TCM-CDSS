@@ -22,6 +22,7 @@
  * 独立硬边界（儿科/妊娠/语义筛查/高危剂量）**不受任何一个开关影响**——这正是本套件的重点。
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createJiti } from "jiti";
@@ -145,8 +146,39 @@ for (const value of [undefined, "withhold", "allow"]) {
 assert.equal(benignModes.size, 1, `非红旗病例的权限不得随红旗剂量开关变化（实得 ${[...benignModes].join("/")}）`);
 assert.notEqual([...benignModes][0], "non_dose_only", "普通门诊病例不得因本开关被降级");
 
+// ── 6. 生产 smoke 的完整链夹具必须真的走 C + ready + full_dose ─────────
+// 不能只看 M03 有签名、M04 有药味：needs_information 下的 limited_dose 也可以同时满足这两项。
+const PROD_SMOKE_FULL_DOSE_CASE = {
+  id: "prod-smoke-preflight-contract",
+  customerId: "test-customer",
+  patient: { sex: "女", age: 28 },
+  chiefComplaint: "产后2月余，头痛反复发作1月",
+  symptoms: {
+    presentHistory: "产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华。否认突发最剧烈头痛、胸痛、呼吸困难、晕厥及意识障碍。",
+    general: "神疲乏力、心悸失眠、面色少华",
+  },
+  tongue: "舌淡苔薄白",
+  pulse: "脉细弱",
+  conversation: [],
+  vitals: { T: "36.8℃", P: "78次/分", R: "18次/分", BP: "112/72mmHg", SpO2: "98%" },
+  pastHistory: "否认高血压、糖尿病及神经系统疾病史。现否认妊娠，未哺乳，近期无备孕计划。否认打鼾、睡眠中呼吸暂停和日间嗜睡。",
+  medicationHistory: "本次尚未使用其他药物。",
+  allergyHistory: "否认药物过敏。",
+};
+const smokeGated = withSafetyGate(PROD_SMOKE_FULL_DOSE_CASE);
+assert.equal(smokeGated.completeness.level, "C", "smoke 夹具必须命中服务端权威 C 级完整度");
+assert.equal(smokeGated.safetyGate.status, "ready", "smoke 夹具必须通过服务端全部安全预检");
+assert.equal(derivePrescriptionPermission(smokeGated).candidateMode, "full_dose", "smoke 夹具必须覆盖 full_dose 而非 limited_dose");
+
+const redFlagsRouteSource = readFileSync(path.join(repoRoot, "src/app/api/diagnosis/red-flags/route.ts"), "utf8");
+assert.equal((redFlagsRouteSource.match(/operationalCompleteness:/g) || []).length, 2,
+  "red-flags 的常规与确定性危急早返回都必须回传权威完整度");
+assert.equal((redFlagsRouteSource.match(/prescriptionPermission:/g) || []).length, 2,
+  "red-flags 的两条返回路径都必须回传处方权限档位");
+
 console.log("test-redflag-dose-authorization: OK", {
   switchValues: 3,
   independentBoundaries: ["pediatric", "pregnancy"],
   axesKeptSeparate: true,
+  prodSmokeFullDosePreflight: true,
 });

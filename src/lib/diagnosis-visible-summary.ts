@@ -1,5 +1,5 @@
 import { discriminatingWesternSupportClauses, narrativeMostlyCopies, NATURE_MECHANISM_PHRASE as MECHANISM_PREDICATE, herbFunctionMatchesKnowledge, isAmbiguousM03WesternPrimaryLabel, isDisplayableClinicalText, isNondiscriminatingWesternSupportingFact, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03SemanticIssue, m03WesternClinicalRationaleIssue, m03WesternDurationIssue, narrativeFingerprint, NATURE_MECHANISM_PHRASE, patientFactSourceQuote } from "./diagnosis-stage-contract";
-import { isGovernedTcmDiseaseName } from "./clinical-terminology";
+import { governedTcmDiseaseNeighbors, isGovernedTcmDiseaseName } from "./clinical-terminology";
 import { decoctionRuleForHerb, decoctionRuleSatisfied, requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbFunctionDisplayText, isKnownTcmHerbName } from "./tcm-knowledge";
 import { formulaSyndromeConflictNotice, formulaSyndromeConflicts } from "./formula-syndrome-consistency";
@@ -33,6 +33,52 @@ import { normalizeReasoningV2 } from "./diagnosis-types";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
+
+/**
+ * C + ready 的完整诊断若模型在修复耗尽后仍漏掉病名级鉴别，用受治理病名层级补一组
+ * “待鉴别”边界项。这里只建立比较任务，不断言相邻病名已经出现在患者身上，也不补证候、
+ * 治法或方药。它专门关闭 `tcm_disease_differentials_missing` 被 T2 批注受理后仍签出空数组的
+ * 最后一公里；A/B、红旗、unresolved 与词表无邻居的病例保持原样。
+ *
+ * 本投影必须在独立复核之前运行，因为病名级鉴别属于 reviewer 所有的 overview 临床载荷。
+ * 签名只能覆盖 reviewer 实际看过的补全结果，不允许在复核后仅重绑 payload hash。
+ */
+export function applyGovernedM03DiseaseDifferentialBoundary(content: string, state?: CaseState): string {
+  if (state?.completeness?.level !== "C" || state.safetyGate?.status !== "ready") return content;
+  return content.replace(
+    /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
+    (match, jsonText: string) => {
+      try {
+        const reasoning = JSON.parse(jsonText) as Record<string, unknown>;
+        if (reasoning.stage !== "diagnose") return match;
+        const overview = reasoning.overview && typeof reasoning.overview === "object" && !Array.isArray(reasoning.overview)
+          ? reasoning.overview as Record<string, unknown>
+          : undefined;
+        if (!overview || overview.primarySyndromeResolution === "unresolved") return match;
+        const existing = Array.isArray(overview.tcmDiseaseDifferentials)
+          ? overview.tcmDiseaseDifferentials
+          : [];
+        if (existing.length > 0) return match;
+        const currentDisease = typeof overview.tcmDiseaseName === "string"
+          ? overview.tcmDiseaseName.trim()
+          : "";
+        if (!currentDisease) return match;
+        const neighbors = governedTcmDiseaseNeighbors(currentDisease).slice(0, 2);
+        if (neighbors.length === 0) return match;
+        overview.tcmDiseaseDifferentials = neighbors.map(({ canonical }) => ({
+          diseaseName: canonical,
+          typicalManifestation: "该病名与当前工作病名的临床表现可能有交叉；其典型表现需结合诊断要点核对，不作为本例已出现的患者事实。",
+          reason: `“${canonical}”与当前工作病名“${currentDisease}”的症状表现可能相近，需完成病名级鉴别。`,
+          distinguishingPoints: "现有资料不足以确诊或排除该相邻病名；需结合主症形态、起病方式、病程演变及危险信号，由接诊医生核实。",
+          nextCheck: "补充主症形态、起病方式和病程演变；若出现突发剧烈症状、局灶神经功能缺损或意识异常，立即按急症流程评估。",
+        }));
+        return `${START_MARKER}\n${JSON.stringify(reasoning, null, 2)}\n${END_MARKER}`;
+      } catch {
+        return match;
+      }
+    },
+  );
+}
 
 /**
  * Product decision table for M03 specificity:

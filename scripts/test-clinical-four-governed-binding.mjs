@@ -37,6 +37,8 @@ const { chiefComplaintAnchor, locationItemsCoverChiefComplaintAnchor } =
   await import("../src/lib/tcm-chief-complaint-anchor.ts");
 const { rejectionTier } = await import("../src/lib/diagnosis-rejection-tiers.ts");
 const { structuredClinicalRepairHint } = await import("../src/lib/structured-clinical-repair.ts");
+const { applyGovernedM03DiseaseDifferentialBoundary } =
+  await import("../src/lib/diagnosis-visible-summary.ts");
 
 let checks = 0;
 const check = (fn) => { fn(); checks += 1; };
@@ -405,6 +407,33 @@ check(() => assert.equal(
   "tcm_disease_differentials_missing",
   "签名病名在词表中存在相邻病名却不给病名鉴别 → 命中",
 ));
+check(() => {
+  const missing = mutate((r) => { r.overview.tcmDiseaseDifferentials = []; });
+  const wrapped = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(missing)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const completed = applyGovernedM03DiseaseDifferentialBoundary(wrapped, {
+    completeness: { level: "C" },
+    safetyGate: { status: "ready" },
+  });
+  const parsed = JSON.parse(completed.match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "{}");
+  assert.ok(parsed.overview.tcmDiseaseDifferentials.length >= 1 && parsed.overview.tcmDiseaseDifferentials.length <= 3,
+    "C + ready 的最终签名前必须用受治理相邻病名补足 1–3 条待鉴别边界项");
+  assert.ok(parsed.overview.tcmDiseaseDifferentials.every((item) => isGovernedTcmDiseaseName(item.diseaseName)),
+    "服务端补入的每一项都必须是受治理病名，不能把证型写进病名鉴别");
+  assert.ok(parsed.overview.tcmDiseaseDifferentials.every((item) =>
+    /不足以确诊或排除/.test(item.distinguishingPoints) && /急症流程/.test(item.nextCheck)),
+  "确定性补全只能声明待鉴别与安全动作，不能伪造患者阴性或确诊相邻病名");
+});
+check(() => {
+  const missing = mutate((r) => { r.overview.tcmDiseaseDifferentials = []; });
+  const wrapped = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(missing)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  for (const state of [
+    { completeness: { level: "B" }, safetyGate: { status: "needs_information" } },
+    { completeness: { level: "C" }, safetyGate: { status: "red_flag" } },
+  ]) {
+    assert.equal(applyGovernedM03DiseaseDifferentialBoundary(wrapped, state), wrapped,
+      "A/B 或红旗降级态不得被病名鉴别补全重新抬高具体度");
+  }
+});
 check(() => assert.equal(
   m03SemanticIssue(mutate((r) => {
     r.overview.tcmDiseaseDifferentials = [

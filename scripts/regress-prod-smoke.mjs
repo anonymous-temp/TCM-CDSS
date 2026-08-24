@@ -29,7 +29,14 @@ const HEADERS = {
   "x-cdss-customer-id": CUSTOMER_ID,
   ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}),
 };
-const FIRST_CONTENT_SLO_MS = Number(process.env.PROD_SMOKE_FIRST_CONTENT_SLO_MS || 5_000);
+// 始终量真实模型临床正文首字，不把 5s 服务端心跳当成模型输出。
+// 对外文档尚未规定模型首字的毫秒级 SLO；默认只强制所有样本可观测并报告 P95。
+// 若租户/运维已签订具体阈值，通过环境变量显式启用阻断门。
+const FIRST_CONTENT_SLO_RAW = (process.env.PROD_SMOKE_FIRST_CONTENT_SLO_MS || "").trim();
+const FIRST_CONTENT_SLO_MS = FIRST_CONTENT_SLO_RAW ? Number(FIRST_CONTENT_SLO_RAW) : null;
+if (FIRST_CONTENT_SLO_MS != null && (!Number.isFinite(FIRST_CONTENT_SLO_MS) || FIRST_CONTENT_SLO_MS <= 0)) {
+  throw new Error("PROD_SMOKE_FIRST_CONTENT_SLO_MS must be a positive number when configured");
+}
 const M03_COMPLETION_SLO_MS = Number(process.env.PROD_SMOKE_M03_COMPLETION_SLO_MS || 60_000);
 const M04_COMPLETION_SLO_MS = Number(process.env.PROD_SMOKE_M04_COMPLETION_SLO_MS || 90_000);
 const PROD_SMOKE_SAMPLES = Math.max(1, Math.min(20, Number.parseInt(process.env.PROD_SMOKE_SAMPLES || "5", 10) || 5));
@@ -98,6 +105,17 @@ async function callStage(path, caseState) {
   return { status: 200, markdown, structured, responseHeaderMs, firstContentMs, modelFirstContentMs, durationMs };
 }
 
+async function callSafetyPreflight(caseState) {
+  const startedAt = Date.now();
+  const response = await fetch(`${BASE_URL}/api/diagnosis/red-flags`, {
+    method: "POST",
+    headers: HEADERS,
+    body: JSON.stringify({ caseState }),
+  });
+  const body = await response.json().catch(() => null);
+  return { status: response.status, body, durationMs: Date.now() - startedAt };
+}
+
 /** 内部工程标签:内部分级枚举等绝不能出现在医生可见正文里。 */
 const INTERNAL_TAG = /(?:^|[\s（(【|])L[0-4](?:$|[\s）)】|，,。；;])/;
 
@@ -121,17 +139,45 @@ for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
     patient: { sex: "女", age: 28 },
     chiefComplaint: "产后2月余，头痛反复发作1月",
     symptoms: {
-      现病史: "产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华",
-      既往史: "否认高血压、糖尿病病史",
+      presentHistory: "产后2月余，近1月头痛反复，劳累后加重，伴神疲乏力、心悸失眠、面色少华。否认突发最剧烈头痛、胸痛、呼吸困难、晕厥及意识障碍。",
+      general: "神疲乏力、心悸失眠、面色少华",
     },
     tongue: "舌淡苔薄白",
     pulse: "脉细弱",
     conversation: [],
-    vitals: {},
+    vitals: { T: "36.8℃", P: "78次/分", R: "18次/分", BP: "112/72mmHg", SpO2: "98%" },
+    pastHistory: "否认高血压、糖尿病及神经系统疾病史。现否认妊娠，未哺乳，近期无备孕计划。否认打鼾、睡眠中呼吸暂停和日间嗜睡。",
+    medicationHistory: "本次尚未使用其他药物。",
+    allergyHistory: "否认药物过敏。",
   };
   console.log(`[prod-smoke] ${BASE_URL} sample=${sampleIndex + 1}/${PROD_SMOKE_SAMPLES} case=${caseId}`);
 
-  const m03 = await callStage("diagnose", baseCase);
+  const preflight = await callSafetyPreflight(baseCase);
+  check(`${label} 安全预检返回 200`, preflight.status === 200, JSON.stringify(preflight.body || {}).slice(0, 200));
+  const preflightReady = preflight.status === 200
+    && preflight.body?.operationalCompleteness?.level === "C"
+    && preflight.body?.safetyGate?.status === "ready"
+    && preflight.body?.prescriptionPermission?.candidateMode === "full_dose"
+    && preflight.body?.available === true;
+  check(`${label} 权威预检为 C + ready + full_dose 且语义筛查可用`, preflightReady,
+    JSON.stringify({
+      available: preflight.body?.available,
+      completeness: preflight.body?.operationalCompleteness,
+      gate: preflight.body?.safetyGate?.status,
+      candidateMode: preflight.body?.prescriptionPermission?.candidateMode,
+    }));
+  if (!preflightReady) {
+    samples.push({ caseId, preflight: { status: preflight.status, durationMs: preflight.durationMs } });
+    continue;
+  }
+  const preparedCase = {
+    ...baseCase,
+    clinicalFacts: preflight.body.clinicalFacts,
+    completeness: preflight.body.operationalCompleteness,
+    safetyGate: preflight.body.safetyGate,
+  };
+
+  const m03 = await callStage("diagnose", preparedCase);
   check(`${label} M03 返回 200`, m03.status === 200, m03.error);
   if (m03.status !== 200) {
     samples.push({ caseId, m03: { status: m03.status, timing: m03 } });
@@ -142,16 +188,25 @@ for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
   check(`${label} M03 带合同签名`, Boolean(r3?.contractSignature), "contractSignature 缺失");
   check(`${label} M03 主证非空`, Boolean(r3?.overview?.primarySyndrome), r3?.overview?.primarySyndrome);
   check(`${label} M03 正文无工程标签泄漏`, !INTERNAL_TAG.test(m03.markdown), m03.markdown.match(INTERNAL_TAG)?.[0]);
+  const fullSpecificityM03 = r3?.overview?.primarySyndromeResolution !== "unresolved"
+    && r3?.overview?.primarySyndrome !== "症状级工作判断";
+  check(`${label} 全链处方 fixture 未进入信息不足/红旗降级`, fullSpecificityM03,
+    `${r3?.overview?.primarySyndromeResolution || ""}/${r3?.overview?.primarySyndrome || ""}`);
+  if (!fullSpecificityM03) {
+    samples.push({ caseId, m03: { timing: m03, primarySyndrome: r3?.overview?.primarySyndrome } });
+    continue;
+  }
 
   const differentials = r3?.overview?.tcmDiseaseDifferentials || [];
   const locations = r3?.pathogenesis?.locationDifferentiation?.items || [];
   const therapyText = `${r3?.therapy?.overallPrinciple || ""}｜${r3?.therapy?.overallMethod || ""}`;
-  check(`${label} 病名鉴别非空（辨病再辨证）`, differentials.length > 0, JSON.stringify(differentials).slice(0, 120));
+  check(`${label} 病名鉴别非空（辨病再辨证）`, differentials.length > 0,
+    JSON.stringify(differentials).slice(0, 120));
   check(`${label} 病位含头部（主症所在）`, locations.some((item) => /头|脑|清窍/.test(String(item))), JSON.stringify(locations));
   check(`${label} 治法非空`, therapyText.replace("｜", "").trim().length > 0, therapyText);
   if (r3?.contractSignature) signedM03Count += 1;
 
-  const m04 = await callStage("prescribe", { ...baseCase, reasoningDiagnose: r3 });
+  const m04 = await callStage("prescribe", { ...preparedCase, reasoningDiagnose: r3 });
   check(`${label} M04 返回 200（签名链走通）`, m04.status === 200, m04.error);
   let candidate = null;
   if (m04.status === 200) {
@@ -167,6 +222,12 @@ for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
   }
   samples.push({
     caseId,
+    preflight: {
+      durationMs: preflight.durationMs,
+      completeness: preflight.body.operationalCompleteness.level,
+      gate: preflight.body.safetyGate.status,
+      candidateMode: preflight.body.prescriptionPermission.candidateMode,
+    },
     m03: {
       timing: {
         uiFirstContentMs: m03.firstContentMs,
@@ -207,10 +268,12 @@ check("全部 M03 都上报真实模型首字", m03ModelFirst.length === PROD_SM
   `observed=${m03ModelFirst.length}/${PROD_SMOKE_SAMPLES}`);
 check("全部 M04 都上报真实模型首字", m04ModelFirst.length === PROD_SMOKE_SAMPLES,
   `observed=${m04ModelFirst.length}/${PROD_SMOKE_SAMPLES}`);
-check("真实模型首字均 < 5s",
-  [...m03ModelFirst, ...m04ModelFirst].length === PROD_SMOKE_SAMPLES * 2 &&
-    [...m03ModelFirst, ...m04ModelFirst].every((value) => value < FIRST_CONTENT_SLO_MS),
-  `max=${Math.max(0, ...m03ModelFirst, ...m04ModelFirst)}ms, budget=${FIRST_CONTENT_SLO_MS}ms`);
+if (FIRST_CONTENT_SLO_MS != null) {
+  check(`真实模型首字均 < ${FIRST_CONTENT_SLO_MS}ms`,
+    [...m03ModelFirst, ...m04ModelFirst].length === PROD_SMOKE_SAMPLES * 2 &&
+      [...m03ModelFirst, ...m04ModelFirst].every((value) => value < FIRST_CONTENT_SLO_MS),
+    `max=${Math.max(0, ...m03ModelFirst, ...m04ModelFirst)}ms, budget=${FIRST_CONTENT_SLO_MS}ms`);
+}
 check("M03 完成 P95 < 60s", m03Durations.length === PROD_SMOKE_SAMPLES &&
   percentile95(m03Durations) < M03_COMPLETION_SLO_MS,
 `p95=${percentile95(m03Durations)}ms, samples=${m03Durations.length}, budget=${M03_COMPLETION_SLO_MS}ms`);
@@ -226,6 +289,8 @@ const summary = {
   sampleCount: PROD_SMOKE_SAMPLES,
   slo: {
     modelFirstContentMaxMs: Math.max(0, ...m03ModelFirst, ...m04ModelFirst),
+    modelFirstContentP95Ms: percentile95([...m03ModelFirst, ...m04ModelFirst]),
+    modelFirstContentSloMs: FIRST_CONTENT_SLO_MS,
     m03CompletionP95Ms: percentile95(m03Durations),
     m04CompletionP95Ms: percentile95(m04Durations),
     signedM03PrescriptionNonEmptyRate: signedM03Count

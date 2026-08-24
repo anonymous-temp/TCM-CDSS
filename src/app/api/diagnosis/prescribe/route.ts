@@ -22,6 +22,7 @@ import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
 import { compactEvidenceContextForPrompt } from "@/lib/prompt-budget";
+import { dropUnsupportedM04CandidateHerbs } from "@/lib/m04-modification-safety";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
 function rejectedHerbName(issue: string, reasoning: ReturnType<typeof parseReasoningV2>): string | undefined {
@@ -312,7 +313,12 @@ export async function POST(req: Request) {
       // prescription, otherwise the original rejection is hidden behind a misleading contract error.
       if (!sanitized.includes("<!-- DIAGNOSIS_JSON_START -->")) return sanitized;
       const enriched = enrichPrescriptionProvenance(sanitized, clinicalGroundingText(safeState));
-      const reasoning = parseReasoningV2(enriched);
+      // 药味功用/身份在 enrichPrescriptionProvenance 之后才完整。流层更早执行的 deletion-only
+      // 剔除看不到这些新增知识，额外坏味会一直潜伏到最终 T1 合同才把整方清空。对同一最终字节
+      // 再做一次只减不增的剔除：唯一君药、经典方基准或删除后结构不成立时函数原样返回，随后
+      // 现有安全合同继续 fail-closed；成功剔除时独立复核、审方与签名都消费剔除后的候选。
+      const directionPruned = dropUnsupportedM04CandidateHerbs(enriched, signedPriorReasoning);
+      const reasoning = parseReasoningV2(directionPruned);
       // The stream layer has already exhausted formula-composition repair before allowing a
       // transparent self-devised fallback. Keep that safe fallback usable here while all other
       // formula drift, dose, regimen and clinical-grounding failures remain blocking contracts.
@@ -356,7 +362,7 @@ export async function POST(req: Request) {
       // fixpoint 早退、编排时限都在上游走完了），此刻仍然对不上 KB 的药味才补角色兜底句，
       // 保证医生看到的不是空栏。放在 issue 计算之后，是为了不让服务端造的合法值再一次
       // 把 candidate_*_herb_*_function 这条修复通路堵死（那正是本条缺陷的形状）。
-      const finalized = applyDeterministicHerbFunctions(enriched, { fillRolePlaceholder: true });
+      const finalized = applyDeterministicHerbFunctions(directionPruned, { fillRolePlaceholder: true });
       // 方名身份恢复必须发生在**重建可见正文之前**（2026-08-11）。
       //
       // 恢复此前只挂在流层签名前的最后一公里，那时可见正文早已按恢复**之前**的载荷渲染完毕，

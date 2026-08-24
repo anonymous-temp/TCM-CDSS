@@ -1771,6 +1771,72 @@ function m03ClinicalWordingFidelityIssue(reasoning: M03ReasoningLike, clinicalCo
   return undefined;
 }
 
+function m03WesternOwnedIssue(
+  reasoning: M03ReasoningLike,
+  clinicalContext: string,
+  wordingFidelityIssue: string | undefined,
+): string | undefined {
+  const westernPrimary = reasoning.westernDiagnosis?.primary;
+  if (
+    typeof westernPrimary?.name !== "string" ||
+    westernPrimary.name.trim().length < 2 ||
+    /(?:基于主诉的)?现代医学诊断倾向|待生成|待明确|未知/.test(westernPrimary.name)
+  ) return "western_diagnosis_unstable";
+  if (isAmbiguousM03WesternPrimaryLabel(westernPrimary.name)) return "western_primary_ambiguous";
+  if (westernLabelContainsTcmSyndrome(westernPrimary.name)) return "western_primary_tcm_pollution";
+  const westernDurationIssue = m03WesternDurationIssue(reasoning, clinicalContext);
+  if (westernDurationIssue) return westernDurationIssue;
+  const westernSupportIssue = m03WesternSupportIssue(reasoning, clinicalContext);
+  if (westernSupportIssue) return westernSupportIssue;
+  if (wordingFidelityIssue) return wordingFidelityIssue;
+  const westernRationaleIssue = m03WesternClinicalRationaleIssue(reasoning);
+  if (westernRationaleIssue) return westernRationaleIssue;
+  const differentialIdentities = (reasoning.westernDiagnosis?.differentials || [])
+    .map((item) => westernDifferentialIdentity(item.name))
+    .filter(Boolean);
+  if (new Set(differentialIdentities).size !== differentialIdentities.length) {
+    return "western_differential_duplicate";
+  }
+  if ((reasoning.westernDiagnosis?.differentials || []).some((item) =>
+    isAmbiguousM03WesternPrimaryLabel(item.name))) {
+    return "western_differential_ambiguous";
+  }
+  if ((reasoning.westernDiagnosis?.differentials || []).some((item) =>
+    typeof item.reason !== "string" || item.reason.trim().length < 4 ||
+    typeof item.distinguishingPoints !== "string" || item.distinguishingPoints.trim().length < 4)) {
+    return "western_differential_analysis_missing";
+  }
+  return undefined;
+}
+
+/**
+ * Validate exactly the M03 parallel half that a TCM-only repair would preserve. The main semantic
+ * contract intentionally reports `chain_empty` before Western findings, so the first rejection code
+ * cannot prove this half is usable. This owner-scoped check reuses the same Western predicates and
+ * management safety-net predicate without inspecting (or attempting to judge) the rejected TCM half.
+ */
+export function m03PreservedParallelHalfIssue(
+  reasoning: M03ReasoningLike | null | undefined,
+  clinicalContext = "",
+): string | undefined {
+  if (!reasoning || reasoning.stage !== "diagnose") return "stage";
+  const westernOnly: M03ReasoningLike = {
+    stage: reasoning.stage,
+    westernDiagnosis: reasoning.westernDiagnosis,
+    management: reasoning.management,
+  };
+  const westernIssue = m03WesternOwnedIssue(
+    reasoning,
+    clinicalContext,
+    m03ClinicalWordingFidelityIssue(westernOnly, clinicalContext),
+  );
+  if (westernIssue) return westernIssue;
+  if (!isActionableFollowupSafetyNet(reasoning.management?.followupSafetyNet)) {
+    return "followup_safety_net_not_actionable";
+  }
+  return undefined;
+}
+
 function rationaleReferencesChartFact(rationale: string, clinicalContext: string): boolean {
   if (!clinicalContext) return false;
   if (GROUNDED_FACT_GROUPS.some((group) =>
@@ -1953,37 +2019,12 @@ export function m03SemanticIssue(reasoning: M03ReasoningLike | null | undefined,
   // The pathogenesis chain is the load-bearing M03 inference structure. Report its absence before
   // secondary prose-quality findings so the repair loop restores the missing structure first.
   if (!chain.length) return "chain_empty";
-  const westernPrimary = reasoning.westernDiagnosis?.primary;
-  if (
-    typeof westernPrimary?.name !== "string" ||
-    westernPrimary.name.trim().length < 2 ||
-    /(?:基于主诉的)?现代医学诊断倾向|待生成|待明确|未知/.test(westernPrimary.name)
-  ) return "western_diagnosis_unstable";
-  if (isAmbiguousM03WesternPrimaryLabel(westernPrimary.name)) return "western_primary_ambiguous";
-  if (westernLabelContainsTcmSyndrome(westernPrimary.name)) return "western_primary_tcm_pollution";
-  const westernDurationIssue = m03WesternDurationIssue(reasoning, clinicalContext);
-  if (westernDurationIssue) return westernDurationIssue;
-  const westernSupportIssue = m03WesternSupportIssue(reasoning, clinicalContext);
-  if (westernSupportIssue) return westernSupportIssue;
-  const wordingFidelityIssue = m03ClinicalWordingFidelityIssue(reasoning, clinicalContext);
-  if (wordingFidelityIssue) return wordingFidelityIssue;
-  const westernRationaleIssue = m03WesternClinicalRationaleIssue(reasoning);
-  if (westernRationaleIssue) return westernRationaleIssue;
-  const differentialIdentities = (reasoning.westernDiagnosis?.differentials || [])
-    .map((item) => westernDifferentialIdentity(item.name))
-    .filter(Boolean);
-  if (new Set(differentialIdentities).size !== differentialIdentities.length) {
-    return "western_differential_duplicate";
-  }
-  if ((reasoning.westernDiagnosis?.differentials || []).some((item) =>
-    isAmbiguousM03WesternPrimaryLabel(item.name))) {
-    return "western_differential_ambiguous";
-  }
-  if ((reasoning.westernDiagnosis?.differentials || []).some((item) =>
-    typeof item.reason !== "string" || item.reason.trim().length < 4 ||
-    typeof item.distinguishingPoints !== "string" || item.distinguishingPoints.trim().length < 4)) {
-    return "western_differential_analysis_missing";
-  }
+  const westernIssue = m03WesternOwnedIssue(
+    reasoning,
+    clinicalContext,
+    m03ClinicalWordingFidelityIssue(reasoning, clinicalContext),
+  );
+  if (westernIssue) return westernIssue;
   const coreTcmText = [
     reasoning.overview?.primarySyndrome,
     reasoning.overview?.overallPathogenesis,
