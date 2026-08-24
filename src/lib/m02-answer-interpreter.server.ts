@@ -81,6 +81,17 @@ export type M02AnswerModelValidationResult =
   | { ok: true; data: z.infer<typeof M02AnswerModelOutputSchema> }
   | { ok: false; reasons: string[] };
 
+function retryableM02TransportError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === "AbortError") return false;
+  if (error instanceof TypeError) return true;
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { status?: unknown; code?: unknown; name?: unknown };
+  const status = typeof candidate.status === "number" ? candidate.status : Number(candidate.status);
+  if (Number.isInteger(status) && (status === 408 || status === 409 || status === 425 || status === 429 || status >= 500)) return true;
+  const code = typeof candidate.code === "string" ? candidate.code.toUpperCase() : "";
+  return ["ECONNRESET", "ECONNREFUSED", "EPIPE", "ETIMEDOUT", "ENETUNREACH", "EAI_AGAIN"].includes(code);
+}
+
 const FAILURE_MESSAGES: Record<M02AnswerInterpretationFailureCode, string> = {
   invalid_request: "请求体缺少 M02 回答解释所需的数据。",
   invalid_case_state: "caseState 无效。",
@@ -285,31 +296,37 @@ export async function interpretM02Answer(input: {
   const systemPrompt = buildSystemPrompt();
   let previousOutput: string | undefined;
   let rejectionReasons: string[] | undefined;
+  let modelCallCount = 0;
 
   try {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       if (controller.signal.aborted) {
-        return failure(input.requestSignal?.aborted ? "request_aborted" : "model_timeout", attempt);
+        return failure(input.requestSignal?.aborted ? "request_aborted" : "model_timeout", modelCallCount);
       }
 
-      let content: string;
-      try {
-        content = await modelCall({
-          systemPrompt,
-          userPrompt: buildUserPrompt({
-            caseState: input.caseState,
-            plan,
-            doctorAnswer,
-            previousOutput,
-            rejectionReasons,
-          }),
-          signal: controller.signal,
-          phase: attempt === 0 ? "interpret" : "repair",
-        });
-      } catch {
-        if (input.requestSignal?.aborted) return failure("request_aborted", attempt + 1);
-        if (controller.signal.aborted) return failure("model_timeout", attempt + 1);
-        return failure("model_request_failed", attempt + 1);
+      let content = "";
+      for (let transportAttempt = 0; transportAttempt < 2; transportAttempt += 1) {
+        try {
+          modelCallCount += 1;
+          content = await modelCall({
+            systemPrompt,
+            userPrompt: buildUserPrompt({
+              caseState: input.caseState,
+              plan,
+              doctorAnswer,
+              previousOutput,
+              rejectionReasons,
+            }),
+            signal: controller.signal,
+            phase: attempt === 0 ? "interpret" : "repair",
+          });
+          break;
+        } catch (error) {
+          if (input.requestSignal?.aborted) return failure("request_aborted", modelCallCount);
+          if (controller.signal.aborted) return failure("model_timeout", modelCallCount);
+          if (transportAttempt === 0 && retryableM02TransportError(error)) continue;
+          return failure("model_request_failed", modelCallCount);
+        }
       }
 
       const validated = validateM02AnswerModelOutput(content, plan, doctorAnswer);
@@ -323,7 +340,7 @@ export async function interpretM02Answer(input: {
       previousOutput = content;
       rejectionReasons = validated.reasons;
     }
-    return failure("model_output_invalid", 2);
+    return failure("model_output_invalid", modelCallCount);
   } finally {
     clearTimeout(timeout);
     input.requestSignal?.removeEventListener("abort", abortFromRequest);

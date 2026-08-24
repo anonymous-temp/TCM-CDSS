@@ -25,7 +25,7 @@ import {
   medicationSemanticConsistencyReasons,
   type MedicationSemanticExtraction,
 } from "./medication-event-extractor";
-import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit } from "./tcm-knowledge";
+import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, regulatedToxicHerbStatus } from "./tcm-knowledge";
 import { matchesPopulationScope } from "./clinical-vocabulary";
 import { findLocalPatentMedicineEntry } from "./local-patent-medicine-candidates";
 import { prescriptionVersionPayload } from "./prescription-version";
@@ -102,6 +102,8 @@ const MIN_AUDIT_TIMEOUT_MS = 1000;
 const MAX_AUDIT_TIMEOUT_MS = 30_000;
 const MIN_RETRY_ATTEMPT_BUDGET_MS = 1000;
 const MAX_MEDICATION_EXTRACTION_CHARS = 4000;
+const RXAUDIT_UNVERIFIED_DOCTOR_LEVEL = "UNVERIFIED";
+const RXAUDIT_DOCTOR_LEVEL_CODES = new Set(["UNVERIFIED", "STANDARD", "NARCOTIC_AUTH", "SENIOR", "CHIEF", "主任医师"]);
 
 function boundedAuditTimeout(value: unknown, fallback: number): number {
   if (value == null || (typeof value === "string" && value.trim() === "")) return fallback;
@@ -213,6 +215,28 @@ export function getRxAuditStatus() {
     attemptTimeoutMs: getRxAuditAttemptTimeoutMs(),
     retryAttempts: MAX_RETRIES,
   };
+}
+
+/**
+ * Provider permission context is tenant-scoped because CDSS does not receive an authenticated
+ * individual prescriber identity. Missing/invalid configuration is sent as the explicit
+ * non-authorizing value UNVERIFIED, never as an authorized role and never omitted. An operator may
+ * only assert one of LingXi's governed codes for a customer after the hospital has bound that
+ * customer integration to the corresponding prescribing scope.
+ */
+export function rxAuditDoctorLevelCodeForCustomer(customerId: string | undefined): string {
+  const raw = process.env.RXAI_AUDIT_DOCTOR_LEVEL_CODES_BY_CUSTOMER?.trim();
+  if (!raw || !customerId || raw.length > 16_384) return RXAUDIT_UNVERIFIED_DOCTOR_LEVEL;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return RXAUDIT_UNVERIFIED_DOCTOR_LEVEL;
+    const value = (parsed as Record<string, unknown>)[customerId];
+    if (typeof value !== "string") return RXAUDIT_UNVERIFIED_DOCTOR_LEVEL;
+    const normalized = value.trim().toUpperCase();
+    return RXAUDIT_DOCTOR_LEVEL_CODES.has(normalized) ? normalized : RXAUDIT_UNVERIFIED_DOCTOR_LEVEL;
+  } catch {
+    return RXAUDIT_UNVERIFIED_DOCTOR_LEVEL;
+  }
 }
 
 export type RxAuditTransportProbe = Readonly<{
@@ -373,6 +397,22 @@ function normalizedMedicationIdentity(value: string): string {
   return canonicalMedicationIdentity(raw.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""));
 }
 
+const EXPLICIT_NO_CURRENT_MEDICATION = /(?:本次|当前|目前|现阶段)?(?:否认|无|没有|从未|未曾|并未|尚未|未)(?:当前|目前|现阶段|本次)?(?:使用|服用|口服|应用|在用|吃药|服|用|吃)?(?:任何|其他|其它|长期|常用|现用|当前)?(?:药物|用药|药品|药)(?:治疗)?/gu;
+
+function containsExplicitNoCurrentMedicationStatement(value: string): boolean {
+  EXPLICIT_NO_CURRENT_MEDICATION.lastIndex = 0;
+  const matched = EXPLICIT_NO_CURRENT_MEDICATION.test(value.normalize("NFKC").replace(/\s+/g, ""));
+  EXPLICIT_NO_CURRENT_MEDICATION.lastIndex = 0;
+  return matched;
+}
+
+function withoutExplicitNoCurrentMedicationStatement(value: string): string {
+  EXPLICIT_NO_CURRENT_MEDICATION.lastIndex = 0;
+  const remainder = value.normalize("NFKC").replace(EXPLICIT_NO_CURRENT_MEDICATION, " ");
+  EXPLICIT_NO_CURRENT_MEDICATION.lastIndex = 0;
+  return remainder.trim();
+}
+
 /** Conservative source-side candidates used only to detect an incomplete model extraction. */
 export function medicationCandidatesFromSource(value: string | undefined): string[] {
   if (!value?.trim()) return [];
@@ -388,12 +428,15 @@ export function medicationCandidatesFromSource(value: string | undefined): strin
       .trim();
     if (!segment || medicationContinuationOnly(segment)) continue;
     const negatedStop = /(?:未|没有|否认|不曾|并未|尚未)[^，,；;。\n]{0,12}(?:停用|停服|停药|停止)/.test(segment);
-    // Candidate coverage is a fail-closed drug-name check, not a keyword scan. Reuse the shared
-    // polarity boundary so “否认当前其他用药/没有长期药物” does not become a fictitious missing
-    // drug. A negated stop remains eligible because “未停用阿司匹林” affirms current use.
-    if (clinicalClausePolarity(segment) !== "affirmed" && !negatedStop) continue;
-    if (/^(?:家属|父亲|母亲|配偶|子女|陪同者|监护人)[^，,；;。\n]*(?:服用|使用|在吃)/.test(segment)) continue;
-    const candidate = medicationNameFromEventText(segment)
+    // Candidate coverage is a fail-closed drug-name check, not a keyword scan. “未使用其他药物”
+    // 只否定剩余集合：HIS 无标点串“现服氨氯地平5mg每日1次未使用其他药物”中的
+    // 氨氯地平必须仍进入审方。先剔除闭集否定短语，再对剩余子句做极性与药名抽取。
+    // A negated stop remains eligible because “未停用阿司匹林” affirms current use.
+    const candidateSegment = withoutExplicitNoCurrentMedicationStatement(segment);
+    if (!candidateSegment && !negatedStop) continue;
+    if (clinicalClausePolarity(candidateSegment || segment) !== "affirmed" && !negatedStop) continue;
+    if (/^(?:家属|父亲|母亲|配偶|子女|陪同者|监护人)[^，,；;。\n]*(?:服用|使用|在吃)/.test(candidateSegment || segment)) continue;
+    const candidate = medicationNameFromEventText(candidateSegment || segment)
       .replace(/^(?:已)?(?:改为|换成|更换为)\s*/, "")
       .trim();
     const identity = normalizedMedicationIdentity(candidate);
@@ -402,6 +445,18 @@ export function medicationCandidatesFromSource(value: string | undefined): strin
     candidates.set(identity, candidate);
   }
   return [...candidates.values()];
+}
+
+/**
+ * 明确的「本次没有现用药」属于确定性阴性事实，不需要让模型再猜一次。
+ * 只有在同段原文没有任何肯定用药候选时才短路，因而
+ * 「现服氨氯地平，未使用其他药物」仍会抽取氨氯地平。
+ */
+export function isExplicitNoCurrentMedicationHistory(value: string | undefined): boolean {
+  const normalized = value?.normalize("NFKC").replace(/\s+/g, "").trim() || "";
+  return Boolean(normalized)
+    && containsExplicitNoCurrentMedicationStatement(normalized)
+    && medicationCandidatesFromSource(normalized).length === 0;
 }
 
 export function verifyMedicationSemanticCoverage(
@@ -479,6 +534,9 @@ export async function extractMedicationSemanticsForAudit(
   requestSignal?: AbortSignal,
 ): Promise<MedicationSemanticExtraction> {
   const context = buildMedicationExtractionContext(state);
+  if (isExplicitNoCurrentMedicationHistory(context.text)) {
+    return { source: "not_needed", events: [], unresolvedReferences: [], needsManualReview: false };
+  }
   const key = createHash("sha256").update(`${context.text}\u0000${context.truncated ? 1 : 0}`).digest("hex");
   const store = medicationExtractionCache();
   const now = Date.now();
@@ -953,6 +1011,7 @@ export function buildAuditData(
     prescription: {
       prescription_category: "CHINESE_MEDICINE_PRESCRIPTION",
       consultation_no: consultationNo,
+      doctor_level_code: rxAuditDoctorLevelCodeForCustomer(state.customerId),
       diagnoses: [
         {
           diagnosis_name: diagnosisName,
@@ -1240,19 +1299,136 @@ export function mergeLocalHighRiskHerbPairIssues(
   candidateIndex: number | undefined,
   outcome: Extract<RxAuditOutcome, { ok: true }>,
 ): Extract<RxAuditOutcome, { ok: true }> {
+  const governedOutcome = reconcileControlledToxicAuthorityIssues(state, candidateIndex, outcome);
   const localIssues = buildLocalHighRiskHerbPairIssues(state, candidateIndex);
-  if (localIssues.length === 0) return outcome;
-  const issues = dedupeRxAuditIssues([...outcome.issues, ...localIssues]);
+  if (localIssues.length === 0) return governedOutcome;
+  const issues = dedupeRxAuditIssues([...governedOutcome.issues, ...localIssues]);
   const highestRiskLevel = issues.reduce<RxAuditRiskLevel>((highest, issue) => {
     const risk = normalizeRiskLevel(issue.riskLevel, "HIGH");
     return AUDIT_RISK_ORDER.indexOf(risk) > AUDIT_RISK_ORDER.indexOf(highest) ? risk : highest;
-  }, outcome.highestRiskLevel);
+  }, governedOutcome.highestRiskLevel);
   return {
-    ...outcome,
-    auditResult: outcome.auditResult === "BLOCK" ? "BLOCK" : "MANUAL_REVIEW",
+    ...governedOutcome,
+    auditResult: governedOutcome.auditResult === "BLOCK" ? "BLOCK" : "MANUAL_REVIEW",
     highestRiskLevel,
     needManualReview: true,
     issues,
+  };
+}
+
+const CONTROLLED_TOXIC_AUTHORITY_ISSUE = /(?:毒性药品处方权|医师处方权限|医生权限标识|毒性药品[^。；;]{0,20}权限)/;
+const CONTROLLED_TOXIC_AUTHORITY_ISSUE_TYPES = new Set([
+  "PRESCRIBER_AUTHORITY",
+  "TOXIC_DRUG_PRESCRIBER_AUTHORITY",
+]);
+const COMPOSITE_NON_AUTHORITY_RISK = /(?:超量|超剂量|剂量超限|配伍禁忌|相互作用|过敏|重复用药|妊娠|哺乳|肝肾|特殊人群)/;
+
+function governedAuthorityIssueText(issue: RxAuditIssue): string {
+  return [
+    issue.title,
+    issue.description,
+    issue.action,
+    ...issue.evidence.flatMap((item) => [item.ruleName, item.sourceName, item.quote]),
+    ...issue.suggestions,
+  ].filter(Boolean).join("；");
+}
+
+function isNarrowControlledToxicAuthorityIssue(issue: RxAuditIssue): boolean {
+  const issueType = String(issue.issueType || "").normalize("NFKC").trim().toUpperCase();
+  const text = governedAuthorityIssueText(issue);
+  const hasAuthorityRuleEvidence = issue.evidence.some((item) =>
+    /(?:毒性药品处方权|医疗用毒性药品[^。；;]{0,20}目录)/.test(
+      [item.ruleName, item.sourceName, item.quote].filter(Boolean).join("；"),
+    ));
+  return !issue.issueIdGenerated &&
+    CONTROLLED_TOXIC_AUTHORITY_ISSUE_TYPES.has(issueType) &&
+    CONTROLLED_TOXIC_AUTHORITY_ISSUE.test(text) &&
+    hasAuthorityRuleEvidence &&
+    !COMPOSITE_NON_AUTHORITY_RISK.test(text);
+}
+
+function normalizedAuditAction(value: unknown): string {
+  return typeof value === "string"
+    ? value.normalize("NFKC").trim().toUpperCase().replace(/[\s-]+/g, "_")
+    : "";
+}
+
+function issueExplicitlyBlocks(issue: RxAuditIssue): boolean {
+  const action = normalizedAuditAction(issue.action);
+  const ruleLevel = normalizedAuditAction(issue.ruleLevel);
+  return normalizeRiskLevel(issue.riskLevel, "HIGH") === "CRITICAL" ||
+    action === "BLOCK" ||
+    action === "HARD_BLOCK" ||
+    ruleLevel === "BLOCK" ||
+    ruleLevel === "HARD_BLOCK";
+}
+
+function issueProvablyNonBlocking(issue: RxAuditIssue): boolean {
+  if (issueExplicitlyBlocks(issue)) return false;
+  return ["PASS", "ALLOW", "REMIND", "WARN", "WARNING", "INFO", "ADVISORY", "MANUAL_REVIEW", "REVIEW"]
+    .includes(normalizedAuditAction(issue.action));
+}
+
+/**
+ * LingXi once classified 苦杏仁's pharmacopeia "有小毒" label as membership in the statutory
+ * controlled-toxic catalogue. Correct only that narrowly identifiable authority-rule class using
+ * the governed closed set. Unknown herbs, missing row bindings, malformed issue IDs, genuinely
+ * controlled herbs, and every unrelated dose/interaction/population warning remain untouched.
+ */
+export function reconcileControlledToxicAuthorityIssues(
+  state: CaseState,
+  candidateIndex: number | undefined,
+  outcome: Extract<RxAuditOutcome, { ok: true }>,
+): Extract<RxAuditOutcome, { ok: true }> {
+  const candidate = candidateFromState(state, candidateIndex);
+  const itemsByNumber = new Map((candidate?.herbs || []).map((herb, index) => [index + 1, herb.name?.trim() || ""]));
+  let corrected = false;
+  const correctedIndexes = new Set<number>();
+  const issues = outcome.issues.map((issue, issueIndex) => {
+    if (!isNarrowControlledToxicAuthorityIssue(issue)) return issue;
+    const herbs = [...new Set(issue.relatedItemNos.map((itemNo) => itemsByNumber.get(itemNo) || "").filter(Boolean))];
+    if (herbs.length === 0) return issue;
+    const statuses = herbs.map(regulatedToxicHerbStatus);
+    if (statuses.some((status) => status === "controlled" || status === "unlisted")) return issue;
+    corrected = true;
+    correctedIndexes.add(issueIndex);
+    const toxicity = statuses.every((status) => status === "pharmacopoeia_mildly_toxic") ? "有小毒" : "有毒";
+    return {
+      ...issue,
+      riskLevel: "MEDIUM",
+      ruleLevel: "LOCAL_GOVERNED_REGULATORY_CORRECTION",
+      issueType: "PHARMACOPOEIA_TOXICITY_REVIEW",
+      title: "药典毒性药材用药复核",
+      description: `${herbs.join("、")}属药典${toxicity}药材，但不在医疗用毒性药品管制目录；本次不按毒性药品处方权阻断，剂量、炮制与患者适用性仍须医生或药师复核。`,
+      action: "MANUAL_REVIEW",
+      evidence: [{
+        sourceType: "LOCAL_GOVERNED_RULE",
+        sourceName: "国家卫生健康委员会《医疗用毒性药品管理办法》与药典毒性分级交叉核验",
+        quote: `法规目录核验：${herbs.join("、")}不属于医疗用毒性药品管制目录。`,
+        ruleName: "监管目录身份与药典毒性分轴",
+        sourceUrl: "https://www.nhc.gov.cn/zwgk/fagui/200804/f57c418589ad4c9395174788cda08768.shtml",
+        year: "2026",
+      }],
+      suggestions: ["请医生或药师结合药典剂量、炮制要求和患者情况完成用药复核。"],
+    };
+  });
+  if (!corrected) return outcome;
+  const highestRiskLevel = issues.reduce<RxAuditRiskLevel>((highest, issue) => {
+    const risk = normalizeRiskLevel(issue.riskLevel, "HIGH");
+    return AUDIT_RISK_ORDER.indexOf(risk) > AUDIT_RISK_ORDER.indexOf(highest) ? risk : highest;
+  }, "INFO");
+  const hasBlockingIssue = issues.some(issueExplicitlyBlocks);
+  // 顶层 BLOCK 本身是已归一化的安全信号。只有“被纠正项是原唯一 blocker”可证明时
+  // 才允许降级；任何未纠正 issue 的 action 缺失/未知，或 ruleLevel 仍表达硬阻断，
+  // 都保留供应商 BLOCK，不从文本猜测它可以放行。
+  const uncorrectedTopLevelBlocker = outcome.auditResult === "BLOCK" && outcome.issues.some((issue, issueIndex) =>
+    !correctedIndexes.has(issueIndex) && !issueProvablyNonBlocking(issue));
+  return {
+    ...outcome,
+    issues,
+    auditResult: hasBlockingIssue || uncorrectedTopLevelBlocker ? "BLOCK" : "MANUAL_REVIEW",
+    highestRiskLevel,
+    needManualReview: true,
   };
 }
 

@@ -12,6 +12,7 @@ import {
   getRxAuditConfig,
   getRxAuditTimeoutMs,
   mergeLocalHighRiskHerbPairIssues,
+  reconcileControlledToxicAuthorityIssues,
   normalizeAuditOutcomeForPatient,
   normalizeIssues,
 } from "../src/lib/rxaudit.ts";
@@ -182,6 +183,109 @@ assert.ok(mergedLocalAndProvider.issues.some((issue) => issue.issueType === "TCM
 assert.equal(mergedLocalAndProvider.highestRiskLevel, "HIGH");
 assert.equal(mergedLocalAndProvider.auditResult, "MANUAL_REVIEW");
 assert.equal(mergedLocalAndProvider.needManualReview, true);
+
+const regulatoryProbeState = {
+  reasoningPrescribe: {
+    stage: "prescribe",
+    formula: {
+      candidates: [{
+        herbs: [
+          { name: "麻黄", dose: "9g", processing: null, decoctionRequirement: null },
+          { name: "炙甘草", dose: "6g", processing: null, decoctionRequirement: null },
+          { name: "苦杏仁", dose: "9g", processing: "捣碎", decoctionRequirement: null },
+        ],
+        decoction: {
+          doseCount: "5剂",
+          dosesPerDay: 1,
+          administrationTimesPerDay: 2,
+          course: "5日",
+          method: "每日1剂，水煎2次，早晚分服",
+          followUpNode: "完成5剂后复诊",
+        },
+      }],
+    },
+  },
+};
+const falseBitterAlmondAuthority = {
+  ...providerPass,
+  auditResult: "BLOCK",
+  highestRiskLevel: "CRITICAL",
+  needManualReview: true,
+  issues: [{
+    issueId: "LINGXI-TOXIC-AUTHORITY-1",
+    riskLevel: "CRITICAL",
+    ruleLevel: "HARD_BLOCK",
+    issueType: "PRESCRIBER_AUTHORITY",
+    title: "医师处方权限需确认",
+    description: "苦杏仁(捣碎)药品主数据标注为毒性药品，当前医生权限标识为未提供。",
+    action: "BLOCK",
+    relatedItemNos: [3],
+    evidence: [{ ruleName: "毒性药品处方权(主数据/官方管制目录)" }],
+    suggestions: ["请确认开方医师权限"],
+  }],
+};
+const correctedBitterAlmond = reconcileControlledToxicAuthorityIssues(regulatoryProbeState, 0, falseBitterAlmondAuthority);
+assert.equal(correctedBitterAlmond.auditResult, "MANUAL_REVIEW");
+assert.equal(correctedBitterAlmond.highestRiskLevel, "MEDIUM");
+assert.equal(correctedBitterAlmond.issues[0].riskLevel, "MEDIUM");
+assert.equal(correctedBitterAlmond.issues[0].action, "MANUAL_REVIEW");
+assert.match(correctedBitterAlmond.issues[0].description, /药典有小毒.*不在医疗用毒性药品管制目录/);
+assert.doesNotMatch(JSON.stringify(correctedBitterAlmond.issues[0]), /当前医生权限标识为未提供/);
+
+const genuineControlledState = structuredClone(regulatoryProbeState);
+genuineControlledState.reasoningPrescribe.formula.candidates[0].herbs[2].name = "雄黄";
+const genuineControlled = reconcileControlledToxicAuthorityIssues(genuineControlledState, 0, falseBitterAlmondAuthority);
+assert.equal(genuineControlled.auditResult, "BLOCK", "a genuinely controlled toxic herb must never be downgraded");
+assert.equal(genuineControlled.highestRiskLevel, "CRITICAL");
+
+const concurrentCritical = reconcileControlledToxicAuthorityIssues(regulatoryProbeState, 0, {
+  ...falseBitterAlmondAuthority,
+  issues: [
+    ...falseBitterAlmondAuthority.issues,
+    { ...falseBitterAlmondAuthority.issues[0], issueId: "LINGXI-OTHER-CRITICAL", issueType: "INTERACTION", title: "严重配伍禁忌", description: "存在明确配伍禁忌", action: "BLOCK", relatedItemNos: [1], evidence: [] },
+  ],
+});
+assert.equal(concurrentCritical.auditResult, "BLOCK", "an unrelated blocking issue must survive the governed correction");
+assert.equal(concurrentCritical.highestRiskLevel, "CRITICAL");
+
+const compositeDoseAndAuthority = reconcileControlledToxicAuthorityIssues(regulatoryProbeState, 0, {
+  ...falseBitterAlmondAuthority,
+  issues: [{
+    ...falseBitterAlmondAuthority.issues[0],
+    issueId: "LINGXI-COMPOSITE-DOSE-1",
+    issueType: "DOSE_OVER",
+    title: "严重超量且医师处方权限需确认",
+    description: "苦杏仁严重超剂量，同时医师处方权限需确认。",
+  }],
+});
+assert.equal(compositeDoseAndAuthority.auditResult, "BLOCK", "a composite dose+authority blocker must not be regulatory-corrected as a whole");
+assert.equal(compositeDoseAndAuthority.issues[0].issueType, "DOSE_OVER");
+assert.equal(compositeDoseAndAuthority.issues[0].riskLevel, "CRITICAL");
+
+for (const [label, otherIssue] of [
+  ["missing action", { riskLevel: "HIGH", ruleLevel: "PROVIDER_RULE", action: undefined }],
+  ["lowercase block", { riskLevel: "HIGH", ruleLevel: "PROVIDER_RULE", action: "block" }],
+  ["hard-block rule level", { riskLevel: "HIGH", ruleLevel: "HARD_BLOCK", action: "MANUAL_REVIEW" }],
+]) {
+  const preservedTopLevelBlock = reconcileControlledToxicAuthorityIssues(regulatoryProbeState, 0, {
+    ...falseBitterAlmondAuthority,
+    issues: [
+      ...falseBitterAlmondAuthority.issues,
+      {
+        ...falseBitterAlmondAuthority.issues[0],
+        issueId: `LINGXI-OTHER-${label.replace(/\s+/g, "-")}`,
+        issueType: "OTHER_PROVIDER_RULE",
+        title: "其他供应商风险",
+        description: "供应商未证明可以放行的独立风险。",
+        evidence: [],
+        suggestions: ["保持人工复核"],
+        relatedItemNos: [1],
+        ...otherIssue,
+      },
+    ],
+  });
+  assert.equal(preservedTopLevelBlock.auditResult, "BLOCK", `${label} must preserve the normalized provider top-level BLOCK`);
+}
 const providerPassWithInputAdvisory = applyRxAuditInputAdvisories(providerPass, [{
   code: "medication_semantics_unavailable",
   itemNo: 0,

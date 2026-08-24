@@ -6,9 +6,9 @@
     "reproductionPolicy": "标准全文和受版权保护定义不写入运行表，只登记定位信息与必要摘要。"
   },
   "summary": {
-    "sourceCount": 37,
+    "sourceCount": 38,
     "regulatoryOrGovernmentCount": 23,
-    "projectSourceCount": 9
+    "projectSourceCount": 10
   },
   "entries": [
     {
@@ -345,8 +345,19 @@
       "sourceType": "project_runtime_rule",
       "authorityTier": "project_governed_source",
       "locator": "src/lib/diagnosis-safety.ts",
-      "sha256": "925a5c9c59746ab71d472257c22342893992c6b0c09a8e72cb5e15baa246b919",
+      "sha256": "0164701825d58956e248e6e428e3469abc0e3e378a61eeb5a46419dc538651e4",
       "scope": "红旗、生命体征和特殊人群的实际运行门禁；外部来源只做类别和阈值复核",
+      "accessedAt": "2026-07-22"
+    },
+    {
+      "id": "SRC-PROJECT-PHYSICAL-EXAM-CLAIM-LEXICON",
+      "title": "中医 CDSS 查体断言接地词表",
+      "publisher": "中医 CDSS 项目",
+      "sourceType": "project_runtime_grounding_catalog",
+      "authorityTier": "project_governed_source",
+      "locator": "src/data/physical-exam-claim-lexicon.source.json",
+      "sha256": "ee3af23239dee16fa26156b7aebc658926a61a4a3a19d37a2db0ac5794de8d59",
+      "scope": "M03 阴性或正常查体断言的模态识别；只允许病历已记录的对应查体结果进入医生可见结论",
       "accessedAt": "2026-07-22"
     },
     {

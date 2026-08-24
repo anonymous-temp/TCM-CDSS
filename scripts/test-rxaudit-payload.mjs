@@ -12,16 +12,19 @@ const {
   buildRxAuditScopeSection,
   buildMedicationExtractionContext,
   extractMedicationSemanticsForAudit,
+  isExplicitNoCurrentMedicationHistory,
   isMechanicallyPreventableAuditIssue,
+  medicationCandidatesFromSource,
   rxAuditSubmissionIssue,
   runBoundedRxAudit,
+  rxAuditDoctorLevelCodeForCustomer,
   structuredCurrentMedications,
   verifyMedicationSemanticCoverage,
 } = await jiti.import("../src/lib/rxaudit.ts");
 const { currentMedicationsFromSemanticExtraction, medicationSemanticConsistencyReasons, recoverGroundedAdministrationTimings } = await jiti.import("../src/lib/medication-event-extractor.ts");
 const { sanitizeFreeTextForModel } = await jiti.import("../src/lib/diagnosis-safety.ts");
 
-function auditPatient(overrides = {}, medicationExtraction) {
+function auditData(overrides = {}, medicationExtraction) {
   const fields = {
     zhushu: "入睡困难三个月",
     xianbingshi: "入睡困难三个月，否认胸痛、气促",
@@ -35,6 +38,7 @@ function auditPatient(overrides = {}, medicationExtraction) {
     ...overrides.fields,
   };
   const state = {
+    customerId: "hospital-A",
     patient: { sex: "男", age: 46 },
     chiefComplaint: fields.zhushu,
     pastHistory: fields.jiwangshi,
@@ -50,7 +54,11 @@ function auditPatient(overrides = {}, medicationExtraction) {
   };
   const built = buildAuditData(state, undefined, medicationExtraction);
   assert.ok(built, "audit payload should be built");
-  return built.data.prescription.patient;
+  return built.data;
+}
+
+function auditPatient(overrides = {}, medicationExtraction) {
+  return auditData(overrides, medicationExtraction).prescription.patient;
 }
 
 const patient = auditPatient();
@@ -62,6 +70,17 @@ assert.match(patient.physical_examination, /T 36\.6℃/);
 assert.match(patient.physical_examination, /P 74次\/分/);
 assert.match(patient.physical_examination, /R 18次\/分/);
 assert.match(patient.physical_examination, /BP 118\/72mmHg/);
+
+const originalDoctorLevelMap = process.env.RXAI_AUDIT_DOCTOR_LEVEL_CODES_BY_CUSTOMER;
+delete process.env.RXAI_AUDIT_DOCTOR_LEVEL_CODES_BY_CUSTOMER;
+assert.equal(auditData().prescription.doctor_level_code, "UNVERIFIED", "missing tenant permission is explicit and non-authorizing");
+process.env.RXAI_AUDIT_DOCTOR_LEVEL_CODES_BY_CUSTOMER = JSON.stringify({ "hospital-A": "NARCOTIC_AUTH", "hospital-B": "CHIEF" });
+assert.equal(auditData().prescription.doctor_level_code, "NARCOTIC_AUTH", "the authenticated case customer selects its configured provider permission code");
+assert.equal(rxAuditDoctorLevelCodeForCustomer("hospital-C"), "UNVERIFIED", "a different customer cannot inherit another tenant's permission");
+process.env.RXAI_AUDIT_DOCTOR_LEVEL_CODES_BY_CUSTOMER = JSON.stringify({ "hospital-A": "ROOT" });
+assert.equal(auditData().prescription.doctor_level_code, "UNVERIFIED", "unknown codes fail closed");
+if (originalDoctorLevelMap == null) delete process.env.RXAI_AUDIT_DOCTOR_LEVEL_CODES_BY_CUSTOMER;
+else process.env.RXAI_AUDIT_DOCTOR_LEVEL_CODES_BY_CUSTOMER = originalDoctorLevelMap;
 
 const topLevelVitals = auditPatient({
   fields: { vitalsT: "", vitalsP: "", vitalsR: "", vitalsBP: "" },
@@ -165,6 +184,9 @@ for (const explicitNoMedication of [
   "否认当前其他用药",
   "没有长期药物",
   "从未服用其他药物",
+  "本次尚未使用其他药物",
+  "目前未服任何药",
+  "现阶段无现用药品",
   "现用药不详",
 ]) {
   const covered = verifyMedicationSemanticCoverage(explicitNoMedication, {
@@ -175,6 +197,33 @@ for (const explicitNoMedication of [
   });
   assert.equal(covered.needsManualReview, false, `${explicitNoMedication} must not create a fictitious missing medication candidate`);
   assert.doesNotMatch(covered.reason || "", /medication_candidate_coverage_incomplete/);
+}
+for (const explicitNoMedication of [
+  "否认当前其他用药",
+  "没有长期药物",
+  "从未服用其他药物",
+  "本次尚未使用其他药物",
+  "目前未服任何药物",
+  "现阶段无现用药品",
+]) {
+  assert.equal(isExplicitNoCurrentMedicationHistory(explicitNoMedication), true, `${explicitNoMedication} should bypass semantic extraction`);
+}
+for (const mixedOrUnknown of [
+  "现服氨氯地平5mg每日一次，未使用其他药物",
+  "现服氨氯地平5mg每日一次未使用其他药物",
+  "阿司匹林100mg每日一次目前未服其他药",
+  "患者现用药为二甲双胍0.5g每日两次无其他用药",
+  "未停用阿司匹林100mg每日一次",
+  "现用药不详",
+]) {
+  assert.equal(isExplicitNoCurrentMedicationHistory(mixedOrUnknown), false, `${mixedOrUnknown} must not be collapsed to no current medication`);
+}
+for (const [source, medicine] of [
+  ["现服氨氯地平5mg每日一次未使用其他药物", "氨氯地平"],
+  ["阿司匹林100mg每日一次目前未服其他药", "阿司匹林"],
+  ["患者现用药为二甲双胍0.5g每日两次无其他用药", "二甲双胍"],
+]) {
+  assert.match(JSON.stringify(medicationCandidatesFromSource(source)), new RegExp(medicine), `${medicine} must survive a no-punctuation HIS concatenation`);
 }
 const affirmedNegatedStopMedication = verifyMedicationSemanticCoverage("未停用阿司匹林100mg每日一次", {
   source: "model",
@@ -880,4 +929,4 @@ assert.equal(isMechanicallyPreventableAuditIssue({ issueType: "TCM_DECOCTION_MET
 assert.equal(isMechanicallyPreventableAuditIssue({ issueType: "DOSE_OVER", title: "用法用量需调整", description: "甘草超过常用量" }), true);
 assert.equal(isMechanicallyPreventableAuditIssue({ issueType: "DRUG_INTERACTION", title: "相互作用", description: "需结合患者情况复核" }), false);
 
-console.log(JSON.stringify({ cases: 64 + semanticConflictCases.length + 12, failures: 0 }));
+console.log(JSON.stringify({ cases: 64 + semanticConflictCases.length + 16, failures: 0 }));

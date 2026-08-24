@@ -16,7 +16,7 @@ import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnota
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
 import { affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
 import { parseStreamModuleDraftFrame, STREAM_REPLACE_MARKER, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
-import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
@@ -519,10 +519,14 @@ export async function prepareDiagnoseStructuredContent(
   // Terminology annotation may rebuild primarySyndromeBasis from its own projection. Reapply the
   // same exact chart quotes at the final preparation boundary so all three evidence exits remain
   // aligned when the strict contract runs immediately afterwards.
-  const result = phase(
+  const discriminatorBound = phase(
     "final_key_discriminators",
     applyM03KeySyndromeDiscriminatorsToContent(diagnosticCitationsBound, clinicalContext),
   );
+  // 信息不足/红旗的具体度收敛是单调的发射投影，必须在原始候选完成
+  // 全量确定性合同与独立复核之后执行。若在此处先清空病机链，完整合同会把
+  // 产品要求的“症状级工作判断”误当成上游结构失败。
+  const result = discriminatorBound;
   if (Object.keys(phaseDurations).length > 0) {
     console.info("[tcm-cdss:timing] m03_prepare_phases", phaseDurations);
   }
@@ -5039,8 +5043,37 @@ async function callPrimaryTextModelStream(
           const identityRestored = opts.structuredStage === "prescribe"
             ? applyRestoredGovernedFormulaIdentity(finalStageOwned, opts.structuredPriorReasoning)
             : finalStageOwned;
+          let emissionContent = identityRestored;
+          let emissionM03Attestation = m03AttestationWithScope;
+          if (opts.structuredStage === "diagnose") {
+            const specificityProjected = applyM03DecisionSpecificityPolicy(identityRestored, opts.structuredCaseState);
+            if (specificityProjected !== identityRestored) {
+              const synchronized = synchronizeVisibleClinicalSummary(
+                specificityProjected,
+                "diagnose",
+                opts.structuredClinicalContext || "",
+                opts.structuredCaseState,
+              );
+              const projectedReasoning = m03ReasoningFromStructuredContent(synchronized);
+              const rebound = projectedReasoning && emissionM03Attestation
+                ? rebindClinicalReviewAttestation(emissionM03Attestation, projectedReasoning)
+                : emissionM03Attestation;
+              if (!projectedReasoning || (emissionM03Attestation && !rebound)) {
+                // 投影或复核哈希重绑失败时不能回退到具体证候。走既有截断合同，
+                // 且 truncated 会阻止签名，保证不存在“页面已降级、签名还绑旧载荷”。
+                truncated = true;
+                transformed = transformTruncateFallback();
+                emissionContent = transformed.content;
+                emissionM03Attestation = undefined;
+              } else {
+                emissionContent = synchronized;
+                emissionM03Attestation = rebound;
+                if (emissionM03Attestation) clinicalReviewRebindCount += 1;
+              }
+            }
+          }
           let signedContent = opts.structuredStage === "diagnose"
-            ? attachClinicalReviewAttestation(identityRestored, m03AttestationWithScope)
+            ? attachClinicalReviewAttestation(emissionContent, emissionM03Attestation)
             : opts.structuredStage === "prescribe"
               ? attachClinicalReviewAttestation(identityRestored, m04AttestationWithScope)
               : identityRestored;

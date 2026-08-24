@@ -57,6 +57,10 @@ type ClinicalReviewAggregate = {
   durationMsTotal: number;
   attemptCountTotal: number;
   outcomes: Record<CdssClinicalReviewOutcome, number>;
+  recentEvents: Array<{
+    at: number;
+    outcome: CdssClinicalReviewOutcome;
+  }>;
   reasons: Record<string, number>;
   issueCodes: Record<string, number>;
   reviewers: Record<string, number>;
@@ -86,6 +90,8 @@ const TELEMETRY_STORE = Symbol.for("tcm-cdss.stage-telemetry.v1");
 
 /** Bounded distinct keys per map; overflow folds into "other" so a buggy reason stream cannot grow memory. */
 const MAX_DISTINCT_KEYS = 64;
+const CLINICAL_REVIEW_RECENT_WINDOW_MS = 15 * 60_000;
+const CLINICAL_REVIEW_RECENT_EVENT_LIMIT = 100;
 
 function nullProtoRecord(): Record<string, number> {
   return Object.create(null) as Record<string, number>;
@@ -115,6 +121,7 @@ function emptyClinicalReviewAggregate(): ClinicalReviewAggregate {
     durationMsTotal: 0,
     attemptCountTotal: 0,
     outcomes: { accepted: 0, repair_demanded: 0, invalid: 0, unavailable: 0 },
+    recentEvents: [],
     reasons: nullProtoRecord(),
     issueCodes: nullProtoRecord(),
     reviewers: nullProtoRecord(),
@@ -232,10 +239,16 @@ export function recordCdssStageTelemetry(event: CdssStageTelemetryEvent): void {
 export function recordCdssClinicalReviewTelemetry(event: CdssClinicalReviewTelemetryEvent): void {
   const state = store();
   const aggregate = state.clinicalReviews[event.stage] || emptyClinicalReviewAggregate();
+  if (!aggregate.recentEvents) aggregate.recentEvents = [];
   aggregate.total += 1;
   aggregate.durationMsTotal += Math.max(0, Math.round(event.durationMs));
   aggregate.attemptCountTotal += Math.max(0, Math.round(event.attemptCount));
   aggregate.outcomes[event.outcome] += 1;
+  const now = Date.now();
+  aggregate.recentEvents.push({ at: now, outcome: event.outcome });
+  aggregate.recentEvents = aggregate.recentEvents
+    .filter((recent) => now - recent.at <= CLINICAL_REVIEW_RECENT_WINDOW_MS)
+    .slice(-CLINICAL_REVIEW_RECENT_EVENT_LIMIT);
   bumpKey(aggregate.reasons, event.reasonCode);
   bumpKey(aggregate.issueCodes, event.issueCode);
   bumpIdentityKey(
@@ -254,6 +267,7 @@ function percentile(values: readonly number[], quantile: number): number {
 
 export function getCdssStageTelemetrySnapshot(): unknown {
   const state = store();
+  const now = Date.now();
   return {
     schemaVersion: "tcm-cdss-stage-telemetry-v1",
     startedAt: state.startedAt,
@@ -277,14 +291,39 @@ export function getCdssStageTelemetrySnapshot(): unknown {
       reasonCodes: { ...(aggregate.reasonCodes || nullProtoRecord()) },
     }])),
     funnel: { ...state.funnel },
-    clinicalReviews: Object.fromEntries(Object.entries(state.clinicalReviews).map(([stage, aggregate]) => [stage, {
-      total: aggregate.total,
-      outcomes: { ...aggregate.outcomes },
-      averageDurationMs: aggregate.total > 0 ? Math.round(aggregate.durationMsTotal / aggregate.total) : 0,
-      attemptCountTotal: aggregate.attemptCountTotal,
-      reasons: { ...aggregate.reasons },
-      issueCodes: { ...aggregate.issueCodes },
-      reviewers: { ...aggregate.reviewers },
-    }])),
+    clinicalReviews: Object.fromEntries(Object.entries(state.clinicalReviews).map(([stage, aggregate]) => {
+      const recentEvents = (aggregate.recentEvents || [])
+        .filter((recent) => now - recent.at <= CLINICAL_REVIEW_RECENT_WINDOW_MS)
+        .slice(-CLINICAL_REVIEW_RECENT_EVENT_LIMIT);
+      aggregate.recentEvents = recentEvents;
+      const recentAccepted = recentEvents.filter((event) => event.outcome === "accepted").length;
+      const recentRepairDemanded = recentEvents.filter((event) => event.outcome === "repair_demanded").length;
+      const recentInvalid = recentEvents.filter((event) => event.outcome === "invalid").length;
+      const recentUnavailable = recentEvents.filter((event) => event.outcome === "unavailable").length;
+      const recentCompleted = recentAccepted + recentRepairDemanded;
+      const recentSampleSize = recentEvents.length;
+      return [stage, {
+        total: aggregate.total,
+        outcomes: { ...aggregate.outcomes },
+        averageDurationMs: aggregate.total > 0 ? Math.round(aggregate.durationMsTotal / aggregate.total) : 0,
+        attemptCountTotal: aggregate.attemptCountTotal,
+        recentWindow: {
+          durationMinutes: CLINICAL_REVIEW_RECENT_WINDOW_MS / 60_000,
+          maximumSampleSize: CLINICAL_REVIEW_RECENT_EVENT_LIMIT,
+          sampleSize: recentSampleSize,
+          completed: recentCompleted,
+          accepted: recentAccepted,
+          repairDemanded: recentRepairDemanded,
+          invalid: recentInvalid,
+          unavailable: recentUnavailable,
+          completionRate: recentSampleSize > 0 ? Number((recentCompleted / recentSampleSize).toFixed(4)) : null,
+          acceptanceRate: recentSampleSize > 0 ? Number((recentAccepted / recentSampleSize).toFixed(4)) : null,
+          unavailableRate: recentSampleSize > 0 ? Number((recentUnavailable / recentSampleSize).toFixed(4)) : null,
+        },
+        reasons: { ...aggregate.reasons },
+        issueCodes: { ...aggregate.issueCodes },
+        reviewers: { ...aggregate.reviewers },
+      }];
+    })),
   };
 }

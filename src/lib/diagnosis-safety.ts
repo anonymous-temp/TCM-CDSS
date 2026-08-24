@@ -31,6 +31,7 @@ import { patientSexAllowsDoseLevelSuggestion } from "./clinical-required-fields"
 import { activeEmergencyClearanceFindingsFromGate, emergencyClearanceContractIssue } from "./emergency-clearance-contract";
 import { sixHealthFollowupTable } from "./tcm-followup-dimensions";
 import redflagTriageLexicon from "../data/redflag-triage-lexicon.json" with { type: "json" };
+import physicalExamClaimLexicon from "../data/physical-exam-claim-lexicon.source.json" with { type: "json" };
 
 type GovernedRedFlagCategory = {
   id: string;
@@ -1042,6 +1043,62 @@ function sanitizeAgeClaimText(value: string, state: CaseState): string {
 const FEMALE_ONLY_CLINICAL_CONTEXT = /(月经|经期|妊娠|孕产|孕妇|孕期|哺乳|备孕女性|女性[^。；，,]{0,8}备孕)/;
 const DEDUPLICATED_CLINICAL_LIST_FIELDS = new Set(["limitations", "suggestedChecks", "mustCollect"]);
 
+type PhysicalExamClaimGroup = { id: string; label: string; terms: string[] };
+const PHYSICAL_EXAM_CLAIM_GROUPS = physicalExamClaimLexicon.groups as PhysicalExamClaimGroup[];
+const PHYSICAL_EXAM_CLAIM_CUES = (physicalExamClaimLexicon.claimCues as string[])
+  .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  .join("|");
+const PHYSICAL_EXAM_CLAIM_CUE = new RegExp(`(?:${PHYSICAL_EXAM_CLAIM_CUES})`);
+const PHYSICAL_EXAM_ASSERTION_FIELDS = new Set([
+  "supportingFacts", "primarySyndromeBasis", "patientFact", "syndromeEvidence",
+  "clinicalRationale", "tcmDiagnosticRationale", "limitations", "suggestedChecks",
+  "reason", "distinguishingPoints", "nextCheck", "overallPathogenesis", "summary",
+  "mechanism", "basis", "affects", "followupSafetyNet",
+]);
+
+function physicalExamGroupPattern(group: PhysicalExamClaimGroup): RegExp {
+  return new RegExp(group.terms.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"));
+}
+
+function sourceDocumentsPhysicalExam(source: string, group: PhysicalExamClaimGroup): boolean {
+  const groupPattern = physicalExamGroupPattern(group);
+  return source.split(/[。；;\n]+/).some((clause) => groupPattern.test(clause) && PHYSICAL_EXAM_CLAIM_CUE.test(clause));
+}
+
+function sanitizeUngroundedPhysicalExamClaims(
+  value: string,
+  source: string,
+): { text: string; missingLabels: string[] } {
+  const missingLabels = new Set<string>();
+  const parts = value.split(/([。；;，,])/);
+  const sanitized = parts.map((part) => {
+    if (!part || /^[。；;，,]$/.test(part)) return part;
+    const unsupported = PHYSICAL_EXAM_CLAIM_GROUPS.filter((group) =>
+      physicalExamGroupPattern(group).test(part)
+      && PHYSICAL_EXAM_CLAIM_CUE.test(part)
+      && !sourceDocumentsPhysicalExam(source, group));
+    if (unsupported.length === 0) return part;
+    for (const group of unsupported) missingLabels.add(group.label);
+    const prefix = part.match(/^(\s*(?:[-*]>?\s*|>\s*|#{1,6}\s*)?(?:[^：:|]{1,24}[：:]\s*)?)/)?.[1] || "";
+    return `${prefix}本次病历未记录${unsupported.map((group) => group.label).join("、")}结果，需现场补充`;
+  }).join("").replace(/([。；;，,]){2,}/g, "$1");
+  return { text: sanitized, missingLabels: [...missingLabels] };
+}
+
+const PHYSICAL_EXAM_REFERENCE_LINE = /^\s*(?:(?:[-*>]|\d+[.)])\s*)?(?:#{1,6}\s*)?(?:\*\*|__)?(?:参考文献|文献依据|文献来源|指南(?:原文|条文|依据|来源|标准)?|证据(?:引用|来源|依据)?|引用|出处|诊断标准|鉴别标准)(?:\*\*|__)?\s*[：:]/;
+
+/**
+ * 只在患者叙述上做查体接地。可见 Markdown 中的指南/文献行是通用
+ * 鉴别标准，不是对当前患者的查体断言，不得改写成“本次病历未记录”。
+ * 结构化 JSON 依旧只处理明确的患者断言字段，引用元数据不在白名单内。
+ */
+function sanitizeUngroundedPhysicalExamClaimsInNarrative(value: string, source: string): string {
+  return value.split("\n").map((line) => {
+    if (PHYSICAL_EXAM_REFERENCE_LINE.test(line) || /https?:\/\/|\[[^\]]+\]\([^\s)]+\)/.test(line)) return line;
+    return sanitizeUngroundedPhysicalExamClaims(line, source).text;
+  }).join("\n");
+}
+
 function deduplicateClinicalListItems(items: unknown[]): unknown[] {
   const seen = new Set<string>();
   return items.filter((item) => {
@@ -1140,6 +1197,7 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
     (match, jsonText: string) => {
       let sanitizedBlock = match;
       try {
+        const missingExamLabels = new Set<string>();
         const visit = (value: unknown, key = "", parentKey = ""): unknown => {
           // Identity labels are not patient assertions. They have already passed the stage contract;
           // running negation prose replacement over them can turn a valid diagnosis name into a
@@ -1152,6 +1210,14 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
           // 未知线索的从句（「否认X」「尚未确认X是否存在」），条件句「如出现黑便应立即就医」不触发
           // 任何分支；即便被改写也只是文案变形，不会造成任何驳回。
           if (typeof value === "string") {
+            // Only clinician-facing patient-assertion fields are eligible. Reference quotes,
+            // source titles and rule metadata may legitimately describe examination criteria and
+            // must never be rewritten as if they were claims about this patient.
+            const examGrounded = PHYSICAL_EXAM_ASSERTION_FIELDS.has(key)
+              ? sanitizeUngroundedPhysicalExamClaims(value, source)
+              : { text: value, missingLabels: [] };
+            for (const label of examGrounded.missingLabels) missingExamLabels.add(label);
+            const groundedValue = examGrounded.text;
             // Exact source facts have already crossed the structured grounding contract. Rewriting
             // them as explanatory prose can corrupt mixed-polarity records: for example, the exact
             // quote “否认突发最剧烈头痛” was expanded into both “头痛阳性” and “否认头痛”, making
@@ -1160,12 +1226,12 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
             // still flow through the sanitizer and remain fail-closed.
             if (
               ["supportingFacts", "primarySyndromeBasis", "patientFact", "syndromeEvidence"].includes(key) &&
-              value.trim().length >= 2 &&
-              source.includes(value.trim())
+              groundedValue.trim().length >= 2 &&
+              source.includes(groundedValue.trim())
             ) {
-              return value;
+              return groundedValue;
             }
-            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(value, source, extractorAffirmedTerms), state), state);
+            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(groundedValue, source, extractorAffirmedTerms), state), state);
             if (key === "followupSafetyNet") return ensureActionableFollowupSafetyNet(sanitized);
             const documentedPositive = sanitized.match(/病历已记录(.+?)阳性/);
             const exactDocumentedPositive = sanitized.match(/^\s*病历已记录(.+?)阳性[。；;]?\s*$/);
@@ -1209,7 +1275,23 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
           }
           return visited;
         };
-        sanitizedBlock = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(visit(JSON.parse(jsonText)), null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
+        const visited = visit(JSON.parse(jsonText)) as Record<string, unknown>;
+        if (missingExamLabels.size > 0) {
+          const western = visited.westernDiagnosis && typeof visited.westernDiagnosis === "object" && !Array.isArray(visited.westernDiagnosis)
+            ? visited.westernDiagnosis as Record<string, unknown>
+            : undefined;
+          const primary = western?.primary && typeof western.primary === "object" && !Array.isArray(western.primary)
+            ? western.primary as Record<string, unknown>
+            : undefined;
+          if (primary) {
+            const existing = Array.isArray(primary.limitations) ? primary.limitations : [];
+            primary.limitations = deduplicateClinicalListItems([
+              ...existing,
+              ...[...missingExamLabels].map((label) => `本次病历未记录${label}结果，需现场补充。`),
+            ]);
+          }
+        }
+        sanitizedBlock = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(visited, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
       } catch {
         // Leave an invalid block unchanged; the structured-response validator will reject it.
       }
@@ -1220,7 +1302,8 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
       return `__TCM_CDSS_JSON_BLOCK_${index}__`;
     },
   );
-  const sanitizedNarrative = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(placeholderContent, source, extractorAffirmedTerms), state), state);
+  const examGroundedNarrative = sanitizeUngroundedPhysicalExamClaimsInNarrative(placeholderContent, source);
+  const sanitizedNarrative = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(examGroundedNarrative, source, extractorAffirmedTerms), state), state);
   return sanitizedNarrative.replace(/__TCM_CDSS_JSON_BLOCK_(\d+)__/g, (_, index: string) => jsonBlocks[Number(index)] || "");
 }
 
@@ -4989,10 +5072,13 @@ function withStructuredFollowupTimeline(markdown: string, items: StructuredFollo
  * （含临床风险词、且不是规则名/等级/处置建议/标识符）。取不到就**这一条不生成**——
  * 宁可少一条触发条件，也不能把一段乱码摆给医生当随访依据。
  */
-const AUDIT_FIELD_SEPARATOR = /\s*(?:／|\/|\|)\s*/;
 const AUDIT_RISK_TERMS = /(禁忌|慎用|相互作用|过敏|超量|超过|肝肾|妊娠|哺乳|出血|毒性|有毒|重复用药|心悸|血压|嗜睡|成瘾|依赖)/;
 /** 不是「观察什么」的格：规则名、提示等级、处置建议、纯标识符、范围说明。 */
 const AUDIT_NON_OBSERVATION = /^(?:规则审查|给药途径审查|剂量审查|配伍审查|适应证审查|强提示|一般提示|说明性提示|信息不足提示|\d+|[0-9a-f]{8}-[0-9a-f-]{20,}|请[^，,。]{0,40}$|范围说明[:：])/;
+/** 规则元数据描述系统权限或目录身份，不是患者可观察到的随访症状。 */
+const AUDIT_RULE_METADATA = /(?:处方权|主数据|管制目录|权限)/;
+/** 至少包含一个患者能观察或医生能复核的完整临床条件，不能只是「毒性反应」这类标题。 */
+const AUDIT_PATIENT_OBSERVATION = /(?:出现|发生|加重|减轻|缓解|无改善|不适|症状|心悸|胸闷|头晕|乏力|麻木|皮疹|出血|疼痛|呕吐|腹泻|呼吸|血压|嗜睡|成瘾|依赖|禁忌|慎用|相互作用|超过|超量)/;
 /**
  * 审核/数据完整性类条目**不是患者能"出现"的事**。
  * 「未找到药品主数据」「未提供可识别的单次剂量」「关键安全审核项目暂未得到可核验结果」
@@ -5004,12 +5090,50 @@ const AUDIT_NON_OBSERVATION = /^(?:规则审查|给药途径审查|剂量审查|
 // 按名词过滤会把后者一并误杀（实测如此）。
 const AUDIT_DATA_COVERAGE = /(未找到|未提供|未识别|暂不能|暂未|无法完成|无法识别|未得到|重新审方|重新审核)/;
 
+/**
+ * 审方表既可能用全角斜线，也可能用 Markdown 竖线；规则名自身还会包含
+ * `主数据/官方管制目录`。只在括号外切列，避免把规则名切成能通过风险词筛选的残片。
+ */
+function splitAuditFields(line: string): string[] {
+  const fields: string[] = [];
+  let field = "";
+  let groupingDepth = 0;
+  for (const character of line) {
+    if (character === "(" || character === "（" || character === "[" || character === "【") groupingDepth += 1;
+    if (character === ")" || character === "）" || character === "]" || character === "】") {
+      groupingDepth = Math.max(0, groupingDepth - 1);
+    }
+    if (groupingDepth === 0 && (character === "／" || character === "/" || character === "|")) {
+      if (field.trim()) fields.push(field.trim());
+      field = "";
+      continue;
+    }
+    field += character;
+  }
+  if (field.trim()) fields.push(field.trim());
+  return fields;
+}
+
+function hasBalancedAuditGrouping(value: string): boolean {
+  const pairs: Record<string, string> = { "(": ")", "（": "）", "[": "]", "【": "】" };
+  const closing = new Set(Object.values(pairs));
+  const stack: string[] = [];
+  for (const character of value) {
+    if (pairs[character]) stack.push(pairs[character]);
+    else if (closing.has(character) && stack.pop() !== character) return false;
+  }
+  return stack.length === 0;
+}
+
 function auditRiskObservationFromLine(line: string): string {
-  const cells = line.split(AUDIT_FIELD_SEPARATOR).map((cell) => cell.trim()).filter(Boolean);
+  if (!AUDIT_RISK_TERMS.test(line)) return "";
+  const cells = splitAuditFields(line);
   const candidates = (cells.length > 1 ? cells : [line])
     .filter((cell) => !AUDIT_NON_OBSERVATION.test(cell))
+    .filter((cell) => !AUDIT_RULE_METADATA.test(cell))
+    .filter(hasBalancedAuditGrouping)
     .filter((cell) => cell.length >= 6 && cell.length <= 60)
-    .filter((cell) => AUDIT_RISK_TERMS.test(cell))
+    .filter((cell) => AUDIT_PATIENT_OBSERVATION.test(cell))
     .filter((cell) => !AUDIT_DATA_COVERAGE.test(cell))
     // 逗号拼起来的标签串（「抗凝,蒲黄 活血化瘀,出血」）不是一句能读的观察项。
     .filter((cell) => {

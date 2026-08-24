@@ -195,6 +195,16 @@ check("⑧ 审方风险行必须结构化抽取，不得把整行原文摆给医
       `审方原文噪声「${noise}」被摆进了触发条件：${triggers.join(" | ")}`,
     );
   }
+  for (const metadata of ["毒性药品处方权", "主数据", "官方管制目录", "权限标识"]) {
+    assert.ok(
+      !triggers.some((item) => item.includes(metadata)),
+      `规则元数据残片「${metadata}」被摆进了患者触发条件：${triggers.join(" | ")}`,
+    );
+  }
+  assert.ok(
+    !triggers.some((item) => /[(（][^()（）]*$/.test(item)),
+    `未闭合括号残片被摆进了患者触发条件：${triggers.join(" | ")}`,
+  );
   // 抽得出风险描述就该留一条可读的；抽不出宁可不生成，也不摆乱码。
   for (const item of triggers) assert.ok(item.length <= 80, `触发条件过长，八成是整行原文：${item}`);
 });
@@ -261,6 +271,7 @@ check("⑫ 审方里的数据/审核完整性条目不得变成患者触发条�
     "剂量审查 ／ 一般提示 ／ 处方信息需复核 ／ 10 ／ 大黄䗪虫丸 未提供可识别的单次剂量,当前无法完成剂量适宜性审核。 ／ 请补充数值型单次剂量后重新审方。",
     "规则审查 ／ 一般提示 ／ 处方需重新审核 ／ - ／ 未找到与处方名称和编码一致的药品主数据,相关成分、相互作用暂不能可靠核验。",
     "规则审查 ／ 强提示 ／ 毒性中药 ／ 3 ／ 蒺藜 药品主数据标注为毒性药品,需复核剂量与炮制。",
+    "规则审查 ／ 强提示 ／ 神经毒性反应 ／ 3 ／ 服药期间出现口唇麻木需立即停药就诊。",
   ].join("\n");
   const payload = buildDeterministicRiskFollowupPayload(state, null);
   const triggers = payload.timelineItems.flatMap((item) => item.triggers);
@@ -272,7 +283,7 @@ check("⑫ 审方里的数据/审核完整性条目不得变成患者触发条�
   }
   // 真正的临床风险仍要保留。
   assert.ok(
-    triggers.some((item) => /毒性|蒺藜/.test(item)),
+    triggers.some((item) => /口唇麻木/.test(item)),
     `真实临床风险被一并过滤掉了：${triggers.join(" | ")}`,
   );
 });

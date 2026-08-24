@@ -1430,6 +1430,38 @@ const REGULATORY_CONTROLLED_HERB_NAMES: ReadonlySet<string> = (() => {
   return names;
 })();
 
+const NON_CONTROLLED_PHARMACOPOEIA_TOXIC_HERBS: ReadonlyMap<string, "toxic" | "mildly_toxic"> = (() => {
+  const payload = controlledToxicPolicyJson as unknown as {
+    explicitlyNotBlocked?: {
+      pharmacopoeiaToxicNotControlled?: string[];
+      pharmacopoeiaMildlyToxic?: string[];
+    };
+  };
+  const map = new Map<string, "toxic" | "mildly_toxic">();
+  for (const name of payload.explicitlyNotBlocked?.pharmacopoeiaToxicNotControlled || []) {
+    if (typeof name === "string" && name.trim()) map.set(name.trim(), "toxic");
+  }
+  for (const name of payload.explicitlyNotBlocked?.pharmacopoeiaMildlyToxic || []) {
+    if (typeof name === "string" && name.trim()) map.set(name.trim(), "mildly_toxic");
+  }
+  return map;
+})();
+
+export type RegulatedToxicHerbStatus = "controlled" | "pharmacopoeia_toxic" | "pharmacopoeia_mildly_toxic" | "unlisted";
+
+/** Runtime view of the governed regulatory/toxicity split; never infer legal control from a toxicity label. */
+export function regulatedToxicHerbStatus(herb: string): RegulatedToxicHerbStatus {
+  const raw = typeof herb === "string" ? herb.trim() : "";
+  if (!raw) return "unlisted";
+  const canonical = canonicalKnowledgeHerbName(raw);
+  if (REGULATORY_CONTROLLED_HERB_NAMES.has(raw) || REGULATORY_CONTROLLED_HERB_NAMES.has(canonical)) {
+    return "controlled";
+  }
+  const toxic = NON_CONTROLLED_PHARMACOPOEIA_TOXIC_HERBS.get(raw)
+    || NON_CONTROLLED_PHARMACOPOEIA_TOXIC_HERBS.get(canonical);
+  return toxic === "mildly_toxic" ? "pharmacopoeia_mildly_toxic" : toxic === "toxic" ? "pharmacopoeia_toxic" : "unlisted";
+}
+
 const CLINICIAN_DOSE_CLASS_BY_NAME: ReadonlyMap<string, ClinicianDoseClass> = (() => {
   const policy = clinicianDosePolicyJson as unknown as {
     ingredients?: Record<string, Array<{ name?: string }>>;

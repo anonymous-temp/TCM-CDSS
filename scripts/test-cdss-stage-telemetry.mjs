@@ -105,14 +105,29 @@ assert.equal(diagnoseReviews.reasons.invalid_contract, 1);
 assert.equal(diagnoseReviews.issueCodes.criteria_not_met, 1);
 assert.equal(diagnoseReviews.reviewers["deepseek/deepseek-v4-pro/preferred"], 2);
 assert.equal(diagnoseReviews.reviewers["deepseek/deepseek-v4-flash/cross_model_fallback"], 1);
+assert.deepEqual(diagnoseReviews.recentWindow, {
+  durationMinutes: 15,
+  maximumSampleSize: 100,
+  sampleSize: 3,
+  completed: 2,
+  accepted: 1,
+  repairDemanded: 1,
+  invalid: 1,
+  unavailable: 0,
+  completionRate: 0.6667,
+  acceptanceRate: 0.3333,
+  unavailableRate: 0,
+});
 const prescribeReviews = extended.clinicalReviews.prescribe;
 assert.equal(prescribeReviews.total, 1);
 assert.equal(prescribeReviews.outcomes.unavailable, 1);
 assert.equal(prescribeReviews.reasons.deadline, 1);
+assert.equal(prescribeReviews.recentWindow.completionRate, 0);
+assert.equal(prescribeReviews.recentWindow.unavailableRate, 1);
 // Review telemetry is aggregate-only: the per-request record rides the extended
 // "[tcm-cdss:timing] clinical_review" log in diagnosis-api.ts, so only stage events log here.
 assert.equal(logs.length, 11);
 assert.doesNotMatch(JSON.stringify(logs), /李四/);
 assert.doesNotMatch(JSON.stringify(extended), /李四|张三/);
 
-console.log("stage telemetry tests passed: 41 assertions");
+console.log("stage telemetry tests passed: 44 assertions");

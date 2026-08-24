@@ -155,6 +155,44 @@ const hallucinatedResult = await interpretM02Answer({
 assert.equal(hallucinatedResult.ok, false, "hallucination must return typed failure after one repair");
 assert.equal(hallucinatedResult.failure.code, "model_output_invalid");
 
+const transientPhases = [];
+let transientCalls = 0;
+const recoveredTransient = await interpretM02Answer({
+  caseState,
+  plan,
+  doctorAnswer: "没有药物过敏。",
+  modelCall: async ({ phase }) => {
+    transientPhases.push(phase);
+    transientCalls += 1;
+    if (transientCalls === 1) throw Object.assign(new Error("upstream bad gateway"), { status: 502 });
+    return output([{
+      questionId: "q-allergy",
+      targetField: "allergyHistory",
+      recordValue: "没有药物过敏",
+      clinicalFacts: [{ status: "negative", quote: "没有药物过敏" }],
+      groundedQuotes: ["没有药物过敏"],
+    }]);
+  },
+});
+assert.equal(recoveredTransient.ok, true, "one transient 502 retry should recover inside the shared deadline");
+assert.equal(transientCalls, 2);
+assert.deepEqual(transientPhases, ["interpret", "interpret"], "transport retry must not consume the contract-repair phase");
+
+let permanentCalls = 0;
+const permanentFailure = await interpretM02Answer({
+  caseState,
+  plan,
+  doctorAnswer: "没有药物过敏。",
+  modelCall: async () => {
+    permanentCalls += 1;
+    throw Object.assign(new Error("bad request"), { status: 400 });
+  },
+});
+assert.equal(permanentFailure.ok, false);
+assert.equal(permanentFailure.failure.code, "model_request_failed");
+assert.equal(permanentFailure.failure.attempts, 1);
+assert.equal(permanentCalls, 1, "non-transient failures must not be retried");
+
 const fabricatedQuote = validateM02AnswerModelOutput(output([{
   questionId: "q-medication",
   targetField: "medicationHistory",

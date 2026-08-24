@@ -35,6 +35,154 @@ const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
 
 /**
+ * Product decision table for M03 specificity:
+ * - completeness below C: symptom-level working judgment only;
+ * - active deterministic red flag: the same convergence, with emergency evaluation first.
+ *
+ * This is a declassification transform. It never invents a diagnosis or treatment, and it never
+ * clears the whole report: grounded symptoms, Western working diagnosis, safety-net and mustCollect
+ * remain available while syndrome/formula specificity is removed at the final emission boundary.
+ */
+export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseState): string {
+  const completenessLevel = state?.completeness?.level;
+  const activeRedFlag = state?.safetyGate?.status === "red_flag";
+  if (!state || (completenessLevel === "C" && !activeRedFlag)) return content;
+  const reason = activeRedFlag
+    ? "急危重风险未排除，当前仅保留症状级工作判断；先完成急诊或转诊评估并记录排除依据，再作具体辨证与方剂选择。"
+    : "完整度未达C级，当前仅保留症状级工作判断；补充病程、伴随表现及必要四诊后，再作具体辨证与方剂选择。";
+  const mustCollect = activeRedFlag
+    ? "完成急危重风险评估并记录排除或处置依据"
+    : "补充影响辨证的病程、伴随表现及必要四诊";
+  return content.replace(
+    /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
+    (match, jsonText: string) => {
+      try {
+        const reasoning = JSON.parse(jsonText) as Record<string, unknown>;
+        if (reasoning.stage !== "diagnose") return match;
+        const overview = reasoning.overview && typeof reasoning.overview === "object" && !Array.isArray(reasoning.overview)
+          ? reasoning.overview as Record<string, unknown>
+          : undefined;
+        if (!overview) return match;
+        const insufficientEvidence = {
+          evidenceLevel: "insufficient",
+          source: "当前病例信息不足",
+          confidence: "低",
+        };
+        delete overview.tcmDiseaseName;
+        overview.primarySyndrome = "症状级工作判断";
+        overview.primarySyndromeResolution = "unresolved";
+        overview.primarySyndromeResolutionReason = reason;
+        overview.primarySyndromeBasis = [];
+        overview.tcmDiseaseRationale = "";
+        overview.tcmDiagnosticRationale = "";
+        overview.tcmDiseaseReferences = [];
+        overview.tcmSyndromeReferences = [];
+        overview.tcmDifferentials = [];
+        overview.tcmDiseaseDifferentials = [];
+        overview.secondarySyndromes = [];
+        overview.overallPathogenesis = "当前不形成具体中医病机判断";
+        overview.overallTherapy = "当前不锁定具体中医治法";
+        overview.recommendedFormulaDirection = "";
+        overview.recommendedFormulaNames = [];
+        overview.formulaSelectionMode = "none";
+        delete overview.deferredFormulaSelection;
+        overview.evidence = insufficientEvidence;
+
+        // 降级态仍保留西医症状级工作诊断，但 westernDiagnosis 也含大量模型
+        // 自由文本。不能让具体证候/方药/穴位改塞进 rationale、limitations、
+        // suggestedChecks、differentials 或 candidates 后穿过投影。只保留已经上游
+        // 接地的西医工作诊断名和患者事实，其余完全重建为确定性边界。
+        const westernDiagnosis = reasoning.westernDiagnosis && typeof reasoning.westernDiagnosis === "object" && !Array.isArray(reasoning.westernDiagnosis)
+          ? reasoning.westernDiagnosis as Record<string, unknown>
+          : undefined;
+        const westernPrimary = westernDiagnosis?.primary && typeof westernDiagnosis.primary === "object" && !Array.isArray(westernDiagnosis.primary)
+          ? westernDiagnosis.primary as Record<string, unknown>
+          : undefined;
+        if (westernDiagnosis && westernPrimary) {
+          // 降级态不把任何自由文本签成“西医诊断支持依据”。字段落点不是语义类别：
+          // 主诉同样可写“曾用院内方后好转”，现病史也可夹自拟方/外治经过。
+          // 在没有服务端原子化症状/体征/检查类型证明前，宁可清空依据列表；原始
+          // 患者事实仍保留在病例记录，只是不再被此降级载荷冒充诊断证据。
+          westernDiagnosis.primary = {
+            name: "症状级西医工作判断",
+            status: ["考虑", "需排除", "证据有限"].includes(String(westernPrimary.status))
+              ? westernPrimary.status
+              : "证据有限",
+            confidence: "低",
+            supportingFacts: [],
+            supportingFactKinds: [],
+            clinicalRationale: "当前资料仅支持症状级西医工作判断，病因与分型待补充信息或排除急危重风险后复评。",
+            limitations: [reason],
+            suggestedChecks: [mustCollect],
+            evidence: insufficientEvidence,
+          };
+          westernDiagnosis.differentials = [];
+          westernDiagnosis.candidates = [];
+        }
+
+        const pathogenesis = reasoning.pathogenesis && typeof reasoning.pathogenesis === "object" && !Array.isArray(reasoning.pathogenesis)
+          ? reasoning.pathogenesis as Record<string, unknown>
+          : undefined;
+        if (pathogenesis) {
+          // uncertainty 也是模型自由文本的可见签名字段。不继承原 item/reason/affects，
+          // 否则具体证候、方药或穴位可换个栏位穿过同一降级边界。
+          pathogenesis.uncertainties = [{
+            item: "辨证与方剂具体度边界",
+            reason,
+            affects: "不影响症状级工作判断、危险信号筛查和待补采清单。",
+          }];
+          pathogenesis.summary = "当前仅保留症状级工作判断，中医病机待补充信息或排除急危重风险后再评估。";
+          pathogenesis.locationDifferentiation = {
+            items: [],
+            details: [],
+            resolution: "unresolved",
+            resolutionReason: reason,
+            evidence: insufficientEvidence,
+          };
+          pathogenesis.natureDifferentiation = {
+            items: [],
+            rootDeficiency: [],
+            branchExcess: [],
+            basis: "",
+            resolution: "unresolved",
+            resolutionReason: reason,
+            evidence: insufficientEvidence,
+          };
+          pathogenesis.symptomClusters = [];
+          delete pathogenesis.caseRelationship;
+          pathogenesis.chain = [];
+        }
+        reasoning.therapy = {
+          overallPrinciple: "当前仅进行症状与安全风险管理",
+          overallMethod: "补充信息或排除急危重风险后再定具体治法",
+          subTherapies: [],
+        };
+        reasoning.formula = null;
+        reasoning.nonPharma = null;
+        reasoning.lineageAdaptation = null;
+        reasoning.terminologyMappings = [];
+        // management 三个字段也是模型自由文本，且前端直接展示。不能只清理
+        // overview/pathogenesis：“风寒束表证 / 麻黄汤 / 针刺肺俞”若被塞到随访或
+        // 补采字段，同样会穿过降级边界并进入签名载荷。因此这里不继承任何
+        // 原 management 文本，只重建确定性的安全提示与补采清单。
+        reasoning.management = {
+          ...(activeRedFlag ? {
+            redFlagLoop: "急危重风险未排除：请立即按安全门提示完成急诊或转诊评估，未记录排除或处置依据前不进入具体辨证与方药选择。",
+          } : {}),
+          mustCollect: [mustCollect],
+          followupSafetyNet: activeRedFlag
+            ? "当前应优先完成急危重风险评估；如症状持续、加重或出现新的急性危险信号，请立即急诊或呼叫急救。"
+            : "先补充影响诊断与安全判断的关键信息后再复评；如症状明显加重或出现急性危险信号，请及时急诊就医。",
+        };
+        return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+      } catch {
+        return match;
+      }
+    },
+  );
+}
+
+/**
  * 甲方评测(2026-08-04) 呈现层第 3 条「病机内容仍存在重复」的**单一去重权威**。
  *
  * 根因：M03 的病机在结构化载荷里天然存在于五个字段——overview.overallPathogenesis、
@@ -2874,6 +3022,9 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
       ? [`**中医辨病依据**：${structuredCitationTexts(overview?.tcmDiseaseReferences).join("；")}`]
       : []),
     `**辨证**：${syndromeLabelWithNationalStandard(reasoning, "overview.primarySyndrome", overview?.primarySyndrome)}`,
+    ...(overview?.primarySyndromeResolution === "unresolved" && markdownCell(overview?.primarySyndromeResolutionReason)
+      ? [`**辨证边界**：${markdownCell(overview.primarySyndromeResolutionReason)}`]
+      : []),
     ...(structuredCitationTexts(overview?.tcmSyndromeReferences).length > 0
       ? [`**中医辨证依据**：${structuredCitationTexts(overview?.tcmSyndromeReferences).join("；")}`]
       : []),

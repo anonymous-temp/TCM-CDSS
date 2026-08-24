@@ -393,6 +393,13 @@ const sources = [
     "红旗、生命体征和特殊人群的实际运行门禁；外部来源只做类别和阈值复核",
   ),
   localSource(
+    "SRC-PROJECT-PHYSICAL-EXAM-CLAIM-LEXICON",
+    "中医 CDSS 查体断言接地词表",
+    "src/data/physical-exam-claim-lexicon.source.json",
+    "project_runtime_grounding_catalog",
+    "M03 阴性或正常查体断言的模态识别；只允许病历已记录的对应查体结果进入医生可见结论",
+  ),
+  localSource(
     "SRC-PROJECT-REASONING-CONTRACT",
     "中医 CDSS 结构化推理契约",
     "src/lib/diagnosis-types.ts",

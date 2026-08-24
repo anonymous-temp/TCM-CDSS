@@ -342,6 +342,8 @@ const scripts = [
   "test:stream-module-frames",
   "test:recorded-fact-visibility",
   "test:clinical-grounding",
+  "test:exam-claim-grounding",
+  "test:m03-specificity-policy",
   "test:inspection-lexicon",
   "test:clinical-entry",
   "test:clinical-terminology",
