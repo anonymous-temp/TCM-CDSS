@@ -80,11 +80,21 @@ check("流层与路由的传输失败接线", () => {
   const api = fs.readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
   assert.match(api, /upstreamUnavailableFallback\?: string;/, "opts 必须暴露专用降级页");
   assert.match(api, /const noteRepairOutcome = \(result:/, "必须记录修复轮失败性质");
-  assert.match(api, /retry_network_error", "retry_timeout_or_cancelled", "retry_http_error"/, "传输类失败码必须完整");
+  assert.match(api, /let initialGenerationFailedOnTransport = false;/, "必须单独记录首轮生成的传输失败");
+  assert.match(api, /initialGenerationFailedOnTransport \|\| repairFailedOnTransport/,
+    "上游感知降级页必须同时覆盖首轮与修复轮传输失败");
+  assert.match(api, /result\.reason === "retry_network_error" \|\| result\.reason === "retry_empty_content"/,
+    "网络失败与空响应必须进入上游不可用分类");
+  assert.match(api, /result\.reason === "retry_http_error" && isRetryableProviderHttpStatus\(result\.status\)/,
+    "HTTP 错误必须经可重试状态白名单，不得把 4xx 整类当成上游不可用");
+  assert.doesNotMatch(api, /\["retry_network_error"[^\]]*"retry_budget_exhausted"/,
+    "预算耗尽不得混入上游传输失败白名单");
   assert.ok((api.match(/noteRepairOutcome\(/g) || []).length >= 4,
     "全部修复轮调用点都要记录结果(4处)");
   assert.doesNotMatch(api, /\{ content: opts\.truncateFallback \|\| "", ok:/,
     "降级页选择必须经 upstreamAwareTruncateFallback,不得直接用 truncateFallback");
+  assert.match(api, /const orchestrationDeadlineExceeded = m03DeadlineExceeded \|\| m04DeadlineExceeded;[\s\S]{0,260}const fallback = orchestrationDeadlineExceeded[\s\S]{0,180}upstreamAwareTruncateFallback\(\)/,
+    "外层 provider catch 必须按 deadline > upstream > contract 选择签名页");
   const route = fs.readFileSync(new URL("../src/app/api/diagnosis/diagnose/route.ts", import.meta.url), "utf8");
   assert.match(route, /upstreamUnavailableFallback:/, "路由必须提供专用降级页");
   assert.match(route, /这不是病历信息不足/, "文案必须显式澄清不是病历问题");

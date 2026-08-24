@@ -2026,6 +2026,25 @@ async function collectM03ParallelWesternHalf(
 
 type StructuredRepairResult = Awaited<ReturnType<typeof retryCompletePrimaryResponse>>;
 
+export function isRetryableProviderHttpStatus(status: number | undefined): boolean {
+  return status === 408 || status === 425 || status === 429 || (status != null && status >= 500);
+}
+
+/**
+ * 区分「上游暂时不可用」与内容、配置、预算或客户端取消。
+ * 这个分类同时供修复轮的「是否再试」与最终「选哪张降级页」使用，
+ * 避免两套白名单再次分叉。
+ */
+export function structuredRepairFailureIsUpstreamUnavailable(
+  result: StructuredRepairResult,
+  context: { parentAborted?: boolean; deadlineExceeded?: boolean } = {},
+): boolean {
+  if (result.ok || context.parentAborted || context.deadlineExceeded) return false;
+  if (result.reason === "retry_network_error" || result.reason === "retry_empty_content") return true;
+  if (result.reason === "retry_timeout_or_cancelled") return true;
+  return result.reason === "retry_http_error" && isRetryableProviderHttpStatus(result.status);
+}
+
 /**
  * A clinical repair is already a bounded second model draw. A transient transport/protocol loss
  * during that draw must not turn an otherwise repairable diagnosis into a deterministic limited
@@ -2041,8 +2060,8 @@ export function shouldRetryStructuredRepairTransport(
   if (result.ok || parentSignal?.aborted) return false;
   const remaining = (absoluteDeadline || now) - now;
   if (remaining < 10_000) return false;
-  if (["retry_network_error", "retry_timeout_or_cancelled", "retry_invalid_json", "retry_empty_content"].includes(result.reason)) return true;
-  return result.reason === "retry_http_error" && [408, 425, 429, 500, 502, 503, 504].includes(result.status || 0);
+  if (result.reason === "retry_invalid_json") return true;
+  return structuredRepairFailureIsUpstreamUnavailable(result);
 }
 
 async function retryCompletePrimaryResponseWithTransientRecovery(
@@ -3178,12 +3197,19 @@ async function callPrimaryTextModelStream(
       };
       /** 修复轮是否死于**传输类**失败(provider 503/超时/网络)而非内容问题。 */
       let repairFailedOnTransport = false;
+      /** 首轮生成的两次有界连接尝试是否均死于网络/超时/可重试 HTTP。 */
+      let initialGenerationFailedOnTransport = false;
       const noteRepairOutcome = (result: { ok: boolean; reason?: string; status?: number }) => {
-        repairFailedOnTransport = !result.ok && ["retry_network_error", "retry_timeout_or_cancelled", "retry_http_error", "retry_empty_content", "retry_budget_exhausted", "text_model_vendor_policy"].includes(result.reason || "");
+        repairFailedOnTransport = structuredRepairFailureIsUpstreamUnavailable(result as StructuredRepairResult, {
+          parentAborted: upstreamController.signal.aborted || Boolean(opts.requestSignal?.aborted),
+          deadlineExceeded: Date.now() >= absoluteRunDeadline,
+        });
       };
-      /** 传输类失败改用「服务暂时不可用」专用页,否则用既有的内容类降级页。 */
+      /** 首轮或修复轮的传输类失败都改用「服务暂时不可用」专用页。 */
       const upstreamAwareTruncateFallback = (): string | undefined =>
-        (repairFailedOnTransport ? opts.upstreamUnavailableFallback : undefined) || opts.truncateFallback;
+        ((initialGenerationFailedOnTransport || repairFailedOnTransport)
+          ? opts.upstreamUnavailableFallback
+          : undefined) || opts.truncateFallback;
       let accumulatedContent = "";
       let stageOutcome: CdssTelemetryOutcome = "provider_error";
       let stageReasonCode = "not_completed";
@@ -3322,8 +3348,9 @@ async function callPrimaryTextModelStream(
         } else if (deadlineFallbackPage) {
           stageOutcome = "provider_error";
           stageReasonCode = "orchestration_deadline_truncated";
-          let safeFallback = (repairFailedOnTransport ? opts.upstreamUnavailableFallback : undefined)
-            || deadlineFallbackPage;
+          // 绝对定时器已经是最终原因；早先修复轮的 transport 标记不得再把
+          // 可见页抢回 upstream，否则医生看到的原因会与 deadline telemetry 分叉。
+          let safeFallback = deadlineFallbackPage;
           try {
             safeFallback = opts.outputTransform ? opts.outputTransform(safeFallback) : safeFallback;
           } catch {
@@ -3462,7 +3489,7 @@ async function callPrimaryTextModelStream(
               absoluteRunDeadline,
               opts.structuredStage ? STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS : PROVIDER_CONNECT_TIMEOUT_MS,
             );
-            if (attempt === 0 && (candidate.status === 408 || candidate.status === 429 || candidate.status >= 500)) {
+            if (attempt === 0 && isRetryableProviderHttpStatus(candidate.status)) {
               retryReason = "retryable_http";
               await candidate.body?.cancel().catch(() => undefined);
               await new Promise((resolve) => setTimeout(resolve, 500));
@@ -3487,7 +3514,10 @@ async function callPrimaryTextModelStream(
             break;
           } catch (error) {
             connectionError = error;
-            if (attempt > 0 || upstreamController.signal.aborted || Date.now() + 500 >= absoluteRunDeadline) throw error;
+            if (attempt > 0 || upstreamController.signal.aborted || Date.now() + 500 >= absoluteRunDeadline) {
+              initialGenerationFailedOnTransport = !upstreamController.signal.aborted;
+              throw error;
+            }
             retryReason = error instanceof Error && /连接超时/.test(error.message)
               ? "connect_timeout"
               : "transport_error";
@@ -3498,12 +3528,19 @@ async function callPrimaryTextModelStream(
             await new Promise((resolve) => setTimeout(resolve, 500));
           }
         }
-        if (!res) throw connectionError || new Error("Primary text model connection failed before stream");
+        if (!res) {
+          initialGenerationFailedOnTransport = true;
+          throw connectionError || new Error("Primary text model connection failed before stream");
+        }
         if (!res.ok) {
+          initialGenerationFailedOnTransport = res.status === 408 || res.status === 429 || res.status >= 500;
           await res.body?.cancel().catch(() => undefined);
           throw new Error(`Primary text model API error: ${res.status}`);
         }
-        if (!res.body) throw new Error("Primary text model API returned empty stream");
+        if (!res.body) {
+          initialGenerationFailedOnTransport = true;
+          throw new Error("Primary text model API returned empty stream");
+        }
         if (opts.structuredStage === "diagnose") m03GeneratorModel = initialResponseModel;
         if (opts.structuredStage === "prescribe") m04GeneratorModel = initialResponseModel;
         reader = res.body.getReader();
@@ -3595,7 +3632,18 @@ async function callPrimaryTextModelStream(
 
         try {
           while (true) {
-            const { done, value } = await readProviderChunk(reader, deadline, () => upstreamController.abort());
+            let chunk: ReadableStreamReadResult<Uint8Array>;
+            try {
+              chunk = await readProviderChunk(reader, deadline, () => upstreamController.abort());
+            } catch (error) {
+              // 连接已成功后的 socket/流中断仍是上游传输失败。只在这个
+              // reader.read 边界标记，避免把后续的内容合同、输出过大等错误误分类。
+              if (!opts.requestSignal?.aborted && Date.now() < absoluteRunDeadline) {
+                initialGenerationFailedOnTransport = true;
+              }
+              throw error;
+            }
+            const { done, value } = chunk;
             if (done) break;
             buf += dec.decode(value, { stream: true });
             const lines = buf.split("\n");
@@ -3625,7 +3673,15 @@ async function callPrimaryTextModelStream(
         }
 
         if (malformedChunks > 0) throw new Error("Primary text model stream contained malformed chunks");
-        if (!providerDone) throw new Error("Primary text model stream ended without provider DONE marker");
+        if (!providerDone) {
+          // HTTP 200 之后以 done=true 提前 EOF（代理截断/socket graceful close）与
+          // reader 抛网络异常是同一类上游传输终止。malformed chunk 已在上一行
+          // 独立归为内容/协议缺陷；这里只标记「无 [DONE] 的正常 EOF」。
+          if (!opts.requestSignal?.aborted && Date.now() < absoluteRunDeadline) {
+            initialGenerationFailedOnTransport = true;
+          }
+          throw new Error("Primary text model stream ended without provider DONE marker");
+        }
         if (contentChars === 0 && reasoningChars > 0) {
           throw new Error("模型仅返回推理过程，未返回可展示的最终内容，请重试或降低推理复杂度");
         }
@@ -5643,6 +5699,15 @@ async function callPrimaryTextModelStream(
           stage: opts.structuredStage || "unstructured",
           reason: error instanceof Error ? error.message : "unknown_stream_error",
         });
+        if (opts.requestSignal?.aborted) {
+          // 浏览器主动取消不是 provider 故障，也没有临床结果可以送达。
+          // 只结束 NDJSON 并记录取消原因，不签署任何合同或上游降级页。
+          stageOutcome = "provider_error";
+          stageReasonCode = "request_cancelled";
+          enqueueClient("[END]");
+          closeClientStream();
+          return;
+        }
         if (opts.streamErrorFallback) {
           stageOutcome = "fallback";
           stageReasonCode = "provider_error_fallback";
@@ -5660,18 +5725,34 @@ async function callPrimaryTextModelStream(
         if (opts.truncateFallback) {
           if (opts.authoritativeTruncateFallback) {
             stageOutcome = "fallback";
-            stageReasonCode = "provider_error_signed_limited_fallback";
-            enqueueClient(`${STREAM_REPLACE_MARKER}${opts.truncateFallback}`);
+            const orchestrationDeadlineExceeded = m03DeadlineExceeded || m04DeadlineExceeded;
+            const fallback = orchestrationDeadlineExceeded
+              ? opts.deadlineFallback || upstreamAwareTruncateFallback()
+              : upstreamAwareTruncateFallback();
+            stageReasonCode = orchestrationDeadlineExceeded
+              ? "orchestration_deadline_signed_limited_fallback"
+              : initialGenerationFailedOnTransport || repairFailedOnTransport
+                ? "upstream_model_unavailable"
+                : "provider_error_signed_limited_fallback";
+            enqueueClient(`${STREAM_REPLACE_MARKER}${fallback || opts.truncateFallback}`);
             enqueueClient("[END]");
             closeClientStream();
             return;
           }
           stageOutcome = "provider_error";
-          stageReasonCode = "provider_error_truncated";
+          const orchestrationDeadlineExceeded = m03DeadlineExceeded || m04DeadlineExceeded;
+          stageReasonCode = orchestrationDeadlineExceeded
+            ? "orchestration_deadline_truncated"
+            : initialGenerationFailedOnTransport || repairFailedOnTransport
+              ? "upstream_model_unavailable"
+              : "provider_error_truncated";
           const reason = publicModelErrorMessage(error);
-          let safeFallback = opts.truncateFallback;
+          const selectedFallback = orchestrationDeadlineExceeded
+            ? opts.deadlineFallback || opts.truncateFallback
+            : upstreamAwareTruncateFallback() || opts.truncateFallback;
+          let safeFallback = selectedFallback;
           try {
-            safeFallback = opts.outputTransform ? opts.outputTransform(opts.truncateFallback) : opts.truncateFallback;
+            safeFallback = opts.outputTransform ? opts.outputTransform(selectedFallback) : selectedFallback;
           } catch {
             // The deterministic fallback is already safe; a presentation transform must never prevent
             // NDJSON termination or replace it with an unchecked model response.

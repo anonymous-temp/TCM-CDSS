@@ -43,6 +43,11 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
+  /const deadlineFallbackPage = opts\.deadlineFallback \|\| opts\.truncateFallback;[\s\S]{0,700}?let safeFallback = deadlineFallbackPage;/,
+  "the absolute deadline page must outrank an earlier repair transport failure so visible cause and telemetry stay aligned",
+);
+assert.match(
+  diagnosisApiSource,
   /review\.status === "repair" && review\.issueCode === "formula_composition_mismatch"[\s\S]{0,700}?m04RepairLoopEarlyExit = true;/,
   "a composition-only M04 review must select deterministic identity declassification instead of redrawing the whole prescription",
 );

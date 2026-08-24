@@ -5,7 +5,7 @@ import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { buildM03ParallelHalfSuffix, m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { cdssReasonCodeMarker } from "@/lib/cdss-reason-codes";
@@ -41,14 +41,20 @@ export async function POST(req: Request) {
   const signedLimitedDiagnosis = (
     gate: NonNullable<typeof gated.safetyGate>,
     reviewUnavailableReason?: Parameters<typeof buildSafetyLimitedDiagnosisReasoning>[2],
-  ) => renderSafetyLimitedDiagnosisContract(
-    gated,
-    gate,
-    signDiagnoseReasoning(
-      buildSafetyLimitedDiagnosisReasoning(gated, gate, reviewUnavailableReason),
-      buildDiagnoseContractSignatureContext(gated),
-    ),
-  );
+  ) => {
+    // 四类预渲染 fallback 只描述「本轮为什么没有完成」，不是新的患者
+    // 安全事实。签名前必须与当前病例的权威门合并，避免真实 red_flag
+    // 被合成的 needs_information 覆盖，并保证可见页与签名载荷同源。
+    const limitedGate = safetyGateForLimitedDiagnosisFallback(gated.safetyGate!, gate);
+    return renderSafetyLimitedDiagnosisContract(
+      gated,
+      limitedGate,
+      signDiagnoseReasoning(
+        buildSafetyLimitedDiagnosisReasoning(gated, limitedGate, reviewUnavailableReason),
+        buildDiagnoseContractSignatureContext(gated),
+      ),
+    );
+  };
   // 红旗处置（甲方决策：不阻断临床流程）。检测照常，advise 模式下不再用「安全有限合同」
   // 顶替整份辨证——那一页对医生的价值是零，红旗本身反而淹没在降级文案里。改为：完整跑
   // M03，可见正文置顶确定性安全警示横幅，红旗同步写进提示词让 management 优先急诊指引。

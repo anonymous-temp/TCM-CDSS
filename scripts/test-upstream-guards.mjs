@@ -13,7 +13,8 @@ const jiti = createJiti(import.meta.url, {
 const { UpstreamResponseTooLargeError, readResponseTextLimited } = await jiti.import("../src/lib/http-response-limit.ts");
 const { cancelResponseBody } = await jiti.import("../src/lib/http-response-lifecycle.ts");
 const { callDiagnosisStream, fetchWithConnectTimeout, isTongueVisionConfigured, isTongueVisionEnabled,
-  modelForInitialConnectAttempt, readProviderChunk } =
+  isRetryableProviderHttpStatus, modelForInitialConnectAttempt, readProviderChunk,
+  structuredRepairFailureIsUpstreamUnavailable } =
   await jiti.import("../src/lib/diagnosis-api.ts");
 const { buildTongueVisionPrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
 const { getPrimaryTextModelConfig } = await jiti.import("../src/lib/text-model.ts");
@@ -176,7 +177,7 @@ else process.env.GLM_VISION_ENABLED = originalGlmVisionEnabled;
 
 const modelEnv = Object.fromEntries([
   "AI_TEXT_PROVIDER", "AI_PROVIDER", "OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL", "CDSS_DEEPSEEK_ALLOWED_HOSTS", "CDSS_TEXT_MODEL_ALLOWED_HOSTS",
-  "BAILIAN_QWEN_API_KEY", "BAILIAN_QWEN_BASE_URL", "BAILIAN_QWEN_MODEL",
+  "BAILIAN_QWEN_API_KEY", "BAILIAN_QWEN_BASE_URL", "BAILIAN_QWEN_MODEL", "PRIMARY_DIAGNOSE_MODEL",
 ].map((key) => [key, process.env[key]]));
 process.env.OPENAI_API_KEY = "test-key";
 process.env.OPENAI_BASE_URL = "https://api.deepseek.com";
@@ -195,6 +196,136 @@ process.env.BAILIAN_QWEN_MODEL = "qwen3.7-plus";
 assert.equal(getPrimaryTextModelConfig().configured, true, "approved Qwen text route should be configured");
 process.env.BAILIAN_QWEN_MODEL = "glm-5.1";
 assert.equal(getPrimaryTextModelConfig().disabledReason, "vendor_policy", "non-Qwen model must be rejected on Bailian route");
+for (const status of [408, 425, 429, 500, 502, 503, 504]) assert.equal(isRetryableProviderHttpStatus(status), true, `retryable HTTP ${status}`);
+for (const status of [400, 401, 403, 404, 409, 422]) assert.equal(isRetryableProviderHttpStatus(status), false, `non-transient HTTP ${status}`);
+assert.equal(structuredRepairFailureIsUpstreamUnavailable({ ok: false, reason: "retry_http_error", status: 503 }), true);
+assert.equal(structuredRepairFailureIsUpstreamUnavailable({ ok: false, reason: "retry_http_error", status: 401 }), false);
+assert.equal(structuredRepairFailureIsUpstreamUnavailable({ ok: false, reason: "retry_timeout_or_cancelled" }, { parentAborted: true }), false);
+assert.equal(structuredRepairFailureIsUpstreamUnavailable({ ok: false, reason: "retry_budget_exhausted" }), false);
+assert.equal(structuredRepairFailureIsUpstreamUnavailable({ ok: false, reason: "text_model_vendor_policy" }), false);
+// 首轮生成的两次传输尝试全失败时，必须用「上游不可用」专用签名页，
+// 不得把服务故障签成「生成内容没通过合同」。HTTP 503 与网络异常是两个独立入口。
+process.env.BAILIAN_QWEN_MODEL = "qwen3.7-plus";
+delete process.env.PRIMARY_DIAGNOSE_MODEL;
+{
+  const originalFetch = globalThis.fetch;
+  const runInitialFailure = async (mode, stage = "diagnose") => {
+    let attempts = 0;
+    globalThis.fetch = async () => {
+      attempts += 1;
+      if (mode === "network") throw new TypeError("simulated network failure");
+      return new Response("temporary outage", { status: 503 });
+    };
+    const response = await callDiagnosisStream("test prompt", "deepseek", undefined, "markdown", {
+      structuredStage: stage,
+      ...(stage === "diagnose" ? { authoritativeTruncateFallback: true } : {}),
+      truncateFallback: "SIGNED_CONTRACT_FALLBACK",
+      upstreamUnavailableFallback: "SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK",
+      ...(stage === "prescribe" ? { outputTransform: (value) => `TRANSFORMED:${value}` } : {}),
+    });
+    const body = await response.text();
+    assert.equal(attempts, 2, `${mode}: initial generation should consume exactly two bounded attempts`);
+    assert.match(body, /SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK/, `${mode}: transport failure must select the upstream page`);
+    assert.doesNotMatch(body, /SIGNED_CONTRACT_FALLBACK/, `${mode}: transport failure must not be signed as a content-contract failure`);
+  };
+  try {
+    await runInitialFailure("http503");
+    await runInitialFailure("network");
+    await runInitialFailure("http503", "prescribe");
+    await runInitialFailure("network", "prescribe");
+
+    let streamAttempts = 0;
+    globalThis.fetch = async () => {
+      streamAttempts += 1;
+      return new Response(new ReadableStream({
+        start(controller) {
+          controller.error(new TypeError("simulated socket disconnect"));
+        },
+      }), { status: 200 });
+    };
+    const brokenStream = await callDiagnosisStream("test prompt", "deepseek", undefined, "markdown", {
+      structuredStage: "diagnose",
+      authoritativeTruncateFallback: true,
+      truncateFallback: "SIGNED_CONTRACT_FALLBACK",
+      upstreamUnavailableFallback: "SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK",
+    });
+    const brokenStreamBody = await brokenStream.text();
+    assert.equal(streamAttempts, 1, "a stream that disconnects after HTTP 200 must not replay generation blindly");
+    assert.match(brokenStreamBody, /SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK/);
+    assert.doesNotMatch(brokenStreamBody, /SIGNED_CONTRACT_FALLBACK/);
+
+    for (const stage of ["diagnose", "prescribe"]) {
+      let earlyEofAttempts = 0;
+      globalThis.fetch = async () => {
+        earlyEofAttempts += 1;
+        return new Response(new ReadableStream({
+          start(controller) {
+            controller.close();
+          },
+        }), { status: 200 });
+      };
+      const earlyEof = await callDiagnosisStream("test prompt", "deepseek", undefined, "markdown", {
+        structuredStage: stage,
+        ...(stage === "diagnose" ? { authoritativeTruncateFallback: true } : {}),
+        truncateFallback: "SIGNED_CONTRACT_FALLBACK",
+        upstreamUnavailableFallback: "SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK",
+        ...(stage === "prescribe" ? { outputTransform: (value) => `TRANSFORMED:${value}` } : {}),
+      });
+      const earlyEofBody = await earlyEof.text();
+      assert.equal(earlyEofAttempts, 1, `${stage}: HTTP 200 early EOF must not replay clinical generation`);
+      assert.match(earlyEofBody, /SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK/, `${stage}: missing provider DONE is an upstream truncation`);
+      assert.doesNotMatch(earlyEofBody, /SIGNED_CONTRACT_FALLBACK/);
+    }
+
+    let nonTransientAttempts = 0;
+    globalThis.fetch = async () => {
+      nonTransientAttempts += 1;
+      return new Response("unauthorized", { status: 401 });
+    };
+    const unauthorized = await callDiagnosisStream("test prompt", "deepseek", undefined, "markdown", {
+      structuredStage: "diagnose",
+      authoritativeTruncateFallback: true,
+      truncateFallback: "SIGNED_CONTRACT_FALLBACK",
+      upstreamUnavailableFallback: "SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK",
+    });
+    const unauthorizedBody = await unauthorized.text();
+    assert.equal(nonTransientAttempts, 1, "401 must not consume the transient retry");
+    assert.match(unauthorizedBody, /SIGNED_CONTRACT_FALLBACK/);
+    assert.doesNotMatch(unauthorizedBody, /SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK/);
+
+    const cancelledRequest = new AbortController();
+    globalThis.fetch = async (_url, init) => await new Promise((_resolve, reject) => {
+      init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+    });
+    const cancelled = await callDiagnosisStream("test prompt", "deepseek", undefined, "markdown", {
+      requestSignal: cancelledRequest.signal,
+      structuredStage: "diagnose",
+      authoritativeTruncateFallback: true,
+      truncateFallback: "SIGNED_CONTRACT_FALLBACK",
+      upstreamUnavailableFallback: "SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK",
+    });
+    setTimeout(() => cancelledRequest.abort(), 10);
+    const cancelledBody = await cancelled.text();
+    assert.doesNotMatch(cancelledBody, /SIGNED_(?:CONTRACT|UPSTREAM)/, "client cancellation must emit no signed fallback page");
+
+    globalThis.fetch = async () => {
+      throw new TypeError("network failure after orchestration deadline");
+    };
+    const deadline = await callDiagnosisStream("test prompt", "deepseek", undefined, "markdown", {
+      structuredOrchestrationStartedAt: Date.now() - 500_000,
+      structuredStage: "prescribe",
+      truncateFallback: "SIGNED_CONTRACT_FALLBACK",
+      upstreamUnavailableFallback: "SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK",
+      deadlineFallback: "SIGNED_DEADLINE_FALLBACK",
+      outputTransform: (value) => `TRANSFORMED:${value}`,
+    });
+    const deadlineBody = await deadline.text();
+    assert.match(deadlineBody, /SIGNED_DEADLINE_FALLBACK/, "M04 orchestration deadline must outrank upstream transport attribution");
+    assert.doesNotMatch(deadlineBody, /SIGNED_(?:CONTRACT|UPSTREAM)_FALLBACK/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
 for (const [key, value] of Object.entries(modelEnv)) {
   if (value == null) delete process.env[key];
   else process.env[key] = value;

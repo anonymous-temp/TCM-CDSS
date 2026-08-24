@@ -18,6 +18,7 @@ const {
   deriveOperationalCompleteness,
   derivePrescriptionPermission,
   deriveSafetyLocked,
+  safetyGateForLimitedDiagnosisFallback,
   withSafetyGate,
 } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
@@ -222,7 +223,10 @@ assert.equal(permission(emergency).formalAdoption, "blocked");
 
 const emergencyLimited = buildSafetyLimitedDiagnosisReasoning(emergency, emergency.safetyGate);
 assert.equal(emergencyLimited.stage, "diagnose");
+assert.equal(emergencyLimited.overview.primarySyndrome, "症状级工作判断");
 assert.equal(emergencyLimited.overview.primarySyndromeResolution, "unresolved");
+assert.equal(emergencyLimited.overview.recommendedFormulaDirection, "");
+assert.deepEqual(emergencyLimited.overview.recommendedFormulaNames, []);
 assert.equal(emergencyLimited.pathogenesis.chain.length, 0);
 assert.equal(emergencyLimited.formula, null);
 assert.equal(emergencyLimited.overview.evidence.evidenceLevel, "deterministic_rule");
@@ -238,10 +242,42 @@ const exhaustedGate = {
   reasons: ["M03结构或临床复核未通过"],
 };
 const exhaustedLimited = buildSafetyLimitedDiagnosisReasoning(base, exhaustedGate);
+assert.equal(exhaustedLimited.overview.primarySyndrome, "症状级工作判断");
 assert.equal(exhaustedLimited.overview.primarySyndromeResolution, "unresolved");
+assert.equal(exhaustedLimited.overview.recommendedFormulaDirection, "");
+assert.deepEqual(exhaustedLimited.overview.recommendedFormulaNames, []);
 assert.equal(exhaustedLimited.pathogenesis.chain.length, 0);
 assert.equal(exhaustedLimited.formula, null);
 assert.match(exhaustedLimited.overview.primarySyndromeResolutionReason, /未形成/);
+
+// 签名 fallback 必须保留病例的真实红旗，同时追加「本轮为何未完成」的原因。
+// 这一个合并点覆盖合同耗尽、时限、复核后驳回、上游不可用四类路由出口。
+const mergedEmergencyFallback = safetyGateForLimitedDiagnosisFallback(emergency.safetyGate, exhaustedGate);
+assert.equal(mergedEmergencyFallback.status, "red_flag");
+assert.equal(mergedEmergencyFallback.allowDiagnosis, false);
+assert.equal(mergedEmergencyFallback.allowDosePrescription, false);
+assert.equal(mergedEmergencyFallback.action, "refer_or_emergency");
+assert.deepEqual(mergedEmergencyFallback.redFlags, emergency.safetyGate.redFlags);
+assert.ok(mergedEmergencyFallback.reasons.includes("请优先急诊评估"));
+assert.ok(mergedEmergencyFallback.reasons.includes("M03结构或临床复核未通过"));
+assert.ok(mergedEmergencyFallback.missingItems.includes("稳定的证候与病机链"));
+const mergedEmergencyReasoning = buildSafetyLimitedDiagnosisReasoning(emergency, mergedEmergencyFallback, "deadline");
+assert.equal(mergedEmergencyReasoning.overview.primarySyndrome, "症状级工作判断");
+assert.equal(mergedEmergencyReasoning.overview.recommendedFormulaDirection, "");
+assert.deepEqual(mergedEmergencyReasoning.overview.recommendedFormulaNames, []);
+assert.equal(mergedEmergencyReasoning.formula, null);
+assert.deepEqual(mergedEmergencyReasoning.westernDiagnosis.primary.supportingFacts, emergency.safetyGate.redFlags);
+assert.equal(mergedEmergencyReasoning.clinicalReview?.unavailableReason, "deadline");
+const mergedEmergencyDisplay = buildSafetyLimitedDiagnosis(emergency, mergedEmergencyFallback);
+assert.match(mergedEmergencyDisplay, /疑似时间敏感性急性心血管事件/);
+assert.match(mergedEmergencyDisplay, /立即.*急诊/);
+assert.doesNotMatch(mergedEmergencyDisplay, /未识别明确急危重线索/);
+
+assert.equal(
+  safetyGateForLimitedDiagnosisFallback(base.safetyGate || withSafetyGate(base).safetyGate, exhaustedGate),
+  exhaustedGate,
+  "无红旗时应保留 fallback 自身的临床与服务原因",
+);
 
 const analysisIncompleteGate = {
   ...exhaustedGate,

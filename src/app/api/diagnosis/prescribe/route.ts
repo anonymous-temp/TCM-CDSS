@@ -258,6 +258,15 @@ export async function POST(req: Request) {
     redFlags: [],
     reasons: ["模型推理服务暂时不可用（上游错误、限流或超时），本轮未完成候选方药生成。这不是处方合同或病历信息不足；已录入内容与辨病辨证结论无需修改，请稍后重新生成。"],
   };
+  const deadlineGate: SafetyGate = {
+    status: "needs_information",
+    allowDiagnosis: true,
+    allowDosePrescription: false,
+    action: "complete_before_prescription",
+    missingItems: ["在安全时限内完整生成并复核候选方药"],
+    redFlags: [],
+    reasons: ["候选方药生成、修复与独立复核未在本阶段安全时限内完成，本轮不采纳任何未完成验证的药味与剂量。已录入病历与辨病辨证结论仍保留，可直接重新生成候选方药。"],
+  };
   const advisoryBanner = buildSafetyAdvisoryBanner(
     advisorySafetyNotes.length > 0 ? gated.safetyGate : undefined,
     [
@@ -282,6 +291,7 @@ export async function POST(req: Request) {
       upstreamUnavailableGate,
       "upstream_model_unavailable",
     ),
+    deadlineFallback: buildSafetyLimitedPrescription(deadlineGate, "m04_truncated_no_candidate"),
     structuredOrchestrationStartedAt: orchestrationStartedAt,
     // 模型输出彻底不可回收时：M03 已锁定可编译方 → 确定性渲染「基准组成+药典区间」参考页
     // （不经模型、非剂量、医师定量），医生不再拿到空白页；未锁方/不可编译 → 原安全有限文案。

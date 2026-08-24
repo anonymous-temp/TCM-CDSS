@@ -4654,7 +4654,10 @@ export function buildSafetyLimitedDiagnosisReasoning(
       ? { clinicalReview: { status: "unavailable" as const, unavailableReason: reviewUnavailableReason } }
       : {}),
     overview: {
-      primarySyndrome: redFlag ? "急症处置优先，中医证候暂缓" : "当前证候依据不足以形成稳定结论",
+      // 有限诊断的结构化出口与 A/B 级、红旗去具体度决策表使用同一个
+      // 服务端标签。fallback 是在签名前预渲染的权威结果，不能依赖签名后的
+      // 可见投影再来清空证候或方剂方向。
+      primarySyndrome: "症状级工作判断",
       primarySyndromeResolution: "unresolved",
       primarySyndromeBasis: [],
       primarySyndromeResolutionReason: redFlag
@@ -4663,7 +4666,7 @@ export function buildSafetyLimitedDiagnosisReasoning(
       secondarySyndromes: [],
       overallPathogenesis: "当前不形成可采纳的中医病机链",
       overallTherapy: redFlag ? "立即急诊或专科评估，不进入中药处方" : "重新完成辨病辨证分析与临床复核",
-      recommendedFormulaDirection: "暂不进入候选方药",
+      recommendedFormulaDirection: "",
       recommendedFormulaNames: [],
       formulaSelectionMode: "none",
       evidence,
@@ -4706,6 +4709,59 @@ export function buildSafetyLimitedDiagnosisReasoning(
       mustCollect: gate.missingItems.slice(0, 12),
       followupSafetyNet: "完成现场评估或补录后，重新运行辨病辨证分析",
     },
+  };
+}
+
+function uniqueNonEmpty(items: ReadonlyArray<string | undefined>): string[] {
+  return Array.from(new Set(items.map((item) => item?.trim()).filter((item): item is string => Boolean(item))));
+}
+
+/**
+ * 为签名有限 M03 结果构造权威安全门。
+ *
+ * 合同耗尽、编排超时、上游不可用等 fallback 都会附加自己的原因和补录项，
+ * 但它们不得把当前病例已由确定性规则识别的红旗覆盖为 needs_information。
+ * 红旗属于只可追加、不可降级的权威事实；同时有限结果本身不授权继续诊断
+ * 或进入剂量级 M04。
+ */
+export function safetyGateForLimitedDiagnosisFallback(
+  authoritativeGate: SafetyGate,
+  fallbackGate: SafetyGate,
+): SafetyGate {
+  if (authoritativeGate.status !== "red_flag") return fallbackGate;
+
+  const missingItemCodes = Array.from(new Set([
+    ...(fallbackGate.missingItemCodes || []),
+    ...(authoritativeGate.missingItemCodes || []),
+  ]));
+  const advisories = uniqueNonEmpty([
+    ...(authoritativeGate.advisories || []),
+    ...(fallbackGate.advisories || []),
+  ]);
+
+  return {
+    ...fallbackGate,
+    status: "red_flag",
+    allowDiagnosis: false,
+    allowDosePrescription: false,
+    action: "refer_or_emergency",
+    missingItems: uniqueNonEmpty([
+      ...fallbackGate.missingItems,
+      ...authoritativeGate.missingItems,
+    ]),
+    ...(missingItemCodes.length > 0 ? { missingItemCodes } : {}),
+    redFlags: [...authoritativeGate.redFlags],
+    ...(authoritativeGate.redFlagFindings
+      ? { redFlagFindings: authoritativeGate.redFlagFindings.map((finding) => ({ ...finding })) }
+      : {}),
+    ...(advisories.length > 0 ? { advisories } : {}),
+    ...(authoritativeGate.semanticTriage
+      ? { semanticTriage: structuredClone(authoritativeGate.semanticTriage) }
+      : {}),
+    reasons: uniqueNonEmpty([
+      ...authoritativeGate.reasons,
+      ...fallbackGate.reasons,
+    ]),
   };
 }
 
