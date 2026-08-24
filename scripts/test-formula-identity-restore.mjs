@@ -7,11 +7,14 @@
 //   → 剥名函数把「银翘散加减」改成「本例辨证组方」
 // **方名本来是对的,是被剥掉的。** 医生因此看不出这是银翘散。
 //
-// 本套件钉四种形态,确保恢复既不漏也不越权:
+// 本套件钉七种形态,确保恢复既不漏也不越权:
 //  · 自拟标签      ⇒ 恢复(原有能力,不得退化)
 //  · 有名无引用    ⇒ 恢复(本次补上的缺口)
 //  · 已有引用      ⇒ 保持不变(不重复处理)
 //  · 无关方名      ⇒ 不恢复(不得凭空给一个 M03 没锁定的方补引用)
+//  · 服务端显式降级 ⇒ 不恢复(后置展示层不得逆转已复核的终态)
+//  · 无 M03 锁定的显式降级 ⇒ 不按组成复活身份
+//  · provider 伪造降级字段 ⇒ ingress 剥除后仍走正常恢复
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
@@ -27,13 +30,14 @@ const prior = {
 const herbs = () => ["金银花", "连翘", "薄荷", "荆芥", "桔梗", "牛蒡子", "淡豆豉", "淡竹叶", "甘草"]
   .map((name) => ({ name, dose: "10g" }));
 
-const restore = (name, formulaNames = []) => {
-  const reasoning = {
-    schemaVersion: "tcm-cdss-reasoning-v2",
-    stage: "prescribe",
-    formula: { candidates: [{ name, formulaNames, baseFormulas: [], constructionType: "self_devised", herbs: herbs() }] },
-  };
-  return prov.restoreGovernedFormulaIdentity(reasoning, prior).formula.candidates[0];
+const reasoningFor = (name, formulaNames = [], extra = {}) => ({
+  schemaVersion: "tcm-cdss-reasoning-v2",
+  stage: "prescribe",
+  formula: { candidates: [{ name, formulaNames, baseFormulas: [], constructionType: "self_devised", herbs: herbs(), ...extra }] },
+});
+
+const restore = (name, formulaNames = [], extra = {}, options = {}) => {
+  return prov.restoreGovernedFormulaIdentity(reasoningFor(name, formulaNames, extra), prior, options).formula.candidates[0];
 };
 
 const failures = [];
@@ -61,7 +65,56 @@ const expect = (label, actual, want) => { if (actual !== want) failures.push({ l
   const c = restore("四君子汤加减");
   expect("无关方名→不恢复", JSON.stringify(c.formulaNames), JSON.stringify([]));
 }
+// 形态五:透明降级已是完整合同+独立复核后的终态，即使组成仍能匹配经方也不得复活身份。
+{
+  const c = restore("本例辨证组方", [], {
+    identityDeclassified: true,
+    identityDeclassificationReason: "classic_composition_unverified_after_repair",
+    declassifiedFromFormulaNames: ["银翘散"],
+  }, { preserveServerDeclassification: true });
+  expect("显式降级→方名不复活", c.name, "本例辨证组方");
+  expect("显式降级→引用不复活", JSON.stringify(c.formulaNames), JSON.stringify([]));
+  expect("显式降级→保留终态标记", c.identityDeclassified, true);
+}
+
+// 形态六:M03 未锁定方名时也必须尊重服务端方向剔除终态，不能从剩余组成反查复活经方。
+{
+  const noLockedFormulaPrior = {
+    ...prior,
+    overview: { ...prior.overview, recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  };
+  const c = prov.restoreGovernedFormulaIdentity(
+    reasoningFor("本例辨证组方", [], {
+      identityDeclassified: true,
+      identityDeclassificationReason: "opposing_direction_pruned",
+      declassifiedFromFormulaNames: ["银翘散"],
+    }),
+    noLockedFormulaPrior,
+    { preserveServerDeclassification: true },
+  ).formula.candidates[0];
+  expect("无锁定方显式降级→方名不复活", c.name, "本例辨证组方");
+  expect("无锁定方显式降级→引用不复活", JSON.stringify(c.formulaNames), JSON.stringify([]));
+  expect("无锁定方显式降级→保留原因", c.identityDeclassificationReason, "opposing_direction_pruned");
+}
+
+// 形态七:同样的字段若来自 provider 只是普通不可信输入，剥除后不得获得终态权限。
+{
+  const injected = reasoningFor("本例辨证组方", [], {
+    identityDeclassified: true,
+    identityDeclassificationReason: "classic_composition_unverified_after_repair",
+    declassifiedFromFormulaNames: ["银翘散"],
+  });
+  const wrapped = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(injected)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const stripped = prov.stripUntrustedM04IdentityMetadata(wrapped);
+  const parsed = JSON.parse(stripped.match(/DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END/)?.[1] || "null");
+  const c = prov.restoreGovernedFormulaIdentity(parsed, prior, { preserveServerDeclassification: true }).formula.candidates[0];
+  const direct = prov.restoreGovernedFormulaIdentity(injected, prior).formula.candidates[0];
+  expect("伪造降级→字段已剥除", c.identityDeclassified, undefined);
+  expect("伪造降级→正常恢复方名", c.name, "银翘散加减");
+  expect("伪造降级→正常恢复引用", JSON.stringify(c.formulaNames), JSON.stringify(["银翘散"]));
+  expect("伪造降级→直接调用同样剥除", direct.identityDeclassified, undefined);
+}
 
 if (failures.length > 0) console.error(JSON.stringify({ failures }, null, 2));
 assert.equal(failures.length, 0, `命名方身份恢复回归失败 ${failures.length} 项`);
-console.log(JSON.stringify({ forms: 4, checks: 6, failures: 0 }));
+console.log(JSON.stringify({ forms: 7, checks: 16, failures: 0 }));

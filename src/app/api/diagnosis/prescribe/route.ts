@@ -375,7 +375,11 @@ export async function POST(req: Request) {
       // 位置在合同判定（issue）**之后**：恢复不参与放行判定，判定看的仍是模型原样输出，
       // 不会因为服务端补了方名而让一张本该被驳回的处方通过。流层最后一公里的那次恢复保留
       // 不动（幂等：已带 formulaNames 的候选原样返回），继续为不走本路由的分支兜底。
-      const identityRestored = applyRestoredGovernedFormulaIdentity(finalized, signedPriorReasoning);
+      const identityRestored = applyRestoredGovernedFormulaIdentity(
+        finalized,
+        signedPriorReasoning,
+        { preserveServerDeclassification: true },
+      );
       const synchronized = synchronizeVisibleClinicalSummary(
         identityRestored,
         "prescribe",

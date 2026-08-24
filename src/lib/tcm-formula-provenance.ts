@@ -1292,9 +1292,19 @@ export function isCompositionRestoredGovernedIdentity(
 export function restoreGovernedFormulaIdentity(
   reasoning: ClinicalReasoningResultV2,
   prior: ClinicalReasoningResultV2 | null | undefined,
+  options: { preserveServerDeclassification?: boolean } = {},
 ): ClinicalReasoningResultV2 {
   if (reasoning.stage !== "prescribe" || !reasoning.formula) return reasoning;
   if (!prior || prior.stage !== "diagnose") return reasoning;
+  // This is intentionally an out-of-band permission supplied by the orchestration phase. A model
+  // can emit the same JSON fields, so the payload flag alone is never sufficient to suppress a
+  // governed identity restoration. Provider ingress strips these fields; only later server-owned
+  // declassification/pruning phases call this function with the permission enabled.
+  if (
+    options.preserveServerDeclassification === true &&
+    reasoning.formula.candidates[0]?.identityDeclassified === true
+  ) return reasoning;
+  const restorationInput = withoutUntrustedM04IdentityMetadata(reasoning);
   const governedNames = (prior.overview?.recommendedFormulaNames || [])
     .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
   const mode = prior.overview?.formulaSelectionMode || "none";
@@ -1308,13 +1318,13 @@ export function restoreGovernedFormulaIdentity(
   // 这一档只在**没有锁定方名**时进场，不与上面两档抢；判据是组成完整包含某受治理经方
   // （identifyGovernedFormulaByComposition，比正向 80% 线严格得多，理由见该函数注释）。
   if (governedNames.length === 0) {
-    return restoreFormulaIdentityFromComposition(reasoning);
+    return restoreFormulaIdentityFromComposition(restorationInput);
   }
   // alternatives 由模型在多个基准中择一，恢复身份等于代替医生/模型做方剂选择，不做。
-  if (mode !== "single" && mode !== "combined") return reasoning;
+  if (mode !== "single" && mode !== "combined") return restorationInput;
   const references = formulaCompilationReferences(governedNames);
-  if (references.length !== governedNames.length) return reasoning;
-  const candidates = reasoning.formula.candidates.map((candidate, index) => {
+  if (references.length !== governedNames.length) return restorationInput;
+  const candidates = restorationInput.formula!.candidates.map((candidate, index) => {
     if (index !== 0) return candidate;
     // 恢复的触发形态有两种,此前只处理了第一种(2026-08-05 补第二种)。
     //
@@ -1361,12 +1371,13 @@ export function restoreGovernedFormulaIdentity(
       ...(restoredFormulaSourceProjection(verifications, modificationStatus) || {}),
     };
   });
-  return { ...reasoning, formula: { ...reasoning.formula, candidates } };
+  return { ...restorationInput, formula: { ...restorationInput.formula!, candidates } };
 }
 
 export function applyRestoredGovernedFormulaIdentity(
   content: string,
   prior: ClinicalReasoningResultV2 | null | undefined,
+  options: { preserveServerDeclassification?: boolean } = {},
 ): string {
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
@@ -1374,9 +1385,57 @@ export function applyRestoredGovernedFormulaIdentity(
       try {
         const parsed = JSON.parse(jsonText) as ClinicalReasoningResultV2;
         if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2") return match;
-        const next = restoreGovernedFormulaIdentity(parsed, prior);
+        const next = restoreGovernedFormulaIdentity(parsed, prior, options);
         if (next === parsed) return match;
         return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(next, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
+      } catch {
+        return match;
+      }
+    },
+  );
+}
+
+function withoutUntrustedM04IdentityMetadata(reasoning: ClinicalReasoningResultV2): ClinicalReasoningResultV2 {
+  if (reasoning.stage !== "prescribe" || !reasoning.formula) return reasoning;
+  let changed = false;
+  const candidates = reasoning.formula.candidates.map((candidate) => {
+    if (
+      candidate.identityDeclassified === undefined &&
+      candidate.identityDeclassificationReason === undefined &&
+      candidate.declassifiedFromFormulaNames === undefined
+    ) return candidate;
+    changed = true;
+    const next = { ...candidate };
+    delete next.identityDeclassified;
+    delete next.identityDeclassificationReason;
+    delete next.declassifiedFromFormulaNames;
+    return next;
+  });
+  return changed
+    ? { ...reasoning, formula: { ...reasoning.formula, candidates } }
+    : reasoning;
+}
+
+/**
+ * Remove identity provenance that arrived inside a provider-authored M04 payload.
+ *
+ * These fields are retained by the application schema because deterministic server transforms add
+ * them before review/signing. They are not provider capabilities: accepting them at ingress would
+ * let a model or prompt injection impersonate a completed server declassification and influence
+ * formula restoration, review policy and the doctor-visible provenance notice.
+ */
+export function stripUntrustedM04IdentityMetadata(content: string): string {
+  return content.replace(
+    /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
+    (match, jsonText: string) => {
+      try {
+        const parsed = JSON.parse(jsonText) as ClinicalReasoningResultV2;
+        if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2" || parsed.stage !== "prescribe" || !parsed.formula) {
+          return match;
+        }
+        const sanitized = withoutUntrustedM04IdentityMetadata(parsed);
+        if (sanitized === parsed) return match;
+        return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(sanitized)}\n<!-- DIAGNOSIS_JSON_END -->`;
       } catch {
         return match;
       }

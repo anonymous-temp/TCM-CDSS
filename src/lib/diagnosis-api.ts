@@ -19,7 +19,7 @@ import { parseStreamModuleDraftFrame, STREAM_REPLACE_MARKER, type StreamModuleDr
 import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
-import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
+import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, stripUntrustedM04IdentityMetadata, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
 import { clinicalReviewUnavailableReason } from "@/lib/clinical-review-binding";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
 import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenShape, type EvidenceBoundMedicineProposal } from "@/lib/m04-proposal-compiler";
@@ -1190,11 +1190,14 @@ function wrapStructuredJsonObject(
   const wrapped = stage === "diagnose"
     ? wrapDiagnoseJsonObject(content, stage)
     : wrapPrescribeJsonObject(content, stage, prior, caseState, trustedMedicineCandidates);
+  const providerOwned = stage === "prescribe"
+    ? stripUntrustedM04IdentityMetadata(wrapped)
+    : wrapped;
   // M04 每一版响应（首轮与每一轮修复）都在合同判定前，做一次确定性的命名方身份恢复：
   // 组成确定性满足 M03 锁定基准、模型却把方名写成自拟标签时，服务端按已核验事实补回身份，
   // 而不是把它判成 formula_reference_declassified 再让模型重写（实测会 fixpoint 到 0 味）。
   // 恢复之后所有合同、剂量与安全校验照常完整执行，见 restoreGovernedFormulaIdentity 的说明。
-  return stage === "prescribe" ? applyRestoredGovernedFormulaIdentity(wrapped, prior) : wrapped;
+  return stage === "prescribe" ? applyRestoredGovernedFormulaIdentity(providerOwned, prior) : providerOwned;
 }
 
 /**
@@ -4864,7 +4867,11 @@ async function callPrimaryTextModelStream(
             //
             // 判据一个字没放宽:仍要 M03 确有锁定方名、候选引用为空或方名同源、且组成通过
             // 与校验模型选择同一套 verifyFormulaCompilationComponents。幂等,自拟方路径不变。
-            authoritativeContent = applyRestoredGovernedFormulaIdentity(authoritativeContent, opts.structuredPriorReasoning);
+            authoritativeContent = applyRestoredGovernedFormulaIdentity(
+              authoritativeContent,
+              opts.structuredPriorReasoning,
+              { preserveServerDeclassification: true },
+            );
           }
           // 治则补齐同样必须在 finalize 这一层跑,不能只在 prepareDiagnoseStructuredContent 里(2026-08-05)。
           //
@@ -5414,7 +5421,11 @@ async function callPrimaryTextModelStream(
               )
             : transformed.content;
           const identityRestored = opts.structuredStage === "prescribe"
-            ? applyRestoredGovernedFormulaIdentity(finalStageOwned, opts.structuredPriorReasoning)
+            ? applyRestoredGovernedFormulaIdentity(
+                finalStageOwned,
+                opts.structuredPriorReasoning,
+                { preserveServerDeclassification: true },
+              )
             : finalStageOwned;
           let emissionContent = identityRestored;
           let emissionM03Attestation = m03AttestationWithScope;
