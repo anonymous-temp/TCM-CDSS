@@ -5404,7 +5404,11 @@ export function buildDeterministicRiskFollowupPayload(
       ? `**疗效评价标准**：${authored.efficacyCriteria}`
       : `**疗效评价标准**：以首诊记录为基线，比较${coreMetrics}；同时确认未出现新发不适。`,
     ...(actualRiskIndicators.length > 0 ? [`**安全性观察**：${actualRiskIndicators.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`] : []),
-    ...(followup.precautions.length > 0 ? [`**注意事项**：${followup.precautions.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`] : []),
+    // 同一批注意事项的 owner 是 M04 处方正文的「### 注意事项」节（2026-08-25 审查 V3）；
+    // M05 只在 M04 段缺席时兜底渲染，否则下载报告里同一内容双印且格式不一致。
+    ...(followup.precautions.length > 0 && !(state.prescription || "").includes("### 注意事项")
+      ? [`**注意事项**：${followup.precautions.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`]
+      : []),
     `**无效或加重的处置预案**：${efficacyTrigger}时，不自动沿用候选方案，由医生复评诊断、辨证与处方风险，并按实际情况安排检查或转诊。`,
     "",
     ...sixHealthFollowupTable(authored?.dimensions).split("\n"),

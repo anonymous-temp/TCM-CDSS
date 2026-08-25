@@ -347,11 +347,12 @@ function normalizeRequestError(error: unknown, fallback = "请求失败，请稍
 
 async function readErrorMessage(res: Response, fallback: string): Promise<string> {
   if (res.status === 401) {
-    // Session/token expired. The generic "retry" path would loop forever against the same stale
-    // cookie, so send the doctor to re-login (preserving where they were) instead.
+    // 会话过期不在数据层做整页跳转（2026-08-25 审查 B#10）：流式中途的副作用导航会与
+    // beforeunload 弹窗打架，医生点「留下」后重试按钮又撞同一枚过期 cookie 形成死循环，
+    // 且跳转前的自动保存同样 401 静默失败。改为派发事件，由 UI 渲染显式的会话过期面板
+    //（先保草稿、再给重新登录入口），重试按钮在过期态禁用。
     if (typeof window !== "undefined") {
-      const next = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.href = apiUrl(`/login?next=${next}`);
+      window.dispatchEvent(new CustomEvent("cdss-auth-expired"));
     }
     return "登录已过期，请重新登录后继续。";
   }
@@ -514,6 +515,26 @@ export function clearDownstreamClinicalResults<T extends CaseState>(state: T): T
 
 function hasActionableDiagnosisOutput(caseState: CaseState): boolean {
   return hasExecutableM03Diagnosis(caseState);
+}
+
+/**
+ * limited 状态的医生可读原因（2026-08-25 审查 X3/B#8）：三种完全不同的受限
+ * （辨证签名不可执行 / 红旗仅非剂量 / 审方服务不可用）此前只有同一个琥珀三角，
+ * 医生分不清是失败了还是被限制、也不知道下一步做什么。
+ */
+export function stepLimitedReason(caseState: CaseState, step: typeof PHASE_STEPS[0]): string {
+  if (step.phase === "diagnose") return "辨证未形成可执行的完整结构；可补充病历信息后重新生成辨病辨证。";
+  if (step.phase === "prescribe") {
+    return caseState.safetyGate?.status === "red_flag"
+      ? "存在未解除的红旗风险，本次仅提供非剂量建议；处理红旗或医生确认解除后可重新生成。"
+      : "未形成剂量级候选处方；可重新生成候选方药，或按提示补齐缺失信息。";
+  }
+  if (step.phase === "assess") {
+    return caseState.auditAdvisory?.available === false
+      ? "合理用药审方服务暂不可用，风险评估按人工药师复核路径处理。"
+      : "本阶段未生成完整评估内容；可重试审方随访。";
+  }
+  return "本阶段输出受限，请结合页面提示处理。";
 }
 
 export function getStepStatus(caseState: CaseState, step: typeof PHASE_STEPS[0]): StepStatus {
@@ -720,7 +741,16 @@ function compactMarkdown(text: string, max = 520): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   if (clean.length <= max) return clean || "暂无";
-  return `${clean.slice(0, max).trim()}...`;
+  // 截断必须落在块边界（2026-08-25 审查 V3）：按字节硬切会把表格切成半行、把 ** 切成
+  // 落单星号，ReactMarkdown 原样渲染出星号与残表。先取 max 内最后一个空行（段落边界），
+  // 退而求其次取最后一个换行（整行边界）；随后平衡未配对的 **。
+  const hard = clean.slice(0, max);
+  const paragraphCut = hard.lastIndexOf("\n\n");
+  const lineCut = hard.lastIndexOf("\n");
+  const cutAt = paragraphCut >= max * 0.5 ? paragraphCut : lineCut >= max * 0.5 ? lineCut : max;
+  let out = clean.slice(0, cutAt).trimEnd();
+  if ((out.split("**").length - 1) % 2 === 1) out += "**";
+  return `${out}\n\n…（内容过长已截断，完整内容见下载报告）`;
 }
 
 type MarkdownTable = {
@@ -1597,7 +1627,7 @@ function TopProgress({ caseState }: { caseState: CaseState }) {
                 {status === "blocked" && <Lock className="h-3.5 w-3.5" />}
                 {status === "skipped" && <Circle className="h-3.5 w-3.5" />}
                 {status === "todo" && <Circle className="h-3.5 w-3.5" />}
-                <span className="font-medium">{step.label}{status === "blocked" ? " 未执行" : status === "skipped" ? " 已跳过" : ""}</span>
+                <span className="font-medium" title={status === "limited" ? stepLimitedReason(caseState, step) : undefined}>{step.label}{status === "blocked" ? " 未执行" : status === "skipped" ? " 已跳过" : status === "limited" ? " 受限" : ""}</span>
               </div>
               {idx < PHASE_STEPS.length - 1 && <div className="h-px w-5 bg-gray-200" />}
             </div>
@@ -6028,26 +6058,28 @@ async function saveWorkspaceSnapshot(snapshot: Omit<WorkspaceSnapshot, "schemaVe
   }
 }
 
-async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot | null> {
+type WorkspaceRestoreResult = { snapshot: WorkspaceSnapshot | null; failure?: "auth" | "network" | "invalid" };
+
+async function loadWorkspaceSnapshot(): Promise<WorkspaceRestoreResult> {
   if (!BROWSER_CASE_PERSISTENCE_ENABLED) {
     clearWorkspaceSnapshot();
     clearAllSavedCases();
-    return null;
+    return { snapshot: null };
   }
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined") return { snapshot: null };
   clearAllSavedCases();
   try {
     const raw = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
-    if (!raw) return null;
+    if (!raw) return { snapshot: null };
     const envelope = JSON.parse(raw) as unknown;
     if (!isEncryptedSnapshotEnvelope(envelope)) {
       window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
-      return null;
+      return { snapshot: null, failure: "invalid" };
     }
     const binding = workspaceSnapshotBinding(false);
     if (!binding) {
       window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
-      return null;
+      return { snapshot: null, failure: "invalid" };
     }
     const { response, body } = await fetchJsonWithTimeout<{ ok?: boolean; payload?: unknown }>(apiUrl("/api/diagnosis/snapshot"), {
       method: "POST",
@@ -6057,18 +6089,25 @@ async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot | null> {
     if (!response.ok || !body?.ok || !body.payload || typeof body.payload !== "object") {
       // Preserve the only encrypted copy across transient auth/network/provider failures. Delete it
       // only when the server has positively classified the envelope/request as invalid.
-      if ([400, 413, 422].includes(response.status)) window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
-      return null;
+      if ([400, 413, 422].includes(response.status)) {
+        window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+        return { snapshot: null, failure: "invalid" };
+      }
+      return { snapshot: null, failure: response.status === 401 ? "auth" : "network" };
     }
     const parsed = body.payload as Partial<WorkspaceSnapshot>;
-    if (parsed.schemaVersion !== "tcm-cdss-workspace-v1") return null;
+    if (parsed.schemaVersion !== "tcm-cdss-workspace-v1") {
+      // 版本不匹配的信封此前**不清理**：每次刷新都是解密→版本不符→静默空白的死循环。
+      window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+      return { snapshot: null, failure: "invalid" };
+    }
     const updatedAtMs = parsed.updatedAt ? Date.parse(parsed.updatedAt) : 0;
     if (!Number.isFinite(updatedAtMs) || Date.now() - updatedAtMs > WORKSPACE_TTL_MS) {
       window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
-      return null;
+      return { snapshot: null };
     }
     const normalizedCaseState = normalizeCaseStateInput(parsed.caseState);
-    if (!normalizedCaseState) return null;
+    if (!normalizedCaseState) return { snapshot: null, failure: "invalid" };
     // Safety/completeness decisions are derived data. Recompute them with the current release so a
     // pre-fix snapshot cannot keep an obsolete ready gate and expose stale candidate prescriptions.
     const recomputedCaseState = withSafetyGateAndOperationalCompleteness(
@@ -6101,11 +6140,11 @@ async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot | null> {
       selectedQuestionOptions: sanitizeQuestionSelectionsForBrowserPersistence(parsed.selectedQuestionOptions || {}, legacyNames),
       workbenchDraft,
     };
-    return sanitizedSnapshot;
+    return { snapshot: sanitizedSnapshot };
   } catch {
     // Network failures are retryable. The encrypted envelope remains in localStorage and can be
     // restored on the next reload once connectivity/authentication recovers.
-    return null;
+    return { snapshot: null, failure: "network" };
   }
 }
 
@@ -8205,6 +8244,10 @@ export default function DiagnosisPage() {
   const [snapshotSaveFailed, setSnapshotSaveFailed] = useState(false);
   // M01/M02 服务端心跳（{type:"heartbeat",status}）此前被消费器忽略，长等待只有一行计秒。
   const [stageHeartbeat, setStageHeartbeat] = useState("");
+  const [authExpired, setAuthExpired] = useState(false);
+  // 本机草稿恢复失败必须可见（2026-08-25 审查 B#4）：此前五条失败路径全部静默 null，
+  // 医生面对一张干净的空白病例，无法区分「没保存」与「保存了但恢复失败」。
+  const [restoreFailure, setRestoreFailure] = useState<"auth" | "network" | "invalid" | "">("");
   const [tongueImage, setTongueImage] = useState<string | null>(null);
   const [tongueImageConsent, setTongueImageConsent] = useState(false);
   const [uploadNotice, setUploadNotice] = useState("");
@@ -8259,8 +8302,9 @@ export default function DiagnosisPage() {
     const generation = ++workspaceRestoreGenerationRef.current;
     void (async () => {
       try {
-        const workspace = await loadWorkspaceSnapshot();
+        const { snapshot: workspace, failure: restoreFailureKind } = await loadWorkspaceSnapshot();
         if (workspaceRestoreGenerationRef.current !== generation) return;
+        if (restoreFailureKind) setRestoreFailure(restoreFailureKind);
         if (workspace) {
           const restoredCase = recoverInterruptedRun(workspace.caseState, workspace.runningPhase);
           activeCaseIdRef.current = restoredCase.id;
@@ -8334,6 +8378,12 @@ export default function DiagnosisPage() {
     }, 150);
     return () => window.clearTimeout(timer);
   }, [caseState, hasInProgressWork, input, isRunning, recordDraft, selectedQuestionOptions, workbenchUnsavedDraft, workspaceRestored]);
+
+  useEffect(() => {
+    const onAuthExpired = () => setAuthExpired(true);
+    window.addEventListener("cdss-auth-expired", onAuthExpired);
+    return () => window.removeEventListener("cdss-auth-expired", onAuthExpired);
+  }, []);
 
   useEffect(() => {
     hasInProgressWorkRef.current = hasInProgressWork;
@@ -8428,6 +8478,10 @@ export default function DiagnosisPage() {
         if (!res3.ok) throw new Error(await readErrorMessage(res3, `辨病辨证生成失败 (${res3.status})`));
         const rawDiagnosis = await consumeMarkdownStream(res3, (t) => setStreamingForPhase("diagnose", t), {
           ...streamConsumeOptions(),
+          // 传输尾部异常不再吞掉整段正文（2026-08-25 审查 B#2）：≥200 字实质内容时按引擎
+          // 既有降级路径落地并附「流式完整性提示」；残缺内容无有效签名载荷，下游剂量链
+          // 与写回天然拿不到它，只影响展示层可读性。M05 保持严格（黄金回归钉子）。
+          allowPartial: true,
           onModuleDraft: (frame) => setModuleDrafts((previous) => {
             const currentDraft = previous[frame.module];
             return currentDraft && currentDraft.revision >= frame.revision
@@ -8491,7 +8545,7 @@ export default function DiagnosisPage() {
           body: JSON.stringify({ caseState: current }),
         });
         if (!res4.ok) throw new Error(await readErrorMessage(res4, `候选方药生成失败 (${res4.status})`));
-        const rawPrescription = await consumeMarkdownStream(res4, (t) => setStreamingForPhase("prescribe", t), streamConsumeOptions());
+        const rawPrescription = await consumeMarkdownStream(res4, (t) => setStreamingForPhase("prescribe", t), { ...streamConsumeOptions(), allowPartial: true });
         // 剂量词否决只能扫**处方正文**两节。"当前结论 / 处方前必要信息核查 / 用药风险提示"
         // 由服务端把 gate.redFlags、gate.missingItems 原样插值进去，而红旗本身就常常逐字引用
         // 病历里的数值（"血红蛋白 58 g/L""呕血约300mL""二甲双胍 500mg bid"）。
@@ -9567,6 +9621,22 @@ export default function DiagnosisPage() {
             }}
             onOpenTongueCapture={() => setCaptureModal("tongue")}
           />
+          {authExpired && (
+            <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-xs text-red-800" data-testid="auth-expired-banner">
+              <p className="font-bold">登录已过期</p>
+              <p className="mt-1">本机草稿仍在加密保存位；请<a className="font-bold underline" href={apiUrl(`/login?next=${encodeURIComponent("/diagnosis")}`)}>重新登录</a>后回到本页继续。会话过期期间的重试不会成功。</p>
+            </div>
+          )}
+          {restoreFailure && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900" data-testid="workspace-restore-failure">
+              <p className="font-bold">本机草稿未能恢复</p>
+              <p className="mt-1">{restoreFailure === "auth"
+                ? "登录状态失效，加密草稿未能解密；草稿仍保留在本机，重新登录后刷新本页可再次尝试恢复。"
+                : restoreFailure === "network"
+                  ? "未能连接服务完成草稿解密；草稿仍保留在本机，网络恢复后刷新本页可再次尝试恢复。"
+                  : "检测到无法恢复的本机草稿残留，已自动清除；如需继续此前病例请重新录入。"}</p>
+            </div>
+          )}
           <AiSupportPanel
             stageHeartbeat={stageHeartbeat}
             caseState={isQuestionSupplementFlow ? liveUiCaseState : caseState}
