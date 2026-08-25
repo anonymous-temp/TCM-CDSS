@@ -385,7 +385,74 @@ try {
   assert.equal(regReplayBody.created, false);
   assert.equal(regReplayBody.customerRegistered, false);
 
-  console.log(JSON.stringify({ suite: "customer-jit-registration", cases: 67, failures: 0 }));
+  // ── 注销通路（P1-5，甲方 2026-08-24 验收要求的清理与停用恢复） ──────────────────
+  const { deactivateCustomerForClient } = await jiti.import("../src/lib/customer-registry.server.ts");
+  const { spawnSync } = await import("node:child_process");
+
+  // 配额红基线：此刻本 client 活跃身份 = static + new/route/prov08/reg-field = 5。
+  process.env.CDSS_CUSTOMER_JIT_MAX_CUSTOMERS = "5";
+  const quotaBlocked = await requireCustomerContext(request("hospital-deact-quota", "deact-quota-001"), undefined, {
+    allowJitProvisioning: true,
+    idempotencyKey: "deact-quota-001",
+  });
+  assert.equal(quotaBlocked.ok, false);
+  assert.equal(quotaBlocked.response.status, 429, "配额红基线：注销前第 6 个客户必须 429");
+
+  const deact = await deactivateCustomerForClient({ clientId: "his-integrator", customerId: "hospital-reg-field" });
+  assert.equal(deact.ok, true);
+  assert.equal(deact.alreadyDeactivated, false);
+  assert.equal(authorizeCustomerId("hospital-reg-field", true).ok, false, "注销必须即时吊销授权");
+  const deactGet = await inventoryRoute.GET(new Request("http://localhost/api/drug-inventory", {
+    headers: { "x-cdss-customer-id": "hospital-reg-field" },
+  }));
+  assert.equal(deactGet.status, 403, "注销后的客户走路由必须 403");
+  assert.equal(getCustomerAuthorizationStatus().ready, true,
+    "deactivated 是注册表合法取值，不得让整个注册表变 unavailable");
+  assert.equal((await deactivateCustomerForClient({ clientId: "his-integrator", customerId: "hospital-reg-field" })).alreadyDeactivated, true,
+    "重复注销必须幂等");
+  const quotaFreed = await requireCustomerContext(request("hospital-deact-quota", "deact-quota-001"), undefined, {
+    allowJitProvisioning: true,
+    idempotencyKey: "deact-quota-001",
+  });
+  assert.equal(quotaFreed.ok, true, "注销必须立即释放配额名额");
+
+  // 幂等键绑定保留：换键仍 409，原键重登记 = 停用恢复。
+  const deactWrongKey = await requireCustomerContext(request("hospital-reg-field", "reg-field-other-002"), undefined, {
+    allowJitProvisioning: true,
+    idempotencyKey: "reg-field-other-002",
+  });
+  assert.equal(deactWrongKey.ok, false);
+  assert.equal(deactWrongKey.response.status, 409, "注销不解除幂等键绑定：换键必须 409");
+  const reactivated = await registerRoute.POST(new Request("http://localhost/api/customers/register", {
+    method: "POST",
+    headers: { "x-cdss-customer-id": "hospital-reg-field", "idempotency-key": "reg-field-001" },
+  }));
+  assert.equal(reactivated.status, 201, "原幂等键重登记必须恢复激活（停用恢复）");
+  assert.equal((await reactivated.json()).customerRegistered, true);
+  assert.equal(authorizeCustomerId("hospital-reg-field", true).ok, true, "恢复后授权必须回到可用");
+
+  // ops 零依赖脚本与 lib 是同一套语义；audit 行的 customerHash 口径必须与
+  // tenantAuditCustomerHash 逐字一致——口径漂移时按租户反查会空（实写时真踩过：分隔符
+  // 用了空格而不是 \0），本断言即为此而钉。
+  const opsRun = spawnSync(process.execPath, ["scripts/ops-deactivate-customer.mjs", "hospital-prov08"], {
+    env: { ...process.env, CDSS_API_CLIENT_ID: "his-integrator" },
+    encoding: "utf8",
+  });
+  assert.equal(opsRun.status, 0, `ops 注销脚本必须成功: ${opsRun.stderr}`);
+  assert.equal(JSON.parse(opsRun.stdout).results[0].result, "deactivated");
+  assert.equal(authorizeCustomerId("hospital-prov08", true).ok, false, "ops 注销后授权读取器必须立刻拒绝");
+  assert.equal(getCustomerAuthorizationStatus().ready, true, "ops 写出的注册表必须仍被应用代码解析");
+  const opsAudit = await queryTenantAuditEvents(
+    "his-integrator",
+    tenantAuditCustomerHash("his-integrator", "hospital-prov08"),
+    10,
+  );
+  assert.equal(opsAudit.some((event) => event.code === "deactivated_by_ops"), true,
+    "ops 审计行必须能按租户哈希反查到（customerHash 口径与 tenantAuditCustomerHash 一致）");
+
+  process.env.CDSS_CUSTOMER_JIT_MAX_CUSTOMERS = "6";
+
+  console.log(JSON.stringify({ suite: "customer-jit-registration", cases: 87, failures: 0 }));
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
 }

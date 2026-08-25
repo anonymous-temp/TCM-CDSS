@@ -15,7 +15,7 @@ const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{8,200}$/;
 type RegisteredCustomer = Readonly<{
   clientId: string;
   customerId: string;
-  status: "provisioning" | "active" | "failed";
+  status: "provisioning" | "active" | "failed" | "deactivated";
   createdAt: string;
   updatedAt: string;
   idempotencyKeyHash: string;
@@ -56,7 +56,7 @@ function parseRegistry(raw: string): CustomerRegistryFile | undefined {
     if (value.schemaVersion !== REGISTRY_SCHEMA_VERSION || !Array.isArray(value.customers)) return undefined;
     const customers = value.customers.filter((item): item is RegisteredCustomer => Boolean(
       item && CLIENT_ID_PATTERN.test(item.clientId) && parseCustomerId(item.customerId) === item.customerId &&
-      ["provisioning", "active", "failed"].includes(item.status) &&
+      ["provisioning", "active", "failed", "deactivated"].includes(item.status) &&
       typeof item.createdAt === "string" && typeof item.updatedAt === "string" &&
       /^[a-f0-9]{64}$/.test(item.idempotencyKeyHash) &&
       (item.authorizationSource === undefined || ["jit", "static"].includes(item.authorizationSource)),
@@ -181,7 +181,9 @@ export async function registerCustomerForClient(input: {
     const staticCustomerIds = new Set(input.staticCustomerIds || []);
     const clientCustomerIds = new Set(staticCustomerIds);
     for (const item of registry.customers) {
-      if (item.clientId === input.clientId && item.status !== "failed") {
+      // failed 是登记流程失败的中间态，deactivated 是运维显式吊销的终态——两者都不再占用
+      // 活跃配额，否则注销测试租户无法为真实客户腾出名额。
+      if (item.clientId === input.clientId && item.status !== "failed" && item.status !== "deactivated") {
         clientCustomerIds.add(item.customerId);
       }
     }
@@ -234,6 +236,64 @@ export async function registerCustomerForClient(input: {
       return { ok: false, status: 503, code: "customer_registry_unavailable", error: "customer registry is unavailable" };
     }
     return { ok: true, created: active.authorizationSource !== "static", customer: active };
+  } finally {
+    release?.();
+  }
+}
+
+export type DeactivateCustomerResult =
+  | { ok: true; customer: RegisteredCustomer; alreadyDeactivated: boolean }
+  | {
+      ok: false;
+      status: 404 | 503;
+      code: "customer_not_registered" | "customer_registry_unavailable";
+      error: string;
+    };
+
+/**
+ * 注销一个已登记客户（P1-5，甲方 2026-08-24 验收提出的清理通路）。
+ *
+ * - **吊销即时生效**：授权读取器（registeredCustomerForClient / registeredCustomerIdsForClient）
+ *   只认 status === "active"，写入 deactivated 后该客户的所有 API 访问立刻回到 403。
+ * - **幂等键绑定保留**：deactivated 条目仍占有原 Idempotency-Key——用原键重新登记 = 显式的
+ *   停用恢复（重新走 provisioning → active），换键或把该键改绑他人仍 409。
+ * - **不占配额**：与 failed 同待遇，注销后名额立即释放。
+ * - 与 registerCustomerForClient 共用同一条 registryMutationTail 串行链，避免并发
+ *   read-modify-write 互相覆盖。
+ */
+export async function deactivateCustomerForClient(input: {
+  clientId: string;
+  customerId: string;
+}): Promise<DeactivateCustomerResult> {
+  let release: (() => void) | undefined;
+  const turn = new Promise<void>((resolveTurn) => { release = resolveTurn; });
+  const previous = registryMutationTail;
+  registryMutationTail = previous.catch(() => undefined).then(() => turn);
+  await previous.catch(() => undefined);
+  try {
+    const registry = await readRegistry();
+    if (!registry) {
+      return { ok: false, status: 503, code: "customer_registry_unavailable", error: "customer registry is unavailable" };
+    }
+    const existing = registry.customers.find(
+      (item) => item.clientId === input.clientId && item.customerId === input.customerId,
+    );
+    if (!existing) {
+      return { ok: false, status: 404, code: "customer_not_registered", error: "customer is not registered" };
+    }
+    if (existing.status === "deactivated") {
+      return { ok: true, customer: existing, alreadyDeactivated: true };
+    }
+    const deactivated: RegisteredCustomer = { ...existing, status: "deactivated", updatedAt: new Date().toISOString() };
+    try {
+      await writeRegistry({
+        ...registry,
+        customers: registry.customers.map((item) => item === existing ? deactivated : item),
+      });
+    } catch {
+      return { ok: false, status: 503, code: "customer_registry_unavailable", error: "customer registry is unavailable" };
+    }
+    return { ok: true, customer: deactivated, alreadyDeactivated: false };
   } finally {
     release?.();
   }
