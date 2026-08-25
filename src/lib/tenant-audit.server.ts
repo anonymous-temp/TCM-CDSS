@@ -52,9 +52,18 @@ function auditArchiveFiles(): number {
 async function rotateAuditIfNeeded(target: string, incomingBytes: number): Promise<void> {
   let currentBytes = 0;
   try {
-    currentBytes = (await stat(target)).size;
+    const stats = await stat(target);
+    // 轮转只对普通文件有意义。CDSS_TENANT_AUDIT_PATH 误配置成目录时，按大小轮转会把整个
+    // 目录改名成 .1，随后的 append 会在原路径创建一个普通文件——审计"看似可用"而目录里的
+    // 其余数据全被改走。这里直接抛错，让 recordTenantAuditEvent 失败、调用方按审计不可用
+    // fail-closed（与 appendFile 对目录报 EISDIR 的既有语义一致）。
+    if (!stats.isFile()) {
+      throw Object.assign(new Error(`tenant audit path is not a regular file: ${target}`), { code: "EISDIR" });
+    }
+    currentBytes = stats.size;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    if (code === "EISDIR") throw error;
     if (code !== "ENOENT") throw error;
   }
   if (currentBytes + incomingBytes <= auditMaxBytes()) return;

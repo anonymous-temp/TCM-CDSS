@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readJsonBodyWithLimit } from "@/lib/http-guard";
-import { drugInventorySnapshot, importDrugInventory } from "@/lib/drug-inventory.server";
+import { drugInventorySnapshot, importDrugInventory, validateDrugInventoryPayload } from "@/lib/drug-inventory.server";
 import { requireCustomerContext } from "@/lib/customer-context";
 import { CUSTOMER_ID_HEADER } from "@/lib/customer-id";
 import {
@@ -58,6 +58,19 @@ export async function POST(req: Request) {
   const body = parsed.body && typeof parsed.body === "object" && !Array.isArray(parsed.body)
     ? parsed.body as { source?: unknown; items?: unknown; part?: unknown }
     : {};
+  // PROV-08（甲方 2026-08-24 验收）：载荷内在的 4xx/413 必须先于 requireCustomerContext 的
+  // JIT 登记，否则一次失败的首提交会留下已激活、可正常 GET 的空租户。此时尚无客户上下文，
+  // 响应不带 x-cdss-customer-id 头。
+  const invalidPayload = validateDrugInventoryPayload(body);
+  if (invalidPayload) {
+    return Response.json({
+      error: invalidPayload.error,
+      code: invalidPayload.code,
+      ...(invalidPayload.rejectedEntries
+        ? { rejectedEntries: invalidPayload.rejectedEntries, rejectedEntryCount: invalidPayload.rejectedEntryCount }
+        : {}),
+    }, { status: invalidPayload.status });
+  }
   const customer = await requireCustomerContext(req, undefined, {
     allowJitProvisioning: true,
     idempotencyKey,
@@ -96,7 +109,13 @@ export async function POST(req: Request) {
       requestId,
       operationId,
     });
-    return Response.json({ error: result.error, code: result.code }, { status: result.status });
+    return Response.json({
+      error: result.error,
+      code: result.code,
+      ...(result.rejectedEntries
+        ? { rejectedEntries: result.rejectedEntries, rejectedEntryCount: result.rejectedEntryCount }
+        : {}),
+    }, { status: result.status });
   }
   if ("pending" in result) {
     const auditFinalized = await tryRecordInventoryAudit({
@@ -113,6 +132,8 @@ export async function POST(req: Request) {
     // 否则「收到 200」会被理解成「这一批已经生效」，正是旧文案造成的误解。
     return customerJsonResponse(customer.context.customerId, {
       ...result.pending,
+      // PROV 计划字段：本次请求完成了 JIT 登记时显式告知调用方。
+      ...(customer.context.provisioned ? { customerRegistered: true } : {}),
       ...(!auditFinalized ? { auditStatus: "pending_reconciliation" } : {}),
       note: `已暂存第 ${result.pending.receivedParts.join("、")} 片，仍缺第 ${result.pending.missingParts.join("、")} 片。`
         + " 集齐全部分片后系统才会做一次整批替换；在此之前线上库存保持上一版本不变。",
@@ -130,6 +151,8 @@ export async function POST(req: Request) {
   });
   return customerJsonResponse(customer.context.customerId, {
     ...result.snapshot,
+    // PROV 计划字段：本次请求完成了 JIT 登记时显式告知调用方。
+    ...(customer.context.provisioned ? { customerRegistered: true } : {}),
     ...(!auditFinalized ? { auditStatus: "pending_reconciliation" } : {}),
     // 归一不到与歧义的药名如实回报，供甲方补映射。静默吞掉会让这些药永远处于「缺货」，
     // 而甲方无从知道是自己没推还是我们没认出来。

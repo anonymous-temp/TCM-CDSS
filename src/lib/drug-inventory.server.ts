@@ -229,10 +229,23 @@ export type DrugInventoryImportInput = {
   part?: unknown;
 };
 
+export type DrugInventoryRejectedEntry = { index: number; reason: string };
+
 export type DrugInventoryImportResult =
   | { ok: true; snapshot: DrugInventorySnapshot }
   | { ok: true; pending: DrugInventoryPartAck }
-  | { ok: false; status: 400 | 409 | 413; code: string; error: string };
+  | {
+      ok: false;
+      status: 400 | 409 | 413;
+      code: string;
+      error: string;
+      rejectedEntries?: DrugInventoryRejectedEntry[];
+      rejectedEntryCount?: number;
+    };
+
+export type DrugInventoryPayloadRejection = Extract<DrugInventoryImportResult, { ok: false }> & {
+  status: 400 | 413;
+};
 
 export type DrugInventoryPartAck = {
   importId: string;
@@ -309,15 +322,113 @@ async function writeStagedImport(customerId: string, staged: StagedImport): Prom
  * 集齐 total 片后才做一次整批替换；缺片时返回 409 并列出缺哪几片，
  * 在此之前线上库存一个字节都不动。语义仍然是「整批替换」，只是这一整批分了几次传。
  */
+function inventoryEntryRejection(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "entry must be an object";
+  const entry = raw as Record<string, unknown>;
+  const name = text(entry.name);
+  if (!name) return "name is required";
+  if (name.length > 120) return "name exceeds 120 characters";
+  if (entry.kind !== undefined && entry.kind !== "herb" && entry.kind !== "patent" && entry.kind !== "western") {
+    // kind 静默兜底成 herb 会把「中成药」当饮片建目录——可得性判定直接跟着错。
+    return "kind must be one of herb|patent|western";
+  }
+  if (entry.available !== undefined && typeof entry.available !== "boolean") {
+    // available:1 在旧实现里等于 false（=== true 比较），一个真值字段悄悄把在售药标成缺货。
+    return "available must be a boolean when present";
+  }
+  return undefined;
+}
+
+function importPartShapeRejection(partInput: Record<string, unknown>): DrugInventoryPayloadRejection | undefined {
+  const importId = normalizedImportId(partInput.importId);
+  const index = Number(partInput.index);
+  const total = Number(partInput.total);
+  if (!importId) {
+    return { ok: false, status: 400, code: "invalid_import_part_id", error: "part.importId must match [A-Za-z0-9_-]{6,64}" };
+  }
+  if (!Number.isInteger(total) || total < 1 || total > MAX_IMPORT_PARTS) {
+    return { ok: false, status: 400, code: "invalid_import_part_total", error: `part.total must be an integer in 1..${MAX_IMPORT_PARTS}` };
+  }
+  if (!Number.isInteger(index) || index < 0 || index >= total) {
+    return { ok: false, status: 400, code: "invalid_import_part_index", error: "part.index must be an integer in 0..total-1" };
+  }
+  return undefined;
+}
+
+const MAX_REJECTED_ENTRIES_REPORTED = 20;
+
+/**
+ * 载荷内在校验（纯函数，不读任何状态）。**必须先于 JIT 客户登记执行**：甲方 2026-08-24
+ * 验收（PROV-08）实测「未知客户 + 缺 items 的首次 POST」返回 400 后客户已被登记激活——
+ * 失败的首提交留下了可正常 GET 的半激活租户。所有仅凭请求体即可判定的 4xx/413 都收敛到
+ * 这里；路由在 requireCustomerContext（可能触发登记）之前先调用，importDrugInventory
+ * 内部再调一次兜底，两处共用同一份判据。
+ *
+ * 条目级错误**整批拒绝**并回报 rejectedEntries，绝不静默丢弃：本文件的可得性语义下，
+ * 被静默丢掉的条目等于把那些药推成缺货/unknown（缺数据不得改变链路行为），
+ * 比整批失败危险得多。零条目载荷同理拒绝——见 commitInventoryItems 的零条目守卫。
+ */
+export function validateDrugInventoryPayload(input: DrugInventoryImportInput): DrugInventoryPayloadRejection | undefined {
+  if (!Array.isArray(input.items)) {
+    return { ok: false, status: 400, code: "invalid_inventory_items", error: "items must be an array" };
+  }
+  const rawItems = input.items as unknown[];
+  if (rawItems.length === 0) {
+    return {
+      ok: false,
+      status: 400,
+      code: "invalid_inventory_items",
+      error: "items must not be empty; an empty batch would atomically replace the catalog with nothing",
+    };
+  }
+  const partInput = input.part && typeof input.part === "object" && !Array.isArray(input.part)
+    ? input.part as Record<string, unknown>
+    : undefined;
+  if (input.part !== undefined && input.part !== null && !partInput) {
+    return { ok: false, status: 400, code: "invalid_import_part_id", error: "part must be an object of {importId,index,total}" };
+  }
+  if (partInput) {
+    const partRejection = importPartShapeRejection(partInput);
+    if (partRejection) return partRejection;
+  } else if (rawItems.length > MAX_ITEMS) {
+    return {
+      ok: false,
+      status: 413,
+      code: "inventory_too_large",
+      error: `items exceeds the ${MAX_ITEMS} entry limit. 本接口是整批替换：单次请求直接分成两批会让后一批覆盖前一批。`
+        + ` 请改用分片整批替换——每次请求带 part={importId,index,total}（同一 importId、index 从 0 到 total-1）；`
+        + ` 分片只写暂存，集齐全部分片后系统才做一次原子替换，在此之前线上库存不变。`,
+    };
+  }
+  const rejectedEntries: DrugInventoryRejectedEntry[] = [];
+  let rejectedEntryCount = 0;
+  rawItems.forEach((raw, index) => {
+    const reason = inventoryEntryRejection(raw);
+    if (!reason) return;
+    rejectedEntryCount += 1;
+    if (rejectedEntries.length < MAX_REJECTED_ENTRIES_REPORTED) rejectedEntries.push({ index, reason });
+  });
+  if (rejectedEntryCount > 0) {
+    return {
+      ok: false,
+      status: 400,
+      code: "invalid_inventory_items",
+      error: `${rejectedEntryCount}/${rawItems.length} entries are invalid; the whole batch was rejected and nothing was written`,
+      rejectedEntries,
+      rejectedEntryCount,
+    };
+  }
+  return undefined;
+}
+
 export async function importDrugInventory(
   customerIdInput: string,
   input: DrugInventoryImportInput,
 ): Promise<DrugInventoryImportResult> {
   const customerId = validCustomerId(customerIdInput);
-  const rawItems = input.items;
-  if (!Array.isArray(rawItems)) {
-    return { ok: false, status: 400, code: "invalid_inventory_items", error: "items must be an array" };
-  }
+  const invalidPayload = validateDrugInventoryPayload(input);
+  if (invalidPayload) return invalidPayload;
+  const rawItems = input.items as unknown[];
   const partInput = input.part && typeof input.part === "object" && !Array.isArray(input.part)
     ? input.part as Record<string, unknown>
     : undefined;
@@ -333,16 +444,6 @@ export async function importDrugInventory(
       );
     });
   }
-  if (rawItems.length > MAX_ITEMS) {
-    return {
-      ok: false,
-      status: 413,
-      code: "inventory_too_large",
-      error: `items exceeds the ${MAX_ITEMS} entry limit. 本接口是整批替换：单次请求直接分成两批会让后一批覆盖前一批。`
-        + ` 请改用分片整批替换——每次请求带 part={importId,index,total}（同一 importId、index 从 0 到 total-1）；`
-        + ` 分片只写暂存，集齐全部分片后系统才做一次原子替换，在此之前线上库存不变。`,
-    };
-  }
 
   return withSerializedLock(
     inventoryCommitLocks,
@@ -357,18 +458,12 @@ async function stageInventoryPart(
   rawItems: unknown[],
   source: string,
 ): Promise<{ ok: true; items: unknown[]; source: string } | { ok: true; pending: DrugInventoryPartAck } | { ok: false; status: 400 | 409 | 413; code: string; error: string }> {
+  // 形状校验共用 validateDrugInventoryPayload 的同一份判据（单一谓词）；这里兜底再跑一次。
+  const shapeRejection = importPartShapeRejection(partInput);
+  if (shapeRejection) return shapeRejection;
   const importId = normalizedImportId(partInput.importId);
   const index = Number(partInput.index);
   const total = Number(partInput.total);
-  if (!importId) {
-    return { ok: false, status: 400, code: "invalid_import_part_id", error: "part.importId must match [A-Za-z0-9_-]{6,64}" };
-  }
-  if (!Number.isInteger(total) || total < 1 || total > MAX_IMPORT_PARTS) {
-    return { ok: false, status: 400, code: "invalid_import_part_total", error: `part.total must be an integer in 1..${MAX_IMPORT_PARTS}` };
-  }
-  if (!Number.isInteger(index) || index < 0 || index >= total) {
-    return { ok: false, status: 400, code: "invalid_import_part_index", error: "part.index must be an integer in 0..total-1" };
-  }
   const existing = await readStagedImport(customerId, importId);
   if (existing && existing.total !== total) {
     return { ok: false, status: 409, code: "import_part_total_conflict", error: `part.total changed mid-import (was ${existing.total})` };
@@ -450,6 +545,18 @@ async function commitInventoryItems(
       ...(text(entry.specification) ? { specification: text(entry.specification) } : {}),
       ...(text(entry.goodsId) ? { goodsId: text(entry.goodsId) } : {}),
     });
+  }
+
+  if (items.length === 0) {
+    // 归一化后一条不剩（历史暂存分片或绕过校验的调用方）。零条目库存等于把整院药味
+    // 判成缺货/unknown——宁可整批失败也不落盘。新请求在 validateDrugInventoryPayload
+    // 已整批拒绝，这里是暂存/兜底路径的最后一道守卫。
+    return {
+      ok: false,
+      status: 400,
+      code: "invalid_inventory_items",
+      error: "no valid entries remained after normalization; nothing was written",
+    };
   }
 
   const importedAt = new Date().toISOString();

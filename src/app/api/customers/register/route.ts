@@ -13,6 +13,8 @@ export async function POST(req: Request) {
     customerId: customer.context.customerId,
     status: "active",
     created: Boolean(customer.context.provisioned),
+    // PROV 实现计划要求的字段名；created 保留兼容既有对接方。
+    customerRegistered: Boolean(customer.context.provisioned),
   }, {
     status: customer.context.provisioned ? 201 : 200,
     headers: { [CUSTOMER_ID_HEADER]: customer.context.customerId },

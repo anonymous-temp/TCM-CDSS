@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.5 |
+| 文档版本 | V2.6 |
 | 发布日期 | 2026-08-24 |
 | 服务版本 | `tcm-cdss-20260824-multitenant-remediation-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
@@ -119,7 +119,7 @@ curl -s "$BASE/api/drug-inventory" \
 | 服务端/API 对接 | 请求头 `x-cdss-customer-id: <客户唯一标识>` |
 | 浏览器登录 | `/api/auth/access` 请求体同时提交 `{token, customerId}`，成功后由服务端签发 httpOnly 客户上下文 Cookie |
 
-`customerId` **区分大小写**，仅接受 6–64 位 ASCII 字母、数字、下划线或连字符。已经登记的客户必须属于该固定接口令牌的授权范围；未知客户调用 GET 或临床接口仍统一返回 `403 customer_forbidden`。启用 JIT 时，未知客户的第一次库存 `POST`（或显式调用 `/api/customers/register`）携带有效 `Idempotency-Key` 后会原子登记并继续处理；缺少幂等键、键冲突或超过配额均 fail-closed。客户标识与非秘密 `clientId` 共同进入 M03/M04、急症解除和语义事实证明的签名域，并参与快照 AAD、限流、库存路径和审方租户头；跨客户复用病例状态或凭证会在任何上游模型调用前返回 `409` 或失效降级，不会读取或回落到其他客户数据。
+`customerId` **区分大小写**，仅接受 6–64 位 ASCII 字母、数字、下划线或连字符。已经登记的客户必须属于该固定接口令牌的授权范围；未知客户调用 GET 或临床接口仍统一返回 `403 customer_forbidden`。启用 JIT 时，未知客户的第一次库存 `POST`（或显式调用 `/api/customers/register`）携带有效 `Idempotency-Key` 后会原子登记并继续处理；缺少幂等键、键冲突或超过配额均 fail-closed。**自 V2.6 起，库存载荷的结构校验先于 JIT 登记执行**：items 缺失/为空、条目缺 `name`、`kind` 非 `herb|patent|western` 枚举、`available` 非布尔、分片参数非法等载荷内在错误一律返回 `400`（或超限 `413`）且**不产生任何租户副作用**——失败的首提交不会留下已登记客户；条目级错误整批拒绝并在响应中回报 `rejectedEntries`（前 20 条，含 `index` 与 `reason`）与 `rejectedEntryCount`，不做静默丢弃。本次请求完成 JIT 登记时，库存响应额外返回 `customerRegistered: true`。客户标识与非秘密 `clientId` 共同进入 M03/M04、急症解除和语义事实证明的签名域，并参与快照 AAD、限流、库存路径和审方租户头；跨客户复用病例状态或凭证会在任何上游模型调用前返回 `409` 或失效降级，不会读取或回落到其他客户数据。
 
 > **本文档中的所有 curl 示例统一使用 `$TOKEN` 占位**，请先在 shell 中导出真实令牌再执行：
 > ```bash
@@ -1596,7 +1596,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 
 **接口地址**：`POST /api/customers/register`
 
-请求必须同时携带固定 Token、`x-cdss-customer-id` 与 `Idempotency-Key`，不接收病例或患者信息。首次登记按 `provisioning → active` 状态机原子推进：先持久化 `pending/provisioning_started` 审计意图，意图成功后才允许写入 `active`，随后追加 `accepted/created` 完成事件；active 写失败则登记状态回落为 `failed` 并追加失败终态，绝不会出现审计先写“created”但客户实际未激活。进程中断或审计失败会保留为可用同一幂等键恢复的非激活状态。首次成功返回 `201 {customerId,status:"active",created:true}`；同客户只能用原幂等键重放，返回 `200` 且 `created:false`，换键或将任一历史键（含 failed/provisioning）改绑另一客户均返回 `409 idempotency_conflict`。登记记录持久化到受保护运行时卷，服务重启或发布不会丢失。
+请求必须同时携带固定 Token、`x-cdss-customer-id` 与 `Idempotency-Key`，不接收病例或患者信息。首次登记按 `provisioning → active` 状态机原子推进：先持久化 `pending/provisioning_started` 审计意图，意图成功后才允许写入 `active`，随后追加 `accepted/created` 完成事件；active 写失败则登记状态回落为 `failed` 并追加失败终态，绝不会出现审计先写“created”但客户实际未激活。进程中断或审计失败会保留为可用同一幂等键恢复的非激活状态。首次成功返回 `201 {customerId,status:"active",created:true,customerRegistered:true}`；同客户只能用原幂等键重放，返回 `200` 且 `created:false`、`customerRegistered:false`（`customerRegistered` 为 V2.6 起的规范字段名，`created` 保留兼容），换键或将任一历史键（含 failed/provisioning）改绑另一客户均返回 `409 idempotency_conflict`。登记记录持久化到受保护运行时卷，服务重启或发布不会丢失。
 
 ### 4.13 租户审计查询
 
@@ -2270,6 +2270,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.6 | 2026-08-25 | **JIT 登记事务顺序整改（PROV-08）。** 库存载荷结构校验先于 JIT 登记：载荷不合法的首次请求返回 4xx/413 且不登记客户；条目级错误整批拒绝并回报 `rejectedEntries`/`rejectedEntryCount`（缺 `name`、`kind` 非枚举、`available` 非布尔不再静默丢弃或强转）；空 `items` 不再生成零条目库存。JIT 登记成功的库存/分片响应与 `/api/customers/register` 响应新增 `customerRegistered` 字段（`created` 保留兼容）。审计轮转仅作用于普通文件，路径误配置为目录时审计判不可用并 fail-closed。 | **否**：既有合法调用不受影响；此前依赖「空 items 也返回 200」或「非法条目被静默跳过」的调用方需改为提交合法载荷 |
 | V2.5 | 2026-08-24 | **多租户真实接口验收整改。** M03/M04、急症解除和临床事实证明签名域绑定 `clientId + customerId` 并升版；新增幂等、限额、持久化的客户 JIT 登记，首次库存 POST 可自动登记；新增租户隔离的结构化审计查询；严格 JSON Schema、usage/cached token 观测、Qwen effort 映射与租户公平并发队列同步上线。 | **是（签名版本）**：升级前的 M03/M04/急症解除/临床事实证明凭证失效并安全降级，需重新生成；既定 `CDSS_API_TOKEN` 保持不变。首次新客户写入请增加 `Idempotency-Key` |
 | V2.4 | 2026-08-21 | **固定 Token 多租户授权加固。** 同一既定接口 Token 只允许访问 `CDSS_API_CUSTOMER_IDS` 中预授权的客户；未知/未授权客户统一 `403 customer_forbidden`，登录接口也不会为其签发客户 Cookie。库存文件升级为带 `schemaVersion/customerId` 的 v2 并做读取归属复核；同客户导入串行、不同客户独立，缓存增加容量与空闲淘汰。所有 API 响应增加 `private, no-store` 与租户鉴权 `Vary`，库存成功响应返回经验证的 `x-cdss-customer-id`。严格健康检查纳入授权配置但不回显白名单。 | **是（配置项）**：部署必须新增 `CDSS_API_CLIENT_ID` 与 `CDSS_API_CUSTOMER_IDS`；既定 `CDSS_API_TOKEN` 不变。原已接入客户加入白名单后请求格式无需变化；未授权客户从此前可能被接受改为 403。旧库存需按部署手册显式迁移为 v2 |
 | V2.3 | 2026-08-19 | **① 客户药品库全链路隔离。** 临床、审方、HIS、快照与库存接口新增必填请求头 `x-cdss-customer-id`；浏览器登录请求体新增 `customerId` 并签发客户上下文 Cookie。客户标识进入病例签名、快照 AAD、限流、库存文件和审方租户头；不同客户的饮片、中成药和西药库存独立，M04 只保留当前客户有货候选。**② M03 补齐中医辨病与辨证的循证依据**：`overview.tcmDiseaseReferences[]`、`overview.tcmSyndromeReferences[]`；西医鉴别项新增可选 `guidelineReferences[]`，参考文献栏只显示标准引用，不混入模型思考过程。**③ 中成药用法按说明书展示**：新增 `administrationTiming`，`route`、`singleDose`、`frequency`、`course` 均只在说明书原文存在时输出；删除“本候选不形成疗程医嘱”占位文案 | **是（一处）**：临床、审方、HIS、快照和库存调用必须提供客户标识。未适配调用返回 `400 customer_id_required`；同一病例跨客户调用返回 `409 customer_context_mismatch`。新增诊断与用药字段均向后兼容 |
