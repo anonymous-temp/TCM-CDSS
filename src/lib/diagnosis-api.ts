@@ -30,7 +30,7 @@ import { newM03ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
 import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
-import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "@/lib/m04-repair-policy";
+import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, m04ArbitratedPatientContextAnnotation, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
 import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
@@ -307,11 +307,16 @@ function clinicalReviewUnavailableNotice(
   stage: "diagnose" | "prescribe",
   boundary: "service_unavailable" | "quality_concern" = "service_unavailable",
 ): string {
+  // <!-- CDSS_REVIEW_STATUS --> 是复核状态的**独立信道标记**（2026-08-25）。此前该通知
+  // 与安全横幅共用「引用块」这一形态当分类信道：前端规则是「引用块 + 无安全 marker = 丢弃」，
+  // 于是无红旗时（绝大多数病例）医生完全不知道结论没过第二模型复核；有红旗时更糟——
+  // 这行被误染进红色「安全警示（未解除）」卡，把「复核未完成」误报成「未解除的风险」。
+  const marker = "<!-- CDSS_REVIEW_STATUS -->";
   return stage === "diagnose"
     ? boundary === "quality_concern"
-      ? "> 临床复核状态：独立诊断复核提出了需进一步核对的质量意见。以下结果已通过结构、患者事实、极性与安全边界核验，按有界建议展示；请结合本次病历核对相关内容，其余已核实部分继续保留。"
-      : "> 临床复核状态：独立诊断复核本轮因服务繁忙或超时未完成。以下结果已通过结构、患者事实、极性与安全边界核验，按有界建议展示；这表示“尚未完成复核”，不表示“复核未通过”。"
-    : "> 临床复核状态：独立处方复核本轮未完成。以下候选已通过结构与患者事实边界校验，仍须结合合理用药审方和医生判断复核。";
+      ? `${marker}\n> 临床复核状态：独立诊断复核提出了需进一步核对的质量意见。以下结果已通过结构、患者事实、极性与安全边界核验，按有界建议展示；请结合本次病历核对相关内容，其余已核实部分继续保留。`
+      : `${marker}\n> 临床复核状态：独立诊断复核本轮因服务繁忙或超时未完成。以下结果已通过结构、患者事实、极性与安全边界核验，按有界建议展示；这表示“尚未完成复核”，不表示“复核未通过”。`
+    : `${marker}\n> 临床复核状态：独立处方复核本轮未完成。以下候选已通过结构与患者事实边界校验，仍须结合合理用药审方和医生判断复核。`;
 }
 
 function enqError(ctrl: ReadableStreamDefaultController, error: unknown) {
@@ -1132,6 +1137,28 @@ function validatedStructuredReasoning(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * 服务端是否已对本次 M04 内容执行过方剂身份降级——transparent fallback、方向剔除
+ * （declassifyAndDropOpposingM04CandidateHerbs）、生成前 immediate declassify 三条路径的
+ * **单一账本**（2026-08-25）。此前三条路径各自维护布尔，finalize 门只读其中一个：
+ * immediate declassify 改写了内容却不置 transparentFormulaDeclassificationAccepted，于是
+ * 「降级 → 独立复核 accepted → finalize 以 m04_formula_reference_declassified 自拒 → 0 味」
+ * （甲方 PDF 风寒案 2026-08-25 生产复现；prod-smoke 归脾汤 1/5 空方同类）。
+ *
+ * 为什么看内容而不是编排布尔：载荷内的 identityDeclassified 在 wrapStructuredJsonObject
+ * 入口对每一版 provider 输出统一剥除（stripUntrustedM04IdentityMetadata），此后内容中出现
+ * 该标记只可能来自服务端降级函数——内容本身就是带外许可，不存在模型伪造通道，
+ * 也不可能再漏记账。Exported for unit tests.
+ */
+export function m04ContentServerDeclassified(content: string): boolean {
+  return /"identityDeclassified"\s*:\s*true/.test(content);
+}
+
+/** finalize 门与归因共用的降级许可（单一谓词）。Exported for unit tests. */
+export function m04FinalizeDeclassificationPermission(acceptedFlag: boolean, content: string): boolean {
+  return acceptedFlag || m04ContentServerDeclassified(content);
 }
 
 function isM04AuditAdvisoryReason(reason: string): boolean {
@@ -3773,7 +3800,7 @@ async function callPrimaryTextModelStream(
                 opts.structuredClinicalContext,
                 opts.structuredPriorReasoning,
                 true,
-                false,
+                opts.structuredStage === "prescribe" && m04ContentServerDeclassified(authoritativeContent),
                 false,
                 opts.structuredStage === "prescribe" && lastM04CandidateDirectionPruned,
               )
@@ -4093,7 +4120,7 @@ async function callPrimaryTextModelStream(
                 opts.structuredClinicalContext,
                 opts.structuredPriorReasoning,
                 true,
-                false,
+                opts.structuredStage === "prescribe" && m04ContentServerDeclassified(resolvedRetryContent),
                 false,
                 opts.structuredStage === "prescribe" && lastM04CandidateDirectionPruned,
                 opts.structuredStage === "prescribe",
@@ -4192,7 +4219,7 @@ async function callPrimaryTextModelStream(
                   opts.structuredClinicalContext,
                   opts.structuredPriorReasoning,
                   true,
-                  false,
+                  m04ContentServerDeclassified(resolvedRetryContent),
                   true,
                 )
               : undefined;
@@ -4331,7 +4358,7 @@ async function callPrimaryTextModelStream(
                     opts.structuredClinicalContext,
                     opts.structuredPriorReasoning,
                     true,
-                    false,
+                    opts.structuredStage === "prescribe" && m04ContentServerDeclassified(secondResolved),
                     false,
                     opts.structuredStage === "prescribe" && lastM04CandidateDirectionPruned,
                     opts.structuredStage === "prescribe",
@@ -4407,6 +4434,14 @@ async function callPrimaryTextModelStream(
                   // physician-facing result contains only the clinical plan. Release acceptance
                   // is server arbitration after two completed repairs, not reviewer agreement.
                   m04AcceptanceScope = appendAnnotationCode(m04AcceptanceScope, review.issueCode);
+                  // 仲裁放行 ≠ 复核同意。status 写 accepted 会精确关掉下游「复核未完成」通知，
+                  // 而这里被放行的是复核两轮坚持的患者前提类保留意见——安全语义的意见静默消失
+                  // 是全链唯一一处（2026-08-25 四维审查实锤）。放行必须与批注成对：医生要在
+                  // 处方页顶端看到这条保留意见与"已完成确定性安全核验"的边界说明。
+                  m04TransparentQualityAnnotation = [...new Set([
+                    m04TransparentQualityAnnotation,
+                    m04ArbitratedPatientContextAnnotation(),
+                  ].filter(Boolean))].join("\n\n") || undefined;
                   m04ClinicalReviewStatus = "accepted";
                   m04ClinicalReviewReason = undefined;
                   m04ClinicalRepairGuidanceText = "";
@@ -4454,7 +4489,7 @@ async function callPrimaryTextModelStream(
                       opts.structuredClinicalContext,
                       opts.structuredPriorReasoning,
                       true,
-                      false,
+                      m04ContentServerDeclassified(secondResolved),
                       true,
                     )
                   : undefined;
@@ -4609,7 +4644,7 @@ async function callPrimaryTextModelStream(
                 opts.structuredClinicalContext,
                 opts.structuredPriorReasoning,
                 true,
-                false,
+                m04ContentServerDeclassified(authoritativeContent),
                 true,
               )
             : undefined;
@@ -4956,7 +4991,7 @@ async function callPrimaryTextModelStream(
               // 归因函数 structuredRejectionReason 传的一直是 true，所以日志只会打出
               // resolver_rejected（「拒了但说不出为什么」）——两处判据不同源，排障因此卡了很久。
               true,
-              transparentFormulaDeclassificationAccepted,
+              m04FinalizeDeclassificationPermission(transparentFormulaDeclassificationAccepted, authoritativeContent),
               advisoryM04RiskAccepted,
               // 校验作用域必须与受理时一致：透明降级受理时已经用安全底线口径完整复验，
               // finalize 再用全口径会把刚受理的候选重新判死。不能只看批注是否存在——独立
@@ -4975,6 +5010,9 @@ async function callPrimaryTextModelStream(
                 finishReason,
                 opts.structuredClinicalContext,
                 opts.structuredPriorReasoning,
+                // 与上方校验同一许可口径；此前归因恒 strict，降级内容在日志里永远显示
+                // formula_reference_declassified（"它确实降级过"），真实失败原因被遮蔽。
+                m04FinalizeDeclassificationPermission(transparentFormulaDeclassificationAccepted, authoritativeContent),
               ),
             });
             truncated = true;

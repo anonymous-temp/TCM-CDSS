@@ -492,6 +492,55 @@ export function normalizeM03StructuralDuplicates(content: string): string {
       }
     }
 
+    // ── supportingFacts 来源级近义折叠（甲方 8.11 测评「西医诊断支持依据冗余」，2026-08-25） ──
+    // 主诉「恶寒发热、鼻塞流涕2+天」与现病史的近义复述会同时进入 supportingFacts。
+    // 判据保持纯字符串（与本函数其余段同口径）：指纹再剥数字与时长词后，
+    // 一条**包含**另一条即视为同源近义，保留信息量更大（更长）的那条。
+    // 只在 >1 条时折叠，永不折叠到 0 条；互不包含的并列事实一律保留。
+    const western = recordValue(reasoning.westernDiagnosis);
+    const westernPrimary = recordValue(western?.primary);
+    const supportingFacts = Array.isArray(westernPrimary?.supportingFacts)
+      ? (westernPrimary!.supportingFacts as unknown[]).filter((item): item is string => typeof item === "string")
+      : [];
+    if (westernPrimary && supportingFacts.length > 1) {
+      const semanticPrint = (value: string): string =>
+        narrativeFingerprint(value).replace(/[0-9０-９]+[+＋]?(?:天|日|周|月|年|小时|h)?/g, "").replace(/伴|并|及|与|和/g, "");
+      const bigrams = (value: string): Set<string> => {
+        const grams = new Set<string>();
+        for (let index = 0; index < value.length - 1; index += 1) grams.add(value.slice(index, index + 2));
+        return grams;
+      };
+      // 包含 or 二元组 Jaccard≥0.6：纯包含抓不住「鼻塞流涕/鼻塞流清涕」这类一字之差的
+      // 同源变体；Jaccard 又必须配最短长度守卫，否则两个短词会被误并。
+      const nearDuplicate = (left: string, right: string): boolean => {
+        if (left.includes(right) || right.includes(left)) return true;
+        if (left.length < 4 || right.length < 4) return false;
+        const leftGrams = bigrams(left);
+        const rightGrams = bigrams(right);
+        let shared = 0;
+        for (const gram of leftGrams) if (rightGrams.has(gram)) shared += 1;
+        const union = leftGrams.size + rightGrams.size - shared;
+        return union > 0 && shared / union >= 0.6;
+      };
+      const kept: string[] = [];
+      for (const fact of supportingFacts) {
+        const print = semanticPrint(fact);
+        if (!print) { kept.push(fact); continue; }
+        const overlapIndex = kept.findIndex((existing) => {
+          const existingPrint = semanticPrint(existing);
+          if (!existingPrint) return false;
+          return nearDuplicate(existingPrint, print);
+        });
+        if (overlapIndex < 0) { kept.push(fact); continue; }
+        // 同源近义：保留更长（信息更全）的那条。
+        if (fact.length > kept[overlapIndex].length) kept[overlapIndex] = fact;
+      }
+      if (kept.length !== supportingFacts.length && kept.length >= 1) {
+        westernPrimary.supportingFacts = kept;
+        changed = true;
+      }
+    }
+
     const therapy = recordValue(reasoning.therapy);
     const subTherapies = recordList(therapy?.subTherapies);
     if (therapy && subTherapies.length > 1) {

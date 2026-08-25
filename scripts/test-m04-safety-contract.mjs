@@ -1064,3 +1064,35 @@ const {
   assert.match(String(highImpactHerbDirectionIssue("干姜", "温中散寒", heatPrior)), /unsupported_high_impact/,
     "纯清热锁定下的温里药仍必须被对立否决");
 }
+
+{
+  // ── 服务端降级 → finalize 许可（单一账本，2026-08-25） ────────────────────────
+  // 生产复现（甲方 PDF 风寒案 / prod-smoke 归脾汤 1/5 空方）：immediate-declassify 改写了
+  // 内容但没置 transparentFormulaDeclassificationAccepted，finalize 门按未降级口径校验，
+  // 「降级 → 独立复核 accepted → m04_formula_reference_declassified 自拒 → 0 味」。
+  // 修法：许可派生自内容级标记（入口 stripUntrustedM04IdentityMetadata 已剥 provider 伪造，
+  // 标记只可能来自服务端）。这里钉住派生谓词与防伪链两半。
+  const { createJiti } = await import("jiti");
+  const aliasJiti = createJiti(import.meta.url, { alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  } });
+  const { m04ContentServerDeclassified, m04FinalizeDeclassificationPermission } = await aliasJiti.import("../src/lib/diagnosis-api.ts");
+  const { stripUntrustedM04IdentityMetadata } = await aliasJiti.import("../src/lib/tcm-formula-provenance.ts");
+  const declassified = '<!-- DIAGNOSIS_JSON_START -->\n'
+    + JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe", formula: { candidates: [{ name: "本例辨证组方", identityDeclassified: true, identityDeclassificationReason: "unprovable_classic_identity", herbs: [] }] } })
+    + '\n<!-- DIAGNOSIS_JSON_END -->';
+  assert.equal(m04ContentServerDeclassified(declassified), true);
+  assert.equal(m04FinalizeDeclassificationPermission(false, declassified), true,
+    "服务端已降级的内容在 finalize 必须获得降级许可——否则降级→复核通过→同码自拒→0 味");
+  assert.equal(
+    m04FinalizeDeclassificationPermission(false, declassified.replace('"identityDeclassified":true', '"identityDeclassified":false')),
+    false,
+    "未降级内容不得凭空获得许可");
+  const forged = stripUntrustedM04IdentityMetadata(declassified);
+  assert.equal(m04ContentServerDeclassified(forged), false,
+    "provider 输出里的 identityDeclassified 必须在入口被剥——内容级许可的防伪前提");
+  const { m04ArbitratedPatientContextAnnotation } = await aliasJiti.import("../src/lib/m04-repair-policy.ts");
+  assert.ok(m04ArbitratedPatientContextAnnotation().includes("保留意见"),
+    "复核仲裁放行的批注必须存在且向医生说明保留意见（放行不带批注=安全语义静默消失）");
+}

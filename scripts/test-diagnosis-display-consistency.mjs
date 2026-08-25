@@ -1582,3 +1582,56 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
     assert.ok(nationalStandardTerms.has(expected), `${expected} 必须是词表内的国标名`);
   }
 }
+
+{
+  // ── X1：重跑清理单一函数（2026-08-25）。漏清 reasoningPrescribe 的实测后果是
+  // 「本轮新证候 + 上一轮候选药味剂量」同屏（M03 成功后 mergeReasoningStages 把旧 M04 并回来）。
+  const { clearDownstreamClinicalResults, extractServerLeadingNotices } = await jiti.import("../src/app/diagnosis/DiagnosisClient.tsx");
+  const dirty = {
+    id: "case-x1", phase: "diagnose", conversation: [], symptoms: {}, patient: {},
+    diagnosis: "旧诊断", prescription: "旧处方", riskAssessment: "旧评估",
+    followupTimeline: [{ time: "t", action: "a", indicators: [], triggers: [] }],
+    reasoningDiagnose: { stage: "diagnose" }, reasoningPrescribe: { stage: "prescribe" },
+    reasoningV2: { stage: "prescribe" }, auditAdvisory: { available: true },
+    prescriptionRevision: { herbs: [] },
+  };
+  const cleared = clearDownstreamClinicalResults(dirty);
+  for (const key of ["diagnosis", "prescription", "riskAssessment", "followupTimeline", "reasoningDiagnose", "reasoningPrescribe", "reasoningV2", "auditAdvisory", "prescriptionRevision"]) {
+    assert.equal(cleared[key], undefined, `clearDownstreamClinicalResults 必须清掉 ${key}——漏清=新证旧方同屏`);
+  }
+  assert.equal(cleared.id, "case-x1");
+
+  // ── C2：复核状态是独立信道，不丢弃、不染红 ──
+  const reviewNotice = "<!-- CDSS_REVIEW_STATUS -->\n> 临床复核状态：独立处方复核本轮未完成。以下候选已通过结构与患者事实边界校验，仍须结合合理用药审方和医生判断复核。\n\n## 中药饮片处方\n正文";
+  const noticed = extractServerLeadingNotices({ ...dirty, diagnosis: undefined, prescription: reviewNotice });
+  assert.equal(noticed.review.length, 1, "复核通知必须进入 review 信道（此前无安全 marker 时被整条丢弃）");
+  assert.equal(noticed.safety.length, 0, "复核通知绝不能染成安全警示");
+  const withSafety = "<!-- CDSS_SAFETY_ADVISORY -->\n> 存在未解除的红旗风险\n<!-- CDSS_REVIEW_STATUS -->\n> 临床复核状态：独立处方复核本轮未完成。\n\n## 正文";
+  const both = extractServerLeadingNotices({ ...dirty, diagnosis: undefined, prescription: withSafety });
+  assert.equal(both.safety.length, 1);
+  assert.equal(both.review.length, 1, "同时有安全横幅时复核通知仍必须独立分类，不得并进安全卡");
+  const unmarked = extractServerLeadingNotices({ ...dirty, diagnosis: undefined, prescription: "> 某条无标记引用说明。\n\n## 正文" });
+  assert.equal(unmarked.annotations.some((line) => line.includes("无标记引用")), true,
+    "无 marker 引用块降级为批注展示而不是丢弃（fail-visible）");
+}
+
+{
+  // ── 甲方 8.11「西医诊断支持依据冗余」：主诉与现病史近义条来源级折叠（2026-08-25） ──
+  const { normalizeM03StructuralDuplicates } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const payload = (facts) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
+    stage: "diagnose",
+    westernDiagnosis: { primary: { name: "急性上呼吸道感染", supportingFacts: facts } },
+  })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const parseFacts = (content) => JSON.parse(content.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim()).westernDiagnosis.primary.supportingFacts;
+  const merged = parseFacts(normalizeM03StructuralDuplicates(payload([
+    "恶寒发热、鼻塞流涕2+天",
+    "2天来恶寒发热伴鼻塞流清涕",
+    "咽痛",
+  ])));
+  assert.equal(merged.length, 2, `近义复述必须折叠为一条: ${JSON.stringify(merged)}`);
+  assert.equal(merged.includes("咽痛"), true, "并列的独立事实不得被折叠");
+  const distinct = parseFacts(normalizeM03StructuralDuplicates(payload(["恶寒无汗", "脉浮紧", "咳白稀痰"])));
+  assert.equal(distinct.length, 3, "互不包含的事实一条都不能丢");
+  const single = parseFacts(normalizeM03StructuralDuplicates(payload(["恶寒发热"])));
+  assert.equal(single.length, 1, "单条永不折叠到 0");
+}

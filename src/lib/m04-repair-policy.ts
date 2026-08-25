@@ -306,3 +306,14 @@ export function m03FinalReviewQualityAnnotation(review: { status?: string; issue
   }
   return undefined;
 }
+
+/**
+ * 复核仲裁放行（连续两轮 patient_context 类保留意见、修复轮已耗尽、硬合同复验通过）时
+ * 医生必须看到的批注。与 canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion 成对使用：
+ * 放行不带批注 = 复核的安全语义意见静默消失（2026-08-25 审查实锤，全链唯一一处）。
+ */
+export function m04ArbitratedPatientContextAnnotation(): string {
+  return "独立临床复核对本方与患者前提（如特殊人群、合并用药、肝肾功能等）的对应关系提出保留意见。"
+    + "系统已完成全部确定性安全核验（逐味药典剂量边界、配伍禁忌、特殊人群门禁）后放行；"
+    + "请医生按病历核对上述前提是否成立，再决定是否采纳本候选。";
+}
