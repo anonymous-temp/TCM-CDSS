@@ -1096,3 +1096,30 @@ const {
   assert.ok(m04ArbitratedPatientContextAnnotation().includes("保留意见"),
     "复核仲裁放行的批注必须存在且向医生说明保留意见（放行不带批注=安全语义静默消失）");
 }
+
+{
+  // ── 经典方优先：锁定基线时禁走立即剥名捷径（2026-08-25 甲方复测缺口①） ──
+  const { createJiti } = await import("jiti");
+  const declassJiti = createJiti(import.meta.url, { alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  } });
+  const { m04ImmediateDeclassificationAllowed } = await declassJiti.import("../src/lib/diagnosis-api.ts");
+  const locked = { overview: { recommendedFormulaNames: ["麻黄汤"], formulaSelectionMode: "single" } };
+  assert.equal(m04ImmediateDeclassificationAllowed(locked), false,
+    "M03 锁定且基线可执行时，立即剥名=零修复尝试放弃经典方身份，必须让位给修复轮");
+  assert.equal(m04ImmediateDeclassificationAllowed({ overview: { recommendedFormulaNames: [], formulaSelectionMode: "none" } }), true,
+    "未锁定方名时捷径照常可用（避免无谓 40-60s 重写）");
+  assert.equal(m04ImmediateDeclassificationAllowed({ overview: { recommendedFormulaNames: ["不存在的方剂名XX"], formulaSelectionMode: "single" } }), true,
+    "锁定名无可执行基线时无从修复对齐，捷径可用");
+  // 接线源级断言（谓词存在 ≠ 调用点在用——反证实测谓词测试抓不住 guard 被删）。
+  // 越界守卫：截取段必须含该函数体独有的 originalReason 标识，防 indexOf 切进邻近函数。
+  const { readFileSync } = await import("node:fs");
+  const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+  const fnStart = apiSource.indexOf("const immediatelyDeclassifyM04IdentityOnly = (content: string)");
+  assert.ok(fnStart > 0, "immediatelyDeclassifyM04IdentityOnly 函数存在");
+  const fnBody = apiSource.slice(fnStart, apiSource.indexOf("const m04OrchestrationDeadlineGate", fnStart));
+  assert.ok(fnBody.includes("originalReason"), "源级断言越界守卫：截取段必须是目标函数体");
+  assert.ok(fnBody.includes("m04ImmediateDeclassificationAllowed("),
+    "立即剥名捷径必须先过锁定基线守卫——guard 被删即红");
+}

@@ -8,6 +8,7 @@ import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesis
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel } from "./clinical-polarity";
+import { sourceDocumentsNegation } from "./diagnosis-safety";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
@@ -475,6 +476,81 @@ function resolutionValue(value: unknown): ClinicalResolutionValue | undefined {
  * 本函数只做删除与去重:不合并文本、不改写任何字段、不新增任何临床断言。只要化简会丢失
  * 任何一条医生可见的患者证据或病机靶点,就保持原样并由合同继续驳回。
  */
+
+/**
+ * 鉴别条目中的阴性断言接地（2026-08-25 甲方复测缺口②）。
+ *
+ * 实测医生可见内容出现「无咽痛及黄涕等热象，可排除」「无高热及周身剧烈酸痛，暂不考虑」
+ * 「发病于非长夏季节，可排除」——病历并未记录这些阴性事实，却被模型当作排除依据。
+ * 「未提及 ≠ 阴性」是本仓库的铁律，此前只盖住了红旗/事实层与西医鉴别的 reason 分句，
+ * 中医鉴别（tcmDifferentials/tcmDiseaseDifferentials）与 distinguishingPoints 全部裸奔。
+ *
+ * 判据复用 diagnosis-safety 的 sourceDocumentsNegation（单一否定谓词）：
+ * 阴性分句里的每个否定对象都能在病历中找到明确否认记录 → 分句保留；
+ * 任一对象未记录 → 整个分句改写为「病历未记录X（需问诊核实后方可用于排除）」——
+ * 保留鉴别价值（提示医生该问什么），不再冒充已确认的阴性证据。改写发生在
+ * prepare 管线（签名之前），三出口与接口消费者同源。
+ */
+export function groundDifferentialNegativeAssertions(content: string, clinicalContext: string): string {
+  const start = content.indexOf(START_MARKER);
+  const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
+  if (start < 0 || end < 0 || !clinicalContext.trim()) return content;
+  try {
+    const reasoning = JSON.parse(content.slice(start + START_MARKER.length, end).trim()) as Record<string, unknown>;
+    if (reasoning.stage !== "diagnose") return content;
+    let changed = false;
+    const NEGATIVE_CLAUSE = /^(?:本例|该患者|患者)?(?:均?(?:无|没有)|未见|未闻及|未出现|不伴|无明显)(.+)$/u;
+    const SEASON_CLAUSE = /^发病(?:于|在)非?[^，。；]*(?:季节?|时令)/u;
+    const groundClause = (clause: string): string => {
+      const trimmed = clause.trim();
+      if (!trimmed) return clause;
+      if (SEASON_CLAUSE.test(trimmed) && !/(季节|时令|长夏|夏|冬|春|秋)/.test(clinicalContext)) {
+        changed = true;
+        return "发病季节病历未记录，需核实后方可用于排除";
+      }
+      const negative = trimmed.match(NEGATIVE_CLAUSE);
+      if (!negative) return clause;
+      const object = negative[1]
+        .replace(/(?:等(?:热象|寒象|表现|症状|征象|不适)?|表现|症状)$/u, "")
+        .trim();
+      if (!object) return clause;
+      const terms = object.split(/[及和与、]/u).map((term) => term.trim()).filter((term) => term.length >= 2);
+      if (terms.length === 0) return clause;
+      const allDocumented = terms.every((term) => sourceDocumentsNegation(clinicalContext, term));
+      if (allDocumented) return clause;
+      changed = true;
+      return `病历未记录${object}（需问诊核实后方可用于排除）`;
+    };
+    const groundText = (value: unknown): unknown => {
+      if (typeof value !== "string" || !value.trim()) return value;
+      return value
+        .split(/([；;。])/u)
+        .map((segment) => /[；;。]/.test(segment) ? segment : segment.split(/([，,])/u).map((part) => /[，,]/.test(part) ? part : groundClause(part)).join(""))
+        .join("");
+    };
+    const groundEntries = (list: unknown): void => {
+      if (!Array.isArray(list)) return;
+      for (const item of list) {
+        if (!item || typeof item !== "object") continue;
+        const entry = item as Record<string, unknown>;
+        for (const key of ["reason", "distinguishingPoints"]) {
+          const grounded = groundText(entry[key]);
+          if (grounded !== entry[key]) entry[key] = grounded;
+        }
+      }
+    };
+    const overview = reasoning.overview as Record<string, unknown> | undefined;
+    groundEntries(overview?.tcmDifferentials);
+    groundEntries(overview?.tcmDiseaseDifferentials);
+    const western = reasoning.westernDiagnosis as Record<string, unknown> | undefined;
+    groundEntries(western?.differentials);
+    if (!changed) return content;
+    return `${content.slice(0, start)}${START_MARKER}\n${JSON.stringify(reasoning)}\n${END_MARKER}${content.slice(end + END_MARKER.length)}`;
+  } catch {
+    return content;
+  }
+}
+
 export function normalizeM03StructuralDuplicates(content: string): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
@@ -532,20 +608,30 @@ export function normalizeM03StructuralDuplicates(content: string): string {
         return union > 0 && shared / union >= 0.6;
       };
       const kept: string[] = [];
-      for (const fact of supportingFacts) {
+      const keptSourceIndex: number[] = [];
+      for (const [factIndex, fact] of supportingFacts.entries()) {
         const print = semanticPrint(fact);
-        if (!print) { kept.push(fact); continue; }
+        if (!print) { kept.push(fact); keptSourceIndex.push(factIndex); continue; }
         const overlapIndex = kept.findIndex((existing) => {
           const existingPrint = semanticPrint(existing);
           if (!existingPrint) return false;
           return nearDuplicate(existingPrint, print);
         });
-        if (overlapIndex < 0) { kept.push(fact); continue; }
-        // 同源近义：保留更长（信息更全）的那条。
-        if (fact.length > kept[overlapIndex].length) kept[overlapIndex] = fact;
+        if (overlapIndex < 0) { kept.push(fact); keptSourceIndex.push(factIndex); continue; }
+        // 同源近义：保留更长（信息更全）的那条；分类下标跟着换，保持平行数组对齐。
+        if (fact.length > kept[overlapIndex].length) {
+          kept[overlapIndex] = fact;
+          keptSourceIndex[overlapIndex] = factIndex;
+        }
       }
       if (kept.length !== supportingFacts.length && kept.length >= 1) {
         westernPrimary.supportingFacts = kept;
+        // supportingFactKinds 与 supportingFacts 逐条平行（页面按类分栏）；只删一边会整列错位
+        //（与 :2097 的西医接地分支同款同步过滤）。
+        if (Array.isArray(westernPrimary.supportingFactKinds)) {
+          const kinds = westernPrimary.supportingFactKinds as unknown[];
+          westernPrimary.supportingFactKinds = keptSourceIndex.map((index) => kinds[index]).filter((kind) => kind !== undefined);
+        }
         changed = true;
       }
     }

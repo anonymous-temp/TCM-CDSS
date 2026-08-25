@@ -16,7 +16,7 @@ import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnota
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
 import { affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03PreservedParallelHalfIssue, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
 import { parseStreamModuleDraftFrame, STREAM_REPLACE_MARKER, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
-import { alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
+import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, stripUntrustedM04IdentityMetadata, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
@@ -525,7 +525,9 @@ export async function prepareDiagnoseStructuredContent(
   // 在此之前判断“逐字重复”用的是尚未落地的文本。
   // 鉴别事实投影使用的是 grounding 已确认过的临床原文片段，之后仍须通过全量语义/T1 合同。
   const deduplicated = phase("dedup", normalizeM03StructuralDuplicates(discriminatorProjected));
-  const classified = phase("classify", sanitizeOptionalPathogenesisClassifications(deduplicated, clinicalContext));
+  // 鉴别阴性断言接地必须在签名前（甲方复测缺口②）：三出口与接口消费者同源。
+  const negativeGrounded = phase("differential_negatives", groundDifferentialNegativeAssertions(deduplicated, clinicalContext));
+  const classified = phase("classify", sanitizeOptionalPathogenesisClassifications(negativeGrounded, clinicalContext));
   const rationaleBound = phase("rationale_boundary", normalizeM03TcmRationaleEvidenceBoundary(classified));
   const projected = phase("summary_projection", normalizeM03PathogenesisSummaryProjection(rationaleBound));
   const normalized = phase("confidence_labels", normalizeDiagnoseConfidenceAndLabels(projected, clinicalContext));
@@ -1152,6 +1154,25 @@ function validatedStructuredReasoning(
  * 该标记只可能来自服务端降级函数——内容本身就是带外许可，不存在模型伪造通道，
  * 也不可能再漏记账。Exported for unit tests.
  */
+/**
+ * M03 已锁定方名且每个方名都有可执行受治理基线时，M04 不得走「立即剥名」捷径
+ * （2026-08-25 甲方复测缺口①「经典方优先不稳定」）。捷径的设计初衷是省掉一次
+ * 40–60s 的重写——但在锁定基线场景，它等于**零修复尝试**就放弃经典方身份：
+ * 生产实测风寒案 M03 锁麻黄汤，首轮组成漂移（无麻黄），捷径直接改自拟方出场，
+ * 修复轮从未运行。让位后走既有修复轮（提示词自带基准药味+锚点+身份下限），
+ * 修复耗尽仍不达标才由 transparent fallback 以自拟方受理——不会回到 0 味。
+ * Exported for unit tests.
+ */
+export function m04ImmediateDeclassificationAllowed(
+  prior: { overview?: { recommendedFormulaNames?: unknown; formulaSelectionMode?: unknown } } | null | undefined,
+): boolean {
+  const names = (Array.isArray(prior?.overview?.recommendedFormulaNames) ? prior!.overview!.recommendedFormulaNames : [])
+    .filter((name): name is string => typeof name === "string" && Boolean(name.trim()));
+  const mode = typeof prior?.overview?.formulaSelectionMode === "string" ? prior.overview.formulaSelectionMode : "none";
+  if (!["single", "combined", "alternatives"].includes(mode) || names.length === 0) return true;
+  return executableFormulaCompilationReferences(names).length !== names.length;
+}
+
 export function m04ContentServerDeclassified(content: string): boolean {
   return /"identityDeclassified"\s*:\s*true/.test(content);
 }
@@ -2919,6 +2940,7 @@ async function callPrimaryTextModelStream(
         identityRemoved: boolean;
       } | undefined => {
         if (opts.structuredStage !== "prescribe" || finishReason !== "stop" || !opts.structuredPriorReasoning) return undefined;
+        if (!m04ImmediateDeclassificationAllowed(opts.structuredPriorReasoning)) return undefined;
         const originalReason = structuredRejectionReason(
           content,
           "prescribe",

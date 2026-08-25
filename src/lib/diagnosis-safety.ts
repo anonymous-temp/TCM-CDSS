@@ -689,7 +689,7 @@ function unknownTermNotice(source: string, terms: readonly string[]): string {
   return parts.join("；");
 }
 
-function sourceDocumentsNegation(source: string, term: string): boolean {
+export function sourceDocumentsNegation(source: string, term: string): boolean {
   const normalized = normalizeClinicalText(source);
   // 否定方向只认真同义，不认下位词——「否认高热」不给「否认发热」背书。
   const equivalents = negationGroundingEquivalents(term);

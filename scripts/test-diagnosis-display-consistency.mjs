@@ -1635,3 +1635,42 @@ console.log(JSON.stringify({ cases: 134, failures: 0 }));
   const single = parseFacts(normalizeM03StructuralDuplicates(payload(["恶寒发热"])));
   assert.equal(single.length, 1, "单条永不折叠到 0");
 }
+
+{
+  // ── 甲方复测缺口②：鉴别里的未接地阴性断言不得冒充已确认阴性证据 ──
+  const { groundDifferentialNegativeAssertions, normalizeM03StructuralDuplicates } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const wrap = (overview, western) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "diagnose", overview, westernDiagnosis: western })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const parse = (content) => JSON.parse(content.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0].trim());
+  const record = "患者，男，35岁，受凉后咳嗽3天，咯稀白痰，恶寒无汗，否认咽痛，舌淡红苔薄白，脉浮紧";
+  const grounded = parse(groundDifferentialNegativeAssertions(wrap({
+    tcmDifferentials: [
+      { syndrome: "风热犯表证", reason: "无咽痛及黄涕等热象，可排除", distinguishingPoints: "无高热及周身剧烈酸痛，暂不考虑", nextCheck: null },
+      { syndrome: "暑湿感冒", reason: "发病于非长夏季节，可排除", distinguishingPoints: "本例恶寒无汗", nextCheck: null },
+    ],
+  }, undefined), record));
+  const [heat, summerDamp] = grounded.overview.tcmDifferentials;
+  // 咽痛病历明确否认（可保留），黄涕未记录 → 整句必须改写为「未记录」而不是冒充阴性
+  assert.match(heat.reason, /病历未记录/, `未记录的阴性对象必须改写: ${heat.reason}`);
+  assert.match(heat.distinguishingPoints, /病历未记录/, `高热/酸痛未记录必须改写: ${heat.distinguishingPoints}`);
+  assert.match(summerDamp.reason, /病历未记录|需核实/, `季节未记录必须改写: ${summerDamp.reason}`);
+  assert.equal(summerDamp.distinguishingPoints, "本例恶寒无汗", "有记录的阳性分句一字不动");
+  // 病历已明确否认的阴性 → 保留原句（documented negation 通道）
+  const denied = parse(groundDifferentialNegativeAssertions(wrap({
+    tcmDifferentials: [{ syndrome: "风热犯表证", reason: "无咽痛，可排除", distinguishingPoints: "脉浮紧", nextCheck: null }],
+  }, undefined), record));
+  assert.equal(denied.overview.tcmDifferentials[0].reason, "无咽痛，可排除",
+    "病历已否认（否认咽痛）的阴性断言必须原样保留——接地不是一刀切删阴性");
+
+  // ── kinds 平行数组同步（修 supportingFacts 去重的错位隐患） ──
+  const dedupPayload = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({
+    stage: "diagnose",
+    westernDiagnosis: { primary: { name: "急性上呼吸道感染",
+      supportingFacts: ["恶寒发热、鼻塞流涕2+天", "2天来恶寒发热伴鼻塞流清涕", "咽部无充血"],
+      supportingFactKinds: ["symptom", "symptom", "sign"] } },
+  })}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const deduped = parse(normalizeM03StructuralDuplicates(dedupPayload)).westernDiagnosis.primary;
+  assert.equal(deduped.supportingFacts.length, 2);
+  assert.equal(deduped.supportingFactKinds.length, 2, "kinds 必须与 facts 同步删除，否则整列分类错位");
+  assert.equal(deduped.supportingFactKinds[deduped.supportingFacts.indexOf("咽部无充血")], "sign",
+    "保留条目的分类必须仍指向正确条目");
+}
