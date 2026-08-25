@@ -365,6 +365,15 @@ function relabelBareVitalSupportingFact(fact: string, clinicalContext: string): 
   return label ? `${label} ${value}${bare[2] || ""}` : fact;
 }
 
+/**
+ * 「**标签**：值」类可见行的统一出口（2026-08-25）：值不可展示时整行省略——
+ * 同一函数里「每日剂数」早已按此口径注释执行，而「剂数/煎服法/疗程建议」三行
+ * 无条件 push，医生看到的是三行空标签。收敛为单一帮手，两套口径归一。
+ */
+function labeledLine(label: string, value: string): string[] {
+  return isDisplayableClinicalText(value) ? [`**${label}**：${value}`] : [];
+}
+
 export function normalizeM03WesternDifferentials(
   content: string,
   clinicalContext: string,
@@ -3136,7 +3145,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
     ...deferredFormulaSelectionLines(overview),
     "",
     pathogenesisHeading,
-    `**总体病机**：${markdownCell(overview?.overallPathogenesis)}`,
+    ...labeledLine("总体病机", markdownCell(overview?.overallPathogenesis)),
   );
   // 病机去重账本按**呈现顺序**登记：总体病机是本节标题句，先占位；后续四个病机字段命中即改短引用。
   const pathogenesisLedger = createPathogenesisNarrativeLedger();
@@ -3256,8 +3265,8 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
   }
   if (caseRelationship && [caseRelationship.rootPattern, caseRelationship.mainManifestation, caseRelationship.relationship].some((item) => isDisplayableClinicalText(markdownCell(item)))) {
     lines.push(
-      `**本证**：${markdownCell(caseRelationship.rootPattern)}`,
-      `**主要表现**：${markdownCell(caseRelationship.mainManifestation)}`,
+      ...labeledLine("本证", markdownCell(caseRelationship.rootPattern)),
+      ...labeledLine("主要表现", markdownCell(caseRelationship.mainManifestation)),
       // 病机联系与总体病机逐字相同是最常见的一处重复：本行只在它确实补充了新内容时才出现。
       ...(pathogenesisLedger.claim(caseRelationship.relationship)
         ? [`**病机联系**：${markdownCell(caseRelationship.relationship)}`]
@@ -3289,8 +3298,8 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
   lines.push(
     "",
     therapyHeading,
-    `**治则**：${markdownCell(therapy?.overallPrinciple)}`,
-    `**总治法**：${markdownCell(therapy?.overallMethod) || markdownCell(overview?.overallTherapy)}`,
+    ...labeledLine("治则", markdownCell(therapy?.overallPrinciple)),
+    ...labeledLine("总治法", markdownCell(therapy?.overallMethod) || markdownCell(overview?.overallTherapy)),
   );
   if (subTherapies.length > 0) {
     lines.push(
@@ -3438,17 +3447,17 @@ function visiblePrescribeFromReasoning(
       lines.push(
         "",
         "### 剂数与煎服",
-        `**剂数**：${markdownCell(decoction.doseCount)}`,
+        ...labeledLine("剂数", markdownCell(decoction.doseCount)),
         // 两个数字任一缺失时整行省略——宁可少一行，不产出「每日  剂」空白模板。
         ...(dosesPerDayText && administrationTimesText
           ? [`**每日剂数 / 分服次数**：每日 ${dosesPerDayText} 剂 / 每日分 ${administrationTimesText} 次服`]
           : []),
-        `**煎服法**：${markdownCell(decoction.method)}`,
+        ...labeledLine("煎服法", markdownCell(decoction.method)),
         // 需求5：处方展示面不再出现复诊节点（M05「随访管理方案/随访时间轴」仍确定性给出首次复诊
         // 时间）。decoction.followUpNode 字段本身及其服务端确定性生成（applyDeterministicFollowUpNode）
         // 必须保留——它是 rxaudit 提交门、HIS 导出与 M05 首次复诊的唯一数据源，删字段即 fail-open。
         // 保留 joinClinicalClauses 包裹：clinicalClauseText 会剥尾部标点，直接用 markdownCell 会改变归一化行为。
-        `**疗程建议**：${joinClinicalClauses([markdownCell(decoction.course)])}`,
+        ...labeledLine("疗程建议", joinClinicalClauses([markdownCell(decoction.course)])),
       );
     }
   }

@@ -109,6 +109,7 @@
     "test:recorded-fact-visibility": "jiti scripts/test-recorded-fact-visibility.mjs",
     "test:clinical-grounding": "jiti scripts/test-clinical-grounding.mjs",
     "test:exam-claim-grounding": "jiti scripts/test-exam-claim-grounding.mjs",
+    "test:exam-claim-field-coverage": "jiti scripts/test-exam-claim-field-coverage.mjs",
     "test:m03-specificity-policy": "jiti scripts/test-m03-specificity-policy.mjs",
     "test:inspection-lexicon": "jiti scripts/test-inspection-lexicon.mjs",
     "test:clinical-entry": "jiti scripts/test-clinical-entry.mjs",

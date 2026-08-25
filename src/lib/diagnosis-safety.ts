@@ -1058,7 +1058,7 @@ const PHYSICAL_EXAM_CLAIM_CUES = (physicalExamClaimLexicon.claimCues as string[]
   .map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
   .join("|");
 const PHYSICAL_EXAM_CLAIM_CUE = new RegExp(`(?:${PHYSICAL_EXAM_CLAIM_CUES})`);
-const PHYSICAL_EXAM_ASSERTION_FIELDS = new Set([
+export const PHYSICAL_EXAM_ASSERTION_FIELDS = new Set([
   "supportingFacts", "primarySyndromeBasis", "patientFact", "syndromeEvidence",
   "clinicalRationale", "tcmDiagnosticRationale", "limitations", "suggestedChecks",
   "reason", "distinguishingPoints", "nextCheck", "overallPathogenesis", "summary",
@@ -5314,8 +5314,11 @@ export function buildDeterministicRiskFollowupPayload(
       ? "处方可作为候选方案审阅，请结合过敏史、现用药、特殊人群状态和院内规则完成复核。"
       : "当前无确定性强提示；仍需医生按病情、说明书和院内药事规则最终确认。";
   const firstReview = deriveFirstReviewTiming(state, hasStrongRisk);
+  // 逐条成句（2026-08-25 审查 V2）：N 条异构事实共用一个后缀会产出
+  // 「下尿路感染；苔黄腻的严重程度、发作频次」这类病句——后缀只能挂在单条上。
   const coreMetrics = followup.coreFacts.length > 0
-    ? `${followup.coreFacts.join("；")}的严重程度、发作频次及对日常功能的影响`
+    ? followup.coreFacts.map((fact) => `${fact.replace(/[。.；;，,]+$/g, "")}的变化`).join("；")
+      + "，及其严重程度、发作频次与对日常功能的影响"
     : "本次主要症状的严重程度、发作频次及对日常功能的影响";
   const efficacyTrigger = "主要症状较首诊无改善或加重，或出现新的伴随症状";
   const authoredIndicators = (authored?.monitoringIndicators || []).filter((item) => Boolean(item?.trim()));
@@ -5400,8 +5403,8 @@ export function buildDeterministicRiskFollowupPayload(
     authored
       ? `**疗效评价标准**：${authored.efficacyCriteria}`
       : `**疗效评价标准**：以首诊记录为基线，比较${coreMetrics}；同时确认未出现新发不适。`,
-    ...(actualRiskIndicators.length > 0 ? [`**安全性观察**：${actualRiskIndicators.join("；")}。`] : []),
-    ...(followup.precautions.length > 0 ? [`**注意事项**：${followup.precautions.join("；")}`] : []),
+    ...(actualRiskIndicators.length > 0 ? [`**安全性观察**：${actualRiskIndicators.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`] : []),
+    ...(followup.precautions.length > 0 ? [`**注意事项**：${followup.precautions.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`] : []),
     `**无效或加重的处置预案**：${efficacyTrigger}时，不自动沿用候选方案，由医生复评诊断、辨证与处方风险，并按实际情况安排检查或转诊。`,
     "",
     ...sixHealthFollowupTable(authored?.dimensions).split("\n"),

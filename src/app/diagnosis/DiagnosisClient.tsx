@@ -7703,6 +7703,7 @@ function HisMedicalRecordWorkspace({
 function AiSupportPanel({
   caseState,
   isRunning,
+  stageHeartbeat,
   canCancelRun,
   isCancelling,
   runningElapsedSeconds,
@@ -7730,6 +7731,7 @@ function AiSupportPanel({
   restoredUnsavedDraft,
   onUnsavedDraftChange,
 }: {
+  stageHeartbeat: string;
   caseState: CaseState;
   isRunning: boolean;
   canCancelRun: boolean;
@@ -7990,6 +7992,7 @@ function AiSupportPanel({
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-gray-500">
                   {caseState.phase === "collect" ? "已同步门诊病历，系统正在决定是否需要追问或进入诊疗方案生成。" : generationStatus(caseState.phase, isActiveRedFlag).desc}
+                  {["collect", "question"].includes(caseState.phase) && stageHeartbeat ? ` ${stageHeartbeat}。` : ""}
                 </p>
                 <p className="mt-1 text-[11px] font-medium text-teal-700">
                   本阶段耗时 {runningElapsedSeconds}s{runningElapsedSeconds >= 60 ? " · 本阶段仍在生成" : ""}
@@ -8197,6 +8200,11 @@ export default function DiagnosisPage() {
   const [moduleDrafts, setModuleDrafts] = useState<ModuleDraftState>({});
   const [workspaceRestored, setWorkspaceRestored] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  // 保存失败必须可见（2026-08-25 审查 X2/B#5）：此前所有失败分支静默 return null，
+  // 页头「已保存 hh:mm」停在旧时刻，医生按这块表决定关不关页面——之后的录入全部没进快照。
+  const [snapshotSaveFailed, setSnapshotSaveFailed] = useState(false);
+  // M01/M02 服务端心跳（{type:"heartbeat",status}）此前被消费器忽略，长等待只有一行计秒。
+  const [stageHeartbeat, setStageHeartbeat] = useState("");
   const [tongueImage, setTongueImage] = useState<string | null>(null);
   const [tongueImageConsent, setTongueImageConsent] = useState(false);
   const [uploadNotice, setUploadNotice] = useState("");
@@ -8320,6 +8328,7 @@ export default function DiagnosisPage() {
         workbenchDraft: workbenchUnsavedDraft,
       }).then((savedAt) => {
         if (savedAt) setLastSavedAt(savedAt);
+        setSnapshotSaveFailed(!savedAt);
       });
       saveCase(caseState);
     }, 150);
@@ -8670,7 +8679,8 @@ export default function DiagnosisPage() {
         body: JSON.stringify({ caseState: state }),
       });
       if (!res.ok) throw new Error(await readErrorMessage(res, `请求失败 (${res.status})`));
-      const { displayContent, jsonData } = await consumeCollectStream(res, (t) => setStreamingForPhase("question", t), streamConsumeOptions());
+      setStageHeartbeat("");
+      const { displayContent, jsonData } = await consumeCollectStream(res, (t) => setStreamingForPhase("question", t), { ...streamConsumeOptions(), onHeartbeat: setStageHeartbeat });
       const updated = withSafetyGateAndOperationalCompleteness(applyQuestionResult(state, displayContent, jsonData, { countRound: opts?.countRound }));
       continueState = parseQuestionItems(displayContent).length === 0
         ? setPhase({ ...updated, questionOutcome: "not_needed" }, "diagnose")
@@ -8722,9 +8732,10 @@ export default function DiagnosisPage() {
           }),
         });
         if (!response.ok) throw new Error(await readErrorMessage(response, `请求失败 (${response.status})`));
+        setStageHeartbeat("");
         return consumeCollectStream(response, (t) => {
           setStreamingForPhase("collect", t);
-        }, streamConsumeOptions());
+        }, { ...streamConsumeOptions(), onHeartbeat: setStageHeartbeat });
       };
 
       let visionUsed = Boolean(tongueImage);
@@ -8903,6 +8914,8 @@ export default function DiagnosisPage() {
           setRunning(true);
           try {
             await runDiagnoseChain(readyState);
+          } catch (error) {
+            persistState(setError(readyState, normalizeRequestError(error)));
           } finally {
             setRunning(false);
           }
@@ -8917,6 +8930,8 @@ export default function DiagnosisPage() {
           setRunning(true);
           try {
             await runDiagnoseChain(readyState);
+          } catch (error) {
+            persistState(setError(readyState, normalizeRequestError(error)));
           } finally {
             setRunning(false);
           }
@@ -8944,6 +8959,8 @@ export default function DiagnosisPage() {
         setRunning(true);
         try {
           await runDiagnoseChain(readyState);
+        } catch (error) {
+          persistState(setError(readyState, normalizeRequestError(error)));
         } finally {
           setRunning(false);
         }
@@ -8958,6 +8975,8 @@ export default function DiagnosisPage() {
         } else {
           persistState(applyDifferentiationGateOutcome(reassessBase));
         }
+      } catch (error) {
+        persistState(setError(reassessBase, normalizeRequestError(error)));
       } finally {
         setRunning(false);
       }
@@ -9082,6 +9101,10 @@ export default function DiagnosisPage() {
       const skipState = setPhase(withSafetyGate(forcedBase), reuseM03 ? "prescribe" : "diagnose");
       persistState(skipState);
       await runDiagnoseChain(skipState);
+    } catch (error) {
+      // 无 catch 时预检/取消异常静默丢失：phase 停在 diagnose、lastError 为空、
+      // 顶部永久转圈且四个提交分支都不再匹配——医生只能刷新（2026-08-25 审查 X2）。
+      persistState(setError(caseState, normalizeRequestError(error)));
     } finally {
       setRunning(false);
     }
@@ -9274,6 +9297,8 @@ export default function DiagnosisPage() {
       });
       persistState(confirmed);
       await runDiagnoseChain(confirmed);
+    } catch (error) {
+      persistState(setError(caseState, normalizeRequestError(error)));
     } finally {
       setRunning(false);
     }
@@ -9494,7 +9519,13 @@ export default function DiagnosisPage() {
             <h1 className="text-sm font-bold">青羊承德诊所 · 中医 CDSS</h1>
             <p className="text-xs text-gray-500">
               面向 HIS 集成的四诊辨证支持 · {BROWSER_CASE_PERSISTENCE_ENABLED ? "本机仅短期保存加密草稿和结果" : "本机不保存草稿，关闭后请从 HIS 恢复"} · 不保存图像
-              {BROWSER_CASE_PERSISTENCE_ENABLED && lastSavedAt ? ` · 已保存 ${new Date(lastSavedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}` : ""}
+              {BROWSER_CASE_PERSISTENCE_ENABLED
+                ? snapshotSaveFailed
+                  ? ` · 未能保存${lastSavedAt ? `（最后成功 ${new Date(lastSavedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}）` : ""}，请勿关闭页面`
+                  : lastSavedAt
+                    ? ` · 已保存 ${new Date(lastSavedAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`
+                    : ""
+                : ""}
             </p>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -9537,6 +9568,7 @@ export default function DiagnosisPage() {
             onOpenTongueCapture={() => setCaptureModal("tongue")}
           />
           <AiSupportPanel
+            stageHeartbeat={stageHeartbeat}
             caseState={isQuestionSupplementFlow ? liveUiCaseState : caseState}
             isRunning={interactionLocked}
             canCancelRun={isRunning}

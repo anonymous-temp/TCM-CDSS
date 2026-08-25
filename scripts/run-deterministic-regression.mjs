@@ -343,6 +343,9 @@ const scripts = [
   "test:recorded-fact-visibility",
   "test:clinical-grounding",
   "test:exam-claim-grounding",
+  // 叙述字段覆盖率红线(2026-08-25): ReasoningV2 每个字符串叶子键必须归类
+  // (查体白名单/结构豁免/已知裸奔冻结清单)——新字段静默裸奔在提交时即红。
+  "test:exam-claim-field-coverage",
   "test:m03-specificity-policy",
   "test:inspection-lexicon",
   "test:clinical-entry",

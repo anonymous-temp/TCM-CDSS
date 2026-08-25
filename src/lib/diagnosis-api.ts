@@ -3889,7 +3889,10 @@ async function callPrimaryTextModelStream(
             advisoryM04RiskAccepted = Boolean(structuredReasoning);
             if (structuredReasoning) {
               const annotation = m04TherapyIssueQualityAnnotation(initialM04Reason);
-              m04TransparentQualityAnnotation = annotation || m04TransparentQualityAnnotation;
+              m04TransparentQualityAnnotation = [...new Set([
+                m04TransparentQualityAnnotation,
+                annotation,
+              ].filter(Boolean))].join("\n\n") || undefined;
               m04AcceptanceScope = {
                 waivedIssueCodes: [...new Set([
                   ...(m04AcceptanceScope?.waivedIssueCodes || []),
@@ -3920,7 +3923,10 @@ async function callPrimaryTextModelStream(
           m04ClinicalReviewStatus = review.status;
           if (review.status === "repair") {
             initialM04ReviewQualityAnnotation = acceptM04QualityReviewWithoutProviderRepair(review, structuredReasoning);
-            m04TransparentQualityAnnotation = initialM04ReviewQualityAnnotation;
+            m04TransparentQualityAnnotation = [...new Set([
+              m04TransparentQualityAnnotation,
+              initialM04ReviewQualityAnnotation,
+            ].filter(Boolean))].join("\n\n") || undefined;
             if (!initialM04ReviewQualityAnnotation) {
               structuredReasoning = undefined;
               advisoryM04RiskAccepted = false;
@@ -5465,7 +5471,10 @@ async function callPrimaryTextModelStream(
                     )
                   : undefined;
                 if (review.status === "repair" && finalReviewAnnotation) {
-                  m04TransparentQualityAnnotation = m04TransparentQualityAnnotation || finalReviewAnnotation;
+                  m04TransparentQualityAnnotation = [...new Set([
+                    m04TransparentQualityAnnotation,
+                    finalReviewAnnotation,
+                  ].filter(Boolean))].join("\n\n") || undefined;
                   console.warn("[tcm-cdss:model] final M04 review repair accepted with quality annotation", {
                     stage: "prescribe",
                     issueCode: review.issueCode,

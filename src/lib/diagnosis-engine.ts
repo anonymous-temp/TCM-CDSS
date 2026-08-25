@@ -24,6 +24,8 @@ type StreamConsumeOptions = {
   totalTimeoutMs?: number;
   abortSignal?: AbortSignal;
   onModuleDraft?: (frame: StreamModuleDraftFrame) => void;
+  /** 服务端心跳帧（{type:"heartbeat",status}）上报；仅信息展示，不参与流内容与超时判定。 */
+  onHeartbeat?: (status: string) => void;
 };
 
 // ─── Persistence ─────────────────────────────────────────────────────────────
@@ -335,6 +337,10 @@ async function consumeStream(
           } else if (typeof chunk.content === "string" && chunk.content) {
             accumulated = applyStreamChunk(accumulated, chunk.content);
             onChunk(filterSentinelFromStreaming(accumulated));
+          } else if (chunk.type === "heartbeat" && typeof chunk.status === "string" && chunk.status.trim()) {
+            // M01/M02 的心跳此前被分支链整个忽略（2026-08-25 审查 X3）：服务端每 5s 的
+            // 进度/排队信息在采集与追问阶段全部蒸发，医生最长 3.5 分钟只看到一行计秒。
+            opts?.onHeartbeat?.(chunk.status.trim());
           } else if ("content" in chunk && chunk.content != null) {
             malformedLines += 1;
           }
