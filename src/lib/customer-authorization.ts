@@ -87,6 +87,21 @@ export function getCustomerAuthorizationStatus(): CustomerAuthorizationStatus {
 }
 
 /**
+ * Return the canonical customer identifiers available to an already-authenticated browser login.
+ *
+ * Callers must verify the shared access token before invoking this helper. Keeping the lookup here
+ * avoids weakening parseCustomerId or inventing unstable numeric aliases for tenant identifiers.
+ */
+export function authorizedCustomerIdsForAuthenticatedLogin(): string[] {
+  const configuration = parseCustomerAuthorization();
+  if (!configuration.status.ready) return [];
+  return [...new Set([
+    ...configuration.allowedCustomerIds,
+    ...(registeredCustomerIdsForClient(configuration.clientId) || []),
+  ])].sort((left, right) => left.localeCompare(right));
+}
+
+/**
  * Authorize one already-normalized customer identifier.
  *
  * Local development retains the pre-tenant behavior only when authentication and every customer

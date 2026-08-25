@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 process.env.CDSS_API_TOKEN = "test-shared-delivery-token-at-least-32-characters";
@@ -37,7 +38,11 @@ const invalid = await POST(new Request("http://localhost/api/auth/access", {
   body: JSON.stringify({ token: process.env.CDSS_API_TOKEN, customerId: "../../other" }),
 }));
 assert.equal(invalid.status, 400);
-assert.equal((await invalid.json()).code, "invalid_customer_id");
+const invalidBody = await invalid.json();
+assert.equal(invalidBody.code, "invalid_customer_id");
+assert.deepEqual(invalidBody.customerOptions, ["hospital-A", "hospital-B"]);
+assert.match(invalid.headers.get("cache-control") || "", /private/i);
+assert.match(invalid.headers.get("cache-control") || "", /no-store/i);
 
 const forbidden = await POST(new Request("http://localhost/api/auth/access", {
   method: "POST",
@@ -45,7 +50,26 @@ const forbidden = await POST(new Request("http://localhost/api/auth/access", {
   body: JSON.stringify({ token: process.env.CDSS_API_TOKEN, customerId: "hospital-C" }),
 }));
 assert.equal(forbidden.status, 403);
-assert.equal((await forbidden.json()).code, "customer_forbidden");
+const forbiddenBody = await forbidden.json();
+assert.equal(forbiddenBody.code, "customer_forbidden");
+assert.deepEqual(forbiddenBody.customerOptions, ["hospital-A", "hospital-B"]);
 assert.doesNotMatch(forbidden.headers.get("set-cookie") || "", new RegExp(`${CDSS_CUSTOMER_COOKIE}=`));
 
-console.log(JSON.stringify({ suite: "customer-auth-binding", failures: 0 }));
+const wrongToken = await POST(new Request("http://localhost/api/auth/access", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ token: "wrong-token-with-enough-characters", customerId: "1" }),
+}));
+assert.equal(wrongToken.status, 401);
+const wrongTokenBody = await wrongToken.json();
+assert.equal(wrongTokenBody.code, undefined);
+assert.equal(wrongTokenBody.customerOptions, undefined,
+  "错误口令绝不得枚举已授权客户");
+
+const loginPageSource = readFileSync("src/app/login/page.tsx", "utf8");
+assert.match(loginPageSource, /customerOptions/,
+  "登录页必须消费口令验证后的客户选项");
+assert.match(loginPageSource, /<select[\s\S]*已授权客户/,
+  "多个已授权客户必须由用户显式选择，不得按配置顺序猜租户");
+
+console.log(JSON.stringify({ suite: "customer-auth-binding", cases: 10, failures: 0 }));

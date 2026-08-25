@@ -48,6 +48,7 @@ function getInitialError(): string {
 export default function LoginPage() {
   const [token, setToken] = useState("");
   const [customerId, setCustomerId] = useState("");
+  const [customerOptions, setCustomerOptions] = useState<string[]>([]);
   const [error, setError] = useState(getInitialError);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -55,7 +56,7 @@ export default function LoginPage() {
     event.preventDefault();
     const trimmed = token.trim();
     const trimmedCustomerId = customerId.trim();
-    if (!trimmed || !trimmedCustomerId || isSubmitting) return;
+    if (!trimmed || isSubmitting) return;
 
     setIsSubmitting(true);
     setError("");
@@ -68,8 +69,20 @@ export default function LoginPage() {
         body: JSON.stringify({ token: trimmed, customerId: trimmedCustomerId }),
         signal: controller.signal,
       });
-      const body = await res.json().catch(() => null) as { error?: string } | null;
+      const body = await res.json().catch(() => null) as {
+        error?: string;
+        customerOptions?: unknown;
+      } | null;
       if (!res.ok) {
+        const options = Array.isArray(body?.customerOptions)
+          ? [...new Set(body.customerOptions.filter((item): item is string =>
+              typeof item === "string" && /^[A-Za-z0-9_-]{6,64}$/.test(item),
+            ))]
+          : [];
+        if (options.length) {
+          setCustomerOptions(options);
+          setCustomerId((current) => options.includes(current.trim()) ? current.trim() : "");
+        }
         setError(body?.error || "访问口令校验失败。");
         return;
       }
@@ -112,16 +125,33 @@ export default function LoginPage() {
           <label className="block text-[13px] font-semibold text-gray-700" htmlFor="cdss-customer-id">
             客户标识
           </label>
-          <input
-            id="cdss-customer-id"
-            type="text"
-            autoComplete="organization"
-            value={customerId}
-            onChange={(event) => setCustomerId(event.target.value.slice(0, MAX_CUSTOMER_ID_CHARS))}
-            maxLength={MAX_CUSTOMER_ID_CHARS}
-            className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-medium outline-none placeholder:text-gray-300 focus:border-teal-300 focus:bg-white"
-            placeholder="x-cdss-customer-id"
-          />
+          {customerOptions.length ? (
+            <select
+              id="cdss-customer-id"
+              value={customerId}
+              onChange={(event) => {
+                setCustomerId(event.target.value);
+                setError("");
+              }}
+              className="h-9 w-full rounded-lg border border-teal-200 bg-white px-3 text-sm font-medium outline-none focus:border-teal-400"
+            >
+              <option value="">请选择已授权客户</option>
+              {customerOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              id="cdss-customer-id"
+              type="text"
+              autoComplete="organization"
+              value={customerId}
+              onChange={(event) => setCustomerId(event.target.value.slice(0, MAX_CUSTOMER_ID_CHARS))}
+              maxLength={MAX_CUSTOMER_ID_CHARS}
+              className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-medium outline-none placeholder:text-gray-300 focus:border-teal-300 focus:bg-white"
+              placeholder="可留空，验证口令后选择"
+            />
+          )}
           <label className="block text-[13px] font-semibold text-gray-700" htmlFor="cdss-token">
             访问口令
           </label>
@@ -145,7 +175,7 @@ export default function LoginPage() {
           )}
           <button
             type="submit"
-            disabled={!token.trim() || !customerId.trim() || isSubmitting}
+            disabled={!token.trim() || isSubmitting}
             className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-teal-600 px-4 text-[13px] font-bold text-white transition-colors hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}

@@ -17,7 +17,10 @@ import {
 } from "@/lib/cdss-auth";
 import { readJsonBodyWithLimit } from "@/lib/http-guard";
 import { parseCustomerId } from "@/lib/customer-id";
-import { authorizeCustomerId } from "@/lib/customer-authorization";
+import {
+  authorizeCustomerId,
+  authorizedCustomerIdsForAuthenticatedLogin,
+} from "@/lib/customer-authorization";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +29,7 @@ const RATE_LIMIT_LOCK_MS = 10 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 8;
 const MAX_LOGIN_BODY_BYTES = 4096;
 const MAX_LOGIN_TOKEN_CHARS = 512;
+const PRIVATE_NO_STORE_HEADERS = { "Cache-Control": "private, no-store" } as const;
 
 type LoginAttemptBucket = {
   failures: number;
@@ -116,13 +120,24 @@ export async function POST(req: Request) {
 
   const customerId = parseCustomerId(body.customerId);
   if (!customerId) {
+    const customerOptions = authorizedCustomerIdsForAuthenticatedLogin();
     return finalize(NextResponse.json(
-      { ok: false, error: "客户标识格式不正确", code: "invalid_customer_id" },
-      { status: 400 },
+      {
+        ok: false,
+        error: customerOptions.length
+          ? "访问口令正确，请选择已授权客户"
+          : "客户标识格式不正确",
+        code: "invalid_customer_id",
+        ...(customerOptions.length ? { customerOptions } : {}),
+      },
+      { status: 400, headers: PRIVATE_NO_STORE_HEADERS },
     ));
   }
   const customerAuthorization = authorizeCustomerId(customerId, true);
   if (!customerAuthorization.ok) {
+    const customerOptions = customerAuthorization.code === "customer_forbidden"
+      ? authorizedCustomerIdsForAuthenticatedLogin()
+      : [];
     return finalize(NextResponse.json(
       {
         ok: false,
@@ -130,8 +145,9 @@ export async function POST(req: Request) {
           ? "客户标识未获授权"
           : "客户授权配置未就绪",
         code: customerAuthorization.code,
+        ...(customerOptions.length ? { customerOptions } : {}),
       },
-      { status: customerAuthorization.status },
+      { status: customerAuthorization.status, headers: PRIVATE_NO_STORE_HEADERS },
     ));
   }
 
