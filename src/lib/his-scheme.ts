@@ -1,5 +1,6 @@
 import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, isNonDosePrescriptionText, withSafetyGate } from "./diagnosis-safety";
 import { sectionTitleGroup } from "./cdss-vocab";
+import { qualityAnnotationCopy } from "./diagnosis-rejection-tiers";
 import type { CaseState, ClinicalCitation, SafetyGate } from "./diagnosis-types";
 import { extractPrescribedHerbs, getTcmHerbDoseLimit, clinicianDoseHerbClass } from "./tcm-knowledge";
 import { diagnoseReasoningFromState, mergeReasoningStages, prescribeReasoningFromState } from "./diagnosis-parse";
@@ -934,10 +935,17 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
     if (!scope || !hasBoundClinicalReviewAttestation(prescribeReasoning)) return "";
     const codes = [...new Set([...scope.waivedIssueCodes, ...scope.qualityAnnotationCodes])];
     if (codes.length === 0) return "";
+    // 内部码不上屏（2026-08-25）：m04_emperor_therapy_mismatch 这类英文码对医生/集成方是噪声。
+    // 经 qualityAnnotationCopy 唯一谓词译成医生话；一条都译不出时省略明细句，只保留受理事实。
+    const clinicianNotes = [...new Set(codes
+      .map((code) => qualityAnnotationCopy(code.startsWith("m0") ? code : `m04_${code}`))
+      .filter((note): note is string => Boolean(note)))];
     return [
       "## 生成侧受理裁决（随合同签名下发）",
-      `**质量批注受理**：生成侧已按质量批注受理本候选，涉及缺陷码：${codes.join("、")}。`,
-      "对应医生可读批注见处方正文首部；该裁决位于合同签名域内，写回链路只读取、不改写。采纳前请医生结合批注逐项复核；本提示不阻断诊疗流程。",
+      clinicianNotes.length > 0
+        ? `**质量批注受理**：生成侧已按质量批注受理本候选。${clinicianNotes.join(" ")}`
+        : "**质量批注受理**：生成侧已按质量批注受理本候选，具体受理项已随合同签名留档可审计。",
+      "该裁决位于合同签名域内，写回链路只读取、不改写。采纳前请医生结合处方内容逐项复核；本提示不阻断诊疗流程。",
     ].join("\n");
   })();
   /**

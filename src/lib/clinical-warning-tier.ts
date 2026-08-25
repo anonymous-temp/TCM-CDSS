@@ -33,6 +33,15 @@ const LABELS: Record<ClinicalWarningLevel, string> = {
   L4: "确定性阻断",
 };
 
+/**
+ * L0–L4 是内部枚举，医生可见位置一律用中文标签（甲方评测 2026-08-04 第 1 条；
+ * 2026-08-25 审查发现页面「药味警示汇总」条仍直印枚举——词表只扫 Markdown 流，
+ * 管不到 JSX 字面量，故导出单一谓词供 JSX 引用）。
+ */
+export function warningLevelClinicianLabel(level: ClinicalWarningLevel): string {
+  return LABELS[level];
+}
+
 function activeRiskLine(text: string, pattern: RegExp): string | undefined {
   return text
     .split(/\r?\n/)

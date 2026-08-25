@@ -122,6 +122,7 @@ import {
   deriveCaseWarningProfile,
   type ClinicalWarningLevel,
   type ClinicalWarningProfile,
+  warningLevelClinicianLabel,
 } from "@/lib/clinical-warning-tier";
 import {
   createPathogenesisNarrativeLedger,
@@ -3949,7 +3950,7 @@ function HerbModificationWorkbench({
       )}
       {herbFunctionLookupProblemNames.length > 0 && (
         <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-          {herbFunctionLookupProblemNames.join("、")}未能从知识库获得规范功效，系统未生成替代内容；请核对药名或稍后重新输入。
+          {herbFunctionLookupProblemNames.join("、")}未能取得标准药材资料中的规范功效，系统未生成替代内容；请核对药名或稍后重新输入。
         </p>
       )}
 
@@ -4125,10 +4126,10 @@ function HerbPrescriptionRows({ table }: { table?: MarkdownTable }) {
           .filter((level) => tierCounts[level] > 0)
           .map((level) => (
             <span key={level} className="rounded-full border border-gray-200 bg-white px-2 py-0.5">
-              {level}：{tierCounts[level]}
+              {warningLevelClinicianLabel(level)}：{tierCounts[level]}
             </span>
           ))}
-        <span className="ml-auto">L2 以上需确认；L4 不可执行或写回。</span>
+        <span className="ml-auto">「需确认」及以上须逐条确认；「确定性阻断」不可执行或写回。</span>
       </div>
     </div>
   );
@@ -4661,7 +4662,7 @@ function ServerLeadingNotices({ caseState }: { caseState: CaseState }) {
     <div className="space-y-2" data-testid="server-leading-notices">
       {safety.length > 0 && (
         <div className="rounded-xl border border-red-300 bg-red-50 p-3" data-testid="server-safety-advisory">
-          <p className="text-xs font-bold text-red-800">安全警示（服务端判定，未解除）</p>
+          <p className="text-xs font-bold text-red-800">安全警示（系统判定，未解除）</p>
           <ul className="mt-1 list-disc space-y-1 pl-5 text-xs leading-relaxed text-red-800">
             {safety.map((line) => <li key={line}>{line}</li>)}
           </ul>

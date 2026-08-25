@@ -99,3 +99,34 @@ for (const [name, cs, expected] of cases) {
   pass++;
 }
 console.log(`\n${pass}/${cases.length} passed`);
+
+{
+  // ── 权威年龄叙述解析矩阵（2026-08-25）：「患者，男，7岁」这类逗号分隔人口学是
+  // HIS/直调方最常见写法，此前四条模式全不命中 → authoritativePatientAgeYears=undefined
+  // → 所有年龄敏感门禁（儿科体重/老年/剂量校准）静默失效。亲属年龄误绑是对向红线。
+  const { createJiti } = await import("jiti");
+  const ageJiti = createJiti(import.meta.url, { alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  } });
+  const { authoritativePatientAgeYears, clinicalGroundingText } = await ageJiti.import("../src/lib/diagnosis-safety.ts");
+  const mkAge = (chief) => ({ chiefComplaint: chief, conversation: [], symptoms: {}, patient: {}, vitals: {}, phase: "diagnose" });
+  for (const [chief, expect] of [
+    ["患者，男，7岁，反复咳嗽3天", 7],
+    ["患者性别男，年龄：7岁，反复咳嗽3天", 7],
+    ["患者,女,78岁,头晕1周", 78],
+    ["患者为一名男性，年龄：63岁", 63],
+    ["患者，男，35岁，其子7岁同患感冒", 35],
+    ["患者主诉失眠，其母82岁需照护", undefined],
+    ["患者主诉心悸，其母，年龄82岁", undefined],
+  ]) {
+    assert.equal(authoritativePatientAgeYears(mkAge(chief)), expect,
+      `authoritativePatientAgeYears(${JSON.stringify(chief)}) 应为 ${expect}`);
+  }
+  // 权威年龄以带标签形式注入接地语料：M04 特殊人群数字臂按「年龄：N岁」匹配，
+  // 裸叙述从此同源可达；已有标签时不重复注入。
+  assert.match(clinicalGroundingText(mkAge("患者，男，7岁，反复咳嗽3天")), /患者年龄：7岁/,
+    "裸叙述年龄必须以标签形式进入接地语料（喂 M04 人群门禁）");
+  assert.doesNotMatch(clinicalGroundingText(mkAge("年龄：7岁，咳嗽3天")), /患者年龄：/,
+    "已有年龄标签时不得重复注入");
+}

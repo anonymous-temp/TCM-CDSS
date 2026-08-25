@@ -353,13 +353,22 @@ export function trustedInputText(state: CaseState): string {
  */
 export function clinicalGroundingText(state: CaseState): string {
   const authoritative = trustedInputText(state);
+  // 权威年龄以带标签形式注入接地语料（2026-08-25）：M04 特殊人群门禁的数字臂按
+  // 「年龄：N岁」字面匹配，而裸叙述「患者，男，7岁」与 HIS 只给值不给键的字段
+  // 都不带标签——门禁静默不触发。这里由唯一权威口径 authoritativePatientAgeYears
+  // 补一行标签化事实（真实患者事实，additive-only），全部年龄敏感判据从此同源。
+  const authoritativeAge = authoritativePatientAgeYears(state);
+  const ageLine = authoritativeAge != null && !/年龄\s*[:：]/.test(authoritative)
+    ? `患者年龄：${authoritativeAge}岁`
+    : "";
+  const groundingBase = [ageLine, authoritative].filter(Boolean).join("\n");
   const symptomEntries = flattenClinicalInput(state.symptoms)
     .filter((entry) => typeof entry === "string" && entry.trim())
     .filter((entry) => !authoritative.includes(entry.trim()))
     .filter((entry) => !CLINICAL_NEGATION_FACT_TERMS.some((term) =>
       entry.includes(term) && sourceDocumentsNegation(authoritative, term)));
-  if (symptomEntries.length === 0) return authoritative;
-  return [authoritative, ...symptomEntries].filter(Boolean).join("\n");
+  if (symptomEntries.length === 0) return groundingBase;
+  return [groundingBase, ...symptomEntries].filter(Boolean).join("\n");
 }
 
 const RED_FLAG_NEGATION_TERMS = [
@@ -3758,7 +3767,10 @@ function patientBoundNarrativeAge(text: string): string {
   const labeled = text.match(new RegExp(`(?:^|[。；;\\n])\\s*(?:(?:患者|病人)\\s*)?年龄\\s*[:：]?\\s*${ageLiteral}`));
   if (labeled?.[1]) return labeled[1];
   const subjectFirst = text.match(new RegExp(
-    `(?:^|[。；;\\n])\\s*(?:(?:患者|病人)\\s*(?:为|系|是)?\\s*(?:一名|一位)?\\s*(?:男性|女性|男|女|男童|女童|患儿)?|患儿|男童|女童|男性|女性|男|女)\\s*(?:年龄\\s*[:：]?|为|系|是|约|，|,)?\\s*${ageLiteral}`,
+    // 主语与性别、性别与年龄之间各允许一个逗号：「患者，男，7岁」是 HIS/直调方最常见的
+    // 人口学写法（2026-08-25 实测该形态四条模式全不命中，年龄敏感门禁静默失效）。
+    // 逗号只允许出现在这两个衔接位，「患者，其子7岁」仍因「其」阻断而不误绑。
+    `(?:^|[。；;\\n])\\s*(?:(?:患者|病人)\\s*[，,]?\\s*(?:为|系|是)?\\s*(?:一名|一位)?\\s*(?:男性|女性|性别\\s*[男女]|男|女|男童|女童|患儿)?|患儿|男童|女童|男性|女性|男|女)\\s*[，,]?\\s*(?:年龄\\s*[:：]?|为|系|是|约)?\\s*${ageLiteral}`,
   ));
   if (subjectFirst?.[1]) return subjectFirst[1];
   const ageFirst = text.match(new RegExp(
