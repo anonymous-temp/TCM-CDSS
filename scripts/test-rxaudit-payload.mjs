@@ -205,6 +205,14 @@ for (const explicitNoMedication of [
   "本次尚未使用其他药物",
   "目前未服任何药物",
   "现阶段无现用药品",
+  // 2026-08-25 整类补齐：甲方那句「本次尚未使用其他药物」修掉后，同类高频病历写法
+  // 仍走模型抽取→零事件→medication_semantics_incomplete 误报。按惯例整类钉住。
+  "无特殊用药",
+  "否认用药史",
+  "无用药史",
+  "无",
+  "否认",
+  "暂无",
 ]) {
   assert.equal(isExplicitNoCurrentMedicationHistory(explicitNoMedication), true, `${explicitNoMedication} should bypass semantic extraction`);
 }
@@ -215,6 +223,12 @@ for (const mixedOrUnknown of [
   "患者现用药为二甲双胍0.5g每日两次无其他用药",
   "未停用阿司匹林100mg每日一次",
   "现用药不详",
+  // 依从性差 ≠ 无用药：把「吃了但不规律」吞成「没吃」是漏报联用风险，比误报危险。
+  "未规律服药",
+  "无规律用药",
+  "服药不规律",
+  // 未提及 ≠ 否认（项目铁律）：不得短路成确定性阴性。
+  "未提及",
 ]) {
   assert.equal(isExplicitNoCurrentMedicationHistory(mixedOrUnknown), false, `${mixedOrUnknown} must not be collapsed to no current medication`);
 }

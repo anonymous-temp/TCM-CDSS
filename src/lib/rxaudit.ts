@@ -397,7 +397,15 @@ function normalizedMedicationIdentity(value: string): string {
   return canonicalMedicationIdentity(raw.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""));
 }
 
-const EXPLICIT_NO_CURRENT_MEDICATION = /(?:本次|当前|目前|现阶段)?(?:否认|无|没有|从未|未曾|并未|尚未|未)(?:当前|目前|现阶段|本次)?(?:使用|服用|口服|应用|在用|吃药|服|用|吃)?(?:任何|其他|其它|长期|常用|现用|当前)?(?:药物|用药|药品|药)(?:治疗)?/gu;
+// 修饰组不收「规律」：「无规律用药/未规律服药」是依从性记录（吃了但乱吃），不是无用药——
+// 把它吞成确定性阴性会漏报联用风险。「未提及」同理永不短路（未提及 ≠ 否认）。
+// 尾部收「史/记录/情况」是为了把「否认用药史」整句剥干净——此前剥完剩个「史」字，
+// 被 medicationCandidatesFromSource 当成药名候选，反而挡掉了短路。
+const EXPLICIT_NO_CURRENT_MEDICATION = /(?:本次|当前|目前|现阶段)?(?:否认|无|没有|从未|未曾|并未|尚未|未)(?:当前|目前|现阶段|本次)?(?:使用|服用|口服|应用|在用|吃药|服|用|吃)?(?:任何|其他|其它|长期|常用|现用|当前|特殊)?(?:药物|用药|药品|药)(?:治疗|史|记录|情况)?/gu;
+
+// 字段整值就是一个否定词（HIS 用药史栏最常见的填法）。必须整值精确匹配——
+// 子串级的「无」会把「无某某禁忌」之类全误吞。
+const WHOLE_FIELD_NO_MEDICATION = /^(?:无|否认|没有|暂无|均无)[。.!！]?$/u;
 
 function containsExplicitNoCurrentMedicationStatement(value: string): boolean {
   EXPLICIT_NO_CURRENT_MEDICATION.lastIndex = 0;
@@ -454,8 +462,9 @@ export function medicationCandidatesFromSource(value: string | undefined): strin
  */
 export function isExplicitNoCurrentMedicationHistory(value: string | undefined): boolean {
   const normalized = value?.normalize("NFKC").replace(/\s+/g, "").trim() || "";
-  return Boolean(normalized)
-    && containsExplicitNoCurrentMedicationStatement(normalized)
+  if (!normalized) return false;
+  if (WHOLE_FIELD_NO_MEDICATION.test(normalized)) return true;
+  return containsExplicitNoCurrentMedicationStatement(normalized)
     && medicationCandidatesFromSource(normalized).length === 0;
 }
 
