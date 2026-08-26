@@ -1,3 +1,5 @@
+import { responseFormatForZodSchema } from "./model-response-format";
+import type { ChatCompletionCreateParams } from "openai/resources/chat/completions";
 import { z } from "zod";
 import type { CaseState } from "./diagnosis-types";
 import {
@@ -264,7 +266,7 @@ function primaryModelCall(): M02AnswerInterpreterModelCall | null {
       ],
       temperature: 0,
       max_tokens: 1_200,
-      response_format: { type: "json_object" },
+      response_format: responseFormatForZodSchema(config.model, "m02_interpret", M02AnswerModelOutputSchema) as unknown as ChatCompletionCreateParams["response_format"],
       ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
     }, { signal });
     return completion.choices[0]?.message?.content || "";

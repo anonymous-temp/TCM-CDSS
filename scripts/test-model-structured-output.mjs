@@ -92,3 +92,27 @@ for (const [file, fixedMarker, patientMarker, candidateMarker] of [
 }
 
 console.log(JSON.stringify({ suite: "model-structured-output", tasks: 6, models: 5, failures: 0 }));
+
+
+{
+  // ── interpret 严格 schema 出口（2026-08-25 甲方复测 P1-2：json_object 两轮不合契约→502） ──
+  const { createJiti } = await import("jiti");
+  const fmtJiti = createJiti(import.meta.url, { alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  } });
+  const { responseFormatForZodSchema } = await fmtJiti.import("../src/lib/model-response-format.ts");
+  const { z } = await fmtJiti.import("zod");
+  const schema = z.object({ answers: z.array(z.object({ questionId: z.string(), interpretation: z.string() })).max(2) });
+  // interpret 跟随 primary 模型（生产 BAILIAN_QWEN_MODEL=qwen3.7-plus）；flash 不在百炼严格模式
+  // 白名单（3.7-plus/3.7-max/3.8-max），落 json_object——这条边界一并钉住，防止有人把
+  // interpret 降到 flash 后误以为仍有解码层契约保护。
+  const strict = responseFormatForZodSchema("qwen3.7-plus", "m02_interpret", schema);
+  assert.equal(strict.type, "json_schema", "支持严格模式的 Qwen 档必须走 json_schema");
+  assert.equal(responseFormatForZodSchema("qwen3.7-flash", "m02_interpret", schema).type, "json_object",
+    "flash 不支持严格模式，必须回落 json_object");
+  assert.equal(strict.json_schema?.strict, true);
+  assert.equal(strict.json_schema?.name, "m02_interpret");
+  const fallback = responseFormatForZodSchema("deepseek-v4-flash", "m02_interpret", schema);
+  assert.equal(fallback.type, "json_object", "不支持严格模式的模型回落 json_object");
+}

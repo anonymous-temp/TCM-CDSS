@@ -26,6 +26,10 @@ function failureStatus(code: M02AnswerInterpretationFailureCode): number {
   if (code === "model_not_configured") return 503;
   if (code === "model_timeout") return 504;
   if (code === "request_aborted") return 408;
+  // 模型两轮都没交出合契约的结构——这是**业务降级**不是网关故障（甲方复测 P1-2：
+  // 5 次 4 次 502）。返回 200 + ok:false + retryable，医生原话由调用方原样保留
+  //（页面 preserveRawDetails 分支正是为 ok:false 设计的），接口消费者不再看到 5xx。
+  if (code === "model_output_invalid") return 200;
   return 502;
 }
 

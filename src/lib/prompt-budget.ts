@@ -54,3 +54,13 @@ export function compactEvidenceContextForPrompt(
   const text = `${head}${EVIDENCE_OMISSION_MARKER}${tail}`.slice(0, limit);
   return { text, truncated: true, omittedChars: source.length - head.length - tail.length };
 }
+
+/**
+ * M04 证据块总预算（字符）。默认 15_000 ≈ 9k token；可用 PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS
+ * 调整，钳制 4_000–40_000。此前无总量上限，证据总是填满到 60k 提示词上限。
+ * Exported for unit tests.
+ */
+export function m04EvidencePromptBudgetChars(): number {
+  const value = Number(process.env.PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS || 15_000);
+  return Number.isFinite(value) && value >= 4_000 && value <= 40_000 ? Math.round(value) : 15_000;
+}

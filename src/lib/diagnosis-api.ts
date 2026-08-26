@@ -889,9 +889,15 @@ export function clinicalReviewModelCandidates(
   }));
   const candidates = [preferred, ...crossModelFallbacks]
     .filter((candidate) => candidate.configured && candidate.independentInvocation);
-  return candidates.filter((candidate, index) => (
+  const deduplicated = candidates.filter((candidate, index) => (
     candidates.findIndex((item) => item.endpoint === candidate.endpoint && item.model === candidate.model) === index
   ));
+  // 独立优先（2026-08-25 甲方复测 P1-3a：11 次签名里 10 次 independentFromGenerator=false）：
+  // preferred 与生成方同一模型身份时，只要链里存在跨模型候选就先用它——复核独立性是
+  // 签名域里医生可见的证据强度位，不该由「preferred 恰好等于生成模型」这种配置巧合决定。
+  // 稳定排序：独立者相对次序不变，同模型候选退到最后仍保留为兜底。
+  return [...deduplicated].sort((left, right) =>
+    Number(right.independentFromGenerator) - Number(left.independentFromGenerator));
 }
 
 type ClinicalReviewProbeResult = {

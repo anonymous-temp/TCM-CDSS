@@ -944,3 +944,21 @@ assert.equal(isMechanicallyPreventableAuditIssue({ issueType: "DOSE_OVER", title
 assert.equal(isMechanicallyPreventableAuditIssue({ issueType: "DRUG_INTERACTION", title: "相互作用", description: "需结合患者情况复核" }), false);
 
 console.log(JSON.stringify({ cases: 64 + semanticConflictCases.length + 16, failures: 0 }));
+
+
+{
+  // ── 甲方复测 P0-3 未关闭的直接机制（2026-08-25）：灵犀行药名带处理指令后缀
+  //「苦杏仁(捣碎)」→ 管制/毒性判据查不到 → unlisted → 降档函数按防误杀设计原样放行。
+  const { createJiti } = await import("jiti");
+  const toxJiti = createJiti(import.meta.url, { alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  } });
+  const { regulatedToxicHerbStatus, stripHerbHandlingSuffix } = await toxJiti.import("../src/lib/tcm-knowledge.ts");
+  for (const form of ["苦杏仁(捣碎)", "苦杏仁（捣碎）", "苦杏仁(后下)", "苦杏仁 (打碎)"]) {
+    assert.equal(regulatedToxicHerbStatus(form), "pharmacopoeia_mildly_toxic",
+      `${form} 必须剥掉处理指令后按苦杏仁查：药典小毒、不在管制目录`);
+  }
+  assert.equal(regulatedToxicHerbStatus("生川乌(先煎)"), "controlled", "真管制药带后缀仍必须判 controlled");
+  assert.equal(stripHerbHandlingSuffix("炙甘草"), "炙甘草", "炮制品名（非括号）是独立身份，不得被剥");
+}

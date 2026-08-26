@@ -113,7 +113,7 @@ const expectedModelMatrix = {
   BAILIAN_QWEN_MODEL: "qwen3.7-plus",
   PRIMARY_DIAGNOSE_MODEL: "qwen3.7-flash",
   PRIMARY_DIAGNOSE_REPAIR_MODEL: "qwen3.8-max",
-  PRIMARY_PRESCRIBE_MODEL: "qwen3.8-max",
+  PRIMARY_PRESCRIBE_MODEL: "qwen3.7-plus",
   PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL: "qwen3.7-plus",
   PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
   PRIMARY_CLINICAL_REVIEW_MODEL: "qwen3.8-max",
@@ -487,3 +487,49 @@ assert.equal(failedEvidence.ok, false);
 assert.equal(cancelledFailureBodies, 1, "EviMed non-success bodies must be cancelled before returning or retrying");
 
 console.log(JSON.stringify({ cases: 36, failures: 0 }));
+
+
+{
+  // ── 复核候选链独立优先（2026-08-25 甲方复测 P1-3a：11 次签名 10 次 independentFromGenerator=false） ──
+  const { createJiti } = await import("jiti");
+  const chainJiti = createJiti(import.meta.url, { alias: {
+    "@": `${process.cwd()}/src`,
+    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  } });
+  const { clinicalReviewModelCandidates } = await chainJiti.import("../src/lib/diagnosis-api.ts");
+  const primary = { configured: true, provider: "bailian-qwen", model: "qwen3.7-plus", apiKey: "test-key-for-candidate-chain-only", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" };
+  const saved = { review: process.env.PRIMARY_CLINICAL_REVIEW_MODEL, gen: process.env.PRIMARY_PRESCRIBE_MODEL, fb: process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL, prov: process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER };
+  try {
+    // 复核首选与生成方同为 max：链首必须让位给跨模型候选
+    process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER = "primary";
+    process.env.PRIMARY_CLINICAL_REVIEW_MODEL = "qwen3.8-max";
+    process.env.PRIMARY_PRESCRIBE_MODEL = "qwen3.8-max";
+    process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL = "qwen3.7-plus";
+    const sameModel = clinicalReviewModelCandidates("prescribe", primary);
+    assert.equal(sameModel[0]?.independentFromGenerator, true,
+      `复核首选与生成方同模型时链首必须是跨模型候选: ${JSON.stringify(sameModel.map((c) => [c.model, c.independentFromGenerator]))}`);
+    assert.equal(sameModel.some((c) => c.model === "qwen3.8-max"), true, "同模型候选仍保留为兜底");
+    // 生成方 plus、复核 max：首选本就独立，次序不变
+    process.env.PRIMARY_PRESCRIBE_MODEL = "qwen3.7-plus";
+    const independent = clinicalReviewModelCandidates("prescribe", primary);
+    assert.equal(independent[0]?.model, "qwen3.8-max");
+    assert.equal(independent[0]?.independentFromGenerator, true);
+  } finally {
+    for (const [k, v] of [["PRIMARY_CLINICAL_REVIEW_MODEL", saved.review], ["PRIMARY_PRESCRIBE_MODEL", saved.gen], ["PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL", saved.fb], ["PRIMARY_CLINICAL_REVIEW_PROVIDER", saved.prov]]) {
+      if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  }
+  // ── M04 证据固定预算钳制 ──
+  const { m04EvidencePromptBudgetChars } = await chainJiti.import("../src/lib/prompt-budget.ts");
+  const savedBudget = process.env.PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS;
+  try {
+    delete process.env.PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS;
+    assert.equal(m04EvidencePromptBudgetChars(), 15000, "默认 15k 字符——不再填满到 60k 提示词上限");
+    process.env.PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS = "999999";
+    assert.equal(m04EvidencePromptBudgetChars(), 15000, "越界取值回落默认");
+    process.env.PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS = "20000";
+    assert.equal(m04EvidencePromptBudgetChars(), 20000);
+  } finally {
+    if (savedBudget === undefined) delete process.env.PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS; else process.env.PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS = savedBudget;
+  }
+}

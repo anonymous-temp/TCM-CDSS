@@ -1450,8 +1450,24 @@ const NON_CONTROLLED_PHARMACOPOEIA_TOXIC_HERBS: ReadonlyMap<string, "toxic" | "m
 export type RegulatedToxicHerbStatus = "controlled" | "pharmacopoeia_toxic" | "pharmacopoeia_mildly_toxic" | "unlisted";
 
 /** Runtime view of the governed regulatory/toxicity split; never infer legal control from a toxicity label. */
+/**
+ * 药名里的括号内容是煎服/处理指令（捣碎、先煎、后下、包煎、冲服、烊化、另煎、打碎…），
+ * 从来不是药材身份。灵犀审方行按处方原样写「苦杏仁(捣碎)」，此前直接拿它查管制目录
+ * → unlisted → 降档函数按"防误杀"设计原样放行，CRITICAL/处方权限误报一字不改到达医生
+ * （甲方 2026-08-25 复测 P0-3 未关闭的直接机制）。只在本判据层剥离，不改全局身份口径。
+ * Exported for unit tests.
+ */
+export function stripHerbHandlingSuffix(herb: string): string {
+  return herb
+    .normalize("NFKC")
+    .replace(/[（(][^）)]{0,12}[）)]/g, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
 export function regulatedToxicHerbStatus(herb: string): RegulatedToxicHerbStatus {
-  const raw = typeof herb === "string" ? herb.trim() : "";
+  const rawInput = typeof herb === "string" ? herb.trim() : "";
+  const raw = stripHerbHandlingSuffix(rawInput) || rawInput;
   if (!raw) return "unlisted";
   const canonical = canonicalKnowledgeHerbName(raw);
   if (REGULATORY_CONTROLLED_HERB_NAMES.has(raw) || REGULATORY_CONTROLLED_HERB_NAMES.has(canonical)) {

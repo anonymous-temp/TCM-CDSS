@@ -224,6 +224,20 @@ function schemaForTask(task: StructuredOutputTask): JsonSchema {
   ]));
 }
 
+/**
+ * 任意 zod 契约的严格结构化输出格式（2026-08-25，为 M02 interpret 而设）。
+ * interpret 此前用弱一档的 json_object，两轮 model_output_invalid 后整条路由 502——
+ * 5 次同一合成回答仅 1 次成功。schema 交给解码器强制后，"字段形状不合契约"这一整类
+ * 失败在解码层消失。不支持严格模式的模型自动回落 json_object。
+ */
+export function responseFormatForZodSchema(model: string, name: string, schema: z.ZodTypeAny): Record<string, unknown> {
+  if (!supportsStrictJsonSchema(model)) return { type: "json_object" };
+  return {
+    type: "json_schema",
+    json_schema: { name, strict: true, schema: strictProviderSchema(z.toJSONSchema(schema) as JsonSchema) },
+  };
+}
+
 export function responseFormatForTask(model: string, task: StructuredOutputTask): Record<string, unknown> {
   if (!supportsStrictJsonSchema(model)) return { type: "json_object" };
   return {

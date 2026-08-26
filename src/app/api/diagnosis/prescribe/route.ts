@@ -21,7 +21,7 @@ import { buildDrugInventoryPromptContext } from "@/lib/drug-inventory.server";
 import { m04TherapyIssueQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04AttemptKey } from "@/lib/m04-retry-policy";
 import { buildDeterministicFormulaReferenceFallback } from "@/lib/m04-deterministic-fallback";
-import { compactEvidenceContextForPrompt } from "@/lib/prompt-budget";
+import { compactEvidenceContextForPrompt, m04EvidencePromptBudgetChars } from "@/lib/prompt-budget";
 import { declassifyAndDropOpposingM04CandidateHerbs } from "@/lib/m04-modification-safety";
 
 /** 把驳回码里的 `herb_<下标>` 还原成药名，仅用于服务端日志定位。 */
@@ -226,7 +226,13 @@ export async function POST(req: Request) {
   }
   const promptSuffix = promptSuffixes.map((value) => `\n\n${value}`).join("");
   const emptyEvidencePromptLength = appendEvidenceContext(basePrompt, "").length + promptSuffix.length;
-  const evidenceBudget = Math.max(0, primaryTextMaxPromptChars() - emptyEvidencePromptLength);
+  // 证据块此前按「总提示词上限减其余长度」分配——即永远填满到 60k 字符，生产 M04 平均
+  // 35.6k token、缓存命中 13%，prefill 每轮重付（2026-08-25 时延专项遥测）。改为固定预算：
+  // 证据条目各自早有长度上限，缺的只是总量上限。
+  const evidenceBudget = Math.min(
+    m04EvidencePromptBudgetChars(),
+    Math.max(0, primaryTextMaxPromptChars() - emptyEvidencePromptLength),
+  );
   const boundedEvidence = compactEvidenceContextForPrompt(evidenceContext, evidenceBudget);
   const prompt = appendEvidenceContext(basePrompt, boundedEvidence.text) + promptSuffix;
   if (boundedEvidence.truncated) {
