@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 import { m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
 import { rejectionTier, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "../src/lib/diagnosis-rejection-tiers.ts";
 import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
-import { m04ProviderRepairExhaustedQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "../src/lib/m04-repair-policy.ts";
+import { m03LimitedInformationRepairRoundAllowed, m04BaselineVerifiedFinalReviewAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "../src/lib/m04-repair-policy.ts";
 import { mergePrescriptionReviewItems } from "../src/lib/diagnosis-safety.ts";
 import { readFileSync } from "node:fs";
 
@@ -1122,4 +1122,61 @@ const {
   assert.ok(fnBody.includes("originalReason"), "源级断言越界守卫：截取段必须是目标函数体");
   assert.ok(fnBody.includes("m04ImmediateDeclassificationAllowed("),
     "立即剥名捷径必须先过锁定基线守卫——guard 被删即红");
+}
+// ─── 基准核验候选的终审有界受理（甲方 08cc573 复测第 1 项：同病例结果不稳定）──────────
+// 麻黄汤活体探针 RUN2：M03 稳定锁方、候选组成按受治理基准逐味核验通过，终审复核仍判
+// 组成类 repair 且无修复轮可承接 → 旧行为整方截断成非剂量参考页。经典方身份已由服务端
+// 确定性核验的候选，组成/药味类质量意见按有界受理；剂量与患者前提类意见维持 fail-closed。
+assert.ok(
+  m04BaselineVerifiedFinalReviewAnnotation({
+    review: { status: "repair", issueCode: "formula_composition_mismatch" },
+    baselineIdentityVerified: true,
+  })?.includes("有界受理"),
+  "a baseline-verified candidate survives a final composition opinion with an annotation",
+);
+assert.ok(m04BaselineVerifiedFinalReviewAnnotation({
+  review: { status: "repair", issueCode: "herb_plan_mismatch" },
+  baselineIdentityVerified: true,
+}), "herb-plan opinions on a baseline-verified candidate are bounded-accepted");
+assert.equal(m04BaselineVerifiedFinalReviewAnnotation({
+  review: { status: "repair", issueCode: "formula_composition_mismatch" },
+  baselineIdentityVerified: false,
+}), undefined, "an unverified (self-devised) candidate never uses the baseline acceptance");
+assert.equal(m04BaselineVerifiedFinalReviewAnnotation({
+  review: { status: "repair", issueCode: "dose_bound_violation" },
+  baselineIdentityVerified: true,
+}), undefined, "dose opinions stay fail-closed");
+assert.equal(m04BaselineVerifiedFinalReviewAnnotation({
+  review: { status: "repair", issueCode: "patient_context_mismatch" },
+  baselineIdentityVerified: true,
+}), undefined, "patient-context opinions stay fail-closed");
+assert.equal(m04BaselineVerifiedFinalReviewAnnotation({
+  review: { status: "accepted", issueCode: "none" },
+  baselineIdentityVerified: true,
+}), undefined);
+
+// ─── 信息不足病例的最小判断修复轮预算（甲方 08cc573 复测第 2 项：M03 长尾）────────────
+assert.equal(m03LimitedInformationRepairRoundAllowed(0, "m03_primary_syndrome_unstable", true), true,
+  "the first minimal-judgment repair round always runs");
+assert.equal(m03LimitedInformationRepairRoundAllowed(1, "m03_primary_syndrome_unstable", true), false,
+  "a limited-information case stops after one minimal-judgment round");
+assert.equal(m03LimitedInformationRepairRoundAllowed(2, "primary_syndrome_unstable", true), false,
+  "the bare contract code (without m03_ prefix) is the same family");
+assert.equal(m03LimitedInformationRepairRoundAllowed(1, "m03_chain_incomplete", true), false);
+assert.equal(m03LimitedInformationRepairRoundAllowed(1, "m03_overall_pathogenesis_unstable", true), false);
+assert.equal(m03LimitedInformationRepairRoundAllowed(2, "patient_fact_ungrounded_polarity", true), true,
+  "grounding/polarity repairs are never budget-capped");
+assert.equal(m03LimitedInformationRepairRoundAllowed(3, "m03_primary_syndrome_unstable", false), true,
+  "information-complete cases keep the full repair budget");
+// 接线完备性：预算谓词恰在第二轮/第三轮/终审重试三处被查询；终审链挂上基准受理；
+// 路由把门禁的信息不足判定传进编排。
+{
+  const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+  const gateSites = apiSource.split("m03LimitedInformationRepairRoundAllowed(").length - 1;
+  assert.equal(gateSites, 3, "limited-information repair budget is consulted at exactly the three retry sites");
+  assert.ok(apiSource.includes("m04BaselineVerifiedFinalReviewAnnotation({ review, baselineIdentityVerified: finalBaselineIdentityVerified })"),
+    "the finalize chain consults the baseline-verified acceptance policy");
+  const routeSource = readFileSync(new URL("../src/app/api/diagnosis/diagnose/route.ts", import.meta.url), "utf8");
+  assert.ok(routeSource.includes("structuredLimitedInformation: limitedInformation,"),
+    "the diagnose route passes the gate's limited-information verdict into orchestration");
 }

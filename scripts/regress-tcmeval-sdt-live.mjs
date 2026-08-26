@@ -171,7 +171,12 @@ async function postDiagnose(caseState, transportAttempt = 0) {
   try {
     const response = await fetch(`${BASE_URL}/api/diagnosis/diagnose`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(TOKEN ? { "x-cdss-api-token": TOKEN } : {}),
+        // 多租户生产版必须带客户标识，否则 JIT 租户路由直接拒绝（甲方 08cc573 复测第 8 项）。
+        ...(process.env.CDSS_CUSTOMER_ID ? { "x-cdss-customer-id": process.env.CDSS_CUSTOMER_ID } : {}),
+      },
       body: JSON.stringify({ caseState }),
       signal: controller.signal,
     });
@@ -233,6 +238,7 @@ async function runRecord(record) {
       allowDosePrescription: gatedState.safetyGate?.allowDosePrescription,
       redFlagCount: gatedState.safetyGate?.redFlags?.length || 0,
       missingItemCount: gatedState.safetyGate?.missingItems?.length || 0,
+      candidateMode: gatedState.safetyGate?.candidateMode,
       completeness: gatedState.completeness?.level,
     },
     stage: {

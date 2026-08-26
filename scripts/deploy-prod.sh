@@ -51,6 +51,10 @@ SYNC_PATHS=(
   src package.json package-lock.json next.config.ts tsconfig.json
   postcss.config.mjs eslint.config.mjs components.json Dockerfile docker-compose.yml
   scripts public
+  # 发布验证输入（甲方 08cc573 复测第 9 项）：多条确定性套件读 .env.example / docs /
+  # AGENTS.md / CLAUDE.md（env 契约、文档新鲜度、交付文案），源摘要链读 .dockerignore。
+  # 缺了它们，release 目录跑 test:deterministic 会在中途假红——只能退回 git worktree 验证。
+  .env.example .dockerignore docs AGENTS.md CLAUDE.md
 )
 
 echo "=== sync (commit=${COMMIT:0:12} digest=${DIGEST:0:12}) ==="

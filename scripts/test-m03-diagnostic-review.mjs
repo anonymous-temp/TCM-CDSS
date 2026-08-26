@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 import {
@@ -374,7 +375,7 @@ const jiti = createJiti(import.meta.url, {
     "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
   },
 });
-const { callDiagnosisStream, clinicalReviewModelCandidates, clinicalReviewRetryPlan, m03ReviewCanDowngradeToAdvisory, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRepairM03TcmHalfOnly, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
+const { boundM03AdvisoryReview, callDiagnosisStream, clinicalReviewAttestation, clinicalReviewModelCandidates, clinicalReviewQualityAttestation, clinicalReviewRetryPlan, m03ReviewCanDowngradeToAdvisory, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRepairM03TcmHalfOnly, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
 assert.deepEqual(clinicalReviewRetryPlan(0, 30_000, 35_000), { attemptCount: 0, chainBudgetMs: 35_000 });
 assert.deepEqual(clinicalReviewRetryPlan(2, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 35_000 });
 assert.deepEqual(clinicalReviewRetryPlan(1, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 50_000 }, "one independent reviewer gets one bounded transient retry");
@@ -408,6 +409,74 @@ assert.equal(
   true,
   "an M03 review quality concern becomes a bounded advisory after the deterministic safety contract passes",
 );
+
+// ─── 有界建议的审计完整性（甲方 08cc573 复测第 3 项）────────────────────────────
+// 复核器真实决定是 repair、服务端按质量意见有界受理时，签名 attestation 必须保留
+// reviewDecision=repair 与原始问题码，绝不能写成无原因的 unavailable。
+// TCMEval 20 例实测 10 例、麻黄汤活体探针 4/4 曾把这类签成 unavailable//（空原因）。
+const advisoryConverted = boundM03AdvisoryReview(
+  {
+    status: "repair",
+    issueCode: "tcm_reasoning_unsupported",
+    repairInstruction: "phlegm_damp_overreach",
+    reviewer: { provider: "bailian-qwen", model: "qwen3.8-max", source: "preferred", independentFromGenerator: true },
+    execution: { durationMs: 1200, attemptCount: 1, reason: "repair" },
+  },
+  reviewed,
+  reviewedClinicalContext,
+);
+assert.equal(advisoryConverted.status, "unavailable", "orchestration semantics stay advisory (no repair round)");
+assert.equal(advisoryConverted.advisoryBoundary, "quality_concern");
+assert.deepEqual(advisoryConverted.qualityOpinion, { decision: "repair", issueCode: "tcm_reasoning_unsupported" },
+  "the reviewer's raw decision survives the advisory conversion");
+const advisoryAttestation = clinicalReviewAttestation(advisoryConverted, reviewed);
+assert.equal(advisoryAttestation.status, "accepted", "bounded acceptance signs as accepted, not unavailable");
+assert.equal(advisoryAttestation.reviewDecision, "repair");
+assert.equal(advisoryAttestation.reviewIssueCode, "tcm_reasoning_unsupported");
+assert.equal(advisoryAttestation.unavailableReason, undefined);
+assert.equal(advisoryAttestation.independentFromGenerator, true, "reviewer identity still travels");
+assert.equal(advisoryAttestation.attemptCount, 1);
+// 反证 1：安全接地被破坏时不降档——原始 repair 原样返回，走修复轮，不产 qualityOpinion。
+const unsafeAdvisory = boundM03AdvisoryReview(
+  { status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: "chain_not_closed" },
+  (() => { const c = structuredClone(reviewed); c.pathogenesis.chain[0].patientFact = "意识异常"; return c; })(),
+  `${reviewedClinicalContext}；否认意识异常`,
+);
+assert.equal(unsafeAdvisory.status, "repair", "a safety-relevant concern is never converted to advisory");
+assert.equal(unsafeAdvisory.qualityOpinion, undefined);
+// 反证 2：真正的传输类不可用仍是 unavailable，且带原因码、不带 reviewDecision。
+const transportAttestation = clinicalReviewAttestation(
+  { status: "unavailable", issueCode: "review_unavailable", execution: { durationMs: 5, attemptCount: 3, reason: "http_error" } },
+  reviewed,
+);
+assert.equal(transportAttestation.status, "unavailable");
+assert.equal(transportAttestation.unavailableReason, "http_error");
+assert.equal(transportAttestation.reviewDecision, undefined);
+// 反证 3：advisory 标志存在但没有 qualityOpinion（防御空档）→ 不得伪装 accepted。
+const advisoryWithoutOpinion = clinicalReviewAttestation(
+  { status: "unavailable", issueCode: "review_unavailable", advisoryBoundary: "quality_concern" },
+  reviewed,
+);
+assert.equal(advisoryWithoutOpinion.status, "unavailable");
+// M03 侧质量受理 attestation（finalize 有界受理分支专用）与 M04 同一形状。
+const m03QualityAttestation = clinicalReviewQualityAttestation(
+  { status: "repair", issueCode: "formula_indication_mismatch", execution: { durationMs: 800, attemptCount: 1, reason: "repair" } },
+  reviewed,
+);
+assert.equal(m03QualityAttestation.status, "accepted");
+assert.equal(m03QualityAttestation.reviewDecision, "repair");
+assert.equal(m03QualityAttestation.reviewIssueCode, "formula_indication_mismatch");
+// 接线完备性：六处 advisory 消费点都把质量码并进 acceptanceScope；finalize 两个阶段各落 attestation。
+{
+  const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+  const scopeSites = apiSource.split("if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);").length - 1;
+  assert.equal(scopeSites, 6, "all six advisory consumer sites merge the quality issue code into acceptanceScope");
+  assert.ok(apiSource.includes("m03ClinicalReviewAttestation = clinicalReviewQualityAttestation("),
+    "the M03 finalize bounded-acceptance branch records a quality attestation");
+  const m04FinalizeSites = apiSource.split("m04ClinicalReviewAttestation = clinicalReviewQualityAttestation(").length - 1;
+  assert.equal(m04FinalizeSites, 3, "M04 quality attestations: mid-loop, second-round and finalize bounded acceptance");
+}
+
 const unsafeReviewedCandidate = structuredClone(reviewed);
 unsafeReviewedCandidate.pathogenesis.chain[0].patientFact = "意识异常";
 assert.equal(

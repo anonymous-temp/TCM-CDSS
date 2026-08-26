@@ -225,6 +225,55 @@ export function m04ZeroProviderRepairQualityAnnotation(review: {
 }
 
 /**
+ * 终审复核对**经典方身份已核验**候选的组成/药味计划类意见的有界受理（甲方 08cc573 复测第 1 项）。
+ *
+ * 场景（麻黄汤活体探针 RUN2，1/4 复现）：M03 稳定锁定经典方，候选组成已按受治理基准逐味
+ * 核验通过、全部确定性安全合同（药典剂量边界、配伍禁忌、特殊人群门禁）已完成；终审复核
+ * 仍返回组成/药味类 repair，而此时已无修复轮可承接。旧行为走截断——一张服务端自己核验过
+ * 组成身份的经典方整方作废，医生拿到非剂量参考页，同病例三跑一失败。
+ *
+ * 受理判据（default-deny）：
+ *  · 候选经典方身份与 M03 锁定对齐且 formulaNames 非空（调用方以
+ *    candidateClassicIdentityMatchesPrior 计算后传入）——服务端对组成的确定性核验
+ *    直接覆盖复核意见的事实基础；
+ *  · 意见码仅限 formula_composition_mismatch / herb_plan_mismatch 两类质量码；
+ *    剂量、患者前提（patient_context）类意见不进此路径，维持 fail-closed。
+ */
+export function m04BaselineVerifiedFinalReviewAnnotation(input: {
+  review: { status?: string; issueCode?: string };
+  baselineIdentityVerified: boolean;
+}): string | undefined {
+  if (!input.baselineIdentityVerified || input.review.status !== "repair") return undefined;
+  if (input.review.issueCode !== "formula_composition_mismatch" && input.review.issueCode !== "herb_plan_mismatch") {
+    return undefined;
+  }
+  return "独立临床复核在终审对候选方的组成或药味计划仍有保留意见，且本请求已无修复轮可承接。"
+    + "该候选的经典方名与组成已按标准方剂基准逐味核对通过，药典剂量边界、配伍禁忌与"
+    + "特殊人群核查均已完成；系统按质量意见有界受理，方药最终取舍请以医生辨证为准。";
+}
+
+/**
+ * 信息不足病例的最小临床判断修复轮预算（甲方 08cc573 复测第 2 项，M03 长尾时延）。
+ *
+ * 实测：信息不足头痛组最大 176.3s、TCMEval 最大 180.1s 触顶——长尾全部由
+ * primary_syndrome_unstable 一族「最小判断辅导」修复轮反复注入造成。这类病例的终态本来
+ * 就是症状级有限判断（门禁已判 needs_information / 完整度非 C），第 2、3 轮辅导极少改变
+ * 终态，只把总耗时拖向编排时限。策略：信息不足病例对这一族原因只允许 1 轮修复；
+ * 其余原因（事实极性、接地、结构等）不受影响，信息充分病例完全不变。
+ */
+const M03_MINIMAL_JUDGMENT_REPAIR_FAMILY =
+  /^(?:m03_)?(?:chain_(?:empty|incomplete)|primary_syndrome_unstable|overall_pathogenesis_unstable|therapy(?:_method)?_unstable|western_(?:diagnosis_unstable|support_empty))$/;
+
+export function m03LimitedInformationRepairRoundAllowed(
+  completedStructuredRepairs: number,
+  reason: string | undefined,
+  limitedInformation: boolean,
+): boolean {
+  if (!limitedInformation || completedStructuredRepairs < 1) return true;
+  return !M03_MINIMAL_JUDGMENT_REPAIR_FAMILY.test(String(reason || ""));
+}
+
+/**
  * A provider-repair exhaustion claim is valid only for the reviewer issue that actually triggered
  * a completed repair in this request. A global/cross-request exhaustion flag or an unrelated
  * contract fixpoint cannot authorize a new reviewer concern. Dose and patient-dependency opinions

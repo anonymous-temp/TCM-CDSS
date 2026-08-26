@@ -30,7 +30,7 @@ import { newM03ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
 import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
-import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, m04ArbitratedPatientContextAnnotation, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "@/lib/m04-repair-policy";
+import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, m04ArbitratedPatientContextAnnotation, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m03LimitedInformationRepairRoundAllowed, m04BaselineVerifiedFinalReviewAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
 import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
@@ -474,6 +474,12 @@ type StreamSafetyOptions = {
    * delivered. Only server routes set this value.
    */
   structuredOrchestrationStartedAt?: number;
+  /**
+   * 门禁已判信息不足（needs_information / 完整度非 C）。这类病例的终态本就是症状级
+   * 有限判断，「最小临床判断」一族修复轮只允许 1 轮（m03LimitedInformationRepairRoundAllowed），
+   * 防止 176s 级长尾。信息充分病例不受影响。
+   */
+  structuredLimitedInformation?: boolean;
   /**
    * 「同一病例 + 同一份已签名 M03」的重试身份（见 m04-retry-policy）。医生点「重新生成候选方药」
    * 时前端原样重发同一份 caseState，服务端据此认出这是第几次尝试；缺失时行为与今天完全一致。
@@ -2175,13 +2181,36 @@ type ClinicalReviewExecution<T extends ClinicalReviewResult> = T & {
   reviewer?: ClinicalReviewerIdentity;
   execution?: ClinicalReviewExecutionMeta;
   advisoryBoundary?: "quality_concern";
+  /**
+   * 有界建议转换前复核器的**原始决定**（甲方 08cc573 复测第 3 项，审计完整性）。
+   * boundM03AdvisoryReview 把质量类 repair 意见降为有界建议时，编排语义按 unavailable
+   * 走（不再触发修复轮），但签名 attestation 必须保留「复核不同意、服务端有界受理」的
+   * 事实——丢掉它，TCMEval 实测 10/20 例被签成无原因 unavailable。
+   */
+  qualityOpinion?: { decision: "repair"; issueCode: string };
 };
 
-function clinicalReviewAttestation(
+export function clinicalReviewAttestation(
   review: ClinicalReviewExecution<ClinicalReviewResult>,
   reasoning: unknown,
 ): ClinicalReviewAttestation {
   const reviewedPayloadHash = clinicalReviewPayloadHash(reasoning);
+  // 有界建议路径：复核器真实决定是 repair，m03ReviewCanDowngradeToAdvisory 已确认候选
+  // 完整通过确定性安全合同后按质量意见受理。attestation 按 M04 质量受理同一 doctrine 记
+  // accepted + reviewDecision=repair + 原始问题码——绝不能写成「复核不可用」。
+  if (review.advisoryBoundary === "quality_concern" && review.qualityOpinion) {
+    return {
+      status: "accepted",
+      reviewDecision: "repair",
+      reviewIssueCode: review.qualityOpinion.issueCode,
+      ...(review.execution ? {
+        attemptCount: review.execution.attemptCount,
+        durationMs: review.execution.durationMs,
+      } : {}),
+      ...(review.reviewer ? review.reviewer : {}),
+      ...(reviewedPayloadHash ? { reviewedPayloadHash } : {}),
+    };
+  }
   const status = review.status === "accepted" ? "accepted" : "unavailable";
   // 原因码必须随 attestation 一起走。此前只取 status 就返回，execution.reason 算出来即丢弃——
   // 与本文件里 independentFromGenerator 曾经的毛病同形（见 ClinicalReviewerIdentity 注释）。
@@ -2207,8 +2236,8 @@ function clinicalReviewAttestation(
  * the opinion is quality-only. It must never be used for dose, interaction, population or genuine
  * direction-conflict failures.
  */
-function clinicalReviewQualityAttestation(
-  review: ClinicalReviewExecution<M04ClinicalReview> & { status: "repair" },
+export function clinicalReviewQualityAttestation(
+  review: ClinicalReviewExecution<M03DiagnosticReview | M04ClinicalReview> & { status: "repair" },
   reasoning: unknown,
 ): ClinicalReviewAttestation {
   const reviewedPayloadHash = clinicalReviewPayloadHash(reasoning);
@@ -2443,6 +2472,34 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
   return complete(opts.unavailable, lastReason);
 }
 
+/**
+ * 质量类复核意见降为有界建议（编排语义 = 不再触发修复轮），但**保留复核器的原始决定**。
+ * 此前这里直接改写成 { status:"unavailable", issueCode:"review_unavailable" }，原始
+ * reviewDecision=repair 与问题码一起被丢弃，签名载荷把「复核不同意、服务端有界受理」
+ * 写成了「复核不可用且无原因」——TCMEval 20 例实测 10 例、麻黄汤活体探针 4/4 复现。
+ */
+export function boundM03AdvisoryReview(
+  review: ClinicalReviewExecution<M03DiagnosticReview>,
+  reasoning: unknown,
+  clinicalContext: string,
+): ClinicalReviewExecution<M03DiagnosticReview> {
+  if (!m03ReviewCanDowngradeToAdvisory(review, reasoning, clinicalContext)) return review;
+  console.warn("[tcm-cdss:model] M03 clinical review quality concern retained as bounded advisory", {
+    issueCode: review.issueCode,
+    repairGuidanceCodes: m03DiagnosticRepairGuidanceCodes(review),
+  });
+  return {
+    status: "unavailable",
+    issueCode: "review_unavailable",
+    ...(review.reviewer ? { reviewer: review.reviewer } : {}),
+    ...(review.execution ? { execution: review.execution } : {}),
+    advisoryBoundary: "quality_concern",
+    ...(review.status === "repair"
+      ? { qualityOpinion: { decision: "repair" as const, issueCode: review.issueCode } }
+      : {}),
+  };
+}
+
 async function reviewM03DiagnosticCriteria(
   reasoning: unknown,
   clinicalContext: string,
@@ -2453,20 +2510,7 @@ async function reviewM03DiagnosticCriteria(
 ): Promise<ClinicalReviewExecution<M03DiagnosticReview>> {
   const applyAdvisoryBoundary = (
     review: ClinicalReviewExecution<M03DiagnosticReview>,
-  ): ClinicalReviewExecution<M03DiagnosticReview> => {
-    if (!m03ReviewCanDowngradeToAdvisory(review, reasoning, clinicalContext)) return review;
-    console.warn("[tcm-cdss:model] M03 clinical review quality concern retained as bounded advisory", {
-      issueCode: review.issueCode,
-      repairGuidanceCodes: m03DiagnosticRepairGuidanceCodes(review),
-    });
-    return {
-      status: "unavailable",
-      issueCode: "review_unavailable",
-      ...(review.reviewer ? { reviewer: review.reviewer } : {}),
-      ...(review.execution ? { execution: review.execution } : {}),
-      advisoryBoundary: "quality_concern",
-    };
-  };
+  ): ClinicalReviewExecution<M03DiagnosticReview> => boundM03AdvisoryReview(review, reasoning, clinicalContext);
   const first = await runIndependentClinicalReview<M03DiagnosticReview>({
     stage: "diagnose",
     systemPrompt: "你是独立临床诊断标准复核器，只输出约定 JSON。不得编造患者事实。",
@@ -3865,7 +3909,10 @@ async function callPrimaryTextModelStream(
           authoritativeContent = reviewed.content;
           structuredReasoning = reviewed.reasoning;
           const review = reviewed.review;
-          if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
+          if (review.advisoryBoundary === "quality_concern") {
+                  m03ReviewAdvisoryBoundary = true;
+                  if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
+                }
           m03DiagnosticReviewStatus = review.status;
           m03DiagnosticReviewReason = m03SemanticReviewReason(review);
           m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -4193,7 +4240,10 @@ async function callPrimaryTextModelStream(
             resolvedRetryContent = reviewed.content;
             retriedReasoning = reviewed.reasoning;
             const review = reviewed.review;
-            if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
+            if (review.advisoryBoundary === "quality_concern") {
+                  m03ReviewAdvisoryBoundary = true;
+                  if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
+                }
             m03DiagnosticReviewStatus = review.status;
             m03DiagnosticReviewReason = m03SemanticReviewReason(review);
             m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -4338,6 +4388,13 @@ async function callPrimaryTextModelStream(
                 targetedM04Retry = false;
                 targetedM03Retry = false;
               }
+              if (targetedM03Retry && !m03LimitedInformationRepairRoundAllowed(structuredRetryCount, retryRejectionReason, opts.structuredLimitedInformation === true)) {
+                console.warn("[tcm-cdss:model] limited-information case: minimal-judgment repair budget spent; skipping round", {
+                  stage: "diagnose",
+                  reason: retryRejectionReason,
+                });
+                targetedM03Retry = false;
+              }
               if (targetedM04Retry || targetedM03Retry) {
               noteContractRepair(retryRejectionReason, targetedReviewDriven);
               noteQualityRepair(retryRejectionReason);
@@ -4431,7 +4488,10 @@ async function callPrimaryTextModelStream(
                 secondResolved = reviewed.content;
                 secondReasoning = reviewed.reasoning;
                 const review = reviewed.review;
-                if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
+                if (review.advisoryBoundary === "quality_concern") {
+                  m03ReviewAdvisoryBoundary = true;
+                  if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
+                }
                 m03DiagnosticReviewStatus = review.status;
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                 m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -4578,6 +4638,7 @@ async function callPrimaryTextModelStream(
                   // 同一条确定性合同拒绝码不再修第三次。上面的 thirdM03Fixpoint 只覆盖隔离形态，
                   // patient_fact_ungrounded_* 这类纯合同码走不到它。
                   !isRepeatedContractRepair(secondRejectionReason, secondDiagnosticReviewRejected) &&
+                  m03LimitedInformationRepairRoundAllowed(structuredRetryCount, secondRejectionReason, opts.structuredLimitedInformation === true) &&
                   opts.structuredStage === "diagnose" &&
                   shouldRunTargetedStructuredRetry("diagnose", secondRejectionReason) &&
                   !upstreamController.signal.aborted &&
@@ -4631,7 +4692,10 @@ async function callPrimaryTextModelStream(
                     thirdResolved = reviewed.content;
                     thirdReasoning = reviewed.reasoning;
                     const review = reviewed.review;
-                    if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
+                    if (review.advisoryBoundary === "quality_concern") {
+                  m03ReviewAdvisoryBoundary = true;
+                  if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
+                }
                     m03DiagnosticReviewStatus = review.status;
                     m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                     m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -5241,6 +5305,7 @@ async function callPrimaryTextModelStream(
               qualityRepairAvailable(finalizedM03RejectionReason) &&
               m03LastRepairTriggerReason !== finalizedM03RejectionReason &&
               !isRepeatedContractRepair(finalizedM03RejectionReason, false) &&
+              m03LimitedInformationRepairRoundAllowed(structuredRetryCount, finalizedM03RejectionReason, opts.structuredLimitedInformation === true) &&
               !clientStreamClosed &&
               !upstreamController.signal.aborted &&
               Date.now() < absoluteRunDeadline &&
@@ -5290,7 +5355,10 @@ async function callPrimaryTextModelStream(
                 finalizedRetryCandidate = reviewed.content;
                 finalizedRetryReasoning = reviewed.reasoning;
                 const review = reviewed.review;
-                if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
+                if (review.advisoryBoundary === "quality_concern") {
+                  m03ReviewAdvisoryBoundary = true;
+                  if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
+                }
                 m03DiagnosticReviewStatus = review.status;
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                 m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
@@ -5448,7 +5516,10 @@ async function callPrimaryTextModelStream(
                   upstreamController.signal,
                   m03GeneratorModel,
                 ));
-                if (review.advisoryBoundary === "quality_concern") m03ReviewAdvisoryBoundary = true;
+                if (review.advisoryBoundary === "quality_concern") {
+                  m03ReviewAdvisoryBoundary = true;
+                  if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
+                }
                 m03DiagnosticReviewStatus = review.status;
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                 m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
@@ -5466,6 +5537,13 @@ async function callPrimaryTextModelStream(
                 if (review.status === "repair" && m03FinalHardContractClean) {
                   m03FinalReviewAnnotation = m03FinalAnnotation;
                   m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.issueCode);
+                  // 有界受理不是复核不可用：按 M04 质量受理同一 doctrine 落 attestation
+                  //（accepted + reviewDecision=repair + 问题码），否则签名载荷丢失复核事实。
+                  m03ClinicalReviewAttestation = clinicalReviewQualityAttestation(
+                    review as ClinicalReviewExecution<M03DiagnosticReview> & { status: "repair" },
+                    finalReasoning,
+                  );
+                  m03ReviewedReasoning = finalReasoning;
                   console.warn("[tcm-cdss:model] final M03 review repair accepted with quality annotation", {
                     stage: "diagnose",
                     issueCode: review.issueCode,
@@ -5486,6 +5564,12 @@ async function callPrimaryTextModelStream(
                 ));
                 trackM04ReviewResult(review, finalReasoning);
                 m04ClinicalReviewStatus = review.status;
+                // finalize 的这次复核此前从不写 attestation：accepted 也好、有界受理也好，
+                // 签名载荷里都没有复核记录（与 M03 侧同一形状的审计缺口，一起修）。
+                m04ClinicalReviewAttestation = review.status === "repair"
+                  ? undefined
+                  : clinicalReviewAttestation(review, finalReasoning);
+                m04ReviewedReasoning = review.status === "repair" ? undefined : finalReasoning;
                 // finalize 阶段这次复核发生在所有修复轮之后——它给出的 repair 已经没有任何
                 // 修复轮可以承接，唯一的效果就是把一份走完全部确定性核验的方判成 0 味。
                 // 更糟的是它会把上面刚刚**带批注受理**的透明降级候选重新判死（实测网络医案 3，
@@ -5497,7 +5581,16 @@ async function callPrimaryTextModelStream(
                 // fail-closed; otherwise no real attestation exists and the signer would mislabel
                 // the result as review unavailable. Only repaired/declassified paths that do not
                 // already carry a quality-tier waiver may use the bounded final-review policy.
-                const finalReviewCandidateAnnotation = m04ZeroProviderRepairQualityAnnotation(review) || (
+                const finalCandidate0 = (finalReasoning as { formula?: { candidates?: Array<{ formulaNames?: unknown }> } })
+                  ?.formula?.candidates?.[0];
+                const finalBaselineIdentityVerified = Boolean(
+                  finalCandidate0 &&
+                  Array.isArray(finalCandidate0.formulaNames) &&
+                  finalCandidate0.formulaNames.some((name) => typeof name === "string" && name.trim()) &&
+                  candidateClassicIdentityMatchesPrior(finalCandidate0, opts.structuredPriorReasoning as Parameters<typeof candidateClassicIdentityMatchesPrior>[1]),
+                );
+                const finalReviewCandidateAnnotation = m04ZeroProviderRepairQualityAnnotation(review) ||
+                  m04BaselineVerifiedFinalReviewAnnotation({ review, baselineIdentityVerified: finalBaselineIdentityVerified }) || (
                   !m04QualityTierAcceptedAfterRepair
                     ? m04ProviderRepairExhaustedQualityAnnotation({
                         review,
@@ -5518,6 +5611,12 @@ async function callPrimaryTextModelStream(
                     )
                   : undefined;
                 if (review.status === "repair" && finalReviewAnnotation) {
+                  m04ClinicalReviewAttestation = clinicalReviewQualityAttestation(
+                    review as ClinicalReviewExecution<M04ClinicalReview> & { status: "repair" },
+                    finalReasoning,
+                  );
+                  m04ReviewedReasoning = finalReasoning;
+                  m04AcceptanceScope = appendAnnotationCode(m04AcceptanceScope, review.issueCode);
                   m04TransparentQualityAnnotation = [...new Set([
                     m04TransparentQualityAnnotation,
                     finalReviewAnnotation,

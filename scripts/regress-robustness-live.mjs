@@ -428,7 +428,12 @@ async function runCase(c) {
     redFlags: gateBody?.safetyGate?.redFlags || [],
     advisories: gateBody?.safetyGate?.advisories || [],
     missingItems: gateBody?.safetyGate?.missingItems || [],
-    completeness: gateBody?.completeness?.level,
+    // 服务端权威口径（甲方 08cc573 复测第 5 项）：red-flags 响应早已改为
+    // operationalCompleteness + prescriptionPermission.candidateMode，旧的顶层
+    // completeness 键不存在——继续读旧键会把 7 个「信息不足安全降级」病例误判成
+    // 「应出方却没出方」。candidateMode 同时存进结果供 oracle 自适应判定使用。
+    candidateMode: gateBody?.prescriptionPermission?.candidateMode ?? gateBody?.safetyGate?.candidateMode,
+    completeness: gateBody?.operationalCompleteness?.level ?? gateBody?.completeness?.level,
   };
 
   r.m03Attempts = [];

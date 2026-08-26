@@ -163,6 +163,7 @@ export async function POST(req: Request) {
   };
   return callDiagnosisStream(prompt, "deepseek", undefined, "markdown", {
     requestSignal: req.signal,
+    structuredLimitedInformation: limitedInformation,
     initialVisiblePrefix: initialSafetyBanner || undefined,
     upstreamUnavailableFallback: `${cdssReasonCodeMarker("upstream_model_unavailable")}\n${signedLimitedDiagnosis(upstreamGate, "not_attempted_upstream_down")}`,
     // M03 两半并行生成（时间专项）：两半共用上面这份完整提示词做前缀（provider 前缀缓存三方
