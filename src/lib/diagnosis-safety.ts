@@ -4471,7 +4471,11 @@ export function withSafetyGate(state: CaseState): CaseState {
     ...state,
     completeness: operationalCompleteness,
   };
-  return { ...next, safetyGate: evaluateSafetyGate(next) };
+  const gate = evaluateSafetyGate(next);
+  // 把剂量呈现模式随门禁一起下发：derivePrescriptionPermission 是唯一权威口径，
+  // 此前只在 HIS 出口消费，接口消费者只见 allowDosePrescription 布尔而误读为"不得出现剂量"。
+  const permission = derivePrescriptionPermission({ ...next, safetyGate: gate });
+  return { ...next, safetyGate: { ...gate, candidateMode: permission.candidateMode } };
 }
 
 export function reconcileRestoredCaseState(state: CaseState): CaseState {

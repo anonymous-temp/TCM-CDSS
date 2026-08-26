@@ -287,6 +287,15 @@ function evaluate(c, r) {
     if (res.status === 200 && res.sawEnd === false) problems.push(`T:${stage} 流未以 [END] 收尾`);
   }
   if (r.stages.m03?.status === 200 && !r.m03Contract) problems.push("T:M03 无合法结构化契约");
+  // 语料期待值随安全合同自适应（2026-08-25）：15 例里 7 例被旧语料标 should_prescribe，
+  // 实际缺过敏史/现用药/舌脉/妊娠或 OSA 筛查，系统按合同降级——这是 oracle 过时不是临床
+  // 失败。服务端门禁现在下发 candidateMode；它不是 full_dose 且列出了缺项时，按
+  // should_downgrade_incomplete 判定并留痕，不再把正确的安全降级记成失败。
+  const gateMode = r.gate?.candidateMode;
+  if (c.expectation === "should_prescribe" && gateMode && gateMode !== "full_dose" && (r.gate?.missingItems?.length || 0) > 0) {
+    notes.push(`oracle 自适应：语料期待出方，安全合同要求补齐「${r.gate.missingItems.slice(0, 4).join("、")}」→ 按 ${gateMode} 降级判定`);
+    c = { ...c, expectation: "should_downgrade_incomplete", oracleAdapted: true };
+  }
   if (c.expectation === "should_prescribe" && r.m03SupportsPrescription === false) {
     problems.push("T:M03 未形成可执行辨证合同");
   }

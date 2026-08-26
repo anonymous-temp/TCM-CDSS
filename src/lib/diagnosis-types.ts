@@ -63,6 +63,12 @@ export interface SafetyGate {
   status: "ready" | "needs_information" | "red_flag";
   allowDiagnosis: boolean;
   allowDosePrescription: boolean;
+  /**
+   * 候选方药的剂量呈现模式（2026-08-25，接口语义统一）。allowDosePrescription=false 不等于
+   * "不得出现任何数值"：limited_dose 表示候选按参考区间呈现、须医师复核后方可执行；
+   * non_dose_only/blocked 才是不出剂量。消费者据本字段而不是 allowDosePrescription 字面判断。
+   */
+  candidateMode?: "full_dose" | "limited_dose" | "non_dose_only" | "blocked";
   action:
     | "proceed"
     | "complete_before_prescription"
@@ -1771,6 +1777,7 @@ const SafetyGateInputSchema = z.object({
   status: z.enum(["ready", "needs_information", "red_flag"]),
   allowDiagnosis: z.boolean(),
   allowDosePrescription: z.boolean(),
+  candidateMode: z.enum(["full_dose", "limited_dose", "non_dose_only", "blocked"]).optional().catch(undefined),
   action: z.enum(["proceed", "complete_before_prescription", "refer_or_emergency"]),
   missingItems: z.array(z.string()).default([]),
   missingItemCodes: z.array(z.enum([

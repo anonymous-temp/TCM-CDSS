@@ -232,6 +232,23 @@ assert.equal(correctedBitterAlmond.issues[0].action, "MANUAL_REVIEW");
 assert.match(correctedBitterAlmond.issues[0].description, /药典有小毒.*不在医疗用毒性药品管制目录/);
 assert.doesNotMatch(JSON.stringify(correctedBitterAlmond.issues[0]), /当前医生权限标识为未提供/);
 
+// 供应商真实形态（甲方 2026-08-25 复测原样）：issueType=PRIVILEGE，evidence 里没有 ruleName，
+// 规则名只在 description。此前闭集未收 PRIVILEGE、证据只查 evidence[]——纠偏没进门。
+const providerPrivilegeForm = reconcileControlledToxicAuthorityIssues(regulatoryProbeState, 0, {
+  ...falseBitterAlmondAuthority,
+  issues: [{
+    ...falseBitterAlmondAuthority.issues[0],
+    issueId: "LINGXI-PRIVILEGE-REAL",
+    issueType: "PRIVILEGE",
+    description: "苦杏仁(捣碎) 药品主数据标注为毒性药品，当前医生权限标识为未提供。毒性药品处方权(主数据/官方管制目录)",
+    evidence: [],
+  }],
+});
+assert.equal(providerPrivilegeForm.highestRiskLevel, "MEDIUM", "PRIVILEGE 形态必须被纠偏：CRITICAL 误报不得到达医生");
+assert.equal(providerPrivilegeForm.issues[0].action, "MANUAL_REVIEW");
+assert.equal(providerPrivilegeForm.auditResult, "MANUAL_REVIEW");
+assert.doesNotMatch(JSON.stringify(providerPrivilegeForm.issues[0]), /医师处方权限需确认|权限标识为未提供/);
+
 const genuineControlledState = structuredClone(regulatoryProbeState);
 genuineControlledState.reasoningPrescribe.formula.candidates[0].herbs[2].name = "雄黄";
 const genuineControlled = reconcileControlledToxicAuthorityIssues(genuineControlledState, 0, falseBitterAlmondAuthority);

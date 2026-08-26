@@ -24,7 +24,9 @@ function failureStatus(code: M02AnswerInterpretationFailureCode): number {
   if (code === "invalid_request" || code === "invalid_case_state") return 400;
   if (code === "invalid_plan" || code === "invalid_answer") return 422;
   if (code === "model_not_configured") return 503;
-  if (code === "model_timeout") return 504;
+  // 解释是尽力而为：超时与契约失败同属业务降级（200 + ok:false + retryable），医生原话由
+  // 调用方原样保留；本接口不再出现 5xx（甲方 2026-08-25 复测：10 次 1 次 504）。
+  if (code === "model_timeout") return 200;
   if (code === "request_aborted") return 408;
   // 模型两轮都没交出合契约的结构——这是**业务降级**不是网关故障（甲方复测 P1-2：
   // 5 次 4 次 502）。返回 200 + ok:false + retryable，医生原话由调用方原样保留

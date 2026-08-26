@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.6 |
+| 文档版本 | V2.7 |
 | 发布日期 | 2026-08-24 |
 | 服务版本 | `tcm-cdss-20260824-multitenant-remediation-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
@@ -1315,6 +1315,8 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/red-flags" \
 >
 > 这是全系统**唯一**能把确定性阳性红旗整条抹掉的入口（命中后 `redFlags` 清空、
 > `allowDosePrescription` 由 `false` 变 `true`）。V1.3 及以前它的唯一内容判据是
+
+> **`safetyGate.candidateMode`（V2.7 起，剂量呈现模式的唯一口径）**：`allowDosePrescription=false` **不等于**"不得出现任何数值"。服务端按确定性权限判据下发 `candidateMode`：`full_dose`（剂量级候选，可作为处方依据）/ `limited_dose`（仍显示药味与参考剂量，但缺过敏史、现用药、舌脉或专科筛查等必要信息，**须医师补齐并复核后方可执行**）/ `non_dose_only`（仅非剂量建议，红旗未解除或硬边界未满足）/ `blocked`（缺主诉等前提，不生成候选）。集成方请以 `candidateMode` 而非 `allowDosePrescription` 字面判断是否允许出现剂量数值；HIS 写回同样按 `non_dose_only|blocked` 才抑制剂量级输出。
 > `assessmentSummary` 的字数 ≥12——一句无关的话即可签发。
 >
 > V1.4 起三条判据**必须同时成立**，缺一即不签发（凭证 = 解除约束，因此"证明不了"只能是"不解除"）：
@@ -2270,6 +2272,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.7 | 2026-08-25 | **接口语义统一与稳定性收口。** `safetyGate` 新增 `candidateMode`（full_dose/limited_dose/non_dose_only/blocked），明确 `allowDosePrescription=false` 下 limited_dose 仍显示参考剂量；`question/interpret` 的模型超时与契约失败改为 `200 + ok:false + retryable`（业务降级，医生原话由调用方保留，不再出现 5xx）；审方对"药典小毒但不在医疗用毒性药品管制目录"药材（如苦杏仁）的处方权限误报纠偏覆盖供应商真实返回形态（issueType=PRIVILEGE）。 | **否**：新增字段向后兼容；依赖 interpret 5xx 判失败的调用方改为检查 `ok` 字段 |
 | V2.6 | 2026-08-25 | **JIT 登记事务顺序整改（PROV-08）。** 库存载荷结构校验先于 JIT 登记：载荷不合法的首次请求返回 4xx/413 且不登记客户；条目级错误整批拒绝并回报 `rejectedEntries`/`rejectedEntryCount`（缺 `name`、`kind` 非枚举、`available` 非布尔不再静默丢弃或强转）；空 `items` 不再生成零条目库存。JIT 登记成功的库存/分片响应与 `/api/customers/register` 响应新增 `customerRegistered` 字段（`created` 保留兼容）。审计轮转仅作用于普通文件，路径误配置为目录时审计判不可用并 fail-closed。 | **否**：既有合法调用不受影响；此前依赖「空 items 也返回 200」或「非法条目被静默跳过」的调用方需改为提交合法载荷 |
 | V2.5 | 2026-08-24 | **多租户真实接口验收整改。** M03/M04、急症解除和临床事实证明签名域绑定 `clientId + customerId` 并升版；新增幂等、限额、持久化的客户 JIT 登记，首次库存 POST 可自动登记；新增租户隔离的结构化审计查询；严格 JSON Schema、usage/cached token 观测、Qwen effort 映射与租户公平并发队列同步上线。 | **是（签名版本）**：升级前的 M03/M04/急症解除/临床事实证明凭证失效并安全降级，需重新生成；既定 `CDSS_API_TOKEN` 保持不变。首次新客户写入请增加 `Idempotency-Key` |
 | V2.4 | 2026-08-21 | **固定 Token 多租户授权加固。** 同一既定接口 Token 只允许访问 `CDSS_API_CUSTOMER_IDS` 中预授权的客户；未知/未授权客户统一 `403 customer_forbidden`，登录接口也不会为其签发客户 Cookie。库存文件升级为带 `schemaVersion/customerId` 的 v2 并做读取归属复核；同客户导入串行、不同客户独立，缓存增加容量与空闲淘汰。所有 API 响应增加 `private, no-store` 与租户鉴权 `Vary`，库存成功响应返回经验证的 `x-cdss-customer-id`。严格健康检查纳入授权配置但不回显白名单。 | **是（配置项）**：部署必须新增 `CDSS_API_CLIENT_ID` 与 `CDSS_API_CUSTOMER_IDS`；既定 `CDSS_API_TOKEN` 不变。原已接入客户加入白名单后请求格式无需变化；未授权客户从此前可能被接受改为 403。旧库存需按部署手册显式迁移为 v2 |

@@ -1326,9 +1326,18 @@ export function mergeLocalHighRiskHerbPairIssues(
 }
 
 const CONTROLLED_TOXIC_AUTHORITY_ISSUE = /(?:毒性药品处方权|医师处方权限|医生权限标识|毒性药品[^。；;]{0,20}权限)/;
+// 2026-08-25 甲方复测：灵犀真实返回 issueType=PRIVILEGE / riskLevel=CRITICAL / action=BLOCK，
+// 而闭集只收了两个推断名，纠偏根本没进门——医生看到的 CRITICAL 误报原样到达。
+// 闭集按供应商真实取值扩齐；其余四条窄门（权限规则文本、无复合风险、非生成 id、
+// 药材不在管制目录）一条不减。
 const CONTROLLED_TOXIC_AUTHORITY_ISSUE_TYPES = new Set([
   "PRESCRIBER_AUTHORITY",
   "TOXIC_DRUG_PRESCRIBER_AUTHORITY",
+  "PRIVILEGE",
+  "PRESCRIPTION_PRIVILEGE",
+  "PRESCRIBER_PRIVILEGE",
+  "DOCTOR_PRIVILEGE",
+  "TOXIC_DRUG_PRIVILEGE",
 ]);
 const COMPOSITE_NON_AUTHORITY_RISK = /(?:超量|超剂量|剂量超限|配伍禁忌|相互作用|过敏|重复用药|妊娠|哺乳|肝肾|特殊人群)/;
 
@@ -1345,10 +1354,10 @@ function governedAuthorityIssueText(issue: RxAuditIssue): string {
 function isNarrowControlledToxicAuthorityIssue(issue: RxAuditIssue): boolean {
   const issueType = String(issue.issueType || "").normalize("NFKC").trim().toUpperCase();
   const text = governedAuthorityIssueText(issue);
-  const hasAuthorityRuleEvidence = issue.evidence.some((item) =>
-    /(?:毒性药品处方权|医疗用毒性药品[^。；;]{0,20}目录)/.test(
-      [item.ruleName, item.sourceName, item.quote].filter(Boolean).join("；"),
-    ));
+  // 权限规则的证据可能落在 evidence[].ruleName，也可能只写在 title/description（供应商
+  // 不同版本形态不一）——按 issue 全文匹配，避免"规则名换了个字段就漏纠偏"。
+  const hasAuthorityRuleEvidence =
+    /(?:毒性药品处方权|医疗用毒性药品[^。；;]{0,20}目录|主数据标注为毒性药品)/.test(text);
   return !issue.issueIdGenerated &&
     CONTROLLED_TOXIC_AUTHORITY_ISSUE_TYPES.has(issueType) &&
     CONTROLLED_TOXIC_AUTHORITY_ISSUE.test(text) &&
