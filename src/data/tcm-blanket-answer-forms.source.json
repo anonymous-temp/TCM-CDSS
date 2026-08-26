@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "tcm-blanket-answer-forms-v1",
+  "note": "M02 追问自由文本回答的整句总括形态（语言学构词层，非中医术语层）。仅当医生整句回答就是『量词前缀? + 核心词』时生效：blanketNegation → plan 内每个问题记 negative 事实；blanketUnknown → 每个问题 recordValue=null + unknown 事实。句中混合表达（『没有过敏，有咳嗽』）不匹配整句，照旧走模型解释。背景：2026-08-26 活体缺陷——两家模型都会从『都没有』内部抠出『有』标为 positive，修复轮不收敛；整句总括属有限枚举集合，按判据分层（docs/后台算法架构-现状-20260818.md §17）走确定性映射。",
+  "groups": {
+    "quantifierPrefixes": {
+      "basis": "总括量词/范围前缀，可叠加（『两个都』『全都』），剥离后再比对核心词。",
+      "terms": ["两个", "三个", "全部", "全都", "都", "均", "皆"]
+    },
+    "blanketNegation": {
+      "basis": "整句否定核心词。整句命中 ⇒ 对 plan 内每个问题输出 status=negative、引文=去尾标点的原句。",
+      "terms": ["没有", "没", "无", "否认"]
+    },
+    "blanketUnknown": {
+      "basis": "整句不知核心词。整句命中 ⇒ 对 plan 内每个问题输出 recordValue=null、status=unknown。",
+      "terms": ["不清楚", "不知道", "不了解", "不确定", "不详", "记不清", "说不清"]
+    }
+  }
+}

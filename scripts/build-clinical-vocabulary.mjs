@@ -75,6 +75,17 @@ const patientInstructionProhibitions = Object.fromEntries(
   ]),
 );
 
+// M02 整句总括回答形态（语言学构词层）。整句枚举集合按判据分层走确定性映射，
+// 词表不得写在代码里（2026-08-26，守卫测试拦截后迁入）。
+const blanketSource = read("tcm-blanket-answer-forms.source.json");
+const blanketAnswerForms = Object.fromEntries(
+  Object.entries(blanketSource.groups).map(([group, spec]) => [
+    group,
+    [...new Set((spec.terms || []).filter((t) => typeof t === "string" && t.trim()))]
+      .sort((a, b) => b.length - a.length),
+  ]),
+);
+
 const output = {
   schemaVersion: "tcm-cdss-clinical-vocabulary-v1",
   generatedFrom: {
@@ -83,6 +94,7 @@ const output = {
     syndromes: "tcm-syndrome-lexicon.json",
     populations: "tcm-population-scope.source.json",
     patientInstructionProhibitions: "tcm-patient-instruction-prohibitions.source.json",
+    blanketAnswerForms: "tcm-blanket-answer-forms.source.json",
   },
   counts: {
     locations: locationForms.length,
@@ -90,6 +102,7 @@ const output = {
     syndromeAxes: Object.keys(syndromeAxes).length,
     ...Object.fromEntries(Object.entries(populationForms).map(([k, v]) => [`population_${k}`, v.length])),
     ...Object.fromEntries(Object.entries(patientInstructionProhibitions).map(([k, v]) => [`prohibition_${k}`, v.length])),
+    ...Object.fromEntries(Object.entries(blanketAnswerForms).map(([k, v]) => [`blanket_${k}`, v.length])),
   },
   locations: locationForms,
   natures: natureForms,
@@ -98,6 +111,8 @@ const output = {
   populationSourceNote: populationSource.note,
   patientInstructionProhibitions,
   patientInstructionProhibitionNote: prohibitionSource.note,
+  blanketAnswerForms,
+  blanketAnswerFormNote: blanketSource.note,
 };
 
 const target = path.join(DATA, "clinical-vocabulary-derived.json");

@@ -272,4 +272,112 @@ assert.deepEqual(ordinalPhases, ["interpret"], "no repair round is spent on a co
 assert.equal(ordinalResult.answers[1].recordValue, "没有");
 assert.equal(ordinalResult.answers[1].clinicalFacts[0].status, "negative");
 
+// 2026-08-26 线上活体抓到（部署 2f220b6 后探针 #2）：医生答「都没有。」，模型输出
+// recordValue="有"、status=positive——「有」是「没有」的**字面内部子串**，接地判据
+// （无论逐字相等还是包含）都视其为已接地：否定词吞没肯定片段。这是构词式类缺陷
+// （判据分层允许确定性守卫的三种例外之一）。守卫语义：recordValue 或 positive/historical
+// 事实引文在医生原话中的**每一处出现**都紧跟在否定语素（没/无/未/不/非/否认）之后、
+// 且片段自身不携带否定语素时 ⇒ 拒绝。任何一处非否定出现（「有咳嗽，没有发热」）都放行。
+const blanketNegation = "都没有。";
+const negatedFragmentPositive = validateM02AnswerModelOutput(output([
+  { questionId: "q-allergy", targetField: "allergyHistory", recordValue: "有",
+    clinicalFacts: [{ status: "positive", quote: "有" }], groundedQuotes: ["有"] },
+]), plan, blanketNegation);
+assert.equal(negatedFragmentPositive.ok, false, "a fragment inside 没有 must not ground a positive record");
+assert.ok(negatedFragmentPositive.reasons.includes("record_value_polarity_negated"), JSON.stringify(negatedFragmentPositive));
+assert.ok(negatedFragmentPositive.reasons.includes("clinical_fact_polarity_negated"), JSON.stringify(negatedFragmentPositive));
+// 正确形态照常通过：总括否定 → 两题 negative，引文整条「都没有」。
+const blanketNegationCorrect = validateM02AnswerModelOutput(output([
+  { questionId: "q-allergy", targetField: "allergyHistory", recordValue: "都没有",
+    clinicalFacts: [{ status: "negative", quote: "都没有" }], groundedQuotes: ["都没有"] },
+  { questionId: "q-medication", targetField: "medicationHistory", recordValue: "都没有",
+    clinicalFacts: [{ status: "negative", quote: "都没有" }], groundedQuotes: ["都没有"] },
+]), plan, blanketNegation);
+assert.equal(blanketNegationCorrect.ok, true, `blanket negation mapped to negative facts stays valid: ${JSON.stringify(blanketNegationCorrect)}`);
+// 片段自身携带否定语素（「没有」）不受守卫影响——序号作答修复的形态保持绿。
+const negationCarryingFragment = validateM02AnswerModelOutput(output([
+  { questionId: "q-medication", targetField: "medicationHistory", recordValue: "没有",
+    clinicalFacts: [{ status: "negative", quote: "第二个没有" }], groundedQuotes: ["第二个没有"] },
+]), plan, "第一个不清楚，第二个没有。");
+assert.equal(negationCarryingFragment.ok, true, `negation-carrying recordValue is untouched: ${JSON.stringify(negationCarryingFragment)}`);
+// 存在任何一处非否定出现即放行：「有咳嗽，没有发热」的「有」不能被连坐。
+const mixedOccurrence = validateM02AnswerModelOutput(output([
+  { questionId: "q-allergy", targetField: "allergyHistory", recordValue: "有咳嗽",
+    clinicalFacts: [{ status: "positive", quote: "有咳嗽" }], groundedQuotes: ["有咳嗽"] },
+]), plan, "有咳嗽，没有发热。");
+assert.equal(mixedOccurrence.ok, true, `a non-negated occurrence keeps the positive record valid: ${JSON.stringify(mixedOccurrence)}`);
+// 「无汗」类：被否定语素前缀覆盖的症状词不得作为阳性事实接地。
+const noSweat = validateM02AnswerModelOutput(output([
+  { questionId: "q-allergy", targetField: "allergyHistory", recordValue: null,
+    clinicalFacts: [{ status: "positive", quote: "汗" }], groundedQuotes: ["无汗"] },
+]), plan, "无汗，恶寒重。");
+assert.equal(noSweat.ok, false);
+assert.ok(noSweat.reasons.includes("clinical_fact_polarity_negated"), JSON.stringify(noSweat));
+// 否认 + 片段：两字否定语素同样覆盖。
+const denied = validateM02AnswerModelOutput(output([
+  { questionId: "q-allergy", targetField: "allergyHistory", recordValue: "药物过敏",
+    clinicalFacts: [{ status: "positive", quote: "药物过敏" }], groundedQuotes: ["否认药物过敏"] },
+]), plan, "否认药物过敏。");
+assert.equal(denied.ok, false);
+assert.ok(denied.reasons.includes("record_value_polarity_negated"), JSON.stringify(denied));
+
+// 修复轮必须携带人类可读的中文指引（实测两家模型只见英文代码时原样重复被拒输出）。
+const guidancePrompts = [];
+// 注意：整句「都没有。」现在走确定性总括通路，不会到模型；这里用句中形态触发极性拒绝。
+const guidanceResult = await interpretM02Answer({
+  caseState, plan, doctorAnswer: "过敏那个没有。",
+  modelCall: async ({ userPrompt, phase }) => {
+    guidancePrompts.push({ phase, userPrompt });
+    if (phase === "interpret") {
+      return output([{ questionId: "q-allergy", targetField: "allergyHistory", recordValue: "有",
+        clinicalFacts: [{ status: "positive", quote: "有" }], groundedQuotes: ["有"] }]);
+    }
+    return output([
+      { questionId: "q-allergy", targetField: "allergyHistory", recordValue: "没有",
+        clinicalFacts: [{ status: "negative", quote: "没有" }], groundedQuotes: ["过敏那个没有"] },
+    ]);
+  },
+});
+assert.equal(guidanceResult.ok, true, `polarity rejection repairs to negative facts: ${JSON.stringify(guidanceResult)}`);
+const repairPrompt = guidancePrompts.find((item) => item.phase === "repair")?.userPrompt || "";
+assert.ok(repairPrompt.includes("record_value_polarity_negated"), "repair prompt keeps the machine reason code");
+assert.ok(repairPrompt.includes("被否定的片段"), "repair prompt carries the human-readable polarity guidance");
+assert.ok(repairPrompt.includes("rejectionGuidance"), "guidance travels in a dedicated field");
+
+// 整句总括回答走确定性通路：零模型调用、对 plan 内每个问题生效。
+{
+  let blanketModelCalls = 0;
+  const countingModel = async () => { blanketModelCalls += 1; return output([]); };
+  const blanketNo = await interpretM02Answer({ caseState, plan, doctorAnswer: "都没有。", modelCall: countingModel });
+  assert.equal(blanketNo.ok, true, `blanket negation resolves deterministically: ${JSON.stringify(blanketNo)}`);
+  assert.equal(blanketModelCalls, 0, "no model call is spent on a whole-sentence blanket answer");
+  assert.deepEqual(blanketNo.answers.map((a) => [a.questionId, a.recordValue, a.clinicalFacts[0].status]),
+    [["q-allergy", "都没有", "negative"], ["q-medication", "都没有", "negative"]]);
+  for (const phrase of ["均无", "无。", "没有", "两个都没有。", "否认。"]) {
+    const r = await interpretM02Answer({ caseState, plan, doctorAnswer: phrase, modelCall: countingModel });
+    assert.equal(r.ok, true, `"${phrase}" resolves deterministically`);
+    assert.ok(r.answers.every((a) => a.clinicalFacts[0].status === "negative"), phrase);
+  }
+  const blanketUnknown = await interpretM02Answer({ caseState, plan, doctorAnswer: "都不清楚。", modelCall: countingModel });
+  assert.equal(blanketUnknown.ok, true);
+  assert.ok(blanketUnknown.answers.every((a) => a.recordValue === null && a.clinicalFacts[0].status === "unknown"),
+    "blanket unknown maps to null record + unknown facts");
+  assert.equal(blanketModelCalls, 0, "none of the blanket forms reached the model");
+  // 反证：句中混合表达绝不能被总括通路吞掉——必须进模型。
+  const mixed = await interpretM02Answer({
+    caseState, plan, doctorAnswer: "没有过敏，有咳嗽。",
+    modelCall: async () => output([{ questionId: "q-allergy", targetField: "allergyHistory", recordValue: "没有过敏",
+      clinicalFacts: [{ status: "negative", quote: "没有过敏" }], groundedQuotes: ["没有过敏"] }]),
+  });
+  assert.equal(mixed.ok, true);
+  assert.equal(mixed.answers.length, 1, "a mixed sentence goes through the model, not the blanket path");
+  const ordinalNotBlanket = await interpretM02Answer({
+    caseState, plan, doctorAnswer: "第一个没有。",
+    modelCall: async () => output([{ questionId: "q-allergy", targetField: "allergyHistory", recordValue: "没有",
+      clinicalFacts: [{ status: "negative", quote: "第一个没有" }], groundedQuotes: ["第一个没有"] }]),
+  });
+  assert.equal(ordinalNotBlanket.ok, true);
+  assert.equal(ordinalNotBlanket.answers.length, 1, "an ordinal-scoped negation is NOT blanket — only the addressed question is answered");
+}
+
 console.log("M02 answer interpreter tests passed: authorization, grounding, negation/unknown, repair, and multi-question speech.");

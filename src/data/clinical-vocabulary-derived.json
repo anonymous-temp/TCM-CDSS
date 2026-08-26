@@ -5,7 +5,8 @@
   "natures": "tcm-nature-lexicon.json",
   "syndromes": "tcm-syndrome-lexicon.json",
   "populations": "tcm-population-scope.source.json",
-  "patientInstructionProhibitions": "tcm-patient-instruction-prohibitions.source.json"
+  "patientInstructionProhibitions": "tcm-patient-instruction-prohibitions.source.json",
+  "blanketAnswerForms": "tcm-blanket-answer-forms.source.json"
  },
  "counts": {
   "locations": 36,
@@ -20,7 +21,10 @@
   "population_reproductive_exclusion": 7,
   "population_medication_label_retained": 7,
   "prohibition_self_medication_change": 12,
-  "prohibition_prognosis_promise": 7
+  "prohibition_prognosis_promise": 7,
+  "blanket_quantifierPrefixes": 7,
+  "blanket_blanketNegation": 4,
+  "blanket_blanketUnknown": 7
  },
  "locations": [
   {
@@ -64585,5 +64589,32 @@
    "包治"
   ]
  },
- "patientInstructionProhibitionNote": "模型撰写的患者随访/调护文本里**禁止出现**的表述。\n\n【为什么需要】M05 的临床内容（复诊重点、疗效口径、生活管理）2026-08-10 起交由模型按本例证候撰写——\n一个辨证论治系统给风寒表实与湿热下注的病人发同一份调护本身就是错的。但随访文本直接面向患者，\n它绝不能变成第二张处方：剂量是 M04 与灵犀审方的职责，加减停换药必须由医生做。\n\n【为什么不能写在代码里】代码内手写词表与受治理词表必然漂移（见 clinical-vocabulary.ts 的元问题记录）。\n更要紧的是这一层的**失败方向不安全**：漏收一个词等于放行模型写出「可自行减量」，\n而不是像其他兜底那样回落模板。所以它必须是可审核、带依据、能被回归钉住的受治理来源。\n\n【判据边界】只收「让患者自行改变用药」与「剂量级指示」两类。\n生活调护本身的用词（忌生冷、少肥甘、畅情志）不在其列——那正是要模型写的东西。"
+ "patientInstructionProhibitionNote": "模型撰写的患者随访/调护文本里**禁止出现**的表述。\n\n【为什么需要】M05 的临床内容（复诊重点、疗效口径、生活管理）2026-08-10 起交由模型按本例证候撰写——\n一个辨证论治系统给风寒表实与湿热下注的病人发同一份调护本身就是错的。但随访文本直接面向患者，\n它绝不能变成第二张处方：剂量是 M04 与灵犀审方的职责，加减停换药必须由医生做。\n\n【为什么不能写在代码里】代码内手写词表与受治理词表必然漂移（见 clinical-vocabulary.ts 的元问题记录）。\n更要紧的是这一层的**失败方向不安全**：漏收一个词等于放行模型写出「可自行减量」，\n而不是像其他兜底那样回落模板。所以它必须是可审核、带依据、能被回归钉住的受治理来源。\n\n【判据边界】只收「让患者自行改变用药」与「剂量级指示」两类。\n生活调护本身的用词（忌生冷、少肥甘、畅情志）不在其列——那正是要模型写的东西。",
+ "blanketAnswerForms": {
+  "quantifierPrefixes": [
+   "两个",
+   "三个",
+   "全部",
+   "全都",
+   "都",
+   "均",
+   "皆"
+  ],
+  "blanketNegation": [
+   "没有",
+   "否认",
+   "没",
+   "无"
+  ],
+  "blanketUnknown": [
+   "不清楚",
+   "不知道",
+   "不了解",
+   "不确定",
+   "记不清",
+   "说不清",
+   "不详"
+  ]
+ },
+ "blanketAnswerFormNote": "M02 追问自由文本回答的整句总括形态（语言学构词层，非中医术语层）。仅当医生整句回答就是『量词前缀? + 核心词』时生效：blanketNegation → plan 内每个问题记 negative 事实；blanketUnknown → 每个问题 recordValue=null + unknown 事实。句中混合表达（『没有过敏，有咳嗽』）不匹配整句，照旧走模型解释。背景：2026-08-26 活体缺陷——两家模型都会从『都没有』内部抠出『有』标为 positive，修复轮不收敛；整句总括属有限枚举集合，按判据分层（docs/后台算法架构-现状-20260818.md §17）走确定性映射。"
 }

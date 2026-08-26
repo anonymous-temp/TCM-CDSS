@@ -20,6 +20,7 @@ import derived from "../data/clinical-vocabulary-derived.json" with { type: "jso
 type LexEntry = { id: string; canonical: string; forms: string[] };
 type Derived = {
   patientInstructionProhibitions?: Record<string, string[]>;
+  blanketAnswerForms?: Record<string, string[]>;
   locations: Array<LexEntry & { system: string | null }>;
   natures: Array<LexEntry & { kind: string | null }>;
   syndromeAxes: Record<string, { id: string; locations: string[]; natures: string[] }>;
@@ -182,3 +183,35 @@ export function patientInstructionProhibitionsIn(text: string): string[] {
 export function patientInstructionProhibitionCount(): number {
   return Object.values(VOCAB.patientInstructionProhibitions || {}).flat().length;
 }
+
+// ── M02 整句总括回答（语言学构词层，受治理源 tcm-blanket-answer-forms.source.json）────
+// 仅整句命中才分类：『量词前缀* + 核心词 + 尾标点?』。句中混合表达返回 null，由模型解释。
+const BLANKET_FORMS = (VOCAB.blanketAnswerForms || {}) as Record<string, string[]>;
+const BLANKET_QUANTIFIER_PREFIXES = BLANKET_FORMS.quantifierPrefixes || [];
+const BLANKET_NEGATION_FORMS = new Set(BLANKET_FORMS.blanketNegation || []);
+const BLANKET_UNKNOWN_FORMS = new Set(BLANKET_FORMS.blanketUnknown || []);
+const TRAILING_ANSWER_PUNCTUATION = /[\s。.!！~～，,、]+$/u;
+
+export function classifyBlanketAnswer(answer: string): "negation" | "unknown" | null {
+  let core = answer.trim().replace(TRAILING_ANSWER_PUNCTUATION, "");
+  if (!core) return null;
+  let stripped = true;
+  while (stripped) {
+    stripped = false;
+    for (const prefix of BLANKET_QUANTIFIER_PREFIXES) {
+      if (core.length > prefix.length && core.startsWith(prefix)) {
+        core = core.slice(prefix.length).trimStart();
+        stripped = true;
+        break;
+      }
+    }
+  }
+  if (BLANKET_NEGATION_FORMS.has(core)) return "negation";
+  if (BLANKET_UNKNOWN_FORMS.has(core)) return "unknown";
+  return null;
+}
+
+export function blanketAnswerFormCounts(): Record<string, number> {
+  return Object.fromEntries(Object.entries(BLANKET_FORMS).map(([group, forms]) => [group, forms.length]));
+}
+
