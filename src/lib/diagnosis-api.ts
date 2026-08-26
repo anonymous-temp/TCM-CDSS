@@ -840,7 +840,15 @@ function preferredClinicalReviewModelConfig(
   }
   const apiKey = primary.apiKey.trim();
   const baseUrl = primary.baseUrl;
-  const model = process.env.PRIMARY_CLINICAL_REVIEW_MODEL?.trim()
+  // 按阶段覆盖复核模型（2026-08-25 时延专项）：复核模型此前是全局单值 max——M03 生成在
+  // flash、复核在 max：14k token 提示词在 max 档 40s 预算内经常超时，落到 plus 兜底甚至
+  // flash（=生成方，不独立），2/10 unavailable。M03 用 plus 复核（快、与 flash 独立），
+  // M04 生成 plus 才需要 max 复核。未设置时沿用全局值，行为不变。
+  const stageReviewModel = (stage === "diagnose"
+    ? process.env.PRIMARY_DIAGNOSE_REVIEW_MODEL
+    : process.env.PRIMARY_PRESCRIBE_REVIEW_MODEL)?.trim();
+  const model = stageReviewModel
+    || process.env.PRIMARY_CLINICAL_REVIEW_MODEL?.trim()
     || process.env.PRIMARY_REVIEW_MODEL?.trim()
     || primary.model;
   return {

@@ -38,6 +38,8 @@ services:
       # Primary text reasoning/review defaults to Bailian Qwen; GLM remains tongue-image-only.
       PRIMARY_CLINICAL_REVIEW_PROVIDER: ${PRIMARY_CLINICAL_REVIEW_PROVIDER:-primary}
       PRIMARY_CLINICAL_REVIEW_MODEL: ${PRIMARY_CLINICAL_REVIEW_MODEL:-qwen3.8-max}
+      PRIMARY_DIAGNOSE_REVIEW_MODEL: ${PRIMARY_DIAGNOSE_REVIEW_MODEL:-qwen3.7-plus}
+      PRIMARY_PRESCRIBE_REVIEW_MODEL: ${PRIMARY_PRESCRIBE_REVIEW_MODEL:-qwen3.8-max}
       BAILIAN_QWEN_API_KEY: ${BAILIAN_QWEN_API_KEY:?set BAILIAN_QWEN_API_KEY}
       BAILIAN_QWEN_BASE_URL: ${BAILIAN_QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
       BAILIAN_QWEN_MODEL: ${BAILIAN_QWEN_MODEL:-qwen3.7-plus}
