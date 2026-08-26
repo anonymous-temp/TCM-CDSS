@@ -170,10 +170,16 @@ export function validateM02AnswerModelOutput(
     const quotesGrounded = interpreted.groundedQuotes.every((quote) => doctorAnswer.includes(quote));
     if (!quotesGrounded) reasons.add("quote_not_grounded");
 
+    // 接地不变量：可记录片段必须是医生原话的逐字连续子串，且落在某条已声明引文**之内**。
+    // 「之内」按包含判定，不按逐字相等——医生按序号作答（「第一个不清楚，第二个没有。」）时，
+    // 引文是「第二个没有」，可独立记录的片段只有「没有」；相等判据把不可记录的序号前缀硬塞进
+    // 等式，模型每一轮都给出同一份（正确的）输出，两轮全拒（2026-08-26 活体 3/3 复现，
+    // DeepSeek 与 Qwen 同形）。包含判定保留了全部安全属性：不出现在原话里的值仍被拒，
+    // 未被任何引文覆盖的值仍被拒；放开的只是等式这个过严的表达。
     if (
       interpreted.recordValue !== null
       && (!doctorAnswer.includes(interpreted.recordValue)
-        || !interpreted.groundedQuotes.includes(interpreted.recordValue))
+        || !coveredByDeclaredQuote(interpreted.groundedQuotes, interpreted.recordValue))
     ) {
       reasons.add("record_value_not_grounded");
     }
@@ -181,7 +187,7 @@ export function validateM02AnswerModelOutput(
     const clinicalFacts = interpreted.clinicalFacts || [];
     for (const fact of clinicalFacts) {
       if (!doctorAnswer.includes(fact.quote)) reasons.add("clinical_fact_not_grounded");
-      if (!interpreted.groundedQuotes.includes(fact.quote)) reasons.add("clinical_fact_quote_not_declared");
+      if (!coveredByDeclaredQuote(interpreted.groundedQuotes, fact.quote)) reasons.add("clinical_fact_quote_not_declared");
     }
 
     if (interpreted.recordValue === null) {
@@ -202,6 +208,10 @@ export function validateM02AnswerModelOutput(
     : { ok: true, data: parsed.data };
 }
 
+function coveredByDeclaredQuote(groundedQuotes: string[], fragment: string): boolean {
+  return fragment.length > 0 && groundedQuotes.some((quote) => quote.includes(fragment));
+}
+
 function boundedHeadTail(value: string, max: number): string {
   if (value.length <= max) return value;
   const side = Math.floor((max - 40) / 2);
@@ -215,7 +225,7 @@ function buildSystemPrompt(): string {
     "只解释 doctorAnswer 明确表达的内容。caseContext 仅用于消解指代，绝不能把既往病历内容冒充为本轮回答。",
     "每个确实被回答的问题输出一项；未被回答的问题不要输出。‘两个都没有’等明确覆盖多题的口语，可以为相应多题分别输出同一逐字引文。",
     "groundedQuotes 必须是 doctorAnswer 中逐字连续子串，保留原字词，不得同义改写。",
-    "recordValue 对于明确的肯定、否定或既往事实，必须逐字等于 groundedQuotes 中一个可独立记录的片段；不得补足症状、时间、程度、数值、药名或诊断。",
+    "recordValue 对于明确的肯定、否定或既往事实，必须是 groundedQuotes 某一条引文之内可独立记录的逐字连续片段（可以就是整条引文，也可以去掉‘第一个/第二个’这类序号指代后的片段）；不得补足症状、时间、程度、数值、药名或诊断。",
     "回答为不知道、不清楚、无法确认或仍有歧义时，recordValue 必须为 null，并用 clinicalFacts 的 unknown 或 uncertain 标记逐字引文。",
     "clinicalFacts 可省略；如提供，只能包含 status 和 quote。status 只能是 positive、negative、historical、unknown、uncertain，quote 必须同时出现在 groundedQuotes。",
     `输出结构：{"schemaVersion":"${M02_ANSWER_INTERPRETATION_SCHEMA_VERSION}","answers":[{"questionId":"q1","targetField":"xianbingshi","recordValue":"医生回答逐字片段或null","clinicalFacts":[{"status":"negative","quote":"逐字片段"}],"groundedQuotes":["逐字片段"]}]}`,
@@ -332,6 +342,15 @@ export async function interpretM02Answer(input: {
       }
 
       const validated = validateM02AnswerModelOutput(content, plan, doctorAnswer);
+      if (!validated.ok) {
+        // 生产上只看得到 model_output_invalid 这一个码，看不到是哪条判据拒的——甲方复测报
+        // 「1/10 超时」时我们连契约拒绝率都无法从日志读出。只记判据名与阶段，不记原话。
+        console.warn("[tcm-cdss:m02-interpret] 回答契约拒绝", {
+          phase: attempt === 0 ? "interpret" : "repair",
+          reasons: validated.reasons,
+          outputLength: content.length,
+        });
+      }
       if (validated.ok) {
         return {
           ok: true,

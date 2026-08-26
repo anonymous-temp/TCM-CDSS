@@ -219,4 +219,57 @@ const invalidRouteResponse = await POST(new Request("http://localhost/api/diagno
 assert.equal(invalidRouteResponse.status, 422, "route rejects an invalid plan before any model call");
 assert.equal((await invalidRouteResponse.json()).failure.code, "invalid_plan");
 
+// 2026-08-26 甲方复测衍生（活体 3/3 复现，DeepSeek 与 Qwen 输出同形）：医生按序号作答
+// 「第一个不清楚，第二个没有。」时，模型给出临床上正确的可记录片段 recordValue="没有"、
+// 逐字引文 "第二个没有"。旧判据要求 recordValue **逐字等于**某条 groundedQuotes，
+// 序号前缀（第二个）不可记录却被硬塞进等式，修复轮模型再次给出同一（正确）输出——
+// 定点：两轮都被拒，接口返回 model_output_invalid。接地不变量只需要「recordValue 是医生
+// 原话的逐字连续子串，且被某条已声明引文覆盖」；等式是过严的表达，不是安全边界。
+// clinicalFacts.quote 与 groundedQuotes 的关系同形，一起按包含判定。
+const ordinalAnswer = "第一个不清楚，第二个没有。";
+const ordinalOutput = (medication) => output([
+  { questionId: "q-allergy", targetField: "allergyHistory", recordValue: null,
+    clinicalFacts: [{ status: "unknown", quote: "第一个不清楚" }], groundedQuotes: ["第一个不清楚"] },
+  { questionId: "q-medication", targetField: "medicationHistory", ...medication },
+]);
+const ordinalContained = validateM02AnswerModelOutput(
+  ordinalOutput({ recordValue: "没有", clinicalFacts: [{ status: "negative", quote: "第二个没有" }], groundedQuotes: ["第二个没有"] }),
+  plan, ordinalAnswer,
+);
+assert.equal(ordinalContained.ok, true, `recordValue contained in a declared verbatim quote is grounded: ${JSON.stringify(ordinalContained)}`);
+const ordinalFactContained = validateM02AnswerModelOutput(
+  ordinalOutput({ recordValue: "没有", clinicalFacts: [{ status: "negative", quote: "没有" }], groundedQuotes: ["第二个没有"] }),
+  plan, ordinalAnswer,
+);
+assert.equal(ordinalFactContained.ok, true, `clinical fact quote contained in a declared quote is grounded: ${JSON.stringify(ordinalFactContained)}`);
+// 反证：包含判定不能放开成「在原话里出现即可」——recordValue 必须落在某条已声明引文之内。
+const ordinalUndeclared = validateM02AnswerModelOutput(
+  ordinalOutput({ recordValue: "没有", clinicalFacts: [{ status: "negative", quote: "第二个没有" }], groundedQuotes: ["第一个不清楚"] }),
+  plan, ordinalAnswer,
+);
+assert.equal(ordinalUndeclared.ok, false);
+assert.ok(ordinalUndeclared.reasons.includes("record_value_not_grounded"), "recordValue outside every declared quote is still rejected");
+const ordinalFabricated = validateM02AnswerModelOutput(
+  ordinalOutput({ recordValue: "没有用药", clinicalFacts: [{ status: "negative", quote: "第二个没有" }], groundedQuotes: ["第二个没有"] }),
+  plan, ordinalAnswer,
+);
+assert.equal(ordinalFabricated.ok, false);
+assert.ok(ordinalFabricated.reasons.includes("record_value_not_grounded"), "a recordValue absent from the doctor's words is still rejected");
+const ordinalFactUndeclared = validateM02AnswerModelOutput(
+  ordinalOutput({ recordValue: "没有", clinicalFacts: [{ status: "negative", quote: "第二个" }], groundedQuotes: ["没有"] }),
+  plan, ordinalAnswer,
+);
+assert.equal(ordinalFactUndeclared.ok, false);
+assert.ok(ordinalFactUndeclared.reasons.includes("clinical_fact_quote_not_declared"), "a fact quote outside every declared quote is still rejected");
+// 端到端：真实模型输出形态经 interpretM02Answer 一次通过，不进修复轮。
+const ordinalPhases = [];
+const ordinalResult = await interpretM02Answer({
+  caseState, plan, doctorAnswer: ordinalAnswer,
+  modelCall: fakeModel([ordinalOutput({ recordValue: "没有", clinicalFacts: [{ status: "negative", quote: "第二个没有" }], groundedQuotes: ["第二个没有"] })], ordinalPhases),
+});
+assert.equal(ordinalResult.ok, true, `ordinal-referenced answer is accepted: ${JSON.stringify(ordinalResult)}`);
+assert.deepEqual(ordinalPhases, ["interpret"], "no repair round is spent on a correct output");
+assert.equal(ordinalResult.answers[1].recordValue, "没有");
+assert.equal(ordinalResult.answers[1].clinicalFacts[0].status, "negative");
+
 console.log("M02 answer interpreter tests passed: authorization, grounding, negation/unknown, repair, and multi-question speech.");
