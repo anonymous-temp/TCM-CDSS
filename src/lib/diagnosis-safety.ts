@@ -3963,6 +3963,32 @@ function extractAllergyEvidenceText(text: string): string {
 // separately as actual dose boundaries, not confused with an unknown field.
 const FORMAL_ADOPTION_BLOCKING_CODES: ReadonlySet<SafetyMissingItemCode> = new Set(["chief_complaint"]);
 
+/**
+ * 剂量安全轴缺项闭集（2026-08-26 拆轴，与 2026-08-15 拆开红旗/剂量授权同一 doctrine）。
+ *
+ * 判层归因证据：TCM-SD 真实住院病历（现病史+查体+舌脉俱全）12/12 被压成「症状级工作
+ * 判断」，门禁缺项只有性别/生理状态、过敏史、用药明细——这三类决定「能不能给剂量」
+ * （candidateMode 已独立管辖），不构成「能不能命名证候」的证据缺口。四诊/主诉缺失会
+ * 生成各自的缺项码（tongue_unknown/pulse_unknown/chief_complaint…），因此「缺项码全部
+ * 落在本闭集」这一个子集判断自带四诊在场保证。妊娠特殊人群等无码追加条目会使码与条目
+ * 数不对应，谓词保守判不足——fail-closed。
+ */
+const DOSE_SAFETY_AXIS_MISSING_CODES: ReadonlySet<SafetyMissingItemCode> = new Set([
+  "sex_unknown",
+  "allergy_unknown",
+  "allergy_details",
+  "medication_unknown",
+  "medication_details",
+]);
+
+export function syndromeAxisInformationSufficient(gate: SafetyGate | null | undefined): boolean {
+  if (!gate || gate.status !== "needs_information") return false;
+  const codes = gate.missingItemCodes || [];
+  const items = gate.missingItems || [];
+  if (codes.length === 0 || codes.length !== items.length) return false;
+  return codes.every((code) => DOSE_SAFETY_AXIS_MISSING_CODES.has(code));
+}
+
 function semanticScreeningUnavailableItem(state: CaseState): string | undefined {
   if (state.clinicalFacts?.sourceCoverage === "partial") {
     return "病历超出语义红旗预检完整覆盖范围";

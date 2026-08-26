@@ -8,7 +8,7 @@ import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesis
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel } from "./clinical-polarity";
-import { sourceDocumentsNegation } from "./diagnosis-safety";
+import { sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
@@ -94,6 +94,16 @@ export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseS
   const completenessLevel = state?.completeness?.level;
   const activeRedFlag = state?.safetyGate?.status === "red_flag";
   if (!state || (completenessLevel === "C" && !activeRedFlag)) return content;
+  // 辨证轴/剂量轴拆分（2026-08-26）：B 级且缺项全部属于剂量安全闭集（性别/过敏史/用药
+  // 明细——candidateMode 已独立扣住剂量）时，四诊与主诉俱全（否则会有各自的缺项码），
+  // 辨证命名不再被剂量安全缺口连坐清空。红旗态、A 级、含任何辨证证据类缺项时照旧降级。
+  if (
+    !activeRedFlag &&
+    completenessLevel === "B" &&
+    syndromeAxisInformationSufficient(state.safetyGate)
+  ) {
+    return content;
+  }
   const reason = activeRedFlag
     ? "急危重风险未排除，当前仅保留症状级工作判断；先完成急诊或转诊评估并记录排除依据，再作具体辨证与方剂选择。"
     : "完整度未达C级，当前仅保留症状级工作判断；补充病程、伴随表现及必要四诊后，再作具体辨证与方剂选择。";

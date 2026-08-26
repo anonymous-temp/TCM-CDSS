@@ -241,7 +241,9 @@
     "test:chain-incomplete-repair-targeting": "jiti scripts/test-chain-incomplete-repair-targeting.mjs",
     "test:duplicated-safety-predicates": "jiti scripts/test-duplicated-safety-predicates.mjs",
     "test:governed-redflag-reachability": "jiti scripts/test-governed-redflag-vocabulary-reachability.mjs",
-    "test:medication-identity-convergence": "jiti scripts/test-medication-identity-convergence.mjs"
+    "test:medication-identity-convergence": "jiti scripts/test-medication-identity-convergence.mjs",
+    "regress:tcmsd": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-tcmsd-live.mjs",
+    "regress:tcmbest4sdt": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-tcmbest4sdt-live.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

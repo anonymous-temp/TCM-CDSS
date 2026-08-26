@@ -140,3 +140,64 @@ for (let iteration = 0; iteration < 20; iteration += 1) {
 }
 
 console.log(JSON.stringify({ suite: "m03-specificity-policy", checks: 73, failures: 0 }));
+// ─── 辨证轴/剂量轴拆分（2026-08-26，TCM-SD 12/12 全拒答的判层归因）────────────────
+// 证据：TCM-SD 真实住院病历（现病史+查体+舌脉俱全）门禁只缺「性别/生理状态、过敏史、
+// 用药明细」三项——全是剂量安全轴缺口（candidateMode 已独立管辖剂量），完整度被压到 B，
+// 特异性投影把辨证连坐清空成「症状级工作判断」。与 2026-08-15 拆开红旗/剂量授权两轴同形：
+// 剂量安全缺口不得摁死证候命名轴。判据：missingItemCodes 全部落在剂量安全闭集（舌/脉/主诉
+// 缺失会生成各自的码，所以子集判断自带四诊在场保证），且门禁为 needs_information、无红旗。
+const { syndromeAxisInformationSufficient } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const wrap = (value) => `报告正文\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(value)}\n<!-- DIAGNOSIS_JSON_END -->`;
+const doseSafetyOnlyGate = {
+  status: "needs_information",
+  allowDiagnosis: true,
+  allowDosePrescription: false,
+  missingItems: ["性别/生理状态（剂量建议前需明确生理风险分层）", "过敏史（明确有/无及过敏原/反应）", "当前用药（明确有/无及药物清单）"],
+  missingItemCodes: ["sex_unknown", "allergy_unknown", "medication_unknown"],
+  redFlags: [],
+  advisories: [],
+  reasons: [],
+};
+assert.equal(syndromeAxisInformationSufficient(doseSafetyOnlyGate), true,
+  "dose-safety-only gaps leave the syndrome axis sufficient");
+// 反证 1：混入辨证证据类缺口（舌象）→ 不足。
+assert.equal(syndromeAxisInformationSufficient({
+  ...doseSafetyOnlyGate,
+  missingItems: [...doseSafetyOnlyGate.missingItems, "舌象"],
+  missingItemCodes: [...doseSafetyOnlyGate.missingItemCodes, "tongue_unknown"],
+}), false, "a four-exam gap keeps the syndrome axis insufficient");
+// 反证 2：红旗门禁 → 不足；ready（无缺项）→ 不适用此判据。
+assert.equal(syndromeAxisInformationSufficient({ ...doseSafetyOnlyGate, status: "red_flag" }), false);
+assert.equal(syndromeAxisInformationSufficient({ ...doseSafetyOnlyGate, status: "ready", missingItems: [], missingItemCodes: [] }), false);
+// 反证 3：码与条目数不对应（如妊娠特殊人群条目无码追加）→ 保守判不足。
+assert.equal(syndromeAxisInformationSufficient({
+  ...doseSafetyOnlyGate,
+  missingItems: [...doseSafetyOnlyGate.missingItems, "特殊人群用药复核（妊娠/哺乳/备孕阳性）"],
+}), false, "an uncoded extra item fails closed");
+// 投影行为：B 级 + 剂量安全轴缺口 → 辨证保留；其余照旧清空。
+const doseSafetyState = {
+  completeness: { level: "B", redFlag: 0.4, infoGain: 0.5, managementImpact: 0.75, answerability: 0.5 },
+  safetyGate: doseSafetyOnlyGate,
+};
+const keptContent = applyM03DecisionSpecificityPolicy(wrap(reasoning), doseSafetyState);
+const keptReasoning = JSON.parse(keptContent.match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/)[1]);
+assert.equal(keptReasoning.overview.primarySyndrome, "外感风邪证",
+  "a B-level case whose only gaps are dose-safety keeps its syndrome");
+assert.deepEqual(keptReasoning.overview.recommendedFormulaNames, ["三拗汤"], "the formula direction survives too");
+// 反证 4：同为 B 级但缺口含舌象 → 仍清空成症状级。
+const mixedGapState = {
+  completeness: { level: "B", redFlag: 0.4, infoGain: 0.5, managementImpact: 0.75, answerability: 0.5 },
+  safetyGate: {
+    ...doseSafetyOnlyGate,
+    missingItems: [...doseSafetyOnlyGate.missingItems, "舌象"],
+    missingItemCodes: [...doseSafetyOnlyGate.missingItemCodes, "tongue_unknown"],
+  },
+};
+const cappedContent = applyM03DecisionSpecificityPolicy(wrap(reasoning), mixedGapState);
+const cappedReasoning = JSON.parse(cappedContent.match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/)[1]);
+assert.equal(cappedReasoning.overview.primarySyndrome, "症状级工作判断");
+// 反证 5：红旗态永远清空，无论缺项形态。
+const redFlagState = { completeness: { level: "B" }, safetyGate: { ...doseSafetyOnlyGate, status: "red_flag" } };
+const redFlagReasoning = JSON.parse(applyM03DecisionSpecificityPolicy(wrap(reasoning), redFlagState)
+  .match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/)[1]);
+assert.equal(redFlagReasoning.overview.primarySyndrome, "症状级工作判断");
