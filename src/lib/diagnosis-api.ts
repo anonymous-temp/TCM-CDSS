@@ -880,8 +880,14 @@ export function clinicalReviewModelCandidates(
   // Keep the explicit fallback first, then include both stage-model identities as a bounded retry
   // list. In an all-Pro deployment deduplication intentionally leaves one fresh review invocation;
   // metadata distinguishes that from the stronger, optional cross-model topology.
+  // 阶段覆盖生效后，全局复核模型（通常是 max）必须仍留在候选链里：M03 的 adjudication
+  // 第二遍按「与首轮复核方不同」选模型，链里若只剩 [plus, flash]，第二遍就落到 flash——
+  // 与 M03 生成方同模型，独立性丢失（05b3037 遥测：5/5 例第二遍 flash）。把全局值排在
+  // 配置回退之后、阶段模型之前，第二遍优先落 max。
+  const globalReviewModel = process.env.PRIMARY_CLINICAL_REVIEW_MODEL?.trim() || process.env.PRIMARY_REVIEW_MODEL?.trim() || "";
   const crossModelFallbacks = [
     configuredFallbackModel,
+    ...(globalReviewModel ? [globalReviewModel] : []),
     modelForStructuredStage(primary.model, stage),
     modelForStructuredStage(primary.model, stage === "diagnose" ? "prescribe" : "diagnose"),
   ].map((fallbackModel): ClinicalReviewModelConfig => ({
@@ -904,6 +910,11 @@ export function clinicalReviewModelCandidates(
   // preferred 与生成方同一模型身份时，只要链里存在跨模型候选就先用它——复核独立性是
   // 签名域里医生可见的证据强度位，不该由「preferred 恰好等于生成模型」这种配置巧合决定。
   // 稳定排序：独立者相对次序不变，同模型候选退到最后仍保留为兜底。
+  // 仅对默认同供应商拓扑生效：显式配置的跨供应商复核拓扑（PRIMARY_CLINICAL_REVIEW_PROVIDER
+  // ≠ primary）是运营的明确选择，其首选即便与生成方同身份也如实记录而不被重排
+  //（test-m03-diagnostic-review 钉住该契约）。
+  const provider = (process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER || "primary").trim().toLowerCase();
+  if (provider !== "primary") return deduplicated;
   return [...deduplicated].sort((left, right) =>
     Number(right.independentFromGenerator) - Number(left.independentFromGenerator));
 }

@@ -561,6 +561,14 @@ console.log(JSON.stringify({ cases: 36, failures: 0 }));
     const m04 = clinicalReviewModelCandidates("prescribe", primary);
     assert.equal(m04[0]?.model, "qwen3.8-max", "M04 复核首选按阶段覆盖为 max");
     assert.equal(m04[0]?.independentFromGenerator, true, "max 复核 plus 生成：独立");
+    // adjudication 第二遍：以首轮复核方（plus）为 generatorModelOverride 选"不同模型"——
+    // 必须先落全局 max，而不是 flash（=M03 生成方，不独立）。
+    const adjudication = clinicalReviewModelCandidates("diagnose", primary, "qwen3.7-plus");
+    assert.equal(adjudication[0]?.model, "qwen3.8-max",
+      `adjudication 第二遍首选必须是全局 max: ${JSON.stringify(adjudication.map((c) => c.model))}`);
+    assert.equal(m03.some((c) => c.model === "qwen3.8-max"), true, "阶段覆盖后全局复核模型仍须留在候选链");
+    const flashIndex = adjudication.findIndex((c) => c.model === "qwen3.7-flash");
+    assert.ok(flashIndex === -1 || flashIndex > 0, "与 M03 生成方同模型的 flash 只能是末位兜底");
     delete process.env.PRIMARY_DIAGNOSE_REVIEW_MODEL;
     assert.equal(clinicalReviewModelCandidates("diagnose", primary)[0]?.model, "qwen3.8-max", "未设阶段覆盖时沿用全局复核模型");
   } finally {
