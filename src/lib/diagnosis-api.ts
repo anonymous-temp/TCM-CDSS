@@ -5741,6 +5741,20 @@ async function callPrimaryTextModelStream(
                     issueCode: review.issueCode,
                   });
                 } else if (review.status === "repair") {
+                  // 终审复核仍要求修复、且没有任何受理批注可用 ⇒ 整方作废成 0 味。
+                  // 记录**为什么没有受理路径**，否则线上只看得到「被作废了」：
+                  // 实测 prod-smoke 20 例 1 例走到这里（此前挤牙膏式逐味修复修掉后的残留形态），
+                  // 候选已被降级成自拟方（formulaNames 空）⇒ baselineIdentityVerified=false
+                  // ⇒ m04BaselineVerifiedFinalReviewAnnotation 不适用，其余受理谓词也各有前提。
+                  // 只记录不判定，行为与改动前逐字相同。
+                  console.warn("[tcm-cdss:contract] M04 finalize repair with no acceptance path", {
+                    issueCode: review.issueCode,
+                    repairFocus: review.status === "repair" ? review.repairFocus : undefined,
+                    baselineIdentityVerified: finalBaselineIdentityVerified,
+                    qualityTierAcceptedAfterRepair: m04QualityTierAcceptedAfterRepair,
+                    previousReviewReason: m04LastRepairTriggerReason,
+                    previousReviewFocus: m04LastRepairFocus,
+                  });
                   truncated = true;
                   transformed = transformTruncateFallback();
                 }
