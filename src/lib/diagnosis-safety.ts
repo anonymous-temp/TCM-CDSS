@@ -3981,30 +3981,48 @@ function extractAllergyEvidenceText(text: string): string {
 const FORMAL_ADOPTION_BLOCKING_CODES: ReadonlySet<SafetyMissingItemCode> = new Set(["chief_complaint"]);
 
 /**
- * 剂量安全轴缺项闭集（2026-08-26 拆轴，与 2026-08-15 拆开红旗/剂量授权同一 doctrine）。
+ * 辨证轴的**非阻断**缺项闭集（2026-08-26，三轴分离后的最终形态）。
  *
- * 判层归因证据：TCM-SD 真实住院病历（现病史+查体+舌脉俱全）12/12 被压成「症状级工作
- * 判断」，门禁缺项只有性别/生理状态、过敏史、用药明细——这三类决定「能不能给剂量」
- * （candidateMode 已独立管辖），不构成「能不能命名证候」的证据缺口。四诊/主诉缺失会
- * 生成各自的缺项码（tongue_unknown/pulse_unknown/chief_complaint…），因此「缺项码全部
- * 落在本闭集」这一个子集判断自带四诊在场保证。妊娠特殊人群等无码追加条目会使码与条目
- * 数不对应，谓词保守判不足——fail-closed。
+ * 24 个缺项码按「这一项不满足，改变的是什么」归三轴：
+ *
+ *  · 剂量安全轴 —— 改变「能不能给药、给多少」：性别/生理状态、过敏史、当前用药、
+ *    妊娠/哺乳/备孕、儿科体重与儿童剂量规则。candidateMode 与儿科/妊娠独立硬边界
+ *    已单独管辖剂量，不该再连坐证候命名（拆轴依据同 2026-08-15 红旗/剂量授权两轴）。
+ *
+ *  · 安全评估/处置轴 —— 改变「要不要先做别的评估」：附加语义筛查不可用、优先临床
+ *    评估项、高风险主诉缺体征、情志危机/OSA/甲功专项筛查建议。与 2026-08-01
+ *    「检测永不阻断」同一条裁定：红旗本身都允许 M03 继续生成风险分析与鉴别，
+ *    专项筛查建议反而清空辨证是自相矛盾。semantic_screen_unavailable 尤其如此——
+ *    那是**我方附加层**没跑成（确定性红旗层仍在且该层按设计只增不减），
+ *    因我方降级而清空医生的辨证，代价与收益不成比例。
+ *    这些码仍进 missingItems → status=needs_information → 剂量照旧不放行、横幅照旧提示。
+ *
+ *  · 辨证证据轴 / 病历质量轴（**不在本闭集，继续压制**）—— 改变「证候能不能命名」：
+ *    主诉缺失、舌象/脉象未取得（四诊合参是证候命名的证据基础），以及年龄冲突、
+ *    血压倒置、体征数值非法与来源冲突这类「病历本身不可信」的录入错误。
+ *
+ * default-deny 不变：不在本闭集的码（含将来新增码）一律按压制处理。
+ * 码与条目数不对应（无码追加条目，如妊娠特殊人群复核）同样 fail-closed。
  */
-const DOSE_SAFETY_AXIS_MISSING_CODES: ReadonlySet<SafetyMissingItemCode> = new Set([
+const SYNDROME_AXIS_NON_BLOCKING_CODES: ReadonlySet<SafetyMissingItemCode> = new Set([
+  // 剂量安全轴
   "sex_unknown",
   "allergy_unknown",
   "allergy_details",
   "medication_unknown",
   "medication_details",
-  // 妊娠/哺乳/备孕状态与儿科体重、儿童剂量规则同属「决定能不能给药」这一轴：
-  // 它们改变的是可用药味与用量，不改变「证候叫什么」（2026-08-26 第二轮补齐，
-  // TCM-BEST4SDT 实测这批码是剩余的辨证压制源）。剂量侧不受影响——
-  // candidateMode 与儿科/妊娠独立硬边界照常扣住剂量与正式采纳。
   "pregnancy_unknown",
   "lactation_unknown",
   "conception_unknown",
   "pediatric_weight_unknown",
   "pediatric_dose_rules_unavailable",
+  // 安全评估/处置轴
+  "semantic_screen_unavailable",
+  "priority_evaluation_required",
+  "high_risk_missing_vitals",
+  "behavioral_crisis_screening",
+  "osa_screening",
+  "thyroid_screening",
 ]);
 
 export function syndromeAxisInformationSufficient(gate: SafetyGate | null | undefined): boolean {
@@ -4012,7 +4030,7 @@ export function syndromeAxisInformationSufficient(gate: SafetyGate | null | unde
   const codes = gate.missingItemCodes || [];
   const items = gate.missingItems || [];
   if (codes.length === 0 || codes.length !== items.length) return false;
-  return codes.every((code) => DOSE_SAFETY_AXIS_MISSING_CODES.has(code));
+  return codes.every((code) => SYNDROME_AXIS_NON_BLOCKING_CODES.has(code));
 }
 
 function semanticScreeningUnavailableItem(state: CaseState): string | undefined {

@@ -181,14 +181,35 @@ assert.equal(syndromeAxisInformationSufficient({
   missingItems: ["儿童体重数值", "未配置儿童剂量级处方规则（需儿科中医师/药师个体化复核）"],
   missingItemCodes: ["pediatric_weight_unknown", "pediatric_dose_rules_unavailable"],
 }), true, "pediatric dosing gaps do not block syndrome naming");
-// 反证：安全评估类缺口（语义筛查不可用、高风险缺体征、优先评估、危机筛查）仍必须压制辨证。
-for (const code of ["semantic_screen_unavailable", "high_risk_missing_vitals", "priority_evaluation_required", "behavioral_crisis_screening", "osa_screening"]) {
+// 安全评估/处置轴（2026-08-26 第三轮，owner 裁定）：这些码回答的是「要不要先做别的评估」，
+// 不是「证候叫什么」，不再清空辨证。依据与 2026-08-01「检测永不阻断」同一条：红旗本身都
+// 允许 M03 继续生成风险分析与鉴别，专项筛查建议反而清空辨证是自相矛盾。
+// 注意这条**推翻了本文件上一轮（同日）写的相反断言**——上一轮把它们一并归入压制侧是
+// 过度保守：semantic_screen_unavailable 是我们自己的**附加**语义层没跑成（确定性红旗层
+// 仍在，且该层按设计只增不减），因我方降级而清空医生的辨证，代价与收益不成比例。
+// 剂量侧一步没放：这些码仍进 missingItems → status=needs_information → 剂量不放行。
+for (const code of ["semantic_screen_unavailable", "high_risk_missing_vitals", "priority_evaluation_required", "behavioral_crisis_screening", "osa_screening", "thyroid_screening"]) {
   assert.equal(syndromeAxisInformationSufficient({
     ...doseSafetyOnlyGate,
     missingItems: [...doseSafetyOnlyGate.missingItems, `占位：${code}`],
     missingItemCodes: [...doseSafetyOnlyGate.missingItemCodes, code],
-  }), false, `${code} is a safety-assessment gap and must keep the syndrome axis capped`);
+  }), true, `${code} is a disposition-axis gap and must not erase the syndrome`);
 }
+// 反证：辨证证据轴与病历质量轴的缺口仍然压制——四诊合参是证候命名的证据基础，
+// 主诉缺失无从辨证，年龄冲突/体征数值错误意味着病历本身不可信。
+for (const code of ["tongue_unknown", "pulse_unknown", "chief_complaint", "age_conflict", "age_invalid", "blood_pressure_invalid", "vitals_invalid", "vitals_source_conflict"]) {
+  assert.equal(syndromeAxisInformationSufficient({
+    ...doseSafetyOnlyGate,
+    missingItems: [...doseSafetyOnlyGate.missingItems, `占位：${code}`],
+    missingItemCodes: [...doseSafetyOnlyGate.missingItemCodes, code],
+  }), false, `${code} is a syndrome-evidence / record-quality gap and must keep the cap`);
+}
+// 反证：未登记的新码一律 default-deny（将来加码时不会静默放行）。
+assert.equal(syndromeAxisInformationSufficient({
+  ...doseSafetyOnlyGate,
+  missingItems: [...doseSafetyOnlyGate.missingItems, "占位：未来新增码"],
+  missingItemCodes: [...doseSafetyOnlyGate.missingItemCodes, "some_future_code"],
+}), false, "an unclassified code defaults to capping");
 // 反证 3：码与条目数不对应（如妊娠特殊人群条目无码追加）→ 保守判不足。
 assert.equal(syndromeAxisInformationSufficient({
   ...doseSafetyOnlyGate,
