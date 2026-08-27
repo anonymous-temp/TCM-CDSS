@@ -2791,6 +2791,28 @@ function isControlledCounterAssistanceHerb(
     primaryDose / secondaryDose >= rule.minimumPrimaryToSecondaryRatio;
 }
 
+/**
+ * 全部不成立的高影响药味（2026-08-27）。
+ *
+ * 判据与 unsupportedHighImpactHerbIssue **同源**——后者就是取本函数的首条转成驳回码，
+ * 两处不许各写一份。分出这个入口是因为修复轮需要**全量**：生产日志实测
+ *（prod-smoke 产后气血两虚头痛）方里有多味无热证依据的清热药，逐轮只报一味：
+ *   herb_9_unsupported_high_impact_heat_clear → herb_10_... → herb_11_...
+ * 模型每轮只改一味，挤牙膏式修复耗尽预算后整方作废成 0 味。与本仓既有原则同条
+ *（missedLockableNames 的注释：修复提示必须带真实候选，否则它是一条无法执行的指令）。
+ */
+export function unsupportedHighImpactHerbFindings(
+  herbs: ReadonlyArray<HighImpactHerbLike>,
+  prior: M03ReasoningLike | null | undefined,
+  allowGovernedFormulaBaseline = false,
+  selectedFormulaNames: readonly string[] = [],
+  waiveVocabUnsupportedAnnotated = false,
+): Array<{ index: number; name: string; concepts: string[] }> {
+  return unsupportedHighImpactHerbScan(
+    herbs, prior, allowGovernedFormulaBaseline, selectedFormulaNames, waiveVocabUnsupportedAnnotated,
+  );
+}
+
 function unsupportedHighImpactHerbIssue(
   herbs: ReadonlyArray<HighImpactHerbLike>,
   prior: M03ReasoningLike | null | undefined,
@@ -2798,6 +2820,19 @@ function unsupportedHighImpactHerbIssue(
   selectedFormulaNames: readonly string[] = [],
   waiveVocabUnsupportedAnnotated = false,
 ): string | undefined {
+  const first = unsupportedHighImpactHerbScan(
+    herbs, prior, allowGovernedFormulaBaseline, selectedFormulaNames, waiveVocabUnsupportedAnnotated,
+  )[0];
+  return first ? `herb_${first.index}_unsupported_high_impact_${first.concepts.join("_")}` : undefined;
+}
+
+function unsupportedHighImpactHerbScan(
+  herbs: ReadonlyArray<HighImpactHerbLike>,
+  prior: M03ReasoningLike | null | undefined,
+  allowGovernedFormulaBaseline = false,
+  selectedFormulaNames: readonly string[] = [],
+  waiveVocabUnsupportedAnnotated = false,
+): Array<{ index: number; name: string; concepts: string[] }> {
   const required = requiredTherapyConcepts(prior);
   // 症状指征通道：M03 治法文本未明写该方向时，签名病历里的对应症状事实同样构成成立依据
   //（锁定方 + 基于症状的加减）。对立方向否决在下方独立执行，不受本通道影响。
@@ -2806,6 +2841,7 @@ function unsupportedHighImpactHerbIssue(
   // 饮片/部位名，模型按规范名写「当归」「黄连」，字符串相等永远对不上——实测清胃散被 M03 锁定后，
   // 它自己的当归仍以 blood_move 被驳回，整方 0 味。canonicalTcmHerbIdentity 两侧同归一，
   // 当归身与当归收敛到同一身份；解析不了的名字保持原样，不会误并。
+  const findings: Array<{ index: number; name: string; concepts: string[] }> = [];
   const governedFormulaIngredients = allowGovernedFormulaBaseline
     ? new Set(executableFormulaCompilationReferences(
         selectedFormulaNames.filter((name): name is string => typeof name === "string" && Boolean(name.trim())),
@@ -2851,9 +2887,9 @@ function unsupportedHighImpactHerbIssue(
       ? []
       : [...highImpact].filter((concept) => !required.has(concept) && !factSupported.has(concept));
     const unsupported = [...new Set([...vocabUnsupported, ...opposingLocked])];
-    if (unsupported.length > 0) return `herb_${index}_unsupported_high_impact_${unsupported.join("_")}`;
+    if (unsupported.length > 0) findings.push({ index, name: herbName, concepts: unsupported });
   }
-  return undefined;
+  return findings;
 }
 
 export function highImpactHerbDirectionIssue(

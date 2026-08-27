@@ -126,7 +126,17 @@ export function m04KnowledgeShortlistFromPrompt(prompt: string): string {
   return prompt.slice(start, end).trim().slice(0, 6_000);
 }
 
-export function buildM04ClinicalRepairHint(reason = ""): string {
+export function buildM04ClinicalRepairHint(
+  reason = "",
+  /**
+   * 本轮全部不成立的高影响药味（药名 + 不成立方向），由 unsupportedHighImpactHerbFindings 给出。
+   * 不带它时这条提示是**不可执行**的：驳回码只含下标（herb_9），提示只说「某味药」，
+   * 模型既不知道是哪一味、也不知道还有几味。生产实测就是这么挤牙膏的——
+   * herb_9 → herb_10 → herb_11 逐轮暴露，修复预算耗尽后整方作废成 0 味。
+   * 与 missedLockableNames 同一条 doctrine：修复提示必须带真实候选。
+   */
+  unsupportedHighImpactHerbs: readonly string[] = [],
+): string {
   if (/^m04_(?:candidates_empty|candidate_count)$/.test(reason)) {
     return [
       "M04 只能返回一个实际采用的候选方，不能没有候选，也不能同时返回多个备选。",
@@ -238,9 +248,12 @@ export function buildM04ClinicalRepairHint(reason = ""): string {
   }
   if (/^m04_candidate_\d+_herb_\d+_unsupported_high_impact_[a-z0-9_]+$/.test(reason)) {
     return [
-      "本次失败是某味药带有本例未成立的高影响治疗方向（清热、温阳、活血、泻下、开窍、软坚类），不是剂量或结构问题。",
-      "该方向在当前签名 M03 的治法与患者阳性事实中都没有依据：直接删除这味药，或替换为已成立治法方向上的药味；不得仅改剂量、改君臣佐使角色或改写理由把它保留下来。",
-      "其余已通过校验的药味、剂量、方名与组成保持原样；删除后候选仍须恰有 1–2 味君药且结构完整。",
+      "本次失败是有药味带着本例未成立的高影响治疗方向（清热、温阳、活血、泻下、开窍、软坚类），不是剂量或结构问题。",
+      ...(unsupportedHighImpactHerbs.length > 0
+        ? [`**本轮全部不成立的药味（必须一次改完，不要只改其中一味）**：${unsupportedHighImpactHerbs.join("；")}。`]
+        : []),
+      "该方向在当前签名 M03 的治法与患者阳性事实中都没有依据：直接删除这味药（清单里列出的每一味都要处理），或替换为已成立治法方向上的药味；不得仅改剂量、改君臣佐使角色或改写理由把它保留下来。",
+      "只改上列药味：其余已通过校验的药味、剂量、方名与组成保持原样；删除后候选仍须恰有 1–2 味君药且结构完整。",
     ].join("\n");
   }
   if (/^m04_modification_\d+_herb_\d+_unsupported_high_impact_[a-z0-9_]+$/.test(reason)) {

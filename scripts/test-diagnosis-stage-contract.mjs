@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SafetyContractIssue, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, uncoveredPrimaryTherapyDirections, priorDocumentedFactConcepts, stableM03SyndromeLabel, transparentFormulaTherapyIssue } = await import("../src/lib/diagnosis-stage-contract.ts");
+const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SafetyContractIssue, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, uncoveredPrimaryTherapyDirections, priorDocumentedFactConcepts, stableM03SyndromeLabel, transparentFormulaTherapyIssue, unsupportedHighImpactHerbFindings } = await import("../src/lib/diagnosis-stage-contract.ts");
 const { getM03TherapyLock } = await import("../src/lib/m03-therapy-lock.ts");
 const { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } = await import("../src/lib/m04-repair-policy.ts");
 const { editedPrescriptionSemanticIssue } = await import("../src/lib/prescription-revision.ts");
@@ -2262,6 +2262,55 @@ const windHeatNoHeatPrior = {
 };
 const windHeatNoHeatIssue = m04SemanticIssue(windHeatM04, "", windHeatNoHeatPrior) || "";
 assert.match(windHeatNoHeatIssue, /unsupported_high_impact_heat_clear/, "without any documented heat fact the heat direction stays governed by the separate high-impact layer");
+// ── 全部不成立药味一次报出（2026-08-27，M04 零味候选的根因）────────────────────
+// 生产日志（prod-smoke 随机命中，产后气血两虚头痛）：
+//   M04 semantic rejection { issue: 'candidate_0_herb_9_unsupported_high_impact_heat_clear' }
+//   → 下一轮 herb_10_unsupported_high_impact_heat_clear
+//   → 再下一轮 herb_11_...
+// 方里有多味无热证依据的清热药，而判据 return 第一个不成立的药、修复提示也只说
+// 「某味药」不指名——模型每轮只改一味，挤牙膏式修复耗尽预算后整方作废成 0 味。
+// 与本仓既有原则同条（missedLockableNames 的注释：修复提示必须带真实候选，
+// 否则它是一条无法执行的指令）：一次报出全部，并把药名给到修复轮。
+{
+  const multi = structuredClone(windHeatM04);
+  multi.formula.candidates[0].herbs = [
+    ...windHeatM04.formula.candidates[0].herbs,
+    { name: "连翘", dose: "10g", role: "佐", prescriptionRole: "清热解毒", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, targetPathogenesis: "风热犯表", function: "清热解毒", decoctionRequirement: "" },
+  ];
+  const findings = unsupportedHighImpactHerbFindings(multi.formula.candidates[0].herbs, windHeatNoHeatPrior);
+  // 两味清热药都要报出（旧口径只报第一味 index 0，第二味要等下一轮才暴露）。
+  // 薄荷不在清单里是对的：它的功用「发散风热」属解表方向，本例治法已锁定疏风解表。
+  assert.equal(findings.length, 2, `全部不成立药味必须一次报出，实际 ${JSON.stringify(findings)}`);
+  const names = findings.map((item) => item.name);
+  for (const expected of ["金银花", "连翘"]) {
+    assert.ok(names.includes(expected), `${expected} 应在不成立清单里：${JSON.stringify(names)}`);
+  }
+  assert.ok(!names.includes("薄荷"), `方向成立的药不得进清单：${JSON.stringify(names)}`);
+  assert.deepEqual(findings.map((item) => item.index), [0, 2], "下标必须是候选内的真实位置");
+  assert.ok(findings.every((item) => (item.concepts || []).includes("heat_clear")),
+    `每条都要带上不成立的方向：${JSON.stringify(findings)}`);
+  // 单一判据：逐个报的那个码必须与全量清单的首条同源，不得两处各判各的。
+  const singleIssue = m04SemanticIssue(multi, "", windHeatNoHeatPrior) || "";
+  assert.match(singleIssue, new RegExp(`herb_${findings[0].index}_unsupported_high_impact_`),
+    `逐个码与全量清单必须同源：${singleIssue} vs ${JSON.stringify(findings[0])}`);
+  // 反证：热证依据成立时清单为空（不得把成立的药也列进去）。
+  assert.deepEqual(unsupportedHighImpactHerbFindings(multi.formula.candidates[0].herbs, windHeatPrior), [],
+    "热证依据成立时不得报出任何不成立药味");
+  // 接线：修复提示的「一次性收口」清单必须与门禁同源。此前它把
+  // prescriptionRole/targetPathogenesis/function 拼成字符串再调 highImpactHerbDirectionIssue
+  // ——那正是该函数注释点名警告的用法（拼接串只落到 function 分支），于是提示列出的药味
+  // 与门禁实际驳回的对不上。源码级钉住调用形态，防止改回手工循环。
+  {
+    const apiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
+    assert.ok(apiSource.includes("unsupportedHighImpactHerbFindings("),
+      "修复提示必须走与门禁同一个入口");
+    assert.ok(!/const declared = \[herb\.prescriptionRole, herb\.targetPathogenesis, herb\.function\]/.test(apiSource),
+      "不得回退成拼接字符串再判方向的旧用法");
+    assert.ok(apiSource.includes("rejectedCandidateFormulaNames"),
+      "提示侧必须与门禁一样传候选方名做基准豁免，否则会把锁定方自带药味误列为必须删除");
+  }
+}
+
 const windHeatClearPrior = {
   ...windHeatPrior,
   pathogenesis: { chain: [{ ...windHeatPrior.pathogenesis.chain[0], therapyDirection: "疏风解表，清热解毒" }] },

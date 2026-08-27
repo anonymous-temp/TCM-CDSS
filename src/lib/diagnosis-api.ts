@@ -14,7 +14,7 @@ import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosi
 import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
-import { affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03PreservedParallelHalfIssue, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
+import { unsupportedHighImpactHerbFindings, affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03PreservedParallelHalfIssue, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
 import { parseStreamModuleDraftFrame, STREAM_REPLACE_MARKER, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
 import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
@@ -1808,6 +1808,18 @@ async function retryCompletePrimaryResponse(
       try {
         const rejectedReasoning = JSON.parse(rejectedJson);
         const rejectedHerbs = m04CandidateHerbsFromRepairPayload(rejectedReasoning);
+        // 门禁在算 unsupported 时会传候选自己的方名做基准豁免（锁定方自带的药味不算越界）。
+        // 提示侧不传就会把基准药味误列进「必须删除」清单，指挥模型拆掉锁定方的核心组成。
+        const rejectedCandidateFormulaNames = (() => {
+          const root = rejectedReasoning as {
+            formula?: { candidates?: Array<{ formulaNames?: unknown }> };
+            candidate?: { formulaNames?: unknown };
+          } | null | undefined;
+          const names = root?.candidate?.formulaNames ?? root?.formula?.candidates?.[0]?.formulaNames;
+          return Array.isArray(names)
+            ? names.filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+            : [];
+        })();
         const lock = priorReasoning && typeof priorReasoning === "object" && !Array.isArray(priorReasoning)
           ? priorReasoning as {
               primarySyndrome?: unknown;
@@ -1835,14 +1847,21 @@ async function retryCompletePrimaryResponse(
             ? [`${name} ${dose}→${limit.min}–${limit.max}g`]
             : [];
         });
-        const directionIssues = compactPrior ? rejectedHerbs.flatMap((herb) => {
-          const name = typeof herb.name === "string" ? herb.name.trim() : "";
-          const declared = [herb.prescriptionRole, herb.targetPathogenesis, herb.function]
-            .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
-            .join("；");
-          const issue = name ? highImpactHerbDirectionIssue(name, declared, compactPrior) : undefined;
-          return issue ? [`${name}（${issue.replace(/^herb_\d+_unsupported_high_impact_/, "")}）`] : [];
-        }) : [];
+        // 判据与门禁同源（2026-08-27）。此前这里把 prescriptionRole/targetPathogenesis/function
+        // 拼成一个字符串再调 highImpactHerbDirectionIssue——那正是该函数注释点名警告的用法：
+        // 拼接串只会落到 herb.function 分支，与门禁读取完整候选行的口径不一致，于是
+        // 「一次性收口」提示列出的药味与门禁实际驳回的对不上，该列的没列出来。
+        // 生产实测就是这么挤牙膏的：herb_9 → herb_10 → herb_11 逐轮暴露，修复预算耗尽后
+        // 整方作废成 0 味。改用 unsupportedHighImpactHerbFindings（门禁 issue 就取它的首条），
+        // 并补上门禁同样会传的基准豁免与方名，避免基准方自带药味被误列。
+        const directionIssues = compactPrior
+          ? unsupportedHighImpactHerbFindings(
+              rejectedHerbs as Parameters<typeof unsupportedHighImpactHerbFindings>[0],
+              compactPrior,
+              true,
+              rejectedCandidateFormulaNames,
+            ).map((finding) => `${finding.name}（${finding.concepts.join("_")}）`)
+          : [];
         if (doseIssues.length > 0 || directionIssues.length > 0) {
           candidateWideRepairHint = [
             "⚠️ 一次性收口：不要只修当前第一条错误；本轮必须同时处理整张候选方中的下列已知问题，避免下一轮才暴露同类错误。",
