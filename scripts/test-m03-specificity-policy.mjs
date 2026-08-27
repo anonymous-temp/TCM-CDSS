@@ -169,6 +169,26 @@ assert.equal(syndromeAxisInformationSufficient({
 // 反证 2：红旗门禁 → 不足；ready（无缺项）→ 不适用此判据。
 assert.equal(syndromeAxisInformationSufficient({ ...doseSafetyOnlyGate, status: "red_flag" }), false);
 assert.equal(syndromeAxisInformationSufficient({ ...doseSafetyOnlyGate, status: "ready", missingItems: [], missingItemCodes: [] }), false);
+// 闭集补齐（2026-08-26 第二轮，TCM-BEST4SDT 实测）：妊娠/哺乳/备孕状态与儿科体重、
+// 儿童剂量规则同属「决定能不能给药」，不决定「证候叫什么」——与性别/过敏史/用药同轴。
+assert.equal(syndromeAxisInformationSufficient({
+  ...doseSafetyOnlyGate,
+  missingItems: ["妊娠/哺乳/备孕状态（妊娠）", "妊娠/哺乳/备孕状态（哺乳）", "妊娠/哺乳/备孕状态（备孕）"],
+  missingItemCodes: ["pregnancy_unknown", "lactation_unknown", "conception_unknown"],
+}), true, "reproductive-status gaps are dose-axis only");
+assert.equal(syndromeAxisInformationSufficient({
+  ...doseSafetyOnlyGate,
+  missingItems: ["儿童体重数值", "未配置儿童剂量级处方规则（需儿科中医师/药师个体化复核）"],
+  missingItemCodes: ["pediatric_weight_unknown", "pediatric_dose_rules_unavailable"],
+}), true, "pediatric dosing gaps do not block syndrome naming");
+// 反证：安全评估类缺口（语义筛查不可用、高风险缺体征、优先评估、危机筛查）仍必须压制辨证。
+for (const code of ["semantic_screen_unavailable", "high_risk_missing_vitals", "priority_evaluation_required", "behavioral_crisis_screening", "osa_screening"]) {
+  assert.equal(syndromeAxisInformationSufficient({
+    ...doseSafetyOnlyGate,
+    missingItems: [...doseSafetyOnlyGate.missingItems, `占位：${code}`],
+    missingItemCodes: [...doseSafetyOnlyGate.missingItemCodes, code],
+  }), false, `${code} is a safety-assessment gap and must keep the syndrome axis capped`);
+}
 // 反证 3：码与条目数不对应（如妊娠特殊人群条目无码追加）→ 保守判不足。
 assert.equal(syndromeAxisInformationSufficient({
   ...doseSafetyOnlyGate,

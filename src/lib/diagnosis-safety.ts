@@ -3996,6 +3996,15 @@ const DOSE_SAFETY_AXIS_MISSING_CODES: ReadonlySet<SafetyMissingItemCode> = new S
   "allergy_details",
   "medication_unknown",
   "medication_details",
+  // 妊娠/哺乳/备孕状态与儿科体重、儿童剂量规则同属「决定能不能给药」这一轴：
+  // 它们改变的是可用药味与用量，不改变「证候叫什么」（2026-08-26 第二轮补齐，
+  // TCM-BEST4SDT 实测这批码是剩余的辨证压制源）。剂量侧不受影响——
+  // candidateMode 与儿科/妊娠独立硬边界照常扣住剂量与正式采纳。
+  "pregnancy_unknown",
+  "lactation_unknown",
+  "conception_unknown",
+  "pediatric_weight_unknown",
+  "pediatric_dose_rules_unavailable",
 ]);
 
 export function syndromeAxisInformationSufficient(gate: SafetyGate | null | undefined): boolean {
