@@ -6,7 +6,13 @@ export type CdssStageTelemetryEvent = Readonly<{
   outcome: CdssTelemetryOutcome;
   durationMs: number;
   retryCount?: number;
-  reviewStatus?: "accepted" | "repair" | "unavailable" | "not_run";
+  /**
+   * 「复核不可用」与「复核不同意、服务端有界受理」是两回事（甲方 08cc573 复测第 3 项）。
+   * 编排语义上有界建议按 unavailable 走（不再触发修复轮），但签名 attestation 记的是
+   * accepted + reviewDecision=repair + 原始问题码。运维指标此前只有 unavailable 一档，
+   * 于是 30h 生产实测 10/58 例被计成「复核不可用 17%」——与签名载荷说的完全相反。
+   */
+  reviewStatus?: "accepted" | "repair" | "unavailable" | "bounded_advisory" | "not_run";
   reviewAttemptCount?: number;
   reviewDurationMs?: number;
   reviewRebindCount?: number;
@@ -44,6 +50,8 @@ type StageAggregate = {
   retried: number;
   outcomes: Record<CdssTelemetryOutcome, number>;
   reviewUnavailable: number;
+  /** 复核不同意但候选已过确定性安全合同、按质量意见有界受理的次数。不计入 reviewUnavailable。 */
+  reviewBoundedAdvisory: number;
   reviewAttemptCountTotal: number;
   reviewDurationMsTotal: number;
   reviewRebindCount: number;
@@ -106,6 +114,7 @@ function emptyAggregate(): StageAggregate {
     retried: 0,
     outcomes: { success: 0, repaired: 0, fallback: 0, contract_rejected: 0, provider_error: 0 },
     reviewUnavailable: 0,
+    reviewBoundedAdvisory: 0,
     reviewAttemptCountTotal: 0,
     reviewDurationMsTotal: 0,
     reviewRebindCount: 0,
@@ -198,6 +207,7 @@ export function recordCdssStageTelemetry(event: CdssStageTelemetryEvent): void {
   if (retryCount > 0) aggregate.retried += 1;
   aggregate.outcomes[event.outcome] += 1;
   if (event.reviewStatus === "unavailable") aggregate.reviewUnavailable += 1;
+  if (event.reviewStatus === "bounded_advisory") aggregate.reviewBoundedAdvisory += 1;
   aggregate.reviewAttemptCountTotal += Math.max(0, Math.round(event.reviewAttemptCount || 0));
   aggregate.reviewDurationMsTotal += Math.max(0, Math.round(event.reviewDurationMs || 0));
   aggregate.reviewRebindCount += Math.max(0, Math.round(event.reviewRebindCount || 0));
@@ -282,6 +292,7 @@ export function getCdssStageTelemetrySnapshot(): unknown {
       retryCountTotal: aggregate.retryCountTotal,
       retried: aggregate.retried,
       reviewUnavailable: aggregate.reviewUnavailable,
+      reviewBoundedAdvisory: aggregate.reviewBoundedAdvisory,
       reviewAttemptCountTotal: aggregate.reviewAttemptCountTotal,
       reviewDurationMsTotal: aggregate.reviewDurationMsTotal,
       averageReviewDurationMs: aggregate.total > 0 ? Math.round(aggregate.reviewDurationMsTotal / aggregate.total) : 0,

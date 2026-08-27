@@ -59,6 +59,10 @@ async function callStage(path, caseState) {
   let raw = "";
   let firstContentMs = null;
   let modelFirstContentMs = null;
+  // 医生在等待期间实际读到的进度文案。心跳阶段名 2026-08-27 改成如实反映编排阶段
+  // （首稿 / 独立复核 / 第 N 轮修订），这里把每次运行真正出现过的文案收集起来，
+  // 让「阶段名是否诚实」成为生产可观测的事实，而不是只在单元测试里成立。
+  const heartbeatPhases = new Set();
   let pending = "";
   if (response.body) {
     const reader = response.body.getReader();
@@ -81,6 +85,9 @@ async function callStage(path, caseState) {
               chunk.status === "模型已开始返回临床正文" && Number(chunk.processedChars) > 0) {
             modelFirstContentMs = Date.now() - startedAt;
           }
+          if (chunk.type === "heartbeat" && typeof chunk.status === "string" && chunk.status.trim()) {
+            heartbeatPhases.add(chunk.status.trim());
+          }
         } catch { /* 等待完整 NDJSON 行 */ }
       }
     }
@@ -102,7 +109,7 @@ async function callStage(path, caseState) {
   const match = markdown.match(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/);
   let structured = null;
   if (match) { try { structured = JSON.parse(match[1].trim()); } catch { /* 保持 null,由断言报告 */ } }
-  return { status: 200, markdown, structured, responseHeaderMs, firstContentMs, modelFirstContentMs, durationMs };
+  return { status: 200, markdown, structured, responseHeaderMs, firstContentMs, modelFirstContentMs, durationMs, heartbeatPhases: [...heartbeatPhases] };
 }
 
 async function callSafetyPreflight(caseState) {
@@ -255,6 +262,7 @@ for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
         modelFirstContentMs: m03.modelFirstContentMs,
         durationMs: m03.durationMs,
       },
+      heartbeatPhases: m03.heartbeatPhases,
       primarySyndrome: r3?.overview?.primarySyndrome,
       diseaseDifferentials: differentials.map((item) => item?.diseaseName).filter(Boolean),
       locations,
@@ -266,6 +274,7 @@ for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
         modelFirstContentMs: m04.modelFirstContentMs,
         durationMs: m04.durationMs,
       },
+      heartbeatPhases: m04.heartbeatPhases,
       name: candidate.name,
       herbCount: candidate.herbs?.length,
       herbs: (candidate.herbs || []).map((herb) => herb.name),
@@ -317,6 +326,11 @@ const summary = {
     signedM03PrescriptionNonEmptyRate: signedM03Count
       ? signedM03WithNonEmptyPrescription / signedM03Count
       : 0,
+  },
+  // 医生在等待期间真正读到过的进度文案（去重、按阶段汇总）。
+  observedHeartbeatPhases: {
+    m03: [...new Set(samples.flatMap((sample) => sample.m03?.heartbeatPhases || []))],
+    m04: [...new Set(samples.flatMap((sample) => sample.m04?.heartbeatPhases || []))],
   },
   samples,
   checks: { failed: failures.length },

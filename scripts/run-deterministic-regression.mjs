@@ -350,6 +350,15 @@ const scripts = [
   "test:inspection-lexicon",
   // 字段槽 vs 自由文本两个谓词不得再合成一个（转述式脉象被判未采集 → 辨证降级）。
   "test:inspection-field-slot",
+  // 心跳阶段名(2026-08-27): 首稿流结束后 contentChars 不再变，复核/修订全程误报
+  // 「模型正在组织临床正文」；阶段名必须单一权威，且不得复写第二份心跳文案。
+  "test:stage-progress-phase",
+  // 有界受理语义一致性(2026-08-27): 复核不同意但服务端有界受理，签名记 accepted/repair，
+  // 运维指标此前借用 unavailable 一档 —— 30h 生产实测 10/58 例被读成「复核不可用 17%」。
+  "test:review-bounded-advisory",
+  // 经典方组成身份判据单一化(2026-08-27): 复核载荷此前不带服务端核验数字，复核器凭记忆
+  // 推翻确定性层刚判过的同一件事 —— 30h 生产 6/29 次判组成不符、5 次零修复直接剥名。
+  "test:m04-review-identity-floor",
   "test:clinical-entry",
   "test:clinical-terminology",
   "test:controlled-semantic-normalization",

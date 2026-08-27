@@ -15,7 +15,7 @@ import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolve
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
 import { applyActionableFollowupSafetyNetContract } from "@/lib/followup-safety-net";
 import { unsupportedHighImpactHerbFindings, affirmedTcmTherapyConcepts, applyM03KeySyndromeDiscriminatorsToContent, candidateClassicIdentityMatchesPrior, isDeclassifiedSelfDevisedCandidate, primaryPathogenesisTherapyText, canonicalTcmHerbIdentity, describeM03GroundingConflict, describeM03WesternSupportConflict, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03PreservedParallelHalfIssue, m03SemanticIssue, m04SafetyContractIssue, m04SemanticIssue, transparentFormulaTherapyIssue, m03SafetyContractIssue, isUnstableM03CoreText,} from "@/lib/diagnosis-stage-contract";
-import { parseStreamModuleDraftFrame, STREAM_REPLACE_MARKER, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
+import { parseStreamModuleDraftFrame, stageProgressHeartbeatStatus, STREAM_REPLACE_MARKER, type StageProgressPhase, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
 import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
@@ -2305,6 +2305,18 @@ type ClinicalReviewExecution<T extends ClinicalReviewResult> = T & {
   qualityOpinion?: { decision: "repair"; issueCode: string };
 };
 
+/**
+ * 「复核不同意、但候选已过确定性安全合同，服务端按质量意见有界受理」这一形态的**唯一**谓词。
+ * attestation（签名载荷）与 cdss_stage 运维指标必须问同一个问题——此前指标侧只看
+ * review.status，于是同一次复核在签名里是 accepted/repair，在指标里是 unavailable。
+ */
+export function isBoundedAdvisoryReview<T extends {
+  advisoryBoundary?: "quality_concern";
+  qualityOpinion?: { decision: "repair"; issueCode: string };
+}>(review: T): review is T & { qualityOpinion: { decision: "repair"; issueCode: string } } {
+  return review.advisoryBoundary === "quality_concern" && Boolean(review.qualityOpinion);
+}
+
 export function clinicalReviewAttestation(
   review: ClinicalReviewExecution<ClinicalReviewResult>,
   reasoning: unknown,
@@ -2313,7 +2325,7 @@ export function clinicalReviewAttestation(
   // 有界建议路径：复核器真实决定是 repair，m03ReviewCanDowngradeToAdvisory 已确认候选
   // 完整通过确定性安全合同后按质量意见受理。attestation 按 M04 质量受理同一 doctrine 记
   // accepted + reviewDecision=repair + 原始问题码——绝不能写成「复核不可用」。
-  if (review.advisoryBoundary === "quality_concern" && review.qualityOpinion) {
+  if (isBoundedAdvisoryReview(review)) {
     return {
       status: "accepted",
       reviewDecision: "repair",
@@ -2873,7 +2885,12 @@ async function callPrimaryTextModelStream(
           contractRepairedReasons.set(reason, (contractRepairedReasons.get(reason) || 0) + 1);
         }
       };
-      let m03DiagnosticReviewStatus: M03DiagnosticReview["status"] | "not_run" = "not_run";
+      // 初始值显式加宽：赋值收进 noteM03ReviewStatus 之后，控制流分析在本作用域只看得见
+      // 这一处初始化，会把变量收窄成字面量 "not_run"，让既有的 === "repair" 比较被判无重叠。
+      let m03DiagnosticReviewStatus = "not_run" as M03DiagnosticReview["status"] | "not_run";
+      // 有界受理不是「复核不可用」。编排语义仍按 unavailable 走（不触发修复轮），
+      // 但运维指标要与签名 attestation 说同一句话——两者共用 isBoundedAdvisoryReview。
+      let m03ReviewBoundedAdvisory = false;
       let m03ReviewAdvisoryBoundary = false;
       let m03DiagnosticReviewReason: string | undefined;
       let m03DiagnosticRepairGuidance = "";
@@ -2919,10 +2936,30 @@ async function callPrimaryTextModelStream(
       let clinicalReviewAttemptCount = 0;
       let clinicalReviewDurationMs = 0;
       let clinicalReviewRebindCount = 0;
-      const observeClinicalReview = <T extends ClinicalReviewResult>(review: ClinicalReviewExecution<T>): ClinicalReviewExecution<T> => {
+      // 心跳阶段名的**唯一**权威（见 diagnosis-stream-protocol.ts 的说明）。只有两个写入点：
+      // observeClinicalReview（进入独立复核）与 beginStructuredRepairRound（进入第 N 轮修订），
+      // 都是各自那件事的单一入口——阶段名因此不可能与实际编排状态分叉。
+      let orchestrationPhase: StageProgressPhase = "draft";
+      // 复核是 await 之后才回到这里的，所以观察点必须接 Promise 而不是接已完成的值：
+      // 接值的话阶段名只会在复核**结束后**才被置位，而那正是要如实报告的那段等待。
+      const observeClinicalReview = async <T extends ClinicalReviewResult>(
+        pending: Promise<ClinicalReviewExecution<T>>,
+      ): Promise<ClinicalReviewExecution<T>> => {
+        orchestrationPhase = "review";
+        const review = await pending;
         clinicalReviewAttemptCount += review.execution?.attemptCount || 0;
         clinicalReviewDurationMs += review.execution?.durationMs || 0;
         return review;
+      };
+      // 修复轮计数与阶段名收在一起：此前 4 处各写各的 `structuredRetryCount += 1`，
+      // 新增一处就会漏掉阶段名。
+      const noteM03ReviewStatus = (review: ClinicalReviewExecution<M03DiagnosticReview>) => {
+        m03DiagnosticReviewStatus = review.status;
+        m03ReviewBoundedAdvisory = isBoundedAdvisoryReview(review);
+      };
+      const beginStructuredRepairRound = () => {
+        structuredRetryCount += 1;
+        orchestrationPhase = "repair";
       };
       // Record the outcome of every M03 candidate review that can trigger a repair round. The
       // rejected candidate must be captured before the caller clears it on repair.
@@ -3224,7 +3261,7 @@ async function callPrimaryTextModelStream(
           candidateContent = finalizedCandidate.content;
           candidateReasoning = finalizedCandidate.reasoning;
         }
-        const runReview = async () => observeClinicalReview(await reviewM03DiagnosticCriteria(
+        const runReview = async () => observeClinicalReview(reviewM03DiagnosticCriteria(
           candidateReasoning,
           opts.structuredClinicalContext || "",
           opts.structuredReviewEvidenceContext || "",
@@ -3356,7 +3393,7 @@ async function callPrimaryTextModelStream(
         generatorModel: string | undefined,
         unavailableContext: string,
       ): Promise<ClinicalReviewExecution<M04ClinicalReview>> => {
-        const review = observeClinicalReview(await reviewM04ClinicalPlan(
+        const review = await observeClinicalReview(reviewM04ClinicalPlan(
           reasoning,
           opts.structuredPriorReasoning,
           opts.structuredClinicalContext || "",
@@ -3479,6 +3516,10 @@ async function callPrimaryTextModelStream(
       stopClientHeartbeat = stopHeartbeat;
       const enqueueClient = (content: string) => {
         if (clientStreamClosed) return;
+        // 定稿正文一旦下发，就没有任何「进行中」可报了。心跳是独立的 5s 定时器，与 finalize
+        // 之间存在一个真实窗口：医生已经看到完整报告，下面却还挂着一行「正在按复核意见第 N 轮
+        // 修订定稿」。在唯一出口处停表，一次覆盖全部替换标记下发点（当前 6 处）。
+        if (content.startsWith(STREAM_REPLACE_MARKER)) stopHeartbeat();
         // Every client-visible chunk passes the internal-vocabulary scrubber (P2-2); the sentinel
         // JSON tail stays byte-exact, so the NDJSON contract and structured parsing are unaffected.
         const visible = opts.structuredStage === "diagnose" ? sanitizeDiagnoseStreamingDraft(content) : content;
@@ -3504,7 +3545,9 @@ async function callPrimaryTextModelStream(
       const closeClientStream = () => {
         if (clientStreamClosed) return;
         const telemetryStage: CdssTelemetryStage = opts.structuredStage || (kind === "question" ? "question" : kind === "collect" ? "collect" : "unstructured");
-        const reviewStatus = opts.structuredStage === "diagnose" ? m03DiagnosticReviewStatus : opts.structuredStage === "prescribe" ? m04ClinicalReviewStatus : "not_run";
+        const reviewStatus = opts.structuredStage === "diagnose"
+          ? (m03ReviewBoundedAdvisory ? "bounded_advisory" as const : m03DiagnosticReviewStatus)
+          : opts.structuredStage === "prescribe" ? m04ClinicalReviewStatus : "not_run";
         recordCdssStageTelemetry({
           stage: telemetryStage,
           outcome: stageOutcome,
@@ -3622,12 +3665,13 @@ async function callPrimaryTextModelStream(
           if (clientStreamClosed) return;
           try {
             const processedChars = contentChars + reasoningChars;
-            const phase = contentChars === 0 && reasoningChars > 0
-              ? "模型正在进行深度推理"
-              : contentChars > 0
-                ? "模型正在组织临床正文"
-                : "正在等待模型开始响应";
-            enqueueHeartbeat(`${phase}，服务保持响应并持续校验`, processedChars);
+            enqueueHeartbeat(stageProgressHeartbeatStatus({
+              phase: orchestrationPhase,
+              structuredStage: opts.structuredStage,
+              contentChars,
+              reasoningChars,
+              repairRound: structuredRetryCount,
+            }), processedChars);
           } catch {
             stopHeartbeat();
           }
@@ -4028,7 +4072,7 @@ async function callPrimaryTextModelStream(
                   m03ReviewAdvisoryBoundary = true;
                   if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
                 }
-          m03DiagnosticReviewStatus = review.status;
+          noteM03ReviewStatus(review);
           m03DiagnosticReviewReason = m03SemanticReviewReason(review);
           m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
           m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
@@ -4269,7 +4313,7 @@ async function callPrimaryTextModelStream(
                 };
               })()
             : undefined;
-          structuredRetryCount += 1;
+          beginStructuredRepairRound();
           if (opts.structuredStage === "diagnose") {
             m03LastRepairTriggerReason = rejectionReason;
             m03LastInjectedGuidance = m03DiagnosticRepairGuidance;
@@ -4359,7 +4403,7 @@ async function callPrimaryTextModelStream(
                   m03ReviewAdvisoryBoundary = true;
                   if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
                 }
-            m03DiagnosticReviewStatus = review.status;
+            noteM03ReviewStatus(review);
             m03DiagnosticReviewReason = m03SemanticReviewReason(review);
             m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
             m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
@@ -4373,7 +4417,7 @@ async function callPrimaryTextModelStream(
               console.warn("[tcm-cdss:model] M03 clinical review unavailable after repair; marking output for doctor review");
             }
           } else if (retriedReasoning && opts.structuredStage === "prescribe") {
-            const review = observeClinicalReview(await reviewM04ClinicalPlan(
+            const review = await observeClinicalReview(reviewM04ClinicalPlan(
               retriedReasoning,
               opts.structuredPriorReasoning,
               opts.structuredClinicalContext || "",
@@ -4516,7 +4560,7 @@ async function callPrimaryTextModelStream(
               enqueueClient(targetedM04Retry
                 ? "\n\n正在复核候选方药、治法与方剂组成的一致性，请稍候…"
                 : "\n\n正在复核辨病辨证与已录入病历的一致性，请稍候…");
-              structuredRetryCount += 1;
+              beginStructuredRepairRound();
               if (targetedM03Retry) {
                 m03LastRepairTriggerReason = retryRejectionReason;
                 m03LastInjectedGuidance = m03DiagnosticRepairGuidance;
@@ -4607,7 +4651,7 @@ async function callPrimaryTextModelStream(
                   m03ReviewAdvisoryBoundary = true;
                   if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
                 }
-                m03DiagnosticReviewStatus = review.status;
+                noteM03ReviewStatus(review);
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                 m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
                 m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
@@ -4621,7 +4665,7 @@ async function callPrimaryTextModelStream(
                   console.warn("[tcm-cdss:model] M03 clinical review unavailable after targeted repair; marking output for doctor review");
                 }
               } else if (secondReasoning && opts.structuredStage === "prescribe") {
-                const review = observeClinicalReview(await reviewM04ClinicalPlan(
+                const review = await observeClinicalReview(reviewM04ClinicalPlan(
                   secondReasoning,
                   opts.structuredPriorReasoning,
                   opts.structuredClinicalContext || "",
@@ -4761,7 +4805,7 @@ async function callPrimaryTextModelStream(
                   !m03OrchestrationDeadlineGate()
                 ) {
                   enqueueClient("\n\n正在按最新校验结果收束最小病机链，请稍候…");
-                  structuredRetryCount += 1;
+                  beginStructuredRepairRound();
                   noteContractRepair(secondRejectionReason, secondDiagnosticReviewRejected);
                   m03LastRepairTriggerReason = secondRejectionReason;
                   m03LastInjectedGuidance = thirdM03Guidance;
@@ -4811,7 +4855,7 @@ async function callPrimaryTextModelStream(
                   m03ReviewAdvisoryBoundary = true;
                   if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
                 }
-                    m03DiagnosticReviewStatus = review.status;
+                    noteM03ReviewStatus(review);
                     m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                     m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
                     m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
@@ -5427,7 +5471,7 @@ async function callPrimaryTextModelStream(
               !m03OrchestrationDeadlineGate()
             ) {
               enqueueClient("\n\n正在按最新校验结果收束辨病辨证依据，请稍候…");
-              structuredRetryCount += 1;
+              beginStructuredRepairRound();
               m03LastRepairTriggerReason = finalizedM03RejectionReason;
               noteContractRepair(finalizedM03RejectionReason, false);
               noteQualityRepair(finalizedM03RejectionReason);
@@ -5474,7 +5518,7 @@ async function callPrimaryTextModelStream(
                   m03ReviewAdvisoryBoundary = true;
                   if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
                 }
-                m03DiagnosticReviewStatus = review.status;
+                noteM03ReviewStatus(review);
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                 m03DiagnosticRepairGuidance = m03RepairGuidanceFor(review);
                 m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
@@ -5623,7 +5667,7 @@ async function callPrimaryTextModelStream(
                   clinicalReviewRebindCount += 1;
                 }
               } else if (opts.structuredStage === "diagnose") {
-                const review = observeClinicalReview(await reviewM03DiagnosticCriteria(
+                const review = await observeClinicalReview(reviewM03DiagnosticCriteria(
                   finalReasoning,
                   opts.structuredClinicalContext || "",
                   opts.structuredReviewEvidenceContext || "",
@@ -5635,7 +5679,7 @@ async function callPrimaryTextModelStream(
                   m03ReviewAdvisoryBoundary = true;
                   if (review.qualityOpinion) m03AcceptanceScope = appendAnnotationCode(m03AcceptanceScope, review.qualityOpinion.issueCode);
                 }
-                m03DiagnosticReviewStatus = review.status;
+                noteM03ReviewStatus(review);
                 m03DiagnosticReviewReason = m03SemanticReviewReason(review);
                 m03ClinicalReviewer = review.reviewer ? `${review.reviewer.provider}/${review.reviewer.model}/${review.reviewer.source}` : "none";
                 m03ClinicalReviewAttestation = review.status === "repair" ? undefined : clinicalReviewAttestation(review, finalReasoning);
@@ -5668,7 +5712,7 @@ async function callPrimaryTextModelStream(
                   transformed = transformTruncateFallback();
                 }
               } else {
-                const review = observeClinicalReview(await reviewM04ClinicalPlan(
+                const review = await observeClinicalReview(reviewM04ClinicalPlan(
                   finalReasoning,
                   opts.structuredPriorReasoning,
                   opts.structuredClinicalContext || "",

@@ -150,7 +150,10 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /\} else if \(opts\.structuredStage === "diagnose"\) \{\s*\n\s*const review = observeClinicalReview\(await reviewM03DiagnosticCriteria\(/,
+  // 2026-08-27：观察点改接 Promise（心跳阶段名要在复核**进行中**就置位），形态由
+  //   observeClinicalReview(await reviewM03DiagnosticCriteria(  →  await observeClinicalReview(reviewM03DiagnosticCriteria(
+  // 本断言钉的是「finalize 补跑复核」这件事本身，跟着改形态，不放宽。
+  /\} else if \(opts\.structuredStage === "diagnose"\) \{\s*\n\s*const review = await observeClinicalReview\(reviewM03DiagnosticCriteria\(/,
   "attestation 未绑定时 finalize 必须对最终 M03 reasoning 补跑独立临床复核",
 );
 assert.match(

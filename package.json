@@ -244,7 +244,10 @@
     "test:medication-identity-convergence": "jiti scripts/test-medication-identity-convergence.mjs",
     "regress:tcmsd": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-tcmsd-live.mjs",
     "regress:tcmbest4sdt": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-tcmbest4sdt-live.mjs",
-    "test:inspection-field-slot": "npx jiti scripts/test-inspection-field-slot.mjs"
+    "test:inspection-field-slot": "npx jiti scripts/test-inspection-field-slot.mjs",
+    "test:stage-progress-phase": "npx jiti scripts/test-stage-progress-phase.mjs",
+    "test:review-bounded-advisory": "npx jiti scripts/test-review-bounded-advisory-telemetry.mjs",
+    "test:m04-review-identity-floor": "npx jiti scripts/test-m04-review-identity-floor.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

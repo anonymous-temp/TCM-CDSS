@@ -100,6 +100,14 @@ export function buildM04ClinicalReviewPayload(priorReasoning: unknown, reasoning
           formulaNames: candidate.formulaNames,
           constructionType: candidate.constructionType,
           identityDeclassified: candidate.identityDeclassified,
+          modificationStatus: candidate.modificationStatus,
+          // 组成身份的**服务端确定性核验结果**（2026-08-27 生产实测）。此前这个字段只到达
+          // 医生页面与 HIS 方案，唯独不进复核载荷——复核器于是只能凭记忆复原原方组成来判断
+          // 「是否已失去原方核心结构」，而确定性层手里明明有逐方的保留数/下限/锚点命中数。
+          // 后果：30h 生产 29 次出方里 6 次被复核判 formula_composition_mismatch，其中 5 次
+          // 直接走确定性剥名（completedRepairAttempts: 0），医生的「麻黄汤」变成「本例辨证组方加减」，
+          // 而这些候选早已通过同一件事的确定性核验。判据必须单一：把服务端的数字给复核器。
+          baseFormulas: candidate.baseFormulas,
           // The independent reviewer requires a transparent rationale when M03 selected a
           // self-devised formula. Omitting this field made that requirement impossible to satisfy
           // and could trap otherwise coherent plans in a repair/fallback loop.
@@ -290,7 +298,7 @@ export function buildM04ClinicalReviewPrompt(
     .slice(0, 12_000);
   return [
     "你是独立的中药候选处方临床复核器，不负责重新生成报告，也不替代外部合理用药审方。只判断当前 M04 候选是否与已签名 M03 和患者事实相符。",
-    "先核对方名与实际药味组成：沿用命名方时，核心组成和方义必须与该方相符；加减后若已失去原方核心结构，应返回 formula_composition_mismatch。",
+    "先核对方名与实际药味组成。命名方的组成身份下限**由服务端确定性核验**，逐方结果写在候选的 baseFormulas 里：matchedIngredientCount/totalIngredientCount 是实际保留的基准药味数，minimumPreservedIngredientCount 是该方的保留下限，matchedRequiredIngredientCount/requiredIngredientCount 是锚点药味的保留情况。判断组成身份是否成立**只看这三组数字，不要凭记忆复原原方组成**：任一基础方的保留数低于下限，或锚点药味未全部保留，才返回 formula_composition_mismatch。三组数字均达标即组成身份已成立，不得再以「加减太多」「不像原方」为由返回该码；此时若对具体药味与病机的对应关系仍有临床保留意见，应改用 herb_plan_mismatch，方名予以保留。候选声称了命名方身份却没有 baseFormulas 时按身份未经核验处理，返回 formula_composition_mismatch。",
     "再逐味核对药物方向是否服务于 M03 的主证、病机节点和治法。不得用患者未提供、明确否认、仅在不确定项或条件句中出现的症状来证明药物必要性。明显偏离时返回 herb_plan_mismatch。",
     "重点复核君臣佐使层级，而不是只看药味是否常见：君药必须直接承担 P1 核心病机和总治法的中心作用，不能把山药、甘草等通用补益/调和药跨病种机械设为君药；自拟方若角色层级与核心治法不一致，返回 herb_plan_mismatch。待复核投影中的 targetPathogenesis、function 与 prescriptionRole 是服务端依据受控病机节点和药味知识库生成的逐味解释，必须与药名、role、targetRef 一并审查，不能因投影缺少自由文本解释而推定角色不成立。1–2 味并列君药均为合法结构：当一味或两味君药已直接覆盖 P1 中心治法时必须接受，不得仅因存在另一种同样合理的君药选择、偏好单君药或偏好其他层级而要求 repair。",
     "命名方优先由方证和受控方剂目录决定；自拟方必须说明为何命名方不适配，并维持可解释的药组层级。不得为了规避组成核验把一个实质上的经典方随意改称自拟方。",
