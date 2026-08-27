@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SafetyContractIssue, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, uncoveredPrimaryTherapyDirections, priorDocumentedFactConcepts, stableM03SyndromeLabel, transparentFormulaTherapyIssue, unsupportedHighImpactHerbFindings } = await import("../src/lib/diagnosis-stage-contract.ts");
+const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SafetyContractIssue, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, uncoveredPrimaryTherapyDirections, priorDocumentedFactConcepts, stableM03SyndromeLabel, transparentFormulaTherapyIssue, unsupportedHighImpactHerbFindings, highImpactTherapyDirectionStatus } = await import("../src/lib/diagnosis-stage-contract.ts");
 const { getM03TherapyLock } = await import("../src/lib/m03-therapy-lock.ts");
 const { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } = await import("../src/lib/m04-repair-policy.ts");
 const { editedPrescriptionSemanticIssue } = await import("../src/lib/prescription-revision.ts");
@@ -2296,6 +2296,28 @@ assert.match(windHeatNoHeatIssue, /unsupported_high_impact_heat_clear/, "without
   // 反证：热证依据成立时清单为空（不得把成立的药也列进去）。
   assert.deepEqual(unsupportedHighImpactHerbFindings(multi.formula.candidates[0].herbs, windHeatPrior), [],
     "热证依据成立时不得报出任何不成立药味");
+  // 纠错器前移（2026-08-27）：首轮提示要携带「本例哪些高影响方向已成立」，
+  // 与门禁 unsupportedHighImpactHerbScan 读的是同一对集合——不同源就等于让模型猜，
+  // 猜错的代价是一整轮 40–50s 的修复。
+  {
+    const status = highImpactTherapyDirectionStatus(windHeatNoHeatPrior);
+    assert.ok(status.unsupported.includes("heat_clear"),
+      `本例无热证依据时 heat_clear 必须列为未成立：${JSON.stringify(status)}`);
+    assert.ok(!status.established.includes("heat_clear"), JSON.stringify(status));
+    // 反证：热证依据成立时它必须出现在已成立侧，且两侧互斥、并集恒为高影响全集。
+    const supported = highImpactTherapyDirectionStatus(windHeatPrior);
+    assert.ok(supported.established.includes("heat_clear"), JSON.stringify(supported));
+    for (const st of [status, supported]) {
+      assert.equal(new Set([...st.established, ...st.unsupported]).size, st.established.length + st.unsupported.length,
+        "已成立与未成立不得重叠");
+      assert.equal(st.established.length + st.unsupported.length, 6,
+        "并集必须恰好覆盖 6 个高影响方向（heat_clear/yang_warm/blood_move/purge/orifice_open/mass_soften）");
+    }
+    // 与驳回判据同源：判为未成立的方向，用它的药必然被 findings 报出。
+    const findings = unsupportedHighImpactHerbFindings(windHeatM04.formula.candidates[0].herbs, windHeatNoHeatPrior);
+    assert.ok(findings.some((item) => item.concepts.includes("heat_clear")),
+      "提示侧判未成立、门禁侧却不报，就是两处各判各的");
+  }
   // 接线：修复提示的「一次性收口」清单必须与门禁同源。此前它把
   // prescriptionRole/targetPathogenesis/function 拼成字符串再调 highImpactHerbDirectionIssue
   // ——那正是该函数注释点名警告的用法（拼接串只落到 function 分支），于是提示列出的药味

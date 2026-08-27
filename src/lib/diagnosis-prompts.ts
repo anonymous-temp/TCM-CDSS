@@ -18,7 +18,7 @@ import { buildTcmTreatmentProjectPromptContext } from "./tcm-treatment-capabilit
 import { requiredDecoctionRequirement } from "./herb-decoction-rules";
 import { buildTcmFormulaIndicationContext, buildTcmFormulaReasoningContext } from "./tcm-formula-indications";
 import type { SyndromeHypothesisRerankDecision } from "./tcm-syndrome-hypothesis";
-import { herbCombinationDirectionEligible, herbShortlistDirectionEligible } from "./diagnosis-stage-contract";
+import { herbCombinationDirectionEligible, herbShortlistDirectionEligible, highImpactTherapyDirectionStatus } from "./diagnosis-stage-contract";
 import { M03_CLINICAL_INFERENCE_AUTHORITY } from "./clinical-inference-authority";
 import {
   buildM02ClassicDiscriminationContext,
@@ -846,8 +846,40 @@ function herbCountPreferenceInstruction(caseState: CaseState): string {
     + `在 candidate.applicable 里用一句话说明是哪条临床必要性使味数超出偏好，不得为迎合数字牺牲方剂完整性。\n`;
 }
 
+/** 高影响方向的医生可读标签。只用于提示文案，判据仍在 highImpactTherapyDirectionStatus。 */
+const HIGH_IMPACT_DIRECTION_LABELS: Record<string, string> = {
+  heat_clear: "清热",
+  yang_warm: "温阳散寒",
+  blood_move: "活血化瘀",
+  purge: "攻下泻下",
+  orifice_open: "开窍",
+  mass_soften: "软坚散结",
+};
+
 export function buildPrescribePrompt(caseState: CaseState): string {
   const diagnoseReasoning = diagnoseReasoningFromState(caseState);
+  // 纠错器前移（2026-08-27）：把门禁判定「本例哪些高影响方向已成立」直接告诉首轮，
+  // 而不是等它放错药再用 40–50s 的修复轮纠正。清单与门禁同源
+  //（highImpactTherapyDirectionStatus 读的就是门禁那两个集合），模型不必猜。
+  const directionStatus = highImpactTherapyDirectionStatus(diagnoseReasoning);
+  const highImpactDirectionContext = (() => {
+    const established = directionStatus.established.map((concept) => HIGH_IMPACT_DIRECTION_LABELS[concept] || concept);
+    const unsupported = directionStatus.unsupported.map((concept) => HIGH_IMPACT_DIRECTION_LABELS[concept] || concept);
+    if (established.length === 0 && unsupported.length === 0) return "";
+    return [
+      "",
+      "【本例高影响治法方向的成立情况（服务端按签名 M03 治法与病历阳性事实确定性判定，与驳回判据同源）】",
+      established.length > 0
+        ? `- 已成立、可用：${established.join("、")}`
+        : "- 已成立、可用：无（本例未锁定任何高影响方向）",
+      unsupported.length > 0
+        ? `- 未成立：${unsupported.join("、")}。用到这些方向的药会被逐味驳回并触发修复轮；`
+          + `确需使用时，该药的 function 必须落在本例已成立的方向上（如取当归的养血而非活血），`
+          + `不能只把不成立的方向写进理由。`
+        : "",
+      "这不是禁药清单，而是**方向**清单：同一味药按不同功效入方时，只有落在已成立方向上才成立。",
+    ].filter(Boolean).join("\n");
+  })();
   const lockedFormulaNames = diagnoseReasoning?.overview.recommendedFormulaNames || [];
   const formulaCompilationContext = executableFormulaCompilationReferences(
     diagnoseReasoning?.overview.recommendedFormulaNames || [],
@@ -989,6 +1021,7 @@ ${structuredDiagnosis || "（无结构化M03结果；请仅把下方M03文本作
 【服务端方剂目录编译基准（锁定方名、出处与组成身份；不是剂量医嘱）】
 ${formulaCompilationContext || "（M03 未锁定命名方；M04 不得临时附会方名，只能承接本例病机与治法形成辨证组方，并明确未采用经典方的病例内理由）"}
 命名方候选必须满足上述可计算的“组成身份下限”和锚点药味要求，只允许针对 M03 已确认病机作有理由的加减；不得用“同治法”替换成另一组药后仍沿用原方名。最终服务端会按实际 herbs[] 反向核验方名和出处。
+${highImpactDirectionContext}
 
 【M03后方剂精确检索记录（只用于核对既有选择；M04 不得据此改方名）】
 ${m03FormulaRetrievalContext}

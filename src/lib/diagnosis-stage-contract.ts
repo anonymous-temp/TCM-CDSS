@@ -2673,6 +2673,31 @@ const THERAPY_CONCEPT_FACT_SUPPORT: ReadonlyArray<readonly [TcmTherapyConcept, R
  * 签名 M03 已记录事实所支撑的高影响治法方向（症状指征通道）。
  * 与治法文本通道并列：两者任一成立即视为该方向已成立。
  */
+/**
+ * 本例**已成立**与**未成立**的高影响治法方向（2026-08-27，纠错器前移）。
+ *
+ * 与门禁 unsupportedHighImpactHerbScan 同源：那里判 `!required.has(c) && !factSupported.has(c)`
+ * 就驳回，这里把同一对集合按高影响闭集投影出来给首轮提示用——判据只有一处，提示不再靠模型猜。
+ *
+ * 为什么前移：实测 M04 的时延大头是修复轮（每轮约 40–50s），而最高频的驳回码正是
+ * herb_N_unsupported_high_impact_*（方里放了本例未成立方向的高影响药）。首轮就把清单
+ * 给到模型，能整轮省掉这一次修复。与既有 doctrine 同条——提示必须携带门禁的真实判据
+ *（见 missedLockableNames 与 governedFormulaBaselines 的注释）。
+ */
+export function highImpactTherapyDirectionStatus(
+  prior: M03ReasoningLike | null | undefined,
+): { established: TcmTherapyConcept[]; unsupported: TcmTherapyConcept[] } {
+  const required = requiredTherapyConcepts(prior);
+  const factSupported = priorDocumentedFactConcepts(prior);
+  const established: TcmTherapyConcept[] = [];
+  const unsupported: TcmTherapyConcept[] = [];
+  for (const concept of HIGH_IMPACT_THERAPY_CONCEPTS) {
+    if (required.has(concept) || factSupported.has(concept)) established.push(concept);
+    else unsupported.push(concept);
+  }
+  return { established, unsupported };
+}
+
 export function priorDocumentedFactConcepts(prior: M03ReasoningLike | null | undefined): Set<TcmTherapyConcept> {
   const supported = new Set<TcmTherapyConcept>();
   const texts = groundedM03FactText(prior);
