@@ -16,7 +16,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - **框架**：Next.js 16（App Router，Turbopack，`output: "standalone"`）+ React 19 + TypeScript 5（strict）
 - **样式/UI**：Tailwind CSS 4 + shadcn（`src/components/ui`）、lucide-react、react-markdown
-- **模型接入**：`openai` SDK，OpenAI 兼容协议；全部文本生成、修复和复核阶段统一使用 DeepSeek V4 Flash（`deepseek-v4-flash`，0731 正式版）；GLM 视觉默认开启且仅用于舌象图片
+- **模型接入**：`openai` SDK，OpenAI 兼容协议。生产 `AI_TEXT_PROVIDER=bailian-qwen`（百炼 compatible-mode），文本相位**按环节分档、并不统一**：M03 首轮 `qwen3.7-flash`（生产实测把诊断阶段从约 90s 压到约 30s，临床合同由更强档的复核方把住）、M04 首轮 `qwen3.7-plus`、M03/M04 修复轮 `qwen3.8-max`、独立复核 M03→plus / M04→max、临床事实三相位 flash→max→plus。DeepSeek 保留为整体回退档（改 `AI_TEXT_PROVIDER=openai-compatible`），生产未启用。GLM 视觉默认开启且仅用于舌象图片
 - **校验**：zod 4
 - **数据库**：无 —— 病例状态在浏览器 localStorage（加密快照经服务端 AES-256-GCM）+ 本地 JSON 知识库
 - **重要**：本项目没有 `middleware.ts`。请求门控在 `src/proxy.ts`（导出 `proxy()` + `config.matcher`）。写框架代码前先读 `node_modules/next/dist/docs/` 中的官方文档，不要凭训练数据中的 Next.js 经验行事
@@ -40,7 +40,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 
 项目**没有 jest/vitest/playwright 配置**。测试分两层，全部在 `scripts/` 下：
 
-1. **纯单元测试（约 40 个 `scripts/test-*.mjs`）**：不需要服务器，直接通过 `jiti`（TS 导入）、`node --test` 或 `node --experimental-strip-types` 导入 `src/lib/*.ts`，用 `node:assert` 断言。覆盖确定性安全层 / 临床事实 / 流式契约 / 解析修复等。**改动安全、事实、契约、解析相关代码后必须运行对应的测试**，例如：
+1. **纯单元测试（`scripts/test-*.mjs`，2026-08-27 时点 180 个且随缺陷回归持续增长）**：不需要服务器，直接通过 `jiti`（TS 导入）、`node --test` 或 `node --experimental-strip-types` 导入 `src/lib/*.ts`，用 `node:assert` 断言。覆盖确定性安全层 / 临床事实 / 流式契约 / 解析修复等。**改动安全、事实、契约、解析相关代码后必须运行对应的测试**，例如：
    - `npm run test:safety-mutations` —— diagnosis-safety.ts 红旗/儿科门禁变异矩阵
    - `npm run test:clinical-facts` —— 临床事实回补层 + schema 拒绝
    - `npm run test:stage-contract` —— M03/M04 结构化流契约 + sentinel 边界
@@ -83,7 +83,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 
 `callDiagnosisStream(prompt, backend, images, kind)` 是唯一入口。backend：`deepseek`/`openai` → 主 OpenAI 兼容模型；`glm` → GLM 视觉（仅舌象提取）。EviMed 不是模型后端，而是作为多源证据上下文注入 M03/M04 prompt。
 
-- **分阶段模型配置**（见 `.env.example`）：M03/M04、独立临床复核（`PRIMARY_CLINICAL_REVIEW_MODEL`）、临床事实抽取（`CLINICAL_FACTS_MODEL`）可独立配置；`reasoning_effort` / `thinking_enabled` 也是分阶段环境变量。
+- **分阶段模型配置**（见 `.env.example`，2026-08-27 已与生产 env + 30h `model_usage` 遥测核对）：分档矩阵见上；`reasoning_effort` / `thinking_enabled` 同为分阶段环境变量，缺省一律关（仅返回推理过程的流视为错误）。**实际不存在 `PRIMARY_COLLECT_MODEL` / `PRIMARY_QUESTION_MODEL`**：M01 无舌象图时不调模型，M02 跟随供应商基础模型（生产即 `BAILIAN_QWEN_MODEL`）。
   - **实际不存在 `PRIMARY_COLLECT_MODEL` / `PRIMARY_QUESTION_MODEL`**：M01 文本路径根本不调模型（无舌象图时 collect 路由直接返回确定性 NDJSON），M02 只能跟随 `OPENAI_MODEL`。
   - **"独立复核"在默认全 V4-Flash 配置下不是跨模型**：候选链去重后只剩一个模型身份，`independentFromGenerator=false`，实际是对同一模型的第二次无对话状态请求。跨厂商拓扑只有一条实现路径：`PRIMARY_CLINICAL_REVIEW_PROVIDER=bailian-qwen` + `BAILIAN_QWEN_API_KEY/BASE_URL/MODEL`（其余取值一律 fail-closed 判 unconfigured）；该路径已实现但截至 2026-08-13 从未在生产启用或实测过。旧的 `PRIMARY_CLINICAL_REVIEW_API_URL/KEY/ALLOWED_HOSTS` 与 `CLINICAL_FACTS_REPAIR_MODEL` 是代码不读的死配置，已从 `.env.example`/compose 清除。
   - **M04 修复轮的 `reasoning_effort` 默认 `"medium"`，可用 `PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT` 覆盖**（M03 修复轮对应 `PRIMARY_DIAGNOSE_REPAIR_REASONING_EFFORT`，默认 low）；`PRIMARY_PRESCRIBE_REASONING_EFFORT` 只作用于首轮。
