@@ -1631,13 +1631,24 @@ export async function extractClinicalFacts(
       // 都被压成 invalid_contract，线上只能知道“坏了”却不知道是缺 findingId、缺 review
       // decision、还是试图静默降级，无法在不放宽安全门的前提下做类别修复。
       const contractCode = /^clinical_facts_[a-z0-9_]+$/.test(message) ? message : undefined;
+      // 超时不重试（2026-08-27，生产 30% 语义层不可用的根因）。
+      //
+      // 实测：线上探针 10 例 3 例 unavailable，失败耗时全是 25.5–25.7s——精确撞
+      // CLINICAL_FACTS_TOTAL_TIMEOUT_MS(25s) 总预算；日志里 attempt 1、2 均 reason:'timeout'。
+      // 本循环的重试是为**契约抖动**设计的（reviewer 回了非空但违反 findingId/接地合同，
+      // 那类失败瞬间返回，重试确实能恢复——上面注释与两条回归钉子都在说这件事）。
+      // 超时是另一回事：同提示词、同模型再等一遍，实测两次全超，只是把医生的等待从
+      // 一个相位拖成整条总预算。与 M03 修复轮预算门（shouldRetryStructuredRepairTransport）
+      // 同一条 doctrine：跑不完就别再开一轮，把预算还回去。
+      // 降级语义不变：仍 fail-closed 到 unavailable，首轮已落地的事实原样保留（additive-only）。
+      const retryable = reason !== "timeout" && reviewAttempt !== 3;
       console.warn("[tcm-cdss:facts] clinical-facts review attempt failed", {
         attempt: reviewAttempt,
         reason,
         ...(contractCode ? { contractCode } : {}),
-        willRetry: reviewAttempt !== 3,
+        willRetry: retryable,
       });
-      if (reviewAttempt === 3) return { ...grounded, reviewStatus: "unavailable" };
+      if (!retryable) return { ...grounded, reviewStatus: "unavailable" };
     }
   }
   return { ...grounded, reviewStatus: "unavailable" };

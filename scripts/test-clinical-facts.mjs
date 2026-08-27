@@ -643,6 +643,27 @@ const recoveredTwiceInvalidReview = await extractClinicalFacts("手划伤后渗�
 }, undefined, { independentReview: true, allowDispositionReductions: true });
 ok("extractor: Qwen 连续两次复核合同抖动后允许第三次受总时限约束的恢复",
   twiceInvalidReviewAttempts === 3 && recoveredTwiceInvalidReview?.reviewStatus === "checked");
+// ── 超时类失败不重试（2026-08-27，生产实测 30% 语义层不可用的根因）────────────────
+// 线上探针 10 例 3 例 unavailable，失败耗时全是 25.5–25.7s——精确撞总预算
+// CLINICAL_FACTS_TOTAL_TIMEOUT_MS(25s)；日志显示 attempt 1、2 均 reason:'timeout'。
+// 复核相位最多 3 次尝试 × 相位超时，超时时把整条总预算烧光。
+// 重试是为**契约抖动**设计的（那类失败瞬间返回，重试确实能恢复，上面两条钉子在钉它）；
+// 超时重试则是同提示词、同模型再等一遍，实测两次全超——纯粹浪费医生的等待时间。
+let timeoutReviewAttempts = 0;
+const timedOutReview = await extractClinicalFacts("手划伤后渗血半小时还没完全停，出血量说不清。", async (_system, _user, _signal, phase) => {
+  if (phase !== "review") return JSON.stringify({ redFlags: [{ category: "bleeding", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "手划伤后渗血半小时还没完全停" }] });
+  timeoutReviewAttempts += 1;
+  const error = new Error("The operation was aborted due to timeout");
+  error.name = "TimeoutError";
+  throw error;
+}, undefined, { independentReview: true, allowDispositionReductions: true });
+ok("extractor: 复核相位超时后不再重试（一次即降级，把预算还给医生）",
+  timeoutReviewAttempts === 1 && timedOutReview?.reviewStatus === "unavailable");
+// 反证一：契约抖动仍然重试——不得因本次改动把「能恢复的失败」也一并放弃。
+ok("extractor: 契约抖动的重试路径不受超时策略影响", invalidReviewContractAttempts === 2);
+// 反证二：超时降级仍保留首轮已落地的事实（additive-only 语义不变）。
+ok("extractor: 超时降级不擦除首轮事实", (timedOutReview?.redFlags?.length || 0) === 1);
+
 const omittedByReviewer = await extractClinicalFacts("胸痛没有缓解，已持续30分钟。", async (_system, _user, _signal, phase) => phase === "review"
   ? JSON.stringify({ redFlags: [] })
   : JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] }), undefined, { independentReview: true, allowDispositionReductions: true });

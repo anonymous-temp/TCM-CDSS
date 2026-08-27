@@ -71,7 +71,11 @@ function clinicalFactsTotalTimeoutMs(): number {
 }
 
 function clinicalFactsPhaseTimeoutMs(): number {
-  const configured = Number(process.env.CLINICAL_FACTS_PHASE_TIMEOUT_MS || 8_000);
+  // 8s 对长病历的复核相位偏紧（TCM-SD 真实住院病历现病史+查体上千字，实测撞不过去）。
+  // 提到 12s：成功例本来就在 3–5s/相位，不受影响；长病历多出的 4s 换回的是
+  // 30% → 目标 <10% 的语义层不可用率。总预算 25s 不动——超时不再重试后，
+  // 最坏路径是抽取(~4s)+复核(12s) ≈ 16s，比原先烧满 25s 更快降级。
+  const configured = Number(process.env.CLINICAL_FACTS_PHASE_TIMEOUT_MS || 12_000);
   return Number.isFinite(configured) && configured >= 3_000 && configured <= 12_000
     ? Math.round(configured)
     : 8_000;
