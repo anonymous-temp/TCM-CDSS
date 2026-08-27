@@ -1099,9 +1099,16 @@ function validatedStructuredReasoning(
   if (start < 0 || end < 0) return undefined;
   try {
     const rawReasoning = JSON.parse(content.slice(start + startMarker.length, end).trim());
-    if (reasoningV2SchemaIssueCode(rawReasoning)) return undefined;
+    const schemaIssue = reasoningV2SchemaIssueCode(rawReasoning);
+    if (schemaIssue) {
+      if (expectedStage === "prescribe") console.warn("[tcm-cdss:contract] M04 schema rejection", { issue: schemaIssue });
+      return undefined;
+    }
     const reasoning = normalizeReasoningV2(rawReasoning);
-    if (!reasoning || reasoning.stage !== expectedStage) return undefined;
+    if (!reasoning || reasoning.stage !== expectedStage) {
+      if (expectedStage === "prescribe") console.warn("[tcm-cdss:contract] M04 normalize/stage rejection", { normalized: Boolean(reasoning), stage: reasoning?.stage });
+      return undefined;
+    }
     const visibleContent = content.slice(0, start);
     if (expectedStage === "diagnose") {
       const hardIssue = m03SafetyContractIssue(reasoning, clinicalContext, isSafetyRejection);
@@ -1163,15 +1170,30 @@ function validatedStructuredReasoning(
           // 首轮仍按完整合同严格促修。只有已经完成至少一轮模型修复的调用点会打开
           // acceptM04QualityTierAfterRepair；此时也只允许分档表明确登记的 T2/T3 说明项，
           // 并在放行前独立重跑完整 T1 硬门。未知码默认 T1，不可能从这里穿透。
-          if (!acceptM04QualityTierAfterRepair || isSafetyRejection(`m04_${semanticIssue}`)) return undefined;
-          if (m04SafetyContractIssue(
+          if (!acceptM04QualityTierAfterRepair || isSafetyRejection(`m04_${semanticIssue}`)) {
+            console.warn("[tcm-cdss:contract] M04 semantic rejection", {
+              issue: semanticIssue,
+              acceptQualityTier: acceptM04QualityTierAfterRepair,
+              safetyTier: isSafetyRejection(`m04_${semanticIssue}`),
+              declassified: allowTransparentFormulaDeclassification,
+            });
+            return undefined;
+          }
+          const floorAfterQuality = m04SafetyContractIssue(
             enrichedReasoning,
             priorReasoning,
             isKnownTcmHerbName,
             false,
             false,
             clinicalContext,
-          )) return undefined;
+          );
+          if (floorAfterQuality) {
+            console.warn("[tcm-cdss:contract] M04 safety-floor rejection after quality-tier acceptance", {
+              qualityIssue: semanticIssue,
+              floorIssue: floorAfterQuality,
+            });
+            return undefined;
+          }
         }
       }
       const compilationIssue = formulaCompilationContractIssue(
