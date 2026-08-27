@@ -348,6 +348,8 @@ const scripts = [
   "test:exam-claim-field-coverage",
   "test:m03-specificity-policy",
   "test:inspection-lexicon",
+  // 字段槽 vs 自由文本两个谓词不得再合成一个（转述式脉象被判未采集 → 辨证降级）。
+  "test:inspection-field-slot",
   "test:clinical-entry",
   "test:clinical-terminology",
   "test:controlled-semantic-normalization",

@@ -2,7 +2,7 @@
 import type { CaseState, Phase, StructuredFollowupTimelineItem } from "./diagnosis-types";
 import { ageValue, createInitialCaseState, normalizeCaseStateInput } from "./diagnosis-types";
 import { extractDiagnosisJSON, stripDiagnosisJSON, parseCompleteness } from "./diagnosis-parse";
-import { isUnknownClinicalFieldText, isUnknownClinicalText } from "./clinical-state";
+import { isUnknownClinicalFieldText, isUnknownClinicalText, isUnrecordedInspectionFieldValue } from "./clinical-state";
 import { safeHttpUrl } from "./safe-url";
 import {
   parseStreamModuleDraftFrame,
@@ -847,8 +847,11 @@ function mergeStructuredData(
       },
     };
   }
-  if (!rejectedTongueImage && !updated.tongue && usableModelString(jsonData.tongue) && !isUnknownClinicalFieldText(jsonData.tongue, "tongue")) updated = { ...updated, tongue: jsonData.tongue.trim() };
-  if (!updated.pulse && usableModelString(jsonData.pulse) && !isUnknownClinicalFieldText(jsonData.pulse, "pulse")) updated = { ...updated, pulse: jsonData.pulse.trim() };
+  // 字段槽口径（2026-08-26）：M01 抽出来的是**要写进舌/脉栏的值**，问题是「这段文本算不算
+  // 一条已记录的所见」，不是「写法是不是标准脉名」。用严格识别面会把医生原话里的转述式
+  // 描述整段丢掉，栏位留空，门禁随即报未采集——与门禁面同一个缺陷的上游半段。
+  if (!rejectedTongueImage && !updated.tongue && usableModelString(jsonData.tongue) && !isUnrecordedInspectionFieldValue(jsonData.tongue, "tongue")) updated = { ...updated, tongue: jsonData.tongue.trim() };
+  if (!updated.pulse && usableModelString(jsonData.pulse) && !isUnrecordedInspectionFieldValue(jsonData.pulse, "pulse")) updated = { ...updated, pulse: jsonData.pulse.trim() };
   if (!updated.faceNote && usableModelString(jsonData.faceNote)) updated = { ...updated, faceNote: jsonData.faceNote.trim() };
 
   if (jsonData.vitals && typeof jsonData.vitals === "object") {

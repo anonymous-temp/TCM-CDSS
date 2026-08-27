@@ -63,10 +63,18 @@ mkdirSync(OUT_DIR, { recursive: true });
 function buildCaseState(record) {
   const narrative = String(record.instruction).trim();
   const clauses = narrative.split(/[，。；;]/).map((s) => s.trim()).filter(Boolean);
+  // 病例叙述常自带人口学（「患者女，38岁」「三岁小女孩」）——逐字抽取（不编造）。
+  const head = narrative.slice(0, 60);
+  const sex = /女|妇|娠|孕|产后/.test(head) ? "女" : /男/.test(head) ? "男" : undefined;
+  const ageMatch = head.match(/(\d{1,3})\s*岁/) || head.match(/([一二三四五六七八九十]{1,3})岁/);
+  const CN = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+  const age = ageMatch
+    ? (/^\d+$/.test(ageMatch[1]) ? Number(ageMatch[1]) : CN[ageMatch[1]] ?? undefined)
+    : undefined;
   return {
     id: `${record.id}_${SAMPLE_SEED}`,
     phase: "diagnose",
-    patient: {},
+    patient: { ...(sex ? { sex } : {}), ...(Number.isFinite(age) ? { age } : {}) },
     chiefComplaint: clauses.slice(0, 2).join("，") || narrative.slice(0, 60),
     symptoms: { general: narrative },
     tongue: clauses.filter((c) => /[舌苔]/.test(c)).join("，"),

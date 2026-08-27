@@ -7,6 +7,7 @@ import {
   assessPregnancyState,
   isKnownClinicalState,
   isUnknownClinicalFieldText,
+  isUnrecordedInspectionFieldValue,
   isUnknownClinicalText,
   isPositiveOrPossibleClinicalState,
   PULSE_FORCE_PATTERN_SOURCE,
@@ -252,12 +253,15 @@ function isKnownClinicalText(value: unknown): boolean {
   return !isUnknownClinicalText(text);
 }
 
+// 字段槽口径（2026-08-26 拆谓词）：门禁/充实度问的是「这一栏医生填了没有」，
+// 不是「写法是不是标准脉名」。自由文本识别面（净化器的编造防御，sourceHasKnown*）
+// 仍走 isUnknownClinicalFieldText 的严格口径，两个问题各用各的谓词。
 function isKnownTongueClinicalText(value: unknown): boolean {
-  return !isUnknownClinicalFieldText(value, "tongue");
+  return !isUnrecordedInspectionFieldValue(value, "tongue");
 }
 
 function isKnownPulseClinicalText(value: unknown): boolean {
-  return !isUnknownClinicalFieldText(value, "pulse");
+  return !isUnrecordedInspectionFieldValue(value, "pulse");
 }
 
 /**
@@ -887,6 +891,13 @@ function sanitizeUngroundedNegationText(
   source: string,
   /** 抽取模型给出的、已在病历原文中接地的阳性症状名。规则未覆盖时用它核对否认。 */
   extractorAffirmedTerms: readonly string[] = [],
+  /**
+   * 病历**字段槽**里是否已记录舌/脉（2026-08-26）。识别面与门禁面必须给同一个答案：
+   * 医生把脉象写成转述式（「脉跳得又快又硬」）时门禁已判已记录，若净化面仍按自由文本
+   * 严格口径判「无据」，就会把模型据此写出的脉象改写成「脉象待核实」——正是本文件
+   * 头号缺陷形状（同一判据两处各写各的）的第 N 次复发。
+   */
+  recordedInspection: { tongue: boolean; pulse: boolean } = { tongue: false, pulse: false },
 ): string {
   const sanitizeClause = (clause: string): string => {
     const negationProbe = clause
@@ -1018,14 +1029,14 @@ function sanitizeUngroundedNegationText(
     return line.replace(/[^。；;，]+/g, sanitizeClause);
   }).join("\n");
   sanitized = reconcileSyntheticPolarityContradictions(sanitized, source);
-  if (!sourceHasKnownTongue(source)) {
+  if (!recordedInspection.tongue && !sourceHasKnownTongue(source)) {
     // 识别面与改写面必须认同一批词。少了受控词表这一半，病历里没有舌象、模型却编出
     // 「舌体颤动」「络脉青紫」时，净化器认不出来、原样放行——一条无据的舌象就这么进了结论。
     sanitized = sanitized
       .replace(/舌(?:质)?(?:淡|红|绛|紫|暗|胖|瘦|嫩|老|裂|齿痕|边红|尖红)[^，。；;\n|]{0,24}|苔(?:薄|厚|白|黄|腻|燥|润|剥|少|无)/g, "舌象待核实")
       .replace(new RegExp(inspectionLexiconPattern("tongue").source, "g"), "舌象待核实");
   }
-  if (!sourceHasKnownPulse(source)) {
+  if (!recordedInspection.pulse && !sourceHasKnownPulse(source)) {
     sanitized = sanitized
       .replace(new RegExp(`脉(?:${PULSE_QUALITY_PATTERN_SOURCE}){1,4}(?:${PULSE_FORCE_PATTERN_SOURCE})?`, "g"), "脉象待核实")
       .replace(new RegExp(inspectionLexiconPattern("pulse").source, "g"), "脉象待核实");
@@ -1195,6 +1206,12 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
   // 已录入、只是恰好没出现在 HIS/对话里的症状判成未知，从而凭空写出「病历尚未确认X是否存在」。
   // 见 clinicalGroundingText 的说明；红旗判定不走这条路径。
   const source = clinicalGroundingText(state);
+  // 字段槽口径与门禁同源：舌/脉这一栏医生填了内容（含转述式写法）时，净化面不得再按
+  // 「无据」把模型据此写出的舌脉改写成待核实。判据只有这一处，门禁读的是同一个谓词。
+  const recordedInspection = {
+    tongue: hasObtainedTongueFinding(state),
+    pulse: hasObtainedPulseFinding(state),
+  };
   // 抽取模型给出的阳性症状:只取 quote 能在接地语料中找到的条目(引用接地校验)。
   // parseClinicalFacts 只做结构校验、看不到病历原文,接地必须在这里完成。
   const extractorAffirmedTerms: string[] = (state.clinicalFacts?.affirmedSymptoms || [])
@@ -1240,7 +1257,7 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
             ) {
               return groundedValue;
             }
-            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(groundedValue, source, extractorAffirmedTerms), state), state);
+            const sanitized = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(groundedValue, source, extractorAffirmedTerms, recordedInspection), state), state);
             if (key === "followupSafetyNet") return ensureActionableFollowupSafetyNet(sanitized);
             const documentedPositive = sanitized.match(/病历已记录(.+?)阳性/);
             const exactDocumentedPositive = sanitized.match(/^\s*病历已记录(.+?)阳性[。；;]?\s*$/);
@@ -1312,7 +1329,7 @@ function sanitizeUngroundedRedFlagNegationsInProse(content: string, state: CaseS
     },
   );
   const examGroundedNarrative = sanitizeUngroundedPhysicalExamClaimsInNarrative(placeholderContent, source);
-  const sanitizedNarrative = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(examGroundedNarrative, source, extractorAffirmedTerms), state), state);
+  const sanitizedNarrative = sanitizePatientApplicableText(sanitizeAgeClaimText(sanitizeUngroundedNegationText(examGroundedNarrative, source, extractorAffirmedTerms, recordedInspection), state), state);
   return sanitizedNarrative.replace(/__TCM_CDSS_JSON_BLOCK_(\d+)__/g, (_, index: string) => jsonBlocks[Number(index)] || "");
 }
 

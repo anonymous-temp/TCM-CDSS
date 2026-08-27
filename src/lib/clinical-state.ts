@@ -78,6 +78,81 @@ function lastMatchIndex(text: string, pattern: RegExp): number {
   return Array.from(text.matchAll(global)).at(-1)?.index ?? -1;
 }
 
+/**
+ * 望闻切诊**字段槽**语义：这一栏医生填了没有（2026-08-26 拆谓词）。
+ *
+ * 与 isUnknownClinicalFieldText 的分工——那一个回答的是「在一段自由文本里能不能认出舌脉」，
+ * 净化器靠它做编造防御，必须严格（形态学正则 ∪ 受控词表）。而门禁、充实度、M01 抽取问的是
+ * 另一个问题：**这一栏有没有内容**。字段本身就是锚点，标准脉名映射在这里毫无必要。
+ *
+ * 合成一个谓词的实测后果（TCM-BEST4SDT / TCM-SD 外部基准）：医生把脉象写成转述式
+ * （「左手脉象细长而紧张」「脉搏紧绷且振幅大」「脉跳得又快又硬」），后台判脉象未采集 →
+ * 缺项 pulse_unknown → 完整度压到 B → 辨证被降级成「症状级工作判断」。写得越细越判不出来。
+ *
+ * 判据：按小句切分；「未取得」声明句（待核实/未查/不详/见附图…，或带 舌/脉/面 标签的同类
+ * 表述）不算内容；其余小句去掉栏目标签后还剩下汉字即算内容。已记录 = 最后一条内容句出现在
+ * 最后一条「未取得」声明之后——「舌淡红苔薄白，舌象待核实」仍判未记录（后写的声明推翻先前
+ * 内容），与旧口径一致。
+ */
+const INSPECTION_FIELD_LABEL: Record<"tongue" | "pulse" | "face", RegExp> = {
+  tongue: /舌象|舌质|舌体|舌苔|舌下|舌面|舌|苔象|苔/gu,
+  pulse: /脉象|脉搏|脉来|脉率|脉|切诊/gu,
+  face: /面象|面色|神色|面/gu,
+};
+// 「未取得」表述闭集：只收**可用性**语义的词，不收临床所见。
+// 「无苔」「少苔」「无异常」都是阳性所见，绝不能进这个集合。
+const INSPECTION_UNAVAILABLE_PHRASE =
+  /待核实|待确认|待补充|待完善|未采集|未查|未做|未行|未提供|未记录|未见记录|无记录|未描述|未观察|未测|未评估|未知|不详|不清楚|无法判断|无法评估|暂缺|暂无记录|见附图|见图片|详见|同上/u;
+const PURE_UNAVAILABLE_CLAUSE = /^(?:无|没有|未|不明|缺)$/u;
+/** 该小句是否带本栏锚字。锚字是「这句在讲舌/脉/面」的构词式证据。 */
+const ANCHORED_CLAUSE: Record<"tongue" | "pulse" | "face", RegExp> = {
+  tongue: /[舌苔]/u,
+  pulse: /脉/u,
+  face: /面|神色/u,
+};
+/** 锚字的非望诊用法：给药途径、血管名等，不能据此认定该栏已记录。 */
+const NON_INSPECTION_ANCHOR_USE: Record<"tongue" | "pulse" | "face", RegExp> = {
+  tongue: /舌下(?:含服|给药|滴丸|片)/u,
+  pulse: /[静动络血经淋]脉|脉(?:管|压|冲|络)|静脉曲张/u,
+  face: /面积|面对|方面|面临/u,
+};
+
+export function isUnrecordedInspectionFieldValue(
+  value: unknown,
+  field: "tongue" | "pulse" | "face",
+): boolean {
+  const text = typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+  if (!text) return true;
+  const labelPattern = INSPECTION_FIELD_LABEL[field];
+  let lastUnavailable = -1;
+  let lastSubstantive = -1;
+  let offset = 0;
+  for (const raw of text.split(/[，,。；;\n]/u)) {
+    const clause = raw.trim();
+    const index = offset;
+    offset += raw.length + 1;
+    if (!clause) continue;
+    if (INSPECTION_UNAVAILABLE_PHRASE.test(clause) || PURE_UNAVAILABLE_CLAUSE.test(clause)) {
+      lastUnavailable = index;
+      continue;
+    }
+    // 这一句必须**确实在讲这一栏**才算所见。只看「去掉标签后还有字」不行：舌象栏里
+    // 夹着「现服阿司匹林100mg每日一次」这种跨栏污染时会被当成舌象记录（钉子见
+    // test-clinical-grounding 的 crossFieldUnknownTongue）。两条通路取并集：
+    //   · 句中带该栏锚字（舌/苔、脉、面）——转述式写法走这条；
+    //   · 或被自由文本识别面认出（形态学 ∪ 受控词表）——「边有齿印」「浮紧脉」走这条。
+    const anchored = ANCHORED_CLAUSE[field].test(clause) && !NON_INSPECTION_ANCHOR_USE[field].test(clause);
+    const residual = clause
+      .replace(new RegExp(labelPattern.source, "gu"), "")
+      .replace(/[：:、（）()\s]+/gu, "")
+      .replace(/^(?:为|见|呈|偏|示|是)+/u, "");
+    const substantive = (anchored && /[\u4e00-\u9fa5]/u.test(residual)) ||
+      !isUnknownClinicalFieldText(clause, field);
+    if (substantive) lastSubstantive = index;
+  }
+  return lastSubstantive < 0 || lastUnavailable > lastSubstantive;
+}
+
 export function isUnknownClinicalFieldText(
   value: unknown,
   field: "tongue" | "pulse" | "face" | "medication" | "allergy" | "generic",
