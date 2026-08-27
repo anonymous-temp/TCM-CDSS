@@ -643,6 +643,59 @@ const recoveredTwiceInvalidReview = await extractClinicalFacts("手划伤后渗�
 }, undefined, { independentReview: true, allowDispositionReductions: true });
 ok("extractor: Qwen 连续两次复核合同抖动后允许第三次受总时限约束的恢复",
   twiceInvalidReviewAttempts === 3 && recoveredTwiceInvalidReview?.reviewStatus === "checked");
+// ── 复核接地：逐条隔离，单条不合格不连坐整批（2026-08-27）──────────────────────
+// 生产实测：把相位超时从 8s 放宽到 12s 后，失败原因从 timeout 变成
+// clinical_facts_review_grounding_invalid，3 次尝试全废 → 30% 语义层不可用。
+// 判据原为 reviewedGrounded.redFlags.length !== reviewed.redFlags.length：复核返回
+// 5 条里只要 1 条引文不精确（长病历上 qwen3.8-max 也会），整批作废重来。
+// 这正是本仓复发多次的「单条非法连坐整批」形状（见 parseM02Plan 注释记录的前 7 次）。
+// 逐条隔离是安全的：接地失败的条目丢弃后，首轮已落地事实的单调性检查照旧把关，
+// 该擦不掉的仍擦不掉（下面那条「复核空结果不得静默擦除首轮已落地急症」的钉子不变）。
+let partialGroundingAttempts = 0;
+const partiallyGroundedReview = await extractClinicalFacts(
+  "胸痛没有缓解，已持续30分钟。另外这两天有点咳嗽。",
+  async (_system, _user, _signal, phase) => {
+    if (phase !== "review") {
+      return JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] });
+    }
+    partialGroundingAttempts += 1;
+    // 一条接地良好（确认首轮急症），一条引文是模型改写过的、原文里逐字找不到。
+    return JSON.stringify({
+      redFlags: [
+        { findingId: "rf-1", category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" },
+        { findingId: "rf-2", category: "bleeding", subject: "patient", status: "positive", urgency: "urgent", triageBasis: "urgent_review", quote: "近两日出现咳嗽症状" },
+      ],
+      reviews: [{ findingId: "rf-1", decision: "confirm" }, { findingId: "rf-2", decision: "confirm" }],
+    });
+  },
+  undefined,
+  { independentReview: true, allowDispositionReductions: true },
+);
+ok("extractor: 复核里单条引文接地失败不连坐整批（一次通过，不再重试三轮）",
+  partialGroundingAttempts === 1 && partiallyGroundedReview?.reviewStatus === "checked");
+ok("extractor: 逐条隔离后首轮急症仍在且强度不降",
+  partiallyGroundedReview?.redFlags?.some((f) => f.urgency === "emergency"));
+// 反证：复核**全部**条目都接地失败时仍按合同失败处理（重试→最终 unavailable）。
+let allGroundingFailAttempts = 0;
+const allGroundingFailed = await extractClinicalFacts(
+  "胸痛没有缓解，已持续30分钟。",
+  async (_system, _user, _signal, phase) => {
+    if (phase !== "review") {
+      return JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] });
+    }
+    allGroundingFailAttempts += 1;
+    return JSON.stringify({
+      redFlags: [{ findingId: "rf-9", category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "患者主诉心前区压榨样疼痛" }],
+      reviews: [{ findingId: "rf-9", decision: "confirm" }],
+    });
+  },
+  undefined,
+  { independentReview: true, allowDispositionReductions: true },
+);
+ok("extractor: 复核全部条目接地失败仍判合同失败并保留首轮急症",
+  allGroundingFailAttempts === 3 && allGroundingFailed?.reviewStatus === "unavailable" &&
+  allGroundingFailed?.redFlags?.[0]?.urgency === "emergency");
+
 // ── 超时类失败不重试（2026-08-27，生产实测 30% 语义层不可用的根因）────────────────
 // 线上探针 10 例 3 例 unavailable，失败耗时全是 25.5–25.7s——精确撞总预算
 // CLINICAL_FACTS_TOTAL_TIMEOUT_MS(25s)；日志显示 attempt 1、2 均 reason:'timeout'。

@@ -1427,10 +1427,27 @@ export async function extractClinicalFacts(
       const reviewed = parseClinicalFacts(reviewedRaw);
       if (!reviewed) throw new Error("clinical_facts_review_schema_invalid");
       const reviewedGrounded = groundClinicalFacts(reviewed, text);
-    // The reviewer is authoritative only when every returned item passes the same source contract.
-    // A malformed citation cannot erase or upgrade the already-grounded first pass.
-    if (reviewedGrounded.redFlags.length !== reviewed.redFlags.length) {
+    // 复核条目**逐条隔离**（2026-08-27）：接地失败的条目丢弃，其余照常参与判定。
+    //
+    // 原判据是「有一条接地失败就整批作废重来」。生产实测：把相位超时从 8s 放宽到 12s
+    // 之后（复核终于跑得完了），失败原因从 timeout 变成 review_grounding_invalid，
+    // 三轮重试全废 → 语义层 30% 不可用。长病历上连 qwen3.8-max 也会把某一条引文写成
+    // 改写版；一条不精确就废掉整份复核，代价是整例失去语义回补。
+    // 这正是本仓复发多次的「单条非法连坐整批」形状（parseM02Plan 的注释记着前 7 次）。
+    //
+    // 逐条隔离为什么安全：复核的权威性由下面的**单调性检查**承担，而不是由「条数相等」
+    // 承担——首轮已落地的每条 active finding 必须在复核结果里被保留或升级，否则走
+    // dispositionReductions 的显式批准路径。丢掉一条接地失败的复核条目，只会让单调性
+    // 更难通过（更保守），不可能把该保留的急症擦掉。
+    // 全部条目都接地失败时仍按合同失败处理：那是复核整体不可信，不是个别引文抖动。
+    if (reviewedGrounded.redFlags.length === 0 && reviewed.redFlags.length > 0) {
       throw new Error("clinical_facts_review_grounding_invalid");
+    }
+    if (reviewedGrounded.redFlags.length !== reviewed.redFlags.length) {
+      console.info("[tcm-cdss:facts] 复核条目逐条隔离：丢弃接地失败条目", {
+        returned: reviewed.redFlags.length,
+        grounded: reviewedGrounded.redFlags.length,
+      });
     }
     const activeInitial = grounded.redFlags.filter((finding) => finding.status === "positive" || finding.status === "possible");
     const monotonicReview = activeInitial.every((initial) =>
