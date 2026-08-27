@@ -1350,7 +1350,42 @@ export function enforceRetrievedM03FormulaSelection(content: string, allowedName
           parsed.overview.recommendedFormulaDirection = `${systemLockable[0]}加减（按已签名证候反查受控目录锁定，医生可改选）`;
           return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(parsed, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
         }
-        if (names.every((name) => allowed.has(name.replace(/\s+/g, "")))) return match;
+        const verifiedNames = names.filter((name) => allowed.has(name.replace(/\s+/g, "")));
+        if (verifiedNames.length === names.length) return match;
+        // 合方里**逐方**核验，不连坐（2026-08-27）。
+        //
+        // 判据原为 names.every(...)：合方中只要有一个方不在受控目录里，整组方名一并撤销、
+        // 整例退化成自拟方。实测（TCMEval 20 例）12 例被撤销，其中 4 例是「有一个方自己
+        // 通过了正向充分性核验」却被连坐：
+        //   病例78 心脾两虚痰热内扰：归脾汤 ✓（召回 31 分）+ 温胆汤 不在受控池 ⇒ 归脾汤也被撤
+        //   病例311 气阴两虚：生脉散 ✓ + 牡蛎散 不在池；病例164、274 同形。
+        // 这是本仓复发多次的「单条非法连坐整批」形状（parseM02Plan 注释记着前 7 次）。
+        //
+        // 与上文「模型选了但没过核验不得用系统的方顶替」不冲突——保留的方是**模型自己选的**，
+        // 且自己走完了同一道门（identityLockEligible + positiveSufficiency + 目录级 lockEligible）。
+        // 阳黄例的教训针对的是「全部未通过时换一个模型从未考虑过的方」，这里一个都没换：
+        // 剔除的只是未过核验的那些，保留的只在模型原选名单之内。
+        // 全部未通过时行为一字不变（走下方整组撤销 + 留痕 + 自拟方，fail-closed 不变）。
+        if (verifiedNames.length > 0) {
+          const rejectedNames = names.filter((name) => !allowed.has(name.replace(/\s+/g, "")));
+          const keptMode: "single" | "combined" | "alternatives" = verifiedNames.length > 1
+            ? (parsed.overview.formulaSelectionMode === "alternatives" ? "alternatives" : "combined")
+            : "single";
+          parsed.overview.deferredFormulaSelection = {
+            direction: typeof parsed.overview.recommendedFormulaDirection === "string"
+              ? parsed.overview.recommendedFormulaDirection
+              : rejectedNames.join("、"),
+            names: rejectedNames,
+            mode: rejectedNames.length > 1 ? "alternatives" : "single",
+            reason: "governed_syndrome_relation_unverified",
+          };
+          parsed.overview.recommendedFormulaNames = verifiedNames;
+          parsed.overview.formulaSelectionMode = keptMode;
+          // 方向文本不得再声称已被剔除的方，否则方名与方向自相矛盾。
+          parsed.overview.recommendedFormulaDirection =
+            `${verifiedNames.join("合")}加减（原选另含未通过受控目录核验的方，已剔除并留痕，医生可改选）`;
+          return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(parsed, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
+        }
         // 「等医生确认术语」只有在主证候**确实无法确定性归一**时才是真原因（2026-08-13 线上实测）。
         // 复合证候「心阳不振，水气凌心」首段可被 canonicalPrimarySyndromeId 确定性解析——
         // 与授予 primarySyndromeIdentityConfirmed 的是同一个解析器，单一判据不许在这里另写一份——

@@ -52,6 +52,7 @@ const m03 = ({ syndrome, pathogenesis, therapy, names, mode }) => ({
 });
 
 const failures = [];
+const check = (name, fn) => { try { fn(); } catch (e) { failures.push({ name, message: e?.message || String(e) }); } };
 const run = (reasoning) => unwrap(ind.enforceRetrievedM03FormulaSelection(wrap(reasoning), []));
 
 // ── 一、模型未给方名,系统检索到已核验方 ⇒ 必须锁定 ────────────────────
@@ -359,10 +360,67 @@ assert.equal(
   `凭空锁定 ⇒ 不对证的方挂上方名(比自拟方更坏)。`,
 );
 
+// ── 五、合方里部分方通过核验 ⇒ 保留通过的，剔除未通过的（2026-08-27）──────────
+// 实测（TCMEval 20 例）：12 例方名被撤销，其中 4 例是 combined 里**有一个方自己通过了
+// 正向充分性核验**，却因同组另一个方不在受控目录而被连坐撤销，整例退化成自拟方：
+//   病例78 心脾两虚痰热内扰：归脾汤 ✓（31 分）+ 温胆汤 不在池 ⇒ 归脾汤也被撤
+//   病例311 气阴两虚：生脉散 ✓ + 牡蛎散 不在池
+//   病例164：海藻玉壶汤 不在池 + 生脉散 ✓
+//   病例274 风痰闭阻：五磨饮子 不在池 + 定痫丸 ✓
+// 判据是 names.every(...)——本仓复发多次的「单条非法连坐整批」形状。
+//
+// 这与第二节「模型选了但没过核验不得用系统的方顶替」不冲突：保留的方是**模型自己选的**，
+// 且自己通过了同一道门（identityLockEligible + positiveSufficiency + 目录级 lockEligible）。
+// 阳黄例的教训针对的是「全部未通过时换一个模型没考虑过的方」，这里一个都没换。
+{
+  const out = run(m03({
+    syndrome: "心脾两虚证",
+    pathogenesis: "心脾两虚，气血不足，心神失养",
+    therapy: "健脾养心，益气补血",
+    names: ["归脾汤", "温胆汤"],
+    mode: "combined",
+  }));
+  const kept = out?.overview?.recommendedFormulaNames || [];
+  check("合方部分通过：保留已核验的方，不再整组撤销", () => {
+    assert.ok(kept.includes("归脾汤"), `应保留归脾汤，实际 ${JSON.stringify(kept)}`);
+    assert.ok(!kept.includes("温胆汤"), `未通过核验的方必须剔除，实际 ${JSON.stringify(kept)}`);
+    assert.equal(out?.overview?.formulaSelectionMode, "single", "只剩一个方时降为 single");
+  });
+  check("合方部分通过：被剔除的方名留痕可追溯", () => {
+    const deferred = out?.overview?.deferredFormulaSelection;
+    assert.ok(deferred, "必须留痕");
+    assert.ok((deferred.names || []).includes("温胆汤"), `留痕需含被剔除方名，实际 ${JSON.stringify(deferred)}`);
+    assert.equal(deferred.reason, "governed_syndrome_relation_unverified");
+  });
+  check("合方部分通过：方向文本不得再声称已被剔除的方", () => {
+    assert.ok(!String(out?.overview?.recommendedFormulaDirection || "").includes("温胆汤"),
+      `方向仍提着被剔除的方：${out?.overview?.recommendedFormulaDirection}`);
+  });
+}
+// 反证：合方里**全部**未通过核验时，维持既有整组撤销 + 自拟方（fail-closed 不变）。
+{
+  const out = run(m03({
+    syndrome: "心脾两虚证",
+    pathogenesis: "心脾两虚，气血不足",
+    therapy: "健脾养心，益气补血",
+    names: ["温胆汤", "藿香正气散"],
+    mode: "combined",
+  }));
+  check("合方全部未通过：仍整组撤销走自拟方", () => {
+    assert.deepEqual(out?.overview?.recommendedFormulaNames || [], [], "一个都不许留");
+    assert.ok(out?.overview?.deferredFormulaSelection, "撤销仍须留痕");
+  });
+}
+
+if (failures.length > 0) {
+  console.error(JSON.stringify({ suite: "governed-formula-lock", failures }, null, 2));
+  process.exit(1);
+}
 console.log(JSON.stringify({
   modelSelfDevisedGetsGovernedLock: true,
   rejectedModelPickNotSubstituted: true,
   failClosedWhenNothingVerified: true,
   verifiedModelPickPreserved: true,
-  failures: 0,
+  partialCombinedLockPreserved: true,
+  failures: failures.length,
 }));
