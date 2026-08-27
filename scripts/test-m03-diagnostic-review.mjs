@@ -604,6 +604,64 @@ assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_ne
 assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_http_error", status: 503 }, 40_000, undefined, 10_000), true);
 assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_http_error", status: 401 }, 40_000, undefined, 10_000), false);
 assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_network_error" }, 19_999, undefined, 10_000), false, "less than ten seconds cannot start a second repair draw");
+
+// ── 预算感知重试（2026-08-27，生产 174s 长尾的根因）────────────────────────────
+// 实测时间线（TCM-BEST4SDT tcmbest_157，M03 总耗时 173,951ms）：
+//   27s 首轮生成 → 候选被驳回 chain_key_discriminator_missing
+//   → 修复轮跑满 90s 超时（STRUCTURED_RETRY_TOTAL_TIMEOUT_MS）
+//   → 判为「瞬时故障」再试一次，此时只剩 63s 却要跑一轮需要 90s 的轮次
+//   → 必然撞 180s 编排时限 → 整轮作废降级成空结果。
+// 根因是重试门只问「剩余是否 ≥10s」，从不问「够不够跑完一轮」。
+// 修法：估计值取**刚才那一轮的实际耗时**（同提示词同模型，重试耗时大致相同），
+// 并留出 finalize/复核/签名储备；估不出来时用保守下限。
+// 超时（retry_timeout_or_cancelled）尤其要按此判——重试同一份提示词大概率再次超时。
+assert.equal(
+  shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_timeout_or_cancelled" }, 63_000, undefined, 0, 90_000),
+  false,
+  "a 90s round that just timed out must not be retried with only 63s left",
+);
+assert.equal(
+  shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_timeout_or_cancelled" }, 130_000, undefined, 0, 90_000),
+  true,
+  "the same retry is allowed when the remaining budget covers another full round plus finalize reserve",
+);
+// 快速失败（JSON 不合法，2s 就回来了）不该被 90s 的悲观估计挡住：估计值用观测值，
+// 但设下限，防止「2s 失败 → 估 2s → 剩 20s 也敢开轮」这种反向误判。
+assert.equal(
+  shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_invalid_json" }, 60_000, undefined, 0, 2_000),
+  true,
+  "a fast failure retries while the budget is ample",
+);
+assert.equal(
+  shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_invalid_json" }, 25_000, undefined, 0, 2_000),
+  false,
+  "a fast failure still needs room for a full round plus finalize reserve",
+);
+assert.equal(
+  shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_invalid_json" }, 55_000, undefined, 0, 2_000),
+  true,
+  "with a full round plus reserve available the fast failure retries",
+);
+// 反证：非瞬时故障（401）无论预算多充足都不重试；已中断同理。
+assert.equal(
+  shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_http_error", status: 401 }, 300_000, undefined, 0, 1_000),
+  false,
+  "a non-transient failure is never retried regardless of budget",
+);
+// 兼容：不传观测耗时时维持原判据（≥10s），不因新增参数收紧既有行为——
+// 生产路径只有 retryCompletePrimaryResponseWithTransientRecovery 一个调用点，
+// 而它总是带上刚跑完那一轮的实际耗时。
+assert.equal(
+  shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_network_error" }, 30_000, undefined, 0),
+  true,
+  "legacy call sites without an observation keep the original ten-second rule",
+);
+// 快失败也不能把估计拉到 2s：上游恢复后要跑的是一轮完整生成（下限 30s + 储备 20s）。
+assert.equal(
+  shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_invalid_json" }, 45_000, undefined, 0, 2_000),
+  false,
+  "a fast failure is still estimated at a full round, not at its own two seconds",
+);
 const abortedRepair = new AbortController();
 abortedRepair.abort();
 assert.equal(shouldRetryStructuredRepairTransport({ ok: false, reason: "retry_network_error" }, 40_000, abortedRepair.signal, 10_000), false);

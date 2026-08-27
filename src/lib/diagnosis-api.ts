@@ -1615,7 +1615,14 @@ async function retryCompletePrimaryResponse(
   else parentSignal?.addEventListener("abort", abortFromParent, { once: true });
   const remainingRunBudget = (absoluteDeadline || Date.now() + STRUCTURED_RETRY_TOTAL_TIMEOUT_MS) - Date.now();
   if (remainingRunBudget <= 0) return { ok: false, reason: "retry_budget_exhausted" };
-  const totalTimeout = setTimeout(() => controller.abort(), Math.min(STRUCTURED_RETRY_TOTAL_TIMEOUT_MS, remainingRunBudget));
+  // 修复轮自己也要给收尾留预算：跑满剩余时间才超时，等于「修好了也来不及签名」。
+  // 预算不足一轮 finalize 储备时直接判耗尽，把时间还给带批注受理路径。
+  const roundBudget = Math.min(
+    STRUCTURED_RETRY_TOTAL_TIMEOUT_MS,
+    remainingRunBudget - STRUCTURED_REPAIR_FINALIZE_RESERVE_MS,
+  );
+  if (roundBudget <= 0) return { ok: false, reason: "retry_budget_exhausted" };
+  const totalTimeout = setTimeout(() => controller.abort(), roundBudget);
   try {
     const startMarker = "<!-- DIAGNOSIS_JSON_START -->";
     const endMarker = "<!-- DIAGNOSIS_JSON_END -->";
@@ -2130,15 +2137,46 @@ export function structuredRepairFailureIsUpstreamUnavailable(
  * result when the orchestration deadline still has room. Retry exactly once; contract rejections
  * continue through the existing semantic repair loop and non-transient errors remain fail-closed.
  */
+/**
+ * 一轮修复之后还要跑 prepare → 独立复核 → finalize → 签名。重试门必须给这一段留出预算，
+ * 否则「重试成功了但没时间收尾」与「重试失败」代价相同，都是整轮作废。
+ * 实测量级：prepare ≈ 3s、复核 p90 ≈ 5.5s、裁决轮 + finalize + 签名若干秒。
+ */
+const STRUCTURED_REPAIR_FINALIZE_RESERVE_MS = 20_000;
+/**
+ * 观测到的轮次耗时下限。快速失败（2s 的 JSON 不合法）不代表重试也只要 2s——
+ * 上游恢复后要跑的是一轮完整生成，估计值不能被这类快失败拉低。
+ */
+const STRUCTURED_REPAIR_ROUND_ESTIMATE_FLOOR_MS = 30_000;
+
+/**
+ * 预算感知的瞬时故障重试门（2026-08-27，生产 174s 长尾根因）。
+ *
+ * 实测时间线（TCM-BEST4SDT tcmbest_157，M03 总耗时 173,951ms）：27s 首轮生成 → 候选被驳回
+ * → 修复轮跑满 90s 超时 → 判为瞬时故障再试一次，此时只剩 63s 却要跑一轮需要 90s 的轮次
+ * → 必然撞 180s 编排时限 → 整轮作废降级成空结果。医生等了三分钟，拿到一页「重新完成辨证」。
+ *
+ * 根因不是超时值太大，而是重试门只问「剩余是否 ≥10s」，从不问**够不够跑完一轮**。
+ * 估计值取刚才那一轮的实际耗时（同提示词、同模型，重试耗时大致相同），再留 finalize 储备。
+ * 超时类失败尤其适用：重试同一份提示词大概率再次超时，而这一次浪费的是整个剩余预算。
+ */
 export function shouldRetryStructuredRepairTransport(
   result: StructuredRepairResult,
   absoluteDeadline?: number,
   parentSignal?: AbortSignal,
   now = Date.now(),
+  observedRoundMs?: number,
 ): boolean {
   if (result.ok || parentSignal?.aborted) return false;
   const remaining = (absoluteDeadline || now) - now;
   if (remaining < 10_000) return false;
+  // 观测值是唯一可靠的估计。拿不到时（既有单元调用点不传）维持原判据，不因新增参数
+  // 收紧旧行为——生产路径只有 retryCompletePrimaryResponseWithTransientRecovery 一个
+  // 调用点，而它总是带上刚跑完那一轮的实际耗时。
+  if (observedRoundMs != null) {
+    const estimate = Math.max(observedRoundMs, STRUCTURED_REPAIR_ROUND_ESTIMATE_FLOOR_MS);
+    if (remaining < estimate + STRUCTURED_REPAIR_FINALIZE_RESERVE_MS) return false;
+  }
   if (result.reason === "retry_invalid_json") return true;
   return structuredRepairFailureIsUpstreamUnavailable(result);
 }
@@ -2146,14 +2184,28 @@ export function shouldRetryStructuredRepairTransport(
 async function retryCompletePrimaryResponseWithTransientRecovery(
   ...args: Parameters<typeof retryCompletePrimaryResponse>
 ): Promise<StructuredRepairResult> {
+  // 这一轮实际跑了多久，就是重试大概要跑多久的最好估计——同提示词、同模型。
+  const roundStartedAt = Date.now();
   const first = await retryCompletePrimaryResponse(...args);
+  const observedRoundMs = Date.now() - roundStartedAt;
   const absoluteDeadline = args[3];
   const parentSignal = args[4];
-  if (!shouldRetryStructuredRepairTransport(first, absoluteDeadline, parentSignal)) return first;
+  if (!shouldRetryStructuredRepairTransport(first, absoluteDeadline, parentSignal, Date.now(), observedRoundMs)) {
+    if (!first.ok && !parentSignal?.aborted) {
+      console.warn("[tcm-cdss:model] transient repair retry skipped; remaining budget cannot finish another round", {
+        stage: args[2],
+        reason: first.reason,
+        observedRoundMs,
+        remainingMs: (absoluteDeadline || Date.now()) - Date.now(),
+      });
+    }
+    return first;
+  }
   console.warn("[tcm-cdss:model] transient structured repair failure; retrying once within deadline", {
     stage: args[2],
     reason: first.ok ? "none" : first.reason,
     status: first.ok ? undefined : first.status,
+    observedRoundMs,
   });
   await new Promise((resolve) => setTimeout(resolve, 300));
   if (parentSignal?.aborted) return first;
