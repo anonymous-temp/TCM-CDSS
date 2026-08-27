@@ -1123,7 +1123,7 @@ function validatedStructuredReasoning(
       // 全量口径复验，等于任何一个没打豁免旗的质量发射点都能把已受理的候选再判成 0 味——
       // 这个「逐点打旗、漏一点复发一类」的模式已经复发了四次，结构上必须终结。
       if (waiveM04TherapyCoverageAnnotated) {
-        if (m04SafetyContractIssue(
+        const floorIssue = m04SafetyContractIssue(
           enrichedReasoning,
           priorReasoning,
           isKnownTcmHerbName,
@@ -1131,7 +1131,22 @@ function validatedStructuredReasoning(
           auditedClinicalRisksAreAdvisory,
           clinicalContext,
           true,
-        )) return undefined;
+        );
+        if (floorIssue) {
+          // 归因必须与拒绝同源（2026-08-27）。structuredRejectionReason 的默认
+          // attributionScope="strict" 走的是全量质量口径，而这里拒的是**底线合同**——
+          // 四个 prescribe 调用点都没传 safety_floor_waived，于是归因算不出这一支的码、
+          // 兜底成泛化的 resolver_rejected，线上日志只说得出「被拒了」说不出「拒在哪」。
+          // 实测：M04 零味候选（smoke 样本随机命中，formula_composition_mismatch →
+          // 确定性身份降级 → 此处被拒）连续两轮无法定位，就卡在这个盲区上。
+          // 这里只记录、不改变任何判定，行为与改动前逐字相同。
+          console.warn("[tcm-cdss:contract] M04 safety-floor rejection under coverage waiver", {
+            issue: floorIssue,
+            declassified: allowTransparentFormulaDeclassification,
+            advisoryRisks: auditedClinicalRisksAreAdvisory,
+          });
+          return undefined;
+        }
       } else {
         const semanticIssue = m04SemanticIssue(
           enrichedReasoning,
@@ -1159,12 +1174,19 @@ function validatedStructuredReasoning(
           )) return undefined;
         }
       }
-      if (formulaCompilationContractIssue(
+      const compilationIssue = formulaCompilationContractIssue(
         enrichedReasoning,
         priorReasoning,
         false,
         allowTransparentFormulaDeclassification,
-      )) return undefined;
+      );
+      if (compilationIssue) {
+        console.warn("[tcm-cdss:contract] M04 formula-compilation rejection", {
+          issue: compilationIssue,
+          declassified: allowTransparentFormulaDeclassification,
+        });
+        return undefined;
+      }
     }
     return reasoning;
   } catch {
