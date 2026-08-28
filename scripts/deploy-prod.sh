@@ -35,6 +35,10 @@ if [ -z "$KEY" ] || [ ! -f "$KEY" ]; then
 fi
 echo "=== 部署密钥：$KEY ==="
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/home/ubuntu/tcm-cdss/releases/20260801-vocab-deduction}"
+# Runtime secrets have a lifecycle independent from synchronized source releases.  Keep them at a
+# stable deployment-owned path outside REMOTE_DIR; candidate/release directories may be replaced or
+# cleaned without changing the customer token, signing key, or provider credentials.
+RUNTIME_ENV="${DEPLOY_RUNTIME_ENV:-/home/ubuntu/tcm-cdss/.env.prod.runtime}"
 TAG="${IMAGE_TAG:?IMAGE_TAG 必须显式指定且不可复用——镜像 tag 必须不可变，否则无法证明线上跑的是哪一版}"
 # 保留几个历史 tcm-cdss 镜像用于回滚。3 个 ≈ 3GB，够回滚两版；再多只是占磁盘。
 KEEP_IMAGES="${DEPLOY_KEEP_IMAGES:-3}"
@@ -57,8 +61,22 @@ SYNC_PATHS=(
   .env.example .dockerignore docs AGENTS.md CLAUDE.md
 )
 
+# Refuse to sync anything until the deployment-owned environment exists, then compare its digest
+# before/after source sync.  The digest is never printed.
+ENV_DIGEST_BEFORE="$($SSH "$USER@$HOST" "test -s '$RUNTIME_ENV' && sha256sum '$RUNTIME_ENV' | cut -d' ' -f1")"
+if [ -z "$ENV_DIGEST_BEFORE" ]; then
+  echo "!! 受保护的运行时配置不存在或为空：$RUNTIME_ENV；拒绝同步与部署。" >&2
+  exit 1
+fi
+
 echo "=== sync (commit=${COMMIT:0:12} digest=${DIGEST:0:12}) ==="
 rsync -az --delete -e "$SSH" "${SYNC_PATHS[@]}" "$USER@$HOST:$REMOTE_DIR/"
+
+ENV_DIGEST_AFTER="$($SSH "$USER@$HOST" "test -s '$RUNTIME_ENV' && sha256sum '$RUNTIME_ENV' | cut -d' ' -f1")"
+if [ "$ENV_DIGEST_AFTER" != "$ENV_DIGEST_BEFORE" ]; then
+  echo "!! 源码同步改变了受保护的运行时配置；拒绝继续构建与部署。" >&2
+  exit 1
+fi
 
 echo "=== prune (保留最近 $KEEP_IMAGES 个 tcm-cdss 镜像 + 运行中容器) ==="
 # `until=24h` 单独用是不够的：一天之内部署多次时，当天的镜像一个都不会被回收。
@@ -102,7 +120,7 @@ $SSH "$USER@$HOST" "cd $REMOTE_DIR && DOCKER_BUILDKIT=1 docker build \
 $SSH "$USER@$HOST" "docker image inspect tcm-cdss:$TAG >/dev/null" || { echo "!! 构建失败：镜像 $TAG 不存在" >&2; exit 1; }
 
 echo "=== deploy ==="
-$SSH "$USER@$HOST" "cd $REMOTE_DIR && IMAGE_TAG=$TAG docker compose -p tcm-cdss-prod --env-file ./.env.prod.runtime up -d"
+$SSH "$USER@$HOST" "cd $REMOTE_DIR && IMAGE_TAG=$TAG docker compose -p tcm-cdss-prod --env-file '$RUNTIME_ENV' up -d"
 
 # 只有真正跑起来的镜像与本次 tag 一致，才算部署完成——否则上面任何一步失败都可能被读成成功。
 RUNNING="$($SSH "$USER@$HOST" "docker inspect --format '{{.Config.Image}}' tcm-cdss-prod-tcm-cdss-1 2>/dev/null || true")"

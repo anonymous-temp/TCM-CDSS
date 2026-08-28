@@ -1,6 +1,10 @@
 import { spawnSync } from "node:child_process";
 
 const scripts = [
+  // Deployment-owned secrets are outside source-sync ownership.  A production release exposed that
+  // rsync's multi-source `--delete` removed `.env.prod.runtime` before compose, while the old container
+  // stayed healthy and masked the failure.  Pin both the shell ordering and real rsync behavior.
+  "test:deploy-runtime-env-protection",
   "test:rxaudit-contract",
   "test:rxaudit-payload",
   "test:rxaudit-cache",

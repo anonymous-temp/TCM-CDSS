@@ -150,6 +150,7 @@
     "test:nihaisha-fusion": "jiti scripts/test-nihaisha-fusion.mjs",
     "test:nihaisha-replay": "jiti scripts/test-nihaisha-case-replay.mjs",
     "test:prompt-injection": "jiti scripts/test-prompt-injection-defense.mjs",
+    "test:deploy-runtime-env-protection": "node scripts/test-deploy-runtime-env-protection.mjs",
     "test:deterministic": "node scripts/run-deterministic-regression.mjs",
     "test:deterministic:fresh": "CDSS_IGNORE_LOCAL_ARTIFACTS=1 node scripts/run-deterministic-regression.mjs",
     "verify:release": "npm run typecheck && npm run lint && npm run test:deterministic && npm run test:deterministic:fresh && npm run build",
