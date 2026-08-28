@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const { canonicalTcmHerbIdentity, describeM03WesternSupportConflict, highImpactHerbDirectionIssue, isCompleteM04Reasoning, isM04TherapyMatchAligned, isStableM03Reasoning, isUnstableM03CoreText, isWesternSupportingFactPolarityAligned, m03ChainNodeDiagnostics, m03DoseLevelInstructionFindings, m03SafetyContractIssue, m03SemanticIssue, m03WesternClinicalRationaleIssue, m04GenerationSpecialPopulationIssue, m04SemanticIssue, patientFactSourceQuote, uncoveredPrimaryTherapyDirections, priorDocumentedFactConcepts, stableM03SyndromeLabel, transparentFormulaTherapyIssue, unsupportedHighImpactHerbFindings, highImpactTherapyDirectionStatus } = await import("../src/lib/diagnosis-stage-contract.ts");
+const { normalizedFormulaModificationFields } = await import("../src/lib/formula-modification.ts");
 const { getM03TherapyLock } = await import("../src/lib/m03-therapy-lock.ts");
 const { advanceM04RepairState, canAcceptTransparentFormulaFallback, initialM04RepairState } = await import("../src/lib/m04-repair-policy.ts");
 const { editedPrescriptionSemanticIssue } = await import("../src/lib/prescription-revision.ts");
@@ -3090,10 +3091,10 @@ const doctorEditedToxicDose = {
       : herb),
   }] },
 };
-assert.equal(
-  m04SemanticIssue(doctorEditedToxicDose, "", namedDirectionPrior, undefined, false, false, true),
-  undefined,
-  "a plausible doctor-edited toxic-herb dose reaches the real advisory audit instead of being blocked by the historical model range",
+assert.match(
+  m04SemanticIssue(doctorEditedToxicDose, "", namedDirectionPrior, undefined, false, false, true) || "",
+  /unsupported_high_impact|dose_outside_conservative_range/,
+  "a client-shaped doctor edit must not bypass the deterministic direction and conservative-dose floor before audit",
 );
 const spleenDeficiencyPrior = {
   ...stable,
@@ -3391,7 +3392,8 @@ const validConditionalModification = {
     modifications: [{
       trigger: "心悸健忘、纳差便溏",
       targetPathogenesis: "心脾两虚，神失所养",
-      action: "加茯神",
+      action: "加",
+      herbName: "茯神",
       doseOrHandling: null,
       reason: "加强宁心安神",
       riskNote: "",
@@ -3399,6 +3401,9 @@ const validConditionalModification = {
   },
 };
 assert.equal(m04SemanticIssue(validConditionalModification, finalizedServerOwnedVisible, spleenDeficiencyPrior, isKnownTcmHerbName, true, true), undefined, "dose-free conditional modifications do not need workflow copy in the customer-facing risk field");
+assert.deepEqual(normalizedFormulaModificationFields({ action: "加", herbName: "茯神" }), { action: "加", herbName: "茯神" });
+assert.deepEqual(normalizedFormulaModificationFields({ action: "调整剂量酸枣仁" }), { action: "调整", herbName: "酸枣仁" }, "old signed snapshots remain readable without rewriting them");
+assert.equal(normalizedFormulaModificationFields({ action: "加远志", herbName: "茯神" }), null, "mixed old/new fields must not point review and safety layers at different herbs");
 for (const [doseCount, course, expected] of [
   ["5剂", "7日", "course_inconsistent"],
   ["5剂", "999年", "course"],
@@ -3533,7 +3538,8 @@ assert.equal(compiledProposal?.formula?.candidates[0].herbs[0].doseSource, "gove
 assert.match(compiledProposal?.formula?.candidates[0].herbs[0].verificationReasons?.[0] || "", /标准区间完成规则校验/, "verification metadata must explain why the tier was assigned");
 assert.match(compiledProposal?.formula?.candidates[0].herbs[0].verificationReasons?.[0] || "", /\d+-\d+g/, "核验说明必须带上具体剂量区间");
 assert.equal(compiledProposal?.formula?.modifications[0].targetPathogenesis, "心血不足");
-assert.equal(compiledProposal?.formula?.modifications[0].action, "加茯神");
+assert.equal(compiledProposal?.formula?.modifications[0].action, "加");
+assert.equal(compiledProposal?.formula?.modifications[0].herbName, "茯神");
 assert.equal(compiledProposal?.formula?.modifications[0].triggerSource?.sourceQuote, "入睡困难");
 assert.match(compiledProposal?.formula?.modifications[0].evidence.source || "", /患者事实.*入睡困难.*P1/);
 assert.match(compiledProposal?.formula?.modifications[0].riskNote || "", /药味工作台.+重新审方/, "conditional modifications must explain how to operationalize and re-audit an actual change");
@@ -4360,7 +4366,8 @@ const normalizedModificationProposal = compileM04Proposal({
   ],
 }, stable);
 assert.equal(normalizedModificationProposal?.formula?.modifications.length, 1, "controlled aliases normalize while malformed optional modifications are dropped");
-assert.equal(normalizedModificationProposal?.formula?.modifications[0].action, "加茯神");
+assert.equal(normalizedModificationProposal?.formula?.modifications[0].action, "加");
+assert.equal(normalizedModificationProposal?.formula?.modifications[0].herbName, "茯神");
 assert.ok((normalizedModificationProposal?.formula?.modificationReview?.droppedCount || 0) >= 1, "dropped optional modifications must be disclosed");
 assert.match(normalizedModificationProposal?.formula?.modificationReview?.droppedReason || "", /未展示|缺少|不能回溯|未命中|冲突|剂量/);
 const boundedModificationProposal = compileM04Proposal({

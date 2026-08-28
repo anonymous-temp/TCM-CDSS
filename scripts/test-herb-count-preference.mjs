@@ -123,8 +123,8 @@ check("HCP-06 软偏好：不得在 prompt 里表述为硬性裁剪", () => {
   );
 });
 
-check("HCP-07 流派：5 张受控卡片的 code 全部可直接作为入参", () => {
-  assert.equal(LINEAGE_CARDS.length, 5, `流派卡片数变为 ${LINEAGE_CARDS.length}，需同步接口文档 §3.3.2 的表`);
+check("HCP-07 流派：6 张受控卡片的 code 全部可直接作为入参", () => {
+  assert.equal(LINEAGE_CARDS.length, 6, `流派卡片数变为 ${LINEAGE_CARDS.length}，需同步接口文档 §3.3.2 的表`);
   for (const card of LINEAGE_CARDS) {
     assert.equal(
       normalizedWith({ tcmLineagePreference: card.code })?.tcmLineagePreference,
@@ -136,6 +136,8 @@ check("HCP-07 流派：5 张受控卡片的 code 全部可直接作为入参", (
 
 check("HCP-08 流派：中文别名可用，且两条通道都生效", () => {
   assert.equal(normalizedWith({ tcmLineagePreference: "温病" })?.tcmLineagePreference, "warm-disease");
+  assert.equal(normalizedWith({ tcmLineagePreference: "温补学派" })?.tcmLineagePreference, "warm-tonify");
+  assert.equal(normalizedWith({ tcmLineagePreference: "扶阳学派" })?.tcmLineagePreference, "support-yang");
   const viaHis = normalizeCaseStateInput({
     ...base,
     hisRecord: { fields: { tcmLineagePreference: "classical-formula" } },

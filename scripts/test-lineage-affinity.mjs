@@ -35,10 +35,10 @@ function check(name, fn) {
 }
 
 const VALID_STATUSES = new Set(["pending_clinician_review", "clinician_approved", "clinician_rejected"]);
-const SCHOOL_CODES = new Set(["classical-formula", "warm-disease", "nourish-yin-danxi", "warm-tonify-yang"]);
+const SCHOOL_CODES = new Set(["classical-formula", "warm-disease", "nourish-yin-danxi", "warm-tonify", "support-yang"]);
 
 // ─── 1. 数据形状与引用完整性 ─────────────────────────────────────────────
-check("bookRules 只允许四个流派码与合法状态", () => {
+check("bookRules 只允许五个独立流派码与合法状态", () => {
   assert.ok(affinitySource.bookRules.length >= 9);
   for (const rule of affinitySource.bookRules) {
     assert.ok(SCHOOL_CODES.has(rule.lineageCode), `非法流派码 ${rule.lineageCode}`);
@@ -82,13 +82,21 @@ check("全 pending 数据下重排是恒等变换（未终审零影响）", () =
 const approvedData = {
   bookRules: [
     { book: "伤寒论", lineageCode: "classical-formula", confirmationMode: "rule", adjudicationStatus: "clinician_approved" },
-    { book: "景岳全书", lineageCode: "warm-tonify-yang", confirmationMode: "per_formula", adjudicationStatus: "clinician_approved" },
+    { book: "景岳全书", lineageCode: "warm-tonify", confirmationMode: "per_formula", adjudicationStatus: "clinician_approved" },
+    { book: "医理真传", lineageCode: "support-yang", confirmationMode: "rule", adjudicationStatus: "clinician_approved" },
   ],
   formulaAdjudications: [
-    { formulaName: "右归丸", source: "《景岳全书》", lineageCode: "warm-tonify-yang", status: "clinician_approved" },
-    { formulaName: "保阴煎", source: "《景岳全书》", lineageCode: "warm-tonify-yang", status: "pending_clinician_review" },
+    { formulaName: "右归丸", source: "《景岳全书》", lineageCode: "warm-tonify", status: "clinician_approved" },
+    { formulaName: "保阴煎", source: "《景岳全书》", lineageCode: "warm-tonify", status: "pending_clinician_review" },
   ],
 };
+
+check("温补与扶阳著作归属使用不同 code", () => {
+  const warmTonify = lineageAffinityForFormula("右归丸", "《景岳全书》", approvedData);
+  const supportYang = lineageAffinityForFormula("四逆汤", "《医理真传》", approvedData);
+  assert.equal(warmTonify?.lineageCode, "warm-tonify");
+  assert.equal(supportYang?.lineageCode, "support-yang");
+});
 
 check("规则级终审后：同层内小分差被加分翻越，标注齐备", () => {
   const candidates = [
@@ -124,7 +132,7 @@ check("逐首模式：书规则终审但方剂行 pending 时零影响；行终�
     { name: "保阴煎", source: "《景岳全书》", score: 10, positiveSufficiency: false, doseCompilationEligible: true },
     { name: "右归丸", source: "《景岳全书》", score: 9, positiveSufficiency: false, doseCompilationEligible: true },
   ];
-  const { ordered, affinityByName } = applyLineageAffinityPresentationOrder(candidates, "warm-tonify-yang", approvedData);
+  const { ordered, affinityByName } = applyLineageAffinityPresentationOrder(candidates, "warm-tonify", approvedData);
   assert.deepEqual(ordered.map((item) => item.name), ["右归丸", "保阴煎"], "右归丸行已终审应加分上移；保阴煎行 pending 不加分");
   assert.ok(!affinityByName.has("保阴煎"), "pending 行不得出现任何标注");
 });

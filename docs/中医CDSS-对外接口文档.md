@@ -2,9 +2,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.7 |
-| 发布日期 | 2026-08-24 |
-| 服务版本 | `tcm-cdss-20260824-multitenant-remediation-r1` |
+| 文档版本 | V2.8 |
+| 发布日期 | 2026-08-28 |
+| 服务版本 | `tcm-cdss-20260828-lineage-modification-contract-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
 | 字符编码 | UTF-8 |
@@ -206,11 +206,17 @@ curl -s "$BASE/api/drug-inventory" \
 | `classical-formula` | 经方思路 | 经典辨治 | 经方、经典方证、经典方证对应 |
 | `warm-disease` | 温病思路 | 经典辨治 | 温病、卫气营血、三焦辨证 |
 | `nourish-yin-danxi` | 滋阴/丹溪思路 | 学术流派 | 滋阴、丹溪、朱丹溪、相火、阴虚 |
-| `warm-tonify-yang` | 温补/扶阳思路 | 学术流派 | 温补、扶阳、温阳、火神 |
+| `warm-tonify` | 温补学派思路 | 学术流派 | 温补、温补学派、温补派、肾命学派 |
+| `support-yang` | 扶阳学派思路 | 学术流派 | 扶阳、扶阳学派、扶阳派、火神、火神派、郑钦安 |
 
-以上五档即全部取值。**传入其他值不会报错，按 `unrestricted` 处理**——请不要依赖服务端对未知流派名报错来做前端校验。
+以上六档即全部取值。**传入其他值不会报错，按 `unrestricted` 处理**——请不要依赖服务端对未知流派名报错来做前端校验。
 
-默认档 `unrestricted` 不是"没有流派"，它是**以脏腑辨证 + 通用方为主**的工作路径（归脾汤、逍遥散、参苓白术散、六味地黄丸这类方在默认档下正常出现）。选择其余四档，是让系统在同等安全条件下优先按该体系的辨证眼目和常用方组织思路。
+> **V2.8 流派勘误**：温补学派与扶阳学派是有交集但不可合并的两套学术谱系。旧代码
+> `warm-tonify-yang` 仅为请求兼容而保留，并确定性归一到 `warm-tonify`；新接入不得继续发送该旧码。
+> 「温阳」本身是治法术语，不再单独作为流派别名；需要扶阳学派时请明确发送 `support-yang`
+> 或「扶阳学派 / 火神派」。流派拆分不改变任何剂量、毒性药、配伍或特殊人群安全门。
+
+默认档 `unrestricted` 不是"没有流派"，它是**以脏腑辨证 + 通用方为主**的工作路径（归脾汤、逍遥散、参苓白术散、六味地黄丸这类方在默认档下正常出现）。选择其余五档，是让系统在同等安全条件下优先按该体系的辨证眼目和常用方组织思路。
 
 出参侧回显在 `reasoningPrescribe.lineageAdaptation`（`lineageCode`/`label`/`applicable`/`applicabilityReason`/`influencedDecisions`/`unaffectedBySafety`/`safetyDeference`），以及 HIS 方案导出中。
 
@@ -960,11 +966,12 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `trigger` | 触发事实 | string | 病历已记录的患者事实，逐字引用 |
 | `triggerSource` | 事实出处 | object | `{kind, sourceRef, sourceQuote}` |
 | `targetPathogenesis` | 对应病机 | string | — |
-| `action` | 加减动作 | string | 如 `加川芎` |
+| `action` | 加减动作 | enum string | `加` / `减` / `调整`，如 `加`；**不得再把药味拼入本字段** |
+| `herbName` | 药味 | string | 如 `川芎` |
 | `doseOrHandling` | 剂量或处理 | string / null | 恒为 `null`，加减不下发剂量 |
 | `reason` | 加减理由 | string | — |
 | `riskNote` | 风险提示 | string | 含「调整后须重新审方」 |
-| `substitutions` | 可替换药味 | array | 可选，见下。**仅出现在「加某味药」类加减上**，且需推得出合规替代药 |
+| `substitutions` | 可替换药味 | array | 可选，见下。**仅出现在 `action="加"` 的加减上**，且需推得出合规替代药 |
 
 `formula.modifications[].substitutions[]` 可替换药味
 
@@ -1654,7 +1661,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 经典条文出处 | `formula.candidates[].classicEvidence[]` |
 | 方剂出处 | `formula.candidates[].formulaSource` |
 | 剂数与煎服法 | `formula.candidates[].decoction` |
-| 随证加减 | `formula.modifications[]` |
+| 随证加减 | `formula.modifications[]`（动作与药味分别读取 `action` / `herbName`） |
 | 可替换药味 | `formula.modifications[].substitutions[]`（可选，见下方说明） |
 | 中成药与西药候选 | `formula.patentAndWestern[]` |
 | 中成药说明书用法 | `formula.patentAndWestern[].route`、`singleDose`、`frequency`、`administrationTiming`、`course`（均以说明书原文为准，缺项省略） |
@@ -2032,7 +2039,8 @@ curl -N -X POST "$BASE/api/diagnosis/prescribe" \
           "sourceQuote": "产后2月余，头痛反复发作1月"
         },
         "targetPathogenesis": "产后气血亏虚，清窍失养，不荣则痛。",
-        "action": "加川芎",
+        "action": "加",
+        "herbName": "川芎",
         "doseOrHandling": null,
         "reason": "头痛反复发作，为气血亏虚、清窍失养所致，加川芎活血行气、祛风止痛，引药上行头目，以助和络止痛。",
         "riskNote": "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
@@ -2239,6 +2247,27 @@ async function callStage(url, headers, body) {
 | `treatments.tcmProjects[].deferredGovernedTemplate` | 待签字的病种标准取穴 | `{templateId, indicationLabel, deferredPoints, conflictNote}`。本例已匹配到一条**受治理的病种标准取穴模板**，但该模板尚未完成中医师签字终审，因此本轮**整条不启用**，该项目仍按评估态（`assessment_only_no_patient_specific_protocol`）呈现。字段只作知悉用途，**不得当作可执行取穴**。与下一行的区别：下一行是「病种模板能用、这一条证型加减不敢用」，本行是「整条病种模板都还没签字」 |
 | `treatments.tcmProjects[].deferredSyndromeRefinement` | 未予应用的证型加减 | `{syndromeLabel, deferredPoints, conflictNote}`。命中了本例证型的配穴方案、但因未完成中医师终审而没有应用。如实下发而不是静默隐藏——否则医生会以为系统根本没识别出本例证型 |
 
+**V2.8 加减字段勘误**
+
+HIS 投影与 M04 原始响应保持同一语义：`prescriptions.modifications[].action` 只取
+`加` / `减` / `调整`，药味单独读取 `prescriptions.modifications[].herbName`。例如：
+
+```json
+{
+  "action": "加",
+  "herbName": "茯苓"
+}
+```
+
+不要再按旧形态把 `action` 解析成「动作前缀 + 药味正文」。
+
+医生在药味工作台实际增删改药味时，变更直接体现在当前候选的 `herbs[]`，不再把“已经
+落入处方的编辑动作”重复塞进条件性 `modifications[]`。工作台审方响应另返回
+`audit.attestationVersion` 与 `audit.attestation`；浏览器须将二者连同原审方字段原样回传。
+该凭据绑定租户、病例、就诊、候选序号和完整处方摘要，M05/HIS 不接受仅靠
+`prescriptionRevision.source="herb_workbench"` 声明的未签发版本。外部审方结果仍是建议性，
+但缺少 CDSS 服务端版本凭据时不能把被篡改的医生编辑版当成可信写回版本。
+
 > **证型配穴的权威性必须按条看，不能按病种看。** 当前 8 组针刺模板下共 **44 条**证型加减，
 > **全部已完成中医师终审**（`approved`）。原 45 条中「感染恢复期 · 风热犯肺 → 大椎、曲池」
 > 一条经终审整条删除（该配穴对应发热/表热的急性阶段，与恢复期定位不匹配），
@@ -2272,6 +2301,7 @@ async function callStage(url, headers, body) {
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.8 | 2026-08-28 | **① 流派谱系勘误。** 原 `warm-tonify-yang` 拆为 `warm-tonify`（温补学派）与 `support-yang`（扶阳学派/火神派）；旧码仅作请求兼容并归一到温补学派，「温阳」作为治法术语不再冒充流派。两派拥有独立代表医家、典籍、追问重点与用药安全边界。**② 随证加减结构化。** `formula.modifications[]` 与 HIS 对应投影新增必有药味字段 `herbName`；`action` 收口为 `加` / `减` / `调整`，不再输出 `加川芎` 这类动作药味混合值。服务端仍能只读消费旧签名快照中的混合值，但所有新响应只输出分字段结构。 | **是（字段语义）**：仍把 `action` 当完整展示字符串的调用方须改为组合展示 `action + herbName`；旧请求流派码仍可用，但应尽快迁移。新增药味字段不影响忽略未知字段的宽松解析器 |
 | V2.7 | 2026-08-25 | **接口语义统一与稳定性收口。** `safetyGate` 新增 `candidateMode`（full_dose/limited_dose/non_dose_only/blocked），明确 `allowDosePrescription=false` 下 limited_dose 仍显示参考剂量；`question/interpret` 的模型超时与契约失败改为 `200 + ok:false + retryable`（业务降级，医生原话由调用方保留，不再出现 5xx）；审方对"药典小毒但不在医疗用毒性药品管制目录"药材（如苦杏仁）的处方权限误报纠偏覆盖供应商真实返回形态（issueType=PRIVILEGE）。 | **否**：新增字段向后兼容；依赖 interpret 5xx 判失败的调用方改为检查 `ok` 字段 |
 | V2.6 | 2026-08-25 | **JIT 登记事务顺序整改（PROV-08）。** 库存载荷结构校验先于 JIT 登记：载荷不合法的首次请求返回 4xx/413 且不登记客户；条目级错误整批拒绝并回报 `rejectedEntries`/`rejectedEntryCount`（缺 `name`、`kind` 非枚举、`available` 非布尔不再静默丢弃或强转）；空 `items` 不再生成零条目库存。JIT 登记成功的库存/分片响应与 `/api/customers/register` 响应新增 `customerRegistered` 字段（`created` 保留兼容）。审计轮转仅作用于普通文件，路径误配置为目录时审计判不可用并 fail-closed。 | **否**：既有合法调用不受影响；此前依赖「空 items 也返回 200」或「非法条目被静默跳过」的调用方需改为提交合法载荷 |
 | V2.5 | 2026-08-24 | **多租户真实接口验收整改。** M03/M04、急症解除和临床事实证明签名域绑定 `clientId + customerId` 并升版；新增幂等、限额、持久化的客户 JIT 登记，首次库存 POST 可自动登记；新增租户隔离的结构化审计查询；严格 JSON Schema、usage/cached token 观测、Qwen effort 映射与租户公平并发队列同步上线。 | **是（签名版本）**：升级前的 M03/M04/急症解除/临床事实证明凭证失效并安全降级，需重新生成；既定 `CDSS_API_TOKEN` 保持不变。首次新客户写入请增加 `Idempotency-Key` |

@@ -19,6 +19,7 @@ import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS } from "./
 import { safeDietAdviceForDisplay, GOVERNED_FORMULA_DATA_LABEL } from "./result-display-policy";
 import { tcmTreatmentProtocolGapCopy, westernDiagnosisLabelForDisplay } from "./diagnosis-visible-summary";
 import { prioritizeTcmEvidenceForDisplay, prioritizeWesternEvidenceForDisplay } from "./clinical-evidence-display";
+import { normalizedFormulaModificationFields } from "./formula-modification";
 
 type SchemeStatus = "ready" | "pending" | "limited";
 
@@ -262,6 +263,7 @@ export type HisAiSchemePayload = {
       triggerSource: { kind: string; sourceRef: string; sourceQuote: string } | null;
       targetPathogenesis: string;
       action: string;
+      herbName: string;
       doseOrHandling: string | null;
       reason: string;
       riskNote: string;
@@ -800,8 +802,8 @@ function projectModifications(
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
     const entry = raw as Record<string, unknown>;
     const trigger = clean(typeof entry.trigger === "string" ? entry.trigger : "");
-    const action = clean(typeof entry.action === "string" ? entry.action : "");
-    if (!trigger || !action) return [];
+    const modification = normalizedFormulaModificationFields(entry);
+    if (!trigger || !modification) return [];
     const substitutions = Array.isArray(entry.substitutions) ? entry.substitutions : [];
     const rawTriggerSource = entry.triggerSource && typeof entry.triggerSource === "object" && !Array.isArray(entry.triggerSource)
       ? entry.triggerSource as Record<string, unknown>
@@ -816,7 +818,8 @@ function projectModifications(
         ? { kind: triggerSourceKind, sourceRef: triggerSourceRef, sourceQuote: triggerSourceQuote }
         : null,
       targetPathogenesis: clean(typeof entry.targetPathogenesis === "string" ? entry.targetPathogenesis : ""),
-      action,
+      action: modification.action,
+      herbName: clean(modification.herbName),
       doseOrHandling: typeof entry.doseOrHandling === "string" && entry.doseOrHandling.trim()
         ? clean(entry.doseOrHandling)
         : null,
@@ -954,9 +957,17 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
    * HIS 与医生页面此前都只看得到「独立复核」四个字，而默认全 V4-Flash 部署下
    * `independentFromGenerator=false`——同一模型的第二次无对话状态请求。
    * 这里把拓扑位与它对应的方式说明一并下发，集成方与医生据此判断这道复核的证据强度。
-   */
+  */
   const clinicalReviewMethod = (() => {
-    const attestation = prescribeReasoning?.clinicalReview || diagnoseReasoning?.clinicalReview;
+    const workbenchRevision = caseState.prescriptionRevision?.source === "herb_workbench";
+    const boundPrescribeReview = prescribeReasoning?.clinicalReview &&
+      hasBoundClinicalReviewAttestation(prescribeReasoning)
+      ? prescribeReasoning.clinicalReview
+      : undefined;
+    // A doctor-edited candidate is a new artifact. Its revision HMAC proves deterministic safety
+    // and audit provenance, not that the pre-edit M04 reviewer examined the edited composition.
+    // Do not fall back to that stale reviewer (or relabel the M03 review as an M04 review).
+    const attestation = boundPrescribeReview || (workbenchRevision ? undefined : diagnoseReasoning?.clinicalReview);
     if (!attestation) return null;
     const independence = clinicalReviewIndependenceOf(attestation.independentFromGenerator);
     return {

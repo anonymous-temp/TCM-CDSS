@@ -15,7 +15,8 @@ const LEGACY_ALIASES = {
   "classical-formula": ["经方", "经方思路", "经典方证", "经典方证对应"],
   "warm-disease": ["温病", "卫气营血", "三焦辨证"],
   "nourish-yin-danxi": ["滋阴", "丹溪", "朱丹溪", "相火", "阴虚"],
-  "warm-tonify-yang": ["温补", "扶阳", "温阳", "火神"],
+  "warm-tonify": ["温补", "温补学派", "温补派", "肾命学派"],
+  "support-yang": ["扶阳", "扶阳学派", "扶阳派", "火神", "火神派", "郑钦安"],
 };
 
 // 2026-08-07 下线的 8 张卡。判据是线上可用方剂条数（见 tcm-lineages.ts 顶部注释）。
@@ -100,7 +101,18 @@ for (const card of LINEAGE_CARDS) {
 }
 
 assert.equal(getLineageCard("classical-formula").cardNature, "source_preference", "经方 must be disclosed as a source preference, not a single school");
-assert.match(getLineageCard("warm-tonify-yang").provenance.lineageSummary, /内部传承并不单一/);
+assert.deepEqual(getLineageCard("warm-tonify").provenance.representativePhysicians, ["薛己", "孙一奎", "赵献可", "张景岳"]);
+assert.deepEqual(getLineageCard("support-yang").provenance.representativeWorks, ["《医理真传》", "《医法圆通》", "《伤寒恒论》"]);
+assert.equal(resolveLineageCode("warm-tonify-yang"), "warm-tonify", "旧合并 code 只作输入兼容并迁移到温补，不得继续成为公开卡片");
+assert.equal(resolveLineageCode("温补/扶阳思路"), "warm-tonify", "旧合并中文名按同一兼容策略迁移");
+assert.equal(resolveLineageCode("扶阳"), "support-yang");
+assert.equal(resolveLineageCode("火神派"), "support-yang");
+assert.equal(resolveLineageCode("温补学派"), "warm-tonify");
+assert.equal(resolveLineageCode("温阳"), "unrestricted", "温阳是治法词，不能单凭该词猜成某一学派");
+assert.equal(resolveLineageCode("既想温补又想扶阳"), "unrestricted", "除已发布旧值外，同时声称两派的自由文本不得靠卡片顺序猜选");
+for (const ambiguous of ["温补学派 support-yang", "warm-tonify 扶阳学派", "support-yang 温补派"]) {
+  assert.equal(resolveLineageCode(ambiguous), "unrestricted", `中英文混合双流派声明不得静默猜选：${ambiguous}`);
+}
 assert.equal(resolveLineageCode(undefined), "unrestricted");
 assert.equal(resolveLineageCode("未知流派"), "unrestricted");
 

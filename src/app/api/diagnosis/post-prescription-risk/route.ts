@@ -14,13 +14,17 @@ import {
   runBoundedRxAudit,
   rxAuditSubmissionIssue,
 } from "@/lib/rxaudit";
-import { buildDeterministicRiskFollowupPayload, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
+import { buildDeterministicRiskFollowupPayload, clinicalGroundingText, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
+import { m04SafetyContractIssue } from "@/lib/diagnosis-stage-contract";
 import { editedPrescriptionIssueMessage, editedPrescriptionSemanticIssue, hasIncompleteEditedHerb } from "@/lib/prescription-revision";
+import { issuePrescriptionRevisionAttestation } from "@/lib/prescription-revision-attestation.server";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
+import { isKnownTcmHerbName } from "@/lib/tcm-knowledge";
+import { hasHisWorkbenchEditShape } from "@/lib/his-prescription-validation";
 
 export async function POST(req: Request) {
   const parsed = await readCustomerBoundCaseStateRequest(req);
@@ -42,6 +46,21 @@ export async function POST(req: Request) {
       code: "invalid_m04_signature",
     }, { status: 409 });
   }
+  // A workbench edit is a new artifact. The pre-edit M04 review/signature is neither proof for the
+  // edited herbs nor trusted client input. Reject it at the sole revision-attestation issuer so a
+  // caller cannot forge a public reviewedPayloadHash and have this route HMAC-sign that provenance.
+  if (workbenchRevision && (
+    initialPrescribed?.clinicalReview != null ||
+    initialPrescribed?.contractSignature != null ||
+    initialPrescribed?.contractSignatureVersion != null
+  )) {
+    return Response.json({
+      error: "医生编辑后的处方仍携带编辑前的模型复核或合同签名，请从当前药味表重新生成待审版本。",
+      code: "stale_workbench_contract_metadata",
+      section: "## 合理用药审方\n**提交前校验**：编辑前的模型复核与合同签名不适用于当前药味版本。\n**处置建议**：请从药味工作台重新提交，系统将对当前精确版本重新执行安全校验与审方。",
+      risks: [],
+    }, { status: 422 });
+  }
   const caseState = withSafetyGate(await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal));
   const diagnoseReasoning = diagnoseReasoningFromState(caseState);
   const prescribed = prescribeReasoningFromState(caseState);
@@ -52,8 +71,25 @@ export async function POST(req: Request) {
   const herbHash = prescribed ? await computePrescriptionVersionHash(prescribed, candidateIndex, caseState) : "";
   const invalidHerbs = selectedCandidate?.herbs.filter(hasIncompleteEditedHerb) || [];
   const semanticIssue = caseState.prescriptionRevision?.source === "herb_workbench"
-    ? editedPrescriptionSemanticIssue(prescribed, candidateIndex, diagnoseReasoning)
+    ? editedPrescriptionSemanticIssue(prescribed, candidateIndex, diagnoseReasoning, clinicalGroundingText(caseState))
     : undefined;
+  if (caseState.prescriptionRevision?.source === "herb_workbench" && !hasHisWorkbenchEditShape(caseState, prescribed)) {
+    return Response.json({
+      error: "当前内容不是由药味工作台形成的规范医生编辑版，未建立可写回版本。",
+      code: "invalid_workbench_edit_shape",
+      section: "## 合理用药审方\n**提交前校验**：当前内容不是规范医生编辑版。\n**处置建议**：请从药味工作台重新编辑并审方。",
+      risks: [],
+      audit: {
+        source: "local_input_validation",
+        safetyLocked: deriveSafetyLocked(caseState),
+        degraded: false,
+        reason: "invalid_workbench_edit_shape",
+        needManualReview: true,
+        herbHash,
+        auditedAt: new Date().toISOString(),
+      },
+    }, { status: 422 });
+  }
   if (caseState.prescriptionRevision?.source === "herb_workbench" && (!selectedCandidate || selectedCandidate.herbs.length === 0 || !herbHash)) {
     return Response.json({
       error: "所选候选方不存在或没有结构化药味，未提交自动审方。",
@@ -98,6 +134,43 @@ export async function POST(req: Request) {
         auditedAt: new Date().toISOString(),
       },
     }, { status: 422 });
+  }
+  if (caseState.prescriptionRevision?.source === "herb_workbench" && selectedCandidate && prescribed) {
+    const selectedReasoning = {
+      ...prescribed,
+      formula: prescribed.formula ? { ...prescribed.formula, candidates: [selectedCandidate] } : null,
+    };
+    // 工作台入口可以获得“医生编辑的自拟方”结构例外，但不能获得任何临床安全例外。
+    // m04SafetyContractIssue 对 trustedWorkbenchEdit 的含义已收窄为结构/身份口径；剂量、
+    // 特殊人群、十八反十九畏、经典方禁忌和寒热方向仍逐项执行。只有通过这道门的精确
+    // herbHash 才会在审方返回时获得服务端 HMAC 凭据，供 M05/HIS 后续验证。
+    const floorIssue = m04SafetyContractIssue(
+      selectedReasoning,
+      diagnoseReasoning,
+      isKnownTcmHerbName,
+      true,
+      false,
+      clinicalGroundingText(caseState),
+      true,
+    );
+    if (floorIssue) {
+      return Response.json({
+        error: editedPrescriptionIssueMessage(floorIssue),
+        code: `invalid_edited_prescription_${floorIssue}`,
+        issue: floorIssue,
+        section: `## 合理用药审方\n**提交前安全校验**：${editedPrescriptionIssueMessage(floorIssue)}\n**处置建议**：当前版本未提交自动审方，请修正结构化处方后重试。`,
+        risks: [],
+        audit: {
+          source: "local_input_validation",
+          safetyLocked: deriveSafetyLocked(caseState),
+          degraded: false,
+          reason: `invalid_edited_prescription_${floorIssue}`,
+          needManualReview: true,
+          herbHash,
+          auditedAt: new Date().toISOString(),
+        },
+      }, { status: 422 });
+    }
   }
   const submissionIssue = rxAuditSubmissionIssue(caseState, resolvedCandidateIndex);
   if (submissionIssue) {
@@ -154,6 +227,28 @@ export async function POST(req: Request) {
       prescriptionHash: herbHash,
       auditedAt,
     });
+    const revisionAttestation = workbenchRevision
+      ? issuePrescriptionRevisionAttestation(caseState, parsed.customer, {
+          source: "herb_workbench",
+          candidateIndex,
+          herbHash,
+          auditedAt,
+          auditResult: effectiveAudit.auditResult,
+          highestRiskLevel: effectiveAudit.highestRiskLevel,
+          auditAvailable: providerAudit.degraded !== true,
+          degraded: providerAudit.degraded === true,
+          degradeReason: providerAudit.degradeReason,
+          needManualReview: effectiveAudit.needManualReview === true,
+          auditId: providerAudit.auditId,
+          traceId: providerAudit.traceId,
+        })
+      : undefined;
+    if (workbenchRevision && !revisionAttestation) {
+      return Response.json({
+        error: "工作台处方版本签发不可用，未建立可写回凭据，请稍后重试。",
+        code: "workbench_revision_attestation_unavailable",
+      }, { status: 503 });
+    }
     return Response.json({
       section,
       followup: followup.markdown,
@@ -185,6 +280,7 @@ export async function POST(req: Request) {
         prescriptionHash: herbHash,
         auditedAt,
         correlation,
+        ...revisionAttestation,
       },
     });
   }
@@ -208,6 +304,27 @@ export async function POST(req: Request) {
     prescriptionHash: herbHash,
     auditedAt,
   });
+  const revisionAttestation = workbenchRevision
+    ? issuePrescriptionRevisionAttestation(caseState, parsed.customer, {
+        source: "herb_workbench",
+        candidateIndex,
+        herbHash,
+        auditedAt,
+        auditResult: "MANUAL_REVIEW",
+        highestRiskLevel: "HIGH",
+        auditAvailable: false,
+        degraded: true,
+        degradeReason: providerAudit.reason,
+        needManualReview: true,
+        auditReason: providerAudit.reason,
+      })
+    : undefined;
+  if (workbenchRevision && !revisionAttestation) {
+    return Response.json({
+      error: "工作台处方版本签发不可用，未建立可写回凭据，请稍后重试。",
+      code: "workbench_revision_attestation_unavailable",
+    }, { status: 503 });
+  }
   return Response.json({
     section,
     followup: followup.markdown,
@@ -235,6 +352,7 @@ export async function POST(req: Request) {
       effectiveAuditResult: "MANUAL_REVIEW",
       effectiveHighestRiskLevel: "HIGH",
       correlation,
+      ...revisionAttestation,
     },
   });
 }

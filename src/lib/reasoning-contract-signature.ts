@@ -10,6 +10,7 @@ import {
 } from "./diagnosis-types";
 import { sanitizeCaseStateForBrowserPersistence } from "./diagnosis-engine";
 import { authorizeCustomerId } from "./customer-authorization";
+import { normalizedFormulaModificationFields } from "./formula-modification";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -296,6 +297,28 @@ function prescribeSignatureFor(
   return `hmac-sha256:${createHmac("sha256", key).update(payload).digest("hex")}`;
 }
 
+/**
+ * Read compatibility for legacy `action="加茯苓"` stops at the signing boundary. Any newly
+ * issued M04 signature must cover the public split contract (`action="加"`, `herbName="茯苓"`).
+ * A mixed payload whose two identities disagree is rejected instead of choosing one silently.
+ */
+function normalizePrescribeModificationsForSigning(
+  reasoning: ClinicalReasoningResultV2,
+): ClinicalReasoningResultV2 {
+  if (reasoning.stage !== "prescribe" || !reasoning.formula || reasoning.formula.modifications.length === 0) {
+    return reasoning;
+  }
+  const modifications = reasoning.formula.modifications.map((item) => {
+    const fields = normalizedFormulaModificationFields(item);
+    if (!fields) throw new Error("Cannot sign an invalid M04 modification contract");
+    return { ...item, action: fields.action, herbName: fields.herbName };
+  });
+  return {
+    ...reasoning,
+    formula: { ...reasoning.formula, modifications },
+  };
+}
+
 export function signPrescribeReasoning(
   reasoning: ClinicalReasoningResultV2,
   context: PrescribeContractSignatureContext,
@@ -304,8 +327,9 @@ export function signPrescribeReasoning(
   if (!normalized || normalized.stage !== "prescribe") {
     throw new Error("Cannot sign an invalid M04 reasoning contract");
   }
+  const canonicalOutput = normalizePrescribeModificationsForSigning(normalized);
   const versioned = bindClinicalReviewAttestation({
-    ...normalized,
+    ...canonicalOutput,
     contractSignatureVersion: PRESCRIBE_CONTRACT_SIGNATURE_VERSION,
     contractSignature: undefined,
   });

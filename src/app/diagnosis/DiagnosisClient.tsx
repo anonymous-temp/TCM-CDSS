@@ -49,7 +49,13 @@ import {
 } from "@/lib/diagnosis-parse";
 import { clinicalTextForDisplay, hasExecutableSignedM03, isDisplayableClinicalText, syndromeDifferentiationState } from "@/lib/diagnosis-client-guards";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
-import { filterModificationsForEditedHerbs, hasIncompleteEditedHerb, synchronizeEditedCandidate } from "@/lib/prescription-revision";
+import {
+  filterModificationsForEditedHerbs,
+  hasIncompleteEditedHerb,
+  invalidatePrescriptionContractAfterEdit,
+  synchronizeEditedCandidate,
+} from "@/lib/prescription-revision";
+import { normalizedFormulaModificationFields } from "@/lib/formula-modification";
 import { containsUnknownClinicalCue, isUnknownClinicalText, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "@/lib/clinical-state";
 import { inspectionLexiconGroups, inspectionLexiconNormal, type InspectionField } from "@/lib/tcm-inspection-lexicon";
 import { computeTongueRoiCrop, detectTongueRoi } from "@/lib/tongue-image-roi";
@@ -3387,7 +3393,12 @@ function buildAcceptedPrescriptionMarkdown(reasoning: ClinicalReasoningResultV2,
     ...(modifications.length > 0 ? [
       "",
       "## 随症加减",
-      ...modifications.map((item) => `- ${markdownTableCell(item.trigger)}：${markdownTableCell(item.action)}${item.doseOrHandling ? `（${markdownTableCell(item.doseOrHandling)}）` : ""}；${markdownTableCell(item.reason)}`),
+      ...modifications.flatMap((item) => {
+        const modification = normalizedFormulaModificationFields(item);
+        return modification
+          ? [`- ${markdownTableCell(item.trigger)}：动作：${modification.action}；药味：${markdownTableCell(modification.herbName)}${item.doseOrHandling ? `（${markdownTableCell(item.doseOrHandling)}）` : ""}；${markdownTableCell(item.reason)}`]
+          : [];
+      }),
     ] : []),
   ].join("\n").trim();
 }
@@ -3398,19 +3409,21 @@ function buildReasoningWithEditedHerbs(
   herbs: StructuredHerb[],
 ): ClinicalReasoningResultV2 {
   if (!reasoning.formula) return reasoning;
-  const originalCandidate = reasoning.formula.candidates[candidateIndex];
+  const originalFormula = reasoning.formula;
+  const originalCandidate = originalFormula.candidates[candidateIndex];
   if (!originalCandidate) return reasoning;
+  const unreviewedReasoning = invalidatePrescriptionContractAfterEdit(reasoning);
   return {
-    ...reasoning,
+    ...unreviewedReasoning,
     formula: {
-      ...reasoning.formula,
-      candidates: reasoning.formula.candidates.map((candidate, index) =>
+      ...originalFormula,
+      candidates: originalFormula.candidates.map((candidate, index) =>
         index === candidateIndex
           ? synchronizeEditedCandidate(candidate, herbs.map(cloneStructuredHerb))
           : candidate
       ),
       modifications: filterModificationsForEditedHerbs(
-        reasoning.formula.modifications,
+        originalFormula.modifications,
         originalCandidate.herbs,
         herbs,
       ),
@@ -3689,6 +3702,8 @@ function HerbModificationWorkbench({
           traceId?: unknown;
           herbHash?: unknown;
           auditedAt?: unknown;
+          attestationVersion?: unknown;
+          attestation?: unknown;
         };
       }>(apiUrl("/api/diagnosis/post-prescription-risk"), {
         method: "POST",
@@ -3723,6 +3738,16 @@ function HerbModificationWorkbench({
         setAcceptedRevision(null);
         setAuditStatus("error");
         setAuditMessage("审方响应与当前处方版本摘要不一致，系统已拒绝写回，请重新审方。");
+        return;
+      }
+      if (
+        body?.audit?.attestationVersion !== "tcm-cdss-workbench-revision-v1" ||
+        typeof body.audit.attestation !== "string" ||
+        !/^hmac-sha256:[a-f0-9]{64}$/i.test(body.audit.attestation)
+      ) {
+        setAcceptedRevision(null);
+        setAuditStatus("error");
+        setAuditMessage("服务端未返回与当前处方版本绑定的审方凭据，本次不能写回；请重新审方。");
         return;
       }
       const section = typeof body?.section === "string" && body.section.trim()
@@ -3786,44 +3811,18 @@ function HerbModificationWorkbench({
           auditReason: typeof body?.audit?.reason === "string" ? body.audit.reason : undefined,
           auditId: typeof body?.audit?.auditId === "string" ? body.audit.auditId : undefined,
           traceId: typeof body?.audit?.traceId === "string" ? body.audit.traceId : undefined,
+          attestationVersion: body.audit.attestationVersion,
+          attestation: body.audit.attestation,
         },
       });
       setAuditStatus(needsAttention ? "warning" : "reviewed");
       setAuditMessage(needsAttention
         ? "审方已返回风险提示或当前服务不可用；提示不阻断流程，请医生/药师人工复核后决定是否采纳。"
         : "编辑后药味已完成审方，仍需医生结合现场情况最终复核。");
-    } catch (error) {
-      const reason = normalizeRequestError(error, "编辑后药味审方失败，请人工复核。");
-      const section = `## 合理用药审方\n**审方服务状态**：${reason}\n**处置建议**：本次审方不可用，仅作风险提示；医生或药师人工复核后可继续处理候选方案。`;
-      const followup = buildDeterministicRiskFollowupPayload(withSafetyGate({
-        ...caseState,
-        reasoningV2: revisedReasoning,
-        reasoningPrescribe: revisedReasoning,
-        riskAssessment: section,
-      }));
-      setAcceptedRevision({
-        caseId: caseState.id,
-        reasoning: revisedReasoning,
-        auditSection: section,
-        followupSection: followup.markdown,
-        followupTimeline: followup.timelineItems,
-        serverSafetyLocked: derivePrescriptionPermission(withSafetyGate(caseState)).formalAdoption === "blocked",
-        revision: {
-          source: "herb_workbench",
-          candidateIndex,
-          herbHash: submittedVersionHash,
-          auditedAt: new Date().toISOString(),
-          auditResult: "MANUAL_REVIEW",
-          highestRiskLevel: "HIGH",
-          auditAvailable: false,
-          degraded: true,
-          degradeReason: reason,
-          needManualReview: true,
-          auditReason: reason,
-        },
-      });
-      setAuditStatus("warning");
-      setAuditMessage("审方服务本次不可用；已保留人工复核提示，不阻断标记为医生候选方案。");
+    } catch {
+      setAcceptedRevision(null);
+      setAuditStatus("error");
+      setAuditMessage("无法连接处方版本签发接口，本次未建立可写回凭据；请恢复连接后重新审方。临床上仍须医生/药师人工复核。");
     }
   };
 
@@ -5445,9 +5444,11 @@ function ResultTabsV2({
                   <div className="mt-2 space-y-2">
                     {(formula.modifications || []).map((item, index) => {
                       const cell = modificationCells[index];
+                      const modification = normalizedFormulaModificationFields(item);
+                      if (!modification) return null;
                       return (
                       <div key={`${item.trigger}-${index}`} className="rounded-lg border bg-white p-3 text-xs leading-relaxed text-gray-700">
-                        <p><span className="font-semibold text-gray-950">{item.trigger}：</span>{item.action}{item.doseOrHandling ? `（${item.doseOrHandling}）` : ""}</p>
+                        <p><span className="font-semibold text-gray-950">{item.trigger}：</span>动作：{modification.action}；药味：{modification.herbName}{item.doseOrHandling ? `（${item.doseOrHandling}）` : ""}</p>
                         {cell.target && (
                           <p className="mt-1"><span className="font-semibold text-gray-900">对应病机：</span>{clinicalSentence([cell.target, cell.reason], "；")}</p>
                         )}

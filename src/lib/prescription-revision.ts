@@ -2,6 +2,7 @@ import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { canonicalTcmHerbIdentity, m04SemanticIssue } from "./diagnosis-stage-contract";
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { buildFormulaAnalysis } from "./herb-target-contract";
+import { normalizedFormulaModificationFields } from "./formula-modification";
 
 type Formula = NonNullable<ClinicalReasoningResultV2["formula"]>;
 type Candidate = Formula["candidates"][number];
@@ -40,6 +41,7 @@ export function editedPrescriptionSemanticIssue(
   reasoning: ClinicalReasoningResultV2 | null | undefined,
   candidateIndex: number,
   priorReasoning?: ClinicalReasoningResultV2 | null,
+  clinicalContext = "",
 ): string | undefined {
   const candidate = reasoning?.formula?.candidates?.[candidateIndex];
   if (!reasoning || reasoning.stage !== "prescribe" || !reasoning.formula || !candidate) return "candidate_missing";
@@ -50,12 +52,23 @@ export function editedPrescriptionSemanticIssue(
     formula: {
       ...reasoning.formula,
       candidates: [candidate],
-      // Workbench additions are already represented in the selected candidate herbs. The model-only
-      // contract must see an empty modifications list so every dose is validated and audited once.
-      modifications: [],
+      // Keep conditional modifications in the shared contract. They are not part of the current
+      // dose-bearing candidate, but their drug identity, absence of dose text, trigger grounding,
+      // and high-impact direction still have to be validated before a workbench version can reach HIS.
+      modifications: reasoning.formula.modifications,
     },
   };
-  return m04SemanticIssue(selectedReasoning, "", priorReasoning, isKnownTcmHerbName, true, true, true);
+  return m04SemanticIssue(
+    selectedReasoning,
+    "",
+    priorReasoning,
+    isKnownTcmHerbName,
+    true,
+    true,
+    true,
+    false,
+    clinicalContext,
+  );
 }
 
 export function editedPrescriptionIssueMessage(issue: string | undefined): string {
@@ -71,6 +84,27 @@ export function editedPrescriptionIssueMessage(issue: string | undefined): strin
   if (/pathogenesis|cross_stage|therapy|target_ref|structure_/.test(issue)) return "药味必须引用本例已确认的病机；仅佐使药可选择方内结构作用。";
   if (/decoction|route/.test(issue)) return "炮制或特殊煎服要求不符合当前药味规则，请复核。";
   return "编辑后处方未通过临床一致性核对，请复核药名、剂量、病机、功用和煎服要求。";
+}
+
+/**
+ * A doctor edit creates a new clinical artifact. The generator's M04 signature and independent
+ * review describe the pre-edit candidate and must not be carried forward as if they covered the
+ * edited herbs. The post-risk route will issue a separate, exact workbench revision attestation
+ * after deterministic hard-safety checks and advisory audit.
+ */
+export function invalidatePrescriptionContractAfterEdit(
+  reasoning: ClinicalReasoningResultV2,
+): ClinicalReasoningResultV2 {
+  const {
+    clinicalReview: _staleClinicalReview,
+    contractSignature: _staleContractSignature,
+    contractSignatureVersion: _staleContractSignatureVersion,
+    ...unreviewedReasoning
+  } = reasoning;
+  void _staleClinicalReview;
+  void _staleContractSignature;
+  void _staleContractSignatureVersion;
+  return unreviewedReasoning;
 }
 
 function editedFormulaAnalysis(herbs: Herb[]): string {
@@ -181,35 +215,27 @@ export function filterModificationsForEditedHerbs(
   originalHerbs: Herb[],
   editedHerbs: Herb[],
 ): Formula["modifications"] {
-  const currentNames = new Set(editedHerbs.map((herb) => canonicalTcmHerbIdentity(herb.name)).filter(Boolean));
-  const originalNames = new Set(originalHerbs.map((herb) => canonicalTcmHerbIdentity(herb.name)).filter(Boolean));
-  const deletedNames = originalHerbs.map((herb) => herb.name.trim()).filter((name) => name && !currentNames.has(canonicalTcmHerbIdentity(name)));
-  const retained = modifications.filter((item) => !deletedNames.some((name) =>
-    `${item.action} ${item.doseOrHandling || ""} ${item.reason}`.includes(name),
-  )).map((item) => {
-    const edited = editedHerbs.find((herb) => item.action.includes(herb.name.trim()));
-    const original = edited && originalHerbs.find((herb) => herb.name.trim() === edited.name.trim());
-    if (!edited || !original || JSON.stringify(original) === JSON.stringify(edited)) return item;
-    return {
-      ...item,
-      targetPathogenesis: edited.targetPathogenesis,
-      doseOrHandling: [edited.dose, edited.decoctionRequirement].filter(Boolean).join("；") || null,
-      reason: edited.function,
-      riskNote: "该药味已由医生结构化编辑并进入当前审方版本，原加减说明不再适用。",
-      evidence: { evidenceLevel: "model_inference" as const, source: "医生结构化编辑记录", confidence: "中" as const },
-    };
+  const originalByName = new Map(originalHerbs
+    .map((herb) => [canonicalTcmHerbIdentity(herb.name), herb] as const)
+    .filter(([name]) => Boolean(name)));
+  const editedByName = new Map(editedHerbs
+    .map((herb) => [canonicalTcmHerbIdentity(herb.name), herb] as const)
+    .filter(([name]) => Boolean(name)));
+  return modifications.flatMap((item) => {
+    const fields = normalizedFormulaModificationFields(item);
+    if (!fields) return [];
+    const identity = canonicalTcmHerbIdentity(fields.herbName);
+    const original = originalByName.get(identity);
+    const edited = editedByName.get(identity);
+    // A conditional row is no longer advice once its drug has actually been added, removed or
+    // edited in candidate.herbs. The candidate plus prescriptionRevision already records that
+    // dose-bearing action and sends it to audit; duplicating it in modifications would create a
+    // second, unaudited dose channel. Preserve only still-conditional, untouched rows.
+    if ((original && !edited) || (edited && (!original || JSON.stringify(original) !== JSON.stringify(edited)))) {
+      return [];
+    }
+    // A doctor edit creates a new signed prescription version. Normalize any legacy snapshot row
+    // at this explicit write boundary so newly signed outputs never reproduce action="加某药".
+    return [{ ...item, action: fields.action, herbName: fields.herbName }];
   });
-  const added = editedHerbs
-    .filter((herb) => herb.name.trim() && !originalNames.has(canonicalTcmHerbIdentity(herb.name)))
-    .filter((herb) => !retained.some((item) => `${item.action} ${item.doseOrHandling || ""}`.includes(herb.name.trim())))
-    .map((herb): Formula["modifications"][number] => ({
-      trigger: "医生结构化编辑",
-      targetPathogenesis: herb.targetPathogenesis,
-      action: `加${herb.name.trim()}`,
-      doseOrHandling: [herb.dose, herb.decoctionRequirement].filter(Boolean).join("；") || null,
-      reason: herb.function,
-      riskNote: "新增药味已进入编辑后审方版本，采纳前仍需医生结合患者情况复核。",
-      evidence: { evidenceLevel: "model_inference", source: "医生结构化编辑记录", confidence: "中" },
-    }));
-  return [...retained, ...added];
 }

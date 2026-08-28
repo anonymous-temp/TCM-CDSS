@@ -19,6 +19,10 @@ export function prescriptionVersionPayload(reasoning: ClinicalReasoningResultV2,
     candidateIndex,
     candidate,
     modifications: reasoning.formula?.modifications || [],
+    // Workbench revisions replace the outer M04 contract signature. Bind the review attestation
+    // into the audited version so callers cannot rewrite reviewer identity, decision or scope and
+    // then recompute the public reviewedPayloadHash while retaining a valid revision HMAC.
+    clinicalReview: reasoning.clinicalReview || null,
     ...(state ? {
       auditContext: {
         caseId: state.id,

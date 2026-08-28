@@ -1,7 +1,7 @@
 {
-  "schemaVersion": "tcm-formula-lineage-affinity-v1",
-  "generatedAt": "2026-08-13",
-  "derivation": "受治理方剂目录 source 书名 × tcm-lineages 流派卡 representativeWorks 机械推导；经方/温病四书按规则级终审，景岳全书/丹溪心法按逐首终审（治疗取向不等于著作归属，实例：保阴煎、玉女煎、柴胡疏肝散均出《景岳全书》）",
+  "schemaVersion": "tcm-formula-lineage-affinity-v2",
+  "generatedAt": "2026-08-28",
+  "derivation": "受治理方剂目录 source 书名 × tcm-lineages 流派卡 representativeWorks 机械推导；经方/温病四书按规则级终审，景岳全书/丹溪心法按逐首终审（治疗取向不等于著作归属，实例：保阴煎、玉女煎、柴胡疏肝散均出《景岳全书》）；温补学派与扶阳学派按独立人物、著作和学术传承拆分，景岳全书归温补，医理真传/医法圆通归扶阳",
   "boundaries": [
     "未终审（pending_clinician_review）条目零影响：不加分、不标注、不出现在任何输出",
     "加分只作用于候选展示顺序（提示词候选块），不参与准入判定、不参与 systemLockable 自动锁方、不改变剂量/禁忌/审方任何校验",
@@ -82,21 +82,21 @@
     },
     {
       "book": "景岳全书",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "confirmationMode": "per_formula",
       "adjudicationStatus": "pending_clinician_review",
       "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
     },
     {
       "book": "医理真传",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "support-yang",
       "confirmationMode": "per_formula",
       "adjudicationStatus": "pending_clinician_review",
       "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
     },
     {
       "book": "医法圆通",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "support-yang",
       "confirmationMode": "per_formula",
       "adjudicationStatus": "pending_clinician_review",
       "adjudicationRef": "docs/中医师核定工作包-20260813.md#任务三"
@@ -266,7 +266,7 @@
     {
       "formulaName": "七福饮",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：收复神气、安神魂、敛心气、气血俱虚而心脾为甚者",
@@ -276,7 +276,7 @@
     {
       "formulaName": "举元煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气摄血、升阳举陷、气虚下陷，血崩血脱，亡阳垂危等证",
@@ -286,7 +286,7 @@
     {
       "formulaName": "人参健脾丸（汤）",
       "source": "《景岳全书》《证治准绳·类方》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：健脾益气、和胃止泻、脾胃虚弱引起的饮食不化，倒饱嘈杂，恶心呕吐，腹痛便溏，不思饮食，体弱倦怠",
@@ -296,7 +296,7 @@
     {
       "formulaName": "人参归脾丸",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气补血、健脾养心、用于气血不足，心悸，失眠，食少乏力，面色萎黄，月经量少，色淡",
@@ -306,7 +306,7 @@
     {
       "formulaName": "何人饮",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气养血、扶正截疟、疟疾久发不止，气血两虚，寒热时作，稍劳即发，面色萎黄，倦怠乏力，食少自汗，形体消瘦，舌淡，脉缓大而虚者",
@@ -316,7 +316,7 @@
     {
       "formulaName": "保阴煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：养阴清热、凉血止血、阴虚血热之带下淋浊，血崩便血，月经提前",
@@ -326,7 +326,7 @@
     {
       "formulaName": "八珍益母汤",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气血、调月经、月经量少，色淡，经期错后",
@@ -336,7 +336,7 @@
     {
       "formulaName": "六味回阳饮",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气回阳、养血救脱、阴阳将脱",
@@ -346,7 +346,7 @@
     {
       "formulaName": "加减一阴煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：滋阴养血清热、阴血不足之虚热",
@@ -356,7 +356,7 @@
     {
       "formulaName": "化阴煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：滋肾养阴、水亏阴涸，阳火有余，小便癃闭，淋浊疼痛",
@@ -366,7 +366,7 @@
     {
       "formulaName": "右归丸",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肾阳、填精益髓、肾阳不足，命门火衰，神疲气怯，畏寒肢冷，阳痿遗精，不能生育，腰膝酸软，小便自遗，肢节痹痛，周身浮肿，或火不能生土，脾胃虚寒，饮食少进，或呕恶膨胀，或翻胃噎膈，或",
@@ -376,7 +376,7 @@
     {
       "formulaName": "右归饮",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肾阳、肾阳不足，阳衰阴胜，腰膝酸痛，神疲乏力，畏寒肢冷，咳喘，泄泻，脉弱，以及产妇虚火不归元而发热者",
@@ -386,7 +386,7 @@
     {
       "formulaName": "四味回阳饮",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补气、回阳、救脱、元阳虚脱，危在顷刻者",
@@ -396,7 +396,7 @@
     {
       "formulaName": "固阴煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补益肝肾、固涩滑脱、肝肾亏虚之遗泄，崩带，经多，胎动，产后恶露不止，妇人阴挺",
@@ -406,7 +406,7 @@
     {
       "formulaName": "大营煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温经扶阳、养血填精、真阴精血亏损，以及妇人经迟血少，腰膝筋骨疼痛，阳痿",
@@ -416,7 +416,7 @@
     {
       "formulaName": "大补元煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：救本培元、大补气血、气血大亏，精神失守之危剧病证",
@@ -426,7 +426,7 @@
     {
       "formulaName": "小营煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "偏滋阴/清热或单纯养血，是否纳入广义景岳温补取向需医生定口径：养血、活血、调经、阴虚血少，头晕心悸，面色萎黄，脉象细弱，妇女月经后期，量少色淡，小腹虚痛",
@@ -436,7 +436,7 @@
     {
       "formulaName": "左归丸",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：滋阴补肾、填精益髓、真阴肾水不足，不能滋养营卫，渐至衰弱，或虚热往来，自汗盗汗，或遗淋不禁，或眼花耳聋，或口燥舌干，或腰酸腿软",
@@ -446,7 +446,7 @@
     {
       "formulaName": "归肾丸",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：滋阴养血、填精益髓、肾水不足，腰酸脚软，精亏血少，头晕耳鸣；肾阴不足，精衰血少，腰酸脚软，形容憔悴，阳痿遗精",
@@ -456,7 +456,7 @@
     {
       "formulaName": "暖肝煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温补肝肾、行气止痛、肝肾阴寒，小腹疼痛，疝气",
@@ -466,7 +466,7 @@
     {
       "formulaName": "柴胡疏肝散",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：疏肝行气、活血止痛、胁肋疼痛，寒热往来",
@@ -476,7 +476,7 @@
     {
       "formulaName": "栀子金花丸",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清热泻火、凉血解毒、肺胃热盛，口舌生疮，牙龈肿痛，目赤眩晕，咽喉肿痛，大便秘结",
@@ -486,7 +486,7 @@
     {
       "formulaName": "桑白皮汤",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清火涤痰、止咳平喘、痰热壅肺，顿咳痉咳期",
@@ -496,7 +496,7 @@
     {
       "formulaName": "桔梗杏仁煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：润肺止咳、咳嗽吐脓，痰中带血，或胸膈隐痛，将成肺痈者",
@@ -506,7 +506,7 @@
     {
       "formulaName": "正柴胡饮",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：解表散寒、解热止痛、外感风寒，发热恶寒，头疼身痛，痎疟初起",
@@ -516,7 +516,7 @@
     {
       "formulaName": "毓麟珠",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补益气血、温养肝肾、强固冲任、调经助孕、妇人气血不足，肝肾两虚，月经不调，或后错色淡，或量少腹痛，或淋沥不断，腰膝酸软，小腹冷痛，性欲减退，身体瘦弱，久不受孕等",
@@ -526,7 +526,7 @@
     {
       "formulaName": "泰山磐石散",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：益气健脾、养血安胎、气血虚弱，胎动不安，堕胎，滑胎",
@@ -536,7 +536,7 @@
     {
       "formulaName": "济川煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：温肾益精、润肠通便、老年肾虚，大便秘结，小便清长，腰酸足软，背冷畏寒",
@@ -546,7 +546,7 @@
     {
       "formulaName": "独参汤",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：大补元气、诸虚气弱危急者",
@@ -556,7 +556,7 @@
     {
       "formulaName": "玉女煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：清胃热、滋肾阴、水亏火盛，六脉浮洪滑大，少阴不足，阳明有余，烦热干渴，头痛牙疼，失血",
@@ -566,7 +566,7 @@
     {
       "formulaName": "胎元饮",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "adopt",
       "recommendationBasis": "功效/主治以补虚、温肾、回阳、益气养血或固摄为核心：补肾固胎、妇人冲任不足，胎元不安不固",
@@ -576,7 +576,7 @@
     {
       "formulaName": "脱花煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：祛瘀下胎、胎漏、胎动不安、堕胎等辨证属瘀血阻滞者",
@@ -586,7 +586,7 @@
     {
       "formulaName": "茜根散",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：滋阴降火、宁络止血、阴虚火旺证，症见鼻衄不止，心神烦闷",
@@ -596,7 +596,7 @@
     {
       "formulaName": "解肝煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：疏肝理气、化湿畅中、暴怒伤肝，气逆胀满者",
@@ -606,7 +606,7 @@
     {
       "formulaName": "通瘀煎",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：活血祛瘀、行气止痛、妇人气滞血瘀，经脉不利，痛极拒按",
@@ -616,7 +616,7 @@
     {
       "formulaName": "黎峒丸",
       "source": "《景岳全书》",
-      "lineageCode": "warm-tonify-yang",
+      "lineageCode": "warm-tonify",
       "status": "pending_clinician_review",
       "researchRecommendation": "reject",
       "recommendationBasis": "该方虽出《景岳全书》，但核心治法为疏肝、清热、化痰、解表、活血或攻瘀，并非温补优先：续筋接骨、疏风活络、金疮跌仆伤，痈疽疮痛，疯犬咬伤，蜂蛇蝎毒",

@@ -153,7 +153,8 @@ const prescribeReasoning = {
       trigger: "神疲乏力",
       triggerSource: { kind: "primary_syndrome_basis", sourceRef: "B1", sourceQuote: "神疲乏力、面色少华" },
       targetPathogenesis: "气血亏虚，脑失濡养",
-      action: "加党参",
+      action: "加",
+      herbName: "党参",
       doseOrHandling: null,
       reason: "增强补气之力，助黄芪益气生血",
       riskNote: "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",
@@ -251,7 +252,8 @@ check("I3 方义四项结构化输出，且内部枚举已中文化", () => {
 check("I5 随证加减对外输出，含可替换药味及其差异说明", () => {
   const mods = scheme.prescriptions.modifications;
   assert.equal(mods.length, 1, "随证加减未投出");
-  assert.equal(mods[0].action, "加党参");
+  assert.equal(mods[0].action, "加");
+  assert.equal(mods[0].herbName, "党参");
   assert.equal(mods[0].doseOrHandling, null, "加减行不得携带剂量");
   assert.ok(mods[0].riskNote.includes("重新审方"), "加减必须提示重新审方");
   const sub = mods[0].substitutions[0];
@@ -266,6 +268,29 @@ check("I5 随证加减对外输出，含可替换药味及其差异说明", () =
   assert.ok(mods[0].triggerSource, "随证加减的触发依据未对外投出");
   assert.equal(mods[0].triggerSource.kind, "primary_syndrome_basis");
   assert.equal(mods[0].triggerSource.sourceQuote, "神疲乏力、面色少华");
+
+  const content = `<!-- DIAGNOSIS_JSON_START -->${JSON.stringify(prescribeReasoning)}<!-- DIAGNOSIS_JSON_END -->`;
+  const visible = synchronizeVisibleClinicalSummary(content, "prescribe", "").split("<!-- DIAGNOSIS_JSON_START -->")[0];
+  assert.match(visible, /动作：加；药味：党参/, "医生可见正文必须与结构化出参使用同一分字段语义");
+  assert.doesNotMatch(visible, /动作：加党参/, "动作字段不得重新拼回药味");
+});
+
+check("I5 旧签名快照只读兼容：混合 action 投影为新字段而不污染新出参", () => {
+  const legacyScheme = buildScheme({
+    reasoningPrescribe: {
+      ...prescribeReasoning,
+      formula: {
+        ...prescribeReasoning.formula,
+        modifications: prescribeReasoning.formula.modifications.map((item) => {
+          const legacy = { ...item, action: "加党参" };
+          delete legacy.herbName;
+          return legacy;
+        }),
+      },
+    },
+  });
+  assert.equal(legacyScheme.prescriptions.modifications[0].action, "加");
+  assert.equal(legacyScheme.prescriptions.modifications[0].herbName, "党参");
 });
 
 // —— 2026-08-11：受控术语归一痕迹 ——

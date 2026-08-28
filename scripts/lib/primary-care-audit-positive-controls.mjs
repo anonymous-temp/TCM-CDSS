@@ -58,6 +58,7 @@ function auditControlReasoning(control, signedDiagnoseReasoning) {
         name: signedDiagnoseReasoning ? "本例辨证组方（医生编辑版）" : `虚构正控-${control.mutation}`,
         formulaNames: [],
         constructionType: "self_devised",
+        ...(signedDiagnoseReasoning ? { modificationStatus: "modified" } : {}),
         positioning: "仅学术思路",
         formulaSource: evidence,
         therapyMatch: signedDiagnoseReasoning ? getM03TherapyLock(signedDiagnoseReasoning).candidateMatch : "故意变异，预期触发审方问题",

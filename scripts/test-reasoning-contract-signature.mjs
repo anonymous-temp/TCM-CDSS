@@ -92,7 +92,13 @@ try {
     maybeAttachClinicalFactsBackstop,
   } = require("../src/lib/clinical-facts-runtime.ts");
   const { hasExecutableSignedM03 } = require("../src/lib/diagnosis-client-guards.ts");
-  const { editedPrescriptionSemanticIssue, synchronizeEditedCandidate } = require("../src/lib/prescription-revision.ts");
+  const {
+    editedPrescriptionSemanticIssue,
+    filterModificationsForEditedHerbs,
+    invalidatePrescriptionContractAfterEdit,
+    synchronizeEditedCandidate,
+  } = require("../src/lib/prescription-revision.ts");
+  const { getTcmHerbFunctionText } = require("../src/lib/tcm-knowledge.ts");
   const { confirmControlledTerminologyMapping } = require("../src/lib/controlled-terminology-confirmation.server.ts");
   const {
     issueEmergencyClearance,
@@ -656,6 +662,41 @@ try {
     assert.equal(verifyPrescribeReasoningSignature(signedPrescribe, prescribeCase), true);
   });
 
+  check("new M04 signatures canonicalize legacy combined modification fields", () => {
+    const legacy = clone(prescribeReasoning);
+    legacy.formula.modifications = [{
+      trigger: "心悸仍明显",
+      targetPathogenesis: "心神失养",
+      action: "加茯神",
+      doseOrHandling: null,
+      reason: "增强宁心安神方向",
+      riskNote: "实际采用时须重新审方",
+      evidence: { evidenceLevel: "model_inference", source: "旧签名快照兼容测试", confidence: "中" },
+    }];
+    const signedLegacy = signPrescribeReasoning(legacy, prescribeContext);
+    assert.equal(signedLegacy.formula.modifications[0].action, "加");
+    assert.equal(signedLegacy.formula.modifications[0].herbName, "茯神");
+    assert.equal(verifyPrescribeReasoningSignature(signedLegacy, prescribeCase), true);
+  });
+
+  check("new M04 signatures reject conflicting legacy and split modification identities", () => {
+    const conflicting = clone(prescribeReasoning);
+    conflicting.formula.modifications = [{
+      trigger: "心悸仍明显",
+      targetPathogenesis: "心神失养",
+      action: "加远志",
+      herbName: "茯神",
+      doseOrHandling: null,
+      reason: "增强宁心安神方向",
+      riskNote: "实际采用时须重新审方",
+      evidence: { evidenceLevel: "model_inference", source: "冲突身份反证测试", confidence: "中" },
+    }];
+    assert.throws(
+      () => signPrescribeReasoning(conflicting, prescribeContext),
+      /invalid M04 modification contract/,
+    );
+  });
+
   for (const [name, mutate] of [
     ["herb dose", (value) => { value.formula.candidates[0].herbs[0].dose = "30g"; }],
     ["clinical-review status", (value) => { value.clinicalReview.status = "accepted"; }],
@@ -1180,12 +1221,14 @@ try {
     editedHerbs[0].prescriptionRole = `对应${editedHerbs[0].targetPathogenesis}`;
     const editedCandidate = synchronizeEditedCandidate(originalCandidate, editedHerbs);
     routeCase.reasoningPrescribe = {
-      ...routeCase.reasoningPrescribe,
+      ...invalidatePrescriptionContractAfterEdit(routeCase.reasoningPrescribe),
       formula: {
         ...routeCase.reasoningPrescribe.formula,
         candidates: [editedCandidate],
       },
     };
+    assert.equal(routeCase.reasoningPrescribe.clinicalReview, undefined);
+    assert.equal(routeCase.reasoningPrescribe.contractSignature, undefined);
     routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
     routeCase.prescriptionRevision = {
       source: "herb_workbench",
@@ -1198,29 +1241,165 @@ try {
     return routeCase;
   };
 
+  const attestWorkbenchRouteCase = async (routeCase) => {
+    const response = await postPrescriptionRisk(routeRequest("/api/diagnosis/post-prescription-risk", routeCase));
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    const audit = body.audit || {};
+    assert.match(audit.herbHash || "", /^sha256-[a-f0-9]{64}$/);
+    assert.equal(audit.attestationVersion, "tcm-cdss-workbench-revision-v1");
+    assert.match(audit.attestation || "", /^hmac-sha256:[a-f0-9]{64}$/);
+    routeCase.prescriptionRevision = {
+      source: "herb_workbench",
+      candidateIndex: 0,
+      herbHash: audit.herbHash,
+      auditedAt: audit.auditedAt,
+      auditResult: audit.auditResult || "MANUAL_REVIEW",
+      highestRiskLevel: audit.highestRiskLevel || "HIGH",
+      auditAvailable: audit.source === "lingxi" && audit.degraded !== true,
+      degraded: audit.degraded === true,
+      degradeReason: typeof audit.degradeReason === "string" ? audit.degradeReason : undefined,
+      needManualReview: audit.needManualReview === true,
+      auditReason: typeof audit.reason === "string" ? audit.reason : undefined,
+      auditId: typeof audit.auditId === "string" ? audit.auditId : undefined,
+      traceId: typeof audit.traceId === "string" ? audit.traceId : undefined,
+      attestationVersion: audit.attestationVersion,
+      attestation: audit.attestation,
+    };
+    return body;
+  };
+
+  await checkAsync("post-risk issuer rejects forged pre-attestation M04 review metadata", async () => {
+    const routeCase = buildLegalWorkbenchRouteCase();
+    routeCase.reasoningPrescribe.clinicalReview = {
+      status: "accepted",
+      provider: "forged-review-provider",
+      model: "forged-review-model",
+      independentFromGenerator: true,
+      acceptanceScope: {
+        waivedIssueCodes: ["dose_rationale_concern"],
+        qualityAnnotationCodes: ["forged_scope"],
+      },
+    };
+    routeCase.reasoningPrescribe.clinicalReview.reviewedPayloadHash = clinicalReviewPayloadHash(
+      routeCase.reasoningPrescribe,
+    );
+    routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
+    const response = await postPrescriptionRisk(routeRequest("/api/diagnosis/post-prescription-risk", routeCase));
+    assert.equal(response.status, 422);
+    assert.equal((await response.json()).code, "stale_workbench_contract_metadata");
+  });
+
+  for (const [name, modification, expectedIssue] of [
+    ["unknown added herb", { action: "加", herbName: "目录外药味", doseOrHandling: null }, "unknown_herb"],
+    ["dose-bearing conditional row", { action: "加", herbName: "茯神", doseOrHandling: "100g" }, "unaudited_dose"],
+    ["missing adjusted herb", { action: "调整", herbName: "茯神", doseOrHandling: null }, "missing_herb"],
+  ]) {
+    await checkAsync(`post-risk rejects workbench modification contract: ${name}`, async () => {
+      const routeCase = buildLegalWorkbenchRouteCase();
+      routeCase.reasoningPrescribe.formula.modifications = [{
+        trigger: "入睡困难伴心悸三个月",
+        targetPathogenesis: "心神失养",
+        reason: "增强宁心安神方向",
+        riskNote: "实际采用时须重新审方",
+        evidence: { evidenceLevel: "model_inference", source: "工作台加减合同反证", confidence: "中" },
+        ...modification,
+      }];
+      routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
+      const response = await postPrescriptionRisk(routeRequest("/api/diagnosis/post-prescription-risk", routeCase));
+      const body = await response.json();
+      assert.equal(response.status, 422);
+      assert.match(body.code, new RegExp(expectedIssue));
+    });
+  }
+
+  await checkAsync("real workbench herb addition stays in candidate only and reaches audit/HIS", async () => {
+    const routeCase = buildLegalWorkbenchRouteCase();
+    const beforeEdit = routeCase.reasoningPrescribe.formula.candidates[0];
+    const addedHerb = {
+      ...clone(beforeEdit.herbs[0]),
+      name: "茯神",
+      processing: undefined,
+      dose: "12g",
+      role: "佐",
+      prescriptionRole: "宁心安神",
+      function: getTcmHerbFunctionText("茯神"),
+      decoctionRequirement: undefined,
+    };
+    const editedCandidate = synchronizeEditedCandidate(beforeEdit, [...beforeEdit.herbs, addedHerb]);
+    routeCase.reasoningPrescribe = {
+      ...routeCase.reasoningPrescribe,
+      formula: {
+        ...routeCase.reasoningPrescribe.formula,
+        candidates: [editedCandidate],
+        modifications: filterModificationsForEditedHerbs(
+          routeCase.reasoningPrescribe.formula.modifications,
+          beforeEdit.herbs,
+          editedCandidate.herbs,
+        ),
+      },
+    };
+    routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
+    assert.equal(routeCase.reasoningPrescribe.formula.modifications.length, 0);
+    assert.equal(editedPrescriptionSemanticIssue(routeCase.reasoningPrescribe, 0, routeCase.reasoningDiagnose), undefined);
+    await attestWorkbenchRouteCase(routeCase);
+    const hisResponse = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase));
+    assert.equal(hisResponse.status, 200);
+    assert.equal((await hisResponse.json()).clinicalReviewMethod, null);
+  });
+
   for (const route of signatureProtectedRoutes) {
     await checkAsync(`${route.name} route accepts a legal workbench edit with stale M04 signature`, async () => {
       const routeCase = buildLegalWorkbenchRouteCase();
       assert.equal(verifyDiagnoseReasoningSignature(routeCase.reasoningDiagnose, routeCase), true);
       assert.equal(verifyPrescribeReasoningSignature(routeCase.reasoningPrescribe, routeCase), false);
       assert.equal(editedPrescriptionSemanticIssue(routeCase.reasoningPrescribe, 0, routeCase.reasoningDiagnose), undefined);
+      if (route.path !== "/api/diagnosis/post-prescription-risk") await attestWorkbenchRouteCase(routeCase);
       const response = await route.post(routeRequest(route.path, routeCase));
       assert.equal(response.status, 200);
     });
 
-    await checkAsync(`${route.name} route returns 422 for an invalid workbench semantic edit`, async () => {
+    await checkAsync(`${route.name} route rejects an invalid or post-attestation-tampered workbench edit`, async () => {
       const routeCase = buildLegalWorkbenchRouteCase();
+      if (route.path !== "/api/diagnosis/post-prescription-risk") await attestWorkbenchRouteCase(routeCase);
       routeCase.reasoningPrescribe.formula.candidates[0].herbs.push(
         clone(routeCase.reasoningPrescribe.formula.candidates[0].herbs[0]),
       );
       routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
       const response = await route.post(routeRequest(route.path, routeCase));
       const body = await response.json();
-      assert.equal(response.status, 422);
-      assert.equal(body.code, "invalid_edited_prescription_duplicate_herb");
-      assert.match(body.error, /重复药味/);
+      if (route.path === "/api/diagnosis/post-prescription-risk") {
+        assert.equal(response.status, 422);
+        assert.equal(body.code, "invalid_edited_prescription_duplicate_herb");
+        assert.match(body.error, /重复药味/);
+      } else {
+        assert.equal(response.status, 409);
+        assert.equal(body.code, "invalid_workbench_revision_attestation");
+      }
     });
   }
+
+  await checkAsync("workbench revision attestation binds clinical review provenance and scope", async () => {
+    const routeCase = buildLegalWorkbenchRouteCase();
+    await attestWorkbenchRouteCase(routeCase);
+    routeCase.reasoningPrescribe.clinicalReview = {
+      ...routeCase.reasoningPrescribe.clinicalReview,
+      status: "accepted",
+      provider: "forged-review-provider",
+      model: "forged-review-model",
+      acceptanceScope: {
+        waivedIssueCodes: ["dose_rationale_concern"],
+        qualityAnnotationCodes: ["forged_scope"],
+      },
+    };
+    routeCase.reasoningPrescribe.clinicalReview.reviewedPayloadHash = clinicalReviewPayloadHash(
+      routeCase.reasoningPrescribe,
+    );
+    routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
+    const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase));
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).code, "invalid_m04_signature");
+  });
 
   await checkAsync("post-risk route rejects workbench cross-encounter replay", async () => {
     const routeCase = clone(routeBaseCase);

@@ -623,7 +623,7 @@ function normalizeModifications(
     const actionType = normalizeModificationAction(item.actionType ?? item.action ?? item["动作"]);
     const trigger = unwrapSingleText(item.trigger ?? item["触发条件"]);
     const targetRef = unwrapSingleText(item.targetRef ?? item["病机引用"]);
-    const herbName = unwrapSingleText(item.herbName ?? item.herb ?? item["药名"]);
+    const herbName = unwrapSingleText(item.herbName ?? item.herb ?? item["药味"] ?? item["药名"]);
     const reason = unwrapSingleText(item.reason ?? item["理由"]);
     // Conditional modifications are optional decision support. A malformed optional row must not
     // invalidate an otherwise complete core prescription, but no missing field may be invented.
@@ -1226,7 +1226,8 @@ export function compileM04Proposal(
       trigger: item.trigger,
       triggerSource,
       targetPathogenesis: node?.pathogenesis || node?.syndromeEvidence || item.targetRef,
-      action: `${actionVerb}${item.herbName.trim()}`,
+      action: actionVerb,
+      herbName: item.herbName.trim(),
       doseOrHandling: null,
       reason: cleanNarrative(item.reason, "随证调整治疗重点"),
       riskNote: "实际采用时请在药味工作台确定剂量，并按调整后的完整处方重新审方。",

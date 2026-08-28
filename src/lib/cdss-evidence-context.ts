@@ -13,6 +13,7 @@ import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concep
 import { recordCdssKnowledgeTrace } from "./cdss-knowledge-telemetry";
 import { localDiagnosticReferenceContext } from "./diagnostic-reference-catalog";
 import { tcmDiseaseStandardCitations } from "./tcm-diagnostic-citations";
+import { normalizedFormulaModificationFields } from "./formula-modification";
 
 export type EvidenceStage = "diagnose" | "prescribe" | "assess";
 
@@ -383,7 +384,8 @@ function sanitizeSentinelJsonBlocks(content: string, scope: EvidenceScope, medic
             formula.modifications = formula.modifications.filter((item) => {
               if (!item || typeof item !== "object" || Array.isArray(item)) return false;
               const row = item as Record<string, unknown>;
-              return [row.trigger, row.targetPathogenesis, row.action, row.reason]
+              const modification = normalizedFormulaModificationFields(row);
+              return Boolean(modification) && [row.trigger, row.targetPathogenesis, modification?.action, modification?.herbName, row.reason]
                 .every((value) => typeof value === "string" && value.trim().length > 0);
             });
           }

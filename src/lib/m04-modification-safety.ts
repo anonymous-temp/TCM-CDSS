@@ -1,10 +1,10 @@
 import { canonicalTcmHerbIdentity, finalModificationTriggerGrounded, m04HerbOpposingDirectionIssue } from "./diagnosis-stage-contract";
 import { executableFormulaCompilationReferences } from "./tcm-formula-provenance";
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
+import { normalizedFormulaModificationFields } from "./formula-modification";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
-const MODIFICATION_ADDITION = /(?:^|时|则|可|建议)(?:加入|加用|新增|加)([\u4e00-\u9fa5]{1,8})/;
 const TRANSIENT_SLEEP_TRIGGER = /(?:睡眠欠佳|睡眠不佳|眠差|失眠|入睡困难|夜寐不安|多梦易醒)/;
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
@@ -67,13 +67,12 @@ export function dropUnsupportedM04ModificationDirections(
       // contract below and are never made acceptable by this deletion-only transform.
       const trigger = typeof modification.trigger === "string" ? modification.trigger.trim() : "";
       if (!trigger || !finalModificationTriggerGrounded(trigger, prior)) return false;
-      const action = typeof modification.action === "string" ? modification.action.trim().replace(/\s/g, "") : "";
-      const addition = action.match(MODIFICATION_ADDITION);
-      if (!addition) return true;
+      const fields = normalizedFormulaModificationFields(modification);
+      if (!fields || fields.action !== "加") return true;
       const declaredDirection = [modification.reason, modification.targetPathogenesis]
         .filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
         .join("；");
-      return !m04HerbOpposingDirectionIssue({ name: addition[1], function: declaredDirection }, prior);
+      return !m04HerbOpposingDirectionIssue({ name: fields.herbName, function: declaredDirection }, prior);
     });
     if (retained.length === modifications.length) return content;
     formula.modifications = retained;

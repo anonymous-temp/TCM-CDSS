@@ -1363,8 +1363,7 @@ assert.match(doseSynchronized.herbs[0].evidence.source, /医生结构化编辑�
 const doseMods = filterModificationsForEditedHerbs([
   { trigger: "失眠", targetPathogenesis: "心血不足", action: "加酸枣仁", doseOrHandling: "15g", reason: "养血安神", riskNote: "", evidence: { evidenceLevel: "classic_text", source: "旧依据" } },
 ], originalCandidate.herbs, doseEditedHerbs);
-assert.match(doseMods[0].doseOrHandling || "", /30g/);
-assert.doesNotMatch(doseMods[0].doseOrHandling || "", /15g/);
+assert.equal(doseMods.length, 0, "已实际编辑的药味只存在于 candidate.herbs，不得复制成带剂量的条件性加减");
 const processedOriginal = {
   ...originalCandidate,
   herbs: [{ ...originalCandidate.herbs[0], processing: "炒", decoctionRequirement: "捣碎后同煎" }, originalCandidate.herbs[1]],
@@ -1439,21 +1438,24 @@ for (const followUpNode of ["0天后复诊", "1天后复诊", "4天后复诊", "
 }
 const filteredMods = filterModificationsForEditedHerbs([
   { trigger: "多梦", targetPathogenesis: "心神不宁", action: "加夜交藤", doseOrHandling: "15g", reason: "安神", riskNote: "" },
-  { trigger: "情志不舒", targetPathogenesis: "肝郁", action: "加合欢皮", doseOrHandling: "12g", reason: "解郁", riskNote: "" },
+  { trigger: "情志不舒", targetPathogenesis: "肝郁", action: "加", herbName: "合欢皮", doseOrHandling: "12g", reason: "解郁", riskNote: "" },
 ], originalCandidate.herbs, editedHerbs);
-assert.equal(filteredMods.length, 1);
-assert.match(filteredMods[0].action, /合欢皮/);
+assert.equal(filteredMods.length, 0, "删除与新增均由当前候选和 revision 记录，不得残留为条件性加减");
+const normalizedLegacyMods = filterModificationsForEditedHerbs([
+  { trigger: "健忘仍明显", targetPathogenesis: "心神失养", action: "加茯神", doseOrHandling: null, reason: "宁心安神", riskNote: "实际采用时重新审方" },
+], originalCandidate.herbs, editedHerbs);
+assert.equal(normalizedLegacyMods[0].action, "加", "a newly signed doctor edit must not reproduce the legacy combined action field");
+assert.equal(normalizedLegacyMods[0].herbName, "茯神");
 const synthesizedMods = filterModificationsForEditedHerbs([], originalCandidate.herbs, editedHerbs);
-assert.equal(synthesizedMods.length, 1);
-assert.ok(synthesizedMods.some((item) => item.trigger === "医生结构化编辑" && item.action.includes("合欢皮") && item.doseOrHandling?.includes("12g")));
+assert.equal(synthesizedMods.length, 0, "工作台实际新增药味不得另行合成 formula.modifications 编辑日志");
 const versionReasoning = {
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe",
-  formula: { candidates: [synchronized], modifications: synthesizedMods },
+  formula: { candidates: [synchronized], modifications: normalizedLegacyMods },
 };
 const versionHash = await computePrescriptionVersionHash(versionReasoning, 0);
 assert.match(versionHash, /^sha256-[a-f0-9]{64}$/);
 assert.equal(await computePrescriptionVersionHash(versionReasoning, 0), versionHash);
-assert.notEqual(await computePrescriptionVersionHash({ ...versionReasoning, formula: { ...versionReasoning.formula, modifications: [{ ...synthesizedMods[0], reason: "变更后的加味原因" }] } }, 0), versionHash);
+assert.notEqual(await computePrescriptionVersionHash({ ...versionReasoning, formula: { ...versionReasoning.formula, modifications: [{ ...normalizedLegacyMods[0], reason: "变更后的加味原因" }] } }, 0), versionHash);
 const auditContextState = stateFromRecord("失眠半年，否认药物过敏。", { zhushu: "失眠半年", guomin: "否认药物过敏", yongyaoshi: "目前未用药" });
 const contextHash = await computePrescriptionVersionHash(versionReasoning, 0, auditContextState);
 assert.notEqual(await computePrescriptionVersionHash(versionReasoning, 0, { ...auditContextState, allergyHistory: "酸枣仁过敏" }), contextHash);

@@ -82,6 +82,9 @@ try {
   const { POST: assessPost } = await jiti.import("../src/app/api/diagnosis/assess/route.ts");
   const { POST: postRiskPost } = await jiti.import("../src/app/api/diagnosis/post-prescription-risk/route.ts");
   const { resetRxAuditResultCache } = await jiti.import("../src/lib/rxaudit.ts");
+  const { computePrescriptionVersionHash } = await jiti.import("../src/lib/prescription-version.ts");
+  const { verifyPrescriptionRevisionAttestation } = await jiti.import("../src/lib/prescription-revision-attestation.server.ts");
+  const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
   resetRxAuditResultCache();
   const {
     buildDiagnoseContractSignatureContext,
@@ -119,8 +122,10 @@ try {
     clinicalReview: undefined,
   };
   const signedDiagnose = signDiagnoseReasoning(unsignedDiagnose, buildDiagnoseContractSignatureContext(unsignedState));
-  const caseState = buildAuditPositiveControlState(control, signedDiagnose);
-  caseState.customerId = customerId;
+  const builtCaseState = buildAuditPositiveControlState(control, signedDiagnose);
+  builtCaseState.customerId = customerId;
+  const caseState = normalizeCaseStateInput(builtCaseState);
+  assert.ok(caseState, "route fixture must normalize before client/server prescription hash comparison");
   assert.equal(verifyDiagnoseReasoningSignature(signedDiagnose, caseState), true, "signed route fixture must bind to the exact final clinical input");
   const request = (path, requestCaseState = caseState) => new Request(`http://localhost${path}`, {
     method: "POST",
@@ -128,15 +133,8 @@ try {
     body: JSON.stringify({ caseState: requestCaseState }),
   });
 
-  const assessResponse = await assessPost(request("/api/diagnosis/assess"));
-  const assessText = await assessResponse.text();
-  assert.equal(assessResponse.status, 200, assessText);
-  assert.match(assessText, /现用药时间线或指代未能可靠结构化/);
-  assert.match(assessText, /TCM_CDSS_RXAUDIT_CORRELATION/);
-  assert.match(assessText, /AUDIT-ROUTE-1/);
-  assert.match(assessText, /"type":"followup_timeline"/);
-  assert.match(assessText, /"indicators":\[/);
-
+  // post-risk 是医生工作台精确版本凭据的唯一签发端；M05/HIS 只消费签发后的版本，
+  // 不再把 caller 自称 herb_workbench 当作跳过 M04 HMAC 的权限位。
   const postRiskResponse = await postRiskPost(request("/api/diagnosis/post-prescription-risk"));
   assert.equal(postRiskResponse.status, 200);
   const postRisk = await postRiskResponse.json();
@@ -153,6 +151,64 @@ try {
     Array.isArray(item.indicators) &&
     Array.isArray(item.triggers)));
   assert.doesNotMatch(postRisk.followup, /FOLLOWUP_TIMELINE_JSON/, "JSON route must return timeline as a typed field, not a Markdown sentinel");
+  assert.equal(postRisk.audit.attestationVersion, "tcm-cdss-workbench-revision-v1");
+  assert.match(postRisk.audit.attestation || "", /^hmac-sha256:[a-f0-9]{64}$/);
+  caseState.prescriptionRevision = {
+    source: "herb_workbench",
+    candidateIndex: postRisk.audit.candidateIndex,
+    herbHash: postRisk.audit.herbHash,
+    auditedAt: postRisk.audit.auditedAt,
+    auditResult: postRisk.audit.auditResult,
+    highestRiskLevel: postRisk.audit.highestRiskLevel,
+    auditAvailable: postRisk.audit.source === "lingxi" && postRisk.audit.degraded !== true,
+    degraded: postRisk.audit.degraded === true,
+    degradeReason: postRisk.audit.degradeReason,
+    needManualReview: postRisk.audit.needManualReview === true,
+    auditReason: postRisk.audit.reason,
+    auditId: postRisk.audit.auditId,
+    traceId: postRisk.audit.traceId,
+    attestationVersion: postRisk.audit.attestationVersion,
+    attestation: postRisk.audit.attestation,
+  };
+  assert.equal(
+    await computePrescriptionVersionHash(caseState.reasoningPrescribe, 0, caseState),
+    postRisk.audit.herbHash,
+    "the post-risk receipt must bind the exact version M05 will consume",
+  );
+  assert.equal(
+    verifyPrescriptionRevisionAttestation(
+      caseState,
+      { clientId: "local-development", customerId },
+      postRisk.audit.herbHash,
+    ),
+    true,
+    "the server-issued workbench receipt must verify before its JSON round trip",
+  );
+  const roundTrippedCaseState = normalizeCaseStateInput(JSON.parse(JSON.stringify(caseState)));
+  assert.ok(roundTrippedCaseState);
+  assert.equal(
+    await computePrescriptionVersionHash(roundTrippedCaseState.reasoningPrescribe, 0, roundTrippedCaseState),
+    postRisk.audit.herbHash,
+    "normalization must preserve the attested prescription version",
+  );
+  assert.equal(
+    verifyPrescriptionRevisionAttestation(
+      roundTrippedCaseState,
+      { clientId: "local-development", customerId },
+      postRisk.audit.herbHash,
+    ),
+    true,
+    "normalization must preserve the server-issued workbench receipt",
+  );
+
+  const assessResponse = await assessPost(request("/api/diagnosis/assess"));
+  const assessText = await assessResponse.text();
+  assert.equal(assessResponse.status, 200, assessText);
+  assert.match(assessText, /现用药时间线或指代未能可靠结构化/);
+  assert.match(assessText, /TCM_CDSS_RXAUDIT_CORRELATION/);
+  assert.match(assessText, /AUDIT-ROUTE-1/);
+  assert.match(assessText, /"type":"followup_timeline"/);
+  assert.match(assessText, /"indicators":\[/);
 
   assert.equal(capturedAuditBodies.length, 1, "assess 与 post-prescription-risk 必须复用同一完整处方版本的成功审方结果");
   for (const headers of capturedAuditHeaders) {

@@ -1,6 +1,7 @@
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import {
   buildDeterministicRiskFollowup,
+  clinicalGroundingText,
   deriveSafetyLocked,
   markdownNdjsonResponse,
   sanitizeUngroundedRedFlagNegations,
@@ -30,6 +31,7 @@ import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { editedPrescriptionIssueMessage, editedPrescriptionSemanticIssue, hasIncompleteEditedHerb } from "@/lib/prescription-revision";
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { recordCdssStageTelemetry } from "@/lib/cdss-stage-telemetry";
+import { isTrustedHisWorkbenchEdit } from "@/lib/his-prescription-validation";
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
@@ -47,6 +49,20 @@ export async function POST(req: Request) {
       return Response.json({
         error: "辨病辨证结果签名已失效，请重新生成后再评估。",
         code: "invalid_m03_signature",
+      }, { status: 409 });
+    }
+    const workbenchCandidateIndex = parsed.caseState.prescriptionRevision?.candidateIndex ?? 0;
+    const workbenchHerbHash = initialPrescribed
+      ? await computePrescriptionVersionHash(initialPrescribed, workbenchCandidateIndex, parsed.caseState)
+      : "";
+    if (!isTrustedHisWorkbenchEdit(parsed.caseState, initialPrescribed, {
+      clientId: parsed.customer.clientId,
+      customerId: parsed.customer.customerId,
+      herbHash: workbenchHerbHash,
+    })) {
+      return Response.json({
+        error: "当前医生编辑版缺少与本病例、租户及精确处方版本绑定的有效审方凭据，请重新审方。",
+        code: "invalid_workbench_revision_attestation",
       }, { status: 409 });
     }
   } else if (!verifyPrescribeReasoningSignature(initialPrescribed, parsed.caseState)) {
@@ -75,7 +91,12 @@ export async function POST(req: Request) {
     }, { status: 422 });
   }
   if (workbenchRevision) {
-    const semanticIssue = editedPrescriptionSemanticIssue(prescribed, candidateIndex ?? 0, diagnoseReasoning);
+    const semanticIssue = editedPrescriptionSemanticIssue(
+      prescribed,
+      candidateIndex ?? 0,
+      diagnoseReasoning,
+      clinicalGroundingText(gated),
+    );
     if (semanticIssue) {
       return Response.json({
         error: editedPrescriptionIssueMessage(semanticIssue),

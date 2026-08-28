@@ -1,13 +1,16 @@
 import "server-only";
 
+import type { CustomerContext } from "./customer-context";
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "./diagnosis-parse";
+import { clinicalGroundingText } from "./diagnosis-safety";
 import { m04SafetyContractIssue } from "./diagnosis-stage-contract";
 import {
   editedPrescriptionIssueMessage,
   editedPrescriptionSemanticIssue,
   hasIncompleteEditedHerb,
 } from "./prescription-revision";
+import { verifyPrescriptionRevisionAttestation } from "./prescription-revision-attestation.server";
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "./reasoning-contract-signature";
 import { formulaCompilationContractIssue } from "./tcm-formula-provenance";
 import { isKnownTcmHerbName } from "./tcm-knowledge";
@@ -29,6 +32,10 @@ type ValidationSuccess = {
 
 export type HisPrescriptionValidationResult = ValidationFailure | ValidationSuccess;
 
+export type HisWorkbenchTrustContext = Pick<CustomerContext, "clientId" | "customerId"> & {
+  herbHash: string;
+};
+
 export function isLimitedM03NotPrescribable(
   diagnoseReasoning: ClinicalReasoningResultV2 | undefined,
 ): boolean {
@@ -36,7 +43,7 @@ export function isLimitedM03NotPrescribable(
     diagnoseReasoning.pathogenesis.chain.length === 0;
 }
 
-export function isTrustedHisWorkbenchEdit(
+export function hasHisWorkbenchEditShape(
   caseState: CaseState,
   prescribed = prescribeReasoningFromState(caseState),
 ): boolean {
@@ -51,6 +58,19 @@ export function isTrustedHisWorkbenchEdit(
     /医生编辑版/.test(candidate.name);
 }
 
+export function isTrustedHisWorkbenchEdit(
+  caseState: CaseState,
+  prescribed = prescribeReasoningFromState(caseState),
+  trustContext?: HisWorkbenchTrustContext,
+): boolean {
+  const hasWorkbenchShape = hasHisWorkbenchEditShape(caseState, prescribed);
+  return Boolean(hasWorkbenchShape && trustContext?.herbHash && verifyPrescriptionRevisionAttestation(
+    caseState,
+    trustContext,
+    trustContext.herbHash,
+  ));
+}
+
 function invalidPrescription(issue: string): ValidationFailure {
   return {
     ok: false,
@@ -61,7 +81,10 @@ function invalidPrescription(issue: string): ValidationFailure {
   };
 }
 
-export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPrescriptionValidationResult {
+export function validateHisPrescriptionForWriteBack(
+  caseState: CaseState,
+  workbenchTrustContext?: HisWorkbenchTrustContext,
+): HisPrescriptionValidationResult {
   const prescribed = prescribeReasoningFromState(caseState);
   if (!prescribed || prescribed.stage !== "prescribe" || !prescribed.formula) {
     return {
@@ -107,7 +130,7 @@ export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPr
     };
   }
 
-  const trustedWorkbenchEdit = isTrustedHisWorkbenchEdit(caseState, prescribed);
+  const trustedWorkbenchEdit = isTrustedHisWorkbenchEdit(caseState, prescribed, workbenchTrustContext);
   if (!trustedWorkbenchEdit && !verifyPrescribeReasoningSignature(prescribed, caseState)) {
     return {
       ok: false,
@@ -132,7 +155,12 @@ export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPr
 
   // This shared workbench validator covers duplicate names plus the deterministic herb-level
   // knowledge checks (known herb, dose, function, target reference, processing/decoction route).
-  const editedIssue = editedPrescriptionSemanticIssue(prescribed, candidateIndex, diagnoseReasoning);
+  const editedIssue = editedPrescriptionSemanticIssue(
+    prescribed,
+    candidateIndex,
+    diagnoseReasoning,
+    clinicalGroundingText(caseState),
+  );
   if (editedIssue) return invalidPrescription(editedIssue);
 
   const selectedReasoning: ClinicalReasoningResultV2 = {
@@ -143,23 +171,20 @@ export function validateHisPrescriptionForWriteBack(caseState: CaseState): HisPr
     },
   };
 
-  if (!trustedWorkbenchEdit) {
-    // HIS 写回是最后一道信任边界，执行的是**安全底线合同**（逐味剂量边界、配伍禁忌、特殊
-    // 人群、方向对立、君臣结构、跨阶段漂移），而不是全量质量口径——质量合同的权力止于流层
-    // 的生成与修复轮。此前这里复跑全量 m04SemanticIssue：流层按降级/批注受理的候选（页面
-    // 已显示完成）在生成 HIS 方案时被同一族 T2 码再判死、422 拒绝——「页面看似完成、对外
-    // 集成拿不到交付结果」（甲方生产实测病例1），这是同一结构性分叉的第 6 处复发点。
-    const floorIssue = m04SafetyContractIssue(
-      selectedReasoning,
-      diagnoseReasoning,
-      isKnownTcmHerbName,
-      false,
-      true,
-      "",
-      true,
-    );
-    if (floorIssue) return invalidPrescription(floorIssue);
-  }
+  // HIS 写回是最后一道信任边界，所有来源都执行同一份**安全底线合同**（逐味剂量边界、
+  // 配伍禁忌、特殊人群、方向对立、加减药味与跨阶段漂移）。工作台例外只允许当前候选的
+  // 医生编辑药味使用其专属校验口径，绝不允许跳过 formula.modifications 的未知药味、剂量
+  // 文本或高影响方向检查。质量合同仍止于生成与修复轮，不在此重新否决已批注受理的 T2。
+  const floorIssue = m04SafetyContractIssue(
+    selectedReasoning,
+    diagnoseReasoning,
+    isKnownTcmHerbName,
+    trustedWorkbenchEdit,
+    false,
+    clinicalGroundingText(caseState),
+    true,
+  );
+  if (floorIssue) return invalidPrescription(floorIssue);
 
   // Every HIS candidate reaches the same server compilation contract. That contract applies its
   // narrow self-devised/modified doctor-edit exception only when this trusted path passes true.

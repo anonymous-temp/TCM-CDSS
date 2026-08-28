@@ -109,7 +109,15 @@ export async function POST(req: Request) {
         code: "limited_m03_not_prescribable",
       }, { status: 409 });
     }
-    const trustedWorkbenchEdit = isTrustedHisWorkbenchEdit(preflightCaseState, initialPrescribed);
+    const preflightWorkbenchIndex = preflightCaseState.prescriptionRevision?.candidateIndex ?? 0;
+    const preflightWorkbenchHash = initialPrescribed && preflightCaseState.prescriptionRevision?.source === "herb_workbench"
+      ? await computePrescriptionVersionHash(initialPrescribed, preflightWorkbenchIndex, preflightCaseState)
+      : "";
+    const trustedWorkbenchEdit = isTrustedHisWorkbenchEdit(preflightCaseState, initialPrescribed, {
+      clientId: parsed.customer.clientId,
+      customerId: parsed.customer.customerId,
+      herbHash: preflightWorkbenchHash,
+    });
     if (!trustedWorkbenchEdit && !verifyPrescribeReasoningSignature(initialPrescribed, preflightCaseState)) {
       // An unsigned draft may only survive as diagnose-only output when a deterministic gate has
       // already disabled dosing. Strip every prescription projection before evidence/facts work;
@@ -167,7 +175,15 @@ export async function POST(req: Request) {
     return Response.json(await withDrugAvailability(buildHisAiSchemePayload({ ...caseState, prescriptionRevision: undefined }, await evidenceScopePromise), contractVersion, parsed.customer.customerId));
   }
 
-  const validation = validateHisPrescriptionForWriteBack(caseState);
+  const requestedCandidateIndex = caseState.prescriptionRevision?.candidateIndex ?? 0;
+  const currentHerbHash = prescribed
+    ? await computePrescriptionVersionHash(prescribed, requestedCandidateIndex, caseState)
+    : "";
+  const validation = validateHisPrescriptionForWriteBack(caseState, {
+    clientId: parsed.customer.clientId,
+    customerId: parsed.customer.customerId,
+    herbHash: currentHerbHash,
+  });
   if (!validation.ok) {
     return Response.json({
       error: validation.message,
@@ -177,7 +193,7 @@ export async function POST(req: Request) {
   }
   const { candidateIndex } = validation;
   const selectedCandidate = validation.prescribed.formula?.candidates[candidateIndex];
-  const herbHash = await computePrescriptionVersionHash(validation.prescribed, candidateIndex, caseState);
+  const herbHash = currentHerbHash;
   if (!herbHash) {
     return Response.json({
       error: "无法建立结构化处方版本，已拒绝生成 HIS 方案。",

@@ -1,7 +1,11 @@
-// 对外发布的流派档。2026-08-07 由 13 张收敛到 5 张：
+// 对外发布的流派档。2026-08-28 将误合并的「温补/扶阳」拆为两张独立学术流派卡：
+// 温补学派以明代薛己、孙一奎、赵献可、张景岳等脾肾命门、水火互济与温养补虚学说为主；
+// 扶阳学派以清末郑钦安以来的「阳主阴从、扶阳抑阴」传承为主。两者有理论交集，但人物链、
+// 著作链和诊疗侧重不同，不能再由一个 code/别名集合表示。
+// 2026-08-07 曾由 13 张收敛到 5 张：
 // 保留的依据是**线上真正可用的方剂条数**（可建基准 → 能锁进 M04 → 通过自核验），
 // 不是流派史地位、也不是藏书量：
-//   经方 133 / 温补扶阳 122 / 滋阴丹溪 60 / 温病 30，其余最高 31（攻邪），多数个位数或 0。
+//   经方 133 / 原温补扶阳合并档 122 / 滋阴丹溪 60 / 温病 30，其余最高 31（攻邪），多数个位数或 0。
 // 默认档 unrestricted 实测以时方为主（8 个典型证候的检索短名单里 59% 落在无流派标注的后世方），
 // 因此删掉的「时方/验方」档在能力上由默认档覆盖，不是能力缺口。
 // 删掉的 8 张（时方验方/脾胃/孟河/岭南/海派/院内优先/攻邪/寒凉）连同其问诊策略一并移除，
@@ -51,7 +55,7 @@ export const LINEAGE_GROUP_DEFINITIONS: Readonly<Record<LineageGroup, LineageGro
 export const LINEAGE_SAFETY_OBEDIENCE =
   "流派偏好仅用于组织问诊与辨治思路；急危重风险处置、特殊人群禁忌、药事审方和执业医师复核始终优先。";
 
-const ACTIVE_GOVERNANCE = (cardVersion: string): LineageGovernance => ({
+const ACTIVE_GOVERNANCE = (cardVersion: string, effectiveAt = "2026-07-12"): LineageGovernance => ({
   schemaVersion: "1.0.0",
   cardVersion,
   status: "active",
@@ -60,8 +64,8 @@ const ACTIVE_GOVERNANCE = (cardVersion: string): LineageGovernance => ({
     { id: "tcm-clinical-safety-review", displayName: "中医临床安全审核角色" },
     { id: "medication-safety-review", displayName: "药事安全审核角色" },
   ],
-  reviewedAt: "2026-07-12",
-  effectiveAt: "2026-07-12",
+  reviewedAt: effectiveAt,
+  effectiveAt,
 });
 
 export interface LineageCard {
@@ -210,26 +214,48 @@ export const LINEAGE_CARDS: readonly LineageCard[] = [
     cautions: ["滋腻碍胃、寒凉伤中风险需提示医生复核。"],
   },
   {
-    code: "warm-tonify-yang",
-    label: "温补/扶阳思路",
+    code: "warm-tonify",
+    label: "温补学派思路",
     group: "school",
-    cardNature: "source_preference",
+    cardNature: "academic_lineage",
     provenance: {
-      representativePhysicians: ["张景岳", "郑钦安"],
-      representativeWorks: ["《景岳全书》", "《医理真传》", "《医法圆通》"],
-      lineageSummary: "综合温补与扶阳传统形成的治法偏好，内部传承并不单一，使用前必须先确认阳虚寒证。",
+      representativePhysicians: ["薛己", "孙一奎", "赵献可", "张景岳"],
+      representativeWorks: ["《内科摘要》", "《赤水玄珠》", "《医贯》", "《景岳全书》"],
+      lineageSummary: "明代温补学派重视脾肾、命门水火与阴阳互根，治疗以温养补虚、兼顾阴阳互济为主要特色。",
     },
-    governance: ACTIVE_GOVERNANCE("1.0.0"),
+    governance: ACTIVE_GOVERNANCE("2.0.0", "2026-08-28"),
     safetyObedience: LINEAGE_SAFETY_OBEDIENCE,
-    aliases: ["温补", "扶阳", "温阳", "火神"],
-    coreTheory: "仅在阳虚寒证证据充分时强调温阳扶正。",
-    dxEmphasis: ["阳虚", "寒证", "虚寒夹湿"],
-    formulaStyle: "以温阳散寒、补火助阳、扶正化湿为常用方向。",
-    representativeFormulas: ["附子理中汤", "真武汤", "四逆汤", "金匮肾气丸"],
-    herbTendency: "偏温热扶正，需严格核对热象和毒性药风险。",
-    modificationStyle: "按畏寒肢冷、便溏、舌淡胖、脉沉迟加减。",
-    applicability: "阳虚寒象明确且无明显热毒、阴虚火旺或红旗风险时适用。",
-    cautions: ["含附子等毒性或强温药时必须遵守审方、炮制和剂量边界。"],
+    aliases: ["温补", "温补学派", "温补派", "肾命学派"],
+    coreTheory: "重视脾肾、命门水火与阴阳互根，辨清阴虚、阳虚及先后天亏损后再施温养补虚。",
+    dxEmphasis: ["脾肾亏虚", "命门水火", "阴阳互根"],
+    formulaStyle: "先辨阴阳与脾肾亏损层次，再选择温阳、滋阴或阴阳互济的补虚方向，不以辛热药多寡代表流派。",
+    representativeFormulas: ["右归丸", "左归丸", "右归饮", "大补元煎"],
+    herbTendency: "温养补虚而兼顾阴精与脾胃，避免把所有虚证都等同于阳虚寒证。",
+    modificationStyle: "按脾肾、气血精亏损层次及寒热舌脉加减，强调阴阳互济。",
+    applicability: "脾肾或气血精亏损证据明确，且阴阳属性与寒热虚实已经辨清时适用。",
+    cautions: ["温补不等于一律扶阳或使用附子；热象、阴虚火旺及滋腻碍胃风险必须分别核对。"],
+  },
+  {
+    code: "support-yang",
+    label: "扶阳学派思路",
+    group: "school",
+    cardNature: "academic_lineage",
+    provenance: {
+      representativePhysicians: ["郑钦安", "卢铸之", "吴佩衡", "祝味菊"],
+      representativeWorks: ["《医理真传》", "《医法圆通》", "《伤寒恒论》"],
+      lineageSummary: "清末郑钦安以来的扶阳学派（亦称火神派）以阳主阴从、重视坎中真阳及扶阳抑阴为鲜明学术特征。",
+    },
+    governance: ACTIVE_GOVERNANCE("1.0.0", "2026-08-28"),
+    safetyObedience: LINEAGE_SAFETY_OBEDIENCE,
+    aliases: ["扶阳", "扶阳学派", "扶阳派", "火神", "火神派", "郑钦安"],
+    coreTheory: "重视阳气在生命活动中的主导作用，在阳衰阴盛证据充分时从扶助阳气、恢复气化立法。",
+    dxEmphasis: ["阳衰阴盛", "真假寒热", "六经气化"],
+    formulaStyle: "必须先辨真假寒热和阳虚层次，再讨论温通、回阳或扶阳，不得仅凭畏寒等单一表现套用。",
+    representativeFormulas: ["四逆汤", "通脉四逆汤", "白通汤", "附子理中汤"],
+    herbTendency: "临证可能涉及姜、桂、附等温热或有毒药材，必须服从药典、炮制、剂量、煎服和特殊人群审方边界。",
+    modificationStyle: "按阳虚层次、寒热真假、气化恢复情况与兼夹邪实加减，不以附子用量代表扶阳水平。",
+    applicability: "阳衰阴盛或相应六经气化失常证据充分，且热证、阴虚火旺及急危重风险已经排除时适用。",
+    cautions: ["扶阳偏好不得成为附子等毒性药的准入依据；任何姜桂附候选都必须经过独立药事安全核验。"],
   },
 ];
 
@@ -343,22 +369,42 @@ export const LINEAGE_QUESTION_STRATEGIES: Record<string, LineageQuestionStrategy
       },
     ],
   ),
-  "warm-tonify-yang": defaultTemplate(
-    "warm-tonify-yang",
-    "温补/扶阳思路",
-    ["畏寒肢冷", "便溏清长", "舌淡胖脉沉迟"],
-    ["阳虚寒象充分", "无明显热毒/阴虚火旺", "温热药安全可控"],
-    ["热象未排除不得扶阳", "附子等毒性药必须审方", "高血压心律异常需谨慎"],
+  "warm-tonify": defaultTemplate(
+    "warm-tonify",
+    "温补学派思路",
+    ["脾肾与先后天亏损", "阴阳水火偏衰", "气血精亏损层次"],
+    ["虚损证据充分", "阴阳属性已经辨清", "温养与滋填方向和舌脉一致"],
+    ["不得把温补等同于一律扶阳", "热象与阴虚火旺需另辨", "滋腻碍胃与温燥伤阴风险需核对"],
     [
       {
-        id: "yang-cold-proof",
-        question: "请确认阳虚寒证是否充分，并排除明显热象。",
-        reason: "温补/扶阳只应在寒证证据充分时使用，热象或红旗未排除时不能硬套。",
+        id: "warm-tonify-deficiency-layer",
+        question: "请按温补学派思路辨清脾肾亏损层次及阴阳属性。",
+        reason: "温补学派并非只论阳虚；需先区分脾肾、气血精及阴阳水火偏衰，避免把所有虚证都套成扶阳。",
         fields: ["tcmDetail", "tcmTongue", "tcmPulse"],
         options: [
-          { label: "阳虚寒象", answer: "扶阳问诊：畏寒肢冷、喜热饮、便溏、小便清长、舌淡胖、脉沉迟等阳虚寒象已补问。", patch: { tcmDetail: "扶阳问诊：畏寒肢冷、喜热饮、便溏、小便清长等阳虚寒象已补问" } },
-          { label: "有热象", answer: "存在口苦口渴、便秘尿黄、舌红苔黄或烦热等热象，暂不按扶阳思路出方。", patch: { tcmDetail: "扶阳禁忌边界：存在热象时暂不按扶阳思路出方" } },
-          { label: "毒性药复核", answer: "若涉及附子等温热峻烈药，需医生/药师复核炮制、剂量、煎服法和禁忌。", patch: { tcmDetail: "扶阳安全边界：附子等毒性或峻烈药需审方复核炮制剂量煎服法" } },
+          { label: "脾肾阳虚", answer: "温补问诊：已补问畏寒肢冷、饮食二便、腰膝状态及舌淡胖、脉沉迟等脾肾阳虚线索。", patch: { tcmDetail: "温补问诊：脾肾阳虚线索已补问，包括畏寒肢冷、饮食二便、腰膝及舌脉" } },
+          { label: "阴精亏损", answer: "温补问诊：已补问口燥咽干、潮热盗汗、腰膝酸软、舌红少苔等阴精亏损线索。", patch: { tcmDetail: "温补问诊：阴精亏损线索已补问，包括口燥、潮热盗汗、腰膝及舌苔" } },
+          { label: "脾胃不受补", answer: "存在纳差、脘痞或便溏，补益方向需兼顾脾胃受纳运化，避免温燥或滋腻碍胃。", patch: { tcmDetail: "温补边界：纳差脘痞便溏时需顾护脾胃，避免温燥或滋腻碍胃" } },
+        ],
+      },
+    ],
+  ),
+  "support-yang": defaultTemplate(
+    "support-yang",
+    "扶阳学派思路",
+    ["阳衰阴盛证据", "真假寒热", "六经气化与危重边界"],
+    ["阳虚寒象与舌脉相互支持", "假热与实热已经鉴别", "温热药与毒性药安全可控"],
+    ["热证或阴虚火旺未排除不得扶阳", "附子等毒性药必须审方", "循环不稳定或意识异常先走急症处置"],
+    [
+      {
+        id: "support-yang-cold-proof",
+        question: "请确认阳衰阴盛与真假寒热证据，并核对扶阳用药安全边界。",
+        reason: "扶阳学派必须以完整的阳衰阴盛证据为前提；不能因医生选择流派就跳过热证、急症或毒性药核验。",
+        fields: ["tcmDetail", "tcmTongue", "tcmPulse", "vitalsDetail"],
+        options: [
+          { label: "阳衰阴盛", answer: "扶阳问诊：畏寒肢冷、喜热饮、便溏、小便清长、舌淡胖、脉沉迟等线索已补问。", patch: { tcmDetail: "扶阳问诊：阳衰阴盛线索已补问，包括畏寒肢冷、喜热饮、饮食二便及舌脉" } },
+          { label: "真假寒热待辨", answer: "寒热表现与舌脉或生命体征不一致，需先辨实热、假热与阳虚外寒，暂不按扶阳方向出方。", patch: { tcmDetail: "扶阳边界：寒热表现与舌脉或生命体征不一致，需先辨真假寒热" } },
+          { label: "毒性药复核", answer: "若涉及附子等温热峻烈药，需医生/药师复核炮制、剂量、煎服法、禁忌与特殊人群风险。", patch: { tcmDetail: "扶阳安全边界：附子等毒性或峻烈药需审方复核炮制、剂量、煎服与禁忌" } },
         ],
       },
     ],
@@ -368,6 +414,17 @@ export const LINEAGE_QUESTION_STRATEGIES: Record<string, LineageQuestionStrategy
 export function resolveLineageCode(raw?: string): string {
   const text = (raw || "").trim();
   if (!text) return "unrestricted";
+  // 旧版公开 code 曾把温补/扶阳误并为一档。为避免既有客户端突然失效，仅保留输入兼容；
+  // 其历史方剂归属绝大多数来自《景岳全书》，故明确迁移到温补学派。新接口不得再回显该旧 code。
+  if (text === "warm-tonify-yang" || text === "温补/扶阳思路" || text === "温补／扶阳思路") {
+    return "warm-tonify";
+  }
+  // 除上述已发布旧值外，同时声称两个流派的自由文本没有唯一语义，不能靠卡片顺序猜选。
+  // code、中文标签与别名必须同口径；否则中英文混写会被下面的首个 fuzzy 命中静默选错。
+  const normalized = text.toLowerCase();
+  const claimsWarmTonify = /warm-tonify|温补|肾命/i.test(normalized);
+  const claimsSupportYang = /support-yang|扶阳|火神|郑钦安/i.test(normalized);
+  if (claimsWarmTonify && claimsSupportYang) return "unrestricted";
   const exact = LINEAGE_CARDS.find((card) =>
     card.code === text ||
     card.label === text ||
@@ -375,7 +432,6 @@ export function resolveLineageCode(raw?: string): string {
   );
   if (exact) return exact.code;
 
-  const normalized = text.toLowerCase();
   const fuzzy = LINEAGE_CARDS.find((card) =>
     card.aliases.some((alias) => alias && normalized.includes(alias.toLowerCase())) ||
     normalized.includes(card.label.toLowerCase())
@@ -383,7 +439,8 @@ export function resolveLineageCode(raw?: string): string {
   if (fuzzy) return fuzzy.code;
 
   if (/温病|卫气营血|三焦/.test(text)) return "warm-disease";
-  if (/温补|扶阳|温阳/.test(text)) return "warm-tonify-yang";
+  if (/扶阳|火神|郑钦安/.test(text)) return "support-yang";
+  if (/温补|肾命/.test(text)) return "warm-tonify";
   if (/滋阴|丹溪|相火/.test(text)) return "nourish-yin-danxi";
   if (/经方|方证/.test(text)) return "classical-formula";
   // 已下线的流派（时方验方/脾胃/孟河/岭南/海派/院内优先/攻邪/寒凉）在此不做映射，

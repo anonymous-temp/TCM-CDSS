@@ -15,6 +15,7 @@ import { chiefComplaintAnchor, chiefComplaintTherapyPrimacy, locationItemsCoverC
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { firstFormulaContraindicationIssue } from "./tcm-formula-contraindications";
 import { missedLockableFormulaCandidates, namedFormulaPositiveSufficiencyIssue } from "./tcm-formula-indications";
+import { formulaModificationHerbName, normalizeFormulaModificationAction } from "./formula-modification";
 
 type M03ReasoningLike = {
   stage?: unknown;
@@ -2344,7 +2345,7 @@ type M04ReasoningLike = {
         followUpNode?: unknown;
       };
     }>;
-    modifications?: Array<{ trigger?: unknown; targetPathogenesis?: unknown; action?: unknown; doseOrHandling?: unknown; reason?: unknown; riskNote?: unknown }>;
+    modifications?: Array<{ trigger?: unknown; targetPathogenesis?: unknown; action?: unknown; herbName?: unknown; doseOrHandling?: unknown; reason?: unknown; riskNote?: unknown }>;
   } | null;
   nonPharma?: {
     diet?: unknown;
@@ -3996,31 +3997,31 @@ export function m04SemanticIssue(
     if (typeof candidate.name !== "string" || !candidate.name.trim()) return `candidate_${candidateIndex}_name`;
     if (typeof candidate.therapyMatch !== "string" || !candidate.therapyMatch.trim()) return `candidate_${candidateIndex}_therapy_match`;
     if (!Array.isArray(candidate.herbs) || candidate.herbs.length === 0) return `candidate_${candidateIndex}_herbs_empty`;
-    const classicContraindicationIssue = !trustedWorkbenchEdit
-      ? firstFormulaContraindicationIssue(
-          [
-            typeof candidate.name === "string" ? candidate.name : "",
-            ...(Array.isArray(candidate.formulaNames)
-              ? candidate.formulaNames.filter((name): name is string => typeof name === "string")
-              : []),
-          ],
-          clinicalContext,
-        )
-      : undefined;
+    // trustedWorkbenchEdit 只允许医生编辑版使用自拟方/结构归属口径，绝不代表临床安全
+    // 规则可跳过。这个布尔值过去同时关闭经典方禁忌、特殊人群、配伍、方向和保守剂量，
+    // 而调用方又能仅凭客户端 shape 构造它，形成一处跨规则的权限位。硬安全检查现对所有
+    // 来源统一执行；工作台信任另由精确版本的服务端 HMAC 凭据证明。
+    const classicContraindicationIssue = firstFormulaContraindicationIssue(
+      [
+        typeof candidate.name === "string" ? candidate.name : "",
+        ...(Array.isArray(candidate.formulaNames)
+          ? candidate.formulaNames.filter((name): name is string => typeof name === "string")
+          : []),
+      ],
+      clinicalContext,
+    );
     if (classicContraindicationIssue) {
       return `candidate_${candidateIndex}_classic_contraindication_${classicContraindicationIssue}`;
     }
     const normalizedHerbNames = candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name));
     if (new Set(normalizedHerbNames).size !== normalizedHerbNames.length) return `candidate_${candidateIndex}_duplicate_herb`;
-    const specialPopulationIssue = !trustedWorkbenchEdit
-      ? m04GenerationSpecialPopulationIssue(candidate.herbs, clinicalContext)
-      : undefined;
+    const specialPopulationIssue = m04GenerationSpecialPopulationIssue(candidate.herbs, clinicalContext);
     if (specialPopulationIssue) return `candidate_${candidateIndex}_${specialPopulationIssue}`;
-    const pairConflict = !trustedWorkbenchEdit && !auditedClinicalRisksAreAdvisory
+    const pairConflict = !auditedClinicalRisksAreAdvisory
       ? findTcmHerbPairIncompatibilities(candidate.herbs.map((herb) => String(herb.name || "")))[0]
       : undefined;
     if (pairConflict) return `candidate_${candidateIndex}_high_risk_pair_incompatibility`;
-    const highImpactIssue = priorReasoning && !trustedWorkbenchEdit && !auditedClinicalRisksAreAdvisory
+    const highImpactIssue = priorReasoning && !auditedClinicalRisksAreAdvisory
       ? unsupportedHighImpactHerbIssue(
           candidate.herbs,
           priorReasoning,
@@ -4096,28 +4097,32 @@ export function m04SemanticIssue(
       .every((value) => typeof value === "string" && value.trim())) {
       return `modification_${modificationIndex}_incomplete`;
     }
+    const action = normalizeFormulaModificationAction(modification.action);
+    if (!action) return `modification_${modificationIndex}_action`;
+    const herbName = formulaModificationHerbName(modification);
+    if (!herbName) return `modification_${modificationIndex}_herb`;
     if (!finalModificationTriggerGrounded(String(modification.trigger), priorReasoning)) {
       return `modification_${modificationIndex}_trigger_ungrounded`;
     }
     if (typeof modification.doseOrHandling === "string" && modification.doseOrHandling.trim()) {
       return `modification_${modificationIndex}_unaudited_dose`;
     }
-    const fields = [modification.trigger, modification.targetPathogenesis, modification.action, modification.doseOrHandling, modification.reason, modification.riskNote]
+    const fields = [modification.trigger, modification.targetPathogenesis, action, herbName, modification.doseOrHandling, modification.reason, modification.riskNote]
       .filter((value): value is string => typeof value === "string")
       .join("；")
       .replace(/\s/g, "");
     if (/(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)(?:mg|g|毫克|克)(?![\/／](?:L|升))/i.test(fields)) {
       return `modification_${modificationIndex}_unaudited_dose`;
     }
-    const action = typeof modification.action === "string" ? modification.action.trim().replace(/\s/g, "") : "";
-    if (!/^(?:加|减|调整)/.test(action)) return `modification_${modificationIndex}_action`;
-    const removal = action.match(/(?:^|时|则|可|建议)(?:减去|减量|减|去掉|去|删除|停用)([\u4e00-\u9fa5]{1,8})/);
-    if (removal && !prescribedHerbs.has(removal[1])) return `modification_${modificationIndex}_missing_herb`;
-    const addition = action.match(/(?:^|时|则|可|建议)(?:加入|加用|新增|加)([\u4e00-\u9fa5]{1,8})/);
-    if (addition && isKnownHerbName && !isKnownHerbName(addition[1])) return `modification_${modificationIndex}_unknown_herb`;
-    if (addition && priorReasoning) {
+    if ((action === "减" || action === "调整") && !prescribedHerbs.has(herbName)) {
+      return `modification_${modificationIndex}_missing_herb`;
+    }
+    if (action === "加" && isKnownHerbName && !isKnownHerbName(herbName)) {
+      return `modification_${modificationIndex}_unknown_herb`;
+    }
+    if (action === "加" && priorReasoning) {
       const highImpactIssue = unsupportedHighImpactHerbIssue([{
-        name: addition[1],
+        name: herbName,
         function: [modification.reason, modification.targetPathogenesis]
           .filter((value): value is string => typeof value === "string")
           .join("；"),
@@ -4295,31 +4300,30 @@ export function m04SafetyContractIssue(
 
   for (const [candidateIndex, candidate] of candidates.entries()) {
     if (!Array.isArray(candidate.herbs) || candidate.herbs.length === 0) return `candidate_${candidateIndex}_herbs_empty`;
-    const classicContraindicationIssue = !trustedWorkbenchEdit
-      ? firstFormulaContraindicationIssue(
-          [
-            typeof candidate.name === "string" ? candidate.name : "",
-            ...(Array.isArray(candidate.formulaNames)
-              ? candidate.formulaNames.filter((name): name is string => typeof name === "string")
-              : []),
-          ],
-          clinicalContext,
-        )
-      : undefined;
+    // `trustedWorkbenchEdit` only proves where the edit came from; it never grants a clinical
+    // exception. Contextual contraindications are therefore evaluated for generated and edited
+    // candidates alike. Any future clinician override needs its own scoped, server-signed contract.
+    const classicContraindicationIssue = firstFormulaContraindicationIssue(
+      [
+        typeof candidate.name === "string" ? candidate.name : "",
+        ...(Array.isArray(candidate.formulaNames)
+          ? candidate.formulaNames.filter((name): name is string => typeof name === "string")
+          : []),
+      ],
+      clinicalContext,
+    );
     if (classicContraindicationIssue) {
       return `candidate_${candidateIndex}_classic_contraindication_${classicContraindicationIssue}`;
     }
     const normalizedHerbNames = candidate.herbs.map((herb) => canonicalTcmHerbIdentity(herb.name));
     if (new Set(normalizedHerbNames).size !== normalizedHerbNames.length) return `candidate_${candidateIndex}_duplicate_herb`;
-    const specialPopulationIssue = !trustedWorkbenchEdit
-      ? m04GenerationSpecialPopulationIssue(candidate.herbs, clinicalContext)
-      : undefined;
+    const specialPopulationIssue = m04GenerationSpecialPopulationIssue(candidate.herbs, clinicalContext);
     if (specialPopulationIssue) return `candidate_${candidateIndex}_${specialPopulationIssue}`;
-    const pairConflict = !trustedWorkbenchEdit && !auditedClinicalRisksAreAdvisory
+    const pairConflict = !auditedClinicalRisksAreAdvisory
       ? findTcmHerbPairIncompatibilities(candidate.herbs.map((herb) => String(herb.name || "")))[0]
       : undefined;
     if (pairConflict) return `candidate_${candidateIndex}_high_risk_pair_incompatibility`;
-    const highImpactIssue = priorReasoning && !trustedWorkbenchEdit && !auditedClinicalRisksAreAdvisory
+    const highImpactIssue = priorReasoning && !auditedClinicalRisksAreAdvisory
       ? unsupportedHighImpactHerbIssue(
           candidate.herbs,
           priorReasoning,
@@ -4360,7 +4364,7 @@ export function m04SafetyContractIssue(
       const decoctionRule = decoctionRuleForHerb(herb.name);
       if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
       if (!dosePassesSafetySanityCeiling(herb.name.trim(), herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_sanity_ceiling`;
-      if (!trustedWorkbenchEdit && !doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""))) {
+      if (!doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""))) {
         return `candidate_${candidateIndex}_herb_${herbIndex}_dose_outside_conservative_range`;
       }
       // 特殊煎法是毒性与刺激性药味安全控制的一部分，不是叙述性字段。
@@ -4376,7 +4380,10 @@ export function m04SafetyContractIssue(
     if (typeof modification.doseOrHandling === "string" && modification.doseOrHandling.trim()) {
       return `modification_${modificationIndex}_unaudited_dose`;
     }
-    const fields = [modification.trigger, modification.targetPathogenesis, modification.action,
+    const action = normalizeFormulaModificationAction(modification.action);
+    const herbName = formulaModificationHerbName(modification);
+    if (!action || !herbName) return `modification_${modificationIndex}_incomplete`;
+    const fields = [modification.trigger, modification.targetPathogenesis, action, herbName,
       modification.doseOrHandling, modification.reason, modification.riskNote]
       .filter((value): value is string => typeof value === "string")
       .join("；")
@@ -4384,12 +4391,10 @@ export function m04SafetyContractIssue(
     if (/(?:\d+(?:\.\d+)?|[零〇一二两三四五六七八九十百半]+)(?:mg|g|毫克|克)(?![\/／](?:L|升))/i.test(fields)) {
       return `modification_${modificationIndex}_unaudited_dose`;
     }
-    const action = typeof modification.action === "string" ? modification.action.trim().replace(/\s/g, "") : "";
-    const addition = action.match(/(?:^|时|则|可|建议)(?:加入|加用|新增|加)([一-龥]{1,8})/);
-    if (addition && isKnownHerbName && !isKnownHerbName(addition[1])) return `modification_${modificationIndex}_unknown_herb`;
-    if (addition && priorReasoning) {
+    if (action === "加" && isKnownHerbName && !isKnownHerbName(herbName)) return `modification_${modificationIndex}_unknown_herb`;
+    if (action === "加" && priorReasoning) {
       const highImpactIssue = unsupportedHighImpactHerbIssue([{
-        name: addition[1],
+        name: herbName,
         function: [modification.reason, modification.targetPathogenesis]
           .filter((value): value is string => typeof value === "string")
           .join("；"),

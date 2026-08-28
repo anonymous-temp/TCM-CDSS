@@ -111,7 +111,7 @@ const optionalModificationOut = transform([
       candidates: [{ name: "本例辨证组方", herbs: [{ name: "黄芪", dose: "15g" }] }],
       modifications: [
         { trigger: "乏力加重", targetPathogenesis: "气虚", action: "加党参", reason: "" },
-        { trigger: "夜寐不安", targetPathogenesis: "心神不宁", action: "加酸枣仁", reason: "加强养心安神" },
+        { trigger: "夜寐不安", targetPathogenesis: "心神不宁", action: "加", herbName: "酸枣仁", reason: "加强养心安神" },
       ],
     },
   }),
@@ -121,6 +121,7 @@ const optionalModificationBlock = optionalModificationOut.match(/<!-- DIAGNOSIS_
 assert.ok(optionalModificationBlock);
 const optionalModificationParsed = JSON.parse(optionalModificationBlock[1]);
 assert.equal(optionalModificationParsed.formula.modifications.length, 1, "evidence cleanup prunes an unusable optional modification instead of invalidating the core prescription");
-assert.equal(optionalModificationParsed.formula.modifications[0].action, "加酸枣仁");
+assert.equal(optionalModificationParsed.formula.modifications[0].action, "加");
+assert.equal(optionalModificationParsed.formula.modifications[0].herbName, "酸枣仁");
 console.log("PASS  证据净化后不可用的可选加减行不会拖垮核心处方");
 console.log("5/5 passed");

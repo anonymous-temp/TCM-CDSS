@@ -251,6 +251,9 @@ export interface CaseState {
     auditReason?: string;
     auditId?: string;
     traceId?: string;
+    /** 服务端对精确候选版本、病例、就诊与租户签发的工作台审方凭据。 */
+    attestationVersion?: "tcm-cdss-workbench-revision-v1";
+    attestation?: string;
   };
   safetyLocked?: boolean;
 
@@ -653,7 +656,10 @@ export interface ClinicalReasoningResultV2 {
         sourceQuote: string;
       };
       targetPathogenesis: string;
+      /** 受控动作。新结果只允许「加 / 减 / 调整」；旧快照的「加茯苓」由消费侧只读兼容。 */
       action: string;
+      /** 被加、减或调整的规范药味名。2026-08-28 起与 action 分字段输出。 */
+      herbName?: string;
       doseOrHandling: string | null;
       reason: string;
       riskNote: string;
@@ -1572,6 +1578,8 @@ const ReasoningV2SchemaBase = z.object({
       }).optional(),
       targetPathogenesis: z.string().max(600).nullable().transform((value) => value ?? ""),
       action: z.string().max(600),
+      // optional 只为旧签名快照兼容；服务端新编译结果与 HIS 出参始终填写该字段。
+      herbName: z.string().min(1).max(80).optional(),
       doseOrHandling: z.string().max(300).nullable(),
       reason: z.string().max(1200),
       riskNote: z.string().max(1200).nullable().transform((value) => value ?? ""),
@@ -1867,6 +1875,8 @@ const PrescriptionRevisionSchema = z.object({
   auditReason: z.string().max(500).optional(),
   auditId: z.string().max(200).optional(),
   traceId: z.string().max(200).optional(),
+  attestationVersion: z.literal("tcm-cdss-workbench-revision-v1").optional(),
+  attestation: z.string().regex(/^hmac-sha256:[a-f0-9]{64}$/i).optional(),
 });
 
 /**

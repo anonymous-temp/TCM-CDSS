@@ -23,7 +23,8 @@ const SCHOOL_LINEAGE_CODES = new Set([
   "classical-formula",
   "warm-disease",
   "nourish-yin-danxi",
-  "warm-tonify-yang",
+  "warm-tonify",
+  "support-yang",
 ]);
 
 type BookRule = {

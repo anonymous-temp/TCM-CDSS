@@ -31,6 +31,7 @@ import { safeDietAdviceForDisplay, GOVERNED_HERB_DATA_LABEL } from "./result-dis
 import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS, sanitizeReasoningNarratives, stripInternalEngineeringTags } from "./internal-tag-hygiene";
 import { normalizeReasoningV2 } from "./diagnosis-types";
+import { normalizedFormulaModificationFields } from "./formula-modification";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -3452,10 +3453,11 @@ function visiblePrescribeFromReasoning(
       customerEvidenceDisplayStatus(evidence) === "traceable";
   });
   const medicineCandidateStatus = recordValue(formula?.medicineCandidateStatus);
-  const modifications = recordList(formula?.modifications).filter((item) =>
-    [item.trigger, item.action, item.targetPathogenesis, item.reason]
-      .every((value) => isDisplayableClinicalText(markdownCell(value)))
-  );
+  const modifications = recordList(formula?.modifications).filter((item) => {
+    const fields = normalizedFormulaModificationFields(item);
+    return Boolean(fields) && [item.trigger, fields?.action, fields?.herbName, item.targetPathogenesis, item.reason]
+      .every((value) => isDisplayableClinicalText(markdownCell(value)));
+  });
   const nonPharma = recordValue(reasoning.nonPharma);
   const lines = [
     `# ${clinicalOutputLabel("M04-formula", "候选方药")}`,
@@ -3560,6 +3562,7 @@ function visiblePrescribeFromReasoning(
   if (modifications.length > 0) {
     const modificationPathogenesisLedger = createPathogenesisNarrativeLedger();
     lines.push("", "## 随证加减建议", ...modifications.map((item) => {
+      const modification = normalizedFormulaModificationFields(item)!;
       const triggerSource = recordValue(item.triggerSource);
       const sourceQuote = markdownCell(triggerSource?.sourceQuote);
       const target = markdownCell(item.targetPathogenesis);
@@ -3572,7 +3575,8 @@ function visiblePrescribeFromReasoning(
         ], "；")}）`)
         .filter(Boolean);
       return [`- **${markdownCell(item.trigger)}**：${clinicalSentence([
-        markdownCell(item.action),
+        `动作：${markdownCell(modification.action)}`,
+        `药味：${markdownCell(modification.herbName)}`,
         displayedTarget ? `对应病机：${displayedTarget}` : "",
         markdownCell(item.reason),
         sourceQuote ? `触发依据：${sourceQuote}` : "",

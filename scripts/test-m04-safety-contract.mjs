@@ -274,6 +274,110 @@ for (const [label, injectDefect] of DANGEROUS_DEFECTS) {
   );
 }
 
+// “医生编辑版”只能改变自拟方/结构归属口径，不能成为跨安全规则的权限位。过去
+// trustedWorkbenchEdit=true 会同时跳过配伍、方向、特殊人群和保守剂量；客户端仅靠
+// source/name/modificationStatus 形状即可伪造。至少把可由候选本身复现的整类 T1 反证
+// 在 trusted=true 下再跑一遍，确保服务端审方凭据之外没有第二条临床豁免路径。
+for (const [label, injectDefect] of DANGEROUS_DEFECTS.filter(([name]) =>
+  /十八反|剂量超出/.test(name)
+)) {
+  const edited = clone(BASELINE);
+  injectDefect(edited);
+  const issue = m04SafetyContractIssue(
+    edited,
+    PRIOR,
+    isKnownTcmHerbName,
+    true,
+    false,
+    CLINICAL_CONTEXT,
+    true,
+  );
+  assert.ok(issue, `${label}: trusted workbench 结构例外不得跳过 T1 安全底线`);
+}
+
+// 精确锁住曾经被 trustedWorkbenchEdit 跳过的三类安全门。甘遂本身还有煎服限制，
+// 不能再用它间接证明十八反已执行；炙甘草+海藻只应命中配伍禁忌本身。
+const trustedPairConflict = clone(BASELINE);
+trustedPairConflict.formula.candidates[0].herbs.push({
+  name: "海藻", dose: "9g", role: "佐", prescriptionRole: "消痰软坚", targetKind: "pathogenesis_node",
+  targetRef: "P2", structureRole: null, targetPathogenesis: "脾虚湿盛", function: "消痰软坚散结，利水消肿", decoctionRequirement: "",
+});
+assert.equal(
+  m04SafetyContractIssue(trustedPairConflict, PRIOR, isKnownTcmHerbName, true, false, CLINICAL_CONTEXT, true),
+  "candidate_0_high_risk_pair_incompatibility",
+  "trusted workbench must still reject the exact 炙甘草+海藻 incompatibility",
+);
+
+const trustedSpecialPopulation = clone(BASELINE);
+trustedSpecialPopulation.formula.candidates[0].herbs[0] = {
+  ...trustedSpecialPopulation.formula.candidates[0].herbs[0],
+  name: "朱砂",
+  dose: "0.1g",
+  prescriptionRole: "清心镇惊",
+  function: "清心镇惊，安神，明目，解毒",
+  decoctionRequirement: "不入煎剂，研末冲服",
+};
+assert.match(
+  m04SafetyContractIssue(trustedSpecialPopulation, PRIOR, isKnownTcmHerbName, true, false, "患者肝功能不全", true) || "",
+  /special_population/,
+  "trusted workbench must still reject governed special-population risks",
+);
+
+const trustedOpposingPrior = clone(PRIOR);
+trustedOpposingPrior.overview = {
+  ...trustedOpposingPrior.overview,
+  primarySyndrome: "胃火炽盛证",
+  overallPathogenesis: "胃火内炽",
+};
+trustedOpposingPrior.pathogenesis.chain = [
+  {
+    nodeId: "P1",
+    patientFact: "胃脘灼痛",
+    syndromeEvidence: "胃脘灼痛",
+    pathogenesis: "胃火内炽",
+    therapyDirection: "清热泻火",
+  },
+  {
+    nodeId: "P2",
+    patientFact: "口渴喜冷饮",
+    syndromeEvidence: "口渴喜冷饮",
+    pathogenesis: "胃热津伤",
+    therapyDirection: "清胃生津",
+  },
+];
+trustedOpposingPrior.therapy = {
+  overallPrinciple: "清热泻火",
+  overallMethod: "苦寒清热",
+  subTherapies: [{ therapy: "清热泻火", targetPathogenesis: "胃火内炽", priority: "主要" }],
+};
+const trustedOpposingDirection = clone(BASELINE);
+trustedOpposingDirection.overview = {
+  ...trustedOpposingDirection.overview,
+  primarySyndrome: "胃火炽盛证",
+  overallPathogenesis: "胃火内炽",
+};
+trustedOpposingDirection.therapy = { overallPrinciple: "清热泻火", overallMethod: "苦寒清热" };
+trustedOpposingDirection.formula.candidates[0].therapyMatch = "清热泻火";
+for (const herb of trustedOpposingDirection.formula.candidates[0].herbs) {
+  if (herb.targetKind === "pathogenesis_node") {
+    herb.targetPathogenesis = herb.targetRef === "P2" ? "胃热津伤" : "胃火内炽";
+  }
+}
+trustedOpposingDirection.formula.candidates[0].herbs[0] = {
+  ...trustedOpposingDirection.formula.candidates[0].herbs[0],
+  name: "干姜",
+  dose: "6g",
+  prescriptionRole: "温中散寒",
+  targetRef: "P1",
+  targetPathogenesis: "胃火内炽",
+  function: "温中散寒，回阳通脉",
+};
+assert.match(
+  m04SafetyContractIssue(trustedOpposingDirection, trustedOpposingPrior, isKnownTcmHerbName, true, false, "胃脘灼痛", true) || "",
+  /unsupported_high_impact/,
+  "trusted workbench must still reject a high-impact direction that opposes the locked M03 therapy",
+);
+
 // ── 遗漏保护：safetyIssue 未传入时必须 fail-closed ────────────────────────────
 assert.equal(
   shouldAcceptWithQualityAnnotation({
