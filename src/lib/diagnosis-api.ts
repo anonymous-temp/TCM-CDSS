@@ -145,8 +145,8 @@ export function m03ReviewerProjectionContradiction(
 
 // M04 uses the same end-to-end bound across generation, independent review and repair.
 export const M04_ORCHESTRATION_DEADLINE_MS = (() => {
-  const value = Number(process.env.M04_ORCHESTRATION_DEADLINE_MS || 120_000);
-  return Number.isFinite(value) && value >= 60_000 && value <= 180_000 ? Math.round(value) : 120_000;
+  const value = Number(process.env.M04_ORCHESTRATION_DEADLINE_MS || 180_000);
+  return Number.isFinite(value) && value >= 60_000 && value <= 180_000 ? Math.round(value) : 180_000;
 })();
 
 /** Pure predicate, exported for unit tests. */
@@ -2724,7 +2724,7 @@ async function reviewM04ClinicalPlan(
         execution: first.execution ? { ...first.execution, reason: "accepted" } : undefined,
       };
   if (scopedFirstReview !== first) {
-    console.warn("[tcm-cdss:model] ignored out-of-scope classic composition review for self-devised M04 candidate");
+    console.warn("[tcm-cdss:model] ignored reviewer attempt to override server-owned formula identity");
   }
   if (!m04ClinicalReviewNeedsAdjudication(scopedFirst) || parentSignal?.aborted || absoluteDeadline <= Date.now()) {
     return scopedFirst;

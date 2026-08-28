@@ -287,7 +287,7 @@ export function buildM04ClinicalRepairHint(
   // scripts/test-repair-guidance-coverage.mjs 的提取器只扫 `return "字面量"`，于是这条不变量
   // 对 M04 近乎完全失效。实测 81 个 M04 驳回码里只有 19 个（23%）能拿到引导，其余 62 个
   // 返回空串——模型在修复轮收到的是一个裸 token，无法定位问题，只能重采样，直到
-  // M04_ORCHESTRATION_DEADLINE_MS(120s) 把一份本可临床使用的结果降级成医生用不了的非剂量合同。
+  // M04_ORCHESTRATION_DEADLINE_MS(180s) 把一份本可临床使用的结果降级成医生用不了的非剂量合同。
   // 这正是 test-repair-guidance-coverage.mjs 开头描述的「production 实测中 M03 降级的主导原因」，
   // 只是换到了 M04。下面按判据族补齐，使每个码都能指向「改哪个字段、改成什么、别怎么绕」。
 

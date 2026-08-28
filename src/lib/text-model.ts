@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 
+import { textModelCapabilities } from "./text-model-capabilities";
+
 export type TextModelProvider = "bailian-qwen" | "openai-compatible";
 
 export type TextModelConfig = {
@@ -214,7 +216,7 @@ export function textModelRequestTuning(
   if (isQwenModel(model)) {
     if (!thinkingEnabled) return { enable_thinking: false };
     const effort = String(options.reasoningEffort || "medium").trim().toLowerCase();
-    if (/^qwen3\.8-max(?:$|[-_])/i.test(model.trim())) {
+    if (textModelCapabilities(model).qwenThinkingControl === "reasoning_effort") {
       const reasoningEffort = effort === "low" ? "low" : effort === "medium" ? "medium" : "xhigh";
       return { enable_thinking: true, reasoning_effort: reasoningEffort };
     }

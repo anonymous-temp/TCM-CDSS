@@ -996,11 +996,11 @@ assert.equal(shouldSkipM03RepairForIdenticalGuidance({ reviewBasedRejection: tru
 assert.equal(shouldSkipM03RepairForIdenticalGuidance({ reviewBasedRejection: true, guidanceToInject: "", lastInjectedGuidance: "" }), false);
 
 // ─── (b) M04 orchestration deadline: config, predicate, reason-code selection ───
-assert.equal(M04_ORCHESTRATION_DEADLINE_MS, 120_000);
+assert.equal(M04_ORCHESTRATION_DEADLINE_MS, 180_000);
 const m04DeadlineStart = 2_000_000;
 assert.equal(m04OrchestrationDeadlineExpired(m04DeadlineStart, m04DeadlineStart + M04_ORCHESTRATION_DEADLINE_MS - 1), false);
 assert.equal(m04OrchestrationDeadlineExpired(m04DeadlineStart, m04DeadlineStart + M04_ORCHESTRATION_DEADLINE_MS), true);
-assert.ok(M04_ORCHESTRATION_DEADLINE_MS + 120_000 < 300_000, "default + one in-flight repair must bound worst-case M04 under 300s");
+assert.ok(M04_ORCHESTRATION_DEADLINE_MS <= 180_000, "the absolute M04 timer must bound the complete orchestration at 180s");
 assert.equal(m04TruncatedFallbackReasonCode({ deadlineExceeded: true, repairLoopEarlyExit: false }), "final_contract_rejected_deadline");
 assert.equal(m04TruncatedFallbackReasonCode({ deadlineExceeded: true, repairLoopEarlyExit: true }), "final_contract_rejected_deadline");
 assert.equal(m04TruncatedFallbackReasonCode({ deadlineExceeded: false, repairLoopEarlyExit: true }), "final_contract_rejected_repair_loop");

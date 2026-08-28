@@ -17,7 +17,12 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildM04ClinicalReviewPayload, buildM04ClinicalReviewPrompt } from "../src/lib/m04-clinical-review.ts";
+import {
+  buildM04ClinicalReviewPayload,
+  buildM04ClinicalReviewPrompt,
+  constrainM04ClinicalReviewScope,
+  serverFormulaIdentityStatus,
+} from "../src/lib/m04-clinical-review.ts";
 
 let checks = 0;
 const check = (label, fn) => { fn(); checks += 1; console.log(`  ✓ ${label}`); };
@@ -62,6 +67,7 @@ check("复核载荷带上 baseFormulas 的保留数/下限/锚点三组数字", 
   for (const field of ["matchedIngredientCount", "minimumPreservedIngredientCount", "matchedRequiredIngredientCount", "requiredIngredientCount"]) {
     assert.ok(wire.includes(field), `复核载荷缺少字段 ${field}`);
   }
+  assert.equal(candidate.formulaIdentityStatus, "verified");
 });
 check("modificationStatus 一并到达（加减与原方是两种形态）", () => {
   const payload = buildM04ClinicalReviewPayload(prior, candidateReasoning({ baseFormulas }));
@@ -73,22 +79,40 @@ check("候选没有 baseFormulas 时不编造该字段", () => {
     "缺失的服务端核验结果被填成了非 undefined 值，复核器会据此误判身份已核验");
 });
 
-// ── 2. 提示词：判据必须写死成「读数字」，且缺数字时 fail-closed
+// ── 2. 服务端身份状态：复核器不再拥有第二套组成裁决权
 const prompt = buildM04ClinicalReviewPrompt("患者男，35岁，恶寒发热无汗。", prior, candidateReasoning({ baseFormulas }), "");
 
-check("提示词把组成身份判据绑定到服务端三组数字", () => {
-  for (const field of ["matchedIngredientCount", "minimumPreservedIngredientCount", "matchedRequiredIngredientCount"]) {
-    assert.ok(prompt.includes(field), `提示词未指明判据字段 ${field}`);
-  }
-  assert.ok(prompt.includes("不要凭记忆复原原方组成"), "提示词未禁止凭记忆复原原方组成");
+check("提示词把组成身份从 LLM 职责移到服务端状态", () => {
+  assert.ok(prompt.includes("formulaIdentityStatus=verified"), "提示词未声明服务端终局状态");
+  assert.ok(/不得凭记忆复原原方/.test(prompt), "提示词未禁止凭记忆复原原方组成");
+  assert.ok(prompt.includes("不得返回 formula_composition_mismatch"), "提示词仍允许模型推翻服务端身份");
 });
-check("数字达标时禁止再以「加减太多/不像原方」返回组成不符", () => {
-  assert.ok(/三组数字均达标即组成身份已成立/.test(prompt), "提示词未声明数字达标即身份成立");
+check("组成意见不再暴露为模型输出坐标", () => {
+  assert.ok(prompt.includes("加减太多/不像原方"), "提示词未覆盖既有误判形态");
   assert.ok(prompt.includes("herb_plan_mismatch"), "提示词未给出临床保留意见的替代出口");
+  assert.equal(prompt.includes("formula_composition_mismatch 只能配 formula_core_composition"), false,
+    "输出说明仍把服务端身份交给模型裁决");
 });
-check("缺 baseFormulas 却声称命名方时 fail-closed 判组成不符", () => {
-  assert.ok(/没有 baseFormulas 时按身份未经核验处理，返回 formula_composition_mismatch/.test(prompt),
-    "缺失服务端核验结果时未 fail-closed");
+check("已核验身份不能被旧模型组成意见推翻", () => {
+  const legacyReview = { status: "repair", issueCode: "formula_composition_mismatch", repairFocus: "formula_core_composition" };
+  assert.deepEqual(
+    constrainM04ClinicalReviewScope(legacyReview, prior, candidateReasoning({ baseFormulas })),
+    { status: "accepted", issueCode: "none" },
+  );
+});
+check("缺失服务端身份核验时保持 fail-closed", () => {
+  const legacyReview = { status: "repair", issueCode: "formula_composition_mismatch", repairFocus: "formula_core_composition" };
+  assert.equal(serverFormulaIdentityStatus(candidateReasoning().formula.candidates[0]), "unverified");
+  assert.deepEqual(constrainM04ClinicalReviewScope(legacyReview, prior, candidateReasoning()), legacyReview);
+});
+check("显式自拟方没有经典身份坐标", () => {
+  const selfDevised = candidateReasoning({
+    name: "本例辨证组方",
+    formulaNames: [],
+    constructionType: "self_devised",
+    baseFormulas: [],
+  });
+  assert.equal(serverFormulaIdentityStatus(selfDevised.formula.candidates[0]), "not_claimed");
 });
 
 // ── 3. 接线：载荷里的判据字段只有一个来源

@@ -52,6 +52,41 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+export type ServerFormulaIdentityStatus = "not_claimed" | "verified" | "unverified";
+
+/**
+ * Consume the server-owned identity attestation; do not reconstruct classic composition in the
+ * reviewer. `enrichPrescriptionProvenance` writes one verified row per governed formula only after
+ * the same compilation contract has accepted it. Missing/misaligned rows remain fail-closed.
+ */
+export function serverFormulaIdentityStatus(candidateValue: unknown): ServerFormulaIdentityStatus {
+  const candidate = record(candidateValue);
+  if (!candidate) return "unverified";
+  const formulaNames = Array.isArray(candidate.formulaNames)
+    ? [...new Set(candidate.formulaNames.flatMap((value) => (
+        typeof value === "string" && value.trim() ? [value.trim()] : []
+      )))]
+    : [];
+  // The route's deterministic provenance transform owns constructionType and formulaNames. Do not
+  // grow another label vocabulary here: an empty, server-normalized self_devised candidate has no
+  // classic identity claim; every incomplete/misaligned shape remains unverified and fail-closed.
+  if (formulaNames.length === 0 && candidate.constructionType === "self_devised") return "not_claimed";
+  if (formulaNames.length === 0) return "unverified";
+
+  const baseFormulas = Array.isArray(candidate.baseFormulas) ? candidate.baseFormulas : [];
+  const verifiedNames = new Set(baseFormulas.flatMap((value) => {
+    const base = record(value);
+    return base?.verificationStatus === "verified_individually" &&
+      typeof base.name === "string" && base.name.trim()
+      ? [base.name.trim()]
+      : [];
+  }));
+  return formulaNames.every((formulaName) => verifiedNames.has(formulaName)) &&
+    verifiedNames.size === formulaNames.length
+    ? "verified"
+    : "unverified";
+}
+
 /**
  * Keep the second-opinion prompt focused on the fields the reviewer is responsible for. Sending
  * the complete M03 and M04 envelopes duplicated evidence, presentation and workflow metadata and
@@ -101,6 +136,7 @@ export function buildM04ClinicalReviewPayload(priorReasoning: unknown, reasoning
           constructionType: candidate.constructionType,
           identityDeclassified: candidate.identityDeclassified,
           modificationStatus: candidate.modificationStatus,
+          formulaIdentityStatus: serverFormulaIdentityStatus(candidate),
           // 组成身份的**服务端确定性核验结果**（2026-08-27 生产实测）。此前这个字段只到达
           // 医生页面与 HIS 方案，唯独不进复核载荷——复核器于是只能凭记忆复原原方组成来判断
           // 「是否已失去原方核心结构」，而确定性层手里明明有逐方的保留数/下限/锚点命中数。
@@ -298,18 +334,18 @@ export function buildM04ClinicalReviewPrompt(
     .slice(0, 12_000);
   return [
     "你是独立的中药候选处方临床复核器，不负责重新生成报告，也不替代外部合理用药审方。只判断当前 M04 候选是否与已签名 M03 和患者事实相符。",
-    "先核对方名与实际药味组成。命名方的组成身份下限**由服务端确定性核验**，逐方结果写在候选的 baseFormulas 里：matchedIngredientCount/totalIngredientCount 是实际保留的基准药味数，minimumPreservedIngredientCount 是该方的保留下限，matchedRequiredIngredientCount/requiredIngredientCount 是锚点药味的保留情况。判断组成身份是否成立**只看这三组数字，不要凭记忆复原原方组成**：任一基础方的保留数低于下限，或锚点药味未全部保留，才返回 formula_composition_mismatch。三组数字均达标即组成身份已成立，不得再以「加减太多」「不像原方」为由返回该码；此时若对具体药味与病机的对应关系仍有临床保留意见，应改用 herb_plan_mismatch，方名予以保留。候选声称了命名方身份却没有 baseFormulas 时按身份未经核验处理，返回 formula_composition_mismatch。",
+    "方名与经典方组成身份由服务端确定性合同独占裁决，不属于本复核器职责。候选的 formulaIdentityStatus=verified 表示方名、受治理基准和锚点药味已经核验通过；不得凭记忆复原原方、不得以‘加减太多/不像原方’推翻该状态，也不得返回 formula_composition_mismatch。若对具体药味与本例病机的对应关系仍有临床保留意见，只能使用 herb_plan_mismatch；方名身份保持不变。",
     "再逐味核对药物方向是否服务于 M03 的主证、病机节点和治法。不得用患者未提供、明确否认、仅在不确定项或条件句中出现的症状来证明药物必要性。明显偏离时返回 herb_plan_mismatch。",
     "重点复核君臣佐使层级，而不是只看药味是否常见：君药必须直接承担 P1 核心病机和总治法的中心作用，不能把山药、甘草等通用补益/调和药跨病种机械设为君药；自拟方若角色层级与核心治法不一致，返回 herb_plan_mismatch。待复核投影中的 targetPathogenesis、function 与 prescriptionRole 是服务端依据受控病机节点和药味知识库生成的逐味解释，必须与药名、role、targetRef 一并审查，不能因投影缺少自由文本解释而推定角色不成立。1–2 味并列君药均为合法结构：当一味或两味君药已直接覆盖 P1 中心治法时必须接受，不得仅因存在另一种同样合理的君药选择、偏好单君药或偏好其他层级而要求 repair。",
     "命名方优先由方证和受控方剂目录决定；自拟方必须说明为何命名方不适配，并维持可解释的药组层级。不得为了规避组成核验把一个实质上的经典方随意改称自拟方。",
-    "formula_composition_mismatch 只适用于 M03 或 M04 明确声称了命名方身份的候选。若 M03 为 self_devised/none，且候选 constructionType=self_devised、formulaNames 为空、方名为‘本例辨证组方/自拟方’，不得仅因若干药味与某经典方重合而强加经典方身份或返回组成不符；此时应按逐味方向与角色判断 herb_plan_mismatch，均无明显问题则 accepted。",
+    "若 M03 为 self_devised/none，且候选 constructionType=self_devised、formulaNames 为空、方名为‘本例辨证组方/自拟方’，不得仅因若干药味与某经典方重合而强加经典方身份；只按逐味方向与角色判断 herb_plan_mismatch，均无明显问题则 accepted。",
     "西药/中成药候选必须逐项绑定本轮 EVID-INST 或 LOCAL-INST 的药名、条目ID与sha256指纹，且说明书适应证须覆盖本例当前阳性问题；集外药名、错配指纹或把说明书未返回的用法剂量补出来均返回 patient_context_mismatch。西药在本版本只能是无剂量的 discussion_only，中成药在说明书摘要没有完整用法时也不得生成剂量。",
     "复核随症加减是否只服务于本次病历已明确记录的当前伴随症状：trigger 必须能逐字回溯到已签名 M03 的 primarySyndromeBasis、pathogenesis.chain.patientFact 或 westernDiagnosis.supportingFacts；不得把当前处方药重复写成 add，也不得预设‘若出现、复诊时出现、接诊时核实’的未来症状。modifications 空数组是合法的保守方案，不得仅因没有加减而要求 repair。",
     "结合年龄、性别/生理状态、过敏史、现用药、生命体征和已知检查等已提供信息，检查剂量及配伍是否存在需要重新生成而非仅靠常规审方提示解决的临床不合理。剂量选择与证候强度明显不相称时返回 dose_rationale_concern；处方依赖未成立或相反的患者事实时返回 patient_context_mismatch。",
     "把婴幼儿、妊娠/备孕/哺乳、慢性肾病3-5期或eGFR降低、心力衰竭、抗凝/抗血小板治疗、免疫抑制治疗、糖尿病足/活动性感染、活动期自身免疫病视为剂量级高风险语义类别；只要患者事实提示同义或口语化等价状态，而方案没有专科/药师个体化复核前提，就必须返回 patient_context_mismatch。该清单是概念示例而非封闭关键词表。",
     "未知信息本身不阻断候选生成，但候选必须对重要未知状态保持保守鲁棒：若某药味或剂量只有在未确认的妊娠/哺乳、肝肾功能、现用药或过敏状态为阴性时才适合，而当前存在合理的更安全组方路径，应返回 patient_context_mismatch，要求改成不依赖该未知前提的候选。不得用一句‘采纳前复核’掩盖这种可避免的依赖。",
     "不要因为病例信息稀疏、缺少舌脉或外部审方尚未执行而拒绝；只评估现有信息范围内能否形成保守、连贯的候选。后续审方负责提示仍不可避免的常规禁忌、相互作用和配伍风险；本复核器负责先消除在生成阶段即可避免的明显风险。",
-    "只输出一个 JSON 对象，不要代码块或解释。接受时输出 {\"status\":\"accepted\",\"issueCode\":\"none\"}。需重生成时除 status=repair 与 issueCode 外，还必须输出 repairFocus、candidateIndex 和 implicatedHerbs：formula_composition_mismatch 只能配 formula_core_composition；herb_plan_mismatch 只能配 emperor_role、herb_direction 或 modification_logic；dose_rationale_concern 只能配 dose_strength；patient_context_mismatch 只能配 patient_dependency。candidateIndex 从0开始；implicatedHerbs 只能逐字列出待复核候选中实际存在且需要调整的药名，无具体药味时用空数组。一次只返回最关键问题，不得输出自由文本修复指令。",
+    "只输出一个 JSON 对象，不要代码块或解释。接受时输出 {\"status\":\"accepted\",\"issueCode\":\"none\"}。需重生成时除 status=repair 与 issueCode 外，还必须输出 repairFocus、candidateIndex 和 implicatedHerbs：herb_plan_mismatch 只能配 emperor_role、herb_direction 或 modification_logic；dose_rationale_concern 只能配 dose_strength；patient_context_mismatch 只能配 patient_dependency。candidateIndex 从0开始；implicatedHerbs 只能逐字列出待复核候选中实际存在且需要调整的药名，无具体药味时用空数组。一次只返回最关键问题，不得输出自由文本修复指令。",
     `患者事实边界：${clinicalContext.slice(0, 8_000)}`,
     reviewEvidence
       ? `本轮可用证据摘要（仅用于核对方剂来源、适应证、药物与剂量依据，绝不能当作患者事实）：${reviewEvidence}`
@@ -338,36 +374,17 @@ export function constrainM04ClinicalReviewScope(
 ): M04ClinicalReview {
   if (review.status !== "repair" || review.issueCode !== "formula_composition_mismatch") return review;
   const payload = buildM04ClinicalReviewPayload(priorReasoning, reasoning);
-  const priorOverview = record(payload.prior.overview);
-  const priorFormulaNames = Array.isArray(priorOverview?.recommendedFormulaNames)
-    ? priorOverview.recommendedFormulaNames.filter((value) => typeof value === "string" && value.trim())
-    : [];
-  const priorMode = String(priorOverview?.formulaSelectionMode || "none");
-  const priorClaimsNamedFormula = priorFormulaNames.length > 0 && !["none", "self_devised"].includes(priorMode);
   const formula = record(payload.candidate.formula);
   const candidates = Array.isArray(formula?.candidates) ? formula.candidates : [];
-  const candidateClaimsNamedFormula = candidates.some((value) => {
-    const candidate = record(value);
-    const formulaNames = Array.isArray(candidate?.formulaNames)
-      ? candidate.formulaNames.filter((name) => typeof name === "string" && name.trim())
-      : [];
-    const name = typeof candidate?.name === "string" ? candidate.name.trim() : "";
-    const explicitlySelfDevised = candidate?.constructionType === "self_devised" || candidate?.identityDeclassified === true;
-    const genericSelfDevisedName = /^(?:本例辨证组方|自拟方)(?:加减)?$/.test(name);
-    return formulaNames.length > 0 || (!explicitlySelfDevised && !genericSelfDevisedName);
-  });
-  const candidateExplicitlyDeclassified = candidates.length > 0 && candidates.every((value) => {
-    const candidate = record(value);
-    return candidate?.identityDeclassified === true && candidate?.constructionType === "self_devised";
-  });
-  // Once the server has explicitly removed an unverified classic identity, composition mismatch is
-  // no longer an actionable review coordinate even if M03 still records the original recommendation.
-  // The reviewer must use herb_plan/dose/patient issues against the actual self-devised candidate;
-  // otherwise the same already-removed label can trigger an endless full-prescription redraw.
-  return ((!priorClaimsNamedFormula && candidates.length > 0 && !candidateClaimsNamedFormula) ||
-      (candidateExplicitlyDeclassified && !candidateClaimsNamedFormula))
-    ? { status: "accepted", issueCode: "none" }
-    : review;
+  const candidateIndex = review.candidateIndex != null && review.candidateIndex < candidates.length
+    ? review.candidateIndex
+    : 0;
+  // Strict Qwen schemas no longer expose this legacy issue. If an older/non-strict reviewer still
+  // emits it, the server attestation remains authoritative: verified and not-claimed identities
+  // cannot be stochastically vetoed; only a genuinely unverified claim keeps the fail-closed path.
+  return serverFormulaIdentityStatus(candidates[candidateIndex]) === "unverified"
+    ? review
+    : { status: "accepted", issueCode: "none" };
 }
 
 export function buildM04ClinicalReviewAdjudicationPrompt(

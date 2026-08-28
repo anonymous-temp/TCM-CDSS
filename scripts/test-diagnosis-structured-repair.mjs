@@ -451,7 +451,7 @@ assert.deepEqual(
 );
 assert.match(
   buildM04ClinicalReviewPrompt("", { overview: { formulaSelectionMode: "self_devised" } }, { formula: { candidates: [] } }),
-  /formula_composition_mismatch 只适用于 M03 或 M04 明确声称了命名方身份/,
+  /方名与经典方组成身份由服务端确定性合同独占裁决.*不得返回 formula_composition_mismatch/,
   "the reviewer prompt must preserve the same issue-domain boundary enforced by the server",
 );
 const focusedM04Repair = parseM04ClinicalReview('{"status":"repair","issueCode":"herb_plan_mismatch","repairFocus":"emperor_role","candidateIndex":0,"implicatedHerbs":["山药","山药","不存在药"]}');
@@ -495,7 +495,7 @@ const m04ReviewPrompt = buildM04ClinicalReviewPrompt(
   "[EVID-LITERATURE-001] 方剂适应证摘要",
 );
 assert.match(m04ReviewPrompt, /外部合理用药审方/);
-assert.match(m04ReviewPrompt, /实际药味组成[\s\S]*不得用患者未提供/);
+assert.match(m04ReviewPrompt, /formulaIdentityStatus=verified[\s\S]*不得用患者未提供/);
 assert.match(m04ReviewPrompt, /本轮可用证据[\s\S]*绝不能当作患者事实[\s\S]*EVID-LITERATURE-001/);
 assert.match(m04ReviewPrompt, /对重要未知状态保持保守鲁棒/);
 assert.match(m04ReviewPrompt, /不得用一句.*采纳前复核.*掩盖/);

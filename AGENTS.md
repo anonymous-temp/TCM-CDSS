@@ -16,7 +16,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - **框架**：Next.js 16（App Router，Turbopack，`output: "standalone"`）+ React 19 + TypeScript 5（strict）
 - **样式/UI**：Tailwind CSS 4 + shadcn（`src/components/ui`）、lucide-react、react-markdown
-- **模型接入**：`openai` SDK，OpenAI 兼容协议。生产 `AI_TEXT_PROVIDER=bailian-qwen`（百炼 compatible-mode），文本相位**按环节分档、并不统一**：M03 首轮 `qwen3.7-flash`（生产实测把诊断阶段从约 90s 压到约 30s，临床合同由更强档的复核方把住）、M04 首轮 `qwen3.7-plus`、M03/M04 修复轮 `qwen3.8-max`、独立复核 M03→plus / M04→max、临床事实三相位 flash→max→plus。DeepSeek 保留为整体回退档（改 `AI_TEXT_PROVIDER=openai-compatible`），生产未启用。GLM 视觉默认开启且仅用于舌象图片
+- **模型接入**：`openai` SDK，OpenAI 兼容协议。生产 `AI_TEXT_PROVIDER=bailian-qwen`（百炼 compatible-mode），文本相位**按环节分档、并不统一**：M03 首轮 `qwen3.7-flash`（生产实测约 30s；2026-08-28 同镜像 3 例 canary 中 `qwen3.8-flash` 虽合同全过但 M03 中位约 54s，故仅保留为 opt-in shadow 候选）、M04 首轮 `qwen3.7-plus`、M03/M04 修复轮 `qwen3.8-max`、独立复核 M03→plus / M04→max、临床事实三相位 3.7-flash→max→plus。DeepSeek 保留为整体回退档（改 `AI_TEXT_PROVIDER=openai-compatible`），生产未启用。GLM 视觉默认开启且仅用于舌象图片
 - **校验**：zod 4
 - **数据库**：无 —— 病例状态在浏览器 localStorage（加密快照经服务端 AES-256-GCM）+ 本地 JSON 知识库
 - **重要**：本项目没有 `middleware.ts`。请求门控在 `src/proxy.ts`（导出 `proxy()` + `config.matcher`）。写框架代码前先读 `node_modules/next/dist/docs/` 中的官方文档，不要凭训练数据中的 Next.js 经验行事
@@ -91,7 +91,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 - **关键陷阱**：流只返回 `reasoning_content` 而无 `content` 视为错误（"模型仅返回推理过程"），`model-health?check=1` 校验的是最终内容。
 - 超时按流强制：连接 90s / 空闲 60s / 总计 180s，带上游 `AbortController` 取消与 5s 客户端心跳。
 - Provider 配置在 `src/lib/text-model.ts`（`AI_TEXT_PROVIDER`）—— 用 `getPrimaryTextModelConfig()` 读取。
-- M03/M04 编排各有一道总时限门禁（`M03_ORCHESTRATION_DEADLINE_MS` / `M04_ORCHESTRATION_DEADLINE_MS`，默认 **M03 180s / M04 120s**——两者不同，钳制 60–180s）：超时或同一修复提示重复注入（fixpoint）会提前走向既有的签名有限/非剂量合同，而不是无限烧模型轮次。
+- M03/M04 编排各有一道总时限门禁（`M03_ORCHESTRATION_DEADLINE_MS` / `M04_ORCHESTRATION_DEADLINE_MS`，当前发布默认均为 **180s**，代码钳制 60–180s）：超时或同一修复提示重复注入（fixpoint）会提前走向既有的签名有限/非剂量合同，而不是无限烧模型轮次。
 
 ### 确定性安全层是承重墙 —— `src/lib/diagnosis-safety.ts`
 

@@ -28,7 +28,7 @@ function assertStrictObjects(value, path = "schema") {
   for (const [key, child] of Object.entries(value)) assertStrictObjects(child, `${path}.${key}`);
 }
 
-for (const model of ["qwen3.7-plus", "qwen3.7-max", "qwen3.8-max"]) {
+for (const model of ["qwen3.7-plus", "qwen3.7-max", "qwen3.8-flash", "qwen3.8-max"]) {
   assert.equal(supportsStrictJsonSchema(model), true);
   for (const task of ["m03_full", "m03_western", "m03_tcm", "m04_proposal", "m03_review", "m04_review"]) {
     const format = responseFormatForTask(model, task);
@@ -46,6 +46,10 @@ for (const model of ["qwen3.7-plus", "qwen3.7-max", "qwen3.8-max"]) {
     }
   }
 }
+const m04ReviewFormat = responseFormatForTask("qwen3.8-flash", "m04_review");
+assert.equal(m04ReviewFormat.json_schema.schema.properties.issueCode.enum.includes("formula_composition_mismatch"), false,
+  "server-owned formula identity must not remain a stochastic reviewer decision");
+assert.equal(JSON.stringify(m04ReviewFormat.json_schema.schema.properties.repairFocus).includes("formula_core_composition"), false);
 assert.deepEqual(responseFormatForTask("qwen3.7-flash", "m03_full"), { type: "json_object" });
 assert.deepEqual(responseFormatForTask("deepseek-v4-flash", "m04_proposal"), { type: "json_object" });
 
@@ -91,7 +95,7 @@ for (const [file, fixedMarker, patientMarker, candidateMarker] of [
     `${file} must keep fixed review rules before patient/candidate payloads for prefix caching`);
 }
 
-console.log(JSON.stringify({ suite: "model-structured-output", tasks: 6, models: 5, failures: 0 }));
+console.log(JSON.stringify({ suite: "model-structured-output", tasks: 6, models: 6, failures: 0 }));
 
 
 {

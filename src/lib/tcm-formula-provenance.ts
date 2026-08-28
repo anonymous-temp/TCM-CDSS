@@ -1395,21 +1395,43 @@ export function applyRestoredGovernedFormulaIdentity(
   );
 }
 
-function withoutUntrustedM04IdentityMetadata(reasoning: ClinicalReasoningResultV2): ClinicalReasoningResultV2 {
+function withoutUntrustedM04IdentityMetadata(
+  reasoning: ClinicalReasoningResultV2,
+  options: { stripGovernedProvenance?: boolean } = {},
+): ClinicalReasoningResultV2 {
   if (reasoning.stage !== "prescribe" || !reasoning.formula) return reasoning;
   let changed = false;
   const candidates = reasoning.formula.candidates.map((candidate) => {
     if (
       candidate.identityDeclassified === undefined &&
       candidate.identityDeclassificationReason === undefined &&
-      candidate.declassifiedFromFormulaNames === undefined
+      candidate.declassifiedFromFormulaNames === undefined &&
+      (!options.stripGovernedProvenance || (
+        candidate.baseFormulas === undefined &&
+        candidate.formulaSource === undefined &&
+        candidate.discriminationPath === undefined &&
+        candidate.classicEvidence === undefined &&
+        candidate.compositionLogic === undefined &&
+        candidate.textualModifications === undefined
+      ))
     ) return candidate;
     changed = true;
-    const next = { ...candidate };
+    const next: Record<string, unknown> = { ...candidate };
     delete next.identityDeclassified;
     delete next.identityDeclassificationReason;
     delete next.declassifiedFromFormulaNames;
-    return next;
+    if (options.stripGovernedProvenance) {
+      // All of these rows are rebuilt from governed local formula/evidence sources by
+      // enrichPrescriptionProvenance before review/signing. Keeping a provider-authored copy would
+      // let the model impersonate a completed identity attestation if that later transform throws.
+      delete next.baseFormulas;
+      delete next.formulaSource;
+      delete next.discriminationPath;
+      delete next.classicEvidence;
+      delete next.compositionLogic;
+      delete next.textualModifications;
+    }
+    return next as unknown as typeof candidate;
   });
   return changed
     ? { ...reasoning, formula: { ...reasoning.formula, candidates } }
@@ -1417,12 +1439,14 @@ function withoutUntrustedM04IdentityMetadata(reasoning: ClinicalReasoningResultV
 }
 
 /**
- * Remove identity provenance that arrived inside a provider-authored M04 payload.
+ * Remove server-owned formula identity and evidence provenance that arrived inside a
+ * provider-authored M04 payload.
  *
  * These fields are retained by the application schema because deterministic server transforms add
  * them before review/signing. They are not provider capabilities: accepting them at ingress would
- * let a model or prompt injection impersonate a completed server declassification and influence
- * formula restoration, review policy and the doctor-visible provenance notice.
+ * let a model or prompt injection impersonate completed server declassification, governed
+ * composition verification or evidence retrieval and influence formula restoration, review policy
+ * and the doctor-visible provenance notice.
  */
 export function stripUntrustedM04IdentityMetadata(content: string): string {
   return content.replace(
@@ -1433,7 +1457,7 @@ export function stripUntrustedM04IdentityMetadata(content: string): string {
         if (parsed.schemaVersion !== "tcm-cdss-reasoning-v2" || parsed.stage !== "prescribe" || !parsed.formula) {
           return match;
         }
-        const sanitized = withoutUntrustedM04IdentityMetadata(parsed);
+        const sanitized = withoutUntrustedM04IdentityMetadata(parsed, { stripGovernedProvenance: true });
         if (sanitized === parsed) return match;
         return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(sanitized)}\n<!-- DIAGNOSIS_JSON_END -->`;
       } catch {

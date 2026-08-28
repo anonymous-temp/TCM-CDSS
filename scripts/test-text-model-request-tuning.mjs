@@ -10,6 +10,7 @@ const {
   isQwenModel,
   textModelRequestTuning,
 } = await jiti.import("../src/lib/text-model.ts");
+const { textModelCapabilities } = await jiti.import("../src/lib/text-model-capabilities.ts");
 
 const ENV_KEYS = [
   "AI_TEXT_PROVIDER", "AI_PROVIDER",
@@ -24,7 +25,7 @@ const originalEnv = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[k
 try {
   assert.equal(isDeepseekModel("deepseek-v4-flash"), true);
   assert.equal(isQwenModel("qwen3.7-plus"), true);
-  for (const model of ["deepseek-v4-flash", "qwen3.7-plus", "qwen3.7-flash", "qwen3.8-max"]) {
+  for (const model of ["deepseek-v4-flash", "qwen3.7-plus", "qwen3.7-flash", "qwen3.8-flash", "qwen3.8-max"]) {
     assert.equal(isApprovedTextModel(model), true, `${model} must be in the approved text-model family set`);
   }
   assert.equal(isApprovedTextModel("glm-5"), false);
@@ -67,6 +68,10 @@ try {
   assert.equal(getPrimaryTextModelConfig().disabledReason, "vendor_policy");
 
   assert.deepEqual(
+    textModelRequestTuning("qwen3.8-flash", { reasoningEffort: "medium", thinkingEnabled: true }),
+    { enable_thinking: true, reasoning_effort: "medium" },
+  );
+  assert.deepEqual(
     textModelRequestTuning("deepseek-v4-flash", { reasoningEffort: "low", thinkingEnabled: false }),
     { reasoning_effort: "low", thinking: { type: "disabled" } },
   );
@@ -101,6 +106,14 @@ try {
     "omitting thinkingEnabled must explicitly disable DeepSeek thinking",
   );
   assert.deepEqual(textModelRequestTuning("glm-5", { reasoningEffort: "low", thinkingEnabled: false }), {});
+  assert.deepEqual(textModelCapabilities("qwen3.8-flash"), {
+    family: "qwen3.8",
+    strictJsonSchema: true,
+    qwenThinkingControl: "reasoning_effort",
+    functionCalling: true,
+    providerWebSearch: true,
+  });
+  assert.equal(textModelCapabilities("qwen3.7-flash").strictJsonSchema, false);
 
   const tuningCallers = [
     "src/lib/clinical-facts-runtime.ts",
@@ -126,7 +139,7 @@ try {
     "diagnosis-api text stages still write provider-private request fields inline");
 
   const probeSource = readFileSync("scripts/probe-qwen-model-matrix.mjs", "utf8");
-  for (const model of ["qwen3.7-plus", "qwen3.7-flash", "qwen3.8-max"]) {
+  for (const model of ["qwen3.7-plus", "qwen3.7-flash", "qwen3.8-flash", "qwen3.8-max"]) {
     assert.ok(probeSource.includes(model), `matrix probe must exercise ${model}`);
   }
   assert.doesNotMatch(probeSource, /console\.(?:log|error)\([^\n]*(?:API_KEY|apiKey|authorization)/i,
@@ -139,4 +152,4 @@ try {
   }
 }
 
-console.log(JSON.stringify({ suite: "text-model-request-tuning", models: 4, providers: 2, failures: 0 }));
+console.log(JSON.stringify({ suite: "text-model-request-tuning", models: 5, providers: 2, failures: 0 }));

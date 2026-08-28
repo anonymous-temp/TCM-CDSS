@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ReasoningV2Schema } from "./diagnosis-types";
 import { M04ProposalSchema } from "./m04-proposal-compiler";
+import { textModelCapabilities } from "./text-model-capabilities";
 
 export type StructuredOutputTask =
   | "m03_full"
@@ -95,7 +96,7 @@ function strictProviderSchema(value: unknown, propertyName?: string): unknown {
 }
 
 export function supportsStrictJsonSchema(model: string): boolean {
-  return /^qwen3\.(?:7-(?:plus|max)|8-max)(?:$|[-_])/i.test(model.trim());
+  return textModelCapabilities(model).strictJsonSchema;
 }
 
 let reasoningSchema: JsonSchema | undefined;
@@ -199,10 +200,10 @@ const M04_REVIEW_SCHEMA: JsonSchema = {
   properties: {
     status: { enum: ["accepted", "repair"] },
     issueCode: {
-      enum: ["none", "formula_composition_mismatch", "herb_plan_mismatch", "dose_rationale_concern", "patient_context_mismatch"],
+      enum: ["none", "herb_plan_mismatch", "dose_rationale_concern", "patient_context_mismatch"],
     },
     repairFocus: {
-      enum: ["formula_core_composition", "emperor_role", "herb_direction", "modification_logic", "dose_strength", "patient_dependency"],
+      enum: ["emperor_role", "herb_direction", "modification_logic", "dose_strength", "patient_dependency"],
     },
     candidateIndex: { type: "integer", minimum: 0, maximum: 4 },
     implicatedHerbs: { type: "array", items: { type: "string", maxLength: 24 }, maxItems: 6, uniqueItems: true },

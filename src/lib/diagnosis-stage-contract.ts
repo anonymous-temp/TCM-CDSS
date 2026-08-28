@@ -3176,7 +3176,7 @@ export function transparentFormulaTherapyIssue(
   // 与 m04SemanticIssue 里那道同名检查用**同一套豁免**：命名方基准药味不重复判高影响方向。
   // 此前这里少传后两个参数（allowGovernedFormulaBaseline / selectedFormulaNames），于是同一味药
   // 在前一道门按「它是所选经典方的法定组成」放行、在这道门被判「方向未成立」驳回——两道门对同一
-  // 张方给出相反结论，M04 只能反复修复直到 120s 编排时限，医生最终拿到的是一页「无法形成处方」。
+  // 张方给出相反结论，M04 只能反复修复直到编排时限，医生最终拿到的是一页「无法形成处方」。
   //
   // 实测（公开医案，肝阳上亢兼痰热扰心，治法「平肝潜阳，清热化痰，宁心安神」）：
   // m04_candidate_0_transparent_therapy_herb_2_unsupported_high_impact_yang_warm。

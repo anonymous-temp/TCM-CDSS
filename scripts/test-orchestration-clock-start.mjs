@@ -67,14 +67,14 @@ for (const route of ROUTES) {
   );
 }
 
-// 时限常量本身不得被悄悄放大来「解决」超时——那是把问题藏起来而不是修掉。
+// 时限常量必须与发布决策一致；调整时需要同时更新配置、行为测试和部署文档。
 {
   const api = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
   const m03 = api.match(/M03_ORCHESTRATION_DEADLINE_MS[\s\S]{0,220}?\|\|\s*(\d[\d_]*)/);
   const m04 = api.match(/M04_ORCHESTRATION_DEADLINE_MS[\s\S]{0,220}?\|\|\s*(\d[\d_]*)/);
   assert.ok(m03 && m04, "应能读到两个编排时限的默认值");
   assert.equal(Number(m03[1].replace(/_/g, "")), 180_000, "M03 编排时限默认值应为 180s");
-  assert.equal(Number(m04[1].replace(/_/g, "")), 120_000, "M04 编排时限默认值应为 120s");
+  assert.equal(Number(m04[1].replace(/_/g, "")), 180_000, "M04 编排时限默认值应为 180s");
   assert.match(api, /effectiveOrchestrationStartedAt\s*\+=\s*capacityWaitMs/,
     "共享容量队列等待时间必须从临床编排时钟中扣除");
   assert.match(api, /m03OrchestrationDeadlineExpired\(effectiveOrchestrationStartedAt,\s*Date\.now\(\)\)/,

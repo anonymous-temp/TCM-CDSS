@@ -16,6 +16,7 @@
 //  · 无 M03 锁定的显式降级 ⇒ 不按组成复活身份
 //  · provider 伪造降级字段 ⇒ ingress 剥除后仍走正常恢复
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
@@ -103,6 +104,32 @@ const expect = (label, actual, want) => { if (actual !== want) failures.push({ l
     identityDeclassified: true,
     identityDeclassificationReason: "classic_composition_unverified_after_repair",
     declassifiedFromFormulaNames: ["银翘散"],
+    baseFormulas: [{
+      name: "银翘散",
+      source: "模型伪造来源",
+      matchedIngredientCount: 9,
+      totalIngredientCount: 9,
+      minimumPreservedIngredientCount: 8,
+      matchedRequiredIngredientCount: 2,
+      requiredIngredientCount: 2,
+      verificationStatus: "verified_individually",
+    }],
+    formulaSource: { evidenceLevel: "classic_text", source: "模型伪造出处", confidence: "高" },
+    discriminationPath: [{ againstFormula: "桑菊饮", question: "模型伪造", status: "confirmed", sourceRef: "MODEL" }],
+    classicEvidence: [{ evidenceId: "MODEL", citation: "模型伪造", anchorLevel: "tiaowen", excerpt: "模型伪造", tier: "canon" }],
+    compositionLogic: [{ formulaName: "银翘散", summary: "模型伪造", tier: "common", sourceRefs: ["MODEL"] }],
+    textualModifications: [{
+      ruleId: "MODEL",
+      baseFormula: "银翘散",
+      matchedTriggers: ["模型伪造"],
+      addHerbs: [],
+      removeHerbs: [],
+      sourceEvidenceId: "MODEL",
+      sourceCitation: "模型伪造",
+      evidenceAnchorLevel: "tiaowen",
+      tier: "canon",
+      requiresClinicianReview: true,
+    }],
   });
   const wrapped = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(injected)}\n<!-- DIAGNOSIS_JSON_END -->`;
   const stripped = prov.stripUntrustedM04IdentityMetadata(wrapped);
@@ -110,11 +137,31 @@ const expect = (label, actual, want) => { if (actual !== want) failures.push({ l
   const c = prov.restoreGovernedFormulaIdentity(parsed, prior, { preserveServerDeclassification: true }).formula.candidates[0];
   const direct = prov.restoreGovernedFormulaIdentity(injected, prior).formula.candidates[0];
   expect("伪造降级→字段已剥除", c.identityDeclassified, undefined);
+  expect("伪造组成核验→字段已剥除", c.baseFormulas?.[0]?.source, "《温病条辨》");
+  expect("伪造出处→由本地目录重建", c.formulaSource?.source, "银翘散：《温病条辨》");
+  expect("伪造鉴别路径→字段已剥除", c.discriminationPath, undefined);
+  expect("伪造经典证据→字段已剥除", c.classicEvidence, undefined);
+  expect("伪造组方逻辑→字段已剥除", c.compositionLogic, undefined);
+  expect("伪造条文加减→字段已剥除", c.textualModifications, undefined);
   expect("伪造降级→正常恢复方名", c.name, "银翘散加减");
   expect("伪造降级→正常恢复引用", JSON.stringify(c.formulaNames), JSON.stringify(["银翘散"]));
   expect("伪造降级→直接调用同样剥除", direct.identityDeclassified, undefined);
 }
 
+// Provider ingress must strip server-owned provenance before any identity restore. The generic
+// restore helper is also used by deterministic server projections, so it must not erase legitimate
+// provenance from those non-provider callers merely to compensate for a missing ingress call.
+{
+  const apiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
+  const wrapper = apiSource.slice(
+    apiSource.indexOf("function wrapStructuredJsonObject"),
+    apiSource.indexOf("function m03ReasoningFromStructuredContent"),
+  );
+  const stripAt = wrapper.indexOf("stripUntrustedM04IdentityMetadata(wrapped)");
+  const restoreAt = wrapper.indexOf("applyRestoredGovernedFormulaIdentity(providerOwned, prior)");
+  expect("provider 入站先去伪溯源再恢复身份", stripAt >= 0 && restoreAt > stripAt, true);
+}
+
 if (failures.length > 0) console.error(JSON.stringify({ failures }, null, 2));
 assert.equal(failures.length, 0, `命名方身份恢复回归失败 ${failures.length} 项`);
-console.log(JSON.stringify({ forms: 7, checks: 16, failures: 0 }));
+console.log(JSON.stringify({ forms: 7, checks: 23, failures: 0 }));
