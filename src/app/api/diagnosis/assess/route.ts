@@ -14,6 +14,7 @@ import {
   buildLocalHighRiskHerbPairSection,
   buildRxAuditScopeSection,
   rxAuditPresentationEnabled,
+  resolveProviderCompatibilityFindings,
   buildRxAuditCorrelationMarker,
   buildRxAuditCorrelationMetadata,
   buildUnavailableRxAuditSection,
@@ -104,7 +105,9 @@ export async function POST(req: Request) {
   // 而且不能再挂在 providerAudit.ok 上：那个条件原本的含义是「审方没给结论时用本地兜底」，
   // 展示关闭后若沿用它，审方正常返回的病例反而一条本地提示都看不到。
   const showRxAudit = rxAuditPresentationEnabled();
-  const localHighRiskSection = buildLocalHighRiskHerbPairSection(gated, candidateIndex);
+  // 配伍禁忌属本地安全内容：两档都出，且不受审方是否可用影响。供应商条目只加不减地追加。
+  const providerCompatibility = await resolveProviderCompatibilityFindings(gated, candidateIndex, req.signal);
+  const localHighRiskSection = buildLocalHighRiskHerbPairSection(gated, candidateIndex, providerCompatibility);
   const providerRisk = effectiveAudit
     ? buildLingxiRiskSection(effectiveAudit, patientSex)
     : buildUnavailableRxAuditSection(providerAudit.ok ? "rxaudit_incomplete" : providerAudit.reason);
