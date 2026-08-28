@@ -233,6 +233,12 @@ export interface CaseState {
   auditAdvisory?: {
     available: boolean;
     reason?: "no_prescription_items" | "service_unavailable";
+    /**
+     * 审方作为独立接口单独交付时,CDSS 不呈现三方审方内容。此时 available=false 表达的是
+     * 「本产品面没有审方结论」,**不是**「审方服务出了问题」——两者对医生的含义完全相反,
+     * 不区分就会在每一例上报「审方服务暂不可用」。
+     */
+    presentationDisabled?: boolean;
   };
   reasoningDiagnose?: ClinicalReasoningResultV2;
   reasoningPrescribe?: ClinicalReasoningResultV2;
@@ -1894,7 +1900,7 @@ function normalizeAuditAdvisory(value: unknown): CaseState["auditAdvisory"] {
   const raw = value as Record<string, unknown>;
   if (typeof raw.available !== "boolean") return undefined;
   const reason = raw.reason === "no_prescription_items" || raw.reason === "service_unavailable" ? raw.reason : undefined;
-  return { available: raw.available, reason };
+  return { available: raw.available, reason, ...(raw.presentationDisabled === true ? { presentationDisabled: true } : {}) };
 }
 
 function normalizePreviousResult(value: unknown): CaseState["previousResult"] {

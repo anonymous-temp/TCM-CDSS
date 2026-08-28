@@ -2,6 +2,7 @@ import { clinicalRequiredFieldLabel, clinicalRequiredFieldPolicy } from "./clini
 
 type AuditAdvisory = {
   available: boolean;
+  presentationDisabled?: boolean;
 };
 
 export type AuditReviewPresentation = {
@@ -46,6 +47,8 @@ export function resolveAuditReviewPresentation(
   advisory: AuditAdvisory | null | undefined,
   content?: string,
 ): AuditReviewPresentation | null {
+  // 审方展示被关闭时不出任何审方卡片:此时没有「未完成」可言,审方在它自己的接口与页面里。
+  if (advisory?.presentationDisabled) return null;
   if (advisory?.available === false) {
     return {
       kind: "unavailable",

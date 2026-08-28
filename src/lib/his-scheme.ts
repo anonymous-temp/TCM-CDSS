@@ -1,5 +1,6 @@
 import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, isNonDosePrescriptionText, withSafetyGate } from "./diagnosis-safety";
 import { sectionTitleGroup } from "./cdss-vocab";
+import { rxAuditPresentationEnabled } from "./rxaudit";
 import { qualityAnnotationCopy } from "./diagnosis-rejection-tiers";
 import type { CaseState, ClinicalCitation, SafetyGate } from "./diagnosis-types";
 import { extractPrescribedHerbs, getTcmHerbDoseLimit, clinicianDoseHerbClass } from "./tcm-knowledge";
@@ -891,7 +892,11 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
   const risk = caseState.riskAssessment || "";
   const deterministicRiskFromAssessment = suppressDoseLevelOutputs ? "" : section(risk, sectionTitleGroup("lingxiAudit"));
   const hasPrescriptionCandidate = Boolean(clean(prescription)) && !isPlaceholderContent(prescription);
-  const deterministicRisk = deterministicRiskFromAssessment || (hasPrescriptionCandidate ? missingMedicationAuditSection() : "");
+  // 审方展示关闭时不得回落到「本次未获得自动审方结果」：那句话既把三方审方重新写进交付面，
+  // 又与事实相反（审方照常调用，只是不在本产品呈现）。此时 HIS 的配伍风险来自
+  // compatibilityRisk 段（本地确定性预检），不是这里。
+  const deterministicRisk = deterministicRiskFromAssessment
+    || (hasPrescriptionCandidate && rxAuditPresentationEnabled() ? missingMedicationAuditSection() : "");
   const western = section(diagnosis, sectionTitleGroup("westernDiagnosis"));
   const tcmPattern = section(diagnosis, sectionTitleGroup("tcmPattern"));
   const mechanism = [

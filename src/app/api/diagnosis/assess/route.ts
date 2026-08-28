@@ -13,6 +13,7 @@ import {
   buildLingxiRiskSection,
   buildLocalHighRiskHerbPairSection,
   buildRxAuditScopeSection,
+  rxAuditPresentationEnabled,
   buildRxAuditCorrelationMarker,
   buildRxAuditCorrelationMetadata,
   buildUnavailableRxAuditSection,
@@ -98,24 +99,34 @@ export async function POST(req: Request) {
   const effectiveAudit = mergedAudit.ok
     ? applyRxAuditInputAdvisories(normalizeAuditOutcomeForPatient(mergedAudit, patientSex), inputAdvisories)
     : undefined;
+  // 审方展示被关闭时（本客户默认档）：报告里不出现任何以三方审方为主语的内容——
+  // 结论、范围说明、输入待核对、以及「自动审方未完成」。但**本地确定性配伍预检必须照出**，
+  // 而且不能再挂在 providerAudit.ok 上：那个条件原本的含义是「审方没给结论时用本地兜底」，
+  // 展示关闭后若沿用它，审方正常返回的病例反而一条本地提示都看不到。
+  const showRxAudit = rxAuditPresentationEnabled();
+  const localHighRiskSection = buildLocalHighRiskHerbPairSection(gated, candidateIndex);
   const providerRisk = effectiveAudit
     ? buildLingxiRiskSection(effectiveAudit, patientSex)
     : buildUnavailableRxAuditSection(providerAudit.ok ? "rxaudit_incomplete" : providerAudit.reason);
-  const localUnavailableRisk = providerAudit.ok ? "" : buildLocalHighRiskHerbPairSection(gated, candidateIndex);
-  const postPrescriptionRisk = [
-    buildRxAuditScopeSection(gated, candidateIndex),
-    localUnavailableRisk,
-    inputAdvisorySection,
-    providerRisk,
-  ].filter(Boolean).join("\n\n");
-  const auditStatusMarker = buildRxAuditStatusMarker(providerAudit.ok && !providerAudit.degraded
-    ? { available: true }
-    : {
-        available: false,
-        reason: !providerAudit.ok && (providerAudit.reason === "no_prescription_items" || isRxAuditSubmissionIssueReason(providerAudit.reason))
-          ? "no_prescription_items"
-          : "service_unavailable",
-      });
+  const postPrescriptionRisk = (showRxAudit
+    ? [
+        buildRxAuditScopeSection(gated, candidateIndex),
+        providerAudit.ok ? "" : localHighRiskSection,
+        inputAdvisorySection,
+        providerRisk,
+      ]
+    : [localHighRiskSection, buildAuditInputAdvisorySection(inputAdvisories, true)]
+  ).filter(Boolean).join("\n\n");
+  const auditStatusMarker = buildRxAuditStatusMarker(!showRxAudit
+    ? { available: false, presentationDisabled: true }
+    : providerAudit.ok && !providerAudit.degraded
+      ? { available: true }
+      : {
+          available: false,
+          reason: !providerAudit.ok && (providerAudit.reason === "no_prescription_items" || isRxAuditSubmissionIssueReason(providerAudit.reason))
+            ? "no_prescription_items"
+            : "service_unavailable",
+        });
   const prescriptionHash = prescribed && candidateIndex != null
     ? await computePrescriptionVersionHash(prescribed, candidateIndex, gated)
     : "";

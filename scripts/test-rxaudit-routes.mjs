@@ -12,6 +12,10 @@ for (const key of [
   "OPENAI_API_KEY",
 ]) delete process.env[key];
 process.env.RXAI_AUDIT_ENABLED = "true";
+// 审方呈现开关默认关闭（审方是独立交付的接口与产品页面）。本套件钉的正是审方链路自身的
+// 路由契约——可用/降级标记、输入提示、关联元数据，因此必须显式开启才测得到这些出口。
+// 关闭档的行为由 test:rxaudit-presentation 单独钉。
+process.env.CDSS_SHOW_RX_AUDIT_SECTION = "true";
 process.env.RXAI_AUDIT_BASE_URL = "http://127.0.0.1:18092";
 process.env.RXAI_AUDIT_TOKEN = "route-contract-token";
 process.env.RXAI_AUDIT_TENANT_ID = "PROVIDER_TEST_TENANT";

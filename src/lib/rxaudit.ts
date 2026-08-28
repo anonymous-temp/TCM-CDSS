@@ -959,6 +959,18 @@ export function buildAuditInputAdvisories(
   return advisories;
 }
 
+/**
+ * 合理用药审方是独立交付的接口与产品页面（owner 裁定 2026-08-28）；CDSS 默认不再重复呈现
+ * 任何三方审方内容。默认关闭而不是默认开启：本客户拿到的报告里出现第二份审方结论，
+ * 与他们真正在用的那个审方页面互为噪声，且两边口径不同步时无从判断哪个作数。
+ *
+ * 这是**呈现**开关，不是检测开关。审方仍照常调用（遥测、确定性安全门与严格健康探针都依赖它），
+ * 本地确定性检测（十八反十九畏、药典剂量边界、特殊人群）与 M05 确定性安全总评一律不受影响。
+ */
+export function rxAuditPresentationEnabled(): boolean {
+  return process.env.CDSS_SHOW_RX_AUDIT_SECTION === "true";
+}
+
 export function buildRxAuditScopeSection(state: CaseState, candidateIndex?: number): string {
   const candidate = candidateFromState(state, candidateIndex);
   if (!candidate) return "";
@@ -982,11 +994,23 @@ export function buildRxAuditScopeSection(state: CaseState, candidateIndex?: numb
   return lines.join("\n");
 }
 
-export function buildAuditInputAdvisorySection(advisories: readonly RxAuditInputAdvisory[]): string {
+/**
+ * 这一段是**病历质量**提示，不是三方审方结论：它说的是「我们没法可靠判断患者在用什么药」
+ * 与「我们自己开的候选缺剂量」。这两件事对医生的处方决策都成立，与谁来审方无关，
+ * 因此审方展示关闭时**不能一并撤掉**——撤掉就等于把「现用药不明」这类未知当成了无风险，
+ * 与本仓「未提及 ≠ 阴性」的铁律相反。关闭档只改口径：不再让医生去「重新审方」。
+ */
+export function buildAuditInputAdvisorySection(
+  advisories: readonly RxAuditInputAdvisory[],
+  auditNeutralWording = false,
+): string {
   if (advisories.length === 0) return "";
+  const suffix = auditNeutralWording
+    ? "。请结合原始病历人工核对；在核实前不得视为已排除相关用药风险。"
+    : "。请补齐后重新审方；当前结果不等同于剂量审核通过。";
   return [
     "## 处方信息待核对",
-    ...advisories.map((item) => `- ${item.message}。请补齐后重新审方；当前结果不等同于剂量审核通过。`),
+    ...advisories.map((item) => `- ${item.message}${suffix}`),
   ].join("\n");
 }
 

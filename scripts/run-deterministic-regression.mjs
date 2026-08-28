@@ -5,6 +5,9 @@ const scripts = [
   // rsync's multi-source `--delete` removed `.env.prod.runtime` before compose, while the old container
   // stayed healthy and masked the failure.  Pin both the shell ordering and real rsync behavior.
   "test:deploy-runtime-env-protection",
+  // 审方呈现开关(2026-08-28): 审方是独立交付的接口与产品页面，CDSS 默认不重复呈现；
+  // 但本地确定性配伍检测必须照出且照进 HIS，且「展示关闭」不得被读成「审方不可用」。
+  "test:rxaudit-presentation",
   "test:rxaudit-contract",
   "test:rxaudit-payload",
   "test:rxaudit-cache",
