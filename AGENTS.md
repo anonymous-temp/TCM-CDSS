@@ -16,7 +16,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - **框架**：Next.js 16（App Router，Turbopack，`output: "standalone"`）+ React 19 + TypeScript 5（strict）
 - **样式/UI**：Tailwind CSS 4 + shadcn（`src/components/ui`）、lucide-react、react-markdown
-- **模型接入**：`openai` SDK，OpenAI 兼容协议。生产 `AI_TEXT_PROVIDER=bailian-qwen`（百炼 compatible-mode），文本相位**按环节分档、并不统一**：M03 首轮 `qwen3.7-flash`（生产实测约 30s；2026-08-28 同镜像 3 例 canary 中 `qwen3.8-flash` 虽合同全过但 M03 中位约 54s，故仅保留为 opt-in shadow 候选）、M04 首轮 `qwen3.7-plus`、M03/M04 修复轮 `qwen3.8-max`、独立复核 M03→plus / M04→max、临床事实三相位 3.7-flash→max→plus。DeepSeek 保留为整体回退档（改 `AI_TEXT_PROVIDER=openai-compatible`），生产未启用。GLM 视觉默认开启且仅用于舌象图片
+- **模型接入**：`openai` SDK，OpenAI 兼容协议。生产 `AI_TEXT_PROVIDER=bailian-qwen`（百炼 compatible-mode），文本相位**按环节分档、并不统一**：M03 首轮 `qwen3.8-flash`（非思考模式 + 严格 JSON Schema；`qwen3.7-flash` 为单变量回滚）、M04 首轮 `qwen3.7-plus`、M03/M04 修复轮 `qwen3.8-max`、独立复核 M03→plus / M04→max、临床事实三相位 3.7-flash→max→plus。DeepSeek 保留为整体回退档（改 `AI_TEXT_PROVIDER=openai-compatible`），生产未启用。GLM 视觉默认开启且仅用于舌象图片
 - **校验**：zod 4
 - **数据库**：无 —— 病例状态在浏览器 localStorage（加密快照经服务端 AES-256-GCM）+ 本地 JSON 知识库
 - **重要**：本项目没有 `middleware.ts`。请求门控在 `src/proxy.ts`（导出 `proxy()` + `config.matcher`）。写框架代码前先读 `node_modules/next/dist/docs/` 中的官方文档，不要凭训练数据中的 Next.js 经验行事

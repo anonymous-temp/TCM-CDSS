@@ -90,7 +90,7 @@ It fires 100+ requests, asserts on red-flag handling, negated history, safety-ne
   | Phase | Model | Why |
   |---|---|---|
   | M02 追问 | `BAILIAN_QWEN_MODEL` (`qwen3.7-plus`) | M02 has no `PRIMARY_QUESTION_MODEL`; it follows the provider base model |
-  | **M03 first pass** | **`qwen3.7-flash`** | Production drill: Flash cut the diagnose stage from ~90s to ~30s while the stronger reviewer still held the clinical contract. **This is the single biggest quality-for-latency lever in the system** — do not "fix" it to Plus without re-running the drill |
+  | **M03 first pass** | **`qwen3.8-flash`** | Owner-selected production model since 2026-08-28. It runs with thinking disabled and strict JSON Schema; keep `qwen3.7-flash` as the single-variable rollback and re-run the production drill before any further change |
   | M04 first pass | `qwen3.7-plus`, `reasoning_effort=medium` | M04 builds selection/dose/君臣佐使/pathogenesis binding from scratch — strictly harder than a repair round, so it must not sit below the repair tier |
   | M03/M04 repair rounds | `qwen3.8-max` | Rare path; quality decides the outcome |
   | Independent review | M03 → `qwen3.7-plus`, M04 → `qwen3.8-max` (both fall back to Plus) | Reviewer identity differs from the generator ⇒ `independentFromGenerator=true` without a second vendor |

@@ -881,11 +881,12 @@ export function clinicalReviewModelCandidates(
   const preferred = preferredClinicalReviewModelConfig(stage, primary, generatorModelOverride);
   const generatorModel = generatorModelOverride || modelForStructuredStage(primary.model, stage);
   const configuredFallbackModel = stage === "diagnose"
-    ? process.env.PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL?.trim() || modelForStructuredStage(primary.model, "prescribe")
-    : process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL?.trim() || modelForStructuredStage(primary.model, "diagnose");
-  // Keep the explicit fallback first, then include both stage-model identities as a bounded retry
-  // list. In an all-Pro deployment deduplication intentionally leaves one fresh review invocation;
-  // metadata distinguishes that from the stronger, optional cross-model topology.
+    ? process.env.PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL?.trim() || modelForStructuredStage(primary.model, "diagnose")
+    : process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL?.trim() || modelForStructuredStage(primary.model, "prescribe");
+  // Keep every fallback stage-owned. A missing/blank stage fallback may use that stage's own
+  // generator as a final fresh-invocation fallback, but must never derive from the opposite stage:
+  // otherwise changing M03 generation silently changes the M04 reviewer chain in older or
+  // incompletely configured deployments.
   // 阶段覆盖生效后，全局复核模型（通常是 max）必须仍留在候选链里：M03 的 adjudication
   // 第二遍按「与首轮复核方不同」选模型，链里若只剩 [plus, flash]，第二遍就落到 flash——
   // 与 M03 生成方同模型，独立性丢失（05b3037 遥测：5/5 例第二遍 flash）。把全局值排在
@@ -895,7 +896,6 @@ export function clinicalReviewModelCandidates(
     configuredFallbackModel,
     ...(globalReviewModel ? [globalReviewModel] : []),
     modelForStructuredStage(primary.model, stage),
-    modelForStructuredStage(primary.model, stage === "diagnose" ? "prescribe" : "diagnose"),
   ].map((fallbackModel): ClinicalReviewModelConfig => ({
     provider: primary.provider,
     model: fallbackModel,

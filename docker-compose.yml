@@ -28,8 +28,8 @@ services:
       PRIMARY_PRESCRIBE_THINKING_ENABLED: ${PRIMARY_PRESCRIBE_THINKING_ENABLED:-false}
       # M04 候选方药正文较长(药味清单+君臣佐使+配伍),给独立更高上限避免截断。
       PRIMARY_PRESCRIBE_MAX_TOKENS: ${PRIMARY_PRESCRIBE_MAX_TOKENS:-24000}
-      # M03 keeps the measured Qwen3.7 Flash default; Qwen3.8 Flash remains an opt-in canary.
-      PRIMARY_DIAGNOSE_MODEL: ${PRIMARY_DIAGNOSE_MODEL:-qwen3.7-flash}
+      # M03 uses Qwen3.8 Flash with strict JSON Schema; qwen3.7-flash is the one-variable rollback.
+      PRIMARY_DIAGNOSE_MODEL: ${PRIMARY_DIAGNOSE_MODEL:-qwen3.8-flash}
       PRIMARY_DIAGNOSE_REPAIR_MODEL: ${PRIMARY_DIAGNOSE_REPAIR_MODEL:-qwen3.8-max}
       PRIMARY_DIAGNOSE_REASONING_EFFORT: ${PRIMARY_DIAGNOSE_REASONING_EFFORT:-medium}
       PRIMARY_DIAGNOSE_MAX_TOKENS: ${PRIMARY_DIAGNOSE_MAX_TOKENS:-24000}
