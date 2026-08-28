@@ -30,7 +30,7 @@ import {
 import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, isKnownTcmHerbName, regulatedToxicHerbStatus } from "./tcm-knowledge";
 import { matchesPopulationScope } from "./clinical-vocabulary";
 import { findLocalPatentMedicineEntry } from "./local-patent-medicine-candidates";
-import { queryDrugCompatibility, resolveGovernedDrugIdentities, rxaiQueryEnabled, type RxaiCompatibilityFinding } from "./rxai-query.server";
+import { normalizeRxaiCompatibilityClassification, queryDrugCompatibility, resolveGovernedDrugIdentities, rxaiQueryEnabled, type RxaiCompatibilityFinding } from "./rxai-query.server";
 import { prescriptionVersionPayload } from "./prescription-version";
 
 export type { RxAuditResultCode, RxAuditRiskLevel } from "./rxaudit-normalize";
@@ -1503,14 +1503,15 @@ export function providerCompatibilityIssues(
   const seen = new Set<string>();
   return findings.flatMap((finding) => {
     const names = finding.drugNames.map((name) => name.trim()).filter(Boolean);
+    const classification = normalizeRxaiCompatibilityClassification(finding.riskLevel, finding.compatibilityResult);
     // 客户端已经过滤过一次，这里再挡一次：本函数是导出的，任何调用方传进缺字段的条目，
     // 都会渲染成一条没有依据的空提示挂在医生的配伍段里。缺等级或缺提示一律丢弃，不猜测。
-    if (names.length !== 2 || !finding.riskTip.trim() || !finding.riskLevel.trim()) return [];
+    if (names.length !== 2 || !finding.riskTip.trim() || !classification?.createsAdvisory) return [];
     const key = [...names].sort().join("\u0000");
     if (localPairs.has(key) || seen.has(key)) return [];
     seen.add(key);
-    const high = finding.riskLevel === "CRITICAL" || finding.riskLevel === "HIGH"
-      || finding.compatibilityResult === "CONTRAINDICATED";
+    const high = classification.riskLevel === "CRITICAL" || classification.riskLevel === "HIGH"
+      || ["CONTRAINDICATED", "INCOMPATIBLE", "AVOID", "PROHIBITED"].includes(classification.compatibilityResult);
     return [{
       issueId: stableAuditIssueId(["provider-compatibility", ...[...names].sort()]),
       issueIdGenerated: true,
@@ -1525,7 +1526,7 @@ export function providerCompatibilityIssues(
         sourceType: "PROVIDER_RULE",
         sourceName: "合理用药统一 API 配伍查询",
         quote: finding.riskTip,
-        ruleName: `${finding.compatibilityResult}/${finding.riskLevel}`,
+        ruleName: `${classification.compatibilityResult}/${classification.riskLevel}`,
       }],
       suggestions: ["请医生或药师复核是否确需同用；本提示不阻断诊疗流程。"],
     }];
@@ -1560,11 +1561,18 @@ export function buildLocalHighRiskHerbPairSection(
     ...providerCompatibilityIssues(state, candidateIndex, providerFindings),
   ];
   if (issues.length === 0) return "";
+  const inline = (value: string): string => value
+    .normalize("NFKC")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/([\\`*_{}\[\]()#+.!|<>-])/g, "\\$1");
   return [
     "## 生成前配伍预检提示",
     ...issues.map((issue) => {
       const basis = issue.evidence[0]?.quote || "本地结构化配伍规则";
-      return `- **${issue.title.replace(/(?:高风险配伍|配伍相畏)$/, "")}**：${issue.description}依据：${basis}。本提示不阻断诊疗流程。`;
+      return `- **${inline(issue.title.replace(/(?:高风险配伍|配伍相畏)$/, ""))}**：${inline(issue.description)}依据：${inline(basis)}。本提示不阻断诊疗流程。`;
     }),
   ].join("\n");
 }

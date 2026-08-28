@@ -31,6 +31,10 @@ const QUERY_PATH = "/api/v1/rational-drug-use";
 const QUERY_TIMEOUT_MS = 8_000;
 const QUERY_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_KEYWORDS_PER_CALL = 12;
+const COMPATIBILITY_RISK_LEVELS = new Set(["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]);
+const COMPATIBILITY_RESULTS = new Set([
+  "COMPATIBLE", "SAFE", "CAUTION", "WARNING", "CONTRAINDICATED", "INCOMPATIBLE", "AVOID", "PROHIBITED",
+]);
 
 /**
  * 端点配置由调用方传入，本模块不自己读 RXAI_AUDIT_* —— 审方与查询走同一个服务、同一套凭据，
@@ -128,6 +132,29 @@ function canonicalDrugName(value: unknown): string {
   return canonicalMedicationIdentity(normalizedName(value));
 }
 
+function boundedSingleLineText(value: unknown, maxLength: number): string {
+  return typeof value === "string"
+    ? value.normalize("NFKC")
+        .replace(/<!--[\s\S]*?-->/g, " ")
+        .replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, maxLength)
+    : "";
+}
+
+export function normalizeRxaiCompatibilityClassification(
+  riskLevelValue: unknown,
+  compatibilityResultValue: unknown,
+): { riskLevel: string; compatibilityResult: string; createsAdvisory: boolean } | null {
+  const riskLevel = boundedSingleLineText(riskLevelValue, 80).toUpperCase();
+  const compatibilityResult = boundedSingleLineText(compatibilityResultValue, 80).toUpperCase();
+  if (!COMPATIBILITY_RISK_LEVELS.has(riskLevel) || !COMPATIBILITY_RESULTS.has(compatibilityResult)) return null;
+  const nonRiskResult = compatibilityResult === "SAFE" || compatibilityResult === "COMPATIBLE";
+  if (nonRiskResult && riskLevel !== "INFO" && riskLevel !== "LOW") return null;
+  return { riskLevel, compatibilityResult, createsAdvisory: !nonRiskResult };
+}
+
 /**
  * 判定 provider 是否认得这些药名。返回的是**归一化后的输入名**集合，不是 provider 的规范名——
  * 调用方要回答的问题是「医生写的这个词是不是一个具体药物身份」，而不是「它的标准名叫什么」。
@@ -200,21 +227,19 @@ export async function queryDrugCompatibility(
     page_size: 20,
   }, signal);
   return itemsOf(payload).flatMap((item) => {
-    const riskTip = typeof item.risk_tip === "string" ? item.risk_tip.trim().slice(0, 1000) : "";
-    const riskLevel = typeof item.risk_level === "string" ? item.risk_level.trim().slice(0, 80) : "";
-    const compatibilityResult = typeof item.compatibility_result === "string"
-      ? item.compatibility_result.trim().slice(0, 80)
-      : "";
+    const riskTip = boundedSingleLineText(item.risk_tip, 1000);
+    const classification = normalizeRxaiCompatibilityClassification(item.risk_level, item.compatibility_result);
     const returnedDrugNames = Array.isArray(item.drug_names)
       ? item.drug_names.filter((name): name is string => typeof name === "string").map((name) => name.trim()).filter(Boolean)
       : [];
     const returnedIdentities = returnedDrugNames.map(normalizedName);
-    if (!riskTip || !riskLevel || returnedDrugNames.length !== 2
+    if (!riskTip || !classification?.createsAdvisory
+      || returnedDrugNames.length !== 2 || returnedIdentities[0] === returnedIdentities[1]
       || returnedIdentities.some((identity) => !identity || !requestedIdentities.has(identity))) return [];
     return [{
       drugNames: returnedDrugNames,
-      compatibilityResult,
-      riskLevel,
+      compatibilityResult: classification.compatibilityResult,
+      riskLevel: classification.riskLevel,
       riskTip,
     }];
   });
