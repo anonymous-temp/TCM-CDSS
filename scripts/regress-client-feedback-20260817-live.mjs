@@ -73,15 +73,52 @@ async function call(stage, state) {
   return { status: response.status, ms: Date.now() - startedAt, ...stream, reasoning: reasoningOf(stream.content) };
 }
 
+async function callJson(stage, state) {
+  const startedAt = Date.now();
+  const response = await fetch(`${BASE_URL}/api/diagnosis/${stage}`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-cdss-api-token": TOKEN,
+      "x-cdss-customer-id": CUSTOMER_ID,
+    },
+    body: JSON.stringify({ caseState: state }),
+    signal: AbortSignal.timeout(220_000),
+  });
+  const raw = await response.text();
+  let json = null;
+  try { json = JSON.parse(raw); } catch { /* failure is reported by the caller's contract assertion */ }
+  return { status: response.status, ms: Date.now() - startedAt, json, raw };
+}
+
 const m03 = await call("diagnose", caseState);
 const m04 = m03.reasoning
   ? await call("prescribe", { ...caseState, phase: "prescribe", diagnosis: m03.content, reasoningDiagnose: m03.reasoning, reasoningV2: m03.reasoning })
   : { status: 0, ms: 0, content: "", error: "M03 reasoning missing", sawEnd: false, reasoning: null };
+const completedState = m03.reasoning && m04.reasoning ? {
+  ...caseState,
+  phase: "assess",
+  diagnosis: m03.content,
+  prescription: m04.content,
+  reasoningDiagnose: m03.reasoning,
+  reasoningPrescribe: m04.reasoning,
+  reasoningV2: m04.reasoning,
+} : null;
+const postPrescriptionRisk = completedState
+  ? await callJson("post-prescription-risk", completedState)
+  : { status: 0, ms: 0, json: null, raw: "M03/M04 reasoning missing" };
+const hisScheme = completedState
+  ? await callJson("his-scheme", completedState)
+  : { status: 0, ms: 0, json: null, raw: "M03/M04 reasoning missing" };
 
 const failures = [];
 const check = (name, condition, detail = "") => { if (!condition) failures.push({ name, detail }); };
 check("M03 HTTP/END/contract", m03.status === 200 && m03.sawEnd && m03.reasoning, `status=${m03.status} error=${m03.error}`);
 check("M04 HTTP/END/contract", m04.status === 200 && m04.sawEnd && m04.reasoning, `status=${m04.status} error=${m04.error}`);
+check("M05 灵犀审方 HTTP/契约", postPrescriptionRisk.status === 200 && postPrescriptionRisk.json?.audit?.source === "lingxi",
+  `status=${postPrescriptionRisk.status} source=${postPrescriptionRisk.json?.audit?.source || ""}`);
+check("HIS 方案 HTTP/结构化处方", hisScheme.status === 200 && hisScheme.json?.prescriptions?.structuredHerbs?.length > 0,
+  `status=${hisScheme.status} herbs=${hisScheme.json?.prescriptions?.structuredHerbs?.length || 0}`);
 
 if (m03.reasoning) {
   const r = m03.reasoning;
@@ -129,15 +166,54 @@ if (m04.reasoning) {
   }
 }
 
+if (postPrescriptionRisk.json?.audit) {
+  const audit = postPrescriptionRisk.json.audit;
+  const bitterAlmondIssues = (audit.issues || []).filter((issue) => /(?:苦杏仁|杏仁)/.test(JSON.stringify(issue)));
+  const normalizedBlockToken = (value) => typeof value === "string"
+    ? value.normalize("NFKC").trim().toUpperCase().replace(/[\s-]+/g, "_")
+    : "";
+  const issueBlocks = (issue) => issue.riskLevel === "CRITICAL" ||
+    ["BLOCK", "HARD_BLOCK"].includes(normalizedBlockToken(issue.action)) ||
+    ["BLOCK", "HARD_BLOCK"].includes(normalizedBlockToken(issue.ruleLevel));
+  const correctedAuthorityIssue = bitterAlmondIssues.some((issue) =>
+    issue.issueType === "PHARMACOPOEIA_TOXICITY_REVIEW" &&
+    issue.riskLevel === "MEDIUM" && normalizedBlockToken(issue.action) === "MANUAL_REVIEW");
+  check("苦杏仁权限误报收敛为药典小毒复核", correctedAuthorityIssue, JSON.stringify(bitterAlmondIssues));
+  check("苦杏仁不被误判为受管制毒性药品权限阻断",
+    bitterAlmondIssues.every((issue) => !issueBlocks(issue)) && audit.auditResult !== "BLOCK" && audit.highestRiskLevel !== "CRITICAL",
+    JSON.stringify({ auditResult: audit.auditResult, highestRiskLevel: audit.highestRiskLevel, bitterAlmondIssues }));
+  check("局部未治疗不冒充全局无现用药", audit.medicationSemantics?.needsManualReview === true &&
+    /不能据此排除长期或其他现用药/.test(postPrescriptionRisk.json.section || ""),
+    JSON.stringify(audit.medicationSemantics));
+  const followupTriggers = (postPrescriptionRisk.json.followupTimeline || [])
+    .flatMap((item) => Array.isArray(item?.triggers) ? item.triggers : []);
+  const followupProjection = [postPrescriptionRisk.json.followup || "", ...followupTriggers].join("\n");
+  check("随访不泄漏处方权规则残片", !/(?:出现|若出现)[^\n]{0,80}毒性药品处方权|(?:处方权|主数据|管制目录)[^\n]{0,80}提前复诊|[(（][^()（）]*$/.test(followupProjection),
+    followupProjection);
+}
+
 const result = {
   suite: "client-feedback-20260817-live",
   baseUrl: BASE_URL,
-  timingsMs: { m03: m03.ms, m04: m04.ms, total: m03.ms + m04.ms },
-  statuses: { m03: m03.status, m04: m04.status },
+  timingsMs: {
+    m03: m03.ms,
+    m04: m04.ms,
+    postPrescriptionRisk: postPrescriptionRisk.ms,
+    hisScheme: hisScheme.ms,
+    total: m03.ms + m04.ms + postPrescriptionRisk.ms + hisScheme.ms,
+  },
+  statuses: {
+    m03: m03.status,
+    m04: m04.status,
+    postPrescriptionRisk: postPrescriptionRisk.status,
+    hisScheme: hisScheme.status,
+  },
   failures,
   outputs: {
     m03: m03.reasoning,
     m04: m04.reasoning,
+    audit: postPrescriptionRisk.json?.audit,
+    hisScheme: hisScheme.json,
   },
 };
 mkdirSync(path.dirname(OUT), { recursive: true });

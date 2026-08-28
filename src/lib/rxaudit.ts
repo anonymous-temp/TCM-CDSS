@@ -22,10 +22,12 @@ import {
   currentMedicationSummaryFromSemanticExtraction,
   currentMedicationsFromSemanticExtraction,
   extractMedicationEventsWithModel,
+  hasGroundedMedicationReplacement,
+  isMedicationFollowupClause,
   medicationSemanticConsistencyReasons,
   type MedicationSemanticExtraction,
 } from "./medication-event-extractor";
-import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, regulatedToxicHerbStatus } from "./tcm-knowledge";
+import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, isKnownTcmHerbName, regulatedToxicHerbStatus } from "./tcm-knowledge";
 import { matchesPopulationScope } from "./clinical-vocabulary";
 import { findLocalPatentMedicineEntry } from "./local-patent-medicine-candidates";
 import { prescriptionVersionPayload } from "./prescription-version";
@@ -401,7 +403,103 @@ function normalizedMedicationIdentity(value: string): string {
 // 把它吞成确定性阴性会漏报联用风险。「未提及」同理永不短路（未提及 ≠ 否认）。
 // 尾部收「史/记录/情况」是为了把「否认用药史」整句剥干净——此前剥完剩个「史」字，
 // 被 medicationCandidatesFromSource 当成药名候选，反而挡掉了短路。
-const EXPLICIT_NO_CURRENT_MEDICATION = /(?:本次|当前|目前|现阶段)?(?:否认|无|没有|从未|未曾|并未|尚未|未)(?:当前|目前|现阶段|本次)?(?:使用|服用|口服|应用|在用|吃药|服|用|吃)?(?:任何|其他|其它|长期|常用|现用|当前|特殊)?(?:药物|用药|药品|药)(?:治疗|史|记录|情况)?/gu;
+const EXPLICIT_NO_CURRENT_MEDICATION = /(?:截至目前|本次|当前|目前|现阶段|迄今|至今)?(?:否认|无|没有|从未|未曾|并未|尚未|未)(?:当前|目前|现阶段|本次)?(?:使用|服用|口服|应用|在用|吃药|服|用|吃)?(?:任何|其他|其它|长期|常用|现用|当前|特殊)?(?:药物|用药|药品|药)(?:治疗|史|记录|情况)?/gu;
+
+// 「发病后未服药」只否定本次自行治疗，不能排除长期处方药；「目前用药不详」
+// 则是明确 unknown。二者都不得借同段的局部否定短路成全局无现用药。
+const LOCAL_MEDICATION_ABSENCE_SCOPE = /(?:(?:本次|此次)?(?:发病|起病|症状出现|出现症状|不适出现)(?:后|以来|至今)|(?:本次|此次)?(?:就诊|入院|住院|来诊)(?:前|后|以来)|(?:近|最近)(?:约|大约|大概)?(?:\d+(?:\.\d+)?|[零〇一二三四五六七八九十百半两]+)(?:小时|天|日|周|月|年)(?:以来|内)?)[^\n，,；;。]{0,12}(?:否认|无|没有|从未|未曾|并未|尚未|未)/u;
+const LOCAL_SELF_TREATMENT_NEGATION = /(?:未|无|没有|并未|尚未)(?:自行|擅自)[^\n，,；;。]{0,8}(?:药|用药)|(?:未|无|没有|并未|尚未)(?:予(?:以)?|接受|进行)药物治疗/u;
+const CURRENT_MEDICATION_UNKNOWN = /(?:不详|未详|未知|不清楚|不明确|未提供|未提及|未记录|未询问|待核实)/u;
+const GLOBAL_NO_CURRENT_MEDICATION = /^(?:(?:当前|目前|现阶段|截至目前|迄今|至今)(?:否认|无|没有|从未|未曾|并未|尚未|未)(?:使用|服用|口服|应用|在用|吃药|服|用|吃)?(?:任何)?(?:现用|当前|在用)?(?:任何)?(?:药物|用药|药品|药)(?:治疗|史|记录|情况)?|(?:否认|无|没有)(?:任何)?(?:当前|目前|现阶段|现用|在用)?(?:任何)?(?:药物|用药|药品)(?:治疗)?(?:史|记录|情况)?|(?:从未|未曾)(?:使用|服用|口服|应用|吃药|服|用|吃)?任何(?:药物|用药|药品|药))(?:[.!！。])?$/u;
+const NON_SPECIFIC_MEDICATION_IDENTITY = /^(?:(?:未|无|没有|并未|尚未)(?:自行|擅自)?(?:使用|服用|口服|应用|在用|吃药|予(?:以)?|接受|进行|服|用|吃)?(?:任何|其他|其它|长期|常用|现用|当前|特殊)?(?:药物|用药|药品|药)(?:治疗|史|记录|情况)?|(?:任何|其他|其它|长期|常用|现用|当前|特殊)?(?:药物|用药|药品|药)(?:治疗|史|记录|情况)?|(?:治疗|史|记录|情况)(?:药物|用药|药品|药)?|(?:药物|用药|药品|药)?(?:治疗|史|记录|情况))$/u;
+const MEDICATION_GENERIC_CORE = /药/gu;
+const MEDICATION_FIELD_METADATA_ONLY = /^(?:(?:当前|目前|现阶段|现用|在用|现有|现|长期|常用|特殊|任何|其他|其它|治疗|处方|服用|服|使用|应用|口服|吃|史|记录|情况|信息|名称|清单|列表|目录|汇总|档案|概况|一览|摘要|方案|明细|详情|数据|资料|项目|条目|内容|状态|备注|说明|描述|字段|栏目|品种|种类|类别|库存|医嘱|表|项))+$/u;
+const CONTROLLED_CONCRETE_MEDICATION_NAMES = new Set([
+  "阿司匹林",
+  "阿莫西林",
+  "华法林",
+  "布洛芬",
+  "二甲双胍",
+  "利伐沙班",
+  "氯吡格雷",
+  "美托洛尔",
+  "普萘洛尔",
+  "心得安",
+  "恩格列净",
+  "西地那非",
+  "药用炭",
+  "药用炭片",
+  "复方丹参滴丸",
+  "中药复方丹参滴丸",
+]);
+// 目录正式名与日常类别说法完全同形时，自由文本本身不能证明患者指的是该批准制剂。
+// 这类歧义项只有未来接入受信结构化药品选择/院内编码后才能自动放行。
+const AMBIGUOUS_FREE_TEXT_MEDICATION_NAMES = new Set([
+  "感冒药片",
+  "感冒胶囊",
+  "消炎片",
+]);
+
+function hasGlobalNoCurrentMedicationClause(value: string): boolean {
+  return value.split(/[，,；;。\n]+/).some((clause) => GLOBAL_NO_CURRENT_MEDICATION.test(clause));
+}
+
+function isSpecificMedicationIdentity(value: string): boolean {
+  const extractedIdentity = medicationNameFromEventText(value).normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const rawIdentity = value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  const identity = normalizedMedicationIdentity(value);
+  // 同时检查 provider 原文和共享药名抽取后的身份。字段标签「当前用药记录」会被
+  // medicationNameFromEventText 剥成「记录」；若只查后者，模型就能把标签伪装成
+  // current 药物事件，错误证明现用药已覆盖并进入灵犀审方。
+  const isFieldMetadata = (candidate: string): boolean => {
+    if (!candidate || NON_SPECIFIC_MEDICATION_IDENTITY.test(candidate)) return true;
+    if (MEDICATION_FIELD_METADATA_ONLY.test(candidate)) return true;
+    const withoutGenericCore = candidate.replace(MEDICATION_GENERIC_CORE, "");
+    return withoutGenericCore !== candidate &&
+      (!withoutGenericCore || MEDICATION_FIELD_METADATA_ONLY.test(withoutGenericCore));
+  };
+  if (!identity || isFieldMetadata(rawIdentity) || isFieldMetadata(identity)) return false;
+  // 药物相互作用审方只接受服务端能正向证明的具体身份；不得再以「不像字段标签」或
+  // 「带剂型」作为授权依据。目录外真实药名也 fail-closed 转人工，不会被解释成无风险。
+  const governedPatent = findLocalPatentMedicineEntry(extractedIdentity);
+  const exactGovernedPatent = governedPatent?.name.normalize("NFKC").replace(/\s/g, "") === extractedIdentity
+    && !AMBIGUOUS_FREE_TEXT_MEDICATION_NAMES.has(extractedIdentity);
+  return isKnownTcmHerbName(extractedIdentity)
+    || exactGovernedPatent
+    || CONTROLLED_CONCRETE_MEDICATION_NAMES.has(extractedIdentity)
+    || CONTROLLED_CONCRETE_MEDICATION_NAMES.has(identity);
+}
+
+function isMedicationEventIdentityGrounded(
+  sourceText: string | undefined,
+  event: MedicationSemanticExtraction["events"][number],
+): boolean {
+  const source = sourceText?.normalize("NFKC").toLowerCase() || "";
+  const drug = event.drugName.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  if (!source || !drug || event.sourceQuotes.length === 0) return false;
+  return event.sourceQuotes.every((quote) => source.includes(quote.normalize("NFKC").toLowerCase()))
+    && event.sourceQuotes.some((quote) => quote.normalize("NFKC").toLowerCase()
+      .replace(/[^\p{L}\p{N}]+/gu, "").includes(drug));
+}
+
+function sourceCandidateRequiresCurrentProof(sourceText: string | undefined, candidate: string): boolean {
+  const source = sourceText?.trim();
+  if (!source) return false;
+  // 用同一条服务端时间线合同反问：若把候选视为 current，原文是否明确反驳？
+  // 裸药名/长期用药/无动词 HIS 栏值没有反驳，默认必须证明 current；明确历史、已停或
+  // 否定才豁免。不得另写一份历史/停药词表，否则会与主一致性判据再次分叉。
+  const reasons = medicationSemanticConsistencyReasons(source, [{
+    drugName: candidate,
+    status: "current",
+    doseText: null,
+    frequency: null,
+    administrationTiming: null,
+    sourceQuotes: [source],
+    confidence: 1,
+  }]);
+  return !reasons.includes("medication_temporal_status_conflict")
+    && !reasons.includes("medication_polarity_conflict");
+}
 
 // 字段整值就是一个否定词（HIS 用药史栏最常见的填法）。必须整值精确匹配——
 // 子串级的「无」会把「无某某禁忌」之类全误吞。
@@ -434,7 +532,7 @@ export function medicationCandidatesFromSource(value: string | undefined): strin
       .replace(/^\s*(?:但|但是|而|其后|随后|后来)\s*/, "")
       .replace(/^\s*(?:已)?(?:改为|换成|更换为)\s*/, "改用")
       .trim();
-    if (!segment || medicationContinuationOnly(segment)) continue;
+    if (!segment || medicationContinuationOnly(segment) || isMedicationFollowupClause(segment)) continue;
     const negatedStop = /(?:未|没有|否认|不曾|并未|尚未)[^，,；;。\n]{0,12}(?:停用|停服|停药|停止)/.test(segment);
     // Candidate coverage is a fail-closed drug-name check, not a keyword scan. “未使用其他药物”
     // 只否定剩余集合：HIS 无标点串“现服氨氯地平5mg每日1次未使用其他药物”中的
@@ -455,17 +553,13 @@ export function medicationCandidatesFromSource(value: string | undefined): strin
   return [...candidates.values()];
 }
 
-/**
- * 明确的「本次没有现用药」属于确定性阴性事实，不需要让模型再猜一次。
- * 只有在同段原文没有任何肯定用药候选时才短路，因而
- * 「现服氨氯地平，未使用其他药物」仍会抽取氨氯地平。
- */
+/** 只有全局穷尽的「无任何现用药」才是确定性阴性；「本次/其他/长期/特殊」均不是。 */
 export function isExplicitNoCurrentMedicationHistory(value: string | undefined): boolean {
   const normalized = value?.normalize("NFKC").replace(/\s+/g, "").trim() || "";
   if (!normalized) return false;
   if (WHOLE_FIELD_NO_MEDICATION.test(normalized)) return true;
-  return containsExplicitNoCurrentMedicationStatement(normalized)
-    && medicationCandidatesFromSource(normalized).length === 0;
+  if (CURRENT_MEDICATION_UNKNOWN.test(normalized) || medicationCandidatesFromSource(normalized).length > 0) return false;
+  return hasGlobalNoCurrentMedicationClause(normalized);
 }
 
 export function verifyMedicationSemanticCoverage(
@@ -482,10 +576,14 @@ export function verifyMedicationSemanticCoverage(
     return { ...extraction, needsManualReview: true, reason: reasons.join(",") };
   }
   const candidates = medicationCandidatesFromSource(sourceText);
-  const eventIdentities = extraction.events.map((event) => normalizedMedicationIdentity(event.drugName)).filter(Boolean);
+  const rejectedGenericEvent = extraction.events.some((event) =>
+    !isSpecificMedicationIdentity(event.drugName) || !isMedicationEventIdentityGrounded(sourceText, event));
+  const verifiedEvents = extraction.events.filter((event) =>
+    isSpecificMedicationIdentity(event.drugName) && isMedicationEventIdentityGrounded(sourceText, event));
+  const eventIdentities = verifiedEvents.map((event) => normalizedMedicationIdentity(event.drugName)).filter(Boolean);
   const missingCandidates = candidates.filter((candidate) => !eventIdentities.includes(normalizedMedicationIdentity(candidate)));
   const statusesByDrug = new Map<string, Set<string>>();
-  for (const event of extraction.events) {
+  for (const event of verifiedEvents) {
     const identity = normalizedMedicationIdentity(event.drugName);
     if (!identity) continue;
     const statuses = statusesByDrug.get(identity) || new Set<string>();
@@ -493,11 +591,55 @@ export function verifyMedicationSemanticCoverage(
     statusesByDrug.set(identity, statuses);
   }
   const conflictingStatuses = [...statusesByDrug.values()].some((statuses) => statuses.size > 1);
-  const consistencyReasons = medicationSemanticConsistencyReasons(sourceText, extraction.events);
+  const consistencyReasons = medicationSemanticConsistencyReasons(sourceText, verifiedEvents);
+  const normalizedSource = sourceText?.normalize("NFKC").replace(/\s+/g, "").trim() || "";
+  const explicitlyCurrentCandidates = medicationCandidatesFromSource(affirmedCurrentMedicationText(sourceText))
+    .filter((candidate) => isSpecificMedicationIdentity(candidate));
+  const explicitlyCurrentIdentities = new Set(explicitlyCurrentCandidates
+    .map((candidate) => normalizedMedicationIdentity(candidate)).filter(Boolean));
+  const ownerScopedDefaultCurrentCandidates = candidates.filter((candidate) => {
+    if (!isSpecificMedicationIdentity(candidate)) return false;
+    const identity = normalizedMedicationIdentity(candidate);
+    const oldEvent = verifiedEvents.find((event) => normalizedMedicationIdentity(event.drugName) === identity
+      && event.status !== "current" && event.confidence >= 0.7);
+    const currentEvents = verifiedEvents.filter((event) => event.status === "current" && event.confidence >= 0.7
+      && explicitlyCurrentIdentities.has(normalizedMedicationIdentity(event.drugName)));
+    const resolvedAsNonCurrentByTimeline = Boolean(oldEvent) && currentEvents.some((currentEvent) =>
+      hasGroundedMedicationReplacement(
+        sourceText,
+        oldEvent!.drugName,
+        currentEvent.drugName,
+        verifiedEvents.filter((event) => event !== oldEvent && event !== currentEvent)
+          .map((event) => event.drugName),
+      ));
+    return !resolvedAsNonCurrentByTimeline && sourceCandidateRequiresCurrentProof(sourceText, candidate);
+  });
+  const currentSourceCandidates = [...new Map(
+    [...explicitlyCurrentCandidates, ...ownerScopedDefaultCurrentCandidates]
+      .map((candidate) => [normalizedMedicationIdentity(candidate), candidate] as const),
+  ).values()];
+  const currentEventIdentities = new Set(verifiedEvents
+    .filter((event) => event.status === "current" && event.confidence >= 0.7)
+    .map((event) => normalizedMedicationIdentity(event.drugName))
+    .filter(Boolean));
+  const unresolvedCurrentCandidates = currentSourceCandidates.filter((candidate) =>
+    !currentEventIdentities.has(normalizedMedicationIdentity(candidate)));
+  const hasGlobalAbsence = hasGlobalNoCurrentMedicationClause(normalizedSource);
+  const hasScopedAbsence = LOCAL_MEDICATION_ABSENCE_SCOPE.test(normalizedSource) ||
+    LOCAL_SELF_TREATMENT_NEGATION.test(normalizedSource) ||
+    (containsExplicitNoCurrentMedicationStatement(normalizedSource) && !hasGlobalAbsence);
+  const scopeReason = CURRENT_MEDICATION_UNKNOWN.test(normalizedSource)
+    ? "medication_current_scope_unknown"
+    : hasScopedAbsence && currentSourceCandidates.length === 0
+      ? "medication_current_scope_incomplete"
+      : "";
   const addedReasons = [
     sourceTruncated ? "medication_context_truncated" : "",
     missingCandidates.length > 0 ? "medication_candidate_coverage_incomplete" : "",
     conflictingStatuses ? "medication_status_conflict" : "",
+    rejectedGenericEvent ? "medication_event_identity_conflict" : "",
+    unresolvedCurrentCandidates.length > 0 ? "medication_current_status_unresolved" : "",
+    scopeReason,
     ...consistencyReasons,
   ].filter(Boolean);
   if (addedReasons.length === 0) return extraction;
@@ -507,6 +649,7 @@ export function verifyMedicationSemanticCoverage(
   ])];
   return {
     ...extraction,
+    events: verifiedEvents,
     needsManualReview: true,
     reason: reasons.join(","),
   };
@@ -797,6 +940,8 @@ export function buildAuditInputAdvisories(
       reason.includes("medication_polarity_conflict") ? "语义事件与原文的用药否定极性冲突" : "",
       reason.includes("medication_temporal_status_conflict") ? "语义事件与原文明示的现用或停用状态冲突" : "",
       reason.includes("medication_replacement_timeline_conflict") ? "语义事件未保持替换用药的先停后启时序" : "",
+      reason.includes("medication_current_scope_unknown") ? "现用药信息明确不详或尚未核实" : "",
+      reason.includes("medication_current_scope_incomplete") ? "已记录本次或局部未用药，但不能据此排除长期或其他现用药" : "",
       reason.includes("rxaudit_total_timeout") || reason.includes("model_timeout") ? "语义抽取未在审方总时限内完整完成" : "",
     ].filter(Boolean);
     const message = reviewProblems.length > 0

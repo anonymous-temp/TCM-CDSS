@@ -355,13 +355,20 @@ export function medicationContinuationOnly(value: string): boolean {
 
 const MEDICATION_NAME_PREFIX = /^(?:(?:患者本人|患者|本人|医生|医师|大夫|医嘱|建议|推荐)\s*|(?:(?:当前用药|现用药|用药|既往用药|药物)(?:情况)?\s*(?:包括|有|为|是)?\s*[：:]?\s*)|(?:在|于|从|自)?\s*(?:约|大约|大概)?(?:\d+(?:\.\d+)?|[零〇一二三四五六七八九十百半两]+|好几|十多|几十|几|多|数|若干)\s*(?:余|来|多)?\s*(?:小时|天|日|周|月|年)(?:余|来|多)?前\s*|(?:在|于|从|自)?\s*(?:19|20)\d{2}年(?:开始|起)?\s*|(?:在|于|从|自)?\s*[零〇一二三四五六七八九]{4}年(?:开始|起)?\s*|(?:几|多|数|若干)年前\s*|前几年\s*|(?:去年|前年|上世纪|小时候|儿童期|青少年时|青年时期|年轻时|大学期间|退休前|很久以前|早些年|早年|既往|曾经|曾|此前|之前|过去|原来|原先|以往|以前|从前|目前|当前|现在|现|后来|之后|随后|后|仍在|仍|继续|续服|接着|正在|长期|规律|持续|一直在|一直|迄今|至今|今日|今天|新启用|重新开始服用|重新开始口服|重新启用|重新服用|再次启用|再次服用|复服|恢复服用|恢复口服|恢复使用|恢复吃|改回服用|改回口服|改回使用|改回吃|又开始服用|又开始口服|现又吃|再服用|再口服|开始服用|开始口服|开始使用|开始|新开|启用|加用|改用|换用|替换为|更换为)\s*|(?:服用过|服过|吃过|用过|服用|续服|服|口服|舌下含服|皮下注射|皮下|肌内注射|肌注|静脉注射|静脉滴注|静滴|注射|外用|吸入|鼻饲|直肠给药|使用|在吃|吃|用)\s*)/;
 
+// 时间与就诊状语只说明用药事件的起点，不是药物身份。这是构词式闭集守卫：
+// 既让「发病后未服药」落为明确阴性，也让「发病后服用布洛芬」仍能抽出真正药名。
+const MEDICATION_CLINICAL_CONTEXT_PREFIX = /^(?:(?:本次|此次)?(?:发病|起病|症状出现|出现症状|不适出现)(?:后|以来|至今)|(?:本次|此次)?(?:就诊|入院|住院|来诊)(?:前|后|以来)|(?:近|最近)\s*(?:约|大约|大概)?\s*(?:\d+(?:\.\d+)?|[零〇一二三四五六七八九十百半两]+)\s*(?:小时|天|日|周|月|年)(?:以来|内)?|截至目前)\s*/;
+
 /** Canonical drug-name extraction shared by current-medication filtering and audit payloads. */
 export function medicationNameFromEventText(value: string): string {
   let candidate = normalizedClinicalText(value).replace(DISCOURSE_PREFIX, "").trim();
   let previous = "";
   while (candidate && candidate !== previous) {
     previous = candidate;
-    candidate = candidate.replace(MEDICATION_NAME_PREFIX, "").trim();
+    candidate = candidate
+      .replace(MEDICATION_CLINICAL_CONTEXT_PREFIX, "")
+      .replace(MEDICATION_NAME_PREFIX, "")
+      .trim();
   }
   candidate = candidate
     .replace(NEGATED_MEDICATION_STOP_EVENT, "")

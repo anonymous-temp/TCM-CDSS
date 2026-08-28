@@ -50,6 +50,14 @@ const PATIENT_SUBJECT_PATTERN = /(?:患者本人|患者|本人|本例)/gu;
 const STOP_VERB_PATTERN = /(?:停用|停服|停药|停掉|停止服用|停止使用|停了|停止)/u;
 const STOP_PROHIBITION_BEFORE_PATTERN = /(?:请勿|勿|不要|不能|不可|不应|不宜|避免|暂缓|暂不考虑|不建议|不推荐|没有必要)[^。；;！？!?\n]{0,8}$/u;
 const ADMINISTRATION_TIMING_PATTERN = /(?:(?:饭|餐)(?:前|后)(?:(?:约|大约)?(?:半(?:个)?小时|一刻钟|\d+(?:\.\d+)?\s*(?:分钟|小时)))?\s*(?:服用|口服|使用|用药|吃药)|(?:随餐|空腹|睡前|晨起|早晨|早上|晚上|夜间)\s*(?:服用|口服|使用|用药|吃药))/gu;
+// 这是“允许旧药退出 current 集合”的授权条件，必须使用正向闭集而不是在自由文本上
+// 枚举未生效措辞。纯随访可放行；复查/监测只接受受治理指标，任何额外动作或未知尾部
+// （例如“复查后开始服用”）都默认拒绝并交人工核对。
+const MEDICATION_FOLLOWUP_CLAUSE = /^(?:(?:明日|明天|后天|下周(?:一|二|三|四|五|六|日|天)?|下月|未来)\s*)?(?:随访|(?:复查|监测)\s*(?:INR|PT|APTT|凝血功能|凝血指标|肝功能|肾功能|肝肾功能|血压|血糖|血常规|电解质|药物浓度)(?:结果|指标|数值)?)$/iu;
+
+export function isMedicationFollowupClause(value: string): boolean {
+  return MEDICATION_FOLLOWUP_CLAUSE.test(value.normalize("NFKC").trim());
+}
 
 function normalizedAdministrationTiming(value: string): string {
   return normalizedSemanticToken(value).replace(/(?:服用|口服|使用|用药|吃药)$/u, "");
@@ -242,29 +250,31 @@ export function medicationSemanticConsistencyReasons(
   const normalizedInput = normalizedEvidenceText(input);
   const reasons = new Set<string>();
   const replacedEvents = new Set<MedicationSemanticEvent>();
-  const replacementConnector = "(?:改为|改用|改成|换成|换用|更换为|替换为)";
-
   for (const previousEvent of events) {
     for (const nextEvent of events) {
       if (previousEvent === nextEvent) continue;
       const previousIdentity = normalizedSemanticToken(previousEvent.drugName);
       const nextIdentity = normalizedSemanticToken(nextEvent.drugName);
       if (!previousIdentity || !nextIdentity || previousIdentity === nextIdentity) continue;
-      const relation = new RegExp(
-        `${escapedPattern(previousEvent.drugName.normalize("NFKC"))}[^。；;！？!?\\n]{0,60}${replacementConnector}[^。；;！？!?\\n]{0,24}${escapedPattern(nextEvent.drugName.normalize("NFKC"))}`,
-        "giu",
-      ).exec(input);
-      if (!relation) continue;
-      const connectorOffset = relation[0].search(new RegExp(replacementConnector, "u"));
-      const connectorIndex = (relation.index ?? 0) + Math.max(0, connectorOffset);
-      const beforeReplacement = relation[0].slice(previousEvent.drugName.length, Math.max(0, connectorOffset));
-      const crossesOtherDrug = events.some((candidate) =>
-        candidate !== previousEvent
-        && candidate !== nextEvent
-        && beforeReplacement.normalize("NFKC").toLowerCase().includes(candidate.drugName.normalize("NFKC").toLowerCase()));
-      if (crossesOtherDrug) continue;
-      const beforeConnector = input.slice(Math.max(0, connectorIndex - 18), connectorIndex);
-      if (/(?:未|不|勿|不要|不能|不可|不应|计划|拟|考虑|建议|若|如需)[^。；;！？!?\n]{0,10}$/u.test(beforeConnector)) continue;
+      if (!hasMedicationReplacementClaim(
+        input,
+        previousEvent.drugName,
+        nextEvent.drugName,
+        events.filter((candidate) => candidate !== previousEvent && candidate !== nextEvent)
+          .map((candidate) => candidate.drugName),
+      )) continue;
+      if (!hasGroundedMedicationReplacement(
+        input,
+        previousEvent.drugName,
+        nextEvent.drugName,
+        events.filter((candidate) => candidate !== previousEvent && candidate !== nextEvent)
+          .map((candidate) => candidate.drugName),
+      )) {
+        // Provider 将一条计划中、未执行或生效状态不明的“改用”关系解释成
+        // old=stopped/new=current 时，不能因为两端药名均已抽取就视为覆盖完成。
+        reasons.add("medication_replacement_timeline_conflict");
+        continue;
+      }
       replacedEvents.add(previousEvent);
       if (previousEvent.status !== "stopped" || nextEvent.status !== "current") {
         reasons.add("medication_replacement_timeline_conflict");
@@ -337,6 +347,107 @@ export function medicationSemanticConsistencyReasons(
   }
 
   return [...reasons];
+}
+
+type MedicationReplacementClaim = {
+  input: string;
+  relation: RegExpExecArray;
+  connectorOffset: number;
+  connectorIndex: number;
+};
+
+function medicationReplacementClaim(
+  sourceText: string | undefined,
+  previousDrugName: string,
+  nextDrugName: string,
+  otherDrugNames: readonly string[] = [],
+): MedicationReplacementClaim | null {
+  const input = sourceText?.normalize("NFKC").trim();
+  if (!input || !previousDrugName.trim() || !nextDrugName.trim()) return null;
+  const previousIdentity = normalizedSemanticToken(previousDrugName);
+  const nextIdentity = normalizedSemanticToken(nextDrugName);
+  if (!previousIdentity || !nextIdentity || previousIdentity === nextIdentity) return null;
+  const replacementConnector = "(?:改为|改用|改成|换成|换用|更换为|替换为)";
+  const relation = new RegExp(
+    `${escapedPattern(previousDrugName.normalize("NFKC"))}[^。；;！？!?\\n]{0,60}${replacementConnector}[^。；;！？!?\\n]{0,24}${escapedPattern(nextDrugName.normalize("NFKC"))}`,
+    "giu",
+  ).exec(input);
+  if (!relation) return null;
+  const connectorOffset = relation[0].search(new RegExp(replacementConnector, "u"));
+  const connectorIndex = (relation.index ?? 0) + Math.max(0, connectorOffset);
+  const beforeReplacement = relation[0].slice(previousDrugName.length, Math.max(0, connectorOffset));
+  if (otherDrugNames.some((name) => beforeReplacement.normalize("NFKC").toLowerCase()
+    .includes(name.normalize("NFKC").toLowerCase()))) return null;
+  return { input, relation, connectorOffset, connectorIndex };
+}
+
+function hasMedicationReplacementClaim(
+  sourceText: string | undefined,
+  previousDrugName: string,
+  nextDrugName: string,
+  otherDrugNames: readonly string[] = [],
+): boolean {
+  return medicationReplacementClaim(sourceText, previousDrugName, nextDrugName, otherDrugNames) !== null;
+}
+
+/** Single deterministic predicate for an explicit old-drug -> new-drug replacement relation. */
+export function hasGroundedMedicationReplacement(
+  sourceText: string | undefined,
+  previousDrugName: string,
+  nextDrugName: string,
+  otherDrugNames: readonly string[] = [],
+): boolean {
+  const claim = medicationReplacementClaim(sourceText, previousDrugName, nextDrugName, otherDrugNames);
+  if (!claim) return false;
+  const { input, relation, connectorOffset, connectorIndex } = claim;
+  const beforeReplacement = relation[0].slice(previousDrugName.length, Math.max(0, connectorOffset));
+  const beforeConnector = input.slice(Math.max(0, connectorIndex - 18), connectorIndex);
+  if (/(?:未|不|勿|不要|不能|不可|不应|计划|拟|考虑|建议|若|如需)[^。；;！？!?\n]{0,10}$/u.test(beforeConnector)) {
+    return false;
+  }
+  // 默认拒绝：自由文本出现「改用」并不能证明状态已切换。只接受与替换动词直接绑定的
+  // 完成体，或同一关系中旧药已明确停用；其余（包括无时态的普通「改用」）交人工。
+  const completedReplacement = /(?:^|[，,\s])(?:(?:今日|今天|目前|当前|现|随后|后来|其后)(?:已经|已)|(?:已经|已))\s*$/u.test(beforeConnector)
+    || /(?:^|[，,])(?:后|随后|后来|其后)\s*$/u.test(beforeConnector)
+    || /^(?:已经|已)$/u.test(beforeReplacement.trim())
+    || /(?:已经|已|现已|目前已|当前已)[^。；;！？!?\n]{0,10}(?:停用|停服|停药|停止服用|停止使用)[，,]\s*$/u.test(beforeConnector);
+  if (!completedReplacement) return false;
+  const relationEnd = (relation.index ?? 0) + relation[0].length;
+  const hardEnds = ["。", "；", ";", "！", "!", "？", "?", "\n"]
+    .map((mark) => ({ mark, offset: input.indexOf(mark, relationEnd) }))
+    .filter((item) => item.offset >= 0)
+    .sort((left, right) => left.offset - right.offset);
+  // 疑问句只表达待确认，不能作为“旧药已停、新药已启”的正向授权证据。
+  // 检查连续终止标点整段，避免「！？」「。？」用前一个字符掩掉问号。
+  const terminatorRun = hardEnds[0]
+    ? input.slice(hardEnds[0].offset).match(/^[\p{P}\p{Z}\s]+/u)?.[0] || ""
+    : "";
+  if (/[？?]/u.test(terminatorRun)) return false;
+  const clauseEnd = hardEnds[0]?.offset ?? input.length;
+  const trailing = input.slice(relationEnd, clauseEnd).normalize("NFKC").trim();
+  // 完成关系必须覆盖整条事件。新药后的自由文本不再靠“未生效词表”逐个否决；仅允许
+  // 可结构化的剂量/频次/给药方式，或明确的复查/随访/监测说明，其他尾部一律拒绝。
+  const regimen = /^(?:(?:\s|[()（）、]|[\d.\/\\~～-]|[零〇一二两三四五六七八九十百千万半点]+|mg|mcg|ug|μg|kg|ml|iu|u|g|毫克|微克|克|公斤|毫升|升|国际单位|单位|片|粒|丸|袋|支|喷|揿|滴|每日|每天|每晚|每次|一日|早晚|晨起|睡前|饭前|饭后|餐前|餐后|随餐|空腹|必要时|按需|每周|每月|每隔|小时|天|日|周|月|次|口服|服用|使用|注射|静滴|肌注|皮下|吸入|qd|bid|tid|q\d+h))+$/iu;
+  const pieces = trailing.split(/[，,]/).map((item) => item.trim()).filter(Boolean);
+  const currentClauseSafe = pieces.length === 0
+    ? true
+    : pieces.length === 1
+    ? regimen.test(pieces[0]) || isMedicationFollowupClause(pieces[0])
+    : regimen.test(pieces[0]) && pieces.slice(1).every((item) => isMedicationFollowupClause(item));
+  if (!currentClauseSafe) return false;
+
+  // 正向授权必须覆盖同一 owner 字段的剩余分句，不能只读到首个句号就停止。
+  // 后续仅允许受治理随访。第三方药名的字符串出现不能证明整句都属于该药；要自动
+  // 接受多药后续事件，未来必须传入结构化 source-quote/status 绑定，当前一律交人工。
+  const remainingText = hardEnds[0]
+    ? input.slice(hardEnds[0].offset + terminatorRun.length).trim()
+    : "";
+  if (!remainingText) return true;
+  return remainingText
+    .split(/[。；;！!？?\n]+/u)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .every((clause) => isMedicationFollowupClause(clause));
 }
 
 function evidenceBackedEvents(input: string, events: MedicationSemanticEvent[]): MedicationSemanticEvent[] {

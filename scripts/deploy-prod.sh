@@ -39,6 +39,8 @@ REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/home/ubuntu/tcm-cdss/releases/20260801-vocab-d
 # stable deployment-owned path outside REMOTE_DIR; candidate/release directories may be replaced or
 # cleaned without changing the customer token, signing key, or provider credentials.
 RUNTIME_ENV="${DEPLOY_RUNTIME_ENV:-/home/ubuntu/tcm-cdss/.env.prod.runtime}"
+TOKEN_BASELINE_PATH="${DEPLOY_TOKEN_BASELINE_PATH:-/home/ubuntu/tcm-cdss/.cdss-api-token.sha256}"
+ALLOW_TOKEN_BASELINE_BOOTSTRAP="${DEPLOY_ALLOW_TOKEN_BASELINE_BOOTSTRAP:-false}"
 TAG="${IMAGE_TAG:?IMAGE_TAG 必须显式指定且不可复用——镜像 tag 必须不可变，否则无法证明线上跑的是哪一版}"
 # 保留几个历史 tcm-cdss 镜像用于回滚。3 个 ≈ 3GB，够回滚两版；再多只是占磁盘。
 KEEP_IMAGES="${DEPLOY_KEEP_IMAGES:-3}"
@@ -75,6 +77,37 @@ rsync -az --delete -e "$SSH" "${SYNC_PATHS[@]}" "$USER@$HOST:$REMOTE_DIR/"
 ENV_DIGEST_AFTER="$($SSH "$USER@$HOST" "test -s '$RUNTIME_ENV' && sha256sum '$RUNTIME_ENV' | cut -d' ' -f1")"
 if [ "$ENV_DIGEST_AFTER" != "$ENV_DIGEST_BEFORE" ]; then
   echo "!! 源码同步改变了受保护的运行时配置；拒绝继续构建与部署。" >&2
+  exit 1
+fi
+
+# Compose 的调用 shell 环境优先于 --env-file。只查 env 文件摘要不够：远端会话若残留
+# CDSS_API_TOKEN，Compose 会静默用它覆盖稳定文件。用空环境解析最终 Compose 值，
+# 并在切流前与旧容器、切流后与新容器比较哈希；全程不打印 token 或哈希。
+CLEAN_COMPOSE_ENV="env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+EXPECTED_TOKEN_HASH="$($SSH "$USER@$HOST" "cd '$REMOTE_DIR' && $CLEAN_COMPOSE_ENV IMAGE_TAG='$TAG' docker compose --env-file '$RUNTIME_ENV' config --format json | python3 -c 'import hashlib,json,sys; value=json.load(sys.stdin)[\"services\"][\"tcm-cdss\"][\"environment\"][\"CDSS_API_TOKEN\"]; print(hashlib.sha256(str(value).encode()).hexdigest())'")"
+RUNNING_TOKEN_HASH_BEFORE="$($SSH "$USER@$HOST" "if docker inspect tcm-cdss-prod-tcm-cdss-1 >/dev/null 2>&1; then docker inspect --format '{{json .Config.Env}}' tcm-cdss-prod-tcm-cdss-1 | python3 -c 'import hashlib,json,sys; values=json.load(sys.stdin); value=next((item.split(\"=\",1)[1] for item in values if item.startswith(\"CDSS_API_TOKEN=\")), None); value is not None or sys.exit(1); print(hashlib.sha256(value.encode()).hexdigest())'; fi")"
+TOKEN_BASELINE_HASH="$($SSH "$USER@$HOST" "if test -s '$TOKEN_BASELINE_PATH'; then mode=\$(stat -c %a '$TOKEN_BASELINE_PATH'); owner=\$(stat -c %u '$TOKEN_BASELINE_PATH'); if [ \"\$mode\" = 600 ] && [ \"\$owner\" = \"\$(id -u)\" ]; then tr -d '\\r\\n' < '$TOKEN_BASELINE_PATH'; else printf __INVALID__; fi; fi")"
+if [ "$TOKEN_BASELINE_HASH" = "__INVALID__" ]; then
+  echo "!! 接口 Token 基线的 owner 或权限不安全（必须为部署用户、0600）；拒绝部署。" >&2
+  exit 1
+fi
+if [ -z "$EXPECTED_TOKEN_HASH" ] || { [ -n "$RUNNING_TOKEN_HASH_BEFORE" ] && [ "$EXPECTED_TOKEN_HASH" != "$RUNNING_TOKEN_HASH_BEFORE" ]; }; then
+  echo "!! 稳定运行时配置与当前生产容器的接口 Token 不一致；为避免客户凭证被替换，拒绝部署。" >&2
+  exit 1
+fi
+if [ -z "$TOKEN_BASELINE_HASH" ]; then
+  # 迁移现有生产时，只有旧容器与稳定 env 已互相证明一致才可自动建立独立基线。
+  # 真正首次部署没有旧容器，必须由运维显式授权一次；默认绝不把“缺基线”当成许可。
+  if [ -z "$RUNNING_TOKEN_HASH_BEFORE" ] && [ "$ALLOW_TOKEN_BASELINE_BOOTSTRAP" != "true" ]; then
+    echo "!! 当前生产容器与接口 Token 基线均不存在；拒绝把本次配置静默当作既有客户凭证。" >&2
+    echo "   仅首次部署可显式设置 DEPLOY_ALLOW_TOKEN_BASELINE_BOOTSTRAP=true，之后不得再使用。" >&2
+    exit 1
+  fi
+  $SSH "$USER@$HOST" "set -e; umask 077; tmp='$TOKEN_BASELINE_PATH.tmp'; printf '%s\\n' '$EXPECTED_TOKEN_HASH' > \"\$tmp\"; chmod 600 \"\$tmp\"; mv \"\$tmp\" '$TOKEN_BASELINE_PATH'; test \"\$(stat -c %a '$TOKEN_BASELINE_PATH')\" = 600; test \"\$(stat -c %u '$TOKEN_BASELINE_PATH')\" = \"\$(id -u)\""
+  TOKEN_BASELINE_HASH="$($SSH "$USER@$HOST" "tr -d '\\r\\n' < '$TOKEN_BASELINE_PATH'")"
+fi
+if [ "$TOKEN_BASELINE_HASH" != "$EXPECTED_TOKEN_HASH" ]; then
+  echo "!! 稳定运行时配置与受保护的接口 Token 基线不一致；拒绝部署。" >&2
   exit 1
 fi
 
@@ -120,12 +153,17 @@ $SSH "$USER@$HOST" "cd $REMOTE_DIR && DOCKER_BUILDKIT=1 docker build \
 $SSH "$USER@$HOST" "docker image inspect tcm-cdss:$TAG >/dev/null" || { echo "!! 构建失败：镜像 $TAG 不存在" >&2; exit 1; }
 
 echo "=== deploy ==="
-$SSH "$USER@$HOST" "cd $REMOTE_DIR && IMAGE_TAG=$TAG docker compose -p tcm-cdss-prod --env-file '$RUNTIME_ENV' up -d"
+$SSH "$USER@$HOST" "cd '$REMOTE_DIR' && $CLEAN_COMPOSE_ENV IMAGE_TAG='$TAG' docker compose -p tcm-cdss-prod --env-file '$RUNTIME_ENV' up -d"
 
 # 只有真正跑起来的镜像与本次 tag 一致，才算部署完成——否则上面任何一步失败都可能被读成成功。
 RUNNING="$($SSH "$USER@$HOST" "docker inspect --format '{{.Config.Image}}' tcm-cdss-prod-tcm-cdss-1 2>/dev/null || true")"
 if [ "$RUNNING" != "tcm-cdss:$TAG" ]; then
   echo "!! 部署未生效：容器实际镜像为 ${RUNNING:-<无>}，期望 tcm-cdss:$TAG" >&2
+  exit 1
+fi
+RUNNING_TOKEN_HASH_AFTER="$($SSH "$USER@$HOST" "docker inspect --format '{{json .Config.Env}}' tcm-cdss-prod-tcm-cdss-1 | python3 -c 'import hashlib,json,sys; values=json.load(sys.stdin); value=next((item.split(\"=\",1)[1] for item in values if item.startswith(\"CDSS_API_TOKEN=\")), None); value is not None or sys.exit(1); print(hashlib.sha256(value.encode()).hexdigest())'")"
+if [ -z "$RUNNING_TOKEN_HASH_AFTER" ] || [ "$RUNNING_TOKEN_HASH_AFTER" != "$EXPECTED_TOKEN_HASH" ]; then
+  echo "!! 切流后容器的接口 Token 与受保护运行时配置不一致；部署不可验收。" >&2
   exit 1
 fi
 echo "=== 部署完成 tag=$TAG commit=${COMMIT:0:12} 容器镜像=$RUNNING ==="

@@ -21,7 +21,12 @@ const {
   structuredCurrentMedications,
   verifyMedicationSemanticCoverage,
 } = await jiti.import("../src/lib/rxaudit.ts");
-const { currentMedicationsFromSemanticExtraction, medicationSemanticConsistencyReasons, recoverGroundedAdministrationTimings } = await jiti.import("../src/lib/medication-event-extractor.ts");
+const {
+  currentMedicationsFromSemanticExtraction,
+  hasGroundedMedicationReplacement,
+  medicationSemanticConsistencyReasons,
+  recoverGroundedAdministrationTimings,
+} = await jiti.import("../src/lib/medication-event-extractor.ts");
 const { sanitizeFreeTextForModel } = await jiti.import("../src/lib/diagnosis-safety.ts");
 
 function auditData(overrides = {}, medicationExtraction) {
@@ -181,13 +186,14 @@ const incompleteMedicationExtraction = verifyMedicationSemanticCoverage(
 assert.equal(incompleteMedicationExtraction.needsManualReview, true);
 assert.match(incompleteMedicationExtraction.reason || "", /medication_candidate_coverage_incomplete/);
 for (const explicitNoMedication of [
-  "否认当前其他用药",
-  "没有长期药物",
-  "从未服用其他药物",
-  "本次尚未使用其他药物",
   "目前未服任何药",
   "现阶段无现用药品",
-  "现用药不详",
+  "否认用药史",
+  "无用药史",
+  "截至目前未服药",
+  "从未服用任何药物",
+  "否认当前任何用药",
+  "没有目前任何用药",
 ]) {
   const covered = verifyMedicationSemanticCoverage(explicitNoMedication, {
     source: "model",
@@ -199,17 +205,12 @@ for (const explicitNoMedication of [
   assert.doesNotMatch(covered.reason || "", /medication_candidate_coverage_incomplete/);
 }
 for (const explicitNoMedication of [
-  "否认当前其他用药",
-  "没有长期药物",
-  "从未服用其他药物",
-  "本次尚未使用其他药物",
   "目前未服任何药物",
   "现阶段无现用药品",
-  // 2026-08-25 整类补齐：甲方那句「本次尚未使用其他药物」修掉后，同类高频病历写法
-  // 仍走模型抽取→零事件→medication_semantics_incomplete 误报。按惯例整类钉住。
-  "无特殊用药",
   "否认用药史",
   "无用药史",
+  "截至目前未服药",
+  "从未服用任何药物",
   "无",
   "否认",
   "暂无",
@@ -223,6 +224,26 @@ for (const mixedOrUnknown of [
   "患者现用药为二甲双胍0.5g每日两次无其他用药",
   "未停用阿司匹林100mg每日一次",
   "现用药不详",
+  "否认当前其他用药",
+  "没有长期药物",
+  "从未服用其他药物",
+  "本次尚未使用其他药物",
+  "本次未服药",
+  "无特殊用药",
+  // 局部「本次未治疗」不排除长期处方药；必须保持 unknown/人工核对。
+  "发病后未服用药物",
+  "起病以来未使用任何药物",
+  "症状出现后未自行服用药物",
+  "就诊前未予药物治疗",
+  "入院前未接受药物治疗",
+  "近3天未用药",
+  // 明确阴性不得擦除同段的「当前用药未知」。
+  "入院前未接受药物治疗，目前用药不详",
+  "发病后未服用药物，目前服药情况未知",
+  "就诊前未予药物治疗，现用药未提及",
+  "发病后服用布洛芬未使用其他药物",
+  "入院前未接受药物治疗，长期服用氨氯地平",
+  "就诊前未自行调整药物",
   // 依从性差 ≠ 无用药：把「吃了但不规律」吞成「没吃」是漏报联用风险，比误报危险。
   "未规律服药",
   "无规律用药",
@@ -232,10 +253,290 @@ for (const mixedOrUnknown of [
 ]) {
   assert.equal(isExplicitNoCurrentMedicationHistory(mixedOrUnknown), false, `${mixedOrUnknown} must not be collapsed to no current medication`);
 }
+for (const scopedOrUnknown of [
+  "本次尚未使用其他药物",
+  "发病后未服用药物",
+  "近3天未用药",
+  "现用药不详",
+  "发病后未服用药物，目前服药情况未知",
+]) {
+  const checked = verifyMedicationSemanticCoverage(scopedOrUnknown, {
+    source: "model",
+    events: [],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  });
+  assert.equal(checked.needsManualReview, true, `${scopedOrUnknown} must remain manual-review when the model returns no current event`);
+  assert.match(checked.reason || "", /medication_current_scope_(?:unknown|incomplete)/);
+}
+for (const [source, genericDrugName] of [
+  ["本次尚未使用其他药物", "其他药物"],
+  ["发病后未服用药物", "药物"],
+  ["无特殊用药", "特殊用药"],
+  ["用药史", "用药史"],
+  ["药物史", "药物史"],
+  ["用药记录", "用药记录"],
+  ["药物记录", "药物记录"],
+  ["用药情况", "用药情况"],
+  ["药物情况", "药物情况"],
+  ["现用药史", "现用药史"],
+  ["当前用药记录", "当前用药记录"],
+  ["药物治疗", "药物治疗"],
+  ["用药治疗", "用药治疗"],
+  ["治疗药物", "治疗药物"],
+  ["用药信息", "用药信息"],
+  ["药物信息", "药物信息"],
+  ["当前用药信息", "当前用药信息"],
+  ["现用药名称", "现用药名称"],
+  ["药物清单", "药物清单"],
+  ["药品列表", "药品列表"],
+  ["用药治疗方案", "用药治疗方案"],
+  ["药物治疗方案", "药物治疗方案"],
+  ["治疗用药情况", "治疗用药情况"],
+  ["用药明细", "用药明细"],
+  ["药物详情", "药物详情"],
+  ["当前药物状态", "当前药物状态"],
+  ["用药目录", "用药目录"],
+  ["药物汇总", "药物汇总"],
+  ["用药档案", "用药档案"],
+  ["用药概况", "用药概况"],
+  ["药物一览", "药物一览"],
+  ["用药摘要", "用药摘要"],
+  // 药物类别不是可做相互作用核对的具体药名，不能冒充“现用药已覆盖”。
+  ["当前服用抗凝药物", "抗凝药物"],
+  ["长期服用降压药", "降压药"],
+  // 剂型后缀本身不是身份证明；generic stem + 伪剂型仍须拒绝。
+  ["当前用药滴丸", "用药滴丸"],
+  ["药物记录片", "药物记录片"],
+  // 类别 + 剂型仍不知道具体成分；图片/卡片末字也绝不能被误当成片剂证明。
+  ["当前服用抗凝药片", "抗凝药片"],
+  ["当前服用降压药片", "降压药片"],
+  ["当前服用感冒类药片", "感冒类药片"],
+  ["当前服用止痛药胶囊", "止痛药胶囊"],
+  ["当前服用抗生素药片", "抗生素药片"],
+  ["当前服用抗生素", "抗生素"],
+  ["当前服用抗凝剂", "抗凝剂"],
+  ["当前服用降压片", "降压片"],
+  ["当前服用止痛片", "止痛片"],
+  ["当前服用消炎片", "消炎片"],
+  ["当前服用感冒胶囊", "感冒胶囊"],
+  ["当前服用退烧片", "退烧片"],
+  ["当前使用降糖针", "降糖针"],
+  ["当前服用维生素", "维生素"],
+  ["当前使用胰岛素", "胰岛素"],
+  ["目前服用感冒药片", "感冒药片"],
+  ["用药记录照片", "用药记录照片"],
+  ["药物清单图片", "药物清单图片"],
+  ["当前用药说明卡片", "当前用药说明卡片"],
+  ["用药资料名片", "用药资料名片"],
+]) {
+  const checked = verifyMedicationSemanticCoverage(source, {
+    source: "model",
+    events: [{ drugName: genericDrugName, status: "current", sourceQuotes: [genericDrugName], confidence: 0.95 }],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  });
+  assert.equal(checked.needsManualReview, true, `${genericDrugName} must not satisfy the current-medication scope contract`);
+  assert.equal(checked.events.length, 0, `${genericDrugName} must not reach the LingXi medication list`);
+  assert.deepEqual(currentMedicationsFromSemanticExtraction(checked), [], `${genericDrugName} must not produce a current-medication audit item`);
+  assert.match(checked.reason || "", /medication_event_identity_conflict/);
+}
+for (const [source, concreteDrugName] of [
+  ["目前服用阿司匹林", "阿司匹林"],
+  ["目前服用山药", "山药"],
+  ["目前服用药用炭", "药用炭"],
+  ["目前服用药用炭片", "药用炭片"],
+  ["目前服用中药复方丹参滴丸", "中药复方丹参滴丸"],
+  ["目前服用华法林", "华法林"],
+]) {
+  const checked = verifyMedicationSemanticCoverage(source, {
+    source: "model",
+    events: [{ drugName: concreteDrugName, status: "current", sourceQuotes: [source], confidence: 0.95 }],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  });
+  assert.equal(checked.needsManualReview, false, `${concreteDrugName} is a concrete medication identity and must be retained`);
+  assert.equal(checked.events.length, 1, `${concreteDrugName} must reach the LingXi medication list`);
+}
+for (const [source, strippedProviderIdentity] of [
+  ["用药台账", "台账"],
+  ["药物总览", "总览"],
+  ["当前用药底册", "底册"],
+  ["用药看板", "看板"],
+  ["用药二维码", "二维码"],
+]) {
+  const checked = verifyMedicationSemanticCoverage(source, {
+    source: "model",
+    events: [{ drugName: strippedProviderIdentity, status: "current", sourceQuotes: [source], confidence: 0.95 }],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  });
+  assert.equal(checked.needsManualReview, true, `${source} must not be authorized after the provider strips its generic prefix`);
+  assert.equal(checked.events.length, 0, `${strippedProviderIdentity} must not reach LingXi`);
+  assert.deepEqual(currentMedicationsFromSemanticExtraction(checked), []);
+}
+const fabricatedKnownDrug = verifyMedicationSemanticCoverage("用药台账", {
+  source: "model",
+  events: [{ drugName: "阿司匹林", status: "current", sourceQuotes: ["用药台账"], confidence: 0.95 }],
+  unresolvedReferences: [],
+  needsManualReview: false,
+});
+assert.equal(fabricatedKnownDrug.needsManualReview, true, "a governed drug name still requires a source quote containing that identity");
+assert.equal(fabricatedKnownDrug.events.length, 0, "an ungrounded governed drug must not reach LingXi");
+for (const [source, status, confidence = 0.95] of [
+  ["阿司匹林", "historical"],
+  ["阿司匹林片", "stopped"],
+  ["长期阿司匹林", "uncertain"],
+  ["阿司匹林100mg每日一次", "historical"],
+  ["阿司匹林100mg每日一次", "stopped"],
+  ["阿司匹林100mg每日一次", "uncertain"],
+  ["当前用药：阿司匹林", "uncertain"],
+  ["当前用药：阿司匹林", "current", 0.6],
+]) {
+  const checked = verifyMedicationSemanticCoverage(source, {
+    source: "model",
+    events: [{ drugName: "阿司匹林", status, sourceQuotes: [source], confidence }],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  });
+  assert.equal(checked.needsManualReview, true, `${source}/${status}/${confidence} must not prove current-medication coverage`);
+  assert.match(checked.reason || "", /medication_current_status_unresolved/);
+  assert.deepEqual(currentMedicationsFromSemanticExtraction(checked), [], "non-current or low-confidence events must not reach LingXi as current medication");
+}
+const mixedBareMedicationStatuses = verifyMedicationSemanticCoverage("阿司匹林；华法林", {
+  source: "model",
+  events: [
+    { drugName: "阿司匹林", status: "historical", sourceQuotes: ["阿司匹林"], confidence: 0.95 },
+    { drugName: "华法林", status: "current", sourceQuotes: ["华法林"], confidence: 0.95 },
+  ],
+  unresolvedReferences: [],
+  needsManualReview: false,
+});
+assert.equal(mixedBareMedicationStatuses.needsManualReview, true, "every bare medication in an owner-scoped HIS list needs its own current proof");
+assert.match(mixedBareMedicationStatuses.reason || "", /medication_current_status_unresolved/);
+assert.deepEqual(currentMedicationsFromSemanticExtraction(mixedBareMedicationStatuses), [{ drug_name: "华法林" }]);
+for (const [source, firstDrugName, firstStatus, secondDrugName] of [
+  ["阿司匹林；现服华法林", "阿司匹林", "historical", "华法林"],
+  ["阿司匹林片，当前用药华法林", "阿司匹林片", "stopped", "华法林"],
+  ["长期阿司匹林；现服华法林", "阿司匹林", "uncertain", "华法林"],
+]) {
+  const checked = verifyMedicationSemanticCoverage(source, {
+    source: "model",
+    events: [
+      { drugName: firstDrugName, status: firstStatus, sourceQuotes: [source.split(/[；，]/)[0]], confidence: 0.95 },
+      { drugName: secondDrugName, status: "current", sourceQuotes: [source.split(/[；，]/)[1]], confidence: 0.95 },
+    ],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  });
+  assert.equal(checked.needsManualReview, true, `${source} is co-occurrence, not a replacement relation`);
+  assert.match(checked.reason || "", /medication_current_status_unresolved/);
+}
+for (const source of [
+  "阿司匹林100mg每日一次，改用华法林3mg每日一次（下周开始）",
+  "阿司匹林100mg每日一次，改用华法林3mg每日一次的方案尚未执行",
+  "阿司匹林100mg每日一次，计划改用华法林3mg每日一次",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次（下周一开始）",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次（尚未正式执行）",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次（暂缓执行）",
+  "此前服用阿司匹林100mg每日一次，后改用华法林3mg每日一次（尚未正式执行）",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，下周复查后开始服用",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，下周复查前暂不服用",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，下周复查决定是否服用",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，下周监测后启用",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，下周随访后再用",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，下周复查确认后再启用",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，随访后决定是否服用",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，监测稳定后开始使用",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，复查无异常再开始服用",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次？",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次?",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次！？",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次!?",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次。？",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次！……？",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次！ ？",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次！”？",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次！）？",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次！患者说不确定",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次。患者无法确认",
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次。患者否认已经开始",
+]) {
+  const checked = verifyMedicationSemanticCoverage(source, {
+    source: "model",
+    events: [
+      { drugName: "阿司匹林", status: "stopped", sourceQuotes: ["阿司匹林100mg每日一次"], confidence: 0.95 },
+      { drugName: "华法林", status: "current", sourceQuotes: ["华法林3mg每日一次"], confidence: 0.95 },
+    ],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  });
+  assert.equal(checked.needsManualReview, true, `${source} describes a future/unexecuted switch, not a completed replacement`);
+  assert.match(checked.reason || "", /medication_replacement_timeline_conflict/);
+}
+const completedReplacementWithFollowup = verifyMedicationSemanticCoverage(
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次，下周复查INR",
+  {
+    source: "model",
+    events: [
+      { drugName: "阿司匹林", status: "stopped", sourceQuotes: ["此前服用阿司匹林100mg每日一次"], confidence: 0.95 },
+      { drugName: "华法林", status: "current", doseText: "3mg", frequency: "每日一次", sourceQuotes: ["今日已改为华法林3mg每日一次"], confidence: 0.95 },
+    ],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  },
+);
+assert.equal(completedReplacementWithFollowup.needsManualReview, false, "a completed switch may retain an explicit follow-up plan");
+const completedReplacementWithFollowupSentence = verifyMedicationSemanticCoverage(
+  "此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次。下周复查INR",
+  {
+    source: "model",
+    events: [
+      { drugName: "阿司匹林", status: "stopped", sourceQuotes: ["此前服用阿司匹林100mg每日一次"], confidence: 0.95 },
+      { drugName: "华法林", status: "current", doseText: "3mg", frequency: "每日一次", sourceQuotes: ["今日已改为华法林3mg每日一次"], confidence: 0.95 },
+    ],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  },
+);
+assert.equal(completedReplacementWithFollowupSentence.needsManualReview, false,
+  "a governed follow-up in the next hard clause must not undo a completed switch");
+for (const trailingClause of [
+  "二甲双胍，患者不确定换药是否已经开始",
+  "二甲双胍，换药尚未确认",
+  "二甲双胍，否认已经完成换药",
+  "二甲双胍，当前换药状态不详",
+]) {
+  const source = `此前服用阿司匹林100mg每日一次，今日已改为华法林3mg每日一次。${trailingClause}`;
+  assert.equal(hasGroundedMedicationReplacement(source, "阿司匹林", "华法林", ["二甲双胍"]), false,
+    "a third medication name must not authorize an unresolved replacement clause");
+  const checked = verifyMedicationSemanticCoverage(source, {
+    source: "model",
+    events: [
+      { drugName: "阿司匹林", status: "stopped", sourceQuotes: ["此前服用阿司匹林100mg每日一次"], confidence: 0.95 },
+      { drugName: "华法林", status: "current", doseText: "3mg", frequency: "每日一次", sourceQuotes: ["今日已改为华法林3mg每日一次"], confidence: 0.95 },
+      { drugName: "二甲双胍", status: "current", sourceQuotes: ["二甲双胍"], confidence: 0.95 },
+    ],
+    unresolvedReferences: [],
+    needsManualReview: false,
+  });
+  assert.equal(checked.needsManualReview, true, "unresolved replacement text after a third drug must fail closed");
+  assert.match(checked.reason || "", /medication_replacement_timeline_conflict/);
+}
+const globalNegativeWithHistoricalEvent = verifyMedicationSemanticCoverage("目前未服任何药，3年前服用布洛芬", {
+  source: "model",
+  events: [{ drugName: "布洛芬", status: "historical", sourceQuotes: ["3年前服用布洛芬"], confidence: 0.95 }],
+  unresolvedReferences: [],
+  needsManualReview: false,
+});
+assert.equal(globalNegativeWithHistoricalEvent.needsManualReview, false,
+  "a global current-negative statement must remain authoritative when a grounded historical event is preserved");
 for (const [source, medicine] of [
   ["现服氨氯地平5mg每日一次未使用其他药物", "氨氯地平"],
   ["阿司匹林100mg每日一次目前未服其他药", "阿司匹林"],
   ["患者现用药为二甲双胍0.5g每日两次无其他用药", "二甲双胍"],
+  ["发病后服用布洛芬未使用其他药物", "布洛芬"],
+  ["入院前未接受药物治疗，长期服用氨氯地平", "氨氯地平"],
 ]) {
   assert.match(JSON.stringify(medicationCandidatesFromSource(source)), new RegExp(medicine), `${medicine} must survive a no-punctuation HIS concatenation`);
 }

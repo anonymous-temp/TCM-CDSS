@@ -6,15 +6,21 @@
  * 线上表现相反」而无法分辨「修错了」还是「没上线」的历史，这个脚本就是为了让它可判定。
  *
  * 用法：
- *   BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=xxx node scripts/regress-customer-review-20260810-live.mjs
+ *   BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=xxx CDSS_CUSTOMER_ID=xxx \
+ *     node scripts/regress-customer-review-20260810-live.mjs
  *
  * 刻意不触发 M03/M04 模型调用：本清单里能在 HTTP 层判定的四条（急症排查确认、库存分片、
  * symptoms 自由文本、服务版本）都不需要模型，因此本脚本秒级完成、可在每次部署后无条件跑。
  */
 const BASE_URL = (process.env.BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 const TOKEN = process.env.CDSS_API_TOKEN || "";
+const CUSTOMER_ID = process.env.CDSS_CUSTOMER_ID || "";
 if (!TOKEN) {
   console.error("CDSS_API_TOKEN required");
+  process.exit(2);
+}
+if (!CUSTOMER_ID) {
+  console.error("CDSS_CUSTOMER_ID required");
   process.exit(2);
 }
 
@@ -28,7 +34,11 @@ const check = (name, condition, detail) => {
 async function call(path, body, method = "POST") {
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
-    headers: { "Content-Type": "application/json", "x-cdss-api-token": TOKEN },
+    headers: {
+      "Content-Type": "application/json",
+      "x-cdss-api-token": TOKEN,
+      "x-cdss-customer-id": CUSTOMER_ID,
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const text = await res.text();
@@ -40,6 +50,7 @@ async function call(path, body, method = "POST") {
 const CARDIAC = "胸痛伴大汗，向左肩背放射，伴气促，持续20分钟不缓解";
 const caseWith = (symptoms) => ({
   id: `live-20260810-${Math.random().toString(36).slice(2, 10)}`,
+  customerId: CUSTOMER_ID,
   phase: "collect",
   patient: { sex: "男", age: 58 },
   chiefComplaint: "不舒服1天",
