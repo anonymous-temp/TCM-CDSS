@@ -24,8 +24,12 @@
  *     DDI-NITRATE-PDE5 是 CRITICAL「禁忌/阻断」。谁更严谁作数，本地 CRITICAL 不可被软化。
  */
 
+import { canonicalMedicationIdentity } from "./clinical-polarity";
+import { readResponseTextLimited } from "./http-response-limit";
+
 const QUERY_PATH = "/api/v1/rational-drug-use";
 const QUERY_TIMEOUT_MS = 8_000;
+const QUERY_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_KEYWORDS_PER_CALL = 12;
 
 /**
@@ -66,11 +70,12 @@ async function rxaiQuery(
   data: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<Record<string, unknown> | null> {
-  if (!rxaiQueryEnabled(cfg)) return null;
+  if (!rxaiQueryEnabled(cfg) || signal?.aborted) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), QUERY_TIMEOUT_MS);
   const onParentAbort = () => controller.abort();
-  signal?.addEventListener("abort", onParentAbort, { once: true });
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", onParentAbort, { once: true });
   try {
     const response = await fetch(`${cfg.baseUrl}${QUERY_PATH}`, {
       method: "POST",
@@ -89,7 +94,8 @@ async function rxaiQuery(
       signal: controller.signal,
     });
     if (!response.ok) return null;
-    const body = await response.json() as Record<string, unknown>;
+    const raw = await readResponseTextLimited(response, QUERY_MAX_RESPONSE_BYTES);
+    const body = JSON.parse(raw) as Record<string, unknown>;
     if (Number(body?.code) !== 200) return null;
     const payload = body.data;
     return payload && typeof payload === "object" && !Array.isArray(payload)
@@ -118,12 +124,16 @@ function normalizedName(value: unknown): string {
     : "";
 }
 
+function canonicalDrugName(value: unknown): string {
+  return canonicalMedicationIdentity(normalizedName(value));
+}
+
 /**
  * 判定 provider 是否认得这些药名。返回的是**归一化后的输入名**集合，不是 provider 的规范名——
  * 调用方要回答的问题是「医生写的这个词是不是一个具体药物身份」，而不是「它的标准名叫什么」。
  *
- * 只在 provider 返回条目的药名/通用名/标准名之一与输入名前缀级相符时才算命中，避免
- * 关键词检索的宽泛召回（搜「药」也会有结果）把任意词都证成药名。
+ * 只在 provider 返回条目的药名/通用名/标准名之一经共享剂型归一后与输入精确相等
+ * 时才算命中。任意前缀、反向包含和组合制剂都不能授权一个残缺药名。
  */
 export async function resolveGovernedDrugIdentities(
   cfg: RxaiEndpointConfig,
@@ -134,8 +144,9 @@ export async function resolveGovernedDrugIdentities(
   if (!rxaiQueryEnabled(cfg)) return resolved;
   const unique = [...new Set(names.map((name) => name.trim()).filter(Boolean))].slice(0, MAX_KEYWORDS_PER_CALL);
   for (const name of unique) {
+    if (signal?.aborted) break;
     const payload = await rxaiQuery(cfg, "DRUG_MASTER_SEARCH", { keyword: name, page_size: 5 }, signal);
-    const key = normalizedName(name);
+    const key = canonicalDrugName(name);
     if (!key) continue;
     const matched = itemsOf(payload).some((item) => {
       // ★ 名称匹配单独用是**不成立**的。2026-08-28 实测：给 DRUG_MASTER_SEARCH 传
@@ -156,11 +167,8 @@ export async function resolveGovernedDrugIdentities(
         });
       if (!hasGovernedIdentifier) return false;
       for (const field of ["drug_name", "generic_name", "standard_drug_name", "drug_comm_name"]) {
-        const candidate = normalizedName(item[field]);
-        // provider 的条目名通常是「氨氯地平叶酸片(Ⅰ)」这类含剂型/规格的全称，
-        // 医生写的是「氨氯地平」；要求条目名以输入名开头，既接受剂型后缀，
-        // 也拒绝「搜甲得到甲钴胺」这类反向包含的误判。
-        if (candidate && candidate.startsWith(key)) return true;
+        const candidate = canonicalDrugName(item[field]);
+        if (candidate && candidate === key) return true;
       }
       return false;
     });
@@ -183,19 +191,28 @@ export async function queryDrugCompatibility(
   signal?: AbortSignal,
 ): Promise<RxaiCompatibilityFinding[]> {
   if (!rxaiQueryEnabled(cfg) || drugNames.length < 2) return [];
+  if (signal?.aborted) return [];
+  const requestedDrugNames = [...new Set(drugNames.map((name) => name.trim()).filter(Boolean))]
+    .slice(0, MAX_KEYWORDS_PER_CALL);
+  const requestedIdentities = new Set(requestedDrugNames.map(normalizedName).filter(Boolean));
   const payload = await rxaiQuery(cfg, "COMPATIBILITY_QUERY", {
-    drug_names: [...new Set(drugNames.map((name) => name.trim()).filter(Boolean))].slice(0, MAX_KEYWORDS_PER_CALL),
+    drug_names: requestedDrugNames,
     page_size: 20,
   }, signal);
   return itemsOf(payload).flatMap((item) => {
-    const riskTip = typeof item.risk_tip === "string" ? item.risk_tip.trim() : "";
-    const riskLevel = typeof item.risk_level === "string" ? item.risk_level.trim() : "";
-    const compatibilityResult = typeof item.compatibility_result === "string" ? item.compatibility_result.trim() : "";
-    if (!riskTip || !riskLevel) return [];
+    const riskTip = typeof item.risk_tip === "string" ? item.risk_tip.trim().slice(0, 1000) : "";
+    const riskLevel = typeof item.risk_level === "string" ? item.risk_level.trim().slice(0, 80) : "";
+    const compatibilityResult = typeof item.compatibility_result === "string"
+      ? item.compatibility_result.trim().slice(0, 80)
+      : "";
+    const returnedDrugNames = Array.isArray(item.drug_names)
+      ? item.drug_names.filter((name): name is string => typeof name === "string").map((name) => name.trim()).filter(Boolean)
+      : [];
+    const returnedIdentities = returnedDrugNames.map(normalizedName);
+    if (!riskTip || !riskLevel || returnedDrugNames.length !== 2
+      || returnedIdentities.some((identity) => !identity || !requestedIdentities.has(identity))) return [];
     return [{
-      drugNames: Array.isArray(item.drug_names)
-        ? item.drug_names.filter((name): name is string => typeof name === "string")
-        : [],
+      drugNames: returnedDrugNames,
       compatibilityResult,
       riskLevel,
       riskTip,

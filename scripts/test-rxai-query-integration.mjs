@@ -28,11 +28,17 @@ const jiti = createJiti(import.meta.url, {
 });
 const { rxaiQueryEnabled, resolveGovernedDrugIdentities, queryDrugCompatibility } =
   await jiti.import("../src/lib/rxai-query.server.ts");
-const { verifyMedicationSemanticCoverage, providerCompatibilityIssues, buildLocalHighRiskHerbPairSection } =
+const {
+  verifyMedicationSemanticCoverage,
+  providerCompatibilityIssues,
+  buildLocalHighRiskHerbPairSection,
+  mergeLocalHighRiskHerbPairIssues,
+} =
   await jiti.import("../src/lib/rxaudit.ts");
 
 let checks = 0;
 const check = (label, fn) => { fn(); checks += 1; console.log(`  ✓ ${label}`); };
+const asyncCheck = async (label, fn) => { await fn(); checks += 1; console.log(`  ✓ ${label}`); };
 
 const cfg = { baseUrl: "https://example.invalid", token: "k", tenantId: "T", systemCode: "T", configured: true, transportAllowed: true };
 
@@ -58,6 +64,81 @@ await (async () => {
   assert.deepEqual([...await resolveGovernedDrugIdentities(cfg, ["氨氯地平"])], []);
   assert.deepEqual(await queryDrugCompatibility(cfg, ["甘草", "海藻"]), []);
 })();
+
+await asyncCheck("药名只允许剂型归一后精确命中，短前缀/反向包含不得获得受治理身份", async () => {
+  process.env.RXAI_QUERY_ENABLED = "true";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body || "{}"));
+    const keyword = body?.data?.keyword;
+    const item = keyword === "甲"
+      ? { drug_name: "甲钴胺片", generic_name: "甲钴胺", ypid: "YPID-MECO" }
+      : { drug_name: "氨氯地平片", generic_name: "氨氯地平", ypid: "YPID-AMLO" };
+    return Response.json({ code: 200, data: { items: [item] } });
+  };
+  try {
+    assert.deepEqual([...await resolveGovernedDrugIdentities(cfg, ["氨氯地平"])], ["氨氯地平"]);
+    assert.deepEqual([...await resolveGovernedDrugIdentities(cfg, ["氨氯地平片"])], ["氨氯地平"]);
+    assert.deepEqual([...await resolveGovernedDrugIdentities(cfg, ["氨", "阿司匹", "甲"])], []);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.RXAI_QUERY_ENABLED;
+  }
+});
+
+await asyncCheck("已取消的父 signal 在查询入口即停，不继续串行消耗", async () => {
+  process.env.RXAI_QUERY_ENABLED = "true";
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return Response.json({ code: 200, data: { items: [] } }); };
+  const controller = new AbortController();
+  controller.abort();
+  try {
+    assert.deepEqual([...await resolveGovernedDrugIdentities(cfg, ["氨氯地平", "甲钴胺"], controller.signal)], []);
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.RXAI_QUERY_ENABLED;
+  }
+});
+
+await asyncCheck("查询响应超过 2MB 直接丢弃，不进入身份或配伍判据", async () => {
+  process.env.RXAI_QUERY_ENABLED = "true";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("{}", {
+    status: 200,
+    headers: { "content-length": String(3 * 1024 * 1024) },
+  });
+  try {
+    assert.deepEqual([...await resolveGovernedDrugIdentities(cfg, ["氨氯地平"])], []);
+    assert.deepEqual(await queryDrugCompatibility(cfg, ["甘草", "海藻"]), []);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.RXAI_QUERY_ENABLED;
+  }
+});
+
+await asyncCheck("配伍结果必须是请求集合内的精确药对，文本同时有界", async () => {
+  process.env.RXAI_QUERY_ENABLED = "true";
+  const originalFetch = globalThis.fetch;
+  let injected = true;
+  globalThis.fetch = async () => Response.json({ code: 200, data: { items: [{
+    drug_names: injected ? ["甘草", "附子"] : ["甘草", "海藻"],
+    compatibility_result: "CAUTION",
+    risk_level: "HIGH",
+    risk_tip: "风".repeat(1200),
+  }] } });
+  try {
+    assert.deepEqual(await queryDrugCompatibility(cfg, ["甘草", "海藻"]), []);
+    injected = false;
+    const findings = await queryDrugCompatibility(cfg, ["甘草", "海藻"]);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].riskTip.length, 1000);
+  } finally {
+    globalThis.fetch = originalFetch;
+    delete process.env.RXAI_QUERY_ENABLED;
+  }
+});
 
 // ── A. 身份判据：受治理集合可放行，空集合时逐字回到既有判据
 const source = "现服氨氯地平5mg每日一次";
@@ -122,10 +203,30 @@ check("无供应商结果时配伍段逐字等于纯本地结果", () => {
     buildLocalHighRiskHerbPairSection(pairState, 0),
   );
 });
+check("主审方成功时配伍查询仍并入 effective audit，展示开关不能丢告警", () => {
+  const merged = mergeLocalHighRiskHerbPairIssues(pairState, 0, {
+    ok: true,
+    source: "lingxi",
+    auditResult: "PASS",
+    highestRiskLevel: "INFO",
+    needManualReview: false,
+    issues: [],
+    degraded: false,
+    itemCount: 3,
+  }, [{
+    drugNames: ["甘草", "半夏"],
+    compatibilityResult: "CAUTION",
+    riskLevel: "HIGH",
+    riskTip: "供应商配伍提示",
+  }]);
+  assert.equal(merged.needManualReview, true);
+  assert.ok(merged.issues.some((issue) => issue.issueType === "DRUG_COMPATIBILITY"));
+});
 
 // ── 接线
 const rxaudit = readFileSync(new URL("../src/lib/rxaudit.ts", import.meta.url), "utf8");
 const client = readFileSync(new URL("../src/lib/rxai-query.server.ts", import.meta.url), "utf8");
+const assessRoute = readFileSync(new URL("../src/app/api/diagnosis/assess/route.ts", import.meta.url), "utf8");
 check("存在性判据要求国家级目录标识，且不采信合成 ID", () => {
   assert.match(client, /const hasGovernedIdentifier = \["ypid", "approval_no", "approval_number", "atc_code"\]/);
   assert.equal(/hasGovernedIdentifier[\s\S]{0,200}standard_drug_code/.test(client), false,
@@ -137,6 +238,9 @@ check("配伍查询不进审方总时限/缓存（审方不可用时仍要出配
   assert.ok(body.length > 0 && body.length < 1200, `函数边界切过头（${body.length}）`);
   assert.equal(/runBoundedRxAudit|storeRxAuditRun|absoluteDeadline/.test(body), false,
     "配伍查询被并进了审方的时限或缓存");
+});
+check("M05 主审方成功分支显式并入 providerCompatibility", () => {
+  assert.match(assessRoute, /mergeLocalHighRiskHerbPairIssues\(gated, candidateIndex, providerAudit, providerCompatibility\)/);
 });
 check("鉴权同时下发 Authorization 与 X-API-Key（文档标 Authorization 生产必填）", () => {
   assert.match(client, /Authorization: `Bearer \$\{cfg\.token\}`/);

@@ -114,8 +114,11 @@ export async function POST(req: Request) {
   // M05 owns the single server-side audit call for the normal M03->M04->M05 chain. Client-supplied
   // audit-looking Markdown is never trusted, but every audit outcome is advisory rather than blocking.
   if (!providerAudit.ok) console.warn("[tcm-cdss:rxaudit] M05 advisory audit unavailable", { reason: providerAudit.reason });
+  // 配伍查询与主审方独立：主审方成功时并入 effectiveAudit，不可因展示开关丢失；
+  // 主审方不可用时则仍由本地配伍段呈现。两条路径共用 providerCompatibilityIssues 去重。
+  const providerCompatibility = await resolveProviderCompatibilityFindings(gated, candidateIndex, req.signal);
   const mergedAudit = providerAudit.ok
-    ? mergeLocalHighRiskHerbPairIssues(gated, candidateIndex, providerAudit)
+    ? mergeLocalHighRiskHerbPairIssues(gated, candidateIndex, providerAudit, providerCompatibility)
     : providerAudit;
   const patientSex = gated.hisRecord?.fields.sex || gated.patient.sex;
   const effectiveAudit = mergedAudit.ok
@@ -127,7 +130,6 @@ export async function POST(req: Request) {
   // 展示关闭后若沿用它，审方正常返回的病例反而一条本地提示都看不到。
   const showRxAudit = rxAuditPresentationEnabled();
   // 配伍禁忌属本地安全内容：两档都出，且不受审方是否可用影响。供应商条目只加不减地追加。
-  const providerCompatibility = await resolveProviderCompatibilityFindings(gated, candidateIndex, req.signal);
   const localHighRiskSection = buildLocalHighRiskHerbPairSection(gated, candidateIndex, providerCompatibility);
   const providerRisk = effectiveAudit
     ? buildLingxiRiskSection(effectiveAudit, patientSex)

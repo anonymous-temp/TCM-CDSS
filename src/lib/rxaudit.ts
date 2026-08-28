@@ -1574,9 +1574,13 @@ export function mergeLocalHighRiskHerbPairIssues(
   state: CaseState,
   candidateIndex: number | undefined,
   outcome: Extract<RxAuditOutcome, { ok: true }>,
+  providerFindings: readonly RxaiCompatibilityFinding[] = [],
 ): Extract<RxAuditOutcome, { ok: true }> {
   const governedOutcome = reconcileControlledToxicAuthorityIssues(state, candidateIndex, outcome);
-  const localIssues = buildLocalHighRiskHerbPairIssues(state, candidateIndex);
+  const localIssues = [
+    ...buildLocalHighRiskHerbPairIssues(state, candidateIndex),
+    ...providerCompatibilityIssues(state, candidateIndex, providerFindings),
+  ];
   if (localIssues.length === 0) return governedOutcome;
   const issues = dedupeRxAuditIssues([...governedOutcome.issues, ...localIssues]);
   const highestRiskLevel = issues.reduce<RxAuditRiskLevel>((highest, issue) => {
