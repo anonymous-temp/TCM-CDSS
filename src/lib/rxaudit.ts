@@ -30,6 +30,7 @@ import {
 import { findTcmHerbPairCautions, findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, isKnownTcmHerbName, regulatedToxicHerbStatus } from "./tcm-knowledge";
 import { matchesPopulationScope } from "./clinical-vocabulary";
 import { findLocalPatentMedicineEntry } from "./local-patent-medicine-candidates";
+import { queryDrugCompatibility, resolveGovernedDrugIdentities, rxaiQueryEnabled, type RxaiCompatibilityFinding } from "./rxai-query.server";
 import { prescriptionVersionPayload } from "./prescription-version";
 
 export type { RxAuditResultCode, RxAuditRiskLevel } from "./rxaudit-normalize";
@@ -444,7 +445,10 @@ function hasGlobalNoCurrentMedicationClause(value: string): boolean {
   return value.split(/[，,；;。\n]+/).some((clause) => GLOBAL_NO_CURRENT_MEDICATION.test(clause));
 }
 
-function isSpecificMedicationIdentity(value: string): boolean {
+function isSpecificMedicationIdentity(
+  value: string,
+  governedIdentities: ReadonlySet<string> = new Set(),
+): boolean {
   const extractedIdentity = medicationNameFromEventText(value).normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
   const rawIdentity = value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
   const identity = normalizedMedicationIdentity(value);
@@ -464,7 +468,13 @@ function isSpecificMedicationIdentity(value: string): boolean {
   const governedPatent = findLocalPatentMedicineEntry(extractedIdentity);
   const exactGovernedPatent = governedPatent?.name.normalize("NFKC").replace(/\s/g, "") === extractedIdentity
     && !AMBIGUOUS_FREE_TEXT_MEDICATION_NAMES.has(extractedIdentity);
-  return isKnownTcmHerbName(extractedIdentity)
+  // 受治理药品主数据（灵犀 DRUG_MASTER_SEARCH）是首选来源：它覆盖的是国家级目录里真实存在
+  // 且带 ypid/批准文号/ATC 的药品。下面那个手写常量表是它不可用时的兜底档——名单只有 16 个名字，
+  // 2026-08-28 实测 12 个常见门诊药里 10 个不在其中（氨氯地平/硝酸甘油/奥美拉唑/甲钴胺…），
+  // 于是整份抽取转人工。查询关闭或失败时行为与此前逐字一致。
+  return governedIdentities.has(extractedIdentity)
+    || governedIdentities.has(identity)
+    || isKnownTcmHerbName(extractedIdentity)
     || exactGovernedPatent
     || CONTROLLED_CONCRETE_MEDICATION_NAMES.has(extractedIdentity)
     || CONTROLLED_CONCRETE_MEDICATION_NAMES.has(identity);
@@ -566,6 +576,7 @@ export function verifyMedicationSemanticCoverage(
   sourceText: string | undefined,
   extraction: MedicationSemanticExtraction,
   sourceTruncated = false,
+  governedIdentities: ReadonlySet<string> = new Set(),
 ): MedicationSemanticExtraction {
   if (extraction.source === "unavailable") {
     if (!sourceTruncated) return extraction;
@@ -577,9 +588,9 @@ export function verifyMedicationSemanticCoverage(
   }
   const candidates = medicationCandidatesFromSource(sourceText);
   const rejectedGenericEvent = extraction.events.some((event) =>
-    !isSpecificMedicationIdentity(event.drugName) || !isMedicationEventIdentityGrounded(sourceText, event));
+    !isSpecificMedicationIdentity(event.drugName, governedIdentities) || !isMedicationEventIdentityGrounded(sourceText, event));
   const verifiedEvents = extraction.events.filter((event) =>
-    isSpecificMedicationIdentity(event.drugName) && isMedicationEventIdentityGrounded(sourceText, event));
+    isSpecificMedicationIdentity(event.drugName, governedIdentities) && isMedicationEventIdentityGrounded(sourceText, event));
   const eventIdentities = verifiedEvents.map((event) => normalizedMedicationIdentity(event.drugName)).filter(Boolean);
   const missingCandidates = candidates.filter((candidate) => !eventIdentities.includes(normalizedMedicationIdentity(candidate)));
   const statusesByDrug = new Map<string, Set<string>>();
@@ -594,11 +605,11 @@ export function verifyMedicationSemanticCoverage(
   const consistencyReasons = medicationSemanticConsistencyReasons(sourceText, verifiedEvents);
   const normalizedSource = sourceText?.normalize("NFKC").replace(/\s+/g, "").trim() || "";
   const explicitlyCurrentCandidates = medicationCandidatesFromSource(affirmedCurrentMedicationText(sourceText))
-    .filter((candidate) => isSpecificMedicationIdentity(candidate));
+    .filter((candidate) => isSpecificMedicationIdentity(candidate, governedIdentities));
   const explicitlyCurrentIdentities = new Set(explicitlyCurrentCandidates
     .map((candidate) => normalizedMedicationIdentity(candidate)).filter(Boolean));
   const ownerScopedDefaultCurrentCandidates = candidates.filter((candidate) => {
-    if (!isSpecificMedicationIdentity(candidate)) return false;
+    if (!isSpecificMedicationIdentity(candidate, governedIdentities)) return false;
     const identity = normalizedMedicationIdentity(candidate);
     const oldEvent = verifiedEvents.find((event) => normalizedMedicationIdentity(event.drugName) === identity
       && event.status !== "current" && event.confidence >= 0.7);
@@ -695,7 +706,16 @@ export async function extractMedicationSemanticsForAudit(
   const cached = store.get(key);
   if (cached && now - cached.at <= MEDICATION_EXTRACTION_TTL_MS) return cached.value;
   const extraction = await extractMedicationEventsWithModel(context.text, requestSignal);
-  const verified = verifyMedicationSemanticCoverage(context.text, extraction, context.truncated);
+  // 受治理药品身份解析（默认关闭）。只拿原文候选与模型事件里出现过的药名去查，不做开放检索；
+  // 查询不可用时返回空集，同步核验逐字回到既有判据。
+  const governedIdentities = rxaiQueryEnabled(getRxAuditConfig())
+    ? await resolveGovernedDrugIdentities(
+        getRxAuditConfig(),
+        [...medicationCandidatesFromSource(context.text), ...extraction.events.map((event) => event.drugName)],
+        requestSignal,
+      )
+    : new Set<string>();
+  const verified = verifyMedicationSemanticCoverage(context.text, extraction, context.truncated, governedIdentities);
   // 只缓存**成功**结果：needsManualReview 是降级态，缓存它会让一次瞬时故障在 10 分钟内
   // 反复把同一份病历钉在人工复核上，而重试本可以恢复。
   if (!verified.needsManualReview) {
@@ -959,6 +979,18 @@ export function buildAuditInputAdvisories(
   return advisories;
 }
 
+/**
+ * 合理用药审方是独立交付的接口与产品页面（owner 裁定 2026-08-28）；CDSS 默认不再重复呈现
+ * 任何三方审方内容。默认关闭而不是默认开启：本客户拿到的报告里出现第二份审方结论，
+ * 与他们真正在用的那个审方页面互为噪声，且两边口径不同步时无从判断哪个作数。
+ *
+ * 这是**呈现**开关，不是检测开关。审方仍照常调用（遥测、确定性安全门与严格健康探针都依赖它），
+ * 本地确定性检测（十八反十九畏、药典剂量边界、特殊人群）与 M05 确定性安全总评一律不受影响。
+ */
+export function rxAuditPresentationEnabled(): boolean {
+  return process.env.CDSS_SHOW_RX_AUDIT_SECTION === "true";
+}
+
 export function buildRxAuditScopeSection(state: CaseState, candidateIndex?: number): string {
   const candidate = candidateFromState(state, candidateIndex);
   if (!candidate) return "";
@@ -982,11 +1014,23 @@ export function buildRxAuditScopeSection(state: CaseState, candidateIndex?: numb
   return lines.join("\n");
 }
 
-export function buildAuditInputAdvisorySection(advisories: readonly RxAuditInputAdvisory[]): string {
+/**
+ * 这一段是**病历质量**提示，不是三方审方结论：它说的是「我们没法可靠判断患者在用什么药」
+ * 与「我们自己开的候选缺剂量」。这两件事对医生的处方决策都成立，与谁来审方无关，
+ * 因此审方展示关闭时**不能一并撤掉**——撤掉就等于把「现用药不明」这类未知当成了无风险，
+ * 与本仓「未提及 ≠ 阴性」的铁律相反。关闭档只改口径：不再让医生去「重新审方」。
+ */
+export function buildAuditInputAdvisorySection(
+  advisories: readonly RxAuditInputAdvisory[],
+  auditNeutralWording = false,
+): string {
   if (advisories.length === 0) return "";
+  const suffix = auditNeutralWording
+    ? "。请结合原始病历人工核对；在核实前不得视为已排除相关用药风险。"
+    : "。请补齐后重新审方；当前结果不等同于剂量审核通过。";
   return [
     "## 处方信息待核对",
-    ...advisories.map((item) => `- ${item.message}。请补齐后重新审方；当前结果不等同于剂量审核通过。`),
+    ...advisories.map((item) => `- ${item.message}${suffix}`),
   ].join("\n");
 }
 
@@ -1435,8 +1479,86 @@ export function buildLocalHighRiskHerbPairIssues(state: CaseState, candidateInde
   }));
 }
 
-export function buildLocalHighRiskHerbPairSection(state: CaseState, candidateIndex?: number): string {
-  const issues = buildLocalHighRiskHerbPairIssues(state, candidateIndex);
+/**
+ * 供应商配伍查询结果 → 本地配伍段的**追加**条目（owner 裁定 2026-08-28：配伍禁忌属本地安全内容，
+ * 与审方呈现开关无关，照常展示）。
+ *
+ * 只加不减，两条硬约束：
+ *  1) 本地表已命中的药对**直接丢弃供应商条目**——本地是确定性受治理判据，供应商的分级不得
+ *     替换它。实测依据：硝酸甘油 × 西地那非，供应商返回 CAUTION/MEDIUM，而本地受治理规则
+ *     DDI-NITRATE-PDE5 是 CRITICAL「禁忌/阻断」。让供应商条目参与合并就等于允许下调。
+ *  2) 只接受供应商明确给出风险等级与提示文本的条目；缺任一项直接丢弃，不猜测。
+ */
+export function providerCompatibilityIssues(
+  state: CaseState,
+  candidateIndex: number | undefined,
+  findings: readonly RxaiCompatibilityFinding[],
+): RxAuditIssue[] {
+  if (findings.length === 0) return [];
+  const localPairs = new Set(buildLocalHighRiskHerbPairIssues(state, candidateIndex)
+    .flatMap((issue) => {
+      const names = issue.title.replace(/(?:高风险配伍|配伍相畏)$/, "").split("—");
+      return names.length === 2 ? [[...names].sort().join("\u0000")] : [];
+    }));
+  const seen = new Set<string>();
+  return findings.flatMap((finding) => {
+    const names = finding.drugNames.map((name) => name.trim()).filter(Boolean);
+    // 客户端已经过滤过一次，这里再挡一次：本函数是导出的，任何调用方传进缺字段的条目，
+    // 都会渲染成一条没有依据的空提示挂在医生的配伍段里。缺等级或缺提示一律丢弃，不猜测。
+    if (names.length !== 2 || !finding.riskTip.trim() || !finding.riskLevel.trim()) return [];
+    const key = [...names].sort().join("\u0000");
+    if (localPairs.has(key) || seen.has(key)) return [];
+    seen.add(key);
+    const high = finding.riskLevel === "CRITICAL" || finding.riskLevel === "HIGH"
+      || finding.compatibilityResult === "CONTRAINDICATED";
+    return [{
+      issueId: stableAuditIssueId(["provider-compatibility", ...[...names].sort()]),
+      issueIdGenerated: true,
+      riskLevel: high ? "HIGH" as const : "MEDIUM" as const,
+      ruleLevel: "PROVIDER_COMPATIBILITY",
+      issueType: "DRUG_COMPATIBILITY",
+      title: `${names[0]}—${names[1]}配伍提示`,
+      description: `${finding.riskTip}`,
+      action: "MANUAL_REVIEW" as const,
+      relatedItemNos: localPairItemNos(state, candidateIndex, names[0], names[1]),
+      evidence: [{
+        sourceType: "PROVIDER_RULE",
+        sourceName: "合理用药统一 API 配伍查询",
+        quote: finding.riskTip,
+        ruleName: `${finding.compatibilityResult}/${finding.riskLevel}`,
+      }],
+      suggestions: ["请医生或药师复核是否确需同用；本提示不阻断诊疗流程。"],
+    }];
+  });
+}
+
+/**
+ * 取本候选的药味去查供应商配伍。**刻意不放进 runBoundedRxAudit**：配伍禁忌属本地安全内容
+ * （owner 裁定 2026-08-28），不应共享审方的总时限与结果缓存，也不应在审方不可用时一起消失。
+ * 查询默认关闭；关闭或失败时返回空数组，配伍段逐字回到纯本地结果。
+ */
+export async function resolveProviderCompatibilityFindings(
+  state: CaseState,
+  candidateIndex?: number,
+  signal?: AbortSignal,
+): Promise<RxaiCompatibilityFinding[]> {
+  const cfg = getRxAuditConfig();
+  if (!rxaiQueryEnabled(cfg)) return [];
+  const candidate = candidateFromState(state, candidateIndex);
+  const herbNames = (candidate?.herbs || []).map((herb) => herb.name?.trim()).filter((name): name is string => Boolean(name));
+  if (herbNames.length < 2) return [];
+  return queryDrugCompatibility(cfg, herbNames, signal);
+}
+
+export function buildLocalHighRiskHerbPairSection(
+  state: CaseState,
+  candidateIndex?: number,
+  providerFindings: readonly RxaiCompatibilityFinding[] = [],
+): string {
+  const issues = [
+    ...buildLocalHighRiskHerbPairIssues(state, candidateIndex),
+    ...providerCompatibilityIssues(state, candidateIndex, providerFindings),
+  ];
   if (issues.length === 0) return "";
   return [
     "## 生成前配伍预检提示",

@@ -485,7 +485,7 @@ const PHASE_STEPS: { phase: Phase; label: string }[] = [
   { phase: "question",  label: "重点追问"  },
   { phase: "diagnose",  label: "辨病辨证"  },
   { phase: "prescribe", label: "候选方药"  },
-  { phase: "assess",    label: "审方随访"  },
+  { phase: "assess",    label: "风险随访"  },
 ];
 
 const PHASE_ORDER: Phase[] = ["idle", "collect", "question", "diagnose", "prescribe", "assess", "done", "error"];
@@ -536,9 +536,9 @@ export function stepLimitedReason(caseState: CaseState, step: typeof PHASE_STEPS
       : "未形成剂量级候选处方；可重新生成候选方药，或按提示补齐缺失信息。";
   }
   if (step.phase === "assess") {
-    return caseState.auditAdvisory?.available === false
+    return caseState.auditAdvisory?.available === false && !caseState.auditAdvisory?.presentationDisabled
       ? "合理用药审方服务暂不可用，风险评估按人工药师复核路径处理。"
-      : "本阶段未生成完整评估内容；可重试审方随访。";
+      : "本阶段未生成完整评估内容；可重试风险随访。";
   }
   return "本阶段输出受限，请结合页面提示处理。";
 }
@@ -575,7 +575,10 @@ export function getStepStatus(caseState: CaseState, step: typeof PHASE_STEPS[0])
     if (step.phase === "assess") {
       if (!caseState.riskAssessment) return "limited";
       if (!hasDosePrescription) return caseState.safetyGate?.status === "red_flag" ? "done" : "limited";
-      return caseState.auditAdvisory?.available === false ? "limited" : "done";
+      // 审方不在本产品面时,M05 是完整完成的——不能因为「没有审方结论」把它标成受限。
+      return caseState.auditAdvisory?.available === false && !caseState.auditAdvisory?.presentationDisabled
+        ? "limited"
+        : "done";
     }
   }
   if (stepIdx < currentPhaseIdx) return "done";
@@ -2987,7 +2990,7 @@ export function buildCompleteReport(
     caseState.diagnosis ? `## 辨病辨证\n${diagnosisReportSection(caseState.diagnosis)}` : "",
     !nonDoseOnly && caseState.prescription ? `## 候选方药\n${reportSection(caseState.prescription)}` : "",
     nonDoseOnly ? `## 处方执行边界\n${emergencyReferral ? "急危重风险未排除前不生成候选方药或剂量；请先完成急诊或转诊评估。" : "本次安全评估不允许导出剂量级候选方药；请解除确定性阻断后重新评估。"}` : "",
-    caseState.riskAssessment ? `## 审方与风险随访\n${reportSection(caseState.riskAssessment)}` : "",
+    caseState.riskAssessment ? `## 风险与随访\n${reportSection(caseState.riskAssessment)}` : "",
   ].filter(Boolean).join("\n\n"));
 }
 
@@ -8669,9 +8672,11 @@ export default function DiagnosisPage() {
         ...current,
         riskAssessment,
         followupTimeline: generatedRisk.followupTimeline,
-        auditAdvisory: auditUnavailable
-          ? { available: false, reason: machineAuditStatus?.reason || (noAuditItems ? "no_prescription_items" : "service_unavailable") }
-          : { available: true },
+        auditAdvisory: machineAuditStatus?.presentationDisabled
+          ? { available: false, presentationDisabled: true }
+          : auditUnavailable
+            ? { available: false, reason: machineAuditStatus?.reason || (noAuditItems ? "no_prescription_items" : "service_unavailable") }
+            : { available: true },
         skipDifferentiationGate: undefined,
         phase: "done",
         previousResult: undefined,

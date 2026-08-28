@@ -5,6 +5,12 @@ const scripts = [
   // rsync's multi-source `--delete` removed `.env.prod.runtime` before compose, while the old container
   // stayed healthy and masked the failure.  Pin both the shell ordering and real rsync behavior.
   "test:deploy-runtime-env-protection",
+  // 审方呈现开关(2026-08-28): 审方是独立交付的接口与产品页面，CDSS 默认不重复呈现；
+  // 但本地确定性配伍检测必须照出且照进 HIS，且「展示关闭」不得被读成「审方不可用」。
+  "test:rxaudit-presentation",
+  // 灵犀查询接口集成(2026-08-28): DRUG_MASTER_SEARCH 会把查不到的关键词原样回声成一条药品，
+  // 只按名字判存在等于任何字符串都能证成药物身份；配伍查询只加不减，本地分级不可被供应商下调。
+  "test:rxai-query-integration",
   "test:rxaudit-contract",
   "test:rxaudit-payload",
   "test:rxaudit-cache",

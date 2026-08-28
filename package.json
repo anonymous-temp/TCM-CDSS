@@ -248,7 +248,10 @@
     "test:inspection-field-slot": "npx jiti scripts/test-inspection-field-slot.mjs",
     "test:stage-progress-phase": "npx jiti scripts/test-stage-progress-phase.mjs",
     "test:review-bounded-advisory": "npx jiti scripts/test-review-bounded-advisory-telemetry.mjs",
-    "test:m04-review-identity-floor": "npx jiti scripts/test-m04-review-identity-floor.mjs"
+    "test:m04-review-identity-floor": "npx jiti scripts/test-m04-review-identity-floor.mjs",
+    "test:rxaudit-presentation": "npx jiti scripts/test-rxaudit-presentation-switch.mjs",
+    "test:rxai-query-integration": "npx jiti scripts/test-rxai-query-integration.mjs",
+    "probe:rxai-query": "node scripts/probe-rxai-query.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

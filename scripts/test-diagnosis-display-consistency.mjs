@@ -947,16 +947,16 @@ const prescribeFailureDisplay = stageErrorDisplay({ phase: "prescribe", message:
 assert.equal(prescribeFailureDisplay.stepLabel, "候选方药");
 assert.equal(prescribeFailureDisplay.retryText, "重新生成候选方药");
 assert.equal(prescribeFailureDisplay.warningLevel, "L2", "ordinary stage failures are recoverable warnings, not red safety incidents");
-assert.deepEqual(prescribeFailureDisplay.downstreamLabels, ["审方随访"], "the failed M04 panel must name M05 as not executed");
+assert.deepEqual(prescribeFailureDisplay.downstreamLabels, ["风险随访"], "the failed M04 panel must name M05 as not executed");
 const diagnoseFailureDisplay = stageErrorDisplay({ phase: "diagnose", message: "辨病辨证本次未完整生成" });
 assert.equal(diagnoseFailureDisplay.retryText, "重新生成辨病辨证");
-assert.deepEqual(diagnoseFailureDisplay.downstreamLabels, ["候选方药", "审方随访"]);
+assert.deepEqual(diagnoseFailureDisplay.downstreamLabels, ["候选方药", "风险随访"]);
 const assessFailureDisplay = stageErrorDisplay({ phase: "assess", message: "推理已取消" });
 assert.equal(assessFailureDisplay.retryText, "重新生成审方与随访");
 assert.deepEqual(assessFailureDisplay.downstreamLabels, [], "M05 is terminal: no downstream stages to mark as not executed");
 const questionFailureDisplay = stageErrorDisplay({ phase: "question", message: "推理已取消" });
 assert.equal(questionFailureDisplay.retryText, "重试本阶段");
-assert.deepEqual(questionFailureDisplay.downstreamLabels, ["辨病辨证", "候选方药", "审方随访"]);
+assert.deepEqual(questionFailureDisplay.downstreamLabels, ["辨病辨证", "候选方药", "风险随访"]);
 const redFlagAssessFailure = {
   phase: "error",
   lastError: { phase: "assess", message: "M05暂未完成" },

@@ -67,7 +67,11 @@ export const SECTION_TITLES = {
   followupTimeline: ["随访时间轴", "时间轴"],
   riskSummary: ["处方安全总评", "风险总评", "安全总评"],
   prescriptionRisk: ["用药风险提示", "安全校验", "处方风险提示"],
-  compatibilityRisk: ["十八反十九畏与配伍禁忌"],
+  // 「生成前配伍预检提示」是本地确定性十八反十九畏检测的段名。审方展示关闭后它是 M05 里
+  // 唯一的配伍风险来源，不登记就会被 his-scheme 的 section() 丢掉——HIS 侧将完全没有配伍内容。
+  compatibilityRisk: ["十八反十九畏与配伍禁忌", "生成前配伍预检提示"],
+  // 病历质量提示（现用药无法可靠结构化、候选缺剂量）。与审方是否呈现无关，HIS 必须拿到。
+  recordQualityRisk: ["处方信息待核对"],
   adrRisk: ["ADR与不良反应风险"],
   interactionRisk: ["当前用药相互作用", "当前用药-新处方冲突", "中西药/中成药相互作用"],
   specialPopulationRisk: ["特殊人群与剂量风险", "特殊人群用药风险", "剂量风险"],
