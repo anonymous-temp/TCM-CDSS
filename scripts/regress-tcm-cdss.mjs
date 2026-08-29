@@ -170,8 +170,12 @@ function runFrontendContractChecks() {
   const herbWorkbench = sourceBetween(source, "function HerbModificationWorkbench(", "function HerbPrescriptionRows(");
   const questionPrompt = sourceBetween(promptSource, "export function buildQuestionPrompt", "// ─── M03");
   const reasoningInstruction = sourceBetween(promptSource, "function reasoningV2Instruction", "// ─── M01");
-  const m04ProposalInstruction = sourceBetween(reasoningInstruction, 'if (stage === "prescribe")', "const card =");
-  const m03ReasoningInstruction = sourceBetween(reasoningInstruction, "const card =", "// ─── M01");
+  // 分界锚点改用 M03 合同的小节标题：原锚点 `const card =` 是 lineageAdaptation 常量子字段的
+  // 取值行，P2 把那些常量改由服务端确定性补齐后该行被删除，切片随即越界——M04 段一路吃进
+  // M03 示例，`!includes("overview")` 于是不成立。断言的主张没变（M04 仍是不含 M03 字段的
+  // 最小提案，P2 只让它更精简），变的只是「用什么锚点找到这两段」。
+  const m04ProposalInstruction = sourceBetween(reasoningInstruction, 'if (stage === "prescribe")', "## V2结构化临床数据");
+  const m03ReasoningInstruction = sourceBetween(reasoningInstruction, "## V2结构化临床数据", "// ─── M01");
   const followupTimelineType = sourceBetween(source, "type FollowupTimelineItem", "function splitMarkdownTableCells");
   const followupTimelineParser = sourceBetween(safetySource, "export function parseStructuredFollowupTimeline", "function withStructuredFollowupTimeline");
   // FollowupTimeline 组件已于 2026-08-09 (aafe416f) 删除，随访时间轴改由结果摘要
