@@ -34,7 +34,7 @@ import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/ht
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
 import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, m04ArbitratedPatientContextAnnotation, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m03LimitedInformationRepairRoundAllowed, m04BaselineVerifiedFinalReviewAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
-import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, preflightM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
+import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
 import { recordCdssClinicalReviewTelemetry, recordCdssStageTelemetry, type CdssClinicalReviewOutcome, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
@@ -2722,20 +2722,21 @@ async function reviewM03DiagnosticCriteria(
   const applyAdvisoryBoundary = (
     review: ClinicalReviewExecution<M03DiagnosticReview>,
   ): ClinicalReviewExecution<M03DiagnosticReview> => boundM03AdvisoryReview(review, reasoning, clinicalContext);
-  // 确定性复核前置判据（P1）。`preflightM03DiagnosticReview` 早就写好，但生产路径上零调用——
-  // 只有测试脚本引用它。结构/事实不变量是确定性的，候选在这一层就已判定必须修复时，
-  // 再花一次（可能两次）模型复核不会改变结论。
+  // 【不要在这里接 preflightM03DiagnosticReview】——2026-08-29 实测回归，已回滚。
   //
-  // 安全边界：本短路只可能产出 status="repair"，而 `clinicalReviewAttestation` 只在
-  // status !== "repair" 时构造——所以它永远不可能让签名载荷谎称「已独立复核」。
-  // 修复轮产出的新候选照常走完整的模型复核链。
-  const deterministicPreflight = preflightM03DiagnosticReview(reasoning, clinicalContext);
-  if (deterministicPreflight) {
-    return {
-      ...deterministicPreflight,
-      execution: { durationMs: 0, attemptCount: 0, reason: "repair" },
-    };
-  }
+  // 它看起来是一道免费的确定性短路：候选若已违反结构/事实不变量，再花一次模型复核不会
+  // 改变结论。实测 prod-smoke 3 例里 2 例因此**丢掉合同签名**，M04 拒绝进入
+  // （stage_result 指纹：reviewStatus=repair + reviewAttemptCount=0 + retryCount=0
+  //  → quality_annotated_m03_followup_safety_net_not_actionable / _therapy_method_direction_unbound）。
+  //
+  // 根因是判据错位，不是实现 bug：`m03SemanticIssue` 返回二十余种**合同类**问题码
+  //（followup 安全网不可执行、治法未绑定方向、病位分类缺失…），它们各自在
+  // structured-clinical-repair 里有定向修复分支；而 preflight 把它们一律压成两个
+  //**复核类**码（supporting_fact_mismatch / tcm_reasoning_unsupported）。于是这些候选被
+  // 改道进复核修复路径——那条路径不知道怎么修 followup 安全网——同时模型复核被整个跳过。
+  //
+  // 结论：这个函数作为「复核前置判据」的定位没错，错的是把它的判决当成复核结果喂进编排。
+  // 要省这次复核调用，得先让 preflight 只对**真正属于复核范畴**的问题码短路。
   const first = await runIndependentClinicalReview<M03DiagnosticReview>({
     stage: "diagnose",
     systemPrompt: "你是独立临床诊断标准复核器，只输出约定 JSON。不得编造患者事实。",
