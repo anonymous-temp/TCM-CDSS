@@ -387,6 +387,16 @@ export function constrainM04ClinicalReviewScope(
     : { status: "accepted", issueCode: "none" };
 }
 
+/**
+ * M04 争议裁决的最小载荷（P3）。
+ *
+ * 裁决只有一个触发条件：`herb_plan_mismatch` + `repairFocus=emperor_role`——争的是
+ * 君药角色与 P1 核心病机、总治法是否相称。这类争议只需要：病机与治法（来自已签名 M03）、
+ * 候选药味的角色字段、以及上一名复核器的意见。外部证据摘要（≤12k）与 M03 的西医半、
+ * 鉴别、管理段都与「君药选得对不对」无关，此前却随整份首轮提示词一起重付给 qwen3.8-max。
+ *
+ * 其他问题码保守回落到完整首轮提示词：判据一旦放宽，行为退化到今天的样子。
+ */
 export function buildM04ClinicalReviewAdjudicationPrompt(
   clinicalContext: string,
   priorReasoning: unknown,
@@ -394,8 +404,24 @@ export function buildM04ClinicalReviewAdjudicationPrompt(
   evidenceContext: string,
   disputedReview: M04ClinicalReview,
 ): string {
+  const emperorRoleDispute = disputedReview.status === "repair"
+    && disputedReview.issueCode === "herb_plan_mismatch"
+    && disputedReview.repairFocus === "emperor_role";
+  if (!emperorRoleDispute) {
+    return [
+      buildM04ClinicalReviewPrompt(clinicalContext, priorReasoning, reasoning, evidenceContext),
+      "你是第二名独立裁决复核器。上一名复核器提出了争议；不得盲从上一意见，也不得仅因自己会有不同偏好就推翻。",
+      `上一复核器结构化意见：${JSON.stringify(disputedReview)}`,
+    ].join("\n\n");
+  }
+  const payload = buildM04ClinicalReviewPayload(priorReasoning, reasoning);
+  const prior = record(payload.prior);
   return [
-    buildM04ClinicalReviewPrompt(clinicalContext, priorReasoning, reasoning, evidenceContext),
+    "你是第二名独立裁决复核器，只裁决君药角色这一个争议，不重新审计整份处方，也不重新生成报告。",
+    "君药角色的判据：君药必须直接承担 P1 核心病机与总治法方向；臣佐使围绕君药展开。",
+    `患者事实边界：${clinicalContext.slice(0, 8_000)}`,
+    `已签名M03病机与治法：${JSON.stringify({ pathogenesis: prior?.pathogenesis, therapy: prior?.therapy, overview: prior?.overview }).slice(0, 6_000)}`,
+    `待裁决M04候选：${JSON.stringify(payload.candidate).slice(0, 14_000)}`,
     "你是第二名独立裁决复核器。上一名复核器对君药角色提出了争议；不得盲从上一意见，也不得仅因自己偏好另一味同样合理的君药而要求重生成。",
     `上一复核器结构化意见：${JSON.stringify(disputedReview)}`,
     "请用待复核投影中服务端生成的 function、prescriptionRole、targetPathogenesis、role 与 targetRef 逐项裁决：若现有 1–2 味君药的知识库功用确实直接覆盖 P1 核心治法，且不存在患者事实冲突或明显方向漂移，必须 accepted；只有功用不覆盖 P1、依赖未成立事实或明显偏离总治法时才 repair。仍只输出原约定 JSON。",

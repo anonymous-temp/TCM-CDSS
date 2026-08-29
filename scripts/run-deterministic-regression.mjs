@@ -142,6 +142,10 @@ const scripts = [
   // P0 token 账本：11 个自建模型调用点此前完全不记账，真实成本算不出来。
   // 源码级断言钉住「新增直连调用点必须接账本」，防止账本再次出现盲区。
   // P1 编排层浪费：证据无预算 / pretty-print / 提示块序 / 三处缺缓存 / preflight 未接线。
+  // P2 生成合同瘦身：模型不再输出服务端自有字段，校验合同与签名载荷形状不变。
+  // P3/P4 争议裁决最小载荷 + 结构化输出下不下发 max_tokens（供应商官方建议）。
+  "test:review-adjudication-packet",
+  "test:m03-server-owned-fields",
   "test:orchestration-token-budget",
   "test:model-task-telemetry",
   "test:clinical-facts",

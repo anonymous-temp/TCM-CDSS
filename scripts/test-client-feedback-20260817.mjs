@@ -369,7 +369,9 @@ const mahuangHerbs = [
   const diagnosisApi = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
   assert.match(
     diagnosisApi,
-    /groundStructuredPatientFacts\(content, clinicalContext\)[\s\S]{0,500}applyM03KeySyndromeDiscriminatorsToContent\(grounded, clinicalContext\)/,
+    // 探针对第一个实参的**名字**保持鲁棒：准备链前面新增了服务端自有字段补全（P2），
+    // 接地的输入因此改叫 serverOwned。断言的主张不变——接地必须在鉴别点投影之前。
+    /groundStructuredPatientFacts\(\w+, clinicalContext\)[\s\S]{0,500}applyM03KeySyndromeDiscriminatorsToContent\(grounded, clinicalContext\)/,
     "M03 真实准备链必须先完成病历接地，再投影已确认的完整原句",
   );
   assert.match(

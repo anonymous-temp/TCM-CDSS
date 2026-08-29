@@ -2,7 +2,6 @@
 import herbFunctionCategoriesJson from "../data/tcm-herb-function-categories.json" with { type: "json" };
 import type { CaseState } from "./diagnosis-types";
 import type { AssistedNegationClauses } from "./clinical-polarity";
-import { EVIDENCE_LEVELS, SAFETY_DEFERENCE_TEXT } from "./cdss-vocab";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import { getLineageCard, getLineageQuestionStrategy } from "./tcm-lineages";
 import { executableFormulaCompilationReferences, formulaManualDoseIngredients } from "./tcm-formula-provenance";
@@ -453,8 +452,6 @@ ${herbCountPreferenceInstruction(caseState)}- candidate.herbs 只包含本次真
 - nonPharma.diet 只能给出普通、低风险的规律饮食和生活方式建议；不得把山楂、黑木耳、药膳等具体食物写成“活血化瘀、安神、补气、滋阴”等治疗手段，不得暗示食疗可替代诊疗或药物。患者过敏史、当前用药或基础病未知时，不得推荐可能影响凝血、血糖、血压或药物作用的功能性食物。
 `;
   }
-  const card = getLineageCard(caseState.tcmLineagePreference);
-  const formulaRule = `"formula": null`;
   return `
 
 ## V2结构化临床数据（唯一输出）
@@ -472,7 +469,7 @@ M03 的证候、病位和病性必须显式标注 resolution：resolved=现有�
 
 JSON要求：
 - 必须是合法 JSON，不要代码块，不要注释，不要尾逗号。
-- M03 stage=diagnose 时 ${formulaRule}。
+- M03 不产出方剂组成：formula 由服务端恒定写为 null，不要输出该字段。
 - M03 只形成辨病辨证、病机、治法与方名方向，任何字段都不得输出药味组成、克数/毫克数、每日剂数、煎服法或疗程。recommendedFormulaDirection/recommendedFormulaNames 只能写方名或方义方向，不得携带药味、剂量、剂数、煎服法和疗程；这些内容只能在 M04 生成并经审方。
 - overview.recommendedFormulaNames 与 formulaSelectionMode 是本例方名锁定的机器读取字段，必须认真填写：当上方【M03经典方检索】短名单中存在与本例证候-病机匹配的经典方时，recommendedFormulaNames 必须从短名单中逐字抄写 1–3 个最匹配方名（不得改写、不得自造、不得留空），formulaSelectionMode 对应填 single（主方明确）、combined（明确合方）或 alternatives（多候选并列待医生选择）；仅当短名单中确实没有方证匹配的条目时，recommendedFormulaNames 才允许留空并填 self_devised。不得把未收载方伪装成经典方，也不得在短名单有匹配方时仍默认自拟。
 - overview.recommendedFormulaDirection 必须经典方优先：方证匹配时优先选用有出处可考的经典名方（本地方剂目录收载的古代经典名方、核验补充方或组成一致的地方目录方），并直接写出方名（如“血府逐瘀汤加减”）；确无方证匹配的经典方时才按已锁定病机与治法自拟，自拟时只写“按已锁定病机与治法辨证组方”，不得罗列被排除的方名、书名或文献。
@@ -514,16 +511,13 @@ JSON要求：
 - M03 symptomClusters 用 0–6 组“患者症状组合 → 共同机制”归纳病机，每组 symptoms 只能取自病历同极性的已知表现；单个孤立症状或无法形成共同机制时可输出空数组。
 - M03 pathogenesis.chain[].patientFact 与 syndromeEvidence 只能引用病历实际记录、且**极性一致**的患者表现，并且两列都要各自能在病历中找到逐字连续原文：**严禁写入病历已明确否认或根本未提及的症状/体征**。例如病历写“无自汗/否认盗汗/无明显寒热”，则 patientFact 和 syndromeEvidence 中都不得出现“自汗/盗汗/寒热”等被否认词，也不得因某证型的典型表现（如气虚多自汗、阴虚多盗汗）而把本例并未记录的表现当作患者事实或证候证据。证型典型表现若本例缺失，只能写入 pathogenesis.uncertainties。
 - primarySyndromeBasis 已选入会直接改变表实/表虚或卫表固摄判断的“无汗/自汗”时，至少一个 pathogenesis.chain 节点的 patientFact 或 syndromeEvidence 必须逐字绑定该鉴别点；不得只在总览列出、却让下游病机和治法完全看不见它。盗汗等伴随表现是否进入主链由全案病机决定，不得一律强制占用主链节点。
-- evidenceLevel 只能使用 ${EVIDENCE_LEVELS.join("/")}。model_inference 仅表示病例内推理，不是“参考依据”；只有实际命中的指南、说明书、药品标签、文献、经典出处或知识库记录才可作为医生可见参考文献。
 - westernDiagnosis.primary.suggestedChecks 必须分层：先列与主诉直接相关的补充问诊、生命体征和查体；只有病例已有红旗、神经系统异常或明确鉴别指征时，才列具体 CT/MRI/增强扫描、经颅多普勒或成套实验室检查。资料稀疏且未见红旗时不得输出无差别的高级检查清单，只能写明出现何种阳性事实后再评估相应检查。
-- 无明确来源时 evidenceLevel 写 insufficient、source 写“内部证据缺口”；该状态只供后台审计，不得出现在客户正文。不得编造文献、DOI或指南。
+- 不得编造文献、DOI 或指南。guidelineRefs 只能逐字引用上方已注入的 EVID-GUIDE 条目 id；服务端会按 id 反查真检索到的条目后重写该字段，编造的 id 一律落空。
 - lineageAdaptation.influencedDecisions.aspect 不得出现剂量、配伍禁忌、特殊人群、红旗或相互作用。
 - management 只写临床管理闭环，不写系统按钮、接口、阶段名或工程化状态。
 - JSON 右花括号必须是回复最后一个非空内容；其后禁止追加解释、免责声明、尾注或第二份结果。
 
 {
-  "schemaVersion": "tcm-cdss-reasoning-v2",
-  "stage": "${stage}",
   "overview": {
     "tcmDiseaseName": "规范中医病名",
     "primarySyndrome": "主证候",
@@ -539,41 +533,31 @@ JSON要求：
     "overallTherapy": "总治法",
     "recommendedFormulaDirection": "推荐主方或方义方向",
     "recommendedFormulaNames": ["从上方检索短名单中逐字抄写的方名，无匹配时为[]"],
-    "formulaSelectionMode": "single",
-    "evidence": {"evidenceLevel":"model_inference","source":"病例内推理","confidence":"中"}
+    "formulaSelectionMode": "single"
   },
   "westernDiagnosis": {
-    "primary": {"name":"纯现代医学诊断倾向","status":"考虑","confidence":"中","supportingFacts":["病历中已提供的支持事实"],"supportingFactKinds":[{"fact":"与 supportingFacts 中某条逐字相同","kind":"symptom"}],"clinicalRationale":"事实到诊断倾向的临床推理，不得复述病史","limitations":["当前资料限制"],"suggestedChecks":["用于鉴别或排除的检查"],"guidelineRefs":[{"evidenceId":"EVID-GUIDE-002","appliesTo":"该指南支持本例哪一点（一句话）"}],"evidence":{"evidenceLevel":"model_inference","source":"病例内推理","confidence":"中"}},
+    "primary": {"name":"纯现代医学诊断倾向","status":"考虑","confidence":"中","supportingFacts":["病历中已提供的支持事实"],"supportingFactKinds":[{"fact":"与 supportingFacts 中某条逐字相同","kind":"symptom"}],"clinicalRationale":"事实到诊断倾向的临床推理，不得复述病史","limitations":["当前资料限制"],"suggestedChecks":["用于鉴别或排除的检查"],"guidelineRefs":[{"evidenceId":"EVID-GUIDE-002","appliesTo":"该指南支持本例哪一点（一句话）"}]},
     "differentials": [{"name":"需鉴别方向","reason":"为何需要鉴别","distinguishingPoints":"本例支持或不支持该方向的区分要点","nextCheck":"建议检查或复核点"},{"name":"另一个需鉴别方向","reason":"…","distinguishingPoints":"…","nextCheck":"…"}],
     "candidates": [{"name":"与 primary.name 逐字相同","likelihood":"高","keyEvidence":["本例支持它的已记录事实"],"againstEvidence":["本例不支持它的点，可为空"]},{"name":"第二候选诊断","likelihood":"中","keyEvidence":["…"],"againstEvidence":["…"]},{"name":"第三候选诊断","likelihood":"低","keyEvidence":["…"],"againstEvidence":["…"]}]
   },
   "pathogenesis": {
-    "summary": "病机归纳段落",
-    "locationDifferentiation": {"items":["病位1"],"details":[{"location":"病位1","basis":"本例已提供的症状、舌脉或病史依据 → 病位归属"}],"resolution":"resolved | bounded | unresolved（按本例病位证据实际强度填）","resolutionReason":"bounded/unresolved 时必填：病位判断仍受哪些未知限制","evidence":{"evidenceLevel":"model_inference","source":"本例四诊与病史推断","confidence":"中"}},
-    "natureDifferentiation": {"items":["病性1"],"rootDeficiency":["本虚病性"],"branchExcess":["标实病性"],"basis":"本例支持本虚或标实判断的患者事实","resolution":"resolved | bounded | unresolved（按本例病性证据实际强度填）","resolutionReason":"bounded/unresolved 时必填：病性判断仍受哪些未知限制","evidence":{"evidenceLevel":"model_inference","source":"本例四诊与病史推断","confidence":"中"}},
+    "locationDifferentiation": {"items":["病位1"],"details":[{"location":"病位1","basis":"本例已提供的症状、舌脉或病史依据 → 病位归属"}],"resolution":"resolved | bounded | unresolved（按本例病位证据实际强度填）","resolutionReason":"bounded/unresolved 时必填：病位判断仍受哪些未知限制"},
+    "natureDifferentiation": {"items":["病性1"],"rootDeficiency":["本虚病性"],"branchExcess":["标实病性"],"basis":"本例支持本虚或标实判断的患者事实","resolution":"resolved | bounded | unresolved（按本例病性证据实际强度填）","resolutionReason":"bounded/unresolved 时必填：病性判断仍受哪些未知限制"},
     "symptomClusters": [{"symptoms":["病历原文症状1","病历原文症状2"],"mechanism":"该症状组合共同指向的病机"}],
     "caseRelationship": {"rootPattern":"全案核心证候或病机","mainManifestation":"规范中医病名或主要表现","relationship":"核心病机如何导致主要表现"},
     "chain": [
-      {"nodeId":"P1","patientFact":"从病历逐字摘录的短句，不得改写或扩写","syndromeEvidence":"支持本证的病历原文引用：与 patientFact 同类的四诊/症状/病史原句，须能在病历中找到相同极性的原文；不得写入病历未记录或已否认的表现，也不得用某证型的典型表现代替本例事实","pathogenesis":"病机判断","therapyDirection":"治法方向","pathogenesisType":"始动","evidence":{"evidenceLevel":"model_inference","source":"本例资料","confidence":"中"}}
+      {"nodeId":"P1","patientFact":"从病历逐字摘录的短句，不得改写或扩写","syndromeEvidence":"支持本证的病历原文引用：与 patientFact 同类的四诊/症状/病史原句，须能在病历中找到相同极性的原文；不得写入病历未记录或已否认的表现，也不得用某证型的典型表现代替本例事实","pathogenesis":"病机判断","therapyDirection":"治法方向","pathogenesisType":"始动"}
     ],
     "uncertainties": [{"item":"待确认信息","reason":"为什么影响判断","affects":"影响辨证/方药/风险的范围"}]
   },
   "therapy": {
     "overallPrinciple": "总治则",
     "overallMethod": "总治法",
-    "subTherapies": [{"therapy":"治法","targetPathogenesis":"对应病机","priority":"主要","evidence":{"evidenceLevel":"model_inference","source":"本例资料","confidence":"中"}}]
+    "subTherapies": [{"therapy":"治法","targetPathogenesis":"对应病机","priority":"主要"}]
   },
-  ${formulaRule},
-  "nonPharma": null,
   "lineageAdaptation": {
-    "schemaVersion": "tcm-cdss-reasoning-v2",
-    "lineageCode": "${card.code}",
-    "label": "${card.label}",
-    "applicable": "${card.code === "unrestricted" ? "partial" : "applicable"}",
     "applicabilityReason": "说明该流派偏好与本例证据是否匹配",
-    "influencedDecisions": [{"aspect":"辨证视角","detail":"仅说明流派影响的辨证/方源/组方/加减风格"}],
-    "unaffectedBySafety": ["红旗排查","剂量安全","配伍禁忌","特殊人群","相互作用"],
-	    "safetyDeference": "${SAFETY_DEFERENCE_TEXT}"
+    "influencedDecisions": [{"aspect":"辨证视角","detail":"仅说明流派影响的辨证/方源/组方/加减风格"}]
   },
   "management": {
     "mustCollect": ["进入下一阶段前最有价值的补录项1","补录项2"],
@@ -811,6 +795,8 @@ ${governedTreatmentPrinciplePromptContext()}
 ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
 ${reasoningV2Instruction("diagnose", caseState)}
+
+以下字段由服务端确定性生成或覆盖，**不要输出**：schemaVersion、stage、formula、nonPharma、pathogenesis.summary、各处 evidence 对象，以及 lineageAdaptation 的 schemaVersion/lineageCode/label/applicable/unaffectedBySafety/safetyDeference。只提交需要临床判断的内容。
 
 以上为固定规范。以下是本例患者资料与检索上下文，请据此按上述规范输出一份结构化临床结论。
 

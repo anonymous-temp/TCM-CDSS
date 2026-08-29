@@ -42,6 +42,8 @@
     "test:redflag-expression-coverage": "jiti scripts/test-redflag-expression-coverage.mjs",
     "test:major-vaginal-bleeding": "jiti scripts/test-major-vaginal-bleeding.mjs",
     "test:llm-adjudication-boundaries": "jiti scripts/test-llm-adjudication-boundaries.mjs",
+    "test:review-adjudication-packet": "jiti scripts/test-review-adjudication-packet.mjs",
+    "test:m03-server-owned-fields": "jiti scripts/test-m03-server-owned-fields.mjs",
     "test:orchestration-token-budget": "jiti scripts/test-orchestration-token-budget.mjs",
     "test:model-task-telemetry": "jiti scripts/test-model-task-telemetry.mjs",
     "test:clinical-facts": "jiti scripts/test-clinical-facts.mjs",

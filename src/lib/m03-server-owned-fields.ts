@@ -23,6 +23,9 @@
  *  3. **不产生临床结论**：填的全是常量或既有服务端投影，不新增病位、病性、治法或诊断。
  */
 
+import { getLineageCard } from "./tcm-lineages";
+import { SAFETY_DEFERENCE_TEXT } from "./cdss-vocab";
+
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
 
@@ -46,13 +49,10 @@ const CHAIN_EVIDENCE = Object.freeze({
   confidence: "中",
 });
 
-export type ServerOwnedLineageFields = Readonly<{
-  code: string;
-  label: string;
-  applicable: string;
-  safetyDeference: string;
-  unaffectedBySafety: readonly string[];
-}>;
+/** 提示词此前逐字喂给模型、再让它抄回来的那份「不受流派影响」清单。 */
+const LINEAGE_UNAFFECTED_BY_SAFETY = Object.freeze([
+  "红旗排查", "剂量安全", "配伍禁忌", "特殊人群", "相互作用",
+]);
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -78,7 +78,7 @@ function fillEvidence(host: Record<string, unknown> | undefined, fallback: Reado
  * 在结构化 JSON 上补齐服务端自有字段。传入的是完整流式内容（含 sentinel），
  * 与其余确定性变换同形，便于插进既有的 phase 链。
  */
-export function applyServerOwnedM03Fields(content: string, lineage?: ServerOwnedLineageFields): string {
+export function applyServerOwnedM03Fields(content: string, lineagePreference?: string): string {
   const start = content.indexOf(START_MARKER);
   const end = start >= 0 ? content.indexOf(END_MARKER, start + START_MARKER.length) : -1;
   if (start < 0 || end < 0) return content;
@@ -119,19 +119,18 @@ export function applyServerOwnedM03Fields(content: string, lineage?: ServerOwned
 
   for (const sub of list(record(reasoning.therapy)?.subTherapies)) fillEvidence(sub, CHAIN_EVIDENCE);
 
-  if (lineage) {
-    const adaptation = record(reasoning.lineageAdaptation);
-    if (adaptation) {
-      // 这五项此前是「提示词把服务端卡值喂进去、模型原样抄回来」。直接由服务端写定，
-      // 模型抄错或漏抄都不再可能。applicabilityReason 与 influencedDecisions 是模型
-      // 真正需要判断的内容，不在此列、原样保留。
-      adaptation.schemaVersion = "tcm-cdss-reasoning-v2";
-      adaptation.lineageCode = lineage.code;
-      adaptation.label = lineage.label;
-      adaptation.applicable = lineage.applicable;
-      adaptation.safetyDeference = lineage.safetyDeference;
-      adaptation.unaffectedBySafety = [...lineage.unaffectedBySafety];
-    }
+  const adaptation = record(reasoning.lineageAdaptation);
+  if (adaptation) {
+    // 这六项此前是「提示词把服务端卡值喂进去、模型原样抄回来」。改由服务端直接写定，
+    // 模型抄错或漏抄都不再可能。applicabilityReason 与 influencedDecisions 是模型
+    // 真正需要判断的内容，不在此列、原样保留。
+    const card = getLineageCard(lineagePreference);
+    adaptation.schemaVersion = "tcm-cdss-reasoning-v2";
+    adaptation.lineageCode = card.code;
+    adaptation.label = card.label;
+    adaptation.applicable = card.code === "unrestricted" ? "partial" : "applicable";
+    adaptation.safetyDeference = SAFETY_DEFERENCE_TEXT;
+    adaptation.unaffectedBySafety = [...LINEAGE_UNAFFECTED_BY_SAFETY];
   }
 
   if (JSON.stringify(reasoning) === before) return content;

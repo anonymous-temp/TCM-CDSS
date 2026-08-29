@@ -212,17 +212,137 @@ const M04_REVIEW_SCHEMA: JsonSchema = {
   additionalProperties: false,
 };
 
+
+/**
+ * 生成侧合同裁剪（P2）。
+ *
+ * 校验用的 `ReasoningV2Schema` **一个字段都不动**——签名载荷、HIS 出口、页面投影、M04 输入
+ * 的形状全部保持逐字不变。这里只裁「下发给模型的那份 schema」：把服务端本来就要覆盖或
+ * 补齐的字段从生成契约里去掉，模型少写这些 token，解码时间跟着变短。
+ * 服务端在校验与签名之前用 `applyServerOwnedM03Fields` 确定性补齐它们。
+ *
+ * 裁掉的字段与理由（逐字段复证过消费方，见该模块顶部注释）：
+ *  · schemaVersion / stage / formula / nonPharma —— 服务端常量，合并层本就强制写死；
+ *  · pathogenesis.summary —— 被 normalizeM03PathogenesisSummaryProjection 无条件投影覆盖；
+ *  · 各处 evidence —— 模板预填 model_inference，而呈现层第一个排除的就是它
+ *    （归档 2280 条里 2177 条是这个值，「指南/文献依据」一栏自诞生起产出 0 条）。
+ *
+ * $def 按**形状**识别，不按 `__schemaN` 这种自动生成的名字——名字会随 zod 契约任何改动漂移，
+ * 按名字写死等于埋一颗静默失效的雷。
+ */
+const M03_SERVER_OWNED_TOP_LEVEL = ["schemaVersion", "stage", "formula", "nonPharma"] as const;
+
+function schemaProperties(node: unknown): Record<string, JsonSchema> | undefined {
+  const record = node && typeof node === "object" ? node as JsonSchema : undefined;
+  return record?.properties && typeof record.properties === "object"
+    ? record.properties as Record<string, JsonSchema>
+    : undefined;
+}
+
+/** 从 properties 与 required 中同时删除；strictProviderSchema 要求两者一致。 */
+function removeSchemaProperty(node: unknown, key: string): void {
+  const record = node && typeof node === "object" ? node as JsonSchema & { required?: unknown } : undefined;
+  const properties = schemaProperties(record);
+  if (!record || !properties || !(key in properties)) return;
+  delete properties[key];
+  if (Array.isArray(record.required)) {
+    record.required = (record.required as unknown[]).filter((entry) => entry !== key);
+  }
+}
+
+function hasAllProperties(node: unknown, keys: readonly string[]): boolean {
+  const properties = schemaProperties(node);
+  return Boolean(properties) && keys.every((key) => key in properties!);
+}
+
+function stripServerOwnedM03Fields(schema: JsonSchema): JsonSchema {
+  const clone = structuredClone(schema);
+  for (const key of M03_SERVER_OWNED_TOP_LEVEL) removeSchemaProperty(clone, key);
+  const properties = schemaProperties(clone) || {};
+  removeSchemaProperty(properties.overview, "evidence");
+  removeSchemaProperty(schemaProperties(properties.westernDiagnosis)?.primary, "evidence");
+  const pathogenesis = properties.pathogenesis;
+  removeSchemaProperty(pathogenesis, "summary");
+  const pathogenesisProperties = schemaProperties(pathogenesis) || {};
+  removeSchemaProperty(pathogenesisProperties.locationDifferentiation, "evidence");
+  removeSchemaProperty(pathogenesisProperties.natureDifferentiation, "evidence");
+  // lineageAdaptation 是 anyOf:[object, null]；对象分支里那几个常量子字段同样由服务端写定。
+  // 不裁的话严格 schema 会把它们标成 required，与提示词里「不要输出」直接冲突，
+  // 解码器会拒掉整份输出。
+  const lineageVariants = Array.isArray((properties.lineageAdaptation as { anyOf?: unknown })?.anyOf)
+    ? ((properties.lineageAdaptation as { anyOf: JsonSchema[] }).anyOf)
+    : [];
+  for (const variant of lineageVariants) {
+    for (const key of ["schemaVersion", "lineageCode", "label", "applicable", "unaffectedBySafety", "safetyDeference"]) {
+      removeSchemaProperty(variant, key);
+    }
+  }
+  // 病机节点与子治法各自只有一个引用方（已核），因此在克隆里删属性不会波及别处。
+  for (const definition of Object.values((clone.$defs || {}) as Record<string, JsonSchema>)) {
+    if (hasAllProperties(definition, ["nodeId", "patientFact", "syndromeEvidence", "therapyDirection"])
+      || hasAllProperties(definition, ["therapy", "targetPathogenesis", "priority"])) {
+      removeSchemaProperty(definition, "evidence");
+    }
+  }
+  return clone;
+}
+
+
+/**
+ * 只保留可达的 `$defs`（P2）。
+ *
+ * `reasoningHalfSchema` 只裁顶层 properties，`$defs` 原样整份带上：实测 m03_tcm 下发的
+ * schema 共 59 个定义、实际可达只有 18 个，41 个死定义占掉约 2 万字符——两个半区各带一份，
+ * 每个修复轮再带一份。裁掉它们对解码语义零影响（不可达定义永远不会被引用），
+ * 纯粹是体积。
+ */
+function pruneUnreachableDefs(schema: JsonSchema): JsonSchema {
+  const defs = schema.$defs && typeof schema.$defs === "object"
+    ? schema.$defs as Record<string, JsonSchema>
+    : undefined;
+  if (!defs) return schema;
+  const reachable = new Set<string>();
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      for (const entry of node) visit(entry);
+      return;
+    }
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      // 不从 $defs 容器本身出发，否则每个定义都「可达」，闭包退化成全集。
+      if (key === "$defs") continue;
+      if (key === "$ref" && typeof value === "string") {
+        const name = value.split("/").pop();
+        if (name && defs[name] && !reachable.has(name)) {
+          reachable.add(name);
+          visit(defs[name]);
+        }
+        continue;
+      }
+      visit(value);
+    }
+  };
+  visit({ properties: schema.properties, required: schema.required, items: (schema as { items?: unknown }).items });
+  if (reachable.size === Object.keys(defs).length) return schema;
+  return {
+    ...schema,
+    $defs: Object.fromEntries(Object.entries(defs).filter(([name]) => reachable.has(name))),
+  };
+}
+
 function schemaForTask(task: StructuredOutputTask): JsonSchema {
-  if (task === "m03_full") return requireGeneratedM03Chain(fullReasoningSchema());
+  if (task === "m03_full") return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Chain(fullReasoningSchema())));
   if (task === "m04_proposal") return m04ProposalJsonSchema();
   if (task === "m03_review") return M03_REVIEW_SCHEMA;
   if (task === "m04_review") return M04_REVIEW_SCHEMA;
   if (task === "m03_western") {
-    return reasoningHalfSchema(["schemaVersion", "stage", "westernDiagnosis", "management"]);
+    return pruneUnreachableDefs(stripServerOwnedM03Fields(
+      reasoningHalfSchema(["schemaVersion", "stage", "westernDiagnosis", "management"]),
+    ));
   }
-  return requireGeneratedM03Chain(reasoningHalfSchema([
+  return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Chain(reasoningHalfSchema([
     "schemaVersion", "stage", "overview", "pathogenesis", "therapy", "formula", "nonPharma", "lineageAdaptation",
-  ]));
+  ]))));
 }
 
 /**

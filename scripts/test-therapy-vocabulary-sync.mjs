@@ -346,11 +346,16 @@ console.log(JSON.stringify({ governedConcepts: concepts.length, checked, failure
     `患者资料必须排在固定规范之后（分界 ${boundary}，资料 ${caseAt}）——否则前缀缓存只能覆盖到资料之前`);
   assert.ok(boundary / prompt.length >= 0.5,
     `可缓存前缀应覆盖模板的大部分（当前 ${Math.round(boundary * 100 / prompt.length)}%）`);
-  // 结构化输出契约属于固定规范，必须在分界之前（用 schema 版本号定位，sentinel 字面串
-  // 由下游注入、不出现在本模板里）。
-  const contractAt = prompt.indexOf("tcm-cdss-reasoning-v2");
+  // 结构化输出契约属于固定规范，必须在分界之前（sentinel 字面串由下游注入、不出现在本模板里）。
+  // 定位串不再用 schema 版本号：schemaVersion 已从模型合同里裁掉，改由服务端确定性补齐
+  // （P2，见 m03-server-owned-fields）。这里改用契约小节标题 + 示例里必然存在的字段名，
+  // 断言的主张不变——变的只是「用什么锚点找到这段契约」。
+  const contractAt = prompt.indexOf("## V2结构化临床数据（唯一输出）");
   assert.ok(contractAt > 0 && contractAt < boundary,
     "结构化输出契约是逐例不变的规范，必须留在可缓存前缀内");
+  const contractExampleAt = prompt.indexOf('"tcmDiseaseName"');
+  assert.ok(contractExampleAt > contractAt && contractExampleAt < boundary,
+    "契约的 JSON 示例本身也必须留在可缓存前缀内");
 }
 
 // ─── 国标治法词表覆盖率 + 未覆盖时的能力边界降级 ─────────────────────────────

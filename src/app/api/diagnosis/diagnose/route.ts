@@ -213,6 +213,7 @@ export async function POST(req: Request) {
     // 是不带标题的裸行，会被一律猜成「现病史」（2026-08-12 线上实测）。与上一行同一份脱敏 DTO。
     structuredCaseState: safeState,
     structuredPatientAge: authoritativePatientAgeYears(gated),
+    structuredLineagePreference: safeState.tcmLineagePreference,
     // 这里不再预算「生成前短名单」：enforceRetrievedM03FormulaSelection 明确 `void` 掉了它
     // （方名锁定只认签名证候的 positiveSufficiency，症状召回证明不了充分性）。原先这一行是一次
     // 完整的 1796 方目录扫描 + 滑窗索引匹配，结果全程未被使用，且入参与真正喂给模型的短名单

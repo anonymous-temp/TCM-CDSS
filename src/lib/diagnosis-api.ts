@@ -20,6 +20,7 @@ import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRa
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
 import { recordModelTaskTelemetry } from "./cdss-model-task-telemetry";
+import { applyServerOwnedM03Fields } from "./m03-server-owned-fields";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, stripUntrustedM04IdentityMetadata, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
 import { clinicalReviewUnavailableReason } from "@/lib/clinical-review-binding";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
@@ -49,7 +50,7 @@ import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-norm
 import { declassifyAndDropOpposingM04CandidateHerbs, dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
-import { responseFormatForTask } from "@/lib/model-response-format";
+import { responseFormatForTask, supportsStrictJsonSchema } from "@/lib/model-response-format";
 
 const GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const GLM_VISION_MODEL = process.env.GLM_VISION_MODEL?.trim() || "glm-5v-turbo";
@@ -518,6 +519,12 @@ type StreamSafetyOptions = {
    */
   m04AttemptKey?: string;
   /**
+   * 流派偏好（P2）。lineageAdaptation 的 lineageCode/label/applicable/safetyDeference/
+   * unaffectedBySafety/schemaVersion 此前是「提示词把服务端卡值喂给模型、再让模型抄回来」，
+   * 现改为服务端在校验前直接写定，模型不再输出这些字段。
+   */
+  structuredLineagePreference?: string;
+  /**
    * M03 两半并行生成（时间专项）：提供时，主流式请求改用 tcm 半提示词，western 半同时走
    * 缓冲请求，流结束后由 mergeParallelM03Halves 确定性合并再进入既有契约/复核/签名链路。
    * 修复轮仍使用完整单发提示词（prompt 参数），并行层不改变任何修复/降级语义。
@@ -541,6 +548,8 @@ export async function prepareDiagnoseStructuredContent(
   allowedFormulaNames: readonly string[] = [],
   patientAgeYears?: number,
   signal?: AbortSignal,
+  /** 流派偏好：lineageAdaptation 的常量子字段由服务端按卡值写定，不再让模型抄回。 */
+  lineagePreference?: string,
 ): Promise<string> {
   // 分段计时：任何 >500ms 的段都记录（时间专项——合并后处理链是 M03 剩余耗时主体，
   // 必须能定位到具体环节，而不是笼统归因给"生成"）。
@@ -554,7 +563,12 @@ export async function prepareDiagnoseStructuredContent(
   };
   // The pathogenesis chain is a clinical conclusion and must come from the model plus semantic
   // review. Never synthesize it from a chief complaint and another model-generated conclusion.
-  const grounded = phase("grounding", groundStructuredPatientFacts(content, clinicalContext));
+  // 服务端自有字段先补齐（P2）：模型不再输出 schemaVersion/stage/formula/nonPharma、
+  // pathogenesis.summary 与各处 evidence，这里在任何校验、复核与签名之前确定性填回，
+  // 因此下游合同、签名载荷与三出口的形状逐字不变。必须排在最前——后面每个 phase 都
+  // 假定对象是完整的。
+  const serverOwned = phase("server_owned_fields", applyServerOwnedM03Fields(content, lineagePreference));
+  const grounded = phase("grounding", groundStructuredPatientFacts(serverOwned, clinicalContext));
   const discriminatorProjected = phase(
     "key_discriminators",
     applyM03KeySyndromeDiscriminatorsToContent(grounded, clinicalContext),
@@ -1086,6 +1100,27 @@ export function reasoningEffortForStructuredRepair(stage?: "diagnose" | "prescri
 
 // 辨证需要产出严格结构化 JSON;思考模式会先吃掉 token 预算导致正文截断，且 DeepSeek 只回 reasoning_content
 // 会被判错误。允许为 diagnose 单独关思考 / 提高 max_tokens。缺省沿用全局。
+/**
+ * 结构化输出下的 max_tokens 策略（P4）。
+ *
+ * 百炼官方文档原文：「开启结构化输出时，请勿设置 max_tokens」——该参数会让 JSON 在输出中途
+ * 被截断成无效 JSON。本仓的修复轮注释正好记录了这个症状：「若首轮因长度截断，同样上限会
+ * 再次截断，把医生困在等-截断-重试循环」，于是修复轮把上限 ×1.5 当补偿。按官方建议在严格
+ * schema 生效时不下发该参数，这一类失败在解码层直接消失。
+ *
+ * 成本仍有界：服务端的 PRIMARY_TEXT_MAX_OUTPUT_CHARS 字节上限照常生效（超限即 abort 上游），
+ * 那才是真正的安全边界；max_tokens 只是一道会制造无效 JSON 的次级上限。
+ * 不支持严格 schema 的模型（回落 json_object）仍保留上限——那条路径没有解码器保证结构完整。
+ */
+function structuredMaxTokensParam(
+  model: string,
+  stage?: "diagnose" | "prescribe",
+  overrideValue?: number,
+): { max_tokens: number } | Record<string, never> {
+  if (supportsStrictJsonSchema(model)) return {};
+  return { max_tokens: overrideValue ?? maxTokensForStructuredStage(stage) };
+}
+
 function maxTokensForStructuredStage(stage?: "diagnose" | "prescribe"): number {
   if (stage === "diagnose") {
     const n = Number(process.env.PRIMARY_DIAGNOSE_MAX_TOKENS);
@@ -2051,13 +2086,14 @@ async function retryCompletePrimaryResponse(
           { role: "user", content: repairPrompt },
         ],
         stream: false,
-        // 重试给更高的 max_tokens 上限：若首轮因长度截断，同样上限会再次截断，把医生困在等-截断-重试循环。
-        // max_tokens 是硬上限而非目标，加大只避免过早截断、不会让模型无谓变长。按阶段取上限并 ×1.5(封顶 32k)。
-        // 封顶须 ≥ 单阶段上限,否则提高 PRIMARY_DIAGNOSE_MAX_TOKENS 时重试反被这里压低、复现同样的截断。
-        max_tokens: Math.max(
+        // 严格 schema 路径按供应商建议不下发 max_tokens（见 structuredMaxTokensParam）。
+        // 回落到 json_object 的模型仍保留上限，且**修复轮给更高的上限**：若首轮因长度截断，
+        // 同样上限会再次截断，把医生困在等-截断-重试循环。封顶须 ≥ 单阶段上限，否则提高
+        // PRIMARY_DIAGNOSE_MAX_TOKENS 时重试反被这里压低、复现同样的截断。
+        ...structuredMaxTokensParam(retryModel, structuredStage, Math.max(
           maxTokensForStructuredStage(structuredStage),
           Math.min(Math.round(maxTokensForStructuredStage(structuredStage) * 1.5), 32_000),
-        ),
+        )),
         temperature: structuredStage ? structuredSamplingTemperature : PRIMARY_TEXT_TEMPERATURE,
         ...(structuredStage ? {
           response_format: responseFormatForTask(
@@ -2170,7 +2206,7 @@ async function collectM03ParallelWesternHalf(
             { role: "user", content: prompt },
           ],
           stream: false,
-          max_tokens: maxTokensForStructuredStage("diagnose"),
+          ...structuredMaxTokensParam(model, "diagnose"),
           temperature: 0,
           response_format: responseFormatForTask(model, "m03_western"),
           ...textModelRequestTuning(model, {
@@ -3106,6 +3142,7 @@ async function callPrimaryTextModelStream(
           opts.structuredAllowedM03FormulaNames,
           opts.structuredPatientAge,
           upstreamController.signal,
+          opts.structuredLineagePreference,
         );
         preparedM03Outputs.add(prepared);
         return prepared;
@@ -3794,7 +3831,10 @@ async function callPrimaryTextModelStream(
             ],
             stream: true,
             stream_options: { include_usage: true },
-            max_tokens: kind === "question" ? Math.min(3_000, maxTokensForStructuredStage(opts.structuredStage)) : maxTokensForStructuredStage(opts.structuredStage),
+            // M02 出题不是严格 schema 路径，保留其 3000 上限；结构化阶段按上面的策略决定。
+            ...(kind === "question"
+              ? { max_tokens: Math.min(3_000, maxTokensForStructuredStage(opts.structuredStage)) }
+              : structuredMaxTokensParam(requestModel, opts.structuredStage)),
             temperature: opts.structuredStage
               ? m04Retry.samplingTemperature
               : kind === "question" ? 0 : PRIMARY_TEXT_TEMPERATURE,

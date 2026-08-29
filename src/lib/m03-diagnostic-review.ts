@@ -185,12 +185,14 @@ export function preflightM03DiagnosticReview(
   };
 }
 
-export function buildM03DiagnosticReviewPrompt(
-  clinicalContext: string,
-  reasoning: unknown,
-  evidenceContext = "",
-): string {
-  const payload = buildM03DiagnosticReviewPayload(reasoning);
+/**
+ * 首轮复核与争议裁决共用的服务端不变量声明。
+ *
+ * 抽出来是因为裁决轮此前**整份重发首轮提示词**（36 条审计规则 + 12k 证据块一并重付），
+ * 而裁决器被明确要求「只裁决首轮指出的深度问题」。共用这段，可以让裁决只带它真正需要的
+ * 上下文，同时避免把同一段不变量文本抄成两份——同一判据两处各写各的是本仓头号缺陷形状。
+ */
+function m03ReviewServerInvariants(clinicalContext: string, reasoning: unknown): string[] {
   const hasAdditionalPositiveFacts = m03GroundingHasCurrentPositiveFacts(clinicalContext);
   const summaryProjectionExact = m03PathogenesisSummaryIsExactProjection(reasoning);
   const depthMode = hasAdditionalPositiveFacts
@@ -205,12 +207,23 @@ export function buildM03DiagnosticReviewPrompt(
         "胃肠主诉在没有更深事实时，可接受“胃失和降、气机不畅”这类由腹胀、嗳气、反酸等直接支持的中性有限病机；不得据此加出肝郁、食积、痰湿、寒热虚实。",
       ].join("\n");
   return [
-    "你是独立的中西医临床推理复核器，不负责重新生成整份报告。核对 westernDiagnosis.primary、中医证候与病机治法、以及候选经方方向是否被当前病例事实充分支持。",
     M03_CLINICAL_INFERENCE_AUTHORITY,
     depthMode,
     summaryProjectionExact
       ? "服务端投影不变量：pathogenesis.summary 已与非空 pathogenesis.chain[].pathogenesis 按顺序去重后用分号连接的文本完全一致。该事实由服务端确定，本轮禁止返回 pathogenesis_summary_drift；若核心病机本身越界，必须指向具体核心字段和无依据概念。"
       : "服务端投影不变量：pathogenesis.summary 尚未证实为精确投影，可按下述规则审查。",
+  ];
+}
+
+export function buildM03DiagnosticReviewPrompt(
+  clinicalContext: string,
+  reasoning: unknown,
+  evidenceContext = "",
+): string {
+  const payload = buildM03DiagnosticReviewPayload(reasoning);
+  return [
+    "你是独立的中西医临床推理复核器，不负责重新生成整份报告。核对 westernDiagnosis.primary、中医证候与病机治法、以及候选经方方向是否被当前病例事实充分支持。",
+    ...m03ReviewServerInvariants(clinicalContext, reasoning),
     "核对医生可见分析是否真正完成推理而非复述病历：westernDiagnosis.primary.name 不得夹带痰湿型、肝火型、气虚证等中医证型；clinicalRationale 必须解释事实如何支持诊断并说明为何没有采用更具体病因标签。西医 differentials 必须有可区分主诊断的要点，不能只列病史。",
     "核对中医诊断分析与鉴别：tcmDiagnosticRationale 必须从已取得的望闻问切事实推导病名和主证，不能把缺CT、MRI、化验、量表或通用查体当作中医辨证不能成立的理由；资料允许比较时应给出有区分点的 tcmDifferentials。情形二的具体证型、寒热虚实和子病机必须使用全案阳性四诊，不能只由主诉关键词机械映射；但已由主症成立的中医工作病名，允许使用该病名定义中不增加证型归属的最浅层基础功能病机形成闭环。情形一则按上述服务端稀疏标准审查，不得反向要求候选补造四诊。",
     "按七阶段做一次方证深度审计：病位至少有两类相互独立患者证据才可锁定；整体状态须覆盖已有病程、精神、饮食、睡眠与二便；明确寒热时至少有寒热、口渴饮水、二便、舌、脉、四肢温度中的两个维度；虚实须区分正虚与邪实；病机链必须逐节点闭环；命名方须有至少一个相邻方鉴别点和能改变选择的核实项；总治法须覆盖 P1/P2。资料未取得必须保持 unknown 或 uncertainties，绝不能按 absent/阴性处理。七阶段是证据充足度约束，不得反向要求稀疏病例补造事实或强行套入六经。",
@@ -259,14 +272,42 @@ export function m03DiagnosticReviewNeedsAdjudication(review: M03DiagnosticReview
   return review.status === "repair" && review.issueCode === "tcm_reasoning_unsupported";
 }
 
+/**
+ * 争议裁决的最小载荷（P3）。
+ *
+ * 裁决只有一个触发条件：首轮判 `tcm_reasoning_unsupported`（中医推理未被患者事实支持）。
+ * 这类争议只关于「中医那半的结论能不能由本例阳性事实支持」，与西医诊断细节和外部证据无关，
+ * 所以只带中医投影 + 一行西医病案框架。未知问题码保守回落到完整投影——判据一旦放宽，
+ * 行为退化到今天的样子，而不是退化成信息不足的裁决。
+ */
+function buildM03AdjudicationPayload(reasoning: unknown, firstReview: M03DiagnosticReview): Record<string, unknown> {
+  const full = buildM03DiagnosticReviewPayload(reasoning);
+  if (firstReview.status !== "repair" || firstReview.issueCode !== "tcm_reasoning_unsupported") return full;
+  const western = record(full.westernDiagnosis);
+  const primary = record(western?.primary);
+  return {
+    overview: full.overview,
+    pathogenesis: full.pathogenesis,
+    therapy: full.therapy,
+    // 病案框架保留一行，避免裁决器对本例的现代医学定位完全失明；细节不带。
+    westernFraming: primary
+      ? { name: primary.name, status: primary.status }
+      : null,
+  };
+}
+
 export function buildM03DiagnosticReviewAdjudicationPrompt(
   clinicalContext: string,
   reasoning: unknown,
   evidenceContext: string,
   firstReview: M03DiagnosticReview,
 ): string {
+  void evidenceContext;
   return [
-    buildM03DiagnosticReviewPrompt(clinicalContext, reasoning, evidenceContext),
+    "你是独立临床诊断深度争议裁决器，只裁决首轮提出的那一个争议，不重新审计整份报告，也不重新生成报告。",
+    ...m03ReviewServerInvariants(clinicalContext, reasoning),
+    `患者事实边界：${clinicalContext.slice(0, 12_000)}`,
+    `被争议的M03中医投影：${JSON.stringify(buildM03AdjudicationPayload(reasoning, firstReview)).slice(0, 12_000)}`,
     "这是对首轮复核结论的独立争议裁决，不是要求你迁就候选，也不是重新生成报告。",
     `首轮复核结论：${JSON.stringify(firstReview)}`,
     "裁决时必须按统一临床推理权威合同逐层判断：第一层患者事实必须接地；第三层证候可由多项相互独立事实收敛；第四层病机治法是受证候约束的临床解释，不要求机制词逐字出现在病例。不得把第一层的逐字要求错误施加到第三、四层。",
