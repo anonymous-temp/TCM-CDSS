@@ -222,6 +222,7 @@ async function probeClinicalFactsPhaseModel(config: ClinicalFactsPhaseModel): Pr
       "你是JSON健康探针，只输出一个JSON对象。",
       "只输出 {\"ok\":true}，不要解释。",
       AbortSignal.timeout(12_000),
+      "probe",
     );
     const start = raw.indexOf("{");
     const end = raw.lastIndexOf("}");
@@ -290,7 +291,9 @@ async function callFactsPhaseModel(
   system: string,
   user: string,
   signal: AbortSignal | undefined,
-  phase: ClinicalFactsPhase = "extract",
+  // "probe" 不是临床相位，只用于账本分档：健康探针每轮 3 次、每次 41 token，
+  // 混进 clinical_facts_extract 会把真实抽取成本算歪（实测均值被从 2100 拉到 1469）。
+  phase: ClinicalFactsPhase | "probe" = "extract",
 ): Promise<string> {
   const task = `clinical_facts_${phase}`;
   const promptChars = system.length + user.length;
