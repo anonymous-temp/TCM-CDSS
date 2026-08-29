@@ -18,6 +18,7 @@ import {
   getPrimaryTextModelConfig,
   textModelRequestTuning,
 } from "./text-model";
+import { observeModelTask } from "./cdss-model-task-telemetry";
 
 export const M02_ANSWER_INTERPRETATION_SCHEMA_VERSION = "tcm-cdss-m02-answer-interpretation-v1" as const;
 
@@ -352,7 +353,7 @@ function primaryModelCall(): M02AnswerInterpreterModelCall | null {
   const client = createTextModelClient(config);
 
   return async ({ systemPrompt, userPrompt, signal }) => {
-    const completion = await client.chat.completions.create({
+    const completion = await observeModelTask({ task: "m02_answer_interpret", stage: "question", model: config.model }, () => client.chat.completions.create({
       model: config.model,
       messages: [
         { role: "system", content: systemPrompt },
@@ -362,7 +363,7 @@ function primaryModelCall(): M02AnswerInterpreterModelCall | null {
       max_tokens: 1_200,
       response_format: responseFormatForZodSchema(config.model, "m02_interpret", M02AnswerModelOutputSchema) as unknown as ChatCompletionCreateParams["response_format"],
       ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
-    }, { signal });
+    }, { signal }));
     return completion.choices[0]?.message?.content || "";
   };
 }

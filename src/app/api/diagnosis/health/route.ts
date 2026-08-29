@@ -12,6 +12,7 @@ import {
   probeClinicalFactsModels,
 } from "@/lib/clinical-facts-runtime";
 import { getCdssStageTelemetrySnapshot } from "@/lib/cdss-stage-telemetry";
+import { getCdssModelTaskTelemetrySnapshot } from "@/lib/cdss-model-task-telemetry";
 import { getCdssKnowledgeTelemetrySnapshot } from "@/lib/cdss-knowledge-telemetry";
 import { cdssRateLimitIdentityConfigured, getCdssAuthenticatedRateLimitKey } from "@/lib/cdss-auth";
 import {
@@ -238,6 +239,8 @@ export async function GET(req: Request) {
       ready: clinicalFactsReady,
     },
     stageTelemetry: getCdssStageTelemetrySnapshot(),
+    // 全流水线模型调用账本（P0）：M03/M04 主链 + 11 个辅助调用点用同一把尺子记 token。
+    modelTaskTelemetry: getCdssModelTaskTelemetrySnapshot(),
     knowledgeTelemetry: getCdssKnowledgeTelemetrySnapshot(),
     rateLimitIdentity: {
       trustedProxyConfigured: rateLimitIdentityReady,

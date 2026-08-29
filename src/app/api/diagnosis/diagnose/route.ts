@@ -1,4 +1,5 @@
-import { callDiagnosisStream } from "@/lib/diagnosis-api";
+import { callDiagnosisStream, primaryTextMaxPromptChars } from "@/lib/diagnosis-api";
+import { compactEvidenceContextForPrompt, m03EvidencePromptBudgetChars } from "@/lib/prompt-budget";
 import { appendEvidenceContext, buildCdssEvidenceContext, buildEvidenceOutputTransform } from "@/lib/cdss-evidence-context";
 import { normalizeCaseTextForFormulaRecall } from "@/lib/formula-recall-normalization.server";
 import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server";
@@ -108,13 +109,27 @@ export async function POST(req: Request) {
     rerankSyndromeHypothesesForFormulaRecall(safeState, assistedNegations, req.signal),
     evidenceContextPromise,
   ]);
-  let prompt = appendEvidenceContext(
-    buildDiagnosePrompt(
-      safeState,
-      { formulaRecallHint, assistedNegations, syndromeHypothesisRerank },
-    ),
-    evidenceContext,
+  const diagnoseBasePrompt = buildDiagnosePrompt(
+    safeState,
+    { formulaRecallHint, assistedNegations, syndromeHypothesisRerank },
   );
+  // 证据块此前无总量上限，直接拼到提示词硬上限为止。M03 的这块要被中医半 + 西医半 + 独立复核
+  // + 每个修复轮重复携带，放大倍数比 M04 更高（M04 已于 2026-08-25 加过同款预算）。
+  const diagnoseEvidenceBudget = Math.min(
+    m03EvidencePromptBudgetChars(),
+    Math.max(0, primaryTextMaxPromptChars() - appendEvidenceContext(diagnoseBasePrompt, "").length),
+  );
+  const boundedDiagnoseEvidence = compactEvidenceContextForPrompt(evidenceContext, diagnoseEvidenceBudget);
+  let prompt = appendEvidenceContext(diagnoseBasePrompt, boundedDiagnoseEvidence.text);
+  if (boundedDiagnoseEvidence.truncated) {
+    console.warn("[tcm-cdss:diagnose] evidence context compacted to fit prompt budget", {
+      basePromptChars: diagnoseBasePrompt.length,
+      evidenceContextChars: evidenceContext.length,
+      retainedEvidenceChars: boundedDiagnoseEvidence.text.length,
+      omittedEvidenceChars: boundedDiagnoseEvidence.omittedChars,
+      promptChars: prompt.length,
+    });
+  }
   if (limitedInformation) {
     prompt += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
   }

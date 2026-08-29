@@ -12,6 +12,7 @@ import {
   type SyndromeHypothesisRerankDecision,
 } from "./tcm-syndrome-hypothesis";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
+import { observeModelTask } from "./cdss-model-task-telemetry";
 
 const RERANK_TIMEOUT_MS = 6_000;
 const MAX_FACT_CHARS = 600;
@@ -62,7 +63,7 @@ export async function rerankSyndromeHypothesesForFormulaRecall(
   signal?.addEventListener("abort", onParentAbort, { once: true });
   const timer = setTimeout(() => controller.abort(), RERANK_TIMEOUT_MS);
   try {
-    const response = await createTextModelClient(config).chat.completions.create({
+    const response = await observeModelTask({ task: "syndrome_rerank", stage: "diagnose", model: config.model }, () => createTextModelClient(config).chat.completions.create({
       model: config.model,
       temperature: 0,
       max_tokens: 500,
@@ -93,7 +94,7 @@ export async function rerankSyndromeHypothesesForFormulaRecall(
           }),
         },
       ],
-    }, { signal: controller.signal });
+    }, { signal: controller.signal }));
     return parseClosedSetSyndromeHypothesisRerank(
       response.choices[0]?.message?.content,
       candidateIds,

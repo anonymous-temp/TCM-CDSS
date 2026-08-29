@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 
 import type { CaseState, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { SIX_HEALTH_FOLLOWUP_DIMENSIONS } from "./tcm-followup-dimensions";
@@ -6,6 +7,7 @@ import { patientInstructionProhibitionsIn } from "./clinical-vocabulary";
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { deriveFirstReviewTiming, hasStrongPrescriptionRisk, sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
+import { observeModelTask } from "./cdss-model-task-telemetry";
 
 /**
  * M05 临床内容的作者是模型，不是模板。
@@ -186,6 +188,52 @@ function validAuthoredText(value: unknown, min = 10, max = 200): string {
   return text;
 }
 
+/**
+ * M05 作文的进程内缓存 + 并发合流（P1）。
+ *
+ * 同一份处方在 assess / post-prescription-risk / his-scheme 三个出口各触发一次作文，
+ * 而三者的模型输入逐字相同——此前每个出口各付一次钱、各等一次时延。
+ *
+ * 键是**实际下发的用户消息内容**的哈希，不是 input 字段：`clinicalContextForAuthoring`
+ * 还会读 state，只按 input 建键会把不同病例误判为同一次调用。
+ * 只缓存成功结果；null（禁语命中/校验不过/超时）不缓存，避免把一次瞬时失败钉死成整窗失败。
+ */
+const AUTHORED_FOLLOWUP_CACHE_TTL_MS = 10 * 60_000;
+const AUTHORED_FOLLOWUP_CACHE_MAX_ENTRIES = 32;
+const authoredFollowupCache = new Map<string, { value: AuthoredFollowupContent; expiresAt: number }>();
+const authoredFollowupInFlight = new Map<string, Promise<AuthoredFollowupContent | null>>();
+
+function authoredFollowupCacheKey(model: string, userContent: string): string {
+  return `${model}:${createHash("sha256").update(userContent).digest("hex").slice(0, 32)}`;
+}
+
+function readAuthoredFollowupCache(key: string): AuthoredFollowupContent | undefined {
+  const hit = authoredFollowupCache.get(key);
+  if (!hit) return undefined;
+  if (hit.expiresAt <= Date.now()) {
+    authoredFollowupCache.delete(key);
+    return undefined;
+  }
+  authoredFollowupCache.delete(key);
+  authoredFollowupCache.set(key, hit);
+  return hit.value;
+}
+
+function writeAuthoredFollowupCache(key: string, value: AuthoredFollowupContent): void {
+  authoredFollowupCache.set(key, { value, expiresAt: Date.now() + AUTHORED_FOLLOWUP_CACHE_TTL_MS });
+  while (authoredFollowupCache.size > AUTHORED_FOLLOWUP_CACHE_MAX_ENTRIES) {
+    const oldest = authoredFollowupCache.keys().next();
+    if (oldest.done) break;
+    authoredFollowupCache.delete(oldest.value);
+  }
+}
+
+/** 测试与运维用：清空进程内 M05 作文缓存。 */
+export function resetAuthoredFollowupCache(): void {
+  authoredFollowupCache.clear();
+  authoredFollowupInFlight.clear();
+}
+
 export async function authorFollowupClinicalContent(
   state: CaseState,
   input: {
@@ -206,13 +254,36 @@ export async function authorFollowupClinicalContent(
   // 那就没有比模板更好的输出，直接回落。
   if (!syndrome) return null;
 
+  // 先把实际下发的用户消息算出来当键——它就是模型的全部输入，输出是它的纯函数。
+  const userContent = clinicalContextForAuthoring(
+    state, syndrome,
+    String(input.pathogenesis || ""), String(input.therapy || ""),
+    (input.herbs || []).slice(0, 30),
+    String(input.firstReviewTiming || ""),
+  );
+  const cacheKey = authoredFollowupCacheKey(config.model, userContent);
+  const cached = readAuthoredFollowupCache(cacheKey);
+  if (cached) return cached;
+  const joined = authoredFollowupInFlight.get(cacheKey);
+  if (joined) {
+    const shared = await joined;
+    if (shared) return shared;
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AUTHORING_TIMEOUT_MS);
   const onParentAbort = () => controller.abort();
   signal?.addEventListener("abort", onParentAbort, { once: true });
+  // 并发合流登记：三个出口同时到达时只发一次模型调用。deferred 在 finally 中必定被结算，
+  // 失败结算为 null，让等待方各自回落到确定性模板（与无缓存时的行为一致）。
+  let settleInFlight: (value: AuthoredFollowupContent | null) => void = () => {};
+  authoredFollowupInFlight.set(cacheKey, new Promise<AuthoredFollowupContent | null>((resolve) => {
+    settleInFlight = resolve;
+  }));
+  let authoredResult: AuthoredFollowupContent | null = null;
   try {
     const client = createTextModelClient(config);
-    const response = await client.chat.completions.create({
+    const response = await observeModelTask({ task: "m05_followup_authoring", stage: "assess", model: config.model }, () => client.chat.completions.create({
       model: config.model,
       temperature: 0.2,
       max_tokens: 1500,
@@ -222,15 +293,10 @@ export async function authorFollowupClinicalContent(
         { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
-          content: clinicalContextForAuthoring(
-            state, syndrome,
-            String(input.pathogenesis || ""), String(input.therapy || ""),
-            (input.herbs || []).slice(0, 30),
-            String(input.firstReviewTiming || ""),
-          ),
+          content: userContent,
         },
       ],
-    }, { signal: controller.signal });
+    }, { signal: controller.signal }));
     const raw = response.choices?.[0]?.message?.content;
     if (typeof raw !== "string" || !raw.trim()) return null;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -284,7 +350,7 @@ export async function authorFollowupClinicalContent(
     // 三段临床内容缺任何一段都不采纳：半份模型内容 + 半份模板会读起来自相矛盾
     // （模板那半句「按本例非药物建议安排饮食作息」与模型那半段具体调护并列）。
     if (!reviewFocus || !efficacyCriteria || !lifestyle) return null;
-    return {
+    const authored: AuthoredFollowupContent = {
       reviewFocus,
       efficacyCriteria,
       lifestyle,
@@ -294,11 +360,17 @@ export async function authorFollowupClinicalContent(
       // 时间轴与三段散文各自独立：时间轴没写好只回落这一栏，不牵连另外三段。
       timeline: usableTimeline,
     };
+    // 只有通过全部校验（含受治理禁语表）的结果才进缓存。
+    writeAuthoredFollowupCache(cacheKey, authored);
+    authoredResult = authored;
+    return authored;
   } catch {
     return null;
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onParentAbort);
+    settleInFlight(authoredResult);
+    authoredFollowupInFlight.delete(cacheKey);
   }
 }
 

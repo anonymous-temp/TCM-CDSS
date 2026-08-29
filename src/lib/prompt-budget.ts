@@ -64,3 +64,15 @@ export function m04EvidencePromptBudgetChars(): number {
   const value = Number(process.env.PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS || 15_000);
   return Number.isFinite(value) && value >= 4_000 && value <= 40_000 ? Math.round(value) : 15_000;
 }
+
+/**
+ * M03 证据块预算。
+ *
+ * M04 在 2026-08-25 因「平均 35.6k token、缓存命中 13%、prefill 每轮重付」加过同款预算，
+ * M03 一直裸拼到总提示词上限——而 M03 的证据块要被生成两半 + 复核 + 每个修复轮反复重付，
+ * 放大倍数比 M04 更高。两处用同一套钳制规则，避免同一判据两处各写各的。
+ */
+export function m03EvidencePromptBudgetChars(): number {
+  const value = Number(process.env.PRIMARY_DIAGNOSE_EVIDENCE_MAX_CHARS || 15_000);
+  return Number.isFinite(value) && value >= 4_000 && value <= 40_000 ? Math.round(value) : 15_000;
+}

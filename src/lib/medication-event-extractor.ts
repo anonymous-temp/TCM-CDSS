@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createTextModelClient, getPrimaryTextModelConfig } from "./text-model";
+import { observeModelTask } from "./cdss-model-task-telemetry";
 
 const MedicationEventSchema = z.object({
   drugName: z.string().min(1).max(120),
@@ -519,7 +520,7 @@ export async function extractMedicationEventsWithModel(
     let repairReason = "";
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const completion = await client.chat.completions.create({
+        const completion = await observeModelTask({ task: "medication_event_extract", stage: "shared", model: config.model }, () => client.chat.completions.create({
           model: config.model,
           temperature: 0,
           max_tokens: 1600,
@@ -537,7 +538,7 @@ export async function extractMedicationEventsWithModel(
                   ].join("\n"),
             },
           ],
-        }, { signal: controller.signal });
+        }, { signal: controller.signal }));
         const content = completion.choices[0]?.message?.content || "";
         const parsed = MedicationExtractionSchema.safeParse(parseJsonObject(content));
         if (!parsed.success) {

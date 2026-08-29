@@ -4,6 +4,7 @@ import type { CaseState } from "./diagnosis-types";
 import { sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { affirmedClinicalText } from "./clinical-polarity";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
+import { observeModelTask } from "./cdss-model-task-telemetry";
 
 /**
  * 口语主诉 → 标准中医临床术语（仅用于候选召回的检索查询）。
@@ -74,7 +75,7 @@ export async function normalizeCaseTextForFormulaRecall(
   signal?.addEventListener("abort", onParentAbort, { once: true });
   try {
     const client = createTextModelClient(config);
-    const response = await client.chat.completions.create({
+    const response = await observeModelTask({ task: "formula_recall_normalize", stage: "diagnose", model: config.model }, () => client.chat.completions.create({
       model: config.model,
       temperature: 0,
       max_tokens: 128,
@@ -83,7 +84,7 @@ export async function normalizeCaseTextForFormulaRecall(
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: sanitizeFreeTextForModel(source) },
       ],
-    }, { signal: controller.signal });
+    }, { signal: controller.signal }));
     const raw = response.choices?.[0]?.message?.content;
     if (typeof raw !== "string") return "";
     // 只保留中文词与分隔符：模型若违反格式输出解释性文字，这里会把它压回术语串，

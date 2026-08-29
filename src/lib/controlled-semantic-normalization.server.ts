@@ -27,6 +27,7 @@ import {
   getPublicTextModelStatus,
   textModelRequestTuning,
 } from "./text-model";
+import { observeModelTask } from "./cdss-model-task-telemetry";
 
 type CanonicalRow = { id: string; canonical: string; aliases?: string[]; termClass?: string };
 type FormulaRow = { id: string; name: string; aliases?: string[]; identityLockEligible?: boolean };
@@ -371,7 +372,7 @@ async function callClosedSetModel(
   signal?.addEventListener("abort", onAbort, { once: true });
   const timer = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
   try {
-    const completion = await client.chat.completions.create({
+    const completion = await observeModelTask({ task: "controlled_terminology", stage: "shared", model: config.model }, () => client.chat.completions.create({
       model: config.model,
       messages: [
         { role: "system", content: "你只执行闭集术语等价映射；候选外一律弃权。" },
@@ -385,7 +386,7 @@ async function callClosedSetModel(
       // 全部带此参数，唯独这里漏了）。禁用后单次应回到秒级。
       ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
       response_format: { type: "json_object" },
-    }, { signal: controller.signal });
+    }, { signal: controller.signal }));
     return parseDecisionPayload(completion.choices[0]?.message?.content, targets);
   } catch {
     return [];

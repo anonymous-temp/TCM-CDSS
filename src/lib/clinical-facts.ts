@@ -1319,11 +1319,14 @@ function resolveReviewedDisposition(
   };
 }
 
+/** 事实回补的四个相位。具名导出，让运行时与账本共用同一个词表，不各写一份联合类型。 */
+export type ClinicalFactsPhase = "extract" | "repair" | "review" | "adjudicate";
+
 export type FactsLlmCall = (
   systemPrompt: string,
   userPrompt: string,
   signal?: AbortSignal,
-  phase?: "extract" | "repair" | "review" | "adjudicate",
+  phase?: ClinicalFactsPhase,
 ) => Promise<string>;
 
 export type ExtractClinicalFactsOptions = {

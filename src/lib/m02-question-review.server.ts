@@ -7,6 +7,7 @@ import {
   removeM02PlanQuestions,
 } from "./m02-question-contract";
 import { createTextModelClient, getPrimaryTextModelConfig, isApprovedTextModel, textModelRequestTuning } from "./text-model";
+import { observeModelTask } from "./cdss-model-task-telemetry";
 
 type ReviewStatus = "retain" | "rewrite_leading" | "remove_known" | "remove_duplicate" | "remove_nonexclusive" | "remove_low_priority";
 type ReviewDecision = { questionId: string; status: ReviewStatus; reason: string };
@@ -153,7 +154,7 @@ function defaultModelCall(): ReviewModelCall | null {
   if (!isApprovedTextModel(reviewModel)) return null;
   const client = createTextModelClient(config);
   return async (prompt, signal) => {
-    const completion = await client.chat.completions.create({
+    const completion = await observeModelTask({ task: "m02_question_review", stage: "question", model: reviewModel }, () => client.chat.completions.create({
       model: reviewModel,
       temperature: 0,
       max_tokens: 900,
@@ -163,7 +164,7 @@ function defaultModelCall(): ReviewModelCall | null {
         { role: "system", content: "你只分类追问及其理由是否合规；不得生成诊断、处方、改写文案或新的患者事实。" },
         { role: "user", content: prompt },
       ],
-    }, { signal });
+    }, { signal }));
     return completion.choices[0]?.message?.content || "";
   };
 }

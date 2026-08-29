@@ -19,6 +19,7 @@ import { parseStreamModuleDraftFrame, stageProgressHeartbeatStatus, STREAM_REPLA
 import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
 import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
+import { recordModelTaskTelemetry } from "./cdss-model-task-telemetry";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, stripUntrustedM04IdentityMetadata, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
 import { clinicalReviewUnavailableReason } from "@/lib/clinical-review-binding";
 import { applyDiagnoseContractSignature, applyPrescribeContractSignature, clinicalReviewPayloadHash, type DiagnoseContractSignatureContext, type PrescribeContractSignatureContext } from "@/lib/reasoning-contract-signature";
@@ -32,7 +33,7 @@ import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/ht
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
 import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, m04ArbitratedPatientContextAnnotation, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m03LimitedInformationRepairRoundAllowed, m04BaselineVerifiedFinalReviewAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "@/lib/m04-repair-policy";
 import { m04RetryPolicyForAttempt, priorM04ContractRejections, recordM04AttemptOutcome } from "@/lib/m04-retry-policy";
-import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
+import { boundedM03DiagnosticRepairGuidance, buildM03DiagnosticReviewAdjudicationPrompt, buildM03DiagnosticReviewPrompt, canRebindM03DiagnosticReview, m03DiagnosticRepairGuidanceCodes, m03DiagnosticReviewDiffPaths, m03DiagnosticReviewNeedsAdjudication, m03GroundingHasCurrentPositiveFacts, m03PathogenesisSummaryIsExactProjection, m03SymptomDowngradeReviewIsNonActionable, matchesM03QuarantineShape, parseM03DiagnosticReview, preflightM03DiagnosticReview, type M03DiagnosticReview } from "@/lib/m03-diagnostic-review";
 import { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, canRebindM04ClinicalReview, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewDiffPaths, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, m04ClinicalReviewSemanticHash, parseM04ClinicalReview, type M04ClinicalReview } from "@/lib/m04-clinical-review";
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation } from "@/lib/diagnosis-types";
 import { recordCdssClinicalReviewTelemetry, recordCdssStageTelemetry, type CdssClinicalReviewOutcome, type CdssTelemetryOutcome, type CdssTelemetryStage } from "@/lib/cdss-stage-telemetry";
@@ -413,10 +414,41 @@ type OpenAICompatChunk = {
 type DiagnosisBackend = "deepseek" | "glm" | "openai";
 type PromptKind = "collect" | "question" | "markdown";
 
-function recordModelUsage(stage: string, model: string, payload: unknown): void {
+type ModelUsageContext = Readonly<{
+  /** 归属阶段（diagnose/prescribe/shared）；与 task 分开，便于按阶段汇总。 */
+  taskStage?: string;
+  /** 提示词字符数——判断某块该不该进显式缓存要用它对照 promptTokens。 */
+  promptChars?: number;
+  attempt?: number;
+  /** 修复/裁决的原因码。M04 长尾此前无法归因，就是因为这个字段只进日志不进聚合。 */
+  issueCode?: string;
+  firstTokenMs?: number;
+  durationMs?: number;
+}>;
+
+function recordModelUsage(
+  stage: string,
+  model: string,
+  payload: unknown,
+  context?: ModelUsageContext,
+): void {
   const usage = modelUsageSnapshot(payload);
   if (!usage) return;
   console.info("[tcm-cdss:telemetry] model_usage", { stage, model, ...usage });
+  // 主链此前是全仓唯一有 token 记账的地方，但它自成一套、不可聚合。统一喂进 model_task 账本，
+  // 让 M03/M04 与 11 个辅助调用点用同一把尺子对账。
+  recordModelTaskTelemetry({
+    task: stage,
+    stage: context?.taskStage,
+    model,
+    attempt: context?.attempt,
+    issueCode: context?.issueCode,
+    promptChars: context?.promptChars,
+    outcome: "ok",
+    durationMs: context?.durationMs || 0,
+    firstTokenMs: context?.firstTokenMs,
+    ...usage,
+  });
 }
 
 type StreamSafetyOptions = {
@@ -2046,7 +2078,14 @@ async function retryCompletePrimaryResponse(
       return { ok: false, reason: "retry_http_error", status: response.status };
     }
     const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, PRIMARY_TEXT_MAX_OUTPUT_CHARS * 4 + 65_536));
-    recordModelUsage(`${structuredStage || "structured"}_repair`, retryModel, result);
+    recordModelUsage(`${structuredStage || "structured"}_repair`, retryModel, result, {
+      taskStage: structuredStage || "structured",
+      // rejectionReason 是修复轮的触发原因码。此前它只进 warn 日志、不进聚合，
+      // 于是「M04 长尾由什么触发」一直无法归因——降低触发率比加速修复值钱得多。
+      issueCode: rejectionReason,
+      promptChars: repairPrompt.length,
+      durationMs: Date.now() - repairRoundStartedAt,
+    });
     const choice = result?.choices?.[0];
     const content = choice?.message?.content || "";
     if (!result) return { ok: false, reason: "retry_invalid_json" };
@@ -2145,7 +2184,11 @@ async function collectM03ParallelWesternHalf(
         return { ok: false, reason: `http_${response.status}` };
       }
       const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, PRIMARY_TEXT_MAX_OUTPUT_CHARS * 4 + 65_536));
-      recordModelUsage("m03_western", model, result);
+      recordModelUsage("m03_western", model, result, {
+        taskStage: "diagnose",
+        promptChars: prompt.length,
+        durationMs: Date.now() - startedAt,
+      });
       const content = result?.choices?.[0]?.message?.content || "";
       if (!result) return { ok: false, reason: "invalid_json" };
       if (!content) return { ok: false, reason: "empty_content" };
@@ -2552,7 +2595,12 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
         await cancelResponseBody(response);
       } else {
         const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, 20_000));
-        recordModelUsage(`${opts.stage}_clinical_review`, model, result);
+        recordModelUsage(`${opts.stage}_clinical_review`, model, result, {
+          taskStage: opts.stage,
+          promptChars: opts.systemPrompt.length + opts.userPrompt.length,
+          attempt: attemptCount,
+          durationMs: Date.now() - startedAt,
+        });
         const choice = result?.choices?.[0];
         const content = choice?.message?.content || "";
         lastResponseContent = content;
@@ -2638,6 +2686,20 @@ async function reviewM03DiagnosticCriteria(
   const applyAdvisoryBoundary = (
     review: ClinicalReviewExecution<M03DiagnosticReview>,
   ): ClinicalReviewExecution<M03DiagnosticReview> => boundM03AdvisoryReview(review, reasoning, clinicalContext);
+  // 确定性复核前置判据（P1）。`preflightM03DiagnosticReview` 早就写好，但生产路径上零调用——
+  // 只有测试脚本引用它。结构/事实不变量是确定性的，候选在这一层就已判定必须修复时，
+  // 再花一次（可能两次）模型复核不会改变结论。
+  //
+  // 安全边界：本短路只可能产出 status="repair"，而 `clinicalReviewAttestation` 只在
+  // status !== "repair" 时构造——所以它永远不可能让签名载荷谎称「已独立复核」。
+  // 修复轮产出的新候选照常走完整的模型复核链。
+  const deterministicPreflight = preflightM03DiagnosticReview(reasoning, clinicalContext);
+  if (deterministicPreflight) {
+    return {
+      ...deterministicPreflight,
+      execution: { durationMs: 0, attemptCount: 0, reason: "repair" },
+    };
+  }
   const first = await runIndependentClinicalReview<M03DiagnosticReview>({
     stage: "diagnose",
     systemPrompt: "你是独立临床诊断标准复核器，只输出约定 JSON。不得编造患者事实。",
@@ -3755,10 +3817,15 @@ async function callPrimaryTextModelStream(
         let res: Response | undefined;
         let connectionError: unknown;
         let initialResponseModel = model;
+        // 首字时延从「发起连接」而不是「拿到 reader」起算：供应商排队与 TTFB 都在连接窗口里，
+        // 而「排队慢」与「大结构解码慢」的修法完全不同，账本必须能把两者分开。
+        let upstreamRequestStartedAt = Date.now();
+        let providerFirstContentMs: number | undefined;
         let retryReason: NonNullable<ClinicalReviewAttestation["generationFallback"]>["reason"] = "transport_error";
         for (let attempt = 0; attempt < 2; attempt += 1) {
           const attemptModel = modelForInitialConnectAttempt(model, opts.structuredStage, attempt);
           try {
+            upstreamRequestStartedAt = Date.now();
             const candidate = await fetchWithConnectTimeout(
               chatCompletionsUrl(baseUrl),
               upstreamRequestForModel(attemptModel),
@@ -3832,7 +3899,12 @@ async function callPrimaryTextModelStream(
               throw new Error(`Primary text model stream error: ${obj.error.message}`);
             }
             if (obj.usage && !usageRecorded) {
-              recordModelUsage(opts.structuredStage || kind, initialResponseModel, obj);
+              recordModelUsage(opts.structuredStage || kind, initialResponseModel, obj, {
+                taskStage: opts.structuredStage || kind,
+                promptChars: prompt.length,
+                firstTokenMs: providerFirstContentMs,
+                durationMs: Date.now() - upstreamRequestStartedAt,
+              });
               usageRecorded = true;
             }
             const choice = obj.choices?.[0];
@@ -3844,6 +3916,7 @@ async function callPrimaryTextModelStream(
             if (reasoning) reasoningChars += reasoning.length;
             if (delta) {
               const firstModelContent = contentChars === 0;
+              if (firstModelContent) providerFirstContentMs = Date.now() - upstreamRequestStartedAt;
               contentChars += delta.length;
               accumulatedContent += delta;
               if (firstModelContent) {

@@ -694,15 +694,13 @@ ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 ${compactJsonContract}`;
   }
 
+  // ★ 顺序即缓存边界 ★（与 buildDiagnosePrompt 同一原则）
+  // 此前病历排在这一大段固定规范之前，等于把后面全部固定文本挡在供应商前缀缓存之外——
+  // 与 M03 的做法正好相反。固定规范全部前置、逐例变化内容全部后置。
+  // 顺带把不可信数据边界说明留在数据之前：指令在前、数据在后本身也是更强的注入防御姿态。
   return `你是供接诊医生使用的中医CDSS高信息增益追问模块。只进行一轮追问；主诉是唯一必填项。
 
 ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
-
-病历：${record}
-已有记录：${safeHistory || "无"}
-流派化侧重：${tcmLineageQuestionInstruction(caseState)}
-
-${classicDiscriminationContext}
 
 输出1到2题。每题必须同时满足以下四条，这是对成品的要求（不要在输出里写审计过程或候选轴，页面只渲染这个 JSON）：
 1. 指向病历尚未回答的信息。任一选项的答案若已能从病历直接读到（含同义改写），该题信息增益为0，换一个方向。
@@ -729,7 +727,15 @@ sourceEvidence 只说明为什么要问，不能是问题的答案；只逐字�
 
 若不存在能明显改变处置、首要鉴别、证候权重或治疗边界的未决问题，结构化计划写 decision=proceed、questions=[]；否则只在 questions 中输出1到2题，不得输出第3题。
 
-${compactJsonContract}`;
+${compactJsonContract}
+
+以上为固定规范。以下是本例患者资料，请据此按上述规范出题。
+
+病历：${record}
+已有记录：${safeHistory || "无"}
+流派化侧重：${tcmLineageQuestionInstruction(caseState)}
+
+${classicDiscriminationContext}`;
 }
 
 // ─── M03：循证辨证分型（DeepSeek）────────────────────────────────────────────
@@ -919,7 +925,10 @@ export function buildPrescribePrompt(caseState: CaseState): string {
         therapy: diagnoseReasoning.therapy,
         lineageAdaptation: diagnoseReasoning.lineageAdaptation,
         management: diagnoseReasoning.management || null,
-      }, null, 2))
+      // compact 而不是 2 空格缩进：这份 M03 载荷是 M04 提示词里最大的逐例变化块，
+      // pretty-print 只为人眼可读，却让体积多出 30-40%，且在每个 M04 修复轮重复重付。
+      // 模型解析 JSON 不需要缩进。
+      }))
     : "";
   // 必覆盖节点清单(2026-08-04)。
   //
@@ -1034,115 +1043,3 @@ ${pathogenesisNodeOptions || "（无可引用节点；不得生成剂量级候�
 ${buildTcmTreatmentProjectPromptContext(caseState)}`;
 }
 
-// ─── Deprecated M05 prompt draft ─────────────────────────────────────────────
-// M05 is intentionally deterministic now: it consumes the Lingxi audit result and safety gate output.
-// Keep this only as a historical prompt draft; routes must not use an LLM to decide prescription safety.
-
-export function buildAssessPrompt(caseState: CaseState): string {
-  const diagnosisSummary = (caseState.diagnosis ?? "").slice(0, 500);
-  const prescriptionSummary = (caseState.prescription ?? "").slice(0, 5000);
-
-  const clinicalContext = [
-    `性别：${caseState.patient.sex || "不详"}，年龄：${caseState.patient.age ? caseState.patient.age + "岁" : "不详"}`,
-    `主诉：${caseState.chiefComplaint}`,
-    caseState.vitals && Object.keys(caseState.vitals).length > 0
-      ? `体征：${Object.entries(caseState.vitals).map(([k, v]) => `${k}:${v}`).join("，")}`
-      : null,
-    caseState.pastHistory ? `既往史：${caseState.pastHistory}` : null,
-    caseState.medicationHistory ? `用药史：${caseState.medicationHistory}` : "用药史：未提及；未提及时不作为通用必填，仅对已知用药或候选药物明确相关的高相互作用风险进行提示",
-    caseState.allergyHistory ? `过敏史：${caseState.allergyHistory}` : "过敏史：未提及；未提及时不作为通用必填，仅对候选药物明确相关的过敏禁忌/交叉过敏风险进行提示",
-    tcmLineageInstruction(caseState),
-  ].filter(Boolean).join("\n");
-
-  return `请为以下患者提供中药处方配伍禁忌、ADR风险评估和随访管理方案：
-
-**注意：该患者已完成红旗排查、病机拆解和候选方药建议。请把“治疗方案”中的每味饮片、西药/中成药候选项作为后置风险校验对象，逐项核查十八反十九畏、ADR/不良反应、过敏、当前用药相互作用、特殊人群、肝肾功能、煎服法和随访。只做风险提示、展示排序和医生复核点，不做处方拦截、系统通过或最终裁决。**
-
-风险提示分级必须使用：强提示 / 一般提示 / 待补充信息后再评估 / 说明性提示。该分级仅代表提示强度和展示排序，不代表系统自动通过或拒绝。
-
-【患者临床信息】
-${clinicalContext}
-
-【辨证诊断】
-${diagnosisSummary || "（待提供）"}
-
-【治疗方案】
-${prescriptionSummary || "（待提供）"}
-
-请给出结构化风险提示和随访方案：
-
-## 处方安全总评
-**最高提示强度**：强提示 / 一般提示 / 待补充信息后再评估 / 说明性提示
-**综合风险判断**：低风险 / 中风险 / 高风险 / 待补充信息后再评估
-**评级依据**：[基于候选方案、药味、剂量、病史、已知用药史、已知过敏史、生命体征和特殊人群的综合分析；未提及过敏史/当前用药时不得作为泛化扣分项]
-**医生需确认事项**：[列出开方前需要确认的关键安全点]
-
-## 十八反十九畏与配伍禁忌
-| 检查项 | 提示强度 | 是否命中 | 涉及药物 | 风险说明 | 医生核对动作 |
-|------|---------|---------|---------|---------|------------|
-| 十八反 | 强提示/说明性提示 | 是/否 | ... | ... | ... |
-| 十九畏 | 强提示/说明性提示 | 是/否 | ... | ... | ... |
-| 其他配伍禁忌 | 强提示/一般提示/说明性提示 | 是/否 | ... | ... | ... |
-
-## ADR与不良反应风险
-| 风险类型 | 提示强度 | 涉及药物/药组 | 可能表现 | 风险人群 | 医生核对动作 |
-|---------|---------|--------------|---------|---------|------------|
-| 胃肠反应 | ... | ... | ... | ... | ... |
-| 肝肾风险 | ... | ... | ... | ... | ... |
-| 出血/凝血风险 | ... | ... | ... | ... | ... |
-| 过敏风险 | ... | ... | ... | ... | ... |
-| 神经/心血管风险 | ... | ... | ... | ... | ... |
-
-## 当前用药相互作用
-结合患者已知当前中药、中成药、西药和保健品，提示重复用药、功效叠加、药理相互作用和需间隔服用的情况。若当前用药未提及，不得泛化输出“无法完成相互作用评估”；只有候选方案包含明确高相互作用风险药组（如活血抗凝相关、镇静催眠叠加、强心/降压/降糖相关等）时，才提示医生确认当前用药。
-
-## 特殊人群与剂量风险
-评估儿童、老人、妊娠、哺乳、肝肾功能异常、慢病患者、过敏体质等风险；指出需要减量、避免、替代或医生复核的药味。
-
-## 辅助检查建议
-| 检查项目 | 推荐 | 临床依据 | 优先级 |
-|---------|------|---------|-------|
-| 心电图 | 是/否 | ... | 紧急/择期 |
-| 血常规+CRP | 是/否 | ... | ... |
-| 甲状腺功能（TSH/FT4） | 是/否 | ... | ... |
-| 生化（肝肾功/血脂）| 是/否 | ... | ... |
-| [其他必要检查] | | | |
-
-## 转诊评估
-**转诊建议**：需要 / 暂不需要
-**转诊指征**：[具体临床指标或症状阈值]
-**推荐科室**：[如需转诊]
-**紧急程度**：择期 / 尽快（48小时内）/ 急诊
-
-## 随访管理方案
-**首次复诊时间**：[X天后]，原因：[...]
-**复诊评估重点**：[具体需观察的症状/体征/指标]
-**疗效评价标准**：[主要症状改善的里程碑，如"失眠改善：入睡时间缩短至30分钟内"]
-**安全性观察**：[需关注的不良反应和停药/就诊信号]
-**无效或加重的处置预案**：[具体备选方案]
-
-## 随访时间轴
-请用时间轴形式输出医生可执行动作，必须明确时间点、要做什么、看什么指标、什么情况需要调整或转诊。
-
-| 时间点 | 医生/患者动作 | 观察指标 | 触发处置 |
-|------|--------------|---------|---------|
-| 开方前 | [安全核对、生命体征/检查补齐] | [关键指标] | [不满足则暂缓/转诊/调整] |
-| 服药第1-3天 | [观察安全性和症状变化] | [不良反应/症状] | [停药/联系医生/急诊] |
-| 首次复诊 | [复诊评估与方药调整] | [疗效与舌脉变化] | [加减方/检查/转诊] |
-| 疗程结束 | [判断是否续方、减停或转换方案] | [主要症状改善程度] | [无效则重新辨证或转诊] |
-
-## 红旗预警（患者须知）
-以下症状出现时，需立即急诊就诊或拨打120：
-- [症状1：如突发剧烈胸痛伴大汗]
-- [症状2：...]
-- [症状3：...]
-
-## 中医康复管理
-**证型转归预期**：[预计疗程，症状改善顺序]
-**节气调护要点**：[与当前时节相关的调护建议]
-**患者健康教育**：
-1. [核心教育要点1]
-2. [核心教育要点2]
-3. [核心教育要点3]
-`;
-}

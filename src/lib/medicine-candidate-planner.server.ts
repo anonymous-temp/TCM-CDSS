@@ -19,6 +19,7 @@ import type { EvidenceBoundMedicineProposal } from "./m04-proposal-compiler";
 import { parseMedicationLabelUsage } from "./medication-label-usage";
 import { medicineAvailabilityView } from "./drug-inventory.server";
 import { createTextModelClient, getPrimaryTextModelConfig, isApprovedTextModel, textModelRequestTuning } from "./text-model";
+import { observeModelTask } from "./cdss-model-task-telemetry";
 
 const PlannerSchema = z.object({
   localEvidenceIds: z.array(z.string().regex(/^LOCAL-INST-\d{3}$/)).max(2).default([]),
@@ -181,7 +182,7 @@ async function runPlannerModel(
       matchedConcepts: item.matchedConcepts,
       matchedPatientFacts: item.matchedPatientFacts,
     }));
-    const completion = await createTextModelClient(config).chat.completions.create({
+    const completion = await observeModelTask({ task: "medicine_candidate_plan", stage: "prescribe", model: config.model }, () => createTextModelClient(config).chat.completions.create({
       model: config.model,
       temperature: 0,
       max_tokens: 900,
@@ -204,7 +205,7 @@ async function runPlannerModel(
           content: `病例事实：${casePlanningText(caseState)}\n本地中成药候选：${JSON.stringify(localCatalog)}`,
         },
       ],
-    }, { signal: controller.signal });
+    }, { signal: controller.signal }));
     const parsed = PlannerSchema.safeParse(parseJsonObject(completion.choices[0]?.message?.content || ""));
     return parsed.success ? parsed.data : undefined;
   } catch {

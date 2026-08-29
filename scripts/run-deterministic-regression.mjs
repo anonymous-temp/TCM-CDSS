@@ -139,6 +139,11 @@ const scripts = [
   // 77 案预检实测：阴道出血21天、量多、血色素66g/L，因词序不是「阴道大量出血」而零红旗。
   // 钉住阴道出血 × 量多/持续/重度贫血/循环灌注组合，并守住否定、旧史、少量点滴的反例。
   "test:major-vaginal-bleeding",
+  // P0 token 账本：11 个自建模型调用点此前完全不记账，真实成本算不出来。
+  // 源码级断言钉住「新增直连调用点必须接账本」，防止账本再次出现盲区。
+  // P1 编排层浪费：证据无预算 / pretty-print / 提示块序 / 三处缺缓存 / preflight 未接线。
+  "test:orchestration-token-budget",
+  "test:model-task-telemetry",
   "test:clinical-facts",
   "test:evidence-sentinel",
   "test:evimed-normalization",

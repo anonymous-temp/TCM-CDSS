@@ -1,10 +1,12 @@
 import "server-only";
+import { createHash } from "node:crypto";
 
 import type { CaseState } from "./diagnosis-types";
 import { clinicalClausePolarity, type AssistedNegationClauses, type AssistedPolarityDecisions } from "./clinical-polarity";
 import { affirmativeNegationFormsIn } from "./clinical-vocabulary";
-import { sanitizeFreeTextForModel } from "./diagnosis-safety";
+import { sanitizeCaseStateForModel, sanitizeFreeTextForModel, trustedInputText } from "./diagnosis-safety";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
+import { observeModelTask } from "./cdss-model-task-telemetry";
 
 /**
  * 口语否定增补：确定性正则判为阳性、但实际是口语否定的分句，交模型判一次。
@@ -142,18 +144,80 @@ const SYSTEM_PROMPT = [
  *
  * 两侧独立请求、独立失败：任一侧不可用只损失该侧，不影响另一侧，也不影响确定性层。
  */
+/**
+ * 跨阶段复用（P1）。
+ *
+ * M03（diagnose 路由）与 M04（prescribe 路由）对**同一份病历**各调一次本函数，每次内部
+ * 又发否定/阳性两个请求——一条病例链因此发 4 次，且零复用。极性判定是病历文本的纯函数，
+ * 同一文本重算必然同结果，所以按文本哈希在进程内做短窗缓存 + 并发合流。
+ *
+ * 只缓存**成功**结果：任一侧不可用时本函数按设计返回空集（等于确定性层单独判定），
+ * 那是降级值不是结论，缓存它会把一次瞬时不可用钉死成整窗不可用。
+ */
+const POLARITY_CACHE_TTL_MS = 10 * 60_000;
+const POLARITY_CACHE_MAX_ENTRIES = 32;
+const polarityCache = new Map<string, { value: AssistedPolarityDecisions; expiresAt: number }>();
+const polarityInFlight = new Map<string, Promise<AssistedPolarityDecisions>>();
+
+function polarityCacheKey(caseState: CaseState): string {
+  // 与其余语义层一致：键取送模型的同一份脱敏正文，而不是整个 CaseState
+  // （病例 id、时间戳等与极性判定无关的字段不该造成缓存未命中）。
+  return createHash("sha256")
+    .update(trustedInputText(sanitizeCaseStateForModel(caseState)))
+    .digest("hex")
+    .slice(0, 32);
+}
+
+/** 测试与运维用：清空进程内极性缓存。 */
+export function resetAssistedPolarityCache(): void {
+  polarityCache.clear();
+  polarityInFlight.clear();
+}
+
 export async function assistedPolarityDecisions(
   caseState: CaseState,
   signal?: AbortSignal,
 ): Promise<AssistedPolarityDecisions> {
-  const [negated, affirmed] = await Promise.all([
-    assistedNegationClauses(caseState, signal),
-    assistedAffirmativeClauses(caseState, signal),
-  ]);
-  return {
-    negated: negated instanceof Set ? negated : new Set<string>(),
-    affirmed,
-  };
+  if (!enabled() || signal?.aborted) {
+    return { negated: new Set<string>(), affirmed: new Set<string>() };
+  }
+  const key = polarityCacheKey(caseState);
+  const hit = polarityCache.get(key);
+  if (hit && hit.expiresAt > Date.now()) {
+    polarityCache.delete(key);
+    polarityCache.set(key, hit);
+    return hit.value;
+  }
+  if (hit) polarityCache.delete(key);
+  const joined = polarityInFlight.get(key);
+  if (joined) return joined;
+
+  const pending = (async (): Promise<AssistedPolarityDecisions> => {
+    const [negated, affirmed] = await Promise.all([
+      assistedNegationClauses(caseState, signal),
+      assistedAffirmativeClauses(caseState, signal),
+    ]);
+    const value: AssistedPolarityDecisions = {
+      negated: negated instanceof Set ? negated : new Set<string>(),
+      affirmed,
+    };
+    // 两侧都拿到了非空结论才算「成功」；全空可能是模型不可用的降级值，不入缓存。
+    if (value.negated.size > 0 || value.affirmed.size > 0) {
+      polarityCache.set(key, { value, expiresAt: Date.now() + POLARITY_CACHE_TTL_MS });
+      while (polarityCache.size > POLARITY_CACHE_MAX_ENTRIES) {
+        const oldest = polarityCache.keys().next();
+        if (oldest.done) break;
+        polarityCache.delete(oldest.value);
+      }
+    }
+    return value;
+  })();
+  polarityInFlight.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    polarityInFlight.delete(key);
+  }
 }
 
 /**
@@ -224,7 +288,7 @@ async function askClauseSelection(
       })
       .join("\n");
     const client = createTextModelClient(config);
-    const response = await client.chat.completions.create({
+    const response = await observeModelTask({ task: "polarity_assist", stage: "shared", model: config.model }, () => client.chat.completions.create({
       model: config.model,
       temperature: 0,
       max_tokens: 64,
@@ -233,7 +297,7 @@ async function askClauseSelection(
         { role: "system", content: systemPrompt },
         { role: "user", content: numbered },
       ],
-    }, { signal: controller.signal });
+    }, { signal: controller.signal }));
     const raw = response.choices?.[0]?.message?.content;
     if (typeof raw !== "string" || /none/i.test(raw)) return empty;
     const picked = new Set<string>();

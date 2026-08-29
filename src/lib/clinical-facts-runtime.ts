@@ -8,9 +8,12 @@ import {
   type ClinicalFactsModelIdentity,
   type ClinicalFactsUnavailableReason,
   type FactsLlmCall,
+  type ClinicalFactsPhase,
 } from "./clinical-facts";
 import { sanitizeCaseStateForModel, trustedInputText } from "./diagnosis-safety";
 import { parseCustomerId } from "./customer-id";
+import { observeModelTask, recordModelTaskTelemetry } from "./cdss-model-task-telemetry";
+import { modelUsageSnapshot } from "./openai-compatible-response";
 
 export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from "./clinical-facts";
 
@@ -287,7 +290,10 @@ async function callFactsPhaseModel(
   system: string,
   user: string,
   signal: AbortSignal | undefined,
+  phase: ClinicalFactsPhase = "extract",
 ): Promise<string> {
+  const task = `clinical_facts_${phase}`;
+  const promptChars = system.length + user.length;
   if (!config.configured) throw new Error("model_not_configured");
   // A single slow phase must not consume the entire extractor+review budget. Keeping the phase
   // deadline separate leaves room for the one bounded independent-review retry below while the
@@ -296,6 +302,7 @@ async function callFactsPhaseModel(
     ? AbortSignal.any([signal, AbortSignal.timeout(clinicalFactsPhaseTimeoutMs())])
     : AbortSignal.timeout(clinicalFactsPhaseTimeoutMs());
   if (config.source === "independent_review") {
+    const startedAt = Date.now();
     const response = await fetch(config.endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
@@ -313,12 +320,31 @@ async function callFactsPhaseModel(
       signal: phaseSignal,
     });
     if (!response.ok) throw new Error(`review_model_http_${response.status}`);
-    const body = await response.json() as { choices?: Array<{ message?: { content?: string | null } }> };
+    const body = await response.json() as {
+      choices?: Array<{ message?: { content?: string | null } }>;
+      usage?: unknown;
+    };
+    // 该分支走裸 fetch（独立复核端点可能与主 provider 不同），拿不到 SDK 的返回对象，
+    // 所以不能用 observeModelTask 包；直接从响应体抽 usage 记同一本账。
+    const usage = modelUsageSnapshot(body);
+    recordModelTaskTelemetry({
+      task,
+      stage: "shared",
+      model: config.model,
+      provider: "independent_review",
+      promptChars,
+      outcome: "ok",
+      durationMs: Date.now() - startedAt,
+      promptTokens: usage?.promptTokens || 0,
+      completionTokens: usage?.completionTokens || 0,
+      cachedTokens: usage?.cachedTokens || 0,
+      totalTokens: usage?.totalTokens || 0,
+    });
     return body.choices?.[0]?.message?.content || "";
   }
   const primary = getPrimaryTextModelConfig();
   const client = createTextModelClient({ ...primary, model: config.model });
-  const res = await client.chat.completions.create(
+  const res = await observeModelTask({ task, stage: "shared", model: config.model, promptChars }, () => client.chat.completions.create(
     {
       model: config.model,
       messages: [
@@ -333,7 +359,7 @@ async function callFactsPhaseModel(
       ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
     },
     { timeout: clinicalFactsPhaseTimeoutMs(), signal: phaseSignal },
-  );
+  ));
   return res.choices?.[0]?.message?.content || "";
 }
 
@@ -367,7 +393,7 @@ const REAL_FACTS_LLM_CALL: FactsLlmCall = async (system, user, signal, phase = "
   // Repair/adjudication remain single-shot so disagreement cannot be retried into an easier result.
   const maxAttempts = phase === "extract" ? 2 : 1;
   return callClinicalFactsPhaseWithRetry(
-    () => callFactsPhaseModel(config, system, user, signal),
+    () => callFactsPhaseModel(config, system, user, signal, phase),
     signal,
     maxAttempts,
   );
@@ -486,6 +512,74 @@ export function hasUnconfirmedUnclearEncounterScope(state: CaseState): boolean {
   return state.encounterScopeConfirmation?.sourceFingerprint !== sourceFingerprint;
 }
 
+/**
+ * 事实回补的服务端缓存 + 并发合流（P1）。
+ *
+ * 立项原因（2026-08-29 token 审计）：`maybeAttachClinicalFactsBackstop` 挂在 7 个路由上
+ * （question / diagnose / prescribe / assess / red-flags / post-prescription-risk / his-scheme），
+ * 而复用**只**靠客户端回传的 HMAC 快照，服务端没有任何存储。本文件顶部注释自己记录了后果：
+ * 生产 diagnose+prescribe p50 57.4s、488/488 例 >30s，于是 M05 assess 必然过期重抽。
+ * 一条完整病例链在 TTL 全失效时最坏 12 次 ~10k token 的调用，且此前完全不记账。
+ *
+ * 两条不变量：
+ *  - **有效性判据只有一个**：命中与否仍由 `hasValidClinicalFactsAttestation` 判定（版本/租户/
+ *    覆盖度/复核状态/HMAC/TTL），本缓存不另写一套过期规则——否则就是本仓头号缺陷形状
+ *    「同一判据两处各写各的」。TTL 覆盖（prescribe 的 600s）照样透传给同一个函数。
+ *  - **只缓存成功结果**。unavailable/failure 一律不入缓存，否则一次瞬时故障会被钉死成
+ *    整个 TTL 窗口内的「事实不可用」，而事实层不可用会放大成安全提示缺失。
+ */
+type ClinicalFactsCacheEntry = {
+  facts: NonNullable<CaseState["clinicalFacts"]>;
+  storedAt: number;
+};
+
+const CLINICAL_FACTS_CACHE_MAX_ENTRIES = 64;
+const clinicalFactsServerCache = new Map<string, ClinicalFactsCacheEntry>();
+const clinicalFactsInFlight = new Map<string, Promise<CaseState["clinicalFacts"]>>();
+
+function clinicalFactsCacheKey(sourceFingerprint: string, customerId: string | undefined): string {
+  // 租户绑定进键：不同租户的同一段文本不得互相命中（与 attestation 的绑定校验双保险）。
+  return `${clinicalFactsCustomerBindingHash(customerId) || "none"}:${sourceFingerprint}`;
+}
+
+function readClinicalFactsCache(
+  key: string,
+  customerId: string | undefined,
+  ttlOverrideMs: number | undefined,
+): NonNullable<CaseState["clinicalFacts"]> | undefined {
+  const entry = clinicalFactsServerCache.get(key);
+  if (!entry) return undefined;
+  if (!hasValidClinicalFactsAttestation(entry.facts, Date.now(), ttlOverrideMs, customerId)) {
+    clinicalFactsServerCache.delete(key);
+    return undefined;
+  }
+  // LRU：命中即刷新插入顺序，让淘汰淘汰掉真正冷的条目。
+  clinicalFactsServerCache.delete(key);
+  clinicalFactsServerCache.set(key, entry);
+  return entry.facts;
+}
+
+function writeClinicalFactsCache(key: string, facts: CaseState["clinicalFacts"]): void {
+  // 只存已签名、复核通过、覆盖完整的结果——与 attestation 的签发条件一致。
+  if (!facts?.attestation || facts.semanticStatus !== "checked") return;
+  clinicalFactsServerCache.set(key, { facts, storedAt: Date.now() });
+  while (clinicalFactsServerCache.size > CLINICAL_FACTS_CACHE_MAX_ENTRIES) {
+    const oldest = clinicalFactsServerCache.keys().next();
+    if (oldest.done) break;
+    clinicalFactsServerCache.delete(oldest.value);
+  }
+}
+
+/** 测试与运维用：清空进程内事实缓存。 */
+export function resetClinicalFactsServerCache(): void {
+  clinicalFactsServerCache.clear();
+  clinicalFactsInFlight.clear();
+}
+
+export function clinicalFactsServerCacheSize(): number {
+  return clinicalFactsServerCache.size;
+}
+
 export async function maybeAttachClinicalFactsBackstop(
   state: CaseState,
   llmCall: FactsLlmCall = REAL_FACTS_LLM_CALL,
@@ -523,95 +617,134 @@ export async function maybeAttachClinicalFactsBackstop(
     };
   }
 
-  let unavailableReason: ClinicalFactsUnavailableReason = signal?.aborted ? "aborted" : "invalid_output";
-  let totalTimedOut = false;
-  const deadlineController = new AbortController();
-  const deadline = setTimeout(() => {
-    totalTimedOut = true;
-    deadlineController.abort(new Error("clinical_facts_total_timeout"));
-  }, clinicalFactsTotalTimeoutMs());
-  const effectiveSignal = signal ? AbortSignal.any([signal, deadlineController.signal]) : deadlineController.signal;
-  const observedLlmCall: FactsLlmCall = async (system, user, callSignal, phase) => {
-    try {
-      return await llmCall(system, user, callSignal, phase);
-    } catch (error) {
-      unavailableReason = totalTimedOut ? "timeout" : classifyUnavailableReason(error, callSignal);
-      throw error;
-    }
-  };
-  let facts;
-  try {
-    const modelPlan = getClinicalFactsModelPlan();
-    facts = await extractClinicalFacts(text, observedLlmCall, effectiveSignal, {
-      independentReview: process.env.CDSS_CLINICAL_FACTS_REVIEW !== "false",
-      allowDispositionReductions: modelPlan.reductionsAllowed,
-    });
-  } finally {
-    clearTimeout(deadline);
-  }
-  if (signal?.aborted) {
-    unavailableReason = "aborted";
-    facts = null;
-  }
-  if (!facts) {
-    return {
-      ...withoutStaleFacts,
-      clinicalFacts: {
-        redFlags: [],
-        sourceFingerprint,
-        semanticStatus: "unavailable",
-        resultSource: "failure",
-        unavailableReason,
-      },
-    };
-  }
-  const unsignedFacts = {
-    ...facts,
-    modelTrace: (() => {
-      const plan = getClinicalFactsModelPlan();
-      return {
-        extractor: { provider: plan.extractor.provider, model: plan.extractor.model },
-        reviewer: { provider: plan.reviewer.provider, model: plan.reviewer.model },
-        adjudicator: { provider: plan.adjudicator.provider, model: plan.adjudicator.model },
-        independentReview: plan.independentReview,
-        independentAdjudication: plan.independentAdjudication,
-        separateInvocationReview: plan.separateInvocationReview,
-        separateInvocationAdjudication: plan.separateInvocationAdjudication,
-      };
-    })(),
-    customerBindingHash: clinicalFactsCustomerBindingHash(state.customerId),
-    sourceFingerprint,
-    sourceCoverage: sourceProjection.coverage,
-    sourceCharCount: fullText.length,
-    semanticStatus: "checked" as const,
-    resultSource: "fresh" as const,
-    unavailableReason: undefined,
-    attestationVersion: CLINICAL_FACTS_ATTESTATION_VERSION,
-    extractorVersion: CLINICAL_FACTS_EXTRACTOR_VERSION,
-    promptVersion: CLINICAL_FACTS_PROMPT_VERSION,
-    extractedAt: new Date(Date.now()).toISOString(),
-    attestation: undefined,
-  };
-  const tenantBindingAvailable = !state.customerId || Boolean(unsignedFacts.customerBindingHash);
-  const attestation = unsignedFacts.reviewStatus === "checked" && unsignedFacts.sourceCoverage === "full" &&
-    tenantBindingAvailable
-    ? signClinicalFacts(unsignedFacts)
+  // 客户端快照没带上或已过期时，再查服务端缓存。这一层专治「同一病例链上 7 个路由各自重抽」：
+  // 客户端只在 M03/M04 之间回传事实，assess / post-prescription-risk / his-scheme 走的是
+  // 另一次请求，此前必然落空。
+  const cacheKey = clinicalFactsCacheKey(sourceFingerprint, state.customerId);
+  // 缓存键是（租户，病历文本）；「事实是该文本的纯函数」这个前提只在**配置的模型编排**下成立。
+  // 调用方注入了自定义抽取函数时前提不再成立（同一文本可以产出不同事实），因此既不读也不写
+  // 共享缓存。生产的 7 个路由全部走默认编排，不受影响。
+  const usesConfiguredModelPlan = llmCall === REAL_FACTS_LLM_CALL;
+  const cachedFacts = usesConfiguredModelPlan
+    ? readClinicalFactsCache(cacheKey, state.customerId, options?.cacheTtlOverrideMs)
     : undefined;
-  if (unsignedFacts.reviewStatus === "checked" && unsignedFacts.sourceCoverage === "full" && !attestation) {
-    return {
-      ...withoutStaleFacts,
-      clinicalFacts: {
-        redFlags: [],
-        sourceFingerprint,
-        sourceCoverage: sourceProjection.coverage,
-        sourceCharCount: fullText.length,
-        semanticStatus: "unavailable",
-        resultSource: "failure",
-        unavailableReason: "signing_unavailable",
-      },
-    };
+  if (cachedFacts) {
+    return { ...state, clinicalFacts: { ...cachedFacts, resultSource: "cache" } };
   }
-  return { ...state, clinicalFacts: { ...unsignedFacts, attestation } };
+  // 并发合流：同一份病历被两个路由同时请求时（前端会并发触发），只发一次模型调用。
+  const inFlight = usesConfiguredModelPlan ? clinicalFactsInFlight.get(cacheKey) : undefined;
+  if (inFlight) {
+    const shared = await inFlight;
+    if (shared) return { ...state, clinicalFacts: { ...shared, resultSource: "cache" } };
+  }
+
+  // 计算段包进 singleflight：登记在飞 promise，让并发的同键请求合流到同一次模型调用，
+  // 而不是各发一遍三相位。成功结果写入服务端缓存（失败结果一律不写，见上）。
+  const compute = async (): Promise<CaseState> => {
+    let unavailableReason: ClinicalFactsUnavailableReason = signal?.aborted ? "aborted" : "invalid_output";
+    let totalTimedOut = false;
+    const deadlineController = new AbortController();
+    const deadline = setTimeout(() => {
+      totalTimedOut = true;
+      deadlineController.abort(new Error("clinical_facts_total_timeout"));
+    }, clinicalFactsTotalTimeoutMs());
+    const effectiveSignal = signal ? AbortSignal.any([signal, deadlineController.signal]) : deadlineController.signal;
+    const observedLlmCall: FactsLlmCall = async (system, user, callSignal, phase) => {
+      try {
+        return await llmCall(system, user, callSignal, phase);
+      } catch (error) {
+        unavailableReason = totalTimedOut ? "timeout" : classifyUnavailableReason(error, callSignal);
+        throw error;
+      }
+    };
+    let facts;
+    try {
+      const modelPlan = getClinicalFactsModelPlan();
+      facts = await extractClinicalFacts(text, observedLlmCall, effectiveSignal, {
+        independentReview: process.env.CDSS_CLINICAL_FACTS_REVIEW !== "false",
+        allowDispositionReductions: modelPlan.reductionsAllowed,
+      });
+    } finally {
+      clearTimeout(deadline);
+    }
+    if (signal?.aborted) {
+      unavailableReason = "aborted";
+      facts = null;
+    }
+    if (!facts) {
+      return {
+        ...withoutStaleFacts,
+        clinicalFacts: {
+          redFlags: [],
+          sourceFingerprint,
+          semanticStatus: "unavailable",
+          resultSource: "failure",
+          unavailableReason,
+        },
+      };
+    }
+    const unsignedFacts = {
+      ...facts,
+      modelTrace: (() => {
+        const plan = getClinicalFactsModelPlan();
+        return {
+          extractor: { provider: plan.extractor.provider, model: plan.extractor.model },
+          reviewer: { provider: plan.reviewer.provider, model: plan.reviewer.model },
+          adjudicator: { provider: plan.adjudicator.provider, model: plan.adjudicator.model },
+          independentReview: plan.independentReview,
+          independentAdjudication: plan.independentAdjudication,
+          separateInvocationReview: plan.separateInvocationReview,
+          separateInvocationAdjudication: plan.separateInvocationAdjudication,
+        };
+      })(),
+      customerBindingHash: clinicalFactsCustomerBindingHash(state.customerId),
+      sourceFingerprint,
+      sourceCoverage: sourceProjection.coverage,
+      sourceCharCount: fullText.length,
+      semanticStatus: "checked" as const,
+      resultSource: "fresh" as const,
+      unavailableReason: undefined,
+      attestationVersion: CLINICAL_FACTS_ATTESTATION_VERSION,
+      extractorVersion: CLINICAL_FACTS_EXTRACTOR_VERSION,
+      promptVersion: CLINICAL_FACTS_PROMPT_VERSION,
+      extractedAt: new Date(Date.now()).toISOString(),
+      attestation: undefined,
+    };
+    const tenantBindingAvailable = !state.customerId || Boolean(unsignedFacts.customerBindingHash);
+    const attestation = unsignedFacts.reviewStatus === "checked" && unsignedFacts.sourceCoverage === "full" &&
+      tenantBindingAvailable
+      ? signClinicalFacts(unsignedFacts)
+      : undefined;
+    if (unsignedFacts.reviewStatus === "checked" && unsignedFacts.sourceCoverage === "full" && !attestation) {
+      return {
+        ...withoutStaleFacts,
+        clinicalFacts: {
+          redFlags: [],
+          sourceFingerprint,
+          sourceCoverage: sourceProjection.coverage,
+          sourceCharCount: fullText.length,
+          semanticStatus: "unavailable",
+          resultSource: "failure",
+          unavailableReason: "signing_unavailable",
+        },
+      };
+    }
+    return { ...state, clinicalFacts: { ...unsignedFacts, attestation } };
+  };
+
+  const pending = compute();
+  if (!usesConfiguredModelPlan) return pending;
+  clinicalFactsInFlight.set(
+    cacheKey,
+    pending.then((next) => next.clinicalFacts).catch(() => undefined),
+  );
+  try {
+    const result = await pending;
+    writeClinicalFactsCache(cacheKey, result.clinicalFacts);
+    return result;
+  } finally {
+    clinicalFactsInFlight.delete(cacheKey);
+  }
 }
 
 function classifyUnavailableReason(error: unknown, signal?: AbortSignal): ClinicalFactsUnavailableReason {
