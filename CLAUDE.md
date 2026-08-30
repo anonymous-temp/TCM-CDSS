@@ -54,6 +54,21 @@ BASE_URL=http://localhost:3000 CDSS_API_TOKEN=<token> npm run regress:tcm-cdss
 
 It fires 100+ requests, asserts on red-flag handling, negated history, safety-net false-positive avoidance, post-prescription risk, KB search, boundary inputs and auth bootstrap, prints a JSON summary, and exits 1 on any failure. `CDSS_API_TOKEN` must match the server's, or auth-gated routes 401. Treat this as the golden baseline: run it before and after any change to the diagnosis pipeline or safety layer.
 
+**打远端环境时,本地环境必须配齐,否则失败数以千计却与被测服务无关。** 这一类已栽过两次
+(`c5f3dc1`「245 条失败里 233 条是本地少一个环境变量」;2026-08-29 打生产时 2819 条全部源于缺
+租户鉴权三件套)。放大机制:**M03 合同签名绑定 clientId**——本地没配客户鉴权时
+`authorizeCustomerId(…, required=false)` 返回 `LOCAL_DEVELOPMENT_CLIENT_ID`,服务端用真实
+clientId 重算,于是每个需要已签名 M03 的用例全线 `409 invalid_m03_signature` 并级联。
+必需变量与排障开关见 `scripts/regress-tcm-cdss.mjs` 头部注释;其中易漏的是
+`CDSS_API_CLIENT_ID` / `CDSS_API_CUSTOMER_IDS` / `CDSS_DEFAULT_CUSTOMER_ID`,
+且 `CDSS_CUSTOMER_ID` 必须取 `CDSS_API_CUSTOMER_IDS` **静态白名单**里的值(生产为 `hospital-a`/`hospital-b`)——
+只存在于服务端注册表的租户会让本地签名直接抛 `Cannot sign M03 without an authorized customer binding`。
+
+还有一条与被测代码无关的硬约束:**生产的模型调用限流是 60 次 POST/10 分钟**(9 条模型路由,按 token+租户计),
+而本 harness 一轮打几百次且无节流开关。直接打生产会有几百条 429 并级联出数千条断言失败(2026-08-29 实测
+2882 条里带状态码的 100% 是 429)。要在生产上跑完整一轮,必须临时抬高 `CDSS_MODEL_RATE_LIMIT_PER_10_MIN`
+再复原;抬高后实测降到 **25 条**,其余全部是限流噪声。
+
 ## Architecture
 
 ### Current reality vs. the docs — read this first

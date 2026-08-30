@@ -1,3 +1,35 @@
+/**
+ * 黄金基线（100+ 请求）。打**远端**环境时，本地必须配齐下面这组变量，否则失败数会以千计
+ * 却与被测服务无关——两次栽在同一类上（c5f3dc1「245 条失败里 233 条是本地少一个环境变量」；
+ * 2026-08-29 打生产时 2819 条全部源于缺租户鉴权三件套）。
+ *
+ * 为什么缺一个变量能放大成上千条失败：M03 合同签名**绑定 clientId**
+ * （buildDiagnoseContractSignatureContext 的 tenantBinding）。本地完全没配客户鉴权时，
+ * authorizeCustomerId(..., required=false) 走 entirelyUnconfigured 分支返回
+ * LOCAL_DEVELOPMENT_CLIENT_ID；服务端配了，于是用真实 clientId 重算 → 签名必然不符 →
+ * 每个需要已签名 M03 的用例全线 409 invalid_m03_signature，一路级联。
+ *
+ * 必需（缺任一即产生与被测服务无关的失败）：
+ *   REASONING_CONTRACT_SIGNING_KEY   本地构造已签名 M03/M04 载荷
+ *   CASE_SNAPSHOT_ENCRYPTION_KEY     快照往返用例
+ *   CDSS_API_TOKEN                   鉴权
+ *   CDSS_API_CLIENT_ID               ★ 签名绑定的 clientId，必须与服务端同值
+ *   CDSS_API_CUSTOMER_IDS            ★ 决定 authorizeCustomerId 是否 ready
+ *   CDSS_DEFAULT_CUSTOMER_ID         ★ 同上
+ *   CDSS_CUSTOMER_ID                 **必须取 CDSS_API_CUSTOMER_IDS 静态白名单里的值**
+ *                                    （生产为 hospital-a / hospital-b）。用「只存在于服务端
+ *                                    注册表」的租户，本地签名会直接抛
+ *                                    "Cannot sign M03 without an authorized customer binding"。
+ *   PRIMARY_* / CLINICAL_FACTS_*     若干断言核对分档模型身份
+ *
+ * 还有一条与被测代码无关的硬约束：**生产的模型调用限流是 60 次 POST/10 分钟**（9 条模型路由，
+ * 按 token+租户计），而本 harness 一轮要打几百次且没有节流开关。直接打生产会有几百条 429 并
+ * 级联出数千条断言失败（2026-08-29 实测 2882 条里带状态码的 100% 是 429）。要在生产上跑完整
+ * 一轮，必须临时抬高 CDSS_MODEL_RATE_LIMIT_PER_10_MIN 再复原。
+ *
+ * 排障：COMPACT_FAILURES=1 会把 details 压掉，定位时要关掉；
+ * REGRESSION_SECTION=<his-scheme|signatures|endpoints|knowledge|…> 可只跑一段。
+ */
 import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
