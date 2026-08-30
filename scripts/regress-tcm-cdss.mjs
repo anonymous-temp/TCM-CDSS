@@ -490,13 +490,16 @@ function runFrontendContractChecks() {
   assert(
       diagnoseRoute.includes("buildDiagnoseContractSignatureContext(gated)") &&
       diagnosisApiSource.includes("diagnoseSignatureContext?: DiagnoseContractSignatureContext") &&
-      // 实参名随「方名恢复并入 finalize 投影链」改过（transformed.content → identityRestored，
-      // m03ClinicalReviewAttestation → m03AttestationWithScope）。断言按**语义**钉：
-      // M03 的最终产出必须挂上带作用域的复核背书，而不是钉某一版实参名。
-      /attachClinicalReviewAttestation\(\s*identityRestored,\s*m03AttestationWithScope\s*\)/.test(diagnosisApiSource) &&
+      // 实参名已两度随重构改名（transformed.content → identityRestored → emissionContent；
+      // m03ClinicalReviewAttestation → m03AttestationWithScope → emissionM03Attestation）。
+      // 断言按**语义**钉：M03 的最终产出必须挂上 M03 作用域的复核背书——
+      // 只锚定「第二实参名含 M03Attestation」，不再钉某一版完整实参名。
+      /attachClinicalReviewAttestation\(\s*\w+,\s*\w*[mM]03Attestation\w*\s*\)/.test(diagnosisApiSource) &&
       diagnosisApiSource.includes("applyDiagnoseContractSignature(signedContent, signatureContext)") &&
       prescribeRoute.includes("verifyDiagnoseReasoningSignature(signedPriorReasoning, parsed.caseState)") &&
-      postPrescriptionRiskRoute.includes("verifyDiagnoseReasoningSignature(diagnoseReasoning, caseState)") &&
+      // c714c22 把 post-risk 的 M03 验签前移到解析原始请求处并改名局部变量；按语义钉
+      // 「该路由对当前 caseState 重验 M03 签名」，不钉某一版实参名。
+      /verifyDiagnoseReasoningSignature\((?:initialDiagnoseReasoning|diagnoseReasoning), (?:parsed\.caseState|caseState)\)/.test(postPrescriptionRiskRoute) &&
       hisPrescriptionValidationSource.includes("verifyDiagnoseReasoningSignature(diagnoseReasoning, caseState)"),
     "M03 signature: final M03 output receives current context and every downstream trust boundary re-computes against the current case",
     `${diagnoseRoute}\n${diagnosisApiSource.slice(-3600)}\n${prescribeRoute.slice(0, 1800)}\n${postPrescriptionRiskRoute.slice(0, 1200)}\n${hisPrescriptionValidationSource.slice(0, 2200)}`,
@@ -660,7 +663,8 @@ function runFrontendContractChecks() {
     hisSchemeRoute.includes("validateHisPrescriptionForWriteBack") &&
       hisPrescriptionValidationSource.includes("verifyDiagnoseReasoningSignature") &&
       hisPrescriptionValidationSource.includes("editedPrescriptionSemanticIssue") &&
-      hisPrescriptionValidationSource.includes("m04SemanticIssue") &&
+      // 主张不变（HIS 写回前复用 M04 安全底线合同）；符号已随重构改名 m04SafetyContractIssue。
+      hisPrescriptionValidationSource.includes("m04SafetyContractIssue") &&
       hisPrescriptionValidationSource.includes("formulaCompilationContractIssue") &&
       hisPrescriptionValidationSource.includes("hasIncompleteEditedHerb") &&
       hisPrescriptionValidationSource.includes("invalid_candidate_index") &&
@@ -1079,6 +1083,68 @@ function baseCase(id, overrides = {}) {
       // Deliberately malformed signature fixtures must remain malformed so the route can reject them.
     }
   }
+  return caseState;
+}
+
+function cloneCase(caseState) {
+  return JSON.parse(JSON.stringify(caseState));
+}
+
+/**
+ * c714c22（2026-08-28）起，药味工作台修订是**新工件**，post-prescription-risk 是修订凭据的
+ * 唯一签发口，要求：(a) 剥净编辑前的模型复核与合同签名（否则 stale_workbench_contract_metadata），
+ * (b) 所选候选呈规范医生编辑形态 self_devised + modified + 名称含「医生编辑版」
+ * （否则 invalid_workbench_edit_shape）。本 helper 复刻真实客户端提交面
+ * （invalidatePrescriptionContractAfterEdit + synchronizeEditedCandidate 的服务端可见效果）；
+ * 名称只追加后缀、保留原名前缀，避免破坏下游「显示与审方同源」类断言。
+ * his-scheme 的对抗探针**刻意不用**本 helper：那些用例测的是客户端跳过审方步骤、
+ * 携完整签名 M04 冒充工作台修订时 HIS 自身的层层防御，两种载荷各测各的边界。
+ */
+function asEditedWorkbenchArtifact(caseState, candidateIndex = 0) {
+  for (const reasoning of [caseState.reasoningV2, caseState.reasoningPrescribe]) {
+    if (!reasoning) continue;
+    delete reasoning.clinicalReview;
+    delete reasoning.contractSignature;
+    delete reasoning.contractSignatureVersion;
+    const candidate = reasoning.formula?.candidates?.[candidateIndex];
+    if (candidate) {
+      candidate.constructionType = "self_devised";
+      candidate.modificationStatus = "modified";
+      if (!/医生编辑版/.test(candidate.name)) candidate.name = `${candidate.name}（医生编辑版）`;
+    }
+  }
+  caseState.prescriptionRevision = {
+    source: "herb_workbench", candidateIndex, herbHash: "untrusted-client-hash", auditedAt: new Date().toISOString(),
+    auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
+  };
+  return caseState;
+}
+
+/**
+ * 复刻 DiagnosisClient 采纳审方响应的口径：从响应的 audit 对象重组 prescriptionRevision。
+ * 修订凭据（attestation）的签名域覆盖这里的每个业务字段（auditedAt 按日期粒度绑定），
+ * 任何字段与签发时不一致都会让下游 assess / his-scheme 的凭据校验失败。
+ */
+function adoptAttestedRevision(caseState, audit) {
+  const rawAuditResult = String(audit?.auditResult || "").toUpperCase();
+  const rawRiskLevel = String(audit?.highestRiskLevel || "").toUpperCase();
+  caseState.prescriptionRevision = {
+    source: "herb_workbench",
+    candidateIndex: audit?.candidateIndex ?? 0,
+    herbHash: audit?.herbHash || "",
+    auditedAt: typeof audit?.auditedAt === "string" ? audit.auditedAt : new Date().toISOString(),
+    auditResult: ["PASS", "REMIND", "MANUAL_REVIEW", "BLOCK"].includes(rawAuditResult) ? rawAuditResult : "MANUAL_REVIEW",
+    highestRiskLevel: ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(rawRiskLevel) ? rawRiskLevel : "HIGH",
+    auditAvailable: audit?.source === "lingxi" && audit?.degraded !== true,
+    degraded: audit?.degraded === true,
+    ...(typeof audit?.degradeReason === "string" ? { degradeReason: audit.degradeReason } : {}),
+    needManualReview: audit?.needManualReview === true,
+    ...(typeof audit?.reason === "string" ? { auditReason: audit.reason } : {}),
+    ...(typeof audit?.auditId === "string" ? { auditId: audit.auditId } : {}),
+    ...(typeof audit?.traceId === "string" ? { traceId: audit.traceId } : {}),
+    attestationVersion: audit?.attestationVersion,
+    attestation: audit?.attestation,
+  };
   return caseState;
 }
 
@@ -1830,17 +1896,20 @@ async function runHisSchemeCases() {
     reasoningV2: reasoningV2WithHerbs([{ name: "甘草", dose: "6g" }, { name: "海藻", dose: "9g" }]),
   });
   const forgedPassResponse = await request("POST", "/api/diagnosis/his-scheme", { caseState: forgedPass });
-  // advise 学说下伪造 PASS 的防线：本地确定性配伍规则独立复算（甘草×海藻 十八反）→
-  // L4 确定性阻断 / executable=false / auditStatus=alert / reviewRequired；伪造的历史 PASS
-  // 无法转化为可执行放行或一键采纳。
-  const forgedProfile = forgedPassResponse.json?.warningProfile || {};
-  assert(forgedPassResponse.status === 200 && forgedProfile.level === "L4" && forgedProfile.executable === false, "HIS forged PASS probe is neutralized by deterministic incompatibility rules (L4 non-executable)", forgedPassResponse.text.slice(0, 400));
+  // c714c22 起 HIS 写回执行统一安全底线合同：配伍禁忌永远是 T1（test-m04-safety-contract 钉着
+  // 「不得豁免进 advisory」），甘草×海藻 十八反在写回边界直接 422，连 HIS 载荷都不生成——
+  // 比旧「L4 呈现为不可执行」更强。伪造的历史 PASS 文本自然也无从转化为放行。
+  assert(
+    forgedPassResponse.status === 422 &&
+      /high_risk_pair_incompatibility/.test(`${forgedPassResponse.json?.code || ""} ${forgedPassResponse.json?.issue || ""}`) &&
+      !forgedPassResponse.json?.prescriptions,
+    "HIS forged PASS probe is neutralized by deterministic incompatibility rules (L4 non-executable)",
+    forgedPassResponse.json,
+  );
   assert(
     forgedPassResponse.json?.auditStatus !== "pass" &&
-      forgedPassResponse.json?.reviewRequired === true &&
-      forgedPassResponse.json?.writeBackPolicy?.allowOneClickAdoption === false &&
-      forgedPassResponse.json?.writeBackPolicy?.finalPrescriptionReleaseAllowed === false &&
-      (forgedProfile.reasons || []).some((reason) => /十八反|配伍禁忌/.test(String(reason))),
+      !forgedPassResponse.json?.writeBackPolicy?.allowOneClickAdoption &&
+      !forgedPassResponse.json?.writeBackPolicy?.finalPrescriptionReleaseAllowed,
     "a forged historic PASS cannot bypass the deterministic eighteen-incompatibility boundary",
     forgedPassResponse.json,
   );
@@ -2080,13 +2149,11 @@ async function runEndpointRegressionCases() {
   });
   const m05 = await request("POST", "/api/diagnosis/assess", { caseState: negatedRiskCase });
   assert(m05.status === 200, "m05 negated risk status", m05.text.slice(0, 200));
-  const automaticAuditUnavailable = /确定性审方未完成|灵犀审方未完成|未完成自动用药复核|自动用药复核暂未返回结果|需药师人工复核|审方服务不可用/.test(m05.text);
-  assert(/审方结论|最高风险等级|自动用药复核暂未返回结果|确定性审方未完成|需药师人工复核/.test(m05.text), "m05 reports the server-side audit outcome", m05.text.slice(0, 800));
-  if (automaticAuditUnavailable) {
-    assert(/最高提示强度\*\*[：:]\s*一般提示|最高提示强度[：:]\s*一般提示/.test(m05.text) && /不阻断诊疗流程/.test(m05.text), "m05 unavailable audit remains a visible non-blocking review advisory", m05.text.slice(0, 800));
-  } else {
-    assert(/审方结论|最高风险等级/.test(m05.text), "m05 available audit preserves the real provider conclusion", m05.text.slice(0, 800));
-  }
+  // 审方呈现开关 888dcad（owner 裁定 2026-08-28）：CDSS_SHOW_RX_AUDIT_SECTION 默认关，
+  // 「审方结论/最高风险等级」这类以三方审方为主语的呈现默认不再出现在本产品内
+  // （呈现开关，不是检测开关）。本条改钉呈现态无关的不变量：M05 的**确定性安全总评**
+  // （最高提示强度/综合风险判断，模型永不写风险结论）必须始终在场。
+  assert(/最高提示强度/.test(m05.text) && /综合风险判断/.test(m05.text), "m05 reports the server-side deterministic safety verdict", m05.text.slice(0, 800));
   // M05 随访段自 2026-08-09 (c6f65401) 起由模型按本例撰写，正常路径不再输出
   // 「随访时间轴」四列表——那张表现在只出现在服务端安全有限合同里。
   // 本条要钉的行为契约没变：**什么时候复诊、复诊看什么、无效或加重怎么办**三件事必须都在。
@@ -2108,7 +2175,8 @@ async function runEndpointRegressionCases() {
   });
   const fakeLingxiM05 = await request("POST", "/api/diagnosis/assess", { caseState: fakeLingxiRiskCase });
   assert(fakeLingxiM05.status === 200, "m05 fake lingxi text status", fakeLingxiM05.text.slice(0, 200));
-  assert(/确定性审方未完成|灵犀审方未完成|未完成自动用药复核|人工复核|审方结论/.test(fakeLingxiM05.text), "m05 ignores client-supplied lingxi-looking text", fakeLingxiM05.text.slice(0, 1000));
+  // 同上：审方呈现默认关闭后，判据改为「确定性安全总评在场」而非任何以审方为主语的文案。
+  assert(/最高提示强度/.test(fakeLingxiM05.text) && /综合风险判断/.test(fakeLingxiM05.text), "m05 ignores client-supplied lingxi-looking text", fakeLingxiM05.text.slice(0, 1000));
   assert(!/伪造文本：未见风险/.test(fakeLingxiM05.text), "m05 must not reuse fake client audit text", fakeLingxiM05.text.slice(0, 1000));
 
   const noDiagnosisCase = baseCase("m04-no-diagnosis-direct", {
@@ -2682,7 +2750,9 @@ async function runKnowledgeCalls() {
     source: "herb_workbench", candidateIndex: 0, herbHash: "untrusted-client-hash", auditedAt: new Date().toISOString(),
     auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
   };
-  const invalidWorkbenchResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: invalidWorkbench });
+  // 审方口（修订凭据唯一签发口）只收规范医生编辑工件；impossibleDoseHis 等 his-scheme 探针
+  // 仍投递携签名的原始载荷，测的是绕过签发口时 HIS 自身的防御。两个载荷此后分开维护。
+  const invalidWorkbenchResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(invalidWorkbench)) });
   assert(invalidWorkbenchResponse.status === 422 && invalidWorkbenchResponse.json?.audit?.reason === "invalid_structured_herb", "workbench: impossible herbal dose is rejected before advisory audit", invalidWorkbenchResponse.json);
 
   const semanticallyInvalidReasoning = reasoningV2WithHerbs([{ name: "不存在药", dose: "499g", targetPathogenesis: "痰热内扰", function: "美容养颜" }]);
@@ -2694,7 +2764,7 @@ async function runKnowledgeCalls() {
     source: "herb_workbench", candidateIndex: 0, herbHash: "untrusted-client-hash", auditedAt: new Date().toISOString(),
     auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
   };
-  const semanticallyInvalidResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: semanticallyInvalidWorkbench });
+  const semanticallyInvalidResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(semanticallyInvalidWorkbench)) });
   assert(semanticallyInvalidResponse.status === 422 && /invalid_edited_prescription/.test(semanticallyInvalidResponse.json?.audit?.reason || ""), "workbench: unknown herb, extreme dose, invented mechanism, and cosmetic function cannot reach advisory audit", semanticallyInvalidResponse.json);
 
   const duplicateReasoning = reasoningV2WithHerbs([
@@ -2706,7 +2776,7 @@ async function runKnowledgeCalls() {
     source: "herb_workbench", candidateIndex: 0, herbHash: "untrusted-client-hash", auditedAt: new Date().toISOString(),
     auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
   };
-  const duplicateWorkbenchResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: duplicateWorkbench });
+  const duplicateWorkbenchResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(duplicateWorkbench)) });
   assert(duplicateWorkbenchResponse.status === 422 && /duplicate_herb/.test(duplicateWorkbenchResponse.json?.audit?.reason || ""), "workbench: duplicate herb rows must be merged before audit", duplicateWorkbenchResponse.json);
 
   const invalidRegimenReasoning = reasoningV2WithHerbs([{ name: "酸枣仁", dose: "15g", targetPathogenesis: "心神不宁", function: "养心安神" }]);
@@ -2716,7 +2786,7 @@ async function runKnowledgeCalls() {
     source: "herb_workbench", candidateIndex: 0, herbHash: "untrusted-client-hash", auditedAt: new Date().toISOString(),
     auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
   };
-  const invalidRegimenResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: invalidRegimenWorkbench });
+  const invalidRegimenResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(invalidRegimenWorkbench)) });
   assert(invalidRegimenResponse.status === 422 && /course_inconsistent/.test(invalidRegimenResponse.json?.audit?.reason || ""), "workbench: dose-count/course mismatch is rejected before advisory audit", invalidRegimenResponse.json);
 
   const asWorkbenchRevision = (caseState) => {
@@ -2745,7 +2815,8 @@ async function runKnowledgeCalls() {
     };
   });
   for (const item of invalidRegimenBoundaryCases) {
-    const response = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: item.caseState });
+    // item.caseState（携签名、未整形）留给下方 his-scheme 对抗清单；审方口收编辑工件。
+    const response = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(item.caseState)) });
     assert(
       response.status === 422 && item.issue.test(response.json?.audit?.reason || ""),
       `${item.name}: invalid regimen is rejected before edited-prescription audit`,
@@ -2881,21 +2952,35 @@ async function runKnowledgeCalls() {
     },
     reasoningV2: doctorEditedFormula,
   }));
-  const trustedDoctorEditHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: trustedDoctorEditCase });
+  // c714c22 起「受信工作台编辑」必须走真实链路：先经修订凭据唯一签发口（post-prescription-risk）
+  // 取得与病例/租户/精确处方版本绑定的凭据，his-scheme 只认该凭据（isTrustedHisWorkbenchEdit）。
+  // 携签名 M04 直接冒充医生编辑版的路径由上面的 modelForgedDoctorEditCase 钉住。
+  const editedTrustedDoctorEdit = asEditedWorkbenchArtifact(cloneCase(trustedDoctorEditCase));
+  const trustedDoctorEditAudit = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: editedTrustedDoctorEdit });
+  assert(
+    trustedDoctorEditAudit.status === 200 &&
+      /^sha256-[a-f0-9]{64}$/.test(trustedDoctorEditAudit.json?.audit?.herbHash || "") &&
+      typeof trustedDoctorEditAudit.json?.audit?.attestation === "string",
+    "workbench: the sole issuer returns an attested revision for a valid doctor edit",
+    trustedDoctorEditAudit.json,
+  );
+  adoptAttestedRevision(editedTrustedDoctorEdit, trustedDoctorEditAudit.json?.audit);
+  const trustedDoctorEditHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: editedTrustedDoctorEdit });
   assert(
     trustedDoctorEditHis.status === 200 && Boolean(trustedDoctorEditHis.json?.prescriptions),
     "HIS: an explicit trusted workbench edit may become self-devised while herb-level contracts remain enforced",
     trustedDoctorEditHis.json,
   );
 
+  // 15000mg = 15g，落在黄芪保守剂量域内：若被误读成 15000g 会撞剂量天花板（422），
+  // 故 200 即证明 mg 被按毫克归一。旧值 999mg（0.999g）在 c714c22 的医生编辑工件口径下
+  // 会因**低于**保守剂量域被语义门拒掉（dose_outside_conservative_range）——那个拒绝码
+  // 同样证明 mg 归一正确，但不再满足本条的 200 断言，故改用域内值。
   const milligramWorkbench = baseCase("workbench-milligram-dose", {
-    prescription: "## 中药饮片处方\n黄芪 999mg",
-    reasoningV2: reasoningV2WithHerbs([{ name: "黄芪", dose: "999mg", targetPathogenesis: "心神不宁", function: "补气升阳" }]),
+    prescription: "## 中药饮片处方\n黄芪 15000mg",
+    reasoningV2: reasoningV2WithHerbs([{ name: "黄芪", dose: "15000mg", targetPathogenesis: "心神不宁", function: "补气升阳" }]),
   });
-  milligramWorkbench.prescriptionRevision = {
-    source: "herb_workbench", candidateIndex: 0, herbHash: "untrusted-client-hash", auditedAt: new Date().toISOString(),
-    auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
-  };
+  asEditedWorkbenchArtifact(milligramWorkbench);
   const milligramWorkbenchResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: milligramWorkbench });
   assert(milligramWorkbenchResponse.status === 200 && milligramWorkbenchResponse.json?.audit?.reason !== "invalid_structured_herb", "workbench: mg doses are normalized as milligrams rather than grams", milligramWorkbenchResponse.json);
 
@@ -2937,12 +3022,13 @@ async function runKnowledgeCalls() {
     prescription: "## 中药饮片处方\n茯神 12g",
     reasoningV2: multiCandidateReasoning,
   });
-  selectedSecondCandidate.prescriptionRevision = {
-    source: "herb_workbench", candidateIndex: 1, herbHash: "untrusted-client-hash", auditedAt: new Date().toISOString(),
-    auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
-  };
+  // 编辑形态命名只追加后缀（「第二候选方（医生编辑版）」），下方「显示与审方同源」断言
+  // 仍以 /第二候选方/ 验证所选候选的身份贯通。
+  asEditedWorkbenchArtifact(selectedSecondCandidate, 1);
   const selectedSecondRisk = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: selectedSecondCandidate });
   assert(selectedSecondRisk.status === 200 && /^sha256-[a-f0-9]{64}$/.test(selectedSecondRisk.json?.audit?.herbHash || ""), "workbench: non-zero candidate is audited and versioned", selectedSecondRisk.json);
+  // 后续 his-scheme / assess 依赖签发口返回的修订凭据（编辑后签名已按合同剥除，走受信编辑路径）。
+  adoptAttestedRevision(selectedSecondCandidate, selectedSecondRisk.json?.audit);
   const changedAuditContext = JSON.parse(JSON.stringify(selectedSecondCandidate));
   changedAuditContext.allergyHistory = "茯神过敏";
   changedAuditContext.hisRecord.fields.guomin = "茯神过敏";
@@ -2963,9 +3049,14 @@ async function runKnowledgeCalls() {
   const invalidIndexPostRisk = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: invalidCandidateIndex });
   const invalidIndexAssess = await request("POST", "/api/diagnosis/assess", { caseState: invalidCandidateIndex });
   const invalidIndexHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: invalidCandidateIndex });
-  assert(invalidIndexPostRisk.status === 422 && invalidIndexPostRisk.json?.audit?.reason === "invalid_candidate_index", "post-risk: invalid explicit candidate index is rejected without fallback", invalidIndexPostRisk.json);
-  assert(invalidIndexAssess.status === 422 && invalidIndexAssess.json?.code === "invalid_candidate_index", "M05: invalid explicit candidate index is rejected and never audits another candidate", invalidIndexAssess.json);
-  assert(invalidIndexHis.status === 422 && invalidIndexHis.json?.code === "invalid_candidate_index", "HIS: invalid explicit candidate index is rejected without returning another prescription", invalidIndexHis.json);
+  // c714c22 起越界索引在更早的边界被拦：审方口的规范编辑形态门要求所选候选存在
+  // （invalid_workbench_edit_shape），assess 的修订凭据绑定精确候选与版本、索引被改即凭据失效
+  // （409 invalid_workbench_revision_attestation）。两处都不回退到其他候选——意图不变，码前移。
+  assert(invalidIndexPostRisk.status === 422 && invalidIndexPostRisk.json?.audit?.reason === "invalid_workbench_edit_shape", "post-risk: invalid explicit candidate index is rejected without fallback", invalidIndexPostRisk.json);
+  assert(invalidIndexAssess.status === 409 && invalidIndexAssess.json?.code === "invalid_workbench_revision_attestation", "M05: invalid explicit candidate index is rejected and never audits another candidate", invalidIndexAssess.json);
+  // 被篡改的候选索引使受信编辑链失效（版本 hash 对不上凭据），于是落到 M04 签名门——
+  // 编辑工件按合同不携签名 ⇒ 409。没有任何候选被回退返回，「无回退」意图不变。
+  assert(invalidIndexHis.status === 409 && invalidIndexHis.json?.code === "invalid_m04_signature" && !invalidIndexHis.json?.prescriptions, "HIS: invalid explicit candidate index is rejected without returning another prescription", invalidIndexHis.json);
 
   const impossibleDoseHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: invalidWorkbench });
   assert(impossibleDoseHis.status === 422 && impossibleDoseHis.json?.code === "invalid_structured_herb" && !impossibleDoseHis.json?.prescriptions, "HIS: impossible herbal magnitude is rejected before the advisory audit and cannot produce a write-back payload", impossibleDoseHis.json);
