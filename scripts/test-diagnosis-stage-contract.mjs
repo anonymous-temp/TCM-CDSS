@@ -203,6 +203,8 @@ const stable = {
   },
   pathogenesis: {
     locationDifferentiation: { items: ["心", "肝"], resolution: "bounded", resolutionReason: "病位由当前证候和病机链归纳" },
+    // 肯定级主证候下病性维不得隐式空缺（与病位同规则）；基线 fixture 按完整维度建模。
+    natureDifferentiation: { items: ["血虚"], resolution: "bounded", resolutionReason: "病性由当前证候和病机链归纳" },
     chain: [{ nodeId: "P1", patientFact: "入睡困难", syndromeEvidence: "舌淡脉细", pathogenesis: "心血不足", therapyDirection: "养血安神", pathogenesisType: "主因", biaoBen: "本虚" }],
   },
   therapy: {
@@ -236,6 +238,31 @@ assert.equal(m03SemanticIssue(missingWesternRationale), "western_clinical_ration
 const weakWesternDifferential = structuredClone(stable);
 weakWesternDifferential.westernDiagnosis.differentials = [{ name: "焦虑相关睡眠障碍", reason: "压力大", nextCheck: "核实情绪" }];
 assert.equal(m03SemanticIssue(weakWesternDifferential), "western_differential_analysis_missing", "a Western differential needs an actual distinguishing point");
+
+// ===== 隐式空集不是合法沉默（2026-08-30 生产实测：「气血亏虚证 + locations=[] + 9味方」带签名出场） =====
+// 主证候 resolved/bounded 时，病位/病性靠空数组（或整个缺失）隐式滑入 unresolved，
+// 会同时绕过理由义务与主症锚定检查（锚定只在 items 非空时执行）——双重免检通道。
+// 显式 unresolved + 理由仍是合法出口（可见、可追问）。病性维同类同修。
+const affirmedSyndromeOverview = {
+  ...stable.overview,
+  primarySyndromeResolution: "resolved",
+  primarySyndromeBasis: ["入睡困难", "舌淡脉细"],
+};
+const implicitEmptyLocation = structuredClone(stable);
+implicitEmptyLocation.overview = structuredClone(affirmedSyndromeOverview);
+implicitEmptyLocation.pathogenesis.locationDifferentiation = { items: [] };
+assert.equal(m03SemanticIssue(implicitEmptyLocation), "location_resolution_reason_missing", "显式肯定级主证候下病位隐式空集必须给理由或补条目");
+const explicitEmptyLocation = structuredClone(implicitEmptyLocation);
+explicitEmptyLocation.pathogenesis.locationDifferentiation = { items: [], resolution: "unresolved", resolutionReason: "四诊资料不足以归纳脏腑病位，需补充舌脉与伴随症" };
+assert.notEqual(m03SemanticIssue(explicitEmptyLocation), "location_resolution_reason_missing", "显式 unresolved + 理由仍是合法出口");
+const implicitEmptyNature = structuredClone(stable);
+implicitEmptyNature.overview = structuredClone(affirmedSyndromeOverview);
+implicitEmptyNature.pathogenesis.natureDifferentiation = { items: [] };
+assert.equal(m03SemanticIssue(implicitEmptyNature), "nature_resolution_reason_missing", "病性维与病位维同一条规则");
+// 未显式声明 resolution 的历史/精简形态维持旧行为（义务与结论强度声明对等）。
+const legacyImplicitSyndrome = structuredClone(stable);
+legacyImplicitSyndrome.pathogenesis.locationDifferentiation = { items: [] };
+assert.notEqual(m03SemanticIssue(legacyImplicitSyndrome), "location_resolution_reason_missing", "隐式证候强度不触发新义务");
 const ambiguousWesternDifferential = structuredClone(stable);
 ambiguousWesternDifferential.westernDiagnosis.differentials = [{
   name: "良性阵发性位置性眩晕或前庭性偏头痛",
@@ -652,6 +679,7 @@ const diarrheaReasoning = (name, patientFact) => ({
   },
   pathogenesis: {
     locationDifferentiation: { items: ["脾"], resolution: "bounded", resolutionReason: "病位由当前病机链归纳" },
+    natureDifferentiation: { items: ["湿"], resolution: "bounded", resolutionReason: "病性由当前病机链归纳" },
     chain: [{
       nodeId: "P1",
       patientFact,

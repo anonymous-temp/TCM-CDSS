@@ -1402,7 +1402,13 @@ function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext
   const locationResolution = explicitLocationResolution || (locationItems.length > 0 ? "bounded" : "unresolved");
   if (locationResolution === "unresolved") {
     if (locationItems.length > 0) return "location_unresolved_with_items";
-    if (explicitLocationResolution && !hasResolutionReason(location?.resolutionReason)) return "location_resolution_reason_missing";
+    // 主证候**显式**声明了肯定级结论（resolved/bounded）时，病位不得靠空数组隐式滑入 unresolved：
+    // 隐式空集此前同时免除理由义务、并短路主症锚定检查（锚定只在 items 非空时执行），
+    // 等于一条双重免检通道——2026-08-30 生产实测「气血亏虚证 + locations=[] + 9味方」带签名出场。
+    // 显式 unresolved + 理由仍是合法出口（可见、可追问）；沉默的空集不是。
+    // 只认显式声明：生产签名输出按 resolution 机制携带该字段；未声明 resolution 的历史/精简
+    // 形态维持旧行为，义务与结论强度声明对等。
+    if ((explicitLocationResolution || (explicitSyndromeResolution && syndromeResolution !== "unresolved")) && !hasResolutionReason(location?.resolutionReason)) return "location_resolution_reason_missing";
   } else {
     if (locationItems.length === 0) return `location_${locationResolution}_without_items`;
     if (locationResolution === "bounded" && explicitLocationResolution && !hasResolutionReason(location?.resolutionReason)) return "location_resolution_reason_missing";
@@ -1425,7 +1431,8 @@ function m03ResolutionContractIssue(reasoning: M03ReasoningLike, clinicalContext
   const natureResolution = explicitNatureResolution || (natureItems.length > 0 ? "bounded" : "unresolved");
   if (natureResolution === "unresolved") {
     if (natureItems.length > 0) return "nature_unresolved_with_items";
-    if (explicitNatureResolution && !hasResolutionReason(nature?.resolutionReason)) return "nature_resolution_reason_missing";
+    // 与病位维同一条规则：显式肯定级主证候下，病性的隐式空集不是合法沉默（同类同修）。
+    if ((explicitNatureResolution || (explicitSyndromeResolution && syndromeResolution !== "unresolved")) && !hasResolutionReason(nature?.resolutionReason)) return "nature_resolution_reason_missing";
   } else {
     if (natureItems.length === 0) return `nature_${natureResolution}_without_items`;
     if (natureResolution === "bounded" && explicitNatureResolution && !hasResolutionReason(nature?.resolutionReason)) return "nature_resolution_reason_missing";

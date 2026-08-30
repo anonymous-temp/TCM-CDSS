@@ -1040,6 +1040,31 @@ for (const scenario of ["否认呕吐，腹痛持续加重。", "否认恶心，
   }
 }
 
+// ===== 消化道出血正字：确定性优先评估档（不押语义层可用性；2026-08-30 黄金基线轮间波动根治） =====
+// 「否认咯血，便血两日」期望 needs_information，此前完全依赖语义回补层单条抽取不漂移；
+// 语义层逐条隔离/复核变异丢掉那一条时，门禁静默落回 ready + 提示档。闭集正字按判据分层（§17）
+// 走确定性；硬门档（red_flag）仍按 T6 要求严重度证据，此处只钉优先评估档。
+for (const scenario of ["否认咯血，便血两日。", "呕血一次。", "黑便两日。", "解柏油样便一日。"]) {
+  for (const placement of ["chief", "history", "conversation"]) {
+    const gate = evaluateSafetyGate(stateWith(scenario, placement));
+    assert.ok(gate.missingItemCodes?.includes("priority_evaluation_required"), `${placement}: ${scenario}`);
+    assert.match((gate.missingItems || []).join("、"), /消化道出血/, `${placement}: ${scenario}`);
+    assert.notEqual(gate.status, "red_flag", `${placement}: ${scenario}（无严重度证据不得升硬门档）`);
+    cases += 1;
+  }
+}
+// 否定与既往不得升档——否定式既往史误报是本套件显式钉着的类别；提示档（advisories）行为不在此断言。
+for (const scenario of ["无便血，无黑便，无呕血。", "三年前曾便血，已愈，此次未再出现。"]) {
+  for (const placement of ["chief", "history", "conversation"]) {
+    const gate = evaluateSafetyGate(stateWith(scenario, placement));
+    assert.ok(
+      !(gate.missingItems || []).some((item) => /消化道出血[^；]*；处方前需完成评估/.test(item)),
+      `${placement}: ${scenario}`,
+    );
+    cases += 1;
+  }
+}
+
 // ===== 类别矩阵：红旗限定 M03 首屏必须含显性紧急行动（RF04 类） =====
 const { evaluateRedFlagContract } = await import("./lib/primary-care-sparse-50-contracts.mjs");
 for (const scenario of [

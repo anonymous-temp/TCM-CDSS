@@ -673,7 +673,7 @@ export function structuredClinicalRepairHint(
           : /_resolved_without_value$|_bounded_without_value$|_without_items$/.test(reason)
             ? "resolution 声明了结论强度，却没有给出对应的结论内容。请填写与该强度匹配的最小结论；给不出就把 resolution 降为 unresolved。"
             : /_resolution_reason_missing$/.test(reason)
-              ? "显式给出了 resolution，却没有说明为什么停在这一强度。请写明：已有哪些依据支持到这一层、还缺哪一项才能再进一步。"
+              ? "该维度停在了非结论强度（显式声明，或主证候已有肯定结论时该维度条目为空）却没有说明原因。优先补齐该维度的条目与逐字依据；确实给不出时，显式标注 resolution 并写明：已有哪些依据支持到这一层、还缺哪一项才能再进一步。"
               : /_unresolved_with_items$/.test(reason)
                 ? "resolution 标为 unresolved，却仍然列出了具体条目，二者自相矛盾。要么删除这些条目保持 unresolved，要么在有逐字依据时升为 bounded 并补齐依据。"
                 : /_unresolved_confidence$/.test(reason)

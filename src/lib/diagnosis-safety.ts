@@ -2398,6 +2398,35 @@ function abdominalSymptomAlternation(): string {
   return `${governedTermAlternation(GOVERNED_ACUTE_ABDOMEN_SYMPTOMS)}|${ABDOMINAL_PAIN_COMPOSITION}`;
 }
 
+/**
+ * 消化道出血正字（呕血/黑便/便血族 + 咖啡样构词式）的确定性优先评估信号。
+ *
+ * 与 narrativeFallbackAdvisories 的 gi_bleed 检测同一治理来源（giBleedConceptTerms /
+ * 咖啡样构词式），但带逐命中否定/排除/既往断言守卫：晋级到优先评估档会扣发剂量，
+ * 不允许把「否认黑便」「三年前曾便血」当阳性——否定式既往史误报是回归套件显式钉着的类别。
+ *
+ * 为什么这一档要确定性、不只靠语义回补层（2026-08-30 黄金基线实测）：
+ * 「否认咯血，便血两日」期望 needs_information，此前该期望完全押在语义层单条抽取不漂移上；
+ * 语义层逐条隔离/复核变异丢掉这一条时，门禁静默落回 ready + 提示档。闭集正字属判据分层
+ * （§17）允许的确定性例外；硬门档（red_flag）仍按 T6 要求严重度证据，本谓词只管优先评估档。
+ */
+export function hasGiBleedPrioritySignal(text: string): boolean {
+  if (hasCoffeeGroundEmesis(text)) return true;
+  const normalized = normalizeClinicalText(text);
+  for (const term of giBleedConceptTerms()) {
+    let cursor = 0;
+    while (cursor <= normalized.length) {
+      const index = normalized.indexOf(term, cursor);
+      if (index < 0) break;
+      cursor = index + term.length;
+      if (isExcludedClinicalAssertionAt(normalized, index)) continue;
+      const affirmed = !isNegatedAt(normalized, index) || hasCommaSeparatedPositiveEvidence(normalized, index, term);
+      if (affirmed && !isHistoricalOrResolvedAt(normalized, index, term.length)) return true;
+    }
+  }
+  return false;
+}
+
 function hasAbdominalPrioritySignal(text: string): boolean {
   const normalized = normalizeClinicalText(text);
   // 原实现按词表逐词 indexOf，加不进构词式模式；改为对合成正则做全局匹配，
@@ -4331,6 +4360,16 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   const priorityEvaluationItems = priorityEvaluationItemsFromFacts(state.clinicalFacts, semanticSourceText);
   if (hasAbdominalPrioritySignal(semanticSourceText) && !hasAcuteAbdominalSignal(semanticSourceText)) {
     priorityEvaluationItems.push("突发、持续或进展性腹痛/胃痛需优先完成腹部查体与严重度评估");
+  }
+  if (
+    hasGiBleedPrioritySignal(semanticSourceText) &&
+    !(state.clinicalFacts?.semanticStatus === "checked" &&
+      groundedPatientTriageCategories(state.clinicalFacts, semanticSourceText).has("gi_bleed"))
+  ) {
+    // 与 narrativeFallbackAdvisories 同一套让位语义：语义层已有接地的 gi_bleed 结论时让位
+    // （其条目自带原文引用与升级说明，信息量更高）；语义层缺席或单条漏检时本确定性项兜底，
+    // needs_information 的承诺从此不押在模型可用性上。
+    priorityEvaluationItems.push("消化道出血相关表现需优先复核出血量、持续性、循环状态及血红蛋白；处方前需完成评估");
   }
   const semanticTriage = semanticEmergencyFindings.length > 0
     ? {
