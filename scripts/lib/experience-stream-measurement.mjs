@@ -9,6 +9,8 @@ export async function measureExperienceResponse(response, { startedAt = performa
   let ended = false, streamError = false;
   let firstByteMs = null, firstContentMs = null, firstUsefulMs = null;
   let moduleDraftCount = 0;
+  const visibleBody = (value) => value.replaceAll("<<<CDSS_STREAM_FINAL>>>", "").split("<!-- DIAGNOSIS_JSON_START -->")[0].trim();
+  const hasBodyText = (value) => /[\p{L}\p{N}]/u.test(visibleBody(value)) && !/^[{[]/.test(visibleBody(value));
   const moduleIds = new Set(["m03.western", "m03.syndrome", "m03.pathogenesis", "m03.therapy", "m04.candidate"]);
   const parseLine = (line) => {
     if (!line.trim()) return;
@@ -28,14 +30,14 @@ export async function measureExperienceResponse(response, { startedAt = performa
     if (frame.content === "[END]") {
       ended = true;
       // Unstructured stages have no module frames; complete delivery is the conservative bound.
-      if (content.trim() && !streamError) firstUsefulMs ??= elapsed();
+      if (hasBodyText(content) && !streamError) firstUsefulMs ??= elapsed();
       return;
     }
     if (typeof frame.content !== "string" || !frame.content) return;
     content += frame.content;
     firstContentMs ??= elapsed();
     const marker = "<<<CDSS_STREAM_FINAL>>>";
-    if (frame.content.startsWith(marker) && frame.content.slice(marker.length).split("<!-- DIAGNOSIS_JSON_START -->")[0].trim()) {
+    if (frame.content.startsWith(marker) && hasBodyText(frame.content)) {
       firstUsefulMs ??= elapsed();
     }
   };
