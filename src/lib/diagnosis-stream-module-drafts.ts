@@ -1,7 +1,8 @@
 import { completedTopLevelKeys, completedTopLevelValueJson } from "./diagnosis-stream-modules";
 import type { M03DraftModule, StreamModuleDraftFrame } from "./diagnosis-stream-protocol";
+import { sanitizeCandidatePreviewText, sanitizeDiagnoseStreamingDraft } from "./diagnosis-stream-safety";
 
-const WATERMARK = "> 生成中 · 未定稿；最终结论以本阶段完成后的签名报告为准。";
+const WATERMARK = "> 生成中 · 未定稿，最终以完成报告为准。";
 
 const MODULE_BY_KEY = {
   westernDiagnosis: "m03.western",
@@ -24,12 +25,22 @@ function presentTextList(value: unknown): boolean {
   return Array.isArray(value) && value.some((item) => presentText(item));
 }
 
-const MODULE_STATUS_BY_KEY: Record<keyof typeof MODULE_BY_KEY, { heading: string; status: string }> = {
-  westernDiagnosis: { heading: "西医判断", status: "西医判断已生成，正在校验。" },
-  overview: { heading: "中医辨病辨证", status: "中医辨病辨证已生成，正在校验。" },
-  pathogenesis: { heading: "病机分析", status: "病机分析已生成，正在校验。" },
-  therapy: { heading: "治则治法", status: "治则治法已生成，正在校验。" },
-};
+// Display escaping only: do not reinterpret negation, history, uncertainty or clinical meaning.
+function safeText(value: unknown, limit = 500, sanitize: (text: string) => string = (text) => text): string {
+  if (typeof value !== "string") return "";
+  const plain = value.replace(/\s+/g, " ").trim()
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return sanitize(plain).slice(0, limit)
+    .replace(/[\\`*_{}\[\]()#+.!|~-]/g, "\\$&");
+}
+
+function candidateText(value: unknown, limit: number): string {
+  return safeText(typeof value === "string" ? sanitizeCandidatePreviewText(value) : value, limit);
+}
+
+function factLines(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter(presentText).slice(0, 6).map((item) => `- ${safeText(item)}`) : [];
+}
 
 function moduleContractComplete(key: keyof typeof MODULE_BY_KEY, value: Record<string, unknown>): boolean {
   if (key === "westernDiagnosis") {
@@ -49,14 +60,31 @@ function moduleContractComplete(key: keyof typeof MODULE_BY_KEY, value: Record<s
   return presentText(value.overallPrinciple) || presentText(value.overallMethod);
 }
 
-function fixedModuleStatus(key: keyof typeof MODULE_BY_KEY): string {
-  const moduleStatus = MODULE_STATUS_BY_KEY[key];
-  return [WATERMARK, "", `## ${moduleStatus.heading}`, moduleStatus.status].join("\n");
+function clinicalModulePreview(key: keyof typeof MODULE_BY_KEY, value: Record<string, unknown>): string {
+  let lines: string[];
+  if (key === "westernDiagnosis") {
+    const primary = record(value.primary)!;
+    lines = ["## 西医判断", `诊断倾向：${safeText(primary.name)}`, "依据：", ...factLines(primary.supportingFacts)];
+  } else if (key === "overview") {
+    lines = ["## 中医辨病辨证", ...(presentText(value.tcmDiseaseName) ? [`辨病：${safeText(value.tcmDiseaseName)}`] : []),
+      `证候倾向：${safeText(value.primarySyndrome)}`, "依据：", ...factLines(value.primarySyndromeBasis)];
+  } else if (key === "pathogenesis") {
+    lines = ["## 病机分析", ...((value.chain as unknown[]).flatMap((item) => {
+      const node = record(item);
+      if (!node || ![node.patientFact, node.syndromeEvidence, node.pathogenesis, node.therapyDirection].every(presentText)) return [];
+      return [`- 患者事实：${safeText(node.patientFact, 200)}；辨证依据：${safeText(node.syndromeEvidence, 200)}；病机：${safeText(node.pathogenesis, 200)}；治法方向：${safeText(node.therapyDirection, 200)}`];
+    }).slice(0, 4))];
+  } else {
+    lines = ["## 治则治法", ...[value.overallPrinciple, value.overallMethod].filter(presentText)
+      .map((item) => safeText(item, 500, sanitizeDiagnoseStreamingDraft))];
+  }
+  return [WATERMARK, "", ...lines].join("\n");
 }
 
 export function m03ModuleDraftFrame(partial: string, key: string): StreamModuleDraftFrame | undefined {
-  if (!(key in MODULE_BY_KEY)) return undefined;
-  const valueJson = completedTopLevelValueJson(partial, key);
+  if (!Object.hasOwn(MODULE_BY_KEY, key)) return undefined;
+  const tail = fieldTail(partial.slice(partial.indexOf("{")), key);
+  const valueJson = tail && completedTopLevelValueJson(`{"module":${tail}`, "module");
   if (!valueJson) return undefined;
   let value: unknown;
   try {
@@ -72,14 +100,81 @@ export function m03ModuleDraftFrame(partial: string, key: string): StreamModuleD
     type: "module_draft",
     module: MODULE_BY_KEY[typedKey],
     revision: 1,
-    content: fixedModuleStatus(typedKey),
+    content: clinicalModulePreview(typedKey, parsed),
+    contentKind: "clinical_draft",
   };
+}
+
+/** Return an immediate object's field tail, rejecting malformed preceding members and nested lookalikes. */
+function fieldTail(object: string, wanted: string): string | undefined {
+  let index = 0;
+  const whitespace = () => { while (/\s/.test(object[index] ?? "x")) index += 1; };
+  whitespace();
+  if (object[index++] !== "{") return undefined;
+  while (index < object.length) {
+    whitespace();
+    if (object[index] !== '"') return undefined;
+    const keyStart = index++;
+    let escaped = false;
+    while (index < object.length) {
+      const char = object[index++];
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') break;
+    }
+    let key: unknown;
+    try { key = JSON.parse(object.slice(keyStart, index)); } catch { return undefined; }
+    whitespace();
+    if (object[index++] !== ":") return undefined;
+    whitespace();
+    if (key === wanted) return object.slice(index);
+    const start = index;
+    let depth = 0;
+    let quoted = false;
+    escaped = false;
+    for (; index < object.length; index += 1) {
+      const char = object[index];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === '"') quoted = false;
+      } else if (char === '"') quoted = true;
+      else if (depth === 0 && (char === "," || char === "}")) break;
+      else if (char === "{" || char === "[") depth += 1;
+      else if (char === "}" || char === "]") depth -= 1;
+    }
+    try { JSON.parse(object.slice(start, index)); } catch { return undefined; }
+    if (object[index++] !== ",") return undefined;
+  }
+  return undefined;
+}
+
+/** A complete first candidate can be read before its containing array or later nonPharma closes. */
+export function newM04ModuleDraftFrames(partial: string, emitted: Set<string>): StreamModuleDraftFrame[] {
+  if (emitted.has("m04.candidate")) return [];
+  const formula = fieldTail(partial.slice(partial.indexOf("{")), "formula");
+  const candidates = formula && fieldTail(formula, "candidates");
+  if (!candidates?.startsWith("[")) return [];
+  const candidateJson = completedTopLevelValueJson(`{"candidate":${candidates.slice(1).trimStart()}`, "candidate");
+  if (!candidateJson) return [];
+  let candidate: Record<string, unknown> | undefined;
+  try { candidate = record(JSON.parse(candidateJson)); } catch { return []; }
+  if (!candidate || !presentText(candidate.name) || !Array.isArray(candidate.herbs) || !candidate.herbs.length) return [];
+  if (!candidate.herbs.every((herb) => presentText(record(herb)?.name))) return [];
+  const herbs = candidate.herbs.slice(0, 30).map((herb) => {
+    const row = record(herb)!;
+    const role = ["君", "臣", "佐", "使"].includes(String(row.role)) ? `（${row.role}）` : "";
+    return `- ${candidateText(row.name, 60)}${role}${presentText(row.function) ? `：${candidateText(row.function, 100)}` : ""}`;
+  });
+  emitted.add("m04.candidate");
+  return [{ type: "module_draft", module: "m04.candidate", revision: 1, contentKind: "clinical_draft",
+    content: [WATERMARK, "", "## 候选建议，补充中", `候选方：${candidateText(candidate.name, 100)}`, "药味与配伍思路（剂量见完成报告）：", ...herbs].join("\n") }];
 }
 
 export function newM03ModuleDraftFrames(partial: string, emitted: Set<string>): StreamModuleDraftFrame[] {
   const frames: StreamModuleDraftFrame[] = [];
   for (const key of completedTopLevelKeys(partial)) {
-    if (!(key in MODULE_BY_KEY) || emitted.has(key)) continue;
+    if (!Object.hasOwn(MODULE_BY_KEY, key) || emitted.has(key)) continue;
     const frame = m03ModuleDraftFrame(partial, key);
     if (!frame) continue;
     emitted.add(key);

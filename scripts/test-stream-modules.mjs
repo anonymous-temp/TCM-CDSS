@@ -162,7 +162,7 @@ for (const forbidden of ["党参", "12g", "白术", "茯苓"]) {
   assert.ok(!m04Notice.includes(forbidden), `进度行不得出现药名或剂量：${forbidden}（剂量要等审方，组成要等核验）`);
 }
 
-// ── 5) 通过片段合同后只产生非临床状态帧 ────────────────────────────────────
+// ── 5) 已闭合的权威字段投影为明确标记未定稿的只读临床帧 ─────────────────────
 const draftFrames = newM03ModuleDraftFrames(serialized, new Set());
 assert.deepEqual(
   draftFrames.map((frame) => frame.module),
@@ -172,18 +172,15 @@ assert.deepEqual(
 const draftText = draftFrames.map((frame) => frame.content).join("\n");
 assert.ok(draftFrames.every((frame) => frame.type === "module_draft" && frame.revision === 1));
 assert.ok(draftFrames.every((frame) => frame.content.includes("生成中 · 未定稿")));
-assert.match(draftText, /中医辨病辨证已生成，正在校验/);
-assert.match(draftText, /西医判断已生成，正在校验/);
-assert.match(draftText, /病机分析已生成，正在校验/);
-assert.match(draftText, /治则治法已生成，正在校验/);
-for (const forbidden of [
+for (const expected of [
   "心脾两虚证",
   "失眠障碍",
   "心血不足，心神失养",
   "补益心脾，养血安神",
   "诊断倾向",
-  "证型",
   "患者事实",
+]) assert.ok(draftText.includes(expected), `只读预览必须有实际临床内容：${expected}`);
+for (const forbidden of [
   "primarySyndromeResolutionReason",
   "clinicalRationale",
   "guidelineReferences",
@@ -221,24 +218,25 @@ const doseBearingPathogenesis = JSON.stringify({
   },
 });
 const doseSafePathogenesis = m03ModuleDraftFrame(doseBearingPathogenesis, "pathogenesis");
-assert.ok(doseSafePathogenesis, "模块状态帧不读取临床字段，含剂量的模型片段也只能产生固定状态");
-assert.ok(!/酸枣仁|12g|入睡困难|养血安神/.test(doseSafePathogenesis.content), "状态帧不得泄漏药名、剂量或临床结论");
+assert.ok(doseSafePathogenesis);
+assert.match(doseSafePathogenesis.content, /曾服酸枣仁12g/, "引用既往用药事实保留过去时、药名及历史剂量，不能伪装成审定处方占位");
 
 const chineseDoseBearingPathogenesis = doseBearingPathogenesis.replace("12g", "12克");
-assert.ok(!m03ModuleDraftFrame(chineseDoseBearingPathogenesis, "pathogenesis")?.content.includes("12克"), "中文剂量单位同样不得上流");
+assert.ok(m03ModuleDraftFrame(chineseDoseBearingPathogenesis, "pathogenesis")?.content.includes("曾服酸枣仁12克"));
 
 const verdictBearingOverview = JSON.stringify({
   overview: { primarySyndrome: "安全总评通过", primarySyndromeBasis: ["入睡困难"] },
 });
 const verdictSafeOverview = m03ModuleDraftFrame(verdictBearingOverview, "overview");
-assert.ok(verdictSafeOverview, "固定状态帧不因模型临床文本变化而消失");
-assert.ok(!/安全总评|入睡困难/.test(verdictSafeOverview.content), "安全 verdict 与临床事实不得进入状态帧");
+assert.ok(verdictSafeOverview);
+assert.match(verdictSafeOverview.content, /未定稿/, "模型文本只能作为未定稿候选，不能赋予安全通过权限");
 
 const regimenBearingTherapy = m03ModuleDraftFrame(JSON.stringify({
   therapy: { overallPrinciple: "虚则补之", overallMethod: "每日1剂，水煎服，连服5剂" },
 }), "therapy");
-assert.ok(regimenBearingTherapy, "治疗模块闭合后应产生固定状态帧");
-assert.ok(!/每日1剂|水煎服|连服5剂|虚则补之/.test(regimenBearingTherapy.content), "状态帧不得出现剂量、途径、疗程或治疗结论");
+assert.ok(regimenBearingTherapy, "治疗模块闭合后产生只读预览");
+assert.match(regimenBearingTherapy.content, /虚则补之/);
+assert.match(regimenBearingTherapy.content, /最终以完成报告为准/);
 
 const referenceBearingWestern = JSON.stringify({
   westernDiagnosis: {
@@ -252,7 +250,9 @@ const referenceBearingWestern = JSON.stringify({
 });
 const referenceSafeFrame = m03ModuleDraftFrame(referenceBearingWestern, "westernDiagnosis");
 assert.ok(referenceSafeFrame, "引用字段应被白名单投影丢弃，不应连坐合法西医片段");
-assert.ok(!/失眠障碍|入睡困难|DOI|http:\/\//.test(referenceSafeFrame.content), "诊断、事实、引用与 URL 均不得进入状态帧");
+assert.match(referenceSafeFrame.content, /失眠障碍/);
+assert.match(referenceSafeFrame.content, /入睡困难/);
+assert.ok(!/DOI|http:\/\//.test(referenceSafeFrame.content), "引用元数据不属于临床预览白名单");
 
 // ── 6) 截断的 JSON 不得误报未写完的模块 ──────────────────────────────────────
 const truncated = serialized.slice(0, serialized.indexOf('"pathogenesis"') + 30);
@@ -286,8 +286,9 @@ assert.match(
 assert.match(
   apiSource,
   /opts\.structuredStage === "diagnose"[\s\S]{0,500}newM03ModuleDraftFrames/,
-  "临床草稿帧本包只能在 M03 分支发出，M04 药味剂量继续保持缓冲",
+  "M03 分支必须使用闭合字段投影器",
 );
+assert.match(apiSource, /newM04ModuleDraftFrames\(partial, emittedM04DraftKeys\)/, "M04 候选使用独立白名单投影，剂量字段继续保持缓冲");
 
 console.log(JSON.stringify({
   suite: "stream-modules",

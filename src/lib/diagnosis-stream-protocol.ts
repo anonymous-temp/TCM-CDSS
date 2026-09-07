@@ -8,12 +8,15 @@ export const M03_DRAFT_MODULES = [
 ] as const;
 
 export type M03DraftModule = (typeof M03_DRAFT_MODULES)[number];
+export const M04_DRAFT_MODULES = ["m04.candidate"] as const;
+export type StreamDraftModule = M03DraftModule | (typeof M04_DRAFT_MODULES)[number];
 
 export type StreamModuleDraftFrame = {
   type: "module_draft";
-  module: M03DraftModule;
+  module: StreamDraftModule;
   revision: number;
   content: string;
+  contentKind?: "clinical_draft";
 };
 
 export function parseStreamModuleDraftFrame(value: unknown): StreamModuleDraftFrame | null {
@@ -21,7 +24,7 @@ export function parseStreamModuleDraftFrame(value: unknown): StreamModuleDraftFr
   const row = value as Record<string, unknown>;
   if (
     row.type !== "module_draft" ||
-    !M03_DRAFT_MODULES.includes(row.module as M03DraftModule) ||
+    ![...M03_DRAFT_MODULES, ...M04_DRAFT_MODULES].includes(row.module as StreamDraftModule) ||
     !Number.isInteger(row.revision) ||
     Number(row.revision) < 1 ||
     typeof row.content !== "string" ||
@@ -30,7 +33,11 @@ export function parseStreamModuleDraftFrame(value: unknown): StreamModuleDraftFr
   ) {
     return null;
   }
-  return row as StreamModuleDraftFrame;
+  return {
+    type: "module_draft", module: row.module as StreamDraftModule,
+    revision: Number(row.revision), content: row.content,
+    ...(row.contentKind === "clinical_draft" ? { contentKind: "clinical_draft" as const } : {}),
+  };
 }
 
 /**
@@ -42,9 +49,8 @@ export function parseStreamModuleDraftFrame(value: unknown): StreamModuleDraftFr
  * 于是独立复核（5–15s）与逐轮定稿修订（每轮 40–50s）全程都在报「模型正在组织临床正文」。
  * 实测 M04 中位 43.6s 里，有相当一段医生读到的是一句与实际不符的进度。
  *
- * 这里只做「如实说出服务端自己知道的编排阶段」这一件事。**不推第二份临床正文**——
- * 见 diagnosis-stream-modules.ts 顶部关于 provisional representation 造成 visible/structured
- * drift 的既有决策；M04 更是明确不下发草稿模块（含药味剂量，必须校验通过才可见）。
+ * 心跳只报告已知编排阶段。独立 module_draft 帧提供标记为未定稿的只读临床预览，
+ * 不进入最终报告、处方编辑器或 HIS 输入；剂量仍由最终签名报告提供。
  */
 export const STAGE_PROGRESS_PHASES = ["draft", "review", "repair"] as const;
 

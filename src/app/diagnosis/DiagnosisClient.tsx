@@ -99,7 +99,8 @@ import { buildSeasonalCare } from "@/lib/tcm-seasonal-care";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import {
   M03_DRAFT_MODULES,
-  type M03DraftModule,
+  M04_DRAFT_MODULES,
+  type StreamDraftModule,
   type StreamModuleDraftFrame,
 } from "@/lib/diagnosis-stream-protocol";
 import { parseClinicalFacts, type ClinicalFacts } from "@/lib/clinical-facts";
@@ -5935,7 +5936,7 @@ export function CompactAiSchemeCardFlow({
 // ─── Streaming text state per phase ──────────────────────────────────────────
 
 type StreamingState = Partial<Record<Phase, string>>;
-type ModuleDraftState = Partial<Record<M03DraftModule, StreamModuleDraftFrame>>;
+type ModuleDraftState = Partial<Record<StreamDraftModule, StreamModuleDraftFrame>>;
 
 type HisRecordDraft = {
   patientName: string;
@@ -8146,11 +8147,13 @@ function StreamingPreviewCard({
   const status = generationStatus(phase, isRedFlag);
   const safePreview = sanitizeStreamingPreview(content, phase);
   // M05 是确定性 Markdown，会真的逐段下发正文，保持文档式渲染。
-  // M03/M04 在完成前只有进度行；但流末尾会用最终正文整体替换一次，此时必须立刻切回文档式渲染，
+  // M03/M04 的 content 通道保留进度行，独立只读模块卡展示未定稿预览；流末尾用最终正文替换。
   // 否则临床结论会被排成进度条目。用是否出现 Markdown 结构判定，判错时退回既有渲染。
   const progressLines = safePreview.split("\n").map((line) => line.trim()).filter(Boolean);
   const orderedDrafts = phase === "diagnose" && !/^#\s+中医辅助诊疗报告/m.test(safePreview)
     ? M03_DRAFT_MODULES.flatMap((module) => moduleDrafts[module] ? [moduleDrafts[module]] : [])
+    : phase === "prescribe"
+      ? M04_DRAFT_MODULES.flatMap((module) => moduleDrafts[module] ? [moduleDrafts[module]] : [])
     : [];
   const showProgressLog = phase !== "assess" &&
     progressLines.length > 0 &&
@@ -8165,10 +8168,10 @@ function StreamingPreviewCard({
             {isRedFlag && (phase === "prescribe" || phase === "assess")
               ? status.desc
               : phase === "prescribe"
-              ? "处方包含药味与剂量，完整通过病机对应、剂量、煎法和出处校验后才会展示；当前卡片会持续更新生成进度。"
+              ? "候选方与药味思路将逐步预览；剂量、煎法及最终建议见完成报告。预览仅供阅读，内容仍可能修订。"
               : phase === "assess"
                 ? "正在同步合理用药风险提示并生成随访计划；审方暂不可用时仍会完成报告，不阻断医生继续审阅。"
-                : "正在生成并校验辨病辨证结果；结构、临床事实与证据全部通过后将一次性展示。"}
+                : "辨病辨证、病机与治法将逐步预览，内容仍可能修订；最终以完成报告为准。"}
           </p>
           <p className="mt-1 text-[11px] font-medium text-teal-700">本阶段耗时 {runningElapsedSeconds}s</p>
         </div>
@@ -8184,7 +8187,7 @@ function StreamingPreviewCard({
         </button>
       </div>
       {showProgressLog ? (
-        // M03/M04 在结构与临床复核通过前不会下发任何临床正文，这一段能拿到的只有阶段进度和保活状态。
+        // content 通道中的阶段进度与保活状态；临床预览在下方独立模块卡展示。
         // 排成进度行而不是正文段落：医生不会把“正在生成…”误读成已经生成的结论。
         <ol data-testid="streaming-progress-log" className="max-h-[220px] space-y-1 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
           {progressLines.map((line, index) => {
@@ -8213,10 +8216,11 @@ function StreamingPreviewCard({
             <section
               key={`${draft.module}-${draft.revision}`}
               data-testid={`streaming-module-${draft.module}`}
+              data-content-kind={draft.contentKind}
               className="rounded-lg border border-amber-200 bg-amber-50/70 p-3"
             >
               <div className="mb-2 inline-flex items-center rounded-full border border-amber-300 bg-white px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                生成中 · 未定稿
+                生成中 · 未定稿，最终以完成报告为准
               </div>
               <MarkdownBlock content={compactMarkdown(draft.content, 2600)} compact />
             </section>
@@ -8242,6 +8246,7 @@ export default function DiagnosisPage() {
   const [runCancelRequested, setRunCancelRequested] = useState(false);
   const [streaming, setStreaming] = useState<StreamingState>({});
   const [moduleDrafts, setModuleDrafts] = useState<ModuleDraftState>({});
+  const clinicalGenerationRef = useRef(0);
   const [workspaceRestored, setWorkspaceRestored] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   // 保存失败必须可见（2026-08-25 审查 X2/B#5）：此前所有失败分支静默 return null，
@@ -8282,6 +8287,7 @@ export default function DiagnosisPage() {
 
   useEffect(() => {
     activeCaseIdRef.current = caseState.id;
+    clinicalGenerationRef.current += 1;
     setModuleDrafts({});
   }, [caseState.id]);
 
@@ -8406,6 +8412,7 @@ export default function DiagnosisPage() {
 
   // Cancel any in-flight M01→M05 chain when the page unmounts, to stop wasted model calls.
   useEffect(() => () => {
+    clinicalGenerationRef.current += 1;
     activeRunAbortController?.abort();
     activeRunAbortController = null;
   }, []);
@@ -8461,7 +8468,22 @@ export default function DiagnosisPage() {
     state: CaseState,
     automaticSignatureRecoveryAttempts = 0,
   ): Promise<void> => {
+    const generation = ++clinicalGenerationRef.current;
+    const runController = activeRunAbortController;
+    const ownsCurrentGeneration = () => clinicalGenerationRef.current === generation &&
+      activeCaseIdRef.current === state.id && activeRunAbortController === runController;
+    const isCurrentGeneration = () => ownsCurrentGeneration() && !runController?.signal.aborted;
+    const receiveModuleDraft = (frame: StreamModuleDraftFrame) => {
+      if (!isCurrentGeneration()) return;
+      setModuleDrafts((previous) => {
+        if (!isCurrentGeneration()) return previous;
+        const currentDraft = previous[frame.module];
+        return currentDraft && currentDraft.revision >= frame.revision ? previous : { ...previous, [frame.module]: frame };
+      });
+    };
+    const clearModuleDrafts = () => { if (isCurrentGeneration()) setModuleDrafts({}); };
     let current = await refreshClinicalSafetyFacts(state);
+    if (!isCurrentGeneration()) return;
     // Only a missing chief complaint prevents starting the chain. Optional-history gaps and positive
     // safety findings remain visible advisories while the doctor-facing report continues downstream.
     if (!canEnterDiagnosisChain(current) && current.skipDifferentiationGate !== true) {
@@ -8481,19 +8503,19 @@ export default function DiagnosisPage() {
           body: JSON.stringify({ caseState: current }),
         });
         if (!res3.ok) throw new Error(await readErrorMessage(res3, `辨病辨证生成失败 (${res3.status})`));
-        const rawDiagnosis = await consumeMarkdownStream(res3, (t) => setStreamingForPhase("diagnose", t), {
+        if (!isCurrentGeneration()) { await res3.body?.cancel(); return; }
+        const rawDiagnosis = await consumeMarkdownStream(res3, (t) => {
+          if (isCurrentGeneration()) setStreamingForPhase("diagnose", t);
+        }, {
           ...streamConsumeOptions(),
           // 传输尾部异常不再吞掉整段正文（2026-08-25 审查 B#2）：≥200 字实质内容时按引擎
           // 既有降级路径落地并附「流式完整性提示」；残缺内容无有效签名载荷，下游剂量链
           // 与写回天然拿不到它，只影响展示层可读性。M05 保持严格（黄金回归钉子）。
           allowPartial: true,
-          onModuleDraft: (frame) => setModuleDrafts((previous) => {
-            const currentDraft = previous[frame.module];
-            return currentDraft && currentDraft.revision >= frame.revision
-              ? previous
-              : { ...previous, [frame.module]: frame };
-          }),
+          onModuleDraft: (frame) => receiveModuleDraft(frame),
+          onFinalReplacement: clearModuleDrafts,
         });
+        if (!isCurrentGeneration()) return;
         setModuleDrafts({});
         const diagnosisTruncated =
           rawDiagnosis.includes("[TRUNCATED]") ||
@@ -8530,6 +8552,7 @@ export default function DiagnosisPage() {
         // only for legacy snapshots and must not reclassify this newly validated response.
         persistState(current);
       } catch (e) {
+        if (!ownsCurrentGeneration()) return;
         setModuleDrafts({});
         persistState(setError(current, normalizeRequestError(e, "辨病辨证失败")));
         return;
@@ -8543,6 +8566,7 @@ export default function DiagnosisPage() {
 
     if (needsPrescribe) {
       try {
+        setModuleDrafts({});
         setStreamingForPhase("prescribe", "");
         const res4 = await fetchWithTimeout(apiUrl("/api/diagnosis/prescribe"), {
           method: "POST",
@@ -8550,7 +8574,16 @@ export default function DiagnosisPage() {
           body: JSON.stringify({ caseState: current }),
         });
         if (!res4.ok) throw new Error(await readErrorMessage(res4, `候选方药生成失败 (${res4.status})`));
-        const rawPrescription = await consumeMarkdownStream(res4, (t) => setStreamingForPhase("prescribe", t), { ...streamConsumeOptions(), allowPartial: true });
+        if (!isCurrentGeneration()) { await res4.body?.cancel(); return; }
+        const rawPrescription = await consumeMarkdownStream(res4, (t) => {
+          if (isCurrentGeneration()) setStreamingForPhase("prescribe", t);
+        }, {
+          ...streamConsumeOptions(), allowPartial: true,
+          onModuleDraft: (frame) => receiveModuleDraft(frame),
+          onFinalReplacement: clearModuleDrafts,
+        });
+        if (!isCurrentGeneration()) return;
+        setModuleDrafts({});
         // 剂量词否决只能扫**处方正文**两节。"当前结论 / 处方前必要信息核查 / 用药风险提示"
         // 由服务端把 gate.redFlags、gate.missingItems 原样插值进去，而红旗本身就常常逐字引用
         // 病历里的数值（"血红蛋白 58 g/L""呕血约300mL""二甲双胍 500mg bid"）。
@@ -8617,6 +8650,8 @@ export default function DiagnosisPage() {
         current = { ...current, safetyLocked: deriveSafetyLocked(current) };
         persistState(current);
       } catch (e) {
+        if (!ownsCurrentGeneration()) return;
+        setModuleDrafts({});
         const message = normalizeRequestError(e, "候选方药生成失败");
         const recovery = automaticSignatureRecoveryAttempts < 1
           ? automaticSignatureRecoveryState(current, { phase: "prescribe", message })
@@ -8660,7 +8695,11 @@ export default function DiagnosisPage() {
         body: JSON.stringify({ caseState: current }),
       });
       if (!res5.ok) throw new Error(await readErrorMessage(res5, `合理用药审方与随访生成失败 (${res5.status})`));
-      const generatedRisk = await consumeMarkdownStreamWithMetadata(res5, (t) => setStreamingForPhase("assess", t), streamConsumeOptions());
+      if (!isCurrentGeneration()) { await res5.body?.cancel(); return; }
+      const generatedRisk = await consumeMarkdownStreamWithMetadata(res5, (t) => {
+        if (isCurrentGeneration()) setStreamingForPhase("assess", t);
+      }, streamConsumeOptions());
+      if (!isCurrentGeneration()) return;
       const machineAuditStatus = parseRxAuditStatusMarker(generatedRisk.content);
       const cleanRiskAssessment = stripRxAuditStatusMarker(generatedRisk.content);
       const riskAssessment = replaceRiskAssessmentFollowup(current.riskAssessment, cleanRiskAssessment);
@@ -8684,6 +8723,7 @@ export default function DiagnosisPage() {
       });
       persistState(current);
     } catch (e) {
+      if (!ownsCurrentGeneration()) return;
       const message = normalizeRequestError(e, "合理用药审方与随访生成失败");
       if (activeRunAbortController?.signal.aborted) {
         // A cancelled M05 must land in the same failed-stage state as M03/M04: the failed panel

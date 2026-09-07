@@ -24,6 +24,7 @@ type StreamConsumeOptions = {
   totalTimeoutMs?: number;
   abortSignal?: AbortSignal;
   onModuleDraft?: (frame: StreamModuleDraftFrame) => void;
+  onFinalReplacement?: () => void;
   /** 服务端心跳帧（{type:"heartbeat",status}）上报；仅信息展示，不参与流内容与超时判定。 */
   onHeartbeat?: (status: string) => void;
 };
@@ -529,6 +530,15 @@ export async function consumeMarkdownStreamWithMetadata(
   const qutoItems: unknown[] = [];
   let followupTimeline: StructuredFollowupTimelineItem[] = [];
   let sawEnd = false;
+  let sawFinalReplacement = false;
+  const acceptContent = (content: string) => {
+    if (!sawFinalReplacement && (accumulated + content).includes(STREAM_REPLACE_MARKER)) {
+      sawFinalReplacement = true;
+      opts?.onFinalReplacement?.();
+    }
+    accumulated = applyStreamChunk(accumulated, content);
+    onChunk(filterStreamingText(accumulated));
+  };
   let malformedLines = 0;
   let upstreamError = "";
   const idleWindowMs = opts?.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS;
@@ -551,6 +561,7 @@ export async function consumeMarkdownStreamWithMetadata(
       for (const line of lines) {
         if (!line.trim()) continue;
         if (sawEnd) {
+          try { if (parseStreamModuleDraftFrame(JSON.parse(line))) continue; } catch { /* retain malformed-frame handling */ }
           malformedLines += 1;
           continue;
         }
@@ -570,7 +581,7 @@ export async function consumeMarkdownStreamWithMetadata(
             const moduleDraft = parseStreamModuleDraftFrame(chunk);
             if (moduleDraft) {
               markValidFrame();
-              opts?.onModuleDraft?.(moduleDraft);
+              if (!sawFinalReplacement && !opts?.abortSignal?.aborted) opts?.onModuleDraft?.(moduleDraft);
             } else {
               malformedLines += 1;
             }
@@ -587,8 +598,7 @@ export async function consumeMarkdownStreamWithMetadata(
             sawEnd = true;
           } else if (typeof chunk.content === "string" && chunk.content) {
             markValidFrame();
-            accumulated = applyStreamChunk(accumulated, chunk.content);
-            onChunk(filterStreamingText(accumulated));
+            acceptContent(chunk.content);
           } else if ("content" in chunk && chunk.content != null) {
             malformedLines += 1;
           }
@@ -597,7 +607,10 @@ export async function consumeMarkdownStreamWithMetadata(
         }
       }
       if (sawEnd) {
-        if (buffer.trim()) malformedLines += 1;
+        if (buffer.trim()) {
+          try { if (!parseStreamModuleDraftFrame(JSON.parse(buffer))) malformedLines += 1; }
+          catch { malformedLines += 1; }
+        }
         await reader.cancel().catch(() => undefined);
         buffer = "";
         break;
@@ -621,7 +634,7 @@ export async function consumeMarkdownStreamWithMetadata(
           const moduleDraft = parseStreamModuleDraftFrame(chunk);
           if (moduleDraft) {
             markValidFrame();
-            opts?.onModuleDraft?.(moduleDraft);
+            if (!sawFinalReplacement && !opts?.abortSignal?.aborted) opts?.onModuleDraft?.(moduleDraft);
           } else {
             malformedLines += 1;
           }
@@ -638,8 +651,7 @@ export async function consumeMarkdownStreamWithMetadata(
           sawEnd = true;
         } else if (typeof chunk.content === "string" && chunk.content) {
           markValidFrame();
-          accumulated = applyStreamChunk(accumulated, chunk.content);
-          onChunk(filterStreamingText(accumulated));
+          acceptContent(chunk.content);
         } else if ("content" in chunk && chunk.content != null) {
           malformedLines += 1;
         }

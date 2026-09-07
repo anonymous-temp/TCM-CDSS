@@ -4,12 +4,13 @@ import { consumeMarkdownStreamWithMetadata } from "../src/lib/diagnosis-engine.t
 import { STREAM_REPLACE_MARKER, parseStreamModuleDraftFrame } from "../src/lib/diagnosis-stream-protocol.ts";
 
 const western = drafts.m03ModuleDraftFrame(JSON.stringify({ westernDiagnosis: {
-  primary: { name: "头痛，病因待查", supportingFacts: ["无发热", "既往偶有头痛"],
+  primary: { name: "头痛，病因待查", supportingFacts: ["无发热", "既往偶有头痛", "曾服黄芪30g后心悸"],
     contractSignature: "SECRET_SIGNATURE", guidelineReferences: ["FAKE_DOI"] },
 } }), "westernDiagnosis");
 assert.match(western.content, /头痛，病因待查/);
 assert.match(western.content, /无发热/);
 assert.match(western.content, /既往偶有头痛/);
+assert.match(western.content, /曾服黄芪30g后心悸/, "历史剂量是病例依据，不能变成未来处方提示");
 assert.match(western.content, /生成中 · 未定稿/);
 assert.equal(western.contentKind, "clinical_draft");
 assert.doesNotMatch(western.content, /SECRET_SIGNATURE|FAKE_DOI|contractSignature/);

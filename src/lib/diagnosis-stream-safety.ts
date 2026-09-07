@@ -70,3 +70,11 @@ export function sanitizeDiagnoseStreamingDraft(content: string): string {
   if (structuredStart < 0) return sanitizeVisibleDiagnoseText(content);
   return `${sanitizeVisibleDiagnoseText(content.slice(0, structuredStart))}${content.slice(structuredStart)}`;
 }
+
+/** Display-only finite quantity/unit masking for candidate labels and functions, never a clinical gate. */
+export function sanitizeCandidatePreviewText(content: string): string {
+  return sanitizeVisibleDiagnoseText(content).replace(
+    new RegExp(String.raw`${QUANTITY}\s*${DOSE_FORM_UNIT}`, "g"),
+    DOSE_PLACEHOLDER,
+  );
+}

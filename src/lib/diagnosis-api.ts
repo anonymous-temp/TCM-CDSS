@@ -29,7 +29,7 @@ import { compileM04JsonObjectContent, m04ProposalIssueCode, m04ProposalRegimenSh
 import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.server";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
-import { newM03ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
+import { newM03ModuleDraftFrames, newM04ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
 import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
@@ -3605,10 +3605,11 @@ async function callPrimaryTextModelStream(
       // 需求2 的按模块流式反馈状态：已上流的顶层模块，以及上次扫描时的内容长度（用于节流）。
       const emittedModuleKeys = new Set<string>();
       const emittedM03DraftKeys = new Set<string>();
+      const emittedM04DraftKeys = new Set<string>();
+      let finalReportEnqueued = false;
       let moduleScanCursor = 0;
-      // All structured stages are buffered. Streaming a second, provisional representation before
-      // the authoritative JSON is validated caused visible/structured drift and could expose raw
-      // internal fields. Clients receive truthful progress followed by one deterministic rendering.
+      // Canonical clinical content remains buffered. Separate, explicitly provisional module frames
+      // project closed clinical fields for read-only preview; only the final signed rendering is adopted.
       const bufferedClinicalStage = opts.structuredStage != null || kind === "question";
       const progressMessages = kind === "question" ? [
         "正在比较本轮候选追问的信息增益…",
@@ -3636,14 +3637,17 @@ async function callPrimaryTextModelStream(
         // 定稿正文一旦下发，就没有任何「进行中」可报了。心跳是独立的 5s 定时器，与 finalize
         // 之间存在一个真实窗口：医生已经看到完整报告，下面却还挂着一行「正在按复核意见第 N 轮
         // 修订定稿」。在唯一出口处停表，一次覆盖全部替换标记下发点（当前 6 处）。
-        if (content.startsWith(STREAM_REPLACE_MARKER)) stopHeartbeat();
+        if (content.startsWith(STREAM_REPLACE_MARKER)) {
+          finalReportEnqueued = true;
+          stopHeartbeat();
+        }
         // Every client-visible chunk passes the internal-vocabulary scrubber (P2-2); the sentinel
         // JSON tail stays byte-exact, so the NDJSON contract and structured parsing are unaffected.
         const visible = opts.structuredStage === "diagnose" ? sanitizeDiagnoseStreamingDraft(content) : content;
         enq(ctrl, scrubInternalVocabularyFromVisibleText(visible));
       };
       const enqueueModuleDraft = (frame: StreamModuleDraftFrame) => {
-        if (clientStreamClosed) return;
+        if (clientStreamClosed || finalReportEnqueued || upstreamController.signal.aborted) return;
         const parsed = parseStreamModuleDraftFrame(frame);
         if (!parsed) return;
         enqModuleDraft(ctrl, parsed);
@@ -3651,6 +3655,10 @@ async function callPrimaryTextModelStream(
       const enqueueM03ModuleDrafts = (partial: string) => {
         if (opts.structuredStage === "diagnose") {
           for (const frame of newM03ModuleDraftFrames(partial, emittedM03DraftKeys)) {
+            enqueueModuleDraft(frame);
+          }
+        } else if (opts.structuredStage === "prescribe") {
+          for (const frame of newM04ModuleDraftFrames(partial, emittedM04DraftKeys)) {
             enqueueModuleDraft(frame);
           }
         }
@@ -3992,9 +4000,8 @@ async function callPrimaryTextModelStream(
                 }
                 // 需求2：按模块顺序反馈。权威 JSON 的顶层模块每写完一个，就推一行结论标题，
                 // 医生因此能一个模块一个模块看到结论落地，而不是盯着「请稍候」等到最后一次性出。
-                // 这里刻意**不**推第二份临床正文——见 diagnosis-stream-modules.ts 顶部关于
-                // 「provisional representation 曾造成 visible/structured drift」的既有决策。
-                // 只推白名单结论标题，且末尾 STREAM_REPLACE_MARKER 会把这些行整段丢弃。
+                // 进度行与只读临床预览分通道；预览只投影已闭合白名单字段并明确标记未定稿。
+                // STREAM_REPLACE_MARKER 到达时清空预览，最终签名正文是唯一可采纳输入。
                 if (opts.structuredStage) {
                   // 每个 delta 都全串扫描是 O(n²)：单阶段输出可达 80k 字符。按增量节流，
                   // 只在内容显著增长后再扫一次。

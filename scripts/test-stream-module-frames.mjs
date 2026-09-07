@@ -74,6 +74,10 @@ assert.match(clientSource, /data-testid="streaming-module-drafts"/, "页面必�
 assert.match(clientSource, /data-testid=\{`streaming-module-\$\{draft\.module\}`\}/, "每个模块必须有稳定测试标识");
 assert.match(clientSource, /M03_DRAFT_MODULES\.flatMap\(/, "模块卡必须按共享临床顺序渲染");
 assert.match(clientSource, /onModuleDraft:\s*\(frame\)/, "M03 客户端必须消费独立模块帧");
+assert.match(clientSource, /M04_DRAFT_MODULES\.flatMap\(/, "M04 候选也有只读模块卡");
+assert.match(clientSource, /clinicalGenerationRef\.current === generation/, "旧请求不可更新新一轮的预览或终稿");
+assert.match(clientSource, /activeRunAbortController === runController/, "旧控制器取消不能覆盖新请求");
+assert.match(clientSource, /onFinalReplacement: clearModuleDrafts/, "最终替换应立即清空草稿");
 assert.match(clientSource, /setModuleDrafts\(\{\}\)/, "开始、结束与取消路径必须能清空请求级草稿");
 assert.match(clientSource, /生成中 · 未定稿/, "模块卡必须明确标注未定稿");
 assert.doesNotMatch(clientSource, /saveCase\([^)]*moduleDrafts/, "模块草稿不得进入病例持久化");
