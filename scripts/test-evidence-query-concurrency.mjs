@@ -5,7 +5,7 @@ const previousFetch = globalThis.fetch;
 const previousKey = process.env.EVIMED_GUIDE_API_KEY;
 process.env.EVIMED_GUIDE_API_KEY = "test-only-placeholder";
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
-const { buildEvidenceFallbackQueries, buildEvidenceQuery, buildGuideEvidenceContext } = await jiti.import("../src/lib/evimed-guide.ts");
+const { buildEvidenceFallbackQueries, buildEvidenceQuery, buildGuideEvidenceContext, fetchExternalEvidence } = await jiti.import("../src/lib/evimed-guide.ts");
 const state = { patient: {}, chiefComplaint: "咳嗽", symptoms: { presentHistory: "胃食管反流病史，近期反酸。" } };
 const failures = [];
 let checks = 0;
@@ -42,6 +42,31 @@ try {
     assert.ok((await buildGuideEvidenceContext(state, "diagnose")).includes("长查询有效指南"));
     globalThis.fetch = async () => response("");
     assert.equal(await buildGuideEvidenceContext(state, "diagnose"), "");
+  });
+  await check("a useful primary result does not wait for unused long-query work", async () => {
+    const longQuery = buildEvidenceQuery(state, "diagnose", "guide");
+    let release, cancelled = false;
+    globalThis.fetch = async (_url, options) => {
+      const query = JSON.parse(options.body).query;
+      if (query !== longQuery) return response(query.startsWith("咳嗽 ") ? "主诉咳嗽指南" : "其他方向指南");
+      return new Promise((resolve, reject) => {
+        release = () => resolve(response("长查询补充"));
+        options.signal.addEventListener("abort", () => { cancelled = true; reject(new DOMException("cancelled", "AbortError")); }, { once: true });
+      });
+    };
+    let timer;
+    try {
+      const context = await Promise.race([buildGuideEvidenceContext(state, "diagnose"), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("primary result waited for unused work")), 150); })]);
+      assert.ok(context.includes("主诉咳嗽指南"));
+      assert.equal(cancelled, true);
+    } finally { clearTimeout(timer); release?.(); }
+  });
+  await check("an already cancelled evidence request makes no provider call", async () => {
+    let calls = 0;
+    globalThis.fetch = async () => { calls++; return response("不应请求"); };
+    const controller = new AbortController(); controller.abort();
+    await fetchExternalEvidence("guide", "咳嗽 指南", { signal: controller.signal });
+    assert.equal(calls, 0);
   });
 } finally {
   globalThis.fetch = previousFetch;
