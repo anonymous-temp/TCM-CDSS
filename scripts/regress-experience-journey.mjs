@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { measureExperienceResponse } from "./lib/experience-stream-measurement.mjs";
 import { experienceCases as cases, experienceCaseState } from "./lib/experience-fixtures.mjs";
+import { summarizeExperienceDoseStatus } from "./lib/experience-delivery-summary.mjs";
 
 const base = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const customer = process.env.CDSS_CUSTOMER_ID || "";
@@ -68,6 +69,7 @@ for (const fixture of cases.slice(0, Math.max(1, Math.min(3, Number(process.env.
   const prescribe = await call("prescribe", { caseState: state });
   result.stages.push({ ...prescribe.measurement, signed: Boolean(prescribe.reasoning?.contractSignature), herbCount: prescribe.reasoning?.formula?.candidates?.[0]?.herbs?.length || 0 });
   result.modifications = (prescribe.reasoning?.formula?.modifications || []).map(({ action, herbName }) => ({ action, herbName }));
+  result.doseDelivery = summarizeExperienceDoseStatus(prescribe.reasoning);
   console.log(JSON.stringify({ event: "prescribe", label: fixture.label, ...result.stages.at(-1), modifications: result.modifications }));
   if (!prescribe.reasoning?.contractSignature) { result.notReached = "post-prescription-risk"; continue; }
   state = { ...state, prescription: prescribe.content, reasoningPrescribe: prescribe.reasoning, phase: "assess" };
@@ -79,6 +81,7 @@ for (const fixture of cases.slice(0, Math.max(1, Math.min(3, Number(process.env.
   const his = await call("his-scheme", { caseState: state });
   result.stages.push(his.measurement);
   result.hisModifications = (his.json?.prescriptions?.modifications || []).map(({ action, herbName }) => ({ action, herbName }));
+  result.doseDelivery = summarizeExperienceDoseStatus(prescribe.reasoning, his.json);
   result.warnings = (his.json?.warnings || []).map(({ code, herbName, message }) => ({ code, herbName, message }));
   result.totalDurationMs = Math.round(performance.now() - started);
   console.log(JSON.stringify({ event: "case_result", ...result }));
