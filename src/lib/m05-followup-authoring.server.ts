@@ -8,6 +8,7 @@ import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { deriveFirstReviewTiming, hasStrongPrescriptionRisk, sanitizeFreeTextForModel } from "./diagnosis-safety";
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { consumeFollowupWork, type FollowupSharedWork } from "./m05-followup-shared-work";
 
 /**
  * M05 临床内容的作者是模型，不是模板。
@@ -214,7 +215,7 @@ function validAuthoredText(value: unknown, min = 10, max = 200): string {
 const AUTHORED_FOLLOWUP_CACHE_TTL_MS = 10 * 60_000;
 const AUTHORED_FOLLOWUP_CACHE_MAX_ENTRIES = 32;
 const authoredFollowupCache = new Map<string, { value: AuthoredFollowupContent; expiresAt: number }>();
-const authoredFollowupInFlight = new Map<string, Promise<AuthoredFollowupContent | null>>();
+const authoredFollowupInFlight = new Map<string, FollowupSharedWork<AuthoredFollowupContent>>();
 
 function authoredFollowupCacheKey(model: string, userContent: string): string {
   return `${model}:${createHash("sha256").update(userContent).digest("hex").slice(0, 32)}`;
@@ -244,6 +245,7 @@ function writeAuthoredFollowupCache(key: string, value: AuthoredFollowupContent)
 /** 测试与运维用：清空进程内 M05 作文缓存。 */
 export function resetAuthoredFollowupCache(): void {
   authoredFollowupCache.clear();
+  for (const work of authoredFollowupInFlight.values()) work.controller.abort();
   authoredFollowupInFlight.clear();
 }
 
@@ -278,113 +280,110 @@ export async function authorFollowupClinicalContent(
   const cached = readAuthoredFollowupCache(cacheKey);
   if (cached) return cached;
   const joined = authoredFollowupInFlight.get(cacheKey);
-  if (joined) {
-    const shared = await joined;
-    if (shared) return shared;
-  }
+  if (joined && !joined.controller.signal.aborted) return consumeFollowupWork(joined, signal);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), AUTHORING_TIMEOUT_MS);
-  const onParentAbort = () => controller.abort();
-  signal?.addEventListener("abort", onParentAbort, { once: true });
-  // 并发合流登记：三个出口同时到达时只发一次模型调用。deferred 在 finally 中必定被结算，
-  // 失败结算为 null，让等待方各自回落到确定性模板（与无缓存时的行为一致）。
-  let settleInFlight: (value: AuthoredFollowupContent | null) => void = () => {};
-  authoredFollowupInFlight.set(cacheKey, new Promise<AuthoredFollowupContent | null>((resolve) => {
-    settleInFlight = resolve;
-  }));
-  let authoredResult: AuthoredFollowupContent | null = null;
-  try {
-    const client = createTextModelClient(config);
-    const response = await observeModelTask({ task: "m05_followup_authoring", stage: "assess", model: config.model }, () => client.chat.completions.create({
-      model: config.model,
-      temperature: 0.2,
-      max_tokens: 1500,
-      response_format: { type: "json_object" },
-      ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: userContent,
-        },
-      ],
-    }, { signal: controller.signal }));
-    const raw = response.choices?.[0]?.message?.content;
-    if (typeof raw !== "string" || !raw.trim()) return null;
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
+  const work: FollowupSharedWork<AuthoredFollowupContent> = {
+    controller, consumers: 0, promise: Promise.resolve(null),
+  };
+  // Start after registration so even a synchronous failure is cleaned up against this identity.
+  // A failed shared request returns null to every waiter; none starts an implicit retry.
+  authoredFollowupInFlight.set(cacheKey, work);
+  work.promise = (async () => {
+    try {
+      const client = createTextModelClient(config);
+      const response = await observeModelTask({ task: "m05_followup_authoring", stage: "assess", model: config.model }, () => client.chat.completions.create({
+        model: config.model,
+        temperature: 0.2,
+        max_tokens: 1500,
+        response_format: { type: "json_object" },
+        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          {
+            role: "user",
+            content: userContent,
+          },
+        ],
+      }, { signal: controller.signal }));
+      const raw = response.choices?.[0]?.message?.content;
+      if (typeof raw !== "string" || !raw.trim()) return null;
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
 
-    const reviewFocus = validAuthoredText(parsed.reviewFocus, 12, 200);
-    const efficacyCriteria = validAuthoredText(parsed.efficacyCriteria, 12, 200);
-    const lifestyle = validAuthoredText(parsed.lifestyle, 12, 240);
-    // 维度是受治理闭集：越界项直接丢弃，模型无法引入新维度。
-    const dimensions = Array.isArray(parsed.dimensions)
-      ? [...new Set(parsed.dimensions
-        .map((item) => String(item || "").trim())
-        .filter((item) => GOVERNED_DIMENSIONS.includes(item as (typeof GOVERNED_DIMENSIONS)[number])))]
-      : [];
+      const reviewFocus = validAuthoredText(parsed.reviewFocus, 12, 200);
+      const efficacyCriteria = validAuthoredText(parsed.efficacyCriteria, 12, 200);
+      const lifestyle = validAuthoredText(parsed.lifestyle, 12, 240);
+      // 维度是受治理闭集：越界项直接丢弃，模型无法引入新维度。
+      const dimensions = Array.isArray(parsed.dimensions)
+        ? [...new Set(parsed.dimensions
+          .map((item) => String(item || "").trim())
+          .filter((item) => GOVERNED_DIMENSIONS.includes(item as (typeof GOVERNED_DIMENSIONS)[number])))]
+        : [];
 
-    // 观察指标逐条过同一套校验（剂量写法 / 引用 / 受治理禁述表），只是长度按短语收窄。
-    // 与三段散文不同，它**不是**采纳与否的门槛：挑不出来就回落 coreMetrics 拼串，
-    // 那只是回到今天的行为，不影响另外三段的正确性。
-    const monitoringIndicators = authoredPhraseList(parsed.monitoringIndicators, 3, 24, 5);
+      // 观察指标逐条过同一套校验（剂量写法 / 引用 / 受治理禁述表），只是长度按短语收窄。
+      // 与三段散文不同，它**不是**采纳与否的门槛：挑不出来就回落 coreMetrics 拼串，
+      // 那只是回到今天的行为，不影响另外三段的正确性。
+      const monitoringIndicators = authoredPhraseList(parsed.monitoringIndicators, 3, 24, 5);
 
-    // ── 时间轴逐条校验 ──────────────────────────────────────────────────
-    // 判据与三段散文同源（剂量写法 / 引用 / 受治理禁述表），另加三条这一栏特有的：
-    // 不得原样吐回旧模板套话、不得写具体日期、第一条时间点必须等于处方定的首次复诊时间。
-    const timeline: AuthoredTimelineItem[] = (Array.isArray(parsed.timeline) ? parsed.timeline : [])
-      .slice(0, 4)
-      .map((raw) => {
-        const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-        // 上限放宽到 40：时间点写法本来就可以带条件（「完成5剂后复诊」「疗程结束后一周」），
-        // 24 字这道卡本身就是上一版整条回落的直接原因之一。
-        const time = validAuthoredText(item.time, 2, 40);
-        const action = validAuthoredText(item.action, 6, 60);
-        const indicators = authoredPhraseList(item.indicators, 3, 28, 5);
-        const triggers = authoredPhraseList(item.triggers, 4, 40, 4);
-        if (!time || !action || indicators.length === 0 || triggers.length === 0) return null;
-        // 具体日期一律不要：本层拿不到就诊日，写出来的日期必然是编的。
-        if (/\d{1,2}\s*月\s*\d{1,2}\s*[日号]|\d{4}\s*[-/年]/.test(time)) return null;
-        // 套话原样吐回等于没写。
-        if ([time, action, ...triggers].some((text) => TEMPLATE_BOILERPLATE.includes(text))) return null;
-        // 第一条的时间点由**服务端强制覆盖**成处方煎服法定的那个值（见 diagnosis-safety
-        // 的 timelineItems 构造），所以这里不再要求模型逐字复述它——
-        // 2026-08-12 线上实测：那个值可以长达 25 字（「完成5剂（5日）后复诊；出现不适或
-        // 症状加重时提前复诊」），既超过本栏长度上限、模型也几乎必然改写，
-        // 结果第一条恒被判废、整条时间轴回落模板。要求模型复述一个服务端反正会覆盖的值，
-        // 是给自己设了一道只会误伤的闸。
-        return { time, action, indicators, triggers };
-      })
-      .filter((item): item is AuthoredTimelineItem => item !== null);
-    // 时间点重复的时间轴不是时间轴。
-    const uniqueTimes = new Set(timeline.map((item) => item.time));
-    const usableTimeline = timeline.length >= 2 && uniqueTimes.size === timeline.length ? timeline : [];
+      // ── 时间轴逐条校验 ──────────────────────────────────────────────────
+      // 判据与三段散文同源（剂量写法 / 引用 / 受治理禁述表），另加三条这一栏特有的：
+      // 不得原样吐回旧模板套话、不得写具体日期、第一条时间点必须等于处方定的首次复诊时间。
+      const timeline: AuthoredTimelineItem[] = (Array.isArray(parsed.timeline) ? parsed.timeline : [])
+        .slice(0, 4)
+        .map((raw) => {
+          const item = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+          // 上限放宽到 40：时间点写法本来就可以带条件（「完成5剂后复诊」「疗程结束后一周」），
+          // 24 字这道卡本身就是上一版整条回落的直接原因之一。
+          const time = validAuthoredText(item.time, 2, 40);
+          const action = validAuthoredText(item.action, 6, 60);
+          const indicators = authoredPhraseList(item.indicators, 3, 28, 5);
+          const triggers = authoredPhraseList(item.triggers, 4, 40, 4);
+          if (!time || !action || indicators.length === 0 || triggers.length === 0) return null;
+          // 具体日期一律不要：本层拿不到就诊日，写出来的日期必然是编的。
+          if (/\d{1,2}\s*月\s*\d{1,2}\s*[日号]|\d{4}\s*[-/年]/.test(time)) return null;
+          // 套话原样吐回等于没写。
+          if ([time, action, ...triggers].some((text) => TEMPLATE_BOILERPLATE.includes(text))) return null;
+          // 第一条的时间点由**服务端强制覆盖**成处方煎服法定的那个值（见 diagnosis-safety
+          // 的 timelineItems 构造），所以这里不再要求模型逐字复述它——
+          // 2026-08-12 线上实测：那个值可以长达 25 字（「完成5剂（5日）后复诊；出现不适或
+          // 症状加重时提前复诊」），既超过本栏长度上限、模型也几乎必然改写，
+          // 结果第一条恒被判废、整条时间轴回落模板。要求模型复述一个服务端反正会覆盖的值，
+          // 是给自己设了一道只会误伤的闸。
+          return { time, action, indicators, triggers };
+        })
+        .filter((item): item is AuthoredTimelineItem => item !== null);
+      // 时间点重复的时间轴不是时间轴。
+      const uniqueTimes = new Set(timeline.map((item) => item.time));
+      const usableTimeline = timeline.length >= 2 && uniqueTimes.size === timeline.length ? timeline : [];
 
-    // 三段临床内容缺任何一段都不采纳：半份模型内容 + 半份模板会读起来自相矛盾
-    // （模板那半句「按本例非药物建议安排饮食作息」与模型那半段具体调护并列）。
-    if (!reviewFocus || !efficacyCriteria || !lifestyle) return null;
-    const authored: AuthoredFollowupContent = {
-      reviewFocus,
-      efficacyCriteria,
-      lifestyle,
-      // 维度挑不出来就用全六维——那只是少一层裁剪，不影响正确性。
-      dimensions: dimensions.length >= 2 ? dimensions : [...GOVERNED_DIMENSIONS],
-      monitoringIndicators: monitoringIndicators.length >= 2 ? monitoringIndicators : [],
-      // 时间轴与三段散文各自独立：时间轴没写好只回落这一栏，不牵连另外三段。
-      timeline: usableTimeline,
-    };
-    // 只有通过全部校验（含受治理禁语表）的结果才进缓存。
-    writeAuthoredFollowupCache(cacheKey, authored);
-    authoredResult = authored;
-    return authored;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener("abort", onParentAbort);
-    settleInFlight(authoredResult);
-    authoredFollowupInFlight.delete(cacheKey);
-  }
+      // 三段临床内容缺任何一段都不采纳：半份模型内容 + 半份模板会读起来自相矛盾
+      // （模板那半句「按本例非药物建议安排饮食作息」与模型那半段具体调护并列）。
+      if (!reviewFocus || !efficacyCriteria || !lifestyle) return null;
+      const authored: AuthoredFollowupContent = {
+        reviewFocus,
+        efficacyCriteria,
+        lifestyle,
+        // 维度挑不出来就用全六维——那只是少一层裁剪，不影响正确性。
+        dimensions: dimensions.length >= 2 ? dimensions : [...GOVERNED_DIMENSIONS],
+        monitoringIndicators: monitoringIndicators.length >= 2 ? monitoringIndicators : [],
+        // 时间轴与三段散文各自独立：时间轴没写好只回落这一栏，不牵连另外三段。
+        timeline: usableTimeline,
+      };
+      // 只有通过全部校验（含受治理禁语表）的结果才进缓存。
+      if (controller.signal.aborted) return null;
+      writeAuthoredFollowupCache(cacheKey, authored);
+      return authored;
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+      // An abandoned request may already have been replaced by a fresh consumer. Its finally
+      // must not erase the replacement and cause duplicate work for a third outlet.
+      if (authoredFollowupInFlight.get(cacheKey) === work) authoredFollowupInFlight.delete(cacheKey);
+    }
+  })();
+  return consumeFollowupWork(work, signal);
 }
 
 /**
