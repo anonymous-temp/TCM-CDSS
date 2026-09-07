@@ -257,6 +257,12 @@ function filterSentinelFromStreaming(text: string): string {
   return text;
 }
 
+function cancelStreamReader(reader: ReadableStreamDefaultReader<Uint8Array>): void {
+  // Transport cancellation is cleanup, not a delivery condition. It may never settle after a
+  // broken connection; END, timeout and user cancellation must still finish promptly.
+  void reader.cancel().catch(() => undefined);
+}
+
 async function readStreamChunk(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   deadline: number,
@@ -289,7 +295,7 @@ async function readStreamChunk(
       ...(abortPromise ? [abortPromise] : []),
     ]);
   } catch (error) {
-    await reader.cancel().catch(() => undefined);
+    cancelStreamReader(reader);
     throw error;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
@@ -351,7 +357,7 @@ async function consumeStream(
       }
       if (sawEnd) {
         if (buffer.trim()) malformedLines += 1;
-        await reader.cancel().catch(() => undefined);
+        cancelStreamReader(reader);
         buffer = "";
         break;
       }
@@ -611,7 +617,7 @@ export async function consumeMarkdownStreamWithMetadata(
           try { if (!parseStreamModuleDraftFrame(JSON.parse(buffer))) malformedLines += 1; }
           catch { malformedLines += 1; }
         }
-        await reader.cancel().catch(() => undefined);
+        cancelStreamReader(reader);
         buffer = "";
         break;
       }
