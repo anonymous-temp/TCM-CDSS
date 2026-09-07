@@ -50,6 +50,8 @@ export type ModelTaskTelemetryEvent = ModelTaskMeta & Readonly<{
   completionTokens: number;
   cachedTokens: number;
   totalTokens: number;
+  cacheCreationInputTokens?: number;
+  reasoningTokens?: number;
 }>;
 
 type TaskAggregate = {
@@ -65,6 +67,10 @@ type TaskAggregate = {
   promptTokensTotal: number;
   completionTokensTotal: number;
   cachedTokensTotal: number;
+  cacheCreationInputTokensTotal: number;
+  cacheCreationUsageAvailable: number;
+  reasoningTokensTotal: number;
+  reasoningUsageAvailable: number;
   promptCharsTotal: number;
   attemptTotal: number;
   /** Legacy application attempt ordinal > 1; not the physical HTTP retry rate. */
@@ -87,6 +93,10 @@ function nullProtoRecord(): Record<string, number> {
   return Object.create(null) as Record<string, number>;
 }
 
+function validOptionalTokenCount(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.trunc(value) : undefined;
+}
+
 function emptyAggregate(): TaskAggregate {
   return {
     usageAvailable: 0,
@@ -101,6 +111,10 @@ function emptyAggregate(): TaskAggregate {
     promptTokensTotal: 0,
     completionTokensTotal: 0,
     cachedTokensTotal: 0,
+    cacheCreationInputTokensTotal: 0,
+    cacheCreationUsageAvailable: 0,
+    reasoningTokensTotal: 0,
+    reasoningUsageAvailable: 0,
     promptCharsTotal: 0,
     attemptTotal: 0,
     retried: 0,
@@ -159,6 +173,12 @@ export function recordModelTaskTelemetry(event: ModelTaskTelemetryEvent): void {
   aggregate.promptTokensTotal += Math.max(0, Math.round(event.promptTokens));
   aggregate.completionTokensTotal += Math.max(0, Math.round(event.completionTokens));
   aggregate.cachedTokensTotal += Math.max(0, Math.round(event.cachedTokens));
+  const cacheCreationInputTokens = validOptionalTokenCount(event.cacheCreationInputTokens);
+  const reasoningTokens = validOptionalTokenCount(event.reasoningTokens);
+  aggregate.cacheCreationInputTokensTotal = (aggregate.cacheCreationInputTokensTotal || 0) + (cacheCreationInputTokens ?? 0);
+  aggregate.cacheCreationUsageAvailable = (aggregate.cacheCreationUsageAvailable || 0) + Number(cacheCreationInputTokens !== undefined);
+  aggregate.reasoningTokensTotal = (aggregate.reasoningTokensTotal || 0) + (reasoningTokens ?? 0);
+  aggregate.reasoningUsageAvailable = (aggregate.reasoningUsageAvailable || 0) + Number(reasoningTokens !== undefined);
   aggregate.promptCharsTotal += Math.max(0, Math.round(event.promptChars || 0));
   const attempt = Math.max(1, Math.round(event.attempt || 1));
   aggregate.attemptTotal += attempt;
@@ -183,6 +203,8 @@ export function recordModelTaskTelemetry(event: ModelTaskTelemetryEvent): void {
     completionTokens: usageAvailable ? event.completionTokens : null,
     cachedTokens: usageAvailable ? event.cachedTokens : null,
     totalTokens: usageAvailable ? event.totalTokens : null,
+    cacheCreationInputTokens: cacheCreationInputTokens ?? null,
+    reasoningTokens: reasoningTokens ?? null,
     promptChars: event.promptChars ?? null,
     issueCode: event.issueCode || "none",
   });
@@ -216,6 +238,8 @@ export async function observeModelTask<T>(meta: ModelTaskMeta, run: () => Promis
         completionTokens: usage?.completionTokens || 0,
         cachedTokens: usage?.cachedTokens || 0,
         totalTokens: usage?.totalTokens || 0,
+        cacheCreationInputTokens: usage?.cacheCreationInputTokens,
+        reasoningTokens: usage?.reasoningTokens,
       });
       return result;
     } catch (error) {
@@ -270,6 +294,10 @@ export function getCdssModelTaskTelemetrySnapshot(): unknown {
       promptTokensTotal: aggregate.promptTokensTotal,
       completionTokensTotal: aggregate.completionTokensTotal,
       cachedTokensTotal: aggregate.cachedTokensTotal,
+      cacheCreationInputTokensTotal: aggregate.cacheCreationUsageAvailable ? aggregate.cacheCreationInputTokensTotal : null,
+      cacheCreationUsageAvailable: aggregate.cacheCreationUsageAvailable || 0,
+      reasoningTokensTotal: aggregate.reasoningUsageAvailable ? aggregate.reasoningTokensTotal : null,
+      reasoningUsageAvailable: aggregate.reasoningUsageAvailable || 0,
       averagePromptTokens: aggregate.usageAvailable ? Math.round(aggregate.promptTokensTotal / aggregate.usageAvailable) : null,
       averageCompletionTokens: aggregate.usageAvailable ? Math.round(aggregate.completionTokensTotal / aggregate.usageAvailable) : null,
       // 真实缓存命中率。历史教训：用重放病例测出的 99% 是假象，只有分流流量下的值可用。

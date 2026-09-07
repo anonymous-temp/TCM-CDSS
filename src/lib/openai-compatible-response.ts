@@ -11,7 +11,8 @@ export type CompatUsage = {
   prompt_tokens?: number;
   completion_tokens?: number;
   total_tokens?: number;
-  prompt_tokens_details?: { cached_tokens?: number };
+  prompt_tokens_details?: { cached_tokens?: number; cache_creation_input_tokens?: number | null } | null;
+  completion_tokens_details?: { reasoning_tokens?: number | null } | null;
 };
 
 export type CompatCompletion = {
@@ -27,6 +28,8 @@ export type ModelUsageSnapshot = Readonly<{
   completionTokens: number;
   totalTokens: number;
   cachedTokens: number;
+  cacheCreationInputTokens?: number;
+  reasoningTokens?: number;
 }>;
 
 export function modelUsageSnapshot(value: unknown): ModelUsageSnapshot | undefined {
@@ -37,13 +40,20 @@ export function modelUsageSnapshot(value: unknown): ModelUsageSnapshot | undefin
     ? Math.trunc(field)
     : 0;
   const details = (usage as CompatUsage).prompt_tokens_details;
+  const optionalNumber = (field: unknown) => typeof field === "number" && Number.isFinite(field) && field >= 0
+    ? Math.trunc(field) : undefined;
+  const cacheCreationInputTokens = optionalNumber(details?.cache_creation_input_tokens);
+  const reasoningTokens = optionalNumber((usage as CompatUsage).completion_tokens_details?.reasoning_tokens);
   const snapshot = {
     promptTokens: number((usage as CompatUsage).prompt_tokens),
     completionTokens: number((usage as CompatUsage).completion_tokens),
     totalTokens: number((usage as CompatUsage).total_tokens),
     cachedTokens: number(details?.cached_tokens),
+    ...(cacheCreationInputTokens === undefined ? {} : { cacheCreationInputTokens }),
+    ...(reasoningTokens === undefined ? {} : { reasoningTokens }),
   };
   return snapshot.promptTokens || snapshot.completionTokens || snapshot.totalTokens || snapshot.cachedTokens
+    || cacheCreationInputTokens !== undefined || reasoningTokens !== undefined
     ? snapshot
     : undefined;
 }

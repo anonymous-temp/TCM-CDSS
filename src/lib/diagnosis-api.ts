@@ -1,4 +1,5 @@
 // src/lib/diagnosis-api.ts
+import { explicitPromptCacheMessages } from "./model-prompt-cache";
 //
 // Architecture:
 //   M01 (collect) + M02 (question) + M03 (diagnose) + M04 (prescribe) + M05 (assess)
@@ -2096,10 +2097,7 @@ async function retryCompletePrimaryResponse(
       },
       body: JSON.stringify({
         model: retryModel,
-        messages: [
-          { role: "system", content: cdssSystemPrompt(kind) },
-          { role: "user", content: repairPrompt },
-        ],
+        messages: explicitPromptCacheMessages(cdssSystemPrompt(kind), repairPrompt, { provider: config.provider, model: retryModel }),
         stream: false,
         // 严格 schema 路径按供应商建议不下发 max_tokens（见 structuredMaxTokensParam）。
         // 回落到 json_object 的模型仍保留上限，且**修复轮给更高的上限**：若首轮因长度截断，
@@ -2216,10 +2214,7 @@ async function collectM03ParallelWesternHalf(
         },
         body: JSON.stringify({
           model,
-          messages: [
-            { role: "system", content: cdssSystemPrompt(kind) },
-            { role: "user", content: prompt },
-          ],
+          messages: explicitPromptCacheMessages(cdssSystemPrompt(kind), prompt, { provider: config.provider, model }),
           stream: false,
           ...structuredMaxTokensParam(model, "diagnose"),
           temperature: 0,
@@ -2620,10 +2615,7 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
         },
         body: JSON.stringify({
           model,
-          messages: [
-            { role: "system", content: opts.systemPrompt },
-            { role: "user", content: opts.userPrompt },
-          ],
+          messages: explicitPromptCacheMessages(opts.systemPrompt, opts.userPrompt, { provider: config.provider, model }),
           stream: false,
           // This is a two-field classifier, not a chain-of-thought surface. Explicitly disable
           // extended thinking so hidden reasoning cannot consume the whole completion budget and
@@ -3850,11 +3842,8 @@ async function callPrimaryTextModelStream(
           },
           body: JSON.stringify({
             model: requestModel,
-            messages: [
-              { role: "system", content: cdssSystemPrompt(kind) },
-              // 并行 M03 时主流式请求承担中医半（体量大、模块进度多）；修复轮仍用完整 prompt。
-              { role: "user", content: m03ParallelHalves ? m03ParallelHalves.tcm : prompt },
-            ],
+            // Parallel M03 streams the TCM half; repair still uses the complete prompt.
+            messages: explicitPromptCacheMessages(cdssSystemPrompt(kind), m03ParallelHalves ? m03ParallelHalves.tcm : prompt, { provider: config.provider, model: requestModel }),
             stream: true,
             stream_options: { include_usage: true },
             // M02 出题不是严格 schema 路径，保留其 3000 上限；结构化阶段按上面的策略决定。

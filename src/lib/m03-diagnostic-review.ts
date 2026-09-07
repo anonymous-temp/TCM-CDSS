@@ -1,4 +1,19 @@
 import { createHash } from "node:crypto";
+import { buildPromptWithPublicPrefix, explicitPromptCacheEnabled } from "./model-prompt-cache";
+
+/** Mark case-dependent parts at construction, never infer the boundary from patient text. */
+function reviewPromptParts(template: string) {
+  const dynamic = new Set<string>();
+  return {
+    casePart: (text: string) => { dynamic.add(text); return text; },
+    join: (parts: string[]) => {
+      if (!explicitPromptCacheEnabled()) return parts.join("\n\n");
+      return buildPromptWithPublicPrefix(template,
+        parts.filter((part) => !dynamic.has(part)).join("\n\n"),
+        "\n\n" + parts.filter((part) => dynamic.has(part)).join("\n\n"));
+    },
+  };
+}
 
 import { parseClinicalReviewJson } from "./clinical-review-contract";
 import { clinicalClausePolarity } from "./clinical-polarity";
@@ -241,20 +256,21 @@ export function buildM03DiagnosticReviewPrompt(
 ): string {
   const payload = buildM03DiagnosticReviewPayload(reasoning);
   const topics = optionalReviewTopics(clinicalContext, payload);
-  return [
+  const { casePart, join } = reviewPromptParts("m03-review");
+  return join([
     "你是独立的中西医临床推理复核器，不负责重新生成整份报告。核对 westernDiagnosis.primary、中医证候与病机治法、以及候选经方方向是否被当前病例事实充分支持。",
-    ...m03ReviewServerInvariants(clinicalContext, reasoning),
+    ...m03ReviewServerInvariants(clinicalContext, reasoning).map((part, index) => index === 0 ? part : casePart(part)),
     "核对医生可见分析是否真正完成推理而非复述病历：westernDiagnosis.primary.name 不得夹带痰湿型、肝火型、气虚证等中医证型；clinicalRationale 必须解释事实如何支持诊断并说明为何没有采用更具体病因标签。西医 differentials 必须有可区分主诊断的要点，不能只列病史。",
     "核对中医诊断分析与鉴别：tcmDiagnosticRationale 必须从已取得的望闻问切事实推导病名和主证，不能把缺CT、MRI、化验、量表或通用查体当作中医辨证不能成立的理由；资料允许比较时应给出有区分点的 tcmDifferentials。情形二的具体证型、寒热虚实和子病机必须使用全案阳性四诊，不能只由主诉关键词机械映射；但已由主症成立的中医工作病名，允许使用该病名定义中不增加证型归属的最浅层基础功能病机形成闭环。情形一则按上述服务端稀疏标准审查，不得反向要求候选补造四诊。",
     "按七阶段做一次方证深度审计：病位至少有两类相互独立患者证据才可锁定；整体状态须覆盖已有病程、精神、饮食、睡眠与二便；明确寒热时至少有寒热、口渴饮水、二便、舌、脉、四肢温度中的两个维度；虚实须区分正虚与邪实；病机链必须逐节点闭环；命名方须有至少一个相邻方鉴别点和能改变选择的核实项；总治法须覆盖 P1/P2。资料未取得必须保持 unknown 或 uncertainties，绝不能按 absent/阴性处理。七阶段是证据充足度约束，不得反向要求稀疏病例补造事实或强行套入六经。",
     "病位与病性按治理表正交编码：locationDifferentiation.items 写心、脾等病位，natureDifferentiation.items 写气虚、血虚、气滞、痰湿、寒、热等标准基本病性；具体‘脾气亏虚、心血失养’关系写在 pathogenesis.chain、basis 或 resolutionReason。只要主证候、总体病机或病机节点已经明确使用受控病位，该病位就必须同步进入 locationDifferentiation.items，不能以资料有限为由一边使用病位推理一边留空。只要患者事实分别支持病位和基本病性，不得把标准项‘气虚’或‘血虚’误解为全身性结论，也不得要求改成非标准复合项‘脾气虚’‘心血虚’。natureDifferentiation.items 不能写胃失和降、肺失宣降、脾失健运等病机短语。therapy.overallPrinciple 必须是正治/反治、治病求本、标本缓急、扶正祛邪、三因制宜等治则层原则，具体疏肝、清热、健脾、化痰、安神写入 overallMethod；两栏不得同句。subTherapies 必须逐项对应病机节点，多节点时分治方向和对应病机不得整段重复。",
     "先执行硬性完整性检查：pathogenesis.chain 为空，或主证候、总体病机、总治法以‘待辨、待定、资料不足、无法判断’等占位内容代替临床结论时，一律返回 tcm_reasoning_unsupported，绝不能 accepted。总体病机若只是复制主诉或症状列表，治则与治法同句，多个病机节点/分治方向整段重复，也必须修复。修复方向必须是基于已有阳性事实形成低置信度、最小且中性的非空闭环；不得要求清空病机链，也不得为了补全而推断阴虚、阳虚、寒热、痰湿、血瘀等未获事实支持的证型。病位或病性确实无法由现有事实归属时，允许 items 为空，但必须使用 resolution=unresolved并说明原因；但只要同一份推理已明确写出胃、肺、心等受控病位，就必须同步归类，绝不能一边使用病位一边留空。",
     "对于有正式诊断标准的疾病，逐项核对病程阈值、必备核心症状、必要排除条件和已有客观依据。缺少任何必备条件时必须返回 repair；不能因为疾病‘看起来像’就接受。",
-    ...(topics.has("respiratory") ? ["呼吸与睡眠疾病要额外校准：单有夜间憋醒不能诊断阻塞性睡眠呼吸暂停，缺少已确诊史或睡眠监测阳性依据时，OSA 只能列入 differentials；单有活动后喘鸣、胸口呼呼响或夜间症状，缺少已确诊史、气流可逆性客观依据或支气管舒张剂明确反应时，不得把支气管哮喘作为 primary。上述情形应使用与主导症状精确一致的症状级工作诊断，并将疾病标签保留在鉴别诊断中：病历只记录喘鸣、胸口呼呼响而未明确气不够用时应写喘息症状，不得改写成劳力性呼吸困难或气短；只有病历明确记录气短、气促或呼吸困难时才使用相应标签。"] : []),
-    ...(topics.has("neurologic") ? ["急性神经血管事件要额外校准辨证**措辞强度**（甲方 2026-08-13 线上实测：雷击样头痛、数秒达峰、颈项僵硬，舌脉均未查，仍锁定「风痰上扰、清窍不利」，并把颈项僵硬解释成「风邪袭络」）：命中雷击样/霹雳样头痛、突发最剧烈头痛、脑膜刺激征或急性局灶神经缺损等急症线索，而舌象与脉象**均未取得**时，中医证候只能给到 bounded 或 unresolved——写明「四诊未齐，证候依据不足，暂不锁定具体证型」，不得给出风痰上扰、肝阳化风这类需要舌脉支撑的具体证型；脑膜刺激征、颈项强直属于需要急诊排除蛛网膜下腔出血/中枢感染的客观体征，不得把它当作「风邪袭络」等中医病机的确证依据。急诊分流、红旗提示与不出剂量方的既有行为不变——本条只约束辨证措辞的确定性强度，不降低任何安全处置。"] : []),
-    ...(topics.has("joint") ? ["风湿/骨关节急性发作要额外校准（甲方 2026-08-13 线上实测：仅双膝红肿热痛即把“急性痛风性关节炎”排为 primary）：仅有关节红肿热痛而没有血尿酸、关节液尿酸盐结晶、双能CT 或痛风石等客观依据时，痛风性关节炎、假性痛风、感染性关节炎只能进 differentials，primary 必须使用与主诉一致的症状级或症候群级工作诊断（如“急性炎症性关节炎，病因待查”），并同时列出上述鉴别方向；management.followupSafetyNet 必须写明关节剧痛伴发热、寒战或活动受限进行性加重时需尽快排除化脓性关节炎。缺客观依据时绝不能把痛风写成 primary，也不得把具体病种名后面挂“，病因待查”当作折中——那是自相矛盾的标签。"] : []),
-    ...(topics.has("respiratory") ? ["同时执行呼吸—心源性交叉鉴别审计：病例同时记录劳力相关气短、喘鸣、胸闷或呼吸不适与夜间憋醒、不能平卧或端坐呼吸时，differentials 必须覆盖呼吸系统、心功能不全和冠心病/心肌缺血等心源性方向，且不得重复同一诊断；management.followupSafetyNet 必须明确说明这些线索持续或加重时需尽快排除心源性原因，以及静息呼吸困难、不能平卧、胸痛、晕厥或发绀时立即急诊。这里只要求鉴别和行动边界，缺少客观依据时绝不能把心衰或冠心病写成 primary 或确诊。"] : []),
-    ...(topics.has("bowel") ? ["对中老年新发或进行性排便习惯改变做患者特异的报警征象审计：年龄>40岁的初诊便秘患者，特别是近期新发、进行性加重或既往筛查史未知时，westernDiagnosis.primary.suggestedChecks 不能再用‘若年龄>40岁/50岁’这种未实例化的假设句；必须明确写出本例已满足的年龄与病程条件，建议消化专科评估并结合既往筛查史决定结肠镜检查，以排除结直肠器质性病变。该要求不等同于把肿瘤写成确诊，也不能把已明确阴性的便血或消瘦改成阳性。"] : []),
+    ...(topics.has("respiratory") ? ["呼吸与睡眠疾病要额外校准：单有夜间憋醒不能诊断阻塞性睡眠呼吸暂停，缺少已确诊史或睡眠监测阳性依据时，OSA 只能列入 differentials；单有活动后喘鸣、胸口呼呼响或夜间症状，缺少已确诊史、气流可逆性客观依据或支气管舒张剂明确反应时，不得把支气管哮喘作为 primary。上述情形应使用与主导症状精确一致的症状级工作诊断，并将疾病标签保留在鉴别诊断中：病历只记录喘鸣、胸口呼呼响而未明确气不够用时应写喘息症状，不得改写成劳力性呼吸困难或气短；只有病历明确记录气短、气促或呼吸困难时才使用相应标签。"] : []).map(casePart),
+    ...(topics.has("neurologic") ? ["急性神经血管事件要额外校准辨证**措辞强度**（甲方 2026-08-13 线上实测：雷击样头痛、数秒达峰、颈项僵硬，舌脉均未查，仍锁定「风痰上扰、清窍不利」，并把颈项僵硬解释成「风邪袭络」）：命中雷击样/霹雳样头痛、突发最剧烈头痛、脑膜刺激征或急性局灶神经缺损等急症线索，而舌象与脉象**均未取得**时，中医证候只能给到 bounded 或 unresolved——写明「四诊未齐，证候依据不足，暂不锁定具体证型」，不得给出风痰上扰、肝阳化风这类需要舌脉支撑的具体证型；脑膜刺激征、颈项强直属于需要急诊排除蛛网膜下腔出血/中枢感染的客观体征，不得把它当作「风邪袭络」等中医病机的确证依据。急诊分流、红旗提示与不出剂量方的既有行为不变——本条只约束辨证措辞的确定性强度，不降低任何安全处置。"] : []).map(casePart),
+    ...(topics.has("joint") ? ["风湿/骨关节急性发作要额外校准（甲方 2026-08-13 线上实测：仅双膝红肿热痛即把“急性痛风性关节炎”排为 primary）：仅有关节红肿热痛而没有血尿酸、关节液尿酸盐结晶、双能CT 或痛风石等客观依据时，痛风性关节炎、假性痛风、感染性关节炎只能进 differentials，primary 必须使用与主诉一致的症状级或症候群级工作诊断（如“急性炎症性关节炎，病因待查”），并同时列出上述鉴别方向；management.followupSafetyNet 必须写明关节剧痛伴发热、寒战或活动受限进行性加重时需尽快排除化脓性关节炎。缺客观依据时绝不能把痛风写成 primary，也不得把具体病种名后面挂“，病因待查”当作折中——那是自相矛盾的标签。"] : []).map(casePart),
+    ...(topics.has("respiratory") ? ["同时执行呼吸—心源性交叉鉴别审计：病例同时记录劳力相关气短、喘鸣、胸闷或呼吸不适与夜间憋醒、不能平卧或端坐呼吸时，differentials 必须覆盖呼吸系统、心功能不全和冠心病/心肌缺血等心源性方向，且不得重复同一诊断；management.followupSafetyNet 必须明确说明这些线索持续或加重时需尽快排除心源性原因，以及静息呼吸困难、不能平卧、胸痛、晕厥或发绀时立即急诊。这里只要求鉴别和行动边界，缺少客观依据时绝不能把心衰或冠心病写成 primary 或确诊。"] : []).map(casePart),
+    ...(topics.has("bowel") ? ["对中老年新发或进行性排便习惯改变做患者特异的报警征象审计：年龄>40岁的初诊便秘患者，特别是近期新发、进行性加重或既往筛查史未知时，westernDiagnosis.primary.suggestedChecks 不能再用‘若年龄>40岁/50岁’这种未实例化的假设句；必须明确写出本例已满足的年龄与病程条件，建议消化专科评估并结合既往筛查史决定结肠镜检查，以排除结直肠器质性病变。该要求不等同于把肿瘤写成确诊，也不能把已明确阴性的便血或消瘦改成阳性。"] : []).map(casePart),
     "症状性工作诊断只有准确反映主诉中的主导症状和病程才可接受；证据不足的疾病应放入 differentials，不能占用 primary。不得让次要伴随症状抢占 primary，例如主诉以大便解不出来、排便费劲或数日一次为核心时，应使用便秘症状，不能因同时腹胀就改写成腹胀症状。",
     "不得把尚未满足标准的病因或疾病藏进症状性诊断的括号、后缀或‘可能’限定中（例如‘某症状（某疾病可能）’）；这种写法仍属于过度诊断，必须返回 diagnostic_label_overstated，并把该疾病移入 differentials。",
     "检查 supportingFacts 是否来自病例且确实支持该主诊断。不要因为缺少非必需检查而否定合理的症状性工作诊断。",
@@ -273,12 +289,12 @@ export function buildM03DiagnosticReviewPrompt(
     "核对 recommendedFormulaNames 中每个命名方是否列在证据上下文的【M03经典方检索】受控候选中，并核对其核心适应证是否在阳性患者事实中成立。未进入本例候选、只在 uncertainties/假设句/‘若有则’中出现、或定义性症状明确缺失时，必须返回 formula_indication_mismatch；此时应让生成模型改选有方证依据的受控候选，或退回本例辨证组方，不能勉强套用经方名。",
     "只输出一个 JSON 对象，不要代码块或解释。格式：accepted 时 {\"status\":\"accepted\",\"issueCode\":\"none\"}；需修复时 status=repair，issueCode 只能是 criteria_not_met、diagnostic_label_overstated、supporting_fact_mismatch、tcm_reasoning_unsupported、formula_indication_mismatch 之一，并增加 repairInstruction。按最关键的临床问题选择一个 issueCode，一次返回一个合并决定。按上述规则可以接受的候选必须输出 accepted，绝不允许用 repair 表达‘应接受、请重新检查’；repair 只用于确实需要生成模型修改的候选。supportingFacts 的内容问题（混入舌苔脉象等中医推理、非患者事实、与主诊断无关）只能使用 supporting_fact_mismatch，不得并入 tcm_reasoning_unsupported；westernDiagnosis 的标签或依据问题也不得使用 tcm_reasoning_unsupported。",
     M03_COMPACT_REVIEW_INSTRUCTION,
-    `患者事实边界：${clinicalContext.slice(0, 12_000)}`,
-    evidenceContext.trim()
+    casePart(`患者事实边界：${clinicalContext.slice(0, 12_000)}`),
+    casePart(evidenceContext.trim()
       ? `本轮可用证据（仅用于核对诊断标准、方证和医学依据，绝不能当作患者事实）：${evidenceContext.slice(0, 12_000)}`
-      : "本轮未提供额外外部证据；不得因此编造指南、文献或方剂出处。",
-    `待复核M03临床投影：${JSON.stringify(payload).slice(0, 24_000)}`,
-  ].join("\n\n");
+      : "本轮未提供额外外部证据；不得因此编造指南、文献或方剂出处。"),
+    casePart(`待复核M03临床投影：${JSON.stringify(payload).slice(0, 24_000)}`),
+  ]);
 }
 
 /**
@@ -323,20 +339,21 @@ export function buildM03DiagnosticReviewAdjudicationPrompt(
   firstReview: M03DiagnosticReview,
 ): string {
   void evidenceContext;
-  return [
+  const { casePart, join } = reviewPromptParts("m03-review-adjudication");
+  return join([
     "你是独立临床诊断深度争议裁决器，只裁决首轮提出的那一个争议，不重新审计整份报告，也不重新生成报告。",
-    ...m03ReviewServerInvariants(clinicalContext, reasoning),
-    `患者事实边界：${clinicalContext.slice(0, 12_000)}`,
-    `被争议的M03中医投影：${JSON.stringify(buildM03AdjudicationPayload(reasoning, firstReview)).slice(0, 12_000)}`,
+    ...m03ReviewServerInvariants(clinicalContext, reasoning).map((part, index) => index === 0 ? part : casePart(part)),
+    casePart(`患者事实边界：${clinicalContext.slice(0, 12_000)}`),
+    casePart(`被争议的M03中医投影：${JSON.stringify(buildM03AdjudicationPayload(reasoning, firstReview)).slice(0, 12_000)}`),
     "这是对首轮复核结论的独立争议裁决，不是要求你迁就候选，也不是重新生成报告。",
-    `首轮复核结论：${JSON.stringify(firstReview)}`,
+    casePart(`首轮复核结论：${JSON.stringify(firstReview)}`),
     "裁决时必须按统一临床推理权威合同逐层判断：第一层患者事实必须接地；第三层证候可由多项相互独立事实收敛；第四层病机治法是受证候约束的临床解释，不要求机制词逐字出现在病例。不得把第一层的逐字要求错误施加到第三、四层。",
     "服务端已确定性验证：overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesis、overview.overallTherapy、therapy.overallPrinciple 以及至少一个逐字锚定患者事实的 pathogenesis.chain 节点均为非空且通过结构合同。不得再把上述必填字段误判为空。",
     "请只裁决首轮指出的深度问题：病位或病性的 items=[] 且 resolution=unresolved 是有限信息下允许的边界，不等于总体病机或病机链为空；症状层工作证候及中医工作病名直接定义的最浅层基础功能病机，只要没有新增寒热虚实、气血津液、痰湿瘀、病因传变或命名方，也不等于机械复述。符合这些条件必须 accepted。",
     "若候选实际仍含无患者事实组合支持的具体病位、病性、证型、病因、传变、治法或命名方，或患者事实锚点与原文不符，仍必须 repair；不得以有限信息为由放行越界推断。首轮若声称‘心神、气血、脏腑病机词未在原文出现’，必须核对全案症状组合、舌脉和面色是否已在第三层证候归纳上支持相应证候，不能仅做字符串比对。",
     "逐条裁决首轮已列出的相关意见；全部不成立时才可 accepted，仍成立的意见合并返回一个 repair 决定，不扩展到首轮未提出的新问题。只输出原合同 JSON。accepted 时输出 {\"status\":\"accepted\",\"issueCode\":\"none\"}；repair 时保留准确 issueCode 和 repairInstruction。",
     M03_COMPACT_REVIEW_INSTRUCTION,
-  ].join("\n\n");
+  ]);
 }
 
 /**

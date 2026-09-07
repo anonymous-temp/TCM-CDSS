@@ -1,6 +1,7 @@
 // src/lib/diagnosis-prompts.ts
 import herbFunctionCategoriesJson from "../data/tcm-herb-function-categories.json" with { type: "json" };
 import type { CaseState } from "./diagnosis-types";
+import { buildPromptWithPublicPrefix } from "./model-prompt-cache";
 import type { AssistedNegationClauses } from "./clinical-polarity";
 import { diagnoseReasoningFromState } from "./diagnosis-parse";
 import { getLineageCard, getLineageQuestionStrategy } from "./tcm-lineages";
@@ -681,7 +682,7 @@ ${compactJsonContract}`;
   // 此前病历排在这一大段固定规范之前，等于把后面全部固定文本挡在供应商前缀缓存之外——
   // 与 M03 的做法正好相反。固定规范全部前置、逐例变化内容全部后置。
   // 顺带把不可信数据边界说明留在数据之前：指令在前、数据在后本身也是更强的注入防御姿态。
-  return `你是供接诊医生使用的中医CDSS高信息增益追问模块。只进行一轮追问；主诉是唯一必填项。
+  return buildPromptWithPublicPrefix("m02-question", `你是供接诊医生使用的中医CDSS高信息增益追问模块。只进行一轮追问；主诉是唯一必填项。
 
 ${UNTRUSTED_CLINICAL_DATA_INSTRUCTION}
 
@@ -712,13 +713,13 @@ sourceEvidence 只说明为什么要问，不能是问题的答案；只逐字�
 
 ${compactJsonContract}
 
-以上为固定规范。以下是本例患者资料，请据此按上述规范出题。
+以上为固定规范。以下是本例患者资料，请据此按上述规范出题。`, `
 
 病历：${record}
 已有记录：${safeHistory || "无"}
 流派化侧重：${tcmLineageQuestionInstruction(caseState)}
 
-${classicDiscriminationContext}`;
+${classicDiscriminationContext}`);
 }
 
 // ─── M03：循证辨证分型（DeepSeek）────────────────────────────────────────────
@@ -775,7 +776,7 @@ export function buildDiagnosePrompt(caseState: CaseState, retrieval: M03FormulaR
   // 因此固定内容（原则、推理授权、治法词表、脱敏说明、结构化契约）全部前置，
   // 病例资料、对话补充、检索上下文、覆盖度这些**逐例变化**的部分一律后置。
   // 语义未变：所有指令仍在患者资料之前给出，模型读到资料时规范已经完整。
-  return `你是中医CDSS的辨病辨证模块。下面先给出本模块的固定规范，患者资料在规范之后给出。
+  const publicPrefix = `你是中医CDSS的辨病辨证模块。下面先给出本模块的固定规范，患者资料在规范之后给出。
 
 重要原则：
 1. “症状+四诊 → 辨证 → 总体病机 → 子病机 → 子治疗方向”是M03-M04内部推理模型。主诉是唯一入口条件；其余资料按实际提供情况参与推理，缺失只降低置信度或形成复核建议。
@@ -799,7 +800,8 @@ ${reasoningV2Instruction("diagnose", caseState)}
 
 以下字段由服务端确定性生成或覆盖，**不要输出**：schemaVersion、stage、formula、nonPharma、pathogenesis.summary、各处 evidence 对象，以及 lineageAdaptation 的 schemaVersion/lineageCode/label/applicable/unaffectedBySafety/safetyDeference。只提交需要临床判断的内容。
 
-以上为固定规范。以下是本例患者资料与检索上下文，请据此按上述规范输出一份结构化临床结论。
+以上为固定规范。以下是本例患者资料与检索上下文，请据此按上述规范输出一份结构化临床结论。`;
+  return buildPromptWithPublicPrefix("m03-diagnose", publicPrefix, `
 
 【患者临床资料】
 ${safePatientDesc}
@@ -814,7 +816,7 @@ ${sevenStageContext}
 【当前信息覆盖度】
 系统计算的信息覆盖度：${caseState.completeness?.level || "未评估"}。该等级只用于表达置信范围，不是流程门槛。只要有主诉，就必须基于已知信息给出西医诊断倾向、非空的中医工作病名与证候、总体病机、子病机和治法。overview.tcmDiseaseName 不得留空或写占位词；无法稳定归入传统病名时，使用与当前主诉直接对应的症状层工作病名，不得为命名而新增病性。病位或病性无法由已知事实归属时，必须保持 items=[] 且 resolution=unresolved 并说明资料边界，不得为补齐结构而推断脏腑、寒热虚实或气血津液属性。未提供内容写入不确定项，不得拒绝分析。
 
-只生成一份结构化临床结论。每个病机节点必须同时包含非空 patientFact、syndromeEvidence、pathogenesis 和 therapyDirection；不得输出空节点。patientFact 必须尽量沿用患者原话。“阳性事实→核心推理”投影要求（这是对成品逐字成立的性质，不是让你先在心里跑一遍流程再输出）：overview.primarySyndrome/overallPathogenesis、pathogenesis.summary/locationDifferentiation/natureDifferentiation/chain 和 therapy 中出现的每个脏腑归属、寒热虚实、痰湿、血瘀、气血亏虚、阴阳津液等具体结论，都必须能指向病历中明确记录的当前阳性原文；指不到原文的结论一律降为中性功能病机并写入 uncertainties，不得用“此症常见”“中医理论可解释”或低置信度代替患者证据。若现有阳性资料只支持症状本身，就形成 bounded 的症状层中性功能病机与相应调理方向；未形成任何病位归属时病位可保持 unresolved，但只要中性功能病机已明确写出胃、肺、心等病位，就必须同步写入 locationDifferentiation.items；病性仍不得自动补出痰湿、寒热、血瘀、阴虚、阳虚、气虚、血虚或相应治法。pathogenesis.summary 只能归纳已在主证候、总体病机、病性和病机节点中成立的内容，不得新增任何病因、病位、病性或治法方向。没有已核验外部来源时，结构化 evidence 保留内部缺口供后台审计。不要同时生成一份 Markdown 草稿，避免双轨结论和额外输出时延。`;
+只生成一份结构化临床结论。每个病机节点必须同时包含非空 patientFact、syndromeEvidence、pathogenesis 和 therapyDirection；不得输出空节点。patientFact 必须尽量沿用患者原话。“阳性事实→核心推理”投影要求（这是对成品逐字成立的性质，不是让你先在心里跑一遍流程再输出）：overview.primarySyndrome/overallPathogenesis、pathogenesis.summary/locationDifferentiation/natureDifferentiation/chain 和 therapy 中出现的每个脏腑归属、寒热虚实、痰湿、血瘀、气血亏虚、阴阳津液等具体结论，都必须能指向病历中明确记录的当前阳性原文；指不到原文的结论一律降为中性功能病机并写入 uncertainties，不得用“此症常见”“中医理论可解释”或低置信度代替患者证据。若现有阳性资料只支持症状本身，就形成 bounded 的症状层中性功能病机与相应调理方向；未形成任何病位归属时病位可保持 unresolved，但只要中性功能病机已明确写出胃、肺、心等病位，就必须同步写入 locationDifferentiation.items；病性仍不得自动补出痰湿、寒热、血瘀、阴虚、阳虚、气虚、血虚或相应治法。pathogenesis.summary 只能归纳已在主证候、总体病机、病性和病机节点中成立的内容，不得新增任何病因、病位、病性或治法方向。没有已核验外部来源时，结构化 evidence 保留内部缺口供后台审计。不要同时生成一份 Markdown 草稿，避免双轨结论和额外输出时延。`);
 }
 
 // ─── M04：循证组方建议（DeepSeek）────────────────────────────────────────────
@@ -967,7 +969,7 @@ export function buildPrescribePrompt(caseState: CaseState): string {
   ].filter(Boolean).join("\n");
   const safePatientContext = promptDataText(patientContext);
 
-  return `请为以下患者提供候选治疗方案。M04不是输出唯一处方，而是基于M03的辨病辨证结果，生成可由医生采纳、修改或放弃的候选方药与非药物方案。
+  return buildPromptWithPublicPrefix("m04-prescribe", `请为以下患者提供候选治疗方案。M04不是输出唯一处方，而是基于M03的辨病辨证结果，生成可由医生采纳、修改或放弃的候选方药与非药物方案。
 
 核心推理链：
 输入信号（症状+四诊+五史+生命体征） → 证候聚合 → 总体病机 → 子病机 → 子治疗方向 → 药组候选 → 病-证-方-药匹配 → 风险提示。
@@ -1002,7 +1004,7 @@ M04 提案不允许重写 overview、pathogenesis、therapy 或 lineageAdaptatio
 每味药必须引用后附【M04药味可引用病机节点】中的节点或方内结构作用枚举。每个候选必须恰有 1–2 味君药，且这些君药全部直接引用 P1；君/臣药只能使用 pathogenesis_node；佐/使药使用 formula_structure 时必须选择一个结构枚举。臣药的引用节点必须不同于君药，整方药味必须覆盖 M03 各主要治法方向，服务端按 targetRef/structureRole 逐味生成“角色＋治法方向”的治法→药味映射，重复引用会产生重复方义。不得把肝郁、痰湿、血瘀等 M03 未确认病机塞进自由文本；服务端会忽略模型自写 targetPathogenesis，并根据 targetRef/structureRole 生成最终可见内容。
 
 只输出一个 JSON 对象，不要生成哨兵、Markdown 正文、表格或 JSON 之外的任何内容。服务端会把最小提案编译为完整 V2 契约，并在药味剂量校验、方剂出处复核和证据净化后确定性生成医生可见报告。这样可以确保页面、报告、审方与 HIS 使用同一份方名、药味和剂量。
-${reasoningV2Instruction("prescribe", caseState)}
+`, `${reasoningV2Instruction("prescribe", caseState)}
 
 以上为固定规范。以下是本例患者资料、已签名 M03 结果与检索上下文——只有这部分逐例变化。
 
@@ -1028,5 +1030,5 @@ ${classicSafetyContext}
 ${kbShortlistContext ? `${kbShortlistContext}\n\n` : ""}【M04药味可引用病机节点】
 ${pathogenesisNodeOptions || "（无可引用节点；不得生成剂量级候选处方）"}
 
-${buildTcmTreatmentProjectPromptContext(caseState)}`;
+${buildTcmTreatmentProjectPromptContext(caseState)}`);
 }
