@@ -57,6 +57,8 @@
     "test:m04-concise-proposal": "node --test scripts/test-m04-concise-proposal.mjs",
     "test:explicit-prompt-cache": "jiti scripts/test-explicit-prompt-cache.mjs",
     "test:cache-benchmark": "node scripts/test-cache-benchmark.mjs",
+    "test:clinical-module-previews": "jiti scripts/test-clinical-module-previews.mjs",
+    "test:clinical-module-preview-wire": "jiti scripts/test-clinical-module-preview-wire.mjs",
     "test:clinical-facts-transport": "node --test scripts/test-clinical-facts-transport.mjs",
     "test:m03-context-packets": "node --test scripts/test-m03-context-packets.mjs",
     "regress:model-routing-ab": "node scripts/regress-model-routing-ab.mjs",

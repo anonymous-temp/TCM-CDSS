@@ -159,6 +159,8 @@ const scripts = [
   "test:m04-concise-proposal",
   "test:explicit-prompt-cache",
   "test:cache-benchmark",
+  "test:clinical-module-previews",
+  "test:clinical-module-preview-wire",
   "test:clinical-facts-transport",
   "test:m03-context-packets",
   "test:clinical-facts",
