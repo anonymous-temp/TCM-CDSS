@@ -611,6 +611,20 @@ export async function prepareDiagnoseStructuredContent(
   return result;
 }
 
+/** Restore the existing clinical projections after a route sanitizer rewrites the sentinel.
+ * Review and emission share this exact sequence so the reviewer sees the final surviving facts.
+ * These projections do not infer a new diagnosis, syndrome, patient fact or treatment direction.
+ */
+function settleM03ClinicalOutput(content: string, clinicalContext: string): string {
+  const aligned = alignNormalizedM03TcmDiagnosticRationale(
+    alignNormalizedM03WesternClinicalRationale(content),
+  );
+  return applyM03KeySyndromeDiscriminatorsToContent(
+    applyDeterministicTreatmentPrinciple(aligned),
+    clinicalContext,
+  );
+}
+
 // 导出供 scripts/test-transparent-declassification.mjs 使用：剥离器产出的形态必须与
 // crossStageReasoningIssue 里「已降级自拟」放行口逐字对齐，两边各写各的就会整方作废。
 export function markTransparentFormulaDeclassification(
@@ -2505,6 +2519,8 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
   absoluteDeadline: number;
   parentSignal?: AbortSignal;
   generatorModel?: string;
+  triggerPhase?: "initial" | "adjudication" | "finalization_changed";
+  changedPaths?: string[];
 }): Promise<ClinicalReviewExecution<T>> {
   const startedAt = Date.now();
   let attemptCount = 0;
@@ -2534,6 +2550,7 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
       .slice(0, 16)}`;
     console.info("[tcm-cdss:timing] clinical_review", {
       stage: opts.stage,
+      ...(opts.triggerPhase ? { triggerPhase: opts.triggerPhase, changedPaths: opts.changedPaths || [] } : {}),
       status: review.status,
       outcome,
       issueCode: "issueCode" in review ? review.issueCode : "none",
@@ -2719,6 +2736,8 @@ async function reviewM03DiagnosticCriteria(
   absoluteDeadline: number,
   parentSignal?: AbortSignal,
   generatorModel?: string,
+  triggerPhase: "initial" | "adjudication" | "finalization_changed" = "initial",
+  changedPaths: string[] = [],
 ): Promise<ClinicalReviewExecution<M03DiagnosticReview>> {
   const applyAdvisoryBoundary = (
     review: ClinicalReviewExecution<M03DiagnosticReview>,
@@ -2740,6 +2759,8 @@ async function reviewM03DiagnosticCriteria(
   // 要省这次复核调用，得先让 preflight 只对**真正属于复核范畴**的问题码短路。
   const first = await runIndependentClinicalReview<M03DiagnosticReview>({
     stage: "diagnose",
+    triggerPhase,
+    changedPaths,
     systemPrompt: "你是独立临床诊断标准复核器，只输出约定 JSON。不得编造患者事实。",
     userPrompt: buildM03DiagnosticReviewPrompt(clinicalContext, reasoning, evidenceContext),
     parse: parseM03DiagnosticReview,
@@ -2753,6 +2774,8 @@ async function reviewM03DiagnosticCriteria(
   }
   const adjudicated = await runIndependentClinicalReview<M03DiagnosticReview>({
     stage: "diagnose",
+    triggerPhase: "adjudication",
+    changedPaths,
     systemPrompt: "你是独立临床诊断深度争议裁决器，只输出约定 JSON。不得编造患者事实，也不得把允许 unresolved 的病位病性误判为整个病机链为空。",
     userPrompt: buildM03DiagnosticReviewAdjudicationPrompt(
       clinicalContext,
@@ -3175,6 +3198,7 @@ async function callPrimaryTextModelStream(
               opts.structuredCaseState,
             );
           }
+          transformed = settleM03ClinicalOutput(transformed, opts.structuredClinicalContext || "");
           const reasoning = validatedStructuredReasoning(
             transformed,
             "diagnose",
@@ -5427,31 +5451,12 @@ async function callPrimaryTextModelStream(
                   opts.structuredPriorReasoning as unknown as Record<string, unknown> | undefined,
                 )
               : transformed;
-            // The route-owned final sanitizer can legitimately remove or rewrite an ungrounded
-            // negative clause after the candidate has already been normalized. That may leave
-            // clinicalRationale pointing at a supporting fact which no longer survives in the
-            // signed payload, causing two expensive repair rounds to collapse an otherwise valid
-            // diagnosis into the generic limited fallback. Re-align only this explanatory
-            // projection from the final surviving fact + already-reviewed diagnosis label, then
-            // run the full contract and attestation rebind below. No diagnosis or patient fact is
-            // added here.
-            const aligned = opts.structuredStage === "diagnose"
-              ? alignNormalizedM03TcmDiagnosticRationale(
-                  alignNormalizedM03WesternClinicalRationale(stageOwned),
-                )
-              : stageOwned;
-            const clinicallyClean = opts.structuredStage === "diagnose"
-              ? applyDeterministicTreatmentPrinciple(aligned)
-              : aligned;
             return {
-              // 客户输出净化会重建/删减事实字段；关键方证原文必须在它之后再投影一次，
-              // 随即由下方 finalized contract 对这组最终字节完整复验。
+              // The same post-sanitizer clinical projection already ran before review. Retain the
+              // final contract/hash checks so a genuine later clinical mutation still re-reviews.
               content: opts.structuredStage === "diagnose"
-                ? applyM03KeySyndromeDiscriminatorsToContent(
-                    clinicallyClean,
-                    opts.structuredClinicalContext || "",
-                  )
-                : clinicallyClean,
+                ? settleM03ClinicalOutput(stageOwned, opts.structuredClinicalContext || "")
+                : stageOwned,
               ok: true,
             };
           } catch (error) {
@@ -5793,6 +5798,8 @@ async function callPrimaryTextModelStream(
                   absoluteRunDeadline,
                   upstreamController.signal,
                   m03GeneratorModel,
+                  "finalization_changed",
+                  m03ReviewedReasoning ? m03DiagnosticReviewDiffPaths(m03ReviewedReasoning, finalReasoning) : [],
                 ));
                 if (review.advisoryBoundary === "quality_concern") {
                   m03ReviewAdvisoryBoundary = true;

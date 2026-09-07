@@ -1154,11 +1154,13 @@ try {
   const frames = text.trim().split("\n").map((line) => JSON.parse(line));
   const output = frames.filter((frame) => typeof frame.content === "string").map((frame) => frame.content).join("");
   assert.equal(settledGenerationCalls, 1);
-  assert.equal(settledReviewPayloads.length, 1, "one deterministic clinical projection must require exactly one independent review");
   const signed = parseSentinelReasoning(output);
+  assert.equal(m03DiagnosticReviewSemanticHash(signed), "sha256:e65b691a013a531b473c38bf7fef9bf45fc40c77b0913b4b26cf786cdf70fce4", "the settled projection must preserve the pre-fix final clinical payload");
+  assert.equal(settledReviewPayloads.length, 1, "one deterministic clinical projection must require exactly one independent review");
   assert.ok(signed.contractSignature, "the settled output must still be signed");
   assert.equal(signed.clinicalReview.status, "accepted");
   assert.deepEqual(buildM03DiagnosticReviewPayload(signed), settledReviewPayloads[0], "the reviewer must see the final clinical decisions verbatim");
+  assert.deepEqual(settledLogs.filter(([name]) => name === "[tcm-cdss:timing] clinical_review").map(([, metadata]) => ({ phase: metadata.triggerPhase, paths: metadata.changedPaths })), [{ phase: "initial", paths: [] }]);
 } finally {
   globalThis.fetch = savedSettledFetch;
   console.info = savedSettledInfo;

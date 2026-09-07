@@ -636,7 +636,7 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /const transformed = opts\.outputTransform[\s\S]{0,1200}?const stageOwned = opts\.structuredStage === "prescribe"[\s\S]{0,500}?enforceM04PriorStageOwnership\([\s\S]{0,1200}?const aligned = opts\.structuredStage === "diagnose"/,
+  /const transformed = opts\.outputTransform[\s\S]{0,1200}?const stageOwned = opts\.structuredStage === "prescribe"[\s\S]{0,500}?enforceM04PriorStageOwnership\([\s\S]{0,800}?settleM03ClinicalOutput\(stageOwned/,
   "M04 must rebind M03-owned sections immediately after the last customer-output transform and before final contract validation",
 );
 const syncReasoning = {
