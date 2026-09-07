@@ -177,6 +177,10 @@ const T2_M04_PATTERNS: readonly RegExp[] = [
   // 与上一行同档同理由：方向缺药不影响这张方能不能安全服用，但医生必须看得见缺口；
   // 未登记的码默认 T1，会把它变成硬拦、整方 0 味——那正是这条要避免的结果。
   /^therapy_direction_uncovered_[a-z_]+$/,
+  // Same closed coverage family already accepted by m04TherapyIssueQualityAnnotation and the
+  // bounded floor. Omitting it here spent quality repair rounds before eventually adding advice.
+  // Do not include transparent_therapy_herb_N_unsupported_high_impact_* (real direction opposition).
+  /^(?:candidate_\d+_)?transparent_therapy_(?:coverage|herb_support|herb_knowledge_missing)$/,
 ];
 
 /** T3 —— 展示层与权威 JSON 的同步问题。权威是结构化 JSON，正文由服务端同步生成。 */
