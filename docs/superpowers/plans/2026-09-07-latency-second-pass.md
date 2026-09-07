@@ -8,6 +8,8 @@
 
 **Tech Stack:** Next.js16, TypeScript, Zod4, OpenAI-compatible Qwen, NDJSON, Node/Jiti scripts.
 
+**Implementation status 2026-09-07:** Tasks 1–5 implemented and independently reviewed. Task1 canonical-equivalence fixture preserved clinical output while wire JSON reduced14.90%; Task2 stub1generation/2reviews→1review with identical final clinical hash; Task3 actual8-call cache experiment confirmed creation/hits, but did not establish uniform net latency/quality benefit, so default remains implicit. Task4 stable query-priority/cancellation7checks pass. Task5 actual provider root-candidate streaming and late-frame tests pass; real browser and integrated candidate testing remain in Task6. Historical baseline observer incorrectly called status-only modules useful; preserved original artifact and reran corrected observer rather than relabeling its times as clinical delivery.
+
 ## Task 1 — M04 concise single-source explanations
 
 Files: `src/lib/model-response-format.ts`, `src/lib/m04-proposal-compiler.ts`, `src/lib/diagnosis-prompts.ts`, focused `scripts/test-m04-*.mjs`.
