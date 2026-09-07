@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { measureExperienceResponse } from "./lib/experience-stream-measurement.mjs";
 
 const base = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const customer = process.env.CDSS_CUSTOMER_ID || "";
@@ -19,34 +20,26 @@ async function call(route, body) {
     const response = await fetch(`${base}/api/diagnosis/${route}`, {
       method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(230_000),
     });
-    const raw = await response.text();
+    const streamed = ["collect", "question", "diagnose", "prescribe", "assess"].includes(route);
+    const observation = await measureExperienceResponse(response, { startedAt: started, streamed });
+    const raw = observation.raw;
     let json;
     try { json = JSON.parse(raw); } catch { /* NDJSON is parsed below. */ }
-    let content = "";
-    let ended = false;
-    let streamError = false;
-    for (const line of raw.split("\n")) {
-      try {
-        const frame = JSON.parse(line);
-        if (frame.content === "[END]") ended = true;
-        else if (typeof frame.content === "string") content += frame.content;
-        if (frame.error) streamError = true;
-      } catch { /* A JSON response is handled separately. */ }
-    }
+    const { content = "", ended = false, streamError = false } = observation;
     let reasoning;
     for (const match of content.matchAll(/<!-- DIAGNOSIS_JSON_START -->([\s\S]*?)<!-- DIAGNOSIS_JSON_END -->/g)) {
       try { const value = JSON.parse(match[1]); if (value.stage) reasoning = value; } catch { /* Report no structured output. */ }
     }
-    const streamed = ["collect", "question", "diagnose", "prescribe", "assess"].includes(route);
     const jsonShape = route === "red-flags" ? Boolean(json?.safetyGate)
       : route === "his-scheme" ? Boolean(json?.diagnoses && json?.prescriptions)
         : route === "post-prescription-risk" ? Boolean(json?.audit && typeof json.section === "string")
           : Boolean(json && typeof json === "object");
     const delivered = response.ok && (streamed ? ended && !streamError && Boolean(content) : jsonShape);
     return { json, content, reasoning, measurement: {
-      route, status: response.status, durationMs: Math.round(performance.now() - started),
+      route, status: response.status, durationMs: observation.durationMs,
       outcome: delivered ? "delivered" : "incomplete",
-      ...(streamed ? { ended, streamError } : { jsonShape }),
+      ...(streamed ? { ended, streamError, firstByteMs: observation.firstByteMs, firstContentMs: observation.firstContentMs,
+        firstUsefulMs: observation.firstUsefulMs, moduleDraftCount: observation.moduleDraftCount } : { jsonShape }),
       ...(typeof json?.code === "string" ? { code: json.code.replace(/[^a-z0-9_]/gi, "_").slice(0, 160) } : {}),
     } };
   } catch {
