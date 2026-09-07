@@ -437,7 +437,14 @@ export function buildEvidenceFallbackQueries(
   const explicitNames = evidenceQueryExplicitNames(caseState);
   // 受治理问题表按“宽泛主诉 → 更具体问题”组织；倒序让更具体的当前问题先检索。
   // 例如“感冒后干咳”同时命中感冒与咳嗽，先查咳嗽才能避免把胃肠型感冒共识置顶。
-  return [...new Set(matchingMedicineClinicalProblemTerms(caseText).reverse()
+  const chiefComplaint = caseState.hisRecord?.fields?.zhushu || caseState.chiefComplaint || "";
+  // Use the existing governed vocabulary for retrieval only. Main-complaint matches precede
+  // narrative matches so an incidental history topic cannot displace the presenting problem.
+  const problemTerms = [
+    ...matchingMedicineClinicalProblemTerms(chiefComplaint).reverse(),
+    ...matchingMedicineClinicalProblemTerms(caseText).reverse(),
+  ];
+  return [...new Set(problemTerms
     .map((term) => scrubQuery(`${term} ${suffix}`, explicitNames))
     .filter(Boolean))];
 }
@@ -593,16 +600,28 @@ async function buildSingleEvidenceSection(
     count: kind === "guide" ? 8 : kind === "literature" ? 5 : 6,
     startYear: kind === "guide" || kind === "literature" ? 2018 : undefined,
   };
-  let result = await fetchExternalEvidence(kind, query, options);
+  const problemQueries = buildEvidenceFallbackQueries(caseState, stage, kind)
+    .filter((candidate) => candidate !== query).slice(0, 2);
+  // M03 used to wait for a long narrative query before paying another full network wait for
+  // each useful problem query. Bounded fan-out retains the same three-query ceiling. Promise.all
+  // preserves input order: completion speed cannot reorder the preferred evidence or its IDs.
+  const diagnosticResults = stage === "diagnose" && kind !== "instruction"
+    ? await Promise.all([query, ...problemQueries].map((candidate) => fetchExternalEvidence(kind, candidate, options)))
+    : [await fetchExternalEvidence(kind, query, options)];
+  let result = diagnosticResults[0];
   let usedQuery = query;
   // M03 不能只看“长病历查询是否有任何命中”：反酸病例的长查询曾只命中肿瘤食欲下降共识，
   // 因为它抓住了伴随的“食欲下降”。诊断阶段始终优先尝试受治理的当前问题查询；
   // 它有命中就取代长查询，无命中才保留长查询结果。其他阶段仍只在 no_hits 时回退。
-  const shouldTryProblemFallback = kind !== "instruction" &&
-    (stage === "diagnose" || (result.ok && result.reason === "no_hits"));
+  const preferredIndex = diagnosticResults.findIndex((candidate, index) => index > 0 && candidate.ok && candidate.list.length > 0);
+  if (preferredIndex > 0) {
+    result = diagnosticResults[preferredIndex];
+    usedQuery = problemQueries[preferredIndex - 1];
+  }
+  const shouldTryProblemFallback = kind !== "instruction" && stage !== "diagnose" &&
+    result.ok && result.reason === "no_hits";
   if (shouldTryProblemFallback) {
-    for (const fallbackQuery of buildEvidenceFallbackQueries(caseState, stage, kind).slice(0, 2)) {
-      if (!fallbackQuery || fallbackQuery === query) continue;
+    for (const fallbackQuery of problemQueries) {
       const fallback = await fetchExternalEvidence(kind, fallbackQuery, options);
       if (fallback.list.length > 0) {
         result = fallback;
