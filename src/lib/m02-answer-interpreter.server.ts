@@ -19,6 +19,7 @@ import {
   textModelRequestTuning,
 } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
+import { ExactModelResultCache } from "./exact-model-result-cache";
 
 export const M02_ANSWER_INTERPRETATION_SCHEMA_VERSION = "tcm-cdss-m02-answer-interpretation-v1" as const;
 
@@ -80,6 +81,10 @@ export type M02AnswerInterpreterModelCall = (request: {
   signal: AbortSignal;
   phase: "interpret" | "repair";
 }) => Promise<string>;
+
+// Successful, authorized interpretations only. No in-flight sharing: each request keeps its own
+// cancellation and timeout. The full case/plan/answer and provider configuration must match exactly.
+const answerReuse = new ExactModelResultCache<Extract<M02AnswerInterpretationResult, { ok: true }>>();
 
 export type M02AnswerModelValidationResult =
   | { ok: true; data: z.infer<typeof M02AnswerModelOutputSchema> }
@@ -380,12 +385,20 @@ export async function interpretM02Answer(input: {
 
   const doctorAnswer = typeof input.doctorAnswer === "string" ? input.doctorAnswer.trim() : "";
   if (!doctorAnswer || doctorAnswer.length > MAX_ANSWER_LENGTH) return failure("invalid_answer", 0);
+  if (input.requestSignal?.aborted) return failure("request_aborted", 0);
 
   const blanket = blanketAnswerInterpretation(plan, doctorAnswer);
   if (blanket) return blanket;
 
   const modelCall = input.modelCall || primaryModelCall();
   if (!modelCall) return failure("model_not_configured", 0);
+
+  // Test/custom model callbacks do not establish provider identity and must not share production results.
+  const reuseKey = !input.modelCall && input.caseState.id && input.caseState.customerId
+    ? answerReuse.key([M02_ANSWER_INTERPRETATION_SCHEMA_VERSION, input.caseState, input.plan, doctorAnswer, getPrimaryTextModelConfig()])
+    : undefined;
+  const reused = reuseKey ? answerReuse.get(reuseKey) : undefined;
+  if (reused) return reused;
 
   const controller = new AbortController();
   const abortFromRequest = () => controller.abort();
@@ -440,11 +453,14 @@ export async function interpretM02Answer(input: {
         });
       }
       if (validated.ok) {
-        return {
-          ok: true,
+        const result = {
+          ok: true as const,
           schemaVersion: validated.data.schemaVersion,
           answers: validated.data.answers,
         };
+        if (controller.signal.aborted) return failure(input.requestSignal?.aborted ? "request_aborted" : "model_timeout", modelCallCount);
+        if (reuseKey) answerReuse.set(reuseKey, result);
+        return result;
       }
       previousOutput = content;
       rejectionReasons = validated.reasons;
