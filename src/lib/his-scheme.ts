@@ -22,6 +22,7 @@ import { tcmTreatmentProtocolGapCopy, westernDiagnosisLabelForDisplay } from "./
 import { prioritizeTcmEvidenceForDisplay, prioritizeWesternEvidenceForDisplay } from "./clinical-evidence-display";
 import { normalizedFormulaModificationFields } from "./formula-modification";
 import { clinicalDeliveryAdvisorySection, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
+import { ordinaryHistoricalDoseDeviation } from "./diagnosis-stage-contract";
 
 type SchemeStatus = "ready" | "pending" | "limited";
 
@@ -1049,6 +1050,10 @@ export function buildHisAiSchemePayload(
   const canAdopt = status === "ready"
     && permission.formalAdoption === "eligible_after_doctor_confirmation"
     && !structurallyInvalid;
+  // Retain the actual AI proposal for physician review without promoting an unverified historical
+  // reference deviation to an executable HIS item. Other clinical items retain their own policy.
+  const historicalDoseReferenceOnly = structuredHerbs(caseState).some((herb) =>
+    ordinaryHistoricalDoseDeviation(herb, structuredCandidate(caseState)?.decoction?.method || ""));
   const auditStatus: HisAiSchemePayload["auditStatus"] = caseState.prescriptionRevision?.auditAvailable === false
     ? "unavailable"
     : caseState.prescriptionRevision?.auditAvailable === true
@@ -1263,9 +1268,12 @@ export function buildHisAiSchemePayload(
     prescriptions: {
       herbal: suppressDoseLevelOutputs ? [] : [item("herbal-1", firstLine(herbal) || "中药饮片处方", herbal, {
         reference: herbalStructuredReference,
-        adoptable: canAdopt,
+        adoptable: canAdopt && !historicalDoseReferenceOnly,
+        referenceOnly: historicalDoseReferenceOnly || undefined,
         safetyLocked,
-        blockedReason,
+        blockedReason: historicalDoseReferenceOnly
+          ? "AI候选剂量偏离历史参考范围，保留供医生审阅，尚未作为可直接执行的医嘱确认。"
+          : blockedReason,
       })],
       structuredHerbs: suppressDoseLevelOutputs ? [] : structuredHerbs(caseState).map((herb, index) => {
         const doseLimit = getTcmHerbDoseLimit(herb.name);
@@ -1423,7 +1431,7 @@ export function buildHisAiSchemePayload(
       allowOneClickAdoption: false,
       doctorReviewRequired: true,
       pharmacistReviewRequired: true,
-      overrideReasonRequired: strongPrescriptionRisk || warningLevelRank(warningProfile.level) >= warningLevelRank("L3"),
+      overrideReasonRequired: historicalDoseReferenceOnly || strongPrescriptionRisk || warningLevelRank(warningProfile.level) >= warningLevelRank("L3"),
       warningConfirmationMode:
         warningProfile.level === "L4" ? "blocked" :
         warningProfile.level === "L3" ? "checkbox_and_reason" :

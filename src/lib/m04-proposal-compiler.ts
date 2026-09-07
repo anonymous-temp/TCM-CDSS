@@ -13,7 +13,9 @@ import { TCM_TREATMENT_PROJECT_CODES } from "./tcm-treatment-projects";
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
 import {
   canonicalTcmHerbIdentity,
+  doseWithinConservativeModelLimit,
   highImpactHerbDirectionIssue,
+  ordinaryHistoricalDoseDeviation,
 } from "./diagnosis-stage-contract";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { affirmedClinicalText, stripClinicalSectionLabel } from "./clinical-polarity";
@@ -27,7 +29,7 @@ const evidence = {
   confidence: "中" as const,
 };
 
-function compileHerbVerification(name: string): {
+function compileHerbVerification(name: string, dose: string, method: string, modelIsToxic = false): {
   verificationTier: "verified" | "unverified_dose" | "identity_pending" | "toxic_regulated";
   doseSource: "governed_boundary" | "classical_source" | "none";
   verificationReasons: string[];
@@ -50,7 +52,7 @@ function compileHerbVerification(name: string): {
 
   const doseLimit = getTcmHerbDoseLimit(canonicalName);
   const safety = getTcmHerbGenerationSafetyProfile(canonicalName);
-  if (safety.isToxic) {
+  if (safety.isToxic || modelIsToxic) {
     return {
       verificationTier: "toxic_regulated",
       doseSource: doseLimit && !doseLimit.sourceConflict ? "governed_boundary" : "none",
@@ -70,6 +72,21 @@ function compileHerbVerification(name: string): {
         doseLimit?.sourceConflict
           ? "剂量边界存在分用途冲突，当前数值不能标为已核验"
           : "标准药材资料尚无完整数值型内服剂量边界",
+      ],
+      isToxic: false,
+    };
+  }
+
+  if (!doseWithinConservativeModelLimit(name, dose, method)) {
+    const deviation = ordinaryHistoricalDoseDeviation({ name, dose }, method);
+    return {
+      verificationTier: "unverified_dose",
+      doseSource: "governed_boundary",
+      verificationReasons: [
+        deviation
+          ? `本次候选剂量 ${dose}，历史参考范围 ${deviation.min}–${deviation.max}g；来源：${deviation.basis}。`
+          : `本次候选剂量 ${dose} 未与适用剂量资料核对一致。`,
+        "剂量尚未经医生确认，保留供审阅；AI结果签名不代表医嘱或用量批准。",
       ],
       isToxic: false,
     };
@@ -1181,7 +1198,7 @@ export function compileM04Proposal(
     const targetPathogenesis = node?.pathogenesis || node?.syndromeEvidence ||
       formulaStructureTarget(herb.structureRole) || herb.targetRef;
     const intendedTherapy = node?.therapyDirection || targetPathogenesis;
-    const verification = compileHerbVerification(herb.name);
+    const verification = compileHerbVerification(herb.name, herb.dose, proposal.candidate.decoction.method || "", herb.isToxic === true);
     return {
       ...herb,
       ...verification,

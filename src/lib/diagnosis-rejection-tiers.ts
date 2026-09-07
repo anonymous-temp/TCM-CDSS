@@ -148,6 +148,9 @@ const T3_M03: ReadonlySet<string> = new Set([
  * 拿到一个 T2 码只证明排在它前面的检查通过了。
  */
 const T2_M04_PATTERNS: readonly RegExp[] = [
+  // Emitted only by the bounded ordinary historical-reference classifier; the old ambiguous
+  // outside-range code remains T1. Acceptance still re-runs the complete independent safety floor.
+  /^candidate_\d+_herb_\d+_dose_reference_deviation$/,
   // 建议性内容：非药物调护三段与中医治疗项目卡片。项目卡片的 12 个字段本就由服务端按目录生成，
   // 模型只提交 projectCode 与 targetRef——拿服务端自己生成的字段驳回模型的处方没有意义。
   /^non_pharma_incomplete$/,
@@ -248,6 +251,9 @@ export function qualityAnnotationCopy(reason: string): string | undefined {
   if (!tier) return undefined;
   const prescribe = typeof reason === "string" && reason.trim().startsWith("m04_");
   if (prescribe) {
+    if (/^m04_candidate_\d+_herb_\d+_dose_reference_deviation$/.test(reason.trim())) {
+      return "部分候选剂量偏离本地历史常用量参考，尚未经医生确认；药味表保留原剂量与参考来源供审阅。请医生结合本次病历核对，必要时说明用量理由并签名；AI结果签名不代表医嘱或用量批准。";
+    }
     if (isM04FinalizerDeferredLabelIssue(reason)) {
       return "本次候选方药中君药的角色标注或功效与主要病机的对应仍需确认，请结合主症与治法核对君药选择、君臣佐使分工和病机归属。";
     }

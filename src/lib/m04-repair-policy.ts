@@ -196,10 +196,9 @@ export function m04FinalReviewQualityAnnotation(review: { status?: string; issue
     return "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；但本例的过敏史、当前用药、肝肾功能等信息尚未采集，方案按「未知」保守处理，请医生补充确认并经院内审方复核后再采纳。";
   }
   if (review.issueCode === "dose_rationale_concern") {
-    // 数值本身出不了圈：每味剂量已被药典上下限确定性钳制，越界在此之前就被逐味驳回。
-    // 复核在圈内提的是「强度与本例相称与否」——这正是医师定夺的事项，批注明示并交由
-    // 医师与审方，比整方作废让医生一无所获更安全（0 味时医生只能脱离系统徒手开方）。
-    return "本次候选方药的每味剂量均在药典边界内，配伍禁忌、特殊人群与君臣结构已通过安全核验；独立复核认为部分药味的剂量强度与本例病情的相称性需医生把握，请结合患者年龄、体质与证候强度调整后再采纳。";
+    // Historical usual-range deviations may now be retained as unverified proposals. Never claim
+    // that every proposed dose is within current pharmacopoeia limits or approved by the reviewer.
+    return "独立复核认为部分候选药味的剂量强度与本例病情的相称性需医生把握，请结合患者年龄、体质、证候强度及药味表中的剂量参考来源核对后再决定是否调整；本候选不代表用量已获批准。";
   }
   return undefined;
 }

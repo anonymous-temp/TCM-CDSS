@@ -85,7 +85,7 @@ test("generation emits advice while full safety rerun retains every other safety
     assert.equal(m04SemanticIssue(value, "", prior, isKnownTcmHerbName, true, true, false, false, "", true), "candidate_0_herb_0_dose_reference_deviation");
     assert.equal(floor(value), undefined);
     const badSecond = structuredClone(value);
-    badSecond.formula.candidates[0].herbs[1].dose = "1000g";
+    badSecond.formula.candidates[0].herbs[1].dose = "200g";
     assert.match(floor(badSecond), /herb_1_dose_sanity_ceiling/);
     const badUnit = structuredClone(value);
     badUnit.formula.candidates[0].herbs[1].dose = "2片";

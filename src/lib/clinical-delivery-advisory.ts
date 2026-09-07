@@ -1,5 +1,5 @@
 import type { ClinicalReasoningResultV2 } from "./diagnosis-types";
-import { dosePassesSafetySanityCeiling, doseWithinConservativeModelLimit, m04GenerationSpecialPopulationIssue, normalizeComparableDose, unsupportedHighImpactHerbFindings } from "./diagnosis-stage-contract";
+import { dosePassesSafetySanityCeiling, doseWithinConservativeModelLimit, m04GenerationSpecialPopulationIssue, normalizeComparableDose, ordinaryHistoricalDoseDeviation, unsupportedHighImpactHerbFindings } from "./diagnosis-stage-contract";
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, isKnownTcmHerbName } from "./tcm-knowledge";
 import { hasIncompleteEditedHerb } from "./prescription-revision";
@@ -18,6 +18,7 @@ export type ClinicalDeliveryAdvisory = Readonly<{
 }>;
 
 const COPY: ReadonlyArray<readonly [RegExp, string, string]> = [
+  [/dose_reference_deviation/, "本次候选剂量偏离本地历史参考范围，尚未经医生确认。", "请医生核对本次用量；如决定采用超常规用量，应注明理由并由医生签名确认。AI结果签名不代表医嘱或用量批准。"],
   [/emperor_(?:not_primary|therapy_mismatch)/, "君药的角色标注或功效与主要病机的对应仍需确认。", "请结合主症与治法核对君药选择、君臣佐使分工和病机归属，再决定是否调整相关药味。"],
   [/high_risk_pair|incompatib/, "处方中有需注意的药味配伍组合。", "请结合配伍提示与本次用药目的决定是否调整相关药味。"],
   [/unsupported_high_impact|direction/, "药味功用方向与本例治法的对应存在疑问，可能涉及方向不一致。", "请结合主症、四诊及该药在本方中的实际作用决定是否保留或调整。"],
@@ -46,7 +47,7 @@ export function clinicalDeliveryAdvisoryFromIssue(
   const copy = COPY.find(([pattern]) => pattern.test(issue));
   const doseLimit = herbName && /dose/.test(issue) ? getTcmHerbDoseLimit(herbName) : undefined;
   const doseDetail = doseLimit?.min != null && doseLimit.max != null
-    ? `当前药量 ${displayText(candidate.herbs[herbIndex!].dose || "未提供")}；资料参考 ${doseLimit.min}–${doseLimit.max}g。`
+    ? `当前药量 ${displayText(candidate.herbs[herbIndex!].dose || "未提供")}；历史参考 ${doseLimit.min}–${doseLimit.max}g。${/dose_reference_deviation/.test(issue) && doseLimit.basis ? `来源：${displayText(doseLimit.basis)}。` : ""}`
     : "";
   return {
     code: issue,
@@ -73,7 +74,9 @@ export function collectClinicalDeliveryAdvisories(
     if (!isKnownTcmHerbName(herb.name)) issues.add(`${prefix}unknown`);
     if (!normalizeComparableDose(dose)) issues.add(`${prefix}dose`);
     if (!dosePassesSafetySanityCeiling(herb.name, dose)) issues.add(`${prefix}dose_sanity_ceiling`);
-    if (!doseWithinConservativeModelLimit(herb.name, dose, candidate.decoction.method)) issues.add(`${prefix}dose_outside_conservative_range`);
+    if (!doseWithinConservativeModelLimit(herb.name, dose, candidate.decoction.method)) {
+      issues.add(`${prefix}${ordinaryHistoricalDoseDeviation(herb, candidate.decoction.method) ? "dose_reference_deviation" : "dose_outside_conservative_range"}`);
+    }
     if (decoctionRuleForHerb(herb.name)?.prohibited.includes("同煎")) issues.add(`${prefix}route_not_decoction`);
     if (!decoctionRuleSatisfied(herb.name, herb.decoctionRequirement || "")) issues.add(`${prefix}decoction_missing_required`);
     const populationIssue = m04GenerationSpecialPopulationIssue([herb], clinicalContext);

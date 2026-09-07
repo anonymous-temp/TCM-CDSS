@@ -3488,6 +3488,39 @@ export function doseWithinConservativeModelLimit(name: string, dose: string, dec
   return governedRanges.some((range) => grams >= range.min && grams <= range.max);
 }
 
+export type OrdinaryHistoricalDoseDeviation = {
+  dose: string;
+  min: number;
+  max: number;
+  basis: string;
+  direction: "below_reference" | "above_reference";
+};
+
+/**
+ * Eligibility to DISPLAY an unverified proposal with reference-range advice, never dose approval.
+ * Only the identified historical ordinary-use source is eligible. Route/preparation overrides,
+ * curated or conflicting sources and unknown provenance keep the existing conservative contract.
+ * A broad sanity ceiling is only an exclusion guard; passing it is not evidence of a safe dose.
+ */
+export function ordinaryHistoricalDoseDeviation(
+  herb: { name?: unknown; dose?: unknown; isToxic?: unknown },
+  decoctionMethod: string,
+): OrdinaryHistoricalDoseDeviation | undefined {
+  if (typeof herb.name !== "string" || typeof herb.dose !== "string" || herb.isToxic === true) return undefined;
+  const name = herb.name.trim();
+  const identity = resolveGovernedTcmHerbIdentity(name);
+  if (!identity.canonicalName || identity.candidates.length > 0 || !isKnownTcmHerbName(name)) return undefined;
+  if (clinicianDoseHerbClass(name) || getTcmHerbGenerationSafetyProfile(name).isToxic) return undefined;
+  if (!dosePassesSafetySanityCeiling(name, herb.dose)) return undefined;
+  const limit = getTcmHerbDoseLimit(name);
+  if (limit?.sourceType !== "dose" || limit.basis !== "中华人民共和国药典：2020年版．一部" || limit.sourceConflict) return undefined;
+  const { min, max, basis } = limit;
+  if (typeof min !== "number" || typeof max !== "number" || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || min > max) return undefined;
+  const grams = doseInGrams(herb.dose);
+  if (grams == null || doseWithinConservativeModelLimit(name, herb.dose, decoctionMethod)) return undefined;
+  return { dose: herb.dose, min, max, basis, direction: grams < min ? "below_reference" : "above_reference" };
+}
+
 const M04_SPECIAL_POPULATION_MATCHERS: ReadonlyArray<{
   population: RegExp;
   patient: RegExp;
@@ -4071,7 +4104,10 @@ export function m04SemanticIssue(
       const decoctionRule = decoctionRuleForHerb(herb.name);
       if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
       if (!dosePassesSafetySanityCeiling(herb.name.trim(), herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_sanity_ceiling`;
-      if (!trustedWorkbenchEdit && !doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""))) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_outside_conservative_range`;
+      if (!trustedWorkbenchEdit && !doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""))) {
+        const deviation = ordinaryHistoricalDoseDeviation(herb, String(candidate.decoction?.method || ""));
+        return `candidate_${candidateIndex}_herb_${herbIndex}_${deviation ? "dose_reference_deviation" : "dose_outside_conservative_range"}`;
+      }
       if (typeof herb.role !== "string" || !herb.role.trim()) return `candidate_${candidateIndex}_herb_${herbIndex}_role`;
       if (typeof herb.prescriptionRole !== "string" || !herb.prescriptionRole.trim() || GENERATED_PLACEHOLDER_MARKER.test(herb.prescriptionRole.trim())) return `candidate_${candidateIndex}_herb_${herbIndex}_prescription_role`;
       if (typeof herb.targetPathogenesis !== "string" || !herb.targetPathogenesis.trim() || GENERATED_PLACEHOLDER_MARKER.test(herb.targetPathogenesis.trim())) return `candidate_${candidateIndex}_herb_${herbIndex}_target`;
@@ -4371,7 +4407,8 @@ export function m04SafetyContractIssue(
       const decoctionRule = decoctionRuleForHerb(herb.name);
       if (decoctionRule?.prohibited.includes("同煎")) return `candidate_${candidateIndex}_herb_${herbIndex}_route_not_decoction`;
       if (!dosePassesSafetySanityCeiling(herb.name.trim(), herb.dose)) return `candidate_${candidateIndex}_herb_${herbIndex}_dose_sanity_ceiling`;
-      if (!doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || ""))) {
+      if (!doseWithinConservativeModelLimit(herb.name.trim(), herb.dose, String(candidate.decoction?.method || "")) &&
+          !ordinaryHistoricalDoseDeviation(herb, String(candidate.decoction?.method || ""))) {
         return `candidate_${candidateIndex}_herb_${herbIndex}_dose_outside_conservative_range`;
       }
       // 特殊煎法是毒性与刺激性药味安全控制的一部分，不是叙述性字段。
