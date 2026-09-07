@@ -2265,17 +2265,17 @@ HIS 投影与 M04 原始响应保持同一语义：`prescriptions.modifications[
 
 对已签发的 M04 候选或服务端确认的医生编辑版本，药味方向、参考药量、煎服说明、重复药味、解释待补充等临床问题不再单独使 HIS 返回 `422`。接口保留诊断和处方，返回 `200`，将具体问题放入 `warnings[]`，并在 `riskTips` 中提供同源中文说明。`200` 表示方案已交付，不等于所有临床问题均已消除；集成方应将建议与处方一起展示，不应再因存在提示隐藏整份报告。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `workflowPermission` | string | `continue`：已有报告可继续查看、编辑和流转 |
-| `reviewRequired` | boolean | 医生仍需结合病例作临床判断；不是要求客户端拦截报告的指令 |
-| `warnings` | array | 无补充意见时为 `[]`，有意见时使用下表字段 |
-| `warnings[].code` | string | 可扩展的内部归因码，用于对账；不直接作为医生提示文案 |
-| `warnings[].relatedCodes` | string[]，可选 | 合并同一可见提示时保留相关归因码 |
-| `warnings[].candidateIndex` | number | 候选方序号，从 0 开始 |
-| `warnings[].herbIndex` / `herbName` | number / string，可选 | 能定位到具体药味时提供；整方意见不提供药味位置 |
-| `warnings[].message` | string | 问题与本例的关系；可获得时包含当前药量与资料参考范围 |
-| `warnings[].suggestedAction` | string | 医生可采取的核实、补充或调整动作 |
+| 字段 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| `workflowPermission` | 流程权限 | string | `continue`：已有报告可继续查看、编辑和流转 |
+| `reviewRequired` | 临床判断提示 | boolean | 医生仍需结合病例作临床判断；不是要求客户端拦截报告的指令 |
+| `warnings` | 补充意见 | array | 无补充意见时为 `[]`，有意见时使用下表字段 |
+| `warnings[].code` | 归因码 | string | 可扩展的内部归因码，用于对账；不直接作为医生提示文案 |
+| `warnings[].relatedCodes` | 相关归因码 | string[]，可选 | 合并同一可见提示时保留相关归因码 |
+| `warnings[].candidateIndex` | 候选方序号 | number | 候选方序号，从 0 开始 |
+| `warnings[].herbIndex` / `herbName` | 药味序号/名称 | number / string，可选 | 能定位到具体药味时提供；整方意见不提供药味位置 |
+| `warnings[].message` | 问题说明 | string | 问题与本例的关系；可获得时包含当前药量与资料参考范围 |
+| `warnings[].suggestedAction` | 建议动作 | string | 医生可采取的核实、补充或调整动作 |
 
 处方后审接口同样返回 `warnings[]` 和包含提示的 `section`；M05 将相关意见写入可见随访/风险正文。外部审方不可用时如实保留不可用/人工判断状态并继续交付报告，不伪装为审方通过，也不自动授权最终处方。鉴权失败、跨租户或被改写的签名、候选不存在等无法定位可信业务对象的请求仍返回相应 `4xx`，这些不是临床意见。
 
