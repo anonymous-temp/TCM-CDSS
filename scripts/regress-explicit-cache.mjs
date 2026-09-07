@@ -13,6 +13,7 @@ if (!process.argv.includes("--live")) {
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
 const { createInitialCaseState } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { buildDiagnosePrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
+const { buildM03ParallelHalfSuffix } = await jiti.import("../src/lib/m03-parallel-merge.ts");
 const { explicitPromptCacheMessages } = await jiti.import("../src/lib/model-prompt-cache.ts");
 const { getPrimaryTextModelConfig, createTextModelClient, textModelRequestTuning } = await jiti.import("../src/lib/text-model.ts");
 const { responseFormatForTask } = await jiti.import("../src/lib/model-response-format.ts");
@@ -26,7 +27,7 @@ const state = { ...initial, ...experienceCaseState(experienceCases[1], "syntheti
 // It is identical across both cache modes and is not a patient fact.
 const system = `你是临床辅助建议助手。本次为合成测试，无真实患者。实验标识${randomUUID()}不属于患者事实，不要写进临床结果。`;
 process.env.CDSS_EXPLICIT_PROMPT_CACHE = "true";
-const prompt = buildDiagnosePrompt(state);
+const prompt = `${buildDiagnosePrompt(state)}\n\n${buildM03ParallelHalfSuffix("tcm")}`;
 const client = createTextModelClient(config, { retryOwner: "application" });
 const rows = await runCacheBenchmark({
   models, messagesForModel: model => explicitPromptCacheMessages(system, prompt, { ...config, model }),

@@ -158,6 +158,7 @@ const scripts = [
   "test:experience-stream-measurement",
   "test:m04-concise-proposal",
   "test:explicit-prompt-cache",
+  "test:cache-benchmark",
   "test:clinical-facts-transport",
   "test:m03-context-packets",
   "test:clinical-facts",
