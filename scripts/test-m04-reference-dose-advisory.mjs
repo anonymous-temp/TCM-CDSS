@@ -14,7 +14,10 @@ const { classifyHerbWarning } = await jiti.import("../src/lib/clinical-warning-t
 const { getTcmHerbDoseLimit, isKnownTcmHerbName } = await jiti.import("../src/lib/tcm-knowledge.ts");
 const { rejectionTier, qualityAnnotationCopy } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
 const { collectClinicalDeliveryAdvisories } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
-const { m04FinalReviewQualityAnnotation } = await jiti.import("../src/lib/m04-repair-policy.ts");
+const { m04FinalReviewQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation, m04BaselineVerifiedFinalReviewAnnotation, m04ArbitratedPatientContextAnnotation } = await jiti.import("../src/lib/m04-repair-policy.ts");
+const { buildAuditItemsFromHerbs } = await jiti.import("../src/lib/rxaudit.ts");
+const { clinicalReviewPayloadHash } = await jiti.import("../src/lib/clinical-review-binding.ts");
+const { signPrescribeReasoning, PRESCRIBE_CONTRACT_SIGNATURE_VERSION } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
 
 const prior = ReasoningV2Schema.parse({
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
@@ -35,7 +38,7 @@ const proposal = {
       { name: "茯苓", dose: "12g", role: "佐", targetKind: "pathogenesis_node", targetRef: "P2", structureRole: null, function: "健脾渗湿" },
       { name: "炙甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", function: "补脾和胃" },
     ].map((herb) => ({ ...herb, processing: null, isToxic: false, decoctionRequirement: null })),
-    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "五日复诊" },
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "5日复诊" },
     formulaAnalysis: "党参补脾益气，白术健脾燥湿，茯苓渗湿，炙甘草补脾和胃。",
   },
   patentAndWestern: [], modifications: [],
@@ -72,6 +75,7 @@ test("toxic, controlled, ambiguous, missing/curated ranges and invalid magnitude
     { name: "附子", dose: "16g" }, { name: "朱砂", dose: "1g" }, { name: "犀角", dose: "1g" },
     { name: "贯众", dose: "10g" }, { name: "不存在药味", dose: "10g" },
     { name: "龙骨", dose: "121g" }, { name: "生地黄", dose: "16g" },
+    { name: "石斛", dose: "30g" },
     { name: "党参", dose: "501g" }, { name: "党参", dose: "0g" },
     { name: "党参", dose: "-1g" }, { name: "党参", dose: "2片" },
   ]) assert.equal(ordinaryHistoricalDoseDeviation(herb, "煎服"), undefined, JSON.stringify(herb));
@@ -90,6 +94,12 @@ test("generation emits advice while full safety rerun retains every other safety
     const badUnit = structuredClone(value);
     badUnit.formula.candidates[0].herbs[1].dose = "2片";
     assert.match(floor(badUnit), /herb_1_dose$/);
+    const falseOrdinary = structuredClone(value);
+    falseOrdinary.formula.candidates[0].herbs[0].isToxic = true;
+    assert.match(floor(falseOrdinary), /herb_0_dose_outside_conservative_range/);
+    const duplicate = structuredClone(value);
+    duplicate.formula.candidates[0].herbs[1].name = "党参";
+    assert.match(floor(duplicate), /duplicate_herb/);
   }
   assert.equal(dosePassesSafetySanityCeiling("党参", "1000g"), false);
 });
@@ -150,4 +160,47 @@ test("HIS preserves readable unverified dose and marks only herbal adoption as r
   const warning = classifyHerbWarning({ drug: herb.name, dose: herb.dose, verificationTier: herb.verificationTier, verificationReasons: herb.verificationReasons });
   assert.equal(warning.level, "L2");
   assert.ok(warning.reasons.some((reason) => reason.includes("31g")));
+});
+
+test("audit receives the original proposal dose; signing binds unverified metadata without approval", () => {
+  const value = compiled("31g");
+  const state = normalizeCaseStateInput({ chiefComplaint: "食少倦怠", phase: "done", prescription: "## 中药饮片处方\n党参31g 白术10g 茯苓12g 炙甘草6g", reasoningPrescribe: value, reasoningDiagnose: prior });
+  const items = buildAuditItemsFromHerbs(state);
+  assert.ok(items.length > 0);
+  assert.equal(items[0].single_dose, 31);
+  const before = clinicalReviewPayloadHash(value);
+  const falselyVerified = structuredClone(value);
+  falselyVerified.formula.candidates[0].herbs[0].verificationTier = "verified";
+  assert.notEqual(clinicalReviewPayloadHash(falselyVerified), before, "review binding must detect false promotion");
+  const previousKey = process.env.REASONING_CONTRACT_SIGNING_KEY;
+  process.env.REASONING_CONTRACT_SIGNING_KEY = "reference-advice-synthetic-signature-test-only-32";
+  try {
+    const signed = signPrescribeReasoning(value, {
+      contractVersion: PRESCRIBE_CONTRACT_SIGNATURE_VERSION,
+      caseId: "synthetic-dose-reference", encounterId: "synthetic-dose-reference",
+      clinicalInputHash: `sha256:${"a".repeat(64)}`, diagnoseContractHash: `sha256:${"b".repeat(64)}`,
+    });
+    assert.equal(typeof signed.contractSignature, "string");
+    assert.equal(signed.formula.candidates[0].herbs[0].verificationTier, "unverified_dose");
+    assert.equal(signed.formula.candidates[0].herbs[0].dose, "31g");
+    assert.equal(signed.clinicalReview.status, "unavailable", "signing cannot manufacture reviewer acceptance");
+  } finally {
+    if (previousKey === undefined) delete process.env.REASONING_CONTRACT_SIGNING_KEY;
+    else process.env.REASONING_CONTRACT_SIGNING_KEY = previousKey;
+  }
+});
+
+test("all quality acceptance copy remains truthful when another herb has an unverified reference dose", () => {
+  const copies = [
+    ...["transparent_therapy_coverage", "transparent_therapy_herb_support", "transparent_therapy_herb_knowledge_missing", "herb_0_unsupported_high_impact_heat_clear", "herb_0_emperor_therapy_mismatch", "therapy_direction_uncovered_heat_clear", "pathogenesis_node_uncovered_P2"].map(m04TherapyIssueQualityAnnotation),
+    ...["formula_composition_mismatch", "herb_plan_mismatch", "patient_context_mismatch", "dose_rationale_concern"].map((issueCode) => m04FinalReviewQualityAnnotation({ status: "repair", issueCode })),
+    m04ZeroProviderRepairQualityAnnotation({ status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "herb_direction" }),
+    m04BaselineVerifiedFinalReviewAnnotation({ review: { status: "repair", issueCode: "herb_plan_mismatch" }, baselineIdentityVerified: true }),
+    m04ArbitratedPatientContextAnnotation(),
+    qualityAnnotationCopy("m04_candidate_0_herb_1_function_ungrounded"),
+  ];
+  for (const copy of copies) {
+    assert.equal(typeof copy, "string");
+    assert.doesNotMatch(copy, /每味剂量均在药典边界内|(?:逐味剂量边界|药典剂量边界|药味、剂量)[^；。]{0,60}(?:通过|完成)/);
+  }
 });

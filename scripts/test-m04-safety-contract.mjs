@@ -17,6 +17,7 @@
  * **同时**出现时，仍然必须被拦下。
  */
 import assert from "node:assert/strict";
+await import("./test-m04-reference-dose-advisory.mjs");
 import { m04SafetyContractIssue, m04SemanticIssue } from "../src/lib/diagnosis-stage-contract.ts";
 import { rejectionTier, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "../src/lib/diagnosis-rejection-tiers.ts";
 import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
@@ -922,13 +923,12 @@ const {
     assert.ok(/已完整通过安全核验/.test(annotation),
       `${issueCode} 的批注必须写明哪一层已通过，否则医生无从判断能不能用`);
   }
-  // 剂量强度意见也带批注受理（甲方产品语义：安全问题阻断，质量问题标注）——数值本身
-  // 已被药典上下限确定性钳制，越界在此之前就被逐味驳回；复核在圈内提的「相称性」正是
-  // 医师定夺事项。批注必须点名「剂量强度需医生把握」。
+  // 普通历史参考量偏离可保留为未核验候选，批注不得再概括成每味均在药典范围内。
   {
     const annotation = m04FinalReviewQualityAnnotation({ status: "repair", issueCode: "dose_rationale_concern" });
-    assert.ok(annotation && /剂量强度/.test(annotation) && /药典边界内/.test(annotation),
-      `dose_rationale_concern 应带批注受理且写明边界事实：${annotation}`);
+    assert.ok(annotation && /剂量强度/.test(annotation) && /剂量参考来源/.test(annotation),
+      `dose_rationale_concern 必须说明参考来源与医生判断边界：${annotation}`);
+    assert.doesNotMatch(annotation, /每味剂量均在药典边界内/);
   }
   // 未知码 default-deny：策略表之外的意见永远不能自动受理。
   for (const issueCode of ["some_future_issue_code", "none"]) {
