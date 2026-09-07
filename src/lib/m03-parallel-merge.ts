@@ -35,15 +35,18 @@ export function m03ParallelGenerationEnabled(): boolean {
  * 否则模型会在两难指令下随机选边。
  */
 export function buildM03ParallelHalfSuffix(half: "western" | "tcm"): string {
+  const serverOwned = "schemaVersion、stage、formula、nonPharma、pathogenesis.summary 及各层 evidence 均由服务端生成，本次不得输出；仅填写本半 JSON Schema 中保留的临床字段。";
   if (half === "western") {
     return [
-      "【并行分工·西医半】本次请求是 M03 并行分工中的西医半。仍按上文全部规范完成推理，但只输出一个顶层仅含以下字段的 JSON 对象：schemaVersion、stage、westernDiagnosis、management。",
-      "overview、pathogenesis、therapy、formula、nonPharma、lineageAdaptation 由并行进程负责——本次省略这些字段不违反上文完整性要求，也不得以任何形式输出它们。",
+      "【并行分工·西医半】本次请求是 M03 并行分工中的西医半。仅应用上文西医诊断、鉴别与管理规则，只输出一个顶层仅含以下字段的 JSON 对象：westernDiagnosis、management。",
+      serverOwned,
+      "overview、pathogenesis、therapy、lineageAdaptation 由并行进程负责——本次省略这些字段不违反上文完整性要求，也不得以任何形式输出它们。",
       "westernDiagnosis 与 management 的全部既有规则不变；management.mustCollect 仍从全案角度给出补录项。JSON 右花括号必须是回复最后一个非空内容。",
     ].join("");
   }
   return [
-    "【并行分工·中医半】本次请求是 M03 并行分工中的中医半。仍按上文全部规范完成推理，但只输出一个顶层仅含以下字段的 JSON 对象：schemaVersion、stage、overview、pathogenesis、therapy、formula、nonPharma、lineageAdaptation。",
+    "【并行分工·中医半】本次请求是 M03 并行分工中的中医半。仅应用上文中医辨病辨证、病机与治法规则，只输出一个顶层仅含以下字段的 JSON 对象：overview、pathogenesis、therapy、lineageAdaptation。",
+    serverOwned,
     "westernDiagnosis 与 management 由并行进程负责——本次省略这两个字段不违反上文完整性要求，也不得以任何形式输出它们。",
     "pathogenesis.chain 必须至少有 1 个完整节点；每个节点的 patientFact 和 syndromeEvidence 都必须各自从上方患者事实边界中逐字复制一段连续原文，不得改写、拼接或把推理句写进这两列。",
     "已含字段的全部既有规则不变。JSON 右花括号必须是回复最后一个非空内容。",

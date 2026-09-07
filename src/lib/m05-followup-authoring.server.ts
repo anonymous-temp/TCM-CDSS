@@ -97,7 +97,7 @@ const TEMPLATE_BOILERPLATE = [
   "新发不适或原症加重",
 ];
 
-function clinicalContextForAuthoring(
+export function clinicalContextForAuthoring(
   state: CaseState,
   syndrome: string,
   pathogenesis: string,
@@ -105,8 +105,21 @@ function clinicalContextForAuthoring(
   herbs: readonly string[],
   firstReviewTiming: string,
 ): string {
+  const fields = state.hisRecord?.fields;
+  const symptoms = state.symptoms || {};
+  const supplied = (value: unknown, limit: number) => typeof value === "string"
+    ? sanitizeFreeTextForModel(value).slice(0, limit).trim() : "";
+  // These are supplied narrative fields, not inferred lifestyle labels. Keep explicit negatives
+  // and unknowns intact; the model determines which recorded details matter to this follow-up.
+  const course = [...new Set([fields?.xianbingshi, symptoms.presentHistory]
+    .map((value) => supplied(value, 1600)).filter(Boolean))].join("；").slice(0, 2000);
+  const dailyLife = [...new Set([fields?.tcmDetail, symptoms.tcmDetail]
+    .map((value) => supplied(value, 800)).filter(Boolean))].join("；").slice(0, 1600);
   return [
-    `主诉：${sanitizeFreeTextForModel(state.chiefComplaint || "")}`,
+    `主诉：${supplied(state.chiefComplaint || fields?.zhushu, 400)}`,
+    course ? `已提供的现病史与症状变化：${course}` : "现病史与症状变化：未知",
+    dailyLife ? `已提供的问诊与生活信息：${dailyLife}` : "问诊与生活信息：未知",
+    "只使用已提供且与本次随访有关的信息；未提供的生活习惯与症状状态保持未知，否定记录不得改为阳性，也不得从证候反推患者习惯。",
     syndrome ? `证候：${sanitizeFreeTextForModel(syndrome)}` : "",
     pathogenesis ? `病机：${sanitizeFreeTextForModel(pathogenesis)}` : "",
     therapy ? `治法：${sanitizeFreeTextForModel(therapy)}` : "",
