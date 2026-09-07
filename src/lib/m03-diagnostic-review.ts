@@ -230,6 +230,10 @@ function optionalReviewTopics(context: string, payload: unknown): Set<string> {
     .filter(([, terms]) => terms.some((term) => text.includes(term))).map(([topic]) => topic));
 }
 
+// Keep related findings in the existing instruction so one issue code still selects one repair
+// policy. An extra findings schema would not have a separate consumer in the coordinator.
+const M03_COMPACT_REVIEW_INSTRUCTION = "repairInstruction 总计限300字：将同一 issueCode 下最多3条有临床价值的相关意见合并到一段 repairInstruction，最关键的在前，重复原因合并；每条写明结构路径、事实或证据缺口、建议动作。没有额外问题不凑数，不混入其他问题类别；保留已有正确内容，不要求整份重做。不得给药味剂量、新增患者事实或要求绕过结构/事实/证据合同；意见不代表候选已修正或复核已通过。";
+
 export function buildM03DiagnosticReviewPrompt(
   clinicalContext: string,
   reasoning: unknown,
@@ -267,8 +271,8 @@ export function buildM03DiagnosticReviewPrompt(
     "事实边界中同一观察项（舌象、脉象、面色、体征或检验）出现直接矛盾的多条记录时（如不同段落分别记录舌红与舌淡红、脉弦与脉细平），该观察项一律按不可靠证据处理：它既不能支持任何具体病位、病性或证型归属，也不能据此认定候选‘编造事实’。病机链、supportingFacts 与病位病性依据均不得引用矛盾观察项的任一条作为锚点；候选引用了其中一条时，应要求删除该引用并按其余一致事实降级，按无依据归属处理而不按编造处理。辨证深度只由其余一致的阳性事实判定：去掉矛盾观察项后若事实不再支持具体归属，情形一的有界中性形态可以接受，不得再以‘仍存在阳性舌脉’为由要求具体证型。矛盾本身必须要求候选写入 uncertainties 或 resolutionReason，绝不能由你或候选挑选某一条作为事实采信。",
     "同时核对辨证是否形成了足以指导后续组方的临床闭环，判定深度只能与患者事实支持的层级一致。情形一（追问后仍稀疏）：患者事实边界中除主诉外没有其他当前阳性发现时，可以形成低置信度、症状层的工作证候；病机链逐字锚定主诉，只描述该症状或已成立中医工作病名直接定义的节律、通降、传导、濡养或活动功能变化，不额外引入寒热虚实、气血津液或痰湿瘀等证型结论，病位病性 items 为空且 resolution=unresolved 并附原因，不推荐命名方。不得使用‘功能失调候’‘调护功能’这类跨病例套话，也不得为了显得具体补出阴虚、阳虚、寒热、痰湿或血瘀。情形二（主诉之外仍有当前阳性事实）：主证候必须由当前阳性事实锚定，要求的深度以事实实际支持的层级为限；当额外事实只是主症的次数、时程、性状或诱发规律时，使用中医工作病名的最浅层基础功能病机不属于‘症状复述’，只要不借此升级为具体证型就应接受。现有事实不足以支持具体病性时允许保持 unresolved，但总体病机和至少一个患者事实锚定的病机节点不得留空。任何超出当前阳性患者事实支持的寒热虚实、气血津液、痰湿瘀、典型证型或命名方都必须拒绝。高血压、房颤、湿疹、类风湿、红斑狼疮等疾病标签只能作为背景，不能单独推出眩晕、心气虚或其他中医证候。",
     "核对 recommendedFormulaNames 中每个命名方是否列在证据上下文的【M03经典方检索】受控候选中，并核对其核心适应证是否在阳性患者事实中成立。未进入本例候选、只在 uncertainties/假设句/‘若有则’中出现、或定义性症状明确缺失时，必须返回 formula_indication_mismatch；此时应让生成模型改选有方证依据的受控候选，或退回本例辨证组方，不能勉强套用经方名。",
-    "只输出一个 JSON 对象，不要代码块或解释。格式：accepted 时 {\"status\":\"accepted\",\"issueCode\":\"none\"}；需修复时 status=repair，issueCode 只能是 criteria_not_met、diagnostic_label_overstated、supporting_fact_mismatch、tcm_reasoning_unsupported、formula_indication_mismatch 之一，并增加 repairInstruction。一次只返回最关键的问题。按上述规则可以接受的候选必须输出 accepted，绝不允许用 repair 表达‘应接受、请重新检查’；repair 只用于确实需要生成模型修改的候选。supportingFacts 的内容问题（混入舌苔脉象等中医推理、非患者事实、与主诊断无关）只能使用 supporting_fact_mismatch，不得并入 tcm_reasoning_unsupported；westernDiagnosis 的标签或依据问题也不得使用 tcm_reasoning_unsupported。",
-    "repairInstruction 限 300 字：必须明确指出需改的结构路径、当前结论为什么超出阳性患者事实、应删除或降级的推理方向；不得给药味剂量，不得新增患者事实，不得要求绕过结构/事实/证据合同。它只是给生成模型的定向复核意见，最终结果仍会重新校验和复核。",
+    "只输出一个 JSON 对象，不要代码块或解释。格式：accepted 时 {\"status\":\"accepted\",\"issueCode\":\"none\"}；需修复时 status=repair，issueCode 只能是 criteria_not_met、diagnostic_label_overstated、supporting_fact_mismatch、tcm_reasoning_unsupported、formula_indication_mismatch 之一，并增加 repairInstruction。按最关键的临床问题选择一个 issueCode，一次返回一个合并决定。按上述规则可以接受的候选必须输出 accepted，绝不允许用 repair 表达‘应接受、请重新检查’；repair 只用于确实需要生成模型修改的候选。supportingFacts 的内容问题（混入舌苔脉象等中医推理、非患者事实、与主诊断无关）只能使用 supporting_fact_mismatch，不得并入 tcm_reasoning_unsupported；westernDiagnosis 的标签或依据问题也不得使用 tcm_reasoning_unsupported。",
+    M03_COMPACT_REVIEW_INSTRUCTION,
     `患者事实边界：${clinicalContext.slice(0, 12_000)}`,
     evidenceContext.trim()
       ? `本轮可用证据（仅用于核对诊断标准、方证和医学依据，绝不能当作患者事实）：${evidenceContext.slice(0, 12_000)}`
@@ -330,7 +334,8 @@ export function buildM03DiagnosticReviewAdjudicationPrompt(
     "服务端已确定性验证：overview.tcmDiseaseName、overview.primarySyndrome、overview.overallPathogenesis、overview.overallTherapy、therapy.overallPrinciple 以及至少一个逐字锚定患者事实的 pathogenesis.chain 节点均为非空且通过结构合同。不得再把上述必填字段误判为空。",
     "请只裁决首轮指出的深度问题：病位或病性的 items=[] 且 resolution=unresolved 是有限信息下允许的边界，不等于总体病机或病机链为空；症状层工作证候及中医工作病名直接定义的最浅层基础功能病机，只要没有新增寒热虚实、气血津液、痰湿瘀、病因传变或命名方，也不等于机械复述。符合这些条件必须 accepted。",
     "若候选实际仍含无患者事实组合支持的具体病位、病性、证型、病因、传变、治法或命名方，或患者事实锚点与原文不符，仍必须 repair；不得以有限信息为由放行越界推断。首轮若声称‘心神、气血、脏腑病机词未在原文出现’，必须核对全案症状组合、舌脉和面色是否已在第三层证候归纳上支持相应证候，不能仅做字符串比对。",
-    "只输出原合同 JSON。accepted 时输出 {\"status\":\"accepted\",\"issueCode\":\"none\"}；repair 时保留准确 issueCode 和不超过300字的 repairInstruction。",
+    "逐条裁决首轮已列出的相关意见；全部不成立时才可 accepted，仍成立的意见合并返回一个 repair 决定，不扩展到首轮未提出的新问题。只输出原合同 JSON。accepted 时输出 {\"status\":\"accepted\",\"issueCode\":\"none\"}；repair 时保留准确 issueCode 和 repairInstruction。",
+    M03_COMPACT_REVIEW_INSTRUCTION,
   ].join("\n\n");
 }
 

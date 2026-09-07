@@ -192,6 +192,35 @@ assert.deepEqual(parseM03DiagnosticReview('{"status":"repair","issueCode":"tcm_r
   issueCode: "tcm_reasoning_unsupported",
   repairInstruction: "pathogenesis.chain[0] 使用了病历未支持的痰热方向，请删除并按现有阳性事实降级。",
 });
+// Multiple related findings share one existing decision and survive parsing/repair guidance.
+const compactTcmInstruction = [
+  "pathogenesis_summary_drift：pathogenesis.summary 增加核心字段没有的病性，请删去额外断言。",
+  "pathogenesis.chain[0] 的血瘀结论超出阳性事实，请降级。",
+  "positive_fact_omission：pathogenesis.uncertainties 遗漏当前阳性事实，请补入待核实影响。",
+].join("\n");
+const compactTcmReview = parseM03DiagnosticReview(JSON.stringify({
+  status: "repair", issueCode: "tcm_reasoning_unsupported", repairInstruction: compactTcmInstruction,
+}));
+assert.deepEqual(compactTcmReview, {
+  status: "repair", issueCode: "tcm_reasoning_unsupported",
+  repairInstruction: compactTcmInstruction.replaceAll("\n", " "),
+});
+assert.deepEqual(m03DiagnosticRepairGuidanceCodes(compactTcmReview), [
+  "pathogenesis_summary_drift", "positive_fact_omission", "blood_stasis_overreach",
+]);
+const compactTcmGuidance = boundedM03DiagnosticRepairGuidance(compactTcmReview, { hasCurrentPositiveFacts: true });
+assert.match(compactTcmGuidance, /覆盖修复/);
+assert.match(compactTcmGuidance, /硬性删减/);
+assert.doesNotMatch(compactTcmGuidance, /只修正 pathogenesis.summary/,
+  "a summary finding must not hide related core overreach and fact coverage findings");
+assert.doesNotMatch(compactTcmGuidance, /请补入待核实影响/,
+  "multiple findings do not bypass the existing PHI-safe TCM guidance");
+const compactWesternInstruction = "westernDiagnosis.primary.supportingFacts 混入舌象，请删除；westernDiagnosis.primary.supportingFacts 混入无关既往史，不能支持本次主诊断，请删除。";
+const compactWesternReview = parseM03DiagnosticReview(JSON.stringify({
+  status: "repair", issueCode: "supporting_fact_mismatch", repairInstruction: compactWesternInstruction,
+}));
+assert.equal(boundedM03DiagnosticRepairGuidance(compactWesternReview), compactWesternInstruction,
+  "one targeted western repair retains both related field corrections");
 const boundedTcmGuidance = boundedM03DiagnosticRepairGuidance({
   status: "repair",
   issueCode: "tcm_reasoning_unsupported",
@@ -228,6 +257,17 @@ assert.equal(parseM03DiagnosticReview('{"status":"accepted","issueCode":"invente
 // reject neutral-degraded output. The previously unconditional wording let the reviewer both
 // accept and reject the only shape the server repair policy can produce, flipping across runs.
 const reviewPrompt = buildM03DiagnosticReviewPrompt("主诉：入睡困难、多梦易醒3个月。", reviewed, "");
+assert.doesNotMatch(reviewPrompt, /一次只返回最关键的问题/);
+assert.match(reviewPrompt, /最多3条/);
+assert.match(reviewPrompt, /同一 issueCode/);
+assert.match(reviewPrompt, /合并到一段 repairInstruction/);
+assert.match(reviewPrompt, /每条写明结构路径、事实或证据缺口、建议动作/);
+assert.match(reviewPrompt, /不要求整份重做/);
+const compactAdjudicationPrompt = buildM03DiagnosticReviewAdjudicationPrompt("失眠伴心悸", reviewed, "", compactTcmReview);
+assert.match(compactAdjudicationPrompt, /逐条裁决首轮已列出的相关意见/);
+assert.match(compactAdjudicationPrompt, /最多3条/);
+assert.ok(compactAdjudicationPrompt.includes(JSON.stringify(compactTcmReview)),
+  "the existing single adjudication receives all related findings together");
 const sparseAcceptIdx = reviewPrompt.indexOf("除主诉外没有其他当前阳性发现");
 const factsRejectIdx = reviewPrompt.indexOf("主诉之外仍有当前阳性事实");
 const boundedDiseaseMechanismIdx = reviewPrompt.indexOf("当额外事实只是主症的次数");
