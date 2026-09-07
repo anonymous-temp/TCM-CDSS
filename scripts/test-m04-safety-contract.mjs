@@ -1025,6 +1025,10 @@ const {
   // 而该方逐味剂量/配伍/特殊人群/高影响方向此前都已单独通过。
   for (const code of ["transparent_therapy_coverage", "transparent_therapy_herb_support",
     "transparent_therapy_herb_knowledge_missing"]) {
+    for (const prefix of ["m04_", "m04_candidate_0_", "m04_candidate_12_"]) {
+      assert.equal(rejectionTier(`${prefix}${code}`), "T2", "coverage advice must not bypass zero quality-repair budget");
+      assert.ok(qualityAnnotationCopy(`${prefix}${code}`));
+    }
     const annotation = m04TherapyIssueQualityAnnotation(code);
     assert.ok(annotation && /已通过安全核验/.test(annotation),
       `${code} 应带批注受理且写明哪些安全层已通过：${annotation}`);
