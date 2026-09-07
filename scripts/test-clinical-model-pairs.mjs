@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { runClinicalModelPairs } from "./lib/clinical-model-pairs.mjs";
+import { runClinicalModelPairs, pairModelIdentity } from "./lib/clinical-model-pairs.mjs";
+
+assert.equal(pairModelIdentity({ providers: { diagnoseModel: {}, prescribeModel: {} } }).modelIdentityAvailable, false);
+assert.equal(pairModelIdentity({ providers: { diagnoseModel: { model: "qwen3.8-flash" }, prescribeModel: { model: "qwen3.7-plus" } } }).modelIdentityAvailable, true);
 
 const calls = [];
 const fixture = { label: "synthetic", synthetic: true, state: { id: "fixture", symptoms: { presentHistory: "合成病例" } } };
@@ -22,4 +25,4 @@ const failed = await runClinicalModelPairs({ fixtures: [fixture], call: async ()
 assert.equal(failed.results[0].outcome, "incomplete");
 assert.equal(failed.results[0].notReached, "diagnose");
 await assert.rejects(runClinicalModelPairs({ fixtures: [{ ...fixture, synthetic: false }], call }));
-console.log(JSON.stringify({ suite: "clinical-model-pairs", checks: 9, failures: 0 }));
+console.log(JSON.stringify({ suite: "clinical-model-pairs", checks: 11, failures: 0 }));
