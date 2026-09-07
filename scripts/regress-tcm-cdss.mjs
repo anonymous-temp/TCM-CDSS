@@ -394,7 +394,9 @@ function runFrontendContractChecks() {
   assert(diagnosisTypesSource.includes('pathogenesisType: z.enum(["始动", "传变", "兼夹", "因果"]).optional().catch(undefined)') && diagnosisTypesSource.includes('biaoBen: z.enum(["本", "标", "标本兼夹"]).optional().catch(undefined)'), "M03 normalization: invalid optional classification labels cannot erase an otherwise complete pathogenesis chain", diagnosisTypesSource.slice(11800, 15000));
   assert(diagnosisApiSource.includes("resolveCompletedStructuredResponse") && diagnosisApiSource.includes("!resolvedStructuredContent") && diagnosisApiSource.includes("retryCompletePrimaryResponse") && diagnosisApiSource.includes("stream: false") && diagnosisApiSource.includes('const retryableStructuredTerminal = finishReason === "stop" || finishReason === "length"') && diagnosisApiSource.includes("structuredSentinelIncomplete && retryableStructuredTerminal") && !diagnosisApiSource.includes("repairStructuredReasoning") && !diagnosisApiSource.includes(") || authoritativeContent") && diagnosisApiSource.includes('let truncated = finishReason !== "stop"') && diagnosisApiSource.includes("finalized structured response rejected") && diagnosisApiSource.includes("const enrichedReasoning = enrichReasoning(reasoning).reasoning") && diagnosisApiSource.includes("m04SemanticIssue(") && diagnosisApiSource.includes("advanceM04RepairState") && diagnosisApiSource.includes("m04RepairState.completedAttempts") && diagnosisApiSource.includes("transparentFormulaTherapyIssue") && diagnosisApiSource.includes("canAcceptTransparentFormulaFallback") && diagnosisApiSource.includes("identityDeclassified"), "model stream: stop and max-token length terminals both enter bounded named-formula repair; only two completed repairs plus knowledge-backed therapy alignment permit an explicitly labelled self-devised fallback", diagnosisApiSource.slice(3000, 24000));
   assert(
-    diagnosisApiSource.includes("M04 修复结果始终必须是 schemaVersion=tcm-cdss-m04-proposal-v1 的最小提案对象") &&
+    diagnosisApiSource.includes("M04 修复结果始终必须是最小提案对象，不要输出 schemaVersion") &&
+      m04ProposalCompilerSource.includes('schemaVersion: "tcm-cdss-m04-proposal-v1"') &&
+      diagnosisApiSource.includes("candidate 必须是单个对象，candidate.herbs 必须是数组") &&
       diagnosisApiSource.includes("resolvedRetryContent || retry.content") &&
       diagnosisApiSource.includes("A repair can itself return the wrong envelope"),
     "model stream: every M04 repair is constrained to the minimal proposal and a wrong repair envelope still enters the targeted retry instead of falling through to truncation",
@@ -466,7 +468,9 @@ function runFrontendContractChecks() {
     m03ReasoningInstruction.includes("只输出一个合法 JSON 对象") &&
       m03ReasoningInstruction.includes("不要输出 Markdown、sentinel") &&
       m03ReasoningInstruction.includes("JSON 右花括号必须是回复最后一个非空内容") &&
-      m04ProposalInstruction.includes('"schemaVersion": "tcm-cdss-m04-proposal-v1"') &&
+      m04ProposalInstruction.includes("不要输出 schemaVersion") &&
+      !m04ProposalInstruction.includes('"schemaVersion": "tcm-cdss-m04-proposal-v1"') &&
+      m04ProposalInstruction.includes('"candidate": {') &&
       m04ProposalInstruction.includes('"doseCount":"5剂"') &&
       m04ProposalInstruction.includes('"dose":"10g"') &&
       m04ProposalInstruction.includes("不得用范围") &&
@@ -600,7 +604,22 @@ function runFrontendContractChecks() {
   assert(source.includes("function canSkipDifferentiationGate") && source.includes("canSkipFollowup={canSkipDifferentiationGate(liveUiCaseState)}") && diagnoseChain.includes("reasoningPrescribe: undefined"), "frontend: skip is a guarded one-shot soft-gate intent and blocked M04 clears hollow prescription state", `${sourceBetween(source, "function canSkipDifferentiationGate", "function buildDifferentiationFollowupQuestions")}\n${diagnoseChain.slice(0, 5200)}`);
   const skipHandler = sourceBetween(source, "function handleSkipFollowup", "function resetCurrentCase");
   assert(skipHandler.includes("applyDraftToCaseState(caseState, draftForSkip") && skipHandler.includes("canSkipDifferentiationGate"), "frontend: skip re-gates and sends the latest left-side medical-record draft", skipHandler);
-  assert(postPrescriptionRiskRoute.includes("verifyDiagnoseReasoningSignature") && postPrescriptionRiskRoute.includes("hasIncompleteEditedHerb") && postPrescriptionRiskRoute.includes("editedPrescriptionSemanticIssue") && postPrescriptionRiskRoute.indexOf("invalidHerbs.length > 0") < postPrescriptionRiskRoute.indexOf("runBoundedRxAudit(caseState, resolvedCandidateIndex"), "risk: forged signatures and malformed edited prescriptions are rejected before LingXi while clinical missing-data warnings remain advisory", postPrescriptionRiskRoute);
+  assert(
+    postPrescriptionRiskRoute.includes("verifyDiagnoseReasoningSignature") &&
+      postPrescriptionRiskRoute.includes("verifyPrescribeReasoningSignature") &&
+      postPrescriptionRiskRoute.includes("stale_workbench_contract_metadata") &&
+      postPrescriptionRiskRoute.includes("hasHisWorkbenchEditShape(caseState, prescribed)") &&
+      postPrescriptionRiskRoute.includes("invalid_candidate_index") &&
+      postPrescriptionRiskRoute.includes("editedPrescriptionSemanticIssue") &&
+      postPrescriptionRiskRoute.includes("collectClinicalDeliveryAdvisories") &&
+      postPrescriptionRiskRoute.includes("rxAuditSubmissionIssue(caseState, resolvedCandidateIndex)") &&
+      postPrescriptionRiskRoute.indexOf("stale_workbench_contract_metadata") < postPrescriptionRiskRoute.indexOf("runBoundedRxAudit(caseState, resolvedCandidateIndex") &&
+      postPrescriptionRiskRoute.indexOf("invalid_candidate_index") < postPrescriptionRiskRoute.indexOf("runBoundedRxAudit(caseState, resolvedCandidateIndex") &&
+      rxauditSource.includes('return "herb_dose_incomplete"') &&
+      rxauditSource.includes('return "regimen_incomplete"'),
+    "risk: forged/stale contracts and invalid edited-candidate envelopes are rejected before LingXi; clinical findings remain advisory and the provider input guard retains dose/regimen requirements",
+    postPrescriptionRiskRoute,
+  );
   assert(safetySource.includes("patientSexText") && safetySource.includes("patientAgeText") && safetySource.includes("trustedInputText(state)"), "safety: raw HIS demographics and prescription-safety clues participate in deterministic gating", sourceBetween(safetySource, "function numberFromClinicalText", "function missingVitalsForHighRiskPresentation"));
   assert(diagnosisApiSource.includes('finishReason !== "stop"') && diagnosisApiSource.includes("!sentinelStarted") && diagnosisApiSource.includes("!structuredReasoning") && diagnosisApiSource.includes("structuredReasoning.stage !== opts.structuredStage") && engineSource.includes("const combined = accumulated + content"), "streaming: non-stop finishes and missing, malformed, unclosed, or wrong-stage structured results use the safe final replacement", `${diagnosisApiSource.slice(7000, 11500)}\n${engineSource.slice(14500, 16500)}`);
   assert(source.includes("sanitizeStreamingPreview") && sourceBetween(source, "function StreamingPreviewCard", "// ─── Main page").includes("sanitizeStreamingPreview"), "frontend: streaming preview hides unreviewed western/patent doses and unverified links before the final sanitizer runs", sourceBetween(source, "function sanitizeStreamingPreview", "// ─── Main page"));
@@ -666,10 +685,11 @@ function runFrontendContractChecks() {
       // 主张不变（HIS 写回前复用 M04 安全底线合同）；符号已随重构改名 m04SafetyContractIssue。
       hisPrescriptionValidationSource.includes("m04SafetyContractIssue") &&
       hisPrescriptionValidationSource.includes("formulaCompilationContractIssue") &&
-      hisPrescriptionValidationSource.includes("hasIncompleteEditedHerb") &&
+      hisPrescriptionValidationSource.includes("prescriptionRegimenContractIssue(candidate.decoction)") &&
+      hisPrescriptionValidationSource.includes("collectClinicalDeliveryAdvisories(candidate, diagnoseReasoning") &&
       hisPrescriptionValidationSource.includes("invalid_candidate_index") &&
       hisPrescriptionValidationSource.includes("invalid_m03_signature"),
-    "HIS: server write-back boundary reuses signed M03, selected-candidate, herb, decoction, and formula-compilation contracts before advisory audit",
+    "HIS: server write-back boundary verifies signed M03 and selected candidates, runs herb/regimen/formula checks, and preserves their clinical findings as advisories",
     `${hisSchemeRoute}\n${hisPrescriptionValidationSource}`,
   );
   assert(rxauditSource.includes("drugName") && rxauditSource.includes("炮制：") && hisSchemeSource.includes("炮制："), "prescription identity: processing and decoction instructions survive audit and HIS rendering", `${sourceBetween(rxauditSource, "export function buildAuditItemsFromHerbs", "function extractSection")}\n${sourceBetween(hisSchemeSource, "function structuredHerbalSection", "function normalizedHerbName")}`);
@@ -726,7 +746,14 @@ function runFrontendContractChecks() {
   assert(herbWorkbench.includes("/api/diagnosis/post-prescription-risk") && herbWorkbench.includes("buildReasoningWithEditedHerbs") && herbWorkbench.includes("重新审方"), "frontend: edited herb lists are re-audited through the deterministic post-prescription audit path", herbWorkbench.slice(0, 5200));
   assert(herbWorkbench.includes("submittedAuditState") && herbWorkbench.includes("computePrescriptionVersionHash(revisedReasoning, candidateIndex, submittedAuditState)"), "frontend: prescription audit hashes bind selected herbs to the current patient context", herbWorkbench.slice(0, 6200));
   assert(herbWorkbench.includes('body?.audit?.degraded !== true') && herbWorkbench.includes("needManualReview: body?.audit?.needManualReview === true") && source.includes("revision.degraded === true") && source.includes("revision.needManualReview === true"), "frontend: degraded/manual-review audit status remains a warning after persistence and restore", `${herbWorkbench.slice(5000, 7600)}\n${sourceBetween(source, "function auditRevisionNeedsAttention", "function defaultEvidenceRef")}`);
-  assert(herbWorkbench.includes("herbs.some(hasIncompleteEditedHerb)") && /const canAudit = changed && !hasInvalidHerb/.test(herbWorkbench), "frontend: incomplete edited herb semantics block re-audit", herbWorkbench.slice(0, 4200));
+  assert(
+    herbWorkbench.includes("herbs.some(hasIncompleteEditedHerb)") &&
+      herbWorkbench.includes("{hasInvalidHerb && (") &&
+      codeIncludes(herbWorkbench, 'const canAudit = changed && canRequestEditedPrescriptionAdvice(herbs) && auditStatus !== "checking" && Boolean(activeReasoning?.formula)') &&
+      !/const canAudit = changed && !hasInvalidHerb/.test(herbWorkbench),
+    "frontend: incomplete edited-herb semantics remain visible while changed named-row proposals can request advice without duplicating an in-flight audit",
+    herbWorkbench.slice(0, 4200),
+  );
   assert(/reasoningPrescribe:\s*revisedReasoning[\s\S]{0,240}reasoningV2:\s*revisedReasoning[\s\S]{0,520}safetyLocked:\s*false/.test(herbWorkbench), "frontend: edited-herb audit payload clears legacy audit locks before refreshing risk hints", herbWorkbench.slice(0, 7000));
   assert(
     herbWorkbench.includes('auditStatus === "reviewed" || auditStatus === "warning"') &&
