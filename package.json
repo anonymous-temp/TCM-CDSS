@@ -55,6 +55,7 @@
     "test:clinical-model-pairs": "node scripts/test-clinical-model-pairs.mjs",
     "test:experience-stream-measurement": "node scripts/test-experience-stream-measurement.mjs",
     "test:m04-concise-proposal": "node --test scripts/test-m04-concise-proposal.mjs",
+    "test:explicit-prompt-cache": "jiti scripts/test-explicit-prompt-cache.mjs",
     "test:clinical-facts-transport": "node --test scripts/test-clinical-facts-transport.mjs",
     "test:m03-context-packets": "node --test scripts/test-m03-context-packets.mjs",
     "regress:model-routing-ab": "node scripts/regress-model-routing-ab.mjs",
