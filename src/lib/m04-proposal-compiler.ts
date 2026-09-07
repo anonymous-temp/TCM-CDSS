@@ -246,7 +246,8 @@ export const M04ProposalSchema = z.object({
   schemaVersion: z.literal("tcm-cdss-m04-proposal-v1"),
   candidate: z.object({
     name: z.string().min(1).max(300),
-    // Optional prose is owned by the server in the compiled result. Keep the normalization at the
+    // therapyMatch is M03-owned; other optional prose retains valid individualized model wording.
+    // Keep the normalization at the
     // field boundary as well as in normalizeM04ProposalInput: targeted repair responses have been
     // observed reaching this schema with object-shaped prose even though every clinical field was
     // otherwise valid. An unambiguous scalar wrapper is kept; ambiguous prose is omitted. Core

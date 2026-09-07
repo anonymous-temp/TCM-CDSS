@@ -255,6 +255,30 @@ function hasAllProperties(node: unknown, keys: readonly string[]): boolean {
   return Boolean(properties) && keys.every((key) => key in properties!);
 }
 
+/**
+ * Only the provider projection is reduced; M04ProposalSchema remains the full legacy parser.
+ * normalizeM04ProposalInput owns the version, modification accounting and acupointCare=null.
+ * Required doseCount/dosesPerDay determine course; compilation owns therapyMatch via the M03 lock.
+ * Keep isToxic: the compiler preserves a model's conservative true flag in addition to KB flags.
+ * Keep individualized prose (including method/followUpNode), which the compiler can preserve.
+ */
+function stripServerOwnedM04Fields(schema: JsonSchema): JsonSchema {
+  const clone = structuredClone(schema);
+  const definitions = (clone.$defs || {}) as Record<string, JsonSchema>;
+  const resolve = (node: JsonSchema | undefined): JsonSchema | undefined => {
+    if (typeof node?.$ref !== "string") return node;
+    const name = node.$ref.startsWith("#/$defs/") ? node.$ref.slice("#/$defs/".length) : "";
+    return definitions[name];
+  };
+  for (const key of ["schemaVersion", "modificationReview"]) removeSchemaProperty(clone, key);
+  const properties = schemaProperties(clone);
+  const candidate = resolve(properties?.candidate);
+  removeSchemaProperty(candidate, "therapyMatch");
+  removeSchemaProperty(resolve(schemaProperties(candidate)?.decoction), "course");
+  removeSchemaProperty(resolve(properties?.nonPharma), "acupointCare");
+  return clone;
+}
+
 function stripServerOwnedM03Fields(schema: JsonSchema): JsonSchema {
   const clone = structuredClone(schema);
   for (const key of M03_SERVER_OWNED_TOP_LEVEL) removeSchemaProperty(clone, key);
@@ -332,7 +356,7 @@ function pruneUnreachableDefs(schema: JsonSchema): JsonSchema {
 
 function schemaForTask(task: StructuredOutputTask): JsonSchema {
   if (task === "m03_full") return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Chain(fullReasoningSchema())));
-  if (task === "m04_proposal") return m04ProposalJsonSchema();
+  if (task === "m04_proposal") return pruneUnreachableDefs(stripServerOwnedM04Fields(m04ProposalJsonSchema()));
   if (task === "m03_review") return M03_REVIEW_SCHEMA;
   if (task === "m04_review") return M04_REVIEW_SCHEMA;
   if (task === "m03_western") {
