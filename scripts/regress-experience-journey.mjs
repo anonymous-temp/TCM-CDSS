@@ -39,7 +39,8 @@ async function call(route, body) {
       route, status: response.status, durationMs: observation.durationMs,
       outcome: delivered ? "delivered" : "incomplete",
       ...(streamed ? { ended, streamError, firstByteMs: observation.firstByteMs, firstContentMs: observation.firstContentMs,
-        firstUsefulMs: observation.firstUsefulMs, moduleDraftCount: observation.moduleDraftCount } : { jsonShape }),
+        firstUsefulMs: observation.firstUsefulMs, firstModuleMs: observation.firstModuleMs,
+        moduleDraftCount: observation.moduleDraftCount, clinicalDraftCount: observation.clinicalDraftCount } : { jsonShape }),
       ...(typeof json?.code === "string" ? { code: json.code.replace(/[^a-z0-9_]/gi, "_").slice(0, 160) } : {}),
     } };
   } catch {

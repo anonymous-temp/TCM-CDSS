@@ -8,7 +8,13 @@ export async function measureExperienceResponse(response, { startedAt = performa
   let raw = "", pending = "", content = "";
   let ended = false, streamError = false;
   let firstByteMs = null, firstContentMs = null, firstUsefulMs = null;
-  let moduleDraftCount = 0;
+  let moduleDraftCount = 0, clinicalDraftCount = 0, firstModuleMs = null;
+  // These are the exact legacy protocol status copies, not a clinical-language classifier.
+  const progressCopies = new Set(["西医判断已生成，正在校验。", "中医辨病辨证已生成，正在校验。", "病机分析已生成，正在校验。", "治则治法已生成，正在校验。"]);
+  const containsClinicalDraft = (value) => {
+    const body = value.split("\n").filter(line => line.trim() && !line.trimStart().startsWith(">") && !line.trimStart().startsWith("#")).join("\n").trim();
+    return Boolean(body && !progressCopies.has(body));
+  };
   const visibleBody = (value) => value.replaceAll("<<<CDSS_STREAM_FINAL>>>", "").split("<!-- DIAGNOSIS_JSON_START -->")[0].trim();
   const hasBodyText = (value) => /[\p{L}\p{N}]/u.test(visibleBody(value)) && !/^[{[]/.test(visibleBody(value));
   const moduleIds = new Set(["m03.western", "m03.syndrome", "m03.pathogenesis", "m03.therapy", "m04.candidate"]);
@@ -22,7 +28,11 @@ export async function measureExperienceResponse(response, { startedAt = performa
       if (moduleIds.has(frame.module) && Number.isInteger(frame.revision) && frame.revision > 0
         && typeof frame.content === "string" && frame.content.trim() && frame.content.length <= 8000) {
         moduleDraftCount++;
-        firstUsefulMs ??= elapsed();
+        firstModuleMs ??= elapsed();
+        if (containsClinicalDraft(frame.content)) {
+          clinicalDraftCount++;
+          firstUsefulMs ??= elapsed();
+        }
       }
       return;
     }
@@ -62,5 +72,5 @@ export async function measureExperienceResponse(response, { startedAt = performa
   } finally {
     reader.releaseLock();
   }
-  return { raw, content, ended, streamError, firstByteMs, firstContentMs, firstUsefulMs, moduleDraftCount, durationMs: elapsed() };
+  return { raw, content, ended, streamError, firstByteMs, firstContentMs, firstUsefulMs, firstModuleMs, moduleDraftCount, clinicalDraftCount, durationMs: elapsed() };
 }
