@@ -430,8 +430,9 @@ console.log(JSON.stringify({ governedConcepts: concepts.length, checked, failure
     const at = prompt.indexOf(probe);
     assert.ok(at < 0 || at > boundary, `逐例内容「${probe}」必须在分界之后（实际 @${at}，分界 @${boundary}）`);
   }
-  const schemaAt = prompt.indexOf("tcm-cdss-m04-proposal-v1");
-  assert.ok(schemaAt > 0 && schemaAt < boundary, "M04 最小提案 schema 是固定规范，必须留在可缓存前缀内");
+  const schemaAt = prompt.indexOf('"candidate":');
+  assert.ok(schemaAt > 0 && schemaAt < boundary, "M04 提案字段说明必须在病例内容之前");
+  assert.ok(!prompt.includes("tcm-cdss-m04-proposal-v1"), "服务端自有版本值不再让模型生成");
   assert.ok(boundary / prompt.length >= 0.5,
-    `M04 可缓存前缀应覆盖模板大部分（当前 ${Math.round(boundary * 100 / prompt.length)}%）`);
+    `M04 前部任务说明应覆盖模板大部分（当前 ${Math.round(boundary * 100 / prompt.length)}%）；实际缓存边界另由公共前缀测试验证`);
 }
