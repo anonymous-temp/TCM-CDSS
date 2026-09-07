@@ -95,6 +95,9 @@ function retryableM02TransportError(error: unknown): boolean {
   if (error instanceof TypeError) return true;
   if (!error || typeof error !== "object") return false;
   const candidate = error as { status?: unknown; code?: unknown; name?: unknown };
+  // The SDK wraps fetch/socket failures; with application retry ownership these names must retain
+  // the same one-recovery allowance as raw TypeError transport failures.
+  if (candidate.name === "APIConnectionError" || candidate.name === "APIConnectionTimeoutError") return true;
   const status = typeof candidate.status === "number" ? candidate.status : Number(candidate.status);
   if (Number.isInteger(status) && (status === 408 || status === 409 || status === 425 || status === 429 || status >= 500)) return true;
   const code = typeof candidate.code === "string" ? candidate.code.toUpperCase() : "";

@@ -67,7 +67,7 @@ type TaskAggregate = {
   cachedTokensTotal: number;
   promptCharsTotal: number;
   attemptTotal: number;
-  /** 尝试次数 > 1 的调用数：共识腿 / 修复轮 / 传输重试的真实发生率。 */
+  /** Legacy application attempt ordinal > 1; not the physical HTTP retry rate. */
   retried: number;
   issueCodes: Record<string, number>;
   models: Record<string, number>;
@@ -277,6 +277,7 @@ export function getCdssModelTaskTelemetrySnapshot(): unknown {
         ? Number((aggregate.cachedTokensTotal / aggregate.promptTokensTotal).toFixed(4))
         : null,
       averagePromptChars: Math.round(aggregate.promptCharsTotal / total),
+      // Legacy application ordinal average; physicalAttemptsTotal counts measured HTTP invocations.
       averageAttempts: Number((aggregate.attemptTotal / total).toFixed(3)),
       retried: aggregate.retried,
       issueCodes: { ...aggregate.issueCodes },
