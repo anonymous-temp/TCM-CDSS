@@ -6,15 +6,14 @@ import { diagnoseReasoningFromState, prescribeReasoningFromState } from "./diagn
 import { clinicalGroundingText } from "./diagnosis-safety";
 import { m04SafetyContractIssue } from "./diagnosis-stage-contract";
 import {
-  editedPrescriptionIssueMessage,
   editedPrescriptionSemanticIssue,
-  hasIncompleteEditedHerb,
 } from "./prescription-revision";
 import { verifyPrescriptionRevisionAttestation } from "./prescription-revision-attestation.server";
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "./reasoning-contract-signature";
 import { formulaCompilationContractIssue } from "./tcm-formula-provenance";
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { prescriptionRegimenContractIssue } from "./prescription-regimen-contract";
+import { collectClinicalDeliveryAdvisories, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
 
 type ValidationFailure = {
   ok: false;
@@ -28,6 +27,7 @@ type ValidationSuccess = {
   ok: true;
   prescribed: ClinicalReasoningResultV2;
   candidateIndex: number;
+  advisories: ClinicalDeliveryAdvisory[];
 };
 
 export type HisPrescriptionValidationResult = ValidationFailure | ValidationSuccess;
@@ -69,16 +69,6 @@ export function isTrustedHisWorkbenchEdit(
     trustContext,
     trustContext.herbHash,
   ));
-}
-
-function invalidPrescription(issue: string): ValidationFailure {
-  return {
-    ok: false,
-    status: 422,
-    code: `invalid_his_prescription_${issue}`,
-    issue,
-    message: editedPrescriptionIssueMessage(issue),
-  };
 }
 
 export function validateHisPrescriptionForWriteBack(
@@ -140,18 +130,7 @@ export function validateHisPrescriptionForWriteBack(
     };
   }
 
-  if (candidate.herbs.some(hasIncompleteEditedHerb)) {
-    return {
-      ok: false,
-      status: 422,
-      code: "invalid_structured_herb",
-      issue: "invalid_structured_herb",
-      message: "结构化药味的药名、剂量、角色、病机靶点或功用不完整，已拒绝生成 HIS 方案。",
-    };
-  }
-
   const regimenIssue = prescriptionRegimenContractIssue(candidate.decoction);
-  if (regimenIssue) return invalidPrescription(regimenIssue);
 
   // This shared workbench validator covers duplicate names plus the deterministic herb-level
   // knowledge checks (known herb, dose, function, target reference, processing/decoction route).
@@ -161,7 +140,6 @@ export function validateHisPrescriptionForWriteBack(
     diagnoseReasoning,
     clinicalGroundingText(caseState),
   );
-  if (editedIssue) return invalidPrescription(editedIssue);
 
   const selectedReasoning: ClinicalReasoningResultV2 = {
     ...prescribed,
@@ -171,10 +149,8 @@ export function validateHisPrescriptionForWriteBack(
     },
   };
 
-  // HIS 写回是最后一道信任边界，所有来源都执行同一份**安全底线合同**（逐味剂量边界、
-  // 配伍禁忌、特殊人群、方向对立、加减药味与跨阶段漂移）。工作台例外只允许当前候选的
-  // 医生编辑药味使用其专属校验口径，绝不允许跳过 formula.modifications 的未知药味、剂量
-  // 文本或高影响方向检查。质量合同仍止于生成与修复轮，不在此重新否决已批注受理的 T2。
+  // Run existing clinical checks, then attach their findings to the authenticated report.
+  // A clinical concern must not replace an otherwise readable signed result with HTTP 422.
   const floorIssue = m04SafetyContractIssue(
     selectedReasoning,
     diagnoseReasoning,
@@ -184,16 +160,19 @@ export function validateHisPrescriptionForWriteBack(
     clinicalGroundingText(caseState),
     true,
   );
-  if (floorIssue) return invalidPrescription(floorIssue);
 
-  // Every HIS candidate reaches the same server compilation contract. That contract applies its
-  // narrow self-devised/modified doctor-edit exception only when this trusted path passes true.
+  // Compilation differences are reported alongside the candidate as well.
   const formulaIssue = formulaCompilationContractIssue(
     selectedReasoning,
     diagnoseReasoning,
     trustedWorkbenchEdit,
   );
-  if (formulaIssue) return invalidPrescription(formulaIssue);
-
-  return { ok: true, prescribed, candidateIndex };
+  const issues = [...new Set([regimenIssue, editedIssue, floorIssue, formulaIssue]
+    .filter((issue): issue is string => Boolean(issue)))];
+  return {
+    ok: true,
+    prescribed,
+    candidateIndex,
+    advisories: collectClinicalDeliveryAdvisories(candidate, diagnoseReasoning, clinicalGroundingText(caseState), issues, candidateIndex),
+  };
 }

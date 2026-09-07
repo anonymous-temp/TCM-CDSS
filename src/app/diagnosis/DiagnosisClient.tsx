@@ -52,6 +52,7 @@ import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import {
   filterModificationsForEditedHerbs,
   hasIncompleteEditedHerb,
+  canRequestEditedPrescriptionAdvice,
   invalidatePrescriptionContractAfterEdit,
   synchronizeEditedCandidate,
 } from "@/lib/prescription-revision";
@@ -3592,7 +3593,7 @@ function HerbModificationWorkbench({
   const hasInvalidHerb = herbs.some(hasIncompleteEditedHerb);
   const herbNames = herbs.map((herb) => herb.name.trim()).filter(Boolean);
   const editSemanticIssue = new Set(herbNames).size !== herbNames.length ? "duplicate_herb" : undefined;
-  const canAudit = changed && !hasInvalidHerb && !editSemanticIssue && auditStatus !== "checking" && Boolean(activeReasoning?.formula);
+  const canAudit = changed && canRequestEditedPrescriptionAdvice(herbs) && auditStatus !== "checking" && Boolean(activeReasoning?.formula);
   const canMarkFinal = (auditStatus === "reviewed" || auditStatus === "warning") &&
     changed &&
     acceptedRevision !== null;
@@ -3977,18 +3978,18 @@ function HerbModificationWorkbench({
 
       {herbFunctionLookupInProgress && (
         <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-relaxed text-sky-800">
-          正在按{GOVERNED_HERB_DATA_LABEL}补全药味功效，完成后可继续审方。
+          正在按{GOVERNED_HERB_DATA_LABEL}补充药味功效，您可先查看或更新当前风险提示。
         </p>
       )}
       {herbFunctionLookupProblemNames.length > 0 && (
         <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-          {herbFunctionLookupProblemNames.join("、")}未能取得标准药材资料中的规范功效，系统未生成替代内容；请核对药名或稍后重新输入。
+          {herbFunctionLookupProblemNames.join("、")}的功效资料暂未取得，已保留当前编辑内容；您可补充说明，也可继续获取风险提示。
         </p>
       )}
 
       {hasInvalidHerb && (
         <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800">
-          药名、剂量、君臣佐使、对应病机和本例配伍意义需完整填写，不能保留“待填写/待确认”占位后提交审方。
+          部分药量、病机或功用说明尚待完善。填写药名后即可获取当前风险提示，已有编辑内容会保留。
         </p>
       )}
       {!hasInvalidHerb && editSemanticIssue && (

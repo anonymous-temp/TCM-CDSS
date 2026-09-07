@@ -247,7 +247,7 @@ export async function POST(req: Request) {
       auditedAt,
     });
     return Response.json({
-      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise), contractVersion, parsed.customer.customerId)),
+      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories), contractVersion, parsed.customer.customerId)),
       auditCorrelation: correlation,
     });
   }
@@ -299,7 +299,7 @@ export async function POST(req: Request) {
     auditedAt,
   });
   return Response.json({
-    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise), contractVersion, parsed.customer.customerId)),
+    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise, validation.advisories), contractVersion, parsed.customer.customerId)),
     auditCorrelation: correlation,
   });
 }

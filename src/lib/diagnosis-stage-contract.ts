@@ -3332,7 +3332,7 @@ function hasCompleteDecoctionMethod(value: string): boolean {
   return decoctionMethodMissing(value).length === 0;
 }
 
-function normalizeComparableDose(value: string): string {
+export function normalizeComparableDose(value: string): string {
   const match = value.trim().match(HERB_DOSE);
   if (!match) return "";
   const amount = Number(match[1]);
@@ -3450,7 +3450,7 @@ function doseInGrams(dose: string): number | undefined {
   return /^(?:mg|毫克)$/i.test(normalized[2]) ? amount / 1000 : amount;
 }
 
-function dosePassesSafetySanityCeiling(name: string, dose: string): boolean {
+export function dosePassesSafetySanityCeiling(name: string, dose: string): boolean {
   const grams = doseInGrams(dose);
   if (grams == null) return false;
   const regulatoryClass = clinicianDoseHerbClass(name);
@@ -3467,7 +3467,7 @@ function dosePassesSafetySanityCeiling(name: string, dose: string): boolean {
   return grams <= grossCeiling;
 }
 
-function doseWithinConservativeModelLimit(name: string, dose: string, decoctionMethod: string): boolean {
+export function doseWithinConservativeModelLimit(name: string, dose: string, decoctionMethod: string): boolean {
   const grams = doseInGrams(dose);
   const regulatoryClass = clinicianDoseHerbClass(name);
   if (regulatoryClass === "controlled_or_toxic" || regulatoryClass === "endangered_or_banned") return false;

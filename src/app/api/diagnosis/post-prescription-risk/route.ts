@@ -18,7 +18,8 @@ import { buildDeterministicRiskFollowupPayload, clinicalGroundingText, deriveSaf
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { m04SafetyContractIssue } from "@/lib/diagnosis-stage-contract";
-import { editedPrescriptionIssueMessage, editedPrescriptionSemanticIssue, hasIncompleteEditedHerb } from "@/lib/prescription-revision";
+import { editedPrescriptionSemanticIssue } from "@/lib/prescription-revision";
+import { clinicalDeliveryAdvisoryFromIssue, clinicalDeliveryAdvisorySection, collectClinicalDeliveryAdvisories, deduplicateClinicalDeliveryAdvisories } from "@/lib/clinical-delivery-advisory";
 import { issuePrescriptionRevisionAttestation } from "@/lib/prescription-revision-attestation.server";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "@/lib/reasoning-contract-signature";
@@ -69,7 +70,6 @@ export async function POST(req: Request) {
   const candidateIndex = resolvedCandidateIndex ?? 0;
   const selectedCandidate = prescribed?.formula?.candidates[candidateIndex];
   const herbHash = prescribed ? await computePrescriptionVersionHash(prescribed, candidateIndex, caseState) : "";
-  const invalidHerbs = selectedCandidate?.herbs.filter(hasIncompleteEditedHerb) || [];
   const semanticIssue = caseState.prescriptionRevision?.source === "herb_workbench"
     ? editedPrescriptionSemanticIssue(prescribed, candidateIndex, diagnoseReasoning, clinicalGroundingText(caseState))
     : undefined;
@@ -99,51 +99,16 @@ export async function POST(req: Request) {
       audit: { source: "local_input_validation", safetyLocked: deriveSafetyLocked(caseState), degraded: false, reason: "invalid_candidate_index", needManualReview: true, herbHash: "", auditedAt: new Date().toISOString() },
     }, { status: 422 });
   }
-  if (caseState.prescriptionRevision?.source === "herb_workbench" && invalidHerbs.length > 0) {
-    return Response.json({
-      error: "药味名称、单一正数剂量（g/克/mg/毫克）、对应病机或功用不完整，未提交自动审方。",
-      code: "invalid_structured_herb",
-      section: "## 合理用药审方\n**审方服务状态**：药味名称、单一正数剂量（g/克/mg/毫克）、对应病机或功用不完整，未提交自动审方。\n**处置建议**：请先修正结构化药味表。",
-      risks: [],
-      audit: {
-        source: "local_input_validation",
-        safetyLocked: deriveSafetyLocked(caseState),
-        degraded: false,
-        reason: "invalid_structured_herb",
-        needManualReview: true,
-        herbHash,
-        auditedAt: new Date().toISOString(),
-      },
-    }, { status: 422 });
-  }
-  if (caseState.prescriptionRevision?.source === "herb_workbench" && semanticIssue) {
-    const issueMessage = editedPrescriptionIssueMessage(semanticIssue);
-    return Response.json({
-      error: issueMessage,
-      code: `invalid_edited_prescription_${semanticIssue}`,
-      issue: semanticIssue,
-      section: `## 合理用药审方\n**提交前校验**：${issueMessage}\n**处置建议**：当前版本未提交自动审方，请修正结构化药味后重试。`,
-      risks: [],
-      audit: {
-        source: "local_input_validation",
-        safetyLocked: deriveSafetyLocked(caseState),
-        degraded: false,
-        reason: `invalid_edited_prescription_${semanticIssue}`,
-        needManualReview: true,
-        herbHash,
-        auditedAt: new Date().toISOString(),
-      },
-    }, { status: 422 });
-  }
+  let clinicalAdvisories = selectedCandidate
+    ? collectClinicalDeliveryAdvisories(selectedCandidate, diagnoseReasoning, clinicalGroundingText(caseState), [semanticIssue], candidateIndex)
+    : [];
   if (caseState.prescriptionRevision?.source === "herb_workbench" && selectedCandidate && prescribed) {
     const selectedReasoning = {
       ...prescribed,
       formula: prescribed.formula ? { ...prescribed.formula, candidates: [selectedCandidate] } : null,
     };
-    // 工作台入口可以获得“医生编辑的自拟方”结构例外，但不能获得任何临床安全例外。
-    // m04SafetyContractIssue 对 trustedWorkbenchEdit 的含义已收窄为结构/身份口径；剂量、
-    // 特殊人群、十八反十九畏、经典方禁忌和寒热方向仍逐项执行。只有通过这道门的精确
-    // herbHash 才会在审方返回时获得服务端 HMAC 凭据，供 M05/HIS 后续验证。
+    // The revision attests which edited version was reviewed, not an absence of clinical risk.
+    // Findings accompany the exact version so the physician can continue reviewing the report.
     const floorIssue = m04SafetyContractIssue(
       selectedReasoning,
       diagnoseReasoning,
@@ -153,50 +118,17 @@ export async function POST(req: Request) {
       clinicalGroundingText(caseState),
       true,
     );
-    if (floorIssue) {
-      return Response.json({
-        error: editedPrescriptionIssueMessage(floorIssue),
-        code: `invalid_edited_prescription_${floorIssue}`,
-        issue: floorIssue,
-        section: `## 合理用药审方\n**提交前安全校验**：${editedPrescriptionIssueMessage(floorIssue)}\n**处置建议**：当前版本未提交自动审方，请修正结构化处方后重试。`,
-        risks: [],
-        audit: {
-          source: "local_input_validation",
-          safetyLocked: deriveSafetyLocked(caseState),
-          degraded: false,
-          reason: `invalid_edited_prescription_${floorIssue}`,
-          needManualReview: true,
-          herbHash,
-          auditedAt: new Date().toISOString(),
-        },
-      }, { status: 422 });
+    if (floorIssue && !clinicalAdvisories.some((advisory) => advisory.code === floorIssue)) {
+      clinicalAdvisories.push(clinicalDeliveryAdvisoryFromIssue(floorIssue, selectedCandidate, candidateIndex));
     }
   }
   const submissionIssue = rxAuditSubmissionIssue(caseState, resolvedCandidateIndex);
-  if (submissionIssue) {
-    const inputAdvisories = buildAuditInputAdvisories(caseState, resolvedCandidateIndex);
-    const message = submissionIssue === "regimen_incomplete"
-      ? "当前处方缺少可核验的给药频次、疗程或复诊节点，未提交自动审方。"
-      : submissionIssue === "herb_dose_incomplete"
-        ? "当前处方存在无法解析的单味剂量，未提交自动审方。"
-        : "当前处方没有可审查的结构化药味，未提交自动审方。";
-    return Response.json({
-      error: message,
-      code: `rxaudit_${submissionIssue}`,
-      section: `## 合理用药审方\n**提交前校验**：${message}\n**处置建议**：请补齐处方结构后重新审方；本次未调用外部审方接口。`,
-      risks: [],
-      audit: {
-        source: "local_input_validation",
-        safetyLocked: deriveSafetyLocked(caseState),
-        degraded: false,
-        reason: submissionIssue,
-        needManualReview: true,
-        inputAdvisories,
-        herbHash,
-        auditedAt: new Date().toISOString(),
-      },
-    }, { status: 422 });
+  if (submissionIssue && selectedCandidate) {
+    clinicalAdvisories.push(clinicalDeliveryAdvisoryFromIssue(submissionIssue, selectedCandidate, candidateIndex));
   }
+  // runBoundedRxAudit reports unprocessable audit inputs without making an upstream call.
+  // Keep its manual-review result visible with the clinical report.
+  clinicalAdvisories = deduplicateClinicalDeliveryAdvisories(clinicalAdvisories);
   const { medicationExtraction, providerAudit } = await runBoundedRxAudit(caseState, resolvedCandidateIndex, req.signal);
   const inputAdvisories = buildAuditInputAdvisories(caseState, resolvedCandidateIndex, medicationExtraction);
   const auditedAt = new Date().toISOString();
@@ -205,12 +137,19 @@ export async function POST(req: Request) {
     const mergedAudit = mergeLocalHighRiskHerbPairIssues(caseState, resolvedCandidateIndex, providerAudit);
     const safetyLocked = deriveSafetyLocked(caseState);
     const patientSex = caseState.hisRecord?.fields.sex || caseState.patient.sex;
-    const effectiveAudit = applyRxAuditInputAdvisories(
+    const normalizedAudit = applyRxAuditInputAdvisories(
       normalizeAuditOutcomeForPatient(mergedAudit, patientSex),
       inputAdvisories,
     );
+    const effectiveAudit: typeof normalizedAudit = clinicalAdvisories.length > 0 ? {
+      ...normalizedAudit,
+      auditResult: normalizedAudit.auditResult === "BLOCK" ? "BLOCK" : "MANUAL_REVIEW",
+      highestRiskLevel: normalizedAudit.highestRiskLevel === "CRITICAL" ? "CRITICAL" : "HIGH",
+      needManualReview: true,
+    } : normalizedAudit;
     const inputAdvisorySection = buildAuditInputAdvisorySection(inputAdvisories);
     const section = [
+      clinicalDeliveryAdvisorySection(clinicalAdvisories),
       buildRxAuditScopeSection(caseState, resolvedCandidateIndex),
       inputAdvisorySection,
       buildLingxiRiskSection(effectiveAudit, patientSex),
@@ -251,6 +190,7 @@ export async function POST(req: Request) {
     }
     return Response.json({
       section,
+      warnings: clinicalAdvisories,
       followup: followup.markdown,
       followupTimeline: followup.timelineItems,
       risks: [],
@@ -287,6 +227,7 @@ export async function POST(req: Request) {
 
   console.warn("[tcm-cdss:rxaudit] post-prescription advisory audit unavailable", { reason: providerAudit.reason });
   const section = [
+    clinicalDeliveryAdvisorySection(clinicalAdvisories),
     buildRxAuditScopeSection(caseState, resolvedCandidateIndex),
     buildLocalHighRiskHerbPairSection(caseState, resolvedCandidateIndex),
     buildAuditInputAdvisorySection(inputAdvisories),
@@ -327,6 +268,7 @@ export async function POST(req: Request) {
   }
   return Response.json({
     section,
+    warnings: clinicalAdvisories,
     followup: followup.markdown,
     followupTimeline: followup.timelineItems,
     risks: [],

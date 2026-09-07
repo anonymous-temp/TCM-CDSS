@@ -21,6 +21,7 @@ import { safeDietAdviceForDisplay, GOVERNED_FORMULA_DATA_LABEL } from "./result-
 import { tcmTreatmentProtocolGapCopy, westernDiagnosisLabelForDisplay } from "./diagnosis-visible-summary";
 import { prioritizeTcmEvidenceForDisplay, prioritizeWesternEvidenceForDisplay } from "./clinical-evidence-display";
 import { normalizedFormulaModificationFields } from "./formula-modification";
+import { clinicalDeliveryAdvisorySection, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
 
 type SchemeStatus = "ready" | "pending" | "limited";
 
@@ -54,6 +55,7 @@ export type HisAiSchemePayload = {
   auditStatus: "pass" | "alert" | "unavailable" | "not_submitted";
   workflowPermission: "continue";
   reviewRequired: boolean;
+  warnings: ClinicalDeliveryAdvisory[];
   warningProfile: {
     level: ClinicalWarningLevel;
     label: string;
@@ -883,7 +885,11 @@ function projectPatentMedicines(
   });
 }
 
-export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: EvidenceScope): HisAiSchemePayload {
+export function buildHisAiSchemePayload(
+  caseState: CaseState,
+  evidenceScope?: EvidenceScope,
+  deliveryAdvisories: readonly ClinicalDeliveryAdvisory[] = [],
+): HisAiSchemePayload {
   const normalizedState = withSafetyGate(caseState);
   const gate = evaluateSafetyGate(normalizedState);
   caseState = normalizedState;
@@ -1005,6 +1011,7 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
     ...gate.redFlags.map((entry) => `- ${clean(entry)}`),
     "**处置建议**：优先完成急诊或转诊评估；当前不提供任何剂量级候选方药、煎服或疗程信息。",
   ].join("\n") : [
+    clinicalDeliveryAdvisorySection(deliveryAdvisories),
     deterministicRisk,
     acceptanceScopeNotice,
     consistencyRisk,
@@ -1071,9 +1078,10 @@ export function buildHisAiSchemePayload(caseState: CaseState, evidenceScope?: Ev
     candidateStatus: structurallyInvalid
       ? "invalid"
       : canAdopt ? "valid" : "limited",
-    auditStatus,
+    auditStatus: deliveryAdvisories.length > 0 && auditStatus === "pass" ? "alert" : auditStatus,
     workflowPermission: "continue",
     reviewRequired: true,
+    warnings: deliveryAdvisories.map((advisory) => ({ ...advisory })),
     warningProfile: {
       ...warningProfile,
       exportMode: warningProfile.executable ? "full_advisory_report" : "non_dose_risk_report",

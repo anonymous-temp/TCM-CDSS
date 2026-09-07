@@ -30,7 +30,8 @@ import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
-import { editedPrescriptionIssueMessage, editedPrescriptionSemanticIssue, hasIncompleteEditedHerb } from "@/lib/prescription-revision";
+import { editedPrescriptionSemanticIssue } from "@/lib/prescription-revision";
+import { collectClinicalDeliveryAdvisories, clinicalDeliveryAdvisorySection } from "@/lib/clinical-delivery-advisory";
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { recordCdssStageTelemetry } from "@/lib/cdss-stage-telemetry";
 import { isTrustedHisWorkbenchEdit } from "@/lib/his-prescription-validation";
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
   const initialDiagnoseReasoning = diagnoseReasoningFromState(parsed.caseState);
   const initialPrescribed = prescribeReasoningFromState(parsed.caseState);
   const workbenchRevision = parsed.caseState.prescriptionRevision?.source === "herb_workbench";
+  let clinicalAdvisorySection = "";
   if (workbenchRevision) {
     if (!verifyDiagnoseReasoningSignature(initialDiagnoseReasoning, parsed.caseState)) {
       return Response.json({
@@ -86,12 +88,6 @@ export async function POST(req: Request) {
       code: "invalid_candidate_index",
     }, { status: 422 });
   }
-  if (workbenchRevision && selectedCandidate?.herbs.some(hasIncompleteEditedHerb)) {
-    return Response.json({
-      error: "药味名称、单一正数剂量（g/克/mg/毫克）、对应病机或功用不完整，未进入评估。",
-      code: "invalid_structured_herb",
-    }, { status: 422 });
-  }
   if (workbenchRevision) {
     const semanticIssue = editedPrescriptionSemanticIssue(
       prescribed,
@@ -99,12 +95,10 @@ export async function POST(req: Request) {
       diagnoseReasoning,
       clinicalGroundingText(gated),
     );
-    if (semanticIssue) {
-      return Response.json({
-        error: editedPrescriptionIssueMessage(semanticIssue),
-        code: `invalid_edited_prescription_${semanticIssue}`,
-        issue: semanticIssue,
-      }, { status: 422 });
+    if (selectedCandidate) {
+      clinicalAdvisorySection = clinicalDeliveryAdvisorySection(
+        collectClinicalDeliveryAdvisories(selectedCandidate, diagnoseReasoning, clinicalGroundingText(gated), [semanticIssue], candidateIndex ?? 0),
+      );
     }
   }
   const { medicationExtraction, providerAudit } = await runBoundedRxAudit(gated, candidateIndex, req.signal);
@@ -187,6 +181,7 @@ export async function POST(req: Request) {
   return markdownNdjsonResponse([
     auditStatusMarker,
     correlationMarker,
+    clinicalAdvisorySection,
     sanitizeUngroundedRedFlagNegations([postPrescriptionRisk, followup].join("\n\n"), gated),
   ].join("\n\n"));
 }

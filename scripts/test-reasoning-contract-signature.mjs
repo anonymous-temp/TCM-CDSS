@@ -992,6 +992,45 @@ try {
     return routeCase;
   };
 
+  await checkAsync("HIS preserves a signed candidate and returns clinical concerns as advice", async () => {
+    const routeCase = buildSignedNormalRouteCase();
+    const originalHerbs = clone(routeCase.reasoningPrescribe.formula.candidates[0].herbs);
+    const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase));
+    const body = await response.json();
+    assert.equal(response.status, 200, "a clinical recheck must not replace the whole signed report with 422");
+    assert.ok(body.prescriptions.structuredHerbs.length > 0);
+    assert.equal(body.prescriptions.structuredHerbs[0].name, originalHerbs[0].name);
+    assert.equal(body.prescriptions.structuredHerbs[0].dose, originalHerbs[0].dose);
+    assert.ok(body.warnings.length > 0, "the known incomplete formula claim must be explained, not hidden");
+    assert.equal(body.workflowPermission, "continue");
+    assert.equal(body.reviewRequired, true);
+    assert.ok(body.riskTips.some((item) => item.content.includes("处方补充提示")));
+    assert.ok(body.warnings.every((item) => item.message && item.suggestedAction));
+  });
+
+  await checkAsync("HIS delivers incomplete explanations and concurrent dose/preparation concerns", async () => {
+    const routeCase = buildSignedNormalRouteCase();
+    const updated = clone(routeCase.reasoningPrescribe);
+    const herb = updated.formula.candidates[0].herbs[0];
+    herb.function = "待医生补充";
+    updated.formula.candidates[0].herbs.push(
+      { ...clone(herb), dose: "120g" },
+      { ...clone(herb), name: "薄荷", dose: "6g", role: "臣", function: getTcmHerbFunctionText("薄荷"), decoctionRequirement: "" },
+    );
+    routeCase.reasoningPrescribe = signPrescribeReasoning(updated, buildPrescribeContractSignatureContext(routeCase));
+    routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
+    const response = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase));
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.prescriptions.structuredHerbs.length, 3);
+    for (const pattern of [/duplicate/, /herb_1_dose/, /herb_2_decoction/, /explanation_or_value_incomplete/]) {
+      assert.ok(payload.warnings.some((warning) => pattern.test(warning.code)), `missing concern ${pattern}`);
+    }
+    const visible = payload.riskTips.map((item) => item.content).join("\n");
+    assert.match(visible, /120g/);
+    assert.match(visible, /薄荷/);
+  });
+
   await checkAsync("M04 trust-boundary routes reject cross-customer replay before any upstream call", async () => {
     const replayed = buildSignedNormalRouteCase();
     replayed.customerId = "other-hospital";
@@ -1269,6 +1308,27 @@ try {
     return body;
   };
 
+  await checkAsync("doctor-edited clinical concerns stay visible across audit, assessment and HIS", async () => {
+    const routeCase = buildLegalWorkbenchRouteCase();
+    routeCase.reasoningPrescribe.formula.candidates[0].herbs[0].dose = "120g";
+    routeCase.reasoningPrescribe.formula.candidates[0].herbs[0].function = "待医生补充";
+    routeCase.reasoningPrescribe.formula.candidates[0].decoction.course = "7日";
+    routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
+    const auditBody = await attestWorkbenchRouteCase(routeCase);
+    assert.ok(auditBody.warnings.length > 0);
+    assert.ok(auditBody.warnings.some((warning) => /explanation_or_value/.test(warning.code)));
+    assert.equal(auditBody.audit.needManualReview, true);
+    const assessment = await assessPost(routeRequest("/api/diagnosis/assess", routeCase));
+    assert.equal(assessment.status, 200);
+    assert.match(await assessment.text(), /处方补充提示/);
+    const his = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", routeCase));
+    assert.equal(his.status, 200);
+    const payload = await his.json();
+    assert.equal(payload.prescriptions.structuredHerbs[0].dose, "120g");
+    assert.ok(payload.warnings.some((warning) => /dose/.test(warning.code)));
+    assert.equal(payload.writeBackPolicy.autoWritePrescription, false);
+  });
+
   await checkAsync("post-risk issuer rejects forged pre-attestation M04 review metadata", async () => {
     const routeCase = buildLegalWorkbenchRouteCase();
     routeCase.reasoningPrescribe.clinicalReview = {
@@ -1295,7 +1355,7 @@ try {
     ["dose-bearing conditional row", { action: "加", herbName: "茯神", doseOrHandling: "100g" }, "unaudited_dose"],
     ["missing adjusted herb", { action: "调整", herbName: "茯神", doseOrHandling: null }, "missing_herb"],
   ]) {
-    await checkAsync(`post-risk rejects workbench modification contract: ${name}`, async () => {
+    await checkAsync(`post-risk displays workbench modification concern: ${name}`, async () => {
       const routeCase = buildLegalWorkbenchRouteCase();
       routeCase.reasoningPrescribe.formula.modifications = [{
         trigger: "入睡困难伴心悸三个月",
@@ -1308,8 +1368,9 @@ try {
       routeCase.reasoningV2 = clone(routeCase.reasoningPrescribe);
       const response = await postPrescriptionRisk(routeRequest("/api/diagnosis/post-prescription-risk", routeCase));
       const body = await response.json();
-      assert.equal(response.status, 422);
-      assert.match(body.code, new RegExp(expectedIssue));
+      assert.equal(response.status, 200);
+      assert.ok(body.warnings.some((warning) => new RegExp(expectedIssue).test(warning.code)));
+      assert.match(body.section, /处方补充提示/);
     });
   }
 
@@ -1369,9 +1430,10 @@ try {
       const response = await route.post(routeRequest(route.path, routeCase));
       const body = await response.json();
       if (route.path === "/api/diagnosis/post-prescription-risk") {
-        assert.equal(response.status, 422);
-        assert.equal(body.code, "invalid_edited_prescription_duplicate_herb");
-        assert.match(body.error, /重复药味/);
+        assert.equal(response.status, 200);
+        assert.ok(body.warnings.some((warning) => /duplicate/.test(warning.code)));
+        assert.match(body.section, /重复药味/);
+        assert.equal(new Set(body.warnings.map((warning) => `${warning.message}\0${warning.suggestedAction}`)).size, body.warnings.length);
       } else {
         assert.equal(response.status, 409);
         assert.equal(body.code, "invalid_workbench_revision_attestation");

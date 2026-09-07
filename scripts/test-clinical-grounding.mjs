@@ -34,6 +34,7 @@ const { computeTongueRoiCrop, detectTongueRoi } = await import("../src/lib/tongu
 const {
   filterModificationsForEditedHerbs,
   hasIncompleteEditedHerb,
+  canRequestEditedPrescriptionAdvice,
   synchronizeEditedCandidate,
 } = await import("../src/lib/prescription-revision.ts");
 
@@ -1348,6 +1349,10 @@ assert.equal(synchronized.baseFormulas?.[0]?.matchedIngredientCount, 1);
 assert.doesNotMatch(synchronized.herbs[1].evidence.source, /待重新审方|待确认|占位/);
 assert.equal(hasIncompleteEditedHerb({ ...editedHerbs[1], targetPathogenesis: "待医生填写对应病机" }), true);
 assert.equal(hasIncompleteEditedHerb(editedHerbs[1]), false);
+assert.equal(canRequestEditedPrescriptionAdvice([{ ...editedHerbs[1], function: "待医生补充" }]), true, "clinical explanation gaps must not disable risk advice");
+assert.equal(canRequestEditedPrescriptionAdvice([editedHerbs[1], editedHerbs[1]]), true, "duplicates are advice, not a disabled button");
+assert.equal(canRequestEditedPrescriptionAdvice([{ ...editedHerbs[1], name: "" }]), false, "a blank workbench row is not a named prescription");
+assert.equal(canRequestEditedPrescriptionAdvice([]), false);
 for (const invalidDose of ["10", "3-6g", "0g", "随便", "-1g"]) {
   assert.equal(hasIncompleteEditedHerb({ ...editedHerbs[1], dose: invalidDose }), true, invalidDose);
 }

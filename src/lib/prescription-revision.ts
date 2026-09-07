@@ -37,6 +37,11 @@ export function hasIncompleteEditedHerb(herb: Herb): boolean {
     EDIT_PLACEHOLDER.test(`${herb.targetPathogenesis} ${herb.function}`);
 }
 
+/** Asking for advice requires named rows, not a clinically polished prescription. */
+export function canRequestEditedPrescriptionAdvice(herbs: readonly Pick<Herb, "name">[]): boolean {
+  return herbs.length > 0 && herbs.every((herb) => typeof herb.name === "string" && Boolean(herb.name.trim()));
+}
+
 export function editedPrescriptionSemanticIssue(
   reasoning: ClinicalReasoningResultV2 | null | undefined,
   candidateIndex: number,
