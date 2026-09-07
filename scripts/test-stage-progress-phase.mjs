@@ -114,7 +114,7 @@ check("定稿正文下发即停表，进度行不会挂在已完成的报告下�
   assert.ok(enqueueStart > 0, "未找到 enqueueClient");
   const body = api.slice(enqueueStart, enqueueStart + api.slice(enqueueStart).indexOf("};") + 2);
   assert.ok(body.length < 900, `enqueueClient 边界切过头（${body.length} 字符），断言会空转`);
-  assert.ok(/content\.startsWith\(STREAM_REPLACE_MARKER\)\s*\)\s*stopHeartbeat\(\)/.test(body),
+  assert.ok(/content\.startsWith\(STREAM_REPLACE_MARKER\)\s*\)\s*\{[^}]*stopHeartbeat\(\)/.test(body),
     "定稿正文下发时未停表：心跳仍会在完整报告下面追加一行「进行中」");
 });
 
