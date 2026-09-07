@@ -29,6 +29,12 @@ assert.ok(!result.content.includes("西医工作判断"), "draft frames must not
 
 const onlyHeartbeat = fixture(['{"type":"heartbeat","status":"仍在工作"}\n']);
 assert.equal((await measureExperienceResponse(onlyHeartbeat.response, { startedAt: 0, now: onlyHeartbeat.clock })).firstUsefulMs, null);
+const moduleStatus = fixture([JSON.stringify({ type: "module_draft", module: "m03.western", revision: 1,
+  content: "> 生成中 · 未定稿；最终结论以本阶段完成后的签名报告为准。\n\n## 西医判断\n西医判断已生成，正在校验。" }) + "\n"]);
+const statusObservation = await measureExperienceResponse(moduleStatus.response, { startedAt: 0, now: moduleStatus.clock });
+assert.equal(statusObservation.firstUsefulMs, null, "module progress is not a clinical preview");
+assert.equal(statusObservation.moduleDraftCount, 1);
+assert.equal(statusObservation.clinicalDraftCount, 0);
 for (const value of ["{", "{}", "[]", "...", "###", "<<<CDSS_STREAM_FINAL>>>"]) {
   const empty = fixture([JSON.stringify({ content: value }) + "\n", '{"content":"[END]"}\n']);
   assert.equal((await measureExperienceResponse(empty.response, { startedAt: 0, now: empty.clock })).firstUsefulMs, null, `${value} is not useful content`);
@@ -49,4 +55,4 @@ const response = new Response(new ReadableStream({ start(controller) {
   controller.close();
 } }));
 assert.equal((await measureExperienceResponse(response)).content, "完整临床正文");
-console.log(JSON.stringify({ suite: "experience-stream-measurement", checks: 18, failures: 0 }));
+console.log(JSON.stringify({ suite: "experience-stream-measurement", checks: 21, failures: 0 }));
