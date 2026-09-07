@@ -1095,4 +1095,77 @@ assert.deepEqual(
   [],
 );
 
-console.log(JSON.stringify({ cases: 116, failures: 0 }));
+// A route sanitizer can clear an explanatory field after preparation. Its deterministic final
+// projection must already be present in the first review, not cause another model draw at emit.
+const settledEnv = {
+  AI_TEXT_PROVIDER: "openai-compatible",
+  OPENAI_API_KEY: "test-only-m03-settled",
+  OPENAI_BASE_URL: "https://api.deepseek.com",
+  OPENAI_MODEL: "deepseek-v4-flash",
+  PRIMARY_DIAGNOSE_MODEL: "deepseek-v4-flash",
+  PRIMARY_DIAGNOSE_REVIEW_MODEL: "deepseek-v4-flash",
+  CONTROLLED_TERMINOLOGY_NORMALIZATION: "false",
+  REASONING_CONTRACT_SIGNING_KEY: "synthetic-m03-settled-key-0000000000000000",
+};
+const savedSettledEnv = Object.fromEntries(Object.keys(settledEnv).map((key) => [key, process.env[key]]));
+const savedSettledFetch = globalThis.fetch;
+const savedSettledInfo = console.info;
+const settledLogs = [];
+const settledReviewPayloads = [];
+let settledGenerationCalls = 0;
+try {
+  Object.assign(process.env, settledEnv);
+  console.info = (...args) => { settledLogs.push(args); };
+  globalThis.fetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    if (request.stream) {
+      settledGenerationCalls += 1;
+      return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(reviewed) }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`, {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }
+    const userPrompt = request.messages.find((message) => message.role === "user")?.content || "";
+    const marker = "待复核M03临床投影：";
+    assert.ok(userPrompt.includes(marker), "the fixture must need no repair/provider calls beyond clinical review");
+    settledReviewPayloads.push(JSON.parse(userPrompt.slice(userPrompt.indexOf(marker) + marker.length)));
+    return Response.json({ choices: [{ message: { content: '{"status":"accepted","issueCode":"none"}' }, finish_reason: "stop" }] });
+  };
+  const response = await callDiagnosisStream("synthetic settled M03", "deepseek", undefined, "markdown", {
+    structuredStage: "diagnose",
+    structuredClinicalContext: reviewedClinicalContext,
+    structuredAllowedM03FormulaNames: ["归脾汤"],
+    truncateFallback: "SYNTHETIC_FALLBACK",
+    diagnoseSignatureContext: {
+      contractVersion: "tcm-cdss-m03-signature-v5",
+      caseId: "synthetic-settled",
+      encounterId: "synthetic-settled-encounter",
+      clinicalInputHash: `sha256:${"a".repeat(64)}`,
+    },
+    outputTransform: (content) => content.replace(
+      /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
+      (_match, json) => {
+        const value = JSON.parse(json);
+        value.overview.tcmDiagnosticRationale = "";
+        return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(value)}\n<!-- DIAGNOSIS_JSON_END -->`;
+      },
+    ),
+  });
+  const text = await response.text();
+  const frames = text.trim().split("\n").map((line) => JSON.parse(line));
+  const output = frames.filter((frame) => typeof frame.content === "string").map((frame) => frame.content).join("");
+  assert.equal(settledGenerationCalls, 1);
+  assert.equal(settledReviewPayloads.length, 1, "one deterministic clinical projection must require exactly one independent review");
+  const signed = parseSentinelReasoning(output);
+  assert.ok(signed.contractSignature, "the settled output must still be signed");
+  assert.equal(signed.clinicalReview.status, "accepted");
+  assert.deepEqual(buildM03DiagnosticReviewPayload(signed), settledReviewPayloads[0], "the reviewer must see the final clinical decisions verbatim");
+} finally {
+  globalThis.fetch = savedSettledFetch;
+  console.info = savedSettledInfo;
+  for (const [key, value] of Object.entries(savedSettledEnv)) {
+    if (value == null) delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+
+console.log(JSON.stringify({ cases: 117, failures: 0 }));
