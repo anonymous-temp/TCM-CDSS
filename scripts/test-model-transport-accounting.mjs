@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { test } from "node:test";
 import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 const { createTextModelClient } = jiti("../src/lib/text-model.ts");
 const { observeModelTask, getCdssModelTaskTelemetrySnapshot } = jiti("../src/lib/cdss-model-task-telemetry.ts");
 
@@ -86,4 +86,38 @@ test("missing usage does not lower known-usage means or pretend to be a free cal
   assert.equal(task("missing_usage").usageAvailable, 1);
   assert.equal(task("missing_usage").averagePromptTokens, 10);
   assert.equal(task("missing_usage").physicalAttemptsUnobservedCalls, 2);
+});
+
+test("explicit zero usage remains observable and differs from omitted usage", async () => {
+  await observeModelTask({ task: "zero_usage", model: "synthetic" }, async () => ({ usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 } }));
+  assert.equal(task("zero_usage").usageMissing, 0);
+  assert.equal(task("zero_usage").usageAvailable, 1);
+  assert.equal(task("zero_usage").averagePromptTokens, 0);
+});
+
+test("concurrent calls do not borrow each other's HTTP attempt counts", async () => {
+  await Promise.all([
+    fixture(async (config) => { await assert.rejects(observeModelTask({ task: "concurrent_three", model: config.model }, () => createTextModelClient(config).chat.completions.create(body))); }),
+    fixture(async (config) => { await observeModelTask({ task: "concurrent_one", model: config.model }, () => createTextModelClient(config).chat.completions.create(body)); }, { succeedAfter: 0 }),
+  ]);
+  assert.equal(task("concurrent_three").physicalAttemptsTotal, 3);
+  assert.equal(task("concurrent_one").physicalAttemptsTotal, 1);
+});
+
+test("terminology probe failures use their own task and have no hidden SDK retries", async () => {
+  await fixture(async (config, count) => {
+    const overrides = { AI_TEXT_PROVIDER: "openai-compatible", OPENAI_API_KEY: config.apiKey, OPENAI_MODEL: config.model, OPENAI_BASE_URL: config.baseUrl, CDSS_TEXT_MODEL_ALLOWED_HOSTS: "127.0.0.1", CONTROLLED_TERMINOLOGY_ENABLED: "true", NODE_ENV: "test" };
+    const saved = Object.fromEntries(Object.keys(overrides).map((key) => [key, process.env[key]]));
+    Object.assign(process.env, overrides);
+    try {
+      const { probeControlledTerminologyModel } = jiti("../src/lib/controlled-semantic-normalization.server.ts");
+      const result = await probeControlledTerminologyModel();
+      assert.equal(result.ok, false);
+      assert.equal(count(), 2, "exactly the two consensus legs, no SDK retry multiplication");
+      assert.equal(task("controlled_terminology_probe").physicalAttemptsTotal, 2);
+      assert.equal(task("controlled_terminology"), undefined);
+    } finally {
+      for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+    }
+  });
 });

@@ -4,6 +4,17 @@ import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 const { interpretM02Answer } = jiti("../src/lib/m02-answer-interpreter.server.ts");
+const { ExactModelResultCache } = jiti("../src/lib/exact-model-result-cache.ts");
+const bounded = new ExactModelResultCache(60_000, 2);
+bounded.set("first", { value: 1 });
+bounded.set("second", { value: 2 });
+bounded.set("third", { value: 3 });
+assert.equal(bounded.get("first"), undefined, "cache has a hard entry bound");
+assert.deepEqual(bounded.get("second"), { value: 2 });
+const expired = new ExactModelResultCache(0, 2);
+expired.set("expired", { value: 1 });
+assert.equal(expired.get("expired"), undefined, "expired results cannot be reused");
+assert.notEqual(bounded.key("synthetic patient"), new ExactModelResultCache().key("synthetic patient"), "keys use process-local secrets");
 const caseState = { id: "synthetic-case", customerId: "synthetic-customer", phase: "question", patient: { age: 40 }, chiefComplaint: "合成测试病例", symptoms: {}, conversation: [] };
 const plan = { schemaVersion: "tcm-cdss-m02-plan-v1", decision: "ask", rationale: "合成用药史核实", questions: [{
   id: "q-medication", question: "现在使用哪些药物？", reason: "核实用药", targetField: "medicationHistory", decisionBranch: "treatment_safety", expectedDecisionImpact: "用药建议", informationGain: 0.9, sourceEvidence: [],
