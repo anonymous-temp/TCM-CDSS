@@ -902,7 +902,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 | `function` | 药物功效 | string | 取自受治理药材知识库 |
 | `isToxic` | 是否毒性药材 | boolean | — |
 | `decoctionRequirement` | 特殊煎法 | string / null | 仅特殊煎法药味有值，如 `先煎`、`后下`、`包煎`；其余为 `null` |
-| `verificationTier` | 剂量核验等级 | string | `verified` 有药典剂量边界 / `unverified_dose` 用量由医师确定 / `identity_pending` 药名待确认 / `toxic_regulated` 管制毒性或法律禁用，须按监管要求单独处理 |
+| `verificationTier` | 剂量核验等级 | string | `verified` 本次数值与可用参考范围对应，不等于临床适宜性批准 / `unverified_dose` 剂量待医师核对，含符合普通药限定条件的历史参考范围偏离 / `identity_pending` 药名待确认 / `toxic_regulated` 管制毒性或法律禁用，须按监管要求单独处理 |
 | `doseSource` | 剂量依据来源 | string | `governed_boundary` 受治理边界 / `classical_source` 古籍来源 / `none` 无 |
 | `verificationReasons` | 核验依据 | array | 如 `["受治理剂量边界 9-30g 已用于生成后校验"]` |
 | `evidence` | 证据引用 | object | 见 §3.6 |
@@ -2322,7 +2322,7 @@ HIS 投影与 M04 原始响应保持同一语义：`prescriptions.modifications[
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
-| V2.10 | 2026-09-07 | M03/M04 新增明确标记的只读临床预览，规范正文与签名结果不变；M04供应商提案去除服务端自有字段，客户端字段仍兼容；临床覆盖质量意见继续随结果展示 | 不使用预览的调用方忽略 `module_draft`。解析事件时须先识别 `type`，不能把草稿content混入规范正文。客户Token不变；具体部署身份查看health.build |
+| V2.10 | 2026-09-07 | M03/M04 新增明确标记的只读临床预览，规范正文与签名结果不变；M04供应商提案去除服务端自有字段，客户端字段仍兼容；临床覆盖质量意见继续随结果展示；限定普通药的历史参考剂量偏离保留为待核对建议 | 不使用预览的调用方忽略 `module_draft`。解析事件时须先识别 `type`，不能把草稿content混入规范正文。历史参考剂量偏离显示原始建议量、范围与来源，核验等级为 `unverified_dose`；对应HIS饮片项 `referenceOnly=true`、`adoptable=false`，不得因有AI签名而自动执行，仍须医生核对和机构处方确认。客户Token不变；具体部署身份查看health.build |
 | V2.9 | 2026-09-07 | 临床意见随方案交付：HIS 和处方后审新增 `warnings[]`，M05/HIS 正文同步显示；已形成结果不再因药味方向、说明待补等临床意见整份返回 `422`。加减动作/药味双字段保持不变，接口 Token 不变 | 新增字段；临床意见类结果由 `422` 改为 `200`+提示。调用方须展示提示，不应仅用 HTTP 状态判断临床问题是否存在 |
 | V2.8 | 2026-08-28 | **① 流派谱系勘误。** 原 `warm-tonify-yang` 拆为 `warm-tonify`（温补学派）与 `support-yang`（扶阳学派/火神派）；旧码仅作请求兼容并归一到温补学派，「温阳」作为治法术语不再冒充流派。两派拥有独立代表医家、典籍、追问重点与用药安全边界。**② 随证加减结构化。** `formula.modifications[]` 与 HIS 对应投影新增必有药味字段 `herbName`；`action` 收口为 `加` / `减` / `调整`，不再输出 `加川芎` 这类动作药味混合值。服务端仍能只读消费旧签名快照中的混合值，但所有新响应只输出分字段结构。 | **是（字段语义）**：仍把 `action` 当完整展示字符串的调用方须改为组合展示 `action + herbName`；旧请求流派码仍可用，但应尽快迁移。新增药味字段不影响忽略未知字段的宽松解析器 |
 | V2.7 | 2026-08-25 | **接口语义统一与稳定性收口。** `safetyGate` 新增 `candidateMode`（full_dose/limited_dose/non_dose_only/blocked），明确 `allowDosePrescription=false` 下 limited_dose 仍显示参考剂量；`question/interpret` 的模型超时与契约失败改为 `200 + ok:false + retryable`（业务降级，医生原话由调用方保留，不再出现 5xx）；审方对"药典小毒但不在医疗用毒性药品管制目录"药材（如苦杏仁）的处方权限误报纠偏覆盖供应商真实返回形态（issueType=PRIVILEGE）。 | **否**：新增字段向后兼容；依赖 interpret 5xx 判失败的调用方改为检查 `ok` 字段 |

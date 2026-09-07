@@ -12,6 +12,8 @@
 
 ## Task 1 — M04 concise single-source explanations
 
+Status: implemented and reviewed; post-live compact repair compatibility audit found additional consumers to align before final release.
+
 Files: `src/lib/model-response-format.ts`, `src/lib/m04-proposal-compiler.ts`, `src/lib/diagnosis-prompts.ts`, focused `scripts/test-m04-*.mjs`.
 
 - [ ] Add provider-schema and compiled-output tests: ignored `therapyMatch` is not requested, compiled therapyMatch equals the M03 lock, original herb function and decision fields survive, legacy full proposals still parse.
@@ -28,6 +30,8 @@ assert.equal(compiled.formula.candidates[0].herbs[0].function, suppliedFunction)
 
 ## Task 2 — M03 review settled clinical state
 
+Status: implemented and reviewed. Server-loopback replay confirms no `finalization_changed` re-review. Its two remaining calls per case were initial review plus dispute adjudication, not duplicate finalization work.
+
 Files: `src/lib/diagnosis-api.ts`, `src/lib/m03-diagnostic-review.ts`, existing signature/review tests.
 
 - [ ] Capture a real existing deterministic finalization transform that currently triggers another review. Add a test asserting a single review for unchanged clinical decisions, and a contrasting real clinical change that remains distinguishable.
@@ -42,6 +46,8 @@ assert.notEqual(clinicalHash(beforeClinicalEdit), clinicalHash(afterClinicalEdit
 
 ## Task 3 — Stable prefix and explicit-cache experiment
 
+Status: implemented, reviewed and eight actual calls completed. Explicit cache works, but uniform latency benefit is unproven; production default remains implicit.
+
 Files: new `src/lib/model-prompt-cache.ts`, `src/lib/m03-diagnostic-review.ts`, `src/lib/diagnosis-api.ts`, `src/lib/openai-compatible-response.ts`, `src/lib/cdss-model-task-telemetry.ts`, `.env.example`, compose only if forwarding is needed.
 
 - [ ] RED tests: different patient states share the same static leading block; opt-in emits `cache_control` only on supported provider public prefix; opt-out bytes unchanged; dynamic clinical text remains after prefix; creation/reasoning Token fields parsed without turning missing values into zero.
@@ -55,6 +61,8 @@ assert.equal(snapshot({ usage: {} }).cacheCreationTokens, undefined);
 - [ ] Run tuning/usage/cache tests and typecheck, commit GREEN. Real cold/warm provider replay compares same model+prompt+schema; log billed creation and hit counts and elapsed time, no secrets.
 
 ## Task 4 — Prioritized evidence without waiting on unused work
+
+Status: implemented, reviewed and seven controlled concurrency/cancellation checks passed.
 
 Files: `src/lib/evimed-guide.ts`, `scripts/test-evidence-query-concurrency.mjs`, small helper only if needed.
 
@@ -71,6 +79,8 @@ assert.equal(longQueryFinished, false);
 
 ## Task 5 — M04 progressive candidate and genuine first-useful timing
 
+Status: implemented and reviewed; server-loopback clinical drafts and browser read-only drafts observed. Full browser delivery remains unverified. An independently reproduced pending-cancel cleanup defect was fixed in `573c19c1`, with twelve regression scenarios and independent review; this does not prove the cause of the earlier SSH/browser stall.
+
 Files: `src/lib/diagnosis-stream-protocol.ts`, relevant partial-JSON helper, `src/lib/diagnosis-api.ts`, `src/lib/diagnosis-engine.ts`, `src/app/diagnosis/DiagnosisClient.tsx`, `scripts/regress-experience-journey.mjs`.
 
 - [ ] RED tests: candidate before trailing nonPharma yields draft frame; incomplete herb rows do not appear as complete objects; final stream still emits END and canonical signature; late draft cannot overwrite final or physician edits; heartbeats do not count as usable content.
@@ -85,6 +95,8 @@ assert.equal(heartbeatOnly.firstUsefulMs, null);
 - [ ] Test protocol/display/client cancellation and browser UI; commit GREEN.
 
 ## Task 6 — Paired live experiments and release
+
+Status at candidate rebuild: in progress, NOT yet released. `adeaca13` passed `verify:release` (200 suites in each of two modes, typecheck, lint and build). Server-loopback journey completed two of three cases; reflux M04 ended without a signed prescription. Same-input full model comparison also failed reflux in both arms. Follow-up fixes through `345665e9` address compact repair compatibility, nonblocking transport cleanup, and bounded readable reference-dose advice with accurate metadata and HIS reference-only handling; code and healthcare reviews have no remaining findings. Preserve the earlier failures. Final rebuilt-image and live results are recorded separately in `artifacts/latency-second-pass/implementation-and-live-results.md`. Three cases are not a clinical-equivalence or P95 claim.
 
 Files: `scripts/regress-experience-journey.mjs`, `scripts/regress-model-routing-ab.mjs` or a focused new full-stage experiment script, test output `artifacts/latency-second-pass/`, API docs and this checklist.
 
