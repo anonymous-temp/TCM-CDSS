@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
-const { buildM03SharedPatientContext, buildM03ContextPackets } = await jiti.import("../src/lib/m03-context-packets.ts");
+const { buildM03SharedPatientContext, buildM03AdditionalPatientContext, buildM03ContextPackets } = await jiti.import("../src/lib/m03-context-packets.ts");
 const { createInitialCaseState } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { buildDiagnosePrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
 const { buildM03ParallelHalfSuffix } = await jiti.import("../src/lib/m03-parallel-merge.ts");
@@ -27,14 +27,15 @@ function fixture() {
 
 function packets(state = fixture(), evidenceContext = "", stageInstructions = "") {
   const sharedPatientContext = buildM03SharedPatientContext(state);
-  const fullPrompt = `${buildDiagnosePrompt(state)}\n\n${sharedPatientContext}\n\n${evidenceContext}\n\n${stageInstructions}`;
-  return { fullPrompt, sharedPatientContext, ...buildM03ContextPackets({ sharedPatientContext, fullPrompt, evidenceContext, stageInstructions }) };
+  const basePrompt = buildDiagnosePrompt(state);
+  const originalFullPrompt = `${basePrompt}\n\n${evidenceContext}\n\n${stageInstructions}`;
+  const fullPrompt = `${basePrompt}${buildM03AdditionalPatientContext(state, basePrompt)}\n\n${evidenceContext}\n\n${stageInstructions}`;
+  return { originalFullPrompt, fullPrompt, sharedPatientContext, ...buildM03ContextPackets({ sharedPatientContext, fullPrompt, evidenceContext, stageInstructions }) };
 }
 
 test("both halves retain the same known, negative, pending, temporal and subject facts", () => {
   const result = packets();
   for (const prompt of [result.western, result.tcm]) {
-    assert.ok(prompt.includes(result.sharedPatientContext));
     for (const fact of ["偶有咳嗽", "否认胸痛", "negative", "unknown", "血常规待回报", "今日较前减轻", "other", "historical", "父亲既往哮喘", "本人无哮喘史", "夜间不加重", "胸片未见实变", "98%", "舌淡红", "脉浮", "青霉素过敏", "氯雷他定"]) assert.ok(prompt.includes(fact), fact);
   }
   assert.match(result.sharedPatientContext, /"age":0/);
@@ -64,7 +65,7 @@ test("Western task retains differential, candidate, management and evidence cons
 
 test("compact Western half reduces combined first-generation input on a representative clinical case", () => {
   const result = packets();
-  const previousChars = result.fullPrompt.length * 2 + buildM03ParallelHalfSuffix("western").length + buildM03ParallelHalfSuffix("tcm").length;
+  const previousChars = result.originalFullPrompt.length * 2 + buildM03ParallelHalfSuffix("western").length + buildM03ParallelHalfSuffix("tcm").length;
   const currentChars = result.western.length + result.tcm.length;
   assert.ok(result.western.length < result.fullPrompt.length * 0.6);
   assert.ok(currentChars < previousChars * 0.8);
@@ -80,4 +81,25 @@ test("reserved control envelopes in clinical data remain inert and absent facts 
   assert.doesNotMatch(shared, /否认|无过敏|用药史阴性/);
   const empty = packets(state);
   assert.doesNotMatch(empty.western, /EVID-GUIDE-001|EVID-PAPER-001/);
+});
+
+test("plain TCM facts are not duplicated; structured or absent source fields are the only additions", () => {
+  const state = createInitialCaseState();
+  state.chiefComplaint = "咳嗽三天";
+  state.symptoms = { cough: "偶有咳嗽" };
+  const base = buildDiagnosePrompt(state);
+  assert.equal(buildM03AdditionalPatientContext(state, base), "");
+  state.hisRecord = { fields: { xianbingshi: "偶有咳嗽", fuzhuJiancha: "胸片未见实变" }, rawText: "" };
+  const delta = buildM03AdditionalPatientContext(state, base);
+  assert.doesNotMatch(delta, /偶有咳嗽/);
+  assert.ok(delta.includes("胸片未见实变"));
+});
+
+test("Western evidence selection precedes its existing budget and never inherits unrelated cut tails", () => {
+  const evidenceContext = "## EviMed 指南/共识检索\n[EVID-GUIDE-001] " + "A".repeat(2000) + "\n## 中药目录\n" + "CATALOG_TAIL".repeat(300);
+  const input = { sharedPatientContext: "", fullPrompt: "unchanged full", evidenceContext, evidenceBudgetChars: 400, stageInstructions: "" };
+  const result = buildM03ContextPackets(input);
+  assert.ok(result.western.includes("EVID-GUIDE-001"));
+  assert.doesNotMatch(result.western, /CATALOG_TAIL/);
+  assert.ok(result.western.length - buildM03ContextPackets({ ...input, evidenceBudgetChars: 0 }).western.length < 450);
 });

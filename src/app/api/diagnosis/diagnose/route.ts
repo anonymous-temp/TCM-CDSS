@@ -8,7 +8,8 @@ import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
 import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
-import { buildM03ParallelHalfSuffix, m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
+import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
+import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
 import { cdssReasonCodeMarker } from "@/lib/cdss-reason-codes";
 import { rerankSyndromeHypothesesForFormulaRecall } from "@/lib/syndrome-hypothesis-rerank.server";
 
@@ -109,10 +110,12 @@ export async function POST(req: Request) {
     rerankSyndromeHypothesesForFormulaRecall(safeState, assistedNegations, req.signal),
     evidenceContextPromise,
   ]);
-  const diagnoseBasePrompt = buildDiagnosePrompt(
+  const originalDiagnoseBasePrompt = buildDiagnosePrompt(
     safeState,
     { formulaRecallHint, assistedNegations, syndromeHypothesisRerank },
   );
+  // Only add facts absent from the legacy template; its coherent TCM chain stays intact.
+  const diagnoseBasePrompt = originalDiagnoseBasePrompt + buildM03AdditionalPatientContext(safeState, originalDiagnoseBasePrompt);
   // 证据块此前无总量上限，直接拼到提示词硬上限为止。M03 的这块要被中医半 + 西医半 + 独立复核
   // + 每个修复轮重复携带，放大倍数比 M04 更高（M04 已于 2026-08-25 加过同款预算）。
   const diagnoseEvidenceBudget = Math.min(
@@ -121,6 +124,7 @@ export async function POST(req: Request) {
   );
   const boundedDiagnoseEvidence = compactEvidenceContextForPrompt(evidenceContext, diagnoseEvidenceBudget);
   let prompt = appendEvidenceContext(diagnoseBasePrompt, boundedDiagnoseEvidence.text);
+  let stageInstructions = "";
   if (boundedDiagnoseEvidence.truncated) {
     console.warn("[tcm-cdss:diagnose] evidence context compacted to fit prompt budget", {
       basePromptChars: diagnoseBasePrompt.length,
@@ -131,13 +135,13 @@ export async function POST(req: Request) {
     });
   }
   if (limitedInformation) {
-    prompt += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
+    stageInstructions += "\n\n【有限信息推理】请使用患者已经提供的信息完成辨病辨证；降低相应结论置信度，并把真正影响判断的未知项写入本半负责的 limitations 或 uncertainties。不得因年龄、性别、生命体征、舌脉、过敏史或当前用药未提供而拒绝输出 M03，也不得臆造缺失事实。";
   }
   if (redFlagAnalysis) {
-    prompt += `\n\n【急危重线索并存】服务器确定性判定本例存在红旗：${(gated.safetyGate?.redFlags || []).join("；") || "见安全提示"}。请照常完成辨病辨证；在 management 中把急诊/转诊评估列为第一优先级并给出具体处置指引，不得因红旗拒绝输出辨证结论，也不得淡化红旗。`;
+    stageInstructions += `\n\n【急危重线索并存】服务器确定性判定本例存在红旗：${(gated.safetyGate?.redFlags || []).join("；") || "见安全提示"}。请照常完成辨病辨证；在 management 中把急诊/转诊评估列为第一优先级并给出具体处置指引，不得因红旗拒绝输出辨证结论，也不得淡化红旗。`;
   }
   if (historicalOnlyEncounter) {
-    prompt += `\n\n【就诊目标以既往背景为主】语义预检确认本次记录主要为既往、已缓解或稳定背景（原文：“${encounterScope.quote}”）。请照常完成辨证分析，并在 uncertainties 与 management.mustCollect 中显式提示“本次活动性诊疗目标需医生确认”。`;
+    stageInstructions += `\n\n【就诊目标以既往背景为主】语义预检确认本次记录主要为既往、已缓解或稳定背景（原文：“${encounterScope.quote}”）。请照常完成辨证分析，并在本半负责的 limitations、uncertainties 或 management.mustCollect 中显式提示“本次活动性诊疗目标需医生确认”。`;
   }
   // Attested "unclear" scope does not short-circuit M03; the model keeps reasoning but must make
   // the unconfirmed visit target explicit so the downstream dose gate stays evidence-bound.
@@ -147,8 +151,9 @@ export async function POST(req: Request) {
     undefined,
     gated.customerId,
   )) {
-    prompt += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请在 uncertainties 与 management.mustCollect 中显式记录“本次就诊目标需医生确认”，不得据此臆造当前治疗目标或直接给出剂量级结论。";
+    stageInstructions += "\n\n【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请在本半负责的 limitations、uncertainties 或 management.mustCollect 中显式记录“本次就诊目标需医生确认”，不得据此臆造当前治疗目标或直接给出剂量级结论。";
   }
+  prompt += stageInstructions;
   const initialSafetyBanner = buildSafetyAdvisoryBanner(
     redFlagAnalysis ? gated.safetyGate : undefined,
     historicalOnlyEncounter
@@ -181,15 +186,18 @@ export async function POST(req: Request) {
     structuredLimitedInformation: limitedInformation,
     initialVisiblePrefix: initialSafetyBanner || undefined,
     upstreamUnavailableFallback: `${cdssReasonCodeMarker("upstream_model_unavailable")}\n${signedLimitedDiagnosis(upstreamGate, "not_attempted_upstream_down")}`,
-    // M03 两半并行生成（时间专项）：两半共用上面这份完整提示词做前缀（provider 前缀缓存三方
-    // 共享），只在末尾各加一段分工限制。修复轮与所有降级路径仍以完整 prompt 为准。
+    // The Western half receives only its task, shared facts and relevant evidence. The TCM half
+    // retains the complete coherent chain; repair/review/fallback still use the full prompt.
     // M03_PARALLEL_GENERATION=false 一键回退单发全量生成。
     ...(m03ParallelGenerationEnabled()
       ? {
-          m03ParallelHalfPrompts: {
-            western: `${prompt}\n\n${buildM03ParallelHalfSuffix("western")}`,
-            tcm: `${prompt}\n\n${buildM03ParallelHalfSuffix("tcm")}`,
-          },
+          m03ParallelHalfPrompts: buildM03ContextPackets({
+            sharedPatientContext: buildM03SharedPatientContext(safeState),
+            fullPrompt: prompt,
+            evidenceContext,
+            evidenceBudgetChars: diagnoseEvidenceBudget,
+            stageInstructions,
+          }),
         }
       : {}),
     // 合同修复耗尽后的兜底：复核**没有启动**（生成方合同始终不合法，没有东西可供复核），
