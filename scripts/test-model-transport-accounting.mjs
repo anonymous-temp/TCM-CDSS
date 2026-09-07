@@ -10,7 +10,7 @@ const { observeModelTask, getCdssModelTaskTelemetrySnapshot } = jiti("../src/lib
 async function fixture(run, { succeedAfter = Infinity, onRequest } = {}) {
   let requests = 0;
   const server = createServer(async (req, res) => {
-    for await (const _chunk of req) { /* Drain only: never log request data. */ }
+    for await (const chunk of req) { void chunk; /* Drain only: never log request data. */ }
     requests += 1;
     onRequest?.(requests);
     res.writeHead(requests > succeedAfter ? 200 : 503, { "Content-Type": "application/json", "retry-after-ms": "1" });

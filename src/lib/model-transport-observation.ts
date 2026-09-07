@@ -10,12 +10,6 @@ export function observeModelTransport<T>(run: (state: TransportObservation) => P
   return observation.run(state, () => run(state));
 }
 
-/** Register the transport before SDK preflight so pre-aborted calls can report zero attempts. */
-export function registerModelTransport(): void {
-  const state = observation.getStore();
-  if (state) state.observed = true;
-}
-
 /** SDK retries pass through this wrapper individually. Never read or log the request. */
 export const observedModelFetch: typeof fetch = (input, init) => {
   const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);

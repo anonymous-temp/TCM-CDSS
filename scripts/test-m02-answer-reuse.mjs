@@ -27,7 +27,7 @@ const plan = { schemaVersion: "tcm-cdss-m02-plan-v1", decision: "ask", rationale
 let calls = 0;
 let failed = false;
 const server = createServer(async (req, res) => {
-  for await (const _chunk of req) { /* synthetic request */ }
+  for await (const chunk of req) { void chunk; /* synthetic request */ }
   calls += 1;
   res.writeHead(failed ? 503 : 200, { "Content-Type": "application/json", "retry-after-ms": "1" });
   res.end(JSON.stringify(failed ? { error: { message: "synthetic unavailable" } } : { choices: [{ message: { content: JSON.stringify({

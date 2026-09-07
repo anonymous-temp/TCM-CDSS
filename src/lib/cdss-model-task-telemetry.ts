@@ -197,40 +197,44 @@ export function recordModelTaskTelemetry(event: ModelTaskTelemetryEvent): void {
  */
 export async function observeModelTask<T>(meta: ModelTaskMeta, run: () => Promise<T>): Promise<T> {
   return observeModelTransport(async (transport) => {
-  const startedAt = Date.now();
-  try {
-    const result = await run();
-    const usage = modelUsageSnapshot(result);
-    recordModelTaskTelemetry({
-      ...meta,
-      callId: transport.callId,
-      physicalAttempts: transport.observed ? transport.attempts : undefined,
-      usageAvailable: usage !== undefined,
-      outcome: "ok",
-      durationMs: Date.now() - startedAt,
-      promptTokens: usage?.promptTokens || 0,
-      completionTokens: usage?.completionTokens || 0,
-      cachedTokens: usage?.cachedTokens || 0,
-      totalTokens: usage?.totalTokens || 0,
-    });
-    return result;
-  } catch (error) {
-    const aborted = error instanceof Error
-      && (error.name === "AbortError" || /abort/i.test(error.message));
-    recordModelTaskTelemetry({
-      ...meta,
-      callId: transport.callId,
-      physicalAttempts: transport.observed ? transport.attempts : undefined,
-      usageAvailable: false,
-      outcome: aborted ? "aborted" : "error",
-      durationMs: Date.now() - startedAt,
-      promptTokens: 0,
-      completionTokens: 0,
-      cachedTokens: 0,
-      totalTokens: 0,
-    });
-    throw error;
-  }
+    const startedAt = Date.now();
+    try {
+      const result = await run();
+      const usage = modelUsageSnapshot(result);
+      const rawUsage = result && typeof result === "object" && "usage" in result
+        ? result.usage as Record<string, unknown> | undefined
+        : undefined;
+      const explicitZero = rawUsage && rawUsage.prompt_tokens === 0 && rawUsage.completion_tokens === 0;
+      recordModelTaskTelemetry({
+        ...meta,
+        callId: transport.callId,
+        physicalAttempts: transport.observed ? transport.attempts : undefined,
+        usageAvailable: usage !== undefined || Boolean(explicitZero),
+        outcome: "ok",
+        durationMs: Date.now() - startedAt,
+        promptTokens: usage?.promptTokens || 0,
+        completionTokens: usage?.completionTokens || 0,
+        cachedTokens: usage?.cachedTokens || 0,
+        totalTokens: usage?.totalTokens || 0,
+      });
+      return result;
+    } catch (error) {
+      const aborted = error instanceof Error
+        && (error.name === "AbortError" || /abort/i.test(error.message));
+      recordModelTaskTelemetry({
+        ...meta,
+        callId: transport.callId,
+        physicalAttempts: transport.observed ? transport.attempts : undefined,
+        usageAvailable: false,
+        outcome: aborted ? "aborted" : "error",
+        durationMs: Date.now() - startedAt,
+        promptTokens: 0,
+        completionTokens: 0,
+        cachedTokens: 0,
+        totalTokens: 0,
+      });
+      throw error;
+    }
   });
 }
 

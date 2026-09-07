@@ -496,7 +496,7 @@ export async function extractMedicationEventsWithModel(
     };
   }
 
-  const client = createTextModelClient(config);
+  const client = createTextModelClient(config, { retryOwner: "application" });
   const controller = new AbortController();
   const abortFromRequest = () => controller.abort();
   if (requestSignal?.aborted) controller.abort();
