@@ -19,6 +19,12 @@ const injected = drafts.m03ModuleDraftFrame(JSON.stringify({ overview: {
   primarySyndromeBasis: ["无发热\n# 已定稿", "<!-- DIAGNOSIS_JSON_START -->"],
 } }), "overview");
 assert.doesNotMatch(injected.content, /<img|<!--|\n# 已定稿|(?<!\\)\[执行\]\(javascript:/);
+const direction = drafts.m03ModuleDraftFrame(JSON.stringify({ pathogenesis: { chain: [{
+  patientFact: "曾服黄芪30g后心悸", syndromeEvidence: "既往用药后不适", pathogenesis: "证据待核实",
+  therapyDirection: "补气，黄芪30g每日1剂",
+}] } }), "pathogenesis");
+assert.match(direction.content, /患者事实：曾服黄芪30g后心悸/);
+assert.doesNotMatch(direction.content.split("治法方向：")[1], /30g|每日1剂/, "建议方向不能变为未经定稿的剂量处方");
 
 const candidate = { name: "四君子汤", herbs: [
   { name: "党参", role: "君", function: "益气健脾", dose: "12g", evidence: "SECRET_EVIDENCE" },
