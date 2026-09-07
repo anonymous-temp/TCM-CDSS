@@ -57,6 +57,24 @@ function candidateHerbContainer(value: unknown): M04RepairHerb[] | undefined {
   return undefined;
 }
 
+// This is a selector for an optional field-preservation step, not the clinical parser. Reuse the
+// candidate helpers above; the full compiler intentionally accepts broader legacy envelopes, so
+// normalizing through it here could alter fields that this step promises to preserve byte-for-byte.
+const M04_DOSE_REPAIR_ENVELOPE_KEYS = new Set([
+  "schemaVersion", "candidate", "patentAndWestern", "modifications", "modificationReview", "nonPharma",
+]);
+
+function doseRepairProposalRecord(value: unknown): Record<string, unknown> | undefined {
+  const root = recordValue(value);
+  if (!root || (root.schemaVersion !== undefined && root.schemaVersion !== "tcm-cdss-m04-proposal-v1")) {
+    return undefined;
+  }
+  // Omitted provider version is valid. Explicit unknown versions and full-V2/mixed envelopes must
+  // keep taking the ordinary compiler path instead of being mistaken for a minimal proposal here.
+  if (Object.keys(root).some((key) => !M04_DOSE_REPAIR_ENVELOPE_KEYS.has(key))) return undefined;
+  return root;
+}
+
 /** One governed selector shared by repair prompting and post-model field stabilization. */
 export function m04DoseRepairHerbIndex(rejectionReason: string): number | undefined {
   const match = rejectionReason.match(
@@ -75,7 +93,8 @@ export function m04DoseRepairHerbIndex(rejectionReason: string): number | undefi
  * complete deterministic contract, independent clinical review and external audit afterwards.
  *
  * Full reasoning-v2 payloads are deliberately not rewritten here: M04 repairs must return through
- * the minimal proposal compiler, so only proposal-v1 -> proposal-v1 repair rounds are eligible.
+ * the minimal proposal compiler. Both compact proposals (version omitted) and legacy proposal-v1
+ * envelopes are eligible; no schema version is synthesized into the provider's original envelope.
  */
 export function stabilizeM04DoseOnlyRepair(
   rejectedJson: string,
@@ -85,11 +104,9 @@ export function stabilizeM04DoseOnlyRepair(
   const targetIndex = m04DoseRepairHerbIndex(rejectionReason);
   if (targetIndex == null) return undefined;
   try {
-    const rejected = JSON.parse(rejectedJson) as Record<string, unknown>;
-    const repaired = JSON.parse(repairedJson) as Record<string, unknown>;
-    if (rejected.schemaVersion !== "tcm-cdss-m04-proposal-v1" || repaired.schemaVersion !== "tcm-cdss-m04-proposal-v1") {
-      return undefined;
-    }
+    const rejected = doseRepairProposalRecord(JSON.parse(rejectedJson));
+    const repaired = doseRepairProposalRecord(JSON.parse(repairedJson));
+    if (!rejected || !repaired) return undefined;
     const rejectedHerbs = candidateHerbContainer(rejected);
     const repairedHerbs = candidateHerbContainer(repaired);
     const target = rejectedHerbs?.[targetIndex];
@@ -384,7 +401,7 @@ export function buildM04ClinicalRepairHint(
         : reason.endsWith("_therapy_unaligned")
           ? "候选方的整体用药方向与 M03 已锁定治法不一致。"
           : "候选方缺少方名或治法匹配说明。",
-      "补齐 candidate.name（承接 M03 锁定方名，或自拟时写“本例辨证组方”）、candidate.therapyMatch（本方如何落实 M03 总治法），并保证 herbs 覆盖 therapy.subTherapies 中每个「主要」治法方向至少一味药。",
+      "补齐 candidate.name（承接 M03 锁定方名，或自拟时写“本例辨证组方”）；therapyMatch 由服务端从 M03 锁定治法生成，不要在提案中输出。保证 herbs 覆盖 therapy.subTherapies 中每个「主要」治法方向至少一味药。",
       "不得为凑合规而添加与本例治法无关的药味；也不得改写 M03 的治法去迁就已写好的方。",
     ].join("\n");
   }
