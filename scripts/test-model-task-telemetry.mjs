@@ -146,7 +146,8 @@ check("事实回补的 independent_review 裸 fetch 分支已记账", () => {
   assert.ok(branchStart >= 0 && branchEnd > branchStart, "定位锚点失效");
   const branch = factsRuntime.slice(branchStart, branchEnd);
   assert.ok(branch.length > 200, "分支切片越界，断言会空转");
-  assert.ok(branch.includes("recordModelTaskTelemetry("), "裸 fetch 复核分支未记账");
+  assert.ok(branch.includes("observeModelTask("), "裸 fetch 复核分支的成功与失败必须统一记账");
+  assert.ok(branch.includes("observedModelFetch("), "裸 fetch 复核分支必须观测真实 HTTP 尝试次数");
 });
 check("事实三相位在账本里可分辨", () => {
   assert.ok(

@@ -12,8 +12,8 @@ import {
 } from "./clinical-facts";
 import { sanitizeCaseStateForModel, trustedInputText } from "./diagnosis-safety";
 import { parseCustomerId } from "./customer-id";
-import { observeModelTask, recordModelTaskTelemetry } from "./cdss-model-task-telemetry";
-import { modelUsageSnapshot } from "./openai-compatible-response";
+import { observeModelTask } from "./cdss-model-task-telemetry";
+import { observedModelFetch } from "./model-transport-observation";
 
 export { CLINICAL_FACTS_EXTRACTOR_VERSION, CLINICAL_FACTS_PROMPT_VERSION } from "./clinical-facts";
 
@@ -305,51 +305,41 @@ async function callFactsPhaseModel(
     ? AbortSignal.any([signal, AbortSignal.timeout(clinicalFactsPhaseTimeoutMs())])
     : AbortSignal.timeout(clinicalFactsPhaseTimeoutMs());
   if (config.source === "independent_review") {
-    const startedAt = Date.now();
-    const response = await fetch(config.endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        temperature: 0,
-        max_tokens: 1800,
-        response_format: { type: "json_object" },
-        ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
-      }),
-      signal: phaseSignal,
-    });
-    if (!response.ok) throw new Error(`review_model_http_${response.status}`);
-    const body = await response.json() as {
-      choices?: Array<{ message?: { content?: string | null } }>;
-      usage?: unknown;
-    };
-    // 该分支走裸 fetch（独立复核端点可能与主 provider 不同），拿不到 SDK 的返回对象，
-    // 所以不能用 observeModelTask 包；直接从响应体抽 usage 记同一本账。
-    const usage = modelUsageSnapshot(body);
-    recordModelTaskTelemetry({
+    // Observe the whole raw-fetch operation so HTTP, socket and JSON failures are counted too.
+    const body = await observeModelTask({
       task,
       stage: "shared",
       model: config.model,
       provider: "independent_review",
       promptChars,
-      outcome: "ok",
-      usageAvailable: usage !== undefined,
-      physicalAttempts: 1,
-      durationMs: Date.now() - startedAt,
-      promptTokens: usage?.promptTokens || 0,
-      completionTokens: usage?.completionTokens || 0,
-      cachedTokens: usage?.cachedTokens || 0,
-      totalTokens: usage?.totalTokens || 0,
+    }, async () => {
+      const response = await observedModelFetch(config.endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
+        body: JSON.stringify({
+          model: config.model,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user },
+          ],
+          temperature: 0,
+          max_tokens: 1800,
+          response_format: { type: "json_object" },
+          ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
+        }),
+        signal: phaseSignal,
+      });
+      if (!response.ok) throw new Error(`review_model_http_${response.status}`);
+      return await response.json() as {
+        choices?: Array<{ message?: { content?: string | null } }>;
+        usage?: unknown;
+      };
     });
     return body.choices?.[0]?.message?.content || "";
   }
   const primary = getPrimaryTextModelConfig();
   const client = createTextModelClient({ ...primary, model: config.model }, {
-    retryOwner: phase === "probe" ? "sdk" : "application",
+    retryOwner: phase === "extract" || phase === "review" ? "application" : "sdk",
   });
   const res = await observeModelTask({ task, stage: "shared", model: config.model, promptChars }, () => client.chat.completions.create(
     {
@@ -397,7 +387,8 @@ const REAL_FACTS_LLM_CALL: FactsLlmCall = async (system, user, signal, phase = "
   // Extraction gets one transport/empty-response retry. Independent review has its own bounded
   // full-contract retry in extractClinicalFacts, which reuses the exact same grounded first pass;
   // keeping this transport wrapper single-shot for review prevents multiplicative retries.
-  // Repair/adjudication remain single-shot so disagreement cannot be retried into an easier result.
+  // Repair/adjudication remain single-shot at the application level: SDK transport recovery may
+  // retry failed HTTP requests, but a completed disagreement/invalid response is not regenerated.
   const maxAttempts = phase === "extract" ? 2 : 1;
   return callClinicalFactsPhaseWithRetry(
     () => callFactsPhaseModel(config, system, user, signal, phase),
