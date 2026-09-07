@@ -47,6 +47,13 @@ assert.equal(frame?.module, "m04.candidate", "完整候选闭合后即上流，�
 assert.match(frame.content, /候选建议，补充中/);
 for (const value of ["四君子汤", "党参", "白术", "益气健脾", "君"]) assert.ok(frame.content.includes(value));
 assert.doesNotMatch(frame.content, /12g|9g|SECRET_EVIDENCE|dose|evidence/);
+const labeledRoleCandidate = { ...candidate, herbs: [{ ...candidate.herbs[0], role: "君药" }] };
+const labeledRolePreview = drafts.newM04ModuleDraftFrames('{"candidate":' + JSON.stringify(labeledRoleCandidate), new Set())[0];
+assert.match(labeledRolePreview.content, /党参（君）/, "预览必须复用处方合同的角色归一与校验");
+const unknownRolePreview = drafts.newM04ModuleDraftFrames('{"candidate":' + JSON.stringify({
+  ...labeledRoleCandidate, herbs: [{ ...candidate.herbs[0], role: "INVALID_ROLE_METADATA" }],
+}), new Set())[0];
+assert.doesNotMatch(unknownRolePreview.content, /INVALID_ROLE_METADATA/);
 for (const quantity of ["12g", "十二克", "0.5mg", "每日1剂", "连服5天"]) {
   const embedded = JSON.parse(JSON.stringify(candidate));
   embedded.name += quantity;
