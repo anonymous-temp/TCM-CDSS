@@ -25,6 +25,17 @@ const candidate = { name: "四君子汤", herbs: [
   { name: "白术", role: "臣", function: "健脾燥湿", dose: "9g" },
 ] };
 const partial = '{"stage":"prescribe","formula":{"candidates":[' + JSON.stringify(candidate);
+const providerCandidate = { ...candidate, herbs: candidate.herbs.map((herb) => ({ ...herb,
+  processing: null, targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, isToxic: false,
+})), decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "水煎服", followUpNode: "复诊" } };
+const providerPartial = '{"candidate":' + JSON.stringify(providerCandidate);
+const providerFrame = drafts.newM04ModuleDraftFrames(providerPartial, new Set())[0];
+assert.equal(providerFrame?.module, "m04.candidate", "实际 m04_proposal 根 candidate 闭合后即上流，不等待 nonPharma");
+assert.match(providerFrame.content, /四君子汤/);
+assert.doesNotMatch(providerFrame.content, /12g|5剂|水煎服|targetRef/);
+for (let end = 0; end < providerPartial.length; end += 1) {
+  assert.deepEqual(drafts.newM04ModuleDraftFrames(providerPartial.slice(0, end), new Set()), []);
+}
 const frame = drafts.newM04ModuleDraftFrames(partial, new Set())[0];
 assert.equal(frame?.module, "m04.candidate", "完整候选闭合后即上流，不等待 candidates/formula/nonPharma 结束");
 assert.match(frame.content, /候选建议，补充中/);
