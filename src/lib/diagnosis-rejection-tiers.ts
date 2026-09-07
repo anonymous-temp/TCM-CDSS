@@ -161,6 +161,9 @@ const T2_M04_PATTERNS: readonly RegExp[] = [
   // 君臣佐使的真实绑定完整性由 crossStageReasoningIssue 在 T1 把守。
   /^candidate_\d+_(?:name|therapy_match)$/,
   /^candidate_\d+_herb_\d+_(?:role|prescription_role|target|function|function_ungrounded)$/,
+  // Existing finalizer-deferred role labels are quality findings at every repair-budget entry.
+  // The bounded safety floor still validates actual references, dose, direction and composition.
+  /^candidate_\d+_herb_\d+_emperor_(?:not_primary|therapy_mismatch)$/,
   // 煎服法文本与复诊节点：两者在生成路径上由服务端确定性生成
   // （serverOwnsDecoctionMethod / serverOwnsFollowUpNode），模型侧文本不完整不影响可服用性。
   // 特殊煎法（先煎/后下/包煎等）是另一回事，属逐味安全控制，留在 T1。
@@ -215,8 +218,8 @@ export function isSafetyRejection(reason: string): boolean {
 
 /**
  * 路由 outputTransform 会在结构化编排器的严格修复之前和修复耗尽后的终审各执行一次。
- * 君药指向非 P1 / 君药功效词表未对上 P1 由核心编排器在前一阶段严格驳回促修；若核心随后按
- * “安全底线已过、标签一致性带批注”受理，路由不得再把同一码当剂量安全问题作废整方。
+ * 君药指向非 P1 / 君药功效词表未对上 P1 由核心编排器按质量预算处理（零预算直接带建议）。
+ * 若核心按“安全底线已过、标签一致性带批注”受理，路由不得把同一码当剂量问题作废整方。
  * 这里只延期这两个标签一致性码；剂量、配伍、特殊人群、方向对立等任何其他码仍为 T1。
  */
 export function isM04FinalizerDeferredLabelIssue(reason: string): boolean {
@@ -241,6 +244,9 @@ export function qualityAnnotationCopy(reason: string): string | undefined {
   if (!tier) return undefined;
   const prescribe = typeof reason === "string" && reason.trim().startsWith("m04_");
   if (prescribe) {
+    if (isM04FinalizerDeferredLabelIssue(reason)) {
+      return "本次候选方药中君药的角色标注或功效与主要病机的对应仍需确认，请结合主症与治法核对君药选择、君臣佐使分工和病机归属。";
+    }
     // 处方阶段的批注必须让医生知道「哪一层通过了」：药味、剂量、配伍禁忌、特殊人群与
     // 处方计划这些承重项已完整核验通过（m04SafetyContractIssue），不完整的是它们之外的说明或建议内容。
     return tier === "T2"

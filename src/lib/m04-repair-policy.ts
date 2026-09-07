@@ -210,7 +210,7 @@ export function m04FinalReviewQualityAnnotation(review: { status?: string; issue
  * Keep this deliberately narrower than `m04FinalReviewQualityAnnotation`: a dose-strength or
  * patient-dependency opinion can expose risk that deterministic upper/lower bounds cannot prove
  * away, so those paths retain their fail-closed repair/fallback behavior. The only zero-rewrite
- * shape is an otherwise safe herb-direction preference; the caller still re-runs the complete
+ * shapes are otherwise safe herb-direction or emperor-role opinions; the caller still re-runs the complete
  * deterministic M04 safety and formula contracts before attaching the signed annotation.
  */
 export function m04ZeroProviderRepairQualityAnnotation(review: {
@@ -220,7 +220,10 @@ export function m04ZeroProviderRepairQualityAnnotation(review: {
 }): string | undefined {
   if (review.status !== "repair" ||
       review.issueCode !== "herb_plan_mismatch" ||
-      review.repairFocus !== "herb_direction") return undefined;
+      (review.repairFocus !== "herb_direction" && review.repairFocus !== "emperor_role")) return undefined;
+  if (review.repairFocus === "emperor_role") {
+    return "复核对本次候选方药中君药与主要病机的对应仍有保留意见，请结合主症与治法核对君药选择、君臣佐使分工和病机归属，再决定是否调整相关药味。";
+  }
   return m04FinalReviewQualityAnnotation(review);
 }
 

@@ -1234,8 +1234,8 @@ function validatedStructuredReasoning(
           clinicalContext,
         );
         if (semanticIssue) {
-          // 首轮仍按完整合同严格促修。只有已经完成至少一轮模型修复的调用点会打开
-          // acceptM04QualityTierAfterRepair；此时也只允许分档表明确登记的 T2/T3 说明项，
+          // Quality repair exhaustion includes an explicit zero budget. This path only accepts
+          // registered T2/T3 findings, with the same bounded safety floor used at finalization.
           // 并在放行前独立重跑完整 T1 硬门。未知码默认 T1，不可能从这里穿透。
           if (!acceptM04QualityTierAfterRepair || isSafetyRejection(`m04_${semanticIssue}`)) {
             console.warn("[tcm-cdss:contract] M04 semantic rejection", {
@@ -1253,6 +1253,7 @@ function validatedStructuredReasoning(
             false,
             false,
             clinicalContext,
+            true,
           );
           if (floorAfterQuality) {
             console.warn("[tcm-cdss:contract] M04 safety-floor rejection after quality-tier acceptance", {
@@ -4209,12 +4210,16 @@ async function callPrimaryTextModelStream(
           }
         }
         let advisoryM04RiskAccepted = false;
-        // 仅记录修复完成后、通过完整 T1 硬门的 M04 文档质量受理。该状态写入签名域内的
-        // acceptanceScope，并让最后一公里沿用同一安全口径；不把内部质量批注显示给医生。
+        // Record bounded quality acceptance, including a zero repair budget, in the signed scope.
+        // The clinical annotation travels with the preserved candidate through finalization.
         let m04QualityTierAcceptedAfterRepair = false;
         const noteM04QualityTierAcceptance = (reason: string | undefined) => {
           if (!reason || !qualityAnnotationCopy(reason)) return;
           m04QualityTierAcceptedAfterRepair = true;
+          m04TransparentQualityAnnotation = [...new Set([
+            m04TransparentQualityAnnotation,
+            m04TherapyIssueQualityAnnotation(reason) || qualityAnnotationCopy(reason),
+          ].filter(Boolean))].join("\n\n") || undefined;
           m04AcceptanceScope = {
             waivedIssueCodes: [...new Set([...(m04AcceptanceScope?.waivedIssueCodes || []), reason])],
             qualityAnnotationCodes: [...new Set([...(m04AcceptanceScope?.qualityAnnotationCodes || []), reason])],

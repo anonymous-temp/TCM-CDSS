@@ -23,6 +23,7 @@ import { isKnownTcmHerbName } from "../src/lib/tcm-knowledge.ts";
 import { m03LimitedInformationRepairRoundAllowed, m04BaselineVerifiedFinalReviewAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "../src/lib/m04-repair-policy.ts";
 import { mergePrescriptionReviewItems } from "../src/lib/diagnosis-safety.ts";
 import { readFileSync } from "node:fs";
+import { clinicalDeliveryAdvisoryFromIssue } from "../src/lib/clinical-delivery-advisory.ts";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -98,8 +99,13 @@ assert.ok(
   }),
   "an otherwise safe herb-direction quality opinion is annotated without a provider rewrite",
 );
+assert.match(m04ZeroProviderRepairQualityAnnotation({
+  status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "emperor_role",
+}) || "", /君药.*主要病机/, "a role-quality review must offer actionable advice without regenerating the candidate");
 for (const review of [
-  { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "emperor_role" },
+  { status: "repair", issueCode: "herb_plan_mismatch" },
+  { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "future_focus" },
+  { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "modification_logic" },
   { status: "repair", issueCode: "formula_composition_mismatch", repairFocus: "formula_core_composition" },
   { status: "repair", issueCode: "dose_rationale_concern", repairFocus: "dose_strength" },
   { status: "repair", issueCode: "patient_context_mismatch", repairFocus: "patient_dependency" },
@@ -110,6 +116,34 @@ for (const review of [
     `zero-rewrite quality policy must fail closed for ${review.issueCode}/${review.repairFocus}`,
   );
 }
+
+// Closed issue-code family, independent of the particular herb and row reported in production.
+for (const row of [0, 1, 12]) {
+  for (const suffix of ["emperor_not_primary", "emperor_therapy_mismatch"]) {
+    const issue = `m04_candidate_0_herb_${row}_${suffix}`;
+    assert.equal(rejectionTier(issue), "T2", `${issue} must obey the zero quality-repair budget`);
+    assert.match(qualityAnnotationCopy(issue) || "", /君药.*主要病机/, `${issue} needs specific clinical advice`);
+  }
+}
+const roleMismatch = clone(BASELINE);
+roleMismatch.formula.candidates[0].herbs[0].targetRef = "P2";
+roleMismatch.formula.candidates[0].herbs[0].targetPathogenesis = "脾虚湿盛";
+assert.match(safety(roleMismatch) || "", /emperor_not_primary/);
+assert.equal(m04SafetyContractIssue(roleMismatch, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true), undefined);
+const roleAndDose = clone(roleMismatch);
+roleAndDose.formula.candidates[0].herbs[0].dose = "999g";
+assert.match(m04SafetyContractIssue(roleAndDose, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true) || "", /dose/,
+  "a role quality finding must never hide an actual dose error under the existing advisory safety floor");
+const roleAndInvalidReference = clone(roleMismatch);
+roleAndInvalidReference.formula.candidates[0].herbs[0].targetRef = "P99";
+assert.match(m04SafetyContractIssue(roleAndInvalidReference, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true) || "", /target_ref_invalid/);
+const emptyCandidate = clone(roleMismatch);
+emptyCandidate.formula.candidates[0].herbs = [];
+assert.ok(m04SafetyContractIssue(emptyCandidate, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true),
+  "missing executable herbs never become a role-quality annotation");
+const roleAdvice = clinicalDeliveryAdvisoryFromIssue("candidate_0_herb_0_emperor_not_primary", roleMismatch.formula.candidates[0]);
+assert.match(roleAdvice.message, /党参.*君药.*主要病机/);
+assert.match(roleAdvice.suggestedAction, /君臣佐使|角色/);
 assert.ok(
   m04ProviderRepairExhaustedQualityAnnotation({
     review: { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "herb_direction" },
@@ -240,7 +274,13 @@ for (const [label, injectDefect] of DANGEROUS_DEFECTS) {
   injectDefect(alone);
   const aloneSafety = safety(alone);
   assert.ok(aloneSafety, `${label}: 单独出现时 T1 硬门必须拦下`);
-  assert.equal(rejectionTier(`m04_${aloneSafety}`), "T1", `${label}: ${aloneSafety} 必须分级为 T1`);
+  // The strict check may report a role label first. Bounded acceptance must continue past that
+  // label and discover the independent dangerous defect, rather than treating its tier as proof.
+  const boundedSafety = m04SafetyContractIssue(alone, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true);
+  if (rejectionTier(`m04_${aloneSafety}`) !== "T1") {
+    assert.ok(boundedSafety, `${label}: quality labels must not hide the dangerous defect`);
+    assert.equal(rejectionTier(`m04_${boundedSafety}`), "T1", `${label}: bounded floor must find the actual safety issue`);
+  }
   assert.ok(
     !shouldAcceptWithQualityAnnotation({
       rejectionReason: `m04_${aloneSafety}`,
@@ -416,6 +456,12 @@ assert.ok(
 );
 
 const diagnosisApiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
+assert.match(diagnosisApiSource,
+  /const floorAfterQuality = m04SafetyContractIssue\([\s\S]{0,240}?clinicalContext,\s*true,\s*\)/,
+  "zero-budget quality acceptance must use the same bounded safety floor as finalization, or role labels reject twice");
+assert.match(diagnosisApiSource,
+  /const noteM04QualityTierAcceptance[\s\S]{0,450}?m04TransparentQualityAnnotation[\s\S]{0,180}?qualityAnnotationCopy\(reason\)/,
+  "a preserved candidate must visibly carry its actionable quality finding");
 assert.match(
   diagnosisApiSource,
   /acceptM04QualityTierAfterRepair[\s\S]*?isSafetyRejection\(`m04_\$\{semanticIssue\}`\)[\s\S]*?m04SafetyContractIssue\(/,

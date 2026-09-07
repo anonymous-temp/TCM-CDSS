@@ -18,6 +18,7 @@ export type ClinicalDeliveryAdvisory = Readonly<{
 }>;
 
 const COPY: ReadonlyArray<readonly [RegExp, string, string]> = [
+  [/emperor_(?:not_primary|therapy_mismatch)/, "君药的角色标注或功效与主要病机的对应仍需确认。", "请结合主症与治法核对君药选择、君臣佐使分工和病机归属，再决定是否调整相关药味。"],
   [/high_risk_pair|incompatib/, "处方中有需注意的药味配伍组合。", "请结合配伍提示与本次用药目的决定是否调整相关药味。"],
   [/unsupported_high_impact|direction/, "药味功用方向与本例治法的对应存在疑问，可能涉及方向不一致。", "请结合主症、四诊及该药在本方中的实际作用决定是否保留或调整。"],
   [/special_population|contraindication|pregnan|liver|renal/, "患者背景与相关药味的适用范围存在需要注意的情况。", "请结合患者实际情况、药品资料和替代方案判断本次用药。"],
