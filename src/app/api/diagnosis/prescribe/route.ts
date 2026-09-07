@@ -193,7 +193,7 @@ export async function POST(req: Request) {
   const [medicinePlan, baseEvidenceContext, inventoryContext] = await Promise.all([
     planEvidenceBoundMedicineCandidates(safeState, parsed.customer.customerId, req.signal),
     assistedNegationsPromise.then((assistedNegations) =>
-      buildCdssEvidenceContext(safeState, "prescribe", assistedNegations)),
+      buildCdssEvidenceContext(safeState, "prescribe", assistedNegations, req.signal)),
     // 院内库存可得性（甲方 2026-08-05 入站药品同步）。未导入库存时返回空串，
     // 提示词与导入前逐字节相同——可得性不是安全控制，缺数据不得改变链路行为。
     buildDrugInventoryPromptContext(parsed.customer.customerId),

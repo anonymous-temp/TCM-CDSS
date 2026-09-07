@@ -98,7 +98,7 @@ export async function POST(req: Request) {
   // 让它与增补层、证候重排全程重叠。此前它被排在第二批、白等第一批跑完——实测前置层
   // 占 M03 端到端 4~15s，这一条重排把 EviMed 的往返基本藏进了其余前置工作里。
   // 失败不阻断：catch 回退到空证据上下文，与既有降级语义一致。
-  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose").catch(() => "");
+  const evidenceContextPromise = buildCdssEvidenceContext(safeState, "diagnose", undefined, req.signal).catch(() => "");
   // 两个增补层互不依赖，并发跑；任一不可用都静默退回确定性行为。
   const [formulaRecallHint, assistedNegations] = await Promise.all([
     normalizeCaseTextForFormulaRecall(safeState, req.signal),

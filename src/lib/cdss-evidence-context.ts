@@ -30,9 +30,10 @@ export async function buildCdssEvidenceContext(
   // 在 M03 判否定、在 M04 的中成药说明书召回里又变回阳性事实——M04 会拿 M03 已经排除的
   // 症状去召回中成药。兜底层建对了但只铺了一个阶段，这里把它接到 M04。
   assistedNegations?: AssistedNegationClauses,
+  signal?: AbortSignal,
 ): Promise<string> {
   const localContext = buildTcmKnowledgeContext(caseState, stage);
-  const externalEvidenceContext = await buildExternalEvidenceContext(caseState, stage);
+  const externalEvidenceContext = await buildExternalEvidenceContext(caseState, stage, signal);
   const formulaProvenanceContext = stage === "prescribe" ? buildFormulaProvenanceContext(caseState) : "";
   // 方剂检索段由阶段提示词自己拼（buildDiagnosePrompt / buildPrescribePrompt），这里不再重复。
   // 曾经两处各拼一份，而提示词那份**不带 recallHint**：口语主诉下它返回「未命中受控经典方主治索引，

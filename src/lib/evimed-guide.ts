@@ -466,10 +466,12 @@ function requestPayload(kind: EvidenceSourceKind, safeQuery: string, opts?: { co
   return payload;
 }
 
-export async function fetchExternalEvidence(kind: EvidenceSourceKind, query: string, opts?: { count?: number; startYear?: number }): Promise<GuideEvidenceResult> {
+export async function fetchExternalEvidence(kind: EvidenceSourceKind, query: string, opts?: { count?: number; startYear?: number; signal?: AbortSignal }): Promise<GuideEvidenceResult> {
   const apiKey = getEvimedEvidenceApiKey(kind);
   const safeQuery = scrubQuery(query);
   const endpoint = SOURCE_CONFIG[kind].endpoint;
+  const cancelled = (): GuideEvidenceResult => ({ ok: false, reason: "upstream_error", query: safeQuery, list: [], message: "request_cancelled" });
+  if (opts?.signal?.aborted) return cancelled();
   if (!endpoint) {
     return {
       ok: false,
@@ -492,6 +494,7 @@ export async function fetchExternalEvidence(kind: EvidenceSourceKind, query: str
   if (!safeQuery) return { ok: false, reason: "empty_query", query: safeQuery, list: [], message: "query is empty" };
 
   for (let attempt = 0; attempt <= EVIMED_EVIDENCE_RETRY_ATTEMPTS; attempt += 1) {
+    if (opts?.signal?.aborted) return cancelled();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), EVIMED_EVIDENCE_TIMEOUT_MS);
     try {
@@ -502,7 +505,7 @@ export async function fetchExternalEvidence(kind: EvidenceSourceKind, query: str
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify(requestPayload(kind, safeQuery, opts)),
-        signal: controller.signal,
+        signal: opts?.signal ? AbortSignal.any([controller.signal, opts.signal]) : controller.signal,
         cache: "no-store",
       });
       const retryableStatus = res.status === 429 || res.status >= 500;
@@ -541,6 +544,7 @@ export async function fetchExternalEvidence(kind: EvidenceSourceKind, query: str
         ? { ok: true, reason: "no_hits", query: safeQuery, list: [] }
         : { ok: true, reason: "ok", query: safeQuery, list };
     } catch (error) {
+      if (opts?.signal?.aborted) return cancelled();
       if (error instanceof UpstreamResponseTooLargeError) {
         return { ok: false, reason: "invalid_response", query: safeQuery, list: [], message: "upstream response too large" };
       }
@@ -586,14 +590,16 @@ export function formatInstructionEvidenceRecord(item: ExternalEvidenceItem, evid
 export async function buildGuideEvidenceContext(
   caseState: CaseState,
   stage: "diagnose" | "prescribe" | "assess",
+  signal?: AbortSignal,
 ): Promise<string> {
-  return buildSingleEvidenceSection("guide", caseState, stage);
+  return buildSingleEvidenceSection("guide", caseState, stage, signal);
 }
 
 async function buildSingleEvidenceSection(
   kind: EvidenceSourceKind,
   caseState: CaseState,
   stage: "diagnose" | "prescribe" | "assess",
+  signal?: AbortSignal,
 ): Promise<string> {
   const query = buildEvidenceQuery(caseState, stage, kind);
   const options = {
@@ -602,27 +608,37 @@ async function buildSingleEvidenceSection(
   };
   const problemQueries = buildEvidenceFallbackQueries(caseState, stage, kind)
     .filter((candidate) => candidate !== query).slice(0, 2);
-  // M03 used to wait for a long narrative query before paying another full network wait for
-  // each useful problem query. Bounded fan-out retains the same three-query ceiling. Promise.all
-  // preserves input order: completion speed cannot reorder the preferred evidence or its IDs.
-  const diagnosticResults = stage === "diagnose" && kind !== "instruction"
-    ? await Promise.all([query, ...problemQueries].map((candidate) => fetchExternalEvidence(kind, candidate, options)))
-    : [await fetchExternalEvidence(kind, query, options)];
-  let result = diagnosticResults[0];
+  let result: GuideEvidenceResult | undefined;
   let usedQuery = query;
-  // M03 不能只看“长病历查询是否有任何命中”：反酸病例的长查询曾只命中肿瘤食欲下降共识，
-  // 因为它抓住了伴随的“食欲下降”。诊断阶段始终优先尝试受治理的当前问题查询；
-  // 它有命中就取代长查询，无命中才保留长查询结果。其他阶段仍只在 no_hits 时回退。
-  const preferredIndex = diagnosticResults.findIndex((candidate, index) => index > 0 && candidate.ok && candidate.list.length > 0);
-  if (preferredIndex > 0) {
-    result = diagnosticResults[preferredIndex];
-    usedQuery = problemQueries[preferredIndex - 1];
+  if (stage === "diagnose" && kind !== "instruction" && problemQueries.length) {
+    const unused = new AbortController();
+    const querySignal = signal ? AbortSignal.any([unused.signal, signal]) : unused.signal;
+    // Start the same bounded fan-out, consume by clinical priority instead of waiting for all.
+    // The first successful priority query is exactly the former Promise.all selection. Unused
+    // work is cancelled; its caught empty result never changes already selected evidence IDs.
+    const full = fetchExternalEvidence(kind, query, { ...options, signal: querySignal });
+    const preferred = problemQueries.map(candidate => fetchExternalEvidence(kind, candidate, { ...options, signal: querySignal }));
+    try {
+      for (const [index, pending] of preferred.entries()) {
+        const candidate = await pending;
+        if (candidate.ok && candidate.list.length) {
+          result = candidate;
+          usedQuery = problemQueries[index];
+          break;
+        }
+      }
+      result ??= await full;
+    } finally {
+      unused.abort();
+    }
+  } else {
+    result = await fetchExternalEvidence(kind, query, { ...options, signal });
   }
   const shouldTryProblemFallback = kind !== "instruction" && stage !== "diagnose" &&
     result.ok && result.reason === "no_hits";
   if (shouldTryProblemFallback) {
     for (const fallbackQuery of problemQueries) {
-      const fallback = await fetchExternalEvidence(kind, fallbackQuery, options);
+      const fallback = await fetchExternalEvidence(kind, fallbackQuery, { ...options, signal });
       if (fallback.list.length > 0) {
         result = fallback;
         usedQuery = fallbackQuery;
@@ -663,10 +679,11 @@ async function buildSingleEvidenceSection(
 export async function buildExternalEvidenceContext(
   caseState: CaseState,
   stage: "diagnose" | "prescribe" | "assess",
+  signal?: AbortSignal,
 ): Promise<string> {
   const targets = (Object.keys(SOURCE_CONFIG) as EvidenceSourceKind[])
     .filter((kind) => evidenceSourceConfigured(kind));
-  const sections = await Promise.all(targets.map((kind) => buildSingleEvidenceSection(kind, caseState, stage)));
+  const sections = await Promise.all(targets.map((kind) => buildSingleEvidenceSection(kind, caseState, stage, signal)));
   return [
     "## 外部证据检索支持",
     "以下为模型可引用的外部证据上下文；硬安全边界由确定性门控负责，灵犀审方只提供风险提示，检索结果不得作为自动放行依据。",

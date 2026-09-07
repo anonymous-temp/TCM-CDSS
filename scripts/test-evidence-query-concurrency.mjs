@@ -68,6 +68,34 @@ try {
     await fetchExternalEvidence("guide", "咳嗽 指南", { signal: controller.signal });
     assert.equal(calls, 0);
   });
+  await check("primary errors still allow a useful lower-priority result", async () => {
+    const preferred = buildEvidenceFallbackQueries(state, "diagnose", "guide");
+    assert.ok(preferred.length >= 2);
+    globalThis.fetch = async (_url, options) => {
+      const query = JSON.parse(options.body).query;
+      if (query === preferred[0]) throw new Error("synthetic transport failure");
+      return response(query === preferred[1] ? "次优相关指南" : "长查询资料");
+    };
+    const context = await buildGuideEvidenceContext(state, "diagnose");
+    assert.ok(context.includes("次优相关指南"));
+    assert.ok(!context.includes("长查询资料"));
+  });
+  await check("client cancellation reaches all pending query attempts without retry", async () => {
+    let calls = 0, cancelled = 0;
+    globalThis.fetch = async (_url, options) => {
+      calls++;
+      return new Promise((_, reject) => options.signal.addEventListener("abort", () => {
+        cancelled++; reject(new DOMException("cancelled", "AbortError"));
+      }, { once: true }));
+    };
+    const controller = new AbortController();
+    const run = buildGuideEvidenceContext(state, "diagnose", controller.signal);
+    await new Promise(resolve => setImmediate(resolve));
+    const started = calls; controller.abort();
+    assert.equal(await run, "");
+    assert.equal(calls, started);
+    assert.equal(cancelled, started);
+  });
 } finally {
   globalThis.fetch = previousFetch;
   if (previousKey === undefined) delete process.env.EVIMED_GUIDE_API_KEY;
