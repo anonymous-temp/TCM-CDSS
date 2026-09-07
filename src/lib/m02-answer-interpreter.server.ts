@@ -350,7 +350,7 @@ function buildUserPrompt(input: {
 function primaryModelCall(): M02AnswerInterpreterModelCall | null {
   const config = getPrimaryTextModelConfig();
   if (!config.configured) return null;
-  const client = createTextModelClient(config);
+  const client = createTextModelClient(config, { retryOwner: "application" });
 
   return async ({ systemPrompt, userPrompt, signal }) => {
     const completion = await observeModelTask({ task: "m02_answer_interpret", stage: "question", model: config.model }, () => client.chat.completions.create({

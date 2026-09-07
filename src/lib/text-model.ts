@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 
 import { textModelCapabilities } from "./text-model-capabilities";
+import { observedModelFetch } from "./model-transport-observation";
 
 export type TextModelProvider = "bailian-qwen" | "openai-compatible";
 
@@ -159,10 +160,16 @@ export function getControlledTerminologyModelConfig(): TextModelConfig {
   };
 }
 
-export function createTextModelClient(config = getPrimaryTextModelConfig()): OpenAI {
+/** Application recovery owns the whole retry budget when selected; other callers retain SDK recovery. */
+export function createTextModelClient(
+  config = getPrimaryTextModelConfig(),
+  options: { retryOwner?: "sdk" | "application" } = {},
+): OpenAI {
   return new OpenAI({
     apiKey: config.apiKey || "missing-api-key",
     baseURL: config.baseUrl,
+    maxRetries: options.retryOwner === "application" ? 0 : 2,
+    fetch: observedModelFetch,
   });
 }
 

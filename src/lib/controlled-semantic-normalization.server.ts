@@ -363,16 +363,18 @@ async function callClosedSetModel(
   targets: readonly ControlledSemanticTarget[],
   signal?: AbortSignal,
   timeoutMs = CONSENSUS_ATTEMPT_TIMEOUT_MS,
+  task = "controlled_terminology",
 ): Promise<ControlledSemanticDecision[]> {
+  if (signal?.aborted) return [];
   const config = getControlledTerminologyModelConfig();
   if (!config.configured) return [];
-  const client = createTextModelClient(config);
+  const client = createTextModelClient(config, { retryOwner: "application" });
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   signal?.addEventListener("abort", onAbort, { once: true });
   const timer = setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
   try {
-    const completion = await observeModelTask({ task: "controlled_terminology", stage: "shared", model: config.model }, () => client.chat.completions.create({
+    const completion = await observeModelTask({ task, stage: "shared", model: config.model }, () => client.chat.completions.create({
       model: config.model,
       messages: [
         { role: "system", content: "你只执行闭集术语等价映射；候选外一律弃权。" },
@@ -399,12 +401,14 @@ async function callClosedSetModel(
 async function callClosedSetConsensusWithRecovery(
   targets: readonly ControlledSemanticTarget[],
   signal?: AbortSignal,
+  task = "controlled_terminology",
 ): Promise<[ControlledSemanticDecision[], ControlledSemanticDecision[]]> {
   const deadline = Date.now() + CONSENSUS_TOTAL_TIMEOUT_MS;
   const runLeg = () => callClosedSetModel(
     targets,
     signal,
     Math.min(CONSENSUS_ATTEMPT_TIMEOUT_MS, Math.max(1, deadline - Date.now())),
+    task,
   );
   let [first, second] = await Promise.all([runLeg(), runLeg()]);
   // Consensus is impossible when both independent legs are empty. Retrying both simultaneously
@@ -552,7 +556,7 @@ async function runProbe() {
   if (!config.configured) return { ok: false, reason: "not_configured" as const, model: getPublicTextModelStatus(config) };
   const target = makeTarget("probe", "tcm_syndrome", "probe", "痰热扰神证", 12);
   if (!target) return { ok: false, reason: "candidate_prefilter_unavailable" as const, model: getPublicTextModelStatus(config) };
-  const [first, second] = await callClosedSetConsensusWithRecovery([target]);
+  const [first, second] = await callClosedSetConsensusWithRecovery([target], undefined, "controlled_terminology_probe");
   const accepted = validatedConsensusDecision(
     target,
     first.find((item) => item.key === "probe"),

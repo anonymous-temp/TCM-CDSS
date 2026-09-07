@@ -14,6 +14,7 @@
  */
 
 import { modelUsageSnapshot } from "./openai-compatible-response";
+import { observeModelTransport } from "./model-transport-observation";
 
 export type ModelTaskOutcome = "ok" | "error" | "aborted";
 
@@ -36,6 +37,11 @@ export type ModelTaskMeta = Readonly<{
 }>;
 
 export type ModelTaskTelemetryEvent = ModelTaskMeta & Readonly<{
+  /** Absent provider usage is unknown cost, never a confirmed zero-cost call. */
+  usageAvailable?: boolean;
+  /** Physical fetch invocations, distinct from the legacy application attempt ordinal. */
+  physicalAttempts?: number;
+  callId?: string;
   outcome: ModelTaskOutcome;
   durationMs: number;
   /** 流式调用的首 token 时延；非流式为 undefined（不可观测，不猜）。 */
@@ -47,6 +53,10 @@ export type ModelTaskTelemetryEvent = ModelTaskMeta & Readonly<{
 }>;
 
 type TaskAggregate = {
+  usageAvailable: number;
+  usageMissing: number;
+  physicalAttemptsTotal: number;
+  physicalAttemptsUnobservedCalls: number;
   total: number;
   outcomes: Record<ModelTaskOutcome, number>;
   durationMsTotal: number;
@@ -79,6 +89,10 @@ function nullProtoRecord(): Record<string, number> {
 
 function emptyAggregate(): TaskAggregate {
   return {
+    usageAvailable: 0,
+    usageMissing: 0,
+    physicalAttemptsTotal: 0,
+    physicalAttemptsUnobservedCalls: 0,
     total: 0,
     outcomes: { ok: 0, error: 0, aborted: 0 },
     durationMsTotal: 0,
@@ -128,6 +142,12 @@ export function recordModelTaskTelemetry(event: ModelTaskTelemetryEvent): void {
   const state = store();
   const taskKey = safeTaskKey(event.task);
   const aggregate = state.tasks[taskKey] || emptyAggregate();
+  const usageAvailable = event.usageAvailable ??
+    [event.promptTokens, event.completionTokens, event.totalTokens, event.cachedTokens].some((n) => n > 0);
+  aggregate.usageAvailable = (aggregate.usageAvailable || 0) + Number(usageAvailable);
+  aggregate.usageMissing = (aggregate.usageMissing || 0) + Number(!usageAvailable);
+  aggregate.physicalAttemptsTotal = (aggregate.physicalAttemptsTotal || 0) + (event.physicalAttempts ?? 0);
+  aggregate.physicalAttemptsUnobservedCalls = (aggregate.physicalAttemptsUnobservedCalls || 0) + Number(event.physicalAttempts === undefined);
   aggregate.total += 1;
   aggregate.outcomes[event.outcome] += 1;
   const durationMs = Math.max(0, Math.round(event.durationMs));
@@ -148,6 +168,9 @@ export function recordModelTaskTelemetry(event: ModelTaskTelemetryEvent): void {
   state.tasks[taskKey] = aggregate;
   state.updatedAt = new Date().toISOString();
   console.info("[tcm-cdss:telemetry] model_task", {
+    callId: event.callId ?? null,
+    physicalAttempts: event.physicalAttempts ?? null,
+    usageAvailable,
     task: taskKey,
     stage: event.stage || "shared",
     model: event.model,
@@ -156,10 +179,10 @@ export function recordModelTaskTelemetry(event: ModelTaskTelemetryEvent): void {
     outcome: event.outcome,
     durationMs,
     firstTokenMs: event.firstTokenMs ?? null,
-    promptTokens: event.promptTokens,
-    completionTokens: event.completionTokens,
-    cachedTokens: event.cachedTokens,
-    totalTokens: event.totalTokens,
+    promptTokens: usageAvailable ? event.promptTokens : null,
+    completionTokens: usageAvailable ? event.completionTokens : null,
+    cachedTokens: usageAvailable ? event.cachedTokens : null,
+    totalTokens: usageAvailable ? event.totalTokens : null,
     promptChars: event.promptChars ?? null,
     issueCode: event.issueCode || "none",
   });
@@ -173,12 +196,16 @@ export function recordModelTaskTelemetry(event: ModelTaskTelemetryEvent): void {
  * 包装器不改变任何返回值、不吞异常、不改写 AbortError 语义。
  */
 export async function observeModelTask<T>(meta: ModelTaskMeta, run: () => Promise<T>): Promise<T> {
+  return observeModelTransport(async (transport) => {
   const startedAt = Date.now();
   try {
     const result = await run();
     const usage = modelUsageSnapshot(result);
     recordModelTaskTelemetry({
       ...meta,
+      callId: transport.callId,
+      physicalAttempts: transport.observed ? transport.attempts : undefined,
+      usageAvailable: usage !== undefined,
       outcome: "ok",
       durationMs: Date.now() - startedAt,
       promptTokens: usage?.promptTokens || 0,
@@ -192,6 +219,9 @@ export async function observeModelTask<T>(meta: ModelTaskMeta, run: () => Promis
       && (error.name === "AbortError" || /abort/i.test(error.message));
     recordModelTaskTelemetry({
       ...meta,
+      callId: transport.callId,
+      physicalAttempts: transport.observed ? transport.attempts : undefined,
+      usageAvailable: false,
       outcome: aborted ? "aborted" : "error",
       durationMs: Date.now() - startedAt,
       promptTokens: 0,
@@ -201,6 +231,7 @@ export async function observeModelTask<T>(meta: ModelTaskMeta, run: () => Promis
     });
     throw error;
   }
+  });
 }
 
 function percentile(values: readonly number[], quantile: number): number {
@@ -215,6 +246,10 @@ export function getCdssModelTaskTelemetrySnapshot(): unknown {
     const total = aggregate.total || 1;
     return [task, {
       total: aggregate.total,
+      usageAvailable: aggregate.usageAvailable,
+      usageMissing: aggregate.usageMissing,
+      physicalAttemptsTotal: aggregate.physicalAttemptsTotal,
+      physicalAttemptsUnobservedCalls: aggregate.physicalAttemptsUnobservedCalls,
       outcomes: { ...aggregate.outcomes },
       averageDurationMs: Math.round(aggregate.durationMsTotal / total),
       p50DurationMs: percentile(aggregate.recentDurationsMs, 0.5),
@@ -231,8 +266,8 @@ export function getCdssModelTaskTelemetrySnapshot(): unknown {
       promptTokensTotal: aggregate.promptTokensTotal,
       completionTokensTotal: aggregate.completionTokensTotal,
       cachedTokensTotal: aggregate.cachedTokensTotal,
-      averagePromptTokens: Math.round(aggregate.promptTokensTotal / total),
-      averageCompletionTokens: Math.round(aggregate.completionTokensTotal / total),
+      averagePromptTokens: aggregate.usageAvailable ? Math.round(aggregate.promptTokensTotal / aggregate.usageAvailable) : null,
+      averageCompletionTokens: aggregate.usageAvailable ? Math.round(aggregate.completionTokensTotal / aggregate.usageAvailable) : null,
       // 真实缓存命中率。历史教训：用重放病例测出的 99% 是假象，只有分流流量下的值可用。
       cacheHitRatio: aggregate.promptTokensTotal > 0
         ? Number((aggregate.cachedTokensTotal / aggregate.promptTokensTotal).toFixed(4))
@@ -246,10 +281,14 @@ export function getCdssModelTaskTelemetrySnapshot(): unknown {
   });
   const totals = Object.values(state.tasks).reduce((sum, aggregate) => ({
     calls: sum.calls + aggregate.total,
+    usageMissing: sum.usageMissing + aggregate.usageMissing,
+    usageAvailable: sum.usageAvailable + aggregate.usageAvailable,
+    physicalAttempts: sum.physicalAttempts + aggregate.physicalAttemptsTotal,
+    physicalAttemptsUnobservedCalls: sum.physicalAttemptsUnobservedCalls + aggregate.physicalAttemptsUnobservedCalls,
     promptTokens: sum.promptTokens + aggregate.promptTokensTotal,
     completionTokens: sum.completionTokens + aggregate.completionTokensTotal,
     cachedTokens: sum.cachedTokens + aggregate.cachedTokensTotal,
-  }), { calls: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0 });
+  }), { calls: 0, usageMissing: 0, usageAvailable: 0, physicalAttempts: 0, physicalAttemptsUnobservedCalls: 0, promptTokens: 0, completionTokens: 0, cachedTokens: 0 });
   return {
     schemaVersion: "tcm-cdss-model-task-telemetry-v1",
     startedAt: state.startedAt,

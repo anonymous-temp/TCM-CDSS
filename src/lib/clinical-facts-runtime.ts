@@ -337,6 +337,8 @@ async function callFactsPhaseModel(
       provider: "independent_review",
       promptChars,
       outcome: "ok",
+      usageAvailable: usage !== undefined,
+      physicalAttempts: 1,
       durationMs: Date.now() - startedAt,
       promptTokens: usage?.promptTokens || 0,
       completionTokens: usage?.completionTokens || 0,
@@ -346,7 +348,9 @@ async function callFactsPhaseModel(
     return body.choices?.[0]?.message?.content || "";
   }
   const primary = getPrimaryTextModelConfig();
-  const client = createTextModelClient({ ...primary, model: config.model });
+  const client = createTextModelClient({ ...primary, model: config.model }, {
+    retryOwner: phase === "probe" ? "sdk" : "application",
+  });
   const res = await observeModelTask({ task, stage: "shared", model: config.model, promptChars }, () => client.chat.completions.create(
     {
       model: config.model,
