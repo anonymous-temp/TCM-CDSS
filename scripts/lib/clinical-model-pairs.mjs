@@ -1,3 +1,15 @@
+export function pairModelIdentity(health) {
+  const stageModels = Object.fromEntries(["diagnoseModel", "prescribeModel"].map(key => [key, {
+    model: health.providers?.[key]?.model ?? null, provider: health.providers?.[key]?.provider ?? null,
+    thinkingEnabled: health.providers?.[key]?.thinkingEnabled ?? null, reasoningEffort: health.providers?.[key]?.reasoningEffort ?? null,
+  }]));
+  return {
+    build: { commit: health.build?.commit, sourceDigest: health.build?.sourceDigest, builtAt: health.build?.builtAt },
+    modelIdentityAvailable: Object.values(stageModels).every(value => typeof value.model === "string" && value.model.length > 0),
+    stageModels,
+  };
+}
+
 /** Full clinical HTTP comparison; callers own transport and credentials, never this report. */
 export async function runClinicalModelPairs({ fixtures, call, onProgress = () => {} }) {
   if (!Array.isArray(fixtures) || !fixtures.length || fixtures.length > 20 || fixtures.some(x => x.synthetic !== true || !x.state)) {
@@ -43,6 +55,8 @@ function clinicalSummary(reasoning) {
     therapy: reasoning.therapy?.overallMethod ?? null,
     chainNodeCount: reasoning.pathogenesis?.chain?.length ?? 0,
     reviewStatus: reasoning.clinicalReview?.status ?? null,
+    reviewDecision: reasoning.clinicalReview?.reviewDecision ?? null,
+    reviewModel: reasoning.clinicalReview?.model ?? null,
     candidate: reasoning.formula?.candidates?.[0] ? {
       name: reasoning.formula.candidates[0].name,
       formulaAnalysis: reasoning.formula.candidates[0].formulaAnalysis,

@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { experienceCases, experienceCaseState } from "./lib/experience-fixtures.mjs";
 import { measureExperienceResponse } from "./lib/experience-stream-measurement.mjs";
-import { runClinicalModelPairs } from "./lib/clinical-model-pairs.mjs";
+import { runClinicalModelPairs, pairModelIdentity } from "./lib/clinical-model-pairs.mjs";
 
 const customer = process.env.CDSS_CUSTOMER_ID;
 const token = process.env.CDSS_API_TOKEN;
@@ -19,16 +19,10 @@ const headers = { "Content-Type": "application/json", "x-cdss-api-token": token,
 
 const identities = {};
 for (const arm of ["baseline", "alternative"]) {
-  const response = await fetch(`${targets[arm]}/api/diagnosis/health`, { headers, signal: AbortSignal.timeout(20_000) });
+  const response = await fetch(`${targets[arm]}/api/diagnosis/health?diagnostics=1`, { headers, signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`Candidate ${arm} health unavailable`);
   const health = await response.json();
-  identities[arm] = {
-    build: { commit: health.build?.commit, sourceDigest: health.build?.sourceDigest, builtAt: health.build?.builtAt },
-    stageModels: Object.fromEntries(["diagnoseModel", "prescribeModel"].map(key => [key, {
-      model: health.providers?.[key]?.model, provider: health.providers?.[key]?.provider,
-      thinkingEnabled: health.providers?.[key]?.thinkingEnabled, reasoningEffort: health.providers?.[key]?.reasoningEffort,
-    }])),
-  };
+  identities[arm] = pairModelIdentity(health);
 }
 
 const call = async (arm, route, state) => {
@@ -61,7 +55,8 @@ const report = await runClinicalModelPairs({
   fixtures: experienceCases.slice(0, count).map(fixture => ({ label: fixture.label, synthetic: true, state: experienceCaseState(fixture, customer) })),
   call, onProgress: event => console.log(JSON.stringify(event)),
 });
-const output = { checkedAt: new Date().toISOString(), identities, ...report };
+const output = { checkedAt: new Date().toISOString(), identities,
+  comparisonIdentityVerified: Object.values(identities).every(identity => identity.modelIdentityAvailable), ...report };
 if (process.env.PAIR_OUTPUT) {
   await mkdir(dirname(process.env.PAIR_OUTPUT), { recursive: true });
   await writeFile(process.env.PAIR_OUTPUT, JSON.stringify(output, null, 2));
