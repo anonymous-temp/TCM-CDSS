@@ -114,6 +114,8 @@ test("M04 prompt assigns one clinical purpose per explanation without requesting
   assert.match(prompt, /不在多个字段重复/);
   assert.match(prompt, /formulaAnalysis/);
   assert.match(prompt, /10–30 字/);
+  assert.equal(prompt.includes("药味功用、方义、适用边界或证据字段；这些全部由服务端生成"), false,
+    "prompt must not forbid the individualized clinical explanations the provider schema retains");
 });
 
 test("compact fixture reports measurable wire reduction without shrinking clinical prose", () => {
