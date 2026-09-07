@@ -154,6 +154,8 @@ const scripts = [
   "test:model-transport-accounting",
   "test:m02-answer-reuse",
   "test:model-routing-ab",
+  "test:clinical-facts-transport",
+  "test:m03-context-packets",
   "test:clinical-facts",
   "test:evidence-sentinel",
   "test:evimed-normalization",
