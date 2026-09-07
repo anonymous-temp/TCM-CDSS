@@ -160,8 +160,9 @@ const prescribePrompt = buildPrescribePrompt({ patient: {}, chiefComplaint: "失
 assert.match(prescribePrompt, /"modifications"/, "M04 proposal must expose the bounded IF-THEN modification channel");
 assert.match(prescribePrompt, /targetRef.*P1/, "every modification must reference an M03 pathogenesis node");
 assert.doesNotMatch(prescribePrompt, /## 加减方案/);
-assert.match(prescribePrompt, /tcm-cdss-m04-proposal-v1/);
-assert.match(prescribePrompt, /模型只提交需要临床生成的最小提案/);
+assert.doesNotMatch(prescribePrompt, /"schemaVersion"\s*:\s*"tcm-cdss-m04-proposal-v1"/,
+  "M04 provider omits the version restored by the legacy-compatible compiler");
+assert.match(prescribePrompt, /模型提交药味、剂量、角色引用、个体化功用与方解/);
 assert.match(
   prescribePrompt,
   /decoction 必须是单个对象.*doseCount.*dosesPerDay.*administrationTimesPerDay.*不得省略/s,
