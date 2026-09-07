@@ -1,6 +1,7 @@
 import { completedTopLevelKeys, completedTopLevelValueJson } from "./diagnosis-stream-modules";
 import type { M03DraftModule, StreamModuleDraftFrame } from "./diagnosis-stream-protocol";
 import { sanitizeGeneratedSuggestionPreviewText } from "./diagnosis-stream-safety";
+import { PrescriptionRoleSchema } from "./diagnosis-types";
 
 const WATERMARK = "> 生成中 · 未定稿，最终以完成报告为准。";
 
@@ -166,7 +167,8 @@ export function newM04ModuleDraftFrames(partial: string, emitted: Set<string>): 
   if (!candidate.herbs.every((herb) => presentText(record(herb)?.name))) return [];
   const herbs = candidate.herbs.slice(0, 30).map((herb) => {
     const row = record(herb)!;
-    const role = ["君", "臣", "佐", "使"].includes(String(row.role)) ? `（${row.role}）` : "";
+    const parsedRole = PrescriptionRoleSchema.safeParse(row.role);
+    const role = parsedRole.success ? `（${parsedRole.data}）` : "";
     return `- ${candidateText(row.name, 60)}${role}${presentText(row.function) ? `：${candidateText(row.function, 100)}` : ""}`;
   });
   emitted.add("m04.candidate");

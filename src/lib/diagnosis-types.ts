@@ -882,7 +882,7 @@ export function normalizePrescriptionRole(value: unknown): unknown {
   return compact[0];
 }
 
-const PrescriptionRoleSchema = z.preprocess(
+export const PrescriptionRoleSchema = z.preprocess(
   normalizePrescriptionRole,
   z.enum(["君", "臣", "佐", "使"]),
 );
