@@ -26,9 +26,11 @@ const plan = { schemaVersion: "tcm-cdss-m02-plan-v1", decision: "ask", rationale
 }] };
 let calls = 0;
 let failed = false;
+let resetOnce = false;
 const server = createServer(async (req, res) => {
   for await (const chunk of req) { void chunk; /* synthetic request */ }
   calls += 1;
+  if (resetOnce) { resetOnce = false; req.socket.destroy(); return; }
   res.writeHead(failed ? 503 : 200, { "Content-Type": "application/json", "retry-after-ms": "1" });
   res.end(JSON.stringify(failed ? { error: { message: "synthetic unavailable" } } : { choices: [{ message: { content: JSON.stringify({
     schemaVersion: "tcm-cdss-m02-answer-interpretation-v1", answers: [{ questionId: "q-medication", targetField: "medicationHistory", recordValue: "正在服药", groundedQuotes: ["正在服药"] }],
@@ -68,6 +70,10 @@ try {
   failed = false;
   assert.equal((await interpretM02Answer(failingInput)).ok, true);
   assert.equal(calls, 9, "failed requests are never reused");
+  resetOnce = true;
+  const recoveredReset = await interpretM02Answer({ ...input, caseState: { ...caseState, id: "connection-reset-case" } });
+  assert.equal(recoveredReset.ok, true, "application recovery also handles SDK connection errors");
+  assert.equal(calls, 11, "one connection reset gets exactly one application recovery attempt");
   console.log("M02 exact-answer reuse: scope isolation, mutation isolation, abort and transient failure recovery passed");
 } finally {
   for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }
