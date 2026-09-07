@@ -29,6 +29,10 @@ assert.ok(!result.content.includes("西医工作判断"), "draft frames must not
 
 const onlyHeartbeat = fixture(['{"type":"heartbeat","status":"仍在工作"}\n']);
 assert.equal((await measureExperienceResponse(onlyHeartbeat.response, { startedAt: 0, now: onlyHeartbeat.clock })).firstUsefulMs, null);
+for (const value of ["{", "{}", "[]", "...", "###", "<<<CDSS_STREAM_FINAL>>>"]) {
+  const empty = fixture([JSON.stringify({ content: value }) + "\n", '{"content":"[END]"}\n']);
+  assert.equal((await measureExperienceResponse(empty.response, { startedAt: 0, now: empty.clock })).firstUsefulMs, null, `${value} is not useful content`);
+}
 const failure = fixture(['{"error":"上游未完成"}\n', '{"content":"[END]"}\n']);
 assert.equal((await measureExperienceResponse(failure.response, { startedAt: 0, now: failure.clock })).streamError, true);
 
@@ -45,4 +49,4 @@ const response = new Response(new ReadableStream({ start(controller) {
   controller.close();
 } }));
 assert.equal((await measureExperienceResponse(response)).content, "完整临床正文");
-console.log(JSON.stringify({ suite: "experience-stream-measurement", checks: 12, failures: 0 }));
+console.log(JSON.stringify({ suite: "experience-stream-measurement", checks: 18, failures: 0 }));
