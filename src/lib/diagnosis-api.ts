@@ -4080,6 +4080,8 @@ async function callPrimaryTextModelStream(
           if (!providerDone && buf.trim().startsWith("data: ")) {
             handleProviderData(buf.trim().slice(6));
           }
+          // The final closed object may fall in a <200-character remainder after the last scan.
+          if (opts.structuredStage) enqueueM03ModuleDrafts(accumulatedContent);
         } finally {
           reader?.releaseLock();
         }

@@ -1,6 +1,6 @@
 import { completedTopLevelKeys, completedTopLevelValueJson } from "./diagnosis-stream-modules";
 import type { M03DraftModule, StreamModuleDraftFrame } from "./diagnosis-stream-protocol";
-import { sanitizeCandidatePreviewText, sanitizeDiagnoseStreamingDraft } from "./diagnosis-stream-safety";
+import { sanitizeGeneratedSuggestionPreviewText } from "./diagnosis-stream-safety";
 
 const WATERMARK = "> 生成中 · 未定稿，最终以完成报告为准。";
 
@@ -35,7 +35,7 @@ function safeText(value: unknown, limit = 500, sanitize: (text: string) => strin
 }
 
 function candidateText(value: unknown, limit: number): string {
-  return safeText(typeof value === "string" ? sanitizeCandidatePreviewText(value) : value, limit);
+  return safeText(typeof value === "string" ? sanitizeGeneratedSuggestionPreviewText(value) : value, limit);
 }
 
 function factLines(value: unknown): string[] {
@@ -72,11 +72,11 @@ function clinicalModulePreview(key: keyof typeof MODULE_BY_KEY, value: Record<st
     lines = ["## 病机分析", ...((value.chain as unknown[]).flatMap((item) => {
       const node = record(item);
       if (!node || ![node.patientFact, node.syndromeEvidence, node.pathogenesis, node.therapyDirection].every(presentText)) return [];
-      return [`- 患者事实：${safeText(node.patientFact, 200)}；辨证依据：${safeText(node.syndromeEvidence, 200)}；病机：${safeText(node.pathogenesis, 200)}；治法方向：${safeText(node.therapyDirection, 200)}`];
+      return [`- 患者事实：${safeText(node.patientFact, 200)}；辨证依据：${safeText(node.syndromeEvidence, 200)}；病机：${safeText(node.pathogenesis, 200)}；治法方向：${safeText(node.therapyDirection, 200, sanitizeGeneratedSuggestionPreviewText)}`];
     }).slice(0, 4))];
   } else {
     lines = ["## 治则治法", ...[value.overallPrinciple, value.overallMethod].filter(presentText)
-      .map((item) => safeText(item, 500, sanitizeDiagnoseStreamingDraft))];
+      .map((item) => safeText(item, 500, sanitizeGeneratedSuggestionPreviewText))];
   }
   return [WATERMARK, "", ...lines].join("\n");
 }
@@ -152,10 +152,13 @@ function fieldTail(object: string, wanted: string): string | undefined {
 /** A complete first candidate can be read before its containing array or later nonPharma closes. */
 export function newM04ModuleDraftFrames(partial: string, emitted: Set<string>): StreamModuleDraftFrame[] {
   if (emitted.has("m04.candidate")) return [];
-  const formula = fieldTail(partial.slice(partial.indexOf("{")), "formula");
+  const object = partial.slice(partial.indexOf("{"));
+  const proposalCandidate = fieldTail(object, "candidate");
+  const formula = proposalCandidate === undefined && fieldTail(object, "formula");
   const candidates = formula && fieldTail(formula, "candidates");
-  if (!candidates?.startsWith("[")) return [];
-  const candidateJson = completedTopLevelValueJson(`{"candidate":${candidates.slice(1).trimStart()}`, "candidate");
+  const candidateTail = proposalCandidate ?? (candidates && candidates.startsWith("[") ? candidates.slice(1).trimStart() : undefined);
+  if (!candidateTail) return [];
+  const candidateJson = completedTopLevelValueJson(`{"candidate":${candidateTail}`, "candidate");
   if (!candidateJson) return [];
   let candidate: Record<string, unknown> | undefined;
   try { candidate = record(JSON.parse(candidateJson)); } catch { return []; }
