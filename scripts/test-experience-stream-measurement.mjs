@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { measureExperienceResponse } from "./lib/experience-stream-measurement.mjs";
+import { summarizeExperienceDoseStatus } from "./lib/experience-delivery-summary.mjs";
 
 function fixture(frames) {
   let tick = 0;
@@ -55,4 +56,16 @@ const response = new Response(new ReadableStream({ start(controller) {
   controller.close();
 } }));
 assert.equal((await measureExperienceResponse(response)).content, "完整临床正文");
-console.log(JSON.stringify({ suite: "experience-stream-measurement", checks: 21, failures: 0 }));
+const delivery = summarizeExperienceDoseStatus({ contractSignature: "must-not-export", formula: { candidates: [
+  { name: "合成方", herbs: [{ name: "黄连", dose: "6g", verificationTier: "unverified_dose", verificationReasons: ["历史参考范围待核对"] }] },
+] } }, { prescriptions: { herbal: [{ id: "herbal-1", adoptable: false, referenceOnly: true, blockedReason: "供医生核对" }] } });
+assert.equal(delivery.candidates[0].herbs[0].verificationTier, "unverified_dose");
+assert.equal(delivery.candidates[0].herbs[0].dose, "6g");
+assert.equal(delivery.hisHerbalItems[0].adoptable, false);
+assert.equal(delivery.hisHerbalItems[0].referenceOnly, true);
+assert.ok(!JSON.stringify(delivery).includes("must-not-export"));
+assert.deepEqual(summarizeExperienceDoseStatus(undefined, undefined), { candidates: [], hisHerbalItems: [] });
+const unspecified = summarizeExperienceDoseStatus({ formula: { candidates: [{ herbs: [{ name: "茯苓", dose: "9g" }] }] } }, { prescriptions: { herbal: [{}] } });
+assert.equal(unspecified.candidates[0].herbs[0].verificationTier, null);
+assert.equal(unspecified.hisHerbalItems[0].adoptable, null, "missing permission is unknown, not true or false");
+console.log(JSON.stringify({ suite: "experience-stream-measurement", checks: 29, failures: 0 }));
