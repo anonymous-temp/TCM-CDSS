@@ -156,12 +156,14 @@ assert.deepEqual(m03DiagnosticReviewDiffPaths(reviewed, provenanceOnly), []);
 
 for (const mutate of [
   (value) => { value.westernDiagnosis.primary.supportingFacts = ["无来源的新事实"]; },
+  (value) => { value.westernDiagnosis.primary.name = "焦虑障碍"; },
   (value) => { value.overview.primarySyndrome = "痰热扰心证"; },
   (value) => { value.pathogenesis.chain[0].therapyDirection = "清热化痰"; },
   (value) => { value.overview.recommendedFormulaNames = ["黄连温胆汤"]; },
 ]) {
   const changed = structuredClone(reviewed);
   mutate(changed);
+  assert.notEqual(m03DiagnosticReviewSemanticHash(reviewed), m03DiagnosticReviewSemanticHash(changed));
   assert.equal(canRebindM03DiagnosticReview(reviewed, changed), false);
   assert.ok(m03DiagnosticReviewDiffPaths(reviewed, changed).length > 0);
 }
@@ -1094,6 +1096,10 @@ assert.deepEqual(
   m04ClinicalReviewDiffPaths(m04DriftPrior, parseSentinelReasoning(m04FinalizedOnce), parseSentinelReasoning(m04FinalizedTwice)),
   [],
 );
+const changedHerbPlan = parseSentinelReasoning(m04FinalizedOnce);
+changedHerbPlan.formula.candidates[0].herbs[0].name = "黄连";
+assert.equal(canRebindM04ClinicalReview(m04DriftPrior, parseSentinelReasoning(m04FinalizedOnce), changedHerbPlan), false,
+  "a real herb change must remain distinct from a deterministic presentation projection");
 
 // A route sanitizer can clear an explanatory field after preparation. Its deterministic final
 // projection must already be present in the first review, not cause another model draw at emit.
@@ -1113,6 +1119,8 @@ const savedSettledInfo = console.info;
 const settledLogs = [];
 const settledReviewPayloads = [];
 let settledGenerationCalls = 0;
+let settledFinalMutation;
+let settledAdjudication = false;
 try {
   Object.assign(process.env, settledEnv);
   console.info = (...args) => { settledLogs.push(args); };
@@ -1126,41 +1134,81 @@ try {
     }
     const userPrompt = request.messages.find((message) => message.role === "user")?.content || "";
     const marker = "待复核M03临床投影：";
+    if (settledAdjudication && userPrompt.includes("被争议的M03中医投影：")) {
+      return Response.json({ choices: [{ message: { content: '{"status":"accepted","issueCode":"none"}' }, finish_reason: "stop" }] });
+    }
     assert.ok(userPrompt.includes(marker), "the fixture must need no repair/provider calls beyond clinical review");
     settledReviewPayloads.push(JSON.parse(userPrompt.slice(userPrompt.indexOf(marker) + marker.length)));
-    return Response.json({ choices: [{ message: { content: '{"status":"accepted","issueCode":"none"}' }, finish_reason: "stop" }] });
+    const reviewResult = settledAdjudication
+      ? { status: "repair", issueCode: "tcm_reasoning_unsupported" }
+      : { status: "accepted", issueCode: "none" };
+    return Response.json({ choices: [{ message: { content: JSON.stringify(reviewResult) }, finish_reason: "stop" }] });
   };
-  const response = await callDiagnosisStream("synthetic settled M03", "deepseek", undefined, "markdown", {
-    structuredStage: "diagnose",
-    structuredClinicalContext: reviewedClinicalContext,
-    structuredAllowedM03FormulaNames: ["归脾汤"],
-    truncateFallback: "SYNTHETIC_FALLBACK",
-    diagnoseSignatureContext: {
-      contractVersion: "tcm-cdss-m03-signature-v5",
-      caseId: "synthetic-settled",
-      encounterId: "synthetic-settled-encounter",
-      clinicalInputHash: `sha256:${"a".repeat(64)}`,
-    },
-    outputTransform: (content) => content.replace(
-      /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
-      (_match, json) => {
-        const value = JSON.parse(json);
-        value.overview.tcmDiagnosticRationale = "";
-        return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(value)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const runSettledCandidate = async () => {
+    settledLogs.length = 0;
+    settledReviewPayloads.length = 0;
+    settledGenerationCalls = 0;
+    const response = await callDiagnosisStream("synthetic settled M03", "deepseek", undefined, "markdown", {
+      structuredStage: "diagnose",
+      structuredClinicalContext: reviewedClinicalContext,
+      structuredAllowedM03FormulaNames: ["归脾汤"],
+      truncateFallback: "SYNTHETIC_FALLBACK",
+      diagnoseSignatureContext: {
+        contractVersion: "tcm-cdss-m03-signature-v5",
+        caseId: "synthetic-settled",
+        encounterId: "synthetic-settled-encounter",
+        clinicalInputHash: `sha256:${"a".repeat(64)}`,
       },
-    ),
-  });
-  const text = await response.text();
-  const frames = text.trim().split("\n").map((line) => JSON.parse(line));
-  const output = frames.filter((frame) => typeof frame.content === "string").map((frame) => frame.content).join("");
-  assert.equal(settledGenerationCalls, 1);
-  const signed = parseSentinelReasoning(output);
+      outputTransform: (content) => content.replace(
+        /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
+        (_match, json) => {
+          const value = JSON.parse(json);
+          value.overview.tcmDiagnosticRationale = "";
+          // Deliberately simulate a clinical mutation after the first review: final hash checks must
+          // still demand another review even though deterministic projections are now settled early.
+          if (settledReviewPayloads.length > 0 && settledFinalMutation) settledFinalMutation(value);
+          return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(value)}\n<!-- DIAGNOSIS_JSON_END -->`;
+        },
+      ),
+    });
+    const text = await response.text();
+    const frames = text.trim().split("\n").map((line) => JSON.parse(line));
+    assert.deepEqual(frames.filter((frame) => frame.error), [], "the mock stream must finish without an error");
+    assert.equal(frames.at(-1).content, "[END]");
+    const output = frames.filter((frame) => typeof frame.content === "string").map((frame) => frame.content).join("");
+    assert.equal(settledGenerationCalls, 1);
+    return parseSentinelReasoning(output);
+  };
+  const signed = await runSettledCandidate();
   assert.equal(m03DiagnosticReviewSemanticHash(signed), "sha256:e65b691a013a531b473c38bf7fef9bf45fc40c77b0913b4b26cf786cdf70fce4", "the settled projection must preserve the pre-fix final clinical payload");
   assert.equal(settledReviewPayloads.length, 1, "one deterministic clinical projection must require exactly one independent review");
   assert.ok(signed.contractSignature, "the settled output must still be signed");
   assert.equal(signed.clinicalReview.status, "accepted");
   assert.deepEqual(buildM03DiagnosticReviewPayload(signed), settledReviewPayloads[0], "the reviewer must see the final clinical decisions verbatim");
   assert.deepEqual(settledLogs.filter(([name]) => name === "[tcm-cdss:timing] clinical_review").map(([, metadata]) => ({ phase: metadata.triggerPhase, paths: metadata.changedPaths })), [{ phase: "initial", paths: [] }]);
+  for (const [label, mutate, expectedPath] of [
+    ["diagnosis", (value) => { value.westernDiagnosis.primary.name = "睡眠障碍症状"; }, "m03Review.westernDiagnosis.primary.name"],
+    ["clinical fact", (value) => { value.westernDiagnosis.primary.supportingFacts.push("心悸健忘"); }, "m03Review.westernDiagnosis.primary.supportingFacts.length"],
+  ]) {
+    settledFinalMutation = mutate;
+    const changedSigned = await runSettledCandidate();
+    assert.equal(settledReviewPayloads.length, 2, `a real ${label} change still requires a final independent review`);
+    assert.ok(changedSigned.contractSignature);
+    assert.deepEqual(buildM03DiagnosticReviewPayload(changedSigned), settledReviewPayloads[1]);
+    const metadata = settledLogs.filter(([name]) => name === "[tcm-cdss:timing] clinical_review").map(([, fields]) => fields);
+    assert.deepEqual(metadata.map((fields) => fields.triggerPhase), ["initial", "finalization_changed"]);
+    assert.ok(metadata[1].changedPaths.includes(expectedPath));
+    assert.ok(metadata[1].changedPaths.every((path) => /^m03Review\.[a-zA-Z0-9_.\[\]]+$/.test(path)), "telemetry must contain field paths only");
+  }
+  settledFinalMutation = undefined;
+  settledAdjudication = true;
+  const adjudicatedSigned = await runSettledCandidate();
+  assert.ok(adjudicatedSigned.contractSignature);
+  assert.equal(adjudicatedSigned.clinicalReview.status, "accepted");
+  assert.deepEqual(settledLogs.filter(([name]) => name === "[tcm-cdss:timing] clinical_review").map(([, metadata]) => ({ phase: metadata.triggerPhase, status: metadata.status })), [
+    { phase: "initial", status: "repair" },
+    { phase: "adjudication", status: "accepted" },
+  ], "a genuine initial-review disagreement must retain its independent adjudication");
 } finally {
   globalThis.fetch = savedSettledFetch;
   console.info = savedSettledInfo;
@@ -1170,4 +1218,4 @@ try {
   }
 }
 
-console.log(JSON.stringify({ cases: 117, failures: 0 }));
+console.log(JSON.stringify({ cases: 122, failures: 0 }));
