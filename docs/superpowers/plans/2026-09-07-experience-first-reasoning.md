@@ -8,6 +8,8 @@
 
 **Tech Stack:** Next.js 16 Route Handlers, TypeScript 5, Zod 4, OpenAI-compatible Qwen APIs, local governed JSON/BM25F knowledge, NDJSON streaming, Node/Jiti regression scripts.
 
+**Execution reconciliation — 2026-09-07:** Core delivery, compact Western M03 context, case-specific review sections, M02 exact reuse, M05 shared work, physical-attempt accounting and the synthetic full HTTP journey are implemented through `7b47acdf`. Detailed actual-versus-remaining scope is in §8 of `docs/架构与完整推理链路审查-TODO-20260907.md`. The unchecked design steps below remain the original plan, not a claim that every named module or experiment was implemented. Two deliberate simplifications: multi-finding feedback uses the existing `repairInstruction` (up to three related findings of one issue class, no larger schema or extra rounds); callers with no application retry retain SDK recovery instead of blanket `maxRetries:0`. New general change-set/tool DTO/UI redesign and full clinical model/tool/search experiments remain uncompleted, not release or doctor-operation prerequisites.
+
 ---
 
 ### Task 1: Keep signed M04 results usable through HIS
@@ -253,4 +255,3 @@ Mark completed UX items with commit/test evidence. Document `warnings/reviewRequ
 - [ ] **Step 4: Final verification**
 
 Run `npm run verify:release`, experience journey, customer live tests and production smoke. Build an immutable image, verify commit/source digest, deploy, and rerun the experience journey on production while preserving the existing customer API token.
-

@@ -2,8 +2,8 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.8 |
-| 发布日期 | 2026-08-28 |
+| 文档版本 | V2.9 |
+| 发布日期 | 2026-09-07 |
 | 服务版本 | `tcm-cdss-20260828-lineage-modification-contract-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
@@ -2261,6 +2261,24 @@ HIS 投影与 M04 原始响应保持同一语义：`prescriptions.modifications[
 
 不要再按旧形态把 `action` 解析成「动作前缀 + 药味正文」。
 
+**V2.9 临床意见随结果交付**
+
+对已签发的 M04 候选或服务端确认的医生编辑版本，药味方向、参考药量、煎服说明、重复药味、解释待补充等临床问题不再单独使 HIS 返回 `422`。接口保留诊断和处方，返回 `200`，将具体问题放入 `warnings[]`，并在 `riskTips` 中提供同源中文说明。`200` 表示方案已交付，不等于所有临床问题均已消除；集成方应将建议与处方一起展示，不应再因存在提示隐藏整份报告。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `workflowPermission` | string | `continue`：已有报告可继续查看、编辑和流转 |
+| `reviewRequired` | boolean | 医生仍需结合病例作临床判断；不是要求客户端拦截报告的指令 |
+| `warnings` | array | 无补充意见时为 `[]`，有意见时使用下表字段 |
+| `warnings[].code` | string | 可扩展的内部归因码，用于对账；不直接作为医生提示文案 |
+| `warnings[].relatedCodes` | string[]，可选 | 合并同一可见提示时保留相关归因码 |
+| `warnings[].candidateIndex` | number | 候选方序号，从 0 开始 |
+| `warnings[].herbIndex` / `herbName` | number / string，可选 | 能定位到具体药味时提供；整方意见不提供药味位置 |
+| `warnings[].message` | string | 问题与本例的关系；可获得时包含当前药量与资料参考范围 |
+| `warnings[].suggestedAction` | string | 医生可采取的核实、补充或调整动作 |
+
+处方后审接口同样返回 `warnings[]` 和包含提示的 `section`；M05 将相关意见写入可见随访/风险正文。外部审方不可用时如实保留不可用/人工判断状态并继续交付报告，不伪装为审方通过，也不自动授权最终处方。鉴权失败、跨租户或被改写的签名、候选不存在等无法定位可信业务对象的请求仍返回相应 `4xx`，这些不是临床意见。
+
 医生在药味工作台实际增删改药味时，变更直接体现在当前候选的 `herbs[]`，不再把“已经
 落入处方的编辑动作”重复塞进条件性 `modifications[]`。工作台审方响应另返回
 `audit.attestationVersion` 与 `audit.attestation`；浏览器须将二者连同原审方字段原样回传。
@@ -2301,6 +2319,7 @@ HIS 投影与 M04 原始响应保持同一语义：`prescriptions.modifications[
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.9 | 2026-09-07 | 临床意见随方案交付：HIS 和处方后审新增 `warnings[]`，M05/HIS 正文同步显示；已形成结果不再因药味方向、说明待补等临床意见整份返回 `422`。加减动作/药味双字段保持不变，接口 Token 不变 | 新增字段；临床意见类结果由 `422` 改为 `200`+提示。调用方须展示提示，不应仅用 HTTP 状态判断临床问题是否存在 |
 | V2.8 | 2026-08-28 | **① 流派谱系勘误。** 原 `warm-tonify-yang` 拆为 `warm-tonify`（温补学派）与 `support-yang`（扶阳学派/火神派）；旧码仅作请求兼容并归一到温补学派，「温阳」作为治法术语不再冒充流派。两派拥有独立代表医家、典籍、追问重点与用药安全边界。**② 随证加减结构化。** `formula.modifications[]` 与 HIS 对应投影新增必有药味字段 `herbName`；`action` 收口为 `加` / `减` / `调整`，不再输出 `加川芎` 这类动作药味混合值。服务端仍能只读消费旧签名快照中的混合值，但所有新响应只输出分字段结构。 | **是（字段语义）**：仍把 `action` 当完整展示字符串的调用方须改为组合展示 `action + herbName`；旧请求流派码仍可用，但应尽快迁移。新增药味字段不影响忽略未知字段的宽松解析器 |
 | V2.7 | 2026-08-25 | **接口语义统一与稳定性收口。** `safetyGate` 新增 `candidateMode`（full_dose/limited_dose/non_dose_only/blocked），明确 `allowDosePrescription=false` 下 limited_dose 仍显示参考剂量；`question/interpret` 的模型超时与契约失败改为 `200 + ok:false + retryable`（业务降级，医生原话由调用方保留，不再出现 5xx）；审方对"药典小毒但不在医疗用毒性药品管制目录"药材（如苦杏仁）的处方权限误报纠偏覆盖供应商真实返回形态（issueType=PRIVILEGE）。 | **否**：新增字段向后兼容；依赖 interpret 5xx 判失败的调用方改为检查 `ok` 字段 |
 | V2.6 | 2026-08-25 | **JIT 登记事务顺序整改（PROV-08）。** 库存载荷结构校验先于 JIT 登记：载荷不合法的首次请求返回 4xx/413 且不登记客户；条目级错误整批拒绝并回报 `rejectedEntries`/`rejectedEntryCount`（缺 `name`、`kind` 非枚举、`available` 非布尔不再静默丢弃或强转）；空 `items` 不再生成零条目库存。JIT 登记成功的库存/分片响应与 `/api/customers/register` 响应新增 `customerRegistered` 字段（`created` 保留兼容）。审计轮转仅作用于普通文件，路径误配置为目录时审计判不可用并 fail-closed。 | **否**：既有合法调用不受影响；此前依赖「空 items 也返回 200」或「非法条目被静默跳过」的调用方需改为提交合法载荷 |
