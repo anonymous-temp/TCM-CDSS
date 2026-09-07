@@ -127,10 +127,10 @@ export function m04TherapyIssueQualityAnnotation(therapyIssue: string | undefine
     // 注意 herb_support 也以 herb_ 开头——只在后随数字（herb_3_…逐味码）时才剥这层前缀。
     .replace(/^transparent_therapy_(?=herb_\d)/, "");
   if (core === "transparent_therapy_coverage") {
-    return "本次候选方药的逐味剂量边界、配伍禁忌、特殊人群与高影响方向门禁均已通过安全核验；但系统未能自动核验全部治法方向的覆盖情况，方义与治法的对应关系请医生结合本次病历确认后再采纳。";
+    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；系统未能自动核验全部治法方向的覆盖情况，方义与治法的对应关系请医生结合本次病历核对。";
   }
   if (core === "transparent_therapy_herb_support") {
-    return "本次候选方药的逐味剂量边界、配伍禁忌、特殊人群与高影响方向门禁均已通过安全核验；但部分君臣药味的功效方向未能被系统自动对应到已锁定治法，请医生逐味核对方义后再采纳。";
+    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；部分君臣药味的功效方向未能被系统自动对应到已锁定治法，请医生逐味核对方义。";
   }
   // 词表未成立 ≠ 方向对立：对立（与锁定治法直接相反）在合同里是独立判定、任何时候不豁免；
   // 这里放行的只是「系统词表没能把该药的方向对应到 M03 已锁定治法」。
@@ -143,25 +143,25 @@ export function m04TherapyIssueQualityAnnotation(therapyIssue: string | undefine
   // 与 owner doctrine 一致：安全问题阻断，质量问题标注。
   // contract_missing / herbs_missing 不在此列：那意味着候选或 M03 结构本身缺失，无从标注。
   if (core === "transparent_therapy_herb_knowledge_missing") {
-    return "本次候选方药的逐味剂量边界、配伍禁忌、特殊人群与高影响方向门禁均已通过安全核验；但个别药味的功效方向系统未能自动核验（本系统药味功效词表未收载该药，不代表该药存在风险），请医生核对方义后再采纳。";
+    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；个别药味的功效方向系统未能自动核验（药味功效词表尚未收载），请医生核对方义。";
   }
   if (/^herb_\d+_unsupported_high_impact_[a-z_]+$/.test(core)) {
-    return "本次候选方药的逐味剂量边界、配伍禁忌与特殊人群门禁均已通过安全核验；但个别药味的功效方向未能被系统自动对应到本例已锁定的治法（不属于方向相反），该药味的取舍请医生结合方义判断后再采纳。";
+    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；个别药味的功效方向未能被系统自动对应到本例已锁定的治法（不属于方向相反），该药味的取舍请医生结合方义判断。";
   }
   if (/^herb_\d+_emperor_therapy_mismatch$/.test(core)) {
-    return "本次候选方药的逐味剂量边界、配伍禁忌与特殊人群门禁均已通过安全核验；但君药的功效方向未能被系统自动对应到主病机治法，君药的选取请医生按辨证结论确认后再采纳。";
+    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；君药的功效方向未能被系统自动对应到主病机治法，君药的选取请医生按辨证结论核对。";
   }
   const uncoveredDirection = /^therapy_direction_uncovered_([a-z_]+)$/.exec(core);
   if (uncoveredDirection) {
     // 方向名用受控中文映射，医生页面不出现内部枚举值。
     const labels: Record<string, string> = { heat_clear: "清热", yang_warm: "温阳/温里", blood_move: "活血", purge: "泻下", orifice_open: "开窍", mass_soften: "软坚" };
     const label = labels[uncoveredDirection[1]] || "该";
-    return `本次候选方药的逐味剂量边界、配伍禁忌、特殊人群与高影响方向门禁均已通过安全核验；`
+    return `本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；`
       + `但已锁定治法中的「${label}」方向在主方药味中未见系统可自动核验的承接药味，`
       + `是否加入相应药味请医生结合方义判断后再采纳。`;
   }
   if (/^pathogenesis_node_uncovered_[A-Za-z0-9]+$/.test(core)) {
-    return "本次候选方药的逐味剂量边界、配伍禁忌与特殊人群门禁均已通过安全核验；但 M03 辨证提出的个别病机方向本次未见对应药味，是否补充针对性药味请医生判断后再采纳。";
+    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；M03 辨证提出的个别病机方向本次未见对应药味，是否补充针对性药味请医生判断。";
   }
   return undefined;
 }
@@ -187,13 +187,13 @@ export function m04TherapyIssueQualityAnnotation(therapyIssue: string | undefine
 export function m04FinalReviewQualityAnnotation(review: { status?: string; issueCode?: string }): string | undefined {
   if (review.status !== "repair") return undefined;
   if (review.issueCode === "formula_composition_mismatch") {
-    return "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；因实际组成未能满足所引经方的核心结构，已改按本例辨证组方呈现，请结合本次病历核对方义后再采纳。";
+    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；因实际组成未能满足所引经方的核心结构，已改按本例辨证组方呈现，请结合本次病历核对方义。";
   }
   if (review.issueCode === "herb_plan_mismatch") {
-    return "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；独立复核对方药与病机的对应关系仍有保留意见，请结合本次病历逐味核对后再采纳。";
+    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；独立复核对方药与病机的对应关系仍有保留意见，请结合本次病历逐味核对。";
   }
   if (review.issueCode === "patient_context_mismatch") {
-    return "本次候选方药的药味、剂量、配伍禁忌、特殊人群与君臣结构已完整通过安全核验；但本例的过敏史、当前用药、肝肾功能等信息尚未采集，方案按「未知」保守处理，请医生补充确认并经院内审方复核后再采纳。";
+    return "本次候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；独立复核对患者前提与方药的对应仍有保留意见，请按本次病历核对过敏、合并用药及肝肾功能等相关信息，未确认信息保持未知。";
   }
   if (review.issueCode === "dose_rationale_concern") {
     // Historical usual-range deviations may now be retained as unverified proposals. Never claim
@@ -250,8 +250,8 @@ export function m04BaselineVerifiedFinalReviewAnnotation(input: {
     return undefined;
   }
   return "独立临床复核在终审对候选方的组成或药味计划仍有保留意见，且本请求已无修复轮可承接。"
-    + "该候选的经典方名与组成已按标准方剂基准逐味核对通过，药典剂量边界、配伍禁忌与"
-    + "特殊人群核查均已完成；系统按质量意见有界受理，方药最终取舍请以医生辨证为准。";
+    + "该候选的经典方名与组成已按标准方剂基准逐味核对，其他确定性核查已完成；"
+    + "具体用量仍需结合药味表中的历史参考来源由医生确认，方药最终取舍请以医生辨证为准。";
 }
 
 /**
@@ -365,6 +365,6 @@ export function m03FinalReviewQualityAnnotation(review: { status?: string; issue
  */
 export function m04ArbitratedPatientContextAnnotation(): string {
   return "独立临床复核对本方与患者前提（如特殊人群、合并用药、肝肾功能等）的对应关系提出保留意见。"
-    + "系统已完成全部确定性安全核验（逐味药典剂量边界、配伍禁忌、特殊人群门禁）后放行；"
-    + "请医生按病历核对上述前提是否成立，再决定是否采纳本候选。";
+    + "候选已完成确定性核查，具体用量仍需结合药味表中的历史参考来源由医生确认；"
+    + "请按病历核对上述前提是否成立，再决定是否采纳本候选。";
 }
