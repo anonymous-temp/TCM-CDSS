@@ -15,7 +15,7 @@ const jiti = createJiti(import.meta.url, { alias: {
 } });
 const signatures = await jiti.import("../src/lib/reasoning-contract-signature.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
-const { withSafetyGate, buildDeterministicRiskFollowup } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const { withSafetyGate, buildDeterministicRiskFollowup, buildDeterministicRiskFollowupPayload } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { getTcmHerbFunctionText } = await jiti.import("../src/lib/tcm-knowledge.ts");
 const { synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const { buildUnavailableRxAuditSection, buildAuditItemsFromHerbs, auditPrescriptionWithLingxi, buildRxAuditScopeSection } = await jiti.import("../src/lib/rxaudit.ts");
@@ -406,5 +406,45 @@ test("all nine live regression fixtures deterministically reach their intended p
       assert.equal(projected.prescriptions.westernOrPatent[0].adoptable, false);
       assert.match(projected.prescriptions.westernOrPatent[0].content, /禁止使用/);
     }
+  }
+});
+
+test("the real followup producer never turns its prospective advice into a current medication verdict", () => {
+  const base = benign();
+  const authored = {
+    reviewFocus: "复评乏力与活动耐量，严禁过早判定疗效。",
+    efficacyCriteria: "对照首诊记录评估变化，禁止使用单次波动作疗效结论。",
+    lifestyle: "规律作息，适当散步，严禁过度劳累耗气。",
+    dimensions: ["精力", "食欲", "大便"], monitoringIndicators: ["活动耐量", "神疲变化", "实际用药"], timeline: [],
+  };
+  const followup = buildDeterministicRiskFollowupPayload(base, authored);
+  assert.match(followup.markdown, /严禁过度劳累耗气/);
+  const state = { ...base, riskAssessment: followup.markdown, prescriptionRevision: { ...base.prescriptionRevision, highestRiskLevel: "MEDIUM" } };
+  const projected = buildHisAiSchemePayload(state, undefined, [], scope(state), { riskAssessment: followup });
+  assert.notEqual(projected.warningProfile.level, "L4");
+  assert.equal(projected.prescriptions.herbal[0].adoptable, true);
+  for (const riskAssessment of [
+    `${followup.markdown}\n## 当前患者风险\n本例绝对禁忌，禁止使用。`,
+    `${followup.markdown}\n### 当前患者风险\n本例绝对禁忌，禁止使用。`,
+    `${followup.markdown}\n旧版用药：本例绝对禁忌，禁止使用。`,
+  ]) {
+    const mismatched = buildHisAiSchemePayload({ ...state, riskAssessment }, undefined, [], scope(state), { riskAssessment: followup });
+    assert.equal(mismatched.warningProfile.level, "L4");
+  }
+  assert.equal(buildHisAiSchemePayload({ ...state,
+    prescriptionRevision: { ...state.prescriptionRevision, auditResult: "BLOCK" },
+  }, undefined, [], scope(state), { riskAssessment: followup }).warningProfile.level, "L4");
+});
+
+test("the signed M04 producer's exact diet, lifestyle and emotion fields are advice domains", () => {
+  for (const field of ["diet", "lifestyle", "emotion"]) {
+    const reasoning = clone(benign().reasoningPrescribe);
+    reasoning.nonPharma[field] = field === "diet" ? "饮食规律，每日三餐七分饱，严禁暴饮暴食。" : "安排休息与情绪调适，严禁过度劳累。";
+    delete reasoning.contractSignature;
+    const state = complete(reasoning);
+    const checked = payload(state);
+    assert.notEqual(checked.warningProfile.level, "L4", field);
+    assert.equal(checked.prescriptions.herbal[0].adoptable, true, field);
+    assert.equal(buildHisAiSchemePayload({ ...state, prescription: `${state.prescription}\n## 当前患者风险\n严禁过度劳累。` }).warningProfile.level, "L4");
   }
 });
