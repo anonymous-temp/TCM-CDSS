@@ -1,3 +1,7 @@
+import clinicalLexemes from "../data/phi-clinical-lexemes.json" with { type: "json" };
+
+const CLINICAL_NAME_COLLISIONS = new Set(clinicalLexemes.terms);
+
 const OCCUPATION_GROUPS: Array<[RegExp, string]> = [
   [/(?:医生|医师|护士|药师|医务|护理)/, "医疗卫生工作"],
   [/(?:教师|老师|教授|讲师|教研)/, "教育工作"],
@@ -88,13 +92,13 @@ export function isClinicalTemporalPhrase(value: unknown): boolean {
 }
 
 /** Refine an already surname-matched narrative candidate, not a general-purpose name detector. */
-export function hasUnambiguousNarrativeNameContext(candidate: string, precedingContext: string, following: string): boolean {
+export function shouldRedactNarrativeNameCandidate(candidate: string, precedingContext: string): boolean {
   if (isClinicalTemporalPhrase(candidate)) return false;
-  // Two-character clinical nouns share surname shapes (周身、全身、黄疸). A symptom or general
-  // occurrence verb alone does not identify a person. Explicit person labels remain authoritative;
-  // known patient names are separately replaced literally before this heuristic is consulted.
-  if (candidate.length !== 2 || /(?:患者|家属|联系人|陪同者|监护人|医生|医师|本例|病例|病人|患儿)\s*[:：]?\s*$/.test(precedingContext)) return true;
-  return /^(?:近|昨|今|诉|称|反映|表示|就诊|来诊)/.test(following);
+  if (/(?:患者|家属|联系人|陪同者|监护人|医生|医师|本例|病例|病人|患儿)\s*[:：]?\s*$/.test(precedingContext)) return true;
+  // Exempt known clinical lexemes, not every unlabelled two-character name. Generated from the
+  // governed disease/location/inspection dictionaries plus finite lexical compositions; the large
+  // source dictionaries do not enter browser bundles. Explicit identities are replaced separately.
+  return !CLINICAL_NAME_COLLISIONS.has(candidate);
 }
 
 export function scrubSubjectPrefixedName(text: string, marker = "[姓名已脱敏]"): string {

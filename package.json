@@ -15,6 +15,7 @@
     "build:tcm-formula-core-herbs": "node scripts/build-tcm-formula-core-herbs.mjs",
     "build:clinical-governance-static-tables": "jiti scripts/build-clinical-governance-static-tables.mjs",
     "build:clinical-vocabulary": "node scripts/build-clinical-vocabulary.mjs",
+    "build:phi-clinical-lexemes": "node scripts/build-phi-clinical-lexemes.mjs",
     "build:clinical-decision-cards": "node scripts/build-clinical-decision-cards.mjs",
     "build:robustness-cases": "node scripts/build-robustness-case-corpus.mjs --apply",
     "import:tcm-standard-terminology": "python3 scripts/import-tcm-standard-terminology.py",

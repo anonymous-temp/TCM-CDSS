@@ -14,7 +14,7 @@ import {
   PULSE_QUALITY_PATTERN_SOURCE,
 } from "./clinical-state";
 import { inspectionLexiconPattern } from "./tcm-inspection-lexicon";
-import { generalizeOccupation, hasUnambiguousNarrativeNameContext, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
+import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIdentifierText, scrubRecordHeaderName, scrubRelationPrefixedName, scrubSubjectPrefixedName } from "./phi-sanitizer";
 import { determineCompletenessLevel } from "./diagnosis-parse";
 import {
   additiveRedFlagsFromFacts,
@@ -5795,13 +5795,12 @@ function scrubPhi(text: string, patientName = ""): string {
     // 脱敏标记。20 例线上语料实测 13 例在**送模型之前**就丢了临床事实,而模型看不到的事实,
     // 后面每一层都补不回来:病位判为空、病机链缺节点、西医支持依据只剩半句病历原文。
     //
-    // 判据不是词表:周身、全身、白苔、黄疸、皮疹、干呕都不在任何受控词表里,靠补词表穷举不完。
-    // 判据是**位置**——本系统的病历按字段录入,姓名在 patient 字段或带显式「姓名：」标签,
-    // 不会紧跟在「主诉：」「四诊：」「舌：」这类临床字段标签之后。故只在标签冒号后否决本分支。
+    // 临床标签保留既有位置语义；裸字段值由共享姓名消歧函数使用受治理术语与有限构词判断。
+    // 当前疾病词表已经收载黄疸、干呕，不能再以“没有词表”为由把所有无标签双字姓名放过。
     // 高置信形态一条未动:显式姓名标签、某字名、姓氏+人口学邻接(，男/女/NN岁)、电话/证件/地址。
     // 真实姓名的叙述形态(「张三昨夜失眠」)不带临床标签前缀,仍然照常脱敏(见 test:clinical-grounding)。
     .replace(/(^|[，,。\s]|[；;](?!\s*$)|(?<!(?:主诉|现病史|既往史|个人史|家族史|婚育史|月经史|过敏史|用药史|四诊|望诊|闻诊|问诊|切诊|症见|刻下|查体|体格检查|舌象|脉象|舌|脉|辅助检查|检查|诊断|治法|治则)\s*)[:：]|患者|家属|联系人|陪同者|监护人)((?:欧阳|司马|上官|诸葛|[赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨朱秦尤许何吕施张孔曹严华金魏陶姜戚谢邹喻柏水窦章云苏潘葛奚范彭郎鲁韦昌马苗凤花方俞任袁柳鲍史唐费廉岑薛雷贺倪汤滕殷罗毕郝邬安常乐于时傅皮卞齐康伍余元卜顾孟平黄和穆萧尹姚邵湛汪祁毛禹狄米贝明臧计伏成戴谈宋茅庞熊纪舒屈项祝董梁杜阮蓝闵席季麻强贾路娄危江童颜郭梅盛林刁钟徐邱骆高夏蔡田樊胡凌霍虞万支柯昝管卢莫经房裘缪干解应宗丁宣贲邓郁单杭洪包左石崔吉龚程邢裴陆荣翁荀羊惠甄曲封芮储靳汲邴糜松井段富巫乌焦巴弓牧隗山谷车侯宓蓬全郗班仰秋仲伊宫宁仇栾暴甘厉戎祖武符刘景詹束龙叶幸司韶黎乔苍双闻莘党翟谭贡劳姬申扶堵冉宰郦雍却璩桑桂濮牛寿通边扈燕冀郏浦尚农温别庄晏柴瞿阎充慕连茹习宦艾鱼容向古易慎戈廖庾终暨居衡步都耿满弘匡国文寇广禄阙东欧沃利蔚越夔隆师巩厍聂晁勾敖融冷辛阚那简饶空曾沙乜养鞠须丰巢关蒯相查后荆红游竺权逯盖益桓公])[\u4e00-\u9fa5]{1,2})(?=(?:近|昨|今|因|诉|称|反映|表示|出现|发生|患|有|于|睡|入睡|失眠|头痛|头晕|胸痛|腹痛|发热|咳嗽|心悸|就诊|来诊))/g, (match, prefix: string, candidate: string, offset: number, source: string) =>
-      hasUnambiguousNarrativeNameContext(candidate, source.slice(0, offset) + prefix, source.slice(offset + match.length))
+      shouldRedactNarrativeNameCandidate(candidate, source.slice(0, offset) + prefix)
         ? `${prefix}[已脱敏]` : match)
     // 病历抬头姓名改走**共享**判据（phi-sanitizer.scrubRecordHeaderName）。
     // 原先只有「句首 2-4 字 + 性别/年龄」一个上下文条件，靠一份「不该脱敏的词」黑名单兜底

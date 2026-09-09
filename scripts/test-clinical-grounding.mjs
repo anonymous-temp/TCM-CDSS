@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 
 const {
   detectProgrammaticRedFlags,
@@ -21,6 +22,7 @@ const {
   withSafetyGate,
 } = await import("../src/lib/diagnosis-safety.ts");
 const { createInitialCaseState } = await import("../src/lib/diagnosis-types.ts");
+execFileSync(process.execPath, ["scripts/build-phi-clinical-lexemes.mjs", "--check"], { stdio: "pipe" });
 const { isUnknownClinicalFieldText, isUnknownClinicalText } = await import("../src/lib/clinical-state.ts");
 const { consumeCollectStream, consumeMarkdownStream, consumeMarkdownStreamWithMetadata, sanitizeCaseStateForBrowserPersistence, scrubPersistentPhiText } = await import("../src/lib/diagnosis-engine.ts");
 const { computePrescriptionVersionHash } = await import("../src/lib/prescription-version.ts");
