@@ -17,6 +17,7 @@
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import ts from "typescript";
 import {
   STAGE_PROGRESS_PHASES,
   STAGE_PROGRESS_HEARTBEAT_SUFFIX,
@@ -93,13 +94,41 @@ check("修复轮计数只有一个写入点，且在 beginStructuredRepairRound 
   assert.ok((api.match(/beginStructuredRepairRound\(\);/g) || []).length >= 4, "修复轮调用点少于已知的 4 处");
 });
 
-check("独立复核接的是 Promise，阶段名不会等到复核结束才置位", () => {
-  assert.equal((api.match(/observeClinicalReview\(await /g) || []).length, 0,
-    "存在 observeClinicalReview(await …)：阶段名只会在复核结束后才置位，那段等待照旧误报");
-  // 定义处写作 `observeClinicalReview = async <T…>`，不匹配「函数名 + 左括号」，无需扣除。
-  // `async () => observeClinicalReview(` 这类无 await 的转交形态同样算调用点，只统计 await 会漏掉它。
-  const callSites = (api.match(/observeClinicalReview\(/g) || []).length;
-  assert.ok(callSites >= 6, `复核观察点为 ${callSites} 处，少于已知的 6 处`);
+function verifyReviewObservation(source) {
+  const tree = ts.createSourceFile("diagnosis-api.ts", source, ts.ScriptTarget.Latest, true);
+  const reviews = new Map([["reviewM03DiagnosticCriteria", 0], ["reviewM04ClinicalPlan", 0]]);
+  let trackedM04Calls = 0;
+  const visit = node => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      const name = node.expression.text;
+      if (reviews.has(name)) {
+        const parent = node.parent;
+        assert.ok(ts.isCallExpression(parent) && ts.isIdentifier(parent.expression) && parent.expression.text === "observeClinicalReview",
+          `${name} 绕过阶段观察入口`);
+        reviews.set(name, reviews.get(name) + 1);
+      }
+      if (name === "observeClinicalReview") {
+        assert.ok(node.arguments[0] && !ts.isAwaitExpression(node.arguments[0]),
+          "复核结束后才进入观察器，等待期间阶段名会错误");
+      }
+      if (name === "reviewTrackedM04Candidate") trackedM04Calls += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  assert.ok([...reviews.values()].every(count => count > 0), "M03/M04 复核入口必须仍在接线中");
+  assert.ok(trackedM04Calls > 0, "统一 M04 复核入口不能成为未使用的死代码");
+}
+
+check("每一处实际复核调用都先进入阶段观察器，允许多个路径共用入口", () => {
+  verifyReviewObservation(api);
+});
+check("移除某阶段的观察接线会失败，而非依赖固定调用次数", () => {
+  for (const name of ["reviewM03DiagnosticCriteria", "reviewM04ClinicalPlan"]) {
+    const changed = api.replace(`observeClinicalReview(${name}(`, `unobservedReview(${name}(`);
+    assert.notEqual(changed, api, `${name} 反证必须实际修改一个调用点`);
+    assert.throws(() => verifyReviewObservation(changed), /绕过阶段观察入口/);
+  }
 });
 
 check("阶段名写入点恰好两处，心跳文案不在 diagnosis-api.ts 内重复", () => {
