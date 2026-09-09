@@ -1678,6 +1678,9 @@ for (const clinical of [
 for (const [source, name] of [
   ["张三昨夜失眠", "张三"], ["患者张三失眠", "张三"],
   ["欧阳明月今日来诊", "欧阳明月"], ["姓名：李明，男，45岁", "李明"],
+  ["患者 李明头痛3天", "李明"], ["患者：李明头痛3天", "李明"],
+  ["患者: 李明头痛3天", "李明"], ["家属：王强患高血压", "王强"],
+  ["医生 王明患高血压", "王明"], ["该患者 ： 李明头痛", "李明"],
 ]) {
   assert.ok(!sanitizeFreeTextForModel(source).includes(name), `preserve high-confidence name removal: ${name}`);
 }
