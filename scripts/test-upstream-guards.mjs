@@ -227,7 +227,8 @@ delete process.env.PRIMARY_DIAGNOSE_MODEL;
     });
     const body = await response.text();
     assert.equal(attempts, 2, `${mode}: initial generation should consume exactly two bounded attempts`);
-    assert.match(body, /SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK/, `${mode}: transport failure must select the upstream page`);
+    assert.match(body, stage === "prescribe" ? /模型服务.*不可用/ : /SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK/,
+      `${mode}: transport failure must retain upstream attribution`);
     assert.doesNotMatch(body, /SIGNED_CONTRACT_FALLBACK/, `${mode}: transport failure must not be signed as a content-contract failure`);
   };
   try {
@@ -275,7 +276,8 @@ delete process.env.PRIMARY_DIAGNOSE_MODEL;
       });
       const earlyEofBody = await earlyEof.text();
       assert.equal(earlyEofAttempts, 1, `${stage}: HTTP 200 early EOF must not replay clinical generation`);
-      assert.match(earlyEofBody, /SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK/, `${stage}: missing provider DONE is an upstream truncation`);
+      assert.match(earlyEofBody, stage === "prescribe" ? /模型服务.*不可用/ : /SIGNED_UPSTREAM_UNAVAILABLE_FALLBACK/,
+        `${stage}: missing provider DONE is an upstream truncation`);
       assert.doesNotMatch(earlyEofBody, /SIGNED_CONTRACT_FALLBACK/);
     }
 
@@ -322,7 +324,8 @@ delete process.env.PRIMARY_DIAGNOSE_MODEL;
       outputTransform: (value) => `TRANSFORMED:${value}`,
     });
     const deadlineBody = await deadline.text();
-    assert.match(deadlineBody, /SIGNED_DEADLINE_FALLBACK/, "M04 orchestration deadline must outrank upstream transport attribution");
+    assert.match(deadlineBody, /超过时限.*尚未形成.*个体化/, "M04 orchestration deadline must outrank upstream transport attribution");
+    assert.match(deadlineBody, /CDSS_NON_DOSE_PRESCRIPTION/);
     assert.doesNotMatch(deadlineBody, /SIGNED_(?:CONTRACT|UPSTREAM)_FALLBACK/);
   } finally {
     globalThis.fetch = originalFetch;

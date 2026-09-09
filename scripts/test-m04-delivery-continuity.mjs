@@ -20,6 +20,7 @@ const { retainM04DeliveryCheckpoint, bindM04DeliveryReview, renderM04DeliveryChe
 const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } = await jiti.import("../src/lib/clinical-review-binding.ts");
 const { applyPrescribeContractSignature } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
+const { isNonDosePrescriptionText } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const prior = ReasoningV2Schema.parse({
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
   overview: { primarySyndrome: "脾胃虚弱证", overallPathogenesis: "脾胃虚弱，运化无力", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
@@ -86,6 +87,7 @@ async function runWire({ first = proposal, reviewer = accepted, remainingMs = 20
   } finally { lateResolve?.(); abort.abort(); globalThis.fetch = originalFetch; }
 }
 function assertNonDose(content) {
+  assert.ok(isNonDosePrescriptionText(content), "client must recognize and retain the non-dose result");
   assert.doesNotMatch(content, /DIAGNOSIS_JSON_START|contractSignature|12g|10g|6g|5剂|GENERIC_|重新生成|请重试/);
 }
 function withDietQualityFinding(content) {
@@ -123,13 +125,16 @@ test("no valid M04 retains trusted M03 facts and explicitly reports no individua
   assert.match(result.content, /食少倦怠/);
   assert.match(result.content, /健脾益气/);
   assert.match(result.content, /尚未.*个体化|未.*个体化/);
+  assert.ok(isNonDosePrescriptionText(result.content));
   assert.doesNotMatch(result.content, /党参|GENERIC_|DIAGNOSIS_JSON_START|重新生成|请重试/);
 });
 
 test("client cancellation never sends a recovered candidate", async () => {
-  const result = await runWire({ reviewer: "stall", abortAfterReview: true, remainingMs: 500 });
+  const startedAt = Date.now();
+  const result = await runWire({ reviewer: "stall", abortAfterReview: true, remainingMs: 2000 });
   assert.equal(result.finals.length, 0);
   assert.equal(result.requests.length, 2);
+  assert.ok(Date.now() - startedAt < 1000, "client cancellation must close independently of a stalled reviewer");
 });
 
 test("zero quality budget plus classic identity drift delivers on the first request", async () => {
