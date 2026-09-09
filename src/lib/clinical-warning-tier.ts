@@ -2,6 +2,8 @@ import type { CaseState } from "./diagnosis-types";
 import { gateDispositionIsAdvisory } from "./diagnosis-safety";
 import { INTERNAL_EVIDENCE_PLACEHOLDER } from "./customer-evidence";
 import { sectionTitleGroup } from "./cdss-vocab";
+import { prescribeReasoningFromState } from "./diagnosis-parse";
+import { findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 
 export type ClinicalWarningLevel = "L0" | "L1" | "L2" | "L3" | "L4";
 export type ClinicalWarningAction =
@@ -102,8 +104,10 @@ export function warningLevelRank(level: ClinicalWarningLevel): number {
  * 差 4 个档位：一条明确的禁用语在病例级被当成常规信息。
  * 两条正则是包含关系（病例级 ⊂ 药味级），收敛到药味级那份，方向只增不减。
  */
-// 十九畏 is the governed MEDIUM/caution category, distinct from 十八反/HIGH.
-const L4_DETERMINISTIC_BLOCKING = /(?:十八反|配伍禁忌|绝对禁忌|严禁|禁止使用|审方结论.{0,12}(?:BLOCK|阻断)|风险等级.{0,8}CRITICAL)/i;
+// Category names alone are not findings: a governed caution can compare itself with 十八反.
+// Actual selected HIGH pairs are checked from their structured identities below. Legacy explicit
+// contraindication terms and audit findings retain their existing nonexecutable classification.
+const L4_DETERMINISTIC_BLOCKING = /(?:十八反禁忌|配伍禁忌|绝对禁忌|严禁|禁止使用|审方结论.{0,12}(?:BLOCK|阻断)|风险等级.{0,8}CRITICAL)/i;
 
 export function classifyHerbWarning(input: {
   drug?: string;
@@ -126,7 +130,7 @@ export function classifyHerbWarning(input: {
 
   const highRisk = activeRiskLine(
     combined,
-    /(?:十九畏|大毒|有毒|毒性药品|孕妇禁用|妊娠禁用|儿童禁用|肝肾功能不全.{0,12}(?:禁用|慎用)|先煎|久煎|后下|另煎|冲服|不可火煅|慎用|禁用)/,
+    /(?:十八反|十九畏|大毒|有毒|毒性药品|孕妇禁用|妊娠禁用|儿童禁用|肝肾功能不全.{0,12}(?:禁用|慎用)|先煎|久煎|后下|另煎|冲服|不可火煅|慎用|禁用)/,
   );
   if (highRisk) {
     return profile("L3", uniqueReasons([
@@ -180,12 +184,15 @@ export function deriveCaseWarningProfile(caseState: CaseState): ClinicalWarningP
   const gate = caseState.safetyGate;
   const revision = caseState.prescriptionRevision;
   const combined = [currentPrescriptionRiskText(caseState.prescription || ""), caseState.riskAssessment].filter(Boolean).join("\n");
+  const selected = prescribeReasoningFromState(caseState)?.formula?.candidates[revision?.candidateIndex ?? 0];
+  const highRiskPairs = findTcmHerbPairIncompatibilities(selected?.herbs.map((herb) => herb.name) || []);
 
   const blockingLine = activeRiskLine(combined, L4_DETERMINISTIC_BLOCKING);
-  if (revision?.auditResult === "BLOCK" || revision?.highestRiskLevel === "CRITICAL" || blockingLine) {
+  if (revision?.auditResult === "BLOCK" || revision?.highestRiskLevel === "CRITICAL" || highRiskPairs.length > 0 || blockingLine) {
     return profile("L4", uniqueReasons([
       revision?.auditResult === "BLOCK" ? "处方审方结论为阻断" : undefined,
       revision?.highestRiskLevel === "CRITICAL" ? "处方命中严重级别风险" : undefined,
+      ...highRiskPairs.map((pair) => `${pair.leftDrug}—${pair.rightDrug}：命中${pair.category}；依据：${pair.basis}`),
       blockingLine,
     ]), false);
   }
@@ -209,7 +216,7 @@ export function deriveCaseWarningProfile(caseState: CaseState): ClinicalWarningP
 
   const highRiskLine = activeRiskLine(
     combined,
-    /(?:十九畏|孕妇禁用|妊娠禁用|儿童禁用|肝肾功能不全.{0,12}(?:禁用|慎用)|毒性药品|大毒|高风险|强提示)/,
+    /(?:十八反|十九畏|孕妇禁用|妊娠禁用|儿童禁用|肝肾功能不全.{0,12}(?:禁用|慎用)|毒性药品|大毒|高风险|强提示)/,
   );
   if (revision?.highestRiskLevel === "HIGH" || highRiskLine) {
     return profile("L3", uniqueReasons([
