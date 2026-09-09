@@ -18,7 +18,7 @@ const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-type
 const { withSafetyGate, buildDeterministicRiskFollowup } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { getTcmHerbFunctionText } = await jiti.import("../src/lib/tcm-knowledge.ts");
 const { synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
-const { buildUnavailableRxAuditSection, buildAuditItemsFromHerbs } = await jiti.import("../src/lib/rxaudit.ts");
+const { buildUnavailableRxAuditSection, buildAuditItemsFromHerbs, auditPrescriptionWithLingxi, buildRxAuditScopeSection } = await jiti.import("../src/lib/rxaudit.ts");
 const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
 const { validateHisPrescriptionForWriteBack } = await jiti.import("../src/lib/his-prescription-validation.ts");
 const { deriveCaseWarningProfile } = await jiti.import("../src/lib/clinical-warning-tier.ts");
@@ -26,6 +26,7 @@ const { medicineCandidateRow, verifiedLocalLabelRisk } = await jiti.import("../s
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
 const { unsupportedHighImpactHerbFindings } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { isSafetyClinicalDeliveryAdvisory } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
+const { rejectionTier } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
 const { invalidatePrescriptionContractAfterEdit } = await jiti.import("../src/lib/prescription-revision.ts");
 
 // Reuse the existing complete synthetic fixture constructors without changing the golden oracle.
@@ -84,6 +85,19 @@ test("exact canonical label risk stays visible without becoming a patient L4", (
   assert.equal(warning.executable, true);
 });
 
+test("grounding rewrites one label clause without promoting other exact label clauses to current findings", () => {
+  // The fresh LOCAL-INST-008 capture has this existing fact-grounding rewrite within precaution 5.
+  const changed = medicine();
+  changed.evidenceId = "LOCAL-INST-008";
+  changed.evidence.source = "[LOCAL-INST-008]";
+  changed.riskNote = labelRisk.replace("或出现新的严重症状如胸闷、心悸等应立即停药", "病历尚未确认胸闷、心悸是否存在");
+  assert.notEqual(changed.riskNote, labelRisk);
+  const state = withMedicine(benign(), changed);
+  assert.equal(deriveCaseWarningProfile(state).level, "L3");
+  assert.equal(payload(state).prescriptions.herbal[0].adoptable, true);
+  assert.equal(deriveCaseWarningProfile(withMedicine(benign(), { ...changed, riskNote: `${changed.riskNote}；本例存在绝对禁忌` })).level, "L4");
+});
+
 test("current-risk copies, appended risk, other patient columns and forged provenance stay active", () => {
   const state = withMedicine(benign());
   for (const changed of [
@@ -95,7 +109,76 @@ test("current-risk copies, appended risk, other patient columns and forged prove
     withMedicine(benign(), { ...medicine(), specification: "changed" }),
     withMedicine(benign(), { ...medicine(), riskNote: `${labelRisk}；本例绝对禁忌` }),
     { ...state, prescription: state.prescription.replace(entry.name, "未知颗粒") },
+    { ...state, prescription: state.prescription.replace("[LOCAL-INST-007]", "[LOCAL-INST-999]") },
+    { ...state, prescription: `${state.prescription}\n## 中成药/西药候选\n${medicineCandidateRow(medicine())}` },
   ]) assert.equal(deriveCaseWarningProfile(changed).level, "L4");
+});
+
+test("quality code has a closed concept vocabulary and never waives independent related codes", () => {
+  const quality = { code: "candidate_0_herb_0_therapy_vocabulary_unverified_heat_clear", candidateIndex: 0, message: "质量提示", suggestedAction: "核对" };
+  assert.equal(isSafetyClinicalDeliveryAdvisory(quality), false);
+  for (const code of ["candidate_0_herb_0_unsupported_high_impact_heat_clear", "candidate_0_high_risk_pair_incompatibility", "follow_up_inconsistent", "unknown_future_issue"]) {
+    assert.equal(isSafetyClinicalDeliveryAdvisory({ ...quality, relatedCodes: [code] }), true, code);
+  }
+  for (const code of ["candidate_0_herb_0_therapy_vocabulary_unverified_future_concept", "candidate_0_herb_0_therapy_vocabulary_unverified_heat_clear_dose", "therapy_vocabulary_unverified_heat_clear"]) {
+    assert.equal(rejectionTier(`m04_${code}`), "T1", code);
+  }
+});
+
+test("audit receipt records actual request items, never degraded or unavailable audit claims", async () => {
+  const state = withMedicine(benign());
+  const savedFetch = globalThis.fetch;
+  const envKeys = ["RXAI_AUDIT_ENABLED", "RXAI_AUDIT_BASE_URL", "RXAI_AUDIT_API_KEY"];
+  const savedEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+  Object.assign(process.env, { RXAI_AUDIT_ENABLED: "true", RXAI_AUDIT_BASE_URL: "https://audit.example.invalid", RXAI_AUDIT_API_KEY: "synthetic-offline-only" });
+  let submitted;
+  let degraded = false;
+  globalThis.fetch = async (_url, options) => {
+    const request = JSON.parse(options.body);
+    assert.equal(request.operation, "PRESCRIPTION_AUDIT");
+    submitted = request.data.prescription.items;
+    return Response.json({ code: 200, data: { audit_result: "MANUAL_REVIEW", highest_risk_level: "HIGH", need_manual_review: true, issues: [], degraded } });
+  };
+  try {
+    const audited = await auditPrescriptionWithLingxi(state, 0);
+    assert.equal(audited.ok, true);
+    assert.deepEqual(audited.submissionScope.submittedItems, submitted);
+    assert.equal(audited.submissionScope.candidateIndex, 0);
+    const submittedMedicine = submitted.find((item) => item.drug_type === "中成药");
+    assert.ok(submittedMedicine);
+    assert.equal(submittedMedicine.single_dose, undefined);
+    assert.equal(payload(state, audited.submissionScope).prescriptions.herbal[0].adoptable, true);
+    assert.match(buildRxAuditScopeSection(state, 0, audited.submissionScope), /已按药品身份及联用边界提交/);
+    degraded = true;
+    const limited = await auditPrescriptionWithLingxi(state, 0);
+    assert.equal(limited.ok, true);
+    assert.equal(limited.submissionScope, undefined);
+    assert.equal(payload(state, limited.submissionScope || null).prescriptions.herbal[0].adoptable, false);
+    process.env.RXAI_AUDIT_ENABLED = "false";
+    const absent = await auditPrescriptionWithLingxi(state, 0);
+    assert.equal(absent.ok, false);
+    assert.equal(absent.submissionScope, undefined);
+    assert.doesNotMatch(buildRxAuditScopeSection(state, 0), /已按药品身份及联用边界提交/);
+    assert.match(buildRxAuditScopeSection(state, 0), /尚无本次有效送审凭据/);
+  } finally {
+    globalThis.fetch = savedFetch;
+    for (const key of envKeys) {
+      if (savedEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = savedEnv[key];
+    }
+  }
+});
+
+test("the combined 50 item cap excludes medicine coverage rather than granting a whole-prescription receipt", () => {
+  const state = withMedicine(benign());
+  const herb = state.reasoningPrescribe.formula.candidates[0].herbs[0];
+  state.reasoningPrescribe.formula.candidates[0].herbs = Array.from({ length: 50 }, () => clone(herb));
+  const receipt = scope(state);
+  assert.equal(receipt.submittedItems.length, 50);
+  assert.ok(receipt.submittedItems.every((item) => item.drug_type === "中药饮片"));
+  const result = buildHisAiSchemePayload(state, undefined, [], receipt);
+  assert.equal(result.prescriptions.herbal[0].adoptable, false);
+  assert.match(buildRxAuditScopeSection(state, 0, receipt), /1 项中成药\/西药候选尚无本次有效送审凭据/);
 });
 
 test("BLOCK, effective CRITICAL, selected genuine pair and legacy risk cannot be masked", () => {
