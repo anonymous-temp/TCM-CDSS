@@ -51,7 +51,7 @@ const bindings = {
 const load = new Function(...Object.keys(bindings), `return (async () => { ${helpers}\n${declarations}\nreturn {
   negatives: [...hisContractNegativeCases, { name: "HIS classic formula composition drift", caseState: formulaCompositionDriftCase },
     { name: "HIS model output cannot forge the doctor-edit formula exemption", caseState: modelForgedDoctorEditCase }],
-  baseCase, reasoningV2WithHerbs,
+  baseCase, reasoningV2WithHerbs, completeHisDeliveryFixture,
 }; })();`);
 const fixtures = await load(...Object.values(bindings));
 const validation = (state) => validateHisPrescriptionForWriteBack(normalizeCaseStateInput(state));
@@ -97,6 +97,19 @@ test("10 T1 and 7 follow-up DTO negatives remain limited/invalid with every adop
   }
 });
 
+test("fixture completion preserves the entire malformed candidate byte-for-byte and leaves its input untouched", () => {
+  for (const item of fixtures.negatives) {
+    const original = structuredClone(item.caseState);
+    original.prescription = "";
+    original.riskAssessment = "";
+    const snapshot = structuredClone(original);
+    const completed = fixtures.completeHisDeliveryFixture(original);
+    assert.deepEqual(original, snapshot, `${item.name}: caller's fixture is immutable`);
+    assert.deepEqual(completed.reasoningV2.formula, snapshot.reasoningV2.formula, `${item.name}: exact herbs/doses/targets/decoction/follow-up survive`);
+    assert.deepEqual(completed.reasoningDiagnose.overview, snapshot.reasoningDiagnose.overview, `${item.name}: formula identity remains unchanged`);
+  }
+});
+
 test("candidate follow-up description T2 cannot hide the independent bare DTO T1, including merged codes", () => {
   const followups = fixtures.negatives.filter((item) => item.issue?.source === "follow_up_inconsistent");
   assert.equal(followups.length, 7);
@@ -125,7 +138,16 @@ test("ungrounded function is a real T2 delta over an actually adoptable complete
   assert.equal(checked.ok, true);
   assert.ok(codes(checked.advisories).some((code) => /function_ungrounded/.test(code)));
   assert.equal(checked.advisories.some(isSafetyClinicalDeliveryAdvisory), false);
-  const before = project(state, []);
+  const baseline = requests.find((request) => request.caseState.id === "his-function-quality-baseline")?.caseState;
+  assert.ok(baseline, "the real harness submits the complete benign control");
+  const baselineCheck = validation(baseline);
+  assert.equal(baselineCheck.ok, true);
+  assert.equal(baselineCheck.advisories.some(isSafetyClinicalDeliveryAdvisory), false);
+  assert.equal(codes(baselineCheck.advisories).some((code) => /function_ungrounded/.test(code)), false);
+  const correctedFormula = structuredClone(state.reasoningV2.formula);
+  correctedFormula.candidates[0].herbs[0].function = "养心安神";
+  assert.deepEqual(correctedFormula, baseline.reasoningV2.formula, "the paired candidate changes only the intended function description");
+  const before = project(baseline, baselineCheck.advisories);
   const after = project(state, checked.advisories);
   assert.equal(before.status, "ready", "control must already be complete and adoptable");
   assert.equal(before.candidateStatus, "valid");
@@ -157,4 +179,5 @@ test("the real CLI failure-report block drains multi-megabyte JSON before exitin
   const report = JSON.parse(output);
   assert.equal(report.failures[0].message, "synthetic-large-report");
   assert.equal(report.failures[0].details, "临床夹具证据".repeat(180000));
+  assert.doesNotMatch(source, /process\.exit\(/, "all terminal CLI branches must drain their report, including catch");
 });

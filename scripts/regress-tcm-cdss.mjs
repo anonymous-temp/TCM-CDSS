@@ -46,10 +46,12 @@ const {
   signPrescribeReasoning,
 } = await regressionJiti.import("../src/lib/reasoning-contract-signature.ts");
 const { normalizeCaseStateInput } = await regressionJiti.import("../src/lib/diagnosis-types.ts");
-const { withSafetyGate } = await regressionJiti.import("../src/lib/diagnosis-safety.ts");
+const { withSafetyGate, buildDeterministicRiskFollowup } = await regressionJiti.import("../src/lib/diagnosis-safety.ts");
 const { getTcmHerbFunctionText } = await regressionJiti.import("../src/lib/tcm-knowledge.ts");
 const { buildHisAiSchemePayload } = await regressionJiti.import("../src/lib/his-scheme.ts");
 const { buildEvidenceScope } = await regressionJiti.import("../src/lib/evidence-source-validation.ts");
+const { synchronizeVisibleClinicalSummary } = await regressionJiti.import("../src/lib/diagnosis-visible-summary.ts");
+const { buildUnavailableRxAuditSection } = await regressionJiti.import("../src/lib/rxaudit.ts");
 
 const BASE_URL = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const BASE_ORIGIN = new URL(BASE_URL).origin;
@@ -123,7 +125,7 @@ function assertHisNonAdoption(payload, name, candidateStatus = "invalid") {
   assert(payload?.status === "limited" && payload?.candidateStatus === candidateStatus && payload?.workflowPermission === "continue",
     `${name}: report continues with consistent limited/nonadoptable status`, payload);
   assert(["alert", "unavailable", "not_submitted"].includes(payload?.auditStatus), `${name}: no false audit PASS`, payload?.auditStatus);
-  assert(payload?.writeBackPolicy?.allowSingleItemAdoption === false &&
+  assert(payload?.writeBackPolicy?.allowSingleItemAdoption === false && payload?.writeBackPolicy?.allowOneClickAdoption === false &&
     groups.every((items) => Array.isArray(items) && items.length > 0 && items.every((item) => item.adoptable === false)),
   `${name}: actual global and item adoption fields are false`, payload?.writeBackPolicy);
 }
@@ -1156,6 +1158,32 @@ function baseCase(id, overrides = {}) {
 
 function cloneCase(caseState) {
   return JSON.parse(JSON.stringify(caseState));
+}
+
+/** Complete only delivery-contract fixtures; preserve the exact deliberately invalid M04 DTO. */
+function completeHisDeliveryFixture(caseState) {
+  const completed = cloneCase(caseState);
+  const diagnose = { ...completed.reasoningDiagnose };
+  const prescribe = { ...completed.reasoningV2 };
+  for (const reasoning of [diagnose, prescribe]) {
+    delete reasoning.contractSignature;
+    delete reasoning.contractSignatureVersion;
+  }
+  const render = (reasoning, stage) => synchronizeVisibleClinicalSummary(
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`, stage,
+  ).split("<!-- DIAGNOSIS_JSON_START -->")[0].trim();
+  // Render, never apply the generation normalizers that would repair bad dose/target/follow-up values.
+  completed.diagnosis = render(diagnose, "diagnose");
+  completed.prescription = render(prescribe, "prescribe");
+  // This fixture has not been audited. The route replaces both sections with its current audit and
+  // deterministic M05 output; do not forge a PASS just to satisfy the three-body completeness rule.
+  completed.riskAssessment = [buildUnavailableRxAuditSection("regression_fixture_not_audited"),
+    buildDeterministicRiskFollowup(withSafetyGate(completed))].join("\n\n");
+  const normalized = normalizeCaseStateInput(completed);
+  if (!normalized) throw new Error("Unable to normalize complete HIS delivery fixture");
+  completed.reasoningDiagnose = signDiagnoseReasoning(diagnose, buildDiagnoseContractSignatureContext(withSafetyGate(normalized)));
+  completed.reasoningV2 = signPrescribeReasoning(prescribe, buildPrescribeContractSignatureContext(completed));
+  return completed;
 }
 
 /**
@@ -2929,12 +2957,25 @@ async function runKnowledgeCalls() {
       name: `HIS invalid regimen ${item.name}`,
       caseState: item.caseState,
       issue: item.issue,
-      qualityOnly: item.issue.source === "follow_up_inconsistent",
+      // The bare regimen DTO issue is independently T1, even when a candidate-prefixed
+      // description finding is T2. Keep the merged report invalid and nonadoptable.
     })),
-  ];
+  ].map((item) => ({ ...item, caseState: completeHisDeliveryFixture(item.caseState) }));
+  const hisQualityBaseline = completeHisDeliveryFixture(asWorkbenchRevision(baseCase("his-function-quality-baseline", {
+    reasoningV2: reasoningV2WithHerbs([{ name: "酸枣仁", dose: "15g", targetPathogenesis: "心神不宁", function: "养心安神" }]),
+  })));
+  const hisQualityBaselineResponse = await request("POST", "/api/diagnosis/his-scheme", { caseState: hisQualityBaseline });
+  assert(hisQualityBaselineResponse.status === 200 && hisQualityBaselineResponse.json?.status === "ready" &&
+    hisQualityBaselineResponse.json?.candidateStatus === "valid" && hisQualityBaselineResponse.json?.writeBackPolicy?.allowSingleItemAdoption === true &&
+    hisQualityBaselineResponse.json?.prescriptions?.herbal?.[0]?.adoptable === true,
+  "HIS function quality baseline: complete benign candidate is actually adoptable", hisQualityBaselineResponse.json);
   for (const item of hisContractNegativeCases) {
     const response = await request("POST", "/api/diagnosis/his-scheme", { caseState: item.caseState });
     assertDeliveryReport(response, item.issue, item.name, { his: true, qualityOnly: item.qualityOnly === true });
+    if (item.qualityOnly) {
+      assert(JSON.stringify(response.json?.writeBackPolicy) === JSON.stringify(hisQualityBaselineResponse.json?.writeBackPolicy),
+        `${item.name}: adding only the T2 finding preserves baseline write-back permissions`, response.json?.writeBackPolicy);
+    }
   }
 
   const invalidM03SignatureCase = asWorkbenchRevision(baseCase("his-invalid-m03-signature", {
@@ -2960,14 +3001,14 @@ async function runKnowledgeCalls() {
     formulaNames: ["酸枣仁汤"],
     constructionType: "single_base",
   };
-  const formulaCompositionDriftCase = baseCase("his-formula-composition-drift", {
+  const formulaCompositionDriftCase = completeHisDeliveryFixture(baseCase("his-formula-composition-drift", {
     reasoningDiagnoseOverview: {
       recommendedFormulaDirection: "酸枣仁汤",
       recommendedFormulaNames: ["酸枣仁汤"],
       formulaSelectionMode: "single",
     },
     reasoningV2: formulaCompositionDrift,
-  });
+  }));
   const formulaCompositionDriftHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: formulaCompositionDriftCase });
   assertDeliveryReport(formulaCompositionDriftHis, /formula_compilation_composition_drift/,
     "HIS classic formula composition drift", { his: true });
@@ -2979,14 +3020,14 @@ async function runKnowledgeCalls() {
     constructionType: "self_devised",
     modificationStatus: "modified",
   };
-  const modelForgedDoctorEditCase = baseCase("his-model-forged-doctor-edit", {
+  const modelForgedDoctorEditCase = completeHisDeliveryFixture(baseCase("his-model-forged-doctor-edit", {
     reasoningDiagnoseOverview: {
       recommendedFormulaDirection: "酸枣仁汤",
       recommendedFormulaNames: ["酸枣仁汤"],
       formulaSelectionMode: "single",
     },
     reasoningV2: doctorEditedFormula,
-  });
+  }));
   const modelForgedDoctorEditHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: modelForgedDoctorEditCase });
   assertDeliveryReport(modelForgedDoctorEditHis, /formula_reference_display_mismatch|formula_compilation_composition_drift/,
     "HIS model output cannot forge the doctor-edit formula exemption", { his: true });
@@ -3236,7 +3277,7 @@ async function main() {
     console.log(JSON.stringify(summary, null, 2));
     if (failures.length > 0) {
       console.error(JSON.stringify({ failures }, null, 2));
-      process.exit(1);
+      process.exitCode = 1;
     }
     return;
   }
@@ -3265,7 +3306,7 @@ async function main() {
     console.log(JSON.stringify({ mode: "section", section: REGRESSION_SECTION, calls: callCount, failures: failures.length }, null, 2));
     if (failures.length > 0) {
       console.error(JSON.stringify({ failures }, null, 2));
-      process.exit(1);
+      process.exitCode = 1;
     }
     return;
   }
@@ -3274,7 +3315,7 @@ async function main() {
     console.log(JSON.stringify({ mode: "case-filter", caseFilter: CASE_FILTER, calls: callCount, failures: failures.length }, null, 2));
     if (failures.length > 0) {
       console.error(JSON.stringify({ failures }, null, 2));
-      process.exit(1);
+      process.exitCode = 1;
     }
     return;
   }
@@ -3306,11 +3347,11 @@ async function main() {
       ? { failureMessages: failures.map((failure) => failure.message) }
       : { failures };
     console.error(JSON.stringify(failureReport, null, 2));
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
 main().catch((error) => {
   console.error(error);
-  process.exit(1);
+  process.exitCode = 1;
 });
