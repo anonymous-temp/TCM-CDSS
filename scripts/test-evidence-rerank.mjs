@@ -156,9 +156,9 @@ test("formal same-domain API uses bounded strings and full top_n, preserving imm
   assert.equal(call.body.top_n, docs.length);
   assert.match(call.body.instruct, /relevan|applicab/i);
   assert.deepEqual(docs, ["First guideline", "Second guideline", "Third guideline"]);
-  const longDocs = Object.freeze(["文".repeat(10000), "言".repeat(10000)]);
+  const longDocs = Object.freeze(["完整说明。".repeat(2000), "适用范围。".repeat(2000)]);
   globalThis.fetch = async (_url, init) => { const body = JSON.parse(init.body); assert.ok(Buffer.byteLength(body.query) <= 2048); assert.ok(body.documents.every(text => Buffer.byteLength(text) <= 4096)); return rankedResponse([1, 0]); };
-  assert.equal((await rerank("问".repeat(10000), longDocs)).status, "ranked");
+  assert.equal((await rerank("完整问题。".repeat(2000), longDocs)).status, "ranked");
   assert.equal(longDocs[0].length, 10000);
 });
 

@@ -5,7 +5,7 @@ import { UpstreamResponseTooLargeError, readResponseTextLimited } from "./http-r
 import { cancelResponseBody } from "./http-response-lifecycle";
 import { createHash } from "node:crypto";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
-import { rerankEvidenceDocuments } from "./evidence-rerank";
+import { boundedEvidenceRerankText, rerankEvidenceDocuments } from "./evidence-rerank";
 
 const EVIMED_BASE_URL = (process.env.EVIMED_EVIDENCE_BASE_URL || "https://www.evimed.com/api-evimed").trim().replace(/\/$/, "");
 const GUIDE_API_URL = process.env.EVIMED_GUIDE_API_URL ||
@@ -422,16 +422,18 @@ export function buildEvidenceRerankQuery(caseState: CaseState, usedQuery: string
   const fields = caseState.hisRecord?.fields;
   const explicitNames = evidenceQueryExplicitNames(caseState);
   const safeField = (value: string | undefined, limit: number) => value
-    ? sanitizeFreeTextForExternalClinicalService(value, explicitNames).slice(0, limit) : "未记录";
+    ? boundedEvidenceRerankText(sanitizeFreeTextForExternalClinicalService(value, explicitNames), limit)
+      || "[本字段超出排序预算，未纳入]"
+    : "未记录";
   // Preserve recorded negative/unknown wording verbatim. Missing treatment history stays missing;
   // it must not be converted into an exclusion such as "no chemotherapy".
-  return [
+  return boundedEvidenceRerankText([
     safeField(usedQuery, 200),
     `记录年龄：${safeField(firstString(fields?.age, caseState.patient.age), 24)}`,
     `记录性别：${safeField(firstString(fields?.sex, caseState.patient.sex), 24)}`,
     `主诉：${safeField(firstString(fields?.zhushu, caseState.chiefComplaint), 120)}`,
     `现病史：${safeField(firstString(fields?.xianbingshi, caseState.symptoms?.presentHistory), 300)}`,
-  ].join("；").slice(0, 768);
+  ].join("；"), 768, 2048);
 }
 
 export function buildEvidenceQuery(caseState: CaseState, stage: "diagnose" | "prescribe" | "assess", kind: EvidenceSourceKind): string {

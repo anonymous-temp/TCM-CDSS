@@ -19,15 +19,19 @@ export type EvidenceRerankResult = {
   usage?: { totalTokens: number };
 };
 
-function boundedUtf8(text: string, maxBytes: number): string {
-  let bytes = 0;
-  let bounded = "";
-  for (const character of text.trim().slice(0, maxBytes)) {
-    bytes += Buffer.byteLength(character, "utf8");
-    if (bytes > maxBytes) break;
-    bounded += character;
+/** Never retain half a sentence: a trailing denial can reverse the apparent clinical meaning. */
+export function boundedEvidenceRerankText(text: string, maxCharacters: number, maxBytes = Infinity): string {
+  const source = text.trim();
+  const fits = (value: string) => value.length <= maxCharacters && Buffer.byteLength(value, "utf8") <= maxBytes;
+  if (fits(source)) return source;
+  const omitted = "[后续语句未纳入排序]";
+  let result = "";
+  // Commas are deliberately not boundaries: “正在化疗，家属随后否认” is one assertion context.
+  for (const sentence of source.split(/(?<=[。！？!?；;\n])/u)) {
+    if (!fits(result + sentence + omitted)) break;
+    result += sentence;
   }
-  return bounded;
+  return result.trim() ? result.trimEnd() + omitted : "";
 }
 
 function allowedBailianOrigin(baseUrl: string): boolean {
@@ -89,8 +93,8 @@ export async function rerankEvidenceDocuments(
   // A permissive text-model host override must not export the Bailian credential to rerank hosts.
   if (!config.configured || !allowedBailianOrigin(config.baseUrl)) return finish("not_configured");
   if (documents.length > MAX_DOCUMENTS || typeof query !== "string" || documents.some(document => typeof document !== "string")) return finish("disabled");
-  const safeQuery = boundedUtf8(query, 2048);
-  const safeDocuments = documents.map(document => boundedUtf8(document, 4096));
+  const safeQuery = boundedEvidenceRerankText(query, 2048, 2048);
+  const safeDocuments = documents.map(document => boundedEvidenceRerankText(document, 4096, 4096));
   if (!safeQuery || safeDocuments.some(document => !document)) return finish("disabled");
 
   const requestedTimeout = options.timeoutMs;
