@@ -212,6 +212,22 @@ test("owned audit grades do not arise from summary formatting and never downgrad
   }
 });
 
+test("presentation-disabled metadata is not an actual audit outage in an owned or installed view", async () => {
+  const { deriveOwnedCaseWarningProfile } = await jiti.import("../src/lib/clinical-warning-projection.server.ts");
+  const { createWarningDisplayReceipt } = await jiti.import("../src/lib/warning-display-receipt.server.ts");
+  const { prepareWarningObservation, resolveWarningDisplayProfile } = await jiti.import("../src/lib/warning-display-observation.ts");
+  const state = { ...makeCase(), auditAdvisory: { available: false, presentationDisabled: true } };
+  const owned = { riskAssessment: { markdown: state.riskAssessment, currentRiskMarkdown: "" }, audit: { auditResult: "PASS", highestRiskLevel: "LOW", auditAvailable: true, needManualReview: false } };
+  assert.equal(deriveOwnedCaseWarningProfile(state, owned).level, "L0");
+  const receipt = await createWarningDisplayReceipt({ producer: "assess", requestState: state, finalState: state, customer, owned });
+  const installed = await prepareWarningObservation({ receipt, requestState: state, finalState: state, customerId: customer.customerId, isCurrent: () => true });
+  assert.ok(installed);
+  assert.equal(resolveWarningDisplayProfile(state, installed).level, "L0");
+  assert.notEqual(deriveOwnedCaseWarningProfile(state, { ...owned, audit: { ...owned.audit, auditAvailable: false, auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH" } }).level, "L0");
+  const previousUnavailable = { ...state, prescriptionRevision: { source: "herb_workbench", candidateIndex: 0, herbHash: "old", auditedAt: "2026-09-10", auditAvailable: false, auditResult: "REMIND", highestRiskLevel: "MEDIUM" } };
+  assert.equal(deriveOwnedCaseWarningProfile(previousUnavailable, owned).level, "L2");
+});
+
 test("final sanitation and stream cleanup precede the same reducer on server and browser", async () => {
   const { finalizeM05DisplayResult, applyCompletedM05DisplayResult } = await jiti.import("../src/lib/followup-display-state.ts");
   const { joinWarningText, adviceText } = await jiti.import("../src/lib/warning-text-projection.ts");
