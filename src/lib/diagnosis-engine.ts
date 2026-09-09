@@ -6,9 +6,11 @@ import { isUnknownClinicalFieldText, isUnknownClinicalText, isUnrecordedInspecti
 import { safeHttpUrl } from "./safe-url";
 import {
   parseStreamModuleDraftFrame,
+  parseWarningProfileFrame,
   STREAM_REPLACE_MARKER,
   type StreamModuleDraftFrame,
 } from "./diagnosis-stream-protocol";
+import type { WarningDisplayReceipt } from "./warning-display-binding";
 import { sanitizeCaseStateForBrowserPersistence } from "./browser-case-persistence";
 export { scrubPersistentPhiText, sanitizeCaseStateForBrowserPersistence } from "./browser-case-persistence";
 
@@ -20,6 +22,8 @@ const STREAM_TOTAL_TIMEOUT_MS = 210_000;
 let disabledPersistenceCleared = false;
 
 type StreamConsumeOptions = {
+  /** Only M05's designated final-result consumer may collect this outer metadata channel. */
+  collectWarningProfile?: boolean;
   allowPartial?: boolean;
   idleTimeoutMs?: number;
   totalTimeoutMs?: number;
@@ -378,7 +382,7 @@ export async function consumeMarkdownStreamWithMetadata(
   response: Response,
   onChunk: (text: string) => void,
   opts?: StreamConsumeOptions,
-): Promise<{ content: string; followupTimeline: StructuredFollowupTimelineItem[] }> {
+): Promise<{ content: string; followupTimeline: StructuredFollowupTimelineItem[]; warningObservation?: WarningDisplayReceipt }> {
   if (!response.body) throw new Error("模型响应为空");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -389,6 +393,18 @@ export async function consumeMarkdownStreamWithMetadata(
   let followupTimeline: StructuredFollowupTimelineItem[] = [];
   let sawEnd = false;
   let sawFinalReplacement = false;
+  let warningObservation: WarningDisplayReceipt | undefined;
+  let warningFrames = 0;
+  let invalidWarningObservation = false;
+  const acceptWarningFrame = (chunk: Record<string, unknown>): boolean => {
+    if (chunk.type !== "warning_profile") return false;
+    if (!opts?.collectWarningProfile) return true;
+    warningFrames += 1;
+    const parsed = parseWarningProfileFrame(chunk);
+    if (warningFrames !== 1 || sawEnd || !parsed) invalidWarningObservation = true;
+    if (!invalidWarningObservation) warningObservation = parsed;
+    return true;
+  };
   const acceptContent = (content: string) => {
     if (!sawFinalReplacement && (accumulated + content).includes(STREAM_REPLACE_MARKER)) {
       sawFinalReplacement = true;
@@ -411,7 +427,11 @@ export async function consumeMarkdownStreamWithMetadata(
 
   try {
     while (true) {
-      const { done, value } = await readStreamChunk(reader, deadline, validFrameReadOptions());
+      const { done, value } = await readStreamChunk(reader, deadline, validFrameReadOptions()).catch((error) => {
+        if (!sawEnd || !opts?.collectWarningProfile) throw error;
+        invalidWarningObservation = true;
+        return { done: true, value: undefined };
+      });
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
@@ -419,12 +439,19 @@ export async function consumeMarkdownStreamWithMetadata(
       for (const line of lines) {
         if (!line.trim()) continue;
         if (sawEnd) {
-          try { if (parseStreamModuleDraftFrame(JSON.parse(line))) continue; } catch { /* retain malformed-frame handling */ }
+          try {
+            const chunk = JSON.parse(line) as Record<string, unknown>;
+            if (acceptWarningFrame(chunk) || parseStreamModuleDraftFrame(chunk)) continue;
+          } catch { /* retain malformed-frame handling */ }
           malformedLines += 1;
           continue;
         }
         try {
           const chunk = JSON.parse(line) as Record<string, unknown>;
+          if (acceptWarningFrame(chunk)) {
+            if (typeof chunk.content === "string" && chunk.content) acceptContent(chunk.content);
+            continue;
+          }
           if (typeof chunk.error === "string" && chunk.error.trim()) {
             markValidFrame();
             upstreamError = chunk.error.trim();
@@ -464,7 +491,7 @@ export async function consumeMarkdownStreamWithMetadata(
           malformedLines += 1;
         }
       }
-      if (sawEnd) {
+      if (sawEnd && !opts?.collectWarningProfile) {
         if (buffer.trim()) {
           try { if (!parseStreamModuleDraftFrame(JSON.parse(buffer))) malformedLines += 1; }
           catch { malformedLines += 1; }
@@ -475,10 +502,17 @@ export async function consumeMarkdownStreamWithMetadata(
       }
     }
     // Flush remaining buffer
+    if (sawEnd && buffer.trim() && opts?.collectWarningProfile) {
+      try { if (!acceptWarningFrame(JSON.parse(buffer))) malformedLines += 1; }
+      catch { malformedLines += 1; }
+      buffer = "";
+    }
     if (!sawEnd && buffer.trim()) {
       try {
         const chunk = JSON.parse(buffer) as Record<string, unknown>;
-        if (typeof chunk.error === "string" && chunk.error.trim()) {
+        if (acceptWarningFrame(chunk)) {
+          if (typeof chunk.content === "string" && chunk.content) acceptContent(chunk.content);
+        } else if (typeof chunk.error === "string" && chunk.error.trim()) {
           markValidFrame();
           upstreamError = chunk.error.trim();
         } else if (Array.isArray(chunk.quto)) {
@@ -566,7 +600,10 @@ export async function consumeMarkdownStreamWithMetadata(
     }
   }
 
-  return { content: accumulated, followupTimeline };
+  return { content: accumulated, followupTimeline,
+    ...(opts?.collectWarningProfile && !invalidWarningObservation && !recoverableStreamIssue && sawEnd &&
+      !upstreamError && malformedLines === 0 && !opts?.abortSignal?.aborted && warningObservation ? { warningObservation } : {}),
+  };
 }
 
 export async function consumeMarkdownStream(

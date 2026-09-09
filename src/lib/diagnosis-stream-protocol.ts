@@ -87,3 +87,12 @@ export function stageProgressHeartbeatStatus(input: {
       : "正在等待模型开始响应";
   return `${label}${STAGE_PROGRESS_HEARTBEAT_SUFFIX}`;
 }
+import { parseWarningDisplayReceipt, type WarningDisplayReceipt } from "./warning-display-binding";
+
+export type WarningProfileFrame = { type: "warning_profile"; observation: WarningDisplayReceipt };
+export function parseWarningProfileFrame(value: unknown): WarningDisplayReceipt | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const row = value as Record<string, unknown>;
+  return row.type === "warning_profile" && Object.keys(row).length === 2 && Object.hasOwn(row, "observation")
+    ? parseWarningDisplayReceipt(row.observation) : undefined;
+}

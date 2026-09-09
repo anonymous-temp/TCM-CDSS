@@ -2,7 +2,7 @@ import "server-only";
 import type { CaseState } from "./diagnosis-types";
 import { prescribeReasoningFromState, stripDiagnosisJSON } from "./diagnosis-parse";
 import { sectionTitleGroup } from "./cdss-vocab";
-import { deriveCaseWarningProfile, type ClinicalWarningProfile } from "./clinical-warning-tier";
+import { deriveCaseWarningProfile, warningLevelRank, type ClinicalWarningProfile } from "./clinical-warning-tier";
 import { prescribeWarningTextProjection } from "./diagnosis-visible-summary";
 import { medicineCandidateRow } from "./medicine-rendering";
 import { localLabelRiskProjection } from "./medicine-reference-projection.server";
@@ -44,13 +44,21 @@ export function deriveOwnedCaseWarningProfile(
   owned?: OwnedCaseWarningProjection,
   advisories: readonly ClinicalDeliveryAdvisory[] = [],
 ): ClinicalWarningProfile {
-  const profile = deriveCaseWarningProfile({
+  let profile = deriveCaseWarningProfile({
     ...state,
     prescription: owned?.prescription
       ? matchedWarningText(state.prescription, owned.prescription)
       : projectPrescriptionWarningText(state).currentRiskMarkdown,
     riskAssessment: matchedWarningText(state.riskAssessment, owned?.riskAssessment),
   });
+  const floors = [owned?.floor];
+  if (owned?.audit) floors.push(deriveCaseWarningProfile({ ...state, prescription: "", riskAssessment: "",
+    prescriptionRevision: { source: "herb_workbench", candidateIndex: state.prescriptionRevision?.candidateIndex ?? 0,
+      herbHash: "", auditedAt: "", ...owned.audit },
+  }));
+  for (const floor of floors) {
+    if (floor && (warningLevelRank(floor.level) > warningLevelRank(profile.level) || (!floor.executable && profile.executable))) profile = floor;
+  }
   const safety = advisories.filter(isSafetyClinicalDeliveryAdvisory);
   return safety.length === 0 ? profile : {
     level: "L4", label: "确定性阻断", action: "non_executable", executable: false,

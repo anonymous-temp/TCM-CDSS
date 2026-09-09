@@ -4,6 +4,14 @@ export type WarningTextProjection = Readonly<{ markdown: string; currentRiskMark
 export type OwnedCaseWarningProjection = Readonly<{
   prescription?: WarningTextProjection;
   riskAssessment?: WarningTextProjection;
+  audit?: Readonly<{
+    auditResult: "PASS" | "REMIND" | "MANUAL_REVIEW" | "BLOCK";
+    highestRiskLevel: "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    auditAvailable: boolean;
+    needManualReview?: boolean;
+  }>;
+  /** Fresh enriched server facts can strengthen the profile without entering client material. */
+  floor?: import("./clinical-warning-tier").ClinicalWarningProfile;
 }>;
 
 export function adviceText(text: string): AdviceText { return { kind: "advice", text }; }

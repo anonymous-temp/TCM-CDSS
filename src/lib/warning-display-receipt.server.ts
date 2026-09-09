@@ -6,6 +6,7 @@ import type { ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
 import { deriveOwnedCaseWarningProfile, projectPrescriptionWarningText } from "./clinical-warning-projection.server";
 import { restoreWarningDisplayCase } from "./followup-display-state";
 import { matchedWarningText, type OwnedCaseWarningProjection } from "./warning-text-projection";
+import { storedWarningCase, WARNING_STORAGE_RECEIPT_KEY } from "./warning-display-storage";
 import { boundedWarningProfile, parseWarningDisplayReceipt, stableWarningJson, warningDisplayHash, warningDisplayMaterial,
   WARNING_DISPLAY_VERSION, WARNING_PROJECTION_VERSION, type WarningDisplayReceipt } from "./warning-display-binding";
 
@@ -62,4 +63,11 @@ export async function verifyWarningDisplayReceipt(value: unknown, customer: Cust
     if (!expected || expected.length !== mac.length || !timingSafeEqual(Buffer.from(mac), Buffer.from(expected))) return false;
     return receipt[view].materialHash === await warningDisplayHash(warningDisplayMaterial(state, customer.customerId));
   } catch { return false; }
+}
+
+export async function verifyStoredWarningObservation(payload: unknown, customer: CustomerBinding): Promise<{ view: "stored"; receipt: WarningDisplayReceipt } | undefined> {
+  const state = storedWarningCase(payload);
+  const receipt = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? parseWarningDisplayReceipt((payload as Record<string, unknown>)[WARNING_STORAGE_RECEIPT_KEY]) : undefined;
+  return state && receipt && await verifyWarningDisplayReceipt(receipt, customer, state, "stored") ? { view: "stored", receipt } : undefined;
 }
