@@ -1,6 +1,7 @@
 import type { CaseState } from "./diagnosis-types";
 import { gateDispositionIsAdvisory } from "./diagnosis-safety";
 import { INTERNAL_EVIDENCE_PLACEHOLDER } from "./customer-evidence";
+import { sectionTitleGroup } from "./cdss-vocab";
 
 export type ClinicalWarningLevel = "L0" | "L1" | "L2" | "L3" | "L4";
 export type ClinicalWarningAction =
@@ -32,6 +33,7 @@ const LABELS: Record<ClinicalWarningLevel, string> = {
   L3: "高风险复核",
   L4: "确定性阻断",
 };
+const COMPATIBILITY_CATEGORY_HEADINGS = new Set(sectionTitleGroup("compatibilityRisk"));
 
 /**
  * L0–L4 是内部枚举，医生可见位置一律用中文标签（甲方评测 2026-08-04 第 1 条；
@@ -45,8 +47,11 @@ export function warningLevelClinicianLabel(level: ClinicalWarningLevel): string 
 function activeRiskLine(text: string, pattern: RegExp): string | undefined {
   return text
     .split(/\r?\n/)
-    // A report section names a category; its heading is not a patient-level finding.
-    .filter((line) => !/^\s*#{1,6}\s/.test(line))
+    // Only exact governed category titles are nonfindings. Legacy finding-bearing headings count.
+    .filter((line) => {
+      const heading = line.match(/^\s*#{1,6}\s+(.+?)\s*#*\s*$/);
+      return !heading || !COMPATIBILITY_CATEGORY_HEADINGS.has(heading[1]);
+    })
     .map((line) => line.replace(/[*#>|]/g, "").trim())
     .find((line) =>
       pattern.test(line) &&
