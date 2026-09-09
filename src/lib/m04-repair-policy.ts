@@ -5,6 +5,8 @@ export type TransparentFormulaFallbackInput = {
    * 与「完成一轮 provider 修复」在语义上等价——都表示再给模型一轮也改变不了结果。
    */
   repairExhausted?: boolean;
+  /** Exact current candidate has no remaining T2/T3 repair budget and passed the full hard floor. */
+  qualityRepairExhaustedForCandidate?: boolean;
   strictFormulaIssue?: string;
   therapyIssue?: string;
   requestAborted: boolean;
@@ -91,7 +93,7 @@ export function canAcceptTransparentFormulaFallback(input: TransparentFormulaFal
   // 失败彩票」，却因为跳过了那一轮而不算「完成」，整方随即作废。实测胃痛-肝气犯胃：
   // 柴胡疏肝散 7/7 组成达标、fixpoint 早退、无降级、0 味；同一轮里恰好先完成过一轮修复的
   // 麻黄汤与清胃散则正常降级出方——差别只在到达方式，不在候选质量。
-  return (input.completedRepairAttempts >= 1 || input.repairExhausted === true) &&
+  return (input.completedRepairAttempts >= 1 || input.repairExhausted === true || input.qualityRepairExhaustedForCandidate === true) &&
     !input.requestAborted &&
     (input.strictFormulaIssue === undefined || input.strictFormulaIssue === "" ||
       input.strictFormulaIssue === "formula_reference_declassified") &&

@@ -52,6 +52,7 @@ import { declassifyAndDropOpposingM04CandidateHerbs, dropUnsupportedM04Candidate
 import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
 import { responseFormatForTask, supportsStrictJsonSchema } from "@/lib/model-response-format";
+import { bindM04DeliveryReview, renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint, type M04DeliveryCheckpoint } from "./m04-delivery-checkpoint";
 
 const GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const GLM_VISION_MODEL = process.env.GLM_VISION_MODEL?.trim() || "glm-5v-turbo";
@@ -1474,6 +1475,12 @@ function structuredRejectionReason(
     }
     if (expectedStage === "prescribe") {
       const enrichedReasoning = enrichReasoning(reasoning).reasoning;
+      // Repair dispatch must see the complete hard floor before the first documentation/identity
+      // finding. A T2 finding may not hide a later T1 and consume its automatic repair opportunity.
+      const hardFloorIssue = m04SafetyContractIssue(
+        enrichedReasoning, priorReasoning, isKnownTcmHerbName, false, false, clinicalContext, true,
+      );
+      if (hardFloorIssue) return `m04_${hardFloorIssue}`;
       const formulaIssue = formulaCompilationContractIssue(
         enrichedReasoning,
         priorReasoning,
@@ -3045,6 +3052,7 @@ async function callPrimaryTextModelStream(
       let m03ReviewedReasoning: unknown;
       let m04ReviewedSemanticHash: string | undefined;
       let m04ReviewedReasoning: unknown;
+      let m04DeliveryCheckpoint: M04DeliveryCheckpoint | undefined;
       let m03GeneratorModel = model;
       let m04GeneratorModel = model;
       let generationFallback: NonNullable<ClinicalReviewAttestation["generationFallback"]> | undefined;
@@ -3062,6 +3070,7 @@ async function callPrimaryTextModelStream(
       ): Promise<ClinicalReviewExecution<T>> => {
         orchestrationPhase = "review";
         const review = await pending;
+        if (clientStreamClosed || opts.requestSignal?.aborted) throw new DOMException("Request cancelled", "AbortError");
         clinicalReviewAttemptCount += review.execution?.attemptCount || 0;
         clinicalReviewDurationMs += review.execution?.durationMs || 0;
         return review;
@@ -3473,6 +3482,50 @@ async function callPrimaryTextModelStream(
         }
         return { content: candidateContent, reasoning: candidateReasoning, review };
       };
+      const rememberM04Candidate = (
+        reasoning: ClinicalReasoningResultV2,
+        generatorModel: string | undefined,
+        content = synchronizeVisibleClinicalSummary(
+          `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
+          "prescribe", opts.structuredClinicalContext || "", opts.structuredCaseState,
+        ),
+      ) => {
+        if (clientStreamClosed || opts.requestSignal?.aborted) return;
+        m04DeliveryCheckpoint = retainM04DeliveryCheckpoint(m04DeliveryCheckpoint, {
+          content, reasoning, generatorModel, acceptanceScope: m04AcceptanceScope,
+          priorReasoning: opts.structuredPriorReasoning, clinicalContext: opts.structuredClinicalContext,
+        });
+      };
+      const rememberM04Review = (
+        reasoning: ClinicalReasoningResultV2,
+        review: ClinicalReviewExecution<M04ClinicalReview>,
+        attestation = m04ClinicalReviewAttestation,
+        annotation?: string,
+      ) => {
+        if (clientStreamClosed || opts.requestSignal?.aborted) return;
+        let signedContent: string | undefined;
+        const scopedAttestation = attestation && {
+          ...attestation,
+          ...(m04AcceptanceScope ? { acceptanceScope: m04AcceptanceScope } : {}),
+          ...(generationFallback ? { generationFallback } : {}),
+        };
+        if (m04DeliveryCheckpoint && m04DeliveryCheckpoint.payloadHash === clinicalReviewPayloadHash(reasoning) &&
+            scopedAttestation?.status === "accepted" && opts.prescribeSignatureContext) {
+          try {
+            const content = attachClinicalReviewAttestation(m04DeliveryCheckpoint.content, scopedAttestation);
+            signedContent = applyPrescribeContractSignature(content, opts.prescribeSignatureContext);
+            const notes = [...new Set([m04TransparentQualityAnnotation, annotation].filter(Boolean))].join("\n\n");
+            if (notes) signedContent = `${notes}\n\n${signedContent}`;
+          } catch {
+            // A missing signing context/key keeps the exact candidate available only as non-dose.
+          }
+        }
+        m04DeliveryCheckpoint = bindM04DeliveryReview(m04DeliveryCheckpoint, reasoning, {
+          status: review.status, issueCode: review.issueCode, reason: review.execution?.reason,
+        }, scopedAttestation, signedContent);
+      };
+      const m04ContinuityFallback = (reason: "deadline" | "interrupted" | "contract_rejected") =>
+        renderM04DeliveryCheckpoint(m04DeliveryCheckpoint, opts.structuredPriorReasoning, reason);
       const trackM04ReviewResult = (
         review: ClinicalReviewExecution<M04ClinicalReview>,
         reasoning: ClinicalReasoningResultV2,
@@ -3488,6 +3541,7 @@ async function callPrimaryTextModelStream(
           ? undefined
           : semanticHash;
         m04ReviewedReasoning = review.status === "repair" ? undefined : reasoning;
+        rememberM04Review(reasoning, review);
         // A composition-only rejection is a dispute about the claimed classic-formula identity,
         // not a request to redraw every herb and dose. Regenerating the full prescription here can
         // consume the entire M04 wall-clock budget (production public-091/public-092) even though
@@ -3509,7 +3563,10 @@ async function callPrimaryTextModelStream(
         reasoning: ClinicalReasoningResultV2,
         generatorModel: string | undefined,
         unavailableContext: string,
+        content?: string,
       ): Promise<ClinicalReviewExecution<M04ClinicalReview>> => {
+        if (clientStreamClosed || opts.requestSignal?.aborted) throw new DOMException("Request cancelled", "AbortError");
+        rememberM04Candidate(reasoning, generatorModel, content);
         const review = await observeClinicalReview(reviewM04ClinicalPlan(
           reasoning,
           opts.structuredPriorReasoning,
@@ -3559,6 +3616,7 @@ async function callPrimaryTextModelStream(
         m04ReviewedReasoning = reasoning;
         m04ClinicalReviewStatus = "accepted";
         m04AcceptanceScope = appendAnnotationCode(m04AcceptanceScope, review.issueCode);
+        rememberM04Review(reasoning, review, m04ClinicalReviewAttestation, annotation);
         console.warn("[tcm-cdss:model] M04 independent quality opinion attested without provider repair", {
           stage: "prescribe",
           issueCode: review.issueCode,
@@ -3728,11 +3786,28 @@ async function callPrimaryTextModelStream(
         if (clientStreamClosed) return;
         upstreamController.abort();
         if (!opts.structuredStage) return;
+        if (opts.requestSignal?.aborted) {
+          stageOutcome = "provider_error";
+          stageReasonCode = "request_cancelled";
+          enqueueClient("[END]");
+          closeClientStream();
+          return;
+        }
+        if (opts.structuredStage === "prescribe") {
+          m04OrchestrationDeadlineGate();
+          stageOutcome = "fallback";
+          stageReasonCode = m04DeliveryCheckpoint?.signedContent
+            ? "deadline_preserved_attested_candidate" : m04DeliveryCheckpoint
+              ? "deadline_preserved_non_dose_candidate" : "deadline_no_valid_candidate";
+          enqueueClient(`${STREAM_REPLACE_MARKER}${m04ContinuityFallback("deadline")}`);
+          enqueueClient("[END]");
+          closeClientStream();
+          return;
+        }
 
         // Keep the same deterministic, non-dose fallback semantics as the ordinary catch path,
         // while closing independently of whichever provider/reviewer promise is still pending.
         if (opts.structuredStage === "diagnose") m03OrchestrationDeadlineGate();
-        if (opts.structuredStage === "prescribe") m04OrchestrationDeadlineGate();
         console.warn("[tcm-cdss:model] absolute structured deadline reached; closing client stream with safe fallback", {
           stage: opts.structuredStage,
           elapsedMs: Date.now() - requestStartedAt,
@@ -3757,14 +3832,6 @@ async function callPrimaryTextModelStream(
           } catch {
             // The caller-owned deterministic fallback is already fail-closed. A presentation
             // transform must not prevent the absolute deadline from closing the NDJSON stream.
-          }
-          if (opts.structuredStage === "prescribe") {
-            safeFallback = [
-              safeFallback,
-              "",
-              "## 候选方药生成状态",
-              "本阶段生成超过安全时限。本次未展示不完整的药味与剂量；已完成的辨病辨证仍然保留，可重新生成候选方药。",
-            ].join("\n\n");
           }
           enqueueClient(`${STREAM_REPLACE_MARKER}${safeFallback}\n\n[TRUNCATED]\n`);
         } else {
@@ -4221,7 +4288,7 @@ async function callPrimaryTextModelStream(
             console.warn("[tcm-cdss:model] M03 clinical review unavailable; marking output for doctor review");
           }
         } else if (structuredReasoning && opts.structuredStage === "prescribe") {
-          const review = await reviewTrackedM04Candidate(structuredReasoning, m04GeneratorModel, "for initial candidate");
+          const review = await reviewTrackedM04Candidate(structuredReasoning, m04GeneratorModel, "for initial candidate", authoritativeContent);
           m04ClinicalReviewStatus = review.status;
           if (review.status === "repair") {
             initialM04ReviewQualityAnnotation = acceptM04QualityReviewWithoutProviderRepair(review, structuredReasoning);
@@ -4358,6 +4425,17 @@ async function callPrimaryTextModelStream(
           (opts.structuredStage === "prescribe" && initialM04ClinicalReviewRejected);
         const pendingRepairIsFixpoint = isRepeatedContractRepair(pendingRejectionReason, pendingReviewDriven);
         const pendingQualityRepairUnavailable = !qualityRepairAvailable(pendingRejectionReason);
+        // This disposition belongs to these completed bytes. It authorizes deterministic identity
+        // removal only; it cannot exhaust an unrelated reviewer concern or waive a hard failure.
+        const m04CandidateQualityRepairExhausted = (content: string): boolean => {
+          if (opts.structuredStage !== "prescribe" || finishReason !== "stop") return false;
+          const candidate = structuredReasoningFromContent(content);
+          if (!candidate || m04SafetyContractIssue(enrichReasoning(candidate).reasoning,
+            opts.structuredPriorReasoning, isKnownTcmHerbName, false, false, opts.structuredClinicalContext || "", true)) return false;
+          const reason = structuredRejectionReason(content, "prescribe", finishReason,
+            opts.structuredClinicalContext, opts.structuredPriorReasoning);
+          return Boolean(qualityAnnotationCopy(reason)) && !qualityRepairAvailable(reason);
+        };
         // 质量修复预算可以显式设为 0（生产默认值），此时已登记的 T2/T3 说明项不应把一张
         // 安全处方清成 0 味。这里不按拒绝码直接放行：validatedStructuredReasoning 会先用
         // default-deny tier 表确认它不是 T1，再完整重跑剂量、配伍、特殊人群、方向与跨阶段
@@ -4558,16 +4636,11 @@ async function callPrimaryTextModelStream(
               console.warn("[tcm-cdss:model] M03 clinical review unavailable after repair; marking output for doctor review");
             }
           } else if (retriedReasoning && opts.structuredStage === "prescribe") {
-            const review = await observeClinicalReview(reviewM04ClinicalPlan(
+            const review = await reviewTrackedM04Candidate(
               retriedReasoning,
-              opts.structuredPriorReasoning,
-              opts.structuredClinicalContext || "",
-              opts.structuredReviewEvidenceContext || "",
-              absoluteRunDeadline,
-              upstreamController.signal,
               retry.ok ? retry.model : m04GeneratorModel,
-            ));
-            trackM04ReviewResult(review, retriedReasoning);
+              "after repair", resolvedRetryContent,
+            );
             m04ClinicalReviewStatus = review.status;
             if (review.status === "repair") {
               retriedReasoning = undefined;
@@ -4806,16 +4879,11 @@ async function callPrimaryTextModelStream(
                   console.warn("[tcm-cdss:model] M03 clinical review unavailable after targeted repair; marking output for doctor review");
                 }
               } else if (secondReasoning && opts.structuredStage === "prescribe") {
-                const review = await observeClinicalReview(reviewM04ClinicalPlan(
+                const review = await reviewTrackedM04Candidate(
                   secondReasoning,
-                  opts.structuredPriorReasoning,
-                  opts.structuredClinicalContext || "",
-                  opts.structuredReviewEvidenceContext || "",
-                  absoluteRunDeadline,
-                  upstreamController.signal,
                   secondRetry.ok ? secondRetry.model : m04GeneratorModel,
-                ));
-                trackM04ReviewResult(review, secondReasoning);
+                  "after targeted repair", secondResolved,
+                );
                 m04ClinicalReviewStatus = review.status;
                 const enrichedSecondReasoning = enrichReasoning(secondReasoning).reasoning;
                 const repeatedPatientContextReviewAcceptedAfterRepairExhaustion =
@@ -5098,7 +5166,7 @@ async function callPrimaryTextModelStream(
           // fallback 都没有——医生看到的是空白处方页。
           // 补的是同一个前提的第四种到达方式，不放宽块内任何一道检查（身份剥离后仍要重跑严格
           // 合同自证，独立复核照常重新执行并按意见性质分流）。
-          (m04ClinicalReviewStatus !== "repair" || m04RepairLoopEarlyExit || m04DeadlineExceeded ||
+          (m04ClinicalReviewStatus !== "repair" || m04CandidateQualityRepairExhausted(authoritativeContent) || m04RepairLoopEarlyExit || m04DeadlineExceeded ||
             m04Retry.repairExhaustedOnEntry || m04RepairState.completedAttempts >= 1) &&
           finishReason === "stop" &&
           opts.structuredStage === "prescribe" &&
@@ -5166,6 +5234,7 @@ async function callPrimaryTextModelStream(
             // 「上一次同输入已经合同驳回」是第三种到达方式：那一次已经把修复轮走完并证明无效，
             // 本次再原样走一遍只会得到同一份失败页（生产实测两次输出逐字节相同）。
             repairExhausted: m04RepairLoopEarlyExit || m04DeadlineExceeded || m04Retry.repairExhaustedOnEntry,
+            qualityRepairExhaustedForCandidate: m04CandidateQualityRepairExhausted(authoritativeContent),
             strictFormulaIssue,
             therapyIssue,
             requestAborted: m04RepairState.requestAborted || upstreamController.signal.aborted || opts.requestSignal?.aborted === true,
@@ -5203,6 +5272,7 @@ async function callPrimaryTextModelStream(
               transparentReasoning,
               m04GeneratorModel,
               "for transparent formula fallback",
+              declassifiedContent,
             );
             // 复核在**修复轮已耗尽**时给出的 repair，不是一个还能被执行的指令——修复轮
             // 已经证明再修也是同一张失败彩票（fixpoint 早退），此处唯一的分岔是「出方」
@@ -5479,7 +5549,9 @@ async function callPrimaryTextModelStream(
           return upstreamAwareTruncateFallback();
         };
         const transformTruncateFallback = (): { content: string; ok: boolean } => (
-          opts.authoritativeTruncateFallback
+          opts.structuredStage === "prescribe"
+            ? { content: m04ContinuityFallback(m04DeadlineExceeded ? "deadline" : "contract_rejected"), ok: true }
+            : opts.authoritativeTruncateFallback
             ? { content: reasonAwareTruncateFallback() || "", ok: true }
             : transformOutput(reasonAwareTruncateFallback() || "")
         );
@@ -5836,16 +5908,11 @@ async function callPrimaryTextModelStream(
                   transformed = transformTruncateFallback();
                 }
               } else {
-                const review = await observeClinicalReview(reviewM04ClinicalPlan(
+                const review = await reviewTrackedM04Candidate(
                   finalReasoning,
-                  opts.structuredPriorReasoning,
-                  opts.structuredClinicalContext || "",
-                  opts.structuredReviewEvidenceContext || "",
-                  absoluteRunDeadline,
-                  upstreamController.signal,
                   m04GeneratorModel,
-                ));
-                trackM04ReviewResult(review, finalReasoning);
+                  "at finalization", transformed.content,
+                );
                 m04ClinicalReviewStatus = review.status;
                 // finalize 的这次复核此前从不写 attestation：accepted 也好、有界受理也好，
                 // 签名载荷里都没有复核记录（与 M03 侧同一形状的审计缺口，一起修）。
@@ -6194,6 +6261,16 @@ async function callPrimaryTextModelStream(
           // 只结束 NDJSON 并记录取消原因，不签署任何合同或上游降级页。
           stageOutcome = "provider_error";
           stageReasonCode = "request_cancelled";
+          enqueueClient("[END]");
+          closeClientStream();
+          return;
+        }
+        if (opts.structuredStage === "prescribe") {
+          stageOutcome = "fallback";
+          stageReasonCode = m04DeliveryCheckpoint?.signedContent
+            ? "interrupted_preserved_attested_candidate" : m04DeliveryCheckpoint
+              ? "interrupted_preserved_non_dose_candidate" : "interrupted_no_valid_candidate";
+          enqueueClient(`${STREAM_REPLACE_MARKER}${m04ContinuityFallback(m04DeadlineExceeded ? "deadline" : "interrupted")}`);
           enqueueClient("[END]");
           closeClientStream();
           return;
