@@ -1,9 +1,10 @@
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode, type ClinicalReasoningResultV2, type ClinicalReviewAttestation } from "./diagnosis-types";
-import { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } from "./clinical-review-binding";
+import { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation, sha256CanonicalForContract } from "./clinical-review-binding";
 import { m04SafetyContractIssue } from "./diagnosis-stage-contract";
 import { enrichReasoning, formulaCompilationContractIssue } from "./tcm-formula-provenance";
 import { isKnownTcmHerbName } from "./tcm-knowledge";
 import { sanitizeGeneratedSuggestionPreviewText } from "./diagnosis-stream-safety";
+import { NON_DOSE_PRESCRIPTION_MARKER } from "./diagnosis-safety";
 
 export type M04DeliveryCheckpoint = Readonly<{
   content: string;
@@ -84,6 +85,7 @@ export function bindM04DeliveryReview(
       ));
       if (signed && signed.clinicalReview?.status === "accepted" &&
           signed.contractSignature?.startsWith("hmac-sha256:") &&
+          sha256CanonicalForContract(signed.clinicalReview) === sha256CanonicalForContract(attestation) &&
           clinicalReviewPayloadHash(signed) === checkpoint.payloadHash && hasBoundClinicalReviewAttestation(signed)) {
         matchingSignedContent = signedContent;
       }
@@ -113,11 +115,11 @@ const REVIEW_ISSUES: Record<string, string> = {
 export function renderM04DeliveryCheckpoint(
   checkpoint: M04DeliveryCheckpoint | undefined,
   priorReasoning: ClinicalReasoningResultV2 | undefined,
-  reason: "deadline" | "interrupted" | "contract_rejected",
+  reason: "deadline" | "interrupted" | "upstream_unavailable" | "contract_rejected",
 ): string {
   if (checkpoint?.signedContent && checkpoint.attestation?.status === "accepted") return checkpoint.signedContent;
   const prior = priorReasoning;
-  const lines = ["## 已完成的辨病辨证", ...[
+  const lines = [NON_DOSE_PRESCRIPTION_MARKER, "## 已完成的辨病辨证", ...[
     prior?.westernDiagnosis?.primary?.name,
     prior?.overview?.primarySyndrome,
     prior?.overview?.overallPathogenesis,
@@ -130,6 +132,8 @@ export function renderM04DeliveryCheckpoint(
   if (!checkpoint) {
     lines.push("", "## 候选方药生成状态", reason === "deadline"
       ? "本阶段超过时限，尚未形成通过校验的个体化方药候选。已完成的辨病辨证与治法保留，暂不提供药味、剂量或用法。"
+      : reason === "upstream_unavailable"
+        ? "模型服务暂时不可用，本次尚未形成通过校验的个体化方药候选。已完成的辨病辨证与治法保留，暂不提供药味、剂量或用法。"
       : "本次尚未形成通过校验的个体化方药候选。已完成的辨病辨证与治法保留，暂不提供药味、剂量或用法。");
     return lines.join("\n\n");
   }
@@ -142,7 +146,7 @@ export function renderM04DeliveryCheckpoint(
       ? "本次已生成候选，复核未完成或超过时限。"
       : "本次已生成候选，复核未完成。";
   lines.push("", "## 本次候选方药（非剂量，供医生审阅）", status,
-    "以下保留本次已通过确定性校验的药味与方义，尚不构成可执行处方；本页不提供剂量、给药方法或疗程，需医生／药师完成核对后决定采用。");
+    "以下为本次已通过确定性校验的药味与方义，不代表处方已获批准；本页不提供剂量、给药方法或疗程。");
   for (const candidate of checkpoint.reasoning.formula?.candidates || []) {
     lines.push(`候选方：${text(candidate.name)}`);
     for (const herb of candidate.herbs) lines.push(`- ${text(herb.name)}（${text(herb.role)}）：${text(herb.function)}`);

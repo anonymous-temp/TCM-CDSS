@@ -2958,7 +2958,11 @@ async function callPrimaryTextModelStream(
     );
   };
   if (!opts.structuredStage) armAbsoluteDeadline();
-  const abortFromRequest = () => upstreamController.abort();
+  let closeAfterClientCancellation = () => {};
+  const abortFromRequest = () => {
+    upstreamController.abort();
+    closeAfterClientCancellation();
+  };
   if (opts.requestSignal?.aborted) upstreamController.abort();
   else opts.requestSignal?.addEventListener("abort", abortFromRequest, { once: true });
   let stopClientHeartbeat: () => void = () => {};
@@ -3545,7 +3549,7 @@ async function callPrimaryTextModelStream(
         m04PendingDeliveryCheckpoint = reviewed;
         m04DeliveryCheckpoint = preferM04DeliveryCheckpoint(m04DeliveryCheckpoint, reviewed);
       };
-      const m04ContinuityFallback = (reason: "deadline" | "interrupted" | "contract_rejected") =>
+      const m04ContinuityFallback = (reason: "deadline" | "interrupted" | "upstream_unavailable" | "contract_rejected") =>
         renderM04DeliveryCheckpoint(m04DeliveryCheckpoint, opts.structuredPriorReasoning, reason);
       const trackM04ReviewResult = (
         review: ClinicalReviewExecution<M04ClinicalReview>,
@@ -3804,6 +3808,13 @@ async function callPrimaryTextModelStream(
         if (absoluteDeadlineAbortTimer) clearTimeout(absoluteDeadlineAbortTimer);
         opts.requestSignal?.removeEventListener("abort", abortFromRequest);
         ctrl.close();
+      };
+      closeAfterClientCancellation = () => {
+        if (clientStreamClosed || opts.structuredStage !== "prescribe") return;
+        stageOutcome = "provider_error";
+        stageReasonCode = "request_cancelled";
+        enqueueClient("[END]");
+        closeClientStream();
       };
       forceCloseAtAbsoluteDeadline = () => {
         if (clientStreamClosed) return;
@@ -6293,7 +6304,8 @@ async function callPrimaryTextModelStream(
           stageReasonCode = m04DeliveryCheckpoint?.signedContent
             ? "interrupted_preserved_attested_candidate" : m04DeliveryCheckpoint
               ? "interrupted_preserved_non_dose_candidate" : "interrupted_no_valid_candidate";
-          enqueueClient(`${STREAM_REPLACE_MARKER}${m04ContinuityFallback(m04DeadlineExceeded ? "deadline" : "interrupted")}`);
+          enqueueClient(`${STREAM_REPLACE_MARKER}${m04ContinuityFallback(m04DeadlineExceeded ? "deadline"
+            : initialGenerationFailedOnTransport || repairFailedOnTransport ? "upstream_unavailable" : "interrupted")}`);
           enqueueClient("[END]");
           closeClientStream();
           return;
