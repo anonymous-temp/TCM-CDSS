@@ -16,6 +16,10 @@ const jiti = createJiti(import.meta.url, { alias: {
 const { callDiagnosisStream } = await jiti.import("../src/lib/diagnosis-api.ts");
 const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { canAcceptTransparentFormulaFallback } = await jiti.import("../src/lib/m04-repair-policy.ts");
+const { retainM04DeliveryCheckpoint, bindM04DeliveryReview, renderM04DeliveryCheckpoint } = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
+const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+const { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } = await jiti.import("../src/lib/clinical-review-binding.ts");
+const { applyPrescribeContractSignature } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
 const prior = ReasoningV2Schema.parse({
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
   overview: { primarySyndrome: "脾胃虚弱证", overallPathogenesis: "脾胃虚弱，运化无力", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
@@ -46,7 +50,10 @@ const sse = (value) => new Response(new ReadableStream({ start(controller) {
 } }), { headers: { "content-type": "text/event-stream" } });
 const accepted = { status: "accepted", issueCode: "none", repairFocus: "none" };
 const completion = (value) => Response.json({ choices: [{ message: { content: JSON.stringify(value) }, finish_reason: "stop" }] });
-async function runWire({ first = proposal, reviewer = accepted, remainingMs = 2000, abortAfterReview = false } = {}) {
+const signatureContext = { contractVersion: "tcm-cdss-m04-signature-v3", caseId: "synthetic", encounterId: "synthetic",
+  clinicalInputHash: `sha256:${"a".repeat(64)}`, diagnoseContractHash: `sha256:${"b".repeat(64)}` };
+async function runWire({ first = proposal, reviewer = accepted, remainingMs = 2000, abortAfterReview = false,
+  priorReasoning = prior, respond, outputTransform } = {}) {
   const originalFetch = globalThis.fetch;
   const abort = new AbortController();
   const requests = [];
@@ -56,16 +63,19 @@ async function runWire({ first = proposal, reviewer = accepted, remainingMs = 20
       const body = JSON.parse(init.body);
       requests.push(body);
       if (requests.length === 1) return sse(first);
+      assert.ok(requests.length < 9, "automatic calls must remain bounded");
       if (abortAfterReview) queueMicrotask(() => abort.abort());
-      if (reviewer === "stall") return new Promise((resolve) => { lateResolve = () => resolve(completion(accepted)); });
-      return completion(reviewer);
+      const next = respond ? respond(requests.length, body) : reviewer;
+      if (next === "stall") return new Promise((resolve) => { lateResolve = () => resolve(completion(accepted)); });
+      return completion(next);
     };
     const response = await callDiagnosisStream("synthetic continuity fixture", "deepseek", undefined, "markdown", {
-      structuredStage: "prescribe", structuredPriorReasoning: prior,
+      structuredStage: "prescribe", structuredPriorReasoning: priorReasoning,
       structuredClinicalContext: "成人；食少倦怠；大便溏薄", requestSignal: abort.signal,
       structuredOrchestrationStartedAt: Date.now() - 60000 + remainingMs,
       truncateFallback: "GENERIC_KB_FALLBACK", deadlineFallback: "GENERIC_DEADLINE_FALLBACK",
-      prescribeSignatureContext: { caseId: "synthetic", clinicalContextHash: "synthetic" },
+      prescribeSignatureContext: signatureContext,
+      outputTransform,
     });
     const wire = await response.text();
     const frames = wire.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
@@ -77,6 +87,14 @@ async function runWire({ first = proposal, reviewer = accepted, remainingMs = 20
 }
 function assertNonDose(content) {
   assert.doesNotMatch(content, /DIAGNOSIS_JSON_START|contractSignature|12g|10g|6g|5剂|GENERIC_|重新生成|请重试/);
+}
+function withDietQualityFinding(content) {
+  const start = content.indexOf("<!-- DIAGNOSIS_JSON_START -->");
+  const end = content.indexOf("<!-- DIAGNOSIS_JSON_END -->");
+  if (start < 0 || end < 0) return content;
+  const reasoning = JSON.parse(content.slice(start + "<!-- DIAGNOSIS_JSON_START -->".length, end));
+  reasoning.nonPharma.diet = "清淡饮食";
+  return `${content.slice(0, start)}${wrap(reasoning)}`;
 }
 
 test("explicit zero quality budget qualifies the same safe candidate for identity declassification", () => {
@@ -112,4 +130,88 @@ test("client cancellation never sends a recovered candidate", async () => {
   const result = await runWire({ reviewer: "stall", abortAfterReview: true, remainingMs: 500 });
   assert.equal(result.finals.length, 0);
   assert.equal(result.requests.length, 2);
+});
+
+test("zero quality budget plus classic identity drift delivers on the first request", async () => {
+  const locked = structuredClone(prior);
+  locked.overview.recommendedFormulaNames = ["六君子汤"];
+  locked.overview.formulaSelectionMode = "single";
+  const first = structuredClone(proposal);
+  first.candidate.name = "六君子汤";
+  first.nonPharma.diet = "清淡饮食";
+  const result = await runWire({ first, priorReasoning: locked, outputTransform: withDietQualityFinding });
+  assert.equal(result.requests.length, 2, "zero-budget identity disposition must not require a manual second request");
+  assert.match(result.content, /党参/);
+  assert.match(result.content, /contractSignature/);
+  const reasoning = JSON.parse(result.content.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
+  assert.equal(reasoning.formula.candidates[0].identityDeclassified, true);
+  assert.ok(hasBoundClinicalReviewAttestation(reasoning));
+});
+
+test("first T2 cannot mask a later T1: automatic repair retains its bounded opportunity", async () => {
+  const first = structuredClone(proposal);
+  first.nonPharma.diet = "清淡饮食";
+  first.candidate.herbs[0].dose = "501g";
+  const result = await runWire({ first, remainingMs: 50000, respond: (number) => number === 2 ? proposal : accepted,
+    outputTransform: withDietQualityFinding });
+  assert.ok(result.requests.length >= 3 && result.requests.length <= 4, "must repair actual unsafe dose, then review");
+  assert.match(JSON.stringify(result.requests[1].messages), /dose|剂量/);
+  assert.match(result.content, /contractSignature/);
+  assert.doesNotMatch(result.content, /501g/);
+});
+
+test("a malformed repair does not erase the earlier valid candidate or its review objection", async () => {
+  const rejected = { status: "repair", issueCode: "dose_rationale_concern", repairFocus: "dose_strength", candidateIndex: 0, implicatedHerbs: ["党参"] };
+  const result = await runWire({ remainingMs: 50000, respond: (number) => number === 2 ? rejected : { candidate: { herbs: [] } } });
+  assert.ok(result.requests.length >= 3 && result.requests.length <= 6);
+  assert.match(result.content, /党参/);
+  assert.match(result.content, /食少倦怠/);
+  assert.match(result.content, /剂量强度/);
+  assert.doesNotMatch(result.content, /超过时限/);
+  assertNonDose(result.content);
+});
+
+test("a reviewer objection stays visible when its adjudication stalls", async () => {
+  const rejected = { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "emperor_role", candidateIndex: 0, implicatedHerbs: ["党参"] };
+  const result = await runWire({ respond: (number) => number === 2 ? rejected : "stall" });
+  assert.equal(result.requests.length, 3);
+  assert.match(result.content, /保留意见|意见尚未解决/);
+  assertNonDose(result.content);
+});
+
+const wrap = (reasoning) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+function checkpointInput() {
+  const reasoning = compileM04Proposal(proposal, prior);
+  return { reasoning, content: wrap(reasoning), priorReasoning: prior, clinicalContext: "食少倦怠；大便溏薄", generatorModel: "synthetic" };
+}
+test("checkpoint owns immutable validated bytes and rejects malformed, unsafe and mismatched replacements", () => {
+  const input = checkpointInput();
+  const checkpoint = retainM04DeliveryCheckpoint(undefined, input);
+  assert.ok(checkpoint);
+  input.reasoning.formula.candidates[0].herbs[0].name = "不应覆盖";
+  assert.equal(checkpoint.reasoning.formula.candidates[0].herbs[0].name, "党参");
+  assert.throws(() => { checkpoint.reasoning.formula.candidates[0].herbs.length = 0; }, TypeError);
+  for (const change of [
+    (value) => { value.reasoning.formula.candidates = []; },
+    (value) => { value.reasoning.formula.candidates[0].herbs[0].dose = "501g"; },
+    (value) => { value.content = "incomplete"; },
+  ]) {
+    const bad = checkpointInput(); change(bad);
+    assert.equal(retainM04DeliveryCheckpoint(checkpoint, bad), checkpoint);
+  }
+});
+test("only an exact completed attestation and signed payload can restore dose-level output", () => {
+  const input = checkpointInput();
+  const checkpoint = retainM04DeliveryCheckpoint(undefined, input);
+  const attestation = { status: "accepted", reviewedPayloadHash: clinicalReviewPayloadHash(input.reasoning),
+    provider: "bailian-qwen", model: "qwen3.7-plus", source: "preferred" };
+  const signed = applyPrescribeContractSignature(wrap({ ...input.reasoning, clinicalReview: attestation }), signatureContext);
+  const reviewed = bindM04DeliveryReview(checkpoint, input.reasoning, accepted, attestation, signed);
+  assert.equal(renderM04DeliveryCheckpoint(reviewed, prior, "deadline"), signed);
+  const later = checkpointInput(); later.reasoning.formula.candidates[0].formulaAnalysis += " 本例兼顾便溏。"; later.content = wrap(later.reasoning);
+  assert.equal(retainM04DeliveryCheckpoint(reviewed, later), reviewed, "a pending later candidate cannot replace an attested result");
+  assert.equal(bindM04DeliveryReview(checkpoint, later.reasoning, accepted, attestation, signed), checkpoint);
+  const mismatch = bindM04DeliveryReview(checkpoint, input.reasoning, accepted, attestation, "WRONG_SIGNED_RESULT");
+  assertNonDose(renderM04DeliveryCheckpoint(mismatch, prior, "deadline"));
+  assert.doesNotMatch(renderM04DeliveryCheckpoint(mismatch, prior, "deadline"), /WRONG_SIGNED_RESULT/);
 });
