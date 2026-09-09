@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 Object.assign(process.env, {
@@ -120,7 +121,7 @@ test("only opted-in outer warning frames survive a complete unambiguous stream",
   const content = { content: state.riskAssessment };
   const end = { content: "[END]" };
   const response = (frames) => new Response(new ReadableStream({ start(controller) {
-    for (const item of frames) controller.enqueue(new TextEncoder().encode(`${JSON.stringify(item)}\n`));
+    controller.enqueue(new TextEncoder().encode(frames.map((item) => JSON.stringify(item)).join("\n") + "\n"));
     controller.close();
   } }));
   const result = await consumeMarkdownStreamWithMetadata(response([content, frame, end]), () => {}, { collectWarningProfile: true });
@@ -130,10 +131,11 @@ test("only opted-in outer warning frames survive a complete unambiguous stream",
     [content, { ...frame, observation: { ...receipt, version: "unknown" } }, end],
     [{ content: `${state.riskAssessment}\n${JSON.stringify(frame)}` }, end],
     [content, { ...frame, content: "metadata mixed with prose" }, end],
+    [content, { ...frame, content: "<<<CDSS_STREAM_FINAL>>>replacement" }, end],
   ]) {
     const output = await consumeMarkdownStreamWithMetadata(response(frames), () => {}, { collectWarningProfile: true });
     assert.equal(output.warningObservation, undefined);
-    assert.ok(output.content.includes("严禁过度劳累"));
+    assert.equal(output.content, frames.filter((item) => !item.type && item.content !== "[END]").map((item) => item.content).join(""));
   }
   assert.equal((await consumeMarkdownStreamWithMetadata(response([content, frame, end]), () => {})).warningObservation, undefined);
   const longContent = { content: "既有临床内容。".repeat(50) };
@@ -142,6 +144,33 @@ test("only opted-in outer warning frames survive a complete unambiguous stream",
     assert.equal(output.warningObservation, undefined);
     assert.ok(output.content.includes(longContent.content));
   }
+});
+
+test("logical END cancels a kept-open connection without waiting for EOF or idle timeout", async () => {
+  const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
+  const { state, receipt } = await fixtureReceipt();
+  let cancelled = false;
+  const abort = new AbortController();
+  const response = new Response(new ReadableStream({ start(controller) {
+    controller.enqueue(new TextEncoder().encode([
+      { content: state.riskAssessment }, { type: "warning_profile", observation: receipt }, { content: "[END]" },
+    ].map(JSON.stringify).join("\n") + "\n"));
+  }, cancel() { cancelled = true; } }));
+  const pending = consumeMarkdownStreamWithMetadata(response, () => {}, { collectWarningProfile: true, idleTimeoutMs: 200, abortSignal: abort.signal });
+  const winner = await Promise.race([pending.then(() => "complete"), new Promise((resolve) => setTimeout(() => resolve("waiting"), 30))]);
+  if (winner !== "complete") abort.abort();
+  await pending.catch(() => undefined);
+  assert.equal(winner, "complete");
+  assert.equal(cancelled, true);
+});
+
+test("a mixed metadata frame cannot swallow a genuine upstream error", async () => {
+  const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
+  const { state, receipt } = await fixtureReceipt();
+  const response = new Response([
+    { content: state.riskAssessment }, { type: "warning_profile", observation: receipt, error: "actual upstream failure" }, { content: "[END]" },
+  ].map(JSON.stringify).join("\n") + "\n");
+  await assert.rejects(consumeMarkdownStreamWithMetadata(response, () => {}, { collectWarningProfile: true }), /actual upstream failure/);
 });
 
 test("storage metadata is separate, matched to actual restored payload and cannot be laundered by encryption", async () => {
@@ -237,4 +266,60 @@ test("binding does not invent wall-clock defaults for absent optional display ti
   assert.notEqual(warningDisplayMaterial(dated, customer.customerId), first);
   dated.hisRecord.updatedAt = "2026-09-11T12:30:00.000Z";
   assert.notEqual(warningDisplayMaterial(dated, customer.customerId), first);
+});
+
+test("the real M05 route binds the submitted state despite enrichment and controlled author advice", async () => {
+  const signatures = await jiti.import("../src/lib/reasoning-contract-signature.ts");
+  const safety = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const { getTcmHerbFunctionText } = await jiti.import("../src/lib/tcm-knowledge.ts");
+  const { synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+  const { buildUnavailableRxAuditSection } = await jiti.import("../src/lib/rxaudit.ts");
+  const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
+  const source = readFileSync(new URL("./regress-tcm-cdss.mjs", import.meta.url), "utf8");
+  const helpers = source.slice(source.indexOf("function hisRecord("), source.indexOf("function expected("));
+  const bindings = { ...signatures, ...safety, normalizeCaseStateInput, getTcmHerbFunctionText, synchronizeVisibleClinicalSummary,
+    buildUnavailableRxAuditSection, findLocalPatentMedicineEntry, CDSS_CUSTOMER_ID: customer.customerId };
+  const cases = new Function(...Object.keys(bindings), `${helpers}\nreturn buildHisProjectionRegressionCases();`)(...Object.values(bindings));
+  const submitted = { ...cases[1].state, phase: "assess", riskAssessment: "" };
+  const routeJiti = createJiti(import.meta.url, { moduleCache: false, alias: {
+    "@/lib/clinical-facts-runtime": `${process.cwd()}/scripts/fixtures/warning-display-enrichment.mjs`,
+    "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
+  } });
+  const { POST } = await routeJiti.import("../src/app/api/diagnosis/assess/route.ts");
+  const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
+  const { applyCompletedM05DisplayResult } = await jiti.import("../src/lib/followup-display-state.ts");
+  const { prepareWarningObservation, resolveWarningDisplayProfile } = await jiti.import("../src/lib/warning-display-observation.ts");
+  const { warningDisplayMaterial, warningDisplayHash } = await jiti.import("../src/lib/warning-display-binding.ts");
+  const settings = { RXAI_AUDIT_ENABLED: "true", RXAI_AUDIT_BASE_URL: "https://audit.example.invalid", RXAI_AUDIT_API_KEY: "offline-audit",
+    RXAI_QUERY_ENABLED: "false", AI_TEXT_PROVIDER: "openai-compatible", OPENAI_API_KEY: "offline-model", OPENAI_BASE_URL: "https://api.deepseek.com", OPENAI_MODEL: "deepseek-v4-flash", CONTROLLED_TERMINOLOGY_MODEL: "deepseek-v4-flash", M05_FOLLOWUP_AUTHORING: "true" };
+  const savedEnv = Object.fromEntries(Object.keys(settings).map((key) => [key, process.env[key]]));
+  const savedFetch = globalThis.fetch;
+  Object.assign(process.env, settings);
+  let authorCalls = 0;
+  globalThis.fetch = async (_url, options) => {
+    const data = JSON.parse(options.body);
+    if (data.operation === "PRESCRIPTION_AUDIT") return Response.json({ code: 200, data: { audit_result: "MANUAL_REVIEW", highest_risk_level: "MEDIUM", need_manual_review: true, issues: [] } });
+    assert.ok(Array.isArray(data.messages), "only the expected offline author request is allowed");
+    authorCalls += 1;
+    const authored = { reviewFocus: "重点复评乏力与活动耐量变化，避免过早判定疗效。", efficacyCriteria: "对照首诊症状记录评估活动耐量和乏力变化。",
+      lifestyle: "作息规律，适当散步以调养气血，但严禁过度劳累耗气。", dimensions: ["精力", "食欲", "大便"], monitoringIndicators: ["活动耐量", "乏力程度", "气短变化"], timeline: [] };
+    return Response.json({ choices: [{ message: { content: JSON.stringify(authored) }, finish_reason: "stop" }] });
+  };
+  try {
+    const response = await POST(new Request("http://localhost/api/diagnosis/assess", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseState: submitted }) }));
+    assert.equal(response.status, 200);
+    const result = await consumeMarkdownStreamWithMetadata(response, () => {}, { collectWarningProfile: true });
+    assert.equal(authorCalls, 1);
+    assert.match(result.content, /严禁过度劳累耗气/);
+    assert.ok(result.warningObservation, "route-owned observation must be emitted");
+    assert.equal(result.warningObservation.requestHash, await warningDisplayHash(warningDisplayMaterial(submitted, customer.customerId)));
+    const completed = applyCompletedM05DisplayResult(submitted, result, customer.customerId);
+    assert.equal(completed.clinicalFacts, submitted.clinicalFacts, "server-only enrichment is not part of the unseen client reducer state");
+    const installed = await prepareWarningObservation({ receipt: result.warningObservation, requestState: submitted, finalState: completed, customerId: customer.customerId, isCurrent: () => true });
+    assert.ok(installed, "actual final reducer output must match the producer observation");
+    assert.notEqual(resolveWarningDisplayProfile(completed, installed).level, "L4");
+  } finally {
+    globalThis.fetch = savedFetch;
+    for (const key of Object.keys(settings)) { if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key]; }
+  }
 });
