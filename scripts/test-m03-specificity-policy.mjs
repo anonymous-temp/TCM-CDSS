@@ -242,3 +242,41 @@ const redFlagState = { completeness: { level: "B" }, safetyGate: { ...doseSafety
 const redFlagReasoning = JSON.parse(applyM03DecisionSpecificityPolicy(wrap(reasoning), redFlagState)
   .match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/)[1]);
 assert.equal(redFlagReasoning.overview.primarySyndrome, "症状级工作判断");
+
+// Completing a dose-background field must not erase an otherwise supported syndrome.
+// Exercise the actual normalization/gate rather than trusting a caller-provided C score.
+const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
+const { withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const completeInput = {
+  id: "specificity-ready-parity", patient: { sex: "男", age: 45 },
+  chiefComplaint: "胃脘胀满2月", conversation: [],
+  hisRecord: { fields: {
+    sex: "男", age: "45", zhushu: "胃脘胀满2月",
+    xianbingshi: "近两月胃脘胀满，餐后明显，嗳气后缓解，二便正常。",
+    tcmTongue: "舌淡，苔薄白", tcmPulse: "脉细缓",
+    jiwangshi: "既往体健", guomin: "否认药物过敏", yongyaoshi: "否认当前用药",
+  } },
+};
+const readyState = withSafetyGate(normalizeCaseStateInput(completeInput));
+assert.equal(readyState.completeness.level, "B", "lack of vitals/screen keeps aggregate grade B");
+assert.equal(readyState.safetyGate.status, "ready", "actual gate has no remaining information gaps");
+const allergyUnknownInput = structuredClone(completeInput);
+allergyUnknownInput.hisRecord.fields.guomin = "";
+const allergyUnknownState = withSafetyGate(normalizeCaseStateInput(allergyUnknownInput));
+assert.equal(allergyUnknownState.safetyGate.status, "needs_information");
+const alreadyKept = parsed(applyM03DecisionSpecificityPolicy(content, allergyUnknownState));
+assert.equal(alreadyKept.overview.primarySyndrome, reasoning.overview.primarySyndrome);
+assert.deepEqual(
+  parsed(applyM03DecisionSpecificityPolicy(content, readyState)),
+  alreadyKept,
+  "completing allergy history must not erase the same supported reasoning",
+);
+assert.equal(applyM03DecisionSpecificityPolicy(applyM03DecisionSpecificityPolicy(content, readyState), readyState), content,
+  "repeated final projection preserves a supported ready+B result");
+for (const key of ["tcmTongue", "tcmPulse", "xianbingshi"]) {
+  const sparseInput = structuredClone(completeInput);
+  sparseInput.hisRecord.fields[key] = "未记录";
+  const sparse = withSafetyGate(normalizeCaseStateInput(sparseInput));
+  assert.equal(parsed(applyM03DecisionSpecificityPolicy(content, sparse)).overview.primarySyndrome, "症状级工作判断",
+    `a real ${key} evidence gap does not inherit the ready exception`);
+}
