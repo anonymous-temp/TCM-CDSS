@@ -85,6 +85,24 @@ for (const line of NEGATED_LINES) {
 }
 
 // ── 3. 源码级：判据只允许有一份来源 ────────────────────────────────────────
+for (const [heading, prose] of [
+  ["## 随证加减建议", "拟替换药同样受十八反配伍禁忌规则约束，采用前复核。"],
+  ["##   随证加减建议", "备选药需核对绝对禁忌；尚未应用于当前候选。"],
+]) {
+  const prescription = `## 中药饮片处方\n黄芪15g，当归10g\n${heading}\n${prose}\n## 用药风险提示\n未发现明确禁忌`;
+  assert.equal(deriveCaseWarningProfile({ ...CASE_BASE, prescription }).executable, true,
+    "unapplied modification advice must not become a current-prescription L4 finding");
+  assert.equal(deriveCaseWarningProfile({ ...CASE_BASE, prescription: `${prescription}\n配伍禁忌：十八反` }).level, "L4",
+    "current risk after the modification section remains visible to classification");
+}
+for (const line of ["丁香—郁金：命中十九畏（提示档）。请复核是否确需同用。", "人参—五灵脂：十九畏，需医生复核。"] ) {
+  const herb = classifyHerbWarning({ drug: "丁香", safety: line });
+  const current = deriveCaseWarningProfile({ ...CASE_BASE, riskAssessment: `## 十八反十九畏与配伍禁忌\n${line}` });
+  assert.equal(herb.level, "L3", "governed nineteen-fears remains the review tier");
+  assert.equal(current.level, "L3", "a category heading is not a current eighteen-clashes finding");
+  assert.equal(current.executable, true);
+}
+
 {
   const source = readFileSync(path.join(repoRoot, "src/lib/clinical-warning-tier.ts"), "utf8");
   assert.ok(

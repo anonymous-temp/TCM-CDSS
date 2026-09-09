@@ -427,7 +427,6 @@ check("安全边界：非剂量降级时新增投影必须同步抑制", () => {
 // accidentally satisfying the rejection tests. The benign fixture must remain adoptable.
 function adoptionFixture(herbs = prescribeReasoning.formula.candidates[0].herbs) {
   const reasoning = structuredClone(prescribeReasoning);
-  reasoning.formula.modifications = [];
   reasoning.formula.patentAndWestern = [];
   reasoning.formula.medicineCandidateStatus = { status: "no_evidence_match", reason: "本例无须具体中成药或西药" };
   reasoning.formula.candidates[0].herbs = herbs.map((herb) => ({
@@ -535,6 +534,14 @@ check("HIS existing nonexecutable L4 aligns every adoption field", () => {
   assert.equal(payload.warningProfile.executable, false);
   assert.equal(payload.writeBackPolicy.warningConfirmationMode, "blocked");
   assertNotAdoptable(payload, "limited");
+});
+
+check("HIS unapplied substitutions remain visible while the current candidate stays adoptable", () => {
+  const state = adoptionFixture();
+  assert.match(state.prescription, /替代药同样受剂量上限、十八反十九畏/);
+  const payload = buildHisAiSchemePayload(state);
+  assert.equal(payload.writeBackPolicy.allowSingleItemAdoption, true);
+  assert.equal(payload.prescriptions.modifications[0].substitutions[0].substitute, "太子参");
 });
 
 if (failures.length > 0) {
