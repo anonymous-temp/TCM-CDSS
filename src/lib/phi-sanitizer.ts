@@ -88,12 +88,12 @@ export function isClinicalTemporalPhrase(value: unknown): boolean {
 }
 
 /** Refine an already surname-matched narrative candidate, not a general-purpose name detector. */
-export function hasUnambiguousNarrativeNameContext(candidate: string, prefix: string, following: string): boolean {
+export function hasUnambiguousNarrativeNameContext(candidate: string, precedingContext: string, following: string): boolean {
   if (isClinicalTemporalPhrase(candidate)) return false;
   // Two-character clinical nouns share surname shapes (周身、全身、黄疸). A symptom or general
   // occurrence verb alone does not identify a person. Explicit person labels remain authoritative;
   // known patient names are separately replaced literally before this heuristic is consulted.
-  if (candidate.length !== 2 || /^(?:患者|家属|联系人|陪同者|监护人)$/.test(prefix)) return true;
+  if (candidate.length !== 2 || /(?:患者|家属|联系人|陪同者|监护人|医生|医师|本例|病例|病人|患儿)\s*[:：]?\s*$/.test(precedingContext)) return true;
   return /^(?:近|昨|今|诉|称|反映|表示|就诊|来诊)/.test(following);
 }
 
