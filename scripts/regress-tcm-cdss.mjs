@@ -1302,7 +1302,7 @@ function buildHisProjectionRegressionCases() {
   const extraInlineOrder = cloneCase(combined);
   extraInlineOrder.prescription += "\n## 西药/中成药方案：每日两次，口服替格瑞洛";
   const punctuationOrder = make("his-projection-punctuation-order", { medicine: false });
-  punctuationOrder.prescription += "\n## 西药/中成药方案\n每日2次，口服替格瑞洛";
+  punctuationOrder.prescription += "\n## 西药/中成药方案\n每日２次，口服替格瑞洛";
   const edited = cloneCase(combined);
   edited.reasoningPrescribe.formula.candidates[0].herbs[0].dose = "20g";
   edited.reasoningV2 = cloneCase(edited.reasoningPrescribe);

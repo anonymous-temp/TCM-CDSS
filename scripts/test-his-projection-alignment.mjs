@@ -310,6 +310,43 @@ test("legacy medication instruction grammar is invariant to punctuation, order a
   }
 });
 
+test("legacy instruction matching normalizes character width while preserving original displayed text", () => {
+  const base = benign();
+  const fullWidth = (text) => text.replace(/[!-~]/g, (character) => String.fromCodePoint(character.codePointAt(0) + 0xfee0));
+  for (const width of [(text) => text, fullWidth]) {
+    for (const frequency of ["每日2次", "QD", "bid"]) {
+      for (const separator of [",", "，", ";", "\n"]) {
+        for (const administration of ["口服", "吸入"]) {
+          for (const raw of [`建议${frequency}${separator}${administration}替格瑞洛`, `替格瑞洛${frequency}${separator}${administration}`,
+            `${administration}替格瑞洛${separator}${frequency}`]) {
+            const text = width(raw);
+            const state = { ...base, prescription: `${base.prescription}\n## 中成药/西药候选\n${text}` };
+            const projected = payload(state, null);
+            assert.equal(projected.prescriptions.herbal[0].adoptable, false, JSON.stringify(text));
+            assert.equal(projected.prescriptions.westernOrPatent[0].content, text, "normalization is matcher-only");
+          }
+        }
+      }
+    }
+    for (const raw of ["替格瑞洛90mg", "待核对药物2ml"]) {
+      const text = width(raw);
+      const state = { ...base, prescription: `${base.prescription}\n## 中成药/西药候选\n${text}` };
+      const projected = payload(state, null);
+      assert.equal(projected.prescriptions.herbal[0].adoptable, false, JSON.stringify(text));
+      assert.equal(projected.prescriptions.westernOrPatent[0].content, text);
+    }
+    for (const raw of ["每日记录2次体温", "每日观察症状(2次)", "每日记录口服用药后的症状2次", "每次随访记录症状变化"]) {
+      for (const separator of [",", "，", ";"]) {
+        const text = width(`${raw}${separator}持续观察`);
+        const state = { ...base, prescription: `${base.prescription}\n## 中成药/西药候选\n${text}` };
+        const projected = payload(state, null);
+        assert.equal(projected.prescriptions.herbal[0].adoptable, true, JSON.stringify(text));
+        assert.equal(projected.prescriptions.westernOrPatent[0].content, text);
+      }
+    }
+  }
+});
+
 test("medicine section counting and extraction share alias, colon and inline heading semantics", () => {
   const base = withMedicine(benign());
   const receipt = scope(base);
