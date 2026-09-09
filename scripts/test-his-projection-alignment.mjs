@@ -423,6 +423,7 @@ test("the real followup producer never turns its prospective advice into a curre
   const state = { ...base, riskAssessment: followup.markdown, prescriptionRevision: { ...base.prescriptionRevision, highestRiskLevel: "MEDIUM" } };
   const projected = buildHisAiSchemePayload(state, undefined, [], scope(state), { riskAssessment: followup });
   assert.notEqual(projected.warningProfile.level, "L4");
+  assert.notEqual(projected.warningProfile.level, "L3", "negative formatted safety summary cannot manufacture HIGH from MEDIUM");
   assert.equal(projected.prescriptions.herbal[0].adoptable, true);
   for (const riskAssessment of [
     `${followup.markdown}\n## 当前患者风险\n本例绝对禁忌，禁止使用。`,
