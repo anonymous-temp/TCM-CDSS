@@ -87,10 +87,12 @@ function currentPrescriptionRiskText(text: string, state: CaseState): string {
     if (heading) {
       const depth = heading[1].length;
       if (modificationHeadingDepth != null && depth <= modificationHeadingDepth) modificationHeadingDepth = undefined;
-      if (medicineHeadingDepth != null && depth <= medicineHeadingDepth) medicineHeadingDepth = undefined;
+      // The governed medicine renderer is one flat table. Any subsequent heading ends its domain,
+      // including deeper current-risk headings; heading names do not grant a provenance waiver.
+      medicineHeadingDepth = undefined;
       // Closed renderer section identity, not a clinical-language or risk-phrase exception.
       if (heading[2] === "随证加减建议") modificationHeadingDepth = depth;
-      if (sectionTitleGroup("westernOrPatent").includes(heading[2])) medicineHeadingDepth = depth;
+      if (depth === 2 && sectionTitleGroup("westernOrPatent").includes(heading[2])) medicineHeadingDepth = depth;
     }
     if (modificationHeadingDepth != null) return [];
     const reference = referenceRows.get(line);
