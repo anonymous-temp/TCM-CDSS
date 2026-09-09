@@ -16,6 +16,8 @@ const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` 
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+const { collectClinicalDeliveryAdvisories, clinicalDeliveryAdvisoryFromIssue, deduplicateClinicalDeliveryAdvisories } =
+  await jiti.import("../src/lib/clinical-delivery-advisory.ts");
 
 const failures = [];
 function check(name, fn) {
@@ -419,6 +421,118 @@ check("安全边界：非剂量降级时新增投影必须同步抑制", () => {
     assert.equal(locked.prescriptions.formulaRationale, null, "降级时不得下发方义四项");
     assert.equal(locked.prescriptions.decoctionDetail, null, "降级时不得下发煎法细节");
   }
+});
+
+// Complete, synchronized fixtures keep unrelated incompleteness or Markdown mismatch from
+// accidentally satisfying the rejection tests. The benign fixture must remain adoptable.
+function adoptionFixture(herbs = prescribeReasoning.formula.candidates[0].herbs) {
+  const reasoning = structuredClone(prescribeReasoning);
+  reasoning.formula.patentAndWestern = [];
+  reasoning.formula.medicineCandidateStatus = { status: "no_evidence_match", reason: "本例无须具体中成药或西药" };
+  reasoning.formula.candidates[0].herbs = herbs.map((herb) => ({
+    ...herb, targetKind: "pathogenesis_node", targetRef: "P1", decoctionRequirement: "同煎",
+  }));
+  return normalizeCaseStateInput({
+    id: "his-adoption-consistency", phase: "done", patient: { sex: "女", age: 30 },
+    chiefComplaint: "产后2月余，头痛反复发作1月",
+    symptoms: { presentHistory: "产后2月余，头痛反复发作1月，神疲乏力、面色少华，无突发剧烈头痛或肢体无力" },
+    pastHistory: "否认心肾功能异常及出血性疾病", allergyHistory: "否认药物过敏", medicationHistory: "否认当前用药",
+    tongue: "舌淡苔薄白", pulse: "脉细弱", questionRounds: 2,
+    vitals: { bloodPressure: "112/70mmHg", temperature: "36.5℃", pulse: "80次/分", respiration: "18次/分" },
+    diagnosis: "## 西医诊断\n头痛，病因待查\n\n## 中医证候\n气血两虚证\n\n## 总体病机\n产后气血耗伤，脑失濡养\n\n## 治则治法\n益气养血，和络止痛",
+    prescription: synchronizeVisibleClinicalSummary(`<!-- DIAGNOSIS_JSON_START -->${JSON.stringify(reasoning)}<!-- DIAGNOSIS_JSON_END -->`, "prescribe", ""),
+    riskAssessment: "## 合理用药审方\n未发现明确禁忌，仍需医生复核。\n\n## 检验检查建议\n复测血压。\n\n## 随访计划\n一周后复诊。",
+    reasoningDiagnose: structuredClone(diagnoseReasoning), reasoningPrescribe: reasoning,
+    prescriptionRevision: { source: "herb_workbench", candidateIndex: 0, herbHash: "historical-pass-fixture", auditedAt: new Date(0).toISOString(), auditResult: "PASS", highestRiskLevel: "LOW", auditAvailable: true },
+  });
+}
+
+function assertNotAdoptable(payload, candidateStatus = "invalid") {
+  assert.equal(payload.status, "limited");
+  assert.equal(payload.candidateStatus, candidateStatus);
+  assert.equal(payload.workflowPermission, "continue");
+  assert.notEqual(payload.auditStatus, "pass");
+  assert.equal(payload.writeBackPolicy.allowSingleItemAdoption, false);
+  for (const items of [payload.diagnoses.western, payload.diagnoses.tcmPatterns, payload.diagnoses.mechanism,
+    payload.prescriptions.herbal, payload.prescriptions.westernOrPatent, payload.checks, payload.followup]) {
+    assert.ok(Array.isArray(items) && items.length > 0, "actual adoption fields must exist");
+    for (const item of items) assert.equal(item.adoptable, false, item.id);
+  }
+  assert.ok(payload.diagnoses.tcmPatterns[0].content.includes("气血两虚证"));
+  assert.ok(payload.diagnoses.mechanism[0].content.includes("脑失濡养"));
+  assert.ok(payload.prescriptions.herbal[0].content.length > 0, "clinical prescription stays readable");
+  assert.equal(payload.prescriptions.structuredHerbs.length, 2, "structured herbs stay readable");
+}
+
+check("HIS adoption benign positive control", () => {
+  const state = adoptionFixture();
+  const advisories = collectClinicalDeliveryAdvisories(state.reasoningPrescribe.formula.candidates[0], state.reasoningDiagnose, "");
+  assert.deepEqual(advisories, [], "positive control must have no hidden clinical defect");
+  const payload = buildHisAiSchemePayload(state, undefined, advisories);
+  assert.equal(payload.status, "ready");
+  assert.equal(payload.candidateStatus, "valid");
+  assert.equal(payload.writeBackPolicy.allowSingleItemAdoption, true);
+  assert.equal(payload.prescriptions.herbal[0].adoptable, true);
+  assert.equal(payload.diagnoses.tcmPatterns[0].adoptable, true);
+});
+
+for (const auditSource of ["historical-pass", "fresh-pass"]) {
+  check(`HIS T1 pair remains readable and nonadoptable with ${auditSource}`, () => {
+    const state = adoptionFixture([
+      { ...prescribeReasoning.formula.candidates[0].herbs[0], name: "甘草", dose: "6g" },
+      { ...prescribeReasoning.formula.candidates[0].herbs[1], name: "海藻", dose: "9g" },
+    ]);
+    if (auditSource === "fresh-pass") {
+      delete state.prescriptionRevision;
+      state.auditAdvisory = { available: true };
+    }
+    const advisories = collectClinicalDeliveryAdvisories(state.reasoningPrescribe.formula.candidates[0], state.reasoningDiagnose, "");
+    const payload = buildHisAiSchemePayload(state, undefined, advisories);
+    assertNotAdoptable(payload);
+    const pair = payload.warnings.find((item) => item.code === "candidate_0_high_risk_pair_incompatibility");
+    assert.ok(pair, "governed pair finding must survive");
+    assert.match(pair.message, /甘草/);
+    assert.match(pair.message, /海藻/);
+    assert.match(pair.message + pair.suggestedAction, /不可采纳|不得采纳/);
+  });
+}
+
+for (const code of ["candidate_0_herb_0_function_ungrounded", "m04_candidate_0_herb_0_emperor_not_primary", "candidate_0_herb_0_emperor_therapy_mismatch", "m04_visible_extra_herb_rows"]) {
+  check(`HIS quality advisory keeps adoption: ${code}`, () => {
+    const state = adoptionFixture();
+    const advisory = clinicalDeliveryAdvisoryFromIssue(code, state.reasoningPrescribe.formula.candidates[0]);
+    const payload = buildHisAiSchemePayload(state, undefined, [advisory]);
+    assert.equal(payload.status, "ready");
+    assert.equal(payload.candidateStatus, "valid");
+    assert.equal(payload.writeBackPolicy.allowSingleItemAdoption, true);
+    assert.equal(payload.prescriptions.herbal[0].adoptable, true);
+    assert.equal(payload.diagnoses.tcmPatterns[0].adoptable, true);
+    assert.equal(payload.warnings[0].code, code);
+    assert.equal(payload.workflowPermission, "continue");
+  });
+}
+
+for (const code of ["m04_candidate_0_herb_0_dose_sanity_ceiling", "candidate_0_new_unclassified_safety_issue"]) {
+  check(`HIS deduplicated related T1 code is not masked: ${code}`, () => {
+    const state = adoptionFixture();
+    const quality = clinicalDeliveryAdvisoryFromIssue("candidate_0_herb_0_function", state.reasoningPrescribe.formula.candidates[0]);
+    const advisories = deduplicateClinicalDeliveryAdvisories([quality, { ...quality, code, relatedCodes: [code] }]);
+    assert.equal(advisories.length, 1);
+    assert.equal(advisories[0].code, quality.code);
+    assert.ok(advisories[0].relatedCodes.includes(code));
+    assertNotAdoptable(buildHisAiSchemePayload(state, undefined, advisories));
+  });
+}
+
+check("HIS existing nonexecutable L4 aligns every adoption field", () => {
+  const state = adoptionFixture();
+  state.prescriptionRevision.auditResult = "BLOCK";
+  state.prescriptionRevision.highestRiskLevel = "CRITICAL";
+  const payload = buildHisAiSchemePayload(state);
+  assert.equal(payload.warningProfile.level, "L4");
+  assert.equal(payload.warningProfile.executable, false);
+  assert.equal(payload.writeBackPolicy.warningConfirmationMode, "blocked");
+  assertNotAdoptable(payload, "limited");
 });
 
 if (failures.length > 0) {
