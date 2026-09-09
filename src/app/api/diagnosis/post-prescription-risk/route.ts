@@ -150,7 +150,7 @@ export async function POST(req: Request) {
     const inputAdvisorySection = buildAuditInputAdvisorySection(inputAdvisories);
     const section = [
       clinicalDeliveryAdvisorySection(clinicalAdvisories),
-      buildRxAuditScopeSection(caseState, resolvedCandidateIndex),
+      buildRxAuditScopeSection(caseState, resolvedCandidateIndex, providerAudit.submissionScope),
       inputAdvisorySection,
       buildLingxiRiskSection(effectiveAudit, patientSex),
     ].filter(Boolean).join("\n\n");

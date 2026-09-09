@@ -130,7 +130,7 @@ export async function POST(req: Request) {
     : buildUnavailableRxAuditSection(providerAudit.ok ? "rxaudit_incomplete" : providerAudit.reason);
   const postPrescriptionRisk = (showRxAudit
     ? [
-        buildRxAuditScopeSection(gated, candidateIndex),
+        buildRxAuditScopeSection(gated, candidateIndex, providerAudit.ok ? providerAudit.submissionScope : undefined),
         providerAudit.ok ? "" : localHighRiskSection,
         inputAdvisorySection,
         providerRisk,
