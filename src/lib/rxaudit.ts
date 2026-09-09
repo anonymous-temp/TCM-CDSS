@@ -32,6 +32,7 @@ import { matchesPopulationScope } from "./clinical-vocabulary";
 import { findLocalPatentMedicineEntry } from "./local-patent-medicine-candidates";
 import { normalizeRxaiCompatibilityClassification, queryDrugCompatibility, resolveGovernedDrugIdentities, rxaiQueryEnabled, type RxaiCompatibilityFinding } from "./rxai-query.server";
 import { prescriptionVersionPayload } from "./prescription-version";
+import type { OwnedCaseWarningProjection, WarningTextProjection } from "./warning-text-projection";
 
 export type { RxAuditResultCode, RxAuditRiskLevel } from "./rxaudit-normalize";
 
@@ -80,6 +81,24 @@ export type RxAuditSubmissionScope = {
   candidateIndex: number;
   submittedItems: Array<Record<string, unknown>>;
 };
+
+/** Presentation labels never manufacture a severity. The fresh typed outcome owns that floor. */
+export function ownedAuditWarningInputs(provider: RxAuditOutcome, effective?: Extract<RxAuditOutcome, { ok: true }>): NonNullable<OwnedCaseWarningProjection["audit"]> {
+  const outcome = effective || (provider.ok ? provider : undefined);
+  return {
+    auditResult: outcome?.auditResult || "MANUAL_REVIEW",
+    highestRiskLevel: outcome?.highestRiskLevel || "HIGH",
+    auditAvailable: provider.ok && !provider.degraded,
+    needManualReview: outcome?.needManualReview ?? true,
+  };
+}
+
+export function buildLingxiWarningProjection(outcome: Extract<RxAuditOutcome, { ok: true }>, patientSex?: string): WarningTextProjection {
+  const markdown = buildLingxiRiskSection(outcome, patientSex);
+  return { markdown, currentRiskMarkdown: outcome.issues
+    .filter((issue) => issue.patientApplicability !== "not_applicable")
+    .map((issue) => [issue.title, issue.description, issue.action, ...issue.suggestions].filter(Boolean).join("；")).join("\n") };
+}
 
 export type RxAuditCorrelationMetadata = {
   provider: "lingxi-rxaudit";

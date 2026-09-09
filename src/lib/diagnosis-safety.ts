@@ -5513,10 +5513,12 @@ export function buildDeterministicRiskFollowupPayload(
   return {
     ...joinWarningText([
     "## 处方安全总评",
-    `**最高提示强度**：${highest}`,
-    `**综合风险判断**：${overall}`,
-    `**评级依据**：${hasStrongRisk ? "处方后置复核命中强提示或存在未完成的确定性审方链路。" : hasReviewRisk ? "病历或处方中存在需医生复核的用药、过敏、特殊人群或联用信息。" : "处方后置复核未提示明确高危冲突。"}`,
-    `**医生需确认事项**：${doctorAction}`,
+    // These are formatted conclusions, not new evidence. Actual audit enums and independent
+    // current findings are supplied separately; words in labels/negative boilerplate cannot grade.
+    adviceText(`**最高提示强度**：${highest}`),
+    adviceText(`**综合风险判断**：${overall}`),
+    adviceText(`**评级依据**：${hasStrongRisk ? "处方后置复核命中强提示或存在未完成的确定性审方链路。" : hasReviewRisk ? "病历或处方中存在需医生复核的用药、过敏、特殊人群或联用信息。" : "处方后置复核未提示明确高危冲突。"}`),
+    adviceText(`**医生需确认事项**：${doctorAction}`),
     ...(missingAdvisory ? [`**待核实信息**：${missingAdvisory}。这些未知项不阻断候选方案展示，正式采纳前请结合临床实际确认。`] : []),
     ...(vitalAdvisories.length > 0 ? [`**生命体征录入提示**：${vitalAdvisories.join("；")}`] : []),
     "",

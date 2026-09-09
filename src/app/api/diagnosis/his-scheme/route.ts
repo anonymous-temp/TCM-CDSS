@@ -5,6 +5,8 @@ import {
   buildAuditInputAdvisories,
   buildAuditInputAdvisorySection,
   buildLingxiRiskSection,
+  buildLingxiWarningProjection,
+  ownedAuditWarningInputs,
   buildLocalHighRiskHerbPairSection,
   buildRxAuditScopeSection,
   buildRxAuditCorrelationMetadata,
@@ -249,7 +251,7 @@ export async function POST(req: Request) {
       auditedAt,
     });
     return Response.json({
-      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories, undefined, { riskAssessment: riskProjection }), contractVersion, parsed.customer.customerId)),
+      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories, undefined, { riskAssessment: riskProjection, audit: ownedAuditWarningInputs(providerAudit) }), contractVersion, parsed.customer.customerId)),
       auditCorrelation: correlation,
     });
   }
@@ -273,7 +275,11 @@ export async function POST(req: Request) {
   const followup = forcedIncomplete
     ? joinWarningText([buildForcedIncompleteRiskFollowup(assessed)])
     : buildDeterministicRiskFollowupProjection(assessed, authoredFollowup);
-  const riskProjection = joinedWarningProjections([auditSection, followup]);
+  const riskProjection = joinedWarningProjections([{
+    markdown: auditSection,
+    currentRiskMarkdown: [buildRxAuditScopeSection(caseState, candidateIndex, providerAudit.submissionScope), inputAdvisorySection,
+      buildLingxiWarningProjection(effectiveAudit, patientSex).currentRiskMarkdown].filter(Boolean).join("\n\n"),
+  }, followup]);
   const auditedState = {
     ...caseState,
     riskAssessment: riskProjection.markdown,
@@ -302,7 +308,7 @@ export async function POST(req: Request) {
     auditedAt,
   });
   return Response.json({
-    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise, validation.advisories, providerAudit.submissionScope, { riskAssessment: riskProjection }), contractVersion, parsed.customer.customerId)),
+    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise, validation.advisories, providerAudit.submissionScope, { riskAssessment: riskProjection, audit: ownedAuditWarningInputs(providerAudit, effectiveAudit) }), contractVersion, parsed.customer.customerId)),
     auditCorrelation: correlation,
   });
 }
