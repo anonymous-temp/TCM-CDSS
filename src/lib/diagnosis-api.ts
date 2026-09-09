@@ -52,7 +52,7 @@ import { declassifyAndDropOpposingM04CandidateHerbs, dropUnsupportedM04Candidate
 import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
 import { responseFormatForTask, supportsStrictJsonSchema } from "@/lib/model-response-format";
-import { bindM04DeliveryReview, renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint, type M04DeliveryCheckpoint } from "./m04-delivery-checkpoint";
+import { bindM04DeliveryReview, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint, type M04DeliveryCheckpoint } from "./m04-delivery-checkpoint";
 
 const GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const GLM_VISION_MODEL = process.env.GLM_VISION_MODEL?.trim() || "glm-5v-turbo";
@@ -1481,6 +1481,12 @@ function structuredRejectionReason(
         enrichedReasoning, priorReasoning, isKnownTcmHerbName, false, false, clinicalContext, true,
       );
       if (hardFloorIssue) return `m04_${hardFloorIssue}`;
+      const semanticIssue = m04SemanticIssue(enrichedReasoning, content.slice(0, start), priorReasoning,
+        isKnownTcmHerbName, true, true, false, false, clinicalContext);
+      // Preserve the quality disposition even when an independent identity contract also fails.
+      // The acceptance validator still checks that identity; its conservative remedy is explicit
+      // declassification followed by complete revalidation, never inherited classic credentials.
+      if (semanticIssue && qualityAnnotationCopy(`m04_${semanticIssue}`)) return `m04_${semanticIssue}`;
       const formulaIssue = formulaCompilationContractIssue(
         enrichedReasoning,
         priorReasoning,
@@ -2826,6 +2832,7 @@ async function reviewM04ClinicalPlan(
   absoluteDeadline: number,
   parentSignal?: AbortSignal,
   generatorModel?: string,
+  onInitialReview?: (review: ClinicalReviewExecution<M04ClinicalReview>) => void,
 ): Promise<ClinicalReviewExecution<M04ClinicalReview>> {
   const first = await runIndependentClinicalReview<M04ClinicalReview>({
     stage: "prescribe",
@@ -2848,6 +2855,7 @@ async function reviewM04ClinicalPlan(
   if (scopedFirstReview !== first) {
     console.warn("[tcm-cdss:model] ignored reviewer attempt to override server-owned formula identity");
   }
+  onInitialReview?.(scopedFirst);
   if (!m04ClinicalReviewNeedsAdjudication(scopedFirst) || parentSignal?.aborted || absoluteDeadline <= Date.now()) {
     return scopedFirst;
   }
@@ -3053,6 +3061,7 @@ async function callPrimaryTextModelStream(
       let m04ReviewedSemanticHash: string | undefined;
       let m04ReviewedReasoning: unknown;
       let m04DeliveryCheckpoint: M04DeliveryCheckpoint | undefined;
+      let m04PendingDeliveryCheckpoint: M04DeliveryCheckpoint | undefined;
       let m03GeneratorModel = model;
       let m04GeneratorModel = model;
       let generationFallback: NonNullable<ClinicalReviewAttestation["generationFallback"]> | undefined;
@@ -3491,28 +3500,38 @@ async function callPrimaryTextModelStream(
         ),
       ) => {
         if (clientStreamClosed || opts.requestSignal?.aborted) return;
-        m04DeliveryCheckpoint = retainM04DeliveryCheckpoint(m04DeliveryCheckpoint, {
+        try {
+          // A route transform may have rejected an earlier candidate and left the pre-transform
+          // bytes for ordinary repair. Those bytes are not a finalized delivery checkpoint.
+          if (opts.outputTransform) content = opts.outputTransform(content);
+        } catch { return; }
+        const previous = m04DeliveryCheckpoint?.payloadHash === clinicalReviewPayloadHash(reasoning)
+          ? m04DeliveryCheckpoint : undefined;
+        m04PendingDeliveryCheckpoint = retainM04DeliveryCheckpoint(previous, {
           content, reasoning, generatorModel, acceptanceScope: m04AcceptanceScope,
           priorReasoning: opts.structuredPriorReasoning, clinicalContext: opts.structuredClinicalContext,
         });
+        m04DeliveryCheckpoint = preferM04DeliveryCheckpoint(m04DeliveryCheckpoint, m04PendingDeliveryCheckpoint);
       };
       const rememberM04Review = (
         reasoning: ClinicalReasoningResultV2,
         review: ClinicalReviewExecution<M04ClinicalReview>,
-        attestation = m04ClinicalReviewAttestation,
+        attestation: ClinicalReviewAttestation | undefined,
         annotation?: string,
       ) => {
         if (clientStreamClosed || opts.requestSignal?.aborted) return;
         let signedContent: string | undefined;
+        const checkpoint = m04PendingDeliveryCheckpoint?.payloadHash === clinicalReviewPayloadHash(reasoning)
+          ? m04PendingDeliveryCheckpoint : m04DeliveryCheckpoint;
         const scopedAttestation = attestation && {
           ...attestation,
           ...(m04AcceptanceScope ? { acceptanceScope: m04AcceptanceScope } : {}),
           ...(generationFallback ? { generationFallback } : {}),
         };
-        if (m04DeliveryCheckpoint && m04DeliveryCheckpoint.payloadHash === clinicalReviewPayloadHash(reasoning) &&
-            scopedAttestation?.status === "accepted" && opts.prescribeSignatureContext) {
+        if (checkpoint && checkpoint.payloadHash === clinicalReviewPayloadHash(reasoning) &&
+            scopedAttestation?.status === "accepted" && scopedAttestation.reviewedPayloadHash === checkpoint.payloadHash && opts.prescribeSignatureContext) {
           try {
-            const content = attachClinicalReviewAttestation(m04DeliveryCheckpoint.content, scopedAttestation);
+            const content = attachClinicalReviewAttestation(checkpoint.content, scopedAttestation);
             signedContent = applyPrescribeContractSignature(content, opts.prescribeSignatureContext);
             const notes = [...new Set([m04TransparentQualityAnnotation, annotation].filter(Boolean))].join("\n\n");
             if (notes) signedContent = `${notes}\n\n${signedContent}`;
@@ -3520,9 +3539,11 @@ async function callPrimaryTextModelStream(
             // A missing signing context/key keeps the exact candidate available only as non-dose.
           }
         }
-        m04DeliveryCheckpoint = bindM04DeliveryReview(m04DeliveryCheckpoint, reasoning, {
+        const reviewed = bindM04DeliveryReview(checkpoint, reasoning, {
           status: review.status, issueCode: review.issueCode, reason: review.execution?.reason,
         }, scopedAttestation, signedContent);
+        m04PendingDeliveryCheckpoint = reviewed;
+        m04DeliveryCheckpoint = preferM04DeliveryCheckpoint(m04DeliveryCheckpoint, reviewed);
       };
       const m04ContinuityFallback = (reason: "deadline" | "interrupted" | "contract_rejected") =>
         renderM04DeliveryCheckpoint(m04DeliveryCheckpoint, opts.structuredPriorReasoning, reason);
@@ -3541,7 +3562,7 @@ async function callPrimaryTextModelStream(
           ? undefined
           : semanticHash;
         m04ReviewedReasoning = review.status === "repair" ? undefined : reasoning;
-        rememberM04Review(reasoning, review);
+        rememberM04Review(reasoning, review, m04ClinicalReviewAttestation);
         // A composition-only rejection is a dispute about the claimed classic-formula identity,
         // not a request to redraw every herb and dose. Regenerating the full prescription here can
         // consume the entire M04 wall-clock budget (production public-091/public-092) even though
@@ -3575,6 +3596,8 @@ async function callPrimaryTextModelStream(
           absoluteRunDeadline,
           upstreamController.signal,
           generatorModel,
+          (initialReview) => rememberM04Review(reasoning, initialReview,
+            initialReview.status === "repair" ? undefined : clinicalReviewAttestation(initialReview, reasoning)),
         ));
         trackM04ReviewResult(review, reasoning);
         if (review.status === "unavailable") {

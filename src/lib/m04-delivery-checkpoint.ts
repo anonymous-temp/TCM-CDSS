@@ -16,6 +16,13 @@ export type M04DeliveryCheckpoint = Readonly<{
   signedContent?: string;
 }>;
 
+/** Keep completed evidence ahead of pending/failed work; equal-strength completed candidates advance. */
+export function preferM04DeliveryCheckpoint(previous: M04DeliveryCheckpoint | undefined, next: M04DeliveryCheckpoint | undefined) {
+  const rank = (value: M04DeliveryCheckpoint | undefined) => !value ? -1 : value.signedContent ? 3
+    : value.review?.status === "accepted" ? 2 : value.review?.status === "repair" ? 1 : 0;
+  return rank(previous) > rank(next) ? previous : next;
+}
+
 function immutable<T>(value: T): T {
   if (value && typeof value === "object") {
     for (const child of Object.values(value)) immutable(child);
@@ -67,8 +74,24 @@ export function bindM04DeliveryReview(
   if (!checkpoint || checkpoint.payloadHash !== clinicalReviewPayloadHash(reasoning)) return checkpoint;
   const bound = attestation?.status === "accepted" &&
     hasBoundClinicalReviewAttestation({ ...checkpoint.reasoning, clinicalReview: attestation });
-  return immutable(structuredClone({ ...checkpoint, review,
-    attestation: bound ? attestation : undefined, signedContent: bound ? signedContent : undefined }));
+  let matchingSignedContent: string | undefined;
+  if (bound && signedContent) {
+    const start = signedContent.lastIndexOf("<!-- DIAGNOSIS_JSON_START -->");
+    const end = signedContent.indexOf("<!-- DIAGNOSIS_JSON_END -->", start);
+    try {
+      const signed = start >= 0 && end >= 0 && normalizeReasoningV2(JSON.parse(
+        signedContent.slice(start + "<!-- DIAGNOSIS_JSON_START -->".length, end),
+      ));
+      if (signed && signed.clinicalReview?.status === "accepted" &&
+          signed.contractSignature?.startsWith("hmac-sha256:") &&
+          clinicalReviewPayloadHash(signed) === checkpoint.payloadHash && hasBoundClinicalReviewAttestation(signed)) {
+        matchingSignedContent = signedContent;
+      }
+    } catch { /* Mismatched or incomplete signed bytes remain a non-dose candidate. */ }
+  }
+  return immutable(structuredClone({ ...checkpoint,
+    review: checkpoint.review?.status === "repair" && review.status === "unavailable" ? checkpoint.review : review,
+    attestation: bound ? attestation : undefined, signedContent: matchingSignedContent }));
 }
 
 function text(value: unknown): string {
@@ -113,6 +136,8 @@ export function renderM04DeliveryCheckpoint(
   const review = checkpoint.review;
   const status = review?.status === "repair"
     ? `本次已生成候选，复核提出的意见尚未解决：${REVIEW_ISSUES[review.issueCode || ""] || "临床方案仍需核对"}。`
+    : review?.status === "accepted"
+      ? "本次候选已完成临床复核，交付合同尚未完成。"
     : reason === "deadline" || review?.reason === "deadline"
       ? "本次已生成候选，复核未完成或超过时限。"
       : "本次已生成候选，复核未完成。";
