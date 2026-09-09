@@ -6,6 +6,8 @@ RUN npm ci --registry="${NPM_CONFIG_REGISTRY}"
 
 FROM node:24-alpine AS builder
 WORKDIR /app
+# Build-only heap override; container memory/CPU limits are configured independently.
+ARG CDSS_BUILD_NODE_OPTIONS="--max-old-space-size=6144"
 ARG NEXT_PUBLIC_BASE_PATH="/tcm-cdss"
 ARG NEXT_PUBLIC_ENABLE_BROWSER_CASE_PERSISTENCE="true"
 ARG NEXT_DEPLOYMENT_ID
