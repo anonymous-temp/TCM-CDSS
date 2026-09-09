@@ -38,6 +38,7 @@ const jiti = createJiti(import.meta.url, {
   },
 });
 const { classifyHerbWarning, deriveCaseWarningProfile } = await jiti.import("../src/lib/clinical-warning-tier.ts");
+const { buildTcmHerbPairAdvisory } = await jiti.import("../src/lib/tcm-knowledge.ts");
 
 const CASE_BASE = {
   id: "warn", phase: "prescribe", patient: { sex: "男", age: 50 },
@@ -103,6 +104,29 @@ for (const line of ["丁香—郁金：命中十九畏（提示档）。请复�
   assert.equal(current.level, "L3", "a category heading is not a current eighteen-clashes finding");
   assert.equal(current.executable, true);
 }
+
+const pairState = (names, riskAssessment = "") => ({
+  ...CASE_BASE, riskAssessment,
+  reasoningPrescribe: { stage: "prescribe", formula: { candidates: [{ herbs: names.map((name) => ({ name })) }] } },
+});
+for (const names of [["丁香", "郁金"], ["人参", "五灵脂"]]) {
+  for (const prose of [buildTcmHerbPairAdvisory(names), `${names.join("—")}属十九畏，须复核；十八反属于另一风险类目。`]) {
+    const profile = deriveCaseWarningProfile(pairState(names, prose));
+    assert.equal(profile.level, "L3", "real governed caution pair and comparison prose stay advisory");
+    assert.equal(profile.executable, true);
+    assert.equal(classifyHerbWarning({ drug: names[0], safety: prose }).level, "L3",
+      "a comparison or category citation is not an explicit herb contraindication");
+  }
+}
+for (const names of [["甘草", "海藻"], ["丁香", "郁金", "甘草", "海藻"]]) {
+  assert.equal(deriveCaseWarningProfile(pairState(names)).level, "L4",
+    "actual selected HIGH pair determines severity even when prose is absent");
+}
+const applied = pairState(["甘草", "当归"], "");
+assert.equal(deriveCaseWarningProfile(applied).executable, true);
+applied.reasoningPrescribe.formula.candidates[0].herbs[1].name = "海藻";
+assert.equal(deriveCaseWarningProfile(applied).executable, false,
+  "applying an unsafe substitution re-evaluates current herbs, never inherits prior eligibility");
 
 {
   const source = readFileSync(path.join(repoRoot, "src/lib/clinical-warning-tier.ts"), "utf8");
