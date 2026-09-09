@@ -15,6 +15,7 @@ import { createJiti } from "jiti";
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
+const { stripDiagnosisJSON } = await jiti.import("../src/lib/diagnosis-parse.ts");
 const { synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const { collectClinicalDeliveryAdvisories, clinicalDeliveryAdvisoryFromIssue, deduplicateClinicalDeliveryAdvisories } =
   await jiti.import("../src/lib/clinical-delivery-advisory.ts");
@@ -427,8 +428,9 @@ check("安全边界：非剂量降级时新增投影必须同步抑制", () => {
 
 // Complete, synchronized fixtures keep unrelated incompleteness or Markdown mismatch from
 // accidentally satisfying the rejection tests. The benign fixture must remain adoptable.
-function adoptionFixture(herbs = prescribeReasoning.formula.candidates[0].herbs) {
+function adoptionFixture(herbs = prescribeReasoning.formula.candidates[0].herbs, modificationRiskNote) {
   const reasoning = structuredClone(prescribeReasoning);
+  if (modificationRiskNote) reasoning.formula.modifications[0].riskNote = modificationRiskNote;
   reasoning.formula.patentAndWestern = [];
   reasoning.formula.medicineCandidateStatus = { status: "no_evidence_match", reason: "本例无须具体中成药或西药" };
   reasoning.formula.candidates[0].herbs = herbs.map((herb) => ({
@@ -544,6 +546,64 @@ check("HIS unapplied substitutions remain visible while the current candidate st
   const payload = buildHisAiSchemePayload(state);
   assert.equal(payload.writeBackPolicy.allowSingleItemAdoption, true);
   assert.equal(payload.prescriptions.modifications[0].substitutions[0].substitute, "太子参");
+});
+
+for (const riskNote of [
+  "拟替换药同样受十八反配伍禁忌规则约束，采用前复核。",
+  "备选药需核对绝对禁忌；尚未应用于当前候选。",
+  "当前候选存在绝对禁忌，禁止使用。",
+]) {
+  check(`HIS real renderer sentinel parity for unapplied risk note: ${riskNote}`, () => {
+    const fullState = adoptionFixture(undefined, riskNote);
+    assert.ok(fullState.reasoningPrescribe, "the structured current candidate must survive normalization");
+    assert.match(fullState.prescription, /<!-- DIAGNOSIS_JSON_START -->/);
+    assert.ok(fullState.prescription.includes(riskNote.slice(0, -1)), "unapplied option note must remain visible");
+    const visibleState = { ...fullState, prescription: stripDiagnosisJSON(fullState.prescription) };
+    assert.doesNotMatch(visibleState.prescription, /DIAGNOSIS_JSON/);
+    const visible = buildHisAiSchemePayload(visibleState);
+    const full = buildHisAiSchemePayload(fullState);
+    assert.equal(visible.status, "ready", "the current selected herbs are a valid benign control");
+    assert.equal(full.status, "ready", "hidden metadata must not invent a current risk finding");
+    assert.deepEqual(full.warningProfile, visible.warningProfile);
+    assert.equal(full.writeBackPolicy.allowSingleItemAdoption, true);
+    assert.equal(full.prescriptions.herbal[0].adoptable, true);
+    assert.equal(full.workflowPermission, "continue");
+    assert.equal(full.prescriptions.modifications[0].riskNote, riskNote,
+      "an unapplied option cannot own current safety decisions, but its note must stay available");
+
+    // Current risk sections and explicit audit decisions remain independent of option metadata.
+    for (const state of [fullState, visibleState]) {
+      const currentRisk = buildHisAiSchemePayload({ ...state,
+        riskAssessment: `${state.riskAssessment}\n## 用药风险提示\n配伍禁忌：十八反。`,
+      });
+      assert.equal(currentRisk.warningProfile.level, "L4");
+      assertNotAdoptable(currentRisk, "limited");
+      const actualHeading = buildHisAiSchemePayload({ ...state,
+        prescription: `${state.prescription}\n## 甘草与海藻存在十八反禁忌\n请复核。`,
+      });
+      assert.equal(actualHeading.warningProfile.level, "L4");
+      assertNotAdoptable(actualHeading, "limited");
+      const auditBlocked = buildHisAiSchemePayload({ ...state,
+        prescriptionRevision: { ...state.prescriptionRevision, auditResult: "BLOCK", highestRiskLevel: "CRITICAL" },
+      });
+      assert.equal(auditBlocked.warningProfile.level, "L4");
+      assertNotAdoptable(auditBlocked, "limited");
+    }
+  });
+}
+
+check("HIS applying an unsafe option re-evaluates actual herbs despite hidden metadata", () => {
+  const applied = adoptionFixture([
+    { ...prescribeReasoning.formula.candidates[0].herbs[0], name: "甘草", dose: "6g" },
+    { ...prescribeReasoning.formula.candidates[0].herbs[1], name: "海藻", dose: "9g" },
+  ], "备选药需核对绝对禁忌；尚未应用于当前候选。");
+  const warnings = collectClinicalDeliveryAdvisories(applied.reasoningPrescribe.formula.candidates[0], applied.reasoningDiagnose, "");
+  const full = buildHisAiSchemePayload(applied, undefined, warnings);
+  const visible = buildHisAiSchemePayload({ ...applied, prescription: stripDiagnosisJSON(applied.prescription) }, undefined, warnings);
+  assertNotAdoptable(full);
+  assertNotAdoptable(visible);
+  assert.equal(full.warningProfile.level, "L4");
+  assert.deepEqual(full.warningProfile, visible.warningProfile);
 });
 
 if (failures.length > 0) {
