@@ -95,6 +95,10 @@ import { markdownUrlTransform as urlTransform } from "@/lib/safe-url";
 import { isEncryptedSnapshotEnvelope } from "@/lib/encrypted-snapshot";
 import { FORMULA_STRUCTURE_TARGETS, formulaTargetPathogenesisCells, type FormulaStructureRole } from "@/lib/herb-target-contract";
 import { parseRxAuditStatusMarker, stripRxAuditStatusMarker } from "@/lib/rxaudit-status";
+import { extractRiskAuditSection, extractRiskNonAuditSection, replaceRiskAssessmentFollowup, recoverInterruptedRun,
+  buildAcceptedPrescriptionMarkdown, markdownTableCell, structuredHerbWarningProfile, shouldRenderEvidenceStatus,
+  applyCompletedM05DisplayResult, applyAcceptedPrescriptionDisplayResult, revisionFromAudit, restoreWarningDisplayCase,
+} from "@/lib/followup-display-state";
 import { buildSeasonalCare } from "@/lib/tcm-seasonal-care";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import {
@@ -2894,30 +2898,6 @@ export function buildDecisionSummary(caseState: CaseState) {
   };
 }
 
-function extractRiskAuditSection(content = ""): string {
-  const lines = content.split("\n");
-  const collected: string[] = [];
-  let capturing = false;
-  for (const line of lines) {
-    const heading = line.match(/^##\s+(.+?)\s*$/)?.[1] || "";
-    if (heading) {
-      if (capturing) break;
-      capturing = /合理用药审方|灵犀统一审方/.test(heading);
-    }
-    if (capturing) collected.push(line);
-  }
-  return collected.join("\n").trim();
-}
-
-function extractRiskNonAuditSection(content = ""): string {
-  const auditSection = extractRiskAuditSection(content);
-  return (auditSection ? content.replace(auditSection, "") : content).trim();
-}
-
-function replaceRiskAssessmentFollowup(existing: string | undefined, generated: string): string {
-  if (/^##\s*(?:合理用药审方|灵犀统一审方)/m.test(generated)) return generated.trim();
-  return [extractRiskAuditSection(existing), generated.trim()].filter(Boolean).join("\n\n");
-}
 
 export function generationStatus(phase: Phase, isRedFlag = false): { title: string; desc: string } {
   if (isRedFlag && (phase === "prescribe" || phase === "assess")) {
@@ -3279,19 +3259,6 @@ type AcceptedEditedPrescription = {
   revision: NonNullable<CaseState["prescriptionRevision"]>;
 };
 
-function structuredHerbWarningProfile(herb: StructuredHerb): ClinicalWarningProfile {
-  return classifyHerbWarning({
-    drug: herb.name,
-    dose: herb.dose || "",
-    evidence: herb.evidence?.source || "",
-    safety: [
-      herb.isToxic ? "毒性药味，需复核" : "",
-      herb.decoctionRequirement,
-    ].filter(Boolean).join("；"),
-    verificationTier: herb.verificationTier,
-    verificationReasons: herb.verificationReasons,
-  });
-}
 
 function auditRevisionNeedsAttention(revision: NonNullable<CaseState["prescriptionRevision"]>): boolean {
   return revision.auditAvailable === false ||
@@ -3361,52 +3328,6 @@ function herbEditSignature(herbs: StructuredHerb[]): string {
   })));
 }
 
-function markdownTableCell(value: unknown): string {
-  return String(value ?? "").replace(/\r?\n/g, "；").replace(/\|/g, "｜").trim();
-}
-
-function buildAcceptedPrescriptionMarkdown(reasoning: ClinicalReasoningResultV2, candidateIndex: number, herbHash?: string): string {
-  const candidate = reasoning.formula?.candidates[candidateIndex];
-  if (!candidate) return "";
-  const herbRows = candidate.herbs.map((herb, index) => {
-    const warning = structuredHerbWarningProfile(herb);
-    return `| ${index + 1} | ${markdownTableCell(herb.name)} | ${markdownTableCell(herb.verificationTier === "identity_pending" ? "待核定" : herb.dose || "待医生确认")} | ${markdownTableCell(herb.role)} | ${markdownTableCell(herb.targetPathogenesis)} | ${markdownTableCell(herb.function)} | ${markdownTableCell([herb.processing ? `炮制：${herb.processing}` : "", herb.decoctionRequirement].filter(Boolean).join("；") || "常规")} | ${warning.label} · ${markdownTableCell(warning.reasons.join("；"))} |`;
-  });
-  const modifications = reasoning.formula?.modifications || [];
-  return [
-    "## 中药饮片处方",
-    ...(herbHash ? [`**处方版本摘要**：${markdownTableCell(herbHash)}`] : []),
-    `**候选方名/方向**：${markdownTableCell(candidate.name)}`,
-    "",
-    "| 序号 | 药名 | 剂量 | 角色 | 对应病机 | 功用 | 炮制/煎服 | 核验分级 |",
-    "|---|---|---|---|---|---|---|---|",
-    ...herbRows,
-    "",
-    "## 方义解析",
-    candidate.formulaAnalysis,
-    ...(shouldRenderEvidenceStatus(candidate.formulaSource) ? [
-      "",
-      "## 方剂出处",
-      `**出处**：${markdownTableCell(candidate.formulaSource.source)}`,
-    ] : []),
-    ...(candidate.constructionType === "combined" && candidate.baseFormulas && candidate.baseFormulas.length > 1 ? candidate.baseFormulas.map((base) =>
-      `- ${markdownTableCell(base.name)}：${markdownTableCell(base.source)}；${base.verificationStatus === "verified_individually" ? "已逐方核验" : "原方案来源参考"}；组成匹配 ${base.matchedIngredientCount}/${base.totalIngredientCount || "?"} 味${base.requiredIngredientCount != null ? `，核心药味 ${base.matchedRequiredIngredientCount || 0}/${base.requiredIngredientCount} 味` : ""}${base.minimumPreservedIngredientCount != null ? `，组成下限 ${base.minimumPreservedIngredientCount} 味` : ""}。`
-    ) : []),
-    "",
-    "## 煎服法",
-    `剂数：${candidate.decoction.doseCount || "待医生确认"}；方法：${candidate.decoction.method}；疗程：${candidate.decoction.course}；复核节点：${candidate.decoction.followUpNode}`,
-    ...(modifications.length > 0 ? [
-      "",
-      "## 随症加减",
-      ...modifications.flatMap((item) => {
-        const modification = normalizedFormulaModificationFields(item);
-        return modification
-          ? [`- ${markdownTableCell(item.trigger)}：动作：${modification.action}；药味：${markdownTableCell(modification.herbName)}${item.doseOrHandling ? `（${markdownTableCell(item.doseOrHandling)}）` : ""}；${markdownTableCell(item.reason)}`]
-          : [];
-      }),
-    ] : []),
-  ].join("\n").trim();
-}
 
 function buildReasoningWithEditedHerbs(
   reasoning: ClinicalReasoningResultV2,
@@ -4611,9 +4532,6 @@ function ClinicalCitationLinks({
   );
 }
 
-function shouldRenderEvidenceStatus(evidence?: { evidenceLevel?: string; source?: string; confidence?: string }): boolean {
-  return customerEvidenceDisplayStatus(evidence) === "traceable";
-}
 
 // 甲方评测(2026-08-04) 第 4 条「旧的深层推理明细组件源码也未完全删除」：
 // 「查看证候与病机推理明细」折叠区在上一轮已按甲方反馈下线（见病机区 F5 注释），但它的证据明细
@@ -6154,18 +6072,6 @@ async function loadWorkspaceSnapshot(): Promise<WorkspaceRestoreResult> {
   }
 }
 
-function recoverInterruptedRun(state: CaseState, runningPhase?: Phase): CaseState {
-  const interruptedPhase = runningPhase || (state.phase === "question" ? undefined : state.phase);
-  if (!interruptedPhase || !(["collect", "question", "diagnose", "prescribe", "assess"] as Phase[]).includes(interruptedPhase) || state.lastError) return state;
-  return {
-    ...state,
-    phase: "error",
-    lastError: {
-      phase: interruptedPhase,
-      message: "页面刷新或关闭中断了正在运行的阶段；已保留病历和已完成结果，可从当前阶段安全重试。",
-    },
-  };
-}
 
 function clearWorkspaceSnapshot(): void {
   if (typeof window === "undefined") return;
