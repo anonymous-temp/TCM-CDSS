@@ -417,6 +417,23 @@ function evidenceQueryExplicitNames(caseState: CaseState): string[] {
     .filter((value): value is string => Boolean(value?.trim()));
 }
 
+/** Rerank-only facts supplement a short selected search query without changing upstream retrieval. */
+export function buildEvidenceRerankQuery(caseState: CaseState, usedQuery: string): string {
+  const fields = caseState.hisRecord?.fields;
+  const explicitNames = evidenceQueryExplicitNames(caseState);
+  const safeField = (value: string | undefined, limit: number) => value
+    ? sanitizeFreeTextForExternalClinicalService(value, explicitNames).slice(0, limit) : "未记录";
+  // Preserve recorded negative/unknown wording verbatim. Missing treatment history stays missing;
+  // it must not be converted into an exclusion such as "no chemotherapy".
+  return [
+    safeField(usedQuery, 200),
+    `记录年龄：${safeField(firstString(fields?.age, caseState.patient.age), 24)}`,
+    `记录性别：${safeField(firstString(fields?.sex, caseState.patient.sex), 24)}`,
+    `主诉：${safeField(firstString(fields?.zhushu, caseState.chiefComplaint), 120)}`,
+    `现病史：${safeField(firstString(fields?.xianbingshi, caseState.symptoms?.presentHistory), 300)}`,
+  ].join("；").slice(0, 768);
+}
+
 export function buildEvidenceQuery(caseState: CaseState, stage: "diagnose" | "prescribe" | "assess", kind: EvidenceSourceKind): string {
   const symptomTerms = evidenceSymptomTerms(caseState);
   const suffix = evidenceQuerySuffix(caseState, stage, kind);
@@ -665,7 +682,7 @@ async function buildSingleEvidenceSection(
   if (result.ok && kind !== "instruction") {
     const explicitNames = evidenceQueryExplicitNames(caseState);
     const reranked = await rerankEvidenceDocuments(
-      sanitizeFreeTextForExternalClinicalService(usedQuery, explicitNames),
+      buildEvidenceRerankQuery(caseState, usedQuery),
       items.map(item => sanitizeFreeTextForExternalClinicalService(`${item.title}\n${item.summary || ""}`, explicitNames)),
       { signal },
     );
