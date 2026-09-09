@@ -109,7 +109,7 @@ for (const line of ["丁香—郁金：命中十九畏（提示档）。请复�
     /const L4_DETERMINISTIC_BLOCKING\s*=/.test(source),
     "L4 阻断判据必须是单一常量",
   );
-  const inlineCopies = (source.match(/十八反\|十九畏\|配伍禁忌/g) || []).length;
+  const inlineCopies = (source.match(/十八反\|配伍禁忌/g) || []).length;
   assert.equal(
     inlineCopies, 1,
     `阻断词表只允许出现一次（常量定义处）；实得 ${inlineCopies} 处。多一处就是又分叉了。`,
