@@ -1,6 +1,6 @@
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import {
-  buildDeterministicRiskFollowup,
+  buildDeterministicRiskFollowupProjection,
   clinicalGroundingText,
   deriveSafetyLocked,
   markdownNdjsonResponse,
@@ -12,6 +12,8 @@ import {
   buildAuditInputAdvisories,
   buildAuditInputAdvisorySection,
   buildLingxiRiskSection,
+  buildLingxiWarningProjection,
+  ownedAuditWarningInputs,
   buildLocalHighRiskHerbPairSection,
   buildRxAuditScopeSection,
   rxAuditPresentationEnabled,
@@ -30,6 +32,11 @@ import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
+import { joinedWarningProjections, mapWarningText } from "@/lib/warning-text-projection";
+import { finalizeM05DisplayResult } from "@/lib/followup-display-state";
+import { createWarningDisplayReceipt } from "@/lib/warning-display-receipt.server";
+import { deriveStructuredCaseWarningFloor } from "@/lib/clinical-warning-tier";
+import type { ClinicalDeliveryAdvisory } from "@/lib/clinical-delivery-advisory";
 import { editedPrescriptionSemanticIssue } from "@/lib/prescription-revision";
 import { collectClinicalDeliveryAdvisories, clinicalDeliveryAdvisorySection } from "@/lib/clinical-delivery-advisory";
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "@/lib/reasoning-contract-signature";
@@ -48,6 +55,7 @@ export async function POST(req: Request) {
   const initialPrescribed = prescribeReasoningFromState(parsed.caseState);
   const workbenchRevision = parsed.caseState.prescriptionRevision?.source === "herb_workbench";
   let clinicalAdvisorySection = "";
+  let clinicalAdvisories: ClinicalDeliveryAdvisory[] = [];
   if (workbenchRevision) {
     if (!verifyDiagnoseReasoningSignature(initialDiagnoseReasoning, parsed.caseState)) {
       return Response.json({
@@ -96,9 +104,8 @@ export async function POST(req: Request) {
       clinicalGroundingText(gated),
     );
     if (selectedCandidate) {
-      clinicalAdvisorySection = clinicalDeliveryAdvisorySection(
-        collectClinicalDeliveryAdvisories(selectedCandidate, diagnoseReasoning, clinicalGroundingText(gated), [semanticIssue], candidateIndex ?? 0),
-      );
+      clinicalAdvisories = collectClinicalDeliveryAdvisories(selectedCandidate, diagnoseReasoning, clinicalGroundingText(gated), [semanticIssue], candidateIndex ?? 0);
+      clinicalAdvisorySection = clinicalDeliveryAdvisorySection(clinicalAdvisories);
     }
   }
   const { medicationExtraction, providerAudit } = await runBoundedRxAudit(gated, candidateIndex, req.signal);
@@ -170,7 +177,26 @@ export async function POST(req: Request) {
     selectedCandidate,
     req.signal,
   );
-  const followup = buildDeterministicRiskFollowup(assessed, authoredFollowup);
+  const followup = buildDeterministicRiskFollowupProjection(assessed, authoredFollowup);
+  const currentAuditText = effectiveAudit ? buildLingxiWarningProjection(effectiveAudit, patientSex).currentRiskMarkdown : providerRisk;
+  const postRiskProjection = {
+    markdown: postPrescriptionRisk,
+    currentRiskMarkdown: (showRxAudit
+      ? [buildRxAuditScopeSection(gated, candidateIndex, providerAudit.ok ? providerAudit.submissionScope : undefined),
+          providerAudit.ok ? "" : localHighRiskSection, inputAdvisorySection, currentAuditText]
+      : [localHighRiskSection, buildAuditInputAdvisorySection(inputAdvisories, true), currentAuditText]
+    ).filter(Boolean).join("\n\n"),
+  };
+  const clinicalProjection = mapWarningText(joinedWarningProjections([postRiskProjection, followup]),
+    (text) => sanitizeUngroundedRedFlagNegations(text, gated));
+  const rawProjection = joinedWarningProjections([auditStatusMarker, correlationMarker, clinicalAdvisorySection, clinicalProjection]);
+  // The browser can reproduce only its submitted state plus the final wire result. Fresh server
+  // enrichment remains an independent floor; it must not silently alter request/display hashes.
+  const final = finalizeM05DisplayResult(parsed.caseState, rawProjection, parsed.customer.customerId);
+  const observation = await createWarningDisplayReceipt({ producer: "assess", requestState: parsed.caseState,
+    finalState: final.state, customer: parsed.customer, advisories: clinicalAdvisories,
+    owned: { riskAssessment: final.projection, audit: ownedAuditWarningInputs(providerAudit, effectiveAudit), floor: deriveStructuredCaseWarningFloor(gated) },
+  });
   recordCdssStageTelemetry({
     stage: "assess",
     outcome: "success",
@@ -178,10 +204,5 @@ export async function POST(req: Request) {
     auditReached: providerAudit.ok || !isRxAuditSubmissionIssueReason(providerAudit.reason),
     reasonCode: providerAudit.ok ? "audit_available" : `audit_${providerAudit.reason}`,
   });
-  return markdownNdjsonResponse([
-    auditStatusMarker,
-    correlationMarker,
-    clinicalAdvisorySection,
-    sanitizeUngroundedRedFlagNegations([postPrescriptionRisk, followup].join("\n\n"), gated),
-  ].join("\n\n"));
+  return markdownNdjsonResponse(rawProjection.markdown, observation);
 }

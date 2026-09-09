@@ -46,6 +46,7 @@ export function deriveOwnedCaseWarningProfile(
 ): ClinicalWarningProfile {
   let profile = deriveCaseWarningProfile({
     ...state,
+    auditAdvisory: owned?.audit && state.auditAdvisory?.presentationDisabled ? undefined : state.auditAdvisory,
     prescription: owned?.prescription
       ? matchedWarningText(state.prescription, owned.prescription)
       : projectPrescriptionWarningText(state).currentRiskMarkdown,
@@ -53,6 +54,7 @@ export function deriveOwnedCaseWarningProfile(
   });
   const floors = [owned?.floor];
   if (owned?.audit) floors.push(deriveCaseWarningProfile({ ...state, prescription: "", riskAssessment: "",
+    auditAdvisory: state.auditAdvisory?.presentationDisabled ? undefined : state.auditAdvisory,
     prescriptionRevision: { source: "herb_workbench", candidateIndex: state.prescriptionRevision?.candidateIndex ?? 0,
       herbHash: "", auditedAt: "", ...owned.audit },
   }));

@@ -39,7 +39,9 @@ function retainedText(normalized: unknown, original: unknown): unknown {
 }
 
 export function warningDisplayMaterial(value: CaseState, resolvedCustomerId?: string): string {
-  const state = normalizeCaseStateInput(value);
+  // Match what JSON request serialization sends: undefined keys are absence, not explicit
+  // empty capability restrictions. Do this before the shared parser, never in clinical rules.
+  const state = normalizeCaseStateInput(JSON.parse(stableWarningJson(value)));
   if (!state) throw new Error("warning_state_invalid");
   if (state.customerId && resolvedCustomerId && state.customerId !== resolvedCustomerId) throw new Error("warning_customer_mismatch");
   const material = retainedText(state, value) as Record<string, unknown>;

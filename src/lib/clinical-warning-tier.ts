@@ -239,5 +239,7 @@ export function deriveCaseWarningProfile(caseState: CaseState): ClinicalWarningP
 
 /** An installed server display observation may only be strengthened by current independent facts. */
 export function deriveStructuredCaseWarningFloor(caseState: CaseState): ClinicalWarningProfile {
-  return deriveCaseWarningProfile({ ...caseState, prescription: "", riskAssessment: "" });
+  return deriveCaseWarningProfile({ ...caseState, prescription: "", riskAssessment: "",
+    auditAdvisory: caseState.auditAdvisory?.presentationDisabled ? undefined : caseState.auditAdvisory,
+  });
 }

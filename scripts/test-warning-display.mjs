@@ -71,6 +71,7 @@ test("the shared M05 reducer retains old current audit, clears completed state a
 test("one producer HMAC binds distinct live and restored views; invalid metadata is only omitted", async () => {
   const { createWarningDisplayReceipt, verifyWarningDisplayReceipt } = await jiti.import("../src/lib/warning-display-receipt.server.ts");
   const { restoreWarningDisplayCase } = await jiti.import("../src/lib/followup-display-state.ts");
+  const { sanitizeCaseStateForBrowserPersistence } = await jiti.import("../src/lib/browser-case-persistence.ts");
   const { parseWarningDisplayReceipt } = await jiti.import("../src/lib/warning-display-binding.ts");
   const requestState = makeCase();
   const finalState = makeCase();
@@ -81,7 +82,7 @@ test("one producer HMAC binds distinct live and restored views; invalid metadata
   assert.notEqual(receipt.live.materialHash, receipt.stored.materialHash, "occupation and name redaction change the stored target");
   assert.notEqual(receipt.live.profile.level, "L4");
   assert.equal(await verifyWarningDisplayReceipt(receipt, customer, finalState, "live"), true);
-  const restored = restoreWarningDisplayCase(finalState);
+  const restored = restoreWarningDisplayCase(JSON.parse(JSON.stringify(sanitizeCaseStateForBrowserPersistence(finalState))));
   assert.equal(await verifyWarningDisplayReceipt(receipt, customer, restored, "stored"), true);
   for (const changed of [
     { ...receipt, mac: `hmac-sha256:${"a".repeat(64)}` },

@@ -5,6 +5,7 @@ import type { CustomerContext } from "./customer-context";
 import type { ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
 import { deriveOwnedCaseWarningProfile, projectPrescriptionWarningText } from "./clinical-warning-projection.server";
 import { restoreWarningDisplayCase } from "./followup-display-state";
+import { sanitizeCaseStateForBrowserPersistence } from "./browser-case-persistence";
 import { matchedWarningText, type OwnedCaseWarningProjection } from "./warning-text-projection";
 import { storedWarningCase, WARNING_STORAGE_RECEIPT_KEY } from "./warning-display-storage";
 import { boundedWarningProfile, parseWarningDisplayReceipt, stableWarningJson, warningDisplayHash, warningDisplayMaterial,
@@ -26,13 +27,13 @@ export async function createWarningDisplayReceipt(input: {
     const { finalState, requestState, customer, owned, advisories } = input;
     if (finalState.phase !== "done" || finalState.lastError || finalState.id !== requestState.id ||
       (finalState.hisRecord?.caseId || finalState.id) !== (requestState.hisRecord?.caseId || requestState.id)) return undefined;
-    const storedState = restoreWarningDisplayCase(finalState);
+    const storedState = storedWarningCase({ schemaVersion: "tcm-cdss-workspace-v1", caseState: sanitizeCaseStateForBrowserPersistence(finalState) });
     if (!storedState) return undefined;
     const projectedState = { ...finalState,
       prescription: matchedWarningText(finalState.prescription, owned?.prescription || projectPrescriptionWarningText(finalState)),
       riskAssessment: matchedWarningText(finalState.riskAssessment, owned?.riskAssessment),
     };
-    const storedProjected = restoreWarningDisplayCase(projectedState);
+    const storedProjected = storedWarningCase({ schemaVersion: "tcm-cdss-workspace-v1", caseState: sanitizeCaseStateForBrowserPersistence(projectedState) });
     if (!storedProjected) return undefined;
     const storedOwned: OwnedCaseWarningProjection = { ...owned,
       prescription: { markdown: storedState.prescription || "", currentRiskMarkdown: storedProjected.prescription || "" },

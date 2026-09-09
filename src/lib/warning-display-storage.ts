@@ -1,14 +1,16 @@
 import type { CaseState, Phase } from "./diagnosis-types";
 import { restoreWarningDisplayCase } from "./followup-display-state";
 import { matchingWarningObservation, type InstalledWarningObservation } from "./warning-display-observation";
-import { parseWarningDisplayReceipt, warningDisplayHash, warningDisplayMaterial, type WarningDisplayReceipt } from "./warning-display-binding";
+import { parseWarningDisplayReceipt, stableWarningJson, warningDisplayHash, warningDisplayMaterial, type WarningDisplayReceipt } from "./warning-display-binding";
 
 export const WARNING_STORAGE_RECEIPT_KEY = "__tcmWarningDisplayReceipt";
 const row = (value: unknown): Record<string, unknown> | undefined => value != null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
 
 /** Only two explicit payload shapes qualify; arbitrary encrypted JSON remains arbitrary JSON. */
 export function storedWarningCase(payload: unknown): CaseState | undefined {
-  const object = row(payload);
+  // Autosave supplies an in-memory object, decrypt supplies its JSON-wire equivalent. They must
+  // have the same absent/explicit-field semantics before the existing restoration parser runs.
+  const object = row(payload == null ? payload : JSON.parse(stableWarningJson(payload)));
   if (!object) return undefined;
   const workspace = object.schemaVersion === "tcm-cdss-workspace-v1";
   if (workspace && object.workbenchDraft) return undefined;

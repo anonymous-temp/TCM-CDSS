@@ -1,5 +1,6 @@
 import type { CaseState, ClinicalReasoningResultV2, ClinicalReviewAttestation, Completeness, HisRecordSnapshot, SafetyGate, SafetyMissingItemCode, StructuredFollowupTimelineItem } from "./diagnosis-types";
 import { cdssReasonCodeMarker, type CdssDegradeReasonCode } from "./cdss-reason-codes";
+import type { WarningDisplayReceipt } from "./warning-display-binding";
 import { sectionTitleGroup } from "./cdss-vocab";
 import {
   assessConceptionState,
@@ -5853,12 +5854,13 @@ export function sanitizeFreeTextForModel(text: string): string {
   return sanitizeFreeTextForExternalClinicalService(text);
 }
 
-export function markdownNdjsonResponse(markdown: string): Response {
+export function markdownNdjsonResponse(markdown: string, observation?: WarningDisplayReceipt): Response {
   const timelineItems = parseStructuredFollowupTimeline(markdown);
   const visibleMarkdown = sanitizeAuthoritativeClinicalOutput(stripStructuredFollowupTimeline(markdown));
   const body = [
     ...(timelineItems.length > 0 ? [JSON.stringify({ type: "followup_timeline", timelineItems })] : []),
     JSON.stringify({ content: visibleMarkdown }),
+    ...(observation ? [JSON.stringify({ type: "warning_profile", observation })] : []),
     JSON.stringify({ content: "[END]" }),
     "",
   ].join("\n");

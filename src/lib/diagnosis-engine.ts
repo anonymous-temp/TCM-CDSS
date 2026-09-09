@@ -407,11 +407,7 @@ export async function consumeMarkdownStreamWithMetadata(
 
   try {
     while (true) {
-      const { done, value } = await readStreamChunk(reader, deadline, validFrameReadOptions()).catch((error) => {
-        if (!sawEnd || !opts?.collectWarningProfile) throw error;
-        invalidWarningObservation = true;
-        return { done: true, value: undefined };
-      });
+      const { done, value } = await readStreamChunk(reader, deadline, validFrameReadOptions());
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
@@ -428,13 +424,11 @@ export async function consumeMarkdownStreamWithMetadata(
         }
         try {
           const chunk = JSON.parse(line) as Record<string, unknown>;
-          if (acceptWarningFrame(chunk)) {
-            if (typeof chunk.content === "string" && chunk.content) acceptContent(chunk.content);
-            continue;
-          }
           if (typeof chunk.error === "string" && chunk.error.trim()) {
             markValidFrame();
             upstreamError = chunk.error.trim();
+          } else if (acceptWarningFrame(chunk)) {
+            // Metadata never carries, appends or replaces clinical content, even when malformed.
           } else if (Array.isArray(chunk.quto)) {
             markValidFrame();
             qutoItems.push(...(chunk.quto as unknown[]));
@@ -471,9 +465,12 @@ export async function consumeMarkdownStreamWithMetadata(
           malformedLines += 1;
         }
       }
-      if (sawEnd && !opts?.collectWarningProfile) {
+      if (sawEnd) {
         if (buffer.trim()) {
-          try { if (!parseStreamModuleDraftFrame(JSON.parse(buffer))) malformedLines += 1; }
+          try {
+            const tail = JSON.parse(buffer) as Record<string, unknown>;
+            if (!acceptWarningFrame(tail) && !parseStreamModuleDraftFrame(tail)) malformedLines += 1;
+          }
           catch { malformedLines += 1; }
         }
         cancelStreamReader(reader);
@@ -482,19 +479,14 @@ export async function consumeMarkdownStreamWithMetadata(
       }
     }
     // Flush remaining buffer
-    if (sawEnd && buffer.trim() && opts?.collectWarningProfile) {
-      try { if (!acceptWarningFrame(JSON.parse(buffer))) malformedLines += 1; }
-      catch { malformedLines += 1; }
-      buffer = "";
-    }
     if (!sawEnd && buffer.trim()) {
       try {
         const chunk = JSON.parse(buffer) as Record<string, unknown>;
-        if (acceptWarningFrame(chunk)) {
-          if (typeof chunk.content === "string" && chunk.content) acceptContent(chunk.content);
-        } else if (typeof chunk.error === "string" && chunk.error.trim()) {
+        if (typeof chunk.error === "string" && chunk.error.trim()) {
           markValidFrame();
           upstreamError = chunk.error.trim();
+        } else if (acceptWarningFrame(chunk)) {
+          // Malformed metadata is omitted without touching the readable report.
         } else if (Array.isArray(chunk.quto)) {
           markValidFrame();
           qutoItems.push(...(chunk.quto as unknown[]));
