@@ -227,7 +227,7 @@ function fieldText(state: CaseState, key: keyof HisRecordSnapshot["fields"]): st
 }
 
 function allUserMessages(state: CaseState): string {
-  return state.conversation
+  return (state.conversation || [])
     .filter((item) => item.role === "user" && item.content.trim())
     .map((item) => item.content.trim())
     .join("\n");
@@ -4054,10 +4054,23 @@ const SYNDROME_AXIS_NON_BLOCKING_CODES: ReadonlySet<SafetyMissingItemCode> = new
   "thyroid_screening",
 ]);
 
-export function syndromeAxisInformationSufficient(gate: SafetyGate | null | undefined): boolean {
-  if (!gate || gate.status !== "needs_information") return false;
+export function syndromeAxisInformationSufficient(
+  gate: SafetyGate | null | undefined,
+  state?: CaseState,
+): boolean {
+  if (!gate) return false;
   const codes = gate.missingItemCodes || [];
   const items = gate.missingItems || [];
+  if (gate.status === "ready") {
+    // Filling the final dose-context gap must not invalidate the same syndrome evidence. A ready
+    // flag alone is not evidence: recompute the existing clinical axes from the current record,
+    // rather than trusting model-supplied completeness or reviving a cleared tongue/pulse field.
+    if (!state || !gate.allowDiagnosis || codes.length || items.length) return false;
+    const actual = deriveOperationalCompleteness(state);
+    return hasObtainedTongueFinding(state) && hasObtainedPulseFinding(state) &&
+      actual.infoGain >= 0.6 && actual.managementImpact >= 0.6 && actual.answerability >= 0.6;
+  }
+  if (gate.status !== "needs_information") return false;
   if (codes.length === 0 || codes.length !== items.length) return false;
   return codes.every((code) => SYNDROME_AXIS_NON_BLOCKING_CODES.has(code));
 }

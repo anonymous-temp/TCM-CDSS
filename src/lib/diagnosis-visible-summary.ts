@@ -95,13 +95,13 @@ export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseS
   const completenessLevel = state?.completeness?.level;
   const activeRedFlag = state?.safetyGate?.status === "red_flag";
   if (!state || (completenessLevel === "C" && !activeRedFlag)) return content;
-  // 辨证轴/剂量轴拆分（2026-08-26）：B 级且缺项全部属于剂量安全闭集（性别/过敏史/用药
-  // 明细——candidateMode 已独立扣住剂量）时，四诊与主诉俱全（否则会有各自的缺项码），
-  // 辨证命名不再被剂量安全缺口连坐清空。红旗态、A 级、含任何辨证证据类缺项时照旧降级。
+  // Keep syndrome evidence separate from dose-background gaps. The shared predicate also checks
+  // actual clinical axes for ready+B, so completing the last background gap cannot erase reasoning
+  // that the same record retained while it was needs_information. Ready alone is not sufficient.
   if (
     !activeRedFlag &&
     completenessLevel === "B" &&
-    syndromeAxisInformationSufficient(state.safetyGate)
+    syndromeAxisInformationSufficient(state.safetyGate, state)
   ) {
     return content;
   }

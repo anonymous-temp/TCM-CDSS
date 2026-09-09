@@ -139,7 +139,6 @@ for (let iteration = 0; iteration < 20; iteration += 1) {
   assert.doesNotMatch(JSON.stringify(acute), forbiddenSpecificity, `red-flag iteration ${iteration + 1}`);
 }
 
-console.log(JSON.stringify({ suite: "m03-specificity-policy", checks: 73, failures: 0 }));
 // ─── 辨证轴/剂量轴拆分（2026-08-26，TCM-SD 12/12 全拒答的判层归因）────────────────
 // 证据：TCM-SD 真实住院病历（现病史+查体+舌脉俱全）门禁只缺「性别/生理状态、过敏史、
 // 用药明细」三项——全是剂量安全轴缺口（candidateMode 已独立管辖剂量），完整度被压到 B，
@@ -280,3 +279,4 @@ for (const key of ["tcmTongue", "tcmPulse", "xianbingshi"]) {
   assert.equal(parsed(applyM03DecisionSpecificityPolicy(content, sparse)).overview.primarySyndrome, "症状级工作判断",
     `a real ${key} evidence gap does not inherit the ready exception`);
 }
+console.log(JSON.stringify({ suite: "m03-specificity-policy", failures: 0 }));
