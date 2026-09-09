@@ -98,6 +98,30 @@ test("rerank-only query preserves recorded population and treatment context with
   assert.ok(queries.every(query => query.length <= 768));
 });
 
+test("clinical nouns survive raw-field sanitization without a label-based privacy exemption", async () => {
+  const { buildEvidenceRerankQuery } = await jiti.import("../src/lib/evimed-guide.ts");
+  for (const text of ["全身出现块状皮疹", "周身出现疼痛", "皮肤出现瘙痒", "黄疸出现于巩膜"]) {
+    const query = buildEvidenceRerankQuery({ patient: {}, chiefComplaint: text, symptoms: { presentHistory: text } }, "诊断指南");
+    assert.ok(query.includes(text));
+  }
+  const query = buildEvidenceRerankQuery({ patient: {}, chiefComplaint: "张三昨夜失眠", symptoms: {} }, "诊断指南");
+  assert.doesNotMatch(query, /张三/, "adding clinical labels must not exempt otherwise detected identities");
+});
+
+test("field and transport budgets never cut away trailing negation or uncertainty", async () => {
+  const { buildEvidenceRerankQuery } = await jiti.import("../src/lib/evimed-guide.ts");
+  for (const suffix of ["化疗史不详", "正在化疗一说已被否认"]) {
+    const history = `${"记录。".repeat(99)}${suffix}`;
+    const query = buildEvidenceRerankQuery({ patient: {}, chiefComplaint: "头晕", symptoms: { presentHistory: history } }, "诊断指南");
+    assert.ok(!query.includes("化疗") || query.includes(suffix), "do not retain a positive-looking clipped clause");
+  }
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return rankedResponse(); };
+  const result = await rerank("甲".repeat(680) + "正在化疗一说已被否认", docs);
+  assert.equal(result.status, "disabled", "one oversized sentence has no complete fragment to rank");
+  assert.equal(calls, 0);
+});
+
 test("rerank only touches selected guide and literature pools, never instructions", async () => {
   const pools = [];
   globalThis.fetch = async (url, init) => {
