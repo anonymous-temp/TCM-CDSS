@@ -52,6 +52,7 @@ const { buildHisAiSchemePayload } = await regressionJiti.import("../src/lib/his-
 const { buildEvidenceScope } = await regressionJiti.import("../src/lib/evidence-source-validation.ts");
 const { synchronizeVisibleClinicalSummary } = await regressionJiti.import("../src/lib/diagnosis-visible-summary.ts");
 const { buildUnavailableRxAuditSection } = await regressionJiti.import("../src/lib/rxaudit.ts");
+const { findLocalPatentMedicineEntry } = await regressionJiti.import("../src/lib/local-patent-medicine-candidates.ts");
 
 const BASE_URL = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const BASE_ORIGIN = new URL(BASE_URL).origin;
@@ -1244,6 +1245,100 @@ function adoptAttestedRevision(caseState, audit) {
   return caseState;
 }
 
+/** Deterministic signed cases for the HIS projection boundary; no M04 model sampling required. */
+function buildHisProjectionRegressionCases() {
+  const make = (id, { quality = true, medicine = true, opposition = false } = {}) => {
+    const therapy = opposition ? "清热泻火" : "补中益气，升阳举陷";
+    const mechanism = opposition ? "胃火内炽" : "中气下陷";
+    const fact = opposition ? "口渴喜冷饮，牙龈肿痛，大便干结" : "神疲乏力、气短懒言，站立后有下坠感";
+    const herbs = opposition
+      ? [{ name: "黄连", dose: "3g", role: "君" }, { name: "干姜", dose: "3g", role: "臣", prescriptionRole: "温中散寒" }]
+      : [{ name: "黄芪", dose: "10g", role: "君", prescriptionRole: "补中益气" },
+          ...(quality ? [{ name: "升麻", dose: "3g", role: "臣", prescriptionRole: "升阳举陷" }] : [])];
+    const prescribed = reasoningV2WithHerbs(herbs.map((herb) => ({ ...herb, targetPathogenesis: mechanism })));
+    prescribed.therapy = { overallPrinciple: therapy, overallMethod: therapy, subTherapies: [] };
+    prescribed.overview.overallTherapy = therapy;
+    prescribed.formula.candidates[0].therapyMatch = therapy;
+    prescribed.formula.candidates[0].applicable = opposition ? "胃火炽盛证" : "气虚下陷证";
+    const state = baseCase(id, {
+      chiefComplaint: fact,
+      symptoms: { presentHistory: fact },
+      tongue: opposition ? "舌红苔黄" : "舌淡苔薄白",
+      pulse: opposition ? "脉数" : "脉虚弱",
+      fields: { zhushu: fact, xianbingshi: fact, tcmTongue: opposition ? "舌红苔黄" : "舌淡苔薄白", tcmPulse: opposition ? "脉数" : "脉虚弱" },
+      reasoningV2: prescribed,
+    });
+    const prior = state.reasoningDiagnose;
+    Object.assign(prior.overview, { primarySyndrome: opposition ? "胃火炽盛证" : "气虚下陷证", primarySyndromeBasis: [fact], overallPathogenesis: mechanism });
+    prior.westernDiagnosis.primary.name = opposition ? "牙龈肿痛，病因待查" : "乏力，病因待查";
+    prior.westernDiagnosis.primary.supportingFacts = [fact];
+    prior.pathogenesis.chain = [{ ...prior.pathogenesis.chain[0], patientFact: fact, syndromeEvidence: prior.overview.primarySyndrome, pathogenesis: mechanism, therapyDirection: therapy }];
+    state.reasoningV2.overview = cloneCase(prior.overview);
+    state.reasoningV2.pathogenesis = cloneCase(prior.pathogenesis);
+    state.reasoningV2.therapy = cloneCase(prior.therapy);
+    state.reasoningV2.westernDiagnosis = cloneCase(prior.westernDiagnosis);
+    state.reasoningV2.clinicalReview = { status: "accepted", provider: "synthetic-regression", model: "synthetic-regression", source: "preferred",
+      acceptanceScope: { waivedIssueCodes: [], qualityAnnotationCodes: quality && !opposition ? ["m04_candidate_0_herb_1_unsupported_high_impact_heat_clear"] : [] } };
+    if (medicine) {
+      const label = findLocalPatentMedicineEntry("补中益气丸");
+      if (!label?.fingerprint) throw new Error("Missing governed projection regression label");
+      state.reasoningV2.formula.patentAndWestern = [{
+        type: "中成药", name: label.name, specification: label.specification, evidenceId: "LOCAL-INST-008", evidenceFingerprint: label.fingerprint,
+        recommendationMode: "candidate_review", positioning: "需医生评估", correspondingProblem: fact,
+        usageBoundary: "仅作说明书候选，具体用法需医生确认。", relationship: "作为替代候选，不默认与饮片联用。",
+        riskNote: [label.contraindication, label.precaution, label.pregnancyLactation, label.interaction].filter(Boolean).join("；").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 800),
+        evidence: { evidenceLevel: "drug_label", source: "[LOCAL-INST-008]", confidence: "中" },
+      }];
+    }
+    const completed = completeHisDeliveryFixture(state);
+    completed.reasoningPrescribe = completed.reasoningV2;
+    return completed;
+  };
+  const combined = make("his-projection-combined");
+  const patientRisk = cloneCase(combined);
+  patientRisk.prescription += "\n## 本次用药风险提示\n本例存在绝对禁忌，禁止使用。";
+  const extraOrder = cloneCase(combined);
+  extraOrder.prescription += "\n## 西药/中成药方案\n每日口服替格瑞洛";
+  const edited = cloneCase(combined);
+  edited.reasoningPrescribe.formula.candidates[0].herbs[0].dose = "20g";
+  edited.reasoningV2 = cloneCase(edited.reasoningPrescribe);
+  return [
+    { name: "strict vocabulary only", state: make("his-projection-quality", { medicine: false }), quality: true, medicine: false, restricted: false },
+    { name: "reference label only", state: make("his-projection-reference", { quality: false }), quality: false, medicine: true, restricted: false },
+    { name: "combined usable candidate", state: combined, quality: true, medicine: true, restricted: false },
+    { name: "patient current risk", state: patientRisk, quality: true, medicine: true, restricted: true },
+    { name: "true direction opposition", state: make("his-projection-opposition", { medicine: false, opposition: true }), quality: false, medicine: false, restricted: true },
+    { name: "extra unsubmitted medical order", state: extraOrder, quality: true, medicine: true, restricted: true },
+    { name: "post acceptance edit", state: edited, httpStatus: 409 },
+  ];
+}
+
+async function runHisProjectionCases() {
+  for (const fixture of buildHisProjectionRegressionCases()) {
+    const response = await request("POST", "/api/diagnosis/his-scheme", { caseState: fixture.state });
+    const body = response.json;
+    assert(response.status === (fixture.httpStatus || 200), `HIS projection ${fixture.name}: HTTP contract`, body);
+    if (fixture.httpStatus) {
+      assert(body?.code === "invalid_m04_signature", `HIS projection ${fixture.name}: edits invalidate acceptance`, body);
+      continue;
+    }
+    const expectedAdoption = !fixture.restricted && (!fixture.medicine || expectRxAuditEnabled !== false);
+    assert(body?.prescriptions?.herbal?.[0]?.adoptable === expectedAdoption,
+      `HIS projection ${fixture.name}: exact herbal adoption boundary`, body);
+    assert(body?.workflowPermission === "continue", `HIS projection ${fixture.name}: report remains readable`, body);
+    if (fixture.quality) {
+      assert(body?.warnings?.some((finding) => /therapy_vocabulary_unverified_heat_clear/.test(finding.code)),
+        `HIS projection ${fixture.name}: vocabulary advice remains visible`, body?.warnings);
+    }
+    if (fixture.medicine) {
+      assert(body?.prescriptions?.westernOrPatent?.[0]?.adoptable === false && /禁止使用/.test(body.prescriptions.westernOrPatent[0].content),
+        `HIS projection ${fixture.name}: label visible without medicine order authority`, body?.prescriptions?.westernOrPatent);
+    }
+    if (!fixture.restricted) assert(body?.warningProfile?.executable === true,
+      `HIS projection ${fixture.name}: reference labels never become patient L4`, body?.warningProfile);
+  }
+}
+
 function expected(name, caseState, gate, label, extra = {}) {
   return {
     name,
@@ -1895,6 +1990,7 @@ async function runHisProcessingConservationCase() {
 }
 
 async function runHisSchemeCases() {
+  await runHisProjectionCases();
   const selectedCases = CASE_FILTER
     ? cases.filter((item) => item.name.includes(CASE_FILTER))
     : cases;
@@ -3293,6 +3389,7 @@ async function main() {
     const sections = {
       "his-processing": runHisProcessingConservationCase,
       "his-scheme": runHisSchemeCases,
+      "his-projection": runHisProjectionCases,
       limited: runLimitedEndpointCases,
       "prescription-gates": runPrescriptionOnlyGateEndpointCases,
       signatures: runM03SignatureBoundaryCases,

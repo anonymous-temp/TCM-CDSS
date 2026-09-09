@@ -34,8 +34,9 @@ const source = readFileSync(new URL("./regress-tcm-cdss.mjs", import.meta.url), 
 const helpers = source.slice(source.indexOf("function hisRecord("), source.indexOf("function expected("));
 const bindings = { ...signatures, normalizeCaseStateInput, withSafetyGate, getTcmHerbFunctionText,
   synchronizeVisibleClinicalSummary, buildUnavailableRxAuditSection, buildDeterministicRiskFollowup,
+  findLocalPatentMedicineEntry,
   CDSS_CUSTOMER_ID: "his-projection-customer" };
-const fixtures = new Function(...Object.keys(bindings), `${helpers}\nreturn {baseCase, reasoningV2WithHerbs, completeHisDeliveryFixture};`)(...Object.values(bindings));
+const fixtures = new Function(...Object.keys(bindings), `${helpers}\nreturn {baseCase, reasoningV2WithHerbs, completeHisDeliveryFixture, buildHisProjectionRegressionCases};`)(...Object.values(bindings));
 const clone = structuredClone;
 function complete(reasoning, id = "his-projection") {
   const state = fixtures.completeHisDeliveryFixture(fixtures.baseCase(id, { reasoningV2: reasoning }));
@@ -310,4 +311,27 @@ test("all three projections agree on a usable herbal candidate while retaining q
   assert.equal(result.prescriptions.westernOrPatent[0].adoptable, false);
   assert.ok(result.warnings.some((a) => /heat_clear/.test(a.code)));
   assert.match(result.prescriptions.westernOrPatent[0].content, /禁止使用/);
+});
+
+test("all seven live regression fixtures deterministically reach their intended projection boundary offline", () => {
+  const cases = fixtures.buildHisProjectionRegressionCases();
+  assert.equal(cases.length, 7);
+  for (const fixture of cases) {
+    const checked = validateHisPrescriptionForWriteBack(fixture.state);
+    if (fixture.httpStatus) {
+      assert.equal(checked.ok, false);
+      assert.equal(checked.code, "invalid_m04_signature");
+      continue;
+    }
+    assert.equal(checked.ok, true, `${fixture.name}: ${JSON.stringify(checked)}`);
+    const state = { ...fixture.state, prescriptionRevision: { candidateIndex: 0, auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: true } };
+    const projected = buildHisAiSchemePayload(state, undefined, checked.advisories, scope(state));
+    assert.equal(projected.prescriptions.herbal[0].adoptable, !fixture.restricted,
+      `${fixture.name}: ${JSON.stringify({ warning: projected.warningProfile, warnings: projected.warnings, reason: projected.prescriptions.herbal[0].blockedReason })}`);
+    if (fixture.quality) assert.ok(projected.warnings.some((item) => /therapy_vocabulary_unverified_heat_clear/.test(item.code)), fixture.name);
+    if (fixture.medicine) {
+      assert.equal(projected.prescriptions.westernOrPatent[0].adoptable, false);
+      assert.match(projected.prescriptions.westernOrPatent[0].content, /禁止使用/);
+    }
+  }
 });
