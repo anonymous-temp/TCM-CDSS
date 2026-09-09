@@ -16,7 +16,7 @@ const jiti = createJiti(import.meta.url, { alias: {
 const { callDiagnosisStream } = await jiti.import("../src/lib/diagnosis-api.ts");
 const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { canAcceptTransparentFormulaFallback } = await jiti.import("../src/lib/m04-repair-policy.ts");
-const { retainM04DeliveryCheckpoint, bindM04DeliveryReview, renderM04DeliveryCheckpoint } = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
+const { retainM04DeliveryCheckpoint, bindM04DeliveryReview, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint } = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
 const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } = await jiti.import("../src/lib/clinical-review-binding.ts");
 const { applyPrescribeContractSignature } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
@@ -213,6 +213,13 @@ test("only an exact completed attestation and signed payload can restore dose-le
   const signed = applyPrescribeContractSignature(wrap({ ...input.reasoning, clinicalReview: attestation }), signatureContext);
   const reviewed = bindM04DeliveryReview(checkpoint, input.reasoning, accepted, attestation, signed);
   assert.equal(renderM04DeliveryCheckpoint(reviewed, prior, "deadline"), signed);
+  const unavailable = bindM04DeliveryReview(reviewed, input.reasoning, { status: "unavailable", reason: "deadline" });
+  assert.equal(renderM04DeliveryCheckpoint(unavailable, prior, "deadline"), signed,
+    "an unavailable repeat cannot erase an actually completed attestation");
+  const newlyRejected = bindM04DeliveryReview(reviewed, input.reasoning, { status: "repair", issueCode: "dose_rationale_concern" });
+  const newestEvidence = preferM04DeliveryCheckpoint(reviewed, newlyRejected);
+  assert.match(renderM04DeliveryCheckpoint(newestEvidence, prior, "deadline"), /剂量强度/);
+  assertNonDose(renderM04DeliveryCheckpoint(newestEvidence, prior, "deadline"));
   const later = checkpointInput(); later.reasoning.formula.candidates[0].formulaAnalysis += " 本例兼顾便溏。"; later.content = wrap(later.reasoning);
   assert.equal(retainM04DeliveryCheckpoint(reviewed, later), reviewed, "a pending later candidate cannot replace an attested result");
   assert.equal(bindM04DeliveryReview(checkpoint, later.reasoning, accepted, attestation, signed), checkpoint);
