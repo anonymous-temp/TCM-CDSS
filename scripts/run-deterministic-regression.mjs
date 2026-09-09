@@ -4,6 +4,7 @@ const scripts = [
   "test:m04-delivery-continuity",
   "test:golden-harness",
   "test:his-projection-alignment",
+  "test:warning-display",
   "test:evidence-rerank",
   // Deployment-owned secrets are outside source-sync ownership.  A production release exposed that
   // rsync's multi-source `--delete` removed `.env.prod.runtime` before compose, while the old container
