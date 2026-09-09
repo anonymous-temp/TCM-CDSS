@@ -100,12 +100,17 @@ export function bindM04DeliveryReview(
     attestation: bound ? attestation : undefined, signedContent: matchingSignedContent }));
 }
 
-function text(value: unknown): string {
+function factText(value: unknown): string {
   if (typeof value !== "string") return "";
-  // Presentation-only finite quantity/unit masking; does not classify clinical language.
-  return sanitizeGeneratedSuggestionPreviewText(value).replace(/\s+/g, " ").trim()
+  // Source facts include measured concentrations, bleeding volumes and historical medication.
+  // Escaping controls presentation only; none of those quantities is a new dosing suggestion.
+  return value.replace(/\s+/g, " ").trim()
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/[\\`*_{}\[\]()#+.!|~-]/g, "\\$&");
+}
+
+function text(value: unknown): string {
+  return factText(typeof value === "string" ? sanitizeGeneratedSuggestionPreviewText(value) : value);
 }
 
 const REVIEW_ISSUES: Record<string, string> = {
@@ -123,7 +128,7 @@ export function renderM04DeliveryCheckpoint(
 ): string {
   if (checkpoint?.signedContent && checkpoint.attestation?.status === "accepted") return checkpoint.signedContent;
   const prior = priorReasoning;
-  const lines = [NON_DOSE_PRESCRIPTION_MARKER, "## 已完成的辨病辨证", ...[
+  const lines = [NON_DOSE_PRESCRIPTION_MARKER, ...(prior ? ["## 已完成的辨病辨证"] : []), ...[
     prior?.westernDiagnosis?.primary?.name,
     prior?.overview?.primarySyndrome,
     prior?.overview?.overallPathogenesis,
@@ -131,14 +136,15 @@ export function renderM04DeliveryCheckpoint(
     prior?.therapy?.overallMethod,
   ].filter(Boolean).map(text)];
   for (const node of prior?.pathogenesis?.chain || []) {
-    lines.push(`- ${text(node.patientFact)}；${text(node.pathogenesis)}；${text(node.therapyDirection)}`);
+    lines.push(`- ${factText(node.patientFact)}；${text(node.pathogenesis)}；${text(node.therapyDirection)}`);
   }
   if (!checkpoint) {
+    const retainedState = prior ? "已完成的辨病辨证与治法保留，" : "本次没有可用的已签名辨病辨证，";
     lines.push("", "## 候选方药生成状态", reason === "deadline"
-      ? "本阶段超过时限，尚未形成通过校验的个体化方药候选。已完成的辨病辨证与治法保留，暂不提供药味、剂量或用法。"
+      ? `本阶段超过时限，尚未形成通过校验的个体化方药候选。${retainedState}暂不提供药味、剂量或用法。`
       : reason === "upstream_unavailable"
-        ? "模型服务暂时不可用，本次尚未形成通过校验的个体化方药候选。已完成的辨病辨证与治法保留，暂不提供药味、剂量或用法。"
-      : "本次尚未形成通过校验的个体化方药候选。已完成的辨病辨证与治法保留，暂不提供药味、剂量或用法。");
+        ? `模型服务暂时不可用，本次尚未形成通过校验的个体化方药候选。${retainedState}暂不提供药味、剂量或用法。`
+      : `本次尚未形成通过校验的个体化方药候选。${retainedState}暂不提供药味、剂量或用法。`);
     return lines.join("\n\n");
   }
   const review = checkpoint.review;
