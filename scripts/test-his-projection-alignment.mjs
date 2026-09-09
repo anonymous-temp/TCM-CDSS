@@ -23,7 +23,8 @@ const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-pat
 const { validateHisPrescriptionForWriteBack } = await jiti.import("../src/lib/his-prescription-validation.ts");
 const { deriveCaseWarningProfile } = await jiti.import("../src/lib/clinical-warning-tier.ts");
 const { medicineCandidateRow, medicineCandidateTable, localLabelRiskProjection } = await jiti.import("../src/lib/medicine-reference-projection.ts");
-const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
+const { buildHisAiSchemePayload, section } = await jiti.import("../src/lib/his-scheme.ts");
+const { sectionTitleGroup } = await jiti.import("../src/lib/cdss-vocab.ts");
 const { unsupportedHighImpactHerbFindings } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { isSafetyClinicalDeliveryAdvisory } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
 const { rejectionTier } = await jiti.import("../src/lib/diagnosis-rejection-tiers.ts");
@@ -292,6 +293,40 @@ test("legacy frequency plus administration remains an unsubmitted order without 
     state.prescription += `\n## 中成药/西药候选\n${text}`;
     assert.equal(payload(state, null).prescriptions.herbal[0].adoptable, false, text);
   }
+});
+
+test("legacy medication instruction grammar is invariant to punctuation, order and instruction prefix", () => {
+  const base = benign();
+  for (const frequency of ["每日", "每日2次", "每日两次", "每次"]) {
+    for (const separator of ["", " ", "，", ",", "、", "：", "；", "\n"]) {
+      for (const administration of ["口服", "吸入"]) {
+        for (const text of [`建议${frequency}${separator}${administration}替格瑞洛`, `替格瑞洛${frequency}${separator}${administration}`,
+          `${administration}替格瑞洛${separator}${frequency}`]) {
+          const state = { ...base, prescription: `${base.prescription}\n## 中成药/西药候选\n${text}` };
+          assert.equal(payload(state, null).prescriptions.herbal[0].adoptable, false, JSON.stringify(text));
+        }
+      }
+    }
+  }
+});
+
+test("medicine section counting and extraction share alias, colon and inline heading semantics", () => {
+  const base = withMedicine(benign());
+  const receipt = scope(base);
+  const body = "每日两次，口服替格瑞洛";
+  const aliases = sectionTitleGroup("westernOrPatent");
+  for (const alias of aliases) {
+    for (const prefix of ["## ", "##"]) {
+      for (const suffix of [`\n${body}`, `：${body}`, `:${body}`, `：\n${body}`, `:\n${body}`]) {
+        const extra = `${prefix}${alias}${suffix}`;
+        assert.equal(section(extra, aliases), body, JSON.stringify(extra));
+        const state = { ...base, prescription: `${base.prescription}\n${extra}` };
+        assert.equal(payload(state, receipt).prescriptions.herbal[0].adoptable, false, JSON.stringify(extra));
+      }
+    }
+  }
+  assert.equal(payload(base, receipt).prescriptions.herbal[0].adoptable, true);
+  assert.equal(section("## 其他调护\n每日观察症状", aliases), "");
 });
 
 test("every successful server audit scope renderer receives the current actual receipt", () => {
