@@ -113,7 +113,28 @@ test("outer-only display observation installation is atomic and expires synchron
   const pending = prepareWarningObservation({ receipt, requestState, finalState, customerId: customer.customerId, isCurrent: () => current });
   current = false;
   assert.equal(await pending, undefined);
+  const changing = clone(finalState);
+  const duringEdit = prepareWarningObservation({ receipt, requestState, finalState: changing, customerId: customer.customerId, isCurrent: () => true });
+  changing.chiefComplaint += "同病例编辑";
+  assert.equal(await duringEdit, undefined);
   assert.equal(await prepareWarningObservation({ receipt, requestState, finalState, customerId: "other-customer", isCurrent: () => true }), undefined);
+});
+
+test("unchanged workbench draft reconstruction does not manufacture a timestamp-only material edit", async () => {
+  const { preserveUnchangedHisSnapshot } = await jiti.import("../src/lib/followup-display-state.ts");
+  const { warningDisplayMaterial } = await jiti.import("../src/lib/warning-display-binding.ts");
+  const state = { ...makeCase(), hisRecord: { schemaVersion: "tcm-cdss-his-v1", source: "tcm-cdss-his", caseId: "warning-case", updatedAt: "2026-09-10T10:00:00Z", fields: { zhushu: "神疲乏力" }, rawText: "神疲乏力", tongueImageUploaded: false } };
+  const rebuilt = { ...state, hisRecord: { ...state.hisRecord, updatedAt: "2026-09-10T11:00:00Z" } };
+  assert.equal(warningDisplayMaterial(preserveUnchangedHisSnapshot(state, rebuilt), customer.customerId), warningDisplayMaterial(state, customer.customerId));
+  for (const mutate of [
+    (s) => { s.hisRecord.fields.zhushu += "新增"; }, (s) => { s.hisRecord.rawText += "新增"; },
+    (s) => { s.hisRecord.tongueImageUploaded = true; }, (s) => { s.patient.occupation = "教师"; },
+  ]) {
+    const changed = clone(rebuilt); mutate(changed);
+    const preserved = preserveUnchangedHisSnapshot(state, changed);
+    assert.equal(preserved.hisRecord.updatedAt, rebuilt.hisRecord.updatedAt);
+    assert.notEqual(warningDisplayMaterial(preserved, customer.customerId), warningDisplayMaterial(state, customer.customerId));
+  }
 });
 
 async function fixtureReceipt() {
@@ -343,6 +364,28 @@ test("the real M05 route binds the submitted state despite enrichment and contro
     const installed = await prepareWarningObservation({ receipt: result.warningObservation, requestState: submitted, finalState: completed, customerId: customer.customerId, isCurrent: () => true });
     assert.ok(installed, "actual final reducer output must match the producer observation");
     assert.notEqual(resolveWarningDisplayProfile(completed, installed).level, "L4");
+    const { invalidatePrescriptionContractAfterEdit } = await jiti.import("../src/lib/prescription-revision.ts");
+    const { computePrescriptionVersionHash } = await jiti.import("../src/lib/prescription-version.ts");
+    const { applyAcceptedPrescriptionDisplayResult, revisionFromAudit } = await jiti.import("../src/lib/followup-display-state.ts");
+    const revised = invalidatePrescriptionContractAfterEdit(clone(submitted.reasoningPrescribe));
+    revised.formula.candidates[0].name += "（医生编辑版）";
+    revised.formula.candidates[0].constructionType = "self_devised";
+    revised.formula.candidates[0].modificationStatus = "modified";
+    revised.formula.candidates[0].herbs[0].dose = "12g";
+    const requestState = { ...completed, reasoningPrescribe: revised, reasoningV2: revised, safetyLocked: false };
+    const herbHash = await computePrescriptionVersionHash(revised, 0, requestState);
+    requestState.prescriptionRevision = { source: "herb_workbench", candidateIndex: 0, herbHash, auditedAt: "2026-09-10T12:00:00Z", auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false };
+    const { POST: postRisk } = await routeJiti.import("../src/app/api/diagnosis/post-prescription-risk/route.ts");
+    const reviewed = await postRisk(new Request("http://localhost/api/diagnosis/post-prescription-risk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseState: requestState }) }));
+    const body = await reviewed.json();
+    assert.equal(reviewed.status, 200, JSON.stringify(body));
+    assert.equal(body.audit.herbHash, herbHash);
+    assert.ok(body.observation, "the workbench producer must emit its final display receipt");
+    const accepted = { caseId: requestState.id, reasoning: revised, auditSection: body.section, followupSection: body.followup.trim(), followupTimeline: body.followupTimeline,
+      serverSafetyLocked: safety.derivePrescriptionPermission(safety.withSafetyGate(completed)).formalAdoption === "blocked",
+      revision: revisionFromAudit(body.audit, 0, herbHash, true) };
+    const acceptedState = applyAcceptedPrescriptionDisplayResult(completed, accepted);
+    assert.ok(await prepareWarningObservation({ receipt: body.observation, requestState, finalState: acceptedState, customerId: customer.customerId, isCurrent: () => true }));
   } finally {
     globalThis.fetch = savedFetch;
     for (const key of Object.keys(settings)) { if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key]; }
