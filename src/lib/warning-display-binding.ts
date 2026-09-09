@@ -43,6 +43,13 @@ export function warningDisplayMaterial(value: CaseState, resolvedCustomerId?: st
   if (!state) throw new Error("warning_state_invalid");
   if (state.customerId && resolvedCustomerId && state.customerId !== resolvedCustomerId) throw new Error("warning_customer_mismatch");
   const material = retainedText(state, value) as Record<string, unknown>;
+  // These two existing normalizers create a current timestamp when the optional source is absent.
+  // That clock value is not source material. Supplied nested dates/audit/signature fields remain bound.
+  for (const key of ["hisRecord", "faceCapture"] as const) {
+    if (material[key] && value[key] && value[key].updatedAt === undefined) {
+      delete (material[key] as Record<string, unknown>).updatedAt;
+    }
+  }
   material.customerId = resolvedCustomerId || state.customerId;
   for (const key of ["updatedAt", "savedAt", "warningAcknowledgement", "previousResult"]) delete material[key];
   // The complete clinical artifacts, including signatures and additional signed fields, bind as-is.

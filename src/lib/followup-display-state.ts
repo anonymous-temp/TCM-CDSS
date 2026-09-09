@@ -1,6 +1,9 @@
 import type { CaseState, Phase, StructuredFollowupTimelineItem, ClinicalReasoningResultV2 } from "./diagnosis-types";
 import { normalizeCaseStateInput } from "./diagnosis-types";
-import { withSafetyGate, reconcileRestoredCaseState, derivePrescriptionPermission } from "./diagnosis-safety";
+import { withSafetyGate, reconcileRestoredCaseState, derivePrescriptionPermission, parseStructuredFollowupTimeline, stripStructuredFollowupTimeline } from "./diagnosis-safety";
+import { sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
+import { stripEvimedTrailingQuestions } from "./markdown-stream-content";
+import { mapWarningText, type WarningTextProjection } from "./warning-text-projection";
 import { sanitizeCaseStateForBrowserPersistence } from "./browser-case-persistence";
 import { parseRxAuditStatusMarker, stripRxAuditStatusMarker } from "./rxaudit-status";
 import { diagnoseReasoningFromState, mergeReasoningStages } from "./diagnosis-parse";
@@ -142,6 +145,19 @@ export function applyCompletedM05DisplayResult(
         : { available: true },
     skipDifferentiationGate: undefined, phase: "done", previousResult: undefined,
   });
+}
+
+/** Mirror the existing NDJSON presentation and stream-finalization transforms before reduction. */
+export function finalizeM05DisplayResult(previous: CaseState, raw: WarningTextProjection, customerId?: string) {
+  const followupTimeline = parseStructuredFollowupTimeline(raw.markdown);
+  const final = mapWarningText(raw, (text) => stripEvimedTrailingQuestions(sanitizeAuthoritativeClinicalOutput(stripStructuredFollowupTimeline(text))));
+  const state = applyCompletedM05DisplayResult(previous, { content: final.markdown, followupTimeline }, customerId);
+  // Merge exactly the same retained old audit text. Empty advice projections are intentional and
+  // must not trigger a fallback to the unprojected display or to old care prose.
+  const projectedState = applyCompletedM05DisplayResult(previous, { content: final.currentRiskMarkdown, followupTimeline }, customerId);
+  return { state, content: final.markdown, followupTimeline,
+    projection: { markdown: state.riskAssessment || "", currentRiskMarkdown: projectedState.riskAssessment || "" },
+  };
 }
 
 export type AcceptedPrescriptionDisplayResult = {

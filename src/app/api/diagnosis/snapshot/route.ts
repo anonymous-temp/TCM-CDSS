@@ -10,6 +10,7 @@ import {
   sameSecret,
 } from "@/lib/cdss-auth";
 import { requireCustomerContext } from "@/lib/customer-context";
+import { verifyStoredWarningObservation } from "@/lib/warning-display-receipt.server";
 
 export const runtime = "nodejs";
 
@@ -179,27 +180,28 @@ export async function POST(req: Request) {
   if (!isEncryptedSnapshotEnvelope(body.envelope)) {
     return jsonResponse({ ok: false, error: "无效的加密病例快照" }, 400);
   }
+  // Decryption authenticates the core payload as before. Optional display provenance is separately
+  // verified and never endorsed by encrypt; any metadata failure leaves valid clinical data intact.
+  const decryptedResponse = async (payload: unknown, legacyEnvelope = false) => {
+    const verifiedWarningObservation = await verifyStoredWarningObservation(payload, customer.context).catch(() => undefined);
+    return jsonResponse({ ok: true, payload,
+      ...(legacyEnvelope ? { legacyEnvelope: true } : {}),
+      ...(verifiedWarningObservation ? { verifiedWarningObservation } : {}),
+    });
+  };
   try {
     if (body.envelope.schemaVersion === "tcm-cdss-encrypted-snapshot-v2") {
-      return jsonResponse({ ok: true, payload: decryptSnapshotEnvelope(body.envelope, key, tenantAad) });
+      return decryptedResponse(decryptSnapshotEnvelope(body.envelope, key, tenantAad));
     }
     try {
-      return jsonResponse({
-        ok: true,
-        payload: decryptSnapshotEnvelope(body.envelope, key, tenantAad),
-        legacyEnvelope: true,
-      });
+      return decryptedResponse(decryptSnapshotEnvelope(body.envelope, key, tenantAad), true);
     } catch {
       // Pre-tenant v1 snapshots were bound to the stable authenticated access scope only. The
       // fallback is deliberately restricted to v1 envelopes; a v2 tenant-bound envelope can never
       // escape into this branch after a customer mismatch or authentication failure.
       const legacyAad = snapshotAad(body.binding, authorization.scope);
       if (!legacyAad) throw new Error("invalid_legacy_aad");
-      return jsonResponse({
-        ok: true,
-        payload: decryptSnapshotEnvelope(body.envelope, key, legacyAad),
-        legacyEnvelope: true,
-      });
+      return decryptedResponse(decryptSnapshotEnvelope(body.envelope, key, legacyAad), true);
     }
   } catch {
     return jsonResponse({ ok: false, error: "病例快照校验失败，已拒绝恢复" }, 400);
