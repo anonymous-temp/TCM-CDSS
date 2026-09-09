@@ -411,15 +411,20 @@ export type HisAiSchemePayload = {
  * 重建副本的后果本仓库已有先例：判据改了测试不会红。test:his-section-coupling 用它
  * 逐条核对「受治理输出契约登记表的可见标题」与「SECTION_TITLES 分组」是否仍然咬合。
  */
-export function section(text: string | undefined, titles: string[]): string {
-  if (!text) return "";
+function matchingSections(text: string | undefined, titles: string[]): string[] {
+  if (!text) return [];
   const escaped = titles.map((title) => title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-  const match = new RegExp(`^##\\s*(?:${escaped})\\s*(?:[：:]\\s*([^\\n]+))?\\s*$`, "im").exec(text);
-  if (!match) return "";
-  const start = match.index + match[0].length;
-  const rest = text.slice(start).replace(/^\s*\n/, "");
-  const next = rest.search(/^##\s+/m);
-  return [match[1]?.trim(), (next === -1 ? rest : rest.slice(0, next)).trim()].filter(Boolean).join("\n").trim();
+  const matches = text.matchAll(new RegExp(`^##\\s*(?:${escaped})\\s*(?:[：:]\\s*([^\\n]+))?\\s*$`, "gim"));
+  return [...matches].map((match) => {
+    const start = match.index + match[0].length;
+    const rest = text.slice(start).replace(/^\s*\n/, "");
+    const next = rest.search(/^##\s+/m);
+    return [match[1]?.trim(), (next === -1 ? rest : rest.slice(0, next)).trim()].filter(Boolean).join("\n").trim();
+  });
+}
+
+export function section(text: string | undefined, titles: string[]): string {
+  return matchingSections(text, titles)[0] || "";
 }
 
 function normalizeQuotePairs(value: string): string {
@@ -711,8 +716,13 @@ function hasConcreteWesternOrPatentMedication(medicine: string): boolean {
   // This is a lexical DTO guard, not open clinical-language recognition or a drug-name patch.
   const frequency = "(?:每日|每天|每晚|每次|一日|早晚|睡前|晨起|qd|bid|tid)";
   const administration = "(?:口服|服用|吸入|注射|静滴|肌注|皮下|外用|滴眼|滴鼻|含服)";
-  if (new RegExp(`${frequency}\\s*(?:(?:\\d+|[一二两三四])次\\s*)?${administration}`, "i").test(text) ||
-    new RegExp(`${administration}[^。；;\\n]{1,80}${frequency}`, "i").test(text)) return true;
+  // Punctuation and spacing separate lexical fields; they must not change an instruction's
+  // scope. A route followed by a nearby frequency is conservative even for unknown drug names.
+  // Plain frequency-led observation sentences have intervening words and are not this grammar.
+  const separator = "[\\s\\p{P}]*";
+  const count = "(?:\\d+|[零〇一二两三四五六七八九十百半]+)";
+  if (new RegExp(`${frequency}${separator}(?:${count}${separator}次${separator})?${administration}`, "iu").test(text) ||
+    new RegExp(`${administration}[\\s\\S]{1,80}${frequency}`, "i").test(text)) return true;
   return /(片|胶囊|颗粒|丸|口服液|注射液|滴丸|mg|ml|tid|bid|qd|qn|用法用量|阿司匹林|氯吡格雷|华法林|二甲双胍|胰岛素|氨氯地平|美托洛尔|阿莫西林|头孢|布洛芬|对乙酰氨基酚|复方丹参|藿香正气|逍遥丸|六味地黄丸)/i.test(text);
 }
 
@@ -722,13 +732,11 @@ function hasConcreteWesternOrPatentMedication(medicine: string): boolean {
  */
 function medicineOutsideSubmittedScope(state: CaseState, medicine: string, receipt?: RxAuditSubmissionScope | null): boolean {
   const medicines = prescribeReasoningFromState(state)?.formula?.patentAndWestern || [];
-  const headings = (state.prescription || "").split(/\r?\n/).filter((line) => {
-    const heading = line.match(/^##\s+(.+?)\s*$/);
-    return heading && sectionTitleGroup("westernOrPatent").includes(heading[1]);
-  });
-  if (medicines.length === 0) return headings.length > 1 || hasConcreteWesternOrPatentMedication(medicine);
+  // Counting and extracting must recognize exactly the same aliases, colon and inline forms.
+  const medicineSections = matchingSections(state.prescription, sectionTitleGroup("westernOrPatent"));
+  if (medicines.length === 0) return medicineSections.length > 1 || hasConcreteWesternOrPatentMedication(medicine);
   const index = state.prescriptionRevision?.candidateIndex ?? 0;
-  if (!receipt || receipt.candidateIndex !== index || headings.length !== 1) return true;
+  if (!receipt || receipt.candidateIndex !== index || medicineSections.length !== 1) return true;
   const expectedItems = buildAuditItemsFromHerbs(state, index);
   const submittedMedicines = receipt.submittedItems.filter((item) => item.drug_type === "中成药" || item.drug_type === "西药");
   if (submittedMedicines.length !== medicines.length || JSON.stringify(expectedItems) !== JSON.stringify(receipt.submittedItems)) return true;
