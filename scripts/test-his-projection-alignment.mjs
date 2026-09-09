@@ -268,9 +268,26 @@ test("missing scope, extra orders, changed medicine fields and truncation stay l
 });
 
 test("observation-only daily prose does not invent an unsubmitted medicine", () => {
-  const state = benign();
-  state.prescription += "\n## 中成药/西药候选\n每日观察症状";
-  assert.equal(payload(state, null).prescriptions.herbal[0].adoptable, true);
+  for (const text of ["每日观察症状", "每次随访记录症状变化", "每日记录体温", "每日记录口服用药后的症状"]) {
+    const state = benign();
+    state.prescription += `\n## 中成药/西药候选\n${text}`;
+    assert.equal(payload(state, null).prescriptions.herbal[0].adoptable, true, text);
+  }
+});
+
+test("legacy frequency plus administration remains an unsubmitted order without a familiar drug suffix", () => {
+  for (const text of ["每日口服替格瑞洛", "每次吸入沙丁胺醇", "每晚服用依折麦布", "口服替格瑞洛，每日两次"]) {
+    const state = benign();
+    state.prescription += `\n## 中成药/西药候选\n${text}`;
+    assert.equal(payload(state, null).prescriptions.herbal[0].adoptable, false, text);
+  }
+});
+
+test("every successful server audit scope renderer receives the current actual receipt", () => {
+  const post = readFileSync(new URL("../src/app/api/diagnosis/post-prescription-risk/route.ts", import.meta.url), "utf8");
+  const assess = readFileSync(new URL("../src/app/api/diagnosis/assess/route.ts", import.meta.url), "utf8");
+  assert.match(post, /buildRxAuditScopeSection\(caseState, resolvedCandidateIndex, providerAudit\.submissionScope\)/);
+  assert.match(assess, /buildRxAuditScopeSection\(gated, candidateIndex, providerAudit\.ok \? providerAudit\.submissionScope : undefined\)/);
 });
 
 test("all three projections agree on a usable herbal candidate while retaining quality and label notices", () => {
