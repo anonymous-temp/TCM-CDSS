@@ -87,6 +87,16 @@ export function isClinicalTemporalPhrase(value: unknown): boolean {
   return typeof value === "string" && CLINICAL_TEMPORAL_PHRASE.test(value.trim());
 }
 
+/** Refine an already surname-matched narrative candidate, not a general-purpose name detector. */
+export function hasUnambiguousNarrativeNameContext(candidate: string, prefix: string, following: string): boolean {
+  if (isClinicalTemporalPhrase(candidate)) return false;
+  // Two-character clinical nouns share surname shapes (周身、全身、黄疸). A symptom or general
+  // occurrence verb alone does not identify a person. Explicit person labels remain authoritative;
+  // known patient names are separately replaced literally before this heuristic is consulted.
+  if (candidate.length !== 2 || /^(?:患者|家属|联系人|陪同者|监护人)$/.test(prefix)) return true;
+  return /^(?:近|昨|今|诉|称|反映|表示|就诊|来诊)/.test(following);
+}
+
 export function scrubSubjectPrefixedName(text: string, marker = "[姓名已脱敏]"): string {
   return String(text || "").replace(SUBJECT_PREFIXED_NAME, (match, prefix: string, candidate: string) =>
     isClinicalTemporalPhrase(candidate) ? match : `${prefix}${marker}`);
