@@ -19,6 +19,9 @@ export type M04DeliveryCheckpoint = Readonly<{
 
 /** Keep completed evidence ahead of pending/failed work; equal-strength completed candidates advance. */
 export function preferM04DeliveryCheckpoint(previous: M04DeliveryCheckpoint | undefined, next: M04DeliveryCheckpoint | undefined) {
+  // A newer completed objection to these exact bytes supersedes an older approval. An unrelated
+  // candidate cannot do so, and a transport outage cannot invent a new clinical decision.
+  if (previous?.payloadHash === next?.payloadHash && next?.review && next.review.status !== "unavailable") return next;
   const rank = (value: M04DeliveryCheckpoint | undefined) => !value ? -1 : value.signedContent ? 3
     : value.review?.status === "accepted" ? 2 : value.review?.status === "repair" ? 1 : 0;
   return rank(previous) > rank(next) ? previous : next;
@@ -73,6 +76,7 @@ export function bindM04DeliveryReview(
   signedContent?: string,
 ): M04DeliveryCheckpoint | undefined {
   if (!checkpoint || checkpoint.payloadHash !== clinicalReviewPayloadHash(reasoning)) return checkpoint;
+  if (review.status === "unavailable" && checkpoint.review && checkpoint.review.status !== "unavailable") return checkpoint;
   const bound = attestation?.status === "accepted" &&
     hasBoundClinicalReviewAttestation({ ...checkpoint.reasoning, clinicalReview: attestation });
   let matchingSignedContent: string | undefined;
@@ -92,7 +96,7 @@ export function bindM04DeliveryReview(
     } catch { /* Mismatched or incomplete signed bytes remain a non-dose candidate. */ }
   }
   return immutable(structuredClone({ ...checkpoint,
-    review: checkpoint.review?.status === "repair" && review.status === "unavailable" ? checkpoint.review : review,
+    review,
     attestation: bound ? attestation : undefined, signedContent: matchingSignedContent }));
 }
 

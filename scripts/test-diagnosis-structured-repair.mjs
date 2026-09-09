@@ -200,7 +200,7 @@ assert.match(
 );
 assert.match(
   diagnosisApiSource,
-  /immediateM04Declassification\?\.reasoning[\s\S]{0,4000}?reviewTrackedM04Candidate\(structuredReasoning, m04GeneratorModel, "for initial candidate"\)/,
+  /immediateM04Declassification\?\.reasoning[\s\S]{0,4000}?reviewTrackedM04Candidate\(structuredReasoning, m04GeneratorModel, "for initial candidate", authoritativeContent\)/,
   "即时身份剥离只能省掉提供商重写，剥离后的准确字节仍须进入首轮独立临床复核",
 );
 assert.equal(shouldRunTargetedStructuredRetry("diagnose", "sentinel_count_0_0"), true);
