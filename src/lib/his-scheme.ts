@@ -711,9 +711,8 @@ function hasConcreteWesternOrPatentMedication(medicine: string): boolean {
   // This is a lexical DTO guard, not open clinical-language recognition or a drug-name patch.
   const frequency = "(?:每日|每天|每晚|每次|一日|早晚|睡前|晨起|qd|bid|tid)";
   const administration = "(?:口服|服用|吸入|注射|静滴|肌注|皮下|外用|滴眼|滴鼻|含服)";
-  const start = "(?:^|[。；;\\n])\\s*(?:[-*]\\s*)?";
-  if (new RegExp(`${start}${frequency}\\s*(?:(?:\\d+|[一二两三四])次\\s*)?${administration}`, "i").test(text) ||
-    new RegExp(`${start}${administration}[^。；;\\n]{1,80}${frequency}`, "i").test(text)) return true;
+  if (new RegExp(`${frequency}\\s*(?:(?:\\d+|[一二两三四])次\\s*)?${administration}`, "i").test(text) ||
+    new RegExp(`${administration}[^。；;\\n]{1,80}${frequency}`, "i").test(text)) return true;
   return /(片|胶囊|颗粒|丸|口服液|注射液|滴丸|mg|ml|tid|bid|qd|qn|用法用量|阿司匹林|氯吡格雷|华法林|二甲双胍|胰岛素|氨氯地平|美托洛尔|阿莫西林|头孢|布洛芬|对乙酰氨基酚|复方丹参|藿香正气|逍遥丸|六味地黄丸)/i.test(text);
 }
 
