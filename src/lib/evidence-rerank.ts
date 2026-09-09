@@ -76,7 +76,7 @@ export async function rerankEvidenceDocuments(
   const originalOrder = documents.map((_, index) => index);
   const enabled = process.env.EVIDENCE_RERANK_ENABLED === "true";
   const finish = (status: EvidenceRerankStatus, ranking?: Pick<EvidenceRerankResult, "order" | "usage">): EvidenceRerankResult => {
-    const result = { order: originalOrder, ...ranking, status, durationMs: Math.round(performance.now() - started), model: MODEL };
+    const result: EvidenceRerankResult = { order: originalOrder, ...ranking, status, durationMs: Math.round(performance.now() - started), model: MODEL };
     if (enabled) console.info("[tcm-cdss:telemetry] evidence_rerank", {
       status, durationMs: result.durationMs, documentCount: documents.length, model: MODEL,
       ...(ranking?.usage ? { totalTokens: ranking.usage.totalTokens } : {}),
