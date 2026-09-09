@@ -20,7 +20,9 @@ const { collectClinicalDeliveryAdvisories, clinicalDeliveryAdvisoryFromIssue, de
   await jiti.import("../src/lib/clinical-delivery-advisory.ts");
 
 const failures = [];
+let checks = 0;
 function check(name, fn) {
+  checks += 1;
   try {
     fn();
   } catch (error) {
@@ -548,4 +550,4 @@ if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "his-structured-projection", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "his-structured-projection", checks: 11, failures: 0 }));
+console.log(JSON.stringify({ suite: "his-structured-projection", checks, failures: 0 }));

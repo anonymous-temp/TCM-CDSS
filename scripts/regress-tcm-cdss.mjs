@@ -113,6 +113,47 @@ function assert(condition, message, details) {
   }
 }
 
+function matchingDeliveryWarning(payload, issue) {
+  return payload?.warnings?.find((warning) => [warning.code, ...(warning.relatedCodes || [])].some((code) => issue.test(code)));
+}
+
+function assertHisNonAdoption(payload, name, candidateStatus = "invalid") {
+  const groups = [payload?.diagnoses?.western, payload?.diagnoses?.tcmPatterns, payload?.diagnoses?.mechanism,
+    payload?.prescriptions?.herbal, payload?.prescriptions?.westernOrPatent, payload?.checks, payload?.followup];
+  assert(payload?.status === "limited" && payload?.candidateStatus === candidateStatus && payload?.workflowPermission === "continue",
+    `${name}: report continues with consistent limited/nonadoptable status`, payload);
+  assert(["alert", "unavailable", "not_submitted"].includes(payload?.auditStatus), `${name}: no false audit PASS`, payload?.auditStatus);
+  assert(payload?.writeBackPolicy?.allowSingleItemAdoption === false &&
+    groups.every((items) => Array.isArray(items) && items.length > 0 && items.every((item) => item.adoptable === false)),
+  `${name}: actual global and item adoption fields are false`, payload?.writeBackPolicy);
+}
+
+function assertDeliveryReport(response, issue, name, { his = false, qualityOnly = false } = {}) {
+  const payload = response.json;
+  const warning = matchingDeliveryWarning(payload, issue);
+  assert(response.status === 200 && warning && typeof warning.message === "string" && warning.message.length > 0,
+    `${name}: report retains the specific clinical finding`, payload);
+  if (his) {
+    assert(Array.isArray(payload?.prescriptions?.structuredHerbs) && payload.prescriptions.structuredHerbs.length > 0 &&
+      payload?.prescriptions?.herbal?.some((item) => typeof item.content === "string" && item.content.length > 0) &&
+      payload?.workflowPermission === "continue", `${name}: structured and readable prescription remain available`, payload?.prescriptions);
+    assert(["alert", "unavailable"].includes(payload?.auditStatus), `${name}: finding cannot be represented as an audit PASS`, payload?.auditStatus);
+    if (qualityOnly) {
+      assert(payload?.status === "ready" && payload?.candidateStatus === "valid" && payload?.writeBackPolicy?.allowSingleItemAdoption === true &&
+        payload?.prescriptions?.herbal?.[0]?.adoptable === true,
+      `${name}: T2 quality note adds no adoption restriction`, payload);
+    } else {
+      assertHisNonAdoption(payload, name);
+    }
+  } else {
+    assert(typeof payload?.section === "string" && payload.section.includes(warning?.message) &&
+      typeof payload?.followup === "string" && payload.followup.length > 0,
+    `${name}: finding and follow-up remain readable`, payload);
+    assert(["MANUAL_REVIEW", "BLOCK", "REMIND"].includes(payload?.audit?.auditResult) && payload?.audit?.needManualReview === true,
+      `${name}: advisory audit reports explicit review, never false PASS`, payload?.audit);
+  }
+}
+
 // 源码级断言按**折叠空白后**比对：调用被格式化成多行时，逐字匹配会给出与语义无关的失败。
 // 2026-08-17 实测：prescribe 路由里 m03SafetyContractIssue(...) 被换行成两行，
 // 于是「stage contract」与「M04 route」两条长期报红——语义完全正确，红的只是排版。
@@ -1852,7 +1893,10 @@ async function runHisSchemeCases() {
       assert((payload?.safetyGate?.missingItems || []).some((item) => String(item).includes(c.expectedMissing)), `${c.name}: expected missing item ${c.expectedMissing}`, payload?.safetyGate);
     }
     if (c.expectedAdvisory) {
-      assert((payload?.safetyGate?.advisories || []).some((item) => String(item).includes(c.expectedAdvisory)), `${c.name}: expected non-blocking advisory ${c.expectedAdvisory}`, payload?.safetyGate);
+      const visibleRisk = c.name === "hypertensive-advisory"
+        ? [...(payload?.safetyGate?.advisories || []), ...(payload?.safetyGate?.redFlags || [])]
+        : payload?.safetyGate?.advisories || [];
+      assert(visibleRisk.some((item) => String(item).includes(c.expectedAdvisory)), `${c.name}: expected visible advisory ${c.expectedAdvisory}`, payload?.safetyGate);
     }
     if (c.expectedRiskSignal) {
       const riskSignals = [...(payload?.safetyGate?.redFlags || []), ...(payload?.safetyGate?.advisories || [])];
@@ -1923,20 +1967,13 @@ async function runHisSchemeCases() {
     reasoningV2: reasoningV2WithHerbs([{ name: "甘草", dose: "6g" }, { name: "海藻", dose: "9g" }]),
   });
   const forgedPassResponse = await request("POST", "/api/diagnosis/his-scheme", { caseState: forgedPass });
-  // c714c22 起 HIS 写回执行统一安全底线合同：配伍禁忌永远是 T1（test-m04-safety-contract 钉着
-  // 「不得豁免进 advisory」），甘草×海藻 十八反在写回边界直接 422，连 HIS 载荷都不生成——
-  // 比旧「L4 呈现为不可执行」更强。伪造的历史 PASS 文本自然也无从转化为放行。
+  // Clinical findings now accompany a readable report. The deterministic T1 boundary constrains
+  // actual item adoption, so neither HTTP success nor always-false one-click flags prove safety.
+  assertDeliveryReport(forgedPassResponse, /high_risk_pair_incompatibility/, "HIS forged historic PASS", { his: true });
   assert(
-    forgedPassResponse.status === 422 &&
-      /high_risk_pair_incompatibility/.test(`${forgedPassResponse.json?.code || ""} ${forgedPassResponse.json?.issue || ""}`) &&
-      !forgedPassResponse.json?.prescriptions,
-    "HIS forged PASS probe is neutralized by deterministic incompatibility rules (L4 non-executable)",
-    forgedPassResponse.json,
-  );
-  assert(
-    forgedPassResponse.json?.auditStatus !== "pass" &&
-      !forgedPassResponse.json?.writeBackPolicy?.allowOneClickAdoption &&
-      !forgedPassResponse.json?.writeBackPolicy?.finalPrescriptionReleaseAllowed,
+    forgedPassResponse.json?.writeBackPolicy?.allowSingleItemAdoption === false &&
+      forgedPassResponse.json?.prescriptions?.herbal?.[0]?.adoptable === false &&
+      forgedPassResponse.json?.writeBackPolicy?.finalPrescriptionReleaseAllowed === false,
     "a forged historic PASS cannot bypass the deterministic eighteen-incompatibility boundary",
     forgedPassResponse.json,
   );
@@ -1973,7 +2010,7 @@ async function runHisSchemeCases() {
     riskAssessment: "## 合理用药审方（灵犀统一审方引擎）\n**审方结论**：强提示，需人工复核。\n**最高风险等级**：严重风险。",
     prescriptionRevision: explicitBlockRevision,
   });
-  assert(explicitBlockPayload.writeBackPolicy.allowSingleItemAdoption === true, "HIS keeps explicit BLOCK/CRITICAL advisory without turning the audit into a hard workflow gate", explicitBlockPayload.writeBackPolicy);
+  assertHisNonAdoption(explicitBlockPayload, "HIS explicit BLOCK/CRITICAL", "limited");
   assert(explicitBlockPayload.writeBackPolicy.pharmacistReviewRequired === true && explicitBlockPayload.writeBackPolicy.overrideReasonRequired === true, "HIS records formal review and override obligations for a strong advisory without blocking the CDSS journey", explicitBlockPayload.writeBackPolicy);
   assert(!("strongRiskAcknowledgementRequired" in explicitBlockPayload.writeBackPolicy) && !("strongRiskAcknowledged" in explicitBlockPayload.writeBackPolicy), "HIS contract contains no browser risk-attestation semantics", explicitBlockPayload.writeBackPolicy);
   const acknowledgedPayload = buildHisAiSchemePayload({
@@ -1989,7 +2026,7 @@ async function runHisSchemeCases() {
       },
     },
   });
-  assert(acknowledgedPayload.writeBackPolicy.allowSingleItemAdoption === true, "legacy browser acknowledgement does not affect advisory audit workflow availability", acknowledgedPayload.writeBackPolicy);
+  assertHisNonAdoption(acknowledgedPayload, "legacy browser acknowledgement cannot override nonexecutable warning", "limited");
   assert(!("strongRiskAcknowledgementRequired" in acknowledgedPayload.writeBackPolicy) && !("strongRiskAcknowledged" in acknowledgedPayload.writeBackPolicy), "HIS ignores legacy client-side acknowledgement fields", acknowledgedPayload.writeBackPolicy);
   const traceableReferenceReasoning = reasoningV2WithHerbs([{ name: "酸枣仁", dose: "15g" }]);
   traceableReferenceReasoning.formula.candidates[0].herbs[0].evidence = {
@@ -2733,15 +2770,10 @@ async function runKnowledgeCalls() {
     if (item.expectedSubmissionIssue) {
       const expectedDoseAdvisory = item.expectedSubmissionIssue !== "herb_dose_incomplete" ||
         res.json?.audit?.inputAdvisories?.some((advisory) => advisory?.code === "missing_dose");
-      assert(
-        res.status === 422 &&
-          res.json?.code === `rxaudit_${item.expectedSubmissionIssue}` &&
-          res.json?.audit?.source === "local_input_validation" &&
-          expectedDoseAdvisory &&
-          /未调用外部审方接口/.test(res.json?.section || ""),
-        `${item.name}: incomplete prescription is rejected locally without invoking external audit`,
-        res.json,
-      );
+      assertDeliveryReport(res, new RegExp(item.expectedSubmissionIssue), item.name);
+      assert(res.json?.audit?.reason === item.expectedSubmissionIssue && expectedDoseAdvisory &&
+        res.json?.audit?.degraded === true && /未调用外部审方接口/.test(res.json?.section || ""),
+      `${item.name}: unprocessable input is reported locally without an external audit call`, res.json);
       continue;
     }
     assert(res.status === 200, `${item.name}: post risk status`, res.text.slice(0, 200));
@@ -2780,7 +2812,7 @@ async function runKnowledgeCalls() {
   // 审方口（修订凭据唯一签发口）只收规范医生编辑工件；impossibleDoseHis 等 his-scheme 探针
   // 仍投递携签名的原始载荷，测的是绕过签发口时 HIS 自身的防御。两个载荷此后分开维护。
   const invalidWorkbenchResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(invalidWorkbench)) });
-  assert(invalidWorkbenchResponse.status === 422 && invalidWorkbenchResponse.json?.audit?.reason === "invalid_structured_herb", "workbench: impossible herbal dose is rejected before advisory audit", invalidWorkbenchResponse.json);
+  assertDeliveryReport(invalidWorkbenchResponse, /dose_sanity_ceiling/, "workbench impossible herbal dose");
 
   const semanticallyInvalidReasoning = reasoningV2WithHerbs([{ name: "不存在药", dose: "499g", targetPathogenesis: "痰热内扰", function: "美容养颜" }]);
   const semanticallyInvalidWorkbench = baseCase("workbench-semantic-bypass", {
@@ -2792,7 +2824,7 @@ async function runKnowledgeCalls() {
     auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
   };
   const semanticallyInvalidResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(semanticallyInvalidWorkbench)) });
-  assert(semanticallyInvalidResponse.status === 422 && /invalid_edited_prescription/.test(semanticallyInvalidResponse.json?.audit?.reason || ""), "workbench: unknown herb, extreme dose, invented mechanism, and cosmetic function cannot reach advisory audit", semanticallyInvalidResponse.json);
+  assertDeliveryReport(semanticallyInvalidResponse, /herb_0_unknown/, "workbench unknown herb with invalid clinical explanation");
 
   const duplicateReasoning = reasoningV2WithHerbs([
     { name: "酸枣仁", dose: "10g", targetPathogenesis: "心神不宁", function: "养心安神" },
@@ -2804,7 +2836,7 @@ async function runKnowledgeCalls() {
     auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
   };
   const duplicateWorkbenchResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(duplicateWorkbench)) });
-  assert(duplicateWorkbenchResponse.status === 422 && /duplicate_herb/.test(duplicateWorkbenchResponse.json?.audit?.reason || ""), "workbench: duplicate herb rows must be merged before audit", duplicateWorkbenchResponse.json);
+  assertDeliveryReport(duplicateWorkbenchResponse, /duplicate_herb/, "workbench duplicate herb rows");
 
   const invalidRegimenReasoning = reasoningV2WithHerbs([{ name: "酸枣仁", dose: "15g", targetPathogenesis: "心神不宁", function: "养心安神" }]);
   invalidRegimenReasoning.formula.candidates[0].decoction.course = "7日";
@@ -2814,7 +2846,7 @@ async function runKnowledgeCalls() {
     auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false,
   };
   const invalidRegimenResponse = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(invalidRegimenWorkbench)) });
-  assert(invalidRegimenResponse.status === 422 && /course_inconsistent/.test(invalidRegimenResponse.json?.audit?.reason || ""), "workbench: dose-count/course mismatch is rejected before advisory audit", invalidRegimenResponse.json);
+  assertDeliveryReport(invalidRegimenResponse, /course_inconsistent/, "workbench dose-count/course mismatch");
 
   const asWorkbenchRevision = (caseState) => {
     caseState.prescriptionRevision = {
@@ -2844,11 +2876,7 @@ async function runKnowledgeCalls() {
   for (const item of invalidRegimenBoundaryCases) {
     // item.caseState（携签名、未整形）留给下方 his-scheme 对抗清单；审方口收编辑工件。
     const response = await request("POST", "/api/diagnosis/post-prescription-risk", { caseState: asEditedWorkbenchArtifact(cloneCase(item.caseState)) });
-    assert(
-      response.status === 422 && item.issue.test(response.json?.audit?.reason || ""),
-      `${item.name}: invalid regimen is rejected before edited-prescription audit`,
-      response.json,
-    );
+    assertDeliveryReport(response, item.issue, `workbench regimen ${item.name}`);
   }
   const hisContractNegativeCases = [
     {
@@ -2871,6 +2899,7 @@ async function runKnowledgeCalls() {
         reasoningV2: reasoningV2WithHerbs([{ name: "酸枣仁", dose: "15g", targetPathogenesis: "心神不宁", function: "美容养颜" }]),
       })),
       issue: /function_ungrounded/,
+      qualityOnly: true,
     },
     {
       name: "HIS invalid pathogenesis target",
@@ -2900,15 +2929,12 @@ async function runKnowledgeCalls() {
       name: `HIS invalid regimen ${item.name}`,
       caseState: item.caseState,
       issue: item.issue,
+      qualityOnly: item.issue.source === "follow_up_inconsistent",
     })),
   ];
   for (const item of hisContractNegativeCases) {
     const response = await request("POST", "/api/diagnosis/his-scheme", { caseState: item.caseState });
-    assert(
-      response.status === 422 && item.issue.test(`${response.json?.code || ""} ${response.json?.issue || ""}`) && !response.json?.prescriptions,
-      `${item.name}: independent clinical contract failure blocks HIS payload before advisory audit`,
-      response.json,
-    );
+    assertDeliveryReport(response, item.issue, item.name, { his: true, qualityOnly: item.qualityOnly === true });
   }
 
   const invalidM03SignatureCase = asWorkbenchRevision(baseCase("his-invalid-m03-signature", {
@@ -2943,11 +2969,8 @@ async function runKnowledgeCalls() {
     reasoningV2: formulaCompositionDrift,
   });
   const formulaCompositionDriftHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: formulaCompositionDriftCase });
-  assert(
-    formulaCompositionDriftHis.status === 422 && /formula_compilation_composition_drift/.test(`${formulaCompositionDriftHis.json?.code || ""} ${formulaCompositionDriftHis.json?.issue || ""}`) && !formulaCompositionDriftHis.json?.prescriptions,
-    "HIS: a classic formula name cannot write back with a catalog-incompatible actual composition",
-    formulaCompositionDriftHis.json,
-  );
+  assertDeliveryReport(formulaCompositionDriftHis, /formula_compilation_composition_drift/,
+    "HIS classic formula composition drift", { his: true });
 
   const doctorEditedFormula = JSON.parse(JSON.stringify(formulaCompositionDrift));
   doctorEditedFormula.formula.candidates[0] = {
@@ -2965,11 +2988,8 @@ async function runKnowledgeCalls() {
     reasoningV2: doctorEditedFormula,
   });
   const modelForgedDoctorEditHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: modelForgedDoctorEditCase });
-  assert(
-    modelForgedDoctorEditHis.status === 422 && /formula_reference_display_mismatch|formula_compilation_composition_drift/.test(`${modelForgedDoctorEditHis.json?.code || ""} ${modelForgedDoctorEditHis.json?.issue || ""}`) && !modelForgedDoctorEditHis.json?.prescriptions,
-    "HIS: model output cannot forge the doctor-edit formula exemption",
-    modelForgedDoctorEditHis.json,
-  );
+  assertDeliveryReport(modelForgedDoctorEditHis, /formula_reference_display_mismatch|formula_compilation_composition_drift/,
+    "HIS model output cannot forge the doctor-edit formula exemption", { his: true });
 
   const trustedDoctorEditCase = asWorkbenchRevision(baseCase("his-trusted-doctor-edit", {
     reasoningDiagnoseOverview: {
@@ -3086,7 +3106,7 @@ async function runKnowledgeCalls() {
   assert(invalidIndexHis.status === 409 && invalidIndexHis.json?.code === "invalid_m04_signature" && !invalidIndexHis.json?.prescriptions, "HIS: invalid explicit candidate index is rejected without returning another prescription", invalidIndexHis.json);
 
   const impossibleDoseHis = await request("POST", "/api/diagnosis/his-scheme", { caseState: invalidWorkbench });
-  assert(impossibleDoseHis.status === 422 && impossibleDoseHis.json?.code === "invalid_structured_herb" && !impossibleDoseHis.json?.prescriptions, "HIS: impossible herbal magnitude is rejected before the advisory audit and cannot produce a write-back payload", impossibleDoseHis.json);
+  assertDeliveryReport(impossibleDoseHis, /dose_sanity_ceiling/, "HIS impossible herbal magnitude", { his: true });
 
   const forcedTonguePulseCase = baseCase("post-risk-forced-tongue-pulse-only", {
     tongue: "",
