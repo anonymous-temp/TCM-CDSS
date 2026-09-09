@@ -59,6 +59,7 @@
     "test:m04-concise-proposal": "node --test scripts/test-m04-concise-proposal.mjs",
     "test:m04-delivery-continuity": "node --test scripts/test-m04-delivery-continuity.mjs",
     "test:golden-harness": "node --test scripts/test-golden-harness.mjs",
+    "test:his-projection-alignment": "node --test scripts/test-his-projection-alignment.mjs",
     "test:explicit-prompt-cache": "jiti scripts/test-explicit-prompt-cache.mjs",
     "test:cache-benchmark": "node scripts/test-cache-benchmark.mjs",
     "test:clinical-module-previews": "jiti scripts/test-clinical-module-previews.mjs",
