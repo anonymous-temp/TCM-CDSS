@@ -4,7 +4,7 @@ import { INTERNAL_EVIDENCE_PLACEHOLDER } from "./customer-evidence";
 import { sectionTitleGroup } from "./cdss-vocab";
 import { prescribeReasoningFromState, stripDiagnosisJSON } from "./diagnosis-parse";
 import { findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
-import { medicineCandidateRow, verifiedLocalLabelRisk } from "./medicine-reference-projection";
+import { medicineCandidateRow, localLabelRiskProjection } from "./medicine-reference-projection";
 
 export type ClinicalWarningLevel = "L0" | "L1" | "L2" | "L3" | "L4";
 export type ClinicalWarningAction =
@@ -73,12 +73,15 @@ function currentPrescriptionRiskText(text: string, state: CaseState): string {
   let medicineHeadingDepth: number | undefined;
   const consumedRows = new Set<number>();
   const referenceRows = new Map((prescribeReasoningFromState(state)?.formula?.patentAndWestern || [])
-    .flatMap((item, index) => verifiedLocalLabelRisk(item)
+    .flatMap((item, index) => {
+      const risk = localLabelRiskProjection(item);
+      return risk != null
       // Some server-owned renderers lack patient context and retain the complete label. Both
       // projections are reconstructed, not client-declared; consume the underlying row only once.
       ? [state, undefined].map((context) => [medicineCandidateRow(item, context),
-        { index, projected: medicineCandidateRow(item, context, "") }] as const)
-      : []));
+        { index, projected: medicineCandidateRow(item, context, risk) }] as const)
+      : [];
+    }));
   return stripDiagnosisJSON(text).split(/\r?\n/).flatMap((line) => {
     const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
     if (heading) {

@@ -22,7 +22,7 @@ const { buildUnavailableRxAuditSection, buildAuditItemsFromHerbs, auditPrescript
 const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
 const { validateHisPrescriptionForWriteBack } = await jiti.import("../src/lib/his-prescription-validation.ts");
 const { deriveCaseWarningProfile } = await jiti.import("../src/lib/clinical-warning-tier.ts");
-const { medicineCandidateRow, verifiedLocalLabelRisk } = await jiti.import("../src/lib/medicine-reference-projection.ts");
+const { medicineCandidateRow, localLabelRiskProjection } = await jiti.import("../src/lib/medicine-reference-projection.ts");
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
 const { unsupportedHighImpactHerbFindings } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { isSafetyClinicalDeliveryAdvisory } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
@@ -78,7 +78,7 @@ function payload(state, auditScope = scope(state)) {
 test("exact canonical label risk stays visible without becoming a patient L4", () => {
   const state = withMedicine(benign());
   assert.match(state.prescription, /本品性状发生改变时禁止使用/);
-  assert.equal(verifiedLocalLabelRisk(state.reasoningPrescribe.formula.patentAndWestern[0]), true);
+  assert.ok(localLabelRiskProjection(state.reasoningPrescribe.formula.patentAndWestern[0]) != null);
   assert.ok(state.prescription.includes(medicineCandidateRow(state.reasoningPrescribe.formula.patentAndWestern[0])));
   const warning = deriveCaseWarningProfile(state);
   assert.equal(warning.level, "L3");
@@ -108,6 +108,8 @@ test("current-risk copies, appended risk, other patient columns and forged prove
     withMedicine(benign(), { ...medicine(), evidenceFingerprint: "forged" }),
     withMedicine(benign(), { ...medicine(), specification: "changed" }),
     withMedicine(benign(), { ...medicine(), riskNote: `${labelRisk}；本例绝对禁忌` }),
+    withMedicine(benign(), { ...medicine(), riskNote: `${labelRisk}；8.本品性状发生改变时禁止使用。` }),
+    withMedicine(benign(), { ...medicine(), riskNote: labelRisk.replace("8.本品性状发生改变时禁止使用。", "8.本例已见变质，按本品性状发生改变时禁止使用处理。") }),
     { ...state, prescription: state.prescription.replace(entry.name, "未知颗粒") },
     { ...state, prescription: state.prescription.replace("[LOCAL-INST-007]", "[LOCAL-INST-999]") },
     { ...state, prescription: `${state.prescription}\n## 中成药/西药候选\n${medicineCandidateRow(medicine())}` },
