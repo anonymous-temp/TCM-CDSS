@@ -182,3 +182,59 @@ test("owned audit grades do not arise from summary formatting and never downgrad
     assert.equal(deriveOwnedCaseWarningProfile(blocked, owned).level, "L4");
   }
 });
+
+test("final sanitation and stream cleanup precede the same reducer on server and browser", async () => {
+  const { finalizeM05DisplayResult, applyCompletedM05DisplayResult } = await jiti.import("../src/lib/followup-display-state.ts");
+  const { joinWarningText, adviceText } = await jiti.import("../src/lib/warning-text-projection.ts");
+  const { markdownNdjsonResponse } = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
+  const previous = { ...makeCase(), phase: "assess", riskAssessment: "## 合理用药审方\n旧版当前患者风险：禁止使用。\n## 生活管理\n旧调护" };
+  const projection = joinWarningText(["## 生活管理", adviceText("严禁过度劳累。"), "", adviceText("是否需要其他信息？")]);
+  const final = finalizeM05DisplayResult(previous, projection, customer.customerId);
+  const consumed = await consumeMarkdownStreamWithMetadata(markdownNdjsonResponse(projection.markdown), () => {});
+  assert.deepEqual(final.state, applyCompletedM05DisplayResult(previous, consumed, customer.customerId));
+  assert.equal(final.content, consumed.content);
+  assert.match(final.projection.currentRiskMarkdown, /旧版当前患者风险：禁止使用/);
+  assert.doesNotMatch(final.projection.currentRiskMarkdown, /严禁过度劳累|旧调护/);
+});
+
+test("snapshot decrypt verifies receipts without changing arbitrary payload or AES compatibility", async () => {
+  Object.assign(process.env, { CASE_SNAPSHOT_ENCRYPTION_KEY: "snapshot-warning-offline-encryption-key", CDSS_API_TOKEN: "warning-offline-access-token-32-chars", CDSS_REQUIRE_API_AUTH: "true" });
+  const { POST } = await jiti.import("../src/app/api/diagnosis/snapshot/route.ts");
+  const { withWarningStorageReceipt } = await jiti.import("../src/lib/warning-display-storage.ts");
+  const { sanitizeCaseStateForBrowserPersistence } = await jiti.import("../src/lib/browser-case-persistence.ts");
+  const { state, receipt } = await fixtureReceipt();
+  const request = (body) => new Request("http://localhost/api/diagnosis/snapshot", { method: "POST", headers: { "content-type": "application/json", "x-cdss-api-token": process.env.CDSS_API_TOKEN }, body: JSON.stringify({ ...body, binding: "b".repeat(64) }) });
+  const wrapped = withWarningStorageReceipt({ schemaVersion: "tcm-cdss-workspace-v1", caseState: sanitizeCaseStateForBrowserPersistence(state), workbenchDraft: null }, receipt);
+  for (const payload of [wrapped, [wrapped], { nested: wrapped }, { arbitrary: [1, "two"] }, null]) {
+    const encrypted = await (await POST(request({ action: "encrypt", payload }))).json();
+    assert.equal(encrypted.ok, true);
+    assert.equal(encrypted.verifiedWarningObservation, undefined);
+    for (const version of ["tcm-cdss-encrypted-snapshot-v2", "tcm-cdss-encrypted-snapshot-v1"]) {
+      const result = await (await POST(request({ action: "decrypt", envelope: { ...encrypted.envelope, schemaVersion: version } }))).json();
+      assert.equal(result.ok, true);
+      assert.deepEqual(result.payload, JSON.parse(JSON.stringify(payload)));
+      assert.equal(Boolean(result.verifiedWarningObservation), payload === wrapped);
+    }
+  }
+  const forged = { ...wrapped, __tcmWarningDisplayReceipt: { ...receipt, mac: `hmac-sha256:${"0".repeat(64)}` } };
+  const encrypted = await (await POST(request({ action: "encrypt", payload: forged }))).json();
+  const result = await (await POST(request({ action: "decrypt", envelope: encrypted.envelope }))).json();
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.payload, JSON.parse(JSON.stringify(forged)));
+  assert.equal(result.verifiedWarningObservation, undefined);
+});
+
+test("binding does not invent wall-clock defaults for absent optional display timestamps", async () => {
+  const { warningDisplayMaterial } = await jiti.import("../src/lib/warning-display-binding.ts");
+  const state = normalizeCaseStateInput({ ...makeCase(), hisRecord: { caseId: "warning-case", fields: { zhushu: "神疲乏力" } } });
+  delete state.hisRecord.updatedAt;
+  const first = warningDisplayMaterial(state, customer.customerId);
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(warningDisplayMaterial(state, customer.customerId), first);
+  const dated = clone(state);
+  dated.hisRecord.updatedAt = "2026-09-10T12:30:00.000Z";
+  assert.notEqual(warningDisplayMaterial(dated, customer.customerId), first);
+  dated.hisRecord.updatedAt = "2026-09-11T12:30:00.000Z";
+  assert.notEqual(warningDisplayMaterial(dated, customer.customerId), first);
+});
