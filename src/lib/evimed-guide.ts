@@ -5,6 +5,7 @@ import { UpstreamResponseTooLargeError, readResponseTextLimited } from "./http-r
 import { cancelResponseBody } from "./http-response-lifecycle";
 import { createHash } from "node:crypto";
 import { matchingMedicineClinicalProblemTerms } from "./medicine-clinical-concepts";
+import { rerankEvidenceDocuments } from "./evidence-rerank";
 
 const EVIMED_BASE_URL = (process.env.EVIMED_EVIDENCE_BASE_URL || "https://www.evimed.com/api-evimed").trim().replace(/\/$/, "");
 const GUIDE_API_URL = process.env.EVIMED_GUIDE_API_URL ||
@@ -660,9 +661,20 @@ async function buildSingleEvidenceSection(
   }
 
   lines.push("命中证据摘要（仅引用下列真实题名、机构、年份和URL；不得编造未列出的资料；引用时使用方括号ID）：");
-  // 指南取回窗口大于最终展示窗口：供应商的前 1–3 条常是儿童/病因专病共识，通用指南
-  // 常落在第 4–5 条。保留 5 条给服务端做相关性与人群排序，终稿仍只下发唯一首选引用。
-  items.slice(0, kind === "literature" ? 5 : kind === "instruction" ? 6 : 5).forEach((item, index) => {
+  let orderedIndices = items.map((_, index) => index);
+  if (result.ok && kind !== "instruction") {
+    const explicitNames = evidenceQueryExplicitNames(caseState);
+    const reranked = await rerankEvidenceDocuments(
+      sanitizeFreeTextForExternalClinicalService(usedQuery, explicitNames),
+      items.map(item => sanitizeFreeTextForExternalClinicalService(`${item.title}\n${item.summary || ""}`, explicitNames)),
+      { signal },
+    );
+    orderedIndices = reranked.order;
+  }
+  // Sort only the already-selected pool before the display window. IDs remain bound to the
+  // original result indices, including candidates newly promoted into the top five.
+  orderedIndices.slice(0, kind === "instruction" ? 6 : 5).forEach(index => {
+    const item = items[index];
     const evidenceId = `${config.idPrefix}-${String(index + 1).padStart(3, "0")}`;
     if (kind === "instruction") {
       lines.push(formatInstructionEvidenceRecord(item, evidenceId));
