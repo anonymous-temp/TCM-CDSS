@@ -45,6 +45,14 @@ test("warning material is deterministic, preserves clinical bytes and binds ever
   assert.throws(() => warningDisplayMaterial(state, "other-customer"));
 });
 
+test("wire normalization omits undefined fields while keeping explicit capability restrictions distinct", async () => {
+  const { warningDisplayMaterial } = await jiti.import("../src/lib/warning-display-binding.ts");
+  const state = makeCase();
+  const parsedWire = normalizeCaseStateInput(JSON.parse(JSON.stringify(state)));
+  assert.equal(warningDisplayMaterial(state, customer.customerId), warningDisplayMaterial(parsedWire, customer.customerId));
+  assert.notEqual(warningDisplayMaterial({ ...state, clinicTreatmentCapabilities: [] }, customer.customerId), warningDisplayMaterial(state, customer.customerId));
+});
+
 test("the shared M05 reducer retains old current audit, clears completed state and preserves display parity", async () => {
   const { applyCompletedM05DisplayResult, replaceRiskAssessmentFollowup } = await jiti.import("../src/lib/followup-display-state.ts");
   const { buildRxAuditStatusMarker } = await jiti.import("../src/lib/rxaudit-status.ts");
