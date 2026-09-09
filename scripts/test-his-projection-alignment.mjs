@@ -349,9 +349,9 @@ test("all three projections agree on a usable herbal candidate while retaining q
   assert.match(result.prescriptions.westernOrPatent[0].content, /禁止使用/);
 });
 
-test("all seven live regression fixtures deterministically reach their intended projection boundary offline", () => {
+test("all nine live regression fixtures deterministically reach their intended projection boundary offline", () => {
   const cases = fixtures.buildHisProjectionRegressionCases();
-  assert.equal(cases.length, 7);
+  assert.equal(cases.length, 9);
   for (const fixture of cases) {
     const checked = validateHisPrescriptionForWriteBack(fixture.state);
     if (fixture.httpStatus) {

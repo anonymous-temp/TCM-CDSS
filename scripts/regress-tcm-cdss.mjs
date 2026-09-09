@@ -1299,6 +1299,10 @@ function buildHisProjectionRegressionCases() {
   patientRisk.prescription += "\n## 本次用药风险提示\n本例存在绝对禁忌，禁止使用。";
   const extraOrder = cloneCase(combined);
   extraOrder.prescription += "\n## 西药/中成药方案\n每日口服替格瑞洛";
+  const extraInlineOrder = cloneCase(combined);
+  extraInlineOrder.prescription += "\n## 西药/中成药方案：每日两次，口服替格瑞洛";
+  const punctuationOrder = make("his-projection-punctuation-order", { medicine: false });
+  punctuationOrder.prescription += "\n## 西药/中成药方案\n每日2次，口服替格瑞洛";
   const edited = cloneCase(combined);
   edited.reasoningPrescribe.formula.candidates[0].herbs[0].dose = "20g";
   edited.reasoningV2 = cloneCase(edited.reasoningPrescribe);
@@ -1309,6 +1313,8 @@ function buildHisProjectionRegressionCases() {
     { name: "patient current risk", state: patientRisk, quality: true, medicine: true, restricted: true },
     { name: "true direction opposition", state: make("his-projection-opposition", { medicine: false, opposition: true }), quality: false, medicine: false, restricted: true },
     { name: "extra unsubmitted medical order", state: extraOrder, quality: true, medicine: true, restricted: true },
+    { name: "extra inline colon medical order", state: extraInlineOrder, quality: true, medicine: true, restricted: true },
+    { name: "unsubmitted punctuation separated medical order", state: punctuationOrder, quality: true, medicine: false, restricted: true },
     { name: "post acceptance edit", state: edited, httpStatus: 409 },
   ];
 }
