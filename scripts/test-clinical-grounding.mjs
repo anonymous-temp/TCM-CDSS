@@ -1681,6 +1681,8 @@ for (const [source, name] of [
   ["患者 李明头痛3天", "李明"], ["患者：李明头痛3天", "李明"],
   ["患者: 李明头痛3天", "李明"], ["家属：王强患高血压", "王强"],
   ["医生 王明患高血压", "王明"], ["该患者 ： 李明头痛", "李明"],
+  ["张三出现胸痛", "张三"], ["李明患糖尿病", "李明"], ["王强有高血压", "王强"],
+  ["李明发生头晕", "李明"], ["王强头痛3天", "王强"],
 ]) {
   assert.ok(!sanitizeFreeTextForModel(source).includes(name), `preserve high-confidence name removal: ${name}`);
 }
