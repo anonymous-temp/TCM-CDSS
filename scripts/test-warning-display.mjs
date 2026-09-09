@@ -105,3 +105,80 @@ test("outer-only display observation installation is atomic and expires synchron
   assert.equal(await pending, undefined);
   assert.equal(await prepareWarningObservation({ receipt, requestState, finalState, customerId: "other-customer", isCurrent: () => true }), undefined);
 });
+
+async function fixtureReceipt() {
+  const { createWarningDisplayReceipt } = await jiti.import("../src/lib/warning-display-receipt.server.ts");
+  const state = makeCase();
+  return { state, receipt: await createWarningDisplayReceipt({ producer: "assess", requestState: state, finalState: state, customer,
+    owned: { riskAssessment: { markdown: state.riskAssessment, currentRiskMarkdown: "" } } }) };
+}
+
+test("only opted-in outer warning frames survive a complete unambiguous stream", async () => {
+  const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
+  const { state, receipt } = await fixtureReceipt();
+  const frame = { type: "warning_profile", observation: receipt };
+  const content = { content: state.riskAssessment };
+  const end = { content: "[END]" };
+  const response = (frames) => new Response(new ReadableStream({ start(controller) {
+    for (const item of frames) controller.enqueue(new TextEncoder().encode(`${JSON.stringify(item)}\n`));
+    controller.close();
+  } }));
+  const result = await consumeMarkdownStreamWithMetadata(response([content, frame, end]), () => {}, { collectWarningProfile: true });
+  assert.deepEqual(result.warningObservation, receipt);
+  for (const frames of [
+    [content, frame, frame, end], [content, frame, end, frame],
+    [content, { ...frame, observation: { ...receipt, version: "unknown" } }, end],
+    [{ content: `${state.riskAssessment}\n${JSON.stringify(frame)}` }, end],
+    [content, { ...frame, content: "metadata mixed with prose" }, end],
+  ]) {
+    const output = await consumeMarkdownStreamWithMetadata(response(frames), () => {}, { collectWarningProfile: true });
+    assert.equal(output.warningObservation, undefined);
+    assert.ok(output.content.includes("严禁过度劳累"));
+  }
+  assert.equal((await consumeMarkdownStreamWithMetadata(response([content, frame, end]), () => {})).warningObservation, undefined);
+  const longContent = { content: "既有临床内容。".repeat(50) };
+  for (const frames of [[longContent, frame], [longContent, frame, { error: "上游错误" }, end]]) {
+    const output = await consumeMarkdownStreamWithMetadata(response(frames), () => {}, { collectWarningProfile: true, allowPartial: true });
+    assert.equal(output.warningObservation, undefined);
+    assert.ok(output.content.includes(longContent.content));
+  }
+});
+
+test("storage metadata is separate, matched to actual restored payload and cannot be laundered by encryption", async () => {
+  const { withWarningStorageReceipt, matchingWarningStorageReceipt } = await jiti.import("../src/lib/warning-display-storage.ts");
+  const { prepareWarningObservation } = await jiti.import("../src/lib/warning-display-observation.ts");
+  const { verifyStoredWarningObservation } = await jiti.import("../src/lib/warning-display-receipt.server.ts");
+  const { sanitizeCaseStateForBrowserPersistence } = await jiti.import("../src/lib/browser-case-persistence.ts");
+  const { state, receipt } = await fixtureReceipt();
+  const installed = await prepareWarningObservation({ receipt, requestState: state, finalState: state, customerId: customer.customerId, isCurrent: () => true });
+  const payload = { schemaVersion: "tcm-cdss-workspace-v1", caseState: sanitizeCaseStateForBrowserPersistence(state), workbenchDraft: null };
+  const matching = await matchingWarningStorageReceipt(payload, state, installed, () => true);
+  assert.ok(matching);
+  const wrapped = withWarningStorageReceipt({ ...payload, __tcmWarningDisplayReceipt: "untrusted old value" }, matching);
+  assert.deepEqual(wrapped.__tcmWarningDisplayReceipt, receipt);
+  assert.equal(Object.hasOwn(withWarningStorageReceipt(wrapped), "__tcmWarningDisplayReceipt"), false);
+  assert.ok(await verifyStoredWarningObservation(wrapped, customer));
+  assert.equal(await verifyStoredWarningObservation({ ...wrapped, __tcmWarningDisplayReceipt: { ...receipt, mac: `hmac-sha256:${"a".repeat(64)}` } }, customer), undefined);
+  for (const candidate of [ [wrapped], { nested: wrapped }, { ...wrapped, runningPhase: "assess" }, { ...wrapped, workbenchDraft: { caseId: state.id } } ]) {
+    assert.equal(await verifyStoredWarningObservation(candidate, customer), undefined);
+  }
+  assert.equal(await matchingWarningStorageReceipt({ ...payload, caseState: { ...payload.caseState, riskAssessment: "changed" } }, state, installed, () => true), undefined);
+  let current = true;
+  const pending = matchingWarningStorageReceipt(payload, state, installed, () => current);
+  current = false;
+  assert.equal(await pending, undefined);
+});
+
+test("owned audit grades do not arise from summary formatting and never downgrade prior structured blockers", async () => {
+  const { adviceText, joinWarningText } = await jiti.import("../src/lib/warning-text-projection.ts");
+  const { deriveOwnedCaseWarningProfile } = await jiti.import("../src/lib/clinical-warning-projection.server.ts");
+  const state = makeCase();
+  const projection = joinWarningText([adviceText("最高风险等级：中风险\n当前无确定性强提示\n严禁过度劳累。")]);
+  for (const [highestRiskLevel, expected] of [["MEDIUM", "L1"], ["HIGH", "L3"], ["CRITICAL", "L4"]]) {
+    const current = { ...state, riskAssessment: projection.markdown };
+    const owned = { riskAssessment: projection, audit: { auditResult: "MANUAL_REVIEW", highestRiskLevel, auditAvailable: true } };
+    assert.equal(deriveOwnedCaseWarningProfile(current, owned).level, expected);
+    const blocked = { ...current, prescriptionRevision: { source: "herb_workbench", candidateIndex: 0, herbHash: "older", auditedAt: "2026-09-10", auditResult: "BLOCK", highestRiskLevel: "CRITICAL", attestation: "older-attested" } };
+    assert.equal(deriveOwnedCaseWarningProfile(blocked, owned).level, "L4");
+  }
+});
