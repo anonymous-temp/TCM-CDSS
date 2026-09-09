@@ -21,7 +21,7 @@ import { safeDietAdviceForDisplay, GOVERNED_FORMULA_DATA_LABEL } from "./result-
 import { tcmTreatmentProtocolGapCopy, westernDiagnosisLabelForDisplay } from "./diagnosis-visible-summary";
 import { prioritizeTcmEvidenceForDisplay, prioritizeWesternEvidenceForDisplay } from "./clinical-evidence-display";
 import { normalizedFormulaModificationFields } from "./formula-modification";
-import { clinicalDeliveryAdvisorySection, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
+import { clinicalDeliveryAdvisorySection, isSafetyClinicalDeliveryAdvisory, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
 import { ordinaryHistoricalDoseDeviation } from "./diagnosis-stage-contract";
 
 type SchemeStatus = "ready" | "pending" | "limited";
@@ -897,6 +897,8 @@ export function buildHisAiSchemePayload(
   const permission = derivePrescriptionPermission(caseState);
   const suppressDoseLevelOutputs = permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked";
   const warningProfile = deriveCaseWarningProfile(caseState);
+  const safetyDeliveryFinding = deliveryAdvisories.some(isSafetyClinicalDeliveryAdvisory);
+  const adoptionRestricted = safetyDeliveryFinding || !warningProfile.executable;
   const diagnosis = caseState.diagnosis || "";
   const prescription = suppressDoseLevelOutputs ? "" : caseState.prescription || "";
   const risk = caseState.riskAssessment || "";
@@ -1041,12 +1043,11 @@ export function buildHisAiSchemePayload(
     || (!v2Herbal && isPlaceholderContent(markdownHerbal || prescription));
   const status: SchemeStatus = !hasAllOutputs
     ? "pending"
-    : phaseComplete && !truncatedOutput && !safetyLocked
+    : phaseComplete && !truncatedOutput && !safetyLocked && !adoptionRestricted
       ? "ready"
       : "limited";
-  // Automatic prescription review is advisory. A warning, degraded provider response, or manual
-  // review recommendation remains visible in riskTips but cannot by itself lock a structurally
-  // valid clinician-reviewed HIS proposal.
+  // The clinical journey remains available. All adoption fields share the existing T1 and
+  // nonexecutable-warning boundary; ordinary T2/T3 quality findings do not restrict adoption.
   const canAdopt = status === "ready"
     && permission.formalAdoption === "eligible_after_doctor_confirmation"
     && !structurallyInvalid;
@@ -1063,7 +1064,9 @@ export function buildHisAiSchemePayload(
         : caseState.auditAdvisory?.available === true
           ? strongPrescriptionRisk ? "alert" : "pass"
           : "not_submitted";
-  const blockedReason = contentMismatch || unauditedConcreteMedicine || invalidStructuredDose
+  const blockedReason = adoptionRestricted
+      ? "当前候选存在安全合同问题或已标记为不可执行，不可采纳或写回医嘱；已有诊疗内容可继续查看和编辑"
+    : contentMismatch || unauditedConcreteMedicine || invalidStructuredDose
       ? "处方展示对象与审方对象不一致或存在未审具体用药，需医生/药师人工复核"
     : !phaseComplete
       ? "诊疗链路未完整成功结束，仅允许医生查看已有辅助内容，不允许写回采纳"
@@ -1080,10 +1083,10 @@ export function buildHisAiSchemePayload(
     caseId: caseState.hisRecord?.caseId || caseState.id,
     generatedAt: new Date().toISOString(),
     status,
-    candidateStatus: structurallyInvalid
+    candidateStatus: structurallyInvalid || safetyDeliveryFinding
       ? "invalid"
       : canAdopt ? "valid" : "limited",
-    auditStatus: deliveryAdvisories.length > 0 && auditStatus === "pass" ? "alert" : auditStatus,
+    auditStatus: (deliveryAdvisories.length > 0 || adoptionRestricted) && auditStatus === "pass" ? "alert" : auditStatus,
     workflowPermission: "continue",
     reviewRequired: true,
     warnings: deliveryAdvisories.map((advisory) => ({ ...advisory })),
@@ -1433,7 +1436,7 @@ export function buildHisAiSchemePayload(
       pharmacistReviewRequired: true,
       overrideReasonRequired: historicalDoseReferenceOnly || strongPrescriptionRisk || warningLevelRank(warningProfile.level) >= warningLevelRank("L3"),
       warningConfirmationMode:
-        warningProfile.level === "L4" ? "blocked" :
+        adoptionRestricted ? "blocked" :
         warningProfile.level === "L3" ? "checkbox_and_reason" :
         warningProfile.level === "L2" ? "checkbox" :
         "none",

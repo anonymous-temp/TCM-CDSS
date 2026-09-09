@@ -427,6 +427,7 @@ check("安全边界：非剂量降级时新增投影必须同步抑制", () => {
 // accidentally satisfying the rejection tests. The benign fixture must remain adoptable.
 function adoptionFixture(herbs = prescribeReasoning.formula.candidates[0].herbs) {
   const reasoning = structuredClone(prescribeReasoning);
+  reasoning.formula.modifications = [];
   reasoning.formula.patentAndWestern = [];
   reasoning.formula.medicineCandidateStatus = { status: "no_evidence_match", reason: "本例无须具体中成药或西药" };
   reasoning.formula.candidates[0].herbs = herbs.map((herb) => ({
@@ -469,6 +470,7 @@ check("HIS adoption benign positive control", () => {
   const advisories = collectClinicalDeliveryAdvisories(state.reasoningPrescribe.formula.candidates[0], state.reasoningDiagnose, "");
   assert.deepEqual(advisories, [], "positive control must have no hidden clinical defect");
   const payload = buildHisAiSchemePayload(state, undefined, advisories);
+  assert.equal(payload.warningProfile.executable, true, JSON.stringify(payload.warningProfile));
   assert.equal(payload.status, "ready");
   assert.equal(payload.candidateStatus, "valid");
   assert.equal(payload.writeBackPolicy.allowSingleItemAdoption, true);

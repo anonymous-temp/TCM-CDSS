@@ -3,6 +3,7 @@ import { dosePassesSafetySanityCeiling, doseWithinConservativeModelLimit, m04Gen
 import { decoctionRuleForHerb, decoctionRuleSatisfied } from "./herb-decoction-rules";
 import { findTcmHerbPairIncompatibilities, getTcmHerbDoseLimit, isKnownTcmHerbName } from "./tcm-knowledge";
 import { hasIncompleteEditedHerb } from "./prescription-revision";
+import { rejectionTier } from "./diagnosis-rejection-tiers";
 
 type Candidate = NonNullable<ClinicalReasoningResultV2["formula"]>["candidates"][number];
 
@@ -16,6 +17,14 @@ export type ClinicalDeliveryAdvisory = Readonly<{
   message: string;
   suggestedAction: string;
 }>;
+
+/** Delivery findings originate in M04; bare codes must use its governed tier table. */
+export function isSafetyClinicalDeliveryAdvisory(advisory: ClinicalDeliveryAdvisory): boolean {
+  return [advisory.code, ...(advisory.relatedCodes || [])].some((value) => {
+    const code = value.trim();
+    return rejectionTier(code.startsWith("m03_") || code.startsWith("m04_") ? code : `m04_${code}`) === "T1";
+  });
+}
 
 const COPY: ReadonlyArray<readonly [RegExp, string, string]> = [
   [/dose_reference_deviation/, "本次候选剂量偏离本地历史参考范围，尚未经医生确认。", "请医生核对本次用量；如决定采用超常规用量，应注明理由并由医生签名确认。AI结果签名不代表医嘱或用量批准。"],
@@ -45,6 +54,9 @@ export function clinicalDeliveryAdvisoryFromIssue(
   const herbIndex = indexedHerb ? Number(indexedHerb[1]) : undefined;
   const herbName = herbIndex == null ? undefined : candidate.herbs[herbIndex]?.name;
   const copy = COPY.find(([pattern]) => pattern.test(issue));
+  const pairFindings = issue.endsWith("high_risk_pair_incompatibility")
+    ? findTcmHerbPairIncompatibilities(candidate.herbs.map((herb) => herb.name))
+    : [];
   const doseLimit = herbName && /dose/.test(issue) ? getTcmHerbDoseLimit(herbName) : undefined;
   const doseDetail = doseLimit?.min != null && doseLimit.max != null
     ? `当前药量 ${displayText(candidate.herbs[herbIndex!].dose || "未提供")}；历史参考 ${doseLimit.min}–${doseLimit.max}g。${/dose_reference_deviation/.test(issue) && doseLimit.basis ? `来源：${displayText(doseLimit.basis)}。` : ""}`
@@ -53,8 +65,12 @@ export function clinicalDeliveryAdvisoryFromIssue(
     code: issue,
     candidateIndex,
     ...(herbName ? { herbIndex, herbName: displayText(herbName) } : {}),
-    message: `${herbName ? `${displayText(herbName)}：` : ""}${copy?.[1] || "本次处方有一项需要医生结合病例确认的内容。"}${doseDetail}`,
-    suggestedAction: copy?.[2] || "请结合候选药味与患者资料进行判断，已有诊疗内容可继续查看和编辑。",
+    message: pairFindings.length > 0
+      ? pairFindings.map((finding) => `${displayText(finding.leftDrug)}—${displayText(finding.rightDrug)}：命中${displayText(finding.category)}；依据：${displayText(finding.basis)}。`).join(" ")
+      : `${herbName ? `${displayText(herbName)}：` : ""}${copy?.[1] || "本次处方有一项需要医生结合病例确认的内容。"}${doseDetail}`,
+    suggestedAction: pairFindings.length > 0
+      ? "当前候选不可采纳或写回医嘱，请调整相关药味后重新审方；已有诊疗内容可继续查看和编辑。"
+      : copy?.[2] || "请结合候选药味与患者资料进行判断，已有诊疗内容可继续查看和编辑。",
   };
 }
 
@@ -99,7 +115,7 @@ export function deduplicateClinicalDeliveryAdvisories(advisories: readonly Clini
     const previous = grouped.get(key);
     grouped.set(key, previous ? {
       ...previous,
-      relatedCodes: [...new Set([...(previous.relatedCodes || [previous.code]), ...(advisory.relatedCodes || [advisory.code])])],
+      relatedCodes: [...new Set([previous.code, ...(previous.relatedCodes || []), advisory.code, ...(advisory.relatedCodes || [])])],
     } : advisory);
   }
   return [...grouped.values()];
