@@ -21,6 +21,7 @@ const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compil
 const { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } = await jiti.import("../src/lib/clinical-review-binding.ts");
 const { applyPrescribeContractSignature } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
 const { isNonDosePrescriptionText } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const { parseReasoningV2 } = await jiti.import("../src/lib/diagnosis-parse.ts");
 const prior = ReasoningV2Schema.parse({
   schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
   overview: { primarySyndrome: "脾胃虚弱证", overallPathogenesis: "脾胃虚弱，运化无力", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
@@ -56,10 +57,16 @@ const signatureContext = { contractVersion: "tcm-cdss-m04-signature-v3", caseId:
 async function runWire({ first = proposal, reviewer = accepted, remainingMs = 2000, abortAfterReview = false,
   priorReasoning = prior, respond, outputTransform } = {}) {
   const originalFetch = globalThis.fetch;
+  const originalInfo = console.info;
   const abort = new AbortController();
   const requests = [];
+  const telemetry = [];
   let lateResolve;
   try {
+    console.info = (label, event) => {
+      if (label === "[tcm-cdss:telemetry] stage_result") telemetry.push(event);
+      originalInfo(label, event);
+    };
     globalThis.fetch = async (_url, init) => {
       const body = JSON.parse(init.body);
       requests.push(body);
@@ -68,6 +75,7 @@ async function runWire({ first = proposal, reviewer = accepted, remainingMs = 20
       if (abortAfterReview) queueMicrotask(() => abort.abort());
       const next = respond ? respond(requests.length, body) : reviewer;
       if (next === "stall") return new Promise((resolve) => { lateResolve = () => resolve(completion(accepted)); });
+      if (next instanceof Response) return next;
       return completion(next);
     };
     const response = await callDiagnosisStream("synthetic continuity fixture", "deepseek", undefined, "markdown", {
@@ -83,8 +91,8 @@ async function runWire({ first = proposal, reviewer = accepted, remainingMs = 20
     const finals = frames.filter((frame) => frame.content?.startsWith("<<<CDSS_STREAM_FINAL>>>"));
     lateResolve?.();
     await new Promise((resolve) => setTimeout(resolve, 20));
-    return { frames, finals, requests, content: finals.at(-1)?.content || "" };
-  } finally { lateResolve?.(); abort.abort(); globalThis.fetch = originalFetch; }
+    return { frames, finals, requests, telemetry: telemetry.at(-1), content: finals.at(-1)?.content || "" };
+  } finally { lateResolve?.(); abort.abort(); globalThis.fetch = originalFetch; console.info = originalInfo; }
 }
 function assertNonDose(content) {
   assert.ok(isNonDosePrescriptionText(content), "client must recognize and retain the non-dose result");
@@ -246,4 +254,68 @@ test("non-dose projection preserves measured and historical patient facts while 
   const unavailable = renderM04DeliveryCheckpoint(undefined, undefined, "deadline");
   assert.doesNotMatch(unavailable, /已完成的辨病辨证/);
   assert.match(unavailable, /没有可用.*辨病辨证/);
+});
+
+function assertConsumerReceivesSignedCandidate(result, dose) {
+  // These are the actual consumer acceptance inputs: the transport marker can override a perfectly
+  // parseable signed sentinel, so parsing alone is insufficient to demonstrate usable delivery.
+  const transportIncomplete = result.content.includes("[TRUNCATED]") ||
+    !result.content.includes("<!-- DIAGNOSIS_JSON_START -->") || !result.content.includes("<!-- DIAGNOSIS_JSON_END -->");
+  const nonDose = isNonDosePrescriptionText(result.content);
+  const reasoning = transportIncomplete ? undefined : parseReasoningV2(result.content);
+  assert.equal(transportIncomplete, false, "preserved signed candidate must not become a manual-retry result");
+  assert.equal(nonDose, false, "completed signed recovery must not be relabeled non-dose");
+  assert.ok(reasoning?.contractSignature && hasBoundClinicalReviewAttestation(reasoning));
+  assert.equal(reasoning.formula.candidates[0].herbs[0].dose, dose);
+  assert.equal(reasoning.clinicalReview.status, "accepted");
+  assert.equal(result.frames.filter((frame) => frame.content === "[END]").length, 1);
+  assert.equal(result.finals.length, 1);
+  assert.equal(result.telemetry.reviewStatus, "accepted", "delivery telemetry must refer to the recovered candidate");
+  assert.ok(["success", "repaired"].includes(result.telemetry.outcome));
+  assert.match(result.telemetry.reasonCode, /preserved_attested_candidate/);
+}
+
+test("final review rejection of a changed dose delivers the exact older signed candidate without truncation", async () => {
+  let firstReviewReturned = false;
+  const result = await runWire({
+    respond: (number) => {
+      if (number === 2) { firstReviewReturned = true; return accepted; }
+      return { status: "repair", issueCode: "dose_rationale_concern", repairFocus: "dose_strength", candidateIndex: 0, implicatedHerbs: ["党参"] };
+    },
+    outputTransform: (content) => {
+      if (!firstReviewReturned || !content.includes("<!-- DIAGNOSIS_JSON_START -->")) return content;
+      const reasoning = parseReasoningV2(content);
+      reasoning.formula.candidates[0].herbs[0].dose = "13g";
+      return wrap(reasoning);
+    },
+  });
+  assert.equal(result.requests.length, 3);
+  assertConsumerReceivesSignedCandidate(result, "12g");
+});
+
+test("a final presentation-transform exception recovers the completed signed candidate", async () => {
+  let firstReviewReturned = false;
+  const result = await runWire({
+    respond: () => { firstReviewReturned = true; return accepted; },
+    outputTransform: (content) => {
+      if (firstReviewReturned) throw new Error("synthetic late presentation failure");
+      return content;
+    },
+  });
+  assert.equal(result.requests.length, 2);
+  assertConsumerReceivesSignedCandidate(result, "12g");
+  assert.doesNotMatch(result.content, /GENERIC_KB_FALLBACK/);
+});
+
+test("a failed automatic provider repair preserves upstream attribution in normal fallback", async () => {
+  const first = structuredClone(proposal);
+  first.candidate.herbs[0].dose = "501g";
+  const result = await runWire({ first, remainingMs: 50000, respond: () => new Response("synthetic unavailable", { status: 503 }) });
+  assert.ok(result.requests.length >= 2 && result.requests.length <= 3);
+  assertNonDose(result.content);
+  assert.match(result.content, /模型服务暂时不可用/);
+  assert.match(result.content, /尚未形成.*个体化/);
+  assert.equal(result.telemetry.reasonCode, "upstream_model_unavailable");
+  assert.equal(result.telemetry.outcome, "fallback");
+  assert.equal(result.frames.filter((frame) => frame.content === "[END]").length, 1);
 });
