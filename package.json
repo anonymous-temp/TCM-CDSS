@@ -48,6 +48,7 @@
     "test:model-task-telemetry": "jiti scripts/test-model-task-telemetry.mjs",
     "test:prompt-context-experience": "jiti scripts/test-prompt-context-experience.mjs",
     "test:evidence-query-concurrency": "jiti scripts/test-evidence-query-concurrency.mjs",
+    "test:evidence-rerank": "node --test scripts/test-evidence-rerank.mjs",
     "test:followup-shared-consumers": "jiti scripts/test-followup-shared-consumers.mjs",
     "test:model-transport-accounting": "node --test scripts/test-model-transport-accounting.mjs",
     "test:m02-answer-reuse": "node scripts/test-m02-answer-reuse.mjs",
