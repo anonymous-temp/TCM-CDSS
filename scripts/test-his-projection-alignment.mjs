@@ -22,7 +22,7 @@ const { buildUnavailableRxAuditSection, buildAuditItemsFromHerbs, auditPrescript
 const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
 const { validateHisPrescriptionForWriteBack } = await jiti.import("../src/lib/his-prescription-validation.ts");
 const { deriveCaseWarningProfile } = await jiti.import("../src/lib/clinical-warning-tier.ts");
-const { medicineCandidateRow, localLabelRiskProjection } = await jiti.import("../src/lib/medicine-reference-projection.ts");
+const { medicineCandidateRow, medicineCandidateTable, localLabelRiskProjection } = await jiti.import("../src/lib/medicine-reference-projection.ts");
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
 const { unsupportedHighImpactHerbFindings } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { isSafetyClinicalDeliveryAdvisory } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
@@ -96,6 +96,15 @@ test("grounding rewrites one label clause without promoting other exact label cl
   assert.equal(deriveCaseWarningProfile(state).level, "L3");
   assert.equal(payload(state).prescriptions.herbal[0].adoptable, true);
   assert.equal(deriveCaseWarningProfile(withMedicine(benign(), { ...changed, riskNote: `${changed.riskNote}；本例存在绝对禁忌` })).level, "L4");
+});
+
+test("every nested heading ends the flat renderer's label reference domain", () => {
+  const state = withMedicine(benign());
+  const heading = medicineCandidateTable([medicine()])[0];
+  for (const nested of ["### 当前处方风险提示", "#### 本例风险", "##### 其他小节", `### ${heading.slice(3)}`]) {
+    const changed = { ...state, prescription: state.prescription.replace(heading, `${heading}\n${nested}`) };
+    assert.equal(deriveCaseWarningProfile(changed).level, "L4", nested);
+  }
 });
 
 test("current-risk copies, appended risk, other patient columns and forged provenance stay active", () => {
