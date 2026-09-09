@@ -56,6 +56,7 @@ const BLOCKING_LINES = [
   "风险等级 CRITICAL",
   "审方结论：BLOCK",
   "绝对禁忌：孕妇忌服",
+  "## 甘草与海藻存在十八反禁忌",
 ];
 for (const line of BLOCKING_LINES) {
   const herb = classifyHerbWarning({ drug: "附子", safety: line });
