@@ -2,7 +2,7 @@ import type { CaseState } from "./diagnosis-types";
 import { gateDispositionIsAdvisory } from "./diagnosis-safety";
 import { INTERNAL_EVIDENCE_PLACEHOLDER } from "./customer-evidence";
 import { sectionTitleGroup } from "./cdss-vocab";
-import { prescribeReasoningFromState } from "./diagnosis-parse";
+import { prescribeReasoningFromState, stripDiagnosisJSON } from "./diagnosis-parse";
 import { findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
 
 export type ClinicalWarningLevel = "L0" | "L1" | "L2" | "L3" | "L4";
@@ -61,10 +61,15 @@ function activeRiskLine(text: string, pattern: RegExp): string | undefined {
     );
 }
 
-/** The renderer's modification section describes unapplied changes, not the selected herbs. */
+/**
+ * Classify visible current-prescription prose, not the hidden reasoning envelope. The renderer's
+ * modification section describes unapplied options: its notes remain visible but do not establish
+ * current contraindications. Selected herb identities, audit decisions and current risk sections
+ * are checked independently; applying an option therefore re-evaluates the changed current herbs.
+ */
 function currentPrescriptionRiskText(text: string): string {
   let modificationHeadingDepth: number | undefined;
-  return text.split(/\r?\n/).filter((line) => {
+  return stripDiagnosisJSON(text).split(/\r?\n/).filter((line) => {
     const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
     if (heading) {
       const depth = heading[1].length;
