@@ -27,6 +27,7 @@ export function isSafetyClinicalDeliveryAdvisory(advisory: ClinicalDeliveryAdvis
 }
 
 const COPY: ReadonlyArray<readonly [RegExp, string, string]> = [
+  [/therapy_vocabulary_unverified/, "药味的多种功用尚未全部对应到本例治法，需要核对其在本方中的实际作用。", "请医生结合已确认的病机和本方用药目的复核；此项是功用说明的待核对提示。"],
   [/dose_reference_deviation/, "本次候选剂量偏离本地历史参考范围，尚未经医生确认。", "请医生核对本次用量；如决定采用超常规用量，应注明理由并由医生签名确认。AI结果签名不代表医嘱或用量批准。"],
   [/emperor_(?:not_primary|therapy_mismatch)/, "君药的角色标注或功效与主要病机的对应仍需确认。", "请结合主症与治法核对君药选择、君臣佐使分工和病机归属，再决定是否调整相关药味。"],
   [/high_risk_pair|incompatib/, "处方中有需注意的药味配伍组合。", "请结合配伍提示与本次用药目的决定是否调整相关药味。"],
@@ -101,8 +102,16 @@ export function collectClinicalDeliveryAdvisories(
   if (findTcmHerbPairIncompatibilities(candidate.herbs.map((herb) => herb.name)).length > 0) {
     issues.add("candidate_0_high_risk_pair_incompatibility");
   }
-  for (const finding of unsupportedHighImpactHerbFindings(candidate.herbs, prior, true, candidate.formulaNames || [], true)) {
+  const opposing = unsupportedHighImpactHerbFindings(candidate.herbs, prior, true, candidate.formulaNames || [], true);
+  for (const finding of opposing) {
     issues.add(`candidate_0_herb_${finding.index}_unsupported_high_impact_${finding.concepts.join("_")}`);
+  }
+  // Recompute both views against this exact candidate and M03. Acceptance metadata cannot waive
+  // safety codes; independent opposing findings and all other related codes remain untouched.
+  for (const finding of unsupportedHighImpactHerbFindings(candidate.herbs, prior, true, candidate.formulaNames || [], false)) {
+    const safetyConcepts = opposing.find((item) => item.index === finding.index)?.concepts || [];
+    const vocabularyOnly = finding.concepts.filter((concept) => !safetyConcepts.includes(concept));
+    for (const concept of vocabularyOnly) issues.add(`candidate_0_herb_${finding.index}_therapy_vocabulary_unverified_${concept}`);
   }
   return deduplicateClinicalDeliveryAdvisories([...issues].map((issue) =>
     clinicalDeliveryAdvisoryFromIssue(issue, candidate, candidateIndex)));

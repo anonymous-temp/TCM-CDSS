@@ -259,7 +259,7 @@ export async function POST(req: Request) {
     inputAdvisories,
   );
   const auditSection = [
-    buildRxAuditScopeSection(caseState, candidateIndex),
+    buildRxAuditScopeSection(caseState, candidateIndex, providerAudit.submissionScope),
     inputAdvisorySection,
     buildLingxiRiskSection(effectiveAudit, patientSex),
   ].filter(Boolean).join("\n\n");
@@ -299,7 +299,7 @@ export async function POST(req: Request) {
     auditedAt,
   });
   return Response.json({
-    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise, validation.advisories), contractVersion, parsed.customer.customerId)),
+    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise, validation.advisories, providerAudit.submissionScope), contractVersion, parsed.customer.customerId)),
     auditCorrelation: correlation,
   });
 }

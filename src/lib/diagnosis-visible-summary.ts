@@ -25,7 +25,7 @@ import {
 } from "./clinical-fact-source";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { displayableLineageAdaptation } from "./tcm-lineages";
-import { clinicianVisibleMedicationRiskNote } from "./patient-relevant-medication-risk";
+import { medicineCandidateTable } from "./medicine-reference-projection";
 import type { CaseState } from "./diagnosis-types";
 import { safeDietAdviceForDisplay, GOVERNED_HERB_DATA_LABEL } from "./result-display-policy";
 import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
@@ -3595,22 +3595,7 @@ function visiblePrescribeFromReasoning(
   if (patentAndWestern.length > 0) {
     lines.push(
       "",
-      `## ${clinicalOutputLabel("M04-patent-western", "中成药/西药候选")}`,
-      "| 类型 | 药品 | 规格 | 建议层级 | 说明书用法 | 用药定位 | 对应问题 | 参考文献 | 风险提示 |",
-      "|---|---|---|---|---|---|---|---|---|",
-      ...patentAndWestern.map((item) => {
-        const itemEvidence = recordValue(item.evidence);
-        const level = item.recommendationMode === "discussion_only" ? "仅供讨论（无剂量）" : "说明书绑定候选（无剂量）";
-        const visibleRisk = clinicianVisibleMedicationRiskNote(markdownCell(item.riskNote), caseState);
-        const labelUsage = clinicalSentence([
-          markdownCell(item.route),
-          markdownCell(item.singleDose),
-          markdownCell(item.frequency),
-          markdownCell(item.administrationTiming),
-          markdownCell(item.course),
-        ], "，");
-        return `| ${markdownCell(item.type)} | ${markdownCell(item.name)} | ${markdownCell(item.specification) || "—"} | ${level} | ${markdownCell(labelUsage) || "—"} | ${markdownCell(item.positioning)} | ${markdownCell(item.correspondingProblem)} | ${markdownCell(itemEvidence?.source)} | ${markdownCell(visibleRisk)} |`;
-      }),
+      ...medicineCandidateTable(patentAndWestern, caseState),
     );
   } else if (medicineCandidateStatus?.status === "no_evidence_match" && isDisplayableClinicalText(markdownCell(medicineCandidateStatus.reason))) {
     lines.push("", `## ${clinicalOutputLabel("M04-patent-western", "中成药/西药候选")}`, markdownCell(medicineCandidateStatus.reason));

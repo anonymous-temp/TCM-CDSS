@@ -71,8 +71,15 @@ export type RxAuditOutcome =
       auditId?: string;
       traceId?: string;
       itemCount: number;
+      /** Server-owned receipt of the exact items in the successful provider request. Not a dose approval. */
+      submissionScope?: RxAuditSubmissionScope;
     }
   | { ok: false; source: "unavailable"; reason: string; itemCount: number };
+
+export type RxAuditSubmissionScope = {
+  candidateIndex: number;
+  submittedItems: Array<Record<string, unknown>>;
+};
 
 export type RxAuditCorrelationMetadata = {
   provider: "lingxi-rxaudit";
@@ -991,7 +998,7 @@ export function rxAuditPresentationEnabled(): boolean {
   return process.env.CDSS_SHOW_RX_AUDIT_SECTION === "true";
 }
 
-export function buildRxAuditScopeSection(state: CaseState, candidateIndex?: number): string {
+export function buildRxAuditScopeSection(state: CaseState, candidateIndex?: number, submissionScope?: RxAuditSubmissionScope): string {
   const candidate = candidateFromState(state, candidateIndex);
   if (!candidate) return "";
   const herbCount = candidate.herbs.filter((herb) => herb.name?.trim()).length;
@@ -999,13 +1006,14 @@ export function buildRxAuditScopeSection(state: CaseState, candidateIndex?: numb
     .filter((item) => item?.name?.trim() && (item.type === "中成药" || item.type === "西药"));
   const patentCount = medicines.filter((item) => item.type === "中成药").length;
   const westernCount = medicines.filter((item) => item.type === "西药").length;
-  const submitted = buildAuditItemsFromHerbs(state, candidateIndex);
+  const submitted = submissionScope?.candidateIndex === (candidateIndex ?? state.prescriptionRevision?.candidateIndex ?? 0)
+    ? submissionScope.submittedItems : [];
   const submittedMedicineCount = submitted.filter((item) => item.drug_type === "中成药" || item.drug_type === "西药").length;
   const lines = [
-    `**本次审方范围**：中药饮片 ${herbCount} 味；中成药 ${patentCount} 项；西药 ${westernCount} 项。`,
+    `**${submissionScope ? "本次审方范围" : "本次待核对范围"}**：中药饮片 ${herbCount} 味；中成药 ${patentCount} 项；西药 ${westernCount} 项。`,
   ];
   if (medicines.length > submittedMedicineCount) {
-    lines.push(`**范围限制**：${medicines.length - submittedMedicineCount} 项中成药/西药候选未提交审方，需人工复核联用；本次结果不得解释为整张处方通过。`);
+    lines.push(`**范围限制**：${medicines.length - submittedMedicineCount} 项中成药/西药候选尚无本次有效送审凭据，需人工复核联用；未伪造单次剂量，本次结果不得解释为整张处方通过。`);
   } else if (medicines.length > 0) {
     lines.push("**范围说明**：中成药/西药候选已按药品身份及联用边界提交，但未伪造单次剂量；剂量与具体用法仍需医生/药师人工确认。");
   } else {
@@ -2224,6 +2232,10 @@ export async function auditPrescriptionWithLingxi(
       auditId: boundedCorrelationIdentifier(d.audit_id),
       traceId: boundedCorrelationIdentifier(parsedRecord.trace_id),
       itemCount: built.itemCount,
+      ...(d.degraded !== true ? { submissionScope: {
+        candidateIndex: resolveRxAuditCandidateIndex(state, candidateIndex) ?? 0,
+        submittedItems: structuredClone((built.data.prescription as { items: Array<Record<string, unknown>> }).items),
+      } } : {}),
     };
   }
   return { ok: false, source: "unavailable", reason: "rxaudit_exhausted_retries", itemCount: built.itemCount };

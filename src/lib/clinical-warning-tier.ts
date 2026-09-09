@@ -4,6 +4,7 @@ import { INTERNAL_EVIDENCE_PLACEHOLDER } from "./customer-evidence";
 import { sectionTitleGroup } from "./cdss-vocab";
 import { prescribeReasoningFromState, stripDiagnosisJSON } from "./diagnosis-parse";
 import { findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
+import { medicineCandidateRow, verifiedLocalLabelRisk } from "./medicine-reference-projection";
 
 export type ClinicalWarningLevel = "L0" | "L1" | "L2" | "L3" | "L4";
 export type ClinicalWarningAction =
@@ -67,17 +68,34 @@ function activeRiskLine(text: string, pattern: RegExp): string | undefined {
  * current contraindications. Selected herb identities, audit decisions and current risk sections
  * are checked independently; applying an option therefore re-evaluates the changed current herbs.
  */
-function currentPrescriptionRiskText(text: string): string {
+function currentPrescriptionRiskText(text: string, state: CaseState): string {
   let modificationHeadingDepth: number | undefined;
-  return stripDiagnosisJSON(text).split(/\r?\n/).filter((line) => {
+  let medicineHeadingDepth: number | undefined;
+  const consumedRows = new Set<number>();
+  const referenceRows = new Map((prescribeReasoningFromState(state)?.formula?.patentAndWestern || [])
+    .flatMap((item, index) => verifiedLocalLabelRisk(item)
+      // Some server-owned renderers lack patient context and retain the complete label. Both
+      // projections are reconstructed, not client-declared; consume the underlying row only once.
+      ? [state, undefined].map((context) => [medicineCandidateRow(item, context),
+        { index, projected: medicineCandidateRow(item, context, "") }] as const)
+      : []));
+  return stripDiagnosisJSON(text).split(/\r?\n/).flatMap((line) => {
     const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
     if (heading) {
       const depth = heading[1].length;
       if (modificationHeadingDepth != null && depth <= modificationHeadingDepth) modificationHeadingDepth = undefined;
+      if (medicineHeadingDepth != null && depth <= medicineHeadingDepth) medicineHeadingDepth = undefined;
       // Closed renderer section identity, not a clinical-language or risk-phrase exception.
       if (heading[2] === "随证加减建议") modificationHeadingDepth = depth;
+      if (sectionTitleGroup("westernOrPatent").includes(heading[2])) medicineHeadingDepth = depth;
     }
-    return modificationHeadingDepth == null;
+    if (modificationHeadingDepth != null) return [];
+    const reference = referenceRows.get(line);
+    if (medicineHeadingDepth != null && reference && !consumedRows.has(reference.index)) {
+      consumedRows.add(reference.index);
+      return [reference.projected];
+    }
+    return [line];
   }).join("\n");
 }
 
@@ -188,7 +206,7 @@ export function classifyHerbWarning(input: {
 export function deriveCaseWarningProfile(caseState: CaseState): ClinicalWarningProfile {
   const gate = caseState.safetyGate;
   const revision = caseState.prescriptionRevision;
-  const combined = [currentPrescriptionRiskText(caseState.prescription || ""), caseState.riskAssessment].filter(Boolean).join("\n");
+  const combined = [currentPrescriptionRiskText(caseState.prescription || "", caseState), caseState.riskAssessment].filter(Boolean).join("\n");
   const selected = prescribeReasoningFromState(caseState)?.formula?.candidates[revision?.candidateIndex ?? 0];
   const highRiskPairs = findTcmHerbPairIncompatibilities(selected?.herbs.map((herb) => herb.name) || []);
 

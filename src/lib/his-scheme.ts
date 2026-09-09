@@ -1,6 +1,7 @@
 import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, isNonDosePrescriptionText, withSafetyGate } from "./diagnosis-safety";
 import { sectionTitleGroup } from "./cdss-vocab";
-import { rxAuditPresentationEnabled } from "./rxaudit";
+import { buildAuditItemsFromHerbs, rxAuditPresentationEnabled, type RxAuditSubmissionScope } from "./rxaudit";
+import { medicineCandidateTable } from "./medicine-reference-projection";
 import { qualityAnnotationCopy } from "./diagnosis-rejection-tiers";
 import type { CaseState, ClinicalCitation, SafetyGate } from "./diagnosis-types";
 import { extractPrescribedHerbs, getTcmHerbDoseLimit, clinicianDoseHerbClass } from "./tcm-knowledge";
@@ -705,7 +706,26 @@ function markdownV2HerbMismatch(markdownHerbal: string, caseState: CaseState): b
 function hasConcreteWesternOrPatentMedication(medicine: string): boolean {
   const text = clean(medicine);
   if (!text || isPlaceholderContent(text)) return false;
-  return /(片|胶囊|颗粒|丸|口服液|注射液|滴丸|mg|ml|tid|bid|qd|qn|每日|每次|用法用量|阿司匹林|氯吡格雷|华法林|二甲双胍|胰岛素|氨氯地平|美托洛尔|阿莫西林|头孢|布洛芬|对乙酰氨基酚|复方丹参|藿香正气|逍遥丸|六味地黄丸)/i.test(text);
+  return /(片|胶囊|颗粒|丸|口服液|注射液|滴丸|mg|ml|tid|bid|qd|qn|用法用量|阿司匹林|氯吡格雷|华法林|二甲双胍|胰岛素|氨氯地平|美托洛尔|阿莫西林|头孢|布洛芬|对乙酰氨基酚|复方丹参|藿香正气|逍遥丸|六味地黄丸)/i.test(text);
+}
+
+/** The route passes a receipt of actual successful submission, never a client audit claim or the
+ * herb-only version hash. Identity/combination coverage can remove an unrelated herbal lock;
+ * medicine order authority stays separate. Legacy/extra/edited prose retains conservative scope.
+ */
+function medicineOutsideSubmittedScope(state: CaseState, medicine: string, receipt?: RxAuditSubmissionScope | null): boolean {
+  const medicines = prescribeReasoningFromState(state)?.formula?.patentAndWestern || [];
+  const headings = (state.prescription || "").split(/\r?\n/).filter((line) => {
+    const heading = line.match(/^##\s+(.+?)\s*$/);
+    return heading && sectionTitleGroup("westernOrPatent").includes(heading[1]);
+  });
+  if (medicines.length === 0) return headings.length > 1 || hasConcreteWesternOrPatentMedication(medicine);
+  const index = state.prescriptionRevision?.candidateIndex ?? 0;
+  if (!receipt || receipt.candidateIndex !== index || headings.length !== 1) return true;
+  const expectedItems = buildAuditItemsFromHerbs(state, index);
+  const submittedMedicines = receipt.submittedItems.filter((item) => item.drug_type === "中成药" || item.drug_type === "西药");
+  if (submittedMedicines.length !== medicines.length || JSON.stringify(expectedItems) !== JSON.stringify(receipt.submittedItems)) return true;
+  return ![state, undefined].some((context) => medicine.trim() === medicineCandidateTable(medicines, context).slice(1).join("\n").trim());
 }
 
 function hasStrongPrescriptionRisk(...texts: string[]): boolean {
@@ -890,6 +910,7 @@ export function buildHisAiSchemePayload(
   caseState: CaseState,
   evidenceScope?: EvidenceScope,
   deliveryAdvisories: readonly ClinicalDeliveryAdvisory[] = [],
+  auditSubmissionScope?: RxAuditSubmissionScope | null,
 ): HisAiSchemePayload {
   const normalizedState = withSafetyGate(caseState);
   const gate = evaluateSafetyGate(normalizedState);
@@ -943,7 +964,7 @@ export function buildHisAiSchemePayload(
     .join("；");
   const contentMismatch = suppressDoseLevelOutputs ? false : markdownV2HerbMismatch(markdownHerbal, caseState);
   const invalidStructuredDose = suppressDoseLevelOutputs ? false : structuredHerbs(caseState).some((herb) => !isValidEditedHerbDose(herb.dose));
-  const unauditedConcreteMedicine = hasConcreteWesternOrPatentMedication(medicine);
+  const unauditedConcreteMedicine = medicineOutsideSubmittedScope(caseState, medicine, auditSubmissionScope);
   // 受理裁决范围读取(2026-08-03 根源工程): 生成侧带批注受理的裁决随合同签名下发,
   // HIS 侧**读取并呈现**豁免/批注码,而不是用自己的口径把已受理候选再判一遍——
   // "这里受理、那里重判"的分叉在写回边界由读取取代。哈希未绑定(旧快照/被篡改)时不显示。
@@ -998,7 +1019,7 @@ export function buildHisAiSchemePayload(
       ? "## 处方一致性校验\n**结论**：处方正文与药味表不一致，HIS 展示已改用药味表；原输出需医生/药师人工复核，不允许写回采纳。"
       : "",
     unauditedConcreteMedicine
-      ? "## 处方一致性校验\n**结论**：西药/中成药候选未进入本次中药饮片审方，请按药品说明书、相互作用和院内药事规则人工复核；该提示不阻断诊疗流程。"
+      ? "## 处方一致性校验\n**结论**：中成药/西药展示内容尚未与本次实际送审的药品身份、规格及联用范围完整对应，请医生/药师人工复核；诊疗内容可继续查看。"
       : "",
     invalidStructuredDose
       ? "## 处方一致性校验\n**结论**：药味表存在缺失、非正数或明显超出通用数量级的单次剂量；不得采纳或写回，需医生修正后重新审方。"
@@ -1328,9 +1349,9 @@ export function buildHisAiSchemePayload(
         };
       }),
       westernOrPatent: suppressDoseLevelOutputs ? [] : [item("medicine-1", "西药/中成药方案", medicine, {
-        adoptable: canAdopt,
+        adoptable: false,
         safetyLocked,
-        blockedReason,
+        blockedReason: "中成药/西药候选仅供说明书与联用关系复核，本次身份审方不授予剂量、医嘱或采纳权限。",
       })],
       regimen: suppressDoseLevelOutputs ? null : prescriptionRegimenFromDecoction(structuredCandidate(caseState)?.decoction),
       decoctionDetail: (() => {

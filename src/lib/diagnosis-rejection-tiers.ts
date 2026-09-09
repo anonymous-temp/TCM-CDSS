@@ -148,6 +148,9 @@ const T3_M03: ReadonlySet<string> = new Set([
  * 拿到一个 T2 码只证明排在它前面的检查通过了。
  */
 const T2_M04_PATTERNS: readonly RegExp[] = [
+  // Emitted by the exact current herb's strict-minus-opposing comparison. Existing ambiguous
+  // unsupported_high_impact codes remain T1, including any independently attached relatedCodes.
+  /^candidate_\d+_herb_\d+_therapy_vocabulary_unverified_(?:heat_clear|yang_warm|blood_move|purge|orifice_open|mass_soften)$/,
   // Emitted only by the bounded ordinary historical-reference classifier; the old ambiguous
   // outside-range code remains T1. Acceptance still re-runs the complete independent safety floor.
   /^candidate_\d+_herb_\d+_dose_reference_deviation$/,
@@ -251,6 +254,9 @@ export function qualityAnnotationCopy(reason: string): string | undefined {
   if (!tier) return undefined;
   const prescribe = typeof reason === "string" && reason.trim().startsWith("m04_");
   if (prescribe) {
+    if (/therapy_vocabulary_unverified/.test(reason)) {
+      return "药味的多种功用尚未全部对应到本例治法，请结合已确认的病机及其在本方中的实际作用复核。";
+    }
     if (/^m04_candidate_\d+_herb_\d+_dose_reference_deviation$/.test(reason.trim())) {
       return "部分候选剂量偏离本地历史常用量参考，尚未经医生确认；药味表保留原剂量与参考来源供审阅。请医生结合本次病历核对，必要时说明用量理由并签名；AI结果签名不代表医嘱或用量批准。";
     }

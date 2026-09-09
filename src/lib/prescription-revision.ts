@@ -47,6 +47,7 @@ export function editedPrescriptionSemanticIssue(
   candidateIndex: number,
   priorReasoning?: ClinicalReasoningResultV2 | null,
   clinicalContext = "",
+  opposingDirectionOnly = false,
 ): string | undefined {
   const candidate = reasoning?.formula?.candidates?.[candidateIndex];
   if (!reasoning || reasoning.stage !== "prescribe" || !reasoning.formula || !candidate) return "candidate_missing";
@@ -73,6 +74,7 @@ export function editedPrescriptionSemanticIssue(
     true,
     false,
     clinicalContext,
+    opposingDirectionOnly,
   );
 }
 

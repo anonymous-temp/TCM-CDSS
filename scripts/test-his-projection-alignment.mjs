@@ -22,6 +22,7 @@ const { buildUnavailableRxAuditSection, buildAuditItemsFromHerbs } = await jiti.
 const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
 const { validateHisPrescriptionForWriteBack } = await jiti.import("../src/lib/his-prescription-validation.ts");
 const { deriveCaseWarningProfile } = await jiti.import("../src/lib/clinical-warning-tier.ts");
+const { medicineCandidateRow, verifiedLocalLabelRisk } = await jiti.import("../src/lib/medicine-reference-projection.ts");
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
 const { unsupportedHighImpactHerbFindings } = await jiti.import("../src/lib/diagnosis-stage-contract.ts");
 const { isSafetyClinicalDeliveryAdvisory } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
@@ -76,6 +77,8 @@ function payload(state, auditScope = scope(state)) {
 test("exact canonical label risk stays visible without becoming a patient L4", () => {
   const state = withMedicine(benign());
   assert.match(state.prescription, /本品性状发生改变时禁止使用/);
+  assert.equal(verifiedLocalLabelRisk(state.reasoningPrescribe.formula.patentAndWestern[0]), true);
+  assert.ok(state.prescription.includes(medicineCandidateRow(state.reasoningPrescribe.formula.patentAndWestern[0])));
   const warning = deriveCaseWarningProfile(state);
   assert.equal(warning.level, "L3");
   assert.equal(warning.executable, true);

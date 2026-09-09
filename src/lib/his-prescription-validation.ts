@@ -139,6 +139,7 @@ export function validateHisPrescriptionForWriteBack(
     candidateIndex,
     diagnoseReasoning,
     clinicalGroundingText(caseState),
+    true,
   );
 
   const selectedReasoning: ClinicalReasoningResultV2 = {
