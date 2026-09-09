@@ -286,7 +286,8 @@ test("observation-only daily prose does not invent an unsubmitted medicine", () 
 });
 
 test("legacy frequency plus administration remains an unsubmitted order without a familiar drug suffix", () => {
-  for (const text of ["每日口服替格瑞洛", "每次吸入沙丁胺醇", "每晚服用依折麦布", "口服替格瑞洛，每日两次"]) {
+  for (const text of ["每日口服替格瑞洛", "每次吸入沙丁胺醇", "每晚服用依折麦布", "口服替格瑞洛，每日两次",
+    "替格瑞洛每日口服", "建议每日口服替格瑞洛", "沙丁胺醇每次吸入", "依折麦布口服，每晚一次"]) {
     const state = benign();
     state.prescription += `\n## 中成药/西药候选\n${text}`;
     assert.equal(payload(state, null).prescriptions.herbal[0].adoptable, false, text);
