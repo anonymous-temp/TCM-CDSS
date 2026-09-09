@@ -1638,7 +1638,6 @@ await assert.rejects(
   /长时间无数据/,
 );
 
-console.log(JSON.stringify({ cases: 169, failures: 0 }));
 
 // ─── 程度副词/弱化量词重组不构成编造（2026-07 甲方妇科病例实测的类）───
 // 长枚举句病历里，模型引用几乎必然发生副词压缩：「经量较前明显增多」→「经量增多」、
@@ -1666,3 +1665,22 @@ console.log(JSON.stringify({ cases: 169, failures: 0 }));
       `「${fact}」升级或编造了病历没有的表述，必须仍拒`);
   }
 }
+
+// Raw field values do not carry the clinical labels used by the existing PHI position exemption.
+// A surname-shaped two-character clinical noun is not a name merely because a symptom follows it.
+for (const clinical of [
+  "周身出现块状皮疹", "全身发热3天", "常有心悸", "黄疸出现于巩膜",
+  "干呕发生于晨起", "皮肤出现瘙痒", "白苔出现2日", "后背出现疼痛",
+]) {
+  assert.equal(sanitizeFreeTextForModel(clinical), clinical, `preserve unlabeled clinical fact: ${clinical}`);
+  assert.equal(sanitizeFreeTextForExternalClinicalService(clinical), clinical);
+}
+for (const [source, name] of [
+  ["张三昨夜失眠", "张三"], ["患者张三失眠", "张三"],
+  ["欧阳明月今日来诊", "欧阳明月"], ["姓名：李明，男，45岁", "李明"],
+]) {
+  assert.ok(!sanitizeFreeTextForModel(source).includes(name), `preserve high-confidence name removal: ${name}`);
+}
+assert.ok(!sanitizeFreeTextForExternalClinicalService("李明头痛3天", ["李明"]).includes("李明"),
+  "explicit patient identity is still removed without a narrative-name cue");
+console.log(JSON.stringify({ suite: "clinical-grounding", failures: 0 }));
