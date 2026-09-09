@@ -709,7 +709,8 @@ function markdownV2HerbMismatch(markdownHerbal: string, caseState: CaseState): b
 }
 
 function hasConcreteWesternOrPatentMedication(medicine: string): boolean {
-  const text = clean(medicine);
+  // Compatibility width is a matcher concern only; preserve the original medicine display.
+  const text = clean(medicine).normalize("NFKC");
   if (!text || isPlaceholderContent(text)) return false;
   // Closed compositional administration grammar: a frequency alone is not a medicine, but a
   // frequency + administration route remains an unsubmitted order even for unfamiliar names.
