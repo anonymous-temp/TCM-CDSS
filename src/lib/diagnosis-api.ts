@@ -3671,6 +3671,10 @@ async function callPrimaryTextModelStream(
       let repairFailedOnTransport = false;
       /** 首轮生成的两次有界连接尝试是否均死于网络/超时/可重试 HTTP。 */
       let initialGenerationFailedOnTransport = false;
+      const m04ContinuityReason = (
+        otherwise: Parameters<typeof renderM04DeliveryCheckpoint>[2] = "contract_rejected",
+      ): Parameters<typeof renderM04DeliveryCheckpoint>[2] => m04DeadlineExceeded ? "deadline"
+        : initialGenerationFailedOnTransport || repairFailedOnTransport ? "upstream_unavailable" : otherwise;
       const noteRepairOutcome = (result: { ok: boolean; reason?: string; status?: number }) => {
         repairFailedOnTransport = structuredRepairFailureIsUpstreamUnavailable(result as StructuredRepairResult, {
           parentAborted: upstreamController.signal.aborted || Boolean(opts.requestSignal?.aborted),
@@ -3816,6 +3820,32 @@ async function callPrimaryTextModelStream(
         enqueueClient("[END]");
         closeClientStream();
       };
+      const deliverM04Continuity = (reason: Parameters<typeof renderM04DeliveryCheckpoint>[2]) => {
+        if (clientStreamClosed) return;
+        if (opts.requestSignal?.aborted) {
+          closeAfterClientCancellation();
+          return;
+        }
+        const checkpoint = m04DeliveryCheckpoint;
+        const completed = checkpoint?.signedContent !== undefined && checkpoint.attestation?.status === "accepted";
+        // The stage result describes what the consumer receives, not the last discarded attempt.
+        // Review events still retain every rejected/failed attempt independently in telemetry.
+        m04ClinicalReviewStatus = completed ? "accepted" : checkpoint?.review?.status || "not_run";
+        m04ClinicalReviewReason = checkpoint?.review
+          ? m04SemanticReviewReason(checkpoint.review as M04ClinicalReview) : undefined;
+        m04ClinicalReviewAttestation = checkpoint?.attestation;
+        m04ClinicalReviewer = checkpoint?.attestation
+          ? `${checkpoint.attestation.provider}/${checkpoint.attestation.model}/${checkpoint.attestation.source}` : "none";
+        stageOutcome = completed ? structuredRetryCount > 0 ? "repaired" : "success" : "fallback";
+        stageReasonCode = completed ? `${reason}_preserved_attested_candidate`
+          : reason === "upstream_unavailable" ? "upstream_model_unavailable"
+            : checkpoint ? `${reason}_preserved_non_dose_candidate` : `${reason}_no_valid_candidate`;
+        // These bytes are either the exact completed signed checkpoint or a server-owned non-dose
+        // projection. Never add [TRUNCATED] or re-transform/rebind a preserved signed checkpoint.
+        enqueueClient(`${STREAM_REPLACE_MARKER}${m04ContinuityFallback(reason)}`);
+        enqueueClient("[END]");
+        closeClientStream();
+      };
       forceCloseAtAbsoluteDeadline = () => {
         if (clientStreamClosed) return;
         upstreamController.abort();
@@ -3829,13 +3859,7 @@ async function callPrimaryTextModelStream(
         }
         if (opts.structuredStage === "prescribe") {
           m04OrchestrationDeadlineGate();
-          stageOutcome = "fallback";
-          stageReasonCode = m04DeliveryCheckpoint?.signedContent
-            ? "deadline_preserved_attested_candidate" : m04DeliveryCheckpoint
-              ? "deadline_preserved_non_dose_candidate" : "deadline_no_valid_candidate";
-          enqueueClient(`${STREAM_REPLACE_MARKER}${m04ContinuityFallback("deadline")}`);
-          enqueueClient("[END]");
-          closeClientStream();
+          deliverM04Continuity("deadline");
           return;
         }
 
@@ -5569,7 +5593,8 @@ async function callPrimaryTextModelStream(
                 ? message
                 : "output_transform_error",
             });
-            return { content: upstreamAwareTruncateFallback() || "", ok: false };
+            return { content: opts.structuredStage === "prescribe"
+              ? m04ContinuityFallback(m04ContinuityReason("interrupted")) : upstreamAwareTruncateFallback() || "", ok: false };
           }
         };
         // 兜底页按**为什么兜底**选，不是一页通吃：
@@ -5584,7 +5609,7 @@ async function callPrimaryTextModelStream(
         };
         const transformTruncateFallback = (): { content: string; ok: boolean } => (
           opts.structuredStage === "prescribe"
-            ? { content: m04ContinuityFallback(m04DeadlineExceeded ? "deadline" : "contract_rejected"), ok: true }
+            ? { content: m04ContinuityFallback(m04ContinuityReason()), ok: true }
             : opts.authoritativeTruncateFallback
             ? { content: reasonAwareTruncateFallback() || "", ok: true }
             : transformOutput(reasonAwareTruncateFallback() || "")
@@ -6032,6 +6057,10 @@ async function callPrimaryTextModelStream(
           }
           const clinicalReviewUnavailableFallback = !truncated && transformed.ok &&
             opts.structuredStage === "prescribe" && m04ClinicalReviewRequiresNonDoseFallback(m04ClinicalReviewAttestation);
+          if (opts.structuredStage === "prescribe" && (truncated || !transformed.ok || clinicalReviewUnavailableFallback)) {
+            deliverM04Continuity(m04ContinuityReason(!transformed.ok ? "interrupted" : "contract_rejected"));
+            return;
+          }
           if (clinicalReviewUnavailableFallback) {
             transformed = transformTruncateFallback();
           }
@@ -6300,14 +6329,7 @@ async function callPrimaryTextModelStream(
           return;
         }
         if (opts.structuredStage === "prescribe") {
-          stageOutcome = "fallback";
-          stageReasonCode = m04DeliveryCheckpoint?.signedContent
-            ? "interrupted_preserved_attested_candidate" : m04DeliveryCheckpoint
-              ? "interrupted_preserved_non_dose_candidate" : "interrupted_no_valid_candidate";
-          enqueueClient(`${STREAM_REPLACE_MARKER}${m04ContinuityFallback(m04DeadlineExceeded ? "deadline"
-            : initialGenerationFailedOnTransport || repairFailedOnTransport ? "upstream_unavailable" : "interrupted")}`);
-          enqueueClient("[END]");
-          closeClientStream();
+          deliverM04Continuity(m04ContinuityReason("interrupted"));
           return;
         }
         if (opts.streamErrorFallback) {
