@@ -74,6 +74,30 @@ test("disabled, unconfigured and failed rerank preserve byte-identical existing 
   assert.doesNotMatch(original, /EVID-GUIDE-006/);
 });
 
+test("rerank-only query preserves recorded population and treatment context with PHI removed", async () => {
+  const queries = [], upstreamQueries = [];
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    if (url !== endpoint) { upstreamQueries.push(body.query); return evidenceResponse(); }
+    queries.push(body.query);
+    return rankedResponse([0, 1, 2, 3, 4, 5, 6, 7]);
+  };
+  const adult = { ...state, patient: { name: "张三", age: 45, sex: "男" }, chiefComplaint: "咳嗽", symptoms: { presentHistory: "张三近期咳嗽，否认化疗史，电话13812345678" } };
+  await buildGuideEvidenceContext(adult, "diagnose");
+  const pediatric = { ...adult, patient: { name: "张三", age: 7, sex: "女" }, symptoms: { presentHistory: "张三近期咳嗽，正在化疗" } };
+  await buildGuideEvidenceContext(pediatric, "diagnose");
+  await buildGuideEvidenceContext({ ...adult, patient: { name: "张三" }, symptoms: { presentHistory: "近期咳嗽，用药史未知" } }, "diagnose");
+  assert.match(queries[0], /45.*男|男.*45/);
+  assert.match(queries[0], /否认化疗史/);
+  assert.match(queries[1], /7.*女|女.*7/);
+  assert.match(queries[1], /正在化疗/);
+  assert.match(queries[2], /用药史未知/);
+  assert.doesNotMatch(queries[2], /否认化疗|无化疗|未化疗/);
+  assert.ok(upstreamQueries.some(query => query.startsWith("咳嗽 诊断 指南")), "existing priority search remains unchanged");
+  assert.doesNotMatch(JSON.stringify(queries), /张三|13812345678/);
+  assert.ok(queries.every(query => query.length <= 768));
+});
+
 test("rerank only touches selected guide and literature pools, never instructions", async () => {
   const pools = [];
   globalThis.fetch = async (url, init) => {
