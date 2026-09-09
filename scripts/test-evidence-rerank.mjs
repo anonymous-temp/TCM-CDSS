@@ -283,7 +283,7 @@ test("metadata and logs contain no query, documents, credential, provider ID or 
 });
 
 test("probe usage totals keep missing provider usage unknown, not zero cost", async () => {
-  const { summarizeProbeUsage } = await import("./lib/probe-usage-summary.mjs");
+  const { summarizeProbeUsage } = await import("./lib/model-usage-summary.mjs");
   assert.deepEqual(summarizeProbeUsage([{ tokens: 66 }, { tokens: 0 }]), { tokens: 66, observedTokens: 66, missingUsageCount: 0 });
   assert.deepEqual(summarizeProbeUsage([{ tokens: 66 }, { tokens: null }]), { tokens: null, observedTokens: 66, missingUsageCount: 1 });
   assert.deepEqual(summarizeProbeUsage([{ errorType: "TimeoutError" }]), { tokens: null, observedTokens: 0, missingUsageCount: 1 });

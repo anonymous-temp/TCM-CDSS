@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { summarizeProbeUsage } from "./lib/model-usage-summary.mjs";
 
 // Synthetic retrieval tasks, not clinical vignettes or an estimate of diagnostic accuracy.
 // Opt-in protects normal tests from paid/provider traffic. No runtime secrets are printed.
@@ -59,5 +60,5 @@ console.log(JSON.stringify({ type: "summary", scope: "synthetic_retrieval_only",
   originalOrderTop1: cases.filter(item => item.expected === 0).length,
   rerankedTop1: cases.length - failed, failed,
   medianMs: times[Math.floor(times.length / 2)], maxMs: times.at(-1),
-  tokens: output.reduce((sum, row) => sum + (row.tokens || 0), 0) }));
+  ...summarizeProbeUsage(output) }));
 process.exitCode = failed ? 1 : 0;
