@@ -20,7 +20,7 @@
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 const { sectionTitleGroup, SECTION_TITLES } = await jiti.import("../src/lib/cdss-vocab.ts");
 const { clinicalOutputLabel } = await jiti.import("../src/lib/clinical-output-authority.ts");
 // 真实判据，不是同源重建——重建副本会在实现改动时静默失效。

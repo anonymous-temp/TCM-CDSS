@@ -25,7 +25,8 @@ import {
 } from "./clinical-fact-source";
 import { clinicalClauseText, clinicalOutputLabel, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { displayableLineageAdaptation } from "./tcm-lineages";
-import { medicineCandidateTable } from "./medicine-reference-projection";
+import { medicineCandidateTable } from "./medicine-rendering";
+import { adviceText, joinWarningText, mapWarningText, type AdviceText, type WarningTextProjection } from "./warning-text-projection";
 import type { CaseState } from "./diagnosis-types";
 import { safeDietAdviceForDisplay, GOVERNED_HERB_DATA_LABEL } from "./result-display-policy";
 import { clinicalEvidenceFingerprint, prioritizeTcmEvidenceForDisplay } from "./clinical-evidence-display";
@@ -3441,6 +3442,17 @@ function visiblePrescribeFromReasoning(
   reasoning: Record<string, unknown>,
   caseState: Partial<CaseState> | null = null,
 ): string {
+  return renderPrescribeWarningProjection(reasoning, caseState).markdown;
+}
+
+export function prescribeWarningTextProjection(reasoning: Record<string, unknown>, caseState: Partial<CaseState> | null = null): WarningTextProjection {
+  return renderPrescribeWarningProjection(sanitizeReasoningNarratives(normalizedReasoningForProjection(reasoning)), caseState);
+}
+
+function renderPrescribeWarningProjection(
+  reasoning: Record<string, unknown>,
+  caseState: Partial<CaseState> | null,
+): WarningTextProjection {
   const formula = recordValue(reasoning.formula);
   const candidate = recordList(formula?.candidates)[0];
   const decoction = recordValue(candidate?.decoction);
@@ -3459,7 +3471,7 @@ function visiblePrescribeFromReasoning(
       .every((value) => isDisplayableClinicalText(markdownCell(value)));
   });
   const nonPharma = recordValue(reasoning.nonPharma);
-  const lines = [
+  const lines: Array<string | AdviceText> = [
     `# ${clinicalOutputLabel("M04-formula", "候选方药")}`,
   ];
   if (candidate) {
@@ -3574,7 +3586,7 @@ function visiblePrescribeFromReasoning(
           markdownCell(sub.rationale), markdownCell(sub.differenceNote),
         ], "；")}）`)
         .filter(Boolean);
-      return [`- **${markdownCell(item.trigger)}**：${clinicalSentence([
+      return adviceText([`- **${markdownCell(item.trigger)}**：${clinicalSentence([
         `动作：${markdownCell(modification.action)}`,
         `药味：${markdownCell(modification.herbName)}`,
         displayedTarget ? `对应病机：${displayedTarget}` : "",
@@ -3589,7 +3601,7 @@ function visiblePrescribeFromReasoning(
         ...(substitutions.length > 0
           ? [`  - 可替换药味：${substitutions.join("；")}（替代药同样受剂量上限、十八反十九畏与特殊人群规则约束）`]
           : []),
-      ].join("\n");
+      ].join("\n"));
     }));
   }
   if (patentAndWestern.length > 0) {
@@ -3620,7 +3632,10 @@ function visiblePrescribeFromReasoning(
         ? safeDietAdviceForDisplay(String(nonPharma[key] ?? ""), {})
         : nonPharma[key];
       if (key === "diet" && hasDietTherapyProject) continue;
-      if (isDisplayableClinicalText(markdownCell(raw))) lines.push(`- **${label}**：${markdownCell(raw)}`);
+      if (isDisplayableClinicalText(markdownCell(raw))) {
+        const line = `- **${label}**：${markdownCell(raw)}`;
+        lines.push(key === "acupointCare" ? line : adviceText(line));
+      }
     }
     if (clinicianTreatmentProjects.length > 0) {
       lines.push("", "### 中医非药物方案");
@@ -3647,7 +3662,7 @@ function visiblePrescribeFromReasoning(
       lines.push("", "### 注意事项", ...precautions.map((item) => `- ${item}`));
     }
   }
-  return `${lines.filter((line, index, all) => line !== "" || all[index - 1] !== "").join("\n").trim()}\n\n`;
+  return mapWarningText(joinWarningText(lines.filter((line, index, all) => line !== "" || all[index - 1] !== "")), (text) => `${text.trim()}\n\n`);
 }
 
 /** 中医治疗项目 protocolGap 的医生可读文案。受控映射，认不出的码返回空串（不上屏）。

@@ -13,7 +13,8 @@ import {
   normalizeAuditOutcomeForPatient,
   runBoundedRxAudit,
 } from "@/lib/rxaudit";
-import { buildDeterministicRiskFollowup, buildForcedIncompleteRiskFollowup, derivePrescriptionPermission, deriveSafetyLocked, sanitizeCaseStateForModel, withSafetyGate } from "@/lib/diagnosis-safety";
+import { buildDeterministicRiskFollowupProjection, buildForcedIncompleteRiskFollowup, derivePrescriptionPermission, deriveSafetyLocked, sanitizeCaseStateForModel, withSafetyGate } from "@/lib/diagnosis-safety";
+import { joinedWarningProjections, joinWarningText } from "@/lib/warning-text-projection";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import {
   isLimitedM03NotPrescribable,
@@ -220,8 +221,9 @@ export async function POST(req: Request) {
       ? null
       : await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal);
     const followup = forcedIncomplete
-      ? buildForcedIncompleteRiskFollowup(assessed)
-      : buildDeterministicRiskFollowup(assessed, authoredFollowup);
+      ? joinWarningText([buildForcedIncompleteRiskFollowup(assessed)])
+      : buildDeterministicRiskFollowupProjection(assessed, authoredFollowup);
+    const riskProjection = joinedWarningProjections([auditSection, followup]);
     const advisoryState = {
       ...caseState,
       safetyLocked: deriveSafetyLocked(caseState),
@@ -238,7 +240,7 @@ export async function POST(req: Request) {
         needManualReview: true,
         auditReason: providerAudit.reason,
       } : undefined,
-      riskAssessment: [auditSection, followup].join("\n\n"),
+      riskAssessment: riskProjection.markdown,
     };
     const correlation = buildRxAuditCorrelationMetadata({
       providerOutcome: providerAudit,
@@ -247,7 +249,7 @@ export async function POST(req: Request) {
       auditedAt,
     });
     return Response.json({
-      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories), contractVersion, parsed.customer.customerId)),
+      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories, undefined, { riskAssessment: riskProjection }), contractVersion, parsed.customer.customerId)),
       auditCorrelation: correlation,
     });
   }
@@ -269,11 +271,12 @@ export async function POST(req: Request) {
     ? null
     : await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal);
   const followup = forcedIncomplete
-    ? buildForcedIncompleteRiskFollowup(assessed)
-    : buildDeterministicRiskFollowup(assessed, authoredFollowup);
+    ? joinWarningText([buildForcedIncompleteRiskFollowup(assessed)])
+    : buildDeterministicRiskFollowupProjection(assessed, authoredFollowup);
+  const riskProjection = joinedWarningProjections([auditSection, followup]);
   const auditedState = {
     ...caseState,
-    riskAssessment: [auditSection, followup].join("\n\n"),
+    riskAssessment: riskProjection.markdown,
     safetyLocked: deriveSafetyLocked(caseState),
     prescriptionRevision: herbHash ? {
       source: "herb_workbench" as const,
@@ -299,7 +302,7 @@ export async function POST(req: Request) {
     auditedAt,
   });
   return Response.json({
-    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise, validation.advisories, providerAudit.submissionScope), contractVersion, parsed.customer.customerId)),
+    ...(await withDrugAvailability(buildHisAiSchemePayload(auditedState, await evidenceScopePromise, validation.advisories, providerAudit.submissionScope, { riskAssessment: riskProjection }), contractVersion, parsed.customer.customerId)),
     auditCorrelation: correlation,
   });
 }

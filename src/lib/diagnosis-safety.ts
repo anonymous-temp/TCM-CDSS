@@ -5369,8 +5369,7 @@ function usableFollowupTriggers(values: readonly string[]): string[] {
   return values.filter((value) => value && !isRecordCompletenessStatement(value));
 }
 
-export type DeterministicRiskFollowupPayload = {
-  markdown: string;
+export type DeterministicRiskFollowupPayload = WarningTextProjection & {
   timelineItems: StructuredFollowupTimelineItem[];
 };
 
@@ -5391,7 +5390,7 @@ export function buildDeterministicRiskFollowupPayload(
   const followup = structuredFollowupInputs(state);
   if (gate.status === "red_flag") {
     return {
-      markdown: buildSafetyLimitedRisk(gate),
+      ...joinWarningText([buildSafetyLimitedRisk(gate)]),
       timelineItems: normalizedStructuredFollowupItems([{
       time: "当前",
       action: "优先完成现场风险处置",
@@ -5402,7 +5401,7 @@ export function buildDeterministicRiskFollowupPayload(
   }
   if (!hasStructuredDoseCandidate(state)) {
     return {
-      markdown: buildNonDoseRiskFollowup(gate),
+      ...joinWarningText([buildNonDoseRiskFollowup(gate)]),
       timelineItems: normalizedStructuredFollowupItems([{
         time: "当前",
         action: "补足处方级评估所需信息",
@@ -5414,7 +5413,7 @@ export function buildDeterministicRiskFollowupPayload(
   const hardDoseBoundary = hardDoseSafetyBoundaryReasons(state);
   if (hardDoseBoundary.length > 0) {
     return {
-      markdown: buildRestrictedDoseRiskFollowup(hardDoseBoundary),
+      ...joinWarningText([buildRestrictedDoseRiskFollowup(hardDoseBoundary)]),
       timelineItems: normalizedStructuredFollowupItems([{
         time: "当前",
         action: "完成受限项并人工复核",
@@ -5512,7 +5511,7 @@ export function buildDeterministicRiskFollowupPayload(
       },
     ];
   return {
-    markdown: [
+    ...joinWarningText([
     "## 处方安全总评",
     `**最高提示强度**：${highest}`,
     `**综合风险判断**：${overall}`,
@@ -5522,22 +5521,22 @@ export function buildDeterministicRiskFollowupPayload(
     ...(vitalAdvisories.length > 0 ? [`**生命体征录入提示**：${vitalAdvisories.join("；")}`] : []),
     "",
     "## 随访管理方案",
-    `**首次复诊时间**：${firstReview}`,
-    authored
+    adviceText(`**首次复诊时间**：${firstReview}`),
+    adviceText(authored
       ? `**复诊评估重点**：${authored.reviewFocus}`
-      : `**复诊评估重点**：${coreMetrics}；舌脉及本例已记录的客观指标变化；用药执行情况。`,
-    authored
+      : `**复诊评估重点**：${coreMetrics}；舌脉及本例已记录的客观指标变化；用药执行情况。`),
+    adviceText(authored
       ? `**疗效评价标准**：${authored.efficacyCriteria}`
-      : `**疗效评价标准**：以首诊记录为基线，比较${coreMetrics}；同时确认未出现新发不适。`,
+      : `**疗效评价标准**：以首诊记录为基线，比较${coreMetrics}；同时确认未出现新发不适。`),
     ...(actualRiskIndicators.length > 0 ? [`**安全性观察**：${actualRiskIndicators.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`] : []),
     // 同一批注意事项的 owner 是 M04 处方正文的「### 注意事项」节（2026-08-25 审查 V3）；
     // M05 只在 M04 段缺席时兜底渲染，否则下载报告里同一内容双印且格式不一致。
     ...(followup.precautions.length > 0 && !(state.prescription || "").includes("### 注意事项")
       ? [`**注意事项**：${followup.precautions.map((item) => item.replace(/[。.；;，,]+$/g, "")).join("；")}。`]
       : []),
-    `**无效或加重的处置预案**：${efficacyTrigger}时，不自动沿用候选方案，由医生复评诊断、辨证与处方风险，并按实际情况安排检查或转诊。`,
+    adviceText(`**无效或加重的处置预案**：${efficacyTrigger}时，不自动沿用候选方案，由医生复评诊断、辨证与处方风险，并按实际情况安排检查或转诊。`),
     "",
-    ...sixHealthFollowupTable(authored?.dimensions).split("\n"),
+    ...sixHealthFollowupTable(authored?.dimensions).split("\n").map(adviceText),
     "",
     // 「## 随访时间轴」这张表 2026-08-10 按甲方要求从**医生可见面**移除：随访时间与
     // 触发条件已经由上面「首次复诊时间 / 复诊评估重点 / 疗效评价标准 / 无效或加重的处置预案」
@@ -5545,11 +5544,11 @@ export function buildDeterministicRiskFollowupPayload(
     // 结构化 timelineItems 仍随 payload 返回（HIS 出参与 API 消费方读它），只是不再渲染。
     "## 生活管理",
     // 模型写本例证候该注意什么；固定安全句无论如何都保留——它不是调护建议，是边界声明。
-    ...(authored ? [authored.lifestyle] : []),
-    authored
+    ...(authored ? [adviceText(authored.lifestyle)] : []),
+    adviceText(authored
       ? "以上调护按本例证候拟定；不要自行叠加中药或中成药，复诊时携带实际使用的全部药物清单。"
-      : "按本例非药物建议安排饮食、作息、情志和活动；不要自行叠加中药或中成药，复诊时携带实际使用的全部药物清单。",
-    ].join("\n"),
+      : "按本例非药物建议安排饮食、作息、情志和活动；不要自行叠加中药或中成药，复诊时携带实际使用的全部药物清单。"),
+    ]),
     timelineItems: normalizedStructuredFollowupItems(timelineItems),
   };
 }
@@ -5560,6 +5559,14 @@ export function buildDeterministicRiskFollowup(
 ): string {
   const payload = buildDeterministicRiskFollowupPayload(state, authored);
   return withStructuredFollowupTimeline(payload.markdown, payload.timelineItems);
+}
+
+export function buildDeterministicRiskFollowupProjection(
+  state: CaseState,
+  authored?: Parameters<typeof buildDeterministicRiskFollowupPayload>[1],
+): DeterministicRiskFollowupPayload {
+  const payload = buildDeterministicRiskFollowupPayload(state, authored);
+  return { ...payload, markdown: withStructuredFollowupTimeline(payload.markdown, payload.timelineItems) };
 }
 
 export function buildForcedIncompleteRiskFollowup(state: CaseState): string {
@@ -5868,3 +5875,4 @@ export function markdownNdjsonResponse(markdown: string): Response {
  * 而它此前只有间接覆盖（经 unknownTermNotice 的产物断言）。直接暴露谓词才能逐例钉住方向。
  */
 export const __negationInternalsForTest = { sourceDocumentsNegation } as const;
+import { adviceText, joinWarningText, type WarningTextProjection } from "./warning-text-projection";

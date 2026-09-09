@@ -1,7 +1,7 @@
 import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, isNonDosePrescriptionText, withSafetyGate } from "./diagnosis-safety";
 import { sectionTitleGroup } from "./cdss-vocab";
 import { buildAuditItemsFromHerbs, rxAuditPresentationEnabled, type RxAuditSubmissionScope } from "./rxaudit";
-import { medicineCandidateTable } from "./medicine-reference-projection";
+import { medicineCandidateTable } from "./medicine-rendering";
 import { qualityAnnotationCopy } from "./diagnosis-rejection-tiers";
 import type { CaseState, ClinicalCitation, SafetyGate } from "./diagnosis-types";
 import { extractPrescribedHerbs, getTcmHerbDoseLimit, clinicianDoseHerbClass } from "./tcm-knowledge";
@@ -14,7 +14,9 @@ import { sourceAllowed, type EvidenceScope } from "./evidence-source-validation"
 import { compileTcmTreatmentRecommendations } from "./tcm-treatment-capabilities.server";
 import { isKnownTcmTreatmentProjectCode } from "./tcm-treatment-projects";
 import { displayableLineageAdaptation, lineageLabel } from "./tcm-lineages";
-import { classifyHerbWarning, deriveCaseWarningProfile, warningLevelRank, type ClinicalWarningLevel } from "./clinical-warning-tier";
+import { classifyHerbWarning, warningLevelRank, type ClinicalWarningLevel } from "./clinical-warning-tier";
+import { deriveOwnedCaseWarningProfile } from "./clinical-warning-projection.server";
+import type { OwnedCaseWarningProjection } from "./warning-text-projection";
 import { hasBoundClinicalReviewAttestation } from "./clinical-review-binding";
 import { clinicalReviewIndependenceOf, clinicalReviewLabel, clinicalReviewMethodNote } from "./clinical-review-independence";
 import { CLASSIC_EVIDENCE_ANCHOR_LABELS, CLASSIC_EVIDENCE_TIER_LABELS } from "./internal-tag-hygiene";
@@ -927,13 +929,14 @@ export function buildHisAiSchemePayload(
   evidenceScope?: EvidenceScope,
   deliveryAdvisories: readonly ClinicalDeliveryAdvisory[] = [],
   auditSubmissionScope?: RxAuditSubmissionScope | null,
+  ownedWarningProjection?: OwnedCaseWarningProjection,
 ): HisAiSchemePayload {
   const normalizedState = withSafetyGate(caseState);
   const gate = evaluateSafetyGate(normalizedState);
   caseState = normalizedState;
   const permission = derivePrescriptionPermission(caseState);
   const suppressDoseLevelOutputs = permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked";
-  const warningProfile = deriveCaseWarningProfile(caseState);
+  const warningProfile = deriveOwnedCaseWarningProfile(caseState, ownedWarningProjection, deliveryAdvisories);
   const safetyDeliveryFinding = deliveryAdvisories.some(isSafetyClinicalDeliveryAdvisory);
   const adoptionRestricted = safetyDeliveryFinding || !warningProfile.executable;
   const diagnosis = caseState.diagnosis || "";

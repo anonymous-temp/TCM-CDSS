@@ -257,7 +257,7 @@ assert.deepEqual(
 
 // 生成物自检:任一维度塌成 0 说明生成器或上游词表坏了,不能静默通过。
 const { createJiti } = await import("jiti");
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 const vocab = await jiti.import("../src/lib/clinical-vocabulary.ts");
 const counts = vocab.clinicalVocabularyCounts();
 for (const key of ["locations", "natures", "syndromeAxes", "population_maternal", "population_obstetric", "population_pediatric", "population_geriatric", "population_broad"]) {

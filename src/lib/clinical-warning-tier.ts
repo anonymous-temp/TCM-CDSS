@@ -4,7 +4,6 @@ import { INTERNAL_EVIDENCE_PLACEHOLDER } from "./customer-evidence";
 import { sectionTitleGroup } from "./cdss-vocab";
 import { prescribeReasoningFromState, stripDiagnosisJSON } from "./diagnosis-parse";
 import { findTcmHerbPairIncompatibilities } from "./tcm-knowledge";
-import { medicineCandidateRow, localLabelRiskProjection } from "./medicine-reference-projection";
 
 export type ClinicalWarningLevel = "L0" | "L1" | "L2" | "L3" | "L4";
 export type ClinicalWarningAction =
@@ -62,47 +61,6 @@ function activeRiskLine(text: string, pattern: RegExp): string | undefined {
     );
 }
 
-/**
- * Classify visible current-prescription prose, not the hidden reasoning envelope. The renderer's
- * modification section describes unapplied options: its notes remain visible but do not establish
- * current contraindications. Selected herb identities, audit decisions and current risk sections
- * are checked independently; applying an option therefore re-evaluates the changed current herbs.
- */
-function currentPrescriptionRiskText(text: string, state: CaseState): string {
-  let modificationHeadingDepth: number | undefined;
-  let medicineHeadingDepth: number | undefined;
-  const consumedRows = new Set<number>();
-  const referenceRows = new Map((prescribeReasoningFromState(state)?.formula?.patentAndWestern || [])
-    .flatMap((item, index) => {
-      const risk = localLabelRiskProjection(item);
-      return risk != null
-      // Some server-owned renderers lack patient context and retain the complete label. Both
-      // projections are reconstructed, not client-declared; consume the underlying row only once.
-      ? [state, undefined].map((context) => [medicineCandidateRow(item, context),
-        { index, projected: medicineCandidateRow(item, context, risk) }] as const)
-      : [];
-    }));
-  return stripDiagnosisJSON(text).split(/\r?\n/).flatMap((line) => {
-    const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
-    if (heading) {
-      const depth = heading[1].length;
-      if (modificationHeadingDepth != null && depth <= modificationHeadingDepth) modificationHeadingDepth = undefined;
-      // The governed medicine renderer is one flat table. Any subsequent heading ends its domain,
-      // including deeper current-risk headings; heading names do not grant a provenance waiver.
-      medicineHeadingDepth = undefined;
-      // Closed renderer section identity, not a clinical-language or risk-phrase exception.
-      if (heading[2] === "随证加减建议") modificationHeadingDepth = depth;
-      if (depth === 2 && sectionTitleGroup("westernOrPatent").includes(heading[2])) medicineHeadingDepth = depth;
-    }
-    if (modificationHeadingDepth != null) return [];
-    const reference = referenceRows.get(line);
-    if (medicineHeadingDepth != null && reference && !consumedRows.has(reference.index)) {
-      consumedRows.add(reference.index);
-      return [reference.projected];
-    }
-    return [line];
-  }).join("\n");
-}
 
 function uniqueReasons(reasons: Array<string | undefined>): string[] {
   return [...new Set(reasons.map((reason) => reason?.trim()).filter((reason): reason is string => Boolean(reason)))].slice(0, 8);
@@ -211,7 +169,7 @@ export function classifyHerbWarning(input: {
 export function deriveCaseWarningProfile(caseState: CaseState): ClinicalWarningProfile {
   const gate = caseState.safetyGate;
   const revision = caseState.prescriptionRevision;
-  const combined = [currentPrescriptionRiskText(caseState.prescription || "", caseState), caseState.riskAssessment].filter(Boolean).join("\n");
+  const combined = [stripDiagnosisJSON(caseState.prescription || ""), caseState.riskAssessment].filter(Boolean).join("\n");
   const selected = prescribeReasoningFromState(caseState)?.formula?.candidates[revision?.candidateIndex ?? 0];
   const highRiskPairs = findTcmHerbPairIncompatibilities(selected?.herbs.map((herb) => herb.name) || []);
 
@@ -277,4 +235,9 @@ export function deriveCaseWarningProfile(caseState: CaseState): ClinicalWarningP
   if (generalReasons.length > 0) return profile("L1", generalReasons);
 
   return profile("L0", ["当前确定性安全层未识别额外警示；仍需医生最终确认"]);
+}
+
+/** An installed server display observation may only be strengthened by current independent facts. */
+export function deriveStructuredCaseWarningFloor(caseState: CaseState): ClinicalWarningProfile {
+  return deriveCaseWarningProfile({ ...caseState, prescription: "", riskAssessment: "" });
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
-const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 const { normalizeCaseStateInput } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { currentVitalsSummary, evaluateSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { buildHisAiSchemePayload } = await jiti.import("../src/lib/his-scheme.ts");
