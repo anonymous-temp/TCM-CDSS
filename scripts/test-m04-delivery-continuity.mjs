@@ -227,3 +227,23 @@ test("only an exact completed attestation and signed payload can restore dose-le
   assertNonDose(renderM04DeliveryCheckpoint(mismatch, prior, "deadline"));
   assert.doesNotMatch(renderM04DeliveryCheckpoint(mismatch, prior, "deadline"), /WRONG_SIGNED_RESULT/);
 });
+
+test("non-dose projection preserves measured and historical patient facts while masking proposed doses", () => {
+  const input = checkpointInput();
+  input.reasoning.formula.candidates[0].herbs[0].function = "补脾益气，拟用党参12g";
+  input.content = wrap(input.reasoning);
+  const checkpoint = retainM04DeliveryCheckpoint(undefined, input);
+  assert.ok(checkpoint);
+  const factualPrior = structuredClone(prior);
+  const facts = ["血红蛋白58 g/L", "呕血约300mL", "既往口服二甲双胍500mg", "过敏史未提及"];
+  factualPrior.pathogenesis.chain = facts.map((patientFact) => ({ ...prior.pathogenesis.chain[0], patientFact }));
+  for (const candidate of [undefined, checkpoint]) {
+    const output = renderM04DeliveryCheckpoint(candidate, factualPrior, "deadline");
+    for (const fact of facts) assert.ok(output.includes(fact), `source fact must remain exact: ${fact}`);
+    assert.doesNotMatch(output, /党参12g|无过敏史|否认过敏/);
+    assert.ok(isNonDosePrescriptionText(output));
+  }
+  const unavailable = renderM04DeliveryCheckpoint(undefined, undefined, "deadline");
+  assert.doesNotMatch(unavailable, /已完成的辨病辨证/);
+  assert.match(unavailable, /没有可用.*辨病辨证/);
+});
