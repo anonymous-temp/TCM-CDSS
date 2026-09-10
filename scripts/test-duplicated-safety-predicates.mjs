@@ -18,8 +18,8 @@
  *     稳定性心绞痛病人每次复诊都弹红旗。
  * 已收敛为读 GOVERNED_CARDIAC_SYMPTOMS。
  *
- * 【口径】本套件断言的是「判据只有一份来源」，不是「某个具体病例的输出」——
- * 后者依赖一长串运行时状态，而缺陷的形状是**词表分叉**本身。
+ * 【口径】既钉住共享判据来源，也验证完整调用链：仅检查共享 helper 和调用点，
+ * 会漏掉后续重复规则再次覆盖共享判断、删掉临床事实的缺陷。
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -182,14 +182,16 @@ assert.equal(deriveCaseWarningProfile(applied).executable, false,
 {
   const { scrubRecordHeaderName } = await jiti.import("../src/lib/phi-sanitizer.ts");
   // 姓名必须脱敏（含复姓——单字姓枚举覆盖不到，两侧原本都漏）
-  for (const [input, name] of [["张伟，男，45岁，主诉胃脘痛3天", "张伟"],
-    ["欧阳明月，女，32岁，头痛", "欧阳明月"], ["李娜，女，28岁", "李娜"]]) {
+  const headerNames = [["张伟，男，45岁，主诉胃脘痛3天", "张伟"],
+    ["欧阳明月，女，32岁，头痛", "欧阳明月"], ["李娜，女，28岁", "李娜"]];
+  for (const [input, name] of headerNames) {
     const out = scrubRecordHeaderName(input);
     assert.ok(!out.includes(name), `抬头姓名必须脱敏：「${input}」实得 ${out}`);
   }
   // 临床措辞必须逐字保留——这一半和上一半同等重要，缺了就会把主诉吃掉
-  for (const input of ["反复咳嗽，男，45岁", "患者男，45岁，主诉胃脘痛", "初诊，女，32岁",
-    "复诊 男 50岁", "既往体健，男，60岁", "胃脘痛3天，男，45岁"]) {
+  const headerClinicalControls = ["反复咳嗽，男，45岁", "患者男，45岁，主诉胃脘痛", "初诊，女，32岁",
+    "复诊 男 50岁", "既往体健，男，60岁", "胃脘痛3天，男，45岁"];
+  for (const input of headerClinicalControls) {
     assert.equal(
       scrubRecordHeaderName(input), input,
       `非姓名抬头必须逐字保留：「${input}」——误吃它等于在送模型路径上丢临床信息`,
@@ -199,9 +201,10 @@ assert.equal(deriveCaseWarningProfile(applied).executable, false,
   // 实测（2026-08-17）两侧都留存。中点在本领域高频（书名与朝代作者引注、目录点线），
   // 但从不出现在「抬头 + 性别/年龄」位置——该正则对仓内 74 个数据文件、8 万余处中点误报 0。
   const { scrubSubjectPrefixedName, scrubRelationPrefixedName } = await jiti.import("../src/lib/phi-sanitizer.ts");
-  for (const [input, name] of [["麦克·约翰逊，男，50岁，主诉咳嗽", "麦克·约翰逊"],
+  const dottedNames = [["麦克·约翰逊，男，50岁，主诉咳嗽", "麦克·约翰逊"],
     ["玛丽·史密斯，女，32岁，头痛", "玛丽·史密斯"],
-    ["阿依古丽·买买提，女，28岁", "阿依古丽·买买提"]]) {
+    ["阿依古丽·买买提，女，28岁", "阿依古丽·买买提"]];
+  for (const [input, name] of dottedNames) {
     assert.ok(
       !scrubRecordHeaderName(input).includes(name),
       `中点姓名必须脱敏：「${input}」实得 ${scrubRecordHeaderName(input)}`,
@@ -214,8 +217,9 @@ assert.equal(deriveCaseWarningProfile(applied).executable, false,
     !scrubSubjectPrefixedName("本例赵敏既往有高血压").includes("赵敏"),
     "主语前缀后的姓名必须脱敏：「本例赵敏既往有高血压」",
   );
-  for (const input of ["本例患者既往有高血压", "本例患儿出现发热", "该患者既往有糖尿病",
-    "病人自诉头痛3天", "本例舌红苔黄，脉弦数"]) {
+  const subjectClinicalControls = ["本例患者既往有高血压", "本例患儿出现发热", "该患者既往有糖尿病",
+    "病人自诉头痛3天", "本例舌红苔黄，脉弦数"];
+  for (const input of subjectClinicalControls) {
     assert.equal(
       scrubSubjectPrefixedName(input), input,
       `主语前缀后的临床措辞必须逐字保留：「${input}」——`
@@ -224,15 +228,20 @@ assert.equal(deriveCaseWarningProfile(applied).executable, false,
   }
 
   // 关系前缀（家属X）：原规则两个方向都错——误吃主诉、又漏掉「代述/签字」。
-  for (const [input, name] of [["家属王强代述病情", "王强"], ["监护人张伟签字", "张伟"],
-    ["患者李娜诉头痛", "李娜"], ["家属王强反映病情", "王强"]]) {
+  const relationNames = [["家属王强代述病情", "王强"], ["监护人张伟签字", "张伟"],
+    ["患者李娜诉头痛", "李娜"], ["家属王强反映病情", "王强"],
+    ["联系人李四称症状加重。", "李四"], ["陪同者王五表示已服药。", "王五"],
+    ["医生赵六记录舌淡。", "赵六"], ["医师陈明建议复查。", "陈明"],
+    ["患者欧阳明月诉头痛", "欧阳明月"]];
+  for (const [input, name] of relationNames) {
     assert.ok(
       !scrubRelationPrefixedName(input).includes(name),
       `关系前缀后的姓名必须脱敏：「${input}」实得 ${scrubRelationPrefixedName(input)}`,
     );
   }
-  for (const input of ["家属代述，患者昨夜失眠", "患者自诉头痛，家属补充夜间加重",
-    "家属陪同就诊", "患者否认过敏史", "医生建议复查", "监护人签字确认", "家属诉患者食欲差"]) {
+  const relationClinicalControls = ["家属代述，患者昨夜失眠", "患者自诉头痛，家属补充夜间加重",
+    "家属陪同就诊", "患者否认过敏史", "医生建议复查", "监护人签字确认", "家属诉患者食欲差"];
+  for (const input of relationClinicalControls) {
     assert.equal(
       scrubRelationPrefixedName(input), input,
       `关系前缀后的临床措辞必须逐字保留：「${input}」——`
@@ -276,6 +285,94 @@ assert.equal(deriveCaseWarningProfile(applied).executable, false,
       assert.equal(sanitize(input), input, "两条实际脱敏路径均须保留临床原话与否定极性");
     }
   }
+
+  // 2026-09-10：浏览器调用共享关系前缀判据后，旧宽泛回调仍会把「自诉头痛」删除。
+  // 同一组正反例必须穿过整条脱敏链及实际恢复入口，不能只验证 helper 正确。
+  // 全部为合成测试资料；姓名隐私与临床事实保留分别断言，任一方向失败均报告。
+  const { sanitizeFreeTextForModel, sanitizeCaseStateForModel } = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const { createInitialCaseState } = await jiti.import("../src/lib/diagnosis-types.ts");
+  const { restoreWarningDisplayCase } = await jiti.import("../src/lib/followup-display-state.ts");
+  const clinicalControls = [...headerClinicalControls, ...subjectClinicalControls, ...relationClinicalControls];
+  const nameControls = [...headerNames, ...dottedNames, ...relationNames,
+    ["本例赵敏既往有高血压", "赵敏"], ["Alice Wang 昨夜失眠三周", "Alice Wang"],
+    ["患者：Alice Wang，昨夜失眠三周", "Alice Wang"]];
+  const canonicalMarker = (text) => text.replaceAll("[姓名已脱敏]", "[已脱敏]");
+  const clinicalFields = (state) => ({
+    chiefComplaint: state.chiefComplaint,
+    symptoms: state.symptoms,
+    conversation: state.conversation.map(({ role, content }) => ({ role, content })),
+  });
+  const makeClinicalCase = (text) => ({
+    ...createInitialCaseState(), id: "synthetic-phi-parity", phase: "question",
+    patient: { sex: "女", age: 32 }, chiefComplaint: text,
+    symptoms: { presentHistory: text }, conversation: [{ role: "user", content: text }],
+  });
+  const failures = [];
+  const check = (label, assertion) => {
+    try { assertion(); } catch (error) { failures.push({ label, message: error.message }); }
+  };
+  const assertCaseRoundTrip = (state, expectedText) => {
+    const firstSaved = browser.sanitizeCaseStateForBrowserPersistence(state);
+    const restored = restoreWarningDisplayCase(JSON.parse(JSON.stringify(firstSaved)));
+    assert.ok(restored, "a complete synthetic case must restore");
+    const secondSaved = browser.sanitizeCaseStateForBrowserPersistence(restored);
+    for (const [phase, current] of [["first save", firstSaved], ["restore", restored], ["second save", secondSaved]]) {
+      assert.deepEqual(clinicalFields(current), {
+        chiefComplaint: expectedText, symptoms: { presentHistory: expectedText },
+        conversation: [{ role: "user", content: expectedText }],
+      }, `${phase} must retain every clinical field and redact the same identities`);
+      assert.equal(current.patient.name, undefined);
+      assert.equal(current.hisRecord?.fields.patientName, undefined);
+    }
+    assert.deepEqual(browser.sanitizeCaseStateForBrowserPersistence(secondSaved), secondSaved,
+      "a subsequent save must be idempotent across the complete restored case");
+  };
+  for (const input of clinicalControls) {
+    for (const [label, sanitize] of [["model text", sanitizeFreeTextForModel], ["browser text", browser.scrubPersistentPhiText]]) {
+      check(`${label}: ${input}`, () => assert.equal(sanitize(input), input, "clinical narrative must be retained verbatim"));
+    }
+    const state = makeClinicalCase(input);
+    check(`model case: ${input}`, () => assert.deepEqual(clinicalFields(sanitizeCaseStateForModel(state)), clinicalFields(state)));
+    check(`browser save/restore: ${input}`, () => assertCaseRoundTrip(state, input));
+  }
+  for (const [input, name] of nameControls) {
+    const expected = input.replaceAll(name, "[已脱敏]");
+    for (const [label, sanitize] of [["model text", sanitizeFreeTextForModel], ["browser text", browser.scrubPersistentPhiText]]) {
+      check(`${label} identity: ${input}`, () => {
+        const output = sanitize(input);
+        assert.ok(!output.includes(name), "a recognized name must not survive the full chain");
+        assert.equal(canonicalMarker(output), expected, "clinical context after the name must survive");
+      });
+    }
+    const state = makeClinicalCase(input);
+    check(`model case identity: ${input}`, () => {
+      const output = clinicalFields(sanitizeCaseStateForModel(state));
+      assert.ok(!JSON.stringify(output).includes(name));
+      assert.equal(output.chiefComplaint, expected);
+      assert.equal(output.symptoms.presentHistory, expected);
+      assert.equal(output.conversation[0].content, expected);
+    });
+    check(`browser identity save/restore: ${input}`, () => assertCaseRoundTrip(state, input.replaceAll(name, "[姓名已脱敏]")));
+  }
+  // 显式姓名字段不依赖叙述上下文；分别验证 patient.name 与 HIS patientName 的既有兜底。
+  for (const identitySource of ["patient", "hisRecord"]) {
+    const name = "赵小明";
+    const input = `${name}的补充病史：患者自诉头痛，家属补充夜间加重`;
+    const state = makeClinicalCase(input);
+    if (identitySource === "patient") state.patient.name = name;
+    else state.hisRecord = {
+      schemaVersion: "his-record-v1", source: "manual", caseId: state.id,
+      updatedAt: "2026-09-10", tongueImageUploaded: false, fields: { patientName: name }, rawText: "",
+    };
+    check(`model explicit ${identitySource}`, () => {
+      const output = sanitizeCaseStateForModel(state);
+      assert.ok(!JSON.stringify(output).includes(name));
+      assert.equal(output.chiefComplaint, input.replaceAll(name, "[已脱敏]"));
+    });
+    check(`browser explicit ${identitySource}`, () => assertCaseRoundTrip(state, input.replaceAll(name, "[姓名已脱敏]")));
+  }
+  assert.deepEqual(failures, [], "full model/browser PHI parity must protect identities and retain clinical facts");
+  console.log("full PHI parity: OK", { clinicalControls: clinicalControls.length, nameControls: nameControls.length, explicitIdentitySources: 2 });
   // 行内副本不得复活
   assert.ok(
     !/\(本例\|该患者\|病例\|病人\|患儿\)\\s\*\[\\u4e00-\\u9fa5\]\{2,4\}/.test(safety),
