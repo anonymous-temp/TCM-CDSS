@@ -243,12 +243,37 @@ assert.equal(deriveCaseWarningProfile(applied).executable, false,
   // 两侧必须共用同一判据，不得再各写一份
   const safety = readFileSync(path.join(repoRoot, "src/lib/diagnosis-safety.ts"), "utf8");
   const engine = readFileSync(path.join(repoRoot, "src/lib/diagnosis-engine.ts"), "utf8");
-  for (const [label, src] of [["服务端", safety], ["浏览器", engine]]) {
+  const persistence = readFileSync(path.join(repoRoot, "src/lib/browser-case-persistence.ts"), "utf8");
+  for (const [label, src] of [["服务端", safety], ["浏览器共享持久化边界", persistence]]) {
     for (const shared of ["scrubRecordHeaderName", "scrubSubjectPrefixedName", "scrubRelationPrefixedName"]) {
       assert.ok(
         new RegExp(`${shared}\\(`).test(src),
         `${label}必须调用共享的 ${shared}——四条姓名规则两侧各写各的是本缺口的成因`,
       );
+    }
+  }
+  assert.match(engine, /export\s*\{[^}]*scrubPersistentPhiText[^}]*sanitizeCaseStateForBrowserPersistence[^}]*\}\s*from\s*["']\.\/browser-case-persistence["']/,
+    "客户端引擎必须重导出同一持久化实现，不能恢复私有副本");
+  const browser = await jiti.import("../src/lib/browser-case-persistence.ts");
+  const engineExports = await jiti.import("../src/lib/diagnosis-engine.ts");
+  assert.equal(engineExports.scrubPersistentPhiText, browser.scrubPersistentPhiText);
+  assert.equal(engineExports.sanitizeCaseStateForBrowserPersistence, browser.sanitizeCaseStateForBrowserPersistence);
+  for (const consumer of ["src/app/diagnosis/DiagnosisClient.tsx", "src/lib/followup-display-state.ts", "src/lib/warning-display-receipt.server.ts"]) {
+    const source = readFileSync(path.join(repoRoot, consumer), "utf8");
+    assert.match(source, /sanitizeCaseStateForBrowserPersistence\(/, `${consumer} 必须调用共享持久化边界`);
+    assert.doesNotMatch(source, /function\s+(?:scrubPersistentPhiText|sanitizeCaseStateForBrowserPersistence)\s*\(/,
+      `${consumer} 不得复制持久化脱敏实现`);
+  }
+  const { sanitizeFreeTextForExternalClinicalService } = await jiti.import("../src/lib/diagnosis-safety.ts");
+  for (const input of ["张伟，男，45岁，主诉胃脘痛3天", "欧阳明月，女，32岁，头痛", "本例赵敏既往有高血压", "家属王强代述病情"]) {
+    assert.equal(engineExports.scrubPersistentPhiText(input), browser.scrubPersistentPhiText(input));
+    for (const sanitize of [browser.scrubPersistentPhiText, sanitizeFreeTextForExternalClinicalService]) {
+      assert.doesNotMatch(sanitize(input), /张伟|欧阳明月|赵敏|王强/, "模型发送与浏览器保存路径均不得残留已识别姓名");
+    }
+  }
+  for (const input of ["反复咳嗽，男，45岁", "患儿发热3天，体温39℃", "既往体健，男，60岁", "患者否认过敏史"]) {
+    for (const sanitize of [browser.scrubPersistentPhiText, sanitizeFreeTextForExternalClinicalService]) {
+      assert.equal(sanitize(input), input, "两条实际脱敏路径均须保留临床原话与否定极性");
     }
   }
   // 行内副本不得复活

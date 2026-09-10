@@ -16,6 +16,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 const ROOTS = ["src/lib", "src/app"];
 const CJK = "\\u4e00-\\u9fa5";
@@ -173,15 +174,55 @@ function strippedComments(source) {
     .join("\n");
 }
 
-function inlineVocabularyHits(source) {
+function inlineVocabularyHits(source, truncate = true) {
   const found = [];
   const text = strippedComments(source);
   INLINE_VOCAB_REGEX.lastIndex = 0;
   let match;
   while ((match = INLINE_VOCAB_REGEX.exec(text))) {
-    if (INLINE_ALTERNATION.test(match[1])) found.push(match[1].slice(0, 120));
+    if (INLINE_ALTERNATION.test(match[1])) found.push(truncate ? match[1].slice(0, 120) : match[1]);
   }
   return found;
+}
+
+// 结构/隐私表达式的原样迁移登记：仅豁免已核对的完整表达式序列，绝不豁免整个新文件。
+// 指纹含完整正则（不限诊断显示的前120字）及顺序/数量；新增、改写、复制条目都会重新报错。
+// 来源在 2026-09-10 经 git show 逐条包含校验；这些模式未新增临床词表，也不参与诊断。
+const MIGRATED_STRUCTURAL_INLINE = new Map([
+  ["src/lib/browser-case-persistence.ts", {
+    count: 11, sha256: "eaf651f3b7fcef6475ae6f415e2e23f664648b34c61bb5701ed4ac8112886d78",
+    origin: "86ae3123^:src/lib/diagnosis-engine.ts",
+    reason: "86ae3123 原样迁移的姓名/准标识符脱敏与脱敏标记保护；属隐私字段和终态标记的结构守卫。共享PHI回归继续验证两侧；待隐私结构来源统一后迁出。",
+  }],
+  ["src/lib/followup-display-state.ts", {
+    count: 2, sha256: "b20fdde2ae7a8006cb195840fd7ba1b9354bca07e35e757b23766caf02968e54",
+    origin: "86ae3123^:src/app/diagnosis/DiagnosisClient.tsx",
+    reason: "86ae3123 原样迁移的旧自动审方状态文案回读；为兼容旧无机器状态标记的报告，不判断患者临床事实。待旧文案兼容路径退役后删除。",
+  }],
+  ["src/lib/markdown-stream-content.ts", {
+    count: 1, sha256: "70dd2bca8d674b70771e4167447929df0ee7bc043d5ac479a8d1f7c1b7976553",
+    origin: "f6e68342^:src/lib/diagnosis-engine.ts",
+    reason: "f6e68342 原样迁移的循证/参考章节标题去重；为Markdown章节锚点，不是临床词表。待统一章节结构来源后迁出。",
+  }],
+]);
+
+function matchesMigratedStructuralInline(rel, source) {
+  const entry = MIGRATED_STRUCTURAL_INLINE.get(rel);
+  if (!entry) return false;
+  const literals = inlineVocabularyHits(source, false);
+  return literals.length === entry.count &&
+    createHash("sha256").update(JSON.stringify(literals)).digest("hex") === entry.sha256;
+}
+
+for (const [rel, entry] of MIGRATED_STRUCTURAL_INLINE) {
+  assert.ok(entry.origin && entry.reason, `${rel} 的迁移登记必须保留来源和迁移计划`);
+  const source = fs.readFileSync(rel, "utf8");
+  assert.equal(matchesMigratedStructuralInline(rel, source), true, `${rel} 的已登记结构表达式发生变化，需重新核对治理来源`);
+  assert.equal(matchesMigratedStructuralInline(rel, `${source}\nconst newClinicalTerms = /新增临床甲|新增临床乙|新增临床丙/;`), false,
+    "迁移登记不能豁免新加入的临床词表");
+  const first = inlineVocabularyHits(source, false)[0];
+  assert.equal(matchesMigratedStructuralInline(rel, source.replace(first, first.replace("/", "/(?:新增临床甲|新增临床乙|新增临床丙)|"))), false,
+    "既有表达式的修改必须使迁移指纹失效");
 }
 
 const offenders = [];
@@ -196,7 +237,7 @@ for (const root of ROOTS) {
     const inline = inlineVocabularyHits(source);
     if (hitRegex || hitArray) {
       offenders.push({ rel, form: hitRegex ? "regex-vocabulary" : "array-vocabulary" });
-    } else if (inline.length > 0) {
+    } else if (inline.length > 0 && !matchesMigratedStructuralInline(rel, source)) {
       offenders.push({ rel, form: `inline-regex-vocabulary ×${inline.length}：${inline[0]}` });
     }
   }
