@@ -47,10 +47,12 @@ test("page export confirmation cannot export a changed case after asynchronous f
   const calls = [];
   let current = true;
   let finish;
+  const pendingExport = { ...profile, materialKey: warningDisplayMaterial(state), isCurrent: () => current };
   const confirm = pageFunction("confirmReportExport", {
-    caseState: state, pendingReportExport: { ...profile, materialKey: warningDisplayMaterial(state), isCurrent: () => current },
+    caseState: state, pendingReportExport: pendingExport, pendingReportExportRef: { current: pendingExport },
     reportExportAcknowledged: true, reportExportReason: "已阅读", installedWarningObservation: undefined,
     warningObservationRef: { current: undefined }, warningDisplayMaterial, resolveWarningDisplayProfile,
+    currentPageWarningObservation: () => undefined,
     captureWarningPageGuard: () => () => current,
     reportExportFingerprint: () => new Promise((resolve) => { finish = resolve; }),
     persistState: (s) => calls.push(s), downloadReport: (s) => calls.push(s),

@@ -1,7 +1,7 @@
 // src/app/diagnosis/page.tsx
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, type ReactNode } from "react";
 import { extractCdssReasonCode, reasonCodeRequiresM03Rerun } from "@/lib/cdss-reason-codes";
 import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
@@ -60,7 +60,7 @@ import { normalizedFormulaModificationFields } from "@/lib/formula-modification"
 import { containsUnknownClinicalCue, isUnknownClinicalText, PULSE_FORCE_PATTERN_SOURCE, PULSE_QUALITY_PATTERN_SOURCE } from "@/lib/clinical-state";
 import { inspectionLexiconGroups, inspectionLexiconNormal, type InspectionField } from "@/lib/tcm-inspection-lexicon";
 import { computeTongueRoiCrop, detectTongueRoi } from "@/lib/tongue-image-roi";
-import { customerEvidenceDisplayStatus, sanitizeCustomerEvidenceNarrative, sanitizeLabeledEvidenceLines } from "@/lib/customer-evidence";
+import { sanitizeCustomerEvidenceNarrative, sanitizeLabeledEvidenceLines } from "@/lib/customer-evidence";
 import { TCM_DISEASE_NAME_VISIBLE_TO_CLINICIAN, clinicalOutputLabel, clinicalOutputRendererId, clinicalOutputSurface, clinicalSentence, joinClinicalClauses, sanitizeAuthoritativeClinicalOutput } from "@/lib/clinical-output-authority";
 import {
   buildDeterministicRiskFollowupPayload,
@@ -73,7 +73,6 @@ import {
   isLimitedDiagnosisText,
   isNonDosePrescriptionText,
   isRiskLineNegatedOrEnumerative,
-  reconcileRestoredCaseState,
   sanitizeFreeTextForExternalClinicalService,
   withSafetyGate,
   redFlagRuleIdForMessage,
@@ -94,11 +93,13 @@ import {
 import { markdownUrlTransform as urlTransform } from "@/lib/safe-url";
 import { isEncryptedSnapshotEnvelope } from "@/lib/encrypted-snapshot";
 import { FORMULA_STRUCTURE_TARGETS, formulaTargetPathogenesisCells, type FormulaStructureRole } from "@/lib/herb-target-contract";
-import { parseRxAuditStatusMarker, stripRxAuditStatusMarker } from "@/lib/rxaudit-status";
 import { extractRiskAuditSection, extractRiskNonAuditSection, replaceRiskAssessmentFollowup, recoverInterruptedRun,
-  buildAcceptedPrescriptionMarkdown, markdownTableCell, structuredHerbWarningProfile, shouldRenderEvidenceStatus,
-  applyCompletedM05DisplayResult, applyAcceptedPrescriptionDisplayResult, revisionFromAudit, restoreWarningDisplayCase,
+  buildAcceptedPrescriptionMarkdown, structuredHerbWarningProfile, shouldRenderEvidenceStatus,
+  applyCompletedM05DisplayResult, applyAcceptedPrescriptionDisplayResult, revisionFromAudit, restoreWarningDisplayCase, preserveUnchangedHisSnapshot,
 } from "@/lib/followup-display-state";
+import { parseWarningDisplayReceipt, warningDisplayMaterial, stableWarningJson, type VerifiedWarningObservation } from "@/lib/warning-display-binding";
+import { prepareWarningObservation, matchingWarningObservation, resolveWarningDisplayProfile, type InstalledWarningObservation } from "@/lib/warning-display-observation";
+import { matchingWarningStorageReceipt, withWarningStorageReceipt } from "@/lib/warning-display-storage";
 import { buildSeasonalCare } from "@/lib/tcm-seasonal-care";
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import {
@@ -131,7 +132,6 @@ import {
 import { buildClinicianTreatmentProjects } from "@/lib/tcm-treatment-clinician-view";
 import {
   classifyHerbWarning,
-  deriveCaseWarningProfile,
   type ClinicalWarningLevel,
   type ClinicalWarningProfile,
   warningLevelClinicianLabel,
@@ -2925,7 +2925,7 @@ export function buildCompleteReport(
   const reportSection = (content?: string) => sanitizeCustomerEvidenceSurface(stripDiagnosisJSON(content || ""));
   const diagnosisReportSection = (content?: string) =>
     stripWesternAnalysisForCustomer(stripTcmDiseaseNameForCustomer(reportSection(content)));
-  const warningProfile = options.warningProfile || deriveCaseWarningProfile(caseState);
+  const warningProfile = options.warningProfile || resolveWarningDisplayProfile(caseState);
   const nonDoseOnly = options.nonDoseOnly === true || !warningProfile.executable;
   const emergencyReferral = (caseState.safetyGate || evaluateSafetyGate(caseState)).status === "red_flag";
   const emergencyPresentation = emergencyReferral ? buildEmergencyPresentation(caseState) : undefined;
@@ -3257,6 +3257,9 @@ type AcceptedEditedPrescription = {
   followupTimeline: StructuredFollowupTimelineItem[];
   serverSafetyLocked: boolean;
   revision: NonNullable<CaseState["prescriptionRevision"]>;
+  // Transport/cache only; the shared clinical reducer copies neither field into CaseState.
+  warningRequestState?: CaseState;
+  warningObservation?: unknown;
 };
 
 
@@ -3491,9 +3494,13 @@ function HerbModificationWorkbench({
 
   const currentSignature = useMemo(() => herbEditSignature(herbs), [herbs]);
   const currentSignatureRef = useRef(currentSignature);
-  useEffect(() => {
+  const workbenchCaseRef = useRef(caseState);
+  useLayoutEffect(() => {
     currentSignatureRef.current = currentSignature;
-  }, [currentSignature]);
+    workbenchCaseRef.current = caseState;
+  }, [currentSignature, caseState]);
+  const workbenchRequestRef = useRef(0);
+  useEffect(() => () => { workbenchRequestRef.current += 1; }, []);
   const changed = currentSignature !== initialSignature;
   // 上报未采纳草稿脏状态（只上报标记，不上报草稿本体）：父级把它随加密工作区快照持久化，
   // 刷新后即使草稿本体丢失，也能提示“上次有未保存编辑”，避免界面静默恢复为已采纳版本造成分叉。
@@ -3539,6 +3546,7 @@ function HerbModificationWorkbench({
     auditStatus === "dirty" ? "border-amber-200 bg-amber-50 text-amber-900" :
     "border-gray-200 bg-gray-50 text-gray-700";
   const markDirty = (nextHerbs: StructuredHerb[]) => {
+    workbenchRequestRef.current += 1;
     setHerbs(nextHerbs);
     setAuditStatus("dirty");
     setAuditMessage("药味已调整，请重新获取审方提示后再标记为编辑后候选方案。");
@@ -3597,7 +3605,11 @@ function HerbModificationWorkbench({
 
   const runEditedAudit = async () => {
     if (!activeReasoning?.formula || !canAudit) return;
+    const requestEpoch = ++workbenchRequestRef.current;
     const submittedSignature = currentSignature;
+    const submittedMaterial = warningDisplayMaterial(caseState);
+    const requestIsCurrent = () => workbenchRequestRef.current === requestEpoch &&
+      currentSignatureRef.current === submittedSignature && warningDisplayMaterial(workbenchCaseRef.current) === submittedMaterial;
     const submittedHerbs = herbs.map(cloneStructuredHerb);
     setAuditStatus("checking");
     setAuditMessage("正在审查编辑后的药味与剂量，结果将作为风险提示供医生复核。");
@@ -3605,16 +3617,24 @@ function HerbModificationWorkbench({
     const revisedReasoning = buildReasoningWithEditedHerbs(activeReasoning, candidateIndex, submittedHerbs);
     const submittedAuditState = { ...caseState, reasoningPrescribe: revisedReasoning, reasoningV2: revisedReasoning };
     const submittedVersionHash = await computePrescriptionVersionHash(revisedReasoning, candidateIndex, submittedAuditState).catch(() => "");
+    if (!requestIsCurrent()) return;
     if (!submittedVersionHash) {
       setAuditStatus("error");
       setAuditMessage("无法生成编辑后处方版本摘要，本次未提交审方，请重试。");
       return;
     }
+    const warningRequestState: CaseState = {
+      ...submittedAuditState,
+      prescriptionRevision: { source: "herb_workbench", candidateIndex, herbHash: submittedVersionHash,
+        auditedAt: new Date().toISOString(), auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false },
+      safetyLocked: false,
+    };
     try {
       const { response: res, body } = await fetchJsonWithTimeout<{
         section?: unknown;
         followup?: unknown;
         followupTimeline?: unknown;
+        warningObservation?: unknown;
         audit?: {
           safetyLocked?: unknown;
           needManualReview?: unknown;
@@ -3634,26 +3654,9 @@ function HerbModificationWorkbench({
       }>(apiUrl("/api/diagnosis/post-prescription-risk"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          caseState: {
-            ...caseState,
-            reasoningPrescribe: revisedReasoning,
-            reasoningV2: revisedReasoning,
-            prescriptionRevision: {
-              source: "herb_workbench",
-              candidateIndex,
-              herbHash: submittedVersionHash,
-              auditedAt: new Date().toISOString(),
-              auditResult: "MANUAL_REVIEW",
-              highestRiskLevel: "HIGH",
-              auditAvailable: false,
-            },
-            // 清除旧版本可能残留的审方锁；当前版本只由独立病例安全门控决定是否阻断。
-            safetyLocked: false,
-          },
-        }),
+        body: JSON.stringify({ caseState: warningRequestState }),
       });
-      if (currentSignatureRef.current !== submittedSignature) return;
+      if (!requestIsCurrent()) return;
       if (res.status === 422 || body?.audit?.source === "local_input_validation") {
         setAcceptedRevision(null);
         setAuditStatus("error");
@@ -3716,6 +3719,8 @@ function HerbModificationWorkbench({
         ].filter(Boolean).join("\n"));
       setAcceptedRevision({
         caseId: caseState.id,
+        warningRequestState,
+        warningObservation: parseWarningDisplayReceipt(body?.warningObservation),
         reasoning: revisedReasoning,
         auditSection: section,
         followupSection,
@@ -3723,29 +3728,14 @@ function HerbModificationWorkbench({
         // Lingxi audit is advisory. Only the patient-safety permission authority may lock formal
         // adoption; audit severity or availability must never be repurposed as that lock.
         serverSafetyLocked: derivePrescriptionPermission(withSafetyGate(caseState)).formalAdoption === "blocked",
-        revision: {
-          source: "herb_workbench",
-          candidateIndex,
-          herbHash: submittedVersionHash,
-          auditedAt: typeof body?.audit?.auditedAt === "string" ? body.audit.auditedAt : new Date().toISOString(),
-          auditResult,
-          highestRiskLevel,
-          auditAvailable,
-          degraded: body?.audit?.degraded === true,
-          degradeReason: typeof body?.audit?.degradeReason === "string" ? body.audit.degradeReason : undefined,
-          needManualReview: body?.audit?.needManualReview === true,
-          auditReason: typeof body?.audit?.reason === "string" ? body.audit.reason : undefined,
-          auditId: typeof body?.audit?.auditId === "string" ? body.audit.auditId : undefined,
-          traceId: typeof body?.audit?.traceId === "string" ? body.audit.traceId : undefined,
-          attestationVersion: body.audit.attestationVersion,
-          attestation: body.audit.attestation,
-        },
+        revision: revisionFromAudit(body.audit, candidateIndex, submittedVersionHash, res.ok),
       });
       setAuditStatus(needsAttention ? "warning" : "reviewed");
       setAuditMessage(needsAttention
         ? "审方已返回风险提示或当前服务不可用；提示不阻断流程，请医生/药师人工复核后决定是否采纳。"
         : "编辑后药味已完成审方，仍需医生结合现场情况最终复核。");
     } catch {
+      if (!requestIsCurrent()) return;
       setAcceptedRevision(null);
       setAuditStatus("error");
       setAuditMessage("无法连接处方版本签发接口，本次未建立可写回凭据；请恢复连接后重新审方。临床上仍须医生/药师人工复核。");
@@ -5899,6 +5889,13 @@ type WorkspaceSnapshot = {
   workbenchDraft?: WorkbenchUnsavedDraftFlag | null;
 };
 
+function warningDraftMaterial(context: Pick<WorkspaceSnapshot, "recordDraft" | "input" | "selectedQuestionOptions"> & { tongueImage: string | null }): string {
+  return stableWarningJson({ recordDraft: context.recordDraft, input: context.input,
+    selectedQuestionOptions: context.selectedQuestionOptions, tongueImage: context.tongueImage });
+}
+
+type PendingReportExport = ClinicalWarningProfile & { materialKey: string; isCurrent: () => boolean };
+
 const WORKSPACE_STORAGE_KEY = "tcm_cdss_workspace_v1";
 const WORKSPACE_BINDING_KEY = "tcm_cdss_workspace_binding_v1";
 const WORKSPACE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -5950,11 +5947,18 @@ function sanitizeQuestionSelectionsForBrowserPersistence(
   }]));
 }
 
-async function saveWorkspaceSnapshot(snapshot: Omit<WorkspaceSnapshot, "schemaVersion" | "updatedAt">): Promise<string | null> {
+async function saveWorkspaceSnapshot(
+  snapshot: Omit<WorkspaceSnapshot, "schemaVersion" | "updatedAt">,
+  installed?: InstalledWarningObservation | null,
+  isCurrent: () => boolean = () => true,
+): Promise<string | null> {
   if (!BROWSER_CASE_PERSISTENCE_ENABLED) return null;
   if (typeof window === "undefined") return null;
   const updatedAt = new Date().toISOString();
+  const sequence = ++workspaceSaveSequence;
+  const ownsSave = () => sequence === workspaceSaveSequence && isCurrent();
   try {
+    if (!ownsSave()) return null;
     const binding = workspaceSnapshotBinding(true);
     if (!binding) return null;
     const explicitNames = [snapshot.recordDraft.patientName, snapshot.caseState.patient.name, snapshot.caseState.hisRecord?.fields.patientName].filter((item): item is string => Boolean(item?.trim()));
@@ -5968,13 +5972,15 @@ async function saveWorkspaceSnapshot(snapshot: Omit<WorkspaceSnapshot, "schemaVe
       selectedQuestionOptions: sanitizeQuestionSelectionsForBrowserPersistence(snapshot.selectedQuestionOptions, explicitNames),
       workbenchDraft: snapshot.workbenchDraft ?? null,
     };
-    const sequence = ++workspaceSaveSequence;
+    const receipt = await matchingWarningStorageReceipt(payload, snapshot.caseState, installed, ownsSave);
+    if (!ownsSave()) return null;
+    const wirePayload = withWarningStorageReceipt(payload as unknown as Record<string, unknown>, receipt);
     const { response, body } = await fetchJsonWithTimeout<{ ok?: boolean; envelope?: unknown }>(apiUrl("/api/diagnosis/snapshot"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "encrypt", payload, binding }),
+      body: JSON.stringify({ action: "encrypt", payload: wirePayload, binding }),
     });
-    if (!response.ok || !body?.ok || !isEncryptedSnapshotEnvelope(body.envelope) || sequence !== workspaceSaveSequence) return null;
+    if (!response.ok || !body?.ok || !isEncryptedSnapshotEnvelope(body.envelope) || !ownsSave()) return null;
     window.localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(body.envelope));
     return body.envelope.updatedAt;
   } catch {
@@ -5982,7 +5988,7 @@ async function saveWorkspaceSnapshot(snapshot: Omit<WorkspaceSnapshot, "schemaVe
   }
 }
 
-type WorkspaceRestoreResult = { snapshot: WorkspaceSnapshot | null; failure?: "auth" | "network" | "invalid" };
+type WorkspaceRestoreResult = { snapshot: WorkspaceSnapshot | null; verifiedWarningObservation?: VerifiedWarningObservation; failure?: "auth" | "network" | "invalid" };
 
 async function loadWorkspaceSnapshot(): Promise<WorkspaceRestoreResult> {
   if (!BROWSER_CASE_PERSISTENCE_ENABLED) {
@@ -6005,7 +6011,7 @@ async function loadWorkspaceSnapshot(): Promise<WorkspaceRestoreResult> {
       window.localStorage.removeItem(WORKSPACE_STORAGE_KEY);
       return { snapshot: null, failure: "invalid" };
     }
-    const { response, body } = await fetchJsonWithTimeout<{ ok?: boolean; payload?: unknown }>(apiUrl("/api/diagnosis/snapshot"), {
+    const { response, body } = await fetchJsonWithTimeout<{ ok?: boolean; payload?: unknown; verifiedWarningObservation?: VerifiedWarningObservation }>(apiUrl("/api/diagnosis/snapshot"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "decrypt", envelope, binding }),
@@ -6034,10 +6040,8 @@ async function loadWorkspaceSnapshot(): Promise<WorkspaceRestoreResult> {
     if (!normalizedCaseState) return { snapshot: null, failure: "invalid" };
     // Safety/completeness decisions are derived data. Recompute them with the current release so a
     // pre-fix snapshot cannot keep an obsolete ready gate and expose stale candidate prescriptions.
-    const recomputedCaseState = withSafetyGateAndOperationalCompleteness(
-      sanitizeCaseStateForBrowserPersistence(normalizedCaseState),
-    );
-    const caseState = reconcileRestoredCaseState(recomputedCaseState);
+    const caseState = restoreWarningDisplayCase(parsed.caseState, parsed.runningPhase);
+    if (!caseState) return { snapshot: null, failure: "invalid" };
     const rawRecordDraft = { ...createEmptyHisRecordDraft(), ...(parsed.recordDraft || {}) };
     const legacyNames = [rawRecordDraft.patientName, normalizedCaseState.patient.name, normalizedCaseState.hisRecord?.fields.patientName].filter((item): item is string => Boolean(item?.trim()));
     const rawWorkbenchDraft = parsed.workbenchDraft;
@@ -6064,7 +6068,7 @@ async function loadWorkspaceSnapshot(): Promise<WorkspaceRestoreResult> {
       selectedQuestionOptions: sanitizeQuestionSelectionsForBrowserPersistence(parsed.selectedQuestionOptions || {}, legacyNames),
       workbenchDraft,
     };
-    return { snapshot: sanitizedSnapshot };
+    return { snapshot: sanitizedSnapshot, verifiedWarningObservation: body.verifiedWarningObservation };
   } catch {
     // Network failures are retryable. The encrypted envelope remains in localStorage and can be
     // restored on the next reload once connectivity/authentication recovers.
@@ -7653,6 +7657,7 @@ function HisMedicalRecordWorkspace({
 
 function AiSupportPanel({
   caseState,
+  installedWarningObservation,
   isRunning,
   stageHeartbeat,
   canCancelRun,
@@ -7684,6 +7689,7 @@ function AiSupportPanel({
 }: {
   stageHeartbeat: string;
   caseState: CaseState;
+  installedWarningObservation?: InstalledWarningObservation | null;
   isRunning: boolean;
   canCancelRun: boolean;
   isCancelling: boolean;
@@ -7713,7 +7719,7 @@ function AiSupportPanel({
   onUnsavedDraftChange?: (flag: WorkbenchUnsavedDraftFlag | null) => void;
 }) {
   const hasDecisionResults = Boolean(caseState.diagnosis || caseState.prescription || caseState.riskAssessment);
-  const warningProfile = deriveCaseWarningProfile(caseState);
+  const warningProfile = resolveWarningDisplayProfile(caseState, installedWarningObservation);
   const isActiveRedFlag = (caseState.safetyGate || evaluateSafetyGate(caseState)).status === "red_flag";
   const warningBadgeTone =
     warningProfile.level === "L4" ? "bg-red-900 text-white" :
@@ -8141,6 +8147,10 @@ function StreamingPreviewCard({
 
 export default function DiagnosisPage() {
   const [caseState, setCaseState] = useState<CaseState>(newCase);
+  const [installedWarningObservation, setInstalledWarningObservation] = useState<InstalledWarningObservation | undefined>();
+  const warningObservationRef = useRef<InstalledWarningObservation | undefined>(undefined);
+  const warningObservationDraftRef = useRef("");
+  const [warningObservationDraft, setWarningObservationDraft] = useState("");
   const [recordDraft, setRecordDraft] = useState<HisRecordDraft>(createEmptyHisRecordDraft);
   const [input, setInput] = useState("");
   const [selectedQuestionOptions, setSelectedQuestionOptions] = useState<Record<string, QuestionOptionSelection>>({});
@@ -8169,7 +8179,12 @@ export default function DiagnosisPage() {
   const [uploadNotice, setUploadNotice] = useState("");
   const [captureModal, setCaptureModal] = useState<"tongue" | null>(null);
   const [pendingNewCaseConfirm, setPendingNewCaseConfirm] = useState(false);
-  const [pendingReportExport, setPendingReportExport] = useState<ClinicalWarningProfile | null>(null);
+  const [pendingReportExport, setPendingReportExportState] = useState<PendingReportExport | null>(null);
+  const pendingReportExportRef = useRef<PendingReportExport | null>(null);
+  const setPendingReportExport = useCallback((value: PendingReportExport | null) => {
+    pendingReportExportRef.current = value;
+    setPendingReportExportState(value);
+  }, []);
   const [reportExportAcknowledged, setReportExportAcknowledged] = useState(false);
   const [reportExportReason, setReportExportReason] = useState("");
   const [workbenchUnsavedDraft, setWorkbenchUnsavedDraft] = useState<WorkbenchUnsavedDraftFlag | null>(null);
@@ -8177,6 +8192,32 @@ export default function DiagnosisPage() {
   const activeCaseIdRef = useRef(caseState.id);
   const hasInProgressWorkRef = useRef(false);
   const workspaceRestoreGenerationRef = useRef(0);
+  const warningContextRef = useRef({ caseState, recordDraft, input, selectedQuestionOptions, tongueImage, workbenchUnsavedDraft });
+  // Replacing this context is the page epoch. Re-rendering a clock or confirmation control does
+  // not change it; any case, tenant, clinical edit or unsaved workbench transition does.
+  useLayoutEffect(() => {
+    const previous = warningContextRef.current;
+    if (previous.caseState !== caseState || previous.recordDraft !== recordDraft || previous.input !== input ||
+      previous.selectedQuestionOptions !== selectedQuestionOptions || previous.tongueImage !== tongueImage ||
+      previous.workbenchUnsavedDraft !== workbenchUnsavedDraft) {
+      warningContextRef.current = { caseState, recordDraft, input, selectedQuestionOptions, tongueImage, workbenchUnsavedDraft };
+    }
+  }, [caseState, recordDraft, input, selectedQuestionOptions, tongueImage, workbenchUnsavedDraft]);
+  const captureWarningPageGuard = useCallback(() => {
+    const context = warningContextRef.current;
+    const generation = clinicalGenerationRef.current;
+    const controller = activeRunAbortController;
+    const material = warningDisplayMaterial(context.caseState);
+    const draft = stableWarningJson({ ...context, caseState: undefined });
+    return () => warningContextRef.current === context && clinicalGenerationRef.current === generation &&
+      activeCaseIdRef.current === context.caseState.id && activeRunAbortController === controller && !controller?.signal.aborted &&
+      warningDisplayMaterial(context.caseState) === material && stableWarningJson({ ...context, caseState: undefined }) === draft;
+  }, []);
+  const currentPageWarningObservation = useCallback(() => {
+    const context = warningContextRef.current;
+    return !context.workbenchUnsavedDraft && warningObservationDraftRef.current === warningDraftMaterial(context)
+      ? warningObservationRef.current : undefined;
+  }, []);
   const runDiagnoseChainRef = useRef<(state: CaseState, automaticSignatureRecoveryAttempts?: number) => Promise<void>>(
     async () => undefined,
   );
@@ -8217,14 +8258,26 @@ export default function DiagnosisPage() {
   // Restore the last encrypted local workspace on mount. Image bytes are intentionally never restored.
   useEffect(() => {
     const generation = ++workspaceRestoreGenerationRef.current;
+    const pageIsCurrent = captureWarningPageGuard();
+    const restoreIsCurrent = () => workspaceRestoreGenerationRef.current === generation && pageIsCurrent();
     void (async () => {
       try {
-        const { snapshot: workspace, failure: restoreFailureKind } = await loadWorkspaceSnapshot();
-        if (workspaceRestoreGenerationRef.current !== generation) return;
+        const { snapshot: workspace, verifiedWarningObservation, failure: restoreFailureKind } = await loadWorkspaceSnapshot();
+        if (!restoreIsCurrent()) return;
         if (restoreFailureKind) setRestoreFailure(restoreFailureKind);
         if (workspace) {
           const restoredCase = recoverInterruptedRun(workspace.caseState, workspace.runningPhase);
+          const installed = verifiedWarningObservation?.view === "stored" && !workspace.workbenchDraft
+            ? await prepareWarningObservation({ receipt: verifiedWarningObservation.receipt, finalState: restoredCase,
+                view: "stored", customerId: restoredCase.customerId, isCurrent: restoreIsCurrent })
+            : undefined;
+          if (!restoreIsCurrent()) return;
           activeCaseIdRef.current = restoredCase.id;
+          warningContextRef.current = { ...warningContextRef.current, caseState: restoredCase };
+          warningObservationRef.current = installed;
+          warningObservationDraftRef.current = warningDraftMaterial({ ...workspace, tongueImage: null });
+          setWarningObservationDraft(warningObservationDraftRef.current);
+          setInstalledWarningObservation(installed);
           setCaseState(restoredCase);
           setRecordDraft(workspace.recordDraft);
           setInput(workspace.input);
@@ -8241,14 +8294,20 @@ export default function DiagnosisPage() {
     return () => {
       if (workspaceRestoreGenerationRef.current === generation) workspaceRestoreGenerationRef.current += 1;
     };
-  }, [commitSelectedQuestionOptions]);
+  }, [commitSelectedQuestionOptions, captureWarningPageGuard]);
 
   const setStreamingForPhase = useCallback((phase: Phase, text: string) => {
     setStreaming((prev) => ({ ...prev, [phase]: text }));
   }, []);
 
-  const persistState = useCallback((state: CaseState) => {
+  const persistState = useCallback((state: CaseState, observation?: InstalledWarningObservation) => {
     if (state.id !== activeCaseIdRef.current) return;
+    warningContextRef.current = { ...warningContextRef.current, caseState: state };
+    const matching = matchingWarningObservation(state, observation || warningObservationRef.current);
+    warningObservationRef.current = matching;
+    if (matching) warningObservationDraftRef.current = warningDraftMaterial(warningContextRef.current);
+    setWarningObservationDraft(warningObservationDraftRef.current);
+    setInstalledWarningObservation(matching);
     setCaseState(state);
     saveCase(state);
   }, []);
@@ -8280,6 +8339,7 @@ export default function DiagnosisPage() {
     if (!workspaceRestored) return;
     if (!hasInProgressWork && !hasAnyDraftInput(recordDraft) && !input.trim()) return;
     const timer = window.setTimeout(() => {
+      const isCurrent = captureWarningPageGuard();
       void saveWorkspaceSnapshot({
         caseState,
         recordDraft,
@@ -8287,14 +8347,15 @@ export default function DiagnosisPage() {
         selectedQuestionOptions,
         runningPhase: isRunning ? caseState.phase : undefined,
         workbenchDraft: workbenchUnsavedDraft,
-      }).then((savedAt) => {
+      }, currentPageWarningObservation(), isCurrent).then((savedAt) => {
+        if (!isCurrent()) return;
         if (savedAt) setLastSavedAt(savedAt);
         setSnapshotSaveFailed(!savedAt);
       });
       saveCase(caseState);
     }, 150);
     return () => window.clearTimeout(timer);
-  }, [caseState, hasInProgressWork, input, isRunning, recordDraft, selectedQuestionOptions, workbenchUnsavedDraft, workspaceRestored]);
+  }, [caseState, hasInProgressWork, input, isRunning, recordDraft, selectedQuestionOptions, workbenchUnsavedDraft, workspaceRestored, installedWarningObservation, captureWarningPageGuard, currentPageWarningObservation]);
 
   useEffect(() => {
     const onAuthExpired = () => setAuthExpired(true);
@@ -8595,39 +8656,26 @@ export default function DiagnosisPage() {
     }
     try {
       setStreamingForPhase("assess", "");
+      const requestState = current;
+      const pageIsCurrent = captureWarningPageGuard();
+      const completionIsCurrent = () => isCurrentGeneration() && pageIsCurrent();
       const res5 = await fetchWithTimeout(apiUrl("/api/diagnosis/assess"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caseState: current }),
+        body: JSON.stringify({ caseState: requestState }),
       });
       if (!res5.ok) throw new Error(await readErrorMessage(res5, `合理用药审方与随访生成失败 (${res5.status})`));
       if (!isCurrentGeneration()) { await res5.body?.cancel(); return; }
       const generatedRisk = await consumeMarkdownStreamWithMetadata(res5, (t) => {
         if (isCurrentGeneration()) setStreamingForPhase("assess", t);
-      }, streamConsumeOptions());
+      }, { ...streamConsumeOptions(), collectWarningProfile: true });
       if (!isCurrentGeneration()) return;
-      const machineAuditStatus = parseRxAuditStatusMarker(generatedRisk.content);
-      const cleanRiskAssessment = stripRxAuditStatusMarker(generatedRisk.content);
-      const riskAssessment = replaceRiskAssessmentFollowup(current.riskAssessment, cleanRiskAssessment);
-      const noAuditItems = machineAuditStatus?.reason === "no_prescription_items" ||
-        /候选方药结构尚未达到自动审方接口要求|候选方药无法形成可核验的自动审方对象|尚未形成完整药味清单/.test(cleanRiskAssessment);
-      const auditUnavailable = machineAuditStatus
-        ? machineAuditStatus.available === false
-        : noAuditItems || /本次未完成自动用药复核|自动用药复核暂未返回结果|M05 未完成灵犀处方后审方/.test(cleanRiskAssessment);
-      current = withSafetyGate({
-        ...current,
-        riskAssessment,
-        followupTimeline: generatedRisk.followupTimeline,
-        auditAdvisory: machineAuditStatus?.presentationDisabled
-          ? { available: false, presentationDisabled: true }
-          : auditUnavailable
-            ? { available: false, reason: machineAuditStatus?.reason || (noAuditItems ? "no_prescription_items" : "service_unavailable") }
-            : { available: true },
-        skipDifferentiationGate: undefined,
-        phase: "done",
-        previousResult: undefined,
-      });
-      persistState(current);
+      const receipt = parseWarningDisplayReceipt(generatedRisk.warningObservation);
+      current = applyCompletedM05DisplayResult(requestState, generatedRisk, requestState.customerId ? undefined : receipt?.customerId);
+      const installed = await prepareWarningObservation({ receipt, requestState, finalState: current,
+        customerId: current.customerId, isCurrent: completionIsCurrent });
+      if (!completionIsCurrent()) return;
+      persistState(current, installed);
     } catch (e) {
       if (!ownsCurrentGeneration()) return;
       const message = normalizeRequestError(e, "合理用药审方与随访生成失败");
@@ -8661,7 +8709,7 @@ export default function DiagnosisPage() {
         lastError: undefined,
       }));
     }
-  }, [persistState, setStreamingForPhase]);
+  }, [persistState, setStreamingForPhase, captureWarningPageGuard]);
 
   useEffect(() => {
     runDiagnoseChainRef.current = runDiagnoseChain;
@@ -9122,6 +9170,9 @@ export default function DiagnosisPage() {
     clearWorkspaceSnapshot();
     const nextCase = newCase();
     activeCaseIdRef.current = nextCase.id;
+    warningContextRef.current = { ...warningContextRef.current, caseState: nextCase };
+    warningObservationRef.current = undefined;
+    setInstalledWarningObservation(undefined);
     setCaseState(nextCase);
     setRecordDraft(createEmptyHisRecordDraft());
     setStreaming({});
@@ -9169,32 +9220,39 @@ export default function DiagnosisPage() {
   }
 
   function handleDownloadReport() {
-    const warningProfile = deriveCaseWarningProfile(caseState);
+    const warningProfile = resolveWarningDisplayProfile(caseState, currentPageWarningObservation());
     if (warningProfile.level === "L0" || warningProfile.level === "L1") {
       downloadReport(caseState, warningProfile);
       return;
     }
     setReportExportAcknowledged(false);
     setReportExportReason("");
-    setPendingReportExport(warningProfile);
+    setPendingReportExport({ ...warningProfile, materialKey: warningDisplayMaterial(caseState), isCurrent: captureWarningPageGuard() });
   }
 
   async function confirmReportExport() {
     if (!pendingReportExport || !reportExportAcknowledged) return;
     if (pendingReportExport.level === "L0" || pendingReportExport.level === "L1") return;
     if ((pendingReportExport.level === "L3" || pendingReportExport.level === "L4") && !reportExportReason.trim()) return;
+    if (pendingReportExportRef.current !== pendingReportExport) return;
+    if (!pendingReportExport.isCurrent() || pendingReportExport.materialKey !== warningDisplayMaterial(caseState)) return;
+    const isCurrent = captureWarningPageGuard();
+    const warningProfile = resolveWarningDisplayProfile(caseState, currentPageWarningObservation());
+    if (warningProfile.level === "L0" || warningProfile.level === "L1") return;
+    const reportFingerprint = await reportExportFingerprint(caseState);
+    if (!isCurrent() || pendingReportExportRef.current !== pendingReportExport || !pendingReportExport.isCurrent() || pendingReportExport.materialKey !== warningDisplayMaterial(caseState)) return;
     const acknowledgedState: CaseState = {
       ...caseState,
       warningAcknowledgement: {
-        warningLevel: pendingReportExport.level,
+        warningLevel: warningProfile.level,
         acknowledgedAt: new Date().toISOString(),
-        reportFingerprint: await reportExportFingerprint(caseState),
+        reportFingerprint,
         reason: reportExportReason.trim() || undefined,
-        exportMode: pendingReportExport.executable ? "full_advisory_report" : "non_dose_risk_report",
+        exportMode: warningProfile.executable ? "full_advisory_report" : "non_dose_risk_report",
       },
     };
     persistState(acknowledgedState);
-    downloadReport(acknowledgedState, pendingReportExport);
+    downloadReport(acknowledgedState, warningProfile);
     setPendingReportExport(null);
     setReportExportAcknowledged(false);
     setReportExportReason("");
@@ -9206,54 +9264,29 @@ export default function DiagnosisPage() {
     setRunning(true);
     beginRunScope();
     try {
+    const isCurrent = captureWarningPageGuard();
     const prescription = buildAcceptedPrescriptionMarkdown(accepted.reasoning, accepted.revision.candidateIndex, accepted.revision.herbHash);
     if (!prescription) throw new Error("编辑后处方为空，未写回病例。");
-    const auditAdvisory: CaseState["auditAdvisory"] = accepted.revision.auditAvailable === false
-      ? {
-          available: false,
-          reason: accepted.revision.auditReason === "no_prescription_items"
-            ? "no_prescription_items"
-            : "service_unavailable",
-        }
-      : { available: true };
-    const mergedReasoning = mergeReasoningStages(
-      diagnoseReasoningFromState(caseState),
-      accepted.reasoning,
-    );
-    const latestDraftCase = applyDraftToCaseState(caseState, recordDraft, caseState.hisRecord?.fields.extraText || "", Boolean(tongueImage));
-    const editedState = withSafetyGate({
-      ...latestDraftCase,
-      phase: "assess",
-      prescription,
-      riskAssessment: accepted.auditSection,
-      reasoningPrescribe: accepted.reasoning,
-      reasoningV2: mergedReasoning || accepted.reasoning,
-      prescriptionRevision: accepted.revision,
-      auditAdvisory,
-      // Preserve the fresh server-owned patient safety result. RxAudit severity itself remains
-      // advisory and does not participate in this flag.
-      safetyLocked: accepted.serverSafetyLocked,
-      lastError: undefined,
-    });
+    const latestDraftCase = preserveUnchangedHisSnapshot(caseState,
+      applyDraftToCaseState(caseState, recordDraft, caseState.hisRecord?.fields.extraText || "", Boolean(tongueImage)));
+    const receipt = parseWarningDisplayReceipt(accepted.warningObservation);
+    const displayBase = !latestDraftCase.customerId && receipt ? { ...latestDraftCase, customerId: receipt.customerId } : latestDraftCase;
+    const editedState = applyAcceptedPrescriptionDisplayResult(displayBase, accepted, false);
     const permission = derivePrescriptionPermission(editedState);
     if (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked") {
       throw new Error("病例出现急性风险、特殊人群或关键数值异常，编辑后剂量方案未写回；可继续查看风险分析，并请专科/药师复核。");
     }
     const currentVersionHash = await computePrescriptionVersionHash(accepted.reasoning, accepted.revision.candidateIndex, editedState).catch(() => "");
+    if (!isCurrent()) return;
     if (!currentVersionHash || currentVersionHash !== accepted.revision.herbHash) {
       throw new Error("病例诊断、过敏史、现用药或人口学信息已变化；请对当前病例重新审方后再写回。");
     }
 
     if (activeCaseIdRef.current !== accepted.caseId) throw new Error("病例已切换，旧病例响应已丢弃。");
-    const riskAssessment = replaceRiskAssessmentFollowup(accepted.auditSection, accepted.followupSection);
-
-    const committed = withSafetyGate({
-      ...editedState,
-      phase: "done",
-      riskAssessment,
-      followupTimeline: accepted.followupTimeline,
-      safetyLocked: accepted.serverSafetyLocked || permission.formalAdoption === "blocked",
-    });
+    const committed = applyAcceptedPrescriptionDisplayResult(displayBase, accepted);
+    const installed = await prepareWarningObservation({ receipt, requestState: accepted.warningRequestState,
+      finalState: committed, customerId: committed.customerId, isCurrent });
+    if (!isCurrent()) return;
     const savedAt = BROWSER_CASE_PERSISTENCE_ENABLED
       ? await saveWorkspaceSnapshot({
           caseState: committed,
@@ -9263,10 +9296,11 @@ export default function DiagnosisPage() {
           runningPhase: undefined,
           // 采纳后未保存草稿分叉消除：清除脏标记，快照只保留已审方/采纳版本。
           workbenchDraft: null,
-        })
+        }, installed, isCurrent)
       : null;
+    if (!isCurrent()) return;
     if (BROWSER_CASE_PERSISTENCE_ENABLED && !savedAt) throw new Error("编辑后方案未能安全保存，请检查浏览器存储或网络后重试；当前版本尚未写回。");
-    persistState(committed);
+    persistState(committed, installed);
     setWorkbenchUnsavedDraft(null);
     if (savedAt) setLastSavedAt(savedAt);
     setStreamingForPhase("assess", "");
@@ -9593,6 +9627,7 @@ export default function DiagnosisPage() {
           <AiSupportPanel
             stageHeartbeat={stageHeartbeat}
             caseState={isQuestionSupplementFlow ? liveUiCaseState : caseState}
+            installedWarningObservation={!workbenchUnsavedDraft && warningObservationDraft === warningDraftMaterial({ recordDraft, input, selectedQuestionOptions, tongueImage }) ? installedWarningObservation : undefined}
             isRunning={interactionLocked}
             canCancelRun={isRunning}
             isCancelling={runCancelRequested}
