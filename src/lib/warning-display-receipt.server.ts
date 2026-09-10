@@ -103,6 +103,9 @@ export async function withPostPrescriptionWarningObservation<T extends {
       revision: revisionFromAudit(body.audit, candidateIndex, herbHash, true),
     };
     const finalState = applyAcceptedPrescriptionDisplayResult({ ...requestState, customerId: input.customer.customerId }, accepted);
+    // The submitted workbench revision is only an unaudited placeholder. Carry fresh enriched
+    // patient facts forward, but take revision severity/availability from this completed audit.
+    const completedProducerState = applyAcceptedPrescriptionDisplayResult(input.producerState, accepted);
     const projectedState = applyAcceptedPrescriptionDisplayResult(requestState, { ...accepted,
       auditSection: matchedWarningText(body.section, input.sectionProjection),
       followupSection: matchedWarningText(body.followup, input.followupProjection).trim(),
@@ -112,7 +115,7 @@ export async function withPostPrescriptionWarningObservation<T extends {
       sourceRepresentation: input.sourceRepresentation,
       customer: input.customer, advisories: input.advisories,
       owned: { prescription, riskAssessment: { markdown: finalState.riskAssessment || "", currentRiskMarkdown: projectedState.riskAssessment || "" },
-        audit: input.audit, floor: deriveStructuredCaseWarningFloor(input.producerState) },
+        audit: input.audit, floor: deriveStructuredCaseWarningFloor(completedProducerState) },
     });
     return observation ? { ...body, warningObservation: observation } : body;
   } catch {

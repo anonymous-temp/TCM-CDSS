@@ -80,7 +80,7 @@ export function boundedWarningProfile(profile: ClinicalWarningProfile): Clinical
 function parseProfile(value: unknown): ClinicalWarningProfile | undefined {
   const row = record(value);
   if (!row || !exactKeys(row, ["level", "label", "action", "executable", "reasons"]) ||
-    !["L0", "L1", "L2", "L3", "L4"].includes(String(row.level)) || typeof row.executable !== "boolean" ||
+    typeof row.level !== "string" || !["L0", "L1", "L2", "L3", "L4"].includes(row.level) || typeof row.executable !== "boolean" ||
     !Array.isArray(row.reasons) || row.reasons.length < 1 || row.reasons.length > 8 ||
     !row.reasons.every((reason) => typeof reason === "string" && reason.length > 0 && reason.length <= 600)) return undefined;
   const level = row.level as ClinicalWarningProfile["level"];
