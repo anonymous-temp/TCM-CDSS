@@ -54,6 +54,7 @@ const {
 const { withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { findInternalEngineeringTags, INTERNAL_TAG_RULES } = await jiti.import("../src/lib/internal-tag-hygiene.ts");
 const { formulaAnalysisCharBudget } = await jiti.import("../src/lib/herb-target-contract.ts");
+const { finalizeM05DisplayResult } = await jiti.import("../src/lib/followup-display-state.ts");
 
 const FIXTURE_DIR = new URL("./fixtures/visible-output-hygiene/", import.meta.url);
 const CLIENT_SOURCE_PATH = "src/app/diagnosis/DiagnosisClient.tsx";
@@ -390,6 +391,142 @@ check("E/ICD-10 编码在投影后逐字保留", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 const INJECTION_BASE = fixtures.find((item) => item.fixtureId === "pathogenesis-repetition");
 assert.ok(INJECTION_BASE, "缺少注入用基线 fixture");
+
+// K. M05 正文必须到达实际结果区：复用归档病例和生产收流建态，覆盖整类漏挂载与截断。
+{
+  const base = doctorVisibleSurfaces(INJECTION_BASE).caseState;
+  const diagnose = structuredClone(base.reasoningDiagnose);
+  const prescribe = structuredClone(base.reasoningPrescribe);
+  diagnose.management = {
+    ...diagnose.management,
+    followupSafetyNet: "既有诊断安全网：若症状变化请提前复评。",
+  };
+  prescribe.management = undefined;
+  prescribe.nonPharma = {
+    diet: "既有处方饮食建议：少量多餐。",
+    lifestyle: "既有处方起居建议：按时休息。",
+    emotion: "既有处方情志建议：保持心情舒畅。",
+    precautions: [],
+    tcmTreatments: [],
+  };
+  const prior = {
+    ...base,
+    reasoningDiagnose: diagnose,
+    reasoningPrescribe: prescribe,
+    reasoningV2: mergeReasoningStages(diagnose, prescribe),
+    riskAssessment: "",
+  };
+  const longFollowup = Array.from({ length: 24 }, (_, index) =>
+    `复诊记录第${index + 1}项：记录主诉发生时间、持续时间、程度、诱发因素及休息后的变化，复诊时携带连续记录，供医生逐项比较本次与前次表现。`,
+  ).join("\n\n");
+  const longRehab = Array.from({ length: 24 }, (_, index) =>
+    `康复记录第${index + 1}项：记录日常活动耐受情况、休息后的恢复情况及活动前后不适变化，复诊时由医生结合记录评估后续活动安排。`,
+  ).join("\n\n");
+  const clinicalLines = [
+    "安全总评独立内容：用药期间观察不适变化。",
+    "转诊评估独立内容：症状持续加重时及时转诊。",
+    "首次复诊独立内容：五日后携带记录复诊。",
+    "疗效评价独立内容：比较主诉频次与活动耐受。",
+    "观察指标独立内容：逐日记录症状程度与睡眠。",
+    "随访长段末尾独立内容：复诊时带齐观察记录。",
+    "生活管理独立内容：安排固定起居与休息时间。",
+    "康复长段末尾独立内容：复评活动后恢复情况。",
+    "患者红旗独立内容：出现呼吸困难立即就医。",
+  ];
+  const auditLine = "审方独立内容：药物相关风险请结合本次审方记录复核。";
+  const canonicalTable = [
+    "## 随访时间轴",
+    "| 时间点 | 医生/患者动作 | 观察指标 | 触发处置 |",
+    "|---|---|---|---|",
+    "| 七日后 | 历史正文表格独立复诊动作 | 比较活动耐受 | 加重时提前复评 |",
+  ].join("\n");
+  const timeline = [{ time: "九日后", action: "结构化时间轴专用动作不应另建页面表格", indicators: ["症状"], triggers: ["加重"] }];
+  const wire = [
+    "<!-- TCM_CDSS_RXAUDIT_STATUS:UNAVAILABLE:SERVICE_UNAVAILABLE -->",
+    "## 合理用药审方（灵犀统一审方引擎）", auditLine,
+    "## 处方安全总评", clinicalLines[0],
+    "## 转诊评估", clinicalLines[1],
+    "## 随访管理方案", clinicalLines[2], clinicalLines[3], clinicalLines[4],
+    longFollowup, clinicalLines[5],
+    "## 生活管理", clinicalLines[6],
+    "## 中医康复管理", longRehab, clinicalLines[7],
+    canonicalTable,
+    "## 红旗预警（患者须知）", clinicalLines[8],
+    "<!-- M05_HIDDEN_TRUST_MATERIAL -->",
+    "<!-- FOLLOWUP_TIMELINE_JSON_START -->", JSON.stringify(timeline), "<!-- FOLLOWUP_TIMELINE_JSON_END -->",
+  ].join("\n\n");
+  const completed = finalizeM05DisplayResult(prior, { markdown: wire, currentRiskMarkdown: wire });
+  const stateBeforeRender = structuredClone(completed.state);
+  const html = renderResultAreaHtml(completed.state);
+  const pageText = visibleTextFromHtml(html);
+  const careHtml = (rendered) => {
+    const start = rendered.indexOf('id="cdss-section-followup"');
+    assert.ok(start >= 0, "健康调护与注意事项模块必须存在");
+    return rendered.slice(start, rendered.indexOf("</details>", start));
+  };
+  const care = careHtml(html);
+  const careText = visibleTextFromHtml(care);
+
+  check("K/M05 全部临床正文与独立生活管理实际渲染且长段不截断", () => {
+    assert.ok(longFollowup.length > 1400 && longRehab.length > 1400, "两个长段必须分别越过旧截断预算");
+    for (const expected of clinicalLines) {
+      assert.ok(careText.includes(expected), `健康调护实际渲染缺失：${expected}`);
+    }
+    assert.ok(care.includes('data-clinical-contract-ids="M05-assessment"'), "正文子容器必须归属现有 M05 合同");
+  });
+  check("K/M03 与 M04 既有调护和安全网保留", () => {
+    for (const expected of [prescribe.nonPharma.diet, prescribe.nonPharma.lifestyle, prescribe.nonPharma.emotion, diagnose.management.followupSafetyNet]) {
+      assert.ok(careText.includes(expected), `既有建议被替换：${expected}`);
+    }
+  });
+  check("K/M05 康复只出现一次且审方仍由独立审方区呈现一次", () => {
+    assert.equal(occurrences(pageText, clinicalLines[7]), 1, "完整康复长段只能出现一次");
+    assert.equal(occurrences(pageText, "康复记录第1项"), 1, "不能保留旧康复片段导致重复");
+    assert.equal(occurrences(pageText, auditLine), 1, "审方正文只能出现一次");
+    assert.ok(!careText.includes(auditLine), "调护区不得重复挂载审方正文");
+  });
+  check("K/只展示已有正文表格且不从结构化时间轴新建表格", () => {
+    assert.ok(careText.includes("历史正文表格独立复诊动作"), "历史正文中的独有临床表格不得被删");
+    assert.equal(occurrences(care, "<table"), 1);
+    assert.ok(!pageText.includes(timeline[0].action), "结构化时间轴不得产生额外页面内容");
+    const withoutTable = { ...completed.state, riskAssessment: completed.state.riskAssessment.replace(canonicalTable, "") };
+    assert.equal(occurrences(careHtml(renderResultAreaHtml(withoutTable)), "<table"), 0);
+  });
+  check("K/展示不改变既有状态且隐藏状态标记与时间轴载荷不泄漏", () => {
+    assert.deepEqual(completed.state, stateBeforeRender);
+    assert.deepEqual(completed.followupTimeline, timeline);
+    assert.doesNotMatch(html, /TCM_CDSS_RXAUDIT_STATUS|FOLLOWUP_TIMELINE_JSON|M05_HIDDEN_TRUST_MATERIAL/);
+  });
+
+  const withoutStructuredCare = (state) => {
+    const reasoningDiagnose = { ...diagnose, nonPharma: undefined, management: undefined };
+    const reasoningPrescribe = { ...prescribe, nonPharma: undefined, management: undefined };
+    return { ...state, prescription: "", reasoningDiagnose, reasoningPrescribe,
+      reasoningV2: mergeReasoningStages(reasoningDiagnose, reasoningPrescribe) };
+  };
+  check("K/仅 M05 有调护正文时不声称全部调护未生成", () => {
+    const onlyM05Care = visibleTextFromHtml(careHtml(renderResultAreaHtml(withoutStructuredCare(completed.state))));
+    assert.ok(onlyM05Care.includes(clinicalLines[6]));
+    assert.doesNotMatch(onlyM05Care, /本轮未生成饮食\/起居\/情志调护内容|可点击「重新生成」补齐/);
+  });
+  check("K/M04 非结构化调护正文仍与 M05 并存", () => {
+    const fallbackState = { ...withoutStructuredCare(completed.state), prescription: "## 非药物干预\n既有处方非结构化建议：注意休息。" };
+    const text = visibleTextFromHtml(careHtml(renderResultAreaHtml(fallbackState)));
+    assert.ok(text.includes("既有处方非结构化建议：注意休息。"));
+    assert.ok(text.includes(clinicalLines[6]));
+  });
+  check("K/M05 缺失或空白时保持原空态且不新增内容", () => {
+    const absent = withoutStructuredCare({ ...completed.state, riskAssessment: undefined });
+    const absentHtml = renderResultAreaHtml(absent);
+    for (const riskAssessment of ["", "   "]) {
+      assert.equal(renderResultAreaHtml({ ...absent, riskAssessment }), absentHtml);
+    }
+    const absentCare = careHtml(absentHtml);
+    assert.ok(visibleTextFromHtml(absentCare).includes("本轮未生成饮食/起居/情志调护内容"));
+    assert.doesNotMatch(absentCare, /M05-assessment|<table/);
+    assert.ok(!visibleTextFromHtml(absentCare).includes(timeline[0].action));
+  });
+}
 
 // 甲方 2026-08-18 医生端治疗项目实测：把完整后台治理对象注入真实归档病例，断言的不是
 // 某个净化函数，而是 ResultTabsV2 最终 DOM 中这一个模块的实际文字。
