@@ -1912,7 +1912,13 @@ export async function runBoundedRxAudit(
   const config = getRxAuditConfig();
   if (config.explicitlyDisabled) {
     const context = buildMedicationExtractionContext(state);
-    const reason = localMedicationScopeReason((context.text || "").normalize("NFKC"), medicationCandidatesFromSource(context.text).length);
+    // Reuse the existing pure verifier's current/history, ownership and whitespace semantics.
+    // Only its source-scope findings apply here: missing extraction events are expected when this
+    // module is intentionally skipped and must not manufacture a semantic-extraction failure.
+    const sourceChecks = verifyMedicationSemanticCoverage(context.text,
+      { source: "not_needed", events: [], unresolvedReferences: [], needsManualReview: false });
+    const reason = sourceChecks.reason?.split(",").find((item) =>
+      item === "medication_current_scope_unknown" || item === "medication_current_scope_incomplete");
     return {
       medicationExtraction: { source: "not_needed", events: [], unresolvedReferences: [], needsManualReview: Boolean(reason), ...(reason ? { reason } : {}) },
       providerAudit: { ok: false, source: "skipped", reason: "rxaudit_disabled", itemCount: 0 },
