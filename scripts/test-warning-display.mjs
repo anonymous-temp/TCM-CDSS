@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createJiti } from "jiti";
+import ts from "typescript";
 
 Object.assign(process.env, {
   REASONING_CONTRACT_SIGNING_KEY: "warning-display-offline-signing-key-at-least-32-characters",
@@ -23,6 +24,86 @@ const makeCase = () => normalizeCaseStateInput({ id: "warning-case", customerId:
   diagnosis: "诊断建议：气虚证", prescription: "中药处方尚待医生评估", riskAssessment: "## 生活管理\n严禁过度劳累。",
 });
 const clone = structuredClone;
+
+function pageFunction(name, dependencies, prefix = "") {
+  const source = readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+  const tree = ts.createSourceFile("page.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let found;
+  const visit = (node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name) found = node.getText(tree);
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  assert.ok(found, `the actual page must wire ${name}`);
+  const compiled = ts.transpileModule(found, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
+  return new Function(...Object.keys(dependencies), `${prefix}\n${compiled}\nreturn ${name};`)(...Object.values(dependencies));
+}
+
+test("page export confirmation cannot export a changed case after asynchronous fingerprinting", async () => {
+  const state = makeCase();
+  const { resolveWarningDisplayProfile } = await jiti.import("../src/lib/warning-display-observation.ts");
+  const { warningDisplayMaterial } = await jiti.import("../src/lib/warning-display-binding.ts");
+  const profile = resolveWarningDisplayProfile(state);
+  const calls = [];
+  let current = true;
+  let finish;
+  const confirm = pageFunction("confirmReportExport", {
+    caseState: state, pendingReportExport: { ...profile, materialKey: warningDisplayMaterial(state), isCurrent: () => current },
+    reportExportAcknowledged: true, reportExportReason: "已阅读", installedWarningObservation: undefined,
+    warningObservationRef: { current: undefined }, warningDisplayMaterial, resolveWarningDisplayProfile,
+    captureWarningPageGuard: () => () => current,
+    reportExportFingerprint: () => new Promise((resolve) => { finish = resolve; }),
+    persistState: (s) => calls.push(s), downloadReport: (s) => calls.push(s),
+    setPendingReportExport: () => {}, setReportExportAcknowledged: () => {}, setReportExportReason: () => {},
+  });
+  const pending = confirm();
+  current = false;
+  finish("fingerprint");
+  await pending;
+  assert.equal(calls.length, 0, "an old confirmation must neither install nor export another clinical state");
+});
+
+test("actual workspace save attaches only installed matching metadata and guards encryption races", async () => {
+  const { state, receipt } = await fixtureReceipt();
+  const { prepareWarningObservation } = await jiti.import("../src/lib/warning-display-observation.ts");
+  const storage = await jiti.import("../src/lib/warning-display-storage.ts");
+  const { sanitizeCaseStateForBrowserPersistence } = await jiti.import("../src/lib/browser-case-persistence.ts");
+  const installed = await prepareWarningObservation({ receipt, requestState: state, finalState: state, isCurrent: () => true });
+  const writes = [];
+  const sent = [];
+  let finish;
+  let current = true;
+  const save = pageFunction("saveWorkspaceSnapshot", {
+    BROWSER_CASE_PERSISTENCE_ENABLED: true, WORKSPACE_STORAGE_KEY: "workspace", window: { localStorage: { setItem: (...args) => writes.push(args) } },
+    workspaceSnapshotBinding: () => "offline-binding", sanitizeCaseStateForBrowserPersistence,
+    sanitizeRecordDraftForBrowserPersistence: (draft) => draft, scrubPersistentPhiText: (text) => text,
+    sanitizeQuestionSelectionsForBrowserPersistence: (selections) => selections,
+    matchingWarningStorageReceipt: storage.matchingWarningStorageReceipt, withWarningStorageReceipt: storage.withWarningStorageReceipt,
+    apiUrl: (url) => url, isEncryptedSnapshotEnvelope: () => true,
+    fetchJsonWithTimeout: (_url, options) => { sent.push(JSON.parse(options.body)); return new Promise((resolve) => { finish = resolve; }); },
+  }, "let workspaceSaveSequence = 0;");
+  const payload = { caseState: state, recordDraft: { patientName: "" }, input: "", selectedQuestionOptions: {}, __tcmWarningDisplayReceipt: { forged: true } };
+  const pending = save(payload, installed, () => current);
+  for (let index = 0; !finish && index < 30; index += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+  assert.ok(finish);
+  assert.deepEqual(sent[0].payload.__tcmWarningDisplayReceipt, receipt, "only the separately installed receipt reaches encryption");
+  current = false;
+  finish({ response: { ok: true }, body: { ok: true, envelope: { updatedAt: "today" } } });
+  assert.equal(await pending, null);
+  assert.equal(writes.length, 0);
+});
+
+test("page M05, badge, workbench and restore use shared receipt boundaries", () => {
+  const source = readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
+  assert.match(source, /collectWarningProfile:\s*true/);
+  assert.match(source, /prepareWarningObservation\(/);
+  assert.match(source, /generatedRisk\.warningObservation/);
+  assert.match(source, /body\?\.warningObservation/);
+  assert.match(source, /body\.verifiedWarningObservation/);
+  assert.match(source, /preserveUnchangedHisSnapshot\(caseState,/);
+  assert.match(source, /resolveWarningDisplayProfile\(caseState,/);
+  assert.doesNotMatch(source, /const warningProfile = deriveCaseWarningProfile\(caseState\)/);
+});
 
 test("warning material is deterministic, preserves clinical bytes and binds every material edit", async () => {
   const { stableWarningJson, warningDisplayMaterial, warningDisplayHash } = await jiti.import("../src/lib/warning-display-binding.ts");
