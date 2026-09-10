@@ -190,9 +190,9 @@ function inlineVocabularyHits(source, truncate = true) {
 // 来源在 2026-09-10 经 git show 逐条包含校验；这些模式未新增临床词表，也不参与诊断。
 const MIGRATED_STRUCTURAL_INLINE = new Map([
   ["src/lib/browser-case-persistence.ts", {
-    count: 11, sha256: "eaf651f3b7fcef6475ae6f415e2e23f664648b34c61bb5701ed4ac8112886d78",
+    count: 9, sha256: "287c2398d0a98e73aaa0a58dfd2efe671d28c1698352118cb8717764498c4bd7",
     origin: "86ae3123^:src/lib/diagnosis-engine.ts",
-    reason: "86ae3123 原样迁移的姓名/准标识符脱敏与脱敏标记保护；属隐私字段和终态标记的结构守卫。共享PHI回归继续验证两侧；待隐私结构来源统一后迁出。",
+    reason: "86ae3123 原样迁移的姓名/准标识符脱敏与脱敏标记保护；2026-09-10 删除覆盖共享关系姓名判据的旧回调及标签正则，余下9条原样保留。属隐私字段和终态标记的结构守卫；完整PHI链路回归验证两侧，待隐私结构来源统一后迁出。",
   }],
   ["src/lib/followup-display-state.ts", {
     count: 2, sha256: "b20fdde2ae7a8006cb195840fd7ba1b9354bca07e35e757b23766caf02968e54",
