@@ -85,6 +85,7 @@ try {
     verifyPrescribeReasoningSignature,
   } = require("../src/lib/reasoning-contract-signature.ts");
   const { normalizeCaseStateInput, normalizeReasoningV2 } = require("../src/lib/diagnosis-types.ts");
+  const { revisionFromAudit } = require("../src/lib/followup-display-state.ts");
   const { sanitizeCaseStateForBrowserPersistence } = require("../src/lib/diagnosis-engine.ts");
   const { withSafetyGate } = require("../src/lib/diagnosis-safety.ts");
   const {
@@ -1288,23 +1289,7 @@ try {
     assert.match(audit.herbHash || "", /^sha256-[a-f0-9]{64}$/);
     assert.equal(audit.attestationVersion, "tcm-cdss-workbench-revision-v1");
     assert.match(audit.attestation || "", /^hmac-sha256:[a-f0-9]{64}$/);
-    routeCase.prescriptionRevision = {
-      source: "herb_workbench",
-      candidateIndex: 0,
-      herbHash: audit.herbHash,
-      auditedAt: audit.auditedAt,
-      auditResult: audit.auditResult || "MANUAL_REVIEW",
-      highestRiskLevel: audit.highestRiskLevel || "HIGH",
-      auditAvailable: audit.source === "lingxi" && audit.degraded !== true,
-      degraded: audit.degraded === true,
-      degradeReason: typeof audit.degradeReason === "string" ? audit.degradeReason : undefined,
-      needManualReview: audit.needManualReview === true,
-      auditReason: typeof audit.reason === "string" ? audit.reason : undefined,
-      auditId: typeof audit.auditId === "string" ? audit.auditId : undefined,
-      traceId: typeof audit.traceId === "string" ? audit.traceId : undefined,
-      attestationVersion: audit.attestationVersion,
-      attestation: audit.attestation,
-    };
+    routeCase.prescriptionRevision = revisionFromAudit(audit, 0, audit.herbHash, response.ok);
     return body;
   };
 

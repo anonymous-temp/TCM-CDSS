@@ -48,11 +48,12 @@ export type RxaiEndpointConfig = Readonly<{
   systemCode: string;
   configured: boolean;
   transportAllowed: boolean;
+  explicitlyDisabled?: boolean;
 }>;
 
 /** 缺省关闭：查询能力是增强档，未显式开启时整个模块不发任何请求。 */
 export function rxaiQueryEnabled(cfg: RxaiEndpointConfig): boolean {
-  return process.env.RXAI_QUERY_ENABLED === "true" && cfg.configured && cfg.transportAllowed;
+  return cfg.explicitlyDisabled !== true && process.env.RXAI_QUERY_ENABLED === "true" && cfg.configured && cfg.transportAllowed;
 }
 
 export type RxaiQueryOperation =

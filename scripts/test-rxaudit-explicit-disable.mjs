@@ -6,7 +6,7 @@ import { buildAuditPositiveControlState } from "./lib/primary-care-audit-positiv
 Object.assign(process.env, {
   RXAI_AUDIT_ENABLED: "false", RXAI_QUERY_ENABLED: "true", CDSS_SHOW_RX_AUDIT_SECTION: "true",
   RXAI_AUDIT_BASE_URL: "https://audit.example.invalid", RXAI_AUDIT_TOKEN: "offline-fixture-token",
-  CDSS_CLINICAL_FACTS_BACKSTOP: "false", CDSS_M05_FOLLOWUP_AUTHORING: "false",
+  CDSS_CLINICAL_FACTS_BACKSTOP: "true", M05_FOLLOWUP_AUTHORING: "false",
   REASONING_CONTRACT_SIGNING_KEY: "explicit-disable-offline-signing-key-at-least-32-characters",
 });
 for (const key of ["OPENAI_API_KEY", "BAILIAN_QWEN_API_KEY", "DASHSCOPE_API_KEY", "QWEN_API_KEY", "EVIMED_API_KEY"]) delete process.env[key];
@@ -24,10 +24,12 @@ const { invalidatePrescriptionContractAfterEdit } = await jiti.import("../src/li
 const { computePrescriptionVersionHash } = await jiti.import("../src/lib/prescription-version.ts");
 const { revisionFromAudit, applyAcceptedPrescriptionDisplayResult, applyCompletedM05DisplayResult } = await jiti.import("../src/lib/followup-display-state.ts");
 const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
-const { prepareWarningObservation } = await jiti.import("../src/lib/warning-display-observation.ts");
+const { prepareWarningObservation, resolveWarningDisplayProfile } = await jiti.import("../src/lib/warning-display-observation.ts");
+const { derivePrescriptionPermission, withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const { maybeAttachClinicalFactsBackstop } = await jiti.import("../src/lib/clinical-facts-runtime.ts");
 const customer = { clientId: "local-development", customerId: "test-hospital" };
 
-function caseFor({ medicationHistory = "否认当前用药", herbs = [{ name: "黄芪", dose: "15g" }, { name: "酸枣仁", dose: "15g" }] } = {}) {
+function caseFor({ medicationHistory = "否认当前用药", herbs = [{ name: "黄芪", dose: "15g" }, { name: "茯苓", dose: "12g" }] } = {}) {
   const control = { id: "explicit-skip", patient: { sex: "男", age: 46 }, chiefComplaint: "入睡困难三个月", diagnosis: "失眠障碍", syndrome: "心脾两虚证", pastHistory: "否认重要慢病", allergyHistory: "否认药物过敏", medicationHistory, herbs };
   const state = normalizeCaseStateInput({ ...buildAuditPositiveControlState(control), customerId: "test-hospital", phase: "done", vitals: { T: "36.5", P: "75", R: "18", BP: "120/80", SpO2: "99%" } });
   const m03 = { ...structuredClone(state.reasoningPrescribe), stage: "diagnose", formula: null, nonPharma: null, clinicalReview: undefined,
@@ -39,6 +41,11 @@ function caseFor({ medicationHistory = "否认当前用药", herbs = [{ name: "�
   return state;
 }
 function request(path, caseState) { return new Request(`http://localhost${path}`, { method: "POST", headers: { "content-type": "application/json", "x-cdss-customer-id": "test-hospital" }, body: JSON.stringify({ caseState }) }); }
+async function readyCaseFor(options) {
+  // Reach the real downstream route using an offline, server-attested clinical-facts result.
+  // The audit toggle must not bypass or disable this independent semantic safety layer.
+  return maybeAttachClinicalFactsBackstop(caseFor(options), async () => JSON.stringify({ redFlags: [] }));
+}
 async function withoutNetwork(fn) {
   const original = globalThis.fetch;
   let calls = 0;
@@ -77,7 +84,7 @@ test("skip metadata never invents a provider result or unavailable-medication fi
 
 test("three clinical routes deliver local content with honest skip semantics", async () => withoutNetwork(async () => {
   for (const [path, handler] of [["assess", assess], ["post-prescription-risk", postRisk], ["his-scheme", hisScheme]]) {
-    const response = await handler(request(`/api/diagnosis/${path}`, caseFor()));
+    const response = await handler(request(`/api/diagnosis/${path}`, await readyCaseFor()));
     const body = await response.text();
     assert.equal(response.status, 200, `${path}: ${body.slice(0, 400)}`);
     assert.doesNotMatch(body, /medication_semantics_unavailable|lingxi_unavailable|自动审方未完成|审方服务暂不可用/, path);
@@ -99,16 +106,19 @@ test("local medication uncertainty, dose validation and contraindicated pairs su
   for (const variant of [{ medicationHistory: "现用药不详", expected: /现用药信息明确不详|用药.*不详/ },
     { herbs: [{ name: "黄芪", dose: "" }], expected: /黄芪.*未标注|剂量/ },
     { herbs: [{ name: "甘草", dose: "6g" }, { name: "海藻", dose: "9g" }], expected: /十八反|甘草.*海藻/ }]) {
-    const state = caseFor(variant);
+    const state = await readyCaseFor(variant);
     const run = await audit.runBoundedRxAudit(state, 0);
     assert.equal(run.providerAudit.source, "skipped");
     const findings = audit.buildAuditInputAdvisorySection(audit.buildAuditInputAdvisories(state, 0, run.medicationExtraction), true) + audit.buildLocalHighRiskHerbPairSection(state, 0);
     assert.match(findings, variant.expected);
     if (variant.herbs?.[0].name === "甘草") assert.equal(deriveStructuredCaseWarningFloor(state).level, "L4");
-    const response = await postRisk(request("/api/diagnosis/post-prescription-risk", state));
-    const body = await response.text();
-    assert.equal(response.status, 200, body);
-    assert.match(body, variant.expected);
+    for (const [path, handler] of [["assess", assess], ["post-prescription-risk", postRisk], ["his-scheme", hisScheme]]) {
+      const response = await handler(request(`/api/diagnosis/${path}`, state));
+      const body = await response.text();
+      assert.equal(response.status, 200, `${path}: ${body}`);
+      assert.match(body, variant.expected, path);
+      assert.doesNotMatch(body, /medication_semantics_unavailable|lingxi_unavailable/, path);
+    }
   }
 }));
 
@@ -132,7 +142,7 @@ test("health treats explicit disable as optional skip and absent config as degra
 });
 
 async function workbenchCase() {
-  const state = caseFor();
+  const state = await readyCaseFor();
   const revised = invalidatePrescriptionContractAfterEdit(structuredClone(state.reasoningPrescribe));
   Object.assign(revised.formula.candidates[0], { name: "益气安神方（医生编辑版）", constructionType: "self_devised", modificationStatus: "modified" });
   state.reasoningPrescribe = revised; state.reasoningV2 = revised;
@@ -151,14 +161,19 @@ test("workbench skip issues an honest receipt that survives normalization and do
   assert.equal(body.audit.highestRiskLevel, undefined);
   assert.equal(body.audit.degraded, false);
   const accepted = { caseId: submitted.id, reasoning: submitted.reasoningPrescribe, auditSection: body.section, followupSection: body.followup.trim(), followupTimeline: body.followupTimeline,
-    serverSafetyLocked: body.audit.safetyLocked, revision: revisionFromAudit(body.audit, 0, body.audit.herbHash, true) };
+    serverSafetyLocked: derivePrescriptionPermission(withSafetyGate(submitted)).formalAdoption === "blocked", revision: revisionFromAudit(body.audit, 0, body.audit.herbHash, true) };
   const final = applyAcceptedPrescriptionDisplayResult(submitted, accepted);
   const normalized = normalizeCaseStateInput(JSON.parse(JSON.stringify(final)));
   assert.equal(normalized.prescriptionRevision.auditResult, "NOT_SUBMITTED");
   assert.equal(normalized.prescriptionRevision.highestRiskLevel, undefined);
   assert.equal(verifyPrescriptionRevisionAttestation(normalized, customer, body.audit.herbHash), true);
   assert.ok(body.warningObservation, "skip must keep the existing workbench display receipt contract");
-  assert.ok(await prepareWarningObservation({ receipt: body.warningObservation, requestState: submitted, finalState: final, customerId: customer.customerId, isCurrent: () => true }));
+  const installed = await prepareWarningObservation({ receipt: body.warningObservation, requestState: submitted, finalState: final, customerId: customer.customerId, isCurrent: () => true });
+  assert.ok(installed);
+  const displayStateBefore = JSON.stringify(final);
+  assert.ok(resolveWarningDisplayProfile(final).reasons.some((reason) => /审方.*不可用/.test(reason)), "raw client fields do not prove operator skip");
+  assert.ok(!resolveWarningDisplayProfile(final, installed).reasons.some((reason) => /审方.*不可用/.test(reason)), "a matched server receipt must not recreate a skipped-module floor");
+  assert.equal(JSON.stringify(final), displayStateBefore, "display projection must preserve signed state and material bytes");
   assert.ok(!body.warningObservation.live.profile.reasons.some((reason) => /审方.*(?:不可用|HIGH|高风险)|审方结论为/.test(reason)));
   const assessed = await assess(request("/api/diagnosis/assess", normalized));
   assert.equal(assessed.status, 200, await assessed.clone().text());
@@ -194,4 +209,35 @@ test("skipping a previously attested critical version retains its real result an
   assert.equal(verifyPrescriptionRevisionAttestation(retained, customer, revision.herbHash), true);
   assert.equal(body.warningObservation.live.profile.level, "L4");
   assert.equal(body.warningObservation.stored.profile.level, "L4");
+  for (const [name, handler] of [["assess", assess], ["his-scheme", hisScheme]]) {
+    const result = await handler(request(`/api/diagnosis/${name}`, retained));
+    const text = await result.text();
+    assert.equal(result.status, 200, text);
+    assert.match(text, /已有经确认的严重风险/);
+    assert.match(text, /L4/);
+  }
+  const changed = structuredClone(state);
+  changed.reasoningPrescribe.formula.candidates[0].herbs[0].dose = "12g";
+  changed.reasoningV2 = changed.reasoningPrescribe;
+  const changedHash = await computePrescriptionVersionHash(changed.reasoningPrescribe, 0, changed);
+  assert.notEqual(changedHash, revision.herbHash);
+  assert.equal(verifyPrescriptionRevisionAttestation(changed, customer, changedHash), false);
+  const changedResponse = await postRisk(request("/api/diagnosis/post-prescription-risk", changed));
+  const changedBody = await changedResponse.json();
+  assert.equal(changedResponse.status, 200, JSON.stringify(changedBody));
+  assert.equal(changedBody.audit.auditResult, "NOT_SUBMITTED");
+  assert.equal(changedBody.audit.retainedPriorAudit, false);
 }));
+
+test("revision schema keeps legacy grades mandatory and rejects contradictory skip claims", async () => {
+  const state = await workbenchCase();
+  for (const result of ["PASS", "REMIND", "MANUAL_REVIEW", "BLOCK"]) {
+    const invalid = { ...state, prescriptionRevision: { ...state.prescriptionRevision, auditResult: result, highestRiskLevel: undefined } };
+    assert.equal(normalizeCaseStateInput(invalid).prescriptionRevision, undefined, `${result} requires a real risk grade`);
+  }
+  const skipped = { ...state.prescriptionRevision, auditResult: "NOT_SUBMITTED", highestRiskLevel: undefined, auditAvailable: false, degraded: false, auditReason: "rxaudit_disabled" };
+  assert.equal(normalizeCaseStateInput({ ...state, prescriptionRevision: skipped }).prescriptionRevision.auditResult, "NOT_SUBMITTED");
+  for (const mutation of [{ highestRiskLevel: "INFO" }, { auditAvailable: true }, { degraded: true }, { auditReason: undefined }]) {
+    assert.equal(normalizeCaseStateInput({ ...state, prescriptionRevision: { ...skipped, ...mutation } }).prescriptionRevision, undefined);
+  }
+});

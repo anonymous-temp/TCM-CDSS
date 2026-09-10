@@ -9,6 +9,13 @@ import { localLabelRiskProjection } from "./medicine-reference-projection.server
 import { matchedWarningText, type OwnedCaseWarningProjection, type WarningTextProjection } from "./warning-text-projection";
 import { isSafetyClinicalDeliveryAdvisory, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
 
+/** Called only after the producer has selected an explicit server-configured skip and validated
+ * any revision. Prior real risk revisions remain intact; only the new no-result state is omitted. */
+export function caseWarningStateWithoutSkippedAudit(state: CaseState): CaseState {
+  return { ...state, auditAdvisory: undefined,
+    prescriptionRevision: state.prescriptionRevision?.auditResult === "NOT_SUBMITTED" ? undefined : state.prescriptionRevision };
+}
+
 /** Only a server producer calls this after validating the current clinical artifact. No request
  * property, display receipt or model-authored role can supply this internal projection. */
 export function projectPrescriptionWarningText(state: CaseState): WarningTextProjection {
@@ -44,6 +51,7 @@ export function deriveOwnedCaseWarningProfile(
   owned?: OwnedCaseWarningProjection,
   advisories: readonly ClinicalDeliveryAdvisory[] = [],
 ): ClinicalWarningProfile {
+  if (owned?.auditSkipped) state = caseWarningStateWithoutSkippedAudit(state);
   let profile = deriveCaseWarningProfile({
     ...state,
     auditAdvisory: owned?.audit && state.auditAdvisory?.presentationDisabled ? undefined : state.auditAdvisory,

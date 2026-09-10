@@ -248,8 +248,9 @@ export interface CaseState {
     candidateIndex: number;
     herbHash: string;
     auditedAt: string;
-    auditResult: "PASS" | "REMIND" | "MANUAL_REVIEW" | "BLOCK";
-    highestRiskLevel: "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    auditResult: "PASS" | "REMIND" | "MANUAL_REVIEW" | "BLOCK" | "NOT_SUBMITTED";
+    /** Absent only for an explicitly skipped external audit; never an implicit low-risk result. */
+    highestRiskLevel?: "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
     auditAvailable?: boolean;
     degraded?: boolean;
     degradeReason?: string;
@@ -1872,8 +1873,8 @@ const PrescriptionRevisionSchema = z.object({
   candidateIndex: z.number().int().min(0).max(2),
   herbHash: z.string().min(1).max(80),
   auditedAt: z.string().min(1).max(80),
-  auditResult: z.enum(["PASS", "REMIND", "MANUAL_REVIEW", "BLOCK"]),
-  highestRiskLevel: z.enum(["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]),
+  auditResult: z.enum(["PASS", "REMIND", "MANUAL_REVIEW", "BLOCK", "NOT_SUBMITTED"]),
+  highestRiskLevel: z.enum(["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
   auditAvailable: z.boolean().optional(),
   degraded: z.boolean().optional(),
   degradeReason: z.string().max(500).optional(),
@@ -1883,7 +1884,10 @@ const PrescriptionRevisionSchema = z.object({
   traceId: z.string().max(200).optional(),
   attestationVersion: z.literal("tcm-cdss-workbench-revision-v1").optional(),
   attestation: z.string().regex(/^hmac-sha256:[a-f0-9]{64}$/i).optional(),
-});
+}).refine((revision) => revision.auditResult === "NOT_SUBMITTED"
+  ? revision.highestRiskLevel === undefined && revision.auditAvailable === false && revision.degraded === false && revision.auditReason === "rxaudit_disabled"
+  : revision.highestRiskLevel !== undefined,
+{ message: "Skipped audit receipts require an explicit disabled reason and no invented risk level" });
 
 /**
  * 饮片味数偏好归一（2026-08-05）。受控枚举之外一律丢弃，不做模糊解析——

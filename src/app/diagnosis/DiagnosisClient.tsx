@@ -3268,12 +3268,12 @@ type AcceptedEditedPrescription = {
 
 
 function auditRevisionNeedsAttention(revision: NonNullable<CaseState["prescriptionRevision"]>): boolean {
-  return revision.auditAvailable === false ||
+  return (revision.auditResult !== "NOT_SUBMITTED" && revision.auditAvailable === false) ||
     revision.degraded === true ||
     revision.needManualReview === true ||
     revision.auditResult === "MANUAL_REVIEW" ||
     revision.auditResult === "BLOCK" ||
-    ["MEDIUM", "HIGH", "CRITICAL"].includes(revision.highestRiskLevel);
+    ["MEDIUM", "HIGH", "CRITICAL"].includes(revision.highestRiskLevel || "");
 }
 
 function defaultEvidenceRef() {
@@ -3415,7 +3415,9 @@ function HerbModificationWorkbench({
     return auditRevisionNeedsAttention(caseState.prescriptionRevision) ? "warning" : "reviewed";
   });
   const [auditMessage, setAuditMessage] = useState(alreadyAccepted
-    ? "编辑后的药味已完成审方并写回当前病例，页面、报告与 HIS 均使用该版本。"
+    ? caseState.prescriptionRevision?.auditResult === "NOT_SUBMITTED"
+      ? "编辑后的药味已写回当前病例，页面、报告与 HIS 均使用该版本；已有本地风险提示继续保留。"
+      : "编辑后的药味已完成审方并写回当前病例，页面、报告与 HIS 均使用该版本。"
     : "增删改药味后，请重新审方以更新风险提示。");
   const [finalReady, setFinalReady] = useState(alreadyAccepted);
   const [acceptedRevision, setAcceptedRevision] = useState<AcceptedEditedPrescription | null>(() => restoredAcceptedRevision);
@@ -3629,7 +3631,9 @@ function HerbModificationWorkbench({
     }
     const warningRequestState: CaseState = {
       ...submittedAuditState,
-      prescriptionRevision: { source: "herb_workbench", candidateIndex, herbHash: submittedVersionHash,
+      prescriptionRevision: caseState.prescriptionRevision?.candidateIndex === candidateIndex && caseState.prescriptionRevision.herbHash === submittedVersionHash
+        ? caseState.prescriptionRevision
+        : { source: "herb_workbench", candidateIndex, herbHash: submittedVersionHash,
         auditedAt: new Date().toISOString(), auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false },
       safetyLocked: false,
     };
@@ -3645,6 +3649,9 @@ function HerbModificationWorkbench({
           auditResult?: unknown;
           highestRiskLevel?: unknown;
           source?: unknown;
+          auditAvailable?: unknown;
+          auditReason?: unknown;
+          retainedPriorAudit?: unknown;
           reason?: unknown;
           degraded?: unknown;
           degradeReason?: unknown;
@@ -3683,7 +3690,8 @@ function HerbModificationWorkbench({
         setAuditMessage("服务端未返回与当前处方版本绑定的审方凭据，本次不能写回；请重新审方。");
         return;
       }
-      const section = typeof body?.section === "string" && body.section.trim()
+      const skippedAudit = res.ok && body?.audit?.source === "skipped" && body.audit.reason === "rxaudit_disabled";
+      const section = typeof body?.section === "string" && (body.section.trim() || skippedAudit)
         ? body.section
         : "## 合理用药审方\n**审方服务状态**：本次未获得可解析的审方结果。\n**处置建议**：请医生或药师人工复核；该提示不阻断候选方案流程。";
       const fallbackFollowup = buildDeterministicRiskFollowupPayload(withSafetyGate({
@@ -3697,24 +3705,9 @@ function HerbModificationWorkbench({
         : fallbackFollowup.markdown;
       const responseTimeline = normalizeStructuredFollowupTimeline(body?.followupTimeline);
       const followupTimeline = responseTimeline.length > 0 ? responseTimeline : fallbackFollowup.timelineItems;
-      const rawAuditResult = String(body?.audit?.auditResult || "").toUpperCase();
-      const rawRiskLevel = String(body?.audit?.highestRiskLevel || "").toUpperCase();
-      const auditResult: NonNullable<CaseState["prescriptionRevision"]>["auditResult"] =
-        ["PASS", "REMIND", "MANUAL_REVIEW", "BLOCK"].includes(rawAuditResult)
-          ? rawAuditResult as NonNullable<CaseState["prescriptionRevision"]>["auditResult"]
-          : "MANUAL_REVIEW";
-      const highestRiskLevel: NonNullable<CaseState["prescriptionRevision"]>["highestRiskLevel"] =
-        ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(rawRiskLevel)
-          ? rawRiskLevel as NonNullable<CaseState["prescriptionRevision"]>["highestRiskLevel"]
-          : "HIGH";
-      const auditAvailable = res.ok && body?.audit?.source === "lingxi" && body?.audit?.degraded !== true;
+      const revision = revisionFromAudit(body.audit, candidateIndex, submittedVersionHash, res.ok);
       const needsAttention =
-        !auditAvailable ||
-        body?.audit?.needManualReview === true ||
-        body?.audit?.degraded === true ||
-        auditResult === "MANUAL_REVIEW" ||
-        auditResult === "BLOCK" ||
-        ["MEDIUM", "HIGH", "CRITICAL"].includes(highestRiskLevel) ||
+        auditRevisionNeedsAttention(revision) ||
         /BLOCK|MANUAL_REVIEW|强提示|高风险|确定性审方未完成|灵犀审方未完成|不能等同/.test([
           body?.audit?.auditResult,
           body?.audit?.highestRiskLevel,
@@ -3732,10 +3725,12 @@ function HerbModificationWorkbench({
         // Lingxi audit is advisory. Only the patient-safety permission authority may lock formal
         // adoption; audit severity or availability must never be repurposed as that lock.
         serverSafetyLocked: derivePrescriptionPermission(withSafetyGate(caseState)).formalAdoption === "blocked",
-        revision: revisionFromAudit(body.audit, candidateIndex, submittedVersionHash, res.ok),
+        revision,
       });
       setAuditStatus(needsAttention ? "warning" : "reviewed");
-      setAuditMessage(needsAttention
+      setAuditMessage(skippedAudit
+        ? "当前药味版本已完成本地校验并建立版本凭据，已有风险提示继续保留；请医生结合现场情况确认。"
+        : needsAttention
         ? "审方已返回风险提示或当前服务不可用；提示不阻断流程，请医生/药师人工复核后决定是否采纳。"
         : "编辑后药味已完成审方，仍需医生结合现场情况最终复核。");
     } catch {
@@ -3938,13 +3933,13 @@ function HerbModificationWorkbench({
           onClick={async () => {
             if (!acceptedRevision) return;
             setAuditStatus("checking");
-            setAuditMessage("正在同步编辑后处方、审方提示与风险随访，请稍候。");
+            setAuditMessage("正在同步编辑后处方、风险提示与随访，请稍候。");
             try {
               await onAccept(acceptedRevision);
               setAuditStatus(auditRevisionNeedsAttention(acceptedRevision.revision) ? "warning" : "reviewed");
               setAuditMessage(BROWSER_CASE_PERSISTENCE_ENABLED
-                ? "编辑后处方、最新风险提示和审方版本已同步写回并保存。"
-                : "编辑后处方和审方提示已写回当前会话；浏览器恢复已关闭，刷新后不会保留。"
+                ? "编辑后处方、最新风险提示和处方版本已同步写回并保存。"
+                : "编辑后处方和风险提示已写回当前会话；浏览器恢复已关闭，刷新后不会保留。"
               );
               setFinalReady(true);
             } catch (error) {

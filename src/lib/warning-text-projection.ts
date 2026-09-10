@@ -10,6 +10,8 @@ export type OwnedCaseWarningProjection = Readonly<{
     auditAvailable: boolean;
     needManualReview?: boolean;
   }>;
+  /** Private server producer fact. No CaseState field may select this projection. */
+  auditSkipped?: boolean;
   /** Fresh enriched server facts can strengthen the profile without entering client material. */
   floor?: import("./clinical-warning-tier").ClinicalWarningProfile;
 }>;

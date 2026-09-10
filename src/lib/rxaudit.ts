@@ -75,7 +75,8 @@ export type RxAuditOutcome =
       /** Server-owned receipt of the exact items in the successful provider request. Not a dose approval. */
       submissionScope?: RxAuditSubmissionScope;
     }
-  | { ok: false; source: "unavailable"; reason: string; itemCount: number };
+  | { ok: false; source: "unavailable"; reason: string; itemCount: number }
+  | { ok: false; source: "skipped"; reason: "rxaudit_disabled"; itemCount: number };
 
 export type RxAuditSubmissionScope = {
   candidateIndex: number;
@@ -83,7 +84,8 @@ export type RxAuditSubmissionScope = {
 };
 
 /** Presentation labels never manufacture a severity. The fresh typed outcome owns that floor. */
-export function ownedAuditWarningInputs(provider: RxAuditOutcome, effective?: Extract<RxAuditOutcome, { ok: true }>): NonNullable<OwnedCaseWarningProjection["audit"]> {
+export function ownedAuditWarningInputs(provider: RxAuditOutcome, effective?: Extract<RxAuditOutcome, { ok: true }>): OwnedCaseWarningProjection["audit"] {
+  if (provider.source === "skipped") return undefined;
   const outcome = effective || (provider.ok ? provider : undefined);
   return {
     auditResult: outcome?.auditResult || "MANUAL_REVIEW",
@@ -114,9 +116,9 @@ export type RxAuditCorrelationMetadata = {
   auditedAt: string;
   providerAuditResult?: RxAuditResultCode;
   providerHighestRiskLevel?: RxAuditRiskLevel;
-  effectiveAuditResult: RxAuditResultCode;
-  effectiveHighestRiskLevel: RxAuditRiskLevel;
-  needManualReview: boolean;
+  effectiveAuditResult?: RxAuditResultCode;
+  effectiveHighestRiskLevel?: RxAuditRiskLevel;
+  needManualReview?: boolean;
 };
 
 const DEFAULT_BASE_URL = "";
@@ -198,6 +200,7 @@ function insecureHttpHostAllowed(value: string): boolean {
 }
 
 export function getRxAuditConfig() {
+  const explicitlyDisabled = process.env.RXAI_AUDIT_ENABLED === "false";
   const baseUrl = (process.env.RXAI_AUDIT_BASE_URL || DEFAULT_BASE_URL).trim().replace(/\/$/, "");
   // Current LingXi contract authenticates with X-API-Key. Keep RXAI_AUDIT_TOKEN as a
   // backward-compatible configuration alias so existing deployments do not lose their key.
@@ -213,14 +216,16 @@ export function getRxAuditConfig() {
   // insecureHttpHostAllowed). Everything else is refused before any request is sent.
   const transportAllowed = !baseUrl || baseUrl.startsWith("https://") || (allowInsecureHttp && insecureHttpHostAllowed(baseUrl));
   const enabled = process.env.RXAI_AUDIT_ENABLED === "true" && configured && transportAllowed;
-  const disabledReason = !configured
+  const disabledReason = explicitlyDisabled
+    ? "rxaudit_disabled"
+    : !configured
     ? "rxaudit_not_configured"
     : !transportAllowed
       ? "rxaudit_insecure_transport"
       : process.env.RXAI_AUDIT_ENABLED === "true"
         ? undefined
         : "rxaudit_disabled";
-  return { baseUrl, token, tenantId, systemCode, enabled, configured, allowInsecureHttp, transportAllowed, disabledReason };
+  return { baseUrl, token, tenantId, systemCode, enabled, explicitlyDisabled, configured, allowInsecureHttp, transportAllowed, disabledReason };
 }
 
 function rxAuditHeaders(cfg: ReturnType<typeof getRxAuditConfig>): Record<string, string> {
@@ -237,6 +242,7 @@ export function getRxAuditStatus() {
     provider: "灵犀统一合理用药审方",
     providerId: "lingxi-rxaudit",
     enabled: cfg.enabled,
+    explicitlyDisabled: cfg.explicitlyDisabled,
     configured: cfg.configured,
     transportAllowed: cfg.transportAllowed,
     disabledReason: cfg.disabledReason,
@@ -273,7 +279,7 @@ export type RxAuditTransportProbe = Readonly<{
   ok: boolean;
   checkedAt: string;
   latencyMs: number;
-  reason: "ok" | "not_configured" | "insecure_transport" | "unauthorized" | "upstream_4xx" | "timeout" | "network_error" | "upstream_5xx";
+  reason: "ok" | "disabled" | "not_configured" | "insecure_transport" | "unauthorized" | "upstream_4xx" | "timeout" | "network_error" | "upstream_5xx";
   upstreamStatus?: number;
 }>;
 
@@ -287,6 +293,7 @@ export async function probeRxAuditTransport(): Promise<RxAuditTransportProbe> {
   const startedAt = Date.now();
   const checkedAt = new Date().toISOString();
   const cfg = getRxAuditConfig();
+  if (cfg.explicitlyDisabled) return { ok: false, checkedAt, latencyMs: 0, reason: "disabled" };
   if (!cfg.configured) return { ok: false, checkedAt, latencyMs: 0, reason: "not_configured" };
   if (!cfg.transportAllowed) return { ok: false, checkedAt, latencyMs: 0, reason: "insecure_transport" };
   try {
@@ -662,15 +669,7 @@ export function verifyMedicationSemanticCoverage(
     .filter(Boolean));
   const unresolvedCurrentCandidates = currentSourceCandidates.filter((candidate) =>
     !currentEventIdentities.has(normalizedMedicationIdentity(candidate)));
-  const hasGlobalAbsence = hasGlobalNoCurrentMedicationClause(normalizedSource);
-  const hasScopedAbsence = LOCAL_MEDICATION_ABSENCE_SCOPE.test(normalizedSource) ||
-    LOCAL_SELF_TREATMENT_NEGATION.test(normalizedSource) ||
-    (containsExplicitNoCurrentMedicationStatement(normalizedSource) && !hasGlobalAbsence);
-  const scopeReason = CURRENT_MEDICATION_UNKNOWN.test(normalizedSource)
-    ? "medication_current_scope_unknown"
-    : hasScopedAbsence && currentSourceCandidates.length === 0
-      ? "medication_current_scope_incomplete"
-      : "";
+  const scopeReason = localMedicationScopeReason(normalizedSource, currentSourceCandidates.length);
   const addedReasons = [
     sourceTruncated ? "medication_context_truncated" : "",
     missingCandidates.length > 0 ? "medication_candidate_coverage_incomplete" : "",
@@ -691,6 +690,19 @@ export function verifyMedicationSemanticCoverage(
     needsManualReview: true,
     reason: reasons.join(","),
   };
+}
+
+/** Existing record-quality checks remain independent of the optional external audit adapter. */
+function localMedicationScopeReason(normalizedSource: string, currentCandidateCount: number): string {
+  const hasGlobalAbsence = hasGlobalNoCurrentMedicationClause(normalizedSource);
+  const hasScopedAbsence = LOCAL_MEDICATION_ABSENCE_SCOPE.test(normalizedSource) ||
+    LOCAL_SELF_TREATMENT_NEGATION.test(normalizedSource) ||
+    (containsExplicitNoCurrentMedicationStatement(normalizedSource) && !hasGlobalAbsence);
+  return CURRENT_MEDICATION_UNKNOWN.test(normalizedSource)
+    ? "medication_current_scope_unknown"
+    : hasScopedAbsence && currentCandidateCount === 0
+      ? "medication_current_scope_incomplete"
+      : "";
 }
 
 /**
@@ -1011,11 +1023,18 @@ export function buildAuditInputAdvisories(
  * 任何三方审方内容。默认关闭而不是默认开启：本客户拿到的报告里出现第二份审方结论，
  * 与他们真正在用的那个审方页面互为噪声，且两边口径不同步时无从判断哪个作数。
  *
- * 这是**呈现**开关，不是检测开关。审方仍照常调用（遥测、确定性安全门与严格健康探针都依赖它），
+ * 这是**呈现**开关。外部模块显式停用时也关闭呈现；其余情况不改变审方调用，
  * 本地确定性检测（十八反十九畏、药典剂量边界、特殊人群）与 M05 确定性安全总评一律不受影响。
  */
 export function rxAuditPresentationEnabled(): boolean {
-  return process.env.CDSS_SHOW_RX_AUDIT_SECTION === "true";
+  return !getRxAuditConfig().explicitlyDisabled && process.env.CDSS_SHOW_RX_AUDIT_SECTION === "true";
+}
+
+/** Routes pass only a revision already verified for the current patient, tenant and exact hash. */
+export function buildRetainedRxAuditRiskSection(revision: CaseState["prescriptionRevision"]): string {
+  return revision && (revision.auditResult === "BLOCK" || revision.highestRiskLevel === "CRITICAL")
+    ? "## 处方风险提示\n**强提示**：当前精确处方版本已有经确认的严重风险，仍需保留该风险提示；本次没有新的外部复核结果。"
+    : "";
 }
 
 export function buildRxAuditScopeSection(state: CaseState, candidateIndex?: number, submissionScope?: RxAuditSubmissionScope): string {
@@ -1782,9 +1801,11 @@ export function buildRxAuditCorrelationMetadata(input: {
     ...(input.candidateIndex != null ? { candidateIndex: input.candidateIndex } : {}),
     ...(input.prescriptionHash ? { prescriptionHash: input.prescriptionHash } : {}),
     auditedAt: input.auditedAt || new Date().toISOString(),
-    effectiveAuditResult: effective?.auditResult || "MANUAL_REVIEW",
-    effectiveHighestRiskLevel: effective?.highestRiskLevel || "HIGH",
-    needManualReview: effective?.needManualReview ?? true,
+    ...(provider.source === "skipped" ? {} : {
+      effectiveAuditResult: effective?.auditResult || "MANUAL_REVIEW",
+      effectiveHighestRiskLevel: effective?.highestRiskLevel || "HIGH",
+      needManualReview: effective?.needManualReview ?? true,
+    }),
   };
 }
 
@@ -1888,6 +1909,16 @@ export async function runBoundedRxAudit(
   requestSignal?: AbortSignal,
 ): Promise<BoundedRxAuditRun> {
   const timeoutMs = getRxAuditTimeoutMs();
+  const config = getRxAuditConfig();
+  if (config.explicitlyDisabled) {
+    const context = buildMedicationExtractionContext(state);
+    const reason = localMedicationScopeReason((context.text || "").normalize("NFKC"), medicationCandidatesFromSource(context.text).length);
+    return {
+      medicationExtraction: { source: "not_needed", events: [], unresolvedReferences: [], needsManualReview: Boolean(reason), ...(reason ? { reason } : {}) },
+      providerAudit: { ok: false, source: "skipped", reason: "rxaudit_disabled", itemCount: 0 },
+      timeoutMs, timedOut: false, cacheStatus: "bypass",
+    };
+  }
   const absoluteDeadline = Date.now() + timeoutMs;
   const submissionIssue = rxAuditSubmissionIssue(state, candidateIndex);
   if (submissionIssue) {
@@ -1923,7 +1954,6 @@ export async function runBoundedRxAudit(
       cacheStatus: "bypass",
     };
   }
-  const config = getRxAuditConfig();
   if (!config.enabled || !config.configured || !config.transportAllowed) {
     const reason = config.disabledReason || "rxaudit_not_configured";
     return {
@@ -2090,6 +2120,8 @@ export async function auditPrescriptionWithLingxi(
   medicationExtraction?: MedicationSemanticExtraction,
   absoluteDeadline = Date.now() + getRxAuditTimeoutMs(),
 ): Promise<RxAuditOutcome> {
+  const cfg = getRxAuditConfig();
+  if (cfg.explicitlyDisabled) return { ok: false, source: "skipped", reason: "rxaudit_disabled", itemCount: 0 };
   const submissionIssue = rxAuditSubmissionIssue(state, candidateIndex);
   if (submissionIssue) {
     return {
@@ -2103,7 +2135,6 @@ export async function auditPrescriptionWithLingxi(
   if (!built) return { ok: false, source: "unavailable", reason: "no_prescription_items", itemCount: 0 };
   const requestTimeoutMs = getRxAuditAttemptTimeoutMs();
 
-  const cfg = getRxAuditConfig();
   if (!cfg.enabled || !cfg.configured || !cfg.transportAllowed) {
     return { ok: false, source: "unavailable", reason: cfg.disabledReason || "rxaudit_not_configured", itemCount: built.itemCount };
   }

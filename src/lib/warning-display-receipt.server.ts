@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { CaseState } from "./diagnosis-types";
 import type { CustomerContext } from "./customer-context";
 import type { ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
-import { deriveOwnedCaseWarningProfile, projectPrescriptionWarningText } from "./clinical-warning-projection.server";
+import { caseWarningStateWithoutSkippedAudit, deriveOwnedCaseWarningProfile, projectPrescriptionWarningText } from "./clinical-warning-projection.server";
 import { applyAcceptedPrescriptionDisplayResult, buildAcceptedPrescriptionWarningProjection, revisionFromAudit } from "./followup-display-state";
 import { derivePrescriptionPermission, withSafetyGate } from "./diagnosis-safety";
 import { deriveStructuredCaseWarningFloor } from "./clinical-warning-tier";
@@ -89,7 +89,7 @@ export async function withPostPrescriptionWarningObservation<T extends {
   requestState: CaseState; producerState: CaseState; customer: CustomerBinding;
   sourceRepresentation?: unknown;
   sectionProjection: WarningTextProjection; followupProjection: WarningTextProjection;
-  audit: NonNullable<OwnedCaseWarningProjection["audit"]>; advisories: readonly ClinicalDeliveryAdvisory[];
+  audit: OwnedCaseWarningProjection["audit"]; auditSkipped?: boolean; advisories: readonly ClinicalDeliveryAdvisory[];
 }): Promise<T & { warningObservation?: WarningDisplayReceipt }> {
   try {
     const { requestState } = input;
@@ -115,7 +115,8 @@ export async function withPostPrescriptionWarningObservation<T extends {
       sourceRepresentation: input.sourceRepresentation,
       customer: input.customer, advisories: input.advisories,
       owned: { prescription, riskAssessment: { markdown: finalState.riskAssessment || "", currentRiskMarkdown: projectedState.riskAssessment || "" },
-        audit: input.audit, floor: deriveStructuredCaseWarningFloor(completedProducerState) },
+        audit: input.audit, auditSkipped: input.auditSkipped,
+        floor: deriveStructuredCaseWarningFloor(input.auditSkipped ? caseWarningStateWithoutSkippedAudit(completedProducerState) : completedProducerState) },
     });
     return observation ? { ...body, warningObservation: observation } : body;
   } catch {

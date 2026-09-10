@@ -658,7 +658,8 @@ test("the real M05 route binds the submitted state despite enrichment and contro
     const { resetRxAuditResultCache } = await routeJiti.import("../src/lib/rxaudit.ts");
     for (const [auditResult, highestRiskLevel, enabled, expectedLevel] of [
       ["MANUAL_REVIEW", "HIGH", true, "L3"], ["BLOCK", "CRITICAL", true, "L4"],
-      ["MANUAL_REVIEW", "CRITICAL", true, "L4"], ["MANUAL_REVIEW", "HIGH", false, "L3"],
+      ["MANUAL_REVIEW", "CRITICAL", true, "L4"], ["NOT_SUBMITTED", undefined, false, "L0"],
+      ["MANUAL_REVIEW", "HIGH", "", "L3"],
     ]) {
       resetRxAuditResultCache();
       process.env.RXAI_AUDIT_ENABLED = String(enabled);
@@ -669,7 +670,7 @@ test("the real M05 route binds the submitted state despite enrichment and contro
       assert.equal(actual.audit.highestRiskLevel, highestRiskLevel);
       assert.equal(actual.warningObservation.live.profile.level, expectedLevel);
       assert.equal(actual.warningObservation.stored.profile.level, expectedLevel);
-      assert.equal(actual.audit.source === "lingxi", enabled);
+      assert.equal(actual.audit.source === "lingxi", enabled === true);
     }
   } finally {
     globalThis.fetch = savedFetch;

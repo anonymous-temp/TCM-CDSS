@@ -27,6 +27,7 @@
     "test:rxaudit-payload": "jiti scripts/test-rxaudit-payload.mjs",
     "test:rxaudit-cache": "jiti scripts/test-rxaudit-cache.mjs",
     "test:rxaudit-routes": "jiti scripts/test-rxaudit-routes.mjs",
+    "test:rxaudit-explicit-disable": "node --test scripts/test-rxaudit-explicit-disable.mjs",
     "regress:live-rxaudit": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-live-rxaudit.mjs",
     "regress:live-medication-events": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-live-medication-events.mjs",
     "regress:live-evidence": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.development.local scripts/regress-live-evidence.mjs",

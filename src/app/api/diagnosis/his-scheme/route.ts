@@ -8,6 +8,7 @@ import {
   buildLingxiWarningProjection,
   ownedAuditWarningInputs,
   buildLocalHighRiskHerbPairSection,
+  buildRetainedRxAuditRiskSection,
   buildRxAuditScopeSection,
   buildRxAuditCorrelationMetadata,
   buildUnavailableRxAuditSection,
@@ -210,12 +211,14 @@ export async function POST(req: Request) {
   const inputAdvisorySection = buildAuditInputAdvisorySection(inputAdvisories);
   const auditedAt = new Date().toISOString();
   if (!providerAudit.ok) {
-    console.warn("[tcm-cdss:rxaudit] HIS advisory audit unavailable", { reason: providerAudit.reason });
+    const skipped = providerAudit.source === "skipped";
+    if (!skipped) console.warn("[tcm-cdss:rxaudit] HIS advisory audit unavailable", { reason: providerAudit.reason });
     const auditSection = [
-      buildRxAuditScopeSection(caseState, candidateIndex),
+      skipped ? "" : buildRxAuditScopeSection(caseState, candidateIndex),
       buildLocalHighRiskHerbPairSection(caseState, candidateIndex),
-      inputAdvisorySection,
-      buildUnavailableRxAuditSection(providerAudit.reason),
+      skipped ? buildRetainedRxAuditRiskSection(caseState.prescriptionRevision) : "",
+      skipped ? buildAuditInputAdvisorySection(inputAdvisories, true) : inputAdvisorySection,
+      skipped ? "" : buildUnavailableRxAuditSection(providerAudit.reason),
     ].filter(Boolean).join("\n\n");
     const assessed = withSafetyGate({ ...caseState, riskAssessment: auditSection, safetyLocked: deriveSafetyLocked(caseState) });
     const forcedIncomplete = caseState.skipDifferentiationGate === true && (assessed.completeness.level !== "C" || assessed.safetyGate?.status !== "ready");
@@ -229,7 +232,7 @@ export async function POST(req: Request) {
     const advisoryState = {
       ...caseState,
       safetyLocked: deriveSafetyLocked(caseState),
-      prescriptionRevision: herbHash ? {
+      prescriptionRevision: skipped ? caseState.prescriptionRevision : herbHash ? {
         source: "herb_workbench" as const,
         candidateIndex,
         herbHash,
@@ -251,7 +254,7 @@ export async function POST(req: Request) {
       auditedAt,
     });
     return Response.json({
-      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories, undefined, { riskAssessment: riskProjection, audit: ownedAuditWarningInputs(providerAudit) }), contractVersion, parsed.customer.customerId)),
+      ...(await withDrugAvailability(buildHisAiSchemePayload(advisoryState, await evidenceScopePromise, validation.advisories, undefined, { riskAssessment: riskProjection, audit: ownedAuditWarningInputs(providerAudit), auditSkipped: skipped }), contractVersion, parsed.customer.customerId)),
       auditCorrelation: correlation,
     });
   }

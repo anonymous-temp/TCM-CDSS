@@ -87,7 +87,7 @@ export async function GET(req: Request) {
     ])
     : [undefined, undefined, undefined, undefined, undefined, undefined];
   const rxAudit = getRxAuditStatus();
-  const rxAuditReady = rxAudit.enabled && (!strictProbe || rxAuditProbe?.ok === true);
+  const rxAuditReady = rxAudit.explicitlyDisabled || (rxAudit.enabled && (!strictProbe || rxAuditProbe?.ok === true));
   const tcmTreatmentProjects = getTcmTreatmentProjectStatus();
   const tcmTreatmentConfigurationSafe = tcmTreatmentProjects.configurationValid || tcmTreatmentProjects.reason === "not_configured";
   const browserPersistenceEnabled = process.env.NEXT_PUBLIC_ENABLE_BROWSER_CASE_PERSISTENCE !== "false";
@@ -140,7 +140,7 @@ export async function GET(req: Request) {
       : []),
     ...evidenceMissing,
     ...evidenceUnavailable,
-    ...(!rxAudit.enabled ? [rxAudit.disabledReason || "rxaudit_disabled"] : []),
+    ...(!rxAudit.enabled && !rxAudit.explicitlyDisabled ? [rxAudit.disabledReason || "rxaudit_disabled"] : []),
     ...(strictProbe && rxAudit.enabled && !rxAuditProbe?.ok
       ? [`rxaudit_${rxAuditProbe?.reason || "unavailable"}`]
       : []),

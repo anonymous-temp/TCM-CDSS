@@ -204,13 +204,20 @@ export function applyAcceptedPrescriptionDisplayResult(previous: CaseState, acce
 export function revisionFromAudit(audit: Record<string, unknown>, candidateIndex: number, herbHash: string, responseOk: boolean): NonNullable<CaseState["prescriptionRevision"]> {
   const rawResult = String(audit.auditResult || "").toUpperCase();
   const rawRisk = String(audit.highestRiskLevel || "").toUpperCase();
+  const skipped = responseOk && audit.source === "skipped" && audit.reason === "rxaudit_disabled";
+  const notSubmitted = skipped && rawResult === "NOT_SUBMITTED" && audit.highestRiskLevel === undefined &&
+    audit.auditAvailable === false && audit.degraded === false &&
+    audit.attestationVersion === "tcm-cdss-workbench-revision-v1" && typeof audit.attestation === "string";
+  const retainedPrior = skipped && audit.retainedPriorAudit === true;
   return { source: "herb_workbench", candidateIndex, herbHash,
     auditedAt: typeof audit.auditedAt === "string" ? audit.auditedAt : new Date().toISOString(),
-    auditResult: ["PASS", "REMIND", "MANUAL_REVIEW", "BLOCK"].includes(rawResult) ? rawResult as NonNullable<CaseState["prescriptionRevision"]>["auditResult"] : "MANUAL_REVIEW",
-    highestRiskLevel: ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(rawRisk) ? rawRisk as NonNullable<CaseState["prescriptionRevision"]>["highestRiskLevel"] : "HIGH",
-    auditAvailable: responseOk && audit.source === "lingxi" && audit.degraded !== true,
-    degraded: audit.degraded === true, degradeReason: typeof audit.degradeReason === "string" ? audit.degradeReason : undefined,
-    needManualReview: audit.needManualReview === true, auditReason: typeof audit.reason === "string" ? audit.reason : undefined,
+    auditResult: notSubmitted ? "NOT_SUBMITTED" : ["PASS", "REMIND", "MANUAL_REVIEW", "BLOCK"].includes(rawResult) ? rawResult as NonNullable<CaseState["prescriptionRevision"]>["auditResult"] : "MANUAL_REVIEW",
+    highestRiskLevel: notSubmitted ? undefined : ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(rawRisk) ? rawRisk as NonNullable<CaseState["prescriptionRevision"]>["highestRiskLevel"] : "HIGH",
+    auditAvailable: retainedPrior ? typeof audit.auditAvailable === "boolean" ? audit.auditAvailable : undefined : responseOk && audit.source === "lingxi" && audit.degraded !== true,
+    degraded: retainedPrior ? typeof audit.degraded === "boolean" ? audit.degraded : undefined : audit.degraded === true,
+    degradeReason: typeof audit.degradeReason === "string" ? audit.degradeReason : undefined,
+    needManualReview: retainedPrior ? typeof audit.needManualReview === "boolean" ? audit.needManualReview : undefined : audit.needManualReview === true,
+    auditReason: retainedPrior ? typeof audit.auditReason === "string" ? audit.auditReason : undefined : typeof audit.reason === "string" ? audit.reason : undefined,
     auditId: typeof audit.auditId === "string" ? audit.auditId : undefined, traceId: typeof audit.traceId === "string" ? audit.traceId : undefined,
     attestationVersion: audit.attestationVersion === "tcm-cdss-workbench-revision-v1" ? audit.attestationVersion : undefined,
     attestation: typeof audit.attestation === "string" ? audit.attestation : undefined,

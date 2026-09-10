@@ -15,6 +15,7 @@ import {
   buildLingxiWarningProjection,
   ownedAuditWarningInputs,
   buildLocalHighRiskHerbPairSection,
+  buildRetainedRxAuditRiskSection,
   buildRxAuditScopeSection,
   rxAuditPresentationEnabled,
   resolveProviderCompatibilityFindings,
@@ -42,6 +43,7 @@ import { collectClinicalDeliveryAdvisories, clinicalDeliveryAdvisorySection } fr
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { recordCdssStageTelemetry } from "@/lib/cdss-stage-telemetry";
 import { isTrustedHisWorkbenchEdit } from "@/lib/his-prescription-validation";
+import { caseWarningStateWithoutSkippedAudit } from "@/lib/clinical-warning-projection.server";
 
 export async function POST(req: Request) {
   const startedAt = Date.now();
@@ -114,7 +116,7 @@ export async function POST(req: Request) {
 
   // M05 owns the single server-side audit call for the normal M03->M04->M05 chain. Client-supplied
   // audit-looking Markdown is never trusted, but every audit outcome is advisory rather than blocking.
-  if (!providerAudit.ok) console.warn("[tcm-cdss:rxaudit] M05 advisory audit unavailable", { reason: providerAudit.reason });
+  if (providerAudit.source === "unavailable") console.warn("[tcm-cdss:rxaudit] M05 advisory audit unavailable", { reason: providerAudit.reason });
   // 配伍查询与主审方独立：主审方成功时并入 effectiveAudit，不可因展示开关丢失；
   // 主审方不可用时则仍由本地配伍段呈现。两条路径共用 providerCompatibilityIssues 去重。
   const providerCompatibility = await resolveProviderCompatibilityFindings(gated, candidateIndex, req.signal);
@@ -132,7 +134,8 @@ export async function POST(req: Request) {
   const showRxAudit = rxAuditPresentationEnabled();
   // 配伍禁忌属本地安全内容：两档都出，且不受审方是否可用影响。供应商条目只加不减地追加。
   const localHighRiskSection = buildLocalHighRiskHerbPairSection(gated, candidateIndex, providerCompatibility);
-  const providerRisk = effectiveAudit
+  const retainedRiskSection = providerAudit.source === "skipped" ? buildRetainedRxAuditRiskSection(gated.prescriptionRevision) : "";
+  const providerRisk = providerAudit.source === "skipped" ? "" : effectiveAudit
     ? buildLingxiRiskSection(effectiveAudit, patientSex)
     : buildUnavailableRxAuditSection(providerAudit.ok ? "rxaudit_incomplete" : providerAudit.reason);
   const postPrescriptionRisk = (showRxAudit
@@ -142,7 +145,7 @@ export async function POST(req: Request) {
         inputAdvisorySection,
         providerRisk,
       ]
-    : [localHighRiskSection, buildAuditInputAdvisorySection(inputAdvisories, true)]
+    : [localHighRiskSection, retainedRiskSection, buildAuditInputAdvisorySection(inputAdvisories, true)]
   ).filter(Boolean).join("\n\n");
   const auditStatusMarker = buildRxAuditStatusMarker(!showRxAudit
     ? { available: false, presentationDisabled: true }
@@ -184,7 +187,7 @@ export async function POST(req: Request) {
     currentRiskMarkdown: (showRxAudit
       ? [buildRxAuditScopeSection(gated, candidateIndex, providerAudit.ok ? providerAudit.submissionScope : undefined),
           providerAudit.ok ? "" : localHighRiskSection, inputAdvisorySection, currentAuditText]
-      : [localHighRiskSection, buildAuditInputAdvisorySection(inputAdvisories, true), currentAuditText]
+      : [localHighRiskSection, retainedRiskSection, buildAuditInputAdvisorySection(inputAdvisories, true), currentAuditText]
     ).filter(Boolean).join("\n\n"),
   };
   const clinicalProjection = mapWarningText(joinedWarningProjections([postRiskProjection, followup]),
@@ -196,13 +199,15 @@ export async function POST(req: Request) {
   const observation = await createWarningDisplayReceipt({ producer: "assess", requestState: parsed.caseState,
     sourceRepresentation: (parsed.body as { caseState?: unknown }).caseState,
     finalState: final.state, customer: parsed.customer, advisories: clinicalAdvisories,
-    owned: { riskAssessment: final.projection, audit: ownedAuditWarningInputs(providerAudit, effectiveAudit), floor: deriveStructuredCaseWarningFloor(gated) },
+    owned: { riskAssessment: final.projection, audit: ownedAuditWarningInputs(providerAudit, effectiveAudit),
+      auditSkipped: providerAudit.source === "skipped",
+      floor: deriveStructuredCaseWarningFloor(providerAudit.source === "skipped" ? caseWarningStateWithoutSkippedAudit(gated) : gated) },
   });
   recordCdssStageTelemetry({
     stage: "assess",
     outcome: "success",
     durationMs: Date.now() - startedAt,
-    auditReached: providerAudit.ok || !isRxAuditSubmissionIssueReason(providerAudit.reason),
+    auditReached: providerAudit.source !== "skipped" && (providerAudit.ok || !isRxAuditSubmissionIssueReason(providerAudit.reason)),
     reasonCode: providerAudit.ok ? "audit_available" : `audit_${providerAudit.reason}`,
   });
   return markdownNdjsonResponse(rawProjection.markdown, observation);

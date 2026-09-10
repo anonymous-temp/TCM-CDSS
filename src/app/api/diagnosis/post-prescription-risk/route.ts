@@ -7,6 +7,7 @@ import {
   buildLingxiWarningProjection,
   ownedAuditWarningInputs,
   buildLocalHighRiskHerbPairSection,
+  buildRetainedRxAuditRiskSection,
   buildRxAuditScopeSection,
   buildRxAuditCorrelationMetadata,
   buildUnavailableRxAuditSection,
@@ -23,7 +24,7 @@ import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/d
 import { m04SafetyContractIssue } from "@/lib/diagnosis-stage-contract";
 import { editedPrescriptionSemanticIssue } from "@/lib/prescription-revision";
 import { clinicalDeliveryAdvisoryFromIssue, clinicalDeliveryAdvisorySection, collectClinicalDeliveryAdvisories, deduplicateClinicalDeliveryAdvisories } from "@/lib/clinical-delivery-advisory";
-import { issuePrescriptionRevisionAttestation } from "@/lib/prescription-revision-attestation.server";
+import { issuePrescriptionRevisionAttestation, verifyPrescriptionRevisionAttestation } from "@/lib/prescription-revision-attestation.server";
 import { computePrescriptionVersionHash } from "@/lib/prescription-version";
 import { verifyDiagnoseReasoningSignature, verifyPrescribeReasoningSignature } from "@/lib/reasoning-contract-signature";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
@@ -135,6 +136,50 @@ export async function POST(req: Request) {
   const { medicationExtraction, providerAudit } = await runBoundedRxAudit(caseState, resolvedCandidateIndex, req.signal);
   const inputAdvisories = buildAuditInputAdvisories(caseState, resolvedCandidateIndex, medicationExtraction);
   const auditedAt = new Date().toISOString();
+
+  if (providerAudit.source === "skipped") {
+    // Preserve genuine risk for this exact version. Client placeholders or changed hashes cannot
+    // supply prior authority; the original HMAC remains the evidence, not a new audit result.
+    const prior = caseState.prescriptionRevision;
+    const retainedPrior = prior && (prior.auditResult === "BLOCK" || prior.highestRiskLevel === "CRITICAL") &&
+      verifyPrescriptionRevisionAttestation(caseState, parsed.customer, herbHash) ? prior : undefined;
+    const localHighRiskSection = buildLocalHighRiskHerbPairSection(caseState, resolvedCandidateIndex);
+    const section = [
+      clinicalDeliveryAdvisorySection(clinicalAdvisories),
+      localHighRiskSection,
+      buildAuditInputAdvisorySection(inputAdvisories, true),
+      buildRetainedRxAuditRiskSection(retainedPrior),
+    ].filter(Boolean).join("\n\n");
+    const safetyLocked = deriveSafetyLocked(caseState);
+    const assessed = withSafetyGate({ ...caseState, riskAssessment: section, safetyLocked });
+    const followup = buildDeterministicRiskFollowupPayload(assessed,
+      await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal));
+    const revision: NonNullable<typeof caseState.prescriptionRevision> = retainedPrior || {
+      source: "herb_workbench", candidateIndex, herbHash, auditedAt,
+      auditResult: "NOT_SUBMITTED", auditAvailable: false, degraded: false,
+      auditReason: "rxaudit_disabled", needManualReview: inputAdvisories.length > 0 || clinicalAdvisories.length > 0 || Boolean(localHighRiskSection),
+    };
+    const attestation = retainedPrior || !workbenchRevision ? undefined
+      : issuePrescriptionRevisionAttestation(caseState, parsed.customer, revision);
+    if (workbenchRevision && !retainedPrior && !attestation) {
+      return Response.json({ error: "工作台处方版本签发不可用，未建立可写回凭据，请稍后重试。", code: "workbench_revision_attestation_unavailable" }, { status: 503 });
+    }
+    return Response.json(await withPostPrescriptionWarningObservation({
+      section, warnings: clinicalAdvisories, followup: followup.markdown,
+      followupTimeline: followup.timelineItems, risks: [],
+      audit: {
+        ...revision, ...attestation,
+        source: "skipped", reason: "rxaudit_disabled", presentationDisabled: true, retainedPriorAudit: Boolean(retainedPrior),
+        safetyLocked, inputAdvisories, prescriptionHash: herbHash,
+        correlation: buildRxAuditCorrelationMetadata({ providerOutcome: providerAudit, candidateIndex, prescriptionHash: herbHash, auditedAt }),
+      },
+    }, {
+      requestState: parsed.caseState, producerState: caseState, customer: parsed.customer,
+      sourceRepresentation: (parsed.body as { caseState?: unknown }).caseState,
+      sectionProjection: { markdown: section, currentRiskMarkdown: section }, followupProjection: followup,
+      audit: undefined, auditSkipped: true, advisories: clinicalAdvisories,
+    }));
+  }
 
   if (providerAudit.ok) {
     const mergedAudit = mergeLocalHighRiskHerbPairIssues(caseState, resolvedCandidateIndex, providerAudit);

@@ -322,6 +322,12 @@ V2.11 的 M05 完成响应还可在 `[END]` 前附带显示观测：
 
 药味工作台的既有 `POST /api/diagnosis/post-prescription-risk` JSON 响应，在当前编辑版完成校验、审方及原有版本凭据签发后，也可在顶层返回可选 `warningObservation` 字段，内容为同一版本的显示收据。它绑定原始请求与页面采纳后的最终报告；不嵌入 `audit`、临床病例或正文。未返回、损坏或不匹配时忽略该字段，既有 `section`、`followup`、`followupTimeline`、`audit` 及处方版本凭据语义不变。加密快照恢复仅接受解密接口顶层的 `verifiedWarningObservation`；加密接口不会为调用方提供的显示结论签名。
 
+**2026-09-10 外部审方临时跳过兼容说明**：仅服务器配置 `RXAI_AUDIT_ENABLED=false` 时，外部审方、其用药语义抽取前置调用、鉴权探针及关联查询均不发起；M03/M04 独立复核、临床事实、本地配伍及剂量检查继续执行。M05 使用既有 `TCM_CDSS_RXAUDIT_STATUS:DISABLED` 呈现标记；HIS `auditStatus` 为 `not_submitted`，不能解释为已审或通过。严格健康检查报告 `rxAudit.explicitlyDisabled=true`、探针 `ok=false/reason=disabled`；其他必需依赖仍须就绪。未配置、错误配置和实际服务故障不属于该跳过模式。
+
+工作台响应的 `audit` 新增 `source: "skipped"`、`reason: "rxaudit_disabled"`。未曾确认严重风险的当前版本使用新增枚举 `auditResult: "NOT_SUBMITTED"`，省略 `highestRiskLevel`，并返回 `auditAvailable:false`、`degraded:false`、`auditReason:"rxaudit_disabled"`；`needManualReview` 只反映实际本地发现。原四个结果枚举仍要求风险等级。集成方须保留这些原始字段及原有版本凭据，不得把新枚举回填为 PASS 或 HIGH。凭据仍绑定病例、租户和精确处方版本；服务器重新启用外部审方后，旧跳过凭据不能继续授权后续流程。未验证的客户端字段不能声明关闭模式。
+
+若同一处方版本已有有效签名的 BLOCK/CRITICAL 结果，响应会保留原结果和原签名，并标记 `retainedPriorAudit:true`：`source:skipped` 只描述本次未新送审，保留的严重风险来自此前凭据。处方版本变动后原凭据失效。已有本地风险、真实用药史不明、缺失剂量和中成药/西药送审范围约束均保留，不新增医生操作步骤。
+
 **解析器必须做到三点**，否则后续版本新增帧类型时会误判为故障：
 
 1. 先分流带 `type` 的事件帧；只有**没有 `type` 且含 `content`**的帧拼入规范正文。`module_draft` 虽有 `content`，也不能拼入正文；

@@ -1,6 +1,6 @@
 import { derivePrescriptionPermission, deriveSafetyLocked, detectProgrammaticRedFlags, evaluateSafetyGate, hasCurrentRiskLine, isNonDosePrescriptionText, withSafetyGate } from "./diagnosis-safety";
 import { sectionTitleGroup } from "./cdss-vocab";
-import { buildAuditItemsFromHerbs, rxAuditPresentationEnabled, type RxAuditSubmissionScope } from "./rxaudit";
+import { buildAuditItemsFromHerbs, getRxAuditConfig, rxAuditPresentationEnabled, type RxAuditSubmissionScope } from "./rxaudit";
 import { medicineCandidateTable } from "./medicine-rendering";
 import { qualityAnnotationCopy } from "./diagnosis-rejection-tiers";
 import type { CaseState, ClinicalCitation, SafetyGate } from "./diagnosis-types";
@@ -99,7 +99,7 @@ export type HisAiSchemePayload = {
     herbHash: string;
     auditedAt: string;
     auditResult: string;
-    highestRiskLevel: string;
+    highestRiskLevel?: string;
   };
   aiMedicalRecord: {
     chiefComplaint: string;
@@ -1059,6 +1059,7 @@ export function buildHisAiSchemePayload(
     acceptanceScopeNotice,
     consistencyRisk,
     section(prescription, sectionTitleGroup("prescriptionRisk")),
+    section(risk, sectionTitleGroup("prescriptionRisk")),
     section(risk, sectionTitleGroup("riskSummary")),
     section(risk, sectionTitleGroup("compatibilityRisk")),
     section(risk, sectionTitleGroup("adrRisk")),
@@ -1095,7 +1096,9 @@ export function buildHisAiSchemePayload(
   // reference deviation to an executable HIS item. Other clinical items retain their own policy.
   const historicalDoseReferenceOnly = structuredHerbs(caseState).some((herb) =>
     ordinaryHistoricalDoseDeviation(herb, structuredCandidate(caseState)?.decoction?.method || ""));
-  const auditStatus: HisAiSchemePayload["auditStatus"] = caseState.prescriptionRevision?.auditAvailable === false
+  const auditStatus: HisAiSchemePayload["auditStatus"] = getRxAuditConfig().explicitlyDisabled
+    ? "not_submitted"
+    : caseState.prescriptionRevision?.auditAvailable === false
     ? "unavailable"
     : caseState.prescriptionRevision?.auditAvailable === true
       ? strongPrescriptionRisk || caseState.prescriptionRevision.needManualReview === true ? "alert" : "pass"

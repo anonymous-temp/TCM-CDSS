@@ -2428,7 +2428,8 @@ async function runEndpointRegressionCases() {
   if (expectRxAuditEnabled) {
     assert(!/最高提示强度\*\*[：:]\s*强提示|综合风险判断\*\*[：:]\s*较高风险/.test(benignRisk.text), "m05 should not promote whole prescription to strong risk from herb-table generic cautions", benignRisk.text.slice(0, 1200));
   } else {
-    assert(/确定性审方未完成|外部审方引擎不可用|需药师人工复核|强提示/.test(benignRisk.text), "m05 fails closed when the audit provider is intentionally unavailable", benignRisk.text.slice(0, 1200));
+    assert(/TCM_CDSS_RXAUDIT_STATUS:DISABLED/.test(benignRisk.text), "m05 marks the explicitly disabled external module as hidden", benignRisk.text.slice(0, 1200));
+    assert(!/确定性审方未完成|外部审方引擎不可用|最高提示强度\*\*[：:]\s*强提示/.test(benignRisk.text), "intentional audit skip alone must not manufacture strong clinical risk", benignRisk.text.slice(0, 1200));
   }
 
   const realRiskSectionCase = baseCase("m05-real-risk-section-strong", {
@@ -2463,7 +2464,11 @@ async function runKnowledgeCalls() {
     assert(runtimeRxAuditEnabled === expectRxAuditEnabled, `health rxAudit enabled=${expectRxAuditEnabled}`, health.json?.rxAudit);
   }
   const strictHealth = await request("GET", "/api/diagnosis/health?strict=1");
-  assert(strictHealth.status === (expectRxAuditEnabled ? 200 : 503), "strict health uses HTTP readiness status", { status: strictHealth.status, strictReady: strictHealth.json?.strictReady });
+  assert(strictHealth.status === 200 && strictHealth.json?.strictReady === true, "strict health requires all enabled dependencies; an explicitly disabled audit is optional", { status: strictHealth.status, strictReady: strictHealth.json?.strictReady });
+  if (!expectRxAuditEnabled) {
+    assert(strictHealth.json?.rxAudit?.explicitlyDisabled === true, "audit absence must be an explicit operator skip, never missing configuration", strictHealth.json?.rxAudit);
+    assert(strictHealth.json?.rxAuditProbe?.ok === false && strictHealth.json?.rxAuditProbe?.reason === "disabled", "skipped audit probe must not claim a provider health check", strictHealth.json?.rxAuditProbe);
+  }
   if (expectRxAuditEnabled) {
     assert(strictHealth.json?.strictReady === true, "health strict readiness includes model, evidence, audit, and encrypted snapshot persistence", strictHealth.json);
     assert(
