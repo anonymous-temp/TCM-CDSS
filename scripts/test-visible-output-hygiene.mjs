@@ -495,7 +495,8 @@ assert.ok(INJECTION_BASE, "缺少注入用基线 fixture");
   check("K/展示不改变既有状态且隐藏状态标记与时间轴载荷不泄漏", () => {
     assert.deepEqual(completed.state, stateBeforeRender);
     assert.deepEqual(completed.followupTimeline, timeline);
-    assert.doesNotMatch(html, /TCM_CDSS_RXAUDIT_STATUS|FOLLOWUP_TIMELINE_JSON|M05_HIDDEN_TRUST_MATERIAL/);
+    const leaked = ["TCM_CDSS_RXAUDIT_STATUS", "FOLLOWUP_TIMELINE_JSON", "M05_HIDDEN_TRUST_MATERIAL"].filter((marker) => html.includes(marker));
+    assert.deepEqual(leaked, [], "隐藏状态标记或时间轴载荷不得进入渲染 HTML");
   });
 
   const withoutStructuredCare = (state) => {

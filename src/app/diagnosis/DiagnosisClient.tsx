@@ -2791,6 +2791,9 @@ export function buildDecisionSummary(caseState: CaseState) {
   ].find(Boolean) || "";
 
   const riskSummarySection = extractSectionLoose(riskText, ["处方安全总评", "风险总评", "安全总评"]);
+  const nonAuditAssessmentSection = extractRiskNonAuditSection(riskText)
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .trim();
   const referralSection = extractSectionLoose(riskText, ["转诊评估", "转诊建议"]);
   const followupSection = extractSectionLoose(riskText, ["随访管理方案", "随访方案"]);
   const followupTimelineSection = extractSectionLoose(riskText, ["随访时间轴", "时间轴"]);
@@ -2873,6 +2876,7 @@ export function buildDecisionSummary(caseState: CaseState) {
     nonDrugSection,
     currentConclusionSection,
     riskSummarySection,
+    nonAuditAssessmentSection,
     referralSection,
     followupSection,
     followupTimelineSection,
@@ -5522,14 +5526,18 @@ function ResultTabsV2({
             </div>
           ) : summary.nonDrugSection ? (
             <MarkdownBlock content={compactMarkdown(summary.nonDrugSection, 1200)} compact />
-          ) : (
+          ) : !summary.nonAuditAssessmentSection ? (
             // 空态必须可见：此前 nonPharma 为空时本模块只剩标题+随访占位，视觉上等于「模块消失」
             //（甲方实测反馈）。明示未生成并给出动作，而不是静默留白。
             <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-relaxed text-gray-500">
               本轮未生成饮食/起居/情志调护内容；可点击「重新生成」补齐，或由医生按本例证候直接补充。
             </p>
+          ) : null}
+          {summary.nonAuditAssessmentSection && (
+            <div data-clinical-contract-ids="M05-assessment">
+              <MarkdownBlock content={summary.nonAuditAssessmentSection} compact />
+            </div>
           )}
-          {summary.rehabSection && <MarkdownBlock content={compactMarkdown(summary.rehabSection, 1400)} compact />}
           {reasoning.management && (
             <div className="grid gap-2 md:grid-cols-2">
               {/* 甲方线上实测（0811）：基础病史/生命体征/查体都还没有的病例，「需优先补充」里
