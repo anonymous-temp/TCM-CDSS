@@ -16,7 +16,7 @@ import {
   runBoundedRxAudit,
   rxAuditSubmissionIssue,
 } from "@/lib/rxaudit";
-import { buildDeterministicRiskFollowupProjection, clinicalGroundingText, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
+import { buildDeterministicRiskFollowupPayload, clinicalGroundingText, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
 import { withPostPrescriptionWarningObservation } from "@/lib/warning-display-receipt.server";
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
@@ -158,7 +158,7 @@ export async function POST(req: Request) {
       buildLingxiRiskSection(effectiveAudit, patientSex),
     ].filter(Boolean).join("\n\n");
     const assessed = withSafetyGate({ ...caseState, riskAssessment: section, safetyLocked });
-    const followup = buildDeterministicRiskFollowupProjection(
+    const followup = buildDeterministicRiskFollowupPayload(
       assessed,
       await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal),
     );
@@ -247,7 +247,7 @@ export async function POST(req: Request) {
   ].filter(Boolean).join("\n\n");
   const safetyLocked = deriveSafetyLocked(caseState);
   const assessed = withSafetyGate({ ...caseState, riskAssessment: section, safetyLocked });
-  const followup = buildDeterministicRiskFollowupProjection(
+  const followup = buildDeterministicRiskFollowupPayload(
     assessed,
     await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal),
   );

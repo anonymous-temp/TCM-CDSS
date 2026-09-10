@@ -8300,10 +8300,10 @@ export default function DiagnosisPage() {
     setStreaming((prev) => ({ ...prev, [phase]: text }));
   }, []);
 
-  const persistState = useCallback((state: CaseState, observation?: InstalledWarningObservation) => {
+  const persistState = useCallback((state: CaseState, observation?: InstalledWarningObservation | null) => {
     if (state.id !== activeCaseIdRef.current) return;
     warningContextRef.current = { ...warningContextRef.current, caseState: state };
-    const matching = matchingWarningObservation(state, observation || warningObservationRef.current);
+    const matching = observation === null ? undefined : matchingWarningObservation(state, observation || warningObservationRef.current);
     warningObservationRef.current = matching;
     if (matching) warningObservationDraftRef.current = warningDraftMaterial(warningContextRef.current);
     setWarningObservationDraft(warningObservationDraftRef.current);
@@ -8675,7 +8675,7 @@ export default function DiagnosisPage() {
       const installed = await prepareWarningObservation({ receipt, requestState, finalState: current,
         customerId: current.customerId, isCurrent: completionIsCurrent });
       if (!completionIsCurrent()) return;
-      persistState(current, installed);
+      persistState(current, installed ?? null);
     } catch (e) {
       if (!ownsCurrentGeneration()) return;
       const message = normalizeRequestError(e, "合理用药审方与随访生成失败");
@@ -9300,7 +9300,7 @@ export default function DiagnosisPage() {
       : null;
     if (!isCurrent()) return;
     if (BROWSER_CASE_PERSISTENCE_ENABLED && !savedAt) throw new Error("编辑后方案未能安全保存，请检查浏览器存储或网络后重试；当前版本尚未写回。");
-    persistState(committed, installed);
+    persistState(committed, installed ?? null);
     setWorkbenchUnsavedDraft(null);
     if (savedAt) setLastSavedAt(savedAt);
     setStreamingForPhase("assess", "");

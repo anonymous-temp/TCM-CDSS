@@ -71,7 +71,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 | `question` / `question/interpret` | M02 | 生成追问；确定性解析医生自由文本回答为结构化状态更新 |
 | `diagnose` | M03 | 西医诊断 + 中医证候 + 病机；由安全门 + 完整度=C 门控；先挂临床事实回补层 |
 | `prescribe` | M04 | 中药处方；要求存在可执行的 M03 诊断 |
-| `assess` | M05 | 随访/风险汇总本身**完全确定性**（消费灵犀处方后审，不经模型生成）。注意：该路由仍会经 `maybeAttachClinicalFactsBackstop` 触发临床事实回补，指纹未命中缓存时会发生 extract+review(+adjudicate) 模型调用——"M05 不调用 LLM"的旧表述不准确 |
+| `assess` | M05 | 安全总评与风险分级为确定性计算（消费灵犀处方后审）；具体随访与调护文本可由 `authorFollowupForCase` 按已签名证候撰写，关闭、不可用或校验失败时回落模板。该路由还会经 `maybeAttachClinicalFactsBackstop` 触发临床事实回补，指纹未命中缓存时会发生 extract+review(+adjudicate) 模型调用；不能表述为“M05 不调用 LLM” |
 | `red-flags` | — | 当前病例状态的确定性红旗/安全汇总 |
 | `post-prescription-risk` | — | 灵犀统一审方 JSON；不可用或缺结构化药味时 fail-closed 并锁定人工复核 |
 | `snapshot` | — | 加密病例快照（AES-256-GCM，`CASE_SNAPSHOT_ENCRYPTION_KEY`），鉴权绑定快照所有者 |

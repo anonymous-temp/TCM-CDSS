@@ -34,7 +34,7 @@ The previous shared provenance import added 5,675,596 bytes to the largest brows
 
 ## Task 1: Reproduce the complete advice-domain defect
 
-- [ ] Add offline assertions using the real `buildDeterministicRiskFollowupPayload` and existing complete HIS fixtures. Do not mock the classification function.
+- [x] Add offline assertions using the real `buildDeterministicRiskFollowupPayload` and existing complete HIS fixtures. Do not mock the classification function.
 
 ```js
 const authored = {
@@ -61,7 +61,7 @@ assert.equal(result.prescriptions.herbal[0].adoptable, true);
 
 Use the real projected HIS result to assert that this source advice does not create L4, that the advice remains visible and that the otherwise usable herbal item stays usable. Add the same sentence outside its producer-owned domain as a negative control. Add real `BLOCK/CRITICAL`, selected incompatible pairs and independent T1 controls.
 
-- [ ] Run the focused target and record the intended RED failure before application edits; commit the failing tests.
+- [x] Run the focused target and record the intended RED failure before application edits; commit the failing tests.
 
 ```sh
 npm run test:his-projection-alignment
@@ -71,7 +71,7 @@ git commit -m "test: reproduce follow-up advice becoming a medication verdict"
 
 ## Task 2: Preserve provenance before text is flattened
 
-- [ ] Implement a small producer-only composition primitive.
+- [x] Implement a small producer-only composition primitive.
 
 ```ts
 export type AdviceText = Readonly<{ kind: "advice"; text: string }>;
@@ -102,17 +102,17 @@ These objects come from application code, not model JSON or request fields. In t
 
 Integration refinement (2026-09-10): the already formatted safety grade, summary and doctor-action sentences are presentation, not independent risk evidence. For example, “当前无确定性强提示” must not promote an actual MEDIUM audit to L3 merely because it includes “强提示”. Keep their displayed bytes and existing summary generation, but carry the current producer's effective audit result, highest risk and availability as explicit internal classifier inputs instead of re-reading those formatted sentences. Actual HIGH/BLOCK/CRITICAL still applies with audit presentation disabled. This does not authorize removing an existing structured revision BLOCK/CRITICAL: a matching display hash proves freshness, not that a newer audit supersedes an attested prior revision. Keep that independent floor; same-scope audit supersession is outside this change.
 
-- [ ] Return the existing Markdown and timeline unchanged, plus the internal `currentRiskMarkdown`. Apply the same final sanitization pipeline to display and projected text, with producer section context preserved. The wire text must remain byte-equivalent for fixed fixtures.
-- [ ] Split `medicineCandidateRow/Table` into the pure rendering module. Keep catalog lookup and canonical label clause verification server-only. Extend server M04 projection to exact signed diet/lifestyle/emotion renderings in their own producer domain; preserve additional copies, changed values, nested/current-risk text and unknown sections.
-- [ ] Keep `deriveCaseWarningProfile` as a pure classifier with explicit text inputs supplied by the server adapter. Never let it auto-consume a request's observation, profile or claimed projection. Browser fallback remains conservative and does not import the local medicine catalog.
-- [ ] Have HIS supply only internally produced final risk text after normal signature/current-candidate validation. Its existing independent T1 and adoption checks remain in force. A mismatched internal projection falls back conservatively without deleting the clinical report or inventing a new HTTP rejection.
-- [ ] Re-run the focused and neighboring suites, and commit GREEN.
+- [x] Return the existing Markdown and timeline unchanged, plus the internal `currentRiskMarkdown`. Apply the same final sanitization pipeline to display and projected text, with producer section context preserved. The wire text must remain byte-equivalent for fixed fixtures.
+- [x] Split `medicineCandidateRow/Table` into the pure rendering module. Keep catalog lookup and canonical label clause verification server-only. Extend server M04 projection to exact signed diet/lifestyle/emotion renderings in their own producer domain; preserve additional copies, changed values, nested/current-risk text and unknown sections.
+- [x] Keep `deriveCaseWarningProfile` as a pure classifier with explicit text inputs supplied by the server adapter. Never let it auto-consume a request's observation, profile or claimed projection. Browser fallback remains conservative and does not import the local medicine catalog.
+- [x] Have HIS supply only internally produced final risk text after normal signature/current-candidate validation. Its existing independent T1 and adoption checks remain in force. A mismatched internal projection falls back conservatively without deleting the clinical report or inventing a new HTTP rejection.
+- [x] Re-run the focused and neighboring suites, and commit GREEN.
 
 ## Task 3: Share final display and restoration reducers
 
-- [ ] Move the existing `replaceRiskAssessmentFollowup` and its extraction dependencies from `DiagnosisClient.tsx` into the pure shared module without changing their behavior. Define `applyCompletedM05DisplayResult(previous, result, resolvedCustomerId): CaseState` with the exact existing order: parse audit marker, strip it, merge final risk text, install timeline/auditAdvisory, clear completed-run fields, set `phase=done`, and apply the existing safety normalization.
-- [ ] Use that reducer on server and browser. Compute a receipt only after all final sanitization, timeline stripping and marker/state changes. Apply the same merge to the producer's current-risk representation; do not accidentally retain an old advice section when its current-risk representation is empty. The request binding comes from the normalized original submitted case before route-only semantic-facts enrichment. The final display material must be reproducible from that submitted state and the actual wire result; do not hash server-only fields that the browser never receives. Fresh owned facts and audit findings still participate in the server-computed profile.
-- [ ] Extract the existing storage sanitizer, `reconcileRestoredCaseState` and `recoverInterruptedRun` into a server-safe pure restoration boundary. Do not move localStorage/network operations into a server import, re-enable `saveCase/loadCase`, or change existing privacy, TTL, interrupted-run and unsaved-workbench rules.
+- [x] Move the existing `replaceRiskAssessmentFollowup` and its extraction dependencies from `DiagnosisClient.tsx` into the pure shared module without changing their behavior. Define `applyCompletedM05DisplayResult(previous, result, resolvedCustomerId): CaseState` with the exact existing order: parse audit marker, strip it, merge final risk text, install timeline/auditAdvisory, clear completed-run fields, set `phase=done`, and apply the existing safety normalization.
+- [x] Use that reducer on server and browser. Compute a receipt only after all final sanitization, timeline stripping and marker/state changes. Apply the same merge to the producer's current-risk representation; do not accidentally retain an old advice section when its current-risk representation is empty. The request binding comes from the normalized original submitted case before route-only semantic-facts enrichment. The final display material must be reproducible from that submitted state and the actual wire result; do not hash server-only fields that the browser never receives. Fresh owned facts and audit findings still participate in the server-computed profile.
+- [x] Extract the existing storage sanitizer, `reconcileRestoredCaseState` and `recoverInterruptedRun` into a server-safe pure restoration boundary. Do not move localStorage/network operations into a server import, re-enable `saveCase/loadCase`, or change existing privacy, TTL, interrupted-run and unsaved-workbench rules.
 
 ```ts
 export function restoreWarningDisplayCase(
@@ -134,7 +134,7 @@ All four functions in this expression are the existing implementations, extracte
 
 ## Task 4: Bind small observations, not copies of clinical data
 
-- [ ] Define the receipt and finite schemas. Reject malformed version/digest/profile combinations, oversized reasons and duplicate/conflicting transport observations. Invalid metadata is omitted; it must not discard a readable report.
+- [x] Define the receipt and finite schemas. Reject malformed version/digest/profile combinations, oversized reasons and duplicate/conflicting transport observations. Invalid metadata is omitted; it must not discard a readable report.
 
 ```ts
 export type WarningDisplayView = {
@@ -156,7 +156,7 @@ export type WarningDisplayReceipt = {
 };
 ```
 
-- [ ] Implement stable JSON with deterministic code-unit key ordering, array order retained, undefined object fields omitted and no clinical text rewriting. Do not use locale-dependent ordering or recursively remove every field named `signature`/`updatedAt`.
+- [x] Implement stable JSON with deterministic code-unit key ordering, array order retained, undefined object fields omitted and no clinical text rewriting. Do not use locale-dependent ordering or recursively remove every field named `signature`/`updatedAt`.
 
 ```ts
 export function stableWarningJson(value: unknown): string {
@@ -180,7 +180,7 @@ export async function warningDisplayHash(material: string): Promise<`sha256:${st
 
 `warningDisplayMaterial` uses the shared normalized clinical state and authorized customer. It retains clinical inputs, full M03/M04 content/signatures, selected candidate, revision, risk/audit state and final reports/timeline. Only explicitly non-material top-level save timestamps, export acknowledgement and `previousResult` are excluded. Test ordinary normalization/copying as well as every material edit.
 
-- [ ] Sign only producer-computed live and stored views, using the existing 32-character signing-key policy and a new message namespace, not a new key.
+- [x] Sign only producer-computed live and stored views, using the existing 32-character signing-key policy and a new message namespace, not a new key.
 
 ```ts
 import "server-only";
@@ -201,7 +201,7 @@ Verification strictly parses first, compares authorized client/customer/case/enc
 
 ## Task 5: Wire current display and existing encrypted restoration
 
-- [ ] Add a distinct outer NDJSON metadata frame before END, and an optional top-level post-risk JSON field. Never derive it from content, sentinel text or a model object.
+- [x] Add a distinct outer NDJSON metadata frame before END, and an optional top-level post-risk JSON field. Never derive it from content, sentinel text or a model object.
 
 ```ts
 type WarningProfileFrame = {
@@ -212,9 +212,9 @@ type WarningProfileFrame = {
 
 Only the designated consumers enable collection. Content-embedded lookalikes, duplicates, metadata after END, truncated/error/cancelled streams do not install an observation. Report content is still delivered normally.
 
-- [ ] In the current-generation M05/workbench completion path, compute request/display hashes asynchronously with Web Crypto. After awaiting, recheck request epoch, active case/customer, cancellation and the exact current material key. Install the observation and corresponding completed state together. Use synchronous material-key equality on each render to invalidate stale cached data immediately; do not rely only on object identity or an asynchronous effect.
-- [ ] Make the badge, `ResultPanel`, `handleDownloadReport` and `confirmReportExport` share one resolver. Merge only independent structural danger floors such as current selected pairs and revision BLOCK/CRITICAL; do not merge the whole old prose scanner back into a matched observation. Recheck state/epoch after async export work so a prior confirmation does not export a different patient's report.
-- [ ] Keep receipts out of live CaseState, model input and HIS authority. Persist only a currently matching receipt in the existing workspace object using a storage-only reserved field. Do not revive per-case plaintext persistence.
+- [x] In the current-generation M05/workbench completion path, compute request/display hashes asynchronously with Web Crypto. After awaiting, recheck request epoch, active case/customer, cancellation and the exact current material key. Install the observation and corresponding completed state together. Use synchronous material-key equality on each render to invalidate stale cached data immediately; do not rely only on object identity or an asynchronous effect.
+- [x] Make the badge, `ResultPanel`, `handleDownloadReport` and `confirmReportExport` share one resolver. Merge only independent structural danger floors such as current selected pairs and revision BLOCK/CRITICAL; do not merge the whole old prose scanner back into a matched observation. Recheck state/epoch after async export work so a prior confirmation does not export a different patient's report.
+- [x] Keep receipts out of live CaseState, model input and HIS authority. Persist only a currently matching receipt in the existing workspace object using a storage-only reserved field. Do not revive per-case plaintext persistence.
 
 ```ts
 export function withWarningStorageReceipt(
@@ -227,10 +227,14 @@ export function withWarningStorageReceipt(
 }
 ```
 
-- [ ] Keep snapshot encryption and AES-GCM v1/v2 compatibility unchanged. Encryption must not sign arbitrary caller metadata. On successful decryption, verify the optional HMAC receipt for only the explicit workspace-v1/case payload shapes and their restored material hash; add an optional **top-level** `verifiedWarningObservation` beside the unchanged payload. Invalid receipts do not make valid ciphertext or clinical data fail restoration. No recursive search for arbitrary profile objects.
-- [ ] Restore clients install only that verified top-level observation after their final restoration projection and async hash/epoch checks; a receipt inside raw payload is never sufficient. Save-sequence guards must cover both the new hash await and the existing encryption await. Update autosave dependencies so a just-installed receipt is actually included in the next save.
+- [x] Keep snapshot encryption and AES-GCM v1/v2 compatibility unchanged. Encryption must not sign arbitrary caller metadata. On successful decryption, verify the optional HMAC receipt for only the explicit workspace-v1/case payload shapes and their restored material hash; add an optional **top-level** `verifiedWarningObservation` beside the unchanged payload. Invalid receipts do not make valid ciphertext or clinical data fail restoration. No recursive search for arbitrary profile objects.
+- [x] Restore clients install only that verified top-level observation after their final restoration projection and async hash/epoch checks; a receipt inside raw payload is never sufficient. Save-sequence guards must cover both the new hash await and the existing encryption await. Update autosave dependencies so a just-installed receipt is actually included in the next save.
 
 ## Task 6: Prove the class and rebuild one final candidate
+
+Implementation checkpoint (2026-09-10): Tasks 1–5 are implemented. The focused warning-display suite now has 24 passing tests, including actual M05/post-risk producers, page save/export callbacks and actual encrypted restoration. HIS projection, RxAudit route/normalization/presentation, snapshot ownership, reasoning signatures, formula restoration, prescription permission, stream and display neighbors pass; typecheck/lint/diff checks pass. Independent full-feature specification and quality reviews, both deterministic modes, bundle measurements and isolated candidate live acceptance remain pending below.
+
+Binding refinement: the clinical reducers and classifiers continue to receive only parsed, tenant-validated state. A server-only binding helper may preserve validated original wire text bytes and narrowly absent HIS/face bookkeeping dates for hashing; it requires equivalence to the authorized parsed shape, rejects non-corresponding arrays, and uses explicit producer-owned final fields even for equal-value writes. Missing/empty bookkeeping dates stay absent through the shared restoration adapter. Supplied nested dates and signed clinical artifacts remain bound. Post-risk JSON uses the optional top-level `warningObservation`; its typed timeline remains separate from Markdown.
 
 - [ ] Add and execute RED/GREEN tests for: advice in each producer slot; exact same current/unknown/nested risk; actual T1/pairs/BLOCK/CRITICAL; UI badge/download parity; content-forged and duplicate metadata; customer mismatch; edits during hashing/export; workspace save races; forged public hashes with wrong MAC; cross-tenant valid MAC; changed restored data; arbitrary snapshot payload/v1/v2 compatibility; legitimate redaction/date truncation; interrupted/unsaved cases; and HIS ignoring even a valid display receipt.
 - [ ] Extend fixed HTTP cases with an actual stubbed authoring response in offline route tests, then rerun the same nine real HTTP cases without altering their adoption expectations. A stochastic re-run that happens not to say “严禁” is not the class proof.
