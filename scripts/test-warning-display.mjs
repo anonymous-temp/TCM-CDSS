@@ -31,6 +31,7 @@ function pageFunction(name, dependencies, prefix = "") {
   let found;
   const visit = (node) => {
     if (ts.isFunctionDeclaration(node) && node.name?.text === name) found = node.getText(tree);
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === name && node.initializer) found = `const ${node.getText(tree)};`;
     ts.forEachChild(node, visit);
   };
   visit(tree);
@@ -65,6 +66,63 @@ test("page export confirmation cannot export a changed case after asynchronous f
   assert.equal(calls.length, 0, "an old confirmation must neither install nor export another clinical state");
 });
 
+test("the actual page epoch rejects edits, cancellation and tenant changes during asynchronous work", async () => {
+  const { warningDisplayMaterial, stableWarningJson } = await jiti.import("../src/lib/warning-display-binding.ts");
+  for (const mutate of [
+    (d) => { d.context.current.caseState.chiefComplaint += "变化"; },
+    (d) => { d.context.current.caseState.customerId = "other-customer"; },
+    (d) => { d.context.current.recordDraft.zhushu = "修改后主诉"; },
+    (d) => { d.context.current.input = "新的补充"; },
+    (d) => { d.context.current.selectedQuestionOptions = { q1: { answer: "新答案" } }; },
+    (d) => { d.context.current.tongueImage = "new-image"; },
+    (d) => { d.context.current.workbenchUnsavedDraft = { caseId: "warning-case" }; },
+    (d) => { d.context.current = { ...d.context.current }; },
+    (d) => { d.activeCase.current = "other-case"; },
+    (d) => { d.generation.current += 1; },
+    (d) => { d.controller.abort(); },
+  ]) {
+    const d = { context: { current: { caseState: makeCase(), recordDraft: { zhushu: "乏力" }, input: "", selectedQuestionOptions: {}, tongueImage: null, workbenchUnsavedDraft: null } },
+      activeCase: { current: "warning-case" }, generation: { current: 1 }, controller: new AbortController() };
+    const capture = pageFunction("captureWarningPageGuard", { useCallback: (fn) => fn,
+      warningContextRef: d.context, activeCaseIdRef: d.activeCase, clinicalGenerationRef: d.generation,
+      activeRunAbortController: d.controller, warningDisplayMaterial, stableWarningJson });
+    const isCurrent = capture();
+    assert.equal(isCurrent(), true);
+    mutate(d);
+    assert.equal(isCurrent(), false);
+  }
+});
+
+test("source binding preserves explicit producer writes and cannot resurrect stripped authority", async () => {
+  const { warningSourceBindingMaterials } = await jiti.import("../src/lib/warning-display-source-binding.server.ts");
+  const { warningDisplayMaterial } = await jiti.import("../src/lib/warning-display-binding.ts");
+  const { applyCompletedM05DisplayResult, restoreWarningDisplayCase } = await jiti.import("../src/lib/followup-display-state.ts");
+  const { sanitizeCaseStateForBrowserPersistence } = await jiti.import("../src/lib/browser-case-persistence.ts");
+  const raw = JSON.parse(JSON.stringify({ ...makeCase(), riskAssessment: `${makeCase().riskAssessment} `, chiefComplaint: `${makeCase().chiefComplaint} ` }));
+  const requestState = normalizeCaseStateInput(raw);
+  const result = { content: requestState.riskAssessment, followupTimeline: [] };
+  const finalState = applyCompletedM05DisplayResult(requestState, result, customer.customerId);
+  const storedState = restoreWarningDisplayCase(sanitizeCaseStateForBrowserPersistence(finalState));
+  const input = { producer: "assess", source: raw, requestState, finalState, storedState, customerId: customer.customerId };
+  const material = warningSourceBindingMaterials(input);
+  assert.ok(material);
+  assert.equal(material.live, warningDisplayMaterial(applyCompletedM05DisplayResult(raw, result, customer.customerId), customer.customerId));
+  assert.equal(JSON.parse(material.live).riskAssessment, result.content, "equal normalized content is still a producer write");
+  for (const key of ["emergencyClearance", "clinicalFacts"]) {
+    const controlled = { ...requestState, [key]: undefined };
+    const counterfeit = key === "clinicalFacts"
+      ? { redFlags: [], sourceFingerprint: `sha256:${"e".repeat(64)}`, customerBindingHash: "other-tenant", semanticStatus: "checked" }
+      : { redFlagFingerprint: "RF-FORGED", confirmedAt: "2026-09-10T08:00:00Z", assessmentSummary: "已完成相关排查但签名系伪造内容", contractSignature: `hmac-sha256:${"0".repeat(64)}`,
+          findings: [{ findingKey: "red_flag:test", ruleId: "test", message: "胸痛", disposition: "excluded_by_objective_workup", basis: "已完成相关排查但签名系伪造内容" }] };
+    const source = { ...raw, [key]: counterfeit };
+    assert.ok(normalizeCaseStateInput(source)[key], `fixture ${key} must survive shape validation`);
+    assert.equal(warningSourceBindingMaterials({ ...input, source, requestState: controlled }), undefined);
+  }
+  const source = { ...raw, conversation: [{ role: "invalid", content: "不要按此内容授权" }, { role: "user", content: "普通记录" }] };
+  assert.equal(normalizeCaseStateInput(source).conversation.length, 1);
+  assert.equal(warningSourceBindingMaterials({ ...input, source, requestState: normalizeCaseStateInput(source) }), undefined);
+});
+
 test("actual workspace save attaches only installed matching metadata and guards encryption races", async () => {
   const { state, receipt } = await fixtureReceipt();
   const { prepareWarningObservation } = await jiti.import("../src/lib/warning-display-observation.ts");
@@ -93,6 +151,47 @@ test("actual workspace save attaches only installed matching metadata and guards
   finish({ response: { ok: true }, body: { ok: true, envelope: { updatedAt: "today" } } });
   assert.equal(await pending, null);
   assert.equal(writes.length, 0);
+});
+
+test("workspace save sequence begins before hashing so an older save cannot overwrite a newer one", async () => {
+  const { state } = await fixtureReceipt();
+  const writes = [];
+  const sent = [];
+  let finishOldHash;
+  let hashes = 0;
+  const save = pageFunction("saveWorkspaceSnapshot", {
+    BROWSER_CASE_PERSISTENCE_ENABLED: true, WORKSPACE_STORAGE_KEY: "workspace", window: { localStorage: { setItem: (...args) => writes.push(args) } },
+    workspaceSnapshotBinding: () => "offline-binding", sanitizeCaseStateForBrowserPersistence: (s) => s,
+    sanitizeRecordDraftForBrowserPersistence: (draft) => draft, scrubPersistentPhiText: (text) => text,
+    sanitizeQuestionSelectionsForBrowserPersistence: (selections) => selections,
+    matchingWarningStorageReceipt: async () => ++hashes === 1 ? new Promise((resolve) => { finishOldHash = resolve; }) : undefined,
+    withWarningStorageReceipt: (payload) => payload, apiUrl: (url) => url, isEncryptedSnapshotEnvelope: () => true,
+    fetchJsonWithTimeout: async (_url, options) => { sent.push(JSON.parse(options.body)); return { response: { ok: true }, body: { ok: true, envelope: { updatedAt: "new" } } }; },
+  }, "let workspaceSaveSequence = 0;");
+  const snapshot = { caseState: state, recordDraft: { patientName: "" }, input: "older", selectedQuestionOptions: {} };
+  const older = save(snapshot);
+  const newer = save({ ...snapshot, input: "newer" });
+  assert.equal(await newer, "new");
+  finishOldHash(undefined);
+  assert.equal(await older, null);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].payload.input, "newer");
+  assert.equal(writes.length, 1);
+});
+
+test("a completed response with invalid metadata cannot reuse an earlier receipt", async () => {
+  const { state, receipt } = await fixtureReceipt();
+  const { prepareWarningObservation, matchingWarningObservation } = await jiti.import("../src/lib/warning-display-observation.ts");
+  const { stableWarningJson } = await jiti.import("../src/lib/warning-display-binding.ts");
+  const installed = await prepareWarningObservation({ receipt, requestState: state, finalState: state, isCurrent: () => true });
+  const warningObservationRef = { current: installed };
+  const warningContextRef = { current: { caseState: state, recordDraft: {}, input: "", selectedQuestionOptions: {}, tongueImage: null } };
+  const persist = pageFunction("persistState", { useCallback: (fn) => fn, activeCaseIdRef: { current: state.id }, warningContextRef,
+    warningObservationRef, warningObservationDraftRef: { current: "" }, matchingWarningObservation,
+    warningDraftMaterial: (context) => stableWarningJson(context.recordDraft), setWarningObservationDraft: () => {},
+    setInstalledWarningObservation: () => {}, setCaseState: () => {}, saveCase: () => {} });
+  persist(state, null);
+  assert.equal(warningObservationRef.current, undefined);
 });
 
 test("page M05, badge, workbench and restore use shared receipt boundaries", () => {
@@ -391,6 +490,30 @@ test("snapshot decrypt verifies receipts without changing arbitrary payload or A
   assert.equal(result.ok, true);
   assert.deepEqual(result.payload, JSON.parse(JSON.stringify(forged)));
   assert.equal(result.verifiedWarningObservation, undefined);
+
+  const { restoreWarningDisplayCase } = await jiti.import("../src/lib/followup-display-state.ts");
+  const payload = { ...wrapped, updatedAt: new Date().toISOString(), recordDraft: { patientName: "" }, input: "", selectedQuestionOptions: {} };
+  const core = await (await POST(request({ action: "encrypt", payload }))).json();
+  const decode = async (_url, options) => {
+    const response = await POST(request(JSON.parse(options.body)));
+    return { response, body: await response.json() };
+  };
+  const dependencies = {
+    BROWSER_CASE_PERSISTENCE_ENABLED: true, WORKSPACE_STORAGE_KEY: "workspace", WORKSPACE_TTL_MS: 86400000, WORKSPACE_RESTORE_TIMEOUT_MS: 8000,
+    MAX_CASE_SUPPLEMENT_CHARS: 20000, window: { localStorage: { getItem: () => JSON.stringify(core.envelope), removeItem: () => {} } },
+    clearAllSavedCases: () => {}, clearWorkspaceSnapshot: () => {}, workspaceSnapshotBinding: () => "b".repeat(64),
+    apiUrl: (url) => url, isEncryptedSnapshotEnvelope: (v) => Boolean(v?.schemaVersion), normalizeCaseStateInput, restoreWarningDisplayCase,
+    createEmptyHisRecordDraft: () => ({ patientName: "" }), sanitizeRecordDraftForBrowserPersistence: (d) => d,
+    scrubPersistentPhiText: (text) => text, sanitizeQuestionSelectionsForBrowserPersistence: (d) => d, fetchJsonWithTimeout: decode,
+  };
+  const loaded = await pageFunction("loadWorkspaceSnapshot", dependencies)();
+  assert.ok(loaded.snapshot);
+  assert.ok(loaded.verifiedWarningObservation, "the actual page loader propagates only the real decrypt verification");
+  const noOuter = await pageFunction("loadWorkspaceSnapshot", { ...dependencies, fetchJsonWithTimeout: async (...args) => {
+    const decoded = await decode(...args); delete decoded.body.verifiedWarningObservation; return decoded;
+  } })();
+  assert.ok(noOuter.snapshot);
+  assert.equal(noOuter.verifiedWarningObservation, undefined, "raw payload receipt alone is not a verification result");
 });
 
 test("binding does not invent wall-clock defaults for absent optional display timestamps", async () => {
@@ -498,6 +621,7 @@ test("the real M05 route binds the submitted state despite enrichment and contro
     const body = await reviewed.json();
     assert.equal(reviewed.status, 200, JSON.stringify(body));
     assert.equal(body.audit.herbHash, herbHash);
+    assert.doesNotMatch(body.followup, /FOLLOWUP_TIMELINE_JSON/, "post-risk JSON keeps timeline in its existing typed field");
     assert.ok(body.warningObservation, "the workbench producer must emit its final display receipt");
     const accepted = { caseId: requestState.id, reasoning: revised, auditSection: body.section, followupSection: body.followup.trim(), followupTimeline: body.followupTimeline,
       serverSafetyLocked: safety.derivePrescriptionPermission(safety.withSafetyGate(completed)).formalAdoption === "blocked",
