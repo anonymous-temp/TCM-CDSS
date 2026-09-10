@@ -307,3 +307,51 @@ for (const candidateIndex of [1, 2]) {
     }));
   }
 }
+
+const skippedMedicationScopeCases = [
+  ["发病后未服药", "medication_current_scope_incomplete"],
+  ["既往服用阿莫西林，发病后未服药", "medication_current_scope_incomplete"],
+  ["曾服阿莫西林已停用，发病后未服药", "medication_current_scope_incomplete"],
+  ["否认服用阿司匹林，发病后未服药", "medication_current_scope_incomplete"],
+  ["家属长期服用阿司匹林，发病后未服药", "medication_current_scope_incomplete"],
+  ["现用药不 详", "medication_current_scope_unknown"],
+  ["现用药不\n详", "medication_current_scope_unknown"],
+  ["现用药未 提 及", "medication_current_scope_unknown"],
+  ["目前无任何用药", undefined],
+  ["既往服用阿司匹林，当前无任何用药", undefined],
+  ["现服阿司匹林，发病后未服其他药", undefined],
+  ["长期服用阿司匹林，发病后未服药", undefined],
+  ["未停用阿司匹林，发病后未服其他药", undefined],
+];
+for (const [medicationHistory, expectedReason] of skippedMedicationScopeCases) {
+  test(`skipped medication scope preserves current/history polarity: ${JSON.stringify(medicationHistory)}`, async () => withoutNetwork(async () => {
+    const state = await readyCaseFor({ medicationHistory });
+    const before = JSON.stringify(state);
+    const run = await audit.runBoundedRxAudit(state, 0);
+    assert.equal(run.providerAudit.source, "skipped");
+    assert.equal(run.medicationExtraction.reason, expectedReason);
+    assert.equal(run.medicationExtraction.needsManualReview, Boolean(expectedReason));
+    assert.deepEqual(run.medicationExtraction.events, [], "skip must not fabricate extracted current-medication events");
+    const existing = audit.verifyMedicationSemanticCoverage(audit.buildMedicationExtractionContext(state).text,
+      { source: "not_needed", events: [], unresolvedReferences: [], needsManualReview: false });
+    const existingScopeReasons = (existing.reason || "").split(",").filter((reason) => reason.startsWith("medication_current_scope_"));
+    assert.deepEqual(existingScopeReasons, expectedReason ? [expectedReason] : [], "the skipped path must match the existing pure scope semantics");
+    for (const [path, handler] of [["assess", assess], ["post-prescription-risk", postRisk], ["his-scheme", hisScheme]]) {
+      const response = await handler(request(`/api/diagnosis/${path}`, state));
+      const text = await response.text();
+      assert.equal(response.status, 200, `${path}: ${text}`);
+      if (path === "his-scheme") {
+        assert.equal(JSON.parse(text).aiMedicalRecord.medicationHistory, medicationHistory, "HIS preserves the original scope evidence, including non-dose projections");
+      } else {
+        assert.equal(/已记录本次或局部未用药|现用药信息明确不详或尚未核实/.test(text), Boolean(expectedReason), `${path}: ${text}`);
+      }
+      assert.doesNotMatch(text, /medication_semantics_unavailable/);
+      if (path === "post-prescription-risk") {
+        const body = JSON.parse(text);
+        assert.equal(body.audit.inputAdvisories.some((item) => item.code === "medication_semantics_incomplete"), Boolean(expectedReason));
+        assert.equal(body.audit.needManualReview, Boolean(expectedReason));
+      }
+    }
+    assert.equal(JSON.stringify(state), before, "current and historical medication facts remain untouched");
+  }));
+}
