@@ -407,6 +407,14 @@ assert.equal(auditProbeRequest?.body, "{}", "the audit readiness probe must send
 globalThis.fetch = async () => new Response("invalid payload", { status: 422 });
 const authenticatedAudit = await probeRxAuditTransport();
 assert.equal(authenticatedAudit.ok, true, "an authenticated request-validation response proves the credential reached the audit service");
+process.env.RXAI_AUDIT_ENABLED = "false";
+let skippedAuditFetches = 0;
+globalThis.fetch = async () => { skippedAuditFetches += 1; return new Response("invalid payload", { status: 422 }); };
+const skippedAudit = await probeRxAuditTransport();
+assert.equal(skippedAudit.ok, false, "an intentionally skipped probe must never claim provider health");
+assert.equal(skippedAudit.reason, "disabled");
+assert.equal(skippedAuditFetches, 0, "explicit audit disable must stop even credential-only probes");
+process.env.RXAI_AUDIT_ENABLED = "true";
 
 await assert.rejects(
   () => readResponseTextLimited(new Response("0123456789", { headers: { "Content-Length": "10" } }), 5),

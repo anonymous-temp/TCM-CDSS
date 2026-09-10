@@ -58,6 +58,19 @@ check("未配置或传输不允许时即便开关为 true 也不启用", () => {
   assert.equal(rxaiQueryEnabled({ ...cfg, transportAllowed: false }), false);
   delete process.env.RXAI_QUERY_ENABLED;
 });
+await asyncCheck("显式停用外部审方同时停用查询增强，即使查询开关仍为 true", async () => {
+  process.env.RXAI_QUERY_ENABLED = "true";
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return Response.json({ code: 200, data: { items: [] } }); };
+  try {
+    const disabled = { ...cfg, explicitlyDisabled: true };
+    assert.equal(rxaiQueryEnabled(disabled), false);
+    assert.deepEqual([...await resolveGovernedDrugIdentities(disabled, ["氨氯地平"])], []);
+    assert.deepEqual(await queryDrugCompatibility(disabled, ["甘草", "海藻"]), []);
+    assert.equal(calls, 0);
+  } finally { globalThis.fetch = originalFetch; delete process.env.RXAI_QUERY_ENABLED; }
+});
 check("关闭时查询函数不发请求且返回空（baseUrl 不可达也不抛）", async () => {});
 await (async () => {
   delete process.env.RXAI_QUERY_ENABLED;
