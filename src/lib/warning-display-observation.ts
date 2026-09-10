@@ -40,6 +40,6 @@ export function resolveWarningDisplayProfile(state: CaseState, installed?: Insta
   // A matched server receipt already accounts for the explicitly skipped module. Keep raw-client
   // fallback conservative, and preserve every actual prior risk revision and local clinical floor.
   const floor = deriveStructuredCaseWarningFloor(state.prescriptionRevision?.auditResult === "NOT_SUBMITTED"
-    ? { ...state, prescriptionRevision: undefined } : state);
+    ? { ...state, prescriptionRevision: { ...state.prescriptionRevision, auditAvailable: undefined } } : state);
   return warningLevelRank(floor.level) > warningLevelRank(profile.level) || (!floor.executable && profile.executable) ? floor : profile;
 }

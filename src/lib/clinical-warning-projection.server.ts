@@ -10,10 +10,12 @@ import { matchedWarningText, type OwnedCaseWarningProjection, type WarningTextPr
 import { isSafetyClinicalDeliveryAdvisory, type ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
 
 /** Called only after the producer has selected an explicit server-configured skip and validated
- * any revision. Prior real risk revisions remain intact; only the new no-result state is omitted. */
+ * any revision. Preserve its selection/version identity and prior real risk; omit only the
+ * synthetic unavailable input for a skipped result in this transient warning projection. */
 export function caseWarningStateWithoutSkippedAudit(state: CaseState): CaseState {
   return { ...state, auditAdvisory: undefined,
-    prescriptionRevision: state.prescriptionRevision?.auditResult === "NOT_SUBMITTED" ? undefined : state.prescriptionRevision };
+    prescriptionRevision: state.prescriptionRevision?.auditResult === "NOT_SUBMITTED"
+      ? { ...state.prescriptionRevision, auditAvailable: undefined } : state.prescriptionRevision };
 }
 
 /** Only a server producer calls this after validating the current clinical artifact. No request

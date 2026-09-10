@@ -27,6 +27,8 @@ const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diag
 const { prepareWarningObservation, resolveWarningDisplayProfile } = await jiti.import("../src/lib/warning-display-observation.ts");
 const { derivePrescriptionPermission, withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { maybeAttachClinicalFactsBackstop } = await jiti.import("../src/lib/clinical-facts-runtime.ts");
+const { getTcmHerbFunctionText } = await jiti.import("../src/lib/tcm-knowledge.ts");
+const { getM03TherapyLock } = await jiti.import("../src/lib/m03-therapy-lock.ts");
 const customer = { clientId: "local-development", customerId: "test-hospital" };
 
 function caseFor({ medicationHistory = "否认当前用药", herbs = [{ name: "黄芪", dose: "15g" }, { name: "茯苓", dose: "12g" }] } = {}) {
@@ -247,6 +249,8 @@ for (const candidateIndex of [1, 2]) {
     test(`skipped selection ${candidateIndex} keeps ${selectedUnsafe ? "selected" : "unselected"} contraindications correctly scoped across routes and installed view`, async () => withoutNetwork(async () => {
       const submitted = await workbenchCase();
       const safe = structuredClone(submitted.reasoningPrescribe.formula.candidates[0]);
+      safe.therapyMatch = getM03TherapyLock(submitted.reasoningDiagnose).candidateMatch;
+      safe.herbs = safe.herbs.map((herb) => ({ ...herb, function: getTcmHerbFunctionText(herb.name) }));
       const unsafe = structuredClone(safe);
       unsafe.herbs = unsafe.herbs.map((herb, index) => ({ ...herb, name: index === 0 ? "甘草" : "海藻" }));
       submitted.reasoningPrescribe.formula.candidates = Array.from({ length: candidateIndex + 1 }, (_, index) =>
@@ -261,7 +265,7 @@ for (const candidateIndex of [1, 2]) {
       assert.equal(body.audit.candidateIndex, candidateIndex);
       assert.equal(body.audit.auditResult, "NOT_SUBMITTED");
       const checkProfile = (profile, label) => {
-        assert.equal(profile.level === "L4", selectedUnsafe, `${label}: ${JSON.stringify(profile)}`);
+        assert.equal(profile.level === "L4", selectedUnsafe, `${label}: ${JSON.stringify(profile)}; findings: ${JSON.stringify(body.warnings)}`);
         assert.equal(profile.executable, !selectedUnsafe, label);
         assert.equal(profile.reasons.some((reason) => /甘草.*海藻|十八反/.test(reason)), selectedUnsafe, label);
       };
