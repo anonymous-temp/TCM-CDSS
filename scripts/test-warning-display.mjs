@@ -358,6 +358,27 @@ test("only opted-in outer warning frames survive a complete unambiguous stream",
   }
 });
 
+test("malformed receipt profile enum types are optional metadata, never stream errors", async () => {
+  const { state, receipt } = await fixtureReceipt();
+  const { parseWarningDisplayReceipt } = await jiti.import("../src/lib/warning-display-binding.ts");
+  const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
+  for (const view of ["live", "stored"]) for (const level of [["L0"], {}, { toString: null }, null, 0]) {
+    const malformed = { ...receipt, [view]: { ...receipt[view], profile: { ...receipt[view].profile, level } } };
+    let parsed;
+    assert.doesNotThrow(() => { parsed = parseWarningDisplayReceipt(malformed); });
+    assert.equal(parsed, undefined, `${view}: profile levels require primitive string enums`);
+    const frames = [{ content: state.riskAssessment }, { type: "warning_profile", observation: malformed }, { content: "[END]" }];
+    const response = () => new Response(frames.map(JSON.stringify).join("\n") + "\n");
+    for (const collectWarningProfile of [false, true]) {
+      const result = await consumeMarkdownStreamWithMetadata(response(), () => {}, { collectWarningProfile });
+      assert.equal(result.content, state.riskAssessment);
+      assert.equal(result.warningObservation, undefined);
+    }
+    frames[1].error = "actual upstream failure";
+    await assert.rejects(consumeMarkdownStreamWithMetadata(response(), () => {}, { collectWarningProfile: true }), /actual upstream failure/);
+  }
+});
+
 test("logical END cancels a kept-open connection without waiting for EOF or idle timeout", async () => {
   const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
   const { state, receipt } = await fixtureReceipt();
@@ -558,9 +579,10 @@ test("the real M05 route binds the submitted state despite enrichment and contro
   const savedFetch = globalThis.fetch;
   Object.assign(process.env, settings);
   let authorCalls = 0;
+  let providerOutcome = { audit_result: "MANUAL_REVIEW", highest_risk_level: "MEDIUM", need_manual_review: true, issues: [] };
   globalThis.fetch = async (_url, options) => {
     const data = JSON.parse(options.body);
-    if (data.operation === "PRESCRIPTION_AUDIT") return Response.json({ code: 200, data: { audit_result: "MANUAL_REVIEW", highest_risk_level: "MEDIUM", need_manual_review: true, issues: [] } });
+    if (data.operation === "PRESCRIPTION_AUDIT") return Response.json({ code: 200, data: providerOutcome });
     assert.ok(Array.isArray(data.messages), "only the expected offline author request is allowed");
     authorCalls += 1;
     const authored = { reviewFocus: "重点复评乏力与活动耐量变化，避免过早判定疗效。", efficacyCriteria: "对照首诊症状记录评估活动耐量和乏力变化。",
@@ -628,6 +650,27 @@ test("the real M05 route binds the submitted state despite enrichment and contro
       revision: revisionFromAudit(body.audit, 0, herbHash, true) };
     const acceptedState = applyAcceptedPrescriptionDisplayResult(completed, accepted);
     assert.ok(await prepareWarningObservation({ receipt: body.warningObservation, requestState, finalState: acceptedState, customerId: customer.customerId, isCurrent: () => true }));
+    assert.equal(body.audit.highestRiskLevel, "MEDIUM");
+    assert.deepEqual(body.audit.issues, []);
+    assert.deepEqual(body.audit.inputAdvisories, []);
+    assert.equal(body.warningObservation.live.profile.level, "L1", "fresh MEDIUM audit must replace the unaudited HIGH request placeholder");
+    assert.equal(body.warningObservation.stored.profile.level, "L1");
+    const { resetRxAuditResultCache } = await routeJiti.import("../src/lib/rxaudit.ts");
+    for (const [auditResult, highestRiskLevel, enabled, expectedLevel] of [
+      ["MANUAL_REVIEW", "HIGH", true, "L3"], ["BLOCK", "CRITICAL", true, "L4"],
+      ["MANUAL_REVIEW", "CRITICAL", true, "L4"], ["MANUAL_REVIEW", "HIGH", false, "L3"],
+    ]) {
+      resetRxAuditResultCache();
+      process.env.RXAI_AUDIT_ENABLED = String(enabled);
+      providerOutcome = { audit_result: auditResult, highest_risk_level: highestRiskLevel, need_manual_review: true, issues: [] };
+      const control = await postRisk(new Request("http://localhost/api/diagnosis/post-prescription-risk", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseState: requestState }) }));
+      assert.equal(control.status, 200);
+      const actual = await control.json();
+      assert.equal(actual.audit.highestRiskLevel, highestRiskLevel);
+      assert.equal(actual.warningObservation.live.profile.level, expectedLevel);
+      assert.equal(actual.warningObservation.stored.profile.level, expectedLevel);
+      assert.equal(actual.audit.source === "lingxi", enabled);
+    }
   } finally {
     globalThis.fetch = savedFetch;
     for (const key of Object.keys(settings)) { if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key]; }
