@@ -19,6 +19,13 @@ const { POST: postRisk } = await jiti.import("../src/app/api/diagnosis/post-pres
 const { POST: hisScheme } = await jiti.import("../src/app/api/diagnosis/his-scheme/route.ts");
 const { GET: health } = await jiti.import("../src/app/api/diagnosis/health/route.ts");
 const { deriveStructuredCaseWarningFloor } = await jiti.import("../src/lib/clinical-warning-tier.ts");
+const { issuePrescriptionRevisionAttestation, verifyPrescriptionRevisionAttestation } = await jiti.import("../src/lib/prescription-revision-attestation.server.ts");
+const { invalidatePrescriptionContractAfterEdit } = await jiti.import("../src/lib/prescription-revision.ts");
+const { computePrescriptionVersionHash } = await jiti.import("../src/lib/prescription-version.ts");
+const { revisionFromAudit, applyAcceptedPrescriptionDisplayResult, applyCompletedM05DisplayResult } = await jiti.import("../src/lib/followup-display-state.ts");
+const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
+const { prepareWarningObservation } = await jiti.import("../src/lib/warning-display-observation.ts");
+const customer = { clientId: "local-development", customerId: "test-hospital" };
 
 function caseFor({ medicationHistory = "否认当前用药", herbs = [{ name: "黄芪", dose: "15g" }, { name: "酸枣仁", dose: "15g" }] } = {}) {
   const control = { id: "explicit-skip", patient: { sex: "男", age: 46 }, chiefComplaint: "入睡困难三个月", diagnosis: "失眠障碍", syndrome: "心脾两虚证", pastHistory: "否认重要慢病", allergyHistory: "否认药物过敏", medicationHistory, herbs };
@@ -123,3 +130,68 @@ test("health treats explicit disable as optional skip and absent config as degra
   assert.ok(unconfigured.degradedReasons.some((reason) => /rxaudit/.test(reason)));
   process.env.RXAI_AUDIT_ENABLED = "false";
 });
+
+async function workbenchCase() {
+  const state = caseFor();
+  const revised = invalidatePrescriptionContractAfterEdit(structuredClone(state.reasoningPrescribe));
+  Object.assign(revised.formula.candidates[0], { name: "益气安神方（医生编辑版）", constructionType: "self_devised", modificationStatus: "modified" });
+  state.reasoningPrescribe = revised; state.reasoningV2 = revised;
+  const herbHash = await computePrescriptionVersionHash(revised, 0, state);
+  state.prescriptionRevision = { source: "herb_workbench", candidateIndex: 0, herbHash, auditedAt: new Date().toISOString(), auditResult: "MANUAL_REVIEW", highestRiskLevel: "HIGH", auditAvailable: false };
+  return state;
+}
+
+test("workbench skip issues an honest receipt that survives normalization and does not add an audit floor", async () => withoutNetwork(async () => {
+  const submitted = await workbenchCase();
+  const response = await postRisk(request("/api/diagnosis/post-prescription-risk", submitted));
+  const body = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(body));
+  assert.equal(body.audit.source, "skipped");
+  assert.equal(body.audit.auditResult, "NOT_SUBMITTED");
+  assert.equal(body.audit.highestRiskLevel, undefined);
+  assert.equal(body.audit.degraded, false);
+  const accepted = { caseId: submitted.id, reasoning: submitted.reasoningPrescribe, auditSection: body.section, followupSection: body.followup.trim(), followupTimeline: body.followupTimeline,
+    serverSafetyLocked: body.audit.safetyLocked, revision: revisionFromAudit(body.audit, 0, body.audit.herbHash, true) };
+  const final = applyAcceptedPrescriptionDisplayResult(submitted, accepted);
+  const normalized = normalizeCaseStateInput(JSON.parse(JSON.stringify(final)));
+  assert.equal(normalized.prescriptionRevision.auditResult, "NOT_SUBMITTED");
+  assert.equal(normalized.prescriptionRevision.highestRiskLevel, undefined);
+  assert.equal(verifyPrescriptionRevisionAttestation(normalized, customer, body.audit.herbHash), true);
+  assert.ok(body.warningObservation, "skip must keep the existing workbench display receipt contract");
+  assert.ok(await prepareWarningObservation({ receipt: body.warningObservation, requestState: submitted, finalState: final, customerId: customer.customerId, isCurrent: () => true }));
+  assert.ok(!body.warningObservation.live.profile.reasons.some((reason) => /审方.*(?:不可用|HIGH|高风险)|审方结论为/.test(reason)));
+  const assessed = await assess(request("/api/diagnosis/assess", normalized));
+  assert.equal(assessed.status, 200, await assessed.clone().text());
+  const result = await consumeMarkdownStreamWithMetadata(assessed, () => {}, { collectWarningProfile: true });
+  const completed = applyCompletedM05DisplayResult(normalized, result, customer.customerId);
+  assert.ok(await prepareWarningObservation({ receipt: result.warningObservation, requestState: normalized, finalState: completed, customerId: customer.customerId, isCurrent: () => true }));
+  assert.ok(!result.warningObservation.live.profile.reasons.some((reason) => /审方.*(?:不可用|HIGH|高风险)/.test(reason)));
+  const his = await hisScheme(request("/api/diagnosis/his-scheme", completed));
+  assert.equal(his.status, 200, await his.clone().text());
+  assert.equal((await his.json()).auditStatus, "not_submitted");
+  const forged = structuredClone(normalized);
+  forged.prescriptionRevision.attestation = `hmac-sha256:${"0".repeat(64)}`;
+  assert.equal((await assess(request("/api/diagnosis/assess", forged))).status, 409);
+  process.env.RXAI_AUDIT_ENABLED = "true";
+  try {
+    assert.equal(verifyPrescriptionRevisionAttestation(normalized, customer, body.audit.herbHash), false, "reenabling external audit must invalidate old skip authority");
+    assert.equal((await assess(request("/api/diagnosis/assess", normalized))).status, 409);
+    assert.equal((await hisScheme(request("/api/diagnosis/his-scheme", normalized))).status, 409);
+  } finally { process.env.RXAI_AUDIT_ENABLED = "false"; }
+}));
+
+test("skipping a previously attested critical version retains its real result and signature", async () => withoutNetwork(async () => {
+  const state = await workbenchCase();
+  const revision = { ...state.prescriptionRevision, auditResult: "BLOCK", highestRiskLevel: "CRITICAL", auditAvailable: true, degraded: false, needManualReview: true };
+  state.prescriptionRevision = { ...revision, ...issuePrescriptionRevisionAttestation(state, customer, revision) };
+  const response = await postRisk(request("/api/diagnosis/post-prescription-risk", state));
+  const body = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(body));
+  assert.equal(body.audit.source, "skipped");
+  assert.equal(body.audit.auditResult, "BLOCK");
+  assert.equal(body.audit.highestRiskLevel, "CRITICAL");
+  const retained = { ...state, prescriptionRevision: revisionFromAudit(body.audit, 0, revision.herbHash, true) };
+  assert.equal(verifyPrescriptionRevisionAttestation(retained, customer, revision.herbHash), true);
+  assert.equal(body.warningObservation.live.profile.level, "L4");
+  assert.equal(body.warningObservation.stored.profile.level, "L4");
+}));
