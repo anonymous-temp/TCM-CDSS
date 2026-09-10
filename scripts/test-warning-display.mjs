@@ -462,10 +462,16 @@ test("the real M05 route binds the submitted state despite enrichment and contro
     for (const mutate of [
       (s) => { s.chiefComplaint += " "; },
       (s) => { delete s.hisRecord.updatedAt; },
-      (s) => { s.faceCapture = { source: "manual", note: "面色少华", consented: true }; },
+      (s) => { s.faceCapture = { schemaVersion: "face-capture-v1", quality: { score: 0.9, issues: [], needRetake: false },
+        complexion: ["面色少华"], spirit: [], shape: [], notes: "面色少华", clinicalEvidenceLevel: "reference-only" }; },
       (s) => { delete s.customerId; },
     ]) {
       const variant = clone(submitted); mutate(variant);
+      const validated = { ...normalizeCaseStateInput(variant), customerId: customer.customerId };
+      variant.reasoningDiagnose = signatures.signDiagnoseReasoning(variant.reasoningDiagnose, signatures.buildDiagnoseContractSignatureContext(safety.withSafetyGate(validated)));
+      variant.reasoningPrescribe = signatures.signPrescribeReasoning(variant.reasoningPrescribe,
+        signatures.buildPrescribeContractSignatureContext({ ...validated, reasoningDiagnose: variant.reasoningDiagnose }));
+      variant.reasoningV2 = variant.reasoningPrescribe;
       const variantResponse = await POST(new Request("http://localhost/api/diagnosis/assess", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseState: variant }) }));
       assert.equal(variantResponse.status, 200);
       const variantResult = await consumeMarkdownStreamWithMetadata(variantResponse, () => {}, { collectWarningProfile: true });

@@ -194,6 +194,7 @@ export async function POST(req: Request) {
   // enrichment remains an independent floor; it must not silently alter request/display hashes.
   const final = finalizeM05DisplayResult(parsed.caseState, rawProjection, parsed.customer.customerId);
   const observation = await createWarningDisplayReceipt({ producer: "assess", requestState: parsed.caseState,
+    sourceRepresentation: (parsed.body as { caseState?: unknown }).caseState,
     finalState: final.state, customer: parsed.customer, advisories: clinicalAdvisories,
     owned: { riskAssessment: final.projection, audit: ownedAuditWarningInputs(providerAudit, effectiveAudit), floor: deriveStructuredCaseWarningFloor(gated) },
   });

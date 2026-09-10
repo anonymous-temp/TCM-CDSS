@@ -123,7 +123,14 @@ export function recoverInterruptedRun(state: CaseState, runningPhase?: Phase): C
 
 export function restoreWarningDisplayCase(value: unknown, runningPhase?: Phase): CaseState | undefined {
   const normalized = normalizeCaseStateInput(value);
-  return normalized ? recoverInterruptedRun(reconcileRestoredCaseState(withSafetyGate(sanitizeCaseStateForBrowserPersistence(normalized))), runningPhase) : undefined;
+  if (!normalized) return undefined;
+  // A missing bookkeeping timestamp is not a restore event. Preserve absence locally rather than
+  // binding a new wall-clock default on every decrypt; supplied dates remain unchanged.
+  const raw = value as Partial<CaseState>;
+  for (const key of ["hisRecord", "faceCapture"] as const) {
+    if (raw[key] && normalized[key] && (raw[key].updatedAt === undefined || raw[key].updatedAt === "")) normalized[key].updatedAt = "";
+  }
+  return recoverInterruptedRun(reconcileRestoredCaseState(withSafetyGate(sanitizeCaseStateForBrowserPersistence(normalized))), runningPhase);
 }
 
 export function preserveUnchangedHisSnapshot(previous: CaseState, rebuilt: CaseState): CaseState {

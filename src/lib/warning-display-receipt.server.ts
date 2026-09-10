@@ -11,6 +11,7 @@ import { prescribeReasoningFromState } from "./diagnosis-parse";
 import { sanitizeCaseStateForBrowserPersistence } from "./browser-case-persistence";
 import { matchedWarningText, type OwnedCaseWarningProjection, type WarningTextProjection } from "./warning-text-projection";
 import { storedWarningCase, WARNING_STORAGE_RECEIPT_KEY } from "./warning-display-storage";
+import { warningSourceBindingMaterials } from "./warning-display-source-binding.server";
 import { boundedWarningProfile, parseWarningDisplayReceipt, stableWarningJson, warningDisplayHash, warningDisplayMaterial,
   WARNING_DISPLAY_VERSION, WARNING_PROJECTION_VERSION, type WarningDisplayReceipt } from "./warning-display-binding";
 
@@ -25,6 +26,7 @@ function receiptMac(unsigned: Omit<WarningDisplayReceipt, "mac">): WarningDispla
 export async function createWarningDisplayReceipt(input: {
   producer: WarningDisplayReceipt["producer"]; requestState: CaseState; finalState: CaseState; customer: CustomerBinding;
   owned?: OwnedCaseWarningProjection; advisories?: readonly ClinicalDeliveryAdvisory[];
+  sourceRepresentation?: unknown;
 }): Promise<WarningDisplayReceipt | undefined> {
   try {
     const { finalState, requestState, customer, owned, advisories } = input;
@@ -32,6 +34,10 @@ export async function createWarningDisplayReceipt(input: {
       (finalState.hisRecord?.caseId || finalState.id) !== (requestState.hisRecord?.caseId || requestState.id)) return undefined;
     const storedState = storedWarningCase({ schemaVersion: "tcm-cdss-workspace-v1", caseState: sanitizeCaseStateForBrowserPersistence(finalState) });
     if (!storedState) return undefined;
+    const binding = input.sourceRepresentation === undefined ? undefined : warningSourceBindingMaterials({
+      producer: input.producer, source: input.sourceRepresentation, requestState, finalState, storedState, customerId: customer.customerId,
+    });
+    if (input.sourceRepresentation !== undefined && !binding) return undefined;
     const projectedState = { ...finalState,
       prescription: matchedWarningText(finalState.prescription, owned?.prescription || projectPrescriptionWarningText(finalState)),
       riskAssessment: matchedWarningText(finalState.riskAssessment, owned?.riskAssessment),
@@ -45,9 +51,9 @@ export async function createWarningDisplayReceipt(input: {
     const unsigned: Omit<WarningDisplayReceipt, "mac"> = {
       version: WARNING_DISPLAY_VERSION, projectionVersion: WARNING_PROJECTION_VERSION, producer: input.producer,
       clientId: customer.clientId, customerId: customer.customerId, caseId: finalState.id, encounterId: finalState.hisRecord?.caseId || finalState.id,
-      requestHash: await warningDisplayHash(warningDisplayMaterial(requestState, customer.customerId)),
-      live: { materialHash: await warningDisplayHash(warningDisplayMaterial(finalState, customer.customerId)), profile: boundedWarningProfile(deriveOwnedCaseWarningProfile(finalState, owned, advisories)) },
-      stored: { materialHash: await warningDisplayHash(warningDisplayMaterial(storedState, customer.customerId)), profile: boundedWarningProfile(deriveOwnedCaseWarningProfile(storedState, storedOwned, advisories)) },
+      requestHash: await warningDisplayHash(binding?.request ?? warningDisplayMaterial(requestState, customer.customerId)),
+      live: { materialHash: await warningDisplayHash(binding?.live ?? warningDisplayMaterial(finalState, customer.customerId)), profile: boundedWarningProfile(deriveOwnedCaseWarningProfile(finalState, owned, advisories)) },
+      stored: { materialHash: await warningDisplayHash(binding?.stored ?? warningDisplayMaterial(storedState, customer.customerId)), profile: boundedWarningProfile(deriveOwnedCaseWarningProfile(storedState, storedOwned, advisories)) },
     };
     const mac = receiptMac(unsigned);
     return mac ? parseWarningDisplayReceipt({ ...unsigned, mac }) : undefined;
@@ -81,6 +87,7 @@ export async function withPostPrescriptionWarningObservation<T extends {
   audit: Record<string, unknown>;
 }>(body: T, input: {
   requestState: CaseState; producerState: CaseState; customer: CustomerBinding;
+  sourceRepresentation?: unknown;
   sectionProjection: WarningTextProjection; followupProjection: WarningTextProjection;
   audit: NonNullable<OwnedCaseWarningProjection["audit"]>; advisories: readonly ClinicalDeliveryAdvisory[];
 }): Promise<T & { warningObservation?: WarningDisplayReceipt }> {
@@ -102,6 +109,7 @@ export async function withPostPrescriptionWarningObservation<T extends {
     });
     const prescription = buildAcceptedPrescriptionWarningProjection(reasoning, candidateIndex, herbHash);
     const observation = await createWarningDisplayReceipt({ producer: "post-prescription-risk", requestState, finalState,
+      sourceRepresentation: input.sourceRepresentation,
       customer: input.customer, advisories: input.advisories,
       owned: { prescription, riskAssessment: { markdown: finalState.riskAssessment || "", currentRiskMarkdown: projectedState.riskAssessment || "" },
         audit: input.audit, floor: deriveStructuredCaseWarningFloor(input.producerState) },

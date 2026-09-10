@@ -48,7 +48,7 @@ export function warningDisplayMaterial(value: CaseState, resolvedCustomerId?: st
   // These two existing normalizers create a current timestamp when the optional source is absent.
   // That clock value is not source material. Supplied nested dates/audit/signature fields remain bound.
   for (const key of ["hisRecord", "faceCapture"] as const) {
-    if (material[key] && value[key] && value[key].updatedAt === undefined) {
+    if (material[key] && value[key] && (value[key].updatedAt === undefined || value[key].updatedAt === "")) {
       delete (material[key] as Record<string, unknown>).updatedAt;
     }
   }

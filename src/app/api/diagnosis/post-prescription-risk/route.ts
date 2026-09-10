@@ -227,6 +227,7 @@ export async function POST(req: Request) {
       },
     }, {
       requestState: parsed.caseState, producerState: caseState, customer: parsed.customer,
+      sourceRepresentation: (parsed.body as { caseState?: unknown }).caseState,
       sectionProjection: { markdown: section, currentRiskMarkdown: [
         clinicalDeliveryAdvisorySection(clinicalAdvisories),
         buildRxAuditScopeSection(caseState, resolvedCandidateIndex, providerAudit.submissionScope),
@@ -309,6 +310,7 @@ export async function POST(req: Request) {
     },
   }, {
     requestState: parsed.caseState, producerState: caseState, customer: parsed.customer,
+    sourceRepresentation: (parsed.body as { caseState?: unknown }).caseState,
     sectionProjection: { markdown: section, currentRiskMarkdown: section },
     followupProjection: followup, audit: ownedAuditWarningInputs(providerAudit), advisories: clinicalAdvisories,
   }));
