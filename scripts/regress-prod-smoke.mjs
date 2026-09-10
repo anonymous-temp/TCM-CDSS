@@ -230,7 +230,10 @@ for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
   const therapyText = `${r3?.therapy?.overallPrinciple || ""}｜${r3?.therapy?.overallMethod || ""}`;
   check(`${label} 病名鉴别非空（辨病再辨证）`, differentials.length > 0,
     JSON.stringify(differentials).slice(0, 120));
-  check(`${label} 病位含头部（主症所在）`, locations.some((item) => /头|脑|清窍/.test(String(item))), JSON.stringify(locations));
+  check(`${label} 病位含头部（主症所在）`, locations.some((item) => /头|脑|清窍/.test(String(item))), JSON.stringify({
+    items: locations, resolution: r3?.pathogenesis?.locationDifferentiation?.resolution ?? null,
+    reason: r3?.pathogenesis?.locationDifferentiation?.resolutionReason ?? null,
+  }));
   check(`${label} 治法非空`, therapyText.replace("｜", "").trim().length > 0, therapyText);
   if (r3?.contractSignature) signedM03Count += 1;
 
@@ -266,6 +269,8 @@ for (let sampleIndex = 0; sampleIndex < PROD_SMOKE_SAMPLES; sampleIndex += 1) {
       primarySyndrome: r3?.overview?.primarySyndrome,
       diseaseDifferentials: differentials.map((item) => item?.diseaseName).filter(Boolean),
       locations,
+      locationResolution: r3?.pathogenesis?.locationDifferentiation?.resolution ?? null,
+      locationResolutionReason: r3?.pathogenesis?.locationDifferentiation?.resolutionReason ?? null,
       therapy: therapyText,
     },
     m04: candidate ? {

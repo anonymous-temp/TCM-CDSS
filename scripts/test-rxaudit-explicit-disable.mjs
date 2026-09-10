@@ -22,7 +22,7 @@ const { deriveStructuredCaseWarningFloor } = await jiti.import("../src/lib/clini
 const { issuePrescriptionRevisionAttestation, verifyPrescriptionRevisionAttestation } = await jiti.import("../src/lib/prescription-revision-attestation.server.ts");
 const { invalidatePrescriptionContractAfterEdit } = await jiti.import("../src/lib/prescription-revision.ts");
 const { computePrescriptionVersionHash } = await jiti.import("../src/lib/prescription-version.ts");
-const { revisionFromAudit, applyAcceptedPrescriptionDisplayResult, applyCompletedM05DisplayResult } = await jiti.import("../src/lib/followup-display-state.ts");
+const { revisionFromAudit, applyAcceptedPrescriptionDisplayResult, applyCompletedM05DisplayResult, buildAcceptedPrescriptionMarkdown } = await jiti.import("../src/lib/followup-display-state.ts");
 const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
 const { prepareWarningObservation, resolveWarningDisplayProfile } = await jiti.import("../src/lib/warning-display-observation.ts");
 const { derivePrescriptionPermission, withSafetyGate } = await jiti.import("../src/lib/diagnosis-safety.ts");
@@ -55,6 +55,174 @@ async function withoutNetwork(fn) {
   try { await fn(); assert.equal(calls, 0, "explicit skip must invoke neither audit, medication extraction nor compatibility service"); }
   finally { globalThis.fetch = original; }
 }
+
+async function signedHisCandidate(candidateIndex) {
+  const state = await readyCaseFor();
+  const reasoning = structuredClone(state.reasoningPrescribe);
+  reasoning.formula.candidates = Array.from({ length: 3 }, (_, index) => ({
+    ...structuredClone(reasoning.formula.candidates[0]),
+    name: `本例候选${index + 1}`,
+    therapyMatch: getM03TherapyLock(state.reasoningDiagnose).candidateMatch,
+    herbs: reasoning.formula.candidates[0].herbs.map((herb, herbIndex) => ({
+      ...herb, dose: `${herbIndex === 0 ? 15 + index : 12}g`, function: getTcmHerbFunctionText(herb.name),
+    })),
+  }));
+  state.prescription = buildAcceptedPrescriptionMarkdown(reasoning, candidateIndex);
+  state.reasoningPrescribe = signatures.signPrescribeReasoning(reasoning, signatures.buildPrescribeContractSignatureContext(state));
+  state.reasoningV2 = state.reasoningPrescribe;
+  state.phase = "done";
+  return state;
+}
+
+for (const candidateIndex of [0, 1, 2]) {
+  for (const [auditResult, highestRiskLevel] of [["PASS", "INFO"], ["BLOCK", "CRITICAL"]]) {
+    test(`HIS skipped audit replaces unverified ${auditResult} metadata for selected candidate ${candidateIndex}`, async () => withoutNetwork(async () => {
+      const state = await signedHisCandidate(candidateIndex);
+      const herbHash = await computePrescriptionVersionHash(state.reasoningPrescribe, candidateIndex, state);
+      state.prescriptionRevision = { source: "herb_workbench", candidateIndex, herbHash: "fnv1a-client-forgery",
+        auditedAt: new Date(0).toISOString(), auditResult, highestRiskLevel, auditAvailable: true };
+      const before = JSON.stringify(state);
+      const response = await hisScheme(request("/api/diagnosis/his-scheme", state));
+      const body = await response.json();
+      assert.equal(response.status, 200, JSON.stringify(body));
+      assert.equal(body.prescriptionRevision?.herbHash, herbHash, "a valid M04 signature does not attest a client revision hash");
+      assert.equal(body.prescriptionRevision.auditResult, "NOT_SUBMITTED");
+      assert.equal(body.prescriptionRevision.highestRiskLevel, undefined);
+      assert.notEqual(body.prescriptionRevision.auditedAt, state.prescriptionRevision.auditedAt);
+      assert.equal(body.auditStatus, "not_submitted");
+      assert.equal(body.auditCorrelation.candidateIndex, candidateIndex);
+      assert.equal(body.auditCorrelation.prescriptionHash, herbHash);
+      assert.notEqual(body.warningProfile.level, "L4", JSON.stringify({ profile: body.warningProfile, warnings: body.warnings }));
+      assert.doesNotMatch(JSON.stringify(body), /fnv1a-client-forgery|已有经确认的严重风险/);
+      assert.ok(body.prescriptions.herbal[0].content.includes(`本例候选${candidateIndex + 1}`));
+      assert.equal(body.prescriptions.herbal[0].adoptable, true, "a pure valid herbal candidate remains advisory and adoptable");
+      assert.equal(body.followup[0].content.length > 0, true);
+      assert.equal(body.prescriptionRevision.attestation, undefined, "normal generated M04 must not receive doctor-edit authority");
+      assert.equal(JSON.stringify(state), before, "the submitted signed artifact and selection remain unchanged");
+    }));
+  }
+
+  test(`HIS skipped audit retains an independently attested critical revision at candidate ${candidateIndex}`, async () => withoutNetwork(async () => {
+    const state = await signedHisCandidate(candidateIndex);
+    const herbHash = await computePrescriptionVersionHash(state.reasoningPrescribe, candidateIndex, state);
+    const prior = { source: "herb_workbench", candidateIndex, herbHash, auditedAt: new Date().toISOString(),
+      auditResult: "BLOCK", highestRiskLevel: "CRITICAL", auditAvailable: true, degraded: false, needManualReview: true };
+    state.prescriptionRevision = { ...prior, ...issuePrescriptionRevisionAttestation(state, customer, prior) };
+    assert.equal(verifyPrescriptionRevisionAttestation(state, customer, herbHash), true);
+    const response = await hisScheme(request("/api/diagnosis/his-scheme", state));
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(body.prescriptionRevision.herbHash, herbHash);
+    assert.equal(body.prescriptionRevision.auditResult, "BLOCK");
+    assert.equal(body.prescriptionRevision.highestRiskLevel, "CRITICAL");
+    assert.equal(body.auditStatus, "not_submitted");
+    assert.equal(body.warningProfile.level, "L4");
+    assert.equal(body.prescriptions.herbal[0].adoptable, false);
+    assert.match(JSON.stringify(body.riskTips), /已有经确认的严重风险/);
+    assert.equal(body.auditCorrelation.candidateIndex, candidateIndex);
+  }));
+}
+
+test("HIS skipped audit keeps actual local contraindications and invalid doses restricted", async () => withoutNetwork(async () => {
+  for (const [herbs, finding] of [
+    [[{ name: "甘草", dose: "6g" }, { name: "甘遂", dose: "1g" }], /high_risk_pair_incompatibility/],
+    [[{ name: "黄芪", dose: "999999g" }], /dose_sanity_ceiling/],
+  ]) {
+    const state = await readyCaseFor({ herbs });
+    state.prescriptionRevision = { source: "herb_workbench", candidateIndex: 0, herbHash: "fnv1a-client-forgery",
+      auditedAt: new Date(0).toISOString(), auditResult: "PASS", highestRiskLevel: "INFO", auditAvailable: true };
+    const response = await hisScheme(request("/api/diagnosis/his-scheme", state));
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(body.auditStatus, "not_submitted");
+    assert.equal(body.warningProfile.level, "L4");
+    assert.equal(body.prescriptions.herbal[0].adoptable, false);
+    assert.match(JSON.stringify(body.warnings), finding);
+  }
+}));
+
+test("HIS skipped audit verifies HMAC ownership even when the client supplies the correct public hash", async () => withoutNetwork(async () => {
+  for (const tampering of ["missing", "invalid_mac", "other_customer"]) {
+    const state = await signedHisCandidate(1);
+    const herbHash = await computePrescriptionVersionHash(state.reasoningPrescribe, 1, state);
+    const prior = { source: "herb_workbench", candidateIndex: 1, herbHash, auditedAt: new Date().toISOString(),
+      auditResult: "BLOCK", highestRiskLevel: "CRITICAL", auditAvailable: true, degraded: false, needManualReview: true };
+    const attestation = tampering === "missing" ? {} : tampering === "invalid_mac"
+      ? { attestationVersion: "tcm-cdss-workbench-revision-v1", attestation: `hmac-sha256:${"0".repeat(64)}` }
+      : issuePrescriptionRevisionAttestation({ ...state, customerId: "other-hospital" }, { ...customer, customerId: "other-hospital" }, prior);
+    state.prescriptionRevision = { ...prior, ...attestation };
+    const response = await hisScheme(request("/api/diagnosis/his-scheme", state));
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(body.prescriptionRevision.herbHash, herbHash);
+    assert.equal(body.prescriptionRevision.auditResult, "NOT_SUBMITTED", tampering);
+    assert.equal(body.prescriptionRevision.highestRiskLevel, undefined);
+    assert.notEqual(body.warningProfile.level, "L4", tampering);
+    assert.equal(body.prescriptions.herbal[0].adoptable, true, tampering);
+    assert.doesNotMatch(JSON.stringify(body.riskTips), /已有经确认的严重风险/);
+  }
+}));
+
+test("HIS skipped audit keeps patent and western medicine submission scope restrictions", async () => withoutNetwork(async () => {
+  const { findLocalPatentMedicineEntry } = await jiti.import("../src/lib/local-patent-medicine-candidates.ts");
+  const { medicineCandidateTable } = await jiti.import("../src/lib/medicine-rendering.ts");
+  const state = await signedHisCandidate(0);
+  const reasoning = structuredClone(state.reasoningPrescribe);
+  const entry = findLocalPatentMedicineEntry("外感风寒颗粒");
+  assert.ok(entry?.fingerprint);
+  reasoning.formula.patentAndWestern = [{ type: "中成药", name: entry.name, specification: entry.specification,
+    evidenceId: "LOCAL-INST-007", evidenceFingerprint: entry.fingerprint, recommendationMode: "candidate_review",
+    positioning: "需医生评估", correspondingProblem: "恶寒无汗", usageBoundary: "仅作身份与联用关系复核",
+    relationship: "与中药饮片不默认联用", riskNote: "请按说明书复核",
+    evidence: { evidenceLevel: "kb_entry", source: "本地药品说明书 [LOCAL-INST-007]", confidence: "中" } }];
+  state.prescription += `\n\n${medicineCandidateTable(reasoning.formula.patentAndWestern, state).join("\n")}`;
+  state.reasoningPrescribe = signatures.signPrescribeReasoning(reasoning, signatures.buildPrescribeContractSignatureContext(state));
+  state.reasoningV2 = state.reasoningPrescribe;
+  const response = await hisScheme(request("/api/diagnosis/his-scheme", state));
+  const body = await response.json();
+  assert.equal(response.status, 200, JSON.stringify(body));
+  assert.equal(body.auditStatus, "not_submitted");
+  assert.equal(body.prescriptions.herbal[0].adoptable, false);
+  assert.match(JSON.stringify(body.riskTips), /中成药\/西药展示内容尚未与本次实际送审/);
+}));
+
+test("HIS enabled audit still replaces client metadata with the actual fresh outcome", async () => {
+  const keys = ["RXAI_AUDIT_ENABLED", "RXAI_AUDIT_BASE_URL", "RXAI_AUDIT_API_KEY", "RXAI_QUERY_ENABLED"];
+  const beforeEnv = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const beforeFetch = globalThis.fetch;
+  let calls = 0;
+  try {
+    Object.assign(process.env, { RXAI_AUDIT_ENABLED: "true", RXAI_AUDIT_BASE_URL: "https://audit.example.invalid",
+      RXAI_AUDIT_API_KEY: "offline-enabled-audit-control", RXAI_QUERY_ENABLED: "false" });
+    audit.resetRxAuditResultCache();
+    globalThis.fetch = async (url, options) => {
+      assert.equal(String(url), "https://audit.example.invalid/api/v1/rational-drug-use");
+      assert.equal(JSON.parse(options.body).operation, "PRESCRIPTION_AUDIT");
+      calls++;
+      return Response.json({ code: 200, data: { audit_result: "PASS", highest_risk_level: "INFO", need_manual_review: false, issues: [], degraded: false } });
+    };
+    const state = await signedHisCandidate(1);
+    const herbHash = await computePrescriptionVersionHash(state.reasoningPrescribe, 1, state);
+    state.prescriptionRevision = { source: "herb_workbench", candidateIndex: 1, herbHash: "fnv1a-client-forgery",
+      auditedAt: new Date(0).toISOString(), auditResult: "BLOCK", highestRiskLevel: "CRITICAL", auditAvailable: true };
+    const response = await hisScheme(request("/api/diagnosis/his-scheme", state));
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(calls, 1, "the enabled control invokes only its finite offline audit response");
+    assert.equal(body.prescriptionRevision.herbHash, herbHash);
+    assert.equal(body.prescriptionRevision.auditResult, "PASS");
+    assert.equal(body.auditCorrelation.providerAuditResult, "PASS");
+    assert.notEqual(body.warningProfile.level, "L4");
+    assert.equal(body.prescriptions.herbal[0].adoptable, true);
+  } finally {
+    globalThis.fetch = beforeFetch;
+    audit.resetRxAuditResultCache();
+    for (const key of keys) {
+      if (beforeEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = beforeEnv[key];
+    }
+  }
+});
 
 test("only raw false selects a server-owned skipped state, even without sidecar configuration", async () => {
   const prior = process.env.RXAI_AUDIT_BASE_URL;

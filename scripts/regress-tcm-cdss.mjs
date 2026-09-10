@@ -52,6 +52,7 @@ const { buildHisAiSchemePayload } = await regressionJiti.import("../src/lib/his-
 const { buildEvidenceScope } = await regressionJiti.import("../src/lib/evidence-source-validation.ts");
 const { synchronizeVisibleClinicalSummary } = await regressionJiti.import("../src/lib/diagnosis-visible-summary.ts");
 const { buildUnavailableRxAuditSection } = await regressionJiti.import("../src/lib/rxaudit.ts");
+const { revisionFromAudit } = await regressionJiti.import("../src/lib/followup-display-state.ts");
 const { findLocalPatentMedicineEntry } = await regressionJiti.import("../src/lib/local-patent-medicine-candidates.ts");
 
 const BASE_URL = (process.env.BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
@@ -120,6 +121,12 @@ function matchingDeliveryWarning(payload, issue) {
   return payload?.warnings?.find((warning) => [warning.code, ...(warning.relatedCodes || [])].some((code) => issue.test(code)));
 }
 
+function isExpectedSkippedAudit(audit) {
+  return expectRxAuditEnabled === false && audit?.source === "skipped" && audit.reason === "rxaudit_disabled" &&
+    audit.auditResult === "NOT_SUBMITTED" && audit.highestRiskLevel === undefined &&
+    audit.auditAvailable === false && audit.degraded === false;
+}
+
 function assertHisNonAdoption(payload, name, candidateStatus = "invalid") {
   const groups = [payload?.diagnoses?.western, payload?.diagnoses?.tcmPatterns, payload?.diagnoses?.mechanism,
     payload?.prescriptions?.herbal, payload?.prescriptions?.westernOrPatent, payload?.checks, payload?.followup];
@@ -140,7 +147,8 @@ function assertDeliveryReport(response, issue, name, { his = false, qualityOnly 
     assert(Array.isArray(payload?.prescriptions?.structuredHerbs) && payload.prescriptions.structuredHerbs.length > 0 &&
       payload?.prescriptions?.herbal?.some((item) => typeof item.content === "string" && item.content.length > 0) &&
       payload?.workflowPermission === "continue", `${name}: structured and readable prescription remain available`, payload?.prescriptions);
-    assert(["alert", "unavailable"].includes(payload?.auditStatus), `${name}: finding cannot be represented as an audit PASS`, payload?.auditStatus);
+    assert((expectRxAuditEnabled === false ? ["alert", "not_submitted"] : ["alert", "unavailable"]).includes(payload?.auditStatus),
+      `${name}: finding cannot be represented as an audit PASS`, payload?.auditStatus);
     if (qualityOnly) {
       assert(payload?.status === "ready" && payload?.candidateStatus === "valid" && payload?.writeBackPolicy?.allowSingleItemAdoption === true &&
         payload?.prescriptions?.herbal?.[0]?.adoptable === true,
@@ -152,7 +160,9 @@ function assertDeliveryReport(response, issue, name, { his = false, qualityOnly 
     assert(typeof payload?.section === "string" && payload.section.includes(warning?.message) &&
       typeof payload?.followup === "string" && payload.followup.length > 0,
     `${name}: finding and follow-up remain readable`, payload);
-    assert(["MANUAL_REVIEW", "BLOCK", "REMIND"].includes(payload?.audit?.auditResult) && payload?.audit?.needManualReview === true,
+    const truthfulAudit = expectRxAuditEnabled === false ? isExpectedSkippedAudit(payload?.audit)
+      : ["MANUAL_REVIEW", "BLOCK", "REMIND"].includes(payload?.audit?.auditResult);
+    assert(truthfulAudit && payload?.audit?.needManualReview === true,
       `${name}: advisory audit reports explicit review, never false PASS`, payload?.audit);
   }
 }
@@ -184,7 +194,11 @@ function loadLimitedDiagnosisTextContract(safetySource) {
   return Function(`${runnableSource}; return isLimitedDiagnosisText;`)();
 }
 
-function runFrontendContractChecks() {
+async function runFrontendContractChecks() {
+  const { restoreWarningDisplayCase, recoverInterruptedRun, shouldRenderEvidenceStatus,
+    applyAcceptedPrescriptionDisplayResult, revisionFromAudit } = await regressionJiti.import("../src/lib/followup-display-state.ts");
+  const { sanitizeCaseStateForBrowserPersistence, scrubPersistentPhiText } = await regressionJiti.import("../src/lib/browser-case-persistence.ts");
+  const { default: ts } = await import("typescript");
   const source = readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
   const safetySource = readFileSync(new URL("../src/lib/diagnosis-safety.ts", import.meta.url), "utf8");
   const diagnosisApiSource = readFileSync(new URL("../src/lib/diagnosis-api.ts", import.meta.url), "utf8");
@@ -260,6 +274,49 @@ function runFrontendContractChecks() {
   const followupTimelineView = sourceBetween(source, "const followupTimelineItems =", "const redFlagPatientSection =");
   const dosePrescriptionClassifier = sourceBetween(source, "function hasGeneratedDosePrescription(", "export function hasExplicitNonDosePrescriptionResult(");
   const workspaceSnapshot = sourceBetween(source, "type WorkspaceSnapshot", "const WORKSPACE_STORAGE_KEY");
+  // Execute the shared reducers and the actual page-only expressions. Extraction follows the
+  // TypeScript AST, not line offsets or a required former location in this large component.
+  const pageAst = ts.createSourceFile("DiagnosisClient.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const pageExpression = (name, bindings, functionDeclaration = false) => {
+    const matches = [];
+    const visit = (node) => {
+      if (functionDeclaration ? ts.isFunctionDeclaration(node) && node.name?.text === name
+        : ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === name && node.initializer) matches.push(node);
+      ts.forEachChild(node, visit);
+    };
+    visit(pageAst);
+    if (matches.length !== 1) throw new Error(`Expected one real page declaration: ${name}, got ${matches.length}`);
+    const expression = functionDeclaration ? `(${matches[0].getText(pageAst)})` : matches[0].initializer.getText(pageAst);
+    const compiled = ts.transpileModule(`const execute = ${expression};`, {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+    }).outputText;
+    return new Function(...Object.keys(bindings), `${compiled}\nreturn execute;`)(...Object.values(bindings));
+  };
+  const same = (left, right) => JSON.stringify(left) === JSON.stringify(right);
+  const displayState = normalizeCaseStateInput(baseCase("static-display-contract", {
+    reasoningV2: reasoningV2WithHerbs([{ name: "茯苓", dose: "12g" }]),
+    prescription: "已生成饮片正文", riskAssessment: "## 随访建议\n既有随访内容",
+  }));
+  if (!displayState) throw new Error("Synthetic frontend contract fixture must normalize");
+  const restoreInput = { ...displayState, skipDifferentiationGate: true, safetyLocked: false,
+    vitals: { ...displayState.vitals, BP: "220/130mmHg" },
+    hisRecord: { ...displayState.hisRecord, fields: { ...displayState.hisRecord.fields, vitalsBP: "220/130mmHg" } },
+    safetyGate: { status: "ready", allowDiagnosis: true, allowDosePrescription: true, redFlags: [], missingItems: [] } };
+  const restoredDisplay = restoreWarningDisplayCase(restoreInput);
+  const sanitizedDisplay = sanitizeCaseStateForBrowserPersistence(restoreInput);
+  const selection = { answer: "姓名：张三，入睡困难", label: "入睡困难", patch: { zhushu: "入睡困难" } };
+  const sanitizeSelections = pageExpression("sanitizeQuestionSelectionsForBrowserPersistence", { scrubPersistentPhiText }, true);
+  const restoredSelections = sanitizeSelections({ sleep: selection }, ["张三"]);
+  const revisionAttention = pageExpression("auditRevisionNeedsAttention", {}, true);
+  const auditMetadata = { source: "lingxi", auditedAt: "2026-09-10", auditResult: "REMIND", highestRiskLevel: "MEDIUM",
+    auditAvailable: true, degraded: false, needManualReview: false,
+    attestationVersion: "tcm-cdss-workbench-revision-v1", attestation: "hmac-sha256:" + "a".repeat(64) };
+  const revision = revisionFromAudit(auditMetadata, 0, "sha256-" + "b".repeat(64), true);
+  const acceptedDisplay = { caseId: displayState.id, reasoning: displayState.reasoningV2, revision,
+    auditSection: "## 合理用药审方\n保留本次用药风险提示。", followupSection: "## 随访建议\n每日记录入睡时间。\n\n## 调护建议\n规律作息。",
+    followupTimeline: [{ time: "第5日", action: "复诊评估睡眠", indicators: ["入睡时间"], triggers: ["症状加重及时就诊"] }], serverSafetyLocked: false };
+  const acceptedState = applyAcceptedPrescriptionDisplayResult(displayState, acceptedDisplay);
+  const restoredAccepted = restoreWarningDisplayCase(acceptedState);
 
   assert(riskPanel.includes("辨证充分度"), "frontend: right panel uses differentiation sufficiency wording", riskPanel.slice(0, 1200));
   assert(riskPanel.includes("综合支撑度"), "frontend: differentiation card exposes an overall support score", riskPanel.slice(0, 1200));
@@ -299,7 +356,11 @@ function runFrontendContractChecks() {
   assert(source.includes('caseState.phase === "error"') && source.includes('"error"].includes(caseState.phase)') && handleSubmit.includes('caseState.phase === "error"'), "frontend: error state keeps an editable submit path", handleSubmit.slice(0, 3600));
   assert(diagnoseChain.includes("diagnosisTruncated") && diagnoseChain.includes("!diagnosisReasoningV2") && diagnoseChain.includes("visibleDraft") && diagnoseChain.includes("辨病辨证本次未完整生成"), "frontend: truncated or structurally invalid M03 preserves the visible draft and becomes a retryable stage error", diagnoseChain.slice(0, 3800));
   assert(!/consumeMarkdownStream\(res5[\s\S]{0,180}allowPartial:\s*true/.test(diagnoseChain) && !/consumeMarkdownStream\([\s\S]{0,180}allowPartial:\s*true/.test(sourceBetween(source, "async function handleAcceptEditedPrescription", "function handleQuestionOption")), "frontend: both normal and edited-prescription M05 require a clean stream terminator before phase done", diagnoseChain.slice(-1800));
-  assert(source.includes("reconcileRestoredCaseState(recomputedCaseState)") && safetySource.includes("export function reconcileRestoredCaseState"), "frontend: restored snapshots are reconciled against current safety rules", source.slice(4200, 7600));
+  assert(source.includes("restoreWarningDisplayCase(parsed.caseState, parsed.runningPhase)") &&
+    restoredDisplay?.safetyGate?.status === "red_flag" && restoredDisplay.safetyLocked === true &&
+    restoredDisplay.safetyGate.allowDosePrescription === false && restoredDisplay.prescription === displayState.prescription &&
+    restoredDisplay.riskAssessment === displayState.riskAssessment,
+  "frontend: restored snapshots are reconciled against current safety rules", restoredDisplay?.safetyGate);
   assert(source.includes("previousResult: capturePreviousResult") && source.includes('data-testid="previous-result-card"') && safetySource.includes("previousResult: undefined"), "frontend: a rerun keeps the prior result as read-only UI context without contaminating the next model request", aiPanel.slice(0, 5200));
   assert(handleRetry.includes("applyDraftToCaseState(caseState, retryDraft") && handleRetry.includes("buildHisRecordSnapshot(retryDraft"), "frontend: retry merges the latest editable record draft and question detail instead of reusing the stale failed payload", handleRetry);
   assert(handleRetry.includes("canResumeForcedRun") && handleRetry.includes("canSkipDifferentiationGate(retryState)"), "frontend: an interrupted doctor-approved tongue/pulse-only run resumes the guarded skip path instead of falling back to M02", handleRetry);
@@ -628,8 +689,23 @@ function runFrontendContractChecks() {
   assert(engineSource.includes("sanitizeCaseStateForBrowserPersistence") && engineSource.includes("scrubPersistentPhiText") && source.includes("sanitizeRecordDraftForBrowserPersistence") && source.includes('apiUrl("/api/diagnosis/snapshot")') && sourceBetween(source, "async function loadWorkspaceSnapshot", "function recoverInterruptedRun").includes("clearAllSavedCases()") && snapshotRouteSource.includes('createCipheriv("aes-256-gcm"') && snapshotRouteSource.includes("cipher.setAAD") && snapshotRouteSource.includes("readLimitedJson") && snapshotRouteSource.includes("reader.cancel()"), "persistence: browser stores only a server-authenticated AES-GCM envelope, clears every legacy plaintext case key, and limits request bytes before JSON parsing", `${engineSource.slice(0, 3600)}\n${sourceBetween(source, "function sanitizeRecordDraftForBrowserPersistence", "function recoverInterruptedRun")}\n${snapshotRouteSource}`);
   assert(snapshotRouteSource.includes('process.env.CASE_SNAPSHOT_ENCRYPTION_KEY || ""') && !snapshotRouteSource.includes("process.env.CDSS_API_TOKEN") && snapshotRouteSource.includes("authorizeSnapshot(req, key)") && snapshotRouteSource.includes("isValidCdssUiCookieValue") && snapshotRouteSource.includes("stableSnapshotScope(key, expectedToken)") && snapshotRouteSource.includes("customer.context.customerHash") && snapshotRouteSource.includes("snapshotAad(body.binding, tenantScope)") && source.includes("workspaceSnapshotBinding"), "persistence: snapshot encryption uses a dedicated key, validates the current session, and binds envelopes to the browser workspace, access scope, and customer", `${snapshotRouteSource}\n${sourceBetween(source, "function workspaceSnapshotBinding", "function sanitizeRecordDraftForBrowserPersistence")}`);
   assert(healthRouteSource.includes("snapshotPersistenceReady") && healthRouteSource.includes("snapshot_encryption_key_not_configured") && healthRouteSource.includes("&& snapshotPersistenceReady") && healthRouteSource.includes("snapshotPersistence:"), "persistence: enabled autosave without its dedicated encryption key fails strict readiness and is visible in health", healthRouteSource);
-  assert(sourceBetween(engineSource, "export function sanitizeCaseStateForBrowserPersistence", "export function saveCase").includes("skipDifferentiationGate: undefined") && workspaceSnapshot.includes("selectedQuestionOptions"), "persistence: one-time skip intent is stripped while clinical chip selections survive a safe browser restore", `${engineSource.slice(700, 3000)}\n${workspaceSnapshot}`);
-  assert(source.includes("recoverInterruptedRun") && source.includes("页面刷新或关闭中断") && workspaceSnapshot.includes("runningPhase?: Phase") && sourceBetween(source, "function recoverInterruptedRun", "function clearWorkspaceSnapshot").includes('state.phase === "question" ? undefined'), "frontend: only an in-flight M01-M05 stage becomes retryable after refresh while a stable M02 question state remains answerable", `${workspaceSnapshot}\n${sourceBetween(source, "function recoverInterruptedRun", "function clearWorkspaceSnapshot")}`);
+  assert(sanitizedDisplay.skipDifferentiationGate === undefined && restoredDisplay.skipDifferentiationGate === undefined &&
+    sanitizedDisplay.prescription === restoreInput.prescription && restoredSelections.sleep.label === selection.label &&
+    same(restoredSelections.sleep.patch, selection.patch) && restoredSelections.sleep.answer.includes("入睡困难") &&
+    !restoredSelections.sleep.answer.includes("张三") && workspaceSnapshot.includes("selectedQuestionOptions") &&
+    source.includes("sanitizeQuestionSelectionsForBrowserPersistence(parsed.selectedQuestionOptions || {}, legacyNames)"),
+  "persistence: one-time skip intent is stripped while clinical chip selections survive a safe browser restore", restoredSelections);
+  const interruptedRuns = ["collect", "question", "diagnose", "prescribe", "assess"].map((phase) => {
+    const recovered = recoverInterruptedRun({ ...displayState, phase }, phase);
+    return recovered.phase === "error" && recovered.lastError?.phase === phase &&
+      recovered.lastError.message.includes("页面刷新或关闭中断") && recovered.prescription === displayState.prescription;
+  });
+  const stableQuestion = { ...displayState, phase: "question" };
+  const priorFailure = { ...displayState, phase: "error", lastError: { phase: "prescribe", message: "原有错误" } };
+  assert(interruptedRuns.every(Boolean) && recoverInterruptedRun(stableQuestion) === stableQuestion &&
+    recoverInterruptedRun(displayState) === displayState && recoverInterruptedRun(priorFailure, "prescribe") === priorFailure &&
+    source.includes("recoverInterruptedRun(workspace.caseState, workspace.runningPhase)") && workspaceSnapshot.includes("runningPhase?: Phase"),
+  "frontend: only an in-flight M01-M05 stage becomes retryable after refresh while a stable M02 question state remains answerable", interruptedRuns);
   assert(diagnosisTypesSource.includes("lastError: normalizeLastError(input.lastError)"), "persistence: normalized case snapshots retain the failed stage and retry message", sourceBetween(diagnosisTypesSource, "function normalizeLastError", "function likelyHisRecordText"));
   assert(source.includes("selectedQuestionAnswerText(selectedQuestionOptions);") && source.includes("recordChangedForSubmit ? pendingRecordSupplement : input.trim()"), "frontend: question input budget matches the submitted payload without double-counting patched chips or free text", source.slice(source.indexOf("const selectedAnswerForBudget"), source.indexOf("const runningElapsedSeconds")));
   assert(diagnosisTypesSource.includes("determineCompletenessLevelFromScores") && !/const level = input\.level/.test(diagnosisTypesSource), "types: deserialized completeness level is recomputed from four dimensions", sourceBetween(diagnosisTypesSource, "function normalizeCompleteness", "function normalizeSafetyGate"));
@@ -718,7 +794,16 @@ function runFrontendContractChecks() {
     "frontend: seasonal care uses structured pathogenesis terms and the current visit date rather than a stale saved-record timestamp",
     resultV2.slice(0, 2600),
   );
-  assert(source.includes("shouldRenderEvidenceStatus") && source.includes('customerEvidenceDisplayStatus(evidence) === "traceable"') && !source.includes("外部依据未核验 · 需人工复核") && resultV2.includes("shouldRenderEvidenceStatus(firstCandidate.formulaSource)") && !resultV2.includes("reasoning.westernDiagnosis.primary.evidence") && resultV2.includes("isCompleteStructuredMedicineCandidate"), "frontend: only traceable external evidence is shown; inference, insufficient, and pending states never reach customers", sourceBetween(source, "function shouldRenderEvidenceStatus", "function ResultTabsV2"));
+  const evidenceVisibility = [
+    [{ evidenceLevel: "classic_text", source: "《伤寒论》" }, true],
+    [{ evidenceLevel: "guideline", source: "https://example.org/guideline" }, true],
+    ...["model_inference", "patient_fact", "deterministic_rule", "insufficient"].map((evidenceLevel) => [{ evidenceLevel, source: "《伤寒论》" }, false]),
+    ...["待检索", "待核验", "内部证据缺口", "患者事实：入睡困难", "", "无可回查来源"].map((source) => [{ evidenceLevel: "kb_entry", source }, false]),
+  ];
+  assert(evidenceVisibility.every(([evidence, visible]) => shouldRenderEvidenceStatus(evidence) === visible) &&
+    !shouldRenderEvidenceStatus(undefined) && resultV2.includes("shouldRenderEvidenceStatus(firstCandidate.formulaSource)") &&
+    !source.includes("外部依据未核验 · 需人工复核") && !resultV2.includes("reasoning.westernDiagnosis.primary.evidence") && resultV2.includes("isCompleteStructuredMedicineCandidate"),
+  "frontend: only traceable external evidence is shown; inference, insufficient, and pending states never reach customers", evidenceVisibility);
   assert(hisSchemeSource.includes("customerEvidenceDisplayStatus") && hisSchemeSource.includes('formulaEvidenceStatus === "traceable"') && !hisSchemeSource.includes("方剂依据核验状态") && !hisSchemeSource.includes("药味依据核验") && !hisSchemeSource.includes("随症加减依据核验"), "HIS: only traceable formula references are emitted; missing evidence is omitted instead of rendered as an internal gap", sourceBetween(hisSchemeSource, "function structuredHerbalSection", "function normalizedHerbName"));
   assert(hisSchemeSource.includes("withSafetyGate(caseState)") && hisSchemeSource.includes("prescribeReasoningFromState") && hisSchemeSource.includes("function structuredHerbalSection") && hisSchemeSource.includes("candidate.herbs"), "HIS: payload rebuilds safety invariants and uses M04 structured herbs as the write-back source", hisSchemeSource.slice(0, 9200));
   assert(hisSchemeRoute.includes("runBoundedRxAudit") && hisSchemeRoute.includes("audit outcome itself is advisory") && hisSchemeRoute.includes("deriveSafetyLocked"), "HIS: the server refreshes trustworthy audit warnings without turning audit results into adoption locks", hisSchemeRoute);
@@ -753,18 +838,26 @@ function runFrontendContractChecks() {
   assert(
     herbWorkbench.includes("acceptedRevision") &&
       herbWorkbench.includes("currentSignatureRef") &&
-      herbWorkbench.includes('body?.audit?.source === "lingxi"') &&
-      herbWorkbench.includes('"MANUAL_REVIEW"') &&
-      herbWorkbench.includes('"CRITICAL"'),
+      herbWorkbench.includes("if (!requestIsCurrent()) return;") &&
+      herbWorkbench.includes("revisionFromAudit(body.audit, candidateIndex, submittedVersionHash, res.ok)") &&
+      ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].every((highestRiskLevel) => {
+        const result = revisionFromAudit({ ...auditMetadata, highestRiskLevel }, 2, revision.herbHash, true);
+        return result.candidateIndex === 2 && result.herbHash === revision.herbHash &&
+          result.highestRiskLevel === highestRiskLevel && result.attestation === auditMetadata.attestation;
+      }) && revisionFromAudit({ ...auditMetadata, source: "unavailable" }, 0, revision.herbHash, false).auditAvailable === false,
     "frontend: edited herbs are version-bound to their own audit attempt while every risk level remains an advisory",
     herbWorkbench.slice(0, 8600)
   );
   assert(
       source.includes("handleAcceptEditedPrescription") &&
       source.includes("buildAcceptedPrescriptionMarkdown") &&
-      source.includes("replaceRiskAssessmentFollowup(accepted.auditSection") &&
-      source.includes("accepted.followupSection") &&
-      source.includes("prescriptionRevision: accepted.revision") &&
+      source.includes("applyAcceptedPrescriptionDisplayResult(displayBase, accepted)") &&
+      acceptedState.prescriptionRevision === revision && acceptedState.reasoningPrescribe === acceptedDisplay.reasoning &&
+      acceptedState.prescription.includes("茯苓") && acceptedState.prescription.includes("12g") &&
+      acceptedState.riskAssessment.includes(acceptedDisplay.auditSection) &&
+      acceptedState.riskAssessment.includes(acceptedDisplay.followupSection) &&
+      restoredAccepted.prescription === acceptedState.prescription && restoredAccepted.riskAssessment === acceptedState.riskAssessment &&
+      restoredAccepted.prescriptionRevision.attestation === revision.attestation &&
       source.includes("computePrescriptionVersionHash") && source.includes("body?.audit?.herbHash !== submittedVersionHash") &&
       source.includes('aria-label={`炮制${index + 1}`}') && source.includes('aria-label={`煎服要求${index + 1}`}') &&
       hisSchemeSource.includes("原方案基础方与出处") && !sourceBetween(source, "function buildAcceptedPrescriptionMarkdown", "function candidateHerbSignature").includes("**处方定位**"),
@@ -774,13 +867,16 @@ function runFrontendContractChecks() {
   const acceptEditedPrescription = sourceBetween(source, "async function handleAcceptEditedPrescription", "function handleQuestionOption");
   assert(
     !acceptEditedPrescription.includes('/api/diagnosis/assess') &&
-      acceptEditedPrescription.includes("accepted.followupSection") &&
+      same(acceptedState.followupTimeline, acceptedDisplay.followupTimeline) && same(restoredAccepted.followupTimeline, acceptedDisplay.followupTimeline) &&
+      acceptedState.phase === "done" && acceptedState.riskAssessment.includes(acceptedDisplay.followupSection) &&
       acceptEditedPrescription.includes("applyDraftToCaseState(caseState, recordDraft, caseState.hisRecord?.fields.extraText") &&
       acceptEditedPrescription.includes("currentVersionHash !== accepted.revision.herbHash") &&
       acceptEditedPrescription.includes("BROWSER_CASE_PERSISTENCE_ENABLED && !savedAt") &&
-      acceptEditedPrescription.indexOf("saveWorkspaceSnapshot") < acceptEditedPrescription.indexOf("persistState(committed)") &&
-      acceptEditedPrescription.includes("persistState(committed)") &&
-      acceptEditedPrescription.includes("saveWorkspaceSnapshot"),
+      acceptEditedPrescription.indexOf("saveWorkspaceSnapshot") < acceptEditedPrescription.indexOf("persistState(committed,") &&
+      acceptEditedPrescription.includes("persistState(committed, installed ?? null)") &&
+      acceptEditedPrescription.includes("await prepareWarningObservation({ receipt, requestState: accepted.warningRequestState") &&
+      codeIncludes(acceptEditedPrescription, "}, installed, isCurrent)") &&
+      codeIncludes(acceptEditedPrescription, "? await saveWorkspaceSnapshot({"),
     "frontend: edited prescription adoption preserves the version-bound audit, reuses its deterministic M05 follow-up, and persists synchronously",
     acceptEditedPrescription
   );
@@ -789,7 +885,24 @@ function runFrontendContractChecks() {
   assert(!diagnosisVisibleSummarySource.includes("直治核心病机，构成本方主要治疗支点。") && diagnosisVisibleSummarySource.includes("buildFormulaAnalysis"), "M04: deterministic formula analysis explains what each herb does in THIS formula instead of a cross-formula template sentence", diagnosisVisibleSummarySource.slice(4200, 7000));
   assert(herbWorkbench.includes("/api/diagnosis/post-prescription-risk") && herbWorkbench.includes("buildReasoningWithEditedHerbs") && herbWorkbench.includes("重新审方"), "frontend: edited herb lists are re-audited through the deterministic post-prescription audit path", herbWorkbench.slice(0, 5200));
   assert(herbWorkbench.includes("submittedAuditState") && herbWorkbench.includes("computePrescriptionVersionHash(revisedReasoning, candidateIndex, submittedAuditState)"), "frontend: prescription audit hashes bind selected herbs to the current patient context", herbWorkbench.slice(0, 6200));
-  assert(herbWorkbench.includes('body?.audit?.degraded !== true') && herbWorkbench.includes("needManualReview: body?.audit?.needManualReview === true") && source.includes("revision.degraded === true") && source.includes("revision.needManualReview === true"), "frontend: degraded/manual-review audit status remains a warning after persistence and restore", `${herbWorkbench.slice(5000, 7600)}\n${sourceBetween(source, "function auditRevisionNeedsAttention", "function defaultEvidenceRef")}`);
+  const attentionCases = [
+    { ...auditMetadata, degraded: true }, { ...auditMetadata, needManualReview: true },
+    { ...auditMetadata, auditResult: "MANUAL_REVIEW" }, { ...auditMetadata, auditResult: "BLOCK", highestRiskLevel: "CRITICAL" },
+  ].map((audit) => {
+    const current = revisionFromAudit(audit, 0, revision.herbHash, true);
+    const restored = restoreWarningDisplayCase({ ...displayState, prescriptionRevision: current });
+    return current.auditResult === audit.auditResult && current.degraded === audit.degraded && current.needManualReview === audit.needManualReview &&
+      revisionAttention(current) && revisionAttention(restored.prescriptionRevision) && restored.prescriptionRevision.attestation === audit.attestation;
+  });
+  const skippedAudit = { ...auditMetadata, source: "skipped", reason: "rxaudit_disabled", auditResult: "NOT_SUBMITTED",
+    highestRiskLevel: undefined, auditAvailable: false, degraded: false, needManualReview: false };
+  const skippedRevision = revisionFromAudit(skippedAudit, 0, revision.herbHash, true);
+  assert(attentionCases.every(Boolean) && skippedRevision.auditResult === "NOT_SUBMITTED" && skippedRevision.highestRiskLevel === undefined &&
+    skippedRevision.auditAvailable === false && !revisionAttention(skippedRevision) &&
+    revisionAttention(revisionFromAudit({ ...skippedAudit, attestation: undefined }, 0, revision.herbHash, true)) &&
+    revisionAttention(revisionFromAudit(skippedAudit, 0, revision.herbHash, false)) &&
+    herbWorkbench.includes("auditRevisionNeedsAttention(caseState.prescriptionRevision)") && herbWorkbench.includes("auditRevisionNeedsAttention(revision)"),
+  "frontend: degraded/manual-review audit status remains a warning after persistence and restore", { attentionCases, notSubmitted: skippedRevision.auditResult });
   assert(
     herbWorkbench.includes("herbs.some(hasIncompleteEditedHerb)") &&
       herbWorkbench.includes("{hasInvalidHerb && (") &&
@@ -798,7 +911,20 @@ function runFrontendContractChecks() {
     "frontend: incomplete edited-herb semantics remain visible while changed named-row proposals can request advice without duplicating an in-flight audit",
     herbWorkbench.slice(0, 4200),
   );
-  assert(/reasoningPrescribe:\s*revisedReasoning[\s\S]{0,240}reasoningV2:\s*revisedReasoning[\s\S]{0,520}safetyLocked:\s*false/.test(herbWorkbench), "frontend: edited-herb audit payload clears legacy audit locks before refreshing risk hints", herbWorkbench.slice(0, 7000));
+  const requestCases = [true, false].map((sameVersion) => {
+    const oldRevision = { ...revision, candidateIndex: 2, auditResult: "BLOCK", highestRiskLevel: "CRITICAL" };
+    const caseState = { ...displayState, prescriptionRevision: oldRevision, safetyLocked: true };
+    const submittedAuditState = pageExpression("submittedAuditState", { caseState, revisedReasoning: acceptedDisplay.reasoning });
+    const submittedVersionHash = sameVersion ? revision.herbHash : "sha256-" + "c".repeat(64);
+    const request = pageExpression("warningRequestState", { caseState, submittedAuditState, candidateIndex: 2, submittedVersionHash });
+    return request.safetyLocked === false && request.reasoningPrescribe === acceptedDisplay.reasoning &&
+      request.reasoningV2 === acceptedDisplay.reasoning && request.prescriptionRevision.candidateIndex === 2 &&
+      request.prescriptionRevision.herbHash === submittedVersionHash && (sameVersion
+        ? request.prescriptionRevision === oldRevision
+        : request.prescriptionRevision !== oldRevision && request.prescriptionRevision.auditResult === "MANUAL_REVIEW" && request.prescriptionRevision.auditAvailable === false);
+  });
+  assert(requestCases.every(Boolean) && herbWorkbench.includes("body: JSON.stringify({ caseState: warningRequestState })"),
+    "frontend: edited-herb audit payload clears legacy audit locks before refreshing risk hints", requestCases);
   assert(
     herbWorkbench.includes('auditStatus === "reviewed" || auditStatus === "warning"') &&
       herbWorkbench.includes("提示不阻断流程") &&
@@ -1223,25 +1349,9 @@ function asEditedWorkbenchArtifact(caseState, candidateIndex = 0) {
  * 任何字段与签发时不一致都会让下游 assess / his-scheme 的凭据校验失败。
  */
 function adoptAttestedRevision(caseState, audit) {
-  const rawAuditResult = String(audit?.auditResult || "").toUpperCase();
-  const rawRiskLevel = String(audit?.highestRiskLevel || "").toUpperCase();
-  caseState.prescriptionRevision = {
-    source: "herb_workbench",
-    candidateIndex: audit?.candidateIndex ?? 0,
-    herbHash: audit?.herbHash || "",
-    auditedAt: typeof audit?.auditedAt === "string" ? audit.auditedAt : new Date().toISOString(),
-    auditResult: ["PASS", "REMIND", "MANUAL_REVIEW", "BLOCK"].includes(rawAuditResult) ? rawAuditResult : "MANUAL_REVIEW",
-    highestRiskLevel: ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(rawRiskLevel) ? rawRiskLevel : "HIGH",
-    auditAvailable: audit?.source === "lingxi" && audit?.degraded !== true,
-    degraded: audit?.degraded === true,
-    ...(typeof audit?.degradeReason === "string" ? { degradeReason: audit.degradeReason } : {}),
-    needManualReview: audit?.needManualReview === true,
-    ...(typeof audit?.reason === "string" ? { auditReason: audit.reason } : {}),
-    ...(typeof audit?.auditId === "string" ? { auditId: audit.auditId } : {}),
-    ...(typeof audit?.traceId === "string" ? { traceId: audit.traceId } : {}),
-    attestationVersion: audit?.attestationVersion,
-    attestation: audit?.attestation,
-  };
+  // Use the installed client adapter rather than another enum/availability copy:
+  // rewriting NOT_SUBMITTED to MANUAL_REVIEW changes issuer-bound HMAC fields.
+  caseState.prescriptionRevision = revisionFromAudit(audit, audit?.candidateIndex ?? 0, audit?.herbHash || "", true);
   return caseState;
 }
 
@@ -2769,6 +2879,7 @@ async function runKnowledgeCalls() {
   const postRiskCases = [
     {
       name: "post-risk-eighteen",
+      expectedLocalWarning: /high_risk_pair_incompatibility/,
       caseState: baseCase("post-risk-eighteen", {
         prescription: "## 中药饮片处方\n| 序号 | 药名 | 剂量 |\n|---|---|---|\n| 1 | 甘草 | 6g |\n| 2 | 甘遂 | 1g |",
         reasoningV2: reasoningV2WithHerbs([{ name: "甘草", dose: "6g" }, { name: "甘遂", dose: "1g" }]),
@@ -2777,6 +2888,7 @@ async function runKnowledgeCalls() {
     },
     {
       name: "post-risk-rich-table-eighteen",
+      expectedLocalWarning: /high_risk_pair_incompatibility/,
       caseState: baseCase("post-risk-rich-table-eighteen", {
         prescription: [
           "## 中药饮片处方",
@@ -2812,6 +2924,7 @@ async function runKnowledgeCalls() {
     },
     {
       name: "post-risk-table-plus-free-text-eighteen",
+      expectedLocalWarning: /high_risk_pair_incompatibility/,
       caseState: baseCase("post-risk-table-plus-free-text-eighteen", {
         prescription: "## 中药饮片处方\n| 药名 | 剂量 |\n|---|---|\n| 甘草 | 6g |\n甘遂 1g，水煎服。",
         reasoningV2: reasoningV2WithHerbs([{ name: "甘草", dose: "6g" }, { name: "甘遂", dose: "1g" }]),
@@ -2847,6 +2960,7 @@ async function runKnowledgeCalls() {
     },
     {
       name: "post-risk-decoction-dose",
+      expectedLocalWarning: /dose_outside_conservative_range|decoction_missing_required/,
       caseState: baseCase("post-risk-decoction-dose", {
         prescription: "## 中药饮片处方\n制附子 60g，水煎服。",
         reasoningV2: reasoningV2WithHerbs([{ name: "制附子", dose: "60g", decoctionRequirement: "先煎" }]),
@@ -2865,6 +2979,7 @@ async function runKnowledgeCalls() {
     },
     {
       name: "post-risk-unknown-herb-in-table",
+      expectedLocalWarning: /candidate_\d+_herb_\d+_unknown/,
       caseState: baseCase("post-risk-unknown-herb-in-table", {
         prescription: [
           "## 中药饮片处方",
@@ -2906,13 +3021,23 @@ async function runKnowledgeCalls() {
       const expectedDoseAdvisory = item.expectedSubmissionIssue !== "herb_dose_incomplete" ||
         res.json?.audit?.inputAdvisories?.some((advisory) => advisory?.code === "missing_dose");
       assertDeliveryReport(res, new RegExp(item.expectedSubmissionIssue), item.name);
-      assert(res.json?.audit?.reason === item.expectedSubmissionIssue && expectedDoseAdvisory &&
-        res.json?.audit?.degraded === true && /未调用外部审方接口/.test(res.json?.section || ""),
+      const localOnlyStatus = expectRxAuditEnabled === false ? isExpectedSkippedAudit(res.json?.audit)
+        : res.json?.audit?.reason === item.expectedSubmissionIssue && res.json?.audit?.degraded === true &&
+          /未调用外部审方接口/.test(res.json?.section || "");
+      assert(localOnlyStatus && expectedDoseAdvisory,
       `${item.name}: unprocessable input is reported locally without an external audit call`, res.json);
       continue;
     }
     assert(res.status === 200, `${item.name}: post risk status`, res.text.slice(0, 200));
-    assert(item.pattern.test([res.json?.section, res.json?.followup].filter(Boolean).join("\n")), `${item.name}: post risk pattern`, res.json);
+    if (expectRxAuditEnabled === false) {
+      // External audit branding/verdicts are intentionally hidden, not a clinical
+      // success claim. Local contraindication/dose/unknown-herb findings remain.
+      assert(isExpectedSkippedAudit(res.json?.audit), `${item.name}: explicit skip never fabricates an external verdict`, res.json?.audit);
+      if (item.expectedLocalWarning) assert(matchingDeliveryWarning(res.json, item.expectedLocalWarning),
+        `${item.name}: disabling the provider preserves the concrete local finding`, res.json?.warnings);
+    } else {
+      assert(item.pattern.test([res.json?.section, res.json?.followup].filter(Boolean).join("\n")), `${item.name}: post risk pattern`, res.json);
+    }
     assert(
       res.json?.audit?.safetyLocked === (item.expectHardSafetyLock === true),
       `${item.name}: only independent hard safety gates may lock the post-prescription flow`,
@@ -3378,7 +3503,7 @@ async function runApiAuthBruteForceGuard() {
 }
 
 async function main() {
-  runFrontendContractChecks();
+  await runFrontendContractChecks();
   if (STATIC_ONLY) {
     const summary = { mode: "static", failures: failures.length };
     console.log(JSON.stringify(summary, null, 2));

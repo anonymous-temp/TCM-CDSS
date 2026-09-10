@@ -59,7 +59,7 @@
     "test:experience-stream-measurement": "node scripts/test-experience-stream-measurement.mjs",
     "test:m04-concise-proposal": "node --test scripts/test-m04-concise-proposal.mjs",
     "test:m04-delivery-continuity": "node --test scripts/test-m04-delivery-continuity.mjs",
-    "test:golden-harness": "node --test scripts/test-golden-harness.mjs",
+    "test:golden-harness": "node --test --test-concurrency=1 scripts/test-golden-harness.mjs scripts/test-golden-frontend-contract.mjs",
     "test:his-projection-alignment": "node --test scripts/test-his-projection-alignment.mjs",
     "test:warning-display": "node --test scripts/test-warning-display.mjs",
     "test:explicit-prompt-cache": "jiti scripts/test-explicit-prompt-cache.mjs",
