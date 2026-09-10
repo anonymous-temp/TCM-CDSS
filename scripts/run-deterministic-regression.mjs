@@ -169,6 +169,7 @@ const scripts = [
   "test:clinical-facts-transport",
   "test:m03-context-packets",
   "test:clinical-facts",
+  "test:clinical-facts-unavailable-binding",
   "test:evidence-sentinel",
   "test:evimed-normalization",
   "test:local-patent-medicines",

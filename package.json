@@ -69,6 +69,7 @@
     "test:m03-context-packets": "node --test scripts/test-m03-context-packets.mjs",
     "regress:model-routing-ab": "node scripts/regress-model-routing-ab.mjs",
     "test:clinical-facts": "jiti scripts/test-clinical-facts.mjs",
+    "test:clinical-facts-unavailable-binding": "node --test scripts/test-clinical-facts-unavailable-binding.mjs",
     "test:evidence-sentinel": "jiti scripts/test-evidence-sentinel-safe.mjs",
     "test:evimed-normalization": "jiti scripts/test-evimed-normalization.mjs",
     "test:patent-medicine-ranking": "jiti scripts/test-patent-medicine-ranking.mjs",
