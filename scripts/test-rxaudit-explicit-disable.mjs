@@ -241,3 +241,65 @@ test("revision schema keeps legacy grades mandatory and rejects contradictory sk
     assert.equal(normalizeCaseStateInput({ ...state, prescriptionRevision: { ...skipped, ...mutation } }).prescriptionRevision, undefined);
   }
 });
+
+for (const candidateIndex of [1, 2]) {
+  for (const selectedUnsafe of [false, true]) {
+    test(`skipped selection ${candidateIndex} keeps ${selectedUnsafe ? "selected" : "unselected"} contraindications correctly scoped across routes and installed view`, async () => withoutNetwork(async () => {
+      const submitted = await workbenchCase();
+      const safe = structuredClone(submitted.reasoningPrescribe.formula.candidates[0]);
+      const unsafe = structuredClone(safe);
+      unsafe.herbs = unsafe.herbs.map((herb, index) => ({ ...herb, name: index === 0 ? "甘草" : "海藻" }));
+      submitted.reasoningPrescribe.formula.candidates = Array.from({ length: candidateIndex + 1 }, (_, index) =>
+        structuredClone(index === candidateIndex ? selectedUnsafe ? unsafe : safe : selectedUnsafe ? safe : unsafe));
+      submitted.reasoningV2 = submitted.reasoningPrescribe;
+      const herbHash = await computePrescriptionVersionHash(submitted.reasoningPrescribe, candidateIndex, submitted);
+      submitted.prescriptionRevision = { ...submitted.prescriptionRevision, candidateIndex, herbHash };
+      const before = JSON.stringify(submitted);
+      const response = await postRisk(request("/api/diagnosis/post-prescription-risk", submitted));
+      const body = await response.json();
+      assert.equal(response.status, 200, JSON.stringify(body));
+      assert.equal(body.audit.candidateIndex, candidateIndex);
+      assert.equal(body.audit.auditResult, "NOT_SUBMITTED");
+      const checkProfile = (profile, label) => {
+        assert.equal(profile.level === "L4", selectedUnsafe, `${label}: ${JSON.stringify(profile)}`);
+        assert.equal(profile.executable, !selectedUnsafe, label);
+        assert.equal(profile.reasons.some((reason) => /甘草.*海藻|十八反/.test(reason)), selectedUnsafe, label);
+      };
+      checkProfile(body.warningObservation.live.profile, "post-risk live");
+      checkProfile(body.warningObservation.stored.profile, "post-risk stored");
+      const final = applyAcceptedPrescriptionDisplayResult(submitted, {
+        caseId: submitted.id, reasoning: submitted.reasoningPrescribe, auditSection: body.section,
+        followupSection: body.followup.trim(), followupTimeline: body.followupTimeline,
+        serverSafetyLocked: derivePrescriptionPermission(withSafetyGate(submitted)).formalAdoption === "blocked",
+        revision: revisionFromAudit(body.audit, candidateIndex, herbHash, true),
+      });
+      const materialBefore = JSON.stringify(final);
+      const installed = await prepareWarningObservation({ receipt: body.warningObservation, requestState: submitted,
+        finalState: final, customerId: customer.customerId, isCurrent: () => true });
+      assert.ok(installed);
+      checkProfile(resolveWarningDisplayProfile(final, installed), "installed client");
+      if (!selectedUnsafe) assert.ok(resolveWarningDisplayProfile(final).reasons.some((reason) => /审方.*不可用/.test(reason)), "no receipt remains conservative");
+      assert.equal(JSON.stringify(final), materialBefore, "the installed projection must not mutate signed fields or material");
+      const normalized = normalizeCaseStateInput(JSON.parse(materialBefore));
+      assert.equal(normalized.prescriptionRevision.candidateIndex, candidateIndex);
+      assert.equal(normalized.prescriptionRevision.herbHash, herbHash);
+      assert.equal(verifyPrescriptionRevisionAttestation(normalized, customer, herbHash), true);
+      const assessment = await assess(request("/api/diagnosis/assess", normalized));
+      assert.equal(assessment.status, 200, await assessment.clone().text());
+      const result = await consumeMarkdownStreamWithMetadata(assessment, () => {}, { collectWarningProfile: true });
+      checkProfile(result.warningObservation.live.profile, "M05 live");
+      checkProfile(result.warningObservation.stored.profile, "M05 stored");
+      const completed = applyCompletedM05DisplayResult(normalized, result, customer.customerId);
+      const m05Installed = await prepareWarningObservation({ receipt: result.warningObservation, requestState: normalized,
+        finalState: completed, customerId: customer.customerId, isCurrent: () => true });
+      assert.ok(m05Installed);
+      checkProfile(resolveWarningDisplayProfile(completed, m05Installed), "M05 installed client");
+      const his = await hisScheme(request("/api/diagnosis/his-scheme", completed));
+      const payload = await his.json();
+      assert.equal(his.status, 200, JSON.stringify(payload));
+      assert.equal(payload.auditStatus, "not_submitted");
+      checkProfile(payload.warningProfile, "HIS");
+      assert.equal(JSON.stringify(submitted), before, "none of the routes may mutate the submitted selection");
+    }));
+  }
+}
