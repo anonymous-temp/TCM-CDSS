@@ -457,6 +457,25 @@ test("the real M05 route binds the submitted state despite enrichment and contro
     const installed = await prepareWarningObservation({ receipt: result.warningObservation, requestState: submitted, finalState: completed, customerId: customer.customerId, isCurrent: () => true });
     assert.ok(installed, "actual final reducer output must match the producer observation");
     assert.notEqual(resolveWarningDisplayProfile(completed, installed).level, "L4");
+    const { sanitizeCaseStateForBrowserPersistence } = await jiti.import("../src/lib/browser-case-persistence.ts");
+    const { storedWarningCase } = await jiti.import("../src/lib/warning-display-storage.ts");
+    for (const mutate of [
+      (s) => { s.chiefComplaint += " "; },
+      (s) => { delete s.hisRecord.updatedAt; },
+      (s) => { s.faceCapture = { source: "manual", note: "面色少华", consented: true }; },
+      (s) => { delete s.customerId; },
+    ]) {
+      const variant = clone(submitted); mutate(variant);
+      const variantResponse = await POST(new Request("http://localhost/api/diagnosis/assess", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ caseState: variant }) }));
+      assert.equal(variantResponse.status, 200);
+      const variantResult = await consumeMarkdownStreamWithMetadata(variantResponse, () => {}, { collectWarningProfile: true });
+      const final = applyCompletedM05DisplayResult(variant, variantResult, customer.customerId);
+      assert.ok(await prepareWarningObservation({ receipt: variantResult.warningObservation, requestState: variant, finalState: final,
+        customerId: customer.customerId, isCurrent: () => true }), "validated source representation must match the actual browser completion");
+      const stored = storedWarningCase({ schemaVersion: "tcm-cdss-workspace-v1", caseState: sanitizeCaseStateForBrowserPersistence(final) });
+      assert.ok(await prepareWarningObservation({ receipt: variantResult.warningObservation, finalState: stored, view: "stored",
+        customerId: customer.customerId, isCurrent: () => true }), "source representation must survive the actual stored projection");
+    }
     const { invalidatePrescriptionContractAfterEdit } = await jiti.import("../src/lib/prescription-revision.ts");
     const { computePrescriptionVersionHash } = await jiti.import("../src/lib/prescription-version.ts");
     const { applyAcceptedPrescriptionDisplayResult, revisionFromAudit } = await jiti.import("../src/lib/followup-display-state.ts");
