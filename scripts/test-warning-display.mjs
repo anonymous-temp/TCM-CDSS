@@ -286,6 +286,16 @@ test("a mixed metadata frame cannot swallow a genuine upstream error", async () 
   await assert.rejects(consumeMarkdownStreamWithMetadata(response, () => {}, { collectWarningProfile: true }), /actual upstream failure/);
 });
 
+test("already-buffered metadata after END cannot swallow upstream errors", async () => {
+  const { state, receipt } = await fixtureReceipt();
+  const { consumeMarkdownStreamWithMetadata } = await jiti.import("../src/lib/diagnosis-engine.ts");
+  for (const newline of ["", "\n"]) for (const collectWarningProfile of [false, true]) {
+    const body = [{ content: state.riskAssessment }, { type: "warning_profile", observation: receipt }, { content: "[END]" },
+      { type: "warning_profile", observation: receipt, error: "actual buffered upstream failure" }].map(JSON.stringify).join("\n") + newline;
+    await assert.rejects(consumeMarkdownStreamWithMetadata(new Response(body), () => {}, { collectWarningProfile }), /actual buffered upstream failure/);
+  }
+});
+
 test("storage metadata is separate, matched to actual restored payload and cannot be laundered by encryption", async () => {
   const { withWarningStorageReceipt, matchingWarningStorageReceipt } = await jiti.import("../src/lib/warning-display-storage.ts");
   const { prepareWarningObservation } = await jiti.import("../src/lib/warning-display-observation.ts");
