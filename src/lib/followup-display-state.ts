@@ -3,7 +3,8 @@ import { normalizeCaseStateInput } from "./diagnosis-types";
 import { withSafetyGate, reconcileRestoredCaseState, derivePrescriptionPermission, parseStructuredFollowupTimeline, stripStructuredFollowupTimeline } from "./diagnosis-safety";
 import { sanitizeAuthoritativeClinicalOutput } from "./clinical-output-authority";
 import { stripEvimedTrailingQuestions } from "./markdown-stream-content";
-import { mapWarningText, type WarningTextProjection } from "./warning-text-projection";
+import { adviceText, joinWarningText, mapWarningText, type WarningTextProjection } from "./warning-text-projection";
+import { stableWarningJson } from "./warning-display-binding";
 import { sanitizeCaseStateForBrowserPersistence } from "./browser-case-persistence";
 import { parseRxAuditStatusMarker, stripRxAuditStatusMarker } from "./rxaudit-status";
 import { diagnoseReasoningFromState, mergeReasoningStages } from "./diagnosis-parse";
@@ -32,14 +33,18 @@ export function markdownTableCell(value: unknown): string {
 }
 
 export function buildAcceptedPrescriptionMarkdown(reasoning: ClinicalReasoningResultV2, candidateIndex: number, herbHash?: string): string {
+  return buildAcceptedPrescriptionWarningProjection(reasoning, candidateIndex, herbHash).markdown;
+}
+
+export function buildAcceptedPrescriptionWarningProjection(reasoning: ClinicalReasoningResultV2, candidateIndex: number, herbHash?: string): WarningTextProjection {
   const candidate = reasoning.formula?.candidates[candidateIndex];
-  if (!candidate) return "";
+  if (!candidate) return joinWarningText([]);
   const herbRows = candidate.herbs.map((herb, index) => {
     const warning = structuredHerbWarningProfile(herb);
     return `| ${index + 1} | ${markdownTableCell(herb.name)} | ${markdownTableCell(herb.verificationTier === "identity_pending" ? "待核定" : herb.dose || "待医生确认")} | ${markdownTableCell(herb.role)} | ${markdownTableCell(herb.targetPathogenesis)} | ${markdownTableCell(herb.function)} | ${markdownTableCell([herb.processing ? `炮制：${herb.processing}` : "", herb.decoctionRequirement].filter(Boolean).join("；") || "常规")} | ${warning.label} · ${markdownTableCell(warning.reasons.join("；"))} |`;
   });
   const modifications = reasoning.formula?.modifications || [];
-  return [
+  return mapWarningText(joinWarningText([
     "## 中药饮片处方",
     ...(herbHash ? [`**处方版本摘要**：${markdownTableCell(herbHash)}`] : []),
     `**候选方名/方向**：${markdownTableCell(candidate.name)}`,
@@ -67,11 +72,11 @@ export function buildAcceptedPrescriptionMarkdown(reasoning: ClinicalReasoningRe
       ...modifications.flatMap((item) => {
         const modification = normalizedFormulaModificationFields(item);
         return modification
-          ? [`- ${markdownTableCell(item.trigger)}：动作：${modification.action}；药味：${markdownTableCell(modification.herbName)}${item.doseOrHandling ? `（${markdownTableCell(item.doseOrHandling)}）` : ""}；${markdownTableCell(item.reason)}`]
+          ? [adviceText(`- ${markdownTableCell(item.trigger)}：动作：${modification.action}；药味：${markdownTableCell(modification.herbName)}${item.doseOrHandling ? `（${markdownTableCell(item.doseOrHandling)}）` : ""}；${markdownTableCell(item.reason)}`)]
           : [];
       }),
     ] : []),
-  ].join("\n").trim();
+  ]), (text) => text.trim());
 }
 
 export function shouldRenderEvidenceStatus(evidence?: { evidenceLevel?: string; source?: string; confidence?: string }): boolean {
@@ -119,6 +124,12 @@ export function recoverInterruptedRun(state: CaseState, runningPhase?: Phase): C
 export function restoreWarningDisplayCase(value: unknown, runningPhase?: Phase): CaseState | undefined {
   const normalized = normalizeCaseStateInput(value);
   return normalized ? recoverInterruptedRun(reconcileRestoredCaseState(withSafetyGate(sanitizeCaseStateForBrowserPersistence(normalized))), runningPhase) : undefined;
+}
+
+export function preserveUnchangedHisSnapshot(previous: CaseState, rebuilt: CaseState): CaseState {
+  if (!previous.hisRecord || !rebuilt.hisRecord) return rebuilt;
+  const unchangedClock = { ...rebuilt, hisRecord: { ...rebuilt.hisRecord, updatedAt: previous.hisRecord.updatedAt } };
+  return stableWarningJson(unchangedClock) === stableWarningJson(previous) ? unchangedClock : rebuilt;
 }
 
 export function applyCompletedM05DisplayResult(

@@ -380,12 +380,12 @@ test("the real M05 route binds the submitted state despite enrichment and contro
     const body = await reviewed.json();
     assert.equal(reviewed.status, 200, JSON.stringify(body));
     assert.equal(body.audit.herbHash, herbHash);
-    assert.ok(body.observation, "the workbench producer must emit its final display receipt");
+    assert.ok(body.warningObservation, "the workbench producer must emit its final display receipt");
     const accepted = { caseId: requestState.id, reasoning: revised, auditSection: body.section, followupSection: body.followup.trim(), followupTimeline: body.followupTimeline,
       serverSafetyLocked: safety.derivePrescriptionPermission(safety.withSafetyGate(completed)).formalAdoption === "blocked",
       revision: revisionFromAudit(body.audit, 0, herbHash, true) };
     const acceptedState = applyAcceptedPrescriptionDisplayResult(completed, accepted);
-    assert.ok(await prepareWarningObservation({ receipt: body.observation, requestState, finalState: acceptedState, customerId: customer.customerId, isCurrent: () => true }));
+    assert.ok(await prepareWarningObservation({ receipt: body.warningObservation, requestState, finalState: acceptedState, customerId: customer.customerId, isCurrent: () => true }));
   } finally {
     globalThis.fetch = savedFetch;
     for (const key of Object.keys(settings)) { if (savedEnv[key] === undefined) delete process.env[key]; else process.env[key] = savedEnv[key]; }

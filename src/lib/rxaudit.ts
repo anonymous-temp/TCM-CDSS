@@ -95,9 +95,10 @@ export function ownedAuditWarningInputs(provider: RxAuditOutcome, effective?: Ex
 
 export function buildLingxiWarningProjection(outcome: Extract<RxAuditOutcome, { ok: true }>, patientSex?: string): WarningTextProjection {
   const markdown = buildLingxiRiskSection(outcome, patientSex);
-  return { markdown, currentRiskMarkdown: outcome.issues
+  const heading = markdown.split("\n").find((line) => /^##\s/.test(line));
+  return { markdown, currentRiskMarkdown: heading ? [heading, ...outcome.issues
     .filter((issue) => issue.patientApplicability !== "not_applicable")
-    .map((issue) => [issue.title, issue.description, issue.action, ...issue.suggestions].filter(Boolean).join("；")).join("\n") };
+    .map((issue) => [issue.title, issue.description, issue.action, ...issue.suggestions].filter(Boolean).join("；"))].join("\n") : "" };
 }
 
 export type RxAuditCorrelationMetadata = {

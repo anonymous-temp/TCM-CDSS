@@ -4,6 +4,8 @@ import {
   buildAuditInputAdvisories,
   buildAuditInputAdvisorySection,
   buildLingxiRiskSection,
+  buildLingxiWarningProjection,
+  ownedAuditWarningInputs,
   buildLocalHighRiskHerbPairSection,
   buildRxAuditScopeSection,
   buildRxAuditCorrelationMetadata,
@@ -14,7 +16,8 @@ import {
   runBoundedRxAudit,
   rxAuditSubmissionIssue,
 } from "@/lib/rxaudit";
-import { buildDeterministicRiskFollowupPayload, clinicalGroundingText, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
+import { buildDeterministicRiskFollowupProjection, clinicalGroundingText, deriveSafetyLocked, withSafetyGate } from "@/lib/diagnosis-safety";
+import { withPostPrescriptionWarningObservation } from "@/lib/warning-display-receipt.server";
 import { authorFollowupForCase } from "@/lib/m05-followup-authoring.server";
 import { diagnoseReasoningFromState, prescribeReasoningFromState } from "@/lib/diagnosis-parse";
 import { m04SafetyContractIssue } from "@/lib/diagnosis-stage-contract";
@@ -155,7 +158,7 @@ export async function POST(req: Request) {
       buildLingxiRiskSection(effectiveAudit, patientSex),
     ].filter(Boolean).join("\n\n");
     const assessed = withSafetyGate({ ...caseState, riskAssessment: section, safetyLocked });
-    const followup = buildDeterministicRiskFollowupPayload(
+    const followup = buildDeterministicRiskFollowupProjection(
       assessed,
       await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal),
     );
@@ -188,7 +191,7 @@ export async function POST(req: Request) {
         code: "workbench_revision_attestation_unavailable",
       }, { status: 503 });
     }
-    return Response.json({
+    return Response.json(await withPostPrescriptionWarningObservation({
       section,
       warnings: clinicalAdvisories,
       followup: followup.markdown,
@@ -222,7 +225,15 @@ export async function POST(req: Request) {
         correlation,
         ...revisionAttestation,
       },
-    });
+    }, {
+      requestState: parsed.caseState, producerState: caseState, customer: parsed.customer,
+      sectionProjection: { markdown: section, currentRiskMarkdown: [
+        clinicalDeliveryAdvisorySection(clinicalAdvisories),
+        buildRxAuditScopeSection(caseState, resolvedCandidateIndex, providerAudit.submissionScope),
+        inputAdvisorySection, buildLingxiWarningProjection(effectiveAudit, patientSex).currentRiskMarkdown,
+      ].filter(Boolean).join("\n\n") },
+      followupProjection: followup, audit: ownedAuditWarningInputs(providerAudit, effectiveAudit), advisories: clinicalAdvisories,
+    }));
   }
 
   console.warn("[tcm-cdss:rxaudit] post-prescription advisory audit unavailable", { reason: providerAudit.reason });
@@ -235,7 +246,7 @@ export async function POST(req: Request) {
   ].filter(Boolean).join("\n\n");
   const safetyLocked = deriveSafetyLocked(caseState);
   const assessed = withSafetyGate({ ...caseState, riskAssessment: section, safetyLocked });
-  const followup = buildDeterministicRiskFollowupPayload(
+  const followup = buildDeterministicRiskFollowupProjection(
     assessed,
     await authorFollowupForCase(assessed, diagnoseReasoning, selectedCandidate, req.signal),
   );
@@ -266,7 +277,7 @@ export async function POST(req: Request) {
       code: "workbench_revision_attestation_unavailable",
     }, { status: 503 });
   }
-  return Response.json({
+  return Response.json(await withPostPrescriptionWarningObservation({
     section,
     warnings: clinicalAdvisories,
     followup: followup.markdown,
@@ -296,5 +307,9 @@ export async function POST(req: Request) {
       correlation,
       ...revisionAttestation,
     },
-  });
+  }, {
+    requestState: parsed.caseState, producerState: caseState, customer: parsed.customer,
+    sectionProjection: { markdown: section, currentRiskMarkdown: section },
+    followupProjection: followup, audit: ownedAuditWarningInputs(providerAudit), advisories: clinicalAdvisories,
+  }));
 }

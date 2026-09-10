@@ -4,9 +4,12 @@ import type { CaseState } from "./diagnosis-types";
 import type { CustomerContext } from "./customer-context";
 import type { ClinicalDeliveryAdvisory } from "./clinical-delivery-advisory";
 import { deriveOwnedCaseWarningProfile, projectPrescriptionWarningText } from "./clinical-warning-projection.server";
-import { restoreWarningDisplayCase } from "./followup-display-state";
+import { applyAcceptedPrescriptionDisplayResult, buildAcceptedPrescriptionWarningProjection, revisionFromAudit } from "./followup-display-state";
+import { derivePrescriptionPermission, withSafetyGate } from "./diagnosis-safety";
+import { deriveStructuredCaseWarningFloor } from "./clinical-warning-tier";
+import { prescribeReasoningFromState } from "./diagnosis-parse";
 import { sanitizeCaseStateForBrowserPersistence } from "./browser-case-persistence";
-import { matchedWarningText, type OwnedCaseWarningProjection } from "./warning-text-projection";
+import { matchedWarningText, type OwnedCaseWarningProjection, type WarningTextProjection } from "./warning-text-projection";
 import { storedWarningCase, WARNING_STORAGE_RECEIPT_KEY } from "./warning-display-storage";
 import { boundedWarningProfile, parseWarningDisplayReceipt, stableWarningJson, warningDisplayHash, warningDisplayMaterial,
   WARNING_DISPLAY_VERSION, WARNING_PROJECTION_VERSION, type WarningDisplayReceipt } from "./warning-display-binding";
@@ -71,4 +74,41 @@ export async function verifyStoredWarningObservation(payload: unknown, customer:
   const receipt = payload && typeof payload === "object" && !Array.isArray(payload)
     ? parseWarningDisplayReceipt((payload as Record<string, unknown>)[WARNING_STORAGE_RECEIPT_KEY]) : undefined;
   return state && receipt && await verifyWarningDisplayReceipt(receipt, customer, state, "stored") ? { view: "stored", receipt } : undefined;
+}
+
+export async function withPostPrescriptionWarningObservation<T extends {
+  section: string; followup: string; followupTimeline: import("./diagnosis-types").StructuredFollowupTimelineItem[];
+  audit: Record<string, unknown>;
+}>(body: T, input: {
+  requestState: CaseState; producerState: CaseState; customer: CustomerBinding;
+  sectionProjection: WarningTextProjection; followupProjection: WarningTextProjection;
+  audit: NonNullable<OwnedCaseWarningProjection["audit"]>; advisories: readonly ClinicalDeliveryAdvisory[];
+}): Promise<T & { warningObservation?: WarningDisplayReceipt }> {
+  try {
+    const { requestState } = input;
+    const reasoning = prescribeReasoningFromState(requestState);
+    if (requestState.prescriptionRevision?.source !== "herb_workbench" || !reasoning || body.audit.attestationVersion !== "tcm-cdss-workbench-revision-v1") return body;
+    const candidateIndex = requestState.prescriptionRevision.candidateIndex;
+    const herbHash = typeof body.audit.herbHash === "string" ? body.audit.herbHash : "";
+    const accepted = { caseId: requestState.id, reasoning, auditSection: body.section,
+      followupSection: body.followup.trim(), followupTimeline: body.followupTimeline,
+      serverSafetyLocked: derivePrescriptionPermission(withSafetyGate(requestState)).formalAdoption === "blocked",
+      revision: revisionFromAudit(body.audit, candidateIndex, herbHash, true),
+    };
+    const finalState = applyAcceptedPrescriptionDisplayResult({ ...requestState, customerId: input.customer.customerId }, accepted);
+    const projectedState = applyAcceptedPrescriptionDisplayResult(requestState, { ...accepted,
+      auditSection: matchedWarningText(body.section, input.sectionProjection),
+      followupSection: matchedWarningText(body.followup, input.followupProjection).trim(),
+    });
+    const prescription = buildAcceptedPrescriptionWarningProjection(reasoning, candidateIndex, herbHash);
+    const observation = await createWarningDisplayReceipt({ producer: "post-prescription-risk", requestState, finalState,
+      customer: input.customer, advisories: input.advisories,
+      owned: { prescription, riskAssessment: { markdown: finalState.riskAssessment || "", currentRiskMarkdown: projectedState.riskAssessment || "" },
+        audit: input.audit, floor: deriveStructuredCaseWarningFloor(input.producerState) },
+    });
+    return observation ? { ...body, warningObservation: observation } : body;
+  } catch {
+    console.warn("[tcm-cdss:warning-display] observation omitted", { reason: "post_projection_unavailable" });
+    return body;
+  }
 }
