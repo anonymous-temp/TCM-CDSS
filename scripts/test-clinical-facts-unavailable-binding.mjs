@@ -196,7 +196,9 @@ for (const mode of ["disabled", "model_error"]) {
     assert.ok(await verifyWarningDisplayReceipt(result.warningObservation, customer, finalState, "live"));
     assert.ok(await prepareWarningObservation({ receipt: result.warningObservation, requestState: submitted,
       finalState, customerId: customer.customerId, isCurrent: () => true }));
-    assert.equal(result.warningObservation.live.profile.executable, false);
+    assert.equal(runtime.hasValidClinicalFactsAttestation({ ...finalState.clinicalFacts,
+      attestation: result.warningObservation.mac,
+    }, Date.now(), undefined, customer.customerId), false, "a display receipt cannot attest clinical facts");
     assertUnavailable(finalState, mode);
     assert.equal(runtime.clinicalFactsServerCacheSize(), 0);
     assert.equal(mode === "disabled" ? modelCalls === 0 : modelCalls >= 4, true);

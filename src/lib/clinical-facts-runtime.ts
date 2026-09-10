@@ -585,11 +585,14 @@ export async function maybeAttachClinicalFactsBackstop(
   options?: { cacheTtlOverrideMs?: number },
 ): Promise<CaseState> {
   const withoutStaleFacts = { ...state, clinicalFacts: undefined };
+  // Empty failure snapshots still belong to this tenant; binding alone grants no clinical attestation.
+  const customerBindingHash = clinicalFactsCustomerBindingHash(state.customerId);
   if (!isClinicalFactsBackstopEnabled()) {
     return {
       ...withoutStaleFacts,
       clinicalFacts: {
         redFlags: [],
+        customerBindingHash,
         semanticStatus: "unavailable",
         resultSource: "failure",
         unavailableReason: "disabled",
@@ -674,6 +677,7 @@ export async function maybeAttachClinicalFactsBackstop(
         ...withoutStaleFacts,
         clinicalFacts: {
           redFlags: [],
+          customerBindingHash,
           sourceFingerprint,
           semanticStatus: "unavailable",
           resultSource: "failure",
@@ -695,7 +699,7 @@ export async function maybeAttachClinicalFactsBackstop(
           separateInvocationAdjudication: plan.separateInvocationAdjudication,
         };
       })(),
-      customerBindingHash: clinicalFactsCustomerBindingHash(state.customerId),
+      customerBindingHash,
       sourceFingerprint,
       sourceCoverage: sourceProjection.coverage,
       sourceCharCount: fullText.length,
@@ -718,6 +722,7 @@ export async function maybeAttachClinicalFactsBackstop(
         ...withoutStaleFacts,
         clinicalFacts: {
           redFlags: [],
+          customerBindingHash,
           sourceFingerprint,
           sourceCoverage: sourceProjection.coverage,
           sourceCharCount: fullText.length,
