@@ -417,6 +417,10 @@ export async function consumeMarkdownStreamWithMetadata(
         if (sawEnd) {
           try {
             const chunk = JSON.parse(line) as Record<string, unknown>;
+            if (typeof chunk.error === "string" && chunk.error.trim()) {
+              upstreamError = chunk.error.trim();
+              continue;
+            }
             if (acceptWarningFrame(chunk) || parseStreamModuleDraftFrame(chunk)) continue;
           } catch { /* retain malformed-frame handling */ }
           malformedLines += 1;
@@ -469,7 +473,8 @@ export async function consumeMarkdownStreamWithMetadata(
         if (buffer.trim()) {
           try {
             const tail = JSON.parse(buffer) as Record<string, unknown>;
-            if (!acceptWarningFrame(tail) && !parseStreamModuleDraftFrame(tail)) malformedLines += 1;
+            if (typeof tail.error === "string" && tail.error.trim()) upstreamError = tail.error.trim();
+            else if (!acceptWarningFrame(tail) && !parseStreamModuleDraftFrame(tail)) malformedLines += 1;
           }
           catch { malformedLines += 1; }
         }
