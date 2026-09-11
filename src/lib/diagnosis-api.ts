@@ -6679,8 +6679,11 @@ export async function probeTongueVisionModel(): Promise<TongueVisionProbeResult>
         // GLM-5V rejects one-pixel images as invalid vision input. Keep this embedded image large
         // enough to exercise the multimodal route while containing no patient or clinical content.
         const probeImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAeklEQVR4nNXOQREAAAyDMPybZiL62BEFwTiMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwzi+A6sDylPSwv6dS34AAAAASUVORK5CYII=";
-        const response = await fetchWithConnectTimeout(config.endpoint, {
+        // This single probe timer bounds both connection and body consumption. The shared
+        // connection-only helper releases its parent signal after headers and cannot own it.
+        const response = await fetch(config.endpoint, {
           method: "POST",
+          signal: controller.signal,
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
           body: JSON.stringify({
             model: config.model,
@@ -6695,7 +6698,7 @@ export async function probeTongueVisionModel(): Promise<TongueVisionProbeResult>
             stream: false,
             max_tokens: 16,
           }),
-        }, controller, Date.now() + timeoutMs);
+        });
         if (!response.ok) {
           reason = `http_${response.status}`;
           await cancelResponseBody(response);
