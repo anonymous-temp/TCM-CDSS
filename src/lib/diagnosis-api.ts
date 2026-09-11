@@ -6,11 +6,12 @@ import { explicitPromptCacheMessages } from "./model-prompt-cache";
 //     → M01-M04 use the primary text model via OpenAI-compatible Chat Completions;
 //       M05 is deterministic and consumes the Lingxi post-prescription audit result.
 //   M01 with tongue image
-//     → GLM vision for tongue-image extraction, then the text diagnosis chain continues on the primary model
+//     → selected vision provider for tongue-image extraction, then the text diagnosis chain continues on the primary model
 //
 // Both backends return NDJSON: {"content":"..."}\n per chunk, end with {"content":"[END]"}\n
 
 import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, isQwenModel, getBailianQwenConfig, textModelRequestTuning } from "@/lib/text-model";
+import { getTongueVisionModelConfig } from "@/lib/tongue-vision-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
 import { isSafetyRejection, qualityAnnotationCopy, shouldAcceptWithQualityAnnotation } from "@/lib/diagnosis-rejection-tiers";
@@ -54,8 +55,6 @@ import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
 import { responseFormatForTask, supportsStrictJsonSchema } from "@/lib/model-response-format";
 import { bindM04DeliveryReview, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint, type M04DeliveryCheckpoint } from "./m04-delivery-checkpoint";
 
-const GLM_API_URL = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
-const GLM_VISION_MODEL = process.env.GLM_VISION_MODEL?.trim() || "glm-5v-turbo";
 const PROVIDER_CONNECT_TIMEOUT_MS = 90_000;
 const STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS = (() => {
   const value = Number(process.env.STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS || 25_000);
@@ -6427,9 +6426,9 @@ async function callPrimaryTextModelStream(
   return ndjsonResp(stream);
 }
 
-// ─── GLM-5V backend (tongue-image extraction only) ───────────────────────────
+// ─── Selected vision backend (tongue-image extraction only; legacy glm alias) ──
 
-/** Build GLM message content — plain string when no images, multimodal array when images present. */
+/** Build the existing multimodal message without changing the tongue-image prompt. */
 type GlmContent = string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
 
 function buildGlmContent(
@@ -6451,22 +6450,29 @@ async function callGlmStream(
   images?: { tongue?: string },
   requestSignal?: AbortSignal,
 ): Promise<Response> {
-  if (!isTongueVisionEnabled()) {
+  const config = getTongueVisionModelConfig();
+  if (!config.enabled) {
     return errResponse(503, "舌象图像识别当前未启用，请改用结构化舌象录入");
   }
-  const apiKey = process.env.GLM_API_KEY || "";
-  if (!apiKey) {
-    return errResponse(500, "GLM_API_KEY not configured");
+  if (!config.configured) {
+    return errResponse(500, config.missingMessage);
   }
   if (!images?.tongue) {
-    return errResponse(400, "GLM-5V 仅用于舌象图像识别，文本临床推理必须使用 DeepSeek");
+    return errResponse(400, `${config.providerLabel} 舌象路径仅用于舌象图像识别，文本临床推理必须使用主文本模型`);
   }
 
   const MAX_RETRIES = 2;
   const absoluteDeadline = Date.now() + GLM_VISION_TOTAL_TIMEOUT_MS;
   const upstreamController = new AbortController();
-  const abortFromRequest = () => upstreamController.abort();
-  if (requestSignal?.aborted) upstreamController.abort();
+  let activeReader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  const abortUpstream = () => {
+    upstreamController.abort();
+    // The connection helper releases its signal link once headers arrive. Cancel the active
+    // response body as well so a browser abort also releases a provider stream already in flight.
+    void activeReader?.cancel().catch(() => undefined);
+  };
+  const abortFromRequest = () => abortUpstream();
+  if (requestSignal?.aborted) abortUpstream();
   else requestSignal?.addEventListener("abort", abortFromRequest, { once: true });
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let clientClosed = false;
@@ -6493,33 +6499,39 @@ async function callGlmStream(
             if (delay <= 0) throw new Error("舌象识别总时长超时，请稍后重试");
             await new Promise((resolve) => setTimeout(resolve, delay));
           }
-          res = await fetchWithConnectTimeout(GLM_API_URL, {
+          res = await fetchWithConnectTimeout(config.endpoint, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
+              Authorization: `Bearer ${config.apiKey}`,
             },
             body: JSON.stringify({
-              model: GLM_VISION_MODEL,
+              model: config.model,
               messages: [{ role: "user", content: buildGlmContent(prompt, images) }],
-              thinking: { type: process.env.GLM_VISION_THINKING_ENABLED === "true" ? "enabled" : "disabled" },
+              ...config.requestTuning,
               stream: true,
             }),
           }, upstreamController, absoluteDeadline);
+          if (upstreamController.signal.aborted || clientClosed) {
+            await cancelResponseBody(res);
+            throw new DOMException("Aborted", "AbortError");
+          }
           if (res.ok) break;
           const failedStatus = res.status;
           await cancelResponseBody(res);
-          if (failedStatus !== 429) throw new Error(`GLM API error: ${failedStatus}`);
+          if (failedStatus !== 429) throw new Error(`${config.providerLabel} API error: ${failedStatus}`);
           res = undefined;
         }
-        if (!res?.ok) throw new Error("GLM 请求频率超限，请稍后重试");
-        if (!res.body) throw new Error("GLM API returned empty stream");
+        if (!res?.ok) throw new Error(`${config.providerLabel} 请求频率超限，请稍后重试`);
+        if (!res.body) throw new Error(`${config.providerLabel} API returned empty stream`);
         const reader = res.body.getReader();
+        activeReader = reader;
         const dec = new TextDecoder();
         const deadline = absoluteDeadline;
         let buf = "";
         let malformedChunks = 0;
         let providerDone = false;
+        let contentReceived = false;
         const handleData = (data: string) => {
           if (data === "[DONE]") {
             providerDone = true;
@@ -6528,6 +6540,11 @@ async function callGlmStream(
           try {
             const obj = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
             const delta = obj.choices?.[0]?.delta?.content;
+            if (delta != null && typeof delta !== "string") {
+              malformedChunks += 1;
+              return;
+            }
+            if (delta?.trim()) contentReceived = true;
             if (delta && !clientClosed) enq(ctrl, delta);
           } catch {
             malformedChunks += 1;
@@ -6535,7 +6552,7 @@ async function callGlmStream(
         };
         try {
           while (true) {
-            const { done, value } = await readProviderChunk(reader, deadline, () => upstreamController.abort());
+            const { done, value } = await readProviderChunk(reader, deadline, abortUpstream);
             if (done) break;
             buf += dec.decode(value, { stream: true });
             const lines = buf.split("\n");
@@ -6558,14 +6575,17 @@ async function callGlmStream(
           }
           if (!providerDone && buf.trim().startsWith("data: ")) handleData(buf.trim().slice(6));
         } finally {
+          activeReader = undefined;
           reader.releaseLock();
         }
-        if (malformedChunks > 0) throw new Error("GLM stream contained malformed chunks");
-        if (!providerDone) throw new Error("GLM stream ended without provider DONE marker");
+        if (upstreamController.signal.aborted) throw new DOMException("Aborted", "AbortError");
+        if (malformedChunks > 0) throw new Error(`${config.providerLabel} stream contained malformed chunks`);
+        if (!providerDone) throw new Error(`${config.providerLabel} stream ended without provider DONE marker`);
+        if (!contentReceived) throw new Error(`${config.providerLabel} returned no final content`);
         if (!clientClosed) enq(ctrl, "[END]");
         close();
       } catch (error) {
-        if (!clientClosed) enqError(ctrl, error);
+        if (!clientClosed) ctrl.enqueue(enc.encode(JSON.stringify({ error: `${config.providerLabel}: ${publicModelErrorMessage(error)}` }) + "\n"));
         close();
       }
     },
@@ -6573,7 +6593,7 @@ async function callGlmStream(
       clientClosed = true;
       if (heartbeat) clearInterval(heartbeat);
       heartbeat = undefined;
-      upstreamController.abort();
+      abortUpstream();
       requestSignal?.removeEventListener("abort", abortFromRequest);
     },
   });
@@ -6587,7 +6607,7 @@ async function callGlmStream(
  *
  * @param prompt   The full prompt built by diagnosis-prompts.ts
  * @param backend  'deepseek' → legacy alias routed to the primary text model
- *                 'glm'    → GLM vision for tongue-image extraction only
+ *                 'glm'    → legacy alias routed to the selected tongue-image provider
  *                 'openai' → legacy alias routed to the primary text model
  */
 export async function callDiagnosisStream(
@@ -6608,14 +6628,16 @@ export async function callDiagnosisStream(
 }
 
 export function isTongueVisionEnabled(): boolean {
-  return process.env.GLM_VISION_ENABLED !== "false";
+  return getTongueVisionModelConfig().enabled;
 }
 
 export function isTongueVisionConfigured(): boolean {
-  return isTongueVisionEnabled() && Boolean(process.env.GLM_API_KEY);
+  return getTongueVisionModelConfig().configured;
 }
 
 export type TongueVisionProbeResult = {
+  provider: string;
+  model: string;
   checkedAt: string;
   cached: boolean;
   enabled: boolean;
@@ -6624,28 +6646,31 @@ export type TongueVisionProbeResult = {
   reason: string;
 };
 
-let tongueVisionProbeCache: { expiresAt: number; value: TongueVisionProbeResult } | undefined;
-let tongueVisionProbeInFlight: Promise<TongueVisionProbeResult> | undefined;
+let tongueVisionProbeCache: { key: string; expiresAt: number; value: TongueVisionProbeResult } | undefined;
+let tongueVisionProbeInFlight: { key: string; run: Promise<TongueVisionProbeResult> } | undefined;
 
 /**
- * Probe the exact GLM-5V route with a generated 64x64 blank image. The probe carries no patient data;
+ * Probe the selected vision route with a generated 64x64 blank image. The probe carries no patient data;
  * it verifies credentials and multimodal model access instead of treating a non-empty key as ready.
  */
 export async function probeTongueVisionModel(): Promise<TongueVisionProbeResult> {
   const now = Date.now();
-  if (tongueVisionProbeCache && tongueVisionProbeCache.expiresAt > now) {
+  const config = getTongueVisionModelConfig();
+  // Bind both positive/negative caching and concurrent sharing to the full selection. The key
+  // stays private and hashed, including credentials, to prevent a rotation from reusing old health.
+  const cacheKey = createHash("sha256").update(JSON.stringify(config)).digest("hex");
+  if (tongueVisionProbeCache?.key === cacheKey && tongueVisionProbeCache.expiresAt > now) {
     return { ...tongueVisionProbeCache.value, cached: true };
   }
-  if (tongueVisionProbeInFlight) {
-    const shared = await tongueVisionProbeInFlight;
+  if (tongueVisionProbeInFlight?.key === cacheKey) {
+    const shared = await tongueVisionProbeInFlight.run;
     return { ...shared, cached: true };
   }
   const run = (async () => {
-    const enabled = isTongueVisionEnabled();
-    const apiKey = process.env.GLM_API_KEY?.trim() || "";
-    const configured = enabled && Boolean(apiKey);
+    const { enabled, configured } = config;
     let ok = !enabled;
-    let reason = enabled ? (configured ? "not_probed" : "api_key_missing") : "disabled";
+    let reason = enabled ? (configured ? "not_probed"
+      : config.disabledReason === "missing_api_key" ? "api_key_missing" : config.disabledReason || "unconfigured") : "disabled";
     if (configured) {
       const controller = new AbortController();
       const timeoutMs = Math.min(12_000, GLM_VISION_TOTAL_TIMEOUT_MS);
@@ -6654,11 +6679,11 @@ export async function probeTongueVisionModel(): Promise<TongueVisionProbeResult>
         // GLM-5V rejects one-pixel images as invalid vision input. Keep this embedded image large
         // enough to exercise the multimodal route while containing no patient or clinical content.
         const probeImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAeklEQVR4nNXOQREAAAyDMPybZiL62BEFwTiMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwziMwzi+A6sDylPSwv6dS34AAAAASUVORK5CYII=";
-        const response = await fetchWithConnectTimeout(GLM_API_URL, {
+        const response = await fetchWithConnectTimeout(config.endpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
           body: JSON.stringify({
-            model: GLM_VISION_MODEL,
+            model: config.model,
             messages: [{
               role: "user",
               content: [
@@ -6666,7 +6691,7 @@ export async function probeTongueVisionModel(): Promise<TongueVisionProbeResult>
                 { type: "image_url", image_url: { url: probeImage } },
               ],
             }],
-            thinking: { type: "disabled" },
+            ...config.requestTuning,
             stream: false,
             max_tokens: 16,
           }),
@@ -6675,8 +6700,9 @@ export async function probeTongueVisionModel(): Promise<TongueVisionProbeResult>
           reason = `http_${response.status}`;
           await cancelResponseBody(response);
         } else {
-          const result = JSON.parse(await readResponseTextLimited(response, 8_000)) as { choices?: unknown[] };
-          ok = Array.isArray(result.choices) && result.choices.length > 0;
+          const result = JSON.parse(await readResponseTextLimited(response, 8_000)) as { choices?: Array<{ message?: { content?: unknown } }> };
+          const content = result?.choices?.[0]?.message?.content;
+          ok = typeof content === "string" && Boolean(content.trim());
           reason = ok ? "ok" : "invalid_response";
         }
       } catch {
@@ -6686,6 +6712,8 @@ export async function probeTongueVisionModel(): Promise<TongueVisionProbeResult>
       }
     }
     const value: TongueVisionProbeResult = {
+      provider: config.providerLabel,
+      model: config.model,
       checkedAt: new Date(now).toISOString(),
       cached: false,
       enabled,
@@ -6693,19 +6721,20 @@ export async function probeTongueVisionModel(): Promise<TongueVisionProbeResult>
       ok,
       reason,
     };
-    tongueVisionProbeCache = { expiresAt: now + (ok ? 5 * 60_000 : 30_000), value };
+    tongueVisionProbeCache = { key: cacheKey, expiresAt: now + (ok ? 5 * 60_000 : 30_000), value };
     return value;
   })();
-  tongueVisionProbeInFlight = run;
+  tongueVisionProbeInFlight = { key: cacheKey, run };
   try {
     return await run;
   } finally {
-    if (tongueVisionProbeInFlight === run) tongueVisionProbeInFlight = undefined;
+    if (tongueVisionProbeInFlight?.run === run) tongueVisionProbeInFlight = undefined;
   }
 }
 
 export function getDiagnosisProviderStatus() {
   const primary = getPublicTextModelStatus();
+  const vision = getTongueVisionModelConfig();
   const reviewPrimary = getPrimaryTextModelConfig();
   const diagnoseClinicalReview = clinicalReviewModelCandidates("diagnose", reviewPrimary);
   const prescribeClinicalReview = clinicalReviewModelCandidates("prescribe", reviewPrimary);
@@ -6767,12 +6796,13 @@ export function getDiagnosisProviderStatus() {
       unavailablePolicy: "continue_with_explicit_doctor_review_notice",
     },
     tongueVision: {
-      provider: "GLM vision",
-      model: GLM_VISION_MODEL,
-      enabled: isTongueVisionEnabled(),
-      configured: isTongueVisionConfigured(),
-      requiredForRelease: isTongueVisionEnabled(),
-      optional: !isTongueVisionEnabled(),
+      provider: vision.providerLabel,
+      model: vision.model,
+      enabled: vision.enabled,
+      configured: vision.configured,
+      disabledReason: vision.disabledReason,
+      requiredForRelease: vision.enabled,
+      optional: !vision.enabled,
     },
     evidenceAdapter: {
       provider: "EviMed guide, instruction, and literature evidence context",

@@ -232,7 +232,7 @@ test("provider rejection reports the selected provider without retrying a differ
   globalThis.fetch = async (input, init) => { record(input, init); return new Response("synthetic-provider-secret", { status: 401 }); };
   const result = await stream();
   assertNoSuccessEnd(result.frames);
-  assert.match(result.raw, /DeepSeek.*401/);
+  assert.match(result.raw, /DeepSeek.*暂时不可用/);
   assert.doesNotMatch(result.raw, /GLM|synthetic-provider-secret/);
   assert.equal(requests.length, 1);
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createTextModelClient, getPrimaryTextModelConfig } from "./text-model";
+import { createTextModelClient, getPrimaryTextModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 
 const MedicationEventSchema = z.object({
@@ -525,6 +525,7 @@ export async function extractMedicationEventsWithModel(
           temperature: 0,
           max_tokens: 1600,
           response_format: { type: "json_object" },
+          ...textModelRequestTuning(config.model, { reasoningEffort: "low", thinkingEnabled: false }),
           messages: [
             { role: "system", content: systemPrompt },
             {
