@@ -2133,9 +2133,13 @@ function isNegatedAt(text: string, index: number): boolean {
 
   const last = matches[matches.length - 1];
   const lastNegationEnd = (last.index ?? 0) + last[0].length;
-  if (last[0] === "排除") {
-    const beforeNegation = before.slice(Math.max(0, (last.index ?? 0) - 8), last.index ?? 0);
-    if (/(无法|不能|不可|尚未|未能|难以|需|待|仍需)/.test(beforeNegation)) return false;
+  if (last[0] === "排除" || last[0] === "否认" || last[0] === "除外") {
+    // 「无法排除呕血」「不能完全否认呕血」「尚未除外出血」：情态 + 否定动词 = 排除不了 = 可能有。
+    // 此前只给「排除」装了这道守卫，「否认」没有，于是「无法完全否认呕血」把呕血红旗抹掉
+    // （2026-09-08 用真函数复现）。clinical-polarity 的 NON_NEGATING_WU_MODAL 是同一判据；情态词是
+    // 封闭语法类，枚举安全。允许情态词与否定动词之间夹一个程度副词（完全/彻底/明确）。
+    const beforeNegation = before.slice(Math.max(0, (last.index ?? 0) - 10), last.index ?? 0);
+    if (/(无法|不能|不可|尚未|未能|难以|需|待|仍需)(?:完全|彻底|明确|轻易|简单)?$/.test(beforeNegation)) return false;
   }
   const afterNegation = before.slice(lastNegationEnd);
   if (/(但|但是|然而|不过|却|但有|另有|仍有|转为|改为)/.test(afterNegation) ||
@@ -2233,6 +2237,29 @@ function hasCommaSeparatedPositiveEvidence(text: string, index: number, term: st
     /^(?:后|伴有?|并|且|持续|反复|加重|发作|导致|致|继而|随后)/.test(after);
 }
 
+/**
+ * 症状词**之后**的否定（后缀否定）：「黑便无」「呕血阴性」「呕血（-）」「黑便、呕血、便血均无」
+ * 「呕血一次也没有」「晕厥并未发生」。此前这套判据只写在 hasTerm 里；hasGiBleedPrioritySignal 与
+ * hasAbdominalPrioritySignal 只用前置否定 isNegatedAt 判定，于是「呕血阴性」「呕血（-）」「呕血并未出现」
+ * 在提示档/优先评估档被当阳性（2026-09-08 用真函数复现），而同一句在红旗档（hasTerm）却被正确判否。
+ * 同一判据两处各写各的——现在只在这里写一份，三个调用方共用。
+ */
+function isPostfixNegatedAt(text: string, index: number, termLength: number): boolean {
+  const after = text.slice(index + termLength, index + termLength + 44);
+  const postPersistentCue = /^(?:、|，|,|及|和|与|或)?[^。；;\n]{0,18}(?:没有|无|未见|未|尚未|并未).{0,8}(?:缓解|好转|改善)/.test(after);
+  // 只有“均/皆/都”这类量化词才合法地回指前面的症状列表（“黑便、呕血、便血均无”），才允许较宽间隔。
+  const postCollectiveNegated = /^(?:、|，|,|及|和|与|或)?[^。；;\n]{0,18}(?:均无|均未见|均否认|皆无|皆未见|皆否认|都无|都未见|都没有)/.test(after);
+  // 顿号并列清单后接裸否定（“黑便、呕血、便血无”）：仅当间隔全为顿号并列项、不含逗号/数字时才算集合否定。
+  const postListNegated = /^、[^。；;，,\d\n]{0,16}(?:无|未见|没有|否认|阴性)/.test(after);
+  // 裸“无/否认/未见/已缓解”只有紧贴症状词时才是对它本身的否定（“黑便无”“黑便：否认”“黑便已缓解”）。
+  // fail-closed 关键修复：不得跨过逗号/数字进入下一分句——“黑便3天，无腹痛”里的“无”否定的是腹痛，
+  // 绝不能因此把作为红旗的“黑便”判为阴性而漏报消化道出血（其余晕厥/便血/呕血/肢体无力/寒战同理）。
+  // 「呕血（-）」「黑便(-)」是系统回顾/查体里的标准阴性记法，与「阴性」同义（2026-09-08 实测漏判）。
+  const postDirectNegated = /^(?:[：:（(【\[\s]{0,4}(?:无|未见|没有|否认|阴性|未再发|无再发|已缓解|已消失)|\s*[（(]\s*[-−－—]\s*[)）])/.test(after);
+  const postExplicitNegated = /^(?:(?:一|二|两|三|四|五|六|七|八|九|十|数|多|几)?次\s*)?(?:也|均|都)?\s*(?:并|且)?\s*(?:未|没有|无|未见|未出现|未发生|并未|且未|也未|也没有)(?:出现|发生|发作|再发|过)?/.test(after);
+  return !postPersistentCue && (postCollectiveNegated || postListNegated || postDirectNegated || postExplicitNegated);
+}
+
 function hasTerm(text: string, term: string): boolean {
   let index = text.indexOf(term);
   while (index !== -1) {
@@ -2240,18 +2267,7 @@ function hasTerm(text: string, term: string): boolean {
       index = text.indexOf(term, index + term.length);
       continue;
     }
-    const after = text.slice(index + term.length, index + term.length + 44);
-    const postPersistentCue = /^(?:、|，|,|及|和|与|或)?[^。；;\n]{0,18}(?:没有|无|未见|未|尚未|并未).{0,8}(?:缓解|好转|改善)/.test(after);
-    // 只有“均/皆/都”这类量化词才合法地回指前面的症状列表（“黑便、呕血、便血均无”），才允许较宽间隔。
-    const postCollectiveNegated = /^(?:、|，|,|及|和|与|或)?[^。；;\n]{0,18}(?:均无|均未见|均否认|皆无|皆未见|皆否认|都无|都未见|都没有)/.test(after);
-    // 顿号并列清单后接裸否定（“黑便、呕血、便血无”）：仅当间隔全为顿号并列项、不含逗号/数字时才算集合否定。
-    const postListNegated = /^、[^。；;，,\d\n]{0,16}(?:无|未见|没有|否认|阴性)/.test(after);
-    // 裸“无/否认/未见/已缓解”只有紧贴症状词时才是对它本身的否定（“黑便无”“黑便：否认”“黑便已缓解”）。
-    // fail-closed 关键修复：不得跨过逗号/数字进入下一分句——“黑便3天，无腹痛”里的“无”否定的是腹痛，
-    // 绝不能因此把作为红旗的“黑便”判为阴性而漏报消化道出血（其余晕厥/便血/呕血/肢体无力/寒战同理）。
-    const postDirectNegated = /^[：:（(【\[\s]{0,4}(?:无|未见|没有|否认|阴性|未再发|无再发|已缓解|已消失)/.test(after);
-    const postExplicitNegated = /^(?:(?:一|二|两|三|四|五|六|七|八|九|十|数|多|几)?次\s*)?(?:也|均|都)?\s*(?:并|且)?\s*(?:未|没有|无|未见|未出现|未发生|并未|且未|也未|也没有)(?:出现|发生|发作|再发|过)?/.test(after);
-    const postNegated = !postPersistentCue && (postCollectiveNegated || postListNegated || postDirectNegated || postExplicitNegated);
+    const postNegated = isPostfixNegatedAt(text, index, term.length);
     const historicalResolved = isHistoricalOrResolvedAt(text, index, term.length);
     const anaphoricRecurrence = hasAnaphoricRecurrenceAfter(text, index, term);
     // A comma normally continues an explicit negative symptom list. It becomes a positive boundary
@@ -2421,7 +2437,8 @@ export function hasGiBleedPrioritySignal(text: string): boolean {
       if (index < 0) break;
       cursor = index + term.length;
       if (isExcludedClinicalAssertionAt(normalized, index)) continue;
-      const affirmed = !isNegatedAt(normalized, index) || hasCommaSeparatedPositiveEvidence(normalized, index, term);
+      const affirmed = (!isNegatedAt(normalized, index) || hasCommaSeparatedPositiveEvidence(normalized, index, term)) &&
+        !isPostfixNegatedAt(normalized, index, term.length);
       if (affirmed && !isHistoricalOrResolvedAt(normalized, index, term.length)) return true;
     }
   }
@@ -2438,7 +2455,8 @@ function hasAbdominalPrioritySignal(text: string): boolean {
     const term = match[0];
     if (index >= 0) {
       if (isExcludedClinicalAssertionAt(normalized, index)) continue;
-      const affirmed = !isNegatedAt(normalized, index) || hasCommaSeparatedPositiveEvidence(normalized, index, term);
+      const affirmed = (!isNegatedAt(normalized, index) || hasCommaSeparatedPositiveEvidence(normalized, index, term)) &&
+        !isPostfixNegatedAt(normalized, index, term.length);
       if (affirmed && !isHistoricalOrResolvedAt(normalized, index, term.length)) {
         const clauseStart = Math.max(
           normalized.lastIndexOf("。", index - 1),

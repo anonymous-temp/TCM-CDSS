@@ -969,6 +969,15 @@ function normalizeM04ProposalInput(
   } else if (courseDays != null && dosesPerDay != null && courseDays * dosesPerDay <= 30) {
     decoction.doseCount = `${courseDays * dosesPerDay}剂`;
     decoction.course = `${courseDays}日`;
+  } else if (doseCount != null && dosesPerDay != null && normalizedCourse == null) {
+    // 紧凑提案里 course 是服务端字段（严格 schema 下 provider 根本发不出来），总剂数却不能被
+    // 每日剂数整除（7剂 + 每日2剂）。此前这里把 course 留成 undefined，M04ProposalSchema 因
+    // 「缺必填」整份拒绝，码 m04_proposal_invalid_type_candidate_decoction_course 又没有修复提示，
+    // 同码再来一轮即 fixpoint → 医生拿到 0 味（2026-09-08 实测复现）。
+    // 服务端不替模型发明剂数：总剂数原样保留，疗程按向上取整推导给出，让下方 superRefine 的
+    // course_inconsistent 以**有指导**的修复驱动模型改正剂数（或每日剂数），而不是无指导重采样。
+    decoction.doseCount = `${doseCount}剂`;
+    decoction.course = `${Math.ceil(doseCount / dosesPerDay)}日`;
   } else {
     decoction.doseCount = normalizedDoseCount;
     decoction.course = normalizedCourse;

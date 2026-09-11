@@ -1710,6 +1710,34 @@ for (const clinicalProse of [
 for (const regimen of ["黄芪15g", "每日1剂", "每日一剂", "水煎服", "冲服", "口服3片", "连服3剂", "共5剂", "疗程为14天", "每晚2粒"]) {
   assert.notEqual(sanitizeDiagnoseStreamingDraft(regimen), regimen, `可执行用法必须被掩码：${regimen}`);
 }
+// 2026-09-08 用真函数复现：患者事实里的化验值、体液量与既往用药剂量被当成处方剂量抹掉——
+// 「血红蛋白58 g/L」→「血红蛋白（剂量以审定处方为准）/L」、「呕血约300mL」→「呕血约（剂量以审定处方为准）」、
+// 「既往口服二甲双胍500mg bid」剂量被抹、「中药煎服史3年」被改写成病句。M03 正文比病历更少，
+// 而红旗判据（出血量、血红蛋白）恰恰就是这些数。三条构词式守卫：单位后跟「/」是浓度/速率；
+// 名以体液/量词结尾是量；同一子句前置既往用药标记是用药史。
+for (const patientFact of [
+  "血红蛋白58 g/L，提示重度贫血",
+  "白蛋白35 g/L，总蛋白62 g/L",
+  "尿蛋白2g/24h",
+  "呕血约300mL",
+  "出血量约200mL，伴头晕",
+  "尿量1500mL/日",
+  "饮水约2000mL",
+  "既往口服二甲双胍500mg bid",
+  "既往高血压，现服氨氯地平5mg",
+  "曾服黄芪30g后心悸",
+  "中药煎服史3年",
+]) {
+  assert.equal(sanitizeDiagnoseStreamingDraft(patientFact), patientFact, `患者事实里的化验值/体液量/既往用药不得被剂量掩码改写：${patientFact}`);
+}
+// 反向护栏：同一子句里的处方建议照常掩码，既往标记不得跨子句放行。
+for (const [text, forbidden] of [
+  ["建议黄芪15g", /15g/],
+  ["既往高血压。拟予黄芪15g", /15g/],
+  ["既往口服二甲双胍，建议加用阿司匹林100mg", /100mg/],
+]) {
+  assert.doesNotMatch(sanitizeDiagnoseStreamingDraft(text), forbidden, `处方建议仍须掩码：${text}`);
+}
 assert.match(safeM03Draft, /既往服用阿司匹林100mg/, "structured M03 contract must remain byte-stable for signature validation");
 const safeCourseDraft = sanitizeDiagnoseStreamingDraft("建议连服3剂后复诊；拟服用7天；共5剂。症状已持续3天。");
 assert.doesNotMatch(safeCourseDraft, /连服3剂|服用7天|共5剂/);

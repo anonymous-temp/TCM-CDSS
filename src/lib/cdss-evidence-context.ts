@@ -109,10 +109,18 @@ function diagnosticReferenceAppliesToPatient(
   const reproductiveScopeExcluded = caseState.patient.sex === "男" ||
     (age != null && age >= 60) ||
     /绝经|否认妊娠|无妊娠|不可能妊娠/.test(patientText);
-  if (reproductiveScopeExcluded && (
-    matchesPopulationScope(evidenceRecord.text, "maternal") ||
-    matchesPopulationScope(evidenceRecord.text, "obstetric")
-  )) return false;
+  if (!reproductiveScopeExcluded) return true;
+  // 人群冲突减分只认**胎产严格口径**（tcm-population-scope.source.json：obstetric 是「唯一可用于
+  // 人群冲突减分的口径」，maternal 是宽口径「绝不可用于冲突减分」）。此前两口径都拿来全文排除，
+  // 2026-09-08 实测：68 岁女性骨质疏松，唯一适用的《原发性骨质疏松症诊疗指南》因摘要一句
+  // 「适用于绝经后妇女及老年人」命中宽口径「妇女」而被整条排除，参考文献区空白；
+  // 45 岁男性缺铁性贫血同理（摘要提到「育龄妇女月经量」）。男性与 ≥60 岁在中医门诊占比很大，
+  // 这条误排除等于把最常见人群的指南依据整体清空。
+  // 现口径：胎产限定词全文命中即排除；宽口径妇科词只在**题名**里命中才排除（题名才是范围声明，
+  // 摘要里的一句人群举例不是）。
+  if (matchesPopulationScope(evidenceRecord.text, "obstetric")) return false;
+  const citation = governedEvidenceCitation(evidenceId, scope)?.citation || "";
+  if (citation && matchesPopulationScope(citation, "maternal")) return false;
   return true;
 }
 

@@ -318,6 +318,17 @@ const scripts = [
   // 并禁止出口自拼 `${entry.citation}（…）`：那正是分叉的起点。
   "test:guideline-reference-outlets",
   "test:diagnostic-citation-contract",
+  // 指南引用的人群适用性（2026-09-08「证据不适用」实测）：宽口径妇科词（妇女/月经）此前在摘要里
+  // 命中即整条排除，68 岁女性骨质疏松、45 岁男性缺铁性贫血的唯一适用指南消失、参考文献区空白，
+  // 与 tcm-population-scope.source.json 的治理注记相悖（maternal 绝不可用于冲突减分）。
+  // 钉：摘要宽口径词不排除；胎产严格口径全文命中仍排除；宽口径词在题名里仍排除；儿科规则不变。
+  "test:evidence-population-applicability",
+  // 否定判据呈现层与安全门对齐（2026-09-08「否定提示错误」实测）：总括量词否定（均无/都没有）与
+  // 后缀否定（阴性/（-）/并未出现）在极性层判 affirmed；混合极性整句「否认腹痛，呕血1次」被两处
+  // 各自归入「排除依据」；提示档 GI/腹痛信号只用前置否定；isNegatedAt 的情态守卫漏了「否认」。
+  // 钉：四类各配反向护栏，判据分别收敛到 clinical-vocabulary / isWhollyNegatedClinicalFact /
+  // isPostfixNegatedAt 一处。
+  "test:negation-presentation-parity",
   "test:tcm-diagnostic-citations",
   "test:western-differential-citations",
   "test:diagnosis-citation-presentation",

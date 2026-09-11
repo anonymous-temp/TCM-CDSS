@@ -124,3 +124,29 @@ test("compact fixture reports measurable wire reduction without shrinking clinic
   assert.ok(compactChars < fullChars);
   console.log(JSON.stringify({ suite: "m04-concise-proposal", fixtureOutputChars: { full: fullChars, compact: compactChars, saved: fullChars - compactChars }, providerSchemaChars: JSON.stringify(schema).length }));
 });
+
+// 2026-09-08 实测：紧凑提案的 course 是服务端字段（严格 schema 下 provider 发不出来），总剂数不能被
+// 每日剂数整除时（7剂 + 每日2剂）服务端此前把 course 留成 undefined → 「缺必填」整份拒绝 →
+// 码 m04_proposal_invalid_type_candidate_decoction_course 没有修复提示 → 同码再来一轮 fixpoint → 0 味。
+// 钉两件事：①非整除时失败码必须是**有指导**的 course_inconsistent（custom）而不是缺字段；
+// ②m04_proposal_* 的 decoction 族码必须拿到与 m04_candidate_*_course 同一段处方计划指导。
+test("non-divisible dose count in a compact proposal yields a guided regimen repair, not an unguided missing-field failure", async () => {
+  const { m04ProposalIssueCode } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+  const { buildM04ClinicalRepairHint } = await jiti.import("../src/lib/structured-clinical-repair.ts");
+  const odd = structuredClone(compact);
+  odd.candidate.decoction.doseCount = "7剂";
+  odd.candidate.decoction.dosesPerDay = 2;
+  const code = m04ProposalIssueCode(odd, prior);
+  assert.equal(code, "custom_candidate_decoction_course", "非整除必须落到 superRefine 的 course_inconsistent，而不是缺字段");
+  assert.equal(compileM04JsonObjectContent(JSON.stringify(odd), prior), undefined, "不整除的处方计划仍不得编译成候选（服务端不替模型发明剂数）");
+  for (const reason of [`m04_proposal_${code}`, "m04_proposal_invalid_type_candidate_decoction_course", "m04_proposal_too_small_candidate_decoction_dosesPerDay"]) {
+    const hint = buildM04ClinicalRepairHint(reason);
+    assert.match(hint, /总剂数/, `${reason} 必须拿到处方计划指导`);
+    assert.match(hint, /每日剂数/, `${reason} 指导必须点名每日剂数`);
+  }
+  // 反向护栏：可整除与每日 1 剂的形态照常编译，不受推导分支影响。
+  const one = structuredClone(compact);
+  one.candidate.decoction.doseCount = "7剂";
+  one.candidate.decoction.dosesPerDay = 1;
+  assert.equal(compileM04JsonObjectContent(JSON.stringify(one), prior)?.formula.candidates[0].decoction.course, "7日");
+});

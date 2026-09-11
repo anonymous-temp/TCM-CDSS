@@ -7,7 +7,7 @@ import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesis
 // 剂量写法判据复用 M04 那条已导出的，不写第二份。
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
-import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel } from "./clinical-polarity";
+import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
 import { sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
@@ -2778,7 +2778,9 @@ function documentedExclusionFacts(clinicalContext: string): string[] {
     .flatMap((value) => value.split(/[；;。]+/))
     .map((value) => value.trim())
     .filter((value) => value.length >= 3 && value.length <= 120)
-    .filter((value) => /(?:否认|未见|不伴|无)(?:明显)?/.test(value))
+    // 「句内出现否认/无」不是否定判据：裸「无」会命中「肢体无力」里的「无」，混合极性句
+    // （「否认腹痛，呕血1次」）也会整条被当排除依据。改用极性层的整条否定判据（一处）。
+    .filter((value) => isWhollyNegatedClinicalFact(value))
     .filter((value) => /外伤|红肿热|锁膝|肢体麻木|肢体无力|胸痛|气促|喘憋|咯血|呕血|黑便|发热|晕厥|意识改变/.test(value))
     .slice(0, 1)
     .map(stripClinicalTransportPrefix);

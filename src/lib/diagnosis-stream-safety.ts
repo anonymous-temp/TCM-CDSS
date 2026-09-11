@@ -25,12 +25,34 @@ const COURSE_UNIT = String.raw`(?:剂|日|天|周|疗程)`;
  * it consumed the `|` delimiters and collapsed the row's columns. Each rule therefore requires a
  * quantity + unit, and replaces only the regimen token rather than a fixed run of following text.
  */
+/**
+ * 「名 + 数量 + 单位」里哪些不是剂量（2026-09-08 用真函数复现的信息丢失）：
+ *   「血红蛋白58 g/L」→「血红蛋白（剂量以审定处方为准）/L」   化验浓度
+ *   「尿蛋白2g/24h」  →「尿蛋白（剂量以审定处方为准）/24h」    24 小时定量
+ *   「呕血约300mL」   →「呕血约（剂量以审定处方为准）」        出血量——红旗判据本身
+ *   「既往口服二甲双胍500mg bid」→ 剂量被抹                    既往用药史（患者事实）
+ * 这些都是患者事实，抹掉后医生看到的 M03 正文比病历更少。判据是三条构词式守卫，不是词表：
+ *  ① 单位后紧跟「/」的是浓度或速率（g/L、mg/dL、g/24h、mL/h），不是剂量；
+ *  ② 名以体液/量词结尾（血/尿/痰/液/汗/水/量/约/共/计/达/至）的是量，不是药；
+ *  ③ 同一子句里前置既往用药标记（既往/曾服/现服/长期/目前/自服/在服/口服史）的是用药史。
+ * 生成建议里的「黄芪15g」「阿司匹林100mg」照常掩码。
+ */
+const MEASUREMENT_SUBJECT_TAIL = /[血尿痰液汗水量约共计达至]$/;
+const HISTORIC_MEDICATION_MARKER = /(?:既往|曾服|曾用|现服|长期|目前|自服|在服|平素服|口服史|服用史|用药史)[^，,。；;\n]{0,16}$/;
+
+function isMeasurementNotDose(preceding: string, subject: string): boolean {
+  if (MEASUREMENT_SUBJECT_TAIL.test(subject)) return true;
+  const clause = `${preceding}${subject}`.split(/[，,。；;\n]/).at(-1) || "";
+  return HISTORIC_MEDICATION_MARKER.test(clause);
+}
+
 function sanitizeVisibleDiagnoseText(content: string): string {
   return content
-    // 1. 药名 + 数量 + 剂量单位（黄芪15g / 阿司匹林100mg）。
+    // 1. 药名 + 数量 + 剂量单位（黄芪15g / 阿司匹林100mg）。化验值、体液量与既往用药史保留（见上）。
     .replace(
-      /([一-龥A-Za-z][一-龥A-Za-z·-]{0,15})\s*\d+(?:\.\d+)?\s*(?:微克|毫克|克|μg|mcg|mg|g|mL|ml|片|粒|丸|袋|支|滴)(?![一-龥A-Za-z])/g,
-      `$1${DOSE_PLACEHOLDER}`,
+      /([一-龥A-Za-z][一-龥A-Za-z·-]{0,15})\s*\d+(?:\.\d+)?\s*(?:微克|毫克|克|μg|mcg|mg|g|mL|ml|片|粒|丸|袋|支|滴)(?![一-龥A-Za-z])(?!\s*\/)/g,
+      (match: string, subject: string, offset: number, source: string) =>
+        isMeasurementNotDose(source.slice(Math.max(0, offset - 24), offset), subject) ? match : `${subject}${DOSE_PLACEHOLDER}`,
     )
     // 2. 给药频次：频次词必须紧邻“数量 + 剂型单位”才构成用法（每日1剂 / 每次2片）。
     //    症状描述在频次词与数量之间隔着症状本身（每日腹泻3次），不再命中。
@@ -39,7 +61,8 @@ function sanitizeVisibleDiagnoseText(content: string): string {
       REGIMEN_PLACEHOLDER,
     )
     // 3. 煎服法：水煎服/煎服/冲服/吞服 只出现在处方用法中，掩码该词本身即可。
-    .replace(/水煎服|煎服|冲服|吞服/g, REGIMEN_PLACEHOLDER)
+    //    「煎服史」「煎服法」是名词性用法（中药煎服史3年 / 煎服法说明），不是给药指令。
+    .replace(/(?:水煎服|煎服|冲服|吞服)(?![史法])/g, REGIMEN_PLACEHOLDER)
     //    口服/外用 是普通临床用语，只有紧跟“数量 + 剂型单位”时才是用法。
     .replace(
       new RegExp(String.raw`(?:口服|外用)\s*${QUANTITY}\s*${DOSE_FORM_UNIT}`, "g"),

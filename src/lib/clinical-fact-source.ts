@@ -1,4 +1,4 @@
-import { clinicalClausePolarity } from "./clinical-polarity";
+import { isWhollyNegatedClinicalFact } from "./clinical-polarity";
 import { clinicalRequiredFieldLabel } from "./clinical-governance-tables";
 
 /**
@@ -362,7 +362,8 @@ export function classifyWesternDiagnosticEvidence(
   sources: readonly ClinicalFactSource[] = [],
 ): ClassifiedDiagnosticEvidence {
   const facts = cleanedList(primary?.supportingFacts);
-  const excluding = facts.filter((fact) => clinicalClausePolarity(fact) === "negative");
+  // 按子句判：混合极性的整句（「否认腹痛，呕血1次」）不是排除依据。判据在 clinical-polarity 一处。
+  const excluding = facts.filter((fact) => isWhollyNegatedClinicalFact(fact));
   const supporting = facts.filter((fact) => !excluding.includes(fact));
   const declared = modelDeclaredKinds(primary?.supportingFactKinds);
   const buckets: Record<EvidenceKind, string[]> = { symptom: [], sign: [], exam: [], history: [] };

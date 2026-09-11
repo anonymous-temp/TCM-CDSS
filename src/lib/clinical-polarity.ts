@@ -5,6 +5,8 @@
  * 实测代价：`无法完全否认呕血` 原本判 negative——「排除不了呕血」被读成「已否认呕血」，
  * 红旗直接被抹掉。这是本次审计里方向最危险的一条。
  */
+import { classifyBlanketAnswer, endsWithBlanketQuantifiedNegation, stripBlanketQuantifierPrefix } from "./clinical-vocabulary";
+
 const NON_NEGATING_WU_MODAL = /^无(?:法|从|以|需|须|论|非)/;
 
 export type ClinicalClausePolarity = "affirmed" | "negative" | "uncertain";
@@ -21,14 +23,21 @@ const NEGATIVE_PREFIX = /^(?:(?:患者|病人|本人|既往|目前|当前|现阶
 // symptoms rather than being silently discarded as denials.
 const COLLOQUIAL_PAST_EVENT_NEGATION = /^(?:(?:患者|病人|本人|既往|目前|当前|现阶段|本次|近期|近日|入院以来|就诊以来|发病以来|病程中)\s*[：:]?\s*)?(?:没|没有)[^，,。；;\n]{1,32}过[^，,。；;\n]{0,16}$/;
 const BARE_NO_HISTORY = /^无(?!菌性|痛性|症状性|创性|脉性|意识性)[^。；;\n]{0,48}(?:病史|过敏史|用药史|功能不全|功能异常|异常|过敏|用药|服药)$/;
-const NEGATIVE_SUFFIX = /(?:已排除|已除外|检查阴性|未见(?:明显)?异常|未发现(?:明显)?异常|不支持|不考虑)$/;
+// 「X阴性」「X（-）」「X(-)」是检查/系统回顾里的标准否定记法（呕血(-)，黑便(-)）；
+// 此前只认「检查阴性」整词，于是「呕血阴性」「呕血（-）」判 affirmed。构词式守卫，闭集。
+const NEGATIVE_SUFFIX = /(?:已排除|已除外|检查阴性|阴性|[（(]\s*[-−－—]\s*[)）]|未见(?:明显)?异常|未发现(?:明显)?异常|不支持|不考虑)$/;
 const POSTFIX_NEGATIVE = /(?:病史|过敏史|用药史|功能不全|功能异常|过敏|用药|服药)\s*[：:]?\s*(?:无|否认|没有|并无|未见|未发现|未患)$/;
+// 事件型后缀否定（2026-09-08 实测漏判）：「呕血并未出现」「晕厥一次也未发生」「肢体无力也未见」
+// 「意识丧失并未发生」在安全门里早已按否定处理，极性层却判 affirmed，于是可见摘要/西医依据表
+// 把它们当阳性事实。动词限定在**出现类**（出现/发生/发作/再发/复发/见）——「咳嗽并未缓解」是
+// 症状仍在，必须继续判 affirmed，因此缓解/好转/消失/控制类不在此列。构词式守卫，闭集。
+const POSTFIX_EVENT_NEGATION = /(?:(?:并未|未曾|尚未|从未|从来没有?|从来未|一次也(?:没有|未|没)|也未|也没有?|也无|并无|并没有?)(?:出现|发生|发作|再发|复发|见到?|有)?|(?:未|没有|没)(?:出现|发生|发作|再发|复发|见到?))$/;
 const UNCERTAIN_CUE = /(?:待排(?:除)?|待查|待明确|待核实|可能|疑似|不能排除|无法排除|尚不明确|不详|未知|未提供|未采集|未询问|说不清)/;
 // 转折词。原来漏了「唯/惟/仅/只是/只有」，于是「未见明显异常，唯血压偏高」里的
 // 阳性部分被前半句的否定整条吞掉——阳性事实静默消失，比多报一条危险。
 const DISCOURSE_PREFIX = /^(?:但|但是|然而|不过|而|另有|同时|唯|惟|仅|只是|只有|其中)\s*/;
 const AFFIRMED_ASSERTION_PREFIX = /^(?:(?:\d+|[一二两三四五六七八九十半数几多]+)\s*(?:小时|天|日|周|月|年)前\s*)?(?:既往|当前|目前|现阶段|本次|今日|今天|今晨|今早|昨夜|昨晚|昨日|近来|近期)?\s*(?:有|是|转为|突发|新发|出现|发生|排出|患有|确诊|诊断为|现服|正在服用|开始服用|开始口服|开始使用|新启用|新开|启用|加用|改用|服用|使用|口服|应用|对)/;
-const AFFIRMED_PREDICATE = /(?:不是|并非)(?:很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|(?:持续|反复|仍有|仍感|依然|存在|加重|恶化|发作|出现|发生|阳性|异常|过敏|服用|口服|使用)|以[^，,。；;\n]{1,16}为主|(?:已|约)?\s*(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半数几多]+)\s*(?:分钟|分|小时|天|日|周|月|年)/;
+const AFFIRMED_PREDICATE = /(?:不是|并非)(?:很|太|特别|十分|非常|明显|严重|剧烈|轻|重|持续|一直)|(?:持续|反复|仍有|仍感|依然|存在|加重|恶化|发作|出现|发生|阳性|异常|过敏|服用|口服|使用)|以[^，,。；;\n]{1,16}为主|偏高|偏低|升高|增高|降低|下降|增多|减少|减轻|加剧|(?:已|约)?\s*(?:\d+(?:\.\d+)?|[一二两三四五六七八九十半数几多]+)\s*(?:分钟|分|小时|天|日|周|月|年|次|回|阵|口|度|℃|mL|ml|毫升|g|kg|mmHg)/;
 
 function normalizedClinicalText(value: string): string {
   return value.normalize("NFKC").replace(/\r\n?/g, "\n").trim();
@@ -127,7 +136,11 @@ export function clinicalClausePolarity(value: string): ClinicalClausePolarity {
   if (NON_NEGATING_WU_MODAL.test(clause)) {
     return UNCERTAIN_CUE.test(clause) || /否认|排除|除外/.test(clause) ? "uncertain" : "affirmed";
   }
-  if (NEGATIVE_PREFIX.test(clause) || COLLOQUIAL_PAST_EVENT_NEGATION.test(clause) || BARE_NO_HISTORY.test(clause) || NEGATIVE_SUFFIX.test(clause) || POSTFIX_NEGATIVE.test(clause)) return "negative";
+  // 总括量词否定（均无/皆无/都没有…）：整句、前缀、后缀三种形态，词表只在 clinical-vocabulary 一处。
+  if (classifyBlanketAnswer(clause) === "negation" || endsWithBlanketQuantifiedNegation(clause)) return "negative";
+  const quantifierStripped = stripBlanketQuantifierPrefix(clause);
+  if (NEGATIVE_PREFIX.test(quantifierStripped) || COLLOQUIAL_PAST_EVENT_NEGATION.test(quantifierStripped) || BARE_NO_HISTORY.test(quantifierStripped) || NEGATIVE_SUFFIX.test(clause) || POSTFIX_NEGATIVE.test(clause) || POSTFIX_EVENT_NEGATION.test(clause)) return "negative";
+  if (classifyBlanketAnswer(clause) === "unknown") return "uncertain";
   if (UNCERTAIN_CUE.test(clause)) return "uncertain";
   return "affirmed";
 }
@@ -180,6 +193,26 @@ export function affirmedClinicalSourceClauses(value: string | null | undefined):
   }
 
   return [...new Set(clauses)];
+}
+
+/**
+ * 一条病历事实是否**整条**都是否定（可作「排除依据」）。
+ *
+ * 2026-09-08 用真函数复现：classifyWesternDiagnosticEvidence 与 documentedExclusionFacts 各自
+ * 用「整句极性」或「句内出现否认/无」判排除依据，于是「否认腹痛，呕血1次」（黄金基线用例
+ * negated-abdominal-then-hematemesis 的原文）整条进了「排除依据」——安全门在同一句里抬出
+ * 消化道出血优先评估，西医依据表却把它展示成「已排除」。判据只放这一处：按子句极性（含
+ * 逗号继承与独立断言识别）判定，任一子句为阳性即不是排除依据；没有任何否定子句也不是。
+ */
+export function isWhollyNegatedClinicalFact(value: string | null | undefined): boolean {
+  const source = value?.replace(/\r\n?/g, "\n").trim() || "";
+  if (!source) return false;
+  if (affirmedClinicalSourceClauses(source).length > 0) return false;
+  return source
+    .split(/[，,、。；;\n]+/)
+    .map((clause) => clause.replace(DISCOURSE_PREFIX, "").trim())
+    .filter(Boolean)
+    .some((clause) => clinicalClausePolarity(clause) === "negative");
 }
 
 function hasIndependentAffirmedAssertion(clause: string, hasDiscourseBoundary: boolean): boolean {

@@ -211,6 +211,43 @@ export function classifyBlanketAnswer(answer: string): "negation" | "unknown" | 
   return null;
 }
 
+/**
+ * 子句级的总括否定（供极性层共用同一受治理词表，不另写一份）：
+ *   前缀形：「均无胸痛」「都没有咳嗽」「皆否认」 → 剥掉量词前缀后以否定核心词开头；
+ *   后缀形：「胸痛胸闷均无」「发热咳嗽都没有」 → 以「量词前缀 + 否定核心词」结尾；
+ *   整句形：「都没有」 → classifyBlanketAnswer 已覆盖。
+ * 2026-09-08 实测：clinicalClausePolarity 对「胸痛胸闷均无」「都没有」判 affirmed——黄金基线
+ * 用例原文「胸痛胸闷均无，否认大汗放射痛。」里的胸痛被读成阳性，而 M02 回填的「都没有」被
+ * affirmedAllergyText 当成一条阳性过敏史。量词前缀与否定核心词在此只登记一处。
+ */
+export function stripBlanketQuantifierPrefix(clause: string): string {
+  let core = clause.trimStart();
+  let stripped = true;
+  while (stripped) {
+    stripped = false;
+    for (const prefix of BLANKET_QUANTIFIER_PREFIXES) {
+      if (core.length > prefix.length && core.startsWith(prefix)) {
+        core = core.slice(prefix.length).trimStart();
+        stripped = true;
+        break;
+      }
+    }
+  }
+  return core;
+}
+
+export function endsWithBlanketQuantifiedNegation(clause: string): boolean {
+  const core = clause.trim().replace(TRAILING_ANSWER_PUNCTUATION, "");
+  if (!core) return false;
+  for (const negation of BLANKET_NEGATION_FORMS) {
+    if (!core.endsWith(negation) || core.length <= negation.length) continue;
+    const head = core.slice(0, core.length - negation.length);
+    // 至少一个量词前缀紧贴否定核心词（「胸痛均无」）；裸「胸痛无」不算——那是「无痛性」类构词的风险区。
+    if (BLANKET_QUANTIFIER_PREFIXES.some((prefix) => head.endsWith(prefix) && head.length > prefix.length)) return true;
+  }
+  return false;
+}
+
 export function blanketAnswerFormCounts(): Record<string, number> {
   return Object.fromEntries(Object.entries(BLANKET_FORMS).map(([group, forms]) => [group, forms.length]));
 }

@@ -405,7 +405,12 @@ export function buildM04ClinicalRepairHint(
       "不得为凑合规而添加与本例治法无关的药味；也不得改写 M03 的治法去迁就已写好的方。",
     ].join("\n");
   }
-  if (/^m04_candidate_\d+_(?:course|follow_up|follow_up_inconsistent|administration_times_per_day|method_incomplete)/.test(reason)) {
+  // 紧凑提案（d75d34e 起 provider 不再输出 course）在 zod 层失败时的码形如
+  // m04_proposal_<zodCode>_candidate_decoction_<field>（invalid_type / custom / too_small…）。
+  // 它们此前没有任何提示分支：模型只拿到泛化提示，同码再来一轮即 fixpoint，整方 0 味。
+  // 处方计划算术是同一件事，复用同一段指导（2026-09-08，7剂 + 每日2剂 实测复现）。
+  if (/^m04_candidate_\d+_(?:course|follow_up|follow_up_inconsistent|administration_times_per_day|method_incomplete)/.test(reason) ||
+    /^m04_proposal_[a-z_]+_candidate_decoction(?:_|$)/.test(reason)) {
     return [
       "候选方的处方计划算术不自洽：总剂数、每日剂数、每日分服次数、疗程与复诊节点之间对不上，或必填项缺失。",
       "同时给全 decoction 的四项并保证一致：doseCount（1–30 的整数加“剂”）、dosesPerDay（1–3 整数）、administrationTimesPerDay（1–6 整数且不小于每日剂数）、以及与之相符的疗程与复诊节点；总剂数必须能被每日剂数整除。",

@@ -242,6 +242,8 @@
     "test:suggested-check-tiering": "jiti scripts/test-suggested-check-tiering.mjs",
     "test:guideline-reference-outlets": "jiti scripts/test-guideline-reference-outlets.mjs",
     "test:diagnostic-citation-contract": "jiti scripts/test-diagnostic-citation-contract.mjs",
+    "test:evidence-population-applicability": "jiti scripts/test-evidence-population-applicability.mjs",
+    "test:negation-presentation-parity": "jiti scripts/test-negation-presentation-parity.mjs",
     "test:tcm-diagnostic-citations": "jiti scripts/test-tcm-diagnostic-citations.mjs",
     "test:western-differential-citations": "jiti scripts/test-western-differential-citations.mjs",
     "test:diagnosis-citation-presentation": "jiti scripts/test-diagnosis-citation-presentation.mjs",
