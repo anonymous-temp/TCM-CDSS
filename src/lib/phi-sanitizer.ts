@@ -1,6 +1,7 @@
 import clinicalLexemes from "../data/phi-clinical-lexemes.json" with { type: "json" };
 
 const CLINICAL_NAME_COLLISIONS = new Set(clinicalLexemes.terms);
+const CLINICAL_LEXEME_FOLLOWERS = new Set(clinicalLexemes.lexemeFollowers);
 
 const OCCUPATION_GROUPS: Array<[RegExp, string]> = [
   [/(?:医生|医师|护士|药师|医务|护理)/, "医疗卫生工作"],
@@ -98,7 +99,13 @@ export function shouldRedactNarrativeNameCandidate(candidate: string, precedingC
   // Exempt known clinical lexemes, not every unlabelled two-character name. Generated from the
   // governed disease/location/inspection dictionaries plus finite lexical compositions; the large
   // source dictionaries do not enter browser bundles. Explicit identities are replaced separately.
-  return !CLINICAL_NAME_COLLISIONS.has(candidate);
+  if (CLINICAL_NAME_COLLISIONS.has(candidate)) return false;
+  // Morphological guard: the caller's surname+{1,2} capture is greedy, so a clinical lexeme followed
+  // by one function or locative morpheme (全身伴有, 劳累后出现, 干咳已有, 左腹部) arrives as a
+  // three-character candidate. Both the head and the governed follower set must match; followers
+  // exclude given-name characters, so 强中华 stays redacted although 强中 is a disease lexeme.
+  return !(candidate.length === 3 && CLINICAL_NAME_COLLISIONS.has(candidate.slice(0, 2))
+    && CLINICAL_LEXEME_FOLLOWERS.has(candidate[2]));
 }
 
 export function scrubSubjectPrefixedName(text: string, marker = "[姓名已脱敏]"): string {
