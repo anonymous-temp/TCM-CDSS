@@ -130,6 +130,28 @@ for (const surname of lexicalPrefixSurnames) {
   }
 }
 
+// ── 五、姓氏表按百家姓整理，漏了一批现代高频姓（2026-09-11 实测） ─────────────────────
+// 肖（前 30 位）/付/闫/覃/岳 等此前在抬头、患者X、家属X、本例X、裸叙述五种句式里全部原样留存，
+// 只有显式「姓名：」标签拦得住。补入的姓均经 17,270 例语料实测零新增临床误脱敏；
+// 初/门/来/原/阳/海/迟/薄/芦/蒲/鹿/麦 等首字常起临床词（初诊/门诊/来诊/阳性/迟脉/薄苔…）的刻意不补。
+// 「白」只补进强上下文规则（抬头/本例X/家属X）：裸叙述规则补白会吃掉「白天咳嗽较重，夜间较轻」
+// 这类昼夜节律事实（语料 22 处），而「白天」又与白姓+常见名字同形不能入词表——交 owner 裁定。
+for (const name of ["肖伟", "付强", "闫明", "覃丽", "岳峰", "兰芳", "涂军", "卓凡", "帅杰", "晋华"]) {
+  for (const template of ["{n}，男，45岁，头痛3天", "患者{n}头痛3天", "家属{n}代述病情", "{n}出现胸痛", "本例{n}既往有高血压"]) {
+    const text = template.replace("{n}", name);
+    redactedCount += 1;
+    const out = scrub(text);
+    if (out.includes(name)) failures.push({ kind: "phi_leak", text, why: "现代高频姓", out });
+  }
+}
+for (const template of ["白雪，女，32岁，头痛3天", "家属白雪代述病情", "本例白雪既往有高血压"]) {
+  redactedCount += 1;
+  const out = scrub(template);
+  if (out.includes("白雪")) failures.push({ kind: "phi_leak", text: template, why: "白姓：强上下文规则", out });
+}
+expectKept("初诊，女，32岁，头痛3天", "初 不补入姓氏表：初诊");
+expectKept("咳嗽呈阵作性，白天咳嗽较重，夜间较轻", "白 不补入裸叙述规则：白天");
+
 if (failures.length > 0) {
   console.error(JSON.stringify({ failures }, null, 2));
 }
