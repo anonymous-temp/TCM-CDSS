@@ -265,3 +265,30 @@ test("downstream cancellation aborts the selected upstream stream", async () => 
   await response.body.cancel();
   assert.equal(bodyCancelled, true, "after headers arrive, cancellation must release the active upstream response body");
 });
+
+test("the probe deadline interrupts a stalled body after response headers", async (t) => {
+  primary();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let bodyController;
+  globalThis.fetch = async (input, init) => {
+    record(input, init);
+    return new Response(new ReadableStream({
+      start(ctrl) {
+        bodyController = ctrl;
+        init.signal.addEventListener("abort", () => ctrl.error(new DOMException("Aborted", "AbortError")), { once: true });
+      },
+    }));
+  };
+  const running = probeTongueVisionModel();
+  await new Promise((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(12_000);
+  const result = await Promise.race([running, new Promise((resolve) => setImmediate(() => resolve(null)))]);
+  if (result === null) {
+    bodyController.close();
+    await running;
+  }
+  assert.ok(result, "the 12 s deadline must terminate body consumption, not only the connection attempt");
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "timeout");
+  assert.equal(requests[0].signal.aborted, true);
+});
