@@ -129,7 +129,14 @@ export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseS
   // 剂量授权是**另一根轴**：红旗病例的剂量仍由 CDSS_REDFLAG_DOSE_AUTHORIZATION 收回
   // （derivePrescriptionPermission 给 non_dose_only），本函数不授权任何剂量。
   if (gateDispositionIsAdvisory()) {
-    return annotateM03DecisionSpecificityBoundary(content, { reason, mustCollect, activeRedFlag });
+    // 边界措辞必须与本档实际行为一致。block 档那句「当前仅保留症状级工作判断」描述的是清空，
+    // advise 档照抄会直接自相矛盾——上线首次实测就印出「急危重风险未排除，当前仅保留症状级
+    // 工作判断」的同一页里写着「气虚血瘀证」。两档各写各的理由，锚点词（急危重风险未排除 /
+    // 完整度未达C级）保持一致以便前后端与测试按语义定位。
+    const adviseReason = activeRedFlag
+      ? "急危重风险未排除：以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；本次不显示具体用量，正式采纳须在风险处置之后。"
+      : "完整度未达C级：以下结论基于现有信息形成，属有界建议；补充病程、伴随表现及必要四诊可提高确定性，正式采纳前请医生核对未知项。";
+    return annotateM03DecisionSpecificityBoundary(content, { reason: adviseReason, mustCollect, activeRedFlag });
   }
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,

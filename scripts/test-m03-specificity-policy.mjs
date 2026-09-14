@@ -318,11 +318,22 @@ const adviseKeptFields = (state, label) => {
 };
 const adviseSparse = adviseKeptFields(state("B", "ready"), "advise/B 级");
 assert.match(adviseSparse.overview.primarySyndromeResolutionReason, /完整度未达C级/);
+// advise 档的边界措辞不得照抄 block 档的清空文案：同一页里既写「仅保留症状级工作判断」
+// 又印着具体证候，医生读到的是自相矛盾（2026-09-14 上线首次实测发现）。
+assert.doesNotMatch(adviseSparse.overview.primarySyndromeResolutionReason, /仅保留症状级工作判断/,
+  "advise 档保留了证候，边界文案不得说成只剩症状级判断");
 assert.ok(adviseSparse.management.mustCollect.some((item) => /必要四诊/.test(item)));
 // 模型自己写的补采项也必须保留（不是替换成一条服务端项）。
 assert.ok(adviseSparse.management.mustCollect.includes("核实发热"), "既有补采项保留");
 const adviseRedFlag = adviseKeptFields(state("C", "red_flag"), "advise/红旗");
 assert.match(adviseRedFlag.overview.primarySyndromeResolutionReason, /急危重风险未排除/);
+assert.doesNotMatch(adviseRedFlag.overview.primarySyndromeResolutionReason, /仅保留症状级工作判断/,
+  "红旗档同样不得把保留说成清空");
+// block 档的清空文案必须继续那么写——两档的文案差异是刻意的，不是漂移。
+process.env.CDSS_GATE_DISPOSITION = "block";
+assert.match(parsed(applyM03DecisionSpecificityPolicy(content, state("C", "red_flag"))).overview.primarySyndromeResolutionReason,
+  /仅保留症状级工作判断/, "block 档确实清空，文案照旧");
+process.env.CDSS_GATE_DISPOSITION = "advise";
 assert.match(adviseRedFlag.management.redFlagLoop, /急危重风险未排除/);
 assert.match(adviseRedFlag.management.followupSafetyNet, /立即急诊或呼叫急救/);
 // 模型原有的 redFlagLoop 文本保留在后面，不被顶掉。
