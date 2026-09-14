@@ -8,6 +8,8 @@ const { CDSS_DEGRADE_REASON_CODES, cdssReasonCodeMarker, extractCdssReasonCode, 
 const { buildSafetyLimitedPrescription } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { prescribeRetryRequiresM03Rerun } = await jiti.import("../src/app/diagnosis/DiagnosisClient.tsx");
 const { renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint } = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
+const { buildSafetyAdvisoryBanner } = await jiti.import("../src/lib/diagnosis-safety.ts");
+const { scrubInternalVocabularyFromVisibleText } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
 const deliveryPrior = ReasoningV2Schema.parse({
@@ -42,7 +44,14 @@ const deliveryCheckpoint = retainM04DeliveryCheckpoint(undefined, {
 });
 
 let cases = 0; let failures = 0;
-const check = (name, fn) => { cases += 1; try { fn(); } catch (e) { failures += 1; console.error("FAIL", name, e?.message); } };
+// 用例体必须同步：async 体的断言异常会被这层 try/catch 漏掉，套件恒绿（2026-09-14 栽过）。
+const check = (name, fn) => {
+  cases += 1;
+  try {
+    const result = fn();
+    if (result && typeof result.then === "function") throw new Error("用例体不得是 async：异常会被吞掉");
+  } catch (e) { failures += 1; console.error("FAIL", name, e?.message); }
+};
 
 // 码表往返: 每个码的标记都能被提取回原码
 check("marker round-trip for every code", () => {
@@ -161,5 +170,45 @@ check("delivery continuity pages carry their own machine code", () => {
       `${code} 不得触发 M03 重跑`);
   }
 });
+// ── 机器标记必须活着到客户端（2026-09-14 上线实测）────────────────────────────────
+// 交付连续性页经 enqueueClient → scrubInternalVocabularyFromVisibleText 下发，而擦洗器第 4 步
+// 把「内部原因码」降级成通用文案，`<!-- CDSS_REASON_CODE:xxx -->` 的码值正好长得像内部码，
+// 实测被擦成 `<!-- CDSS_REASON_CODE: -->`，前端按码分流当场失效（只能退回文案正则——
+// 正是本模块立项要消灭的东西）。此前没暴露：buildSafetyLimitedPrescription 走路由直出，不经擦洗器。
+check("machine markers survive the visible-text scrubber byte-exact", () => {
+  // 必须用**真实渲染出来的交付页**：手搓的短字符串打不中擦洗器的整行丢弃与空行折叠，
+  // 而生产失败正是在那条路径上（实测字节 `<!-- CDSS_NON_DOSE_PRESCRIPTION --> <!-- CDSS_REASON_CODE: -->`
+  // 与 `<!-- CDSS_REASON_CODE:独立临床复核 -->`）。
+  const banner = buildSafetyAdvisoryBanner(
+    { status: "red_flag", allowDiagnosis: true, allowDosePrescription: false, action: "refer_or_emergency",
+      missingItems: [], redFlags: ["胸痛伴大汗，需排除急性心血管事件"], reasons: [] },
+    ["本次候选药味与方义照常呈现，但按独立硬边界暂不显示具体用量。"],
+  );
+  for (const [reason, expected] of [
+    ["dose_withheld", "dose_authorization_withheld"],
+    ["contract_rejected", "m04_candidate_retained_non_dose"],
+    ["upstream_unavailable", "upstream_model_unavailable"],
+  ]) {
+    for (const checkpoint of [deliveryCheckpoint, undefined]) {
+      const page = `${banner}${renderM04DeliveryCheckpoint(checkpoint, deliveryPrior, reason, ["占位原因"])}`;
+      const before = extractCdssReasonCode(page);
+      assert.ok(before, `${reason}: 渲染页必须自带机器码`);
+      const scrubbed = scrubInternalVocabularyFromVisibleText(page);
+      assert.equal(extractCdssReasonCode(scrubbed), before, `${reason}: 机器码必须逐字穿过擦洗器`);
+      if (checkpoint) assert.equal(before, expected, `${reason}: 保留候选时的码`);
+      assert.ok(scrubbed.includes("<!-- CDSS_NON_DOSE_PRESCRIPTION -->"), `${reason}: 非剂量标记必须存活`);
+      assert.equal(scrubInternalVocabularyFromVisibleText(scrubbed), scrubbed, `${reason}: 幂等`);
+    }
+  }
+  // 码表里的每个码都要能穿过擦洗器（新增码不会静默退化成文案分流）。
+  for (const code of CDSS_DEGRADE_REASON_CODES) {
+    const page = `${banner}<!-- CDSS_NON_DOSE_PRESCRIPTION -->\n${cdssReasonCodeMarker(code)}\n\n## 候选方药生成状态\n\n说明文本。`;
+    assert.equal(extractCdssReasonCode(scrubInternalVocabularyFromVisibleText(page)), code, `${code}: 机器码必须逐字存活`);
+  }
+  // 保护标记不得放宽内部词表擦洗本身。
+  const scrubbedProse = scrubInternalVocabularyFromVisibleText("服务端锚点与受治理基准");
+  assert.doesNotMatch(scrubbedProse, /服务端|锚点|受治理/, "内部口径词照常被擦");
+});
+
 console.log(JSON.stringify({ cases, failures }));
 if (failures > 0) process.exit(1);

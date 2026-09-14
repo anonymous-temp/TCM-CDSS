@@ -4035,8 +4035,30 @@ function scrubVisibleMarkdownHead(head: string): string {
  * Idempotent and sentinel-aware: content from DIAGNOSIS_JSON_START onward is returned byte-exact,
  * so contract signatures and the client-side structured parser are unaffected.
  */
+/**
+ * 机器可读标记（`<!-- CDSS_* -->`）**必须逐字存活**（2026-09-14 上线实测）。
+ *
+ * 擦洗器第 4 步把内部原因码降级成通用文案，而 `<!-- CDSS_REASON_CODE:xxx -->` 的码值正好
+ * 长得像内部原因码：交付连续性页经 enqueueClient 下发时，码值被擦成
+ * `<!-- CDSS_REASON_CODE: -->`，前端「按码分流」当场失效，只能退回文案正则——
+ * 正是 cdss-reason-codes 这套机制立项要消灭的东西。
+ *（此前没暴露：buildSafetyLimitedPrescription 的页面走路由直出，不经本擦洗器。）
+ *
+ * 这些标记是 HTML 注释，医生看不见，也不含任何临床文本，逐字保留不影响呈现口径。
+ */
+const CDSS_MACHINE_MARKER = /<!--\s*CDSS_[A-Z0-9_]+(?::[A-Za-z0-9_]+)?\s*-->/g;
+
 export function scrubInternalVocabularyFromVisibleText(content: string): string {
-  const start = content.indexOf(START_MARKER);
-  if (start < 0) return scrubVisibleMarkdownHead(content);
-  return `${scrubVisibleMarkdownHead(content.slice(0, start))}${content.slice(start)}`;
+  const markers: string[] = [];
+  const masked = content.replace(CDSS_MACHINE_MARKER, (marker) => {
+    markers.push(marker);
+    return `\u0000CDSSMARK${markers.length - 1}\u0000`;
+  });
+  const restore = (text: string) => text.replace(
+    /\u0000CDSSMARK(\d+)\u0000/g,
+    (_match, index: string) => markers[Number(index)] ?? "",
+  );
+  const start = masked.indexOf(START_MARKER);
+  if (start < 0) return restore(scrubVisibleMarkdownHead(masked));
+  return restore(`${scrubVisibleMarkdownHead(masked.slice(0, start))}${masked.slice(start)}`);
 }
