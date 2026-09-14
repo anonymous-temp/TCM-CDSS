@@ -260,6 +260,32 @@ test("a candidate that fails a deterministic contract is retained with findings,
     assert.equal(preferM04DeliveryCheckpoint(checkpoint, clean), clean, `${label}: 干净候选后到也应胜出`);
   }
 });
+test("a route projection that rewrites the payload still retains the candidate", () => {
+  // 2026-09-14 上线后首次实测（caseRef 223e2dd8b3d1）：候选已被路由终审投影改写
+  //（确定性补写药味 function / 恢复受治理方名 / 归一化回写 sentinel），而调用方传进来的
+  // reasoning 是投影**前**那份；旧的哈希一致性守卫直接 return previous，候选被静默丢弃，
+  // 终审复核一翻成 repair 就落到 contract_rejected_no_valid_candidate、0 味。
+  const input = checkpointInput();
+  const projected = structuredClone(input.reasoning);
+  projected.formula.candidates[0].herbs[0].function = "补脾益气（服务端补写）";
+  // 正文按路由终审的真实形态重建：横幅 + 提示 + 重排版 sentinel。
+  const content = `⚠️ 安全警示\n\n## 信息完整性边界\n提示\n\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(projected, null, 2)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  const checkpoint = retainM04DeliveryCheckpoint(undefined, { ...input, content });
+  assert.ok(checkpoint, "投影改写载荷不得导致候选被丢弃");
+  // content 与 reasoning 必须仍然同源——取的是 sentinel 那一份，不是调用方那份。
+  assert.equal(checkpoint.payloadHash, clinicalReviewPayloadHash(projected));
+  assert.equal(checkpoint.reasoning.formula.candidates[0].herbs[0].function, "补脾益气（服务端补写）");
+  assert.match(renderM04DeliveryCheckpoint(checkpoint, prior, "contract_rejected"), /党参/);
+  // 边界不放宽：sentinel 本身不是合法 prescribe 载荷时仍然丢弃。
+  for (const bad of [
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ schemaVersion: "tcm-cdss-reasoning-v2", stage: "prescribe" })}\n<!-- DIAGNOSIS_JSON_END -->`,
+    `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ ...projected, stage: "diagnose" })}\n<!-- DIAGNOSIS_JSON_END -->`,
+    "<!-- DIAGNOSIS_JSON_START -->\n{not json\n<!-- DIAGNOSIS_JSON_END -->",
+    "完全没有 sentinel 的正文",
+  ]) {
+    assert.equal(retainM04DeliveryCheckpoint(undefined, { ...input, content: bad }), undefined, "非法 sentinel 仍然丢弃");
+  }
+});
 test("delivery ranking: signed > clean > fewer T1 > review status > fewer soft findings", () => {
   // 择优排序的**优先级**必须逐级钉住。preferM04DeliveryCheckpoint 只读
   // payloadHash / signedContent / contractIssues / findings / review，所以这里直接构造

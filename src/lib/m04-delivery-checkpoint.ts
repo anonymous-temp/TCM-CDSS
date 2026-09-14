@@ -97,9 +97,33 @@ export function retainM04DeliveryCheckpoint(
   },
 ): M04DeliveryCheckpoint | undefined {
   if (reasoningV2SchemaIssueCode(input.reasoning)) return previous;
-  const reasoning = normalizeReasoningV2(input.reasoning);
-  const payloadHash = clinicalReviewPayloadHash(reasoning);
+  const start = input.content.lastIndexOf("<!-- DIAGNOSIS_JSON_START -->");
+  const end = input.content.indexOf("<!-- DIAGNOSIS_JSON_END -->", start);
+  if (start < 0 || end < 0) return previous;
+  // ── 投影改写载荷时**以 sentinel 为准**，而不是丢弃候选（2026-09-14 生产实测）────────
+  //
+  // content 与 reasoning 必须描述同一份字节——这条不放宽。但此前不一致时直接 return previous，
+  // 而路由终审投影恰恰会改写载荷（确定性补写药味 function、恢复受治理方名、
+  // synchronizeVisibleClinicalSummary 归一化回写），调用方传进来的却是投影**前**那份对象。
+  // 结果：候选在 `finalized M04 accepted with quality annotation` 之后被静默丢弃，
+  // 终审复核一旦翻成 repair 就落到 `contract_rejected_no_valid_candidate`、0 味——
+  // 正是本轮要修掉的那一类（上线后首次实测复现，caseRef 223e2dd8b3d1）。
+  // 现在：两者不一致时从 sentinel 重新取载荷（schema 与阶段照常校验），
+  // 保证 content/reasoning 仍然同源，且不再有「改写即丢弃」。
+  let reasoning = normalizeReasoningV2(input.reasoning);
+  let payloadHash = clinicalReviewPayloadHash(reasoning);
   if (!reasoning || reasoning.stage !== "prescribe" || !payloadHash) return previous;
+  try {
+    const sentinel = JSON.parse(input.content.slice(start + "<!-- DIAGNOSIS_JSON_START -->".length, end));
+    if (clinicalReviewPayloadHash(sentinel) !== payloadHash) {
+      if (reasoningV2SchemaIssueCode(sentinel)) return previous;
+      const reprojected = normalizeReasoningV2(sentinel);
+      const reprojectedHash = clinicalReviewPayloadHash(reprojected);
+      if (!reprojected || reprojected.stage !== "prescribe" || !reprojectedHash) return previous;
+      reasoning = reprojected;
+      payloadHash = reprojectedHash;
+    }
+  } catch { return previous; }
   const enriched = enrichReasoning(reasoning).reasoning;
   // ── 合同不过**不再丢弃候选**（owner 决策 2026-09-13）─────────────────────────────
   //
@@ -116,12 +140,6 @@ export function retainM04DeliveryCheckpoint(
     enriched, input.priorReasoning, false, reasoning.formula?.candidates?.[0]?.identityDeclassified === true);
   const contractIssues = [...new Set([safetyIssue, compilationIssue, ...(input.extraContractIssues || [])]
     .filter((issue): issue is string => Boolean(issue)))];
-  const start = input.content.lastIndexOf("<!-- DIAGNOSIS_JSON_START -->");
-  const end = input.content.indexOf("<!-- DIAGNOSIS_JSON_END -->", start);
-  if (start < 0 || end < 0) return previous;
-  try {
-    if (clinicalReviewPayloadHash(JSON.parse(input.content.slice(start + "<!-- DIAGNOSIS_JSON_START -->".length, end))) !== payloadHash) return previous;
-  } catch { return previous; }
   // Never replace a completed attested result with a pending or malformed repair. For the same
   // payload preserve its review disposition, even if a later phase checks it again.
   if (previous?.signedContent || previous?.payloadHash === payloadHash) return previous;
