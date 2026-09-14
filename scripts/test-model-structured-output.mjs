@@ -74,6 +74,18 @@ assert.match(diagnosisSource, /enqueueHeartbeat\("模型已开始返回临床正
   "provider first-content timing must be observable separately from server-owned banners");
 assert.doesNotMatch(diagnosisSource, /\btool_choice\b|\bparallel_tool_calls\b/,
   "deterministic server retrieval must not be replaced by model-controlled tool calls");
+// 2026-09-14：复核器闭集结论在 DeepSeek 上改用**服务端强制的单函数**取回（response_format 在
+// DeepSeek 上不执行 schema）。这不是模型自主工具调用：函数只有一个、tool_choice 钉死到它、
+// 参数 schema 服务端约束解码。它只能住在 model-response-format 里，diagnosis-api 仍然零 tool 面。
+const responseFormatSource = readFileSync("src/lib/model-response-format.ts", "utf8");
+assert.match(responseFormatSource, /export function structuredReviewRequestFields\(/);
+assert.match(responseFormatSource, /tool_choice:\s*\{\s*type:\s*"function",\s*function:\s*\{\s*name\s*\}\s*\}/,
+  "the forced review function must pin tool_choice to that single function");
+assert.match(responseFormatSource, /strict:\s*true,/, "the forced review function must be strict (server-side schema enforcement)");
+assert.doesNotMatch(responseFormatSource, /\bparallel_tool_calls\b/, "no parallel/model-selected tool use anywhere");
+assert.equal((responseFormatSource.match(/tools:\s*\[\{/g) || []).length, 1, "exactly one forced-function request site");
+assert.match(diagnosisSource, /\.\.\.structuredReviewRequestFields\(input\.model,\s*task\)/,
+  "diagnosis-api must obtain review request fields from model-response-format, not build tools itself");
 
 const prodSmokeSource = readFileSync("scripts/regress-prod-smoke.mjs", "utf8");
 assert.match(prodSmokeSource, /PROD_SMOKE_SAMPLES[\s\S]*?\|\|\s*"5"/,

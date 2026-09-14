@@ -3,6 +3,7 @@ import {
   buildDeterministicRiskFollowupProjection,
   clinicalGroundingText,
   deriveSafetyLocked,
+  isNonDosePrescriptionText,
   markdownNdjsonResponse,
   sanitizeUngroundedRedFlagNegations,
   withSafetyGate,
@@ -79,13 +80,51 @@ export async function POST(req: Request) {
         code: "invalid_workbench_revision_attestation",
       }, { status: 409 });
     }
+  } else if (!initialPrescribed) {
+    // ── diagnose-only M05（owner 决策 2026-09-14，镜像 his-scheme 既有规则）──────────────
+    //
+    // 剂量轴被独立硬边界收回、或候选未通过全部合同时，M04 交付的是服务端非剂量页：
+    // 有药味与方义、没有 sentinel、没有签名。此前这里统一 409，直接调接口的集成方拿不到
+    // 随访与安全总评——「不给剂量」再一次被实现成「什么都不给」（2026-09-11 只读归因第五节
+    // 点名的「资格混用」）。规则与 his-scheme 完全一致：
+    //   · 必须有**有效签名的 M03**（边界前移到 M03，没有就 409）；
+    //   · 手写/未签名的处方 Markdown 不得跨界：审方层会解析 prescription 文本，所以这种
+    //     形态返回 422 missing_structured_prescription（与 HIS 同码），不进入评估；
+    //   · 其余（空处方或服务端非剂量页）剥掉全部处方字段后 diagnose-only 评估：审方按既有
+    //     fail-closed 逻辑（candidate_missing）转人工，随访由签名 M03 撰写，模型仍不写风险结论。
+    // 非剂量页标记本身可伪造，但被剥掉的处方文本从不进入任何消费方，伪造只能换来一份
+    // 不含处方的评估——单测用「带标记 + 藏药味表」反证过：药名不得出现在结果里。
+    if (!verifyDiagnoseReasoningSignature(initialDiagnoseReasoning, parsed.caseState)) {
+      return Response.json({
+        error: "辨病辨证结果签名已失效，请重新生成后再评估。",
+        code: "invalid_m03_signature",
+      }, { status: 409 });
+    }
+    const legacyPrescription = typeof parsed.caseState.prescription === "string" ? parsed.caseState.prescription.trim() : "";
+    if (legacyPrescription && !isNonDosePrescriptionText(legacyPrescription)) {
+      return Response.json({
+        error: "缺少有效的结构化候选处方；未签名的处方文本不进入合理用药审方与随访评估，请重新生成候选方药后再评估。",
+        code: "missing_structured_prescription",
+      }, { status: 422 });
+    }
   } else if (!verifyPrescribeReasoningSignature(initialPrescribed, parsed.caseState)) {
     return Response.json({
       error: "当前候选处方缺少与本病例及辨证结果绑定的有效签名，或签名后内容已变更；请重新生成候选方药后再评估。",
       code: "invalid_m04_signature",
     }, { status: 409 });
   }
-  const caseState = await maybeAttachClinicalFactsBackstop(parsed.caseState, undefined, req.signal);
+  // diagnose-only 时剥掉全部处方字段：审方（rxaudit 会解析 prescription Markdown）、
+  // 警示地板与随访都只能看到签名 M03。
+  const evaluatedCaseState = !workbenchRevision && !initialPrescribed
+    ? {
+        ...parsed.caseState,
+        prescription: "",
+        reasoningPrescribe: undefined,
+        reasoningV2: initialDiagnoseReasoning ?? undefined,
+        prescriptionRevision: undefined,
+      }
+    : parsed.caseState;
+  const caseState = await maybeAttachClinicalFactsBackstop(evaluatedCaseState, undefined, req.signal);
   const gated = withSafetyGate(caseState);
   const diagnoseReasoning = diagnoseReasoningFromState(gated);
   const prescribed = prescribeReasoningFromState(gated);

@@ -8637,12 +8637,11 @@ export default function DiagnosisPage() {
     }
 
     // M05
-    // The assess route fail-closes (409) unless the current chain carries a signed M04 reasoning
-    // contract. A non-dose M04 result (safety-limited, encounter-scope gated, or otherwise degraded)
-    // has no such contract, so calling M05 would produce a guaranteed 409 and a misleading
-    // "正在生成风险随访提示" spinner. Skip the doomed call and land directly on the same
-    // deterministic follow-up terminal state the M05 error path below already produces.
-    if (!prescribeReasoningFromState(current)) {
+    // 2026-09-14 起 assess 路由支持 diagnose-only：有签名 M03 + 服务端非剂量页（无结构化 M04）
+    // 时照常生成随访与安全总评（审方 fail-closed 转人工）。因此服务端非剂量页也调 M05；
+    // 调用失败仍落到下面 catch 里同一个确定性随访终态。只有既无签名 M04、又不是服务端
+    // 非剂量页的形态（不该出现）才直接落确定性终态，避免注定失败的调用与误导性转圈。
+    if (!prescribeReasoningFromState(current) && !isNonDosePrescriptionText(current.prescription || "")) {
       const nonDoseFollowup = buildDeterministicRiskFollowupPayload(current);
       const nonDoseRiskAssessment = replaceRiskAssessmentFollowup(current.riskAssessment, nonDoseFollowup.markdown);
       persistState(withSafetyGate({

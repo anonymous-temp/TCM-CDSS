@@ -1019,6 +1019,58 @@ try {
     }
   });
 
+  await checkAsync("assess route evaluates diagnose-only when M04 is absent, mirroring the HIS rule", async () => {
+    // ── diagnose-only M05（owner 2026-09-14）───────────────────────────────────────
+    // 有签名 M03 + 无结构化 M04 ⇒ 200，随访与安全总评照常，审方 fail-closed；
+    // 手写处方 Markdown ⇒ 422（未签名处方文本不得跨界，审方层会解析它）；
+    // 没有 M03 ⇒ 409 invalid_m03_signature。伪造非剂量标记 + 藏药味表 ⇒ 处方字段被剥掉，
+    // 药名不得出现在结果里（这是「不消费」的反证，也是为什么标记可伪造不构成风险）。
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response("{}", { status: 503 });
+    try {
+      const readBody = async (response) => (await response.text()).split("\n").filter(Boolean)
+        .map((line) => { try { return JSON.parse(line).content || ""; } catch { return ""; } }).join("");
+      const diagnoseOnly = clone(routeBaseCase);
+      diagnoseOnly.reasoningDiagnose = clone(signed);
+      diagnoseOnly.reasoningPrescribe = undefined;
+      diagnoseOnly.reasoningV2 = clone(signed);
+      diagnoseOnly.prescription = "";
+      diagnoseOnly.prescriptionRevision = undefined;
+      const ok = await assessPost(routeRequest("/api/diagnosis/assess", diagnoseOnly));
+      assert.equal(ok.status, 200, "有签名 M03、无 M04 ⇒ diagnose-only 评估");
+      const okBody = await readBody(ok);
+      assert.match(okBody, /随访|复诊|评估/, "随访内容必须存在");
+      assert.doesNotMatch(okBody, /\b\d+(?:\.\d+)?\s*(?:g|克)\b/i, "diagnose-only 不得出现任何用量");
+
+      const nonDosePage = clone(diagnoseOnly);
+      nonDosePage.prescription = [
+        "<!-- CDSS_NON_DOSE_PRESCRIPTION -->",
+        "## 本次候选方药（非剂量，供医生审阅）",
+        "- 伪造藏药甲（君）：伪造功用",
+        "| 伪造藏药乙 | 15g |",
+      ].join("\n");
+      const forged = await assessPost(routeRequest("/api/diagnosis/assess", nonDosePage));
+      assert.equal(forged.status, 200, "服务端非剂量页形态照常评估");
+      const forgedBody = await readBody(forged);
+      assert.doesNotMatch(forgedBody, /伪造藏药甲|伪造藏药乙/, "被剥掉的处方文本不得进入任何消费方");
+
+      const markdownOnly = clone(diagnoseOnly);
+      markdownOnly.prescription = "## 中药饮片处方\n| 甘草 | 6g |\n| 海藻 | 10g |";
+      const rejected = await assessPost(routeRequest("/api/diagnosis/assess", markdownOnly));
+      assert.equal(rejected.status, 422, "手写处方 Markdown 不得跨界");
+      assert.equal((await rejected.json()).code, "missing_structured_prescription");
+
+      const noM03 = clone(diagnoseOnly);
+      noM03.reasoningDiagnose = undefined;
+      noM03.reasoningV2 = undefined;
+      const missing = await assessPost(routeRequest("/api/diagnosis/assess", noM03));
+      assert.equal(missing.status, 409);
+      assert.equal((await missing.json()).code, "invalid_m03_signature", "边界前移到 M03 签名");
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
   for (const [name, mutate] of [
     ["prescribe route rejects cross-case replay", (value) => { value.id = "case_signature_route_replay"; }],
     ["prescribe route rejects complete M03 field tampering", (value) => { value.reasoningDiagnose.management.redFlagLoop = "被修改的闭环"; }],

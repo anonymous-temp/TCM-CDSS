@@ -383,6 +383,76 @@ export function responseFormatForZodSchema(model: string, name: string, schema: 
   };
 }
 
+export function supportsStrictToolArguments(model: string): boolean {
+  return textModelCapabilities(model).strictToolArguments;
+}
+
+/**
+ * 复核器闭集结论的 **tool-call 参数 schema**（2026-09-14）。
+ *
+ * 给 response_format 只有 json_object 的供应商用：DeepSeek 对 `strict:true` 的函数参数做
+ * 服务端约束解码，枚举必须精确、可空字段返回 null。它的 schema 子集有硬约束——
+ * 所有属性必须 required、`additionalProperties:false`、不支持 minLength/maxLength/
+ * minItems/maxItems——所以不能直接复用 M0x_REVIEW_SCHEMA（那份带 maxLength/maxItems/
+ * uniqueItems/minimum/maximum）。可选字段以 anyOf(值|null) 表达，解析层（parseM0xClinicalReview）
+ * 对 null 的处理与「缺席」相同，闭集校验一个字不放宽。
+ */
+export function strictReviewToolParameters(task: "m03_review" | "m04_review"): JsonSchema {
+  const nullable = (schema: JsonSchema): JsonSchema => ({ anyOf: [schema, { type: "null" }] });
+  if (task === "m03_review") {
+    return {
+      type: "object",
+      additionalProperties: false,
+      required: ["status", "issueCode", "repairInstruction"],
+      properties: {
+        status: { type: "string", enum: ["accepted", "repair"] },
+        issueCode: { type: "string", enum: [
+          "none", "criteria_not_met", "diagnostic_label_overstated", "supporting_fact_mismatch",
+          "tcm_reasoning_unsupported", "formula_indication_mismatch",
+        ] },
+        repairInstruction: nullable({ type: "string" }),
+      },
+    };
+  }
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["status", "issueCode", "repairFocus", "candidateIndex", "implicatedHerbs"],
+    properties: {
+      status: { type: "string", enum: ["accepted", "repair"] },
+      issueCode: { type: "string", enum: ["none", "herb_plan_mismatch", "dose_rationale_concern", "patient_context_mismatch"] },
+      repairFocus: nullable({ type: "string", enum: ["emperor_role", "herb_direction", "modification_logic", "dose_strength", "patient_dependency"] }),
+      candidateIndex: nullable({ type: "integer" }),
+      implicatedHerbs: { type: "array", items: { type: "string" } },
+    },
+  };
+}
+
+/**
+ * 复核器结构化结论的请求字段（2026-09-14）。这不是给模型的「工具」：函数只有一个、
+ * 调用被服务端强制、参数 schema 由服务端约束解码——它是 response_format 的替代品，
+ * 用在 response_format 不执行 schema 的供应商上。模型不控制任何检索或流程
+ * （test:model-structured-output 钉着 diagnosis-api 不得出现模型自主 tool 调用）。
+ */
+export function structuredReviewRequestFields(model: string, task: "m03_review" | "m04_review"): Record<string, unknown> {
+  if (!supportsStrictJsonSchema(model) && supportsStrictToolArguments(model)) {
+    const name = "submit_clinical_review";
+    return {
+      tools: [{
+        type: "function",
+        function: {
+          name,
+          description: "提交本次独立临床复核的结构化结论；只能使用给定的枚举值，不得输出自由文本。",
+          strict: true,
+          parameters: strictReviewToolParameters(task),
+        },
+      }],
+      tool_choice: { type: "function", function: { name } },
+    };
+  }
+  return { response_format: responseFormatForTask(model, task) };
+}
+
 export function responseFormatForTask(model: string, task: StructuredOutputTask): Record<string, unknown> {
   if (!supportsStrictJsonSchema(model)) return { type: "json_object" };
   return {

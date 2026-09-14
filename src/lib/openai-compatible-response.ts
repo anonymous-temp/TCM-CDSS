@@ -17,7 +17,12 @@ export type CompatUsage = {
 
 export type CompatCompletion = {
   choices?: Array<{
-    message?: { content?: string | null; reasoning_content?: string | null };
+    message?: {
+      content?: string | null;
+      reasoning_content?: string | null;
+      /** strict tool-call 结论（DeepSeek 等只支持 json_object 的供应商用它取回闭集结果）。 */
+      tool_calls?: Array<{ function?: { name?: string | null; arguments?: string | null } | null } | null> | null;
+    };
     finish_reason?: string | null;
   }>;
   usage?: CompatUsage;

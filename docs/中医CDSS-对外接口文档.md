@@ -248,7 +248,7 @@ V1.3 写的"不可跳段，跳段调用返回 409"与实现不符：M03 在 `pha
 |---|---|---|---|
 | M02 阶段门 | `/api/diagnosis/question` | `caseState.phase ≠ "question"`，或 `questionRounds ≥ 1` | `409` |
 | M04 签名门 | `/api/diagnosis/prescribe` | 缺少有效的 M03 `contractSignature`（未原样回传 R2/R3） | `409` |
-| M05 签名门 | `/api/diagnosis/assess` | 缺少有效的 M03/M04 签名 | `409` |
+| M05 签名门 | `/api/diagnosis/assess` | 缺少有效的 M03 签名（`invalid_m03_signature`）；M04 带签名时评估处方，M04 缺席（如服务端非剂量页）时做 diagnose-only 评估（随访与安全总评照常、审方转人工）；M04 存在但签名无效 `invalid_m04_signature`；未签名的处方文本 `422 missing_structured_prescription` | `409` / `422` |
 
 也就是说：**M01 与 M02 都可以跳过**；M03 之后的两段必须携带上一段的原样签名结论。
 
@@ -395,6 +395,7 @@ M01–M05 的正文中嵌有结构化 JSON，位于以下两个标记之间：
 | `invalid_m04_signature` | `409` | M04 结论被改写或未原样回传（R2） |
 | `invalid_candidate_index` | `422` | 指定的候选方序号不存在 |
 | `invalid_structured_herb` | `422` | 药味缺名称、剂量非单一正数，或缺对应病机/功用 |
+| `missing_structured_prescription` | `422` | assess / his-scheme：`prescription` 里是未签名的处方文本而没有结构化候选；未签名文本不进入审方、随访或 HIS 写回（M04 缺席时 assess 走 diagnose-only 评估，不报此码） |
 | `invalid_emergency_clearance_request` | `400` | 急症排查确认入参不合法 |
 | `invalid_terminology_confirmation_request` | `400` | 术语确认入参不合法 |
 | `terminology_confirmation_target_not_allowed` | `400` | 术语命名空间不在允许范围内 |
@@ -1180,15 +1181,18 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/prescribe" \
 
 | 状态码 | 触发条件 | 响应体 |
 |---|---|---|
-| `409` | M03 签名无效 | `{"error":"...","code":"invalid_m03_signature"}` |
-| `409` | M04 签名无效 | `{"error":"...","code":"invalid_m04_signature"}` |
+| `409` | M03 签名无效或缺席 | `{"error":"...","code":"invalid_m03_signature"}` |
+| `409` | M04 存在但签名无效（被改写或未原样回传） | `{"error":"...","code":"invalid_m04_signature"}` |
+| `422` | `prescription` 是未签名的处方文本、且没有结构化候选 | `{"error":"...","code":"missing_structured_prescription"}` |
+
+> M04 **缺席**不是错误（2026-09-14 起）：M03 签名有效、`reasoningPrescribe` 为空且 `prescription` 为空或为服务端非剂量页时，assess 做 **diagnose-only 评估**——随访计划、疗效评价口径与安全总评照常返回，处方后审方按「无结构化药味」fail-closed 转人工复核。这与 his-scheme 的 diagnose-only 方案是同一条规则。
 
 ---
 
 
 **调用示例**
 
-> `reasoningDiagnose`、`reasoningPrescribe` 均须原样回传。
+> `reasoningDiagnose` 须原样回传；`reasoningPrescribe` 有则原样回传，缺席时为 diagnose-only 评估。
 
 ```bash
 curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/assess" \

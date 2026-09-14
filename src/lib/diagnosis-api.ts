@@ -20,7 +20,7 @@ import { unsupportedHighImpactHerbFindings, affirmedTcmTherapyConcepts, applyM03
 import { parseStreamModuleDraftFrame, stageProgressHeartbeatStatus, STREAM_REPLACE_MARKER, type StageProgressPhase, type StreamModuleDraftFrame } from "@/lib/diagnosis-stream-protocol";
 import { groundDifferentialNegativeAssertions, alignNormalizedM03TcmDiagnosticRationale, alignNormalizedM03WesternClinicalRationale, applyDeterministicCandidateTherapyMatch, applyDeterministicDecoctionMethod, applyDeterministicFollowUpNode, applyDeterministicTreatmentPrinciple, applyDeterministicFormulaAnalysis, applyDeterministicHerbDecoctionRequirements, applyDeterministicHerbFunctions, applyDeterministicHerbPrescriptionRoles, applyDeterministicHerbTargets, applyGovernedM03DiseaseDifferentialBoundary, applyM03AdvisoryQualityBoundaries, applyM03DecisionSpecificityPolicy, applyM03ProjectionOnlyReviewRepair, declassifyAmbiguousM03WesternPrimary, declassifyUnmetFormalM03WesternPrimary, declassifyUnsupportedM03WesternPrimary, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, normalizeM03PathogenesisSummaryProjection, normalizeM03StructuralDuplicates, normalizeM03TcmRationaleEvidenceBoundary, normalizeM03WesternDifferentials, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
 import { getTcmHerbDoseLimit, isKnownTcmHerbName } from "@/lib/tcm-knowledge";
-import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatUsage } from "@/lib/openai-compatible-response";
+import { modelUsageSnapshot, parseOpenAICompatCompletionPayload, type CompatCompletion, type CompatUsage } from "@/lib/openai-compatible-response";
 import { recordModelTaskTelemetry } from "./cdss-model-task-telemetry";
 import { applyServerOwnedM03Fields } from "./m03-server-owned-fields";
 import { applyDeterministicFormulaReferences, applyRestoredGovernedFormulaIdentity, enrichReasoning, executableFormulaCompilationReferences, formulaCompilationContractIssue, formulaCompilationReferences, stripUntrustedM04IdentityMetadata, verifyFormulaCompilationComponents } from "@/lib/tcm-formula-provenance";
@@ -52,7 +52,9 @@ import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-norm
 import { declassifyAndDropOpposingM04CandidateHerbs, dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
-import { responseFormatForTask, supportsStrictJsonSchema } from "@/lib/model-response-format";
+import { responseFormatForTask, structuredReviewRequestFields, supportsStrictJsonSchema } from "@/lib/model-response-format";
+import { parseClinicalReviewJson } from "@/lib/clinical-review-contract";
+import { insertM03ProvisionalDraft, renderM03ProvisionalDraftSection, schemaValidDiagnoseDraft } from "@/lib/m03-provisional-draft";
 import { bindM04DeliveryReview, m04DeliveryCheckpointFeedbackCodes, m04DeliveryCheckpointSafetyFindingCount, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint, type M04DeliveryCheckpoint } from "./m04-delivery-checkpoint";
 
 const PROVIDER_CONNECT_TIMEOUT_MS = 90_000;
@@ -2556,6 +2558,48 @@ function attachClinicalReviewAttestation(content: string, attestation: ClinicalR
   return `${content.slice(0, start + startMarker.length)}\n${JSON.stringify(withReview, null, 2)}\n${content.slice(end)}`;
 }
 
+/**
+ * 复核器请求体（2026-09-14 抽成纯函数，便于按模型钉住形状）。
+ *
+ * 三档：严格 json_schema（Qwen 3.7-plus/3.8）→ response_format；只有 json_object 但支持
+ * strict 函数参数的供应商（DeepSeek）→ 服务端强制调用唯一的「提交复核结论」函数，
+ * 由服务端对枚举做约束解码；其余 → json_object（闭集只靠提示词，解析层兜底）。
+ * 生产 222 例实测：json_object 下 DeepSeek 把整句中文写进枚举字段，54 次 invalid contract、
+ * 108 条日志——同一坏候选在首审/终审/修复轮被以 T=0 反复问，每次同样失败。
+ */
+export function buildClinicalReviewRequestBody(input: {
+  model: string;
+  provider: string;
+  stage: ClinicalReviewStage;
+  systemPrompt: string;
+  userPrompt: string;
+}): Record<string, unknown> {
+  const task = input.stage === "diagnose" ? "m03_review" : "m04_review";
+  return {
+    model: input.model,
+    messages: explicitPromptCacheMessages(input.systemPrompt, input.userPrompt, { provider: input.provider, model: input.model }),
+    stream: false,
+    // This is a two-field classifier, not a chain-of-thought surface. Explicitly disable
+    // extended thinking so hidden reasoning cannot consume the whole completion budget and
+    // leave content empty with finish_reason=length.
+    max_tokens: 800,
+    temperature: 0,
+    // 严格 json_schema / json_object / 服务端强制的单函数结构化结论——三档由 model-response-format 统一裁决。
+    ...structuredReviewRequestFields(input.model, task),
+    ...textModelRequestTuning(input.model, {
+      reasoningEffort: PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT,
+      thinkingEnabled: false,
+    }),
+  };
+}
+
+/** tool-call 结论优先；没有 tool_calls 时回到 message.content（json_object / json_schema 路径）。 */
+export function clinicalReviewContentFromChoice(choice: NonNullable<CompatCompletion["choices"]>[number] | undefined): string {
+  const toolArguments = choice?.message?.tool_calls?.[0]?.function?.arguments;
+  if (typeof toolArguments === "string" && toolArguments.trim()) return toolArguments;
+  return choice?.message?.content || "";
+}
+
 async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts: {
   stage: ClinicalReviewStage;
   systemPrompt: string;
@@ -2664,21 +2708,10 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
           "Content-Type": "application/json",
           Authorization: `Bearer ${config.apiKey}`,
         },
-        body: JSON.stringify({
-          model,
-          messages: explicitPromptCacheMessages(opts.systemPrompt, opts.userPrompt, { provider: config.provider, model }),
-          stream: false,
-          // This is a two-field classifier, not a chain-of-thought surface. Explicitly disable
-          // extended thinking so hidden reasoning cannot consume the whole completion budget and
-          // leave content empty with finish_reason=length.
-          max_tokens: 800,
-          temperature: 0,
-          response_format: responseFormatForTask(model, opts.stage === "diagnose" ? "m03_review" : "m04_review"),
-          ...textModelRequestTuning(model, {
-            reasoningEffort: PRIMARY_CLINICAL_REVIEW_REASONING_EFFORT,
-            thinkingEnabled: false,
-          }),
-        }),
+        body: JSON.stringify(buildClinicalReviewRequestBody({
+          model, provider: config.provider, stage: opts.stage,
+          systemPrompt: opts.systemPrompt, userPrompt: opts.userPrompt,
+        })),
       }, controller, chainDeadline);
       if (!response.ok) {
         lastReason = "http_error";
@@ -2699,7 +2732,7 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
           durationMs: Date.now() - startedAt,
         });
         const choice = result?.choices?.[0];
-        const content = choice?.message?.content || "";
+        const content = clinicalReviewContentFromChoice(choice);
         lastResponseContent = content;
         const review = content ? opts.parse(content) : opts.unavailable;
         if (review.status !== "unavailable") {
@@ -2710,6 +2743,11 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
           );
         }
         lastReason = "invalid_contract";
+        // 归因字段（2026-09-14）：此前只记长度，54 次 invalid 一条也说不出「哪个字段不合闭集」。
+        // 只记闭集字段的键名与截断值——复核结论里没有患者原文，截断 40 字也挡住整句泄漏。
+        const rawObject = parseClinicalReviewJson(content);
+        const shortValue = (value: unknown): string | undefined =>
+          typeof value === "string" ? value.replace(/\s+/g, " ").slice(0, 40) : value == null ? undefined : typeof value;
         console.warn("[tcm-cdss:model] clinical reviewer returned an invalid contract", {
           stage: opts.stage,
           provider: config.provider,
@@ -2718,6 +2756,12 @@ async function runIndependentClinicalReview<T extends ClinicalReviewResult>(opts
           finishReason: choice?.finish_reason || "unknown",
           contentChars: content.length,
           reasoningChars: choice?.message?.reasoning_content?.length || 0,
+          viaToolCall: Boolean(choice?.message?.tool_calls?.[0]?.function?.arguments),
+          parsedJson: Boolean(rawObject),
+          rawKeys: rawObject ? Object.keys(rawObject).slice(0, 10) : undefined,
+          rawStatus: shortValue(rawObject?.status),
+          rawIssueCode: shortValue(rawObject?.issueCode),
+          rawRepairFocus: shortValue(rawObject?.repairFocus),
         });
       }
     } catch (error) {
@@ -6387,14 +6431,32 @@ async function callPrimaryTextModelStream(
               structuredRetryCount,
             });
           }
+          // M03 未签名工作草稿（owner 2026-09-14）：走有限结果兜底时，把最后一版结构完整的
+          // 草稿作为可见 Markdown 附在有限页里并列出未通过码。只加不减：sentinel 仍是签名的
+          // 有限合同，M04 照常 m03_unstable；客户端按机器码提供 M03 重跑。
+          const m03ProvisionalSection = opts.structuredStage === "diagnose" && (truncated || !transformed.ok || authoritativeFallbackAccepted)
+            ? renderM03ProvisionalDraftSection(
+                schemaValidDiagnoseDraft(authoritativeContent),
+                [m03LastRepairTriggerReason, m03CurrentRejection?.reason, m03DiagnosticReviewReason],
+                opts.structuredClinicalContext || "",
+                opts.structuredCaseState as CaseState | undefined,
+              )
+            : "";
+          if (m03ProvisionalSection) {
+            console.warn("[tcm-cdss:contract] M03 provisional draft attached to limited result", {
+              stage: "diagnose",
+              caseRef: structuredCaseRef,
+              draftChars: m03ProvisionalSection.length,
+            });
+          }
           enqueueClient(clinicalReviewUnavailableFallback
             ? `${STREAM_REPLACE_MARKER}${transformed.content}`
             : m03SemanticReviewSalvage
             ? `${STREAM_REPLACE_MARKER}${visibleIncompleteContent(transformed.content, "semantic_review")}\n\n[TRUNCATED]\n`
             : authoritativeFallbackAccepted
-            ? `${STREAM_REPLACE_MARKER}${transformed.content}`
+            ? `${STREAM_REPLACE_MARKER}${insertM03ProvisionalDraft(transformed.content, m03ProvisionalSection)}`
             : truncated || !transformed.ok
-              ? `${STREAM_REPLACE_MARKER}${visibleIncompleteContent(transformed.content)}\n\n[TRUNCATED]\n`
+              ? `${STREAM_REPLACE_MARKER}${insertM03ProvisionalDraft(visibleIncompleteContent(transformed.content), m03ProvisionalSection)}\n\n[TRUNCATED]\n`
               : `${STREAM_REPLACE_MARKER}${signedContent}`);
           stageOutcome = clinicalReviewUnavailableFallback
             ? "fallback"

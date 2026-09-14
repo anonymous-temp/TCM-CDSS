@@ -2301,7 +2301,10 @@ async function runLimitedEndpointCases() {
   const prescribe = await request("POST", "/api/diagnosis/prescribe", { caseState: { ...emptyCase, reasoningDiagnose: undefined } });
   assert(prescribe.status === 409 && /重新生成辨病辨证/.test(prescribe.text), "M04: an unsigned diagnosis cannot enter candidate generation", prescribe.text.slice(0, 300));
   const assess = await request("POST", "/api/diagnosis/assess", { caseState: { ...emptyCase, reasoningDiagnose: undefined } });
-  assert(assess.status === 409 && assess.json?.code === "invalid_m04_signature", "M05: missing prescription cannot bypass the signed M04 boundary", assess.json);
+  // 2026-09-14：M05 支持「有签名 M03、无结构化 M04」的 diagnose-only 评估（镜像 his-scheme 既有规则），
+  // 因此边界前移到 M03 签名：没有 M03 仍然 409，码变为 invalid_m03_signature。未签名处方 Markdown
+  // 仍不得跨界（见下方 expectSignatureRejection 用例）。
+  assert(assess.status === 409 && assess.json?.code === "invalid_m03_signature", "M05: missing diagnosis cannot bypass the signed M03 boundary", assess.json);
 }
 
 async function runPrescriptionOnlyGateEndpointCases() {
@@ -3014,7 +3017,9 @@ async function runKnowledgeCalls() {
     if (item.expectSignatureRejection) {
       assert(res.status === 409 && res.json?.code === "invalid_m04_signature", `${item.name}: unsigned markdown cannot cross the M04 trust boundary`, res.json);
       const m05 = await request("POST", "/api/diagnosis/assess", { caseState: item.caseState });
-      assert(m05.status === 409 && m05.json?.code === "invalid_m04_signature", `${item.name}: M05 rejects the same unsigned markdown fixture`, m05.json);
+      // 该 fixture 没有签名 M03 ⇒ M05 现在先在 M03 边界拒绝（409 invalid_m03_signature）；
+      // 带签名 M03 + 手写处方 Markdown 的情形由单测钉 422 missing_structured_prescription。
+      assert(m05.status === 409 && ["invalid_m03_signature", "invalid_m04_signature"].includes(m05.json?.code), `${item.name}: M05 rejects the same unsigned markdown fixture`, m05.json);
       continue;
     }
     if (item.expectedSubmissionIssue) {

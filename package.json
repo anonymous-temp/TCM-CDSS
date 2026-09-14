@@ -37,6 +37,8 @@
     "test:redflag-dose-authorization": "node scripts/test-redflag-dose-authorization.mjs",
     "test:formula-term-roles": "node scripts/test-formula-term-roles.mjs",
     "test:clinical-review-reason": "node scripts/test-clinical-review-unavailable-reason.mjs",
+    "test:clinical-review-strict-tool": "node --test scripts/test-clinical-review-strict-tool.mjs",
+    "test:m03-provisional-draft": "node --test scripts/test-m03-provisional-draft.mjs",
     "test:primary-syndrome-segmentation": "node scripts/test-primary-syndrome-segmentation.mjs",
     "test:orchestration-clock": "node scripts/test-orchestration-clock-start.mjs",
     "test:herb-pair-tiering": "node scripts/test-herb-pair-tiering.mjs",

@@ -47,6 +47,13 @@ const scripts = [
   // 无法区分超时/上游报错/契约不合法/未配置。根因是 execution.reason 算出来即丢弃——
   // 与同文件 independentFromGenerator 曾经的毛病同形，同一个函数第二次。
   "test:clinical-review-reason",
+  // 复核器闭集结论在 DeepSeek 上走 strict tool-call（2026-09-14）。json_object 不执行 schema，
+  // 生产 222 例 54 次 invalid contract 全是整句中文写进枚举字段；钉：DeepSeek 请求体带
+  // strict 函数 + tool_choice、无 response_format；Qwen 严格档不变；tool_calls 参数优先于 content。
+  "test:clinical-review-strict-tool",
+  // M03 未签名工作草稿（2026-09-14）：通过 schema 但没过合同的最后一版以可见 Markdown 附在
+  // 有限页里、列出未通过码，永不带 sentinel、永不签名；M04 仍只认签名合同。
+  "test:m03-provisional-draft",
   // 主证串分段归位。钉 194 例实测：157/194 把多段塞进 primarySyndrome、184/194 兼证为空。
   // 关键是别按逗号一拆了之——用国标词表逐段判定后，83 例是真并列证候（该外移到兼证），
   // 69 例是证候+病机结果（该进病机链），直觉修法会把后者做错。

@@ -112,8 +112,15 @@ try {
     qwenThinkingControl: "reasoning_effort",
     functionCalling: true,
     providerWebSearch: true,
+    strictToolArguments: false,
   });
   assert.equal(textModelCapabilities("qwen3.7-flash").strictJsonSchema, false);
+  // 2026-09-14：DeepSeek 的 response_format 不执行 schema，但对 strict 函数参数做服务端约束解码
+  // （正式端点实测）。这一位决定复核器闭集结论走 tool-call 还是 json_object。
+  assert.equal(textModelCapabilities("deepseek-flash").strictToolArguments, true);
+  assert.equal(textModelCapabilities("deepseek-flash").strictJsonSchema, false);
+  assert.equal(textModelCapabilities("qwen3.7-plus").strictToolArguments, false, "有严格 json_schema 的模型不走 tool 路径");
+  assert.equal(textModelCapabilities("some-unknown").strictToolArguments, false, "未知模型保守");
 
   const tuningCallers = [
     "src/lib/clinical-facts-runtime.ts",
