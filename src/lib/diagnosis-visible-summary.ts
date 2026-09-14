@@ -8,7 +8,7 @@ import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesis
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { gateDispositionIsAdvisory, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
@@ -112,6 +112,25 @@ export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseS
   const mustCollect = activeRedFlag
     ? "完成急危重风险评估并记录排除或处置依据"
     : "补充影响辨证的病程、伴随表现及必要四诊";
+  // ── advise 档：标注边界，不撤回已经形成的分析（owner 决策 2026-09-13）────────────────
+  //
+  // 222 例实测里 28 例最终没有药味候选，根因就在这里：入口按 advise 档放行了完整 M03，
+  // 最终出口这段固定代码又把证候、病位病性、病机链、方剂方向全部清空，M04 随后把
+  // 「unresolved + 空链」当成不具备生成条件而直接返回。甲方风寒病例流中已出现
+  // 「感冒／风寒束表证」，最终却被改写成「症状级工作判断」——是服务端撤回了结果，
+  // 不是模型没想出来。
+  //
+  // 处置档位必须在这里生效（此前本函数**根本不读** CDSS_GATE_DISPOSITION，
+  // 与 diagnose/prescribe 两条路由的 advise 分支互相矛盾）。advise 档改为：
+  // 内容一律保留，把「为什么还不能直接采纳」写成边界、不确定项与补采项；
+  // 肯定级结论降为 bounded，如实表达「这是有界建议」。
+  // block 档（运维回退）维持旧的去具体度行为，由 test:m03-specificity-policy 两头钉住。
+  //
+  // 剂量授权是**另一根轴**：红旗病例的剂量仍由 CDSS_REDFLAG_DOSE_AUTHORIZATION 收回
+  // （derivePrescriptionPermission 给 non_dose_only），本函数不授权任何剂量。
+  if (gateDispositionIsAdvisory()) {
+    return annotateM03DecisionSpecificityBoundary(content, { reason, mustCollect, activeRedFlag });
+  }
   return content.replace(
     /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
     (match, jsonText: string) => {
@@ -234,6 +253,101 @@ export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseS
             : "先补充影响诊断与安全判断的关键信息后再复评；如症状明显加重或出现急性危险信号，请及时急诊就医。",
         };
         return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
+      } catch {
+        return match;
+      }
+    },
+  );
+}
+
+/**
+ * advise 档下 M03 终审出口的**保留式投影**：一个字不删，只加边界（2026-09-13）。
+ *
+ * 与上面的去具体度投影是同一个决策点的两个档位。这里做四件事，全部是「只加不减」：
+ *  1. 肯定级主证降为 `bounded` —— 如实表达「有界建议」，而不是把它改写成症状级判断；
+ *     已是 unresolved 的维持原样（模型自己就没形成结论，不该被抬高）。
+ *  2. 边界理由写进 primarySyndromeResolutionReason（保留模型原有理由，前置本条）。
+ *  3. 写进西医主诊断 limitations、病机 uncertainties、management.mustCollect —— 三处都是
+ *     医生可见渲染位（`**辨证边界**` / `## 需复核的不确定项` / M05 消费）。
+ *  4. 红旗档额外把急诊优先写进 redFlagLoop 与 followupSafetyNet 的**最前面**，
+ *     模型自己写的处置指引保留在后面。
+ *
+ * 幂等：重复施加不会重复追加同一条边界。
+ */
+export function annotateM03DecisionSpecificityBoundary(
+  content: string,
+  boundary: { reason: string; mustCollect: string; activeRedFlag: boolean },
+): string {
+  const { reason, mustCollect, activeRedFlag } = boundary;
+  const UNCERTAINTY_ITEM = "辨证与方剂具体度边界";
+  const redFlagFirst = "急危重风险未排除：请优先完成急诊或转诊评估并记录排除或处置依据；以下辨证与治法结论供医生参考，正式采纳与具体用量须在风险处置之后。";
+  const redFlagSafetyNet = "当前应优先完成急危重风险评估；如症状持续、加重或出现新的急性危险信号，请立即急诊或呼叫急救。";
+  const prepend = (existing: unknown, head: string): string => {
+    const tail = typeof existing === "string" ? existing.trim() : "";
+    if (!tail) return head;
+    return tail.startsWith(head) || tail.includes(head) ? tail : `${head}\n\n${tail}`;
+  };
+  const appendUnique = (list: unknown, value: string, limit: number): string[] => {
+    const items = (Array.isArray(list) ? list : [])
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter(Boolean);
+    if (!items.includes(value)) items.unshift(value);
+    return items.slice(0, limit);
+  };
+  return content.replace(
+    /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
+    (match, jsonText: string) => {
+      try {
+        const reasoning = JSON.parse(jsonText) as Record<string, unknown>;
+        if (reasoning.stage !== "diagnose") return match;
+        const overview = reasoning.overview && typeof reasoning.overview === "object" && !Array.isArray(reasoning.overview)
+          ? reasoning.overview as Record<string, unknown>
+          : undefined;
+        if (!overview) return match;
+        // 只降不升：resolved ⇒ bounded；bounded / unresolved 保持原判。
+        if (overview.primarySyndromeResolution === "resolved") overview.primarySyndromeResolution = "bounded";
+        overview.primarySyndromeResolutionReason = prepend(overview.primarySyndromeResolutionReason, reason).slice(0, 800);
+
+        const westernPrimary = reasoning.westernDiagnosis && typeof reasoning.westernDiagnosis === "object" && !Array.isArray(reasoning.westernDiagnosis)
+          ? (reasoning.westernDiagnosis as Record<string, unknown>).primary
+          : undefined;
+        if (westernPrimary && typeof westernPrimary === "object" && !Array.isArray(westernPrimary)) {
+          const primary = westernPrimary as Record<string, unknown>;
+          primary.limitations = appendUnique(primary.limitations, reason, 8);
+        }
+
+        const pathogenesis = reasoning.pathogenesis && typeof reasoning.pathogenesis === "object" && !Array.isArray(reasoning.pathogenesis)
+          ? reasoning.pathogenesis as Record<string, unknown>
+          : undefined;
+        if (pathogenesis) {
+          const existing = (Array.isArray(pathogenesis.uncertainties) ? pathogenesis.uncertainties : [])
+            .filter((row) => !(row && typeof row === "object" && (row as Record<string, unknown>).item === UNCERTAINTY_ITEM));
+          pathogenesis.uncertainties = [
+            {
+              item: UNCERTAINTY_ITEM,
+              reason,
+              affects: "本次辨证、病机与治法结论供医生参考；正式采纳与具体用量需先完成上述事项。",
+            },
+            ...existing,
+          ].slice(0, 12);
+        }
+
+        const management = reasoning.management && typeof reasoning.management === "object" && !Array.isArray(reasoning.management)
+          ? reasoning.management as Record<string, unknown>
+          : undefined;
+        if (management) {
+          management.mustCollect = appendUnique(management.mustCollect, mustCollect, 12);
+          if (activeRedFlag) {
+            management.redFlagLoop = prepend(management.redFlagLoop, redFlagFirst).slice(0, 1200);
+            management.followupSafetyNet = prepend(management.followupSafetyNet, redFlagSafetyNet).slice(0, 1200);
+          }
+        } else {
+          reasoning.management = {
+            ...(activeRedFlag ? { redFlagLoop: redFlagFirst, followupSafetyNet: redFlagSafetyNet } : {}),
+            mustCollect: [mustCollect],
+          };
+        }
+        return `${START_MARKER}\n${JSON.stringify(reasoning)}\n${END_MARKER}`;
       } catch {
         return match;
       }
@@ -3226,7 +3340,10 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
       ? [`**中医辨病依据**：${structuredCitationTexts(overview?.tcmDiseaseReferences).join("；")}`]
       : []),
     `**辨证**：${syndromeLabelWithNationalStandard(reasoning, "overview.primarySyndrome", overview?.primarySyndrome)}`,
-    ...(overview?.primarySyndromeResolution === "unresolved" && markdownCell(overview?.primarySyndromeResolutionReason)
+    // bounded 也必须渲染边界（2026-09-13）。advise 档保留式投影把「为什么还不能直接采纳」
+    // 写在这里；只渲染 unresolved 会让医生看到一个没有任何限定的具体证候。
+    ...((overview?.primarySyndromeResolution === "unresolved" || overview?.primarySyndromeResolution === "bounded") &&
+      markdownCell(overview?.primarySyndromeResolutionReason)
       ? [`**辨证边界**：${markdownCell(overview.primarySyndromeResolutionReason)}`]
       : []),
     ...(structuredCitationTexts(overview?.tcmSyndromeReferences).length > 0

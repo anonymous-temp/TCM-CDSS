@@ -38,6 +38,16 @@ export const CDSS_DEGRADE_REASON_CODES = [
    * 医生据此会误以为病历不充分(实测:上游 503 期间甲方10例有9例显示「证候依据不足」)。
    */
   "upstream_model_unavailable",
+  /**
+   * M04 已保留候选（非剂量 + 问题提示），但未完成全部确定性交付合同 —— 可直接重试 M04
+   * 争取完整出方；医生同时已经拿到药味、方义与逐条问题条目（owner 决策 2026-09-13）。
+   */
+  "m04_candidate_retained_non_dose",
+  /**
+   * 剂量授权被独立硬边界收回（红旗未解除 / 儿科体重缺失 / 妊娠哺乳阳性 / 语义筛查不可用）。
+   * 候选内容照常交付；**原地重试 M04 不会改变结果**，必须先解除该边界。
+   */
+  "dose_authorization_withheld",
 ] as const;
 
 export type CdssDegradeReasonCode = (typeof CDSS_DEGRADE_REASON_CODES)[number];

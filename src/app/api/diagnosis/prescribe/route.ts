@@ -81,12 +81,25 @@ export async function POST(req: Request) {
       });
   const gated = withSafetyGate(caseState);
   const permission = derivePrescriptionPermission(gated);
-  const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready" || permission.candidateMode === "limited_dose";
-  // advise 只改变“已检出红旗”的呈现方式，不能覆盖处方权限层的 non_dose_only / blocked。
-  // 后两者包含儿科体重缺失、妊娠状态未核实、语义筛查不可用等独立硬边界；若因有主诉就
-  // 放行剂量，会把 fail-closed 权限降成一条可见提示。此处始终返回非剂量建议。
+  const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready" ||
+    permission.candidateMode === "limited_dose" || permission.candidateMode === "non_dose_only";
   const advisoryDisposition = gateDispositionIsAdvisory();
-  if (permission.candidateMode === "non_dose_only" || permission.candidateMode === "blocked") {
+  // ── 「不给剂量」不再等于「不给候选」（owner 决策 2026-09-13）──────────────────────
+  //
+  // 剂量授权仍然是一根独立的硬边界轴（红旗未解除 / 儿科体重缺失 / 妊娠哺乳阳性 /
+  // 语义筛查不可用），advise 档不能放行剂量——这一条不变。变的是**它不再顺带取消候选生成**：
+  // 此前本分支在任何模型调用之前就返回一页固定说明，整条候选生成环节被跳过。
+  // 222 例实测 published_case-82：M03 已有气血亏虚工作判断与 2 个病机节点，M04 一味药未生成。
+  //
+  // 现在照常完整生成、修复、复核、保留候选，最终交付走服务端的**非剂量投影**
+  // （药味、君臣佐使、方义、适用边界、调护全部可见；剂量/用法/疗程由服务端剥离）。
+  // candidateMode=blocked 只有「缺主诉」一种来源——那是真的无从生成，维持原页。
+  const doseWithheldReasons = permission.candidateMode === "non_dose_only" && advisoryDisposition
+    ? Array.from(new Set(permission.reasons.length > 0 ? permission.reasons : ["本例剂量授权未开放"]))
+    : [];
+  // block 档（运维回退）维持旧的生成前拦截：那一档的语义就是 fail-closed 全量回退。
+  if (permission.candidateMode === "blocked" ||
+      (permission.candidateMode === "non_dose_only" && !advisoryDisposition)) {
     const gate: SafetyGate = {
       status: gated.safetyGate?.status || "needs_information",
       allowDiagnosis: true,
@@ -224,6 +237,11 @@ export async function POST(req: Request) {
   if (noExecutableFormulaPath && advisoryDisposition) {
     promptSuffixes.push(`【方名剂量基准缺失】推荐方 ${unavailableFormulaNames.join("、")} 在本地标准剂量资料中暂无可执行的逐味剂量基准。请按已锁定证候与治法自拟组方（constructionType=self_devised，不得沿用该方名身份），方名方向已另行保留给医生参考。`);
   }
+  if (doseWithheldReasons.length > 0) {
+    // 模型仍需产出完整结构（剂量字段参与服务端的药典边界与配伍核验），但必须知道本例
+    // 存在独立硬边界、用量不会直接呈现给医生，因此取保守区间并把边界写进适用范围。
+    promptSuffixes.push(`【剂量授权暂缓】服务器确定性判定本例存在独立硬边界：${doseWithheldReasons.join("；")}。请照常完成完整候选（药味、君臣佐使、方义、适用与不适用边界、调护），剂量取保守区间下段；服务端本次不向医生显示具体用量，请把该边界与其影响写入适用边界，不得因此拒绝生成候选。`);
+  }
   const promptSuffix = promptSuffixes.map((value) => `\n\n${value}`).join("");
   const emptyEvidencePromptLength = appendEvidenceContext(basePrompt, "").length + promptSuffix.length;
   // 证据块此前按「总提示词上限减其余长度」分配——即永远填满到 60k 字符，生产 M04 平均
@@ -281,6 +299,8 @@ export async function POST(req: Request) {
         ? ["本次就诊是否存在当前活动性治疗目标未确认，请医生确认后再采纳。"] : []),
       ...(noExecutableFormulaPath && advisoryDisposition
         ? [`推荐方 ${unavailableFormulaNames.join("、")} 暂无可执行剂量基准，本次候选为辨证自拟组方，方名方向供参考。`] : []),
+      ...(doseWithheldReasons.length > 0
+        ? [`本次候选药味与方义照常呈现，但按独立硬边界暂不显示具体用量：${doseWithheldReasons.join("；")}。`] : []),
     ],
   );
   const evidenceOutputTransform = buildEvidenceOutputTransform(
@@ -304,6 +324,10 @@ export async function POST(req: Request) {
     truncateFallback: buildDeterministicFormulaReferenceFallback(gated, signedPriorReasoning)
       ?? buildSafetyLimitedPrescription(truncationGate, "m04_truncated_no_candidate"),
     structuredStage: "prescribe",
+    // 非空 ⇒ 最终交付走非剂量投影（药味与方义照常可见）。
+    structuredDoseWithheldReasons: doseWithheldReasons,
+    // 非剂量投影从结构化载荷重建页面，横幅不在载荷里；显式带上，红旗警示不得丢失。
+    structuredContinuityBanner: advisoryBanner || undefined,
     structuredQueueKey: parsed.customer.customerHash,
     // M04 repair/review must never receive raw HIS identifiers.
     structuredClinicalContext,

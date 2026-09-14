@@ -53,7 +53,7 @@ import { declassifyAndDropOpposingM04CandidateHerbs, dropUnsupportedM04Candidate
 import { applyClinicalReviewIndependenceWording, clinicalReviewIndependenceOf } from "@/lib/clinical-review-independence";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
 import { responseFormatForTask, supportsStrictJsonSchema } from "@/lib/model-response-format";
-import { bindM04DeliveryReview, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint, type M04DeliveryCheckpoint } from "./m04-delivery-checkpoint";
+import { bindM04DeliveryReview, m04DeliveryCheckpointFeedbackCodes, m04DeliveryCheckpointSafetyFindingCount, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint, type M04DeliveryCheckpoint } from "./m04-delivery-checkpoint";
 
 const PROVIDER_CONNECT_TIMEOUT_MS = 90_000;
 const STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS = (() => {
@@ -489,6 +489,25 @@ type StreamSafetyOptions = {
   outputTransform?: (content: string) => string;
   finalOutputTransform?: (content: string) => Promise<string>;
   structuredStage?: "diagnose" | "prescribe";
+  /**
+   * M04 的**剂量授权轴**（owner 决策 2026-09-13）。非空表示本例剂量被独立硬边界暂缓
+   * （红旗未解除 / 儿科体重缺失 / 妊娠哺乳阳性 / 语义筛查不可用）。
+   *
+   * 此前这几种情况在 prescribe 路由的生成**之前**就直接返回一页固定说明，整条候选生成
+   * 环节被跳过——「不给剂量」被实现成了「不给候选」（222 例实测 published_case-82：
+   * M03 已有气血亏虚工作判断与 2 个病机节点，M04 一味药都没生成）。
+   * 现在照常完整生成、复核、保留候选，只是最终交付走**非剂量投影**：药味、君臣佐使、
+   * 方义、调护全部可见，剂量/用法/疗程由服务端确定性剥离，不依赖模型自觉。
+   */
+  structuredDoseWithheldReasons?: readonly string[];
+  /**
+   * 交付连续性页（非剂量投影）顶部必须保留的确定性安全警示横幅。
+   *
+   * 横幅原本由路由的 outputTransform 贴在模型正文上，而 renderM04DeliveryCheckpoint 是从
+   * 结构化载荷**重建**页面的——重建时横幅会整段丢失。红旗病例改走生成路径之后，这正是
+   * 最不该丢横幅的那一类（剂量轴收回的原因往往就是红旗本身）。
+   */
+  structuredContinuityBanner?: string;
   /** Hashed tenant identity used only for fair queue scheduling; never a raw customer identifier. */
   structuredQueueKey?: string;
   structuredClinicalContext?: string;
@@ -1738,6 +1757,15 @@ async function retryCompletePrimaryResponse(
   clinicalReviewGuidance = "",
   m03HalfPrompts?: { western: string; tcm: string },
   structuredSamplingTemperature = 0,
+  /**
+   * 同一份候选上服务端一次扫出的**全部**问题码（2026-09-13）。
+   *
+   * 此前修复提示只带 `rejectionReason` 一条——而 m04SemanticIssue 命中第一个问题就短路返回，
+   * 检查顺序又不反映严重度。于是修复轮是「挤牙膏」式的：herb_9 → herb_10 → herb_11 逐轮暴露，
+   * 预算耗尽后仍然 0 味（生产实测）。外部反馈要有用就必须**一次给全**
+   * （Self-Refine / DSPy Suggest 回溯注入的都是完整错误集合，不是首条）。
+   */
+  additionalRejectionCodes: readonly string[] = [],
 ): Promise<
   | { ok: true; content: string; finishReason: string | null; model: string }
   | { ok: false; reason: string; status?: number }
@@ -2037,6 +2065,16 @@ async function retryCompletePrimaryResponse(
     const m04FormulaRepairRule = structuredStage === "prescribe"
       ? "若 M03锁定上下文包含 governedFormulaBaselines，candidate.herbs 必须逐项满足所选基准的 minimumPreservedIngredientCount 与 requiredIngredients，再按本例病机做有依据的加减；不得只复制方名却改成另一套组成。对于 formula_reference_declassified 或 formula_compilation_composition_drift 修复，必须先不重不漏地输出所选基准 ingredients 的全部药味，并在完整药味中依据本例 P1 指定恰好 1–2 味君药，不得仅满足最低组成数量。alternatives 只能选择其中一个基准，combined 才可合并。"
       : "";
+    // 整批反馈：把本轮扫出的其余问题码一次性列给模型，明确要求逐条修复。
+    const batchedCodes = [...new Set(additionalRejectionCodes
+      .map((code) => (typeof code === "string" ? code.trim() : ""))
+      .filter((code) => Boolean(code) && code !== rejectionReason))].slice(0, 30);
+    const batchedRejectionCodeHint = batchedCodes.length > 0
+      ? [
+          "本次服务端在同一份候选上还同时扫出以下问题，请**逐条一并修复**后再输出；只修第一条会在下一轮被同样驳回：",
+          ...batchedCodes.map((code) => `- ${code}`),
+        ].join("\n")
+      : "";
     const regenerateM03FromFacts = shouldRegenerateM03ClinicalRepair(
       structuredStage,
       rejectionReason,
@@ -2083,6 +2121,7 @@ async function retryCompletePrimaryResponse(
             ? "请定向修复以下 prescribe 结构化 JSON。只输出一个合法 JSON 对象，不要输出 sentinel、正文、代码围栏或额外说明。"
             : `请定向修复以下 ${structuredStage || "structured"} 结构化 JSON。只输出一个合法 JSON 对象，不要输出 sentinel、正文、代码围栏或额外说明。`,
           `未通过原因代码：${rejectionReason || "structured_contract_rejected"}。`,
+          batchedRejectionCodeHint,
           groundingHint,
           doseBoundaryHint,
           unsupportedHighImpactHint,
@@ -3494,6 +3533,17 @@ async function callPrimaryTextModelStream(
         }
         return { content: candidateContent, reasoning: candidateReasoning, review };
       };
+      /**
+       * 日志用的**病例关联标识**（2026-09-13）。222 例只读归因的最大排查障碍就是
+       * 「现有日志缺少贯穿每一条 warning 的病例/request 关联」——细码打了但对不到病例上。
+       * 取病例 id 的 sha256 前 12 位：稳定、可跨行关联、不可逆、不含任何患者标识。
+       */
+      const structuredCaseRef = ((): string | undefined => {
+        const id = (opts.structuredCaseState as { id?: unknown } | undefined)?.id;
+        return typeof id === "string" && id.trim()
+          ? createHash("sha256").update(id.trim()).digest("hex").slice(0, 12)
+          : undefined;
+      })();
       const rememberM04Candidate = (
         reasoning: ClinicalReasoningResultV2,
         generatorModel: string | undefined,
@@ -3501,20 +3551,47 @@ async function callPrimaryTextModelStream(
           `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
           "prescribe", opts.structuredClinicalContext || "", opts.structuredCaseState,
         ),
+        extraContractIssues: readonly string[] = [],
       ) => {
         if (clientStreamClosed || opts.requestSignal?.aborted) return;
+        const issues = [...extraContractIssues];
         try {
-          // A route transform may have rejected an earlier candidate and left the pre-transform
-          // bytes for ordinary repair. Those bytes are not a finalized delivery checkpoint.
           if (opts.outputTransform) content = opts.outputTransform(content);
-        } catch { return; }
+        } catch (error) {
+          // 路由终审投影驳回**不再丢弃候选**（owner 决策 2026-09-13）。未经投影的原始字节
+          // 仍是一份完整的药味讨论；保留它、把驳回码挂成问题条目，由非剂量投影交付。
+          // 带合同码的快照永不签名（bindM04DeliveryReview 拒绝绑定），不存在「冒充已复核」。
+          const message = error instanceof Error ? error.message : "";
+          issues.push(/^finalized_prescription_[a-z0-9_]+$/i.test(message)
+            ? message.replace(/^finalized_prescription_/, "")
+            : "finalized_output_transform_error");
+        }
         const previous = m04DeliveryCheckpoint?.payloadHash === clinicalReviewPayloadHash(reasoning)
           ? m04DeliveryCheckpoint : undefined;
         m04PendingDeliveryCheckpoint = retainM04DeliveryCheckpoint(previous, {
           content, reasoning, generatorModel, acceptanceScope: m04AcceptanceScope,
           priorReasoning: opts.structuredPriorReasoning, clinicalContext: opts.structuredClinicalContext,
+          extraContractIssues: issues,
         });
         m04DeliveryCheckpoint = preferM04DeliveryCheckpoint(m04DeliveryCheckpoint, m04PendingDeliveryCheckpoint);
+      };
+      /**
+       * 终审投影抛错时从**原始字节**回收候选。与 rememberM04Candidate 的区别只有一点：
+       * 这里的字节已经确定过不了 outputTransform，所以不再重跑它（重跑必然再抛一次）。
+       */
+      const rememberRejectedM04Candidate = (content: string, rejectionCode: string) => {
+        if (clientStreamClosed || opts.requestSignal?.aborted) return;
+        const reasoning = structuredReasoningFromContent(content);
+        if (!reasoning || reasoning.stage !== "prescribe") return;
+        const previous = m04DeliveryCheckpoint?.payloadHash === clinicalReviewPayloadHash(reasoning)
+          ? m04DeliveryCheckpoint : undefined;
+        const retained = retainM04DeliveryCheckpoint(previous, {
+          content, reasoning, generatorModel: m04GeneratorModel, acceptanceScope: m04AcceptanceScope,
+          priorReasoning: opts.structuredPriorReasoning, clinicalContext: opts.structuredClinicalContext,
+          extraContractIssues: [rejectionCode],
+        });
+        m04PendingDeliveryCheckpoint = retained;
+        m04DeliveryCheckpoint = preferM04DeliveryCheckpoint(m04DeliveryCheckpoint, retained);
       };
       const rememberM04Review = (
         reasoning: ClinicalReasoningResultV2,
@@ -3548,8 +3625,14 @@ async function callPrimaryTextModelStream(
         m04PendingDeliveryCheckpoint = reviewed;
         m04DeliveryCheckpoint = preferM04DeliveryCheckpoint(m04DeliveryCheckpoint, reviewed);
       };
-      const m04ContinuityFallback = (reason: "deadline" | "interrupted" | "upstream_unavailable" | "contract_rejected") =>
-        renderM04DeliveryCheckpoint(m04DeliveryCheckpoint, opts.structuredPriorReasoning, reason);
+      const m04ContinuityFallback = (reason: Parameters<typeof renderM04DeliveryCheckpoint>[2]) => {
+        const page = renderM04DeliveryCheckpoint(
+          m04DeliveryCheckpoint, opts.structuredPriorReasoning, reason, opts.structuredDoseWithheldReasons || []);
+        // 已签名剂量页自带横幅（由 outputTransform 贴上）；重建页则需要在这里补回。
+        return opts.structuredContinuityBanner && !page.includes("CDSS_SAFETY_ADVISORY")
+          ? `${opts.structuredContinuityBanner}${page}`
+          : page;
+      };
       const trackM04ReviewResult = (
         review: ClinicalReviewExecution<M04ClinicalReview>,
         reasoning: ClinicalReasoningResultV2,
@@ -3835,10 +3918,32 @@ async function callPrimaryTextModelStream(
         m04ClinicalReviewAttestation = checkpoint?.attestation;
         m04ClinicalReviewer = checkpoint?.attestation
           ? `${checkpoint.attestation.provider}/${checkpoint.attestation.model}/${checkpoint.attestation.source}` : "none";
-        stageOutcome = completed ? structuredRetryCount > 0 ? "repaired" : "success" : "fallback";
+        // 剂量轴收回不是失败：候选、方义与调护都交付了，只是不显示用量。
+        stageOutcome = completed ? structuredRetryCount > 0 ? "repaired" : "success"
+          : reason === "dose_withheld" && checkpoint ? "success" : "fallback";
+        // 归因细码随交付一起落账：此前 `${reason}_no_valid_candidate` 这一个泛码覆盖了
+        // 「合同驳回」「复核未受理」「输出转换失败」三类完全不同的原因，13 例生成后丢失
+        // 的病例因此无法逐条对应（2026-09-11 只读归因的排查障碍）。
+        const retainedIssues = checkpoint?.contractIssues || [];
         stageReasonCode = completed ? `${reason}_preserved_attested_candidate`
           : reason === "upstream_unavailable" ? "upstream_model_unavailable"
-            : checkpoint ? `${reason}_preserved_non_dose_candidate` : `${reason}_no_valid_candidate`;
+            : checkpoint
+              ? `${reason}_preserved_non_dose_candidate${retainedIssues.length > 0 ? `_with_findings` : ""}`
+              : `${reason}_no_valid_candidate`;
+        if (opts.structuredStage === "prescribe") {
+          console.warn("[tcm-cdss:contract] M04 delivery continuity", {
+            stage: "prescribe",
+            reason,
+            stageReasonCode,
+            caseRef: structuredCaseRef,
+            retainedCandidate: Boolean(checkpoint),
+            retainedHerbCount: checkpoint?.reasoning.formula?.candidates?.[0]?.herbs.length || 0,
+            contractIssues: retainedIssues,
+            findingCodes: m04DeliveryCheckpointFeedbackCodes(checkpoint),
+            safetyFindingCount: m04DeliveryCheckpointSafetyFindingCount(checkpoint),
+            reviewStatus: m04ClinicalReviewStatus,
+          });
+        }
         // These bytes are either the exact completed signed checkpoint or a server-owned non-dose
         // projection. Never add [TRUNCATED] or re-transform/rebind a preserved signed checkpoint.
         enqueueClient(`${STREAM_REPLACE_MARKER}${m04ContinuityFallback(reason)}`);
@@ -4611,6 +4716,7 @@ async function callPrimaryTextModelStream(
             opts.structuredStage === "prescribe" ? m04ClinicalRepairGuidanceText : m03DiagnosticRepairGuidance,
             m03ParallelHalves,
             m04Retry.samplingTemperature,
+            m04DeliveryCheckpointFeedbackCodes(m04PendingDeliveryCheckpoint || m04DeliveryCheckpoint),
           );
           noteRepairOutcome(retry);
           if (opts.structuredStage === "prescribe") {
@@ -4854,6 +4960,7 @@ async function callPrimaryTextModelStream(
                 targetedM04Retry ? m04ClinicalRepairGuidanceText : m03DiagnosticRepairGuidance,
                 m03ParallelHalves,
                 m04Retry.samplingTemperature,
+                m04DeliveryCheckpointFeedbackCodes(m04PendingDeliveryCheckpoint || m04DeliveryCheckpoint),
               );
               noteRepairOutcome(secondRetry);
               if (opts.structuredStage === "prescribe") {
@@ -5586,12 +5693,23 @@ async function callPrimaryTextModelStream(
             };
           } catch (error) {
             const message = error instanceof Error ? error.message : "";
+            const rejection = /^finalized_prescription_[a-z0-9_]+$/i.test(message)
+              ? message.replace(/^finalized_prescription_/, "")
+              : "output_transform_error";
             console.warn("[tcm-cdss:model] final output transform rejected", {
               stage: opts.structuredStage || "unstructured",
-              reason: /^finalized_prescription_[a-z0-9_]+$/i.test(message)
-                ? message
-                : "output_transform_error",
+              reason: /^finalized_prescription_[a-z0-9_]+$/i.test(message) ? message : "output_transform_error",
+              // 归因必须能落到病例上。此前整批日志没有任何 case/request 关联，13 例
+              // 生成后丢失的具体驳回原因无法逐条对应（2026-09-11 只读归因的排查障碍）。
+              attemptKey: opts.m04AttemptKey,
+              caseRef: structuredCaseRef,
             });
+            // ── 终审投影驳回**不再等于丢弃候选**（owner 决策 2026-09-13）───────────────
+            // 未经终审投影的原始候选字节仍然是一份完整的药味讨论。把它留进交付快照：
+            // 只作非剂量呈现、永不签名、驳回码随结果作为问题条目交付给医生并回喂修复轮。
+            if (opts.structuredStage === "prescribe") {
+              rememberRejectedM04Candidate(content, rejection);
+            }
             return { content: opts.structuredStage === "prescribe"
               ? m04ContinuityFallback(m04ContinuityReason("interrupted")) : upstreamAwareTruncateFallback() || "", ok: false };
           }
@@ -6060,6 +6178,14 @@ async function callPrimaryTextModelStream(
             deliverM04Continuity(m04ContinuityReason(!transformed.ok ? "interrupted" : "contract_rejected"));
             return;
           }
+          // ── 剂量授权轴（owner 决策 2026-09-13）──────────────────────────────────────
+          // 红旗未解除 / 儿科体重缺失 / 妊娠哺乳阳性 / 语义筛查不可用：**内容照常交付**，
+          // 只把剂量、用法与疗程收回。此前这几种情况在路由层生成之前就返回一页固定说明，
+          // 「不给剂量」被实现成了「不给候选」。剥离由服务端确定性完成，不依赖模型自觉。
+          if (opts.structuredStage === "prescribe" && (opts.structuredDoseWithheldReasons?.length || 0) > 0) {
+            deliverM04Continuity("dose_withheld");
+            return;
+          }
           if (clinicalReviewUnavailableFallback) {
             transformed = transformTruncateFallback();
           }
@@ -6246,6 +6372,21 @@ async function callPrimaryTextModelStream(
           // 它要求 m03DiagnosticReviewStatus==="accepted"，而合同否决发生在复核之前（not_run），
           // 目标场景下是死路径；且它渲染的草稿被剥掉了结构化签名载荷，M04 无法继续。
           m03LadderCheckpoint("final_emit");
+          if (opts.structuredStage === "diagnose" && (truncated || !transformed.ok || authoritativeFallbackAccepted)) {
+            // 病例关联 + 具体细码（2026-09-13）。此前这条路径只在遥测里留一个 outcome，
+            // 医生看到的兜底页与服务端日志都说不出「到底是哪一条合同没过」。
+            console.warn("[tcm-cdss:contract] M03 finalized as limited result", {
+              stage: "diagnose",
+              caseRef: structuredCaseRef,
+              lastRejectionReason: m03LastRepairTriggerReason || m03CurrentRejection?.reason || "unknown",
+              transformOk: transformed.ok,
+              truncated,
+              authoritativeFallbackAccepted,
+              reviewStatus: m03DiagnosticReviewStatus,
+              reviewAttemptCount: clinicalReviewAttemptCount,
+              structuredRetryCount,
+            });
+          }
           enqueueClient(clinicalReviewUnavailableFallback
             ? `${STREAM_REPLACE_MARKER}${transformed.content}`
             : m03SemanticReviewSalvage
@@ -6277,7 +6418,11 @@ async function callPrimaryTextModelStream(
                       deadlineExceeded: m04DeadlineExceeded,
                       repairLoopEarlyExit: m04RepairLoopEarlyExit,
                     })
-                  : "final_contract_rejected")
+                  // 泛码收口（2026-09-13）：`final_contract_rejected` 一个码覆盖了「合同始终不合法」
+                  // 「输出转换失败」「复核未受理」三类完全不同的原因，7 例 M03 兜底里有 6 例
+                  // 因此对不到具体细码（2026-09-11 只读归因的排查障碍）。带上最后一次拒绝码。
+                  : `final_contract_rejected_${(m03LastRepairTriggerReason || m03CurrentRejection?.reason || "unknown")
+                      .replace(/[^a-z0-9_]/gi, "_").slice(0, 60)}`)
               : m03QualityAcceptedReason
                 ? `quality_annotated_${m03QualityAcceptedReason}`
                 : "accepted";

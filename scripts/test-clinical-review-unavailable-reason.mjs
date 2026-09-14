@@ -134,17 +134,19 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
   );
   const route = readFileSync(path.join(repoRoot, "src/app/api/diagnosis/diagnose/route.ts"), "utf8");
   assert.ok(
-    /truncateFallback: signedLimitedDiagnosis\(truncatedGate, "not_attempted_no_valid_draft"\)/.test(route),
+    // 锚点按**语义**写，不钉 gate 变量名（2026-09-13：兜底页文案改为按原因码分支后，
+    // truncatedGate 变成 truncatedGateFor(code)，字面锚点静默失配——本仓第四次同类）。
+    /truncateFallback: signedLimitedDiagnosis\([\s\S]{0,80}"not_attempted_no_valid_draft"\)/.test(route),
     "合同修复耗尽的兜底必须标注「复核未启动·无合法草稿」，而不是裸 unavailable",
   );
   assert.ok(
-    /signedLimitedDiagnosis\(upstreamGate, "not_attempted_upstream_down"\)/.test(route),
+    /signedLimitedDiagnosis\([\s\S]{0,80}"not_attempted_upstream_down"\)/.test(route),
     "上游不可用的降级页必须标注「复核未启动·上游不可用」——与「无合法草稿」是两种不同处置",
   );
   // 时限兜底必须是**独立的一页**，不能与合同校验失败共用。
   // 焊死在一个预渲染字符串上，超时也会被标成「没有合法草稿」——本轮修掉的混淆的低一层同款。
   assert.ok(
-    /deadlineFallback: signedLimitedDiagnosis\(truncatedGate, "deadline"\)/.test(route),
+    /deadlineFallback: signedLimitedDiagnosis\([\s\S]{0,80}"deadline"\)/.test(route),
     "编排时限兜底必须单独标 deadline：时限触发时复核可能已启动并被切断，与「压根没启动」处置不同",
   );
   // 复核 accepted 却被下游驳回，必须与「复核未启动」分开。
@@ -154,7 +156,7 @@ assert.equal(clinicalReviewUnavailableReason("unavailable", "unknown_reason"), u
   // 一起被丢弃并对外记成「复核不可用」。冤枉复核会把归因引向「复核可用性」，
   // 而真正该修的是证候名归一。
   assert.ok(
-    /reviewAcceptedButRejectedFallback: signedLimitedDiagnosis\(truncatedGate, "accepted_but_draft_rejected_downstream"\)/.test(route),
+    /reviewAcceptedButRejectedFallback: signedLimitedDiagnosis\([\s\S]{0,80}"accepted_but_draft_rejected_downstream"\)/.test(route),
     "复核通过但被下游驳回时必须单独标注，不得记成复核不可用",
   );
   const api = readFileSync(path.join(repoRoot, "src/lib/diagnosis-api.ts"), "utf8");
@@ -217,3 +219,25 @@ console.log("test-clinical-review-unavailable-reason: OK", {
   failureReasons: FAILURES.length,
   contractRoundTrip: true,
 });
+
+// ── 7. 四类兜底的可见理由必须各不相同（2026-09-13）────────────────────────────────
+// 222 例实测第二类 7 例：attestation 是 not_attempted_no_valid_draft、复核尝试数 0，
+// 医生看到的却是「本次分析尚未形成通过临床复核的稳定证候结果」——把结构化交付问题
+// 说成复核否决。措辞与原因码同源之后，这四类必须逐条可区分。
+{
+  const { limitedDiagnosisReasonCopy } = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const codes = ["not_attempted_no_valid_draft", "not_attempted_upstream_down", "deadline",
+    "accepted_but_draft_rejected_downstream", "invalid_contract", "not_configured", undefined];
+  const reasons = codes.map((code) => limitedDiagnosisReasonCopy(code).reason);
+  assert.equal(new Set(reasons).size, reasons.length, "每个原因码必须有各自的可见理由");
+  assert.match(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /复核尚未启动|未启动/);
+  assert.doesNotMatch(limitedDiagnosisReasonCopy("not_attempted_no_valid_draft").reason, /通过临床复核/,
+    "复核没运行时不得把问题说成复核否决");
+  assert.doesNotMatch(limitedDiagnosisReasonCopy("not_attempted_upstream_down").reason, /通过临床复核|信息不足/,
+    "上游故障不得说成临床结论");
+  assert.match(limitedDiagnosisReasonCopy("accepted_but_draft_rejected_downstream").reason, /复核已通过|已通过/,
+    "复核通过被下游驳回时必须如实说明复核已通过");
+  // 未知码维持旧文案（存量调用方不变）。
+  assert.equal(limitedDiagnosisReasonCopy(undefined).reason, "本次分析尚未形成通过临床复核的稳定证候结果");
+}
+

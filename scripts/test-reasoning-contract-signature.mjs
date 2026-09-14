@@ -965,6 +965,60 @@ try {
     delete process.env.CDSS_GATE_DISPOSITION;
   });
 
+  await checkAsync("withholding dose no longer cancels candidate generation in advise mode", async () => {
+    // ── 剂量授权轴 ≠ 候选生成轴（owner 决策 2026-09-13）────────────────────────────
+    // 红旗在 advise 档仍然收回剂量（CDSS_REDFLAG_DOSE_AUTHORIZATION 默认 withhold ⇒
+    // candidateMode=non_dose_only），但**必须照常进入生成**：222 例实测 published_case-82
+    // 的 M03 已有气血亏虚工作判断与 2 个病机节点，M04 却一味药都没生成，医生只拿到一页
+    // 固定说明。判据用「有没有打到上游」——这正是此前被跳过的那一步。
+    // block 档（运维回退）维持生成前拦截，两头各钉一次。
+    const { derivePrescriptionPermission } = require("../src/lib/diagnosis-safety.ts");
+    const doseAxisBase = clone(caseState);
+    doseAxisBase.id = "case_signature_route_dose_axis";
+    doseAxisBase.chiefComplaint = "当前持续压榨性胸痛30分钟未缓解，伴大汗";
+    doseAxisBase.hisRecord.caseId = doseAxisBase.id;
+    doseAxisBase.hisRecord.fields.zhushu = doseAxisBase.chiefComplaint;
+    doseAxisBase.hisRecord.rawText = `主诉：${doseAxisBase.chiefComplaint}`;
+    const doseAxisCase = await maybeAttachClinicalFactsBackstop(
+      doseAxisBase,
+      async () => JSON.stringify({ redFlags: [] }),
+    );
+    doseAxisCase.reasoningDiagnose = signDiagnoseReasoning(
+      reasoning,
+      buildDiagnoseContractSignatureContext(doseAxisCase),
+    );
+    assert.equal(derivePrescriptionPermission(withSafetyGate(doseAxisCase)).candidateMode, "non_dose_only",
+      "前提：本例剂量授权确实被收回");
+    for (const [disposition, expectUpstream] of [["advise", true], ["block", false]]) {
+      if (disposition === "block") process.env.CDSS_GATE_DISPOSITION = "block";
+      else delete process.env.CDSS_GATE_DISPOSITION;
+      const previousFetch = globalThis.fetch;
+      globalThis.fetch = async () => new Response("{}", { status: 503 });
+      try {
+        // 判据是**生成前那一页有没有被返回**：它带机器码 safety_gate_blocked，
+        // 由 buildSafetyLimitedPrescription 在任何模型调用之前渲染。
+        // 本机单测没有可用上游，advise 档走到模型调用后如何收尾由别的套件覆盖。
+        const response = await prescribePost(routeRequest("/api/diagnosis/prescribe", doseAxisCase))
+          .catch(() => undefined);
+        const body = response ? await response.text() : "";
+        const returnedPreGenerationPage = body.includes("CDSS_REASON_CODE:safety_gate_blocked");
+        assert.equal(returnedPreGenerationPage, !expectUpstream,
+          `${disposition}: ${expectUpstream
+            ? "剂量收回不得在生成之前返回固定说明页"
+            : "运维回退档必须维持生成前拦截"}`);
+        if (!expectUpstream) {
+          assert.equal(response?.status, 200, "运维回退档仍返回确定性非剂量页");
+          assert.match(body, /不生成具体剂量|急诊|红旗/);
+          // 收回的是剂量，不是候选——回退档这一页本就没有药味，但绝不能出现用量。
+          assert.doesNotMatch(body, /\|\s*药味\s*\|\s*剂量|\b\d+(?:\.\d+)?\s*(?:g|克)\b/i);
+        }
+      } finally {
+        globalThis.fetch = previousFetch;
+        delete process.env.CDSS_GATE_DISPOSITION;
+      }
+    }
+  });
+
   for (const [name, mutate] of [
     ["prescribe route rejects cross-case replay", (value) => { value.id = "case_signature_route_replay"; }],
     ["prescribe route rejects complete M03 field tampering", (value) => { value.reasoningDiagnose.management.redFlagLoop = "被修改的闭环"; }],

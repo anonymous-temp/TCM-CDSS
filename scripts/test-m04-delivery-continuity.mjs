@@ -16,7 +16,9 @@ const jiti = createJiti(import.meta.url, { alias: {
 const { callDiagnosisStream } = await jiti.import("../src/lib/diagnosis-api.ts");
 const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
 const { canAcceptTransparentFormulaFallback } = await jiti.import("../src/lib/m04-repair-policy.ts");
-const { retainM04DeliveryCheckpoint, bindM04DeliveryReview, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint } = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
+const { isSafetyClinicalDeliveryAdvisory } = await jiti.import("../src/lib/clinical-delivery-advisory.ts");
+const { retainM04DeliveryCheckpoint, bindM04DeliveryReview, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint,
+  m04DeliveryCheckpointIsClean, m04DeliveryCheckpointSafetyFindingCount, m04DeliveryCheckpointFeedbackCodes } = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
 const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
 const { clinicalReviewPayloadHash, hasBoundClinicalReviewAttestation } = await jiti.import("../src/lib/clinical-review-binding.ts");
 const { applyPrescribeContractSignature } = await jiti.import("../src/lib/reasoning-contract-signature.ts");
@@ -212,6 +214,101 @@ test("checkpoint owns immutable validated bytes and rejects malformed, unsafe an
     const bad = checkpointInput(); change(bad);
     assert.equal(retainM04DeliveryCheckpoint(checkpoint, bad), checkpoint);
   }
+});
+// ── 「保留任何合法候选」：合同不过不再等于 0 味（owner 决策 2026-09-13）──────────────
+// 2026-09-11 只读归因第四类 13 例：流中已有 7–11 味药、finishReason=stop、未触及总时限，
+// 最终一味药都没留下，医生拿到「本次尚未形成通过校验的个体化方药候选」。
+// 现在：候选照常保留 + 问题条目随结果交付 + 永不签名 + 择优时排在干净候选之后。
+function unsafeCheckpointInput(mutate) {
+  const unsafe = structuredClone(proposal);
+  mutate(unsafe);
+  const reasoning = compileM04Proposal(unsafe, prior);
+  return { reasoning, content: wrap(reasoning), priorReasoning: prior, clinicalContext: "食少倦怠；大便溏薄", generatorModel: "synthetic" };
+}
+test("a candidate that fails a deterministic contract is retained with findings, never signed", () => {
+  for (const [label, mutate, expectCode] of [
+    ["药典剂量越界", (value) => { value.candidate.herbs[0].dose = "500g"; }, /dose/],
+    ["十八反", (value) => {
+      value.candidate.herbs.push({ name: "海藻", dose: "10g", role: "佐", targetKind: "pathogenesis_node",
+        targetRef: "P2", structureRole: null, function: "消痰软坚", processing: null, isToxic: false, decoctionRequirement: null });
+    }, /incompatib/],
+  ]) {
+    const input = unsafeCheckpointInput(mutate);
+    const checkpoint = retainM04DeliveryCheckpoint(undefined, input);
+    assert.ok(checkpoint, `${label}: 候选必须被保留`);
+    assert.equal(m04DeliveryCheckpointIsClean(checkpoint), false, `${label}: 必须标记为未通过合同`);
+    assert.ok((checkpoint.contractIssues || []).length > 0, `${label}: 合同码必须落账`);
+    assert.ok(m04DeliveryCheckpointFeedbackCodes(checkpoint).some((code) => expectCode.test(code)),
+      `${label}: 回喂码必须包含真实问题`);
+    assert.ok(m04DeliveryCheckpointSafetyFindingCount(checkpoint) > 0, `${label}: T1 计数必须非零`);
+    const rendered = renderM04DeliveryCheckpoint(checkpoint, prior, "contract_rejected");
+    assert.match(rendered, /党参/, `${label}: 药味必须对医生可见`);
+    assert.match(rendered, /## 处方补充提示/, `${label}: 问题提示必须随结果交付`);
+    assert.match(rendered, /尚未通过全部确定性校验/, `${label}: 不得冒充已通过校验`);
+    assertNonDose(rendered);
+    // 签名/背书通道对脏候选必须关闭——保留内容不等于「已复核通过」。
+    const attestation = { status: "accepted", reviewedPayloadHash: clinicalReviewPayloadHash(input.reasoning),
+      provider: "bailian-qwen", model: "qwen3.7-plus", source: "preferred" };
+    const signed = applyPrescribeContractSignature(wrap({ ...input.reasoning, clinicalReview: attestation }), signatureContext);
+    const bound = bindM04DeliveryReview(checkpoint, input.reasoning, accepted, attestation, signed);
+    assert.equal(bound.signedContent, undefined, `${label}: 脏候选不得携带签名字节`);
+    assert.equal(bound.attestation, undefined, `${label}: 脏候选不得绑定复核背书`);
+    assertNonDose(renderM04DeliveryCheckpoint(bound, prior, "contract_rejected"));
+    // 择优：干净候选永远胜过脏候选，与到达顺序无关。
+    const clean = retainM04DeliveryCheckpoint(undefined, checkpointInput());
+    assert.equal(preferM04DeliveryCheckpoint(clean, checkpoint), clean, `${label}: 脏候选不得顶掉干净候选`);
+    assert.equal(preferM04DeliveryCheckpoint(checkpoint, clean), clean, `${label}: 干净候选后到也应胜出`);
+  }
+});
+test("delivery ranking: signed > clean > fewer T1 > review status > fewer soft findings", () => {
+  // 择优排序的**优先级**必须逐级钉住。preferM04DeliveryCheckpoint 只读
+  // payloadHash / signedContent / contractIssues / findings / review，所以这里直接构造
+  // 最小快照，把每一级单独隔离出来——用真实候选构造反而会让多级同时相等，测不出顺序。
+  let seq = 0;
+  const T1 = { code: "candidate_0_high_risk_pair_incompatibility", candidateIndex: 0, message: "m", suggestedAction: "a" };
+  const T2 = { code: "candidate_0_herb_0_dose_reference_deviation", candidateIndex: 0, message: "m", suggestedAction: "a" };
+  assert.equal(isSafetyClinicalDeliveryAdvisory(T1), true, "前提：T1 判据认得配伍禁忌");
+  assert.equal(isSafetyClinicalDeliveryAdvisory(T2), false, "前提：剂量参考偏离是软性项");
+  const mk = (over = {}) => ({ content: "c", reasoning: {}, payloadHash: `h${seq += 1}`, ...over });
+  const beats = (winner, loser, why) => {
+    assert.equal(preferM04DeliveryCheckpoint(winner, loser), winner, `${why}（先到）`);
+    assert.equal(preferM04DeliveryCheckpoint(loser, winner), winner, `${why}（后到）`);
+  };
+  // ① 已签名优先于「问题更少但没签名」——否则医生会从剂量页掉回非剂量页。
+  beats(mk({ signedContent: "signed", review: { status: "accepted" }, findings: [T2, T2] }),
+        mk({ findings: [] }), "已签名剂量页不得被未签名候选挤掉");
+  // ② 合同干净优先于带合同码，即便后者复核已通过。
+  beats(mk({ findings: [] }),
+        mk({ contractIssues: ["candidate_0_high_risk_pair_incompatibility"], findings: [T1], review: { status: "accepted" } }),
+        "干净候选优先于带合同码候选");
+  // ③ 同为带合同码时，T1 少者优先。
+  beats(mk({ contractIssues: ["a"], findings: [T1] }),
+        mk({ contractIssues: ["a", "b"], findings: [T1, T1] }), "T1 少者优先");
+  // ④ 前三级相同的情况下才看复核状态。
+  beats(mk({ findings: [], review: { status: "accepted" } }), mk({ findings: [] }), "复核 accepted 优先于未跑");
+  // ⑤ 复核状态也相同时，软性问题少者优先。
+  beats(mk({ findings: [], review: { status: "accepted" } }),
+        mk({ findings: [T2, T2], review: { status: "accepted" } }), "软性问题少者优先");
+  // 既有规则不变：同一份字节的更新复核结论直接生效。
+  const bytes = mk({ review: { status: "accepted" } });
+  const objection = { ...bytes, review: { status: "repair", issueCode: "dose_rationale_concern" } };
+  assert.equal(preferM04DeliveryCheckpoint(bytes, objection), objection, "同一载荷的新复核结论直接生效");
+});
+test("dose withheld keeps the candidate visible and never emits the signed dose page", () => {
+  const input = checkpointInput();
+  const checkpoint = retainM04DeliveryCheckpoint(undefined, input);
+  const attestation = { status: "accepted", reviewedPayloadHash: clinicalReviewPayloadHash(input.reasoning),
+    provider: "bailian-qwen", model: "qwen3.7-plus", source: "preferred" };
+  const signed = applyPrescribeContractSignature(wrap({ ...input.reasoning, clinicalReview: attestation }), signatureContext);
+  const reviewed = bindM04DeliveryReview(checkpoint, input.reasoning, accepted, attestation, signed);
+  assert.equal(renderM04DeliveryCheckpoint(reviewed, prior, "deadline"), signed, "其余原因下已签名剂量页照常交付");
+  const withheld = renderM04DeliveryCheckpoint(reviewed, prior, "dose_withheld", ["儿童病例当前未配置可验证的个体化剂量规则"]);
+  assert.notEqual(withheld, signed, "剂量轴收回时不得返回已签名剂量页");
+  assertNonDose(withheld);
+  assert.match(withheld, /党参/, "药味照常可见");
+  assert.match(withheld, /儿童病例当前未配置可验证的个体化剂量规则/, "必须说明为什么不显示用量");
+  const none = renderM04DeliveryCheckpoint(undefined, prior, "dose_withheld", ["已记录妊娠、哺乳或备孕阳性/可疑状态"]);
+  assert.match(none, /已记录妊娠、哺乳或备孕阳性/, "无候选时同样要说明剂量轴原因");
 });
 test("only an exact completed attestation and signed payload can restore dose-level output", () => {
   const input = checkpointInput();

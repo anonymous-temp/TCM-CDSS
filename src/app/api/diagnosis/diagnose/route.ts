@@ -6,7 +6,7 @@ import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
@@ -160,14 +160,22 @@ export async function POST(req: Request) {
       ? [`本次记录以既往、已缓解或稳定背景为主（原文：“${encounterScope?.quote || ""}”），本次活动性诊疗目标需医生确认。`]
       : [],
   );
-  const truncatedGate = {
-    status: "needs_information" as const,
-    allowDiagnosis: false,
-    allowDosePrescription: false,
-    action: "complete_before_prescription" as const,
-    missingItems: ["本次辨病辨证结果完整性"],
-    redFlags: [],
-    reasons: ["本次辨病辨证结果未通过完整性与临床一致性复核，本轮不生成剂量级候选。"],
+  // 兜底页的**可见理由按真实原因分支**（2026-09-13）。此前三类兜底共用一句「未通过完整性与
+  // 临床一致性复核」，而 222 例实测里走 not_attempted_no_valid_draft 的 7 例复核尝试数为 0——
+  // 复核根本没运行。文案与 attestation 的 unavailableReason 同源，避免两处各写各的。
+  const truncatedGateFor = (
+    reviewUnavailableReason: Parameters<typeof buildSafetyLimitedDiagnosisReasoning>[2],
+  ) => {
+    const copy = limitedDiagnosisReasonCopy(reviewUnavailableReason);
+    return {
+      status: "needs_information" as const,
+      allowDiagnosis: false,
+      allowDosePrescription: false,
+      action: "complete_before_prescription" as const,
+      missingItems: ["本次辨病辨证结果完整性"],
+      redFlags: [],
+      reasons: [`${copy.reason}；本轮不生成剂量级候选。${copy.limitation}。`],
+    };
   };
   // 上游模型服务不可用的专用降级页(2026-08-04):修复轮走非流式端点,provider 503/超时时
   // 此前与「临床证据不足」共用同一句文案,把服务故障说成了临床结论(实测上游 503 期间
@@ -202,13 +210,13 @@ export async function POST(req: Request) {
       : {}),
     // 合同修复耗尽后的兜底：复核**没有启动**（生成方合同始终不合法，没有东西可供复核），
     // 不是复核尝试过并失败。这两件事此前都写 unavailable，重试策略会对着前者空转。
-    truncateFallback: signedLimitedDiagnosis(truncatedGate, "not_attempted_no_valid_draft"),
+    truncateFallback: signedLimitedDiagnosis(truncatedGateFor("not_attempted_no_valid_draft"), "not_attempted_no_valid_draft"),
     // 时限触发是另一回事：复核可能已经启动并被切断，所以标 deadline 而不是「没有合法草稿」。
     // 焊死在一个预渲染字符串上会让这两类共用一个原因码——本轮刚修掉的混淆，低一层的同款。
-    deadlineFallback: signedLimitedDiagnosis(truncatedGate, "deadline"),
+    deadlineFallback: signedLimitedDiagnosis(truncatedGateFor("deadline"), "deadline"),
     // 复核通过、却被受控证候词表等下游校验驳回：不能记成「复核不可用」——
     // 线上实测这一例 reviewStatus=accepted、reviewAttemptCount=2，冤枉复核会让归因跑偏。
-    reviewAcceptedButRejectedFallback: signedLimitedDiagnosis(truncatedGate, "accepted_but_draft_rejected_downstream"),
+    reviewAcceptedButRejectedFallback: signedLimitedDiagnosis(truncatedGateFor("accepted_but_draft_rejected_downstream"), "accepted_but_draft_rejected_downstream"),
     authoritativeTruncateFallback: true,
     structuredStage: "diagnose",
     structuredQueueKey: parsed.customer.customerHash,

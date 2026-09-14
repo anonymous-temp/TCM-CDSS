@@ -7,6 +7,39 @@ const { CDSS_DEGRADE_REASON_CODES, cdssReasonCodeMarker, extractCdssReasonCode, 
   await jiti.import("../src/lib/cdss-reason-codes.ts");
 const { buildSafetyLimitedPrescription } = await jiti.import("../src/lib/diagnosis-safety.ts");
 const { prescribeRetryRequiresM03Rerun } = await jiti.import("../src/app/diagnosis/DiagnosisClient.tsx");
+const { renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint } = await jiti.import("../src/lib/m04-delivery-checkpoint.ts");
+const { compileM04Proposal } = await jiti.import("../src/lib/m04-proposal-compiler.ts");
+const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
+const deliveryPrior = ReasoningV2Schema.parse({
+  schemaVersion: "tcm-cdss-reasoning-v2", stage: "diagnose",
+  overview: { primarySyndrome: "脾胃虚弱证", overallPathogenesis: "脾胃虚弱，运化无力", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+  pathogenesis: { chain: [
+    { nodeId: "P1", patientFact: "食少倦怠", syndromeEvidence: "食少倦怠", pathogenesis: "脾胃虚弱，运化无力", therapyDirection: "健脾益气" },
+    { nodeId: "P2", patientFact: "大便溏薄", syndromeEvidence: "大便溏薄", pathogenesis: "脾虚湿盛", therapyDirection: "健脾化湿" },
+  ] },
+  therapy: { overallPrinciple: "虚则补之", overallMethod: "健脾益气，化湿和中", subTherapies: [{ therapy: "健脾益气", targetPathogenesis: "脾胃虚弱", priority: "主要" }] },
+  formula: { candidates: [], patentAndWestern: [], modifications: [] },
+});
+const deliveryReasoning = compileM04Proposal({
+  candidate: {
+    name: "本例辨证组方", applicable: "食少倦怠与便溏并见。", notApplicable: "便溏加重或出现腹痛时评估。",
+    herbs: [
+      { name: "党参", dose: "12g", role: "君", targetKind: "pathogenesis_node", targetRef: "P1", structureRole: null, function: "补脾益气，改善食少倦怠" },
+      { name: "白术", dose: "10g", role: "臣", targetKind: "pathogenesis_node", targetRef: "P2", structureRole: null, function: "健脾燥湿，兼顾便溏" },
+      { name: "茯苓", dose: "12g", role: "佐", targetKind: "pathogenesis_node", targetRef: "P2", structureRole: null, function: "健脾渗湿" },
+      { name: "炙甘草", dose: "6g", role: "使", targetKind: "formula_structure", targetRef: "FORMULA_STRUCTURE", structureRole: "harmonize", function: "补脾和胃" },
+    ].map((herb) => ({ ...herb, processing: null, isToxic: false, decoctionRequirement: null })),
+    formulaAnalysis: "党参补脾益气以改善食少倦怠，白术燥湿、茯苓渗湿兼顾便溏，炙甘草补脾和胃。",
+    decoction: { doseCount: "5剂", dosesPerDay: 1, administrationTimesPerDay: 2, method: "每日一剂，煎服", followUpNode: "5日复诊" },
+  },
+  patentAndWestern: [], modifications: [],
+  nonPharma: { diet: "早餐可用山药小米粥，少量多餐。", lifestyle: "规律作息。", emotion: "调畅情志。", precautions: ["观察食欲与便溏变化。"], tcmTreatments: [] },
+}, deliveryPrior);
+const deliveryCheckpoint = retainM04DeliveryCheckpoint(undefined, {
+  reasoning: deliveryReasoning,
+  content: `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(deliveryReasoning)}\n<!-- DIAGNOSIS_JSON_END -->`,
+  priorReasoning: deliveryPrior, clinicalContext: "食少倦怠；大便溏薄", generatorModel: "synthetic",
+});
 
 let cases = 0; let failures = 0;
 const check = (name, fn) => { cases += 1; try { fn(); } catch (e) { failures += 1; console.error("FAIL", name, e?.message); } };
@@ -100,5 +133,33 @@ check("流层与路由的传输失败接线", () => {
   assert.match(route, /这不是病历信息不足/, "文案必须显式澄清不是病历问题");
 });
 
+// ── 交付连续性页的机器码（2026-09-13）──────────────────────────────────────────
+// renderM04DeliveryCheckpoint 产出的这一整类非剂量页此前**不带任何 reasonCode**，
+// 前端只能靠文案正则分流；而三种处置的恢复动作完全不同：保留候选可原地重试 M04，
+// 剂量轴收回则原地重试必然同结果，必须先解除边界。
+check("delivery continuity pages carry their own machine code", () => {
+  for (const [reason, expected] of [
+    ["contract_rejected", "m04_candidate_retained_non_dose"],
+    ["deadline", "m04_truncated_no_candidate"],
+    ["upstream_unavailable", "upstream_model_unavailable"],
+    ["dose_withheld", "dose_authorization_withheld"],
+  ]) {
+    const withCandidate = renderM04DeliveryCheckpoint(deliveryCheckpoint, undefined, reason, ["占位原因"]);
+    const withoutCandidate = renderM04DeliveryCheckpoint(undefined, undefined, reason, ["占位原因"]);
+    assert.equal(extractCdssReasonCode(withCandidate),
+      reason === "contract_rejected" || reason === "deadline" ? "m04_candidate_retained_non_dose" : expected,
+      `保留候选时 ${reason} 的机器码`);
+    assert.equal(extractCdssReasonCode(withoutCandidate),
+      reason === "upstream_unavailable" ? "upstream_model_unavailable"
+        : reason === "dose_withheld" ? "dose_authorization_withheld" : "m04_truncated_no_candidate",
+      `无候选时 ${reason} 的机器码`);
+  }
+  // 这两个码都是 M04 级：重试不得被升级成从辨证重跑。
+  for (const code of ["m04_candidate_retained_non_dose", "dose_authorization_withheld"]) {
+    assert.equal(reasonCodeRequiresM03Rerun(code), false, `${code} 属 M04 级恢复`);
+    assert.equal(prescribeRetryRequiresM03Rerun({ prescription: cdssReasonCodeMarker(code) }), false,
+      `${code} 不得触发 M03 重跑`);
+  }
+});
 console.log(JSON.stringify({ cases, failures }));
 if (failures > 0) process.exit(1);
