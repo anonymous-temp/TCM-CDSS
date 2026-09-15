@@ -21,6 +21,8 @@ const work = await mkdtemp(join(tmpdir(), "cdss-inventory-idempotency-"));
 process.env.CDSS_API_TOKEN = "inventory-idempotency-token-at-least-32-chars";
 process.env.CDSS_API_CLIENT_ID = "his-integrator";
 process.env.CDSS_API_CUSTOMER_IDS = "hospital-idem,hospital-other";
+// JIT 必须开着，IDEM-03c 才是真反证：关掉的话未知客户本来就 403，测不出「缺键有没有留下租户」。
+process.env.CDSS_CUSTOMER_JIT_ENABLED = "true";
 process.env.CDSS_CUSTOMER_REGISTRY_PATH = join(work, "customer-registry.json");
 process.env.CDSS_TENANT_AUDIT_PATH = join(work, "tenant-audit.ndjson");
 process.env.CDSS_DRUG_INVENTORY_PATH = join(work, "drug-inventory");
@@ -114,14 +116,35 @@ await run("IDEM-02 同键不同体 409，且线上库存一个字节都不动", 
   assert.equal(countCode(await auditCodes(), "idempotency_conflict") >= 1, true);
 });
 
-await run("IDEM-03 不带幂等键维持既有整批替换语义（不打断现行调用方）", async () => {
-  const replaced = await post(STOCK_B);
-  assert.equal(replaced.status, 200);
+await run("IDEM-03 不带幂等键一律 400，且库存一个字节不动（owner 2026-09-15 裁定必填）", async () => {
+  const before = await snapshot();
+  const rejected = await post(STOCK_B);
+  assert.equal(rejected.status, 400, "缺幂等键必须当场拒绝，不能因为客户已登记就放行");
+  assert.equal((await rejected.json()).code, "idempotency_key_required");
   const after = await snapshot();
-  assert.equal(after.itemCount, 1, "无幂等键时仍是整批替换——这是文档既有语义，本次不改");
-  // 复原，供后续用例使用
-  await post(STOCK_A, { key: "inventory-import-20260915-restore" });
-  assert.equal((await snapshot()).itemCount, 2);
+  assert.equal(after.itemCount, before.itemCount, "被拒的请求不得改动库存");
+  assert.equal(after.inventoryVersion, before.inventoryVersion);
+});
+
+await run("IDEM-03b 缺键的判定先于请求体解析：载荷同时非法时仍报缺键", async () => {
+  // 钉住校验位置。放在载荷校验之后的话，这一发会返回 invalid_inventory_items——
+  // 那说明 8MB 载荷已经被读完才拒，也说明两条路径的先后关系漂了。
+  const rejected = await post({ source: "x", items: "not-an-array" });
+  assert.equal(rejected.status, 400);
+  assert.equal((await rejected.json()).code, "idempotency_key_required",
+    "缺键必须先于载荷内在错误被判定");
+});
+
+await run("IDEM-03c 缺键不留任何租户副作用：未知客户不得被 JIT 登记", async () => {
+  // 与 PROV-08 同向：失败的首提交不得留下已激活租户。缺键若排在 requireCustomerContext
+  // 之后，这一发会把 hospital-idem-ghost 登记出来。
+  const ghost = "hospital-idem-ghost";
+  const rejected = await post(STOCK_A, { customer: ghost });
+  assert.equal(rejected.status, 400);
+  assert.equal((await rejected.json()).code, "idempotency_key_required");
+  const registry = JSON.parse(await readFile(process.env.CDSS_CUSTOMER_REGISTRY_PATH, "utf8").catch(() => '{"customers":[]}'));
+  assert.equal((registry.customers || []).some((item) => item.customerId === ghost), false,
+    "缺键被拒的请求不得在注册表留下任何状态的条目");
 });
 
 await run("IDEM-04 并发同键同体只写一次，两个响应一致", async () => {
@@ -280,4 +303,4 @@ if (failures.length > 0) {
   console.error(JSON.stringify({ suite: "inventory-import-idempotency", failures }, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ suite: "inventory-import-idempotency", cases: 13, failures: 0 }));
+console.log(JSON.stringify({ suite: "inventory-import-idempotency", cases: 15, failures: 0 }));

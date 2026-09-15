@@ -43,6 +43,8 @@ const imported = await inventoryRoute.POST(new Request("https://cdss.example/api
   headers: {
     "content-type": "application/json",
     "x-cdss-customer-id": "hospital-A",
+    // 库存 POST 的必填幂等键（owner 2026-09-15）；本用例只看响应头回显。
+    "idempotency-key": "tenant-headers-20260915-001",
   },
   body: JSON.stringify({ items: [{ name: "黄芪", kind: "herb", available: true }] }),
 }));

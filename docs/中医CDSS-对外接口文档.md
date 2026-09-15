@@ -2,7 +2,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.12 |
+| 文档版本 | V2.13 |
 | 发布日期 | 2026-09-15 |
 | 服务版本 | `tcm-cdss-20260828-lineage-modification-contract-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
@@ -135,7 +135,7 @@ curl -s "$BASE/api/drug-inventory" \
 | `Content-Type` | 是 | `application/json` |
 | `x-cdss-api-token` | 是 | 接口访问令牌 |
 | `x-cdss-customer-id` | 临床与药品接口是 | 6–64 位客户唯一标识；同一次就诊全流程保持不变 |
-| `Idempotency-Key` | 首次客户登记是；库存写入强烈建议 | 8–200 位可打印 ASCII；同一键只能绑定同一个 client/customer。库存 `POST` 带上它即获得写入幂等（同键同载荷重放首次结果，同键不同载荷返回 `409`，见 §4.10）；格式不合法一律 `400`，不会被当作未提供 |
+| `Idempotency-Key` | **库存 `POST` 与客户登记：是** | 8–200 位可打印 ASCII；同一键只能绑定同一个 client/customer。`POST /api/drug-inventory` **缺少或格式非法一律 `400 idempotency_key_required`**，且在读取请求体与建立客户上下文之前就返回（不产生任何租户副作用）。同键同载荷重放首次结果，同键不同载荷返回 `409`，见 §4.10 |
 
 ### 3.3 参数传递要求
 
@@ -148,7 +148,7 @@ curl -s "$BASE/api/drug-inventory" \
 | R3 | M03 结论中的签名字段名为 `contractSignature`（非 `signature`） | 取值为空，回传后 `409` |
 | R4 | 查询参数中的中文必须 URL 编码 | 反向代理返回 `400` |
 | R5 | 建议按 M01→M02→M03→M04→M05 顺序调用；**真实门禁只有三道**，不是"任意跳段即 409" | 见下方 R5 说明 |
-| R6 | 所有临床、审方、HIS、快照和库存请求携带同一个 `x-cdss-customer-id`；首次库存写入/显式登记另带 `Idempotency-Key`（库存写入每次都带才有去重保护）；`caseState.customerId` 若已存在必须与请求头一致 | 缺失返回 `400 customer_id_required`；未授权读取返回 `403 customer_forbidden`；登记键冲突返回 `409 idempotency_conflict`；客户不一致返回 `409 customer_context_mismatch` |
+| R6 | 所有临床、审方、HIS、快照和库存请求携带同一个 `x-cdss-customer-id`；**每一次**库存写入与显式登记都必须带 `Idempotency-Key`；`caseState.customerId` 若已存在必须与请求头一致 | 缺失返回 `400 customer_id_required`；未授权读取返回 `403 customer_forbidden`；库存写入缺键返回 `400 idempotency_key_required`；键冲突返回 `409 idempotency_conflict`；客户不一致返回 `409 customer_context_mismatch` |
 
 **R1 示例**
 
@@ -385,7 +385,7 @@ M01–M05 的正文中嵌有结构化 JSON，位于以下两个标记之间：
 | `customer_forbidden` | `403` | 客户不存在或固定 Token 未获授权（两种情况统一响应） |
 | `customer_context_mismatch` | `409` | 请求头、签名 Cookie 或病例中的客户标识不一致 |
 | `customer_authorization_not_configured` | `503` | 服务端客户授权白名单缺失或非法 |
-| `idempotency_key_required` | `400` | 未登记客户首次库存写入/显式登记缺少有效 `Idempotency-Key`；或库存写入提供了格式非法的键（不足 8 位、含空格等） |
+| `idempotency_key_required` | `400` | **任何**库存 `POST` 或显式登记缺少 `Idempotency-Key`，或提供了格式非法的键（不足 8 位、含空格等）。库存接口在解析请求体之前返回此码 |
 | `idempotency_conflict` | `409` | 同一幂等键已经绑定另一 client/customer；或同一幂等键在库存写入上对应了另一份载荷（此时**未写入任何内容**） |
 | `customer_quota_exceeded` | `429` | 固定调用方的静态客户与 JIT 客户总数达到上限 |
 | `customer_jit_disabled` | `503` | 服务端未开启首次客户自动登记 |
@@ -1514,7 +1514,7 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 
 **接口地址**：`POST /api/drug-inventory`（导入） / `GET /api/drug-inventory`（状态查询）
 
-`POST` 建议始终携带 `Idempotency-Key`。当 `x-cdss-customer-id` 尚未登记时，该请求会先按固定 Token 的 `clientId`、配额和幂等键完成 JIT 登记，再执行同一个库存导入；登记或审计持久化失败时不会把未知客户当作已授权放行。`GET` 绝不触发登记。
+`POST` **必须**携带 `Idempotency-Key`（缺失即 `400 idempotency_key_required`，早于请求体解析）。当 `x-cdss-customer-id` 尚未登记时，该请求会先按固定 Token 的 `clientId`、配额和幂等键完成 JIT 登记，再执行同一个库存导入；登记或审计持久化失败时不会把未知客户当作已授权放行。`GET` 绝不触发登记。
 
 > ### V2.12 更正：`Idempotency-Key` 现在真的作用于库存写入
 >
@@ -1533,7 +1533,7 @@ curl -i "https://82.156.128.153/tcm-cdss/api/tcm-knowledge/drug-catalog?type=her
 > | 同键 + 同载荷 | 首次的状态码 | 重放首次响应（响应体逐字节相同），另带 `idempotent-replay: true` 响应头；**不再写入** |
 > | 同键 + 不同载荷 | `409` | `idempotency_conflict`；**一个字节都不写**。确实要替换库存请换一个新键 |
 > | 键格式非法 | `400` | `idempotency_key_required`；不会被当作"未提供"而放行 |
-> | 未带键 | 同既有语义 | 仍是整批替换（不打断按现行文档实现的调用方） |
+> | 未带键 | `400` | `idempotency_key_required`；在读请求体、建立客户上下文之前返回，不产生任何租户副作用 |
 >
 > 只有**真正落盘的结果**（`200`）会被登记为幂等记录：`202`（分片已暂存未提交）与任何
 > `4xx/5xx` 都不占用这个键——写入失败后可以用同一个键改正载荷重试。
@@ -2367,6 +2367,7 @@ HIS 投影与 M04 原始响应保持同一语义：`prescriptions.modifications[
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.13 | 2026-09-15 | **`Idempotency-Key` 成为库存 `POST` 的必填请求头。** 缺失或格式非法一律 `400 idempotency_key_required`，且在解析请求体、建立客户上下文之前返回——不读 8MB 载荷、不产生任何租户副作用。此前缺键请求按整批替换照常执行（V2.12 仍如此），且校验只在未登记客户的 JIT 分支生效、已登记客户完全不校验。 | **是（破坏性）**：不携带该请求头的库存同步作业会立即收到 `400`，必须为每一次导入生成一个 8–200 位可打印 ASCII 的键；同一次分片整批替换可共用一个键，把用过的键复用到另一次导入会在第一片返回 `409` |
 | V2.12 | 2026-09-15 | **库存写入幂等落地。** `Idempotency-Key` 此前只参与未登记客户的 JIT 登记，客户登记后既不参与写入也不校验格式——同键连发两次、第二次载荷不同会两次都返回 `200`，后一次整批覆盖前一次（被覆盖的药味会被讲成"缺货"而非"未知"）。现在库存 `POST` 带该头即进入写入幂等事务：同键同载荷重放首次响应并带 `idempotent-replay: true`；同键不同载荷返回 `409 idempotency_conflict` 且不写入；键格式非法返回 `400`。仅 `200` 结果占用幂等键，`202`/失败可用同一键改正后重试。 | **否**：未携带该请求头的调用方语义不变（仍是整批替换）；携带该头并复用同一键提交不同载荷的调用方，此前是静默覆盖，现在会收到 `409`，需为每一次新的导入换一个键 |
 | V2.11 | 2026-09-10 | 区分当前风险与生活调护、未实施的加减建议及已核实的说明书参考文本；M05 可新增 `warning_profile` 显示观测帧，使页面、导出和经验证的恢复结果保持同一显示分级。实际风险、原有临床签名与 HIS 采纳判据继续独立生效 | 新增可选事件；按 §3.5 忽略未知 `type` 的现有调用方无需修改。显示收据不是采纳授权，不应写入模型输入或作为 HIS 决策依据；客户 Token 不变。线上实际部署以 `health.build` 为准，不能仅凭本文档版本判断已切流 |
 | V2.10 | 2026-09-07 | M03/M04 新增明确标记的只读临床预览，规范正文与签名结果不变；M04供应商提案去除服务端自有字段，客户端字段仍兼容；临床覆盖质量意见继续随结果展示；限定普通药的历史参考剂量偏离保留为待核对建议 | 不使用预览的调用方忽略 `module_draft`。解析事件时须先识别 `type`，不能把草稿content混入规范正文。历史参考剂量偏离显示原始建议量、范围与来源，核验等级为 `unverified_dose`；对应HIS饮片项 `referenceOnly=true`、`adoptable=false`，不得因有AI签名而自动执行，仍须医生核对和机构处方确认。客户Token不变；具体部署身份查看health.build |

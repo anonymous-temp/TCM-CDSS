@@ -37,9 +37,16 @@ async function check(name, fn) {
   }
 }
 
+// 幂等键是本接口的必填头（owner 2026-09-15）。本套件每次 POST 都是一次**不同的**导入，
+// 因此逐次换键；复用同一个键发不同载荷会（按设计）得到 409，与本套件要测的东西无关。
+let inventoryPostSeq = 0;
 const post = (body) => route.POST(new Request("http://localhost:3000/api/drug-inventory", {
   method: "POST",
-  headers: { "content-type": "application/json", ...customerHeaders },
+  headers: {
+    "content-type": "application/json",
+    "idempotency-key": `inv-suite-${String(++inventoryPostSeq).padStart(3, "0")}-20260915`,
+    ...customerHeaders,
+  },
   body: JSON.stringify(body),
 }));
 

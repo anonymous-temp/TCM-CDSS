@@ -38,9 +38,9 @@ async function getJson(path) {
   return { status: res.status, body, headers: res.headers };
 }
 
-async function postJson(path, payload) {
+async function postJson(path, payload, extraHeaders = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: "POST", headers: HEADERS, body: JSON.stringify(payload),
+    method: "POST", headers: { ...HEADERS, ...extraHeaders }, body: JSON.stringify(payload),
   });
   const text = await res.text();
   let body;
@@ -97,6 +97,8 @@ async function stream(path, payload) {
   notes.push(`导入前库存状态：${before.body.inventoryLoaded ? `已有 ${before.body.itemCount} 条` : "未导入"}`);
 
   // 刻意让「人参」缺货：下面 M04 若开出含人参的方，应标注缺货并给替代候选。
+  // 库存 POST 必须带幂等键（owner 2026-09-15）。每次运行换一个键：本脚本每轮都在
+  // 有意重建这份临时目录，复用旧键会按设计被判 409。
   const imported = await postJson("/api/drug-inventory", {
     source: "线上验证-临时院区目录",
     items: [
@@ -106,7 +108,7 @@ async function stream(path, payload) {
       { name: "人参", kind: "herb", available: false },
       { name: "八珍颗粒", kind: "patent", available: true, specification: "每袋8g" },
     ],
-  });
+  }, { "idempotency-key": `online-inventory-${Date.now()}-${randomUUID().slice(0, 8)}` });
   check("B1 库存导入成功", imported.status === 200 && imported.body.inventoryVersion, imported.status);
   check("B2 有货/缺货计数正确",
     imported.body.availableHerbCount === 20 && imported.body.availablePatentCount === 1,

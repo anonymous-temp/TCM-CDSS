@@ -56,7 +56,18 @@ async function tryRecordInventoryAudit(
 }
 
 export async function POST(req: Request) {
-  const idempotencyKeyHeader = req.headers.get("idempotency-key")?.trim() || "";
+  // 幂等键是本接口的必填请求头（owner 2026-09-15 裁定），校验放在**读请求体之前**：
+  // 缺键与格式非法共用 normalizeIdempotencyKey 这一份判据，一律 400 idempotency_key_required。
+  // 放在最前面有三重好处：不读 8MB 载荷就能拒；不经 requireCustomerContext ⇒ 不留任何租户副作用
+  // （与 PROV-08「失败的首提交不留残留租户」同向）；已登记客户与未登记客户走同一条判定，
+  // 不再出现「JIT 分支拒、已登记分支放行」这种按客户状态分叉的口径。
+  const idempotencyKey = normalizeIdempotencyKey(req.headers.get("idempotency-key"));
+  if (!idempotencyKey) {
+    return Response.json(
+      { error: "valid Idempotency-Key header required", code: "idempotency_key_required" },
+      { status: 400 },
+    );
+  }
   const requestId = req.headers.get("x-request-id")?.trim() || undefined;
   const parsed = await readJsonBodyWithLimit(req, MAX_BODY_BYTES);
   if (!parsed.ok) return parsed.response;
@@ -75,15 +86,6 @@ export async function POST(req: Request) {
         ? { rejectedEntries: invalidPayload.rejectedEntries, rejectedEntryCount: invalidPayload.rejectedEntryCount }
         : {}),
     }, { status: invalidPayload.status });
-  }
-  // 幂等键给了却不合格式，一律 400。此前只有 JIT 登记那条路径校验它，已登记客户发一个
-  // 8 位以下的键会被静默当成「没给」——调用方以为自己开了去重，实际一次保护都没有。
-  const idempotencyKey = normalizeIdempotencyKey(idempotencyKeyHeader);
-  if (idempotencyKeyHeader && !idempotencyKey) {
-    return Response.json(
-      { error: "valid Idempotency-Key header required", code: "idempotency_key_required" },
-      { status: 400 },
-    );
   }
   const customer = await requireCustomerContext(req, undefined, {
     allowJitProvisioning: true,
@@ -186,10 +188,7 @@ export async function POST(req: Request) {
     };
   };
 
-  // 没带幂等键：维持既有语义（整批替换）。文档 §3.2 只把这个头列为「首次客户登记必填」，
-  // 在此强制要求会打断按现行文档实现的调用方，收紧属于对外契约变更，不在本次修复内。
-  if (!idempotencyKey) return (await execute()).result;
-
+  // 走到这里幂等键必然非空（入口已拒空/非法），因此**每一次库存写入都在幂等事务内**。
   const outcome = await withInventoryIdempotency({
     clientId: customer.context.clientId,
     customerId: customer.context.customerId,

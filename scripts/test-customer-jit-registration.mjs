@@ -146,6 +146,9 @@ try {
       headers: {
         "content-type": "application/json",
         "x-cdss-customer-id": "hospital-route",
+        // 库存 POST 的必填幂等键（owner 2026-09-15）。本用例要测的是「审计不可用 ⇒ 503 且不改库存」，
+        // 不带键的话会先被入口的 400 挡掉，这条 fail-closed 判据就测不到了。
+        "idempotency-key": "audit-unavailable-20260915-001",
       },
       body: JSON.stringify({
         source: "患者张三-住院号123456",
