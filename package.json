@@ -256,6 +256,7 @@
     "test:customer-jit-registration": "jiti scripts/test-customer-jit-registration.mjs",
     "test:multitenant-drug-inventory": "jiti scripts/test-multitenant-drug-inventory.mjs",
     "test:drug-inventory-concurrency": "jiti scripts/test-drug-inventory-concurrency.mjs",
+    "test:inventory-import-idempotency": "jiti scripts/test-inventory-import-idempotency.mjs",
     "test:customer-medicine-candidates": "jiti scripts/test-customer-medicine-candidates.mjs",
     "test:customer-route-propagation": "node scripts/test-customer-route-propagation.mjs",
     "test:api-tenant-response-headers": "jiti scripts/test-api-tenant-response-headers.mjs",

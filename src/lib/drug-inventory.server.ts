@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { parseCustomerId } from "./customer-id";
+import { withSerializedLock } from "./serialized-lock";
 import { resolveGovernedTcmHerbIdentity } from "./tcm-herb-identity";
 import { governedHerbSubstitutes, isKnownTcmHerbName, type GovernedHerbSubstitute } from "./tcm-knowledge";
 
@@ -151,27 +152,6 @@ function writeInventoryCache(customerId: string, value: InventoryFile | null): v
     cacheByCustomer.delete(oldestCustomerId);
   }
   cacheByCustomer.set(customerId, { value, lastAccessedAt: now });
-}
-
-async function withSerializedLock<T>(
-  locks: Map<string, Promise<void>>,
-  key: string,
-  task: () => Promise<T>,
-): Promise<T> {
-  const previous = locks.get(key) || Promise.resolve();
-  let release: (() => void) | undefined;
-  const currentTurn = new Promise<void>((resolveTurn) => {
-    release = resolveTurn;
-  });
-  const tail = previous.catch(() => undefined).then(() => currentTurn);
-  locks.set(key, tail);
-  await previous.catch(() => undefined);
-  try {
-    return await task();
-  } finally {
-    release?.();
-    if (locks.get(key) === tail) locks.delete(key);
-  }
 }
 
 async function load(customerIdInput: string): Promise<InventoryFile | null> {

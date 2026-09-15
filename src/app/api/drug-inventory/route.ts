@@ -2,6 +2,11 @@ import { randomUUID } from "node:crypto";
 import { readJsonBodyWithLimit } from "@/lib/http-guard";
 import { drugInventorySnapshot, importDrugInventory, validateDrugInventoryPayload } from "@/lib/drug-inventory.server";
 import { requireCustomerContext } from "@/lib/customer-context";
+import { normalizeIdempotencyKey } from "@/lib/idempotency-key";
+import {
+  inventoryRequestFingerprint,
+  withInventoryIdempotency,
+} from "@/lib/inventory-idempotency.server";
 import { CUSTOMER_ID_HEADER } from "@/lib/customer-id";
 import {
   recordTenantAuditEvent,
@@ -51,7 +56,7 @@ async function tryRecordInventoryAudit(
 }
 
 export async function POST(req: Request) {
-  const idempotencyKey = req.headers.get("idempotency-key")?.trim() || "";
+  const idempotencyKeyHeader = req.headers.get("idempotency-key")?.trim() || "";
   const requestId = req.headers.get("x-request-id")?.trim() || undefined;
   const parsed = await readJsonBodyWithLimit(req, MAX_BODY_BYTES);
   if (!parsed.ok) return parsed.response;
@@ -71,6 +76,15 @@ export async function POST(req: Request) {
         : {}),
     }, { status: invalidPayload.status });
   }
+  // 幂等键给了却不合格式，一律 400。此前只有 JIT 登记那条路径校验它，已登记客户发一个
+  // 8 位以下的键会被静默当成「没给」——调用方以为自己开了去重，实际一次保护都没有。
+  const idempotencyKey = normalizeIdempotencyKey(idempotencyKeyHeader);
+  if (idempotencyKeyHeader && !idempotencyKey) {
+    return Response.json(
+      { error: "valid Idempotency-Key header required", code: "idempotency_key_required" },
+      { status: 400 },
+    );
+  }
   const customer = await requireCustomerContext(req, undefined, {
     allowJitProvisioning: true,
     idempotencyKey,
@@ -81,86 +95,141 @@ export async function POST(req: Request) {
     customer.context.clientId,
     customer.context.customerId,
   );
-  const operationId = randomUUID();
-  const intentRecorded = await tryRecordInventoryAudit({
-    event: "inventory_import",
-    clientId: customer.context.clientId,
-    customerHash: auditCustomerHash,
-    outcome: "pending",
-    code: "inventory_import_started",
-    requestId,
-    operationId,
-  });
-  if (!intentRecorded) {
-    return customerJsonResponse(customer.context.customerId, {
-      error: "tenant audit is unavailable; inventory was not changed",
-      code: "tenant_audit_unavailable",
-    }, { status: 503 });
-  }
 
-  const result = await importDrugInventory(customer.context.customerId, body);
-  if (!result.ok) {
+  // 真正的写入过程。返回 record 的那一支才会落幂等记录——只有它改动了线上库存。
+  const execute = async (): Promise<{ result: Response; record?: { status: number; body: unknown } }> => {
+    const operationId = randomUUID();
+    const intentRecorded = await tryRecordInventoryAudit({
+      event: "inventory_import",
+      clientId: customer.context.clientId,
+      customerHash: auditCustomerHash,
+      outcome: "pending",
+      code: "inventory_import_started",
+      requestId,
+      operationId,
+    });
+    if (!intentRecorded) {
+      return { result: customerJsonResponse(customer.context.customerId, {
+        error: "tenant audit is unavailable; inventory was not changed",
+        code: "tenant_audit_unavailable",
+      }, { status: 503 }) };
+    }
+
+    const result = await importDrugInventory(customer.context.customerId, body);
+    if (!result.ok) {
+      await tryRecordInventoryAudit({
+        event: "inventory_import",
+        clientId: customer.context.clientId,
+        customerHash: auditCustomerHash,
+        outcome: "rejected",
+        code: result.code,
+        requestId,
+        operationId,
+      });
+      return { result: Response.json({
+        error: result.error,
+        code: result.code,
+        ...(result.rejectedEntries
+          ? { rejectedEntries: result.rejectedEntries, rejectedEntryCount: result.rejectedEntryCount }
+          : {}),
+      }, { status: result.status }) };
+    }
+    if ("pending" in result) {
+      const auditFinalized = await tryRecordInventoryAudit({
+        event: "inventory_import",
+        clientId: customer.context.clientId,
+        customerHash: auditCustomerHash,
+        outcome: "pending",
+        code: "inventory_part_staged",
+        requestId,
+        operationId,
+        itemCount: result.pending.bufferedItemCount,
+      });
+      // 202：分片已收下但还没到齐。线上库存此刻**未被改动**，这一点必须显式回给甲方，
+      // 否则「收到 200」会被理解成「这一批已经生效」，正是旧文案造成的误解。
+      // 这一支不落幂等记录：分片按 (importId,index) 覆盖写暂存，重发同一片本身幂等，
+      // 而记录它会把首次响应里的 receivedParts/missingParts 这类会过期的进度重放出去。
+      return { result: customerJsonResponse(customer.context.customerId, {
+        ...result.pending,
+        // PROV 计划字段：本次请求完成了 JIT 登记时显式告知调用方。
+        ...(customer.context.provisioned ? { customerRegistered: true } : {}),
+        ...(!auditFinalized ? { auditStatus: "pending_reconciliation" } : {}),
+        note: `已暂存第 ${result.pending.receivedParts.join("、")} 片，仍缺第 ${result.pending.missingParts.join("、")} 片。`
+          + " 集齐全部分片后系统才会做一次整批替换；在此之前线上库存保持上一版本不变。",
+      }, { status: 202 }) };
+    }
+    const auditFinalized = await tryRecordInventoryAudit({
+      event: "inventory_import",
+      clientId: customer.context.clientId,
+      customerHash: auditCustomerHash,
+      outcome: "accepted",
+      requestId,
+      operationId,
+      itemCount: result.snapshot.itemCount,
+      inventoryVersion: result.snapshot.inventoryVersion,
+    });
+    const responseBody = {
+      ...result.snapshot,
+      // PROV 计划字段：本次请求完成了 JIT 登记时显式告知调用方。
+      ...(customer.context.provisioned ? { customerRegistered: true } : {}),
+      ...(!auditFinalized ? { auditStatus: "pending_reconciliation" } : {}),
+      // 归一不到与歧义的药名如实回报，供甲方补映射。静默吞掉会让这些药永远处于「缺货」，
+      // 而甲方无从知道是自己没推还是我们没认出来。
+      note: result.snapshot.unresolvedNames.length > 0 || result.snapshot.ambiguousNames.length > 0
+        ? "部分院内药名未能归一到标准正名（unresolvedNames）或存在多个候选（ambiguousNames）。"
+          + "系统不会替这些名字自动择一；它们不参与正名级匹配，请补充映射后重新导入。"
+        : undefined,
+    };
+    return {
+      result: customerJsonResponse(customer.context.customerId, responseBody),
+      record: { status: 200, body: responseBody },
+    };
+  };
+
+  // 没带幂等键：维持既有语义（整批替换）。文档 §3.2 只把这个头列为「首次客户登记必填」，
+  // 在此强制要求会打断按现行文档实现的调用方，收紧属于对外契约变更，不在本次修复内。
+  if (!idempotencyKey) return (await execute()).result;
+
+  const outcome = await withInventoryIdempotency({
+    clientId: customer.context.clientId,
+    customerId: customer.context.customerId,
+    idempotencyKey,
+    fingerprint: inventoryRequestFingerprint(body),
+  }, execute);
+
+  if (outcome.kind === "conflict") {
     await tryRecordInventoryAudit({
       event: "inventory_import",
       clientId: customer.context.clientId,
       customerHash: auditCustomerHash,
       outcome: "rejected",
-      code: result.code,
+      code: "idempotency_conflict",
       requestId,
-      operationId,
+      operationId: randomUUID(),
     });
-    return Response.json({
-      error: result.error,
-      code: result.code,
-      ...(result.rejectedEntries
-        ? { rejectedEntries: result.rejectedEntries, rejectedEntryCount: result.rejectedEntryCount }
-        : {}),
-    }, { status: result.status });
+    return customerJsonResponse(customer.context.customerId, {
+      error: "Idempotency-Key was already used for a different inventory payload; nothing was written."
+        + " 同一幂等键只能对应同一份载荷；确实要替换库存请换一个键重发。",
+      code: "idempotency_conflict",
+    }, { status: 409 });
   }
-  if ("pending" in result) {
-    const auditFinalized = await tryRecordInventoryAudit({
+  if (outcome.kind === "replayed") {
+    // 重放不改动任何状态，因此审计失败也不改变响应——只记不下这条重放事件，不会掩盖一次写入。
+    await tryRecordInventoryAudit({
       event: "inventory_import",
       clientId: customer.context.clientId,
       customerHash: auditCustomerHash,
-      outcome: "pending",
-      code: "inventory_part_staged",
+      outcome: "accepted",
+      code: "inventory_import_replayed",
       requestId,
-      operationId,
-      itemCount: result.pending.bufferedItemCount,
+      operationId: randomUUID(),
     });
-    // 202：分片已收下但还没到齐。线上库存此刻**未被改动**，这一点必须显式回给甲方，
-    // 否则「收到 200」会被理解成「这一批已经生效」，正是旧文案造成的误解。
-    return customerJsonResponse(customer.context.customerId, {
-      ...result.pending,
-      // PROV 计划字段：本次请求完成了 JIT 登记时显式告知调用方。
-      ...(customer.context.provisioned ? { customerRegistered: true } : {}),
-      ...(!auditFinalized ? { auditStatus: "pending_reconciliation" } : {}),
-      note: `已暂存第 ${result.pending.receivedParts.join("、")} 片，仍缺第 ${result.pending.missingParts.join("、")} 片。`
-        + " 集齐全部分片后系统才会做一次整批替换；在此之前线上库存保持上一版本不变。",
-    }, { status: 202 });
+    return customerJsonResponse(customer.context.customerId, outcome.body, {
+      status: outcome.status,
+      headers: { "idempotent-replay": "true" },
+    });
   }
-  const auditFinalized = await tryRecordInventoryAudit({
-    event: "inventory_import",
-    clientId: customer.context.clientId,
-    customerHash: auditCustomerHash,
-    outcome: "accepted",
-    requestId,
-    operationId,
-    itemCount: result.snapshot.itemCount,
-    inventoryVersion: result.snapshot.inventoryVersion,
-  });
-  return customerJsonResponse(customer.context.customerId, {
-    ...result.snapshot,
-    // PROV 计划字段：本次请求完成了 JIT 登记时显式告知调用方。
-    ...(customer.context.provisioned ? { customerRegistered: true } : {}),
-    ...(!auditFinalized ? { auditStatus: "pending_reconciliation" } : {}),
-    // 归一不到与歧义的药名如实回报，供甲方补映射。静默吞掉会让这些药永远处于「缺货」，
-    // 而甲方无从知道是自己没推还是我们没认出来。
-    note: result.snapshot.unresolvedNames.length > 0 || result.snapshot.ambiguousNames.length > 0
-      ? "部分院内药名未能归一到标准正名（unresolvedNames）或存在多个候选（ambiguousNames）。"
-        + "系统不会替这些名字自动择一；它们不参与正名级匹配，请补充映射后重新导入。"
-      : undefined,
-  });
+  return outcome.result;
 }
 
 export async function GET(req: Request) {

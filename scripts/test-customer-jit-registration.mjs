@@ -362,7 +362,13 @@ try {
   assert.equal(prov08ValidBody.customerRegistered, true,
     "JIT 首次登记成功的库存响应必须带 customerRegistered（PROV 计划字段）");
   assert.equal(prov08ValidBody.itemCount, 1);
-  const prov08Second = await prov08Post({ source: "prov08", items: [{ name: "当归", kind: "herb", available: true }] });
+  // 第二次导入必须换一个幂等键：本条断言要看的是 customerRegistered 不再出现，
+  // 而同键改载荷此前恰好是 200 覆盖——2026-09-15 甲方报的正是这个缺陷，
+  // 旧写法等于把它钉成了预期行为。同键不同体现在是 409（见 test:inventory-import-idempotency）。
+  const prov08Second = await prov08Post(
+    { source: "prov08", items: [{ name: "当归", kind: "herb", available: true }] },
+    "prov08-import-002",
+  );
   assert.equal(prov08Second.status, 200);
   assert.equal("customerRegistered" in (await prov08Second.json()), false,
     "已登记客户的后续导入不得再带 customerRegistered");

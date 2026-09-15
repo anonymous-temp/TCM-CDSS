@@ -5,12 +5,12 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parseCustomerId } from "./customer-id";
+import { normalizeIdempotencyKey } from "./idempotency-key";
 
 const REGISTRY_SCHEMA_VERSION = "tcm-cdss-customer-registry-v1" as const;
 const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{3,64}$/;
 const DEFAULT_JIT_CUSTOMER_QUOTA = 100;
 const MAX_JIT_CUSTOMER_QUOTA = 1_000;
-const IDEMPOTENCY_KEY_PATTERN = /^[\x21-\x7e]{8,200}$/;
 
 type RegisteredCustomer = Readonly<{
   clientId: string;
@@ -144,8 +144,8 @@ export async function registerCustomerForClient(input: {
   if (!CLIENT_ID_PATTERN.test(input.clientId) || parseCustomerId(input.customerId) !== input.customerId) {
     return { ok: false, status: 400, code: "customer_registry_unavailable", error: "invalid customer registration binding" };
   }
-  const idempotencyKey = input.idempotencyKey.trim();
-  if (!IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+  const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
+  if (!idempotencyKey) {
     return { ok: false, status: 400, code: "idempotency_key_required", error: "valid Idempotency-Key header required" };
   }
 

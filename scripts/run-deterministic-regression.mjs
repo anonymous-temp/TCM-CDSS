@@ -345,6 +345,9 @@ const scripts = [
   "test:customer-auth-binding",
   "test:multitenant-drug-inventory",
   "test:drug-inventory-concurrency",
+  // 2026-09-15 甲方实测：同一 Idempotency-Key 连发两次、第二次载荷不同，两次都 200，
+  // 第二次把第一次导入的库存整批覆盖了——该请求头此前只用于 JIT 客户登记，没接进写入事务。
+  "test:inventory-import-idempotency",
   "test:customer-medicine-candidates",
   "test:customer-route-propagation",
   "test:api-tenant-response-headers",
