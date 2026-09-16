@@ -1,6 +1,6 @@
 import { getPublicTextModelStatus, runTextModelHealthCheck } from "@/lib/text-model";
 import { getCdssAuthenticatedRateLimitKey } from "@/lib/cdss-auth";
-import { getDiagnosisProviderStatus, probeClinicalReviewModels } from "@/lib/diagnosis-api";
+import { getDiagnosisProviderStatus } from "@/lib/diagnosis-api";
 import { getRxAuditStatus } from "@/lib/rxaudit";
 
 const HEALTH_CHECK_WINDOW_MS = 10 * 60 * 1000;
@@ -49,13 +49,10 @@ export async function GET(req: Request) {
   const rateLimited = await healthRateLimited(req);
   if (rateLimited) return rateLimited;
 
-  const [result, clinicalReview] = await Promise.all([
-    runTextModelHealthCheck(),
-    probeClinicalReviewModels(),
-  ]);
+  // 模型复核环节已移除（2026-09-16）：实调只验证主模型能返回最终内容。
+  const result = await runTextModelHealthCheck();
   return Response.json({
     module: "text-model",
     liveCheck: result,
-    clinicalReview,
-  }, { status: result.ok && clinicalReview.ok ? 200 : 502 });
+  }, { status: result.ok ? 200 : 502 });
 }

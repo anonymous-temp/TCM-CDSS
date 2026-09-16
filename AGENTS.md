@@ -16,7 +16,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - **框架**：Next.js 16（App Router，Turbopack，`output: "standalone"`）+ React 19 + TypeScript 5（strict）
 - **样式/UI**：Tailwind CSS 4 + shadcn（`src/components/ui`）、lucide-react、react-markdown
-- **模型接入**：`openai` SDK，OpenAI 兼容协议。生产 `AI_TEXT_PROVIDER=bailian-qwen`（百炼 compatible-mode），文本相位**按环节分档、并不统一**：M03 首轮 `qwen3.8-flash`（非思考模式 + 严格 JSON Schema；`qwen3.7-flash` 为单变量回滚）、M04 首轮 `qwen3.7-plus`、M03/M04 修复轮 `qwen3.8-max`、独立复核 M03→plus / M04→max、临床事实三相位 3.7-flash→max→plus。DeepSeek 保留为整体回退档（改 `AI_TEXT_PROVIDER=openai-compatible`），生产未启用。GLM 视觉默认开启且仅用于舌象图片
+- **模型接入**：`openai` SDK，OpenAI 兼容协议。生产 `AI_TEXT_PROVIDER=bailian-qwen`（百炼 compatible-mode），文本相位**按环节分档、并不统一**：M03 首轮 `qwen3.8-flash`（非思考模式 + 严格 JSON Schema；`qwen3.7-flash` 为单变量回滚）、M04 首轮 `qwen3.7-plus`、M03/M04 修复轮 `qwen3.8-max`、临床事实三相位 3.7-flash→max→plus。DeepSeek 保留为整体回退档（改 `AI_TEXT_PROVIDER=openai-compatible`），生产未启用。GLM 视觉默认开启且仅用于舌象图片
 - **校验**：zod 4
 - **数据库**：无 —— 病例状态在浏览器 localStorage（加密快照经服务端 AES-256-GCM）+ 本地 JSON 知识库
 - **重要**：本项目没有 `middleware.ts`。请求门控在 `src/proxy.ts`（导出 `proxy()` + `config.matcher`）。写框架代码前先读 `node_modules/next/dist/docs/` 中的官方文档，不要凭训练数据中的 Next.js 经验行事
@@ -85,7 +85,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 
 - **分阶段模型配置**（见 `.env.example`，2026-08-27 已与生产 env + 30h `model_usage` 遥测核对）：分档矩阵见上；`reasoning_effort` / `thinking_enabled` 同为分阶段环境变量，缺省一律关（仅返回推理过程的流视为错误）。**实际不存在 `PRIMARY_COLLECT_MODEL` / `PRIMARY_QUESTION_MODEL`**：M01 无舌象图时不调模型，M02 跟随供应商基础模型（生产即 `BAILIAN_QWEN_MODEL`）。
   - **实际不存在 `PRIMARY_COLLECT_MODEL` / `PRIMARY_QUESTION_MODEL`**：M01 文本路径根本不调模型（无舌象图时 collect 路由直接返回确定性 NDJSON），M02 只能跟随 `OPENAI_MODEL`。
-  - **"独立复核"在默认全 V4-Flash 配置下不是跨模型**：候选链去重后只剩一个模型身份，`independentFromGenerator=false`，实际是对同一模型的第二次无对话状态请求。跨厂商拓扑只有一条实现路径：`PRIMARY_CLINICAL_REVIEW_PROVIDER=bailian-qwen` + `BAILIAN_QWEN_API_KEY/BASE_URL/MODEL`（其余取值一律 fail-closed 判 unconfigured）；该路径已实现但截至 2026-08-13 从未在生产启用或实测过。旧的 `PRIMARY_CLINICAL_REVIEW_API_URL/KEY/ALLOWED_HOSTS` 与 `CLINICAL_FACTS_REPAIR_MODEL` 是代码不读的死配置，已从 `.env.example`/compose 清除。
+  - **M03/M04 的模型复核环节已于 2026-09-16 删除**（owner 裁定：线上 107 次复核全部与生成方同模型、低推理力度、中位 1.4s，84% 打回，无可证明的正收益，却把通过全部确定性合同的候选扣成非剂量）。`diagnosis-api.ts` 里 `reviewM03DiagnosticCriteria` / `reviewM04ClinicalPlan` 只剩不发请求的桩（`clinicalReviewNotPerformed`），签名载荷里的 `clinicalReview` 固定为 `unavailable/not_configured`（契约兼容），`health?strict=1` 与 `model-health?check=1` 不再探测复核器。`PRIMARY_CLINICAL_REVIEW_*` 等变量已从 `.env.example`/compose 删除。纯提示词/解析模块（`m03-diagnostic-review.ts`、`m04-clinical-review.ts`）暂留为无调用方的纯函数，待清扫。
   - **M04 修复轮的 `reasoning_effort` 默认 `"medium"`，可用 `PRIMARY_PRESCRIBE_REPAIR_REASONING_EFFORT` 覆盖**（M03 修复轮对应 `PRIMARY_DIAGNOSE_REPAIR_REASONING_EFFORT`，默认 low）；`PRIMARY_PRESCRIBE_REASONING_EFFORT` 只作用于首轮。
 - **NDJSON 流式契约**（所有后端与确定性响应共享）：每块 `{"content":"…"}\n`，以 `{"content":"[END]"}\n` 结束；错误为 `{"error":"…"}\n`。任何新增流水线环节都必须说这套契约；`markdownNdjsonResponse()` 把确定性 Markdown 包装进去。
 - **关键陷阱**：流只返回 `reasoning_content` 而无 `content` 视为错误（"模型仅返回推理过程"），`model-health?check=1` 校验的是最终内容。

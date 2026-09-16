@@ -1,4 +1,4 @@
-import { getDiagnosisProviderStatus, probeClinicalReviewModels, probeTongueVisionModel } from "@/lib/diagnosis-api";
+import { getDiagnosisProviderStatus, probeTongueVisionModel } from "@/lib/diagnosis-api";
 import { getEvimedEvidenceStatus, getEvimedGuideStatus, probeExternalEvidenceSources } from "@/lib/evimed-guide";
 import { getTcmKnowledgeStatus } from "@/lib/tcm-knowledge";
 import { getFormulaCatalogStatus } from "@/lib/tcm-formula-provenance";
@@ -76,16 +76,15 @@ export async function GET(req: Request) {
   }
   const providers = getDiagnosisProviderStatus();
   const externalEvidence = getEvimedEvidenceStatus();
-  const [externalEvidenceProbe, clinicalReviewProbe, clinicalFactsModelProbe, tongueVisionProbe, rxAuditProbe, controlledTerminologyProbe] = strictProbe
+  const [externalEvidenceProbe, clinicalFactsModelProbe, tongueVisionProbe, rxAuditProbe, controlledTerminologyProbe] = strictProbe
     ? await Promise.all([
       probeExternalEvidenceSources(),
-      probeClinicalReviewModels(),
       probeClinicalFactsModels(),
       probeTongueVisionModel(),
       probeRxAuditTransport(),
       probeControlledTerminologyModel(),
     ])
-    : [undefined, undefined, undefined, undefined, undefined, undefined];
+    : [undefined, undefined, undefined, undefined, undefined];
   const rxAudit = getRxAuditStatus();
   const rxAuditReady = rxAudit.explicitlyDisabled || (rxAudit.enabled && (!strictProbe || rxAuditProbe?.ok === true));
   const tcmTreatmentProjects = getTcmTreatmentProjectStatus();
@@ -120,11 +119,8 @@ export async function GET(req: Request) {
   const evidenceUnavailable = externalEvidenceProbe?.sources
     .filter((source) => source.requiredForRelease && !source.ok)
     .map((source) => `evidence_${source.kind}_${source.reason}${source.upstreamStatus ? `_http_${source.upstreamStatus}` : ""}`) || [];
-  // A deployment may intentionally pin generation and review to the same approved model. Readiness
-  // requires a separate review-only invocation; cross-model identity remains reported as a stronger
-  // optional property instead of being misrepresented as the only form of independent review.
-  const clinicalReviewConfigured = providers.clinicalReviewModel.configured && providers.clinicalReviewModel.independentInvocation;
-  const clinicalReviewAvailable = !strictProbe || clinicalReviewProbe?.ok === true;
+  // 模型复核环节已移除（2026-09-16）：严格就绪不再要求复核器已配置/可达，也不再对它发探针
+  // （此前每天 214 次探针调用）。
   const tongueVisionRequired = providers.tongueVision.enabled;
   const tongueVisionAvailable = !tongueVisionRequired || (
     providers.tongueVision.configured &&
@@ -132,8 +128,6 @@ export async function GET(req: Request) {
   );
   const degradedReasons = [
     ...(!providers.primaryModel.configured ? ["primary_model_not_configured"] : []),
-    ...(!clinicalReviewConfigured ? ["independent_clinical_reviewer_not_configured"] : []),
-    ...(strictProbe && !clinicalReviewAvailable ? ["independent_clinical_reviewer_unavailable"] : []),
     ...(tongueVisionRequired && !providers.tongueVision.configured ? ["tongue_vision_api_key_not_configured"] : []),
     ...(strictProbe && tongueVisionRequired && providers.tongueVision.configured && !tongueVisionAvailable
       ? [`tongue_vision_${tongueVisionProbe?.reason || "unavailable"}`]
@@ -167,7 +161,7 @@ export async function GET(req: Request) {
   ];
   // RxAudit remains advisory for an individual clinical decision, but a release advertised as the
   // complete M01-M05 product is not healthy when its configured audit sidecar is unreachable.
-  const strictReady = providers.primaryModel.configured && clinicalReviewConfigured && clinicalReviewAvailable && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && customerAuthorization.ready && controlledTerminologyReady && syndromeHypothesisRerankReady;
+  const strictReady = providers.primaryModel.configured && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && customerAuthorization.ready && controlledTerminologyReady && syndromeHypothesisRerankReady;
 
   const body = {
     module: "tcm-cdss",
@@ -191,7 +185,6 @@ export async function GET(req: Request) {
     providers,
     syndromeHypothesisRerank,
     ...(tongueVisionProbe ? { tongueVisionProbe } : {}),
-    ...(clinicalReviewProbe ? { clinicalReviewProbe } : {}),
     knowledge: getTcmKnowledgeStatus(),
     formulaKnowledge: getFormulaCatalogStatus(),
     tcmTreatmentProjects,

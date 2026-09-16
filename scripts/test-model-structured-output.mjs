@@ -30,7 +30,7 @@ function assertStrictObjects(value, path = "schema") {
 
 for (const model of ["qwen3.7-plus", "qwen3.7-max", "qwen3.8-flash", "qwen3.8-max"]) {
   assert.equal(supportsStrictJsonSchema(model), true);
-  for (const task of ["m03_full", "m03_western", "m03_tcm", "m04_proposal", "m03_review", "m04_review"]) {
+  for (const task of ["m03_full", "m03_western", "m03_tcm", "m04_proposal"]) {
     const format = responseFormatForTask(model, task);
     assert.equal(format.type, "json_schema", `${model}/${task} must use strict JSON Schema`);
     assert.equal(format.json_schema.strict, true);
@@ -46,10 +46,6 @@ for (const model of ["qwen3.7-plus", "qwen3.7-max", "qwen3.8-flash", "qwen3.8-ma
     }
   }
 }
-const m04ReviewFormat = responseFormatForTask("qwen3.8-flash", "m04_review");
-assert.equal(m04ReviewFormat.json_schema.schema.properties.issueCode.enum.includes("formula_composition_mismatch"), false,
-  "server-owned formula identity must not remain a stochastic reviewer decision");
-assert.equal(JSON.stringify(m04ReviewFormat.json_schema.schema.properties.repairFocus).includes("formula_core_composition"), false);
 assert.deepEqual(responseFormatForTask("qwen3.7-flash", "m03_full"), { type: "json_object" });
 assert.deepEqual(responseFormatForTask("deepseek-v4-flash", "m04_proposal"), { type: "json_object" });
 
@@ -74,18 +70,11 @@ assert.match(diagnosisSource, /enqueueHeartbeat\("模型已开始返回临床正
   "provider first-content timing must be observable separately from server-owned banners");
 assert.doesNotMatch(diagnosisSource, /\btool_choice\b|\bparallel_tool_calls\b/,
   "deterministic server retrieval must not be replaced by model-controlled tool calls");
-// 2026-09-14：复核器闭集结论在 DeepSeek 上改用**服务端强制的单函数**取回（response_format 在
-// DeepSeek 上不执行 schema）。这不是模型自主工具调用：函数只有一个、tool_choice 钉死到它、
-// 参数 schema 服务端约束解码。它只能住在 model-response-format 里，diagnosis-api 仍然零 tool 面。
+// 2026-09-16：M03/M04 模型复核环节已移除，随之删除的还有复核器的 strict tool-call 取回。
+// 结构化输出层与编排器现在都必须是零 tool 面：模型不控制任何检索或流程。
 const responseFormatSource = readFileSync("src/lib/model-response-format.ts", "utf8");
-assert.match(responseFormatSource, /export function structuredReviewRequestFields\(/);
-assert.match(responseFormatSource, /tool_choice:\s*\{\s*type:\s*"function",\s*function:\s*\{\s*name\s*\}\s*\}/,
-  "the forced review function must pin tool_choice to that single function");
-assert.match(responseFormatSource, /strict:\s*true,/, "the forced review function must be strict (server-side schema enforcement)");
-assert.doesNotMatch(responseFormatSource, /\bparallel_tool_calls\b/, "no parallel/model-selected tool use anywhere");
-assert.equal((responseFormatSource.match(/tools:\s*\[\{/g) || []).length, 1, "exactly one forced-function request site");
-assert.match(diagnosisSource, /\.\.\.structuredReviewRequestFields\(input\.model,\s*task\)/,
-  "diagnosis-api must obtain review request fields from model-response-format, not build tools itself");
+assert.doesNotMatch(responseFormatSource, /\bparallel_tool_calls\b|\btool_choice\b|\btools:\s*\[/, "no tool use anywhere in the structured-output layer");
+assert.doesNotMatch(diagnosisSource, /\bstructuredReviewRequestFields\b|\bsubmit_clinical_review\b/, "the removed review request builder must not come back");
 
 const prodSmokeSource = readFileSync("scripts/regress-prod-smoke.mjs", "utf8");
 assert.match(prodSmokeSource, /PROD_SMOKE_SAMPLES[\s\S]*?\|\|\s*"5"/,

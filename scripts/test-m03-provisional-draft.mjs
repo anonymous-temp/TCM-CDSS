@@ -38,7 +38,7 @@ test("rendered section is visible markdown only: no sentinel, codes listed, prov
   assert.ok(section.startsWith(M03_PROVISIONAL_DRAFT_HEADING));
   assert.doesNotMatch(section, /DIAGNOSIS_JSON_START|contractSignature|clinicalReview/, "草稿段永不携带 sentinel 或签名字段");
   assert.match(section, /风寒束表证/, "草稿必须保留模型形成的具体证候");
-  assert.match(section, /未通过服务端校验、未经独立复核、未签名/, "来源与状态必须写明");
+  assert.match(section, /未通过服务端校验、未签名/, "来源与状态必须写明");
   assert.match(section, /`m03_chain_incomplete`、`tcm_reasoning_unsupported`/, "未通过码去重后逐条列出");
   assert.equal((section.match(/^## /gm) || []).length, 1, "除段落自己的标题外，草稿正文的一级标题全部降级，不与有限页分节混淆");
   assert.match(section, /^### /m, "降级后的标题仍在（正文结构保留）");

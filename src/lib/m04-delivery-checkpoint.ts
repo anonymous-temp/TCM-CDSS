@@ -174,8 +174,10 @@ export function bindM04DeliveryReview(
   if (review.status === "unavailable" && checkpoint.review && checkpoint.review.status !== "unavailable") return checkpoint;
   // 带确定性合同码的候选**永不签名、永不绑背书**：它保留下来是为了让医生看见药味与问题条目，
   // 不是为了冒充「已通过校验」。这条是「保留候选」与「安全底线」之间的唯一分界。
-  const bound = m04DeliveryCheckpointIsClean(checkpoint) &&
-    attestation?.status === "accepted" &&
+  // 模型复核环节已移除（2026-09-16）：attestation 固定为 unavailable/not_configured，
+  // 「已完成」的判据变成「签名存在且哈希绑定到这份字节」——hasBoundClinicalReviewAttestation
+  // 本就接受 unavailable，签名模块与这里读同一个谓词。
+  const bound = m04DeliveryCheckpointIsClean(checkpoint) && attestation !== undefined &&
     hasBoundClinicalReviewAttestation({ ...checkpoint.reasoning, clinicalReview: attestation });
   let matchingSignedContent: string | undefined;
   if (bound && signedContent) {
@@ -185,7 +187,7 @@ export function bindM04DeliveryReview(
       const signed = start >= 0 && end >= 0 && normalizeReasoningV2(JSON.parse(
         signedContent.slice(start + "<!-- DIAGNOSIS_JSON_START -->".length, end),
       ));
-      if (signed && signed.clinicalReview?.status === "accepted" &&
+      if (signed && signed.clinicalReview &&
           signed.contractSignature?.startsWith("hmac-sha256:") &&
           sha256CanonicalForContract(signed.clinicalReview) === sha256CanonicalForContract(attestation) &&
           clinicalReviewPayloadHash(signed) === checkpoint.payloadHash && hasBoundClinicalReviewAttestation(signed)) {
@@ -227,7 +229,7 @@ export function renderM04DeliveryCheckpoint(
   doseWithheldReasons: readonly string[] = [],
 ): string {
   // 剂量授权轴收回时**永远不返回已签名的剂量页**：那一页带完整用量。候选、方义、调护照常呈现。
-  if (reason !== "dose_withheld" && checkpoint?.signedContent && checkpoint.attestation?.status === "accepted") {
+  if (reason !== "dose_withheld" && checkpoint?.signedContent && checkpoint.attestation) {
     return checkpoint.signedContent;
   }
   const prior = priorReasoning;

@@ -464,8 +464,8 @@ Content-Type: application/json
 | 与上游模型建立连接 | 90 秒 |
 | 流空闲（两帧之间无数据） | 60 秒 |
 | 单次流总时长 | 180 秒 |
-| M03 整体编排（含复核与修复轮） | 180 秒 |
-| M04 整体编排（含复核与修复轮） | 120 秒 |
+| M03 整体编排（含修复轮） | 180 秒 |
+| M04 整体编排（含修复轮） | 120 秒 |
 | 舌象图片识别 | 120 秒 |
 | 心跳间隔 | 5 秒 |
 
@@ -2276,7 +2276,7 @@ async function callStage(url, headers, body) {
 
 | 字段 | 中文名 | 说明 |
 |---|---|---|
-| `clinicalReviewMethod` | 临床复核方式 | 本次临床复核的**实际拓扑**。`independence` 取 `cross_model`（换了模型身份的独立复核）或 `same_model_second_pass`（同一模型另起一次无生成侧对话状态的请求：复核专用提示词、只增不减风险提示，**不构成跨模型独立复核**）。当前默认部署为后者。`label`/`note` 是与之匹配的中文说明，医生可见正文里的措辞与该字段同源 |
+| `clinicalReviewMethod` | 临床复核方式 | **V2.14 起恒为 `null`**（模型复核环节已移除，见附录 B）。仅历史快照中 `clinicalReview.status==="accepted"` 的记录仍按原样写回：`independence` 取 `cross_model` 或 `same_model_second_pass`，`label`/`note` 为对应中文说明 |
 | `diagnoses.westernDetail.guidelineReferences[]` | 指南/文献依据 | 与 §5.1 同源；可选，仅当本轮 EviMed 检索命中时输出 |
 | `diagnoses.westernDetail.clinicalRationale` | 西医诊断推理 | 事实到诊断倾向的推理；此前只出现在可见正文，写回链路取不到 |
 | `diagnoses.tcmDetail` | 中医辨病辨证详情 | 与 `westernDetail` 同构的结构化中医推理：病名、辨病推理、辨证推理、证候与依据、证候/病名鉴别（含 `typicalManifestation` 典型表现）、被剥离的方名 `deferredFormulaSelection`（可选：仅当模型选过方而服务端未予锁定时输出）。无中医证候结论时为 `null` |
@@ -2367,6 +2367,7 @@ HIS 投影与 M04 原始响应保持同一语义：`prescriptions.modifications[
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.14 | 2026-09-16 | **移除 M03/M04 模型复核环节。** 线上实测该环节全部是与生成方同一模型、低推理力度、中位 1.4 秒的请求，84% 打回；M03 侧意见全部被服务端降为有界建议，M04 侧把通过全部确定性核验、零安全问题的候选扣成非剂量 15/35 次，且同一病例重试结果逐次相同；没有可证明的正收益。安全底线（药典剂量上限、配伍禁忌、特殊人群、剂量授权轴、审方）全部保留且仍由确定性层执行；临床合理性由医生把关。出参变化：`clinicalReview` 字段保留但固定为 `{status:"unavailable", unavailableReason:"not_configured", reviewedPayloadHash}`；`clinicalReviewMethod` 固定为 `null`；可见正文的「临床复核状态」行改为「本版本不设模型复核环节」；严格健康检查不再含 `independent_clinical_reviewer_*` 项；`model-health?check=1` 响应不再含 `clinicalReview`。部署变量 `PRIMARY_CLINICAL_REVIEW_*`、`PRIMARY_*_REVIEW_MODEL`、`*_REVIEW_FALLBACK_MODEL` 删除。 | **否**：两个字段本就可选且取值仍在既有枚举内。按 `clinicalReview.status==="accepted"` 判断"已复核"的集成方从此恒为否——请勿据此拦截剂量或标红 |
 | V2.13 | 2026-09-15 | **`Idempotency-Key` 成为库存 `POST` 的必填请求头。** 缺失或格式非法一律 `400 idempotency_key_required`，且在解析请求体、建立客户上下文之前返回——不读 8MB 载荷、不产生任何租户副作用。此前缺键请求按整批替换照常执行（V2.12 仍如此），且校验只在未登记客户的 JIT 分支生效、已登记客户完全不校验。 | **是（破坏性）**：不携带该请求头的库存同步作业会立即收到 `400`，必须为每一次导入生成一个 8–200 位可打印 ASCII 的键；同一次分片整批替换可共用一个键，把用过的键复用到另一次导入会在第一片返回 `409` |
 | V2.12 | 2026-09-15 | **库存写入幂等落地。** `Idempotency-Key` 此前只参与未登记客户的 JIT 登记，客户登记后既不参与写入也不校验格式——同键连发两次、第二次载荷不同会两次都返回 `200`，后一次整批覆盖前一次（被覆盖的药味会被讲成"缺货"而非"未知"）。现在库存 `POST` 带该头即进入写入幂等事务：同键同载荷重放首次响应并带 `idempotent-replay: true`；同键不同载荷返回 `409 idempotency_conflict` 且不写入；键格式非法返回 `400`。仅 `200` 结果占用幂等键，`202`/失败可用同一键改正后重试。 | **否**：未携带该请求头的调用方语义不变（仍是整批替换）；携带该头并复用同一键提交不同载荷的调用方，此前是静默覆盖，现在会收到 `409`，需为每一次新的导入换一个键 |
 | V2.11 | 2026-09-10 | 区分当前风险与生活调护、未实施的加减建议及已核实的说明书参考文本；M05 可新增 `warning_profile` 显示观测帧，使页面、导出和经验证的恢复结果保持同一显示分级。实际风险、原有临床签名与 HIS 采纳判据继续独立生效 | 新增可选事件；按 §3.5 忽略未知 `type` 的现有调用方无需修改。显示收据不是采纳授权，不应写入模型输入或作为 HIS 决策依据；客户 Token 不变。线上实际部署以 `health.build` 为准，不能仅凭本文档版本判断已切流 |

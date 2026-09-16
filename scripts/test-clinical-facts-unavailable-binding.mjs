@@ -14,7 +14,7 @@ const settings = {
   REASONING_CONTRACT_SIGNING_KEY: "synthetic-facts-failure-reasoning-key-at-least-32-characters",
   AI_TEXT_PROVIDER: "openai-compatible", OPENAI_API_KEY: "synthetic-facts-model-key",
   OPENAI_BASE_URL: "https://api.deepseek.com", OPENAI_MODEL: "deepseek-v4-flash",
-  PRIMARY_CLINICAL_REVIEW_PROVIDER: "primary", CLINICAL_FACTS_MODEL: "deepseek-v4-flash",
+  CLINICAL_FACTS_MODEL: "deepseek-v4-flash",
   CLINICAL_FACTS_REVIEW_MODEL: "deepseek-v4-flash", CLINICAL_FACTS_ADJUDICATION_MODEL: "deepseek-v4-flash",
   RXAI_AUDIT_ENABLED: "false", RXAI_QUERY_ENABLED: "false", M05_FOLLOWUP_AUTHORING: "false",
 };

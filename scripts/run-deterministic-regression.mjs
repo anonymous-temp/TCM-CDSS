@@ -47,10 +47,11 @@ const scripts = [
   // 无法区分超时/上游报错/契约不合法/未配置。根因是 execution.reason 算出来即丢弃——
   // 与同文件 independentFromGenerator 曾经的毛病同形，同一个函数第二次。
   "test:clinical-review-reason",
-  // 复核器闭集结论在 DeepSeek 上走 strict tool-call（2026-09-14）。json_object 不执行 schema，
-  // 生产 222 例 54 次 invalid contract 全是整句中文写进枚举字段；钉：DeepSeek 请求体带
-  // strict 函数 + tool_choice、无 response_format；Qwen 严格档不变；tool_calls 参数优先于 content。
-  "test:clinical-review-strict-tool",
+  // M03/M04 模型复核环节删除（owner 2026-09-16）。线上 107 次复核全部同模型、低推理力度、中位 1.4s，
+  // 84% 打回；M04 侧把 contractIssues=[] / safetyFindingCount=0 的候选扣成非剂量 15/35 次，
+  // 同一病例重试 14 次逐次相同。钉：编排器零复核请求；复核状态不再决定剂量页签名；
+  // 已签名候选在交付连续性路径按签名+哈希绑定视为已完成；HIS 不再把未复核写成「二次复核」。
+  "test:clinical-review-removed",
   // M03 未签名工作草稿（2026-09-14）：通过 schema 但没过合同的最后一版以可见 Markdown 附在
   // 有限页里、列出未通过码，永不带 sentinel、永不签名；M04 仍只认签名合同。
   "test:m03-provisional-draft",
@@ -104,14 +105,6 @@ const scripts = [
   // 否则「生」被前缀剥离表剥掉、退回麦芽总述（「焦」不在该表内所以侥幸没错，是巧合不是规则）。
   // 反向断言：未经裁定的歧义名（芍药/贝母）不得被顺手放开。
   "test:clinician-herb-adjudications",
-  // 跨厂商 M03/M04 复核 与 临床事实复核相位必须独立。线上实证（2026-08-16）：
-  // 把 PRIMARY_CLINICAL_REVIEW_PROVIDER 设成 bailian-qwen 后跨厂商复核确实生效
-  // （independentFromGenerator=true），但 independentFactsReviewModel 把同一变量
-  // 一并当成本相位开关、直接判 unconfigured，三相位 AND 出 ok=false，
-  // health?strict=1 塌成 strictReady=false——而 Docker healthcheck 打的正是那个口，
-  // 容器进入 health: starting 并重启。两个本该独立的能力被一行做成了互斥。
-  // 保留 fail-closed 默认（不静默回落主模型），显式设 CLINICAL_FACTS_REVIEW_MODEL 才放行。
-  "test:cross-provider-facts-decoupling",
   // T8′②b①：m03_chain_incomplete 六轮不收敛。两条独立缺陷叠在一起：
   //  ①【真根因】UNSTABLE_REASONING_MARKER 的「(不|未|无)…定」分支把气滞主症
   //     「痛无定处」「走窜不定」读成「无法确定」。模型写进 patientFact 的是病历原文，
@@ -156,8 +149,6 @@ const scripts = [
   // 源码级断言钉住「新增直连调用点必须接账本」，防止账本再次出现盲区。
   // P1 编排层浪费：证据无预算 / pretty-print / 提示块序 / 三处缺缓存 / preflight 未接线。
   // P2 生成合同瘦身：模型不再输出服务端自有字段，校验合同与签名载荷形状不变。
-  // P3/P4 争议裁决最小载荷 + 结构化输出下不下发 max_tokens（供应商官方建议）。
-  "test:review-adjudication-packet",
   "test:m03-server-owned-fields",
   "test:orchestration-token-budget",
   "test:model-task-telemetry",

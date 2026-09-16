@@ -1022,7 +1022,9 @@ export function buildHisAiSchemePayload(
     // and audit provenance, not that the pre-edit M04 reviewer examined the edited composition.
     // Do not fall back to that stale reviewer (or relabel the M03 review as an M04 review).
     const attestation = boundPrescribeReview || (workbenchRevision ? undefined : diagnoseReasoning?.clinicalReview);
-    if (!attestation) return null;
+    // 模型复核环节已移除（2026-09-16）：没有完成的复核就没有「复核方式」可写回。
+    // 旧快照里 accepted 的 attestation 照常呈现；unavailable 一律不冒充成「二次复核」。
+    if (!attestation || attestation.status !== "accepted") return null;
     const independence = clinicalReviewIndependenceOf(attestation.independentFromGenerator);
     return {
       status: attestation.status,

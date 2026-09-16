@@ -152,23 +152,11 @@ check("极性全空结果不入缓存（那是降级值不是结论）", () => {
 
 // ── 7. preflight 必须**保持不接线**（2026-08-29 实测回归后反向钉住）────────────
 const api = read("src/lib/diagnosis-api.ts");
-check("确定性复核前置判据不得作为复核结果喂进编排", () => {
-  // 曾经接过，实测 prod-smoke 3 例里 2 例因此丢掉 M03 合同签名、M04 拒绝进入。
-  // 根因是判据错位：m03SemanticIssue 返回二十余种**合同类**问题码，各自在
-  // structured-clinical-repair 里有定向修复分支；preflight 把它们一律压成两个**复核类**码，
-  // 于是候选被改道进复核修复路径，同时模型复核被整个跳过（指纹：reviewAttemptCount=0）。
-  assert.ok(
-    !api.includes("preflightM03DiagnosticReview("),
-    "preflightM03DiagnosticReview 又被接进生产路径了——先让它只对真正属于复核范畴的问题码短路，再谈接线",
-  );
-});
-check("M03 复核链的入口仍然是模型复核，没有确定性短路", () => {
-  const start = api.indexOf("async function reviewM03DiagnosticCriteria(");
-  const end = api.indexOf("const first = await runIndependentClinicalReview<M03DiagnosticReview>", start);
-  assert.ok(start > 0 && end > start, "切片越界，断言会空转");
-  const head = api.slice(start, end);
-  assert.ok(!/return\s*\{[\s\S]{0,200}attemptCount: 0/.test(head),
-    "复核入口不得在调用模型之前返回 attemptCount=0 的判决——那正是丢签名的指纹");
+check("M03/M04 模型复核执行层已删除（owner 2026-09-16）：编排器不再向任何复核端点发请求", () => {
+  for (const gone of ["runIndependentClinicalReview", "probeClinicalReviewModels", "clinicalReviewModelCandidates", "buildClinicalReviewRequestBody", "preflightM03DiagnosticReview("]) {
+    assert.ok(!api.includes(gone), `${gone} 又回到生产路径了`);
+  }
+  assert.ok(api.includes("function clinicalReviewNotPerformed<"), "两个复核入口必须收敛到 clinicalReviewNotPerformed 这一个不发请求的桩");
 });
 
 // ── 8. 死代码已清除 ───────────────────────────────────────────────────────

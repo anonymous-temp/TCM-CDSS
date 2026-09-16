@@ -4,14 +4,12 @@ import { createJiti } from "jiti";
 
 import {
   boundedM03DiagnosticRepairGuidance,
-  buildM03DiagnosticReviewAdjudicationPrompt,
   buildM03DiagnosticReviewPayload,
   buildM03DiagnosticReviewPrompt,
   canRebindM03DiagnosticReview,
   m03DiagnosticReviewDiffPaths,
   m03DiagnosticRepairGuidanceCodes,
   m03DiagnosticReviewSemanticHash,
-  m03DiagnosticReviewNeedsAdjudication,
   m03GroundingHasCurrentPositiveFacts,
   m03PathogenesisSummaryIsExactProjection,
   m03SymptomDowngradeReviewIsNonActionable,
@@ -265,11 +263,6 @@ assert.match(reviewPrompt, /同一 issueCode/);
 assert.match(reviewPrompt, /合并到一段 repairInstruction/);
 assert.match(reviewPrompt, /每条写明结构路径、事实或证据缺口、建议动作/);
 assert.match(reviewPrompt, /不要求整份重做/);
-const compactAdjudicationPrompt = buildM03DiagnosticReviewAdjudicationPrompt("失眠伴心悸", reviewed, "", compactTcmReview);
-assert.match(compactAdjudicationPrompt, /逐条裁决首轮已列出的相关意见/);
-assert.match(compactAdjudicationPrompt, /最多3条/);
-assert.ok(compactAdjudicationPrompt.includes(JSON.stringify(compactTcmReview)),
-  "the existing single adjudication receives all related findings together");
 const sparseAcceptIdx = reviewPrompt.indexOf("除主诉外没有其他当前阳性发现");
 const factsRejectIdx = reviewPrompt.indexOf("主诉之外仍有当前阳性事实");
 const boundedDiseaseMechanismIdx = reviewPrompt.indexOf("当额外事实只是主症的次数");
@@ -419,11 +412,7 @@ const jiti = createJiti(import.meta.url, {
     "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
   },
 });
-const { boundM03AdvisoryReview, callDiagnosisStream, clinicalReviewAttestation, clinicalReviewModelCandidates, clinicalReviewQualityAttestation, clinicalReviewRetryPlan, m03ReviewCanDowngradeToAdvisory, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRepairM03TcmHalfOnly, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
-assert.deepEqual(clinicalReviewRetryPlan(0, 30_000, 35_000), { attemptCount: 0, chainBudgetMs: 35_000 });
-assert.deepEqual(clinicalReviewRetryPlan(2, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 35_000 });
-assert.deepEqual(clinicalReviewRetryPlan(1, 30_000, 35_000), { attemptCount: 2, chainBudgetMs: 50_000 }, "one independent reviewer gets one bounded transient retry");
-assert.deepEqual(clinicalReviewRetryPlan(1, 45_000, 35_000), { attemptCount: 2, chainBudgetMs: 60_000 }, "retry budget remains bounded even with the maximum per-attempt timeout");
+const { boundM03AdvisoryReview, callDiagnosisStream, clinicalReviewAttestation, clinicalReviewQualityAttestation, m03ReviewCanDowngradeToAdvisory, modelForStructuredRepair, shouldRegenerateM03ClinicalRepair, shouldRepairM03TcmHalfOnly, shouldRetryStructuredRepairTransport } = await jiti.import("../src/lib/diagnosis-api.ts");
 assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签：phlegm_damp_overreach"), true, "TCM semantic overreach is regenerated from patient facts instead of editing the biased candidate");
 assert.equal(shouldRegenerateM03ClinicalRepair("diagnose", "m03_primary_diagnosis_semantic_review", "独立复核的受控定位标签"), false, "western label repair retains its field-targeted path");
 assert.equal(shouldRegenerateM03ClinicalRepair("prescribe", "m03_tcm_reasoning_semantic_review", "独立复核的受控定位标签"), false, "M04 repair behavior is unchanged");
@@ -536,110 +525,22 @@ assert.equal(
 const reviewModelEnv = {
   diagnose: process.env.PRIMARY_DIAGNOSE_MODEL,
   prescribe: process.env.PRIMARY_PRESCRIBE_MODEL,
-  preferred: process.env.PRIMARY_CLINICAL_REVIEW_MODEL,
   diagnoseRepair: process.env.PRIMARY_DIAGNOSE_REPAIR_MODEL,
-  diagnoseFallback: process.env.PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL,
-  prescribeFallback: process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL,
 };
 try {
   process.env.PRIMARY_DIAGNOSE_MODEL = "deepseek-v4-pro";
   process.env.PRIMARY_PRESCRIBE_MODEL = "deepseek-v4-pro";
-  process.env.PRIMARY_CLINICAL_REVIEW_MODEL = "deepseek-v4-pro";
-  process.env.PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL = "deepseek-v4-pro";
   delete process.env.PRIMARY_DIAGNOSE_REPAIR_MODEL;
   assert.equal(modelForStructuredRepair("deepseek-v4-pro", "diagnose"), "deepseek-v4-pro", "M03 fact-regeneration repair defaults to the diagnostic reasoning model");
   process.env.PRIMARY_DIAGNOSE_REPAIR_MODEL = "deepseek-v4-pro";
   assert.equal(modelForStructuredRepair("deepseek-v4-pro", "diagnose"), "deepseek-v4-pro", "an explicit M03 repair model override remains authoritative");
   delete process.env.PRIMARY_DIAGNOSE_REPAIR_MODEL;
-  // Reproduce the production topology: every textual phase is pinned to V4 Pro. Review remains
-  // a fresh review-only request, while metadata honestly records that it is not cross-model.
-  process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL = "deepseek-v4-pro";
-  const primary = {
-    provider: "openai-compatible",
-    model: "deepseek-v4-pro",
-    apiKey: "test-key",
-    baseUrl: "https://model.example.test/v1",
-    configured: true,
-  };
-  assert.deepEqual(
-    clinicalReviewModelCandidates("diagnose", primary, "deepseek-v4-pro").map((candidate) => ({
-      model: candidate.model,
-      independentInvocation: candidate.independentInvocation,
-      independentFromGenerator: candidate.independentFromGenerator,
-    })),
-    [{ model: "deepseek-v4-pro", independentInvocation: true, independentFromGenerator: false }],
-    "an all-Pro deployment keeps a separate auditable review invocation without claiming cross-model independence",
-  );
-  assert.deepEqual(
-    clinicalReviewModelCandidates("prescribe", primary, "deepseek-v4-pro").map((candidate) => candidate.model),
-    ["deepseek-v4-pro"],
-    "M04 generation, repair and independent review all stay pinned to V4 Pro",
-  );
 } finally {
   for (const [key, value] of [
     ["PRIMARY_DIAGNOSE_MODEL", reviewModelEnv.diagnose],
     ["PRIMARY_PRESCRIBE_MODEL", reviewModelEnv.prescribe],
-    ["PRIMARY_CLINICAL_REVIEW_MODEL", reviewModelEnv.preferred],
     ["PRIMARY_DIAGNOSE_REPAIR_MODEL", reviewModelEnv.diagnoseRepair],
-    ["PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL", reviewModelEnv.diagnoseFallback],
-    ["PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL", reviewModelEnv.prescribeFallback],
   ]) {
-    if (value == null) delete process.env[key];
-    else process.env[key] = value;
-  }
-}
-// 跨供应商复核拓扑（bailian-qwen,OpenAI 兼容）:指定第二供应商且配置齐全时,
-// 复核走不同模型身份 independentFromGenerator=true;配置不全 fail-closed 回同供应商链。
-const qwenEnvBackup = {};
-for (const key of ["PRIMARY_CLINICAL_REVIEW_PROVIDER", "PRIMARY_CLINICAL_REVIEW_MODEL", "BAILIAN_QWEN_API_KEY", "BAILIAN_QWEN_BASE_URL", "BAILIAN_QWEN_MODEL"]) {
-  qwenEnvBackup[key] = process.env[key];
-}
-try {
-  const crossPrimary = {
-    provider: "deepseek",
-    apiKey: "test-key",
-    baseUrl: "https://model.example.test/v1",
-    model: "deepseek-v4-pro",
-    configured: true,
-  };
-  process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER = "bailian-qwen";
-  process.env.BAILIAN_QWEN_API_KEY = "test-qwen-key";
-  process.env.BAILIAN_QWEN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-  process.env.BAILIAN_QWEN_MODEL = "qwen3-32b";
-  // Reproduce the deployable compose contract: the generic review model remains
-  // pinned to DeepSeek even when the explicit Bailian topology is enabled.
-  process.env.PRIMARY_CLINICAL_REVIEW_MODEL = "deepseek-v4-pro";
-  const crossCandidates = clinicalReviewModelCandidates("diagnose", crossPrimary, "deepseek-v4-pro");
-  const crossPreferred = crossCandidates[0];
-  assert.equal(crossPreferred.provider, "bailian-qwen");
-  assert.equal(crossPreferred.model, "qwen3-32b");
-  assert.equal(crossPreferred.configured, true, "qwen 配置齐全时复核拓扑可用");
-  assert.equal(crossPreferred.independentFromGenerator, true, "跨供应商复核必须是不同模型身份");
-  assert.equal(crossPreferred.endpoint.includes("dashscope.aliyuncs.com"), true);
-  const sameQwenPrimary = {
-    provider: "bailian-qwen",
-    apiKey: "test-qwen-key",
-    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model: "qwen3-32b",
-    configured: true,
-  };
-  const sameQwenPreferred = clinicalReviewModelCandidates("diagnose", sameQwenPrimary, "qwen3-32b")[0];
-  assert.equal(sameQwenPreferred.model, "qwen3-32b");
-  assert.equal(
-    sameQwenPreferred.independentFromGenerator,
-    false,
-    "the Bailian selector must not claim cross-model independence when primary and reviewer are the same Qwen identity",
-  );
-  // 同链回退候选仍是同供应商身份(供拓扑失败时 fail-closed 回退,不是无复核)
-  assert.ok(crossCandidates.length >= 1);
-  process.env.BAILIAN_QWEN_API_KEY = "";
-  const unconfiguredPreferred = clinicalReviewModelCandidates("diagnose", crossPrimary, "deepseek-v4-pro")[0];
-  assert.notEqual(unconfiguredPreferred.provider, "bailian-qwen", "key 缺失时不得使用未配置拓扑");
-  process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER = "other-vendor";
-  const deadPreferred = clinicalReviewModelCandidates("diagnose", crossPrimary, "deepseek-v4-pro")[0];
-  assert.equal(deadPreferred.provider !== "other-vendor", true, "未实现的供应商名 fail-closed");
-} finally {
-  for (const [key, value] of Object.entries(qwenEnvBackup)) {
     if (value == null) delete process.env[key];
     else process.env[key] = value;
   }
@@ -805,35 +706,6 @@ assert.deepEqual(
   }),
   ["symptom_restatement", "chain_not_closed"],
 );
-const underDepthReview = {
-  status: "repair",
-  issueCode: "tcm_reasoning_unsupported",
-  repairInstruction: "病位病性未决，病机链未形成闭环。",
-};
-assert.equal(m03DiagnosticReviewNeedsAdjudication(underDepthReview), true);
-assert.equal(m03DiagnosticReviewNeedsAdjudication({
-  ...underDepthReview,
-  repairInstruction: "病机链引入气血两虚，且未形成闭环。",
-}), true, "an overreach verdict receives one independent adjudication instead of being accepted or repaired from one stochastic judgement");
-assert.equal(m03DiagnosticReviewNeedsAdjudication({
-  status: "repair",
-  issueCode: "supporting_fact_mismatch",
-  repairInstruction: "依据与原文不符。",
-}), false);
-const adjudicationPrompt = buildM03DiagnosticReviewAdjudicationPrompt(
-  "最近吃点东西就想跑厕所，稀稀的有半个月",
-  reviewed,
-  "",
-  underDepthReview,
-);
-assert.match(adjudicationPrompt, /不得再把上述必填字段误判为空/);
-assert.match(adjudicationPrompt, /items=\[\] 且 resolution=unresolved/);
-assert.match(adjudicationPrompt, /仍含无患者事实组合支持的具体病位、病性、证型/);
-// 层名由 L0–L4 改为中文层名：模型上下文里不再存在 `L\d` 记号，就没有可回声进医生可见正文的源
-// （甲方评测 2026-08-04 第 1 条根修，见 clinical-inference-authority.ts 顶部注释）。
-assert.match(adjudicationPrompt, /不得把第一层的逐字要求错误施加到第三、四层/);
-assert.doesNotMatch(adjudicationPrompt, /\bL\d\b/, "推理层号不得以 L0/L1/L3 形态进入模型上下文");
-assert.match(adjudicationPrompt, /不能仅做字符串比对/);
 
 // ─── 情形一-only quarantine injection: deterministic sparse/active signal ───
 assert.equal(m03GroundingHasCurrentPositiveFacts(""), false);
@@ -1102,14 +974,15 @@ assert.equal(canRebindM04ClinicalReview(m04DriftPrior, parseSentinelReasoning(m0
   "a real herb change must remain distinct from a deterministic presentation projection");
 
 // A route sanitizer can clear an explanatory field after preparation. Its deterministic final
-// projection must already be present in the first review, not cause another model draw at emit.
+// projection must already be settled before signing, with exactly one generation draw.
+// 2026-09-16 起没有模型复核环节：这里同时钉住 M03 编排零复核/裁决请求、attestation 固定
+// unavailable/not_configured、签名照常、复核状态行改为「本版本不设模型复核环节」。
 const settledEnv = {
   AI_TEXT_PROVIDER: "openai-compatible",
   OPENAI_API_KEY: "test-only-m03-settled",
   OPENAI_BASE_URL: "https://api.deepseek.com",
   OPENAI_MODEL: "deepseek-v4-flash",
   PRIMARY_DIAGNOSE_MODEL: "deepseek-v4-flash",
-  PRIMARY_DIAGNOSE_REVIEW_MODEL: "deepseek-v4-flash",
   CONTROLLED_TERMINOLOGY_NORMALIZATION: "false",
   REASONING_CONTRACT_SIGNING_KEY: "synthetic-m03-settled-key-0000000000000000",
 };
@@ -1117,10 +990,8 @@ const savedSettledEnv = Object.fromEntries(Object.keys(settledEnv).map((key) => 
 const savedSettledFetch = globalThis.fetch;
 const savedSettledInfo = console.info;
 const settledLogs = [];
-const settledReviewPayloads = [];
 let settledGenerationCalls = 0;
-let settledFinalMutation;
-let settledAdjudication = false;
+let settledNonStreamCalls = 0;
 try {
   Object.assign(process.env, settledEnv);
   console.info = (...args) => { settledLogs.push(args); };
@@ -1132,83 +1003,43 @@ try {
         headers: { "Content-Type": "text/event-stream" },
       });
     }
-    const userPrompt = request.messages.find((message) => message.role === "user")?.content || "";
-    const marker = "待复核M03临床投影：";
-    if (settledAdjudication && userPrompt.includes("被争议的M03中医投影：")) {
-      return Response.json({ choices: [{ message: { content: '{"status":"accepted","issueCode":"none"}' }, finish_reason: "stop" }] });
-    }
-    assert.ok(userPrompt.includes(marker), "the fixture must need no repair/provider calls beyond clinical review");
-    settledReviewPayloads.push(JSON.parse(userPrompt.slice(userPrompt.indexOf(marker) + marker.length)));
-    const reviewResult = settledAdjudication
-      ? { status: "repair", issueCode: "tcm_reasoning_unsupported" }
-      : { status: "accepted", issueCode: "none" };
-    return Response.json({ choices: [{ message: { content: JSON.stringify(reviewResult) }, finish_reason: "stop" }] });
+    settledNonStreamCalls += 1;
+    return Response.json({ choices: [{ message: { content: '{"status":"accepted","issueCode":"none"}' }, finish_reason: "stop" }] });
   };
-  const runSettledCandidate = async () => {
-    settledLogs.length = 0;
-    settledReviewPayloads.length = 0;
-    settledGenerationCalls = 0;
-    const response = await callDiagnosisStream("synthetic settled M03", "deepseek", undefined, "markdown", {
-      structuredStage: "diagnose",
-      structuredClinicalContext: reviewedClinicalContext,
-      structuredAllowedM03FormulaNames: ["归脾汤"],
-      truncateFallback: "SYNTHETIC_FALLBACK",
-      diagnoseSignatureContext: {
-        contractVersion: "tcm-cdss-m03-signature-v5",
-        caseId: "synthetic-settled",
-        encounterId: "synthetic-settled-encounter",
-        clinicalInputHash: `sha256:${"a".repeat(64)}`,
+  const response = await callDiagnosisStream("synthetic settled M03", "deepseek", undefined, "markdown", {
+    structuredStage: "diagnose",
+    structuredClinicalContext: reviewedClinicalContext,
+    structuredAllowedM03FormulaNames: ["归脾汤"],
+    truncateFallback: "SYNTHETIC_FALLBACK",
+    diagnoseSignatureContext: {
+      contractVersion: "tcm-cdss-m03-signature-v5",
+      caseId: "synthetic-settled",
+      encounterId: "synthetic-settled-encounter",
+      clinicalInputHash: `sha256:${"a".repeat(64)}`,
+    },
+    outputTransform: (content) => content.replace(
+      /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
+      (_match, json) => {
+        const value = JSON.parse(json);
+        value.overview.tcmDiagnosticRationale = "";
+        return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(value)}\n<!-- DIAGNOSIS_JSON_END -->`;
       },
-      outputTransform: (content) => content.replace(
-        /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
-        (_match, json) => {
-          const value = JSON.parse(json);
-          value.overview.tcmDiagnosticRationale = "";
-          // Deliberately simulate a clinical mutation after the first review: final hash checks must
-          // still demand another review even though deterministic projections are now settled early.
-          if (settledReviewPayloads.length > 0 && settledFinalMutation) settledFinalMutation(value);
-          return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(value)}\n<!-- DIAGNOSIS_JSON_END -->`;
-        },
-      ),
-    });
-    const text = await response.text();
-    const frames = text.trim().split("\n").map((line) => JSON.parse(line));
-    assert.deepEqual(frames.filter((frame) => frame.error), [], "the mock stream must finish without an error");
-    assert.equal(frames.at(-1).content, "[END]");
-    const output = frames.filter((frame) => typeof frame.content === "string").map((frame) => frame.content).join("");
-    assert.equal(settledGenerationCalls, 1);
-    return parseSentinelReasoning(output);
-  };
-  const signed = await runSettledCandidate();
+    ),
+  });
+  const text = await response.text();
+  const frames = text.trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(frames.filter((frame) => frame.error), [], "the mock stream must finish without an error");
+  assert.equal(frames.at(-1).content, "[END]");
+  const output = frames.filter((frame) => typeof frame.content === "string").map((frame) => frame.content).join("");
+  assert.equal(settledGenerationCalls, 1, "exactly one generation draw");
+  assert.equal(settledNonStreamCalls, 0, "模型复核环节已删除：M03 编排不得再发任何非流式（复核/裁决）请求");
+  const signed = parseSentinelReasoning(output);
   assert.equal(m03DiagnosticReviewSemanticHash(signed), "sha256:e65b691a013a531b473c38bf7fef9bf45fc40c77b0913b4b26cf786cdf70fce4", "the settled projection must preserve the pre-fix final clinical payload");
-  assert.equal(settledReviewPayloads.length, 1, "one deterministic clinical projection must require exactly one independent review");
   assert.ok(signed.contractSignature, "the settled output must still be signed");
-  assert.equal(signed.clinicalReview.status, "accepted");
-  assert.deepEqual(buildM03DiagnosticReviewPayload(signed), settledReviewPayloads[0], "the reviewer must see the final clinical decisions verbatim");
-  assert.deepEqual(settledLogs.filter(([name]) => name === "[tcm-cdss:timing] clinical_review").map(([, metadata]) => ({ phase: metadata.triggerPhase, paths: metadata.changedPaths })), [{ phase: "initial", paths: [] }]);
-  for (const [label, mutate, expectedPath] of [
-    ["diagnosis", (value) => { value.westernDiagnosis.primary.name = "睡眠障碍症状"; }, "m03Review.westernDiagnosis.primary.name"],
-    ["clinical fact", (value) => { value.westernDiagnosis.primary.supportingFacts.push("心悸健忘"); }, "m03Review.westernDiagnosis.primary.supportingFacts.length"],
-  ]) {
-    settledFinalMutation = mutate;
-    const changedSigned = await runSettledCandidate();
-    assert.equal(settledReviewPayloads.length, 2, `a real ${label} change still requires a final independent review`);
-    assert.ok(changedSigned.contractSignature);
-    assert.deepEqual(buildM03DiagnosticReviewPayload(changedSigned), settledReviewPayloads[1]);
-    const metadata = settledLogs.filter(([name]) => name === "[tcm-cdss:timing] clinical_review").map(([, fields]) => fields);
-    assert.deepEqual(metadata.map((fields) => fields.triggerPhase), ["initial", "finalization_changed"]);
-    assert.ok(metadata[1].changedPaths.includes(expectedPath));
-    assert.ok(metadata[1].changedPaths.every((path) => /^m03Review\.[a-zA-Z0-9_.\[\]]+$/.test(path)), "telemetry must contain field paths only");
-  }
-  settledFinalMutation = undefined;
-  settledAdjudication = true;
-  const adjudicatedSigned = await runSettledCandidate();
-  assert.ok(adjudicatedSigned.contractSignature);
-  assert.equal(adjudicatedSigned.clinicalReview.status, "accepted");
-  assert.deepEqual(settledLogs.filter(([name]) => name === "[tcm-cdss:timing] clinical_review").map(([, metadata]) => ({ phase: metadata.triggerPhase, status: metadata.status })), [
-    { phase: "initial", status: "repair" },
-    { phase: "adjudication", status: "accepted" },
-  ], "a genuine initial-review disagreement must retain its independent adjudication");
+  assert.equal(signed.clinicalReview.status, "unavailable");
+  assert.equal(signed.clinicalReview.unavailableReason, "not_configured");
+  assert.equal(settledLogs.filter(([name]) => name === "[tcm-cdss:timing] clinical_review").length, 0, "no clinical_review telemetry without a reviewer");
+  assert.match(output, /本版本不设模型复核环节/);
 } finally {
   globalThis.fetch = savedSettledFetch;
   console.info = savedSettledInfo;

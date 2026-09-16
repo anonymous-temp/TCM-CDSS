@@ -58,19 +58,19 @@ function text(value: unknown, max: number): string {
 const MODULE_HEADLINES: ReadonlyMap<string, (value: Record<string, unknown>) => string> = new Map([
   ["westernDiagnosis", (value) => {
     const primary = value.primary as Record<string, unknown> | undefined;
-    return text(primary?.name, 40) ? "已生成，待结构校验与独立复核" : "";
+    return text(primary?.name, 40) ? "已生成，待结构校验与签名" : "";
   }],
   ["overview", (value) => {
     const disease = text(value.tcmDiseaseName, 20);
     const syndrome = text(value.primarySyndrome, 30);
-    return disease || syndrome ? "已生成，待结构校验与独立复核" : "";
+    return disease || syndrome ? "已生成，待结构校验与签名" : "";
   }],
   ["pathogenesis", (value) => {
     const chain = Array.isArray(value.chain) ? value.chain.length : 0;
     return chain > 0 ? `已形成 ${chain} 个病机节点` : "";
   }],
   ["therapy", (value) => (
-    text(value.overallMethod, 40) || text(value.overallPrinciple, 40) ? "已生成，待结构校验与独立复核" : ""
+    text(value.overallMethod, 40) || text(value.overallPrinciple, 40) ? "已生成，待结构校验与签名" : ""
   )],
   ["formula", (value) => {
     const candidates = Array.isArray(value.candidates) ? value.candidates : [];

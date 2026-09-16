@@ -1,4 +1,7 @@
 // Live debug harness for the M04 deterministic herb-contract gauntlet (unregistered, not a test).
+// NOTE 2026-09-16: the production M04 pipeline no longer runs a model reviewer (removed by owner
+// decision); the "independent M04 reviewer per round" step below is kept only as a local probe and
+// is NOT representative of production behaviour.
 // EXACT replica of the production M04 pipeline for evaluator caseStates with real signed M03
 // priors (artifacts/real-100-smoke-r6-20260719/*.txt):
 //   toCaseState + reasoningDiagnose → withSafetyGate → maybeAttachClinicalFactsBackstop (REAL) →

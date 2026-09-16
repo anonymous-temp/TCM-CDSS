@@ -4023,8 +4023,8 @@ function scrubVisibleMarkdownHead(head: string): string {
   // 3. Whole-line internal field dumps are dropped outright; blank gaps are collapsed.
   text = text.replace(INTERNAL_FIELD_DUMP_LINE, "").replace(/\n{3,}/g, "\n\n");
   // 4. Remaining embedded internal reason codes degrade to a generic doctor-facing marker.
-  text = text.replace(INTERNAL_EMBEDDED_CODE, (token) =>
-    token.startsWith("m03_") || token.startsWith("m04_") ? "独立临床复核" : "系统内部校验");
+  // 2026-09-16 起没有模型复核环节，m03_/m04_ 内部码全部来自确定性校验，一律译成「系统内部校验」。
+  text = text.replace(INTERNAL_EMBEDDED_CODE, () => "系统内部校验");
   // 最后对整段可见正文做形态级清洗，覆盖嵌在临床句子中的裸枚举
   // （例如「…；unrestricted（来源：现病史）；…」）。结构化 sentinel 不经过这里。
   return sanitizeAuthoritativeClinicalOutput(stripInternalEngineeringTags(text));

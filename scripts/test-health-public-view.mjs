@@ -83,7 +83,6 @@ const providers = {
   primaryModel: { ...getPublicTextModelStatus(), role: "primary text reasoning model", maxTokens: 8192, reasoningEffort: "medium", thinkingEnabled: true, structuredRunTimeoutMs: 180000, baseUrl: primary.baseUrl },
   prescribeModel: { provider: primary.provider, model: primary.model, configured: primary.configured, role: "M04 structured prescription model", repairModel: primary.model, repairReasoningEffort: "medium" },
   diagnoseModel: { provider: primary.provider, model: primary.model, configured: primary.configured, role: "M03 structured diagnostic reasoning model", repairModel: primary.model },
-  clinicalReviewModel: { provider: primary.provider, model: primary.model, configured: primary.configured, independentFromGenerator: false },
 };
 
 // 真实健康体的骨架（字段名与 route.ts 一致；此处只需覆盖含敏感值的分支）。
@@ -97,7 +96,6 @@ const fullBody = {
   degradedReasons: ["clinical_facts_extractor_not_configured", "tongue_vision_api_key_not_configured"],
   providers,
   tongueVisionProbe: { ok: false, reason: "api_key_not_configured", message: "GLM 未配置 key：sk-live-xxxx", latencyMs: 42 },
-  clinicalReviewProbe: { ok: true, reason: undefined, model: "deepseek-v4-flash" },
   rxAudit: { enabled: true, baseUrl: "https://rxai.internal.example/api", endpoint: "/v1/audit", ready: true },
   externalEvidence: { configured: true, endpoints: ["https://evimed.internal.example/guide"] },
   snapshotPersistence: { enabled: true, encryptionConfigured: true, ready: true },

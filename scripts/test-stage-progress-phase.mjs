@@ -44,7 +44,7 @@ check("首稿·尚无任何返回 → 等待模型开始响应", () => {
 // ── 2. 复核阶段：即便 contentChars 还停在首稿的值，也不得再报「正在组织临床正文」
 check("复核·M04 报处方复核而非组织正文", () => {
   const text = status({ phase: "review", structuredStage: "prescribe", contentChars: 12_000 });
-  assert.ok(text.includes("独立复核"), text);
+  assert.ok(text.includes("核验"), text);
   assert.ok(text.includes("处方"), text);
   assert.ok(!text.includes("正在组织临床正文"), `复核阶段仍在报首稿文案：${text}`);
 });
@@ -55,7 +55,7 @@ check("复核·M03 报辨病辨证复核", () => {
 });
 check("复核·非结构化阶段有中性兜底，不落空串", () => {
   const text = status({ phase: "review", structuredStage: undefined, contentChars: 5 });
-  assert.ok(text.includes("独立复核"), text);
+  assert.ok(text.includes("核验"), text);
 });
 
 // ── 3. 修订阶段：轮次要如实报出（医生据此区分「还在改」与「卡住了」）

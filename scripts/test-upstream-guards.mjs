@@ -116,11 +116,6 @@ const expectedModelMatrix = {
   PRIMARY_PRESCRIBE_MODEL: "qwen3.7-plus",
   PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL: "qwen3.7-plus",
   PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
-  PRIMARY_CLINICAL_REVIEW_MODEL: "qwen3.8-max",
-  PRIMARY_DIAGNOSE_REVIEW_MODEL: "qwen3.7-plus",
-  PRIMARY_PRESCRIBE_REVIEW_MODEL: "qwen3.8-max",
-  PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL: "qwen3.7-plus",
-  PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL: "qwen3.7-plus",
   CLINICAL_FACTS_MODEL: "qwen3.7-flash",
   CLINICAL_FACTS_REVIEW_MODEL: "qwen3.8-max",
   CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.7-plus",
@@ -503,35 +498,11 @@ console.log(JSON.stringify({ cases: 36, failures: 0 }));
 
 
 {
-  // ── 复核候选链独立优先（2026-08-25 甲方复测 P1-3a：11 次签名 10 次 independentFromGenerator=false） ──
   const { createJiti } = await import("jiti");
   const chainJiti = createJiti(import.meta.url, { alias: {
     "@": `${process.cwd()}/src`,
     "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
   } });
-  const { clinicalReviewModelCandidates } = await chainJiti.import("../src/lib/diagnosis-api.ts");
-  const primary = { configured: true, provider: "bailian-qwen", model: "qwen3.7-plus", apiKey: "test-key-for-candidate-chain-only", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" };
-  const saved = { review: process.env.PRIMARY_CLINICAL_REVIEW_MODEL, gen: process.env.PRIMARY_PRESCRIBE_MODEL, fb: process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL, prov: process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER };
-  try {
-    // 复核首选与生成方同为 max：链首必须让位给跨模型候选
-    process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER = "primary";
-    process.env.PRIMARY_CLINICAL_REVIEW_MODEL = "qwen3.8-max";
-    process.env.PRIMARY_PRESCRIBE_MODEL = "qwen3.8-max";
-    process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL = "qwen3.7-plus";
-    const sameModel = clinicalReviewModelCandidates("prescribe", primary);
-    assert.equal(sameModel[0]?.independentFromGenerator, true,
-      `复核首选与生成方同模型时链首必须是跨模型候选: ${JSON.stringify(sameModel.map((c) => [c.model, c.independentFromGenerator]))}`);
-    assert.equal(sameModel.some((c) => c.model === "qwen3.8-max"), true, "同模型候选仍保留为兜底");
-    // 生成方 plus、复核 max：首选本就独立，次序不变
-    process.env.PRIMARY_PRESCRIBE_MODEL = "qwen3.7-plus";
-    const independent = clinicalReviewModelCandidates("prescribe", primary);
-    assert.equal(independent[0]?.model, "qwen3.8-max");
-    assert.equal(independent[0]?.independentFromGenerator, true);
-  } finally {
-    for (const [k, v] of [["PRIMARY_CLINICAL_REVIEW_MODEL", saved.review], ["PRIMARY_PRESCRIBE_MODEL", saved.gen], ["PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL", saved.fb], ["PRIMARY_CLINICAL_REVIEW_PROVIDER", saved.prov]]) {
-      if (v === undefined) delete process.env[k]; else process.env[k] = v;
-    }
-  }
   // ── M04 证据固定预算钳制 ──
   const { m04EvidencePromptBudgetChars } = await chainJiti.import("../src/lib/prompt-budget.ts");
   const savedBudget = process.env.PRIMARY_PRESCRIBE_EVIDENCE_MAX_CHARS;
@@ -548,56 +519,3 @@ console.log(JSON.stringify({ cases: 36, failures: 0 }));
 }
 
 
-{
-  // ── 按阶段复核模型覆盖：M03（flash 生成）复核走 plus，M04（plus 生成）复核走 max ──
-  const { createJiti } = await import("jiti");
-  const stageJiti = createJiti(import.meta.url, { alias: {
-    "@": `${process.cwd()}/src`,
-    "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js`,
-  } });
-  const { clinicalReviewModelCandidates } = await stageJiti.import("../src/lib/diagnosis-api.ts");
-  const primary = { configured: true, provider: "bailian-qwen", model: "qwen3.7-plus", apiKey: "test-key-for-stage-review-only", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1" };
-  const keys = ["PRIMARY_CLINICAL_REVIEW_PROVIDER", "PRIMARY_CLINICAL_REVIEW_MODEL", "PRIMARY_DIAGNOSE_REVIEW_MODEL", "PRIMARY_PRESCRIBE_REVIEW_MODEL", "PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL", "PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL", "PRIMARY_DIAGNOSE_MODEL", "PRIMARY_PRESCRIBE_MODEL"];
-  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
-  try {
-    process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER = "primary";
-    process.env.PRIMARY_CLINICAL_REVIEW_MODEL = "qwen3.8-max";
-    process.env.PRIMARY_DIAGNOSE_MODEL = "qwen3.8-flash";
-    process.env.PRIMARY_PRESCRIBE_MODEL = "qwen3.7-plus";
-    process.env.PRIMARY_DIAGNOSE_REVIEW_MODEL = "qwen3.7-plus";
-    process.env.PRIMARY_PRESCRIBE_REVIEW_MODEL = "qwen3.8-max";
-    process.env.PRIMARY_DIAGNOSE_REVIEW_FALLBACK_MODEL = "qwen3.7-plus";
-    process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL = "qwen3.7-plus";
-    const m03 = clinicalReviewModelCandidates("diagnose", primary);
-    assert.deepEqual(m03.map((candidate) => candidate.model), ["qwen3.7-plus", "qwen3.8-max", "qwen3.8-flash"],
-      "当前生产矩阵的 M03 复核链必须是 plus → max → 本阶段 flash 兜底");
-    assert.equal(m03[0]?.model, "qwen3.7-plus", "M03 复核首选按阶段覆盖为 plus");
-    assert.equal(m03[0]?.independentFromGenerator, true, "plus 复核 flash 生成：独立");
-    const m04 = clinicalReviewModelCandidates("prescribe", primary);
-    assert.deepEqual(m04.map((candidate) => candidate.model), ["qwen3.8-max", "qwen3.7-plus"],
-      "当前生产矩阵的 M04 复核链不得继承 M03 生成模型");
-    assert.equal(m04.some((candidate) => candidate.model === "qwen3.8-flash"), false,
-      "只切 M03 首轮时 qwen3.8-flash 不得进入 M04 复核链");
-    assert.equal(m04[0]?.model, "qwen3.8-max", "M04 复核首选按阶段覆盖为 max");
-    assert.equal(m04[0]?.independentFromGenerator, true, "max 复核 plus 生成：独立");
-    delete process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL;
-    assert.deepEqual(clinicalReviewModelCandidates("prescribe", primary).map((candidate) => candidate.model), ["qwen3.8-max", "qwen3.7-plus"],
-      "M04 fallback 未配置时仍只回落本阶段 plus，不得继承 M03 flash");
-    process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL = "   ";
-    assert.deepEqual(clinicalReviewModelCandidates("prescribe", primary).map((candidate) => candidate.model), ["qwen3.8-max", "qwen3.7-plus"],
-      "M04 fallback 空白时仍只回落本阶段 plus，不得继承 M03 flash");
-    process.env.PRIMARY_PRESCRIBE_REVIEW_FALLBACK_MODEL = "qwen3.7-plus";
-    // adjudication 第二遍：以首轮复核方（plus）为 generatorModelOverride 选"不同模型"——
-    // 必须先落全局 max，而不是 flash（=M03 生成方，不独立）。
-    const adjudication = clinicalReviewModelCandidates("diagnose", primary, "qwen3.7-plus");
-    assert.equal(adjudication[0]?.model, "qwen3.8-max",
-      `adjudication 第二遍首选必须是全局 max: ${JSON.stringify(adjudication.map((c) => c.model))}`);
-    assert.equal(m03.some((c) => c.model === "qwen3.8-max"), true, "阶段覆盖后全局复核模型仍须留在候选链");
-    const flashIndex = adjudication.findIndex((c) => c.model === "qwen3.8-flash");
-    assert.ok(flashIndex === -1 || flashIndex > 0, "与 M03 生成方同模型的 flash 只能是末位兜底");
-    delete process.env.PRIMARY_DIAGNOSE_REVIEW_MODEL;
-    assert.equal(clinicalReviewModelCandidates("diagnose", primary)[0]?.model, "qwen3.8-max", "未设阶段覆盖时沿用全局复核模型");
-  } finally {
-    for (const k of keys) { if (saved[k] === undefined) delete process.env[k]; else process.env[k] = saved[k]; }
-  }
-}

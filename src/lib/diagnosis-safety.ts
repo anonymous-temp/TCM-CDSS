@@ -4812,10 +4812,12 @@ export function limitedDiagnosisReasonCopy(
         nextAction: "重新运行辨病辨证分析；如持续失败请联系系统管理员",
       };
     case "not_configured":
+      // 2026-09-16 起模型复核环节已移除，本码是所有签名结果的固定取值；措辞不得再暗示
+      // 「配一下就有复核」。
       return {
-        reason: "独立临床复核未配置，本次未取得复核结论",
-        limitation: "复核环节未配置，不代表复核否决",
-        nextAction: "由医生结合现有病历判断；请联系系统管理员完成复核配置",
+        reason: "本版本不设模型复核环节，本次未取得模型复核结论",
+        limitation: "临床合理性由医生把关；不存在复核否决",
+        nextAction: "由医生结合现有病历判断",
       };
     default:
       return {

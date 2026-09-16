@@ -121,36 +121,12 @@ function primaryFactsPhaseModel(model: string): ClinicalFactsPhaseModel {
 
 function independentFactsReviewModel(): ClinicalFactsPhaseModel {
   const primary = getPrimaryTextModelConfig();
-  // All textual clinical reasoning is pinned to DeepSeek. GLM credentials are reserved exclusively
-  // for the image-only tongue route and can never become a silent safety-review fallback.
-  const provider = (process.env.PRIMARY_CLINICAL_REVIEW_PROVIDER || "primary")
-    .trim().toLowerCase();
-  // PRIMARY_CLINICAL_REVIEW_PROVIDER 管的是 **M03/M04 的独立临床复核**。此前这里把它
-  // 一并当成本相位的开关：只要它不是 primary，临床事实复核相位直接判 unconfigured。
-  //
-  // 实测代价（2026-08-16）：为落地 T8′②a 把该变量设为 bailian-qwen 后，M03/M04 跨厂商复核
-  // 确实生效（attestation independentFromGenerator=true），但**临床事实探针随即 ok=false、
-  // health?strict=1 塌成 strictReady=false**——而 Docker healthcheck 打的正是这个口，
-  // 容器进入 health: starting 并重启。两个本该独立的能力被这一行做成了互斥。
-  //
-  // 保留 fail-closed 默认：跨厂商拓扑下本相位默认仍判未配置（本文件不实现 bailian 传输，
-  // 静默改用主模型等于把「独立」二字变成假话）。但给一条**显式**出口——
-  // 运维显式设置 CLINICAL_FACTS_REVIEW_MODEL 时，表示已知本相位走主模型传输、
-  // 与 M03/M04 的跨厂商复核是两件事，此时按该模型配置放行。
-  // 显式优于沉默：不设就仍然 fail-closed，设了就必须是运维写下来的那一行。
-  const explicitFactsReviewModel = process.env.CLINICAL_FACTS_REVIEW_MODEL?.trim();
-  if (provider !== "primary" && !explicitFactsReviewModel) {
-    return {
-      provider: "unconfigured",
-      model: "unconfigured",
-      apiKey: "",
-      endpoint: "",
-      configured: false,
-      source: "independent_review",
-    };
-  }
-  const model = explicitFactsReviewModel ||
-    process.env.PRIMARY_CLINICAL_REVIEW_MODEL?.trim() ||
+  // All textual clinical reasoning is pinned to the primary text provider. GLM credentials are
+  // reserved exclusively for the image-only tongue route and can never become a silent
+  // safety-review fallback. The former coupling to the M03/M04 clinical reviewer's provider/model
+  // variables went away with that reviewer (2026-09-16); this phase is configured by
+  // CLINICAL_FACTS_REVIEW_MODEL alone and otherwise follows the M03 generator model.
+  const model = process.env.CLINICAL_FACTS_REVIEW_MODEL?.trim() ||
     process.env.PRIMARY_DIAGNOSE_MODEL?.trim() || primary.model;
   return primaryFactsPhaseModel(model);
 }

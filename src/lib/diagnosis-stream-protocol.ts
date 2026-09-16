@@ -68,10 +68,10 @@ export function stageProgressHeartbeatStatus(input: {
   const { phase, structuredStage, contentChars, reasoningChars, repairRound } = input;
   if (phase === "review") {
     const label = structuredStage === "prescribe"
-      ? "正在独立复核处方安全性与方证一致性"
+      ? "正在核验处方安全性与方证一致性"
       : structuredStage === "diagnose"
-        ? "正在独立复核辨病辨证依据"
-        : "正在独立复核本节结论";
+        ? "正在核验辨病辨证依据"
+        : "正在核验本节结论";
     return `${label}${STAGE_PROGRESS_HEARTBEAT_SUFFIX}`;
   }
   if (phase === "repair") {

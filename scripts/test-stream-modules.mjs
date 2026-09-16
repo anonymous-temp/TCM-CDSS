@@ -95,10 +95,10 @@ const noticeText = timeline.map((item) => item.notice).join("\n");
 // 最多 4 轮重生成全在流结束之后，复核完全可能把「心脾两虚证」改写成「心神失养证」——
 // 医生在同一屏里先后看到两个证候，无从判断哪个作数。
 // 现在这四个模块只推完成信号；「按模块顺序反馈」（需求2）由下面的条数与顺序断言继续保证。
-assert.match(noticeText, /中医辨病辨证：已生成，待结构校验与独立复核/);
-assert.match(noticeText, /西医诊断：已生成，待结构校验与独立复核/);
+assert.match(noticeText, /中医辨病辨证：已生成，待结构校验与签名/);
+assert.match(noticeText, /西医诊断：已生成，待结构校验与签名/);
 assert.match(noticeText, /病机分析：已形成 2 个病机节点/);
-assert.match(noticeText, /治则治法：已生成，待结构校验与独立复核/);
+assert.match(noticeText, /治则治法：已生成，待结构校验与签名/);
 // 会被修复轮改写的结论文本一个都不许出现在定型前的流里。
 for (const volatileConclusion of ["心脾两虚证", "失眠障碍", "补益心脾", "不寐"]) {
   assert.ok(!noticeText.includes(volatileConclusion),

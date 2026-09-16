@@ -8,7 +8,7 @@ const { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, isM03Wes
 const { applyDeterministicDecoctionMethod, applyDeterministicHerbFunctions, groundStructuredPatientFacts, normalizeDiagnoseConfidenceAndLabels, restoreValidatedM03Chain, sanitizeOptionalPathogenesisClassifications, scrubInternalVocabularyFromVisibleText, synchronizeVisibleClinicalSummary } = await import("../src/lib/diagnosis-visible-summary.ts");
 const { parseOpenAICompatCompletionPayload } = await import("../src/lib/openai-compatible-response.ts");
 const { buildM03DiagnosticReviewPrompt, parseM03DiagnosticReview } = await import("../src/lib/m03-diagnostic-review.ts");
-const { buildM04ClinicalReviewAdjudicationPrompt, buildM04ClinicalReviewPrompt, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, m04ClinicalReviewNeedsAdjudication, m04ClinicalReviewRequiresNonDoseFallback, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
+const { buildM04ClinicalReviewPrompt, constrainM04ClinicalReviewScope, m04ClinicalRepairGuidance, parseM04ClinicalReview } = await import("../src/lib/m04-clinical-review.ts");
 const { enforceReviewedPrescriptionOutput } = await import("../src/lib/prescription-output-safety.ts");
 const { normalizeClinicalConfidence, normalizePrescriptionRole, normalizeReasoningV2, normalizeWesternDiagnosisStatus } = await import("../src/lib/diagnosis-types.ts");
 const { getTcmHerbFunctionDisplayText } = await import("../src/lib/tcm-knowledge.ts");
@@ -481,16 +481,6 @@ assert.deepEqual(
 );
 assert.deepEqual(parseM04ClinicalReview('复核结果：{"status":"repair","issueCode":"dose_rationale_concern"}'), { status: "repair", issueCode: "dose_rationale_concern" }, "bounded transport prose is tolerated while enum values stay strict");
 assert.deepEqual(parseM04ClinicalReview('{"status":"repair","issueCode":"unknown"}'), { status: "unavailable", issueCode: "review_unavailable" });
-assert.equal(m04ClinicalReviewRequiresNonDoseFallback({ status: "unavailable", issueCode: "review_unavailable" }), true, "M04 reviewer unavailable must select the server-owned non-dose fallback");
-assert.equal(m04ClinicalReviewRequiresNonDoseFallback({ status: "repair", issueCode: "patient_context_mismatch" }), false, "repair_demanded remains on the existing repair and re-review path");
-assert.equal(m04ClinicalReviewRequiresNonDoseFallback({ status: "accepted", issueCode: "none" }), false);
-const emperorDispute = { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "emperor_role", candidateIndex: 0, implicatedHerbs: ["枳壳"] };
-assert.equal(m04ClinicalReviewNeedsAdjudication(emperorDispute), true);
-assert.equal(m04ClinicalReviewNeedsAdjudication({ status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "herb_direction" }), false);
-assert.match(
-  buildM04ClinicalReviewAdjudicationPrompt("反酸", { pathogenesis: { chain: [{ nodeId: "P1", therapyDirection: "和胃降逆" }] } }, { formula: { candidates: [{ herbs: [{ name: "枳壳", role: "君", targetRef: "P1", function: "理气宽中" }] }] } }, "", emperorDispute),
-  /不得盲从[\s\S]*不得仅因自己偏好[\s\S]*知识库功用确实直接覆盖 P1[\s\S]*必须 accepted/,
-);
 const m04ReviewPrompt = buildM04ClinicalReviewPrompt(
   "稀便半个月，无腹痛",
   { overview: { primarySyndrome: "脾虚湿困" } },
@@ -918,7 +908,7 @@ assert.doesNotMatch(scrubbedDraft, /待候选方药阶段核验/);
 assert.match(scrubbedDraft, /（剂量以审定处方为准）/);
 assert.match(scrubbedDraft, /用法与疗程以审定处方为准/);
 assert.doesNotMatch(scrubbedDraft, /m03_[a-z0-9_]+|signed_limited_fallback/);
-assert.match(scrubbedDraft, /独立临床复核/);
+assert.doesNotMatch(scrubbedDraft, /独立临床复核/, "2026-09-16 起没有模型复核环节，内部码不得再冒充成复核意见");
 assert.match(scrubbedDraft, /系统内部校验/);
 assert.match(scrubbedDraft, /## 辨病辨证草稿/, "clinical headings survive the scrubber");
 assert.equal(

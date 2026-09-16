@@ -56,7 +56,7 @@ const accepted = { status: "accepted", issueCode: "none", repairFocus: "none" };
 const completion = (value) => Response.json({ choices: [{ message: { content: JSON.stringify(value) }, finish_reason: "stop" }] });
 const signatureContext = { contractVersion: "tcm-cdss-m04-signature-v3", caseId: "synthetic", encounterId: "synthetic",
   clinicalInputHash: `sha256:${"a".repeat(64)}`, diagnoseContractHash: `sha256:${"b".repeat(64)}` };
-async function runWire({ first = proposal, reviewer = accepted, remainingMs = 2000, abortAfterReview = false,
+async function runWire({ first = proposal, reviewer = accepted, remainingMs = 2000, abortAfterFirst = false,
   priorReasoning = prior, respond, outputTransform } = {}) {
   const originalFetch = globalThis.fetch;
   const originalInfo = console.info;
@@ -72,9 +72,11 @@ async function runWire({ first = proposal, reviewer = accepted, remainingMs = 20
     globalThis.fetch = async (_url, init) => {
       const body = JSON.parse(init.body);
       requests.push(body);
-      if (requests.length === 1) return sse(first);
+      if (requests.length === 1) {
+        if (abortAfterFirst) queueMicrotask(() => abort.abort());
+        return sse(first);
+      }
       assert.ok(requests.length < 9, "automatic calls must remain bounded");
-      if (abortAfterReview) queueMicrotask(() => abort.abort());
       const next = respond ? respond(requests.length, body) : reviewer;
       if (next === "stall") return new Promise((resolve) => { lateResolve = () => resolve(completion(accepted)); });
       if (next instanceof Response) return next;
@@ -117,18 +119,6 @@ test("explicit zero quality budget qualifies the same safe candidate for identit
   assert.equal(canAcceptTransparentFormulaFallback({ ...input, requestAborted: true }), false);
 });
 
-test("validated individualized candidate survives a stalled reviewer and late resolution", async () => {
-  const result = await runWire({ reviewer: "stall" });
-  assert.equal(result.requests.length, 2, "checkpoint must not add model calls");
-  assert.equal(result.frames.filter((frame) => frame.content === "[END]").length, 1);
-  assert.equal(result.finals.length, 1, "late provider must not emit another result");
-  assert.match(result.content, /党参/);
-  assert.match(result.content, /食少倦怠/);
-  assert.match(result.content, /便溏/);
-  assert.match(result.content, /复核未完成|复核.*超过时限/);
-  assertNonDose(result.content);
-});
-
 test("no valid M04 retains trusted M03 facts and explicitly reports no individualized candidate", async () => {
   const result = await runWire({ first: { candidate: { herbs: [] } } });
   assert.match(result.content, /脾胃虚弱证/);
@@ -141,10 +131,10 @@ test("no valid M04 retains trusted M03 facts and explicitly reports no individua
 
 test("client cancellation never sends a recovered candidate", async () => {
   const startedAt = Date.now();
-  const result = await runWire({ reviewer: "stall", abortAfterReview: true, remainingMs: 2000 });
+  const result = await runWire({ abortAfterFirst: true, remainingMs: 2000 });
   assert.equal(result.finals.length, 0);
-  assert.equal(result.requests.length, 2);
-  assert.ok(Date.now() - startedAt < 1000, "client cancellation must close independently of a stalled reviewer");
+  assert.equal(result.requests.length, 1);
+  assert.ok(Date.now() - startedAt < 1000, "client cancellation must close promptly");
 });
 
 test("zero quality budget plus classic identity drift delivers on the first request", async () => {
@@ -155,7 +145,7 @@ test("zero quality budget plus classic identity drift delivers on the first requ
   first.candidate.name = "六君子汤";
   first.nonPharma.diet = "清淡饮食";
   const result = await runWire({ first, priorReasoning: locked, outputTransform: withDietQualityFinding });
-  assert.equal(result.requests.length, 2, "zero-budget identity disposition must not require a manual second request");
+  assert.equal(result.requests.length, 1, "identity declassification is deterministic: one generation draw and no reviewer (removed 2026-09-16)");
   assert.match(result.content, /党参/);
   assert.match(result.content, /contractSignature/);
   const reasoning = JSON.parse(result.content.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
@@ -169,29 +159,10 @@ test("first T2 cannot mask a later T1: automatic repair retains its bounded oppo
   first.candidate.herbs[0].dose = "501g";
   const result = await runWire({ first, remainingMs: 50000, respond: (number) => number === 2 ? proposal : accepted,
     outputTransform: withDietQualityFinding });
-  assert.ok(result.requests.length >= 3 && result.requests.length <= 4, "must repair actual unsafe dose, then review");
+  assert.equal(result.requests.length, 2, "must repair the actual unsafe dose: one generation draw plus one repair draw, no reviewer (removed 2026-09-16)");
   assert.match(JSON.stringify(result.requests[1].messages), /dose|剂量/);
   assert.match(result.content, /contractSignature/);
   assert.doesNotMatch(result.content, /501g/);
-});
-
-test("a malformed repair does not erase the earlier valid candidate or its review objection", async () => {
-  const rejected = { status: "repair", issueCode: "dose_rationale_concern", repairFocus: "dose_strength", candidateIndex: 0, implicatedHerbs: ["党参"] };
-  const result = await runWire({ remainingMs: 50000, respond: (number) => number === 2 ? rejected : { candidate: { herbs: [] } } });
-  assert.ok(result.requests.length >= 3 && result.requests.length <= 6);
-  assert.match(result.content, /党参/);
-  assert.match(result.content, /食少倦怠/);
-  assert.match(result.content, /剂量强度/);
-  assert.doesNotMatch(result.content, /超过时限/);
-  assertNonDose(result.content);
-});
-
-test("a reviewer objection stays visible when its adjudication stalls", async () => {
-  const rejected = { status: "repair", issueCode: "herb_plan_mismatch", repairFocus: "emperor_role", candidateIndex: 0, implicatedHerbs: ["党参"] };
-  const result = await runWire({ respond: (number) => number === 2 ? rejected : "stall" });
-  assert.equal(result.requests.length, 3);
-  assert.match(result.content, /保留意见|意见尚未解决/);
-  assertNonDose(result.content);
 });
 
 const wrap = (reasoning) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
@@ -390,42 +361,33 @@ function assertConsumerReceivesSignedCandidate(result, dose) {
   assert.equal(nonDose, false, "completed signed recovery must not be relabeled non-dose");
   assert.ok(reasoning?.contractSignature && hasBoundClinicalReviewAttestation(reasoning));
   assert.equal(reasoning.formula.candidates[0].herbs[0].dose, dose);
-  assert.equal(reasoning.clinicalReview.status, "accepted");
+  // 2026-09-16 起没有模型复核环节：attestation 固定 unavailable/not_configured，签名与哈希绑定不变。
+  assert.equal(reasoning.clinicalReview.status, "unavailable");
+  assert.equal(reasoning.clinicalReview.unavailableReason, "not_configured");
   assert.equal(result.frames.filter((frame) => frame.content === "[END]").length, 1);
   assert.equal(result.finals.length, 1);
-  assert.equal(result.telemetry.reviewStatus, "accepted", "delivery telemetry must refer to the recovered candidate");
+  assert.equal(result.telemetry.reviewStatus, "unavailable", "delivery telemetry must refer to the recovered candidate");
   assert.ok(["success", "repaired"].includes(result.telemetry.outcome));
   assert.match(result.telemetry.reasonCode, /preserved_attested_candidate/);
 }
 
-test("final review rejection of a changed dose delivers the exact older signed candidate without truncation", async () => {
-  let firstReviewReturned = false;
-  const result = await runWire({
-    respond: (number) => {
-      if (number === 2) { firstReviewReturned = true; return accepted; }
-      return { status: "repair", issueCode: "dose_rationale_concern", repairFocus: "dose_strength", candidateIndex: 0, implicatedHerbs: ["党参"] };
-    },
-    outputTransform: (content) => {
-      if (!firstReviewReturned || !content.includes("<!-- DIAGNOSIS_JSON_START -->")) return content;
-      const reasoning = parseReasoningV2(content);
-      reasoning.formula.candidates[0].herbs[0].dose = "13g";
-      return wrap(reasoning);
-    },
-  });
-  assert.equal(result.requests.length, 3);
-  assertConsumerReceivesSignedCandidate(result, "12g");
-});
-
 test("a final presentation-transform exception recovers the completed signed candidate", async () => {
-  let firstReviewReturned = false;
+  // 2026-09-16 起没有复核器：候选在校验投影与检查点登记两次变换成功后即已签名进检查点；
+  // 随后终审对**已渲染页面**（正文在前、sentinel 在后）的变换抛错必须回收这份已签名字节，
+  // 而不是退回通用兜底页。用「内容是否以 sentinel 开头」区分登记阶段与终审呈现阶段，
+  // 不依赖调用次数。
+  let lateFailures = 0;
   const result = await runWire({
-    respond: () => { firstReviewReturned = true; return accepted; },
     outputTransform: (content) => {
-      if (firstReviewReturned) throw new Error("synthetic late presentation failure");
+      if (!content.startsWith("<!-- DIAGNOSIS_JSON_START -->")) {
+        lateFailures += 1;
+        throw new Error("synthetic late presentation failure");
+      }
       return content;
     },
   });
-  assert.equal(result.requests.length, 2);
+  assert.equal(result.requests.length, 1);
+  assert.ok(lateFailures > 0, "the late presentation failure must actually have fired");
   assertConsumerReceivesSignedCandidate(result, "12g");
   assert.doesNotMatch(result.content, /GENERIC_KB_FALLBACK/);
 });

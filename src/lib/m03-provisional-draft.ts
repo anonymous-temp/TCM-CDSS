@@ -55,7 +55,7 @@ export function renderM03ProvisionalDraftSection(
   const codes = [...new Set(rejectionReasons.map((reason) => (reason || "").trim()).filter(Boolean))];
   return [
     M03_PROVISIONAL_DRAFT_HEADING,
-    "本次模型已形成下列辨证分析，但**未通过服务端校验、未经独立复核、未签名**，不进入候选方药生成；重新运行辨病辨证时会以此为基础定向修复。",
+    "本次模型已形成下列辨证分析，但**未通过服务端校验、未签名**，不进入候选方药生成；重新运行辨病辨证时会以此为基础定向修复。",
     codes.length > 0 ? `未通过项：${codes.map((code) => `\`${code}\``).join("、")}` : "未通过项：本轮未记录具体原因码",
     "",
     body,
