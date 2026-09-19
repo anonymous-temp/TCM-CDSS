@@ -4849,19 +4849,26 @@ function ResultTabsV2({
             {/*
               甲方评测(2026-08-04) 1.2.1「中医诊断卡只保留证候结论，病名与病史复述移除」。
               移走的两行各有各的理由：
-                · 「辨病：X」是另一个判断，它的推理（辨病推理 + 病名鉴别）本来就在下方
+                · 「辨病：X」是另一个判断，它的推理（辨病依据 + 病名鉴别）本来就在下方
                   「中医辨病辨证分析」区，标题留在这张卡里等于把同一段判断劈成两半；
                 · 「主症：…」取的是 primarySyndromeBasis[0]，即主诉原句——正是甲方连续两轮
                   指出的「病史复述」。它在辨证推理句里作为四诊要点出现即可，不该单列一行。
               字段本身不变：tcmDiseaseName 仍在签名载荷、HIS 方案与下方分析区中呈现。
             */}
             {tcmDiseaseName && <p className="mt-1 text-sm font-semibold">辨病：{tcmDiseaseName}</p>}
-            <ClinicalCitationLinks label="中医辨病依据" citations={reasoning.overview.tcmDiseaseReferences} />
+            {/*
+              标签名必须与对外接口文档一致（甲方 2026-09-17/18 实测「辨病依据、辨证依据对不上」）：
+              文档里 tcmDiseaseReferences / tcmSyndromeReferences 叫「辨病循证依据 / 辨证循证依据」，
+              「辨病依据 / 辨证依据」是 tcmDiseaseRationale / tcmDiagnosticRationale。此前这里把
+              「依据」挂在国标引用上，下方分析区又把真正的依据叫「推理」——两个标题正好交叉，
+              甲方拿文档对页面，看到「辨病依据」下面是一行 GB/T 15657。
+            */}
+            <ClinicalCitationLinks label="中医辨病循证依据" citations={reasoning.overview.tcmDiseaseReferences} />
             <p className="mt-2 text-sm font-semibold">辨证：{reasoning.overview.primarySyndrome}</p>
             {reasoning.overview.secondarySyndromes && reasoning.overview.secondarySyndromes.length > 0 && (
               <p className="mt-1">兼证：{joinClinicalClauses(reasoning.overview.secondarySyndromes, "、")}</p>
             )}
-            <ClinicalCitationLinks label="中医辨证依据" citations={reasoning.overview.tcmSyndromeReferences} />
+            <ClinicalCitationLinks label="中医辨证循证依据" citations={reasoning.overview.tcmSyndromeReferences} />
             {/* 被剥离的方名：服务端可见摘要 2026-08-10 起已经写这一行，医生页面当时没跟上——
                 同一个字段只接了一个出口。剥离本身是对的（方名锁定要求签名证候与该方在治理目录
                 中有直接关系），但医生只看到「本例辨证组方」时，既不知道系统曾指向哪张方，
@@ -4898,8 +4905,8 @@ function ResultTabsV2({
             {/* 两段推理分开呈现：辨病回答「为什么归入这个病名」，辨证回答「为什么是这个证型」。
                 病名（1.2.1 从诊断卡移出）与它的归属推理归在同一处，医生一眼读到的是完整的一段判断。 */}
             {tcmDiseaseName && <p className="mt-1"><span className="font-semibold">中医病名：</span>{tcmDiseaseName}</p>}
-            {tcmDiseaseRationale && <p className="mt-1"><span className="font-semibold">辨病推理：</span>{tcmDiseaseRationale}</p>}
-            {tcmRationale && <p className="mt-1"><span className="font-semibold">辨证推理：</span>{tcmRationale}</p>}
+            {tcmDiseaseRationale && <p className="mt-1"><span className="font-semibold">辨病依据：</span>{tcmDiseaseRationale}</p>}
+            {tcmRationale && <p className="mt-1"><span className="font-semibold">辨证依据：</span>{tcmRationale}</p>}
             {tcmDiseaseDifferentials.length > 0 && (
               <div data-testid="tcm-disease-differentials" className="mt-2 grid gap-2 lg:grid-cols-2">
                 {tcmDiseaseDifferentials.map((item, index) => (

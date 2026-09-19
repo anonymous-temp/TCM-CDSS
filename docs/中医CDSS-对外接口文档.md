@@ -2,8 +2,8 @@
 
 | 项 | 内容 |
 |---|---|
-| 文档版本 | V2.13 |
-| 发布日期 | 2026-09-15 |
+| 文档版本 | V2.15 |
+| 发布日期 | 2026-09-19 |
 | 服务版本 | `tcm-cdss-20260828-lineage-modification-contract-r1` |
 | 接口基址 | `https://82.156.128.153/tcm-cdss` |
 | 协议 | HTTPS |
@@ -743,7 +743,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
-| `name` | 西医主要诊断 | string | 症状级工作诊断统一写成「规范症状名，病因待查」形态。**取值可能为空串**，表示本次未形成西医工作诊断，请按缺失处理 |
+| `name` | 西医诊断倾向 | string | 症状级工作诊断统一写成「规范症状名，病因待查」形态。**取值可能为空串**，表示本次未形成西医工作诊断，请按缺失处理 |
 | `status` | 诊断程度 | string | `考虑` / `需排除` / `证据有限` |
 | `confidence` | 置信度 | string | `高` / `中` / `低` |
 | `supportingFacts` | 支持依据 | array | 只收与该诊断直接相关的当前患者事实；舌脉、证候、病机不进此栏 |
@@ -764,7 +764,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 | `natureDifferentiation.items` | 病性 | array | 如 `["气血亏虚"]` |
 | `symptomClusters` | 症状群 | array | `{symptoms, mechanism}` |
 | `chain` | 病机链 | array | 见下 |
-| `uncertainties` | 待复核不确定项 | array | `{item, reason, affects}`；无待复核项时为空数组 |
+| `uncertainties` | 影响判断的待核实信息 | array | `{item, reason, affects}`；无待复核项时为空数组 |
 
 `pathogenesis.chain[]` 病机链
 
@@ -772,16 +772,16 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/question" \
 |---|---|---|---|
 | `nodeId` | 节点标识 | string | 如 `P1`。M04 的药味与外治项目用 `targetRef` 引用它 |
 | `patientFact` | 患者事实 | string | — |
-| `syndromeEvidence` | 证候依据 | string | — |
-| `pathogenesis` | 病机描述 | string | — |
-| `therapyDirection` | 对应治法方向 | string | — |
+| `syndromeEvidence` | 辨证关键依据 | string | — |
+| `pathogenesis` | 病机演变 | string | — |
+| `therapyDirection` | 对应治法 | string | — |
 
 **治则治法 `therapy`**
 
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
 | `overallPrinciple` | 治则 | string | — |
-| `overallMethod` | 治法 | string | — |
+| `overallMethod` | 总治法 | string | — |
 | `subTherapies` | 分治法 | array | `{therapy, targetPathogenesis, priority, evidence}`，`priority` 为 `主要` / `次要` |
 
 **特殊说明**
@@ -1035,8 +1035,8 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/diagnosis/diagnose" \
 
 | 字段 | 中文名 | 类型 | 说明 |
 |---|---|---|---|
-| `diet` | 饮食调护 | string | — |
-| `lifestyle` | 起居调护 | string | — |
+| `diet` | 饮食调养 | string | — |
+| `lifestyle` | 生活方式 | string | — |
 | `emotion` | 情志调护 | string | — |
 | `precautions` | 注意事项 | array | 0–6 条；无内容时为空数组 |
 | `acupointCare` | 穴位保健 | string / null | 可选：无穴位保健建议时为 `null` |
@@ -1673,7 +1673,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 
 | 内容 | 字段路径 |
 |---|---|
-| 西医诊断 | `westernDiagnosis.primary.name` |
+| 西医诊断倾向 | `westernDiagnosis.primary.name` |
 | 西医诊断依据 | `westernDiagnosis.primary.supportingFacts` |
 | 西医诊断待查依据 | `westernDiagnosis.primary.suggestedChecks`（建议检查）<br>`westernDiagnosis.primary.limitations`（依据不足之处） |
 | 西医鉴别诊断 | `westernDiagnosis.differentials[]` |
@@ -1684,7 +1684,9 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 中医辨病循证依据 | `overview.tcmDiseaseReferences[]`（受治理标准引用） |
 | 中医证候 | `overview.primarySyndrome` |
 | 中医辨证循证依据 | `overview.tcmSyndromeReferences[]`（受治理标准引用） |
-| 证候依据 | `overview.primarySyndromeBasis[]` |
+| 中医辨病依据 | `overview.tcmDiseaseRationale`（为什么归入该病名） |
+| 中医辨证依据 | `overview.tcmDiagnosticRationale`（为什么是该证型） |
+| 主证候依据 | `overview.primarySyndromeBasis[]` |
 | 中医病名鉴别 | `overview.tcmDiseaseDifferentials[]` |
 | 中医证候鉴别 | `overview.tcmDifferentials[]` |
 | 总体病机 | `overview.overallPathogenesis` |
@@ -1692,7 +1694,7 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 病位辨证 | `pathogenesis.locationDifferentiation` |
 | 病性辨证 | `pathogenesis.natureDifferentiation` |
 | 治则 | `therapy.overallPrinciple` |
-| 治法 | `therapy.overallMethod` |
+| 总治法 | `therapy.overallMethod` |
 | 分治法 | `therapy.subTherapies[]` |
 | 国标术语对应关系 | `terminologyMappings[]`（可选：单次最多 20 条） |
 
@@ -1713,9 +1715,9 @@ curl -X POST "https://82.156.128.153/tcm-cdss/api/drug-inventory" \
 | 可替换药味 | `formula.modifications[].substitutions[]`（可选，见下方说明） |
 | 中成药与西药候选 | `formula.patentAndWestern[]` |
 | 中成药说明书用法 | `formula.patentAndWestern[].route`、`singleDose`、`frequency`、`administrationTiming`、`course`（均以说明书原文为准，缺项省略） |
-| 健康调护 · 饮食 | `nonPharma.diet` |
-| 健康调护 · 起居 | `nonPharma.lifestyle` |
-| 健康调护 · 情志 | `nonPharma.emotion` |
+| 健康调护 · 饮食调养 | `nonPharma.diet` |
+| 健康调护 · 生活方式 | `nonPharma.lifestyle` |
+| 健康调护 · 情志调护 | `nonPharma.emotion` |
 | 健康调护 · 注意事项 | `nonPharma.precautions[]` |
 | 中医外治项目 | `nonPharma.tcmTreatments[]` |
 | 中医外治 · 穴位建议 | `nonPharma.tcmTreatments[].suggestedSitesOrPoints[]`（每个穴位内联标注国标代码·归经·**本例入选依据**） |
@@ -2367,6 +2369,7 @@ HIS 投影与 M04 原始响应保持同一语义：`prescriptions.modifications[
 
 | 版本 | 日期 | 变更 | 是否影响已完成的集成 |
 |---|---|---|---|
+| V2.15 | 2026-09-19 | **① 西医诊断恢复。** 9/11 西医部分切换到 DeepSeek 之后，该段模型输出实测 9/9 次都是括号层级错位的非法 JSON（顶层对象被提前闭合，`suggestedChecks` 等字段写到了外层），服务端解析失败后整段丢弃，结果里的 `westernDiagnosis` 落为默认占位（`primary.name`=「症状性诊断，病因待临床鉴别」，页面显示「当前未形成可复核的西医工作诊断」），`management.mustCollect` 同时为空。现已按结构修复并把错位字段归位；修复不了时重试一次，仍不行才落占位。**② 字段中文名与医生页面统一。** 页面曾把「中医辨病依据 / 中医辨证依据」两个标题挂在国标引用（`tcmDiseaseReferences` / `tcmSyndromeReferences`）上，而本文档中这两个名字指的是 `tcmDiseaseRationale` / `tcmDiagnosticRationale`（页面叫「辨病推理 / 辨证推理」）——标题正好交叉。现在页面与可见正文统一为：国标引用 = 辨病/辨证**循证**依据，病名与证型的判断理由 = 辨病/辨证依据。其余仅措辞不同的中文名按页面现行叫法修订：`primary.name` 西医诊断倾向、`chain[].syndromeEvidence` 辨证关键依据、`chain[].pathogenesis` 病机演变、`chain[].therapyDirection` 对应治法、`uncertainties` 影响判断的待核实信息、`therapy.overallMethod` 总治法、`nonPharma.diet / lifestyle / emotion` 饮食调养 / 生活方式 / 情志调护；§5.1 补入「中医辨病依据 / 中医辨证依据」两行，原「证候依据」更正为「主证候依据」（原名与病机链的同名字段重名）。生成过程中的预览草稿与进度提示同步改用上述名称。 | **否**：字段路径、类型与取值集合均未改变，只改中文名；按字段路径解析的调用方无需修改。此前把 `westernDiagnosis.primary.name` 等于占位串当成「模型未给出西医诊断」处理的调用方，现在会拿到真实诊断 |
 | V2.14 | 2026-09-16 | **移除 M03/M04 模型复核环节。** 线上实测该环节全部是与生成方同一模型、低推理力度、中位 1.4 秒的请求，84% 打回；M03 侧意见全部被服务端降为有界建议，M04 侧把通过全部确定性核验、零安全问题的候选扣成非剂量 15/35 次，且同一病例重试结果逐次相同；没有可证明的正收益。安全底线（药典剂量上限、配伍禁忌、特殊人群、剂量授权轴、审方）全部保留且仍由确定性层执行；临床合理性由医生把关。出参变化：`clinicalReview` 字段保留但固定为 `{status:"unavailable", unavailableReason:"not_configured", reviewedPayloadHash}`；`clinicalReviewMethod` 固定为 `null`；可见正文的「临床复核状态」行改为「本版本不设模型复核环节」；严格健康检查不再含 `independent_clinical_reviewer_*` 项；`model-health?check=1` 响应不再含 `clinicalReview`。部署变量 `PRIMARY_CLINICAL_REVIEW_*`、`PRIMARY_*_REVIEW_MODEL`、`*_REVIEW_FALLBACK_MODEL` 删除。 | **否**：两个字段本就可选且取值仍在既有枚举内。按 `clinicalReview.status==="accepted"` 判断"已复核"的集成方从此恒为否——请勿据此拦截剂量或标红 |
 | V2.13 | 2026-09-15 | **`Idempotency-Key` 成为库存 `POST` 的必填请求头。** 缺失或格式非法一律 `400 idempotency_key_required`，且在解析请求体、建立客户上下文之前返回——不读 8MB 载荷、不产生任何租户副作用。此前缺键请求按整批替换照常执行（V2.12 仍如此），且校验只在未登记客户的 JIT 分支生效、已登记客户完全不校验。 | **是（破坏性）**：不携带该请求头的库存同步作业会立即收到 `400`，必须为每一次导入生成一个 8–200 位可打印 ASCII 的键；同一次分片整批替换可共用一个键，把用过的键复用到另一次导入会在第一片返回 `409` |
 | V2.12 | 2026-09-15 | **库存写入幂等落地。** `Idempotency-Key` 此前只参与未登记客户的 JIT 登记，客户登记后既不参与写入也不校验格式——同键连发两次、第二次载荷不同会两次都返回 `200`，后一次整批覆盖前一次（被覆盖的药味会被讲成"缺货"而非"未知"）。现在库存 `POST` 带该头即进入写入幂等事务：同键同载荷重放首次响应并带 `idempotent-replay: true`；同键不同载荷返回 `409 idempotency_conflict` 且不写入；键格式非法返回 `400`。仅 `200` 结果占用幂等键，`202`/失败可用同一键改正后重试。 | **否**：未携带该请求头的调用方语义不变（仍是整批替换）；携带该头并复用同一键提交不同载荷的调用方，此前是静默覆盖，现在会收到 `409`，需为每一次新的导入换一个键 |

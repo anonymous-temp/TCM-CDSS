@@ -31,7 +31,7 @@ import { applyDeterministicIcd10Coding } from "@/lib/icd10-diagnosis-coding.serv
 import { sanitizeDiagnoseStreamingDraft } from "@/lib/diagnosis-stream-safety";
 import { newModuleNotices } from "@/lib/diagnosis-stream-modules";
 import { newM03ModuleDraftFrames, newM04ModuleDraftFrames } from "@/lib/diagnosis-stream-module-drafts";
-import { mergeParallelM03Halves } from "@/lib/m03-parallel-merge";
+import { mergeParallelM03Halves, parseM03WesternHalf } from "@/lib/m03-parallel-merge";
 import { UpstreamResponseTooLargeError, readResponseTextLimited } from "@/lib/http-response-limit";
 import { cancelResponseBody } from "@/lib/http-response-lifecycle";
 import { advanceM04RepairState, canAcceptRepeatedM04PatientContextReviewAfterRepairExhaustion, m04ArbitratedPatientContextAnnotation, canAcceptTransparentFormulaFallback, initialM04RepairState, m03FinalReviewQualityAnnotation, m03LimitedInformationRepairRoundAllowed, m04BaselineVerifiedFinalReviewAnnotation, m04ProviderRepairExhaustedQualityAnnotation, m04TherapyIssueQualityAnnotation, m04ZeroProviderRepairQualityAnnotation } from "@/lib/m04-repair-policy";
@@ -2001,6 +2001,10 @@ async function collectM03ParallelWesternHalf(
       if (!result) return { ok: false, reason: "invalid_json" };
       if (!content) return { ok: false, reason: "empty_content" };
       if (content.length > PRIMARY_TEXT_MAX_OUTPUT_CHARS) return { ok: false, reason: "output_too_large" };
+      // HTTP 成功不等于西医半可用：json_object 模式下模型会交回括号错位的「像 JSON」文本。
+      // 结构修复也救不回来时按可重试失败处理，而不是当成功交给合并层再被静默丢弃——
+      // 否则页面先收到一份写着诊断的草稿，终稿却是「未形成可复核的西医工作诊断」。
+      if (parseM03WesternHalf(content).status === "unparseable") return { ok: false, reason: "unparseable_content" };
       return { ok: true, content };
     } catch (error) {
       return {
@@ -2017,7 +2021,7 @@ async function collectM03ParallelWesternHalf(
     }
   };
   let result = await attemptOnce();
-  const transientReasons = ["network_error", "timeout_or_cancelled", "empty_content", "invalid_json", "http_408", "http_425", "http_429", "http_500", "http_502", "http_503", "http_504"];
+  const transientReasons = ["network_error", "timeout_or_cancelled", "empty_content", "invalid_json", "unparseable_content", "http_408", "http_425", "http_429", "http_500", "http_502", "http_503", "http_504"];
   if (!result.ok && !parentSignal.aborted && absoluteDeadline - Date.now() > 45_000 && transientReasons.includes(result.reason)) {
     result = await attemptOnce();
   }
@@ -3764,11 +3768,17 @@ async function callPrimaryTextModelStream(
             accumulatedContent,
             westernHalf?.ok ? westernHalf.content : undefined,
           );
+          // westernHalfParse 与合并共用 parseM03WesternHalf：merged 只说明中医半可解析，
+          // 西医半有没有真正进入载荷要看这一项（9/11 换 DeepSeek 后实测 9/9 次采样都是 merged:true
+          // 却整段丢了西医诊断，日志上没有任何异常）。
+          const westernHalfParse = parseM03WesternHalf(westernHalf?.ok ? westernHalf.content : undefined);
           console.info("[tcm-cdss:timing] m03_parallel_halves", {
             tcmHalfChars: accumulatedContent.length,
             westernHalfOk: Boolean(westernHalf?.ok),
             westernHalfReason: westernHalf && !westernHalf.ok ? westernHalf.reason : "ok",
             westernHalfDurationMs: westernHalf?.durationMs ?? 0,
+            westernHalfParse: westernHalfParse.status,
+            westernHalfRelocated: westernHalfParse.relocatedFields.length,
             merged: Boolean(mergedParallel),
             elapsedMs: Date.now() - requestStartedAt,
           });

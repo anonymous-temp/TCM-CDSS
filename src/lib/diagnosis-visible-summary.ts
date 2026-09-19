@@ -3343,8 +3343,11 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
     ...(isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseName))
       ? [`**辨病**：${markdownCell(overview?.tcmDiseaseName)}`]
       : []),
+    // 标签名与对外接口文档逐字一致：国标引用是「循证依据」，「辨病依据 / 辨证依据」专指
+    // tcmDiseaseRationale / tcmDiagnosticRationale（见下方两段）。此前两处标题正好交叉，
+    // 甲方 2026-09-17/18 拿文档对页面时报「辨病依据、辨证依据对不上」。医生页面同口径。
     ...(structuredCitationTexts(overview?.tcmDiseaseReferences).length > 0
-      ? [`**中医辨病依据**：${structuredCitationTexts(overview?.tcmDiseaseReferences).join("；")}`]
+      ? [`**中医辨病循证依据**：${structuredCitationTexts(overview?.tcmDiseaseReferences).join("；")}`]
       : []),
     `**辨证**：${syndromeLabelWithNationalStandard(reasoning, "overview.primarySyndrome", overview?.primarySyndrome)}`,
     // bounded 也必须渲染边界（2026-09-13）。advise 档保留式投影把「为什么还不能直接采纳」
@@ -3354,7 +3357,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
       ? [`**辨证边界**：${markdownCell(overview.primarySyndromeResolutionReason)}`]
       : []),
     ...(structuredCitationTexts(overview?.tcmSyndromeReferences).length > 0
-      ? [`**中医辨证依据**：${structuredCitationTexts(overview?.tcmSyndromeReferences).join("；")}`]
+      ? [`**中医辨证循证依据**：${structuredCitationTexts(overview?.tcmSyndromeReferences).join("；")}`]
       : []),
     // 服务端把模型选的方名剥离进 deferredFormulaSelection 之后，必须告诉医生它被剥离了。
     //
@@ -3407,7 +3410,7 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
       "### 中医辨病",
       ...(showTcmDiseaseName ? [`**中医病名**：${tcmDiseaseName}`] : []),
       ...(isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseRationale))
-        ? [`**辨病推理**：${markdownCell(overview?.tcmDiseaseRationale)}`]
+        ? [`**辨病依据**：${markdownCell(overview?.tcmDiseaseRationale)}`]
         : []),
       "",
     );
@@ -3425,7 +3428,8 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
       "### 中医辨病鉴别",
       isDisplayableClinicalText(markdownCell(overview?.tcmDiseaseName))
         ? "本例现有资料未形成需要区分的相邻中医病名，故未列辨病鉴别。"
-        : "本例中医病名尚未成立，故不列辨病鉴别；证候层面的取舍见上方辨证依据。",
+        // 本分支以 tcmDifferentials 非空为前提，下方必有「证候取舍」段，指向它才恒成立。
+        : "本例中医病名尚未成立，故不列辨病鉴别；证候层面的取舍见下方证候取舍。",
       "");
   }
   if (tcmDiseaseDifferentials.length > 0) {
@@ -3439,7 +3443,7 @@ function deferredFormulaSelectionLines(overview: Record<string, unknown> | null 
   if (isDisplayableClinicalText(markdownCell(overview?.tcmDiagnosticRationale))) {
     lines.splice(lines.indexOf(pathogenesisHeading), 0,
       "### 中医辨证",
-      `**辨证推理**：${markdownCell(overview?.tcmDiagnosticRationale)}`,
+      `**辨证依据**：${markdownCell(overview?.tcmDiagnosticRationale)}`,
       "",
     );
   }

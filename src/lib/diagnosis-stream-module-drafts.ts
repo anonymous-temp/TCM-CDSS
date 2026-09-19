@@ -1,3 +1,4 @@
+import { clinicalOutputLabel } from "./clinical-output-authority";
 import { completedTopLevelKeys, completedTopLevelValueJson } from "./diagnosis-stream-modules";
 import type { M03DraftModule, StreamModuleDraftFrame } from "./diagnosis-stream-protocol";
 import { sanitizeGeneratedSuggestionPreviewText } from "./diagnosis-stream-safety";
@@ -61,19 +62,25 @@ function moduleContractComplete(key: keyof typeof MODULE_BY_KEY, value: Record<s
   return presentText(value.overallPrinciple) || presentText(value.overallMethod);
 }
 
+/**
+ * 草稿与终稿用同一套标题与字段名（2026-09-19）。此前草稿写「西医判断 / 证候倾向 /
+ * 病机分析 / 辨证依据 / 病机 / 治法方向」，终稿页面写「西医诊断倾向 / 辨证 / 病机拆解 /
+ * 辨证关键依据 / 病机演变 / 对应治法」——同一个字段在同一屏里先后换两个名字；更糟的是
+ * 「辨证依据」在草稿里指病机链的 syndromeEvidence，在终稿里指 tcmDiagnosticRationale。
+ */
 function clinicalModulePreview(key: keyof typeof MODULE_BY_KEY, value: Record<string, unknown>): string {
   let lines: string[];
   if (key === "westernDiagnosis") {
     const primary = record(value.primary)!;
-    lines = ["## 西医判断", `诊断倾向：${safeText(primary.name)}`, "依据：", ...factLines(primary.supportingFacts)];
+    lines = [`## ${clinicalOutputLabel("M03-western", "西医诊断倾向")}`, `诊断倾向：${safeText(primary.name)}`, "依据：", ...factLines(primary.supportingFacts)];
   } else if (key === "overview") {
     lines = ["## 中医辨病辨证", ...(presentText(value.tcmDiseaseName) ? [`辨病：${safeText(value.tcmDiseaseName)}`] : []),
-      `证候倾向：${safeText(value.primarySyndrome)}`, "依据：", ...factLines(value.primarySyndromeBasis)];
+      `辨证：${safeText(value.primarySyndrome)}`, "主证候依据：", ...factLines(value.primarySyndromeBasis)];
   } else if (key === "pathogenesis") {
-    lines = ["## 病机分析", ...((value.chain as unknown[]).flatMap((item) => {
+    lines = [`## ${clinicalOutputLabel("M03-pathogenesis", "病机拆解")}`, ...((value.chain as unknown[]).flatMap((item) => {
       const node = record(item);
       if (!node || ![node.patientFact, node.syndromeEvidence, node.pathogenesis, node.therapyDirection].every(presentText)) return [];
-      return [`- 患者事实：${safeText(node.patientFact, 200)}；辨证依据：${safeText(node.syndromeEvidence, 200)}；病机：${safeText(node.pathogenesis, 200)}；治法方向：${safeText(node.therapyDirection, 200, sanitizeGeneratedSuggestionPreviewText)}`];
+      return [`- 患者事实：${safeText(node.patientFact, 200)}；辨证关键依据：${safeText(node.syndromeEvidence, 200)}；病机演变：${safeText(node.pathogenesis, 200)}；对应治法：${safeText(node.therapyDirection, 200, sanitizeGeneratedSuggestionPreviewText)}`];
     }).slice(0, 4))];
   } else {
     lines = ["## 治则治法", ...[value.overallPrinciple, value.overallMethod].filter(presentText)

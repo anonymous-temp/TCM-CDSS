@@ -219,7 +219,42 @@ check(() => {
 check(() => {
   assert.ok(visibleM03.includes("### 中医辨病"), "病名移入独立的辨病段");
   assert.ok(visibleM03.includes(`**中医病名**：${M03.overview.tcmDiseaseName}`), "病名本身不得丢失");
-  assert.ok(visibleM03.includes("**辨病推理**："), "辨病推理与病名归在同一处");
+  assert.ok(visibleM03.includes("**辨病依据**："), "辨病依据与病名归在同一处");
+});
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-09-19 甲方 9/17–9/18 实测「辨病依据、辨证依据对不上」：
+// 对外接口文档把 tcmDiseaseRationale / tcmDiagnosticRationale 叫「辨病依据 / 辨证依据」，
+// 把 tcmDiseaseReferences / tcmSyndromeReferences 叫「辨病循证依据 / 辨证循证依据」。
+// 此前可见正文把「依据」挂在国标引用上、把真正的依据叫「推理」——标题正好交叉。
+// 这里按「标签 → 这一行实际写的是哪个字段」断言，不按字符串是否出现。
+// ─────────────────────────────────────────────────────────────────────────────
+check(() => {
+  const cited = structuredClone(m03WithChartFacts);
+  cited.overview.tcmDiseaseReferences = [{
+    evidenceId: "STD-GBT-15657-2021",
+    citation: "国家市场监督管理总局, 国家标准化管理委员会. 中医病证分类与代码: GB/T 15657-2021[S]. 2021.",
+    sourceType: "standard",
+  }];
+  cited.overview.tcmSyndromeReferences = [{
+    evidenceId: "STD-GBT-16751-2-2021",
+    citation: "国家市场监督管理总局, 国家标准化管理委员会. 中医临床诊疗术语 第2部分: 证候: GB/T 16751.2-2021[S]. 2021.",
+    sourceType: "standard",
+  }];
+  assert.ok(cited.overview.tcmDiseaseRationale && cited.overview.tcmDiagnosticRationale, "fixture 必须同时带两段依据");
+  const visible = visibleOf(cited, "diagnose", CONTEXT);
+  const rowOf = (label) => visible.split("\n").filter((row) => row.startsWith(`**${label}**：`));
+  assert.equal(rowOf("中医辨病循证依据").length, 1);
+  assert.match(rowOf("中医辨病循证依据")[0], /GB\/T 15657-2021/);
+  assert.equal(rowOf("中医辨证循证依据").length, 1);
+  assert.match(rowOf("中医辨证循证依据")[0], /GB\/T 16751\.2-2021/);
+  const diseaseBasis = rowOf("辨病依据");
+  const syndromeBasis = rowOf("辨证依据");
+  assert.equal(diseaseBasis.length, 1, "「辨病依据」只有一行");
+  assert.equal(syndromeBasis.length, 1, "「辨证依据」只有一行");
+  assert.ok(diseaseBasis[0].includes(cited.overview.tcmDiseaseRationale.slice(0, 12)), "「辨病依据」写的必须是 tcmDiseaseRationale");
+  assert.ok(syndromeBasis[0].includes(cited.overview.tcmDiagnosticRationale.slice(0, 12)), "「辨证依据」写的必须是 tcmDiagnosticRationale");
+  assert.doesNotMatch(visible, /\*\*(?:中医)?辨[病证]依据\*\*：[^\n]*GB\/T/, "「辨病依据 / 辨证依据」下面不得是国标引用");
+  assert.doesNotMatch(visible, /\*\*辨[病证]推理\*\*/, "对外接口文档里没有「辨病推理 / 辨证推理」这两个名字");
 });
 // 病名缺失时不留空段——但也不能让辨病鉴别**静默消失**(2026-08-05 精化)。
 //

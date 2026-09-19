@@ -19,11 +19,17 @@
  * 必须显式登记它要暴露哪一个字段——默认不暴露，这样「泄漏原始内部字段」不可能再发生。
  */
 
-/** 权威 JSON 里按提示词模板顺序出现的顶层模块，及其医生可见名称。 */
+import { clinicalOutputLabel } from "./clinical-output-authority";
+
+/**
+ * 权威 JSON 里按提示词模板顺序出现的顶层模块，及其医生可见名称。
+ * 与终稿页面同名的两项从受治理输出契约登记表取值：进度行写「病机分析」、终稿写「病机拆解」，
+ * 正是甲方 3.1 投诉过的那种同一模块两个名字（2026-09-19 在流式进度里又发现一处）。
+ */
 const MODULE_LABELS: ReadonlyMap<string, string> = new Map([
-  ["westernDiagnosis", "西医诊断"],
+  ["westernDiagnosis", clinicalOutputLabel("M03-western", "西医诊断倾向")],
   ["overview", "中医辨病辨证"],
-  ["pathogenesis", "病机分析"],
+  ["pathogenesis", clinicalOutputLabel("M03-pathogenesis", "病机拆解")],
   ["therapy", "治则治法"],
   ["formula", "候选方药"],
   ["nonPharma", "健康调护"],

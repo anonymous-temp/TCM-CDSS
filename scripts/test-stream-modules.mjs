@@ -96,8 +96,11 @@ const noticeText = timeline.map((item) => item.notice).join("\n");
 // 医生在同一屏里先后看到两个证候，无从判断哪个作数。
 // 现在这四个模块只推完成信号；「按模块顺序反馈」（需求2）由下面的条数与顺序断言继续保证。
 assert.match(noticeText, /中医辨病辨证：已生成，待结构校验与签名/);
-assert.match(noticeText, /西医诊断：已生成，待结构校验与签名/);
-assert.match(noticeText, /病机分析：已形成 2 个病机节点/);
+// 模块名与终稿页面同名（受治理输出契约登记表）：进度行写「病机分析」、终稿写「病机拆解」
+// 是甲方 3.1 投诉过的同一模块两个名字。
+assert.match(noticeText, /西医诊断倾向：已生成，待结构校验与签名/);
+assert.match(noticeText, /病机拆解：已形成 2 个病机节点/);
+assert.doesNotMatch(noticeText, /病机分析/);
 assert.match(noticeText, /治则治法：已生成，待结构校验与签名/);
 // 会被修复轮改写的结论文本一个都不许出现在定型前的流里。
 for (const volatileConclusion of ["心脾两虚证", "失眠障碍", "补益心脾", "不寐"]) {

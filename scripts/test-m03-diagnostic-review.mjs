@@ -992,6 +992,7 @@ const savedSettledInfo = console.info;
 const settledLogs = [];
 let settledGenerationCalls = 0;
 let settledNonStreamCalls = 0;
+let settledSigned;
 try {
   Object.assign(process.env, settledEnv);
   console.info = (...args) => { settledLogs.push(args); };
@@ -1034,6 +1035,7 @@ try {
   assert.equal(settledGenerationCalls, 1, "exactly one generation draw");
   assert.equal(settledNonStreamCalls, 0, "模型复核环节已删除：M03 编排不得再发任何非流式（复核/裁决）请求");
   const signed = parseSentinelReasoning(output);
+  settledSigned = signed;
   assert.equal(m03DiagnosticReviewSemanticHash(signed), "sha256:e65b691a013a531b473c38bf7fef9bf45fc40c77b0913b4b26cf786cdf70fce4", "the settled projection must preserve the pre-fix final clinical payload");
   assert.ok(signed.contractSignature, "the settled output must still be signed");
   assert.equal(signed.clinicalReview.status, "unavailable");
@@ -1049,4 +1051,106 @@ try {
   }
 }
 
-console.log(JSON.stringify({ cases: 122, failures: 0 }));
+// ─── M03 并行西医半：线上 DeepSeek 交回括号错位的「像 JSON」（2026-09-19）──────────────
+//
+// 甲方 9/17–9/18 实测：西医诊断一栏恒为「当前未形成可复核的西医工作诊断」。根因不在临床
+// 判断：西医半（非流式、json_object）实测 9/9 次采样都是顶层被提前闭合后又接着写
+// `,"management":…}` 的非法 JSON，合并层解析失败后整段静默丢弃，签名载荷落默认占位。
+// 这里钉整条编排：同一份临床内容，经并行路径交回错位文本，签名结果里的西医诊断必须与
+// 单发路径（上面的 settled 用例）完全一致；救不回来时重试一次西医半，仍失败才落占位。
+const tcmHalfOnly = Object.fromEntries(Object.entries(reviewed)
+  .filter(([key]) => !["westernDiagnosis", "management"].includes(key)));
+const misnestedWesternHalf = `{"westernDiagnosis":${JSON.stringify({
+  ...reviewed.westernDiagnosis,
+  primary: Object.fromEntries(Object.entries(reviewed.westernDiagnosis.primary).filter(([key]) => key !== "suggestedChecks")),
+})},"suggestedChecks":["睡眠日记（连续1-2周）"]},"management":${JSON.stringify(reviewed.management)}}`;
+assert.throws(() => JSON.parse(misnestedWesternHalf), SyntaxError, "fixture 必须是线上那种顶层提前闭合的非法 JSON");
+const cleanWesternHalf = JSON.stringify({ westernDiagnosis: reviewed.westernDiagnosis, management: reviewed.management });
+const truncatedWesternHalf = `{"westernDiagnosis":{"primary":{"name":"失眠症状","status":"考虑","supportingFacts":["入睡困难`;
+const runParallelM03 = async (westernReplies) => {
+  const savedEnv = Object.fromEntries(Object.keys(settledEnv).map((key) => [key, process.env[key]]));
+  const savedFetch = globalThis.fetch;
+  const savedInfo = console.info;
+  const savedWarn = console.warn;
+  const logs = [];
+  const replies = [...westernReplies];
+  let streamCalls = 0;
+  let westernCalls = 0;
+  try {
+    Object.assign(process.env, settledEnv);
+    console.info = (...args) => { logs.push(args); };
+    console.warn = (...args) => { logs.push(args); };
+    globalThis.fetch = async (_url, init) => {
+      const request = JSON.parse(init.body);
+      if (request.stream) {
+        streamCalls += 1;
+        return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: JSON.stringify(tcmHalfOnly) }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`, {
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      westernCalls += 1;
+      return Response.json({ choices: [{ message: { content: replies.shift() ?? "" }, finish_reason: "stop" }] });
+    };
+    const response = await callDiagnosisStream("synthetic parallel M03", "deepseek", undefined, "markdown", {
+      structuredStage: "diagnose",
+      structuredClinicalContext: reviewedClinicalContext,
+      structuredAllowedM03FormulaNames: ["归脾汤"],
+      truncateFallback: "SYNTHETIC_FALLBACK",
+      m03ParallelHalfPrompts: { western: "synthetic western half", tcm: "synthetic tcm half" },
+      diagnoseSignatureContext: {
+        contractVersion: "tcm-cdss-m03-signature-v5",
+        caseId: "synthetic-parallel",
+        encounterId: "synthetic-parallel-encounter",
+        clinicalInputHash: `sha256:${"b".repeat(64)}`,
+      },
+    });
+    const frames = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
+    assert.deepEqual(frames.filter((frame) => frame.error), [], "the mock stream must finish without an error");
+    const output = frames.filter((frame) => typeof frame.content === "string").map((frame) => frame.content).join("");
+    const halves = logs.find(([name]) => name === "[tcm-cdss:timing] m03_parallel_halves")?.[1];
+    return { signed: parseSentinelReasoning(output), halves, streamCalls, westernCalls };
+  } finally {
+    globalThis.fetch = savedFetch;
+    console.info = savedInfo;
+    console.warn = savedWarn;
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value == null) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+};
+const { westernDiagnosisLabelForDisplay } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
+assert.ok(settledSigned?.westernDiagnosis?.primary?.name, "单发基线必须先跑出西医诊断");
+{
+  const run = await runParallelM03([misnestedWesternHalf]);
+  assert.equal(run.streamCalls, 1);
+  assert.equal(run.westernCalls, 1, "可修复的错位文本不需要重试");
+  assert.ok(run.signed.contractSignature, "并行路径照常签名");
+  assert.equal(run.signed.westernDiagnosis.primary.name, settledSigned.westernDiagnosis.primary.name,
+    "错位 JSON 修复后，签名里的西医诊断必须与单发路径一致，而不是默认占位");
+  assert.notEqual(westernDiagnosisLabelForDisplay(run.signed.westernDiagnosis.primary.name), "当前未形成可复核的西医工作诊断");
+  assert.ok(run.signed.westernDiagnosis.primary.suggestedChecks.includes("睡眠日记（连续1-2周）"),
+    "写到顶层的 suggestedChecks 必须归位到 westernDiagnosis.primary");
+  assert.equal(run.signed.management.followupSafetyNet, settledSigned.management.followupSafetyNet);
+  assert.equal(run.halves?.westernHalfOk, true);
+  assert.equal(run.halves?.westernHalfParse, "recovered", "遥测必须如实记下这次是修复后才可用");
+  assert.equal(run.halves?.westernHalfRelocated, 1);
+}
+{
+  const run = await runParallelM03([truncatedWesternHalf, cleanWesternHalf]);
+  assert.equal(run.westernCalls, 2, "救不回来的西医半按可重试失败再请求一次");
+  assert.equal(run.signed.westernDiagnosis.primary.name, settledSigned.westernDiagnosis.primary.name);
+  assert.equal(run.halves?.westernHalfParse, "clean");
+}
+{
+  const run = await runParallelM03([truncatedWesternHalf, truncatedWesternHalf]);
+  assert.equal(run.westernCalls, 2, "只重试一次");
+  assert.ok(run.signed.contractSignature, "西医半两次都不可用时中医结果照常签名交付");
+  assert.equal(run.signed.westernDiagnosis.primary.name, "症状性诊断，病因待临床鉴别",
+    "确实拿不到西医半时才落默认占位（页面显示「当前未形成可复核的西医工作诊断」）");
+  assert.equal(run.halves?.westernHalfOk, false);
+  assert.equal(run.halves?.westernHalfReason, "unparseable_content");
+  assert.equal(run.halves?.westernHalfParse, "absent");
+}
+
+console.log(JSON.stringify({ cases: 125, failures: 0 }));

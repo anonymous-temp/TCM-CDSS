@@ -24,7 +24,17 @@ const direction = drafts.m03ModuleDraftFrame(JSON.stringify({ pathogenesis: { ch
   therapyDirection: "补气，黄芪30g每日1剂",
 }] } }), "pathogenesis");
 assert.match(direction.content, /患者事实：曾服黄芪30g后心悸/);
-assert.doesNotMatch(direction.content.split("治法方向：")[1], /30g|每日1剂/, "建议方向不能变为未经定稿的剂量处方");
+// 字段名与终稿页面同名（「对应治法」）；先断言切分点存在，否则改名后这条安全断言会拿 undefined 空转。
+const directionTail = direction.content.split("对应治法：")[1];
+assert.equal(typeof directionTail, "string", "病机草稿的治法字段名必须与终稿页面一致：对应治法");
+assert.doesNotMatch(directionTail, /30g|每日1剂/, "建议方向不能变为未经定稿的剂量处方");
+assert.match(direction.content, /辨证关键依据：既往用药后不适；病机演变：证据待核实/,
+  "草稿字段名与终稿页面一致：辨证关键依据 / 病机演变");
+assert.doesNotMatch(direction.content, /辨证依据：/,
+  "「辨证依据」专指 tcmDiagnosticRationale（对外接口文档）；病机链的 syndromeEvidence 不得再用这个名字");
+assert.match(direction.content, /^## 病机拆解$/m, "草稿标题与终稿页面同名（甲方 3.1：不得再显示为「病机分析」）");
+assert.match(western.content, /^## 西医诊断倾向$/m, "西医草稿标题与终稿页面同名");
+assert.match(injected.content, /^辨证：/m, "证候草稿用终稿页面的「辨证」而不是「证候倾向」");
 
 const candidate = { name: "四君子汤", herbs: [
   { name: "党参", role: "君", function: "益气健脾", dose: "12g", evidence: "SECRET_EVIDENCE" },
