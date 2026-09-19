@@ -108,8 +108,9 @@ assert.match(
   /^CDSS_MODEL_RATE_LIMIT_PER_10_MIN=60$/m,
   "the deployable environment template must document the production model rate limit",
 );
-// 2026-09-19 owner 裁定：只用 qwen3.8-flash + qwen3.8-max 两档。首轮与小任务 flash，修复轮、
-// 事实复核与 M04 传输兜底 max；事实层 flash/max/flash 让两对「独立」判定都成立。
+// 2026-09-19 owner 裁定：只用 qwen3.8-flash + qwen3.8-max 两档。首轮与小任务 flash，修复轮与 M04 传输兜底 max。
+// 事实层三相位全用 max（整套黄金基线 222 例定档）：flash 抽取常漏标低体温 35.5℃ 与「否认头晕，剧烈头痛」
+// （冷启动各 3 次只过 1 次）；flash 复核更慢且超时/不合格输出多，整套 21 条失败；全 max 只剩 1 条偏保守的失败。
 const expectedModelMatrix = {
   OPENAI_MODEL: "deepseek-v4-flash",
   BAILIAN_QWEN_MODEL: "qwen3.8-flash",
@@ -118,9 +119,9 @@ const expectedModelMatrix = {
   PRIMARY_PRESCRIBE_MODEL: "qwen3.8-flash",
   PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL: "qwen3.8-max",
   PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
-  CLINICAL_FACTS_MODEL: "qwen3.8-flash",
+  CLINICAL_FACTS_MODEL: "qwen3.8-max",
   CLINICAL_FACTS_REVIEW_MODEL: "qwen3.8-max",
-  CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.8-flash",
+  CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.8-max",
   CONTROLLED_TERMINOLOGY_MODEL: "qwen3.8-flash",
 };
 {

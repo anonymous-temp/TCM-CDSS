@@ -30,8 +30,8 @@ services:
       # M04 候选方药正文较长(药味清单+君臣佐使+配伍),给独立更高上限避免截断。
       PRIMARY_PRESCRIBE_MAX_TOKENS: ${PRIMARY_PRESCRIBE_MAX_TOKENS:-24000}
       # Two tiers only (2026-09-19): qwen3.8-flash for every first pass and auxiliary task, qwen3.8-max
-      # for repair rounds, clinical-facts review and the M04 transport fallback. Both enforce strict
-      # JSON Schema; qwen3.7-flash does not, so it is no longer a rollback for structured stages.
+      # for repair rounds, all three clinical-facts phases and the M04 transport fallback. Both
+      # enforce strict JSON Schema; qwen3.7-flash does not, so it is no longer a rollback for structured stages.
       PRIMARY_DIAGNOSE_MODEL: ${PRIMARY_DIAGNOSE_MODEL:-qwen3.8-flash}
       PRIMARY_DIAGNOSE_REPAIR_MODEL: ${PRIMARY_DIAGNOSE_REPAIR_MODEL:-qwen3.8-max}
       PRIMARY_DIAGNOSE_REASONING_EFFORT: ${PRIMARY_DIAGNOSE_REASONING_EFFORT:-medium}
@@ -42,9 +42,9 @@ services:
       BAILIAN_QWEN_API_KEY: ${BAILIAN_QWEN_API_KEY:?set BAILIAN_QWEN_API_KEY}
       BAILIAN_QWEN_BASE_URL: ${BAILIAN_QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
       BAILIAN_QWEN_MODEL: ${BAILIAN_QWEN_MODEL:-qwen3.8-flash}
-      CLINICAL_FACTS_MODEL: ${CLINICAL_FACTS_MODEL:-qwen3.8-flash}
+      CLINICAL_FACTS_MODEL: ${CLINICAL_FACTS_MODEL:-qwen3.8-max}
       CLINICAL_FACTS_REVIEW_MODEL: ${CLINICAL_FACTS_REVIEW_MODEL:-qwen3.8-max}
-      CLINICAL_FACTS_ADJUDICATION_MODEL: ${CLINICAL_FACTS_ADJUDICATION_MODEL:-qwen3.8-flash}
+      CLINICAL_FACTS_ADJUDICATION_MODEL: ${CLINICAL_FACTS_ADJUDICATION_MODEL:-qwen3.8-max}
       M02_MIN_INFORMATION_GAIN: ${M02_MIN_INFORMATION_GAIN:-0.6}
       # GOV-08 explicit exception: independent closed-set terminology classification, never a
       # fallback clinical reasoner. The persistent cache turns accepted variants into a stable,

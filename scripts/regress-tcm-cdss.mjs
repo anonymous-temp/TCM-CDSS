@@ -3013,9 +3013,15 @@ async function runKnowledgeCalls() {
     if (item.expectSignatureRejection) {
       assert(res.status === 409 && res.json?.code === "invalid_m04_signature", `${item.name}: unsigned markdown cannot cross the M04 trust boundary`, res.json);
       const m05 = await request("POST", "/api/diagnosis/assess", { caseState: item.caseState });
-      // 该 fixture 没有签名 M03 ⇒ M05 现在先在 M03 边界拒绝（409 invalid_m03_signature）；
-      // 带签名 M03 + 手写处方 Markdown 的情形由单测钉 422 missing_structured_prescription。
-      assert(m05.status === 409 && ["invalid_m03_signature", "invalid_m04_signature"].includes(m05.json?.code), `${item.name}: M05 rejects the same unsigned markdown fixture`, m05.json);
+      // baseCase 总会补一份签名 M03，所以这里走的是 2026-09-14 diagnose-only M05 的
+      // 「签名 M03 + 手写处方 Markdown」分支：422 missing_structured_prescription（与 HIS 同码）。
+      // 没有签名 M03 的形态仍在 M03 边界 409。要钉的性质不变：未签名处方文本不进入 M05 评估。
+      assert(
+        (m05.status === 409 && ["invalid_m03_signature", "invalid_m04_signature"].includes(m05.json?.code)) ||
+          (m05.status === 422 && m05.json?.code === "missing_structured_prescription"),
+        `${item.name}: M05 rejects the same unsigned markdown fixture`,
+        m05.json,
+      );
       continue;
     }
     if (item.expectedSubmissionIssue) {
