@@ -427,9 +427,16 @@ function exactClinicalSourceQuotes(value: string, clinicalContext: string): stri
     }))];
 }
 
+/**
+ * 语义条目至少要含一个文字或数字。严格解码被 minItems 逼着「必须给一条」时，qwen3.8-flash 偶尔
+ * 拿纯标点凑数（2026-09-19 线上首例感冒：病位 items、病性 items 与 branchExcess 全是 [":"]，
+ * 页面把冒号当病位显示）。纯标点不承载任何临床内容，当作缺失处理。
+ */
+const MEANINGFUL_SEMANTIC_ITEM = /[\p{L}\p{N}]/u;
+
 function semanticItems(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.flatMap((item) => typeof item === "string" && item.trim() ? [item.trim()] : []))];
+  return [...new Set(value.flatMap((item) => typeof item === "string" && MEANINGFUL_SEMANTIC_ITEM.test(item) ? [item.trim()] : []))];
 }
 
 function deduplicateWesternDifferentials(value: unknown): Record<string, unknown>[] {
@@ -862,6 +869,7 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
       ? pathogenesis.locationDifferentiation as Record<string, unknown>
       : null;
     if (location) {
+      const modelWroteItems = Array.isArray(location.items) && location.items.length > 0;
       location.items = semanticItems(location.items);
       const groundedDetails = Array.isArray(location.details)
         ? location.details.flatMap((rawDetail) => {
@@ -881,6 +889,11 @@ export function sanitizeOptionalPathogenesisClassifications(content: string, cli
         const key = String(detail.basis || "").normalize("NFKC").replace(/[\s，,。；;：:、→-]+/g, "");
         return basisCounts.get(key) === 1;
       });
+      // 模型写了 items 但全是纯标点、同一份输出的 details 却给出了已接地的病位：以 details 的病位
+      // 作 items。只在这一种退化形态下投影——不新增病位，模型本就没写 items 的情形保持原判。
+      if (modelWroteItems && (location.items as string[]).length === 0) {
+        location.items = semanticItems((location.details as Array<{ location: string }>).map((detail) => detail.location));
+      }
       const itemSet = new Set(location.items as string[]);
       const detailedLocations = new Set((location.details as Array<{ location: string }>).map((detail) => detail.location));
       const fullyGrounded = itemSet.size > 0 && [...itemSet].every((item) => detailedLocations.has(item));

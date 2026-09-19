@@ -429,6 +429,49 @@ assert.match(sourceLevelResolutionJson.overview.primarySyndromeResolutionReason,
 assert.match(sourceLevelResolutionJson.pathogenesis.locationDifferentiation.resolutionReason, /病位“心”.*0条.*可逐字回溯/);
 assert.match(sourceLevelResolutionJson.pathogenesis.natureDifferentiation.resolutionReason, /病性“虚”.*缺少.*可逐字回溯/);
 
+{
+  // 2026-09-19 线上首例感冒：严格解码被 minItems 逼着「必须给一条」，qwen3.8-flash 把病位 items、
+  // 病性 items 与 branchExcess 都写成 [":"]，页面把冒号当病位/病性显示。夹具取自那次的真实输出形态。
+  const coldContext = "2天前淋雨后出现恶寒发热，恶寒重发热轻，无汗，鼻塞，流清涕，喷嚏，头痛，周身酸楚，偶有咳嗽。舌淡红，苔薄白，脉浮紧。";
+  const sanitizeWith = (location, nature) => {
+    const out = sanitizeOptionalPathogenesisClassifications([
+      "<!-- DIAGNOSIS_JSON_START -->",
+      JSON.stringify({
+        stage: "diagnose",
+        overview: { primarySyndrome: "风寒束表证", primarySyndromeResolution: "resolved", primarySyndromeBasis: ["恶寒重发热轻", "无汗"] },
+        pathogenesis: { locationDifferentiation: location, natureDifferentiation: nature },
+      }),
+      "<!-- DIAGNOSIS_JSON_END -->",
+    ].join("\n"), coldContext);
+    return JSON.parse(out.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]).pathogenesis;
+  };
+  const groundedDetails = [{ location: "肺", basis: "鼻塞，流清涕" }, { location: "皮毛", basis: "恶寒重发热轻，无汗" }];
+  const degenerate = sanitizeWith(
+    { items: [":"], details: groundedDetails, resolution: "resolved" },
+    { items: [":"], rootDeficiency: [], branchExcess: [":"], basis: "恶寒重发热轻，无汗", resolution: "resolved" },
+  );
+  assert.deepEqual(degenerate.locationDifferentiation.items, ["肺", "皮毛"],
+    "punctuation-only location items must give way to the grounded locations the same output already named in details");
+  assert.equal(degenerate.locationDifferentiation.resolution, "resolved");
+  assert.deepEqual(degenerate.natureDifferentiation.items, [], "a colon is not a disease nature");
+  assert.deepEqual(degenerate.natureDifferentiation.branchExcess, [], "a colon is not a branch-excess classification");
+  assert.equal(degenerate.natureDifferentiation.resolution, "unresolved",
+    "with nothing left to classify, nature must not keep the model's resolved claim");
+  assert.match(degenerate.natureDifferentiation.resolutionReason, /没有可稳定归纳的病性/);
+  // 对照一：模型本就没写 items（空数组）时保持原判，不从 details 反推——投影只修「写了但全是标点」。
+  const emptyItems = sanitizeWith({ items: [], details: groundedDetails, resolution: "resolved" },
+    { items: ["寒", "实"], rootDeficiency: [], branchExcess: [], basis: "恶寒重发热轻，无汗", resolution: "resolved" });
+  assert.deepEqual(emptyItems.locationDifferentiation.items, [], "an empty model items array is not projected from details");
+  assert.equal(emptyItems.locationDifferentiation.resolution, "unresolved");
+  // 对照二：正常条目（含单字病位、多字病性）原样保留。
+  const normal = sanitizeWith({ items: ["肺", "皮毛"], details: groundedDetails, resolution: "resolved" },
+    { items: ["寒", "实"], rootDeficiency: [], branchExcess: ["风寒外束"], basis: "恶寒重发热轻，无汗", resolution: "resolved" });
+  assert.deepEqual(normal.locationDifferentiation.items, ["肺", "皮毛"]);
+  assert.deepEqual(normal.natureDifferentiation.items, ["寒", "实"]);
+  assert.deepEqual(normal.natureDifferentiation.branchExcess, ["风寒外束"]);
+  assert.equal(normal.natureDifferentiation.resolution, "resolved");
+}
+
 const sparseM03WithoutChain = [
   "<!-- DIAGNOSIS_JSON_START -->",
   JSON.stringify({
