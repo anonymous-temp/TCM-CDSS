@@ -18,7 +18,7 @@ export type TextModelConfig = {
 };
 
 const DEFAULT_BAILIAN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1";
-const DEFAULT_QWEN_MODEL = "qwen3.7-plus";
+const DEFAULT_QWEN_MODEL = "qwen3.8-flash";
 const TEXT_MODEL_HEALTH_TIMEOUT_MS = 120_000;
 
 function cleanBaseUrl(value: string): string {

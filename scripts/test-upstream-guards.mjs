@@ -108,19 +108,31 @@ assert.match(
   /^CDSS_MODEL_RATE_LIMIT_PER_10_MIN=60$/m,
   "the deployable environment template must document the production model rate limit",
 );
+// 2026-09-19 owner 裁定：只用 qwen3.8-flash + qwen3.8-max 两档。首轮与小任务 flash，修复轮、
+// 事实复核与 M04 传输兜底 max；事实层 flash/max/flash 让两对「独立」判定都成立。
 const expectedModelMatrix = {
   OPENAI_MODEL: "deepseek-v4-flash",
-  BAILIAN_QWEN_MODEL: "qwen3.7-plus",
+  BAILIAN_QWEN_MODEL: "qwen3.8-flash",
   PRIMARY_DIAGNOSE_MODEL: "qwen3.8-flash",
   PRIMARY_DIAGNOSE_REPAIR_MODEL: "qwen3.8-max",
-  PRIMARY_PRESCRIBE_MODEL: "qwen3.7-plus",
-  PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL: "qwen3.7-plus",
+  PRIMARY_PRESCRIBE_MODEL: "qwen3.8-flash",
+  PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL: "qwen3.8-max",
   PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
-  CLINICAL_FACTS_MODEL: "qwen3.7-flash",
+  CLINICAL_FACTS_MODEL: "qwen3.8-flash",
   CLINICAL_FACTS_REVIEW_MODEL: "qwen3.8-max",
-  CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.7-plus",
-  CONTROLLED_TERMINOLOGY_MODEL: "qwen3.7-flash",
+  CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.8-flash",
+  CONTROLLED_TERMINOLOGY_MODEL: "qwen3.8-flash",
 };
+{
+  // 结构化阶段靠供应商解码器执行 schema；矩阵里任何一个 Qwen 档没有严格模式，对应任务就退回
+  // json_object，「schema 对不上」这一整类问题会原样回来（9/11–9/19 的 DeepSeek 期即如此）。
+  const { textModelCapabilities } = await jiti.import("../src/lib/text-model-capabilities.ts");
+  for (const [modelVariable, model] of Object.entries(expectedModelMatrix)) {
+    if (!model.startsWith("qwen")) continue;
+    assert.equal(textModelCapabilities(model).strictJsonSchema, true,
+      `${modelVariable}=${model} must support strict JSON Schema`);
+  }
+}
 assert.match(composeSource, /STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS: \$\{STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS:-25000\}/);
 assert.match(envExampleSource, /^STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS=25000$/m);
 assert.match(composeSource, /AI_TEXT_PROVIDER: \$\{AI_TEXT_PROVIDER:-bailian-qwen\}/);
@@ -380,6 +392,9 @@ for (const [key, value] of Object.entries(modelEnv)) {
   process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL = "deepseek-v4-flash";
   assert.equal(modelForInitialConnectAttempt("qwen3.8-max", "prescribe", 1), "qwen3.8-max",
     "transport fallback must not cross the approved vendor/model family boundary");
+  delete process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL;
+  assert.equal(modelForInitialConnectAttempt("qwen3.8-flash", "prescribe", 1), "qwen3.8-max",
+    "unconfigured Qwen transport fallback must stay inside the approved flash/max pair");
   if (previousFallback == null) delete process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL;
   else process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL = previousFallback;
 }

@@ -28,6 +28,19 @@ function assertStrictObjects(value, path = "schema") {
   for (const [key, child] of Object.entries(value)) assertStrictObjects(child, `${path}.${key}`);
 }
 
+// 2026-09-19 同请求体配对重放：qwen3.8-flash strict 下这些数组「可空或允许空」时 6 次里只有 0–2 次有内容
+// （同时把证候/病位/病性写成 resolved），DeepSeek 6/6；加 minItems:1 后 9/9。只收紧下发给模型的 schema。
+const M03_NON_EMPTY_PATHS = [
+  ["overview", "primarySyndromeBasis"],
+  ["overview", "tcmDiseaseDifferentials"],
+  ["overview", "tcmDifferentials"],
+  ["pathogenesis", "locationDifferentiation", "items"],
+  ["pathogenesis", "locationDifferentiation", "details"],
+  ["pathogenesis", "natureDifferentiation", "items"],
+  ["pathogenesis", "uncertainties"],
+  ["therapy", "subTherapies"],
+];
+const schemaNodeAt = (schema, path) => path.reduce((node, key) => node?.properties?.[key], schema);
 for (const model of ["qwen3.7-plus", "qwen3.7-max", "qwen3.8-flash", "qwen3.8-max"]) {
   assert.equal(supportsStrictJsonSchema(model), true);
   for (const task of ["m03_full", "m03_western", "m03_tcm", "m04_proposal"]) {
@@ -43,6 +56,32 @@ for (const model of ["qwen3.7-plus", "qwen3.7-max", "qwen3.8-flash", "qwen3.8-ma
         1,
         `${model}/${task} must constrain generated M03 to a non-empty pathogenesis chain`,
       );
+      for (const path of M03_NON_EMPTY_PATHS) {
+        const node = schemaNodeAt(format.json_schema.schema, path);
+        const label = `${model}/${task} ${path.join(".")}`;
+        assert.equal(node?.minItems, 1, `${label} must be constrained to at least one generated item`);
+        // 可空就能用 null 绕过 minItems——实测「必填不可空但无 minItems」仍 0/6，两条缺一不可。
+        assert.equal(node?.type, "array", `${label} must not admit null`);
+        assert.equal("default" in node, false, `${label} must not advertise an empty default`);
+      }
+    }
+  }
+}
+{
+  // 约束只在下发给模型的投影上：共享 zod 契约（签名、HIS、确定性兜底）照旧接受空数组。
+  const { z } = await jiti.import("zod");
+  const { ReasoningV2Schema } = await jiti.import("../src/lib/diagnosis-types.ts");
+  const shared = z.toJSONSchema(ReasoningV2Schema, { unrepresentable: "any", reused: "ref" });
+  for (const path of M03_NON_EMPTY_PATHS) {
+    const node = schemaNodeAt(shared, path);
+    assert.ok(node, `shared contract must still declare ${path.join(".")}`);
+    assert.equal(node.minItems, undefined, `shared contract must not require ${path.join(".")} to be non-empty`);
+  }
+  // 西医半与 M04 实测本就 6/6 有内容，不收紧。
+  for (const task of ["m03_western", "m04_proposal"]) {
+    const serialized = JSON.stringify(responseFormatForTask("qwen3.8-flash", task));
+    for (const key of ["primarySyndromeBasis", "tcmDifferentials", "uncertainties", "subTherapies"]) {
+      assert.equal(serialized.includes(`"${key}"`), false, `${task} must not carry the TCM-half field ${key}`);
     }
   }
 }
@@ -109,9 +148,9 @@ console.log(JSON.stringify({ suite: "model-structured-output", tasks: 6, models:
   const { responseFormatForZodSchema } = await fmtJiti.import("../src/lib/model-response-format.ts");
   const { z } = await fmtJiti.import("zod");
   const schema = z.object({ answers: z.array(z.object({ questionId: z.string(), interpretation: z.string() })).max(2) });
-  // interpret 跟随 primary 模型（生产 BAILIAN_QWEN_MODEL=qwen3.7-plus）；flash 不在百炼严格模式
-  // 白名单（3.7-plus/3.7-max/3.8-max），落 json_object——这条边界一并钉住，防止有人把
-  // interpret 降到 flash 后误以为仍有解码层契约保护。
+  // interpret 跟随 primary 模型（生产 BAILIAN_QWEN_MODEL=qwen3.8-flash，2026-09-19 起）；qwen3.7-flash
+  // 不在百炼严格模式白名单（3.7-plus/3.7-max/3.8-flash/3.8-max），落 json_object——这条边界一并钉住，
+  // 防止有人把 interpret 降到 3.7-flash 后误以为仍有解码层契约保护。
   const strict = responseFormatForZodSchema("qwen3.7-plus", "m02_interpret", schema);
   assert.equal(strict.type, "json_schema", "支持严格模式的 Qwen 档必须走 json_schema");
   assert.equal(responseFormatForZodSchema("qwen3.7-flash", "m02_interpret", schema).type, "json_object",

@@ -16,7 +16,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - **框架**：Next.js 16（App Router，Turbopack，`output: "standalone"`）+ React 19 + TypeScript 5（strict）
 - **样式/UI**：Tailwind CSS 4 + shadcn（`src/components/ui`）、lucide-react、react-markdown
-- **模型接入**：`openai` SDK，OpenAI 兼容协议。生产 `AI_TEXT_PROVIDER=bailian-qwen`（百炼 compatible-mode），文本相位**按环节分档、并不统一**：M03 首轮 `qwen3.8-flash`（非思考模式 + 严格 JSON Schema；`qwen3.7-flash` 为单变量回滚）、M04 首轮 `qwen3.7-plus`、M03/M04 修复轮 `qwen3.8-max`、临床事实三相位 3.7-flash→max→plus。DeepSeek 保留为整体回退档（改 `AI_TEXT_PROVIDER=openai-compatible`），生产未启用。GLM 视觉默认开启且仅用于舌象图片
+- **模型接入**：`openai` SDK，OpenAI 兼容协议。生产 `AI_TEXT_PROVIDER=bailian-qwen`（百炼 compatible-mode），文本相位自 2026-09-19 起**只用两档**（owner 裁定）：`qwen3.8-flash` 负责 M02 出题、M03 两个半程与 M04 首轮及全部小任务（术语归一/重排/方名召回/否定辅助/M05 作文/M02 解释与复核），`qwen3.8-max` 负责 M03/M04 修复轮、事实复核与 M04 传输兜底；临床事实三相位 flash→max→flash（独立性按相邻两相位判定，两对都成立）。两档都执行严格 JSON Schema；M03 下发 schema 另把 8 个临床必有内容的数组钉成 minItems:1（`model-response-format.ts` 的 `requireGeneratedM03Content`），否则严格解码会把主证候依据、鉴别、病位病性、子治法、待核实信息写成空数组。`qwen3.7-flash` 没有严格模式，不能再当回滚。9/11–9/19 生产曾整链跑 `deepseek-flash`（json_object 不执行 schema，西医半每例括号错位），DeepSeek 仍保留为整体回退档（改 `AI_TEXT_PROVIDER=openai-compatible`），生产未启用。GLM 视觉默认开启且仅用于舌象图片
 - **校验**：zod 4
 - **数据库**：无 —— 病例状态在浏览器 localStorage（加密快照经服务端 AES-256-GCM）+ 本地 JSON 知识库
 - **重要**：本项目没有 `middleware.ts`。请求门控在 `src/proxy.ts`（导出 `proxy()` + `config.matcher`）。写框架代码前先读 `node_modules/next/dist/docs/` 中的官方文档，不要凭训练数据中的 Next.js 经验行事

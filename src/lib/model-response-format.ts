@@ -174,6 +174,49 @@ function requireGeneratedM03Chain(schema: JsonSchema): JsonSchema {
 }
 
 /**
+ * 生成侧「必须有内容」约束（2026-09-19，换回 Qwen strict 的前置条件）。
+ *
+ * 约束解码对「可空 + 缺省 []」与「必填但允许空数组」的数组一律走最短路径。同一请求体配对重放
+ * （3 例 × 2 次，qwen3.8-flash strict）：中医半主证候依据 1/6 有内容、病名鉴别与证候鉴别各 1/6、
+ * 病位与病性 2/6、子治法 2/6、待核实信息 0/6——同时把证候/病位/病性的 resolution 写成
+ * resolved，即「零依据的已明确」。同一请求体 DeepSeek 全部 6/6。只改成必填不可空仍 0/6，
+ * 加 minItems:1 才 6/6。
+ *
+ * 与 requireGeneratedM03Chain 同一分工：只收紧下发给模型的那份 schema，共享 zod 契约一个字不动
+ * ——确定性兜底合法地带空数组。有意不在此列的：recommendedFormulaNames（提示词明定检索短名单
+ * 无匹配时为 []）、secondarySyndromes / rootDeficiency / branchExcess / symptomClusters（临床上
+ * 可以没有，提示词写 0–6 组）、各 References（只许抄检索结果，强制非空会逼出编造引用）。
+ */
+const M03_GENERATED_NON_EMPTY_ARRAYS: readonly (readonly string[])[] = [
+  ["overview", "primarySyndromeBasis"],
+  ["overview", "tcmDiseaseDifferentials"],
+  ["overview", "tcmDifferentials"],
+  ["pathogenesis", "locationDifferentiation", "items"],
+  ["pathogenesis", "locationDifferentiation", "details"],
+  ["pathogenesis", "natureDifferentiation", "items"],
+  ["pathogenesis", "uncertainties"],
+  ["therapy", "subTherapies"],
+];
+
+function requireGeneratedM03Content(schema: JsonSchema): JsonSchema {
+  // reasoningHalfSchema 与缓存的完整 schema 共享嵌套节点，先克隆，免得改到缓存。
+  const clone = structuredClone(schema);
+  for (const path of M03_GENERATED_NON_EMPTY_ARRAYS) {
+    let parent: JsonSchema | undefined = clone;
+    for (const key of path.slice(0, -1)) parent = schemaProperties(parent)?.[key];
+    const leafKey = path[path.length - 1];
+    const leaf = schemaProperties(parent)?.[leafKey];
+    if (!parent || !leaf || leaf.type !== "array") continue;
+    delete leaf.default;
+    leaf.minItems = Math.max(1, typeof leaf.minItems === "number" ? leaf.minItems : 0);
+    // 不在 required 里的属性会被 strictProviderSchema 改成可空，模型就能用 null 绕过 minItems。
+    const required = Array.isArray(parent.required) ? parent.required as unknown[] : [];
+    if (!required.includes(leafKey)) parent.required = [...required, leafKey];
+  }
+  return clone;
+}
+
+/**
  * 生成侧合同裁剪（P2）。
  *
  * 校验用的 `ReasoningV2Schema` **一个字段都不动**——签名载荷、HIS 出口、页面投影、M04 输入
@@ -315,16 +358,18 @@ function pruneUnreachableDefs(schema: JsonSchema): JsonSchema {
 }
 
 function schemaForTask(task: StructuredOutputTask): JsonSchema {
-  if (task === "m03_full") return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Chain(fullReasoningSchema())));
+  if (task === "m03_full") {
+    return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Content(requireGeneratedM03Chain(fullReasoningSchema()))));
+  }
   if (task === "m04_proposal") return pruneUnreachableDefs(stripServerOwnedM04Fields(m04ProposalJsonSchema()));
   if (task === "m03_western") {
     return pruneUnreachableDefs(stripServerOwnedM03Fields(
       reasoningHalfSchema(["schemaVersion", "stage", "westernDiagnosis", "management"]),
     ));
   }
-  return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Chain(reasoningHalfSchema([
+  return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Content(requireGeneratedM03Chain(reasoningHalfSchema([
     "schemaVersion", "stage", "overview", "pathogenesis", "therapy", "formula", "nonPharma", "lineageAdaptation",
-  ]))));
+  ])))));
 }
 
 /**

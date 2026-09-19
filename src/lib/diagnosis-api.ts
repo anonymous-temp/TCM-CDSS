@@ -747,7 +747,7 @@ export function modelForInitialConnectAttempt(
 ): string {
   if (attempt <= 0 || stage !== "prescribe") return primaryModel;
   const configured = process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL?.trim();
-  const fallback = configured || (isQwenModel(primaryModel) ? "qwen3.7-plus" : primaryModel);
+  const fallback = configured || (isQwenModel(primaryModel) ? "qwen3.8-max" : primaryModel);
   if (!isApprovedTextModel(fallback)) return primaryModel;
   const sameFamily = isQwenModel(primaryModel) === isQwenModel(fallback);
   return sameFamily ? fallback : primaryModel;
