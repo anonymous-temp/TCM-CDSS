@@ -145,19 +145,58 @@ export function getPrimaryTextModelConfig(): TextModelConfig {
 }
 
 /**
+ * 按**模型家族**解析出该模型真正可用的端点与密钥。
+ *
+ * 在此之前，每个 per-stage 模型变量都直接套用主 provider 的端点与密钥，只换模型名：
+ * 主 provider 是百炼时把 `deepseek-flash` 填进 `CONTROLLED_TERMINOLOGY_MODEL`，请求会带着
+ * DeepSeek 的模型名打到 dashscope，100% 失败；辅助任务失败都是静默 fail-open 到确定性结果，
+ * 于是「配错了」和「模型没意见」长得一模一样。
+ *
+ * 需要这条路径的理由是延迟：主生成必须留在 Qwen（严格 JSON Schema 是 2026-09-19 换回 Qwen 的
+ * 全部理由，DeepSeek 的 json_object 不执行 schema），但小任务只用 json_object，而 DeepSeek
+ * 的出字速度实测是 qwen3.8-flash 的 2–3 倍（线上账本：185–227 tok/s vs 65–95）。
+ *
+ * 边界：目标家族没配齐（缺 key / 非 HTTPS / 端点不在白名单）时 **fail-closed**——返回
+ * configured=false，调用方按既有分支退回确定性结果，绝不偷偷改用另一个家族的模型顶包。
+ */
+export function textModelConfigForModel(model: string): TextModelConfig {
+  const primary = getPrimaryTextModelConfig();
+  const requested = model.trim();
+  if (!requested || !isApprovedTextModel(requested)) {
+    return { ...primary, model: requested || primary.model, configured: false, disabledReason: "vendor_policy" };
+  }
+  if (sameModelFamily(primary.model, requested)) return { ...primary, model: requested };
+  const wantsQwen = isQwenModel(requested);
+  const alternate = wantsQwen ? getBailianQwenConfig() : getOpenAICompatibleConfig();
+  const vendorAllowed = endpointHostAllowed(
+    alternate.baseUrl,
+    wantsQwen ? ["dashscope.aliyuncs.com"] : ["api.deepseek.com"],
+  );
+  const usable = Boolean(alternate.apiKey) && alternate.transportAllowed && vendorAllowed;
+  return {
+    ...alternate,
+    providerLabel: wantsQwen ? "Alibaba Cloud Bailian Qwen" : "DeepSeek",
+    model: requested,
+    configured: usable,
+    disabledReason: usable
+      ? undefined
+      : !alternate.apiKey
+        ? "missing_api_key"
+        : !alternate.transportAllowed
+          ? "insecure_transport"
+          : "vendor_policy",
+  };
+}
+
+/**
  * Explicit GOV-08 exception: this is an independent closed-set terminology classifier, not a
  * fallback for M01-M04 clinical generation. Its model identity is separately visible in health.
+ * 该变量同时驱动术语归一、证候重排、方名召回归一、极性助手与 M05 作文这五个小任务。
  */
 export function getControlledTerminologyModelConfig(): TextModelConfig {
-  const primary = getPrimaryTextModelConfig();
-  const model = process.env.CONTROLLED_TERMINOLOGY_MODEL?.trim() || primary.model;
-  const modelAllowed = sameModelFamily(primary.model, model);
-  return {
-    ...primary,
-    model,
-    configured: primary.configured && modelAllowed,
-    disabledReason: !modelAllowed ? "vendor_policy" : primary.disabledReason,
-  };
+  const model = process.env.CONTROLLED_TERMINOLOGY_MODEL?.trim();
+  if (!model) return getPrimaryTextModelConfig();
+  return textModelConfigForModel(model);
 }
 
 /** Application recovery owns the whole retry budget when selected; other callers retain SDK recovery. */

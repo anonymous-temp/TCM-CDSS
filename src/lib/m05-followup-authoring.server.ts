@@ -36,7 +36,13 @@ import { consumeFollowupWork, type FollowupSharedWork } from "./m05-followup-sha
  *     也删不掉「不要自行叠加中药或中成药，复诊时携带全部药物清单」这条固定安全句。
  */
 
-const AUTHORING_TIMEOUT_MS = 12_000;
+// 线上实测（qwen3.8-flash，2026-09-19/20）：p50 9.0s、p90 撞 12s 上限、21 次里 4 次超时。
+// 超时那 19% 是最差的结局——医生等满 12s，拿到的却是与不调模型完全相同的模板。
+// 放到 20s 并改成环境变量可调；白天高峰百炼出字速度会掉到 1/3，12s 在那个时段不够用。
+const AUTHORING_TIMEOUT_MS = (() => {
+  const value = Number(process.env.M05_FOLLOWUP_AUTHORING_TIMEOUT_MS || 20_000);
+  return Number.isFinite(value) && value >= 5_000 && value <= 30_000 ? Math.round(value) : 20_000;
+})();
 const GOVERNED_DIMENSIONS = SIX_HEALTH_FOLLOWUP_DIMENSIONS.map((item) => item.dimension);
 
 /** 引用标记：证据绑定要求引用必须有 KB 条目背书。纯格式判据。 */

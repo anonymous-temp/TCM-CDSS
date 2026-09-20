@@ -14,7 +14,13 @@ import {
 import { createTextModelClient, getControlledTerminologyModelConfig, textModelRequestTuning } from "./text-model";
 import { observeModelTask } from "./cdss-model-task-telemetry";
 
-const RERANK_TIMEOUT_MS = 6_000;
+// 6s 是按 qwen3.7-flash（p50≈1.2s）定的。2026-09-19 换 qwen3.8-flash 后线上实测 p50 3.1s、
+// p90 贴着 6s 上限、26 次里 3 次超时——超时那几次是「等满 6s 再退回 L1a」，时间花了结果没用上。
+// 放到 10s，并改成环境变量可调：调预算不该再触发一次镜像重建。
+const RERANK_TIMEOUT_MS = (() => {
+  const value = Number(process.env.SYNDROME_RERANK_TIMEOUT_MS || 10_000);
+  return Number.isFinite(value) && value >= 3_000 && value <= 20_000 ? Math.round(value) : 10_000;
+})();
 const MAX_FACT_CHARS = 600;
 const MAX_RERANK_DECISIONS = 8;
 

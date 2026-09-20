@@ -157,7 +157,12 @@ const DIAGNOSIS_STREAM_IDLE_TIMEOUT_MS = 195_000;
 const DIAGNOSIS_STREAM_TOTAL_TIMEOUT_MS = 210_000;
 const WORKSPACE_RESTORE_TIMEOUT_MS = 8_000;
 const HERB_FUNCTION_LOOKUP_TIMEOUT_MS = 8_000;
-const RED_FLAG_SEMANTIC_TIMEOUT_MS = 12_000;
+// The server bounds the whole semantic pre-check at 25s (CLINICAL_FACTS_TOTAL_TIMEOUT_MS). A browser
+// deadline below that aborts a computation the server is still allowed to finish: the abort cancels
+// the upstream calls, nothing is cached, and the next stage route repeats the full extract+review.
+// A cold production pre-check measured 11.4s against the former 12s limit, so keep only a small
+// transport margin above the server ceiling.
+const RED_FLAG_SEMANTIC_TIMEOUT_MS = 26_000;
 // The clinic treatment-project scope is one small status read: no streamed chunks and no
 // server-declared deadline, so elapsed wall time is the only continuous signal that honestly
 // exists. Bounding the read gives that signal an endpoint, so the panel always resolves to a

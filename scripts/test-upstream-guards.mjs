@@ -122,7 +122,9 @@ const expectedModelMatrix = {
   CLINICAL_FACTS_MODEL: "qwen3.8-max",
   CLINICAL_FACTS_REVIEW_MODEL: "qwen3.8-max",
   CLINICAL_FACTS_ADJUDICATION_MODEL: "qwen3.8-max",
-  CONTROLLED_TERMINOLOGY_MODEL: "qwen3.8-flash",
+  // 小任务改跑 DeepSeek（2026-09-20）。主生成留在 Qwen：严格 JSON Schema 是 9/19 换回 Qwen 的全部理由。
+  CONTROLLED_TERMINOLOGY_MODEL: "deepseek-flash",
+  PRIMARY_REVIEW_MODEL: "deepseek-flash",
 };
 {
   // 结构化阶段靠供应商解码器执行 schema；矩阵里任何一个 Qwen 档没有严格模式，对应任务就退回
@@ -137,6 +139,59 @@ const expectedModelMatrix = {
 assert.match(composeSource, /STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS: \$\{STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS:-25000\}/);
 assert.match(envExampleSource, /^STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS=25000$/m);
 assert.match(composeSource, /AI_TEXT_PROVIDER: \$\{AI_TEXT_PROVIDER:-bailian-qwen\}/);
+{
+  // 跨厂商解析（2026-09-20）：per-stage 模型变量过去一律套用主 provider 的端点与密钥，只换模型名。
+  // 主 provider 是百炼时把 deepseek-* 填进这些变量，请求会带着 DeepSeek 的模型名打到 dashscope，
+  // 100% 上游失败；而小任务失败全是静默 fail-open 到确定性结果，「配错了」与「模型没意见」无法区分。
+  const { textModelConfigForModel } = await jiti.import("../src/lib/text-model.ts");
+  const withEnv = async (patch, fn) => {
+    const saved = Object.fromEntries(Object.keys(patch).map((key) => [key, process.env[key]]));
+    Object.entries(patch).forEach(([key, value]) => {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    });
+    try { return await fn(); } finally {
+      Object.entries(saved).forEach(([key, value]) => {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      });
+    }
+  };
+  const qwenPrimary = {
+    AI_TEXT_PROVIDER: "bailian-qwen",
+    BAILIAN_QWEN_API_KEY: "test-qwen-key",
+    BAILIAN_QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    BAILIAN_QWEN_MODEL: "qwen3.8-flash",
+    OPENAI_API_KEY: "test-deepseek-key",
+    OPENAI_BASE_URL: "https://api.deepseek.com",
+    OPENAI_MODEL: "deepseek-flash",
+    CDSS_TEXT_MODEL_ALLOWED_HOSTS: "",
+    CDSS_DEEPSEEK_ALLOWED_HOSTS: "",
+  };
+  await withEnv(qwenPrimary, () => {
+    const cross = textModelConfigForModel("deepseek-flash");
+    assert.equal(cross.configured, true, "配齐 OPENAI_* 时跨厂商小任务必须可用");
+    assert.equal(cross.model, "deepseek-flash");
+    assert.equal(new URL(cross.baseUrl).hostname, "api.deepseek.com",
+      "DeepSeek 模型必须走 DeepSeek 端点，绝不能沿用主 provider 的 dashscope 端点");
+    assert.equal(cross.apiKey, "test-deepseek-key", "跨厂商必须改用该家族自己的密钥");
+    const same = textModelConfigForModel("qwen3.8-max");
+    assert.equal(new URL(same.baseUrl).hostname, "dashscope.aliyuncs.com");
+    assert.equal(same.apiKey, "test-qwen-key");
+  });
+  await withEnv({ ...qwenPrimary, OPENAI_API_KEY: "" }, () => {
+    const cross = textModelConfigForModel("deepseek-flash");
+    assert.equal(cross.configured, false, "目标家族缺密钥必须 fail-closed，调用方退回确定性结果");
+    assert.equal(cross.disabledReason, "missing_api_key");
+  });
+  await withEnv({ ...qwenPrimary, OPENAI_BASE_URL: "https://evil.example.com/v1" }, () => {
+    assert.equal(textModelConfigForModel("deepseek-flash").configured, false,
+      "端点不在批准白名单必须 fail-closed");
+  });
+  await withEnv(qwenPrimary, () => {
+    assert.equal(textModelConfigForModel("gpt-4o").configured, false, "未批准模型一律 fail-closed");
+  });
+}
 assert.match(envExampleSource, /^AI_TEXT_PROVIDER=bailian-qwen$/m);
 for (const [modelVariable, expectedModel] of Object.entries(expectedModelMatrix)) {
   assert.match(

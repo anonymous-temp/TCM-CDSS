@@ -50,11 +50,18 @@ services:
       # fallback clinical reasoner. The persistent cache turns accepted variants into a stable,
       # deterministic path after the first two-call consensus.
       CONTROLLED_TERMINOLOGY_NORMALIZATION: ${CONTROLLED_TERMINOLOGY_NORMALIZATION:-true}
-      CONTROLLED_TERMINOLOGY_MODEL: ${CONTROLLED_TERMINOLOGY_MODEL:-qwen3.8-flash}
+      # 小任务在 DeepSeek 上快 2–5 倍（2026-09-20 本机 A/B）；主生成留在 Qwen 严格 schema。
+      CONTROLLED_TERMINOLOGY_MODEL: ${CONTROLLED_TERMINOLOGY_MODEL:-deepseek-flash}
+      PRIMARY_REVIEW_MODEL: ${PRIMARY_REVIEW_MODEL:-deepseek-flash}
       CONTROLLED_TERMINOLOGY_MIN_CONFIDENCE: ${CONTROLLED_TERMINOLOGY_MIN_CONFIDENCE:-0.8}
       FORMULA_RECALL_NORMALIZATION: ${FORMULA_RECALL_NORMALIZATION:-true}
       POLARITY_NEGATION_ASSIST: ${POLARITY_NEGATION_ASSIST:-true}
       SYNDROME_HYPOTHESIS_RERANK: ${SYNDROME_HYPOTHESIS_RERANK:-true}
+      # 小任务时限（2026-09-20 放宽；都可在此覆盖，调预算不必重建镜像）。
+      SYNDROME_RERANK_TIMEOUT_MS: ${SYNDROME_RERANK_TIMEOUT_MS:-10000}
+      M05_FOLLOWUP_AUTHORING_TIMEOUT_MS: ${M05_FOLLOWUP_AUTHORING_TIMEOUT_MS:-20000}
+      M02_QUESTION_REVIEW_TIMEOUT_MS: ${M02_QUESTION_REVIEW_TIMEOUT_MS:-20000}
+      CLINICAL_FACTS_PHASE_TIMEOUT_MS: ${CLINICAL_FACTS_PHASE_TIMEOUT_MS:-15000}
       CONTROLLED_TERMINOLOGY_CACHE_PATH: /app/runtime-data/controlled-terminology-cache.json
       # 院内药品库存（入站药品同步）。与上一项共用已挂载的 tcm-cdss-runtime 卷，重启与重新部署都不丢。
       CDSS_DRUG_INVENTORY_PATH: /app/runtime-data/drug-inventory
