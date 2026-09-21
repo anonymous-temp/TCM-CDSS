@@ -38,7 +38,8 @@ export type ControlledTerminologyMapping = {
   status: "suggested" | "clinician_confirmed";
   confidence: number;
   model: string;
-  consensus: true;
+  /** 仅 2026-09-20 之前的两次一致映射携带；单次调用起不再输出，保留为可选以兼容已签名的旧载荷。 */
+  consensus?: true;
   cache: "hit" | "miss";
 };
 
@@ -108,17 +109,18 @@ export function prefilterControlledSemanticCandidates(
     .map((item) => item.candidate);
 }
 
-export function validatedConsensusDecision(
+/**
+ * 单次闭集映射的受理判据（2026-09-20 起取代两次一致共识：同一提示词、同一模型、temperature 0
+ * 连发两遍只是同一张彩票再买一次）。仍然守住三条：候选必须来自服务端预筛的闭集、置信度不低于
+ * 下限、模型弃权（candidateId=null）不形成映射。映射只是待医生确认的召回建议，不静默替换签名结论。
+ */
+export function validatedClosedSetDecision(
   target: ControlledSemanticTarget,
-  first: ControlledSemanticDecision | undefined,
-  second: ControlledSemanticDecision | undefined,
+  decision: ControlledSemanticDecision | undefined,
   minimumConfidence = 0.8,
 ): { candidate: ControlledSemanticCandidate; confidence: number } | undefined {
-  if (!first || !second || first.key !== target.key || second.key !== target.key) return undefined;
-  if (!first.candidateId || first.candidateId !== second.candidateId) return undefined;
-  if (!Number.isFinite(first.confidence) || !Number.isFinite(second.confidence)) return undefined;
-  const confidence = Math.min(first.confidence, second.confidence);
-  if (confidence < minimumConfidence) return undefined;
-  const candidate = target.candidates.find((item) => item.id === first.candidateId);
-  return candidate ? { candidate, confidence: Math.min(1, Math.max(0, confidence)) } : undefined;
+  if (!decision || decision.key !== target.key || !decision.candidateId) return undefined;
+  if (!Number.isFinite(decision.confidence) || decision.confidence < minimumConfidence) return undefined;
+  const candidate = target.candidates.find((item) => item.id === decision.candidateId);
+  return candidate ? { candidate, confidence: Math.min(1, Math.max(0, decision.confidence)) } : undefined;
 }

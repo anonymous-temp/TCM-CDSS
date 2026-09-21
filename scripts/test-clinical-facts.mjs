@@ -823,6 +823,10 @@ ok("稳定性: T6 将孤立非急性胸闷约束为常规背景，避免批量�
 // —— 隐私边界: 即使生产开启 LLM 事实回填，外发文本也必须先经过统一 PHI 清洗 ——
 delete process.env.CDSS_CLINICAL_FACTS_BACKSTOP;
 process.env.CLINICAL_FACTS_ATTESTATION_KEY = "clinical-facts-test-key-2026";
+// 以下运行时用例验证的是**复核相位本身**的信任边界（单调合并、空复核不得抹掉首轮急症、
+// 复核失败不签名……）。2026-09-20 起复核缺省关闭，但这些性质在重新开启时必须照旧成立，
+// 所以这一段显式开启复核；缺省关闭的行为在文件末尾单独断言。
+process.env.CDSS_CLINICAL_FACTS_REVIEW = "true";
 const {
   CLINICAL_FACTS_ATTESTATION_VERSION,
   CLINICAL_FACTS_CACHE_TTL_MS,
@@ -1479,6 +1483,29 @@ ok("prompt: 提取与复核提示含发热分诊 ≥40℃/受损 原则线", (()
   ok("neuro cap: 头痛伴喷射性呕吐 保留", shown("头痛，喷射性呕吐", "clarify") === true);
   // 单调性：cap 绝不作用于 emergency/urgent（即便普通头晕词也不得因 cap 被抹除）
   ok("neuro cap: 普通头晕若被模型判 urgent 不被 cap 抹除", shown("头晕", "urgent") === true);
+}
+
+// —— 2026-09-20 复核相位缺省关闭：单次抽取即权威结果 ——
+{
+  delete process.env.CDSS_CLINICAL_FACTS_REVIEW;
+  const phases = [];
+  const singlePassState = await maybeAttachClinicalFactsBackstop({
+    ...possibleState,
+    id: "single-pass-default",
+    chiefComplaint: "胸痛没有缓解，已持续30分钟",
+    clinicalFacts: undefined,
+  }, async (_system, _user, _signal, phase) => {
+    phases.push(phase);
+    return JSON.stringify({ redFlags: [{ category: "cardiac", subject: "patient", status: "positive", urgency: "emergency", triageBasis: "time_sensitive_cardiovascular_event", quote: "胸痛没有缓解，已持续30分钟" }] });
+  });
+  ok("复核缺省关闭: 只发一次抽取调用，不再发复核", phases.length === 1 && phases[0] === "extract");
+  ok("复核缺省关闭: 结果标 single_pass 并签名（否则不进缓存，下一个路由整套重抽）",
+    singlePassState.clinicalFacts?.reviewStatus === "single_pass" &&
+    hasValidClinicalFactsAttestation(singlePassState.clinicalFacts));
+  ok("复核缺省关闭: 语义急症照常进入门禁，且不被判复核未完成",
+    withSafetyGate(singlePassState).safetyGate?.status === "red_flag" &&
+    !(withSafetyGate(singlePassState).safetyGate?.missingItems || []).some((item) => /复核未完成/.test(item)));
+  process.env.CDSS_CLINICAL_FACTS_REVIEW = "true";
 }
 
 console.log(`\n${pass} passed`);

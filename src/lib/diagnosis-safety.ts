@@ -19,6 +19,7 @@ import { generalizeOccupation, shouldRedactNarrativeNameCandidate, scrubQuasiIde
 import { determineCompletenessLevel } from "./diagnosis-parse";
 import {
   additiveRedFlagsFromFacts,
+  clinicalFactsReviewSettled,
   groundedPatientTriageCategories,
   priorityEvaluationItemsFromFacts,
   semanticTriageAdvisoriesFromFacts,
@@ -4098,7 +4099,7 @@ function semanticScreeningUnavailableItem(state: CaseState): string | undefined 
   if (state.clinicalFacts?.sourceCoverage === "partial") {
     return "病历超出语义红旗预检完整覆盖范围";
   }
-  if (state.clinicalFacts?.semanticStatus === "checked" && state.clinicalFacts.reviewStatus !== "checked") {
+  if (state.clinicalFacts?.semanticStatus === "checked" && !clinicalFactsReviewSettled(state.clinicalFacts.reviewStatus)) {
     return "语义红旗独立复核未完成";
   }
   if (state.clinicalFacts?.semanticStatus !== "unavailable") return undefined;
@@ -4501,7 +4502,8 @@ export function evaluateSafetyGate(state: CaseState): SafetyGate {
   // 纪律不变：只增不减，确定性阳性红旗与危急体征永远不会被它取消；类目级去重由
   // additiveRedFlagsFromFacts(existingRedFlags) 自己完成。仅在语义结果已过独立复核
   //（reviewStatus=checked）时参与升级，未复核的语义结果保持展示级。
-  const reviewedSemanticEmergencyFindings = state.clinicalFacts?.reviewStatus === "checked"
+  // 2026-09-20 起复核相位按配置关闭，接地后的单次抽取（single_pass）同为完成态，照常参与升级。
+  const reviewedSemanticEmergencyFindings = clinicalFactsReviewSettled(state.clinicalFacts?.reviewStatus)
     ? additiveRedFlagsFromFacts(state.clinicalFacts, semanticSourceText, programmaticRedFlags)
     : [];
   const redFlags = [...programmaticRedFlags, ...reviewedSemanticEmergencyFindings];

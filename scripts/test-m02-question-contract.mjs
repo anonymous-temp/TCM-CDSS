@@ -207,40 +207,33 @@ assert.doesNotMatch(semanticallyReviewed, /口中发黏在进食后是否明显�
 assert.match(semanticReviewPrompt, /任一子条件已由病历明确回答/, "review contract decomposes bundled known and unknown subconditions");
 assert.match(semanticReviewPrompt, /sourceEvidence/, "the independent reviewer receives the provider's claimed grounding for known-answer detection");
 
-let conservativeReviewAttempt = 0;
-const conservativelyReviewed = await reviewM02QuestionPlan(
+// 2026-09-20 owner 裁定：复核只调一次。此前同一提示词、同一模型、temperature 0 并行发两遍取并集，
+// 输入逐字相同，第二遍只是同一张彩票再买一次。
+let singleReviewAttempt = 0;
+const singleDrawReviewed = await reviewM02QuestionPlan(
   groundedTyped,
   "现病史：进食后口中黏腻明显加重。",
   undefined,
   async () => {
-    conservativeReviewAttempt += 1;
-    return JSON.stringify({ decisions: [{
-      questionId: "q1",
-      status: conservativeReviewAttempt === 1 ? "retain" : "remove_known",
-      reason: conservativeReviewAttempt === 1 ? "未识别重复" : "病历已明确记录进食后加重",
-    }] });
+    singleReviewAttempt += 1;
+    return JSON.stringify({ decisions: [{ questionId: "q1", status: "remove_known", reason: "病历已明确记录进食后加重" }] });
   },
 );
-assert.equal(conservativeReviewAttempt, 2, "M02 semantic review uses two independent bounded draws");
-assert.equal(
-  parseM02PlanFromContent(conservativelyReviewed)?.decision,
-  "proceed",
-  "one reviewer detecting a known bundled condition overrides another reviewer's false retain",
-);
+assert.equal(singleReviewAttempt, 1, "M02 semantic review is a single call");
+assert.equal(parseM02PlanFromContent(singleDrawReviewed)?.decision, "proceed", "the single review's known-answer removal is applied");
 
-let partialReviewAttempt = 0;
-const partiallyAvailableReview = await reviewM02QuestionPlan(
+let invalidReviewAttempt = 0;
+const invalidSingleReview = await reviewM02QuestionPlan(
   groundedTyped,
   "现病史：进食后口中黏腻明显加重。",
   undefined,
   async () => {
-    partialReviewAttempt += 1;
-    return partialReviewAttempt === 1
-      ? "not-json"
-      : JSON.stringify({ decisions: [{ questionId: "q1", status: "remove_known", reason: "病历已明确回答" }] });
+    invalidReviewAttempt += 1;
+    return "not-json";
   },
 );
-assert.equal(parseM02PlanFromContent(partiallyAvailableReview)?.decision, "proceed", "one valid review remains authoritative when the parallel draw is invalid");
+assert.equal(invalidReviewAttempt, 1, "an invalid review is not silently re-drawn");
+assert.ok(parseM02PlanFromContent(invalidSingleReview), "an invalid review falls back to the deterministic judgment and keeps a valid plan");
 
 const allRejectedWithFallback = await reviewM02QuestionPlan(
   groundedTyped,

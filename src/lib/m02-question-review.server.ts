@@ -289,21 +289,17 @@ export async function reviewM02QuestionPlan(
       })))}`,
     ].join("\n\n");
     const questionIds = plan.questions.map((question) => question.id);
-    // Two independent draws run in parallel under one bounded deadline. One invalid/failed draw
-    // cannot erase a valid decision from the other; when both fail, the deterministic backstop
-    // remains authoritative and the workflow continues without inventing a new patient fact.
-    const attempts = await Promise.allSettled([
-      call(prompt, controller.signal),
-      call(prompt, controller.signal),
-    ]);
+    // 单次调用（2026-09-20 owner 裁定）。此前是同一提示词、同一模型、temperature 0 并行发两遍再取
+    // 并集——两次输入逐字相同，第二次只是同一张彩票再买一次，成本翻倍而判断不变。
+    // 调用失败或输出非法时，确定性初判重新成为权威，流程照常继续、不臆造新的患者事实。
+    const attempts = await Promise.allSettled([call(prompt, controller.signal)]);
     const reviews = attempts.flatMap((attempt) => {
       if (attempt.status !== "fulfilled") return [];
       const parsed = parseReview(attempt.value, questionIds);
       return parsed ? [parsed] : [];
     });
     if (reviews.length === 0) {
-      // 两次抽样都失败 ⇒ 模型没有给出判断，此时确定性初判重新成为权威，
-      // 行为与改动前逐字相同（fail-closed 到今天）。
+      // 模型没有给出可用判断 ⇒ 确定性初判重新成为权威，行为与改动前逐字相同（fail-closed 到今天）。
       return emptyPlanFallback(deterministicRemovalIds.length > 0
         ? removeM02PlanQuestions(
             deterministicallyNeutralized,

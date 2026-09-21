@@ -19,7 +19,7 @@ import {
   type ControlledSemanticNamespace,
   type ControlledSemanticTarget,
   type ControlledTerminologyMapping,
-  validatedConsensusDecision,
+  validatedClosedSetDecision,
 } from "./controlled-semantic-normalization";
 import {
   createTextModelClient,
@@ -59,22 +59,22 @@ type JsonRecord = Record<string, unknown>;
 // 失败方向与直觉相反：越完整的诊断越拿不到国标名。上限一致性由 test:guard-symmetry 钉住。
 const MAX_TARGETS_PER_CALL = 20;
 const MAX_CACHE_ENTRIES = 4_000;
-const CONSENSUS_TOTAL_TIMEOUT_MS = 25_000;
-const CONSENSUS_ATTEMPT_TIMEOUT_MS = 12_000;
+// 单次闭集调用的时限。2026-09-20 起只调一次（此前两腿并行 + 一条补跑腿，共享 25s 总预算）。
+const CLOSED_SET_TIMEOUT_MS = 12_000;
 
-// 消极共识短 TTL 缓存：模型**有响应但未达共识/弃权**的目标，在 TTL 内不再重复发起闭集调用。
+// 未映射短 TTL 缓存：模型**有响应但弃权或置信度不足**的目标，在 TTL 内不再重复发起闭集调用。
 // 同一 M03 请求会跑两遍 prepare（梯子预处理 + 复核前 finalize），修复轮还会再来一遍——
-// 没有这层时每一遍都为同一批注定失败的目标各烧两条模型腿（实测两遍共 60s+）。
+// 没有这层时每一遍都为同一批注定映射不上的目标重复调用（实测两遍共 60s+）。
 // 传输失败/超时不进此缓存，保持可用性语义：下次照常重试。
-const NO_CONSENSUS_TTL_MS = 10 * 60_000;
-const NO_CONSENSUS_MAX_ENTRIES = 2_000;
-const noConsensusCache = new Map<string, { expiresAt: number; candidateFingerprint: string }>();
-function rememberNoConsensus(key: string, fingerprint: string): void {
-  if (noConsensusCache.size >= NO_CONSENSUS_MAX_ENTRIES) noConsensusCache.clear();
-  noConsensusCache.set(key, { expiresAt: Date.now() + NO_CONSENSUS_TTL_MS, candidateFingerprint: fingerprint });
+const NO_MAPPING_TTL_MS = 10 * 60_000;
+const NO_MAPPING_MAX_ENTRIES = 2_000;
+const noMappingCache = new Map<string, { expiresAt: number; candidateFingerprint: string }>();
+function rememberNoMapping(key: string, fingerprint: string): void {
+  if (noMappingCache.size >= NO_MAPPING_MAX_ENTRIES) noMappingCache.clear();
+  noMappingCache.set(key, { expiresAt: Date.now() + NO_MAPPING_TTL_MS, candidateFingerprint: fingerprint });
 }
-function hasFreshNoConsensus(key: string, fingerprint: string): boolean {
-  const entry = noConsensusCache.get(key);
+function hasFreshNoMapping(key: string, fingerprint: string): boolean {
+  const entry = noMappingCache.get(key);
   return Boolean(entry && entry.expiresAt > Date.now() && entry.candidateFingerprint === fingerprint);
 }
 const PROBE_CACHE_TTL_MS = 5 * 60_000;
@@ -362,7 +362,7 @@ function semanticPrompt(targets: readonly ControlledSemanticTarget[]): string {
 async function callClosedSetModel(
   targets: readonly ControlledSemanticTarget[],
   signal?: AbortSignal,
-  timeoutMs = CONSENSUS_ATTEMPT_TIMEOUT_MS,
+  timeoutMs = CLOSED_SET_TIMEOUT_MS,
   task = "controlled_terminology",
 ): Promise<ControlledSemanticDecision[]> {
   if (signal?.aborted) return [];
@@ -396,31 +396,6 @@ async function callClosedSetModel(
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
   }
-}
-
-async function callClosedSetConsensusWithRecovery(
-  targets: readonly ControlledSemanticTarget[],
-  signal?: AbortSignal,
-  task = "controlled_terminology",
-): Promise<[ControlledSemanticDecision[], ControlledSemanticDecision[]]> {
-  const deadline = Date.now() + CONSENSUS_TOTAL_TIMEOUT_MS;
-  const runLeg = () => callClosedSetModel(
-    targets,
-    signal,
-    Math.min(CONSENSUS_ATTEMPT_TIMEOUT_MS, Math.max(1, deadline - Date.now())),
-    task,
-  );
-  let [first, second] = await Promise.all([runLeg(), runLeg()]);
-  // Consensus is impossible when both independent legs are empty. Retrying both simultaneously
-  // doubled optional terminology traffic exactly when the provider was already congested, and let
-  // a non-safety annotation consume ~50s before M04. When exactly one leg succeeded, retry only the
-  // missing leg and only inside the shared 25s budget; the two-invocation consensus rule is intact.
-  if (signal?.aborted || (first.length === 0) === (second.length === 0) || Date.now() >= deadline) {
-    return [first, second];
-  }
-  if (first.length === 0) first = await runLeg();
-  else second = await runLeg();
-  return [first, second];
 }
 
 function replaceSentinelJson(content: string, transform: (value: JsonRecord) => JsonRecord): string {
@@ -482,35 +457,28 @@ export async function annotateM03ControlledTerminology(
         status: "suggested",
         confidence: cached.confidence,
         model: config.model,
-        consensus: true,
         cache: "hit",
       });
     } else {
       misses.push(target);
     }
   }
-  const modelMisses = misses.filter((target) => !hasFreshNoConsensus(
+  const modelMisses = misses.filter((target) => !hasFreshNoMapping(
     targetCacheKey(target, config.model),
     candidateFingerprint(target),
   ));
   if (modelMisses.length > 0 && !signal?.aborted) {
-    const [first, second] = await callClosedSetConsensusWithRecovery(modelMisses, signal);
-    const firstByKey = new Map(first.map((item) => [item.key, item]));
-    const secondByKey = new Map(second.map((item) => [item.key, item]));
+    const decisions = await callClosedSetModel(modelMisses, signal);
+    const decisionsByKey = new Map(decisions.map((item) => [item.key, item]));
     const minimumConfidence = Math.min(0.99, Math.max(0.5,
       Number(process.env.CONTROLLED_TERMINOLOGY_MIN_CONFIDENCE || 0.8)));
     for (const target of modelMisses) {
-      const accepted = validatedConsensusDecision(
-        target,
-        firstByKey.get(target.key),
-        secondByKey.get(target.key),
-        minimumConfidence,
-      );
+      const accepted = validatedClosedSetDecision(target, decisionsByKey.get(target.key), minimumConfidence);
       if (!accepted) {
         // 只有模型确实对该目标给出了裁决（含 candidateId=null 弃权）才负缓存；
-        // 两腿都没返回该 key（超时/传输失败）时不缓存，保持重试语义。
-        if (firstByKey.has(target.key) || secondByKey.has(target.key)) {
-          rememberNoConsensus(targetCacheKey(target, config.model), candidateFingerprint(target));
+        // 没返回该 key（超时/传输失败）时不缓存，保持重试语义。
+        if (decisionsByKey.has(target.key)) {
+          rememberNoMapping(targetCacheKey(target, config.model), candidateFingerprint(target));
         }
         continue;
       }
@@ -524,7 +492,6 @@ export async function annotateM03ControlledTerminology(
         status: "suggested",
         confidence: accepted.confidence,
         model: config.model,
-        consensus: true,
         cache: "miss",
       };
       mappings.push(mapping);
@@ -556,18 +523,17 @@ async function runProbe() {
   if (!config.configured) return { ok: false, reason: "not_configured" as const, model: getPublicTextModelStatus(config) };
   const target = makeTarget("probe", "tcm_syndrome", "probe", "痰热扰神证", 12);
   if (!target) return { ok: false, reason: "candidate_prefilter_unavailable" as const, model: getPublicTextModelStatus(config) };
-  const [first, second] = await callClosedSetConsensusWithRecovery([target], undefined, "controlled_terminology_probe");
-  const accepted = validatedConsensusDecision(
+  const decisions = await callClosedSetModel([target], undefined, CLOSED_SET_TIMEOUT_MS, "controlled_terminology_probe");
+  const accepted = validatedClosedSetDecision(
     target,
-    first.find((item) => item.key === "probe"),
-    second.find((item) => item.key === "probe"),
+    decisions.find((item) => item.key === "probe"),
     Math.min(0.99, Math.max(0.5, Number(process.env.CONTROLLED_TERMINOLOGY_MIN_CONFIDENCE || 0.8))),
   );
   const valid = accepted?.candidate.canonical === "痰火扰神";
   if (!valid || !accepted) {
     return {
       ok: false,
-      reason: "semantic_mapping_consensus_mismatch" as const,
+      reason: "semantic_mapping_mismatch" as const,
       model: getPublicTextModelStatus(config),
       expectedCandidate: "痰火扰神",
       selectedCandidate: accepted?.candidate.canonical,
@@ -611,10 +577,9 @@ export function getControlledTerminologyNormalizationStatus() {
   const config = getControlledTerminologyModelConfig();
   return {
     enabled: enabled(),
-    mode: "deterministic_exact_then_prefilter_then_deepseek_closed_set_consensus",
+    mode: "deterministic_exact_then_prefilter_then_single_closed_set_call",
     replacementPolicy: "suggestion_only_until_clinician_confirmation",
     model: getPublicTextModelStatus(config),
-    consensusRequired: true,
     minimumConfidence: Math.min(0.99, Math.max(0.5,
       Number(process.env.CONTROLLED_TERMINOLOGY_MIN_CONFIDENCE || 0.8))),
     cache: {

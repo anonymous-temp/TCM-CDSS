@@ -1137,4 +1137,17 @@ console.log(JSON.stringify({ cases, failures: 0 }));
   const pending = mk("产后10天，持续剧烈头痛，视物异常。", {}, { ...facts, reviewStatus: "pending" }).safetyGate;
   assert.notEqual(pending?.status, "red_flag", "未复核的语义结果保持展示级");
   assert.equal(pending?.semanticTriage?.level, "emergency_review", "展示字段仍完整保留急症分诊信息");
+  // 2026-09-20 事实层复核相位按配置关闭：接地后的单次抽取（single_pass）是完成态，必须与
+  // checked 一样升级门禁、且不得被判「独立复核未完成」——只关开关、不改判据时，每一例都会被
+  // 扣掉剂量，同时语义急症退回展示级。skipped（未声明单次即权威）保持原先的非完成态语义。
+  const singlePass = mk("产后10天，持续剧烈头痛，视物异常。", {}, { ...facts, reviewStatus: "single_pass" }).safetyGate;
+  assert.equal(singlePass?.status, "red_flag", "单次抽取的语义急症必须照常升级门禁");
+  assert.ok(!(singlePass?.missingItems || []).some((item) => /复核未完成/.test(item)), "single_pass 不得被判复核未完成");
+  const skippedGate = mk("产后10天，持续剧烈头痛，视物异常。", {}, { ...facts, reviewStatus: "skipped" }).safetyGate;
+  assert.notEqual(skippedGate?.status, "red_flag", "skipped 不是完成态，保持展示级");
+  assert.ok((skippedGate?.missingItems || []).some((item) => /独立复核未完成/.test(item)), "skipped 仍须提示复核未完成");
+  const quietSinglePass = mk("反复失眠2个月，入睡困难。", {}, {
+    redFlags: [], semanticStatus: "checked", reviewStatus: "single_pass", sourceCoverage: "full",
+  }).safetyGate;
+  assert.ok(!(quietSinglePass?.missingItems || []).some((item) => /语义红旗/.test(item)), "无红旗的单次抽取不得给普通病例挂上语义筛查未完成");
 }

@@ -1,3 +1,4 @@
+import { clinicalFactsReviewSettled } from "@/lib/clinical-facts";
 import { maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { derivePrescriptionPermission, evaluateSafetyGate, hasDeterministicCriticalVitalRedFlag, withSafetyGate } from "@/lib/diagnosis-safety";
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
   const gated = withSafetyGate(enriched);
   return Response.json({
     available: enriched.clinicalFacts?.semanticStatus === "checked" &&
-      enriched.clinicalFacts.reviewStatus === "checked" &&
+      clinicalFactsReviewSettled(enriched.clinicalFacts.reviewStatus) &&
       Boolean(enriched.clinicalFacts.attestation),
     semanticStatus: enriched.clinicalFacts?.semanticStatus || "unavailable",
     clinicalFacts: enriched.clinicalFacts || null,

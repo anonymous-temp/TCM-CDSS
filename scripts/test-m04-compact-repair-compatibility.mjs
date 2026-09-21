@@ -4,7 +4,8 @@ import { test } from "node:test";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
-const { stabilizeM04DoseOnlyRepair, buildM04ClinicalRepairHint } = await jiti.import("../src/lib/structured-clinical-repair.ts");
+const { stabilizeM04DoseOnlyRepair, buildM04ClinicalRepairHint, m04CandidatePatchEligible, m04CandidatePatchBase, spliceM04CandidatePatch } = await jiti.import("../src/lib/structured-clinical-repair.ts");
+const { responseFormatForTask } = await jiti.import("../src/lib/model-response-format.ts");
 const version = "tcm-cdss-m04-proposal-v1";
 const rejected = {
   candidate: {
@@ -68,4 +69,55 @@ test("repair prompts respect server-owned version, therapyMatch and acupoint fie
     assert.equal(hint.includes("candidate.therapyMatch（本方如何落实"), false);
     assert.match(hint, /therapyMatch 由服务端/);
   }
+});
+
+// ── 2026-09-20 定向修复：只重写 candidate ───────────────────────────────────────────────
+test("candidate-patch eligibility: every observed production trigger is candidate-scoped", () => {
+  for (const code of [
+    "m04_formula_reference_declassified",
+    "m04_formula_compilation_composition_drift",
+    "m04_candidate_0_herb_1_dose_outside_conservative_range",
+    "m04_candidate_0_herb_5_unknown",
+    "m04_candidate_0_transparent_therapy_herb_7_unsupported_high_impact_heat_clear",
+    "m04_candidate_0_high_risk_pair_incompatibility",
+    "m04_candidates_empty",
+  ]) assert.equal(m04CandidatePatchEligible(code), true, code);
+});
+test("candidate-patch eligibility: non-candidate reasons and non-candidate T1 batch items force full regeneration", () => {
+  for (const code of ["json_invalid", "m04_proposal_candidate_missing", "m04_modification_0_missing_herb", "", "structured_resolver_rejected"]) {
+    assert.equal(m04CandidatePatchEligible(code), false, code || "(empty)");
+  }
+  const primary = "m04_candidate_0_herb_1_dose_outside_conservative_range";
+  assert.equal(m04CandidatePatchEligible(primary, ["candidate_0_herb_3_function_ungrounded", "non_pharma_diet_not_actionable"]), true,
+    "T2/T3 findings outside candidate are annotate-only and do not force a full rewrite");
+  assert.equal(m04CandidatePatchEligible(primary, ["modification_0_unknown_herb"]), false,
+    "a T1 finding outside candidate must still be repaired, so the whole proposal is rewritten");
+});
+test("candidate-patch base accepts only a minimal proposal that carries a candidate object", () => {
+  assert.ok(m04CandidatePatchBase(JSON.stringify(rejected)));
+  assert.ok(m04CandidatePatchBase(JSON.stringify({ ...rejected, schemaVersion: version })));
+  for (const raw of ["not json", JSON.stringify({ stage: "prescribe", formula: { candidates: [] } }), JSON.stringify({ ...rejected, candidate: null })]) {
+    assert.equal(m04CandidatePatchBase(raw), undefined, raw.slice(0, 40));
+  }
+});
+test("splicing keeps every non-candidate section byte-identical and ignores provider output outside candidate", () => {
+  const base = m04CandidatePatchBase(JSON.stringify({ ...rejected, patentAndWestern: [{ keep: "中成药条目" }], nonPharma: { diet: "原饮食建议" } }));
+  const spliced = JSON.parse(spliceM04CandidatePatch(base, JSON.stringify({
+    candidate: repaired.candidate, nonPharma: { diet: "越权改写" }, patentAndWestern: [],
+  })));
+  assert.deepEqual(spliced.candidate, repaired.candidate);
+  assert.deepEqual(spliced.patentAndWestern, [{ keep: "中成药条目" }]);
+  assert.deepEqual(spliced.nonPharma, { diet: "原饮食建议" });
+  assert.deepEqual(spliced.modifications, rejected.modifications);
+  for (const patch of ["not json", JSON.stringify({}), JSON.stringify({ candidate: { ...repaired.candidate, herbs: [] } })]) {
+    assert.equal(spliceM04CandidatePatch(base, patch), undefined, "a patch without herbs is not a repair");
+  }
+});
+test("the candidate-patch provider schema is exactly the proposal's candidate subtree", () => {
+  const full = responseFormatForTask("qwen3.8-max", "m04_proposal").json_schema.schema;
+  const patch = responseFormatForTask("qwen3.8-max", "m04_candidate_patch").json_schema.schema;
+  assert.deepEqual(Object.keys(patch.properties), ["candidate"]);
+  assert.deepEqual(patch.required, ["candidate"]);
+  const def = (schema) => schema.$defs[schema.properties.candidate.$ref.split("/").pop()];
+  assert.deepEqual(def(patch), def(full));
 });

@@ -7,7 +7,9 @@ export type StructuredOutputTask =
   | "m03_full"
   | "m03_western"
   | "m03_tcm"
-  | "m04_proposal";
+  | "m04_proposal"
+  /** M04 定向修复：只重写 candidate，其余字段由服务端从上一版提案逐字拼回（2026-09-20）。 */
+  | "m04_candidate_patch";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -362,6 +364,11 @@ function schemaForTask(task: StructuredOutputTask): JsonSchema {
     return pruneUnreachableDefs(stripServerOwnedM03Fields(requireGeneratedM03Content(requireGeneratedM03Chain(fullReasoningSchema()))));
   }
   if (task === "m04_proposal") return pruneUnreachableDefs(stripServerOwnedM04Fields(m04ProposalJsonSchema()));
+  if (task === "m04_candidate_patch") {
+    const full = stripServerOwnedM04Fields(m04ProposalJsonSchema());
+    const candidate = schemaProperties(full)?.candidate;
+    return pruneUnreachableDefs({ ...full, properties: { candidate }, required: ["candidate"], additionalProperties: false });
+  }
   if (task === "m03_western") {
     return pruneUnreachableDefs(stripServerOwnedM03Fields(
       reasoningHalfSchema(["schemaVersion", "stage", "westernDiagnosis", "management"]),

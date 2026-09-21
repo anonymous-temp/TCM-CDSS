@@ -1,4 +1,5 @@
 import { isM03WesternSupportContractReason } from "./diagnosis-structured-repair";
+import { rejectionTier } from "./diagnosis-rejection-tiers";
 
 export type M04RepairHerb = {
   name?: unknown;
@@ -73,6 +74,59 @@ function doseRepairProposalRecord(value: unknown): Record<string, unknown> | und
   // keep taking the ordinary compiler path instead of being mistaken for a minimal proposal here.
   if (Object.keys(root).some((key) => !M04_DOSE_REPAIR_ENVELOPE_KEYS.has(key))) return undefined;
   return root;
+}
+
+// ── M04 定向修复：只重写处方主体（2026-09-20 owner 裁定）─────────────────────────────────
+//
+// 此前每个修复轮都让 qwen3.8-max 把整份最小提案重写一遍（线上 p50 约 28s），哪怕问题只是
+// 一味药的剂量越界。实测真实提案里 candidate（药味/方解/煎服法/适用）约占 53%，中成药/西药、
+// 加减、非药物调护约占 47%——后者与药味缺陷无关，重写它们只多花时间，还会顺手改坏已合格的部分
+//（同一教训见 stabilizeM04DoseOnlyRepair）。线上观测到的全部修复触发码都落在 candidate 内。
+//
+// 判据：主原因、以及同批扫出的每一个 T1 问题，都必须落在 candidate 范围内才走定向修复；
+// 任何一个 candidate 以外的 T1 问题（证据绑定、加减、结构损坏……）都照旧整份重写。
+// 拼接后的完整最小提案走与整份重写完全相同的编译、合同、剂量与配伍校验。
+
+const M04_CANDIDATE_SCOPED_CODE = /^(?:candidates_empty|candidate_count|candidate_\d+_[a-z0-9_]+|formula_(?:reference|direction|compilation|component)[a-z0-9_]*|pathogenesis_node_uncovered_[A-Za-z0-9]+|therapy_direction_uncovered_[a-z_]+)$/;
+
+function bareM04Code(code: string): string {
+  const trimmed = typeof code === "string" ? code.trim() : "";
+  return trimmed.startsWith("m04_") ? trimmed.slice(4) : trimmed;
+}
+
+/** 主原因与同批每个 T1 问题都在 candidate 内时，修复轮只重写 candidate。 */
+export function m04CandidatePatchEligible(reason: string, batchedCodes: readonly string[] = []): boolean {
+  if (!M04_CANDIDATE_SCOPED_CODE.test(bareM04Code(reason))) return false;
+  return batchedCodes.every((code) => {
+    const bare = bareM04Code(code);
+    if (!bare || M04_CANDIDATE_SCOPED_CODE.test(bare)) return true;
+    // 反馈码多为裸码；rejectionTier 只对带 m04_ 前缀的码按 M04 分级，裸码会被当成 M03 码判 T1。
+    return rejectionTier(`m04_${bare}`) !== "T1";
+  });
+}
+
+/** 上一版模型原始最小提案。只有合法的最小提案信封（且含 candidate 对象）才能作为拼接底稿。 */
+export function m04CandidatePatchBase(rawProposal: string): Record<string, unknown> | undefined {
+  try {
+    const root = doseRepairProposalRecord(JSON.parse(rawProposal));
+    return root && recordValue(root.candidate) ? root : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * 把模型返回的 candidate 拼回底稿，其余字段逐字保留。模型即使多输出了其它顶层字段也一律忽略——
+ * 定向修复从不允许它改动中成药/西药、加减或非药物调护。候选没有药味不算修复，返回 undefined。
+ */
+export function spliceM04CandidatePatch(base: Record<string, unknown>, patchJson: string): string | undefined {
+  try {
+    const candidate = recordValue(recordValue(JSON.parse(patchJson))?.candidate);
+    if (!candidate || !Array.isArray(candidate.herbs) || candidate.herbs.length === 0) return undefined;
+    return JSON.stringify({ ...base, candidate });
+  } catch {
+    return undefined;
+  }
 }
 
 /** One governed selector shared by repair prompting and post-model field stabilization. */

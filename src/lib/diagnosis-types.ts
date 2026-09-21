@@ -365,7 +365,7 @@ export type ControlledTerminologyMappingTrace = {
   status: "suggested" | "clinician_confirmed";
   confidence: number;
   model: string;
-  consensus: true;
+  consensus?: true;
   cache: "hit" | "miss";
 };
 
@@ -1036,7 +1036,8 @@ const ControlledTerminologyMappingSchema = z.object({
   status: z.enum(["suggested", "clinician_confirmed"]),
   confidence: z.number().min(0).max(1),
   model: z.string().min(1).max(160),
-  consensus: z.literal(true),
+  // 单次闭集映射起不再输出；可选只为兼容 2026-09-20 之前签名的载荷。
+  consensus: z.literal(true).optional(),
   cache: z.enum(["hit", "miss"]),
 });
 

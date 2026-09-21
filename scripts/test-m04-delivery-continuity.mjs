@@ -165,6 +165,34 @@ test("first T2 cannot mask a later T1: automatic repair retains its bounded oppo
   assert.doesNotMatch(result.content, /501g/);
 });
 
+test("a candidate-scoped defect repairs only candidate; every other proposal section stays byte-identical", async () => {
+  // 2026-09-20 owner 裁定：修复轮只重写处方主体。此前每轮都让 max 模型把整份提案重写一遍（线上 p50 约 28s），
+  // 哪怕问题只是一味药超量；中成药/西药、加减、非药物调护与药味缺陷无关，重写它们只多花时间还可能改坏。
+  const first = structuredClone(proposal);
+  first.candidate.herbs[0].dose = "501g";
+  first.nonPharma.diet = "早餐可用山药小米粥，午餐加一份清蒸鱼，少量多餐。";
+  const result = await runWire({ first, remainingMs: 50000, respond: (number) => number === 2
+    ? { candidate: proposal.candidate, nonPharma: { ...proposal.nonPharma, diet: "越权改写标记XQZ：每日饮用冰镇饮料。" } }
+    : accepted });
+  assert.equal(result.requests.length, 2, "one generation draw plus one repair draw");
+  const repairRequest = result.requests[1];
+  assert.equal(repairRequest.response_format?.json_schema?.name, "m04_candidate_patch", "the repair asks the provider for candidate only");
+  assert.deepEqual(Object.keys(repairRequest.response_format.json_schema.schema.properties), ["candidate"]);
+  const repairPrompt = JSON.stringify(repairRequest.messages);
+  assert.match(repairPrompt, /待修复 candidate/);
+  assert.doesNotMatch(repairPrompt, /待修复JSON/, "the whole proposal is not re-sent for regeneration");
+  assert.match(result.content, /contractSignature/);
+  assert.doesNotMatch(result.content, /501g/);
+  assert.match(result.content, /午餐加一份清蒸鱼/, "the untouched nonPharma section is preserved verbatim from the first proposal");
+  assert.doesNotMatch(result.content, /越权改写标记XQZ/, "provider output outside candidate is ignored");
+});
+
+test("a structurally broken first draw still regenerates the whole proposal", async () => {
+  const result = await runWire({ first: "not a proposal", remainingMs: 50000, respond: (number) => number === 2 ? proposal : accepted });
+  assert.ok(result.requests.length >= 2, "the broken draw is repaired");
+  assert.equal(result.requests[1].response_format?.json_schema?.name, "m04_proposal", "non-candidate failures keep full regeneration");
+});
+
 const wrap = (reasoning) => `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
 function checkpointInput() {
   const reasoning = compileM04Proposal(proposal, prior);

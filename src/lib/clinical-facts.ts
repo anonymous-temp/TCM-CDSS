@@ -264,7 +264,25 @@ function exertionalBaselineQuoteWithoutAcuteCue(quote: string): boolean {
 export type ClinicalFactsSemanticStatus = "checked" | "unavailable";
 export type ClinicalFactsResultSource = "fresh" | "cache" | "failure";
 export type ClinicalFactsUnavailableReason = "disabled" | "aborted" | "timeout" | "model_error" | "invalid_output" | "signing_unavailable";
-export type ClinicalFactsReviewStatus = "checked" | "skipped" | "unavailable";
+/**
+ * checked     —— 抽取后又经独立复核相位确认。
+ * single_pass —— 部署配置关闭了复核相位（2026-09-20 owner 裁定），接地后的抽取结果即权威结果。
+ *                依据：黄金基线去重后 198 个用例重放，「只抽取」与「抽取+复核」对安全门输入
+ *                （追加红旗 / 优先评估项 / 接诊范围）的净差异为 0 例，复核每次冷启动多约 3.6s。
+ * skipped     —— 调用方没要求复核、也没声明单次抽取即权威（仅测试构造），**不是**完成态。
+ * unavailable —— 复核失败。
+ */
+export type ClinicalFactsReviewStatus = "checked" | "single_pass" | "skipped" | "unavailable";
+
+/**
+ * 语义结果是否已到「可参与门禁、可签名、可进缓存」的完成态——唯一判据。
+ * 门禁的急症升级、筛查完成判定、签名、缓存校验和 red-flags 路由此前各写一遍
+ * `reviewStatus === "checked"`；关掉复核只改其中几处，会让每一例都被判「独立复核未完成」、
+ * 扣掉剂量，同时语义急症不再升级为红旗。收敛到这一个谓词。
+ */
+export function clinicalFactsReviewSettled(status: ClinicalFactsReviewStatus | undefined): boolean {
+  return status === "checked" || status === "single_pass";
+}
 
 export type ClinicalFactsModelIdentity = {
   provider: string;
@@ -568,7 +586,7 @@ export function parseClinicalFacts(raw: unknown): ClinicalFacts | null {
   );
   const reviewStatus = memberOf(
     (root as { reviewStatus?: unknown }).reviewStatus,
-    ["checked", "skipped", "unavailable"] as const,
+    ["checked", "single_pass", "skipped", "unavailable"] as const,
   );
   const attestationVersion = boundedString((root as { attestationVersion?: unknown }).attestationVersion, 80);
   const extractorVersion = boundedString((root as { extractorVersion?: unknown }).extractorVersion, 80);
@@ -1331,6 +1349,8 @@ export type FactsLlmCall = (
 
 export type ExtractClinicalFactsOptions = {
   independentReview?: boolean;
+  /** 不复核时，接地后的抽取结果即权威结果（reviewStatus=single_pass）。 */
+  singlePass?: boolean;
   allowDispositionReductions?: boolean;
 };
 
@@ -1412,7 +1432,7 @@ export async function extractClinicalFacts(
       // Keep the already-grounded subset. A failed quote repair cannot restore rejected findings.
     }
   }
-  if (!options.independentReview) return { ...grounded, reviewStatus: "skipped" };
+  if (!options.independentReview) return { ...grounded, reviewStatus: options.singlePass ? "single_pass" : "skipped" };
   // A reviewer response can be non-empty yet still violate the findingId/grounding contract. Give
   // that independent phase up to two bounded fresh attempts using the exact same grounded first pass.
   // The original findings stay fixed across attempts, so a malformed response can neither erase a

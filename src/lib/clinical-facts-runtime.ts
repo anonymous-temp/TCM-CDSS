@@ -4,6 +4,7 @@ import { getPrimaryTextModelConfig, createTextModelClient, isApprovedTextModel, 
 import {
   CLINICAL_FACTS_EXTRACTOR_VERSION,
   CLINICAL_FACTS_PROMPT_VERSION,
+  clinicalFactsReviewSettled,
   extractClinicalFacts,
   type ClinicalFactsModelIdentity,
   type ClinicalFactsUnavailableReason,
@@ -449,7 +450,7 @@ export function hasValidClinicalFactsAttestation(
   const key = attestationKey();
   if (!facts?.attestation || key.length < 16) return false;
   if (facts.semanticStatus !== "checked") return false;
-  if (facts.reviewStatus !== "checked") return false;
+  if (!clinicalFactsReviewSettled(facts.reviewStatus)) return false;
   if (facts.sourceCoverage !== "full") return false;
   if (facts.attestationVersion !== CLINICAL_FACTS_ATTESTATION_VERSION) return false;
   if (facts.extractorVersion !== CLINICAL_FACTS_EXTRACTOR_VERSION) return false;
@@ -562,6 +563,16 @@ export function clinicalFactsServerCacheSize(): number {
   return clinicalFactsServerCache.size;
 }
 
+/**
+ * 复核相位开关。2026-09-20 起缺省**关闭**（owner 裁定），只有显式 `CDSS_CLINICAL_FACTS_REVIEW=true`
+ * 才跑复核。依据：黄金基线去重后 198 个用例重放，复核对安全门输入的净差异为 0 例——有文字变化的
+ * 5 例，确定性红旗门本就已覆盖；而复核每次冷启动多约 3.6s、每个病人付两次（采集后与出题后各一次
+ * 缓存未命中）。关闭后抽取结果以 single_pass 状态签名、进缓存并照常参与急症升级。
+ */
+export function clinicalFactsReviewEnabled(): boolean {
+  return process.env.CDSS_CLINICAL_FACTS_REVIEW === "true";
+}
+
 export async function maybeAttachClinicalFactsBackstop(
   state: CaseState,
   llmCall: FactsLlmCall = REAL_FACTS_LLM_CALL,
@@ -645,8 +656,10 @@ export async function maybeAttachClinicalFactsBackstop(
     let facts;
     try {
       const modelPlan = getClinicalFactsModelPlan();
+      const reviewEnabled = clinicalFactsReviewEnabled();
       facts = await extractClinicalFacts(text, observedLlmCall, effectiveSignal, {
-        independentReview: process.env.CDSS_CLINICAL_FACTS_REVIEW !== "false",
+        independentReview: reviewEnabled,
+        singlePass: !reviewEnabled,
         allowDispositionReductions: modelPlan.reductionsAllowed,
       });
     } finally {
@@ -697,11 +710,11 @@ export async function maybeAttachClinicalFactsBackstop(
       attestation: undefined,
     };
     const tenantBindingAvailable = !state.customerId || Boolean(unsignedFacts.customerBindingHash);
-    const attestation = unsignedFacts.reviewStatus === "checked" && unsignedFacts.sourceCoverage === "full" &&
+    const attestation = clinicalFactsReviewSettled(unsignedFacts.reviewStatus) && unsignedFacts.sourceCoverage === "full" &&
       tenantBindingAvailable
       ? signClinicalFacts(unsignedFacts)
       : undefined;
-    if (unsignedFacts.reviewStatus === "checked" && unsignedFacts.sourceCoverage === "full" && !attestation) {
+    if (clinicalFactsReviewSettled(unsignedFacts.reviewStatus) && unsignedFacts.sourceCoverage === "full" && !attestation) {
       return {
         ...withoutStaleFacts,
         clinicalFacts: {

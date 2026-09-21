@@ -113,8 +113,8 @@ test("terminology probe failures use their own task and have no hidden SDK retri
       const { probeControlledTerminologyModel } = jiti("../src/lib/controlled-semantic-normalization.server.ts");
       const result = await probeControlledTerminologyModel();
       assert.equal(result.ok, false);
-      assert.equal(count(), 2, "exactly the two consensus legs, no SDK retry multiplication");
-      assert.equal(task("controlled_terminology_probe").physicalAttemptsTotal, 2);
+      assert.equal(count(), 1, "exactly one closed-set call (single draw since 2026-09-20), no SDK retry multiplication");
+      assert.equal(task("controlled_terminology_probe").physicalAttemptsTotal, 1);
       assert.equal(task("controlled_terminology"), undefined);
     } finally {
       for (const [key, value] of Object.entries(saved)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; }

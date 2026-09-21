@@ -408,15 +408,33 @@ assert.equal(confirmedHisResponse.status, 409, "确认后 unclear 门放行，�
 assert.equal(confirmedHisPayload.code, "invalid_m04_signature");
 
 // 回归: agreed-historical 不触发 unclear 确认门；其剂量阻断仍由签名有限 M03 承担
+// 「仅既往/稳定背景」是**下调型**判断，只有抽取与复核两次一致（agreed）才采信。这一段验证的是
+// 复核相位本身的机制，所以显式开启复核（2026-09-20 起缺省关闭）。
+const historicalScopeModel = async () => JSON.stringify({
+  redFlags: [],
+  encounterScope: { status: "historical_or_stable_only", quote: "胃溃疡3年前已治愈，目前无不适" },
+});
+const reviewSettingBeforeHistorical = process.env.CDSS_CLINICAL_FACTS_REVIEW;
+process.env.CDSS_CLINICAL_FACTS_REVIEW = "true";
 const agreedHistoricalState = await maybeAttachClinicalFactsBackstop(
   { ...roundTrippedScopeState, pastHistory: "胃溃疡3年前已治愈，目前无不适" },
-  async () => JSON.stringify({
-    redFlags: [],
-    encounterScope: { status: "historical_or_stable_only", quote: "胃溃疡3年前已治愈，目前无不适" },
-  }),
+  historicalScopeModel,
 );
+delete process.env.CDSS_CLINICAL_FACTS_REVIEW;
+// 缺省（复核关闭）：单次抽取给出的「仅既往」保持 unreviewed——单模型的下调判断不被采信，
+// 病例照常按活动性就诊处理（保守方向），也不得误触 unclear 确认门。
+const singlePassHistoricalState = await maybeAttachClinicalFactsBackstop(
+  { ...roundTrippedScopeState, id: `${roundTrippedScopeState.id}-single-pass`, pastHistory: "胃溃疡3年前已治愈，目前无不适" },
+  historicalScopeModel,
+);
+if (reviewSettingBeforeHistorical === undefined) delete process.env.CDSS_CLINICAL_FACTS_REVIEW;
+else process.env.CDSS_CLINICAL_FACTS_REVIEW = reviewSettingBeforeHistorical;
 assert.equal(agreedHistoricalState.clinicalFacts?.encounterScope?.reviewAgreement, "agreed");
 assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(agreedHistoricalState)), false, "agreed-historical 不属于 unclear 确认门");
+assert.equal(singlePassHistoricalState.clinicalFacts?.reviewStatus, "single_pass");
+assert.equal(singlePassHistoricalState.clinicalFacts?.encounterScope?.reviewAgreement, "unreviewed",
+  "复核关闭时单模型的「仅既往」不得冒充两次一致");
+assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(singlePassHistoricalState)), false, "single-pass historical 同样不属于 unclear 确认门");
 
 const historicalLimitedM03 = signDiagnoseReasoning(
   buildSafetyLimitedDiagnosisReasoning(roundTrippedScopeState, {

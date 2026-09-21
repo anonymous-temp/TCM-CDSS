@@ -3,7 +3,7 @@ import syndromeJson from "../src/data/tcm-syndrome-lexicon.json" with { type: "j
 
 const {
   prefilterControlledSemanticCandidates,
-  validatedConsensusDecision,
+  validatedClosedSetDecision,
 } = await import("../src/lib/controlled-semantic-normalization.ts");
 const { retrieveTcmFormulaCandidatesForReasoning } = await import("../src/lib/tcm-formula-indications.ts");
 
@@ -27,38 +27,26 @@ const target = {
   input: "痰热蒙扰心神",
   candidates: shortlist,
 };
+// 2026-09-20 起单次闭集调用（原为同一提示词连发两遍取一致）。受理判据仍守住：闭集内、置信度下限、弃权不映射。
 check(
-  validatedConsensusDecision(
-    target,
-    { key: "m1", candidateId: governedPhlegmFire.id, confidence: 0.91 },
-    { key: "m1", candidateId: governedPhlegmFire.id, confidence: 0.88 },
-    0.8,
-  )?.candidate.id === governedPhlegmFire.id,
-  "two in-set high-confidence decisions may form one controlled suggestion",
+  validatedClosedSetDecision(target, { key: "m1", candidateId: governedPhlegmFire.id, confidence: 0.88 }, 0.8)?.candidate.id === governedPhlegmFire.id,
+  "one in-set high-confidence decision may form one controlled suggestion",
 );
 check(
-  validatedConsensusDecision(
-    target,
-    { key: "m1", candidateId: governedPhlegmFire.id, confidence: 0.91 },
-    { key: "m1", candidateId: shortlist.find((item) => item.id !== governedPhlegmFire.id).id, confidence: 0.91 },
-  ) == null,
-  "first-run disagreement must abstain",
+  validatedClosedSetDecision(target, { key: "m1", candidateId: "NOT-IN-CLOSED-SET", confidence: 0.99 }) == null,
+  "an invented ID must be rejected",
 );
 check(
-  validatedConsensusDecision(
-    target,
-    { key: "m1", candidateId: "NOT-IN-CLOSED-SET", confidence: 0.99 },
-    { key: "m1", candidateId: "NOT-IN-CLOSED-SET", confidence: 0.99 },
-  ) == null,
-  "an invented ID must be rejected even when both model calls agree",
+  validatedClosedSetDecision(target, { key: "m1", candidateId: governedPhlegmFire.id, confidence: 0.79 }, 0.8) == null,
+  "a decision below the confidence floor must abstain",
 );
 check(
-  validatedConsensusDecision(
-    target,
-    { key: "m1", candidateId: governedPhlegmFire.id, confidence: 0.79 },
-    { key: "m1", candidateId: governedPhlegmFire.id, confidence: 0.99 },
-  ) == null,
-  "the weaker consensus leg must still satisfy the confidence floor",
+  validatedClosedSetDecision(target, { key: "m1", candidateId: null, confidence: 0.99 }) == null,
+  "an explicit model abstention must never form a mapping",
+);
+check(
+  validatedClosedSetDecision(target, { key: "m2", candidateId: governedPhlegmFire.id, confidence: 0.99 }) == null,
+  "a decision for another target key must not be borrowed",
 );
 
 const reasoningWithMapping = (status) => ({
@@ -88,7 +76,6 @@ const reasoningWithMapping = (status) => ({
     status,
     confidence: 0.88,
     model: "deepseek-v4-flash",
-    consensus: true,
     cache: "miss",
   }],
 });
