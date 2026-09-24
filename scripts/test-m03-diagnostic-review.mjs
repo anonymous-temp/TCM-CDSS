@@ -1153,4 +1153,157 @@ assert.ok(settledSigned?.westernDiagnosis?.primary?.name, "单发基线必须先
   assert.equal(run.halves?.westernHalfParse, "absent");
 }
 
-console.log(JSON.stringify({ cases: 125, failures: 0 }));
+// ─── DeepSeek 首轮 + 严格兜底（2026-09-24，提速第三批）─────────────────────────────────────
+//
+// M03 两半改跑 deepseek-flash（json_object）。9/11–9/19 的教训：json_object 只保证「像 JSON」，
+// 形状不对时 zod 的 .catch 静默换成缺省值，页面少一块、日志里什么都没有。这里钉三件事：
+//  1. DeepSeek 输出不合严格 schema → 用严格兜底模型（百炼端点、json_schema）对同一份提示词重生成，
+//     且**签名的是兜底内容**（与「DeepSeek 直接给出合规内容」时签出的结果逐字段相同）；
+//  2. 合规时一次兜底请求都不发；
+//  3. 西医半把 supportingFactKinds 写成字符串（线上 9/9 次的形状）→ 同样改由严格模型重生成。
+const tcmCompliantHalf = structuredClone(tcmHalfOnly);
+tcmCompliantHalf.overview.tcmDifferentials = [{
+  syndrome: "心肾不交证",
+  reason: "同见入睡困难、多梦易醒，需与心脾两虚鉴别",
+  distinguishingPoints: "本例纳差便溏、舌淡脉细弱，未见五心烦热、舌红少苔",
+  typicalManifestation: "",
+  nextCheck: null,
+}];
+tcmCompliantHalf.pathogenesis.locationDifferentiation.details = [
+  { location: "心", basis: "心悸健忘、入睡困难、多梦易醒" },
+  { location: "脾", basis: "纳差便溏" },
+];
+tcmCompliantHalf.pathogenesis.uncertainties = [{ item: "月经与出血情况", reason: "病历未记录", affects: "血虚程度判断" }];
+tcmCompliantHalf.therapy.subTherapies = tcmCompliantHalf.therapy.subTherapies.map((item, index) => ({ ...item, priority: index === 0 ? "主要" : "次要" }));
+const deepseekWesternWithStringKinds = JSON.stringify({
+  westernDiagnosis: {
+    ...reviewed.westernDiagnosis,
+    primary: { ...reviewed.westernDiagnosis.primary, supportingFactKinds: reviewed.westernDiagnosis.primary.supportingFacts.map(() => "symptom") },
+  },
+  management: reviewed.management,
+});
+const deepseekFirstEnv = {
+  ...settledEnv,
+  AI_TEXT_PROVIDER: "bailian-qwen",
+  BAILIAN_QWEN_API_KEY: "test-only-qwen-fallback",
+  BAILIAN_QWEN_BASE_URL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  BAILIAN_QWEN_MODEL: "qwen3.8-flash",
+  OPENAI_MODEL: "deepseek-flash",
+  PRIMARY_DIAGNOSE_MODEL: "deepseek-flash",
+  PRIMARY_STRUCTURED_FALLBACK_MODEL: "qwen3.8-flash",
+  CDSS_TEXT_MODEL_ALLOWED_HOSTS: "",
+  CDSS_DEEPSEEK_ALLOWED_HOSTS: "",
+};
+const runDeepseekFirstParallelM03 = async ({ tcmStream, deepseekWestern, qwenReplies, tcmStreamCutOff = false }) => {
+  const savedEnv = Object.fromEntries(Object.keys(deepseekFirstEnv).map((key) => [key, process.env[key]]));
+  const savedFetch = globalThis.fetch;
+  const savedInfo = console.info;
+  const savedWarn = console.warn;
+  const logs = [];
+  const requests = [];
+  const westernQueue = [...deepseekWestern];
+  try {
+    Object.assign(process.env, deepseekFirstEnv);
+    console.info = (...args) => { logs.push(args); };
+    console.warn = (...args) => { logs.push(args); };
+    globalThis.fetch = async (url, init) => {
+      const request = JSON.parse(init.body);
+      const host = new URL(String(url)).hostname;
+      const task = request.response_format?.json_schema?.name;
+      requests.push({ host, model: request.model, stream: Boolean(request.stream), format: request.response_format?.type, task,
+        auth: init.headers.Authorization, schemaInPrompt: /【输出 JSON Schema/.test(request.messages[0].content) });
+      if (host === "api.deepseek.com" && request.stream) {
+        if (tcmStreamCutOff) {
+          // 上游在半截处正常关闭连接、没有 [DONE]：线上「流提前 EOF」的形状。
+          return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: tcmStream.slice(0, 200) }, finish_reason: null }] })}\n\n`, {
+            headers: { "Content-Type": "text/event-stream" },
+          });
+        }
+        return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: tcmStream }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`, {
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      if (host === "api.deepseek.com") return Response.json({ choices: [{ message: { content: westernQueue.shift() ?? "" }, finish_reason: "stop" }] });
+      return Response.json({ choices: [{ message: { content: qwenReplies[task] ?? "" }, finish_reason: "stop" }] });
+    };
+    const response = await callDiagnosisStream("synthetic DeepSeek-first M03", "deepseek", undefined, "markdown", {
+      structuredStage: "diagnose",
+      structuredClinicalContext: reviewedClinicalContext,
+      structuredAllowedM03FormulaNames: ["归脾汤"],
+      truncateFallback: "SYNTHETIC_FALLBACK",
+      m03ParallelHalfPrompts: { western: "synthetic western half", tcm: "synthetic tcm half" },
+      diagnoseSignatureContext: {
+        contractVersion: "tcm-cdss-m03-signature-v5",
+        caseId: "synthetic-deepseek-first",
+        encounterId: "synthetic-deepseek-first-encounter",
+        clinicalInputHash: `sha256:${"c".repeat(64)}`,
+      },
+    });
+    const frames = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
+    assert.deepEqual(frames.filter((frame) => frame.error), [], "the mock stream must finish without an error");
+    const output = frames.filter((frame) => typeof frame.content === "string").map((frame) => frame.content).join("");
+    return { signed: parseSentinelReasoning(output), requests, logs };
+  } finally {
+    globalThis.fetch = savedFetch;
+    console.info = savedInfo;
+    console.warn = savedWarn;
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value == null) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+};
+const clinicalProjection = (signed) => JSON.stringify({ overview: signed.overview, pathogenesis: signed.pathogenesis, therapy: signed.therapy, westernDiagnosis: signed.westernDiagnosis });
+{
+  const direct = await runDeepseekFirstParallelM03({ tcmStream: JSON.stringify(tcmCompliantHalf), deepseekWestern: [cleanWesternHalf], qwenReplies: {} });
+  assert.ok(direct.signed.contractSignature, "DeepSeek 合规输出直接签名");
+  assert.deepEqual(direct.requests.map((item) => `${item.host}|${item.stream}`).sort(), ["api.deepseek.com|false", "api.deepseek.com|true"],
+    "合规时只有 DeepSeek 两半各一次请求，不发任何兜底请求");
+  assert.ok(direct.requests.every((item) => item.model === "deepseek-flash" && item.format === "json_object" && item.auth === "Bearer test-only-m03-settled"),
+    "DeepSeek 两半必须带着 DeepSeek 的模型名与密钥，json_object");
+  assert.ok(direct.requests.every((item) => item.schemaInPrompt), "M03 两半给 DeepSeek 的系统消息必须附严格 schema");
+
+  const replaced = await runDeepseekFirstParallelM03({
+    tcmStream: JSON.stringify(tcmHalfOnly),
+    deepseekWestern: [cleanWesternHalf],
+    qwenReplies: { m03_tcm: JSON.stringify(tcmCompliantHalf) },
+  });
+  const fallbackRequests = replaced.requests.filter((item) => item.host === "dashscope.aliyuncs.com");
+  assert.equal(fallbackRequests.length, 1, "中医半不合 schema → 恰好一次严格兜底");
+  assert.equal(fallbackRequests[0].model, "qwen3.8-flash");
+  assert.equal(fallbackRequests[0].task, "m03_tcm");
+  assert.equal(fallbackRequests[0].format, "json_schema", "兜底走严格 schema，由解码器保证形状");
+  assert.equal(fallbackRequests[0].auth, "Bearer test-only-qwen-fallback");
+  assert.equal(fallbackRequests[0].schemaInPrompt, false, "严格模型不重复附 schema");
+  assert.ok(replaced.signed.contractSignature);
+  assert.equal(clinicalProjection(replaced.signed), clinicalProjection(direct.signed),
+    "签名的必须是兜底内容：与 DeepSeek 直接给出同一份合规内容时逐字段相同");
+  const fallbackLog = replaced.logs.find(([name]) => name === "[tcm-cdss:timing] structured_strict_fallback")?.[1];
+  assert.equal(fallbackLog?.outcome, "replaced");
+  const violationLog = replaced.logs.find(([name]) => name === "[tcm-cdss:model] non-strict structured output violates provider schema")?.[1];
+  assert.match(violationLog?.violations || "", /priority enum/, "遥测只记路径与关键字");
+  assert.doesNotMatch(JSON.stringify(violationLog), /心悸|纳差/, "违规遥测不得回显病历内容");
+
+  const western = await runDeepseekFirstParallelM03({
+    tcmStream: JSON.stringify(tcmCompliantHalf),
+    deepseekWestern: [deepseekWesternWithStringKinds],
+    qwenReplies: { m03_western: cleanWesternHalf },
+  });
+  const westernFallback = western.requests.filter((item) => item.host === "dashscope.aliyuncs.com");
+  assert.deepEqual(westernFallback.map((item) => item.task), ["m03_western"], "西医半依据分类写成字符串 → 改由严格模型重生成西医半");
+  assert.equal(clinicalProjection(western.signed), clinicalProjection(direct.signed),
+    "依据分栏不得被 zod 缺省值静默顶替");
+
+  const cutOff = await runDeepseekFirstParallelM03({
+    tcmStream: JSON.stringify(tcmCompliantHalf),
+    tcmStreamCutOff: true,
+    deepseekWestern: [cleanWesternHalf],
+    qwenReplies: { m03_tcm: JSON.stringify(tcmCompliantHalf) },
+  });
+  assert.deepEqual(cutOff.requests.filter((item) => item.host === "dashscope.aliyuncs.com").map((item) => item.task), ["m03_tcm"],
+    "DeepSeek 中医半流中途断 → 严格兜底重生成，而不是落「服务暂时不可用」页");
+  assert.ok(cutOff.signed?.contractSignature, "兜底成功后照常签名");
+  assert.equal(clinicalProjection(cutOff.signed), clinicalProjection(direct.signed));
+}
+
+console.log(JSON.stringify({ cases: 129, failures: 0 }));

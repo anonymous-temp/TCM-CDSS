@@ -10,7 +10,7 @@ import { explicitPromptCacheMessages } from "./model-prompt-cache";
 //
 // Both backends return NDJSON: {"content":"..."}\n per chunk, end with {"content":"[END]"}\n
 
-import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, isQwenModel, textModelRequestTuning } from "@/lib/text-model";
+import { getPrimaryTextModelConfig, getPublicTextModelStatus, getTextModelMissingMessage, isApprovedTextModel, isQwenModel, textModelConfigForModel, textModelRequestTuning } from "@/lib/text-model";
 import { getTongueVisionModelConfig } from "@/lib/tongue-vision-model";
 import { normalizeReasoningV2, reasoningV2SchemaIssueCode } from "@/lib/diagnosis-types";
 import { enforceM04PriorStageOwnership, enforceStructuredStageOwnership, resolveCompletedStructuredResponse, shouldRunTargetedStructuredRetry, shouldUseM04FinalizeSafetyFloor } from "@/lib/diagnosis-structured-repair";
@@ -51,7 +51,7 @@ import { applyGovernedTcmDiagnosticCitations } from "@/lib/tcm-diagnostic-citati
 import { annotateM03ControlledTerminology } from "@/lib/controlled-semantic-normalization.server";
 import { declassifyAndDropOpposingM04CandidateHerbs, dropUnsupportedM04CandidateHerbs, dropUnsupportedM04ModificationDirections } from "@/lib/m04-modification-safety";
 import { createAbortableCapacityGate } from "@/lib/abortable-capacity-gate";
-import { responseFormatForTask, supportsStrictJsonSchema } from "@/lib/model-response-format";
+import { checkNonStrictStructuredContent, checkNonStrictStructuredValue, responseFormatForTask, structuredOutputSchemaInstruction, supportsStrictJsonSchema, type ProviderSchemaViolation, type StructuredOutputTask } from "@/lib/model-response-format";
 import { insertM03ProvisionalDraft, renderM03ProvisionalDraftSection, schemaValidDiagnoseDraft } from "@/lib/m03-provisional-draft";
 import { bindM04DeliveryReview, m04DeliveryCheckpointFeedbackCodes, m04DeliveryCheckpointSafetyFindingCount, preferM04DeliveryCheckpoint, renderM04DeliveryCheckpoint, retainM04DeliveryCheckpoint, type M04DeliveryCheckpoint } from "./m04-delivery-checkpoint";
 
@@ -737,15 +737,29 @@ function modelForStructuredStage(defaultModel: string, stage?: "diagnose" | "pre
 }
 
 /**
+ * M02 出题模型（2026-09-24）。此前 M02 只能跟随主 provider 的模型，要把出题单独换成更快的
+ * 模型就得连 interpret、用药候选规划等「跟随主模型」的任务一起换。PRIMARY_QUESTION_MODEL
+ * 只动出题这一个调用点；端点按模型家族解析。
+ */
+export function modelForQuestionStage(defaultModel: string): string {
+  return process.env.PRIMARY_QUESTION_MODEL?.trim() || defaultModel;
+}
+
+/**
  * A transport fallback changes latency/capacity only; it is never a clinical repair model.
- * Keep it in the same approved vendor family so credentials and endpoint policy remain unchanged.
+ * Same-family by default. Exception (2026-09-24): a non-strict generation model (DeepSeek) with a
+ * configured strict fallback switches to that fallback — endpoints now resolve per model family,
+ * and the fallback is exactly the pre-change production model, so the switch cannot lower quality.
  */
 export function modelForInitialConnectAttempt(
   primaryModel: string,
   stage: "diagnose" | "prescribe" | undefined,
   attempt: number,
 ): string {
-  if (attempt <= 0 || stage !== "prescribe") return primaryModel;
+  if (attempt <= 0 || !stage) return primaryModel;
+  const strictFallback = structuredStrictFallbackModel(primaryModel);
+  if (strictFallback) return strictFallback;
+  if (stage !== "prescribe") return primaryModel;
   const configured = process.env.PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL?.trim();
   const fallback = configured || (isQwenModel(primaryModel) ? "qwen3.8-max" : primaryModel);
   if (!isApprovedTextModel(fallback)) return primaryModel;
@@ -1411,6 +1425,35 @@ function cdssSystemPrompt(kind: PromptKind): string {
   ].join("\n");
 }
 
+/** 结构化阶段的系统消息：非严格模型附上同一份 schema（见 model-response-format 的说明）。 */
+function structuredSystemPrompt(kind: PromptKind, model: string, task: StructuredOutputTask): string {
+  const instruction = structuredOutputSchemaInstruction(model, task);
+  return instruction ? `${cdssSystemPrompt(kind)}\n\n${instruction}` : cdssSystemPrompt(kind);
+}
+
+/**
+ * 非严格供应商（DeepSeek）生成结构化阶段时的严格兜底模型（2026-09-24，提速第三批）。
+ *
+ * 主生成（M03 两半、M04 首轮）改跑 deepseek-flash 是为了速度：同一份真实提示词，
+ * 西医半 24s→9s、中医半 27s→10s、M04 26s→11s（生产机直连重放）。代价是 DeepSeek 只有
+ * json_object。兜底把质量下限钉在改动前：
+ *  · 输出不合严格 schema（providerSchemaViolations 非空）→ 用本模型对**同一份提示词**重生成；
+ *  · DeepSeek 连不上或回非 2xx（含 402 欠费——2026-09 出过一次全链瘫痪）→ 同样改由本模型生成。
+ * 兜底模型本身必须支持严格 schema，否则等于没有兜底；取值 none 关闭。
+ */
+export function structuredStrictFallbackModel(generationModel: string): string | undefined {
+  if (supportsStrictJsonSchema(generationModel)) return undefined;
+  const configured = process.env.PRIMARY_STRUCTURED_FALLBACK_MODEL?.trim() || "qwen3.8-flash";
+  if (configured.toLowerCase() === "none") return undefined;
+  if (!isApprovedTextModel(configured) || !supportsStrictJsonSchema(configured)) return undefined;
+  return textModelConfigForModel(configured).configured ? configured : undefined;
+}
+
+function summarizeSchemaViolations(violations: readonly ProviderSchemaViolation[]): string {
+  // 只记路径与关键字，路径里的数组下标归一，不回显任何内容。
+  return [...new Set(violations.map((item) => `${item.path.replace(/\/\d+/g, "/N")} ${item.keyword}`))].slice(0, 6).join("; ");
+}
+
 
 /**
  * 甲方复测两条的修复候选：从受治理词表里取出**真实名字**带进修复提示。
@@ -1487,8 +1530,9 @@ async function retryCompletePrimaryResponse(
   | { ok: true; content: string; finishReason: string | null; model: string }
   | { ok: false; reason: string; status?: number }
 > {
-  const config = getPrimaryTextModelConfig();
-  const retryModel = modelForStructuredRepair(config.model, structuredStage);
+  const retryModel = modelForStructuredRepair(getPrimaryTextModelConfig().model, structuredStage);
+  // 修复轮与首轮可能不在同一家（首轮 DeepSeek、修复 qwen3.8-max）：端点按修复模型的家族解析。
+  const config = textModelConfigForModel(retryModel);
   if (!config.configured || !isApprovedTextModel(retryModel)) {
     return { ok: false, reason: "text_model_vendor_policy" };
   }
@@ -1896,7 +1940,15 @@ async function retryCompletePrimaryResponse(
       },
       body: JSON.stringify({
         model: retryModel,
-        messages: explicitPromptCacheMessages(cdssSystemPrompt(kind), repairPrompt, { provider: config.provider, model: retryModel }),
+        messages: explicitPromptCacheMessages(
+          structuredStage
+            ? structuredSystemPrompt(kind, retryModel, structuredStage === "prescribe"
+              ? m04CandidatePatch ? "m04_candidate_patch" : "m04_proposal"
+              : regenerateTcmHalfOnly ? "m03_tcm" : "m03_full")
+            : cdssSystemPrompt(kind),
+          repairPrompt,
+          { provider: config.provider, model: retryModel },
+        ),
         stream: false,
         // 严格 schema 路径按供应商建议不下发 max_tokens（见 structuredMaxTokensParam）。
         // 回落到 json_object 的模型仍保留上限，且**修复轮给更高的上限**：若首轮因长度截断，
@@ -1987,7 +2039,7 @@ async function retryCompletePrimaryResponse(
 }
 
 type M03ParallelHalfResult =
-  | { ok: true; content: string; durationMs: number }
+  | { ok: true; content: string; model: string; durationMs: number }
   | { ok: false; reason: string; durationMs: number };
 
 /**
@@ -1996,6 +2048,87 @@ type M03ParallelHalfResult =
  * （与结构化修复的 transport 重试同语义）。任何终态失败都不抛出——合并层缺西医半时
  * 由既有 western_support_empty 契约驱动全量重生成兜底。
  */
+type StructuredCompletionResult =
+  | { ok: true; content: string; finishReason: string | null; model: string }
+  | { ok: false; reason: string; status?: number };
+
+/**
+ * 一次非流式结构化完成请求：M03 西医半、以及流式阶段的严格兜底共用。
+ * 端点与密钥按**模型家族**解析——同一次 M03 里 DeepSeek 与百炼可能各跑一半，
+ * 不能再套主 provider 的端点（那样 deepseek-* 会带着 DeepSeek 模型名打到 dashscope）。
+ */
+async function requestStructuredCompletion(args: {
+  model: string;
+  prompt: string;
+  kind: PromptKind;
+  task: StructuredOutputTask;
+  stage: "diagnose" | "prescribe";
+  usageLabel: string;
+  parentSignal: AbortSignal;
+  absoluteDeadline: number;
+  temperature?: number;
+}): Promise<StructuredCompletionResult> {
+  const { model, prompt, kind, task, stage, parentSignal, absoluteDeadline } = args;
+  const config = textModelConfigForModel(model);
+  if (!config.configured || !isApprovedTextModel(model)) return { ok: false, reason: "text_model_vendor_policy" };
+  const remaining = absoluteDeadline - Date.now();
+  if (remaining <= 1_000) return { ok: false, reason: "deadline_exhausted" };
+  const controller = new AbortController();
+  const abortFromParent = () => controller.abort();
+  if (parentSignal.aborted) controller.abort();
+  else parentSignal.addEventListener("abort", abortFromParent, { once: true });
+  const startedAt = Date.now();
+  const timer = setTimeout(() => controller.abort(), remaining);
+  try {
+    const response = await fetchWithConnectTimeout(chatCompletionsUrl(config.baseUrl), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: explicitPromptCacheMessages(structuredSystemPrompt(kind, model, task), prompt, { provider: config.provider, model }),
+        stream: false,
+        ...structuredMaxTokensParam(model, stage),
+        temperature: args.temperature ?? 0,
+        response_format: responseFormatForTask(model, task),
+        ...textModelRequestTuning(model, {
+          thinkingEnabled: thinkingEnabledForStructuredStage(stage),
+          reasoningEffort: reasoningEffortForStructuredStage(stage),
+        }),
+      }),
+    }, controller);
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      return { ok: false, reason: `http_${response.status}`, status: response.status };
+    }
+    const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, PRIMARY_TEXT_MAX_OUTPUT_CHARS * 4 + 65_536));
+    recordModelUsage(args.usageLabel, model, result, {
+      taskStage: stage,
+      promptChars: prompt.length,
+      durationMs: Date.now() - startedAt,
+    });
+    const content = result?.choices?.[0]?.message?.content || "";
+    if (!result) return { ok: false, reason: "invalid_json" };
+    if (!content) return { ok: false, reason: "empty_content" };
+    if (content.length > PRIMARY_TEXT_MAX_OUTPUT_CHARS) return { ok: false, reason: "output_too_large" };
+    return { ok: true, content, finishReason: result.choices?.[0]?.finish_reason ?? null, model };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: error instanceof UpstreamResponseTooLargeError
+        ? "output_too_large"
+        : controller.signal.aborted
+          ? "timeout_or_cancelled"
+          : "network_error",
+    };
+  } finally {
+    clearTimeout(timer);
+    parentSignal.removeEventListener("abort", abortFromParent);
+  }
+}
+
 async function collectM03ParallelWesternHalf(
   prompt: string,
   kind: PromptKind,
@@ -2005,74 +2138,72 @@ async function collectM03ParallelWesternHalf(
   const config = getPrimaryTextModelConfig();
   const model = modelForStructuredStage(config.model, "diagnose");
   const startedAt = Date.now();
-  const finish = (result: { ok: true; content: string } | { ok: false; reason: string }): M03ParallelHalfResult =>
-    ({ ...result, durationMs: Date.now() - startedAt });
-  if (!config.configured || !isApprovedTextModel(model)) return finish({ ok: false, reason: "text_model_vendor_policy" });
-  const attemptOnce = async (): Promise<{ ok: true; content: string } | { ok: false; reason: string }> => {
-    const controller = new AbortController();
-    const abortFromParent = () => controller.abort();
-    if (parentSignal.aborted) controller.abort();
-    else parentSignal.addEventListener("abort", abortFromParent, { once: true });
-    const remaining = absoluteDeadline - Date.now();
-    if (remaining <= 1_000) return { ok: false, reason: "deadline_exhausted" };
-    const timer = setTimeout(() => controller.abort(), remaining);
-    try {
-      const response = await fetchWithConnectTimeout(chatCompletionsUrl(config.baseUrl), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: explicitPromptCacheMessages(cdssSystemPrompt(kind), prompt, { provider: config.provider, model }),
-          stream: false,
-          ...structuredMaxTokensParam(model, "diagnose"),
-          temperature: 0,
-          response_format: responseFormatForTask(model, "m03_western"),
-          ...textModelRequestTuning(model, {
-            thinkingEnabled: thinkingEnabledForStructuredStage("diagnose"),
-            reasoningEffort: reasoningEffortForStructuredStage("diagnose"),
-          }),
-        }),
-      }, controller);
-      if (!response.ok) {
-        await response.body?.cancel().catch(() => undefined);
-        return { ok: false, reason: `http_${response.status}` };
+  const finish = (result: { ok: true; content: string; model: string } | { ok: false; reason: string }): M03ParallelHalfResult =>
+    result.ok
+      ? { ok: true, content: result.content, model: result.model, durationMs: Date.now() - startedAt }
+      : { ok: false, reason: result.reason, durationMs: Date.now() - startedAt };
+  if (!isApprovedTextModel(model)) return finish({ ok: false, reason: "text_model_vendor_policy" });
+  const attemptOnce = async (attemptModel: string): Promise<{ ok: true; content: string; model: string } | { ok: false; reason: string }> => {
+    const result = await requestStructuredCompletion({
+      model: attemptModel,
+      prompt,
+      kind,
+      task: "m03_western",
+      stage: "diagnose",
+      usageLabel: "m03_western",
+      parentSignal,
+      absoluteDeadline,
+    });
+    if (!result.ok) return result;
+    // HTTP 成功不等于西医半可用：json_object 模式下模型会交回括号错位的「像 JSON」文本。
+    // 结构修复也救不回来时按可重试失败处理，而不是当成功交给合并层再被静默丢弃——
+    // 否则页面先收到一份写着诊断的草稿，终稿却是「未形成可复核的西医工作诊断」。
+    const strict = supportsStrictJsonSchema(attemptModel);
+    let content = result.content;
+    let parsed = parseM03WesternHalf(content);
+    if (parsed.status === "unparseable" && !strict) {
+      // 只漏了末尾括号的输出先补齐再解析（见 checkNonStrictStructuredContent）。
+      const completed = checkNonStrictStructuredContent("m03_western", content);
+      if (completed.repairs.includes("trailing_closers")) {
+        content = completed.content;
+        parsed = parseM03WesternHalf(content);
       }
-      const result = parseOpenAICompatCompletionPayload(await readResponseTextLimited(response, PRIMARY_TEXT_MAX_OUTPUT_CHARS * 4 + 65_536));
-      recordModelUsage("m03_western", model, result, {
-        taskStage: "diagnose",
-        promptChars: prompt.length,
-        durationMs: Date.now() - startedAt,
-      });
-      const content = result?.choices?.[0]?.message?.content || "";
-      if (!result) return { ok: false, reason: "invalid_json" };
-      if (!content) return { ok: false, reason: "empty_content" };
-      if (content.length > PRIMARY_TEXT_MAX_OUTPUT_CHARS) return { ok: false, reason: "output_too_large" };
-      // HTTP 成功不等于西医半可用：json_object 模式下模型会交回括号错位的「像 JSON」文本。
-      // 结构修复也救不回来时按可重试失败处理，而不是当成功交给合并层再被静默丢弃——
-      // 否则页面先收到一份写着诊断的草稿，终稿却是「未形成可复核的西医工作诊断」。
-      if (parseM03WesternHalf(content).status === "unparseable") return { ok: false, reason: "unparseable_content" };
-      return { ok: true, content };
-    } catch (error) {
-      return {
-        ok: false,
-        reason: error instanceof UpstreamResponseTooLargeError
-          ? "output_too_large"
-          : controller.signal.aborted
-            ? "timeout_or_cancelled"
-            : "network_error",
-      };
-    } finally {
-      clearTimeout(timer);
-      parentSignal.removeEventListener("abort", abortFromParent);
     }
+    if (parsed.status === "unparseable") return { ok: false, reason: "unparseable_content" };
+    if (!strict) {
+      // 非严格模型：括号能救回来还不够，字段形状也要与严格 schema 一致（9/11–9/19 DeepSeek
+      // 西医半把 supportingFactKinds 写成字符串，zod 静默丢弃，依据分栏整块消失）。
+      const check = checkNonStrictStructuredValue("m03_western", parsed.value);
+      if (check.violations.length > 0) {
+        console.warn("[tcm-cdss:model] non-strict structured output violates provider schema", {
+          stage: "diagnose",
+          task: "m03_western",
+          model: attemptModel,
+          violations: summarizeSchemaViolations(check.violations),
+        });
+        return { ok: false, reason: "provider_schema_violation" };
+      }
+      if (check.repairs.length > 0) content = check.content;
+    }
+    return { ok: true, content, model: attemptModel };
   };
-  let result = await attemptOnce();
+  let result = await attemptOnce(model);
   const transientReasons = ["network_error", "timeout_or_cancelled", "empty_content", "invalid_json", "unparseable_content", "http_408", "http_425", "http_429", "http_500", "http_502", "http_503", "http_504"];
-  if (!result.ok && !parentSignal.aborted && absoluteDeadline - Date.now() > 45_000 && transientReasons.includes(result.reason)) {
-    result = await attemptOnce();
+  const strictFallback = structuredStrictFallbackModel(model);
+  if (!result.ok && !parentSignal.aborted && absoluteDeadline - Date.now() > 45_000) {
+    if (strictFallback && result.reason !== "deadline_exhausted" && result.reason !== "output_too_large") {
+      // 非严格模型的任何失败（结构不合规、传输、非 2xx）都改由严格模型重生成，而不是同模型再抽一次。
+      console.warn("[tcm-cdss:model] structured strict fallback selected", {
+        stage: "diagnose",
+        task: "m03_western",
+        reason: result.reason,
+        fromModel: model,
+        toModel: strictFallback,
+      });
+      result = await attemptOnce(strictFallback);
+    } else if (transientReasons.includes(result.reason)) {
+      result = await attemptOnce(model);
+    }
   }
   return finish(result);
 }
@@ -2110,6 +2241,11 @@ export function structuredRepairFailureIsUpstreamUnavailable(
  * 实测量级：prepare ≈ 3s、复核 p90 ≈ 5.5s、裁决轮 + finalize + 签名若干秒。
  */
 const STRUCTURED_REPAIR_FINALIZE_RESERVE_MS = 20_000;
+/**
+ * 严格兜底重生成（非流式，qwen3.8-flash）线上 p90：中医半约 47s、M04 约 45s；再留收尾储备。
+ * 剩余预算不够就不发——发了也来不及签名，不如把 DeepSeek 的输出交给既有修复/批注路径。
+ */
+const STRUCTURED_STRICT_FALLBACK_MIN_BUDGET_MS = 45_000 + STRUCTURED_REPAIR_FINALIZE_RESERVE_MS;
 /**
  * 观测到的轮次耗时下限。快速失败（2s 的 JSON 不合法）不代表重试也只要 2s——
  * 上游恢复后要跑的是一轮完整生成，估计值不能被这类快失败拉低。
@@ -2420,14 +2556,18 @@ async function callPrimaryTextModelStream(
   kind: PromptKind = "markdown",
   opts: StreamSafetyOptions = {},
 ): Promise<Response> {
-  const config = getPrimaryTextModelConfig();
-  const { apiKey, baseUrl } = config;
-  const model = modelForStructuredStage(config.model, opts.structuredStage);
-  if (!config.configured) {
-    return errResponse(500, getTextModelMissingMessage(config));
-  }
+  const primaryConfig = getPrimaryTextModelConfig();
+  const model = kind === "question" && !opts.structuredStage
+    ? modelForQuestionStage(primaryConfig.model)
+    : modelForStructuredStage(primaryConfig.model, opts.structuredStage);
   if (!isApprovedTextModel(model)) {
     return errResponse(500, "文本临床推理阶段仅允许使用已批准模型");
+  }
+  // 端点与密钥按本阶段模型的家族解析（2026-09-24）：主 provider 仍是百炼，而 M02/M03/M04
+  // 首轮可以单独配成 DeepSeek；目标家族没配齐时 fail-closed，不偷换成另一家的模型。
+  const config = textModelConfigForModel(model);
+  if (!config.configured) {
+    return errResponse(500, getTextModelMissingMessage(config));
   }
   const m03ParallelHalves = opts.structuredStage === "diagnose" ? opts.m03ParallelHalfPrompts : undefined;
   // 「重新生成候选方药」不能是同一张彩票（见 m04-retry-policy 的生产实证：同一病例第二次返回
@@ -3554,16 +3694,25 @@ async function callPrimaryTextModelStream(
           if (!westernHalf.ok || clientStreamClosed || upstreamController.signal.aborted) return;
           enqueueM03ModuleDrafts(westernHalf.content);
         }).catch(() => undefined);
+        const initialStructuredTask: StructuredOutputTask | undefined = opts.structuredStage === "prescribe"
+          ? "m04_proposal"
+          : opts.structuredStage === "diagnose"
+            ? m03ParallelHalves ? "m03_tcm" : "m03_full"
+            : undefined;
         const upstreamRequestForModel = (requestModel: string): RequestInit => ({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
+            Authorization: `Bearer ${textModelConfigForModel(requestModel).apiKey}`,
           },
           body: JSON.stringify({
             model: requestModel,
             // Parallel M03 streams the TCM half; repair still uses the complete prompt.
-            messages: explicitPromptCacheMessages(cdssSystemPrompt(kind), m03ParallelHalves ? m03ParallelHalves.tcm : prompt, { provider: config.provider, model: requestModel }),
+            messages: explicitPromptCacheMessages(
+              initialStructuredTask ? structuredSystemPrompt(kind, requestModel, initialStructuredTask) : cdssSystemPrompt(kind),
+              m03ParallelHalves ? m03ParallelHalves.tcm : prompt,
+              { provider: textModelConfigForModel(requestModel).provider, model: requestModel },
+            ),
             stream: true,
             stream_options: { include_usage: true },
             // M02 出题不是严格 schema 路径，保留其 3000 上限；结构化阶段按上面的策略决定。
@@ -3573,15 +3722,8 @@ async function callPrimaryTextModelStream(
             temperature: opts.structuredStage
               ? m04Retry.samplingTemperature
               : kind === "question" ? 0 : PRIMARY_TEXT_TEMPERATURE,
-            ...(opts.structuredStage
-              ? {
-                  response_format: responseFormatForTask(
-                    requestModel,
-                    opts.structuredStage === "prescribe"
-                      ? "m04_proposal"
-                      : m03ParallelHalves ? "m03_tcm" : "m03_full",
-                  ),
-                }
+            ...(initialStructuredTask
+              ? { response_format: responseFormatForTask(requestModel, initialStructuredTask) }
               : kind === "question" ? { response_format: { type: "json_object" } } : {}),
             ...textModelRequestTuning(requestModel, {
               thinkingEnabled: thinkingEnabledForStructuredStage(opts.structuredStage),
@@ -3602,13 +3744,16 @@ async function callPrimaryTextModelStream(
           try {
             upstreamRequestStartedAt = Date.now();
             const candidate = await fetchWithConnectTimeout(
-              chatCompletionsUrl(baseUrl),
+              chatCompletionsUrl(textModelConfigForModel(attemptModel).baseUrl),
               upstreamRequestForModel(attemptModel),
               upstreamController,
               absoluteRunDeadline,
               opts.structuredStage ? STRUCTURED_INITIAL_CONNECT_TIMEOUT_MS : PROVIDER_CONNECT_TIMEOUT_MS,
             );
-            if (attempt === 0 && isRetryableProviderHttpStatus(candidate.status)) {
+            // 非严格模型有严格兜底时，任何非 2xx（含 402 欠费、401 密钥失效）都换到兜底模型：
+            // 换一家供应商之后这类错误就是可重试的。
+            if (attempt === 0 && (isRetryableProviderHttpStatus(candidate.status) ||
+                (!candidate.ok && Boolean(structuredStrictFallbackModel(attemptModel)) && Boolean(opts.structuredStage)))) {
               retryReason = "retryable_http";
               await candidate.body?.cancel().catch(() => undefined);
               await new Promise((resolve) => setTimeout(resolve, 500));
@@ -3754,63 +3899,140 @@ async function callPrimaryTextModelStream(
           }
         };
 
+        // DeepSeek 首轮流中途断（空闲超时、无 [DONE] 的提前 EOF、坏帧）时，与「输出不合 schema」同样
+        // 交给严格兜底重生成，而不是直接落「服务暂时不可用」页。严格首轮（Qwen）保持原语义不变。
+        const nonStrictStreamRecoverable = Boolean(initialStructuredTask && opts.structuredStage &&
+          !supportsStrictJsonSchema(initialResponseModel) && structuredStrictFallbackModel(initialResponseModel));
+        let nonStrictStreamFailure: unknown;
         try {
-          while (true) {
-            let chunk: ReadableStreamReadResult<Uint8Array>;
-            try {
-              chunk = await readProviderChunk(reader, deadline, () => upstreamController.abort());
-            } catch (error) {
-              // 连接已成功后的 socket/流中断仍是上游传输失败。只在这个
-              // reader.read 边界标记，避免把后续的内容合同、输出过大等错误误分类。
-              if (!opts.requestSignal?.aborted && Date.now() < absoluteRunDeadline) {
-                initialGenerationFailedOnTransport = true;
+          try {
+            while (true) {
+              let chunk: ReadableStreamReadResult<Uint8Array>;
+              try {
+                chunk = await readProviderChunk(reader, deadline, () => upstreamController.abort());
+              } catch (error) {
+                // 连接已成功后的 socket/流中断仍是上游传输失败。只在这个
+                // reader.read 边界标记，避免把后续的内容合同、输出过大等错误误分类。
+                if (!opts.requestSignal?.aborted && Date.now() < absoluteRunDeadline) {
+                  initialGenerationFailedOnTransport = true;
+                }
+                throw error;
               }
-              throw error;
-            }
-            const { done, value } = chunk;
-            if (done) break;
-            buf += dec.decode(value, { stream: true });
-            const lines = buf.split("\n");
-            buf = lines.pop() ?? "";
-            for (const line of lines) {
-              const t = line.trim();
-              if (!t || !t.startsWith("data: ")) continue;
+              const { done, value } = chunk;
+              if (done) break;
+              buf += dec.decode(value, { stream: true });
+              const lines = buf.split("\n");
+              buf = lines.pop() ?? "";
+              for (const line of lines) {
+                const t = line.trim();
+                if (!t || !t.startsWith("data: ")) continue;
+                if (providerDone) {
+                  malformedChunks += 1;
+                  continue;
+                }
+                handleProviderData(t.slice(6));
+              }
               if (providerDone) {
-                malformedChunks += 1;
-                continue;
+                if (buf.trim().startsWith("data: ")) malformedChunks += 1;
+                await reader.cancel().catch(() => undefined);
+                buf = "";
+                break;
               }
-              handleProviderData(t.slice(6));
             }
-            if (providerDone) {
-              if (buf.trim().startsWith("data: ")) malformedChunks += 1;
-              await reader.cancel().catch(() => undefined);
-              buf = "";
-              break;
+
+            if (!providerDone && buf.trim().startsWith("data: ")) {
+              handleProviderData(buf.trim().slice(6));
             }
+            // The final closed object may fall in a <200-character remainder after the last scan.
+            if (opts.structuredStage) enqueueM03ModuleDrafts(accumulatedContent);
+          } finally {
+            reader?.releaseLock();
           }
 
-          if (!providerDone && buf.trim().startsWith("data: ")) {
-            handleProviderData(buf.trim().slice(6));
+          if (malformedChunks > 0) throw new Error("Primary text model stream contained malformed chunks");
+          if (!providerDone) {
+            // HTTP 200 之后以 done=true 提前 EOF（代理截断/socket graceful close）与
+            // reader 抛网络异常是同一类上游传输终止。malformed chunk 已在上一行
+            // 独立归为内容/协议缺陷；这里只标记「无 [DONE] 的正常 EOF」。
+            if (!opts.requestSignal?.aborted && Date.now() < absoluteRunDeadline) {
+              initialGenerationFailedOnTransport = true;
+            }
+            throw new Error("Primary text model stream ended without provider DONE marker");
           }
-          // The final closed object may fall in a <200-character remainder after the last scan.
-          if (opts.structuredStage) enqueueM03ModuleDrafts(accumulatedContent);
-        } finally {
-          reader?.releaseLock();
-        }
-
-        if (malformedChunks > 0) throw new Error("Primary text model stream contained malformed chunks");
-        if (!providerDone) {
-          // HTTP 200 之后以 done=true 提前 EOF（代理截断/socket graceful close）与
-          // reader 抛网络异常是同一类上游传输终止。malformed chunk 已在上一行
-          // 独立归为内容/协议缺陷；这里只标记「无 [DONE] 的正常 EOF」。
-          if (!opts.requestSignal?.aborted && Date.now() < absoluteRunDeadline) {
-            initialGenerationFailedOnTransport = true;
+          if (contentChars === 0 && reasoningChars > 0) {
+            throw new Error("模型仅返回推理过程，未返回可展示的最终内容，请重试或降低推理复杂度");
           }
-          throw new Error("Primary text model stream ended without provider DONE marker");
+        } catch (error) {
+          if (!nonStrictStreamRecoverable || clientStreamClosed || opts.requestSignal?.aborted) throw error;
+          nonStrictStreamFailure = error;
         }
-        if (contentChars === 0 && reasoningChars > 0) {
-          throw new Error("模型仅返回推理过程，未返回可展示的最终内容，请重试或降低推理复杂度");
+        // 非严格模型（DeepSeek json_object）的结构化首轮：按严格供应商的同一份 schema 校验。
+        // 不合规就用严格兜底模型对同一份提示词重生成（非流式），替换本轮输出后再走下面全部既有
+        // 校验——而不是让 zod 的 `.catch` 缺省值静默顶替（9/11–9/19 西医依据分栏就是这样丢的）。
+        // 已推给页面的流式草稿只是草稿，终稿以替换后的内容为准；心跳在此期间照常发送。
+        if (initialStructuredTask && opts.structuredStage && !supportsStrictJsonSchema(initialResponseModel)) {
+          const check = nonStrictStreamFailure
+            ? { content: accumulatedContent, violations: [{ path: "/", keyword: "stream_interrupted" }], repairs: [] }
+            : checkNonStrictStructuredContent(initialStructuredTask, accumulatedContent);
+          const violations = check.violations;
+          if (violations.length === 0 && check.repairs.length > 0) {
+            console.info("[tcm-cdss:model] non-strict structured output normalized", {
+              stage: opts.structuredStage,
+              task: initialStructuredTask,
+              model: initialResponseModel,
+              repairs: check.repairs.slice(0, 6).join("; "),
+            });
+            accumulatedContent = check.content;
+          }
+          if (violations.length > 0) {
+            const strictFallback = structuredStrictFallbackModel(initialResponseModel);
+            const budgetAllows = absoluteRunDeadline - Date.now() > STRUCTURED_STRICT_FALLBACK_MIN_BUDGET_MS;
+            console.warn("[tcm-cdss:model] non-strict structured output violates provider schema", {
+              stage: opts.structuredStage,
+              task: initialStructuredTask,
+              model: initialResponseModel,
+              violations: summarizeSchemaViolations(violations),
+              fallbackModel: strictFallback && budgetAllows ? strictFallback : "none",
+            });
+            if (strictFallback && budgetAllows) {
+              const fallbackStartedAt = Date.now();
+              const fallback = await requestStructuredCompletion({
+                model: strictFallback,
+                prompt: m03ParallelHalves ? m03ParallelHalves.tcm : prompt,
+                kind,
+                task: initialStructuredTask,
+                stage: opts.structuredStage,
+                usageLabel: `${opts.structuredStage}_strict_fallback`,
+                // 空闲超时会先 abort 上游控制器；那时兜底只跟随客户端连接本身。
+                parentSignal: upstreamController.signal.aborted
+                  ? opts.requestSignal ?? new AbortController().signal
+                  : upstreamController.signal,
+                absoluteDeadline: absoluteRunDeadline,
+                temperature: m04Retry.samplingTemperature,
+              });
+              console.info("[tcm-cdss:timing] structured_strict_fallback", {
+                stage: opts.structuredStage,
+                task: initialStructuredTask,
+                fromModel: initialResponseModel,
+                toModel: strictFallback,
+                outcome: fallback.ok ? "replaced" : fallback.reason,
+                durationMs: Date.now() - fallbackStartedAt,
+              });
+              if (fallback.ok) {
+                accumulatedContent = fallback.content;
+                finishReason = fallback.finishReason;
+                initialResponseModel = strictFallback;
+                // 首轮流虽然断了，兜底已给出完整结果：不再按「上游不可用」选页。
+                initialGenerationFailedOnTransport = false;
+                nonStrictStreamFailure = undefined;
+                if (opts.structuredStage === "diagnose") m03GeneratorModel = strictFallback;
+                if (opts.structuredStage === "prescribe") m04GeneratorModel = strictFallback;
+              }
+            }
+          }
         }
+        // 兜底没发（预算不够）或也失败了：按原来的错误走原来的分类与降级页。
+        if (nonStrictStreamFailure) throw nonStrictStreamFailure;
         if (m03ParallelHalves) {
           const westernHalf = m03WesternHalfPromise ? await m03WesternHalfPromise : undefined;
           const mergedParallel = mergeParallelM03Halves(
@@ -6348,10 +6570,17 @@ export function getDiagnosisProviderStatus() {
       maxPromptChars: PRIMARY_TEXT_MAX_PROMPT_CHARS,
       maxOutputChars: PRIMARY_TEXT_MAX_OUTPUT_CHARS,
     },
+    questionModel: {
+      provider: textModelConfigForModel(modelForQuestionStage(primary.model)).provider,
+      model: modelForQuestionStage(primary.model),
+      configured: textModelConfigForModel(modelForQuestionStage(primary.model)).configured,
+      role: "M02 follow-up question model",
+    },
     prescribeModel: {
-      provider: primary.provider,
+      provider: textModelConfigForModel(modelForStructuredStage(primary.model, "prescribe")).provider,
       model: modelForStructuredStage(primary.model, "prescribe"),
-      configured: primary.configured,
+      configured: textModelConfigForModel(modelForStructuredStage(primary.model, "prescribe")).configured,
+      strictFallbackModel: structuredStrictFallbackModel(modelForStructuredStage(primary.model, "prescribe")) || null,
       role: "M04 structured prescription model",
       reasoningEffort: PRIMARY_PRESCRIBE_REASONING_EFFORT,
       thinkingEnabled: thinkingEnabledForStructuredStage("prescribe"),
@@ -6360,9 +6589,10 @@ export function getDiagnosisProviderStatus() {
       repairReasoningEffort: reasoningEffortForStructuredRepair("prescribe"),
     },
     diagnoseModel: {
-      provider: primary.provider,
+      provider: textModelConfigForModel(modelForStructuredStage(primary.model, "diagnose")).provider,
       model: modelForStructuredStage(primary.model, "diagnose"),
-      configured: primary.configured,
+      configured: textModelConfigForModel(modelForStructuredStage(primary.model, "diagnose")).configured,
+      strictFallbackModel: structuredStrictFallbackModel(modelForStructuredStage(primary.model, "diagnose")) || null,
       role: "M03 structured diagnostic reasoning model",
       reasoningEffort: PRIMARY_DIAGNOSE_REASONING_EFFORT,
       thinkingEnabled: thinkingEnabledForStructuredStage("diagnose"),

@@ -126,8 +126,15 @@ export async function GET(req: Request) {
     providers.tongueVision.configured &&
     (!strictProbe || tongueVisionProbe?.ok === true)
   );
+  // M02 出题与 M03/M04 首轮可以单独配成另一家的模型（端点按模型家族解析，2026-09-24）；
+  // 那一家缺 key 时主模型照样「已配置」，所以要逐阶段看，否则部署后第一例才发现全部失败。
+  const stageModelsReady = providers.questionModel.configured && providers.diagnoseModel.configured &&
+    providers.prescribeModel.configured;
   const degradedReasons = [
     ...(!providers.primaryModel.configured ? ["primary_model_not_configured"] : []),
+    ...(!providers.questionModel.configured ? ["question_model_not_configured"] : []),
+    ...(!providers.diagnoseModel.configured ? ["diagnose_model_not_configured"] : []),
+    ...(!providers.prescribeModel.configured ? ["prescribe_model_not_configured"] : []),
     ...(tongueVisionRequired && !providers.tongueVision.configured ? ["tongue_vision_api_key_not_configured"] : []),
     ...(strictProbe && tongueVisionRequired && providers.tongueVision.configured && !tongueVisionAvailable
       ? [`tongue_vision_${tongueVisionProbe?.reason || "unavailable"}`]
@@ -161,7 +168,7 @@ export async function GET(req: Request) {
   ];
   // RxAudit remains advisory for an individual clinical decision, but a release advertised as the
   // complete M01-M05 product is not healthy when its configured audit sidecar is unreachable.
-  const strictReady = providers.primaryModel.configured && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && customerAuthorization.ready && controlledTerminologyReady && syndromeHypothesisRerankReady;
+  const strictReady = providers.primaryModel.configured && stageModelsReady && tongueVisionAvailable && evidenceMissing.length === 0 && evidenceUnavailable.length === 0 && rxAuditReady && snapshotPersistenceReady && reasoningSigningReady && clinicalFactsReady && tcmTreatmentConfigurationSafe && rateLimitIdentityReady && customerAuthorization.ready && controlledTerminologyReady && syndromeHypothesisRerankReady;
 
   const body = {
     module: "tcm-cdss",

@@ -160,3 +160,88 @@ console.log(JSON.stringify({ suite: "model-structured-output", tasks: 6, models:
   const fallback = responseFormatForZodSchema("deepseek-v4-flash", "m02_interpret", schema);
   assert.equal(fallback.type, "json_object", "不支持严格模式的模型回落 json_object");
 }
+
+{
+  // ── 非严格供应商（DeepSeek json_object）的同一份结构合同（2026-09-24，提速第三批）──
+  // 提示里附的 schema 与服务端校验用的 schema 必须是同一份；校验必须抓住 9/11–9/19 线上真实出现过的
+  // 形状错误，同时不能把「语义上等价」的写法（省略可空字段、可空字段写空串、多写服务端自有字段）
+  // 当成违规——否则每一例都会白白多跑一轮严格兜底。
+  const { createJiti } = await import("jiti");
+  const fmtJiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
+  const { checkNonStrictStructuredContent, checkNonStrictStructuredValue, providerJsonSchemaForTask, providerSchemaViolations,
+    structuredOutputSchemaInstruction } = await fmtJiti.import("../src/lib/model-response-format.ts");
+
+  for (const task of ["m03_western", "m03_tcm", "m03_full"]) {
+    const instruction = structuredOutputSchemaInstruction("deepseek-flash", task);
+    assert.match(instruction, /【输出 JSON Schema/, `${task}: DeepSeek 必须拿到 schema`);
+    const shown = JSON.parse(instruction.split("\n").find((line) => line.startsWith("{")));
+    const provider = providerJsonSchemaForTask(task);
+    assert.deepEqual(Object.keys(shown.properties).sort(), Object.keys(provider.properties).sort(),
+      `${task}: 提示里的 schema 与校验用的 schema 同源`);
+    assert.equal(structuredOutputSchemaInstruction("qwen3.8-flash", task), "", `${task}: 严格模型不重复附 schema`);
+  }
+  assert.match(structuredOutputSchemaInstruction("deepseek-flash", "m03_tcm"), /三轴各自独立定档/,
+    "中医半给 DeepSeek 重申 resolution 定档规则（实测 bounded 16/18 → 重申后 resolved 7/18）");
+  assert.doesNotMatch(structuredOutputSchemaInstruction("deepseek-flash", "m03_western"), /三轴各自独立定档/, "西医半没有 resolution 三轴");
+  assert.equal(structuredOutputSchemaInstruction("deepseek-flash", "m04_proposal"), "",
+    "M04 不附 schema：重放实测附了反而 14/14 → 11/14");
+
+  const western = {
+    westernDiagnosis: {
+      primary: {
+        name: "慢性失眠障碍", status: "考虑", confidence: "中",
+        supportingFacts: ["入睡困难3个月"],
+        supportingFactKinds: [{ fact: "入睡困难3个月", kind: "symptom" }],
+        clinicalRationale: "病程超过3个月且每周多晚发作", limitations: ["未做睡眠监测"], suggestedChecks: ["睡眠日记"],
+      },
+      differentials: [],
+    },
+  };
+  assert.deepEqual(providerSchemaViolations("m03_western", western), [], "省略全部可空字段 = 合规");
+  const kindsAsStrings = structuredClone(western);
+  kindsAsStrings.westernDiagnosis.primary.supportingFactKinds = ["symptom"];
+  assert.ok(providerSchemaViolations("m03_western", kindsAsStrings).some((item) => item.keyword === "type"),
+    "依据分类写成字符串（9/11–9/19 线上形状）必须判违规");
+  const missingChecks = structuredClone(western);
+  delete missingChecks.westernDiagnosis.primary.suggestedChecks;
+  assert.ok(providerSchemaViolations("m03_western", missingChecks).some((item) => item.keyword === "required:suggestedChecks"),
+    "缺必填非空字段必须判违规");
+  const misnamed = structuredClone(western);
+  misnamed.westernDiagnosis.primary.suggestedCheck = ["睡眠日记"];
+  assert.ok(providerSchemaViolations("m03_western", misnamed).length > 0, "schema 外的键名（多半是写错键名）必须判违规");
+  const serverOwned = structuredClone(western);
+  serverOwned.schemaVersion = "tcm-cdss-reasoning-v2";
+  serverOwned.westernDiagnosis.primary.evidence = { evidenceLevel: "model_inference" };
+  assert.deepEqual(checkNonStrictStructuredValue("m03_western", serverOwned).violations, [],
+    "多写服务端自有字段无害（服务端覆盖、zod 丢弃），不得触发兜底");
+  assert.ok(providerSchemaViolations("m03_western", serverOwned).length > 0,
+    "裸校验（严格供应商视角）仍把它们当 schema 外的键——容忍只发生在非严格入口");
+  const emptyOptional = structuredClone(western);
+  emptyOptional.westernDiagnosis.primary.coding = "";
+  assert.deepEqual(providerSchemaViolations("m03_western", emptyOptional), [], "可空字段写空串与省略同义");
+
+  const tcmValue = { pathogenesis: { chain: [{ pathogenesisType: "不存在的类型" }] } };
+  assert.ok(providerSchemaViolations("m03_tcm", tcmValue).some((item) => item.path === "/pathogenesis/chain/0/pathogenesisType" && item.keyword === "enum"),
+    "枚举外取值（中医半重放 6/18）必须判违规");
+
+  const complete = JSON.stringify(western);
+  const missingBrace = complete.slice(0, -1);
+  assert.throws(() => JSON.parse(missingBrace));
+  const completed = checkNonStrictStructuredContent("m03_western", missingBrace);
+  assert.deepEqual(completed.violations, [], "只漏末尾括号的输出补齐后合规");
+  assert.deepEqual(completed.repairs, ["trailing_closers"]);
+  assert.deepEqual(JSON.parse(completed.content), western);
+  const earlyClose = `{"westernDiagnosis":{"primary":${JSON.stringify(western.westernDiagnosis.primary)}},"differentials":[]}}`;
+  assert.deepEqual(checkNonStrictStructuredContent("m03_western", earlyClose).violations, [{ path: "/", keyword: "json" }],
+    "提前闭合（括号错位）不是「补末尾」能修的，照报");
+  assert.equal(checkNonStrictStructuredContent("m03_western", complete).content, complete, "无修补时内容逐字不变");
+
+  const basisLimit = providerJsonSchemaForTask("m03_tcm").properties.overview.properties.primarySyndromeBasis.maxItems;
+  assert.equal(typeof basisLimit, "number");
+  const overLong = { overview: { primarySyndromeBasis: Array.from({ length: basisLimit + 2 }, (_, index) => `依据${index + 1}`) } };
+  const clamped = checkNonStrictStructuredValue("m03_tcm", overLong);
+  assert.deepEqual(JSON.parse(clamped.content).overview.primarySyndromeBasis, overLong.overview.primarySyndromeBasis.slice(0, basisLimit),
+    "超长数组截到上限并保留前 N 条（zod 对超长数组是整组清空）");
+  assert.ok(clamped.repairs.includes("max_items:/overview/primarySyndromeBasis"));
+  assert.ok(!clamped.violations.some((item) => item.keyword === "maxItems"));
+}

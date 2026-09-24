@@ -13,8 +13,8 @@ const jiti = createJiti(import.meta.url, {
 const { UpstreamResponseTooLargeError, readResponseTextLimited } = await jiti.import("../src/lib/http-response-limit.ts");
 const { cancelResponseBody } = await jiti.import("../src/lib/http-response-lifecycle.ts");
 const { callDiagnosisStream, fetchWithConnectTimeout, isTongueVisionConfigured, isTongueVisionEnabled,
-  isRetryableProviderHttpStatus, modelForInitialConnectAttempt, readProviderChunk,
-  structuredRepairFailureIsUpstreamUnavailable } =
+  isRetryableProviderHttpStatus, modelForInitialConnectAttempt, modelForQuestionStage, readProviderChunk,
+  structuredRepairFailureIsUpstreamUnavailable, structuredStrictFallbackModel } =
   await jiti.import("../src/lib/diagnosis-api.ts");
 const { buildTongueVisionPrompt } = await jiti.import("../src/lib/diagnosis-prompts.ts");
 const { getPrimaryTextModelConfig } = await jiti.import("../src/lib/text-model.ts");
@@ -111,12 +111,16 @@ assert.match(
 // 2026-09-19 owner 裁定：只用 qwen3.8-flash + qwen3.8-max 两档。首轮与小任务 flash，修复轮与 M04 传输兜底 max。
 // 事实层三相位全用 max（整套黄金基线 222 例定档）：flash 抽取常漏标低体温 35.5℃ 与「否认头晕，剧烈头痛」
 // （冷启动各 3 次只过 1 次）；flash 复核更慢且超时/不合格输出多，整套 21 条失败；全 max 只剩 1 条偏保守的失败。
+// 2026-09-24（提速第三批）：M02 出题、M03 两半、M04 首轮改跑 DeepSeek，Qwen strict 退为兜底——
+// 不合 schema / 连不上时由 PRIMARY_STRUCTURED_FALLBACK_MODEL 对同一份提示词重生成。
 const expectedModelMatrix = {
   OPENAI_MODEL: "deepseek-v4-flash",
   BAILIAN_QWEN_MODEL: "qwen3.8-flash",
-  PRIMARY_DIAGNOSE_MODEL: "qwen3.8-flash",
+  PRIMARY_QUESTION_MODEL: "deepseek-flash",
+  PRIMARY_STRUCTURED_FALLBACK_MODEL: "qwen3.8-flash",
+  PRIMARY_DIAGNOSE_MODEL: "deepseek-flash",
   PRIMARY_DIAGNOSE_REPAIR_MODEL: "qwen3.8-max",
-  PRIMARY_PRESCRIBE_MODEL: "qwen3.8-flash",
+  PRIMARY_PRESCRIBE_MODEL: "deepseek-flash",
   PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL: "qwen3.8-max",
   PRIMARY_PRESCRIBE_REPAIR_MODEL: "qwen3.8-max",
   CLINICAL_FACTS_MODEL: "qwen3.8-max",
@@ -190,6 +194,77 @@ assert.match(composeSource, /AI_TEXT_PROVIDER: \$\{AI_TEXT_PROVIDER:-bailian-qwe
   });
   await withEnv(qwenPrimary, () => {
     assert.equal(textModelConfigForModel("gpt-4o").configured, false, "未批准模型一律 fail-closed");
+  });
+  // 严格兜底（2026-09-24）：DeepSeek 首轮只有 json_object，不合 schema 或连不上时必须换到一个
+  // 支持严格 schema、且端点已配齐的模型；严格模型自己不需要兜底。
+  await withEnv({ ...qwenPrimary, PRIMARY_STRUCTURED_FALLBACK_MODEL: undefined }, () => {
+    assert.equal(structuredStrictFallbackModel("deepseek-flash"), "qwen3.8-flash", "缺省兜底是改动前的线上首轮模型");
+    assert.equal(structuredStrictFallbackModel("qwen3.8-flash"), undefined, "严格模型不设兜底");
+  });
+  await withEnv({ ...qwenPrimary, PRIMARY_STRUCTURED_FALLBACK_MODEL: "qwen3.8-max" }, () => {
+    assert.equal(structuredStrictFallbackModel("deepseek-flash"), "qwen3.8-max");
+  });
+  await withEnv({ ...qwenPrimary, PRIMARY_STRUCTURED_FALLBACK_MODEL: "deepseek-v4-pro" }, () => {
+    assert.equal(structuredStrictFallbackModel("deepseek-flash"), undefined, "不支持严格 schema 的兜底等于没有兜底");
+  });
+  await withEnv({ ...qwenPrimary, PRIMARY_STRUCTURED_FALLBACK_MODEL: "none" }, () => {
+    assert.equal(structuredStrictFallbackModel("deepseek-flash"), undefined, "none 显式关闭兜底");
+  });
+  await withEnv({ ...qwenPrimary, AI_TEXT_PROVIDER: "openai-compatible", BAILIAN_QWEN_API_KEY: "", PRIMARY_STRUCTURED_FALLBACK_MODEL: undefined }, () => {
+    assert.equal(structuredStrictFallbackModel("deepseek-flash"), undefined, "兜底家族缺密钥时 fail-closed，不假装有兜底");
+  });
+  await withEnv({ ...qwenPrimary, PRIMARY_STRUCTURED_FALLBACK_MODEL: undefined, PRIMARY_PRESCRIBE_CONNECT_FALLBACK_MODEL: "qwen3.8-max" }, () => {
+    assert.equal(modelForInitialConnectAttempt("deepseek-flash", "prescribe", 0), "deepseek-flash");
+    assert.equal(modelForInitialConnectAttempt("deepseek-flash", "prescribe", 1), "qwen3.8-flash",
+      "DeepSeek 首轮连不上时换到严格兜底（跨家族，端点按模型解析）");
+    assert.equal(modelForInitialConnectAttempt("deepseek-flash", "diagnose", 1), "qwen3.8-flash",
+      "M03 首轮同样有传输兜底——DeepSeek 402 欠费不能再让全链瘫痪");
+    assert.equal(modelForInitialConnectAttempt("deepseek-flash", undefined, 1), "deepseek-flash", "非结构化阶段不换模型");
+  });
+  {
+    // 阶段模型可以是另一家：那一家缺 key 时主模型照样「已配置」，健康检查必须逐阶段报出来。
+    const { GET: healthGet } = await jiti.import("../src/app/api/diagnosis/health/route.ts");
+    const readHealth = async () => (await healthGet(new Request("http://localhost/api/diagnosis/health"))).json();
+    await withEnv({ ...qwenPrimary, PRIMARY_DIAGNOSE_MODEL: "deepseek-flash", PRIMARY_PRESCRIBE_MODEL: "deepseek-flash",
+      PRIMARY_QUESTION_MODEL: "deepseek-flash", OPENAI_API_KEY: "" }, async () => {
+      const body = await readHealth();
+      for (const reason of ["question_model_not_configured", "diagnose_model_not_configured", "prescribe_model_not_configured"]) {
+        assert.ok(body.degradedReasons.includes(reason), `缺 DeepSeek 密钥必须报 ${reason}`);
+      }
+      assert.equal(body.strictReady, false, "阶段模型不可用时不得判发布就绪");
+    });
+    await withEnv({ ...qwenPrimary, PRIMARY_DIAGNOSE_MODEL: "deepseek-flash", PRIMARY_PRESCRIBE_MODEL: "deepseek-flash",
+      PRIMARY_QUESTION_MODEL: "deepseek-flash" }, async () => {
+      const body = await readHealth();
+      assert.ok(!body.degradedReasons.some((reason) => /^(question|diagnose|prescribe)_model_not_configured$/.test(reason)),
+        "两家都配齐时不得误报");
+    });
+  }
+  await withEnv({ ...qwenPrimary, PRIMARY_QUESTION_MODEL: undefined }, () => {
+    assert.equal(modelForQuestionStage("qwen3.8-flash"), "qwen3.8-flash", "未配置时 M02 出题跟随主模型");
+  });
+  await withEnv({ ...qwenPrimary, PRIMARY_QUESTION_MODEL: "deepseek-flash" }, async () => {
+    assert.equal(modelForQuestionStage("qwen3.8-flash"), "deepseek-flash");
+    // 整条 M02 调用：出题请求必须带着 DeepSeek 的模型名与密钥打到 DeepSeek 端点，而不是主 provider。
+    const savedFetch = globalThis.fetch;
+    const seen = [];
+    globalThis.fetch = async (url, init) => {
+      seen.push({ host: new URL(String(url)).hostname, auth: init.headers.Authorization, body: JSON.parse(init.body) });
+      return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: "{}" }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`, {
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    };
+    try {
+      const response = await callDiagnosisStream("synthetic M02 prompt", "deepseek", undefined, "question", {});
+      await response.text();
+    } finally {
+      globalThis.fetch = savedFetch;
+    }
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].host, "api.deepseek.com", "M02 出题走 DeepSeek 端点");
+    assert.equal(seen[0].auth, "Bearer test-deepseek-key");
+    assert.equal(seen[0].body.model, "deepseek-flash");
+    assert.deepEqual(seen[0].body.response_format, { type: "json_object" });
   });
 }
 assert.match(envExampleSource, /^AI_TEXT_PROVIDER=bailian-qwen$/m);
