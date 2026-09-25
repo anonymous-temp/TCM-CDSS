@@ -145,15 +145,17 @@ The 48k-line JSON is a **generated build artifact** — do not hand-edit it. `sc
 This exists because of a real failure mode: local regressions were green while production behaved the opposite way, and there was no way to tell "the fix is wrong" from "the fix never shipped." The chain that makes that decidable:
 
 ```bash
-node scripts/build-source-digest.mjs      # npm run build:source-digest
-IMAGE_TAG=<immutable-tag> ./scripts/deploy-prod.sh
+node scripts/build-source-digest.mjs      # npm run build:source-digest → DIGEST
+scripts/deploy/prebuild-local.sh <clean-worktree> <TAG> <COMMIT> <DIGEST> <STAMP>   # compiles HERE, not on the host
+IMAGE_TAG=<TAG> PREBUILT_DIR=~/build-prebuilt/<TAG> DEPLOY_REMOTE_DIR=<release dir> \
+  DEPLOY_OVERRIDE_REL=<release-ops/production.override.yml> scripts/deploy/deploy-green-inplace-prebuilt.sh
 BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=… npm run verify:deployed-image
 BASE_URL=… CDSS_API_TOKEN=… npm run regress:prod-smoke
 ```
 
 - `build-source-digest.mjs` hashes only **clinical-behavior** files — `src/lib`, `src/app/api`, `src/data` — deliberately excluding docs/tests, so editing this file doesn't move the digest but editing one line of safety logic does. It's baked in at build time via `CDSS_BUILD_COMMIT` / `CDSS_BUILD_SOURCE_DIGEST` / `CDSS_BUILD_TIMESTAMP` build args and echoed back by `/api/diagnosis/health`.
 - `verify:deployed-image` recomputes the digest locally and compares. **Non-zero exit means the deploy failed, including "couldn't prove it"** — don't debug source until it's zero.
-- `scripts/deploy-prod.sh` carries five hard-won constraints in its header comment (whitelist rsync — the repo root holds 4.6GB of data assets and blacklisting took two hours per sync; `--env-file` not `source`; prune before build; explicit `-p tcm-cdss-prod`; never `| tail` away an exit code). Read them before editing it. It lives in the repo precisely because a `/tmp` copy was once lost.
+- **Production is the green container `tcm-cdss-deepseek-green-20260911` (port 3020) replaced in place**, not `-p tcm-cdss-prod`; the old `scripts/deploy-prod.sh` hard-coded the latter and "deployed" a container nginx never routes to, so it was deleted (2026-09-25). `scripts/deploy/` holds the real path, moved in from an out-of-repo `~/runlogs/` copy (a `/tmp` copy of the deploy script was lost once before): `prebuild-local.sh` compiles locally because `next build` needs ~6GB and building on the shared host took it offline twice; `deploy-green-inplace-prebuilt.sh` only packages the runtime layer on the host. Its header lists the load-bearing checks (prebuilt meta = commit + digest; runtime env digest before/after sync; whitelist rsync from `common.sh`, shared with prebuild; `env -i` + `--env-file` compose; token three-way match + 0600 baseline; count-based prune + disk floor; image existence re-checked after a tail-truncated build; compose backup for rollback). `IMAGE_TAG`, `PREBUILT_DIR`, `DEPLOY_REMOTE_DIR` and `DEPLOY_OVERRIDE_REL` are required because each stale default has already bitten (cold 481MB sync; wrong override silently changes the production model tiers). `test:deploy-runtime-env-protection` drives the real script through fake ssh/rsync to every refusal gate. Read the header before editing.
 
 ### 本机执行纪律（2026-08-16 实测，各栽过 ≥2 次）
 
