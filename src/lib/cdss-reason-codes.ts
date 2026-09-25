@@ -21,15 +21,15 @@ export const CDSS_DEGRADE_REASON_CODES = [
   "semantic_review_unfinished",
   /** 缺主诉 —— 须补录后从采集重跑 */
   "missing_chief_complaint",
-  /** 信息完整度未达 C —— 补充信息后重跑辨证 */
+  /** 信息完整度未达 C —— 补充信息后重跑辨证。服务端已不再签发(随 block 档 2026-09-25 删除);码位保留同下 */
   "completeness_below_c",
-  /** 安全门红旗拦截(block 档) —— 完成风险处置后重试 */
+  /** 安全门红旗拦截 —— 完成风险处置后重试。服务端已不再签发(随 block 档 2026-09-25 删除);码位按「只追加」约定保留,供存量缓存病例分流 */
   "safety_gate_blocked",
   /** M04 输出截断且无可回收候选 —— 可直接重试 M04 */
   "m04_truncated_no_candidate",
   /** 确定性方剂参考页(非剂量增强形态) —— 可直接重试 M04 尝试完整出方 */
   "deterministic_reference",
-  /** 锁定方无可执行剂量基准(block 档) —— 医生调整方向或切 advise 档 */
+  /** 锁定方无可执行剂量基准 —— 医生调整方向。服务端已不再签发(随 block 档 2026-09-25 删除,现转自拟组方照常生成);码位保留同上 */
   "formula_dose_boundary_unavailable",
   /**
    * 上游模型服务暂时不可用(修复轮/复核走非流式端点,provider 503/超时)。

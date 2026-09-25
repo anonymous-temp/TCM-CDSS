@@ -1005,7 +1005,7 @@ async function runCase(testCase) {
       ? Boolean(reasoningFrom(result.content, "prescribe")) ||
         evaluateDeterministicReference(result.content).ok ||
         evaluateLimitedNoDose(result.content).ok
-      // CDSS_GATE_DISPOSITION=advise（甲方 2026-08-01 定的处置口径）下，权限判 non_dose_only
+      // 「提示不拦截」处置口径（甲方 2026-08-01；block 回退档 2026-09-25 删除）下，权限判 non_dose_only
       // 也**照常生成**剂量级候选，只是前置确定性安全横幅、且 formalAdoption=blocked。
       // 本套件此前只认「权限不给剂量 ⇒ 必须是非剂量页」这条 block 时代的判据，于是
       // 妊娠/哺乳阳性例（G05）连续两轮被判「响应未满足协议」而整例中止。

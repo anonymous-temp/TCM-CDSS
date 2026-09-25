@@ -2,14 +2,10 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src` } });
-// ── 本套件钉的是**两个档位**（2026-09-13）─────────────────────────────────────────
-// CDSS_GATE_DISPOSITION=block（运维回退档）：维持旧的去具体度投影——证候、病机链、方剂方向
-//   全部清空成症状级工作判断。下面这一大段全部属于 block 档，显式置位后再跑。
-// advise（默认档，owner 决策）：**一个字都不删**，只加边界标注。文件末尾另起一段钉住，
-//   并对每条保留断言做撤销反证（把档位切回 block 时同一输入必须重新被清空）。
-// 此前本文件在**未置位**的情况下断言清空行为，等于把默认档钉成了 block——这正是
-// 222 例实测里 28 例证候被撤回的那条代码路径长期没有测试压力的原因。
-process.env.CDSS_GATE_DISPOSITION = "block";
+// ── 本套件钉的是 M03 终审出口的具体度投影 ─────────────────────────────────────────
+// 触发条件（完整度未达 C、或红旗；B 级且辨证轴充分时豁免）决定「要不要标注边界」；
+// 标注**一个字都不删**，只加边界（owner 决策 2026-09-13）。旧的去具体度清空投影只在
+// CDSS_GATE_DISPOSITION=block 回退档生效，2026-09-25 随该档一并删除。
 const { applyM03DecisionSpecificityPolicy, annotateM03DecisionSpecificityBoundary, synchronizeVisibleClinicalSummary } = await jiti.import("../src/lib/diagnosis-visible-summary.ts");
 
 const reasoning = {
@@ -91,61 +87,12 @@ const state = (level, status) => ({
   safetyGate: { status, allowDiagnosis: true, allowDosePrescription: status === "ready", action: "continue", missingItems: [], redFlags: status === "red_flag" ? ["急性胸痛伴大汗"] : [], reasons: [] },
 });
 const parsed = (value) => JSON.parse(value.split("<!-- DIAGNOSIS_JSON_START -->")[1].split("<!-- DIAGNOSIS_JSON_END -->")[0]);
-const forbiddenSpecificity = /外感风邪证|风热犯表证|风寒束表|风邪犯肺|辛温解表|疏风宣肺|麻黄汤|三拗汤|伤寒派|针刺肺俞|肺俞|自拟疏风止咳汤|院内安神方|梅花针/;
 
-for (const level of ["A", "B"]) {
-  const result = parsed(applyM03DecisionSpecificityPolicy(content, state(level, "ready")));
-  assert.equal(result.overview.primarySyndrome, "症状级工作判断");
-  assert.equal(result.overview.primarySyndromeResolution, "unresolved");
-  assert.deepEqual(result.overview.recommendedFormulaNames, []);
-  assert.equal(result.overview.recommendedFormulaDirection, "");
-  assert.equal(result.overview.formulaSelectionMode, "none");
-  assert.equal(result.overview.deferredFormulaSelection, undefined);
-  assert.match(result.overview.primarySyndromeResolutionReason, /完整度未达C级/);
-  assert.ok(result.management.mustCollect.some((item) => /必要四诊/.test(item)));
-  assert.equal(result.management.mustCollect.length, 1, "model-authored management collection rows must not cross the specificity boundary");
-  assert.equal(result.management.redFlagLoop, undefined, "non-red-flag sparse cases must not retain model-authored red-flag text");
-  assert.match(result.management.followupSafetyNet, /补充.*关键信息.*复评/);
-  assert.doesNotMatch(JSON.stringify(result), forbiddenSpecificity, `${level}-level output must remove all TCM syndrome/pathogenesis/therapy/formula specificity`);
-  assert.equal(result.formula, null);
-  assert.equal(result.nonPharma, null);
-  assert.equal(result.lineageAdaptation, null);
-  assert.deepEqual(result.pathogenesis.chain, []);
-  assert.equal(result.pathogenesis.uncertainties.length, 1);
-  assert.equal(result.pathogenesis.uncertainties[0].item, "辨证与方剂具体度边界");
-  assert.deepEqual(result.therapy.subTherapies, []);
-  assert.equal(result.westernDiagnosis.primary.name, "症状级西医工作判断");
-  assert.deepEqual(result.westernDiagnosis.primary.supportingFacts, []);
-  assert.deepEqual(result.westernDiagnosis.primary.supportingFactKinds, []);
-  assert.equal(result.westernDiagnosis.primary.confidence, "低");
-  assert.equal(result.westernDiagnosis.primary.coding, undefined);
-  assert.deepEqual(result.westernDiagnosis.differentials, []);
-  assert.deepEqual(result.westernDiagnosis.candidates, []);
-  assert.deepEqual(result.overview.evidence, { evidenceLevel: "insufficient", source: "当前病例信息不足", confidence: "低" });
-  const visible = synchronizeVisibleClinicalSummary(applyM03DecisionSpecificityPolicy(content, state(level, "ready")), "diagnose");
-  assert.doesNotMatch(visible, forbiddenSpecificity, `${level}-level visible Markdown and sentinel must share the same declassified projection`);
-}
-
-const redFlag = parsed(applyM03DecisionSpecificityPolicy(content, state("C", "red_flag")));
-assert.equal(redFlag.overview.primarySyndromeResolution, "unresolved");
-assert.deepEqual(redFlag.overview.recommendedFormulaNames, []);
-assert.equal(redFlag.overview.recommendedFormulaDirection, "");
-assert.match(redFlag.overview.primarySyndromeResolutionReason, /急危重风险未排除/);
-assert.ok(redFlag.management.mustCollect.some((item) => /急危重风险评估/.test(item)));
-assert.match(redFlag.management.redFlagLoop, /急危重风险未排除/);
-assert.match(redFlag.management.followupSafetyNet, /立即急诊或呼叫急救/);
-assert.doesNotMatch(JSON.stringify(redFlag), forbiddenSpecificity, "red-flag output must remove all TCM syndrome/pathogenesis/therapy/formula specificity");
+// 投影是否触发：标注边界会写入这一条可见的不确定项；未触发时内容逐字节原样返回。
+const BOUNDARY_ITEM = "辨证与方剂具体度边界";
+const boundaryAnnotated = (result) => result.pathogenesis.uncertainties.some((row) => row.item === BOUNDARY_ITEM);
 
 assert.equal(applyM03DecisionSpecificityPolicy(content, state("C", "ready")), content, "C-level ready cases retain full specificity");
-
-for (let iteration = 0; iteration < 20; iteration += 1) {
-  const sparse = parsed(applyM03DecisionSpecificityPolicy(content, state("B", "ready")));
-  assert.equal(sparse.overview.recommendedFormulaNames.length, 0, `sparse iteration ${iteration + 1}`);
-  assert.doesNotMatch(JSON.stringify(sparse), forbiddenSpecificity, `sparse iteration ${iteration + 1}`);
-  const acute = parsed(applyM03DecisionSpecificityPolicy(content, state("C", "red_flag")));
-  assert.equal(acute.overview.recommendedFormulaNames.length, 0, `red-flag iteration ${iteration + 1}`);
-  assert.doesNotMatch(JSON.stringify(acute), forbiddenSpecificity, `red-flag iteration ${iteration + 1}`);
-}
 
 // ─── 辨证轴/剂量轴拆分（2026-08-26，TCM-SD 12/12 全拒答的判层归因）────────────────
 // 证据：TCM-SD 真实住院病历（现病史+查体+舌脉俱全）门禁只缺「性别/生理状态、过敏史、
@@ -222,17 +169,18 @@ assert.equal(syndromeAxisInformationSufficient({
   ...doseSafetyOnlyGate,
   missingItems: [...doseSafetyOnlyGate.missingItems, "特殊人群用药复核（妊娠/哺乳/备孕阳性）"],
 }), false, "an uncoded extra item fails closed");
-// 投影行为：B 级 + 剂量安全轴缺口 → 辨证保留；其余照旧清空。
+// 投影行为：B 级 + 剂量安全轴缺口 → 不触发投影；其余触发边界标注（内容保留）。
 const doseSafetyState = {
   completeness: { level: "B", redFlag: 0.4, infoGain: 0.5, managementImpact: 0.75, answerability: 0.5 },
   safetyGate: doseSafetyOnlyGate,
 };
 const keptContent = applyM03DecisionSpecificityPolicy(wrap(reasoning), doseSafetyState);
+assert.equal(keptContent, wrap(reasoning), "dose-safety-only B-level gaps do not trigger the specificity boundary at all");
 const keptReasoning = JSON.parse(keptContent.match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/)[1]);
 assert.equal(keptReasoning.overview.primarySyndrome, "外感风邪证",
   "a B-level case whose only gaps are dose-safety keeps its syndrome");
 assert.deepEqual(keptReasoning.overview.recommendedFormulaNames, ["三拗汤"], "the formula direction survives too");
-// 反证 4：同为 B 级但缺口含舌象 → 仍清空成症状级。
+// 反证 4：同为 B 级但缺口含舌象 → 触发边界标注。
 const mixedGapState = {
   completeness: { level: "B", redFlag: 0.4, infoGain: 0.5, managementImpact: 0.75, answerability: 0.5 },
   safetyGate: {
@@ -243,12 +191,15 @@ const mixedGapState = {
 };
 const cappedContent = applyM03DecisionSpecificityPolicy(wrap(reasoning), mixedGapState);
 const cappedReasoning = JSON.parse(cappedContent.match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/)[1]);
-assert.equal(cappedReasoning.overview.primarySyndrome, "症状级工作判断");
-// 反证 5：红旗态永远清空，无论缺项形态。
+assert.ok(boundaryAnnotated(cappedReasoning), "a four-exam gap triggers the specificity boundary");
+assert.match(cappedReasoning.overview.primarySyndromeResolutionReason, /完整度未达C级/);
+assert.equal(cappedReasoning.overview.primarySyndrome, "外感风邪证", "the boundary annotates, it never rewrites the syndrome");
+// 反证 5：红旗态永远触发，无论缺项形态。
 const redFlagState = { completeness: { level: "B" }, safetyGate: { ...doseSafetyOnlyGate, status: "red_flag" } };
 const redFlagReasoning = JSON.parse(applyM03DecisionSpecificityPolicy(wrap(reasoning), redFlagState)
   .match(/<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/)[1]);
-assert.equal(redFlagReasoning.overview.primarySyndrome, "症状级工作判断");
+assert.ok(boundaryAnnotated(redFlagReasoning), "a red-flag gate always triggers the specificity boundary");
+assert.match(redFlagReasoning.overview.primarySyndromeResolutionReason, /急危重风险未排除/);
 
 // Completing a dose-background field must not erase an otherwise supported syndrome.
 // Exercise the actual normalization/gate rather than trusting a caller-provided C score.
@@ -284,15 +235,14 @@ for (const key of ["tcmTongue", "tcmPulse", "xianbingshi"]) {
   const sparseInput = structuredClone(completeInput);
   sparseInput.hisRecord.fields[key] = "未记录";
   const sparse = withSafetyGate(normalizeCaseStateInput(sparseInput));
-  assert.equal(parsed(applyM03DecisionSpecificityPolicy(content, sparse)).overview.primarySyndrome, "症状级工作判断",
+  assert.ok(boundaryAnnotated(parsed(applyM03DecisionSpecificityPolicy(content, sparse))),
     `a real ${key} evidence gap does not inherit the ready exception`);
 }
 
-// ═══ advise 档（默认）：标注边界，不撤回分析 ══════════════════════════════════════
+// ═══ 标注边界，不撤回分析 ══════════════════════════════════════════════════════════
 // owner 决策 2026-09-13：「推理出来的结果要都输出出来，有问题的带风险提示输出，
 // 但不要拦截、作废和清空」。222 例实测里 28 例的证候、病位病性与病机链就是在这一步
 // 被服务端撤回的（甲方风寒病例流中已出现「感冒／风寒束表证」，最终变成「症状级工作判断」）。
-process.env.CDSS_GATE_DISPOSITION = "advise";
 const adviseKeptFields = (state, label) => {
   const result = parsed(applyM03DecisionSpecificityPolicy(content, state));
   assert.equal(result.overview.primarySyndrome, "外感风邪证", `${label}: 主证不得被改写`);
@@ -316,24 +266,20 @@ const adviseKeptFields = (state, label) => {
   assert.ok(result.westernDiagnosis.primary.limitations.length >= 2, `${label}: 边界必须进西医 limitations`);
   return result;
 };
-const adviseSparse = adviseKeptFields(state("B", "ready"), "advise/B 级");
+adviseKeptFields(state("A", "ready"), "A 级");
+const adviseSparse = adviseKeptFields(state("B", "ready"), "B 级");
 assert.match(adviseSparse.overview.primarySyndromeResolutionReason, /完整度未达C级/);
-// advise 档的边界措辞不得照抄 block 档的清空文案：同一页里既写「仅保留症状级工作判断」
-// 又印着具体证候，医生读到的是自相矛盾（2026-09-14 上线首次实测发现）。
+// 边界措辞不得写成清空文案：同一页里既写「仅保留症状级工作判断」又印着具体证候，
+// 医生读到的是自相矛盾（2026-09-14 上线首次实测发现）。
 assert.doesNotMatch(adviseSparse.overview.primarySyndromeResolutionReason, /仅保留症状级工作判断/,
-  "advise 档保留了证候，边界文案不得说成只剩症状级判断");
+  "保留了证候，边界文案不得说成只剩症状级判断");
 assert.ok(adviseSparse.management.mustCollect.some((item) => /必要四诊/.test(item)));
 // 模型自己写的补采项也必须保留（不是替换成一条服务端项）。
 assert.ok(adviseSparse.management.mustCollect.includes("核实发热"), "既有补采项保留");
-const adviseRedFlag = adviseKeptFields(state("C", "red_flag"), "advise/红旗");
+const adviseRedFlag = adviseKeptFields(state("C", "red_flag"), "红旗");
 assert.match(adviseRedFlag.overview.primarySyndromeResolutionReason, /急危重风险未排除/);
 assert.doesNotMatch(adviseRedFlag.overview.primarySyndromeResolutionReason, /仅保留症状级工作判断/,
-  "红旗档同样不得把保留说成清空");
-// block 档的清空文案必须继续那么写——两档的文案差异是刻意的，不是漂移。
-process.env.CDSS_GATE_DISPOSITION = "block";
-assert.match(parsed(applyM03DecisionSpecificityPolicy(content, state("C", "red_flag"))).overview.primarySyndromeResolutionReason,
-  /仅保留症状级工作判断/, "block 档确实清空，文案照旧");
-process.env.CDSS_GATE_DISPOSITION = "advise";
+  "红旗同样不得把保留说成清空");
 assert.match(adviseRedFlag.management.redFlagLoop, /急危重风险未排除/);
 assert.match(adviseRedFlag.management.followupSafetyNet, /立即急诊或呼叫急救/);
 // 模型原有的 redFlagLoop 文本保留在后面，不被顶掉。
@@ -341,8 +287,8 @@ assert.ok(adviseRedFlag.management.redFlagLoop.includes("风寒束表证时可�
 // 可见正文必须把边界印出来（`**辨证边界**` 对 bounded 也渲染）。
 const adviseVisible = synchronizeVisibleClinicalSummary(
   applyM03DecisionSpecificityPolicy(content, state("B", "ready")), "diagnose");
-assert.match(adviseVisible, /\*\*辨证边界\*\*/, "advise 档可见正文必须印出辨证边界");
-assert.match(adviseVisible, /外感风邪证/, "advise 档可见正文保留具体证候");
+assert.match(adviseVisible, /\*\*辨证边界\*\*/, "可见正文必须印出辨证边界");
+assert.match(adviseVisible, /外感风邪证/, "可见正文保留具体证候");
 // 幂等：重复施加不重复追加同一条边界。
 const onceAnnotated = applyM03DecisionSpecificityPolicy(content, state("B", "ready"));
 const twiceAnnotated = applyM03DecisionSpecificityPolicy(onceAnnotated, state("B", "ready"));
@@ -354,17 +300,21 @@ assert.equal(twiceReasoning.management.mustCollect.filter((item) => /必要四�
 assert.equal(
   (twiceReasoning.overview.primarySyndromeResolutionReason.match(/完整度未达C级/g) || []).length, 1,
   "重复投影不得重复追加边界理由");
-// C 级 ready 仍然原样返回（两档一致）。
-assert.equal(applyM03DecisionSpecificityPolicy(content, state("C", "ready")), content,
-  "advise 档下 C 级 ready 同样零操作");
-// 撤销反证：切回 block 档，同一输入必须重新被清空——证明上面的保留确实来自本次修复，
-// 而不是输入碰巧不触发投影。
-process.env.CDSS_GATE_DISPOSITION = "block";
-for (const [level, status] of [["B", "ready"], ["C", "red_flag"]]) {
-  assert.equal(parsed(applyM03DecisionSpecificityPolicy(content, state(level, status))).overview.primarySyndrome,
-    "症状级工作判断", `block 档反证：${level}/${status} 仍然清空`);
+// 残留的旧环境变量不得复活清空投影（block 档已删除）。try/finally：jiti 断言失败后会重跑整个
+// 文件，残留变量会把失败归因到别处。
+{
+  const previous = process.env.CDSS_GATE_DISPOSITION;
+  process.env.CDSS_GATE_DISPOSITION = "block";
+  try {
+    for (const [level, status] of [["B", "ready"], ["C", "red_flag"]]) {
+      assert.equal(parsed(applyM03DecisionSpecificityPolicy(content, state(level, status))).overview.primarySyndrome,
+        "外感风邪证", `残留 CDSS_GATE_DISPOSITION=block 不得清空 ${level}/${status} 的证候`);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.CDSS_GATE_DISPOSITION;
+    else process.env.CDSS_GATE_DISPOSITION = previous;
+  }
 }
-process.env.CDSS_GATE_DISPOSITION = "advise";
 // 标注函数本身也直接钉一次：不带 sentinel 的正文原样返回，非 diagnose 载荷不动。
 assert.equal(annotateM03DecisionSpecificityBoundary("纯正文", { reason: "r", mustCollect: "m", activeRedFlag: false }), "纯正文");
 const prescribePayload = `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify({ stage: "prescribe" })}\n<!-- DIAGNOSIS_JSON_END -->`;

@@ -6,7 +6,7 @@ import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
@@ -57,28 +57,13 @@ export async function POST(req: Request) {
       ),
     );
   };
-  // 红旗处置（甲方决策：不阻断临床流程）。检测照常，advise 模式下不再用「安全有限合同」
-  // 顶替整份辨证——那一页对医生的价值是零，红旗本身反而淹没在降级文案里。改为：完整跑
-  // M03，可见正文置顶确定性安全警示横幅，红旗同步写进提示词让 management 优先急诊指引。
-  // CDSS_GATE_DISPOSITION=block 可切回旧拦截行为。
-  if (redFlagAnalysis && !gateDispositionIsAdvisory()) {
-    return markdownNdjsonResponse(signedLimitedDiagnosis(gated.safetyGate!));
-  }
+  // 红旗处置（甲方决策：不阻断临床流程）。检测照常，但不再用「安全有限合同」顶替整份
+  // 辨证——那一页对医生的价值是零，红旗本身反而淹没在降级文案里。改为：完整跑 M03，
+  // 可见正文置顶确定性安全警示横幅，红旗同步写进提示词让 management 优先急诊指引。
   const encounterScope = gated.clinicalFacts?.encounterScope;
   const historicalOnlyEncounter = encounterScope?.status === "historical_or_stable_only" &&
     encounterScope.reviewAgreement === "agreed" &&
     hasValidClinicalFactsAttestation(gated.clinicalFacts, Date.now(), undefined, gated.customerId);
-  if (historicalOnlyEncounter && !gateDispositionIsAdvisory()) {
-    return markdownNdjsonResponse(signedLimitedDiagnosis({
-      status: "needs_information",
-      allowDiagnosis: true,
-      allowDosePrescription: false,
-      action: "complete_before_prescription",
-      missingItems: ["本次当前活动性治疗目标"],
-      redFlags: [],
-      reasons: [`当前记录仅含既往、已缓解或稳定背景（原文：“${encounterScope.quote}”），未明确本次活动性诊疗目标，不据此推演当前剂量处方。`],
-    }));
-  }
   // 需求1「追问不阻断流程」：此处原有一道门——completeness 未达 C 且未做过首轮追问时，
   // 直接返回降级的 needs_information 有限诊断，把医生赶回 M02。已移除。
   //

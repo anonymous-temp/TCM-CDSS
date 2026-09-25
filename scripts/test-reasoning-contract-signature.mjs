@@ -938,40 +938,13 @@ try {
     assert.match(await response.text(), /缺少有效的西医诊断、中医证候与病例依据结果/);
   });
 
-  await checkAsync("prescribe route keeps a current emergency non-dose even with a valid M03 signature", async () => {
-    // 本检查验证的是 block 档(运维回退)的红旗非剂量机制。默认 advise 档下红旗照常
-    // 完整生成(置顶警示横幅), 在单测环境会推进到模型调用——那是另一条契约的正确行为。
-    process.env.CDSS_GATE_DISPOSITION = "block";
-    const emergencyBase = clone(caseState);
-    emergencyBase.id = "case_signature_route_emergency";
-    emergencyBase.chiefComplaint = "当前持续压榨性胸痛30分钟未缓解，伴大汗";
-    emergencyBase.hisRecord.caseId = emergencyBase.id;
-    emergencyBase.hisRecord.fields.zhushu = emergencyBase.chiefComplaint;
-    emergencyBase.hisRecord.rawText = `主诉：${emergencyBase.chiefComplaint}`;
-    const emergencyWithFacts = await maybeAttachClinicalFactsBackstop(
-      emergencyBase,
-      async () => JSON.stringify({ redFlags: [] }),
-    );
-    emergencyWithFacts.reasoningDiagnose = signDiagnoseReasoning(
-      reasoning,
-      buildDiagnoseContractSignatureContext(emergencyWithFacts),
-    );
-    const response = await prescribePost(routeRequest("/api/diagnosis/prescribe", emergencyWithFacts));
-    const body = await response.text();
-    assert.equal(response.status, 200);
-    assert.match(body, /不生成具体剂量|急诊|红旗/);
-    assert.doesNotMatch(body, /\|\s*药味\s*\|\s*剂量|\b\d+(?:\.\d+)?\s*(?:g|克)\b/i);
-    assert.doesNotMatch(body, /<!-- DIAGNOSIS_JSON_START -->/);
-    delete process.env.CDSS_GATE_DISPOSITION;
-  });
-
-  await checkAsync("withholding dose no longer cancels candidate generation in advise mode", async () => {
+  await checkAsync("withholding dose no longer cancels candidate generation", async () => {
     // ── 剂量授权轴 ≠ 候选生成轴（owner 决策 2026-09-13）────────────────────────────
-    // 红旗在 advise 档仍然收回剂量（CDSS_REDFLAG_DOSE_AUTHORIZATION 默认 withhold ⇒
+    // 红旗仍然收回剂量（CDSS_REDFLAG_DOSE_AUTHORIZATION 默认 withhold ⇒
     // candidateMode=non_dose_only），但**必须照常进入生成**：222 例实测 published_case-82
     // 的 M03 已有气血亏虚工作判断与 2 个病机节点，M04 却一味药都没生成，医生只拿到一页
     // 固定说明。判据用「有没有打到上游」——这正是此前被跳过的那一步。
-    // block 档（运维回退）维持生成前拦截，两头各钉一次。
+    // （生成前拦截只在 CDSS_GATE_DISPOSITION=block 回退档存在，2026-09-25 随该档删除。）
     const { derivePrescriptionPermission } = require("../src/lib/diagnosis-safety.ts");
     const doseAxisBase = clone(caseState);
     doseAxisBase.id = "case_signature_route_dose_axis";
@@ -989,32 +962,34 @@ try {
     );
     assert.equal(derivePrescriptionPermission(withSafetyGate(doseAxisCase)).candidateMode, "non_dose_only",
       "前提：本例剂量授权确实被收回");
-    for (const [disposition, expectUpstream] of [["advise", true], ["block", false]]) {
-      if (disposition === "block") process.env.CDSS_GATE_DISPOSITION = "block";
-      else delete process.env.CDSS_GATE_DISPOSITION;
-      const previousFetch = globalThis.fetch;
-      globalThis.fetch = async () => new Response("{}", { status: 503 });
+    // 假密钥让路由真正发起上游请求；fetch 被拦截为 503，路由应在**生成之后**走上游不可用兜底。
+    const stubEnv = { AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_API_KEY: "signature-test-fake-key", BAILIAN_QWEN_MODEL: "qwen3.8-flash" };
+    const savedEnv = Object.fromEntries(Object.keys(stubEnv).map((key) => [key, process.env[key]]));
+    const previousFetch = globalThis.fetch;
+    const upstreamPrompts = [];
+    Object.assign(process.env, stubEnv);
+    globalThis.fetch = async (_url, init = {}) => {
       try {
-        // 判据是**生成前那一页有没有被返回**：它带机器码 safety_gate_blocked，
-        // 由 buildSafetyLimitedPrescription 在任何模型调用之前渲染。
-        // 本机单测没有可用上游，advise 档走到模型调用后如何收尾由别的套件覆盖。
-        const response = await prescribePost(routeRequest("/api/diagnosis/prescribe", doseAxisCase))
-          .catch(() => undefined);
-        const body = response ? await response.text() : "";
-        const returnedPreGenerationPage = body.includes("CDSS_REASON_CODE:safety_gate_blocked");
-        assert.equal(returnedPreGenerationPage, !expectUpstream,
-          `${disposition}: ${expectUpstream
-            ? "剂量收回不得在生成之前返回固定说明页"
-            : "运维回退档必须维持生成前拦截"}`);
-        if (!expectUpstream) {
-          assert.equal(response?.status, 200, "运维回退档仍返回确定性非剂量页");
-          assert.match(body, /不生成具体剂量|急诊|红旗/);
-          // 收回的是剂量，不是候选——回退档这一页本就没有药味，但绝不能出现用量。
-          assert.doesNotMatch(body, /\|\s*药味\s*\|\s*剂量|\b\d+(?:\.\d+)?\s*(?:g|克)\b/i);
-        }
-      } finally {
-        globalThis.fetch = previousFetch;
-        delete process.env.CDSS_GATE_DISPOSITION;
+        upstreamPrompts.push((JSON.parse(init.body).messages || []).map((message) => String(message.content)).join("\n"));
+      } catch {
+        upstreamPrompts.push("");
+      }
+      return new Response("{}", { status: 503 });
+    };
+    try {
+      const response = await prescribePost(routeRequest("/api/diagnosis/prescribe", doseAxisCase));
+      const body = await response.text();
+      assert.equal(response.status, 200);
+      assert.ok(upstreamPrompts.length > 0, "剂量收回不得在生成之前返回固定说明页：必须打到上游");
+      assert.ok(upstreamPrompts.some((prompt) => prompt.includes("【剂量授权暂缓】")),
+        "M04 提示词必须告知模型本例剂量授权暂缓（照常出完整候选、服务端不显示用量）");
+      assert.match(body, /CDSS_REASON_CODE:upstream_model_unavailable/, "上游 503 ⇒ 生成之后的上游不可用兜底，而不是生成前拦截页");
+      assert.doesNotMatch(body, /\|\s*药味\s*\|\s*剂量|\b\d+(?:\.\d+)?\s*(?:g|克)\b/i, "兜底页不得出现用量");
+    } finally {
+      globalThis.fetch = previousFetch;
+      for (const [key, value] of Object.entries(savedEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
       }
     }
   });
