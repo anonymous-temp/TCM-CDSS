@@ -1269,6 +1269,34 @@ try {
     }
   });
 
+  await checkAsync("HIS rejects a signed M04 whose M03 is missing or invalid as invalid_m03_signature before upstream", async () => {
+    // D7（2026-09-25）：his-scheme 此前对同一份 M03 连验两次签名（有 M03 时第二次必然同判）。
+    // 收敛后第二处只剩「带处方却没有 M03」这一种情形——两种形态的响应必须与此前逐字相同。
+    let upstreamCalls = 0;
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      upstreamCalls += 1;
+      throw new Error("M04 without a valid M03 reached upstream");
+    };
+    try {
+      const expected = { error: "当前辨病辨证结果已失效，请重新生成后再生成 HIS 方案。", code: "invalid_m03_signature" };
+      const withoutM03 = buildSignedNormalRouteCase();
+      delete withoutM03.reasoningDiagnose;
+      withoutM03.reasoningV2 = clone(withoutM03.reasoningPrescribe);
+      const missing = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", withoutM03));
+      assert.equal(missing.status, 409);
+      assert.deepEqual(await missing.json(), expected, "缺 M03 的带处方请求");
+      const tampered = buildSignedNormalRouteCase();
+      tampered.reasoningDiagnose.overview.primarySyndrome = `${tampered.reasoningDiagnose.overview.primarySyndrome}（篡改）`;
+      const invalid = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", tampered));
+      assert.equal(invalid.status, 409);
+      assert.deepEqual(await invalid.json(), expected, "M03 签名不符的带处方请求");
+      assert.equal(upstreamCalls, 0);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  });
+
   await checkAsync("HIS rejects legacy or orphaned prescription material before any upstream call", async () => {
     const previousFetch = globalThis.fetch;
     let upstreamCalls = 0;

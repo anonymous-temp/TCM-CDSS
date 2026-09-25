@@ -4775,6 +4775,22 @@ export function limitedDiagnosisReasonCopy(
   }
 }
 
+/** 急症有限 M03 的西医占位名。构造（下方）与识别（isEmergencyLimitedDiagnosis）共用这一个常量。 */
+const LIMITED_M03_EMERGENCY_WESTERN_NAME = "急危重症风险待排除";
+
+/**
+ * 这份（已签名的）有限 M03 是否是**因红旗**收口的急症变体。只认本文件构造器写下的占位名常量，
+ * 不对自由文本做正则（prescribe 路由此前对「急危重|急症」「呼叫120|转急诊」做正则反推）。
+ * 签名 M03 记下的红旗属于只可追加、不可降级的事实：M04 时刻的安全门若因语义事实过期、未随请求
+ * 带回等原因不再是 red_flag，也不得把这份急症有限结果降成普通「待补充信息」页。
+ */
+export function isEmergencyLimitedDiagnosis(reasoning: ClinicalReasoningResultV2 | undefined): boolean {
+  return reasoning?.stage === "diagnose" &&
+    reasoning.overview.primarySyndromeResolution === "unresolved" &&
+    reasoning.pathogenesis.chain.length === 0 &&
+    reasoning.westernDiagnosis.primary.name === LIMITED_M03_EMERGENCY_WESTERN_NAME;
+}
+
 /**
  * A hard red flag or an exhausted M03 repair must close as an explicit, signed limited contract,
  * not as a half-JSON stream. This contract intentionally leaves TCM syndrome/pathogenesis
@@ -4842,7 +4858,7 @@ export function buildSafetyLimitedDiagnosisReasoning(
     },
     westernDiagnosis: {
       primary: {
-        name: redFlag ? "急危重症风险待排除" : "症状性问题，病因待临床鉴别",
+        name: redFlag ? LIMITED_M03_EMERGENCY_WESTERN_NAME : "症状性问题，病因待临床鉴别",
         status: redFlag ? "需排除" : "证据有限",
         confidence: redFlag ? "高" : "低",
         supportingFacts,

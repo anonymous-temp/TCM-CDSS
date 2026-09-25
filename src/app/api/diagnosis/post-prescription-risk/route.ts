@@ -104,15 +104,13 @@ export async function POST(req: Request) {
     };
     // The revision attests which edited version was reviewed, not an absence of clinical risk.
     // Findings accompany the exact version so the physician can continue reviewing the report.
-    const floorIssue = m04SafetyContractIssue(
-      selectedReasoning,
-      diagnoseReasoning,
-      isKnownTcmHerbName,
-      true,
-      false,
-      clinicalGroundingText(caseState),
-      true,
-    );
+    const floorIssue = m04SafetyContractIssue(selectedReasoning, diagnoseReasoning, {
+      isKnownHerbName: isKnownTcmHerbName,
+      trustedWorkbenchEdit: true,
+      auditedClinicalRisksAreAdvisory: false,
+      clinicalContext: clinicalGroundingText(caseState),
+      waiveTherapyCoverageAnnotated: true,
+    });
     if (floorIssue && !clinicalAdvisories.some((advisory) => advisory.code === floorIssue)) {
       clinicalAdvisories.push(clinicalDeliveryAdvisoryFromIssue(floorIssue, selectedCandidate, candidateIndex));
     }

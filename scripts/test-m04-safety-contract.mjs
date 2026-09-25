@@ -85,7 +85,7 @@ const BASELINE = {
 };
 
 const safety = (reasoning, context = CLINICAL_CONTEXT) =>
-  m04SafetyContractIssue(reasoning, PRIOR, isKnownTcmHerbName, false, false, context);
+  m04SafetyContractIssue(reasoning, PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: context, waiveTherapyCoverageAnnotated: false });
 const contract = (reasoning, context = CLINICAL_CONTEXT) =>
   m04SemanticIssue(reasoning, "", PRIOR, isKnownTcmHerbName, true, true, false, true, context);
 
@@ -104,17 +104,17 @@ const roleMismatch = clone(BASELINE);
 roleMismatch.formula.candidates[0].herbs[0].targetRef = "P2";
 roleMismatch.formula.candidates[0].herbs[0].targetPathogenesis = "脾虚湿盛";
 assert.match(safety(roleMismatch) || "", /emperor_not_primary/);
-assert.equal(m04SafetyContractIssue(roleMismatch, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true), undefined);
+assert.equal(m04SafetyContractIssue(roleMismatch, PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: CLINICAL_CONTEXT, waiveTherapyCoverageAnnotated: true }), undefined);
 const roleAndDose = clone(roleMismatch);
 roleAndDose.formula.candidates[0].herbs[0].dose = "999g";
-assert.match(m04SafetyContractIssue(roleAndDose, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true) || "", /dose/,
+assert.match(m04SafetyContractIssue(roleAndDose, PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: CLINICAL_CONTEXT, waiveTherapyCoverageAnnotated: true }) || "", /dose/,
   "a role quality finding must never hide an actual dose error under the existing advisory safety floor");
 const roleAndInvalidReference = clone(roleMismatch);
 roleAndInvalidReference.formula.candidates[0].herbs[0].targetRef = "P99";
-assert.match(m04SafetyContractIssue(roleAndInvalidReference, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true) || "", /target_ref_invalid/);
+assert.match(m04SafetyContractIssue(roleAndInvalidReference, PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: CLINICAL_CONTEXT, waiveTherapyCoverageAnnotated: true }) || "", /target_ref_invalid/);
 const emptyCandidate = clone(roleMismatch);
 emptyCandidate.formula.candidates[0].herbs = [];
-assert.ok(m04SafetyContractIssue(emptyCandidate, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true),
+assert.ok(m04SafetyContractIssue(emptyCandidate, PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: CLINICAL_CONTEXT, waiveTherapyCoverageAnnotated: true }),
   "missing executable herbs never become a role-quality annotation");
 const roleAdvice = clinicalDeliveryAdvisoryFromIssue("candidate_0_herb_0_emperor_not_primary", roleMismatch.formula.candidates[0]);
 assert.match(roleAdvice.message, /党参.*君药.*主要病机/);
@@ -203,7 +203,7 @@ for (const [label, injectDefect] of DANGEROUS_DEFECTS) {
   assert.ok(aloneSafety, `${label}: 单独出现时 T1 硬门必须拦下`);
   // The strict check may report a role label first. Bounded acceptance must continue past that
   // label and discover the independent dangerous defect, rather than treating its tier as proof.
-  const boundedSafety = m04SafetyContractIssue(alone, PRIOR, isKnownTcmHerbName, false, false, CLINICAL_CONTEXT, true);
+  const boundedSafety = m04SafetyContractIssue(alone, PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: CLINICAL_CONTEXT, waiveTherapyCoverageAnnotated: true });
   if (rejectionTier(`m04_${aloneSafety}`) !== "T1") {
     assert.ok(boundedSafety, `${label}: quality labels must not hide the dangerous defect`);
     assert.equal(rejectionTier(`m04_${boundedSafety}`), "T1", `${label}: bounded floor must find the actual safety issue`);
@@ -250,15 +250,7 @@ for (const [label, injectDefect] of DANGEROUS_DEFECTS.filter(([name]) =>
 )) {
   const edited = clone(BASELINE);
   injectDefect(edited);
-  const issue = m04SafetyContractIssue(
-    edited,
-    PRIOR,
-    isKnownTcmHerbName,
-    true,
-    false,
-    CLINICAL_CONTEXT,
-    true,
-  );
+  const issue = m04SafetyContractIssue(edited, PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: true, auditedClinicalRisksAreAdvisory: false, clinicalContext: CLINICAL_CONTEXT, waiveTherapyCoverageAnnotated: true });
   assert.ok(issue, `${label}: trusted workbench 结构例外不得跳过 T1 安全底线`);
 }
 
@@ -270,7 +262,7 @@ trustedPairConflict.formula.candidates[0].herbs.push({
   targetRef: "P2", structureRole: null, targetPathogenesis: "脾虚湿盛", function: "消痰软坚散结，利水消肿", decoctionRequirement: "",
 });
 assert.equal(
-  m04SafetyContractIssue(trustedPairConflict, PRIOR, isKnownTcmHerbName, true, false, CLINICAL_CONTEXT, true),
+  m04SafetyContractIssue(trustedPairConflict, PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: true, auditedClinicalRisksAreAdvisory: false, clinicalContext: CLINICAL_CONTEXT, waiveTherapyCoverageAnnotated: true }),
   "candidate_0_high_risk_pair_incompatibility",
   "trusted workbench must still reject the exact 炙甘草+海藻 incompatibility",
 );
@@ -285,7 +277,7 @@ trustedSpecialPopulation.formula.candidates[0].herbs[0] = {
   decoctionRequirement: "不入煎剂，研末冲服",
 };
 assert.match(
-  m04SafetyContractIssue(trustedSpecialPopulation, PRIOR, isKnownTcmHerbName, true, false, "患者肝功能不全", true) || "",
+  m04SafetyContractIssue(trustedSpecialPopulation, PRIOR, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: true, auditedClinicalRisksAreAdvisory: false, clinicalContext: "患者肝功能不全", waiveTherapyCoverageAnnotated: true }) || "",
   /special_population/,
   "trusted workbench must still reject governed special-population risks",
 );
@@ -340,7 +332,7 @@ trustedOpposingDirection.formula.candidates[0].herbs[0] = {
   function: "温中散寒，回阳通脉",
 };
 assert.match(
-  m04SafetyContractIssue(trustedOpposingDirection, trustedOpposingPrior, isKnownTcmHerbName, true, false, "胃脘灼痛", true) || "",
+  m04SafetyContractIssue(trustedOpposingDirection, trustedOpposingPrior, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: true, auditedClinicalRisksAreAdvisory: false, clinicalContext: "胃脘灼痛", waiveTherapyCoverageAnnotated: true }) || "",
   /unsupported_high_impact/,
   "trusted workbench must still reject a high-impact direction that opposes the locked M03 therapy",
 );
@@ -391,8 +383,25 @@ assert.ok(
 
 const diagnosisApiSource = readFileSync("src/lib/diagnosis-api.ts", "utf8");
 assert.match(diagnosisApiSource,
-  /const floorAfterQuality = m04SafetyContractIssue\([\s\S]{0,240}?clinicalContext,\s*true,\s*\)/,
+  /const floorAfterQuality = m04SafetyContractIssue\([\s\S]{0,300}?waiveTherapyCoverageAnnotated: true,\s*\}\)/,
   "zero-budget quality acceptance must use the same bounded safety floor as finalization, or role labels reject twice");
+// D5（2026-09-25）：T1 底线合同的四个口径开关曾是带缺省值的位置参数——生产 68ea3f0 里唯一漏传
+// 第 7 个开关的调用点（已删除的模型复核分支）静默换成了更严的口径，没有任何报错。现在是具名必填
+// 选项：漏传是编译错误。这里守住「必填」本身，免得有人再把缺省值加回来。
+{
+  const contractSource = readFileSync("src/lib/diagnosis-stage-contract.ts", "utf8");
+  const typeStart = contractSource.indexOf("export type M04SafetyContractOptions = {");
+  const typeBody = contractSource.slice(typeStart, contractSource.indexOf("\n};", typeStart));
+  assert.ok(typeStart >= 0, "M04SafetyContractOptions 必须存在");
+  const fields = [...typeBody.matchAll(/^\s{2}([A-Za-z]+)(\??):/gm)].map((match) => ({ name: match[1], optional: match[2] === "?" }));
+  assert.deepEqual(fields.map((field) => field.name).sort(), [
+    "auditedClinicalRisksAreAdvisory", "clinicalContext", "isKnownHerbName", "trustedWorkbenchEdit", "waiveTherapyCoverageAnnotated",
+  ], "选项集合与判据口径一一对应（切片越界时这里会多出别的类型的字段）");
+  assert.deepEqual(fields.filter((field) => field.optional).map((field) => field.name), [], "口径开关必须全部必填");
+  const signature = contractSource.match(/export function m04SafetyContractIssue\(([\s\S]*?)\): string \| undefined/)?.[1] || "";
+  assert.ok(signature.includes("options: M04SafetyContractOptions") && !/=\s*(?:false|true|"")/.test(signature),
+    "签名里不得再有带缺省值的位置开关");
+}
 assert.match(diagnosisApiSource,
   /const noteM04QualityTierAcceptance[\s\S]{0,450}?m04TransparentQualityAnnotation[\s\S]{0,180}?qualityAnnotationCopy\(reason\)/,
   "a preserved candidate must visibly carry its actionable quality finding");

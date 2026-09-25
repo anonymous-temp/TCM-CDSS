@@ -49,7 +49,7 @@ const compiled = (dose = "12g") => {
   value.candidate.herbs[0].dose = dose;
   return compileM04Proposal(value, prior);
 };
-const floor = (value, context = "食少倦怠；大便溏薄") => m04SafetyContractIssue(value, prior, isKnownTcmHerbName, false, false, context, true);
+const floor = (value, context = "食少倦怠；大便溏薄") => m04SafetyContractIssue(value, prior, { isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false, clinicalContext: context, waiveTherapyCoverageAnnotated: true });
 
 test("ordinary historical range deviation has a distinct advice code, never blanket T1 demotion", () => {
   for (const name of ["党参", "黄连", "海螵蛸"]) {

@@ -859,15 +859,13 @@ function validatedStructuredReasoning(
       // 全量口径复验，等于任何一个没打豁免旗的质量发射点都能把已受理的候选再判成 0 味——
       // 这个「逐点打旗、漏一点复发一类」的模式已经复发了四次，结构上必须终结。
       if (waiveM04TherapyCoverageAnnotated) {
-        const floorIssue = m04SafetyContractIssue(
-          enrichedReasoning,
-          priorReasoning,
-          isKnownTcmHerbName,
-          false,
+        const floorIssue = m04SafetyContractIssue(enrichedReasoning, priorReasoning, {
+          isKnownHerbName: isKnownTcmHerbName,
+          trustedWorkbenchEdit: false,
           auditedClinicalRisksAreAdvisory,
           clinicalContext,
-          true,
-        );
+          waiveTherapyCoverageAnnotated: true,
+        });
         if (floorIssue) {
           // 归因必须与拒绝同源（2026-08-27）。structuredRejectionReason 的默认
           // attributionScope="strict" 走的是全量质量口径，而这里拒的是**底线合同**——
@@ -908,15 +906,13 @@ function validatedStructuredReasoning(
             });
             return undefined;
           }
-          const floorAfterQuality = m04SafetyContractIssue(
-            enrichedReasoning,
-            priorReasoning,
-            isKnownTcmHerbName,
-            false,
-            false,
+          const floorAfterQuality = m04SafetyContractIssue(enrichedReasoning, priorReasoning, {
+            isKnownHerbName: isKnownTcmHerbName,
+            trustedWorkbenchEdit: false,
+            auditedClinicalRisksAreAdvisory: false,
             clinicalContext,
-            true,
-          );
+            waiveTherapyCoverageAnnotated: true,
+          });
           if (floorAfterQuality) {
             console.warn("[tcm-cdss:contract] M04 safety-floor rejection after quality-tier acceptance", {
               qualityIssue: semanticIssue,
@@ -1123,9 +1119,10 @@ function structuredRejectionReason(
       const enrichedReasoning = enrichReasoning(reasoning).reasoning;
       // Repair dispatch must see the complete hard floor before the first documentation/identity
       // finding. A T2 finding may not hide a later T1 and consume its automatic repair opportunity.
-      const hardFloorIssue = m04SafetyContractIssue(
-        enrichedReasoning, priorReasoning, isKnownTcmHerbName, false, false, clinicalContext, true,
-      );
+      const hardFloorIssue = m04SafetyContractIssue(enrichedReasoning, priorReasoning, {
+        isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false,
+        auditedClinicalRisksAreAdvisory: false, clinicalContext, waiveTherapyCoverageAnnotated: true,
+      });
       if (hardFloorIssue) return `m04_${hardFloorIssue}`;
       const semanticIssue = m04SemanticIssue(enrichedReasoning, content.slice(0, start), priorReasoning,
         isKnownTcmHerbName, true, true, false, false, clinicalContext);
@@ -1141,15 +1138,13 @@ function structuredRejectionReason(
       );
       if (formulaIssue) return `m04_${formulaIssue}`;
       if (attributionScope === "safety_floor_waived") {
-        const floorIssue = m04SafetyContractIssue(
-          enrichedReasoning,
-          priorReasoning,
-          isKnownTcmHerbName,
-          false,
-          true,
+        const floorIssue = m04SafetyContractIssue(enrichedReasoning, priorReasoning, {
+          isKnownHerbName: isKnownTcmHerbName,
+          trustedWorkbenchEdit: false,
+          auditedClinicalRisksAreAdvisory: true,
           clinicalContext,
-          true,
-        );
+          waiveTherapyCoverageAnnotated: true,
+        });
         return floorIssue ? `m04_${floorIssue}` : "resolver_rejected";
       }
       const issue = m04SemanticIssue(
@@ -3650,8 +3645,10 @@ async function callPrimaryTextModelStream(
         const m04CandidateQualityRepairExhausted = (content: string): boolean => {
           if (opts.structuredStage !== "prescribe" || finishReason !== "stop") return false;
           const candidate = structuredReasoningFromContent(content);
-          if (!candidate || m04SafetyContractIssue(enrichReasoning(candidate).reasoning,
-            opts.structuredPriorReasoning, isKnownTcmHerbName, false, false, opts.structuredClinicalContext || "", true)) return false;
+          if (!candidate || m04SafetyContractIssue(enrichReasoning(candidate).reasoning, opts.structuredPriorReasoning, {
+            isKnownHerbName: isKnownTcmHerbName, trustedWorkbenchEdit: false, auditedClinicalRisksAreAdvisory: false,
+            clinicalContext: opts.structuredClinicalContext || "", waiveTherapyCoverageAnnotated: true,
+          })) return false;
           const reason = structuredRejectionReason(content, "prescribe", finishReason,
             opts.structuredClinicalContext, opts.structuredPriorReasoning);
           return Boolean(qualityAnnotationCopy(reason)) && !qualityRepairAvailable(reason);

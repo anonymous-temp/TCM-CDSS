@@ -305,6 +305,46 @@ for (const limitedOutput of [
 const noChief = { ...base, chiefComplaint: "" };
 assert.equal(permission(noChief).candidateMode, "blocked");
 
+// D7（2026-09-25）：his-scheme 的 canAdopt 从「status==="ready" ∧ formalAdoption 可采纳 ∧ 结构未失效」
+// 收敛为 status==="ready"。依据：ready ⇒ !safetyLocked；safetyLocked = deriveSafetyLocked(state, {
+// truncated, placeholderSource, contentMismatch: contentMismatch∨unaudited∨invalidDose })，而
+// structurallyInvalid 恰是这五项之或。下面在代表性病例 × 五个结构开关的全部 32 种组合上验证：
+// 凡未上锁，formalAdoption 必为可采纳、五个结构开关必全为假——被删的两项确实被蕴含。
+{
+  const representative = [
+    ["常规剂量", base], ["稀疏病历", sparse], ["仅提示", advisoryOnly], ["审方提醒", auditAlert],
+    ["儿科", pediatric], ["语义不可用", semanticUnavailable], ["活动性出血", urgentActiveBleeding],
+    ["急症", emergency], ["缺主诉", noChief],
+    ["妊娠", { ...base, patient: { sex: "女", age: 31 }, pastHistory: "孕12周" }],
+  ];
+  let unlockedSeen = 0;
+  let lockedByPermission = 0;
+  for (const [label, raw] of representative) {
+    const state = withSafetyGate(raw);
+    const formalAdoption = derivePrescriptionPermission(state).formalAdoption;
+    if (formalAdoption === "blocked") lockedByPermission += 1;
+    for (let mask = 0; mask < 32; mask += 1) {
+      const flags = {
+        truncatedOutput: Boolean(mask & 1), contentMismatch: Boolean(mask & 2), unauditedConcreteMedicine: Boolean(mask & 4),
+        invalidStructuredDose: Boolean(mask & 8), placeholder: Boolean(mask & 16),
+      };
+      const structurallyInvalid = Object.values(flags).some(Boolean);
+      const locked = deriveSafetyLocked(state, {
+        truncated: flags.truncatedOutput,
+        placeholderSource: flags.placeholder,
+        contentMismatch: flags.contentMismatch || flags.unauditedConcreteMedicine || flags.invalidStructuredDose,
+      });
+      if (locked) continue;
+      unlockedSeen += 1;
+      assert.equal(formalAdoption, "eligible_after_doctor_confirmation", `${label}/${mask}: 未上锁 ⇒ 可采纳`);
+      assert.equal(structurallyInvalid, false, `${label}/${mask}: 未上锁 ⇒ 结构未失效`);
+    }
+  }
+  assert.ok(unlockedSeen > 0 && lockedByPermission > 0, `覆盖不足（未上锁 ${unlockedSeen}，许可阻断 ${lockedByPermission}），蕴含断言会空转`);
+  const hisSource = (await import("node:fs")).readFileSync(new URL("../src/lib/his-scheme.ts", import.meta.url), "utf8");
+  assert.match(hisSource, /const canAdopt = status === "ready";/, "canAdopt 只由 status 决定，不得另写一套与安全锁平行的判据");
+}
+
 // —— encounterScope 门禁与签名有限 M03（服务端路由级，mock 语义层，确定性无外部模型调用）——
 process.env.REASONING_CONTRACT_SIGNING_KEY = "permission-test-m03-signing-key-0123456789abcdef";
 process.env.CLINICAL_FACTS_ATTESTATION_KEY = "permission-test-clinical-facts-key-2026";
@@ -555,6 +595,108 @@ assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(singlePassHistor
   const clientSource = (await import("node:fs")).readFileSync(new URL("../src/app/diagnosis/DiagnosisClient.tsx", import.meta.url), "utf8");
   const declaration = clientSource.match(/const unclearScopeAwaitingConfirmation = ([\s\S]*?);\n/)?.[1] || "";
   assert.match(declaration, /^encounterScopeAwaitingConfirmation\(/, "页面判据必须直接调用共享函数，不得再叠加剂量形态条件");
+}
+
+// D2/D4（2026-09-25）：prescribe 路由对「有限 M03」的判定与 HIS 写回同源（isLimitedM03NotPrescribable），
+// 红旗状态读安全门，不再对服务端自己写的占位文案（「急危重症风险待排除」「…呼叫120」）做正则反推。
+// 等价性证明：黄金红旗矩阵（REDFLAG_MATRIX_100，110 例）× 三类有限兜底原因，按 diagnose 路由的
+// 真实构造方式签出有限 M03，旧正则判据与 M04 时刻的安全门逐例同判；再挑红旗/非红旗各一例走完整
+// prescribe 路由，与旧实现的输出逐字节比对。
+{
+  const { REDFLAG_MATRIX_100 } = await import("./fixtures/redflag-matrix-100.mjs");
+  const { isEmergencyLimitedDiagnosis, markdownNdjsonResponse } = await jiti.import("../src/lib/diagnosis-safety.ts");
+  const matrixState = (c) => {
+    const state = {
+      id: `limited-m03-${c.id}`,
+      customerId: TEST_CUSTOMER_ID,
+      patient: { sex: "男", age: 50 },
+      chiefComplaint: c.chief,
+      conversation: [],
+      hisRecord: { caseId: `limited-m03-${c.id}`, source: "regression", importedAt: new Date(0).toISOString(),
+        rawText: [c.chief, c.hist].filter(Boolean).join("。"), fields: { zhushu: c.chief, xianbingshi: c.hist } },
+    };
+    if (c.vitals && Object.keys(c.vitals).length) {
+      state.vitals = {
+        ...(c.vitals.bp ? { bloodPressure: c.vitals.bp } : {}),
+        ...(c.vitals.hr ? { heartRate: String(c.vitals.hr) } : {}),
+        ...(c.vitals.t ? { temperature: String(c.vitals.t) } : {}),
+        ...(c.vitals.rr ? { respiratoryRate: String(c.vitals.rr) } : {}),
+        ...(c.vitals.spo2 ? { spo2: String(c.vitals.spo2) } : {}),
+      };
+    }
+    return normalizeCaseStateInput(state);
+  };
+  // diagnose 路由的三类有限兜底（truncatedGateFor / upstreamGate 的形状）。
+  const fallbackGate = { status: "needs_information", allowDiagnosis: false, allowDosePrescription: false,
+    action: "complete_before_prescription", missingItems: ["本次辨病辨证结果完整性"], redFlags: [], reasons: ["本轮未形成完整结果"] };
+  const legacyEmergencyLimited = (signed) => /急危重|急症/.test(signed.westernDiagnosis.primary.name) ||
+    /呼叫120|转急诊/.test(signed.management?.redFlagLoop || "");
+  const legacyLimitedPage = (signed) => {
+    const emergencyLimited = legacyEmergencyLimited(signed);
+    const emergencyRedFlags = signed.westernDiagnosis.primary.supportingFacts.length > 0
+      ? signed.westernDiagnosis.primary.supportingFacts : [signed.westernDiagnosis.primary.name];
+    return buildSafetyLimitedPrescription({
+      status: emergencyLimited ? "red_flag" : "needs_information",
+      allowDiagnosis: true, allowDosePrescription: false,
+      action: emergencyLimited ? "refer_or_emergency" : "complete_before_prescription",
+      missingItems: signed.management?.mustCollect || [],
+      redFlags: emergencyLimited ? emergencyRedFlags : [],
+      reasons: [
+        signed.overview.primarySyndromeResolutionReason || "M03未形成可采纳的当前证候与病机链。",
+        ...(signed.management?.redFlagLoop ? [signed.management.redFlagLoop] : []),
+      ],
+    }, "m03_unstable");
+  };
+  let redFlagCases = 0;
+  let otherCases = 0;
+  const signedLimitedFor = (state, reason) => {
+    const gated = withSafetyGate(state);
+    const limitedGate = safetyGateForLimitedDiagnosisFallback(gated.safetyGate, fallbackGate);
+    return signDiagnoseReasoning(buildSafetyLimitedDiagnosisReasoning(gated, limitedGate, reason),
+      buildDiagnoseContractSignatureContext(gated));
+  };
+  for (const c of REDFLAG_MATRIX_100) {
+    const state = matrixState(c);
+    if (!state?.chiefComplaint?.trim()) continue; // 空主诉：diagnose 路由不走有限合同
+    const gateRedFlag = withSafetyGate(state).safetyGate?.status === "red_flag";
+    if (gateRedFlag) redFlagCases += 1; else otherCases += 1;
+    for (const reason of ["not_attempted_no_valid_draft", "not_attempted_upstream_down", "deadline"]) {
+      const signed = signedLimitedFor(state, reason);
+      assert.equal(legacyEmergencyLimited(signed), gateRedFlag, `${c.id}/${reason}: 旧正则判据与安全门必须同判`);
+      assert.equal(isEmergencyLimitedDiagnosis(signed), legacyEmergencyLimited(signed), `${c.id}/${reason}: 构造器常量判据与旧正则同判`);
+    }
+  }
+  assert.ok(redFlagCases >= 10 && otherCases >= 50, `矩阵覆盖不足（红旗 ${redFlagCases} / 其他 ${otherCases}），等价性断言会空转`);
+
+  for (const id of ["RF01", "RF05", "NG01", "TC01"]) {
+    const c = REDFLAG_MATRIX_100.find((item) => item.id === id);
+    const state = matrixState(c);
+    const signed = signedLimitedFor(state, "deadline");
+    const requestState = normalizeCaseStateInput(JSON.parse(JSON.stringify({ ...state, phase: "prescribe", reasoningDiagnose: signed, reasoningV2: signed })));
+    assert.equal(verifyDiagnoseReasoningSignature(signed, requestState), true, `${id}: 夹具前提：有限 M03 签名有效`);
+    const routeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", requestState))).text();
+    const legacyText = await markdownNdjsonResponse(legacyLimitedPage(signed)).text();
+    assert.equal(routeText, legacyText, `${id}: 有限 M03 的 M04 页必须与旧实现逐字节一致`);
+    assert.match(routeText, /m03_unstable/, `${id}: 走的是有限 M03 分支`);
+    assert.equal(legacyEmergencyLimited(signed), id.startsWith("RF"), `${id}: 夹具前提：红旗与非红旗两支都被逐字节比对`);
+  }
+
+  // 唯一的输出变化方向（只加不减）：M04 时刻安全门已是红旗、签名有限 M03 却不是急症变体
+  // （黄金流程里不会出现——上面 330 例两者同判）。旧实现给「待补充信息」页；现在给红旗页，
+  // 列出的是安全门的真实红旗，而不是非急症有限 M03 在 supportingFacts 里记的主诉。
+  {
+    const state = matrixState(REDFLAG_MATRIX_100.find((item) => item.id === "RF01"));
+    const gate = withSafetyGate(state).safetyGate;
+    assert.equal(gate.status, "red_flag", "夹具前提");
+    const nonEmergencySigned = signDiagnoseReasoning(buildSafetyLimitedDiagnosisReasoning(state, fallbackGate, "deadline"),
+      buildDiagnoseContractSignatureContext(state));
+    assert.equal(isEmergencyLimitedDiagnosis(nonEmergencySigned), false);
+    const requestState = normalizeCaseStateInput(JSON.parse(JSON.stringify({ ...state, phase: "prescribe", reasoningDiagnose: nonEmergencySigned, reasoningV2: nonEmergencySigned })));
+    const routeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", requestState))).text();
+    assert.match(routeText, /提示强度\*\*：强提示/, "安全门红旗时 M04 有限页必须是强提示");
+    for (const flag of gate.redFlags) assert.ok(routeText.includes(flag), `须列出安全门红旗：${flag}`);
+    assert.ok(!routeText.includes(`需优先处置的风险线索：${state.chiefComplaint}`), "不得把主诉当成红旗列出");
+  }
 }
 
 // 路由级：block 档下旧实现对「仅既往」直接返回非剂量有限 M03（「本次当前活动性治疗目标」待补录）。
