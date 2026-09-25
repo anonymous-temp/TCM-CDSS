@@ -369,9 +369,16 @@ assert.equal(rejectionTier("m04_visible_extra_herb_rows"), "T3");
 const prescribeRouteSource = readFileSync("src/app/api/diagnosis/prescribe/route.ts", "utf8");
 const finalSafetyIndex = prescribeRouteSource.indexOf("const detectedSafetyIssue = m04SafetyContractIssue(");
 const deferredLabelIndex = prescribeRouteSource.indexOf("const safetyIssue = isM04FinalizerDeferredLabelIssue(detectedSafetyIssue)");
-const finalIssueIndex = prescribeRouteSource.indexOf("const issue = safetyIssue || formulaCompilationContractIssue");
+const finalIssueIndex = prescribeRouteSource.indexOf('const qualityIssue = safetyIssue ? "" : formulaCompilationContractIssue');
 assert.ok(finalSafetyIndex >= 0 && deferredLabelIndex > finalSafetyIndex && finalIssueIndex > deferredLabelIndex,
   "M04 最终出口必须先无条件重跑 safetyIssue，再进入质量合同分级");
+// 终审只有一条驳回判据（2026-09-25 收敛）：抛错的唯一条件是 T1 底线合同不干净；
+// 质量类合同码只记日志、不阻断、不上屏（两条返回分支此前逐字相同，批注从不进入任何出口）。
+const finalizerThrows = prescribeRouteSource.match(/throw new Error\(`finalized_prescription_/g) || [];
+assert.equal(finalizerThrows.length, 1, "终审投影只能有一个驳回出口");
+assert.match(prescribeRouteSource,
+  /if \(safetyIssue\) \{[\s\S]{0,900}?throw new Error\(`finalized_prescription_\$\{safetyIssue\}`\);\s*\}/,
+  "终审驳回只能由 T1 底线合同触发，质量类合同码不得阻断");
 const provenanceEnrichmentIndex = prescribeRouteSource.indexOf("const enriched = enrichPrescriptionProvenance(");
 const postEnrichmentPruneIndex = prescribeRouteSource.indexOf("const directionPruned = declassifyAndDropOpposingM04CandidateHerbs(enriched");
 const postEnrichmentParseIndex = prescribeRouteSource.indexOf("const reasoning = parseReasoningV2(directionPruned)");
