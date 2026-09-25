@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createJiti } from "jiti";
 
 const readJson = (name) => JSON.parse(readFileSync(new URL(`../src/data/${name}`, import.meta.url), "utf8"));
@@ -763,6 +763,30 @@ unique(sourceRegistry.entries.map((item) => item.id), "source registry ids");
     if (actual !== entry.sha256) drifted.push(`${entry.id}: 表内 ${String(entry.sha256).slice(0, 8)}… 实际 ${actual.slice(0, 8)}…`);
   }
   assert.deepEqual(drifted, [], `来源注册表指纹与真实文件分叉（改了 src 却没重跑生成器）：\n  ${drifted.join("\n  ")}`);
+}
+// 指纹只给**数据输入**，不给代码（2026-09-25）。代码条目是出处标签：没有生成器从 .ts 内容派生表格
+// （同时改三份代码后重跑两个生成器，表格逐字节不变，只有哈希在动），运行时也只读 id/authorityTier。
+// 给代码记指纹的唯一效果是「每改一次安全代码就得重跑两个生成器」而不核对任何语义，故钉住：
+// 代码定位不得带 sha256、且文件必须存在；src/data 下的整文件定位必须带 sha256（真实数据输入照旧受控）。
+{
+  const codeLocator = /^src\/.*\.(?:ts|tsx|mts|cts|js|mjs)$/;
+  const entries = sourceRegistry.entries || [];
+  const fingerprintedCode = entries.filter((entry) => codeLocator.test(String(entry?.locator || "")) && entry.sha256)
+    .map((entry) => `${entry.id} → ${entry.locator}`);
+  assert.deepEqual(fingerprintedCode, [], `代码文件不应登记内容指纹（出处标签，不是派生输入）：\n  ${fingerprintedCode.join("\n  ")}`);
+  const codeEntries = entries.filter((entry) => codeLocator.test(String(entry?.locator || "")));
+  assert.deepEqual(codeEntries.map((entry) => entry.id).sort(),
+    ["SRC-PROJECT-DETERMINISTIC-SAFETY", "SRC-PROJECT-REASONING-CONTRACT", "SRC-PROJECT-TREATMENT-CAPABILITY"],
+    "代码出处条目集合变化时请同时确认它们仍不被任何生成器按内容读取");
+  for (const entry of codeEntries) {
+    assert.ok(existsSync(new URL(`../${entry.locator}`, import.meta.url)), `${entry.id} 的代码定位 ${entry.locator} 不存在`);
+  }
+  const unfingerprintedData = entries
+    .filter((entry) => /^src\/data\/[^#]+$/.test(String(entry?.locator || "")) && !entry.sha256)
+    .map((entry) => `${entry.id} → ${entry.locator}`);
+  assert.deepEqual(unfingerprintedData, [], `src/data 数据输入必须登记内容指纹：\n  ${unfingerprintedData.join("\n  ")}`);
+  const fingerprintedData = entries.filter((entry) => /^src\/data\/[^#]+$/.test(String(entry?.locator || "")) && entry.sha256);
+  assert.ok(fingerprintedData.length >= 2, `src/data 指纹条目不应被静默清空（实际 ${fingerprintedData.length}）`);
 }
 const sourceIds = new Set(sourceRegistry.entries.map((item) => item.id));
 const assertSourceRefs = (refs, label) => refs.forEach((ref) => assert.ok(sourceIds.has(ref), `${label} unknown source ${ref}`));

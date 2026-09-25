@@ -19,15 +19,17 @@ npm run dev                 # next dev (Turbopack); root → /diagnosis; login a
 npm run build && npm start  # standalone production build + serve
 npm run lint                # eslint --max-warnings=0 — warnings fail, treat them as errors
 npm run typecheck           # tsc --noEmit — run this after edits to src/lib
-npm run verify:release      # THE release gate: typecheck + lint + test:deterministic + test:deterministic:fresh + build
+npm run verify:release      # THE release gate: typecheck + lint + test:deterministic + test:deterministic:fresh-artifacts (no build: deploys compile via scripts/deploy/prebuild-local.sh)
 npm run build:tcm-knowledge # regenerate src/data/tcm-knowledge.json (needs external CSVs, see below)
 # Pure unit tests — no server needed; they exercise the deterministic safety/facts/contract layer.
 # All live under scripts/test-*.mjs via jiti (TS imports) or node --test / --experimental-strip-types.
 npm run test:deterministic        # chains all deterministic suites in order; the default pre-change gate (~minutes)
-npm run test:deterministic:fresh  # 同一套闸门，但屏蔽本机 artifacts/（CDSS_IGNORE_LOCAL_ARTIFACTS=1）
-                                  # 几条套件会「本机若有归档则一并扫描」，于是同一提交可能
-                                  # fresh clone 绿、留有归档的机器红。2026-08-15 实测踩过一次
-                                  # 并带着红上线，故 verify:release 两态各跑一次。
+npm run test:deterministic:fresh-artifacts  # 只把「本机若有归档则一并扫描」的 4 个套件在
+                                  # CDSS_IGNORE_LOCAL_ARTIFACTS=1 下再跑一遍（~4s）。同一提交可能
+                                  # fresh clone 绿、留有归档的机器红，2026-08-15 实测带着红上线过；
+                                  # 开关只对经 scripts/lib/local-artifacts.mjs 读归档的套件起作用，
+                                  # 名单与静态自检在 scripts/lib/gate-local-state.mjs。
+npm run test:deterministic:fresh  # 整条闸门 fresh 态（以前 verify:release 跑它，~3.7 分钟；现为手动选项）
 npm run test:safety-mutations     # ONE suite — this is how you run a single test
 npx jiti scripts/test-safety-mutation-matrix.mjs   # same suite, bypassing npm (faster iteration)
 npm run test:clinical-facts       # clinical-facts.ts additive backstop + schema rejects
@@ -44,7 +46,7 @@ npm run regress:incompatibility  # 药味工作台改方后重新审方：十八
 
 There is **no jest/vitest/playwright config**, but the deterministic layer has a real unit-test suite: **180 scripts under `scripts/test-*.mjs`, wired to 181 `test:*` npm scripts (177 in the gate registry; counts as of 2026-08-27, growing with every pinned defect)**, that import `src/lib/*.ts` directly (via `jiti`, or `node --test` / `--experimental-strip-types`) and assert with `node:assert`. They need no server. **There is no name filter and no watch mode** — a single suite is just its own npm script (`npm run test:<name>`), which is what you should run while iterating; save the full chain for the end.
 
-`npm run test:deterministic` (`scripts/run-deterministic-regression.mjs`) chains **every** `test:*` script except itself — the array in that file is the registry, so **a new `test:*` npm script is not in the gate until you add it there**. It spawns each via `npm run`, fails fast on the first non-zero exit, and scrubs inherited `RXAI_AUDIT_*` env vars so a stray shell override can't leak into a child suite. Its per-entry comments are the best available changelog of which customer defect each suite pins — read them before deleting or weakening an assertion.
+`npm run test:deterministic` (`scripts/run-deterministic-regression.mjs`) chains the registered `test:*` suites — the array in that file is the registry. **Before the first suite it fails loudly if any `test:*` npm script is neither registered nor listed with a reason in its `NOT_IN_GATE` table** (the runner itself, `*-live` suites), and if a suite reads `artifacts/` or a `src` file gains an `artifacts/runtime` default path without being declared in `scripts/lib/gate-local-state.mjs`. `--list` runs only those checks and prints the selection; `--only=test:a,test:b` runs a subset. It spawns each via `npm run`, fails fast on the first non-zero exit, scrubs inherited `RXAI_AUDIT_*` env vars so a stray shell override can't leak into a child suite, and points each suite's runtime state (terminology cache, drug inventory, customer registry, tenant audit — `cwd/artifacts/runtime/*` by default) at a fresh temp dir, so files left on this machine can't leak into results (two suites used to append to the checkout's `tenant-audit.ndjson` and fail when it was unusable). Its per-entry comments are the best available changelog of which customer defect each suite pins — read them before deleting or weakening an assertion.
 
 The **live** HTTP safety net is `scripts/regress-tcm-cdss.mjs` — start `npm run dev` (or a prod server) first, then:
 
@@ -145,22 +147,28 @@ The 48k-line JSON is a **generated build artifact** — do not hand-edit it. `sc
 This exists because of a real failure mode: local regressions were green while production behaved the opposite way, and there was no way to tell "the fix is wrong" from "the fix never shipped." The chain that makes that decidable:
 
 ```bash
-node scripts/build-source-digest.mjs      # npm run build:source-digest
-IMAGE_TAG=<immutable-tag> ./scripts/deploy-prod.sh
+node scripts/build-source-digest.mjs      # npm run build:source-digest → DIGEST
+scripts/deploy/prebuild-local.sh <clean-worktree> <TAG> <COMMIT> <DIGEST> <STAMP>   # compiles HERE, not on the host
+IMAGE_TAG=<TAG> PREBUILT_DIR=~/build-prebuilt/<TAG> DEPLOY_REMOTE_DIR=<release dir> \
+  DEPLOY_OVERRIDE_REL=<release-ops/production.override.yml> scripts/deploy/deploy-green-inplace-prebuilt.sh
 BASE_URL=https://host/tcm-cdss CDSS_API_TOKEN=… npm run verify:deployed-image
 BASE_URL=… CDSS_API_TOKEN=… npm run regress:prod-smoke
 ```
 
 - `build-source-digest.mjs` hashes only **clinical-behavior** files — `src/lib`, `src/app/api`, `src/data` — deliberately excluding docs/tests, so editing this file doesn't move the digest but editing one line of safety logic does. It's baked in at build time via `CDSS_BUILD_COMMIT` / `CDSS_BUILD_SOURCE_DIGEST` / `CDSS_BUILD_TIMESTAMP` build args and echoed back by `/api/diagnosis/health`.
 - `verify:deployed-image` recomputes the digest locally and compares. **Non-zero exit means the deploy failed, including "couldn't prove it"** — don't debug source until it's zero.
-- `scripts/deploy-prod.sh` carries five hard-won constraints in its header comment (whitelist rsync — the repo root holds 4.6GB of data assets and blacklisting took two hours per sync; `--env-file` not `source`; prune before build; explicit `-p tcm-cdss-prod`; never `| tail` away an exit code). Read them before editing it. It lives in the repo precisely because a `/tmp` copy was once lost.
+- **Production is the green container `tcm-cdss-deepseek-green-20260911` (port 3020) replaced in place**, not `-p tcm-cdss-prod`; the old `scripts/deploy-prod.sh` hard-coded the latter and "deployed" a container nginx never routes to, so it was deleted (2026-09-25). `scripts/deploy/` holds the real path, moved in from an out-of-repo `~/runlogs/` copy (a `/tmp` copy of the deploy script was lost once before): `prebuild-local.sh` compiles locally because `next build` needs ~6GB and building on the shared host took it offline twice; `deploy-green-inplace-prebuilt.sh` only packages the runtime layer on the host. Its header lists the load-bearing checks (prebuilt meta = commit + digest; runtime env digest before/after sync; whitelist rsync from `common.sh`, shared with prebuild; `env -i` + `--env-file` compose; token three-way match + 0600 baseline; count-based prune + disk floor; image existence re-checked after a tail-truncated build; compose backup for rollback). `IMAGE_TAG`, `PREBUILT_DIR`, `DEPLOY_REMOTE_DIR` and `DEPLOY_OVERRIDE_REL` are required because each stale default has already bitten (cold 481MB sync; wrong override silently changes the production model tiers). `test:deploy-runtime-env-protection` drives the real script through fake ssh/rsync to every refusal gate. Read the header before editing.
 
 ### 本机执行纪律（2026-08-16 实测，各栽过 ≥2 次）
 
-- **改了 `src/lib/diagnosis-safety.ts` / `diagnosis-types.ts` 之后，生成器和闸门必须一起发。**
-  这两个文件的摘要在受治理来源注册表里，不重跑
-  `build-clinical-governance-static-tables.mjs` + `build-tcm-governance-tables.py`，
-  `test:clinical-governance-tables` 必红（「表内 … 实际 …」指纹分叉）。同一天栽两次。
+- **受治理来源注册表只给数据输入记指纹，不给代码（2026-09-25 起）。** 改 `src/lib/diagnosis-safety.ts` /
+  `diagnosis-types.ts` / `tcm-treatment-projects.ts` 不再需要重跑生成器——此前这三份代码的 sha256 登记在
+  `clinical-governance-source-registry.json` 里，每改一次安全代码都得重跑两个生成器（同一天栽过两次），
+  而实测它们的内容不进任何表格（三份同时改动后重跑，表格逐字节不变，只有哈希在动），指纹只是出处标签。
+  改了注册表登记的**数据**源（`src/data/physical-exam-claim-lexicon.source.json`、`tcm-formula-sources.json`
+  等）或生成器本身，仍须重跑 `build-clinical-governance-static-tables.mjs` + `build-tcm-governance-tables.py`，
+  否则 `test:clinical-governance-tables` 报「表内 … 实际 …」。该套件同时钉住「代码条目不得带指纹、
+  src/data 整文件条目必须带指纹」，别把代码指纹加回去。
 - **闸门不能与工作流/dev server 并发。** 6G 内存，`test:deterministic` 自带
   `--max-old-space-size=8192`；并发时闸门进程被内存回收直接杀掉，**日志为空、无退出码**——
   这与「跑完了但没写标记」长得一模一样，别把它当成绿。判别：`ps` 里进程没了且日志 0 行 ⇒ 被杀。

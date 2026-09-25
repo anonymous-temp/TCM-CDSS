@@ -28,7 +28,7 @@ npm run dev                 # 开发服务器（Turbopack）；根路径 → /di
 npm run build && npm start  # standalone 生产构建 + 启动
 npm run lint                # eslint（eslint-config-next）
 npm run typecheck           # tsc --noEmit（npm 脚本自带 NODE_OPTIONS=--max-old-space-size=8192，裸跑 tsc 会 OOM）—— 改动 src/lib 后必跑
-npm run verify:release      # 发布前总闸：typecheck + lint + test:deterministic + build
+npm run verify:release      # 发布前总闸：typecheck + lint + test:deterministic + test:deterministic:fresh-artifacts（不含 build：发布产物由 scripts/deploy/prebuild-local.sh 编译）
 
 # 知识库构建（生成物，见下文"知识库"一节）
 npm run build:tcm-knowledge          # 重新生成 src/data/tcm-knowledge.json（依赖外部 CSV，见下）

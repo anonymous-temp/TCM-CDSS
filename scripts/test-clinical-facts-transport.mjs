@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { createJiti } from "jiti";
+import { answerNonModelRequest } from "./lib/local-model-endpoint.mjs";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": `${process.cwd()}/node_modules/next/dist/compiled/server-only/empty.js` } });
 // Expose the existing private transport for this test only; its production body is unchanged.
@@ -16,6 +17,8 @@ const { callFactsPhaseModel } = jiti.evalModule(runtimeSource.replace("async fun
 async function fixture(mode, run) {
   let calls = 0;
   const server = createServer(async (req, res) => {
+    // 只数模型端点：宿主会探测新监听端口（GET /），曾让本套件 ~17% 报 3 !== 2。见 local-model-endpoint.mjs。
+    if (await answerNonModelRequest(req, res)) return;
     for await (const chunk of req) void chunk;
     calls += 1;
     if (calls === 1 && mode === "socket") { req.socket.destroy(); return; }

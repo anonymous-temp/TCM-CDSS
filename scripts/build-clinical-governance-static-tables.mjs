@@ -48,6 +48,31 @@ const localSource = (id, title, file, sourceType, scope) => {
   };
 };
 
+// 项目**代码文件**只登记定位、不登记内容指纹（2026-09-25）。
+// 这类条目（确定性安全规则 / 推理契约 / 非药物项目能力目录）是「本表的某条规则出自项目哪一处
+// 运行时代码」的出处标签：没有任何生成器从这些 .ts 的内容派生表格——tcm-treatment-projects.ts
+// 虽被本脚本 import，但 TCM_TREATMENT_PROJECTS 只是把 T12 目录 JSON（本脚本上一次的产物）逐行过一遍
+// defineProject（恒等 + 用药标志一致性校验）再交回来。实测：三份文件同时改动后重跑两个生成器，
+// 唯一变化是这三个哈希与 manifest 里注册表自身的哈希，所有表格逐字节不变。运行时只读注册表的
+// id 与 authorityTier。旧做法把代码哈希写进注册表并由闸门比对，于是每改一次安全代码都得重跑
+// 两个生成器，而重跑只是把指纹机械地挪到新版本，不核对任何语义。真实数据输入（src/data 源表、
+// 外部 CSV、文档）仍按 localSource 记指纹。test:clinical-governance-tables 钉住两边。
+const codeSource = (id, title, file, sourceType, scope) => {
+  if (!existsSync(join(projectRoot, file))) {
+    throw new Error(`无法生成来源 ${id}：代码定位 ${file} 不存在`);
+  }
+  return {
+    id,
+    title,
+    publisher: "中医 CDSS 项目",
+    sourceType,
+    authorityTier: "project_governed_source",
+    locator: file,
+    scope,
+    accessedAt: "2026-07-22",
+  };
+};
+
 const sources = [
   {
     id: "SRC-GBT-16751-2-2021",
@@ -385,7 +410,7 @@ const sources = [
     "user_supplied_educational_reference",
     "常见病证的穴位索引和明确安全警示；仅作辅助选穴线索，必须与政府方案、操作标准和现场医师复核共同使用",
   ),
-  localSource(
+  codeSource(
     "SRC-PROJECT-DETERMINISTIC-SAFETY",
     "中医 CDSS 确定性安全规则",
     "src/lib/diagnosis-safety.ts",
@@ -399,14 +424,14 @@ const sources = [
     "project_runtime_grounding_catalog",
     "M03 阴性或正常查体断言的模态识别；只允许病历已记录的对应查体结果进入医生可见结论",
   ),
-  localSource(
+  codeSource(
     "SRC-PROJECT-REASONING-CONTRACT",
     "中医 CDSS 结构化推理契约",
     "src/lib/diagnosis-types.ts",
     "project_runtime_contract",
     "M01-M05 当前实际字段与输出结构",
   ),
-  localSource(
+  codeSource(
     "SRC-PROJECT-TREATMENT-CAPABILITY",
     "中医 CDSS 非药物项目能力目录",
     "src/lib/tcm-treatment-projects.ts",

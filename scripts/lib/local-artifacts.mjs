@@ -12,7 +12,8 @@
  *
  * 所以归档访问必须能被**显式关掉**，让任何一台机器都能复现另一种状态：
  *   CDSS_IGNORE_LOCAL_ARTIFACTS=1 npm run test:deterministic
- * 等价于在干净克隆上跑。发布闸门 verify:release 会两种状态各跑一次。
+ * 等价于在干净克隆上跑。发布闸门 verify:release 全链常态跑一次，再只对经本文件读归档的套件
+ * fresh 态跑一次（名单与静态自检在 ./gate-local-state.mjs：新套件读 artifacts/ 却不登记，闸门开头即失败）。
  */
 import { existsSync } from "node:fs";
 
