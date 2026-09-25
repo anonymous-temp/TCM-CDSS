@@ -159,10 +159,14 @@ BASE_URL=… CDSS_API_TOKEN=… npm run regress:prod-smoke
 
 ### 本机执行纪律（2026-08-16 实测，各栽过 ≥2 次）
 
-- **改了 `src/lib/diagnosis-safety.ts` / `diagnosis-types.ts` 之后，生成器和闸门必须一起发。**
-  这两个文件的摘要在受治理来源注册表里，不重跑
-  `build-clinical-governance-static-tables.mjs` + `build-tcm-governance-tables.py`，
-  `test:clinical-governance-tables` 必红（「表内 … 实际 …」指纹分叉）。同一天栽两次。
+- **受治理来源注册表只给数据输入记指纹，不给代码（2026-09-25 起）。** 改 `src/lib/diagnosis-safety.ts` /
+  `diagnosis-types.ts` / `tcm-treatment-projects.ts` 不再需要重跑生成器——此前这三份代码的 sha256 登记在
+  `clinical-governance-source-registry.json` 里，每改一次安全代码都得重跑两个生成器（同一天栽过两次），
+  而实测它们的内容不进任何表格（三份同时改动后重跑，表格逐字节不变，只有哈希在动），指纹只是出处标签。
+  改了注册表登记的**数据**源（`src/data/physical-exam-claim-lexicon.source.json`、`tcm-formula-sources.json`
+  等）或生成器本身，仍须重跑 `build-clinical-governance-static-tables.mjs` + `build-tcm-governance-tables.py`，
+  否则 `test:clinical-governance-tables` 报「表内 … 实际 …」。该套件同时钉住「代码条目不得带指纹、
+  src/data 整文件条目必须带指纹」，别把代码指纹加回去。
 - **闸门不能与工作流/dev server 并发。** 6G 内存，`test:deterministic` 自带
   `--max-old-space-size=8192`；并发时闸门进程被内存回收直接杀掉，**日志为空、无退出码**——
   这与「跑完了但没写标记」长得一模一样，别把它当成绿。判别：`ps` 里进程没了且日志 0 行 ⇒ 被杀。
