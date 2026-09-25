@@ -1,6 +1,6 @@
 // src/lib/diagnosis-parse.ts
 import type { CaseState, ClinicalReasoningResultV2, Completeness } from "./diagnosis-types";
-import { CompletenessSchema, normalizeReasoningV2 } from "./diagnosis-types";
+import { CompletenessSchema, determineCompletenessLevel, normalizeReasoningV2 } from "./diagnosis-types";
 
 const START_MARKER = "<!-- DIAGNOSIS_JSON_START -->";
 const END_MARKER = "<!-- DIAGNOSIS_JSON_END -->";
@@ -46,24 +46,6 @@ export function stripDiagnosisJSON(content: string): string {
   result = result.replace(/\*{0,2}【第三部分[：:].*?】\*{0,2}\s*$/m, "");
   result = result.replace(/^.*(?:结构化JSON|结构化数据|DIAGNOSIS_JSON).*$/gm, "");
   return result.trimEnd();
-}
-
-/**
- * Determine completeness level from 4-dimensional scores.
- * Frontend-computed rule overrides any LLM-provided level.
- *
- * C (充分): all dims >= 0.6 AND redFlag >= 0.7 (redFlag has a higher bar — 0.7 — because
- *   missing a red flag is more dangerous than missing other information)
- * A (严重不足): any dim < 0.3
- * B (部分充分): otherwise (includes cases where redFlag is 0.3–0.69, which forces another round)
- */
-export function determineCompletenessLevel(
-  scores: Pick<Completeness, "redFlag" | "infoGain" | "managementImpact" | "answerability">
-): "A" | "B" | "C" {
-  const { redFlag, infoGain, managementImpact, answerability } = scores;
-  if (redFlag >= 0.7 && infoGain >= 0.6 && managementImpact >= 0.6 && answerability >= 0.6) return "C";
-  if (redFlag < 0.3 || infoGain < 0.3 || managementImpact < 0.3 || answerability < 0.3) return "A";
-  return "B";
 }
 
 /**
