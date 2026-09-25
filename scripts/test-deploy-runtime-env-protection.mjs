@@ -28,7 +28,6 @@ const commonScript = path.join(deployDir, "common.sh");
 const deriveScript = path.join(deployDir, "derive-runtime-dockerfile.sh");
 const deploySource = readFileSync(deployScript, "utf8");
 const prebuildSource = readFileSync(prebuildScript, "utf8");
-const commonSource = readFileSync(commonScript, "utf8");
 // 只看代码行：头注释会引用旧项目名、旧做法来解释为什么不这么做。
 const deployCode = deploySource.split("\n").filter((line) => !line.trimStart().startsWith("#")).join("\n");
 const refute = (source, pattern, message) => assert.ok(!pattern.test(source), `${message} (matched ${pattern})`);
