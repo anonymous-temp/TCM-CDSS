@@ -99,7 +99,7 @@ npm run build:tcm-formula-sources    # python3 脚本
 
 - 送数据给模型前必须经过 `sanitizeCaseStateForModel` / `sanitizeFreeTextForModel`。
 - 临床事实状态词汇表在 `src/lib/clinical-state.ts`（`positive/possible/negative/historical/unknown`）。**不要把"未提及/unknown"当作阴性** —— "过敏史/用药史未提及"污染是回归套件中显式测试的误报类别。
-- **完整度**（`src/lib/diagnosis-parse.ts`）：模型在流中把结构化 JSON 嵌入 `<!-- DIAGNOSIS_JSON_START/END -->` sentinel 之间（经 `diagnosis-prompts.ts` 的 `SENTINEL_INSTRUCTION` 注入）。`determineCompletenessLevel` **在代码中重算等级并覆盖模型的自评** —— C 级要求 redFlag≥0.7 且其余维度 ≥0.6；任何维度 <0.3 ⇒ A；否则 B。只有 C 级进入完整诊断/处方。
+- **完整度**全部确定性计算、不由模型打分：`deriveOperationalCompleteness`（`diagnosis-safety.ts`）按当前病历打分，`determineCompletenessLevel`（`diagnosis-types.ts`，唯一一份）定级 —— C 级要求 redFlag≥0.7 且其余维度 ≥0.6；任何维度 <0.3 ⇒ A；否则 B。M02 输出信封里的 `completeness` 由追问路由按同一函数写入（2026-09-25 起；此前由 M02 模型自评）。只有 C 级进入完整诊断/处方。
 - **语义临床事实回补**（`clinical-facts.ts` + `clinical-facts-runtime.ts`）：**仅可追加（additive-only）** 的模型衍生层，补充口语化红旗/随访线索；默认开启（`CDSS_CLINICAL_FACTS_BACKSTOP=false` 关闭）。它只能追加紧急建议，绝不能取消确定性阳性红旗或危急体征；schema 非法条目被隔离，单条编造不能抹掉同批有效条目。
 - **客户端编排**在 `src/lib/diagnosis-engine.ts`（浏览器 localStorage 病例持久化，键 `diagnosis_case_*`；自带空闲/总超时 + `AbortController` 的流消费），被 `DiagnosisClient.tsx` 使用。这是客户端流程胶水，不是服务端流水线。
 

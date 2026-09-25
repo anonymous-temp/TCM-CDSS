@@ -611,7 +611,9 @@ assert.match(fallbackItems[0].question, /每周大约几晚|白天/);
 assert.doesNotMatch(repairedEmptyQuestion, /证候归纳|病机关联|安全边界|确定性安全门控/);
 const missingQuestionEnvelope = ensureQuestionStructuredEnvelope(repairedEmptyQuestion);
 assert.match(missingQuestionEnvelope, /DIAGNOSIS_JSON_START/);
-assert.match(missingQuestionEnvelope, /"completeness":\{"level":"B"/);
+assert.match(missingQuestionEnvelope, /"m02Plan":\{"schemaVersion":"tcm-cdss-m02-plan-v1","decision":"ask"/, "visible-only provider output is rebuilt into a typed ask plan");
+// completeness 不再由契约层填占位分（旧为固定 B/0.6×4），改由路由写入确定性操作完整度（2026-09-25）。
+assert.doesNotMatch(missingQuestionEnvelope, /"completeness"/);
 const malformedQuestionEnvelope = ensureQuestionStructuredEnvelope(`${repairedEmptyQuestion}\n\n<!-- DIAGNOSIS_JSON_START -->\n{bad json}\n<!-- DIAGNOSIS_JSON_END -->`);
 assert.equal((malformedQuestionEnvelope.match(/DIAGNOSIS_JSON_START/g) || []).length, 1, "a malformed provider envelope is replaced instead of leaving M02 retry-only");
 const lowValueQuestions = [

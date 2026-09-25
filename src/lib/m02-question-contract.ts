@@ -1,4 +1,5 @@
 import { affirmedClinicalText } from "./clinical-polarity";
+import type { Completeness } from "./diagnosis-types";
 
 type QuestionFallbackCase = {
   patient?: { age?: number | string };
@@ -698,13 +699,10 @@ export function enforceM02UnansweredAxes(
     if (start < 0 || end < 0) return null;
     try {
       const envelope = JSON.parse(raw.slice(start + QUESTION_SENTINEL_START.length, end).trim()) as {
-        completeness?: unknown;
         m02Plan?: unknown;
       };
       const plan = parseM02Plan(envelope.m02Plan, sourceText);
-      return plan && envelope.completeness && typeof envelope.completeness === "object"
-        ? { completeness: envelope.completeness, plan }
-        : null;
+      return plan ? { plan } : null;
     } catch {
       return null;
     }
@@ -733,8 +731,29 @@ export function enforceM02UnansweredAxes(
     renderStructuredM02Plan(plan),
     "",
     QUESTION_SENTINEL_START,
-    JSON.stringify({ completeness: source.completeness, m02Plan: plan }),
+    JSON.stringify({ m02Plan: plan }),
     QUESTION_SENTINEL_END,
+  ].join("\n");
+}
+
+/**
+ * M02 结构化输出里的 `completeness` 是对外接口字段（接口文档 §4.3），由服务端写入，模型不再打分。
+ * 取值是各阶段路由共用的确定性操作完整度（diagnosis-safety.deriveOperationalCompleteness——
+ * withSafetyGate 写进 caseState 的同一份）。此前由模型自评：客户端解析后立即被确定性值覆盖、
+ * 各路由也从不读它，只在对外信封里原样透出（2026-09-25 改）。
+ * 只替换哨兵之间的 JSON，可见 Markdown 逐字不动；没有合法信封时原样返回。
+ */
+export function withM02Completeness(content: string, completeness: Completeness): string {
+  const start = content.indexOf(QUESTION_SENTINEL_START);
+  const end = start >= 0 ? content.indexOf(QUESTION_SENTINEL_END, start) : -1;
+  if (start < 0 || end < 0) return content;
+  const envelope = extractQuestionEnvelope(content) as { m02Plan?: unknown } | null;
+  if (!envelope || typeof envelope !== "object" || !envelope.m02Plan || typeof envelope.m02Plan !== "object") return content;
+  const { level, redFlag, infoGain, managementImpact, answerability } = completeness;
+  return [
+    content.slice(0, start + QUESTION_SENTINEL_START.length),
+    JSON.stringify({ completeness: { level, redFlag, infoGain, managementImpact, answerability }, m02Plan: envelope.m02Plan }),
+    content.slice(end),
   ].join("\n");
 }
 
@@ -744,11 +763,10 @@ export function removeM02PlanQuestions(content: string, questionIds: string[], r
   if (start < 0 || end < 0) return content;
   try {
     const envelope = JSON.parse(content.slice(start + QUESTION_SENTINEL_START.length, end).trim()) as {
-      completeness?: unknown;
       m02Plan?: unknown;
     };
     const plan = parseM02Plan(envelope.m02Plan);
-    if (!plan || !envelope.completeness || typeof envelope.completeness !== "object") return content;
+    if (!plan) return content;
     const removed = new Set(questionIds);
     const questions = plan.questions.filter((question) => !removed.has(question.id));
     const nextPlan: M02Plan = questions.length > 0
@@ -763,7 +781,7 @@ export function removeM02PlanQuestions(content: string, questionIds: string[], r
       renderStructuredM02Plan(nextPlan),
       "",
       QUESTION_SENTINEL_START,
-      JSON.stringify({ completeness: envelope.completeness, m02Plan: nextPlan }),
+      JSON.stringify({ m02Plan: nextPlan }),
       QUESTION_SENTINEL_END,
     ].join("\n");
   } catch {
@@ -800,11 +818,10 @@ export function neutralizeM02PlanQuestionRationales(content: string, questionIds
   if (start < 0 || end < 0) return content;
   try {
     const envelope = JSON.parse(content.slice(start + QUESTION_SENTINEL_START.length, end).trim()) as {
-      completeness?: unknown;
       m02Plan?: unknown;
     };
     const plan = parseM02Plan(envelope.m02Plan);
-    if (!plan || !envelope.completeness || typeof envelope.completeness !== "object") return content;
+    if (!plan) return content;
     const requested = questionIds ? new Set(questionIds) : null;
     let changed = false;
     const questions = plan.questions.map((question) => {
@@ -821,7 +838,7 @@ export function neutralizeM02PlanQuestionRationales(content: string, questionIds
       renderStructuredM02Plan(nextPlan),
       "",
       QUESTION_SENTINEL_START,
-      JSON.stringify({ completeness: envelope.completeness, m02Plan: nextPlan }),
+      JSON.stringify({ m02Plan: nextPlan }),
       QUESTION_SENTINEL_END,
     ].join("\n");
   } catch {
@@ -968,20 +985,17 @@ export function ensureSingleRoundQuestionContract(content: string, fallbackConte
 export function ensureQuestionStructuredEnvelope(content: string, sourceText = "", fallbackContent = ""): string {
   const start = content.indexOf(QUESTION_SENTINEL_START);
   const end = start >= 0 ? content.indexOf(QUESTION_SENTINEL_END, start) : -1;
-  const renderEnvelope = (completeness: unknown, plan: M02Plan) => [
+  const renderEnvelope = (plan: M02Plan) => [
     renderStructuredM02Plan(plan),
     "",
     QUESTION_SENTINEL_START,
-    JSON.stringify({ completeness, m02Plan: plan }),
+    JSON.stringify({ m02Plan: plan }),
     QUESTION_SENTINEL_END,
   ].join("\n");
   const parseEnvelope = (value: unknown): string | null => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-    const parsed = value as { completeness?: unknown; m02Plan?: unknown };
-    const plan = parseM02Plan(parsed.m02Plan, sourceText);
-    return parsed.completeness && typeof parsed.completeness === "object" && plan
-      ? renderEnvelope(parsed.completeness, plan)
-      : null;
+    const plan = parseM02Plan((value as { m02Plan?: unknown }).m02Plan, sourceText);
+    return plan ? renderEnvelope(plan) : null;
   };
 
   // New providers return one JSON object. Legacy sentinel output remains accepted, but in both
@@ -1061,15 +1075,12 @@ export function ensureQuestionStructuredEnvelope(content: string, sourceText = "
     })
     .filter((question): question is M02PlanQuestion => Boolean(question));
   if (visibleQuestions.length > 0) {
-    return renderEnvelope(
-      { level: "B", redFlag: 0.6, infoGain: 0.6, managementImpact: 0.6, answerability: 0.6 },
-      {
-        schemaVersion: "tcm-cdss-m02-plan-v1",
-        decision: "ask",
-        rationale: "保留模型已生成且满足交互约束的高信息增益问题；结构化输出由同一问题确定性重建。",
-        questions: visibleQuestions,
-      },
-    );
+    return renderEnvelope({
+      schemaVersion: "tcm-cdss-m02-plan-v1",
+      decision: "ask",
+      rationale: "保留模型已生成且满足交互约束的高信息增益问题；结构化输出由同一问题确定性重建。",
+      questions: visibleQuestions,
+    });
   }
   if (fallbackContent.trim() && fallbackContent !== content) {
     // A malformed provider envelope must fall through to the complaint-aware route fallback, not
@@ -1077,17 +1088,16 @@ export function ensureQuestionStructuredEnvelope(content: string, sourceText = "
     // through the same contract, then mark their provenance so telemetry and the clinician both
     // see that degradation occurred.
     const normalizedFallback = ensureQuestionStructuredEnvelope(fallbackContent, sourceText);
-    const fallbackEnvelope = extractQuestionEnvelope(normalizedFallback) as { completeness?: unknown; m02Plan?: unknown } | null;
+    const fallbackEnvelope = extractQuestionEnvelope(normalizedFallback) as { m02Plan?: unknown } | null;
     const fallbackPlan = parseM02Plan(fallbackEnvelope?.m02Plan, sourceText);
-    if (fallbackEnvelope?.completeness && typeof fallbackEnvelope.completeness === "object" && fallbackPlan) {
-      return renderEnvelope(fallbackEnvelope.completeness, {
+    if (fallbackPlan) {
+      return renderEnvelope({
         ...fallbackPlan,
         rationale: "模型结构化追问计划不可用，改为与当前主诉类别匹配的高信息量安全追问。",
       });
     }
   }
   const fallback = {
-    completeness: { level: "B", redFlag: 0.6, infoGain: 0.4, managementImpact: 0.4, answerability: 0.4 },
     m02Plan: {
       schemaVersion: "tcm-cdss-m02-plan-v1",
       decision: "ask",
@@ -1109,5 +1119,5 @@ export function ensureQuestionStructuredEnvelope(content: string, sourceText = "
       }],
     },
   };
-  return renderEnvelope(fallback.completeness, fallback.m02Plan as M02Plan);
+  return renderEnvelope(fallback.m02Plan as M02Plan);
 }
