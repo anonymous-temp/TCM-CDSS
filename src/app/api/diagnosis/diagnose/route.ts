@@ -6,7 +6,7 @@ import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server
 import { buildDiagnosePrompt } from "@/lib/diagnosis-prompts";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
 import { buildDiagnoseContractSignatureContext, signDiagnoseReasoning } from "@/lib/reasoning-contract-signature";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, gateDispositionIsAdvisory, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedDiagnosis, buildSafetyLimitedDiagnosisReasoning, clinicalGroundingText, limitedDiagnosisReasonCopy, markdownNdjsonResponse, renderSafetyLimitedDiagnosisContract, safetyGateForLimitedDiagnosisFallback, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { hasValidClinicalFactsAttestation, maybeAttachClinicalFactsBackstop } from "@/lib/clinical-facts-runtime";
 import { m03ParallelGenerationEnabled } from "@/lib/m03-parallel-merge";
 import { buildM03AdditionalPatientContext, buildM03ContextPackets, buildM03SharedPatientContext } from "@/lib/m03-context-packets";
@@ -57,13 +57,9 @@ export async function POST(req: Request) {
       ),
     );
   };
-  // 红旗处置（甲方决策：不阻断临床流程）。检测照常，advise 模式下不再用「安全有限合同」
-  // 顶替整份辨证——那一页对医生的价值是零，红旗本身反而淹没在降级文案里。改为：完整跑
-  // M03，可见正文置顶确定性安全警示横幅，红旗同步写进提示词让 management 优先急诊指引。
-  // CDSS_GATE_DISPOSITION=block 可切回旧拦截行为。
-  if (redFlagAnalysis && !gateDispositionIsAdvisory()) {
-    return markdownNdjsonResponse(signedLimitedDiagnosis(gated.safetyGate!));
-  }
+  // 红旗处置（甲方决策：不阻断临床流程）。检测照常，但不再用「安全有限合同」顶替整份
+  // 辨证——那一页对医生的价值是零，红旗本身反而淹没在降级文案里。改为：完整跑 M03，
+  // 可见正文置顶确定性安全警示横幅，红旗同步写进提示词让 management 优先急诊指引。
   // 「仅既往/稳定背景」（historical_or_stable_only）是下调型判断，不再改变本路由的任何输出：此前要求
   // 抽取与复核两次一致（reviewAgreement=agreed）才采信，复核相位 2026-09-25 删除后该路径已不可达，
   // 病例一律按活动性就诊处理（保守方向）。只有 attested unclear 仍进入提示词（见下）。

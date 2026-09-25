@@ -4,7 +4,7 @@ import { assistedPolarityDecisions } from "@/lib/polarity-negation-assist.server
 import { buildPrescribePrompt } from "@/lib/diagnosis-prompts";
 import { diagnoseReasoningFromState, parseReasoningV2 } from "@/lib/diagnosis-parse";
 import { readCustomerBoundCaseStateRequest } from "@/lib/diagnosis-request";
-import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, gateDispositionIsAdvisory, markdownNdjsonResponse, mergePrescriptionReviewItems, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
+import { authoritativePatientAgeYears, buildSafetyAdvisoryBanner, buildSafetyLimitedPrescription, clinicalGroundingText, derivePrescriptionPermission, markdownNdjsonResponse, mergePrescriptionReviewItems, sanitizeCaseStateForModel, sanitizeUngroundedRedFlagNegations, withSafetyGate } from "@/lib/diagnosis-safety";
 import { applyRestoredGovernedFormulaIdentity, formulaCompilationContractIssue, formulaNamesWithoutExecutableDoseCompilation } from "@/lib/tcm-formula-provenance";
 import { enrichPrescriptionProvenance } from "@/lib/tcm-formula-provenance.server";
 import { applyDeterministicHerbFunctions, synchronizeVisibleClinicalSummary } from "@/lib/diagnosis-visible-summary";
@@ -83,23 +83,20 @@ export async function POST(req: Request) {
   const permission = derivePrescriptionPermission(gated);
   const limitedInformation = gated.completeness.level !== "C" || gated.safetyGate?.status !== "ready" ||
     permission.candidateMode === "limited_dose" || permission.candidateMode === "non_dose_only";
-  const advisoryDisposition = gateDispositionIsAdvisory();
   // ── 「不给剂量」不再等于「不给候选」（owner 决策 2026-09-13）──────────────────────
   //
   // 剂量授权仍然是一根独立的硬边界轴（红旗未解除 / 儿科体重缺失 / 妊娠哺乳阳性 /
-  // 语义筛查不可用），advise 档不能放行剂量——这一条不变。变的是**它不再顺带取消候选生成**：
+  // 语义筛查不可用），不能放行剂量——这一条不变。变的是**它不再顺带取消候选生成**：
   // 此前本分支在任何模型调用之前就返回一页固定说明，整条候选生成环节被跳过。
   // 222 例实测 published_case-82：M03 已有气血亏虚工作判断与 2 个病机节点，M04 一味药未生成。
   //
   // 现在照常完整生成、修复、复核、保留候选，最终交付走服务端的**非剂量投影**
   // （药味、君臣佐使、方义、适用边界、调护全部可见；剂量/用法/疗程由服务端剥离）。
   // candidateMode=blocked 只有「缺主诉」一种来源——那是真的无从生成，维持原页。
-  const doseWithheldReasons = permission.candidateMode === "non_dose_only" && advisoryDisposition
+  const doseWithheldReasons = permission.candidateMode === "non_dose_only"
     ? Array.from(new Set(permission.reasons.length > 0 ? permission.reasons : ["本例剂量授权未开放"]))
     : [];
-  // block 档（运维回退）维持旧的生成前拦截：那一档的语义就是 fail-closed 全量回退。
-  if (permission.candidateMode === "blocked" ||
-      (permission.candidateMode === "non_dose_only" && !advisoryDisposition)) {
+  if (permission.candidateMode === "blocked") {
     const gate: SafetyGate = {
       status: gated.safetyGate?.status || "needs_information",
       allowDiagnosis: true,
@@ -109,34 +106,16 @@ export async function POST(req: Request) {
       redFlags: gated.safetyGate?.redFlags || [],
       reasons: ["当前病例可继续完成辨病辨证、调护和非药物治疗建议，但不生成具体剂量。"],
     };
-    const hasChiefForCode = Boolean((gated.chiefComplaint || gated.hisRecord?.fields?.zhushu || "").trim());
-    return markdownNdjsonResponse(buildSafetyLimitedPrescription(
-      gate,
-      hasChiefForCode ? (gate.status === "red_flag" ? "safety_gate_blocked" : "completeness_below_c") : "missing_chief_complaint",
-    ));
+    // blocked 的唯一来源是缺主诉（derivePrescriptionPermission 与此处读同一主诉字段），
+    // 所以机器码恒为 missing_chief_complaint。
+    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate, "missing_chief_complaint"));
   }
-  // 横幅触发不能挂在 candidateMode 上：advisory 档下红旗已返回 full_dose（这正是「不拦截」
-  // 的实现），若仍以 non_dose_only 为条件，红旗病例的 M04 反而成了唯一没有警示的输出。
-  // 直接读安全门状态——它是检测层的原始信号，与处置档位无关。
-  const advisorySafetyNotes = advisoryDisposition &&
-    gated.safetyGate?.status === "red_flag"
+  // 横幅触发不能挂在 candidateMode 上：红旗的剂量收回走 non_dose_only，但若由
+  // CDSS_REDFLAG_DOSE_AUTHORIZATION=allow 放行剂量，红旗病例的 M04 就成了唯一没有警示的输出。
+  // 直接读安全门状态——它是检测层的原始信号。
+  const advisorySafetyNotes = gated.safetyGate?.status === "red_flag"
     ? (permission.reasons.length > 0 ? permission.reasons : ["当前病例存在未解除的安全或信息完整性提示"])
     : [];
-  // An attested "unclear" encounter scope means the reviewed semantic pre-check could not prove
-  // whether this visit has an active treatment target. advise 模式下不再拦截：照常生成，
-  // 警示横幅与提示词都明示「本次就诊目标需医生确认」，确认动作交给医生而不是流程。
-  if (hasUnconfirmedUnclearEncounterScope(gated) && !advisoryDisposition) {
-    const gate: SafetyGate = {
-      status: "needs_information",
-      allowDiagnosis: true,
-      allowDosePrescription: false,
-      action: "complete_before_prescription",
-      missingItems: ["本次当前活动性治疗目标确认"],
-      redFlags: [],
-      reasons: ["语义预检无法判断本次就诊是否存在当前活动性治疗目标；需医生通过追问回答补充病情，或显式确认本次就诊的治疗目标后，才能生成具体剂量。"],
-    };
-    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate, "completeness_below_c"));
-  }
   // M03 的结构化合同是阶段间的唯一辨证充分度依据。可见正文中的鉴别或管理建议（例如
   // “完善甲功后再评估”）不能反向否定一份已包含主证、病机链和治法的有效结构化辨证。
   // 必须注入 isSafetyRejection 谓词——辨证侧带批注受理时豁免的 T2 码（链节点措辞/接地字面/
@@ -173,22 +152,8 @@ export async function POST(req: Request) {
       ? unavailableFormulaNames.length === governedFormulaNames.length
       : unavailableFormulaNames.length > 0
   );
-  // advise 模式下锁定方缺剂量基准不再作废本次生成：转自拟组方路径（提示词明示不得沿用
-  // 该方名身份），方名方向保留给医生参考。block 模式维持旧行为。
-  if (noExecutableFormulaPath && !advisoryDisposition) {
-    const gate: SafetyGate = {
-      status: "needs_information",
-      allowDiagnosis: true,
-      allowDosePrescription: false,
-      action: "complete_before_prescription",
-      missingItems: unavailableFormulaNames.map((name) => `${name}的完整药味身份或数值型内服剂量边界`),
-      redFlags: [],
-      reasons: [
-        `已形成${governedFormulaNames.join("、")}的方证方向，但其治理组成尚不能逐味完成具体用量核验；保留方名方向供医生审阅，不生成半张处方或猜测缺失剂量。`,
-      ],
-    };
-    return markdownNdjsonResponse(buildSafetyLimitedPrescription(gate, "formula_dose_boundary_unavailable"));
-  }
+  // 锁定方缺剂量基准不作废本次生成：转自拟组方路径（提示词明示不得沿用该方名身份），
+  // 方名方向保留给医生参考。
 
   const trustedGated = { ...gated, reasoningDiagnose: signedPriorReasoning };
   const safeState = sanitizeCaseStateForModel(trustedGated);
@@ -231,10 +196,13 @@ export async function POST(req: Request) {
   if (advisorySafetyNotes.length > 0) {
     promptSuffixes.push(`【急危重线索并存】服务器确定性判定本例存在未解除的安全提示：${advisorySafetyNotes.join("；")}。请照常生成剂量级候选方药；在用药风险提示中把急诊/转诊评估列为第一优先级，剂量取保守区间下段，不得因安全提示拒绝生成，也不得淡化提示。`);
   }
-  if (hasUnconfirmedUnclearEncounterScope(gated) && advisoryDisposition) {
+  // An attested "unclear" encounter scope means the reviewed semantic pre-check could not prove
+  // whether this visit has an active treatment target. 不拦截：照常生成，警示横幅与提示词都明示
+  // 「本次就诊目标需医生确认」，确认动作交给医生而不是流程。
+  if (hasUnconfirmedUnclearEncounterScope(gated)) {
     promptSuffixes.push("【就诊目标待确认】语义预检无法确定本次就诊是否存在当前活动性治疗目标。请照常生成候选，并在适用边界中显式提示“本次就诊目标需医生确认后方可采纳”。");
   }
-  if (noExecutableFormulaPath && advisoryDisposition) {
+  if (noExecutableFormulaPath) {
     promptSuffixes.push(`【方名剂量基准缺失】推荐方 ${unavailableFormulaNames.join("、")} 在本地标准剂量资料中暂无可执行的逐味剂量基准。请按已锁定证候与治法自拟组方（constructionType=self_devised，不得沿用该方名身份），方名方向已另行保留给医生参考。`);
   }
   if (doseWithheldReasons.length > 0) {
@@ -295,9 +263,9 @@ export async function POST(req: Request) {
     advisorySafetyNotes.length > 0 ? gated.safetyGate : undefined,
     [
       ...(advisorySafetyNotes.length > 0 && !(gated.safetyGate?.redFlags || []).length ? advisorySafetyNotes : []),
-      ...(hasUnconfirmedUnclearEncounterScope(gated) && advisoryDisposition
+      ...(hasUnconfirmedUnclearEncounterScope(gated)
         ? ["本次就诊是否存在当前活动性治疗目标未确认，请医生确认后再采纳。"] : []),
-      ...(noExecutableFormulaPath && advisoryDisposition
+      ...(noExecutableFormulaPath
         ? [`推荐方 ${unavailableFormulaNames.join("、")} 暂无可执行剂量基准，本次候选为辨证自拟组方，方名方向供参考。`] : []),
       ...(doseWithheldReasons.length > 0
         ? [`本次候选药味与方义照常呈现，但按独立硬边界暂不显示具体用量：${doseWithheldReasons.join("；")}。`] : []),

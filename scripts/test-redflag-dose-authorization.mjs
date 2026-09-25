@@ -15,10 +15,11 @@
  *     ②掩盖了上面那个排序缺陷；
  *     ③唯一跑默认档的断言只验「开关自报 advise」，不验「开关起作用」，所以套件抓不到。
  *
- * 【现在的口径】两轴分开：
- *   · CDSS_GATE_DISPOSITION 管流程与呈现（红旗后还给不给 M03 分析、警示置不置顶）；
+ * 【现在的口径】剂量授权单独成轴：
  *   · CDSS_REDFLAG_DOSE_AUTHORIZATION 管剂量授权，默认 withhold（与线上一致），
- *     allow 是运维回退档。
+ *     allow 是运维回退档；
+ *   · 流程与呈现只有「提示不拦截」一种（CDSS_GATE_DISPOSITION 及其 block 回退档
+ *     2026-09-25 删除，原第 4 节「两轴不得绑回同一开关」随之删除）。
  * 独立硬边界（儿科/妊娠/语义筛查/高危剂量）**不受任何一个开关影响**——这正是本套件的重点。
  */
 import assert from "node:assert/strict";
@@ -111,25 +112,7 @@ for (const value of [undefined, "withhold", "allow"]) {
   });
 }
 
-// ── 4. 两轴不得再被绑回同一个开关 ──────────────────────────────────────────
-{
-  const prevDisposition = process.env.CDSS_GATE_DISPOSITION;
-  const seen = new Set();
-  for (const disposition of [undefined, "advise", "block"]) {
-    if (disposition === undefined) delete process.env.CDSS_GATE_DISPOSITION;
-    else process.env.CDSS_GATE_DISPOSITION = disposition;
-    withAuthorization("allow", () => { seen.add(modeOf(ADULT)); });
-  }
-  if (prevDisposition === undefined) delete process.env.CDSS_GATE_DISPOSITION;
-  else process.env.CDSS_GATE_DISPOSITION = prevDisposition;
-  assert.equal(
-    seen.size, 1,
-    "剂量授权只能由 CDSS_REDFLAG_DOSE_AUTHORIZATION 决定；" +
-    `CDSS_GATE_DISPOSITION 改变了它说明两轴又被绑回一起（实得 ${[...seen].join("/")}）`,
-  );
-}
-
-// ── 5. 非红旗病例不受本开关影响 ────────────────────────────────────────────
+// ── 4. 非红旗病例不受本开关影响 ────────────────────────────────────────────
 const BENIGN_TEXT = "胃脘隐痛伴口干3月，饥不欲食，口干咽燥，大便干结";
 const BENIGN = caseOf({
   patient: { sex: "女", age: 52 },
@@ -146,7 +129,7 @@ for (const value of [undefined, "withhold", "allow"]) {
 assert.equal(benignModes.size, 1, `非红旗病例的权限不得随红旗剂量开关变化（实得 ${[...benignModes].join("/")}）`);
 assert.notEqual([...benignModes][0], "non_dose_only", "普通门诊病例不得因本开关被降级");
 
-// ── 6. 生产 smoke 的完整链夹具必须真的走 C + ready + full_dose ─────────
+// ── 5. 生产 smoke 的完整链夹具必须真的走 C + ready + full_dose ─────────
 // 不能只看 M03 有签名、M04 有药味：needs_information 下的 limited_dose 也可以同时满足这两项。
 const PROD_SMOKE_FULL_DOSE_CASE = {
   id: "prod-smoke-preflight-contract",
@@ -179,6 +162,5 @@ assert.equal((redFlagsRouteSource.match(/prescriptionPermission:/g) || []).lengt
 console.log("test-redflag-dose-authorization: OK", {
   switchValues: 3,
   independentBoundaries: ["pediatric", "pregnancy"],
-  axesKeptSeparate: true,
   prodSmokeFullDosePreflight: true,
 });

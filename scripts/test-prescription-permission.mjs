@@ -2,10 +2,8 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
 // 本套件验证的是安全门/就诊目标门的**机制**（红旗判定、指纹确认、过期指纹拒绝、非剂量合同
-// 渲染）。产品默认档已改为 advise（提示不拦截，甲方 2026-08-01 决策），机制保留在 block 档
-// 作为运维回退开关——因此这里显式切到 block 档来测机制本身；advise 档的默认性与横幅行为
-// 由下方独立断言与 50 例在线回归覆盖。必须在 import diagnosis-safety 之前设置。
-process.env.CDSS_GATE_DISPOSITION = "block";
+// 渲染）。安全门只有一种处置口径（甲方 2026-08-01「提示不拦截」；block 回退档 2026-09-25 删除），
+// 所以这里测的就是生产行为：检测照常、剂量按独立硬边界与红旗剂量轴收回、流程不被拦截。
 const TEST_CUSTOMER_ID = "test-hospital";
 
 const jiti = createJiti(import.meta.url, { alias: { "@": `${process.cwd()}/src`, "server-only": "/dev/null" } });
@@ -65,9 +63,14 @@ assert.ok(sparseScheme.prescriptions.herbal.length > 0, "追问后有限候选�
 assert.equal(sparseScheme.writeBackPolicy.allowSingleItemAdoption, true);
 assert.equal(sparseScheme.candidateStatus, "valid");
 
+// 初始 A/B 级病例（尚未追问）：追问是增强手段而不是门槛——按有限信息生成候选，
+// 理由里明确建议补一轮追问；正式采纳仍须医生逐项确认未知边界。
 const sparseBeforeFollowup = { ...sparse, questionRounds: 0 };
-assert.equal(permission(sparseBeforeFollowup).candidateMode, "non_dose_only", "初始A/B级病例必须优先进入M02，不能直接跳过追问");
-assert.equal(permission(sparseBeforeFollowup).formalAdoption, "blocked");
+assert.deepEqual(permission(sparseBeforeFollowup), {
+  candidateMode: "limited_dose",
+  formalAdoption: "eligible_after_doctor_confirmation",
+  reasons: ["当前病历关键信息覆盖有限，候选按有限信息生成；建议补充一轮追问以提高信心"],
+}, "初始A/B级病例不拦截：有限信息候选 + 建议追问，不得升格为 full_dose，也不得退回非剂量拦截");
 
 for (const [id, chiefComplaint, presentHistory] of [
   ["BO02", "感冒", ""],
@@ -85,7 +88,8 @@ for (const [id, chiefComplaint, presentHistory] of [
     questionRounds: 0,
   };
   assert.equal(deriveOperationalCompleteness(state).level, "B", `${id}客户端伪造C级和默认舌脉不能绕过服务端信息量重算`);
-  assert.equal(permission(state).candidateMode, "non_dose_only", `${id}首轮必须先追问`);
+  // 伪造的 C 级不得换来 full_dose：服务端重算为 B 后，首轮未追问只给有限信息候选。
+  assert.equal(permission(state).candidateMode, "limited_dose", `${id}首轮未追问只能是有限信息候选`);
 }
 
 const advisoryOnly = {
@@ -364,13 +368,51 @@ const routeRequest = (path, state) => new Request(`http://localhost${path}`, {
   body: JSON.stringify({ caseState: state }),
 });
 
-// 1.2c: attested-unclear 且无确认 ⇒ M04 返回非剂量合同，不得静默进入剂量链
-assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(unclearScopeState)), true, "未确认的 attested-unclear 必须被门禁识别");
-const unconfirmedPrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", unclearScopeState))).text();
-assert.match(unconfirmedPrescribeText, /CDSS_NON_DOSE_PRESCRIPTION/, "未确认 unclear 必须返回非剂量合同");
-assert.match(unconfirmedPrescribeText, /本次当前活动性治疗目标确认/, "非剂量合同必须显式列出待确认项");
+// 1.2c: attested-unclear 且无确认 ⇒ 不拦截（提示不拦截）：照常进入候选生成，提示词要求模型在
+// 适用边界写明「本次就诊目标需医生确认」，可见正文置顶确定性安全警示横幅。
+// 用桩模型（假密钥 + 拦截 fetch）让路由真正走完生成：判据是「打到了上游 + 提示词 + 横幅」，
+// 而不是生成前那一页。桩只在本段生效，退出后恢复环境，后面的断言仍按无模型环境运行。
+const UNCLEAR_SCOPE_PROMPT = "【就诊目标待确认】";
+const UNCLEAR_SCOPE_BANNER_NOTE = "本次就诊是否存在当前活动性治疗目标未确认，请医生确认后再采纳。";
+const cannedPrescribeContent = `## 中药饮片处方\n\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(builtScopeState.reasoningPrescribe)}\n<!-- DIAGNOSIS_JSON_END -->`;
+async function prescribeWithStubModel(state, canned = cannedPrescribeContent) {
+  const stubEnv = { AI_TEXT_PROVIDER: "bailian-qwen", BAILIAN_QWEN_API_KEY: "permission-test-fake-key", BAILIAN_QWEN_MODEL: "qwen3.8-flash" };
+  const savedEnv = Object.fromEntries(Object.keys(stubEnv).map((key) => [key, process.env[key]]));
+  const previousFetch = globalThis.fetch;
+  const prompts = [];
+  Object.assign(process.env, stubEnv);
+  globalThis.fetch = async (_url, init = {}) => {
+    const body = JSON.parse(init.body);
+    prompts.push((body.messages || []).map((message) => String(message.content)).join("\n"));
+    const content = body.response_format && !JSON.stringify(body.response_format).includes("json_schema") ? "{}" : canned;
+    if (body.stream) {
+      const chunk = JSON.stringify({ id: "c", object: "chat.completion.chunk", choices: [{ index: 0, delta: { content }, finish_reason: "stop" }] });
+      return new Response(`data: ${chunk}\n\ndata: [DONE]\n\n`, { status: 200, headers: { "content-type": "text/event-stream" } });
+    }
+    return Response.json({ id: "c", object: "chat.completion", choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }] });
+  };
+  try {
+    const text = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", state))).text();
+    return { text, prompts };
+  } finally {
+    globalThis.fetch = previousFetch;
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
 
-// 1.2c: 指纹匹配的医生确认 ⇒ 门禁放行（本夹具随后停在确定性 M04 签名/复核门，而非 unclear 门）
+assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(unclearScopeState)), true, "未确认的 attested-unclear 必须被门禁识别");
+const unconfirmedPrescribe = await prescribeWithStubModel(unclearScopeState);
+assert.ok(unconfirmedPrescribe.prompts.length > 0, "未确认 unclear 不得在生成前拦截：必须照常进入候选生成");
+assert.ok(unconfirmedPrescribe.prompts.some((prompt) => prompt.includes(UNCLEAR_SCOPE_PROMPT)),
+  "未确认 unclear 的 M04 提示词必须要求模型写明「本次就诊目标需医生确认」");
+assert.match(unconfirmedPrescribe.text, /<!-- CDSS_SAFETY_ADVISORY -->/, "未确认 unclear 的可见正文必须置顶确定性安全警示横幅");
+assert.ok(unconfirmedPrescribe.text.includes(UNCLEAR_SCOPE_BANNER_NOTE), "横幅必须显式列出「就诊目标未确认」");
+assert.doesNotMatch(unconfirmedPrescribe.text, /本次当前活动性治疗目标确认/, "不得再返回生成前的待确认非剂量页");
+
+// 1.2c: 指纹匹配的医生确认 ⇒ 解除 unclear 标记（提示词与横幅都不再带就诊目标待确认）
 const confirmedScopeState = {
   ...unclearScopeState,
   encounterScopeConfirmation: {
@@ -379,21 +421,82 @@ const confirmedScopeState = {
   },
 };
 assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(confirmedScopeState)), false, "指纹匹配的确认必须解除 unclear 门禁");
+const confirmedPrescribe = await prescribeWithStubModel(confirmedScopeState);
+assert.ok(confirmedPrescribe.prompts.length > 0, "确认后照常进入候选生成");
+assert.ok(!confirmedPrescribe.prompts.some((prompt) => prompt.includes(UNCLEAR_SCOPE_PROMPT)), "确认后提示词不得再带就诊目标待确认");
+assert.ok(!confirmedPrescribe.text.includes(UNCLEAR_SCOPE_BANNER_NOTE), "确认后横幅不得再提示就诊目标未确认");
 const confirmedPrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", confirmedScopeState))).text();
-assert.doesNotMatch(confirmedPrescribeText, /本次当前活动性治疗目标确认/, "确认后不得再因 unclear 门禁拦截");
 // M03 复检改为注入 isSafetyRejection 谓词后, 本夹具的有限 M03(仅 T2 级缺陷)正确放行到
 // 生成层——单测环境无模型 API key, 推进到模型调用即为「已越过全部确定性门禁」的证明。
 // 若真回退到「缺少有效的西医诊断」拦截, 说明谓词又被丢掉(第7处复发点回归), 必须红。
 assert.match(confirmedPrescribeText, /OPENAI_API_KEY not configured|辨证语义复核未完成/, "确认后流程应推进过 M03 复检直至生成层");
 
-// 1.2c: 过期指纹（病历已变化）的确认 ⇒ 仍阻断
+// 1.2c: 过期指纹（病历已变化）的确认 ⇒ 仍视为未确认
 const staleConfirmedState = {
   ...unclearScopeState,
   encounterScopeConfirmation: { sourceFingerprint: "0".repeat(32), confirmedAt: new Date().toISOString() },
 };
 assert.equal(hasUnconfirmedUnclearEncounterScope(withSafetyGate(staleConfirmedState)), true, "过期指纹确认不得解除门禁");
-const stalePrescribeText = await (await prescribePost(routeRequest("/api/diagnosis/prescribe", staleConfirmedState))).text();
-assert.match(stalePrescribeText, /本次当前活动性治疗目标确认/, "过期指纹确认下仍必须返回待确认非剂量合同");
+const stalePrescribe = await prescribeWithStubModel(staleConfirmedState);
+assert.ok(stalePrescribe.prompts.some((prompt) => prompt.includes(UNCLEAR_SCOPE_PROMPT)), "过期指纹确认下提示词仍必须带就诊目标待确认");
+assert.ok(stalePrescribe.text.includes(UNCLEAR_SCOPE_BANNER_NOTE), "过期指纹确认下横幅仍必须提示就诊目标未确认");
+
+// ─── 剂量收回的端到端交付（红旗剂量轴 / 独立硬边界）────────────────────────────────
+// 生成照常进行、候选药味与方义照常交付，但最终页走服务端非剂量投影：置顶横幅写明原因，
+// 带 dose_authorization_withheld 机器码，全流不出现任何用量。对照组（无红旗、无硬边界）用
+// 同一个桩模型，证明桩的候选确实带剂量——否则「没有剂量」可能只是桩没给。
+async function signedDoseAxisState(id, controlPatch) {
+  const control = { ...scopeControl, id: `dose-axis-${id}`, mutation: "dose-axis", chiefComplaint: "入睡困难伴多梦2个月，白天疲乏", ...controlPatch };
+  const unsigned = buildAuditPositiveControlState(control);
+  unsigned.customerId = TEST_CUSTOMER_ID;
+  const signed = signDiagnoseReasoning({
+    ...unsigned.reasoningPrescribe,
+    stage: "diagnose",
+    overview: { ...unsigned.reasoningPrescribe.overview, primarySyndromeResolution: "resolved", recommendedFormulaNames: [], formulaSelectionMode: "self_devised" },
+    formula: null,
+    nonPharma: null,
+    clinicalReview: undefined,
+  }, buildDiagnoseContractSignatureContext(unsigned));
+  const built = buildAuditPositiveControlState(control, signed);
+  built.customerId = TEST_CUSTOMER_ID;
+  let state = normalizeCaseStateInput(JSON.parse(JSON.stringify(built)));
+  if (withSafetyGate(state).safetyGate?.status !== "red_flag") {
+    state = await maybeAttachClinicalFactsBackstop(state, async () => JSON.stringify({ redFlags: [] }));
+  }
+  const canned = `## 中药饮片处方\n\n<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(built.reasoningPrescribe)}\n<!-- DIAGNOSIS_JSON_END -->`;
+  return {
+    state: normalizeCaseStateInput(JSON.parse(JSON.stringify({ ...state, reasoningPrescribe: undefined, prescription: undefined, prescriptionRevision: undefined, reasoningV2: signed }))),
+    canned,
+  };
+}
+const DOSE_AMOUNT = /\b\d+(?:\.\d+)?\s*(?:g|克)\b/i;
+const finalSegment = (ndjson) => ndjson.split("\n").filter(Boolean)
+  .map((line) => { try { return JSON.parse(line).content || ""; } catch { return ""; } })
+  .join("").split("<<<CDSS_STREAM_FINAL>>>").pop();
+{
+  const doseControl = await signedDoseAxisState("control", {});
+  assert.equal(permission(doseControl.state).candidateMode === "non_dose_only", false, "对照组前提：剂量授权未收回");
+  const controlFinal = finalSegment((await prescribeWithStubModel(doseControl.state, doseControl.canned)).text);
+  assert.match(controlFinal, DOSE_AMOUNT, "对照组：桩模型的候选必须带剂量并被交付，否则下面的「无剂量」断言没有意义");
+  assert.doesNotMatch(controlFinal, /CDSS_NON_DOSE_PRESCRIPTION/, "对照组不得走非剂量投影");
+
+  for (const [id, patch, reasonPattern] of [
+    ["red-flag", { chiefComplaint: "当前持续压榨性胸痛30分钟未缓解，伴大汗" }, /红旗提示：胸痛/],
+    ["pediatric", { patient: { sex: "男", age: 8 } }, /儿童病例当前未配置可验证的个体化剂量规则/],
+  ]) {
+    const { state, canned } = await signedDoseAxisState(id, patch);
+    assert.equal(permission(state).candidateMode, "non_dose_only", `${id}: 前提——剂量授权被收回`);
+    const { text, prompts } = await prescribeWithStubModel(state, canned);
+    const final = finalSegment(text);
+    assert.ok(prompts.length > 0, `${id}: 剂量收回不得在生成前拦截`);
+    assert.doesNotMatch(text, DOSE_AMOUNT, `${id}: 整条流（含草稿）不得出现任何用量`);
+    assert.match(final, /CDSS_NON_DOSE_PRESCRIPTION/, `${id}: 最终页必须是非剂量投影`);
+    assert.match(final, /CDSS_REASON_CODE:dose_authorization_withheld/, `${id}: 必须带剂量授权收回机器码`);
+    assert.match(final, /黄芪（君）/, `${id}: 候选药味与君臣照常交付（收回的是剂量，不是候选）`);
+    assert.ok(final.startsWith("<!-- CDSS_SAFETY_ADVISORY -->"), `${id}: 最终页必须以确定性安全警示横幅开头`);
+    assert.match(final, reasonPattern, `${id}: 横幅必须写明收回剂量的具体原因`);
+  }
+}
 
 // 1.2d: HIS 方案同样不得为未确认 unclear 输出剂量级药味
 const unconfirmedHisResponse = await hisSchemePost(routeRequest("/api/diagnosis/his-scheme", unclearScopeState));
@@ -525,17 +628,20 @@ for (const [label, redFlags] of [
 
 console.log(JSON.stringify({ cases: 72, failures: 0 }));
 
-// ─── 处置模式：默认 advise（提示不拦截），block 为显式回退档 ─────────────────────
-// 本套件顶部把进程切到了 block 档来测机制；这里验证开关本身的语义与默认值，
-// 以及横幅构造器的确定性输出（不经模型、有稳定标记、必含审方提示）。
+// ─── 处置口径只有「提示不拦截」一种（block 回退档 2026-09-25 删除）─────────────────
+// 残留的旧环境变量不得复活拦截行为；以及横幅构造器的确定性输出（不经模型、有稳定标记、必含审方提示）。
 {
-  const { gateDispositionIsAdvisory, buildSafetyAdvisoryBanner, SAFETY_ADVISORY_MARKER } =
+  const { buildSafetyAdvisoryBanner, SAFETY_ADVISORY_MARKER } =
     await jiti.import("../src/lib/diagnosis-safety.ts");
-  assert.equal(gateDispositionIsAdvisory(), false, "本套件已显式设 block，开关必须尊重环境变量");
+  // try/finally：jiti 在断言抛错后会重跑整个文件，残留的环境变量会把失败归因到别的断言上。
   const prev = process.env.CDSS_GATE_DISPOSITION;
-  delete process.env.CDSS_GATE_DISPOSITION;
-  assert.equal(gateDispositionIsAdvisory(), true, "缺省必须是 advise——CDSS 不阻断临床流程是产品语义");
-  process.env.CDSS_GATE_DISPOSITION = prev;
+  process.env.CDSS_GATE_DISPOSITION = "block";
+  try {
+    assert.equal(permission(sparseBeforeFollowup).candidateMode, "limited_dose", "残留 CDSS_GATE_DISPOSITION=block 不得复活首轮拦截");
+  } finally {
+    if (prev === undefined) delete process.env.CDSS_GATE_DISPOSITION;
+    else process.env.CDSS_GATE_DISPOSITION = prev;
+  }
   const banner = buildSafetyAdvisoryBanner(
     { status: "red_flag", allowDiagnosis: false, allowDosePrescription: false, action: "refer_or_emergency",
       missingItems: [], redFlags: ["胸痛伴大汗"], reasons: ["建议急诊评估优先"] },

@@ -8,7 +8,7 @@ import { buildFormulaAnalysis, formulaStructureTarget, formulaTargetPathogenesis
 import { PRECAUTION_DOSE_LIKE } from "./m04-proposal-compiler";
 import { customerEvidenceDisplayStatus } from "./customer-evidence";
 import { affirmedClinicalSourceClauses, affirmedClinicalText, clinicalClausePolarity, stripClinicalSectionLabel, isWhollyNegatedClinicalFact } from "./clinical-polarity";
-import { gateDispositionIsAdvisory, sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
+import { sourceDocumentsNegation, syndromeAxisInformationSufficient } from "./diagnosis-safety";
 import { getM03TherapyLock } from "./m03-therapy-lock";
 import { buildClinicianTreatmentProjects } from "./tcm-treatment-clinician-view";
 import { canonicalWesternDifferentialName, westernDifferentialIdentity } from "./clinical-terminology";
@@ -84,13 +84,10 @@ export function applyGovernedM03DiseaseDifferentialBoundary(content: string, sta
 }
 
 /**
- * Product decision table for M03 specificity:
- * - completeness below C: symptom-level working judgment only;
- * - active deterministic red flag: the same convergence, with emergency evaluation first.
- *
- * This is a declassification transform. It never invents a diagnosis or treatment, and it never
- * clears the whole report: grounded symptoms, Western working diagnosis, safety-net and mustCollect
- * remain available while syndrome/formula specificity is removed at the final emission boundary.
+ * Product decision table for M03 specificity (below-C completeness, or an active deterministic red
+ * flag): the M03 content is kept in full and annotated with a boundary — see
+ * annotateM03DecisionSpecificityBoundary. C-level ready cases, and B-level cases whose syndrome axes
+ * are already sufficient, pass through unchanged.
  */
 export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseState): string {
   const completenessLevel = state?.completeness?.level;
@@ -106,171 +103,33 @@ export function applyM03DecisionSpecificityPolicy(content: string, state?: CaseS
   ) {
     return content;
   }
-  const reason = activeRedFlag
-    ? "急危重风险未排除，当前仅保留症状级工作判断；先完成急诊或转诊评估并记录排除依据，再作具体辨证与方剂选择。"
-    : "完整度未达C级，当前仅保留症状级工作判断；补充病程、伴随表现及必要四诊后，再作具体辨证与方剂选择。";
   const mustCollect = activeRedFlag
     ? "完成急危重风险评估并记录排除或处置依据"
     : "补充影响辨证的病程、伴随表现及必要四诊";
-  // ── advise 档：标注边界，不撤回已经形成的分析（owner 决策 2026-09-13）────────────────
+  // ── 标注边界，不撤回已经形成的分析（owner 决策 2026-09-13）────────────────────────
   //
-  // 222 例实测里 28 例最终没有药味候选，根因就在这里：入口按 advise 档放行了完整 M03，
-  // 最终出口这段固定代码又把证候、病位病性、病机链、方剂方向全部清空，M04 随后把
-  // 「unresolved + 空链」当成不具备生成条件而直接返回。甲方风寒病例流中已出现
-  // 「感冒／风寒束表证」，最终却被改写成「症状级工作判断」——是服务端撤回了结果，
-  // 不是模型没想出来。
+  // 222 例实测里 28 例最终没有药味候选，根因就在这里：入口放行了完整 M03，最终出口的
+  // 旧代码又把证候、病位病性、病机链、方剂方向全部清空，M04 随后把「unresolved + 空链」
+  // 当成不具备生成条件而直接返回。甲方风寒病例流中已出现「感冒／风寒束表证」，最终却被
+  // 改写成「症状级工作判断」——是服务端撤回了结果，不是模型没想出来。
   //
-  // 处置档位必须在这里生效（此前本函数**根本不读** CDSS_GATE_DISPOSITION，
-  // 与 diagnose/prescribe 两条路由的 advise 分支互相矛盾）。advise 档改为：
-  // 内容一律保留，把「为什么还不能直接采纳」写成边界、不确定项与补采项；
-  // 肯定级结论降为 bounded，如实表达「这是有界建议」。
-  // block 档（运维回退）维持旧的去具体度行为，由 test:m03-specificity-policy 两头钉住。
+  // 现在内容一律保留，把「为什么还不能直接采纳」写成边界、不确定项与补采项；
+  // 肯定级结论降为 bounded，如实表达「这是有界建议」。（清空式投影随 block 回退档
+  // 于 2026-09-25 一并删除。）锚点词（急危重风险未排除 / 完整度未达C级）保持稳定，
+  // 以便前后端与测试按语义定位。
   //
   // 剂量授权是**另一根轴**：红旗病例的剂量仍由 CDSS_REDFLAG_DOSE_AUTHORIZATION 收回
   // （derivePrescriptionPermission 给 non_dose_only），本函数不授权任何剂量。
-  if (gateDispositionIsAdvisory()) {
-    // 边界措辞必须与本档实际行为一致。block 档那句「当前仅保留症状级工作判断」描述的是清空，
-    // advise 档照抄会直接自相矛盾——上线首次实测就印出「急危重风险未排除，当前仅保留症状级
-    // 工作判断」的同一页里写着「气虚血瘀证」。两档各写各的理由，锚点词（急危重风险未排除 /
-    // 完整度未达C级）保持一致以便前后端与测试按语义定位。
-    const adviseReason = activeRedFlag
-      ? "急危重风险未排除：以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；本次不显示具体用量，正式采纳须在风险处置之后。"
-      : "完整度未达C级：以下结论基于现有信息形成，属有界建议；补充病程、伴随表现及必要四诊可提高确定性，正式采纳前请医生核对未知项。";
-    return annotateM03DecisionSpecificityBoundary(content, { reason: adviseReason, mustCollect, activeRedFlag });
-  }
-  return content.replace(
-    /<!-- DIAGNOSIS_JSON_START -->\s*([\s\S]*?)\s*<!-- DIAGNOSIS_JSON_END -->/g,
-    (match, jsonText: string) => {
-      try {
-        const reasoning = JSON.parse(jsonText) as Record<string, unknown>;
-        if (reasoning.stage !== "diagnose") return match;
-        const overview = reasoning.overview && typeof reasoning.overview === "object" && !Array.isArray(reasoning.overview)
-          ? reasoning.overview as Record<string, unknown>
-          : undefined;
-        if (!overview) return match;
-        const insufficientEvidence = {
-          evidenceLevel: "insufficient",
-          source: "当前病例信息不足",
-          confidence: "低",
-        };
-        delete overview.tcmDiseaseName;
-        overview.primarySyndrome = "症状级工作判断";
-        overview.primarySyndromeResolution = "unresolved";
-        overview.primarySyndromeResolutionReason = reason;
-        overview.primarySyndromeBasis = [];
-        overview.tcmDiseaseRationale = "";
-        overview.tcmDiagnosticRationale = "";
-        overview.tcmDiseaseReferences = [];
-        overview.tcmSyndromeReferences = [];
-        overview.tcmDifferentials = [];
-        overview.tcmDiseaseDifferentials = [];
-        overview.secondarySyndromes = [];
-        overview.overallPathogenesis = "当前不形成具体中医病机判断";
-        overview.overallTherapy = "当前不锁定具体中医治法";
-        overview.recommendedFormulaDirection = "";
-        overview.recommendedFormulaNames = [];
-        overview.formulaSelectionMode = "none";
-        delete overview.deferredFormulaSelection;
-        overview.evidence = insufficientEvidence;
-
-        // 降级态仍保留西医症状级工作诊断，但 westernDiagnosis 也含大量模型
-        // 自由文本。不能让具体证候/方药/穴位改塞进 rationale、limitations、
-        // suggestedChecks、differentials 或 candidates 后穿过投影。只保留已经上游
-        // 接地的西医工作诊断名和患者事实，其余完全重建为确定性边界。
-        const westernDiagnosis = reasoning.westernDiagnosis && typeof reasoning.westernDiagnosis === "object" && !Array.isArray(reasoning.westernDiagnosis)
-          ? reasoning.westernDiagnosis as Record<string, unknown>
-          : undefined;
-        const westernPrimary = westernDiagnosis?.primary && typeof westernDiagnosis.primary === "object" && !Array.isArray(westernDiagnosis.primary)
-          ? westernDiagnosis.primary as Record<string, unknown>
-          : undefined;
-        if (westernDiagnosis && westernPrimary) {
-          // 降级态不把任何自由文本签成“西医诊断支持依据”。字段落点不是语义类别：
-          // 主诉同样可写“曾用院内方后好转”，现病史也可夹自拟方/外治经过。
-          // 在没有服务端原子化症状/体征/检查类型证明前，宁可清空依据列表；原始
-          // 患者事实仍保留在病例记录，只是不再被此降级载荷冒充诊断证据。
-          westernDiagnosis.primary = {
-            name: "症状级西医工作判断",
-            status: ["考虑", "需排除", "证据有限"].includes(String(westernPrimary.status))
-              ? westernPrimary.status
-              : "证据有限",
-            confidence: "低",
-            supportingFacts: [],
-            supportingFactKinds: [],
-            clinicalRationale: "当前资料仅支持症状级西医工作判断，病因与分型待补充信息或排除急危重风险后复评。",
-            limitations: [reason],
-            suggestedChecks: [mustCollect],
-            evidence: insufficientEvidence,
-          };
-          westernDiagnosis.differentials = [];
-          westernDiagnosis.candidates = [];
-        }
-
-        const pathogenesis = reasoning.pathogenesis && typeof reasoning.pathogenesis === "object" && !Array.isArray(reasoning.pathogenesis)
-          ? reasoning.pathogenesis as Record<string, unknown>
-          : undefined;
-        if (pathogenesis) {
-          // uncertainty 也是模型自由文本的可见签名字段。不继承原 item/reason/affects，
-          // 否则具体证候、方药或穴位可换个栏位穿过同一降级边界。
-          pathogenesis.uncertainties = [{
-            item: "辨证与方剂具体度边界",
-            reason,
-            affects: "不影响症状级工作判断、危险信号筛查和待补采清单。",
-          }];
-          pathogenesis.summary = "当前仅保留症状级工作判断，中医病机待补充信息或排除急危重风险后再评估。";
-          pathogenesis.locationDifferentiation = {
-            items: [],
-            details: [],
-            resolution: "unresolved",
-            resolutionReason: reason,
-            evidence: insufficientEvidence,
-          };
-          pathogenesis.natureDifferentiation = {
-            items: [],
-            rootDeficiency: [],
-            branchExcess: [],
-            basis: "",
-            resolution: "unresolved",
-            resolutionReason: reason,
-            evidence: insufficientEvidence,
-          };
-          pathogenesis.symptomClusters = [];
-          delete pathogenesis.caseRelationship;
-          pathogenesis.chain = [];
-        }
-        reasoning.therapy = {
-          overallPrinciple: "当前仅进行症状与安全风险管理",
-          overallMethod: "补充信息或排除急危重风险后再定具体治法",
-          subTherapies: [],
-        };
-        reasoning.formula = null;
-        reasoning.nonPharma = null;
-        reasoning.lineageAdaptation = null;
-        reasoning.terminologyMappings = [];
-        // management 三个字段也是模型自由文本，且前端直接展示。不能只清理
-        // overview/pathogenesis：“风寒束表证 / 麻黄汤 / 针刺肺俞”若被塞到随访或
-        // 补采字段，同样会穿过降级边界并进入签名载荷。因此这里不继承任何
-        // 原 management 文本，只重建确定性的安全提示与补采清单。
-        reasoning.management = {
-          ...(activeRedFlag ? {
-            redFlagLoop: "急危重风险未排除：请立即按安全门提示完成急诊或转诊评估，未记录排除或处置依据前不进入具体辨证与方药选择。",
-          } : {}),
-          mustCollect: [mustCollect],
-          followupSafetyNet: activeRedFlag
-            ? "当前应优先完成急危重风险评估；如症状持续、加重或出现新的急性危险信号，请立即急诊或呼叫急救。"
-            : "先补充影响诊断与安全判断的关键信息后再复评；如症状明显加重或出现急性危险信号，请及时急诊就医。",
-        };
-        return `<!-- DIAGNOSIS_JSON_START -->\n${JSON.stringify(reasoning)}\n<!-- DIAGNOSIS_JSON_END -->`;
-      } catch {
-        return match;
-      }
-    },
-  );
+  const reason = activeRedFlag
+    ? "急危重风险未排除：以下辨证、病机与治法结论供医生参考，请先完成急诊或转诊评估并记录排除或处置依据；本次不显示具体用量，正式采纳须在风险处置之后。"
+    : "完整度未达C级：以下结论基于现有信息形成，属有界建议；补充病程、伴随表现及必要四诊可提高确定性，正式采纳前请医生核对未知项。";
+  return annotateM03DecisionSpecificityBoundary(content, { reason, mustCollect, activeRedFlag });
 }
 
 /**
- * advise 档下 M03 终审出口的**保留式投影**：一个字不删，只加边界（2026-09-13）。
+ * M03 终审出口的**保留式投影**：一个字不删，只加边界（2026-09-13）。
  *
- * 与上面的去具体度投影是同一个决策点的两个档位。这里做四件事，全部是「只加不减」：
+ * 这里做四件事，全部是「只加不减」：
  *  1. 肯定级主证降为 `bounded` —— 如实表达「有界建议」，而不是把它改写成症状级判断；
  *     已是 unresolved 的维持原样（模型自己就没形成结论，不该被抬高）。
  *  2. 边界理由写进 primarySyndromeResolutionReason（保留模型原有理由，前置本条）。
@@ -3363,7 +3222,7 @@ function visibleDiagnoseFromReasoning(reasoning: Record<string, unknown>, clinic
       ? [`**中医辨病循证依据**：${structuredCitationTexts(overview?.tcmDiseaseReferences).join("；")}`]
       : []),
     `**辨证**：${syndromeLabelWithNationalStandard(reasoning, "overview.primarySyndrome", overview?.primarySyndrome)}`,
-    // bounded 也必须渲染边界（2026-09-13）。advise 档保留式投影把「为什么还不能直接采纳」
+    // bounded 也必须渲染边界（2026-09-13）。M03 保留式投影把「为什么还不能直接采纳」
     // 写在这里；只渲染 unresolved 会让医生看到一个没有任何限定的具体证候。
     ...((overview?.primarySyndromeResolution === "unresolved" || overview?.primarySyndromeResolution === "bounded") &&
       markdownCell(overview?.primarySyndromeResolutionReason)
